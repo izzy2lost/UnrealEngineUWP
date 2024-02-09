@@ -342,6 +342,7 @@ namespace PCGSplineSamplerHelpers
 		FVector::FReal Curvature = 0;
 		int SegmentIndex = 0;
 		int SubsegmentIndex = 0;
+		float InputKey = 0.0f;
 		FVector ArriveTangent = FVector::Zero();
 		FVector LeaveTangent = FVector::Zero();
 		FVector::FReal PreviousDeltaAngle = 0;
@@ -430,6 +431,7 @@ namespace PCGSplineSamplerHelpers
 			OutTransform = LineData->GetTransformAtDistance(SegmentIndex, DistanceAlongSegment, /*bWorldSpace=*/false, &OutBox);
 			OutResult.SegmentIndex = LineData->IsClosed() ? CurrentSegmentIndex : SegmentIndex;
 			OutResult.SubsegmentIndex = SubpointIndex;
+			OutResult.InputKey = LineData->GetInputKeyAtDistance(SegmentIndex, DistanceAlongSegment);
 
 			if (bComputeCurvature)
 			{
@@ -526,6 +528,7 @@ namespace PCGSplineSamplerHelpers
 			FBox& OutBox = OutResult.Box;
 			OutTransform = LineData->GetTransformAtDistance(CurrentSegmentIndex, CurrentDistance, /*bWorldSpace=*/false, &OutBox);
 			OutResult.SegmentIndex = CurrentSegmentIndex;
+			OutResult.InputKey = LineData->GetInputKeyAtDistance(CurrentSegmentIndex, CurrentDistance);
 
 			// Set min/max to half of extent
 			OutBox.Min.X *= 0.5 * DistanceIncrement / OutTransform.GetScale3D().X;
@@ -588,61 +591,65 @@ namespace PCGSplineSamplerHelpers
 			ProjectionTargetData = InProjectionTarget;
 			ProjectionParams = InProjectionParams;
 
+			UPCGMetadata* Metadata = OutPointData ? OutPointData->Metadata : nullptr;
+
 			// Initialize metadata accessors if needed
-			if (OutPointData
-				&& OutPointData->Metadata
-				&& (Params.bComputeDirectionDelta
-					|| Params.bComputeCurvature
-					|| Params.bComputeSegmentIndex
-					|| Params.bComputeSubsegmentIndex
-					|| Params.bComputeTangents
-					|| Params.bComputeAlpha
-					|| Params.bComputeDistance))
+			if (Metadata)
 			{
 				constexpr double DefaultValue = 0.0;
+
+				bHasCustomMetadata = LineData->HasCustomMetadata();
+				bSetMetadata |= bHasCustomMetadata;
+
 				if (Params.bComputeDirectionDelta)
 				{
-					NextDirectionDeltaAttribute = OutPointData->Metadata->FindOrCreateAttribute<double>(Params.NextDirectionDeltaAttribute, DefaultValue);
+					NextDirectionDeltaAttribute = Metadata->FindOrCreateAttribute<double>(Params.NextDirectionDeltaAttribute, DefaultValue);
 					bSetMetadata |= (NextDirectionDeltaAttribute != nullptr);
 				}
 
 				if (Params.bComputeCurvature)
 				{
-					CurvatureAttribute = OutPointData->Metadata->FindOrCreateAttribute<double>(Params.CurvatureAttribute, DefaultValue);
+					CurvatureAttribute = Metadata->FindOrCreateAttribute<double>(Params.CurvatureAttribute, DefaultValue);
 					bSetMetadata |= (CurvatureAttribute != nullptr);
 				}
 
 				if (Params.bComputeSegmentIndex)
 				{
-					SegmentIndexAttribute = OutPointData->Metadata->FindOrCreateAttribute<int>(Params.SegmentIndexAttribute, static_cast<int>(DefaultValue));
+					SegmentIndexAttribute = Metadata->FindOrCreateAttribute<int>(Params.SegmentIndexAttribute, static_cast<int>(DefaultValue));
 					bSetMetadata |= (SegmentIndexAttribute != nullptr);
 				}
 
 				if (Params.bComputeSubsegmentIndex)
 				{
-					SubsegmentIndexAttribute = OutPointData->Metadata->FindOrCreateAttribute<int>(Params.SubsegmentIndexAttribute, static_cast<int>(DefaultValue));
+					SubsegmentIndexAttribute = Metadata->FindOrCreateAttribute<int>(Params.SubsegmentIndexAttribute, static_cast<int>(DefaultValue));
 					bSetMetadata |= (SubsegmentIndexAttribute != nullptr);
 				}
 
 				if (Params.bComputeTangents)
 				{
-					ArriveTangentAttribute = OutPointData->Metadata->FindOrCreateAttribute<FVector>(Params.ArriveTangentAttribute, FVector::Zero());
+					ArriveTangentAttribute = Metadata->FindOrCreateAttribute<FVector>(Params.ArriveTangentAttribute, FVector::Zero());
 					bSetMetadata |= (ArriveTangentAttribute != nullptr);
 
-					LeaveTangentAttribute = OutPointData->Metadata->FindOrCreateAttribute<FVector>(Params.LeaveTangentAttribute, FVector::Zero());
+					LeaveTangentAttribute = Metadata->FindOrCreateAttribute<FVector>(Params.LeaveTangentAttribute, FVector::Zero());
 					bSetMetadata |= (LeaveTangentAttribute != nullptr);
 				}
 
 				if (Params.bComputeAlpha)
 				{
-					AlphaAttribute = OutPointData->Metadata->FindOrCreateAttribute<double>(Params.AlphaAttribute, DefaultValue);
+					AlphaAttribute = Metadata->FindOrCreateAttribute<double>(Params.AlphaAttribute, DefaultValue);
 					bSetMetadata |= (AlphaAttribute != nullptr);
 				}
 
 				if (Params.bComputeDistance)
 				{
-					DistanceAttribute = OutPointData->Metadata->FindOrCreateAttribute<double>(Params.DistanceAttribute, DefaultValue);
+					DistanceAttribute = Metadata->FindOrCreateAttribute<double>(Params.DistanceAttribute, DefaultValue);
 					bSetMetadata |= (DistanceAttribute != nullptr);
+				}
+
+				if (Params.bComputeInputKey)
+				{
+					InputKeyAttribute = Metadata->FindOrCreateAttribute<float>(Params.InputKeyAttribute, static_cast<float>(DefaultValue));
+					bSetMetadata |= (InputKeyAttribute != nullptr);
 				}
 			}
 		}
@@ -654,6 +661,11 @@ namespace PCGSplineSamplerHelpers
 			if (bSetMetadata)
 			{
 				OutMetadata->InitializeOnSet(OutPoint.MetadataEntry);
+			}
+
+			if (bHasCustomMetadata)
+			{
+				LineData->WriteMetadataToPoint(InResult.InputKey, OutPoint, OutMetadata);
 			}
 
 			if (NextDirectionDeltaAttribute)
@@ -694,6 +706,11 @@ namespace PCGSplineSamplerHelpers
 			if (DistanceAttribute)
 			{
 				DistanceAttribute->SetValue(OutPoint.MetadataEntry, InResult.Distance);
+			}
+
+			if (InputKeyAttribute)
+			{
+				InputKeyAttribute->SetValue(OutPoint.MetadataEntry, InResult.InputKey);
 			}
 		}
 
@@ -736,6 +753,7 @@ namespace PCGSplineSamplerHelpers
 		FPCGProjectionParams ProjectionParams;
 
 		bool bSetMetadata = false;
+		bool bHasCustomMetadata = false;
 		FPCGMetadataAttribute<double>* NextDirectionDeltaAttribute = nullptr;
 		FPCGMetadataAttribute<double>* CurvatureAttribute = nullptr;
 		FPCGMetadataAttribute<int>* SegmentIndexAttribute = nullptr;
@@ -744,6 +762,7 @@ namespace PCGSplineSamplerHelpers
 		FPCGMetadataAttribute<FVector>* ArriveTangentAttribute = nullptr;
 		FPCGMetadataAttribute<double>* AlphaAttribute = nullptr;
 		FPCGMetadataAttribute<double>* DistanceAttribute = nullptr;
+		FPCGMetadataAttribute<float>* InputKeyAttribute = nullptr;
 	};
 
 	/** Samples in a volume surrounding the poly line. */

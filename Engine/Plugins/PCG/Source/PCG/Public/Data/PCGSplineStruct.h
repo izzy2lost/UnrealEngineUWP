@@ -13,7 +13,7 @@ struct PCG_API FPCGSplineStruct
 {
 	GENERATED_BODY()
 
-	void Initialize(USplineComponent* InSplineComponent);
+	void Initialize(const USplineComponent* InSplineComponent);
 	void Initialize(const TArray<FSplinePoint>& InSplinePoints, bool bIsClosedLoop, const FTransform& InTransform);
 	void ApplyTo(USplineComponent* InSplineComponent);
 

@@ -17,6 +17,10 @@ class PCG_API UPCGLandscapeSplineData : public UPCGPolyLineData
 public:
 	void Initialize(ULandscapeSplinesComponent* InSplineComponent);
 
+	// ~Begin UObject interface
+	virtual void PostLoad() override;
+	// ~End UObject interface
+
 	// ~Begin UPCGData interface
 	virtual EPCGDataType GetDataType() const override { return EPCGDataType::LandscapeSpline; }
 	virtual void AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const override;
@@ -28,7 +32,9 @@ public:
 	virtual FVector::FReal GetSegmentLength(int SegmentIndex) const override;
 	virtual FTransform GetTransformAtDistance(int SegmentIndex, FVector::FReal Distance, bool bWorldSpace = true, FBox* OutBounds = nullptr) const override;
 	virtual FVector::FReal GetCurvatureAtDistance(int SegmentIndex, FVector::FReal Distance) const override;
+	virtual float GetInputKeyAtDistance(int SegmentIndex, FVector::FReal Distance) const override;
 	virtual void GetTangentsAtSegmentStart(int SegmentIndex, FVector& OutArriveTangent, FVector& OutLeaveTangent) const override;
+	virtual FVector::FReal GetDistanceAtSegmentStart(int SegmentIndex) const override;
 	//~End UPCGPolyLineData interface
 
 	//~Begin UPCGSpatialDataWithPointCache interface
@@ -42,9 +48,18 @@ protected:
 	virtual UPCGSpatialData* CopyInternal() const override;
 	//~End UPCGSpatialData interface
 
+	/** Recompute the reparameterization of the spline by distance. */
+	void UpdateReparamTable();
+
+	/** Get the index of the first interp point before a given distance. Also computes the Alpha describing how far (in [0, 1]) the sample is between the left and right points. */
+	void GetInterpPointAtDistance(int SegmentIndex, FVector::FReal Distance, int32& OutPointIndex, bool bComputeAlpha, FVector::FReal& OutAlpha) const;
+
 protected:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = SourceData)
 	TWeakObjectPtr<ULandscapeSplinesComponent> Spline;
+
+	/** Reparameterization of the spline by distance. Useful to query the InputKey at arbitrary distance. */
+	FInterpCurveFloat ReparamTable;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

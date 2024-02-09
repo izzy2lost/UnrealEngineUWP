@@ -42,6 +42,14 @@ void UPCGLandscapeSplineData::Initialize(ULandscapeSplinesComponent* InSplineCom
 {
 	check(InSplineComponent);
 	Spline = InSplineComponent;
+
+	UpdateReparamTable();
+}
+
+void UPCGLandscapeSplineData::PostLoad()
+{
+	Super::PostLoad();
+	UpdateReparamTable();
 }
 
 void UPCGLandscapeSplineData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
@@ -65,151 +73,121 @@ int UPCGLandscapeSplineData::GetNumSegments() const
 
 FVector::FReal UPCGLandscapeSplineData::GetSegmentLength(int SegmentIndex) const
 {
-	check(Spline.IsValid());
-	check(SegmentIndex >= 0 && SegmentIndex < Spline->GetSegments().Num());
-
-	const ULandscapeSplineSegment* Segment = Spline->GetSegments()[SegmentIndex];
-	const TArray<FLandscapeSplineInterpPoint>& InterpPoints = Segment->GetPoints();
-	FVector::FReal Length = 0;
-
-	for (int PointIndex = 1; PointIndex < InterpPoints.Num(); ++PointIndex)
-	{
-		Length += (InterpPoints[PointIndex].Center - InterpPoints[PointIndex - 1].Center).Length();
-	}
-
-	return Length;
+	return GetDistanceAtSegmentStart(SegmentIndex + 1) - GetDistanceAtSegmentStart(SegmentIndex);
 }
 
 FTransform UPCGLandscapeSplineData::GetTransformAtDistance(int SegmentIndex, FVector::FReal Distance, bool bWorldSpace, FBox* OutBounds) const
 {
-	check(Spline.IsValid());
-	check(SegmentIndex >= 0 && SegmentIndex < Spline->GetSegments().Num());
+	check(Spline.IsValid() && Spline->GetSegments().IsValidIndex(SegmentIndex));
 
 	const ULandscapeSplineSegment* Segment = Spline->GetSegments()[SegmentIndex];
 	check(Segment);
 
-	const FLandscapeSplineSegmentConnection& Start = Segment->Connections[0];
-	const FLandscapeSplineSegmentConnection& End = Segment->Connections[1];
-
 	const TArray<FLandscapeSplineInterpPoint>& InterpPoints = Segment->GetPoints();
-	FVector::FReal Length = FMath::Max(0, Distance);
 
-	for (int PointIndex = 1; PointIndex < InterpPoints.Num(); ++PointIndex)
+	int32 PointIndex;
+	FVector::FReal Alpha;
+	GetInterpPointAtDistance(SegmentIndex, Distance, PointIndex, /*bComputeAlpha=*/true, Alpha);
+
+	check(InterpPoints.IsValidIndex(PointIndex));
+	const FLandscapeSplineInterpPoint& PreviousPoint = InterpPoints[PointIndex];
+	const FLandscapeSplineInterpPoint& CurrentPoint = InterpPoints[FMath::Min(PointIndex + 1, InterpPoints.Num() - 1)]; // If our RightPoint ends up being on the next segment, clamp it back to the current segment.
+
+	const FVector XAxis = CurrentPoint.Center - PreviousPoint.Center;
+	const FVector PreviousYAxis = PreviousPoint.Right - PreviousPoint.Center;
+	const FVector CurrentYAxis = CurrentPoint.Right - CurrentPoint.Center;
+	const FVector PreviousZAxis = (XAxis ^ PreviousYAxis).GetSafeNormal(UE_SMALL_NUMBER, FVector::ZAxisVector);
+	const FVector CurrentZAxis = (XAxis ^ CurrentYAxis).GetSafeNormal(UE_SMALL_NUMBER, FVector::ZAxisVector);
+
+	FTransform PreviousTransform = FTransform(XAxis, PreviousYAxis, PreviousZAxis, PreviousPoint.Center);
+	FTransform CurrentTransform = FTransform(XAxis, CurrentYAxis, CurrentZAxis, CurrentPoint.Center);
+
+	PreviousTransform.BlendWith(CurrentTransform, Alpha);
+
+	if (OutBounds)
 	{
-		const FLandscapeSplineInterpPoint& PreviousPoint = InterpPoints[PointIndex - 1];
-		const FLandscapeSplineInterpPoint& CurrentPoint = InterpPoints[PointIndex];
-
-		const FVector::FReal SegmentLength = (CurrentPoint.Center - PreviousPoint.Center).Length();
-		if (SegmentLength > Length || PointIndex == InterpPoints.Num() - 1)
-		{
-			const FVector XAxis = CurrentPoint.Center - PreviousPoint.Center;
-			const FVector PreviousYAxis = PreviousPoint.Right - PreviousPoint.Center;
-			const FVector CurrentYAxis = CurrentPoint.Right - CurrentPoint.Center;
-			const FVector PreviousZAxis = (XAxis ^ PreviousYAxis).GetSafeNormal(UE_SMALL_NUMBER, FVector::ZAxisVector);
-			const FVector CurrentZAxis = (XAxis ^ CurrentYAxis).GetSafeNormal(UE_SMALL_NUMBER, FVector::ZAxisVector);
-
-			FTransform PreviousTransform = FTransform(XAxis, PreviousYAxis, PreviousZAxis, PreviousPoint.Center);
-			FTransform CurrentTransform = FTransform(XAxis, CurrentYAxis, CurrentZAxis, CurrentPoint.Center);
-
-			const FVector::FReal BlendRatio = ((SegmentLength > Length) ? (Length / SegmentLength) : 1.0);
-			PreviousTransform.BlendWith(CurrentTransform, BlendRatio);
-
-			if (OutBounds)
-			{
-				// Important note: the box here is going to be useful to be able to specify the relative sizes of the falloffs
-				*OutBounds = FBox::BuildAABB(FVector::ZeroVector, FVector::OneVector);
-				OutBounds->Min.Y *= (CurrentPoint.FalloffLeft - CurrentPoint.Center).Length() / (CurrentPoint.Left - CurrentPoint.Center).Length();
-				OutBounds->Max.Y *= (CurrentPoint.FalloffRight - CurrentPoint.Center).Length() / (CurrentPoint.Right - CurrentPoint.Center).Length();
-			}
-
-			if (bWorldSpace)
-			{
-				return PreviousTransform * Spline->GetComponentTransform();
-			}
-			else
-			{
-				return PreviousTransform;
-			}
-		}
-		else
-		{
-			Length -= SegmentLength;
-		}
+		// Important note: the box here is going to be useful to be able to specify the relative sizes of the falloffs
+		*OutBounds = FBox::BuildAABB(FVector::ZeroVector, FVector::OneVector);
+		OutBounds->Min.Y *= (CurrentPoint.FalloffLeft - CurrentPoint.Center).Length() / (CurrentPoint.Left - CurrentPoint.Center).Length();
+		OutBounds->Max.Y *= (CurrentPoint.FalloffRight - CurrentPoint.Center).Length() / (CurrentPoint.Right - CurrentPoint.Center).Length();
 	}
-	
-	check(0);
-	return FTransform();
+
+	if (bWorldSpace)
+	{
+		PreviousTransform *= Spline->GetComponentTransform();
+	}
+
+	return PreviousTransform;
 }
 
 FVector::FReal UPCGLandscapeSplineData::GetCurvatureAtDistance(int SegmentIndex, FVector::FReal Distance) const
 {
-	check(Spline.IsValid());
-	check(SegmentIndex >= 0 && SegmentIndex < Spline->GetSegments().Num());
+	check(Spline.IsValid() && Spline->GetSegments().IsValidIndex(SegmentIndex));
 
 	const ULandscapeSplineSegment* Segment = Spline->GetSegments()[SegmentIndex];
 	check(Segment);
 
-	const FLandscapeSplineSegmentConnection& Start = Segment->Connections[0];
-	const FLandscapeSplineSegmentConnection& End = Segment->Connections[1];
-
 	const TArray<FLandscapeSplineInterpPoint>& InterpPoints = Segment->GetPoints();
 
-	// Need at least three points to compute the curvature
+	// Need at least three points to compute the curvature.
 	if (InterpPoints.Num() < 3)
 	{
 		return 0;
 	}
 
-	FVector::FReal Length = FMath::Max(0, Distance);
+	int32 PointIndex;
+	FVector::FReal Alpha;
+	GetInterpPointAtDistance(SegmentIndex, Distance, PointIndex, /*bComputeAlpha=*/false, Alpha);
 
-	for (int PointIndex = 1; PointIndex < InterpPoints.Num(); ++PointIndex)
+	// If our sample overshoots the segment, clamp it back to the last point.
+	if (PointIndex == InterpPoints.Num() - 1)
 	{
-		const FLandscapeSplineInterpPoint& PreviousPoint = InterpPoints[PointIndex - 1];
-		const FLandscapeSplineInterpPoint& CurrentPoint = InterpPoints[PointIndex];
-
-		const FVector::FReal SegmentLength = (CurrentPoint.Center - PreviousPoint.Center).Length();
-		if (SegmentLength > Length || PointIndex == InterpPoints.Num() - 1)
-		{
-			FVector FirstDerivative = FVector::ZeroVector;
-			FVector SecondDerivative = FVector::ZeroVector;
-
-			// Compute curvature using finite differences - here h is 1 because that's the only base unit we have.
-			// Warning: precision will be poor
-			// if last point -> use backward 2nd derivative
-			if (PointIndex == InterpPoints.Num() - 1)
-			{
-				const FLandscapeSplineInterpPoint& PreviousPreviousPoint = InterpPoints[PointIndex - 2];
-
-				// f'(x) = (f(x) - f(x-h)) / h
-				FirstDerivative = (CurrentPoint.Center - PreviousPoint.Center);
-				// f''(x) = (f(x) - 2f(x - h) + f(x - 2h)) / h2
-				SecondDerivative = (CurrentPoint.Center - 2 * PreviousPoint.Center + PreviousPreviousPoint.Center);
-			}
-			// otherwise -> use central 2nd derivative
-			else
-			{
-				const FLandscapeSplineInterpPoint& NextPoint = InterpPoints[PointIndex + 1];
-
-				// f'(x) ~= (f(x+h) - f(x-h)) / 2h
-				FirstDerivative = (NextPoint.Center - PreviousPoint.Center) / 2.0;
-				// f''(x) = (f(x+h) - 2f(x) + f(x-h)) / h2
-				SecondDerivative = NextPoint.Center - 2 * CurrentPoint.Center + PreviousPoint.Center;
-			}
-
-			const FVector::FReal FirstDerivativeLength = FMath::Max(FirstDerivative.Length(), UE_DOUBLE_SMALL_NUMBER);
-			const FVector ForwardVector = FirstDerivative / FirstDerivativeLength;
-			const FVector CurvatureVector = SecondDerivative - (SecondDerivative | ForwardVector) * ForwardVector;
-			const FVector::FReal Curvature = CurvatureVector.Length() / FirstDerivativeLength;
-
-			return FMath::Sign(CurvatureVector | (CurrentPoint.Right - CurrentPoint.Center)) * Curvature;
-		}
-		else
-		{
-			Length -= SegmentLength;
-		}
+		--PointIndex;
 	}
 
-	return 0;
+	// We don't need to clamp the current point index like we do in GetTransformAtDistance(), because we've already
+	// decremented the PointIndex so that we can perform the backward 2nd derivative.
+	const FLandscapeSplineInterpPoint& PreviousPoint = InterpPoints[PointIndex];
+	const FLandscapeSplineInterpPoint& CurrentPoint = InterpPoints[PointIndex + 1];
+
+	FVector FirstDerivative = FVector::ZeroVector;
+	FVector SecondDerivative = FVector::ZeroVector;
+
+	// Compute curvature using finite differences - here h is 1 because that's the only base unit we have.
+	// Warning: Precision will be poor.
+	// If last point -> use backward 2nd derivative.
+	if (PointIndex >= InterpPoints.Num() - 2)
+	{
+		const FLandscapeSplineInterpPoint& PreviousPreviousPoint = InterpPoints[PointIndex - 1];
+
+		// f'(x) = (f(x) - f(x-h)) / h
+		FirstDerivative = (CurrentPoint.Center - PreviousPoint.Center);
+		// f''(x) = (f(x) - 2f(x - h) + f(x - 2h)) / h2
+		SecondDerivative = (CurrentPoint.Center - 2 * PreviousPoint.Center + PreviousPreviousPoint.Center);
+	}
+	// Otherwise, use central 2nd derivative.
+	else
+	{
+		const FLandscapeSplineInterpPoint& NextPoint = InterpPoints[PointIndex + 2];
+
+		// f'(x) ~= (f(x+h) - f(x-h)) / 2h
+		FirstDerivative = (NextPoint.Center - PreviousPoint.Center) / 2.0;
+		// f''(x) = (f(x+h) - 2f(x) + f(x-h)) / h2
+		SecondDerivative = NextPoint.Center - 2 * CurrentPoint.Center + PreviousPoint.Center;
+	}
+
+	const FVector::FReal FirstDerivativeLength = FMath::Max(FirstDerivative.Length(), UE_DOUBLE_SMALL_NUMBER);
+	const FVector ForwardVector = FirstDerivative / FirstDerivativeLength;
+	const FVector CurvatureVector = SecondDerivative - (SecondDerivative | ForwardVector) * ForwardVector;
+	const FVector::FReal Curvature = CurvatureVector.Length() / FirstDerivativeLength;
+
+	return FMath::Sign(CurvatureVector | (CurrentPoint.Right - CurrentPoint.Center)) * Curvature;
+}
+
+float UPCGLandscapeSplineData::GetInputKeyAtDistance(int SegmentIndex, FVector::FReal Distance) const
+{
+	const float FullDistance = GetDistanceAtSegmentStart(SegmentIndex) + Distance;
+	return ReparamTable.Eval(FullDistance, 0.0f);
 }
 
 void UPCGLandscapeSplineData::GetTangentsAtSegmentStart(int SegmentIndex, FVector& OutArriveTangent, FVector& OutLeaveTangent) const
@@ -229,6 +207,23 @@ void UPCGLandscapeSplineData::GetTangentsAtSegmentStart(int SegmentIndex, FVecto
 
 	OutArriveTangent = ArrivePoint ? ArrivePoint->Rotation.Vector() * -PreviousSegment->Connections[1].TangentLen : FVector::Zero();
 	OutLeaveTangent = LeavePoint ? LeavePoint->Rotation.Vector() * CurrentSegment->Connections[0].TangentLen : FVector::Zero();
+}
+
+FVector::FReal UPCGLandscapeSplineData::GetDistanceAtSegmentStart(int SegmentIndex) const
+{
+	check(Spline.IsValid() && Spline->GetSegments().IsValidIndex(SegmentIndex));
+
+	const TArray<TObjectPtr<ULandscapeSplineSegment>>& Segments = Spline->GetSegments();
+	int32 ReparamIndex = 0;
+
+	for (int32 Index = 0; Index < SegmentIndex; ++Index)
+	{
+		// NumPoints - 1 to avoid double-counting the control points, which overlap at the start + end of each segment.
+		ReparamIndex += ensure(Segments[Index]) ? Segments[Index]->GetPoints().Num() - 1 : 0;
+	}
+
+	check(ReparamTable.Points.IsValidIndex(ReparamIndex));
+	return ReparamTable.Points[ReparamIndex].InVal;
 }
 
 const UPCGPointData* UPCGLandscapeSplineData::CreatePointData(FPCGContext* Context) const
@@ -338,6 +333,68 @@ UPCGSpatialData* UPCGLandscapeSplineData::CopyInternal() const
 	UPCGLandscapeSplineData* NewLandscapeSplineData = NewObject<UPCGLandscapeSplineData>();
 
 	NewLandscapeSplineData->Spline = Spline;
+	NewLandscapeSplineData->ReparamTable = ReparamTable;
 
 	return NewLandscapeSplineData;
+}
+
+void UPCGLandscapeSplineData::UpdateReparamTable()
+{
+	check(Spline.IsValid());
+
+	const TArray<TObjectPtr<ULandscapeSplineSegment>>& Segments = Spline->GetSegments();
+	const int32 NumSegments = Segments.Num();
+
+	FVector::FReal AccumulatedDistance = 0.0f;
+
+	// Add a point for the first control point of the spline.
+	ReparamTable.Points.Emplace(AccumulatedDistance, /*InputKey=*/0, /*ArriveTangent=*/0.0f, /*LeaveTangent=*/0.0f, CIM_Linear);
+
+	// Create a curve mapping DistanceAlongSpline -> InputKey at that point. Accumulate the distance over each segment as we insert points into the ReparamTable.
+	for (int32 SegmentIndex = 0; SegmentIndex < NumSegments; ++SegmentIndex)
+	{
+		const TObjectPtr<ULandscapeSplineSegment>& Segment = Segments[SegmentIndex];
+		check(Segment);
+
+		const TArray<FLandscapeSplineInterpPoint>& InterpPoints = Segment->GetPoints();
+		const int32 NumPoints = InterpPoints.Num();
+
+		// Add a point for each InterpPoint on the segment.
+		for (int PointIndex = 1; PointIndex < NumPoints; ++PointIndex)
+		{
+			const FLandscapeSplineInterpPoint& Start = InterpPoints[PointIndex - 1];
+			const FLandscapeSplineInterpPoint& End = InterpPoints[PointIndex];
+			AccumulatedDistance += FVector::Distance(Start.Center, End.Center);
+
+			const float Param = PointIndex / (NumPoints - 1.0f);
+			ReparamTable.Points.Emplace(AccumulatedDistance, SegmentIndex + Param, /*ArriveTangent=*/0.0f, /*LeaveTangent=*/0.0f, CIM_Linear);
+		}
+	}
+}
+
+void UPCGLandscapeSplineData::GetInterpPointAtDistance(int SegmentIndex, FVector::FReal Distance, int32& OutPointIndex, bool bComputeAlpha, FVector::FReal& OutAlpha) const
+{
+	const FVector::FReal DistanceToSegment = GetDistanceAtSegmentStart(SegmentIndex);
+	const FVector::FReal DistanceToSample = DistanceToSegment + Distance; // Total distance along the spline to the point we are sampling at.
+
+	const int32 ReparamIndex = ReparamTable.GetPointIndexForInputValue(DistanceToSegment + Distance);
+	check(ReparamTable.Points.IsValidIndex(ReparamIndex));
+
+	// Find the index of the InterpPoint which begins the segment our desired transform lies on.
+	// We can get this from the ReparamTable because it should contain one sample for each InterpPoint.
+	const int32 SegmentReparamIndex = ReparamTable.GetPointIndexForInputValue(DistanceToSegment);
+	OutPointIndex = ReparamIndex - SegmentReparamIndex;
+
+	if (bComputeAlpha)
+	{
+		// Blend between LeftPoint and RightPoint by finding the ratio of distance to our sample vs length of the segment.
+		// This ratio should be relative to the interp segment (which is formed by the line from LeftPoint to RightPoint),
+		// since that is what we're blending on, not the entire spline segment.
+		const FVector::FReal DistanceToPrevPoint = ReparamTable.Points[ReparamIndex].InVal;
+		const FVector::FReal DistanceToNextPoint = ReparamTable.Points[FMath::Min(ReparamIndex + 1, ReparamTable.Points.Num() - 1)].InVal;
+		const FVector::FReal InterpSegmentLength = DistanceToNextPoint - DistanceToPrevPoint;
+		const FVector::FReal InterpSegmentDistanceToSample = DistanceToSample - DistanceToPrevPoint;
+
+		OutAlpha = FMath::IsNearlyZero(InterpSegmentDistanceToSample) ? 0.0f : FMath::Clamp(InterpSegmentDistanceToSample / InterpSegmentLength, 0.0f, 1.0f);
+	}
 }

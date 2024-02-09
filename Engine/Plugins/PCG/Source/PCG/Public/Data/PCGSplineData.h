@@ -21,7 +21,7 @@ class PCG_API UPCGSplineData : public UPCGPolyLineData
 	GENERATED_BODY()
 
 public:
-	void Initialize(USplineComponent* InSpline);
+	void Initialize(const USplineComponent* InSpline);
 	void Initialize(const TArray<FSplinePoint>& InSplinePoints, bool bInClosedLoop, const FTransform& InTransform);
 	void Initialize(const FPCGSplineStruct& InSplineStruct);
 	void ApplyTo(USplineComponent* InSpline);
@@ -38,7 +38,9 @@ public:
 	virtual FVector GetLocationAtDistance(int SegmentIndex, FVector::FReal Distance, bool bWorldSpace = true) const override;
 	virtual FTransform GetTransformAtDistance(int SegmentIndex, FVector::FReal Distance, bool bWorldSpace = true, FBox* OutBounds = nullptr) const override;
 	virtual FVector::FReal GetCurvatureAtDistance(int SegmentIndex, FVector::FReal Distance) const override;
+	virtual float GetInputKeyAtDistance(int SegmentIndex, FVector::FReal Distance) const override;
 	virtual void GetTangentsAtSegmentStart(int SegmentIndex, FVector& OutArriveTangent, FVector& OutLeaveTangent) const override;
+	virtual FVector::FReal GetDistanceAtSegmentStart(int SegmentIndex) const override;
 	virtual bool IsClosed() const override { return SplineStruct.bClosedLoop; }
 	//~End UPCGPolyLineData interface
 
@@ -53,6 +55,8 @@ public:
 protected:
 	virtual UPCGSpatialData* CopyInternal() const override;
 	//~End UPCGSpatialData interface
+
+	virtual void CopySplineData(UPCGSplineData* InCopy) const;
 
 public:
 	// Minimal data needed to replicate the behavior from USplineComponent

@@ -48,11 +48,23 @@ public:
 	 */
 	virtual float GetAlphaAtDistance(int SegmentIndex, FVector::FReal Distance) const;
 
+	/** Get the input key at a distance along the line. InputKey is a float value in [0, N], where N is the number of control points. Each range [i, i+1] represents an interpolation from 0 to 1 across spline segment i. */
+	virtual float GetInputKeyAtDistance(int SegmentIndex, FVector::FReal Distance) const { return 0; }
+
 	/** Get the arrive and leave tangents for a control point via its segment index. */
 	virtual void GetTangentsAtSegmentStart(int SegmentIndex, FVector& OutArriveTangent, FVector& OutLeaveTangent) const;
 
+	/** Get the cumulative distance along the line to the start of a segment. */
+	virtual FVector::FReal GetDistanceAtSegmentStart(int SegmentIndex) const { return 0; }
+
 	/** True if the line is a closed loop. */
 	virtual bool IsClosed() const { return false; }
+
+	/** If a PolyLine subtype has custom metadata, it can use this virtual call to write that into the PCG Metadata per-point. */
+	virtual void WriteMetadataToPoint(float InputKey, FPCGPoint& OutPoint, UPCGMetadata* OutMetadata) const {}
+
+	/** True if the line holds custom metadata. */
+	virtual bool HasCustomMetadata() const { return false; }
 };
 
 
