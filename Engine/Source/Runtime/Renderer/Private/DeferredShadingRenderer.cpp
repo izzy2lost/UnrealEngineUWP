@@ -381,7 +381,7 @@ const TCHAR* GetDepthPassReason(bool bDitheredLODTransitionsUseStencil, EShaderP
 FDeferredShadingSceneRenderer::FDeferredShadingSceneRenderer(const FSceneViewFamily* InViewFamily, FHitProxyConsumer* HitProxyConsumer)
 	: FSceneRenderer(InViewFamily, HitProxyConsumer)
 	, DepthPass(GetDepthPassInfo(Scene))
-	, SceneCullingRenderer(*Scene->SceneCulling)
+	, SceneCullingRenderer(*Scene->SceneCulling, *this)
 	, bAreLightsInLightGrid(false)
 {
 	ViewPipelineStates.SetNum(AllViews.Num());
@@ -1823,6 +1823,8 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 			Scene->GPUScene.DebugRender(GraphBuilder, GetSceneUniforms(), View);
 		}
+
+		SceneCullingRenderer.DebugRender(GraphBuilder, Views);
 
 		InstanceCullingManager.BeginDeferredCulling(GraphBuilder, Scene->GPUScene);
 

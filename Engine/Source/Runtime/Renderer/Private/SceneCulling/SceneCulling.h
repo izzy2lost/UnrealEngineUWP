@@ -50,7 +50,7 @@ public:
 		void OnPreSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePreUpdateChangeSet& ScenePreUpdateData);
 
 		void OnPostSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePostUpdateChangeSet& ScenePostUpdateData);
-		void FinalizeAndClear(FRDGBuilder& GraphBuilder, bool bPublishStats);
+		void FinalizeAndClear(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUniformBuffer, bool bPublishStats);
 
 		~FUpdater();
 
@@ -69,13 +69,13 @@ public:
 	/**
 	 * Set up update driver that can collect change sets and initiate async update. The updater (internals) has RDG scope.
 	 */
-	FUpdater &BeginUpdate(FRDGBuilder& GraphBuilder, bool bAnySceneUpdatesExpected);
+	FUpdater &BeginUpdate(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUniformBuffer, bool bAnySceneUpdatesExpected);
 
 	/**
 	 * Finalize update of hierarchy, should be done as late as possible, also performs update of RDG resources. 
 	 * May be called multiple times, the first call does the work.
 	 */
-	void EndUpdate(FRDGBuilder& GraphBuilder, bool bPublishStats);
+	void EndUpdate(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUniformBuffer, bool bPublishStats);
 
 	UE::Tasks::FTask GetUpdateTaskHandle() const;
 
@@ -254,6 +254,7 @@ private:
 
 	FScene& Scene;
 	bool bIsEnabled = false;
+	bool bUseExplictBounds = false;
 	FSpatialHash SpatialHash;
 
 	// Kept in the class for now, since we only want one active at a time anyway.
@@ -293,6 +294,7 @@ private:
 	// Persistent GPU-representation
 	TPersistentStructuredBuffer<FPackedCellHeader> CellHeadersBuffer;
 	TPersistentStructuredBuffer<uint32> ItemChunksBuffer;
-	TPersistentStructuredBuffer<uint32> ItemsBuffer;
+	TPersistentStructuredBuffer<uint32> InstanceIdsBuffer;
 	TPersistentStructuredBuffer<FCellBlockData> CellBlockDataBuffer;
+	TPersistentStructuredBuffer<FVector4f> ExplicitCellBoundsBuffer;
 };
