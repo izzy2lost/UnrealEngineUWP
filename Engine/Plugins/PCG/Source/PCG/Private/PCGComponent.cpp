@@ -1271,6 +1271,11 @@ void UPCGComponent::Serialize(FArchive& Ar)
 		if (Ar.IsLoading())
 		{
 			DataVersion = Ar.CustomVer(FPCGCustomVersion::GUID);
+
+			if (DataVersion < FPCGCustomVersion::SupportPartitionedComponentsInNonPartitionedLevels)
+			{
+				bDisableIsComponentPartitionedOnLoad = true;
+			}
 		}
 
 		if (DataVersion >= FPCGCustomVersion::DynamicTrackingKeysSerializedInComponent)
@@ -1304,6 +1309,19 @@ void UPCGComponent::PostLoad()
 	{
 		bIsComponentPartitioned = bIsPartitioned;
 		bIsPartitioned = false;
+	}
+
+	// Components marked as partitioned in non-WP worlds from BEFORE partitioning was supported in non-WP worlds can leak resources. To fix this, we can just unset 'bIsComponentPartitioned'.
+	if (bDisableIsComponentPartitionedOnLoad)
+	{
+		const UWorld* World = GetOwner() ? GetOwner()->GetWorld() : nullptr;
+
+		if (IsPartitioned() && !IsManagedByRuntimeGenSystem() && World && World->GetWorldPartition() == nullptr)
+		{
+			bIsComponentPartitioned = false;
+		}
+
+		bDisableIsComponentPartitionedOnLoad = false;
 	}
 
 	/** Deprecation code, should be removed once generated data has been updated */

@@ -427,6 +427,9 @@ private:
 	// Note for upgrade: can be safely replaced by bIsComponentPartitioned. Needed a new variable to change the default value. Kept to allow proper value change, cannot be deprecated. Do not use.
 	UPROPERTY()
 	bool bIsPartitioned = true;
+
+	/** Track if component should disable 'bIsComponentPartitioned'. Used to deprecate partitioned components in non-WP levels before support for partitioning in non-WP levels. */
+	bool bDisableIsComponentPartitionedOnLoad = false;
 #endif // WITH_EDITORONLY_DATA
 
 private:
