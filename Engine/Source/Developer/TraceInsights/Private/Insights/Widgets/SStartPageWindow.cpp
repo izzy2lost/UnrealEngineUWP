@@ -46,6 +46,7 @@
 #endif // WITH_EDITOR
 
 // Insights
+#include "Insights/Common/MessageDialogUtils.h"
 #include "Insights/Common/Stopwatch.h"
 #include "Insights/ImportTool/TableImportTool.h"
 #include "Insights/InsightsManager.h"
@@ -1591,15 +1592,17 @@ FReply STraceDirectoryItem::OnDelete()
 
 	if (Model)
 	{
-		const EAppReturnType::Type bConfirmed = FMessageDialog::Open(EAppMsgType::OkCancel, FText::Format(
-			LOCTEXT("WatchDirRemoveConfirmBody", "This will remove '{0}' from monitored directories?"), FText::FromString(Model->Path)),
-			LOCTEXT("WatchDirRemoveConfirmTitle", "Confirm removing monitored directory"));
-		if (bConfirmed == EAppReturnType::Ok)
+		Insights::EDialogResponse Response = Insights::FMessageDialogUtils::ShowChoiceDialog(LOCTEXT("MonitoredDirRemoveConfirmTitle", "Confirm removing monitored directory"), FText::Format(
+			LOCTEXT("MonitoredDirRemoveConfirmFmt", "This will remove \"{0}\" from monitored directories.\n\nConfirm removing monitored directory?"),
+			FText::FromString(Model->Path)));
+
+		if (Response == Insights::EDialogResponse::OK)
 		{
 			const TCHAR* Path = *Model->Path;
 			FInsightsManager::Get()->GetStoreClient()->SetStoreDirectories(nullptr, {}, { Path });
 		}
 	}
+
 	return FReply::Handled();
 }
 

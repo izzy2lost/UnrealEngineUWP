@@ -57,6 +57,7 @@ public class TraceInsights : ModuleRules
 			new string[] {
 				"ImageCore",
 				"SlateCore",
+				"ToolWidgets"
 			}
 		);
 
