@@ -63,20 +63,6 @@ static FAutoConsoleVariableRef GMallocBinned2PerThreadCachesCVar(
 	TEXT("Enables per-thread caches of small (<= 32768 byte) allocations from FMallocBinned2")
 	);
 
-extern int32 GMallocBinnedBundleSize;
-static FAutoConsoleVariableRef GMallocBinned2BundleSizeCVar(
-	TEXT("MallocBinned2.BundleSize"),
-	GMallocBinnedBundleSize,
-	TEXT("Max size in bytes of per-block bundles used in the recycling process")
-	);
-
-extern int32 GMallocBinnedBundleCount;
-static FAutoConsoleVariableRef GMallocBinned2BundleCountCVar(
-	TEXT("MallocBinned2.BundleCount"),
-	GMallocBinnedBundleCount,
-	TEXT("Max count in blocks per-block bundles used in the recycling process")
-	);
-
 int32 GMallocBinned2MaxBundlesBeforeRecycle = BINNED2_MAX_GMallocBinned2MaxBundlesBeforeRecycle;
 static FAutoConsoleVariableRef GMallocBinned2MaxBundlesBeforeRecycleCVar(
 	TEXT("MallocBinned2.BundleRecycleCount"),
