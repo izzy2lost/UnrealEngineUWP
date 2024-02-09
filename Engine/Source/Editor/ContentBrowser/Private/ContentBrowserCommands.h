@@ -37,4 +37,5 @@ public:
 	TSharedPtr<FUICommandInfo> SaveAllCurrentFolder;
 	TSharedPtr<FUICommandInfo> ResaveAllCurrentFolder;
 	TSharedPtr<FUICommandInfo> CopySelectedAssetPath;
+	TSharedPtr<FUICommandInfo> EditPath;
 };
