@@ -20,8 +20,6 @@ namespace PCGGeneratedResourcesLogging
 	void LogCleanupLocalImmediateResource(const UPCGManagedResource* Resource);
 	void LogCleanupLocalImmediateFinished(const TArray<UPCGManagedResource*>& GeneratedResources);
 	
-	void LogPostProcessGraph();
-
 	void LogCreateCleanupTask(bool bRemoveComponents);
 	void LogCreateCleanupTaskResource(const UPCGManagedResource* Resource);
 	void LogCreateCleanupTaskFinished(const TArray<UPCGManagedResource*>& GeneratedResources);

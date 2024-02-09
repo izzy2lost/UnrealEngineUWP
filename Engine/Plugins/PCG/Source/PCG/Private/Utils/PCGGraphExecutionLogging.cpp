@@ -4,6 +4,7 @@
 
 #include "PCGComponent.h"
 #include "PCGContext.h"
+#include "PCGGraph.h"
 #include "PCGModule.h"
 #include "Graph/PCGGraphExecutor.h"
 
@@ -129,11 +130,40 @@ namespace PCGGraphExecutionLogging
 			return;
 		}
 
-		UE_LOG(LogPCG, Log, TEXT("[%s] --- SCHEDULE GRAPH ---"),
-			(SourceComponent && SourceComponent->GetOwner()) ? *SourceComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"));
+		UE_LOG(LogPCG, Log, TEXT("[%s/%s] --- SCHEDULE GRAPH ---"),
+			(SourceComponent && SourceComponent->GetOwner()) ? *SourceComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
+			(SourceComponent && SourceComponent->GetGraph()) ? *SourceComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"));
 #endif
 	}
 
+	void LogGraphScheduleDependency(const UPCGComponent* InComponent)
+	{
+#if WITH_EDITOR
+		if (!LogEnabled())
+		{
+			return;
+		}
+
+		UE_LOG(LogPCG, Log, TEXT("[%s/%s] --- SCHEDULE GRAPH FOR DEPENDENCY ---"),
+			(InComponent && InComponent->GetOwner()) ? *InComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
+			(InComponent && InComponent->GetGraph()) ? *InComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"));
+#endif
+	}
+
+	void LogGraphScheduleDependencyFailed(const UPCGComponent* InComponent)
+	{
+#if WITH_EDITOR
+		if (!LogEnabled())
+		{
+			return;
+		}
+
+		UE_LOG(LogPCG, Error, TEXT("[%s/%s] Failed to schedule dependency"),
+			(InComponent && InComponent->GetOwner()) ? *InComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
+			(InComponent && InComponent->GetGraph()) ? *InComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"));
+#endif
+	}
+	
 	void LogGraphPostSchedule(const TMap<FPCGTaskId, FPCGGraphTask>& Tasks, const TMap<FPCGTaskId, TSet<FPCGTaskId>>& TaskSuccessors)
 	{
 #if WITH_EDITOR
@@ -145,6 +175,52 @@ namespace PCGGraphExecutionLogging
 		UE_LOG(LogPCG, Log, TEXT("POST SCHEDULE:"));
 
 		LogGraphTasks(Tasks, &TaskSuccessors);
+#endif
+	}
+
+	void LogPostProcessGraph(const UPCGComponent* InSourceComponent)
+	{
+#if WITH_EDITOR
+		if (!LogEnabled())
+		{
+			return;
+		}
+
+		UE_LOG(LogPCG, Log, TEXT("[%s/%s] UPCGComponent::PostProcessGraph"),
+			(InSourceComponent && InSourceComponent->GetOwner()) ? *InSourceComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
+			(InSourceComponent && InSourceComponent->GetGraph()) ? *InSourceComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"));
+#endif
+	}
+
+	void LogComponentCancellation(const TSet<UPCGComponent*>& CancelledComponents)
+	{
+#if WITH_EDITOR
+		if (!LogEnabled())
+		{
+			return;
+		}
+
+		for (const UPCGComponent* Component : CancelledComponents)
+		{
+			UE_LOG(LogPCG, Log, TEXT("[%s/%s] Component cancelled"),
+				(Component && Component->GetOwner()) ? *Component->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
+				(Component && Component->GetGraph()) ? *Component->GetGraph()->GetName() : TEXT("MISSINGGRAPH"));
+		}
+#endif
+	}
+
+	void LogChangeOriginIgnoredForComponent(const UObject* InObject, const UPCGComponent* InComponent)
+	{
+#if WITH_EDITOR
+		if (!LogEnabled())
+		{
+			return;
+		}
+
+		UE_LOG(LogPCG, Log, TEXT("[%s/%s] Change origin ignored: '%s'"),
+			(InComponent && InComponent->GetOwner()) ? *InComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
+			(InComponent && InComponent->GetGraph()) ? *InComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"),
+			InObject ? *InObject->GetName() : TEXT("MISSINGOBJECT"));
 #endif
 	}
 
@@ -186,8 +262,9 @@ namespace PCGGraphExecutionLogging
 			return;
 		}
 
-		UE_LOG(LogPCG, Log, TEXT("         [%s] %s\t\tEXECUTE"),
+		UE_LOG(LogPCG, Log, TEXT("         [%s/%s] %s\t\tEXECUTE"),
 			*Task.SourceComponent->GetOwner()->GetName(),
+			Task.SourceComponent->GetGraph() ? *Task.SourceComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"),
 			*FString::Printf(TEXT("%u'%s'"), Task.NodeId, Task.Node ? *Task.Node->GetNodeTitle(EPCGNodeTitleType::ListView).ToString() : TEXT("")));
 #endif
 	}
@@ -200,8 +277,9 @@ namespace PCGGraphExecutionLogging
 			return;
 		}
 
-		UE_LOG(LogPCG, Warning, TEXT("[%s] %s\t\tCACHING DISABLED"),
+		UE_LOG(LogPCG, Warning, TEXT("[%s/%s] %s\t\tCACHING DISABLED"),
 			*Task.SourceComponent->GetOwner()->GetName(),
+			Task.SourceComponent->GetGraph() ? *Task.SourceComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"),
 			*FString::Printf(TEXT("%u'%s'"), Task.NodeId, Task.Node ? *Task.Node->GetNodeTitle(EPCGNodeTitleType::ListView).ToString() : TEXT("")));
 #endif
 	}

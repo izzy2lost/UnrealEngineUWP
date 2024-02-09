@@ -24,7 +24,16 @@ namespace PCGGraphExecutionLogging
 	void LogGraphTasks(const TArray<FPCGGraphTask>& Tasks);
 
 	void LogGraphSchedule(const UPCGComponent* SourceComponent);
+	void LogGraphScheduleDependency(const UPCGComponent* InComponent);
+	void LogGraphScheduleDependencyFailed(const UPCGComponent* InComponent);
+
 	void LogGraphPostSchedule(const TMap<FPCGTaskId, FPCGGraphTask>& Tasks, const TMap<FPCGTaskId, TSet<FPCGTaskId>>& TaskSuccessors);
+	void LogPostProcessGraph(const UPCGComponent* InSourceComponent);
+
+	void LogComponentCancellation(const TSet<UPCGComponent*>& CancelledComponents);
+
+	void LogChangeOriginIgnoredForComponent(const UObject* InObject, const UPCGComponent* InComponent);
+
 	void LogGraphExecuteFrameFinished();
 
 	void LogTaskExecute(const FPCGGraphTask& Task);

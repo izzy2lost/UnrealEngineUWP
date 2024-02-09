@@ -2,6 +2,7 @@
 
 #include "Elements/PCGDataFromActor.h"
 
+#include "PCGActorAndComponentMapping.h"
 #include "PCGComponent.h"
 #include "PCGCustomVersion.h"
 #include "PCGSubsystem.h"
@@ -11,6 +12,7 @@
 #include "Elements/PCGMergeElement.h"
 #include "Grid/PCGPartitionActor.h"
 #include "Helpers/PCGHelpers.h"
+#include "Utils/PCGGraphExecutionLogging.h"
 
 #include "Algo/AnyOf.h"
 #include "GameFramework/Actor.h"
@@ -409,18 +411,33 @@ bool FPCGDataFromActorElement::ExecuteInternal(FPCGContext* InContext) const
 
 	if (Context->bPerformedQuery)
 	{
+#if WITH_EDITOR
+		// Remove ignored change origins now that we've completed the wait tasks.
+		UPCGComponent* OriginalComponent = Context->SourceComponent->GetOriginalComponent();
+		for (TObjectKey<UObject>& IgnoredChangeOriginKey : Context->IgnoredChangeOrigins)
+		{
+			if (UObject* IgnoredChangeOrigin = IgnoredChangeOriginKey.ResolveObjectPtr())
+			{
+				OriginalComponent->StopIgnoringChangeOriginDuringGeneration(IgnoredChangeOrigin);
+			}
+		}
+#endif
+
 		ProcessActors(Context, Settings, Context->FoundActors);
 	}
 
 	return true;
 }
 
-void FPCGDataFromActorElement::GatherWaitTasks(AActor* FoundActor, FPCGContext* Context, TArray<FPCGTaskId>& OutWaitTasks) const
+void FPCGDataFromActorElement::GatherWaitTasks(AActor* FoundActor, FPCGContext* InContext, TArray<FPCGTaskId>& OutWaitTasks) const
 {
 	if (!FoundActor)
 	{
 		return;
 	}
+
+	FPCGDataFromActorContext* Context = static_cast<FPCGDataFromActorContext*>(InContext);
+	check(Context);
 
 	const UPCGDataFromActorSettings* Settings = Context->GetInputSettings<UPCGDataFromActorSettings>();
 	check(Settings);
@@ -446,9 +463,36 @@ void FPCGDataFromActorElement::GatherWaitTasks(AActor* FoundActor, FPCGContext* 
 
 	for (UPCGComponent* Component : PCGComponents)
 	{
-		if (Component->IsGenerating() && Component->GetOwner() != ThisOwner)
+		if (Component->GetOwner() == ThisOwner)
+		{
+			continue;
+		}
+
+		if (Component->IsGenerating())
 		{
 			OutWaitTasks.Add(Component->GetGenerationTaskId());
+		}
+		else if (!Component->bGenerated && (Component->GetSerializedEditingMode() == EPCGEditorDirtyMode::Preview) && Component->GetOwner())
+		{
+#if WITH_EDITOR
+			// Signal that any change notifications from generating upstream component should not trigger re-executions of this component.
+			// Such change notifications can cancel the current execution.
+			// Note: Uses owner because FPCGActorAndComponentMapping::OnPCGGraphGeneratedOrCleaned reports change on owner.
+			SourceComponent->GetOriginalComponent()->StartIgnoringChangeOriginDuringGeneration(Component->GetOwner());
+			Context->IgnoredChangeOrigins.Add(Component->GetOwner());
+#endif
+
+			const FPCGTaskId GenerateTask = Component->GenerateLocalGetTaskId(EPCGComponentGenerationTrigger::GenerateOnDemand, /*bForce=*/false);
+			if (GenerateTask != InvalidPCGTaskId)
+			{
+				PCGGraphExecutionLogging::LogGraphScheduleDependency(Component);
+
+				OutWaitTasks.Add(GenerateTask);
+			}
+			else
+			{
+				PCGGraphExecutionLogging::LogGraphScheduleDependencyFailed(Component);
+			}
 		}
 	}
 }

@@ -283,6 +283,8 @@ TSet<UPCGComponent*> FPCGGraphExecutor::Cancel(TFunctionRef<bool(TWeakObjectPtr<
 		return CancelledComponents;
 	}
 
+	PCGGraphExecutionLogging::LogComponentCancellation(CancelledComponents);
+
 	auto TryAbortScheduledTasks = [](FPCGGraphScheduleTask& ScheduledTask)
 	{
 		if (ScheduledTask.bHasAbortCallbacks)

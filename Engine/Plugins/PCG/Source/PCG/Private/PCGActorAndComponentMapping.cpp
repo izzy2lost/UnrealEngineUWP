@@ -10,6 +10,7 @@
 #include "Grid/PCGPartitionActor.h"
 #include "Helpers/PCGActorHelpers.h"
 #include "Helpers/PCGHelpers.h"
+#include "Utils/PCGGraphExecutionLogging.h"
 
 #include "Landscape.h"
 #include "LandscapeProxy.h"
@@ -1672,6 +1673,12 @@ void FPCGActorAndComponentMapping::OnObjectChanged(UObject* InObject, const FAct
 				continue;
 			}
 
+			if (PCGComponent->GetOriginalComponent()->IsIgnoringChangeOrigin(InObject))
+			{
+				PCGGraphExecutionLogging::LogChangeOriginIgnoredForComponent(InObject, PCGComponent);
+				continue;
+			}
+
 			// Don't mark "Owner changed" if the change originate from a PCG Component. It will be delegated to the ClearCacheForActor.
 			// It is necessary to avoid infine loops when there are multiple PCG components on one actor, and one component was generated.
 			const bool bOwnerChanged = (PCGComponent->GetOwner() == InObject) && (!InOriginatingChangeObject || !InOriginatingChangeObject->IsA<UPCGComponent>());
@@ -1714,6 +1721,12 @@ void FPCGActorAndComponentMapping::OnObjectChanged(UObject* InObject, const FAct
 				return;
 			}
 
+			if (ComponentRef.Component->GetOriginalComponent()->IsIgnoringChangeOrigin(InObject))
+			{
+				PCGGraphExecutionLogging::LogChangeOriginIgnoredForComponent(InObject, ComponentRef.Component);
+				return;
+			}
+
 			bool bShouldDirty = ComponentRef.Component->ShouldTrackLandscape() && InObject->IsA<ALandscapeProxy>();
 			bShouldDirty |= ClearCacheForKeys(MatchedKeys, ComponentRef.Component, /*bIntersect=*/true, InOriginatingChangeObject);
 			if (bShouldDirty)
@@ -1738,6 +1751,12 @@ void FPCGActorAndComponentMapping::OnObjectChanged(UObject* InObject, const FAct
 				(InOriginatingChangeObject == ComponentRef.Component) ||
 				(bNoRefreshOwner && ComponentRef.Component->GetOwner() == InObject))
 			{
+				return;
+			}
+
+			if (ComponentRef.Component->GetOriginalComponent()->IsIgnoringChangeOrigin(InObject))
+			{
+				PCGGraphExecutionLogging::LogChangeOriginIgnoredForComponent(InObject, ComponentRef.Component);
 				return;
 			}
 
