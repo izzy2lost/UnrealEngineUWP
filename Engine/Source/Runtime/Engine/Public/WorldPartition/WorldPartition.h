@@ -651,8 +651,10 @@ private:
 
 	ENGINE_API void OnWorldMatchStarting();
 	
+#if WITH_EDITOR
 	ENGINE_API void OnLevelActorDeleted(AActor* Actor);
 	ENGINE_API void OnPostBugItGoCalled(const FVector& Loc, const FRotator& Rot);
+#endif
 
 	// Delegates registration
 	ENGINE_API void RegisterDelegates();

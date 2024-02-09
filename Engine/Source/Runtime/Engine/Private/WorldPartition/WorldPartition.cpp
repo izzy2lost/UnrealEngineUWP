@@ -867,6 +867,7 @@ bool UWorldPartition::IsMainWorldPartition() const
 	return World == GetTypedOuter<UWorld>();
 }
 
+#if WITH_EDITOR
 void UWorldPartition::OnLevelActorDeleted(AActor* Actor)
 {
 	if (GIsEditorLoadingPackage)
@@ -880,7 +881,6 @@ void UWorldPartition::OnLevelActorDeleted(AActor* Actor)
 
 void UWorldPartition::OnPostBugItGoCalled(const FVector& Loc, const FRotator& Rot)
 {
-#if WITH_EDITOR
 	if (GetMutableDefault<UWorldPartitionEditorPerProjectUserSettings>()->GetBugItGoLoadRegion())
 	{
 		const FVector LoadExtent(UWorldPartition::LoadingRangeBugItGo, UWorldPartition::LoadingRangeBugItGo, HALF_WORLD_MAX);
@@ -898,8 +898,8 @@ void UWorldPartition::OnPostBugItGoCalled(const FVector& Loc, const FRotator& Ro
 			WorldPartitionEditor->FocusBox(LoadCellsBox);
 		}
 	}
-#endif
 }
+#endif
 
 void UWorldPartition::RegisterDelegates()
 {
