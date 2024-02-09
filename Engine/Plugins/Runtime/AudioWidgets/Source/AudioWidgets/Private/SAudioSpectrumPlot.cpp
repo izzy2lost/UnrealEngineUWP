@@ -205,6 +205,8 @@ void SAudioSpectrumPlot::Construct(const FArguments& InArgs)
 	ViewMaxSoundLevel = InArgs._ViewMaxSoundLevel;
 	bDisplayFrequencyAxisLabels = InArgs._DisplayFrequencyAxisLabels;
 	bDisplaySoundLevelAxisLabels = InArgs._DisplaySoundLevelAxisLabels;
+	bDisplayFrequencyGridLines = InArgs._DisplayFrequencyGridLines;
+	bDisplaySoundLevelGridLines = InArgs._DisplaySoundLevelGridLines;
 	FrequencyAxisScale = InArgs._FrequencyAxisScale;
 	FrequencyAxisPixelBucketMode = InArgs._FrequencyAxisPixelBucketMode;
 	BackgroundColor = InArgs._BackgroundColor;
@@ -316,8 +318,15 @@ int32 SAudioSpectrumPlot::DrawGridAndLabels(const FGeometry& AllottedGeometry, F
 
 	FAudioSpectrumPlotGridAndLabelDrawingHelper GridAndLabelDrawingHelper(AllottedGeometry, OutDrawElements, ScaleInfo);
 
-	GridAndLabelDrawingHelper.DrawSoundLevelGridLines(LayerId, GridLineSoundLevels, LineColor);
-	GridAndLabelDrawingHelper.DrawFrequencyGridLines(LayerId, AllGridLineFrequencies, LineColor);
+	if (bDisplaySoundLevelGridLines.Get())
+	{
+		GridAndLabelDrawingHelper.DrawSoundLevelGridLines(LayerId, GridLineSoundLevels, LineColor);
+	}
+
+	if (bDisplayFrequencyGridLines.Get())
+	{
+		GridAndLabelDrawingHelper.DrawFrequencyGridLines(LayerId, AllGridLineFrequencies, LineColor);
+	}
 	LayerId++;
 
 	if (bDisplaySoundLevelAxisLabels.Get())
