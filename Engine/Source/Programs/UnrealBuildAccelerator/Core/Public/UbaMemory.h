@@ -12,7 +12,7 @@
 #include <vector>
 #include <functional>
 
-#if defined(UBA_USE_MIMALLOC)
+#if UBA_USE_MIMALLOC
 #include <mimalloc.h>
 #endif
 
@@ -22,7 +22,7 @@ namespace uba
 	constexpr inline T AlignUp(T arg, uintptr_t alignment) { return T(((uintptr_t)arg+(alignment-1)) & ~(alignment-1)); }
 
 
-	#if defined(UBA_USE_MIMALLOC)
+	#if UBA_USE_MIMALLOC
 	template<typename Type>
 	class Allocator {
 

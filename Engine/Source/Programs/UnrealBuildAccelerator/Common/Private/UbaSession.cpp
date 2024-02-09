@@ -1103,10 +1103,10 @@ namespace uba
 		//for (auto& i : m_fileMappingTableLookup)
 		//	CloseHandle(i.second.mapping);
 
-		UnmapViewOfFile(m_fileMappingTableMem, FileMappingTableMemSize);
+		UnmapViewOfFile(m_fileMappingTableMem, FileMappingTableMemSize, TC("FileMappingTable"));
 		CloseFileMapping(m_fileMappingTableHandle);
 
-		UnmapViewOfFile(m_directoryTableMem, DirTableMemSize);
+		UnmapViewOfFile(m_directoryTableMem, DirTableMemSize, TC("DirectoryTable"));
 		CloseFileMapping(m_directoryTableHandle);
 
 		//#if !UBA_DEBUG
@@ -1918,7 +1918,7 @@ namespace uba
 			if (!mem)
 				return m_logger.Error(TC("Failed to map view of filehandle for read %s (%s)"), file.name.c_str(), LastErrorToText().data);
 
-			auto memClose = MakeGuard([&](){ UnmapViewOfFile(mem, fileSize); });
+			auto memClose = MakeGuard([&](){ UnmapViewOfFile(mem, fileSize, file.name.c_str()); });
 
 			// Seems like best combo (for windows at least) is to use writes with overlap and max 16 at the same time.
 			// On one machine we get twice as fast without overlap if no bottleneck. On another machine (ntfs compression on) we get twice as slow without overlap

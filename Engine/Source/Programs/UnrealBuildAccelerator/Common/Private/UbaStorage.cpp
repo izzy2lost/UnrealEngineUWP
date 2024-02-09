@@ -1,14 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UbaStorage.h"
+#include "UbaBottleneck.h"
 #include "UbaFileAccessor.h"
 #include "UbaBinaryReaderWriter.h"
 #include "UbaDirectoryIterator.h"
 #include "UbaWorkManager.h"
-
-#if defined(UBA_USE_MIMALLOC)
-#include <mimalloc.h>
-#endif
 
 namespace uba
 {
@@ -256,7 +253,7 @@ namespace uba
 				if (!uncompressedData)
 					return m_logger.Error(TC("Failed to map view of file mapping for %s (%s)"), from, LastErrorToText().data);
 
-				auto udg = MakeGuard([&]() { UnmapViewOfFile(uncompressedData, fileSize); });
+				auto udg = MakeGuard([&]() { UnmapViewOfFile(uncompressedData, fileSize, from); });
 
 				if (!WriteMemToCompressedFile(destinationFile, workCount, uncompressedData, fileSize, maxUncompressedBlock, totalWritten))
 					return false;
@@ -965,7 +962,7 @@ namespace uba
 		return true;
 	}
 
-	#if defined(UBA_USE_MIMALLOC)
+	#if UBA_USE_MIMALLOC
 	void* Oodle_MallocAligned(OO_SINTa bytes, OO_S32 alignment)
 	{
 		return mi_malloc_aligned(bytes, alignment);
@@ -999,7 +996,7 @@ namespace uba
 
 		m_maxParallelCopyOrLink = info.maxParallelCopyOrLink;
 
-		#if defined(UBA_USE_MIMALLOC)
+		#if UBA_USE_MIMALLOC
 		OodleCore_Plugins_SetAllocators(Oodle_MallocAligned, Oodle_Free);
 		#endif
 	}
@@ -1931,6 +1928,13 @@ namespace uba
 				ScopedWriteLock entryLock(entry.lock);
 				entry.verified = false;
 
+				// This is to reduce number of active CreateFiles.. seems like machines don't like tons of CreateFile at the same time
+				#if PLATFORM_WINDOWS
+				constexpr u32 bottleneckMax = 16;
+				static Bottleneck bottleneck(bottleneckMax);
+				BottleneckScope scope(bottleneck);
+				#endif
+
 				if (writeDirectlyToFile || !decompressedSize)
 				{
 					if (!destinationFile.CreateWrite(allowRead, writeFlags | fileAttributes, decompressedSize, m_tempPath.data))
@@ -2233,7 +2237,7 @@ namespace uba
 				m_logger.Error(TC("Failed to map view of file mapping for %s (%s)"), fileName, LastErrorToText().data);
 				return CasKeyZero;
 			}
-			auto udg = MakeGuard([&]() { UnmapViewOfFile(fileData, fileSize); });
+			auto udg = MakeGuard([&]() { UnmapViewOfFile(fileData, fileSize, fileName); });
 
 			struct WorkRec
 			{
@@ -2336,7 +2340,7 @@ namespace uba
 			u8* fileData = MapViewOfFile(fileMapping, FILE_MAP_READ, 0, compressedSize);
 			if (!fileData)
 				return m_logger.Error(TC("Failed to map view of file mapping for %s (%s)"), fileName, LastErrorToText().data);
-			auto udg = MakeGuard([&]() { UnmapViewOfFile(fileData, compressedSize); });
+			auto udg = MakeGuard([&]() { UnmapViewOfFile(fileData, compressedSize, fileName); });
 			
 			if (!DecompressMemoryToMemory(fileData + 8, dest, decompressedSize))
 				return false;

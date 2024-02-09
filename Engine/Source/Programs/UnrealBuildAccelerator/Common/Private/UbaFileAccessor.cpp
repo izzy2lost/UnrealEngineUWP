@@ -309,7 +309,7 @@ namespace uba
 	{
 		if (m_data)
 		{
-			if (!UnmapViewOfFile(m_data, m_size))
+			if (!UnmapViewOfFile(m_data, m_size, m_fileName))
 				return m_logger.Error(TC("Failed to unmap memory for %s (%s)"), m_fileName, LastErrorToText().data);
 			m_data = nullptr;
 		}

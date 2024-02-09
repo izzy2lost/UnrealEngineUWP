@@ -11,7 +11,7 @@ public class UbaMimalloc : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.NoPCHs;
 
-		if (Target.Platform == UnrealTargetPlatform.Win64) {
+		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Linux) {
 			PublicDependencyModuleNames.AddRange(new string[] {
 				"mimalloc212",
 			});

@@ -94,13 +94,8 @@ namespace uba
 #if PLATFORM_WINDOWS
 			DWORD wasRead = 0;
 			if (!::ReadFile(asHANDLE(fileHandle), buffer, toRead, &wasRead, NULL))
-			{
 				if (GetLastError() != ERROR_IO_PENDING)
-				{
-					logger.Error(TC("ERROR reading file %s (error: %s)"), fileName, LastErrorToText().data);
-					return false;
-				}
-			}
+					return logger.Error(TC("ERROR reading file %s (error: %s)"), fileName, LastErrorToText().data);
 #else
 			ssize_t wasRead = read(asFileDescriptor(fileHandle), buffer, toRead);
 			if (wasRead == -1)
@@ -697,7 +692,11 @@ namespace uba
 		}
 
 		char fullPath[1024];
-		realpath(fileName, fullPath);
+		if (!realpath(fileName, fullPath))
+		{
+			UBA_ASSERTF(false, TC("realpath error handling not implemented for path %s (%s)"), fileName, strerror(errno));
+			return 0;
+		}
 		u32 len = TStrlen(fullPath);
 		UBA_ASSERT(len < sizeof_array(fullPath));
 		UBA_ASSERT(len < nBufferLength);

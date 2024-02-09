@@ -2,7 +2,9 @@
 
 #pragma once
 
-#if defined(UBA_USE_MIMALLOC)
+#if UBA_USE_MIMALLOC
 #include <mimalloc.h>
 #include <mimalloc-override.h>
 #endif
+
+#include "UbaPlatform.h"

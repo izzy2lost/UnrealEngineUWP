@@ -700,9 +700,9 @@ namespace uba
 			int sent = (int)send(socket, (char*)b, u32(bufferLen), 0);
 			if (sent == SOCKET_ERROR)
 			{
-				#if UBA_DEBUG
-				logger.Warning(TC("ERROR sending socket (error: %s)"), LastErrorToText(WSAGetLastError()).data);
-				#endif
+				//#if UBA_DEBUG
+				//logger.Warning(TC("ERROR sending socket (error: %s)"), LastErrorToText(WSAGetLastError()).data);
+				//#endif
 				return false;
 			}
 

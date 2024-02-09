@@ -19,7 +19,7 @@ namespace uba
 		if (m_hostProcess)
 			CloseHandle(m_hostProcess);
 		if (m_memoryBegin)
-			UnmapViewOfFile(m_memoryBegin, 0);
+			UnmapViewOfFile(m_memoryBegin, 0, TC("TraceReader"));
 		if (m_memoryHandle.IsValid())
 			CloseFileMapping(m_memoryHandle);
 	}
@@ -49,7 +49,7 @@ namespace uba
 		m_memoryBegin = MapViewOfFile(m_memoryHandle, FILE_MAP_READ, 0, 0);
 		if (!m_memoryBegin)
 			return false;
-		auto closeView = MakeGuard([&]() { UnmapViewOfFile(m_memoryBegin, 0); m_memoryBegin = nullptr; m_memoryPos = nullptr; m_memoryEnd = nullptr; });
+		auto closeView = MakeGuard([&]() { UnmapViewOfFile(m_memoryBegin, 0, TC("TraceReader")); m_memoryBegin = nullptr; m_memoryPos = nullptr; m_memoryEnd = nullptr; });
 
 		m_memoryPos = m_memoryBegin;
 		m_memoryEnd = m_memoryBegin + fileSize;

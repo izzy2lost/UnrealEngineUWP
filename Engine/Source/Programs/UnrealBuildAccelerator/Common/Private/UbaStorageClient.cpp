@@ -693,7 +693,7 @@ namespace uba
 			isPersistentMapping = true;
 		}
 
-		auto unmapGuard = MakeGuard([&](){ if (isPersistentMapping) UnmapViewOfFile(fileMem, fileSize); });
+		auto unmapGuard = MakeGuard([&](){ if (isPersistentMapping) UnmapViewOfFile(fileMem, fileSize, fileName); });
 
 		CasKey casKey;
 

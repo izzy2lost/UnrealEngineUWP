@@ -104,13 +104,20 @@ public class UbaAgentTarget : TargetRules
 			Rules.GlobalDefinitions.Add("PLATFORM_MAC=0");
 		}
 
+		int useMiMalloc = 0;
+		if (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows) || Target.Platform.IsInGroup(UnrealPlatformGroup.Linux))
+		{
+			if (Rules.bUsePCHFiles)
+			{
+				useMiMalloc = 1;
+			}
+		}
+		Rules.GlobalDefinitions.Add($"UBA_USE_MIMALLOC={useMiMalloc}");
+
+
 		if (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows))
 		{
 			Rules.AdditionalCompilerArguments = "/wd4100 "; // -- C4100: unreferenced formal parameter
-			if (Rules.bUsePCHFiles)
-			{
-				Rules.GlobalDefinitions.Add("UBA_USE_MIMALLOC=1");
-			}
 			if (ShouldExport)
 			{
 				Rules.GlobalDefinitions.Add("UBA_API=__declspec(dllexport)");
