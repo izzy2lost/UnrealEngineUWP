@@ -1066,7 +1066,7 @@ void UVCamComponent::SetInputDeviceSettings(const FVCamInputDeviceConfig& NewInp
 
 TArray<UVCamSubsystem*> UVCamComponent::GetSubsystemArray(const TSubclassOf<UVCamSubsystem>& Class) const
 {
-	return SubsystemCollection.GetSubsystemArray<UVCamSubsystem>(Class);
+	return SubsystemCollection.GetSubsystemArrayCopy<UVCamSubsystem>(Class);
 }
 
 UInputVCamSubsystem* UVCamComponent::GetInputVCamSubsystem() const
@@ -1460,11 +1460,9 @@ void UVCamComponent::TickOutputProviders(float DeltaTime)
 
 void UVCamComponent::TickSubsystems(float DeltaTime)
 {
-	const TSubclassOf<UVCamSubsystem> SubsystemClass = UVCamSubsystem::StaticClass();
-	for (UVCamSubsystem* Subsystem : SubsystemCollection.GetSubsystemArray(SubsystemClass))
-	{
+	SubsystemCollection.ForEachSubsystem([DeltaTime](UVCamSubsystem* Subsystem){
 		Subsystem->OnUpdate(DeltaTime);
-	}
+	});
 }
 
 void UVCamComponent::CopyLiveLinkDataToCamera(const FLiveLinkCameraBlueprintData& LiveLinkData, UCineCameraComponent* CameraComponent)

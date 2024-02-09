@@ -373,7 +373,12 @@ public:
 	
 	template <typename TSubsystemClass>
 	UE_DEPRECATED(5.4, "This function is unsafe for re-entrancy and has been deprecated. Use the BP GetSubsystemArray function or call ForEachSubsystem or GetSubsystemArrayCopy on the subsytem collection instead")
-	const TArray<TSubsystemClass*>& GetSubsystemArray(const TSubclassOf<TSubsystemClass>& SubsystemClass) const { return SubsystemCollection.GetSubsystemArray(SubsystemClass); }
+	const TArray<TSubsystemClass*>& GetSubsystemArray(const TSubclassOf<TSubsystemClass>& SubsystemClass) const 
+	{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		 return SubsystemCollection.GetSubsystemArray(SubsystemClass); 
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
 
 	/******************** Misc ********************/
 	
