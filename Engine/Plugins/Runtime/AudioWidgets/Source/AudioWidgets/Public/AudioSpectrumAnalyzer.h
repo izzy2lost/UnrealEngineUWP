@@ -48,10 +48,19 @@ namespace AudioWidgets
 		void ExtendSpectrumPlotContextMenu(FMenuBuilder& MenuBuilder);
 		void BuildBallisticsSubMenu(FMenuBuilder& SubMenu);
 		void BuildAnalyzerTypeSubMenu(FMenuBuilder& SubMenu);
+		void BuildFFTSizeSubMenu(FMenuBuilder& SubMenu);
 
 		void SetAnalyzerType(const EAudioSpectrumAnalyzerType InAnalyzerType);
+		void SetSynesthesiaSpectrumAnalyzerFFTSize(const EFFTSize FFTSize);
+		void SetConstantQAnalyzerFFTSize(const EConstantQFFTSizeEnum FFTSize);
 
 	private:
+		void CreateSynesthesiaSpectrumAnalyzer();
+		void ReleaseSynesthesiaSpectrumAnalyzer();
+			
+		void CreateConstantQAnalyzer();
+		void ReleaseConstantQAnalyzer();
+
 		void Teardown();
 
 		/** Audio analyzer objects. */
