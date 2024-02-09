@@ -157,7 +157,7 @@ void UBakeTransformTool::UpdateAssets()
 		}
 	}
 
-	constexpr bool bWorkaroundForCrashIfConvexAndMeshModifiedInSameTransaction = true;
+	constexpr bool bWorkaroundForCrashIfConvexAndMeshModifiedInSameTransaction = false;
 	bool bNeedSeparateTransactionForSimpleCollision = false;
 	if constexpr (bWorkaroundForCrashIfConvexAndMeshModifiedInSameTransaction)
 	{
