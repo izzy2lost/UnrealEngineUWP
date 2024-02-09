@@ -82,7 +82,8 @@ struct HAIRSTRANDSCORE_API FHairGroupCardsTextures
 	UPROPERTY()
 	TObjectPtr<UTexture2D> MaterialTexture_DEPRECATED = nullptr;
 
-	void SetTexture(EHairAtlasTextureType SlotID, UTexture2D* Texture);
+	void SetLayout(EHairTextureLayout InLayout);
+	void SetTexture(int32 SlotID, UTexture2D* Texture);
 
 	bool bNeedToBeSaved = false;
 };

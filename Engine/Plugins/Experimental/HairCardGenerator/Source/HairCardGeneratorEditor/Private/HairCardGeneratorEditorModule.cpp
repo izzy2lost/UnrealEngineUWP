@@ -17,6 +17,7 @@
 #include "PropertyEditorModule.h"
 #include "AutomatedAssetImportData.h"
 #include "GroomAsset.h"
+#include "GroomAssetCards.h" // for GetHairTextureLayoutTextureCount
 #include "GroomCacheData.h" // for EGroomBasisType, EGroomCurveType
 #include "HairDescription.h"
 #include "ObjectTools.h"
@@ -43,7 +44,7 @@ LLM_DEFINE_TAG(HairCardGenerator);
 struct FHairCardImportSettings
 {
 	FString MeshName;
-	TMap<EHairAtlasTextureType, FString> TextureNames;
+	TArray<FString> TextureNames;
 };
 
 
@@ -458,29 +459,15 @@ static bool HairCardGeneratorEditor_Impl::GenerateCardsForCardGroup(TObjectPtr<c
 
 static void HairCardGeneratorEditor_Impl::GetTextureImportNames(UHairCardGeneratorPluginSettings* Settings, FHairCardImportSettings& ImportSettings)
 {
+	uint32 NumTextures = GetHairTextureLayoutTextureCount(Settings->ChannelLayout);
 	FString TextureBasename = Settings->GetTextureImportBaseName();
 
-	ImportSettings.TextureNames.Empty();
+	ImportSettings.TextureNames.SetNum(NumTextures);
 	ImportSettings.MeshName = Settings->BaseFilename;
 
-	FFormatNamedArguments FilenameFormatArgs;
-	FilenameFormatArgs.Add(TEXT("groom_name"), FText::FromString(Settings->GetGroomName()));
-	FilenameFormatArgs.Add(TEXT("lod"), Settings->GetLODIndex());
-	FilenameFormatArgs.Add(TEXT("mesh_name"), FText::FromString(TextureBasename));
-
-	const UHairCardGeneratorEditorSettings* ConfigSettings = GetDefault<UHairCardGeneratorEditorSettings>();
-	ImportSettings.TextureNames.Reserve(ConfigSettings->HairCardTextureNameFormats.Num());
-	for (auto TextureNameIt : ConfigSettings->HairCardTextureNameFormats)
+	for (uint32 i = 0; i < NumTextures; ++i)
 	{
-		FString FormattedTextureName = FText::Format(FText::FromString(TextureNameIt.Value), FilenameFormatArgs).ToString();
-		if (FPaths::ValidatePath(FormattedTextureName))
-		{
-			ImportSettings.TextureNames.Add(TextureNameIt.Key, FormattedTextureName);
-		}
-		else
-		{
-			UE_LOG(LogHairCardGenerator, Warning, TEXT("Invalid texture name config: '%s'"), *TextureNameIt.Value);
-		}
+		ImportSettings.TextureNames[i] = FString::Printf(TEXT("%s_TS%d"), *TextureBasename, i);
 	}
 }
 
@@ -496,29 +483,18 @@ static TArray<UObject*> HairCardGeneratorEditor_Impl::ImportHairCardTextures(con
 	AutoImportLinearTextures->bSkipReadOnly = false;
 	AutoImportLinearTextures->Factory = LinearTextureFactory;
 
-	UAutomatedAssetImportData* AutomatedImportData = NewObject<UAutomatedAssetImportData>();
-	AutomatedImportData->DestinationPath = ImportDst;
-	AutomatedImportData->bReplaceExisting = true;
-	AutomatedImportData->bSkipReadOnly = false;
-
 	IPlatformFile& FileManager = FPlatformFileManager::Get().GetPlatformFile();
-	FileManager.IterateDirectory(*ImportSrc, [AutomatedImportData, AutoImportLinearTextures, ImportSettings](const TCHAR* FilenameOrDirectory, const bool bIsDirectory)->bool
+	FileManager.IterateDirectory(*ImportSrc, [AutoImportLinearTextures, ImportSettings](const TCHAR* FilenameOrDirectory, const bool bIsDirectory)->bool
 		{
 			if (!bIsDirectory)
 			{
-				FString basename = FPaths::GetBaseFilename(FilenameOrDirectory, true);
-				const EHairAtlasTextureType* pType = ImportSettings.TextureNames.FindKey(basename);
-				if ( pType && (*pType == EHairAtlasTextureType::Tangent || *pType == EHairAtlasTextureType::Attribute ) )
-					AutoImportLinearTextures->Filenames.Add(FString(FilenameOrDirectory));
-				else
-					AutomatedImportData->Filenames.Add(FilenameOrDirectory);
+				AutoImportLinearTextures->Filenames.Add(FString(FilenameOrDirectory));
 			}
 			return true;
 		}
 	);
 
-	TArray<UObject*> ImportedAssets = FAssetToolsModule::GetModule().Get().ImportAssetsAutomated(AutomatedImportData);
-	ImportedAssets.Append(FAssetToolsModule::GetModule().Get().ImportAssetsAutomated(AutoImportLinearTextures));
+	TArray<UObject*> ImportedAssets = FAssetToolsModule::GetModule().Get().ImportAssetsAutomated(AutoImportLinearTextures);
 	return ImportedAssets;
 }
 
@@ -570,15 +546,12 @@ static int32 HairCardGeneratorEditor_Impl::AssignImportedTextures(const TArray<U
 		if ( TextureImport )
 		{
 			bool bFound = false;
-			for (auto NameTemplateIt : ImportSettings.TextureNames)
+			int SlotIdx = ImportSettings.TextureNames.Find(TextureImport->GetName());
+			if (SlotIdx != INDEX_NONE)
 			{
-				if (TextureImport->GetName().Equals(NameTemplateIt.Value))
-				{
-					Assignee.Textures.SetTexture(NameTemplateIt.Key, TextureImport);
-					bFound = true;
-					++AssignedAssets;
-					break;
-				}
+				Assignee.Textures.SetTexture(SlotIdx, TextureImport);
+				bFound = true;
+				++AssignedAssets;
 			}
 
 			UE_CLOG(!bFound, LogHairCardGenerator, Warning, TEXT("Unable to determine which slot imported texture ('%s') is for. Check your config."), *TextureImport->GetName());
@@ -697,6 +670,9 @@ bool FHairCardGeneratorEditorModule::GenerateHairCardsForLOD(UGroomAsset* NewGro
 
 	// Write the settings that we will attempt to output to card desc (won't be stored on failure see FGroomRenderingDetails::OnGenerateCardDataUsingPlugin for details)
 	CardsDesc.GenerationSettings = GenerationSettings;
+
+	// Need to set the CardsDesc texture layout appropriately in case we succeed
+	CardsDesc.Textures.SetLayout(GenerationSettings->ChannelLayout);
 
 	// TODO: On error will force full regen (is this the best we can do?)
 	GenerationSettings->ClearPipelineGenerated();

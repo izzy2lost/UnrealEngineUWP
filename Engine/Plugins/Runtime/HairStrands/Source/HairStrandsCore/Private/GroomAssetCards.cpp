@@ -16,19 +16,18 @@ FHairGroupsCardsSourceDescription::FHairGroupsCardsSourceDescription()
 	LODIndex = -1;
 }
 
-void FHairGroupCardsTextures::SetTexture(EHairAtlasTextureType SlotID, UTexture2D* Texture)
+void FHairGroupCardsTextures::SetLayout(EHairTextureLayout InLayout)
 {
-	Layout = EHairTextureLayout::Layout0; // Default hair card layout for now
-	Textures.SetNum(6);
-	switch (SlotID)
-	{
-	case EHairAtlasTextureType::Depth: 			Textures[0] = Texture; break;
-	case EHairAtlasTextureType::Coverage:		Textures[1] = Texture; break;
-	case EHairAtlasTextureType::Tangent:		Textures[2] = Texture; break;
-	case EHairAtlasTextureType::Attribute:		Textures[3] = Texture; break;
-	case EHairAtlasTextureType::AuxilaryData:	Textures[4] = Texture; break;
-	case EHairAtlasTextureType::Material:		Textures[5] = Texture; break;
-	};
+	Layout = InLayout;
+
+	uint32 TextureCount = GetHairTextureLayoutTextureCount(Layout);
+	Textures.SetNum(TextureCount, true);
+}
+
+void FHairGroupCardsTextures::SetTexture(int32 SlotIdx, UTexture2D* Texture)
+{
+	check(SlotIdx < Textures.Num());
+	Textures[SlotIdx] = Texture;
 }
 
 bool FHairGroupsCardsSourceDescription::operator==(const FHairGroupsCardsSourceDescription& A) const

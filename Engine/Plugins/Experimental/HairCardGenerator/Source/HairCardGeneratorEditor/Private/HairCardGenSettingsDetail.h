@@ -26,11 +26,13 @@ private:
     ECheckBoxState GetCheckValue(const TSharedPtr<IPropertyHandle> Property) const;
     void SetCheckValue(ECheckBoxState NewState, const TSharedPtr<IPropertyHandle> Property) const;
 
-    bool CheckReduceFromLOD() const;
+    bool IsEnabledReduceFromLOD(const TSharedPtr<IPropertyHandle> Property) const;
     FText ToolTipReduceFromLOD(const TSharedPtr<IPropertyHandle> Property) const;
+    bool CheckReduceFromLOD(const TSharedPtr<IPropertyHandle> Property, FText& OutTooltipInfo) const;
 
-    bool CheckUseReservedTx() const;
+    bool IsEnabledUseReservedTx(const TSharedPtr<IPropertyHandle> Property) const;
     FText ToolUseReservedTx(const TSharedPtr<IPropertyHandle> Property) const;
+    bool CheckUseReservedTx(const TSharedPtr<IPropertyHandle> Property, FText& OutTooltipInfo) const;
 
     TWeakObjectPtr<UHairCardGeneratorPluginSettings> SettingsPtr;
 };

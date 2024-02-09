@@ -6,6 +6,7 @@
 #include "DetailCategoryBuilder.h"
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
+#include "Dom/JsonObject.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Text/STextBlock.h"
 
@@ -50,7 +51,7 @@ void FHairCardSettingsDetailCustomization::CustomizeDetails(IDetailLayoutBuilder
         SNew(SCheckBox)
         .IsChecked(this, &FHairCardSettingsDetailCustomization::GetCheckValue, ReduceFromLODHandle)
         .OnCheckStateChanged(this, &FHairCardSettingsDetailCustomization::SetCheckValue, ReduceFromLODHandle)
-        .IsEnabled(this, &FHairCardSettingsDetailCustomization::CheckReduceFromLOD)
+        .IsEnabled(this, &FHairCardSettingsDetailCustomization::IsEnabledReduceFromLOD, ReduceFromLODHandle)
         .ToolTipText(this, &FHairCardSettingsDetailCustomization::ToolTipReduceFromLOD, ReduceFromLODHandle)
     ];
 
@@ -69,7 +70,7 @@ void FHairCardSettingsDetailCustomization::CustomizeDetails(IDetailLayoutBuilder
         SNew(SCheckBox)
         .IsChecked(this, &FHairCardSettingsDetailCustomization::GetCheckValue, UseReservedTxHandle)
         .OnCheckStateChanged(this, &FHairCardSettingsDetailCustomization::SetCheckValue, UseReservedTxHandle)
-        .IsEnabled(this, &FHairCardSettingsDetailCustomization::CheckUseReservedTx)
+        .IsEnabled(this, &FHairCardSettingsDetailCustomization::IsEnabledUseReservedTx, UseReservedTxHandle)
         .ToolTipText(this, &FHairCardSettingsDetailCustomization::ToolUseReservedTx, UseReservedTxHandle)
     ];
 }
@@ -101,91 +102,115 @@ void FHairCardSettingsDetailCustomization::SetCheckValue(ECheckBoxState NewState
     }
 }
 
-bool FHairCardSettingsDetailCustomization::CheckReduceFromLOD() const
+bool FHairCardSettingsDetailCustomization::IsEnabledReduceFromLOD(const TSharedPtr<IPropertyHandle> Property) const
 {
+    FText Ignore;
+    return CheckReduceFromLOD(Property, Ignore);
+}
+
+FText FHairCardSettingsDetailCustomization::ToolTipReduceFromLOD(const TSharedPtr<IPropertyHandle> Property) const
+{
+    FText TooltipInfo;
+    CheckReduceFromLOD(Property, TooltipInfo);
+
+    return TooltipInfo;
+}
+
+bool FHairCardSettingsDetailCustomization::CheckReduceFromLOD(const TSharedPtr<IPropertyHandle> Property, FText& OutTooltipInfo) const
+{
+    OutTooltipInfo = Property->GetToolTipText();
     if ( !SettingsPtr.IsValid() )
     {
         return false;
     }
 
-    if ( SettingsPtr.Get()->GetLODIndex() < 1 )
+    TObjectPtr<UHairCardGeneratorPluginSettings> SettingsPin = SettingsPtr.Get();
+    if ( SettingsPin->GetLODIndex() < 1 )
     {
+        OutTooltipInfo = LOCTEXT("ReduceFromLOD.LOD0.ToolTip", "Cannot reduce LOD 0 (must run full generation)");
+        return false;
+    }
+
+    if ( !SettingsPin->ValidChannelLayouts() )
+    {
+        OutTooltipInfo = LOCTEXT("ReduceFromLOD.InconsistentGroupLayouts.ToolTip", "Inconsistent texture layouts for groom groups at this LOD");
         return false;
     }
     
-    if ( !SettingsPtr.Get()->HasValidFullParent() )
+    TSharedPtr<FJsonObject> ParentSettingsJson = SettingsPin->GetFullParent();
+    if ( !ParentSettingsJson.IsValid() )
     {
-        return false;;
+        OutTooltipInfo = LOCTEXT("ReduceFromLOD.InvalidParent.ToolTip", "All lower LODs must be generated using the hair card generator tool");
+        return false;
+    }
+
+    if ( !ParentSettingsJson->HasTypedField<EJson::String>(TEXT("ChannelLayout")) )
+    {
+        OutTooltipInfo = LOCTEXT("ReduceFromLOD.InvalidChannelLayout.ToolTip", "Invalid texture layout setting in previous LOD");
+        return false;
+    }
+
+    UEnum* EnumClass = StaticEnum<EHairTextureLayout>();
+    if ( !EnumClass || ParentSettingsJson->GetStringField(TEXT("ChannelLayout")) != EnumClass->GetNameStringByValue((int64)SettingsPin->GetChannelLayout()) )
+    {
+        OutTooltipInfo = LOCTEXT("ReduceFromLOD.InconsistentParentLayout.ToolTip", "Parent texture layout setting differs from current LOD texture layout");
+        return false;
     }
 
     return true;
 }
 
-FText FHairCardSettingsDetailCustomization::ToolTipReduceFromLOD(const TSharedPtr<IPropertyHandle> Property) const
+bool FHairCardSettingsDetailCustomization::IsEnabledUseReservedTx(const TSharedPtr<IPropertyHandle> Property) const
 {
-    if ( !SettingsPtr.IsValid() )
-    {
-        return Property->GetToolTipText();
-    }
-
-    if ( SettingsPtr.Get()->GetLODIndex() < 1 )
-    {
-        return LOCTEXT("ReduceFromLOD.LOD0.ToolTip", "Cannot reduce LOD 0 (must run full generation)");
-    }
-
-    if ( !SettingsPtr.Get()->HasValidFullParent() )
-    {
-        return LOCTEXT("ReduceFromLOD.InvalidParent.ToolTip", "All lower LODs must be generated using the hair card generator tool");
-    }
-
-    return Property->GetToolTipText();
+    FText Ignore;
+    return CheckUseReservedTx(Property, Ignore);
 }
 
 
-bool FHairCardSettingsDetailCustomization::CheckUseReservedTx() const
+FText FHairCardSettingsDetailCustomization::ToolUseReservedTx(const TSharedPtr<IPropertyHandle> Property) const
 {
+    FText TooltipInfo;
+    CheckUseReservedTx(Property, TooltipInfo);
+
+    return TooltipInfo;
+}
+
+bool FHairCardSettingsDetailCustomization::CheckUseReservedTx(const TSharedPtr<IPropertyHandle> Property, FText& OutTooltipInfo) const
+{
+    OutTooltipInfo = Property->GetToolTipText();
     if ( !SettingsPtr.IsValid() )
     {
         return false;
     }
 
-    if ( SettingsPtr->bReduceCardsFromPreviousLOD )
+    TObjectPtr<UHairCardGeneratorPluginSettings> SettingsPin = SettingsPtr.Get();
+    if ( SettingsPin->bReduceCardsFromPreviousLOD )
     {
+        OutTooltipInfo = LOCTEXT("UseReservedTx.Reducing.ToolTip", "Reduced card geometry will use previous LOD texture UVs");
         return false;
     }
 
-    if ( !SettingsPtr->HasDerivedTextureSettings() )
+    if ( !SettingsPin->HasDerivedTextureSettings() )
     {
+        OutTooltipInfo = LOCTEXT("UseReservedTx.InvalidParent.ToolTip", "Lower LODs must be generated using hair card generator tool with reserved space");
         return false;
     }
 
     // TODO: Handle limiting/reserving texture by using texture resolution to compute reserved space in pixels
-    return (SettingsPtr->GetDerivedReservedTextureSize() >= 5);
-}
-
-FText FHairCardSettingsDetailCustomization::ToolUseReservedTx(const TSharedPtr<IPropertyHandle> Property) const
-{
-    if ( !SettingsPtr.IsValid() )
+    if ( SettingsPin->GetDerivedReservedTextureSize() < 5 )
     {
-        return Property->GetToolTipText();
+        OutTooltipInfo = LOCTEXT("UseReservedTx.NoReservedSpace.ToolTip", "No space reserved in parent LOD chain");
+        return false;
     }
 
-    if ( SettingsPtr->bReduceCardsFromPreviousLOD )
+    UEnum* EnumClass = StaticEnum<EHairTextureLayout>();
+    if ( !EnumClass || SettingsPin->GetDerivedTextureChannelLayout() != EnumClass->GetNameStringByValue((int64)SettingsPin->GetChannelLayout()) )
     {
-        return LOCTEXT("UseReservedTx.Reducing.ToolTip", "Reduced card geometry will use previous LOD texture UVs");
+        OutTooltipInfo = LOCTEXT("UseReservedTx.InconsistentReservedLayout.ToolTip", "Parent reserved texture layout setting differs from current LOD texture layout");
+        return false;
     }
-
-    if ( !SettingsPtr->HasDerivedTextureSettings() )
-    {
-        return LOCTEXT("UseReservedTx.InvalidParent.ToolTip", "Lower LODs must be generated using hair card generator tool with reserved space");
-    }
-
-    if ( SettingsPtr->GetDerivedReservedTextureSize() < 5 )
-    {
-        return LOCTEXT("UseReservedTx.NoReservedSpace.ToolTip", "No space reserved in parent LOD chain");
-    }
-
-    return Property->GetToolTipText();
+    
+    return true;
 }
 
 
