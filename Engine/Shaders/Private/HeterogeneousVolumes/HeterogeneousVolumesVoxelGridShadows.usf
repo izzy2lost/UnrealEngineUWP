@@ -13,10 +13,11 @@
 
 // Ray data
 int bJitter;
+float ShadowStepSize;
 
 // Dispatch data
 int3 GroupCount;
-int DebugMode;
+int ShadowDebugTweak;
 
 int MaxStepCount;
 
@@ -122,7 +123,7 @@ float GetStepFactor()
 
 float GetShadowStepSize()
 {
-	return 1.0;
+	return ShadowStepSize;
 }
 
 float GetShadowStepFactor()
@@ -282,7 +283,7 @@ void RenderVolumetricShadowMapForLightWithVoxelGridCS(
 			WorldRayDirection,
 			// Ray-step attributes
 			Jitter,
-			CalcStepSize(WorldRayDirection),
+			CalcShadowStepSize(WorldRayDirection),
 			MaxStepCount,
 			//MaxSampleCount, // Replace max-steps with max-samples..
 			bApplyEmissionAndTransmittance,
@@ -442,7 +443,7 @@ void RenderVolumetricShadowMapForLightWithVoxelGridCS(
 	RWDebugBuffer[LinearIndex].RayEnd = WorldRayEnd;
 	RWDebugBuffer[LinearIndex].HitSpan = float2(HitSpan, Depth);
 #endif
-	if (Face == View.GeneralPurposeTweak)
+	if (Face == ShadowDebugTweak)
 	{
 		RWBeerShadowMapTexture[PixelCoord] = float4(Transmittance, 1);
 	}
