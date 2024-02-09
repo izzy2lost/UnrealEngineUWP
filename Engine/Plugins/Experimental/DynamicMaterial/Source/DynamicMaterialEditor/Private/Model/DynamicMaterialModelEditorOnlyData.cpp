@@ -154,7 +154,7 @@ void UDynamicMaterialModelEditorOnlyData::CreateMaterial()
 
 		MaterialModel->DynamicMaterial = Cast<UMaterial>(MaterialFactory->FactoryCreateNew(
 			UMaterial::StaticClass(),
-			this,
+			MaterialModel,
 			NAME_None,
 			RF_DuplicateTransient | RF_TextExportTransient,
 			nullptr,
@@ -1112,6 +1112,18 @@ void UDynamicMaterialModelEditorOnlyData::NotifyPostChange(const FPropertyChange
 void UDynamicMaterialModelEditorOnlyData::PostLoad()
 {
 	Super::PostLoad();
+
+	// Backwards compatibility change - materials were originally parented to this object instead of the model.
+	if (IsValid(MaterialModel))
+	{
+		if (UMaterial* Material = MaterialModel->GetGeneratedMaterial())
+		{
+			if (Material->GetOuter() != MaterialModel)
+			{
+				Material->Rename(nullptr, MaterialModel, UE::DynamicMaterial::RenameFlags);
+			}
+		}
+	}
 
 	SetFlags(RF_Transactional);
 
