@@ -59,10 +59,13 @@ struct FBaseRewindHistory
 	/** Create a polymorphic copy of only a range of frames, applying the frame offset to the copies */
 	virtual TUniquePtr<FBaseRewindHistory> CopyFramesWithOffset(const uint32 StartFrame, const uint32 EndFrame, const int32 FrameOffset) = 0;
 
-	/** Copy new data (received from the network) into this history */
-	virtual void ReceiveNewData(FBaseRewindHistory& NewData, const int32 FrameOffset) { }
+	/** Copy new data (received from the network) into this history, returns frame to resimulate from if @param CompareDataForRewind is set to true and compared data differ enough */
+	virtual int32 ReceiveNewData(FBaseRewindHistory& NewData, const int32 FrameOffset, bool CompareDataForRewind = false) { return INDEX_NONE; }
 	UE_DEPRECATED(5.4, "Deprecated, use ReceiveNewData() instead")
 	virtual void ReceiveNewDatas(FBaseRewindHistory& NewDatas, const int32 FrameOffset) { ReceiveNewData(NewDatas, FrameOffset); }
+
+	/** Compares new received data with local predicted data and returns true if they differ enough to trigger a resimulation  */
+	FORCEINLINE virtual bool TriggerRewindFromNewData(void* NewData) { return false; }
 
 	/** Serialize the data to or from a network archive */
 	virtual void NetSerialize(FArchive& Ar, UPackageMap* PackageMap) {}
@@ -198,6 +201,16 @@ public :
 				static_cast<DataType*>(ToData)->MergeData(DataHistory[LocalFrame]);
 			}
 		}
+	}
+
+	FORCEINLINE virtual bool TriggerRewindFromNewData(void* NewData) override
+	{
+		if (EvalData(static_cast<DataType*>(NewData)->LocalFrame))
+		{
+			return !static_cast<DataType*>(NewData)->CompareData(DataHistory[CurrentIndex]);
+		}
+
+		return false;
 	}
 
 	/** Load the data from the buffer at a specific frame */
@@ -1442,21 +1455,22 @@ public:
 		Managers[CurFrame].FrameCreatedFor = CurFrame;
 		TUniquePtr<IResimCacheBase>& ResimCache = Managers[CurFrame].ExternalResimCache;
 
-		if(bResimOptimization)
+		if (bResimOptimization)
 		{
-			if(IsResim())
+			if (IsResim())
 			{
-				if(ResimCache)
+				if (ResimCache)
 				{
 					ResimCache->SetResimming(true);
 				}
 			}
 			else
 			{
-				if(ResimCache)
+				if (ResimCache)
 				{
 					ResimCache->ResetCache();
-				} else
+				}
+				else
 				{
 					ResimCache = CreateCacheFunc();
 				}

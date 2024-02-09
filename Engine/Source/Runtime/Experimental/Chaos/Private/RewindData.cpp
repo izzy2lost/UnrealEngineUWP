@@ -603,7 +603,7 @@ void FRewindData::AdvanceFrameImp(IResimCacheBase* ResimCache)
 	//TODO: if joint is desynced we should desync particles as well
 	//If particle of joint is desynced, we need to make sure the joint is reconsidered too for optimization, though maybe not "desynced"
 
-	if(IsResim() && ResimCache)
+	if (IsResim() && ResimCache)
 	{
 		ResimCache->SetDesyncedParticles(MoveTemp(DesyncedParticles));
 	}
@@ -706,7 +706,7 @@ void FRewindData::PushGTDirtyData(const FDirtyPropertiesManager& SrcManager,cons
 			}
 		});
 
-		if(bKeepRecording)
+		if (bKeepRecording)
 		{
 			//Dynamics are not available at head (sim zeroes them out), so we have to record them as PostPushData (since they're applied as part of PushData)
 			if (auto NewData = Dirty.PropertyData.FindDynamics(SrcManager, SrcDataIdx))
@@ -811,7 +811,7 @@ void FRewindData::MarkDirtyFromPT(FGeometryParticleHandle& Handle)
 
 	if(bRecordingHistory || Latest.ParticlePositionRotation.IsClean(FrameAndPhase))
 	{
-		if (auto Data = Latest.ParticlePositionRotation.WriteAccessNonDecreasing(FFrameAndPhase{ CurFrame, FFrameAndPhase::PostPushData }, PropertiesPool))
+		if (auto Data = Latest.ParticlePositionRotation.WriteAccessNonDecreasing(FrameAndPhase, PropertiesPool))
 		{
 			Data->CopyFrom(Handle);
 		}
@@ -855,7 +855,7 @@ void FRewindData::MarkDirtyJointFromPT(FPBDJointConstraintHandle& Handle)
 
 	if (bRecordingHistory || Latest.JointSettings.IsClean(FrameAndPhase))
 	{
-		if (auto Data = Latest.JointSettings.WriteAccessNonDecreasing(FFrameAndPhase{ CurFrame, FFrameAndPhase::PostPushData }, PropertiesPool))
+		if (auto Data = Latest.JointSettings.WriteAccessNonDecreasing(FrameAndPhase, PropertiesPool))
 		{
 			CopyDataFromObject(*Data, Handle);
 		}
@@ -1009,7 +1009,6 @@ int32 FRewindData::FindValidResimFrame(const int32 RequestedFrame)
 		{
 			for (TWeakPtr<FBaseRewindHistory>& StateHistory : StateHistories)
 			{
-
 				PRAGMA_DISABLE_DEPRECATION_WARNINGS // TODO: Change to HasValidData() in UE 5.6 and remove deprecation pragma
 				if (StateHistory.IsValid() && !StateHistory.Pin().Get()->HasValidDatas(ValidFrame))
 				PRAGMA_ENABLE_DEPRECATION_WARNINGS

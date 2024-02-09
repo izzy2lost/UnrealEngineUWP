@@ -10,6 +10,7 @@
 #include "Physics/Experimental/PhysScene_Chaos.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "PhysicsEngine/PhysicsSettings.h"
+#include "Chaos/PhysicsObject.h"
 
 #include "NetworkPhysicsComponent.generated.h"
 
@@ -75,10 +76,11 @@ struct TNetRewindHistory : public Chaos::TDataRewindHistory<DataType>
 		return Copy;
 	}
 
-	virtual void ReceiveNewData(Chaos::FBaseRewindHistory& NewData, const int32 FrameOffset) override
+	virtual int32 ReceiveNewData(Chaos::FBaseRewindHistory& NewData, const int32 FrameOffset, bool CompareDataForRewind = false) override
 	{
 		TNetRewindHistory& NetNewData = static_cast<TNetRewindHistory&>(NewData);
 
+		int32 RewindFrame = INDEX_NONE;
 		if (NetNewData.NumFrames > 0)
 		{
 			for (int32 FrameIndex = 0; FrameIndex < NetNewData.NumFrames; ++FrameIndex)
@@ -88,12 +90,20 @@ struct TNetRewindHistory : public Chaos::TDataRewindHistory<DataType>
 				FrameData.LocalFrame = FrameData.ServerFrame - FrameOffset;
 				if (FrameData.LocalFrame >= 0)
 				{
+					FrameData.bReceivedData = true; // Received data is marked to differentiate from locally predicted data
+
+					if (CompareDataForRewind && FrameData.LocalFrame > RewindFrame && Super::TriggerRewindFromNewData(&FrameData))
+					{
+						RewindFrame = FrameData.LocalFrame;
+					}
+
 					PRAGMA_DISABLE_DEPRECATION_WARNINGS // TODO: Change to RecordData() in UE 5.6 and remove deprecation pragma
 					Super::RecordDatas(FrameData.LocalFrame, &FrameData);
 					PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				}
 			}
 		}
+		return RewindFrame;
 	}
 
 	virtual void NetSerialize(FArchive& Ar, UPackageMap* InPackageMap) override
@@ -360,6 +370,9 @@ struct FNetworkPhysicsData
 	UPROPERTY()
 	int32 InputFrame = INDEX_NONE;
 
+	// If this data was received over the network or locally predicted
+	bool bReceivedData = false;
+
 	// Serialize the data into/from the archive
 	void SerializeFrames(FArchive& Ar)
 	{
@@ -410,6 +423,11 @@ struct FNetworkPhysicsData
 	* NOTE: Changes to the data in this callback will be sent from server to clients.
 	*/
 	virtual void ValidateData(const UActorComponent* NetworkComponent) { }
+
+	/** Define how to compare client and server data for the same frame, returning false means the data differ enough to trigger a resimulation.
+	* @param PredictedData is data predicted on the client to compare with the current data received from the server.
+	*/
+	virtual bool CompareData(const FNetworkPhysicsData& PredictedData) { return true; }
 
 	/** DEPRECATED */
 	UE_DEPRECATED(5.4, "Deprecated, use ApplyData instead")
@@ -616,8 +634,17 @@ private:
 	// Actor component that will be used to fill the histories
 	TObjectPtr<UActorComponent> ActorComponent;
 
+	// Root components physics object
+	Chaos::FPhysicsObjectHandle RootPhysicsObject;
+
 	// Locally relayed inputs makes this component act as if it's a locally controlled pawn.
 	bool bIsRelayingLocalInputs = false;
+
+	// Cache locally predicted states and then compare then via FNetworkPhysicsData::CompareData to trigger rewind if comparison differ
+	bool bCompareStateToTriggerRewind = false;
+
+	// Compare locally predicted inputs via FNetworkPhysicsData::CompareData to trigger rewind if comparison differ
+	bool bCompareInputToTriggerRewind = false;
 };
 
 /** DEPRECATED UE 5.4 */
