@@ -391,9 +391,12 @@ void FControlRigEditMode::Enter()
 	LastMovieSceneSig = FGuid();
 	if (UsesToolkits())
 	{
-		if (WeakSequencer.IsValid() == false)
+		if (!AreEditingControlRigDirectly())
 		{
-			SetSequencer(FBakingHelper::GetSequencer());
+			if (WeakSequencer.IsValid() == false)
+			{
+				SetSequencer(FBakingHelper::GetSequencer());
+			}
 		}
 		if (!Toolkit.IsValid())
 		{
