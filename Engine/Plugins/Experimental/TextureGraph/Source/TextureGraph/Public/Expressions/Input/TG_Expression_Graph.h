@@ -19,7 +19,7 @@ class TEXTUREGRAPH_API UTG_Expression_Graph : public UTG_Expression
 {
 	GENERATED_BODY()
 public:
-	TG_DECLARE_DYNAMIC_EXPRESSION(TG_Category::Utilities);
+	TG_DECLARE_DYNAMIC_EXPRESSION(TG_Category::Input);
 	virtual void Evaluate(FTG_EvaluationContext* InContext) override;
 
 protected:
@@ -46,7 +46,13 @@ public:
 	UTG_Expression_TextureGraph();
 	virtual ~UTG_Expression_TextureGraph();
 	
+
 #if WITH_EDITOR
+protected:
+	// Only in editor mode, in the case the TextureGraph is assigned from Details panel we need to remember the previous version
+	TWeakObjectPtr<UTextureGraph>	PreEditTextureGraph; 
+public:
+	virtual void PreEditChange(FProperty* PropertyAboutToChange) override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual void PostEditUndo() override;
 #endif
