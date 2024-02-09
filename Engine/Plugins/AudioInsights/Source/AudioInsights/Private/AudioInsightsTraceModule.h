@@ -40,6 +40,9 @@ namespace UE::Audio::Insights
 	private:
 		static const FName GetName();
 
+		static void DisableAllTraceChannels();
+		static void EnableAudioInsightsTraceChannels();
+
 		TSharedRef<FTraceChannelManager> ChannelManager;
 		TMap<FName, TSharedPtr<FTraceProviderBase>> TraceProviders;
 	};
