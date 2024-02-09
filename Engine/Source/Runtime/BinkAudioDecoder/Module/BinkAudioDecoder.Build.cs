@@ -16,7 +16,14 @@ public class BinkAudioDecoder : ModuleRules
         }
         if (Target.Platform == UnrealTargetPlatform.Linux)
         {
-            return Path.Combine(ModuleDirectory, "..", "SDK", "BinkAudio", "Lib", "libbinka_ue_decode_lnx64_static.a");
+            if (Target.Architecture == UnrealArch.Arm64)
+            {
+                return Path.Combine(ModuleDirectory, "..", "SDK", "BinkAudio", "Lib", "libbinka_ue_decode_lnxarm64_static.a");
+            }
+            if (Target.Architecture == UnrealArch.X64)
+            {
+                return Path.Combine(ModuleDirectory, "..", "SDK", "BinkAudio", "Lib", "libbinka_ue_decode_lnx64_static.a");
+            }
         }
         if (Target.Platform == UnrealTargetPlatform.Mac)
         {
