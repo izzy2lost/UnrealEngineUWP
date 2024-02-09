@@ -265,7 +265,7 @@ bool UWorldPartitionResaveActorsBuilder::RunInternal(UWorld* World, const FCellI
 			// Change packaging of all actors in the current cluster
 			for (FWorldPartitionReference& ActorReference : ActorReferences)
 			{
-				const FWorldPartitionActorDescInstance* ActorDescInstance = ActorReference.GetInstance();
+				const FWorldPartitionActorDescInstance* ActorDescInstance = *ActorReference;
 				AActor* Actor = ActorReference.GetActor();
 
 				if (!Actor)

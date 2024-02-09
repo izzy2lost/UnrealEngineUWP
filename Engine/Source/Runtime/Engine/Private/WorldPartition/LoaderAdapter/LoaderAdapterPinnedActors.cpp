@@ -47,10 +47,8 @@ bool FLoaderAdapterPinnedActors::PassActorDescFilter(const FWorldPartitionHandle
 	// We want to be able to pin any type of actors (HLODs, etc).
 	// Allow recursive pinning by setting bCheckIsMainWorldPartition = false
 	const bool bCheckIsMainWorldPartition = false;
-	return ActorHandle.IsValid() && !ActorsToRemove.Contains(ActorHandle) && LoaderAdapterPinnedActorsUtils::SupportsPinning(ActorHandle.GetInstance(), bCheckIsMainWorldPartition);
+	return ActorHandle.IsValid() && !ActorsToRemove.Contains(ActorHandle) && LoaderAdapterPinnedActorsUtils::SupportsPinning(*ActorHandle, bCheckIsMainWorldPartition);
 }
-
-
 
 bool FLoaderAdapterPinnedActors::SupportsPinning(FWorldPartitionActorDescInstance* InActorDescInstance)
 {

@@ -40,7 +40,7 @@ namespace SceneOutliner
 		}
 		else if (const FActorDescTreeItem* ActorDescItem = TreeItem.CastTo<FActorDescTreeItem>())
 		{
-			if (const FWorldPartitionActorDescInstance* ActorDescInstance = ActorDescItem->ActorDescHandle.GetInstance())
+			if (const FWorldPartitionActorDescInstance* ActorDescInstance = *ActorDescItem->ActorDescHandle)
 			{
 				return ActorDescInstance->GetActorPackage().ToString();
 			}
@@ -73,7 +73,7 @@ namespace SceneOutliner
 		}
 		else if (const FActorDescTreeItem* ActorDescItem = TreeItem.CastTo<FActorDescTreeItem>())
 		{
-			if (const FWorldPartitionActorDescInstance* ActorDescInstance = ActorDescItem->ActorDescHandle.GetInstance())
+			if (const FWorldPartitionActorDescInstance* ActorDescInstance = *ActorDescItem->ActorDescHandle)
 			{
 				return FindPackage(nullptr, *ActorDescInstance->GetActorPackage().ToString());
 			}

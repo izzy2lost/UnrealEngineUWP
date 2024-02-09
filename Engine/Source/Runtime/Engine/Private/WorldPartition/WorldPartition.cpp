@@ -279,7 +279,7 @@ void UWorldPartition::FWorldPartitionExternalDirtyActorsTracker::Tick(float InDe
 		}
 
 		// Transfer ownership of our last ref if actor can be pinned
-		if (Reference.IsValid() && Reference.GetInstance()->GetHardRefCount() <= 1 && Owner->PinnedActors && FLoaderAdapterPinnedActors::SupportsPinning(Reference.GetInstance()))
+		if (Reference.IsValid() && Reference->GetHardRefCount() <= 1 && Owner->PinnedActors && FLoaderAdapterPinnedActors::SupportsPinning(*Reference))
 		{
 			Owner->PinnedActors->AddActors({ Reference.ToHandle() });
 		}

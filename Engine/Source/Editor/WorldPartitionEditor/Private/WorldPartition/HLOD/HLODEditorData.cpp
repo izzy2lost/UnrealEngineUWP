@@ -199,7 +199,7 @@ void FWorldPartitionHLODEditorData::UpdateLoadedActorsState()
 		{
 			if (PinnedActor.IsValid())
 			{
-				GatherLoadedActorsBounds(LoadedBounds, PinnedActor.GetInstance(), WorldPartition->GetActorDescContainerInstance());
+				GatherLoadedActorsBounds(LoadedBounds, *PinnedActor, WorldPartition->GetActorDescContainerInstance());
 			}
 		}
 	}
