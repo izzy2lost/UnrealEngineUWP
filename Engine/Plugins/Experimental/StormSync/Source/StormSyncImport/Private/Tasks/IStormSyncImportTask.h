@@ -2,15 +2,11 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-
 /** Interface for tasks that need delayed execution */
 class IStormSyncImportSubsystemTask
 {
 public:
-	virtual ~IStormSyncImportSubsystemTask()
-	{
-	}
+	virtual ~IStormSyncImportSubsystemTask() = default;
 
 	virtual void Run() = 0;
 };

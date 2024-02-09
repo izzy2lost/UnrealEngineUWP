@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Views/STreeView.h"
 
@@ -10,7 +9,7 @@ struct FStormSyncPackageReportNode;
 typedef STreeView<TSharedPtr<FStormSyncPackageReportNode>> SStormSyncReportTreeView;
 
 /** Struct equivalent of ReportPackageData in Engine/Source/Developer/AssetTools/Private/SPackageReportDialog.h */
-struct STORMSYNCEDITOR_API FStormSyncReportPackageData
+struct FStormSyncReportPackageData
 {
 	/** Package name, eg. /Game/Path/File */
 	FString Name;
@@ -28,7 +27,7 @@ struct STORMSYNCEDITOR_API FStormSyncReportPackageData
 };
 
 /** Struct equivalent of FPackageReportNode in Engine/Source/Developer/AssetTools/Private/SPackageReportDialog.h */
-struct STORMSYNCEDITOR_API FStormSyncPackageReportNode
+struct FStormSyncPackageReportNode
 {
 	/** The name of the tree node without the path */
 	FString NodeName;
@@ -89,7 +88,7 @@ private:
  *
  * We can't use it directly as it's not exposed to outside modules.
  */
-class STORMSYNCEDITOR_API SStormSyncReportDialog final : public SCompoundWidget
+class SStormSyncReportDialog final : public SCompoundWidget
 {
 public:
 	SLATE_BEGIN_ARGS(SStormSyncReportDialog) {}

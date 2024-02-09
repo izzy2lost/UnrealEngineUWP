@@ -2,13 +2,12 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "IStormSyncTransportLocalEndpoint.h"
 
 struct FIPv4Endpoint;
 
 /** Local Endpoint interface for Storm Sync Server */
-class STORMSYNCTRANSPORTSERVER_API IStormSyncTransportServerLocalEndpoint : public IStormSyncTransportLocalEndpoint
+class IStormSyncTransportServerLocalEndpoint : public IStormSyncTransportLocalEndpoint
 {
 public:
 	/** Returns endpoint address tcp server is currently listening on (ip:port), empty string otherwise (if not active / listening) */

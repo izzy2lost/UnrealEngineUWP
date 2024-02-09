@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "EditorSubsystem.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "Logging/MessageLog.h"
@@ -30,34 +29,35 @@ struct FStormSyncNotificationTask
  * This subsystem main purpose is to listen for tcp related events triggered from StormSyncTransport layers and module,
  * to provide in-editor integration and handle UI/UX feedback to the end user.
  */
-UCLASS()
-class STORMSYNCEDITOR_API UStormSyncNotificationSubsystem : public UEditorSubsystem
+UCLASS(MinimalAPI)
+class UStormSyncNotificationSubsystem : public UEditorSubsystem
 {
 	GENERATED_BODY()
 
 public:
+	/** Static convenience method to return storm sync notification subsystem */
+	STORMSYNCEDITOR_API static UStormSyncNotificationSubsystem& Get();
+
+	TSharedPtr<SNotificationItem> AddSimpleNotification(const FText& InNotificationText);
+	TSharedPtr<SNotificationItem> AddSimpleNotification(const FNotificationInfo& InInfo);
+
+	void NewPage(const FText& InLabel, const bool bInAppendDateTime = true);
+	void Info(const FText& InMessageLogText);
+	void Warning(const FText& InMessageLogText);
+	void Error(const FText& InMessageLogText);
+	void Notify(const EMessageSeverity::Type InSeverity, const FText& InMessageLogText, const bool bInForce = true);
+
+	STORMSYNCEDITOR_API void HandlePushResponse(const TSharedPtr<FStormSyncTransportPushResponse>& InResponse);
+	STORMSYNCEDITOR_API void HandlePullResponse(const TSharedPtr<FStormSyncTransportPullResponse>& InResponse);
+
+	void HandleSyncResponse(const TSharedPtr<FStormSyncTransportSyncResponse>& InResponse, const FText& InSuccessTextFormat, const FText& InErrorTextFormat);
+
+protected:
 	//~ Begin UEditorSubsystem interface
 	virtual void Initialize(FSubsystemCollectionBase& InCollection) override;
 	virtual void Deinitialize() override;
 	//~ End UEditorSubsystem interface
 
-	/** Static convenience method to return storm sync notification subsystem */
-	static UStormSyncNotificationSubsystem& Get();
-
-	virtual TSharedPtr<SNotificationItem> AddSimpleNotification(const FText& InNotificationText);
-	virtual TSharedPtr<SNotificationItem> AddSimpleNotification(const FNotificationInfo& InInfo);
-	
-	virtual void NewPage(const FText& InLabel, const bool bInAppendDateTime = true);
-	virtual void Info(const FText& InMessageLogText);
-	virtual void Warning(const FText& InMessageLogText);
-	virtual void Error(const FText& InMessageLogText);
-	virtual void Notify(const EMessageSeverity::Type InSeverity, const FText& InMessageLogText, const bool bInForce = true);
-
-	virtual void HandlePushResponse(const TSharedPtr<FStormSyncTransportPushResponse>& InResponse);
-	virtual void HandlePullResponse(const TSharedPtr<FStormSyncTransportPullResponse>& InResponse);
-	virtual void HandleSyncResponse(const TSharedPtr<FStormSyncTransportSyncResponse>& InResponse, const FText& InSuccessTextFormat, const FText& InErrorTextFormat);
-
-protected:
 	/** Currently active notifications. Key is the remote address. */
 	TMap<FString, FStormSyncNotificationTask> Notifications;
 

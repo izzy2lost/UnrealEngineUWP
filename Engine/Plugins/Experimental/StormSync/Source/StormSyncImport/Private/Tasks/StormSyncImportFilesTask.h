@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/UnrealString.h"
 #include "Tasks/IStormSyncImportTask.h"
 
 /** Import files from local exported buffer implementation for tasks that need delayed execution */

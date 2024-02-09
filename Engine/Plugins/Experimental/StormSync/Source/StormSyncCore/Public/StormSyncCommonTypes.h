@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Templates/SharedPointer.h"
 #include "StormSyncCommonTypes.generated.h"
 
 // Common alias to a ThreadSafe SharedPtr to hold a Buffer (array of uint8)

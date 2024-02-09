@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
 
@@ -18,7 +17,7 @@ public:
 	 *
 	 * @return Returns singleton instance, loading the module on demand if needed
 	 */
-	static inline IStormSyncTransportServerModule& Get()
+	static IStormSyncTransportServerModule& Get()
 	{
 		static const FName ModuleName = "StormSyncTransportServer";
 		return FModuleManager::LoadModuleChecked<IStormSyncTransportServerModule>(ModuleName);
@@ -29,7 +28,7 @@ public:
 	 *
 	 * @return True if the module is loaded and ready to use
 	 */
-	static inline bool IsAvailable()
+	static bool IsAvailable()
 	{
 		static const FName ModuleName = "StormSyncTransportServer";
 		return FModuleManager::Get().IsModuleLoaded(ModuleName);

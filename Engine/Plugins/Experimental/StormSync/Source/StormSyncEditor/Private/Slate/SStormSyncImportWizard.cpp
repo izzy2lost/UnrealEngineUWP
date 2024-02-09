@@ -177,37 +177,10 @@ void SStormSyncImportWizard::InitListSources()
 	}
 }
 
-TSharedRef<SStormSyncImportWizard> SStormSyncImportWizard::CreateWizard(const TArray<FStormSyncImportFileInfo>& InFilesToImport, const TArray<FStormSyncImportFileInfo>& InBufferFiles)
-{
-	const TSharedRef<SStormSyncImportWizard> ImportWizard = SNew(SStormSyncImportWizard, InFilesToImport, InBufferFiles);
-	
-	const TSharedRef<SWindow> Window = SNew(SWindow)
-	.Title(LOCTEXT("Window_Title", "Storm Sync | Import files from local pak"))
-	.ClientSize(FVector2D(960, 700))
-	.SupportsMaximize(false)
-	.SupportsMinimize(false)
-	[
-		ImportWizard->AsShared()
-	];
-	
-	TSharedPtr<SWindow> ParentWindow;
-
-	if (FModuleManager::Get().IsModuleLoaded("MainFrame"))
-	{
-		const IMainFrameModule& MainFrame = FModuleManager::LoadModuleChecked<IMainFrameModule>("MainFrame");
-		ParentWindow = MainFrame.GetParentWindow();
-	}
-
-	FSlateApplication::Get().AddModalWindow(Window, ParentWindow, false);
-
-	return ImportWizard;
-}
-
 bool SStormSyncImportWizard::ShouldImport() const
 {
 	return bShouldImport;
 }
-
 
 TSharedRef<ITableRow> SStormSyncImportWizard::MakeFileDependencyWidget(const TSharedPtr<FStormSyncImportFileInfo> InItem, const TSharedRef<STableViewBase>& OwnerTable) const
 {

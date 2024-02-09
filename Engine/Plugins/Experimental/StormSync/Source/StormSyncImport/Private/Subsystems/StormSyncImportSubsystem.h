@@ -4,7 +4,6 @@
 
 #include "Containers/Queue.h"
 #include "Containers/Ticker.h"
-#include "CoreMinimal.h"
 #include "StormSyncCommonTypes.h"
 #include "StormSyncPackageDescriptor.h"
 #include "Subsystems/EngineSubsystem.h"

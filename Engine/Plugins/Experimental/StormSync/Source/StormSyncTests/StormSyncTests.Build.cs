@@ -6,18 +6,12 @@ public class StormSyncTests : ModuleRules
 {
 	public StormSyncTests(ReadOnlyTargetRules Target) : base(Target)
 	{
-		PublicDependencyModuleNames.AddRange(
+		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
 				"Core",
 				"CoreUObject",
-				"Engine"
-			}
-		);
-
-		PrivateDependencyModuleNames.AddRange(
-			new string[]
-			{
+				"Engine",
 				"Projects",
 				"StormSyncCore",
 				"StormSyncDrives",

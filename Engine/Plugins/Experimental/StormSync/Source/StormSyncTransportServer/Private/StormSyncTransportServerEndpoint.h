@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Interfaces/IPv4/IPv4Endpoint.h"
 #include "IStormSyncTransportServerLocalEndpoint.h"
 #include "StormSyncTransportMessages.h"
@@ -22,7 +21,7 @@ class FStormSyncTransportServerEndpoint : public IStormSyncTransportServerLocalE
 {
 public:
 	FStormSyncTransportServerEndpoint();
-	virtual ~FStormSyncTransportServerEndpoint();
+	virtual ~FStormSyncTransportServerEndpoint() override;
 
 	//~ Begin IStormSyncTransportServerLocalEndpoint
 	/** Creates and starts tcp listener */

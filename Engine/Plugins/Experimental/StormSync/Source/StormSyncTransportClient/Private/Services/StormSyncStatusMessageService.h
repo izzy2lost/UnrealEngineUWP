@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "IStormSyncTransportClientLocalEndpoint.h"
 #include "IStormSyncTransportMessageService.h"
 
@@ -14,7 +13,7 @@ class FStormSyncStatusMessageService : public IStormSyncTransportMessageService
 {
 public:
 	explicit FStormSyncStatusMessageService(TSharedPtr<IStormSyncTransportLocalEndpoint, ESPMode::ThreadSafe> InLocalEndpoint);
-	virtual ~FStormSyncStatusMessageService();
+	virtual ~FStormSyncStatusMessageService() override;
 
 	//~ Begin IStormSyncTransportMessageService interface
 	virtual void InitializeMessageEndpoint(FMessageEndpointBuilder& InEndpointBuilder) override;

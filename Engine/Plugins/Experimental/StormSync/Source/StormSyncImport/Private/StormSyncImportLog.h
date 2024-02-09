@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Logging/LogMacros.h"
 
 STORMSYNCIMPORT_API DECLARE_LOG_CATEGORY_EXTERN(LogStormSyncImport, Display, All);
 

@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "StormSyncCommonTypes.h"
 #include "StormSyncPackageDescriptor.h"
 #include "StormSyncCoreDelegates.generated.h"
@@ -22,7 +21,7 @@ enum class EStormSyncConnectedDeviceState : uint8
 };
 
 /** UI related data holder for storm sync connected devices */
-struct STORMSYNCCORE_API FStormSyncConnectedDevice
+struct FStormSyncConnectedDevice
 {
 	/** Holds the state of the connection*/
 	EStormSyncConnectedDeviceState State = EStormSyncConnectedDeviceState::State_Disconnected;
@@ -62,7 +61,7 @@ struct STORMSYNCCORE_API FStormSyncConnectedDevice
 	FStormSyncConnectedDevice() = default;
 };
 
-/** 
+/**
  * FStormSyncCoreDelegates
  * 
  * Delegates used by the editor.
@@ -76,7 +75,7 @@ struct STORMSYNCCORE_API FStormSyncCoreDelegates
 	 * @param FileBuffer The raw file buffer (as a  shared ptr array of bytes) for the incoming pak buffer
 	 */
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnRequestImportBuffer, const FStormSyncPackageDescriptor&, const FStormSyncBufferPtr&);
-	
+
 	/**
 	 * Delegate type for when one an incoming pak extraction process starts
 	 *
@@ -90,7 +89,7 @@ struct STORMSYNCCORE_API FStormSyncCoreDelegates
 	 * @param InFilename The absolute filename path for the imported file
 	 */
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnFileImported, const FString& /*InFilename*/);
-	
+
 	/**
 	 * Delegate type for when one asset is extracted from an incoming pak
 	 *
@@ -107,7 +106,7 @@ struct STORMSYNCCORE_API FStormSyncCoreDelegates
 	 * @param PackageNums The total number of files (or package names) to include in the buffer
 	 */
 	DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnPreStartSendingBuffer, const FString&, const FString&, int32);
-	
+
 	/**
 	 * Delegate type for a client socket opening a tcp stream and sending a buffer to a remote server
 	 *
@@ -115,7 +114,7 @@ struct STORMSYNCCORE_API FStormSyncCoreDelegates
 	 * @param BufferSize The total number of bytes the server should expect, representing the buffer size
 	 */
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnStartSendingBuffer, const FString&, int32);
-	
+
 	/**
 	 * Delegate type for a client socket receiving response from server, indicating how many bytes it received so far
 	 *
@@ -123,7 +122,7 @@ struct STORMSYNCCORE_API FStormSyncCoreDelegates
 	 * @param BytesCount The number of bytes received so far by the remote server
 	 */
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnReceivingBytes, const FString&, int32);
-	
+
 	/**
 	 * Delegate type for a client socket receiving "transfer complete" response from server, indicating the tcp transfer is done.
 	 *
@@ -140,7 +139,7 @@ struct STORMSYNCCORE_API FStormSyncCoreDelegates
 	 * @param FStormSyncConnectedDevice Data Holding struct with info about connected device.
 	 */
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnServiceDiscoveryConnection, const FString&, const FStormSyncConnectedDevice&);
-	
+
 	/**
 	 * Delegate type for when a connection on storm sync network state is changing (might become unresponsive).
 	 *
@@ -150,7 +149,7 @@ struct STORMSYNCCORE_API FStormSyncCoreDelegates
 	 * @param EStormSyncConnectedDeviceState Enum state indicating if connection is active or unresponsive
 	 */
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnServiceDiscoveryStateChange, const FString&, EStormSyncConnectedDeviceState);
-	
+
 	/**
 	 * Delegate type for when server status for a connection on storm sync network has changed (either running or stopped).
 	 *
@@ -161,13 +160,12 @@ struct STORMSYNCCORE_API FStormSyncCoreDelegates
 	 */
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnServiceDiscoveryServerStatusChange, const FString&, bool);
 
-
 	/** Broadcasted when server module starts the endpoint */
 	DECLARE_MULTICAST_DELEGATE(FOnStormSyncServerStarted)
-	
+
 	/** Broadcasted when server module stops the endpoint */
 	DECLARE_MULTICAST_DELEGATE(FOnStormSyncServerStopped)
-	
+
 
 	/**
 	 * Delegate type for a disconnection on storm sync message bus.
@@ -180,15 +178,15 @@ struct STORMSYNCCORE_API FStormSyncCoreDelegates
 	 * @param FStormSyncConnectedDevice Data Holding struct with info about connected device.
 	 */
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnServiceDiscoveryDisconnection, const FString&);
-	
+
 	/** Called when receiving a buffer over network and used to queue up an import task */
 	static FOnRequestImportBuffer OnRequestImportBuffer;
-	
+
 	/** Called when importing an .spak file via the Archive factory (import via content browser) and used to queue up an import task */
 	static FOnRequestImportFile OnRequestImportFile;
 
 	static FOnFileImported OnFileImported;
-	
+
 	/** Called when a file is extracted from an incoming storm sync pak */
 	static FOnPakAssetExtracted OnPakAssetExtracted;
 
@@ -197,28 +195,28 @@ struct STORMSYNCCORE_API FStormSyncCoreDelegates
 	 * before the buffer is created and the connection is established.
 	 */
 	static FOnPreStartSendingBuffer OnPreStartSendingBuffer;
-	
+
 	/** Called when a tcp socket client opens a tcp stream and starts sending a buffer to a remote server */
 	static FOnStartSendingBuffer OnStartSendingBuffer;
-	
+
 	/** Called when a tcp socket client is receiving a response from a server we are sending to (including the size it receives so far) */
 	static FOnReceivingBytes OnReceivingBytes;
 
 	/** Called when a tcp socket client is receiving a response from a server we are sending to (including the size it receives so far) */
 	static FOnTransferComplete OnTransferComplete;
-	
+
 	/** Called when service discovery manager detects a new connection on Storm Sync network */
 	static FOnServiceDiscoveryConnection OnServiceDiscoveryConnection;
-	
+
 	/**
 	 * Called when service discovery manager detects a state change for a connected device on
 	 * Storm Sync network (might become unresponsive)
 	 */
 	static FOnServiceDiscoveryStateChange OnServiceDiscoveryStateChange;
-	
+
 	/** Called when service discovery manager detects a state change for remote server endpoint on a connected device */
 	static FOnServiceDiscoveryServerStatusChange OnServiceDiscoveryServerStatusChange;
-	
+
 	/**
 	 * Called when service discovery manager detects a connection dropped on Storm Sync network
 	 * (happens after a certain amount of inactivity configured via StormSyncTransportSettings)
@@ -227,7 +225,7 @@ struct STORMSYNCCORE_API FStormSyncCoreDelegates
 
 	/* Server started delegate */
 	static FOnStormSyncServerStarted OnStormSyncServerStarted;
-	
+
 	/* Server stopped delegate */
 	static FOnStormSyncServerStopped OnStormSyncServerStopped;
 };

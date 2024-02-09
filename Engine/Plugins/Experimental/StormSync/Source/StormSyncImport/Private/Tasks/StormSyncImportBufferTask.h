@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "StormSyncPackageDescriptor.h"
 #include "Tasks/IStormSyncImportTask.h"
 

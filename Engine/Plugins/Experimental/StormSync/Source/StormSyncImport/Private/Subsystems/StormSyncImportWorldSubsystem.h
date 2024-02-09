@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "StormSyncCommonTypes.h"
 #include "StormSyncPackageDescriptor.h"
 #include "Subsystems/WorldSubsystem.h"

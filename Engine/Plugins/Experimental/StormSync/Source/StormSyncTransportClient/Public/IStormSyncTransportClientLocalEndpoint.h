@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "IStormSyncTransportLocalEndpoint.h"
 #include "StormSyncTransportMessages.h"
 
@@ -12,9 +11,8 @@ DECLARE_DELEGATE_OneParam(FOnStormSyncRequestStatusComplete, const TSharedPtr<FS
 DECLARE_DELEGATE_OneParam(FOnStormSyncPushComplete, const TSharedPtr<FStormSyncTransportPushResponse>&);
 DECLARE_DELEGATE_OneParam(FOnStormSyncPullComplete, const TSharedPtr<FStormSyncTransportPullResponse>&);
 
-
 /** Local Endpoint interface for Storm Sync Client */
-class STORMSYNCTRANSPORTCLIENT_API IStormSyncTransportClientLocalEndpoint : public IStormSyncTransportLocalEndpoint
+class IStormSyncTransportClientLocalEndpoint : public IStormSyncTransportLocalEndpoint
 {
 public:
 	/** Request a status from the given remote address. The given delegate will be called when the response comes in */

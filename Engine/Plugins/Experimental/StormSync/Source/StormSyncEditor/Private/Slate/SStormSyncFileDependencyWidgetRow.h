@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Widgets/Views/SListView.h"
 #include "StormSyncPackageDescriptor.h"
 
@@ -24,7 +23,7 @@ namespace StormSync::SlateWidgetRow
 }
 
 /** Table Row for StormSyncFileDependency list */
-class STORMSYNCEDITOR_API SStormSyncFileDependencyWidgetRow : public SMultiColumnTableRow<TSharedPtr<FStormSyncFileDependency>>
+class SStormSyncFileDependencyWidgetRow : public SMultiColumnTableRow<TSharedPtr<FStormSyncFileDependency>>
 {
 public:
 	SLATE_BEGIN_ARGS(SStormSyncFileDependencyWidgetRow) {}

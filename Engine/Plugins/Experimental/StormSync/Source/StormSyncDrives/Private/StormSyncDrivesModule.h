@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "IStormSyncDrivesModule.h"
 #include "UObject/UnrealType.h"
 
@@ -14,7 +13,7 @@ struct FStormSyncMountPointConfig;
 class UStormSyncDrivesSettings;
 
 /** Main entry point and implementation of StormSync Mounted Drives Runtime module. */
-class STORMSYNCDRIVES_API FStormSyncDrivesModule : public IStormSyncDrivesModule
+class FStormSyncDrivesModule : public IStormSyncDrivesModule
 {
 public:
 	//~ Begin IModuleInterface interface
