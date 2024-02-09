@@ -82,6 +82,12 @@ enum class ENiagaraDefaultGpuTranslucentLatency : uint8
 };
 
 UENUM()
+enum class ENiagaraCompileErrorSeverity : uint8
+{
+	Ignore, LogOnly, Warning, Error
+};
+
+UENUM()
 namespace ENDICollisionQuery_AsyncGpuTraceProvider
 {
 	enum Type : int
@@ -171,6 +177,10 @@ class UNiagaraSettings : public UDeveloperSettings
 	/** If set to true, quaternion attributes will be interpolated via slerp instead of lerp in interpolated spawn scripts. */
 	UPROPERTY(config, EditAnywhere, AdvancedDisplay, Category = Niagara)
 	bool bAccurateQuatInterpolation = true;
+
+	/** If the Niagara compiler sees that a script writes to a namespace that is read only (e.g. a particle script writing to a system attribute), what should it do. */
+	UPROPERTY(config, EditAnywhere, AdvancedDisplay, Category = Niagara)
+	ENiagaraCompileErrorSeverity InvalidNamespaceWriteSeverity = ENiagaraCompileErrorSeverity::Warning;
 
 	/** Whether to limit the max tick delta time or not. */
 	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = "Niagara", meta = (InlineEditConditionToggle))

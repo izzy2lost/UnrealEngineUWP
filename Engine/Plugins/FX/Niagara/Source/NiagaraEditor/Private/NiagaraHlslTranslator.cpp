@@ -5688,12 +5688,24 @@ void TNiagaraHlslTranslator<GraphBridge>::ParameterMapSet(const FParamMapSetNode
 				continue;
 			}
 
-			//FText WriteErrorText;
-			//if (!IsWriteAllowedForNamespace(Var, ActiveHistoryForFunctionCalls.GetCurrentUsageContext(), WriteErrorText))
-			//{
-			//	Error(WriteErrorText, SetNode, Inputs[i].Pin);
-			//	continue;
-			//}
+			FText WriteErrorText;
+			if (!IsWriteAllowedForNamespace(Var, ActiveHistoryForFunctionCalls.GetCurrentUsageContext(), WriteErrorText))
+			{
+				const UNiagaraSettings* Settings = GetDefault<UNiagaraSettings>();
+				if (Settings->InvalidNamespaceWriteSeverity == ENiagaraCompileErrorSeverity::Error)
+				{
+					Error(WriteErrorText, SetNode, Inputs[i].Pin);
+				}
+				else if (Settings->InvalidNamespaceWriteSeverity == ENiagaraCompileErrorSeverity::Warning)
+				{
+					Warning(WriteErrorText, SetNode, Inputs[i].Pin);
+				}
+				else if (Settings->InvalidNamespaceWriteSeverity == ENiagaraCompileErrorSeverity::LogOnly)
+				{
+					Message(FNiagaraCompileEventSeverity::Log, WriteErrorText, SetNode, Inputs[i].Pin);
+				}
+				continue;
+			}
 
 			Var = ActiveHistoryForFunctionCalls.ResolveAliases(Var);
 			
