@@ -6,6 +6,7 @@
 #include "Containers/RingBuffer.h"
 #include "PixelFormat.h"
 #include "Rendering/RenderingCommon.h"
+#include "Sound/SoundSubmix.h"
 #include "Textures/SlateUpdatableTexture.h"
 
 UENUM(BlueprintType)
@@ -44,7 +45,8 @@ struct FAudioSpectrogramViewportRenderParams
  */
 struct FAudioSpectrogramFrameData
 {
-	TConstArrayView<float> SquaredMagnitudes;
+	TConstArrayView<float> SpectrumValues;
+	EAudioSpectrumType SpectrumType = EAudioSpectrumType::PowerSpectrum;
 	float MinFrequency = 0.0f;
 	float MaxFrequency = 0.0f;
 	bool bLogSpacedFreqencies = false;
@@ -111,6 +113,12 @@ private:
 
 		// Helper function for sampling from the given mip data at the given normalized read position. Data is linearly interpolated.
 		static float GetInterpolatedSoundLevel(const TConstArrayView<float> MipData, const float NormalizedDataPos);
+
+		// Convert magnitude values to decibel values. db = 20 * log10(val)
+		static void ArrayMagnitudeToDecibel(TConstArrayView<float> InValues, TArrayView<float> OutValues, float InMinimumDb);
+
+		// Convert power values to decibel values. db = 10 * log10(val)
+		static void ArrayPowerToDecibel(TConstArrayView<float> InValues, TArrayView<float> OutValues, float InMinimumDb);
 
 		// Immutable data describing this spectrogram frame:
 		const int32 NumSoundLevels;
