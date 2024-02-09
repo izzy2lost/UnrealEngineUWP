@@ -1035,7 +1035,7 @@ public:
 	}
 };
 
-FTextureRHIRef FD3D12DynamicRHI::RHIAsyncCreateTexture2D(uint32 SizeX, uint32 SizeY, uint8 Format, uint32 NumMips, ETextureCreateFlags Flags, ERHIAccess InResourceState, void** InitialMipData, uint32 NumInitialMips, FGraphEventRef& OutCompletionEvent)
+FTextureRHIRef FD3D12DynamicRHI::RHIAsyncCreateTexture2D(uint32 SizeX, uint32 SizeY, uint8 Format, uint32 NumMips, ETextureCreateFlags Flags, ERHIAccess InResourceState, void** InitialMipData, uint32 NumInitialMips, const TCHAR* DebugName, FGraphEventRef& OutCompletionEvent)
 {	
 	check(GRHISupportsAsyncTextureCreation);
 	
@@ -1047,10 +1047,10 @@ FTextureRHIRef FD3D12DynamicRHI::RHIAsyncCreateTexture2D(uint32 SizeX, uint32 Si
 	check(!EnumHasAnyFlags(Flags, InvalidFlags));
 
 	FRHITextureCreateDesc CreateDesc =
-		FRHITextureCreateDesc::Create2D(TEXT("RHIAsyncCreateTexture2D"))
+		FRHITextureCreateDesc::Create2D(DebugName)
 		.SetExtent(FIntPoint(SizeX, SizeY))
 		.SetFormat((EPixelFormat)Format)
-		.SetFlags(Flags)
+		.SetFlags(Flags) 
 		.SetNumMips(NumMips)
 		.SetInitialState(ERHIAccess::SRVMask);
 
