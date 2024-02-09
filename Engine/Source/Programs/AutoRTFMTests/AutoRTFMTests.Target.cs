@@ -32,5 +32,7 @@ public class AutoRTFMTestsTarget : TargetRules
 		{
 			 bUseAutoRTFMCompiler = true;
 		}
+
+		bFNameOutlineNumber = true;
 	}
 }
