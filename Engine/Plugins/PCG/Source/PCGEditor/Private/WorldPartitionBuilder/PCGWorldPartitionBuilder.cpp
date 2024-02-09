@@ -46,6 +46,8 @@ UPCGWorldPartitionBuilder::UPCGWorldPartitionBuilder(const FObjectInitializer& O
 	{
 		bGenerateEditingModeNormalComponents = HasParam("GenerateComponentEditingModeNormal");
 
+		bGenerateEditingModePreviewComponents = HasParam("GenerateComponentEditingModePreview");
+
 		bOneComponentAtATime = HasParam("OneComponentAtATime");
 
 		FString IncludeGraphNamesValue;
@@ -97,7 +99,8 @@ bool UPCGWorldPartitionBuilder::RunInternal(UWorld* World, const FCellInfo& InCe
 
 			// Accept based on editing mode.
 			return (InComponent->GetSerializedEditingMode() == EPCGEditorDirtyMode::LoadAsPreview)
-				|| (bGenerateEditingModeNormalComponents && InComponent->GetSerializedEditingMode() == EPCGEditorDirtyMode::Normal);
+				|| (bGenerateEditingModeNormalComponents && InComponent->GetSerializedEditingMode() == EPCGEditorDirtyMode::Normal)
+				|| (bGenerateEditingModePreviewComponents && InComponent->GetSerializedEditingMode() == EPCGEditorDirtyMode::Preview);
 		};
 
 		PCGWorldPartitionBuilder::CollectComponentsToGenerate(World, ComponentFilter, ComponentsToGenerate);

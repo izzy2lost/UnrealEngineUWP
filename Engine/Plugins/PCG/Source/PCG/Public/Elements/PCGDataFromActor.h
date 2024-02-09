@@ -6,6 +6,8 @@
 #include "PCGSettings.h"
 #include "Elements/PCGActorSelector.h"
 
+#include "UObject/ObjectKey.h"
+
 #include "PCGDataFromActor.generated.h"
 
 UENUM()
@@ -115,6 +117,11 @@ struct FPCGDataFromActorContext : public FPCGContext
 {
 	TArray<AActor*> FoundActors;
 	bool bPerformedQuery = false;
+
+#if WITH_EDITOR
+	/** Any change origin ignores we added, to solve dependency issues (like upstream execution cancelling downstream graph). */
+	TArray<TObjectKey<UObject>> IgnoredChangeOrigins;
+#endif
 };
 
 class FPCGDataFromActorElement : public IPCGElement
@@ -127,7 +134,7 @@ public:
 protected:
 	virtual FPCGContext* CreateContext() override;
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
-	void GatherWaitTasks(AActor* FoundActor, FPCGContext* Context, TArray<FPCGTaskId>& OutWaitTasks) const;
+	void GatherWaitTasks(AActor* FoundActor, FPCGContext* InContext, TArray<FPCGTaskId>& OutWaitTasks) const;
 	virtual void ProcessActors(FPCGContext* Context, const UPCGDataFromActorSettings* Settings, const TArray<AActor*>& FoundActors) const;
 	virtual void ProcessActor(FPCGContext* Context, const UPCGDataFromActorSettings* Settings, AActor* FoundActor) const;
 

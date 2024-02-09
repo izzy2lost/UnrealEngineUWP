@@ -341,6 +341,12 @@ public:
 
 	/** To be called by an element to notify the component that this settings have a dynamic dependency. */
 	void RegisterDynamicTracking(const UPCGSettings* InSettings, const TArrayView<TPair<FPCGSelectionKey, bool>>& InDynamicKeysAndCulling);
+
+	/** For duration of the current/next generation, any change triggers from this change origin will be discarded. */
+	void StartIgnoringChangeOriginDuringGeneration(UObject* InChangeOriginToIgnore);
+	void StopIgnoringChangeOriginDuringGeneration(UObject* InChangeOriginToIgnore);
+	bool IsIgnoringChangeOrigin(UObject* InChangeOrigin);
+	void ResetIgnoredChangeOrigins(bool bLogIfAnyPresent);
 #endif
 
 	/** Utility function (mostly for tests) to properly set the value of bIsComponentPartitioned.
@@ -583,6 +589,12 @@ private:
 	/** Map from nodes to stacks to mask of output pins that were deactivated during execution. */
 	mutable TMap<TObjectKey<const UPCGNode>, TMap<const FPCGStack, uint64>> NodeToStackToInactivePinMask;
 	mutable FRWLock NodeToStackToInactivePinMaskLock;
+
+	/** The tracking system will not trigger a generation on this component for these change origins. Populated within the scope
+	* of an element. Entries removed when counter is decremented to 0, so empty map means no active ignores.
+	*/
+	TMap<TObjectKey<UObject>, int32> IgnoredChangeOriginsToCounters;
+	FRWLock IgnoredChangeOriginsLock;
 #endif
 
 	mutable FCriticalSection GeneratedResourcesLock;

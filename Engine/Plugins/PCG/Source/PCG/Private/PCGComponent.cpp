@@ -31,6 +31,7 @@
 #include "RuntimeGen/SchedulingPolicies/PCGSchedulingPolicyBase.h"
 #include "RuntimeGen/SchedulingPolicies/PCGSchedulingPolicyDistanceAndDirection.h"
 #include "Utils/PCGGeneratedResourcesLogging.h"
+#include "Utils/PCGGraphExecutionLogging.h"
 
 #include "LandscapeComponent.h"
 #include "LandscapeProxy.h"
@@ -384,7 +385,7 @@ FPCGTaskId UPCGComponent::CreateGenerateTask(bool bForce, const TArray<FPCGTaskI
 
 void UPCGComponent::PostProcessGraph(const FBox& InNewBounds, bool bInGenerated, FPCGContext* Context)
 {
-	PCGGeneratedResourcesLogging::LogPostProcessGraph();
+	PCGGraphExecutionLogging::LogPostProcessGraph(this);
 
 	LastGeneratedBounds = InNewBounds;
 
@@ -393,6 +394,10 @@ void UPCGComponent::PostProcessGraph(const FBox& InNewBounds, bool bInGenerated,
 	CleanupUnusedManagedResources();
 
 	GeneratedGraphOutput.Reset();
+
+#if WITH_EDITOR
+	ResetIgnoredChangeOrigins(/*bLogIfAnyPresent=*/true);
+#endif
 
 	if (bInGenerated)
 	{
@@ -544,6 +549,11 @@ void UPCGComponent::OnProcessGraphAborted(bool bQuiet)
 	{
 		UE_LOG(LogPCG, Warning, TEXT("Process Graph was called but aborted, check for errors in log if you expected a result."));
 	}
+
+#if WITH_EDITOR
+	// On abort, there may be ignores still registered, silently remove these.
+	ResetIgnoredChangeOrigins(/*bLogIfAnyPresent=*/false);
+#endif
 
 	CleanupUnusedManagedResources();
 
@@ -3005,6 +3015,63 @@ void UPCGComponent::UpdateDynamicTracking()
 	{
 		Subsystem->UpdateComponentTracking(this, /*bShouldDirtyActors=*/false, &ChangedKeys);
 	}
+}
+
+void UPCGComponent::StartIgnoringChangeOriginDuringGeneration(UObject* InChangeOriginToIgnore)
+{
+	FWriteScopeLock Lock(IgnoredChangeOriginsLock);
+
+	if (int32* FoundCounter = IgnoredChangeOriginsToCounters.Find(InChangeOriginToIgnore))
+	{
+		int32& Counter = *FoundCounter; // Put in local variable to evade SA warnings.
+		ensure(Counter >= 0);
+
+		Counter = FMath::Max(0, Counter) + 1;
+	}
+	else
+	{
+
+		IgnoredChangeOriginsToCounters.Add(InChangeOriginToIgnore, 1);
+	}
+}
+
+void UPCGComponent::StopIgnoringChangeOriginDuringGeneration(UObject* InChangeOriginToIgnore)
+{
+	FWriteScopeLock Lock(IgnoredChangeOriginsLock);
+
+	int32* FoundCounter = IgnoredChangeOriginsToCounters.Find(InChangeOriginToIgnore);
+	if (ensure(FoundCounter))
+	{
+		int32& Counter = *FoundCounter; // Put in local variable to evade SA warnings.
+		ensure(Counter > 0);
+
+		if (--Counter <= 0)
+		{
+			IgnoredChangeOriginsToCounters.Remove(InChangeOriginToIgnore);
+		}
+	}
+}
+
+bool UPCGComponent::IsIgnoringChangeOrigin(UObject* InChangeOrigin)
+{
+	FReadScopeLock Lock(IgnoredChangeOriginsLock);
+	const int32* Counter = IgnoredChangeOriginsToCounters.Find(InChangeOrigin);
+	return Counter && ensure(*Counter > 0);
+}
+
+void UPCGComponent::ResetIgnoredChangeOrigins(bool bLogIfAnyPresent)
+{
+	FWriteScopeLock Lock(IgnoredChangeOriginsLock);
+
+	if (bLogIfAnyPresent && !IgnoredChangeOriginsToCounters.IsEmpty())
+	{
+		UE_LOG(LogPCG, Warning, TEXT("[%s/%s] ResetIgnoredChangeOrigins: IgnoredChangeOrigins should be empty but %d found, purged."),
+			GetOwner() ? *GetOwner()->GetName() : TEXT("MISSINGACTOR"),
+			*GetName(),
+			IgnoredChangeOriginsToCounters.Num());
+	}
+
+	IgnoredChangeOriginsToCounters.Reset();
 }
 
 #endif // WITH_EDITOR

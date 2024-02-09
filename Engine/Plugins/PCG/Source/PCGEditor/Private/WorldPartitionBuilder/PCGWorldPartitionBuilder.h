@@ -42,6 +42,9 @@ private:
 	/** Include components which have editing mode set to Normal. */
 	bool bGenerateEditingModeNormalComponents = false;
 
+	/** Include components which have editing mode set to Preview. */
+	bool bGenerateEditingModePreviewComponents = false;
+
 	/** If non empty, components with each graph name will be generated (if editing mode is included), in order. */
 	TArray<FName> IncludeGraphNames;
 

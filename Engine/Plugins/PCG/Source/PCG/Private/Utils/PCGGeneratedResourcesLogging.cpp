@@ -182,18 +182,6 @@ namespace PCGGeneratedResourcesLogging
 #endif
 	}
 
-	void LogPostProcessGraph()
-	{
-#if WITH_EDITOR
-		if (!LogEnabled())
-		{
-			return;
-		}
-
-		UE_LOG(LogPCG, Log, TEXT("[PCGMANAGEDRESOURCES] UPCGComponent::PostProcessGraph"));
-#endif
-	}
-
 	void LogCreateCleanupTask(bool bRemoveComponents)
 	{
 #if WITH_EDITOR
