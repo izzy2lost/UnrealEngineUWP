@@ -15,6 +15,34 @@
 
 #include "EdGraph/EdGraphPin.h"
 
+namespace PCGEditorGraphUtils
+{
+	void GetInspectablePin(const UPCGNode* InNode, const UPCGPin* InPin, const UPCGNode*& OutNode, const UPCGPin*& OutPin)
+	{
+		OutNode = InNode;
+		OutPin = InPin;
+
+		// Basically, this is needed so we can go up the graph when the selected node/pin combo is on a reroute node.
+		while (OutPin && OutPin->IsOutputPin() &&
+			OutNode && OutNode->GetSettings() && OutNode->GetSettings()->IsA<UPCGRerouteSettings>())
+		{
+			// Since it's a reroute node, we can look at the inbound edge (if any) on the reroute node and go up there
+			check(OutNode->GetInputPin(PCGPinConstants::DefaultInputLabel));
+			const TArray<TObjectPtr<UPCGEdge>>& Edges = OutNode->GetInputPin(PCGPinConstants::DefaultInputLabel)->Edges;
+			// A reroute node can have at most one inbound edge, but we still need to make sure it exists
+			if (Edges.Num() == 1)
+			{
+				OutPin = Edges[0]->InputPin;
+				OutNode = OutPin->Node;
+			}
+			else
+			{
+				break;
+			}
+		}
+	}
+}
+
 void UPCGEditorGraph::InitFromNodeGraph(UPCGGraph* InPCGGraph)
 {
 	check(InPCGGraph && !PCGGraph);

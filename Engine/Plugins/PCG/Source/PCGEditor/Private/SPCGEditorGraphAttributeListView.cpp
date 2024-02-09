@@ -4,6 +4,7 @@
 
 #include "PCGComponent.h"
 #include "PCGData.h"
+#include "PCGGraph.h"
 #include "PCGNode.h"
 #include "PCGParamData.h"
 #include "PCGPin.h"
@@ -18,6 +19,7 @@
 #include "Metadata/Accessors/PCGCustomAccessor.h"
 
 #include "PCGEditor.h"
+#include "PCGEditorGraph.h"
 #include "PCGEditorGraphNodeBase.h"
 
 #include "Fonts/FontMeasure.h"
@@ -637,6 +639,13 @@ const FPCGDataCollection* SPCGEditorGraphAttributeListView::GetInspectionData() 
 	}
 
 	if (!Pin)
+	{
+		return nullptr;
+	}
+
+	PCGEditorGraphUtils::GetInspectablePin(PCGNode, Pin, PCGNode, Pin);
+
+	if (!PCGNode || !Pin)
 	{
 		return nullptr;
 	}

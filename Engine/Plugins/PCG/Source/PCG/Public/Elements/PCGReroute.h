@@ -24,7 +24,6 @@ public:
 
 	//~Begin UPCGSettingsInterface interface
 	virtual bool CanBeDisabled() const override { return false; }
-	virtual bool CanBeDebugged() const override { return false; }
 	//~End UPCGSettingsInterface interface
 
 	//~Begin UPCGSettings interface

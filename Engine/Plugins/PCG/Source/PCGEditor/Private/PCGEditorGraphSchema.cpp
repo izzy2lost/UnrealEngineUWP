@@ -2,6 +2,7 @@
 
 #include "PCGEditorGraphSchema.h"
 
+#include "PCGComponent.h"
 #include "PCGEdge.h"
 #include "PCGGraph.h"
 #include "PCGPin.h"
@@ -13,6 +14,7 @@
 #include "Elements/PCGReroute.h"
 #include "Elements/PCGUserParameterGet.h"
 
+#include "PCGEditor.h"
 #include "PCGEditorCommon.h"
 #include "PCGEditorGraph.h"
 #include "PCGEditorGraphNodeBase.h"
@@ -706,6 +708,64 @@ FPCGEditorConnectionDrawingPolicy::FPCGEditorConnectionDrawingPolicy(int32 InBac
 	ArrowRadius = FVector2D::ZeroVector;
 }
 
+bool FPCGEditorConnectionDrawingPolicy::UpdateParamsIfDebugging(UEdGraphPin* OutputPin, UEdGraphPin* InputPin, FConnectionParams& Params)
+{
+	check(OutputPin && InputPin);
+
+	// Early validation
+	const UPCGEditorGraphNodeBase* UpstreamEditorNode = CastChecked<const UPCGEditorGraphNodeBase>(OutputPin->GetOwningNode());
+	if (!UpstreamEditorNode || !UpstreamEditorNode->GetPCGNode())
+	{
+		return false;
+	}
+
+	const UPCGNode* NodeToInspect = nullptr;
+	const UPCGPin* PinToInspect = nullptr;
+
+	// Walk up the graph if the current node is a reroute node because there is no associated inspection data.
+	PCGEditorGraphUtils::GetInspectablePin(UpstreamEditorNode->GetPCGNode(), UpstreamEditorNode->GetPCGNode()->GetOutputPin(OutputPin->GetFName()), NodeToInspect, PinToInspect);
+
+	if (!NodeToInspect || !PinToInspect)
+	{
+		return false;
+	}
+
+	// Early out if we aren't in debug mode
+	if (!Graph || !Graph->GetEditor().IsValid())
+	{
+		return false;
+	}
+
+	const FPCGEditor* Editor = Graph->GetEditor().Pin().Get();
+	const FPCGStack* PCGStack = Editor ? Editor->GetStackBeingInspected() : nullptr;
+	UPCGComponent* PCGComponent = Editor ? Editor->GetPCGComponentBeingInspected() : nullptr;
+
+	if (!Editor || !PCGStack || !PCGComponent)
+	{
+		return false;
+	}
+
+	FPCGStack Stack = *PCGStack;
+	TArray<FPCGStackFrame>& StackFrames = Stack.GetStackFramesMutable();
+	StackFrames.Reserve(StackFrames.Num() + 2);
+	StackFrames.Emplace(NodeToInspect);
+	StackFrames.Emplace(PinToInspect);
+
+	if (const FPCGDataCollection* DataCollection = PCGComponent->GetInspectionData(Stack))
+	{
+		if (DataCollection->TaggedData.Num() > 1)
+		{
+			Params.WireThickness *= GetDefault<UPCGEditorSettings>()->MultiDataEdgeDebugEmphasis;
+		}
+	}
+	else
+	{
+		Params.WireColor = Params.WireColor.Desaturate(GetDefault<UPCGEditorSettings>()->EmptyEdgeDebugDesaturateFactor);
+	}
+
+	return true;
+}
+
 void FPCGEditorConnectionDrawingPolicy::DetermineWiringStyle(UEdGraphPin* OutputPin, UEdGraphPin* InputPin, /*inout*/ FConnectionParams& Params)
 {
 	FConnectionDrawingPolicy::DetermineWiringStyle(OutputPin, InputPin, Params);
@@ -713,7 +773,7 @@ void FPCGEditorConnectionDrawingPolicy::DetermineWiringStyle(UEdGraphPin* Output
 	// Emphasize wire thickness on hovered pins
 	if (HoveredPins.Contains(InputPin) && HoveredPins.Contains(OutputPin))
 	{
-		Params.WireThickness = Params.WireThickness * 3;
+		Params.WireThickness *= GetDefault<UPCGEditorSettings>()->HoverEdgeEmphasis;
 	}
 
 	// Base the color of the wire on the color of the output pin
@@ -725,27 +785,31 @@ void FPCGEditorConnectionDrawingPolicy::DetermineWiringStyle(UEdGraphPin* Output
 	// Desaturate connection if downstream node is disabled or if the data on this wire won't be used
 	if (InputPin && OutputPin)
 	{
-		const UPCGEditorGraphNodeBase* EditorNode = CastChecked<const UPCGEditorGraphNodeBase>(InputPin->GetOwningNode());
-		const UPCGNode* PCGNode = EditorNode ? EditorNode->GetPCGNode() : nullptr;
-		const UPCGPin* PCGPin = PCGNode ? PCGNode->GetInputPin(InputPin->GetFName()) : nullptr;
-		const UPCGEditorGraphNodeBase* UpstreamEditorNode = CastChecked<const UPCGEditorGraphNodeBase>(OutputPin->GetOwningNode());
-		const UPCGEditorGraphNodeBase* DownstreamEditorNode = CastChecked<const UPCGEditorGraphNodeBase>(InputPin->GetOwningNode());
-
-		if (PCGPin && UpstreamEditorNode && DownstreamEditorNode)
+		// Try to apply debugging/dynamic visualization - if it fails, fall back to static visualization
+		if (!UpdateParamsIfDebugging(OutputPin, InputPin, Params))
 		{
-			const bool bDownstreamNodeForceDisabled = DownstreamEditorNode->IsDisplayAsDisabledForced();
+			const UPCGEditorGraphNodeBase* EditorNode = CastChecked<const UPCGEditorGraphNodeBase>(InputPin->GetOwningNode());
+			const UPCGNode* PCGNode = EditorNode ? EditorNode->GetPCGNode() : nullptr;
+			const UPCGPin* PCGPin = PCGNode ? PCGNode->GetInputPin(InputPin->GetFName()) : nullptr;
+			const UPCGEditorGraphNodeBase* UpstreamEditorNode = CastChecked<const UPCGEditorGraphNodeBase>(OutputPin->GetOwningNode());
+			const UPCGEditorGraphNodeBase* DownstreamEditorNode = CastChecked<const UPCGEditorGraphNodeBase>(InputPin->GetOwningNode());
 
-			// Look for the PCG edge that correlates with passed in (OutputPin, InputPin) edge
-			const TObjectPtr<UPCGEdge>* PCGEdge = PCGPin->Edges.FindByPredicate([UpstreamEditorNode, OutputPin](const UPCGEdge* ConnectedPCGEdge)
+			if (PCGPin && UpstreamEditorNode && DownstreamEditorNode)
 			{
-				return UpstreamEditorNode->GetPCGNode() == ConnectedPCGEdge->InputPin->Node && ConnectedPCGEdge->InputPin->Properties.Label == OutputPin->GetFName();
-			});
-			const bool bDownstreamNodeDoesNotUseData = PCGEdge && !PCGNode->IsEdgeUsedByNodeExecution(*PCGEdge);
+				const bool bDownstreamNodeForceDisabled = DownstreamEditorNode->IsDisplayAsDisabledForced();
 
-			// If edge found and is not used, gray it out
-			if (bDownstreamNodeForceDisabled || bDownstreamNodeDoesNotUseData)
-			{
-				Params.WireColor = Params.WireColor.Desaturate(0.7f);
+				// Look for the PCG edge that correlates with passed in (OutputPin, InputPin) edge
+				const TObjectPtr<UPCGEdge>* PCGEdge = PCGPin->Edges.FindByPredicate([UpstreamEditorNode, OutputPin](const UPCGEdge* ConnectedPCGEdge)
+				{
+					return UpstreamEditorNode->GetPCGNode() == ConnectedPCGEdge->InputPin->Node && ConnectedPCGEdge->InputPin->Properties.Label == OutputPin->GetFName();
+				});
+				const bool bDownstreamNodeDoesNotUseData = PCGEdge && !PCGNode->IsEdgeUsedByNodeExecution(*PCGEdge);
+
+				// If edge found and is not used, gray it out
+				if (bDownstreamNodeForceDisabled || bDownstreamNodeDoesNotUseData)
+				{
+					Params.WireColor = Params.WireColor.Desaturate(GetDefault<UPCGEditorSettings>()->EmptyEdgeDebugDesaturateFactor);
+				}
 			}
 		}
 	}
