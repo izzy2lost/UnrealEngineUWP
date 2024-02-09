@@ -88,6 +88,26 @@ public:
 	)
 	static UPARAM(DisplayName = "Bus") USoundControlBus* CreateBus(UObject* WorldContextObject, FName Name, USoundModulationParameter* Parameter, bool Activate = true);
 
+	/* Create a mix with stages created for each provided bus that are initialized to the supplied value and timing parameters.
+	 * @param Buses - Buses to assign stages within new mix to
+	 * @param Value - Initial value for all stages created within the new mix.
+	 * @param AttackTime - Fade time to user when mix activates.
+	 * @param ReleaseTime - Fade time to user when mix deactivates.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Audio|Modulation", meta = (
+		AdvancedDisplay = "3",
+		WorldContext = "WorldContextObject",
+		Keywords = "make modulation modulator stage")
+	)
+	static UPARAM(DisplayName = "Mix") USoundControlBusMix* CreateBusMixFromValue(
+		const UObject* WorldContextObject,
+		FName Name,
+		const TArray<USoundControlBus*>& Buses,
+		float Value = 1.0f,
+		float AttackTime = 0.1f,
+		float ReleaseTime = 0.1f,
+		bool bActivate = true);
+
 	/** Creates a stage used to mix a control bus.
 	 * @param Bus - Bus stage is in charge of applying mix value to.
 	 * @param Value - Value for added bus stage to target when mix is active.

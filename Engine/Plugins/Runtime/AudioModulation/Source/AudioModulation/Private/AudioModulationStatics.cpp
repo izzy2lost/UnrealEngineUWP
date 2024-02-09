@@ -337,6 +337,12 @@ USoundModulationGeneratorADEnvelope* UAudioModulationStatics::CreateADEnvelopeGe
 
 UAudioModulationDestination* UAudioModulationStatics::CreateModulationDestination(UObject* WorldContextObject, FName Name, USoundModulatorBase* Modulator)
 {
+	UWorld* World = GetAudioWorld(WorldContextObject);
+	if (!World)
+	{
+		return nullptr;
+	}
+
 	if (UAudioModulationDestination* NewDestination = NewObject<UAudioModulationDestination>(WorldContextObject, Name))
 	{
 		NewDestination->SetModulator(Modulator);
@@ -446,6 +452,25 @@ void UAudioModulationStatics::UpdateMix(const UObject* WorldContextObject, USoun
 			ModSystem->UpdateMix(Stages, *Mix, false /* bUpdateObject */, InFadeTime);
 		}
 	}
+}
+
+USoundControlBusMix* UAudioModulationStatics::CreateBusMixFromValue(const UObject* WorldContextObject, FName Name, const TArray<USoundControlBus*>& Buses, float Value, float AttackTime, float ReleaseTime, bool bActivate)
+{
+	UWorld* World = GetAudioWorld(WorldContextObject);
+	if (AudioModulation::FAudioModulationManager* ModSystem = GetModulation(World))
+	{
+		if (USoundControlBusMix* NewMix = ModSystem->CreateBusMixFromValue(Name, Buses, Value, AttackTime, ReleaseTime))
+		{
+			if (bActivate)
+			{
+				ModSystem->ActivateBusMix(*NewMix);
+			}
+
+			return NewMix;
+		}
+	}
+
+	return nullptr;
 }
 
 void UAudioModulationStatics::SetGlobalBusMixValue(const UObject* WorldContextObject, USoundControlBus* Bus, float Value, float FadeTime)

@@ -131,6 +131,18 @@ namespace AudioModulation
 		});
 	}
 
+	void FAudioModulationSystem::AddReferencedObjects(FReferenceCollector& Collector)
+	{
+		TArray<TObjectPtr<USoundControlBusMix>> GlobalBusMixes;
+		ActiveGlobalBusValueMixes.GenerateValueArray(GlobalBusMixes);
+		Collector.AddReferencedObjects(GlobalBusMixes);
+	}
+
+	FString FAudioModulationSystem::GetReferencerName() const
+	{
+		return TEXT("FAudioModulationSystem");
+	}
+
 	bool FAudioModulationSystem::CalculateModulationValue(FModulationPatchProxy& OutProxy, float& OutValue) const
 	{
 		check(IsInProcessingThread());
@@ -250,29 +262,12 @@ namespace AudioModulation
 		}
 		else
 		{
-			const FString MixName = InBus.GetName() + TEXT("_GlobalMix");
-			if (TObjectPtr<USoundControlBusMix> NewGlobalMix = NewObject<USoundControlBusMix>(GetTransientPackage(), FName(*MixName)))
+			const FName MixName(*FString::Printf(TEXT("%s_GlobalMix"), *InBus.GetName()));
+			if (TObjectPtr<USoundControlBusMix> NewGlobalMix = CreateBusMixFromValue(MixName, { &InBus }, InValue, InFadeTime))
 			{
-				{
-					FSoundModulationMixValue MixValue;
-					MixValue.TargetValue = InValue;
-
-					if (InFadeTime >= 0.0f)
-					{
-						MixValue.AttackTime = InFadeTime;
-					}
-
-					FSoundControlBusMixStage MixStage;
-					MixStage.Bus = &InBus;
-					MixStage.Value = MixValue;
-
-					NewGlobalMix->MixStages.Emplace(MoveTemp(MixStage));
-				}
-
 				ActiveGlobalBusValueMixes.Add(InBus.GetUniqueID(), NewGlobalMix);
 				UE_LOG(LogAudioModulation, VeryVerbose, TEXT("GlobalBusMix for ControlBus '%s' activated, target set to '%0.4f'."), *InBus.GetName(), InValue);
 				ActivateBusMix(*NewGlobalMix);
-				NewGlobalMix->AddToRoot();
 			}
 			else
 			{
@@ -292,7 +287,6 @@ namespace AudioModulation
 				GlobalMix->MixStages[0].Value.ReleaseTime = InFadeTime;
 				DeactivateBusMix(*GlobalMix);
 				ActiveGlobalBusValueMixes.Remove(BusID);
-				GlobalMix->RemoveFromRoot();
 				UE_LOG(LogAudioModulation, VeryVerbose, TEXT("GlobalBusMix for ControlBus '%s' cleared."), *InBus.GetName());
 			}
 		}
@@ -315,6 +309,40 @@ namespace AudioModulation
 		}
 
 		ActiveGlobalBusValueMixes.Reset();
+	}
+
+	USoundControlBusMix* FAudioModulationSystem::CreateBusMixFromValue(FName Name, const TArray<USoundControlBus*>& Buses, float Value, float AttackTime, float ReleaseTime)
+	{
+		if (TObjectPtr<USoundControlBusMix> NewGlobalMix = NewObject<USoundControlBusMix>(GetTransientPackage(), Name))
+		{
+			for (USoundControlBus* Bus : Buses)
+			{
+				if (Bus)
+				{
+					FSoundModulationMixValue MixValue;
+					MixValue.TargetValue = Value;
+
+					if (AttackTime >= 0.0f)
+					{
+						MixValue.AttackTime = AttackTime;
+					}
+
+					if (ReleaseTime >= 0.0f)
+					{
+						MixValue.ReleaseTime = ReleaseTime;
+					}
+
+					FSoundControlBusMixStage MixStage;
+					MixStage.Bus = Bus;
+					MixStage.Value = MixValue;
+
+					NewGlobalMix->MixStages.Emplace(MoveTemp(MixStage));
+				}
+			}
+			return NewGlobalMix;
+		}
+
+		return nullptr;
 	}
 
 	bool FAudioModulationSystem::GetModulatorValue(const Audio::FModulatorHandle& InModulatorHandle, float& OutValue) const
