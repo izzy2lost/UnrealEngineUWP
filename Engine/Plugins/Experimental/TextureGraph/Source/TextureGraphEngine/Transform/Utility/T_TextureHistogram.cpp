@@ -66,7 +66,6 @@ TiledBlobPtr T_TextureHistogram::CreateJobAndResult(JobUPtr& OutJob, MixUpdateCy
 
 	Result->MakeSingleBlob();
 
-
 	if (!SourceTex->HasHistogram())
 	{
 		//setting it as the histogram of source so it is retained untill the life cycle of source blob.
@@ -101,7 +100,11 @@ TiledBlobPtr T_TextureHistogram::CreateOnService(UMixInterface* InMix, TiledBlob
 
 	check(InMix);
 	check(SourceTex);
-	check(!SourceTex->IsTransient());
+
+	/// If the source texture turns out to be transient at this point, we just return a black histogram. 
+	/// We don't want to calculate anything for transient buffers
+	if (SourceTex->IsTransient())
+		return TextureHelper::GetBlack();
 
 	HistogramServicePtr Service = TextureGraphEngine::GetScheduler()->GetHistogramService().lock();
 	check(Service);
