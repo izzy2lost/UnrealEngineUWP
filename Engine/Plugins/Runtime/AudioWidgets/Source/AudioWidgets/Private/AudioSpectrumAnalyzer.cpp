@@ -3,6 +3,9 @@
 #include "AudioSpectrumAnalyzer.h"
 
 #include "DSP/EnvelopeFollower.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
+
+#define LOCTEXT_NAMESPACE "FAudioSpectrumAnalyzer"
 
 namespace AudioWidgets
 {
@@ -11,8 +14,11 @@ namespace AudioWidgets
 			.Clipping(EWidgetClipping::ClipToBounds)
 			.DisplayFrequencyAxisLabels(false)
 			.DisplaySoundLevelAxisLabels(false)
+			.FrequencyAxisPixelBucketMode_Lambda([]() { return EAudioSpectrumPlotFrequencyAxisPixelBucketMode::Average; }) // Binding this property has the effect of hiding its context menu entry (it isn't much use for the ConstantQ analyzer).
 			.OnGetAudioSpectrumData_Raw(this, &FAudioSpectrumAnalyzer::GetAudioSpectrumData))
 	{
+		ContextMenuExtension = Widget->AddContextMenuExtension(EExtensionHook::Before, nullptr, FMenuExtensionDelegate::CreateRaw(this, &FAudioSpectrumAnalyzer::ExtendSpectrumPlotContextMenu));
+
 		Init(InNumChannels, InAudioDeviceId, InExternalAudioBus);
 	}
 
@@ -21,6 +27,11 @@ namespace AudioWidgets
 		Teardown();
 
 		Widget->UnbindOnGetAudioSpectrumData();
+
+		if (ContextMenuExtension.IsValid())
+		{
+			Widget->RemoveContextMenuExtension(ContextMenuExtension.ToSharedRef());
+		}
 	}
 
 	UAudioBus* FAudioSpectrumAnalyzer::GetAudioBus() const
@@ -71,7 +82,7 @@ namespace AudioWidgets
 				{
 					// Calculate AR smoother coefficients:
 					const float DeltaT = (SpectrumResults.TimeSeconds - PrevTimeStamp.GetValue());
-					Audio::FAttackRelease AttackRelease(1.0f / DeltaT, AttackTimeMsec, ReleaseTimeMsec, true);
+					Audio::FAttackRelease AttackRelease(1.0f / DeltaT, AttackTimeMsec, ReleaseTimeMsec, bIsAnalogAttackRelease);
 
 					// Apply AR smoothing for each frequency:
 					check(SpectrumResults.SpectrumValues.Num() == ARSmoothedSquaredMagnitudes.Num());
@@ -128,4 +139,43 @@ namespace AudioWidgets
 		check(CenterFrequencies.Num() == ARSmoothedSquaredMagnitudes.Num());
 		return FAudioPowerSpectrumData{ CenterFrequencies, ARSmoothedSquaredMagnitudes };
 	}
+
+	void FAudioSpectrumAnalyzer::ExtendSpectrumPlotContextMenu(FMenuBuilder& MenuBuilder)
+	{
+		MenuBuilder.BeginSection("AnalyzerSettings", LOCTEXT("AnalyzerSettings", "Analyzer Settings"));
+		MenuBuilder.AddSubMenu(
+			LOCTEXT("Ballistics", "Ballistics"),
+			FText(),
+			FNewMenuDelegate::CreateSP(this, &FAudioSpectrumAnalyzer::BuildBallisticsSubMenu));
+		MenuBuilder.EndSection();
+	}
+
+	void FAudioSpectrumAnalyzer::BuildBallisticsSubMenu(FMenuBuilder& SubMenu)
+	{
+		SubMenu.AddMenuEntry(
+			LOCTEXT("Analog", "Analog"),
+			FText(),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateSPLambda(this, [this]() { bIsAnalogAttackRelease = true; }),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateSPLambda(this, [this]() { return bIsAnalogAttackRelease; })
+			),
+			NAME_None,
+			EUserInterfaceActionType::ToggleButton);
+		SubMenu.AddMenuEntry(
+			LOCTEXT("Digital", "Digital"),
+			FText(),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateSPLambda(this, [this]() { bIsAnalogAttackRelease = false; }),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateSPLambda(this, [this]() { return !bIsAnalogAttackRelease; })
+			),
+			NAME_None,
+			EUserInterfaceActionType::ToggleButton);
+	}
+
 } // namespace AudioWidgets
+
+#undef LOCTEXT_NAMESPACE

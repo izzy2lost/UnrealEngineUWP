@@ -38,7 +38,7 @@ struct AUDIOWIDGETS_API FAudioSpectrumPlotStyle : public FSlateWidgetStyle
 	FAudioSpectrumPlotStyle& SetAxisLabelColor(const FSlateColor& InAxisLabelColor) { AxisLabelColor = InAxisLabelColor; return *this; }
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
-	FSlateFontInfo AxisLabelFont = FStyleDefaults::GetFontInfo(8);
+	FSlateFontInfo AxisLabelFont = FStyleDefaults::GetFontInfo(5);
 	FAudioSpectrumPlotStyle& SetAxisLabelFont(const FSlateFontInfo& InAxisLabelFont) { AxisLabelFont = InAxisLabelFont; return *this; }
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)

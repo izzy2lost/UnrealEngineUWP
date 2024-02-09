@@ -3,6 +3,8 @@
 #pragma once
 
 #include "AudioSpectrumPlotStyle.h"
+#include "Framework/MultiBox/MultiBoxExtender.h"
+#include "Framework/SlateDelegates.h"
 #include "Styling/ISlateStyle.h"
 #include "Styling/SlateWidgetStyleAsset.h"
 #include "Widgets/SCompoundWidget.h"
@@ -125,6 +127,7 @@ public:
 		, _GridColor(FSlateColor::UseStyle())
 		, _AxisLabelColor(FSlateColor::UseStyle())
 		, _SpectrumColor(FSlateColor::UseStyle())
+		, _AllowContextMenu(true)
 	{}
 		SLATE_STYLE_ARGUMENT(FAudioSpectrumPlotStyle, Style)
 		SLATE_ATTRIBUTE(float, ViewMinFrequency)
@@ -139,6 +142,8 @@ public:
 		SLATE_ATTRIBUTE(FSlateColor, GridColor)
 		SLATE_ATTRIBUTE(FSlateColor, AxisLabelColor)
 		SLATE_ATTRIBUTE(FSlateColor, SpectrumColor)
+		SLATE_ATTRIBUTE(bool, AllowContextMenu)
+		SLATE_EVENT(FOnContextMenuOpening, OnContextMenuOpening)
 		SLATE_EVENT(FGetAudioSpectrumData, OnGetAudioSpectrumData)
 	SLATE_END_ARGS()
 
@@ -153,6 +158,15 @@ public:
 	void SetDisplaySoundLevelAxisLabels(bool bInDisplaySoundLevelAxisLabels) { bDisplaySoundLevelAxisLabels = bInDisplaySoundLevelAxisLabels; }
 	void SetFrequencyAxisScale(EAudioSpectrumPlotFrequencyAxisScale InFrequencyAxisScale) { FrequencyAxisScale = InFrequencyAxisScale; }
 	void SetFrequencyAxisPixelBucketMode(EAudioSpectrumPlotFrequencyAxisPixelBucketMode InFrequencyAxisPixelBucketMode) { FrequencyAxisPixelBucketMode = InFrequencyAxisPixelBucketMode; }
+	void SetAllowContextMenu(bool bInAllowContextMenu) { bAllowContextMenu = bInAllowContextMenu; }
+
+	TSharedRef<const FExtensionBase> AddContextMenuExtension(EExtensionHook::Position HookPosition, const TSharedPtr<FUICommandList>& CommandList, const FMenuExtensionDelegate& MenuExtensionDelegate);
+	void RemoveContextMenuExtension(const TSharedRef<const FExtensionBase>& Extension);
+
+	// Begin SWidget overrides.
+	virtual FReply OnMouseButtonDown(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) override;
+	virtual FReply OnMouseButtonUp(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) override;
+	// End SWidget overrides.
 
 	void UnbindOnGetAudioSpectrumData() { OnGetAudioSpectrumData.Unbind(); }
 
@@ -179,6 +193,13 @@ private:
 	FLinearColor GetAxisLabelColor(const FWidgetStyle& InWidgetStyle) const;
 	FLinearColor GetSpectrumColor(const FWidgetStyle& InWidgetStyle) const;	
 
+	TSharedRef<SWidget> BuildDefaultContextMenu();
+	void BuildFrequencyAxisScaleSubMenu(FMenuBuilder& SubMenu);
+	void BuildFrequencyAxisPixelBucketModeSubMenu(FMenuBuilder& SubMenu);
+
+	static FName ContextMenuExtensionHook;
+	TSharedPtr<FExtender> ContextMenuExtender;
+
 	const FAudioSpectrumPlotStyle* Style;
 	TAttribute<float> ViewMinFrequency;
 	TAttribute<float> ViewMaxFrequency;
@@ -192,5 +213,7 @@ private:
 	TAttribute<FSlateColor> GridColor;
 	TAttribute<FSlateColor> AxisLabelColor;
 	TAttribute<FSlateColor> SpectrumColor;
+	TAttribute<bool> bAllowContextMenu;
+	FOnContextMenuOpening OnContextMenuOpening;
 	FGetAudioSpectrumData OnGetAudioSpectrumData;
 };
