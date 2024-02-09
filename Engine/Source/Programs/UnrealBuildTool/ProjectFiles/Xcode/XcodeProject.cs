@@ -1842,7 +1842,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 				else if (Platform == UnrealTargetPlatform.VisionOS)
 				{
 					SDKRoot = "xros";
-					SupportedPlatforms = "xrsimulator"; // xros
+					SupportedPlatforms = "xrsimulator xros";
 					DeploymentTargetKey = "XROS_DEPLOYMENT_TARGET";
 					SupportedDevices = UnrealData.VisionOSProjectSettings!.RuntimeDevices;
 					DeploymentTarget = UnrealData.VisionOSProjectSettings.RuntimeVersion;
