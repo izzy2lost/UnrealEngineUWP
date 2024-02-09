@@ -57,12 +57,12 @@ bool FPCGFilterByIndexElement::ExecuteInternal(FPCGContext* Context) const
 	const UPCGFilterByIndexSettings* Settings = Context->GetInputSettings<UPCGFilterByIndexSettings>();
 	check(Settings);
 
-	if (Context->InputData.GetInputs().IsEmpty())
+	const TArray<FPCGTaggedData> Inputs = Context->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel);
+
+	if (Inputs.IsEmpty())
 	{
 		return true;
 	}
-
-	TArray<FPCGTaggedData> Inputs = Context->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel);
 
 	PCGIndexing::FPCGIndexCollection FilteredIndices(Inputs.Num());
 	// Parse the indices and switch through possible issues.
