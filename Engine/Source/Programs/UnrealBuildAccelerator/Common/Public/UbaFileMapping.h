@@ -49,7 +49,7 @@ namespace uba
 	FileMappingHandle CreateFileMappingW(FileHandle file, u32 flProtect, u64 maxSize = 0, const tchar* hint = TC(""));
 	u8* MapViewOfFile(FileMappingHandle fileMappingObject, u32 dwDesiredAccess, u64 offset, u64 dwNumberOfBytesToMap);
 	bool MapViewCommit(void* address, u64 size);
-	bool UnmapViewOfFile(const void* lpBaseAddress, u64 bytesToUnmap);
+	bool UnmapViewOfFile(const void* lpBaseAddress, u64 bytesToUnmap, const tchar* hint);
 	bool CloseFileMapping(FileMappingHandle h);
 	bool DuplicateFileMapping(ProcHandle hSourceProcessHandle, FileMappingHandle hSourceHandle, ProcHandle hTargetProcessHandle, FileMappingHandle* lpTargetHandle, u32 dwDesiredAccess, bool bInheritHandle, u32 dwOptions);
 

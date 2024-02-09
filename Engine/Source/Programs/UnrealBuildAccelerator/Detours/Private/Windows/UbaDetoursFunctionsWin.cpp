@@ -737,7 +737,7 @@ int DetourDetachFunctions()
 
 void PreInit(const DetoursPayload& payload)
 {
-	#if defined(UBA_USE_MIMALLOC)
+	#if UBA_USE_MIMALLOC
 	//mi_option_enable(mi_option_large_os_pages);
 	mi_option_disable(mi_option_abandoned_page_reset);
 	#endif

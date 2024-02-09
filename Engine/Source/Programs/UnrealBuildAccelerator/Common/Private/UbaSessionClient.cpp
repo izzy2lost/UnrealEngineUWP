@@ -61,6 +61,11 @@ namespace uba
 
 	SessionClient::~SessionClient()
 	{
+		Stop();
+	}
+
+	void SessionClient::Stop()
+	{
 		CancelAllProcessesAndWait();
 		m_loop = false;
 		m_waitToSendEvent.Set();

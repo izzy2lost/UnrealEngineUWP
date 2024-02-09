@@ -34,6 +34,7 @@ namespace uba
 		SessionClient(const SessionClientCreateInfo& info);
 		~SessionClient();
 
+		void Stop();
 		bool Wait(u32 milliseconds = 0xFFFFFFFF, Event* wakeupEvent = nullptr);
 		void SetIsTerminating(const tchar* reason = TC("Terminating"), u64 delayMs = 0); // Session stores pointer directly. Can't be temporary
 

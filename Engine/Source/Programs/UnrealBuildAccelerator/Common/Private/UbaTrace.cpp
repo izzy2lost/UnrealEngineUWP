@@ -17,7 +17,7 @@ namespace uba
 	Trace::~Trace()
 	{
 		if (m_memoryBegin)
-			UnmapViewOfFile(m_memoryBegin, 0);
+			UnmapViewOfFile(m_memoryBegin, m_memoryCapacity, TC("Trace"));
 		if (m_memoryHandle.IsValid())
 			CloseFileMapping(m_memoryHandle);
 	}
@@ -108,7 +108,7 @@ namespace uba
 			return false;
 		m_logger.Info(TC("Trace file written to %s with size %s"), writeFileName, BytesToText(fileSize).str);
 		
-		UnmapViewOfFile(m_memoryBegin, m_memoryCapacity);
+		UnmapViewOfFile(m_memoryBegin, m_memoryCapacity, TC("Trace"));
 		m_memoryBegin = nullptr;
 		return true;
 	}
@@ -330,7 +330,7 @@ namespace uba
 		if (isCreator)
 			*(tchar*)m_mem = 0;
 
-		auto mg = MakeGuard([&]() { UnmapViewOfFile(m_mem, 256); m_mem = nullptr; });
+		auto mg = MakeGuard([&]() { UnmapViewOfFile(m_mem, 256, channelMutex.data); m_mem = nullptr; });
 
 		channelMutex.Append(channelName).Append(TC("Mutex"));
 		m_mutex = CreateMutexW(false, channelMutex.data);

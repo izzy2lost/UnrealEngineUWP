@@ -227,13 +227,13 @@ namespace uba
 #endif
 	}
 
-	bool UnmapViewOfFile(const void* lpBaseAddress, u64 bytesToUnmap)
+	bool UnmapViewOfFile(const void* lpBaseAddress, u64 bytesToUnmap, const tchar* hint)
 	{
 		ExtendedTimerScope ts(SystemStats::GetCurrent().unmapViewOfFile);
 #if PLATFORM_WINDOWS
 		(void)bytesToUnmap; return ::UnmapViewOfFile(lpBaseAddress);
 #else
-		UBA_ASSERT(bytesToUnmap);
+		UBA_ASSERTF(bytesToUnmap, TC("bytesToUnmap is zero unmapping %p (%s)"), lpBaseAddress, hint);
 		if (munmap((void*)lpBaseAddress, bytesToUnmap) == 0)
 			return true;
 		UBA_ASSERT(false);
@@ -386,7 +386,7 @@ namespace uba
 			u64 commitSize = commitedAfter - committedBefore;
 			if (!MapViewCommit(data + commitStart, commitSize))
 			{
-				UnmapViewOfFile(data, mapSize);
+				UnmapViewOfFile(data, mapSize, hint);
 				m_logger.Error(TC("%s - Failed to allocate memory for %s (%s)"), f.name, hint, LastErrorToText().data);
 				return res;
 			}
@@ -531,7 +531,7 @@ namespace uba
 
 		u8* memory = view.memory - (view.offset - alignedOffsetStart);
 		u64 mapSize = alignedOffsetEnd - alignedOffsetStart;
-		if (!UnmapViewOfFile(memory, mapSize))
+		if (!UnmapViewOfFile(memory, mapSize, hint))
 		{
 			m_logger.Error(TC("%s - Failed to unmap view on address %llx (offset %llu) - %s (%s)"), file.name, u64(memory), view.offset, hint, LastErrorToText().data);
 		}
@@ -643,7 +643,7 @@ namespace uba
 	void FileMappingAllocator::Free(Allocation allocation)
 	{
 		UBA_ASSERT(allocation.handle == m_mappingHandle);
-		if (!UnmapViewOfFile(allocation.memory, m_blockSize))
+		if (!UnmapViewOfFile(allocation.memory, m_blockSize, m_name))
 			m_logger.Error(TC("%s - Failed to unmap view of file (%s)"), m_name, LastErrorToText().data);
 		u64 index = allocation.offset / m_blockSize;
 		ScopedWriteLock lock(m_mappingLock);

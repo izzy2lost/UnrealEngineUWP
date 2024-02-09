@@ -349,7 +349,7 @@ namespace uba
 				terminateTimeMsUtc = strtoull(lineBegin, nullptr, 10);
 				break;
 			case 3: // reason
-				outReason.Appendf(TC("%hs"), lineBegin);
+				outReason.Appendf(PERCENT_HS, lineBegin);
 				break;
 			}
 
@@ -1127,6 +1127,7 @@ namespace uba
 				if (proxy.server)
 					proxy.server->StopAll();
 				client->Disconnect();
+				sessionClient->Stop();
 				storageClient->StopProxy();
 				loopLogging = false;
 				logLinesAvailable.Set();

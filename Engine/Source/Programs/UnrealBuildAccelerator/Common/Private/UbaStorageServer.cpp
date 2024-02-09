@@ -171,7 +171,7 @@ namespace uba
 	{
 		u8* fileMem = MapViewOfFile(mappingHandle, FILE_MAP_READ, mappingOffset, fileSize);
 		UBA_ASSERT(fileMem);
-		auto memClose = MakeGuard([&](){ UnmapViewOfFile(fileMem, fileSize); });
+		auto memClose = MakeGuard([&](){ UnmapViewOfFile(fileMem, fileSize, fileName); });
 
 		bool storeCompressed = true;
 		out = CalculateCasKey(fileMem, fileSize, storeCompressed);
@@ -217,7 +217,7 @@ namespace uba
 		lock.Leave();
 		u8* fileMem = MapViewOfFile(mapping.mappingHandle, FILE_MAP_READ, mapping.mappingOffset, mapping.fileSize);
 		UBA_ASSERT(fileMem);
-		auto memClose = MakeGuard([&](){ UnmapViewOfFile(fileMem, mapping.fileSize); });
+		auto memClose = MakeGuard([&](){ UnmapViewOfFile(fileMem, mapping.fileSize, from); });
 		return StorageImpl::WriteCompressed(out, from, InvalidFileHandle, fileMem, mapping.fileSize, toFile);
 	}
 

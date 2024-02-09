@@ -412,7 +412,7 @@ bool g_checkRtlHeap = true;
 
 SIZE_T Detoured_RtlSizeHeap(HANDLE HeapPtr, ULONG Flags, PVOID Ptr)
 {
-#if defined(UBA_USE_MIMALLOC)
+#if UBA_USE_MIMALLOC
 	if (g_checkRtlHeap && IsInMiMalloc(Ptr))
 		return mi_usable_size(Ptr);
 #endif
@@ -421,7 +421,7 @@ SIZE_T Detoured_RtlSizeHeap(HANDLE HeapPtr, ULONG Flags, PVOID Ptr)
 
 BOOLEAN Detoured_RtlFreeHeap(PVOID HeapHandle, ULONG Flags, PVOID BaseAddress)
 {
-#if defined(UBA_USE_MIMALLOC)
+#if UBA_USE_MIMALLOC
 	if (g_checkRtlHeap && IsInMiMalloc(BaseAddress))
 	{
 		mi_free(BaseAddress);
@@ -433,7 +433,7 @@ BOOLEAN Detoured_RtlFreeHeap(PVOID HeapHandle, ULONG Flags, PVOID BaseAddress)
 
 NTSTATUS Detoured_RtlAnsiStringToUnicodeString(PUNICODE_STRING DestinationString, PCANSI_STRING SourceString, BOOLEAN AllocateDestinationString)
 {
-#if defined(UBA_USE_MIMALLOC)
+#if UBA_USE_MIMALLOC
 	if (AllocateDestinationString)
 	{
 		DestinationString->MaximumLength = SourceString->MaximumLength * 2;
@@ -447,7 +447,7 @@ NTSTATUS Detoured_RtlAnsiStringToUnicodeString(PUNICODE_STRING DestinationString
 
 NTSTATUS Detoured_RtlUnicodeStringToAnsiString(PANSI_STRING DestinationString, PCUNICODE_STRING SourceString, BOOLEAN AllocateDestinationString)
 {
-#if defined(UBA_USE_MIMALLOC)
+#if UBA_USE_MIMALLOC
 	if (AllocateDestinationString)
 	{
 		DestinationString->MaximumLength = SourceString->MaximumLength / 2;
@@ -1417,7 +1417,7 @@ PVOID Detoured_RtlAllocateHeap(PVOID HeapHandle, ULONG Flags, SIZE_T Size)
 
 PVOID Detoured_RtlReAllocateHeap(PVOID HeapHandle, ULONG Flags, PVOID BaseAddress, SIZE_T Size)
 {
-#if defined(UBA_USE_MIMALLOC)
+#if UBA_USE_MIMALLOC
 	if (g_checkRtlHeap && IsInMiMalloc(BaseAddress))
 	{
 		Rpc_WriteLogf(L"ERROR: RtlReAllocateHeap - This is not implemented");

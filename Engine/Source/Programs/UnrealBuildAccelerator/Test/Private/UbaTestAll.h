@@ -42,10 +42,10 @@ namespace uba
 
 
 	#define UBA_TEST(x) \
-		logger.Info(TC("Running %hs..."), #x); \
+		logger.Info(TC("Running %s..."), TC(#x)); \
 		if (!x(testLogger, testRootDir)) \
-			return logger.Error(TC("  %hs failed"), #x); \
-		logger.Info(TC("  %hs success!"), #x);
+			return logger.Error(TC("  %s failed"), TC(#x)); \
+		logger.Info(TC("  %s success!"),  TC(#x));
 
 
 	bool RunAllTests()

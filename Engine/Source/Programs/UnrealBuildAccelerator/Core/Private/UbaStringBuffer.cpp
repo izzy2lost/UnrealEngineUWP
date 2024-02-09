@@ -193,33 +193,38 @@ namespace uba
 		return Append(buf);
 	}
 
+	StringBufferBase& ReplaceEnd(StringBufferBase& sb, const tchar* str)
+	{
+		auto len = TStrlen(str);
+		if (sb.count > sb.capacity - len - 1)
+			sb.count = sb.capacity - len - 1;
+		return sb.Append(str, len);
+	}
+
 	StringBufferBase& StringBufferBase::Append(const tchar* format, va_list& args)
 	{
 		#if PLATFORM_WINDOWS
-		u32 len = _vscwprintf(format, args);
+		int len = _vscwprintf(format, args);
 		va_list& args2 = args;
 		#else
 		va_list args2;
 		va_copy(args2, args);
 		auto g = MakeGuard([&]() { va_end(args2); });
 		int len = vsnprintf(0, 0, format, args);
-		UBA_ASSERT(len >= 0);
 		#endif
 
-		if (u32(len) >= capacity - count)
-		{
-			// 16 chars needed to fit buffer overflow string
-			if (count > capacity - 16)
-				count = capacity - 16;
-			Append(TC("BUFFEROVERFLOW!"));
-			return *this;
-		}
+		if (len < 0)
+			return ReplaceEnd(*this, TC("PRINTF ERROR!"));
+
+		if (len >= int(capacity - count) - 1)
+			return ReplaceEnd(*this, TC("BUFFEROVERFLOW!"));
+
 		int res = Tvsprintf_s(data + count, capacity - count, format, args2);
 
 		if (res > 0)
 			count += u32(res);
 		else
-			Append(TC("SPRINTF_ERROR!"));
+			return ReplaceEnd(*this, TC("SPRINTF_ERROR!"));
 
 		return *this;
 	}

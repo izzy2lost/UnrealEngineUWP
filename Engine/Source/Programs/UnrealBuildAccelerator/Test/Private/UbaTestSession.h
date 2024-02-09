@@ -67,7 +67,7 @@ namespace uba
 		sessionServerInfo.rootDir = rootDir.data;
 		SessionServer sessionServer(sessionServerInfo);
 
-		auto g = MakeGuard([&]() { server.StopAll(); });
+		auto sg = MakeGuard([&]() { server.StopAll(); });
 
 		rootDir.Append(TC("Client"));
 		if (!DeleteAllFiles(logger, rootDir.data))
@@ -79,6 +79,8 @@ namespace uba
 		SessionClientCreateInfo sessionClientInfo(storageClient, client, logWriter);
 		sessionClientInfo.rootDir = rootDir.data;
 		SessionClient sessionClient(sessionClientInfo);
+
+		auto cg = MakeGuard([&]() { sessionClient.Stop(); client.Disconnect(); });
 
 		StringBuffer<> workingDir;
 		workingDir.Append(testRootDir).Append(TC("WorkingDir"));

@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if defined(UBA_USE_MIMALLOC)
+#if UBA_USE_MIMALLOC
 
 #define DETOURED_CALL_MEM(x) DETOURED_CALL(x)
 
