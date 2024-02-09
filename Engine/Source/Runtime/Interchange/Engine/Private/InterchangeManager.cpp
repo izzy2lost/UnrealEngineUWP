@@ -248,7 +248,7 @@ bool UE::Interchange::FImportAsyncHelper::IsClassImportAllowed(UClass* Class)
 	{
 		if (!AssetClassPermissionList->PassesFilter(Class->GetPathName()))
 		{
-			UE_LOG(LogInterchangeEngine, Display, TEXT("The creation of asset of class '%s' is not allowed in this project."), *Class->GetName());
+			UE_LOG(LogInterchangeEngine, Display, TEXT("Creating assets of class '%s' is not allowed in this project."), *Class->GetName());
 			DeniedClasses.Add(Class);
 			return false;
 		}
@@ -835,7 +835,7 @@ UInterchangePipelineBase* UE::Interchange::GeneratePipelineInstance(const FSoftO
 		else
 		{
 			//Log an error because we cannot load the python class, maybe the python script was not loaded
-			UE_LOG(LogInterchangeEngine, Error, TEXT("Cannot generate a pipeline instance because the blueprint %s do not have a valid generated class."), *PipelineInstance.GetWithoutSubPath().ToString());
+			UE_LOG(LogInterchangeEngine, Error, TEXT("Cannot generate a pipeline instance because the Blueprint %s does not have a valid generated class."), *PipelineInstance.GetWithoutSubPath().ToString());
 		}
 	}
 	else if (const UInterchangePythonPipelineAsset* PythonPipeline = Cast<UInterchangePythonPipelineAsset>(ReferenceInstance))
@@ -847,7 +847,7 @@ UInterchangePipelineBase* UE::Interchange::GeneratePipelineInstance(const FSoftO
 		else
 		{
 			//Log an error because we cannot load the python class, maybe the python script was not loaded
-			UE_LOG(LogInterchangeEngine, Error, TEXT("Cannot generate a pipeline instance because the Python pipeline asset %s do not have a valid generated pipeline instance."), *PipelineInstance.GetWithoutSubPath().ToString());
+			UE_LOG(LogInterchangeEngine, Error, TEXT("Cannot generate a pipeline instance because the Python pipeline asset %s does not have a valid generated pipeline instance."), *PipelineInstance.GetWithoutSubPath().ToString());
 		}
 	}
 	else if (const UInterchangePipelineBase* DefaultPipeline = Cast<UInterchangePipelineBase>(ReferenceInstance))
@@ -1568,7 +1568,7 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 
 	if (!SourceData)
 	{
-		UE_LOG(LogInterchangeEngine, Error, TEXT("Cannot import file, the source data is invalid"));
+		UE_LOG(LogInterchangeEngine, Error, TEXT("Cannot import file. The source data is invalid."));
 		return EarlyExit();
 	}
 	
@@ -1576,7 +1576,7 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 		UInterchangeTranslatorBase* Translator = GetTranslatorForSourceData(SourceData);
 		if(!Translator)
 		{
-			UE_LOG(LogInterchangeEngine, Error, TEXT("Cannot import file, the source data is not supported. See if you can enable for interchange the extension [%s]"), *FPaths::GetExtension(SourceData->GetFilename()));
+			UE_LOG(LogInterchangeEngine, Error, TEXT("Cannot import file. The source data is not supported. Try enabling the [%s] extension for Interchange."), *FPaths::GetExtension(SourceData->GetFilename()));
 			return EarlyExit();
 		}
 		Translator->ReleaseSource();
@@ -1592,7 +1592,7 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 	
 	if (InterchangeImportSettings.PipelineStacks.Num() == 0)
 	{
-		UE_LOG(LogInterchangeEngine, Error, TEXT("Cannot import file, there is no pipeline stack define for %s import type"), bImportScene ? TEXT("scene") : TEXT("content"));
+		UE_LOG(LogInterchangeEngine, Error, TEXT("Cannot import file. There is no pipeline stack defined for the %s import type."), bImportScene ? TEXT("scene") : TEXT("content"));
 		return EarlyExit();
 	}
 	
@@ -1792,7 +1792,7 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 				else if(!SourcePipeline)
 				{
 					//A pipeline was not loaded
-					UE_LOG(LogInterchangeEngine, Warning, TEXT("Interchange Reimport: Missing import pipeline from the reimpoting asset. The reimport might fail."));
+					UE_LOG(LogInterchangeEngine, Warning, TEXT("Interchange Reimport: Missing import pipeline from the reimporting asset. The reimport might fail."));
 				}
 			}
 		}
@@ -1916,13 +1916,13 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 					for (FInterchangeStackInfo& StackInfo : PipelineStacks)
 					{
 						OutPipelines = StackInfo.Pipelines;
-						UE_LOG(LogInterchangeEngine, Warning, TEXT("Interchange import: Invalid Default stack, using stack [%s] to import"), *StackInfo.StackName.ToString());
+						UE_LOG(LogInterchangeEngine, Warning, TEXT("Interchange import: Invalid Default stack. using stack [%s] to import."), *StackInfo.StackName.ToString());
 						break;
 					}
 				}
 				else
 				{
-					UE_LOG(LogInterchangeEngine, Warning, TEXT("Interchange Import: Cannot find any valid stack, cancelling import."));
+					UE_LOG(LogInterchangeEngine, Warning, TEXT("Interchange Import: Cannot find any valid stack, canceling import."));
 					bImportCanceled = true;
 				}
 			}
@@ -1958,7 +1958,7 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 			UInterchangePipelineBase* GeneratedPipeline = UE::Interchange::GeneratePipelineInstance(ImportAssetParameters.OverridePipelines[GraphPipelineIndex], PipelineInstancesPackage);
 			if (!GeneratedPipeline)
 			{
-				UE_LOG(LogInterchangeEngine, Error, TEXT("Interchange import: Override pipeline array contains a NULL pipeline. Script or code need to be fix to avoid this. "));
+				UE_LOG(LogInterchangeEngine, Error, TEXT("Interchange Import: Overridden pipeline array contains a NULL pipeline. Fix your script or code to avoid this issue."));
 				continue;
 			}
 			else
@@ -2291,7 +2291,7 @@ bool UInterchangeManager::WarnIfInterchangeIsActive()
 		return false;
 	}
 	//Tell the user they have to cancel the import before closing the editor
-	FNotificationInfo Info(NSLOCTEXT("InterchangeManager", "WarnCannotProceed", "An import process is currently underway! Please cancel it to proceed!"));
+	FNotificationInfo Info(NSLOCTEXT("InterchangeManager", "WarnCannotProceed", "An import process is currently underway. Please cancel it to proceed."));
 	Info.ExpireDuration = 5.0f;
 	TSharedPtr<SNotificationItem> WarnNotification = FSlateNotificationManager::Get().AddNotification(Info);
 	if (WarnNotification.IsValid())

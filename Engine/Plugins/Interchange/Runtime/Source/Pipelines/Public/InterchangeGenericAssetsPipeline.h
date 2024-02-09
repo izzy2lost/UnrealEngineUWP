@@ -31,8 +31,8 @@ struct FReferenceSkeleton;
 struct FMeshBoneInfo;
 
 /**
- * This pipeline is the generic pipeline option for all meshes type and should be call before specialized Mesh pipeline (like generic static mesh or skeletal mesh pipelines)
- * All shared import options between mesh type should be added here.
+ * This pipeline is the generic option for all types of meshes. It should be called before specialized mesh pipelines like the generic static mesh or skeletal mesh pipelines.
+ * All import options that are shared between mesh types should be added here.
  *
  */
 UCLASS(BlueprintType, editinlinenew)
@@ -49,15 +49,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Common", meta = (StandAlonePipelineProperty = "True", PipelineInternalEditionData = "True"))
 	FString PipelineDisplayName;
 
-	/* Allow user to choose the re-import strategy. */
+	/* Set the reimport strategy. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Common", meta = (AdjustPipelineAndRefreshDetailOnChange = "True"))
 	EReimportStrategyFlags ReimportStrategy = EReimportStrategyFlags::ApplyNoProperties;
 
-	/** If enable and AssetName is empty and there is only one asset and one source data, we will name the asset like the source data name. */
+	/** If enabled, and the Asset Name setting is empty, and there is only one asset and one source, the imported asset is given the same name as the source data. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Common")
 	bool bUseSourceNameForAsset = true;
 
-	/** If not empty, and there is only one asset and one source data, we will name the asset with this string. */
+	/** If set, and there is only one asset and one source, the imported asset is given this name. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Common", meta = (StandAlonePipelineProperty = "True", AlwaysResetToDefault = "True"))
 	FString AssetName;
 

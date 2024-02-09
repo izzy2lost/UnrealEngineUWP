@@ -30,10 +30,11 @@ struct FInterchangePipelineStack
 {
 	GENERATED_BODY()
 	
+	/** The list of pipelines in this stack. The pipelines are executed in fixed order, from top to bottom. */
 	UPROPERTY(EditAnywhere, Category = "Pipelines", meta = (AllowedClasses = "/Script/InterchangeCore.InterchangePipelineBase, /Script/InterchangeEngine.InterchangeBlueprintPipelineBase, /Script/InterchangeEngine.InterchangePythonPipelineAsset"))
 	TArray<FSoftObjectPath> Pipelines;
 
-	/** This tells Interchange which pipeline to add based on the type of the source */
+	/** Specifies a different list of pipelines for this stack to use when importing data from specific translators. */
 	UPROPERTY(EditAnywhere, Category = "TranslatorPipelines")
 	TArray<FInterchangeTranslatorPipelines> PerTranslatorPipelines;
 };
@@ -43,15 +44,15 @@ struct FInterchangeImportSettings
 {
 	GENERATED_BODY()
 
-	/** All the available pipeline stacks you want to use to import with interchange. The chosen pipeline stack execute all the pipelines from top to bottom order. You can order them by using the grip on the left of any pipelines.*/
+	/** Configures the pipeline stacks that are available when importing assets with Interchange. */
 	UPROPERTY(EditAnywhere, Category = "Pipeline")
 	TMap<FName, FInterchangePipelineStack> PipelineStacks;
 
-	/** This tell interchange which pipeline stack to select when importing.*/
+	/** Specifies which pipeline stack Interchange should use by default. */
 	UPROPERTY(EditAnywhere, Category = "Pipeline")
 	FName DefaultPipelineStack = NAME_None;
 
-	/** This tell interchange which class to instance to show the import dialog.*/
+	/** Specifies the class that should be used to define the configuration dialog that Interchange shows on import. */
 	UPROPERTY(EditAnywhere, Category = "Pipeline")
 	TSoftClassPtr <UInterchangePipelineConfigurationBase> ImportDialogClass;
 
@@ -89,7 +90,7 @@ struct FInterchangeContentImportSettings : public FInterchangeImportSettings
 {
 	GENERATED_BODY()
 
-	/** This tell interchange which pipeline stack to select when importing.*/
+	/** Specifies a different pipeline stack for Interchange to use by default when importing specific types of assets. */
 	UPROPERTY(EditAnywhere, Category = "Pipeline", Meta=(DisplayAfter="DefaultPipelineStack"))
 	TMap<EInterchangeTranslatorAssetType, FName> DefaultPipelineStackOverride;
 
@@ -105,7 +106,7 @@ class UInterchangeProjectSettings : public UDeveloperSettings
 
 public:
 	/**
-	 * Settings used when importing into the content browser.
+	 * Settings used when importing into the Content Browser.
 	 */
 	UPROPERTY(EditAnywhere, config, Category = "ImportContent")
 	FInterchangeContentImportSettings ContentImportSettings;
@@ -116,21 +117,20 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = "ImportIntoLevel")
 	FInterchangeImportSettings SceneImportSettings;
 
-	/** This tells interchange which file picker class to construct when we need to choose a file for a source.*/
+	/** This tells Interchange which file picker class to construct when we need to choose a file for a source. */
 	UPROPERTY(EditAnywhere, config, Category = "EditorInterface")
 	TSoftClassPtr <UInterchangeFilePickerBase> FilePickerClass;
 
 	/**
-	 * If checked, interchange translators and legacy importer will default static mesh geometry to smooth edge when the smoothing information is missing.
-	 * This option exist to allows old project to import the same way as before if their workflows need static mesh edges to be hard when the smoothing
-	 * info is missing.
+	 * If enabled, both Interchange translators and the legacy import process smooth the edges of static meshes that don't contain smoothing information.
+	 * If you have an older project that relies on leaving hard edges by default, you can disable this setting to preserve consistency with older assets.
 	 */
 	UPROPERTY(EditAnywhere, config, Category = "Generic|ImportSettings")
 	bool bStaticMeshUseSmoothEdgesIfSmoothingInformationIsMissing = true;
 
 	/**
-	 * This tells interchange which is the pipeline class to use when editor tools want to import or reimport tools with bake settings.
-	 * UnrealEd code depend on this class to be set and this property is only editable in the ini file directly.
+	 * Specifies which pipeline class Interchange should use when editor tools import or reimport an asset with base settings.
+	 * Unreal Editor depends on this class to be set. You can only edit this property in the .ini file.
 	 */
 	UPROPERTY(EditAnywhere, config, Category = "Editor Generic Pipeline Class")
 	TSoftClassPtr <UInterchangePipelineBase> GenericPipelineClass;

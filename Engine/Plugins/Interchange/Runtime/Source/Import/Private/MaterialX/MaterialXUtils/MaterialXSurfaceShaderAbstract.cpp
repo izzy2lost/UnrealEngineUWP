@@ -204,7 +204,7 @@ bool FMaterialXSurfaceShaderAbstract::ConnectNodeGraphOutputToInput(MaterialX::I
 
 		if(!Output)
 		{
-			UE_LOG(LogInterchangeImport, Warning, TEXT("Couldn't find a connected output to (%s)"), *GetInputName(InputToNodeGraph));
+			UE_LOG(LogInterchangeImport, Warning, TEXT("Couldn't find a connected output to (%s)."), *GetInputName(InputToNodeGraph));
 			return false;
 		}
 
@@ -346,7 +346,7 @@ void FMaterialXSurfaceShaderAbstract::ConnectNodeCategoryOutputToInput(const Mat
 		{
 			if(!ConnectMatchingNodeOutputToInput({ UpstreamNode, ParentShaderNode, InputChannelName, OutputChannelName }))
 			{
-				UE_LOG(LogInterchangeImport, Warning, TEXT("<%s> is not supported yet"), ANSI_TO_TCHAR(UpstreamNode->getCategory().c_str()));
+				UE_LOG(LogInterchangeImport, Warning, TEXT("<%s> is not supported."), ANSI_TO_TCHAR(UpstreamNode->getCategory().c_str()));
 			}
 		}
 	}
@@ -407,7 +407,7 @@ void FMaterialXSurfaceShaderAbstract::ConnectExtractInputToOutput(const FConnect
 		case 2: MaskShaderNode->AddBooleanAttribute(Mask::Attributes::B.ToString(), true); break;
 		case 3: MaskShaderNode->AddBooleanAttribute(Mask::Attributes::A.ToString(), true); break;
 		default:
-			UE_LOG(LogInterchangeImport, Warning, TEXT("Wrong index number for extract node, values are from [0-3]"));
+			UE_LOG(LogInterchangeImport, Warning, TEXT("Wrong index number for extracted node. Values are from [0-3]."));
 			break;
 		}
 	}
@@ -528,7 +528,7 @@ void FMaterialXSurfaceShaderAbstract::ConnectConvertInputToOutput(const FConnect
 
 	if(!bIsNodeTypeSupported || !bIsInputTypeSupported)
 	{
-		UE_LOG(LogInterchangeImport, Warning, TEXT("<convert> node has non supported types"));
+		UE_LOG(LogInterchangeImport, Warning, TEXT("<convert> node has unsupported types."));
 		return;
 	}
 
@@ -1060,7 +1060,7 @@ void FMaterialXSurfaceShaderAbstract::ConnectBlurInputToOutput(const FConnectNod
 					}
 					else
 					{
-						UE_LOG(LogInterchangeImport, Warning, TEXT("<%s>: input 'size' must have a value"), ANSI_TO_TCHAR(Connect.UpstreamNode->getName().c_str()));
+						UE_LOG(LogInterchangeImport, Warning, TEXT("<%s>: input 'size' must have a value."), ANSI_TO_TCHAR(Connect.UpstreamNode->getName().c_str()));
 					}
 				}
 			}
@@ -1129,7 +1129,7 @@ void FMaterialXSurfaceShaderAbstract::ConnectSeparateInputToOutput(const FConnec
 	}
 	else
 	{
-		UE_LOG(LogInterchangeImport, Warning, TEXT("output <%s> not defined in <%s>"), *Connect.OutputName, ANSI_TO_TCHAR(Connect.UpstreamNode->getCategory().c_str()));
+		UE_LOG(LogInterchangeImport, Warning, TEXT("output <%s> not defined in <%s>."), *Connect.OutputName, ANSI_TO_TCHAR(Connect.UpstreamNode->getCategory().c_str()));
 	}
 }
 
@@ -1284,7 +1284,7 @@ FLinearColor FMaterialXSurfaceShaderAbstract::GetVector(MaterialX::InputPtr Inpu
 	}
 	else
 	{
-		ensureMsgf(false, TEXT("input type can only be a vectorN"));
+		ensureMsgf(false, TEXT("Input type can only be a vectorN."));
 	}
 
 	return LinearColor;

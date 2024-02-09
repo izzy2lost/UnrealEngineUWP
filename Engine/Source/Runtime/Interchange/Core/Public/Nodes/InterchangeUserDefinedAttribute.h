@@ -36,9 +36,9 @@ struct FInterchangeUserDefinedAttributeInfo
 };
 
 /**
- * UInterchangeUserDefinedAttributesAPI is used to store and retrieve user defined attributes (i.e. DCC node attributes, pipelines will have access to those attributes)
- * Any user defined attribute have: name, value and a optional AnimationPayloadKey (FRichCurve which is a float curve).
- * Value type must be supported by the UE::Interchange::EAttributeTypes enumeration.
+ * UInterchangeUserDefinedAttributesAPI is used to store and retrieve user-defined attributes such as DCC node attributes, so that pipelines have access to those attributes.
+ * Every user-defined attribute has a name, a value, and an optional AnimationPayloadKey: an FRichCurve that is a float curve.
+ * The value type must be supported by the UE::Interchange::EAttributeTypes enumeration.
  */
 UCLASS(BlueprintType, Experimental, MinimalAPI)
 class UInterchangeUserDefinedAttributesAPI : public UObject
@@ -48,12 +48,12 @@ class UInterchangeUserDefinedAttributesAPI : public UObject
 public:
 
 	/**
-	 * Create user defined attribute with a value and a optional payload key
-	 * param UserDefinedAttributeName - The name of the user defined attribute
-	 * param Value - The value of the user defined attribute
-	 * param PayloadKey - The translator payload key to retrieve the FRichCurve animation for this user defined attribute
-	 * note - User defined attributes are the DCC translated node user custom attributes (i.e. Maya extra attributes)
-	 *        Payload key will point on a FRichCurve payload.
+	 * Create a user-defined attribute with a value and a optional payload key.
+	 * param UserDefinedAttributeName - The name of the user-defined attribute.
+	 * param Value - The value of the user-defined attribute.
+	 * param PayloadKey - The translator payload key to retrieve the FRichCurve animation for this user-defined attribute.
+	 * Note - User-defined attributes are the user custom attributes from the DCC translated node (for example, extra attributes in Maya).
+	 *        The payload key points to an FRichCurve payload.
 	 */
 	template<typename ValueType>
 	static bool CreateUserDefinedAttribute(UInterchangeBaseNode* InterchangeNode, const FString& UserDefinedAttributeName, const ValueType& Value, const TOptional<FString>& PayloadKey, bool RequiresDelegate = false);
@@ -74,22 +74,22 @@ public:
 	static INTERCHANGECORE_API bool CreateUserDefinedAttribute_FString(UInterchangeBaseNode* InterchangeNode, const FString& UserDefinedAttributeName, const FString& Value, const FString& PayloadKey, bool RequiresDelegate = false);
 
 	/**
-	 * Remove the specified user defined attribute
-	 * param UserDefinedAttributeName - The name of the user defined attribute to remove
-	 * return - True if the attribute exist and was remove or if the attribute doesn't exist. Return false if the attribute exist but the attribute was not properly remove.
-	 * note - User defined attributes are the DCC translated node user custom attributes (i.e. Maya extra attributes)
-	 *        Payload key will point on a FRichCurve payload.
+	 * Remove the specified user-defined attribute.
+	 * @param UserDefinedAttributeName - The name of the user-defined attribute to remove.
+	 * @return - True if the attribute exists and was removed, or if the attribute doesn't exist. Returns false if the attribute exists but could not be removed.
+	 * Note - User-defined attributes are the user custom attributes from the DCC translated node (for example, extra attributes in Maya).
+	 *        The payload key points to an FRichCurve payload.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | UserDefinedAttribute")
 	static INTERCHANGECORE_API bool RemoveUserDefinedAttribute(UInterchangeBaseNode* InterchangeNode, const FString& UserDefinedAttributeName);
 
 	/**
-	 * Get user defined attribute value and optional payload key
-	 * param UserDefinedAttributeName - The name of the user defined attribute
-	 * param OutValue - The value of the user defined attribute
-	 * param OutPayloadKey - The translator payload key to retrieve the FRichCurve animation for this user defined attribute
-	 * note - User defined attributes are the DCC translated node user custom attributes (i.e. Maya extra attributes)
-	 *        Payload key will point on a FRichCurve payload.
+	 * Get the value of a user-defined attribute and an optional payload key.
+	 * @param UserDefinedAttributeName - The name of the user-defined attribute.
+	 * @param OutValue - The value of the user-defined attribute.
+	 * @param OutPayloadKey - The translator payload key to retrieve the FRichCurve animation for this user-defined attribute.
+	 * Note - User-defined attributes are the user custom attributes from the DCC translated node (for example, extra attributes in Maya).
+	 *        The payload key points to an FRichCurve payload.
 	 */
 	template<typename ValueType>
 	static bool GetUserDefinedAttribute(const UInterchangeBaseNode* InterchangeNode, const FString& UserDefinedAttributeName, ValueType& OutValue, TOptional<FString>& OutPayloadKey);

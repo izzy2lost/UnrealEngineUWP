@@ -52,7 +52,7 @@ UInterchangeStaticMeshLodDataNode::UInterchangeStaticMeshLodDataNode()
 }
 
 /**
- * Return the node type name of the class, we use this when reporting error
+ * Return the node type name of the class. This is used when reporting errors.
  */
 FString UInterchangeStaticMeshLodDataNode::GetTypeName() const
 {

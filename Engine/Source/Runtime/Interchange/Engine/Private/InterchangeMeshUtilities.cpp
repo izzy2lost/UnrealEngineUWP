@@ -29,13 +29,13 @@ TFuture<bool> UInterchangeMeshUtilities::ImportCustomLod(UObject* MeshObject, co
 	TSharedPtr<TPromise<bool>> Promise = MakeShared<TPromise<bool>>();
 	if (!MeshObject)
 	{
-		UE_LOG(LogInterchangeEngine, Warning, TEXT("FInterchangeMeshUtilities::ImportCustomLod parameter MeshObject cannot be null."));
+		UE_LOG(LogInterchangeEngine, Warning, TEXT("FInterchangeMeshUtilities::ImportCustomLod: The MeshObject parameter cannot be null."));
 		Promise->SetValue(false);
 		return Promise->GetFuture();
 	}
 	if (!IsInGameThread())
 	{
-		UE_LOG(LogInterchangeEngine, Warning, TEXT("FInterchangeMeshUtilities::ImportCustomLod Cannot ask user a file path outside of the game thread."));
+		UE_LOG(LogInterchangeEngine, Warning, TEXT("FInterchangeMeshUtilities::ImportCustomLod: Cannot ask the user for a file path outside of the game thread."));
 		Promise->SetValue(false);
 		return Promise->GetFuture();
 	}

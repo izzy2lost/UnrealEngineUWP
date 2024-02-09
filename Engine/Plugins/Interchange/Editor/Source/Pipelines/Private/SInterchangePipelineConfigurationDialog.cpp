@@ -612,11 +612,11 @@ void SInterchangePipelineConfigurationDialog::Construct(const FArguments& InArgs
 						{
 							if (bReimportClosure)
 							{
-								return LOCTEXT("SInterchangePipelineConfigurationDialog_ResetToPipelineAsset_TooltipReimport", "Reset the selected pipeline properties to the asset import data pipeline properties.");
+								return LOCTEXT("SInterchangePipelineConfigurationDialog_ResetToPipelineAsset_TooltipReimport", "Reset the selected pipeline to the values used the last time this asset was imported.");
 							}
 							else
 							{
-								return LOCTEXT("SInterchangePipelineConfigurationDialog_ResetToPipelineAsset_Tooltip", "Reset the selected pipeline properties to the stack pipeline properties.");
+								return LOCTEXT("SInterchangePipelineConfigurationDialog_ResetToPipelineAsset_Tooltip", "Reset the properties of the selected pipeline.");
 							}
 						})
 					.OnClicked(this, &SInterchangePipelineConfigurationDialog::OnResetToDefault)

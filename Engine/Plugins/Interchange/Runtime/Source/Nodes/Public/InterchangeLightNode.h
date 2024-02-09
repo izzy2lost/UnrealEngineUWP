@@ -7,7 +7,7 @@
 
 #include "InterchangeLightNode.generated.h"
 
-// This enum is used as a placeholder for ELightUnits, because InterchangeWorker is not compiled against Engine, the LightFactoryNode is not affected
+// This enum is used as a placeholder for ELightUnits. Because InterchangeWorker is not compiled against Engine, the LightFactoryNode is not affected.
 UENUM()
 enum class EInterchangeLightUnits : uint8
 {
@@ -26,7 +26,7 @@ public:
 	static FStringView StaticAssetTypeName();
 
 	/**
-	 * Return the node type name of the class, we use this when reporting errors
+	 * Return the node type name of the class. This is used when reporting errors.
 	 */
 	virtual FString GetTypeName() const override;
 

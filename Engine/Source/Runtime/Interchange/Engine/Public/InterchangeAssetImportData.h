@@ -28,7 +28,7 @@ public:
 
 
 	/**
-	 * Return the first filename stored in this data. The resulting filename will be absolute (ie, not relative to the asset).
+	 * Return the first filename stored in this data. The resulting filename will be absolute (that is, not relative to the asset).
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | AssetImportData")
 	FString ScriptGetFirstFilename() const
@@ -80,7 +80,7 @@ public:
 	}
 
 	/**
-	 * This function add tags to the asset registry.
+	 * This function adds tags to the asset registry.
 	 */
 	virtual void AppendAssetRegistryTags(FAssetRegistryTagsContext Context) override
 	{
@@ -107,11 +107,11 @@ public:
 #endif
 #endif
 
-	/** On a level import, set to the UInterchangeSceneImportAsset created during the import */
+	/** On a level import, set to the UInterchangeSceneImportAsset created during the import. */
 	UPROPERTY(EditAnywhere, Category = "Interchange | AssetImportData")
 	FSoftObjectPath SceneImportAsset;
 
-	/** Returns a pointer to the UInterchangeAssetImportData referred by the input object if applicable */
+	/** Returns a pointer to the UInterchangeAssetImportData referred to by the input object, if applicable. */
 	static UInterchangeAssetImportData* GetFromObject(UObject* Object)
 	{
 		if (Object)
@@ -130,7 +130,7 @@ public:
 		return nullptr;
 	}
 
-	/** The Node UID pass to the factory that exist in the graph that was use to create this asset */
+	/** The Node UID passed to the factory that existed in the graph that was used to create this asset. */
 	UPROPERTY(VisibleAnywhere, Category = "Interchange | AssetImportData")
 	FString NodeUniqueID;
 
@@ -192,7 +192,7 @@ private:
 };
 
 /**
- * Base class to create an asset import data converter
+ * Base class to create an asset import data converter.
  */
 UCLASS(Abstract, MinimalAPI)
 class UInterchangeAssetImportDataConverterBase : public UObject
@@ -201,10 +201,10 @@ class UInterchangeAssetImportDataConverterBase : public UObject
 public:
 	/**
 	 * Convert the asset import data from the one that is in the Object to
-	 * one supporting the target extension (i.e. legacy Fbx to Interchange or vice versa)
-	 * The function should return true only if it has convert the asset import data, false otherwise.
+	 * one that supports the target extension (for example, legacy FBX to Interchange or vice-versa)
+	 * The function should return true only if it has converted the asset import data, or false otherwise.
 	 * 
-	 * The system will call all object deriving from this class until one convert the data.
+	 * The system will call all objects that derive from this class until one converts the data.
 	 */
 	virtual bool ConvertImportData(UObject* Object, const FString& TargetExtension) const
 	{

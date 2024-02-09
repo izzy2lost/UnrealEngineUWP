@@ -62,7 +62,7 @@ namespace UE::Interchange::InterchangeEditorModule
 			}
 
 			LogListing->AddMessages(TokenizedMessages);
-			LogListing->NotifyIfAnyMessages(NSLOCTEXT("Interchange", "LogAndNotify", "There was some issues with the import."), EMessageSeverity::Info);
+			LogListing->NotifyIfAnyMessages(NSLOCTEXT("Interchange", "LogAndNotify", "There were issues with the import."), EMessageSeverity::Info);
 		}
 	}
 }

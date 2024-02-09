@@ -20,26 +20,26 @@ class INTERCHANGENODES_API UInterchangeShaderPortsAPI : public UObject
  
 public:
 	/**
-	 * Makes an attribute key to represent a node being connected to an input (ie: Inputs:InputName:Connect).
+	 * Makes an attribute key to represent a node being connected to an input (that is, Inputs:InputName:Connect).
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Material")
 	static FString MakeInputConnectionKey(const FString& InputName);
  
 	/**
-	 * Makes an attribute key to represent a value being given to an input (ie: Inputs:InputName:Value).
+	 * Makes an attribute key to represent a value being given to an input (that is, Inputs:InputName:Value).
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Material")
 	static FString MakeInputValueKey(const FString& InputName);
 
 	/**
-	 * Makes an attribute key to represent a parameter being given to an input (ie: Inputs:InputName:Parameter).
+	 * Makes an attribute key to represent a parameter being given to an input (that is, Inputs:InputName:Parameter).
 	 * This is more relevant to Materials, but could be used to differentiate between constant values and parameters.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Material")
 	static FString MakeInputParameterKey(const FString& InputName);
 
 	/**
-	 * From an attribute key associated with an input (ie: Inputs:InputName:Value), retrieves the input name from it.
+	 * From an attribute key associated with an input (that is, Inputs:InputName:Value), retrieves the input name.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Material")
 	static FString MakeInputName(const FString& InputKey);
@@ -51,19 +51,19 @@ public:
 	static bool IsAnInput(const FString& AttributeKey);
 
 	/**
-	 * Returns true if the attribute key is an input that represents parameters(ends with ":Parameter").
+	 * Returns true if the attribute key is an input that represents parameters (ends with ":Parameter").
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Material")
 	static bool IsAParameter(const FString& AttributeKey);
  
 	/**
-	 * Checks if a particular input exists on a given node.
+	 * Checks whether a particular input exists on a given node.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Material")
 	static bool HasInput(const UInterchangeBaseNode* InterchangeNode, const FName& InInputName);
  
 	/**
-	 * Checks if a particular input exists as a parameter on a given node.
+	 * Checks whether a particular input exists as a parameter on a given node.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Material")
 	static bool HasParameter(const UInterchangeBaseNode* InterchangeNode, const FName& InInputName);
@@ -76,21 +76,21 @@ public:
  
 	/**
 	 * Adds an input connection attribute.
-	 * @param InterchangeNode	The Node to create the input on.
+	 * @param InterchangeNode	The node to create the input on.
 	 * @param InputName			The name to give to the input.
-	 * @param ExpressionUid		The unique id of the node to connect to the input.
-	 * @return					true if the input connection was successfully added to the node.
+	 * @param ExpressionUid		The unique ID of the node to connect to the input.
+	 * @return					True if the input connection was successfully added to the node.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Material")
 	static bool ConnectDefaultOuputToInput(UInterchangeBaseNode* InterchangeNode, const FString& InputName, const FString& ExpressionUid);
  
 	/**
 	 * Adds an input connection attribute.
-	 * @param InterchangeNode	The Node to create the input on.
+	 * @param InterchangeNode	The node to create the input on.
 	 * @param InputName			The name to give to the input.
-	 * @param ExpressionUid		The unique id of the node to connect to the input.
+	 * @param ExpressionUid		The unique ID of the node to connect to the input.
 	 * @param OutputName		The name of the output from ExpressionUid to connect to the input.
-	 * @return					true if the input connection was successfully added to the node.
+	 * @return					True if the input connection was successfully added to the node.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Material")
 	static bool ConnectOuputToInputByName(UInterchangeBaseNode* InterchangeNode, const FString& InputName, const FString& ExpressionUid, const FString& OutputName);
@@ -102,13 +102,13 @@ public:
 
 	/**
 	 * Adds an input connection attribute.
-	 * @param InterchangeNode	The Node to create the input on.
+	 * @param InterchangeNode	The node to create the input on.
 	 * @param InputName			The name to give to the input.
-	 * @param ExpressionUid		The unique id of the node to connect to the input.
+	 * @param ExpressionUid		The unique ID of the node to connect to the input.
 	 * @param OutputIndex		The index of the output from ExpressionUid to connect to the input.
-	 * @return					true if the input connection was successfully added to the node.
-	 * OutputIndex is encoded in a string in the following pattern  ExpressionUid:OutputByIndex:FString::FromInt(OutputIndex)
-	 * The index should be retrieved using UInterchangeShaderPortsAPI::GetOutputIndexFromName
+	 * @return					True if the input connection was successfully added to the node.
+	 * OutputIndex is encoded in a string in the following pattern: ExpressionUid:OutputByIndex:FString::FromInt(OutputIndex)
+	 * The index should be retrieved using UInterchangeShaderPortsAPI::GetOutputIndexFromName().
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Material")
 	static bool ConnectOuputToInputByIndex(UInterchangeBaseNode* InterchangeNode, const FString& InputName, const FString& ExpressionUid, int32 OutputIndex);
@@ -161,7 +161,7 @@ public:
 public:
 
 	/**
-	 * Sets the Float Attribute on the Shader Node. If bIsAParameter is set to true, it would be treated as a ScalarParameter
+	 * Set the Float Attribute on the Shader Node. If bIsAParameter is set to true, it would be treated as a ScalarParameter
 	 * when the Material Pipeline creates the materials. Otherwise it would be a constant expression in the shader graph.
 	 * Note: It is assumed that the input name would be the parameter name when bIsAParameter is true.
 	 */
@@ -169,7 +169,7 @@ public:
 	bool AddFloatInput(const FString& InputName, const float& AttributeValue, bool bIsAParameter = false);
 
 	/**
-	 * Sets the Linear Color Attribute on the Shader Node. If bIsAParameter is set to true, it would be treated as a VectorParameter
+	 * Set the Linear Color Attribute on the Shader Node. If bIsAParameter is set to true, it would be treated as a VectorParameter
 	 * when the Material Pipeline creates the materials. Otherwise it would be a constant 3 vector expression in the shader graph.
 	 * Note: It is assumed that the input name would be the parameter name when bIsAParameter is true.
 	 */
@@ -177,7 +177,7 @@ public:
 	bool AddLinearColorInput(const FString& InputName, const FLinearColor& AttributeValue, bool bIsAParameter = false);
 
 	/**
-	 * Sets the String Attribute on the Shader Node. If bIsAParameter is set to true, it would be treated as a overridable Texture
+	 * Set the String Attribute on the Shader Node. If bIsAParameter is set to true, it would be treated as a overridable Texture
 	 * or else it should be treated as a LUT Texture.
 	 * Note: It is assumed that the input name would be the parameter name when bIsAParameter is true.
 	 */
@@ -215,7 +215,7 @@ public:
 	bool GetCustomMaterialFunction(FString& AttributeValue) const;
 
 	/**
-	 * Sets the unique id of the material function referenced by the function call expression.
+	 * Set the unique id of the material function referenced by the function call expression.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Material")
 	bool SetCustomMaterialFunction(const FString& AttributeValue);
@@ -239,12 +239,12 @@ public:
 	static FString MakeNodeUid(const FStringView NodeName);
 
 	/**
-	 * Creates a new UInterchangeShaderGraphNode and adds it to NodeContainer as a translated node.
+	 * Create a new UInterchangeShaderGraphNode and add it to NodeContainer as a translated node.
 	 */
 	static UInterchangeShaderGraphNode* Create(UInterchangeBaseNodeContainer* NodeContainer, const FStringView NodeName);
 
 	/**
-	 * Return the node type name of the class, we use this when reporting error
+	 * Return the node type name of the class. This is used when reporting errors.
 	 */
 	virtual FString GetTypeName() const override;
 
@@ -253,13 +253,13 @@ public:
 	bool GetCustomTwoSided(bool& AttributeValue) const;
  
 	/**
-	 * Sets if this shader graph should be rendered two sided or not. Defaults to off.
+	 * Set if this shader graph should be rendered two-sided or not. Defaults to off.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Material")
 	bool SetCustomTwoSided(const bool& AttributeValue);
 
 	/**
-	* Forces two sided even for Transmission materials.
+	* Forces two-sided even for Transmission materials.
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Material")
 	bool GetCustomTwoSidedTransmission(bool& AttributeValue) const;
@@ -271,7 +271,7 @@ public:
 	bool GetCustomOpacityMaskClipValue(float& AttributeValue) const;
 
 	/**
-	 * Shader is transparent or opaque if it's alpha is lower or higher than the clip value.
+	 * The shader is transparent if its alpha value is lower than the clip value, or opaque if it is higher.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Material")
 	bool SetCustomOpacityMaskClipValue(const float& AttributeValue, bool bAddApplyDelegate = true);
@@ -280,7 +280,7 @@ public:
 	bool GetCustomIsAShaderFunction(bool& AttributeValue) const;
 
 	/**
-	 * Sets if this shader graph should be considered as a material, false, or a material function, true.
+	 * Set whether this shader graph should be considered as a material (false), or a material function (true).
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Material")
 	bool SetCustomIsAShaderFunction(const bool& AttributeValue);
@@ -292,7 +292,7 @@ public:
 	bool SetCustomScreenSpaceReflections(const bool& AttributeValue);
 
 	/**
-	 * Set the Blend Mode using EBlendMode, avoid a dependency on the Engine
+	 * Set the Blend Mode using EBlendMode to avoid a dependency on the Engine.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Material")
 	bool GetCustomBlendMode(int& AttributeValue) const;
