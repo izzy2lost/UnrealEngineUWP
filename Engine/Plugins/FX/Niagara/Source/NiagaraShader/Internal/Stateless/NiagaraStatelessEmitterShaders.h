@@ -40,10 +40,12 @@ namespace NiagaraStateless
 			SHADER_PARAMETER_STRUCT_INCLUDE(FSpriteFacingAndAlignmentModule_ShaderParameters,	Module9Params)
 			SHADER_PARAMETER_STRUCT_INCLUDE(FSpriteRotationRateModule_ShaderParameters,			Module10Params)
 			SHADER_PARAMETER_STRUCT_INCLUDE(FSubUVAnimationModule_ShaderParameters,				Module11Params)
+			SHADER_PARAMETER_STRUCT_INCLUDE(FDynamicMaterialParametersModule_ShaderParameters,	Module12Params)
 
 			SHADER_PARAMETER(int, Permutation_UniqueIDComponent)
 			SHADER_PARAMETER(int, Permutation_PositionComponent)
 			SHADER_PARAMETER(int, Permutation_ColorComponent)
+			SHADER_PARAMETER(int, Permutation_DynamicMaterialParameter0Component)
 			SHADER_PARAMETER(int, Permutation_MeshOrientationComponent)
 			SHADER_PARAMETER(int, Permutation_RibbonWidthComponent)
 			SHADER_PARAMETER(int, Permutation_ScaleComponent)

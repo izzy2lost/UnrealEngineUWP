@@ -68,7 +68,7 @@ public:
 	virtual void DrawDebug(const FNiagaraStatelessDrawDebugContext& DrawDebugContext) const override;
 #endif
 #if WITH_EDITORONLY_DATA
-	virtual void GetOutputVaruables(TArray<FNiagaraVariableBase>& OutVariables) const override
+	virtual void GetOutputVariables(TArray<FNiagaraVariableBase>& OutVariables) const override
 	{
 		const FNiagaraStatelessGlobals& StatelessGlobals = FNiagaraStatelessGlobals::Get();
 		OutVariables.AddUnique(StatelessGlobals.PositionVariable);

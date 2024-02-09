@@ -61,7 +61,7 @@ public:
 	virtual bool CanDisableModule() const override { return true; }
 #endif
 #if WITH_EDITORONLY_DATA
-	virtual void GetOutputVaruables(TArray<FNiagaraVariableBase>& OutVariables) const override
+	virtual void GetOutputVariables(TArray<FNiagaraVariableBase>& OutVariables) const override
 	{
 		const FNiagaraStatelessGlobals& StatelessGlobals = FNiagaraStatelessGlobals::Get();
 		OutVariables.AddUnique(StatelessGlobals.ScaleVariable);

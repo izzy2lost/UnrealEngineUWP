@@ -27,6 +27,7 @@
 #include "Stateless/Modules/NiagaraStatelessModule_SpriteFacingAndAlignment.h"
 #include "Stateless/Modules/NiagaraStatelessModule_SpriteRotationRate.h"
 #include "Stateless/Modules/NiagaraStatelessModule_SubUVAnimation.h"
+#include "Stateless/Modules/NiagaraStatelessModule_DynamicMaterialParameters.h"
 
 namespace NiagaraStatelessEmitterTemplateImpl
 {
@@ -85,6 +86,7 @@ void UNiagaraStatelessEmitterDefault::InitModulesAndAttributes()
 		UNiagaraStatelessModule_SpriteFacingAndAlignment::StaticClass(),
 		UNiagaraStatelessModule_SpriteRotationRate::StaticClass(),
 		UNiagaraStatelessModule_SubUVAnimation::StaticClass(),
+		UNiagaraStatelessModule_DynamicMaterialParameters::StaticClass(),
 	};
 
 	const FNiagaraStatelessGlobals& StatelessGlobals = FNiagaraStatelessGlobals::Get();
@@ -93,6 +95,7 @@ void UNiagaraStatelessEmitterDefault::InitModulesAndAttributes()
 		StatelessGlobals.UniqueIDVariable,
 		StatelessGlobals.PositionVariable,
 		StatelessGlobals.ColorVariable,
+		StatelessGlobals.DynamicMaterialParameters0Variable,
 		StatelessGlobals.MeshOrientationVariable,
 		StatelessGlobals.RibbonWidthVariable,
 		StatelessGlobals.ScaleVariable,
@@ -136,6 +139,7 @@ void UNiagaraStatelessEmitterDefault::SetShaderParameters(uint8* ShaderParameter
 	ShaderParameters->Permutation_UniqueIDComponent					= ComponentOffsets[iComponent++];
 	ShaderParameters->Permutation_PositionComponent					= ComponentOffsets[iComponent++];
 	ShaderParameters->Permutation_ColorComponent					= ComponentOffsets[iComponent++];
+	ShaderParameters->Permutation_DynamicMaterialParameter0Component= ComponentOffsets[iComponent++];
 	ShaderParameters->Permutation_MeshOrientationComponent			= ComponentOffsets[iComponent++];
 	ShaderParameters->Permutation_RibbonWidthComponent				= ComponentOffsets[iComponent++];
 	ShaderParameters->Permutation_ScaleComponent					= ComponentOffsets[iComponent++];
