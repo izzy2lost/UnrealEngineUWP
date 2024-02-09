@@ -106,6 +106,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = Validation)
 	ENiagaraValidationSeverity Severity = ENiagaraValidationSeverity::Warning;
 
+	UPROPERTY(EditAnywhere, Category = Validation)
+	FNiagaraPlatformSet Platforms;
+
 	virtual void CheckValidity(const FNiagaraValidationContext& Context, TArray<FNiagaraValidationResult>& OutResults) const override;
 };
 

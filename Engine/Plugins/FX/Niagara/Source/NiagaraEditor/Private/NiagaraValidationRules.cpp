@@ -674,6 +674,13 @@ void UNiagaraValidationRule_RendererSortingEnabled::CheckValidity(const FNiagara
 	for (TSharedRef<FNiagaraEmitterHandleViewModel> EmitterHandleModel : EmitterHandleViewModels)
 	{
 		FVersionedNiagaraEmitterData* EmitterData = EmitterHandleModel.Get().GetEmitterHandle()->GetEmitterData();
+
+		const FString PlatformConflictsString = NiagaraValidation::GetPlatformConflictsString(Platforms, EmitterData->Platforms);
+		if (PlatformConflictsString.IsEmpty())
+		{
+			continue;
+		}
+
 		EmitterData->ForEachRenderer(
 			[&Results, EmitterHandleModel, this, &System](UNiagaraRendererProperties* RendererProperties)
 			{
