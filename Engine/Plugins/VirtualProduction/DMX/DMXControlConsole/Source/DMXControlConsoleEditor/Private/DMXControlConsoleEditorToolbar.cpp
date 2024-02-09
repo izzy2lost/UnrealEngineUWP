@@ -245,8 +245,8 @@ namespace UE::DMX::Private
 					[
 						SNew(STextBlock)
 						.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-						.Text(LOCTEXT("SearchBarAutoselectText", "Auto-Select"))
-						.ToolTipText(LOCTEXT("SearchBarAutoselectLabelToolTipText", "Checked if filtered elements must be automatically selected."))
+						.Text(LOCTEXT("SearchBarAutoselectText", "Auto-Select Searched Elements"))
+						.ToolTipText(LOCTEXT("SearchBarAutoselectToolTipText", "Checked if filtered elements must be automatically selected."))
 					]
 				];
 
