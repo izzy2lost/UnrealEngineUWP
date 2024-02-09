@@ -248,8 +248,6 @@ namespace Metasound
 			PrevArraySize = InputArrayRef.Num();
 			PrevNoRepeatOrder = FMath::Clamp(*NoRepeatOrder, 0, PrevArraySize - 1);
 
-			InitializeState(PrevArraySize);
-
 			*OutValue = TDataTypeFactory<ElementType>::CreateAny(InParams.OperatorSettings);
 			TriggerOnNext->Reset();
 			TriggerOnReset->Reset();
@@ -266,23 +264,7 @@ namespace Metasound
 			TriggerOnReset->AdvanceBlock();
 
 			const ArrayType& InputArrayRef = *InputArray;
-
-			// Determine if the state of the random number generator needs to be
-			// reinitialized.
-			const bool bIsArrayNonEmpty = InputArrayRef.Num() != 0; // Skip reinit if the array is empty because it represents an invalid state for this node.
-			const bool bIsArraySizeChanged = PrevArraySize != InputArrayRef.Num(); // Need to reinit for array size changes. 
-			const bool bIsSharedStateEnablementInconsistent = (*bEnableSharedState != bSharedStateInitialized); // Need to reinit if the shared state enablement has been updated.
-
-			const bool bIsStateReinitializationNeeded = bIsArrayNonEmpty && (bIsArraySizeChanged || bIsSharedStateEnablementInconsistent);
-
-			PrevArraySize = InputArrayRef.Num();
-
-			if (bIsStateReinitializationNeeded)
-			{
-				InitializeState(PrevArraySize);
-			}
-
-			if (PrevArraySize == 0)
+			if (InputArrayRef.Num() == 0)
 			{
 #if WITH_METASOUND_DEBUG_ENVIRONMENT
 				if (!bHasLoggedEmptyArrayWarning)
@@ -293,63 +275,18 @@ namespace Metasound
 #endif // WITH_METASOUND_DEBUG_ENVIRONMENT
 				return;
 			}
-
-			// Check for a seed change
-			if (PrevSeedValue != *SeedValue)
-			{
-				PrevSeedValue = *SeedValue;
-
-				if (UseSharedState())
-				{
-					FSharedStateRandomGetManager& RGM = FSharedStateRandomGetManager::Get();
-					RGM.SetSeed(SharedStateUniqueId, PrevSeedValue);
-				}
-				else
-				{
-					check(ArrayRandomGet.IsValid());
-					ArrayRandomGet->SetSeed(PrevSeedValue);
-				}
-			}
-
-			if (PrevNoRepeatOrder != *NoRepeatOrder)
-			{
-				PrevNoRepeatOrder = *NoRepeatOrder;
-				if (UseSharedState())
-				{
-					FSharedStateRandomGetManager& RGM = FSharedStateRandomGetManager::Get();
-					RGM.SetNoRepeatOrder(SharedStateUniqueId, PrevNoRepeatOrder);
-				}
-				else
-				{
-					check(ArrayRandomGet.IsValid());
-					ArrayRandomGet->SetNoRepeatOrder(PrevNoRepeatOrder);
-				}
-			}
-
-			WeightsArray = *InputWeightsArray;
-			if (UseSharedState())
-			{
-				FSharedStateRandomGetManager& RGM = FSharedStateRandomGetManager::Get();
-				RGM.SetRandomWeights(SharedStateUniqueId, WeightsArray);
-			}
-			else
-			{
-				check(ArrayRandomGet.IsValid());
-				ArrayRandomGet->SetRandomWeights(WeightsArray);
-			}
- 
-			// Don't do anything if our array is empty
-			if (InputArrayRef.Num() == 0)
-			{
-				return;
-			}
- 
+			
  			TriggerReset->ExecuteBlock(
 				[&](int32 StartFrame, int32 EndFrame)
 				{
 				},
 				[this](int32 StartFrame, int32 EndFrame)
 				{
+					if (!bSharedStateInitialized)
+					{
+						InitializeState(PrevArraySize);
+					}
+
 					if (UseSharedState())
 					{
 						FSharedStateRandomGetManager& RGM = FSharedStateRandomGetManager::Get();
@@ -370,31 +307,118 @@ namespace Metasound
 				},
 				[this](int32 StartFrame, int32 EndFrame)
 				{
-					const ArrayType& InputArrayRef = *InputArray;
-					int32 OutRandomIndex = INDEX_NONE;
-
-					if (UseSharedState())
-					{
-						FSharedStateRandomGetManager& RGM = FSharedStateRandomGetManager::Get();
-						OutRandomIndex = RGM.NextValue(SharedStateUniqueId);
-					}
-					else
-					{
-						check(ArrayRandomGet.IsValid());
-						OutRandomIndex = ArrayRandomGet->NextValue();
-					}
-
-					check(OutRandomIndex != INDEX_NONE);
-
-					// The input array size may have changed, so make sure it's wrapped into range of the input array
-					*OutValue = InputArrayRef[OutRandomIndex % InputArrayRef.Num()];
-
-					TriggerOnNext->TriggerFrame(StartFrame);
+					ExecuteTriggerNext(StartFrame);
 				}
 			);
 		}
 
 	private:
+		void ExecuteTriggerNext(int32 StartFrame)
+		{
+			const ArrayType& InputArrayRef = *InputArray;
+			int32 OutRandomIndex = INDEX_NONE;
+
+			// Determine if the state of the random number generator needs to be
+			// reinitialized.
+			const bool bIsArrayNonEmpty = InputArrayRef.Num() != 0; // Skip reinit if the array is empty because it represents an invalid state for this node.
+			const bool bIsArraySizeChanged = PrevArraySize != InputArrayRef.Num(); // Need to reinit for array size changes. 
+			const bool bIsSharedStateEnablementInconsistent = (*bEnableSharedState != bSharedStateInitialized); // Need to reinit if the shared state enablement has been updated.
+			const bool bIsNonSharedStateInitializationNeeded = !ArrayRandomGet.IsValid(); // For the first initialization of the non shared state random get (bIsSharedStateEnablementInconsistent will take care of that for shared state)
+
+			const bool bIsStateReinitializationNeeded = (bIsArrayNonEmpty && (bIsArraySizeChanged || bIsSharedStateEnablementInconsistent || bIsNonSharedStateInitializationNeeded));
+
+			const bool bSeedValueChanged = PrevSeedValue != *SeedValue;
+			const bool bNoRepeatOrderChanged = PrevNoRepeatOrder != *NoRepeatOrder;
+			const bool bWeightsArrayChanged = WeightsArray != *InputWeightsArray;
+
+			// Update cached values if changed
+			if (bIsArraySizeChanged)
+			{
+				PrevArraySize = InputArrayRef.Num();
+			}
+			if (bSeedValueChanged)
+			{
+				PrevSeedValue = *SeedValue;
+			}
+			if (bNoRepeatOrderChanged)
+			{
+				PrevNoRepeatOrder = *NoRepeatOrder;
+			}
+			if (bWeightsArrayChanged)
+			{
+				WeightsArray = *InputWeightsArray;
+			}
+
+			// Reinitialize state (with new values) if needed 
+			if (bIsStateReinitializationNeeded)
+			{
+				InitializeState(PrevArraySize);
+			}
+
+			// Update other state (which was not necessarily changed by new state initialization)
+			if (bSeedValueChanged)
+			{
+				if (UseSharedState())
+				{
+					FSharedStateRandomGetManager& RGM = FSharedStateRandomGetManager::Get();
+					RGM.SetSeed(SharedStateUniqueId, PrevSeedValue);
+				}
+				else
+				{
+					check(ArrayRandomGet.IsValid());
+					ArrayRandomGet->SetSeed(PrevSeedValue);
+				}
+			}
+			if (bNoRepeatOrderChanged)
+			{
+				if (UseSharedState())
+				{
+					FSharedStateRandomGetManager& RGM = FSharedStateRandomGetManager::Get();
+					RGM.SetNoRepeatOrder(SharedStateUniqueId, PrevNoRepeatOrder);
+				}
+				else
+				{
+					check(ArrayRandomGet.IsValid());
+					ArrayRandomGet->SetNoRepeatOrder(PrevNoRepeatOrder);
+				}
+			}
+			if (bWeightsArrayChanged)
+			{
+				if (UseSharedState())
+				{
+					FSharedStateRandomGetManager& RGM = FSharedStateRandomGetManager::Get();
+					RGM.SetRandomWeights(SharedStateUniqueId, WeightsArray);
+				}
+				else
+				{
+					check(ArrayRandomGet.IsValid());
+					ArrayRandomGet->SetRandomWeights(WeightsArray);
+				}
+			}
+
+			// Get next value 
+			if (UseSharedState())
+			{
+				FSharedStateRandomGetManager& RGM = FSharedStateRandomGetManager::Get();
+				OutRandomIndex = RGM.NextValue(SharedStateUniqueId);
+			}
+			else
+			{
+				check(ArrayRandomGet.IsValid());
+				OutRandomIndex = ArrayRandomGet->NextValue();
+			}
+
+			check(OutRandomIndex != INDEX_NONE);
+#if WITH_METASOUND_DEBUG_ENVIRONMENT
+			UE_LOG(LogMetaSound, Verbose, TEXT("Array Random Get: Index chosen: '%u'"), OutRandomIndex);
+#endif // WITH_METASOUND_DEBUG_ENVIRONMENT
+
+			// The input array size may have changed, so make sure it's wrapped into range of the input array
+			*OutValue = InputArrayRef[OutRandomIndex % InputArrayRef.Num()];
+
+			TriggerOnNext->TriggerFrame(StartFrame);
+		}
+
 		void InitializeState(int32 InArraySize)
 		{
 			bSharedStateInitialized = false;
