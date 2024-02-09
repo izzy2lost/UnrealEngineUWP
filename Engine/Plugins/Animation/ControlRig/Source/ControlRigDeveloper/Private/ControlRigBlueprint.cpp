@@ -2327,6 +2327,11 @@ void UControlRigBlueprint::OnModularDependencyVMCompiled(UObject* InBlueprint, U
 
 void UControlRigBlueprint::OnModularDependencyChanged(URigVMBlueprint* InBlueprint)
 {
+	RequestConstructionOnAllModules();
+}
+
+void UControlRigBlueprint::RequestConstructionOnAllModules()
+{
 	// the rig will perform initialize itself - but we should request construction
 	check(IsModularRig());
 	
@@ -2662,6 +2667,17 @@ void UControlRigBlueprint::HandleRigModulesModified(EModularRigNotification InNo
 		case EModularRigNotification::ModuleShortNameChanged:
 		{
 			bRecompile = false;
+			break;
+		}
+		case EModularRigNotification::ModuleConfigValueChanged:
+		{
+			bRecompile = false;
+			PropagateModuleHierarchyFromBPToInstances();
+			RequestConstructionOnAllModules();
+			break;
+		}
+		default:
+		{
 			break;
 		}
 	}
