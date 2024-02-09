@@ -37,14 +37,14 @@ namespace UE::DMX::Private
 		const TSharedRef<IPropertyHandle> DMXLibraryHandle = InDetailLayout.GetProperty(UDMXControlConsoleData::GetDMXLibraryPropertyName());
 		InDetailLayout.AddPropertyToCategory(DMXLibraryHandle);
 
-		// Layout Mode selection section
+		// Edit Mode selection section
 		IDetailCategoryBuilder& ControlConsoleCategory = InDetailLayout.EditCategory("DMX Control Console", FText::GetEmpty());
 		ControlConsoleCategory.AddCustomRow(FText::GetEmpty())
 			.NameContent()
 			[
 				SNew(STextBlock)
 				.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-				.Text(LOCTEXT("LayoutLabel", "Layout"))
+				.Text(LOCTEXT("EditModeLabel", "Edit Mode"))
 			]
 			.ValueContent()
 			[

@@ -175,7 +175,7 @@ namespace UE::DMX::Private
 				[
 					SNew(STextBlock)
 					.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-					.Text(LOCTEXT("DefaultLayoutModeLabel", "Default"))
+					.Text(LOCTEXT("DefaultLayoutModeLabel", "Auto"))
 				]
 			]
 
@@ -203,7 +203,7 @@ namespace UE::DMX::Private
 				[
 					SNew(STextBlock)
 					.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-					.Text(LOCTEXT("UserLayoutModeLabel", "User"))
+					.Text(LOCTEXT("UserLayoutModeLabel", "Custom"))
 				]
 			];
 
