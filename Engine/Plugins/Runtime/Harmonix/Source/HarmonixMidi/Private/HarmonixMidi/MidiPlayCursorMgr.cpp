@@ -745,7 +745,12 @@ bool FMidiPlayCursorMgr::AdvanceLowResCursors()
 		MsDiff = HiResCurrentMs - LowResTracker.CurrentMs;
 		if (MsDiff <= 0.0f)
 		{
-			UpdateLowResCursors(LowResTracker);
+			// This would allow clocks to update independently of buffer sizes,
+			// but also allows them to lose touch with reality, if the
+			// high-res trackker actually stops updating for some reason.
+			// Have to figure out how to distinguish those cases.
+			// FORT-706568
+			//UpdateLowResCursors(LowResTracker);
 			return false;
 		}
 	}
