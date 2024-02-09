@@ -89,6 +89,8 @@ void UActorDescContainerInstance::Initialize(const FInitializeParams& InParams)
 	FName OuterWorldContainerPackageName;
 
 	Transform = InParams.Transform;
+	ContainerActorGuid = InParams.ContainerActorGuid;
+
 	if (InParams.ContainerActorGuid.IsValid())
 	{
 		// It is possible to not have a ParentContainerInstance if we are in a non-WP main world
@@ -97,7 +99,7 @@ void UActorDescContainerInstance::Initialize(const FInitializeParams& InParams)
 	}
 				
 	// Only consider world if we are outered to a WorldPartition directly
-	UWorld* OuterWorld = HasWorldPartition() ? GetTypedOuter<UWorld>() : nullptr;
+	UWorld* OuterWorld = GetOuterWorldPartition() ? GetTypedOuter<UWorld>() : nullptr;
 	bool bIsInstanced = false;
 	FString SourceWorldPath, RemappedWorldPath;
 
@@ -223,7 +225,7 @@ void UActorDescContainerInstance::Uninitialize()
 bool UActorDescContainerInstance::ShouldRegisterDelegates() const
 {
 	// No World Partition means we are a ChildContainerInstance created for StreamingGeneration and need to listen to some events for updates
-	const UWorldPartition* WorldPartition = GetWorldPartition();
+	const UWorldPartition* WorldPartition = GetOuterWorldPartition();
 	const UWorld* OwningWorld = WorldPartition ? WorldPartition->GetWorld() : nullptr;
 
 	return !OwningWorld || !OwningWorld->IsGameWorld();
@@ -236,7 +238,7 @@ void UActorDescContainerInstance::RegisterDelegates()
 		check(Container);
 
 		// Only listen to Object replaced events on ContainerInstance that have a direct World Partition outer (Loaded Container Instances: Main World or Loaded Level Instances)
-		if (HasWorldPartition())
+		if (GetOuterWorldPartition())
 		{
 			FCoreUObjectDelegates::OnObjectsReplaced.AddUObject(this, &UActorDescContainerInstance::OnObjectsReplaced);
 		}
@@ -431,7 +433,7 @@ void UActorDescContainerInstance::RemoveActor(const FGuid& InActorGuid)
 {
 	if (TUniquePtr<FWorldPartitionActorDescInstance>* ActorDescInstance = GetActorDescriptor(InActorGuid))
 	{
-		if (UWorldPartition* WorldPartition = GetWorldPartition())
+		if (UWorldPartition* WorldPartition = GetOuterWorldPartition())
 		{
 			WorldPartition->OnActorDescInstanceRemoved(ActorDescInstance->Get());
 		}
@@ -468,7 +470,7 @@ const FLinkerInstancingContext* UActorDescContainerInstance::GetInstancingContex
 const FTransform& UActorDescContainerInstance::GetTransform() const
 {
 	// UActorDescContainerInstance outered to a UWorldPartition
-	if (UWorldPartition* WorldPartition = GetWorldPartition())
+	if (UWorldPartition* WorldPartition = GetOuterWorldPartition())
 	{
 		// GameWorld: Container instance is necessarly used for Streaming generation. In which case we want to return Identity and Transform of the World Partition will be applied on the LevelStreaming objects.
 		if (GetWorld()->IsGameWorld())
@@ -477,27 +479,21 @@ const FTransform& UActorDescContainerInstance::GetTransform() const
 			return FTransform::Identity;
 		}
 
-		return GetWorldPartition()->GetInstanceTransform();
+		return WorldPartition->GetInstanceTransform();
 	}
 	
 	// Transform is set when this Container Instance is a Child Container Instance created for Streaming Generation
 	return Transform.IsSet() ? Transform.GetValue() : FTransform::Identity;
 }
 
-UWorldPartition* UActorDescContainerInstance::GetWorldPartition() const
+UWorldPartition* UActorDescContainerInstance::GetTopWorldPartition() const
 {
-	// Only return a World Partition if we are directly outered to it
-	if (UWorldPartition* OuterWorldPartition = Cast<UWorldPartition>(GetOuter()))
-	{
-		return OuterWorldPartition;
-	}
-
-	return nullptr;
+	return GetTypedOuter<UWorldPartition>();
 }
 
-bool UActorDescContainerInstance::HasWorldPartition() const
+UWorldPartition* UActorDescContainerInstance::GetOuterWorldPartition() const
 {
-	return !!GetWorldPartition();
+	return Cast<UWorldPartition>(GetOuter());
 }
 
 void UActorDescContainerInstance::LoadAllActors(TArray<FWorldPartitionReference>& OutReferences)
@@ -538,7 +534,7 @@ void UActorDescContainerInstance::OnActorDescAdded(FWorldPartitionActorDesc* InA
 		NewActorDescInstance->RegisterChildContainerInstance();
 	}
 
-	if (UWorldPartition* WorldPartition = GetWorldPartition())
+	if (UWorldPartition* WorldPartition = GetOuterWorldPartition())
 	{
 		WorldPartition->OnActorDescInstanceAdded(NewActorDescInstance);
 	}
@@ -556,7 +552,7 @@ void UActorDescContainerInstance::OnActorDescUpdating(FWorldPartitionActorDesc* 
 	TUniquePtr<FWorldPartitionActorDescInstance>* ActorDescInstance = GetActorDescInstancePtr(InActorDesc->GetGuid());
 	check(ActorDescInstance && ActorDescInstance->IsValid());
 		
-	if (UWorldPartition* WorldPartition = GetWorldPartition())
+	if (UWorldPartition* WorldPartition = GetOuterWorldPartition())
 	{
 		WorldPartition->OnActorDescInstanceUpdating(ActorDescInstance->Get());
 	}
@@ -578,7 +574,7 @@ void UActorDescContainerInstance::OnActorDescUpdated(FWorldPartitionActorDesc* I
 		ActorDescInstance->Get()->UpdateChildContainerInstance();
 	}
 
-	if (UWorldPartition* WorldPartition = GetWorldPartition())
+	if (UWorldPartition* WorldPartition = GetOuterWorldPartition())
 	{
 		WorldPartition->OnActorDescInstanceUpdated(ActorDescInstance->Get());
 	}

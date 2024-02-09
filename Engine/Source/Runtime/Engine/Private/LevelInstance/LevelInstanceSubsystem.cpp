@@ -2583,7 +2583,7 @@ bool ULevelInstanceSubsystem::CheckForLoop(const ILevelInstanceInterface* LevelI
 
 bool ULevelInstanceSubsystem::PassLevelInstanceFilter(UWorld* World, const FWorldPartitionHandle& ActorHandle) const
 {
-	UWorld* ContainerOuterWorld = ActorHandle.GetContainerInstance()->GetWorldPartition()->GetTypedOuter<UWorld>();
+	UWorld* ContainerOuterWorld = ActorHandle.GetContainerInstance()->GetOuterWorldPartition()->GetTypedOuter<UWorld>();
 	check(ContainerOuterWorld);
 	if (const ILevelInstanceInterface* TopAncestor = GetOwningLevelInstance(ContainerOuterWorld->PersistentLevel))
 	{

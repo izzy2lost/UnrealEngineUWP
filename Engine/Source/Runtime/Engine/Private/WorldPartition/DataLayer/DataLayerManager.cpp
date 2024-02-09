@@ -218,11 +218,11 @@ void UDataLayerManager::Initialize()
 	{
 		UActorDescContainerInstance::OnActorDescContainerInstanceInitialized.AddUObject(this, &UDataLayerManager::OnActorDescContainerInstanceInitialized);
 
-		// Manually call OnActorDescContainerInstanceInitialized on already initialized outer world partition container instance
-		if (ActorDescContainerInstance)
+		// Manually call OnActorDescContainerInstanceInitialized on already initialized outer world partition container instances
+		OuterWorldPartition->ForEachActorDescContainerInstance([this](UActorDescContainerInstance* ActorDescContainerInstance)
 		{
 			OnActorDescContainerInstanceInitialized(ActorDescContainerInstance);
-		}
+		}, true);
 	}
 
 	// SaveAs of a partition world will duplicate actors which will trigger AActor::FixupDataLayer and DataLayerManager is not yet created.
@@ -851,7 +851,7 @@ void UDataLayerManager::ResolveActorDescContainerInstanceDataLayersInternal(UAct
 	check(InActorDescContainerInstance);
 	check(!InActorDescInstance || (InActorDescInstance->GetContainerInstance() == InActorDescContainerInstance));
 		
-	const UWorldPartition* ContainerOuterWorldPartition = InActorDescContainerInstance->GetWorldPartition();
+	const UWorldPartition* ContainerOuterWorldPartition = InActorDescContainerInstance->GetTopWorldPartition();
 	// Skip resolving for template containers (will be done on ActorDescViews)
 	if (!ContainerOuterWorldPartition)
 	{

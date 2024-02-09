@@ -49,6 +49,9 @@ public:
 	/** Construct this item from an actor desc */
 	FActorDescTreeItem(const FGuid& InActorGuid, UActorDescContainerInstance* InContainerInstance);
 
+	/** Construct this item from an actor desc instance */
+	FActorDescTreeItem(const FWorldPartitionActorDescInstance* InActorDescInstance);
+
 	UE_DEPRECATED(5.4, "Use FWorldPartitionActorDescInstance version instead")
 	FActorDescTreeItem(const FGuid& InActorGuid, class UActorDescContainer* InContainer) : IActorBaseTreeItem(Type) {}
 

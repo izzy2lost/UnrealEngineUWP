@@ -63,11 +63,11 @@ public:
 	DECLARE_EVENT_OneParam(UWorldPartition, FActorDescInstanceRemovedEvent, FWorldPartitionActorDescInstance*);
 	FActorDescInstanceRemovedEvent OnActorDescInstanceRemovedEvent;
 
-	void ForEachActorDescContainerInstanceBreakable(TFunctionRef<bool(ActorDescContPtrType)> Func);
-	void ForEachActorDescContainerInstanceBreakable(TFunctionRef<bool(ActorDescContPtrType)> Func) const;
+	void ForEachActorDescContainerInstanceBreakable(TFunctionRef<bool(ActorDescContPtrType)> Func, bool bRecursive = false);
+	void ForEachActorDescContainerInstanceBreakable(TFunctionRef<bool(ActorDescContPtrType)> Func, bool bRecursive = false) const;
 
-	void ForEachActorDescContainerInstance(TFunctionRef<void(ActorDescContPtrType)> Func);
-	void ForEachActorDescContainerInstance(TFunctionRef<void(ActorDescContPtrType)> Func) const;
+	void ForEachActorDescContainerInstance(TFunctionRef<void(ActorDescContPtrType)> Func, bool bRecursive = false);
+	void ForEachActorDescContainerInstance(TFunctionRef<void(ActorDescContPtrType)> Func, bool bRecursive = false) const;
 
 protected:
 	virtual void OnCollectionChanged() {};
@@ -439,11 +439,32 @@ void TActorDescContainerInstanceCollection<ActorDescContPtrType>::LoadAllActors(
 
 
 template<class ActorDescContPtrType>
-void TActorDescContainerInstanceCollection<ActorDescContPtrType>::ForEachActorDescContainerInstanceBreakable(TFunctionRef<bool(ActorDescContPtrType)> Func) const
+void TActorDescContainerInstanceCollection<ActorDescContPtrType>::ForEachActorDescContainerInstanceBreakable(TFunctionRef<bool(ActorDescContPtrType)> Func, bool bRecursive) const
 {
-	for (ActorDescContPtrType ActorDescContainerInstance : ActorDescContainerInstanceCollection)
+	TFunction<bool(ActorDescContPtrType)> InvokeFunc = [&Func, &InvokeFunc, bRecursive](ActorDescContPtrType ActorDescContainerInstance)
 	{
 		if (!Func(ActorDescContainerInstance))
+		{
+			return false;
+		}
+
+		if (bRecursive)
+		{
+			for (auto [Guid, ChildActorDescContainerInstance] : ActorDescContainerInstance->GetChildContainerInstances())
+			{
+				if (!InvokeFunc(ChildActorDescContainerInstance))
+				{
+					return false;
+				}
+			}
+		}
+
+		return true;
+	};
+
+	for (ActorDescContPtrType ActorDescContainerInstance : ActorDescContainerInstanceCollection)
+	{
+		if (!InvokeFunc(ActorDescContainerInstance))
 		{
 			break;
 		}
@@ -451,24 +472,24 @@ void TActorDescContainerInstanceCollection<ActorDescContPtrType>::ForEachActorDe
 }
 
 template<class ActorDescContPtrType>
-void TActorDescContainerInstanceCollection<ActorDescContPtrType>::ForEachActorDescContainerInstanceBreakable(TFunctionRef<bool(ActorDescContPtrType)> Func)
+void TActorDescContainerInstanceCollection<ActorDescContPtrType>::ForEachActorDescContainerInstanceBreakable(TFunctionRef<bool(ActorDescContPtrType)> Func, bool bRecursive)
 {
-	const_cast<const TActorDescContainerInstanceCollection*>(this)->ForEachActorDescContainerInstanceBreakable(Func);
+	const_cast<const TActorDescContainerInstanceCollection*>(this)->ForEachActorDescContainerInstanceBreakable(Func, bRecursive);
 }
 
 template<class ActorDescContPtrType>
-void TActorDescContainerInstanceCollection<ActorDescContPtrType>::ForEachActorDescContainerInstance(TFunctionRef<void(ActorDescContPtrType)> Func) const
+void TActorDescContainerInstanceCollection<ActorDescContPtrType>::ForEachActorDescContainerInstance(TFunctionRef<void(ActorDescContPtrType)> Func, bool bRecursive) const
 {
-	for (ActorDescContPtrType ActorDescContainerInstance : ActorDescContainerInstanceCollection)
+	ForEachActorDescContainerInstanceBreakable([&Func](ActorDescContPtrType ActorDescContainerInstance)
 	{
-		Func(ActorDescContainerInstance);
-	}
+		Func(ActorDescContainerInstance); return true;
+	}, bRecursive);
 }
 
 template<class ActorDescContPtrType>
-void TActorDescContainerInstanceCollection<ActorDescContPtrType>::ForEachActorDescContainerInstance(TFunctionRef<void(ActorDescContPtrType)> Func)
+void TActorDescContainerInstanceCollection<ActorDescContPtrType>::ForEachActorDescContainerInstance(TFunctionRef<void(ActorDescContPtrType)> Func, bool bRecursive)
 {
-	const_cast<const TActorDescContainerInstanceCollection*>(this)->ForEachActorDescContainerInstance(Func);
+	const_cast<const TActorDescContainerInstanceCollection*>(this)->ForEachActorDescContainerInstance(Func, bRecursive);
 }
 
 template<class ActorDescContPtrType>
