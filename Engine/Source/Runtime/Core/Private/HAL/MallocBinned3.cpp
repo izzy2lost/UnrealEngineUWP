@@ -38,17 +38,17 @@ static FAutoConsoleVariableRef GMallocBinned3PerThreadCachesCVar(
 	TEXT("Enables per-thread caches of small (<= 32768 byte) allocations from FMallocBinned3")
 	);
 
-int32 GMallocBinned3BundleSize = DEFAULT_GMallocBinned3BundleSize;
+extern int32 GMallocBinnedBundleSize;
 static FAutoConsoleVariableRef GMallocBinned3BundleSizeCVar(
 	TEXT("MallocBinned3.BundleSize"),
-	GMallocBinned3BundleSize,
+	GMallocBinnedBundleSize,
 	TEXT("Max size in bytes of per-block bundles used in the recycling process")
 	);
 
-int32 GMallocBinned3BundleCount = DEFAULT_GMallocBinned3BundleCount;
+extern int32 GMallocBinnedBundleCount;
 static FAutoConsoleVariableRef GMallocBinned3BundleCountCVar(
 	TEXT("MallocBinned3.BundleCount"),
-	GMallocBinned3BundleCount,
+	GMallocBinnedBundleCount,
 	TEXT("Max count in blocks per-block bundles used in the recycling process")
 	);
 
@@ -88,7 +88,6 @@ TAtomic<int64> Binned3Decommits;
 int64 Binned3PoolInfoMemory = 0;
 int64 Binned3HashMemory = 0;
 int64 Binned3FreeBitsMemory = 0;
-int64 Binned3TLSMemory = 0;
 TAtomic<int64> Binned3TotalPoolSearches;
 TAtomic<int64> Binned3TotalPointerTests;
 
@@ -109,7 +108,6 @@ TAtomic<int32> MemoryRangeFreeTotalCount(0);
 
 MS_ALIGN(PLATFORM_CACHE_LINE_SIZE) static uint8 Binned3UnusedAlignPadding[PLATFORM_CACHE_LINE_SIZE] GCC_ALIGN(PLATFORM_CACHE_LINE_SIZE) = { 0 };
 uint16 FMallocBinned3::SmallBlockSizesReversedShifted[BINNED3_SMALL_POOL_COUNT + 1] = { 0 };
-uint32 FMallocBinned3::Binned3TlsSlot = FPlatformTLS::InvalidTlsSlot;
 uint32 FMallocBinned3::OsAllocationGranularity = 0;
 
 #if !BINNED3_USE_SEPARATE_VM_PER_POOL
@@ -318,42 +316,6 @@ public:
 		check(AllocSize > 0 && CommitSize >= AllocSize && VMSizeDivVirtualSizeAlignment * FPlatformMemory::FPlatformVirtualMemoryBlock::GetVirtualSizeAlignment() >= CommitSize);
 	}
 };
-
-
-/** Hash table struct for retrieving allocation book keeping information */
-struct FMallocBinned3::PoolHashBucket
-{
-	UPTRINT BucketIndex;
-	FPoolInfoLarge* FirstPool;
-	PoolHashBucket* Prev;
-	PoolHashBucket* Next;
-
-	PoolHashBucket()
-	{
-		BucketIndex = 0;
-		FirstPool   = nullptr;
-		Prev        = this;
-		Next        = this;
-	}
-
-	void Link(PoolHashBucket* After)
-	{
-		After->Prev = Prev;
-		After->Next = this;
-		Prev ->Next = After;
-		this ->Prev = After;
-	}
-
-	void Unlink()
-	{
-		Next->Prev = Prev;
-		Prev->Next = Next;
-		Prev       = this;
-		Next       = this;
-	}
-};
-
-
 
 struct FMallocBinned3::Private
 {
@@ -656,16 +618,22 @@ struct FMallocBinned3::Private
 		FScopeLock Lock(&GetFreeBlockListsRegistrationMutex());
 		GetRegisteredFreeBlockLists().Remove(FreeBlockLists);
 #if BINNED3_ALLOCATOR_STATS
-		FMallocBinned3::FPerThreadFreeBlockLists::ConsolidatedMemory += FreeBlockLists->AllocatedMemory;
+		ConsolidatedMemory.fetch_add(FreeBlockLists->AllocatedMemory, std::memory_order_relaxed);
 #endif
 	}
 };
 
 FMallocBinned3::Private::FGlobalRecycler FMallocBinned3::Private::GGlobalRecycler;
 
-#if BINNED3_ALLOCATOR_STATS
-TAtomic<int64> FMallocBinned3::FPerThreadFreeBlockLists::ConsolidatedMemory;
-#endif
+void FMallocBinned3::RegisterThreadFreeBlockLists(FPerThreadFreeBlockLists* FreeBlockLists)
+{
+	Private::RegisterThreadFreeBlockLists(FreeBlockLists);
+}
+
+void FMallocBinned3::UnregisterThreadFreeBlockLists(FPerThreadFreeBlockLists* FreeBlockLists)
+{
+	Private::UnregisterThreadFreeBlockLists(FreeBlockLists);
+}
 
 FMallocBinned3::FPoolInfoSmall* FMallocBinned3::PushNewPoolToFront(FMallocBinned3::FPoolTable& Table, uint32 InBlockSize, uint32 InPoolIndex, uint32& OutBlockOfBlocksIndex)
 {
@@ -945,8 +913,8 @@ void FMallocBinned3::FreeMetaDataMemory(void *Ptr, SIZE_T InSize)
 	{
 		LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelFree(ELLMTracker::Platform, Ptr));
 
-		size_t VirtualAlignedSize = Align(InSize, FPlatformMemory::FPlatformVirtualMemoryBlock::GetVirtualSizeAlignment());
-		FPlatformMemory::FPlatformVirtualMemoryBlock Block(Ptr, VirtualAlignedSize / FPlatformMemory::FPlatformVirtualMemoryBlock::GetVirtualSizeAlignment());
+		InSize = Align(InSize, FPlatformMemory::FPlatformVirtualMemoryBlock::GetVirtualSizeAlignment());
+		FPlatformMemory::FPlatformVirtualMemoryBlock Block(Ptr, InSize / FPlatformMemory::FPlatformVirtualMemoryBlock::GetVirtualSizeAlignment());
 		Block.FreeVirtual();
 	}
 }
@@ -971,40 +939,16 @@ void* FMallocBinned3::MallocExternal(SIZE_T Size, uint32 Alignment)
 		// fallback: test for non-default/mininum alignments and handle a subset of them to reduce memory waste of 64KB page requirements
 		// 			 e.g. code that wants to use aligned avx loads will use 32 byte alignments 
 
-		Alignment			= FMath::Max<uint32>(Alignment, BINNED3_MINIMUM_ALIGNMENT);
-		size_t AlignedSize	= Align(Size, Alignment);
-
-		if ((AlignedSize <= BINNED3_MAX_SMALL_POOL_SIZE) && (Alignment <= BINNED3_MAX_SMALL_POOL_ALIGNMENT))
-		{
-			// Start at the naturally aligned size as that is guaranteed to be aligned for our given alignment in the allocator
-			// Note: We must handle the case where the naturally aligned size is not a valid pool entry and the next higher size
-			//       may not match the same alignment. In that case we do a search upwards as they are likely nearby aligned sizes 
-			//		 for our small range of alignemnts allowed
-			uint32 PoolIndex = BoundSizeToPoolIndex(AlignedSize);
-			do
-			{
-				uint32 BlockSize = PoolIndexToBlockSize(PoolIndex);
-				if (IsAligned(BlockSize, Alignment))
-				{
-					// we found a matching pool for our alignment and size requirements, so modify the size request to match
-					Size = SIZE_T(BlockSize);
-					UsePools = true;
-					Alignment = BINNED3_MINIMUM_ALIGNMENT;
-					break;
-				}
-
-				PoolIndex++;
-			} while (PoolIndex < BINNED3_SMALL_POOL_COUNT);
-		}
+		UsePools = PromoteToLargerBin(Size, Alignment, *this);
 	}
 
 	if (UsePools) 
 	{
-		uint32 PoolIndex = BoundSizeToPoolIndex(Size);
+		uint32 PoolIndex = BoundSizeToPoolIndex(Size, MemSizeToIndex);
 		FPerThreadFreeBlockLists* Lists = GMallocBinned3PerThreadCaches ? FPerThreadFreeBlockLists::Get() : nullptr;
 		if (Lists)
 		{
-			if (Lists->ObtainRecycledPartial(PoolIndex))
+			if (Lists->ObtainRecycledPartial(PoolIndex, Private::GGlobalRecycler))
 			{
 				if (void* Result = Lists->Malloc(PoolIndex))
 				{
@@ -1224,7 +1168,7 @@ void FMallocBinned3::FreeExternal(void* Ptr)
 		FPerThreadFreeBlockLists* Lists = GMallocBinned3PerThreadCaches ? FPerThreadFreeBlockLists::Get() : nullptr;
 		if (Lists)
 		{
-			BundlesToRecycle = Lists->RecycleFullBundle(PoolIndex);
+			BundlesToRecycle = Lists->RecycleFullBundle(PoolIndex, Private::GGlobalRecycler);
 			bool bPushed = Lists->Free(Ptr, PoolIndex, BlockSize);
 			check(bPushed);
 #if BINNED3_ALLOCATOR_STATS
@@ -1405,11 +1349,11 @@ void FMallocBinned3::SetupTLSCachesOnCurrentThread()
 	{
 		return;
 	}
-	if (!FPlatformTLS::IsValidTlsSlot(FMallocBinned3::Binned3TlsSlot))
+	if (!FPlatformTLS::IsValidTlsSlot(FMallocBinned3::BinnedTlsSlot))
 	{
-		FMallocBinned3::Binned3TlsSlot = FPlatformTLS::AllocTlsSlot();
+		FMallocBinned3::BinnedTlsSlot = FPlatformTLS::AllocTlsSlot();
 	}
-	check(FPlatformTLS::IsValidTlsSlot(FMallocBinned3::Binned3TlsSlot));
+	check(FPlatformTLS::IsValidTlsSlot(FMallocBinned3::BinnedTlsSlot));
 	FPerThreadFreeBlockLists::SetTLS();
 }
 
@@ -1421,105 +1365,6 @@ void FMallocBinned3::ClearAndDisableTLSCachesOnCurrentThread()
 	}
 	FlushCurrentThreadCache();
 	FPerThreadFreeBlockLists::ClearTLS();
-}
-
-
-bool FMallocBinned3::FFreeBlockList::ObtainPartial(uint32 InPoolIndex)
-{
-	if (!PartialBundle.Head)
-	{
-		PartialBundle.Count = 0;
-		PartialBundle.Head = FMallocBinned3::Private::GGlobalRecycler.PopBundle(InPoolIndex);
-		if (PartialBundle.Head)
-		{
-			PartialBundle.Count = PartialBundle.Head->Count;
-			PartialBundle.Head->NextBundle = nullptr;
-			return true;
-		}
-		return false;
-	}
-	return true;
-}
-
-FMallocBinned3::FBundleNode* FMallocBinned3::FFreeBlockList::RecyleFull(uint32 InPoolIndex)
-{
-	FMallocBinned3::FBundleNode* Result = nullptr;
-	if (FullBundle.Head)
-	{
-		FullBundle.Head->Count = FullBundle.Count;
-		if (!FMallocBinned3::Private::GGlobalRecycler.PushBundle(InPoolIndex, FullBundle.Head))
-		{
-			Result = FullBundle.Head;
-			Result->NextBundle = nullptr;
-		}
-		FullBundle.Reset();
-	}
-	return Result;
-}
-
-FMallocBinned3::FBundleNode* FMallocBinned3::FFreeBlockList::PopBundles(uint32 InPoolIndex)
-{
-	FBundleNode* Partial = PartialBundle.Head;
-	if (Partial)
-	{
-		PartialBundle.Reset();
-		Partial->NextBundle = nullptr;
-	}
-
-	FBundleNode* Full = FullBundle.Head;
-	if (Full)
-	{
-		FullBundle.Reset();
-		Full->NextBundle = nullptr;
-	}
-
-	FBundleNode* Result = Partial;
-	if (Result)
-	{
-		Result->NextBundle = Full;
-	}
-	else
-	{
-		Result = Full;
-	}
-
-	return Result;
-}
-
-void FMallocBinned3::FPerThreadFreeBlockLists::SetTLS()
-{
-	check(FPlatformTLS::IsValidTlsSlot(FMallocBinned3::Binned3TlsSlot));
-	FPerThreadFreeBlockLists* ThreadSingleton = (FPerThreadFreeBlockLists*)FPlatformTLS::GetTlsValue(FMallocBinned3::Binned3TlsSlot);
-	if (!ThreadSingleton)
-	{
-		const int64 TLSSize = Align(sizeof(FPerThreadFreeBlockLists), FPlatformMemory::FPlatformVirtualMemoryBlock::GetVirtualSizeAlignment());
-		ThreadSingleton = new (FMallocBinned3::AllocateMetaDataMemory(TLSSize)) FPerThreadFreeBlockLists();
-#if BINNED3_ALLOCATOR_STATS
-		Binned3TLSMemory += TLSSize;
-#endif
-		verify(ThreadSingleton);
-		FPlatformTLS::SetTlsValue(FMallocBinned3::Binned3TlsSlot, ThreadSingleton);
-		FMallocBinned3::Private::RegisterThreadFreeBlockLists(ThreadSingleton);
-	}
-}
-
-void FMallocBinned3::FPerThreadFreeBlockLists::ClearTLS()
-{
-	check(FPlatformTLS::IsValidTlsSlot(FMallocBinned3::Binned3TlsSlot));
-	FPerThreadFreeBlockLists* ThreadSingleton = (FPerThreadFreeBlockLists*)FPlatformTLS::GetTlsValue(FMallocBinned3::Binned3TlsSlot);
-	if (ThreadSingleton)
-	{
-		const int64 TLSSize = Align(sizeof(FPerThreadFreeBlockLists), FPlatformMemory::FPlatformVirtualMemoryBlock::GetVirtualSizeAlignment());
-#if BINNED3_ALLOCATOR_STATS
-		Binned3TLSMemory -= TLSSize;
-#endif
-		FMallocBinned3::Private::UnregisterThreadFreeBlockLists(ThreadSingleton);
-	
-		ThreadSingleton->~FPerThreadFreeBlockLists();
-
-		FMallocBinned3::FreeMetaDataMemory(ThreadSingleton, TLSSize);
-	}
-	FPlatformTLS::SetTlsValue(FMallocBinned3::Binned3TlsSlot, nullptr);
 }
 
 void FMallocBinned3::FFreeBlock::CanaryFail() const
@@ -1537,7 +1382,7 @@ int64 FMallocBinned3::GetTotalAllocatedSmallPoolMemory() const
 		{
 			FreeBlockAllocatedMemory += FreeBlockLists->AllocatedMemory;
 		}
-		FreeBlockAllocatedMemory += FPerThreadFreeBlockLists::ConsolidatedMemory;
+		FreeBlockAllocatedMemory += ConsolidatedMemory.load(std::memory_order_relaxed);
 	}
 
 	return Binned3AllocatedSmallPoolMemory + FreeBlockAllocatedMemory;
@@ -1590,7 +1435,7 @@ void FMallocBinned3::DumpAllocatorStats(class FOutputDevice& Ar)
 	Ar.Logf(TEXT("PoolInfo: %fmb"), ((double)Binned3PoolInfoMemory) / (1024.0f * 1024.0f));
 	Ar.Logf(TEXT("Hash: %fmb"), ((double)Binned3HashMemory) / (1024.0f * 1024.0f));
 	Ar.Logf(TEXT("Free Bits: %fmb"), ((double)Binned3FreeBitsMemory) / (1024.0f * 1024.0f));
-	Ar.Logf(TEXT("TLS: %fmb"), ((double)Binned3TLSMemory) / (1024.0f * 1024.0f));
+	Ar.Logf(TEXT("TLS: %fmb"), ((double)TLSMemory.load(std::memory_order_relaxed) / (1024.0f * 1024.0f));
 	Ar.Logf(TEXT("Slab Commits: %llu"), Binned3Commits.Load());
 	Ar.Logf(TEXT("Slab Decommits: %llu"), Binned3Decommits.Load());
 #if BINNED3_USE_SEPARATE_VM_PER_POOL
@@ -1607,7 +1452,7 @@ void FMallocBinned3::DumpAllocatorStats(class FOutputDevice& Ar)
 #endif
 	Ar.Logf(TEXT("Total allocated from OS: %fmb"), 
 		((double)
-			Binned3AllocatedOSSmallPoolMemory + Binned3AllocatedLargePoolMemoryWAlignment + Binned3PoolInfoMemory + Binned3HashMemory + Binned3FreeBitsMemory + Binned3TLSMemory
+			Binned3AllocatedOSSmallPoolMemory + Binned3AllocatedLargePoolMemoryWAlignment + Binned3PoolInfoMemory + Binned3HashMemory + Binned3FreeBitsMemory + TLSMemory.load(std::memory_order_relaxed)
 			) / (1024.0f * 1024.0f));
 
 
