@@ -131,10 +131,6 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights|Transfer Method", Meta = (DisplayName = "Inpaint Mask", EditCondition="TransferMethod==EChaosClothAssetTransferSkinWeightsMethod::InpaintWeights"))
 	FChaosClothAssetWeightedValueNonAnimatableNoLowHighRange InpaintMask = { TEXT("InpaintMask") };
 
-	/** Optional mesh that will be used for transferring weights to the render mesh instead of the simulation mesh. */
-	UPROPERTY(Meta = (Dataflowinput))
-	FManagedArrayCollection TransferWeightsCollection;
-
 	FChaosClothAssetTransferSkinWeightsNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
