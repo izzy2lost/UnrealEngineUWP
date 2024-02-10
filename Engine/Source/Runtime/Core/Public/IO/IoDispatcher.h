@@ -513,7 +513,7 @@ struct FIoContainerSettings
 struct FIoStoreWriterResult
 {
 	FIoContainerId ContainerId;
-	FString ContainerName;
+	FString ContainerName; // This is the base filename of the utoc used for output.
 	int64 TocSize = 0;
 	int64 TocEntryCount = 0;
 	int64 PaddingSize = 0;
