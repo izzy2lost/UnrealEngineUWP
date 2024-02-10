@@ -2,7 +2,8 @@
 
 #pragma once
 
-#include "AvaTagHandleContainer.h"
+#include "Attributes/AvaSceneAttribute.h"
+#include "Containers/Array.h"
 #include "UObject/Object.h"
 #include "AvaSceneSettings.generated.h"
 
@@ -13,16 +14,26 @@ class UAvaSceneSettings : public UObject
 	GENERATED_BODY()
 
 public:
-	const FAvaTagHandleContainer& GetTagAttributes() const
+	/**
+	 * Iterate each valid Scene Attribute of the given Type
+	 * The callable should return true to continue iteration, and false to stop it
+	 */
+	template<typename InAttributeType>
+	void ForEachSceneAttributeOfType(TFunctionRef<bool(const InAttributeType&)> InCallable) const
 	{
-		return TagAttributes;
+		for (const UAvaSceneAttribute* SceneAttribute : SceneAttributes)
+		{
+			if (const InAttributeType* CastedAttribute = Cast<InAttributeType>(SceneAttribute))
+			{
+				if (!InCallable(*CastedAttribute))
+				{
+					break;
+				}
+			}
+		}
 	}
 
-	UFUNCTION()
-	void SetTagAttributes(const FAvaTagHandleContainer& InTagAttributes);
-
 private:
-	/** Tags describing the Scene */
-	UPROPERTY(EditAnywhere, Setter="SetTagAttributes", Category="Scene", meta=(AllowPrivateAccess="true"))
-	FAvaTagHandleContainer TagAttributes;
+	UPROPERTY(EditAnywhere, Instanced, Category="Attributes",  meta=(ShowOnlyInnerProperties))
+	TArray<TObjectPtr<UAvaSceneAttribute>> SceneAttributes;
 };

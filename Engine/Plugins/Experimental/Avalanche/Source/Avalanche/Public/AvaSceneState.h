@@ -25,7 +25,7 @@ public:
 
 private:
 	/** Weak pointer to the same scene's Settings. Used to query for default tag attributes of the scene */
-	TWeakObjectPtr<UAvaSceneSettings> SceneSettingsWeak;
+	TWeakObjectPtr<const UAvaSceneSettings> SceneSettingsWeak;
 
 	/** Active Tag Attributes that were added to the scene, separate from Scene Settings */
 	TSet<FAvaTag> ActiveTagAttributes;
