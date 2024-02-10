@@ -32,6 +32,8 @@ public:
 		NetGroupReplayNetObjectGroupIndex
 	};
 
+	inline static FNetObjectGroupHandle GetInvalid() {return FNetObjectGroupHandle();}
+
 	FNetObjectGroupHandle() : Value(0u) {}
 
 	/** Returns true if the handle is valid, note this does not mean that the group is valid */
