@@ -54,7 +54,15 @@ static FAutoConsoleVariableRef CVarHairRTGeomForceRebuild(TEXT("r.HairStrands.St
 static int32 GHairStrands_MotionVector_CheckViewID = 1;
 static FAutoConsoleVariableRef CVarHairStrands_MotionVector_CheckViewID(TEXT("r.HairStrands.Strands.MotionVectorCheckViewID"), GHairStrands_MotionVector_CheckViewID, TEXT("Issue motion vector on hair strands only if updates happens on the same view"));
 
+static int32 GStrandHairInterpolationForceSingleGuide = 1;
+static FAutoConsoleVariableRef CVarHairStrands_Interpolation_ForceSingleGuide(TEXT("r.HairStrands.Strands.Interpolation.ForceSingleGuide"), GStrandHairInterpolationForceSingleGuide, TEXT("Force to use a single guide during the interpolation. This allows to reduce the cost of interpolation, but can create clumpy looks."));
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+uint32 GetHairStrandsForceSingleGuideInterpolation()
+{
+	return GStrandHairInterpolationForceSingleGuide > 0;
+}
 
 uint32 GetHairCardsInterpolationType()
 {
@@ -451,7 +459,7 @@ class FHairInterpolationCS : public FGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(FHairInterpolationCS, FGlobalShader);
 
 	class FPointPerCurve : SHADER_PERMUTATION_SPARSE_INT("PERMUTATION_POINT_PER_CURVE", 4, 8, 16, 32);
-	class FDynamicGeometry : SHADER_PERMUTATION_INT("PERMUTATION_DYNAMIC_GEOMETRY", 5);
+	class FDynamicGeometry : SHADER_PERMUTATION_INT("PERMUTATION_DYNAMIC_GEOMETRY", 4); /* These is actually 5 DynamicGeometry permutations, but PERMUTATION_DYNAMIC_GEOMETRY==4 is never used (experimental) */
 	class FSimulation : SHADER_PERMUTATION_BOOL("PERMUTATION_SIMULATION");
 	class FSingleGuide : SHADER_PERMUTATION_BOOL("PERMUTATION_USE_SINGLE_GUIDE");
 	class FDeformer : SHADER_PERMUTATION_BOOL("PERMUTATION_DEFORMER");
@@ -461,12 +469,16 @@ class FHairInterpolationCS : public FGlobalShader
 		SHADER_PARAMETER_STRUCT_INCLUDE(ShaderPrint::FShaderParameters, ShaderDrawParameters)
 		SHADER_PARAMETER(uint32, VertexCount)
 		SHADER_PARAMETER(uint32, CurveCount)
+		SHADER_PARAMETER(uint32, SimPointCount)
+		SHADER_PARAMETER(uint32, SimCurveCount)
+
 		SHADER_PARAMETER(float, HairLengthScale)
 		SHADER_PARAMETER(FVector3f, InRenHairPositionOffset)
 		SHADER_PARAMETER(FVector3f, InSimHairPositionOffset)
 		SHADER_PARAMETER(FMatrix44f, LocalToWorldMatrix)
-		SHADER_PARAMETER(uint32,  DispatchCountX)
-	
+		SHADER_PARAMETER(uint32, DispatchCountX)
+		SHADER_PARAMETER(uint32, bUseSingleGuide)
+
 		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, RenCurveBuffer)
 
 		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, RenRestPosePositionBuffer)
@@ -575,7 +587,16 @@ void AddHairStrandsInterpolationPass(
 	Parameters->LocalToWorldMatrix = FMatrix44f(Instance->LocalToWorld.ToMatrixWithScale());		// LWC_TODO: Precision loss
 	Parameters->HairLengthScale = HairLengthScale;
 
+	Parameters->SimPointCount = 0;
+	Parameters->SimCurveCount = 0;
+	if (Instance->Guides.RestResource)
+	{		
+		Parameters->SimPointCount = Instance->Guides.RestResource->BulkData.Header.PointCount;
+		Parameters->SimCurveCount = Instance->Guides.RestResource->BulkData.Header.CurveCount;
+	}
+
 	Parameters->RenCurveBuffer = RenCurveBuffer;
+	Parameters->bUseSingleGuide = bUseSingleGuide;
 
 	if (ShaderPrintData)
 	{
@@ -650,16 +671,18 @@ void AddHairStrandsInterpolationPass(
 	const FPointPerCurveDispatchInfo DispatchInfo = GetPointPerCurveDispatchInfo(MaxPointPerCurve, CurveCount, FHairInterpolationCS::GetGroupSize());
 	Parameters->DispatchCountX = DispatchInfo.DispatchCount.X;
 
+	const bool bSingleGuidePermutation = bUseSingleGuide || GetHairStrandsForceSingleGuideInterpolation();
+
 	FHairInterpolationCS::FPermutationDomain PermutationVector;
 	PermutationVector.Set<FHairInterpolationCS::FDynamicGeometry>(DynamicGeometryType);
 	PermutationVector.Set<FHairInterpolationCS::FSimulation>(bHasLocalDeformation);
-	PermutationVector.Set<FHairInterpolationCS::FSingleGuide>(bUseSingleGuide);
+	PermutationVector.Set<FHairInterpolationCS::FSingleGuide>(bSingleGuidePermutation);
 	PermutationVector.Set<FHairInterpolationCS::FDeformer>(bSupportDeformer);
 	PermutationVector.Set<FHairInterpolationCS::FPointPerCurve>(DispatchInfo.PointPerCurve);
 	TShaderMapRef<FHairInterpolationCS> ComputeShader(ShaderMap, PermutationVector);
 	FComputeShaderUtils::AddPass(
 		GraphBuilder,
-		RDG_EVENT_NAME("HairStrands::Interpolation(culling=off, PerCurve=%d, SingleGuide=%d, DynGeom:%d)", DispatchInfo.PointPerCurve, bUseSingleGuide ? 1u : 0u, DynamicGeometryType > 0 ? 1u : 0u),
+		RDG_EVENT_NAME("HairStrands::Interpolation(culling=off, PerCurve=%d, SingleGuide=%d, DynGeom:%d)", DispatchInfo.PointPerCurve, bSingleGuidePermutation ? 1u : 0u, DynamicGeometryType > 0 ? 1u : 0u),
 		ComputeShader,
 		Parameters,
 		DispatchInfo.DispatchCount);

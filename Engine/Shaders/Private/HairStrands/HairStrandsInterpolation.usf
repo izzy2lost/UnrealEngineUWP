@@ -22,9 +22,6 @@
 
 #pragma warning (default:7203) // downgrade 'not enough registers available for the entire program.' to a warning instead of error
 
-// Currently disable multi-guide interpolation to reduce VGPR pressure and increase occupancy
-#define FORCE_USE_SINGLE_GUIDE 1
-
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Guides
 
@@ -60,6 +57,7 @@ FGuideDataWithOffset GetGuideData(FGuideCurveData InCurveData, FGuidePointData I
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Hair interpolation 
 
+// Interpolation methods
 #define INTERPOLATION_RIGID 0
 #define INTERPOLATION_SKINNING_OFFSET 1
 #define INTERPOLATION_SKINNING_TRANSLATION 2
@@ -79,6 +77,9 @@ float HairLengthScale;
 float3 InRenHairPositionOffset;
 float3 InSimHairPositionOffset;
 float4x4 LocalToWorldMatrix;
+uint bUseSingleGuide;
+uint SimPointCount;
+uint SimCurveCount;
 
 ByteAddressBuffer RenRestPosePositionBuffer;
 ByteAddressBuffer SimRestPosePositionBuffer;
@@ -239,7 +240,7 @@ float3 ApplyRigidInterpolation(FGuideDataWithOffset GuideData, float3 InPosition
 {
 	float3 CurrOffset = 0;
 #if PERMUTATION_SIMULATION == 1
-	#if PERMUTATION_USE_SINGLE_GUIDE == 1 || FORCE_USE_SINGLE_GUIDE
+	#if PERMUTATION_USE_SINGLE_GUIDE == 1
 	const uint K = 0;
 	#else
 	[unroll]
@@ -264,7 +265,7 @@ float3 ApplySkinningWithOffset(const FGuideDataWithOffset GuideData, const FRoot
 
 	// Compute the simulation offset in hair local space (i.e., triangle)
 #if PERMUTATION_SIMULATION == 1
-	#if PERMUTATION_USE_SINGLE_GUIDE == 1 || FORCE_USE_SINGLE_GUIDE
+	#if PERMUTATION_USE_SINGLE_GUIDE == 1
 	const uint K = 0;
 	#else
 	[unroll]
@@ -295,7 +296,7 @@ float3 ApplySkinningWithTranslation(const FGuideDataWithOffset GuideData, const 
 	float3 CurrOffset = 0;
 
 #if PERMUTATION_SIMULATION == 1
-#if PERMUTATION_USE_SINGLE_GUIDE == 1 || FORCE_USE_SINGLE_GUIDE
+#if PERMUTATION_USE_SINGLE_GUIDE == 1
 	const uint K = 0;
 	#else
 	[unroll]
@@ -322,7 +323,7 @@ float3 ApplySkinningWithRotation(const FGuideDataWithOffset GuideData, const FRo
 	float3 CurrOffset = 0;
 
 #if PERMUTATION_SIMULATION == 1
-	#if PERMUTATION_USE_SINGLE_GUIDE == 1 || FORCE_USE_SINGLE_GUIDE
+	#if PERMUTATION_USE_SINGLE_GUIDE == 1
 	const uint K = 0;
 	#else
 	[unroll]
@@ -351,7 +352,7 @@ float3 ApplySkinningWithTranslationAndRotation(const FGuideDataWithOffset GuideD
 	float3 CurrOffset = 0;
 
 #if PERMUTATION_SIMULATION == 1
-	#if PERMUTATION_USE_SINGLE_GUIDE == 1 || FORCE_USE_SINGLE_GUIDE
+	#if PERMUTATION_USE_SINGLE_GUIDE == 1
 	const uint K = 0;
 	#else
 	[unroll]
@@ -449,8 +450,8 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_
 
 			// Load curve interpolation data
 			#if PERMUTATION_SIMULATION
-			SimCurveData[LocalCurveIndex] = UnpackGuideCurveData(CurveInterpolationBuffer, GlobalCurveIndex, PERMUTATION_USE_SINGLE_GUIDE);
-			if (FORCE_USE_SINGLE_GUIDE)
+			SimCurveData[LocalCurveIndex] = UnpackGuideCurveData(CurveInterpolationBuffer, GlobalCurveIndex, bUseSingleGuide);
+			if (PERMUTATION_USE_SINGLE_GUIDE)
 			{
 				SimCurveData[LocalCurveIndex].CurveWeights.x = 1;
 				SimCurveData[LocalCurveIndex].CurveWeights.y = 0;
@@ -496,7 +497,7 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_
 				const uint VertexIndex = CurrentPointIndex + CurvePointIndex[LocalCurveIndex];
 
 				#if PERMUTATION_SIMULATION
-				const FGuidePointData SimPointData = UnpackGuidePointData(PointInterpolationBuffer, VertexIndex, PERMUTATION_USE_SINGLE_GUIDE);
+				const FGuidePointData SimPointData = UnpackGuidePointData(PointInterpolationBuffer, VertexIndex, bUseSingleGuide);
 				const FGuideDataWithOffset GuideData = GetGuideData(SimCurveData[LocalCurveIndex], SimPointData, GetSimPositionOffset());
 				#else
 				const FGuidePointData SimPointData = (FGuidePointData)0;
@@ -613,8 +614,8 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_
 
 			// Load curve interpolation data
 			#if PERMUTATION_SIMULATION
-			SimCurveData = UnpackGuideCurveData(CurveInterpolationBuffer, CurveIndex, PERMUTATION_USE_SINGLE_GUIDE);
-			if (FORCE_USE_SINGLE_GUIDE)
+			SimCurveData = UnpackGuideCurveData(CurveInterpolationBuffer, CurveIndex, bUseSingleGuide);
+			if (PERMUTATION_USE_SINGLE_GUIDE)
 			{
 				SimCurveData.CurveWeights.x = 1;
 				SimCurveData.CurveWeights.y = 0;
@@ -629,7 +630,7 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_
 			#if PERMUTATION_SIMULATION
 			SimTris[0] = GetRootTriangleData(SimCurveData.CurveIndices[0], true/*bSim*/);
 			SimTris[1] = SimTris[0];
-			if (!PERMUTATION_USE_SINGLE_GUIDE && !FORCE_USE_SINGLE_GUIDE)
+			if (!PERMUTATION_USE_SINGLE_GUIDE)
 			{
 				SimTris[1] = GetRootTriangleData(SimCurveData.CurveIndices[1], true/*bSim*/);
 			}
@@ -654,7 +655,7 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_
 				const uint VertexIndex = CurrentPointIndex + CurvePointIndex;
 
 				#if PERMUTATION_SIMULATION
-				const FGuidePointData SimPointData = UnpackGuidePointData(PointInterpolationBuffer, VertexIndex, PERMUTATION_USE_SINGLE_GUIDE);
+				const FGuidePointData SimPointData = UnpackGuidePointData(PointInterpolationBuffer, VertexIndex, bUseSingleGuide);
 				const FGuideDataWithOffset GuideData = GetGuideData(SimCurveData, SimPointData, GetSimPositionOffset());
 				#else
 				const FGuidePointData SimPointData = (FGuidePointData)0;
