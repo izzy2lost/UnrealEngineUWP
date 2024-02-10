@@ -294,6 +294,42 @@ void FLiveLinkClient::RemoveRebroadcastedSubject(FLiveLinkSubjectKey InSubjectKe
 	}
 }
 
+ELiveLinkSubjectState FLiveLinkClient::GetSubjectState(FLiveLinkSubjectName InSubjectName) const
+{
+	const FLiveLinkSubjectKey* SubjectKey = EnabledSubjects.Find(InSubjectName);
+
+	if (!SubjectKey)
+	{
+		return ELiveLinkSubjectState::InvalidOrDisabled;
+	}
+
+	const FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(*SubjectKey);
+
+	if (!SubjectItem)
+	{
+		return ELiveLinkSubjectState::InvalidOrDisabled;
+	}
+
+	const FLiveLinkSubject* LiveSubject = SubjectItem->GetLiveSubject();
+
+	if (!LiveSubject)
+	{
+		return ELiveLinkSubjectState::InvalidOrDisabled;
+	}
+
+	switch (const ETimedDataInputState InputState = LiveSubject->GetState())
+	{
+	case ETimedDataInputState::Connected: return ELiveLinkSubjectState::Connected;
+	case ETimedDataInputState::Unresponsive: return ELiveLinkSubjectState::Unresponsive;
+	case ETimedDataInputState::Disconnected: return ELiveLinkSubjectState::Disconnected;
+	default:
+		ensureMsgf(false, TEXT("Unhandled ETimedDataInputState::%d"), InputState);
+		return ELiveLinkSubjectState::Unknown;
+	}
+
+	checkNoEntry();
+}
+
 FGuid FLiveLinkClient::AddSource(TSharedPtr<ILiveLinkSource> InSource)
 {
 	check(Collection);

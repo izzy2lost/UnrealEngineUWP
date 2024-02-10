@@ -82,7 +82,6 @@ public:
 	virtual FText GetSourceMachineName(FGuid EntryGuid) const override;
 	virtual bool IsSourceStillValid(FGuid EntryGuid) const override;
 
-
 	virtual void PushSubjectStaticData_AnyThread(const FLiveLinkSubjectKey& SubjectKey, TSubclassOf<ULiveLinkRole> Role, FLiveLinkStaticDataStruct&& StaticData) override;
 	virtual void PushSubjectFrameData_AnyThread(const FLiveLinkSubjectKey& SubjectKey, FLiveLinkFrameDataStruct&& FrameData) override;
 
@@ -109,6 +108,8 @@ public:
 	virtual bool IsSubjectTimeSynchronized(const FLiveLinkSubjectKey& SubjectKey) const override;
 	virtual bool IsSubjectTimeSynchronized(FLiveLinkSubjectName SubjectName) const override;
 	virtual bool IsVirtualSubject(const FLiveLinkSubjectKey& SubjectKey) const override;
+	virtual ELiveLinkSubjectState GetSubjectState(FLiveLinkSubjectName InSubjectName) const override;
+
 
 	virtual TArray<FLiveLinkSubjectKey> GetSubjectsSupportingRole(TSubclassOf<ULiveLinkRole> SupportedRole, bool bIncludeDisabledSubject, bool bIncludeVirtualSubject) const override;
 	virtual TArray<FLiveLinkTime> GetSubjectFrameTimes(const FLiveLinkSubjectKey& SubjectKey) const override;

@@ -4,6 +4,7 @@
 
 
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "ILiveLinkClient.h"
 
 #include "LiveLinkBlueprintLibrary.generated.h"
 
@@ -161,6 +162,12 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "LiveLink")
 	static bool IsLiveLinkSubjectEnabled(const FLiveLinkSubjectName SubjectName);
+
+	/**
+	 * Returns the state of the subject with the given name.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "LiveLink")
+	static ELiveLinkSubjectState GetLiveLinkSubjectState(const FLiveLinkSubjectName SubjectName);
 
 	/** 
 	 * Set the subject's from a specific source to enabled, disabling the other in the process.
