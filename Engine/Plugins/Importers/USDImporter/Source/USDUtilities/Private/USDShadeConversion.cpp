@@ -3503,19 +3503,29 @@ bool UsdUtils::IsMaterialTranslucent(const pxr::UsdShadeMaterial& UsdShadeMateri
 
 FSHAHash UsdUtils::HashShadeMaterial(const pxr::UsdShadeMaterial& UsdShadeMaterial, const pxr::TfToken& RenderContext)
 {
+	FSHAHash OutHash;
+
+	FSHA1 SHA1;
+	HashShadeMaterial(UsdShadeMaterial, SHA1, RenderContext);
+	SHA1.Final();
+	SHA1.GetHash(&OutHash.Hash[0]);
+
+	return OutHash;
+}
+
+void UsdUtils::HashShadeMaterial(const pxr::UsdShadeMaterial& UsdShadeMaterial, FSHA1& InOutHash, const pxr::TfToken& RenderContext)
+{
 	FScopedUsdAllocs UsdAllocs;
 
 	pxr::UsdShadeShader SurfaceShader = UsdShadeMaterial.ComputeSurfaceSource({RenderContext});
 	if (!SurfaceShader)
 	{
-		return {};
+		return;
 	}
-
-	FSHA1 HashState;
 
 	for (const pxr::UsdShadeInput& ShadeInput : SurfaceShader.GetInputs())
 	{
-		UsdShadeConversionImpl::HashShadeInput(ShadeInput, HashState);
+		UsdShadeConversionImpl::HashShadeInput(ShadeInput, InOutHash);
 	}
 
 	bool bValue = false;
@@ -3523,13 +3533,7 @@ FSHAHash UsdUtils::HashShadeMaterial(const pxr::UsdShadeMaterial& UsdShadeMateri
 	{
 		Attr.Get<bool>(&bValue);
 	}
-	HashState.Update(reinterpret_cast<uint8*>(&bValue), sizeof(bValue));
-
-	FSHAHash OutHash;
-	HashState.Final();
-	HashState.GetHash(&OutHash.Hash[0]);
-
-	return OutHash;
+	InOutHash.Update(reinterpret_cast<uint8*>(&bValue), sizeof(bValue));
 }
 
 #undef LOCTEXT_NAMESPACE

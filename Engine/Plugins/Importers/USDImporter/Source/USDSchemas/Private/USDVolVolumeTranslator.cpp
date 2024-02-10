@@ -1205,9 +1205,10 @@ void FUsdVolVolumeTranslator::CreateAssets()
 		}
 	}
 	// Fall back to the default SVT material instead
+	const UUsdProjectSettings* ProjectSettings = nullptr;
 	if (!ReferenceMaterial)
 	{
-		const UUsdProjectSettings* ProjectSettings = GetDefault<UUsdProjectSettings>();
+		ProjectSettings = GetDefault<UUsdProjectSettings>();
 		if (!ProjectSettings)
 		{
 			return;
@@ -1249,6 +1250,11 @@ void FUsdVolVolumeTranslator::CreateAssets()
 	{
 		FSHA1 SHA1;
 		HashForVolumetricMaterial(ReferenceMaterial, MaterialParameterToTexture, SHA1);
+		if (ProjectSettings)
+		{
+			FString ReferencePathString = ProjectSettings->ReferenceDefaultSVTMaterial.ToString();
+			SHA1.UpdateWithString(*ReferencePathString, ReferencePathString.Len());
+		}
 		SHA1.Final();
 		SHA1.GetHash(&MaterialHash.Hash[0]);
 	}

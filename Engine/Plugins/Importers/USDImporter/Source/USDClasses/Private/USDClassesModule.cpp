@@ -474,7 +474,7 @@ TOptional<IUsdClassesModule::FDisplayColorMaterial> IUsdClassesModule::FDisplayC
 	return Result;
 }
 
-UMaterialInstanceDynamic* IUsdClassesModule::CreateDisplayColorMaterialInstanceDynamic(const FDisplayColorMaterial& DisplayColorDescription)
+const FSoftObjectPath* IUsdClassesModule::GetReferenceMaterialPath(const FDisplayColorMaterial& DisplayColorDescription)
 {
 	const UUsdProjectSettings* Settings = GetDefault<UUsdProjectSettings>();
 	if (!Settings)
@@ -482,29 +482,33 @@ UMaterialInstanceDynamic* IUsdClassesModule::CreateDisplayColorMaterialInstanceD
 		return nullptr;
 	}
 
-	const FSoftObjectPath* ParentPathPtr = nullptr;
 	if (DisplayColorDescription.bHasOpacity)
 	{
 		if (DisplayColorDescription.bIsDoubleSided)
 		{
-			ParentPathPtr = &Settings->ReferenceDisplayColorAndOpacityTwoSidedMaterial;
+			return &Settings->ReferenceDisplayColorAndOpacityTwoSidedMaterial;
 		}
 		else
 		{
-			ParentPathPtr = &Settings->ReferenceDisplayColorAndOpacityMaterial;
+			return &Settings->ReferenceDisplayColorAndOpacityMaterial;
 		}
 	}
 	else
 	{
 		if (DisplayColorDescription.bIsDoubleSided)
 		{
-			ParentPathPtr = &Settings->ReferenceDisplayColorTwoSidedMaterial;
+			return &Settings->ReferenceDisplayColorTwoSidedMaterial;
 		}
 		else
 		{
-			ParentPathPtr = &Settings->ReferenceDisplayColorMaterial;
+			return &Settings->ReferenceDisplayColorMaterial;
 		}
 	}
+}
+
+UMaterialInstanceDynamic* IUsdClassesModule::CreateDisplayColorMaterialInstanceDynamic(const FDisplayColorMaterial& DisplayColorDescription)
+{
+	const FSoftObjectPath* ParentPathPtr = GetReferenceMaterialPath(DisplayColorDescription);
 	if (!ParentPathPtr)
 	{
 		return nullptr;
@@ -534,34 +538,10 @@ UMaterialInstanceDynamic* IUsdClassesModule::CreateDisplayColorMaterialInstanceD
 UMaterialInstanceConstant* IUsdClassesModule::CreateDisplayColorMaterialInstanceConstant(const FDisplayColorMaterial& DisplayColorDescription)
 {
 #if WITH_EDITOR
-	const UUsdProjectSettings* Settings = GetDefault<UUsdProjectSettings>();
-	if (!Settings)
+	const FSoftObjectPath* ParentPathPtr = GetReferenceMaterialPath(DisplayColorDescription);
+	if (!ParentPathPtr)
 	{
 		return nullptr;
-	}
-
-	const FSoftObjectPath* ParentPathPtr = nullptr;
-	if (DisplayColorDescription.bHasOpacity)
-	{
-		if (DisplayColorDescription.bIsDoubleSided)
-		{
-			ParentPathPtr = &Settings->ReferenceDisplayColorAndOpacityTwoSidedMaterial;
-		}
-		else
-		{
-			ParentPathPtr = &Settings->ReferenceDisplayColorAndOpacityMaterial;
-		}
-	}
-	else
-	{
-		if (DisplayColorDescription.bIsDoubleSided)
-		{
-			ParentPathPtr = &Settings->ReferenceDisplayColorTwoSidedMaterial;
-		}
-		else
-		{
-			ParentPathPtr = &Settings->ReferenceDisplayColorMaterial;
-		}
 	}
 
 	if (UMaterialInterface* ParentMaterial = Cast<UMaterialInterface>(ParentPathPtr->TryLoad()))

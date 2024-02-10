@@ -7,6 +7,7 @@
 #include "USDClassesModule.h"
 #include "USDLog.h"
 #include "USDPrimConversion.h"
+#include "USDProjectSettings.h"
 #include "USDShadeConversion.h"
 #include "USDTypesConversion.h"
 
@@ -221,6 +222,43 @@ namespace UE::UsdShadeTranslator::Private
 			}
 		}
 	}
+
+	// We need to hash the reference material that we'll use, so that if this is changed we regenerate a new instance.
+	// However, unlike for displayColor materials, we can't really know *which* reference material we'll end up using
+	// until after we've already created it (which doesn't sound like it makes any sense but it's part of why we have those
+	// VT and double-sided "upgrade" mechanisms).
+	//
+	// If all we want is a hash, the solution can be simple though: Hash them all. Yea we may end up unnecessarily regenerating
+	// materials sometimes but changing the reference materials on the project settings should be rare.
+	void HashPreviewSurfaceReferences(FSHA1& InOutHash)
+	{
+		const UUsdProjectSettings* Settings = GetDefault<UUsdProjectSettings>();
+		if (!Settings)
+		{
+			return;
+		}
+
+		TArray<const FSoftObjectPath*> ReferenceMaterials = {
+			&Settings->ReferencePreviewSurfaceMaterial,
+			&Settings->ReferencePreviewSurfaceTranslucentMaterial,
+			&Settings->ReferencePreviewSurfaceTwoSidedMaterial,
+			&Settings->ReferencePreviewSurfaceTranslucentTwoSidedMaterial,
+			&Settings->ReferencePreviewSurfaceVTMaterial,
+			&Settings->ReferencePreviewSurfaceTranslucentVTMaterial,
+			&Settings->ReferencePreviewSurfaceTwoSidedVTMaterial,
+			&Settings->ReferencePreviewSurfaceTranslucentTwoSidedVTMaterial};
+
+		for (const FSoftObjectPath* ReferencePath : ReferenceMaterials)
+		{
+			if (!ReferencePath)
+			{
+				continue;
+			}
+
+			FString ReferencePathStr = ReferencePath->ToString();
+			InOutHash.UpdateWithString(*ReferencePathStr, ReferencePathStr.Len());
+		}
+	}
 }	 // namespace UE::UsdShadeTranslator::Private
 
 void FUsdShadeMaterialTranslator::CreateAssets()
@@ -285,8 +323,20 @@ void FUsdShadeMaterialTranslator::CreateAssets()
 		}
 	}
 
-	const FString PrefixedMaterialHash = UsdUtils::GetAssetHashPrefix(GetPrim(), Context->bReuseIdenticalAssets)
-										 + UsdUtils::HashShadeMaterial(ShadeMaterial, RenderContextToken).ToString();
+	FString MaterialHash;
+	{
+		FSHAHash OutHash;
+
+		FSHA1 SHA1;
+
+		UsdUtils::HashShadeMaterial(ShadeMaterial, SHA1, RenderContextToken);
+		UE::UsdShadeTranslator::Private::HashPreviewSurfaceReferences(SHA1);
+
+		SHA1.Final();
+		SHA1.GetHash(&OutHash.Hash[0]);
+		MaterialHash = OutHash.ToString();
+	}
+	const FString PrefixedMaterialHash = UsdUtils::GetAssetHashPrefix(GetPrim(), Context->bReuseIdenticalAssets) + MaterialHash;
 
 	UMaterialInterface* ConvertedMaterial = nullptr;
 
