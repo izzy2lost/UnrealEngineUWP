@@ -1,22 +1,25 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "RewindDebuggerVLog.h"
-#include "Editor/EditorEngine.h"
-#include "Engine/World.h"
+
+#include "FindInBlueprintManager.h"
 #include "IRewindDebugger.h"
 #include "IVisualLoggerProvider.h"
-#include "Insights/IUnrealInsightsModule.h"
 #include "LogVisualizerSettings.h"
-#include "Editor/EditorEngine.h"
-#include "Modules/ModuleManager.h"
+#include "ObjectTrace.h"
 #include "RewindDebuggerVLogSettings.h"
 #include "ToolMenus.h"
+#include "VisualLogEntryRenderer.h"
+#include "Editor/EditorEngine.h"
+#include "Engine/World.h"
+#include "HAL/IConsoleManager.h"
 #include "TraceServices/Model/Frames.h"
 #include "VisualLogger/VisualLogger.h"
-#include "RewindDebuggerVLogSettings.h"
-#include "ToolMenus.h"
+#include "VisualLogger/VisualLoggerTraceDevice.h"
 
 #define LOCTEXT_NAMESPACE "RewindDebuggerVLog"
+
+TAutoConsoleVariable<int32> CVarRewindDebuggerVLogUseActor(TEXT("a.RewindDebugger.VisualLogs.UseActor"), 0, TEXT("Use actor based debug renderer for visual logs"));
 
 FRewindDebuggerVLog::FRewindDebuggerVLog()
 {
@@ -43,6 +46,66 @@ void FRewindDebuggerVLog::Initialize()
 		FUIAction(),
 		FNewToolMenuDelegate::CreateRaw(this, &FRewindDebuggerVLog::MakeLogLevelMenu),
 		LOCTEXT("VLog Level", "VLog Level")));
+		
+		
+	FVisualLoggerTraceDevice& TraceDevice = FVisualLoggerTraceDevice::Get();
+	TraceDevice.ImmediateRenderDelegate.BindRaw(this, &FRewindDebuggerVLog::ImmediateRender);
+}
+
+bool ContainsObject(TArray<TSharedPtr<FDebugObjectInfo>>& Components, uint64 ObjectId)
+{
+	for(TSharedPtr<FDebugObjectInfo>& Component : Components)
+	{
+		if (Component->ObjectId == ObjectId)
+		{
+			return true;
+		}
+		if (!Component->Children.IsEmpty())
+		{
+			if (ContainsObject(Component->Children, ObjectId))
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+bool MatchCategoryFilters(const FName& CategoryName, ELogVerbosity::Type Verbosity)
+{
+	URewindDebuggerVLogSettings& Settings = URewindDebuggerVLogSettings::Get();
+	return Settings.DisplayCategories.Contains(CategoryName) && Verbosity <= Settings.DisplayVerbosity;
+}
+
+void FRewindDebuggerVLog::RenderLogEntry(const FVisualLogEntry& Entry)
+{
+	if (CVarRewindDebuggerVLogUseActor.GetValueOnAnyThread())
+	{
+		// old actor based codepath
+		if (AVLogRenderingActor* RenderingActor = GetRenderingActor())
+		{
+			RenderingActor->AddLogEntry(Entry);
+		}
+	}
+	else
+	{
+		UWorld* World = IRewindDebugger::Instance()->GetWorldToVisualize();
+		const FVisualLogShapeElement* ElementToDraw = Entry.ElementsToDraw.GetData();
+		const int32 ElementsCount = Entry.ElementsToDraw.Num();
+		FVisualLogEntryRenderer::RenderLogEntry(World,Entry, &MatchCategoryFilters);
+	}
+}
+
+void FRewindDebuggerVLog::ImmediateRender(const UObject* Object, const FVisualLogEntry& Entry)
+{
+	if (IRewindDebugger* RewindDebugger = IRewindDebugger::Instance())
+	{
+		uint64 ObjectId = FObjectTrace::GetObjectId(Object);
+		if (ContainsObject(RewindDebugger->GetDebugComponents(), ObjectId))
+		{
+			RenderLogEntry(Entry);
+		}
+	}
 }
 
 bool FRewindDebuggerVLog::IsCategoryActive(const FName& Category)
@@ -53,11 +116,8 @@ bool FRewindDebuggerVLog::IsCategoryActive(const FName& Category)
 
 void FRewindDebuggerVLog::ToggleCategory(const FName& Category)
 {
-	URewindDebuggerVLogSettings& Settings = URewindDebuggerVLogSettings::Get();
-	if (Settings.DisplayCategories.Remove(Category) == 0)
-	{
-		Settings.DisplayCategories.Add(Category);
-	}
+	URewindDebuggerVLogSettings::Get().ToggleCategory(Category);
+
 }
 
 ELogVerbosity::Type FRewindDebuggerVLog::GetMinLogVerbosity() const
@@ -67,7 +127,8 @@ ELogVerbosity::Type FRewindDebuggerVLog::GetMinLogVerbosity() const
 
 void FRewindDebuggerVLog::SetMinLogVerbosity(ELogVerbosity::Type Value)
 {
-	URewindDebuggerVLogSettings::Get().DisplayVerbosity = Value;
+	URewindDebuggerVLogSettings::Get().SetMinVerbosity(Value);
+
 }
 
 void FRewindDebuggerVLog::MakeLogLevelMenu(UToolMenu* Menu)
@@ -128,7 +189,7 @@ void FRewindDebuggerVLog::AddLogEntries(const TArray<TSharedPtr<FDebugObjectInfo
 		{
 			TimelineData.EnumerateEvents(StartTime, EndTime, [this](double InStartTime, double InEndTime, uint32 InDepth, const FVisualLogEntry& LogEntry)
 			{
-				VLogActor->AddLogEntry(LogEntry);
+				RenderLogEntry(LogEntry);
 				return TraceServices::EEventEnumerate::Continue;
 			});
 		});
@@ -137,18 +198,24 @@ void FRewindDebuggerVLog::AddLogEntries(const TArray<TSharedPtr<FDebugObjectInfo
 	}
 }
 
-void FRewindDebuggerVLog::Update(float DeltaTime, IRewindDebugger* RewindDebugger)
+AVLogRenderingActor* FRewindDebuggerVLog::GetRenderingActor()
 {
-	if (RewindDebugger->IsPIESimulating() && !RewindDebugger->IsRecording())
+	if (!VLogActor.IsValid())
 	{
-		// output debug rendering if we are paused, or actively recording.
-		// otherwise clear the debug rendering actor to avoid any debug rendering being left over from last time we were scrubbing or recording
-		if (VLogActor.IsValid())
+		UEditorEngine* EditorEngine = Cast<UEditorEngine>(GEngine);
+		if (GIsEditor && EditorEngine && EditorEngine->PlayWorld)
 		{
-			VLogActor->Reset();
+			FActorSpawnParameters SpawnParameters;
+			SpawnParameters.ObjectFlags |= RF_Transient;
+			VLogActor = EditorEngine->PlayWorld->SpawnActor<AVLogRenderingActor>(SpawnParameters);
 		}
 	}
-	else
+	return VLogActor.Get();
+}
+
+void FRewindDebuggerVLog::Update(float DeltaTime, IRewindDebugger* RewindDebugger)
+{
+	if (!RewindDebugger->IsPIESimulating())
 	{
 		if (const TraceServices::IAnalysisSession* Session = RewindDebugger->GetAnalysisSession())
 		{
@@ -162,22 +229,7 @@ void FRewindDebuggerVLog::Update(float DeltaTime, IRewindDebugger* RewindDebugge
 			{
 				if (const IVisualLoggerProvider* VisualLoggerProvider = Session->ReadProvider<IVisualLoggerProvider>("VisualLoggerProvider"))
 				{
-					if (!VLogActor.IsValid())
-					{
-						UEditorEngine* EditorEngine = Cast<UEditorEngine>(GEngine);
-						if (GIsEditor && EditorEngine && EditorEngine->PlayWorld)
-						{
-							FActorSpawnParameters SpawnParameters;
-							SpawnParameters.ObjectFlags |= RF_Transient;
-							VLogActor = EditorEngine->PlayWorld->SpawnActor<AVLogRenderingActor>(SpawnParameters);
-						}
-					}
-
-					if (VLogActor.IsValid())
-					{
-						VLogActor->Reset();
-						AddLogEntries(RewindDebugger->GetDebugComponents(), CurrentFrame.StartTime, CurrentFrame.EndTime, VisualLoggerProvider);
-					}
+					AddLogEntries(RewindDebugger->GetDebugComponents(), CurrentFrame.StartTime, CurrentFrame.EndTime, VisualLoggerProvider);
 				}
 			}
 		}

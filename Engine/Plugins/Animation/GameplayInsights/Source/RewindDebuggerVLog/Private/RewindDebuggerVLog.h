@@ -32,6 +32,11 @@ public:
 
 private:
 	void AddLogEntries(const TArray<TSharedPtr<FDebugObjectInfo>>& Components, float StartTime, float EndTime, const class IVisualLoggerProvider* Provider);
+	void ImmediateRender(const UObject* Object, const FVisualLogEntry& Entry);
+	void RenderLogEntry(const FVisualLogEntry& Entry);
+
+	AVLogRenderingActor* GetRenderingActor();
 
 	TWeakObjectPtr<AVLogRenderingActor> VLogActor; 
 };
+
