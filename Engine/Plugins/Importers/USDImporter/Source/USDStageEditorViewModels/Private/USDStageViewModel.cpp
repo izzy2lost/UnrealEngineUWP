@@ -266,9 +266,22 @@ void FUsdStageViewModel::SaveStageAs(const TCHAR* FilePath)
 					FString OldComment = RootLayer.GetComment();
 					RootLayer.SetComment(UnrealIdentifiers::LayerSavedComment);
 
-					OpenStage(FilePath);
+					// Open our stage right here so that we can provide it with a session layer. Note that we'll be using
+					// the same session layer as the original stage, so that the user doesn't lose their session
+					UE::FSdfLayer NewRootLayer = UE::FSdfLayer::FindOrOpen(FilePath);
+					UE::FUsdStage NewStage = UnrealUSDWrapper::OpenStage(NewRootLayer, UsdStage.GetSessionLayer(), StageActorPtr->InitialLoadSet);
+					StageActorPtr->SetUsdStage(NewStage);
 
 					RootLayer.SetComment(*OldComment);
+
+					// Annoyingly, if we're in a workflow where NewRootLayer == RootLayer (i.e. delete root layer
+					// on disk -> press Save -> pick the same filepath as the original root layer), adding/removing that
+					// comment above will cause the layer to be marked as dirty... So here we save that layer alone again
+					// to remove the dirtiness state
+					if (NewRootLayer && RootLayer == NewRootLayer && NewRootLayer.IsDirty())
+					{
+						NewRootLayer.Save();
+					}
 
 					UsdViewModelImpl::SaveUEStateLayer(UsdStage);
 				}

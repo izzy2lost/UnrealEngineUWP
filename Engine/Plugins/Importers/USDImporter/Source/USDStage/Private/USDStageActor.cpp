@@ -1339,21 +1339,15 @@ void AUsdStageActor::IsolateLayer(const UE::FSdfLayer& Layer)
 		// We should only be allowed to isolate a layer belonging to UsdStage's local layer stack, but checking for that
 		// is not trivial given that layers can be muted.
 
-		TArray<UE::FSdfLayer> ValidLayers;
+		const bool bIncludeSessionLayers = true;
+		TSet<UE::FSdfLayer> ValidLayers{UsdStage.GetLayerStack(bIncludeSessionLayers)};
+
 		UE::FUsdStage FreshCurrentStage;
-		if (Layer.IsAnonymous() && UsdStage.GetRootLayer() != Layer)
+		if (!Layer.IsAnonymous() && !ValidLayers.Contains(Layer))
 		{
-			// If we're an anonymous layer that is *not* the stage's root layer, it means that we're
-			// probably a session layer. We can't use the trick below as opening a new stage would
-			// get a brand new session layer, so for a proper check we must use the layer stack of the
-			// currently opened stage
-			const bool bIncludeSessionLayers = true;
-			ValidLayers = UsdStage.GetLayerStack(bIncludeSessionLayers);
-		}
-		else
-		{
-			// Check if the layer we're trying to isolate is part of the stage. To do that we need to reopen a fresh copy
-			// of the current stage in case we have any layers muted, as muted layers don't show up on the layer stack.
+			// If the layer has a file on disk but ValidLayers does not contain it, there's still a chance that this
+			// is in fact part of the usual layer stack of the stage but is currently muted. To check for that we need
+			// to reopen a fresh copy of the stage, as muted layers don't usually show up on the layer stack.
 			// Note that we can't just check the list of muted layers either, as it's possible to mute *any* layer for
 			// a given stage, not only the layers that are currently used by it.
 			// We'll use an empty population mask though (which should prevent prim composition) and just use the layers
@@ -1361,8 +1355,7 @@ void AUsdStageActor::IsolateLayer(const UE::FSdfLayer& Layer)
 			FreshCurrentStage = UnrealUSDWrapper::OpenMaskedStage(*UsdStage.GetRootLayer().GetIdentifier(), EUsdInitialLoadSet::LoadNone, {});
 			ensure(FreshCurrentStage);
 
-			const bool bIncludeSessionLayers = true;
-			ValidLayers = FreshCurrentStage.GetLayerStack(bIncludeSessionLayers);
+			ValidLayers.Append(FreshCurrentStage.GetLayerStack(bIncludeSessionLayers));
 		}
 
 		if (!ValidLayers.Contains(Layer))
@@ -2337,7 +2330,14 @@ void AUsdStageActor::SetUsdStage(const UE::FUsdStage& NewStage)
 	UnloadUsdStage();
 	CloseUsdStage();
 
-	RootLayer.FilePath = NewStage.GetRootLayer().GetIdentifier();
+	FString RelativeFilePath = NewStage.GetRootLayer().GetIdentifier();
+#if USE_USD_SDK
+	if (!RelativeFilePath.IsEmpty() && !FPaths::IsRelative(RelativeFilePath) && !RelativeFilePath.StartsWith(UnrealIdentifiers::IdentifierPrefix))
+	{
+		RelativeFilePath = UsdUtils::MakePathRelativeToProjectDir(RelativeFilePath);
+	}
+#endif	  // USE_USD_SDK
+	RootLayer.FilePath = RelativeFilePath;
 
 	UsdStage = NewStage;
 	IsolatedStage = UE::FUsdStage{};

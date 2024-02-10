@@ -818,53 +818,39 @@ namespace UE::UnrealUSDWrapper::Private
 		static_assert((int)pxr::UsdStage::InitialLoadSet::LoadNone == (int)EUsdInitialLoadSet::LoadNone);
 		pxr::UsdStage::InitialLoadSet LoadSet = static_cast<pxr::UsdStage::InitialLoadSet>(InitialLoadSet);
 
-		FString IdentifierStr = FString(RootIdentifier);
-		if (FPaths::FileExists(IdentifierStr))
+		FString RootIdentifierStr = FString{RootIdentifier};
+		FString SessionIdentifierStr = FString{SessionIdentifier};
+
+		RootIdentifierStr.RemoveFromStart(UnrealIdentifiers::IdentifierPrefix);
+		SessionIdentifierStr.RemoveFromStart(UnrealIdentifiers::IdentifierPrefix);
+
+		pxr::SdfLayerRefPtr RootLayer = pxr::SdfLayer::FindOrOpen(TCHAR_TO_ANSI(*RootIdentifierStr));
+		pxr::SdfLayerRefPtr SessionLayer = pxr::SdfLayer::FindOrOpen(TCHAR_TO_ANSI(*SessionIdentifierStr));
+		if (RootLayer)
 		{
 			if (PopulationMask)
 			{
-				Stage = pxr::UsdStage::OpenMasked(TCHAR_TO_ANSI(*IdentifierStr), Mask, LoadSet);
-			}
-			else
-			{
-				Stage = pxr::UsdStage::Open(TCHAR_TO_ANSI(*IdentifierStr), LoadSet);
-			}
-		}
-		else
-		{
-			FString SessionIdentifierStr = FString{SessionIdentifier};
-
-			IdentifierStr.RemoveFromStart(UnrealIdentifiers::IdentifierPrefix);
-			SessionIdentifierStr.RemoveFromStart(UnrealIdentifiers::IdentifierPrefix);
-
-			pxr::SdfLayerRefPtr RootLayer = pxr::SdfLayer::Find(TCHAR_TO_ANSI(*IdentifierStr));
-			pxr::SdfLayerRefPtr SessionLayer = pxr::SdfLayer::Find(TCHAR_TO_ANSI(*SessionIdentifierStr));
-			if (RootLayer)
-			{
-				if (PopulationMask)
+				// We use this additional check so we don't have to replicate USD's "_CreateAnonymousSessionLayer"
+				// Basically we can't pass an invalid session layer pointer here the stage will actually end up
+				// with no session layer at all
+				if (SessionLayer)
 				{
-					// We use this additional check so we don't have to replicate USD's "_CreateAnonymousSessionLayer"
-					// Basically we can't pass an invalid session layer pointer here the stage will actually end up
-					// with no session layer at all
-					if (SessionLayer)
-					{
-						Stage = pxr::UsdStage::OpenMasked(RootLayer, SessionLayer, Mask, LoadSet);
-					}
-					else
-					{
-						Stage = pxr::UsdStage::OpenMasked(RootLayer, Mask, LoadSet);
-					}
+					Stage = pxr::UsdStage::OpenMasked(RootLayer, SessionLayer, Mask, LoadSet);
 				}
 				else
 				{
-					if (SessionLayer)
-					{
-						Stage = pxr::UsdStage::Open(RootLayer, SessionLayer, LoadSet);
-					}
-					else
-					{
-						Stage = pxr::UsdStage::Open(RootLayer, LoadSet);
-					}
+					Stage = pxr::UsdStage::OpenMasked(RootLayer, Mask, LoadSet);
+				}
+			}
+			else
+			{
+				if (SessionLayer)
+				{
+					Stage = pxr::UsdStage::Open(RootLayer, SessionLayer, LoadSet);
+				}
+				else
+				{
+					Stage = pxr::UsdStage::Open(RootLayer, LoadSet);
 				}
 			}
 		}
