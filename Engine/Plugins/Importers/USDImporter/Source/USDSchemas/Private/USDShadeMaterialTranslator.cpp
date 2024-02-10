@@ -259,6 +259,28 @@ void FUsdShadeMaterialTranslator::CreateAssets()
 		TOptional<FString> UnrealMaterial = UsdUtils::GetUnrealSurfaceOutput(ShadeMaterial.GetPrim());
 		if (UnrealMaterial.IsSet())
 		{
+			UE_LOG(
+				LogUsd,
+				Log,
+				TEXT(
+					"Skipping generation of assets for material prim '%s' as all prims that bind this material will use its referenced Unreal material '%s' instead."
+				),
+				*PrimPath.GetString(),
+				*UnrealMaterial.GetValue()
+			);
+
+			UObject* Object = FSoftObjectPath(UnrealMaterial.GetValue()).TryLoad();
+			if (!Object)
+			{
+				UE_LOG(
+					LogUsd,
+					Warning,
+					TEXT("Failed to find the Unreal material '%s' referenced by material prim '%s'."),
+					*UnrealMaterial.GetValue(),
+					*PrimPath.GetString()
+				);
+			}
+
 			return;
 		}
 	}
@@ -305,6 +327,7 @@ void FUsdShadeMaterialTranslator::CreateAssets()
 				);
 				if (!bSuccess)
 				{
+					NewMaterial->MarkAsGarbage();
 					return;
 				}
 
