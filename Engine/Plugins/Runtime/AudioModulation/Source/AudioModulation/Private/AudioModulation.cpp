@@ -69,6 +69,11 @@ namespace AudioModulation
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
+	USoundControlBusMix* FAudioModulationManager::CreateBusMixFromValue(FName Name, const TArray<USoundControlBus*>& Buses, float Value, float AttackTime, float ReleaseTime)
+	{
+		return ModSystem->CreateBusMixFromValue(Name, Buses, Value, AttackTime, ReleaseTime);
+	}
+
 	void FAudioModulationManager::DeactivateBus(const USoundControlBus& InBus)
 	{
 		UE_LOG(LogAudioModulation, Warning, TEXT("FAudioModulationManager::DeactivateBus is deprecated. Use UAudioModulationDestination API (see ClearModulator) instead to enforce bus lifetime."));

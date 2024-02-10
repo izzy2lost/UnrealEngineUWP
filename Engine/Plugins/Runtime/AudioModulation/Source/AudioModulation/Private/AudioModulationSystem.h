@@ -20,6 +20,7 @@
 #include "SoundModulationGeneratorProxy.h"
 #include "Templates/Atomic.h"
 #include "Templates/Function.h"
+#include "UObject/GCObject.h"
 
 #if WITH_AUDIOMODULATION
 #if !UE_BUILD_SHIPPING
@@ -62,7 +63,7 @@ namespace AudioModulation
 #if WITH_AUDIOMODULATION
 namespace AudioModulation
 {
-	class FAudioModulationSystem
+	class FAudioModulationSystem : public FGCObject
 	{
 	public:
 		void Initialize(const FAudioPluginInitializationParams& InitializationParams);
@@ -75,6 +76,11 @@ namespace AudioModulation
 
 		UE_DEPRECATED(5.4, "Activation of modulators in this manner is now deprecated. Use USoundModulationWatchers to safety activate and track a given modulator")
 		void ActivateGenerator(const USoundModulationGenerator& InGenerator);
+
+		// FGCObject interface
+		virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
+		virtual FString GetReferencerName() const override;
+		// End of FGCObject interface
 
 		UE_DEPRECATED(5.4, "Deactivation of modulators in this manner is now deprecated. Use USoundModulationWatchers to safety activate and track a given modulator")
 		void DeactivateBus(const USoundControlBus& InBus);
@@ -143,6 +149,9 @@ namespace AudioModulation
 
 		/* Clears all global bus mix values over the prescribed FadeTime. If FadeTime is non-positive, returns to the bus's respective parameter default immediately. */
 		void ClearAllGlobalBusMixValues(float FadeTime = -1.0f);
+
+		/* Create a mix from an array of buses where a supplied default value and associated timing parameters are applied for each bus's stage */
+		USoundControlBusMix* CreateBusMixFromValue(FName Name, const TArray<USoundControlBus*>& Buses, float Value, float AttackTime = -1.0f, float ReleaseTime = -1.0f);
 
 		/*
 		 * Commits any changes from a modulator type applied to a UObject definition
@@ -317,6 +326,8 @@ namespace AudioModulation
 		void SetGlobalBusMixValue(USoundControlBus& Bus, float Value, float FadeTime) { }
 		void ClearGlobalBusMixValue(const USoundControlBus& InBus, float FadeTime) { }
 		void ClearAllGlobalBusMixValues(float FadeTime) { }
+
+		USoundControlBusMix* CreateBusMixFromValue(FName Name, const TArray<USoundControlBus*>& Buses, float Value, float AttackTime = -1.0f, float ReleaseTime = -1.0f) { return nullptr; }
 
 		void ProcessModulators(const double InElapsed) { }
 		void SoloBusMix(const USoundControlBusMix& InBusMix) { }
