@@ -18,7 +18,7 @@ public:
 		return GDevice;
 	}
 
-	FVisualLoggerTraceDevice();
+	ENGINE_API FVisualLoggerTraceDevice();
 	virtual void Cleanup(bool bReleaseMemory = false) override;
 	virtual void StartRecordingToFile(double TimeStamp) override;
 	virtual void StopRecordingToFile(double TimeStamp) override;
