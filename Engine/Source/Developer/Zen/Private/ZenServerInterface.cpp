@@ -2220,7 +2220,8 @@ FZenServiceInstance::AutoLaunch(const FServiceAutoLaunchSettings& InSettings, FS
 		LockFileState = LockFileData();
 	}
 
-	bool bShutDownExistningInstance = true;
+	bool bShutDownExistingInstanceForDataPath = true;
+	uint32 ShutdownExistingInstanceForPid = 0;
 	bool bLaunchNewInstance = true;
 
 	if (LockFileState.IsReady)
@@ -2253,7 +2254,7 @@ FZenServiceInstance::AutoLaunch(const FServiceAutoLaunchSettings& InSettings, FS
 			{
 				UE_LOG(LogZenServiceInstance, Log, TEXT("Found existing instance running on port %u matching our settings, no actions needed"), InSettings.DesiredPort);
 				bLaunchNewInstance = false;
-				bShutDownExistningInstance = false;
+				bShutDownExistingInstanceForDataPath = false;
 			}
 			else
 			{
@@ -2271,27 +2272,51 @@ FZenServiceInstance::AutoLaunch(const FServiceAutoLaunchSettings& InSettings, FS
 					Writer->Close();
 				}
 				UE_LOG(LogZenServiceInstance, Log, TEXT("Found existing instance running on port %u with different run context, will attempt shut down\n{%s}"), InSettings.DesiredPort, *JsonTcharText);
-				bShutDownExistningInstance = true;
+				bShutDownExistingInstanceForDataPath = true;
 				bLaunchNewInstance = true;
 			}
 		}
 		else
 		{
 			UE_LOG(LogZenServiceInstance, Log, TEXT("Found existing instance running on port %u when not using shared context, will use it"), InSettings.DesiredPort);
-			bShutDownExistningInstance = false;
+			bShutDownExistingInstanceForDataPath = false;
 			bLaunchNewInstance = false;
 		}
 	}
 	else
 	{
-		UE_LOG(LogZenServiceInstance, Log, TEXT("No current process using the data dir found, launching a new instance"));
-		bShutDownExistningInstance = false;
+		const ZenServerState State(/*ReadOnly*/true);
+		const ZenServerState::ZenServerEntry* RunningEntry = State.LookupByDesiredListenPort(InSettings.DesiredPort);
+		if (RunningEntry != nullptr)
+		{
+			// It is necessary to tear down an existing zenserver running on our desired port but in a different data path because:
+			// 1. zenserver won't accept port collision with itself, and will instead say "Exiting since there is already a process listening to port ..."
+			// 2. When UE is changing data directories (eg: DDC path config change) we don't want to leave zenservers running on the past directories for no reason
+			// Unlike other shutdown scenarios, this one can't be done based on our desired data path because the zenserver we want to shut down is running in a different data path
+			UE_LOG(LogZenServiceInstance, Log, TEXT("Found existing instance running on port %u with different data directory, will attempt shutdown"), InSettings.DesiredPort);
+			ShutdownExistingInstanceForPid = RunningEntry->Pid;
+		}
+		else
+		{
+			UE_LOG(LogZenServiceInstance, Log, TEXT("No current process using the data dir found, launching a new instance"));
+		}
+		bShutDownExistingInstanceForDataPath = false;
 		bLaunchNewInstance = true;
 	}
 
-	if (bShutDownExistningInstance)
+	if (bShutDownExistingInstanceForDataPath)
 	{
 		if (!ShutDownZenServerProcessLockingDataDir(InSettings.DataPath))
+		{
+			PromptUserOfFailedShutDownOfExistingProcess(InSettings.DesiredPort);
+			FPlatformMisc::RequestExit(true);
+			return false;
+		}
+	}
+
+	if (ShutdownExistingInstanceForPid != 0)
+	{
+		if (!ShutdownZenServerProcess(ShutdownExistingInstanceForPid))
 		{
 			PromptUserOfFailedShutDownOfExistingProcess(InSettings.DesiredPort);
 			FPlatformMisc::RequestExit(true);
