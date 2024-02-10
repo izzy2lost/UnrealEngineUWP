@@ -32,6 +32,23 @@ FName URewindDebuggerVLogSettings::GetCategoryName() const
 	return FName(TEXT("Plugins"));
 }
 
+void URewindDebuggerVLogSettings::ToggleCategory(FName Category)
+{
+	if (DisplayCategories.Remove(Category) == 0)
+	{
+		DisplayCategories.Add(Category);
+	}
+	Modify();
+	SaveConfig();
+}
+
+void URewindDebuggerVLogSettings::SetMinVerbosity(ELogVerbosity::Type Value)
+{
+	DisplayVerbosity = Value;
+	Modify();
+	SaveConfig();
+}
+
 URewindDebuggerVLogSettings& URewindDebuggerVLogSettings::Get()
 {
 	URewindDebuggerVLogSettings* MutableCDO = GetMutableDefault<URewindDebuggerVLogSettings>();

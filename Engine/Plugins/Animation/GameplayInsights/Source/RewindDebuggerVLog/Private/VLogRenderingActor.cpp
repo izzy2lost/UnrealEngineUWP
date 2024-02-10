@@ -22,11 +22,13 @@ void AVLogRenderingActor::Reset()
 void AVLogRenderingActor::AddLogEntry(const FVisualLogEntry& Entry)
 {
 	GetDebugShapes(Entry, false, DebugShapes);
+ 	MarkComponentsRenderStateDirty();
 }
 
 void AVLogRenderingActor::IterateDebugShapes(TFunction<void(const AVisualLoggerRenderingActorBase::FTimelineDebugShapes& Shapes)> Callback)
 {
 	Callback(DebugShapes);
+ 	DebugShapes.Reset();
 }
 
 bool AVLogRenderingActor::MatchCategoryFilters(const FName& CategoryName, ELogVerbosity::Type Verbosity) const

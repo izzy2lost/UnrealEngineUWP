@@ -69,6 +69,8 @@ void FVisualLoggerTraceDevice::Serialize(const UObject* LogOwner, FName OwnerNam
 			<< VisualLogEntry.LogEntry(Archive.GetData(), Archive.Num());
 	}
 #endif
+
+	ImmediateRenderDelegate.ExecuteIfBound(LogOwner, LogEntry);
 }
 
 #endif

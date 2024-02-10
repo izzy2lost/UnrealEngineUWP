@@ -10,7 +10,7 @@
 /**
  * Settings for the Rewind Debugger Visual Logger integration.
  */
-UCLASS(Config=Editor, meta=(DisplayName="Rewind Debugger - Visual Logging"))
+UCLASS(Config=EditorPerProjectUserSettings, meta=(DisplayName="Rewind Debugger - Visual Logging"))
 class URewindDebuggerVLogSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
@@ -24,6 +24,8 @@ public:
 #endif
 
 	virtual FName GetCategoryName() const override;
+	void ToggleCategory(FName Category);
+	void SetMinVerbosity(ELogVerbosity::Type Value);
 
 	// Display Visual Logger shapes above this verbosity level
 	UPROPERTY(EditAnywhere, Config, Category = VisualLogger)
