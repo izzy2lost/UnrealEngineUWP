@@ -219,8 +219,15 @@ namespace UsdUtils
 	 */
 	USDUTILITIES_API bool IsMaterialTranslucent(const pxr::UsdShadeMaterial& UsdShadeMaterial);
 
-	USDUTILITIES_API FSHAHash
-	HashShadeMaterial(const pxr::UsdShadeMaterial& UsdShadeMaterial, const pxr::TfToken& RenderContext = pxr::UsdShadeTokens->universalRenderContext);
+	USDUTILITIES_API FSHAHash HashShadeMaterial(	//
+		const pxr::UsdShadeMaterial& UsdShadeMaterial,
+		const pxr::TfToken& RenderContext = pxr::UsdShadeTokens->universalRenderContext
+	);
+	USDUTILITIES_API void HashShadeMaterial(	//
+		const pxr::UsdShadeMaterial& UsdShadeMaterial,
+		FSHA1& InOutHash,
+		const pxr::TfToken& RenderContext = pxr::UsdShadeTokens->universalRenderContext
+	);
 
 	/** Returns the resolved path from an pxr::SdfAssetPath attribute. For UDIMs path, returns the path to the 1001 tile. */
 	USDUTILITIES_API FString GetResolvedAssetPath(const pxr::UsdAttribute& AssetPathAttr, pxr::UsdTimeCode TimeCode = pxr::UsdTimeCode::Default());

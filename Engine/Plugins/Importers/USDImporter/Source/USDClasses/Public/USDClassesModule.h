@@ -10,6 +10,15 @@ class UMaterialInstanceConstant;
 class UMaterialInstanceDynamic;
 struct FAnalyticsEventAttribute;
 
+enum class EUsdReferenceMaterialProperties : uint8
+{
+	None = 0,
+	Translucent = 1,
+	VT = 2,
+	TwoSided = 4
+};
+ENUM_CLASS_FLAGS(EUsdReferenceMaterialProperties)
+
 class IUsdClassesModule : public IModuleInterface
 {
 public:
@@ -63,6 +72,8 @@ public:
 		FString ToString();
 		static TOptional<FDisplayColorMaterial> FromString(const FString& DisplayColorString);
 	};
+
+	USDCLASSES_API static const FSoftObjectPath* GetReferenceMaterialPath(const FDisplayColorMaterial& DisplayColorDescription);
 
 	USDCLASSES_API static UMaterialInstanceDynamic* CreateDisplayColorMaterialInstanceDynamic(const FDisplayColorMaterial& DisplayColorDescription);
 	USDCLASSES_API static UMaterialInstanceConstant* CreateDisplayColorMaterialInstanceConstant(const FDisplayColorMaterial& DisplayColorDescription);

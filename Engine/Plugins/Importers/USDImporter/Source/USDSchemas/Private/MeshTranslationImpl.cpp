@@ -458,19 +458,39 @@ TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslation
 			{
 				case UsdUtils::EPrimAssignmentType::DisplayColor:
 				{
-					const FString PrefixedHash = UsdUtils::GetAssetHashPrefix(UsdPrim, bReuseIdenticalAssets) + Slot.MaterialSource;
+					TOptional<IUsdClassesModule::FDisplayColorMaterial> DisplayColorDesc = IUsdClassesModule::FDisplayColorMaterial::FromString(
+						Slot.MaterialSource
+					);
 
-					// Try reusing an already created DisplayColor material
-					if (UMaterialInterface* ExistingMaterial = Cast<UMaterialInterface>(AssetCache.GetCachedAsset(PrefixedHash)))
+					if (DisplayColorDesc.IsSet())
 					{
-						Material = ExistingMaterial;
-					}
+						FString DisplayColorHash;
+						{
+							FSHAHash Hash;
+							FSHA1 SHA1;
+							SHA1.UpdateWithString(*Slot.MaterialSource, Slot.MaterialSource.Len());
 
-					// Need to create a new DisplayColor material
-					if (Material == nullptr)
-					{
-						if (TOptional<IUsdClassesModule::FDisplayColorMaterial>
-								DisplayColorDesc = IUsdClassesModule::FDisplayColorMaterial::FromString(Slot.MaterialSource))
+							const FSoftObjectPath* ReferencePath = IUsdClassesModule::GetReferenceMaterialPath(DisplayColorDesc.GetValue());
+							if (ReferencePath)
+							{
+								FString ReferencePathString = ReferencePath->ToString();
+								SHA1.UpdateWithString(*ReferencePathString, ReferencePathString.Len());
+							}
+
+							SHA1.Final();
+							SHA1.GetHash(&Hash.Hash[0]);
+							DisplayColorHash = Hash.ToString();
+						}
+						const FString PrefixedHash = UsdUtils::GetAssetHashPrefix(UsdPrim, bReuseIdenticalAssets) + DisplayColorHash;
+
+						// Try reusing an already created DisplayColor material
+						if (UMaterialInterface* ExistingMaterial = Cast<UMaterialInterface>(AssetCache.GetCachedAsset(PrefixedHash)))
+						{
+							Material = ExistingMaterial;
+						}
+
+						// Need to create a new DisplayColor material
+						if (Material == nullptr)
 						{
 							UMaterialInstance* MaterialInstance = nullptr;
 
