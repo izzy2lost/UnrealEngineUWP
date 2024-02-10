@@ -128,6 +128,9 @@ class UTextureRenderTarget2D : public UTextureRenderTarget
 	UPROPERTY()
 	uint8 bForceLinearGamma:1;
 
+	/** If true, render target will be marked as a resolve target. */
+	uint8 bIsResolveTarget:1;
+
 	/** Whether to support storing HDR values, which requires more memory. */
 	UPROPERTY()
 	uint8 bHDR_DEPRECATED:1;

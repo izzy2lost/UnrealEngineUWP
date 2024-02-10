@@ -44,6 +44,7 @@ UTextureRenderTarget2D::UTextureRenderTarget2D(const FObjectInitializer& ObjectI
 	ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	OverrideFormat = PF_Unknown;
 	bForceLinearGamma = true; // <<-- if you set RTF_RGBA8_SRGB, this is turned off
+	bIsResolveTarget = false;
 	MipsSamplerFilter = Filter;
 	MipsAddressU = TA_Clamp;
 	MipsAddressV = TA_Clamp;
@@ -505,6 +506,11 @@ ETextureCreateFlags FTextureRenderTarget2DResource::GetCreateFlags()
 	if (Owner->bCanCreateUAV)
 	{
 		TexCreateFlags |= ETextureCreateFlags::UAV;
+	}
+
+	if (Owner->bIsResolveTarget)
+	{
+		TexCreateFlags |= ETextureCreateFlags::ResolveTargetable;
 	}
 
 	return TexCreateFlags | ETextureCreateFlags::RenderTargetable | ETextureCreateFlags::ShaderResource;
