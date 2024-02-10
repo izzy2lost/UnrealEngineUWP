@@ -67,6 +67,11 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		public override BundleHandle Bundle => _outer;
 
 		/// <summary>
+		/// Offset of the packet within the bundle
+		/// </summary>
+		public int PacketOffset => _packetOffset;
+
+		/// <summary>
 		/// Constructor
 		/// </summary>
 		public FlushedPacketHandle(BundleStorageClient storageClient, BundleHandle outer, int packetOffset, int packetLength, BundleCache cache)
