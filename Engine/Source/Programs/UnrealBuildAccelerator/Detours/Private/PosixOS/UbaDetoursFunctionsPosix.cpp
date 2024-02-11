@@ -659,7 +659,8 @@ int Shared_stat(const char* funcName, const char* file, struct stat* attr, const
 		}
 		else
 		{
-			UBA_ASSERT(fileAttr.lastError == errno);
+			UBA_ASSERTF(fileAttr.lastError == errno || ((fileAttr.lastError == ENOTDIR || fileAttr.lastError == ENOENT) && (errno == ENOTDIR || errno == ENOENT))
+				, "Detoured stat returned a different error. Returned %i (%s) but should return %i (%s)", fileAttr.lastError, strerror(fileAttr.lastError), errno, strerror(errno));
 		}
 	}
 	#endif
@@ -1989,7 +1990,7 @@ namespace uba
 	ANALYSIS_NORETURN void UbaAssert(const tchar* text, const char* file, u32 line, const char* expr, u32 terminateCode)
 	{
 		SuppressDetourScope s;
-		StringBuffer<4096> b;
+		StringBuffer<8*1024> b;
 		WriteAssertInfo(b, text, file, line, expr, 1);
 		Rpc_WriteLog(b.data, b.count, true, true);
 
