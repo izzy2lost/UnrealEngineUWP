@@ -6,7 +6,7 @@
 #include "ScenePrivate.h"
 #include "SystemTextures.h"
 #include "RenderGraphUtils.h"
-#include "HairStrands/HairStrandsCluster.h"
+#include "HairStrands/HairStrandsMacroGroup.h"
 
 static TRDGUniformBufferRef<FHairStrandsViewUniformParameters> InternalCreateHairStrandsViewUniformBuffer(
 	FRDGBuilder& GraphBuilder, 
