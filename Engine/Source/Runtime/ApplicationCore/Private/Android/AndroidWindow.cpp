@@ -299,7 +299,7 @@ void FAndroidWindow::AcquireWindowRef(ANativeWindow* InWindow)
 	// This logic is to deal with the fact Android lifecycles for activities can overlap. ideally we would create a context based container to manage this
 	// but for now this is a useful protection.
 	GAcquiredWindow = InWindow;
-	STANDALONE_DEBUG_LOG(TEXT("FAndroidWindow::AcquireWindowRef overrode window: %p"), GAndroidWindowOverride);
+	STANDALONE_DEBUG_LOG(TEXT("FAndroidWindow::AcquireWindowRef GAcquiredWindow=%p, GAndroidWindowOverride=%p"), GAcquiredWindow, GAndroidWindowOverride);
 
 #else
 	STANDALONE_DEBUG_LOG(TEXT("AcquireWindowRef USE_ANDROID_JNI is NOT enabled: %p"), InWindow);
