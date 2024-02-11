@@ -581,6 +581,38 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_
 //-------------------------------------------------------------------------------------------------
 #if PERMUTATION_POINT_PER_CURVE == TOTALMAXPOINTPERCURVE
 
+#if PERMUTATION_WAVEOPS
+FRootTriangleData WaveReadLaneFirstTriangle(FRootTriangleData In)
+{
+	FRootTriangleData Out;
+	Out.RootBarycentric = WaveReadLaneFirst(In.RootBarycentric);
+
+	Out.RestTriangle.P0 = WaveReadLaneFirst(In.RestTriangle.P0);
+	Out.RestTriangle.P1 = WaveReadLaneFirst(In.RestTriangle.P1);
+	Out.RestTriangle.P2 = WaveReadLaneFirst(In.RestTriangle.P2);
+	Out.RestTriangle.E0 = WaveReadLaneFirst(In.RestTriangle.E0);
+	Out.RestTriangle.E1 = WaveReadLaneFirst(In.RestTriangle.E1);
+	Out.RestTriangle.N  = WaveReadLaneFirst(In.RestTriangle.N) ;
+
+	Out.DeformedTriangle.P0 = WaveReadLaneFirst(In.DeformedTriangle.P0);
+	Out.DeformedTriangle.P1 = WaveReadLaneFirst(In.DeformedTriangle.P1);
+	Out.DeformedTriangle.P2 = WaveReadLaneFirst(In.DeformedTriangle.P2);
+	Out.DeformedTriangle.E0 = WaveReadLaneFirst(In.DeformedTriangle.E0);
+	Out.DeformedTriangle.E1 = WaveReadLaneFirst(In.DeformedTriangle.E1);
+	Out.DeformedTriangle.N  = WaveReadLaneFirst(In.DeformedTriangle.N) ;
+
+	return Out;
+}
+
+FGuideCurveData WaveReadLaneFirstCurveData(FGuideCurveData In)
+{
+	FGuideCurveData Out;
+	Out.CurveIndices	 = WaveReadLaneFirst(In.CurveIndices);
+	Out.CurveWeights	 = WaveReadLaneFirst(In.CurveWeights);
+	Out.RootPointIndices = WaveReadLaneFirst(In.RootPointIndices);
+	return Out;
+}
+#else
 groupshared uint CurvePointIndex;
 groupshared uint CurvePointCount;
 
@@ -589,7 +621,11 @@ groupshared float3 RenPositionOffset;
 
 groupshared FGuideCurveData SimCurveData;
 groupshared FRootTriangleData SimTris[2];
+#endif
 
+#if PERMUTATION_WAVEOPS && COMPILER_SUPPORTS_WAVE_SIZE
+WAVESIZE(32) // PERMUTATION_WAVE_OPS is true only when wave>=32 are available
+#endif
 [numthreads(GROUP_SIZE, 1, 1)]
 void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_GroupIndex, uint2 GroupIndex : SV_GroupID)
 {
@@ -601,8 +637,26 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_
 		return;
 	}
 	
+	#if PERMUTATION_WAVEOPS
 	// 2. Curve's point count/offset
+	uint CurvePointIndex = 0;
+	uint CurvePointCount = 0;
+
+	float3 RenPositionOffset = 0;
+	FRootTriangleData RenTri = (FRootTriangleData)0;
+
+	FGuideCurveData SimCurveData = (FGuideCurveData)0;
+	FRootTriangleData SimTris[2];
+	SimTris[0] = (FRootTriangleData)0;
+	SimTris[1] = (FRootTriangleData)0;
+	#endif
+
+	// 2. Curve's point count/offset
+	#if PERMUTATION_WAVEOPS
+	if (WaveIsFirstLane())
+	#else
 	if (ThreadIndex == 0)
+	#endif
 	{
 		CurvePointIndex = 0;
 		CurvePointCount = 0;
@@ -641,7 +695,29 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_
 		}
 		RenPositionOffset = GetRenPositionOffset();
 	}
+
+	#if PERMUTATION_WAVEOPS
+	{
+		// Broadcast values
+		CurvePointIndex   = WaveReadLaneFirst(CurvePointIndex);
+		CurvePointCount   = WaveReadLaneFirst(CurvePointCount);
+		RenPositionOffset = WaveReadLaneFirst(RenPositionOffset);
+		#if PERMUTATION_DYNAMIC_GEOMETRY >= 1
+		RenTri = WaveReadLaneFirstTriangle(RenTri);
+		#endif
+
+		#if PERMUTATION_SIMULATION
+		SimCurveData = WaveReadLaneFirstCurveData(SimCurveData);
+		SimTris[0] = WaveReadLaneFirstTriangle(SimTris[0]);
+		if (!PERMUTATION_USE_SINGLE_GUIDE)
+		{
+			SimTris[1] = WaveReadLaneFirstTriangle(SimTris[1]);
+		}		
+		#endif
+	}
+	#else
 	GroupMemoryBarrierWithGroupSync();
+	#endif
 
 	// 2. Apply deformation
 	{
