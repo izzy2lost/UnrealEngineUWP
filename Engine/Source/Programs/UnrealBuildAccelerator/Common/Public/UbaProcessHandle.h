@@ -38,6 +38,7 @@ namespace uba
 		void Cancel(bool terminate) const;					// Request to cancel process. Set terminate to true to quickly kill process
 		const tchar* GetExecutingHost() const;				// Host that is executing process.
 		bool IsRemote() const;								// Returns true if process is a remote process
+		bool IsDetoured() const;							// Returns true if process is detoured
 
 		ProcessHandle();
 		ProcessHandle(const ProcessHandle& o);

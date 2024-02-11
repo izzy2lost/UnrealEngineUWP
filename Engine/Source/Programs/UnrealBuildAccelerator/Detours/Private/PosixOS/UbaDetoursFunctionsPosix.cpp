@@ -14,6 +14,10 @@
 #include <dlfcn.h>
 #include <sys/stat.h>
 
+// undefs for mimalloc
+#undef realpath
+#undef malloc
+
 #if PLATFORM_LINUX
 #include <sys/prctl.h>
 #else

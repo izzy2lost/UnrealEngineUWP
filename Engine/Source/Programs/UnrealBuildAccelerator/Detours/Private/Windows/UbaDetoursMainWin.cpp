@@ -130,6 +130,8 @@ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD dwReason, LPVOID reserved)
 {
 	using namespace uba;
 
+	static GROUP_AFFINITY GroupAffinity;
+
 	u64 startTime = GetTime();
 
 	if (DetourIsHelperProcess())
@@ -137,6 +139,8 @@ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD dwReason, LPVOID reserved)
 
 	if (dwReason == DLL_PROCESS_ATTACH)
 	{
+		GetThreadGroupAffinity(GetCurrentThread(), &GroupAffinity);
+
 		if (!DetourRestoreAfterWith())
 			TerminateCurrentProcess(1344);
 
@@ -156,6 +160,10 @@ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD dwReason, LPVOID reserved)
 		}
 
 		Init(*payload, startTime);
+	}
+	else if (dwReason == DLL_THREAD_ATTACH)
+	{
+		SetThreadGroupAffinity(GetCurrentThread(), &GroupAffinity, NULL);
 	}
 	else if (dwReason == DLL_PROCESS_DETACH)
 	{

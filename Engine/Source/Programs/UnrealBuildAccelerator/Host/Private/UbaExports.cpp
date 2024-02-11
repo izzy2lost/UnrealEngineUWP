@@ -460,7 +460,10 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 
 	uba::Scheduler* Scheduler_Create(uba::SessionServer* session, uba::u32 maxLocalProcessors, bool enableProcessReuse)
 	{
-		return new uba::Scheduler(*session, maxLocalProcessors, enableProcessReuse);
+		uba::SchedulerCreateInfo info{*session};
+		info.maxLocalProcessors = maxLocalProcessors;
+		info.enableProcessReuse = enableProcessReuse;
+		return new uba::Scheduler(info);
 	}
 
 	void Scheduler_Start(uba::Scheduler* scheduler)
@@ -470,7 +473,12 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 
 	void Scheduler_EnqueueProcess(uba::Scheduler* scheduler, const uba::ProcessStartInfo& info, float weight, const void* knownInputs, uba::u32 knownInputsBytes, uba::u32 knownInputsCount)
 	{
-		scheduler->EnqueueProcess(info, weight, knownInputs, knownInputsBytes, knownInputsCount);
+		uba::EnqueueProcessInfo epi(info);
+		epi.weight = weight;
+		epi.knownInputs = knownInputs;
+		epi.knownInputsBytes = knownInputsBytes;
+		epi.knownInputsCount = knownInputsCount;
+		scheduler->EnqueueProcess(epi);
 	}
 
 	void Scheduler_SetMaxLocalProcessors(uba::Scheduler* scheduler, uba::u32 maxLocalProcessors)

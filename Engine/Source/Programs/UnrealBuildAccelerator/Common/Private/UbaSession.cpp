@@ -162,6 +162,11 @@ namespace uba
 		UBA_ASSERT(m_process);
 		return m_process->IsRemote();
 	}
+	bool ProcessHandle::IsDetoured() const
+	{
+		UBA_ASSERT(m_process);
+		return m_process->IsDetoured();
+	}
 	ProcessHandle::ProcessHandle(Process* process)
 	{
 		m_process = process;
@@ -1334,10 +1339,8 @@ namespace uba
 			m_processStats.Add(process.m_processStats);
 		}
 
-		ProcessHandle h(&process);
-
 		ScopedWriteLock lock(m_processesLock);
-		m_deadProcesses.push_back(h); // Here to prevent Process thread call trigger a delete of Process which causes a deadlock
+		m_deadProcesses.emplace_back(&process); // Here to prevent Process thread call trigger a delete of Process which causes a deadlock
 		auto& stats = m_applicationStats[applicationName.data];
 		stats.count++;
 		stats.time += executionTime;

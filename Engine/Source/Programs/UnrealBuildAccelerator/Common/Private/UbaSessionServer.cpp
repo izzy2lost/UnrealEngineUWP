@@ -53,6 +53,7 @@ namespace uba
 
 		virtual const tchar* GetExecutingHost() const override { return m_executingHost.c_str(); }
 		virtual bool IsRemote() const override { return true; }
+		virtual bool IsDetoured() const { return true; }
 		virtual bool IsChild() override { return false; }
 
 		void CallProcessExit(ProcessHandle& h)
