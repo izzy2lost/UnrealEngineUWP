@@ -1386,6 +1386,7 @@ static void RunHairStrandsInterpolation_Strands(
 				AddHairStrandsInterpolationPass(
 					GraphBuilder,
 					ShaderMap,
+					View->GetShaderPlatform(),
 					ShaderPrintData,
 					InstanceData.Instance,
 					InstanceData.ActivePointCount,
@@ -1943,6 +1944,7 @@ static void RunHairStrandsInterpolation_Cards(
 				AddHairStrandsInterpolationPass(
 					GraphBuilder,
 					ShaderMap,
+					View->GetShaderPlatform(),
 					ShaderPrintData,
 					InstanceData.Instance,
 					LOD.Guides.RestResource->GetPointCount(),
