@@ -28,12 +28,14 @@
 
 // Details View
 #include "AssetToolsModule.h"
-#include "DetailsPanel/DMMaterialInterfaceTypeCustomizer.h"
+#include "AvaSceneSettings.h"
 #include "DetailView/Customizations/AvaAnchorAlignmentPropertyTypeCustomization.h"
 #include "DetailView/Customizations/AvaCategoryHiderCustomization.h"
 #include "DetailView/Customizations/AvaMeshesDetailCustomization.h"
+#include "DetailView/Customizations/AvaSceneSettingsCustomization.h"
 #include "DetailView/Customizations/AvaVectorPropertyTypeCustomization.h"
 #include "DetailView/Customizations/AvaViewportQualitySettingsPropertyTypeCustomization.h"
+#include "DetailsPanel/DMMaterialInterfaceTypeCustomizer.h"
 
 DEFINE_LOG_CATEGORY(AvaLog);
 
@@ -258,6 +260,9 @@ void FAvaEditorModule::RegisterCustomLayouts()
 	PropertyModule.RegisterCustomClassLayout(UAvaShapeDynamicMeshBase::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(
 		&FAvaMeshesDetailCustomization::MakeInstance));
 
+	PropertyModule.RegisterCustomClassLayout(UAvaSceneSettings::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(
+		&FAvaSceneSettingsCustomization::MakeInstance));
+
 	const TSharedRef<FDMMaterialInterfaceTypeIdentifier> MaterialPropertyTypeIdentifier = MakeShared<FDMMaterialInterfaceTypeIdentifier>();
 	
 	PropertyModule.RegisterCustomPropertyTypeLayout(UMaterialInterface::StaticClass()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(
@@ -288,6 +293,8 @@ void FAvaEditorModule::UnregisterCustomLayouts()
 		PropertyModule.UnregisterCustomClassLayout(AActor::StaticClass()->GetFName());
 		PropertyModule.UnregisterCustomClassLayout(AAvaShapeActor::StaticClass()->GetFName());
 		PropertyModule.UnregisterCustomClassLayout(UAvaShapeDynamicMeshBase::StaticClass()->GetFName());
+
+		PropertyModule.UnregisterCustomClassLayout(UAvaSceneSettings::StaticClass()->GetFName());
 
 		PropertyModule.UnregisterCustomPropertyTypeLayout(UMaterialInterface::StaticClass()->GetFName());
 
