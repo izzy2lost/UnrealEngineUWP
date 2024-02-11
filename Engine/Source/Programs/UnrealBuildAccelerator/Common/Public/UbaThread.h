@@ -30,5 +30,5 @@ namespace uba
 	};
 
 
-	bool AlternateGroupAffinity(void* nativeThreadHandle);
+	bool AlternateThreadGroupAffinity(void* nativeThreadHandle);
 }

@@ -108,8 +108,13 @@ namespace uba
 
 	ProcessImpl::~ProcessImpl()
 	{
-		if (m_comMemory.memory)
-			m_cancelEvent.Set();
+		{
+			#if !PLATFORM_WINDOWS
+			ScopedWriteLock lock(m_comMemoryLock);
+			#endif
+			if (m_comMemory.memory)
+				m_cancelEvent.Set();
+		}
 
 		m_messageThread.Wait();
 
@@ -473,8 +478,13 @@ namespace uba
 		m_readEvent.~Event();
 		#endif
 
-		m_session.m_processCommunicationAllocator.Free(m_comMemory);
-		m_comMemory = {};
+		{
+			#if !PLATFORM_WINDOWS
+			ScopedWriteLock lock(m_comMemoryLock);
+			#endif
+			m_session.m_processCommunicationAllocator.Free(m_comMemory);
+			m_comMemory = {};
+		}
 
 		if (!m_parentProcess)
 			ClearTempFiles();
@@ -1352,7 +1362,7 @@ namespace uba
 			}
 		}
 
-		if (!AlternateGroupAffinity(m_nativeThreadHandle))
+		if (!AlternateThreadGroupAffinity(m_nativeThreadHandle))
 		{
 			logger.Error(TC("Failed to set thread group affinity to process"));//% ls. (% ls)"), commandLine.c_str(), LastErrorToText().data);
 			return UBA_EXIT_CODE(10);

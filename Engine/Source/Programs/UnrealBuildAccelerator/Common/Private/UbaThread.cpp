@@ -5,7 +5,7 @@
 
 namespace uba
 {
-	bool AlternateGroupAffinity(void* nativeThreadHandle)
+	bool AlternateThreadGroupAffinity(void* nativeThreadHandle)
 	{
 #if PLATFORM_WINDOWS
 		static int processorGroupCount = GetActiveProcessorGroupCount();
@@ -44,7 +44,7 @@ namespace uba
 		m_func = std::move(f);
 #if PLATFORM_WINDOWS
 		m_handle = CreateThread(NULL, 0, [](LPVOID p) -> DWORD { return ((Thread*)p)->m_func(); }, this, 0, NULL);
-		AlternateGroupAffinity(m_handle);
+		//AlternateThreadGroupAffinity(m_handle);
 #else
 		int err = 0;
 

@@ -7,6 +7,13 @@
 #include "UbaDirectoryIterator.h"
 #include "UbaWorkManager.h"
 
+#if PLATFORM_WINDOWS && !defined(aligned_alloc)
+#define aligned_alloc(a, s) _aligned_malloc(s, a)
+#define aligned_free(p) _aligned_free(p)
+#else
+#define aligned_free(p) free(p)
+#endif
+
 namespace uba
 {
 	constexpr u32 CasTableVersion = IsWindows ? 32 : 34;
@@ -328,8 +335,24 @@ namespace uba
 		{
 			WorkRec() = delete;
 			WorkRec(const WorkRec&) = delete;
-			WorkRec(u32 wc) { workCount = wc; events = new Event[workCount]; }
-			~WorkRec() { delete[] events; }
+			WorkRec(u32 wc)
+			{
+				workCount = wc;
+
+				// For some very unknown reason ASAN on linux triggers on the "new[]" call when doing delete[]
+				// while doing it manually works properly. Will stop investigating this and move on
+				//events = new Event[workCount];
+				events = (Event*)aligned_alloc(alignof(Event), sizeof(Event)*workCount);
+				for (auto i=0;i!=workCount; ++i)
+					new (events + i) Event();
+			}
+			~WorkRec()
+			{
+				//delete[] events;
+				for (auto i=0;i!=workCount; ++i)
+					events[i].~Event();
+				aligned_free(events);
+			}
 			Atomic<u64> refCount;
 			Atomic<u64> compressCounter;
 			Event* events;

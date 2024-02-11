@@ -3,7 +3,6 @@
 #pragma once
 
 #if UBA_USE_MIMALLOC
-#include <mimalloc.h>
 #include <mimalloc-override.h>
 #endif
 

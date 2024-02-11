@@ -2,6 +2,7 @@
 
 #include "UbaNetworkBackendTcp.h"
 #include "UbaFileAccessor.h"
+#include "UbaScheduler.h"
 #include "UbaSessionServer.h"
 #include "UbaStorageClient.h"
 #include "UbaStorageServer.h"
@@ -146,7 +147,6 @@ namespace uba
 			CommandType_Local,
 			CommandType_Remote,
 			CommandType_Native,
-
 		};
 
 		CommandType commandType = CommandType_NotSet;
@@ -470,7 +470,7 @@ namespace uba
 			if (!server->StartListen(networkBackend, port, listenIp.data))
 				return -1;
 		}
-		auto g = MakeGuard([&]() { server->StopAll(); });
+		auto stopServer = MakeGuard([&]() { server->StopAll(); });
 
 		auto RunLocal = [&](const TString& app, const TString& arg, bool enableDetour, bool trackInputs = false)
 		{
@@ -516,20 +516,77 @@ namespace uba
 			return true;
 		};
 
+		auto RunScheduler = [&](const tchar* yamlFile)
+		{
+			SchedulerCreateInfo info(*session);
+			info.forceRemote = commandType == CommandType_Remote;
+			Scheduler scheduler(info);
+
+			if (!scheduler.EnqueueFromFile(yamlFile))
+				return false;
+
+			u32 queued, activeLocal, activeRemote, outFinished;
+			scheduler.GetStats(queued, activeLocal, activeRemote, outFinished);
+
+			bool success = true;
+			Atomic<u32> counter;
+			Event finished(true);
+			scheduler.SetProcessFinishedCallback([&](const ProcessHandle& ph)
+				{
+					if (ph.GetExitCode() != 0)
+						success = false;
+					u32 c = ++counter;
+					logger.BeginScope();
+					const tchar* desc = ph.GetStartInfo().description;
+					StringBuffer<128> extra;
+					if (ph.IsRemote())
+						extra.Append(TC(" [RemoteExecutor: ")).Append(ph.GetExecutingHost()).Append(']');
+					else if (!ph.IsDetoured())
+						extra.Append(TC(" (Not detoured)"));
+					logger.Info(TC("[%u/%u] %s%s"), c, queued, desc, extra.data);
+					for (auto& line : ph.GetLogLines())
+						if (line.text != desc && !StartsWith(line.text.c_str(), TC("   Creating library")))
+							logger.Log(line.type, line.text.c_str(), u32(line.text.size()));
+					logger.EndScope();
+
+					if (c == queued)
+						finished.Set();
+				});
+
+			logger.Info(TC("Running Scheduler with %u processes"), queued);
+			u64 start = GetTime();
+			scheduler.Start();
+			if (!finished.IsSet())
+				return false;
+			u64 time = GetTime() - start;
+			logger.Info(TC("Scheduler run took %s"), TimeToText(time).str);
+			logger.Info(TC(""));
+			stopServer.Execute();
+			return success;
+		};
+
 		for (u32 i=0; i!=loopCount; ++i)
 		{
 			bool success = false;
-			switch (commandType)
+
+			if (EndsWith(application.c_str(), application.size(), TC(".yaml")))
 			{
-			case CommandType_Native:
-				success = RunLocal(application, arguments, false);
-				break;
-			case CommandType_Local:
-				success = RunLocal(application, arguments, true);
-				break;
-			case CommandType_Remote:
-				success = RunRemote(application, arguments);
-				break;
+				success = RunScheduler(application.c_str());
+			}
+			else
+			{
+				switch (commandType)
+				{
+				case CommandType_Native:
+					success = RunLocal(application, arguments, false);
+					break;
+				case CommandType_Local:
+					success = RunLocal(application, arguments, true);
+					break;
+				case CommandType_Remote:
+					success = RunRemote(application, arguments);
+					break;
+				}
 			}
 			if (!success)
 				return -1;

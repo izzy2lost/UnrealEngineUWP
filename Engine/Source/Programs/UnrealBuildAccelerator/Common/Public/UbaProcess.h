@@ -20,9 +20,10 @@ namespace uba
 		virtual const Vector<ProcessLogLine>& GetLogLines() = 0;
 		virtual const Vector<u8>& GetTrackedInputs() = 0;
 		virtual void Cancel(bool terminate) { UBA_ASSERT(false); }
-		virtual const tchar* GetExecutingHost() const = 0;
-		virtual bool IsRemote() const = 0;
-		virtual bool IsChild() = 0;
+		virtual const tchar* GetExecutingHost() const { UBA_ASSERT(false); return nullptr; }
+		virtual bool IsRemote() const { UBA_ASSERT(false); return false; }
+		virtual bool IsDetoured() const { UBA_ASSERT(false); return false; }
+		virtual bool IsChild() { UBA_ASSERT(false); return false; }
 
 	protected:
 		void AddRef();
@@ -48,6 +49,7 @@ namespace uba
 		virtual void Cancel(bool terminate) override;
 		virtual const tchar* GetExecutingHost() const override { return TC(""); }
 		virtual bool IsRemote() const override { return false; }
+		virtual bool IsDetoured() const { return m_detourEnabled; }
 		virtual bool IsChild() override { return m_parentProcess != nullptr; }
 
 		ProcessImpl(Session& session, u32 id, ProcessImpl* parent);
@@ -94,6 +96,7 @@ namespace uba
 		Event m_writeEvent;
 		Event m_readEvent;
 	#else
+		ReaderWriterLock m_comMemoryLock;
 		bool m_cancelled = false;
 		Event& m_cancelEvent;
 		Event& m_writeEvent;
