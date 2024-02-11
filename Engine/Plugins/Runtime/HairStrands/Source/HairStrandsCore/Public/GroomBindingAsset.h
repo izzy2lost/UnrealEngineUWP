@@ -244,7 +244,7 @@ public:
 	void UpdateResource();
 
 	/** Release the hair strands resource. */
-	void ReleaseResource();
+	void ReleaseResource(bool bResetLoadedSize);
 
 	void Reset();
 
