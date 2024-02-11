@@ -2,7 +2,6 @@
 
 #include "HairStrandsVoxelization.h"
 #include "HairStrandsRasterCommon.h"
-#include "HairStrandsCluster.h"
 #include "HairStrandsUtils.h"
 #include "HairStrandsLUT.h"
 #include "Shader.h"

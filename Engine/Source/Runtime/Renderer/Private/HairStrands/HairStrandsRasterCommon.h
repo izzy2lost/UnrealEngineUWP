@@ -8,9 +8,11 @@
 
 #include "CoreMinimal.h"
 #include "RendererInterface.h"
-#include "HairStrandsCluster.h"
+#include "InstanceCulling/InstanceCullingContext.h"
+#include "HairStrands/HairStrandsData.h"
 
 class FViewInfo;
+class FInstanceCullingManager;
 
 enum class EHairStrandsRasterPassType : uint8
 {

@@ -3,7 +3,6 @@
 #include "HairStrandsUtils.h"
 #include "LightSceneProxy.h"
 #include "ScenePrivate.h"
-#include "HairStrandsCluster.h"
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "HairStrandsData.h"
 #include "SystemTextures.h"

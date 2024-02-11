@@ -2,7 +2,6 @@
 
 #include "HairStrandsDebug.h"
 #include "HairStrandsInterface.h"
-#include "HairStrandsCluster.h"
 #include "HairStrandsDeepShadow.h"
 #include "HairStrandsUtils.h"
 #include "HairStrandsVoxelization.h"

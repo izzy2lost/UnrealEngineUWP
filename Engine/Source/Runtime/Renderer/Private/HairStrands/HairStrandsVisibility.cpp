@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "HairStrandsVisibility.h"
-#include "HairStrandsCluster.h"
+#include "HairStrandsMacroGroup.h"
 #include "HairStrandsUtils.h"
 #include "HairStrandsInterface.h"
 #include "HairStrandsLUT.h"

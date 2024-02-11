@@ -2,7 +2,6 @@
 
 #include "HairStrandsDeepShadow.h"
 #include "HairStrandsRasterCommon.h"
-#include "HairStrandsCluster.h"
 #include "HairStrandsUtils.h"
 #include "HairStrandsData.h"
 #include "LightSceneInfo.h"
@@ -221,6 +220,7 @@ public:
 IMPLEMENT_GLOBAL_SHADER(FDeepShadowCreateViewInfoCS, "/Engine/Private/HairStrands/HairStrandsDeepShadowAllocation.usf", "CreateViewInfo", SF_Compute);
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
+bool IsHairStrandsForVoxelTransmittanceAndShadowEnable();
 float GetDeepShadowMaxFovAngle();
 float GetDeepShadowRasterizationScale();
 float GetDeepShadowAABBScale();

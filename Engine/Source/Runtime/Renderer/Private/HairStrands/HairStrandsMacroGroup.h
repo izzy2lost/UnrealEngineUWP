@@ -8,9 +8,11 @@
 
 #include "CoreMinimal.h"
 #include "RendererInterface.h"
-#include "HairStrandsVoxelization.h"
-#include "HairStrandsDeepShadow.h"
-#include "SceneManagement.h"
+#include "HairStrandsInterface.h"
+
+class FScene;
+class FViewInfo;
+struct FHairStrandsViewData;
 
 void CreateHairStrandsMacroGroups(
 	FRDGBuilder& GraphBuilder,
