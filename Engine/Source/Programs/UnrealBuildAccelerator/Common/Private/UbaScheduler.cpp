@@ -88,11 +88,14 @@ namespace uba
 		m_thread.Wait();
 		m_session.WaitOnAllTasks();
 
+		ScopedWriteLock lock(m_processEntriesLock);
 		for (auto& entry : m_processEntries)
 		{
+			UBA_ASSERT(entry.status !=ProcessStatus_Running);
 			delete[] entry.dependencies;
 			delete entry.info;
 		}
+		m_processEntries.clear();
 	}
 
 	void Scheduler::SetMaxLocalProcessors(u32 maxLocalProcessors)
