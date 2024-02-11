@@ -209,6 +209,88 @@ int32 UGenerateNaniteDisplacedMeshCommandlet::Main(const FString& CmdLineParams)
 			}
 		}
 
+
+		/**
+		 * Temporary solution to handle the fact that the dependencies created by the content bundles are not present in the asset registry.
+		 * This assume that the level instance is created in via an actor that live in a content bundle won't also have a content bundle.
+		 */
+		{
+			AssetRegistry.WaitForCompletion();
+			FARFilter WorldFilter;
+			WorldFilter.ClassPaths.Add(UWorld::StaticClass()->GetClassPathName());
+			WorldFilter.bIncludeOnlyOnDiskAssets = true;
+			TArray<FAssetData> AllLevels;
+			AssetRegistry.GetAssets(WorldFilter, AllLevels);
+			
+			TSet<FName> AlreadyScannedReferences;
+			TSet<FName> LevelsName;
+			LevelsName.Reserve(AllLevels.Num());
+			for (const FAssetData& LevelAsset : AllLevels)
+			{
+				LevelsName.Add(LevelAsset.PackageName);
+			}
+
+			FString ExternalActorFolder(TEXT("/__ExternalActors__/"));
+			/**
+			 * For all levels search their references for 1 level and then search their dependencies for 1 level.
+			 * Example: Level referenced by an possible the level instance actor that live in a content bundle.
+			 */
+			for (const FAssetData& LevelAsset : AllLevels)
+			{
+				if (StopSearchAt.Contains(LevelAsset.PackageName))
+				{
+					continue;
+				}
+
+				TArray<FName> LevelReferencers;
+				AssetRegistry.GetReferencers(LevelAsset.PackageName, LevelReferencers, UE::AssetRegistry::EDependencyCategory::Package, QueryFlags);
+				for (const FName& LevelReference : LevelReferencers)
+				{
+					if (StopSearchAt.Contains(LevelReference))
+					{
+						DependenciesToProcess.Add(LevelAsset.PackageName);
+						StopSearchAt.Add(LevelAsset.PackageName);
+						break;
+					}
+
+					if (AlreadyScannedReferences.Contains(LevelReference))
+					{
+						continue;
+					}
+
+
+
+					bool bHasAddedLevelToDependenciesToProcess = false;
+					// Limit the references search to the external actor folders
+					if (LevelReference.ToString().Contains(ExternalActorFolder))
+					{
+						TArray<FName> Dependencies;
+						AssetRegistry.GetDependencies(LevelReference, Dependencies, UE::AssetRegistry::EDependencyCategory::Package, QueryFlags);
+						for (const FName& Dependency : Dependencies)
+						{
+							// Check if the asset is refered in the original dependencies chain and that it is a level.
+							if (StopSearchAt.Contains(Dependency) && LevelsName.Contains(Dependency))
+							{
+								bHasAddedLevelToDependenciesToProcess = true;
+								DependenciesToProcess.Add(LevelAsset.PackageName);
+								break;
+							}
+						}
+
+						if (bHasAddedLevelToDependenciesToProcess)
+						{
+							StopSearchAt.Add(LevelReference);
+							break;
+						}
+						else
+						{
+							AlreadyScannedReferences.Add(LevelReference);
+						}
+					}
+				}
+			}
+		}
+
 		FARFilter DependenciesFilter;
 		DependenciesFilter.ClassPaths.Add(UWorld::StaticClass()->GetClassPathName());
 		DependenciesFilter.bIncludeOnlyOnDiskAssets = true;
