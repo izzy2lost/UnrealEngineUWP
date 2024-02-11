@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaSceneState.h"
-#include "Attributes/AvaSceneTagAttribute.h"
 #include "AvaSceneSettings.h"
 #include "AvaTagHandle.h"
+#include "Tags/AvaTagAttribute.h"
 
 void UAvaSceneState::SetSceneSettings(UAvaSceneSettings* InSceneSettings)
 {
@@ -51,8 +51,8 @@ bool UAvaSceneState::ContainsTagAttribute(const FAvaTagHandle& InTagHandle) cons
 
 	bool bFoundTag = false;
 
-	SceneSettings->ForEachSceneAttributeOfType<UAvaSceneTagAttributeBase>(
-		[&InTagHandle, &bFoundTag](const UAvaSceneTagAttributeBase& InTagAttribute)
+	SceneSettings->ForEachSceneAttributeOfType<UAvaTagAttributeBase>(
+		[&InTagHandle, &bFoundTag](const UAvaTagAttributeBase& InTagAttribute)
 		{
 			bFoundTag = InTagAttribute.ContainsTag(InTagHandle);
 			// continue iteration if tag not found

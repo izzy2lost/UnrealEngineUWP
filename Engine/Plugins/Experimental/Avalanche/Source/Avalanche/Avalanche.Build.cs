@@ -11,6 +11,7 @@ public class Avalanche : ModuleRules
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
+				"AvalancheAttribute",
 				"AvalancheCore",
 				"AvalancheSceneTree",
 				"AvalancheSequence",
@@ -24,7 +25,7 @@ public class Avalanche : ModuleRules
 				"GeometryScriptingCore",
 				"Niagara",
 				"RawMesh",
-				"Text3D",
+				"Text3D", 
 			}
 		);
 

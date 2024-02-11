@@ -29,6 +29,7 @@ public class AvalancheEditor : ModuleRules
 				"ApplicationCore",
 				"AssetRegistry",
 				"AssetTools",
+				"AvalancheAttributeEditor",
 				"AvalancheComponentVisualizers",
 				"AvalancheCore",
 				"AvalancheEditorCore",
@@ -110,7 +111,7 @@ public class AvalancheEditor : ModuleRules
 				"UMGEditor",
 				"UnrealEd",
 				"XmlParser",
-				"zlib"
+				"zlib",
 			}
 		);
 
