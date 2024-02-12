@@ -448,7 +448,7 @@ public:
 	bool bExposeToLibrary_DEPRECATED;
 
 	/** If this system is exposed to the library, or should be explicitly hidden. */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Asset Options", AssetRegistrySearchable, meta = (SkipSystemResetOnChange = "true"))
+	UPROPERTY(AssetRegistrySearchable, meta = (SkipSystemResetOnChange = "true"))
 	ENiagaraScriptLibraryVisibility LibraryVisibility;
 	
 	/** Deprecated template asset bool. Use the TemplateSpecification enum instead. */
@@ -459,14 +459,14 @@ public:
 	UPROPERTY()
 	ENiagaraScriptTemplateSpecification TemplateSpecification_DEPRECATED;
 
-	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Asset Options", AssetRegistrySearchable, meta = (SkipSystemResetOnChange = "true"))
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Asset Options", AssetRegistrySearchable, DisplayName="Asset Description", meta = (SkipSystemResetOnChange = "true"))
 	FText TemplateAssetDescription;
 
 	/** Category of this system. */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Asset Options", AssetRegistrySearchable, meta = (SkipSystemResetOnChange = "true"))
+	UPROPERTY(AssetRegistrySearchable, meta = (SkipSystemResetOnChange = "true"))
 	FText Category;
 
-	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Asset Options", meta = (SkipSystemResetOnChange = "true"))
+	UPROPERTY(meta = (SkipSystemResetOnChange = "true"))
 	TArray<FNiagaraAssetTagDefinitionReference> AssetTags;
 
 	UPROPERTY()

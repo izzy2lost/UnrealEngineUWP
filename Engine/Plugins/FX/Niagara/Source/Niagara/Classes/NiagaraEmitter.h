@@ -704,18 +704,18 @@ private:
 public:
 	
 #if WITH_EDITORONLY_DATA
-	UPROPERTY(EditAnywhere, Category = "Asset Options", meta=(ShowOnlyInnerProperties))
+	UPROPERTY()
 	TArray<FNiagaraAssetTagDefinitionReference> AssetTags;
 
 	/** If an emitter is inheritable, new emitters based on an inheritable emitter, or Niagara Systems using an inheritable emitter, will automatically inherit changes made to the original emitter. */
 	UPROPERTY(EditAnywhere, Category = "Asset Options", AssetRegistrySearchable)
 	bool bIsInheritable = true;
 	
-	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Asset Options", AssetRegistrySearchable)
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Asset Options", AssetRegistrySearchable, DisplayName="Asset Description")
 	FText TemplateAssetDescription;
 
 	/** Category to collate this emitter into for "add new emitter" dialogs.*/
-	UPROPERTY(AssetRegistrySearchable, EditAnywhere, Category = Script)
+	UPROPERTY(AssetRegistrySearchable)
 	FText Category;
 
 	///** The thumbnail image used for the asset. This is always the latest recorded thumbnail. This can be different from the thumbnails that are saved per emitter version in collapsed view. */
@@ -723,7 +723,7 @@ public:
 	TObjectPtr<UTexture2D> ThumbnailImage;
 	
 	/** If this emitter is exposed to the library, or should be explicitly hidden. */
-    UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Asset Options", AssetRegistrySearchable)
+    UPROPERTY(AssetRegistrySearchable)
     ENiagaraScriptLibraryVisibility LibraryVisibility = ENiagaraScriptLibraryVisibility::Unexposed;
 
 	/** This is used as a transient value to open a specific version in the editor */
