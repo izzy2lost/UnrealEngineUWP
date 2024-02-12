@@ -108,6 +108,13 @@ FAutoConsoleVariableRef CVarSkylightRealTimeReflectionCapture(
 	ECVF_Scalability
 	);
 
+int32 GSkylightCubemapMaxResolution = -1;
+FAutoConsoleVariableRef CVarSkylightCubemapMaxResolution(
+	TEXT("r.SkyLight.CubemapMaxResolution"),
+	GSkylightCubemapMaxResolution,
+	TEXT("Force max resolution of skylight cubemap (default to -1: takes default property value of USkyLightComponent::CubeMapResolution)")
+);
+
 constexpr EPixelFormat SKYLIGHT_CUBEMAP_FORMAT = PF_FloatRGBA;
 
 void FSkyTextureCubeResource::InitRHI(FRHICommandListBase&)
@@ -344,6 +351,11 @@ void USkyLightComponent::SanitizeCubemapSize()
 {
 	const int32 MaxCubemapResolution = GetMaxCubeTextureDimension();
 	const int32 MinCubemapResolution = 8;
+
+	if (GSkylightCubemapMaxResolution > 0)
+	{
+		CubemapResolution = GSkylightCubemapMaxResolution;
+	}
 
 	CubemapResolution = FMath::Clamp(int32(FMath::RoundUpToPowerOfTwo(CubemapResolution)), MinCubemapResolution, MaxCubemapResolution);
 
