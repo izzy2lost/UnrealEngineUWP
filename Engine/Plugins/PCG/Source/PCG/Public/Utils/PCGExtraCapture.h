@@ -18,12 +18,19 @@ namespace PCGUtils
 	struct PCG_API FCallTime
 	{
 		// sum of all frames
-		double ExecutionTime = 0;
+		double ExecutionStartTime = 0.0;
+		double ExecutionTime = 0.0;
+		double ExecutionWallTime = 0.0;
 		// how many frames
 		int32 ExecutionFrameCount = 0;
 		double MinExecutionFrameTime = MAX_dbl;
 		double MaxExecutionFrameTime = 0.0;
+
+		double PrepareDataStartTime = 0.0;
 		double PrepareDataTime = 0.0;
+		double PrepareDataWallTime = 0.0;
+		int32 PrepareDataFrameCount = 0;
+
 		double PostExecuteTime = 0.0;
 	};
 

@@ -27,7 +27,8 @@ void PCGUtils::FExtraCapture::Update(const PCGUtils::FScopedCall& InScopedCall)
 		return;
 	}
 
-	const double ThisFrameTime = FPlatformTime::Seconds() - InScopedCall.StartTime;
+	const double CurrentTime = FPlatformTime::Seconds();
+	const double ThisFrameTime = CurrentTime - InScopedCall.StartTime;
 
 	FScopeLock ScopedLock(&Lock);
 
@@ -39,11 +40,24 @@ void PCGUtils::FExtraCapture::Update(const PCGUtils::FScopedCall& InScopedCall)
 		Timer = FCallTime(); // reset it
 		break;
 	case EPCGExecutionPhase::PrepareData:
+		if (Timer.PrepareDataFrameCount == 0)
+		{
+			Timer.PrepareDataStartTime = InScopedCall.StartTime;
+		}
+
+		Timer.PrepareDataFrameCount++;
 		Timer.PrepareDataTime = ThisFrameTime;
+		Timer.PrepareDataWallTime = CurrentTime - Timer.PrepareDataStartTime;
 		break;
 	case EPCGExecutionPhase::Execute:
+		if (Timer.ExecutionFrameCount == 0)
+		{
+			Timer.ExecutionStartTime = InScopedCall.StartTime;
+		}
+
 		Timer.ExecutionTime += ThisFrameTime;
 		Timer.ExecutionFrameCount++;
+		Timer.ExecutionWallTime = CurrentTime - Timer.ExecutionStartTime;
 
 		Timer.MaxExecutionFrameTime = FMath::Max(Timer.MaxExecutionFrameTime, ThisFrameTime);
 		Timer.MinExecutionFrameTime = FMath::Min(Timer.MinExecutionFrameTime, ThisFrameTime);
@@ -153,7 +167,9 @@ namespace PCGUtils
 			BuildTreeInfo(Child);
 
 			Info.CallTime.PrepareDataTime += Child.CallTime.PrepareDataTime;
+			Info.CallTime.PrepareDataWallTime += Child.CallTime.PrepareDataWallTime;
 			Info.CallTime.ExecutionTime += Child.CallTime.ExecutionTime;
+			Info.CallTime.ExecutionWallTime += Child.CallTime.ExecutionWallTime;
 			Info.CallTime.PostExecuteTime += Child.CallTime.PostExecuteTime;
 			Info.CallTime.MinExecutionFrameTime = FMath::Min(Info.CallTime.MinExecutionFrameTime, Child.CallTime.MinExecutionFrameTime);
 			Info.CallTime.MaxExecutionFrameTime = FMath::Max(Info.CallTime.MaxExecutionFrameTime, Child.CallTime.MaxExecutionFrameTime);
