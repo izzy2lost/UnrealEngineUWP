@@ -2857,6 +2857,11 @@ void URigHierarchy::PostEditUndo()
 	{
 		SetTransformStackIndex(DesiredStackIndex);
 	}
+
+	if(URigHierarchyController* Controller = GetController(false))
+	{
+		Controller->SetHierarchy(this);
+	}
 }
 
 #endif
