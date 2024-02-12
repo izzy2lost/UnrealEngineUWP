@@ -110,7 +110,7 @@ FSlateIcon UMovieGraphInputNode::GetIconAndTint(FLinearColor& OutColor) const
 }
 #endif // WITH_EDITOR
 
-void UMovieGraphInputNode::RegisterDelegates() const
+void UMovieGraphInputNode::RegisterDelegates()
 {
 	Super::RegisterDelegates();
 	
@@ -123,11 +123,12 @@ void UMovieGraphInputNode::RegisterDelegates() const
 	}
 }
 
-void UMovieGraphInputNode::RegisterDelegates(UMovieGraphInput* Input) const
+void UMovieGraphInputNode::RegisterDelegates(UMovieGraphInput* Input)
 {
 #if WITH_EDITOR
 	if (Input)
 	{
+		Input->OnMovieGraphInputChangedDelegate.RemoveAll(this);
 		Input->OnMovieGraphInputChangedDelegate.AddUObject(this, &UMovieGraphInputNode::UpdateExistingPins);
 	}
 #endif

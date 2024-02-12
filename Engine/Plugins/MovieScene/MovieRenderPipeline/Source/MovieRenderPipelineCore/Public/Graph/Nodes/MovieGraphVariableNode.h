@@ -45,7 +45,7 @@ public:
 #endif
 
 private:
-	virtual void RegisterDelegates() const override;
+	virtual void RegisterDelegates() override;
 	
 	/** Updates the output pin on the node to match the provided variable. */
 	void UpdateOutputPin(UMovieGraphMember* ChangedVariable) const;

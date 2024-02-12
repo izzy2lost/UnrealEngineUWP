@@ -66,7 +66,7 @@ FSlateIcon UMovieGraphOutputNode::GetIconAndTint(FLinearColor& OutColor) const
 }
 #endif // WITH_EDITOR
 
-void UMovieGraphOutputNode::RegisterDelegates() const
+void UMovieGraphOutputNode::RegisterDelegates()
 {
 	Super::RegisterDelegates();
 	
@@ -79,11 +79,12 @@ void UMovieGraphOutputNode::RegisterDelegates() const
 	}
 }
 
-void UMovieGraphOutputNode::RegisterDelegates(UMovieGraphOutput* Output) const
+void UMovieGraphOutputNode::RegisterDelegates(UMovieGraphOutput* Output)
 {
 #if WITH_EDITOR
 	if (Output)
 	{
+		Output->OnMovieGraphOutputChangedDelegate.RemoveAll(this);
 		Output->OnMovieGraphOutputChangedDelegate.AddUObject(this, &UMovieGraphOutputNode::UpdateExistingPins);
 	}
 #endif

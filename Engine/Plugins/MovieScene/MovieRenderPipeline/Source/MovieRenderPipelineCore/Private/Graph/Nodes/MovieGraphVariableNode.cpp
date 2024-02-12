@@ -105,13 +105,14 @@ FSlateIcon UMovieGraphVariableNode::GetIconAndTint(FLinearColor& OutColor) const
 }
 #endif // WITH_EDITOR
 
-void UMovieGraphVariableNode::RegisterDelegates() const
+void UMovieGraphVariableNode::RegisterDelegates()
 {
 	Super::RegisterDelegates();
 
 #if WITH_EDITOR
 	if (GraphVariable)
 	{
+		GraphVariable->OnMovieGraphVariableChangedDelegate.RemoveAll(this);
 		GraphVariable->OnMovieGraphVariableChangedDelegate.AddUObject(this, &UMovieGraphVariableNode::UpdateOutputPin);
 	}
 #endif
