@@ -1041,6 +1041,7 @@ bool UModularRigController::DeleteModule(const FString& InModulePath, bool bSetu
 		{
 			Model->Connections.RemoveConnection(KeyToRemove);
 		}
+		Model->Connections.UpdateFromConnectionList();
 	}
 
 	// Fix bindings
@@ -1303,6 +1304,7 @@ FString UModularRigController::MirrorModule(const FString& InModulePath, const F
 	{
 		NewModuleName = NewModuleName.Replace(*InSettings.SearchString, *InSettings.ReplaceString, ESearchCase::CaseSensitive);
 	}
+	
 
 	FString NewModulePath = AddModule(*NewModuleName, OriginalModule->Class.Get(), OriginalModule->ParentPath, bSetupUndo);
 	FRigModuleReference* NewModule = FindModule(NewModulePath);

@@ -18,6 +18,7 @@
 #include "SchematicGraphPanel/SSchematicGraphPanel.h"
 #include "Framework/Application/SlateApplication.h"
 #include "ScopedTransaction.h"
+#include "Dialog/SCustomDialog.h"
 
 #define LOCTEXT_NAMESPACE "ControlRigSchematicModel"
 
@@ -1261,9 +1262,17 @@ TArray<FRigElementKey> FControlRigSchematicModel::GetElementKeysFromDragDropEven
 
 void FControlRigSchematicModel::HandleSchematicNodeClicked(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode, const FPointerEvent& InMouseEvent)
 {
+	const bool bClearSelection = !InMouseEvent.IsShiftDown() && !InMouseEvent.IsControlDown();
 	for (const TSharedPtr<FSchematicGraphNode>& Node : Nodes)
 	{
-		Node->SetSelected(Node->GetGuid() == InNode->GetGuid());
+		if (bClearSelection)
+		{
+			Node->SetSelected(Node->GetGuid() == InNode->GetGuid());
+		}
+		else if(Node->GetGuid() == InNode->GetGuid())
+		{
+			Node->SetSelected();
+		}
 	}
 
 	if(const FControlRigSchematicRigElementKeyNode* Node =
@@ -1275,7 +1284,6 @@ void FControlRigSchematicModel::HandleSchematicNodeClicked(SSchematicGraphPanel*
 			{
 				if (URigHierarchyController* Controller = Hierarchy->GetController())
 				{
-					const bool bClearSelection = !InMouseEvent.IsShiftDown() && !InMouseEvent.IsControlDown();
 					bool bSelect = true;
 					if(InMouseEvent.IsControlDown())
 					{
@@ -1448,7 +1456,54 @@ void FControlRigSchematicModel::HandleSchematicDrop(SSchematicGraphPanel* InPane
 	};
 
 	TArray<FRigElementKey> TargetKeys;
-	Local::CollectTargetKeys(TargetKeys, InNode->GetNodeData());
+	TArray<TSharedPtr<FSchematicGraphNode>> SelectedNodesShared = GetSelectedNodes();
+	TArray<FSchematicGraphNode*> SelectedNodes;
+	SelectedNodes.Reserve(SelectedNodesShared.Num());
+	for (TSharedPtr<FSchematicGraphNode>& Node : SelectedNodesShared)
+	{
+		if (Node.IsValid())
+		{
+			SelectedNodes.AddUnique(Node.Get());
+		}
+	}
+	SelectedNodes.AddUnique(InNode->GetNodeData());
+
+	if (SelectedNodes.Num() > 1)
+	{
+		FText Label;
+		if(FControlRigSchematicRigElementKeyNode* ExistingElementKeyNode = Cast<FControlRigSchematicRigElementKeyNode>(InNode->GetNodeData()))
+		{
+			Label = ExistingElementKeyNode->GetLabel();
+		}
+		else
+		{
+			Label = InNode->GetNodeData()->GetLabel();
+		}
+		TSharedRef<SCustomDialog> ChooseSelectedDialog = SNew(SCustomDialog)
+			.Title(LOCTEXT("Add modules", "Add modules to targets"))
+			.Buttons({
+				SCustomDialog::FButton(FText::Format(LOCTEXT("AddModuleToSingle", "Add module to {0}"), Label)),
+				SCustomDialog::FButton(LOCTEXT("AddModuleToSelected", "Add module to all selected"))
+				});
+
+		const int32 ButtonPressed = ChooseSelectedDialog->ShowModal();
+		if (ButtonPressed < 0)
+		{
+			return; // Window closed
+		}
+		if (ButtonPressed == 0)
+		{
+			SelectedNodes.Reset();
+			SelectedNodes.Add(InNode->GetNodeData());
+		}
+	}
+	
+	for (FSchematicGraphNode* Node : SelectedNodes)
+	{
+		TArray<FRigElementKey> NodeTargetKeys;
+		Local::CollectTargetKeys(NodeTargetKeys, Node);
+		TargetKeys.Append(NodeTargetKeys);
+	}
 	
 	UControlRig* ControlRig = ControlRigBlueprint->GetDebuggedControlRig();
 	if (!ControlRig)
@@ -1495,32 +1550,28 @@ void FControlRigSchematicModel::HandleSchematicDrop(SSchematicGraphPanel* InPane
 
 						FScopedTransaction Transaction(LOCTEXT("AddAndConnectModule", "Add and Connect Module"));
 
-						const FName ModuleName = Controller->GetSafeNewName(FString(), FRigName(AssetBlueprint->RigModuleSettings.Identifier.Name));
-						const FString ModulePath = Controller->AddModule(ModuleName, AssetBlueprint->GetControlRigClass(), FString());
-						if(!ModulePath.IsEmpty())
+						for(const FRigElementKey& TargetKey : TargetKeys)
 						{
-							FRigElementKey PrimaryConnectorKey;
-							TArray<FRigConnectorElement*> Connectors = Hierarchy->GetElementsOfType<FRigConnectorElement>();
-							for (FRigConnectorElement* Connector : Connectors)
+							const FName ModuleName = Controller->GetSafeNewName(FString(), FRigName(AssetBlueprint->RigModuleSettings.Identifier.Name));
+							const FString ModulePath = Controller->AddModule(ModuleName, AssetBlueprint->GetControlRigClass(), FString());
+							if(!ModulePath.IsEmpty())
 							{
-								if (Connector->IsPrimary())
+								FRigElementKey PrimaryConnectorKey;
+								TArray<FRigConnectorElement*> Connectors = Hierarchy->GetElementsOfType<FRigConnectorElement>();
+								for (FRigConnectorElement* Connector : Connectors)
 								{
-									FString Path, Name;
-									(void)URigHierarchy::SplitNameSpace(Connector->GetName(), &Path, &Name);
-									if (Path == ModulePath)
+									if (Connector->IsPrimary())
 									{
-										PrimaryConnectorKey = Connector->GetKey();
-										break;
+										FString Path, Name;
+										(void)URigHierarchy::SplitNameSpace(Connector->GetName(), &Path, &Name);
+										if (Path == ModulePath)
+										{
+											PrimaryConnectorKey = Connector->GetKey();
+											break;
+										}
 									}
 								}
-							}
-
-							for(const FRigElementKey& TargetKey : TargetKeys)
-							{
-								if(Controller->ConnectConnectorToElement(PrimaryConnectorKey, TargetKey, true, ControlRig->GetModularRigSettings().bAutoResolve))
-								{
-									break;
-								}
+								Controller->ConnectConnectorToElement(PrimaryConnectorKey, TargetKey, true, ControlRig->GetModularRigSettings().bAutoResolve);
 							}
 						}
 					}
@@ -1810,6 +1861,10 @@ void FControlRigSchematicModel::OnHierarchyModified(ERigHierarchyNotification In
 					{
 						GroupNode->SetExpanded(true);
 					}
+					else
+					{
+						Node->SetSelected(true);
+					}
 				}
 			}
 			break;
@@ -1819,6 +1874,7 @@ void FControlRigSchematicModel::OnHierarchyModified(ERigHierarchyNotification In
 			if(FControlRigSchematicRigElementKeyNode* Node = FindElementKeyNode(InElement->GetKey()))
 			{
 				Node->SetExpanded(false);
+				Node->SetSelected(false);
 			}
 			break;
 		}

@@ -115,6 +115,7 @@ public:
 	bool IsDragSupportedForNode(const FGuid& InNodeGuid) const;
 	virtual bool IsDragSupportedForNode(const FSchematicGraphNode* InNode) const;
 	virtual bool GetContextMenuForNode(const FSchematicGraphNode* InNode, FMenuBuilder& OutMenu) const;
+	const TArray<TSharedPtr<FSchematicGraphNode>> GetSelectedNodes() const;
 
 	FLinearColor GetBackgroundColorForTag(const FGuid& InNodeGuid, const FGuid& InTagGuid) const;
 	virtual FLinearColor GetBackgroundColorForTag(const FSchematicGraphTag* InTag) const;

@@ -902,6 +902,7 @@ void UControlRigBlueprint::Serialize(FArchive& Ar)
 		}
 
 		ModularRigModel.UpdateCachedChildren();
+		ModularRigModel.Connections.UpdateFromConnectionList();
 	}
 }
 
@@ -1390,6 +1391,7 @@ void UControlRigBlueprint::PostTransacted(const FTransactionObjectEvent& Transac
 			if (IsModularRig())
 			{
 				ModularRigModel.UpdateCachedChildren();
+				ModularRigModel.Connections.UpdateFromConnectionList();
 				RecompileModularRig();
 			}
 		}
@@ -1429,6 +1431,7 @@ void UControlRigBlueprint::PostDuplicate(bool bDuplicateForPIE)
 	}
 
 	ModularRigModel.UpdateCachedChildren();
+	ModularRigModel.Connections.UpdateFromConnectionList();
 }
 
 void UControlRigBlueprint::PostRename(UObject* OldOuter, const FName OldName)
