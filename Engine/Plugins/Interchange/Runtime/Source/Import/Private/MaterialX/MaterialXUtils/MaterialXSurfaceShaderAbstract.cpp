@@ -232,13 +232,8 @@ bool FMaterialXSurfaceShaderAbstract::ConnectMatchingNodeOutputToInput(const FCo
 
 	bool bIsConnected = false;
 
-	auto ConnectOutputToInput = [&](const FString* ShaderType, auto* (FMaterialXSurfaceShaderAbstract::* CreateFunctionCallOrShaderNode)(const FString&, const FString&, const FString&), bool bFindMatchingInput = true)
+	auto ConnectOutputToInputInternal = [&](UInterchangeShaderNode* OperatorNode, bool bFindMatchingInput = true)
 	{
-		UInterchangeShaderNode* OperatorNode = nullptr;
-
-		//We don't take the node output here because it would cause the creation of a new node (output is meaningful with ComponentMaskNode/separate where we have to create a new expression
-		OperatorNode = (this->*CreateFunctionCallOrShaderNode)(Connect.UpstreamNode->getName().c_str(), *ShaderType, DefaultOutput);
-
 		for(mx::InputPtr Input : Connect.UpstreamNode->getInputs())
 		{
 			if(!bFindMatchingInput)
@@ -258,6 +253,28 @@ bool FMaterialXSurfaceShaderAbstract::ConnectMatchingNodeOutputToInput(const FCo
 			UInterchangeShaderPortsAPI::ConnectOuputToInputByIndex(Connect.ParentShaderNode, Connect.InputChannelName, OperatorNode->GetUniqueID(), IndexOutput);
 	};
 
+	auto ConnectOutputToInput = [&](const FString* ShaderType, auto* (FMaterialXSurfaceShaderAbstract::* CreateFunctionCallOrShaderNode)(const FString&, const FString&, const FString&), bool bFindMatchingInput = true)
+	{
+		UInterchangeShaderNode* OperatorNode = nullptr;
+
+		//We don't take the node output here because it would cause the creation of a new node (output is meaningful with ComponentMaskNode/separate where we have to create a new expression
+		OperatorNode = (this->*CreateFunctionCallOrShaderNode)(Connect.UpstreamNode->getName().c_str(), *ShaderType, DefaultOutput);
+
+		ConnectOutputToInputInternal(OperatorNode, bFindMatchingInput);
+	};
+
+	auto ConnectFunctionShaderNodeOutputToInput = [&](uint8 EnumType, uint8 EnumValue, auto* (FMaterialXSurfaceShaderAbstract::* CreateFunctionCallOrShaderNode)(const FString&, uint8, uint8, const FString&), bool bFindMatchingInput = true)
+	{
+		UInterchangeShaderNode* OperatorNode = nullptr;
+
+		//We don't take the node output here because it would cause the creation of a new node (output is meaningful with ComponentMaskNode/separate where we have to create a new expression
+		OperatorNode = (this->*CreateFunctionCallOrShaderNode)(Connect.UpstreamNode->getName().c_str(), EnumType, EnumValue, DefaultOutput);
+
+		ConnectOutputToInputInternal(OperatorNode, bFindMatchingInput);
+	};
+
+	const FString* MaterialFunctionPath = nullptr;
+
 	// First search a matching Material Expression
 	// search for a Material Expression based on the node group (essentially used for Substrate Mix)
 	if(const FString* ShaderType = Manager.FindMatchingMaterialExpression(Connect.UpstreamNode->getCategory().c_str(), Connect.UpstreamNode->getNodeDef(mx::EMPTY_STRING, true)->getNodeGroup().c_str()))
@@ -272,9 +289,11 @@ bool FMaterialXSurfaceShaderAbstract::ConnectMatchingNodeOutputToInput(const FCo
 	{
 		bIsConnected = Delegate->ExecuteIfBound(Connect);
 	}
-	else if(const FString* FunctionPath = Manager.FindMatchingMaterialFunction(Connect.UpstreamNode->getCategory().c_str()))
+	else if(uint8 EnumType, EnumValue; Manager.FindMatchingMaterialFunction(Connect.UpstreamNode->getCategory().c_str(), MaterialFunctionPath, EnumType, EnumValue))
 	{
-		ConnectOutputToInput(FunctionPath, &FMaterialXSurfaceShaderAbstract::CreateFunctionCallShaderNode, false);
+		MaterialFunctionPath ?
+			ConnectOutputToInput(MaterialFunctionPath, &FMaterialXSurfaceShaderAbstract::CreateFunctionCallShaderNode, false) :
+			ConnectFunctionShaderNodeOutputToInput(EnumType, EnumValue, &FMaterialXSurfaceShaderAbstract::CreateFunctionCallShaderNode, false);
 	}
 
 	return bIsConnected;
@@ -1201,6 +1220,28 @@ UInterchangeFunctionCallShaderNode* FMaterialXSurfaceShaderAbstract::CreateFunct
 		NodeContainer.AddNode(Node);
 
 		ShaderNodes.Add({ NodeName, OutputName}, Node);
+	}
+
+	return Node;
+}
+
+UInterchangeFunctionCallShaderNode* FMaterialXSurfaceShaderAbstract::CreateFunctionCallShaderNode(const FString& NodeName, uint8 EnumType, uint8 EnumValue, const FString& OutputName)
+{
+	UInterchangeFunctionCallShaderNode* Node;
+
+	const FString NodeUID = UInterchangeShaderNode::MakeNodeUid(NodeName + TEXT('_') + OutputName, FStringView{});
+
+	if(Node = const_cast<UInterchangeFunctionCallShaderNode*>(Cast<UInterchangeFunctionCallShaderNode>(NodeContainer.GetNode(NodeUID))); !Node)
+	{
+		Node = NewObject<UInterchangeFunctionCallShaderNode>(&NodeContainer);
+		Node->InitializeNode(NodeUID, NodeName, EInterchangeNodeContainerType::TranslatedAsset);
+		//this is just a dummy path name so the Generic Material Pipeline consider it as a FunctionCallShader but where in fact the path is given by an enum
+		Node->SetCustomMaterialFunction(TEXT("/Game/Default.Default"));
+		Node->AddInt32Attribute(UE::Interchange::MaterialX::Attributes::EnumType, EnumType);
+		Node->AddInt32Attribute(UE::Interchange::MaterialX::Attributes::EnumValue, EnumValue);
+		NodeContainer.AddNode(Node);
+
+		ShaderNodes.Add({ NodeName, OutputName }, Node);
 	}
 
 	return Node;

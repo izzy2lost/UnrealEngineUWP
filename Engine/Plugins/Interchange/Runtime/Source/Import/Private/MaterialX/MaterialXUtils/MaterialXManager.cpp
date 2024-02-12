@@ -222,26 +222,26 @@ FMaterialXManager::FMaterialXManager()
 {
 		MatchingMaterialFunctions = {
 			// BSDF Nodes
-			{mx::Category::BurleyDiffuseBSDF ,		MX_MATERIALFUNCTION("MX_BurleyDiffuseBSDF")},
-			{mx::Category::ConductorBSDF,			MX_MATERIALFUNCTION("MX_ConductorBSDF")},
-			{mx::Category::DielectricBSDF,			MX_MATERIALFUNCTION("MX_DielectricBSDF")},
-			{mx::Category::GeneralizedSchlickBSDF,	MX_MATERIALFUNCTION("MX_GeneralizedSchlickBSDF")},
-			{mx::Category::OrenNayarDiffuseBSDF ,	MX_MATERIALFUNCTION("MX_OrenNayarBSDF")},
-			{mx::Category::SheenBSDF,				MX_MATERIALFUNCTION("MX_SheenBSDF")},
-			{mx::Category::SubsurfaceBSDF ,			MX_MATERIALFUNCTION("MX_SubsurfaceBSDF")},
-			{mx::Category::ThinFilmBSDF,			MX_MATERIALFUNCTION("MX_ThinFilmBSDF")},
-			{mx::Category::TranslucentBSDF,			MX_MATERIALFUNCTION("MX_TranslucentBSDF")},
+			{mx::Category::BurleyDiffuseBSDF,		FMaterialXMaterialFunction{TInPlaceType<EInterchangeMaterialXBSDF>{}, EInterchangeMaterialXBSDF::BurleyDiffuse}},
+			{mx::Category::ConductorBSDF,			FMaterialXMaterialFunction{TInPlaceType<EInterchangeMaterialXBSDF>{}, EInterchangeMaterialXBSDF::Conductor}},
+			{mx::Category::DielectricBSDF,			FMaterialXMaterialFunction{TInPlaceType<EInterchangeMaterialXBSDF>{}, EInterchangeMaterialXBSDF::Dielectric}},
+			{mx::Category::GeneralizedSchlickBSDF,	FMaterialXMaterialFunction{TInPlaceType<EInterchangeMaterialXBSDF>{}, EInterchangeMaterialXBSDF::GeneralizedSchlick}},
+			{mx::Category::OrenNayarDiffuseBSDF ,	FMaterialXMaterialFunction{TInPlaceType<EInterchangeMaterialXBSDF>{}, EInterchangeMaterialXBSDF::OrenNayarDiffuse}},
+			{mx::Category::SheenBSDF,				FMaterialXMaterialFunction{TInPlaceType<EInterchangeMaterialXBSDF>{}, EInterchangeMaterialXBSDF::Sheen}},
+			{mx::Category::SubsurfaceBSDF ,			FMaterialXMaterialFunction{TInPlaceType<EInterchangeMaterialXBSDF>{}, EInterchangeMaterialXBSDF::Subsurface}},
+			{mx::Category::ThinFilmBSDF,			FMaterialXMaterialFunction{TInPlaceType<EInterchangeMaterialXBSDF>{}, EInterchangeMaterialXBSDF::ThinFilm}},
+			{mx::Category::TranslucentBSDF,			FMaterialXMaterialFunction{TInPlaceType<EInterchangeMaterialXBSDF>{}, EInterchangeMaterialXBSDF::Translucent}},
 			// EDF Nodes
-			{mx::Category::ConicalEDF,				MX_MATERIALFUNCTION("MX_ConicalEDF")},
-			{mx::Category::MeasuredEDF,				MX_MATERIALFUNCTION("MX_MeasuredEDF")},
-			{mx::Category::UniformEDF,				MX_MATERIALFUNCTION("MX_UniformEDF")},
+			{mx::Category::ConicalEDF,				FMaterialXMaterialFunction{TInPlaceType<EInterchangeMaterialXEDF>{}, EInterchangeMaterialXEDF::Conical}},
+			{mx::Category::MeasuredEDF,				FMaterialXMaterialFunction{TInPlaceType<EInterchangeMaterialXEDF>{}, EInterchangeMaterialXEDF::Measured}},
+			{mx::Category::UniformEDF,				FMaterialXMaterialFunction{TInPlaceType<EInterchangeMaterialXEDF>{}, EInterchangeMaterialXEDF::Uniform}},
 			// VDF Nodes
-			{mx::Category::AbsorptionVDF,			MX_MATERIALFUNCTION("MX_AbsorptionVDF")},
-			{mx::Category::AnisotropicVDF,			MX_MATERIALFUNCTION("MX_AnisotropicVDF")},
+			{mx::Category::AbsorptionVDF,			FMaterialXMaterialFunction{TInPlaceType<EInterchangeMaterialXVDF>{}, EInterchangeMaterialXVDF::Absorption}},
+			{mx::Category::AnisotropicVDF,			FMaterialXMaterialFunction{TInPlaceType<EInterchangeMaterialXVDF>{}, EInterchangeMaterialXVDF::Anisotropic}},
 			// Utility nodes
-			{mx::Category::ArtisticIOR,				TEXT("/Interchange/Functions/MX_Artistic_IOR.MX_Artistic_IOR")},
-			{mx::Category::RoughnessAnisotropy,		TEXT("/Interchange/Functions/MX_Roughness_Anisotropy.MX_Roughness_Anisotropy")},
-			{mx::Category::RoughnessDual,			TEXT("/Interchange/Functions/MX_Roughness_Dual.MX_Roughness_Dual")},
+			{mx::Category::ArtisticIOR,				FMaterialXMaterialFunction{TInPlaceType<FString>{}, TEXT("/Interchange/Functions/MX_Artistic_IOR.MX_Artistic_IOR")}},
+			{mx::Category::RoughnessAnisotropy,		FMaterialXMaterialFunction{TInPlaceType<FString>{}, TEXT("/Interchange/Functions/MX_Roughness_Anisotropy.MX_Roughness_Anisotropy")}},
+			{mx::Category::RoughnessDual,			FMaterialXMaterialFunction{TInPlaceType<FString>{}, TEXT("/Interchange/Functions/MX_Roughness_Dual.MX_Roughness_Dual")}}
 		};
 
 		if(bIsSubstrateEnabled)
@@ -293,9 +293,35 @@ const FString* FMaterialXManager::FindMatchingMaterialExpression(const FString& 
 	return MatchingMaterialExpressions.Find({ CategoryKey, NodeGroup });
 }
 
-const FString* FMaterialXManager::FindMatchingMaterialFunction(const FString& CategoryKey) const
+bool FMaterialXManager::FindMatchingMaterialFunction(const FString& CategoryKey, const FString*& MaterialFunctionPath, uint8& EnumType, uint8& EnumValue) const
 {
-	return MatchingMaterialFunctions.Find(CategoryKey);
+	if(const FMaterialXMaterialFunction* MaterialFunction = MatchingMaterialFunctions.Find(CategoryKey))
+	{
+		MaterialFunctionPath = MaterialFunction->TryGet<FString>();
+		if(const EInterchangeMaterialXShaders* Shader = MaterialFunction->TryGet<EInterchangeMaterialXShaders>())
+		{
+			EnumType = UE::Interchange::MaterialX::IndexSurfaceShaders;
+			EnumValue = static_cast<uint8>(*Shader);
+		}
+		else if(const EInterchangeMaterialXBSDF* Bsdf = MaterialFunction->TryGet<EInterchangeMaterialXBSDF>())
+		{
+			EnumType = UE::Interchange::MaterialX::IndexBSDF;
+			EnumValue = static_cast<uint8>(*Bsdf);
+		}
+		else if(const EInterchangeMaterialXEDF* Edf = MaterialFunction->TryGet<EInterchangeMaterialXEDF>())
+		{
+			EnumType = UE::Interchange::MaterialX::IndexEDF;
+			EnumValue = static_cast<uint8>(*Edf);
+		}
+		else if(const EInterchangeMaterialXVDF* Vdf = MaterialFunction->TryGet<EInterchangeMaterialXVDF>())
+		{
+			EnumType = UE::Interchange::MaterialX::IndexVDF;
+			EnumValue = static_cast<uint8>(*Vdf);
+		}
+		return true;
+	}
+
+	return false;
 }
 
 TSharedPtr<FMaterialXBase> FMaterialXManager::GetShaderTranslator(const FString& CategoryShader, UInterchangeBaseNodeContainer & NodeContainer)

@@ -22,8 +22,8 @@ public:
 
 private:
 
-	void ConnectToStandardSurface();
+	void ConnectToStandardSurface(UInterchangeFunctionCallShaderNode* StandardSurfaceShaderNode);
 
-	void ConnectToSubstrateStandardSurface();
+	void ConnectToSubstrateStandardSurface(UInterchangeFunctionCallShaderNode* StandardSurfaceShaderNode);
 };
 #endif

@@ -126,22 +126,22 @@ void FInterchangeMaterialXPipelineSettingsCustomization::CustomizeDetails(IDetai
 	Customize(GET_MEMBER_NAME_CHECKED(UMaterialXPipelineSettings, PredefinedSurfaceShaders),
 			  TEXT("MaterialXPredefined | Surface Shaders"),
 			  NSLOCTEXT("InterchangeMaterialXPipelineSettingsCustomization", "MaterialXPredefined | SurfaceShaders", "Surface Shaders"),
-			  UMaterialXPipelineSettings::IndexSurfaceShaders);
+			  UE::Interchange::MaterialX::IndexSurfaceShaders);
 
 	Customize(GET_MEMBER_NAME_CHECKED(UMaterialXPipelineSettings, PredefinedBSDF),
 			  TEXT("MaterialXPredefined | BSDF"),
 			  NSLOCTEXT("InterchangeMaterialXPipelineSettingsCustomization", "MaterialXPredefined | BSDF", "Bidirectional Scattering Distribution Functions"),
-			  UMaterialXPipelineSettings::IndexBSDF);
+			  UE::Interchange::MaterialX::IndexBSDF);
 
 	Customize(GET_MEMBER_NAME_CHECKED(UMaterialXPipelineSettings, PredefinedEDF),
 			  TEXT("MaterialXPredefined | EDF"),
 			  NSLOCTEXT("InterchangeMaterialXPipelineSettingsCustomization", "MaterialXPredefined | EDF", "Emission Distribution Functions"),
-			  UMaterialXPipelineSettings::IndexEDF);
+			  UE::Interchange::MaterialX::IndexEDF);
 
 	Customize(GET_MEMBER_NAME_CHECKED(UMaterialXPipelineSettings, PredefinedVDF),
 			  TEXT("MaterialXPredefined | VDF"),
 			  NSLOCTEXT("InterchangeMaterialXPipelineSettingsCustomization", "MaterialXPredefined | VDF", "Volume Distribution Functions"),
-			  UMaterialXPipelineSettings::IndexVDF);
+			  UE::Interchange::MaterialX::IndexVDF);
 }
 
 bool FInterchangeMaterialXPipelineSettingsCustomization::OnShouldFilterAssetEnum(const FAssetData& InAssetData, uint8 EnumType, uint8 EnumValue)

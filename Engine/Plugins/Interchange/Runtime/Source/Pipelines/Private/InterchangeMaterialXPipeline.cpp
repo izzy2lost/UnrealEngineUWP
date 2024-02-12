@@ -51,9 +51,9 @@ namespace
 	MATERIALX_FUNCTIONS_SUBSTRATE_PATH(AnisotropicVDF);
 }
 
-TMap<FString, EMaterialXSettings> UInterchangeMaterialXPipeline::PathToEnumMapping;
+TMap<FString, EInterchangeMaterialXSettings> UInterchangeMaterialXPipeline::PathToEnumMapping;
 #if WITH_EDITOR
-TMap<EMaterialXSettings, TPair<TSet<FName>, TSet<FName>>> UMaterialXPipelineSettings::SettingsInputsOutputs;
+TMap<EInterchangeMaterialXSettings, TPair<TSet<FName>, TSet<FName>>> UMaterialXPipelineSettings::SettingsInputsOutputs;
 #endif // WITH_EDITOR
 
 UMaterialXPipelineSettings::UMaterialXPipelineSettings()
@@ -662,22 +662,22 @@ UInterchangeMaterialXPipeline::UInterchangeMaterialXPipeline()
 
 	for (const TPair<EInterchangeMaterialXShaders, FSoftObjectPath>& Entry : MaterialXSettings->PredefinedSurfaceShaders)
 	{
-		PathToEnumMapping.FindOrAdd(Entry.Value.GetAssetPathString(), EMaterialXSettings{ TInPlaceType<EInterchangeMaterialXShaders>{}, Entry.Key });
+		PathToEnumMapping.FindOrAdd(Entry.Value.GetAssetPathString(), EInterchangeMaterialXSettings{ TInPlaceType<EInterchangeMaterialXShaders>{}, Entry.Key });
 	}
 
 	for(const TPair<EInterchangeMaterialXBSDF, FSoftObjectPath>& Entry : MaterialXSettings->PredefinedBSDF)
 	{
-		PathToEnumMapping.FindOrAdd(Entry.Value.GetAssetPathString(), EMaterialXSettings{ TInPlaceType<EInterchangeMaterialXBSDF>{}, Entry.Key });
+		PathToEnumMapping.FindOrAdd(Entry.Value.GetAssetPathString(), EInterchangeMaterialXSettings{ TInPlaceType<EInterchangeMaterialXBSDF>{}, Entry.Key });
 	}
 
 	for(const TPair<EInterchangeMaterialXEDF, FSoftObjectPath>& Entry : MaterialXSettings->PredefinedEDF)
 	{
-		PathToEnumMapping.FindOrAdd(Entry.Value.GetAssetPathString(), EMaterialXSettings{ TInPlaceType<EInterchangeMaterialXEDF>{}, Entry.Key });
+		PathToEnumMapping.FindOrAdd(Entry.Value.GetAssetPathString(), EInterchangeMaterialXSettings{ TInPlaceType<EInterchangeMaterialXEDF>{}, Entry.Key });
 	}
 
 	for(const TPair<EInterchangeMaterialXVDF, FSoftObjectPath>& Entry : MaterialXSettings->PredefinedVDF)
 	{
-		PathToEnumMapping.FindOrAdd(Entry.Value.GetAssetPathString(), EMaterialXSettings{ TInPlaceType<EInterchangeMaterialXVDF>{}, Entry.Key });
+		PathToEnumMapping.FindOrAdd(Entry.Value.GetAssetPathString(), EInterchangeMaterialXSettings{ TInPlaceType<EInterchangeMaterialXVDF>{}, Entry.Key });
 	}
 }
 
@@ -696,14 +696,24 @@ void UInterchangeMaterialXPipeline::ExecutePipeline(UInterchangeBaseNodeContaine
 	Super::ExecutePipeline(NodeContainer, InSourceDatas, ContentBasePath);
 
 #if WITH_EDITOR
-	auto UpdateMaterialXNodes = [this](const FString& NodeUid, UInterchangeMaterialFunctionCallExpressionFactoryNode* FactorNode)
+	auto UpdateMaterialXNodes = [this, NodeContainer](const FString& NodeUid, UInterchangeMaterialFunctionCallExpressionFactoryNode* FactorNode)
 	{
 		const FString MaterialFunctionMemberName = GET_MEMBER_NAME_CHECKED(UMaterialExpressionMaterialFunctionCall, MaterialFunction).ToString();
 
-		FString MaterialFunctionPath;
-		if (FactorNode->GetStringAttribute(MaterialFunctionMemberName, MaterialFunctionPath))
+		FString FunctionShaderNodeUID = FactorNode->GetUniqueID();
+		FunctionShaderNodeUID.RemoveFromStart(TEXT("Factory_"));
+
+		const UInterchangeFunctionCallShaderNode* FunctionCallShaderNode = Cast<UInterchangeFunctionCallShaderNode>(NodeContainer->GetNode(FunctionShaderNodeUID));
+		
+		if(int32 EnumType; FunctionCallShaderNode->GetInt32Attribute(UE::Interchange::MaterialX::Attributes::EnumType, EnumType))
 		{
-			if (const EMaterialXSettings* EnumPtr = PathToEnumMapping.Find(MaterialFunctionPath))
+			int32 EnumValue;
+			FunctionCallShaderNode->GetInt32Attribute(UE::Interchange::MaterialX::Attributes::EnumValue, EnumValue);
+			FactorNode->AddStringAttribute(MaterialFunctionMemberName, MaterialXSettings->GetAssetPathString(MaterialXSettings->ToEnumKey(EnumType, EnumValue)));
+		}
+		if(FString MaterialFunctionPath; FactorNode->GetStringAttribute(MaterialFunctionMemberName, MaterialFunctionPath))
+		{
+			if (const EInterchangeMaterialXSettings* EnumPtr = PathToEnumMapping.Find(MaterialFunctionPath))
 			{
 				FactorNode->AddStringAttribute(MaterialFunctionMemberName, MaterialXSettings->GetAssetPathString(*EnumPtr));
 			}
@@ -748,19 +758,19 @@ bool UMaterialXPipelineSettings::AreRequiredPackagesLoaded()
 									  std::is_same_v<EnumT, EInterchangeMaterialXVDF>,
 									  "Enum type not supported");
 
-						uint8 EnumType = IndexSurfaceShaders;
+						uint8 EnumType = UE::Interchange::MaterialX::IndexSurfaceShaders;
 
 						if constexpr(std::is_same_v<EnumT, EInterchangeMaterialXBSDF>)
 						{
-							EnumType = IndexBSDF;
+							EnumType = UE::Interchange::MaterialX::IndexBSDF;
 						}
 						else if constexpr(std::is_same_v<EnumT, EInterchangeMaterialXEDF>)
 						{
-							EnumType = IndexEDF;
+							EnumType = UE::Interchange::MaterialX::IndexEDF;
 						}
 						else if constexpr(std::is_same_v<EnumT, EInterchangeMaterialXVDF>)
 						{
-							EnumType = IndexVDF;
+							EnumType = UE::Interchange::MaterialX::IndexVDF;
 						}
 
 						if(FMaterialXSettings::ValueType* Settings = SettingsInputsOutputs.Find(ToEnumKey(EnumType, uint8(Pair.Key))))
@@ -789,7 +799,7 @@ void UMaterialXPipelineSettings::InitPredefinedAssets()
 {
 	if(bIsSubstrateEnabled)
 	{
-		TArray<TTuple<EMaterialXSettings, FString, FString>> MappingToSubstrate
+		TArray<TTuple<EInterchangeMaterialXSettings, FString, FString>> MappingToSubstrate
 		{
 			{UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXShaders::OpenPBRSurface), OpenPBRSurfaceFunctionsPath, OpenPBRSurfaceSubstratePath},
 			{UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXShaders::OpenPBRSurfaceTransmission), OpenPBRTransmissionSurfaceFunctionsPath, OpenPBRTransmissionSurfaceSubstratePath},
@@ -818,9 +828,9 @@ void UMaterialXPipelineSettings::InitPredefinedAssets()
 			{UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXVDF::Anisotropic), AnisotropicVDFFunctionsPath, AnisotropicVDFSubstratePath},
 		};
 
-		for(auto Mapping : MappingToSubstrate)
+		for(const TTuple<EInterchangeMaterialXSettings, FString, FString> & Mapping : MappingToSubstrate)
 		{
-			const EMaterialXSettings& ShadersSettings = Mapping.Get<0>();
+			const EInterchangeMaterialXSettings& ShadersSettings = Mapping.Get<0>();
 			if(FString Path = GetAssetPathString(ShadersSettings); Path == Mapping.Get<1>())
 			{
 				if(ShadersSettings.IsType<EInterchangeMaterialXShaders>())
@@ -845,7 +855,7 @@ void UMaterialXPipelineSettings::InitPredefinedAssets()
 }
 #endif // WITH_EDITOR
 
-FString UMaterialXPipelineSettings::GetAssetPathString(EMaterialXSettings EnumValue) const
+FString UMaterialXPipelineSettings::GetAssetPathString(EInterchangeMaterialXSettings EnumValue) const
 {
 	auto FindAssetPathString = [](const auto& PredefinedEnumPath, auto Enum) -> FString
 	{
@@ -910,47 +920,47 @@ bool UMaterialXPipelineSettings::ShouldFilterAssets(UMaterialFunction* Asset, co
 	return !(InputMatches > 0 && OutputMatches == Outputs.Num());
 }
 
-EMaterialXSettings UMaterialXPipelineSettings::ToEnumKey(uint8 EnumType, uint8 EnumValue)
+EInterchangeMaterialXSettings UMaterialXPipelineSettings::ToEnumKey(uint8 EnumType, uint8 EnumValue)
 {
 	switch(EnumType)
 	{
-	case IndexBSDF:
-		return EMaterialXSettings{ TInPlaceType<EInterchangeMaterialXBSDF>{}, EInterchangeMaterialXBSDF{EnumValue} };
+	case UE::Interchange::MaterialX::IndexBSDF:
+		return EInterchangeMaterialXSettings{ TInPlaceType<EInterchangeMaterialXBSDF>{}, EInterchangeMaterialXBSDF{EnumValue} };
 
-	case IndexEDF:
-		return EMaterialXSettings{ TInPlaceType<EInterchangeMaterialXEDF>{}, EInterchangeMaterialXEDF{EnumValue} };
+	case UE::Interchange::MaterialX::IndexEDF:
+		return EInterchangeMaterialXSettings{ TInPlaceType<EInterchangeMaterialXEDF>{}, EInterchangeMaterialXEDF{EnumValue} };
 
-	case IndexVDF:
-		return EMaterialXSettings{ TInPlaceType<EInterchangeMaterialXVDF>{}, EInterchangeMaterialXVDF{EnumValue} };
+	case UE::Interchange::MaterialX::IndexVDF:
+		return EInterchangeMaterialXSettings{ TInPlaceType<EInterchangeMaterialXVDF>{}, EInterchangeMaterialXVDF{EnumValue} };
 
 	default:
-		return EMaterialXSettings{ TInPlaceType<EInterchangeMaterialXShaders>{}, EInterchangeMaterialXShaders{EnumValue} };
+		return EInterchangeMaterialXSettings{ TInPlaceType<EInterchangeMaterialXShaders>{}, EInterchangeMaterialXShaders{EnumValue} };
 	}
 }
 #endif // WITH_EDITOR
 
 namespace
 {
-	static uint8 GetMaterialXSettingsIndexValue(const EMaterialXSettings Enum, SIZE_T& Index)
+	static uint8 GetMaterialXSettingsIndexValue(const EInterchangeMaterialXSettings Enum, SIZE_T& Index)
 	{
 		Index = Enum.GetIndex();
 		const uint8* RawValuePointer = 
-			Index == 1 ? reinterpret_cast<const uint8*>(Enum.TryGet<EInterchangeMaterialXBSDF>()) :
-			Index == 2 ? reinterpret_cast<const uint8*>(Enum.TryGet<EInterchangeMaterialXEDF>()) :
-			Index == 3 ? reinterpret_cast<const uint8*>(Enum.TryGet<EInterchangeMaterialXVDF>()) :
+			Index == UE::Interchange::MaterialX::IndexBSDF ? reinterpret_cast<const uint8*>(Enum.TryGet<EInterchangeMaterialXBSDF>()) :
+			Index == UE::Interchange::MaterialX::IndexEDF ? reinterpret_cast<const uint8*>(Enum.TryGet<EInterchangeMaterialXEDF>()) :
+			Index == UE::Interchange::MaterialX::IndexVDF ? reinterpret_cast<const uint8*>(Enum.TryGet<EInterchangeMaterialXVDF>()) :
 			reinterpret_cast<const uint8*>(Enum.TryGet<EInterchangeMaterialXShaders>());
 		return *RawValuePointer;
 	}
 }
 
-uint32 GetTypeHash(EMaterialXSettings Key)
+uint32 GetTypeHash(EInterchangeMaterialXSettings Key)
 {
 	SIZE_T Index;
 	const uint8 UnderlyingValue = GetMaterialXSettingsIndexValue(Key, Index);
 	return HashCombine(Index, UnderlyingValue);
 }
 
-bool operator==(EMaterialXSettings Lhs, EMaterialXSettings Rhs)
+bool operator==(EInterchangeMaterialXSettings Lhs, EInterchangeMaterialXSettings Rhs)
 {
 	SIZE_T LhsIndex;
 	const uint8 LhsUnderlyingValue = GetMaterialXSettingsIndexValue(Lhs, LhsIndex);

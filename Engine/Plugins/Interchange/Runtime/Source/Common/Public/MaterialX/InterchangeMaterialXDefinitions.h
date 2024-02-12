@@ -21,6 +21,118 @@ THIRD_PARTY_INCLUDES_END
 #endif
 
 
+#include "InterchangeMaterialXDefinitions.generated.h"
+
+UENUM(BlueprintType)
+enum class EInterchangeMaterialXShaders : uint8
+{
+	/** Default settings for Open PBR Surface shader. */
+	OpenPBRSurface,
+
+	/** Open PBR Surface shader	used for translucency. */
+	OpenPBRSurfaceTransmission,
+
+	/** Default settings for Autodesk's Standard Surface shader. */
+	StandardSurface,
+
+	/** Standard Surface shader used for translucency. */
+	StandardSurfaceTransmission,
+
+	/** Shader used for unlit surfaces. */
+	SurfaceUnlit,
+
+	/** Default settings for USD's Surface shader. */
+	UsdPreviewSurface,
+
+	/** A surface shader constructed from scattering and emission distribution functions. */
+	Surface,
+
+	MaxShaderCount UMETA(hidden)
+};
+
+UENUM(BlueprintType)
+/** Data type representing a Bidirectional Scattering Distribution Function. */
+enum class EInterchangeMaterialXBSDF : uint8
+{
+	/** A BSDF node for diffuse reflections. */
+	OrenNayarDiffuse,
+
+	/** A BSDF node for Burley diffuse reflections. */
+	BurleyDiffuse,
+
+	/** A BSDF node for pure diffuse transmission. */
+	Translucent,
+
+	/** A reflection/transmission BSDF node based on a microfacet model and a Fresnel curve for dielectrics. */
+	Dielectric,
+
+	/** A reflection BSDF node based on a microfacet model and a Fresnel curve for conductors/metals. */
+	Conductor,
+
+	/** A reflection/transmission BSDF node based on a microfacet model and a generalized Schlick Fresnel curve. */
+	GeneralizedSchlick,
+
+	/** A subsurface scattering BSDF for true subsurface scattering. */
+	Subsurface,
+
+	/** A microfacet BSDF for the back-scattering properties of cloth-like materials. */
+	Sheen,
+
+	/** Adds an iridescent thin film layer over a microfacet base BSDF. */
+	ThinFilm,
+
+	MaxBSDFCount UMETA(hidden)
+};
+
+UENUM(BlueprintType)
+/** Data type representing an Emission Distribution Function. */
+enum class EInterchangeMaterialXEDF : uint8
+{
+	/** An EDF node for uniform emission. */
+	Uniform,
+
+	/** Constructs an EDF emitting light inside a cone around the normal direction. */
+	Conical,
+
+	/** Constructs an EDF emitting light according to a measured IES light profile. */
+	Measured,
+
+	MaxEDFCount UMETA(hidden)
+};
+
+UENUM(BlueprintType)
+/** Data type representing a Volume Distribution Function. */
+enum class EInterchangeMaterialXVDF : uint8
+{
+	/** Constructs a VDF for pure light absorption. */
+	Absorption,
+
+	/** Constructs a VDF scattering light for a participating medium, based on the Henyey-Greenstein phase function. */
+	Anisotropic,
+
+	MaxVDFCount UMETA(hidden)
+};
+
+namespace UE
+{
+	namespace Interchange
+	{
+		namespace MaterialX
+		{
+			static constexpr uint8 IndexSurfaceShaders = 0;
+			static constexpr uint8 IndexBSDF = 1;
+			static constexpr uint8 IndexEDF = 2;
+			static constexpr uint8 IndexVDF = 3;
+
+			namespace Attributes
+			{
+				constexpr const TCHAR* EnumType = TEXT("MaterialXEnumType");
+				constexpr const TCHAR* EnumValue = TEXT("MaterialXEnumValue");
+			}
+		}
+	}
+}
+
 MATERIALX_NAMESPACE_BEGIN
 
 	namespace OpenPBRSurface
