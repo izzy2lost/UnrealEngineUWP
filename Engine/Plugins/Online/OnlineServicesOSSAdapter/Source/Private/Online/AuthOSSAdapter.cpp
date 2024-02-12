@@ -64,7 +64,7 @@ const FExternalAuthTokenTranslationTraits* GetExternalAuthTokenTranslationTraits
 		{ TEXT("PS5"), { { ExternalLoginType::PsnIdToken, EExternalAuthTokenMethod::Primary, EExternalAuthTokenTranslationFlags::TokenString } } },
 		{ SWITCH_SUBSYSTEM, { { ExternalLoginType::NintendoNsaIdToken, EExternalAuthTokenMethod::Primary, EExternalAuthTokenTranslationFlags::AuthToken },
 							  { ExternalLoginType::NintendoIdToken, EExternalAuthTokenMethod::Secondary, EExternalAuthTokenTranslationFlags::TokenString } } },
-		{ STEAM_SUBSYSTEM, { { ExternalLoginType::SteamAppTicket, EExternalAuthTokenMethod::Primary, EExternalAuthTokenTranslationFlags::TokenBinary } } },
+		{ STEAM_SUBSYSTEM, { { ExternalLoginType::SteamSessionTicket, EExternalAuthTokenMethod::Primary, EExternalAuthTokenTranslationFlags::TokenString } } },
 	};
 
 	if (const TArray<FExternalAuthTokenTranslationTraits>* TraitsArray = SupportedExternalAuthTranslatorTraits.Find(SubsystemType))
@@ -265,6 +265,11 @@ TOnlineAsyncOpHandle<FAuthLogin> FAuthOSSAdapter::Login(FAuthLogin::Params&& Par
 		if (TSharedPtr<FUserOnlineAccount> UserOnlineAccount = GetIdentityInterface()->GetUserAccount(*AccountInfoOSSAdapter->UniqueNetId))
 		{
 			AccountInfoOSSAdapter->Attributes.Emplace(AccountAttributeData::DisplayName, UserOnlineAccount->GetDisplayName());
+			return MakeFulfilledPromise<void>().GetFuture();
+		}
+		else if (!GetIdentityInterface()->GetPlayerNickname(*AccountInfoOSSAdapter->UniqueNetId).IsEmpty())
+		{
+			AccountInfoOSSAdapter->Attributes.Emplace(AccountAttributeData::DisplayName, GetIdentityInterface()->GetPlayerNickname(*AccountInfoOSSAdapter->UniqueNetId));
 			return MakeFulfilledPromise<void>().GetFuture();
 		}
 		else
