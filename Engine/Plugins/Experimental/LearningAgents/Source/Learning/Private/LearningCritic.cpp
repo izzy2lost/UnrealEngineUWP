@@ -55,4 +55,9 @@ namespace UE::Learning
 	{
 		NeuralNetworkFunction->UpdateNeuralNetwork(NewNeuralNetwork);
 	}
+
+	const TSharedPtr<FNeuralNetwork>& FNeuralNetworkCritic::GetNeuralNetwork() const
+	{
+		return NeuralNetworkFunction->GetNeuralNetwork();
+	}
 }
