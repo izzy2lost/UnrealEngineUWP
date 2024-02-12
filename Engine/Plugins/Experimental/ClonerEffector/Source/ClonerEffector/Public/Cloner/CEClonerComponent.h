@@ -85,7 +85,7 @@ protected:
 
 	/** Runs async update to rebuild dirty meshes */
 	void UpdateDirtyMeshesAsync();
-	void OnDirtyMeshesUpdated();
+	void OnDirtyMeshesUpdated(bool bInSuccess);
 
 	/** Merges all primitive components from an actor to dynamic mesh, does not recurse */
 	void UpdateActorBakedDynamicMesh(AActor* InActor);
