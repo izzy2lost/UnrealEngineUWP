@@ -1031,6 +1031,10 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 			// unreal assets and progressive generation is not supported.
 			Object->GetPrivate()->bDisableTextureStreaming = true;
 		}
+		else
+		{
+			Object->GetPrivate()->bDisableTextureStreaming = false;
+		}
 		
 		Object->GetPrivate()->bIsCompiledWithOptimization = GenerationContext.Options.OptimizationLevel < UE_MUTABLE_MAX_OPTIMIZATION;
 
