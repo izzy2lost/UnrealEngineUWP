@@ -29,7 +29,7 @@ class FPerParticlePBDUpdateFromDeltaPosition : public FPerParticleRule
 	inline void Apply(TPBDRigidParticles<FReal, 3>& InParticles, const FReal Dt, const int32 Index) const override //-V762
 	{
 		ApplyHelper(InParticles, Dt, Index);
-		InParticles.SetW(Index, FRotation3::CalculateAngularVelocity(InParticles.GetR(Index), InParticles.GetQ(Index), Dt));
+		InParticles.SetW(Index, FRotation3f::CalculateAngularVelocity(InParticles.GetRf(Index), InParticles.GetQf(Index), FRealSingle(Dt)));
 	}
 
 	inline void Apply(FPBDRigidParticleHandle* Particle, const FReal Dt) const override //-V762
@@ -38,7 +38,7 @@ class FPerParticlePBDUpdateFromDeltaPosition : public FPerParticleRule
 		const FVec3 CenteredX = Particle->XCom();
 		const FVec3 CenteredP = Particle->PCom();
 		Particle->SetV(FVec3::CalculateVelocity(CenteredX, CenteredP, Dt));
-		Particle->SetW(FRotation3::CalculateAngularVelocity(Particle->GetR(), Particle->GetQ(), Dt));
+		Particle->SetWf(FRotation3f::CalculateAngularVelocity(Particle->GetRf(), Particle->GetQf(), FRealSingle(Dt)));
 	}
 
 	inline void Apply(TTransientPBDRigidParticleHandle<FReal, 3>& Particle, const FReal Dt) const override //-V762
@@ -47,7 +47,7 @@ class FPerParticlePBDUpdateFromDeltaPosition : public FPerParticleRule
 		const FVec3 CenteredX = Particle.XCom();
 		const FVec3 CenteredP = Particle.PCom();
 		Particle.SetV(FVec3::CalculateVelocity(CenteredX, CenteredP, Dt));
-		Particle.SetW(FRotation3::CalculateAngularVelocity(Particle.GetR(), Particle.GetQ(), Dt));
+		Particle.SetWf(FRotation3f::CalculateAngularVelocity(Particle.GetRf(), Particle.GetQf(), FRealSingle(Dt)));
 	}
 };
 
