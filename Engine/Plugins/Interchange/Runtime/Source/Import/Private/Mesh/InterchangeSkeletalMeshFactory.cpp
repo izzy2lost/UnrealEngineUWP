@@ -1178,12 +1178,17 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::Beg
 
 			}
 
-			if (!ensure(SkeletonReference))
+			if (!Arguments.ReimportObject)
 			{
-				UInterchangeResultWarning_Generic* Message = AddMessage<UInterchangeResultWarning_Generic>();
-				Message->Text = WarningMessage_InvalidSkeleton;
-				break;
+				//In case its a SkeletalMesh AssetReimport without the Skeleton, then we won't have SkeletonReference which is expected
+				if (!ensure(SkeletonReference))
+				{
+					UInterchangeResultWarning_Generic* Message = AddMessage<UInterchangeResultWarning_Generic>();
+					Message->Text = WarningMessage_InvalidSkeleton;
+					break;
+				}
 			}
+			
 			ImportAssetObjectData.SkeletonReference = SkeletonReference;
 		}
 
@@ -2243,7 +2248,7 @@ bool UInterchangeSkeletalMeshFactory::FImportAssetObjectData::IsValid() const
 			return false;
 		}
 #if WITH_EDITOR
-		if (ImportAssetObjectLODData.ImportedMaterials.Num() < 1)
+		if (!bIsReImport && ImportAssetObjectLODData.ImportedMaterials.Num() < 1)
 		{
 			return false;
 		}

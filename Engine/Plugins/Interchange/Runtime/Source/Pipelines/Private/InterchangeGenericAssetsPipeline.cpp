@@ -819,6 +819,12 @@ void UInterchangeGenericAssetsPipeline::CreateSkeletonConflict(USkeleton* Specif
 		{
 			return;
 		}
+
+		if (!SpecifiedSkeleton && !SkeletalMesh->GetSkeleton())
+		{
+			return;
+		}
+
 		const bool bConvertStaticToSkeletalActive = CommonSkeletalMeshesAndAnimationsProperties->bConvertStaticsWithMorphTargetsToSkeletals || CommonMeshesProperties->ForceAllMeshAsType == EInterchangeForceMeshType::IFMT_SkeletalMesh;
 		//If we have a compatible skeleton we do not need to create a conflict
 		if (UE::Interchange::Private::FSkeletonHelper::IsCompatibleSkeleton(SpecifiedSkeleton ? SpecifiedSkeleton : SkeletalMesh->GetSkeleton(), RootJointNodeId, TransientBaseNodeContainer, bConvertStaticToSkeletalActive))
@@ -1837,7 +1843,7 @@ TSharedPtr<SWidget> SInterchangeGenericAssetSkeletonConflictWidget::ConstructSke
 	FString SkeletonReferenceStatistic;
 	if (AssetReferencingSkeleton.Num() > 0)
 	{
-		SkeletonReferenceStatistic += TEXT("Skeleton is references by ") + FString::FromInt(AssetReferencingSkeleton.Num()) + TEXT(" assets.");
+		SkeletonReferenceStatistic += TEXT("Skeleton is referenced by ") + FString::FromInt(AssetReferencingSkeleton.Num()) + TEXT(" assets.");
 	}
 	
 	return SNew(SBox)
