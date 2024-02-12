@@ -266,7 +266,7 @@ namespace mu
 
         Ptr<ASTOpParameter> op;
 
-		Ptr<ASTOpParameter>* it = NodeVariables.Find( node.m_pNode );
+		Ptr<ASTOpParameter>* it = m_firstPass.ParameterNodes.Find( node.m_pNode );
         if ( !it )
         {
             op = new ASTOpParameter();
@@ -286,7 +286,7 @@ namespace mu
 				op->ranges.Emplace(op.get(), rangeResult.sizeOp, rangeResult.rangeName, rangeResult.rangeUID);
 			}
 
-			NodeVariables.Add(node.m_pNode, op);
+			m_firstPass.ParameterNodes.Add(node.m_pNode, op);
 		}
         else
         {

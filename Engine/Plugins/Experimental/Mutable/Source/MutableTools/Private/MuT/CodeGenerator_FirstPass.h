@@ -23,6 +23,7 @@
 #include "MuT/NodeSurfaceNew.h"
 #include "MuT/NodeSurfaceVariation.h"
 #include "MuT/NodeSurfaceSwitch.h"
+#include "MuT/ASTOpParameter.h"
 
 namespace mu
 {
@@ -172,6 +173,9 @@ namespace mu
         //! nodes.
         typedef TArray< TPair<FObjectState, const Node::Private*> > StateList;
         StateList m_states;
+
+		/** Parameters added for every node. */
+		TMap< Ptr<const Node>, Ptr<ASTOpParameter> > ParameterNodes;
 
 	private:
 

@@ -72,7 +72,7 @@ namespace mu
 	}
 
 
-	void ASTOpParameter::Link(FProgram& program, FLinkerOptions*)
+	void ASTOpParameter::Link(FProgram& Program, FLinkerOptions*)
 	{
 		// Already linked?
 		if (!linkedAddress)
@@ -80,24 +80,27 @@ namespace mu
 			OP::ParameterArgs args;
 			FMemory::Memzero(&args, sizeof(args));
 
-			LinkedParameterIndex = program.m_parameters.Num();
+			LinkedParameterIndex = Program.m_parameters.Find(parameter);
+
+			// If this fails, it means an ASTOpParameter was created at code generation time, but not registered into the
+			// parameters map in the CodeGenerator_FirstPass.
+			check(LinkedParameterIndex != INDEX_NONE);
+
 			args.variable = (OP::ADDRESS)LinkedParameterIndex;
-			program.m_parameters.Add(parameter);
 
 			for (const auto& d : ranges)
 			{
 				OP::ADDRESS sizeAt = 0;
 				uint16 rangeId = 0;
-				LinkRange(program, d, sizeAt, rangeId);
-				program.m_parameters.Last().m_ranges.Add(rangeId);
+				LinkRange(Program, d, sizeAt, rangeId);
+				Program.m_parameters.Last().m_ranges.Add(rangeId);
 			}
 
-			linkedAddress = (OP::ADDRESS)program.m_opAddress.Num();
-			//program.m_code.push_back(op);
+			linkedAddress = (OP::ADDRESS)Program.m_opAddress.Num();
 
-			program.m_opAddress.Add((uint32_t)program.m_byteCode.Num());
-			AppendCode(program.m_byteCode, type);
-			AppendCode(program.m_byteCode, args);
+			Program.m_opAddress.Add((uint32)Program.m_byteCode.Num());
+			AppendCode(Program.m_byteCode, type);
+			AppendCode(Program.m_byteCode, args);
 		}
 	}
 

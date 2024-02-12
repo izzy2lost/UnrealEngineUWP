@@ -142,21 +142,6 @@ namespace mu
 				++CurrentStateIndex;
 			}
 		}
-
-		// Free caches
-		GeneratedGenericNodes.Reset();
-		m_constantMeshes.SetNum(0,EAllowShrinking::No);
-		GeneratedLayouts.Reset();
-		NodeVariables.Reset();
-		m_generatedMeshes.Reset();
-		GeneratedProjectors.Reset();
-		GeneratedRanges.Reset();
-		GeneratedStrings.Reset();
-		GeneratedTables.Reset();
-		m_firstPass = FirstPassGenerator();
-		m_currentParents.Reset();
-		m_currentObject.Reset();
-		AdditionalComponents.Reset();
 	}
 
 
@@ -324,15 +309,15 @@ namespace mu
 	}
 
 
-	Ptr<ASTOp> CodeGenerator::GenerateTableVariable(TablePtr pTable, const FString& strName, bool bAddNoneOption)
+	Ptr<ASTOp> CodeGenerator::GenerateTableVariable(Ptr<const Node> InNode, const FTableCacheKey& CacheKey, bool bAddNoneOption)
 	{
 		Ptr<ASTOp> result;
 
         FParameterDesc param;
-        param.m_name = strName;
+        param.m_name = CacheKey.ParameterName;
         if ( param.m_name.Len()==0 )
         {
-            param.m_name = TCHAR_TO_ANSI(*pTable->GetName());
+            param.m_name = TCHAR_TO_ANSI(*CacheKey.Table->GetName());
         }
         param.m_type = PARAMETER_TYPE::T_INT;
         param.m_defaultValue.Set<ParamIntType>(0);
@@ -342,10 +327,10 @@ namespace mu
 			// See if there is a string column. If there is one, we will use it as names for the
 			// options. Only the first string column will be used.
 			int nameCol = -1;
-			int32 cols = pTable->GetPrivate()->Columns.Num();
+			int32 cols = CacheKey.Table->GetPrivate()->Columns.Num();
 			for (int32 c = 0; c < cols && nameCol < 0; ++c)
 			{
-				if (pTable->GetPrivate()->Columns[c].Type == ETableColumnType::String)
+				if (CacheKey.Table->GetPrivate()->Columns[c].Type == ETableColumnType::String)
 				{
 					nameCol = c;
 				}
@@ -361,15 +346,15 @@ namespace mu
 			}
 
 			// Add every row
-			int32 rows = pTable->GetPrivate()->Rows.Num();
+			int32 rows = CacheKey.Table->GetPrivate()->Rows.Num();
 			for (size_t i = 0; i < rows; ++i)
 			{
 				FParameterDesc::FIntValueDesc value;
-				value.m_value = (int16_t)pTable->GetPrivate()->Rows[i].Id;
+				value.m_value = (int16)CacheKey.Table->GetPrivate()->Rows[i].Id;
 
 				if (nameCol > -1)
 				{
-					value.m_name = TCHAR_TO_ANSI(*pTable->GetPrivate()->Rows[i].Values[nameCol].String);
+					value.m_name = TCHAR_TO_ANSI(*CacheKey.Table->GetPrivate()->Rows[i].Values[nameCol].String);
 				}
 
 				param.m_possibleValues.Add(value);
@@ -385,6 +370,8 @@ namespace mu
 		Ptr<ASTOpParameter> op = new ASTOpParameter();
 		op->type = OP_TYPE::NU_PARAMETER;
 		op->parameter = param;
+
+		m_firstPass.ParameterNodes.Add(InNode, op);
 
 		return op;
 	}
