@@ -8,7 +8,7 @@
 
 #include "PCGAttributeFilter.generated.h"
 
-UENUM()
+UENUM(BlueprintType)
 enum class EPCGAttributeFilterOperator : uint8
 {
 	Greater UMETA(DisplayName=">"),
