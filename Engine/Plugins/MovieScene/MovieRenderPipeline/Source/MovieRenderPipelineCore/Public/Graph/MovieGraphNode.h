@@ -292,6 +292,7 @@ public:
 
 	//~ Begin UObject Interface
 	virtual void PostLoad() override;
+	virtual void PostDuplicate(EDuplicateMode::Type DuplicateMode) override;
 	//~ End UObject Interface
 
 public:
@@ -324,7 +325,7 @@ protected:
 	virtual TArray<FMovieGraphPinProperties> GetExposedPinProperties() const;
 
 	/** Register any delegates that need to be set up on the node. Called in PostLoad(). */
-	virtual void RegisterDelegates() const { }
+	virtual void RegisterDelegates() { }
 
 protected:
 	UPROPERTY()

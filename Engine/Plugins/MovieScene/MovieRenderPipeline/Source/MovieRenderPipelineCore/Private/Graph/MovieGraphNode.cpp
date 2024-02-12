@@ -401,6 +401,14 @@ void UMovieGraphNode::PostLoad()
 	RegisterDelegates();
 }
 
+void UMovieGraphNode::PostDuplicate(EDuplicateMode::Type DuplicateMode)
+{
+	Super::PostDuplicate(DuplicateMode);
+
+	// New graphs are typically created by duplicating a template. Make sure the nodes in the template have their delegates registered.
+	RegisterDelegates();
+}
+
 bool UMovieGraphNode::SetDynamicPropertyValue(const FName PropertyName, const FString& InNewValue)
 {
 	return DynamicProperties.SetValueSerializedString(PropertyName, InNewValue) == EPropertyBagResult::Success;

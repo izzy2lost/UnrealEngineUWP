@@ -31,10 +31,10 @@ public:
 	//~ End UMovieGraphNode interface
 
 private:
-	virtual void RegisterDelegates() const override;
+	virtual void RegisterDelegates() override;
 
 	/** Register delegates for the provided input member. */
-	void RegisterDelegates(UMovieGraphInput* Input) const;
+	void RegisterDelegates(UMovieGraphInput* Input);
 
 	/** Update data (name, etc) on all existing output pins on this node to reflect the input members on the graph. */
 	void UpdateExistingPins(UMovieGraphMember* ChangedVariable) const;
