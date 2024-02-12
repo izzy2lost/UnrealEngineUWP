@@ -11,9 +11,24 @@ public class LinuxTargetPlatform : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
             new string[] {
 				"Core",
+				"CoreUObject",
 				"TargetPlatform",
 				"DesktopPlatform",
+				"Projects"
 			}
         );
+
+		PrivateIncludePathModuleNames.AddRange(
+			new string[] {
+				"Settings"
+			}
+		);
+
+		if (Target.bCompileAgainstEngine)
+		{
+			PublicIncludePathModuleNames.Add("Engine");
+			PrivateDependencyModuleNames.Add("Engine");
+			PrivateIncludePathModuleNames.Add("TextureCompressor");
+		}
 	}
 }

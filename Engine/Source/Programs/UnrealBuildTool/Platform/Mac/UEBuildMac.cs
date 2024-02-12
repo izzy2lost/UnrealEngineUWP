@@ -458,10 +458,7 @@ namespace UnrealBuildTool
 		public override void ModifyModuleRulesForOtherPlatform(string ModuleName, ModuleRules Rules, ReadOnlyTargetRules Target)
 		{
 			// don't do any target platform stuff if SDK is not available
-			bool bIsPlatformAvailableForTarget = UEBuildPlatform.IsPlatformAvailableForTarget(Platform, Target, bIgnoreSDKCheck: true);
-			bool bIsPlatformAvailableForTargetWithSDK = UEBuildPlatform.IsPlatformAvailableForTarget(Platform, Target);
-			
-			if (!bIsPlatformAvailableForTarget)
+			if (!UEBuildPlatform.IsPlatformAvailableForTarget(Platform, Target))
 			{
 				return;
 			}
@@ -471,11 +468,7 @@ namespace UnrealBuildTool
 				// because remote IOS building needs the new XcodeProject Settings to show up in the editor, we bring in the Mac bits that expose it
 				if (ModuleName == "Engine")
 				{
-					Rules.DynamicallyLoadedModuleNames.Add("MacTargetPlatformSettings");
-					if (bIsPlatformAvailableForTargetWithSDK)
-					{
-						Rules.DynamicallyLoadedModuleNames.AddAll("MacTargetPlatform", "MacTargetPlatformControls", "MacPlatformEditor");
-					}
+					Rules.DynamicallyLoadedModuleNames.AddAll("MacTargetPlatform", "MacPlatformEditor");
 				}
 			}
 		}
@@ -537,8 +530,6 @@ namespace UnrealBuildTool
 				if (Target.bForceBuildTargetPlatforms)
 				{
 					Rules.DynamicallyLoadedModuleNames.Add("MacTargetPlatform");
-					Rules.DynamicallyLoadedModuleNames.Add("MacTargetPlatformSettings");
-					Rules.DynamicallyLoadedModuleNames.Add("MacTargetPlatformControls");
 				}
 
 				if (bBuildShaderFormats)

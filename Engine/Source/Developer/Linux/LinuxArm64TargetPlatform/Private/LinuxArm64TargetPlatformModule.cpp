@@ -6,8 +6,12 @@
 
 #include "CoreMinimal.h"
 #include "Modules/ModuleManager.h"
+
 #include "Interfaces/ITargetPlatformModule.h"
-#include "Common/TargetPlatformBase.h"
+
+#include "LinuxTargetDevice.h"
+#include "LinuxTargetPlatform.h"
+
 
 /**
  * Module for the Linux target platforms
@@ -19,14 +23,12 @@ public:
 
 	virtual void GetTargetPlatforms(TArray<ITargetPlatform*>& TargetPlatforms) override
 	{
-	}
-
-	virtual void GetTargetPlatforms(TArray<ITargetPlatform*>& TargetPlatforms, TArray<ITargetPlatformSettings*> TargetPlatformSettings, TArray<ITargetPlatformControls*> TargetPlatformControls) override
-	{
-		for (ITargetPlatformControls* TargetPlatformControlsIt : TargetPlatformControls)
-		{
-			TargetPlatforms.Add(new FTargetPlatformMerged(TargetPlatformControlsIt->GetTargetPlatformSettings(), TargetPlatformControlsIt));
-		}
+		// Game TP
+		TargetPlatforms.Add(new TLinuxTargetPlatform<FLinuxPlatformProperties<false, false, false, true> >());
+		// Server TP
+		TargetPlatforms.Add(new TLinuxTargetPlatform<FLinuxPlatformProperties<false, true, false, true> >());
+		// Client TP
+		TargetPlatforms.Add(new TLinuxTargetPlatform<FLinuxPlatformProperties<false, false, true, true> >());
 	}
 };
 

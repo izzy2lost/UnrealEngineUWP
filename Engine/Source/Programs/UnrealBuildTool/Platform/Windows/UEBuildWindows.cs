@@ -1541,8 +1541,6 @@ namespace UnrealBuildTool
 				if (Target.bForceBuildTargetPlatforms)
 				{
 					Rules.DynamicallyLoadedModuleNames.Add("WindowsTargetPlatform");
-					Rules.DynamicallyLoadedModuleNames.Add("WindowsTargetPlatformSettings");
-					Rules.DynamicallyLoadedModuleNames.Add("WindowsTargetPlatformControls");
 				}
 
 				if (bBuildShaderFormats)

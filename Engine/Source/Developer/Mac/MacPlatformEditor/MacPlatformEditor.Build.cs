@@ -20,7 +20,7 @@ public class MacPlatformEditor : ModuleRules
 				"PropertyEditor",
 				"SharedSettingsWidgets",
 				"SourceControl",
-				"MacTargetPlatformSettings",
+				"MacTargetPlatform",
 				"TargetPlatform",
 				"MaterialShaderQualitySettings",
 				"RenderCore",

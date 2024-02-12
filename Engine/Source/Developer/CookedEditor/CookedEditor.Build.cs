@@ -27,14 +27,12 @@ public class CookedEditor : ModuleRules
 				"TargetPlatform",
 			});
 
-		PublicIncludePathModuleNames.Add("WindowsTargetPlatformSettings");
-		PublicIncludePathModuleNames.Add("WindowsTargetPlatformControls");
+		PublicIncludePathModuleNames.Add("WindowsTargetPlatform");
 
 		if (IsPlatformAvailable(UnrealTargetPlatform.Linux))
 		{
 			PublicDefinitions.Add("COOKEDEDITOR_WITH_LINUXTARGETPLATFORM=1");
-			PublicIncludePathModuleNames.Add("LinuxTargetPlatformSettings");
-			PublicIncludePathModuleNames.Add("LinuxTargetPlatformControls");
+			PublicIncludePathModuleNames.Add("LinuxTargetPlatform");
 		}
 		else
 		{
@@ -44,8 +42,7 @@ public class CookedEditor : ModuleRules
 		if (IsPlatformAvailable(UnrealTargetPlatform.Mac))
 		{
 			PublicDefinitions.Add("COOKEDEDITOR_WITH_MACTARGETPLATFORM=1");
-			PublicIncludePathModuleNames.Add("MacTargetPlatformSettings");
-			PublicIncludePathModuleNames.Add("MacTargetPlatformControls");
+			PublicIncludePathModuleNames.Add("MacTargetPlatform");
 		}
 		else
 		{

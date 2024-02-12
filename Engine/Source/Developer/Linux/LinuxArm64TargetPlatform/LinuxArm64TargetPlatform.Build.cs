@@ -15,5 +15,17 @@ public class LinuxArm64TargetPlatform : ModuleRules
 				"TargetPlatform",
 			}
         );
+
+        if (Target.bCompileAgainstEngine)
+        {
+            PrivateDependencyModuleNames.AddRange(new string[] {
+					"Engine"
+				}
+            );
+
+            PrivateIncludePathModuleNames.Add("TextureCompressor");
+        }
+
+		PrivateIncludePathModuleNames.Add("LinuxTargetPlatform");
     }
 }

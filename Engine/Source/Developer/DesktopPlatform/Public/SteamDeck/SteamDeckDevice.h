@@ -15,8 +15,8 @@ template<class ParentDeviceClass>
 class TSteamDeckDevice : public ParentDeviceClass
 {
 public:
-	TSteamDeckDevice(FString InIpAddr, FString InDeviceName, FString InUserName, FString InPassword, const ITargetPlatformControls& InTargetPlatformControls, const TCHAR* InRuntimeOSName)
-		: ParentDeviceClass(InTargetPlatformControls)
+	TSteamDeckDevice(FString InIpAddr, FString InDeviceName, FString InUserName, FString InPassword, const ITargetPlatform& InTargetPlatform, const TCHAR* InRuntimeOSName)
+		: ParentDeviceClass(InTargetPlatform)
 		, IpAddr(InIpAddr)
 		, UserName(InUserName)
 		, Password(InPassword)
@@ -32,7 +32,7 @@ public:
 
 	virtual FTargetDeviceId GetId() const override
 	{
-		return FTargetDeviceId(this->TargetPlatformControls.PlatformName(), IpAddr);
+		return FTargetDeviceId(this->TargetPlatform.PlatformName(), IpAddr);
 	}
 
 	virtual FString GetOperatingSystemName() override
@@ -48,7 +48,7 @@ public:
 		return true;
 	}
 
-	static TArray<ITargetDevicePtr> DiscoverDevices(const ITargetPlatformControls& TargetPlatformControls, const TCHAR* RuntimeOSName)
+	static TArray<ITargetDevicePtr> DiscoverDevices(const ITargetPlatform& TargetPlatform, const TCHAR* RuntimeOSName)
 	{
 		TArray<FString> EngineIniSteamDeckDevices;
 
@@ -92,7 +92,7 @@ public:
 				ConfigPassword = FString();
 			}
 
-			SteamDevices.Add(MakeShareable(new TSteamDeckDevice<ParentDeviceClass>(IpAddr, Name, ConfigUserName, ConfigPassword, TargetPlatformControls, RuntimeOSName)));
+			SteamDevices.Add(MakeShareable(new TSteamDeckDevice<ParentDeviceClass>(IpAddr, Name, ConfigUserName, ConfigPassword, TargetPlatform, RuntimeOSName)));
 		}
 
 		return SteamDevices;

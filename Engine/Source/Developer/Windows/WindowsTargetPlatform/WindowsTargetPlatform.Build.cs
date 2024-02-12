@@ -9,11 +9,36 @@ public class WindowsTargetPlatform : ModuleRules
         PrivateDependencyModuleNames.AddRange(
 			new string[] {
 				"Core",
+				"CoreUObject",
 				"TargetPlatform",
 				"DesktopPlatform",
-				"WindowsTargetPlatformSettings",
-				"WindowsTargetPlatformControls",
+                "AudioPlatformConfiguration",
+            }
+		);
+
+		PrivateIncludePathModuleNames.AddRange(
+			new string[] {
+				"Settings"
 			}
 		);
+
+		PublicIncludePathModuleNames.AddRange(
+			new string[] {
+				"AudioPlatformConfiguration"
+			}
+		);
+
+		// compile with Engine
+		if (Target.bCompileAgainstEngine)
+		{
+			PublicIncludePathModuleNames.Add("Engine");
+			PrivateDependencyModuleNames.AddRange( new string[] {
+				"Engine", 
+				"RHI",
+				"CookedEditor",
+				}
+			);
+            PrivateIncludePathModuleNames.Add("TextureCompressor");
+        }
     }
 }
