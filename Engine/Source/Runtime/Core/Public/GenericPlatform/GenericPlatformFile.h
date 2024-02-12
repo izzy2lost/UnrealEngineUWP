@@ -371,6 +371,18 @@ public:
 	virtual int64		FileSize(const TCHAR* Filename) = 0;
 	/** Delete a file and return true if the file exists. Will not delete read only files. **/
 	virtual bool		DeleteFile(const TCHAR* Filename) = 0;
+	/** Delete an array of files and return true if ALL deletes are succeeded. **/
+	virtual bool		DeleteFiles(const TArrayView<const TCHAR*>& Filenames)
+	{
+		bool bOneFailed = false;
+
+		for (const TCHAR* File : Filenames)
+		{
+			bOneFailed |= !DeleteFile(File);
+		}
+
+		return !bOneFailed;
+	}
 	/** Return true if the file is read only. **/
 	virtual bool		IsReadOnly(const TCHAR* Filename) = 0;
 	/** Attempt to move a file. Return true if successful. Will not overwrite existing files. **/
