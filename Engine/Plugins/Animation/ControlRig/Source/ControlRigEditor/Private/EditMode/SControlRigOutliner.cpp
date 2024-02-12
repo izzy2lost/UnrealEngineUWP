@@ -1112,6 +1112,10 @@ void SControlRigOutliner::HandleSelectionChanged(TSharedPtr<FMultiRigTreeElement
 					CurrentSelection.Key->ClearControlSelection();
 				}
 			}
+			if (GEditor)
+			{
+				GEditor->Exec(GEditor->GetWorld(), TEXT("SELECT NONE"));
+			}
 		}
 	}
 
