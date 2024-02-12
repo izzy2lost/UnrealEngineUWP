@@ -625,13 +625,7 @@ export const StepsPanelV2: React.FC<{ jobDetails: JobDetailsV2, depStepId?: stri
 
    if (!jobDetails.jobData) {
       return null;
-   }
-
-   const dataView = jobDetails.getDataView<StepsDataView>("StepsDataView");
-
-   if (!jobDetails.viewReady(dataView.order)) {
-      return null;
-   }
+   }   
 
    const sideRail = depStepId ? depSideRail : stepsSideRail;
 

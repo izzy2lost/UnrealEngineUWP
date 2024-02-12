@@ -1,4 +1,4 @@
-import { mergeStyleSets, Pivot, PivotItem, Stack } from "@fluentui/react";
+import { mergeStyleSets, Pivot, PivotItem, Spinner, SpinnerSize, Stack } from "@fluentui/react";
 import { observer } from "mobx-react-lite";
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -307,6 +307,10 @@ const DetailsViewOverview: React.FC<{ jobDetails: JobDetailsV2 }> = ({ jobDetail
       <HealthPanel jobDetails={details} />
       <TimelinePanel jobDetails={details} />      
       <BisectionPanel jobDetails={details} />
+      {!jobDetails.viewsReady && <Stack style={{paddingTop: 32}}>
+         <Spinner size={SpinnerSize.large} />
+      </Stack>}
+
    </Stack>
 };
 

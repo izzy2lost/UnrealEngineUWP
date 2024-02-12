@@ -56,10 +56,10 @@ class StepHistoryDataView extends JobDataView {
          return;
       }
       backend.getJobStepHistory(jobData.streamId, stepName, 1024, jobData.templateId!).then(response => {
-         this.history = response;
-         this.updateReady();
+         this.history = response;         
       }).finally(() => {
          this.initialize(this.history?.length ? [sideRail] : undefined);
+         this.updateReady();
       })
    }
 
@@ -74,7 +74,7 @@ class StepHistoryDataView extends JobDataView {
          const stepName = this.details?.getStepName(this.stepId, false);
          if (stepName) {
             this.loadHistory(stepName);
-         }
+         }         
       }
    }
 
@@ -126,7 +126,7 @@ export const StepHistoryPanel: React.FC<{ jobDetails: JobDetailsV2; stepId: stri
       return { ref: h }
    });
 
-   if (!items.length || !jobDetails?.viewsReady) {
+   if (!items.length) {
       return null;
    }
 

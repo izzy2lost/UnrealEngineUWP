@@ -257,7 +257,7 @@ export const JobDetailArtifactsV2: React.FC<{ jobDetails: JobDetailsV2; stepId: 
       </Stack>
    }
 
-   if (!dataView.artifacts?.length || !jobDetails?.viewsReady) {
+   if (!dataView.artifacts?.length) {
       return null;
    }
 
