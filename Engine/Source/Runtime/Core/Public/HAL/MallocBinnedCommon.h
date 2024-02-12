@@ -4,7 +4,7 @@
 
 #include "CoreTypes.h"
 #include "HAL/MemoryBase.h"
-#include "HAL/PlatformMath.h"
+#include "Math/UnrealMathUtility.h"
 #include "HAL/PlatformTLS.h"
 #include "Templates/AlignmentTemplates.h"
 
