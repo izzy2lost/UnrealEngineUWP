@@ -57,8 +57,6 @@ void FAnalyticsSpan::Start(const TArray<FAnalyticsEventAttribute>& AdditionalAtt
 	EndTime			= FDateTime::UtcNow();
 	Duration		= 0;	
 	IsActive		= true;
-
-	TRACE_BEGIN_REGION(*Name.ToString());
 }
 
 bool FAnalyticsSpan::GetIsActive() const
@@ -78,12 +76,10 @@ void FAnalyticsSpan::End(const TArray<FAnalyticsEventAttribute>& AdditionalAttri
 	EndTime = FDateTime::UtcNow();
 	Duration = (EndTime - StartTime).GetTotalSeconds();
 		
-	TRACE_END_REGION(*Name.ToString());
-
 	// Add attributes and the the additional attributes to the current span attributes, these will get passed down to the child spans
 	AddAttributes(AdditionalAttributes);
 
-	const uint32 SpanSchemaVersion = 1;
+	const uint32 SpanSchemaVersion = 2;
 	const FString SpanEventName = TEXT("Span");
 
 	TArray<FAnalyticsEventAttribute> EventAttributes = Attributes;
@@ -147,7 +143,7 @@ void FAnalyticsTracer::SetProvider(TSharedPtr<IAnalyticsProvider> InProvider)
 
 TSharedPtr<IAnalyticsSpan> FAnalyticsTracer::GetCurrentSpan() const
 {
-	return ActiveSpanStack.Num()? ActiveSpanStack.Top() : TSharedPtr<IAnalyticsSpan>();
+	return ActiveSpanStack.Num() ? ActiveSpanStack.Top() : TSharedPtr<IAnalyticsSpan>();
 }
 
 void FAnalyticsTracer::StartSession()
@@ -157,14 +153,14 @@ void FAnalyticsTracer::StartSession()
 
 void FAnalyticsTracer::EndSession()
 {
-	FScopeLock ScopeLock(&CriticalSection);	
+	FScopeLock ScopeLock(&CriticalSection);
 
 	EndSpan(SessionSpan);
 	SessionSpan.Reset();
 
 	// Stop any active spans, go from stack bottom first so parent spans will end their children
 	while (ActiveSpanStack.Num())
-	{	
+	{
 		EndSpan(ActiveSpanStack[0]);
 	}
 
@@ -192,17 +188,56 @@ TSharedPtr<IAnalyticsSpan> FAnalyticsTracer::StartSpan(const FName NewSpanName, 
 			SpanHeirarchy.Emplace(ParentSpan->GetId(), { NewSpan });
 		}
 	}
-	
+
 
 	return StartSpanInternal(NewSpan, AdditionalAttributes) ? NewSpan : TSharedPtr<IAnalyticsSpan>();
 }
 
+void FAnalyticsTracer::BeginRegion(TSharedPtr<IAnalyticsSpan> Span)
+{
+	// This function is a temporary work around as UnrealInsights does not handle overalapping region with the same name.
+	FName RegionName = Span->GetName();
+
+	uint32 NameCounter = 0;
+
+	while (RegionNames.Find(RegionName) != nullptr)
+	{
+		// Generate a unique region name for this span
+		FNameBuilder NameBuilder(Span->GetName());
+		NameBuilder.Append(TEXT("%d"), NameCounter++);
+		RegionName = FName(NameBuilder);
+	}
+
+	// Add the region name to the list by span ID
+	RegionNames.Emplace(RegionName, Span->GetId());
+
+	TRACE_BEGIN_REGION(*RegionName.ToString());
+}
+
+void FAnalyticsTracer::EndRegion(TSharedPtr<IAnalyticsSpan> Span)
+{
+	// Find the region, end it and remove from the region names
+	for (TMap<FName, FGuid>::TConstIterator it(RegionNames); it; ++it)
+	{
+		// Slow match by ID on removal, fast match on creation
+		if ((*it).Value == Span->GetId())
+		{
+			const FName& RegionName = (*it).Key;
+			TRACE_END_REGION(*RegionName.ToString());
+			RegionNames.Remove(RegionName);
+			return;
+		}
+	}
+}
+
 bool FAnalyticsTracer::StartSpanInternal(TSharedPtr<IAnalyticsSpan> Span, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes)
 {
-	TSharedPtr<IAnalyticsSpan> LastAdddedActiveSpan = ActiveSpanStack.Num()? ActiveSpanStack.Top(): TSharedPtr<IAnalyticsSpan>();
-	Span->SetStackDepth(LastAdddedActiveSpan.IsValid()? LastAdddedActiveSpan->GetStackDepth()+1 : 0);
+	TSharedPtr<IAnalyticsSpan> LastAdddedActiveSpan = ActiveSpanStack.Num() ? ActiveSpanStack.Top() : TSharedPtr<IAnalyticsSpan>();
+	Span->SetStackDepth(LastAdddedActiveSpan.IsValid() ? LastAdddedActiveSpan->GetStackDepth() + 1 : 0);
 	Span->SetProvider(AnalyticsProvider);
 	Span->Start(AdditionalAttributes);
+
+	BeginRegion(Span);
 
 	// Add span to active spans list
 	ActiveSpanStack.Emplace(Span);
@@ -221,6 +256,8 @@ bool FAnalyticsTracer::EndSpanInternal(TSharedPtr<IAnalyticsSpan> Span, const TA
 	if (Span.IsValid())
 	{
 		Span->End(AdditionalAttributes);
+
+		EndRegion(Span);
 
 		ActiveSpanStack.Remove(Span);
 

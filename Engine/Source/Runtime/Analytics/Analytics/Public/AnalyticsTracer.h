@@ -69,11 +69,14 @@ private:
 	bool StartSpanInternal(TSharedPtr<IAnalyticsSpan> Span, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes);
 	bool EndSpanInternal(TSharedPtr<IAnalyticsSpan> Span, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes);
 	TSharedPtr<IAnalyticsSpan> GetSpanInternal(const FName Name);
+	void BeginRegion(TSharedPtr<IAnalyticsSpan> Span);
+	void EndRegion(TSharedPtr<IAnalyticsSpan> Span);
 
 	TSharedPtr<IAnalyticsProvider>					AnalyticsProvider;	// The Analytics provider we will send our span events to
 	TSharedPtr<IAnalyticsSpan>						SessionSpan;		// The root span, this will always be present in an active session
 	TArray<TSharedPtr<IAnalyticsSpan>>				ActiveSpanStack;	// Stack of active spans as WeakPtrs
 	TMap<FGuid, TArray<TWeakPtr<IAnalyticsSpan>>>	SpanHeirarchy;		// List of child spans per parent span
+	TMap<FName, FGuid>								RegionNames;		// Temprorary fix for duplicate span names in regions	
 	FCriticalSection								CriticalSection;	
 };
 

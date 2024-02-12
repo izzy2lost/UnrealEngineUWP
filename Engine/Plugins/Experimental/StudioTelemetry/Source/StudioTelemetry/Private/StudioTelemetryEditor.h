@@ -35,6 +35,7 @@ private:
 	static void RecordEvent_Zen(const FString& Context, TArray<FAnalyticsEventAttribute> Attributes = {});
 	static void RecordEvent_VirtualAssets(const FString& Context, TArray<FAnalyticsEventAttribute> Attributes = {});
 	static void RegisterCollectionWorkflowDelegates(FTelemetryRouter& Router);
+	void HitchSamplerCallback();
 	void HeartbeatCallback();
 	
 	TSharedPtr<IAnalyticsSpan> EditorSpan;
@@ -67,19 +68,23 @@ private:
 	const FName HitchingSpanName = TEXT("Hitching");
 	const FName OpenAssetEditorSpan = TEXT("Open Asset Editor");
 	const FName AssetRegistryScanSpanName = TEXT("Asset Registry Scan");
-	const float HeartbeatIntervalSeconds = 0.5;
+	const float HeartbeatIntervalSeconds = 5.0;
+	const float HitchSamplerIntervalSeconds = 0.5;
 	const float MinFPSForHitching = 5.0;
 
 	TMap<FGuid, TSharedPtr<IAnalyticsSpan>> TaskSpans;
 	FCriticalSection TaskSpanCriticalSection;
 
 	FTimerHandle TelemetryHeartbeatTimerHandle;
+	FTimerHandle TelemetryHitchSamplerTimerHandle;
 	FString EditorMapName;
 	FString PIEMapName;
 	uint32 PIETransitionCount = 0;
 	double SessionStartTime;
 	double AssetOpenStartTime;
 	double TimeToBootEditor;
+	double HitchAvergageFPS = 0;
+	uint32 HitchSampleCount = 0;
 };
 
 #endif // WITH_EDITOR

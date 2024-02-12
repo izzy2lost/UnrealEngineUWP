@@ -396,44 +396,56 @@ void FStudioTelemetryEditor::RegisterCollectionWorkflowDelegates(FTelemetryRoute
 
 extern ENGINE_API float GAverageFPS;
 
+void FStudioTelemetryEditor::HitchSamplerCallback()
+{
+	// Sample a rolling average of FPS 
+	HitchAvergageFPS = ( HitchAvergageFPS * HitchSampleCount + GAverageFPS ) / (double)(HitchSampleCount+1);
+	HitchSampleCount++;
+}
+
 void FStudioTelemetryEditor::HeartbeatCallback()
 {
-	static uint32 HitchCount = 0;
-
-	// Hitching is when FPS is below our threshold
-	const bool IsHitching = GAverageFPS<MinFPSForHitching;
-
-	HitchCount += IsHitching ? 1:0;
-	
-	if ( IsHitching == false && HitchingSpan.IsValid()==true )
+	if (HitchSampleCount>0)
 	{
-		// No longer hitching and we have started a hitch span
-		TArray<FAnalyticsEventAttribute> Attributes;
-		Attributes.Emplace(FAnalyticsEventAttribute(TEXT("Hitch_Count"), HitchCount));
-		Attributes.Emplace(FAnalyticsEventAttribute(TEXT("Hitch_HitchesPerSecond"), (float)HitchCount / HitchingSpan->GetDuration()));
-		Attributes.Emplace(FAnalyticsEventAttribute(TEXT("Hitch_AverageFPS"), GAverageFPS));
+		// Hitching is when FPS is below our threshold
+		const bool IsHitching = HitchAvergageFPS < MinFPSForHitching;
+		static uint32 HitchCount = 0;
+		HitchCount += IsHitching ? 1 : 0;
 
-		// End the hitch Span
-		FStudioTelemetry::Get().EndSpan(HitchingSpan, Attributes);
+		if (IsHitching == false && HitchingSpan.IsValid() == true)
+		{
+			// No longer hitching and we have started a hitch span
+			TArray<FAnalyticsEventAttribute> Attributes;
+			Attributes.Emplace(FAnalyticsEventAttribute(TEXT("Hitch_Count"), HitchCount));
+			Attributes.Emplace(FAnalyticsEventAttribute(TEXT("Hitch_HitchesPerSecond"), (float)HitchCount / HitchingSpan->GetDuration()));
+			Attributes.Emplace(FAnalyticsEventAttribute(TEXT("Hitch_AverageFPS"), HitchAvergageFPS));
 
-		// Record the hitch event
-		FStudioTelemetry::Get().RecordEvent(TEXT("Core.Hitch"), Attributes);
+			// End the hitch Span
+			FStudioTelemetry::Get().EndSpan(HitchingSpan, Attributes);
 
-		Attributes.Emplace(TEXT("MapName"), EditorMapName);
-		Attributes.Emplace(TEXT("PIE_MapName"), PIEMapName);
+			// Record the hitch event
+			FStudioTelemetry::Get().RecordEvent(TEXT("Core.Hitch"), Attributes);
 
-		// Record core systems events for the hitch
-		RecordEvent_CoreSystems(TEXT("Hitch"));
+			Attributes.Emplace(TEXT("MapName"), EditorMapName);
+			Attributes.Emplace(TEXT("PIE_MapName"), PIEMapName);
 
-		// No longer need the hitch span for now so reset it
-		HitchingSpan.Reset();
+			// Record core systems events for the hitch
+			RecordEvent_CoreSystems(TEXT("Hitch"));
+
+			// No longer need the hitch span for now so reset it
+			HitchingSpan.Reset();
+		}
+		else if (IsHitching == true && HitchingSpan.IsValid() == false)
+		{
+			// We are hitching and we have not started a hitch span
+			HitchingSpan = FStudioTelemetry::Get().StartSpan(HitchingSpanName);
+			HitchCount = 1;
+		}
+
+		// Reset the hitch sampler
+		HitchSampleCount = 0;
+		HitchAvergageFPS = 0;
 	}
-	else if ( IsHitching == true && HitchingSpan.IsValid()==false )
-	{
-		// We are hitching and we have not started a hitch span
-		HitchingSpan = FStudioTelemetry::Get().StartSpan(HitchingSpanName);
-		HitchCount = 1;
-	}	
 
 	// Monitor Asset Registry Scan
 	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
@@ -493,8 +505,7 @@ void FStudioTelemetryEditor::Initialize()
 					Attributes.Emplace(TEXT("TaskName"), TaskName.ToString());
 
 					// Create and start a new slow task span
-					const FName SpanName(TEXT("ST ") + TaskName.ToString());
-					TSharedPtr<IAnalyticsSpan> SlowTaskSpan = FStudioTelemetry::Get().StartSpan(SpanName, Attributes);
+					TSharedPtr<IAnalyticsSpan> SlowTaskSpan = FStudioTelemetry::Get().StartSpan(*TaskName.ToString(), Attributes);
 
 					// Store this SlowTask span so we can find it when it finishes
 					TaskSpans.Add(TaskGuid, SlowTaskSpan);
@@ -598,10 +609,18 @@ void FStudioTelemetryEditor::Initialize()
 						FStudioTelemetry::Get().EndSpan(OpenAssetEditorSpan, Attributes);			
 				});
 
-				// Setup a timer for a heartbeat event.
-				FTimerDelegate Delegate;
-				Delegate.BindRaw(this, &FStudioTelemetryEditor::HeartbeatCallback);
-				GEditor->GetTimerManager()->SetTimer(TelemetryHeartbeatTimerHandle, Delegate, HeartbeatIntervalSeconds, true);
+				// Setup a timer for a Heartbeat callback
+				FTimerDelegate HeartbeatDelegate;
+				HeartbeatDelegate.BindRaw(this, &FStudioTelemetryEditor::HeartbeatCallback);
+				GEditor->GetTimerManager()->SetTimer(TelemetryHeartbeatTimerHandle, HeartbeatDelegate, HeartbeatIntervalSeconds, true);
+
+				// Setup the timer for the Hitch Detector callback
+				if (IsRunningCommandlet() == false)
+				{
+					FTimerDelegate HitchSamplerDelegate;
+					HitchSamplerDelegate.BindRaw(this, &FStudioTelemetryEditor::HitchSamplerCallback);
+					GEditor->GetTimerManager()->SetTimer(TelemetryHitchSamplerTimerHandle, HitchSamplerDelegate, HitchSamplerIntervalSeconds, true);
+				}
 			}
 
 			ensureMsgf(GUnrealEd, TEXT("GUnrealEd was not valid"));
