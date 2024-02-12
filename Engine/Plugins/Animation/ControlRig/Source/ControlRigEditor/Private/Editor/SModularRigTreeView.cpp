@@ -151,6 +151,31 @@ void SModularRigModelItem::PopulateConnectorCurrentTarget(TSharedPtr<SVerticalBo
 {
 	static const FSlateBrush* RoundedBoxBrush = FControlRigEditorStyle::Get().GetBrush(TEXT("ControlRig.SpacePicker.RoundedRect"));
 
+	TAttribute<FSlateColor> TextColor = TAttribute<FSlateColor>::CreateLambda([this, InConnectorKey, InTargetKey]() -> FSlateColor
+	{
+		if(const UModularRig* ModularRig = Delegates.GetModularRig())
+		{
+			if(const URigHierarchy* Hierarchy = ModularRig->GetHierarchy())
+			{
+				if(!Hierarchy->Contains(InTargetKey))
+				{
+					if(!InTargetKey.IsValid())
+					{
+						if(const FRigConnectorElement* Connector = Hierarchy->Find<FRigConnectorElement>(InConnectorKey))
+						{
+							if(Connector->IsOptional())
+							{
+								return FSlateColor::UseForeground();
+							}
+						}
+					}
+					return FLinearColor::Red;
+				}
+			}
+		}
+		return FSlateColor::UseForeground();
+	});
+	
 	TSharedPtr<SHorizontalBox> RowBox, ButtonBox;
 	InListBox->AddSlot()
 	.AutoHeight()
@@ -208,6 +233,7 @@ void SModularRigModelItem::PopulateConnectorCurrentTarget(TSharedPtr<SVerticalBo
 							SNew( STextBlock )
 							.Text( InTitle )
 							.Font( IDetailLayoutBuilder::GetDetailFont() )
+							.ColorAndOpacity(TextColor)
 						]
 					]
 				]

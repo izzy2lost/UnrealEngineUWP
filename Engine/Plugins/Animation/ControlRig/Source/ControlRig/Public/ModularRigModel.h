@@ -228,6 +228,16 @@ public:
 		return ConnectionList.IsValidIndex(FindConnectionIndex(InConnectorKey));
 	}
 
+	bool HasConnection(const FRigElementKey& InConnectorKey, const URigHierarchy* InHierarchy) const
+	{
+		if(HasConnection(InConnectorKey))
+		{
+			const FRigElementKey Target = FindTargetFromConnector(InConnectorKey);
+			return InHierarchy->Contains(Target);
+		}
+		return false;
+	}
+
 	/** Gets the connection map for a single module, where the connectors are identified without its namespace*/
 	TMap<FRigElementKey, FRigElementKey> GetModuleConnectionMap(const FString& InModulePath) const;
 };

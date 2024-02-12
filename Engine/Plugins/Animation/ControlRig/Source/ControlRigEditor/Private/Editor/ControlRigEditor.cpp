@@ -2802,8 +2802,10 @@ void FControlRigEditor::HandlePreviewMeshChanged(USkeletalMesh* InOldSkeletalMes
 		{
 			ControlRigBP->SetPreviewMesh(InNewSkeletalMesh);
 
+			FModularRigConnections PreviousConnections;
 			if(IsModularRig())
 			{
+				PreviousConnections = ControlRigBP->ModularRigModel.Connections;
 				{
 					TGuardValue<bool> SuspendBlueprintNotifs(ControlRigBP->bSuspendAllNotifications, true);
 					if(URigHierarchyController* Controller = ControlRigBP->GetHierarchyController())
@@ -2817,14 +2819,98 @@ void FControlRigEditor::HandlePreviewMeshChanged(USkeletalMesh* InOldSkeletalMes
 			
 			UpdateRigVMHost();
 			
-			if(UControlRig* DebuggedControlRig = Cast<UControlRig>(GetBlueprintObj()->GetObjectBeingDebugged()))
+			if(UControlRig* DebuggedControlRig = Cast<UControlRig>(ControlRigBP->GetObjectBeingDebugged()))
 			{
 				DebuggedControlRig->GetHierarchy()->Notify(ERigHierarchyNotification::HierarchyReset, nullptr);
 				DebuggedControlRig->Initialize(true);
 			}
-		}
 
-		Compile();
+			Compile();
+
+			if(IsModularRig())
+			{
+				if(UControlRig* DebuggedControlRig = Cast<UControlRig>(ControlRigBP->GetObjectBeingDebugged()))
+				{
+					DebuggedControlRig->RequestConstruction();
+					DebuggedControlRig->Execute(FRigUnit_PrepareForExecution::EventName);
+					
+					if(URigHierarchy* Hierarchy = DebuggedControlRig->GetHierarchy())
+					{
+						FModularRigModel* Model = &ControlRigBP->ModularRigModel;
+						
+						// try to reestablish the connections.
+						UModularRigController* ModularRigController = ControlRigBP->GetModularRigController();
+						Model->ForEachModule(
+							[Model, Hierarchy, ModularRigController, PreviousConnections]
+							(const FRigModuleReference* Module) -> bool
+							{
+								bool bContinueResolval;
+								do
+								{
+									bContinueResolval = false;
+									
+									const TArray<const FRigConnectorElement*> Connectors = Module->FindConnectors(Hierarchy);
+									TArray<FRigElementKey> PrimaryConnectors, SecondaryConnectors, OptionalConnectors;
+									for(const FRigConnectorElement* ExistingConnector : Connectors)
+									{
+										if(ExistingConnector->IsPrimary())
+										{
+											PrimaryConnectors.Add(ExistingConnector->GetKey());
+										}
+										else if(ExistingConnector->IsOptional())
+										{
+											OptionalConnectors.Add(ExistingConnector->GetKey());
+										}
+										else
+										{
+											SecondaryConnectors.Add(ExistingConnector->GetKey());
+										}
+									}
+									TArray<FRigElementKey> ConnectorKeys;
+									ConnectorKeys.Append(PrimaryConnectors);
+									ConnectorKeys.Append(SecondaryConnectors);
+									ConnectorKeys.Append(OptionalConnectors);
+									
+									for(const FRigElementKey& ConnectorKey : ConnectorKeys)
+									{
+										const bool bIsPrimary = ConnectorKey == ConnectorKeys[0];
+										const bool bIsSecondary = !bIsPrimary;
+										
+										if(!Model->Connections.HasConnection(ConnectorKey, Hierarchy))
+										{
+											// try to reapply the connection
+											if(PreviousConnections.HasConnection(ConnectorKey, Hierarchy))
+											{
+												const FRigElementKey Target = PreviousConnections.FindTargetFromConnector(ConnectorKey);
+												if(ModularRigController->ConnectConnectorToElement(ConnectorKey, Target, true))
+												{
+													bContinueResolval = true;
+												}
+											}
+
+											// try to auto resolve it
+											if(!bContinueResolval && bIsSecondary)
+											{
+												if(ModularRigController->AutoConnectSecondaryConnectors({ConnectorKey}, true, true))
+												{
+													bContinueResolval = true;
+												}
+											}
+
+											// only do one connector at a time
+											break;
+										}
+									}
+								}
+								while (bContinueResolval);
+
+								return true; // continue to the next module
+							}
+						);
+					}
+				}
+			}
+		}
 	}
 }
 

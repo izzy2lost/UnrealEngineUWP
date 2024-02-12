@@ -263,7 +263,7 @@ bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InCo
 	if (CurrentTarget.IsValid())
 	{
 		const TGuardValue<bool> DisableAutomaticReparenting(bAutomaticReparenting, false);
-		DisconnectConnector(InConnectorKey, bSetupUndo);
+		DisconnectConnector(InConnectorKey, false, bSetupUndo);
 	}
 	
 	Model->Connections.AddConnection(InConnectorKey, InTargetKey);
@@ -278,38 +278,11 @@ bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InCo
 			{
 				if (bAutoResolveOtherConnectors)
 				{
-					UModularRigRuleManager* RuleManager = Hierarchy->GetRuleManager();
-					const FRigModuleInstance* ModuleInstance = ModularRig->FindModule(Module->GetPath());
-
-					for (const FRigModuleConnector& OtherConnector : RigCDO->GetRigModuleSettings().ExposedConnectors)
+					if(const FRigConnectorElement* PrimaryConnector = Module->FindPrimaryConnector(Hierarchy))
 					{
-						FRigElementKey OtherConnectorKey;
-						OtherConnectorKey.Name = *FString::Printf(TEXT("%s%s"), *Module->GetNamespace(), *OtherConnector.Name);
-						OtherConnectorKey.Type = ERigElementType::Connector;
-						if (!Model->Connections.HasConnection(OtherConnectorKey))
+						if(PrimaryConnector->GetKey() == InConnectorKey)
 						{
-							if (const FRigConnectorElement* OtherConnectorElement = Cast<FRigConnectorElement>(Hierarchy->Find(OtherConnectorKey)))
-							{
-								FModularRigResolveResult RuleResults = RuleManager->FindMatches(OtherConnectorElement, ModuleInstance, ModularRig->GetElementKeyRedirector());
-
-								if (RuleResults.GetMatches().Num() == 1)
-								{
-									Model->Connections.AddConnection(OtherConnectorKey, RuleResults.GetMatches()[0].GetKey());
-									Notify(EModularRigNotification::ConnectionChanged, Module);
-								}
-								else
-								{
-									for (const FRigElementResolveResult& Result : RuleResults.GetMatches())
-									{
-										if (Result.GetState() == ERigElementResolveState::DefaultTarget)
-										{
-											Model->Connections.AddConnection(OtherConnectorKey, Result.GetKey());
-											Notify(EModularRigNotification::ConnectionChanged, Module);
-											break;
-										}
-									}
-								}
-							}
+							(void)AutoConnectModules( {Module->GetPath()}, false, bSetupUndo);
 						}
 					}
 				}
@@ -342,7 +315,7 @@ bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InCo
 	return true;
 }
 
-bool UModularRigController::DisconnectConnector(const FRigElementKey& InConnectorKey, bool bSetupUndo)
+bool UModularRigController::DisconnectConnector(const FRigElementKey& InConnectorKey, bool bDisconnectSubModules, bool bSetupUndo)
 {
 	FString ConnectorModulePath, ConnectorName;
 	if (!URigHierarchy::SplitNameSpace(InConnectorKey.Name.ToString(), &ConnectorModulePath, &ConnectorName))
@@ -410,7 +383,7 @@ bool UModularRigController::DisconnectConnector(const FRigElementKey& InConnecto
 			Model->Connections.RemoveConnection(ToRemove);
 		}
 	}
-	else if (!ModuleConnector->IsOptional())
+	else if (!ModuleConnector->IsOptional() && bDisconnectSubModules)
 	{
 		// Remove connections from child modules
 		TArray<FRigElementKey> ConnectionsToRemove;
@@ -496,7 +469,7 @@ TArray<FRigElementKey> UModularRigController::DisconnectCyclicConnectors(bool bS
 
 	for(const FRigElementKey& ConnectorToDisconnect : ConnectorsToDisconnect)
 	{
-		if(DisconnectConnector(ConnectorToDisconnect, bSetupUndo))
+		if(DisconnectConnector(ConnectorToDisconnect, false, bSetupUndo))
 		{
 			DisconnectedConnectors.Add(ConnectorToDisconnect);
 		}
@@ -504,6 +477,210 @@ TArray<FRigElementKey> UModularRigController::DisconnectCyclicConnectors(bool bS
 #endif
 
 	return DisconnectedConnectors;
+}
+
+bool UModularRigController::AutoConnectSecondaryConnectors(const TArray<FRigElementKey>& InConnectorKeys, bool bReplaceExistingConnections, bool bSetupUndo)
+{
+#if WITH_EDITOR
+
+	UBlueprint* Blueprint = Cast<UBlueprint>(GetOuter());
+	if(Blueprint == nullptr)
+	{
+		UE_LOG(LogControlRig, Error, TEXT("ModularRigController is not nested under blueprint."));
+		return false;
+	}
+
+	const UModularRig* ModularRig = Cast<UModularRig>(Blueprint->GetObjectBeingDebugged());
+	if (!ModularRig)
+	{
+		UE_LOG(LogControlRig, Error, TEXT("Could not find debugged modular rig in %s"), *Blueprint->GetPathName());
+		return false;
+	}
+	
+	URigHierarchy* Hierarchy = ModularRig->GetHierarchy();
+	if (!Hierarchy)
+	{
+		UE_LOG(LogControlRig, Error, TEXT("Could not find hierarchy in %s"), *ModularRig->GetPathName());
+		return false;
+	}
+
+	for(const FRigElementKey& ConnectorKey : InConnectorKeys)
+	{
+		if(ConnectorKey.Type != ERigElementType::Connector)
+		{
+			UE_LOG(LogControlRig, Error, TEXT("Could not find debugged modular rig in %s"), *Blueprint->GetPathName());
+			return false;
+		}
+		const FRigConnectorElement* Connector = Hierarchy->Find<FRigConnectorElement>(ConnectorKey);
+		if(Connector == nullptr)
+		{
+			UE_LOG(LogControlRig, Error, TEXT("Cannot find connector %s in %s"), *ConnectorKey.ToString(), *Blueprint->GetPathName());
+			return false;
+		}
+		if(Connector->IsPrimary())
+		{
+			UE_LOG(LogControlRig, Warning, TEXT("Provided connector %s in %s is a primary connector. It will be skipped during auto resolval."), *ConnectorKey.ToString(), *Blueprint->GetPathName());
+		}
+	}
+
+	TSharedPtr<FScopedTransaction> TransactionPtr;
+	if (bSetupUndo)
+	{
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "AutoResolveSecondaryConnectors", "Auto-Resolve Connectors"));
+	}
+
+	Blueprint->Modify();
+
+	bool bResolvedAllConnectors = true;
+	for(const FRigElementKey& ConnectorKey : InConnectorKeys)
+	{
+		const FString ModulePath = Hierarchy->GetModulePath(ConnectorKey);
+		if(ModulePath.IsEmpty())
+		{
+			UE_LOG(LogControlRig, Error, TEXT("Connector %s has no associated module path"), *ConnectorKey.ToString());
+			bResolvedAllConnectors = false;
+			continue;
+		}
+
+		const FRigModuleReference* Module = Model->FindModule(ModulePath);
+		if(Module == nullptr)
+		{
+			UE_LOG(LogControlRig, Error, TEXT("Could not find module %s"), *ModulePath);
+			bResolvedAllConnectors = false;
+			continue;
+		}
+
+		const FRigConnectorElement* PrimaryConnector = Module->FindPrimaryConnector(Hierarchy);
+		if(PrimaryConnector == nullptr)
+		{
+			UE_LOG(LogControlRig, Error, TEXT("Module %s has no primary connector"), *ModulePath);
+			bResolvedAllConnectors = false;
+			continue;
+		}
+		
+		const FRigElementKey PrimaryConnectorKey = PrimaryConnector->GetKey();
+		if(ConnectorKey == PrimaryConnectorKey)
+		{
+			// silently skip primary connectors
+			continue;
+		}
+		
+		if(!Model->Connections.HasConnection(PrimaryConnectorKey))
+		{
+			UE_LOG(LogControlRig, Warning, TEXT("Module %s's primary connector is not resolved"), *ModulePath);
+			bResolvedAllConnectors = false;
+			continue;
+		}
+		
+		const UControlRig* RigCDO = Module->Class->GetDefaultObject<UControlRig>();
+		if(RigCDO == nullptr)
+		{
+			UE_LOG(LogControlRig, Error, TEXT("Module %s has no default rig assigned"), *ModulePath);
+			bResolvedAllConnectors = false;
+			continue;
+		}
+
+		const UModularRigRuleManager* RuleManager = Hierarchy->GetRuleManager();
+		const FRigModuleInstance* ModuleInstance = ModularRig->FindModule(Module->GetPath());
+		
+		if (!Model->Connections.HasConnection(ConnectorKey) || bReplaceExistingConnections)
+		{
+			if (const FRigConnectorElement* OtherConnectorElement = Cast<FRigConnectorElement>(Hierarchy->Find(ConnectorKey)))
+			{
+				FModularRigResolveResult RuleResults = RuleManager->FindMatches(OtherConnectorElement, ModuleInstance, ModularRig->GetElementKeyRedirector());
+
+				bool bFoundMatch = false;
+				if (RuleResults.GetMatches().Num() == 1)
+				{
+					Model->Connections.AddConnection(ConnectorKey, RuleResults.GetMatches()[0].GetKey());
+					Notify(EModularRigNotification::ConnectionChanged, Module);
+					bFoundMatch = true;
+				}
+				else
+				{
+					for (const FRigElementResolveResult& Result : RuleResults.GetMatches())
+					{
+						if (Result.GetState() == ERigElementResolveState::DefaultTarget)
+						{
+							Model->Connections.AddConnection(ConnectorKey, Result.GetKey());
+							Notify(EModularRigNotification::ConnectionChanged, Module);
+							bFoundMatch = true;
+							break;
+						}
+					}
+				}
+
+				if(!bFoundMatch)
+				{
+					bResolvedAllConnectors = false;
+				}
+			}
+		}
+	}
+
+	TransactionPtr.Reset();
+
+	return bResolvedAllConnectors;
+
+#else
+	
+	return false;
+
+#endif
+}
+
+bool UModularRigController::AutoConnectModules(const TArray<FString>& InModulePaths, bool bReplaceExistingConnections, bool bSetupUndo)
+{
+#if WITH_EDITOR
+	TArray<FRigElementKey> ConnectorKeys;
+
+	const UBlueprint* Blueprint = Cast<UBlueprint>(GetOuter());
+	if(Blueprint == nullptr)
+	{
+		UE_LOG(LogControlRig, Error, TEXT("ModularRigController is not nested under blueprint."));
+		return false;
+	}
+
+	const UModularRig* ModularRig = Cast<UModularRig>(Blueprint->GetObjectBeingDebugged());
+	if (!ModularRig)
+	{
+		UE_LOG(LogControlRig, Error, TEXT("Could not find debugged modular rig in %s"), *Blueprint->GetPathName());
+		return false;
+	}
+	
+	const URigHierarchy* Hierarchy = ModularRig->GetHierarchy();
+	if (!Hierarchy)
+	{
+		UE_LOG(LogControlRig, Error, TEXT("Could not find hierarchy in %s"), *ModularRig->GetPathName());
+		return false;
+	}
+
+	for(const FString& ModulePath : InModulePaths)
+	{
+		const FRigModuleReference* Module = FindModule(ModulePath);
+		if (!Module)
+		{
+			UE_LOG(LogControlRig, Error, TEXT("Could not find module %s"), *ModulePath);
+			return false;
+		}
+
+		const TArray<const FRigConnectorElement*> Connectors = Module->FindConnectors(Hierarchy);
+		for(const FRigConnectorElement* Connector : Connectors)
+		{
+			if(Connector->IsSecondary())
+			{
+				ConnectorKeys.Add(Connector->GetKey());
+			}
+		}
+	}
+
+	return AutoConnectSecondaryConnectors(ConnectorKeys, bReplaceExistingConnections, bSetupUndo);
+
+#else
+
+	return false;
+
+#endif
 }
 
 bool UModularRigController::SetConfigValueInModule(const FString& InModulePath, const FName& InVariableName, const FString& InValue, bool bSetupUndo)

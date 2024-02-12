@@ -225,6 +225,10 @@ void SModularRigModel::BindCommands()
 	CommandList->MapAction(Commands.MirrorModuleItem,
 		FExecuteAction::CreateSP(this, &SModularRigModel::HandleMirrorModules),
 		FCanExecuteAction());
+
+	CommandList->MapAction(Commands.ReresolveModuleItem,
+		FExecuteAction::CreateSP(this, &SModularRigModel::HandleReresolveModules),
+		FCanExecuteAction());
 }
 
 FReply SModularRigModel::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
@@ -390,6 +394,7 @@ void SModularRigModel::CreateContextMenu()
 					ModulesSection.AddMenuEntry(Commands.RenameModuleItem);
 					ModulesSection.AddMenuEntry(Commands.DeleteModuleItem);
 					ModulesSection.AddMenuEntry(Commands.MirrorModuleItem);
+					ModulesSection.AddMenuEntry(Commands.ReresolveModuleItem);
 				}
 			})
 		);
@@ -717,8 +722,6 @@ void SModularRigModel::HandleMirrorModules()
 		});
 		HandleMirrorModules(SelectedPaths);
 	}
-
-	return;
 }
 
 void SModularRigModel::HandleMirrorModules(const TArray<FString>& InPaths)
@@ -760,6 +763,104 @@ void SModularRigModel::HandleMirrorModules(const TArray<FString>& InPaths)
 	}
 }
 
+void SModularRigModel::HandleReresolveModules()
+{
+	if(!ControlRigEditor.IsValid())
+	{
+		return;
+	}
+
+	UModularRig* Rig = GetDefaultModularRig();
+	if (Rig)
+	{
+		TArray<TSharedPtr<FModularRigTreeElement>> SelectedItems = TreeView->GetSelectedItems();
+		TArray<FString> SelectedPaths;
+		Algo::Transform(SelectedItems, SelectedPaths, [](const TSharedPtr<FModularRigTreeElement>& Element)
+		{
+			if (Element.IsValid())
+			{
+				if(Element->ConnectorName.IsEmpty())
+				{
+					return Element->ModulePath;
+				}
+				return FString::Printf(TEXT("%s|%s"), *Element->ModulePath, *Element->ConnectorName);
+			}
+			return FString();
+		});
+		HandleReresolveModules(SelectedPaths);
+	}
+}
+
+void SModularRigModel::HandleReresolveModules(const TArray<FString>& InPaths)
+{
+	if (ControlRigBlueprint.IsValid())
+	{
+		UModularRigController* Controller = ControlRigBlueprint->GetModularRigController();
+		check(Controller);
+
+		const UModularRig* Rig = GetDefaultModularRig();
+		if (Rig == nullptr)
+		{
+			return;
+		}
+
+		const URigHierarchy* Hierarchy = Rig->GetHierarchy();
+		if(Hierarchy == nullptr)
+		{
+			return;
+		}
+
+		TArray<FRigElementKey> ConnectorKeys;
+		for (const FString& PathAndConnector : InPaths)
+		{
+			FString ModulePath = PathAndConnector;
+			FString ConnectorName;
+			(void)PathAndConnector.Split(TEXT("|"), &ModulePath, &ConnectorName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+
+			const FRigModuleReference* Module = Controller->Model->FindModule(ModulePath);
+			if (!Module)
+			{
+				UE_LOG(LogControlRig, Error, TEXT("Could not find module %s"), *ModulePath);
+				return;
+			}
+
+			if(!ConnectorName.IsEmpty())
+			{
+				// if we are executing this on a primary connector we want to re-resolve all secondaries
+				const FRigConnectorElement* PrimaryConnector = Module->FindPrimaryConnector(Hierarchy);
+				const FName DesiredName = Hierarchy->GetNameMetadata(PrimaryConnector->GetKey(), URigHierarchy::DesiredNameMetadataName, NAME_None);
+				if(!DesiredName.IsNone() && DesiredName.ToString().Equals(ConnectorName, ESearchCase::CaseSensitive))
+				{
+					ConnectorName.Reset();
+				}
+			}
+
+			const TArray<const FRigConnectorElement*> Connectors = Module->FindConnectors(Hierarchy);
+			for(const FRigConnectorElement* Connector : Connectors)
+			{
+				if(Connector->IsSecondary())
+				{
+					if(ConnectorName.IsEmpty())
+					{
+						ConnectorKeys.AddUnique(Connector->GetKey());
+					}
+					else
+					{
+						const FName DesiredName = Hierarchy->GetNameMetadata(Connector->GetKey(), URigHierarchy::DesiredNameMetadataName, NAME_None);
+						if(!DesiredName.IsNone() && DesiredName.ToString().Equals(ConnectorName, ESearchCase::CaseSensitive))
+						{
+							ConnectorKeys.AddUnique(Connector->GetKey());
+							break;
+						}
+					}
+				}
+			}
+		}
+
+		Controller->AutoConnectSecondaryConnectors(ConnectorKeys, true, true);
+	}
+}
+
 void SModularRigModel::HandleConnectorResolved(const FRigElementKey& InConnector, const FRigElementKey& InTarget)
 {
 	if (ControlRigBlueprint.IsValid())
@@ -785,7 +886,7 @@ void SModularRigModel::HandleConnectorDisconnect(const FRigElementKey& InConnect
 		UModularRigController* Controller = ControlRigBlueprint->GetModularRigController();
 		check(Controller);
 
-		Controller->DisconnectConnector(InConnector, true);
+		Controller->DisconnectConnector(InConnector, false, true);
 	}
 }
 
