@@ -90,6 +90,8 @@ void FRewindDebuggerCamera::SetCameraMode(ERewindDebuggerCameraMode InMode)
 	}
 	
 	RewindDebuggerSettings.CameraMode = InMode;
+	RewindDebuggerSettings.Modify();
+	RewindDebuggerSettings.SaveConfig();
 }
 
 void FRewindDebuggerCamera::Update(float DeltaTime, IRewindDebugger* RewindDebugger)
@@ -110,73 +112,75 @@ void FRewindDebuggerCamera::Update(float DeltaTime, IRewindDebugger* RewindDebug
 			bool bCameraTraceDataFound = false;
 			
 			FLevelEditorModule& LevelEditor = FModuleManager::GetModuleChecked<FLevelEditorModule>("LevelEditor");
-			SLevelViewport* LevelViewport = LevelEditor.GetFirstActiveLevelViewport().Get();
-			FLevelEditorViewportClient& LevelViewportClient = LevelViewport->GetLevelViewportClient();
-
-			FVector TargetActorPosition;
-			bool bTargetActorPositionValid = RewindDebugger->GetTargetActorPosition(TargetActorPosition);
-
-
-			if (CameraMode() == ERewindDebuggerCameraMode::FollowTargetActor)
+			if (SLevelViewport* LevelViewport = LevelEditor.GetFirstActiveLevelViewport().Get())
 			{
-				// Follow Actor mode: apply position changes from the target actor to the camera
-				if (bTargetActorPositionValid)
+				FLevelEditorViewportClient& LevelViewportClient = LevelViewport->GetLevelViewportClient();
+
+				FVector TargetActorPosition;
+				bool bTargetActorPositionValid = RewindDebugger->GetTargetActorPosition(TargetActorPosition);
+
+
+				if (CameraMode() == ERewindDebuggerCameraMode::FollowTargetActor)
 				{
-					if(LastPositionValid)
+					// Follow Actor mode: apply position changes from the target actor to the camera
+					if (bTargetActorPositionValid)
 					{
-						LevelViewportClient.SetViewLocation(LevelViewportClient.GetViewLocation() + TargetActorPosition - LastPosition);
+						if(LastPositionValid)
+						{
+							LevelViewportClient.SetViewLocation(LevelViewportClient.GetViewLocation() + TargetActorPosition - LastPosition);
+						}
 					}
 				}
-			}
 
-			// always update the camera actor to the replay values even if it isn't locked
-			if (const IGameplayProvider* GameplayProvider = Session->ReadProvider<IGameplayProvider>("GameplayProvider"))
-			{
-				GameplayProvider->ReadViewTimeline([&bCameraTraceDataFound, this, RewindDebugger, CurrentTraceTime, Session](const IGameplayProvider::ViewTimeline& TimelineData)
+				// always update the camera actor to the replay values even if it isn't locked
+				if (const IGameplayProvider* GameplayProvider = Session->ReadProvider<IGameplayProvider>("GameplayProvider"))
 				{
-					const TraceServices::IFrameProvider& FrameProvider = TraceServices::ReadFrameProvider(*Session);
-					TraceServices::FFrame Frame;
-					if(FrameProvider.GetFrameFromTime(ETraceFrameType::TraceFrameType_Game, CurrentTraceTime, Frame))
+					GameplayProvider->ReadViewTimeline([&bCameraTraceDataFound, this, RewindDebugger, CurrentTraceTime, Session](const IGameplayProvider::ViewTimeline& TimelineData)
 					{
-						TimelineData.EnumerateEvents(Frame.StartTime, Frame.EndTime,
-							[&bCameraTraceDataFound, this, RewindDebugger](double InStartTime, double InEndTime, uint32 InDepth, const FViewMessage& ViewMessage)
-							{
-								if (!CameraActor.IsValid())
+						const TraceServices::IFrameProvider& FrameProvider = TraceServices::ReadFrameProvider(*Session);
+						TraceServices::FFrame Frame;
+						if(FrameProvider.GetFrameFromTime(ETraceFrameType::TraceFrameType_Game, CurrentTraceTime, Frame))
+						{
+							TimelineData.EnumerateEvents(Frame.StartTime, Frame.EndTime,
+								[&bCameraTraceDataFound, this, RewindDebugger](double InStartTime, double InEndTime, uint32 InDepth, const FViewMessage& ViewMessage)
 								{
-									FActorSpawnParameters SpawnParameters;
-									SpawnParameters.ObjectFlags |= RF_Transient;
-									CameraActor = RewindDebugger->GetWorldToVisualize()->SpawnActor<ACameraActor>(ViewMessage.Position, ViewMessage.Rotation, SpawnParameters);
-									CameraActor->SetActorLabel("RewindDebuggerCamera");
-								}
+									if (!CameraActor.IsValid())
+									{
+										FActorSpawnParameters SpawnParameters;
+										SpawnParameters.ObjectFlags |= RF_Transient;
+										CameraActor = RewindDebugger->GetWorldToVisualize()->SpawnActor<ACameraActor>(ViewMessage.Position, ViewMessage.Rotation, SpawnParameters);
+										CameraActor->SetActorLabel("RewindDebuggerCamera");
+									}
 
-								UCameraComponent* Camera = CameraActor->GetCameraComponent();
-								Camera->SetWorldLocationAndRotation(ViewMessage.Position, ViewMessage.Rotation);
-								Camera->SetFieldOfView(ViewMessage.Fov);
-								Camera->SetAspectRatio(ViewMessage.AspectRatio);
+									UCameraComponent* Camera = CameraActor->GetCameraComponent();
+									Camera->SetWorldLocationAndRotation(ViewMessage.Position, ViewMessage.Rotation);
+									Camera->SetFieldOfView(ViewMessage.Fov);
+									Camera->SetAspectRatio(ViewMessage.AspectRatio);
 
-								bCameraTraceDataFound = true;
+									bCameraTraceDataFound = true;
 
-								return TraceServices::EEventEnumerate::Stop;
-							});
-					}
-				});
-			}
-
-			if (CameraMode() == ERewindDebuggerCameraMode::Replay)
-			{
-				if (CameraActor.IsValid())
-				{
-					LevelViewportClient.SetActorLock(CameraActor.Get());
+									return TraceServices::EEventEnumerate::Stop;
+								});
+						}
+					});
 				}
-			}
 
-			LastPosition = TargetActorPosition;
-			LastPositionValid = bTargetActorPositionValid;
+				if (CameraMode() == ERewindDebuggerCameraMode::Replay)
+				{
+					if (CameraActor.IsValid())
+					{
+						LevelViewportClient.SetActorLock(CameraActor.Get());
+					}
+				}
 
-			if (bCameraTraceDataFound) // don't update this if there was no trace data found, because when first pausing, it can take a few frames for latest data to get processed
-			{
-				// only update camera in playback or scrubbing when the time has changed (allow free movement when paused)
-				LastCameraScrubTime = CurrentTraceTime;
+				LastPosition = TargetActorPosition;
+				LastPositionValid = bTargetActorPositionValid;
+
+				if (bCameraTraceDataFound) // don't update this if there was no trace data found, because when first pausing, it can take a few frames for latest data to get processed
+				{
+					// only update camera in playback or scrubbing when the time has changed (allow free movement when paused)
+					LastCameraScrubTime = CurrentTraceTime;
+				}
 			}
 		}
 	}

@@ -257,7 +257,7 @@ void SRewindDebugger::Construct(const FArguments& InArgs, TSharedRef<FUICommandL
 	DebugTargetActor.Initialize(InArgs._DebugTargetActor);
 	IsPIESimulating = InArgs._IsPIESimulating;
 	CommandList = InCommandList;
-	
+
 	TrackFilterBox = SNew(SSearchBox).HintText(LOCTEXT("Filter Tracks","Filter Tracks")).OnTextChanged_Lambda([this](const FText&)
 	{
 		RefreshDebugComponents();
