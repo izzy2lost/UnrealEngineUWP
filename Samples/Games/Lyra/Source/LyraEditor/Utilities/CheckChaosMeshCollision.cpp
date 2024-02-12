@@ -23,9 +23,9 @@ bool CheckMeshDataForProblem(const Chaos::FTriangleMeshImplicitObject::Particles
 
 		for (int32 FaceIdx = 0; FaceIdx < NumTriangles; ++FaceIdx)
 		{
-			const VecType& A = Particles.X(Elements[FaceIdx][0]);
-			const VecType& B = Particles.X(Elements[FaceIdx][1]);
-			const VecType& C = Particles.X(Elements[FaceIdx][2]);
+			const VecType& A = Particles.GetX(Elements[FaceIdx][0]);
+			const VecType& B = Particles.GetX(Elements[FaceIdx][1]);
+			const VecType& C = Particles.GetX(Elements[FaceIdx][2]);
 
 			const VecType AB = B - A;
 			const VecType AC = C - A;
