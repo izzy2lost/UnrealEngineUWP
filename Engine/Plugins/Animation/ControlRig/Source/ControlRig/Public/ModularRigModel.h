@@ -256,6 +256,7 @@ public:
 		Modules = Other.Modules;
 		Connections = Other.Connections;
 		UpdateCachedChildren();
+		Connections.UpdateFromConnectionList();
 	}
 	
 	FModularRigModel& operator=(const FModularRigModel& Other)
@@ -263,6 +264,7 @@ public:
 		Modules = Other.Modules;
 		Connections = Other.Connections;
 		UpdateCachedChildren();
+		Connections.UpdateFromConnectionList();
 		return *this;
 	}
 	FModularRigModel(FModularRigModel&&) = delete;

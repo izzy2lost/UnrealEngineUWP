@@ -444,6 +444,14 @@ bool FSchematicGraphModel::GetContextMenuForNode(const FSchematicGraphNode* InNo
 	return false;
 }
 
+const TArray<TSharedPtr<FSchematicGraphNode>> FSchematicGraphModel::GetSelectedNodes() const
+{
+	return Nodes.FilterByPredicate([](const TSharedPtr<FSchematicGraphNode>& Node)
+	{
+		return Node->IsSelected();
+	});
+}
+
 FLinearColor FSchematicGraphModel::GetBackgroundColorForTag(const FGuid& InNodeGuid, const FGuid& InTagGuid) const
 {
 	if(const FSchematicGraphNode* Node = FindNode(InNodeGuid))

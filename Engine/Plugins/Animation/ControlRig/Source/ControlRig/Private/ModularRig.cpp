@@ -238,6 +238,7 @@ void UModularRig::Serialize(FArchive& Ar)
 	if (Ar.IsLoading())
 	{
 		ModularRigModel.UpdateCachedChildren();
+		ModularRigModel.Connections.UpdateFromConnectionList();
 	}
 }
 
@@ -245,6 +246,7 @@ void UModularRig::PostLoad()
 {
 	Super::PostLoad();
 	ModularRigModel.UpdateCachedChildren();
+	ModularRigModel.Connections.UpdateFromConnectionList();
 	ResetShortestDisplayPathCache();
 }
 
