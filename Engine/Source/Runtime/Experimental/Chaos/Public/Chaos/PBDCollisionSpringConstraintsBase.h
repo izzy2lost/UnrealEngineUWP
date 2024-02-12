@@ -63,14 +63,12 @@ public:
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	template<typename SpatialAccelerator, typename SolverParticlesOrRange>
-	void Init(const SolverParticlesOrRange& Particles, const SpatialAccelerator& Spatial, const TConstArrayView<FPBDTriangleMeshCollisions::FGIAColor>& VertexGIAColors, const TArray<FPBDTriangleMeshCollisions::FGIAColor>& TriangleGIAColors)
-	{
-		constexpr FSolverReal Dt_BigNumber = UE_BIG_NUMBER; // This will disable the timers feature on kinematic colliders.
-		return Init(Particles, Dt_BigNumber, FPBDTriangleMeshCollisions::FTriangleSubMesh(TriangleMesh), Spatial, VertexGIAColors, TriangleGIAColors);
-	}
+	UE_DEPRECATED(5.4, "Use Init with CollidableSubMesh. This method is much less efficient as it recreates the CollidableSubMesh each call.")
+	void Init(const SolverParticlesOrRange& Particles, const SpatialAccelerator& Spatial, const TConstArrayView<FPBDTriangleMeshCollisions::FGIAColor>& VertexGIAColors, const TArray<FPBDTriangleMeshCollisions::FGIAColor>& TriangleGIAColors);
 
 	template<typename SpatialAccelerator, typename SolverParticlesOrRange>
-	void Init(const SolverParticlesOrRange& Particles, const FSolverReal Dt, const FPBDTriangleMeshCollisions::FTriangleSubMesh& CollidableSubMesh, const SpatialAccelerator& Spatial, const TConstArrayView<FPBDTriangleMeshCollisions::FGIAColor>& VertexGIAColors, const TArray<FPBDTriangleMeshCollisions::FGIAColor>& TriangleGIAColors);
+	void Init(const SolverParticlesOrRange& Particles, const FSolverReal Dt, const FPBDTriangleMeshCollisions::FTriangleSubMesh& CollidableSubMesh,
+		const SpatialAccelerator& DynamicSpatial, const SpatialAccelerator& KinematicColliderSpatial, const TConstArrayView<FPBDTriangleMeshCollisions::FGIAColor>& VertexGIAColors, const TArray<FPBDTriangleMeshCollisions::FGIAColor>& TriangleGIAColors);
 
 	template<typename SolverParticlesOrRange>
 	CHAOS_API FSolverVec3 GetDelta(const SolverParticlesOrRange& InParticles, const int32 i) const;
@@ -87,6 +85,7 @@ public:
 		return Barys;
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
+
 	FSolverReal GetThickness() const { return Thickness; }
 	bool GetGlobalIntersectionAnalysis() const { return bGlobalIntersectionAnalysis; }
 	const TArray<bool>& GetFlipNormals() const 
@@ -129,15 +128,7 @@ public:
 	}
 
 	template<typename SolverParticlesOrRange>
-	void Apply(SolverParticlesOrRange& InParticles, const FSolverReal Dt) const
-	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		for (int32 ConstraintIndex = 0; ConstraintIndex < Constraints.Num(); ++ConstraintIndex)
-		{
-			Apply(InParticles, Dt, ConstraintIndex);
-		}
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	}
+	void Apply(SolverParticlesOrRange& InParticles, const FSolverReal Dt) const;
 
 	void Apply(FSolverParticles& InParticles, const FSolverReal Dt, const TArray<int32>& InConstraintIndices) const
 	{
@@ -212,6 +203,9 @@ protected:
 
 private:
 
+	template<typename SolverParticlesOrRange>
+	void ApplyKinematicConstraints(SolverParticlesOrRange& InParticles, const FSolverReal Dt) const;
+
 	const FTriangleMesh& TriangleMesh;
 	const TArray<FSolverVec3>* ReferencePositions;
 	const TSet<TVec2<int32>> DisabledCollisionElements;  // TODO: Make this a bitarray
@@ -226,17 +220,27 @@ private:
 	};
 	TArray<EConstraintType> ConstraintTypes;
 
-	struct FExistingConstraintData
-	{
-		FSolverReal Timer;
-	};
-	TArray<TMap<int32, FExistingConstraintData>> ExistingConstraintLookup; // ArrayIndex = ParticleIndex (without offset), MapKey = FaceIndex (full mesh)
+	static constexpr int32 MaxKinematicConnectionsPerPoint = 3;
+	// Parallel arrays (for ISPC SOA)
+	TArray<int32> KinematicCollidingParticles;
+	TArray<TVector<int32, MaxKinematicConnectionsPerPoint>> KinematicColliderElements;
+
+	TArray<TMap<int32, FSolverReal>> KinematicColliderTimers; // Keep constraints for a cvar-defined time after it's moved out of proximity. Helps reduce jitter.
 
 	int32 Offset;
 	int32 NumParticles;
 	bool bGlobalIntersectionAnalysis; // This is set based on which Init is called.
 };
-
 }  // End namespace Chaos::Softs
+
+// Support ISPC enable/disable in non-shipping builds
+#if !INTEL_ISPC
+const bool bChaos_CollisionSpring_ISPC_Enabled = false;
+#elif UE_BUILD_SHIPPING
+const bool bChaos_CollisionSpring_ISPC_Enabled = true;
+#else
+extern CHAOS_API bool bChaos_CollisionSpring_ISPC_Enabled;
+#endif
+
 
 #endif

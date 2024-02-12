@@ -743,6 +743,28 @@ inline void VectorScatter(uniform FVector4f *varying DstPtr, const varying FVect
 	}
 }
 
+inline varying FIntVector VectorGather(const uniform FIntVector *varying SrcPtr)
+{
+	varying FIntVector Result;
+
+	if (((1 << TARGET_WIDTH) - 1 ^ lanemask()) == 0)
+	{
+#if TARGET_WIDTH == 4
+		AosToSoa3Explicit((uniform int32* varying)SrcPtr, (uniform int32* uniform)&Result);
+#else
+		UniformLoad(SrcPtr, (uniform FIntVector* uniform)&Result);
+		aos_to_soa3_ispc((uniform int32* uniform)&Result, &Result.V[0], &Result.V[1], &Result.V[2]);
+#endif
+	}
+	else
+	{
+		#pragma ignore warning(perf)
+		Result = *SrcPtr;
+	}
+
+	return Result;
+}
+
 inline FVector4d operator+(const FVector4d &A, const FVector4d &B)
 {
 	FVector4d Result;
@@ -4018,20 +4040,30 @@ inline uniform T VectorReduceMax(const T& A)
 	return SetVector(reduce_max(A.V[0]), reduce_max(A.V[1]), reduce_max(A.V[2]));
 }
 
-inline FVector3d VectorGetSafeNormal(const FVector3d &V)
+inline FVector3d VectorGetSafeNormal(const FVector3d &V, const uniform FVector3d &ResultIfZero)
 {
 	//We want N / ||N|| and to avoid inf
 	//So we want N / ||N|| < 1 / eps => N eps < ||N||, but this is clearly true for all eps < 1 and N > 0
 	double SizeSqr = VectorSizeSquared(V);
-	return VectorSelect(SizeSqr <= DBL_MIN, DoubleForwardVector, V / sqrt(SizeSqr));
+	return VectorSelect(SizeSqr <= DBL_MIN, ResultIfZero, V / sqrt(SizeSqr));
 }
 
-inline FVector3f VectorGetSafeNormal(const FVector3f &V)
+inline FVector3f VectorGetSafeNormal(const FVector3f &V, const uniform FVector3f &ResultIfZero)
 {
 	//We want N / ||N|| and to avoid inf
 	//So we want N / ||N|| < 1 / eps => N eps < ||N||, but this is clearly true for all eps < 1 and N > 0
 	float SizeSqr = VectorSizeSquared(V);
-	return VectorSelect(SizeSqr <= FLT_MIN, FloatForwardVector, V / sqrt(SizeSqr));
+	return VectorSelect(SizeSqr <= FLT_MIN, ResultIfZero, V / sqrt(SizeSqr));
+}
+
+inline FVector3d VectorGetSafeNormal(const FVector3d &V)
+{
+	return VectorGetSafeNormal(V, DoubleForwardVector);
+}
+
+inline FVector3f VectorGetSafeNormal(const FVector3f &V)
+{
+	return VectorGetSafeNormal(V, FloatForwardVector);
 }
 
 #endif

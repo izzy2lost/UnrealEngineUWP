@@ -7,20 +7,31 @@
 #include "Chaos/PBDSoftsSolverParticles.h"
 #include "Chaos/SoftsEvolutionLinearSystem.h"
 #include "Chaos/SoftsSolverParticlesRange.h"
+#if INTEL_ISPC
+#include "PBDCollisionSpringConstraints.ispc.generated.h"
+#endif
 
 #if !COMPILE_WITHOUT_UNREAL_SUPPORT
 #include "Chaos/Framework/Parallel.h"
 #include <atomic>
 
+#if INTEL_ISPC && !UE_BUILD_SHIPPING
+static_assert(sizeof(ispc::FVector3f) == sizeof(Chaos::Softs::FSolverVec3), "sizeof(ispc::FVector3f) != sizeof(Chaos::Softs::FSolverVec3)");
+static_assert(sizeof(ispc::FVector4f) == sizeof(Chaos::Softs::FPAndInvM), "sizeof(ispc::FVector4f) != sizeof(Chaos::Softs::FPAndInvM");
+static_assert(sizeof(ispc::FIntVector) == sizeof(Chaos::TVec3<int32>), "sizeof(ispc::FIntVector) != sizeof(Chaos::TVec3<int32>");
+
+bool bChaos_CollisionSpring_ISPC_Enabled = true;
+FAutoConsoleVariableRef CVarChaosCollisionSpringsISPCEnabled(TEXT("p.Chaos.CollisionSpring.ISPC"), bChaos_CollisionSpring_ISPC_Enabled, TEXT("Whether to use ISPC optimizations in collision spring constraints"));
+#endif
+
+#if UE_BUILD_SHIPPING
+static constexpr Chaos::Softs::FSolverReal KinematicColliderMaxTimer = (Chaos::Softs::FSolverReal)0.1f;
+#else
+Chaos::Softs::FSolverReal KinematicColliderMaxTimer = (Chaos::Softs::FSolverReal)0.1f;
+FAutoConsoleVariableRef CVarChaosCollisionSpringMaxTimer(TEXT("p.Chaos.CollisionSpring.MaxTimer"), KinematicColliderMaxTimer, TEXT("Amount of time (in seconds) to remember a kinematic collision connection after it has moved more than Thickness away. Increasing this can reduce jitter at the cost of more computation."));
+#endif
+
 namespace Chaos::Softs {
-
-int32 DebugParticleIndex = INDEX_NONE;
-FAutoConsoleVariableRef CVarChaosClothDebugParticleIndex(TEXT("p.ChaosCloth.DebugParticleIndex"), DebugParticleIndex, TEXT("DebugParticleIndex"));
-
-FSolverReal Chaos_CollisionSpring_MaxTimer = (FSolverReal)0.1f;
-FAutoConsoleVariableRef CVarChaosCollisionSPringMaxTimer(TEXT("p.Chaos.CollisionSpring.MaxTimer"), Chaos_CollisionSpring_MaxTimer, TEXT("Max Timer"));
-
-
 
 static TConstArrayView<FSolverVec3> GetConstArrayView(const FSolverParticles& Particles, int32 Offset, int32 NumParticles, const TArray<FSolverVec3>* const Data)
 {
@@ -106,32 +117,50 @@ void FPBDCollisionSpringConstraintsBase::UpdateCollisionLayers(const TConstArray
 }
 
 template<typename SpatialAccelerator, typename SolverParticlesOrRange>
-void FPBDCollisionSpringConstraintsBase::Init(const SolverParticlesOrRange& Particles, const FSolverReal Dt, const FPBDTriangleMeshCollisions::FTriangleSubMesh& CollidableSubMesh, const SpatialAccelerator& Spatial,
-	const TConstArrayView<FPBDTriangleMeshCollisions::FGIAColor>& VertexGIAColors, const TArray<FPBDTriangleMeshCollisions::FGIAColor>& TriangleGIAColors)
+void FPBDCollisionSpringConstraintsBase::Init(const SolverParticlesOrRange& Particles, const SpatialAccelerator& Spatial, const TConstArrayView<FPBDTriangleMeshCollisions::FGIAColor>& VertexGIAColors, const TArray<FPBDTriangleMeshCollisions::FGIAColor>& TriangleGIAColors)
+{
+	FPBDTriangleMeshCollisions::FTriangleSubMesh SubMesh(TriangleMesh);
+	SubMesh.InitAllDynamic();
+	SpatialAccelerator UnusedKinematicSpatial;
+	constexpr FSolverReal LargeDt = UE_BIG_NUMBER; // This will disable all kinematic collider timers.
+	Init(Particles, LargeDt, SubMesh, Spatial, UnusedKinematicSpatial, VertexGIAColors, TriangleGIAColors);
+}
+template void CHAOS_API FPBDCollisionSpringConstraintsBase::Init<FTriangleMesh::TBVHType<FSolverReal>>(const FSolverParticles& Particles, const FTriangleMesh::TBVHType<FSolverReal>& Spatial, 
+	const TConstArrayView<FPBDTriangleMeshCollisions::FGIAColor>& VertexGIAColors, const TArray<FPBDTriangleMeshCollisions::FGIAColor>& TriangleGIAColors);
+template void CHAOS_API FPBDCollisionSpringConstraintsBase::Init<FTriangleMesh::TSpatialHashType<FSolverReal>>(const FSolverParticles& Particles, const FTriangleMesh::TSpatialHashType<FSolverReal>& Spatial,
+	const TConstArrayView<FPBDTriangleMeshCollisions::FGIAColor>& VertexGIAColors, const TArray<FPBDTriangleMeshCollisions::FGIAColor>& TriangleGIAColors);
+template void CHAOS_API FPBDCollisionSpringConstraintsBase::Init<FTriangleMesh::TBVHType<FSolverReal>>(const FSolverParticlesRange& Particles, const FTriangleMesh::TBVHType<FSolverReal>& Spatial,
+	const TConstArrayView<FPBDTriangleMeshCollisions::FGIAColor>& VertexGIAColors, const TArray<FPBDTriangleMeshCollisions::FGIAColor>& TriangleGIAColors);
+template void CHAOS_API FPBDCollisionSpringConstraintsBase::Init<FTriangleMesh::TSpatialHashType<FSolverReal>>(const FSolverParticlesRange& Particles, const FTriangleMesh::TSpatialHashType<FSolverReal>& Spatial,
+	const TConstArrayView<FPBDTriangleMeshCollisions::FGIAColor>& VertexGIAColors, const TArray<FPBDTriangleMeshCollisions::FGIAColor>& TriangleGIAColors);
+
+template<typename SpatialAccelerator, typename SolverParticlesOrRange>
+void FPBDCollisionSpringConstraintsBase::Init(const SolverParticlesOrRange& Particles, const FSolverReal Dt, const FPBDTriangleMeshCollisions::FTriangleSubMesh& CollidableSubMesh,
+	const SpatialAccelerator& DynamicSpatial, const SpatialAccelerator& KinematicColliderSpatial, const TConstArrayView<FPBDTriangleMeshCollisions::FGIAColor>& VertexGIAColors, const TArray<FPBDTriangleMeshCollisions::FGIAColor>& TriangleGIAColors)
 {
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	const FTriangleMesh& CollidableMesh = CollidableSubMesh.GetCollidableMesh();
-	const TArray<TVec3<int32>>& Elements = CollidableMesh.GetElements();
+	const int32 NumDynamicElements = CollidableSubMesh.GetDynamicSubMesh().GetNumElements();
 
-	if (!Elements.Num())
+	if (!NumDynamicElements)
 	{
 		Constraints.Reset();
 		Barys.Reset();
 		FlipNormal.Reset();
 		ConstraintTypes.Reset();
+		KinematicCollidingParticles.Reset();
+		KinematicColliderElements.Reset();
 		return;
 	}
 	{
-		if (ExistingConstraintLookup.Num() != NumParticles)
+		if (KinematicColliderTimers.Num() != NumParticles)
 		{
-			ExistingConstraintLookup.Reset();
-			ExistingConstraintLookup.SetNum(NumParticles);
+			KinematicColliderTimers.Init(TMap<int32, FSolverReal>(), NumParticles);
 		}
 
-		bGlobalIntersectionAnalysis = VertexGIAColors.Num() == NumParticles + Offset && TriangleGIAColors.Num() == Elements.Num();
+		bGlobalIntersectionAnalysis = VertexGIAColors.Num() == NumParticles + Offset && TriangleGIAColors.Num() == NumDynamicElements;
 		TRACE_CPUPROFILER_EVENT_SCOPE(ChaosPBDCollisionSpring_ProximityQuery);
 
-		const int32 NumCollidableParticles = CollidableSubMesh.GetCollidableVertices().IsEmpty() ? NumParticles : CollidableSubMesh.GetCollidableVertices().Num();
+		const int32 NumCollidableParticles = CollidableSubMesh.GetDynamicVertices().IsEmpty() ? NumParticles : CollidableSubMesh.GetDynamicVertices().Num();
 
 		// Preallocate enough space for all possible connections.
 		constexpr int32 MaxConnectionsPerPoint = 3;
@@ -140,17 +169,18 @@ void FPBDCollisionSpringConstraintsBase::Init(const SolverParticlesOrRange& Part
 		FlipNormal.SetNumUninitialized(NumCollidableParticles * MaxConnectionsPerPoint);
 		ConstraintTypes.SetNumUninitialized(NumCollidableParticles * MaxConnectionsPerPoint);
 
-		std::atomic<int32> ConstraintIndex(0);
+		KinematicCollidingParticles.SetNumUninitialized(NumCollidableParticles);
+		KinematicColliderElements.SetNumUninitialized(NumCollidableParticles);
 
-		const FSolverReal MaxSingleSidedThickness = FMath::Max(Thickness, KinematicColliderThickness);
-		const FSolverReal HeightSq = FMath::Square(Thickness + MaxSingleSidedThickness);
+		std::atomic<int32> ConstraintIndex(0);
+		std::atomic<int32> KinematicConstraintIndex(0);
 
 		const TConstArrayView<FSolverVec3> ReferencePositionsView = GetConstArrayView(Particles, Offset, NumParticles, ReferencePositions);
 
 		PhysicsParallelFor(NumCollidableParticles,
-			[this, Dt, &CollidableSubMesh, &CollidableMesh, &Elements, &Spatial, &Particles, &ConstraintIndex, MaxSingleSidedThickness, HeightSq, MaxConnectionsPerPoint, &VertexGIAColors, &TriangleGIAColors, &ReferencePositionsView](int32 CollidableIndex)
+			[this, Dt, &CollidableSubMesh, &DynamicSpatial, &KinematicColliderSpatial, &Particles, &ConstraintIndex, &KinematicConstraintIndex, MaxConnectionsPerPoint, &VertexGIAColors, &TriangleGIAColors, &ReferencePositionsView](int32 CollidableIndex)
 			{
-				const int32 i = CollidableSubMesh.GetCollidableVertices().IsEmpty() ? CollidableIndex : CollidableSubMesh.GetCollidableVertices()[CollidableIndex];
+				const int32 i = CollidableSubMesh.GetDynamicVertices().IsEmpty() ? CollidableIndex : CollidableSubMesh.GetDynamicVertices()[CollidableIndex] - Offset; // DynamicVertices already has offset applied.
 				const int32 Index = i + Offset;
 				if (Particles.InvM(Index) == (FSolverReal)0.)
 				{
@@ -161,27 +191,23 @@ void FPBDCollisionSpringConstraintsBase::Init(const SolverParticlesOrRange& Part
 				const bool bVertexHasCollisionLayers = VertexCollisionLayers.IsValidIndex(i) && VertexCollisionLayers[i][0] != INDEX_NONE;
 				check(!bVertexHasCollisionLayers || VertexCollisionLayers[i][0] <= VertexCollisionLayers[i][1]);
 
-				TMap<int32, FExistingConstraintData> PrevExistingConstraintLookup;
-				Swap(PrevExistingConstraintLookup, ExistingConstraintLookup[i]);
-
-				TArray< TTriangleCollisionPoint<FSolverReal> > Result;
-				int32 ConstraintsAdded = 0;
-				if (CollidableMesh.PointProximityQuery(Spatial, static_cast<const TArrayView<const FSolverVec3>&>(Particles.XArray()), Index, Particles.GetX(Index), Thickness * ExtraThicknessMult, MaxSingleSidedThickness * ExtraThicknessMult,
-					[this, bVertexHasCollisionLayers, &Particles, &CollidableSubMesh, &Elements, &VertexGIAColors, &TriangleGIAColors](const int32 PointIndex, const int32 SubMeshTriangleIndex)->bool
+				// Dynamic collisions
+				TArray< TTriangleCollisionPoint<FSolverReal> > DynamicResult;
+				if (CollidableSubMesh.GetDynamicSubMesh().PointProximityQuery(DynamicSpatial, static_cast<const TArrayView<const FSolverVec3>&>(Particles.XArray()), Index, Particles.X(Index), Thickness * ExtraThicknessMult, Thickness * ExtraThicknessMult,
+					[this, bVertexHasCollisionLayers, &Particles, &CollidableSubMesh, &VertexGIAColors, &TriangleGIAColors](const int32 PointIndex, const int32 SubMeshTriangleIndex)->bool
 					{
-						const TVector<int32, 3>& Elem = Elements[SubMeshTriangleIndex];
-						const int32 FullMeshTriangleIndex = CollidableSubMesh.FullMeshIndexFromSubIndex(SubMeshTriangleIndex);
+						const TVector<int32, 3>& Elem = CollidableSubMesh.GetDynamicSubMesh().GetElements()[SubMeshTriangleIndex];
+						const int32 FullMeshTriangleIndex = CollidableSubMesh.GetFullMeshElementIndexFromDynamicElement(SubMeshTriangleIndex);
 
-						const bool bFaceIsKinematic = CollidableSubMesh.GetSubMeshElementIsKinematic()[SubMeshTriangleIndex];
 						bool bUseCollisionLayerOverride = false;
-						if (!bFaceIsKinematic && bVertexHasCollisionLayers && FaceCollisionLayers[FullMeshTriangleIndex] != INDEX_NONE)
+						if (bVertexHasCollisionLayers && FaceCollisionLayers[FullMeshTriangleIndex] != INDEX_NONE)
 						{
 							if (FaceCollisionLayers[FullMeshTriangleIndex] < VertexCollisionLayers[PointIndex - Offset][0] || FaceCollisionLayers[FullMeshTriangleIndex] > VertexCollisionLayers[PointIndex - Offset][1])
 							{
 								bUseCollisionLayerOverride = true;
 							}
 						}
-						if (!bFaceIsKinematic && !bUseCollisionLayerOverride && bGlobalIntersectionAnalysis)
+						if (!bUseCollisionLayerOverride && bGlobalIntersectionAnalysis)
 						{
 							const bool bIsAnyBoundary = VertexGIAColors[PointIndex].IsBoundary()
 								|| VertexGIAColors[Elem[0]].IsBoundary() 
@@ -213,24 +239,24 @@ void FPBDCollisionSpringConstraintsBase::Init(const SolverParticlesOrRange& Part
 
 						return true;
 					},
-					Result))
+					DynamicResult))
 				{
 
-					if (Result.Num() > MaxConnectionsPerPoint)
+					if (DynamicResult.Num() > MaxConnectionsPerPoint)
 					{
 						// TODO: once we have a PartialSort, use that instead here.
-						Result.Sort(
+						DynamicResult.Sort(
 							[](const TTriangleCollisionPoint<FSolverReal>& First, const TTriangleCollisionPoint<FSolverReal>& Second)->bool
 							{
 								return First.Phi < Second.Phi;
 							}
 						);
-						Result.SetNum(MaxConnectionsPerPoint, EAllowShrinking::No);
+						DynamicResult.SetNum(MaxConnectionsPerPoint, EAllowShrinking::No);
 					}
 
-					for (const TTriangleCollisionPoint<FSolverReal>& CollisionPoint : Result)
+					for (const TTriangleCollisionPoint<FSolverReal>& CollisionPoint : DynamicResult)
 					{
-						const TVector<int32, 3>& Elem = Elements[CollisionPoint.Indices[1]];
+						const TVector<int32, 3>& Elem = CollidableSubMesh.GetDynamicSubMesh().GetElements()[CollisionPoint.Indices[1]];
 						if (ReferencePositionsView.Num())
 						{
 							const FSolverVec3& RefP = ReferencePositionsView[Index];
@@ -238,32 +264,22 @@ void FPBDCollisionSpringConstraintsBase::Init(const SolverParticlesOrRange& Part
 							const FSolverVec3& RefP1 = ReferencePositionsView[Elem[1]];
 							const FSolverVec3& RefP2 = ReferencePositionsView[Elem[2]];
 							const FSolverVec3 RefDiff = RefP - CollisionPoint.Bary[1] * RefP0 - CollisionPoint.Bary[2] * RefP1 - CollisionPoint.Bary[3] * RefP2;
-							if (RefDiff.SizeSquared() < HeightSq)
+							if (RefDiff.SizeSquared() < FMath::Square(Thickness))
 							{
 								continue;
 							}
 						}
 
-
 						FSolverVec3 Bary(CollisionPoint.Bary[1], CollisionPoint.Bary[2], CollisionPoint.Bary[3]);
 
-						const int32 FullMeshTriangleIndex = CollidableSubMesh.FullMeshIndexFromSubIndex(CollisionPoint.Indices[1]);
+						const int32 FullMeshTriangleIndex = CollidableSubMesh.GetFullMeshElementIndexFromDynamicElement(CollisionPoint.Indices[1]);
 
 						bool bFlipNormal = false;
-						// Check kinematic
-						const bool bFaceIsKinematic = CollidableSubMesh.GetSubMeshElementIsKinematic()[CollisionPoint.Indices[1]];
-						if (bFaceIsKinematic)
-						{
-							PrevExistingConstraintLookup.Remove(FullMeshTriangleIndex);
-							// Chaos internal winding order is reversed.
-							bFlipNormal = true;
-						}
-
-						EConstraintType ConstraintType = bFaceIsKinematic ? EConstraintType::Kinematic : EConstraintType::Default;
+						EConstraintType ConstraintType = EConstraintType::Default;
 
 						// Check collision layers
 						bool bUseCollisionLayerOverride = false;
-						if (!bFaceIsKinematic && bVertexHasCollisionLayers && FaceCollisionLayers[FullMeshTriangleIndex] != INDEX_NONE)
+						if (bVertexHasCollisionLayers && FaceCollisionLayers[FullMeshTriangleIndex] != INDEX_NONE)
 						{
 							if (FaceCollisionLayers[FullMeshTriangleIndex] < VertexCollisionLayers[i][0])
 							{
@@ -281,7 +297,7 @@ void FPBDCollisionSpringConstraintsBase::Init(const SolverParticlesOrRange& Part
 							}
 						}
 
-						if (!bFaceIsKinematic && !bUseCollisionLayerOverride)
+						if (!bUseCollisionLayerOverride)
 						{
 							// NOTE: CollisionPoint.Normal has already been flipped to point toward the Point, so need to recalculate here.
 							const TTriangle<FSolverReal> Triangle(Particles.GetX(Elem[0]), Particles.GetX(Elem[1]), Particles.GetX(Elem[2]));
@@ -306,31 +322,70 @@ void FPBDCollisionSpringConstraintsBase::Init(const SolverParticlesOrRange& Part
 						Barys[IndexToWrite] = Bary;
 						FlipNormal[IndexToWrite] = bFlipNormal;
 						ConstraintTypes[IndexToWrite] = ConstraintType;
-						if (ConstraintType == EConstraintType::Kinematic)
-						{
-							// Remember this constraint
-							ExistingConstraintLookup[i].Add(FullMeshTriangleIndex, {0.f});
-						}
-						++ConstraintsAdded;
 					}
 				}
-				
-				for (TMap<int32, FExistingConstraintData>::TConstIterator PrevData = PrevExistingConstraintLookup.CreateConstIterator(); PrevData && ConstraintsAdded < MaxConnectionsPerPoint; ++PrevData)
+
+				// Kinematic colliders
+				// Increment existing timers and remove any elements that are too old.
+				for(TMap<int32, FSolverReal>::TIterator TimerIter = KinematicColliderTimers[i].CreateIterator(); TimerIter; ++TimerIter)
 				{
-					if (PrevData.Value().Timer + Dt <= Chaos_CollisionSpring_MaxTimer)
+					TimerIter.Value() += Dt;
+					if (TimerIter.Value() > KinematicColliderMaxTimer)
 					{
-						const int32 SubMeshIndex = CollidableSubMesh.SubMeshIndexFromFullIndex(PrevData.Key());
-						if (SubMeshIndex != INDEX_NONE)
+						TimerIter.RemoveCurrent();
+					}
+				}
+
+				if(CollidableSubMesh.GetKinematicColliderSubMesh().GetNumElements() > 0)
+				{
+					TArray< TTriangleCollisionPoint<FSolverReal> > KinematicResult;
+					if (CollidableSubMesh.GetKinematicColliderSubMesh().PointProximityQuery(KinematicColliderSpatial, static_cast<const TArrayView<const FSolverVec3>&>(Particles.XArray()), Index, Particles.X(Index), Thickness * ExtraThicknessMult, KinematicColliderThickness * ExtraThicknessMult, [](const int32 PointIndex, const int32 SubMeshTriangleIndex)->bool { return true; }, KinematicResult))
+					{
+						if (KinematicResult.Num() > MaxKinematicConnectionsPerPoint)
 						{
-							const int32 IndexToWrite = ConstraintIndex.fetch_add(1);
-							const TVec3<int32>& Elem = Elements[SubMeshIndex];
-							Constraints[IndexToWrite] = { Index, Elem[0], Elem[1], Elem[2] };
-							Barys[IndexToWrite] = FSolverVec3(1.f, 0.f, 0.f); // Unused
-							FlipNormal[IndexToWrite] = true;
-							ConstraintTypes[IndexToWrite] = EConstraintType::Kinematic;
-							ExistingConstraintLookup[i].Add(PrevData.Key(), {PrevData.Value().Timer + Dt});
-							++ConstraintsAdded;
+							// TODO: once we have a PartialSort, use that instead here.
+							KinematicResult.Sort(
+								[](const TTriangleCollisionPoint<FSolverReal>& First, const TTriangleCollisionPoint<FSolverReal>& Second)->bool
+							{
+								return First.Phi < Second.Phi;
+							}
+							);
+							KinematicResult.SetNum(MaxKinematicConnectionsPerPoint, EAllowShrinking::No);
 						}
+						for (const TTriangleCollisionPoint<FSolverReal>& CollisionPoint : KinematicResult)
+						{
+							const int32 FullMeshTriangleIndex = CollidableSubMesh.GetFullMeshElementIndexFromKinematicElement(CollisionPoint.Indices[1]);
+							KinematicColliderTimers[i].FindOrAdd(FullMeshTriangleIndex, (FSolverReal)0.f);
+						}
+					}
+				}
+
+				// Get MaxKinematicConnectionsPerPoint most recent
+				if (KinematicColliderTimers[i].Num() > MaxKinematicConnectionsPerPoint)
+				{
+					KinematicColliderTimers[i].ValueSort([](const FSolverReal A, const FSolverReal B) { return A < B; });
+				}
+
+				if (KinematicColliderTimers[i].Num() > 0)
+				{
+					const int32 IndexToWrite = KinematicConstraintIndex.fetch_add(1);
+					KinematicCollidingParticles[IndexToWrite] = Index;
+
+					int32 LocalIndex = 0;
+					for (TMap<int32, FSolverReal>::TIterator TimerIter = KinematicColliderTimers[i].CreateIterator(); TimerIter; ++TimerIter)
+					{
+						if (LocalIndex < MaxKinematicConnectionsPerPoint)
+						{
+							KinematicColliderElements[IndexToWrite][LocalIndex++] = TimerIter.Key();
+						}
+						else
+						{
+							TimerIter.RemoveCurrent();
+						}
+					}
+					for (; LocalIndex < MaxKinematicConnectionsPerPoint; ++LocalIndex)
+					{
+						KinematicColliderElements[IndexToWrite][LocalIndex] = INDEX_NONE;
 					}
 				}
 			}
@@ -342,16 +397,24 @@ void FPBDCollisionSpringConstraintsBase::Init(const SolverParticlesOrRange& Part
 		Barys.SetNum(ConstraintNum, EAllowShrinking::No);
 		FlipNormal.SetNum(ConstraintNum, EAllowShrinking::No);
 		ConstraintTypes.SetNum(ConstraintNum, EAllowShrinking::No);
+
+		const int32 KinematicConstraintNum = KinematicConstraintIndex.load();
+		KinematicCollidingParticles.SetNum(KinematicConstraintNum, EAllowShrinking::No);
+		KinematicColliderElements.SetNum(KinematicConstraintNum, EAllowShrinking::No);
 	}
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
-template void CHAOS_API FPBDCollisionSpringConstraintsBase::Init<FTriangleMesh::TBVHType<FSolverReal>>(const FSolverParticles& Particles, const FSolverReal Dt, const FPBDTriangleMeshCollisions::FTriangleSubMesh& CollidableSubMesh, const FTriangleMesh::TBVHType<FSolverReal>& Spatial,
+template void CHAOS_API FPBDCollisionSpringConstraintsBase::Init<FTriangleMesh::TBVHType<FSolverReal>>(const FSolverParticles& Particles, const FSolverReal Dt,
+	const FPBDTriangleMeshCollisions::FTriangleSubMesh& CollidableSubMesh, const FTriangleMesh::TBVHType<FSolverReal>& DynamicSpatial, const FTriangleMesh::TBVHType<FSolverReal>& KinematicColliderSpatial,
 	const TConstArrayView<FPBDTriangleMeshCollisions::FGIAColor>& VertexGIAColors, const TArray<FPBDTriangleMeshCollisions::FGIAColor>& TriangleGIAColors);
-template void CHAOS_API FPBDCollisionSpringConstraintsBase::Init<FTriangleMesh::TSpatialHashType<FSolverReal>>(const FSolverParticles& Particles, const FSolverReal Dt, const FPBDTriangleMeshCollisions::FTriangleSubMesh& CollidableSubMesh, const FTriangleMesh::TSpatialHashType<FSolverReal>& Spatial,
+template void CHAOS_API FPBDCollisionSpringConstraintsBase::Init<FTriangleMesh::TSpatialHashType<FSolverReal>>(const FSolverParticles& Particles, const FSolverReal Dt,
+	const FPBDTriangleMeshCollisions::FTriangleSubMesh& CollidableSubMesh, const FTriangleMesh::TSpatialHashType<FSolverReal>& DynamicSpatial, const FTriangleMesh::TSpatialHashType<FSolverReal>& KinematicColliderSpatial,
 	const TConstArrayView<FPBDTriangleMeshCollisions::FGIAColor>& VertexGIAColors, const TArray<FPBDTriangleMeshCollisions::FGIAColor>& TriangleGIAColors);
-template void CHAOS_API FPBDCollisionSpringConstraintsBase::Init<FTriangleMesh::TBVHType<FSolverReal>>(const FSolverParticlesRange& Particles, const FSolverReal Dt, const FPBDTriangleMeshCollisions::FTriangleSubMesh& CollidableSubMesh, const FTriangleMesh::TBVHType<FSolverReal>& Spatial,
+template void CHAOS_API FPBDCollisionSpringConstraintsBase::Init<FTriangleMesh::TBVHType<FSolverReal>>(const FSolverParticlesRange& Particles, const FSolverReal Dt,
+	const FPBDTriangleMeshCollisions::FTriangleSubMesh& CollidableSubMesh, const FTriangleMesh::TBVHType<FSolverReal>& DynamicSpatial, const FTriangleMesh::TBVHType<FSolverReal>& KinematicColliderSpatial,
 	const TConstArrayView<FPBDTriangleMeshCollisions::FGIAColor>& VertexGIAColors, const TArray<FPBDTriangleMeshCollisions::FGIAColor>& TriangleGIAColors);
-template void CHAOS_API FPBDCollisionSpringConstraintsBase::Init<FTriangleMesh::TSpatialHashType<FSolverReal>>(const FSolverParticlesRange& Particles, const FSolverReal Dt, const FPBDTriangleMeshCollisions::FTriangleSubMesh& CollidableSubMesh, const FTriangleMesh::TSpatialHashType<FSolverReal>& Spatial,
+template void CHAOS_API FPBDCollisionSpringConstraintsBase::Init<FTriangleMesh::TSpatialHashType<FSolverReal>>(const FSolverParticlesRange& Particles, const FSolverReal Dt,
+	const FPBDTriangleMeshCollisions::FTriangleSubMesh& CollidableSubMesh, const FTriangleMesh::TSpatialHashType<FSolverReal>& DynamicSpatial, const FTriangleMesh::TSpatialHashType<FSolverReal>& KinematicColliderSpatial,
 	const TConstArrayView<FPBDTriangleMeshCollisions::FGIAColor>& VertexGIAColors, const TArray<FPBDTriangleMeshCollisions::FGIAColor>& TriangleGIAColors);
 
 template<typename SolverParticlesOrRange>
@@ -385,30 +448,10 @@ FSolverVec3 FPBDCollisionSpringConstraintsBase::GetDelta(const SolverParticlesOr
 	const TTriangle<FSolverReal> Triangle(P2, P3, P4);
 	const FSolverVec3 Normal = FlipNormal[ConstraintIndex] ? -Triangle.GetNormal() : Triangle.GetNormal();
 
-	FSolverVec3 P;
-	FSolverVec3 Difference;
-	FSolverReal NormalDifference;
-	FSolverReal TangentialFalloff = 1.f;
-	FSolverVec3 Bary;
-	if (ConstraintTypes[ConstraintIndex] == EConstraintType::Kinematic)
-	{
-		P = FindClosestPointAndBaryOnTriangle(P2, P3, P4, P1, Bary);
-		Difference = P1 - P;
-		NormalDifference = Difference.Dot(Normal);
-		const FSolverReal TangentialDifference = (Difference - NormalDifference * Normal).Size();
-		TangentialFalloff = 1.f - TangentialDifference / FMath::Max(1.5f * Height, 1e-4f);
-		if (TangentialFalloff <= 0.f)
-		{
-			return FSolverVec3(0);
-		}
-	}
-	else
-	{
-		Bary = Barys[ConstraintIndex];
-		P = Bary[0] * P2 + Bary[1] * P3 + Bary[2] * P4;
-		Difference = P1 - P;
-		NormalDifference = Difference.Dot(Normal);
-	}
+	const FSolverVec3& Bary = Barys[ConstraintIndex];
+	const FSolverVec3 P = Bary[0] * P2 + Bary[1] * P3 + Bary[2] * P4;
+	const FSolverVec3 Difference = P1 - P;
+	const FSolverReal NormalDifference = Difference.Dot(Normal);
 
 	// Normal repulsion with friction
 	if (NormalDifference > Height)
@@ -416,7 +459,7 @@ FSolverVec3 FPBDCollisionSpringConstraintsBase::GetDelta(const SolverParticlesOr
 		return FSolverVec3(0);
 	}
 
-	const FSolverReal ConstraintStiffness = GetConstraintStiffness(ConstraintIndex) * TangentialFalloff;
+	const FSolverReal ConstraintStiffness = GetConstraintStiffness(ConstraintIndex);
 	const FSolverReal ConstraintFriction = GetConstraintFrictionCoefficient(ConstraintIndex);
 
 	const FSolverReal NormalDelta = Height - NormalDifference;
@@ -511,6 +554,120 @@ void FPBDCollisionSpringConstraintsBase::UpdateLinearSystem(const FSolverParticl
 	}
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
+
+
+template<typename SolverParticlesOrRange>
+void FPBDCollisionSpringConstraintsBase::Apply(SolverParticlesOrRange& InParticles, const FSolverReal Dt) const
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	// Dynamic collisions
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(ChaosPBDCollisionSpring_ApplyDynamic);
+		for (int32 ConstraintIndex = 0; ConstraintIndex < Constraints.Num(); ++ConstraintIndex)
+		{
+			Apply(InParticles, Dt, ConstraintIndex);
+		}
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	ApplyKinematicConstraints(InParticles, Dt);
+}
+template void CHAOS_API FPBDCollisionSpringConstraintsBase::Apply(FSolverParticles& Particles, const FSolverReal Dt) const;
+template void CHAOS_API FPBDCollisionSpringConstraintsBase::Apply(FSolverParticlesRange& Particles, const FSolverReal Dt) const;
+
+template<typename SolverParticlesOrRange>
+void FPBDCollisionSpringConstraintsBase::ApplyKinematicConstraints(SolverParticlesOrRange& Particles, const FSolverReal Dt) const
+{
+	if (!KinematicCollidingParticles.Num())
+	{
+		return;
+	}
+	TRACE_CPUPROFILER_EVENT_SCOPE(ChaosPBDCollisionSpring_ApplyKinematicConstraints);
+
+	const FSolverReal Height = Thickness + KinematicColliderThickness;
+#if INTEL_ISPC
+	static_assert(sizeof(ispc::FIntVector) == sizeof(TVector<int32, MaxKinematicConnectionsPerPoint>), "sizeof(ispc::FIntVector) != sizeof(TVector<int32, MaxKinematicConnectionsPerPoint>)");
+	if (bRealTypeCompatibleWithISPC && bChaos_CollisionSpring_ISPC_Enabled)
+	{
+		ispc::ApplyKinematicCollisionSpringConstraints(
+			(ispc::FVector4f*)Particles.GetPAndInvM().GetData(),
+			(const ispc::FVector3f*)Particles.XArray().GetData(),
+			KinematicCollidingParticles.GetData(),
+			(const ispc::FIntVector*)KinematicColliderElements.GetData(),
+			(const ispc::FIntVector*)TriangleMesh.GetElements().GetData(),
+			Height,
+			KinematicColliderStiffness,
+			KinematicColliderFrictionCoefficient,
+			KinematicCollidingParticles.Num()
+		);
+	}
+	else
+#endif
+	{
+		for (int32 Index = 0; Index < KinematicCollidingParticles.Num(); ++Index)
+		{
+			const int32 Index1 = KinematicCollidingParticles[Index];
+			for (int32 EIndex = 0; EIndex < MaxKinematicConnectionsPerPoint; ++EIndex)
+			{
+				const int32 ElemIndex = KinematicColliderElements[Index][EIndex];
+				if (ElemIndex == INDEX_NONE)
+				{
+					break;
+				}
+
+				const int32 Index2 = TriangleMesh.GetElements()[ElemIndex][0];
+				const int32 Index3 = TriangleMesh.GetElements()[ElemIndex][1];
+				const int32 Index4 = TriangleMesh.GetElements()[ElemIndex][2];
+
+				FSolverVec3& P1 = Particles.P(Index1);
+				const FSolverVec3& P2 = Particles.P(Index2);
+				const FSolverVec3& P3 = Particles.P(Index3);
+				const FSolverVec3& P4 = Particles.P(Index4);
+
+				const TTriangle<FSolverReal> Triangle(P2, P3, P4);
+				const FSolverVec3  Normal = -Triangle.GetNormal(); // normals are flipped from UE
+
+				FSolverVec3 Bary;
+				const FSolverVec3 P = FindClosestPointAndBaryOnTriangle(P2, P3, P4, P1, Bary);
+				const FSolverVec3 Difference = P1 - P;
+				const FSolverReal NormalDifference = Difference.Dot(Normal);
+
+				if (NormalDifference > Height)
+				{
+					continue;
+				}
+
+				const FSolverReal TangentialDifference = (Difference - NormalDifference * Normal).Size();
+				constexpr FSolverReal TangentialFalloffMultiplier(1.5f);
+				const FSolverReal TangentialFalloff = (FSolverReal)1.f - TangentialDifference / FMath::Max(TangentialFalloffMultiplier * Height, UE_KINDA_SMALL_NUMBER);
+				if (TangentialFalloff <= 0.f)
+				{
+					continue;
+				}
+
+				const FSolverReal NormalDelta = Height - NormalDifference;
+				const FSolverVec3 RepulsionDelta = KinematicColliderStiffness * NormalDelta * Normal;
+
+				P1 += RepulsionDelta;
+
+				if (KinematicColliderFrictionCoefficient > 0)
+				{
+					const FSolverVec3& X1 = Particles.X(Index1);
+					const FSolverVec3 X = Bary[0] * Particles.X(Index2) + Bary[1] * Particles.X(Index3) + Bary[2] * Particles.X(Index4);
+					const FSolverVec3 RelativeDisplacement = (P1 - X1) - (P - X);
+					const FSolverVec3 RelativeDisplacementTangent = RelativeDisplacement - RelativeDisplacement.Dot(Normal) * Normal;
+					const FSolverReal RelativeDisplacementTangentLength = RelativeDisplacementTangent.Length();
+					const FSolverReal PositionCorrection = FMath::Min(NormalDelta * KinematicColliderFrictionCoefficient, RelativeDisplacementTangentLength);
+					const FSolverReal CorrectionRatio = RelativeDisplacementTangentLength < UE_SMALL_NUMBER ? 0.f : PositionCorrection / RelativeDisplacementTangentLength;
+					const FSolverVec3 FrictionDelta = -CorrectionRatio * RelativeDisplacementTangent;
+
+					P1 += FrictionDelta;
+				}
+			}
+		}
+	}
+}
+
 }  // End namespace Chaos::Softs
 
 #endif

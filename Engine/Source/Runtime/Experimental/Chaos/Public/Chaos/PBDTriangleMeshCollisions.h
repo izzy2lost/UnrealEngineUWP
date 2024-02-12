@@ -114,66 +114,76 @@ public:
 	public:
 		FTriangleSubMesh(const FTriangleMesh& InFullMesh)
 			: FullMesh(InFullMesh)
-			, bSubMeshIsFullMesh(true)
 		{}
 
 		template<typename SolverParticlesOrRange>
 		void Init(const SolverParticlesOrRange& Particles, const TSet<int32>& DisabledFaces, bool bCollideAgainstAllKinematicVertices, const TSet<int32>& EnabledKinematicFaces);
 
-		const FTriangleMesh& GetCollidableMesh() const
-		{
-			if (bSubMeshIsFullMesh)
-			{
-				return FullMesh;
-			}
-			return SubMesh;
-		}
+		void InitAllDynamic();
 
 		const FTriangleMesh& GetFullMesh() const 
 		{
 			return FullMesh;
 		}
 
-		int32 FullMeshIndexFromSubIndex(int32 SubIndex) const
+		const FTriangleMesh& GetDynamicSubMesh() const
 		{
-			if (bSubMeshIsFullMesh)
-			{
-				return SubIndex;
-			}
-
-			return SubMeshToFullElements[SubIndex];
+			return DynamicSubMesh;
 		}
 
-		int32 SubMeshIndexFromFullIndex(int32 FullIndex) const
+		const FTriangleMesh& GetKinematicColliderSubMesh() const
 		{
-			if (bSubMeshIsFullMesh)
-			{
-				return FullIndex;
-			}
-			return FullToSubMeshElements[FullIndex];
+			return KinematicColliderSubMesh;
 		}
 
-		bool GetSubMeshIsFullMesh() const { return bSubMeshIsFullMesh; }
-
-		const TArray<bool>& GetSubMeshElementIsKinematic() const 
+		bool IsElementDynamic(int32 FullMeshIndex) const
 		{
-			return SubMeshElementIsKinematic;
+			return FullMeshToSubMeshIndices[FullMeshIndex].SubMeshType == ESubMeshType::Dynamic;
 		}
 
-		// Will be empty when bSubMeshIsFullMesh
-		const TArray<int32>& GetCollidableVertices() const { return CollidableVertices; }
-		// Will be empty when bSubMeshIsFullMesh
-		const TArray<int32>& GetIntersectableSubmeshEdges() const { return IntersectableSubmeshEdges; }
+		bool IsElementKinematicCollider(int32 FullMeshIndex) const
+		{
+			return FullMeshToSubMeshIndices[FullMeshIndex].SubMeshType == ESubMeshType::Kinematic;
+		}
+
+		int32 GetSubMeshElementIndex(int32 FullMeshIndex) const
+		{
+			check(FullMeshToSubMeshIndices[FullMeshIndex].SubMeshType != ESubMeshType::Invalid);
+			return FullMeshToSubMeshIndices[FullMeshIndex].SubMeshIndex;
+		}
+
+		int32 GetFullMeshElementIndexFromDynamicElement(int32 DynamicMeshIndex) const
+		{
+			return DynamicSubMeshToFullMeshIndices[DynamicMeshIndex];
+		}
+
+		int32 GetFullMeshElementIndexFromKinematicElement(int32 KinematicMeshIndex) const
+		{
+			return KinematicColliderSubMeshToFullMeshIndices[KinematicMeshIndex];
+		}
+
+		const TArray<int32>& GetDynamicVertices() const { return DynamicVertices; }
 
 	private:
 		const FTriangleMesh& FullMesh;
-		FTriangleMesh SubMesh;
-		TArray<int32> SubMeshToFullElements;
-		TArray<int32> FullToSubMeshElements;
-		TArray<bool> SubMeshElementIsKinematic;
-		TArray<int32> CollidableVertices;
-		TArray<int32> IntersectableSubmeshEdges;
-		bool bSubMeshIsFullMesh;
+		FTriangleMesh DynamicSubMesh;
+		FTriangleMesh KinematicColliderSubMesh;
+		
+		enum struct ESubMeshType : int32
+		{
+			Invalid = 0,
+			Dynamic = 1,
+			Kinematic = 2
+		};
+		struct FFullToSubMeshIndex
+		{
+			int32 SubMeshIndex : 30;
+			ESubMeshType SubMeshType : 2;
+		};
+		TArray<FFullToSubMeshIndex> FullMeshToSubMeshIndices;
+		TArray<int32> DynamicSubMeshToFullMeshIndices;
+		TArray<int32> KinematicColliderSubMeshToFullMeshIndices;
+		TArray<int32> DynamicVertices; // Will be empty if InitAllDynamic was used to initialize
 	};
 
 	static bool IsEnabled(const FCollectionPropertyConstFacade& PropertyCollection)
@@ -346,7 +356,10 @@ public:
 	}
 
 	const FTriangleSubMesh& GetCollidableSubMesh() const { return CollidableSubMesh; }
-	const FTriangleMesh::TSpatialHashType<FSolverReal>& GetSpatialHash() const { return SpatialHash; }
+	UE_DEPRECATED(5.4, "Use GetDynamicSpatialHash or GetKinematicColliderSpatialHash")
+	const FTriangleMesh::TSpatialHashType<FSolverReal>& GetSpatialHash() const { return DynamicSubMeshSpatialHash; }
+	const FTriangleMesh::TSpatialHashType<FSolverReal>& GetDynamicSpatialHash() const { return DynamicSubMeshSpatialHash; }
+	const FTriangleMesh::TSpatialHashType<FSolverReal>& GetKinematicColliderSpatialHash() const { return KinematicSubMeshSpatialHash; }
 	const TArray<FContourMinimizationIntersection>& GetContourMinimizationIntersections() const { return ContourMinimizationIntersections; }
 	const TConstArrayView<FGIAColor> GetVertexGIAColors() const { return bGlobalIntersectionAnalysis && VertexGIAColors.Num() == NumParticles ? TConstArrayView<FGIAColor>(VertexGIAColors.GetData() - Offset, NumParticles + Offset) : TConstArrayView<FGIAColor>(); }
 	const TArray<FGIAColor>& GetTriangleGIAColors() const { return TriangleGIAColors; }
@@ -373,7 +386,8 @@ private:
 
 	bool bCollidableSubMeshDirty = true;
 	
-	FTriangleMesh::TSpatialHashType<FSolverReal> SpatialHash;
+	FTriangleMesh::TSpatialHashType<FSolverReal> DynamicSubMeshSpatialHash;
+	FTriangleMesh::TSpatialHashType<FSolverReal> KinematicSubMeshSpatialHash;
 	TArray<FContourMinimizationIntersection> ContourMinimizationIntersections;
 	TArray<FGIAColor> VertexGIAColors;
 	TArray<FGIAColor> TriangleGIAColors;
