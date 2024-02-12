@@ -503,13 +503,17 @@ FOnGameplayEffectTagCountChanged& FGameplayTagCountContainer::RegisterGameplayTa
 	return Info.OnAnyChange;
 }
 
-void FGameplayTagCountContainer::Reset()
+void FGameplayTagCountContainer::Reset(bool bResetCallbacks)
 {
-	GameplayTagEventMap.Reset();
 	GameplayTagCountMap.Reset();
 	ExplicitTagCountMap.Reset();
 	ExplicitTags.Reset();
-	OnAnyTagChangeDelegate.Clear();
+
+	if (bResetCallbacks)
+	{
+		GameplayTagEventMap.Reset();
+		OnAnyTagChangeDelegate.Clear();
+	}
 }
 
 bool FGameplayTagCountContainer::UpdateExplicitTags(const FGameplayTag& Tag, const int32 CountDelta, const bool bDeferParentTagsOnRemove)
