@@ -137,7 +137,9 @@ struct REMOTECONTROL_API FRCPresetGuidRenewGuard
 {
 	FRCPresetGuidRenewGuard();
 	~FRCPresetGuidRenewGuard();
-		
+
+	static bool IsAllowingPresetGuidRenewal();
+
 private:
 	bool bPreviousValue;
 };

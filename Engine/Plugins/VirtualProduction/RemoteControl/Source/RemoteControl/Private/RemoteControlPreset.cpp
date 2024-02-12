@@ -192,6 +192,11 @@ FRCPresetGuidRenewGuard::~FRCPresetGuidRenewGuard()
 	bAllowPresetGuidRenewal = bPreviousValue;
 }
 
+bool FRCPresetGuidRenewGuard::IsAllowingPresetGuidRenewal()
+{
+	return bAllowPresetGuidRenewal;
+}
+
 const TArray<FGuid>& FRemoteControlPresetGroup::GetFields() const
 {
 	return Fields;
