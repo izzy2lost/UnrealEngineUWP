@@ -343,7 +343,7 @@ void GatherPinsImpl::FindEnums(const TSharedPtr<UEdGraphSchema_K2::FPinTypeTreeI
 		{
 			Owner->Children.Emplace(
 				FromObject(CurrentEnum
-					, UEdGraphSchema_K2::PC_Enum
+					, UEdGraphSchema_K2::PC_Byte
 					, EObjectReferenceType::NotAnObject));
 		}
 	}
@@ -358,7 +358,7 @@ void GatherPinsImpl::FindEnums(const TSharedPtr<UEdGraphSchema_K2::FPinTypeTreeI
 		{
 			Owner->Children.Emplace(
 				FromAssetData(Asset
-					, UEdGraphSchema_K2::PC_Enum
+					, UEdGraphSchema_K2::PC_Byte
 					, EObjectReferenceType::NotAnObject));
 		}
 	}
