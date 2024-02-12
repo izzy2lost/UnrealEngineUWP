@@ -535,13 +535,13 @@ namespace EpicGames.Core
 		/// <param name="initialSize">Size of the initial chunk</param>
 		/// <param name="chunkSize">Default size for subsequent chunks</param>
 		public ChunkedMemoryWriter(IMemoryAllocator<byte> allocator, int initialSize = 4096, int chunkSize = 4096)
-			: base(new PooledChunk(0, allocator.Alloc(initialSize)), chunkSize)
+			: base(new PooledChunk(0, allocator.Alloc(initialSize, null)), chunkSize)
 		{
 			_allocator = allocator;
 		}
 
 		/// <inheritdoc/>
-		protected override Chunk CreateChunk(int runningIndex, int size) => new PooledChunk(runningIndex, _allocator.Alloc(size));
+		protected override Chunk CreateChunk(int runningIndex, int size) => new PooledChunk(runningIndex, _allocator.Alloc(size, null));
 
 		/// <inheritdoc/>
 		public void Dispose()
@@ -587,14 +587,16 @@ namespace EpicGames.Core
 		}
 
 		readonly IMemoryAllocator<byte> _allocator;
+		readonly object? _allocationTag;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="allocator">Allocator for buffers</param>
 		/// <param name="chunkSize"></param>
-		public RefCountedMemoryWriter(IMemoryAllocator<byte> allocator, int chunkSize)
-			: this(allocator, chunkSize, chunkSize)
+		/// <param name="allocationTag">Tag for allocated memory</param>
+		public RefCountedMemoryWriter(IMemoryAllocator<byte> allocator, int chunkSize, object? allocationTag = null)
+			: this(allocator, chunkSize, chunkSize, allocationTag)
 		{ }
 
 		/// <summary>
@@ -603,14 +605,16 @@ namespace EpicGames.Core
 		/// <param name="allocator">Allocator for buffers</param>
 		/// <param name="initialSize">Size of the initial chunk</param>
 		/// <param name="chunkSize">Default size for subsequent chunks</param>
-		public RefCountedMemoryWriter(IMemoryAllocator<byte> allocator, int initialSize, int chunkSize)
-			: base(new BufferChunk(0, RefCountedHandle.Create(allocator.Alloc(initialSize))), chunkSize)
+		/// <param name="allocationTag">Tag for allocated memory</param>
+		public RefCountedMemoryWriter(IMemoryAllocator<byte> allocator, int initialSize, int chunkSize, object? allocationTag)
+			: base(new BufferChunk(0, RefCountedHandle.Create(allocator.Alloc(initialSize, allocationTag))), chunkSize)
 		{
 			_allocator = allocator;
+			_allocationTag = allocationTag;
 		}
 
 		/// <inheritdoc/>
-		protected override Chunk CreateChunk(int runningIndex, int size) => new BufferChunk(runningIndex, RefCountedHandle.Create(_allocator.Alloc(size)));
+		protected override Chunk CreateChunk(int runningIndex, int size) => new BufferChunk(runningIndex, RefCountedHandle.Create(_allocator.Alloc(size, _allocationTag)));
 
 		/// <inheritdoc/>
 		public void Dispose()
@@ -641,7 +645,7 @@ namespace EpicGames.Core
 
 			try
 			{
-				IRefCountedHandle<Memory<byte>> allocation = RefCountedHandle.Create(_allocator.Alloc(length));
+				IRefCountedHandle<Memory<byte>> allocation = RefCountedHandle.Create(_allocator.Alloc(length, _allocationTag));
 				sequence.Target.CopyTo(allocation.Target.Span);
 				return RefCountedHandle.Create<ReadOnlyMemory<byte>>(allocation.Target.Slice(0, length), allocation);
 			}

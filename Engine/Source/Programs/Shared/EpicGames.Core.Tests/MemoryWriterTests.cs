@@ -43,7 +43,7 @@ namespace EpicGames.Core.Tests
 			public int AllocatedSize => _allocatedSize;
 			public int AllocatedCount => _allocatedCount;
 
-			public IMemoryOwner<byte> Alloc(int size)
+			public IMemoryOwner<byte> Alloc(int size, object? tag = null)
 			{
 				Interlocked.Increment(ref _allocatedCount);
 				Interlocked.Add(ref _allocatedSize, size);

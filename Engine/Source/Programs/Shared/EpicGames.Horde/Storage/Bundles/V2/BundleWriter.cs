@@ -87,7 +87,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 				_cache = cache;
 				_bundleOptions = bundleOptions;
 
-				_encodedPacketWriter = new RefCountedMemoryWriter(_cache.Allocator, 65536);
+				_encodedPacketWriter = new RefCountedMemoryWriter(_cache.Allocator, 65536, nameof(PendingBundleHandle));
 
 				StartPacket();
 			}

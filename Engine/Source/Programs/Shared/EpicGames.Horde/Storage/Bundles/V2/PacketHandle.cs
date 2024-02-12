@@ -203,8 +203,17 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 
 		#region Packet reader access
 
-		record struct PacketReaderCacheKey(BundleHandle Bundle, int Offset);
-		record struct EncodedPacketCacheKey(BundleHandle Bundle, int Offset);
+		record struct PacketReaderCacheKey(BundleHandle Bundle, int Offset)
+		{
+			public override string ToString()
+				=> $"packet-reader:{Bundle}@{Offset}";
+		}
+
+		record struct EncodedPacketCacheKey(BundleHandle Bundle, int Offset)
+		{
+			public override string ToString()
+				=> $"encoded-packet:{Bundle}@{Offset}";
+		}
 
 		async ValueTask<IRefCountedHandle<PacketReader>> GetPacketReaderAsync(CancellationToken cancellationToken = default)
 		{
@@ -215,7 +224,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		async Task<PacketReader> CreatePacketReaderAsync(PacketReaderCacheKey cacheKey, CancellationToken cancellationToken)
 		{
 			using IRefCountedHandle<IReadOnlyMemoryOwner<byte>> encodedData = await ReadEncodedPacketAsync(cancellationToken);
-			IRefCountedHandle<Packet> packet = Packet.Decode(encodedData.Target.Memory, _cache.Allocator);
+			IRefCountedHandle<Packet> packet = Packet.Decode(encodedData.Target.Memory, _cache.Allocator, cacheKey);
 			return new PacketReader(_storageClient, _cache, _outer, this, packet.Target, packet);
 		}
 
@@ -236,7 +245,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 				using Stream stream = await _outer.OpenAsync(_packetOffset, readLength, cancellationToken);
 
 				// Read the first packet
-				leadingPacket = _cache.Allocator.Alloc(_packetLength);
+				leadingPacket = _cache.Allocator.Alloc(_packetLength, key);
 				Memory<byte> memory = leadingPacket.Memory.Slice(0, _packetLength);
 				await stream.ReadFixedLengthBytesAsync(memory, cancellationToken);
 
@@ -263,7 +272,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 						break;
 					}
 
-					trailingPacket = _cache.Allocator.Alloc(signature.HeaderLength);
+					trailingPacket = _cache.Allocator.Alloc(signature.HeaderLength, key);
 					memory = trailingPacket.Memory.Slice(0, signature.HeaderLength);
 					header.CopyTo(memory);
 					await stream.ReadFixedLengthBytesAsync(memory.Slice(BundleSignature.NumBytes), cancellationToken);

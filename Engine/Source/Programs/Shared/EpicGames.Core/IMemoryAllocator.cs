@@ -2,6 +2,7 @@
 
 using System;
 using System.Buffers;
+using System.Collections.Generic;
 using System.IO.MemoryMappedFiles;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -18,8 +19,9 @@ namespace EpicGames.Core
 		/// Allocate a block of memory of the given minimum size
 		/// </summary>
 		/// <param name="minSize">Minimum size for the allocated data</param>
+		/// <param name="tag">Tag for tracking this allocation</param>
 		/// <returns>Reference counted block of memory</returns>
-		IMemoryOwner<T> Alloc(int minSize);
+		IMemoryOwner<T> Alloc(int minSize, object? tag);
 	}
 
 	/// <summary>
@@ -65,7 +67,7 @@ namespace EpicGames.Core
 		public long AllocatedSize => _allocatedSize;
 
 		/// <inheritdoc/>
-		public IMemoryOwner<byte> Alloc(int minSize) => new MemoryOwner(this, minSize);
+		public IMemoryOwner<byte> Alloc(int minSize, object? tag) => new MemoryOwner(this, minSize);
 	}
 
 	/// <summary>
@@ -86,7 +88,7 @@ namespace EpicGames.Core
 		public PoolAllocator(MemoryPool<byte> pool) => _pool = pool;
 
 		/// <inheritdoc/>
-		public IMemoryOwner<byte> Alloc(int minSize) => _pool.Rent(minSize);
+		public IMemoryOwner<byte> Alloc(int minSize, object? tag) => _pool.Rent(minSize);
 	}
 
 	/// <summary>
@@ -148,7 +150,7 @@ namespace EpicGames.Core
 		public long AllocatedSize => _allocatedSize;
 
 		/// <inheritdoc/>
-		public IMemoryOwner<byte> Alloc(int minSize) => new Allocation(this, minSize);
+		public IMemoryOwner<byte> Alloc(int minSize, object? tag) => new Allocation(this, minSize);
 	}
 	
 	/// <summary>
@@ -205,6 +207,73 @@ namespace EpicGames.Core
 		}
 
 		/// <inheritdoc/>
-		public IMemoryOwner<byte> Alloc(int minSize) => new Allocation(minSize);
+		public IMemoryOwner<byte> Alloc(int minSize, object? tag) => new Allocation(minSize);
+	}
+
+	/// <summary>
+	/// Implementation of <see cref="IMemoryAllocator{Byte}"/> which collects stats on the allocations performed.
+	/// </summary>
+	public class TrackingMemoryAllocator : IMemoryAllocator<byte>
+	{
+		// Tracks an owned blocks of memory against the cache budged.
+		sealed class MemoryAllocation : IMemoryOwner<byte>
+		{
+			readonly TrackingMemoryAllocator _allocator;
+			readonly LinkedListNode<MemoryAllocation> _node;
+			readonly object? _tag;
+			IMemoryOwner<byte> _allocation;
+
+			public Memory<byte> Memory => _allocation.Memory;
+
+			public MemoryAllocation(TrackingMemoryAllocator allocator, IMemoryOwner<byte> allocation, object? tag)
+			{
+				_allocator = allocator;
+				_allocation = allocation;
+				_tag = tag;
+
+				lock (allocator._lockObject)
+				{
+					_allocator._allocatedSize += allocation.Memory.Length;
+					_node = allocator._allocations.AddLast(this);
+				}
+			}
+
+			/// <inheritdoc/>
+			public void Dispose()
+			{
+				if (_allocation != null)
+				{
+					_allocator._allocatedSize -= _allocation.Memory.Length;
+					_allocator._allocations.Remove(_node);
+
+					_allocation.Dispose();
+					_allocation = null!;
+				}
+			}
+
+			/// <inheritdoc/>
+			public override string ToString()
+				=> $"{_tag ?? "???"} ({_allocation?.Memory.Length ?? 0} bytes)";
+		}
+
+		readonly object _lockObject = new object();
+		readonly IMemoryAllocator<byte> _inner;
+		long _allocatedSize;
+		readonly LinkedList<MemoryAllocation> _allocations = new LinkedList<MemoryAllocation>();
+
+		/// <summary>
+		/// Total size of allocated memory
+		/// </summary>
+		public long AllocatedSize => _allocatedSize;
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public TrackingMemoryAllocator(IMemoryAllocator<byte> inner)
+			=> _inner = inner;
+
+		/// <inheritdoc/>
+		public IMemoryOwner<byte> Alloc(int minSize, object? tag)
+			=> new MemoryAllocation(this, _inner.Alloc(minSize, tag), tag);
 	}
 }

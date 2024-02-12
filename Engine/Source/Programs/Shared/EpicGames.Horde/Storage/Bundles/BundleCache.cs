@@ -127,14 +127,14 @@ namespace EpicGames.Horde.Storage
 		// Tracks an owned blocks of memory against the cache budged.
 		sealed class MemoryAllocation : IMemoryOwner<byte>
 		{
-			readonly BundleCache _outer;
+			readonly BundleCache _bundleCache;
 			IMemoryOwner<byte> _owner;
 
 			public Memory<byte> Memory => _owner.Memory;
 
-			public MemoryAllocation(BundleCache outer, IMemoryOwner<byte> owner)
+			public MemoryAllocation(BundleCache bundleCache, IMemoryOwner<byte> owner)
 			{
-				_outer = outer;
+				_bundleCache = bundleCache;
 				_owner = owner;
 			}
 
@@ -145,7 +145,7 @@ namespace EpicGames.Horde.Storage
 				{
 					long size = _owner.Memory.Length;
 					_owner.Dispose();
-					_outer.ReleaseSpace(size);
+					_bundleCache.ReleaseSpace(size);
 					_owner = null!;
 				}
 			}
@@ -155,21 +155,21 @@ namespace EpicGames.Horde.Storage
 		// disposed to create space for new allocations.
 		class MemoryAllocator : IMemoryAllocator<byte>
 		{
-			readonly BundleCache _outer;
-			readonly IMemoryAllocator<byte> _inner;
+			readonly BundleCache _bundleCache;
+			readonly IMemoryAllocator<byte> _allocator;
 
-			public MemoryAllocator(BundleCache outer, IMemoryAllocator<byte> inner)
+			public MemoryAllocator(BundleCache bundleCache, IMemoryAllocator<byte> allocator)
 			{
-				_outer = outer;
-				_inner = inner;
+				_bundleCache = bundleCache;
+				_allocator = allocator;
 			}
 
-			public IMemoryOwner<byte> Alloc(int minSize)
+			public IMemoryOwner<byte> Alloc(int minSize, object? tag)
 			{
-				_outer.CreateSpace(minSize);
-				IMemoryOwner<byte> owner = _inner.Alloc(minSize);
-				_outer.CreateSpace(owner.Memory.Length - minSize);
-				return new MemoryAllocation(_outer, owner);
+				_bundleCache.CreateSpace(minSize);
+				IMemoryOwner<byte> owner = _allocator.Alloc(minSize, tag);
+				_bundleCache.CreateSpace(owner.Memory.Length - minSize);
+				return new MemoryAllocation(_bundleCache, owner);
 			}
 		}
 
@@ -242,6 +242,9 @@ namespace EpicGames.Horde.Storage
 		public BundleCache(BundleCacheOptions options, IMemoryAllocator<byte> innerAllocator)
 		{
 			_options = options;
+#if DEBUG
+			innerAllocator = new TrackingMemoryAllocator(innerAllocator);
+#endif
 			_allocator = new MemoryAllocator(this, innerAllocator);
 
 			if (options.HeaderCacheSize > 0)
