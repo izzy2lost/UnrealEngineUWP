@@ -51,6 +51,9 @@ public:
 	TArray<TSharedPtr<IMoviePipelineQueueTreeItem>> GetSelectedItems() const { return TreeView->GetSelectedItems(); }
 	void SetSelectedJobs(const TArray<UMoviePipelineExecutorJob*>& InJobs) { PendingJobsToSelect = InJobs; }
 
+	/** Get the default graph preset from the project settings and assign it to the given job */
+	static void AssignDefaultGraphPresetToJob(UMoviePipelineExecutorJob* InJob);
+
 private:
 	// SWidget Interface
 	FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent);
@@ -63,6 +66,7 @@ private:
 	// ~FEditorUndoClient
 
 private:
+	
 	void OnCreateJobFromAsset(const FAssetData& InAsset);
 
 	TSharedRef<ITableRow> OnGenerateRow(TSharedPtr<IMoviePipelineQueueTreeItem> Item, const TSharedRef<STableViewBase>& Tree);
