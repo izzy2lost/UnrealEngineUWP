@@ -71,6 +71,7 @@ private:
 	void OnSortColumnHeader(const EColumnSortPriority::Type SortPriority, const FName& ColumnId, const EColumnSortMode::Type NewSortMode);
 	EColumnSortMode::Type GetColumnSortMode(const FName ColumnId) const;
 	FText GetTotalTimeLabel() const;
+	FText GetTotalWallTimeLabel() const;
 
 	/** Pointer back to the PCG editor that owns us */
 	TWeakPtr<FPCGEditor> PCGEditorPtr;
@@ -90,6 +91,7 @@ private:
 	EColumnSortMode::Type SortMode = EColumnSortMode::Type::None;
 
 	double TotalTime = 0.0;
+	double TotalWallTime = 0.0;
 
 	bool bExpandSubgraph = true;
 };
