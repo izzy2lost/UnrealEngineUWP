@@ -129,6 +129,12 @@ public:
 		static FAutoConsoleVariableRef CVarRenderInterpErrorCorrectionDuration(TEXT("p.RenderInterp.ErrorCorrectionDuration"), RenderInterpErrorCorrectionDuration, TEXT("How long in seconds to apply error correction over."));
 		return RenderInterpErrorCorrectionDuration;
 	}
+	static float GetRenderInterpMaximumErrorCorrectionBeforeSnapping()
+	{
+		static float RenderInterpMaximumErrorCorrectionBeforeSnapping = 100.0f;
+		static FAutoConsoleVariableRef CVarRenderInterpErrorCorrectionMaximumError(TEXT("p.RenderInterp.MaximumErrorCorrectionBeforeSnapping"), RenderInterpMaximumErrorCorrectionBeforeSnapping, TEXT("Maximum error correction in cm before we stop interpolating and snap to target."));
+		return RenderInterpMaximumErrorCorrectionBeforeSnapping;
+	}
 	static float GetRenderInterpErrorVelocitySmoothingDuration()
 	{
 		static float RenderInterpErrorVelocitySmoothingDuration = 0.5f;
