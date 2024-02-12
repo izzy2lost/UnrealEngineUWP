@@ -883,7 +883,8 @@ void SDockingTabStack::ReserveSpaceForWindowChrome(EChromeElement Element, bool 
 		ControlsPadding = FMargin(67.0f, 0, 0, 0);
 	}
 #else
-	static const float TopPaddingForMenuBar = 27.0f;
+	static const float TopPaddingForMenuBar = 25.0f;
+
 	static const float LeftPaddingForIcon = FSlateApplication::Get().GetAppIcon()->GetImageSize().X;
 	// If we are including top padding for the menu bar we do not need to pad the outer sides since we will be below the left icon and the right controls.
 	if (bIncludePaddingForMenuBar)
@@ -893,7 +894,7 @@ void SDockingTabStack::ReserveSpaceForWindowChrome(EChromeElement Element, bool 
 	}
 	else
 	{
-		ControlsPadding = FMargin(8.f, 10.f, 128.f, 0.f);
+		ControlsPadding = FMargin(8.f, 2.f, 128.f, 0.f);
 		IconPadding = FMargin(25.f, bOnlyMinorTabs ? 5.f : 0.f, 0.f, 0.f);
 	}
 #endif
