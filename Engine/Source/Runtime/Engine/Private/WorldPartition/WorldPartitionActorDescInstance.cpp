@@ -40,6 +40,11 @@ void FWorldPartitionActorDescInstance::UpdateActorDesc(FWorldPartitionActorDesc*
 
 bool FWorldPartitionActorDescInstance::IsLoaded(bool bEvenIfPendingKill) const
 {
+	if (AsyncLoadID != INDEX_NONE)
+	{
+		return false;
+	}
+
 	if (ActorPtr.IsExplicitlyNull() || ActorPtr.IsStale())
 	{
 		ActorPtr = FindObject<AActor>(nullptr, *GetActorSoftPath().ToString());
