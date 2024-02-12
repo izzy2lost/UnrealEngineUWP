@@ -3272,6 +3272,11 @@ uint32 FVirtualShadowMapArray::AddRenderViews(const TSharedPtr<FVirtualShadowMap
 	
 	Nanite::SetCullingViewOverrides(CullingView, BaseParams);
 
+	if (Clipmap->GetLightSceneInfo().Proxy)
+	{
+		BaseParams.LightingChannelMask = Clipmap->GetLightSceneInfo().Proxy->GetLightingChannelMask();
+	}
+
 	const TSharedPtr<FVirtualShadowMapPerLightCacheEntry>& CacheEntry = Clipmap->GetCacheEntry();
 	if (CacheEntry.IsValid())
 	{
@@ -3341,6 +3346,10 @@ uint32 FVirtualShadowMapArray::AddRenderViews(const FProjectedShadowInfo* Projec
 	BaseParams.TargetMipCount = FVirtualShadowMap::MaxMipLevels;
 	// local lights enable distance cull by default
 	BaseParams.Flags = NANITE_VIEW_FLAG_DISTANCE_CULL | (bClampToNearPlane ? 0u : NANITE_VIEW_FLAG_NEAR_CLIP);
+	if (ProjectedShadowInfo->GetLightSceneInfo().Proxy)
+	{
+		BaseParams.LightingChannelMask = ProjectedShadowInfo->GetLightSceneInfo().Proxy->GetLightingChannelMask();
+	}
 
 	// Local lights, select the view closest to the local light to get some kind of reasonable behavior for split screen.
 	int32 ClosestCullingViewIndex = 0;
