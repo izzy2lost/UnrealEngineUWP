@@ -89,6 +89,12 @@ void STG_GraphActionMenu::CollectAllActions(FGraphActionListBuilderBase& OutAllA
 
 TSharedRef<SWidget> STG_GraphActionMenu::OnCreateWidgetForAction(FCreateWidgetForActionData* const InCreateData)
 {
+	if (!bSpwanOnSelect)
+	{
+		//Dont need the mouse down event when not spawning on selection
+		InCreateData->MouseButtonDownDelegate.Unbind();
+	}
+	
 	return	SNew(STG_PaletteItem, InCreateData);
 }
 
