@@ -147,6 +147,10 @@ const UAvaTagCollection* SAvaTagPicker::GetOrLoadTagCollection() const
 	StructPropertyHandle->EnumerateConstRawData(
 		[&TagCollection, this](const void* InStructRawData, const int32 InDataIndex, const int32 InNumData)->bool
 		{
+			if (!InStructRawData)
+			{
+				return true;
+			}
 			const UAvaTagCollection* CurrentTagCollection = TagCustomizer->GetOrLoadTagCollection(InStructRawData);
 			if (InDataIndex == 0)
 			{
@@ -248,7 +252,7 @@ bool SAvaTagPicker::IsTagHandleSelected(FAvaTagHandle InTagHandle) const
 	StructPropertyHandle->EnumerateConstRawData(
 		[&bTagHandleSelected, &InTagHandle, this](const void* InStructRawData, const int32 InDataIndex, const int32 InNumData)->bool
 		{
-			if (TagCustomizer->ContainsTagHandle(InStructRawData, InTagHandle))
+			if (InStructRawData && TagCustomizer->ContainsTagHandle(InStructRawData, InTagHandle))
 			{
 				bTagHandleSelected = true;
 				return false;
@@ -288,6 +292,10 @@ FText SAvaTagPicker::GetValueDisplayText() const
 	StructPropertyHandle->EnumerateConstRawData(
 		[&ValueName, &bMultipleValues, this](const void* InStructRawData, const int32 InDataIndex, const int32 InNumData)->bool
 		{
+			if (!InStructRawData)
+			{
+				return true;	
+			}
 			FName CurrentValueName = TagCustomizer->GetDisplayValueName(InStructRawData);
 			if (InDataIndex == 0)
 			{

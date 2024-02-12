@@ -1153,7 +1153,7 @@ void FAvaOutliner::OnActorSpawned(AActor* InActor)
 	const bool bSpawnNotifyIgnored = EnumHasAnyFlags(IgnoreNotifyFlags, EAvaOutlinerIgnoreNotifyFlags::Spawn);
 	if (!bSpawnNotifyIgnored && IsValid(InActor) && InActor->GetWorld() == GetWorld())
 	{
-		if (CanProcessActorSpawn(InActor))
+		if (CanProcessActorSpawn(InActor) && !FindItem(FAvaOutlinerItemId(InActor)))
 		{
 			FAvaOutlinerAddItemParams Params;
 			Params.Item             = FindOrAdd<FAvaOutlinerActor>(InActor);
