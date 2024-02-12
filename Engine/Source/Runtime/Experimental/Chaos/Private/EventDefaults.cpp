@@ -393,13 +393,13 @@ namespace Chaos
 						ActiveParticle->GetGeometry() &&
 						ActiveParticle->GetGeometry()->HasBoundingBox())
 					{
-						if (ensure(!ActiveParticle->X().ContainsNaN() &&
+						if (ensure(!ActiveParticle->GetX().ContainsNaN() &&
 							!ActiveParticle->GetV().ContainsNaN() &&
 							!ActiveParticle->GetW().ContainsNaN() &&
 							FMath::IsFinite(ActiveParticle->M())))
 						{
 							FTrailingData TrailingData;
-							TrailingData.Location = ActiveParticle->X();
+							TrailingData.Location = ActiveParticle->GetX();
 							TrailingData.Velocity = ActiveParticle->GetV();
 							TrailingData.AngularVelocity = ActiveParticle->GetW();
 							TrailingData.Mass = ActiveParticle->M();

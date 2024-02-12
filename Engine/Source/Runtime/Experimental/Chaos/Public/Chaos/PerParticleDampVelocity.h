@@ -23,7 +23,7 @@ public:
 	// Apply damping without first checking for kinematic particles
 	void ApplyFast(FSolverParticles& Particles, const FSolverReal /*Dt*/, const int32 Index) const
 	{
-		Apply(Particles.X(Index), Particles.V(Index));
+		Apply(Particles.GetX(Index), Particles.V(Index));
 	}
 
 	void Apply(const FSolverVec3& X, FSolverVec3& V) const

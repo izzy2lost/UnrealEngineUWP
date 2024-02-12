@@ -2241,7 +2241,7 @@ void UGeometryCollectionComponent::UpdateRepData()
 				{
 					FGeometryCollectionClusterRep& ClusterRep = LocalRepData.Clusters.AddDefaulted_GetRef();
 
-					ClusterRep.Position = Cluster->X();
+					ClusterRep.Position = Cluster->GetX();
 					ClusterRep.Rotation = Cluster->GetR();
 					ClusterRep.LinearVelocity = Cluster->GetV();
 					ClusterRep.AngularVelocity = Cluster->GetW();
@@ -2416,7 +2416,7 @@ void UGeometryCollectionComponent::UpdateRepStateAndDynamicData()
 				FGeometryCollectionRepDynamicData::FClusterData& Data = LocalRepDynamicData.ClusterData.AddDefaulted_GetRef();
 				Data.TransformIndex = Root.TransformIndex;
 				Data.bIsInternalCluster = Root.Handle->InternalCluster();
-				Data.Position = Root.Handle->X();
+				Data.Position = Root.Handle->GetX();
 				Data.EulerRotation = Root.Handle->GetR().Rotator().Euler();
 				Data.LinearVelocity = Root.Handle->GetV();
 				Data.AngularVelocityInDegreesPerSecond = FMath::RadiansToDegrees(Root.Handle->GetW());
@@ -2585,7 +2585,7 @@ namespace
 			//
 			const FVector RepVel = LinearVelocity;
 			const FVector RepExtrapPos = Position + (RepVel * RepExtrapTime);
-			const Chaos::FVec3 DeltaX = RepExtrapPos - Cluster.X();
+			const Chaos::FVec3 DeltaX = RepExtrapPos - Cluster.GetX();
 			const float DeltaXMagSq = DeltaX.SizeSquared();
 			if (DeltaXMagSq > SMALL_NUMBER && GeometryCollectionRepLinearMatchStrength > SMALL_NUMBER)
 			{
@@ -2936,7 +2936,7 @@ bool UGeometryCollectionComponent::ProcessRepData(const float DeltaTime, const f
 		ForEachClusterPair([RepExtrapTime](const FGeometryCollectionClusterRep& RepCluster, Chaos::FPBDRigidParticleHandle& Cluster)
 		{
 			// Don't bother debug drawing if the delta is too small
-			if ((Cluster.X() - RepCluster.Position).SizeSquared() < .1f)
+			if ((Cluster.GetX() - RepCluster.Position).SizeSquared() < .1f)
 			{
 				FVector Axis;
 				float Angle;
@@ -2948,8 +2948,8 @@ bool UGeometryCollectionComponent::ProcessRepData(const float DeltaTime, const f
 			}
 
 			Chaos::FDebugDrawQueue& DrawQueue = Chaos::FDebugDrawQueue::GetInstance();
-			DrawQueue.DrawDebugCoordinateSystem(Cluster.X(), FRotator(Cluster.GetR()), 100.f, false, -1, -1, 1.f);
-			DrawQueue.DrawDebugBox(Cluster.X() + Cluster.LocalBounds().Center(), Cluster.LocalBounds().Extents(), Cluster.GetR(), FColor::White, false, -1, -1, 1.f);
+			DrawQueue.DrawDebugCoordinateSystem(Cluster.GetX(), FRotator(Cluster.GetR()), 100.f, false, -1, -1, 1.f);
+			DrawQueue.DrawDebugBox(Cluster.GetX() + Cluster.LocalBounds().Center(), Cluster.LocalBounds().Extents(), Cluster.GetR(), FColor::White, false, -1, -1, 1.f);
 			DrawQueue.DrawDebugBox(RepCluster.Position + Cluster.LocalBounds().Center(), Cluster.LocalBounds().Extents(), RepCluster.Rotation, FColor::Green, false, -1, -1, 1.f);
 
 			if (bGeometryCollectionRepUseClusterVelocityMatch)
@@ -2959,7 +2959,7 @@ bool UGeometryCollectionComponent::ProcessRepData(const float DeltaTime, const f
 				const FVector RepExtrapPos = RepCluster.Position + (RepVel * RepExtrapTime);
 				const Chaos::FRotation3 RepExtrapAng = Chaos::FRotation3::IntegrateRotationWithAngularVelocity(RepCluster.Rotation, RepAngVel, RepExtrapTime);
 				DrawQueue.DrawDebugCoordinateSystem(RepExtrapPos, FRotator(RepExtrapAng), 100.f, false, -1, -1, 1.f);
-				DrawQueue.DrawDebugDirectionalArrow(Cluster.X(), RepExtrapPos, 10.f, FColor::White, false, -1, -1, 1.f);
+				DrawQueue.DrawDebugDirectionalArrow(Cluster.GetX(), RepExtrapPos, 10.f, FColor::White, false, -1, -1, 1.f);
 				DrawQueue.DrawDebugBox(RepExtrapPos + Cluster.LocalBounds().Center(), Cluster.LocalBounds().Extents(), RepExtrapAng, FColor::Orange, false, -1, -1, 1.f);
 			}
 			else

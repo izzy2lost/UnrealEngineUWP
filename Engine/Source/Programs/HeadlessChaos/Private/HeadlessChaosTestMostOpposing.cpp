@@ -28,13 +28,12 @@ namespace ChaosTest
 
 			FTriangleMeshImplicitObject::ParticlesType Particles;
 			Particles.AddParticles(6);
-			Particles.X(0) = FVec3(1, 1, 1);
-			Particles.X(1) = FVec3(5, 1, 1);
-			Particles.X(2) = FVec3(1, 5, 1);
-
-			Particles.X(3) = FVec3(1, 1, 1);
-			Particles.X(4) = FVec3(1, 5, 1);
-			Particles.X(5) = FVec3(1, 1, -5);
+			Particles.SetX(0, FVec3(1, 1, 1));
+			Particles.SetX(1, FVec3(5, 1, 1));
+			Particles.SetX(2, FVec3(1, 5, 1));
+			Particles.SetX(3, FVec3(1, 1, 1));
+			Particles.SetX(4, FVec3(1, 5, 1));
+			Particles.SetX(5, FVec3(1, 1, -5));
 
 			TArray<TVec3<int32>> Indices;
 			Indices.Emplace(0, 1, 2);
@@ -75,24 +74,24 @@ namespace ChaosTest
 			FTriangleMeshImplicitObject::ParticlesType Particles;
 			Particles.AddParticles(12);
 			// in z-y plane
-			Particles.X(0) = FVec3(0, 0, 0);
-			Particles.X(1) = FVec3(0, 1, 0);
-			Particles.X(2) = FVec3(0, 0, 1);
+			Particles.SetX(0, FVec3(0, 0, 0));
+			Particles.SetX(1, FVec3(0, 1, 0));
+			Particles.SetX(2, FVec3(0, 0, 1));
 
 			// In x-z plane
-			Particles.X(3) = FVec3(0, 0, 0);
-			Particles.X(4) = FVec3(1, 0, 0);
-			Particles.X(5) = FVec3(0, 0, 1);
+			Particles.SetX(3, FVec3(0, 0, 0));
+			Particles.SetX(4, FVec3(1, 0, 0));
+			Particles.SetX(5, FVec3(0, 0, 1));
 
 			// In x-y plane
-			Particles.X(6) = FVec3(0, 0, 0);
-			Particles.X(7) = FVec3(1, 0, 0);
-			Particles.X(8) = FVec3(0, 1, 0);
+			Particles.SetX(6, FVec3(0, 0, 0));
+			Particles.SetX(7, FVec3(1, 0, 0));
+			Particles.SetX(8, FVec3(0, 1, 0));
 
 			// One 45 degree slanted triangle
-			Particles.X(9) = FVec3(1, 0, 0);
-			Particles.X(10) = FVec3(1, 1, 0);
-			Particles.X(11) = FVec3(0, 0, 1);
+			Particles.SetX(9, FVec3(1, 0, 0));
+			Particles.SetX(10,  FVec3(1, 1, 0));
+			Particles.SetX(11,  FVec3(0, 0, 1));
 
 			TArray<TVec3<int32>> Indices;
 			Indices.Emplace(0, 1, 2);
@@ -148,15 +147,14 @@ namespace ChaosTest
 			FTriangleMeshImplicitObject::ParticlesType Particles;
 			Particles.AddParticles(6);
 			// in z-y plane
-			Particles.X(0) = FVec3(0, 0, 0);
-			Particles.X(1) = FVec3(0, 100, 0);
-			Particles.X(2) = FVec3(0, 0, 100);
+			Particles.SetX(0, FVec3(0, 0, 0));
+			Particles.SetX(1, FVec3(0, 100, 0));
+			Particles.SetX(2, FVec3(0, 0, 100));
 
 			// In x-z plane
-			Particles.X(3) = FVec3(0, 0, 0);
-			Particles.X(4) = FVec3(100, 0, 0);
-			Particles.X(5) = FVec3(0, 0, 100);
-
+			Particles.SetX(3, FVec3(0, 0, 0));
+			Particles.SetX(4, FVec3(100, 0, 0));
+			Particles.SetX(5, FVec3(0, 0, 100));
 
 			TArray<TVec3<int32>> Indices;
 			Indices.Emplace(0, 1, 2);

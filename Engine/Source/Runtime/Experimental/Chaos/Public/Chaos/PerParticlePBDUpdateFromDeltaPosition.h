@@ -17,14 +17,13 @@ class FPerParticlePBDUpdateFromDeltaPosition : public FPerParticleRule
 	template<class T_PARTICLES>
 	inline void ApplyHelper(T_PARTICLES& InParticles, const FReal Dt, const int32 Index) const
 	{
-		InParticles.SetV(Index, (InParticles.P(Index) - InParticles.X(Index)) / Dt);
-		//InParticles.X(Index) = InParticles.P(Index);
+		InParticles.SetV(Index, (InParticles.GetP(Index) - InParticles.GetX(Index)) / Dt);
 	}
 
 	inline void Apply(FPBDParticles& InParticles, const FReal Dt, const int32 Index) const override //-V762
 	{
-		InParticles.V(Index) = (InParticles.P(Index) - InParticles.X(Index)) / Dt;
-		InParticles.X(Index) = InParticles.P(Index);
+		InParticles.V(Index) = (InParticles.GetP(Index) - InParticles.GetX(Index)) / Dt;
+		InParticles.SetX(Index,  InParticles.GetP(Index));
 	}
 
 	inline void Apply(TPBDRigidParticles<FReal, 3>& InParticles, const FReal Dt, const int32 Index) const override //-V762

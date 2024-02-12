@@ -115,9 +115,9 @@ private:
 	template<typename SolverParticlesOrRange>
 	FSolverReal FindBary(const SolverParticlesOrRange& Particles, const int32 i1, const int32 i2, const int32 i3)
 	{
-		const FSolverVec3& P1 = Particles.X(i1);
-		const FSolverVec3& P2 = Particles.X(i2);
-		const FSolverVec3& P3 = Particles.X(i3);
+		const FSolverVec3& P1 = Particles.GetX(i1);
+		const FSolverVec3& P2 = Particles.GetX(i2);
+		const FSolverVec3& P3 = Particles.GetX(i3);
 		const FSolverVec3& P32 = P3 - P2;
 		const FSolverReal Bary = FSolverVec3::DotProduct(P32, P3 - P1) / P32.SizeSquared();
 		return FMath::Clamp(Bary, (FSolverReal)0., (FSolverReal)1.);
@@ -189,9 +189,9 @@ private:
 			i1 = Constraint[0];
 			i2 = Constraint[1];
 			i3 = Constraint[2];
-			const FSolverVec3& P1 = Particles.X(i1);
-			const FSolverVec3& P2 = Particles.X(i2);
-			const FSolverVec3& P3 = Particles.X(i3);
+			const FSolverVec3& P1 = Particles.GetX(i1);
+			const FSolverVec3& P2 = Particles.GetX(i2);
+			const FSolverVec3& P3 = Particles.GetX(i3);
 			const FSolverVec3 P = (P2 - P3) * Bary + P3;
 
 			if (bTrimKinematicConstraints)

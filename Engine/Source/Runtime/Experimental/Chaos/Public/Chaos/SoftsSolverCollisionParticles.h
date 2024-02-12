@@ -8,6 +8,8 @@ namespace Chaos::Softs
 {
 class FSolverCollisionParticles : public TSimpleGeometryParticles<FSolverReal, 3>
 {
+	typedef TSimpleGeometryParticles<FSolverReal, 3> Base;
+
   public:
 	FSolverCollisionParticles()
 	    : TSimpleGeometryParticles<FSolverReal, 3>()
@@ -25,6 +27,17 @@ class FSolverCollisionParticles : public TSimpleGeometryParticles<FSolverReal, 3
 	virtual ~FSolverCollisionParticles() override {};
 	FSolverCollisionParticles& operator=(const FSolverCollisionParticles& Other) = delete;
 	FSolverCollisionParticles& operator=(FSolverCollisionParticles&& Other) = delete;
+
+	const TVector<FSolverReal, 3>& X(const int32 Index) const	{ 
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		return Base::X(Index);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+	TVector<FSolverReal, 3>& X(const int32 Index) {
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		return Base::X(Index);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		}
 
 	const FSolverVec3& V(const int32 Index) const { return MV[Index]; }
 	FSolverVec3& V(const int32 Index) { return MV[Index]; }

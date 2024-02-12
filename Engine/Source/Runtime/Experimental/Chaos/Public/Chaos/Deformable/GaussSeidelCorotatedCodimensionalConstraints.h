@@ -134,8 +134,8 @@ namespace Chaos::Softs
 					&& MeshConstraints[e][1] < (int32)Particles.Size() && MeshConstraints[e][1] > INDEX_NONE
 					&& MeshConstraints[e][2] < (int32)Particles.Size() && MeshConstraints[e][2] > INDEX_NONE)
 				{
-					const TVec3<T> X1X0 = Particles.X(MeshConstraints[e][1]) - Particles.X(MeshConstraints[e][0]);
-					const TVec3<T> X2X0 = Particles.X(MeshConstraints[e][2]) - Particles.X(MeshConstraints[e][0]);
+					const TVec3<T> X1X0 = Particles.GetX(MeshConstraints[e][1]) - Particles.GetX(MeshConstraints[e][0]);
+					const TVec3<T> X2X0 = Particles.GetX(MeshConstraints[e][2]) - Particles.GetX(MeshConstraints[e][0]);
 					PMatrix<T, 2, 2> Dm((T)0., (T)0., (T)0.);
 					Dm.M[0] = X1X0.Size();
 					Dm.M[2] = X1X0.Dot(X2X0) / Dm.M[0];

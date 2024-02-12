@@ -555,11 +555,11 @@ namespace Chaos
 					{
 						if (NormalAveraging && UpdateType != ECollisionUpdateType::Any)	//if we just want one don't bother with normal
 						{
-							SampleObjectNormalAverageHelper(Object, ObjectTransform, SampleToObjectTM, SampleParticles.X(i), CullingDistance, WeightSum, AvgContact);
+							SampleObjectNormalAverageHelper(Object, ObjectTransform, SampleToObjectTM, SampleParticles.GetX(i), CullingDistance, WeightSum, AvgContact);
 						}
 						else
 						{
-							if (SampleObjectNoNormal(Object, ObjectTransform, SampleToObjectTM, SampleParticles.X(i), CullingDistance, AvgContact))
+							if (SampleObjectNoNormal(Object, ObjectTransform, SampleToObjectTM, SampleParticles.GetX(i), CullingDistance, AvgContact))
 							{
 								DeepestParticle = i;
 								if (UpdateType == ECollisionUpdateType::Any)
@@ -579,11 +579,11 @@ namespace Chaos
 				{
 					if (NormalAveraging && UpdateType != ECollisionUpdateType::Any)	//if we just want one don't bother with normal
 					{
-						const bool bInside = SampleObjectNormalAverageHelper(Object, ObjectTransform, SampleToObjectTM, SampleParticles.X(i), CullingDistance, WeightSum, AvgContact);
+						const bool bInside = SampleObjectNormalAverageHelper(Object, ObjectTransform, SampleToObjectTM, SampleParticles.GetX(i), CullingDistance, WeightSum, AvgContact);
 					}
 					else
 					{
-						if (SampleObjectNoNormal(Object, ObjectTransform, SampleToObjectTM, SampleParticles.X(i), CullingDistance, AvgContact))
+						if (SampleObjectNoNormal(Object, ObjectTransform, SampleToObjectTM, SampleParticles.GetX(i), CullingDistance, AvgContact))
 						{
 							DeepestParticle = i;
 							if (UpdateType == ECollisionUpdateType::Any)
@@ -619,10 +619,10 @@ namespace Chaos
 			else if (AvgContact.Phi < CullingDistance)
 			{
 				check(DeepestParticle >= 0);
-				FVec3 LocalPoint = SampleToObjectTM.TransformPositionNoScale(SampleParticles.X(DeepestParticle));
+				FVec3 LocalPoint = SampleToObjectTM.TransformPositionNoScale(SampleParticles.GetX(DeepestParticle));
 				FVec3 LocalNormal;
 				Contact.Phi = Object.PhiWithNormal(LocalPoint, LocalNormal);
-				Contact.ShapeContactPoints[0] = SampleParticles.X(DeepestParticle);
+				Contact.ShapeContactPoints[0] = SampleParticles.GetX(DeepestParticle);
 				Contact.ShapeContactPoints[1] = LocalPoint - Contact.Phi * LocalNormal;
 				Contact.ShapeContactNormal = LocalNormal;
 			}

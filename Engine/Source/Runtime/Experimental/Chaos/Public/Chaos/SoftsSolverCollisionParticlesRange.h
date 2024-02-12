@@ -34,7 +34,8 @@ public:
 	// SimpleGeometryParticles data
 	const FSolverRotation3 R(const int32 Index) const { return GetParticles().GetR(Index + Offset); }
 	void SetR(const int32 Index, const FSolverRotation3& InR) { GetParticles().SetR(Index + Offset, InR); }
-	// FSolverRotation3 R(const int32 Index) { return GetParticles().SetR(Index + Offset); }
+	UE_DEPRECATED(5.4, "Use GetR or SetR instead")
+	FSolverRotation3 R(const int32 Index) { return GetParticles().GetR(Index + Offset); }
 	TConstArrayView<FSolverRotation3> GetR() const { return GetConstArrayView(GetParticles().GetR()); }
 	TArrayView<FSolverRotation3> GetR() { return GetArrayView(GetParticles().GetR()); }
 
@@ -43,8 +44,14 @@ public:
 	TConstArrayView<FImplicitObjectPtr> GetAllGeometry() const { return GetConstArrayView(GetParticles().GetAllGeometry()); }
 
 	// Particles data
-	const FSolverVec3& X(const int32 Index) const { return GetParticles().X(Index + Offset); }
-	FSolverVec3& X(const int32 Index) { return GetParticles().X(Index + Offset); }
+	const FSolverVec3& X(const int32 Index) const { return GetParticles().GetX(Index + Offset); }
+	FSolverVec3& X(const int32 Index) { 
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		return GetParticles().X(Index + Offset); 
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+	const FSolverVec3& GetX(const int32 Index) const { return GetParticles().GetX(Index + Offset); }
+	void SetX(const int32 Index, const FSolverVec3& InX) { GetParticles().SetX(Index + Offset, InX); }
 	TConstArrayView<FSolverVec3> XArray() const { return GetConstArrayView(GetParticles().XArray()); }
 	TArrayView<FSolverVec3> XArray() { return GetArrayView(GetParticles().XArray()); }
 };

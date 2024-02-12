@@ -378,11 +378,11 @@ namespace GeometryCollectionTest
 		FReal MaxZ = -TNumericLimits<FReal>::Max();
 		for (uint32 Idx = 0; Idx < Simplicial.Size(); ++Idx)
 		{
-			const FReal phi = Implicit.SignedDistance(Simplicial.X(Idx));
+			const FReal phi = Implicit.SignedDistance(Simplicial.GetX(Idx));
 			EXPECT_LT(FMath::Abs(phi), DxSize);
 			//EXPECT_LT(FMath::Abs(phi), 0.01f);
 
-			const auto& Pos = Simplicial.X(Idx);
+			const auto& Pos = Simplicial.GetX(Idx);
 			MinX = MinX < Pos[0] ? MinX : Pos[0];
 			MinY = MinY < Pos[1] ? MinY : Pos[1];
 			MinZ = MinZ < Pos[2] ? MinZ : Pos[2];

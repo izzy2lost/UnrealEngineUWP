@@ -17,7 +17,7 @@ namespace Chaos
 	public:
 
 		using TArrayCollection::Size;
-		using TParticles<T,d>::X;
+		using TParticles<T,d>::GetX;
 		
 		TSimpleGeometryParticles()
 		    : TParticles<T, d>()

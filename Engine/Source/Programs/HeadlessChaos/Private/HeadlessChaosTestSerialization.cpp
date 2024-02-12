@@ -338,8 +338,8 @@ namespace ChaosTest
 			OriginalParticles.SetR(1, FRotation3::Identity);
 			OriginalParticles.SetGeometry(0, OriginalSpheres[0]);
 			OriginalParticles.SetGeometry(1, OriginalSpheres[1]);
-			OriginalParticles.X(0) = FVec3(100, 1, 2);
-			OriginalParticles.X(1) = FVec3(0, 1, 2);
+			OriginalParticles.SetX(0, FVec3(100, 1, 2));
+			OriginalParticles.SetX(1, FVec3(0, 1, 2));
 			OriginalParticles.SetR(0, FRotation3::Identity);
 			OriginalParticles.SetR(1, FRotation3::Identity);
 
@@ -369,7 +369,7 @@ namespace ChaosTest
 			TArray<int32> FinalIntersections;
 			for (int32 Potential : PotentialIntersections)
 			{
-				FRigidTransform3 TM(SerializedParticles.X(Potential), SerializedParticles.GetR(Potential));
+				FRigidTransform3 TM(SerializedParticles.GetX(Potential), SerializedParticles.GetR(Potential));
 				const FAABB3 Bounds = SerializedParticles.GetGeometry(Potential)->BoundingBox().TransformedAABB(TM);
 				if (Bounds.Intersects(QueryBox))
 				{
@@ -399,8 +399,8 @@ namespace ChaosTest
 
 		Particles.Acceleration(0) = F[0];
 		Particles.Acceleration(1) = F[1];
-		Particles.X(0) = X[0];
-		Particles.X(1) = X[1];
+		Particles.SetX(0, X[0]);
+		Particles.SetX(1, X[1]);
 		Particles.RotationOfMass(0) = FRotation3::FromIdentity();
 		Particles.RotationOfMass(1) = FRotation3::FromIdentity();
 
@@ -415,8 +415,8 @@ namespace ChaosTest
 			EXPECT_EQ(TestParticles.Size(), Particles.Size());
 			EXPECT_EQ(TestParticles.Acceleration(0), Particles.Acceleration(0));
 			EXPECT_EQ(TestParticles.Acceleration(1), Particles.Acceleration(1));
-			EXPECT_EQ(TestParticles.X(0), Particles.X(0));
-			EXPECT_EQ(TestParticles.X(1), Particles.X(1));
+			EXPECT_EQ(TestParticles.GetX(0), Particles.GetX(0));
+			EXPECT_EQ(TestParticles.GetX(1), Particles.GetX(1));
 		}
 	}
 
@@ -432,9 +432,9 @@ namespace ChaosTest
 		Particles.AddParticles(3);
 		Particles.SetR(0, FRotation3::Identity);
 		Particles.SetR(1, FRotation3::Identity);
-		Particles.X(0) = FVec3(15, 1, 2);
-		Particles.X(1) = FVec3(0, 2, 2);
-		Particles.X(2) = FVec3(0, 2, 2);
+		Particles.SetX(0, FVec3(15, 1, 2));
+		Particles.SetX(1, FVec3(0, 2, 2));
+		Particles.SetX(2, FVec3(0, 2, 2));
 		Particles.SetR(0, FRotation3::Identity);
 		Particles.SetR(1, FRotation3::Identity);
 		Particles.SetR(2, FRotation3::Identity);

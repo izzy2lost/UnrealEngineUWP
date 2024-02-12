@@ -129,7 +129,7 @@ private:
 					{
 						return; // Bail out if the collision groups doesn't match the particle group id, or use INDEX_NONE (= global collision that affects all particle)
 					}
-					const FSolverRigidTransform3 Frame(CollisionParticles.X(i), CollisionParticles.GetR(i));
+					const FSolverRigidTransform3 Frame(CollisionParticles.GetX(i), CollisionParticles.GetR(i));
 					const FVec3 RigidSpacePosition(Frame.InverseTransformPosition(Particles.P(Index)));  // PhiWithNormal requires FReal based arguments
 					FVec3 ImplicitNormal;                                                                // since implicits don't use FSolverReal
 					FSolverReal Phi;
@@ -176,8 +176,8 @@ private:
 
 						if (bFastPositionBasedFriction)
 						{
-							FSolverVec3 VectorToPoint = Particles.P(Index) - CollisionParticles.X(VelocityBone);
-							const FSolverVec3 RelativeDisplacement = (Particles.P(Index) - Particles.X(Index)) - (CollisionParticles.V(VelocityBone) + FSolverVec3::CrossProduct(CollisionParticles.W(VelocityBone), VectorToPoint)) * Dt; // This corresponds to the tangential velocity multiplied by dt (friction will drive this to zero if it is high enough)
+							FSolverVec3 VectorToPoint = Particles.GetP(Index) - CollisionParticles.GetX(VelocityBone);
+							const FSolverVec3 RelativeDisplacement = (Particles.GetP(Index) - Particles.GetX(Index)) - (CollisionParticles.V(VelocityBone) + FSolverVec3::CrossProduct(CollisionParticles.W(VelocityBone), VectorToPoint)) * Dt; // This corresponds to the tangential velocity multiplied by dt (friction will drive this to zero if it is high enough)
 							const FSolverVec3 RelativeDisplacementTangent = RelativeDisplacement - FSolverVec3::DotProduct(RelativeDisplacement, NormalWorld) * NormalWorld; // Project displacement into the tangential plane
 							const FSolverReal RelativeDisplacementTangentLength = RelativeDisplacementTangent.Size();
 							if (RelativeDisplacementTangentLength >= UE_SMALL_NUMBER)
@@ -191,7 +191,7 @@ private:
 						{
 							// Note, to fix: Only use fast position based friction for now, since adding to TMaps here is not thread safe when calling Apply on multiple threads (will cause crash)
 							FVelocityConstraint Constraint;
-							FSolverVec3 VectorToPoint = Particles.P(Index) - CollisionParticles.X(VelocityBone);
+							FSolverVec3 VectorToPoint = Particles.GetP(Index) - CollisionParticles.GetX(VelocityBone);
 							Constraint.Velocity = CollisionParticles.V(VelocityBone) + FSolverVec3::CrossProduct(CollisionParticles.W(VelocityBone), VectorToPoint);
 							Constraint.Normal = Frame.TransformVector(Normal);
 						
@@ -220,7 +220,7 @@ private:
 					{
 						return; // Bail out if the collision groups doesn't match the particle group id, or use INDEX_NONE (= global collision that affects all particle)
 					}
-					const FSolverRigidTransform3 Frame(CollisionParticles.X(i), CollisionParticles.GetR(i));
+					const FSolverRigidTransform3 Frame(CollisionParticles.GetX(i), CollisionParticles.GetR(i));
 					const FVec3 RigidSpacePosition(Frame.InverseTransformPosition(Particles.P(Index)));  // PhiWithNormal requires FReal based arguments
 					FVec3 ImplicitNormal;                                                                // since implicits don't use FSolverReal
 					const FSolverReal Phi = (FSolverReal)CollisionParticles.GetGeometry(i)->PhiWithNormal(RigidSpacePosition, ImplicitNormal);

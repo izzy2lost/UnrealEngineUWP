@@ -150,7 +150,7 @@ namespace ChaosTest {
 				const FReal LastInputTime = SimDt <= 1 ? TimeStart : TimeEnd - 1;	//latest gt time associated with this interval
 
 				const auto ParticleState = RewindData->GetPastStateAtFrame(*Proxy->GetHandle_LowLevel(), SimStep);
-				EXPECT_EQ(ParticleState.X()[2], 100 - FMath::FloorToInt(LastInputTime));	//We teleported on GT so no interpolation
+				EXPECT_EQ(ParticleState.GetX()[2], 100 - FMath::FloorToInt(LastInputTime));	//We teleported on GT so no interpolation
 
 				if (LastInputTime < 3)
 				{
@@ -1720,7 +1720,7 @@ namespace ChaosTest {
 					ExpectedXZ = 10;
 				}
 
-				EXPECT_NEAR(ParticleState.X()[2], ExpectedXZ, 1e-4);
+				EXPECT_NEAR(ParticleState.GetX()[2], ExpectedXZ, 1e-4);
 				EXPECT_NEAR(ParticleState.GetV()[2], ExpectedVZ, 1e-4);
 
 				ExpectedVZ -= SimDt;
@@ -3871,7 +3871,7 @@ namespace ChaosTest {
 
 			for (const auto& Dynamic : NonDisabledDyanmic)
 			{
-				Frame.X.Add(Dynamic.X());
+				Frame.X.Add(Dynamic.GetX());
 				Frame.R.Add(Dynamic.GetR());
 			}
 			History.Add(MoveTemp(Frame));

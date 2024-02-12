@@ -323,7 +323,7 @@ namespace Chaos
 					{
 						// Expand bounds about P/Q by a small amount. This can still result in missed collisions, especially
 						// when we have joints that pull the body back to X/R, if P-X is greater than the BoundsThickness
-						Particle.UpdateWorldSpaceStateSwept(FRigidTransform3(Particle.P(), Particle.GetQ()), FVec3(BoundsThickness), VelocityBoundsDelta);
+						Particle.UpdateWorldSpaceStateSwept(FRigidTransform3(Particle.GetP(), Particle.GetQ()), FVec3(BoundsThickness), VelocityBoundsDelta);
 					}
 					else
 					{
@@ -331,11 +331,11 @@ namespace Chaos
 #if CHAOS_DEBUG_DRAW
 						if (CVars::ChaosSolverDrawCCDThresholds)
 						{
-							DebugDraw::DrawCCDAxisThreshold(Particle.X(), Particle.CCDAxisThreshold(), Particle.P() - Particle.X(), Particle.GetQ());
+							DebugDraw::DrawCCDAxisThreshold(Particle.GetX(), Particle.CCDAxisThreshold(), Particle.GetP() - Particle.GetX(), Particle.GetQ());
 						}
 #endif
 
-						if (FCCDHelpers::DeltaExceedsThreshold(Particle.CCDAxisThreshold(), Particle.P() - Particle.X(), Particle.GetQ()))
+						if (FCCDHelpers::DeltaExceedsThreshold(Particle.CCDAxisThreshold(), Particle.GetP() - Particle.GetX(), Particle.GetQ()))
 						{
 							// We sweep the bounds from P back along the velocity and expand by a small amount.
 							// If not using tight bounds we also expand the bounds in all directions by Velocity. This is necessary only for secondary CCD collisions
@@ -346,11 +346,11 @@ namespace Chaos
 							{
 								CCDBoundsExpansion += VDt.GetAbsMax();
 							}
-							Particle.UpdateWorldSpaceStateSwept(FRigidTransform3(Particle.P(), Particle.GetQ()), FVec3(CCDBoundsExpansion), -VDt);
+							Particle.UpdateWorldSpaceStateSwept(FRigidTransform3(Particle.GetP(), Particle.GetQ()), FVec3(CCDBoundsExpansion), -VDt);
 						}
 						else
 						{
-							Particle.UpdateWorldSpaceStateSwept(FRigidTransform3(Particle.P(), Particle.GetQ()), FVec3(BoundsThickness), VelocityBoundsDelta);
+							Particle.UpdateWorldSpaceStateSwept(FRigidTransform3(Particle.GetP(), Particle.GetQ()), FVec3(BoundsThickness), VelocityBoundsDelta);
 						}
 					}
 

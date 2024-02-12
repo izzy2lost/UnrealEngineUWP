@@ -102,7 +102,7 @@ bool FNetworkPredictionPhysicsState::ShouldReconcile(int32 PhysicsFrame, Chaos::
 
 	const Chaos::FGeometryParticleState LocalState = RewindData->GetPastStateAtFrame(*Handle->GetHandle_LowLevel(), PhysicsFrame);
 
-	if (CompareVector(LocalState.X(), RecvState->Location, NetworkPredictionPhysicsCvars::ToleranceX(), "X:"))
+	if (CompareVector(LocalState.GetX(), RecvState->Location, NetworkPredictionPhysicsCvars::ToleranceX(), "X:"))
 	{
 		return true;
 	}
@@ -150,7 +150,7 @@ void FNetworkPredictionPhysicsState::ToString(int32 PhysicsFrame, Chaos::FRewind
 	FPhysicsActorHandle& Handle = BodyInstance->GetPhysicsActorHandle();
 
 	const Chaos::FGeometryParticleState LocalState = RewindData->GetPastStateAtFrame(*Handle->GetHandle_LowLevel(), PhysicsFrame);
-	ToStringInternal(LocalState.X(), LocalState.GetR(), LocalState.GetV(), LocalState.GetW(), Builder);
+	ToStringInternal(LocalState.GetX(), LocalState.GetR(), LocalState.GetV(), LocalState.GetW(), Builder);
 }
 
 void FNetworkPredictionPhysicsState::ToString(FBodyInstance* BodyInstance, FAnsiStringBuilderBase& Builder)

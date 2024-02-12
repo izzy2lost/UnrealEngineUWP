@@ -800,12 +800,12 @@ void UMoverNetworkPhysicsLiaisonComponent::OnPreSimulate_Internal(const FPhysics
 			FFloorCheckResult LastFloorResult;
 			if (Blackboard->TryGet(KinematicBlackboard::LastFloorResult, LastFloorResult))
 			{
-				LocalGroundVelocity = UPhysicsMovementUtils::ComputeGroundVelocityFromHitResult(CharacterParticle->X(), LastFloorResult.HitResult, TickParams.DeltaTimeSeconds);
+				LocalGroundVelocity = UPhysicsMovementUtils::ComputeGroundVelocityFromHitResult(CharacterParticle->GetX(), LastFloorResult.HitResult, TickParams.DeltaTimeSeconds);
 				LocalGroundVelocity -= LocalGroundVelocity.ProjectOnToNormal(LastFloorResult.HitResult.ImpactNormal);
 			}
 		}
 	}
-	SyncState.SetTransforms_WorldSpace(CharacterParticle->X(), FRotator(CharacterParticle->GetR()), CharacterParticle->GetV() - LocalGroundVelocity);
+	SyncState.SetTransforms_WorldSpace(CharacterParticle->GetX(), FRotator(CharacterParticle->GetR()), CharacterParticle->GetV() - LocalGroundVelocity);
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Update the simulation
@@ -865,7 +865,7 @@ void UMoverNetworkPhysicsLiaisonComponent::OnPreSimulate_Internal(const FPhysics
 		return;
 	}
 
-	FVector TargetDeltaPos = OutputSyncState->GetLocation_WorldSpace() - CharacterParticle->X();
+	FVector TargetDeltaPos = OutputSyncState->GetLocation_WorldSpace() - CharacterParticle->GetX();
 
 	if (TargetDeltaPos.SizeSquared2D() > GPhysicsDrivenMotionDebugParams.TeleportThreshold * GPhysicsDrivenMotionDebugParams.TeleportThreshold)
 	{
@@ -880,7 +880,7 @@ void UMoverNetworkPhysicsLiaisonComponent::OnPreSimulate_Internal(const FPhysics
 	{
 		if (const UPhysicsDrivenWalkingMode* WalkingMode = Cast<UPhysicsDrivenWalkingMode>(MoverComp->FindMovementMode(UPhysicsDrivenWalkingMode::StaticClass())))
 		{
-			LocalGroundVelocity = UPhysicsMovementUtils::ComputeGroundVelocityFromHitResult(CharacterParticle->X(), Output.FloorResult.HitResult, TickParams.DeltaTimeSeconds);
+			LocalGroundVelocity = UPhysicsMovementUtils::ComputeGroundVelocityFromHitResult(CharacterParticle->GetX(), Output.FloorResult.HitResult, TickParams.DeltaTimeSeconds);
 			LocalGroundVelocity -= LocalGroundVelocity.ProjectOnToNormal(Output.FloorResult.HitResult.ImpactNormal);
 			TargetVelocity += WalkingMode->FractionalVelocityToTarget * LocalGroundVelocity;
 		}
@@ -1032,7 +1032,7 @@ void UMoverNetworkPhysicsLiaisonComponent::OnContactModification_Internal(const 
 		float PawnRadius;
 		MoverComp->UpdatedComponent->CalcBoundingCylinder(PawnRadius, PawnHalfHeight);
 
-		const float CharacterHeight = CharacterParticle->X().Z;
+		const float CharacterHeight = CharacterParticle->GetX().Z;
 		const float EndCapHeight = CharacterHeight - PawnHalfHeight + PawnRadius;
 
 		const float CosThetaMax = 0.97f;

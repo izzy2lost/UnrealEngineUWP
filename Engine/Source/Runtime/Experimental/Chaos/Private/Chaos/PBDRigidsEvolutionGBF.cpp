@@ -795,7 +795,7 @@ FPBDRigidsEvolutionGBF::FPBDRigidsEvolutionGBF(
 	{
 		ParticlesInput.ParallelFor([&](auto& Particle, int32 Index)
 		{
-			Particle.X() = Particle.P();
+			Particle.SetX(Particle.GetP());
 			Particle.SetR(Particle.GetQ());
 
 			//TODO: rename this function since it's not just updating position
@@ -1033,7 +1033,7 @@ void FPBDRigidsEvolutionGBF::DestroyTransientConstraints(FGeometryParticleHandle
 
 CHAOS_API void FPBDRigidsEvolutionGBF::SetParticleTransform(FGeometryParticleHandle* InParticle, const FVec3& InPos, const FRotation3& InRot, const bool bIsTeleport)
 {
-	const FVec3 PrevX = InParticle->X();
+	const FVec3 PrevX = InParticle->GetX();
 	const FRotation3 PrevR = InParticle->GetR();
 
 	FGenericParticleHandle(InParticle)->SetTransform(InPos, InRot);
@@ -1056,7 +1056,7 @@ void FPBDRigidsEvolutionGBF::SetParticleTransformSwept(FGeometryParticleHandle* 
 	// that are not centerd on their center of mass (either it's multi-shape body, or the user modified the CoM).
 	const FVec3 CoMOffset = FConstGenericParticleHandle(InParticle)->CenterOfMass();
 	const FVec3 EndCoM = InPos + InRot * CoMOffset;
-	const FVec3 StartCoM = InParticle->X() + InParticle->GetR() * CoMOffset;
+	const FVec3 StartCoM = InParticle->GetX() + InParticle->GetR() * CoMOffset;
 	FVec3 SweepDir = EndCoM - StartCoM;
 	const FReal SweepLength = SweepDir.SafeNormalize();
 	const FVec3 SweepStart = InPos - SweepDir * SweepLength;
@@ -1114,7 +1114,7 @@ void FPBDRigidsEvolutionGBF::OnParticleMoved(FGeometryParticleHandle* InParticle
 	// is different by very small amounts around 1e-7 in both position and rotation when switching from dynamic to kinematic.
 	const FReal CollisionPositionTolerance = FReal(1.e-4);
 	const FReal CollisionRotationTolerance = FReal(1.e-6);
-	if (!FVec3::IsNearlyEqual(PrevX, InParticle->X(), CollisionPositionTolerance) || !FRotation3::IsNearlyEqual(PrevR, InParticle->GetR(), CollisionRotationTolerance))
+	if (!FVec3::IsNearlyEqual(PrevX, InParticle->GetX(), CollisionPositionTolerance) || !FRotation3::IsNearlyEqual(PrevR, InParticle->GetR(), CollisionRotationTolerance))
 	{
 		GetIslandManager().WakeParticleIslands(InParticle);
 
@@ -1137,7 +1137,7 @@ void FPBDRigidsEvolutionGBF::OnParticleMoved(FGeometryParticleHandle* InParticle
 			{
 				// @todo(chaos): better sleep system! We should probably have a sleep accumulator per particle
 				const FReal InvDt = FReal(30.0);
-				const FVec3 DV = (PrevX - Rigid->X()) * InvDt;
+				const FVec3 DV = (PrevX - Rigid->GetX()) * InvDt;
 				const FReal SmoothRate = FMath::Clamp(CVars::SmoothedPositionLerpRate, 0.0f, 1.0f);
 				Rigid->VSmooth() = FMath::Lerp(Rigid->VSmooth(), Rigid->GetV() + DV, SmoothRate);
 			}

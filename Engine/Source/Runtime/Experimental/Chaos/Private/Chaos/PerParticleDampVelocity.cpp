@@ -57,7 +57,7 @@ void FPerParticleDampVelocity::UpdatePositionBasedState(const FSolverParticlesRa
 				continue;
 			}
 
-			Xcm += Particles.X(Index) * Particles.M(Index);
+			Xcm += Particles.GetX(Index) * Particles.M(Index);
 			Vcm += Particles.V(Index) * Particles.M(Index);
 			Mcm += Particles.M(Index);
 		}
@@ -77,7 +77,7 @@ void FPerParticleDampVelocity::UpdatePositionBasedState(const FSolverParticlesRa
 				continue;
 			}
 
-			const FSolverVec3 V = Particles.X(Index) - Xcm;
+			const FSolverVec3 V = Particles.GetX(Index) - Xcm;
 			L += FSolverVec3::CrossProduct(V, Particles.M(Index) * Particles.V(Index));
 			const FSolverMatrix33 M(0, V[2], -V[1], -V[2], 0, V[0], V[1], -V[0], 0);
 			I += M.GetTransposed() * M * Particles.M(Index);

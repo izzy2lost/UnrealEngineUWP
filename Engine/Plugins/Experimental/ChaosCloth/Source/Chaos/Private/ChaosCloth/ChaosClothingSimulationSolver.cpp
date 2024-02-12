@@ -258,7 +258,8 @@ FClothingSimulationSolver::FClothingSimulationSolver(bool bForceBasedSolver, FCl
 					{
 						const int32 SubBoneIndexLocal = SubBoneIndices[SubBoneIdx] - ParticlesInput.GetOffset();
 						checkSlow(SubBoneIndexLocal < Index);
-						SubBoneTransforms[SubBoneIdx] = TRigidTransform<FReal, 3>(ParticlesInput.X(SubBoneIndexLocal), ParticlesInput.R(SubBoneIndexLocal)) * RootTransformInv;
+						const Softs::FSolverCollisionParticlesRange& ConstParticlesInput = ParticlesInput;
+						SubBoneTransforms[SubBoneIdx] = TRigidTransform<FReal, 3>(ParticlesInput.X(SubBoneIndexLocal), ConstParticlesInput.R(SubBoneIndexLocal)) * RootTransformInv;
 					}
 					SkinnedLevelSet->DeformPoints(SubBoneTransforms);
 					SkinnedLevelSet->UpdateSpatialHierarchy();
@@ -312,13 +313,13 @@ FClothingSimulationSolver::FClothingSimulationSolver(bool bForceBasedSolver, FCl
 		PBDEvolution->SetCollisionKinematicUpdateFunction(
 			[this](Softs::FSolverCollisionParticles& ParticlesInput, const Softs::FSolverReal Dt, const Softs::FSolverReal LocalTime, const int32 Index)
 		{
-			LastSubframeCollisionTransformsCCD[Index] = Softs::FSolverRigidTransform3(ParticlesInput.X(Index), ParticlesInput.GetR(Index));
+			LastSubframeCollisionTransformsCCD[Index] = Softs::FSolverRigidTransform3(ParticlesInput.GetX(Index), ParticlesInput.GetR(Index));
 
 			checkSlow(Dt > SMALL_NUMBER && DeltaTime > SMALL_NUMBER);
 			const Softs::FSolverReal Alpha = (LocalTime - Time) / DeltaTime;
 			const Softs::FSolverVec3 NewX =
 				Alpha * CollisionTransforms[Index].GetTranslation() + ((Softs::FSolverReal)1. - Alpha) * OldCollisionTransforms[Index].GetTranslation();
-			ParticlesInput.V(Index) = (NewX - ParticlesInput.X(Index)) / Dt;
+			ParticlesInput.V(Index) = (NewX - ParticlesInput.GetX(Index)) / Dt;
 			ParticlesInput.X(Index) = NewX;
 			const Softs::FSolverRotation3 NewR = Softs::FSolverRotation3::Slerp(OldCollisionTransforms[Index].GetRotation(), CollisionTransforms[Index].GetRotation(), Alpha);
 			const Softs::FSolverRotation3 Delta = NewR * ParticlesInput.GetR(Index).Inverse();
@@ -331,13 +332,13 @@ FClothingSimulationSolver::FClothingSimulationSolver(bool bForceBasedSolver, FCl
 				const_cast<FImplicitObject*>(ParticlesInput.GetGeometry(Index).GetReference())->GetObject<TWeightedLatticeImplicitObject<FLevelSet>>())
 			{
 				const TArray<int32>& SubBoneIndices = SkinnedLevelSet->GetSolverBoneIndices();
-				const FTransform RootTransformInv = TRigidTransform<FReal, 3>(ParticlesInput.X(Index), ParticlesInput.GetR(Index)).Inverse();
+				const FTransform RootTransformInv = TRigidTransform<FReal, 3>(ParticlesInput.GetX(Index), ParticlesInput.GetR(Index)).Inverse();
 				TArray<FTransform> SubBoneTransforms;
 				SubBoneTransforms.SetNum(SubBoneIndices.Num());
 				for (int32 SubBoneIdx = 0; SubBoneIdx < SubBoneIndices.Num(); ++SubBoneIdx)
 				{
 					checkSlow(SubBoneIndices[SubBoneIdx] < Index);
-					SubBoneTransforms[SubBoneIdx] = TRigidTransform<FReal, 3>(ParticlesInput.X(SubBoneIndices[SubBoneIdx]), ParticlesInput.GetR(SubBoneIndices[SubBoneIdx])) * RootTransformInv;
+					SubBoneTransforms[SubBoneIdx] = TRigidTransform<FReal, 3>(ParticlesInput.GetX(SubBoneIndices[SubBoneIdx]), ParticlesInput.GetR(SubBoneIndices[SubBoneIdx])) * RootTransformInv;
 				}
 				SkinnedLevelSet->DeformPoints(SubBoneTransforms);
 				SkinnedLevelSet->UpdateSpatialHierarchy();

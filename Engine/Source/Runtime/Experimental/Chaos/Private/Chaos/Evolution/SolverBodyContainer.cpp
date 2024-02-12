@@ -31,14 +31,14 @@ namespace Chaos
 		else
 		{
 			// Static or kinematic particle
-			SolverBody.SetP(Particle->X());
+			SolverBody.SetP(Particle->GetX());
 			SolverBody.SetQ(Particle->GetR());
 			SolverBody.SetCoM(FVec3(0));
 			SolverBody.SetRoM(FRotation3::FromIdentity());
 			if (KinematicParticle != nullptr)
 			{
 				// Kinematic particle
-				SolverBody.SetX(KinematicParticle->X() - KinematicParticle->GetV() * Dt);
+				SolverBody.SetX(KinematicParticle->GetX() - KinematicParticle->GetV() * Dt);
 				SolverBody.SetR(Particle->GetR());
 				if (!KinematicParticle->GetW().IsNearlyZero())
 				{
@@ -49,7 +49,7 @@ namespace Chaos
 			}
 			else
 			{
-				SolverBody.SetX(Particle->X());
+				SolverBody.SetX(Particle->GetX());
 				SolverBody.SetR(Particle->GetR());
 				SolverBody.SetV(FVec3(0));
 				SolverBody.SetW(FVec3(0));

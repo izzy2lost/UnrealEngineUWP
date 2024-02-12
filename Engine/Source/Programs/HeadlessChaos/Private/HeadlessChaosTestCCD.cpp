@@ -54,12 +54,12 @@ namespace ChaosTest
 		Dynamic->InvI() = TVec3<FRealSingle>(1.0f / Mass, 1.0f / Mass, 1.0f / Mass);
 
 		// Positions and velocities
-		Static->X() = FVec3(0, 0, 0);
-		Dynamic->X() = FVec3(0, 0, InitialPosition); // Start 30cm above the static box
+		Static->SetX(FVec3(0, 0, 0));
+		Dynamic->SetX( FVec3(0, 0, InitialPosition)); // Start 30cm above the static box
 		Dynamic->SetV(FVec3(0, 0, -InitialSpeed));
 
 		// The position of the static has changed and statics don't automatically update bounds, so update explicitly
-		Static->UpdateWorldSpaceState(TRigidTransform<FReal, 3>(Static->X(), Static->GetR()), FVec3(0));
+		Static->UpdateWorldSpaceState(TRigidTransform<FReal, 3>(Static->GetX(), Static->GetR()), FVec3(0));
 
 		::ChaosTest::SetParticleSimDataToCollide({ Static,Dynamic });
 
@@ -81,7 +81,7 @@ namespace ChaosTest
 		// Large error margin, we are testing CCD and not solver accuracy
 		// The Box should pass right through the other one without interacting
 		const FReal LargeErrorMargin = 10.0f;
-		EXPECT_NEAR(Dynamic->X()[2], InitialPosition - InitialSpeed * Dt, LargeErrorMargin);
+		EXPECT_NEAR(Dynamic->GetX()[2], InitialPosition - InitialSpeed * Dt, LargeErrorMargin);
 	}
 
 	GTEST_TEST(CCDTests, ConvexConvex)
@@ -118,12 +118,12 @@ namespace ChaosTest
 		Dynamic->InvI() = TVec3<FRealSingle>(1.0f / Mass, 1.0f / Mass, 1.0f / Mass);
 
 		// Positions and velocities
-		Static->X() = FVec3(0, 0, 0);
-		Dynamic->X() = FVec3(0, 0, BoxHalfSize * 2 + 30); // Start 30cm above the static box
+		Static->SetX(FVec3(0, 0, 0));
+		Dynamic->SetX(FVec3(0, 0, BoxHalfSize * 2 + 30)); // Start 30cm above the static box
 		Dynamic->SetV(FVec3(0, 0, -InitialSpeed));
 
 		// The position of the static has changed and statics don't automatically update bounds, so update explicitly
-		Static->UpdateWorldSpaceState(TRigidTransform<FReal, 3>(Static->X(), Static->GetR()), FVec3(0));
+		Static->UpdateWorldSpaceState(TRigidTransform<FReal, 3>(Static->GetX(), Static->GetR()), FVec3(0));
 
 		::ChaosTest::SetParticleSimDataToCollide({ Static,Dynamic });
 
@@ -144,7 +144,7 @@ namespace ChaosTest
 
 		// Large error margin, we are testing CCD and not solver accuracy
 		const FReal LargeErrorMargin = 10.0f;
-		EXPECT_GE(Dynamic->X()[2], BoxHalfSize * 2 - LargeErrorMargin);
+		EXPECT_GE(Dynamic->GetX()[2], BoxHalfSize * 2 - LargeErrorMargin);
 	}
 
 	// CCD not implemented for sphere sphere
@@ -184,13 +184,13 @@ namespace ChaosTest
 		Dynamic->InvI() = TVec3<FRealSingle>(1.0f / Mass);
 
 		// Positions and velocities
-		Static->X() = FVec3(0, 0, 0);
+		Static->SetX(FVec3(0, 0, 0));
 
-		Dynamic->X() = FVec3(0, 0, SphereRadius * 2 + 10);
+		Dynamic->SetX(FVec3(0, 0, SphereRadius * 2 + 10));
 		Dynamic->SetV(FVec3(0, 0, -InitialSpeed));
 		
 		// The position of the static has changed and statics don't automatically update bounds, so update explicitly
-		Static->UpdateWorldSpaceState(TRigidTransform<FReal, 3>(Static->X(), Static->GetR()), FVec3(0));
+		Static->UpdateWorldSpaceState(TRigidTransform<FReal, 3>(Static->GetX(), Static->GetR()), FVec3(0));
 
 		::ChaosTest::SetParticleSimDataToCollide({ Static,Dynamic });
 
@@ -211,7 +211,7 @@ namespace ChaosTest
 
 		// Large error margin, we are testing CCD and not solver accuracy
 		const FReal LargeErrorMargin = 10.0f;
-		EXPECT_GE(Dynamic->X()[2], SphereRadius * 2 - LargeErrorMargin);
+		EXPECT_GE(Dynamic->GetX()[2], SphereRadius * 2 - LargeErrorMargin);
 	}
 
 	
@@ -269,22 +269,22 @@ namespace ChaosTest
 		Dynamic->InvI() = TVec3<FRealSingle>(1.0f / Mass);
 
 		// Positions and velocities
-		ContainerFaces[0]->X() = FVec3(ContainerBoxHalfSize, 0, 0);
-		ContainerFaces[1]->X() = FVec3(-ContainerBoxHalfSize, 0, 0);
-		ContainerFaces[2]->X() = FVec3(0, ContainerBoxHalfSize, 0);
-		ContainerFaces[3]->X() = FVec3(0, -ContainerBoxHalfSize, 0);
-		ContainerFaces[4]->X() = FVec3(0, 0, ContainerBoxHalfSize);
-		ContainerFaces[5]->X() = FVec3(0, 0, -ContainerBoxHalfSize);
+		ContainerFaces[0]->SetX(FVec3(ContainerBoxHalfSize, 0, 0));
+		ContainerFaces[1]->SetX(FVec3(-ContainerBoxHalfSize, 0, 0));
+		ContainerFaces[2]->SetX(FVec3(0, ContainerBoxHalfSize, 0));
+		ContainerFaces[3]->SetX(FVec3(0, -ContainerBoxHalfSize, 0));
+		ContainerFaces[4]->SetX(FVec3(0, 0, ContainerBoxHalfSize));
+		ContainerFaces[5]->SetX(FVec3(0, 0, -ContainerBoxHalfSize));
 
-		Dynamic->X() = FVec3(0, 0, 0);
+		Dynamic->SetX(FVec3(0, 0, 0));
 
 		// The position of the static has changed and statics don't automatically update bounds, so update explicitly
-		ContainerFaces[0]->UpdateWorldSpaceState(TRigidTransform<FReal, 3>(ContainerFaces[0]->X(), ContainerFaces[0]->GetR()), FVec3(0));
-		ContainerFaces[1]->UpdateWorldSpaceState(TRigidTransform<FReal, 3>(ContainerFaces[1]->X(), ContainerFaces[1]->GetR()), FVec3(0));
-		ContainerFaces[2]->UpdateWorldSpaceState(TRigidTransform<FReal, 3>(ContainerFaces[2]->X(), ContainerFaces[2]->GetR()), FVec3(0));
-		ContainerFaces[3]->UpdateWorldSpaceState(TRigidTransform<FReal, 3>(ContainerFaces[3]->X(), ContainerFaces[3]->GetR()), FVec3(0));
-		ContainerFaces[4]->UpdateWorldSpaceState(TRigidTransform<FReal, 3>(ContainerFaces[4]->X(), ContainerFaces[4]->GetR()), FVec3(0));
-		ContainerFaces[5]->UpdateWorldSpaceState(TRigidTransform<FReal, 3>(ContainerFaces[5]->X(), ContainerFaces[5]->GetR()), FVec3(0));
+		ContainerFaces[0]->UpdateWorldSpaceState(TRigidTransform<FReal, 3>(ContainerFaces[0]->GetX(), ContainerFaces[0]->GetR()), FVec3(0));
+		ContainerFaces[1]->UpdateWorldSpaceState(TRigidTransform<FReal, 3>(ContainerFaces[1]->GetX(), ContainerFaces[1]->GetR()), FVec3(0));
+		ContainerFaces[2]->UpdateWorldSpaceState(TRigidTransform<FReal, 3>(ContainerFaces[2]->GetX(), ContainerFaces[2]->GetR()), FVec3(0));
+		ContainerFaces[3]->UpdateWorldSpaceState(TRigidTransform<FReal, 3>(ContainerFaces[3]->GetX(), ContainerFaces[3]->GetR()), FVec3(0));
+		ContainerFaces[4]->UpdateWorldSpaceState(TRigidTransform<FReal, 3>(ContainerFaces[4]->GetX(), ContainerFaces[4]->GetR()), FVec3(0));
+		ContainerFaces[5]->UpdateWorldSpaceState(TRigidTransform<FReal, 3>(ContainerFaces[5]->GetX(), ContainerFaces[5]->GetR()), FVec3(0));
 
 		::ChaosTest::SetParticleSimDataToCollide({ Dynamic });
 		::ChaosTest::SetParticleSimDataToCollide({ ContainerFaces });
@@ -317,14 +317,14 @@ namespace ChaosTest
 		{
 			// If this failed, the dynamic cube escaped the air tight static container
 			const  FReal MaxCoordinates = ContainerBoxHalfSize - ContainerWallThickness / 2 - SmallBoxHalfSize;
-			EXPECT_LT(FMath::Abs(Dynamic->X()[axis]), MaxCoordinates + LargeErrorMargin);
+			EXPECT_LT(FMath::Abs(Dynamic->GetX()[axis]), MaxCoordinates + LargeErrorMargin);
 		}
 		/////////////////////////////////////////////
 		// Test2: Now launch to cube to a corner
 		Dynamic->SetVf(FVec3f(-ContainerBoxHalfSize * Fps * 10));
 		Dynamic->SetWf(FVec3f(0));
-		Dynamic->X() = FVec3(0);
-		Dynamic->P() = FVec3(0);
+		Dynamic->SetX(FVec3(0));
+		Dynamic->SetP(FVec3(0));
 		Dynamic->SetRf(TRotation<FRealSingle, 3>::FromIdentity());
 		Dynamic->SetQf(TRotation<FRealSingle, 3>::FromIdentity());
 
@@ -339,7 +339,7 @@ namespace ChaosTest
 		{
 			// If this failed, the dynamic cube escaped the air tight static container
 			const  FReal MaxCoordinates = ContainerBoxHalfSize - ContainerWallThickness / 2 - SmallBoxHalfSize;
-			EXPECT_LT(FMath::Abs(Dynamic->X()[axis]), MaxCoordinates + LargeErrorMargin);
+			EXPECT_LT(FMath::Abs(Dynamic->GetX()[axis]), MaxCoordinates + LargeErrorMargin);
 		}
 
 		/////////////////////////////////////////////////////////////////////
@@ -347,8 +347,8 @@ namespace ChaosTest
 		// Make sure it still stays inside the box (albeit with a very reduced velocity) 
 		Dynamic->SetV(InitialVelocity);
 		Dynamic->SetW(FVec3(0));
-		Dynamic->X() = FVec3(0);
-		Dynamic->P() = FVec3(0);
+		Dynamic->SetX(FVec3(0));
+		Dynamic->SetP(FVec3(0));
 		Dynamic->SetR(TRotation<FReal, 3>::FromIdentity());
 		Dynamic->SetQ(TRotation<FReal, 3>::FromIdentity());
 		PhysicsMaterial->Restitution = 0.9f;
@@ -364,7 +364,7 @@ namespace ChaosTest
 		{
 			// If this failed, the dynamic cube escaped the air tight static container
 			const  FReal MaxCoordinates = ContainerBoxHalfSize - ContainerWallThickness / 2 - SmallBoxHalfSize;
-			EXPECT_LT(FMath::Abs(Dynamic->X()[axis]), MaxCoordinates + LargeErrorMargin);
+			EXPECT_LT(FMath::Abs(Dynamic->GetX()[axis]), MaxCoordinates + LargeErrorMargin);
 		}
 	}
 }

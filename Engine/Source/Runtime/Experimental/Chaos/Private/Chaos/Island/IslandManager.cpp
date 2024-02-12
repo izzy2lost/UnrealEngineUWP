@@ -125,7 +125,7 @@ namespace Chaos::Private
 				const FKinematicTarget& KinematicTarget = Kinematic->KinematicTarget();
 				if (KinematicTarget.GetMode() == EKinematicTargetMode::Position)
 				{
-					bIsStationary = (Kinematic->X() - KinematicTarget.GetTargetPosition()).IsZero() && (Kinematic->GetR() * KinematicTarget.GetTargetRotation().Inverse()).IsIdentity();
+					bIsStationary = (Kinematic->GetX() - KinematicTarget.GetTargetPosition()).IsZero() && (Kinematic->GetR() * KinematicTarget.GetTargetRotation().Inverse()).IsIdentity();
 				}
 				else
 				{
@@ -262,7 +262,7 @@ namespace Chaos::Private
 		if (Dt > UE_SMALL_NUMBER)
 		{
 			const FReal SmoothRate = FMath::Clamp(CVars::SmoothedPositionLerpRate, 0.0f, 1.0f);
-			const FVec3 VImp = FVec3::CalculateVelocity(Rigid.X(), Rigid.P(), Dt);
+			const FVec3 VImp = FVec3::CalculateVelocity(Rigid.GetX(), Rigid.GetP(), Dt);
 			const FVec3 WImp = FRotation3::CalculateAngularVelocity(Rigid.GetR(), Rigid.GetQ(), Dt);
 			Rigid.SetVSmooth(FMath::Lerp(Rigid.VSmooth(), VImp, SmoothRate));
 			Rigid.SetWSmooth(FMath::Lerp(Rigid.WSmooth(), WImp, SmoothRate));

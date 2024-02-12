@@ -337,7 +337,7 @@ void SetImplicitToPTParticles(Chaos::TPBDRigidParticleHandle<Chaos::FReal, 3>* H
 			Handle->SetLocalBounds(SharedImplicitTS->BoundingBox());
 		}
 		Handle->SetHasBounds(true);
-		const Chaos::FRigidTransform3 Xf(Handle->X(), Handle->GetR());
+		const Chaos::FRigidTransform3 Xf(Handle->GetX(), Handle->GetR());
 		Handle->UpdateWorldSpaceState(Xf, Chaos::FVec3(0));
 	}
 
@@ -363,18 +363,18 @@ void SetImplicitToPTParticles(Chaos::TPBDRigidParticleHandle<Chaos::FReal, 3>* H
 		// we need to account for scale and check if the particle is still within its domain
 		for (int32 ParticleIndex = 0; ParticleIndex < (int32)CollisionParticles->Size(); ++ParticleIndex)
 		{
-			CollisionParticles->X(ParticleIndex) *= Scale;
+			CollisionParticles->SetX(ParticleIndex, CollisionParticles->GetX(ParticleIndex) * Scale);
 
 			// Make sure the collision particles are at least in the domain 
 			// of the implicit shape.
-			ensure(ImplicitShapeDomain.Contains(CollisionParticles->X(ParticleIndex)));
+			ensure(ImplicitShapeDomain.Contains(CollisionParticles->GetX(ParticleIndex)));
 		}
 
 		// @todo(remove): IF there is no simplicial we should not be forcing one. 
 		if (!CollisionParticles->Size())
 		{
 			CollisionParticles->AddParticles(1);
-			CollisionParticles->X(0) = Chaos::FVec3(0);
+			CollisionParticles->SetX(0, Chaos::FVec3(0));
 		}
 		CollisionParticles->UpdateAccelerationStructures();
 	}
@@ -426,7 +426,7 @@ void PopulateSimulatedParticle(
 	Handle->SetVf(Chaos::FVec3f(0.f));
 	Handle->SetR(WorldTransform.GetRotation().GetNormalized());
 	Handle->SetWf(Chaos::FVec3f(0.f));
-	Handle->SetP(Handle->X());
+	Handle->SetP(Handle->GetX());
 	Handle->SetQf(Handle->GetRf());
 	Handle->SetCenterOfMass(FVector3f::ZeroVector);
 	Handle->SetRotationOfMass(FQuat::Identity);
@@ -1998,7 +1998,7 @@ Chaos::TPBDGeometryCollectionParticleHandle<Chaos::FReal, 3>* FGeometryCollectio
 	{
 		Handle->SetHasBounds(true);
 		Handle->SetLocalBounds(Handle->GetGeometry()->BoundingBox());
-		const Chaos::FRigidTransform3 Xf(Handle->X(), Handle->GetR());
+		const Chaos::FRigidTransform3 Xf(Handle->GetX(), Handle->GetR());
 		Handle->UpdateWorldSpaceState(Xf, Chaos::FVec3(0));
 
 		static_cast<Chaos::FPBDRigidsSolver*>(Solver)->GetEvolution()->DirtyParticle(*Handle);
@@ -2147,7 +2147,7 @@ FGeometryCollectionPhysicsProxy::BuildClusters_Internal(
 	{
 		Parent->SetHasBounds(true);
 		Parent->SetLocalBounds(Parent->GetGeometry()->BoundingBox());
-		const Chaos::FRigidTransform3 Xf(Parent->X(), Parent->GetR());
+		const Chaos::FRigidTransform3 Xf(Parent->GetX(), Parent->GetR());
 		Parent->UpdateWorldSpaceState(Xf, Chaos::FVec3(0));
 
 		static_cast<Chaos::FPBDRigidsSolver*>(Solver)->GetEvolution()->DirtyParticle(*Parent);
@@ -2386,7 +2386,7 @@ void FGeometryCollectionPhysicsProxy::ApplyForceAt_External(FVector Force, FVect
 					{
 						if (ClusteredHandle->IsDynamic())
 						{
-							const Chaos::FReal DistanceSquared = (WorldLocation - ClusteredHandle->X()).SquaredLength();
+							const Chaos::FReal DistanceSquared = (WorldLocation - ClusteredHandle->GetX()).SquaredLength();
 							if (DistanceSquared < ClosestDistanceSquared)
 							{
 								ClosestDistanceSquared = DistanceSquared;
@@ -2424,7 +2424,7 @@ void FGeometryCollectionPhysicsProxy::ApplyImpulseAt_External(FVector Impulse, F
 					{
 						if (ClusteredHandle->IsDynamic())
 						{
-							const Chaos::FReal DistanceSquared = (WorldLocation - ClusteredHandle->X()).SquaredLength();
+							const Chaos::FReal DistanceSquared = (WorldLocation - ClusteredHandle->GetX()).SquaredLength();
 							if (DistanceSquared < ClosestDistanceSquared)
 							{
 								ClosestDistanceSquared = DistanceSquared;
@@ -2552,7 +2552,7 @@ void FGeometryCollectionPhysicsProxy::SetAnchoredByTransformedBox_External(const
 				{
 					if (FClusterHandle* ParticleHandle = SolverParticleHandles[ParticleIndex])
 					{
-						const FVec3 PositionInBoxSpace = BoxTransform.InverseTransformPosition(ParticleHandle->X());
+						const FVec3 PositionInBoxSpace = BoxTransform.InverseTransformPosition(ParticleHandle->GetX());
 						if (BoundsToCheck.Contains(PositionInBoxSpace))
 						{
 							// if we have a max level , we make sure to anchor a parent of the right level 
@@ -3306,7 +3306,7 @@ void FGeometryCollectionPhysicsProxy::SetWorldTransform_Internal(const FTransfor
 
 				if (KinematicRootHandle)
 				{
-					const FTransform RootWorldTransform(KinematicRootHandle->GetR(), KinematicRootHandle->X());
+					const FTransform RootWorldTransform(KinematicRootHandle->GetR(), KinematicRootHandle->GetX());
 					const FTransform RootRelativeTransform = RootWorldTransform.GetRelativeTransform(Parameters.PrevWorldTransform);
 					const FTransform WorldTransform = RootRelativeTransform * ActorToWorld;
 
@@ -3322,7 +3322,7 @@ void FGeometryCollectionPhysicsProxy::SetWorldTransform_Internal(const FTransfor
 					if (ClusterUnionIndex != INDEX_NONE)
 					{
 						const int32 TransformGroupIndex = FromParticleToTransformIndex[ParticleIndex];
-						const FTransform ParentWorldTransform{ ParentHandle->GetR(), ParentHandle->X() };
+						const FTransform ParentWorldTransform{ ParentHandle->GetR(), ParentHandle->GetX() };
 						const FTransform NewWorldTransform = MassToLocal[TransformGroupIndex] * FTransform(PhysicsThreadCollection.GetTransform(TransformGroupIndex)) * Parameters.WorldTransform;
 						const FTransform RelativeTransform = NewWorldTransform.GetRelativeTransform(ParentWorldTransform);
 
@@ -3709,7 +3709,7 @@ void FGeometryCollectionPhysicsProxy::BufferPhysicsResults_External(Chaos::FDirt
 
 static void UpdateParticleHandleTransform(Chaos::FPBDRigidsSolver& CurrentSolver, Chaos::FPBDRigidClusteredParticleHandle& Handle, const Chaos::FRigidTransform3& NewTransform)
 {
-	Handle.X() = NewTransform.GetTranslation();
+	Handle.SetX(NewTransform.GetTranslation());
 	Handle.SetR(NewTransform.GetRotation());
 	Handle.UpdateWorldSpaceState(NewTransform, Chaos::FVec3{0});
 	CurrentSolver.GetEvolution()->DirtyParticle(Handle);
@@ -3718,7 +3718,7 @@ static void UpdateParticleHandleTransform(Chaos::FPBDRigidsSolver& CurrentSolver
 static void UpdateParticleHandleTransformIfNeeded(Chaos::FPBDRigidsSolver& CurrentSolver, Chaos::FPBDRigidClusteredParticleHandle& Handle, const Chaos::FRigidTransform3& NewTransform)
 {
 	const Chaos::FVec3 NewX = NewTransform.GetTranslation();
-	const Chaos::FVec3 OldX = Handle.X();
+	const Chaos::FVec3 OldX = Handle.GetX();
 	
 	const Chaos::FRotation3 NewR  = NewTransform.GetRotation();
 	const Chaos::FRotation3 OldR = Handle.GetR();
@@ -3801,7 +3801,7 @@ void FGeometryCollectionPhysicsProxy::BufferPhysicsResults_Internal(Chaos::FPBDR
 			const bool bIsActive = !Handle->Disabled();
 
 			FGeometryCollectionResults::FPositionData PositionData;
-			PositionData.ParticleX = Handle->X();
+			PositionData.ParticleX = Handle->GetX();
 			PositionData.ParticleR = Handle->GetR();
 
 			FGeometryCollectionResults::FVelocityData VelocityData;
@@ -3875,7 +3875,7 @@ void FGeometryCollectionPhysicsProxy::BufferPhysicsResults_Internal(Chaos::FPBDR
 
 				// child of internal clusters may not have their position up to date 
 				// so we need to compute it from the ChildToParent transform 
-				const FTransform ParticleToWorld = Handle->ChildToParent() * FRigidTransform3(ClusterParent->X(), ClusterParent->GetR()); // aka ClusterChildToWorld
+				const FTransform ParticleToWorld = Handle->ChildToParent() * FRigidTransform3(ClusterParent->GetX(), ClusterParent->GetR()); // aka ClusterChildToWorld
 				PositionData.ParticleX = ParticleToWorld.GetTranslation();
 				PositionData.ParticleR = ParticleToWorld.GetRotation();
 				
@@ -3895,7 +3895,7 @@ void FGeometryCollectionPhysicsProxy::BufferPhysicsResults_Internal(Chaos::FPBDR
 			{
 				if (ClusterParent && !ClusterParent->Disabled())
 				{
-					const FRigidTransform3 ChildToWorld = Handle->ChildToParent() * FRigidTransform3(ClusterParent->X(), ClusterParent->GetR());
+					const FRigidTransform3 ChildToWorld = Handle->ChildToParent() * FRigidTransform3(ClusterParent->GetX(), ClusterParent->GetR());
 					UpdateParticleHandleTransformIfNeeded(*CurrentSolver, *Handle, ChildToWorld);
 					// fields may have applied velocities, we need to make sure to clear that up, so that we don't accumulate
 					VelocityData.ParticleV = FVec3::ZeroVector;
@@ -3975,7 +3975,7 @@ static inline bool UpdateGTParticleXR(Chaos::FPBDRigidParticle& GTParticle, cons
 {
 	GC_PHYSICSPROXY_CHECK_FOR_NAN(NewX);
 
-	const Chaos::FVec3 OldX = GTParticle.X();
+	const Chaos::FVec3 OldX = GTParticle.GetX();
 	const bool bNeedUpdateX = (!NewX.Equals(OldX, GeometryCollectionPositionUpdateTolerance));
 	if (bNeedUpdateX)
 	{
@@ -5135,7 +5135,7 @@ void FGeometryCollectionPhysicsProxy::InitializeSharedCollisionStructures(
 	MassSpaceParticles.AddParticles(Vertex.Num());
 	for (int32 Idx = 0; Idx < Vertex.Num(); ++Idx)
 	{
-		MassSpaceParticles.X(Idx) = Vertex[Idx];	//mass space computation done later down
+		MassSpaceParticles.SetX(Idx, Vertex[Idx]);	//mass space computation done later down
 	}
 	
 	
@@ -5157,7 +5157,7 @@ void FGeometryCollectionPhysicsProxy::InitializeSharedCollisionStructures(
 				const int32 IdxEnd = IdxStart + VertexCount[GeometryIndex];
 				for (int32 Idx = IdxStart; Idx < IdxEnd; ++Idx)
 				{
-					MassSpaceParticles.X(Idx) = MassToLocalTransform.InverseTransformPositionNoScale(MassSpaceParticles.X(Idx));
+					MassSpaceParticles.SetX(Idx, MassToLocalTransform.InverseTransformPositionNoScale(MassSpaceParticles.GetX(Idx)));
 				}
 			}
 
@@ -5169,7 +5169,7 @@ void FGeometryCollectionPhysicsProxy::InitializeSharedCollisionStructures(
 				const TSet<int32> MeshVertices = TriMesh->GetVertices();
 				for (const int32 Idx : MeshVertices)
 				{
-					InstanceBoundingBox += MassSpaceParticles.X(Idx);
+					InstanceBoundingBox += MassSpaceParticles.GetX(Idx);
 				}
 			}
 			else if(VertexCount[GeometryIndex])
@@ -5178,7 +5178,7 @@ void FGeometryCollectionPhysicsProxy::InitializeSharedCollisionStructures(
 				const int32 IdxEnd = IdxStart + VertexCount[GeometryIndex];
 				for (int32 Idx = IdxStart; Idx < IdxEnd; ++Idx)
 				{
-					InstanceBoundingBox += MassSpaceParticles.X(Idx);
+					InstanceBoundingBox += MassSpaceParticles.GetX(Idx);
 				}
 			}
 			else
@@ -5269,7 +5269,7 @@ void FGeometryCollectionPhysicsProxy::InitializeSharedCollisionStructures(
 		// Init to -FLT_MAX for debugging purposes
 		for (int32 Idx = 0; Idx < NumTransforms; Idx++)
 		{
-			CollectionSpaceParticles->X(Idx) = Chaos::FVec3(-TNumericLimits<FReal>::Max());
+			CollectionSpaceParticles->SetX(Idx, Chaos::FVec3(-TNumericLimits<FReal>::Max()));
 		}
 
 		//
@@ -5418,9 +5418,9 @@ void FGeometryCollectionPhysicsProxy::InitializeSharedCollisionStructures(
 							for (const int32 VertIdx : VertsAdded)
 							{
 								//Update particles so they are in the cluster's mass space
-								MassSpaceParticles.X(VertIdx) =
-									ChildMassToClusterMass.TransformPosition(MassSpaceParticles.X(VertIdx));
-								InstanceBoundingBox += MassSpaceParticles.X(VertIdx);
+								MassSpaceParticles.SetX(VertIdx, 
+									ChildMassToClusterMass.TransformPosition(MassSpaceParticles.GetX(VertIdx)));
+								InstanceBoundingBox += MassSpaceParticles.GetX(VertIdx);
 							}
 
 							// Reset vert set for next child so we don't repeatedly transform verts and over extend our calculated bounds

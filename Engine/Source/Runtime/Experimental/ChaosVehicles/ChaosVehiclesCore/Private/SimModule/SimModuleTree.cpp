@@ -301,7 +301,7 @@ void FSimModuleTree::UpdateModuleVelocites(FGeometryCollectionPhysicsProxy* Phys
 		{
 			if (Chaos::FPBDRigidClusteredParticleHandle* ParentParticle = PhysicsProxy->GetSolverClusterHandle_Internal(Module->GetTransformIndex()))
 			{
-				const FTransform BodyTransform(ParentParticle->GetR(), ParentParticle->X());
+				const FTransform BodyTransform(ParentParticle->GetR(), ParentParticle->GetX());
 
 				if (Module->IsBehaviourType(eSimModuleTypeFlags::Velocity))
 				{
@@ -318,7 +318,7 @@ void FSimModuleTree::UpdateModuleVelocites(FGeometryCollectionPhysicsProxy* Phys
 					if (Particle)
 					{
 						FVector WorldLocation = BodyTransform.TransformPosition(Module->GetParentRelativeTransform().GetLocation());
-						const Chaos::FVec3 Arm = WorldLocation - Particle->X();
+						const Chaos::FVec3 Arm = WorldLocation - Particle->GetX();
 
 						FVector WorldVelocity = Particle->GetV() - Chaos::FVec3::CrossProduct(Arm, Particle->GetW());
 						FVector LocalLinearVelocity = BodyTransform.InverseTransformVector(WorldVelocity);
@@ -358,7 +358,7 @@ void FSimModuleTree::UpdateModuleVelocites(FClusterUnionPhysicsProxy* PhysicsPro
 		{
 			if (ISimulationModuleBase* Module = SimulationModuleTree[i].SimModule)
 			{
-				const FTransform BodyTransform(ParentParticle->GetR(), ParentParticle->X());
+				const FTransform BodyTransform(ParentParticle->GetR(), ParentParticle->GetX());
 
 				if (Module->IsBehaviourType(eSimModuleTypeFlags::Velocity))
 				{
@@ -377,7 +377,7 @@ void FSimModuleTree::UpdateModuleVelocites(FClusterUnionPhysicsProxy* PhysicsPro
 						const FTransform& OffsetTransform = Module->GetComponentTransform();
 						FVector LocalPos = Module->GetParentRelativeTransform().GetLocation();
 						FVector WorldLocation = BodyTransform.TransformPosition(LocalPos);
-						const Chaos::FVec3 Arm = WorldLocation - Particle->X();
+						const Chaos::FVec3 Arm = WorldLocation - Particle->GetX();
 
 						//Chaos::FDebugDrawQueue::GetInstance().DrawDebugLine(Particle->X(), Particle->X() + Arm, FColor::Yellow, false, -1.f, 0, 2.f);
 
@@ -407,7 +407,7 @@ void FSimModuleTree::UpdateVehicleState(FClusterUnionPhysicsProxy* PhysicsProxy)
 
 	if (Chaos::FClusterUnionPhysicsProxy::FInternalParticle* ParentParticle = PhysicsProxy->GetParticle_Internal())
 	{
-		const FTransform BodyTransform(ParentParticle->GetR(), ParentParticle->X());
+		const FTransform BodyTransform(ParentParticle->GetR(), ParentParticle->GetX());
 
 		VehicleState.ForwardDir = BodyTransform.GetUnitAxis(EAxis::X);
 		VehicleState.UpDir = BodyTransform.GetUnitAxis(EAxis::Z);

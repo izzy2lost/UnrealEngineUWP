@@ -98,14 +98,14 @@ namespace
 
 		if (ParticleHandle)
 		{
-			FVec3 ParticleX = ParticleHandle->X();
+			FVec3 ParticleX = ParticleHandle->GetX();
 			if (ParticleHandle->Disabled())
 			{
 				if (FPBDRigidClusteredParticleHandle* ClusteredParticle = ParticleHandle->CastToClustered())
 				{
 					if (const FPBDRigidClusteredParticleHandle* ClusteredParent = ClusteredParticle->Parent())
 					{
-						const FTransform ParentTransform(ClusteredParent->GetR(), ClusteredParent->X());
+						const FTransform ParentTransform(ClusteredParent->GetR(), ClusteredParent->GetX());
 						ParticleX = ParentTransform.TransformPosition(ClusteredParticle->ChildToParent().GetTranslation());
 					}
 				}
@@ -258,7 +258,7 @@ namespace Chaos
 
 		if (TThreadParticle<Id>* Particle = Object->GetParticle<Id>())
 		{
-			return Particle->X();
+			return Particle->GetX();
 		}
 
 		return FVector::Zero();
@@ -782,7 +782,7 @@ namespace Chaos
 			FBox ParticleBox(ForceInit);
 			if (const FImplicitObjectRef Geometry = Particle->GetGeometry(); Geometry && Geometry->HasBoundingBox())
 			{
-				const Chaos::FAABB3 WorldBox = Geometry->CalculateTransformedBounds(TRigidTransform<FReal, 3>(Particle->X(), Particle->GetR()));
+				const Chaos::FAABB3 WorldBox = Geometry->CalculateTransformedBounds(TRigidTransform<FReal, 3>(Particle->GetX(), Particle->GetR()));
 				ParticleBox = FBox{ WorldBox.Min(), WorldBox.Max() };
 			}
 

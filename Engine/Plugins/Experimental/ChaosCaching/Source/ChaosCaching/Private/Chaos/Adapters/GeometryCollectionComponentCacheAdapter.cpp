@@ -153,7 +153,7 @@ namespace Chaos
 					Pending.ParticleIndex = TransformIndex;
 					
 					// All recorded transforms are in actor space, ie relative to the Cache Manager making the recording.
-					FTransform LocalTransform = MassToLocal[TransformIndex].Inverse() * FTransform(Handle->GetR(), Handle->X());
+					FTransform LocalTransform = MassToLocal[TransformIndex].Inverse() * FTransform(Handle->GetR(), Handle->GetX());
 					FTransform ActorSpaceTransform = LocalTransform * WorldToActor;
 					Pending.PendingTransform = ActorSpaceTransform;
 				}
@@ -176,7 +176,7 @@ namespace Chaos
 					OutFrame.PendingParticleData.AddDefaulted();
 					FPendingParticleWrite& Pending = OutFrame.PendingParticleData.Last();
 					Pending.ParticleIndex = TransformIndex;
-					FTransform LocalTransform = MassToLocal[TransformIndex].Inverse() * FTransform(Handle->GetR(), Handle->X());
+					FTransform LocalTransform = MassToLocal[TransformIndex].Inverse() * FTransform(Handle->GetR(), Handle->GetX());
 					FTransform ActorSpaceTransform = LocalTransform * WorldToActor;
 					Pending.PendingTransform = ActorSpaceTransform;
 					Pending.bPendingDeactivate = true;
@@ -490,7 +490,7 @@ namespace Chaos
 
 				Handle->SetP(WorldTransform.GetTranslation());
 				Handle->SetQ(WorldTransform.GetRotation());
-				Handle->SetX(Handle->P());
+				Handle->SetX(Handle->GetP());
 				Handle->SetRf(Handle->GetQf());
 				
 				Handle->UpdateWorldSpaceState(WorldTransform, FVec3(0));

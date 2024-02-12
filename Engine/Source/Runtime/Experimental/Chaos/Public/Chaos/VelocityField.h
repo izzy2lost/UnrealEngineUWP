@@ -180,8 +180,8 @@ private:
 
 		// Calculate the normal and the area of the surface exposed to the flow
 		FSolverVec3 N = FSolverVec3::CrossProduct(
-			InParticles.X(Element[1]) - InParticles.X(Element[0]),
-			InParticles.X(Element[2]) - InParticles.X(Element[0]));
+			InParticles.GetX(Element[1]) - InParticles.GetX(Element[0]),
+			InParticles.GetX(Element[2]) - InParticles.GetX(Element[0]));
 		const FSolverReal DoubleArea = N.SafeNormalize();
 
 		// Calculate the direction and the relative velocity of the triangle to the flow
@@ -209,8 +209,8 @@ private:
 
 		// Calculate the normal and the area of the surface exposed to the flow
 		FSolverVec3 N = FSolverVec3::CrossProduct(
-			InParticles.X(Element[1]) - InParticles.X(Element[0]),
-			InParticles.X(Element[2]) - InParticles.X(Element[0]));
+			InParticles.GetX(Element[1]) - InParticles.GetX(Element[0]),
+			InParticles.GetX(Element[2]) - InParticles.GetX(Element[0]));
 		const FSolverReal DoubleArea = N.SafeNormalize();
 
 		// Calculate the direction and the relative velocity of the triangle to the flow

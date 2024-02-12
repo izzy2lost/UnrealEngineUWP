@@ -25,7 +25,7 @@ GTEST_TEST(AllTraits,GeometryCollection_Initilization_TransformedGeometryCollect
 
 	{ // test results
 		EXPECT_EQ(UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().Size(),1);
-		FVector X = UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().X(0);
+		FVector X = UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().GetX(0);
 		FQuat R = UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().GetR(0);
 		EXPECT_TRUE((R * GlobalRotation.Inverse()).IsIdentity(KINDA_SMALL_NUMBER));
 		EXPECT_NEAR(X.X - GlobalTranslation[0],0.0f,KINDA_SMALL_NUMBER);
@@ -56,7 +56,7 @@ GTEST_TEST(AllTraits,GeometryCollection_Initilization_TransformedGeometryCollect
 
 	{ // test results
 		EXPECT_EQ(UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().Size(),1);
-		FVector X = UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().X(0);
+		FVector X = UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().GetX(0);
 		FQuat R = UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().GetR(0);
 		EXPECT_TRUE((R * GlobalRotation.Inverse()).IsIdentity(KINDA_SMALL_NUMBER));
 		EXPECT_NEAR(X.X - GlobalTranslation[0],0.0f,KINDA_SMALL_NUMBER);
@@ -87,7 +87,7 @@ GTEST_TEST(AllTraits,GeometryCollection_Initilization_TransformedGeometryCollect
 
 	{ // test results
 		EXPECT_EQ(UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().Size(),1);
-		FVector X = UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().X(0);
+		FVector X = UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().GetX(0);
 		FQuat R = UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().GetR(0);
 		EXPECT_TRUE((R * GlobalRotation.Inverse()).IsIdentity(KINDA_SMALL_NUMBER));
 		EXPECT_NEAR(X.X - GlobalTranslation[0],0.0f,KINDA_SMALL_NUMBER);
@@ -142,7 +142,7 @@ GTEST_TEST(AllTraits,GeometryCollection_Initilization_TransformedGeometryCollect
 
 
 		EXPECT_EQ(UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().Size(), 1);
-		FVector ParticlePos = UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().X(0);
+		FVector ParticlePos = UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().GetX(0);
 		FQuat ParticleR = UnitTest.Solver->GetParticles().GetGeometryCollectionParticles().GetR(0);
 
 		TArray<FTransform> Transform;

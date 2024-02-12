@@ -55,7 +55,7 @@ namespace Chaos
 			const int32 NumVerts = FinalVerts.Num();
 			for(int32 VertIndex = 0; VertIndex < NumVerts; ++VertIndex)
 			{
-				TriMeshParticles.X(VertIndex) = FinalVerts[VertIndex];
+				TriMeshParticles.SetX(VertIndex, FinalVerts[VertIndex]);
 			}
 
 			// Build chaos triangle list. #BGTODO Just make the clean function take these types instead of double copying
@@ -238,7 +238,7 @@ namespace Chaos
 			const int32 NumVerts = FinalVerts.Num();
 			for(int32 VertIndex = 0; VertIndex < NumVerts; ++VertIndex)
 			{
-				TriMeshParticles.X(VertIndex) = FinalVerts[VertIndex];
+				TriMeshParticles.SetX(VertIndex, FinalVerts[VertIndex]);
 			}
 
 			// Build chaos triangle list. #BGTODO Just make the clean function take these types instead of double copying

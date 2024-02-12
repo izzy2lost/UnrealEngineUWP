@@ -505,7 +505,7 @@ namespace Chaos::Softs
 					const int32 Index = BoundaryVertices[i];
 
 					TArray< TTriangleCollisionPoint<FSolverReal> > Result;
-					if (TriangleMesh.PointProximityQuery(Spatial, static_cast<const TArrayView<const FSolverVec3>&>(Particles.XArray()), Index, Particles.X(Index), DetectRadius, DetectRadius,
+					if (TriangleMesh.PointProximityQuery(Spatial, static_cast<const TArrayView<const FSolverVec3>&>(Particles.XArray()), Index, Particles.GetX(Index), DetectRadius, DetectRadius,
 						[this, &ComponentIndex, &Elements](const int32 PointIndex, const int32 TriangleIndex)->bool
 						{
 							const TVector<int32, 3>& Elem = Elements[TriangleIndex];
@@ -538,8 +538,8 @@ namespace Chaos::Softs
 						
 
 							// NOTE: CollisionPoint.Normal has already been flipped to point toward the Point, so need to recalculate here.
-							const TTriangle<FSolverReal> Triangle(Particles.X(Elem[0]), Particles.X(Elem[1]), Particles.X(Elem[2]));
-							if ((Particles.X(Index) - CollisionPoint.Location).Dot(-Triangle.GetNormal()) < 0) //Is point inside boundary? Normal should point outwards
+							const TTriangle<FSolverReal> Triangle(Particles.GetX(Elem[0]), Particles.GetX(Elem[1]), Particles.GetX(Elem[2]));
+							if ((Particles.GetX(Index) - CollisionPoint.Location).Dot(-Triangle.GetNormal()) < 0) //Is point inside boundary? Normal should point outwards
 							{
 								const int32 IndexToWrite = ConstraintIndex.fetch_add(1);
 

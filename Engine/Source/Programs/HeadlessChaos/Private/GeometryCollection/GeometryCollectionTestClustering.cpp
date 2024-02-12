@@ -1043,9 +1043,9 @@ namespace GeometryCollectionTest
 					ParticleHandles[8]->Disabled() == false)
 				{
 					bValidInitialState = true;
-					Ref0 = ParticleHandles[0]->X();
-					Ref1 = ParticleHandles[1]->X();
-					Ref6 = ParticleHandles[6]->X();
+					Ref0 = ParticleHandles[0]->GetX();
+					Ref1 = ParticleHandles[1]->GetX();
+					Ref6 = ParticleHandles[6]->GetX();
 
 					// Test kinematic particles have valid (0.0) inverse mass and have the kinematic object state set
 					EXPECT_EQ(ParticleHandles[7]->InvM(), 0.f); // kinematic cluster
@@ -1067,9 +1067,9 @@ namespace GeometryCollectionTest
 					ParticleHandles[8]->Disabled() == true)
 				{
 					bParticle8SucessfulRelease = true;
-					FVector X0 = ParticleHandles[0]->X();
-					FVector X1 = ParticleHandles[1]->X();
-					FVector X6 = ParticleHandles[6]->X();
+					FVector X0 = ParticleHandles[0]->GetX();
+					FVector X1 = ParticleHandles[1]->GetX();
+					FVector X6 = ParticleHandles[6]->GetX();
 
 					FVector X00 = Ref0;
 					FVector X11 = Ref1;
@@ -1126,9 +1126,9 @@ namespace GeometryCollectionTest
 					ParticleHandles[8]->Disabled() == true)
 				{
 					bParticle7SucessfulRelease = true;
-					FVector X0 = ParticleHandles[0]->X();
-					FVector X1 = ParticleHandles[1]->X();
-					FVector X6 = ParticleHandles[6]->X();
+					FVector X0 = ParticleHandles[0]->GetX();
+					FVector X1 = ParticleHandles[1]->GetX();
+					FVector X6 = ParticleHandles[6]->GetX();
 
 					// 0 is a dynamic unclustered body (was owned by cluster 8), check that it's moved since declustering
 					EXPECT_GT(FMath::Abs(X0.Size() - Ref0.Size()), KINDA_SMALL_NUMBER);
@@ -1172,9 +1172,9 @@ namespace GeometryCollectionTest
 					ParticleHandles[8]->Disabled() == true)
 				{
 					bValidFinalActiveState = true;
-					FVector X0 = ParticleHandles[0]->X();
-					FVector X1 = ParticleHandles[1]->X();
-					FVector X6 = ParticleHandles[6]->X();
+					FVector X0 = ParticleHandles[0]->GetX();
+					FVector X1 = ParticleHandles[1]->GetX();
+					FVector X6 = ParticleHandles[6]->GetX();
 
 					// 0 is a dynamic unclustered body (was owned by cluster 8), check that it's moved since declustering
 					EXPECT_GT(FMath::Abs(X0.Size() - Ref0.Size()), KINDA_SMALL_NUMBER);
@@ -1359,9 +1359,9 @@ namespace GeometryCollectionTest
 					ParticleHandles[8]->Disabled() == false)
 				{
 					bValidInitialState = true;
-					Ref0 = ParticleHandles[0]->X();
-					Ref1 = ParticleHandles[1]->X();
-					Ref6 = ParticleHandles[6]->X();
+					Ref0 = ParticleHandles[0]->GetX();
+					Ref1 = ParticleHandles[1]->GetX();
+					Ref6 = ParticleHandles[6]->GetX();
 
 					// Test static particles have valid (0.0) inverse mass and have the static object state set
 					EXPECT_EQ(ParticleHandles[7]->InvM(), 0.f); // kinematic cluster
@@ -1383,9 +1383,9 @@ namespace GeometryCollectionTest
 					ParticleHandles[8]->Disabled() == true)
 				{
 					bParticle8SucessfulRelease = true;
-					FVector X0 = ParticleHandles[0]->X();
-					FVector X1 = ParticleHandles[1]->X();
-					FVector X6 = ParticleHandles[6]->X();
+					FVector X0 = ParticleHandles[0]->GetX();
+					FVector X1 = ParticleHandles[1]->GetX();
+					FVector X6 = ParticleHandles[6]->GetX();
 
 					EXPECT_NEAR(FMath::Abs(X0.Size() - Ref0.Size()), 0, KINDA_SMALL_NUMBER);
 					EXPECT_NEAR(FMath::Abs(X1.Size() - Ref1.Size()), 0, KINDA_SMALL_NUMBER);
@@ -1429,9 +1429,9 @@ namespace GeometryCollectionTest
 					ParticleHandles[8]->Disabled() == true)
 				{
 					bParticle7SucessfulRelease = true;
-					FVector X0 = ParticleHandles[0]->X();
-					FVector X1 = ParticleHandles[1]->X();
-					FVector X6 = ParticleHandles[6]->X();
+					FVector X0 = ParticleHandles[0]->GetX();
+					FVector X1 = ParticleHandles[1]->GetX();
+					FVector X6 = ParticleHandles[6]->GetX();
 
 					// 0 is a dynamic unclustered body (was owned by cluster 8), check that it's moved since declustering
 					EXPECT_GT(FMath::Abs(X0.Size() - Ref0.Size()), KINDA_SMALL_NUMBER);
@@ -1476,9 +1476,9 @@ namespace GeometryCollectionTest
 					ParticleHandles[8]->Disabled() == true)
 				{
 					bValidFinalActiveState = true;
-					FVector X0 = ParticleHandles[0]->X();
-					FVector X1 = ParticleHandles[1]->X();
-					FVector X6 = ParticleHandles[6]->X();
+					FVector X0 = ParticleHandles[0]->GetX();
+					FVector X1 = ParticleHandles[1]->GetX();
+					FVector X6 = ParticleHandles[6]->GetX();
 
 					// 0 is a dynamic unclustered body (was owned by cluster 8), check that it's moved since declustering
 					EXPECT_GT(FMath::Abs(X0.Size() - Ref0.Size()), KINDA_SMALL_NUMBER);
@@ -1827,15 +1827,15 @@ namespace GeometryCollectionTest
 			//
 			if (Frame == 0)
 			{
-				InitialRootPosition = Root->X();
-				RelativeChildOffsets[0] = CollectionParticles[0]->X() - Root->X();
-				RelativeChildOffsets[1] = CollectionParticles[1]->X() - Root->X();
-				RelativeChildOffsets[2] = CollectionParticles2[0]->X() - Root->X();
-				RelativeChildOffsets[3] = CollectionParticles2[1]->X() - Root->X();
+				InitialRootPosition = Root->GetX();
+				RelativeChildOffsets[0] = CollectionParticles[0]->GetX() - Root->GetX();
+				RelativeChildOffsets[1] = CollectionParticles[1]->GetX() - Root->GetX();
+				RelativeChildOffsets[2] = CollectionParticles2[0]->GetX() - Root->GetX();
+				RelativeChildOffsets[3] = CollectionParticles2[1]->GetX() - Root->GetX();
 			}
 			else
 			{
-				FTransform RootTransform(Root->GetR(), Root->X());
+				FTransform RootTransform(Root->GetR(), Root->GetX());
 
 				TArray<FTransform> GlobalTransform1;
 				GeometryCollectionAlgo::Private::GlobalMatrices(*DynamicCollection, GlobalTransform1);
@@ -1843,7 +1843,7 @@ namespace GeometryCollectionTest
 				TArray<FTransform> GlobalTransform2;
 				GeometryCollectionAlgo::Private::GlobalMatrices(*DynamicCollection2, GlobalTransform2);
 
-				EXPECT_TRUE(!InitialRootPosition.Equals(Root->X())); // root moves
+				EXPECT_TRUE(!InitialRootPosition.Equals(Root->GetX())); // root moves
 
 				EXPECT_TRUE(RelativeChildOffsets[0].Equals(GlobalTransform1[0].GetRelativeTransform(RootTransform).GetTranslation()));
 				EXPECT_TRUE(RelativeChildOffsets[1].Equals(GlobalTransform1[1].GetRelativeTransform(RootTransform).GetTranslation()));

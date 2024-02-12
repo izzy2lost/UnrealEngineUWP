@@ -95,7 +95,7 @@ namespace Chaos
 						{
 							if (ParentHandle->Disabled() == false)
 							{
-								const FRigidTransform3 ParentWorldTM(ParentHandle->P(), ParentHandle->GetQ());
+								const FRigidTransform3 ParentWorldTM(ParentHandle->GetP(), ParentHandle->GetQ());
 								const FRigidTransform3 ChildFrame = ClusterHandle->ChildToParent() * ParentWorldTM;
 								SamplePosition = ChildFrame.GetTranslation();
 							}
@@ -131,7 +131,7 @@ namespace Chaos
 				{
 					if (Chaos::FGeometryParticleHandle* FilteredHandle = FilteredHandles[Idx])
 					{
-						const FVec3& SamplePosition = FilteredHandle->X();
+						const FVec3& SamplePosition = FilteredHandle->GetX();
 						FillExecutionDatas(SamplePosition, FilteredHandle, HandleIndex);
 					}
 				}
@@ -454,12 +454,12 @@ namespace Chaos
 						if (TargetedParticles.Contains(Index.Sample))
 						{
 							const int32 ConstraintIndex = TargetedParticles[Index.Sample];
-							PositionTarget.Replace(ConstraintIndex, ParticleHandles[Index.Sample]->X());
+							PositionTarget.Replace(ConstraintIndex, ParticleHandles[Index.Sample]->GetX());
 						}
 						else
 						{
 							const int32 ConstraintIndex = PositionTarget.NumConstraints();
-							PositionTarget.AddConstraint(RigidHandle, RigidHandle->X());
+							PositionTarget.AddConstraint(RigidHandle, RigidHandle->GetX());
 							TargetedParticles.Add(Index.Sample, ConstraintIndex);
 						}
 					}

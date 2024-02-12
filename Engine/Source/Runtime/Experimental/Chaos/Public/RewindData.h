@@ -1002,7 +1002,7 @@ struct FGeometryParticleStateBase
 	template<typename TParticle>
 	void CachePreCorrectionState(const TParticle& Particle)
 	{
-		PreCorrectionXR.SetX(Particle.X());
+		PreCorrectionXR.SetX(Particle.GetX());
 		PreCorrectionXR.SetR(Particle.GetR());
 	}
 
@@ -1043,7 +1043,7 @@ public:
 	}
 
 
-	REWIND_PARTICLE_STATIC_PROPERTY(ParticlePositionRotation, X)
+	REWIND_PARTICLE_STATIC_PROPERTY(ParticlePositionRotation, GetX)
 	REWIND_PARTICLE_STATIC_PROPERTY(ParticlePositionRotation, GetR)
 
 	REWIND_PARTICLE_KINEMATIC_PROPERTY(Velocities, GetV)
@@ -1099,7 +1099,7 @@ public:
 		//TODO: use macro to define api and the to string
 		FString Out = FString::Printf(TEXT("ParticleID:[Global: %d Local: %d]\n"), Particle.ParticleID().GlobalID, Particle.ParticleID().LocalID);
 
-		REWIND_PARTICLE_TO_STR(X)
+		REWIND_PARTICLE_TO_STR(GetX)
 		REWIND_PARTICLE_TO_STR(GetR)
 		//REWIND_PARTICLE_TO_STR(Geometry)
 		//REWIND_PARTICLE_TO_STR(UniqueIdx)

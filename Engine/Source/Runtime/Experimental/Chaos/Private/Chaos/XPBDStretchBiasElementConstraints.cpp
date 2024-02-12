@@ -286,9 +286,9 @@ void FXPBDStretchBiasElementConstraints::InitConstraintsAndRestData(const Solver
 			const FSolverMatrix22& DeltaUVInv = FMath::Abs(DeltaUVDet) < UE_SMALL_NUMBER ? DeltaUVInverse.Add_GetRef(FSolverMatrix22(1.f, 0.f, 0.f, 1.f)) :
 				DeltaUVInverse.Add_GetRef(FSolverMatrix22(DeltaVNormalized[1] / DeltaUVDet, -DeltaVNormalized[0] / DeltaUVDet, -DeltaUNormalized[1] / DeltaUVDet, DeltaUNormalized[0] / DeltaUVDet));
 
-			const FSolverVec3& X0 = InParticles.X(Constraint[0]);
-			const FSolverVec3& X1 = InParticles.X(Constraint[1]);
-			const FSolverVec3& X2 = InParticles.X(Constraint[2]);
+			const FSolverVec3& X0 = InParticles.GetX(Constraint[0]);
+			const FSolverVec3& X1 = InParticles.GetX(Constraint[1]);
+			const FSolverVec3& X2 = InParticles.GetX(Constraint[2]);
 			const FSolverVec3 X01 = X1 - X0;
 			const FSolverVec3 X02 = X2 - X0; 
 			const FSolverVec3 DXDu = X01 * DeltaUVInv.M[0] + X02 * DeltaUVInv.M[1];
@@ -829,9 +829,9 @@ void FXPBDStretchBiasElementConstraints::ApplyHelper(SolverParticlesOrRange& Par
 	const FSolverVec3 GradCs2 = (DXDvNormalized * OneOverDXDuLen * DeltaUVInv.M[1] + DXDuNormalized * OneOverDXDvLen * DeltaUVInv.M[3]);
 	const FSolverVec3 GradCs0 = -GradCs1 - GradCs2;
 
-	const FSolverVec3 V0TimesDt = Particles.P(i0) - Particles.X(i0);
-	const FSolverVec3 V1TimesDt = Particles.P(i1) - Particles.X(i1);
-	const FSolverVec3 V2TimesDt = Particles.P(i2) - Particles.X(i2);
+	const FSolverVec3 V0TimesDt = Particles.GetP(i0) - Particles.GetX(i0);
+	const FSolverVec3 V1TimesDt = Particles.GetP(i1) - Particles.GetX(i1);
+	const FSolverVec3 V2TimesDt = Particles.GetP(i2) - Particles.GetX(i2);
 
 	// These scale factors make everything resolution independent
 	const FSolverVec3 FinalStiffnesses = StiffnessScales[ConstraintIndex] * ExpStiffnessValue;
@@ -864,8 +864,8 @@ void FXPBDStretchBiasElementConstraints::InitializeDmInvAndMeasures(const FSolve
 	RestDmArray.Init(PMatrix<FSolverReal, 3, 2>(0.f),Constraints.Num());
 	for (int32 e = 0; e < Constraints.Num(); e++)
 	{
-		const TVec3<FSolverReal> X1X0 = Particles.X(Constraints[e][1]) - Particles.X(Constraints[e][0]);
-		const TVec3<FSolverReal> X2X0 = Particles.X(Constraints[e][2]) - Particles.X(Constraints[e][0]);
+		const TVec3<FSolverReal> X1X0 = Particles.GetX(Constraints[e][1]) - Particles.GetX(Constraints[e][0]);
+		const TVec3<FSolverReal> X2X0 = Particles.GetX(Constraints[e][2]) - Particles.GetX(Constraints[e][0]);
 		PMatrix<FSolverReal, 3, 2> RestDm(0.f);
 		PMatrix<FSolverReal, 2, 2> Dm(0.f, 0.f, 0.f);
 		Dm.M[0] = X1X0.Size();

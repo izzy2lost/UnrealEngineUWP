@@ -82,8 +82,8 @@ public:
 		Dists.Reset(Constraints.Num());
 		for (const TVec2<int32>& Constraint : Constraints)
 		{
-			const FSolverVec3& P0 = Particles.X(Constraint[0]);
-			const FSolverVec3& P1 = Particles.X(Constraint[1]);
+			const FSolverVec3& P0 = Particles.GetX(Constraint[0]);
+			const FSolverVec3& P1 = Particles.GetX(Constraint[1]);
 			Dists.Add((P1 - P0).Size());
 		}
 	}

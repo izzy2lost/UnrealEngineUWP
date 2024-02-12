@@ -468,7 +468,7 @@ static TUniquePtr<FPhysScene_ChaosPauseHandler> PhysScene_ChaosPauseHandler;
 
 static void CopyParticleData(Chaos::FPBDRigidParticles& ToParticles, const int32 ToIndex, Chaos::FPBDRigidParticles& FromParticles, const int32 FromIndex)
 {
-	ToParticles.X(ToIndex) = FromParticles.X(FromIndex);
+	ToParticles.SetX(ToIndex, FromParticles.GetX(FromIndex));
 	ToParticles.SetR(ToIndex, FromParticles.GetR(FromIndex));
 	ToParticles.SetV(ToIndex, FromParticles.GetV(FromIndex));
 	ToParticles.SetW(ToIndex, FromParticles.GetW(FromIndex));
@@ -1359,7 +1359,7 @@ void FPhysScene_Chaos::PopulateReplicationCache(const int32 PhysicsStep)
 		else
 		{
 			FRigidBodyState& ReplicationState = ReplicationData.GetState();
-			ReplicationState.Position = Handle->X();
+			ReplicationState.Position = Handle->GetX();
 			ReplicationState.Quaternion = Handle->GetR();
 			ReplicationState.LinVel = Handle->GetV();
 			ReplicationState.AngVel = Handle->GetW();

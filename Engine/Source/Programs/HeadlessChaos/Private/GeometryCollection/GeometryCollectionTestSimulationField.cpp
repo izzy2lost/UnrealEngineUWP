@@ -1133,9 +1133,9 @@ namespace GeometryCollectionTest
 			Chaos::TPBDGeometryCollectionParticles<Chaos::FReal, 3>& Particles = UnitTest.Solver->GetParticles().GetGeometryCollectionParticles();
 			EXPECT_NE(FMath::Abs(Collection->DynamicCollection->GetTransform(0).GetRotation().Euler().Y), SMALL_THRESHOLD); // not rotating in Y?
 			EXPECT_GT(Particles.GetW(0).X, PreviousX); // rotating in X?
-			EXPECT_LT(Particles.X(0).Z, PreviousHeight); // still falling?
+			EXPECT_LT(Particles.GetX(0).Z, PreviousHeight); // still falling?
 
-			PreviousHeight = Particles.X(0).Z;
+			PreviousHeight = Particles.GetX(0).Z;
 			PreviousX = Particles.GetW(0).X;
 		}
 

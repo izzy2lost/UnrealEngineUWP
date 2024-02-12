@@ -156,8 +156,8 @@ namespace ChaosTest {
 
 			AppendAnalyticBox(Particles, Dims);
 
-			Particles.X(ParticleIndex) = FVec3::ZeroVector;
-			Particles.P(ParticleIndex) = FVec3::ZeroVector;
+			Particles.SetX(ParticleIndex, FVec3::ZeroVector);
+			Particles.SetP(ParticleIndex, FVec3::ZeroVector);
 			Particles.SetR(ParticleIndex, InitialRotations[ParticleIndex]);
 			Particles.SetQ(ParticleIndex, FinalRotations[ParticleIndex]);
 			Particles.SetV(ParticleIndex, FVec3::ZeroVector);

@@ -207,7 +207,7 @@ namespace Chaos::Softs
 			PMatrix<T, 3, 3> Result((T)0.);
 			for (int i = 0; i < 3; i++) {
 				for (int c = 0; c < 3; c++) {
-					Result.SetAt(c, i, InParticles.X(MeshConstraints[e][i + 1])[c] - InParticles.X(MeshConstraints[e][0])[c]);
+					Result.SetAt(c, i, InParticles.GetX(MeshConstraints[e][i + 1])[c] - InParticles.GetX(MeshConstraints[e][0])[c]);
 				}
 			}
 			return Result;
@@ -218,7 +218,7 @@ namespace Chaos::Softs
 			PMatrix<T, 3, 3> Result((T)0.);
 			for (int i = 0; i < 3; i++) {
 				for (int c = 0; c < 3; c++) {
-					Result.SetAt(c, i, InParticles.P(MeshConstraints[e][i+1])[c] - InParticles.P(MeshConstraints[e][0])[c]);
+					Result.SetAt(c, i, InParticles.GetP(MeshConstraints[e][i+1])[c] - InParticles.GetP(MeshConstraints[e][0])[c]);
 				}
 			}
 			return Result;

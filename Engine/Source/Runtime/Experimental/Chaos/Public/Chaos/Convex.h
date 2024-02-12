@@ -929,7 +929,7 @@ namespace Chaos
 				Vertices.SetNum(NumVertices);
 				for (int32 VertexIndex = 0; VertexIndex < NumVertices; ++VertexIndex)
 				{
-					Vertices[VertexIndex] = TmpSurfaceParticles.X(VertexIndex);
+					Vertices[VertexIndex] = TmpSurfaceParticles.GetX(VertexIndex);
 				}
 			}
 			else

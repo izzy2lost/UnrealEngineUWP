@@ -65,7 +65,7 @@ namespace GeometryCollectionTest
 			EXPECT_EQ(GCW2->PhysObject->GetUnorderedParticles_Internal().Num(), 1);
 			EXPECT_EQ(GCW->PhysObject->GetNumTransforms(), 1);
 			EXPECT_EQ(GCW2->PhysObject->GetNumTransforms(), 1);
-			EXPECT_LT(GCW->PhysObject->GetParticle_Internal(0)->X().Z, GCW2->PhysObject->GetParticle_Internal(0)->X().Z);
+			EXPECT_LT(GCW->PhysObject->GetParticle_Internal(0)->GetX().Z, GCW2->PhysObject->GetParticle_Internal(0)->GetX().Z);
 		}
 	}
 
@@ -124,7 +124,7 @@ namespace GeometryCollectionTest
 			EXPECT_EQ(GCW2->PhysObject->GetUnorderedParticles_Internal().Num(), 1);
 			EXPECT_EQ(GCW->PhysObject->GetNumTransforms(), 1);
 			EXPECT_EQ(GCW2->PhysObject->GetNumTransforms(), 1);
-			EXPECT_LT(FMath::Abs(GCW->PhysObject->GetParticle_Internal(0)->X().Z - GCW2->PhysObject->GetParticle_Internal(0)->X().Z), KINDA_SMALL_NUMBER);
+			EXPECT_LT(FMath::Abs(GCW->PhysObject->GetParticle_Internal(0)->GetX().Z - GCW2->PhysObject->GetParticle_Internal(0)->GetX().Z), KINDA_SMALL_NUMBER);
 		}
 	}
 
@@ -212,7 +212,7 @@ namespace GeometryCollectionTest
 		FGeometryCollectionWrapper* GCW = UnitTest.PhysicsObjects[UnitTest.PhysicsObjects.Num() - 1]->As<FGeometryCollectionWrapper>();
 		EXPECT_EQ(GCW->PhysObject->GetParticle_Internal(0)->Disabled(), false);
 
-		EXPECT_LT(GCW->PhysObject->GetParticle_Internal(0)->X().Z, -1.f);
+		EXPECT_LT(GCW->PhysObject->GetParticle_Internal(0)->GetX().Z, -1.f);
 	}
 
 

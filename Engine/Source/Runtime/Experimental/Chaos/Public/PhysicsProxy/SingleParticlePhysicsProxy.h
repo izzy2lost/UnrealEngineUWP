@@ -208,7 +208,8 @@ public:
 	}
 
 	//API for static particle
-	const FVec3& X() const { return ReadRef([](auto* Particle) -> const auto& { return Particle->X(); }); }
+	const FVec3& X() const { return ReadRef([](auto* Particle) -> const auto& { return Particle->GetX(); }); }
+	const FVec3& GetX() const { return ReadRef([](auto* Particle) -> const auto& { return Particle->GetX(); }); }
 
 protected:
 	void SetXBase(const FVec3& InX, bool bInvalidate = true) { Write([&InX, bInvalidate, this](auto* Particle)

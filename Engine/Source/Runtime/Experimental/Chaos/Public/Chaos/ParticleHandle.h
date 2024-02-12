@@ -519,9 +519,15 @@ public:
 
 	TGeometryParticleHandleImp(const TGeometryParticleHandleImp&) = delete;
 
-	const TVector<T, d>& X() const { return GeometryParticles->X(ParticleIdx); }
-	TVector<T, d>& X() { return GeometryParticles->X(ParticleIdx); }
-	void SetX(const TVector<T, d>& InX, bool bInvalidate = false) { GeometryParticles->X(ParticleIdx) = InX; }
+	UE_DEPRECATED(5.4, "Use GetX instead")
+	const TVector<T, d>& X() const { return GeometryParticles->GetX(ParticleIdx); }
+	UE_DEPRECATED(5.4, "Use GetX or SetX instead")
+	TVector<T, d>& X() { 
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS 
+			return GeometryParticles->X(ParticleIdx);  
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS }
+	const TVector<T, d>& GetX() const { return GeometryParticles->GetX(ParticleIdx); }
+	void SetX(const TVector<T, d>& InX, bool bInvalidate = false) { GeometryParticles->SetX(ParticleIdx, InX); }
 
 	FUniqueIdx UniqueIdx() const { return GeometryParticles->UniqueIdx(ParticleIdx); }
 	void SetUniqueIdx(const FUniqueIdx UniqueIdx, bool bInvalidate = false) const { GeometryParticles->UniqueIdx(ParticleIdx) = UniqueIdx; }
@@ -535,7 +541,7 @@ public:
 	const TRotation<FRealSingle, d> GetRf() const { return GeometryParticles->GetRf(ParticleIdx); }
 	void SetRf(const TRotation<FRealSingle, d>& InR, bool bInvalidate = false) { GeometryParticles->SetRf(ParticleIdx, InR); }
 
-	FRigidTransform3 GetTransformXR() const { return FRigidTransform3(X(), GetR()); }
+	FRigidTransform3 GetTransformXR() const { return FRigidTransform3(GetX(), GetR()); }
 
 	// Initialize the transform
 	void InitTransform(const FVec3& InP, const FRotation3& InQ)
@@ -979,7 +985,7 @@ protected:
 		SetPreVf(this->GetVf());
 		SetPreWf(this->GetWf());
 		SetSolverBodyIndex(INDEX_NONE);
-		SetP(this->X());
+		SetP(this->GetX());
 		SetQf(this->GetRf());
 		SetVSmooth(this->GetV());
 		SetWSmooth(this->GetW());
@@ -1057,9 +1063,16 @@ public:
 	int32 SolverBodyIndex() const { return PBDRigidParticles->SolverBodyIndex(ParticleIdx); }
 	void SetSolverBodyIndex(const int32 InSolverBodyIndex) { PBDRigidParticles->SetSolverBodyIndex(ParticleIdx, InSolverBodyIndex); }
 
-	const TVector<T, d>& P() const { return PBDRigidParticles->P(ParticleIdx); }
-	TVector<T, d>& P() { return PBDRigidParticles->P(ParticleIdx); }
-	void SetP(const TVector<T, d>& InP) { PBDRigidParticles->P(ParticleIdx) = InP; }
+	UE_DEPRECATED(5.4, "Use GetP instead")
+	const TVector<T, d>& P() const { return PBDRigidParticles->GetP(ParticleIdx); }
+	UE_DEPRECATED(5.4, "Use GetP or SetP instead")
+	TVector<T, d>& P() { 
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		return PBDRigidParticles->P(ParticleIdx); 
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+	const TVector<T, d>& GetP() const { return PBDRigidParticles->GetP(ParticleIdx); }
+	void SetP(const TVector<T, d>& InP) { PBDRigidParticles->SetP(ParticleIdx, InP); }
 
 	UE_DEPRECATED(5.4, "Use GetQ instead")
 	const TRotation<T, d> Q() const { return PBDRigidParticles->GetQ(ParticleIdx); }
@@ -1090,7 +1103,7 @@ public:
 	// Set world-space center of mass transform
 	void SetTransformPQCom(const TVector<T, d>& InPCom, const TRotation<T, d>& InQCom) { PBDRigidParticles->SetTransformPQCom(ParticleIdx, InPCom, InQCom); }
 
-	FRigidTransform3 GetTransformPQ() const { return FRigidTransform3(P(), GetQ()); }
+	FRigidTransform3 GetTransformPQ() const { return FRigidTransform3(GetP(), GetQ()); }
 
 	FRigidTransform3 GetTransformXRCom() const { return FRigidTransform3(XCom(), RCom()); }
 
@@ -1390,7 +1403,7 @@ void TGeometryParticleHandleImp<T,d,bPersistent>::SetXR(const FParticlePositionR
 	SetR(XR.R());
 	if(auto Rigid = CastToRigidParticle())
 	{
-		Rigid->SetP(X());
+		Rigid->SetP(GetX());
 		Rigid->SetQf(GetRf());
 	}
 }
@@ -1698,18 +1711,26 @@ public:
 
 	void SetTransform(const FVec3& Pos, const FRotation3& Rot)
 	{
-		MHandle->X() = Pos;
+		MHandle->SetX(Pos);
 		MHandle->SetR(Rot);
 		if (FPBDRigidParticleHandle* Dynamic = CastToRigidParticle())
 		{
-			Dynamic->P() = Pos;
+			Dynamic->SetP(Pos);
 			Dynamic->SetQ(Rot);
 		}
 	}
 
 	// Static Particles
-	FVec3& X() { return MHandle->X(); }
-	const FVec3& X() const { return MHandle->X(); }
+	UE_DEPRECATED(5.4, "Use GetX or SetX instead")
+	FVec3& X() { 
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		return MHandle->X(); 
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+	UE_DEPRECATED(5.4, "Use GetX instead")
+	const FVec3& X() const { return MHandle->GetX(); }
+	void SetX(const FVec3& InX) { MHandle->SetX(InX); }
+	const FVec3& GetX() const { return MHandle->GetX(); }
 	UE_DEPRECATED(5.4, "Use GetR or SetR instead")
 	FRotation3 R() { return MHandle->GetR(); }
 	UE_DEPRECATED(5.4, "Use GetR instead")
@@ -1843,24 +1864,29 @@ public:
 		}
 	}
 
-	FVec3& P()
+	void SetP(const FVec3& InP)
 	{
 		if (IsDynamic())
 		{
-			return MHandle->CastToRigidParticle()->P();
+			return MHandle->CastToRigidParticle()->SetP(InP);
 		}
 
-		return X();
+		return SetX(InP);
 	}
 
 	const FVec3& P() const
 	{
 		if (IsDynamic())
 		{
-			return MHandle->CastToRigidParticle()->P();
+			return MHandle->CastToRigidParticle()->GetP();
 		}
 
-		return X();
+		return GetX();
+	}
+
+	const FVec3& GetP() const
+	{
+		return P();
 	}
 
 	void SetQ(const FRotation3& InQ)
@@ -1895,7 +1921,7 @@ public:
 		{
 			return MHandle->CastToRigidParticle()->XCom();
 		}
-		return X();
+		return GetX();
 	}
 	const FVec3 PCom() const
 	{
@@ -1903,7 +1929,7 @@ public:
 		{
 			return MHandle->CastToRigidParticle()->PCom();
 		}
-		return X();
+		return GetX();
 	}
 
 	// World-space center of mass rotation
@@ -2618,6 +2644,7 @@ public:
 	static TGeometryParticle<T, d>* SerializationFactory(FChaosArchive& Ar, TGeometryParticle<T, d>* Serializable);
 
 	const TVector<T, d>& X() const { return MXR.Read().X(); }
+	const TVector<T, d>& GetX() const { return MXR.Read().X(); }
 	void SetX(const TVector<T, d>& InX, bool bInvalidate = true);
 
 	FUniqueIdx UniqueIdx() const { return MNonFrequentData.Read().UniqueIdx(); }

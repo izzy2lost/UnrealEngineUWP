@@ -158,7 +158,7 @@ namespace ChaosTest
 
 		void ResetParticle(FGeometryParticleHandle* Particle, const FVec3& Position, const FRotation3& Rotation, const FVec3& Velocity, const FVec3& AngularVelocity)
 		{
-			Particle->X() = Position;
+			Particle->SetX(Position);
 			Particle->SetR(Rotation);
 			if (FKinematicGeometryParticleHandle* KinParticle = Particle->CastToKinematicParticle())
 			{
@@ -167,7 +167,7 @@ namespace ChaosTest
 			}
 			if (FPBDRigidParticleHandle* PBDParticle = Particle->CastToRigidParticle())
 			{
-				PBDParticle->P() = Position;
+				PBDParticle->SetP(Position);
 				PBDParticle->SetQ(Rotation);
 			}
 		}

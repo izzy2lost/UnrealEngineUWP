@@ -1705,15 +1705,15 @@ namespace ChaosTest {
 		{
 			FParticles Particles;
 			Particles.AddParticles(9);
-			Particles.X(0) = FVec3(-1, -1, -1);
-			Particles.X(1) = FVec3(-1, -1, 1);
-			Particles.X(2) = FVec3(-1, 1, -1);
-			Particles.X(3) = FVec3(-1, 1, 1);
-			Particles.X(4) = FVec3(1, -1, -1);
-			Particles.X(5) = FVec3(1, -1, 1);
-			Particles.X(6) = FVec3(1, 1, -1);
-			Particles.X(7) = FVec3(1, 1, 1);
-			Particles.X(8) = FVec3(0, 0, 0);
+			Particles.SetX(0, FVec3(-1, -1, -1));
+			Particles.SetX(1, FVec3(-1, -1, 1));
+			Particles.SetX(2, FVec3(-1, 1, -1));
+			Particles.SetX(3, FVec3(-1, 1, 1));
+			Particles.SetX(4, FVec3(1, -1, -1));
+			Particles.SetX(5, FVec3(1, -1, 1));
+			Particles.SetX(6, FVec3(1, 1, -1));
+			Particles.SetX(7, FVec3(1, 1, 1));
+			Particles.SetX(8, FVec3(0, 0, 0));
 			const FTriangleMesh TriMesh = FTriangleMesh::GetConvexHullFromParticles(Particles);
 			EXPECT_EQ(TriMesh.GetSurfaceElements().Num(), 12);
 			for (const auto& Tri : TriMesh.GetSurfaceElements())
@@ -1727,7 +1727,7 @@ namespace ChaosTest {
 			Vertices.SetNum((int32)Particles.Size());
 			for (int32 VertexIndex = 0; VertexIndex < (int32)Particles.Size(); ++VertexIndex)
 			{
-				Vertices[VertexIndex] = Particles.X(VertexIndex);
+				Vertices[VertexIndex] = Particles.GetX(VertexIndex);
 			}
 			FConvex Convex(Vertices, 0.0f);
 			const TArray<FConvex::FVec3Type>& CulledParticles = Convex.GetVertices();
@@ -1735,11 +1735,11 @@ namespace ChaosTest {
 
 			for (int32 Idx = 0; Idx < CulledParticles.Num(); ++Idx)
 			{
-				EXPECT_NE(Particles.X(8), (Chaos::TVector<FRealDouble, 3>)CulledParticles[Idx]);	//interior particle gone
+				EXPECT_NE(Particles.GetX(8), (Chaos::TVector<FRealDouble, 3>)CulledParticles[Idx]);	//interior particle gone
 				bool bFound = false;
 				for (uint32 InnerIdx = 0; InnerIdx < Particles.Size(); ++InnerIdx)	//remaining particles are from the original set
 				{
-					if (Particles.X(InnerIdx) == (Chaos::TVector<FRealDouble,3>)CulledParticles[Idx])
+					if (Particles.GetX(InnerIdx) == (Chaos::TVector<FRealDouble,3>)CulledParticles[Idx])
 					{
 						bFound = true;
 						break;
@@ -1753,12 +1753,12 @@ namespace ChaosTest {
 		{
 			FParticles Particles;
 			Particles.AddParticles(6);
-			Particles.X(0) = FVec3(-1, -1, -1);
-			Particles.X(1) = FVec3(1, -1, -1);
-			Particles.X(2) = FVec3(1, 1, -1);
-			Particles.X(3) = FVec3(0, 0, 0.5);
-			Particles.X(4) = (Particles.X(3) - Particles.X(1)) * 0.5 + Particles.X(1) + FVec3(0, 0, 0.1);
-			Particles.X(5) = Particles.X(4) + FVec3(-0.1, 0, 0);
+			Particles.SetX(0, FVec3(-1, -1, -1));
+			Particles.SetX(1, FVec3(1, -1, -1));
+			Particles.SetX(2, FVec3(1, 1, -1));
+			Particles.SetX(3, FVec3(0, 0, 0.5));
+			Particles.SetX(4, (Particles.GetX(3) - Particles.GetX(1)) * 0.5 + Particles.GetX(1) + FVec3(0, 0, 0.1));
+			Particles.SetX(5, Particles.GetX(4) + FVec3(-0.1, 0, 0));
 			const FTriangleMesh TriMesh = FTriangleMesh::GetConvexHullFromParticles(Particles);
 			//EXPECT_EQ(TriMesh.GetSurfaceElements().Num(), 6);
 		}

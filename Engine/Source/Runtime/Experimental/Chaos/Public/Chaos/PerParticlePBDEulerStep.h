@@ -19,7 +19,7 @@ class FPerParticlePBDEulerStep : public FPerParticleRule
 	template<class T_PARTICLES>
 	inline void ApplyHelper(T_PARTICLES& InParticles, const FReal Dt, const int32 Index) const
 	{
-		InParticles.P(Index) = InParticles.X(Index) + InParticles.V(Index) * Dt;
+		InParticles.SetP(Index, InParticles.GetX(Index) + InParticles.GetV(Index) * Dt);
 	}
 
 	inline void Apply(FPBDParticles& InParticles, const FReal Dt, const int32 Index) const override //-V762
