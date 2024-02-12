@@ -5,5 +5,5 @@
 
 FRigUnit_AnimNextGraphSelf_Execute()
 {
-	Self = const_cast<UAnimNextGraph*>(ExecuteContext.GetGraphInstance().GetGraph());
+	Self = const_cast<UAnimNextGraph*>(ExecuteContext.GetContextData<FAnimNextGraphContextData>().GetGraphInstance().GetGraph());
 }

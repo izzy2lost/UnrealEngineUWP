@@ -3,7 +3,7 @@
 #pragma once
 
 #include "RigVMCore/RigVMDispatchFactory.h"
-#include "Graph/AnimNextExecuteContext.h"
+#include "AnimNextExecuteContext.h"
 #include "RigVMDispatch_GetParameter.generated.h"
 
 namespace UE::AnimNext::UncookedOnly

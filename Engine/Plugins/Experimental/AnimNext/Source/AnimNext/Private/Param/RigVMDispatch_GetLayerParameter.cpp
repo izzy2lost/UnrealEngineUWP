@@ -2,8 +2,6 @@
 
 #include "Param/RigVMDispatch_GetLayerParameter.h"
 #include "RigVMCore/RigVMStruct.h"
-#include "RigVMCore/RigVM.h"
-#include "Graph/AnimNextExecuteContext.h"
 #include "Param/ParamStack.h"
 
 const FName FRigVMDispatch_GetLayerParameter::ValueName = TEXT("Value");
@@ -97,9 +95,10 @@ void FRigVMDispatch_GetLayerParameter::Execute(FRigVMExtendedExecuteContext& InC
 		TypeHandle = FParamTypeHandle::FromProperty(ValueProperty).ToRaw();
 	}
 
-	FAnimNextParameterExecuteContext& ParamContext = InContext.GetPublicData<FAnimNextParameterExecuteContext>();
+	FAnimNextExecuteContext& Context = InContext.GetPublicData<FAnimNextExecuteContext>();
+	const FAnimNextParamContextData& ParamContextData = Context.GetContextData<FAnimNextParamContextData>();
 	TConstArrayView<uint8> SourceData;
-	if (ParamContext.GetLayerHandle().GetValueRaw(FParamId(Parameter, ParameterHash), FParamTypeHandle::FromRaw(TypeHandle), SourceData).IsSuccessful())
+	if (ParamContextData.GetLayerHandle().GetValueRaw(FParamId(Parameter, ParameterHash), FParamTypeHandle::FromRaw(TypeHandle), SourceData).IsSuccessful())
 	{
 		ValueProperty->CopyCompleteValue(TargetDataPtr, SourceData.GetData());
 	}

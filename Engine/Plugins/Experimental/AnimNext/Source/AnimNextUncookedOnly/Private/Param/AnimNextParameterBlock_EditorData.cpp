@@ -2,6 +2,7 @@
 
 #include "Param/AnimNextParameterBlock_EditorData.h"
 
+#include "AnimNextExecuteContext.h"
 #include "UncookedOnlyUtils.h"
 #include "Curves/CurveFloat.h"
 #include "Param/AnimNextParameterBlock.h"
@@ -9,6 +10,7 @@
 #include "Param/AnimNextParameterBlockParameter.h"
 #include "Param/AnimNextParameterBlock_EdGraph.h"
 #include "Param/AnimNextParameterBlock_EdGraphSchema.h"
+#include "Param/AnimNextParameterBlock_ParamSchema.h"
 #include "RigVMModel/RigVMFunctionLibrary.h"
 #include "RigVMModel/Nodes/RigVMCollapseNode.h"
 #include "UObject/LinkerLoad.h"
@@ -106,7 +108,7 @@ UAnimNextParameterBlockGraph* UAnimNextParameterBlock_EditorData::AddGraph(FName
 	{
 		TGuardValue<bool> EnablePythonPrint(bSuspendPythonMessagesForRigVMClient, !bPrintPythonCommand);
 		TGuardValue<bool> DisableAutoCompile(bAutoRecompileVM, false);
-		URigVMGraph* NewGraph = RigVMClient.AddModel(URigVMGraph::StaticClass()->GetFName(), bSetupUndoRedo);
+		URigVMGraph* NewGraph = RigVMClient.AddModel(URigVMGraph::StaticClass()->GetFName(), UAnimNextParameterBlock_ParamSchema::StaticClass(), bSetupUndoRedo);
 		ensure(NewGraph);
 		NewEntry->Graph = NewGraph;
 
@@ -132,6 +134,16 @@ TConstArrayView<TSubclassOf<UAnimNextRigVMAssetEntry>> UAnimNextParameterBlock_E
 
 void UAnimNextParameterBlock_EditorData::PostLoad()
 {
+	if(GetLinkerCustomVersion(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::AnimNextCombineGraphContexts)
+	{
+		TArray<URigVMGraph*> AllModels = RigVMClient.GetAllModels(false, true);
+		for(URigVMGraph* Graph : AllModels)
+		{
+			Graph->SetExecuteContextStruct(FAnimNextExecuteContext::StaticStruct());
+			Graph->SetSchemaClass(UAnimNextParameterBlock_ParamSchema::StaticClass());
+		}
+	}
+
 	Super::PostLoad();
 
 	if(GetLinkerCustomVersion(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::AnimNextMoveGraphsToEntries)

@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Units/RigUnit.h"
+#include "RigUnit_AnimNextBase.h"
 #include "AnimNextExecuteContext.h"
 #include "RigUnit_AnimNextBeginExecution.generated.h"
 

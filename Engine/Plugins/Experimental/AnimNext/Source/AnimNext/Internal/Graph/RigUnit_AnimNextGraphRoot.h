@@ -3,8 +3,8 @@
 #pragma once
 
 #include "AnimNextExecuteContext.h"
+#include "RigUnit_AnimNextBase.h"
 #include "TraitCore/TraitHandle.h"
-
 #include "RigUnit_AnimNextGraphRoot.generated.h"
 
 /**

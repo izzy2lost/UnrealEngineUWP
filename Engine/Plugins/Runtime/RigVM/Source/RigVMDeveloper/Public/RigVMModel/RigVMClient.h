@@ -156,8 +156,7 @@ public:
 	GENERATED_BODY()
 
 	FRigVMClient()
-		: SchemaPtr(nullptr)
-		, SchemaClass(URigVMSchema::StaticClass())
+		: DefaultSchemaClass(nullptr)
 		, ControllerClass(URigVMController::StaticClass())
 		, FunctionLibrary(nullptr)
 		, ActionStack(nullptr)
@@ -169,15 +168,21 @@ public:
 	{
 	}
 
-	void SetSchemaClass(TSubclassOf<URigVMSchema> InSchemaClass);
+	UE_DEPRECATED(5.5, "Please use SetDefaultSchemaClass or set a schema per controller/graph.")
+	void SetSchemaClass(TSubclassOf<URigVMSchema> InSchemaClass) { SetDefaultSchemaClass(InSchemaClass); }
+	void SetDefaultSchemaClass(TSubclassOf<URigVMSchema> InSchemaClass);
 	void SetControllerClass(TSubclassOf<URigVMController> InControllerClass);
 	void SetOuterClientHost(UObject* InOuterClientHost, const FName& InOuterClientHostPropertyName);
 	void SetFromDeprecatedData(URigVMGraph* InDefaultGraph, URigVMFunctionLibrary* InFunctionLibrary);
 
 	void Reset();
 	int32 Num() const { return Models.Num(); }
-	const URigVMSchema* GetSchema() const { return SchemaPtr; }
-	URigVMSchema* GetOrCreateSchema();
+	UE_DEPRECATED(5.5, "Please use GetDefaultSchema or get a schema per controller/graph.")
+	URigVMSchema* GetSchema() { return GetDefaultSchema(); }
+	URigVMSchema* GetDefaultSchema() const;
+	TSubclassOf<URigVMSchema> GetDefaultSchemaClass() const { return DefaultSchemaClass; }
+	UE_DEPRECATED(5.5, "Please use GetSchema or get a schema per controller/graph.")
+	URigVMSchema* GetOrCreateSchema() { return GetDefaultSchema(); }
 	URigVMGraph* GetDefaultModel() const;
 	URigVMGraph* GetModel(int32 InIndex) const { return Models.IsValidIndex(InIndex) ? Models[InIndex] : nullptr; }
 	URigVMGraph* GetModel(const UEdGraph* InEdGraph = nullptr) const;
@@ -197,9 +202,14 @@ public:
 	bool RemoveController(const URigVMGraph* InModel);
 	URigVMFunctionLibrary* GetFunctionLibrary() const { return FunctionLibrary; }
 	URigVMFunctionLibrary* GetOrCreateFunctionLibrary(bool bSetupUndoRedo, const FObjectInitializer* ObjectInitializer = nullptr, bool bCreateController = true);
+	URigVMFunctionLibrary* GetOrCreateFunctionLibrary(TSubclassOf<URigVMSchema> InSchemaClass, bool bSetupUndoRedo, const FObjectInitializer* ObjectInitializer = nullptr, bool bCreateController = true);
 	TArray<FName> GetEntryNames() const;
-	UScriptStruct* GetExecuteContextStruct() const;
-	void SetExecuteContextStruct(UScriptStruct* InExecuteContextStruct);
+	UE_DEPRECATED(5.5, "Please use GetDefaultExecuteContextStruct or get an execute context from a graph/controller schema.")
+	UScriptStruct* GetExecuteContextStruct() const { return GetDefaultExecuteContextStruct(); }
+	UScriptStruct* GetDefaultExecuteContextStruct() const;
+	UE_DEPRECATED(5.5, "Please use SetDefaultExecuteContextStruct or set an execute context on a graph/controller schema.")
+	void SetExecuteContextStruct(UScriptStruct* InExecuteContextStruct) { SetDefaultExecuteContextStruct(InExecuteContextStruct); }
+	void SetDefaultExecuteContextStruct(UScriptStruct* InExecuteContextStruct);
 
 	FRigVMGetFocusedGraph& OnGetFocusedGraph() { return OnGetFocusedGraphDelegate;}
 	const FRigVMGetFocusedGraph& OnGetFocusedGraph() const { return OnGetFocusedGraphDelegate; }
@@ -207,6 +217,7 @@ public:
 
 	URigVMGraph* AddModel(const FString InName, bool bSetupUndoRedo, bool bPrintPythonCommand);
 	URigVMGraph* AddModel(const FName& InName, bool bSetupUndoRedo, const FObjectInitializer* ObjectInitializer = nullptr, bool bCreateController = true);
+	URigVMGraph* AddModel(const FName& InName, TSubclassOf<URigVMSchema> InSchemaClass, bool bSetupUndoRedo, const FObjectInitializer* ObjectInitializer = nullptr, bool bCreateController = true);
 	void AddModel(URigVMGraph* InModel, bool bCreateController);
 	bool RemoveModel(FString InName, bool bSetupUndoRedo, bool bPrintPythonCommand);
 	bool RemoveModel(const FString& InNodePathOrName, bool bSetupUndoRedo);
@@ -278,15 +289,10 @@ private:
 	URigVMActionStack* GetOrCreateActionStack();
 	void ResetActionStack();
 
-	void SetSchema(URigVMSchema* InSchema);
-
 	FRigVMGetFocusedGraph OnGetFocusedGraphDelegate;
 
 	UPROPERTY(transient)
-	TObjectPtr<URigVMSchema> SchemaPtr;
-
-	UPROPERTY(transient)
-	TSubclassOf<URigVMSchema> SchemaClass;
+	TSubclassOf<URigVMSchema> DefaultSchemaClass;
 
 	UPROPERTY(transient)
 	TSubclassOf<URigVMController> ControllerClass;

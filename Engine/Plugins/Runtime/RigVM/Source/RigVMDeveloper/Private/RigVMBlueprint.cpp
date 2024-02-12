@@ -214,10 +214,10 @@ URigVMBlueprint::URigVMBlueprint(const FObjectInitializer& ObjectInitializer)
 void URigVMBlueprint::CommonInitialization(const FObjectInitializer& ObjectInitializer)
 {
 	// guard against this running multiple times
-	check(GetRigVMClient()->GetSchema() == nullptr);
-	
-	RigVMClient.SetSchemaClass(GetRigVMSchemaClass());
-	RigVMClient.SetExecuteContextStruct(GetRigVMExecuteContextStruct());
+	check(GetRigVMClient()->GetDefaultSchemaClass() == nullptr);
+
+	RigVMClient.SetDefaultSchemaClass(GetRigVMSchemaClass());
+	RigVMClient.SetDefaultExecuteContextStruct(GetRigVMExecuteContextStruct());
 
 	for(UEdGraph* UberGraph : UbergraphPages)
 	{
@@ -498,7 +498,7 @@ void URigVMBlueprint::HandleRigVMGraphAdded(const FRigVMClient* InClient, const 
 #if WITH_EDITOR
 		if(!bSuspendPythonMessagesForRigVMClient)
 		{
-			const FString BlueprintName = InClient->GetSchema()->GetSanitizedName(GetName(), true, false);
+			const FString BlueprintName = InClient->GetDefaultSchema()->GetSanitizedName(GetName(), true, false);
 			RigVMPythonUtils::Print(BlueprintName, 
 				FString::Printf(TEXT("blueprint.add_model('%s')"),
 					*Model->GetName()));
@@ -517,7 +517,7 @@ void URigVMBlueprint::HandleRigVMGraphRemoved(const FRigVMClient* InClient, cons
 #if WITH_EDITOR
 		if(!bSuspendPythonMessagesForRigVMClient)
 		{
-			const FString BlueprintName = InClient->GetSchema()->GetSanitizedName(GetName(), true, false);
+			const FString BlueprintName = InClient->GetDefaultSchema()->GetSanitizedName(GetName(), true, false);
 			RigVMPythonUtils::Print(BlueprintName, 
 				FString::Printf(TEXT("blueprint.remove_model('%s')"),
 					*Model->GetName()));
@@ -1280,7 +1280,7 @@ void URigVMBlueprint::RecompileVM()
 		}
 
 		URigVMCompiler* Compiler = URigVMCompiler::StaticClass()->GetDefaultObject<URigVMCompiler>();
-		VMCompileSettings.SetExecuteContextStruct(RigVMClient.GetExecuteContextStruct());
+		VMCompileSettings.SetExecuteContextStruct(RigVMClient.GetDefaultExecuteContextStruct());
 
 	    FRigVMExtendedExecuteContext& CDOContext = CDO->GetRigVMExtendedExecuteContext();
 		const FRigVMCompileSettings Settings = (bCompileInDebugMode) ? FRigVMCompileSettings::Fast(VMCompileSettings.GetExecuteContextStruct()) : VMCompileSettings;
@@ -2303,7 +2303,7 @@ URigVMGraph* URigVMBlueprint::GetTemplateModel(bool bIsFunctionLibrary)
 			TemplateModel = NewObject<URigVMGraph>(this, TEXT("TemplateModel"));
 		}
 		TemplateModel->SetFlags(RF_Transient);
-		TemplateModel->SetExecuteContextStruct(RigVMClient.GetExecuteContextStruct());
+		TemplateModel->SetExecuteContextStruct(RigVMClient.GetDefaultExecuteContextStruct());
 	}
 	return TemplateModel;
 #else
@@ -2320,7 +2320,7 @@ URigVMController* URigVMBlueprint::GetTemplateController(bool bIsFunctionLibrary
 		TemplateController->SetGraph(GetTemplateModel(bIsFunctionLibrary));
 		TemplateController->EnableReporting(false);
 		TemplateController->SetFlags(RF_Transient);
-		TemplateController->SetSchema(RigVMClient.GetOrCreateSchema());
+		TemplateController->SetSchemaClass(RigVMClient.GetDefaultSchemaClass());
 	}
 	return TemplateController;
 #else

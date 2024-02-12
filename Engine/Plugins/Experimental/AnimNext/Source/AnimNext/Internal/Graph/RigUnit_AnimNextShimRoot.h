@@ -2,8 +2,8 @@
 
 #pragma once
 
+#include "RigUnit_AnimNextBase.h"
 #include "AnimNextExecuteContext.h"
-
 #include "RigUnit_AnimNextShimRoot.generated.h"
 
 /**

@@ -27,10 +27,11 @@ namespace UE::AnimNext::Private
 void FRigUnit_AnimNextGraphEvaluator::StaticExecute(FRigVMExtendedExecuteContext& RigVMExecuteContext, FRigVMMemoryHandleArray RigVMMemoryHandles, FRigVMPredicateBranchArray RigVMBranches)
 {
 	const FAnimNextExecuteContext& VMExecuteContext = RigVMExecuteContext.GetPublicData<FAnimNextExecuteContext>();
+	const FAnimNextGraphContextData& GraphContextData = VMExecuteContext.GetContextData<FAnimNextGraphContextData>();
 
-	const TConstArrayView<UE::AnimNext::FLatentPropertyHandle>& LatentHandles = VMExecuteContext.GetLatentHandles();
-	uint8* DestinationBasePtr = (uint8*)VMExecuteContext.GetDestinationBasePtr();
-	const bool bIsFrozen = VMExecuteContext.IsFrozen();
+	const TConstArrayView<UE::AnimNext::FLatentPropertyHandle>& LatentHandles = GraphContextData.GetLatentHandles();
+	uint8* DestinationBasePtr = (uint8*)GraphContextData.GetDestinationBasePtr();
+	const bool bIsFrozen = GraphContextData.IsFrozen();
 
 	for (UE::AnimNext::FLatentPropertyHandle Handle : LatentHandles)
 	{

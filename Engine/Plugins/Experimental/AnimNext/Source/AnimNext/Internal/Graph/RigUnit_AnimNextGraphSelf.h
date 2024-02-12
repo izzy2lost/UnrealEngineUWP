@@ -2,8 +2,7 @@
 
 #pragma once
 
-#include "AnimNextExecuteContext.h"
-
+#include "RigUnit_AnimNextBase.h"
 #include "RigUnit_AnimNextGraphSelf.generated.h"
 
 class UAnimNextGraph;

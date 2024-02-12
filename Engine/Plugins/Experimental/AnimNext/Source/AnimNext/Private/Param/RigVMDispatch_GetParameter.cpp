@@ -2,10 +2,7 @@
 
 #include "Param/RigVMDispatch_GetParameter.h"
 #include "RigVMCore/RigVMStruct.h"
-#include "RigVMCore/RigVM.h"
-#include "Graph/AnimNextExecuteContext.h"
 #include "Context.h"
-#include "Param/ParamStack.h"
 #include "Param/ParamStack.h"
 
 const FName FRigVMDispatch_GetParameter::ValueName = TEXT("Value");

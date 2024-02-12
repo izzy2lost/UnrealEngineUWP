@@ -265,11 +265,15 @@ public:
 
 	// Returns the schema used by this controller
 	UFUNCTION(BlueprintCallable, Category = RigVMController)
-	URigVMSchema* GetSchema() const { return SchemaPtr; }
+	URigVMSchema* GetSchema() const;
 
-	// Sets the schema on the controller
+	UE_DEPRECATED(5.5, "Please use SetSchemaClass instead.")
+	UFUNCTION(BlueprintCallable, Category = RigVMController, meta=(DeprecatedFunction, DeprecationMessage="Function has been deprecated, please use SetSchemaClass instead."))
+	void SetSchema(URigVMSchema* InSchema) { check(InSchema); SetSchemaClass(InSchema->GetClass()); }
+
+	// Sets the schema class on the controller
 	UFUNCTION(BlueprintCallable, Category = RigVMController)
-	void SetSchema(URigVMSchema* InSchema);
+	void SetSchemaClass(TSubclassOf<URigVMSchema> InSchemaClass) { SchemaClass = InSchemaClass; }
 
 	// Pushes a new graph to the stack
 	// This causes a GraphChanged modified event.
@@ -1407,7 +1411,7 @@ private:
 	TArray<TObjectPtr<URigVMGraph>> Graphs;
 
 	UPROPERTY(transient, DuplicateTransient)
-	TObjectPtr<URigVMSchema> SchemaPtr;
+	TSubclassOf<URigVMSchema> SchemaClass;
 
 	mutable TWeakObjectPtr<URigVMActionStack> WeakActionStack;
 	mutable FDelegateHandle ActionStackHandle;

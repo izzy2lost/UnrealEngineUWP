@@ -84,7 +84,6 @@ void FRigVMClientPatchResult::Merge(const FRigVMClientPatchResult& InOther)
 
 URigVMController::URigVMController()
 	: bValidatePinDefaults(true)
-	, SchemaPtr(nullptr)
 	, bSuspendNotifications(false)
 	, bReportWarningsAndErrors(true)
 	, bIgnoreRerouteCompactnessChanges(false)
@@ -105,7 +104,6 @@ URigVMController::URigVMController()
 URigVMController::URigVMController(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 	, bValidatePinDefaults(true)
-	, SchemaPtr(nullptr)
 	, bSuspendNotifications(false)
 	, bReportWarningsAndErrors(true)
 	, bIgnoreRerouteCompactnessChanges(false)
@@ -184,9 +182,9 @@ void URigVMController::SetGraph(URigVMGraph* InGraph)
 	HandleModifiedEvent(ERigVMGraphNotifType::GraphChanged, GetGraph(), nullptr);
 }
 
-void URigVMController::SetSchema(URigVMSchema* InSchema)
+URigVMSchema* URigVMController::GetSchema() const
 {
-	SchemaPtr = InSchema;
+	return SchemaClass->GetDefaultObject<URigVMSchema>(); 
 }
 
 bool URigVMController::PushGraph(URigVMGraph* InGraph, bool bSetupUndoRedo)
@@ -13958,6 +13956,7 @@ bool URigVMController::IsValidGraph() const
 
 bool URigVMController::IsValidSchema() const
 {
+	const URigVMSchema* SchemaPtr = GetSchema();
 	if (SchemaPtr == nullptr)
 	{
 		ReportError(TEXT("Controller does not have a schema associated."));

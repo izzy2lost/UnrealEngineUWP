@@ -137,9 +137,6 @@ protected:
 	// Override called during initialization to determine what RigVM controller class is used
 	virtual TSubclassOf<URigVMController> GetControllerClass() const { return URigVMController::StaticClass(); }
 
-	// Override called during initialization to determine what RigVM schema class is used
-	virtual TSubclassOf<URigVMSchema> GetRigVMSchemaClass() const PURE_VIRTUAL(UAnimNextRigVMAssetEditorData::GetRigVMSchemaClass, return nullptr;)
-
 	// Override called during initialization to determine what RigVM execute struct is used
 	virtual UScriptStruct* GetExecuteContextStruct() const PURE_VIRTUAL(UAnimNextRigVMAssetEditorData::GetExecuteContextStruct, return nullptr;)
 

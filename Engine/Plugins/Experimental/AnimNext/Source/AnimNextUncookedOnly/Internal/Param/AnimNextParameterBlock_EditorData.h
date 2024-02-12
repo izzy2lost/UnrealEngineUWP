@@ -6,7 +6,7 @@
 #include "AnimNextParameterBlock_EdGraph.h"
 #include "AnimNextRigVMAssetEditorData.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
-#include "Param/AnimNextParameterExecuteContext.h"
+#include "AnimNextExecuteContext.h"
 #include "Param/ParamType.h"
 #include "AnimNextParameterBlock_EditorData.generated.h"
 
@@ -38,12 +38,6 @@ namespace UE::AnimNext::Tests
 {
 	class FEditor_Parameters_ParameterBlock;
 }
-
-UCLASS()
-class UAnimNextParameterBlockLibrary_Schema : public URigVMSchema
-{
-	GENERATED_BODY()
-};
 
 // Script-callable editor API hoisted onto UAnimNextParameterBlock
 UCLASS()
@@ -94,8 +88,7 @@ class UAnimNextParameterBlock_EditorData : public UAnimNextRigVMAssetEditorData
 	virtual void RecompileVM() override;
 
 	// UAnimNextRigVMAssetEditorData interface
-	virtual TSubclassOf<URigVMSchema> GetRigVMSchemaClass() const override { return UAnimNextParameterBlockLibrary_Schema::StaticClass(); }
-	virtual UScriptStruct* GetExecuteContextStruct() const override { return FAnimNextParameterExecuteContext::StaticStruct(); }
+	virtual UScriptStruct* GetExecuteContextStruct() const override { return FAnimNextExecuteContext::StaticStruct(); }
 	virtual UEdGraph* CreateEdGraph(URigVMGraph* InRigVMGraph, bool bForce) override;
 	virtual bool RemoveEdGraph(URigVMGraph* InModel) override;
 	virtual void CreateEdGraphForCollapseNode(URigVMCollapseNode* InNode) override;

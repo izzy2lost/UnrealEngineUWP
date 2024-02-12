@@ -11,7 +11,7 @@
 #include "TraitInterfaces/IEvaluate.h"
 #include "TraitInterfaces/IUpdate.h"
 #include "Editor/Transactor.h"
-#include "Graph/AnimNextExecuteContext.h"
+#include "AnimNextExecuteContext.h"
 #include "Graph/AnimNextGraph.h"
 #include "Graph/AnimNextGraph_EditorData.h"
 #include "Graph/GraphFactory.h"

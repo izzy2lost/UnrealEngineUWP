@@ -3,7 +3,7 @@
 #pragma once
 
 #include "RigVMCore/RigVMDispatchFactory.h"
-#include "AnimNextParameterExecuteContext.h"
+#include "AnimNextExecuteContext.h"
 #include "RigVMDispatch_SetLayerParameter.generated.h"
 
 namespace UE::AnimNext::UncookedOnly
@@ -24,7 +24,7 @@ struct ANIMNEXT_API FRigVMDispatch_SetLayerParameter : public FRigVMDispatchFact
 private:
 	friend struct UE::AnimNext::UncookedOnly::FUtils;
 
-	virtual UScriptStruct* GetExecuteContextStruct() const { return FAnimNextParameterExecuteContext::StaticStruct(); }
+	virtual UScriptStruct* GetExecuteContextStruct() const { return FAnimNextExecuteContext::StaticStruct(); }
 	virtual FName GetArgumentNameForOperandIndex(int32 InOperandIndex, int32 InTotalOperands) const override;
 	virtual const TArray<FRigVMTemplateArgumentInfo>& GetArgumentInfos() const override;
 #if WITH_EDITOR

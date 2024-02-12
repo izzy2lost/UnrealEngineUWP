@@ -3,7 +3,7 @@
 #include "Param/RigVMDispatch_SetLayerParameter.h"
 #include "RigVMCore/RigVMStruct.h"
 #include "RigVMCore/RigVM.h"
-#include "Param/AnimNextParameterExecuteContext.h"
+#include "AnimNextExecuteContext.h"
 #include "Param/ParamId.h"
 #include "Param/ParamTypeHandle.h"
 #include "Param/ParamStackLayerHandle.h"
@@ -110,9 +110,10 @@ void FRigVMDispatch_SetLayerParameter::Execute(FRigVMExtendedExecuteContext& InC
 	FParamTypeHandle TypeHandle = FParamTypeHandle::FromRaw(RawTypeHandle);
 	if(ParameterId.IsValid() && TypeHandle.IsValid())
 	{
-		FAnimNextParameterExecuteContext& ParamContext = InContext.GetPublicData<FAnimNextParameterExecuteContext>();
+		FAnimNextExecuteContext& AnimNextContext = InContext.GetPublicData<FAnimNextExecuteContext>();
+		const FAnimNextParamContextData& ParamContextData = AnimNextContext.GetContextData<FAnimNextParamContextData>();
 		TConstArrayView<uint8> SourceDataView(SourceData, ValueProperty->GetSize());
-		ParamContext.GetLayerHandle().SetValueRaw(ParameterId, TypeHandle, SourceDataView);
+		ParamContextData.GetLayerHandle().SetValueRaw(ParameterId, TypeHandle, SourceDataView);
 	}
 }
 

@@ -20,30 +20,20 @@ UObject* IRigVMClientHost::ResolveUserDefinedTypeById(const FString& InTypeName)
 	return nullptr;
 }
 
-void FRigVMClient::SetSchemaClass(TSubclassOf<URigVMSchema> InSchemaClass)
+void FRigVMClient::SetDefaultSchemaClass(TSubclassOf<URigVMSchema> InSchemaClass)
 {
 	check(InSchemaClass);
-	
-	if(InSchemaClass == SchemaClass)
+
+	if(InSchemaClass == DefaultSchemaClass)
 	{
 		return;
 	}
-	
-	if(SchemaPtr)
-	{
-		if(!SchemaPtr->HasAnyFlags(RF_ClassDefaultObject))
-		{
-			DestroyObject(SchemaPtr);
-		}
-		SchemaPtr = nullptr;
-	}
 
-	SchemaClass = InSchemaClass;
+	DefaultSchemaClass = InSchemaClass;
 
-	URigVMSchema* Schema = GetOrCreateSchema();
-	for(auto& Pair : Controllers)
+	for(TPair<FSoftObjectPath, TObjectPtr<URigVMController>>& ObjectControllerPair : Controllers)
 	{
-		Pair.Value->SetSchema(Schema);
+		ObjectControllerPair.Value->SetSchemaClass(InSchemaClass);
 	}
 }
 
@@ -126,33 +116,12 @@ void FRigVMClient::Reset()
 	FunctionLibrary = nullptr;
 
 	ResetActionStack();
-
-	if(SchemaPtr)
-	{
-		if(!SchemaPtr->HasAnyFlags(RF_ClassDefaultObject))
-		{
-			DestroyObject(SchemaPtr);
-		}
-		SchemaPtr = nullptr;
-	}
 }
 
-URigVMSchema* FRigVMClient::GetOrCreateSchema()
+URigVMSchema* FRigVMClient::GetDefaultSchema() const
 {
-	check(SchemaClass);
-	if(SchemaPtr && !IsValid(SchemaPtr))
-	{
-		SchemaPtr = nullptr;
-	}
-	if(SchemaPtr && SchemaPtr->GetClass() != SchemaClass)
-	{
-		SchemaPtr = nullptr;
-	}
-	if(SchemaPtr == nullptr)
-	{
-		SchemaPtr = CastChecked<URigVMSchema>(SchemaClass->GetDefaultObject(true));
-	}
-	return SchemaPtr;
+	check(DefaultSchemaClass);
+	return DefaultSchemaClass->GetDefaultObject<URigVMSchema>();
 }
 
 URigVMGraph* FRigVMClient::GetDefaultModel() const
@@ -381,6 +350,14 @@ URigVMGraph* FRigVMClient::AddModel(const FString InName, bool bSetupUndoRedo, b
 
 URigVMGraph* FRigVMClient::AddModel(const FName& InName, bool bSetupUndoRedo, const FObjectInitializer* ObjectInitializer, bool bCreateController)
 {
+	check(DefaultSchemaClass);
+	return AddModel(InName, DefaultSchemaClass, bSetupUndoRedo, ObjectInitializer, bCreateController);
+}
+
+URigVMGraph* FRigVMClient::AddModel(const FName& InName, TSubclassOf<URigVMSchema> InSchemaClass, bool bSetupUndoRedo, const FObjectInitializer* ObjectInitializer, bool bCreateController)
+{
+	check(InSchemaClass);
+
 #if WITH_EDITOR
 	TSharedPtr<FScopedTransaction> Transaction;
 	if(bSetupUndoRedo)
@@ -400,6 +377,9 @@ URigVMGraph* FRigVMClient::AddModel(const FName& InName, bool bSetupUndoRedo, co
 	{
 		Model = NewObject<URigVMGraph>(GetOuter(), SafeGraphName);
 	}
+
+	Model->SetSchemaClass(InSchemaClass);
+
 	AddModel(Model, bCreateController);
 
 	if(bSetupUndoRedo)
@@ -430,7 +410,7 @@ void FRigVMClient::AddModel(URigVMGraph* InModel, bool bCreateController)
 		Models.Add(InModel);
 	}
 
-	InModel->SetExecuteContextStruct(GetOrCreateSchema()->GetExecuteContextStruct());
+	InModel->SetExecuteContextStruct(InModel->GetSchema()->GetExecuteContextStruct());
 
 	if(bCreateController)
 	{
@@ -462,6 +442,12 @@ void FRigVMClient::AddModel(URigVMGraph* InModel, bool bCreateController)
 
 URigVMFunctionLibrary* FRigVMClient::GetOrCreateFunctionLibrary(bool bSetupUndoRedo, const FObjectInitializer* ObjectInitializer, bool bCreateController)
 {
+	check(DefaultSchemaClass);
+	return GetOrCreateFunctionLibrary(DefaultSchemaClass, bSetupUndoRedo, ObjectInitializer, bCreateController);
+}
+
+URigVMFunctionLibrary* FRigVMClient::GetOrCreateFunctionLibrary(TSubclassOf<URigVMSchema> InSchemaClass, bool bSetupUndoRedo, const FObjectInitializer* ObjectInitializer, bool bCreateController)
+{
 	if(FunctionLibrary)
 	{
 		return FunctionLibrary;
@@ -487,6 +473,8 @@ URigVMFunctionLibrary* FRigVMClient::GetOrCreateFunctionLibrary(bool bSetupUndoR
 	{
 		NewFunctionLibrary = NewObject<URigVMFunctionLibrary>(GetOuter(), SafeGraphName);
 	}
+
+	NewFunctionLibrary->SetSchemaClass(InSchemaClass);
 
 	NewFunctionLibrary->GetFunctionHostObjectPathDelegate.BindLambda([this]() -> const FSoftObjectPath 
 		{
@@ -519,15 +507,15 @@ TArray<FName> FRigVMClient::GetEntryNames() const
 	return EntryNames;
 }
 
-UScriptStruct* FRigVMClient::GetExecuteContextStruct() const
+UScriptStruct* FRigVMClient::GetDefaultExecuteContextStruct() const
 {
-	check(SchemaPtr);
-	return SchemaPtr->GetExecuteContextStruct();
+	check(GetDefaultSchema());
+	return GetDefaultSchema()->GetExecuteContextStruct();
 }
 
-void FRigVMClient::SetExecuteContextStruct(UScriptStruct* InExecuteContextStruct)
+void FRigVMClient::SetDefaultExecuteContextStruct(UScriptStruct* InExecuteContextStruct)
 {
-	GetOrCreateSchema()->SetExecuteContextStruct(InExecuteContextStruct);
+	GetDefaultSchema()->SetExecuteContextStruct(InExecuteContextStruct);
 }
 
 URigVMGraph* FRigVMClient::GetFocusedModel() const
@@ -838,7 +826,16 @@ URigVMController* FRigVMClient::CreateController(const URigVMGraph* InModel)
 	const FName SafeControllerName = GetUniqueName(*FString::Printf(TEXT("%s_Controller"), *ModelName));
 	URigVMController* Controller = NewObject<URigVMController>(GetOuter(), ControllerClass, SafeControllerName);
 	Controllers.Add(InModel, Controller);
-	Controller->SetSchema(GetOrCreateSchema());
+	if(InModel && InModel->GetSchemaClass() != nullptr)
+	{
+		Controller->SetSchemaClass(InModel->GetSchemaClass());
+	}
+	else
+	{
+		check(DefaultSchemaClass);
+		Controller->SetSchemaClass(DefaultSchemaClass);
+	}
+
 	Controller->SetActionStack(GetOrCreateActionStack());
 	if(InModel)
 	{
@@ -883,13 +880,6 @@ void FRigVMClient::ResetActionStack()
 {
 	DestroyObject(ActionStack);
 	ActionStack = nullptr;
-}
-
-void FRigVMClient::SetSchema(URigVMSchema* InSchema)
-{
-	check(InSchema);
-	SchemaPtr = InSchema;
-	SchemaClass = InSchema->GetClass();
 }
 
 FName FRigVMClient::GetUniqueName(const FName& InDesiredName) const
@@ -988,14 +978,10 @@ void FRigVMClient::ProcessDetachedLinks()
 
 void FRigVMClient::PostDuplicateHost(const FString& InOldPathName, const FString& InNewPathName)
 {
-	// this also takes care of wiping invalid schemas on the client
-	URigVMSchema* Schema = GetOrCreateSchema();
-	
 	TArray<URigVMGraph*> AllModels = GetAllModels(true, true);
 	for(URigVMGraph* Model : AllModels)
 	{
 		URigVMController* Controller = GetOrCreateController(Model);
-		Controller->SetSchema(Schema);
 		Controller->PostDuplicateHost(InOldPathName, InNewPathName);
 	}
 }

@@ -9,6 +9,7 @@
 #include "UObject/Package.h"
 #include "UObject/ObjectSaveContext.h"
 #include "RigVMTypeUtils.h"
+#include "RigVMModel/RigVMClient.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMGraph)
 
@@ -16,6 +17,7 @@ URigVMGraph::URigVMGraph()
 : DiagnosticsAST(nullptr)
 , RuntimeAST(nullptr)
 , bEditable(true)
+, SchemaClass(nullptr)
 {
 	SetExecuteContextStruct(FRigVMExecuteContext::StaticStruct());
 }
@@ -401,6 +403,18 @@ TArray<FRigVMGraphVariableDescription> URigVMGraph::GetOutputArguments() const
 		}
 	}
 	return Outputs;
+}
+
+URigVMSchema* URigVMGraph::GetSchema() const
+{
+	check(SchemaClass);
+	return SchemaClass->GetDefaultObject<URigVMSchema>();
+}
+
+void URigVMGraph::SetSchemaClass(TSubclassOf<URigVMSchema> InSchemaClass)
+{
+	check(InSchemaClass);
+	SchemaClass = InSchemaClass;
 }
 
 FRigVMGraphModifiedEvent& URigVMGraph::OnModified()

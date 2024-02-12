@@ -5,9 +5,8 @@
 #include "RigVMRuntimeDataRegistry.h"
 #include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/ObjectSaveContext.h"
-#include "UObject/Package.h"
 #include "Graph/RigUnit_AnimNextBeginExecution.h"
-#include "Param/AnimNextParameterExecuteContext.h"
+#include "AnimNextExecuteContext.h"
 #include "AnimNextStats.h"
 
 DEFINE_STAT(STAT_AnimNext_ParamBlock_UpdateLayer);
@@ -17,7 +16,7 @@ DEFINE_STAT(STAT_AnimNext_ParamBlock_UpdateLayer);
 UAnimNextParameterBlock::UAnimNextParameterBlock(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	ExtendedExecuteContext.SetContextPublicDataStruct(FAnimNextParameterExecuteContext::StaticStruct());
+	ExtendedExecuteContext.SetContextPublicDataStruct(FAnimNextExecuteContext::StaticStruct());
 }
 
 void UAnimNextParameterBlock::UpdateLayer(UE::AnimNext::FParamStackLayerHandle& InHandle, float InDeltaTime) const
@@ -32,15 +31,18 @@ void UAnimNextParameterBlock::UpdateLayer(UE::AnimNext::FParamStackLayerHandle& 
 
 			check(Context.VMHash == VM->GetVMHash());
 
-			FAnimNextParameterExecuteContext& AnimNextParameterContext = Context.GetPublicDataSafe<FAnimNextParameterExecuteContext>();
+			FAnimNextExecuteContext& AnimNextContext = Context.GetPublicDataSafe<FAnimNextExecuteContext>();
 
 			// Param block setup
-			AnimNextParameterContext.SetParamContextData(InHandle);
+			AnimNextContext.SetContextData<FAnimNextParamContextData>(InHandle);
 
 			// RigVM setup
-			AnimNextParameterContext.SetDeltaTime(InDeltaTime);
+			AnimNextContext.SetDeltaTime(InDeltaTime);
 
 			VM->ExecuteVM(Context, FRigUnit_AnimNextBeginExecution::EventName);
+
+			// Reset the context to avoid issues if we forget to reset it the next time we use it
+			AnimNextContext.DebugReset<FAnimNextParamContextData>();
 		}
 	}
 }

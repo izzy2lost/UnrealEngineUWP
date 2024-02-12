@@ -2,7 +2,6 @@
 
 #include "AnimNextGraphDocumentSummoner.h"
 #include "Common/SActionMenu.h"
-#include "Graph/AnimNextExecuteContext.h"
 #include "Graph/AnimNextGraph_EdGraph.h"
 #include "Workspace/AnimNextWorkspaceEditor.h"
 
@@ -16,13 +15,11 @@ FAnimNextGraphDocumentSummoner::FAnimNextGraphDocumentSummoner(FName InIdentifie
 
 FActionMenuContent FAnimNextGraphDocumentSummoner::OnCreateGraphActionMenu(UEdGraph* InGraph, const FVector2D& InNodePosition, const TArray<UEdGraphPin*>& InDraggedPins, bool bAutoExpand, SGraphEditor::FActionMenuClosed InOnMenuClosed) const
 {
-	TSharedRef<SActionMenu> ActionMenu = SNew(SActionMenu)
+	TSharedRef<SActionMenu> ActionMenu = SNew(SActionMenu, InGraph)
 		.AutoExpandActionMenu(bAutoExpand)
-		.Graph(InGraph)
 		.NewNodePosition(InNodePosition)
 		.DraggedFromPins(InDraggedPins)
-		.OnClosedCallback(InOnMenuClosed)
-		.AllowedExecuteContexts( { FRigVMExecuteContext::StaticStruct(), FAnimNextExecuteContext::StaticStruct() });
+		.OnClosedCallback(InOnMenuClosed);
 
 	TSharedPtr<SWidget> FilterTextBox = StaticCastSharedRef<SWidget>(ActionMenu->GetFilterTextBox());
 	return FActionMenuContent(StaticCastSharedRef<SWidget>(ActionMenu), FilterTextBox);

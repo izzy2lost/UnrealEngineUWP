@@ -7,6 +7,7 @@
 #include "Graph/AnimNextGraph.h"
 #include "Graph/AnimNextGraphEntry.h"
 #include "Graph/AnimNextGraph_EdGraphSchema.h"
+#include "Graph/AnimNextGraph_TraitSchema.h"
 #include "RigVMModel/RigVMFunctionLibrary.h"
 #include "RigVMModel/RigVMNotifications.h"
 #include "RigVMModel/Nodes/RigVMCollapseNode.h"
@@ -15,8 +16,18 @@
 
 void UAnimNextGraph_EditorData::PostLoad()
 {
-	Super::PostLoad();
+	if(GetLinkerCustomVersion(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::AnimNextCombineGraphContexts)
+	{
+		TArray<URigVMGraph*> AllModels = RigVMClient.GetAllModels(false, true);
+		for(URigVMGraph* Graph : AllModels)
+		{
+			Graph->SetExecuteContextStruct(FAnimNextExecuteContext::StaticStruct());
+			Graph->SetSchemaClass(UAnimNextGraph_TraitSchema::StaticClass());
+		}
+	}
 
+	Super::PostLoad();
+	
 	if(GetLinkerCustomVersion(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::AnimNextMoveGraphsToEntries)
 	{
 		for(TObjectPtr<UAnimNextGraph_EdGraph> Graph : Graphs_DEPRECATED)
@@ -220,7 +231,7 @@ UAnimNextGraphEntry* UAnimNextGraph_EditorData::AddGraph(FName InName, bool bSet
 	{
 		TGuardValue<bool> EnablePythonPrint(bSuspendPythonMessagesForRigVMClient, !bPrintPythonCommand);
 		TGuardValue<bool> DisableAutoCompile(bAutoRecompileVM, false);
-		URigVMGraph* NewGraph = RigVMClient.AddModel(URigVMGraph::StaticClass()->GetFName(), bSetupUndoRedo);
+		URigVMGraph* NewGraph = RigVMClient.AddModel(URigVMGraph::StaticClass()->GetFName(), UAnimNextGraph_TraitSchema::StaticClass(), bSetupUndoRedo);
 		ensure(NewGraph);
 		NewEntry->Graph = NewGraph;
 

@@ -416,7 +416,10 @@ struct FFortniteMainBranchObjectVersion
 
 		// Skeletal Mesh optionally cooks half edge data per lod
 		SkeletalHalfEdgeData,
-		
+
+		// Combine graph contexts for AnimNext graphs
+		AnimNextCombineGraphContexts,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

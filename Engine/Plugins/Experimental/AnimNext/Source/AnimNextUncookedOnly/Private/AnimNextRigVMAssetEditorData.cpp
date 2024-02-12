@@ -4,6 +4,7 @@
 
 #include "AnimNextRigVMAsset.h"
 #include "AnimNextRigVMAssetEntry.h"
+#include "AnimNextRigVMAssetSchema.h"
 #include "ControlRigDefines.h"
 #include "ExternalPackageHelper.h"
 #include "IAnimNextRigVMGraphInterface.h"
@@ -65,6 +66,7 @@ void UAnimNextRigVMAssetEditorData::ReconstructAllNodes()
 
 void UAnimNextRigVMAssetEditorData::Serialize(FArchive& Ar)
 {
+	RigVMClient.SetDefaultSchemaClass(UAnimNextRigVMAssetSchema::StaticClass());
 	RigVMClient.SetOuterClientHost(this, GET_MEMBER_NAME_CHECKED(UAnimNextRigVMAssetEditorData, RigVMClient));
 
 	Super::Serialize(Ar);
@@ -74,8 +76,6 @@ void UAnimNextRigVMAssetEditorData::Initialize(bool bRecompileVM)
 {
 	RigVMClient.bDefaultModelCanBeRemoved = true;
 	RigVMClient.SetControllerClass(GetControllerClass());
-	RigVMClient.SetSchemaClass(GetRigVMSchemaClass());
-	RigVMClient.SetExecuteContextStruct(GetExecuteContextStruct());
 	RigVMClient.SetOuterClientHost(this, GET_MEMBER_NAME_CHECKED(UAnimNextRigVMAssetEditorData, RigVMClient));
 	{
 		TGuardValue<bool> DisableClientNotifs(RigVMClient.bSuspendNotifications, true);
@@ -420,7 +420,7 @@ void UAnimNextRigVMAssetEditorData::HandleRigVMGraphAdded(const FRigVMClient* In
 #if WITH_EDITOR
 		if(!bSuspendPythonMessagesForRigVMClient)
 		{
-			const FString AssetName = InClient->GetSchema()->GetSanitizedName(GetName(), true, false);
+			const FString AssetName = RigVMGraph->GetSchema()->GetSanitizedName(GetName(), true, false);
 			RigVMPythonUtils::Print(AssetName, FString::Printf(TEXT("asset.add_graph('%s')"), *RigVMGraph->GetName()));
 		}
 #endif
@@ -437,7 +437,7 @@ void UAnimNextRigVMAssetEditorData::HandleRigVMGraphRemoved(const FRigVMClient* 
 #if WITH_EDITOR
 		if(!bSuspendPythonMessagesForRigVMClient)
 		{
-			const FString AssetName = InClient->GetSchema()->GetSanitizedName(GetName(), true, false);
+			const FString AssetName = RigVMGraph->GetSchema()->GetSanitizedName(GetName(), true, false);
 			RigVMPythonUtils::Print(AssetName, FString::Printf(TEXT("asset.add_graph('%s')"), *RigVMGraph->GetName()));
 		}
 #endif

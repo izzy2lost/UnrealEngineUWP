@@ -10,12 +10,11 @@
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"
-#include "Widgets/Text/STextBlock.h"
 #include "SGraphPalette.h"
 #include "RigVMCore/RigVMRegistry.h"
+#include "RigVMModel/RigVMClient.h"
+#include "RigVMModel/RigVMSchema.h"
 #include "Units/RigUnit.h"
-#include "Widgets/SToolTip.h"
-#include "Graph/AnimNextExecuteContext.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextEditor"
 
@@ -24,10 +23,12 @@ namespace UE::AnimNext::Editor
 
 void SActionMenu::CollectAllAnimNextGraphActions(FGraphContextMenuBuilder& MenuBuilder) const
 {
+	// Disable reporting as the schema's SupportsX functions will output errors
+	RigVMController->EnableReporting(false);
+
 	for(const FRigVMFunction& Function : FRigVMRegistry::Get().GetFunctions())
 	{
-		const UScriptStruct* FunctionContext = Function.GetExecuteContextStruct();
-		if (FunctionContext == nullptr || !AllowedExecuteContexts.Contains(FunctionContext))
+		if (RigVMSchema == nullptr || !RigVMSchema->SupportsUnitFunction(RigVMController, &Function))
 		{
 			continue;
 		}
@@ -60,18 +61,7 @@ void SActionMenu::CollectAllAnimNextGraphActions(FGraphContextMenuBuilder& MenuB
 
 	for (const FRigVMDispatchFactory* Factory : FRigVMRegistry::Get().GetFactories())
 	{
-		// See if the factory allows our execute contexts
-		bool bAllowed = true;
-		for(const UScriptStruct* AllowedExecuteContext : AllowedExecuteContexts)
-		{
-			if (!Factory->SupportsExecuteContextStruct(AllowedExecuteContext))
-			{
-				bAllowed = false;
-				break;
-			}
-		}
-
-		if(bAllowed)
+		if (RigVMSchema == nullptr || !RigVMSchema->SupportsDispatchFactory(RigVMController, Factory))
 		{
 			continue;
 		}
@@ -88,6 +78,8 @@ void SActionMenu::CollectAllAnimNextGraphActions(FGraphContextMenuBuilder& MenuB
 
 		MenuBuilder.AddAction(MakeShared<FAnimNextSchemaAction_DispatchFactory>(Template->GetNotation(), NodeCategory, MenuDesc, ToolTip));
 	};
+
+	RigVMController->EnableReporting(true);
 }
 
 SActionMenu::~SActionMenu()
@@ -96,15 +88,23 @@ SActionMenu::~SActionMenu()
 	OnCloseReasonCallback.ExecuteIfBound(bActionExecuted, false, !DraggedFromPins.IsEmpty());
 }
 
-void SActionMenu::Construct(const FArguments& InArgs)
+void SActionMenu::Construct(const FArguments& InArgs, UEdGraph* InGraph)
 {
-	Graph = InArgs._Graph;
+	check(InGraph);
+
+	Graph = InGraph;
 	DraggedFromPins = InArgs._DraggedFromPins;
 	NewNodePosition = InArgs._NewNodePosition;
 	OnClosedCallback = InArgs._OnClosedCallback;
 	bAutoExpandActionMenu = InArgs._AutoExpandActionMenu;
 	OnCloseReasonCallback = InArgs._OnCloseReason;
-	AllowedExecuteContexts = InArgs._AllowedExecuteContexts;
+
+	RigVMClientHost = Graph->GetImplementingOuter<IRigVMClientHost>();
+	check(RigVMClientHost);
+	RigVMController = RigVMClientHost->GetRigVMClient()->GetController(Graph);
+	check(RigVMController);
+	RigVMSchema = RigVMController->GetGraph()->GetSchema();
+	check(RigVMSchema);
 
 	SBorder::Construct(SBorder::FArguments()
 		.BorderImage(FAppStyle::Get().GetBrush("Menu.Background"))

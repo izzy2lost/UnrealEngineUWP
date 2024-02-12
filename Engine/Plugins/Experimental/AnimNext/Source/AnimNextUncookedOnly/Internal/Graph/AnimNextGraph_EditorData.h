@@ -7,7 +7,7 @@
 #include "RigVMModel/RigVMGraph.h"
 #include "AnimNextGraph_EdGraph.h"
 #include "AnimNextRigVMAssetEditorData.h"
-#include "Graph/AnimNextExecuteContext.h"
+#include "AnimNextExecuteContext.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "AnimNextGraph_EditorData.generated.h"
 
@@ -29,12 +29,8 @@ namespace UE::AnimNext::Editor
 	struct FUtils;
 }
 
-/**
- * The Schema is used to determine which actions are allowed
- * on a graph. This includes any topological change.
- */
 UCLASS()
-class UAnimNextGraph_Schema : public URigVMSchema
+class UAnimNextTraitGraph_Schema : public URigVMSchema
 {
 	GENERATED_BODY()
 };
@@ -82,7 +78,6 @@ private:
 
 	// UAnimNextRigVMAssetEditorData interface
 	virtual TSubclassOf<URigVMController> GetControllerClass() const override { return UAnimNextGraph_Controller::StaticClass(); }
-	virtual TSubclassOf<URigVMSchema> GetRigVMSchemaClass() const override { return UAnimNextGraph_Schema::StaticClass(); }
 	virtual UScriptStruct* GetExecuteContextStruct() const override { return FAnimNextExecuteContext::StaticStruct(); }
 	virtual UEdGraph* CreateEdGraph(URigVMGraph* InRigVMGraph, bool bForce) override;
 	virtual bool RemoveEdGraph(URigVMGraph* InModel) override;

@@ -129,12 +129,12 @@ void FAnimNextGraphInstance::ExecuteLatentPins(const TConstArrayView<UE::AnimNex
 	if (URigVM* VM = Graph->VM)
 	{
 		FAnimNextExecuteContext& AnimNextContext = ExtendedExecuteContext.GetPublicDataSafe<FAnimNextExecuteContext>();
-		AnimNextContext.SetupForExecution(this, LatentHandles, DestinationBasePtr, bIsFrozen);
+		AnimNextContext.SetContextData<FAnimNextGraphContextData>(this, LatentHandles, DestinationBasePtr, bIsFrozen);
 
 		VM->ExecuteVM(ExtendedExecuteContext, FRigUnit_AnimNextShimRoot::EventName);
 
 		// Reset the context to avoid issues if we forget to reset it the next time we use it
-		AnimNextContext.DebugReset();
+		AnimNextContext.DebugReset<FAnimNextGraphContextData>();
 	}
 }
 
