@@ -224,6 +224,7 @@ private:
 	struct FLayerData
 	{
 		TUniquePtr<FVulkanView> View;
+		FRayTracingAccelerationStructureSize SizeInfo;
 		uint32 BufferOffset;
 		uint32 ScratchBufferOffset;
 	};

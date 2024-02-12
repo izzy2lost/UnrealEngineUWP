@@ -25,7 +25,7 @@ class FVulkanRayTracingCompactionRequestHandler;
 #define VULKAN_USE_DEBUG_NAMES 1
 
 #if VULKAN_USE_DEBUG_NAMES
-#define VULKAN_SET_DEBUG_NAME(Device, Type, Handle, Format, ...) Device.VulkanSetObjectName(Type, (uint64)Handle, *FString::Printf(Format, __VA_ARGS__))
+#define VULKAN_SET_DEBUG_NAME(Device, Type, Handle, Format, ...) (Device).VulkanSetObjectName(Type, (uint64)Handle, *FString::Printf(Format, __VA_ARGS__))
 #else
 #define VULKAN_SET_DEBUG_NAME(Device, Type, Handle, Format, ...) do{}while(0)
 #endif
