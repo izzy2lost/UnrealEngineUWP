@@ -297,6 +297,8 @@ inline int32 GetResourceTransitionPlaneForMetadataAccess(ERDGTextureMetaDataAcce
 /** HANDLE UTILITIES */
 
 /** Handle helper class for internal tracking of RDG types. */
+// Disable false positive buffer overrun warning during pgo linking step
+PRAGMA_DISABLE_BUFFER_OVERRUN_WARNING
 template <typename LocalObjectType, typename LocalIndexType>
 class TRDGHandle
 {
@@ -391,6 +393,7 @@ private:
 		return Handle.GetIndex();
 	}
 };
+PRAGMA_ENABLE_BUFFER_OVERRUN_WARNING
 
 enum class ERDGHandleRegistryDestructPolicy
 {
