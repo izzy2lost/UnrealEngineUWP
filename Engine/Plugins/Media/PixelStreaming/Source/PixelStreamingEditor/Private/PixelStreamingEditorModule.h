@@ -24,9 +24,6 @@ public:
 
 	virtual void StartStreaming(UE::EditorPixelStreaming::EStreamTypes InStreamType) override;
 	virtual void StopStreaming() override;
-	/** These two method have been deprecated. We're just keeping them around until they can be removed in 5.4 */
-	virtual void SetStreamType(UE::EditorPixelStreaming::EStreamTypes InStreamType) override{};
-	virtual UE::EditorPixelStreaming::EStreamTypes GetStreamType() override { return UE::EditorPixelStreaming::EStreamTypes::Editor; }
 
 	virtual void StartSignalling() override;
 	virtual void StopSignalling() override;
