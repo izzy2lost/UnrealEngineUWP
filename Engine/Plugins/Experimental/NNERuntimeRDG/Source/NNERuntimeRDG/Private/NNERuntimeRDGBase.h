@@ -87,8 +87,8 @@ public:
 	bool Validate(TConstArrayView<ENNETensorDataType> InputTypes);
 
 private:
-	TArray<TArray<ENNETensorDataType>> TemplateTypes;
-	TArray<int32> InputTemplateIndices;
+	TArray<TSet<ENNETensorDataType>, TInlineAllocator<16>> TemplateTypes;
+	FIntArray InputTemplateIndices;
 	int32 NumRequiredInput;
 	int32 NumOptionalInput;
 };

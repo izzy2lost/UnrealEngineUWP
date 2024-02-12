@@ -30,7 +30,7 @@ bool AlwaysValidValidationFunction(
 FInputValidator::FInputValidator() : 
 	NumRequiredInput(0), NumOptionalInput(0)
 {
-	TemplateTypes.SetNum(1);
+	SetTemplateCount(1);
 }
 
 bool FInputValidator::Validate(TConstArrayView<ENNETensorDataType> InputTypes)
@@ -56,7 +56,7 @@ bool FInputValidator::Validate(TConstArrayView<ENNETensorDataType> InputTypes)
 		const int32 TemplateIdx = InputTemplateIndices[Idx];
 		
 		check(TemplateIdx < TemplateTypes.Num());
-		if (INDEX_NONE == TemplateTypes[TemplateIdx].Find(InputTypes[Idx]))
+		if (!TemplateTypes[TemplateIdx].Contains(InputTypes[Idx]))
 		{
 			FString TargetType = LogHelper::GetTensorDataTypeName(InputTypes[Idx]);
 			UE_LOG(LogNNE, Warning, TEXT("Input at index '%d' (from template T%d) is of type '%s' witch is not supported for that input."), Idx, TemplateIdx, *TargetType);
@@ -65,11 +65,11 @@ bool FInputValidator::Validate(TConstArrayView<ENNETensorDataType> InputTypes)
 	}
 	return bAreInputValid;
 }
-void FInputValidator::SetTemplateCount(int TemplateCount)
+void FInputValidator::SetTemplateCount(int32 TemplateCount)
 {
-	TemplateTypes.SetNum(TemplateCount);
+	TemplateTypes.Init(TSet<ENNETensorDataType>{}, TemplateCount);
 }
-void FInputValidator::AddSupportedType(ENNETensorDataType Type, int TemplateIdx)
+void FInputValidator::AddSupportedType(ENNETensorDataType Type, int32 TemplateIdx)
 {
 	check(TemplateTypes.Num() > TemplateIdx);
 	TemplateTypes[TemplateIdx].Add(Type);
