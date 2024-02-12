@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "SceneOutlinerStandaloneTypes.h"
 #include "Containers/ContainersFwd.h"
 #include "Elements/Interfaces/TypedElementDataStorageFactory.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
@@ -16,6 +17,8 @@ class ITypedElementDataStorageInterface;
 class ITypedElementDataStorageUiInterface;
 class ITypedElementDataStorageCompatibilityInterface;
 
+DECLARE_DELEGATE_RetVal_OneParam(FSceneOutlinerTreeItemID, FTreeItemIDDealiaser, TypedElementDataStorage::RowHandle);
+
 class FTypedElementSceneOutliner
 {
 public:
@@ -28,6 +31,7 @@ public:
 		const TSharedPtr<ISceneOutliner>& InOutliner);
 
 	void AssignQuery(TypedElementQueryHandle Query);
+	void RegisterDealiaser(const FTreeItemIDDealiaser& InDealiaser);
 
 private:
 	static FName FindLongestMatchingName(TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes, int32 DefaultNameIndex);
@@ -42,6 +46,7 @@ private:
 	ITypedElementDataStorageInterface* Storage{ nullptr };
 	ITypedElementDataStorageUiInterface* StorageUi{ nullptr };
 	ITypedElementDataStorageCompatibilityInterface* StorageCompatibility{ nullptr };
+	FTreeItemIDDealiaser Dealiaser;
 };
 
 /**
@@ -64,6 +69,9 @@ public:
 
 	void AssignQuery(TypedElementQueryHandle Query, const TSharedPtr<ISceneOutliner>& Widget);
 
+	// Register a dealiser for a specific TEDS-Outliner to convert a row handle to an FSceneOutlinerTreeItemID
+	void RegisterTreeItemIDDealiaser(const TSharedPtr<ISceneOutliner>& Widget, const FTreeItemIDDealiaser& InDealiaser);
+
 	// Get the name of the Outliner column corresponding to the given TEDS column (if any)
 	FName FindOutlinerColumnFromTEDSColumns(TConstArrayView<TWeakObjectPtr<const UScriptStruct>> TEDSColumns) const;
 
@@ -71,6 +79,8 @@ private:
 	FTypedElementSceneOutlinerQueryBinder();
 	void SetupDefaultColumnMapping();
 	void CleanupStaleOutliners();
+	
+	TSharedPtr<FTypedElementSceneOutliner>* FindOrAddQueryMapping(const TSharedPtr<ISceneOutliner>& Widget);
 	
 	TMap<TWeakPtr<ISceneOutliner>, TSharedPtr<FTypedElementSceneOutliner>> SceneOutliners;
 
