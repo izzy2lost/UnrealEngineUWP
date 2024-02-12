@@ -287,3 +287,21 @@ public:
 	UPROPERTY(EditAnywhere, Category = Validation)
 	ENiagaraValidationSeverity Severity = ENiagaraValidationSeverity::Warning;
 };
+
+/** This validation rule checks that a module is only used once per emitter/system stack. */
+UCLASS(Category = "Validation", DisplayName = "Singleton Module")
+class UNiagaraValidationRule_SingletonModule : public UNiagaraValidationRule
+{
+	GENERATED_BODY()
+
+public:
+	virtual void CheckValidity(const FNiagaraValidationContext& Context, TArray<FNiagaraValidationResult>& OutResults) const override;
+
+	/** How do we want to repro the error in the stack */
+	UPROPERTY(EditAnywhere, Category = Validation)
+	ENiagaraValidationSeverity Severity = ENiagaraValidationSeverity::Warning;
+
+	/** If true then the check is not emitter-wide, but only within the same context (e.g. particle update). */
+	UPROPERTY(EditAnywhere, Category = Validation)
+	bool bCheckDetailedUsageContext = false;
+};
