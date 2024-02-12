@@ -75,6 +75,11 @@ namespace UE::Interchange::Private
 
 	bool FSkeletonHelper::IsCompatibleSkeleton(const USkeleton* Skeleton, const FString RootJoinUid, const UInterchangeBaseNodeContainer* BaseNodeContainer, bool bConvertStaticToSkeletalActive)
 	{
+		if (!Skeleton)
+		{
+			return false;
+		}
+
 		// at least % of bone should match 
 		int32 NumOfBoneMatches = 0;
 		//Make sure the specified Skeleton fit this skeletal mesh
