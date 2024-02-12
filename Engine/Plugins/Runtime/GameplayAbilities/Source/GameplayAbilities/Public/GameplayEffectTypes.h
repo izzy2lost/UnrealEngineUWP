@@ -1228,7 +1228,12 @@ struct GAMEPLAYABILITIES_API FGameplayTagCountContainer
 		return ExplicitTags;
 	}
 
-	void Reset();
+	/**
+	 * Removes all of the tags. Does not notify any delegates.
+	 * 
+	 * @param bResetCallbacks	If true, also remove all of the registered tag count change delegates
+	 */
+	void Reset(bool bResetCallbacks = true);
 
 	/** Fills in ParentTags from GameplayTags */
 	void FillParentTags()
