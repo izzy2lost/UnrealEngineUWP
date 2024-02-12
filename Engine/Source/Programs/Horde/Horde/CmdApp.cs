@@ -91,7 +91,11 @@ namespace Horde
 			{
 				consoleLevel = Serilog.Events.LogEventLevel.Warning;
 			}
-			if (arguments.HasOption("-verbose"))
+			if (arguments.HasOption("-logdebug"))
+			{
+				consoleLevel = Serilog.Events.LogEventLevel.Debug;
+			}
+			if (arguments.HasOption("-logtrace"))
 			{
 				consoleLevel = Serilog.Events.LogEventLevel.Verbose;
 			}
