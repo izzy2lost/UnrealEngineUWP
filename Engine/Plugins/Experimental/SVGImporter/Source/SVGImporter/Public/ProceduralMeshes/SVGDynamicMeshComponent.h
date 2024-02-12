@@ -28,6 +28,16 @@ enum class ESVGMaterialType : uint8
 	Custom
 };
 
+/** @note: the below two enums should match the native ones exactly, so they can be cast directly */
+
+UENUM()
+enum class EPolygonOffsetJoinType : uint8
+{
+	Square, /** Uniform squaring on all convex edge joins. */
+	Round,  /** Arcs on all convex edge joins. */
+	Miter,  /** Squaring of convex edge joins with acute angles ("spikes"). Use in combination with MiterLimit. */
+};
+
 DECLARE_DELEGATE(FSVGMeshActionDelegate)
 
 class UStaticMesh;
@@ -77,6 +87,8 @@ public:
 	void SetIsUnlit(bool bInIsUnlit);
 
 	float GetExtrudeDepth() const { return MinExtrudeValue + Extrude; }
+
+	virtual FName GetShapeType() const { return TEXT("Base"); }
 
 	UMaterialInstanceDynamic* GetMeshMaterialInstance() { return MeshMaterialInstance; }
 
