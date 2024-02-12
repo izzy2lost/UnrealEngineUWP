@@ -63,9 +63,11 @@ void RenderMesh_Editor::SetMaterial(UMaterialInterface* material)
 	for (int meshIndex = 0; meshIndex < _meshComponents.Num(); meshIndex++)
 	{
 		UStaticMeshComponent* meshComponent = _meshComponents[meshIndex];
-
-		MeshInfoPtr meshInfo = _meshes[meshIndex];
-		meshComponent->SetMaterial(meshInfo->GetMaterialIndex(), material);
+		if (meshComponent->IsValidLowLevel())
+		{
+			MeshInfoPtr meshInfo = _meshes[meshIndex];
+			meshComponent->SetMaterial(meshInfo->GetMaterialIndex(), material);
+		}
 	}
 }
 
