@@ -342,12 +342,13 @@ void UTG_EdGraphNode::ReconstructNode()
 		if (NewPin)
 		{
 			// And also check that the new pin at that name is connected to anything, if so grab the UI connections
-			UTG_Pin* TSPin = Node->GetPin(Node->GetPinId(OldPinName));
-			if (TSPin->IsConnected())
+			UTG_Pin* TGPin = Node->GetPin(Node->GetPinId(OldPinName));
+			if (TGPin->IsConnected())
+			{
 				(*NewPin)->MovePersistentDataFromOldPin(*OldPin);
+			}
 		}
 	}
-
 	
 	// Remove old pins
 	for (UEdGraphPin* OldPin : OldPins)
@@ -448,11 +449,15 @@ void UTG_EdGraphNode::UpdatePinVisibility(UEdGraphPin* Pin, UTG_Pin* TGPin) cons
 		// update Metadata with EditCondition to also update details view
 		FName NAME_EditCondition(TEXT("EditCondition"));
 		Property->SetMetaData(NAME_EditCondition, bCanEditChange ? TEXT("true") : TEXT("false"));
-
 	}
 
 	Pin->bHidden = !bCanEditChange && bEditConditionHides;
 	Pin->bDefaultValueIsReadOnly = bCanEditChange;
+	
+	if(Pin->bHidden) 
+	{
+		Pin->GetSchema()->BreakPinLinks(*Pin, false);
+	}
 }
 
 void UTG_EdGraphNode::UpdateInputPinsVisibility() const
