@@ -2005,6 +2005,12 @@ FRigBaseElementParentArray URigHierarchy::GetParents(const FRigBaseElement* InEl
 
 FRigElementKey URigHierarchy::GetDefaultParent(FRigElementKey InKey) const
 {
+	if (DefaultParentCacheTopologyVersion != GetTopologyVersion())
+	{
+		DefaultParentPerElement.Reset();
+		DefaultParentCacheTopologyVersion = GetTopologyVersion();
+	}
+	
 	FRigElementKey DefaultParent;
 	if(const FRigElementKey* DefaultParentPtr = DefaultParentPerElement.Find(InKey))
 	{
