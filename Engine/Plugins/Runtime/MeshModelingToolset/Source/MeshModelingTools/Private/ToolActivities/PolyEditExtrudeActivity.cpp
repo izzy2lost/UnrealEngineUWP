@@ -174,6 +174,14 @@ void UPolyEditExtrudeActivity::Setup(UInteractiveTool* ParentToolIn)
 			ActivityContext->Preview->InvalidateResult();
 		}
 	});
+	ExtrudeProperties->WatchProperty(ExtrudeProperties->bShellsToSolids,
+	[this](bool) {
+		if (bIsRunning)
+		{
+			ActivityContext->Preview->InvalidateResult();
+		}
+	});
+
 
 	OffsetProperties = NewObject<UPolyEditOffsetProperties>();
 	OffsetProperties->RestoreProperties(ParentTool.Get());
