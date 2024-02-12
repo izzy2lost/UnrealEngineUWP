@@ -460,8 +460,7 @@ FString FInsightsManager::GetStoreDir()
 bool FInsightsManager::ConnectToStore(const TCHAR* Host, uint32 Port)
 {
 	using namespace UE::Trace;
-	FStoreClient* Client = FStoreClient::Connect(Host, Port);
-	StoreClient = TUniquePtr<FStoreClient>(Client);
+	StoreClient.Reset(FStoreClient::Connect(Host, Port));
 	if (!StoreClient.IsValid())
 	{
 		return false;
