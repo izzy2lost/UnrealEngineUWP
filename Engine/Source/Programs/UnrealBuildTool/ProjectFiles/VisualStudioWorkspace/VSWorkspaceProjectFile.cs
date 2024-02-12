@@ -90,13 +90,14 @@ namespace UnrealBuildTool
 
 						TargetDescriptor TargetDesc = new(ProjectTarget.UnrealProjectFilePath, ProjectTarget.Name,
 							Platform, Configuration, ProjectArchitectures, Arguments);
+						TargetDesc.IntermediateEnvironment = UnrealIntermediateEnvironment.GenerateProjectFiles;
 
 						try
 						{
 							FileReference OutputFile = FileReference.Combine(ProjectRootFolder, 
 								$"{ProjectTarget.TargetFilePath.GetFileNameWithoutAnyExtensions()}_{Configuration}_{Platform}.json");
 
-							UEBuildTarget BuildTarget = UEBuildTarget.Create(TargetDesc, false, false, false, Logger);
+							UEBuildTarget BuildTarget = UEBuildTarget.Create(TargetDesc, false, false, false, UnrealIntermediateEnvironment.GenerateProjectFiles, Logger);
 							FileToTarget.Add(OutputFile, (BuildTarget, bBuildByDefault));
 						}
 						catch (Exception Ex)
