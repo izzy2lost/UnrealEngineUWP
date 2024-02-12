@@ -305,7 +305,7 @@ FObjectViewSpaceBox GetObjectViewSpaceBox(uint ObjectIndex)
 
 #if (DISTANCEFIELD_PRIMITIVE_TYPE == DFPT_SignedDistanceField)
 		FDFObjectData DFObjectData = LoadDFObjectData(ObjectIndex);
-		float3 TranslatedWorldBoundsPosition = DFTransformLocalToTranslatedWorld(UnitBoxVertex * DFObjectData.VolumePositionExtent, DFObjectData.VolumeToWorld, PrimaryView.PreViewTranslation);
+		float3 TranslatedWorldBoundsPosition = DFTransformLocalToTranslatedWorld(UnitBoxVertex * DFObjectData.VolumePositionExtent, DFObjectData.VolumeToWorld, PrimaryView.PreViewTranslation).xyz;
 #else
 		FHeightfieldObjectBounds HeightfieldObjectBounds = LoadHeightfieldObjectBounds(ObjectIndex);
 		float3 TranslatedWorldBoundsPosition = UnitBoxVertex * HeightfieldObjectBounds.BoxExtent + DFFastToTranslatedWorld(HeightfieldObjectBounds.BoxOrigin, PrimaryView.PreViewTranslation);

@@ -240,24 +240,23 @@ void MainPS(noperspective float4 UVAndScreenPos : TEXCOORD0, float4 SvPosition :
 				OutColor = Texture2DSample(SceneColorTexture, SceneColorSampler, UV); // Influenced area default scene color
 			}
 
-			float3 LuminanceAvg = SceneLuminance(HDRSceneColorAvg);
-			float MaxLuminance = max(LuminanceAvg.r, max(LuminanceAvg.g, LuminanceAvg.b));
+			float LuminanceAvg = SceneLuminance(HDRSceneColorAvg);
 
 			// Luminance
 			int2 TopLeft = OutputViewportCenter + int2(11, 11);
-			if (MaxLuminance < 1000.0f)
+			if (LuminanceAvg < 1000.0f)
 			{
-				PrintFloat(PixelPos, OutColor.xyz, NumberColor, TopLeft, MaxLuminance);
+				PrintFloat(PixelPos, OutColor.xyz, NumberColor, TopLeft, LuminanceAvg);
 				TopLeft.x += 60;
 			}
-			else if (MaxLuminance < 999999.0f)
+			else if (LuminanceAvg < 999999.0f)
 			{
-				PrintFloatNoFractionLarge(PixelPos, OutColor.xyz, NumberColor, TopLeft, MaxLuminance);
+				PrintFloatNoFractionLarge(PixelPos, OutColor.xyz, NumberColor, TopLeft, LuminanceAvg);
 				TopLeft.x += 60;
 			}
 			else
 			{
-				PrintFloatNoFraction(PixelPos, OutColor.xyz, NumberColor, TopLeft, MaxLuminance, 10);
+				PrintFloatNoFraction(PixelPos, OutColor.xyz, NumberColor, TopLeft, LuminanceAvg, 10);
 				TopLeft.x += 100;
 			}
 			PrintCharacter(PixelPos, OutColor.xyz, NumberColor, TopLeft, _N_);
