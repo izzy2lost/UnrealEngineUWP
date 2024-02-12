@@ -53,6 +53,11 @@ void SDMMaterialValuePreview::Tick(const FGeometry& AllottedGeometry, const doub
 {
 	SCompoundWidget::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
 
+	if (!PreviewMaterialWeak.IsValid())
+	{
+		Brush.SetMaterial(nullptr);
+	}
+
 	if (UDMMaterialComponent::CanClean())
 	{
 		if (UDMMaterialValue* Value = ValueWeak.Get())
@@ -77,6 +82,7 @@ void SDMMaterialValuePreview::OnValueUpdated(UDMMaterialComponent* InComponent, 
 			if (Brush.GetResourceObject() != PreviewMaterial)
 			{
 				Brush.SetMaterial(PreviewMaterial);
+				PreviewMaterialWeak = PreviewMaterial;
 			}
 		}
 	}

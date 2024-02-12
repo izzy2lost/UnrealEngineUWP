@@ -4,6 +4,8 @@
 
 #include "DMEDefs.h"
 #include "SlateMaterialBrush.h"
+#include "UObject/WeakObjectPtr.h"
+#include "UObject/WeakObjectPtrTemplates.h"
 #include "Widgets/SCompoundWidget.h"
 
 class UDMMaterialComponent;
@@ -19,7 +21,7 @@ class SDMMaterialValuePreview : public SCompoundWidget
 
 public:
 	SDMMaterialValuePreview();
-	virtual ~SDMMaterialValuePreview();
+	virtual ~SDMMaterialValuePreview() override;
 
 	void Construct(const FArguments& InArgs, UDMMaterialValue* InValue);
 
@@ -27,6 +29,7 @@ public:
 
 protected:
 	TWeakObjectPtr<UDMMaterialValue> ValueWeak;
+	TWeakObjectPtr<UMaterialInterface> PreviewMaterialWeak;
 	FSlateMaterialBrush Brush;
 
 	void OnValueUpdated(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType);

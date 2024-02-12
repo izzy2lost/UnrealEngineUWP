@@ -97,6 +97,7 @@ void SDMSlotPreview::OnSlotUpdated(UDMMaterialComponent* InComponent, EDMUpdateT
 			if (Brush.GetResourceObject() != PreviewMaterial)
 			{
 				Brush.SetMaterial(PreviewMaterial);
+				PreviewMaterialWeak = PreviewMaterial;
 			}
 		}
 	}
@@ -115,6 +116,11 @@ TOptional<FVector2D> SDMSlotPreview::GetPreviewSizeOuter() const
 void SDMSlotPreview::Tick(const FGeometry& InAllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
 	SCompoundWidget::Tick(InAllottedGeometry, InCurrentTime, InDeltaTime);
+
+	if (!PreviewMaterialWeak.IsValid())
+	{
+		Brush.SetMaterial(nullptr);
+	}
 
 	if (UDMMaterialComponent::CanClean())
 	{
