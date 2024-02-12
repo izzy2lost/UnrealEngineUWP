@@ -81,6 +81,7 @@ UControlRigBlueprint::UControlRigBlueprint(const FObjectInitializer& ObjectIniti
 
 UControlRigBlueprint::UControlRigBlueprint()
 {
+	ModulesRecompilationBracket = 0;
 }
 
 UClass* UControlRigBlueprint::RegenerateClass(UClass* ClassToRegenerate, UObject* PreviousCDO)
@@ -2679,13 +2680,24 @@ void UControlRigBlueprint::HandleRigModulesModified(EModularRigNotification InNo
 			RequestConstructionOnAllModules();
 			break;
 		}
+		case EModularRigNotification::InteractionBracketOpened:
+		{
+			ModulesRecompilationBracket++;
+			break;
+		}
+		case EModularRigNotification::InteractionBracketClosed:
+		case EModularRigNotification::InteractionBracketCanceled:
+		{
+			ModulesRecompilationBracket--;
+			break;
+		}
 		default:
 		{
 			break;
 		}
 	}
 
-	if (bRecompile)
+	if (bRecompile && ModulesRecompilationBracket == 0)
 	{
 		RecompileModularRig();
 	}

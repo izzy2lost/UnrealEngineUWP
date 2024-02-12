@@ -1304,7 +1304,8 @@ FString UModularRigController::MirrorModule(const FString& InModulePath, const F
 	{
 		NewModuleName = NewModuleName.Replace(*InSettings.SearchString, *InSettings.ReplaceString, ESearchCase::CaseSensitive);
 	}
-	
+
+	FModularRigControllerCompileBracketScope CompileBracketScope(this);
 
 	FString NewModulePath = AddModule(*NewModuleName, OriginalModule->Class.Get(), OriginalModule->ParentPath, bSetupUndo);
 	FRigModuleReference* NewModule = FindModule(NewModulePath);
@@ -1703,4 +1704,26 @@ void UModularRigController::UpdateShortNames()
 		}
 		
 	}
+}
+
+FModularRigControllerCompileBracketScope::FModularRigControllerCompileBracketScope(UModularRigController* InController)
+	: Controller(InController), bSuspendNotifications(InController->bSuspendNotifications)
+{
+	check(InController);
+	
+	if (bSuspendNotifications)
+	{
+		return;
+	}
+	InController->Notify(EModularRigNotification::InteractionBracketOpened, nullptr);
+}
+
+FModularRigControllerCompileBracketScope::~FModularRigControllerCompileBracketScope()
+{
+	check(Controller);
+	if (bSuspendNotifications)
+	{
+		return;
+	}
+	Controller->Notify(EModularRigNotification::InteractionBracketClosed, nullptr);
 }

@@ -93,4 +93,18 @@ private:
 	bool bAutomaticReparenting;
 	
 	friend struct FModularRigModel;
+	friend class FModularRigControllerCompileBracketScope;
+};
+
+class CONTROLRIG_API FModularRigControllerCompileBracketScope
+{
+public:
+   
+	FModularRigControllerCompileBracketScope(UModularRigController *InController);
+
+	~FModularRigControllerCompileBracketScope();
+
+private:
+	UModularRigController* Controller;
+	bool bSuspendNotifications;
 };

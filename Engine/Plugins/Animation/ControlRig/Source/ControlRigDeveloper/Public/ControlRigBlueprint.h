@@ -329,6 +329,10 @@ private:
 	FOnRigVMRefreshEditorEvent ModularRigPreCompiled;
 	FOnRigVMRefreshEditorEvent ModularRigCompiled;
 
+	UPROPERTY(transient, DuplicateTransient)
+	int32 ModulesRecompilationBracket = 0;
+
+
 	void HandleHierarchyModified(ERigHierarchyNotification InNotification, URigHierarchy* InHierarchy, const FRigBaseElement* InElement);
 
 	void HandleRigModulesModified(EModularRigNotification InNotification, const FRigModuleReference* InModule);
