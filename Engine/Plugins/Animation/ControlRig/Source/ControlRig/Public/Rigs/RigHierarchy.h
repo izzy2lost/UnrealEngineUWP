@@ -4700,6 +4700,7 @@ protected:
 	TObjectPtr<URigHierarchy> HierarchyForCacheValidation;
 
 	mutable TMap<FRigElementKey, FRigElementKey> DefaultParentPerElement;
+	mutable uint32 DefaultParentCacheTopologyVersion;
 
 	bool bUsePreferredEulerAngles;
 	mutable bool bAllowNameSpaceWhenSanitizingName;
