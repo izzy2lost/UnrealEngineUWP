@@ -1188,6 +1188,8 @@ bool FMediaPlayerFacade::Seek(const FTimespan& InTime)
 		{
 #if !MEDIAPLAYERFACADE_DISABLE_PTSCLAMP
 			Time = FTimespan(FMath::Clamp(InTime.GetTicks(), (int64)0L, Duration.GetTicks()));
+#else
+			Time = InTime;
 #endif
 		}
 	}
