@@ -55,8 +55,9 @@ public:
 	 * @param InOutCursorPos cursor position to be used and updated while parsing the arguments
 	 * @param InArguments instruction arguments
 	 * @param bInIsRelative instruction can be relative or absolute
+	 * @return the initial position of the sub path starting with this MoveTo operation. Should be used to later perform a ClosePath if needed.
 	 */
-	static void PathMoveTo(TArray<FSVGPathCommand>& OutCommands, FVector2D& InOutCursorPos, const TArray<FVector2D>& InArguments, bool bInIsRelative);
+	static FVector2D PathMoveTo(TArray<FSVGPathCommand>& OutCommands, FVector2D& InOutCursorPos, const TArray<FVector2D>& InArguments, bool bInIsRelative);
 
 	/**
 	 * Adds a Line To instruction to the provided Commands list.

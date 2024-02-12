@@ -326,9 +326,9 @@ TArray<TArray<FSVGPathCommand>> FSVGParsingUtils::ParseStringAsPathCommands(cons
 					PointsFromString(CommandString, MPoints);
 					const bool bIsRelative = CommandType == 'm';
 
-					PathMoveTo(SubPaths[CurrPathIndex], CursorPos, MPoints, bIsRelative);
-					CursorPos2 = CursorPos;
-					InitialPoint = CursorPos;
+					// We store the initial point of the sub path to properly apply closepath later, if needed
+					InitialPoint = PathMoveTo(SubPaths[CurrPathIndex], CursorPos, MPoints, bIsRelative);
+					CursorPos2 = InitialPoint;
 				}
 			break;
 
@@ -478,9 +478,11 @@ bool FSVGParsingUtils::IsVisible(const TSharedRef<FSVGRawAttribute>& InAttribute
 	return DisplayString != UE::SVGImporter::Public::SVGConstants::None;
 }
 
-void FSVGParsingUtils::PathMoveTo(TArray<FSVGPathCommand>& OutCommands, FVector2D& InOutCursorPos,
+FVector2D FSVGParsingUtils::PathMoveTo(TArray<FSVGPathCommand>& OutCommands, FVector2D& InOutCursorPos,
 	const TArray<FVector2D>& InArguments, bool bInIsRelative)
 {
+	FVector2D InitialPosition = FVector2D::ZeroVector;
+
 	for (int32 i = 0; i < InArguments.Num(); i++)
 	{
 		if (bInIsRelative)
@@ -498,6 +500,7 @@ void FSVGParsingUtils::PathMoveTo(TArray<FSVGPathCommand>& OutCommands, FVector2
 			FSVGPathCommand MoveToCmd(ESVGPathInstructionType::MoveTo);
 			MoveToCmd.PointTo = InOutCursorPos;
 			OutCommands.Add(MoveToCmd);
+			InitialPosition = MoveToCmd.PointTo;
 		}
 		// Following pairs are treated as LineTos
 		else
@@ -507,6 +510,8 @@ void FSVGParsingUtils::PathMoveTo(TArray<FSVGPathCommand>& OutCommands, FVector2
 			OutCommands.Add(LineToCmd);
 		}
 	}
+
+	return InitialPosition;
 }
 
 void FSVGParsingUtils::PathLineTo(TArray<FSVGPathCommand>& OutCommands, FVector2D& InOutCursorPos,
