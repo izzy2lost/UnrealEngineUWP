@@ -107,7 +107,7 @@ public:
 		return AssetTagDefinitionGuid == Other.AssetTagDefinitionGuid;
 	}
 private:
-	UPROPERTY()
+	UPROPERTY(VisibleAnywhere, Category="Asset Tags")
 	FGuid AssetTagDefinitionGuid;
 };
 
@@ -129,16 +129,16 @@ public:
 
 	int32 GetSortOrder() const { return SortOrder; }
 private:
-	UPROPERTY(EditAnywhere, Category="Properties", meta=(TitleProperty="AssetTag"))
-	TArray<FNiagaraAssetTagDefinition> TagDefinitions;
-
 	/** The display name to use when listing this asset in the Niagara Asset Browser */
 	UPROPERTY(EditAnywhere, Category="Properties")
 	FText DisplayName;
-
+	
 	/** A description for this group of tags. Used for tooltips. */
 	UPROPERTY(EditAnywhere, Category="Properties")
 	FText Description;
+	
+	UPROPERTY(EditAnywhere, Category="Properties", meta=(TitleProperty="AssetTag"))
+	TArray<FNiagaraAssetTagDefinition> TagDefinitions;
 	
 	/** If true, no 'parent' entry for this asset will be displayed in the Niagara Asset Browser. Instead a flat list of the contained tags will be added. */
 	UPROPERTY(EditAnywhere, Category="Properties")
