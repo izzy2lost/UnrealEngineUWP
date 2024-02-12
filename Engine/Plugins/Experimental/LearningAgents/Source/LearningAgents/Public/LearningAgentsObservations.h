@@ -211,6 +211,7 @@ public:
 	/**
 	 * Specifies a new bool observation. A true or false observation.
 	 *
+	 * @param Schema The Observation Schema
 	 * @param Tag The tag of this new observation. Used during observation object validation and debugging.
 	 * @return The newly created observation schema element.
 	 */
@@ -221,6 +222,7 @@ public:
 	 * Specifies a new float observation. A simple observation which can be used as a catch-all for situations where a
 	 * type-specific observation does not exist.
 	 *
+	 * @param Schema The Observation Schema
 	 * @param Tag The tag of this new observation. Used during observation object validation and debugging.
 	 * @return The newly created observation schema element.
 	 */
@@ -230,6 +232,7 @@ public:
 	/**
 	 * Specifies a new location observation. Allows an agent to observe the location of some entity.
 	 *
+	 * @param Schema The Observation Schema
 	 * @param Tag The tag of this new observation. Used during observation object validation and debugging.
 	 * @return The newly created observation schema element.
 	 */
@@ -265,16 +268,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 1))
 	static FLearningAgentsObservationSchemaElement SpecifyDirectionAlongSplineObservation(ULearningAgentsObservationSchema* Schema, const FName Tag = TEXT("DirectionAlongSpline"));
 
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 1))
-	static FLearningAgentsObservationSchemaElement SpecifyPropertiesAlongSplineObservation(ULearningAgentsObservationSchema* Schema, const FName Tag = TEXT("PropertiesAlongSpline"));
-
 	// Specify Ray Cast Observations
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 1))
 	static FLearningAgentsObservationSchemaElement SpecifyProportionAlongRayObservation(ULearningAgentsObservationSchema* Schema, const FName Tag = TEXT("ProportionAlongRay"));
-
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 2))
-	static FLearningAgentsObservationSchemaElement SpecifyProportionAlongRaysObservation(ULearningAgentsObservationSchema* Schema, const int32 Num, const FName Tag = TEXT("ProportionAlongRays"));
 
 public:
 
@@ -372,6 +369,7 @@ public:
 	/**
 	 * Make a new bool observation.
 	 *
+	 * @param Object The Observation Object
 	 * @param Value The new value of this observation.
 	 * @param Tag The tag of the corresponding observation. Must match the tag given during Specify.
 	 * @param bVisualLoggerEnabled When true, debug data will be sent to the visual logger.
@@ -395,6 +393,7 @@ public:
 	/**
 	 * Make a new float observation.
 	 *
+	 * @param Object The Observation Object
 	 * @param Value The new value of this observation.
 	 * @param FloatScale Used to normalize the data for this observation.
 	 * @param Tag The tag of the corresponding observation. Must match the tag given during Specify.
@@ -420,6 +419,7 @@ public:
 	/**
 	 * Make a new location observation.
 	 *
+	 * @param Object The Observation Object
 	 * @param Location The location of interest to the agent.
 	 * @param RelativeTransform The transform the provided location should be encoded relative to.
 	 * @param LocationScale Used to normalize the data for this observation.
@@ -447,6 +447,7 @@ public:
 	/**
 	 * Make a new rotation observation.
 	 *
+	 * @param Object The Observation Object
 	 * @param Rotation The rotation of interest to the agent.
 	 * @param RelativeRotation The rotation the provided rotation should be encoded relative to.
 	 * @param Tag The tag of the corresponding observation. Must match the tag given during Specify.
@@ -474,6 +475,7 @@ public:
 	/**
 	 * Make a new rotation observation from a quaternion.
 	 *
+	 * @param Object The Observation Object
 	 * @param Rotation The rotation of interest to the agent.
 	 * @param RelativeRotation The rotation the provided rotation should be encoded relative to.
 	 * @param Tag The tag of the corresponding observation. Must match the tag given during Specify.
@@ -501,6 +503,7 @@ public:
 	/**
 	 * Make a new scale observation. Negative scales are not supported by this observation type.
 	 *
+	 * @param Object The Observation Object
 	 * @param Scale The scale of interest to the agent.
 	 * @param RelativeScale The scale the provided scale should be encoded relative to.
 	 * @param Tag The tag of the corresponding observation. Must match the tag given during Specify.
@@ -528,6 +531,7 @@ public:
 	/**
 	 * Make a new transform observation.
 	 *
+	 * @param Object The Observation Object
 	 * @param Transform The transform of interest to the agent.
 	 * @param RelativeTransform The transform the provided transform should be encoded relative to.
 	 * @param LocationScale Used to normalize the transform's location for this observation.
@@ -558,9 +562,52 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3))
 	static FLearningAgentsObservationObjectElement MakeAngleObservationRadians(ULearningAgentsObservationObject* Object, const float Angle, const float RelativeAngle = 0.0f, const FName Tag = TEXT("Angle"));
 
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 4))
-	static FLearningAgentsObservationObjectElement MakeVelocityObservation(ULearningAgentsObservationObject* Object, const FVector Velocity, const FTransform RelativeTransform = FTransform(), const float VelocityScale = 200.0f, const FName Tag = TEXT("Velocity"));
+	/**
+	 * Make a new velocity observation.
+	 *
+	 * @param Object The Observation Object
+	 * @param Velocity The velocity of interest to the agent.
+	 * @param RelativeTransform The transform the provided velocity should be encoded relative to.
+	 * @param VelocityScale Used to normalize the data for this observation.
+	 * @param Tag The tag of the corresponding observation. Must match the tag given during Specify.
+	 * @param bVisualLoggerEnabled When true, debug data will be sent to the visual logger.
+	 * @param VisualLoggerListener The listener object which is making this observation. This must be set to use logging.
+	 * @param VisualLoggerAgentId The agent id associated with this observation.
+	 * @param VisualLoggerVelocityLocation A location for the visual logger to display the velocity in the world.
+	 * @param VisualLoggerLocation A location for the visual logger information in the world.
+	 * @param VisualLoggerColor The color for the visual logger display.
+	 * @return The newly created observation object element.
+	 */
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 4, DefaultToSelf = "VisualLoggerListener"))
+	static FLearningAgentsObservationObjectElement MakeVelocityObservation(
+		ULearningAgentsObservationObject* Object, 
+		const FVector Velocity, 
+		const FTransform RelativeTransform = FTransform(), 
+		const float VelocityScale = 200.0f, 
+		const FName Tag = TEXT("Velocity"),
+		const bool bVisualLoggerEnabled = false,
+		ULearningAgentsManagerListener* VisualLoggerListener = nullptr,
+		const int32 VisualLoggerAgentId = -1,
+		const FVector VisualLoggerVelocityLocation = FVector::ZeroVector,
+		const FVector VisualLoggerLocation = FVector::ZeroVector,
+		const FLinearColor VisualLoggerColor = FLinearColor::Red);
 
+	/**
+	 * Make a new direction observation.
+	 *
+	 * @param Object The Observation Object
+	 * @param Direction The direction of interest to the agent.
+	 * @param RelativeTransform The transform the provided direction should be encoded relative to.
+	 * @param Tag The tag of the corresponding observation. Must match the tag given during Specify.
+	 * @param bVisualLoggerEnabled When true, debug data will be sent to the visual logger.
+	 * @param VisualLoggerListener The listener object which is making this observation. This must be set to use logging.
+	 * @param VisualLoggerAgentId The agent id associated with this observation.
+	 * @param VisualLoggerDirectionLocation A location for the visual logger to display the direction in the world.
+	 * @param VisualLoggerLocation A location for the visual logger information in the world.
+	 * @param VisualLoggerArrowLength The length of the arrow to display to represent the direction.
+	 * @param VisualLoggerColor The color for the visual logger display.
+	 * @return The newly created observation object element.
+	 */
 	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3, DefaultToSelf = "VisualLoggerListener"))
 	static FLearningAgentsObservationObjectElement MakeDirectionObservation(
 		ULearningAgentsObservationObject* Object,
@@ -592,7 +639,11 @@ public:
 		const FLinearColor VisualLoggerColor = FLinearColor::Red);
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3))
-	static FLearningAgentsObservationObjectElement MakeProportionAlongSplineObservation(ULearningAgentsObservationObject* Object, const USplineComponent* SplineComponent, const float DistanceAlongSpline, const FName Tag = TEXT("ProportionAlongSpline"));
+	static FLearningAgentsObservationObjectElement MakeProportionAlongSplineObservation(
+		ULearningAgentsObservationObject* Object, 
+		const USplineComponent* SplineComponent, 
+		const float DistanceAlongSpline, 
+		const FName Tag = TEXT("ProportionAlongSpline"));
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 4, DefaultToSelf = "VisualLoggerListener"))
 	static FLearningAgentsObservationObjectElement MakeDirectionAlongSplineObservation(
@@ -608,16 +659,16 @@ public:
 		const float VisualLoggerArrowLength = 100.0f,
 		const FLinearColor VisualLoggerColor = FLinearColor::Red);
 
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 5))
-	static FLearningAgentsObservationObjectElement MakePropertiesAlongSplineObservation(ULearningAgentsObservationObject* Object, const USplineComponent* SplineComponent, const float DistanceAlongSpline, const FTransform RelativeTransform = FTransform(), const float LocationScale = 100.0f, const FName Tag = TEXT("PropertiesAlongSpline"));
-
 	// Make Ray Cast Observations
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 5))
-	static FLearningAgentsObservationObjectElement MakeProportionAlongRayObservation(ULearningAgentsObservationObject* Object, const FVector RayStart, const FVector RayEnd, const FTransform RayTransform = FTransform(), const ECollisionChannel CollisionChannel = ECollisionChannel::ECC_WorldStatic, const FName Tag = TEXT("ProportionAlongRay"));
-
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 5))
-	static FLearningAgentsObservationObjectElement MakeProportionAlongRaysObservation(ULearningAgentsObservationObject* Object, const TArray<FVector>& RayStarts, const TArray<FVector>& RayEnds, const FTransform RayTransform, const ECollisionChannel CollisionChannel = ECollisionChannel::ECC_WorldStatic, const FName Tag = TEXT("ProportionAlongRays"));
+	static FLearningAgentsObservationObjectElement MakeProportionAlongRayObservation(
+		ULearningAgentsObservationObject* Object, 
+		const FVector RayStart, 
+		const FVector RayEnd, 
+		const FTransform RayTransform = FTransform(), 
+		const ECollisionChannel CollisionChannel = ECollisionChannel::ECC_WorldStatic, 
+		const FName Tag = TEXT("ProportionAlongRay"));
 
 public:
 
@@ -768,20 +819,10 @@ public:
 	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (AdvancedDisplay = 4, ReturnDisplayName = "Success"))
 	static bool GetDirectionAlongSplineObservation(FVector& OutDirection, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform = FTransform(), const FName Tag = TEXT("DirectionAlongSpline"));
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (AdvancedDisplay = 9, ReturnDisplayName = "Success"))
-	static bool GetPropertiesAlongSplineObservation(FVector& OutLocation, bool& bOutIsClosedLoop, float& OutAngle, float& OutPropotion, FVector& OutDirection, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform = FTransform(), const float LocationScale = 100.0f, const FName Tag = TEXT("PropertiesAlongSpline"));
-
 	// Get Ray Cast Observations
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3, ReturnDisplayName = "Success"))
 	static bool GetProportionAlongRayObservation(float& OutProportion, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FName Tag = TEXT("ProportionAlongRay"));
-
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3, ReturnDisplayName = "Success"))
-	static bool GetProportionAlongRaysObservationNum(int32& OutProportionNum, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FName Tag = TEXT("ProportionAlongRays"));
-
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3, ReturnDisplayName = "Success"))
-	static bool GetProportionAlongRaysObservation(TArray<float>& OutProportions, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FName Tag = TEXT("ProportionAlongRays"));
-	static bool GetProportionAlongRaysObservationToArrayView(TArrayView<float> OutProportions, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FName Tag = TEXT("ProportionAlongRays"));
 
 };
 

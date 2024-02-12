@@ -2,6 +2,9 @@
 
 #include "LearningAgentsActions.h"
 
+#include "LearningAgentsManagerListener.h"
+#include "LearningAgentsDebug.h"
+
 #include "LearningArray.h"
 #include "LearningLog.h"
 
@@ -2547,7 +2550,17 @@ bool ULearningAgentsActions::GetBoolAction(bool& bOutValue, const ULearningAgent
 	return true;
 }
 
-bool ULearningAgentsActions::GetFloatAction(float& OutValue, const ULearningAgentsActionObject* Object, const FLearningAgentsActionObjectElement Element, const float FloatScale, const FName Tag)
+bool ULearningAgentsActions::GetFloatAction(
+	float& OutValue, 
+	const ULearningAgentsActionObject* Object, 
+	const FLearningAgentsActionObjectElement Element, 
+	const float FloatScale, 
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	float OutValuesData;
 	if (!GetContinuousActionToArrayView(MakeArrayView(&OutValuesData, 1), Object, Element, Tag))
@@ -2557,6 +2570,24 @@ bool ULearningAgentsActions::GetFloatAction(float& OutValue, const ULearningAgen
 	}
 
 	OutValue = OutValuesData * FloatScale;
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
+	{
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nEncoded: [% 6.2f]\nScale: [% 6.2f]\nValue: [% 6.1f]"),
+			*VisualLoggerListener->GetName(),
+			*Tag.ToString(),
+			VisualLoggerAgentId,
+			OutValuesData,
+			FloatScale,
+			OutValue);
+	}
+#endif
+
 	return true;
 }
 

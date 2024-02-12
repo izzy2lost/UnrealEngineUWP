@@ -376,6 +376,18 @@ ELearningAgentsCompletion ULearningAgentsCompletions::MakeCompletionOnLocationOu
 	{
 		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
 
+		UE_LEARNING_AGENTS_VLOG_LOCATION(VisualLoggerObject, LogLearning, Display,
+			Location,
+			10,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_SEGMENT(VisualLoggerObject, LogLearning, Display,
+			Location,
+			BoundsTransform.GetLocation(),
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
 		UE_LEARNING_AGENTS_VLOG_OBOX(VisualLoggerObject, LogLearning, Display,
 			FBox(BoundsMins, BoundsMaxs),
 			BoundsTransform.ToMatrixWithScale(),
