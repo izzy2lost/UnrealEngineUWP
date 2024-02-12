@@ -7,11 +7,11 @@
 #include "TG_HelperFunctions.h"
 #include "Misc/Paths.h"
 
-void FTG_OutputSettings::Set(int InWidth, int InHeight, FString Name /*= "None"*/, FString Path /*= "None"*/, ETG_TextureFormat Format /*= ETG_TextureFormat::BGRA8*/, ETG_TexturePresetType InTextureType /*= ETG_TexturePresetType::None*/,
+void FTG_OutputSettings::Set(int InWidth, int InHeight, FName Name /*= "None"*/, FName Path /*= "None"*/, ETG_TextureFormat Format /*= ETG_TextureFormat::BGRA8*/, ETG_TexturePresetType InTextureType /*= ETG_TexturePresetType::None*/,
 	TextureCompressionSettings InCompression /*= TextureCompressionSettings::TC_Default*/, TextureGroup InLodGroup /*= TextureGroup::TEXTUREGROUP_World*/, bool InbSRGB /*= false*/)
 {
-	BaseName = *Name;
-	FolderPath = *Path;
+	BaseName = Name;
+	FolderPath = Path;
 	Width = (EResolution)InWidth;
 	Height = (EResolution)InHeight;
 	TextureFormat = Format;

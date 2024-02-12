@@ -234,8 +234,8 @@ FLinearColor UTG_BlueprintFunctionLibrary::GetColorParameterValue(UObject* World
 }
 
 void UTG_BlueprintFunctionLibrary::SetSettingsParameterValue(UObject* WorldContextObject, UTextureGraph* InTextureGraph, FName ParameterName, int Width, int Height, 
-	FString FileName /*= "None"*/, FString FolderPath /*= "None"*/, ETG_TextureFormat Format /*= ETG_TextureFormat::BGRA8*/, ETG_TexturePresetType TextureType /*= ETG_TexturePresetType::None*/,
-	TextureCompressionSettings Compression /*= TextureCompressionSettings::TC_Default*/, TextureGroup LodGroup /*= TextureGroup::TEXTUREGROUP_World*/, bool bSRGB /*= false*/)
+	FName FileName /*= "None"*/, FName Path /*= "None"*/, ETG_TextureFormat Format /*= ETG_TextureFormat::BGRA8*/, ETG_TexturePresetType TextureType /*= ETG_TexturePresetType::None*/,
+	TextureGroup LODTextureGroup /*= TextureGroup::TEXTUREGROUP_World*/, TextureCompressionSettings Compression /*= TextureCompressionSettings::TC_Default*/, bool SRGB /*= false*/)
 {
 	if (UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull))
 	{
@@ -246,15 +246,11 @@ void UTG_BlueprintFunctionLibrary::SetSettingsParameterValue(UObject* WorldConte
 
 		const FString FunctionName = "SetSettingsParameterValue";
 
-		if (Width <= 0 || Height <= 0)
-		{
-			bSizeError = true;
-		}
-		if (FolderPath.IsEmpty() || FolderPath == "None")
+		if (Path.ToString().IsEmpty() || Path == "None")
 		{
 			bPathError = true;
 		}
-		if (FileName.IsEmpty() || FolderPath == "None")
+		if (FileName.ToString().IsEmpty() || FileName == "None")
 		{
 			bNameError = true;
 		}
@@ -269,7 +265,7 @@ void UTG_BlueprintFunctionLibrary::SetSettingsParameterValue(UObject* WorldConte
 				if (ExpressionPtr)
 				{
 					FTG_OutputSettings ParameterValue;
-					ParameterValue.Set(Width, Height, FileName, FolderPath, Format, TextureType, Compression, LodGroup, bSRGB);
+					ParameterValue.Set(Width, Height, FileName, Path, Format, TextureType, Compression, LODTextureGroup, SRGB);
 					ExpressionPtr->Settings = ParameterValue;
 					PinParam->EditSelfVar()->EditAs<FTG_OutputSettings>() = ParameterValue;
 					bFoundParameter = true;
@@ -280,11 +276,6 @@ void UTG_BlueprintFunctionLibrary::SetSettingsParameterValue(UObject* WorldConte
 			{
 				AddParamWarning(ParameterName, InTextureGraph, FunctionName);
 			}
-		}
-
-		if (bSizeError)
-		{
-			AddError(InTextureGraph, FunctionName, "Invalid size try to set non zero size");
 		}
 
 		if (bPathError)
@@ -299,7 +290,7 @@ void UTG_BlueprintFunctionLibrary::SetSettingsParameterValue(UObject* WorldConte
 	}
 }
 
-FTG_OutputSettings UTG_BlueprintFunctionLibrary::GetSettingsParameterValue(UObject* WorldContextObject, UTextureGraph* InTextureGraph, FName ParameterName)
+FTG_OutputSettings UTG_BlueprintFunctionLibrary::GetSettingsParameterValue(UObject* WorldContextObject, UTextureGraph* InTextureGraph, FName ParameterName, int& Width, int& Height)
 {
 	FTG_OutputSettings ParameterValue;
 
@@ -312,6 +303,8 @@ FTG_OutputSettings UTG_BlueprintFunctionLibrary::GetSettingsParameterValue(UObje
 			if (PinParam)
 			{
 				ParameterValue = PinParam->GetSelfVar()->GetAs<FTG_OutputSettings>();
+				Width = (int)ParameterValue.Width;
+				Height = (int)ParameterValue.Height;
 				bFoundParameter = true;
 			}
 		}

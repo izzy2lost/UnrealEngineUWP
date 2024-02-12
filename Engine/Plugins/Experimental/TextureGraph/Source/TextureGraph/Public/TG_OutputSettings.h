@@ -79,7 +79,7 @@ struct TEXTUREGRAPH_API FTG_OutputSettings
 		return ExportString;
 	}
 
-	void Set(int InWidth, int InHeight, FString Name = "None", FString Path = "None", ETG_TextureFormat Format = ETG_TextureFormat::BGRA8, ETG_TexturePresetType InTextureType = ETG_TexturePresetType::None,
+	void Set(int InWidth, int InHeight, FName Name = "None", FName Path = "None", ETG_TextureFormat Format = ETG_TextureFormat::BGRA8, ETG_TexturePresetType InTextureType = ETG_TexturePresetType::None,
 		TextureCompressionSettings InCompression = TextureCompressionSettings::TC_Default, TextureGroup InLodGroup = TextureGroup::TEXTUREGROUP_World, bool InbSRGB = false);
 
 	void OnSetTexturePresetType(ETG_TexturePresetType Type);
