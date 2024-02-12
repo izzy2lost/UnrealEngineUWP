@@ -110,9 +110,17 @@ struct FGenericPlatformMemoryConstants
 	/** This is the "allocation granularity" in Binned malloc terms, i.e. BinnedMalloc will allocate the memory in increments of this value. If zero, Binned will use BinnedPageSize for this value. */
 	SIZE_T BinnedAllocationGranularity = 0;
 
-	// AddressLimit - Second parameter is estimate of the range of addresses expected to be returns by BinnedAllocFromOS(). Binned
-	// Malloc will adjust its internal structures to make lookups for memory allocations O(1) for this range. 
-	// It is ok to go outside this range, lookups will just be a little slower
+	/**
+	 * Starting address for the available virtual address space.
+	 * Can be used with AddressLimit to determine address space range for binned allocators
+	 */
+	uint64 AddressStart = 0;
+
+	/**
+	 * An estimate of the range of addresses expected to be returned by BinnedAllocFromOS(). Binned
+	 * Malloc will adjust its internal structures to make lookups for memory allocations O(1) for this range. 
+	 * It is ok to go outside this range, lookups will just be a little slower
+	 */
 	uint64 AddressLimit = (uint64)0xffffffff + 1;
 
 	/** Approximate physical RAM in GB; 1 on everything except PC. Used for "course tuning", like FPlatformMisc::NumberOfCores(). */
