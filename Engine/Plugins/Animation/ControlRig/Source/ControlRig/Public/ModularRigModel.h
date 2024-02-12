@@ -24,6 +24,12 @@ enum class EModularRigNotification : uint8
 
 	ModuleShortNameChanged,
 
+	InteractionBracketOpened, // A bracket has been opened
+	
+	InteractionBracketClosed, // A bracket has been opened
+	
+	InteractionBracketCanceled, // A bracket has been canceled
+
 	/** MAX - invalid */
 	Max UMETA(Hidden),
 };
