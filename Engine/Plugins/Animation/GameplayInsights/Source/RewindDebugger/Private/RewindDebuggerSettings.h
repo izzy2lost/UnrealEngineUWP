@@ -19,7 +19,7 @@ enum class ERewindDebuggerCameraMode
 /**
  * Implements the settings for the Rewind Debugger.
  */
-UCLASS(Config=Editor, meta=(DisplayName="Rewind Debugger"))
+UCLASS(config = EditorPerProjectUserSettings, meta=(DisplayName="Rewind Debugger"))
 class URewindDebuggerSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
@@ -53,6 +53,10 @@ public:
 	/** The track types listed here will be hidden from the track tree view */
 	UPROPERTY(EditAnywhere, Config, Category = Filters)
 	TArray<FName> HiddenTrackTypes;
+
+	/** The track types listed here will be hidden from the track tree view */
+	UPROPERTY(Config)
+	FString DebugTargetActor;
 	
 	/** Get Mutable CDO of URewindDebuggerSettings */
 	static URewindDebuggerSettings & Get();

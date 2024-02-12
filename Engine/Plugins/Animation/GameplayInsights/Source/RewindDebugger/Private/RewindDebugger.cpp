@@ -95,8 +95,17 @@ FRewindDebugger::FRewindDebugger()  :
 	FEditorDelegates::EndPIE.AddRaw(this, &FRewindDebugger::OnPIEStopped);
 	FEditorDelegates::SingleStepPIE.AddRaw(this, &FRewindDebugger::OnPIESingleStepped);
 
+	
 	DebugTargetActor.OnPropertyChanged = DebugTargetActor.OnPropertyChanged.CreateLambda([this](FString Target)
 		{
+			URewindDebuggerSettings& Settings = URewindDebuggerSettings::Get();
+			if (Settings.DebugTargetActor != Target)
+			{
+				Settings.DebugTargetActor = Target;
+				Settings.Modify();
+				Settings.SaveConfig();
+			}
+		
 			TargetObjectIds.SetNum(0);
 			GetTargetObjectIds(TargetObjectIds);
 			// make sure all the SubObjects of the target actor have been traced
@@ -112,7 +121,7 @@ FRewindDebugger::FRewindDebugger()  :
 
 			RefreshDebugTracks();
 		});
-
+	
 	UnrealInsightsModule = &FModuleManager::LoadModuleChecked<IUnrealInsightsModule>("TraceInsights");
 
 	TickerHandle = FTSTicker::GetCoreTicker().AddTicker(TEXT("RewindDebugger"), 0.0f, [this](float DeltaTime)
@@ -469,7 +478,10 @@ bool FRewindDebugger::ShouldAutoRecordOnPIE() const
 
 void FRewindDebugger::SetShouldAutoRecordOnPIE(bool value)
 {
-	URewindDebuggerSettings::Get().bShouldAutoRecordOnPIE = value;
+	URewindDebuggerSettings& RewindDebuggerSettings = URewindDebuggerSettings::Get();
+	RewindDebuggerSettings.Modify();
+	RewindDebuggerSettings.bShouldAutoRecordOnPIE = value;
+	RewindDebuggerSettings.SaveConfig();
 }
 
 bool FRewindDebugger::ShouldAutoEject() const
@@ -479,7 +491,10 @@ bool FRewindDebugger::ShouldAutoEject() const
 
 void FRewindDebugger::SetShouldAutoEject(bool value)
 {
-	URewindDebuggerSettings::Get().bShouldAutoEject = value;
+	URewindDebuggerSettings& RewindDebuggerSettings = URewindDebuggerSettings::Get();
+	RewindDebuggerSettings.Modify();
+	RewindDebuggerSettings.bShouldAutoEject = value;
+	RewindDebuggerSettings.SaveConfig();
 }
 
 void FRewindDebugger::StopRecording()
@@ -818,7 +833,7 @@ const TraceServices::IAnalysisSession* FRewindDebugger::GetAnalysisSession() con
 		UnrealInsightsModule = &FModuleManager::LoadModuleChecked<IUnrealInsightsModule>("TraceInsights");
 	}
 
-	return UnrealInsightsModule->GetAnalysisSession().Get();
+	return UnrealInsightsModule ? UnrealInsightsModule->GetAnalysisSession().Get() : nullptr;
 }
 
 void FRewindDebugger::Tick(float DeltaTime)
