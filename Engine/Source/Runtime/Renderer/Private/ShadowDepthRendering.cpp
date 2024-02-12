@@ -1441,6 +1441,11 @@ static void RenderShadowDepthAtlasNanite(
 						Initializer.Flags = ProjectedShadowInfo->ShouldClampToNearPlane() ? 0u : NANITE_VIEW_FLAG_NEAR_CLIP;
 	
 						FLightSceneInfo& LightSceneInfo = ProjectedShadowInfo->GetLightSceneInfo();
+
+						if (LightSceneInfo.Proxy)
+						{
+							Initializer.LightingChannelMask = LightSceneInfo.Proxy->GetLightingChannelMask();
+						}
 	
 						FPersistentShadowStateKey ShadowKey;
 						ShadowKey.AtlasIndex = AtlasIndex;

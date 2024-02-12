@@ -347,6 +347,8 @@ void InstanceCull(
 		const float3 LocalBoundsCenter = InstanceData.LocalBoundsCenter;
 		const float3 LocalBoundsExtent = InstanceData.LocalBoundsExtent;
 
+		const uint PrimLightingChannelMask = GetPrimitive_LightingChannelMask_FromFlags(PrimitiveData.Flags);
+
 		for (uint ViewIndex = 0; ViewIndex < ViewDrawGroup.NumViews; ++ViewIndex)
 		{
 #if INSTANCE_CULL_USE_WORK_GROUP_BUFFER
@@ -359,6 +361,14 @@ void InstanceCull(
 
 			FNaniteView NaniteView = GetNaniteView(ViewId);
 			FInstanceDynamicData DynamicData = CalculateInstanceDynamicData(NaniteView, InstanceData);
+
+			const bool bLightingChannelMismatch = ((NaniteView.LightingChannelMask & PrimLightingChannelMask) == 0u);
+
+			BRANCH
+			if (bLightingChannelMismatch)
+			{
+				continue;
+			}
 
 			FBoxCull Cull;
 			Cull.Init( NaniteView, LocalBoundsCenter, LocalBoundsExtent, InstanceData.NonUniformScale.xyz, DynamicData.LocalToTranslatedWorld, DynamicData.PrevLocalToTranslatedWorld );
@@ -577,6 +587,14 @@ void CompactViewsVSM_CS(uint DispatchThreadId : SV_DispatchThreadID)
 
 void ProcessPrimaryView(const bool bIsOrtho, FPrimitiveSceneData PrimitiveData, const uint InstanceId, FInstanceSceneData InstanceData, FCompactedViewInfo ViewInfo, FNaniteView NaniteView, bool bHasMoved)
 {
+	const uint PrimLightingChannelMask = GetPrimitive_LightingChannelMask(InstanceData.PrimitiveId);
+	const bool bLightingChannelMismatch = ((NaniteView.LightingChannelMask & PrimLightingChannelMask) == 0u);
+
+	if (bLightingChannelMismatch)
+	{
+		return;
+	}
+	
 	const float3 LocalBoundsCenter = InstanceData.LocalBoundsCenter;
 	const float3 LocalBoundsExtent = InstanceData.LocalBoundsExtent;
 

@@ -190,7 +190,8 @@ FPackedView CreatePackedView( const FPackedViewParams& Params )
 	PackedView.TranslatedGlobalClipPlane = FVector4f(TranslatedPlane.X, TranslatedPlane.Y, TranslatedPlane.Z, -TranslatedPlane.W);
 	
 	PackedView.InstanceOcclusionQueryMask = Params.InstanceOcclusionQueryMask;
-
+	PackedView.LightingChannelMask = Params.LightingChannelMask;
+	
 	return PackedView;
 
 }
