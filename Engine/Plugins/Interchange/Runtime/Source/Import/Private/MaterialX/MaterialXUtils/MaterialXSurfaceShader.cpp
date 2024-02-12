@@ -24,7 +24,7 @@ void FMaterialXSurfaceShader::Translate(MaterialX::NodePtr SurfaceNode)
 {
 	this->SurfaceShaderNode = SurfaceNode;
 
-	UInterchangeFunctionCallShaderNode* FunctionSurfaceShaderNode = CreateFunctionCallShaderNode(SurfaceNode->getName().c_str(), bIsSubstrateEnabled ? TEXT("/Interchange/Functions/MX_Surface.MX_Surface") : TEXT("/Interchange/Substrate/MX_Surface.MX_Surface"));
+	UInterchangeFunctionCallShaderNode* FunctionSurfaceShaderNode = CreateFunctionCallShaderNode(SurfaceNode->getName().c_str(), UE::Interchange::MaterialX::IndexSurfaceShaders, uint8(EInterchangeMaterialXShaders::Surface));
 
 	using namespace UE::Interchange::Materials;
 
@@ -44,10 +44,10 @@ void FMaterialXSurfaceShader::Translate(MaterialX::NodePtr SurfaceNode)
 	}
 	else
 	{
-		UInterchangeShaderPortsAPI::ConnectOuputToInputByName(ShaderGraphNode, SubstrateMaterial::Parameters::OpacityMask.ToString(), FunctionSurfaceShaderNode->GetUniqueID(), Surface::Substrate::Outputs::Surface.ToString());
+		UInterchangeShaderPortsAPI::ConnectOuputToInputByName(ShaderGraphNode, SubstrateMaterial::Parameters::FrontMaterial.ToString(), FunctionSurfaceShaderNode->GetUniqueID(), Surface::Substrate::Outputs::Surface.ToString());
 		if(UInterchangeShaderPortsAPI::HasInput(FunctionSurfaceShaderNode, Surface::Parameters::Opacity))
 		{
-			UInterchangeShaderPortsAPI::ConnectOuputToInputByName(ShaderGraphNode, SubstrateMaterial::Parameters::FrontMaterial.ToString(), FunctionSurfaceShaderNode->GetUniqueID(), Surface::Substrate::Outputs::Opacity.ToString());
+			UInterchangeShaderPortsAPI::ConnectOuputToInputByName(ShaderGraphNode, SubstrateMaterial::Parameters::OpacityMask.ToString(), FunctionSurfaceShaderNode->GetUniqueID(), Surface::Substrate::Outputs::Opacity.ToString());
 		}
 	}
 }

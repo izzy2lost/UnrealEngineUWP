@@ -7,6 +7,8 @@
 #if WITH_EDITOR
 
 #include "MaterialXCore/Node.h"
+#include "Misc/TVariant.h"
+#include "MaterialX/InterchangeMaterialXDefinitions.h"
 
 class FMaterialXBase;
 class UInterchangeBaseNodeContainer;
@@ -31,7 +33,7 @@ public:
 	const FString* FindMatchingMaterialExpression(const FString& CategoryKey, const FString& NodeGroup = {}) const;
 
 	/** Find a matching Material Function given a MaterialX category*/
-	const FString* FindMatchingMaterialFunction(const FString& CategoryKey) const;
+	bool FindMatchingMaterialFunction(const FString& CategoryKey, const FString*& MaterialFunctionPath, uint8& EnumType, uint8& EnumValue) const;
 
 	TSharedPtr<FMaterialXBase> GetShaderTranslator(const FString& CategoryShader, UInterchangeBaseNodeContainer& NodeContainer);
 
@@ -46,6 +48,12 @@ public:
 	static const TCHAR TexturePayloadSeparator;
 
 private:
+
+	/**
+	* FString: Material Function path
+	* Enums: data-driven BSDF nodes
+	*/
+	using FMaterialXMaterialFunction = TVariant<FString, EInterchangeMaterialXShaders, EInterchangeMaterialXBSDF, EInterchangeMaterialXEDF, EInterchangeMaterialXVDF>;
 
 	struct FKeyCategoryNodegroup
 	{
@@ -83,7 +91,7 @@ private:
 	TMap<FKeyCategoryNodegroup, FString> MatchingMaterialExpressions;
 
 	/** Given a MaterialX node category, return the UE material function, used for BSDF nodes*/
-	TMap<FString, FString> MatchingMaterialFunctions;
+	TMap<FString, FMaterialXMaterialFunction> MatchingMaterialFunctions;
 
 	/** The different inputs of material expression that we may encounter, the MaterialX Document is modified consequently regarding those*/
 	TSet<FString> MaterialExpressionInputs;

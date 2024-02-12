@@ -8,7 +8,7 @@
 
 #if WITH_EDITOR
 #include "MaterialXFormat/Util.h"
-#include "InterchangeMaterialXDefinitions.h"
+#include "MaterialX/InterchangeMaterialXDefinitions.h"
 #include "MaterialX/MaterialXUtils/MaterialXBase.h"
 #endif
 

@@ -26,10 +26,9 @@ void FMaterialXOpenPBRSurfaceShader::Translate(MaterialX::NodePtr OpenPBRSurface
 	using namespace mx::OpenPBRSurface;
 
 	this->SurfaceShaderNode = OpenPBRSurfaceNode;
-	UInterchangeFunctionCallShaderNode* OpenPBRSurfaceShaderNode = CreateFunctionCallShaderNode(SurfaceShaderNode->getName().c_str(), 
-																								bIsSubstrateEnabled ?
-																								TEXT("/Engine/Functions/Substrate/MF_Substrate_OpenPBR_Opaque.MF_Substrate_OpenPBR_Opaque") :
-																								TEXT("/Interchange/Functions/MX_OpenPBR_Opaque.MX_OpenPBR_Opaque"));
+	UInterchangeFunctionCallShaderNode* OpenPBRSurfaceShaderNode = CreateFunctionCallShaderNode(SurfaceShaderNode->getName().c_str(), UE::Interchange::MaterialX::IndexSurfaceShaders, uint8(EInterchangeMaterialXShaders::OpenPBRSurface));
+
+	const bool bTangentSpace = true;
 
 	// Inputs
 	//Base
@@ -73,10 +72,10 @@ void FMaterialXOpenPBRSurfaceShader::Translate(MaterialX::NodePtr OpenPBRSurface
 	ConnectNodeOutputToInput(Input::TransmissionWeight, OpenPBRSurfaceShaderNode, OpenPBRSurface::Parameters::TransmissionWeight.ToString(), DefaultValue::TransmissionWeight);
 
 	//Geometry
-	ConnectNodeOutputToInput(Input::GeometryCoatNormal, OpenPBRSurfaceShaderNode, OpenPBRSurface::Parameters::GeometryCoatNormal.ToString(), DefaultValue::GeometryCoatNormal);
-	ConnectNodeOutputToInput(Input::GeometryNormal, OpenPBRSurfaceShaderNode, OpenPBRSurface::Parameters::GeometryNormal.ToString(), DefaultValue::GeometryNormal);
+	ConnectNodeOutputToInput(Input::GeometryCoatNormal, OpenPBRSurfaceShaderNode, OpenPBRSurface::Parameters::GeometryCoatNormal.ToString(), DefaultValue::GeometryCoatNormal, bTangentSpace);
+	ConnectNodeOutputToInput(Input::GeometryNormal, OpenPBRSurfaceShaderNode, OpenPBRSurface::Parameters::GeometryNormal.ToString(), DefaultValue::GeometryNormal, bTangentSpace);
 	ConnectNodeOutputToInput(Input::GeometryOpacity, OpenPBRSurfaceShaderNode, OpenPBRSurface::Parameters::GeometryOpacity.ToString(), DefaultValue::GeometryOpacity);
-	ConnectNodeOutputToInput(Input::GeometryTangent, OpenPBRSurfaceShaderNode, OpenPBRSurface::Parameters::GeometryTangent.ToString(), DefaultValue::GeometryTangent);
+	ConnectNodeOutputToInput(Input::GeometryTangent, OpenPBRSurfaceShaderNode, OpenPBRSurface::Parameters::GeometryTangent.ToString(), DefaultValue::GeometryTangent, bTangentSpace);
 	ConnectNodeOutputToInput(Input::GeometryThinWalled, OpenPBRSurfaceShaderNode, OpenPBRSurface::Parameters::GeometryThinWalled.ToString(), DefaultValue::GeometryThinWalled);
 	
 	//Fuzz
@@ -87,9 +86,8 @@ void FMaterialXOpenPBRSurfaceShader::Translate(MaterialX::NodePtr OpenPBRSurface
 	// We can't have Subsurface inputs if we have Transmission inputs
 	if(UInterchangeShaderPortsAPI::HasInput(OpenPBRSurfaceShaderNode, OpenPBRSurface::Parameters::TransmissionWeight))
 	{
-		OpenPBRSurfaceShaderNode->SetCustomMaterialFunction(bIsSubstrateEnabled ?
-															TEXT("/Engine/Functions/Substrate/MF_Substrate_OpenPBR_Translucent.MF_Substrate_OpenPBR_Translucent") :
-															TEXT("/Interchange/Functions/MX_OpenPBR_Translucent.MX_OpenPBR_Translucent"));
+		OpenPBRSurfaceShaderNode->AddInt32Attribute(UE::Interchange::MaterialX::Attributes::EnumType, UE::Interchange::MaterialX::IndexSurfaceShaders);
+		OpenPBRSurfaceShaderNode->AddInt32Attribute(UE::Interchange::MaterialX::Attributes::EnumValue, int32(EInterchangeMaterialXShaders::OpenPBRSurfaceTransmission));
 		ShaderGraphNode->SetCustomBlendMode(EBlendMode::BLEND_TranslucentColoredTransmittance);
 	}
 	else

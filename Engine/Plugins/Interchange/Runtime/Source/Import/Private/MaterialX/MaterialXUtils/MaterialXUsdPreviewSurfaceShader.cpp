@@ -25,8 +25,7 @@ void FMaterialXUsdPreviewSurfaceShader::Translate(MaterialX::NodePtr UsdPreviewS
 
 	using namespace UE::Interchange::Materials;
 
-	const FString FolderFunction = bIsSubstrateEnabled ? TEXT("Substrate/") : TEXT("Functions/");
-	UInterchangeFunctionCallShaderNode* UsdPreviewSurfaceShaderNode = CreateFunctionCallShaderNode(UsdPreviewSurfaceNode->getName().c_str(), TEXT("/Interchange/") + FolderFunction + TEXT("MX_UsdPreviewSurface.MX_UsdPreviewSurface"));
+	UInterchangeFunctionCallShaderNode* UsdPreviewSurfaceShaderNode = CreateFunctionCallShaderNode(UsdPreviewSurfaceNode->getName().c_str(), UE::Interchange::MaterialX::IndexSurfaceShaders, uint8(EInterchangeMaterialXShaders::UsdPreviewSurface));
 
 	// Inputs
 	//Diffuse Color
