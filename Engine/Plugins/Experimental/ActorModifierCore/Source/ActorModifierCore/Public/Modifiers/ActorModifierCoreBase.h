@@ -21,8 +21,8 @@ class UActorModifierCoreSharedObject;
 class UActorModifierCoreStack;
 
 /** Abstract base class for all modifier, a modifier must be located in a modifier stack to work properly */
-UCLASS(NotBlueprintable, Abstract, EditInlineNew, HideCategories=(Tags, AssetUserData, Activation, Collision, Cooking))
-class ACTORMODIFIERCORE_API UActorModifierCoreBase : public UObject
+UCLASS(MinimalAPI, NotBlueprintable, Abstract, EditInlineNew, HideCategories=(Tags, AssetUserData, Activation, Collision, Cooking))
+class UActorModifierCoreBase : public UObject
 {
 	friend class UActorModifierCoreComponent;
 	friend class UActorModifierCoreStack;
@@ -41,10 +41,10 @@ public:
 	const FActorModifierCoreMetadata& GetModifierMetadata() const;
 
 	/** Returns this modifier unique name */
-	FName GetModifierName() const;
+	ACTORMODIFIERCORE_API FName GetModifierName() const;
 
 	/** Returns this modifier category */
-	FName GetModifierCategory() const;
+	ACTORMODIFIERCORE_API FName GetModifierCategory() const;
 
 	/** Gets the modifier profiler */
 	TSharedPtr<FActorModifierCoreProfiler> GetProfiler() const
@@ -59,10 +59,10 @@ public:
 	}
 
 	/** Whether this modifier is a stack to avoid casting */
-	bool IsModifierStack() const;
+	ACTORMODIFIERCORE_API bool IsModifierStack() const;
 
 	/** Returns the modified actor for this modifier */
-	AActor* GetModifiedActor() const;
+	ACTORMODIFIERCORE_API AActor* GetModifiedActor() const;
 
 	/** Returns the stack this modifier is in */
 	UActorModifierCoreStack* GetModifierStack() const
@@ -71,7 +71,7 @@ public:
 	}
 
 	/** Returns the top root stack this modifier is in */
-	UActorModifierCoreStack* GetRootModifierStack() const;
+	ACTORMODIFIERCORE_API UActorModifierCoreStack* GetRootModifierStack() const;
 
 	/** Returns the previous modifier found before this one, will recurse upwards, could return a stack */
 	const UActorModifierCoreBase* GetPreviousModifier() const;
@@ -86,7 +86,7 @@ public:
 	const UActorModifierCoreBase* GetNextNameModifier(const FName& InModifierName) const;
 
 	/** Set this modifier as dirty to be able to execute only dirty modifiers */
-	void MarkModifierDirty(bool bExecute = true);
+	ACTORMODIFIERCORE_API void MarkModifierDirty(bool bExecute = true);
 
 	/** Whether this modifier is set as dirty */
 	bool IsModifierDirty() const
@@ -99,16 +99,6 @@ public:
 	{
 		return bModifierIdle;
 	}
-
-	/** Whether this modifier contains other modifiers */
-	virtual bool IsModifierEmpty() const { return false; }
-
-	UFUNCTION()
-	void SetModifierEnabled(bool bInEnabled);
-	bool IsModifierEnabled() const;
-
-	/** Locks this modifier execution and process a function before unlocking it */
-	void ProcessLockFunction(TFunctionRef<void()> InFunction);
 
 	/** Is the execution of this modifier locked */
 	bool IsModifierExecutionLocked() const
@@ -128,11 +118,22 @@ public:
 		return bModifierInitialized;
 	}
 
-	/** Is this modifier in profiling mode */
-	bool IsModifierProfiling() const;
+	/** Whether this modifier contains other modifiers */
+	virtual bool IsModifierEmpty() const
+	{
+		return false;
+	}
 
-	/** Execute a const function on this modifier, only to read data */
-	virtual bool ProcessFunction(TFunctionRef<bool(const UActorModifierCoreBase*)> InFunction) const;
+	UFUNCTION()
+	void SetModifierEnabled(bool bInEnabled);
+
+	ACTORMODIFIERCORE_API bool IsModifierEnabled() const;
+
+	/** Locks this modifier execution and process a function before unlocking it */
+	ACTORMODIFIERCORE_API void ProcessLockFunction(TFunctionRef<void()> InFunction);
+
+	/** Is this modifier in profiling mode */
+	ACTORMODIFIERCORE_API bool IsModifierProfiling() const;
 
 	/** Helper to lookup components type, by default will loop through this actor components, stops when false is returned */
 	template<typename InComponentClass = UActorComponent, typename = typename TEnableIf<TIsDerivedFrom<InComponentClass, UActorComponent>::Value>::Type>
@@ -220,16 +221,16 @@ public:
 	}
 
 protected:
-	UActorModifierCoreBase();
+	ACTORMODIFIERCORE_API UActorModifierCoreBase();
 
 	//~ Begin UObject
-	virtual void PostLoad() override;
-	virtual void PostEditImport() override;
-	virtual void PostDuplicate(EDuplicateMode::Type DuplicateMode) override;
+	ACTORMODIFIERCORE_API virtual void PostLoad() override;
+	ACTORMODIFIERCORE_API virtual void PostEditImport() override;
+	ACTORMODIFIERCORE_API virtual void PostDuplicate(EDuplicateMode::Type DuplicateMode) override;
 #if WITH_EDITOR
-	virtual void PreEditUndo() override;
-	virtual void PostEditUndo() override;
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
+	ACTORMODIFIERCORE_API virtual void PreEditUndo() override;
+	ACTORMODIFIERCORE_API virtual void PostEditUndo() override;
+	ACTORMODIFIERCORE_API virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
 #endif
 	//~ End UObject
 
@@ -249,7 +250,7 @@ protected:
 	virtual void RestorePreState() {}
 
 	/** Override in child classes, apply this modifier on the actual actor, call Next or Fail to complete the modifier execution */
-	virtual void Apply();
+	ACTORMODIFIERCORE_API virtual void Apply();
 
 	/** Called after the modifier was added to a stack and initialized after creation or serialization or duplication */
 	virtual void OnModifierAdded(EActorModifierCoreEnableReason InReason) {}
@@ -266,14 +267,11 @@ protected:
 	/** Called when modified actor transform is updated if this modifier is enabled */
 	virtual void OnModifiedActorTransformed() {}
 
-	/** Called when modifier becomes dirty */
-	virtual void OnModifierDirty(UActorModifierCoreBase* DirtyModifier, bool bExecute);
-
 	/** The modifier was executed properly, skip to the next one */
-	void Next();
+	ACTORMODIFIERCORE_API void Next();
 
 	/** The modifier failed executing, do not continue and stop here */
-	void Fail(const FText& InFailReason);
+	ACTORMODIFIERCORE_API void Fail(const FText& InFailReason);
 
 	/** Get shared object of that specific class or create one if none was found, casted version */
 	template<typename InSharedClass = UActorModifierCoreSharedObject, typename = typename TEnableIf<TIsDerivedFrom<InSharedClass, UActorModifierCoreSharedObject>::Value>::Type>
@@ -284,7 +282,7 @@ protected:
 	}
 
 	/** Get shared object of that specific class or create one if none was found */
-	UActorModifierCoreSharedObject* GetShared(TSubclassOf<UActorModifierCoreSharedObject> InClass, bool bInCreateIfNone = false) const;
+	ACTORMODIFIERCORE_API UActorModifierCoreSharedObject* GetShared(TSubclassOf<UActorModifierCoreSharedObject> InClass, bool bInCreateIfNone = false) const;
 
 	/** Adds an extension of a specific type to this modifier with its arguments or gets it if it already exists */
 	template<typename InExtensionClass, typename = typename TEnableIf<TIsDerivedFrom<InExtensionClass, FActorModifierCoreExtension>::IsDerived>::Type, typename... InArgTypes>
@@ -346,15 +344,21 @@ protected:
 	}
 
 	/** Gets an extension of this specific type */
-	FActorModifierCoreExtension* GetExtension(const FName& InExtensionType) const;
+	ACTORMODIFIERCORE_API FActorModifierCoreExtension* GetExtension(const FName& InExtensionType) const;
 
 	/** Removes an extension of this type from this modifier */
-	bool RemoveExtension(const FName& InExtensionType);
+	ACTORMODIFIERCORE_API bool RemoveExtension(const FName& InExtensionType);
 
 	/** Logs modifier message if in profiling mode or forced */
 	void LogModifier(const FString& InLog, bool bInForce = false) const;
 
 private:
+	/** Called when modifier becomes dirty */
+	ACTORMODIFIERCORE_API virtual void OnModifierDirty(UActorModifierCoreBase* DirtyModifier, bool bExecute);
+
+	/** Execute a const function on this modifier, only to read data */
+	ACTORMODIFIERCORE_API virtual bool ProcessFunction(TFunctionRef<bool(const UActorModifierCoreBase*)> InFunction, const FActorModifierCoreStackSearchOp& InSearchOptions) const;
+
 	/** INTERNAL USE ONLY, allows tickable modifier to mark themselves dirty */
 	void TickModifier(float InDeltaTime);
 
@@ -389,7 +393,7 @@ private:
 	void UnlockModifierExecution();
 
 	/** INTERNAL USE ONLY, add and setup a newly created extension for this modifier */
-	void AddExtensionInternal(const FName& InExtensionType, TSharedPtr<FActorModifierCoreExtension> InExtension);
+	ACTORMODIFIERCORE_API void AddExtensionInternal(const FName& InExtensionType, TSharedPtr<FActorModifierCoreExtension> InExtension);
 
 	/** Execute this modifier and calls the appropriate functions (SavePreState->Apply->SavePostState) when needed */
 	TFuture<bool> ExecuteModifier();

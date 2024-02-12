@@ -69,16 +69,15 @@ void FAvaSVGEditorModule::OnSVGActorSplit(ASVGShapesParentActor* InSVGShapesPare
 				}
 
 				FActorModifierCoreStackInsertOp ExtrudeModifierInsertOp;
-				ExtrudeModifierInsertOp.NewModifierName = GetDefault<UAvaExtrudeModifier>()->GetModifierName();
+				ExtrudeModifierInsertOp.NewModifierName = ModifierCoreSubsystem->GetRegisteredModifierName(UAvaExtrudeModifier::StaticClass());
 
 				if (!ModifierCoreSubsystem->GetAllowedModifiers(ShapeActor).Contains(ExtrudeModifierInsertOp.NewModifierName))
 				{
 					continue;
 				}
 
-				UActorModifierCoreBase* Modifier = nullptr;
+				UActorModifierCoreBase* Modifier = ModifierCoreSubsystem->InsertModifier(ModifierStack, ExtrudeModifierInsertOp);
 
-				Modifier = ModifierStack->InsertModifier(ExtrudeModifierInsertOp);
 				if (UAvaExtrudeModifier* ExtrudeModifier = Cast<UAvaExtrudeModifier>(Modifier))
 				{
 					EAvaExtrudeMode ExtrudeMode = EAvaExtrudeMode::Symmetrical;
@@ -109,14 +108,15 @@ void FAvaSVGEditorModule::OnSVGActorSplit(ASVGShapesParentActor* InSVGShapesPare
 				if (Shape->Bevel > 0.0f)
 				{
 					FActorModifierCoreStackInsertOp BevelModifierInsertOp;
-					BevelModifierInsertOp.NewModifierName = GetDefault<UAvaBevelModifier>()->GetModifierName();
+					BevelModifierInsertOp.NewModifierName = ModifierCoreSubsystem->GetRegisteredModifierName(UAvaBevelModifier::StaticClass());
 
 					if (!ModifierCoreSubsystem->GetAllowedModifiers(ShapeActor).Contains(BevelModifierInsertOp.NewModifierName))
 					{
 						continue;
 					}
 
-					Modifier = ModifierStack->InsertModifier(BevelModifierInsertOp);
+					Modifier = ModifierCoreSubsystem->InsertModifier(ModifierStack, BevelModifierInsertOp);
+
 					if (UAvaBevelModifier* BevelModifier = Cast<UAvaBevelModifier>(Modifier))
 					{
 						BevelModifier->SetInset(Shape->Bevel);

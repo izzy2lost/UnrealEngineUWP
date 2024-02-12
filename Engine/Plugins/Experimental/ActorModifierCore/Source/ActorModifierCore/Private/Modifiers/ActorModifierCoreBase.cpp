@@ -23,8 +23,8 @@ UActorModifierCoreSharedObject* UActorModifierCoreBase::GetShared(TSubclassOf<UA
 
 	if (const UActorModifierCoreSubsystem* Subsystem = UActorModifierCoreSubsystem::Get())
 	{
-		UWorld* World = ActorModified->GetWorld();
-		return Subsystem->GetModifierSharedObject(World, InClass, bInCreateIfNone);
+		ULevel* Level = ActorModified->GetLevel();
+		return Subsystem->GetModifierSharedObject(Level, InClass, bInCreateIfNone);
 	}
 
 	return nullptr;
@@ -415,7 +415,7 @@ bool UActorModifierCoreBase::IsModifierProfiling() const
 	return false;
 }
 
-bool UActorModifierCoreBase::ProcessFunction(TFunctionRef<bool(const UActorModifierCoreBase*)> InFunction) const
+bool UActorModifierCoreBase::ProcessFunction(TFunctionRef<bool(const UActorModifierCoreBase*)> InFunction, const FActorModifierCoreStackSearchOp& InSearchOptions) const
 {
 	return InFunction(this);
 }

@@ -268,6 +268,12 @@ TSharedPtr<FActorModifierCoreProfiler> FActorModifierCoreMetadata::CreateProfile
 	return nullptr;
 }
 
+const FActorModifierCoreStackSearchOp& FActorModifierCoreStackSearchOp::GetDefault()
+{
+	static const FActorModifierCoreStackSearchOp Default = {};
+	return Default;
+}
+
 FActorModifierCoreScopedLock::FActorModifierCoreScopedLock(UActorModifierCoreBase* InModifier)
 {
 	if (InModifier)

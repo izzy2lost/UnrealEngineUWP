@@ -47,7 +47,7 @@ struct ACTORMODIFIERCOREEDITOR_API FActorModifierCoreEditorMenuOptions
 private:
 	/** What type of menu should be generated */
 	EActorModifierCoreEditorMenuType MenuType = EActorModifierCoreEditorMenuType::Add;
-	
+
 	/** Create a sub-menu to display actions instead of filling on the same level
 	 * with submenu : Root/Action/Choices... without : Root/Choices...
 	 */
@@ -63,11 +63,22 @@ private:
 /** Used to cache context results in case you call menu function with different menu options */
 struct ACTORMODIFIERCOREEDITOR_API FActorModifierCoreEditorMenuContext
 {
-	TSet<AActor*> ContextActors;
-	TSet<UActorModifierCoreBase*> ContextModifiers;
-	TSet<UActorModifierCoreBase*> ContextStacks;
-
 	explicit FActorModifierCoreEditorMenuContext(const TSet<TWeakObjectPtr<UObject>>& InContextObjects);
+
+	const TSet<AActor*>& GetContextActors() const
+	{
+		return ContextActors;
+	}
+
+	const TSet<UActorModifierCoreBase*>& GetContextModifiers() const
+	{
+		return ContextModifiers;
+	}
+
+	const TSet<UActorModifierCoreBase*>& GetContextStacks() const
+	{
+		return ContextStacks;
+	}
 
 	bool IsEmpty() const;
 	bool ContainsAnyActor() const;
@@ -79,16 +90,21 @@ struct ACTORMODIFIERCOREEDITOR_API FActorModifierCoreEditorMenuContext
 	bool ContainsDisabledStack() const;
 	bool ContainsEnabledModifier() const;
 	bool ContainsEnabledStack() const;
+
+protected:
+	TSet<AActor*> ContextActors;
+	TSet<UActorModifierCoreBase*> ContextModifiers;
+	TSet<UActorModifierCoreBase*> ContextStacks;
 };
 
 /** Used internally to group menu data together */
 struct FActorModifierCoreEditorMenuData
 {
-	const FActorModifierCoreEditorMenuContext Context;
-	const FActorModifierCoreEditorMenuOptions Options;
-
 	FActorModifierCoreEditorMenuData(const FActorModifierCoreEditorMenuContext& InContext, const FActorModifierCoreEditorMenuOptions& InOptions)
 		: Context(InContext)
 		, Options(InOptions)
 	{}
+
+	const FActorModifierCoreEditorMenuContext Context;
+	const FActorModifierCoreEditorMenuOptions Options;
 };

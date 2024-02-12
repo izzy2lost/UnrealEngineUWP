@@ -4,6 +4,7 @@
 #include "Misc/AutomationTest.h"
 #include "Modifiers/ActorModifierCoreStack.h"
 #include "Modifiers/AvaLookAtModifier.h"
+#include "Subsystems/ActorModifierCoreSubsystem.h"
 #include "Tests/Framework/AvaModifiersTestUtils.h"
 #include "Tests/Framework/AvaTestDynamicMeshActor.h"
 #include "Tests/Framework/AvaTestUtils.h"
@@ -47,10 +48,11 @@ void AvalancheModifiersLookAt::Define()
 		InitialReferenceSate = ReferenceActor->GetActorTransform();
 
 		// Set up modifier
+		const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get();
 		const FName ModifierLookAtName = ModifierTestUtils->GetModifierName(UAvaLookAtModifier::StaticClass());
 		FActorModifierCoreStackInsertOp InsertOp = ModifierTestUtils->GenerateInsertOp(ModifierLookAtName);
-		LookAtModifier = Cast<UAvaLookAtModifier>(
-			ModifierTestUtils->GenerateModifierStackForActor(ModifiedActor)->InsertModifier(InsertOp));
+		UActorModifierCoreStack* ModifierStack = ModifierTestUtils->GenerateModifierStackForActor(ModifiedActor);
+		LookAtModifier = Cast<UAvaLookAtModifier>(ModifierSubsystem->InsertModifier(ModifierStack, InsertOp));
 		LookAtModifier->SetReferenceActor(FAvaSceneTreeActor(ReferenceActor));
 	});
 

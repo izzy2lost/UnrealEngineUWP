@@ -3,6 +3,7 @@
 #include "Misc/AutomationTest.h"
 #include "Modifiers/ActorModifierCoreStack.h"
 #include "Modifiers/AvaGridArrangeModifier.h"
+#include "Subsystems/ActorModifierCoreSubsystem.h"
 #include "Tests/Framework/AvaModifiersTestUtils.h"
 #include "Tests/Framework/AvaTestDynamicMeshActor.h"
 #include "Tests/Framework/AvaTestUtils.h"
@@ -89,11 +90,11 @@ void AvalancheModifiersGridArrange::Define()
 		InitialChildFourActorState = ChildFourMeshActor->GetActorTransform();
 
 		// Set up modifier
-		const FName ModifierGridArrangeName = ModifierTestUtils->
-			GetModifierName(UAvaGridArrangeModifier::StaticClass());
+		const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get();
+		const FName ModifierGridArrangeName = ModifierTestUtils->GetModifierName(UAvaGridArrangeModifier::StaticClass());
 		FActorModifierCoreStackInsertOp InsertOp = ModifierTestUtils->GenerateInsertOp(ModifierGridArrangeName);
-		GridArrangeModifier = Cast<UAvaGridArrangeModifier>(
-			ModifierTestUtils->GenerateModifierStackForActor(ParentMeshActor)->InsertModifier(InsertOp));
+		UActorModifierCoreStack* ModifierStack = ModifierTestUtils->GenerateModifierStackForActor(ParentMeshActor);
+		GridArrangeModifier = Cast<UAvaGridArrangeModifier>(ModifierSubsystem->InsertModifier(ModifierStack, InsertOp));
 	});
 
 	AfterEach([this]

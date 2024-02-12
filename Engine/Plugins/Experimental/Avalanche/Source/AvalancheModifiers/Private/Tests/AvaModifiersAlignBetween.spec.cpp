@@ -3,6 +3,7 @@
 #include "Misc/AutomationTest.h"
 #include "Modifiers/ActorModifierCoreStack.h"
 #include "Modifiers/AvaAlignBetweenModifier.h"
+#include "Subsystems/ActorModifierCoreSubsystem.h"
 #include "Tests/Framework/AvaModifiersTestUtils.h"
 #include "Tests/Framework/AvaTestDynamicMeshActor.h"
 #include "Tests/Framework/AvaTestUtils.h"
@@ -49,10 +50,11 @@ void AvalancheModifiersAlignBetween::Define()
 		                                        InitialReferenceTwoMeshActorLocation.Z * WeightIndex);
 
 		// Set up modifier
+		const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get();
 		const FName ModifierName = ModifierTestUtils->GetModifierName(UAvaAlignBetweenModifier::StaticClass());
 		FActorModifierCoreStackInsertOp InsertOp = ModifierTestUtils->GenerateInsertOp(ModifierName);
-		AlignBetweenModifier = Cast<UAvaAlignBetweenModifier>(
-			ModifierTestUtils->GenerateModifierStackForActor(ModifiedMeshActor)->InsertModifier(InsertOp));
+		UActorModifierCoreStack* ModifierStack = ModifierTestUtils->GenerateModifierStackForActor(ModifiedMeshActor);
+		AlignBetweenModifier = Cast<UAvaAlignBetweenModifier>(ModifierSubsystem->InsertModifier(ModifierStack, InsertOp));
 		check(AlignBetweenModifier);
 
 		// Set up the modifier

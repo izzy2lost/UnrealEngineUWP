@@ -4,6 +4,7 @@
 #include "Components/PrimitiveComponent.h"
 #include "Modifiers/ActorModifierCoreStack.h"
 #include "Modifiers/AvaTranslucentPriorityModifier.h"
+#include "Subsystems/ActorModifierCoreSubsystem.h"
 #include "Tests/Framework/AvaModifiersTestUtils.h"
 #include "Tests/Framework/AvaTestDynamicMeshActor.h"
 #include "Tests/Framework/AvaTestUtils.h"
@@ -36,11 +37,11 @@ void AvalancheModifiersTranslucentPriority::Define()
 
 		ModifiedActor->GetComponents(ModifiedActorComponents);
 
+		const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get();
 		const FName ModifierName = ModifierTestUtils->GetModifierName(UAvaTranslucentPriorityModifier::StaticClass());
 		FActorModifierCoreStackInsertOp InsertOp = ModifierTestUtils->GenerateInsertOp(ModifierName);
-		TranslucentPriorityModifier = Cast<UAvaTranslucentPriorityModifier>(
-			ModifierTestUtils->GenerateModifierStackForActor(ModifiedActor)->InsertModifier(InsertOp)
-		);
+		UActorModifierCoreStack* ModifierStack = ModifierTestUtils->GenerateModifierStackForActor(ModifiedActor);
+		TranslucentPriorityModifier = Cast<UAvaTranslucentPriorityModifier>(ModifierSubsystem->InsertModifier(ModifierStack, InsertOp));
 		TranslucentPriorityModifier->SetMode(EAvaTranslucentPriorityModifierMode::Manual);
 		TranslucentPriorityModifier->SetSortPriority(ModifierSortPriority);
 	});

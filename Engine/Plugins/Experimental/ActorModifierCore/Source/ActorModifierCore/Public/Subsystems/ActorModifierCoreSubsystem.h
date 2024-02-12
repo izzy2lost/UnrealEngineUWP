@@ -15,7 +15,7 @@ class UActorModifierCoreStack;
 
 /** This subsystem handle all modifiers stack active in the engine and allows to create modifiers with registered metadata */
 UCLASS()
-class ACTORMODIFIERCORE_API UActorModifierCoreSubsystem : public UEngineSubsystem
+class UActorModifierCoreSubsystem : public UEngineSubsystem
 {
 	GENERATED_BODY()
 
@@ -28,10 +28,10 @@ public:
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnModifierClassRegistered, const FActorModifierCoreMetadata& /* ModifierMetadata */)
 
 	/** Called when a modifier class is registered */
-	static FOnModifierClassRegistered OnModifierClassRegisteredDelegate;
+	ACTORMODIFIERCORE_API static FOnModifierClassRegistered OnModifierClassRegisteredDelegate;
 
 	/** Called when a modifier class is unregistered */
-	static FOnModifierClassRegistered OnModifierClassUnregisteredDelegate;
+	ACTORMODIFIERCORE_API static FOnModifierClassRegistered OnModifierClassUnregisteredDelegate;
 
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnModifierStackRegistered, const UActorModifierCoreStack* /** ActorRootStack */)
 
@@ -43,29 +43,25 @@ public:
 
 	UActorModifierCoreSubsystem();
 
-	static UActorModifierCoreSubsystem* Get();
-
-	/** Default subsystem interface */
-	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
-	virtual void Deinitialize() override;
+	ACTORMODIFIERCORE_API static UActorModifierCoreSubsystem* Get();
 
 	/** Register a modifier class or override an already existing one */
-	bool RegisterModifierClass(const UClass* InModifierClass, bool bInOverrideIfExists = false);
-	bool UnregisterModifierClass(const FName& InName);
-	bool IsRegisteredModifierClass(const FName& InName) const;
-	bool IsRegisteredModifierClass(const UClass* InClass) const;
+	ACTORMODIFIERCORE_API bool RegisterModifierClass(const UClass* InModifierClass, bool bInOverrideIfExists = false);
+	ACTORMODIFIERCORE_API bool UnregisterModifierClass(const FName& InName);
+	ACTORMODIFIERCORE_API bool IsRegisteredModifierClass(const FName& InName) const;
+	ACTORMODIFIERCORE_API bool IsRegisteredModifierClass(const UClass* InClass) const;
 
 	/** Return the modifier name or none from the modifier class provided */
-	FName GetRegisteredModifierName(const UClass* InModifierClass) const;
+	ACTORMODIFIERCORE_API FName GetRegisteredModifierName(const UClass* InModifierClass) const;
 
 	/** Return a set of class for all modifiers registered */
 	TSet<const UClass*> GetRegisteredModifierClasses() const;
 
 	/** Returns the name of modifiers that are currently registered */
-	TSet<FName> GetRegisteredModifiers() const;
+	ACTORMODIFIERCORE_API TSet<FName> GetRegisteredModifiers() const;
 
 	/** Returns the modifiers names that are allowed for specific actor/stack and before another modifier */
-	TSet<FName> GetAllowedModifiers(AActor* InActor, UActorModifierCoreBase* InContextModifier = nullptr, EActorModifierCoreStackPosition InContextPosition = EActorModifierCoreStackPosition::Before) const;
+	ACTORMODIFIERCORE_API TSet<FName> GetAllowedModifiers(AActor* InActor, UActorModifierCoreBase* InContextModifier = nullptr, EActorModifierCoreStackPosition InContextPosition = EActorModifierCoreStackPosition::Before) const;
 
 	/** Returns the modifiers name that match a specific category */
 	TSet<FName> GetCategoryModifiers(const FName& InCategory) const;
@@ -74,15 +70,66 @@ public:
 	TSet<FName> GetModifierCategories() const;
 
 	/** Returns the category this modifier is in */
-	FName GetModifierCategory(const FName& InModifier) const;
+	ACTORMODIFIERCORE_API FName GetModifierCategory(const FName& InModifier) const;
 
 #if WITH_EDITOR
 	/** Returns the modifiers hidden to the user */
-	TSet<FName> GetHiddenModifiers() const;
+	ACTORMODIFIERCORE_API TSet<FName> GetHiddenModifiers() const;
 #endif
 
 	/** Returns modifiers from the stack where we can move the provided modifier, required and dependent modifiers from this MoveModifier will not appear in the list */
-	TArray<UActorModifierCoreBase*> GetAllowedMoveModifiers(UActorModifierCoreBase* InMoveModifier) const;
+	ACTORMODIFIERCORE_API TArray<UActorModifierCoreBase*> GetAllowedMoveModifiers(UActorModifierCoreBase* InMoveModifier) const;
+
+	/** This is the correct way to retrieve a modifier stack for a specific actor if it has one */
+	ACTORMODIFIERCORE_API UActorModifierCoreStack* GetActorModifierStack(const AActor* InActor) const;
+
+	/** This is the correct way to add modifier component to a specific actor if it has none */
+	ACTORMODIFIERCORE_API UActorModifierCoreStack* AddActorModifierStack(AActor* InActor) const;
+
+	/** Return the actor this stack is linked to */
+	const AActor* GetModifierStackActor(const UActorModifierCoreStack* InStack) const;
+
+	/** Loops through each registered modifier metadata, only used to read */
+	ACTORMODIFIERCORE_API bool ForEachModifierMetadata(TFunctionRef<bool(const FActorModifierCoreMetadata&)> InProcessFunction) const;
+
+	/** Process this on matching registered metadata, only used to read */
+	ACTORMODIFIERCORE_API bool ProcessModifierMetadata(const FName& InName, TFunctionRef<bool(const FActorModifierCoreMetadata&)> InProcessFunction) const;
+
+	/** Get modifier shared object from a specific level and class, only one or none can exists per level */
+	UActorModifierCoreSharedObject* GetModifierSharedObject(ULevel* InLevel, TSubclassOf<UActorModifierCoreSharedObject> InClass, bool bInCreateIfNone = false) const;
+
+	/** Enable or disable modifiers, will update the original array and perform a transaction if wanted */
+	ACTORMODIFIERCORE_API bool EnableModifiers(const TSet<UActorModifierCoreBase*>& InModifiers, bool bInEnabled, bool bInShouldTransact = false) const;
+
+	/** Add a modifier to actors, adds a stack automatically if none is found, will update the original array and perform a transaction if wanted */
+	ACTORMODIFIERCORE_API TArray<UActorModifierCoreBase*> AddActorsModifiers(const TSet<AActor*>& InActors, FActorModifierCoreStackInsertOp& InAddOp) const;
+
+	/** Remove all modifiers from actors, will update the original array and perform a transaction if wanted */
+	ACTORMODIFIERCORE_API bool RemoveActorsModifiers(const TSet<AActor*>& InActors, bool bInShouldTransact = false) const;
+
+	/** Remove modifiers from different actors or stacks, will update the original array and perform a transaction if wanted */
+	ACTORMODIFIERCORE_API bool RemoveModifiers(const TSet<UActorModifierCoreBase*>& InModifiers, FActorModifierCoreStackRemoveOp& InRemoveOp) const;
+
+	/** Insert a modifier in a stack before or after another modifier, will perform a transaction if wanted */
+	ACTORMODIFIERCORE_API UActorModifierCoreBase* InsertModifier(UActorModifierCoreStack* InStack, FActorModifierCoreStackInsertOp& InInsertOp) const;
+
+	/** Moves a modifier in a stack before or after another modifier, will perform a transaction if wanted */
+	ACTORMODIFIERCORE_API bool MoveModifier(UActorModifierCoreStack* InStack, FActorModifierCoreStackMoveOp& InMoveOp) const;
+
+	/** Move modifiers to a specific target modifier position, will perform menu action transaction if wanted */
+	ACTORMODIFIERCORE_API bool MoveModifiers(const TArray<UActorModifierCoreBase*>& InModifiers, UActorModifierCoreStack* InStack, FActorModifierCoreStackMoveOp& InMoveOp) const;
+
+	/** Clone modifiers to a specific target modifier position, will perform menu action transaction if wanted */
+	ACTORMODIFIERCORE_API TArray<UActorModifierCoreBase*> CloneModifiers(const TArray<UActorModifierCoreBase*>& InModifiers, UActorModifierCoreStack* InStack, FActorModifierCoreStackCloneOp& InCloneOp) const;
+
+	/** Get order dependent modifiers in the correct order for stack operations */
+	ACTORMODIFIERCORE_API void GetSortedModifiers(const TSet<UActorModifierCoreBase*>& InModifiers, AActor* InTargetActor, UActorModifierCoreBase* InTargetModifier, EActorModifierCoreStackPosition InPosition, TArray<UActorModifierCoreBase*>& OutMoveModifiers, TArray<UActorModifierCoreBase*>& OutCloneModifiers) const;
+
+protected:
+	//~ Begin UEngineSubsystem
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+	virtual void Deinitialize() override;
+	//~ End UEngineSubsystem
 
 	/** Register a root actor stack to query this actor stack from everywhere, is called automatically at creation or deserialization by stack */
 	bool RegisterActorModifierStack(UActorModifierCoreStack* InStack);
@@ -99,25 +146,6 @@ public:
 	/** Do we have a registered root stack */
 	bool IsRegisteredActorModifierStack(const UActorModifierCoreStack* InStack) const;
 
-	/** This is the correct way to retrieve a modifier stack for a specific actor if it has one */
-	UActorModifierCoreStack* GetActorModifierStack(const AActor* InActor) const;
-
-	/** This is the correct way to add modifier component to a specific actor if it has none */
-	UActorModifierCoreStack* AddActorModifierStack(AActor* InActor) const;
-
-	/** Return the actor this stack is linked to */
-	const AActor* GetModifierStackActor(const UActorModifierCoreStack* InStack) const;
-
-	/** Loops through each registered modifier metadata, only used to read */
-	bool ForEachModifierMetadata(TFunctionRef<bool(FActorModifierCoreMetadata&)> InProcessFunction) const;
-
-	/** Process this on matching registered metadata, only used to read */
-	bool ProcessModifierMetadata(const FName& InName, TFunctionRef<bool(FActorModifierCoreMetadata&)> InProcessFunction) const;
-
-	/** Get modifier shared object from a specific world and class, only one or none can exists per world */
-	UActorModifierCoreSharedObject* GetModifierSharedObject(UWorld* InWorld, TSubclassOf<UActorModifierCoreSharedObject> InClass, bool bInCreateIfNone = false) const;
-
-protected:
 	/** Checks whether we can add a modifier to the stack */
 	bool ValidateModifierCreation(const FName& InName, const UActorModifierCoreStack* InStack, FText& OutFailReason, UActorModifierCoreBase* InBeforeModifier = nullptr) const;
 
@@ -137,7 +165,7 @@ protected:
 	bool UnregisterModifierSharedProvider(const AActor* InSharedActor) const;
 
 	/** Gets a modifier shared provider for a world, creates one if none is found */
-	AActorModifierCoreSharedActor* GetModifierSharedProvider(UWorld* InWorld, bool bInSpawnIfNotFound = true) const;
+	AActorModifierCoreSharedActor* GetModifierSharedProvider(ULevel* InLevel, bool bInSpawnIfNotFound = true) const;
 
 	/** stores modifiers metadata, you can override these if you want a different behaviour */
 	TMap<FName, TSharedRef<FActorModifierCoreMetadata>> ModifiersMetadata;
@@ -145,6 +173,6 @@ protected:
 	/** stores modifiers stacks per actor, there should be only one root stack per actor */
 	TMap<TWeakObjectPtr<const AActor>, TWeakObjectPtr<UActorModifierCoreStack>> ModifierStacks;
 
-	/** Stores modifiers providers per world, there should be only one provider per world */
-	TMap<TWeakObjectPtr<const UWorld>, TWeakObjectPtr<AActorModifierCoreSharedActor>> ModifierSharedProviders;
+	/** Stores modifiers providers per world/level, there should be only one provider per level */
+	TMap<TWeakObjectPtr<const ULevel>, TWeakObjectPtr<AActorModifierCoreSharedActor>> ModifierSharedProviders;
 };

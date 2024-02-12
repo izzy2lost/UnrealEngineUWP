@@ -5,11 +5,16 @@
 #include "EngineUtils.h"
 #include "Engine/Engine.h"
 #include "GameFramework/Actor.h"
+#include "Internationalization/Text.h"
 #include "Modifiers/ActorModifierCoreComponent.h"
 #include "Modifiers/ActorModifierCoreSharedActor.h"
 #include "Modifiers/ActorModifierCoreStack.h"
 #include "UObject/Class.h"
 #include "UObject/UObjectIterator.h"
+
+#if WITH_EDITOR
+#include "ScopedTransaction.h"
+#endif
 
 #define LOCTEXT_NAMESPACE "ActorModifierCoreSubsystem"
 
@@ -368,6 +373,219 @@ TArray<UActorModifierCoreBase*> UActorModifierCoreSubsystem::GetAllowedMoveModif
 	return AllowedModifiers;
 }
 
+void UActorModifierCoreSubsystem::GetSortedModifiers(const TSet<UActorModifierCoreBase*>& InModifiers, AActor* InTargetActor, UActorModifierCoreBase* InTargetModifier, EActorModifierCoreStackPosition InPosition, TArray<UActorModifierCoreBase*>& OutMoveModifiers, TArray<UActorModifierCoreBase*>& OutCloneModifiers) const
+{
+	const UActorModifierCoreSubsystem* const ModifierSubsystem = UActorModifierCoreSubsystem::Get();
+
+	if (!IsValid(ModifierSubsystem) || InModifiers.IsEmpty() || !IsValid(InTargetActor))
+	{
+		return;
+	}
+
+	for (UActorModifierCoreBase* Modifier : InModifiers)
+	{
+		if (!IsValid(Modifier))
+		{
+			continue;
+		}
+
+		// it's a clone operation if target actor is different as modifier actor
+		if (Modifier->GetModifiedActor() != InTargetActor)
+		{
+			OutCloneModifiers.Add(Modifier);
+		}
+		// it's a move operation if target actor is same as modifier actor
+		else
+		{
+			OutMoveModifiers.Add(Modifier);
+		}
+	}
+
+	// Remove unsupported modifiers when inserting where target modifier is nullptr
+	if (!InTargetModifier)
+	{
+		const TSet<FName> AllowedModifiers = ModifierSubsystem->GetAllowedModifiers(InTargetActor, InTargetModifier, InPosition);
+
+		OutMoveModifiers.RemoveAll([&AllowedModifiers](UActorModifierCoreBase* InModifier)
+		{
+			return !IsValid(InModifier) || !AllowedModifiers.Contains(InModifier->GetModifierName());
+		});
+
+		OutCloneModifiers.RemoveAll([&AllowedModifiers](UActorModifierCoreBase* InModifier)
+		{
+			return !IsValid(InModifier) || !AllowedModifiers.Contains(InModifier->GetModifierName());
+		});
+	}
+
+	// Sort them by dependency and current order
+	OutMoveModifiers.Sort([InTargetModifier](const UActorModifierCoreBase& A, const UActorModifierCoreBase& B)
+	{
+		const FActorModifierCoreMetadata& MetadataA = A.GetModifierMetadata();
+		const FActorModifierCoreMetadata& MetadataB = B.GetModifierMetadata();
+		const bool bADependsOnB = MetadataA.DependsOn(MetadataB.GetName());
+
+		const UActorModifierCoreStack* StackA = A.GetModifierStack();
+		const UActorModifierCoreStack* StackB = B.GetModifierStack();
+		const bool bAIsBeforeB = StackA == StackB && StackA->ContainsModifierBefore(&A, &B);
+
+		bool bSortOrder = bAIsBeforeB && !bADependsOnB;
+
+		const UActorModifierCoreBase* DependencyModifier = bADependsOnB ? &A : &B;
+		if (StackA->ContainsModifierAfter(InTargetModifier, DependencyModifier))
+		{
+			bSortOrder = !bSortOrder;
+		}
+
+		return bSortOrder;
+	});
+
+	OutCloneModifiers.Sort([](const UActorModifierCoreBase& A, const UActorModifierCoreBase& B)
+	{
+		const FActorModifierCoreMetadata& MetadataA = A.GetModifierMetadata();
+		const FActorModifierCoreMetadata& MetadataB = B.GetModifierMetadata();
+		const bool bADependsOnB = MetadataA.DependsOn(MetadataB.GetName());
+
+		const UActorModifierCoreStack* StackA = A.GetModifierStack();
+		const UActorModifierCoreStack* StackB = B.GetModifierStack();
+		const bool bAIsBeforeB = StackA == StackB && StackA->ContainsModifierBefore(&A, &B);
+
+		const bool bSortOrder = bAIsBeforeB && !bADependsOnB;
+
+		return bSortOrder;
+	});
+}
+
+bool UActorModifierCoreSubsystem::MoveModifiers(const TArray<UActorModifierCoreBase*>& InModifiers, UActorModifierCoreStack* InStack, FActorModifierCoreStackMoveOp& InMoveOp) const
+{
+	if (!IsValid(InStack) || InModifiers.IsEmpty())
+	{
+		return false;
+	}
+
+#if WITH_EDITOR
+	static const FText TransactionText = LOCTEXT("MoveModifiers", "Moving {0} modifier(s) {1} modifier {2}");
+	FScopedTransaction Transaction(
+		FText::Format(TransactionText
+			, FText::FromString(FString::FromInt(InModifiers.Num()))
+			, FText::FromString(InMoveOp.MovePosition == EActorModifierCoreStackPosition::After ? TEXT("after") : TEXT("before"))
+			, FText::FromName(InMoveOp.MovePositionContext ? InMoveOp.MovePositionContext->GetModifierName() : InStack->GetModifierName()))
+		, InMoveOp.bShouldTransact);
+#endif
+
+	uint32 EditModifierCount = 0;
+	UActorModifierCoreBase* TargetModifier = InMoveOp.MovePositionContext;
+
+	InStack->ProcessLockFunction([InStack, TargetModifier, &InModifiers, &InMoveOp, &EditModifierCount]()
+	{
+		UActorModifierCoreBase* OperationContext = nullptr;
+
+		for (UActorModifierCoreBase* Modifier : InModifiers)
+		{
+			if (IsValid(Modifier))
+			{
+				InMoveOp.MoveModifier = Modifier;
+				InMoveOp.MovePositionContext = TargetModifier;
+
+				// Eg 1: when moving [bend, subdivide] before target modifier X : X is after them in the stack, we want bend added before X and subdivide added before Bend
+				// Eg 2: when moving [subdivide, bend] after target modifier X : X is before them in the stack, we want subdivide after X and bend after subdivide
+				if (OperationContext &&
+					((InMoveOp.MovePosition == EActorModifierCoreStackPosition::After && InStack->ContainsModifierAfter(Modifier, TargetModifier)) ||
+					(InMoveOp.MovePosition == EActorModifierCoreStackPosition::Before && InStack->ContainsModifierBefore(Modifier, TargetModifier))))
+				{
+					InMoveOp.MovePositionContext = OperationContext;
+				}
+
+				if (InStack->MoveModifier(InMoveOp))
+				{
+					++EditModifierCount;
+					OperationContext = Modifier;
+				}
+				else
+				{
+					const AActor* TargetActor = TargetModifier->GetModifiedActor();
+					const FText& ErrorText = InMoveOp.FailReason ? *InMoveOp.FailReason : FText::GetEmpty();
+
+					// Move modifiers on actor failed
+					UE_LOG(LogActorModifierCoreSubsystem, Warning, TEXT("Move modifier %s on actor %s failed : %s"),
+						*InMoveOp.MoveModifier->GetModifierName().ToString(),
+						*TargetActor->GetActorNameOrLabel(),
+						*ErrorText.ToString());
+
+					break;
+				}
+			}
+		}
+	});
+
+	return EditModifierCount > 0;
+}
+
+TArray<UActorModifierCoreBase*> UActorModifierCoreSubsystem::CloneModifiers(const TArray<UActorModifierCoreBase*>& InModifiers, UActorModifierCoreStack* InStack, FActorModifierCoreStackCloneOp& InCloneOp) const
+{
+	TArray<UActorModifierCoreBase*> NewModifiers;
+
+	if (!IsValid(InStack) || InModifiers.IsEmpty())
+	{
+		return NewModifiers;
+	}
+
+#if WITH_EDITOR
+	static const FText TransactionText = LOCTEXT("CloneModifiers", "Cloning {0} modifier(s) {1} modifier {2}");
+	FScopedTransaction Transaction(
+		FText::Format(TransactionText
+			, FText::FromString(FString::FromInt(InModifiers.Num()))
+			, FText::FromString(InCloneOp.ClonePosition == EActorModifierCoreStackPosition::After ? TEXT("after") : TEXT("before"))
+			, FText::FromName(InCloneOp.ClonePositionContext ? InCloneOp.ClonePositionContext->GetModifierName() : InStack->GetModifierName()))
+		, InCloneOp.bShouldTransact);
+#endif
+
+	uint32 EditModifierCount = 0;
+	UActorModifierCoreBase* TargetModifier = InCloneOp.ClonePositionContext;
+
+	InStack->ProcessLockFunction([InStack, TargetModifier, &InModifiers, &InCloneOp, &EditModifierCount, &NewModifiers]()
+	{
+		UActorModifierCoreBase* OperationContext = nullptr;
+		for (UActorModifierCoreBase* Modifier : InModifiers)
+		{
+			if (IsValid(Modifier))
+			{
+				InCloneOp.ClonePositionContext = TargetModifier;
+				InCloneOp.CloneModifier = Modifier;
+
+				// When inserting A, B where B depends on A after C, clone A after C then clone B after A
+				if (OperationContext && InCloneOp.ClonePosition == EActorModifierCoreStackPosition::After)
+				{
+					InCloneOp.ClonePositionContext = OperationContext;
+				}
+
+				UActorModifierCoreBase* NewClonedModifier = InStack->CloneModifier(InCloneOp);
+				NewModifiers.Add(NewClonedModifier);
+
+				if (NewClonedModifier)
+				{
+					++EditModifierCount;
+					OperationContext = NewClonedModifier;
+				}
+				else
+				{
+					const AActor* TargetActor = TargetModifier->GetModifiedActor();
+					const FText& ErrorText = InCloneOp.FailReason ? *InCloneOp.FailReason : FText::GetEmpty();
+
+					// Clone modifiers on actor failed
+					UE_LOG(LogActorModifierCoreSubsystem, Warning, TEXT("Clone modifier %s on actor %s failed : %s"),
+						*InCloneOp.CloneModifier->GetModifierName().ToString(),
+						*TargetActor->GetActorNameOrLabel(),
+						*ErrorText.ToString());
+
+					break;
+				}
+			}
+		}
+	});
+
+	return NewModifiers;
+}
+
 bool UActorModifierCoreSubsystem::ValidateModifierCreation(const FName& InName, const UActorModifierCoreStack* InStack, FText& OutFailReason, UActorModifierCoreBase* InBeforeModifier) const
 {
 	if (!IsValid(InStack))
@@ -640,7 +858,7 @@ const AActor* UActorModifierCoreSubsystem::GetModifierStackActor(const UActorMod
 	return nullptr;
 }
 
-bool UActorModifierCoreSubsystem::ForEachModifierMetadata(TFunctionRef<bool(FActorModifierCoreMetadata&)> InProcessFunction) const
+bool UActorModifierCoreSubsystem::ForEachModifierMetadata(TFunctionRef<bool(const FActorModifierCoreMetadata&)> InProcessFunction) const
 {
 	for (const TPair<FName, TSharedRef<FActorModifierCoreMetadata>>& ModifierMetadataPair : ModifiersMetadata)
 	{
@@ -652,7 +870,7 @@ bool UActorModifierCoreSubsystem::ForEachModifierMetadata(TFunctionRef<bool(FAct
 	return true;
 }
 
-bool UActorModifierCoreSubsystem::ProcessModifierMetadata(const FName& InName, TFunctionRef<bool(FActorModifierCoreMetadata&)> InProcessFunction) const
+bool UActorModifierCoreSubsystem::ProcessModifierMetadata(const FName& InName, TFunctionRef<bool(const FActorModifierCoreMetadata&)> InProcessFunction) const
 {
 	if (TSharedRef<FActorModifierCoreMetadata> const* ModifierMetadata = ModifiersMetadata.Find(InName))
 	{
@@ -661,14 +879,14 @@ bool UActorModifierCoreSubsystem::ProcessModifierMetadata(const FName& InName, T
 	return false;
 }
 
-UActorModifierCoreSharedObject* UActorModifierCoreSubsystem::GetModifierSharedObject(UWorld* InWorld, TSubclassOf<UActorModifierCoreSharedObject> InClass, bool bInCreateIfNone) const
+UActorModifierCoreSharedObject* UActorModifierCoreSubsystem::GetModifierSharedObject(ULevel* InLevel, TSubclassOf<UActorModifierCoreSharedObject> InClass, bool bInCreateIfNone) const
 {
 	if (!InClass.Get())
 	{
 		return nullptr;
 	}
 
-	if (AActorModifierCoreSharedActor* SharedActor = GetModifierSharedProvider(InWorld))
+	if (AActorModifierCoreSharedActor* SharedActor = GetModifierSharedProvider(InLevel))
 	{
 		if (bInCreateIfNone)
 		{
@@ -683,25 +901,413 @@ UActorModifierCoreSharedObject* UActorModifierCoreSubsystem::GetModifierSharedOb
 	return nullptr;
 }
 
-AActorModifierCoreSharedActor* UActorModifierCoreSubsystem::GetModifierSharedProvider(UWorld* InWorld, bool bInSpawnIfNotFound) const
+bool UActorModifierCoreSubsystem::EnableModifiers(const TSet<UActorModifierCoreBase*>& InModifiers, bool bInEnabled, bool bInShouldTransact) const
 {
-	if (!InWorld)
+	if (InModifiers.IsEmpty())
+	{
+		return false;
+	}
+
+#if WITH_EDITOR
+	// create transaction
+	FText TransactionText;
+	if (bInEnabled)
+	{
+		TransactionText = FText::Format(
+			LOCTEXT("EnableModifiers.Enable", "Enabling {0} modifier(s)"),
+			FText::FromString(FString::FromInt(InModifiers.Num())));
+	}
+	else
+	{
+		TransactionText = FText::Format(
+			LOCTEXT("EnableModifiers.Disable", "Disabling {0} modifier(s)"),
+			FText::FromString(FString::FromInt(InModifiers.Num())));
+	}
+	FScopedTransaction Transaction(TransactionText, bInShouldTransact);
+#endif
+
+	TSet<UActorModifierCoreBase*> ModifiersSet = InModifiers;
+
+	// lets group modifiers to batch the operation, better to update the stack only once instead of many times
+	while (!ModifiersSet.IsEmpty())
+	{
+		TSet<UActorModifierCoreBase*> StackModifiers;
+
+		const UActorModifierCoreStack* CurrentStack = nullptr;
+
+		for (UActorModifierCoreBase* Modifier : ModifiersSet)
+		{
+			if (!IsValid(Modifier))
+			{
+				continue;
+			}
+
+			UActorModifierCoreStack* ModifierStack = Modifier->GetModifierStack();
+			ModifierStack = IsValid(ModifierStack) ? ModifierStack : Modifier->GetRootModifierStack();
+
+			if (!CurrentStack)
+			{
+				CurrentStack = ModifierStack;
+			}
+
+			if (ModifierStack == CurrentStack)
+			{
+				StackModifiers.Add(Modifier);
+			}
+		}
+
+		{
+			// disable stack modifiers update
+			FActorModifierCoreScopedLock Lock(StackModifiers);
+			for (UActorModifierCoreBase* Modifier : StackModifiers)
+			{
+				Modifier->SetModifierEnabled(bInEnabled);
+			}
+		}
+
+		ModifiersSet = ModifiersSet.Difference(StackModifiers);
+	}
+
+	return true;
+}
+
+bool UActorModifierCoreSubsystem::RemoveModifiers(const TSet<UActorModifierCoreBase*>& InModifiers, FActorModifierCoreStackRemoveOp& InRemoveOp) const
+{
+	if (InModifiers.IsEmpty())
+	{
+		return false;
+	}
+
+#if WITH_EDITOR
+	// create transaction
+	FText TransactionText;
+	const UActorModifierCoreBase* SingleModifier = InModifiers.Array()[0];
+	if (InModifiers.Num() == 1 && IsValid(SingleModifier))
+	{
+		TransactionText = FText::Format(
+			LOCTEXT("RemoveSingleModifiers", "Removing {0} modifier"),
+			FText::FromName(SingleModifier->GetModifierName()));
+	}
+	else
+	{
+		TransactionText = FText::Format(
+			LOCTEXT("RemoveMultipleModifiers", "Removing {0} modifier(s)"),
+			FText::FromString(FString::FromInt(InModifiers.Num())));
+	}
+	FScopedTransaction Transaction(TransactionText, InRemoveOp.bShouldTransact);
+#endif
+
+	TSet<UActorModifierCoreBase*> ModifiersSet = InModifiers;
+
+	// lets group modifiers to batch the operation, better to update the stack only once instead of many times
+	while (!ModifiersSet.IsEmpty())
+	{
+		TSet<UActorModifierCoreBase*> StackModifiers;
+
+		UActorModifierCoreStack* CurrentStack = nullptr;
+
+		for (UActorModifierCoreBase* Modifier : ModifiersSet)
+		{
+			if (!IsValid(Modifier))
+			{
+				continue;
+			}
+
+			UActorModifierCoreStack* ModifierStack = Modifier->GetModifierStack();
+			ModifierStack = IsValid(ModifierStack) ? ModifierStack : Modifier->GetRootModifierStack();
+
+			if (!CurrentStack)
+			{
+				CurrentStack = ModifierStack;
+			}
+
+			if (ModifierStack == CurrentStack)
+			{
+				StackModifiers.Add(Modifier);
+			}
+		}
+
+		// Sort by their order in stack first to avoid dependencies errors
+		bool bSuccess = true;
+		StackModifiers.Sort([CurrentStack](UActorModifierCoreBase& A, UActorModifierCoreBase& B)
+		{
+			bool bSortResult = true;
+			CurrentStack->ProcessFunction([&A, &B, &bSortResult](const UActorModifierCoreBase* InModifier)->bool
+			{
+				if (InModifier == &A || InModifier == &B)
+				{
+					bSortResult = InModifier == &A ? false : true;
+					return false;
+				}
+				return true;
+			});
+			return bSortResult;
+		});
+
+		CurrentStack->ProcessLockFunction([this, &StackModifiers, CurrentStack, &bSuccess, &InRemoveOp]()
+		{
+			for (UActorModifierCoreBase* RemoveModifier : StackModifiers)
+			{
+				InRemoveOp.RemoveModifier = RemoveModifier;
+				if (!CurrentStack->RemoveModifier(InRemoveOp))
+				{
+					bSuccess = false;
+					break;
+				}
+			}
+		});
+
+		if (!bSuccess)
+		{
+			return false;
+		}
+
+		ModifiersSet = ModifiersSet.Difference(StackModifiers);
+	}
+
+	return true;
+}
+
+bool UActorModifierCoreSubsystem::RemoveActorsModifiers(const TSet<AActor*>& InActors, bool bInShouldTransact) const
+{
+	if (InActors.IsEmpty())
+	{
+		return false;
+	}
+
+	// Get actors stack
+	TArray<UActorModifierCoreStack*> ActorStacks;
+	for (const AActor* Actor : InActors)
+	{
+		if (!IsValid(Actor))
+		{
+			continue;
+		}
+
+		if (UActorModifierCoreStack* ActorStack = GetActorModifierStack(Actor))
+		{
+			ActorStacks.Add(ActorStack);
+		}
+	}
+
+#if WITH_EDITOR
+	// create transaction
+	const FText TransactionText = FText::Format(
+		LOCTEXT("RemoveModifier", "Remove all modifiers from {0} actor(s)"),
+		FText::FromString(FString::FromInt(InActors.Num())));
+	FScopedTransaction Transaction(TransactionText, bInShouldTransact);
+#endif
+
+	// remove modifiers from actors
+	bool bSuccess = true;
+	for (UActorModifierCoreStack* ActorStack : ActorStacks)
+	{
+		if (!ActorStack->RemoveAllModifiers())
+		{
+			bSuccess = false;
+		}
+	}
+
+	return bSuccess;
+}
+
+TArray<UActorModifierCoreBase*> UActorModifierCoreSubsystem::AddActorsModifiers(const TSet<AActor*>& InActors, FActorModifierCoreStackInsertOp& InAddOp) const
+{
+	TArray<UActorModifierCoreBase*> NewModifiers;
+
+	if (!IsRegisteredModifierClass(InAddOp.NewModifierName))
+	{
+		return NewModifiers;
+	}
+
+	// Get actors stack, create if none
+	TArray<UActorModifierCoreStack*> ActorStacks;
+	for (AActor* Actor : InActors)
+	{
+		if (!IsValid(Actor))
+		{
+			continue;
+		}
+
+		UActorModifierCoreStack* ActorStack = GetActorModifierStack(Actor);
+
+		if (!ActorStack)
+		{
+			ActorStack = AddActorModifierStack(Actor);
+		}
+
+		if (IsValid(ActorStack))
+		{
+			ActorStacks.Add(ActorStack);
+		}
+	}
+
+#if WITH_EDITOR
+	// create transaction
+	const FText TransactionText = FText::Format(
+		LOCTEXT("AddModifier", "Add {0} modifier on {1} actor(s)"),
+		FText::FromName(InAddOp.NewModifierName),
+		FText::FromString(FString::FromInt(InActors.Num())));
+	FScopedTransaction Transaction(TransactionText, InAddOp.bShouldTransact);
+#endif
+
+	// add modifier to actors
+	InAddOp.InsertPositionContext = nullptr;
+	InAddOp.InsertPosition = EActorModifierCoreStackPosition::Before;
+
+	for (UActorModifierCoreStack* ActorStack : ActorStacks)
+	{
+		NewModifiers.Add(ActorStack->InsertModifier(InAddOp));
+	}
+
+	return NewModifiers;
+}
+
+UActorModifierCoreBase* UActorModifierCoreSubsystem::InsertModifier(UActorModifierCoreStack* InStack, FActorModifierCoreStackInsertOp& InInsertOp) const
+{
+	UActorModifierCoreBase* NewModifier = nullptr;
+
+	if (!IsRegisteredModifierClass(InInsertOp.NewModifierName))
+	{
+		return NewModifier;
+	}
+
+	if (!IsValid(InStack))
+	{
+		return NewModifier;
+	}
+
+#if WITH_EDITOR
+	// create transaction
+	FText TransactionText;
+	if (InInsertOp.InsertPosition == EActorModifierCoreStackPosition::Before)
+	{
+		if (IsValid(InInsertOp.InsertPositionContext))
+		{
+			TransactionText = FText::Format(
+				LOCTEXT("InsertModifierBefore", "Insert {0} modifier before {1}"),
+				FText::FromName(InInsertOp.NewModifierName),
+				FText::FromName(InInsertOp.InsertPositionContext->GetModifierName()));
+		}
+		else
+		{
+			TransactionText = FText::Format(
+				LOCTEXT("InsertModifierAtEnd", "Insert {0} modifier at the end of stack"),
+				FText::FromName(InInsertOp.NewModifierName));
+		}
+	}
+	else if (InInsertOp.InsertPosition == EActorModifierCoreStackPosition::After)
+	{
+		if (IsValid(InInsertOp.InsertPositionContext))
+		{
+			TransactionText = FText::Format(
+				LOCTEXT("InsertModifierAfter", "Insert {0} modifier after {1}"),
+				FText::FromName(InInsertOp.NewModifierName),
+				FText::FromName(InInsertOp.InsertPositionContext->GetModifierName()));
+		}
+		else
+		{
+			TransactionText = FText::Format(
+				LOCTEXT("InsertModifierAtStart", "Insert {0} modifier at the start of stack"),
+				FText::FromName(InInsertOp.NewModifierName));
+		}
+	}
+	FScopedTransaction Transaction(TransactionText, InInsertOp.bShouldTransact);
+#endif
+
+	// insert modifier in stack
+	NewModifier = InStack->InsertModifier(InInsertOp);
+
+	return NewModifier;
+}
+
+bool UActorModifierCoreSubsystem::MoveModifier(UActorModifierCoreStack* InStack, FActorModifierCoreStackMoveOp& InMoveOp) const
+{
+	if (!IsValid(InMoveOp.MoveModifier))
+	{
+		return false;
+	}
+
+	UActorModifierCoreStack* ModifierStack = InMoveOp.MoveModifier->GetModifierStack();
+
+	if (!IsValid(ModifierStack) || ModifierStack != InStack)
+	{
+		return false;
+	}
+
+	const FName& MoveModifierName = InMoveOp.MoveModifier->GetModifierName();
+
+#if WITH_EDITOR
+	// create transaction
+	FText TransactionText;
+	if (InMoveOp.MovePosition == EActorModifierCoreStackPosition::Before)
+	{
+		if (IsValid(InMoveOp.MovePositionContext))
+		{
+			TransactionText = FText::Format(
+				LOCTEXT("MoveModifierBefore", "Move {0} modifier before {1}"),
+				FText::FromName(MoveModifierName),
+				FText::FromName(InMoveOp.MovePositionContext->GetModifierName()));
+		}
+		else
+		{
+			TransactionText = FText::Format(
+				LOCTEXT("MoveModifierToEnd", "Move {0} modifier at the end of stack"),
+				FText::FromName(MoveModifierName));
+		}
+	}
+	else if (InMoveOp.MovePosition == EActorModifierCoreStackPosition::After)
+	{
+		if (IsValid(InMoveOp.MovePositionContext))
+		{
+			TransactionText = FText::Format(
+				LOCTEXT("MoveModifierAfter", "Move {0} modifier after {1}"),
+				FText::FromName(MoveModifierName),
+				FText::FromName(InMoveOp.MovePositionContext->GetModifierName()));
+		}
+		else
+		{
+			TransactionText = FText::Format(
+				LOCTEXT("MoveModifierToStart", "Move {0} modifier at the start of stack"),
+				FText::FromName(MoveModifierName));
+		}
+	}
+	FScopedTransaction Transaction(TransactionText, InMoveOp.bShouldTransact);
+#endif
+
+	// move modifier in stack
+	return ModifierStack->MoveModifier(InMoveOp);
+}
+
+AActorModifierCoreSharedActor* UActorModifierCoreSubsystem::GetModifierSharedProvider(ULevel* InLevel, bool bInSpawnIfNotFound) const
+{
+	if (!InLevel)
+	{
+		return nullptr;
+	}
+
+	UWorld* World = InLevel->GetWorld();
+
+	if (!World)
 	{
 		return nullptr;
 	}
 
 	// return cache one if already registered
-	const TWeakObjectPtr<AActorModifierCoreSharedActor>* SharedProvider = ModifierSharedProviders.Find(InWorld);
+	const TWeakObjectPtr<AActorModifierCoreSharedActor>* SharedProvider = ModifierSharedProviders.Find(InLevel);
 	if (SharedProvider && SharedProvider->IsValid())
 	{
 		return SharedProvider->Get();
 	}
 
 	// Take only first one into account and register it
-	for(AActorModifierCoreSharedActor* Actor : TActorRange<AActorModifierCoreSharedActor>(InWorld))
+	for(AActorModifierCoreSharedActor* Actor : TActorRange<AActorModifierCoreSharedActor>(World))
 	{
-		RegisterModifierSharedProvider(Actor);
-		return Actor;
+		if (Actor->GetLevel() == InLevel)
+		{
+			RegisterModifierSharedProvider(Actor);
+			return Actor;
+		}
 	}
 
 	if (!bInSpawnIfNotFound)
@@ -711,11 +1317,12 @@ AActorModifierCoreSharedActor* UActorModifierCoreSubsystem::GetModifierSharedPro
 
 	// Spawn new one and register it
 	FActorSpawnParameters SpawnParameters;
+	SpawnParameters.OverrideLevel = InLevel;
 #if WITH_EDITOR
 	SpawnParameters.bHideFromSceneOutliner = true;
 #endif
 
-	AActorModifierCoreSharedActor* const NewSharedActor = InWorld->SpawnActor<AActorModifierCoreSharedActor>(SpawnParameters);
+	AActorModifierCoreSharedActor* const NewSharedActor = World->SpawnActor<AActorModifierCoreSharedActor>(SpawnParameters);
 	RegisterModifierSharedProvider(NewSharedActor);
 
 	return NewSharedActor;
@@ -728,21 +1335,21 @@ bool UActorModifierCoreSubsystem::RegisterModifierSharedProvider(AActorModifierC
 		return false;
 	}
 
-	UWorld* World = InSharedActor->GetWorld();
-	if (!World)
+	ULevel* Level = InSharedActor->GetLevel();
+	if (!Level)
 	{
 		return false;
 	}
 
-	if (ModifierSharedProviders.Contains(World))
+	if (ModifierSharedProviders.Contains(Level))
 	{
 		return false;
 	}
 
 	UActorModifierCoreSubsystem* MutableThis = const_cast<UActorModifierCoreSubsystem*>(this);
-	MutableThis->ModifierSharedProviders.Add(World, InSharedActor);
+	MutableThis->ModifierSharedProviders.Add(Level, InSharedActor);
 
-	UE_LOG(LogActorModifierCoreSubsystem, Log, TEXT("Modifier shared provider registered for world %s"), *World->GetDebugDisplayName());
+	UE_LOG(LogActorModifierCoreSubsystem, Log, TEXT("Modifier shared provider registered for world %s and level %s"), *Level->GetWorld()->GetDebugDisplayName(), *Level->GetName());
 
 	return true;
 }
@@ -754,13 +1361,13 @@ bool UActorModifierCoreSubsystem::UnregisterModifierSharedProvider(const AActor*
 		return false;
 	}
 
-	const UWorld* World = InSharedActor->GetWorld();
-	if (!World)
+	const ULevel* Level = InSharedActor->GetLevel();
+	if (!Level)
 	{
 		return false;
 	}
 
-	const TWeakObjectPtr<AActorModifierCoreSharedActor>* SharedActor = ModifierSharedProviders.Find(World);
+	const TWeakObjectPtr<AActorModifierCoreSharedActor>* SharedActor = ModifierSharedProviders.Find(Level);
 	if (!SharedActor)
 	{
 		return false;
@@ -771,10 +1378,10 @@ bool UActorModifierCoreSubsystem::UnregisterModifierSharedProvider(const AActor*
 		return false;
 	}
 
-	UE_LOG(LogActorModifierCoreSubsystem, Log, TEXT("Modifier shared provider unregistered for world %s"), *World->GetDebugDisplayName());
+	UE_LOG(LogActorModifierCoreSubsystem, Log, TEXT("Modifier shared provider unregistered for world %s and level %s"), *Level->GetWorld()->GetDebugDisplayName(), *Level->GetName());
 
 	UActorModifierCoreSubsystem* MutableThis = const_cast<UActorModifierCoreSubsystem*>(this);
-	return MutableThis->ModifierSharedProviders.Remove(World) > 0;
+	return MutableThis->ModifierSharedProviders.Remove(Level) > 0;
 }
 
 void UActorModifierCoreSubsystem::ScanForModifiers()

@@ -12,10 +12,6 @@ UActorModifierCoreComponent::UActorModifierCoreComponent()
 	}
 }
 
-UActorModifierCoreComponent::~UActorModifierCoreComponent()
-{
-}
-
 UActorModifierCoreComponent* UActorModifierCoreComponent::CreateAndExposeComponent(AActor* InParentActor)
 {
 	if (!InParentActor)

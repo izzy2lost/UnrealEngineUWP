@@ -3,6 +3,7 @@
 #include "Misc/AutomationTest.h"
 #include "Modifiers/ActorModifierCoreStack.h"
 #include "Modifiers/AvaVisibilityModifier.h"
+#include "Subsystems/ActorModifierCoreSubsystem.h"
 #include "Tests/Framework/AvaModifiersTestUtils.h"
 #include "Tests/Framework/AvaTestDynamicMeshActor.h"
 #include "Tests/Framework/AvaTestUtils.h"
@@ -45,11 +46,11 @@ void AvalancheModifiersVisibility::Define()
 		ChildrenActors = ModifierTestUtils->SpawnTestDynamicMeshActors(NumberOfChildren, ParentActor);
 
 		// Set up modifier
+		const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get();
 		const FName ModifierName = ModifierTestUtils->GetModifierName(UAvaVisibilityModifier::StaticClass());
 		FActorModifierCoreStackInsertOp InsertOp = ModifierTestUtils->GenerateInsertOp(ModifierName);
-		VisibilityModifier = Cast<UAvaVisibilityModifier>(
-			ModifierTestUtils->GenerateModifierStackForActor(ParentActor)->InsertModifier(InsertOp)
-		);
+		UActorModifierCoreStack* ModifierStack = ModifierTestUtils->GenerateModifierStackForActor(ParentActor);
+		VisibilityModifier = Cast<UAvaVisibilityModifier>(ModifierSubsystem->InsertModifier(ModifierStack, InsertOp));
 		VisibilityModifier->SetIndex(NumberOfChildrenVisible - 1);
 	});
 

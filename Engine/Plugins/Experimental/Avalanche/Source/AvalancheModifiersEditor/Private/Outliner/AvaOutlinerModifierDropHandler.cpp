@@ -46,19 +46,19 @@ TOptional<EItemDropZone> FAvaOutlinerModifierDropHandler::CanDrop(EItemDropZone 
 	}
 
 	UActorModifierCoreBase* TargetModifier = TargetModifierItem->GetModifier();
-	const UActorModifierCoreEditorSubsystem* Extension = UActorModifierCoreEditorSubsystem::Get();
+	const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get();
 	const EActorModifierCoreStackPosition Position = InDropZone == EItemDropZone::AboveItem ? EActorModifierCoreStackPosition::Before : EActorModifierCoreStackPosition::After;
-	
+
 	TArray<UActorModifierCoreBase*> MoveModifiers;
 	TArray<UActorModifierCoreBase*> CloneModifiers;
-	Extension->GetSortedModifiers(GetDraggedModifiers(), TargetModifier->GetModifiedActor(), TargetModifier, Position, MoveModifiers, CloneModifiers);
-	
-	// If the Modifiers are Empty, return fail early 
+	ModifierSubsystem->GetSortedModifiers(GetDraggedModifiers(), TargetModifier->GetModifiedActor(), TargetModifier, Position, MoveModifiers, CloneModifiers);
+
+	// If the Modifiers are Empty, return fail early
 	if (MoveModifiers.IsEmpty() && CloneModifiers.IsEmpty())
 	{
 		return TOptional<EItemDropZone>();
 	}
-	
+
 	return InDropZone;
 }
 
@@ -154,19 +154,17 @@ TOptional<EItemDropZone> FAvaOutlinerModifierDropHandler::CanDropOnActor(AActor*
 bool FAvaOutlinerModifierDropHandler::DropModifiersInActor(AActor* InActor, EItemDropZone InDropZone) const
 {
 	const UActorModifierCoreSubsystem* const ModifierSubsystem = UActorModifierCoreSubsystem::Get();
-	const UActorModifierCoreEditorSubsystem* const ModifierExtensionSubsystem = UActorModifierCoreEditorSubsystem::Get();
 
-	if (!IsValid(ModifierSubsystem) || !IsValid(ModifierExtensionSubsystem))
+	if (!IsValid(ModifierSubsystem))
 	{
 		return false;
 	}
 
 	const EActorModifierCoreStackPosition Position = InDropZone == EItemDropZone::AboveItem ? EActorModifierCoreStackPosition::Before : EActorModifierCoreStackPosition::After;
-	uint32 AddedModifierCount = 0;
 
 	TArray<UActorModifierCoreBase*> MoveModifiers;
 	TArray<UActorModifierCoreBase*> CloneModifiers;
-	ModifierExtensionSubsystem->GetSortedModifiers(GetDraggedModifiers(), InActor, nullptr, Position, MoveModifiers, CloneModifiers);
+	ModifierSubsystem->GetSortedModifiers(GetDraggedModifiers(), InActor, nullptr, Position, MoveModifiers, CloneModifiers);
 
 	if (CloneModifiers.IsEmpty())
 	{
@@ -177,31 +175,24 @@ bool FAvaOutlinerModifierDropHandler::DropModifiersInActor(AActor* InActor, EIte
 		, CloneModifiers.Num()
 		, *InActor->GetActorNameOrLabel());
 
+	bool bSuccess = false;
+
 	if (UActorModifierCoreStack* const Stack = ModifierSubsystem->AddActorModifierStack(InActor))
 	{
 		FText FailReason;
-		
-		Stack->ProcessLockFunction([&CloneModifiers, &FailReason, Stack, &AddedModifierCount, InActor]()
+		FActorModifierCoreStackCloneOp CloneOp;
+		CloneOp.bShouldTransact = true;
+		CloneOp.FailReason = &FailReason;
+
+		bSuccess = ModifierSubsystem->CloneModifiers(CloneModifiers, Stack, CloneOp).Num() == CloneModifiers.Num();
+
+		if (!bSuccess)
 		{
-			for (UActorModifierCoreBase* const DropModifier : CloneModifiers)
-			{
-				FActorModifierCoreStackCloneOp CloneOp;
-				CloneOp.FailReason = &FailReason;
-				CloneOp.CloneModifier = DropModifier;
-				if (Stack->CloneModifier(CloneOp))
-				{
-					++AddedModifierCount; 
-				}
-				else
-				{
-					UE_LOG(LogAvaOutlinerModifierDropHandler, Warning, TEXT("Clone modifier %s on actor %s failed : %s"),
-						*CloneOp.CloneModifier->GetModifierName().ToString(),
-						*InActor->GetActorNameOrLabel(),
-						*FailReason.ToString());
-					break;
-				}
-			}
-		});
+			UE_LOG(LogAvaOutlinerModifierDropHandler, Warning, TEXT("Clone %i modifier(s) on actor %s failed : %s"),
+				CloneModifiers.Num(),
+				*InActor->GetActorNameOrLabel(),
+				*FailReason.ToString());
+		}
 
 		if (!FailReason.IsEmpty())
 		{
@@ -212,17 +203,16 @@ bool FAvaOutlinerModifierDropHandler::DropModifiersInActor(AActor* InActor, EIte
 		}
 	}
 
-	return AddedModifierCount > 0;
+	return bSuccess;
 }
 
 bool FAvaOutlinerModifierDropHandler::DropModifiersInModifier(UActorModifierCoreBase* InTargetModifier, EItemDropZone InDropZone) const
 {
 	const UActorModifierCoreSubsystem* const ModifierSubsystem = UActorModifierCoreSubsystem::Get();
-	const UActorModifierCoreEditorSubsystem* const ExtensionSubsystem = UActorModifierCoreEditorSubsystem::Get();
 
 	const UActorModifierCoreStack* const TargetStack = InTargetModifier->GetModifierStack();
 
-	if (!IsValid(ModifierSubsystem) || !IsValid(ExtensionSubsystem) || !IsValid(TargetStack))
+	if (!IsValid(ModifierSubsystem) || !IsValid(TargetStack))
 	{
 		return false;
 	}
@@ -232,11 +222,11 @@ bool FAvaOutlinerModifierDropHandler::DropModifiersInModifier(UActorModifierCore
 
 	TArray<UActorModifierCoreBase*> MoveModifiers;
 	TArray<UActorModifierCoreBase*> CloneModifiers;
-	ExtensionSubsystem->GetSortedModifiers(GetDraggedModifiers(), TargetActor, InTargetModifier, Position, MoveModifiers, CloneModifiers);
+	ModifierSubsystem->GetSortedModifiers(GetDraggedModifiers(), TargetActor, InTargetModifier, Position, MoveModifiers, CloneModifiers);
 
 	bool bSuccess = false;
 	FText FailReason;
-	
+
 	if (!MoveModifiers.IsEmpty())
 	{
 		UE_LOG(LogAvaOutlinerModifierDropHandler, Log, TEXT("Dropping %i modifier(s) %s modifier %s on actor %s (Move)")
@@ -245,7 +235,13 @@ bool FAvaOutlinerModifierDropHandler::DropModifiersInModifier(UActorModifierCore
 		, *InTargetModifier->GetModifierName().ToString()
 		, *TargetActor->GetActorNameOrLabel());
 
-		bSuccess = ExtensionSubsystem->MoveModifiers(MoveModifiers, InTargetModifier, Position, &FailReason, true);
+		FActorModifierCoreStackMoveOp MoveOp;
+		MoveOp.bShouldTransact = true;
+		MoveOp.FailReason = &FailReason;
+		MoveOp.MovePosition = Position;
+		MoveOp.MovePositionContext = InTargetModifier;
+
+		bSuccess = ModifierSubsystem->MoveModifiers(MoveModifiers, InTargetModifier->GetModifierStack(), MoveOp);
 	}
 	else if (!CloneModifiers.IsEmpty())
 	{
@@ -255,9 +251,15 @@ bool FAvaOutlinerModifierDropHandler::DropModifiersInModifier(UActorModifierCore
 		, *InTargetModifier->GetModifierName().ToString()
 		, *TargetActor->GetActorNameOrLabel());
 
-		bSuccess = ExtensionSubsystem->CloneModifiers(CloneModifiers, InTargetModifier, Position, &FailReason, true);
+		FActorModifierCoreStackCloneOp CloneOp;
+		CloneOp.bShouldTransact = true;
+		CloneOp.FailReason = &FailReason;
+		CloneOp.ClonePosition = Position;
+		CloneOp.ClonePositionContext = InTargetModifier;
+
+		bSuccess = ModifierSubsystem->CloneModifiers(CloneModifiers, InTargetModifier->GetModifierStack(), CloneOp).Num() == CloneModifiers.Num();
 	}
-	
+
 	if (!FailReason.IsEmpty())
 	{
 		FNotificationInfo NotificationInfo(FailReason);
@@ -265,7 +267,7 @@ bool FAvaOutlinerModifierDropHandler::DropModifiersInModifier(UActorModifierCore
 		NotificationInfo.bFireAndForget = true;
 		FSlateNotificationManager::Get().AddNotification(NotificationInfo);
 	}
-	
+
 	return bSuccess;
 }
 

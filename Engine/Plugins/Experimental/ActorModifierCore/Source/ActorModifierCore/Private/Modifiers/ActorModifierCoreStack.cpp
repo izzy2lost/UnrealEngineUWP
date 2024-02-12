@@ -122,32 +122,85 @@ void UActorModifierCoreStack::OnModifierAdded(EActorModifierCoreEnableReason InR
 	}
 }
 
-void UActorModifierCoreStack::GetNamedModifiers(const FName& InName, TArray<UActorModifierCoreBase*>& OutModifiers) const
+bool UActorModifierCoreStack::ProcessFunction(TFunctionRef<bool(const UActorModifierCoreBase*)> InFunction, const FActorModifierCoreStackSearchOp& InSearchOptions) const
 {
-	for (const TObjectPtr<UActorModifierCoreBase>& Modifier : Modifiers)
+	if (!InSearchOptions.bSkipStack)
 	{
-		if (Modifier && Modifier->GetModifierName() == InName)
+		if (!InFunction(this))
 		{
-			OutModifiers.Add(Modifier);
+			return false;
 		}
 	}
-}
 
-bool UActorModifierCoreStack::ProcessFunction(TFunctionRef<bool(const UActorModifierCoreBase*)> InFunction) const
-{
-	// will only read, not write anything, used for query
 	for (const TObjectPtr<UActorModifierCoreBase>& Modifier : Modifiers)
 	{
 		if (Modifier)
 		{
-			// stop when we return false
-			if (!Modifier->ProcessFunction(InFunction))
+			if (Modifier->IsModifierStack() && !InSearchOptions.bRecurse)
 			{
-				return false;
+				if (!InSearchOptions.bSkipStack)
+				{
+					if (!InFunction(this))
+					{
+						return false;
+					}
+				}
+			}
+			else
+			{
+				if (!Modifier->ProcessFunction(InFunction, InSearchOptions))
+				{
+					return false;
+				}
 			}
 		}
 	}
+
 	return true;
+}
+
+bool UActorModifierCoreStack::ProcessSearchFunction(TFunctionRef<bool(const UActorModifierCoreBase*)> InFunction, const FActorModifierCoreStackSearchOp& InSearchOptions) const
+{
+	bool bResult = true;
+
+	if (InSearchOptions.Position == EActorModifierCoreStackPosition::After)
+	{
+		bool bAfter = !InSearchOptions.PositionContext;
+		bResult = ProcessFunction([&InSearchOptions, &bAfter, &InFunction](const UActorModifierCoreBase* InModifier)->bool
+		{
+			if (InModifier == InSearchOptions.PositionContext)
+			{
+				bAfter = true;
+				return true;
+			}
+
+			if (bAfter && !InFunction(InModifier))
+			{
+				return false;
+			}
+
+			return true;
+		}, InSearchOptions);
+	}
+	else if (InSearchOptions.Position == EActorModifierCoreStackPosition::Before)
+	{
+		bResult = ProcessFunction([&InSearchOptions, &InFunction](const UActorModifierCoreBase* InModifier)->bool
+		{
+			if (InModifier == InSearchOptions.PositionContext)
+			{
+				return false;
+			}
+
+			if (!InFunction(InModifier))
+			{
+				return false;
+			}
+
+			return true;
+		}, InSearchOptions);
+	}
+
+	return bResult;
 }
 
 UActorModifierCoreBase* UActorModifierCoreStack::GetFirstModifier() const
@@ -168,45 +221,127 @@ UActorModifierCoreBase* UActorModifierCoreStack::GetLastModifier() const
 	return nullptr;
 }
 
-TArray<FName> UActorModifierCoreStack::GetModifierNames() const
+bool UActorModifierCoreStack::ContainsModifier(const FName& InSearchName, const FActorModifierCoreStackSearchOp& InSearchOptions) const
 {
-	TArray<FName> OutModifiers;
-	ProcessFunction([&OutModifiers](const UActorModifierCoreBase* InModifier)->bool
-	{
-		OutModifiers.Add(InModifier->GetModifierName());
-		return true;
-	});
-	return OutModifiers;
+	return FindModifier(InSearchName, InSearchOptions) != nullptr;
 }
 
-bool UActorModifierCoreStack::ContainsModifier(const FName& InSearchName) const
+bool UActorModifierCoreStack::ContainsModifier(const UClass* InSearchClass, const FActorModifierCoreStackSearchOp& InSearchOptions) const
 {
-	const bool bResult = ProcessFunction([InSearchName](const UActorModifierCoreBase* InModifier)->bool
-	{
-		// false to stop processing
-		if (InModifier && InModifier->GetModifierName() == InSearchName)
-		{
-			return false;
-		}
-
-		return true;
-	});
-	return !bResult;
+	return FindModifier(InSearchClass, InSearchOptions) != nullptr;
 }
 
-bool UActorModifierCoreStack::ContainsModifier(const UActorModifierCoreBase* InSearchModifier) const
+bool UActorModifierCoreStack::ContainsModifier(const UActorModifierCoreBase* InSearchModifier, const FActorModifierCoreStackSearchOp& InSearchOptions) const
 {
-	const bool bResult = ProcessFunction([InSearchModifier](const UActorModifierCoreBase* InModifier)->bool
+	if (!InSearchModifier)
+	{
+		return false;
+	}
+
+	bool bFound = false;
+	ProcessSearchFunction([InSearchModifier, &bFound](const UActorModifierCoreBase* InModifier)->bool
 	{
 		// false to stop processing
 		if (InModifier && InModifier == InSearchModifier)
 		{
+			bFound = true;
 			return false;
 		}
 
 		return true;
-	});
-	return !bResult;
+	}, InSearchOptions);
+
+	return bFound;
+}
+
+UActorModifierCoreBase* UActorModifierCoreStack::FindModifier(FName InSearchName, const FActorModifierCoreStackSearchOp& InSearchOptions) const
+{
+	UActorModifierCoreBase* FoundModifier = nullptr;
+
+	if (InSearchName.IsNone())
+	{
+		return FoundModifier;
+	}
+
+	ProcessSearchFunction([InSearchName, &FoundModifier](const UActorModifierCoreBase* InModifier)->bool
+	{
+		if (InModifier && InModifier->GetModifierName() == InSearchName)
+		{
+			FoundModifier = const_cast<UActorModifierCoreBase*>(InModifier);
+			return false;
+		}
+
+		return true;
+	}, InSearchOptions);
+
+	return FoundModifier;
+}
+
+UActorModifierCoreBase* UActorModifierCoreStack::FindModifier(const UClass* InSearchClass, const FActorModifierCoreStackSearchOp& InSearchOptions) const
+{
+	UActorModifierCoreBase* FoundModifier = nullptr;
+
+	if (!InSearchClass || !InSearchClass->IsChildOf<UActorModifierCoreBase>())
+	{
+		return FoundModifier;
+	}
+
+	ProcessSearchFunction([InSearchClass, &FoundModifier](const UActorModifierCoreBase* InModifier)->bool
+	{
+		if (InModifier && InModifier->IsA(InSearchClass))
+		{
+			FoundModifier = const_cast<UActorModifierCoreBase*>(InModifier);
+			return false;
+		}
+
+		return true;
+	}, InSearchOptions);
+
+	return FoundModifier;
+}
+
+TArray<UActorModifierCoreBase*> UActorModifierCoreStack::FindModifiers(FName InSearchName, const FActorModifierCoreStackSearchOp& InSearchOptions) const
+{
+	TArray<UActorModifierCoreBase*> FoundModifiers;
+
+	if (InSearchName.IsNone())
+	{
+		return FoundModifiers;
+	}
+
+	ProcessSearchFunction([InSearchName, &FoundModifiers](const UActorModifierCoreBase* InModifier)->bool
+	{
+		if (InModifier && InModifier->GetModifierName() == InSearchName)
+		{
+			FoundModifiers.Add(const_cast<UActorModifierCoreBase*>(InModifier));
+		}
+
+		return true;
+	}, InSearchOptions);
+
+	return FoundModifiers;
+}
+
+TArray<UActorModifierCoreBase*> UActorModifierCoreStack::FindModifiers(const UClass* InSearchClass, const FActorModifierCoreStackSearchOp& InSearchOptions) const
+{
+	TArray<UActorModifierCoreBase*> FoundModifiers;
+
+	if (!InSearchClass || !InSearchClass->IsChildOf<UActorModifierCoreBase>())
+	{
+		return FoundModifiers;
+	}
+
+	ProcessSearchFunction([InSearchClass, &FoundModifiers](const UActorModifierCoreBase* InModifier)->bool
+	{
+		if (InModifier && InModifier->IsA(InSearchClass))
+		{
+			FoundModifiers.Add(const_cast<UActorModifierCoreBase*>(InModifier));
+		}
+
+		return true;
+	}, InSearchOptions);
+
+	return FoundModifiers;
 }
 
 bool UActorModifierCoreStack::ContainsModifierBefore(const FName& InSearchName, const UActorModifierCoreBase* InBeforeModifier) const
