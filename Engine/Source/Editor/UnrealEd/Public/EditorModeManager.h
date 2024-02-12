@@ -540,6 +540,7 @@ public:
 	UNREALED_API IGizmoStateTarget* GetGizmoStateTarget();
 	UNREALED_API bool BeginTransform(const FGizmoState& InState);
 	UNREALED_API bool EndTransform(const FGizmoState& InState) const;
+	UNREALED_API bool HasOngoingTransform() const;
 	
 protected:
 	/** 

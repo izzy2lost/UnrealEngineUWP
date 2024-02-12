@@ -4623,7 +4623,7 @@ EMouseCursor::Type FLevelEditorViewportClient::GetCursor(FViewport* InViewport,i
 	}
 
 	// Don't select widget axes by mouse over while they're being controlled by a mouse drag.
-	if( InViewport->IsCursorVisible() && !bWidgetAxisControlledByDrag)
+	if( InViewport->IsCursorVisible() && !bWidgetAxisControlledByDrag && !ModeTools->HasOngoingTransform())
 	{
 		HHitProxy* HitProxy = InViewport->GetHitProxy(X, Y);
 		if( !HitProxy && HoveredObjects.Num() > 0 )
