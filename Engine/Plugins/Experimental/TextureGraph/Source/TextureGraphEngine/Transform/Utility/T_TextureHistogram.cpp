@@ -47,7 +47,7 @@ TiledBlobPtr T_TextureHistogram::CreateJobAndResult(JobUPtr& OutJob, MixUpdateCy
 	FIntVector4 SrcDimensions(SourceTex->GetWidth(), SourceTex->GetHeight(), 1, 1);
 
 	FString Name = FString::Printf(TEXT("[%s].[%d] Histogram"), *SourceTex->DisplayName(), TargetId);
-	RenderMaterial_FXPtr Transform = T_TextureHistogram::CreateMaterial_Histogram(TEXT("T_Histogram"), TEXT("Result"), PermutationVector, 32, 32, 1);
+	RenderMaterial_FXPtr Transform = T_TextureHistogram::CreateMaterial_Histogram(TEXT("T_Histogram"), TEXT("Result"), PermutationVector, SrcDimensions.X, SrcDimensions.Y, 1);
 
 	OutJob = std::make_unique<Job>(Cycle->GetMix(), TargetId, std::static_pointer_cast<BlobTransform>(Transform));
 	OutJob->AddArg(ARG_BLOB(SourceTex, "SourceTiles"));
