@@ -2293,7 +2293,6 @@ void FPrimitiveSceneInfo::RemoveCachedReflectionCaptures()
 	CachedPlanarReflectionProxy = nullptr;
 	FMemory::Memzero(CachedReflectionCaptureProxies);
 	bNeedsCachedReflectionCaptureUpdate = true;
-	MarkGPUStateDirty(EPrimitiveDirtyState::ChangedAll);
 }
 
 void FPrimitiveSceneInfo::UpdateComponentLastRenderTime(float CurrentWorldTime, bool bUpdateLastRenderTimeOnScreen) const
