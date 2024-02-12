@@ -215,27 +215,24 @@ void UDisplayClusterMoviePipelineViewportPassBase::BlendPostProcessSettings(FSce
 
 int32 UDisplayClusterMoviePipelineViewportPassBase::GetNumCamerasToRender() const
 {
+	// nDisplay always uses viewports as a set of cameras.
 	return DisplayClusterViewports.Num();
+}
+
+int32 UDisplayClusterMoviePipelineViewportPassBase::GetCameraIndexForRenderPass(const int32 InCameraIndex) const
+{
+	// nDisplay always uses viewports as a set of cameras.
+	return InCameraIndex;
 }
 
 FString UDisplayClusterMoviePipelineViewportPassBase::GetCameraName(const int32 InCameraIndex) const
 {
-	if (InCameraIndex >= 0 && InCameraIndex < DisplayClusterViewports.Num())
-	{
-		return DisplayClusterViewports[InCameraIndex];
-	}
-
-	return TEXT("UndefinedCameraName");
+	return DisplayClusterViewports.IsValidIndex(InCameraIndex) ? DisplayClusterViewports[InCameraIndex] : TEXT("UndefinedCameraName");
 }
 
 FString UDisplayClusterMoviePipelineViewportPassBase::GetCameraNameOverride(const int32 InCameraIndex) const
 {
-	if (DisplayClusterViewports.IsValidIndex(InCameraIndex))
-	{
-		return DisplayClusterViewports[InCameraIndex];
-	}
-
-	return TEXT("");
+	return DisplayClusterViewports.IsValidIndex(InCameraIndex) ? DisplayClusterViewports[InCameraIndex] : TEXT("");
 }
 
 void UDisplayClusterMoviePipelineViewportPassBase::ModifyProjectionMatrixForTiling(const FMoviePipelineRenderPassMetrics& InSampleState, const bool bInOrthographic, FMatrix& InOutProjectionMatrix, float& OutDoFSensorScale) const
