@@ -23,7 +23,7 @@ static TAutoConsoleVariable<float> CVarDecalFadeScreenSizeMultiplier(
 	TEXT("  Smaller means decals fade less aggressively.")
 	);
 
-FTransientDecalRenderData::FTransientDecalRenderData(const FScene& InScene, const FDeferredDecalProxy& InDecalProxy, float InConservativeRadius)
+FTransientDecalRenderData::FTransientDecalRenderData(const FDeferredDecalProxy& InDecalProxy, float InConservativeRadius, EShaderPlatform ShaderPlatform, ERHIFeatureLevel::Type FeatureLevel)
 	: Proxy(InDecalProxy)
 	, MaterialProxy(InDecalProxy.DecalMaterial->GetRenderProxy())
 	, ConservativeRadius(InConservativeRadius)
@@ -32,8 +32,8 @@ FTransientDecalRenderData::FTransientDecalRenderData(const FScene& InScene, cons
 {
 	// Build BlendDesc from a potentially incomplete material.
 	// If our shader isn't compiled yet then we will potentially render later with a different fallback material.
-	FMaterial const& MaterialResource = MaterialProxy->GetIncompleteMaterialWithFallback(InScene.GetFeatureLevel());
-	BlendDesc = DecalRendering::ComputeDecalBlendDesc(InScene.GetShaderPlatform(), MaterialResource);
+	FMaterial const& MaterialResource = MaterialProxy->GetIncompleteMaterialWithFallback(FeatureLevel);
+	BlendDesc = DecalRendering::ComputeDecalBlendDesc(ShaderPlatform, MaterialResource);
 }
 
 /**
@@ -277,21 +277,18 @@ namespace DecalRendering
 		Decals.Sort(FCompareFTransientDecalRenderData());
 	}
 
-	bool BuildVisibleDecalList(const FScene& Scene, const FViewInfo& View, EDecalRenderStage DecalRenderStage, FTransientDecalRenderDataList* OutVisibleDecals)
+	FTransientDecalRenderDataList BuildVisibleDecalList(TConstArrayView<FDeferredDecalProxy*> Decals, const FViewInfo& View)
 	{
 		QUICK_SCOPE_CYCLE_COUNTER(BuildVisibleDecalList);
-
-		if (OutVisibleDecals)
-		{
-			OutVisibleDecals->Empty(Scene.Decals.Num());
-		}
 
 		// Don't draw for shader complexity mode.
 		// todo: Handle shader complexity mode for deferred decal.
 		if (View.Family->EngineShowFlags.ShaderComplexity)
 		{
-			return false;
+			return {};
 		}
+
+		FTransientDecalRenderDataList OutVisibleDecals;
 
 		const float FadeMultiplier = GetDecalFadeScreenSizeMultiplier();
 		const EShaderPlatform ShaderPlatform = View.GetShaderPlatform();
@@ -299,7 +296,7 @@ namespace DecalRendering
 		const bool bIsPerspectiveProjection = View.IsPerspectiveProjection();
 
 		// Build a list of decals that need to be rendered for this view in SortedDecals
-		for (const FDeferredDecalProxy* DecalProxy : Scene.Decals)
+		for (const FDeferredDecalProxy* DecalProxy : Decals)
 		{
 			if (!DecalProxy->DecalMaterial || !DecalProxy->DecalMaterial->IsValidLowLevelFast())
 			{
@@ -317,38 +314,65 @@ namespace DecalRendering
 
 			// can be optimized as we test against a sphere around the box instead of the box itself
 			const float ConservativeRadius = FMath::Sqrt(
-					ComponentToWorldMatrix.GetScaledAxis(EAxis::X).SizeSquared() +
-					ComponentToWorldMatrix.GetScaledAxis(EAxis::Y).SizeSquared() +
-					ComponentToWorldMatrix.GetScaledAxis(EAxis::Z).SizeSquared());
+				ComponentToWorldMatrix.GetScaledAxis(EAxis::X).SizeSquared() +
+				ComponentToWorldMatrix.GetScaledAxis(EAxis::Y).SizeSquared() +
+				ComponentToWorldMatrix.GetScaledAxis(EAxis::Z).SizeSquared());
 
 			// can be optimized as the test is too conservative (sphere instead of OBB)
-			if(ConservativeRadius < SMALL_NUMBER || !View.ViewFrustum.IntersectSphere(ComponentToWorldMatrix.GetOrigin(), ConservativeRadius))
+			if (ConservativeRadius < SMALL_NUMBER || !View.ViewFrustum.IntersectSphere(ComponentToWorldMatrix.GetOrigin(), ConservativeRadius))
 			{
 				bIsShown = false;
 			}
 
 			if (bIsShown)
 			{
-				FTransientDecalRenderData Data(Scene, *DecalProxy, ConservativeRadius);
-			
-				if (IsCompatibleWithRenderStage(Data.BlendDesc, DecalRenderStage))
+				FTransientDecalRenderData Data(*DecalProxy, ConservativeRadius, ShaderPlatform, View.GetFeatureLevel());
+
+				if (bIsPerspectiveProjection && Data.Proxy.FadeScreenSize != 0.0f)
 				{
-					if (bIsPerspectiveProjection && Data.Proxy.FadeScreenSize != 0.0f)
-					{
-						Data.FadeAlpha = CalculateDecalFadeAlpha(Data.Proxy.FadeScreenSize, ComponentToWorldMatrix, View, FadeMultiplier);
-					}
-
-					const bool bShouldRender = Data.FadeAlpha > 0.0f;
-
-					if (bShouldRender)
-					{
-						if (!OutVisibleDecals)
-						{
-							return true;
-						}
-						OutVisibleDecals->Add(Data);
-					}
+					Data.FadeAlpha = CalculateDecalFadeAlpha(Data.Proxy.FadeScreenSize, ComponentToWorldMatrix, View, FadeMultiplier);
 				}
+
+				const bool bShouldRender = Data.FadeAlpha > 0.0f;
+
+				if (bShouldRender)
+				{
+					OutVisibleDecals.Add(Data);
+				}
+			}
+		}
+
+		if (OutVisibleDecals.Num() > 0)
+		{
+			SortDecalList(OutVisibleDecals);
+		}
+
+		return OutVisibleDecals;
+	}
+
+	bool BuildRelevantDecalList(TConstArrayView<FTransientDecalRenderData> Decals, EDecalRenderStage DecalRenderStage, FTransientDecalRenderDataList* OutVisibleDecals)
+	{
+		QUICK_SCOPE_CYCLE_COUNTER(BuildRelevantDecalList);
+
+		if (OutVisibleDecals)
+		{
+			OutVisibleDecals->Empty(Decals.Num());
+		}
+
+		// Build a list of decals that need to be rendered for this stage in SortedDecals
+		for (const FTransientDecalRenderData& DecalRenderData : Decals)
+		{
+			checkf(DecalRenderData.Proxy.DecalMaterial && DecalRenderData.Proxy.DecalMaterial->IsValidLowLevelFast(),
+				TEXT("Decals should've been filtered earlier in BuildVisibleDecalList"));
+
+			if (IsCompatibleWithRenderStage(DecalRenderData.BlendDesc, DecalRenderStage))
+			{
+				if (!OutVisibleDecals)
+				{
+					return true;
+				}
+
+				OutVisibleDecals->Add(DecalRenderData);
 			}
 		}
 

@@ -9,6 +9,7 @@
 
 enum class EDecalRenderStage : uint8;
 enum class EDecalRenderTargetMode : uint8;
+struct FTransientDecalRenderData;
 struct FDBufferTextures;
 struct FSceneTextures;
 class FViewInfo;
@@ -47,6 +48,7 @@ FDeferredDecalPassTextures GetDeferredDecalPassTextures(
 void AddDeferredDecalPass(
 	FRDGBuilder& GraphBuilder,
 	const FViewInfo& ViewInfo,
+	TConstArrayView<FTransientDecalRenderData> VisibleDecals,
 	const FDeferredDecalPassTextures& Textures,
 	FInstanceCullingManager& InstanceCullingManager,
 	EDecalRenderStage RenderStage);

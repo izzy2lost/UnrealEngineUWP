@@ -10,6 +10,7 @@
 #include "SceneRendering.h"
 #include "CompositionLighting/PostProcessDeferredDecals.h"
 #include "CompositionLighting/PostProcessAmbientOcclusion.h"
+#include "DecalRenderingShared.h"
 
 /**
  * The center for all screen space processing activities (e.g. G-buffer manipulation, lighting).
@@ -59,6 +60,7 @@ private:
 	};
 
 	TArray<FAOConfig, TInlineAllocator<8>> ViewAOConfigs;
+	TArray<FTransientDecalRenderDataList, TInlineAllocator<8>> VisibleDecals;
 	FRDGTextureRef HorizonsTexture = nullptr;
 	bool bInitialized = false;
 };

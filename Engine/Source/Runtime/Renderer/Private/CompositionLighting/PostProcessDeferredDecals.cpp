@@ -557,6 +557,7 @@ void CollectDeferredDecalPassPSOInitializers(
 void AddDeferredDecalPass(
 	FRDGBuilder& GraphBuilder,
 	const FViewInfo& View,
+	TConstArrayView<FTransientDecalRenderData> VisibleDecals,
 	const FDeferredDecalPassTextures& PassTextures,
 	FInstanceCullingManager& InstanceCullingManager,
 	EDecalRenderStage DecalRenderStage)
@@ -584,10 +585,10 @@ void AddDeferredDecalPass(
 	checkf(DecalRenderStage != EDecalRenderStage::AmbientOcclusion || PassTextures.ScreenSpaceAO, TEXT("Attepting to render AO decals without SSAO having emitted a valid render target."));
 	checkf(DecalRenderStage != EDecalRenderStage::BeforeBasePass || IsUsingDBuffers(ShaderPlatform), TEXT("Only DBuffer decals are supported before the base pass."));
 
-	if (DecalCount)
+	if (!VisibleDecals.IsEmpty())
 	{
 		SortedDecals = GraphBuilder.AllocObject<FTransientDecalRenderDataList>();
-		DecalRendering::BuildVisibleDecalList(Scene, View, DecalRenderStage, SortedDecals);
+		DecalRendering::BuildRelevantDecalList(VisibleDecals, DecalRenderStage, SortedDecals);
 		SortedDecalCount = SortedDecals->Num();
 
 		INC_DWORD_STAT_BY(STAT_Decals, SortedDecalCount);
@@ -690,7 +691,7 @@ void AddDeferredDecalPass(
 
 		if (SortedDecalCount > 0)
 		{
-			RDG_EVENT_SCOPE(GraphBuilder, "Decals (Visible %d, Total: %d)", SortedDecalCount, DecalCount);
+			RDG_EVENT_SCOPE(GraphBuilder, "Decals (Relevant: %d, Visible: %d, Total: %d)", SortedDecalCount, VisibleDecals.Num(), DecalCount);
 
 			uint32 SortedDecalIndex = 1;
 			uint32 LastSortedDecalIndex = 0;
