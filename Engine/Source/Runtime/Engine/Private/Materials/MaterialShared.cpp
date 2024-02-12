@@ -2606,17 +2606,12 @@ void FMaterial::SetupMaterialEnvironment(
 		switch (GetBlendMode())
 		{
 		case BLEND_Opaque:
-		{
-			SET_SHADER_DEFINE(OutEnvironment, MATERIALBLENDING_SOLID, 1);
-			SET_SHADER_DEFINE(OutEnvironment, SUBSTRATE_BLENDING_OPAQUE, 1);
-			break;
-		}
 		case BLEND_Masked:
 		{
 			// Only set MATERIALBLENDING_MASKED if the material is truly masked
 			//@todo - this may cause mismatches with what the shader compiles and what the renderer thinks the shader needs
 			// For example IsTranslucentBlendMode doesn't check IsMasked
-			if(!WritesEveryPixel())
+			if (!WritesEveryPixel())
 			{
 				SET_SHADER_DEFINE(OutEnvironment, MATERIALBLENDING_MASKED, 1);
 			}
@@ -2624,7 +2619,6 @@ void FMaterial::SetupMaterialEnvironment(
 			{
 				SET_SHADER_DEFINE(OutEnvironment, MATERIALBLENDING_SOLID, 1);
 			}
-			SET_SHADER_DEFINE(OutEnvironment, SUBSTRATE_BLENDING_MASKED, 1);
 			break;
 		}
 		case BLEND_Additive:

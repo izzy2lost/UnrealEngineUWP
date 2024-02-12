@@ -9,7 +9,7 @@
 
 #ifndef __cplusplus
 // Change this to force recompilation of all Substrate dependent shaders (for instance https://guidgenerator.com/online-guid-generator.aspx)
-#pragma message("UESHADERMETADATA_VERSION B8E54812-515D-45F4-8A68-AE2FB6553231")
+#pragma message("UESHADERMETADATA_VERSION B013B52C-494E-4FC3-9EB5-B16B754E5CA4")
 #endif
 
 // Closure offsets are packed into 32bits, each entry using SUBSTRATE_CLOSURE_OFFSET_BIT_COUNT bits
