@@ -63,7 +63,8 @@ export const DeviceInfoModal: React.FC<{ handler: DeviceHandler, deviceIn?: GetD
          const maxCount = 512;
          const telemetryQuery: DeviceTelemetryQuery = {
             id: [deviceIn.id],
-            count: maxCount
+            count: maxCount,
+            minCreateTime: new Date(new Date().getTime() - 86400000 * 14).toISOString()
          };
 
          deviceTelemetry = await backend.getDeviceTelemetry(telemetryQuery);
