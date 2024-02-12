@@ -263,6 +263,8 @@ void DeferredLightPixelMain(
 	FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(PixelPos, uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
 	FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
 
+	float EstimatedCost = 0.3; // running the PixelShader at all has a cost
+
 	BRANCH
 	if (SubstratePixelHeader.ClosureCount > 0	// This test is also enough to exclude sky pixels
 #if USE_LIGHTING_CHANNELS
@@ -310,13 +312,23 @@ void DeferredLightPixelMain(
 				SubstrateAddressing,
 				SubstratePixelHeader);
 
+			EstimatedCost += SubstrateLighting.EstimatedCost;
+
 			OutColor += SubstrateLighting.SceneColor;
-#if SUBSTRATE_OPAQUE_ROUGH_REFRACTION_ENABLED
+		#if SUBSTRATE_OPAQUE_ROUGH_REFRACTION_ENABLED
 			OutOpaqueRoughRefractionSceneColor += SubstrateLighting.OpaqueRoughRefractionSceneColor;
 			OutSubSurfaceSceneColor += SubstrateLighting.SubSurfaceSceneColor;
-#endif
+		#endif
 		}
 	}
+
+#if VISUALIZE_LIGHT_CULLING == 1
+	OutColor = ConvertEstimatedCostToColor(EstimatedCost);
+	#if SUBSTRATE_OPAQUE_ROUGH_REFRACTION_ENABLED
+	OutOpaqueRoughRefractionSceneColor = 0.0f;
+	OutSubSurfaceSceneColor = 0.0f;
+	#endif
+#endif
 
 #else // SUBSTRATE_ENABLED
 

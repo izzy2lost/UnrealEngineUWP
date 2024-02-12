@@ -79,6 +79,8 @@ FSubstrateDeferredLighting SubstrateDeferredLighting(
 			LightData,
 			SubstrateShadowTermInputParameters.LightAttenuation,
 			ShadowTerms);
+
+		SubstrateLighting.EstimatedCost += 0.3;	// add the cost of getting the shadow terms
 	}
 	
 #if USE_LIGHT_FUNCTION_ATLAS
@@ -142,6 +144,8 @@ FSubstrateDeferredLighting SubstrateDeferredLighting(
 				BSDFEvaluate = SubstrateEvaluateBSDFCommon(BSDFContext, BSDFShadowTerms, AreaLightContext, Settings, INTEGRATION_PUNCTUAL_LIGHT);
 			}
 		}
+
+		SubstrateLighting.EstimatedCost += 0.4;	// add the cost of the lighting computations (should sum up to 1 form one light)
 
 		float3 DiffuseLuminance = BSDFEvaluate.IntegratedDiffuseValue;
 		float3 SpecularLuminance = BSDFEvaluate.IntegratedSpecularValue * LightData.SpecularScale;
