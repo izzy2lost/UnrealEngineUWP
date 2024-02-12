@@ -8617,7 +8617,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			UE_LOG(LogPakFile, Display, TEXT("Mounted Pak file '%s', mount point: '%s'"), InPakFilename, *Pak->GetMountPoint());
 			UE_LOG(LogPakFile, Verbose, TEXT("OnPakFileMounted2Time == %lf"), OnPakFileMounted2Time);
 						
-			// skip this check for the default mountpoint, it will print false positives
+			// skip this check for the default mountpoint, it is a frequently used known-good mount point
 			FString NormalizedPakMountPoint = FPaths::CreateStandardFilename(Pak->GetMountPoint());
 			bool bIsMountingToRoot = NormalizedPakMountPoint == FPaths::CreateStandardFilename(FPaths::RootDir());
 #if WITH_EDITOR
@@ -8626,9 +8626,29 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			if (!bIsMountingToRoot)
 			{
 				FString OutPackageName;
-				if (!FPackageName::TryConvertFilenameToLongPackageName(Pak->GetMountPoint(), OutPackageName))
+				const FString& MountPoint = Pak->GetMountPoint();
+				if (!FPackageName::TryConvertFilenameToLongPackageName(MountPoint, OutPackageName))
 				{
-					UE_LOG(LogPakFile, Display, TEXT("Mount point: '%s' is not mounted to a valid Root Path yet, assets in this pak file may not be accessible until a corresponding UFS Mount Point is added through FPackageName::RegisterMountPoint."), *Pak->GetMountPoint());
+					// Possibly the mount point is a parent path of mount points, e.g. <ProjectRoot>/Plugins,
+					// parent path of <ProjectRoot>/Plugins/PluginA and <ProjectRoot>/Plugins/PluginB.
+					// Do not warn in that case.
+					FString MountPointAbsPath = FPaths::ConvertRelativePathToFull(MountPoint);
+					bool bParentOfMountPoint = false;
+					for (const FString& ExistingMountPoint : FPackageName::QueryMountPointLocalAbsPaths())
+					{
+						if (FPathViews::IsParentPathOf(MountPointAbsPath, ExistingMountPoint))
+						{
+							bParentOfMountPoint = true;
+							break;
+						}
+					}
+					if (!bParentOfMountPoint)
+					{
+						UE_LOG(LogPakFile, Display,
+							TEXT("Mount point '%s' is not mounted to a valid Root Path yet, ")
+							TEXT("assets in this pak file may not be accessible until a corresponding UFS Mount Point is added through FPackageName::RegisterMountPoint."),
+							*MountPoint);
+					}
 				}
 			}
 		}
