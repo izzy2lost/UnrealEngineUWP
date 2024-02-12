@@ -190,10 +190,10 @@ bool ASTOp::operator==( const ASTOp& other ) const
 
 
 //---------------------------------------------------------------------------------------------
-void ASTOp::FullAssert( const TArray<Ptr<ASTOp>>& roots )
+void ASTOp::FullAssert( const TArray<Ptr<ASTOp>>& Roots)
 {
     MUTABLE_CPUPROFILER_SCOPE(AST_FullAssert);
-    Traverse_TopDown_Unique_Imprecise( roots, [](const Ptr<ASTOp>& n)
+    Traverse_TopDown_Unique_Imprecise(Roots, [](const Ptr<ASTOp>& n)
     {
         n->Assert();
         return true;
@@ -201,16 +201,16 @@ void ASTOp::FullAssert( const TArray<Ptr<ASTOp>>& roots )
 }
 
 //-------------------------------------------------------------------------------------------------
-size_t ASTOp::CountNodes( const TArray<Ptr<ASTOp>>& roots )
+int32 ASTOp::CountNodes( const TArray<Ptr<ASTOp>>& Roots )
 {
     MUTABLE_CPUPROFILER_SCOPE(AST_CountNodes);
-    size_t count=0;
-    Traverse_TopRandom_Unique_NonReentrant( roots, [&](const Ptr<ASTOp>&)
+	int32 Count=0;
+    Traverse_TopRandom_Unique_NonReentrant(Roots, [&](const Ptr<ASTOp>&)
     {
-        ++count;
+        ++Count;
         return true;
     });
-    return count;
+    return Count;
 }
 
 
@@ -339,8 +339,7 @@ void ASTOp::LogHistogram( ASTOpList& roots )
 
 
 //-------------------------------------------------------------------------------------------------
-void ASTOp::Traverse_TopDown_Unique( const TArray<Ptr<ASTOp>>& roots,
-                                     TFunctionRef<bool(Ptr<ASTOp>&)> f )
+void ASTOp::Traverse_TopDown_Unique( const TArray<Ptr<ASTOp>>& roots, TFunctionRef<bool(Ptr<ASTOp>&)> f )
 {
     TQueue<Ptr<ASTOp>> pending;
 	for (const Ptr<ASTOp>& r : roots)
@@ -414,8 +413,7 @@ void ASTOp::Traverse_TopDown_Unique( const TArray<Ptr<ASTOp>>& roots,
 
 
 //-------------------------------------------------------------------------------------------------
-void ASTOp::Traverse_TopDown_Unique_Imprecise( const TArray<Ptr<ASTOp>>& roots,
-                                     TFunctionRef<bool(Ptr<ASTOp>&)> f )
+void ASTOp::Traverse_TopDown_Unique_Imprecise( const TArray<Ptr<ASTOp>>& roots, TFunctionRef<bool(Ptr<ASTOp>&)> f )
 {
     TQueue<Ptr<ASTOp>> pending;
 	for (const Ptr<ASTOp>& r : roots)
@@ -618,39 +616,6 @@ void Visitor_TopDown_Unique_Cloning::Process()
             }
         }
 
-    }
-}
-
-
-//-------------------------------------------------------------------------------------------------
-//-------------------------------------------------------------------------------------------------
-//-------------------------------------------------------------------------------------------------
-void ASTOp::Traverse_TopDown_Repeat( const TArray<Ptr<ASTOp>>& roots,
-                                     TFunctionRef<bool(Ptr<ASTOp>& node)> f )
-{
-    ASTOpList pending = roots;
-
-    while (pending.Num())
-    {
-        Ptr<ASTOp> pCurrent = pending.Pop();
-
-        if (pCurrent)
-        {
-            // Process
-            bool recurse = f(pCurrent);
-
-            // Recurse children
-            if (recurse)
-            {
-                pCurrent->ForEachChild([&]( ASTChild& c )
-                {
-                    if (c)
-                    {
-                        pending.Add( c.m_child );
-                    }
-                });
-            }
-        }
     }
 }
 

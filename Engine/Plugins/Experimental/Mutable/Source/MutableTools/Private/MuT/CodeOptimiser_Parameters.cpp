@@ -2130,7 +2130,8 @@ namespace mu
         {
             MUTABLE_CPUPROFILER_SCOPE(Reoptimise);
             bool modified = true;
-            int numIterations = 0;
+            int32 numIterations = 0;
+			int32 Pass = 1;
             while (modified && (!m_optimizeIterationsMax || m_optimizeIterationsLeft>0 || !numIterations ))
             {
                 TArray<Ptr<ASTOp>> roots;
@@ -2148,7 +2149,7 @@ namespace mu
 
                 UE_LOG(LogMutableCore, Verbose, TEXT(" - semantic optimiser"));
                 modified |=
-                    SemanticOptimiserAST( roots, m_options->GetPrivate()->OptimisationOptions, 1 );
+                    SemanticOptimiserAST( roots, m_options->GetPrivate()->OptimisationOptions, Pass );
 				UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
 
                 // Image size operations are treated separately
@@ -2160,8 +2161,8 @@ namespace mu
             for(FStateCompilationData& s:m_states)
             {
                 UE_LOG(LogMutableCore, Verbose, TEXT(" - constant optimiser"));
-                ConstantGeneratorAST( m_options->GetPrivate(), s.root );
-            }
+				modified = ConstantGeneratorAST( m_options->GetPrivate(), s.root, Pass );
+			}
 
             TArray<Ptr<ASTOp>> roots;
             for(const FStateCompilationData& s:m_states)

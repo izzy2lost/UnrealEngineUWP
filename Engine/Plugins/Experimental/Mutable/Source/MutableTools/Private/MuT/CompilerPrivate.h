@@ -22,14 +22,17 @@ namespace mu
         //! Detailed optimization options
         FModelOptimizationOptions OptimisationOptions;
 
-        bool bIgnoreStates = false;
-		int MinRomSize = 3;
-		int MinTextureResidentMipCount = 3;
+		int32 MinRomSize = 0;
+		int32 MinTextureResidentMipCount = 3;
 
-        int ImageCompressionQuality = 0;
-		int32 ImageTiling=0 ;
+        int32 ImageCompressionQuality = 0;
+		int32 ImageTiling = 0 ;
 
-        bool bLog = false;
+		/** If this flag is enabled, the compiler can use concurrency to reduce compile time at the cost of higher CPU and memory usage. */
+		bool bUseConcurrency = false;
+
+		bool bIgnoreStates = false;
+		bool bLog = false;
 
 		FImageOperator::FImagePixelFormatFunc ImageFormatFunc;
     };
