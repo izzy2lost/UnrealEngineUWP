@@ -10,6 +10,8 @@
 #include "Modules/ModuleManager.h"
 #include "Recording/LiveLinkHubRecordingController.h"
 #include "SLiveLinkHubStatusBar.h"
+#include "SLiveLinkTimecode.h"
+
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboButton.h"
@@ -21,6 +23,7 @@
 
 #define LOCTEXT_NAMESPACE "LiveLinkHub"
 
+#define LIVELINKHUB_SUPPORTS_LAYOUTS 0
 TSharedRef<SWidget> GetModeSwitcherContent()
 {
 	FMenuBuilder MenuBuilder(true, NULL);
@@ -56,6 +59,7 @@ void SLiveLinkHubTabViewBase::Construct(const FArguments& InArgs)
 				.Padding(FMargin(4.0f, 6.0f))
 				[
 					SNew(SHorizontalBox)
+#if LIVELINKHUB_SUPPORTS_LAYOUTS
 					+ SHorizontalBox::Slot()
 					.HAlign(HAlign_Left)
 					[
@@ -83,6 +87,7 @@ void SLiveLinkHubTabViewBase::Construct(const FArguments& InArgs)
 
 						]
 					]
+#endif
 					+ SHorizontalBox::Slot()
 					.HAlign(HAlign_Right)
 					.VAlign(VAlign_Center)
@@ -103,17 +108,12 @@ void SLiveLinkHubTabViewBase::Construct(const FArguments& InArgs)
 							SNew(SSeparator)
 							.Orientation(Orient_Vertical)
 						]
-						/* Disable until we use timecode in LLH
 						+ SHorizontalBox::Slot()
 						.Padding(2.f)
 	                    .VAlign(VAlign_Center)
 						[
-							SNew(STimecode)
-							.Timecode(MakeAttributeLambda([]
-							{
-								return FApp::GetTimecode();
-							}))
-						]*/
+							SNew(SLiveLinkTimecode)
+						]
 					]
 				]
 			]

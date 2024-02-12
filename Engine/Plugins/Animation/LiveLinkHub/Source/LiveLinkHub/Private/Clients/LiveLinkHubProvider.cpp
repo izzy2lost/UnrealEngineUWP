@@ -5,6 +5,7 @@
 #include "Algo/Transform.h"
 #include "Async/Async.h"
 #include "Clients/LiveLinkHubClientsModel.h"
+#include "Clients/LiveLinkHubProvider.h"
 #include "Clients/LiveLinkHubUEClientInfo.h"
 #include "Containers/ObservableArray.h"
 #include "CoreMinimal.h"
@@ -82,6 +83,17 @@ bool FLiveLinkHubProvider::ShouldTransmitToSubject_AnyThread(FName SubjectName, 
 	}
 
 	return true;
+}
+
+void FLiveLinkHubProvider::SetTimecodeSettings(FLiveLinkHubTimecodeSettings InSettings)
+{
+	TimecodeSettings = MoveTemp(InSettings);
+	SendTimecodeSettings();
+}
+
+void FLiveLinkHubProvider::SendTimecodeSettings()
+{
+	SendMessage(FMessageEndpoint::MakeMessage<FLiveLinkHubTimecodeSettings>(TimecodeSettings));
 }
 
 void FLiveLinkHubProvider::AddRestoredClient(FLiveLinkHubUEClientInfo& RestoredClientInfo)
@@ -229,6 +241,8 @@ void FLiveLinkHubProvider::HandleClientInfoMessage(const FLiveLinkClientInfoMess
 			ClientInfo->UpdateFromInfoMessage(Message);
 		}
 	}
+
+	SendTimecodeSettings();
 
 	if (ClientId.IsValid())
 	{
