@@ -247,139 +247,307 @@ static void ArrangeSingleChild(EFlowDirection InFlowDirection, const FGeometry& 
 }
 
 template<EOrientation Orientation, typename SlotType>
-static void ArrangeChildrenInStack(EFlowDirection InLayoutFlow, const TPanelChildren<SlotType>& Children, const FGeometry& AllottedGeometry, FArrangedChildren& ArrangedChildren, float InOffset, bool InAllowShrink)
+static void ArrangeChildrenInStack(EFlowDirection InLayoutFlow, const TPanelChildren<SlotType>& Children, const FGeometry& AllottedGeometry, FArrangedChildren& ArrangedChildren, float InOffset, bool bInAllowShrink)
 {
-	// Allotted space will be given to fixed-size children first.
-	// Remaining space will be proportionately divided between stretch children (SizeRule_Stretch)
-	// based on their stretch coefficient
 
-	if (Children.Num() > 0)
+	if (Children.Num() == 0)
 	{
-		float StretchCoefficientTotal = 0.0f;
-		float FixedTotal = 0.0f;
-		float StretchSizeTotal = 0.0f;
+		return;
+	}
+	
+	// Allotted space will be given to fixed-size children first.
+	// Remaining space will be proportionately divided between stretch children (SizeRule_Stretch and SizeRule_StretchContent)
+	// based on their stretch coefficient.
 
-		bool bAnyChildVisible = false;
-		// Compute the sum of stretch coefficients (SizeRule_Stretch) and space required by fixed-size widgets (SizeRule_Auto),
-		// as well as the total desired size.
-		for (int32 ChildIndex = 0; ChildIndex < Children.Num(); ++ChildIndex)
+	// Helper function to clamp to max size, if the constraint is set.
+	auto ClampToMaxSize = [](const float Size, const float MaxSize)
+	{
+		return MaxSize > 0.0f ? FMath::Min(MaxSize, Size) : Size; 
+	};
+	
+	float GrowStretchCoefficientTotal = 0.0f;
+	float ShrinkStretchCoefficientTotal = 0.0f;
+	float FixedSizeTotal = 0.0f;
+	float StretchSizeTotal = 0.0f;
+
+	struct FStretchItem
+	{
+		// Size of the item
+		float Size = 0.0f;
+		// Initial size of the item 
+		float BasisSize = 0.0f;
+		// Max size constraint of the item.
+		float MaxSize = 0.0f;
+		// Stretch coefficient when the items are growing.
+		float GrowStretchValue = 0.0f;
+		// Stretch coefficient when the items are shrinking.
+		float ShrinkStretchValue = 0.0f;
+		// True if the constraints of the item has been satisfied.
+		bool bFrozen = false;
+		// Sizing rule for the item.
+		FSizeParam::ESizeRule SizeRule = FSizeParam::ESizeRule::SizeRule_Auto;
+	};
+	TArray<FStretchItem, TInlineAllocator<16>> StretchItems;
+	StretchItems.Init({}, Children.Num());
+	
+	bool bAnyChildVisible = false;
+	bool bAnyStretchContentItems = false;
+	bool bAnyStretchItems = false;
+	
+	// Compute the sum of stretch coefficients (SizeRule_Stretch & SizeRule_StretchContent) and space required by fixed-size widgets (SizeRule_Auto),
+	// as well as the total desired size.
+	for (int32 ChildIndex = 0; ChildIndex < Children.Num(); ++ChildIndex)
+	{
+		const SlotType& CurChild = Children[ChildIndex];
+
+		if (CurChild.GetWidget()->GetVisibility() != EVisibility::Collapsed)
 		{
-			const SlotType& CurChild = Children[ChildIndex];
+			bAnyChildVisible = true;
+			
+			// All widgets contribute their margin to the fixed space requirement
+			FixedSizeTotal += CurChild.GetPadding().template GetTotalSpaceAlong<Orientation>();
 
-			if (CurChild.GetWidget()->GetVisibility() != EVisibility::Collapsed)
+			FVector2f ChildDesiredSize = CurChild.GetWidget()->GetDesiredSize();
+
+			// Auto-sized children contribute their desired size to the fixed space requirement
+			float ChildSize = (Orientation == Orient_Vertical)
+				? ChildDesiredSize.Y
+				: ChildDesiredSize.X;
+
+			const float MaxSize = CurChild.GetMaxSize();
+
+			FStretchItem& Item = StretchItems[ChildIndex]; 
+			Item.MaxSize = MaxSize;
+			Item.SizeRule = CurChild.GetSizeRule();
+
+			// Clamp to the max size if it was specified
+			ChildSize = ClampToMaxSize(ChildSize, MaxSize);
+
+			if (CurChild.GetSizeRule() == FSizeParam::SizeRule_Stretch)
 			{
-				bAnyChildVisible = true;
-				// All widgets contribute their margin to the fixed space requirement
-				FixedTotal += CurChild.GetPadding().template GetTotalSpaceAlong<Orientation>();
+				// Using same shrink and grow since otherwise the transition would be discontinuous as (reference) basis size is 0.
+				Item.GrowStretchValue = CurChild.GetSizeValue();
+				Item.ShrinkStretchValue = Item.GrowStretchValue;
+				Item.Size = 0.0f;
+				Item.BasisSize = 0.0f;
 
-				FVector2f ChildDesiredSize = CurChild.GetWidget()->GetDesiredSize();
+				// For stretch children we save sum up the stretch coefficients
+				GrowStretchCoefficientTotal += Item.GrowStretchValue;
+				ShrinkStretchCoefficientTotal += Item.ShrinkStretchValue;
+				StretchSizeTotal += ChildSize;
 
-				// Auto-sized children contribute their desired size to the fixed space requirement
-				const float ChildSize = (Orientation == Orient_Vertical)
-					? ChildDesiredSize.Y
-					: ChildDesiredSize.X;
-
-				if (CurChild.GetSizeRule() == FSizeParam::SizeRule_Stretch)
+				bAnyStretchItems = true;
+			}
+			else if (CurChild.GetSizeRule() == FSizeParam::SizeRule_StretchContent)
+			{
+				// Allow separate values from grow and shrink, as the adjustment is relative to the child size. 
+				Item.GrowStretchValue = CurChild.GetSizeValue();
+				if constexpr (requires { CurChild.GetShrinkSizeValue(); })
 				{
-					// for stretch children we save sum up the stretch coefficients
-					StretchCoefficientTotal += CurChild.GetSizeValue();
-					StretchSizeTotal += ChildSize;
+					Item.ShrinkStretchValue = CurChild.GetShrinkSizeValue();
 				}
 				else
 				{
-
-					// Clamp to the max size if it was specified
-					float MaxSize = CurChild.GetMaxSize();
-					FixedTotal += MaxSize > 0.0f ? FMath::Min(MaxSize, ChildSize) : ChildSize;
+					Item.ShrinkStretchValue = Item.GrowStretchValue;
 				}
+				Item.Size = ChildSize;
+				Item.BasisSize = ChildSize;
+
+				// For sized stretch we sum to coefficients, but also treat the size as fixed.
+				GrowStretchCoefficientTotal += Item.GrowStretchValue;
+				ShrinkStretchCoefficientTotal += Item.ShrinkStretchValue;
+				StretchSizeTotal += ChildSize;
+
+				bAnyStretchContentItems = true;
+			}
+			else
+			{
+				FixedSizeTotal += ChildSize;
+
+				Item.GrowStretchValue = 0.0f;
+				Item.ShrinkStretchValue = 0.0f;
+				Item.Size = ChildSize;
+				Item.BasisSize = ChildSize;
+			}
+		}
+	}
+
+	if (!bAnyChildVisible)
+	{
+		return;
+	}
+
+	// When shrink is not allowed, we'll ensure to use all the space desired by the stretchable widgets.
+	const float MinAvailableSpace = bInAllowShrink ? 0.0f : StretchSizeTotal;
+
+	const float AllottedSize = Orientation == Orient_Vertical
+		? AllottedGeometry.GetLocalSize().Y
+		: AllottedGeometry.GetLocalSize().X;
+	
+	// The space available for SizeRule_Stretch and SizeRule_StretchContent widgets is any space that wasn't taken up by fixed-sized widgets.
+	float AvailableSpace = FMath::Max(MinAvailableSpace, AllottedSize - FixedSizeTotal);
+
+	// Apply SizeRule_Stretch.
+	if (bAnyStretchItems && GrowStretchCoefficientTotal > 0.0f)
+	{
+		// Distribute available space amongst the SizeRule_Stretch items proportional to the their stretch coefficient.
+		float UsedSpace = 0.0f;
+		for (FStretchItem& Item : StretchItems)
+		{
+			if (Item.SizeRule == FSizeParam::SizeRule_Stretch)
+			{
+				// Stretch widgets get a fraction of the space remaining after all the fixed-space requirements are met.
+				// Supporting only one stretch value since otherwise the transition would be discontinuous as (reference) basis size is 0.
+				const float Size = AvailableSpace * Item.GrowStretchValue / GrowStretchCoefficientTotal;
+				
+				Item.Size = ClampToMaxSize(Size, Item.MaxSize);
+				
+				UsedSpace += Item.Size;
+			}
+		}
+		AvailableSpace -= UsedSpace;
+	}
+
+	// Apply SizeRule_StretchContent.
+	const bool bIsGrowing = AvailableSpace > StretchSizeTotal;
+
+	const bool bCanStretch = bIsGrowing
+		? (GrowStretchCoefficientTotal > 0.0f)
+		: (ShrinkStretchCoefficientTotal > 0.0f);
+
+	if (bAnyStretchContentItems && bCanStretch)
+	{
+		// Each StretchContent item starts at desired size and shrinks or grows based on available size.
+		// First, consume each items desired size from the available space.
+		// The remainder is corrected by growing ot shrinking the items.
+		int32 NumStretchContentItems = 0;
+		for (const FStretchItem& Item : StretchItems)
+		{
+			if (Item.SizeRule == FSizeParam::SizeRule_StretchContent)
+			{
+				AvailableSpace -= Item.Size;
+				NumStretchContentItems++;
 			}
 		}
 
-		if (!bAnyChildVisible)
+		// Run number of passes to satisfy the StretchContent constraints.
+		// On each pass distribute the available space to non-frozen items.
+		// An item gets frozen if it's (min/max) constraints are violated.
+		// This makes sure that we distribute all of the available space, event if small items collapse or if items clamp to max size.
+		// Each iteration should solve at least one constraint.
+		// In practice most layouts solve in 2 passes, we're capping to 5 iterations to keep things in fixed budget.
+		const int32 MaxPasses = FMath::Min(NumStretchContentItems, 5);
+		for (int32 Pass = 0; Pass < MaxPasses; Pass++)
 		{
-			return;
-		}
+			// On each pass calculate the total coefficients for valid items.
+			GrowStretchCoefficientTotal = 0.0f;
+			ShrinkStretchCoefficientTotal = 0.0f;
 
-		//When shrink is not allowed, we'll ensure to use all the space desired by the stretchable widgets.
-		const float MinSize = InAllowShrink ? 0.0f : StretchSizeTotal;
-
-		// The space available for SizeRule_Stretch widgets is any space that wasn't taken up by fixed-sized widgets.
-		const float NonFixedSpace = FMath::Max(MinSize, (Orientation == Orient_Vertical)
-			? AllottedGeometry.GetLocalSize().Y - FixedTotal
-			: AllottedGeometry.GetLocalSize().X - FixedTotal);
-
-		float PositionSoFar = 0.0f;
-
-		// Now that we have the total fixed-space requirement and the total stretch coefficients we can
-		// arrange widgets top-to-bottom or left-to-right (depending on the orientation).
-		for (TPanelChildrenConstIterator<SlotType> It(Children, Orientation, InLayoutFlow); It; ++It)
-		{
-			const SlotType& CurChild = *It;
-			const EVisibility ChildVisibility = CurChild.GetWidget()->GetVisibility();
-
-			// Figure out the area allocated to the child in the direction of BoxPanel
-			// The area allocated to the slot is ChildSize + the associated margin.
-			float ChildSize = 0.0f;
-			if (ChildVisibility != EVisibility::Collapsed)
+			for (const FStretchItem& Item : StretchItems)
 			{
-				// The size of the widget depends on its size type
-				if (CurChild.GetSizeRule() == FSizeParam::SizeRule_Stretch)
+				if (Item.SizeRule == FSizeParam::SizeRule_StretchContent
+					&& !Item.bFrozen)
 				{
-					if (StretchCoefficientTotal > 0.0f)
+					// Items are grown proportional to their stretch value.
+					GrowStretchCoefficientTotal += Item.GrowStretchValue;
+					// Items are shrank proportional to their stretch value and size. This is to emulate the flexbox behavior.
+					ShrinkStretchCoefficientTotal += Item.ShrinkStretchValue * Item.BasisSize;
+				}
+			}
+
+			const float StretchCoefficientTotal = bIsGrowing
+				? GrowStretchCoefficientTotal
+				: ShrinkStretchCoefficientTotal;
+			
+			// If all items are frozen, or no space to distribute, stop.
+			if (StretchCoefficientTotal < UE_KINDA_SMALL_NUMBER
+				|| FMath::Abs(AvailableSpace) < UE_KINDA_SMALL_NUMBER)
+			{
+				break;
+			}
+
+			for (FStretchItem& Item : StretchItems)
+			{
+				if (Item.SizeRule == FSizeParam::SizeRule_StretchContent
+					&& !Item.bFrozen)
+				{
+					const float SizeAdjust = bIsGrowing
+						? (AvailableSpace * (Item.GrowStretchValue / GrowStretchCoefficientTotal))
+						: (AvailableSpace * (Item.ShrinkStretchValue * Item.BasisSize / ShrinkStretchCoefficientTotal));
+					
+					constexpr float MinSize = 0.0f;
+					const float MaxSize = Item.MaxSize;
+					const bool bHasMaxConstraint = MaxSize > 0.0f; 
+
+					if ((Item.Size + SizeAdjust) <= MinSize)
 					{
-						// Stretch widgets get a fraction of the space remaining after all the fixed-space requirements are met
-						ChildSize = NonFixedSpace * CurChild.GetSizeValue() / StretchCoefficientTotal;
+						// Adjustment goes past min constraint, apply what we can and freeze since the item cannot change anymore.
+						AvailableSpace -= MinSize - Item.Size;
+						Item.Size = MinSize;
+						Item.bFrozen = true;
+					}
+					else if (bHasMaxConstraint
+						&& (Item.Size + SizeAdjust) >= MaxSize)
+					{
+						// Adjustment goes past max constraint, apply what we can and freeze since the item cannot change anymore.
+						AvailableSpace -= MaxSize - Item.Size;
+						Item.Size = MaxSize;
+						Item.bFrozen = true;
+					}
+					else
+					{
+						// Within constraints, adjust.
+						AvailableSpace -= SizeAdjust;
+						Item.Size += SizeAdjust;
 					}
 				}
-				else
-				{
-					const FVector2f ChildDesiredSize = CurChild.GetWidget()->GetDesiredSize();
-
-					// Auto-sized widgets get their desired-size value
-					ChildSize = (Orientation == Orient_Vertical)
-						? ChildDesiredSize.Y
-						: ChildDesiredSize.X;
-				}
-
-				// Clamp to the max size if it was specified
-				float MaxSize = CurChild.GetMaxSize();
-				if (MaxSize > 0.0f)
-				{
-					ChildSize = FMath::Min(MaxSize, ChildSize);
-				}
 			}
+		}
+	}
+	
+	// Now that we have the satisfied size requirements we can
+	// arrange widgets top-to-bottom or left-to-right (depending on the orientation).
+	float PositionSoFar = 0.0f;
 
-			const FMargin SlotPadding(LayoutPaddingWithFlow(InLayoutFlow, CurChild.GetPadding()));
+	for (TPanelChildrenConstIterator<SlotType> It(Children, Orientation, InLayoutFlow); It; ++It)
+	{
+		const SlotType& CurChild = *It;
+		const EVisibility ChildVisibility = CurChild.GetWidget()->GetVisibility();
 
-			FVector2f SlotSize = (Orientation == Orient_Vertical)
-				? FVector2f(AllottedGeometry.GetLocalSize().X, ChildSize + SlotPadding.template GetTotalSpaceAlong<Orient_Vertical>())
-				: FVector2f(ChildSize + SlotPadding.template GetTotalSpaceAlong<Orient_Horizontal>(), AllottedGeometry.GetLocalSize().Y);
+		// Figure out the area allocated to the child in the direction of BoxPanel
+		// The area allocated to the slot is ChildSize + the associated margin.
+		const float ChildSize = StretchItems[It.GetIndex()].Size;
 
-			// Figure out the size and local position of the child within the slot			
-			AlignmentArrangeResult XAlignmentResult = AlignChild<Orient_Horizontal>(InLayoutFlow, SlotSize.X, CurChild, SlotPadding);
-			AlignmentArrangeResult YAlignmentResult = AlignChild<Orient_Vertical>(SlotSize.Y, CurChild, SlotPadding);
+		const FMargin SlotPadding(LayoutPaddingWithFlow(InLayoutFlow, CurChild.GetPadding()));
 
-			const FVector2f LocalPosition = (Orientation == Orient_Vertical)
-				? FVector2f(XAlignmentResult.Offset, PositionSoFar + YAlignmentResult.Offset + InOffset)
-				: FVector2f(PositionSoFar + XAlignmentResult.Offset + InOffset, YAlignmentResult.Offset);
+		FVector2f SlotSize = (Orientation == Orient_Vertical)
+			? FVector2f(AllottedGeometry.GetLocalSize().X, ChildSize + SlotPadding.template GetTotalSpaceAlong<Orient_Vertical>())
+			: FVector2f(ChildSize + SlotPadding.template GetTotalSpaceAlong<Orient_Horizontal>(), AllottedGeometry.GetLocalSize().Y);
 
-			const FVector2f LocalSize = FVector2f(XAlignmentResult.Size, YAlignmentResult.Size);
+		// Figure out the size and local position of the child within the slot			
+		const AlignmentArrangeResult XAlignmentResult = AlignChild<Orient_Horizontal>(InLayoutFlow, SlotSize.X, CurChild, SlotPadding);
+		const AlignmentArrangeResult YAlignmentResult = AlignChild<Orient_Vertical>(SlotSize.Y, CurChild, SlotPadding);
 
-			// Add the information about this child to the output list (ArrangedChildren)
-			ArrangedChildren.AddWidget(ChildVisibility, AllottedGeometry.MakeChild(
-				// The child widget being arranged
-				CurChild.GetWidget(),
-				// Child's local position (i.e. position within parent)
-				LocalPosition,
-				// Child's size
-				LocalSize
-			));
+		const FVector2f LocalPosition = (Orientation == Orient_Vertical)
+			? FVector2f(XAlignmentResult.Offset, PositionSoFar + YAlignmentResult.Offset + InOffset)
+			: FVector2f(PositionSoFar + XAlignmentResult.Offset + InOffset, YAlignmentResult.Offset);
 
-			if (ChildVisibility != EVisibility::Collapsed)
-			{
-				// Offset the next child by the size of the current child and any post-child (bottom/right) margin
-				PositionSoFar += (Orientation == Orient_Vertical) ? SlotSize.Y : SlotSize.X;
-			}
+		const FVector2f LocalSize = FVector2f(XAlignmentResult.Size, YAlignmentResult.Size);
+
+		// Add the information about this child to the output list (ArrangedChildren)
+		ArrangedChildren.AddWidget(ChildVisibility, AllottedGeometry.MakeChild(
+			// The child widget being arranged
+			CurChild.GetWidget(),
+			// Child's local position (i.e. position within parent)
+			LocalPosition,
+			// Child's size
+			LocalSize
+		));
+
+		if (ChildVisibility != EVisibility::Collapsed)
+		{
+			// Offset the next child by the size of the current child and any post-child (bottom/right) margin
+			PositionSoFar += (Orientation == Orient_Vertical) ? SlotSize.Y : SlotSize.X;
 		}
 	}
 }

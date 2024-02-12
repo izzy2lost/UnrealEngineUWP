@@ -47,6 +47,7 @@ protected:
 			: TBasicLayoutWidgetSlot<SlotType>(HAlign_Fill, VAlign_Fill)
 			, SizeRule(FSizeParam::SizeRule_Stretch)
 			, SizeValue(*this, 1.f)
+			, ShrinkSizeValue(*this, -1.f) // Negative means unset, SizeValue is used instead.
 			, MaxSize(*this, 0.0f)
 		{ }
 
@@ -70,6 +71,8 @@ protected:
 			SLATE_ADD_SLOT_ATTRIBUTE_DEFINITION_WITH_NAME(TSlot<SlotType>, AttributeInitializer, "Slot.MaxSize", MaxSize, EInvalidateWidgetReason::Layout);
 			SLATE_ADD_SLOT_ATTRIBUTE_DEFINITION_WITH_NAME(TSlot<SlotType>, AttributeInitializer, "Slot.SizeValue", SizeValue, EInvalidateWidgetReason::Layout)
 				.UpdatePrerequisite("Slot.MaxSize");
+			SLATE_ADD_SLOT_ATTRIBUTE_DEFINITION_WITH_NAME(TSlot<SlotType>, AttributeInitializer, "Slot.ShrinkSizeValue", ShrinkSizeValue, EInvalidateWidgetReason::Layout)
+				.UpdatePrerequisite("Slot.MaxSize");
 		}
 
 		/** Get the space rule this slot should occupy along panel's direction. */
@@ -78,10 +81,23 @@ protected:
 			return SizeRule;
 		}
 
-		/** Get the space rule value this slot should occupy along panel's direction. */
+		/**
+		 * Get the size parameter for the space rule.
+		 * Used for size rule SizeRule_Stretch and SizeRule_StretchContent. 
+		 */
 		float GetSizeValue() const
 		{
 			return SizeValue.Get();
+		}
+
+		/**
+		 * Get the size parameter for the space rule, used when the slot size is shrinking below desired size.
+		 * Used for size rule SizeRule_StretchContent.
+		 */
+		float GetShrinkSizeValue() const
+		{
+			const float Value = ShrinkSizeValue.Get();
+			return Value < 0.0f ? GetSizeValue() : Value;
 		}
 
 		/** Get the max size the slot can be.*/
@@ -91,23 +107,49 @@ protected:
 		}
 
 	public:
-		/** Set the size Param of the slot, It could be a FStretch or a FAuto. */
+		/** Set the size Param of the slot, It could be a FStretch, FStretchContent, or a FAuto. */
 		void SetSizeParam(FSizeParam InSizeParam)
 		{
 			SizeRule = InSizeParam.SizeRule;
 			SizeValue.Assign(*this, MoveTemp(InSizeParam.Value));
+			if (InSizeParam.ShrinkValue.IsSet())
+			{
+				ShrinkSizeValue.Assign(*this, MoveTemp(InSizeParam.ShrinkValue));
+			}
+			else
+			{
+				// Negative value means to use size value for shrink and grow.
+				ShrinkSizeValue.Set(*this, -1.f);
+			}
 		}
 
-		/** The widget's DesiredSize will be used as the space required. */
+		/**
+		 * The widget's DesiredSize will be used as the space required.
+		 */
 		void SetSizeToAuto()
 		{
 			SetSizeParam(FAuto());
 		}
 
-		/** The available space will be distributed proportionately. */
-		void SetSizeToStretch(TAttribute<float> StretchCoefficient)
+		/**
+		 * The available space will be distributed proportionately to each slots stretch coefficient.
+		 * A slot with coefficient of 2 will get assigned twice as much available space as slot with coefficient 1. 
+		 * @param InStretchCoefficient Stretch coefficient for this slot.  
+		 */
+		void SetSizeToStretch(TAttribute<float> InStretchCoefficient)
 		{
-			SetSizeParam(FStretch(MoveTemp(StretchCoefficient)));
+			SetSizeParam(FStretch(MoveTemp(InStretchCoefficient)));
+		}
+
+		/**
+		 * The widget's content size is adjusted proportionally to fit the available space.
+		 * The slots size starts at DesiredSize, and a slot with coefficient of 2 will get adjusted twice as much as slot with coefficient 1 to fit the available space.
+		 * @param InStretchCoefficient Stretch coefficient for this slot.
+		 * @param InShrinkStretchCoefficient If specified, this stretch coefficient is used when the slots is shrinking below desired size. Otherwise InStretchCoefficient is used for both shrink and grow.  
+		 */
+		void SetSizeToStretchContent(TAttribute<float> InStretchCoefficient, TAttribute<float> InShrinkStretchCoefficient = TAttribute<float>())
+		{
+			SetSizeParam(FStretchContent(MoveTemp(InStretchCoefficient), MoveTemp(InShrinkStretchCoefficient)));
 		}
 
 		/** Set the max size in SlateUnit this slot can be. */
@@ -117,19 +159,14 @@ protected:
 		}
 
 	private:
-		/**
-		 * How much space this slot should occupy along panel's direction.
-		 * When SizeRule is SizeRule_Auto, the widget's DesiredSize will be used as the space required.
-		 * When SizeRule is SizeRule_Stretch, the available space will be distributed proportionately between
-		 * peer Widgets depending on the Value property. Available space is space remaining after all the
-		 * peers' SizeRule_Auto requirements have been satisfied.
-		 */
-
-		/** The sizing rule to use. */
+		/** The sizing rule to use, see ESizeRule for more info how the different rules work. */
 		FSizeParam::ESizeRule SizeRule;
 
 		/** The actual value this size parameter stores. */
 		typename TBasicLayoutWidgetSlot<SlotType>::template TSlateSlotAttribute<float> SizeValue;
+
+		/** The actual value this size parameter stores, used for shrinking (negative if not defined, use SizeValue). */
+		typename TBasicLayoutWidgetSlot<SlotType>::template TSlateSlotAttribute<float> ShrinkSizeValue;
 
 		/** The max size that this slot can be (0 if no max) */
 		typename TBasicLayoutWidgetSlot<SlotType>::template TSlateSlotAttribute<float> MaxSize;
@@ -235,18 +272,38 @@ public:
 	{
 	public:
 		SLATE_SLOT_BEGIN_ARGS(FSlot, SBoxPanel::TSlot<FSlot>)
-			/** The widget's DesiredSize will be used as the space required. */
+			/**
+			 * The widget's DesiredSize will be used as the space required.
+			 */
 			FSlotArguments& AutoWidth()
 			{
 				_SizeParam = FAuto();
 				return Me();
 			}
-			/** The available space will be distributed proportionately. */
+		
+			/**
+			 * The available space will be distributed proportionately to each slots stretch coefficient.
+			 * A slot with coefficient of 2 will get assigned twice as much available space as slot with coefficient 1. 
+			 * @param InStretchCoefficient Stretch coefficient for this slot.  
+			 */
 			FSlotArguments& FillWidth(TAttribute<float> InStretchCoefficient)
 			{
 				_SizeParam = FStretch(MoveTemp(InStretchCoefficient));
 				return Me();
 			}
+		
+			/**
+			 * The widget's content size is adjusted proportionally to fit the available space.
+			 * The slots size starts at DesiredSize, and a slot with coefficient of 2 will get adjusted twice as much as slot with coefficient 1 to fit the available space.
+			 * @param InStretchCoefficient Stretch coefficient for this slot.
+			 * @param InShrinkStretchCoefficient If specified, this stretch coefficient is used when the slots is shrinking below desired size. Otherwise InStretchCoefficient is used for both shrink and grow.  
+			 */
+			FSlotArguments& FillContentWidth(TAttribute<float> InStretchCoefficient, TAttribute<float> InShrinkStretchCoefficient = TAttribute<float>())
+			{
+				_SizeParam = FStretchContent(MoveTemp(InStretchCoefficient), MoveTemp(InShrinkStretchCoefficient));
+				return Me();
+			}
+		
 			/** Set the max size in SlateUnit this slot can be. */
 			FSlotArguments& MaxWidth(TAttribute<float> InMaxWidth)
 			{
@@ -255,16 +312,33 @@ public:
 			}
 		SLATE_SLOT_END_ARGS()
 
-		/** The widget's DesiredSize will be used as the space required. */
+		/**
+		 * The widget's DesiredSize will be used as the space required.
+		 */
 		void SetAutoWidth()
 		{
 			SetSizeToAuto();
 		}
 
-		/** The available space will be distributed proportionately. */
+		/**
+		 * The available space will be distributed proportionately to each slots stretch coefficient.
+		 * A slot with coefficient of 2 will get assigned twice as much available space as slot with coefficient 1. 
+		 * @param InStretchCoefficient Stretch coefficient for this slot.  
+		 */
 		void SetFillWidth(TAttribute<float> InStretchCoefficient)
 		{
 			SetSizeToStretch(MoveTemp(InStretchCoefficient));
+		}
+
+		/**
+		 * The widget's content size is adjusted proportionally to fit the available space.
+		 * The slots size starts at DesiredSize, and a slot with coefficient of 2 will get adjusted twice as much as slot with coefficient 1 to fit the available space.
+		 * @param InStretchCoefficient Stretch coefficient for this slot.
+		 * @param InShrinkStretchCoefficient If specified, this stretch coefficient is used when the slots is shrinking below desired size. Otherwise InStretchCoefficient is used for both shrink and grow.  
+		 */
+		void SetFillContentWidth(TAttribute<float> InStretchCoefficient, TAttribute<float> InShrinkStretchCoefficient = TAttribute<float>())
+		{
+			SetSizeToStretchContent(MoveTemp(InStretchCoefficient), MoveTemp(InShrinkStretchCoefficient));
 		}
 
 		/** Set the max size in SlateUnit this slot can be. */
@@ -338,18 +412,39 @@ public:
 	{
 	public:
 		SLATE_SLOT_BEGIN_ARGS(FSlot, SBoxPanel::TSlot<FSlot>)
-			/** The widget's DesiredSize will be used as the space required. */
+		
+			/**
+			 * The widget's DesiredSize will be used as the space required.
+			 */
 			FSlotArguments& AutoHeight()
 			{
 				_SizeParam = FAuto();
 				return Me();
 			}
-			/** The available space will be distributed proportionately. */
+		
+			/**
+			 * The available space will be distributed proportionately to each slots stretch coefficient.
+			 * A slot with coefficient of 2 will get assigned twice as much available space as slot with coefficient 1. 
+			 * @param InStretchCoefficient Stretch coefficient for this slot.  
+			 */
 			FSlotArguments& FillHeight(TAttribute<float> InStretchCoefficient)
 			{
 				_SizeParam = FStretch(MoveTemp(InStretchCoefficient));
 				return Me();
 			}
+		
+			/**
+			 * The widget's content size is adjusted proportionally to fit the available space.
+			 * The slots size starts at DesiredSize, and a slot with coefficient of 2 will get adjusted twice as much as slot with coefficient 1 to fit the available space.
+			 * @param InStretchCoefficient Stretch coefficient for this slot.
+			 * @param InShrinkStretchCoefficient If specified, this stretch coefficient is used when the slots is shrinking below desired size. Otherwise InStretchCoefficient is used for both shrink and grow.  
+			 */
+			FSlotArguments& FillContentHeight(TAttribute<float> InStretchCoefficient, TAttribute<float> InShrinkStretchCoefficient = TAttribute<float>())
+			{
+				_SizeParam = FStretchContent(MoveTemp(InStretchCoefficient), MoveTemp(InShrinkStretchCoefficient));
+				return Me();
+			}
+			
 			/** Set the max size in SlateUnit this slot can be. */
 			FSlotArguments& MaxHeight(TAttribute<float> InMaxHeight)
 			{
@@ -358,16 +453,33 @@ public:
 			}
 		SLATE_SLOT_END_ARGS()
 
-		/** The widget's DesiredSize will be used as the space required. */
+		/**
+		 * The widget's DesiredSize will be used as the space required.
+		 */
 		void SetAutoHeight()
 		{
 			SetSizeToAuto();
 		}
 
-		/** The available space will be distributed proportionately. */
+		/**
+		 * The available space will be distributed proportionately to each slots stretch coefficient.
+		 * A slot with coefficient of 2 will get assigned twice as much available space as slot with coefficient 1. 
+		 * @param InStretchCoefficient Stretch coefficient for this slot.  
+		 */
 		void SetFillHeight(TAttribute<float> InStretchCoefficient)
 		{
 			SetSizeToStretch(MoveTemp(InStretchCoefficient));
+		}
+
+		/**
+		 * The widget's content size is adjusted proportionally to fit the available space.
+		 * The slots size starts at DesiredSize, and a slot with coefficient of 2 will get adjusted twice as much as slot with coefficient 1 to fit the available space.
+		 * @param InStretchCoefficient Stretch coefficient for this slot.
+		 * @param InShrinkStretchCoefficient If specified, this stretch coefficient is used when the slots is shrinking below desired size. Otherwise InStretchCoefficient is used for both shrink and grow.  
+		 */
+		void SetFillContentHeight(TAttribute<float> InStretchCoefficient, TAttribute<float> InShrinkStretchCoefficient = TAttribute<float>())
+		{
+			SetSizeToStretchContent(MoveTemp(InStretchCoefficient), MoveTemp(InShrinkStretchCoefficient));
 		}
 
 		/** Set the max size in SlateUnit this slot can be. */
@@ -442,16 +554,35 @@ public:
 	{
 	public:
 		SLATE_SLOT_BEGIN_ARGS(FSlot, SBoxPanel::TSlot<FSlot>)
-			/** The widget's DesiredSize will be used as the space required. */
+			/**
+			 * The widget's DesiredSize will be used as the space required.
+			 */
 			FSlotArguments& AutoSize()
 			{
 				_SizeParam = FAuto();
 				return Me();
 			}
-			/** The available space will be distributed proportionately. */
+		
+			/**
+			 * The available space will be distributed proportionately to each slots stretch coefficient.
+			 * A slot with coefficient of 2 will get assigned twice as much available space as slot with coefficient 1. 
+			 * @param InStretchCoefficient Stretch coefficient for this slot.  
+			 */
 			FSlotArguments& FillSize(TAttribute<float> InStretchCoefficient)
 			{
 				_SizeParam = FStretch(MoveTemp(InStretchCoefficient));
+				return Me();
+			}
+		
+			/**
+			 * The widget's content size is adjusted proportionally to fit the available space.
+			 * The slots size starts at DesiredSize, and a slot with coefficient of 2 will get adjusted twice as much as slot with coefficient 1 to fit the available space.
+			 * @param InStretchCoefficient Stretch coefficient for this slot.
+			 * @param InShrinkStretchCoefficient If specified, this stretch coefficient is used when the slots is shrinking below desired size. Otherwise InStretchCoefficient is used for both shrink and grow.  
+			 */
+			FSlotArguments& FillContentSize(TAttribute<float> InStretchCoefficient, TAttribute<float> InShrinkStretchCoefficient = TAttribute<float>())
+			{
+				_SizeParam = FStretchContent(MoveTemp(InStretchCoefficient), MoveTemp(InShrinkStretchCoefficient));
 				return Me();
 			}
 			/** Set the max size in SlateUnit this slot can be. */
