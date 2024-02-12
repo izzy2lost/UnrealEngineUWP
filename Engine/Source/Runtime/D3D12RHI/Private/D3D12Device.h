@@ -183,6 +183,11 @@ public:
 
 	FD3D12Queue(FD3D12Device* Device, ED3D12QueueType QueueType);
 	~FD3D12Queue();
+
+private:
+	// Internal fence which may be used before calling ExecuteCommandLists
+	FD3D12Fence ExecuteCommandListsFence;
+
 };
 
 class FD3D12Device final : public FD3D12SingleNodeGPUObject, public FNoncopyable, public FD3D12AdapterChild

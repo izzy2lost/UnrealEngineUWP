@@ -57,6 +57,14 @@ FD3D12Queue::FD3D12Queue(FD3D12Device* Device, ED3D12QueueType QueueType)
 		IID_PPV_ARGS(Fence.D3DFence.GetInitReference())
 	));
 	Fence.D3DFence->SetName(*FString::Printf(TEXT("%s Queue Fence (GPU %d)"), GetD3DCommandQueueTypeName(QueueType), Device->GetGPUIndex()));
+
+
+	VERIFYD3D12RESULT(Device->GetDevice()->CreateFence(
+		0,
+		D3D12_FENCE_FLAG_NONE,
+		IID_PPV_ARGS(ExecuteCommandListsFence.D3DFence.GetInitReference())
+	));
+	ExecuteCommandListsFence.D3DFence->SetName(*FString::Printf(TEXT("%s ExecuteCommandListsFence (GPU %d)"), GetD3DCommandQueueTypeName(QueueType), Device->GetGPUIndex()));
 }
 
 FD3D12Queue::~FD3D12Queue()
