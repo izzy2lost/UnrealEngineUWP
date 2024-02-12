@@ -1181,7 +1181,8 @@ struct GAMEPLAYABILITIES_API FGameplayTagCountContainer
 	}
 
 	/**
-	* return the count for a specified tag 
+	* return the hierarchical count for a specified tag
+	* e.g. if A.B & A.C were added, GetTagCount("A") would return 2.
 	*
 	* @param Tag			Tag to update
 	*
@@ -1190,6 +1191,24 @@ struct GAMEPLAYABILITIES_API FGameplayTagCountContainer
 	FORCEINLINE int32 GetTagCount(const FGameplayTag& Tag) const
 	{
 		if (const int32* Ptr = GameplayTagCountMap.Find(Tag))
+		{
+			return *Ptr;
+		}
+
+		return 0;
+	}
+
+	/**
+	* return how many times the exact specified tag has been added to the container (ignores the tag hierarchy)
+	* e.g. if A.B & A.C were added, GetExplicitTagCount("A") would return 0, and GetExplicitTagCount("A.B") would return 1.
+	*
+	* @param Tag			Tag to update
+	*
+	* @return the count of the passed in tag
+	*/
+	FORCEINLINE int32 GetExplicitTagCount(const FGameplayTag& Tag) const
+	{
+		if (const int32* Ptr = ExplicitTagCountMap.Find(Tag))
 		{
 			return *Ptr;
 		}
