@@ -78,7 +78,10 @@ void FAvaOutlinerModifier::OnVisibilityChanged(EAvaOutlinerVisibilityType InVisi
 {
 	if (InVisibilityType == EAvaOutlinerVisibilityType::Runtime && Modifier.IsValid())
 	{
-		Modifier->SetModifierEnabled(bInNewVisibility);
+		if (const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get())
+		{
+			ModifierSubsystem->EnableModifiers({Modifier.Get()}, bInNewVisibility, true);
+		}
 	}
 }
 

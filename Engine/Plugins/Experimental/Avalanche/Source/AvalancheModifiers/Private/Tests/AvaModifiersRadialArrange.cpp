@@ -3,6 +3,7 @@
 #include "Misc/AutomationTest.h"
 #include "Modifiers/ActorModifierCoreStack.h"
 #include "Modifiers/AvaRadialArrangeModifier.h"
+#include "Subsystems/ActorModifierCoreSubsystem.h"
 #include "Tests/Framework/AvaModifiersTestUtils.h"
 #include "Tests/Framework/AvaTestDynamicMeshActor.h"
 #include "Tests/Framework/AvaTestUtils.h"
@@ -37,11 +38,11 @@ void AvalancheModifiersRadialArrange::Define()
 		InitialParentLocation = ParentActor->GetActorLocation();
 
 		// Set up modifier
+		const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get();
 		const FName ModifierName = ModifierTestUtils->GetModifierName(UAvaRadialArrangeModifier::StaticClass());
 		FActorModifierCoreStackInsertOp InsertOp = ModifierTestUtils->GenerateInsertOp(ModifierName);
-		RadialArrangeModifier = Cast<UAvaRadialArrangeModifier>(
-			ModifierTestUtils->GenerateModifierStackForActor(ParentActor)->InsertModifier(InsertOp)
-		);
+		UActorModifierCoreStack* ModifierStack = ModifierTestUtils->GenerateModifierStackForActor(ParentActor);
+		RadialArrangeModifier = Cast<UAvaRadialArrangeModifier>(ModifierSubsystem->InsertModifier(ModifierStack, InsertOp));
 		InnerRadius = FMath::RandRange(-1000, 1000);
 		RadialArrangeModifier->SetInnerRadius(InnerRadius);
 	});

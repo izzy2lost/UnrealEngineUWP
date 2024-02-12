@@ -270,7 +270,7 @@ int32 UAvaTaperModifier::GetSubdividersCuts() const
 {
 	int32 TotalSubdivisions = 0;
 	
-	if (GetModifierStack() && GetModifierStack()->ContainsModifier("Subdivide"))
+	if (GetModifierStack() && GetModifierStack()->ContainsModifier(UAvaSubdivideModifier::StaticClass()))
 	{
 		TArray<UAvaSubdivideModifier*> SubdivideModifiers;
 		GetModifierStack()->GetClassModifiers<UAvaSubdivideModifier>(SubdivideModifiers);

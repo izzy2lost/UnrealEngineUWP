@@ -8,7 +8,7 @@
 
 /**
 	Singleton actor used to keep all shared data across modifiers instances,
-	there can only be one per world, should not be visible to user
+	there can only be one per level, should not be visible to user
 	Use the modifier subsystem to query objects, do not handle it directly
 */
 UCLASS(NotPlaceable, Hidden, NotBlueprintable, NotBlueprintType)

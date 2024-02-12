@@ -10,13 +10,13 @@
 class USceneComponent;
 
 /** A modifier stack contains modifiers and is also a modifier by itself */
-UCLASS(BlueprintType, DefaultToInstanced, EditInlineNew)
-class ACTORMODIFIERCORE_API UActorModifierCoreStack : public UActorModifierCoreBase
+UCLASS(MinimalAPI, BlueprintType, DefaultToInstanced, EditInlineNew)
+class UActorModifierCoreStack : public UActorModifierCoreBase
 {
 	GENERATED_BODY()
 
 	friend class UActorModifierCoreBase;
-	friend class UActorModifierCoreComponent;
+	friend class UActorModifierCoreSubsystem;
 
 	friend class FActorModifierCoreEditorDetailCustomization;
 	friend class UActorModifierCoreEditorStackCustomization;
@@ -25,25 +25,26 @@ public:
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnModifierUpdated, UActorModifierCoreBase* /** UpdatedItem */)
 
 	/** Called when a modifier is added to the stack */
-	static FOnModifierUpdated OnModifierAddedDelegate;
+	ACTORMODIFIERCORE_API static FOnModifierUpdated OnModifierAddedDelegate;
 
 	/** Called when a modifier is removed from the stack */
-	static FOnModifierUpdated OnModifierRemovedDelegate;
+	ACTORMODIFIERCORE_API static FOnModifierUpdated OnModifierRemovedDelegate;
 
 	/** Called when a modifier is moved in the stack */
-	static FOnModifierUpdated OnModifierMovedDelegate;
+	ACTORMODIFIERCORE_API static FOnModifierUpdated OnModifierMovedDelegate;
 
 	/** Create a new stack by passing the actor and the parent stack if there is one */
 	static UActorModifierCoreStack* Create(AActor* InActor, UActorModifierCoreStack* InParentStack = nullptr);
 
-	/** Gets all modifiers in the stack */
+	/** Gets all modifiers in this stack, does not recurse */
 	TConstArrayView<UActorModifierCoreBase*> GetModifiers() const
 	{
 		return Modifiers;
 	}
 
-	/** Get modifiers of a specific class only */
-	template <class InModifierType>
+	/** Get modifiers of a specific class only in this stack, does not recurse */
+	template <class InModifierType
+		UE_REQUIRES(std::is_base_of<UActorModifierCoreBase, InModifierType>::value)>
 	void GetClassModifiers(TArray<InModifierType*>& OutModifiers) const
 	{
 		for (const TObjectPtr<UActorModifierCoreBase>& Modifier : Modifiers)
@@ -53,23 +54,58 @@ public:
 				OutModifiers.Add(static_cast<InModifierType*>(Modifier));
 			}
 		}
-	};
+	}
 
-	/** Returns the name of modifiers included in this stack and the ones below */
-	TArray<FName> GetModifierNames() const;
+	/** Gets the first modifier in this stack, does not recurse */
+	ACTORMODIFIERCORE_API UActorModifierCoreBase* GetFirstModifier() const;
 
-	/** Get modifiers with a specific name only */
-	void GetNamedModifiers(const FName& InName, TArray<UActorModifierCoreBase*>& OutModifiers) const;
-
-	/** Gets the first modifier in this stack, could return a stack */
-	UActorModifierCoreBase* GetFirstModifier() const;
-
-	/** Gets the last modifier in this stack, could return a stack */
-	UActorModifierCoreBase* GetLastModifier() const;
+	/** Gets the last modifier in this stack, does not recurse */
+	ACTORMODIFIERCORE_API UActorModifierCoreBase* GetLastModifier() const;
 
 	/** Check that we have a modifier inside this stack, checks also nested stacks */
-	bool ContainsModifier(const FName& InSearchName) const;
-	bool ContainsModifier(const UActorModifierCoreBase* InSearchModifier) const;
+	ACTORMODIFIERCORE_API bool ContainsModifier(const FName& InSearchName, const FActorModifierCoreStackSearchOp& InSearchOptions = FActorModifierCoreStackSearchOp::GetDefault()) const;
+	ACTORMODIFIERCORE_API bool ContainsModifier(const UClass* InSearchClass, const FActorModifierCoreStackSearchOp& InSearchOptions = FActorModifierCoreStackSearchOp::GetDefault()) const;
+	ACTORMODIFIERCORE_API bool ContainsModifier(const UActorModifierCoreBase* InSearchModifier, const FActorModifierCoreStackSearchOp& InSearchOptions = FActorModifierCoreStackSearchOp::GetDefault()) const;
+
+	/** Finds a modifier inside this stack, returns first found, checks also nested stacks */
+	ACTORMODIFIERCORE_API UActorModifierCoreBase* FindModifier(FName InSearchName, const FActorModifierCoreStackSearchOp& InSearchOptions = FActorModifierCoreStackSearchOp::GetDefault()) const;
+	ACTORMODIFIERCORE_API UActorModifierCoreBase* FindModifier(const UClass* InSearchClass, const FActorModifierCoreStackSearchOp& InSearchOptions = FActorModifierCoreStackSearchOp::GetDefault()) const;
+
+	/** Finds modifiers inside this stack, checks also nested stacks */
+	ACTORMODIFIERCORE_API TArray<UActorModifierCoreBase*> FindModifiers(FName InSearchName, const FActorModifierCoreStackSearchOp& InSearchOptions = FActorModifierCoreStackSearchOp::GetDefault()) const;
+	ACTORMODIFIERCORE_API TArray<UActorModifierCoreBase*> FindModifiers(const UClass* InSearchClass, const FActorModifierCoreStackSearchOp& InSearchOptions = FActorModifierCoreStackSearchOp::GetDefault()) const;
+
+	/** This is the root actor stack if we do not have any parent stack */
+	bool IsRootStack() const
+	{
+		return !ModifierStack.IsValid();
+	}
+
+	/** Execute those function when the stack is restored, before executing it again */
+	ACTORMODIFIERCORE_API void ProcessFunctionOnRestore(const TFunction<void()>& InFunction);
+
+	/** Execute those function when the stack is on idle, done with updates */
+	void ProcessFunctionOnIdle(const TFunction<void()>& InFunction);
+
+	/** Process a search function to use before/after position context, stops when false is returned */
+	ACTORMODIFIERCORE_API bool ProcessSearchFunction(TFunctionRef<bool(const UActorModifierCoreBase*)> InFunction, const FActorModifierCoreStackSearchOp& InSearchOptions) const;
+
+	/** Does this stack contains any modifiers */
+	virtual bool IsModifierEmpty() const override
+	{
+		return Modifiers.IsEmpty();
+	}
+
+	/** Set profiling mode for stack and modifiers inside */
+	ACTORMODIFIERCORE_API void SetModifierProfiling(bool bInProfiling);
+
+protected:
+	//~ Begin UObject
+	virtual void PostLoad() override;
+	//~ End UObject
+
+	/** Process a function through each modifier in the stack and also the stacks below, stop when we return false */
+	virtual bool ProcessFunction(TFunctionRef<bool(const UActorModifierCoreBase*)> InFunction, const FActorModifierCoreStackSearchOp& InSearchOptions = FActorModifierCoreStackSearchOp::GetDefault()) const override;
 
 	/** Checks that we have a modifier with this name inside this stack before another modifier, checks also nested stacks */
 	bool ContainsModifierBefore(const FName& InSearchName, const UActorModifierCoreBase* InBeforeModifier) const;
@@ -78,6 +114,9 @@ public:
 	/** Checks that we have a modifier with this name inside this stack after another modifier, checks also nested stacks */
 	bool ContainsModifierAfter(const FName& InSearchName, const UActorModifierCoreBase* InAfterModifier) const;
 	bool ContainsModifierAfter(const UActorModifierCoreBase* InSearchModifier, const UActorModifierCoreBase* InAfterModifier) const;
+
+	/** Checks whether all modifier in this stack are initialized */
+	bool IsModifierStackInitialized() const;
 
 	/** Gets all modifiers found after this one in the stack that depends on this modifier */
 	bool GetDependentModifiers(UActorModifierCoreBase* InModifier, TSet<UActorModifierCoreBase*>& OutDependentModifiers) const;
@@ -99,38 +138,6 @@ public:
 
 	/** Removes all modifiers from this stack in one batch to reduce updates */
 	bool RemoveAllModifiers();
-
-	/** This is the root actor stack if we do not have any parent stack */
-	bool IsRootStack() const
-	{
-		return !ModifierStack.IsValid();
-	}
-
-	/** Execute those function when the stack is restored, before executing it again */
-	void ProcessFunctionOnRestore(const TFunction<void()>& InFunction);
-
-	/** Execute those function when the stack is on idle, done with updates */
-	void ProcessFunctionOnIdle(const TFunction<void()>& InFunction);
-
-	/** Process a function through each modifier in the stack and also the stacks below, stop when we return false */
-	virtual bool ProcessFunction(TFunctionRef<bool(const UActorModifierCoreBase*)> InFunction) const override;
-
-	/** Does this stack contains any modifiers */
-	virtual bool IsModifierEmpty() const override
-	{
-		return Modifiers.IsEmpty();
-	}
-
-	/** Checks whether all modifier in this stack are initialized */
-	bool IsModifierStackInitialized() const;
-
-	/** Set profiling mode for stack and modifiers inside */
-	void SetModifierProfiling(bool bInProfiling);
-
-protected:
-	//~ Begin UObject
-	virtual void PostLoad() override;
-	//~ End UObject
 
 	/** Register this stack to the subsystem to query it later only if root stack */
 	virtual void OnModifierAdded(EActorModifierCoreEnableReason InReason) override;
@@ -163,20 +170,6 @@ protected:
 	UPROPERTY(BlueprintReadOnly, VisibleInstanceOnly, NoClear, Export, Instanced, Category = "Modifiers")
 	TArray<TObjectPtr<UActorModifierCoreBase>> Modifiers;
 
-	/** Contains a copy of modifiers in the stack for this round of execution, useful for restore and for query, can be different from modifiers array */
-	UPROPERTY(Transient, DuplicateTransient, NonTransactional)
-	TArray<TObjectPtr<UActorModifierCoreBase>> CurrentModifiers;
-
-	/** Contains the modifiers that we will execute this round, can be different from modifiers array */
-	UPROPERTY(Transient, DuplicateTransient, NonTransactional)
-	TArray<TObjectPtr<UActorModifierCoreBase>> ExecuteModifiers;
-
-	/** Functions to execute once when the stack is on idle */
-	TArray<TFunction<void()>> OnIdleFunctions;
-
-	/** Functions to execute once when the stack is restored */
-	TArray<TFunction<void()>> OnRestoreFunctions;
-
 private:
 	/** Sets the stack to receive tick events */
 	virtual void OnModifierCDOSetup(FActorModifierCoreMetadata& InMetadata) override;
@@ -202,6 +195,20 @@ private:
 
 	/** Checks for any possible modifier optimization within the stack */
 	void CheckModifierOptimization(bool bInInvalidateAll);
+
+	/** Contains a copy of modifiers in the stack for this round of execution, useful for restore and for query, can be different from modifiers array */
+	UPROPERTY(Transient, DuplicateTransient, NonTransactional)
+	TArray<TObjectPtr<UActorModifierCoreBase>> CurrentModifiers;
+
+	/** Contains the modifiers that we will execute this round, can be different from modifiers array */
+	UPROPERTY(Transient, DuplicateTransient, NonTransactional)
+	TArray<TObjectPtr<UActorModifierCoreBase>> ExecuteModifiers;
+
+	/** Functions to execute once when the stack is on idle */
+	TArray<TFunction<void()>> OnIdleFunctions;
+
+	/** Functions to execute once when the stack is restored */
+	TArray<TFunction<void()>> OnRestoreFunctions;
 
 	/** Enable profiling for the modifiers in this stack */
 	UPROPERTY(EditInstanceOnly, Category="Modifier", meta=(DisplayName="Enable Profiling"))

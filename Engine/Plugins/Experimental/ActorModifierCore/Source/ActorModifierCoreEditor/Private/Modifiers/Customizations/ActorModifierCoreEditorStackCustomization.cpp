@@ -97,7 +97,7 @@ void UActorModifierCoreEditorStackCustomization::CustomizeStackHeader(const FOpe
 
 				if (Modifier && !Modifier->IsModifierStack())
 				{
-					PinnedKeywords.Add(Modifier->GetModifierMetadata().GetCategory().ToString());
+					PinnedKeywords.Add(Modifier->GetModifierCategory().ToString());
 				}
 			}
 		}
@@ -150,8 +150,8 @@ void UActorModifierCoreEditorStackCustomization::CustomizeItemHeader(const FOper
 		// Item keyword for search
 		const TSet<FString> SearchKeywords
 		{
-			Modifier->GetModifierMetadata().GetDisplayName().ToString(),
-			Modifier->GetModifierMetadata().GetCategory().ToString()
+			Modifier->GetModifierName().ToString(),
+			Modifier->GetModifierCategory().ToString()
 		};
 
 		FSlateIcon ModifierIcon = FSlateIconFinder::FindIconForClass(UActorModifierCoreBase::StaticClass());
@@ -292,7 +292,7 @@ bool UActorModifierCoreEditorStackCustomization::OnIsItemDraggable(const FOperat
 
 TOptional<EItemDropZone> UActorModifierCoreEditorStackCustomization::OnItemCanAcceptDrop(const TArray<FOperatorStackEditorItemPtr>& InDraggedItems, const FOperatorStackEditorItemPtr& InDropZoneItem, EItemDropZone InZone)
 {
-	const UActorModifierCoreEditorSubsystem* ExtensionSubsystem = UActorModifierCoreEditorSubsystem::Get();
+	const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get();
 
 	TSet<UActorModifierCoreBase*> DraggedModifiers;
 	for (const FOperatorStackEditorItemPtr& Item : InDraggedItems)
@@ -324,7 +324,7 @@ TOptional<EItemDropZone> UActorModifierCoreEditorStackCustomization::OnItemCanAc
 		TArray<UActorModifierCoreBase*> CloneModifiers;
 
 		const EActorModifierCoreStackPosition Position = InZone == EItemDropZone::AboveItem ? EActorModifierCoreStackPosition::Before : EActorModifierCoreStackPosition::After;
-		ExtensionSubsystem->GetSortedModifiers(DraggedModifiers, DropModifier->GetModifiedActor(), DropModifier, Position, MoveModifiers, CloneModifiers);
+		ModifierSubsystem->GetSortedModifiers(DraggedModifiers, DropModifier->GetModifiedActor(), DropModifier, Position, MoveModifiers, CloneModifiers);
 
 		if (!MoveModifiers.IsEmpty())
 		{
@@ -338,7 +338,6 @@ TOptional<EItemDropZone> UActorModifierCoreEditorStackCustomization::OnItemCanAc
 void UActorModifierCoreEditorStackCustomization::OnDropItem(const TArray<FOperatorStackEditorItemPtr>& InDraggedItems, const FOperatorStackEditorItemPtr& InDropZoneItem, EItemDropZone InZone)
 {
 	const UActorModifierCoreSubsystem* const ModifierSubsystem = UActorModifierCoreSubsystem::Get();
-	const UActorModifierCoreEditorSubsystem* ExtensionSubsystem = UActorModifierCoreEditorSubsystem::Get();
 
 	TSet<UActorModifierCoreBase*> Modifiers;
 	for (const FOperatorStackEditorItemPtr& Item : InDraggedItems)
@@ -366,7 +365,7 @@ void UActorModifierCoreEditorStackCustomization::OnDropItem(const TArray<FOperat
 	{
 		UActorModifierCoreBase* DropModifier = InDropZoneItem->Get<UActorModifierCoreBase>();
 
-		const UActorModifierCoreStack* const TargetStack = DropModifier->GetModifierStack();
+		UActorModifierCoreStack* const TargetStack = DropModifier->GetModifierStack();
 
 		if (!IsValid(ModifierSubsystem) || !IsValid(TargetStack))
 		{
@@ -379,7 +378,7 @@ void UActorModifierCoreEditorStackCustomization::OnDropItem(const TArray<FOperat
 		TArray<UActorModifierCoreBase*> CloneModifiers;
 
 		const EActorModifierCoreStackPosition Position = InZone == EItemDropZone::AboveItem ? EActorModifierCoreStackPosition::Before : EActorModifierCoreStackPosition::After;
-		ExtensionSubsystem->GetSortedModifiers(Modifiers, TargetActor, DropModifier, Position, MoveModifiers, CloneModifiers);
+		ModifierSubsystem->GetSortedModifiers(Modifiers, TargetActor, DropModifier, Position, MoveModifiers, CloneModifiers);
 
 		if (MoveModifiers.IsEmpty())
 		{
@@ -387,7 +386,13 @@ void UActorModifierCoreEditorStackCustomization::OnDropItem(const TArray<FOperat
 		}
 
 		FText FailReason;
-		ExtensionSubsystem->MoveModifiers(MoveModifiers, DropModifier, Position, &FailReason);
+		FActorModifierCoreStackMoveOp MoveOp;
+		MoveOp.bShouldTransact = true;
+		MoveOp.FailReason = &FailReason;
+		MoveOp.MovePosition = Position;
+		MoveOp.MovePositionContext = DropModifier;
+
+		ModifierSubsystem->MoveModifiers(MoveModifiers, TargetStack, MoveOp);
 
 		if (!FailReason.IsEmpty())
 		{
@@ -582,9 +587,9 @@ void UActorModifierCoreEditorStackCustomization::RemoveModifierAction(UActorModi
 		return;
 	}
 
-	const UActorModifierCoreEditorSubsystem* ModifierEditorSubsystem = UActorModifierCoreEditorSubsystem::Get();
+	const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get();
 
-	if (!IsValid(ModifierEditorSubsystem))
+	if (!IsValid(ModifierSubsystem))
 	{
 		return;
 	}
@@ -596,7 +601,7 @@ void UActorModifierCoreEditorStackCustomization::RemoveModifierAction(UActorModi
 			InModifier->GetModifiedActor()
 		};
 
-		ModifierEditorSubsystem->RemoveActorsModifiers(Actors);
+		ModifierSubsystem->RemoveActorsModifiers(Actors, true);
 	}
 	else
 	{
@@ -604,7 +609,11 @@ void UActorModifierCoreEditorStackCustomization::RemoveModifierAction(UActorModi
 		Modifiers.Add(InModifier);
 
 		FText OutFailReason;
-		if (!ModifierEditorSubsystem->RemoveModifiers(Modifiers, &OutFailReason))
+		FActorModifierCoreStackRemoveOp RemoveOp;
+		RemoveOp.bShouldTransact = true;
+		RemoveOp.FailReason = &OutFailReason;
+
+		if (!ModifierSubsystem->RemoveModifiers(Modifiers, RemoveOp))
 		{
 			FNotificationInfo NotificationInfo(OutFailReason);
 			NotificationInfo.ExpireDuration = 3.0f;
@@ -889,8 +898,8 @@ bool UActorModifierCoreEditorStackCustomization::UpdateModifierFromPropertiesHan
 
 bool UActorModifierCoreEditorStackCustomization::AddModifierFromClipboard(TSet<AActor*>& InActors) const
 {
-	const UActorModifierCoreEditorSubsystem* ModifierEditorSubsystem = UActorModifierCoreEditorSubsystem::Get();
-	if (!IsValid(ModifierEditorSubsystem))
+	const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get();
+	if (!IsValid(ModifierSubsystem))
 	{
 		return false;
 	}
@@ -901,7 +910,14 @@ bool UActorModifierCoreEditorStackCustomization::AddModifierFromClipboard(TSet<A
 		const FName ModifierName = ModifierPropertiesWrapper.ModifierName;
 
 		FText OutFailReason;
-		if (!ModifierEditorSubsystem->AddActorsModifiers(ModifierName, InActors, &OutFailReason))
+		FActorModifierCoreStackInsertOp AddOp;
+		AddOp.bShouldTransact = true;
+		AddOp.FailReason = &OutFailReason;
+		AddOp.NewModifierName = ModifierName;
+
+		ModifierSubsystem->AddActorsModifiers(InActors, AddOp);
+
+		if (!OutFailReason.IsEmpty())
 		{
 			FNotificationInfo NotificationInfo(OutFailReason);
 			NotificationInfo.ExpireDuration = 3.0f;

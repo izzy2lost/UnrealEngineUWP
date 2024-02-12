@@ -4,6 +4,7 @@
 #include "Misc/AutomationTest.h"
 #include "Modifiers/ActorModifierCoreStack.h"
 #include "Modifiers/AvaAutoSizeModifier.h"
+#include "Subsystems/ActorModifierCoreSubsystem.h"
 #include "Tests/Framework/AvaModifiersTestUtils.h"
 #include "Tests/Framework/AvaTestDynamicMeshActor.h"
 #include "Tests/Framework/AvaTestUtils.h"
@@ -45,9 +46,11 @@ void AvalancheModifiersAutoSize::Define()
 		InitialModifiedActorBounds = FAvaModifiersActorUtils::GetActorBounds(ModifiedActor);
 
 		// Set up modifier stack
+		const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get();
 		const FName ModifierAutoSizeName = ModifierTestUtils->GetModifierName(UAvaAutoSizeModifier::StaticClass());
 		FActorModifierCoreStackInsertOp InsertOp = ModifierTestUtils->GenerateInsertOp(ModifierAutoSizeName);
-		AutoSizeModifier = Cast<UAvaAutoSizeModifier>(ModifierTestUtils->GenerateModifierStackForActor(ModifiedActor)->InsertModifier(InsertOp));
+		UActorModifierCoreStack* ModifierStack = ModifierTestUtils->GenerateModifierStackForActor(ModifiedActor);
+		AutoSizeModifier = Cast<UAvaAutoSizeModifier>(ModifierSubsystem->InsertModifier(ModifierStack, InsertOp));
 
 		// Set up the modifier
 		AutoSizeModifier->SetReferenceActor(ActorQuery);

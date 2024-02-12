@@ -84,7 +84,7 @@ enum class EActorModifierCoreStatus : uint8
 };
 
 /** Metadata for each modifier CDO, modifier instance will share same metadata as CDO */
-struct ACTORMODIFIERCORE_API FActorModifierCoreMetadata
+struct FActorModifierCoreMetadata
 {
 	static inline const FName DefaultCategory = TEXT("Default");
 #if WITH_EDITOR
@@ -110,34 +110,34 @@ struct ACTORMODIFIERCORE_API FActorModifierCoreMetadata
 	}
 
 	/** Set name of this modifier, should only be set once */
-	FActorModifierCoreMetadata& SetName(FName InName);
+	ACTORMODIFIERCORE_API FActorModifierCoreMetadata& SetName(FName InName);
 
 	/** Set Category group of this modifier, should only be set once */
-	FActorModifierCoreMetadata& SetCategory(FName InCategory);
+	ACTORMODIFIERCORE_API FActorModifierCoreMetadata& SetCategory(FName InCategory);
 
 	/** Allow modifier to tick to update when IsModifierDirtyable returns true */
-	FActorModifierCoreMetadata& AllowTick(bool bInAllowed);
+	ACTORMODIFIERCORE_API FActorModifierCoreMetadata& AllowTick(bool bInAllowed);
 
 	/** Allows multiple modifiers of the same type in the same stack */
-	FActorModifierCoreMetadata& AllowMultiple(bool bInAllowed);
+	ACTORMODIFIERCORE_API FActorModifierCoreMetadata& AllowMultiple(bool bInAllowed);
 
 	/** Add a modifier dependency for this modifier, will be added when this modifier is added */
-	FActorModifierCoreMetadata& AddDependency(const FName& InModifierName);
+	ACTORMODIFIERCORE_API FActorModifierCoreMetadata& AddDependency(const FName& InModifierName);
 
 	/** Disallows this modifier before another modifier */
-	FActorModifierCoreMetadata& DisallowBefore(const FName& InModifierName);
+	ACTORMODIFIERCORE_API FActorModifierCoreMetadata& DisallowBefore(const FName& InModifierName);
 
 	/** Disallows this modifier after another modifier */
-	FActorModifierCoreMetadata& DisallowAfter(const FName& InModifierName);
+	ACTORMODIFIERCORE_API FActorModifierCoreMetadata& DisallowAfter(const FName& InModifierName);
 
 	/** Avoid usage of this modifier before another modifier category */
-	FActorModifierCoreMetadata& AvoidBeforeCategory(const FName& InCategory);
+	ACTORMODIFIERCORE_API FActorModifierCoreMetadata& AvoidBeforeCategory(const FName& InCategory);
 
 	/** Avoid usage of this modifier after another modifier category */
-	FActorModifierCoreMetadata& AvoidAfterCategory(const FName& InCategory);
+	ACTORMODIFIERCORE_API FActorModifierCoreMetadata& AvoidAfterCategory(const FName& InCategory);
 
 	/** Sets the usage rule for this modifier, if it passes it will be available for this actor */
-	FActorModifierCoreMetadata& SetCompatibilityRule(const TFunction<bool(const AActor*)>& InModifierRule);
+	ACTORMODIFIERCORE_API FActorModifierCoreMetadata& SetCompatibilityRule(const TFunction<bool(const AActor*)>& InModifierRule);
 
 	/** Create the modifier instance */
 	UActorModifierCoreBase* CreateModifierInstance(UActorModifierCoreStack* InStack) const;
@@ -213,15 +213,15 @@ struct ACTORMODIFIERCORE_API FActorModifierCoreMetadata
 	bool ShouldAvoidAfter(FName InCategory) const;
 
 #if WITH_EDITOR
-	FActorModifierCoreMetadata& SetDisplayName(const FText& InName);
+	ACTORMODIFIERCORE_API FActorModifierCoreMetadata& SetDisplayName(const FText& InName);
 
-	FActorModifierCoreMetadata& SetDescription(const FText& InDescription);
+	ACTORMODIFIERCORE_API FActorModifierCoreMetadata& SetDescription(const FText& InDescription);
 
-	FActorModifierCoreMetadata& SetColor(const FLinearColor& InColor);
+	ACTORMODIFIERCORE_API FActorModifierCoreMetadata& SetColor(const FLinearColor& InColor);
 
-	FActorModifierCoreMetadata& SetIcon(const FSlateIcon& InIcon);
+	ACTORMODIFIERCORE_API FActorModifierCoreMetadata& SetIcon(const FSlateIcon& InIcon);
 
-	FActorModifierCoreMetadata& SetHidden(bool bInHidden);
+	ACTORMODIFIERCORE_API FActorModifierCoreMetadata& SetHidden(bool bInHidden);
 
 	bool IsHidden() const
 	{
@@ -250,7 +250,7 @@ struct ACTORMODIFIERCORE_API FActorModifierCoreMetadata
 #endif
 
 private:
-	void SetupProfilerInstanceInternal(TSharedPtr<FActorModifierCoreProfiler> InProfiler, UActorModifierCoreBase* InModifier, const FName& InProfilerType) const;
+	ACTORMODIFIERCORE_API void SetupProfilerInstanceInternal(TSharedPtr<FActorModifierCoreProfiler> InProfiler, UActorModifierCoreBase* InModifier, const FName& InProfilerType) const;
 
 	/** Unique name to use for this modifier */
 	FName Name;
@@ -323,6 +323,10 @@ struct FActorModifierCoreStackCloneOp
 	FText* FailReason = nullptr;
 
 	TArray<UActorModifierCoreBase*>* AddedDependencies = nullptr;
+
+#if WITH_EDITOR
+	bool bShouldTransact = false;
+#endif
 };
 
 /** Modifier stack insert/add operation */
@@ -337,6 +341,10 @@ struct FActorModifierCoreStackInsertOp
 	FText* FailReason = nullptr;
 
 	TArray<UActorModifierCoreBase*>* AddedDependencies = nullptr;
+
+#if WITH_EDITOR
+	bool bShouldTransact = false;
+#endif
 };
 
 /** Modifier stack move operation */
@@ -349,6 +357,10 @@ struct FActorModifierCoreStackMoveOp
 	UActorModifierCoreBase* MovePositionContext = nullptr;
 
 	FText* FailReason = nullptr;
+
+#if WITH_EDITOR
+	bool bShouldTransact = false;
+#endif
 };
 
 /** Modifier stack remove operation */
@@ -361,6 +373,28 @@ struct FActorModifierCoreStackRemoveOp
 	TArray<UActorModifierCoreBase*>* RemovedDependencies = nullptr;
 
 	FText* FailReason = nullptr;
+
+#if WITH_EDITOR
+	bool bShouldTransact = false;
+#endif
+};
+
+/** Modifier stack search operation */
+struct FActorModifierCoreStackSearchOp
+{
+	ACTORMODIFIERCORE_API static const FActorModifierCoreStackSearchOp& GetDefault();
+
+	/** Position to look relative to a context */
+	EActorModifierCoreStackPosition Position = EActorModifierCoreStackPosition::After;
+
+	/** Position context to operate search */
+	UActorModifierCoreBase* PositionContext = nullptr;
+
+	/** Skip stacks during search to only focus on modifiers */
+	bool bSkipStack = true;
+
+	/** Also looks in nested stacks */
+	bool bRecurse = true;
 };
 
 /** Will lock modifiers execution during lifetime of this struct */

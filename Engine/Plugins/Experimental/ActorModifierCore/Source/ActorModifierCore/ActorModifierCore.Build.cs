@@ -27,6 +27,13 @@ public class ActorModifierCore : ModuleRules
 				"TraceLog"
 			}
 		);
-		
+
+		if (Target.Type == TargetRules.TargetType.Editor)
+		{
+			PrivateDependencyModuleNames.AddRange(new string[]
+			{
+				"UnrealEd"
+			});
+		}
 	}
 }

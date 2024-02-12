@@ -423,7 +423,7 @@ UAvaMask2DBaseModifier* UAvaMaskEditorMode::FindOrAddMaskModifier(AActor* InActo
 			FActorModifierCoreStackInsertOp InsertOp;
 			InsertOp.NewModifierName = MaskModifierName;
 			
-			MaskModifier = Cast<UAvaMask2DBaseModifier>(ModifierStack->InsertModifier(InsertOp));
+			MaskModifier = Cast<UAvaMask2DBaseModifier>(ModifierSubsystem->InsertModifier(ModifierStack, InsertOp));
 			if (!MaskModifier)
 			{
 				UE_LOG(LogAvalancheMaskEditor, Error, TEXT("Error inserting Mask modifier."));
@@ -446,16 +446,21 @@ bool UAvaMaskEditorMode::CanMaskSelected(AActor* InSelectedActor)
 	{
 		if (const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get())
 		{
-			const FName MaskModifierName = GetDefault<UAvaMask2DBaseModifier>()->GetModifierName();
-			
+			/*
+			 * Todo : this will always be none since UAvaMask2DBaseModifier is abstract and not registered as valid modifier,
+			 * should change this to UAvaMask2DReadModifier or UAvaMask2DWriteModifier based on context and avoid using abstract base class
+			 */
+
+			const FName MaskModifierName = ModifierSubsystem->GetRegisteredModifierName(UAvaMask2DBaseModifier::StaticClass());
+
 			if (const UActorModifierCoreStack* ExistingModifierStack = ModifierSubsystem->GetActorModifierStack(InActor))
 			{
-				if (ExistingModifierStack->ContainsModifier(MaskModifierName))
+				if (ExistingModifierStack->ContainsModifier(UAvaMask2DBaseModifier::StaticClass()))
 				{
 					return true;
-				}				
+				}
 			}
-			 
+ 
 			const TSet<FName> AllowedModifiers = ModifierSubsystem->GetAllowedModifiers(InActor);
 			if (AllowedModifiers.Contains(MaskModifierName))
 			{

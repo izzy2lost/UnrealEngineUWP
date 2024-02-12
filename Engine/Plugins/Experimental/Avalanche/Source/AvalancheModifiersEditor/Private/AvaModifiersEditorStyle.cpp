@@ -38,7 +38,7 @@ FAvaModifiersEditorStyle::FAvaModifiersEditorStyle()
 	if (const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get())
 	{
 		// loop through already registered factories if subsystem exists
-		ModifierSubsystem->ForEachModifierMetadata([this](FActorModifierCoreMetadata& InMetadata)->bool
+		ModifierSubsystem->ForEachModifierMetadata([this](const FActorModifierCoreMetadata& InMetadata)->bool
 		{
 			OnModifierClassRegistered(InMetadata);
 			return true;

@@ -8,20 +8,23 @@
 class UActorModifierCoreStack;
 
 /** Component that contains a modifier stack and can be added on any actor */
-UCLASS(ClassGroup="Modifiers", BlueprintType, EditInlineNew, DefaultToInstanced, meta=(BlueprintSpawnableComponent), HideCategories=(Tags, Activation, Cooking, AssetUserData, Collision))
-class ACTORMODIFIERCORE_API UActorModifierCoreComponent : public UActorComponent
+UCLASS(MinimalAPI, ClassGroup="Modifiers", BlueprintType, EditInlineNew, DefaultToInstanced, meta=(BlueprintSpawnableComponent), HideCategories=(Tags, Activation, Cooking, AssetUserData, Collision))
+class UActorModifierCoreComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
 public:
-	UActorModifierCoreComponent();
-	virtual ~UActorModifierCoreComponent() override;
-
-	UActorModifierCoreStack* GetModifierStack() const { return ModifierStack; }
-
 	/** Create this component for a specific actor and exposes it to the editor and for serialization */
 	static UActorModifierCoreComponent* CreateAndExposeComponent(AActor* InParentActor);
 
+	UActorModifierCoreComponent();
+
+	UActorModifierCoreStack* GetModifierStack() const
+	{
+		return ModifierStack;
+	}
+
+protected:
 	//~ Begin UActorComponent
 	virtual void OnComponentCreated() override;
 	virtual void OnComponentDestroyed(bool bDestroyingHierarchy) override;
@@ -33,7 +36,6 @@ public:
 #endif
 	//~ End UObject
 
-protected:
 	/** Initialize the inner root stack for the actor it is attached */
 	void InitializeStack();
 

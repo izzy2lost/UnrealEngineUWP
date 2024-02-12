@@ -15,7 +15,7 @@
 void UE::ActorModifierCoreEditor::OnExtendAddModifierMenu(UToolMenu* InAddToolMenu, const FActorModifierCoreEditorMenuData& InData)
 {
 	const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get();
-	
+
 	if (!ModifierSubsystem || !InAddToolMenu)
 	{
 		return;
@@ -23,7 +23,7 @@ void UE::ActorModifierCoreEditor::OnExtendAddModifierMenu(UToolMenu* InAddToolMe
 
 	TSet<FName> ShowModifiers = ModifierSubsystem->GetRegisteredModifiers();
 	ShowModifiers = ShowModifiers.Difference(ModifierSubsystem->GetHiddenModifiers());
-	for (AActor* Actor : InData.Context.ContextActors)
+	for (AActor* Actor : InData.Context.GetContextActors())
 	{
 		ShowModifiers = ShowModifiers.Intersect(ModifierSubsystem->GetAllowedModifiers(Actor));
 	}
@@ -49,7 +49,7 @@ void UE::ActorModifierCoreEditor::OnExtendAddModifierMenu(UToolMenu* InAddToolMe
 			ModifierDescription = InMetadata.GetDescription();
 			return true;
 		});
-		
+
 		const FName ModifierCategorySection("ContextModifierCategory" + ModifierCategory.ToString());
 		FToolMenuSection* CategorySection = InAddToolMenu->FindSection(ModifierCategorySection);
 		if (!CategorySection)
@@ -59,16 +59,16 @@ void UE::ActorModifierCoreEditor::OnExtendAddModifierMenu(UToolMenu* InAddToolMe
 				ModifierDisplayCategory,
 				FToolMenuInsert(NAME_None, EToolMenuInsertType::First));
 		}
-		
+
 		const FText Label = FText::Format(
 			LOCTEXT("AddModifier.Label", "{0}"),
 			ModifierDisplayName);
-			
+
 		const FText Tooltip = FText::Format(
 			LOCTEXT("AddModifier.Tooltip", "Add Modifier {0} to the currently selected actors\n{1}"),
 			ModifierDisplayName,
 			ModifierDescription);
-		
+
 		const FUIAction Action = FUIAction(FExecuteAction::CreateLambda(&UE::ActorModifierCoreEditor::OnAddModifierMenuAction, Modifier, InData));
 
 		const FName MenuEntryName(TEXT("AddModifier") + Modifier.ToString());
@@ -86,18 +86,18 @@ void UE::ActorModifierCoreEditor::OnExtendAddModifierMenu(UToolMenu* InAddToolMe
 void UE::ActorModifierCoreEditor::OnExtendInsertModifierMenu(UToolMenu* InInsertToolMenu, const FActorModifierCoreEditorMenuData& InData)
 {
 	const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get();
-	
+
 	if (!ModifierSubsystem || !InInsertToolMenu)
 	{
 		return;
 	}
-	
-	if (InData.Context.ContextModifiers.IsEmpty() || InData.Context.ContextModifiers.Num() > 1)
+
+	if (InData.Context.GetContextModifiers().IsEmpty() || InData.Context.GetContextModifiers().Num() > 1)
 	{
 		return;
 	}
-	
-	UActorModifierCoreBase* ContextModifier = InData.Context.ContextModifiers.Array()[0];
+
+	UActorModifierCoreBase* ContextModifier = InData.Context.GetContextModifiers().Array()[0];
 
 	if (!ContextModifier)
 	{
@@ -138,17 +138,17 @@ void UE::ActorModifierCoreEditor::OnExtendInsertModifierMenu(UToolMenu* InInsert
 				ModifierDisplayCategory,
 				FToolMenuInsert(NAME_None, EToolMenuInsertType::First));
 		}
-		
+
 		const FText Label = FText::Format(
-			LOCTEXT("InsertModifier.Label", "{0}"), 
+			LOCTEXT("InsertModifier.Label", "{0}"),
 			ModifierDisplayName);
-			
+
 		const FText Tooltip = FText::Format(
 			LOCTEXT("InsertModifier.Tooltip", "Insert Modifier {0} {1} current selection\n{2}"),
 			ModifierDisplayName,
 			FText::FromString(InsertPosition == EActorModifierCoreStackPosition::Before ? TEXT("before") : TEXT("after")),
 			ModifierDescription);
-		
+
 		const FUIAction Action = FUIAction(FExecuteAction::CreateLambda(&UE::ActorModifierCoreEditor::OnInsertModifierMenuAction, ContextModifier, Modifier, InData));
 
 		const FName MenuEntryName(TEXT("InsertModifier") + Modifier.ToString());
@@ -166,12 +166,12 @@ void UE::ActorModifierCoreEditor::OnExtendInsertModifierMenu(UToolMenu* InInsert
 void UE::ActorModifierCoreEditor::OnExtendRemoveModifierMenu(UToolMenu* InRemoveToolMenu, const FActorModifierCoreEditorMenuData& InData)
 {
 	const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get();
-	
+
 	if (!ModifierSubsystem || !InRemoveToolMenu)
 	{
 		return;
 	}
-	
+
 	if (InData.Context.IsEmpty())
 	{
 		return;
@@ -186,17 +186,17 @@ void UE::ActorModifierCoreEditor::OnExtendRemoveModifierMenu(UToolMenu* InRemove
 		static const FSlateIcon RemoveAllIcon = FSlateIconFinder::FindIconForClass(UActorModifierCoreBase::StaticClass());
 
 		const FUIAction Action = FUIAction(FExecuteAction::CreateLambda(&UE::ActorModifierCoreEditor::OnRemoveActorModifierMenuAction, InData));
-		
+
 		FToolMenuEntry RemoveAllModifierEntry = FToolMenuEntry::InitMenuEntry(
 			RemoveAllEntryName,
 			RemoveAllLabel,
 			RemoveAllTooltip,
 			RemoveAllIcon,
 			Action);
-	
+
 		InRemoveToolMenu->AddMenuEntry(RemoveAllEntryName, RemoveAllModifierEntry);
 	}
-	
+
 	// remove all selected modifiers
 	if (InData.Context.ContainsAnyModifier())
 	{
@@ -206,34 +206,34 @@ void UE::ActorModifierCoreEditor::OnExtendRemoveModifierMenu(UToolMenu* InRemove
 		static const FSlateIcon RemoveSelectedIcon = FSlateIconFinder::FindIconForClass(UActorModifierCoreBase::StaticClass());
 
 		const FUIAction Action = FUIAction(FExecuteAction::CreateLambda(&UE::ActorModifierCoreEditor::OnRemoveModifierMenuAction, InData));
-		
+
 		FToolMenuEntry RemoveSelectedModifierEntry = FToolMenuEntry::InitMenuEntry(
 			RemoveSelectedEntryName,
 			RemoveSelectedLabel,
 			RemoveSelectedTooltip,
 			RemoveSelectedIcon,
 			Action);
-	
+
 		InRemoveToolMenu->AddMenuEntry(RemoveSelectedEntryName, RemoveSelectedModifierEntry);
 	}
 
 	// only handle one actor selected case after this
-	if (!InData.Context.ContainsAnyActor() || InData.Context.ContextActors.Num() > 1)
+	if (!InData.Context.ContainsAnyActor() || InData.Context.GetContextActors().Num() > 1)
 	{
 		return;
 	}
 
 	// get current actor stack
-	TWeakObjectPtr<AActor> ContextActor = InData.Context.ContextActors.Array()[0];
+	TWeakObjectPtr<AActor> ContextActor = InData.Context.GetContextActors().Array()[0];
 	const UActorModifierCoreStack* ModifierStack = ModifierSubsystem->GetActorModifierStack(ContextActor.Get());
-	
+
 	if (!ModifierStack)
 	{
 		return;
 	}
 
 	TConstArrayView<UActorModifierCoreBase*> StackModifiers = ModifierStack->GetModifiers();
-	
+
 	if (StackModifiers.IsEmpty())
 	{
 		return;
@@ -243,7 +243,7 @@ void UE::ActorModifierCoreEditor::OnExtendRemoveModifierMenu(UToolMenu* InRemove
 	static const FName SeparatorName("RemoveAllSeparator");
 	FToolMenuEntry Separator = FToolMenuEntry::InitSeparator(SeparatorName);
 	InRemoveToolMenu->AddMenuEntry(SeparatorName, Separator);
-	
+
 	for (UActorModifierCoreBase* StackModifier : StackModifiers)
 	{
 		if (!IsValid(StackModifier))
@@ -264,22 +264,22 @@ void UE::ActorModifierCoreEditor::OnExtendRemoveModifierMenu(UToolMenu* InRemove
 			ModifierIcon = InMetadata.GetIcon();
 			return true;
 		});
-		
+
 		const FText Label = FText::Format(LOCTEXT("RemoveModifier.Label", "{0}"),
 				ModifierDisplayName);
 		const FText Tooltip = FText::Format(LOCTEXT("RemoveModifier.Tooltip", "Remove Modifier {0} from the currently selected actor"),
 				ModifierDisplayName);
 		const FName MenuEntryName(TEXT("RemoveModifier") + ModifierName.ToString());
-		
+
 		FUIAction Action = FUIAction(FExecuteAction::CreateLambda(&UE::ActorModifierCoreEditor::OnRemoveSingleModifierMenuAction, StackModifier, InData));
-		
+
 		FToolMenuEntry RemoveModifierEntry = FToolMenuEntry::InitMenuEntry(
 			MenuEntryName,
 			Label,
 			Tooltip,
 			ModifierIcon,
 			Action);
-	
+
 		InRemoveToolMenu->AddMenuEntry(MenuEntryName, RemoveModifierEntry);
 	}
 }
@@ -287,31 +287,31 @@ void UE::ActorModifierCoreEditor::OnExtendRemoveModifierMenu(UToolMenu* InRemove
 void UE::ActorModifierCoreEditor::OnExtendMoveModifierMenu(UToolMenu* InMoveToolMenu, const FActorModifierCoreEditorMenuData& InData)
 {
 	const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get();
-	
+
 	if (!ModifierSubsystem || !InMoveToolMenu)
 	{
 		return;
 	}
-	
-	if (InData.Context.ContextModifiers.IsEmpty() || InData.Context.ContextModifiers.Num() > 1)
+
+	if (InData.Context.GetContextModifiers().IsEmpty() || InData.Context.GetContextModifiers().Num() > 1)
 	{
 		return;
 	}
-	
-	UActorModifierCoreBase* MoveModifier = InData.Context.ContextModifiers.Array()[0];
+
+	UActorModifierCoreBase* MoveModifier = InData.Context.GetContextModifiers().Array()[0];
 
 	if (!MoveModifier)
 	{
 		return;
 	}
-	
+
 	TArray<UActorModifierCoreBase*> StackModifiers = ModifierSubsystem->GetAllowedMoveModifiers(MoveModifier);
-	
+
 	if (StackModifiers.IsEmpty())
 	{
 		return;
 	}
-	
+
 	const FName& MoveModifierName = MoveModifier->GetModifierName();
 
 	// move in the beginning
@@ -320,20 +320,20 @@ void UE::ActorModifierCoreEditor::OnExtendMoveModifierMenu(UToolMenu* InMoveTool
 		static const FText StartLabel = LOCTEXT("MoveModifierStart.Label", "At the start");
 		static const FText StartTooltip = LOCTEXT("MoveModifierStart.Tooltip", "Move Modifier at the beginning of the stack");
 		static const FName StartMenuEntryName(TEXT("MoveModifierStart"));
-		
+
 		UActorModifierCoreBase* StartPositionModifier = nullptr;
 		FUIAction StartAction = FUIAction(FExecuteAction::CreateLambda(&UE::ActorModifierCoreEditor::OnMoveModifierMenuAction, MoveModifier, StartPositionModifier, InData));
-		
+
 		FToolMenuEntry MoveModifierEntry = FToolMenuEntry::InitMenuEntry(
 			StartMenuEntryName,
 			StartLabel,
 			StartTooltip,
 			FSlateIcon(),
 			StartAction);
-	
+
 		InMoveToolMenu->AddMenuEntry(StartMenuEntryName, MoveModifierEntry);
 	}
-	
+
 	for (UActorModifierCoreBase* PositionModifier : StackModifiers)
 	{
 		if (!IsValid(PositionModifier))
@@ -359,22 +359,22 @@ void UE::ActorModifierCoreEditor::OnExtendMoveModifierMenu(UToolMenu* InMoveTool
 			ModifierIcon = InMetadata.GetIcon();
 			return true;
 		});
-		
+
 		const FText Label = FText::Format(LOCTEXT("MoveModifier.Label", "After {0}"),
 				ModifierDisplayName);
 		const FText Tooltip = FText::Format(LOCTEXT("MoveModifier.Tooltip", "Move Modifier {0} in the stack"),
 				FText::FromName(MoveModifierName));
 		const FName MenuEntryName(TEXT("MoveModifier") + ModifierName.ToString());
-		
+
 		FUIAction Action = FUIAction(FExecuteAction::CreateLambda(&UE::ActorModifierCoreEditor::OnMoveModifierMenuAction, MoveModifier, PositionModifier, InData));
-		
+
 		FToolMenuEntry MoveModifierEntry = FToolMenuEntry::InitMenuEntry(
 			MenuEntryName,
 			Label,
 			Tooltip,
 			ModifierIcon,
 			Action);
-	
+
 		InMoveToolMenu->AddMenuEntry(MenuEntryName, MoveModifierEntry);
 	}
 }
@@ -390,34 +390,34 @@ void UE::ActorModifierCoreEditor::OnExtendEnableModifierMenu(UToolMenu* InToolMe
 			static const FText EnableStackLabel = LOCTEXT("EnableStack.Label", "Enable selected stack");
 			static const FText EnableStackTooltip = LOCTEXT("EnableStack.Tooltip", "Enable selected modifier stack");
 			static const FName EnableStackEntryName(TEXT("EnableStack"));
-		
+
 			const FUIAction EnableStackAction = FUIAction(FExecuteAction::CreateLambda(&UE::ActorModifierCoreEditor::OnEnableModifierMenuAction, InData, true, true));
-		
+
 			const FToolMenuEntry EnableStackEntry = FToolMenuEntry::InitMenuEntry(
 				EnableStackEntryName,
 				EnableStackLabel,
 				EnableStackTooltip,
 				FSlateIcon(),
 				EnableStackAction);
-	
+
 			InToolMenu->AddMenuEntry(EnableStackEntryName, EnableStackEntry);
 		}
-		
+
 		if (InData.Context.ContainsDisabledModifier())
 		{
 			static const FText EnableModifierLabel = LOCTEXT("EnableModifier.Label", "Enable selected modifier");
 			static const FText EnableModifierTooltip = LOCTEXT("EnableModifier.Tooltip", "Enable selected modifier");
 			static const FName EnableModifierEntryName(TEXT("EnableModifier"));
-		
+
 			const FUIAction EnableModifierAction = FUIAction(FExecuteAction::CreateLambda(&UE::ActorModifierCoreEditor::OnEnableModifierMenuAction, InData, true, false));
-		
+
 			const FToolMenuEntry EnableModifierEntry = FToolMenuEntry::InitMenuEntry(
 				EnableModifierEntryName,
 				EnableModifierLabel,
 				EnableModifierTooltip,
 				FSlateIcon(),
 				EnableModifierAction);
-	
+
 			InToolMenu->AddMenuEntry(EnableModifierEntryName, EnableModifierEntry);
 		}
 	}
@@ -428,34 +428,34 @@ void UE::ActorModifierCoreEditor::OnExtendEnableModifierMenu(UToolMenu* InToolMe
 			static const FText DisableStackLabel = LOCTEXT("DisableStack.Label", "Disable selected stack");
 			static const FText DisableStackTooltip = LOCTEXT("DisableStack.Tooltip", "Disable selected modifier stack");
 			static const FName DisableStackEntryName(TEXT("DisableStack"));
-			
+
 			const FUIAction DisableStackAction = FUIAction(FExecuteAction::CreateLambda(&UE::ActorModifierCoreEditor::OnEnableModifierMenuAction, InData, false, true));
-		
+
 			const FToolMenuEntry DisableStackEntry = FToolMenuEntry::InitMenuEntry(
 				DisableStackEntryName,
 				DisableStackLabel,
 				DisableStackTooltip,
 				FSlateIcon(),
 				DisableStackAction);
-	
+
 			InToolMenu->AddMenuEntry(DisableStackEntryName, DisableStackEntry);
 		}
-		
+
 		if (InData.Context.ContainsEnabledModifier())
 		{
 			static const FText DisableModifierLabel = LOCTEXT("DisableModifier.Label", "Disable selected modifier");
 			static const FText DisableModifierTooltip = LOCTEXT("DisableModifier.Tooltip", "Disable selected modifier");
 			static const FName DisableModifierEntryName(TEXT("DisableModifier"));
-		
+
 			const FUIAction DisableModifierAction = FUIAction(FExecuteAction::CreateLambda(&UE::ActorModifierCoreEditor::OnEnableModifierMenuAction, InData, false, false));
-		
+
 			const FToolMenuEntry DisableModifierEntry = FToolMenuEntry::InitMenuEntry(
 				DisableModifierEntryName,
 				DisableModifierLabel,
 				DisableModifierTooltip,
 				FSlateIcon(),
 				DisableModifierAction);
-	
+
 			InToolMenu->AddMenuEntry(DisableModifierEntryName, DisableModifierEntry);
 		}
 	}
@@ -463,21 +463,28 @@ void UE::ActorModifierCoreEditor::OnExtendEnableModifierMenu(UToolMenu* InToolMe
 
 void UE::ActorModifierCoreEditor::OnAddModifierMenuAction(const FName& InModifier, const FActorModifierCoreEditorMenuData& InData)
 {
-	const UActorModifierCoreEditorSubsystem* ModifierEditorSubsystem = UActorModifierCoreEditorSubsystem::Get();
+	const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get();
 
-	if (!IsValid(ModifierEditorSubsystem))
+	if (!IsValid(ModifierSubsystem))
 	{
 		return;
 	}
 
-	TSet<AActor*> Actors = InData.Context.ContextActors;
+	TSet<AActor*> Actors = InData.Context.GetContextActors();
 	if (Actors.IsEmpty())
 	{
 		return;
 	}
-	
+
 	FText OutFailReason;
-	if (!ModifierEditorSubsystem->AddActorsModifiers(InModifier, Actors, &OutFailReason))
+	FActorModifierCoreStackInsertOp InsertOp;
+	InsertOp.bShouldTransact = true;
+	InsertOp.FailReason = &OutFailReason;
+	InsertOp.NewModifierName = InModifier;
+
+	ModifierSubsystem->AddActorsModifiers(Actors, InsertOp);
+
+	if (!OutFailReason.IsEmpty())
 	{
 		if (InData.Options.ShouldFireNotification())
 		{
@@ -491,18 +498,25 @@ void UE::ActorModifierCoreEditor::OnAddModifierMenuAction(const FName& InModifie
 
 void UE::ActorModifierCoreEditor::OnInsertModifierMenuAction(UActorModifierCoreBase* InModifier, const FName& InModifierName, const FActorModifierCoreEditorMenuData& InData)
 {
-	const UActorModifierCoreEditorSubsystem* ModifierEditorSubsystem = UActorModifierCoreEditorSubsystem::Get();
+	const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get();
 
-	if (!IsValid(ModifierEditorSubsystem))
+	if (!IsValid(ModifierSubsystem))
 	{
 		return;
 	}
 
 	UActorModifierCoreStack* ModifierStack = InModifier->GetModifierStack();
-	
+
 	FText OutFailReason;
-	const EActorModifierCoreStackPosition InsertPosition = InData.Options.GetMenuType() == EActorModifierCoreEditorMenuType::InsertBefore ? EActorModifierCoreStackPosition::Before : EActorModifierCoreStackPosition::After;
-	if (!ModifierEditorSubsystem->InsertModifier(InModifierName, ModifierStack, InModifier, InsertPosition, &OutFailReason))
+
+	FActorModifierCoreStackInsertOp InsertOp;
+	InsertOp.bShouldTransact = true;
+	InsertOp.FailReason = &OutFailReason;
+	InsertOp.InsertPosition = InData.Options.GetMenuType() == EActorModifierCoreEditorMenuType::InsertBefore ? EActorModifierCoreStackPosition::Before : EActorModifierCoreStackPosition::After;
+	InsertOp.InsertPositionContext = InModifier;
+	InsertOp.NewModifierName = InModifierName;
+
+	if (!ModifierSubsystem->InsertModifier(ModifierStack, InsertOp))
 	{
 		if (InData.Options.ShouldFireNotification())
 		{
@@ -516,20 +530,20 @@ void UE::ActorModifierCoreEditor::OnInsertModifierMenuAction(UActorModifierCoreB
 
 void UE::ActorModifierCoreEditor::OnRemoveActorModifierMenuAction(const FActorModifierCoreEditorMenuData& InData)
 {
-	const UActorModifierCoreEditorSubsystem* ModifierEditorSubsystem = UActorModifierCoreEditorSubsystem::Get();
+	const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get();
 
-	if (!IsValid(ModifierEditorSubsystem))
+	if (!IsValid(ModifierSubsystem))
 	{
 		return;
 	}
-	
-	TSet<AActor*> Actors = InData.Context.ContextActors;
+
+	const TSet<AActor*> Actors = InData.Context.GetContextActors();
 	if (Actors.IsEmpty())
 	{
 		return;
 	}
 
-	if (!ModifierEditorSubsystem->RemoveActorsModifiers(Actors))
+	if (!ModifierSubsystem->RemoveActorsModifiers(Actors, true))
 	{
 		if (InData.Options.ShouldFireNotification())
 		{
@@ -544,21 +558,25 @@ void UE::ActorModifierCoreEditor::OnRemoveActorModifierMenuAction(const FActorMo
 
 void UE::ActorModifierCoreEditor::OnRemoveModifierMenuAction(const FActorModifierCoreEditorMenuData& InData)
 {
-	const UActorModifierCoreEditorSubsystem* ModifierEditorSubsystem = UActorModifierCoreEditorSubsystem::Get();
+	const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get();
 
-	if (!IsValid(ModifierEditorSubsystem))
+	if (!IsValid(ModifierSubsystem))
 	{
 		return;
 	}
 
-	TSet<UActorModifierCoreBase*> Modifiers = InData.Context.ContextModifiers;
+	TSet<UActorModifierCoreBase*> Modifiers = InData.Context.GetContextModifiers();
 	if (Modifiers.IsEmpty())
 	{
 		return;
 	}
 
 	FText OutFailReason;
-	if (!ModifierEditorSubsystem->RemoveModifiers(Modifiers, &OutFailReason))
+	FActorModifierCoreStackRemoveOp RemoveOp;
+	RemoveOp.bShouldTransact = true;
+	RemoveOp.FailReason = &OutFailReason;
+
+	if (!ModifierSubsystem->RemoveModifiers(Modifiers, RemoveOp))
 	{
 		if (InData.Options.ShouldFireNotification())
 		{
@@ -576,17 +594,22 @@ void UE::ActorModifierCoreEditor::OnRemoveSingleModifierMenuAction(UActorModifie
 	{
 		return;
 	}
-	
-	const UActorModifierCoreEditorSubsystem* ModifierEditorSubsystem = UActorModifierCoreEditorSubsystem::Get();
 
-	if (!IsValid(ModifierEditorSubsystem))
+	const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get();
+
+	if (!IsValid(ModifierSubsystem))
 	{
 		return;
 	}
 
-	TSet<UActorModifierCoreBase*> RemoveModifiers { InModifier };
 	FText OutFailReason;
-	if (!ModifierEditorSubsystem->RemoveModifiers(RemoveModifiers, &OutFailReason))
+	TSet<UActorModifierCoreBase*> RemoveModifiers { InModifier };
+
+	FActorModifierCoreStackRemoveOp RemoveOp;
+	RemoveOp.bShouldTransact = true;
+	RemoveOp.FailReason = &OutFailReason;
+
+	if (!ModifierSubsystem->RemoveModifiers(RemoveModifiers, RemoveOp))
 	{
 		if (InData.Options.ShouldFireNotification())
 		{
@@ -600,16 +623,23 @@ void UE::ActorModifierCoreEditor::OnRemoveSingleModifierMenuAction(UActorModifie
 
 void UE::ActorModifierCoreEditor::OnMoveModifierMenuAction(UActorModifierCoreBase* InMoveModifier, UActorModifierCoreBase* InPositionModifier, const FActorModifierCoreEditorMenuData& InData)
 {
-	const UActorModifierCoreEditorSubsystem* ModifierEditorSubsystem = UActorModifierCoreEditorSubsystem::Get();
+	const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get();
 
-	if (!IsValid(ModifierEditorSubsystem))
+	if (!IsValid(ModifierSubsystem) || !IsValid(InMoveModifier))
 	{
 		return;
 	}
-	
+
 	FText OutFailReason;
-	static constexpr EActorModifierCoreStackPosition MovePosition = EActorModifierCoreStackPosition::After;
-	if (!ModifierEditorSubsystem->MoveModifier(InMoveModifier, InPositionModifier, MovePosition, &OutFailReason))
+
+	FActorModifierCoreStackMoveOp MoveOp;
+	MoveOp.bShouldTransact = true;
+	MoveOp.FailReason = &OutFailReason;
+	MoveOp.MoveModifier = InMoveModifier;
+	MoveOp.MovePosition = EActorModifierCoreStackPosition::After;
+	MoveOp.MovePositionContext = InPositionModifier;
+
+	if (!ModifierSubsystem->MoveModifier(InMoveModifier->GetModifierStack(), MoveOp))
 	{
 		if (InData.Options.ShouldFireNotification())
 		{
@@ -623,9 +653,9 @@ void UE::ActorModifierCoreEditor::OnMoveModifierMenuAction(UActorModifierCoreBas
 
 void UE::ActorModifierCoreEditor::OnEnableModifierMenuAction(const FActorModifierCoreEditorMenuData& InData, bool bInEnable, bool bInStack)
 {
-	const UActorModifierCoreEditorSubsystem* ModifierEditorSubsystem = UActorModifierCoreEditorSubsystem::Get();
+	const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get();
 
-	if (!IsValid(ModifierEditorSubsystem))
+	if (!IsValid(ModifierSubsystem))
 	{
 		return;
 	}
@@ -633,11 +663,11 @@ void UE::ActorModifierCoreEditor::OnEnableModifierMenuAction(const FActorModifie
 	TSet<UActorModifierCoreBase*> Modifiers;
 	if (bInStack)
 	{
-		Modifiers = InData.Context.ContextStacks;
+		Modifiers = InData.Context.GetContextStacks();
 	}
 	else
 	{
-		Modifiers = InData.Context.ContextModifiers;
+		Modifiers = InData.Context.GetContextModifiers();
 	}
 
 	if (Modifiers.IsEmpty())
@@ -645,13 +675,13 @@ void UE::ActorModifierCoreEditor::OnEnableModifierMenuAction(const FActorModifie
 		return;
 	}
 
-	if (!ModifierEditorSubsystem->EnableModifiers(bInEnable, Modifiers))
+	if (!ModifierSubsystem->EnableModifiers(Modifiers, bInEnable, true))
 	{
 		if (InData.Options.ShouldFireNotification())
 		{
 			static const FText EnableStacksWarning(LOCTEXT("EnableStacks", "Could not update stack(s) state"));
 			static const FText EnableModifiersWarning(LOCTEXT("EnableModifiers", "Could not update modifier(s) state"));
-			
+
 			FNotificationInfo NotificationInfo(bInStack ? EnableStacksWarning : EnableModifiersWarning);
 			NotificationInfo.ExpireDuration = 3.f;
 			NotificationInfo.bFireAndForget = true;

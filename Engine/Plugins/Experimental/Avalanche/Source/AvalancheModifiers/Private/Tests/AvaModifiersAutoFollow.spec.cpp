@@ -57,26 +57,22 @@ void AvalancheModifiersAutoFollowTests::Define()
 	{
 		BeforeEach([this]()
 		{
-			DynamicMeshActorToFollow = TestUtils->
-				SpawnTestDynamicMeshActor(FTransform(FVector(-100, -100, -100)));
+			DynamicMeshActorToFollow = TestUtils->SpawnTestDynamicMeshActor(FTransform(FVector(-100, -100, -100)));
 			FText OutFailReason = FText::GetEmpty();
 			FText* OutFailReasonPtr = &OutFailReason;
-			ActorModifierStack = ModifierSubsystem->
-				AddActorModifierStack(DynamicMeshActor);
+			ActorModifierStack = ModifierSubsystem->AddActorModifierStack(DynamicMeshActor);
 			check(ActorModifierStack);
 			FActorModifierCoreStackInsertOp InsertOp;
 
 			InsertOp.NewModifierName = ModifierAutoFollowName;
 			InsertOp.FailReason = OutFailReasonPtr;
-			AutoFollowModifier = Cast<UAvaAutoFollowModifier>(
-				ActorModifierStack->InsertModifier(InsertOp));
+			AutoFollowModifier = Cast<UAvaAutoFollowModifier>(ModifierSubsystem->InsertModifier(ActorModifierStack, InsertOp));
 		});
 
 		It("Should restore initial Dynamic mesh state once Autofollow modifier is disapplied", [this]()
 		{
 			FActorModifierCoreStackRemoveOp RemoveOp;
-			RemoveOp.RemoveModifier = AutoFollowModifier;
-			if (ActorModifierStack->RemoveModifier(RemoveOp))
+			if (ModifierSubsystem->RemoveModifiers({AutoFollowModifier}, RemoveOp))
 			{
 				FTransform RestoredActorState = DynamicMeshActor->GetActorTransform();
 				TestEqual("Actor returned to initial location", InitialActorState.GetLocation(),
@@ -99,7 +95,6 @@ void AvalancheModifiersAutoFollowTests::Define()
 				ReferenceActor.ReferenceContainer = EAvaReferenceContainer::Other;
 				ReferenceActor.ReferenceActorWeak = DynamicMeshActorToFollow;
 				AutoFollowModifier->SetReferenceActor(ReferenceActor);
-				const FActorModifierCoreMetadata& Metadata = AutoFollowModifier->GetModifierMetadata();
 				FTransform NewActorState = DynamicMeshActor->GetActorTransform();
 				TestNotEqual("Dynamic mesh position is changed", InitialActorState.GetLocation(),
 				             NewActorState.GetLocation());

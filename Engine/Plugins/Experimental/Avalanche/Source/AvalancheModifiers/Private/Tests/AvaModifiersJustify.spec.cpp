@@ -3,6 +3,7 @@
 #include "Misc/AutomationTest.h"
 #include "Modifiers/ActorModifierCoreStack.h"
 #include "Modifiers/AvaJustifyModifier.h"
+#include "Subsystems/ActorModifierCoreSubsystem.h"
 #include "Tests/Framework/AvaModifiersTestUtils.h"
 #include "Tests/Framework/AvaTestDynamicMeshActor.h"
 #include "Tests/Framework/AvaTestUtils.h"
@@ -80,10 +81,11 @@ void AvalancheModifiersJustify::Define()
 		InitialChildThreeLocation = ChildThreeActor->GetActorTransform().GetLocation();
 
 		// Set up modifier
+		const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get();
 		const FName ModifierJustifyName = ModifierTestUtils->GetModifierName(UAvaJustifyModifier::StaticClass());
 		FActorModifierCoreStackInsertOp InsertOp = ModifierTestUtils->GenerateInsertOp(ModifierJustifyName);
-		JustifyModifier = Cast<UAvaJustifyModifier>(
-			ModifierTestUtils->GenerateModifierStackForActor(ParentActor)->InsertModifier(InsertOp));
+		UActorModifierCoreStack* ModifierStack = ModifierTestUtils->GenerateModifierStackForActor(ParentActor);
+		JustifyModifier = Cast<UAvaJustifyModifier>(ModifierSubsystem->InsertModifier(ModifierStack, InsertOp));
 		JustifyModifier->SetHorizontalAlignment(EAvaJustifyHorizontal::Right);
 		JustifyModifier->SetVerticalAlignment(EAvaJustifyVertical::Bottom);
 		JustifyModifier->SetDepthAlignment(EAvaJustifyDepth::Center);
