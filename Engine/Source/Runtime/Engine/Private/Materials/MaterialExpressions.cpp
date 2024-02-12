@@ -28069,11 +28069,8 @@ uint32 UMaterialExpressionSparseVolumeTextureSample::GetInputType(int32 InputInd
 	case 2:
 		return MCT_Float1;
 	default:
-		break;
+		return MCT_Unknown;
 	}
-
-	check(false);
-	return MCT_Float1;
 }
 
 int32 UMaterialExpressionSparseVolumeTextureSample::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
