@@ -886,7 +886,7 @@ UActorModifierCoreSharedObject* UActorModifierCoreSubsystem::GetModifierSharedOb
 		return nullptr;
 	}
 
-	if (AActorModifierCoreSharedActor* SharedActor = GetModifierSharedProvider(InLevel))
+	if (AActorModifierCoreSharedActor* SharedActor = GetModifierSharedProvider(InLevel, bInCreateIfNone))
 	{
 		if (bInCreateIfNone)
 		{
