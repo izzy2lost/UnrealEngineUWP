@@ -1102,7 +1102,11 @@ FString FWindowsPlatformFile::GetFilenameOnDisk(const TCHAR* Filename)
 {
 	FString NormalizedFileName = *FNormalizedFilename(Filename);
 	TRACE_PLATFORMFILE_BEGIN_OPEN(Filename);
-	HANDLE hFile = CreateFile(*NormalizedFileName, FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
+	HANDLE hFile = CreateFile(*NormalizedFileName,
+		FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+		NULL, OPEN_EXISTING,
+		FILE_FLAG_BACKUP_SEMANTICS, // Required for opening a directory, which Filename might be
+		NULL);
 	// If the file exists on disk, read the capitalization from the path on disk, otherwise just return the (normalized) input filename
 	if (hFile != INVALID_HANDLE_VALUE)
 	{

@@ -2332,15 +2332,47 @@ void FPathExistence::LoadExistenceData()
 	FFileStatData StatData = IFileManager::Get().GetStatData(*LocalAbsPath);
 	if (StatData.bIsValid)
 	{
+		FString CorrectedCapitalization = IFileManager::Get().GetFilenameOnDisk(*LocalAbsPath);
+		if (LocalAbsPath == CorrectedCapitalization)
+		{
+			LocalAbsPath = MoveTemp(CorrectedCapitalization);
+		}
+		else
+		{
+			UE_LOG(LogAssetRegistry, Error,
+				TEXT("FPathExistence failed to gather correct capitalization from disk for %s, because GetFilenameOnDisk returned a non-matching filename"),
+				*LocalAbsPath);
+		}
+
 		ModificationTime = StatData.ModificationTime;
 		PathType = StatData.bIsDirectory ? EType::Directory : EType::File;
 	}
 	else
 	{
-		FString ParentPath = FPaths::GetPath(LocalAbsPath);
+		FString ParentPath, BaseName, Extension;
+		FPaths::Split(LocalAbsPath, ParentPath, BaseName, Extension);
 		StatData = IFileManager::Get().GetStatData(*ParentPath);
-		PathType = (StatData.bIsValid && StatData.bIsDirectory)
-			? EType::MissingButDirExists : EType::MissingParentDir;
+		if (StatData.bIsValid && StatData.bIsDirectory)
+		{
+			FString CorrectedCapitalization = IFileManager::Get().GetFilenameOnDisk(*ParentPath);
+			CorrectedCapitalization = FPaths::Combine(CorrectedCapitalization, BaseName) +
+				(!Extension.IsEmpty() ? TEXT(".") : TEXT("")) + Extension;
+			if (LocalAbsPath == CorrectedCapitalization)
+			{
+				LocalAbsPath = MoveTemp(CorrectedCapitalization);
+			}
+			else
+			{
+				UE_LOG(LogAssetRegistry, Error,
+					TEXT("FPathExistence failed to gather correct capitalization from disk for %s, because GetFilenameOnDisk returned a non-matching filename"),
+					*LocalAbsPath);
+			}
+			PathType = EType::MissingButDirExists;
+		}
+		else
+		{
+			PathType = EType::MissingParentDir;
+		}
 	}
 
 	bHasExistenceData = true;
@@ -5318,6 +5350,10 @@ FString FAssetDataGatherer::NormalizeLocalPath(FStringView LocalPath)
 {
 	FString LocalAbsPath(LocalPath);
 	LocalAbsPath = FPaths::ConvertRelativePathToFull(MoveTemp(LocalAbsPath));
+	while (FPathViews::HasRedundantTerminatingSeparator(LocalAbsPath))
+	{
+		LocalAbsPath.LeftChopInline(1);
+	}
 	return LocalAbsPath;
 }
 
