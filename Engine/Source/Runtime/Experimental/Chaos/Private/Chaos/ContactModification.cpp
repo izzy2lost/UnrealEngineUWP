@@ -392,7 +392,7 @@ namespace Chaos
 			EObjectStateType State(RigidHandle->ObjectState());
 			if (State == EObjectStateType::Dynamic || State == EObjectStateType::Sleeping)
 			{
-				RigidHandle->SetQf(Rotation);
+				RigidHandle->SetQ(Rotation);
 
 				if (bMaintainVelocity)
 				{
@@ -401,16 +401,17 @@ namespace Chaos
 				else if (Modifier->Dt > 0.0f)
 				{
 					// Update W to new implicit velocity
-					RigidHandle->SetWf(FRotation3::CalculateAngularVelocity(RigidHandle->GetRf(), RigidHandle->GetQf(), FRealSingle(Modifier->Dt)));
+					RigidHandle->SetWf(FRotation3f::CalculateAngularVelocity(RigidHandle->GetRf(), RigidHandle->GetQf(), FRealSingle(Modifier->Dt)));
 				}
 				UpdateConstraintShapeTransforms();
 				return;
 			}
 			else
 			{
+				FRotation3f Rotationf(Rotation);
 				// Kinematic must keep Q/R in sync
-				RigidHandle->SetRf(Rotation);
-				RigidHandle->SetQf(Rotation);
+				RigidHandle->SetRf(Rotationf);
+				RigidHandle->SetQf(Rotationf);
 				UpdateConstraintShapeTransforms();
 				return;
 			}
@@ -419,7 +420,7 @@ namespace Chaos
 		FKinematicGeometryParticleHandle* KinematicHandle = Particle->CastToKinematicParticle();
 		if (KinematicHandle)
 		{
-			KinematicHandle->SetRf(Rotation);
+			KinematicHandle->SetR(Rotation);
 			UpdateConstraintShapeTransforms();
 			return;
 		}
