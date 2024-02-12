@@ -72,9 +72,4 @@ private:
 	//Current pressed state of this button
 	TAttribute<bool> bIsPressedAttribute = false;
 
-	//Width & height
-	//TODO: Currently hardcoded for testing, make more dynamic.
-	float SlateWidth = 128.f;
-	float SlateHeight = 128.f;
-
 };

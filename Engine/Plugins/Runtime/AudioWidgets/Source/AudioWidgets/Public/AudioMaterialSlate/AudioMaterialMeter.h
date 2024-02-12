@@ -24,7 +24,7 @@ class AUDIOWIDGETS_API UAudioMaterialMeter : public UWidget
 public:
 
 	/** The meter's style */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style", meta = (DisplayName = "Style"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style", meta = (DisplayName = "Style", ShowOnlyInnerProperties))
 	FAudioMaterialMeterStyle WidgetStyle;
 
 public:

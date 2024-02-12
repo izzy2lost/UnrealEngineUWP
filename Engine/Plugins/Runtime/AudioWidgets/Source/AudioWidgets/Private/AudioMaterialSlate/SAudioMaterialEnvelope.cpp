@@ -14,7 +14,7 @@ void SAudioMaterialEnvelope::Construct(const FArguments& InArgs)
 {
 	Owner = InArgs._Owner;
 	EnvelopeSettings = InArgs._EnvelopeSettings;
-	AudioMaterialMeterStyle = InArgs._AudioMaterialMeterStyle;
+	AudioMaterialEnvelopeStyle = InArgs._AudioMaterialEnvelopeStyle;
 
 	ApplyNewMaterial();
 }
@@ -23,9 +23,9 @@ END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 int32 SAudioMaterialEnvelope::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
 {
-	if (AudioMaterialMeterStyle && EnvelopeSettings)
+	if (AudioMaterialEnvelopeStyle && EnvelopeSettings)
 	{
-		UMaterialInstanceDynamic* DynamicMaterial = AudioMaterialMeterStyle->GetDynamicMaterial();
+		UMaterialInstanceDynamic* DynamicMaterial = AudioMaterialEnvelopeStyle->GetDynamicMaterial();
 		if (IsValid(DynamicMaterial))
 		{
 
@@ -44,9 +44,12 @@ int32 SAudioMaterialEnvelope::OnPaint(const FPaintArgs& Args, const FGeometry& A
 				DynamicMaterial->SetScalarParameterValue(FName("S_Int"), EnvelopeSettings->SustainValue);
 			}
 
-			DynamicMaterial->SetVectorParameterValue(FName("MainColor"), AudioMaterialMeterStyle->CurveColor);
-			DynamicMaterial->SetVectorParameterValue(FName("BoxBG"), AudioMaterialMeterStyle->BackgroundColor);
-			DynamicMaterial->SetVectorParameterValue(FName("BoxOutline"), AudioMaterialMeterStyle->OutlineColor);
+			DynamicMaterial->SetVectorParameterValue(FName("MainColor"), AudioMaterialEnvelopeStyle->CurveColor);
+			DynamicMaterial->SetVectorParameterValue(FName("BoxBG"), AudioMaterialEnvelopeStyle->BackgroundColor);
+			DynamicMaterial->SetVectorParameterValue(FName("BoxOutline"), AudioMaterialEnvelopeStyle->OutlineColor);
+
+			DynamicMaterial->SetScalarParameterValue(FName("LocalWidth"), AllottedGeometry.GetLocalSize().X);
+			DynamicMaterial->SetScalarParameterValue(FName("LocalHeigth"), AllottedGeometry.GetLocalSize().Y);			
 		}
 
 		const bool bEnabled = ShouldBeEnabled(bParentEnabled);
@@ -64,14 +67,18 @@ int32 SAudioMaterialEnvelope::OnPaint(const FPaintArgs& Args, const FGeometry& A
 
 FVector2D SAudioMaterialEnvelope::ComputeDesiredSize(float) const
 {
-	FVector2D Vector = FVector2D(SlateWidth, SlateHeight);
-	return Vector;
+	if (AudioMaterialEnvelopeStyle)
+	{
+		return FVector2D(AudioMaterialEnvelopeStyle->DesiredSize);
+	}
+
+	return FVector2D::ZeroVector;
 }
 
 void SAudioMaterialEnvelope::ApplyNewMaterial()
 {
-	if (AudioMaterialMeterStyle)
+	if (AudioMaterialEnvelopeStyle)
 	{
-		AudioMaterialMeterStyle->CreateDynamicMaterial(Owner.Get());
+		AudioMaterialEnvelopeStyle->CreateDynamicMaterial(Owner.Get());
 	}
 }

@@ -20,9 +20,17 @@ struct AUDIOWIDGETS_API FAudioMaterialStyle : public FSlateWidgetStyle
 {
 	GENERATED_USTRUCT_BODY()
 
+public:
+
+	FAudioMaterialStyle();
+
 	/** Material used to render the Slate */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
-	UMaterialInterface* Material = nullptr;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayPriority = 0), Category = "Style")
+	TObjectPtr<UMaterialInterface> Material = nullptr;
+
+	/** Desired Draw size of the rendered material*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayPriority = 1), Category = "Style")
+	FVector2f DesiredSize;
 
 public:
 
@@ -52,22 +60,22 @@ struct AUDIOWIDGETS_API FAudioMaterialButtonStyle : public FAudioMaterialStyle
 	virtual const FName GetTypeName() const override { return TypeName; };
 	static const FAudioMaterialButtonStyle& GetDefault();
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor ButtonMainColor;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor ButtonShadowColor;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor ButtonAccentColor;	
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor ButtonPressedMainColor;	
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor ButtonShadowMainColor;	
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor ButtonPressedOutlineColor;
 
 };
@@ -89,19 +97,19 @@ struct AUDIOWIDGETS_API FAudioMaterialSliderStyle : public FAudioMaterialStyle
 	virtual const FName GetTypeName() const override { return TypeName; };
 	static const FAudioMaterialSliderStyle& GetDefault();
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor BarMainColor;	
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor BarShadowColor;	
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor BarAccentColor;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor HandleMainColor;	
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor HandleOutlineColor;
 
 };
@@ -123,31 +131,31 @@ struct AUDIOWIDGETS_API FAudioMaterialKnobStyle : public FAudioMaterialStyle
 	virtual const FName GetTypeName() const override { return TypeName; };
 	static const FAudioMaterialKnobStyle& GetDefault();
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor KnobMainColor;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor KnobAccentColor;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor KnobIndicatorColor;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor KnobBarColor;		
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor KnobBarShadowColor;	
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor KnobBarFillMinColor;		
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor KnobBarFillMidColor;		
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor KnobBarFillMaxColor;	
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor KnobBarFillTintColor;		
 	
 };
@@ -169,16 +177,16 @@ struct AUDIOWIDGETS_API FAudioMaterialMeterStyle : public FAudioMaterialStyle
 	virtual const FName GetTypeName() const override { return TypeName; };
 	static const FAudioMaterialMeterStyle& GetDefault();
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor MeterFillMinColor;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor MeterFillMidColor;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor MeterFillMaxColor;	
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor MeterOffFillColor;
 	
 };
@@ -200,13 +208,13 @@ struct AUDIOWIDGETS_API FAudioMaterialEnvelopeStyle : public FAudioMaterialStyle
 	virtual const FName GetTypeName() const override { return TypeName; };
 	static const FAudioMaterialEnvelopeStyle& GetDefault();
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor CurveColor;	
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor BackgroundColor;	
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
 	FLinearColor OutlineColor;
 	
 };

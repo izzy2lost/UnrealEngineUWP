@@ -27,7 +27,7 @@ class AUDIOWIDGETS_API UAudioMaterialButton : public UWidget
 public:
 
 	/** The button's style */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style", meta = (DisplayName = "Style"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style", meta = (DisplayName = "Style", ShowOnlyInnerProperties))
 	FAudioMaterialButtonStyle WidgetStyle;
 
 public:

@@ -25,7 +25,7 @@ class AUDIOWIDGETS_API UAudioMaterialSlider : public UWidget
 public:
 
 	/** The slider's style */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style", meta = (DisplayName = "Style"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style", meta = (DisplayName = "Style", ShowOnlyInnerProperties))
 	FAudioMaterialSliderStyle WidgetStyle;
 
 public:

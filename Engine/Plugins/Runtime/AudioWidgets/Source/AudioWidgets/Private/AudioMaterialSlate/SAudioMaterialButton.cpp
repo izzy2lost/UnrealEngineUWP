@@ -46,6 +46,9 @@ int32 SAudioMaterialButton::OnPaint(const FPaintArgs& Args, const FGeometry& All
 			DynamicMaterial->SetVectorParameterValue(FName("Color_2"), AudioMaterialButtonStyle->ButtonShadowMainColor);
 			DynamicMaterial->SetVectorParameterValue(FName("LedColor"), AudioMaterialButtonStyle->ButtonPressedOutlineColor);
 			DynamicMaterial->SetScalarParameterValue(FName("Click"), bIsPressedAttribute.Get());
+
+			DynamicMaterial->SetScalarParameterValue(FName("LocalWidth"), AllottedGeometry.GetLocalSize().X);
+			DynamicMaterial->SetScalarParameterValue(FName("LocalHeigth"), AllottedGeometry.GetLocalSize().Y);			
 		}
 
 		const bool bEnabled = ShouldBeEnabled(bParentEnabled);
@@ -63,8 +66,12 @@ int32 SAudioMaterialButton::OnPaint(const FPaintArgs& Args, const FGeometry& All
 
 FVector2D SAudioMaterialButton::ComputeDesiredSize(float) const
 {
-	FVector2D Vector = FVector2D(SlateWidth, SlateHeight);
-	return Vector;
+	if (AudioMaterialButtonStyle)
+	{
+		return FVector2D(AudioMaterialButtonStyle->DesiredSize);
+	}
+
+	return FVector2D::ZeroVector;
 }
 
 FReply SAudioMaterialButton::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)

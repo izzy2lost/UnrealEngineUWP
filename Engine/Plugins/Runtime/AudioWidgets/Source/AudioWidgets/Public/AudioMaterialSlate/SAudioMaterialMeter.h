@@ -74,9 +74,4 @@ private:
 	//Holds the current value
 	TAttribute<float> ValueAttribute = 0.f;
 
-	//Width & height
-	//TODO: Currently hardcoded for testing, make more dynamic.
-	float SlateWidth = 32.f;
-	float SlateHeight = 512.f;
-
 };

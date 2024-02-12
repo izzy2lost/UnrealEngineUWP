@@ -36,6 +36,9 @@ int32 SAudioMaterialSlider::OnPaint(const FPaintArgs& Args, const FGeometry& All
 			DynamicMaterial->SetVectorParameterValue(FName("ValueColor"), AudioMaterialSliderStyle->HandleMainColor);
 			DynamicMaterial->SetVectorParameterValue(FName("DotBevel1"), AudioMaterialSliderStyle->HandleOutlineColor);
 			DynamicMaterial->SetScalarParameterValue(FName("VALUE"), FMath::Clamp(Value, 0.f, 1.f));
+
+			DynamicMaterial->SetScalarParameterValue(FName("LocalWidth"), AllottedGeometry.GetLocalSize().X);
+			DynamicMaterial->SetScalarParameterValue(FName("LocalHeigth"), AllottedGeometry.GetLocalSize().Y);			
 		}
 
 		const bool bEnabled = ShouldBeEnabled(bParentEnabled);
@@ -53,8 +56,12 @@ int32 SAudioMaterialSlider::OnPaint(const FPaintArgs& Args, const FGeometry& All
 
 FVector2D SAudioMaterialSlider::ComputeDesiredSize(float) const
 {
-	FVector2D Vector = FVector2D(SlateWidth, SlateHeight);
-	return Vector;
+	if (AudioMaterialSliderStyle)
+	{
+		return FVector2D(AudioMaterialSliderStyle->DesiredSize);
+	}
+
+	return FVector2D::ZeroVector;
 }
 
 void SAudioMaterialSlider::SetValue(TAttribute<float> InValueAttribute)

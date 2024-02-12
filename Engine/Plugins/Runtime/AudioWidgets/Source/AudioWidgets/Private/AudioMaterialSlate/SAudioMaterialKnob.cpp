@@ -56,6 +56,9 @@ int32 SAudioMaterialKnob::OnPaint(const FPaintArgs& Args, const FGeometry& Allot
 			DynamicMaterial->SetVectorParameterValue(FName("LedTint"), AudioMaterialKnobStyle->KnobBarFillTintColor);
 
 			DynamicMaterial->SetScalarParameterValue(FName("VALUE"), FMath::Clamp(KnobPercent, 0.f, 1.f));
+
+			DynamicMaterial->SetScalarParameterValue(FName("LocalWidth"), AllottedGeometry.GetLocalSize().X);
+			DynamicMaterial->SetScalarParameterValue(FName("LocalHeigth"), AllottedGeometry.GetLocalSize().Y);			
 		}
 
 		const bool bEnabled = ShouldBeEnabled(bParentEnabled);
@@ -73,8 +76,12 @@ int32 SAudioMaterialKnob::OnPaint(const FPaintArgs& Args, const FGeometry& Allot
 
 FVector2D SAudioMaterialKnob::ComputeDesiredSize(float) const
 {
-	FVector2D Vector = FVector2D(SlateWidth, SlateHeight);
-	return Vector;
+	if (AudioMaterialKnobStyle)
+	{
+		return FVector2D(AudioMaterialKnobStyle->DesiredSize);
+	}
+
+	return FVector2D::ZeroVector;
 }
 
 FReply SAudioMaterialKnob::OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)

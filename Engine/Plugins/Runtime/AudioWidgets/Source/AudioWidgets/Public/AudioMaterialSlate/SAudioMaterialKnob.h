@@ -81,9 +81,4 @@ private:
 	// the max pixels to go to min or max value (clamped to 0 or 1) in one drag period
 	int32 PixelDelta = 50;
 
-	//Width & height
-	//TODO: Currently hardcoded for testing, make more dynamic.
-	float SlateWidth = 256.f;
-	float SlateHeight = 256.f;
-
 };

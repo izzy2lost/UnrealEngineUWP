@@ -24,7 +24,7 @@ class AUDIOWIDGETS_API UAudioMaterialEnvelope : public UWidget
 public:
 
 	/** The Envelope's style */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style", meta = (DisplayName = "Style"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style", meta = (DisplayName = "Style", ShowOnlyInnerProperties))
 	FAudioMaterialEnvelopeStyle WidgetStyle;
 
 	/**Envelope settings*/

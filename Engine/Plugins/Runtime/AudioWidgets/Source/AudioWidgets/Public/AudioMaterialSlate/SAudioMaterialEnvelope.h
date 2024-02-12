@@ -26,7 +26,7 @@ public:
 	SLATE_ARGUMENT(FAudioMaterialEnvelopeSettings*, EnvelopeSettings)
 
 	/** The style used to draw the Envelope. */
-	SLATE_STYLE_ARGUMENT(FAudioMaterialEnvelopeStyle, AudioMaterialMeterStyle)
+	SLATE_STYLE_ARGUMENT(FAudioMaterialEnvelopeStyle, AudioMaterialEnvelopeStyle)
 
 	SLATE_END_ARGS()
 
@@ -48,14 +48,9 @@ private:
 	TWeakObjectPtr<UObject> Owner;
 
 	// Holds the style for the Slate
-	const FAudioMaterialEnvelopeStyle* AudioMaterialMeterStyle = nullptr;
+	const FAudioMaterialEnvelopeStyle* AudioMaterialEnvelopeStyle = nullptr;
 
 	//Holds the current Envelope settings
 	const FAudioMaterialEnvelopeSettings* EnvelopeSettings = nullptr;
-
-	//Width & height
-	//TODO: Currently hardcoded for testing, make more dynamic.
-	float SlateWidth = 256.f;
-	float SlateHeight = 256.f;
 
 };

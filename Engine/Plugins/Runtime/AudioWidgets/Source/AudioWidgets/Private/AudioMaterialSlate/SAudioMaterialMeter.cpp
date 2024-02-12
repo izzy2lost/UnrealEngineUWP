@@ -38,6 +38,9 @@ int32 SAudioMaterialMeter::OnPaint(const FPaintArgs& Args, const FGeometry& Allo
 
 			const float Value = ValueAttribute.Get();
 			DynamicMaterial->SetScalarParameterValue(FName("VALUE"), FMath::Clamp(Value, 0.f, 1.f));
+
+			DynamicMaterial->SetScalarParameterValue(FName("LocalWidth"), AllottedGeometry.GetLocalSize().X);
+			DynamicMaterial->SetScalarParameterValue(FName("LocalHeigth"), AllottedGeometry.GetLocalSize().Y);			
 		}
 
 		const bool bEnabled = ShouldBeEnabled(bParentEnabled);
@@ -55,8 +58,12 @@ int32 SAudioMaterialMeter::OnPaint(const FPaintArgs& Args, const FGeometry& Allo
 
 FVector2D SAudioMaterialMeter::ComputeDesiredSize(float) const
 {
-	FVector2D Vector = FVector2D(SlateWidth, SlateHeight);
-	return Vector;
+	if (AudioMaterialMeterStyle)
+	{
+		return FVector2D(AudioMaterialMeterStyle->DesiredSize);
+	}
+
+	return FVector2D::ZeroVector;
 }
 
 void SAudioMaterialMeter::SetValue(float InValueAttribute)

@@ -37,7 +37,7 @@ TSharedRef<SWidget> UAudioMaterialEnvelope::RebuildWidget()
 {
 	EnvelopeCurve = SNew(SAudioMaterialEnvelope)
 		.Owner(this)
-		.AudioMaterialMeterStyle(&WidgetStyle)
+		.AudioMaterialEnvelopeStyle(&WidgetStyle)
 		.EnvelopeSettings(&EnvelopeSettings);
 
 	return EnvelopeCurve.ToSharedRef();
