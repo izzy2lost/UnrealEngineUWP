@@ -161,7 +161,7 @@ FChaosClothPreviewScene::FChaosClothPreviewScene(FPreviewScene::ConstructionValu
 
 	SkeletalMeshComponent = NewObject<USkeletalMeshComponent>(SceneActor);
 	SkeletalMeshComponent->SelectionOverrideDelegate = UPrimitiveComponent::FSelectionOverride::CreateRaw(this, &FChaosClothPreviewScene::IsComponentSelected);
-	SkeletalMeshComponent->SetDisablePostProcessBlueprint(true);
+	SkeletalMeshComponent->SetDisablePostProcessBlueprint(false);
 	SkeletalMeshComponent->RegisterComponentWithWorld(GetWorld());
 
 	ClothComponent = NewObject<UChaosClothComponent>(SceneActor);
@@ -292,6 +292,14 @@ void FChaosClothPreviewScene::SceneDescriptionPropertyChanged(const FName& Prope
 		}
 	}
 	
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UChaosClothPreviewSceneDescription, bPostProcessBlueprint))
+	{
+		if (SkeletalMeshComponent)
+		{
+			SkeletalMeshComponent->SetDisablePostProcessBlueprint(!PreviewSceneDescription->bPostProcessBlueprint);
+		}
+	}
+
 }
 
 UChaosClothComponent* FChaosClothPreviewScene::GetClothComponent()
