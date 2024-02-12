@@ -10,8 +10,6 @@
 #include "HAL/CriticalSection.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "HAL/MallocBinnedCommon.h"
-#include "HAL/MemoryBase.h"
-#include "HAL/PlatformMath.h"
 #include "HAL/PlatformMemory.h"
 #include "HAL/UnrealMemory.h"
 #include "Math/NumericLimits.h"

@@ -3,6 +3,8 @@
 #pragma once
 
 #include "CoreTypes.h"
+#include "HAL/MemoryBase.h"
+#include "HAL/PlatformMath.h"
 #include "HAL/PlatformTLS.h"
 #include "Templates/AlignmentTemplates.h"
 
