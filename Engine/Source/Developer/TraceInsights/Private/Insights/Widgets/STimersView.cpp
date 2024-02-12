@@ -619,7 +619,9 @@ TSharedPtr<SWidget> STimersView::TreeView_GetMenuContent()
 				if (bIsValidSource)
 				{
 					ItemToolTip = FText::Format(LOCTEXT("ContextMenu_OpenSource_Desc1", "Opens the source file of the selected timer in {0}.\n{1} ({2})"),
-						SourceCodeAccessor.GetNameText(), FText::FromString(File), FText::AsNumber(Line, &FNumberFormattingOptions::DefaultNoGrouping()));
+						SourceCodeAccessor.GetNameText(),
+						FText::FromString(File),
+						FText::AsNumber(Line, &FNumberFormattingOptions::DefaultNoGrouping()));
 				}
 				else
 				{
@@ -632,8 +634,9 @@ TSharedPtr<SWidget> STimersView::TreeView_GetMenuContent()
 				ItemLabel = LOCTEXT("ContextMenu_OpenSourceNA", "Open Source");
 				if (bIsValidSource)
 				{
-					ItemToolTip = FText::Format(LOCTEXT("ContextMenu_OpenSourceNA_Desc1", "{1} ({2})\nSource Code Accessor is not available."),
-						FText::FromString(File), FText::AsNumber(Line, &FNumberFormattingOptions::DefaultNoGrouping()));
+					ItemToolTip = FText::Format(LOCTEXT("ContextMenu_OpenSourceNA_Desc1", "{0} ({1})\nSource Code Accessor is not available."),
+						FText::FromString(File),
+						FText::AsNumber(Line, &FNumberFormattingOptions::DefaultNoGrouping()));
 				}
 				else
 				{

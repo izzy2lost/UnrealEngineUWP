@@ -149,7 +149,7 @@ void STaskTableTreeView::ExtendMenu(FMenuBuilder& MenuBuilder)
 			ItemLabel = LOCTEXT("ContextMenu_OpenSourceNA", "Open Source");
 			if (bIsValidSource)
 			{
-				ItemToolTip = FText::Format(LOCTEXT("ContextMenu_OpenSourceNA_Desc1", "{1} ({2})\nSource Code Accessor is not available."),
+				ItemToolTip = FText::Format(LOCTEXT("ContextMenu_OpenSourceNA_Desc1", "{0} ({1})\nSource Code Accessor is not available."),
 					FText::FromString(File),
 					FText::AsNumber(Line, &FNumberFormattingOptions::DefaultNoGrouping()));
 			}

@@ -1223,8 +1223,9 @@ void FThreadTimingTrack::PostDraw(const ITimingTrackDrawContext& Context) const
 
 			if (Timer->File)
 			{
-				FString SourceFile(Timer->File);
-				DrawSelectedEventInfoEx(StatsText, TimerName, FPaths::GetCleanFilename(SourceFile), Context.GetViewport(), Context.GetDrawContext(), Helper.GetWhiteBrush(), Helper.GetEventFont());
+				FString SourceFile = FPaths::GetCleanFilename(FString(Timer->File));
+				FString SourceFileAndLine = FString::Printf(TEXT("%s (%d)"), *SourceFile, Timer->Line);
+				DrawSelectedEventInfoEx(StatsText, TimerName, SourceFileAndLine, Context.GetViewport(), Context.GetDrawContext(), Helper.GetWhiteBrush(), Helper.GetEventFont());
 			}
 			else
 			{
