@@ -36,29 +36,19 @@ void URigHierarchyController::Serialize(FArchive& Ar)
     }
 }
 
+URigHierarchy* URigHierarchyController::GetHierarchy() const
+{
+	return Cast<URigHierarchy>(GetOuter());;
+}
+
 void URigHierarchyController::SetHierarchy(URigHierarchy* InHierarchy)
 {
 	// since we changed the controller to be a property of the hierarchy,
 	// controlling a different hierarchy is no longer allowed
 	if (ensure(InHierarchy == GetOuter()))
 	{
-		// make sure making multiple valid SetHierarchy() calls won't lead to accumulated delegates
-		// though it should not happen in the first place
-		if (URigHierarchy* Hierarchy = WeakHierarchy.Get())
-		{
-			if(!Hierarchy->HasAnyFlags(RF_BeginDestroyed) && Hierarchy->IsValidLowLevel())
-			{
-				  Hierarchy->OnModified().RemoveAll(this);
-			}
-			Hierarchy = nullptr;
-		}
-		
-		URigHierarchy* OuterHierarchy = Cast<URigHierarchy>(GetOuter());
-		if (ensure(OuterHierarchy) && ::IsValid(OuterHierarchy))
-		{
-			WeakHierarchy = OuterHierarchy;
-			WeakHierarchy->OnModified().AddUObject(this, &URigHierarchyController::HandleHierarchyModified);
-		}
+		InHierarchy->OnModified().RemoveAll(this);
+		InHierarchy->OnModified().AddUObject(this, &URigHierarchyController::HandleHierarchyModified);
 	}
 	else
 	{
@@ -1999,9 +1989,11 @@ void URigHierarchyController::HandleHierarchyModified(ERigHierarchyNotification 
 
 bool URigHierarchyController::IsValid() const
 {
-	// If we're pending kill, it's fine for our Hierarchy to also be pending kill
-	const bool bPendingKillAcceptable = ::IsValid(this);
-	return WeakHierarchy.IsValid(bPendingKillAcceptable);
+	if(::IsValid(this))
+	{
+		return ::IsValid(GetHierarchy());
+	}
+	return false;
 }
 
 FName URigHierarchyController::GetSafeNewName(const FName& InDesiredName, ERigElementType InElementType, bool bAllowNameSpace) const
