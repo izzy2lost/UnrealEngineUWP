@@ -15,9 +15,9 @@
 // Number of times to attempt state change before failing
 constexpr uint32 GStateChangeRetries = 6;
 // Number of times to attempt reconnection while starting server
-constexpr uint32 GStartConnectAttempts = 25;
+constexpr uint32 GStartConnectAttempts = 5;
 // Number of seconds between each reconnection attempt
-constexpr float GStartConnectFrequencySeconds = 0.25;
+constexpr float GStartConnectFrequencySeconds = 0.5;
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
@@ -36,9 +36,9 @@ BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 void STraceServerControl::MakeMenu(FMenuBuilder& Builder)
 {
 	// Create client
-	if (!Client.IsValid())
+	if (!Client)
 	{
-		Client = TUniquePtr<UE::Trace::FStoreClient>(UE::Trace::FStoreClient::Connect(*Host, Port));
+		Client.Reset(UE::Trace::FStoreClient::Connect(*Host, Port));
 		if (Client)
 		{
 			ChangeState(EState::NotConnected, EState::Connected);
@@ -235,7 +235,7 @@ void STraceServerControl::OnStart_Clicked()
 		uint32 Attempts = 0;
 		while (!Client && Attempts++ < GStartConnectAttempts)
 		{
-			Client = TUniquePtr<UE::Trace::FStoreClient>(UE::Trace::FStoreClient::Connect(TEXT("127.0.0.1")));
+			Client.Reset(UE::Trace::FStoreClient::Connect(TEXT("127.0.0.1")));
 			FPlatformProcess::Sleep(GStartConnectFrequencySeconds);
 		}
 		if (Client)
@@ -244,6 +244,7 @@ void STraceServerControl::OnStart_Clicked()
 		}
 		else
 		{
+			ChangeState(EState::Connecting, EState::NotConnected);
 			UE_LOG(LogTemp, Warning, TEXT("Failed to connect to store"));
 		}
 	}, TStatId(), {CommandTask});

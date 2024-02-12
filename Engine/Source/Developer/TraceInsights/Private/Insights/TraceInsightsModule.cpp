@@ -185,7 +185,7 @@ void FTraceInsightsModule::CreateDefaultStore()
 	StoreServiceDesc.StoreDir = *StoreDir;
 	StoreServiceDesc.RecorderPort = 1981;
 	StoreServiceDesc.ThreadCount = 2;
-	StoreService = TUniquePtr<UE::Trace::FStoreService>(UE::Trace::FStoreService::Create(StoreServiceDesc));
+	StoreService.Reset(UE::Trace::FStoreService::Create(StoreServiceDesc));
 
 	if (StoreService.IsValid())
 	{
@@ -202,8 +202,7 @@ FString FTraceInsightsModule::GetDefaultStoreDir()
 {
 	using UE::Trace::FStoreClient;
 
-	FStoreClient* StoreClientPtr = FStoreClient::Connect(TEXT("localhost"));
-	TUniquePtr<FStoreClient> StoreClient = TUniquePtr<FStoreClient>(StoreClientPtr);
+	TUniquePtr<FStoreClient> StoreClient(FStoreClient::Connect(TEXT("localhost")));
 
 	if (!StoreClient)
 	{
