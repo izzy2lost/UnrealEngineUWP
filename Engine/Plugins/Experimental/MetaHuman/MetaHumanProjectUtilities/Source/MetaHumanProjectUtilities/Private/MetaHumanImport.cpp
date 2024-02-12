@@ -303,7 +303,7 @@ void FMetaHumanImport::ImportAsset(const FMetaHumanAssetImportDescription& Impor
 		FMessageDialog::Open(EAppMsgType::Ok, FText(FText::FromString(TEXT("The downloaded MetaHuman is corrupted and can not be imported. Please re-generate and re-download the MetaHuman and try again."))));
 		return;
 	}
-	const FAssetOperationPaths AssetOperations = DetermineAssetOperations(ParseVersionInfo(SourceAssetVersionFilePath), ImportPaths, ImportDescription.ForceUpdate);
+	const FAssetOperationPaths AssetOperations = DetermineAssetOperations(ParseVersionInfo(SourceAssetVersionFilePath), ImportPaths, ImportDescription.bForceUpdate);
 
 	// If we are updating common files, have incompatible characters and are not updating all of them, then ask the user if they want to continue.
 	if (IncompatibleCharacters.Num() > 0 && !ImportDescription.bIsBatchImport && !AssetOperations.Update.IsEmpty())
@@ -347,6 +347,22 @@ void FMetaHumanImport::ImportAsset(const FMetaHumanAssetImportDescription& Impor
 					}
 				}
 				BulkImportHandler->DoBulkImport(ImportIds);
+				return;
+			}
+		}
+	}
+
+	// If the user is changing the export quality level of the MetaHuman then warn them that they are doing do
+	if (!bIsNewCharacter && ImportDescription.bWarnOnQualityChange)
+	{
+		const FInstalledMetaHuman TargetMetaHuman(ImportDescription.CharacterName, ImportPaths.DestinationMetaHumansFilePath);
+		const EQualityLevel SourceQualityLevel = SourceMetaHuman.GetQualityLevel();
+		const EQualityLevel TargetQualityLevel = TargetMetaHuman.GetQualityLevel();
+		if (SourceQualityLevel != TargetQualityLevel)
+		{
+			const bool bContinue = DisplayQualityLevelChangeWarning(SourceQualityLevel, TargetQualityLevel);
+			if (!bContinue)
+			{
 				return;
 			}
 		}

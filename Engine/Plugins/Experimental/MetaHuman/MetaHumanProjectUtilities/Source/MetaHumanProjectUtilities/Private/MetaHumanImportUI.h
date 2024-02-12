@@ -6,6 +6,7 @@
 class FSourceMetaHuman;
 class FInstalledMetaHuman;
 struct FAssetOperationPaths;
+enum EQualityLevel: int;
 
 enum class EImportOperationUserResponse: int
 {
@@ -20,3 +21,5 @@ enum class EImportOperationUserResponse: int
  * @param InstalledMetaHumans All MetaHumans installed in the project
  */
 EImportOperationUserResponse DisplayUpgradeWarning(const FSourceMetaHuman& SourceMetaHuman, const TSet<FString>& IncompatibleCharacters, const TArray<FInstalledMetaHuman>& InstalledMetaHumans, const TSet<FString>& AvailableMetaHumans, const FAssetOperationPaths& AssetOperations);
+
+bool DisplayQualityLevelChangeWarning(EQualityLevel Source, EQualityLevel Target);

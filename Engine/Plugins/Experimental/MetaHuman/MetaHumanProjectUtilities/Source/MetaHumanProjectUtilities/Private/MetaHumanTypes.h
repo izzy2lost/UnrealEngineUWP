@@ -7,6 +7,13 @@
 
 struct FMetaHumanAssetImportDescription;
 
+enum EQualityLevel: int
+{
+	Low,
+	Medium,
+	High
+};
+
 struct FMetaHumanAssetVersion
 {
 	int32 Major;
@@ -17,13 +24,16 @@ struct FMetaHumanAssetVersion
 	{
 		return Left.Major < Right.Major || (Left.Major == Right.Major && Left.Minor < Right.Minor);
 	}
+
 	friend bool operator>(const FMetaHumanAssetVersion& Left, const FMetaHumanAssetVersion& Right) { return Right < Left; }
 	friend bool operator<=(const FMetaHumanAssetVersion& Left, const FMetaHumanAssetVersion& Right) { return !(Left > Right); }
 	friend bool operator>=(const FMetaHumanAssetVersion& Left, const FMetaHumanAssetVersion& Right) { return !(Left < Right); }
+
 	friend bool operator ==(const FMetaHumanAssetVersion& Left, const FMetaHumanAssetVersion& Right)
 	{
 		return Right.Major == Left.Major && Right.Minor == Left.Minor;
 	}
+
 	friend bool operator!=(const FMetaHumanAssetVersion& Left, const FMetaHumanAssetVersion& Right) { return !(Left == Right); }
 
 	static FMetaHumanAssetVersion FromString(const FString& String)
@@ -126,6 +136,7 @@ struct FMetaHumanVersion
 	// Currently default initialisation == 0.0.0 which is not a valid version. This needs a bit more thought
 	// TODO: refactor to use TOptional and avoid needing to represent invalid versions.
 	FMetaHumanVersion() = default;
+
 	explicit FMetaHumanVersion(const FString& VersionString)
 	{
 		TArray<FString> ParsedVersionString;
@@ -138,10 +149,11 @@ struct FMetaHumanVersion
 			Revision = FCString::Atoi(*ParsedVersionString[2]);
 		}
 	}
-	explicit FMetaHumanVersion(const int Major, const int Minor, const int Revision) :
-		Major(Major),
-		Minor(Minor),
-		Revision(Revision)
+
+	explicit FMetaHumanVersion(const int Major, const int Minor, const int Revision)
+		: Major(Major)
+		, Minor(Minor)
+		, Revision(Revision)
 	{
 	}
 
@@ -150,13 +162,16 @@ struct FMetaHumanVersion
 	{
 		return Left.Major < Right.Major || (Left.Major == Right.Major && (Left.Minor < Right.Minor || (Left.Minor == Right.Minor && Left.Revision < Right.Revision)));
 	}
+
 	friend bool operator>(const FMetaHumanVersion& Left, const FMetaHumanVersion& Right) { return Right < Left; }
 	friend bool operator<=(const FMetaHumanVersion& Left, const FMetaHumanVersion& Right) { return !(Left > Right); }
 	friend bool operator>=(const FMetaHumanVersion& Left, const FMetaHumanVersion& Right) { return !(Left < Right); }
+
 	friend bool operator ==(const FMetaHumanVersion& Left, const FMetaHumanVersion& Right)
 	{
 		return Right.Major == Left.Major && Right.Minor == Left.Minor && Right.Revision == Left.Revision;
 	}
+
 	friend bool operator!=(const FMetaHumanVersion& Left, const FMetaHumanVersion& Right) { return !(Left == Right); }
 
 	// Hash function
@@ -190,9 +205,9 @@ struct FMetaHumanVersion
 class FSourceMetaHuman
 {
 public:
-	FSourceMetaHuman(const FString& RootPath, const FString& Name) :
-		RootPath(RootPath),
-		Name(Name)
+	FSourceMetaHuman(const FString& RootPath, const FString& Name)
+		: RootPath(RootPath)
+		, Name(Name)
 	{
 		const FString VersionFilePath = FPaths::Combine(RootPath, Name, TEXT("VersionInfo.txt"));
 		Version = FMetaHumanVersion::ReadFromFile(VersionFilePath);
@@ -208,6 +223,22 @@ public:
 		return Version;
 	}
 
+	EQualityLevel GetQualityLevel() const
+	{
+		if (RootPath.Contains(TEXT("Tier0")))
+		{
+			return EQualityLevel::High;
+		}
+		if (RootPath.Contains(TEXT("Tier2")))
+		{
+			return EQualityLevel::Medium;
+		}
+		else
+		{
+			return EQualityLevel::Low;
+		}
+	}
+
 private:
 	FString RootPath;
 	FString Name;
@@ -220,11 +251,7 @@ class FInstalledMetaHuman
 {
 public:
 	// For now, it is assumed that a MetaHuman has files in {MetaHumansFilePath}/{Name} and {MetaHumansFilePath}/Common.
-	FInstalledMetaHuman(const FString& Name, const FString& MetaHumansFilePath) :
-		Name(Name),
-		MetaHumansFilePath(MetaHumansFilePath)
-	{
-	}
+	FInstalledMetaHuman(const FString& Name, const FString& MetaHumansFilePath);
 
 	const FString& GetName() const
 	{
@@ -237,10 +264,13 @@ public:
 		return FMetaHumanVersion::ReadFromFile(VersionFilePath);
 	}
 
+	EQualityLevel GetQualityLevel() const;
+
 	// Finds MetaHumans in the destination of a given import
 	static TArray<FInstalledMetaHuman> GetInstalledMetaHumans(const FImportPaths& ImportPaths);
 
 private:
 	FString Name;
 	FString MetaHumansFilePath;
+	FString MetaHumansAssetPath;
 };

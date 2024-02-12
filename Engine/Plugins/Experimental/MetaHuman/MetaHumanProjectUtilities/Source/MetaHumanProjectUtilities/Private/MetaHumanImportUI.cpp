@@ -746,4 +746,27 @@ EImportOperationUserResponse DisplayUpgradeWarning(const FSourceMetaHuman& Sourc
 	return EImportOperationUserResponse::Cancel;
 }
 
+FText GetValueAsText(EQualityLevel Level)
+{
+	if (Level == High)
+	{
+		return LOCTEXT("EQualityLevel:High", "High");
+	}
+	if (Level == Medium)
+	{
+		return LOCTEXT("EQualityLevel:Medium", "Medium");
+	}
+	return LOCTEXT("EQualityLevel:Low", "Low");
+}
+
+bool DisplayQualityLevelChangeWarning(EQualityLevel Source, EQualityLevel Target)
+{
+	const FText Title = LOCTEXT("QualityLevelWarningTitle", "Proceed with import?");
+	const FText Message = FText::Format(LOCTEXT("QualityLevelWarningBody", "You are about to import a MetaHuman at the \"{0}\" quality level, over an existing MetaHuman at the \"{1}\" quality level."), GetValueAsText(Source), GetValueAsText(Target));
+
+	const EAppReturnType::Type UpdateAssetsDialog = FMessageDialog::Open(EAppMsgType::OkCancel, Message, Title);
+	return UpdateAssetsDialog == EAppReturnType::Ok;
+	
+}
+
 #undef LOCTEXT_NAMESPACE

@@ -7,6 +7,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/PackageName.h"
 #include "Serialization/JsonSerializer.h"
+#include "UObject/MetaData.h"
 
 FImportPaths::FImportPaths(FMetaHumanAssetImportDescription ImportDescription)
 {
@@ -49,6 +50,37 @@ FMetaHumanVersion FMetaHumanVersion::ReadFromFile(const FString& VersionFilePath
 	return {};
 }
 
+FInstalledMetaHuman::FInstalledMetaHuman(const FString& Name, const FString& MetaHumansFilePath)
+	: Name(Name)
+	, MetaHumansFilePath(MetaHumansFilePath)
+	, MetaHumansAssetPath(FPackageName::FilenameToLongPackageName(MetaHumansFilePath))
+{
+}
+
+EQualityLevel FInstalledMetaHuman::GetQualityLevel() const
+{
+	const FString MetaHumanRootAsset = FPaths::Combine(MetaHumansAssetPath, Name, FString::Format(TEXT("BP_{0}.BP_{0}"), {Name}));
+
+	static const FName MetaHumanAssetQualityLevelKey = TEXT("MHExportQuality");
+	if (const UObject* Asset = LoadObject<UObject>(nullptr, *MetaHumanRootAsset))
+	{
+		if (const TMap<FName, FString>* Metadata = UMetaData::GetMapForObject(Asset))
+		{
+			if (const FString* AssetQualityMetaData = Metadata->Find(MetaHumanAssetQualityLevelKey))
+			{
+				if (*AssetQualityMetaData == TEXT("High"))
+				{
+					return EQualityLevel::High;
+				}
+				if (*AssetQualityMetaData == TEXT("Medium"))
+				{
+					return EQualityLevel::Medium;
+				}
+			}
+		}
+	}
+	return EQualityLevel::Low;
+}
 
 TArray<FInstalledMetaHuman> FInstalledMetaHuman::GetInstalledMetaHumans(const FImportPaths& ImportPaths)
 {
