@@ -42,16 +42,17 @@
 			"Platform": "All",
 			"Requirements": 
 			[
-				"addict==2.4.0",
-				"glcontext==2.3.6",
-				"joblib==1.1.0",
-				"moderngl==5.6.4",
-				"multipledispatch==0.6.0",
-				"PyOpenGL==3.1.6",
-				"pyrr==0.10.3",
-				"pyyaml==6.0",
-				"scikit_learn==1.1.1",
-				"six==1.16.0"
+				"addict==2.4.0 --hash=sha256:249bb56bbfd3cdc2a004ea0ff4c2b6ddc84d53bc2194761636eb314d5cfa5dfc",
+				"glcontext==2.3.6 --hash=sha256:c8adc530ecbb0c01c0abcc56ee71c7bcf8799209bff9e5c32f1a1d77f7035468 --hash=sha256:01106836f02d0098cbcacbc6d0c911f27fa728177d5a651ff44325dfafba7077 --hash=sha256:64c0425155174fd2faaff7f631d41792365e357484c7f44a6b38efc1ea38468c --hash=sha256:22699f81696756ec98fcf8b9a2ebd1dd73a42f81501d7748855e66b63d963c36",
+				"joblib==1.1.0 --hash=sha256:f21f109b3c7ff9d95f8387f752d0d9c34a02aa2f7060c2135f465da0e5160ff6",
+				"moderngl==5.6.4 --hash=sha256:d4c56e15a5fb29de0295891ec3b153e2bd8aeada0c0825135aa5851fa481ff28 --hash=sha256:3fb139bcdd25eae2c546e5788e9d8719f6c4b18a2ba68a9df31699b4ac57d62d --hash=sha256:4a3aaa15eb4d43b79e06a46945869feb13f325312ad63666ef2b7d3e216e3a09 --hash=sha256:1c74b71c9acee9f0e69807a086d76e92f37c1960c3bb1d6a6e2472fd03f7be5b",
+				"multipledispatch==0.6.0 --hash=sha256:a55c512128fb3f7c2efd2533f2550accb93c35f1045242ef74645fc92a2c3cba",
+				"PyOpenGL==3.1.6 --hash=sha256:a7139bc3e15d656feae1f7e3ef68c799941ed43fadc78177a23db7e946c20738",
+				"pyrr==0.10.3 --hash=sha256:d8af23fb9bb29262405845e1c98f7339fbba5e49323b98528bd01160a75c65ac",
+				"pyyaml==6.0 --hash=sha256:055d937d65826939cb044fc8c9b08889e8c743fdc6a32b33e2390f66013e449b --hash=sha256:e61ceaab6f49fb8bdfaa0f92c4b57bcfbea54c09277b1b4f7ac376bfb7a7c174 --hash=sha256:40527857252b61eacd1d9af500c3337ba8deb8fc298940291486c465c8b46ec0 --hash=sha256:b3d267842bf12586ba6c734f89d1f5b871df0273157918b0ccefa29deb05c21c",
+				"scikit_learn==1.1.1 --hash=sha256:0403ad13f283e27d43b0ad875f187ec7f5d964903d92d1ed06c51439560ecea0 --hash=sha256:8fe80df08f5b9cee5dd008eccc672e543976198d790c07e5337f7dfb67eaac05 --hash=sha256:c2dad2bfc502344b869d4a3f4aa7271b2a5f4fe41f7328f404844c51612e2c58 --hash=sha256:45c0f6ae523353f1d99b85469d746f9c497410adff5ba8b24423705b6956a86e",
+				"six==1.16.0 --hash=sha256:8abb2f1d86890a2dfb989f9a77cfcfd3e47c2a354b01111771326f8aa26e0254",
+				"threadpoolctl==3.1.0 --hash=sha256:8b99adda265feb6773280df41eece7b2e6561b772d21ffd52e372f999024907b"
 			]
 		}
 	]

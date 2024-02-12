@@ -102,7 +102,7 @@ const TMap<FString,FString> FPipProgressParser::LogReplaceStrs = {{TEXT("Install
 
 // In order to keep editor startup time fast, check directly for this utils version (make sure to match with wheel version in PythonScriptPlugin/Content/Python/Lib/wheels)
 // NOTE: This version must also be changed in PipInstallMode.cs in order to support UBT functionality
-const FString FPipInstall::PipInstallUtilsVer = TEXT("0.1.4");
+const FString FPipInstall::PipInstallUtilsVer = TEXT("0.1.5");
 
 const FString FPipInstall::PluginsListingFilename = TEXT("pyreqs_plugins.list");
 const FString FPipInstall::PluginsSitePackageFilename = TEXT("plugin_site_package.pth");
@@ -118,17 +118,17 @@ FPipInstall& FPipInstall::Get()
 }
 
 
-bool FPipInstall::IsEnabled()
+bool FPipInstall::IsEnabled() const
 {
 	return bRunOnStartup && !bCmdLineDisable;
 }
 
-bool FPipInstall::IsCmdLineDisabled()
+bool FPipInstall::IsCmdLineDisabled() const
 {
 	return bCmdLineDisable;
 }
 
-FString FPipInstall::WritePluginsListing(TArray<TSharedRef<IPlugin>>& OutPythonPlugins)
+FString FPipInstall::WritePluginsListing(TArray<TSharedRef<IPlugin>>& OutPythonPlugins) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPipInstall::WritePluginsListing);
 
@@ -157,7 +157,7 @@ FString FPipInstall::WritePluginsListing(TArray<TSharedRef<IPlugin>>& OutPythonP
     return PyPluginsListingFile;
 }
 
-FString FPipInstall::WritePluginDependencies(const TArray<TSharedRef<IPlugin>>& PythonPlugins, TArray<FString>& OutRequirements, TArray<FString>& OutExtraUrls)
+FString FPipInstall::WritePluginDependencies(const TArray<TSharedRef<IPlugin>>& PythonPlugins, TArray<FString>& OutRequirements, TArray<FString>& OutExtraUrls) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPipInstall::WritePluginDependencies);
 
@@ -292,7 +292,7 @@ void FPipInstall::CheckRemoveOrphanedPackages(const FString& SitePackagesPath)
 	}
 }
 
-void FPipInstall::CheckInvalidPipEnv()
+void FPipInstall::CheckInvalidPipEnv() const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPipInstall::CheckInvalidPipEnv);
 
@@ -320,7 +320,7 @@ void FPipInstall::CheckInvalidPipEnv()
 	PlatformFile.DeleteDirectoryRecursively(*PipInstallPath);
 }
 
-void FPipInstall::SetupPipEnv(FFeedbackContext* Context, bool bForceRebuild /* = false */)
+void FPipInstall::SetupPipEnv(FFeedbackContext* Context, bool bForceRebuild /* = false */) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPipInstall::SetupPipEnv);
 
@@ -349,7 +349,7 @@ void FPipInstall::SetupPipEnv(FFeedbackContext* Context, bool bForceRebuild /* =
 	SetupPipInstallUtils(Context);
 }
 
-void FPipInstall::RemoveParsedDependencyFiles()
+void FPipInstall::RemoveParsedDependencyFiles() const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPipInstall::ParsePluginDependencies);
 
@@ -361,19 +361,26 @@ void FPipInstall::RemoveParsedDependencyFiles()
 	}
 }
 
-FString FPipInstall::ParsePluginDependencies(const FString& MergedInRequirementsFile, FFeedbackContext* Context)
+FString FPipInstall::ParsePluginDependencies(const FString& MergedInRequirementsFile, FFeedbackContext* Context) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPipInstall::ParsePluginDependencies);
 
 	const FString ParsedReqsFile = PipInstallPath / ParsedRequirementsFilename;
 
-	const FString Cmd = FString::Printf(TEXT("-m ue_parse_plugin_reqs -vv \"%s\" \"%s\""), *MergedInRequirementsFile, *ParsedReqsFile);
+	// NOTE: Hashes are all-or-nothing so if we are ignoring, just remove them all with the parser
+	FString DisableHashes = TEXT("");
+	if (!GetDefault<UPythonScriptPluginSettings>()->bPipStrictHashCheck)
+	{
+		DisableHashes = TEXT("--disable-hashes");
+	}
+
+	const FString Cmd = FString::Printf(TEXT("-m ue_parse_plugin_reqs %s -vv \"%s\" \"%s\""), *DisableHashes, *MergedInRequirementsFile, *ParsedReqsFile);
 	RunPythonCmd(LOCTEXT("PipInstall.ParseRequirements", "Parsing pip requirements..."), VenvInterp, Cmd, Context);
 
 	return FPaths::ConvertRelativePathToFull(ParsedReqsFile);
 }
 
-bool FPipInstall::RunPipInstall(FFeedbackContext* Context, bool bOfflineOnly, const FString& ForceIndexUrl)
+bool FPipInstall::RunPipInstall(FFeedbackContext* Context) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPipInstall::RunPipInstall);
 
@@ -392,6 +399,10 @@ bool FPipInstall::RunPipInstall(FFeedbackContext* Context, bool bOfflineOnly, co
 	}
 
 	int ReqCount = CountInstallLines(ParsedReqLines);
+	if (ReqCount < 1)
+	{
+		return true;
+	}
 
 	TArray<FString> ExtraUrls;
 	if (FPaths::FileExists(ExtraUrlsFile))
@@ -399,31 +410,14 @@ bool FPipInstall::RunPipInstall(FFeedbackContext* Context, bool bOfflineOnly, co
 		FFileHelper::LoadFileToStringArray(ExtraUrls, *ExtraUrlsFile);
 	}
 
-	FString Cmd = TEXT("-m pip install --disable-pip-version-check --only-binary=:all:");
-	if (bOfflineOnly)
-	{
-		Cmd += TEXT(" --no-index");
-	}
-	else if (!ForceIndexUrl.IsEmpty())
-	{
-		Cmd += TEXT(" --index-url ") + ForceIndexUrl;
-	}
-	else if (!ExtraUrls.IsEmpty())
-	{
-		for (const FString& Url: ExtraUrls)
-		{
-			Cmd += TEXT(" --extra-index-url ") + Url;
-		}
-	}
-
-	Cmd += " -r \"" + ParsedReqsFile + "\"";
+	const FString Cmd = SetupPipInstallCmd(ParsedReqsFile, ExtraUrls);
 
 	TSharedPtr<IProgressParser> ProgParser = MakeShared<FPipProgressParser>(ReqCount);
 	int32 Result = RunPythonCmd(LOCTEXT("PipInstall.InstallRequirements", "Installing pip requirements..."), VenvInterp, Cmd, Context, ProgParser);
 	return (Result == 0);
 }
 
-int FPipInstall::NumPackagesToInstall()
+int FPipInstall::NumPackagesToInstall() const
 {
 	const FString ParsedReqsFile = FPaths::ConvertRelativePathToFull(PipInstallPath / ParsedRequirementsFilename);
 
@@ -451,12 +445,12 @@ int FPipInstall::CountInstallLines(const TArray<FString>& RequirementLines)
 	return Count;
 }
 
-FString FPipInstall::GetPipInstallPath()
+FString FPipInstall::GetPipInstallPath() const
 {
 	return PipInstallPath;
 }
 
-FString FPipInstall::GetPipSitePackagesPath()
+FString FPipInstall::GetPipSitePackagesPath() const
 {
 	const FString VenvPath = GetPipInstallPath();
 #if PLATFORM_WINDOWS
@@ -499,7 +493,7 @@ FPipInstall::FPipInstall()
 }
 
 
-void FPipInstall::WriteSitePackagePthFile()
+void FPipInstall::WriteSitePackagePthFile() const
 {
 	// Write all paths from script-plugin
 	// TODO: Should we directly use PyUtil::GetSystemPaths instead?
@@ -552,7 +546,7 @@ void FPipInstall::WriteSitePackagePthFile()
 }
 
 
-void FPipInstall::SetupPipInstallUtils(FFeedbackContext* Context)
+void FPipInstall::SetupPipInstallUtils(FFeedbackContext* Context) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPipInstall::SetupPipInstallUtils);
 
@@ -577,11 +571,44 @@ void FPipInstall::SetupPipInstallUtils(FFeedbackContext* Context)
 }
 
 
-bool FPipInstall::CheckPipInstallUtils(FFeedbackContext* Context)
+bool FPipInstall::CheckPipInstallUtils(FFeedbackContext* Context) const
 {
 	// Verify that correct version of pip install utils is already available
 	const FString Cmd = FString::Printf(TEXT("-c \"import pkg_resources;dist=pkg_resources.working_set.find(pkg_resources.Requirement.parse('ue-pipinstall-utils'));exit(dist.version!='%s' if dist is not None else 1)\""), *PipInstallUtilsVer);
 	return (RunPythonCmd(LOCTEXT("PipInstall.CheckPipInstallUtils", "Check pip install utils installed"), VenvInterp, Cmd, Context) == 0);
+}
+
+FString FPipInstall::SetupPipInstallCmd(const FString& ParsedReqsFile, const TArray<FString>& ExtraUrls) const
+{
+	const UPythonScriptPluginSettings* ScriptSettings = GetDefault<UPythonScriptPluginSettings>();
+
+	FString Cmd = TEXT("-m pip install --disable-pip-version-check --only-binary=:all:");
+
+	// Force require hashes in requirements lines by default
+	if (ScriptSettings->bPipStrictHashCheck)
+	{
+		Cmd += TEXT(" --require-hashes");
+	}
+
+	if (ScriptSettings->bOfflineOnly)
+	{
+		Cmd += TEXT(" --no-index");
+	}
+	else if (!ScriptSettings->OverrideIndexURL.IsEmpty())
+	{
+		Cmd += TEXT(" --index-url ") + ScriptSettings->OverrideIndexURL;
+	}
+	else if (!ExtraUrls.IsEmpty())
+	{
+		for (const FString& Url: ExtraUrls)
+		{
+			Cmd += TEXT(" --extra-index-url ") + Url;
+		}
+	}
+
+	Cmd += " -r \"" + ParsedReqsFile + "\"";
+	
+	return Cmd;
 }
 
 int32 FPipInstall::RunPythonCmd(const FText& Description, const FString& PythonInterp, const FString& Cmd, FFeedbackContext* Context, TSharedPtr<IProgressParser> CmdParser)
@@ -663,7 +690,7 @@ FString FPipInstall::GetPythonScriptPluginPath()
 	return PythonPlugin->GetBaseDir();
 }
 
-FString FPipInstall::ParseVenvVersion()
+FString FPipInstall::ParseVenvVersion() const
 {
 	FString VenvConfig = PipInstallPath / TEXT("pyvenv.cfg");
 	if (!FPaths::FileExists(VenvConfig))

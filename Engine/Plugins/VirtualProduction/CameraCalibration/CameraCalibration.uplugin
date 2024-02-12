@@ -50,7 +50,7 @@
 		{
 			"Platform": "All",
 			"Requirements": [
-				"nerfacc"
+				"nerfacc==0.5.3 --hash=sha256:bcf9ecc85f2dc3439491f11f6103de9d5a0dfd2e9fe6ba4cade608443d7c6d2f"
 			]
 		}
 	]

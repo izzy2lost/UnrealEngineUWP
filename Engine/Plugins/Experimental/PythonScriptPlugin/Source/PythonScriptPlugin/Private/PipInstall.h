@@ -18,41 +18,44 @@ class FPipInstall
 public:
 	static FPipInstall& Get();
 
-	bool IsEnabled();
-	bool IsCmdLineDisabled();
+	bool IsEnabled() const;
+	bool IsCmdLineDisabled() const;
 
 	void CheckRemoveOrphanedPackages(const FString& SitePackagesPath);
-	void CheckInvalidPipEnv();
+	void CheckInvalidPipEnv() const;
 
-	FString WritePluginsListing(TArray<TSharedRef<IPlugin>>& OutPythonPlugins);
-	FString WritePluginDependencies(const TArray<TSharedRef<IPlugin>>& PythonPlugins, TArray<FString>& OutRequirements, TArray<FString>& OutExtraUrls);
+	FString WritePluginsListing(TArray<TSharedRef<IPlugin>>& OutPythonPlugins) const;
+	FString WritePluginDependencies(const TArray<TSharedRef<IPlugin>>& PythonPlugins, TArray<FString>& OutRequirements, TArray<FString>& OutExtraUrls) const;
 
-	void SetupPipEnv(FFeedbackContext* Context, bool bForceRebuild = false);
-	void RemoveParsedDependencyFiles();
-	FString ParsePluginDependencies(const FString& MergedInRequirementsFile, FFeedbackContext* Context);
-	bool RunPipInstall(FFeedbackContext* Context, bool bOfflineOnly = false, const FString& ForceIndexUrl = TEXT(""));
+	void SetupPipEnv(FFeedbackContext* Context, bool bForceRebuild = false) const;
+	void RemoveParsedDependencyFiles() const;
+	FString ParsePluginDependencies(const FString& MergedInRequirementsFile, FFeedbackContext* Context) const;
+	bool RunPipInstall(FFeedbackContext* Context) const;
 
-	int NumPackagesToInstall();
+	int NumPackagesToInstall() const;
 
-	FString GetPipInstallPath();
-	FString GetPipSitePackagesPath();
+	FString GetPipInstallPath() const;
+	FString GetPipSitePackagesPath() const;
 
 private:
 	FPipInstall();
 
-	void WriteSitePackagePthFile();
-	void SetupPipInstallUtils(FFeedbackContext* Context);
-	bool CheckPipInstallUtils(FFeedbackContext* Context);
+	void WriteSitePackagePthFile() const;
+	void SetupPipInstallUtils(FFeedbackContext* Context) const;
+	bool CheckPipInstallUtils(FFeedbackContext* Context) const;
+
+	FString SetupPipInstallCmd(const FString& ParsedReqsFile, const TArray<FString>& ExtraUrls) const;
+
 	static int32 RunPythonCmd(const FText& Description, const FString& PythonInterp, const FString& Cmd, FFeedbackContext* Context, TSharedPtr<IProgressParser> CmdParser = nullptr);
 	static bool RunLoggedSubprocess(int32* OutExitCode, const FText& Description, const FString& URL, const FString& Params, FFeedbackContext* Context, TSharedPtr<IProgressParser> CmdParser);
 
-	FString ParseVenvVersion();
+	FString ParseVenvVersion() const;
 
 	static FString GetPythonScriptPluginPath();
 	static FString GetVenvInterpreter(const FString& InstallPath);
 	static bool CheckCompatiblePlatform(const TSharedPtr<FJsonObject>& JsonObject, const FString& PlatformName);
 
-	int CountInstallLines(const TArray<FString>& RequirementLines);
+	static int CountInstallLines(const TArray<FString>& RequirementLines);
 
 	bool bRunOnStartup;
 	bool bCmdLineDisable;

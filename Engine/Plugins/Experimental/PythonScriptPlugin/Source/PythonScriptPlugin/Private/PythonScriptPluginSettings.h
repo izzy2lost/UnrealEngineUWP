@@ -78,7 +78,7 @@ public:
 	bool bDeveloperMode;
 
 	/**
-	 * Should the pip install UBT task (UBT Mode=PipInstall) be run on editor startup.
+	 * Should the pip install task be run on editor startup.
 	 *
 	 * NOTE: The project pip install directory: <ProjectDir>/Intermediate/PipInstall/Lib/site-packages
 	 *       will still be added to site package path, if it exists, to allow for pre-populated installs
@@ -88,6 +88,22 @@ public:
 	 */
 	UPROPERTY(config, EditAnywhere, Category=PythonPipInstall, meta=(ConfigRestartRequired=true))
 	bool bRunPipInstallOnStartup = true;
+
+	/** Require pip to use strict hash checking for all packages
+	 *  WARNING: Disabling this setting is a security risk, particularly when combined with IndexUrl override
+	*/
+	UPROPERTY(config, EditAnywhere, Category=PythonPipInstall, AdvancedDisplay, meta=(ConfigRestartRequired=true))
+	bool bPipStrictHashCheck = true;
+
+	/** Only run pip to generate merged requiremnts and/or validate requested packages are installed */
+	UPROPERTY(config, EditAnywhere, Category=PythonPipInstall, AdvancedDisplay, meta=(ConfigRestartRequired=true))
+	bool bOfflineOnly = false;
+
+	/** Override all index/extra-index URLs, this is useful for internal NAT installs (using e.g. devpi or similar index cache)
+	 *  WARNING: Strict hash checks should be enabled if an override index url is used
+	*/
+	UPROPERTY(config, EditAnywhere, Category=PythonPipInstall, AdvancedDisplay, meta=(ConfigRestartRequired=true))
+	FString OverrideIndexURL;
 
 	/** Should remote Python execution be enabled? */
 	UPROPERTY(config, EditAnywhere, Category=PythonRemoteExecution, meta=(DisplayName="Enable Remote Execution?"))

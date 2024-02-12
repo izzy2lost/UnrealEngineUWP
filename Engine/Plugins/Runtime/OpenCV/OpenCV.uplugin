@@ -30,7 +30,7 @@
 		{
 			"Platform": "All",
 			"Requirements": [
-				"opencv-python==4.5.5.62"
+				"opencv-python==4.5.5.62 --hash=sha256:2601388def0d6b957cc30dd88f8ff74a5651ae6940dd9e488241608cfa2b15c7 --hash=sha256:130cc75d56b29aa3c5de8b6ac438242dd2574ba6eaa8bccdffdcfd6b78632f7f --hash=sha256:c463d2276d8662b972d20ca9644702188507de200ca5405b89e1fe71c5c99989 --hash=sha256:ac92e743e22681f30001942d78512c1e39bce53dbffc504e5645fdc45c0f2c47"
 			]
 		}
 	]
