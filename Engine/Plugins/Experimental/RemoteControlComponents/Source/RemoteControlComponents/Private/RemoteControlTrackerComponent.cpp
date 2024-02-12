@@ -143,7 +143,10 @@ void URemoteControlTrackerComponent::PostDuplicate(bool bInDuplicateForPIE)
 {
 	Super::PostDuplicate(bInDuplicateForPIE);
 
-	OnTrackerDuplicated();
+	if (!bInDuplicateForPIE)
+	{
+		OnTrackerDuplicated();
+	}
 }
 
 void URemoteControlTrackerComponent::PostEditImport()
@@ -201,6 +204,13 @@ void URemoteControlTrackerComponent::UnregisterTrackedActor() const
 
 void URemoteControlTrackerComponent::OnTrackerDuplicated()
 {
+	// Early out if Preset duplication is being blocked from the conventional Duplicate->Renew->RefreshTracker
+	// Not allowing preset guid renewal is analogous to duplicating the preset "as-is", and the tracker should not manipulate the preset
+	if (!FRCPresetGuidRenewGuard::IsAllowingPresetGuidRenewal())
+	{
+		return;
+	}
+
 	RefreshTracker();
 	WriteAllPropertyIdsToPreset();
 	RegisterPropertyIdChangeDelegate();
