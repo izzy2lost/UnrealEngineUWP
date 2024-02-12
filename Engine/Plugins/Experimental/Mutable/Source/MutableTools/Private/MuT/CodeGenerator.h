@@ -733,7 +733,7 @@ namespace mu
         Ptr<const Table> NodeTable = node.Table;
         Ptr<ASTOp> Variable;
 
-		FTableCacheKey CacheKey(node.Table, node.ParameterName);
+		FTableCacheKey CacheKey = FTableCacheKey{ node.Table, node.ParameterName };
         Ptr<ASTOp>* it = GeneratedTables.Find( CacheKey );
         if ( it )
         {
