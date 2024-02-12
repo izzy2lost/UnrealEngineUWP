@@ -361,7 +361,6 @@ namespace UnrealBuildTool
 				}
 			}
 
-			string remoteDisabledReason = "";
 			if (inputActions.Count() < NumParallelProcesses && !UBAConfig.bForceBuildAllRemote)
 			{
 				UBAConfig.bDisableRemote = true;
