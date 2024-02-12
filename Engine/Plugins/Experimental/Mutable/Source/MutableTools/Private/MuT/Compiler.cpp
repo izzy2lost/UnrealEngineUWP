@@ -102,11 +102,18 @@ namespace mu
     }
 
 
-    //---------------------------------------------------------------------------------------------
-    void CompilerOptions::SetUseDiskCache( bool enabled )
-    {
-        m_pD->OptimisationOptions.bUseDiskCache = enabled;
-    }
+	//---------------------------------------------------------------------------------------------
+	void CompilerOptions::SetUseDiskCache(bool enabled)
+	{
+		m_pD->OptimisationOptions.bUseDiskCache = enabled;
+	}
+
+
+	//---------------------------------------------------------------------------------------------
+	void CompilerOptions::SetUseConcurrency(bool bEnabled)
+	{
+		m_pD->bUseConcurrency = bEnabled;
+	}
 
 
     //---------------------------------------------------------------------------------------------

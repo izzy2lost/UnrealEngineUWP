@@ -5,10 +5,10 @@
 #include "MuR/Ptr.h"
 #include "MuR/RefCounted.h"
 #include "MuR/Image.h"
+#include "MuR/System.h"
 #include "Templates/SharedPointer.h"
 #include "HAL/PlatformMath.h"
-#include "MuR/System.h"
-
+#include "Tasks/Task.h"
 
 namespace mu
 {
@@ -32,7 +32,7 @@ namespace mu
     class Node;
     class NodeTransformedObject;
 
-	typedef TFunction<Ptr<Image>(int32)> FReferencedResourceFunc;
+	typedef TFunction<UE::Tasks::FTaskEvent(int32, TSharedPtr<Ptr<Image>>)> FReferencedResourceFunc;
 
     //! \brief Options used to compile the models with a compiler.
     class MUTABLETOOLS_API CompilerOptions : public RefCounted
@@ -56,6 +56,9 @@ namespace mu
 
         //!
         void SetIgnoreStates( bool bIgnore );
+
+		/** Enable concurrent compilation. It's faster, but uses more CPU and memory. */
+		void SetUseConcurrency(bool bEnabled);
 
         //! If enabled, the disk will be used as temporary memory. This will make the compilation
         //! process very slow, but will be able to compile very large models.
