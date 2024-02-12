@@ -295,7 +295,7 @@ void UCommonActivatableWidget::NativeOnDeactivated()
 		if (bSetVisibilityOnDeactivated)
 		{
 			SetVisibility(DeactivatedVisibility);
-			UE_LOG(LogCommonUI, Verbose, TEXT("[%s] set visibility to [%d] on deactivation"), *GetName(), *StaticEnum<ESlateVisibility>()->GetDisplayValueAsText(DeactivatedVisibility).ToString());
+			UE_LOG(LogCommonUI, Verbose, TEXT("[%s] set visibility to [%s] on deactivation"), *GetName(), *StaticEnum<ESlateVisibility>()->GetDisplayValueAsText(DeactivatedVisibility).ToString());
 		}
 
 		if (CommonUI::IsEnhancedInputSupportEnabled() && InputMapping)
