@@ -1009,7 +1009,7 @@ bool UControlRigBlueprint::ResolveConnector(const FRigElementKey& DraggedKey, co
 			// Add connection to the model
 			if (UModularRigController* Controller = GetModularRigController())
 			{
-				Controller->DisconnectConnector(DraggedKey, bSetupUndoRedo);
+				Controller->DisconnectConnector(DraggedKey, false, bSetupUndoRedo);
 			}
 		}
 		else

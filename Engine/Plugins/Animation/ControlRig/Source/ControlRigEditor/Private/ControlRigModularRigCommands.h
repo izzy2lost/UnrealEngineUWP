@@ -30,6 +30,9 @@ public:
 	/** Mirror Module */
 	TSharedPtr< FUICommandInfo > MirrorModuleItem;
 
+	/** Reresolve Module */
+	TSharedPtr< FUICommandInfo > ReresolveModuleItem;
+
 	/**
 	 * Initialize commands
 	 */
