@@ -118,6 +118,26 @@ void ULearningAgentsPolicy::SetupPolicy(
 		return;
 	}
 
+	// Warn if Network Assets are not unique
+
+	if (PolicyNeuralNetworkAsset && PolicyNeuralNetworkAsset == EncoderNeuralNetworkAsset)
+	{
+		UE_LOG(LogLearning, Warning, TEXT("%s: Identical Network Assets given as both Policy and Encoder: %s."), *GetName(), *PolicyNeuralNetworkAsset->GetName());
+	}
+
+
+	if (PolicyNeuralNetworkAsset && PolicyNeuralNetworkAsset == DecoderNeuralNetworkAsset)
+	{
+		UE_LOG(LogLearning, Warning, TEXT("%s: Identical Network Assets given as both Policy and Decoder: %s."), *GetName(), *PolicyNeuralNetworkAsset->GetName());
+	}
+
+	if (EncoderNeuralNetworkAsset && EncoderNeuralNetworkAsset == DecoderNeuralNetworkAsset)
+	{
+		UE_LOG(LogLearning, Warning, TEXT("%s: Identical Network Assets given as both Encoder and Decoder: %s."), *GetName(), *EncoderNeuralNetworkAsset->GetName());
+	}
+
+	// Begin Setup
+
 	Manager = InManager;
 	Interactor = InInteractor;
 
@@ -523,6 +543,20 @@ void ULearningAgentsPolicy::EncodeObservations()
 
 	// Encode Observations
 
+	if (EncoderObject->GetNeuralNetwork()->GetInputSize() != Interactor->ObservationVectors.Num<1>())
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Encoder Network Input size doesn't match. Network input size is %i but Encoder expects %i."), *GetName(),
+			EncoderObject->GetNeuralNetwork()->GetInputSize(), Interactor->ObservationVectors.Num<1>());
+		return;
+	}
+
+	if (EncoderObject->GetNeuralNetwork()->GetOutputSize() != ObservationVectorsEncoded.Num<1>())
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Encoder Network Output size don't match. Network output size is %i but Encoder expects %i."), *GetName(),
+			EncoderObject->GetNeuralNetwork()->GetOutputSize(), ObservationVectorsEncoded.Num<1>());
+		return;
+	}
+
 	EncoderObject->Evaluate(ObservationVectorsEncoded, Interactor->ObservationVectors, ValidAgentSet);
 
 	for (const int32 AgentId : ValidAgentSet)
@@ -569,6 +603,20 @@ void ULearningAgentsPolicy::EvaluatePolicy()
 	UE::Learning::Array::Copy<2, float>(PreEvaluationMemoryState, MemoryState, ValidAgentSet);
 
 	// Evaluate policy
+
+	if (PolicyObject->GetNeuralNetwork()->GetInputSize() != ObservationVectorsEncoded.Num<1>() + MemoryState.Num<1>())
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Policy Network Input size doesn't match. Network input size is %i but Policy expects %i."), *GetName(),
+			PolicyObject->GetNeuralNetwork()->GetInputSize(), ObservationVectorsEncoded.Num<1>() + MemoryState.Num<1>());
+		return;
+	}
+
+	if (PolicyObject->GetNeuralNetwork()->GetOutputSize() != ActionDistributionVectors.Num<1>() + MemoryState.Num<1>())
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Policy Network Output size don't match. Network output size is %i but Policy expects %i."), *GetName(),
+			PolicyObject->GetNeuralNetwork()->GetOutputSize(), ActionDistributionVectors.Num<1>() + MemoryState.Num<1>());
+		return;
+	}
 
 	PolicyObject->Evaluate(
 		ActionVectorsEncoded,
@@ -620,6 +668,20 @@ void ULearningAgentsPolicy::DecodeAndSampleActions(const float ActionNoiseScale)
 	ValidAgentSet.TryMakeSlice();
 
 	// Decode to produce action distribution vectors
+
+	if (DecoderObject->GetNeuralNetwork()->GetInputSize() != ActionVectorsEncoded.Num<1>())
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Decoder Network Input size doesn't match. Network input size is %i but Decoder expects %i."), *GetName(),
+			DecoderObject->GetNeuralNetwork()->GetInputSize(), ActionVectorsEncoded.Num<1>());
+		return;
+	}
+
+	if (DecoderObject->GetNeuralNetwork()->GetOutputSize() != ActionDistributionVectors.Num<1>())
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Decoder Network Output size don't match. Network output size is %i but Decoder expects %i."), *GetName(),
+			DecoderObject->GetNeuralNetwork()->GetOutputSize(), ActionDistributionVectors.Num<1>());
+		return;
+	}
 
 	DecoderObject->Evaluate(ActionDistributionVectors, ActionVectorsEncoded, ValidAgentSet);
 

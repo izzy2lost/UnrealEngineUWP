@@ -396,4 +396,9 @@ namespace UE::Learning
 		}
 	}
 
+	const TSharedPtr<FNeuralNetwork>& FNeuralNetworkFunction::GetNeuralNetwork() const
+	{
+		return NeuralNetwork;
+	}
+
 }

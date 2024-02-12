@@ -51,6 +51,9 @@ namespace UE::Learning
 		/** Sets the NeuralNetwork and re-creates the NeuralNetworkInference object */
 		void UpdateNeuralNetwork(const TSharedPtr<FNeuralNetwork>& NewNeuralNetwork);
 
+		/** Gets the NeuralNetwork associated with this Policy */
+		const TSharedPtr<FNeuralNetwork>& GetNeuralNetwork() const;
+
 	private:
 
 		int32 ObservationEncodedNum = 0;

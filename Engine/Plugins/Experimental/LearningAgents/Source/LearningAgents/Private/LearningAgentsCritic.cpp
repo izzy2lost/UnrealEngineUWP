@@ -300,6 +300,20 @@ void ULearningAgentsCritic::EvaluateCritic()
 
 	// Evaluate Critic
 
+	if (CriticObject->GetNeuralNetwork()->GetInputSize() != Policy->ObservationVectorsEncoded.Num<1>() + Policy->MemoryState.Num<1>())
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Critic Network Input size doesn't match. Network input size is %i but Critic expects %i."), *GetName(),
+			CriticObject->GetNeuralNetwork()->GetInputSize(), Policy->ObservationVectorsEncoded.Num<1>() + Policy->MemoryState.Num<1>());
+		return;
+	}
+
+	if (CriticObject->GetNeuralNetwork()->GetOutputSize() != 1)
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Critic Network Output size don't match. Network output size is %i but Critic expects %i."), *GetName(),
+			CriticObject->GetNeuralNetwork()->GetOutputSize(), 1);
+		return;
+	}
+
 	CriticObject->Evaluate(
 		Returns,
 		Policy->ObservationVectorsEncoded,
