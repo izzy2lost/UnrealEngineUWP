@@ -699,6 +699,9 @@ void FChaosClothAssetTransferSkinWeightsNode::Evaluate(Dataflow::FContext& Conte
 
 	if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
+		// Update the weight map override
+		InpaintMask.WeightMap_Override = GetValue<FString>(Context, &InpaintMask.WeightMap, UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden);
+
 		// Evaluate inputs
 		FManagedArrayCollection InputCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
 		const TSharedRef<FManagedArrayCollection> ClothCollection = MakeShared<FManagedArrayCollection>(MoveTemp(InputCollection));
@@ -716,8 +719,6 @@ void FChaosClothAssetTransferSkinWeightsNode::Evaluate(Dataflow::FContext& Conte
 				SetValue(Context, MoveTemp(*ClothCollection), &Collection);
 				return;
 			}
-
-			InpaintMask.WeightMap_Override = GetValue<FString>(Context, &InpaintMask.WeightMap, FString());
 
 			//
 			// Convert source Skeletal Mesh to Dynamic Mesh.
