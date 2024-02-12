@@ -89,7 +89,7 @@ namespace EpicGames.Horde.Storage.ObjectStores
 			{
 				FileReference.Move(tempLocation, finalLocation, true);
 			}
-			catch (IOException) // Already exists
+			catch // Already exists
 			{
 				if (FileReference.Exists(finalLocation))
 				{
