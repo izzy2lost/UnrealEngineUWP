@@ -359,9 +359,10 @@ namespace EpicGames.Horde.Storage
 					else
 					{
 						item = new CacheValue(key, async () => await createAsync(key, _cancellationSource.Token));
-						_items.AddFirst(item);
 						_itemLookup.Add(key, item);
 					}
+
+					_items.AddFirst(item);
 					item.AddRef(); // Don't allow the item to be freed while we wait for it
 				}
 
