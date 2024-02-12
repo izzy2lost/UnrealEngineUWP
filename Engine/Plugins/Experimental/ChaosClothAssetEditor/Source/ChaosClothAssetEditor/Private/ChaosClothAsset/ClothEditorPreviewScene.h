@@ -46,6 +46,9 @@ public:
 	UPROPERTY(EditAnywhere, Transient, Category = "SkeletalMesh")
 	TObjectPtr<UAnimationAsset> AnimationAsset;
 
+	UPROPERTY(EditAnywhere, Transient, Category = "SkeletalMesh")
+	bool bPostProcessBlueprint;
+
 	UPROPERTY(EditAnywhere, Transient, Category = "Transform", Meta=(DisplayName="Location"))
 	FVector3d Translation = FVector3d::ZeroVector;
 
