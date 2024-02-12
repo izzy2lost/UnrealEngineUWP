@@ -35,10 +35,6 @@ namespace UnrealBuildTool.Modes
 			OnlySetupParse = ActionBits.SetupPip | ActionBits.ParseReqs,
 			OnlyInstall = ActionBits.InstallReqs,
 
-			SetupNoRegen = ActionBits.SetupPip,
-			ParseNoRegen = SetupNoRegen | ActionBits.ParseReqs,
-			InstallNoRegen = ParseNoRegen | ActionBits.InstallReqs,
-
 			GenRequirements = ActionBits.GenReqs,
 			Setup = GenRequirements | ActionBits.SetupPip,
 			Parse = Setup | ActionBits.ParseReqs,
@@ -49,14 +45,26 @@ namespace UnrealBuildTool.Modes
 		/// <summary>
 		/// Full path to python interpreter engine was built with (if unspecified use value in PythonSDKRoot.txt)
 		/// </summary>
-		[CommandLine("-PythonInterpreter=")]
+		[CommandLine("-PythonInterpreter=", Description = "Full path to python interpreter to use in case the engine is built against an external python SDK")]
 		public FileReference? PythonInterpreter = null;
 
 		/// <summary>
 		/// The action the pip install tool should implement (GenRequirements, Setup, Parse, Install, ViewLicenses, default: Install)
 		/// </summary>
-		[CommandLine("-PipAction=")]
+		[CommandLine("-PipAction=", Description = "Pip action: [GenRequirements, Setup, Parse, Install, ViewLicenses, default: Install]")]
 		public PipAction? Action = null;
+
+		/// <summary>
+		/// Disable requiring hashes in pip install requirements (NOTE: this is insecure and may simplify supply-chain attacks)
+		/// </summary>
+		[CommandLine("-IgnoreHashes", Description = "Do not require package hashes (WARNING: Enabling this flag is security risk)")]
+		public bool bIgnoreHashes = false;
+
+		/// <summary>
+		/// Allow overriding the index url (this will also disable extra-urls)
+		/// </summary>
+		[CommandLine("-OverrideIndexUrl", Description = "Use the specified index-url (WARNING: Should not be combined with IgnoreHashes)")]
+		public string? OverrideIndexUrl = null;
 
 		/// <summary>
 		/// Execute the command
@@ -143,7 +151,7 @@ namespace UnrealBuildTool.Modes
 			if ((Action & (PipAction)ActionBits.ParseReqs) != 0)
 			{
 
-				if (!Pip.ParsePluginDependencies())
+				if (!Pip.ParsePluginDependencies(!bIgnoreHashes))
 				{
 					return 1;
 				}
@@ -151,7 +159,7 @@ namespace UnrealBuildTool.Modes
 
 			if ((Action & (PipAction)ActionBits.InstallReqs) != 0)
 			{
-				if (!Pip.InstallPluginDependencies())
+				if (!Pip.InstallPluginDependencies(!bIgnoreHashes, false, OverrideIndexUrl))
 				{
 					return 1;
 				}
@@ -177,7 +185,7 @@ namespace UnrealBuildTool.Modes
 	{
 		// Don't bother to re-install pip install tools if this version is already installed
 		// NOTE: This version must also be changed in PipInstall.cpp in order to support editor startup process
-		private const string PipInstallUtilsVer = "0.1.4";
+		private const string PipInstallUtilsVer = "0.1.5";
 
 		// Generated from enabled plugins list
 		private const string PluginsListingFilename = "pyreqs_plugins.list";
@@ -363,18 +371,25 @@ namespace UnrealBuildTool.Modes
 			}
 		}
 
-		public bool ParsePluginDependencies()
+		public bool ParsePluginDependencies(bool bPipStrictHashCheck = true)
 		{
 			FileReference MergedReqsInFile = FileReference.Combine(InstallDir, MergedReqsInFilename);
 			FileReference MergedRequirmentsFile = FileReference.Combine(InstallDir, MergedRequirementsFilename);
 
+			// NOTE: Hashes are all-or-nothing so if we are ignoring, just remove them all with the parser
+			string DisableHashing = "";
+			if (!bPipStrictHashCheck)
+			{
+				DisableHashing = "--disable-hashes";
+			}
+
 			using (IBaseCmdProgressLogger CmdLogger = new PythonCmdLogger(Logger))
 			{
-				return (RunPythonVenv($"-m ue_parse_plugin_reqs -vv \"{MergedReqsInFile}\" \"{MergedRequirmentsFile}\"", CmdLogger) == 0);
+				return (RunPythonVenv($"-m ue_parse_plugin_reqs {DisableHashing} -vv \"{MergedReqsInFile}\" \"{MergedRequirmentsFile}\"", CmdLogger) == 0);
 			}
 		}
 
-		public bool InstallPluginDependencies(bool OfflineOnly = false, string? ForceIndexUrl = null)
+		public bool InstallPluginDependencies(bool bPipStrictHashCheck = true, bool OfflineOnly = false, string? ForceIndexUrl = null)
 		{
 			FileReference MergedRequirementsFile = FileReference.Combine(InstallDir, MergedRequirementsFilename);
 			FileReference ExtraUrlsFile = FileReference.Combine(InstallDir, ExtraUrlsFilename);
@@ -392,7 +407,7 @@ namespace UnrealBuildTool.Modes
 
 			// Pip install from merged requirments
 			// TODO: Support pip-tools compile/sync system
-			return PipInstall(MergedRequirementsFile, ExtraUrls, OfflineOnly, ForceIndexUrl);
+			return PipInstall(MergedRequirementsFile, ExtraUrls, bPipStrictHashCheck, OfflineOnly, ForceIndexUrl);
 		}
 
 		public bool ViewInstalledLicenses()
@@ -470,7 +485,7 @@ namespace UnrealBuildTool.Modes
 			DirectoryReference.CreateDirectory(InstallDir);
 		}
 
-		private bool PipInstall(FileReference RequirementsFile, string[]? ExtraUrls, bool OfflineOnly, string? ForceIndexUrl)
+		private bool PipInstall(FileReference RequirementsFile, string[]? ExtraUrls, bool bPipStrictHashCheck, bool OfflineOnly, string? ForceIndexUrl)
 		{
 			string[] Reqs = FileReference.ReadAllLines(RequirementsFile);
 			int RequirementsCount = Reqs.Length;
@@ -481,6 +496,11 @@ namespace UnrealBuildTool.Modes
 			}
 
 			string Args = "-m pip install --disable-pip-version-check --only-binary=:all:";
+			if (bPipStrictHashCheck)
+			{
+				Args += " --require-hashes";
+			}
+
 			if (OfflineOnly)
 			{
 				Args += " --no-index";
@@ -899,7 +919,7 @@ namespace UnrealBuildTool.Modes
 		private int TotalSteps;
 
 		// Start strings to use 
-		private static readonly string[] MatchStrs = { "Requirement", "Downloading", "Using", "Installing" };
+		private static readonly string[] MatchStrs = { "Requirement", "Collecting", "Installing" };
 		private readonly Dictionary<string,string> LogReplaceStrs = new();
 
 		public PipProgressLogger(ILogger InLogger, string message, int GuessSteps)
