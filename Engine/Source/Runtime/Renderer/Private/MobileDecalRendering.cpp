@@ -84,14 +84,15 @@ void FMobileSceneRenderer::RenderDecals(FRHICommandList& RHICmdList, const FView
 
 void RenderDeferredDecalsMobile(FRHICommandList& RHICmdList, const FScene& Scene, const FViewInfo& View, EDecalRenderStage DecalRenderStage, EDecalRenderTargetMode RenderTargetMode)
 {
-	const uint32 DecalCount = Scene.Decals.Num();
 	int32 SortedDecalCount = 0;
 	FTransientDecalRenderDataList SortedDecals;
 
-	if (DecalCount > 0)
+	if (!Scene.Decals.IsEmpty())
 	{
+		FTransientDecalRenderDataList VisibleDecals = DecalRendering::BuildVisibleDecalList(Scene.Decals, View);
+
 		// Build a list of decals that need to be rendered for this view
-		DecalRendering::BuildVisibleDecalList(Scene, View, DecalRenderStage, &SortedDecals);
+		DecalRendering::BuildRelevantDecalList(VisibleDecals, DecalRenderStage, &SortedDecals);
 		SortedDecalCount = SortedDecals.Num();
 		INC_DWORD_STAT_BY(STAT_Decals, SortedDecalCount);
 	}
@@ -165,7 +166,9 @@ void FMobileSceneRenderer::RenderDBuffer(FRDGBuilder& GraphBuilder, FSceneTextur
 			continue;
 		}
 
+		FTransientDecalRenderDataList VisibleDecals = DecalRendering::BuildVisibleDecalList(Scene->Decals, View);
+
 		FDeferredDecalPassTextures DecalPassTextures = GetDeferredDecalPassTextures(GraphBuilder, View, SceneTextures, &DBufferTextures);
-		AddDeferredDecalPass(GraphBuilder, View, DecalPassTextures, InstanceCullingManager, EDecalRenderStage::BeforeBasePass);
+		AddDeferredDecalPass(GraphBuilder, View, VisibleDecals, DecalPassTextures, InstanceCullingManager, EDecalRenderStage::BeforeBasePass);
 	}
 }

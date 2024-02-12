@@ -495,7 +495,7 @@ FTransientDecalRenderDataList GetSortedDecals(TConstArrayView<FDeferredDecalProx
 
 		if (bIsShown)
 		{
-			FTransientDecalRenderData Data(Scene, *DecalProxy, 0.0f);
+			FTransientDecalRenderData Data(*DecalProxy, 0.0f, Scene.GetShaderPlatform(), Scene.GetFeatureLevel());
 
 			if (bIsPerspectiveProjection && Data.Proxy.FadeScreenSize != 0.0f)
 			{
