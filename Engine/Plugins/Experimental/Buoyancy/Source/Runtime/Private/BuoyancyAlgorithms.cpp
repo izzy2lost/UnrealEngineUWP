@@ -40,6 +40,8 @@ namespace
 	// Mark an object's shape as submerged
 	void SubmergeShape_Internal(TSparseArray<TBitArray<>>& SubmergedShapes, const int32 ParticleIndex, const int32 ShapeIndex)
 	{
+		SCOPE_CYCLE_COUNTER(STAT_BuoyancyAlgorithms_SubmergeShapeInternal)
+
 		// If no shapes are tracked for this particle yet, add a bit array for it
 		if (SubmergedShapes.IsValidIndex(ParticleIndex) == false)
 		{
