@@ -2648,14 +2648,22 @@ void FSequencer::SetSelectionRange(TRange<FFrameNumber> Range)
 		return;
 	}
 
+	const bool bInitiallyEmpty = GetSelectionRange().IsEmpty();
+
 	const FScopedTransaction Transaction(LOCTEXT("SetSelectionRange_Transaction", "Set Selection Range"));
 	FocusedMovieScene->Modify();
 	FocusedMovieScene->SetSelectionRange(Range);
+
+	if (bInitiallyEmpty && GetLoopMode() != ESequencerLoopMode::SLM_LoopSelectionRange)
+	{
+		Settings->SetLoopMode(ESequencerLoopMode::SLM_LoopSelectionRange);
+	}
 }
 
 
 void FSequencer::SetSelectionRangeEnd(FFrameTime EndFrame)
 {
+	const bool bInitiallyEmpty = GetSelectionRange().IsEmpty();
 	const FFrameNumber LocalTime = EndFrame.FrameNumber;
 
 	if (GetSelectionRange().GetLowerBoundValue() >= LocalTime)
@@ -2666,11 +2674,17 @@ void FSequencer::SetSelectionRangeEnd(FFrameTime EndFrame)
 	{
 		SetSelectionRange(TRange<FFrameNumber>(GetSelectionRange().GetLowerBound(), LocalTime));
 	}
+
+	if (bInitiallyEmpty && GetLoopMode() != ESequencerLoopMode::SLM_LoopSelectionRange)
+	{
+		Settings->SetLoopMode(ESequencerLoopMode::SLM_LoopSelectionRange);
+	}
 }
 
 
 void FSequencer::SetSelectionRangeStart(FFrameTime StartFrame)
 {
+	const bool bInitiallyEmpty = GetSelectionRange().IsEmpty();
 	const FFrameNumber LocalTime = StartFrame.FrameNumber;
 
 	if (GetSelectionRange().GetUpperBoundValue() <= LocalTime)
@@ -2680,6 +2694,11 @@ void FSequencer::SetSelectionRangeStart(FFrameTime StartFrame)
 	else
 	{
 		SetSelectionRange(TRange<FFrameNumber>(LocalTime, GetSelectionRange().GetUpperBound()));
+	}
+
+	if (bInitiallyEmpty && GetLoopMode() != ESequencerLoopMode::SLM_LoopSelectionRange)
+	{
+		Settings->SetLoopMode(ESequencerLoopMode::SLM_LoopSelectionRange);
 	}
 }
 
