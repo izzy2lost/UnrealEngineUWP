@@ -1058,30 +1058,9 @@ FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyDire
 	return SpecifyDirectionObservation(Schema, Tag);
 }
 
-FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyPropertiesAlongSplineObservation(ULearningAgentsObservationSchema* Schema, const FName Tag)
-{
-	return SpecifyStructObservationFromArrayViews(Schema,
-		{
-			TEXT("Location"),
-			TEXT("Proportion"),
-			TEXT("Direction")
-		},
-		{
-			SpecifyLocationAlongSplineObservation(Schema),
-			SpecifyProportionAlongSplineObservation(Schema),
-			SpecifyDirectionAlongSplineObservation(Schema),
-		},
-		Tag);
-}
-
 FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyProportionAlongRayObservation(ULearningAgentsObservationSchema* Schema, const FName Tag)
 {
 	return SpecifyFloatObservation(Schema, Tag);
-}
-
-FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyProportionAlongRaysObservation(ULearningAgentsObservationSchema* Schema, const int32 Num, const FName Tag)
-{
-	return SpecifyStaticArrayObservation(Schema, SpecifyProportionAlongRayObservation(Schema), Num, Tag);
 }
 
 void ULearningAgentsObservations::LogObservation(const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element)
@@ -1951,15 +1930,55 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeAngleOb
 		}, Tag);
 }
 
-FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeVelocityObservation(ULearningAgentsObservationObject* Object, const FVector Velocity, const FTransform RelativeTransform, const float VelocityScale, const FName Tag)
+FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeVelocityObservation(
+	ULearningAgentsObservationObject* Object, 
+	const FVector Velocity, 
+	const FTransform RelativeTransform, 
+	const float VelocityScale, 
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerVelocityLocation,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	const FVector LocalVelocity = RelativeTransform.InverseTransformVectorNoScale(Velocity);
+	const FVector EncodedVelocity = FVector(
+		LocalVelocity.X / FMath::Max(VelocityScale, UE_SMALL_NUMBER),
+		LocalVelocity.Y / FMath::Max(VelocityScale, UE_SMALL_NUMBER),
+		LocalVelocity.Z / FMath::Max(VelocityScale, UE_SMALL_NUMBER));
 
-	return MakeContinuousObservationFromArrayView(Object, {
-		(float)LocalVelocity.X / FMath::Max(VelocityScale, UE_SMALL_NUMBER),
-		(float)LocalVelocity.Y / FMath::Max(VelocityScale, UE_SMALL_NUMBER),
-		(float)LocalVelocity.Z / FMath::Max(VelocityScale, UE_SMALL_NUMBER),
-		}, Tag);
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
+	{
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+
+		UE_LEARNING_AGENTS_VLOG_ARROW(VisualLoggerObject, LogLearning, Display,
+			VisualLoggerVelocityLocation,
+			VisualLoggerVelocityLocation + Velocity,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_TRANSFORM(VisualLoggerObject, LogLearning, Display,
+			RelativeTransform.GetTranslation(),
+			RelativeTransform.GetRotation(),
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nVelocity: [% 6.1f % 6.1f % 6.1f]\nLocal Velocity: [% 6.1f % 6.1f % 6.1f]\nEncoded: [% 6.2f % 6.2f % 6.2f]"),
+			*VisualLoggerListener->GetName(),
+			*Tag.ToString(),
+			VisualLoggerAgentId,
+			Velocity.X, Velocity.Y, Velocity.Z,
+			LocalVelocity.X, LocalVelocity.Y, LocalVelocity.Z,
+			EncodedVelocity.X, EncodedVelocity.Y, EncodedVelocity.Z);
+	}
+#endif
+
+	return MakeContinuousObservationFromArrayView(Object, { (float)EncodedVelocity.X, (float)EncodedVelocity.Y, (float)EncodedVelocity.Z }, Tag);
 }
 
 FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeDirectionObservation(
@@ -2032,7 +2051,20 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeLocatio
 		return FLearningAgentsObservationObjectElement();
 	}
 
-	return MakeLocationObservation(Object, SplineComponent->GetLocationAtDistanceAlongSpline(DistanceAlongSpline, ESplineCoordinateSpace::World), RelativeTransform, LocationScale, Tag, bVisualLoggerEnabled, VisualLoggerListener, VisualLoggerAgentId, VisualLoggerLocation, VisualLoggerColor);
+	const float TotalDistance = SplineComponent->GetSplineLength();
+	const float LoopedDistance = SplineComponent->IsClosedLoop() ? FMath::Wrap(DistanceAlongSpline, 0.0f, TotalDistance) : FMath::Clamp(DistanceAlongSpline, 0.0f, TotalDistance);
+
+	return MakeLocationObservation(
+		Object, 
+		SplineComponent->GetLocationAtDistanceAlongSpline(LoopedDistance, ESplineCoordinateSpace::World), 
+		RelativeTransform, 
+		LocationScale, 
+		Tag, 
+		bVisualLoggerEnabled, 
+		VisualLoggerListener, 
+		VisualLoggerAgentId, 
+		VisualLoggerLocation, 
+		VisualLoggerColor);
 }
 
 FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeProportionAlongSplineObservation(ULearningAgentsObservationObject* Object, const USplineComponent* SplineComponent, const float DistanceAlongSpline, const FName Tag)
@@ -2077,37 +2109,30 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeDirecti
 		return FLearningAgentsObservationObjectElement();
 	}
 
+	const float TotalDistance = SplineComponent->GetSplineLength();
+	const float LoopedDistance = SplineComponent->IsClosedLoop() ? FMath::Wrap(DistanceAlongSpline, 0.0f, TotalDistance) : FMath::Clamp(DistanceAlongSpline, 0.0f, TotalDistance);
+
 #if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
 	const FVector VisualLoggerDirectionLocation = 
 		(bVisualLoggerEnabled && VisualLoggerListener) ?
-		SplineComponent->GetLocationAtDistanceAlongSpline(DistanceAlongSpline, ESplineCoordinateSpace::World) : 
+		SplineComponent->GetLocationAtDistanceAlongSpline(LoopedDistance, ESplineCoordinateSpace::World) :
 		FVector::ZeroVector;
 #else
 	const FVector VisualLoggerDirectionLocation = FVector::ZeroVector;
 #endif
 
-	return MakeDirectionObservation(Object, SplineComponent->GetDirectionAtDistanceAlongSpline(DistanceAlongSpline, ESplineCoordinateSpace::World), RelativeTransform, Tag, bVisualLoggerEnabled, VisualLoggerListener, VisualLoggerAgentId, VisualLoggerDirectionLocation, VisualLoggerLocation, VisualLoggerArrowLength, VisualLoggerColor);
-}
-
-FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakePropertiesAlongSplineObservation(ULearningAgentsObservationObject* Object, const USplineComponent* SplineComponent, const float DistanceAlongSpline, const FTransform RelativeTransform, const float LocationScale, const FName Tag)
-{
-	if (!SplineComponent)
-	{
-		UE_LOG(LogLearning, Error, TEXT("MakePropertiesAlongSplineObservation: SplineComponent was nullptr."));
-		return FLearningAgentsObservationObjectElement();
-	}
-
-	return MakeStructObservationFromArrayViews(Object,
-		{
-			TEXT("Location"),
-			TEXT("Proportion"),
-			TEXT("Direction")
-		},
-		{
-			MakeLocationAlongSplineObservation(Object, SplineComponent, DistanceAlongSpline, RelativeTransform, LocationScale),
-			MakeProportionAlongSplineObservation(Object, SplineComponent, DistanceAlongSpline),
-			MakeDirectionAlongSplineObservation(Object, SplineComponent, DistanceAlongSpline, RelativeTransform),
-		}, Tag);
+	return MakeDirectionObservation(
+		Object, 
+		SplineComponent->GetDirectionAtDistanceAlongSpline(LoopedDistance, ESplineCoordinateSpace::World), 
+		RelativeTransform, 
+		Tag, 
+		bVisualLoggerEnabled, 
+		VisualLoggerListener, 
+		VisualLoggerAgentId, 
+		VisualLoggerDirectionLocation, 
+		VisualLoggerLocation, 
+		VisualLoggerArrowLength, 
+		VisualLoggerColor);
 }
 
 FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeProportionAlongRayObservation(ULearningAgentsObservationObject* Object, const FVector RayStart, const FVector RayEnd, const FTransform RayTransform, const ECollisionChannel CollisionChannel, const FName Tag)
@@ -2131,27 +2156,6 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeProport
 	{
 		return MakeFloatObservation(Object, 0.0f, 1.0f, Tag);
 	}
-}
-
-FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeProportionAlongRaysObservation(ULearningAgentsObservationObject* Object, const TArray<FVector>& RayStarts, const TArray<FVector>& RayEnds, const FTransform RayTransform, const ECollisionChannel CollisionChannel, const FName Tag)
-{
-	if (RayStarts.Num() != RayEnds.Num())
-	{
-		UE_LOG(LogLearning, Error, TEXT("MakeProportionAlongRaysObservation: Different number of RayStarts and RayEnds (%i vs %i)."), RayStarts.Num(), RayEnds.Num());
-		return FLearningAgentsObservationObjectElement();
-	}
-
-	const int32 RayNum = RayStarts.Num();
-
-	TArray<FLearningAgentsObservationObjectElement, TInlineAllocator<32>> RayElements;
-	RayElements.Reserve(RayNum);
-
-	for (int32 RayIdx = 0; RayIdx < RayNum; RayIdx++)
-	{
-		RayElements.Add(MakeProportionAlongRayObservation(Object, RayStarts[RayIdx], RayEnds[RayIdx], RayTransform, CollisionChannel));
-	}
-
-	return MakeStaticArrayObservationFromArrayView(Object, RayElements, Tag);
 }
 
 
@@ -3631,56 +3635,6 @@ bool ULearningAgentsObservations::GetDirectionAlongSplineObservation(FVector& Ou
 	return GetDirectionObservation(OutDirection, Object, Element, RelativeTransform, Tag);
 }
 
-bool ULearningAgentsObservations::GetPropertiesAlongSplineObservation(FVector& OutLocation, bool& bOutIsClosedLoop, float& OutAngle, float& OutPropotion, FVector& OutDirection, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform, const float LocationScale, const FName Tag)
-{
-	TStaticArray<FName, 3> OutElementNames;
-	TStaticArray<FLearningAgentsObservationObjectElement, 3> OutElements;
-	if (!GetStructObservationToArrayViews(OutElementNames, OutElements, Object, Element, Tag))
-	{
-		OutLocation = FVector::ZeroVector;
-		bOutIsClosedLoop = false;
-		OutAngle = 0.0f;
-		OutPropotion = 0.0f;
-		OutDirection = FVector::ForwardVector;
-		return false;
-	}
-
-	const int32 LocationElement = MakeArrayView(OutElementNames).Find(TEXT("Location"));
-	if (LocationElement == INDEX_NONE || !GetLocationAlongSplineObservation(OutLocation, Object, OutElements[LocationElement], RelativeTransform, LocationScale))
-	{
-		OutLocation = FVector::ZeroVector;
-		bOutIsClosedLoop = false;
-		OutAngle = 0.0f;
-		OutPropotion = 0.0f;
-		OutDirection = FVector::ForwardVector;
-		return false;
-	}
-
-	const int32 ProportionElement = MakeArrayView(OutElementNames).Find(TEXT("Proportion"));
-	if (ProportionElement == INDEX_NONE || !GetProportionAlongSplineObservation(bOutIsClosedLoop, OutAngle, OutPropotion, Object, OutElements[ProportionElement]))
-	{
-		OutLocation = FVector::ZeroVector;
-		bOutIsClosedLoop = false;
-		OutAngle = 0.0f;
-		OutPropotion = 0.0f;
-		OutDirection = FVector::ForwardVector;
-		return false;
-	}
-
-	const int32 DirectionElement = MakeArrayView(OutElementNames).Find(TEXT("Direction"));
-	if (DirectionElement == INDEX_NONE || !GetDirectionAlongSplineObservation(OutDirection, Object, OutElements[ProportionElement], RelativeTransform))
-	{
-		OutLocation = FVector::ZeroVector;
-		bOutIsClosedLoop = false;
-		OutAngle = 0.0f;
-		OutPropotion = 0.0f;
-		OutDirection = FVector::ForwardVector;
-		return false;
-	}
-
-	return true;
-}
-
 bool ULearningAgentsObservations::GetProportionAlongRayObservation(float& OutProportion, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FName Tag)
 {
 	if (!GetFloatObservation(OutProportion, Object, Element, 1.0f, Tag))
@@ -3690,75 +3644,6 @@ bool ULearningAgentsObservations::GetProportionAlongRayObservation(float& OutPro
 	}
 
 	OutProportion = 1.0f - OutProportion;
-	return true;
-}
-
-bool ULearningAgentsObservations::GetProportionAlongRaysObservationNum(int32& OutProportionNum, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FName Tag)
-{
-	return GetStaticArrayObservationNum(OutProportionNum, Object, Element, Tag);
-}
-
-bool ULearningAgentsObservations::GetProportionAlongRaysObservation(TArray<float>& OutProportions, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FName Tag)
-{
-	int32 ProportionNum;
-	if (!GetProportionAlongRaysObservationNum(ProportionNum, Object, Element, Tag))
-	{
-		OutProportions.Empty();
-		return false;
-	}
-
-	OutProportions.SetNumUninitialized(ProportionNum);
-	if (!GetProportionAlongRaysObservationToArrayView(OutProportions, Object, Element, Tag))
-	{
-		OutProportions.Empty();
-		return false;
-	}
-
-	return true;
-}
-
-bool ULearningAgentsObservations::GetProportionAlongRaysObservationToArrayView(TArrayView<float> OutProportions, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FName Tag)
-{
-	int32 ProportionNum;
-	if (!GetStaticArrayObservationNum(ProportionNum, Object, Element, Tag))
-	{
-		UE::Learning::Array::Zero<1, float>(OutProportions);
-		return false;
-	}
-
-	if (!Object)
-	{
-		UE_LOG(LogLearning, Error, TEXT("GetProportionAlongRaysObservationToArrayView: Object is nullptr."));
-		UE::Learning::Array::Zero<1, float>(OutProportions);
-		return false;
-	}
-
-	if (ProportionNum != OutProportions.Num())
-	{
-		UE_LOG(LogLearning, Error, TEXT("GetProportionAlongRaysObservationToArrayView: Observation '%s' size does not match. Observation is '%i' elements but asked for '%i'."),
-			*Object->ObservationObject.GetTag(Element.ObjectElement).ToString(),
-			ProportionNum, OutProportions.Num());
-		UE::Learning::Array::Zero<1, float>(OutProportions);
-		return false;
-	}
-
-	TArray<FLearningAgentsObservationObjectElement, TInlineAllocator<32>> SubElements;
-	SubElements.SetNumUninitialized(ProportionNum);
-	if (!GetStaticArrayObservationToArrayView(SubElements, Object, Element, Tag))
-	{
-		UE::Learning::Array::Zero<1, float>(OutProportions);
-		return false;
-	}
-
-	for (int32 SubElementIdx = 0; SubElementIdx < ProportionNum; SubElementIdx++)
-	{
-		if (!GetProportionAlongRayObservation(OutProportions[SubElementIdx], Object, SubElements[SubElementIdx]))
-		{
-			UE::Learning::Array::Zero<1, float>(OutProportions);
-			return false;
-		}
-	}
-
 	return true;
 }
 

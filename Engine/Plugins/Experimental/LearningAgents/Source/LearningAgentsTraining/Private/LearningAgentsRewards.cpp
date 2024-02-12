@@ -504,8 +504,8 @@ float ULearningAgentsRewards::MakeRewardFromVelocityAlongSpline(
 		}
 	}
 
-	const float DistanceVelocity = ((Distance1 - Distance0) / FiniteDiff) * (Velocity.Length() / FMath::Max(VelocityScale, UE_SMALL_NUMBER));
-	const float Reward = RewardScale * DistanceVelocity;
+	const float SplineVelocity = ((Distance1 - Distance0) / FiniteDiff) * Velocity.Length();
+	const float Reward = RewardScale * (SplineVelocity / FMath::Max(VelocityScale, UE_SMALL_NUMBER));
 
 #if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
 	if (bVisualLoggerEnabled && VisualLoggerListener)
@@ -521,19 +521,20 @@ float ULearningAgentsRewards::MakeRewardFromVelocityAlongSpline(
 			LogLearning,
 			Display,
 			SplineLocation0,
-			SplineLocation0 + DistanceVelocity * SplineVelocityDirection,
+			SplineLocation0 + FMath::Abs(SplineVelocity) * SplineVelocityDirection,
 			VisualLoggerColor.ToFColor(true),
 			TEXT(""));
 
 		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
 			VisualLoggerColor.ToFColor(true),
-			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nLocation [% 6.2f % 6.2f % 6.2f]\nVelocity [% 6.2f % 6.2f % 6.2f]\nDistanceVelocity: [% 6.2f]\nScale: [% 6.2f]\nReward: [% 6.2f]"),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nLocation [% 6.2f % 6.2f % 6.2f]\nVelocity [% 6.2f % 6.2f % 6.2f]\nVelocity Along Spline: [% 6.2f]\nVelocity Scale: [% 6.2f]\nScale: [% 6.2f]\nReward: [% 6.2f]"),
 			*VisualLoggerListener->GetName(),
 			*Tag.ToString(),
 			VisualLoggerAgentId,
 			Location.X, Location.Y, Location.Z,
 			Velocity.X, Velocity.Y, Velocity.Z,
-			DistanceVelocity,
+			SplineVelocity,
+			VelocityScale,
 			RewardScale,
 			Reward);
 	}
