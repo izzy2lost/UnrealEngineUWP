@@ -679,116 +679,11 @@ FMallocBinned3::FMallocBinned3()
 
 	check(!PLATFORM_32BITS);
 
-	FGenericPlatformMemoryConstants Constants = FPlatformMemory::GetConstants();
-	// large slab sizes are possible OsAllocationGranularity = 65536;
 	OsAllocationGranularity = FPlatformMemory::FPlatformVirtualMemoryBlock::GetCommitAlignment();
-	NumLargePoolsPerPage = OsAllocationGranularity / sizeof(FPoolInfoLarge);
-	check(OsAllocationGranularity % sizeof(FPoolInfoLarge) == 0);  // these need to divide evenly!
-	PtrToPoolMapping.Init(OsAllocationGranularity, NumLargePoolsPerPage, Constants.AddressLimit);
-
 	checkf(FMath::IsPowerOfTwo(OsAllocationGranularity), TEXT("OS page size must be a power of two"));
-	checkf(FMath::IsPowerOfTwo(Constants.AddressLimit), TEXT("OS address limit must be a power of two"));
-	checkf(Constants.AddressLimit > OsAllocationGranularity, TEXT("OS address limit must be greater than the page size")); // Check to catch 32 bit overflow in AddressLimit
-	static_assert(BINNED3_SMALL_POOL_COUNT <= 256, "Small block size array size must fit in a byte");
-	static_assert(sizeof(FFreeBlock) <= BINNED3_MINIMUM_ALIGNMENT, "Free block struct must be small enough to fit into a block.");
 
-	// Init pool tables.
-
-	FSizeTableEntry SizeTable[BINNED3_SMALL_POOL_COUNT];
-
-	verify(FSizeTableEntry::FillSizeTable(OsAllocationGranularity, SizeTable, BINNED3_BASE_PAGE_SIZE, BINNED3_MINIMUM_ALIGNMENT, BINNED3_MAX_SMALL_POOL_SIZE, BINNED3_BASE_PAGE_SIZE) == BINNED3_SMALL_POOL_COUNT);
-	checkf(SizeTable[BINNED3_SMALL_POOL_COUNT - 1].BlockSize == BINNED3_MAX_SMALL_POOL_SIZE, TEXT("BINNED3_MAX_SMALL_POOL_SIZE must equal the largest block size"));
-	checkf(sizeof(FMallocBinned3::FFreeBlock) <= SizeTable[0].BlockSize, TEXT("Pool header must be able to fit into the smallest block"));
-
-	SmallPoolInfosPerPlatformPage = OsAllocationGranularity / sizeof(FPoolInfoSmall);
-
-	for (uint32 Index = 0; Index < BINNED3_SMALL_POOL_COUNT; ++Index)
-	{
-		checkf(Index == 0 || SizeTable[Index - 1].BlockSize < SizeTable[Index].BlockSize, TEXT("Small block sizes must be strictly increasing"));
-		checkf(SizeTable[Index].BlockSize % BINNED3_MINIMUM_ALIGNMENT == 0, TEXT("Small block size must be a multiple of BINNED3_MINIMUM_ALIGNMENT"));
-
-		SmallPoolTables[Index].BlockSize = SizeTable[Index].BlockSize;
-		SmallPoolTables[Index].BlocksPerBlockOfBlocks = SizeTable[Index].BlocksPerBlockOfBlocks;
-		SmallPoolTables[Index].PagesPlatformForBlockOfBlocks = SizeTable[Index].PagesPlatformForBlockOfBlocks;
-
-		SmallPoolTables[Index].UnusedAreaOffsetLow = 0;
-		SmallPoolTables[Index].NumEverUsedBlockOfBlocks = 0;
-#if BINNED3_ALLOCATOR_PER_BIN_STATS
-		SmallPoolTables[Index].TotalRequestedAllocSize.Store(0);
-		SmallPoolTables[Index].TotalAllocCount.Store(0);
-		SmallPoolTables[Index].TotalFreeCount.Store(0);
-#endif
-
-		int64 TotalNumberOfBlocksOfBlocks = MAX_MEMORY_PER_BLOCK_SIZE / (SizeTable[Index].PagesPlatformForBlockOfBlocks * OsAllocationGranularity);
-
-		int64 MaxPoolInfoMemory = Align(sizeof(FPoolInfoSmall**) * (TotalNumberOfBlocksOfBlocks + SmallPoolInfosPerPlatformPage - 1) / SmallPoolInfosPerPlatformPage, OsAllocationGranularity);
-		SmallPoolTables[Index].PoolInfos = (FPoolInfoSmall**)AllocateMetaDataMemory(MaxPoolInfoMemory);
-		FMemory::Memzero(SmallPoolTables[Index].PoolInfos, MaxPoolInfoMemory);
-#if BINNED3_ALLOCATOR_STATS
-		Binned3PoolInfoMemory += MaxPoolInfoMemory;
-#endif
-
-		{
-			int64 AllocationSize = FBitTree::GetMemoryRequirements(TotalNumberOfBlocksOfBlocks);
-			int64 AlignedAllocationSize = Align(AllocationSize, OsAllocationGranularity);
-
-			{
-				void *Bits = AllocateMetaDataMemory(AlignedAllocationSize);
-				check(Bits);
-#if BINNED3_ALLOCATOR_STATS
-				Binned3FreeBitsMemory += AlignedAllocationSize;
-#endif
-				SmallPoolTables[Index].BlockOfBlockAllocationBits.FBitTreeInit(TotalNumberOfBlocksOfBlocks, Bits, AlignedAllocationSize, false);
-			}
-			{
-				void *Bits = AllocateMetaDataMemory(AlignedAllocationSize);
-				check(Bits);
-#if BINNED3_ALLOCATOR_STATS
-				Binned3FreeBitsMemory += AlignedAllocationSize;
-#endif
-				SmallPoolTables[Index].BlockOfBlockIsExhausted.FBitTreeInit(TotalNumberOfBlocksOfBlocks, Bits, AlignedAllocationSize, true);
-			}
-		}
-	}
-
-
-	// Set up pool mappings
-	uint8* IndexEntry = MemSizeToIndex;
-	uint32  PoolIndex  = 0;
-	for (uint32 Index = 0; Index != 1 + (BINNED3_MAX_SMALL_POOL_SIZE >> BINNED3_MINIMUM_ALIGNMENT_SHIFT); ++Index)
-	{
-		
-		uint32 BlockSize = Index << BINNED3_MINIMUM_ALIGNMENT_SHIFT; // inverse of int32 Index = int32((Size >> BINNED3_MINIMUM_ALIGNMENT_SHIFT));
-		while (SizeTable[PoolIndex].BlockSize < BlockSize)
-		{
-			++PoolIndex;
-			check(PoolIndex != BINNED3_SMALL_POOL_COUNT);
-		}
-		check(PoolIndex < 256);
-		*IndexEntry++ = uint8(PoolIndex);
-	}
-	// now reverse the pool sizes for cache coherency
-
-	for (uint32 Index = 0; Index != BINNED3_SMALL_POOL_COUNT; ++Index)
-	{
-		uint32 Partner = BINNED3_SMALL_POOL_COUNT - Index - 1;
-		SmallBlockSizesReversedShifted[Index] = (SizeTable[Partner].BlockSize >> BINNED3_MINIMUM_ALIGNMENT_SHIFT);
-	}
-	uint64 MaxHashBuckets = PtrToPoolMapping.GetMaxHashBuckets();
-
-	{
-		int64 HashAllocSize = Align(MaxHashBuckets * sizeof(PoolHashBucket), OsAllocationGranularity);
-		HashBuckets = (PoolHashBucket*)AllocateMetaDataMemory(HashAllocSize);
-#if BINNED3_ALLOCATOR_STATS
-		Binned3HashMemory += HashAllocSize;
-#endif
-		verify(HashBuckets);
-	}
-
-	DefaultConstructItems<PoolHashBucket>(HashBuckets, MaxHashBuckets);
-	MallocBinned3 = this;
-	GFixedMallocLocationPtr = (FMalloc**)(&MallocBinned3);
-
+	// First thing we try to allocate address space for bins as it might help us to move forward Constants.AddressStart and reduce the amount of available address space for the Large OS Allocs
+	// Available address space is used to reserve hash map that can address all of that range, so less addressable space means less memory is allocated for book keeping
 #if !BINNED3_USE_SEPARATE_VM_PER_POOL
 	Binned3BaseVMBlock = FPlatformMemory::FPlatformVirtualMemoryBlock::AllocateVirtual(BINNED3_SMALL_POOL_COUNT * MAX_MEMORY_PER_BLOCK_SIZE, OsAllocationGranularity);
 	Binned3BaseVMPtr = (uint8*)Binned3BaseVMBlock.GetVirtualPointer();
@@ -849,6 +744,128 @@ FMallocBinned3::FMallocBinned3()
 		PoolSearchDiv = MAX_MEMORY_PER_BLOCK_SIZE + ((TotalGaps + BINNED3_SMALL_POOL_COUNT - 2) / (BINNED3_SMALL_POOL_COUNT - 1));
 	}
 #endif
+
+	FGenericPlatformMemoryConstants Constants = FPlatformMemory::GetConstants();
+#if !BINNED3_USE_SEPARATE_VM_PER_POOL
+	if (Constants.AddressStart == (uint64)Binned3BaseVMPtr)
+	{
+		Constants.AddressStart += Align(BINNED3_SMALL_POOL_COUNT * MAX_MEMORY_PER_BLOCK_SIZE, OsAllocationGranularity);
+	}
+#else
+	if (!TotalGaps && Constants.AddressStart == (uint64)PoolBaseVMPtr[0])
+	{
+		Constants.AddressStart += Align(BINNED3_SMALL_POOL_COUNT * MAX_MEMORY_PER_BLOCK_SIZE, OsAllocationGranularity);
+	}
+#endif
+
+	// large slab sizes are possible OsAllocationGranularity = 65536;
+	NumLargePoolsPerPage = OsAllocationGranularity / sizeof(FPoolInfoLarge);
+	check(OsAllocationGranularity % sizeof(FPoolInfoLarge) == 0);  // these need to divide evenly!
+	PtrToPoolMapping.Init(OsAllocationGranularity, NumLargePoolsPerPage, Constants.AddressStart, Constants.AddressLimit);
+
+	checkf(Constants.AddressLimit > OsAllocationGranularity, TEXT("OS address limit must be greater than the page size")); // Check to catch 32 bit overflow in AddressLimit
+	static_assert(BINNED3_SMALL_POOL_COUNT <= 256, "Small block size array size must fit in a byte");
+	static_assert(sizeof(FFreeBlock) <= BINNED3_MINIMUM_ALIGNMENT, "Free block struct must be small enough to fit into a block.");
+
+	// Init pool tables.
+
+	FSizeTableEntry SizeTable[BINNED3_SMALL_POOL_COUNT];
+
+	verify(FSizeTableEntry::FillSizeTable(OsAllocationGranularity, SizeTable, BINNED3_BASE_PAGE_SIZE, BINNED3_MINIMUM_ALIGNMENT, BINNED3_MAX_SMALL_POOL_SIZE, BINNED3_BASE_PAGE_SIZE) == BINNED3_SMALL_POOL_COUNT);
+	checkf(SizeTable[BINNED3_SMALL_POOL_COUNT - 1].BlockSize == BINNED3_MAX_SMALL_POOL_SIZE, TEXT("BINNED3_MAX_SMALL_POOL_SIZE must equal the largest block size"));
+	checkf(sizeof(FMallocBinned3::FFreeBlock) <= SizeTable[0].BlockSize, TEXT("Pool header must be able to fit into the smallest block"));
+
+	SmallPoolInfosPerPlatformPage = OsAllocationGranularity / sizeof(FPoolInfoSmall);
+
+	uint32 RequiredMetaMem = 0;
+	for (uint32 Index = 0; Index < BINNED3_SMALL_POOL_COUNT; ++Index)
+	{
+		checkf(Index == 0 || SizeTable[Index - 1].BlockSize < SizeTable[Index].BlockSize, TEXT("Small block sizes must be strictly increasing"));
+		checkf(SizeTable[Index].BlockSize % BINNED3_MINIMUM_ALIGNMENT == 0, TEXT("Small block size must be a multiple of BINNED3_MINIMUM_ALIGNMENT"));
+
+		SmallPoolTables[Index].BlockSize = SizeTable[Index].BlockSize;
+		SmallPoolTables[Index].BlocksPerBlockOfBlocks = SizeTable[Index].BlocksPerBlockOfBlocks;
+		SmallPoolTables[Index].PagesPlatformForBlockOfBlocks = SizeTable[Index].PagesPlatformForBlockOfBlocks;
+
+		SmallPoolTables[Index].UnusedAreaOffsetLow = 0;
+		SmallPoolTables[Index].NumEverUsedBlockOfBlocks = 0;
+#if BINNED3_ALLOCATOR_PER_BIN_STATS
+		SmallPoolTables[Index].TotalRequestedAllocSize.Store(0);
+		SmallPoolTables[Index].TotalAllocCount.Store(0);
+		SmallPoolTables[Index].TotalFreeCount.Store(0);
+#endif
+
+		const int64 TotalNumberOfBlocksOfBlocks = MAX_MEMORY_PER_BLOCK_SIZE / (SizeTable[Index].PagesPlatformForBlockOfBlocks * OsAllocationGranularity);
+		const uint32 Size = Align(sizeof(FPoolInfoSmall**) * (TotalNumberOfBlocksOfBlocks + SmallPoolInfosPerPlatformPage - 1) / SmallPoolInfosPerPlatformPage, PLATFORM_CACHE_LINE_SIZE);
+		RequiredMetaMem += Size;
+#if BINNED3_ALLOCATOR_STATS
+		Binned3PoolInfoMemory += Size;
+#endif
+
+		const int64 AllocationSize = Align(FBitTree::GetMemoryRequirements(TotalNumberOfBlocksOfBlocks), PLATFORM_CACHE_LINE_SIZE);
+		RequiredMetaMem += AllocationSize * 2;
+#if BINNED3_ALLOCATOR_STATS
+		Binned3FreeBitsMemory += AllocationSize * 2;
+#endif
+	}
+
+	RequiredMetaMem = Align(RequiredMetaMem, OsAllocationGranularity);
+	uint8* MetaMem = (uint8*)AllocateMetaDataMemory(RequiredMetaMem);
+	const uint8* MetaMemEnd = MetaMem + RequiredMetaMem;
+	FMemory::Memzero(MetaMem, RequiredMetaMem);
+
+	for (uint32 Index = 0; Index < BINNED3_SMALL_POOL_COUNT; ++Index)
+	{
+		const int64 TotalNumberOfBlocksOfBlocks = MAX_MEMORY_PER_BLOCK_SIZE / (SizeTable[Index].PagesPlatformForBlockOfBlocks * OsAllocationGranularity);
+		const uint32 Size = Align(sizeof(FPoolInfoSmall**) * (TotalNumberOfBlocksOfBlocks + SmallPoolInfosPerPlatformPage - 1) / SmallPoolInfosPerPlatformPage, PLATFORM_CACHE_LINE_SIZE);
+
+		SmallPoolTables[Index].PoolInfos = (FPoolInfoSmall**)MetaMem;
+		MetaMem += Size;
+
+		const int64 AllocationSize = Align(FBitTree::GetMemoryRequirements(TotalNumberOfBlocksOfBlocks), PLATFORM_CACHE_LINE_SIZE);
+		SmallPoolTables[Index].BlockOfBlockAllocationBits.FBitTreeInit(TotalNumberOfBlocksOfBlocks, MetaMem, AllocationSize, false);
+		MetaMem += AllocationSize;
+
+		SmallPoolTables[Index].BlockOfBlockIsExhausted.FBitTreeInit(TotalNumberOfBlocksOfBlocks, MetaMem, AllocationSize, true);
+		MetaMem += AllocationSize;
+	}
+	check(MetaMem == MetaMemEnd);
+
+	// Set up pool mappings
+	uint8* IndexEntry = MemSizeToIndex;
+	uint32  PoolIndex  = 0;
+	for (uint32 Index = 0; Index != 1 + (BINNED3_MAX_SMALL_POOL_SIZE >> BINNED3_MINIMUM_ALIGNMENT_SHIFT); ++Index)
+	{
+		uint32 BlockSize = Index << BINNED3_MINIMUM_ALIGNMENT_SHIFT; // inverse of int32 Index = int32((Size >> BINNED3_MINIMUM_ALIGNMENT_SHIFT));
+		while (SizeTable[PoolIndex].BlockSize < BlockSize)
+		{
+			++PoolIndex;
+			check(PoolIndex != BINNED3_SMALL_POOL_COUNT);
+		}
+		check(PoolIndex < 256);
+		*IndexEntry++ = uint8(PoolIndex);
+	}
+
+	// now reverse the pool sizes for cache coherency
+	for (uint32 Index = 0; Index != BINNED3_SMALL_POOL_COUNT; ++Index)
+	{
+		uint32 Partner = BINNED3_SMALL_POOL_COUNT - Index - 1;
+		SmallBlockSizesReversedShifted[Index] = (SizeTable[Partner].BlockSize >> BINNED3_MINIMUM_ALIGNMENT_SHIFT);
+	}
+
+	uint64 MaxHashBuckets = PtrToPoolMapping.GetMaxHashBuckets();
+	{
+		int64 HashAllocSize = Align(MaxHashBuckets * sizeof(PoolHashBucket), OsAllocationGranularity);
+		HashBuckets = (PoolHashBucket*)AllocateMetaDataMemory(HashAllocSize);
+#if BINNED3_ALLOCATOR_STATS
+		Binned3HashMemory += HashAllocSize;
+#endif
+		verify(HashBuckets);
+	}
+
+	DefaultConstructItems<PoolHashBucket>(HashBuckets, MaxHashBuckets);
+	MallocBinned3 = this;
+	GFixedMallocLocationPtr = (FMalloc**)(&MallocBinned3);
 }
 
 FMallocBinned3::~FMallocBinned3()

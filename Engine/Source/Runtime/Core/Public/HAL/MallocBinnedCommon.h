@@ -145,28 +145,32 @@ protected:
 			, HashKeyShift(0)
 			, PoolMask(0)
 			, MaxHashBuckets(0)
+			, AddressSpaceBase(0)
 		{
 		}
-		explicit FPtrToPoolMapping(uint32 InPageSize, uint64 InNumPoolsPerPage, uint64 AddressLimit)
+		explicit FPtrToPoolMapping(uint32 InPageSize, uint64 InNumPoolsPerPage, uint64 AddressBase, uint64 AddressLimit)
 		{
-			Init(InPageSize, InNumPoolsPerPage, AddressLimit);
+			Init(InPageSize, InNumPoolsPerPage, AddressBase, AddressLimit);
 		}
 
-		void Init(uint32 InPageSize, uint64 InNumPoolsPerPage, uint64 AddressLimit)
+		void Init(uint32 InPageSize, uint64 InNumPoolsPerPage, uint64 AddressBase, uint64 AddressLimit)
 		{
 			uint64 PoolPageToPoolBitShift = FPlatformMath::CeilLogTwo64(InNumPoolsPerPage);
 
 			PtrToPoolPageBitShift = FPlatformMath::CeilLogTwo(InPageSize);
 			HashKeyShift = PtrToPoolPageBitShift + PoolPageToPoolBitShift;
 			PoolMask = (1ull << PoolPageToPoolBitShift) - 1;
-			MaxHashBuckets = AddressLimit >> HashKeyShift;
+			MaxHashBuckets = FMath::RoundUpToPowerOfTwo64(AddressLimit - AddressBase) >> HashKeyShift;
+			AddressSpaceBase = AddressBase;
 		}
 
 		FORCEINLINE void GetHashBucketAndPoolIndices(const void* InPtr, uint32& OutBucketIndex, UPTRINT& OutBucketCollision, uint32& OutPoolIndex) const
 		{
-			OutBucketCollision = (UPTRINT)InPtr >> HashKeyShift;
+			check((UPTRINT)InPtr >= AddressSpaceBase);
+			const UPTRINT Ptr = (UPTRINT)InPtr - AddressSpaceBase;
+			OutBucketCollision = Ptr >> HashKeyShift;
 			OutBucketIndex = uint32(OutBucketCollision & (MaxHashBuckets - 1));
-			OutPoolIndex = uint32(((UPTRINT)InPtr >> PtrToPoolPageBitShift) & PoolMask);
+			OutPoolIndex = uint32((Ptr >> PtrToPoolPageBitShift) & PoolMask);
 		}
 
 		FORCEINLINE uint64 GetMaxHashBuckets() const
@@ -186,6 +190,9 @@ protected:
 
 		// PageSize dependent constants
 		uint64 MaxHashBuckets;
+
+		// Base address for any virtual allocations. Can be non 0 on some platforms
+		uint64 AddressSpaceBase;
 	};
 
 	// This needs to be small enough to fit inside the smallest allocation handled by MallocBinned2\3, hence the union.
