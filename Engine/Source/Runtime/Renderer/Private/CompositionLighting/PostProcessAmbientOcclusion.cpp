@@ -665,6 +665,8 @@ BEGIN_SHADER_PARAMETER_STRUCT(FAmbientOcclusionParameters, )
 	SHADER_PARAMETER_STRUCT_INCLUDE(FSSAOShaderParameters, SSAOParameters)
 
 	SHADER_PARAMETER(FVector2f, SSAO_DownsampledAOInverseSize)
+	SHADER_PARAMETER(FVector2f, SSAO_DownsampledAOUVViewportMin)
+	SHADER_PARAMETER(FVector2f, SSAO_DownsampledAOUVViewportMax)
 	SHADER_PARAMETER(FVector2f, SSAO_SvPositionScaleBias)
 
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, SSAO_SetupTexture)
@@ -821,11 +823,19 @@ void AddAmbientOcclusionPass(
 	{
 		SharedParameters.SSAO_DownsampledAO = DownsampledAO.Texture;
 		SharedParameters.SSAO_DownsampledAOInverseSize = FVector2f(1.0f) / FVector2f(DownsampledAO.Texture->Desc.Extent);
+
+		const FVector2f ViewportMin(DownsampledAO.ViewRect.Min.X, DownsampledAO.ViewRect.Min.Y);
+		const FVector2f ViewportMax(DownsampledAO.ViewRect.Max.X, DownsampledAO.ViewRect.Max.Y);
+
+		SharedParameters.SSAO_DownsampledAOUVViewportMin = ViewportMin * SharedParameters.SSAO_DownsampledAOInverseSize;
+		SharedParameters.SSAO_DownsampledAOUVViewportMax = ViewportMax * SharedParameters.SSAO_DownsampledAOInverseSize;
 	}
 	else
 	{
 		SharedParameters.SSAO_DownsampledAO = SystemTextures.Black;
 		SharedParameters.SSAO_DownsampledAOInverseSize = FVector2f(1.0f, 1.0f);
+		SharedParameters.SSAO_DownsampledAOUVViewportMin = FVector2f(0.0f, 0.0f);
+		SharedParameters.SSAO_DownsampledAOUVViewportMax = FVector2f(1.0f, 1.0f);
 	}
 
 	SharedParameters.SSAO_SvPositionScaleBias = FVector2f(1, 0);
