@@ -18,10 +18,10 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 
 		public void GetStats(StorageStats stats)
 		{
-			stats.Add("Num reads (v2)", _numReads);
-			stats.Add("Num packets read (v2)", _numPacketsRead);
-			stats.Add("Num bytes read (v2)", _numBytesRead);
-			stats.Add("Num wasted bytes read (v2)", _numWastedBytesRead);
+			stats.Add("bundle.packet_reader.num_reads", _numReads);
+			stats.Add("bundle.packet_reader.num_packets", _numPacketsRead);
+			stats.Add("bundle.packet_reader.num_bytes", _numBytesRead);
+			stats.Add("bundle.packet_reader.num_wasted_bytes", _numWastedBytesRead);
 		}
 	}
 

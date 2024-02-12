@@ -13,27 +13,12 @@ namespace EpicGames.Core
 		/// <summary>
 		/// Dispose all elements in a sequence
 		/// </summary>
-		/// <typeparam name="T">The element type</typeparam>
 		/// <param name="sequence">Sequence of elements to dispose</param>
-		public static void DisposeElements<T>(this IEnumerable<T> sequence) where T : IDisposable
+		public static void DisposeAll(this IEnumerable<IDisposable> sequence)
 		{
-			List<Exception>? exceptions = null;
-			foreach (T element in sequence)
+			foreach (IDisposable element in sequence)
 			{
-				try
-				{
-					element.Dispose();
-				}
-				catch (Exception ex)
-				{
-					exceptions ??= new List<Exception>();
-					exceptions.Add(ex);
-				}
-			}
-
-			if (exceptions != null)
-			{
-				throw new AggregateException(exceptions);
+				element.Dispose();
 			}
 		}
 

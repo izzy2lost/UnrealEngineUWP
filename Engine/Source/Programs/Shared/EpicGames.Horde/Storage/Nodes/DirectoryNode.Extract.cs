@@ -304,7 +304,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				Channel<OutputFetchedBatch> prefetchBatches = Channel.CreateBounded<OutputFetchedBatch>(new BoundedChannelOptions(128) { FullMode = BoundedChannelFullMode.Wait });
 				try
 				{
-					tasks.Add(RunBackgroundTask(ctx => PrefetchAsync(batches.Reader, prefetchBatches.Writer, numTasks, ctx)));
+					tasks.Add(RunBackgroundTask(ctx => FetchAsync(batches.Reader, prefetchBatches.Writer, numTasks, ctx)));
 
 					for (int idx = 0; idx < numTasks; idx++)
 					{
@@ -323,100 +323,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			}
 		}
 
-		static async Task ExtractAsync(ChannelReader<OutputFetchedBatch> batchReader, CopyStats? copyStats, ILogger logger, CancellationToken cancellationToken)
-		{
-			const int WriteBatchSize = 64;
-			while (await batchReader.WaitToReadAsync(cancellationToken))
-			{
-				OutputFetchedBatch? batch;
-				while (batchReader.TryRead(out batch))
-				{
-					try
-					{
-						List<Task> tasks = new List<Task>();
-						foreach (IReadOnlyList<OutputFetchedChunk> group in batch.Chunks.Batch(WriteBatchSize))
-						{
-							tasks.Add(ExtractChunksAsync(group.ToArray(), copyStats, logger, cancellationToken));
-						}
-						await Task.WhenAll(tasks);
-					}
-					finally
-					{
-						batch.Dispose();
-					}
-				}
-			}
-		}
-
-		static async Task ExtractChunksAsync(ArraySegment<OutputFetchedChunk> chunks, CopyStats? copyStats, ILogger logger, CancellationToken cancellationToken)
-		{
-			for (int chunkIdx = 0; chunkIdx < chunks.Count; )
-			{
-				OutputFile file = chunks[chunkIdx].File;
-
-				int maxChunkIdx = chunkIdx + 1;
-				while (maxChunkIdx < chunks.Count && chunks[maxChunkIdx].File == file)
-				{
-					maxChunkIdx++;
-				}
-
-				try
-				{
-					await ExtractChunksToFileAsync(file, chunks.Slice(chunkIdx, maxChunkIdx - chunkIdx), copyStats, logger, cancellationToken);
-				}
-				catch (OperationCanceledException)
-				{
-					throw;
-				}
-				catch (Exception ex)
-				{
-					throw new StorageException($"Unable to extract {file?.FileInfo?.FullName}: {ex.Message}", ex);
-				}
-
-				chunkIdx = maxChunkIdx;
-			}
-		}
-
-		static async Task ExtractChunksToFileAsync(OutputFile file, ArraySegment<OutputFetchedChunk> chunks, CopyStats? copyStats, ILogger logger, CancellationToken cancellationToken)
-		{
-			// Open the file for the current chunk
-			int remainingChunks = 0;
-			await using (FileStream stream = file.OpenStream())
-			{
-				if (file.FileEntry.Length == 0)
-				{
-					// If this file is empty, don't write anything and just move to the next chunk
-					remainingChunks = file.DecrementRemaining();
-				}
-				else
-				{
-					// Process as many chunks as we can for this file
-					using MemoryMappedFile memoryMappedFile = MemoryMappedFile.CreateFromFile(stream, null, file.FileEntry.Length, MemoryMappedFileAccess.ReadWrite, HandleInheritability.None, false);
-					using MemoryMappedView memoryMappedView = new MemoryMappedView(memoryMappedFile, 0, file.FileEntry.Length);
-
-					for(int chunkIdx = 0; chunkIdx < chunks.Count; chunkIdx++)
-					{
-						OutputFetchedChunk chunk = chunks[chunkIdx];
-						cancellationToken.ThrowIfCancellationRequested();
-
-						// Write this chunk
-						TraceBlobRead("Leaf", chunk.File.Path, chunk.Handle, logger);
-						chunk.BlobData.Data.CopyTo(memoryMappedView!.GetMemory(chunk.Offset, chunk.BlobData.Data.Length));
-
-						// Update the stats
-						remainingChunks = file.DecrementRemaining();
-						copyStats?.Update(0, chunk.Length);
-					}
-				}
-			}
-
-			// Set correct permissions on the output file
-			if (remainingChunks == 0)
-			{
-				FileEntry.SetPermissions(file.FileInfo!, file.FileEntry.Flags);
-				copyStats?.Update(1, 0);
-			}
-		}
+		#region Enumerate chunks
 
 		static async Task FindOutputChunksRootAsync(DirectoryInfo rootDir, DirectoryNode node, ChannelWriter<OutputChunk> chunks, ILogger logger, CancellationToken cancellationToken)
 		{
@@ -490,73 +397,9 @@ namespace EpicGames.Horde.Storage.Nodes
 			}
 		}
 
-		static string CombinePaths(string basePath, string nextPath)
-		{
-			if (basePath.Length > 0)
-			{
-				return $"{basePath}/{nextPath}";
-			}
-			else
-			{
-				return nextPath;
-			}
-		}
+		#endregion
 
-		record class OutputFetchedChunk(OutputChunk Chunk, BlobData BlobData) : OutputChunk(Chunk), IDisposable
-		{
-			public void Dispose() => BlobData.Dispose();
-		}
-
-		record class OutputFetchedBatch(List<OutputFetchedChunk> Chunks) : IDisposable
-		{
-			public OutputFetchedBatch() : this(new List<OutputFetchedChunk>()) { }
-			public void Dispose() => Chunks.DisposeElements();
-		}
-
-		static async Task PrefetchAsync(ChannelReader<OutputBatch> batchReader, ChannelWriter<OutputFetchedBatch> batchWriter, int numParallel, CancellationToken cancellationToken)
-		{
-			List<Task> tasks = new List<Task>();
-			for (int idx = 0; idx < numParallel; idx++)
-			{
-				tasks.Add(PrefetchWorkerAsync(batchReader, batchWriter, cancellationToken));
-			}
-
-			try
-			{
-				await Task.WhenAll(tasks);
-			}
-			finally
-			{
-				batchWriter.Complete();
-			}
-		}
-
-		static async Task PrefetchWorkerAsync(ChannelReader<OutputBatch> batchReader, ChannelWriter<OutputFetchedBatch> batchWriter, CancellationToken cancellationToken)
-		{
-			while (await batchReader.WaitToReadAsync(cancellationToken))
-			{
-				OutputBatch? batch;
-				if (batchReader.TryRead(out batch))
-				{
-#pragma warning disable CA2000 // fetchedBatch may be pushed onto the output channel, which assumes its ownership.
-					OutputFetchedBatch fetchedBatch = new OutputFetchedBatch();
-					try
-					{
-						foreach (OutputChunk chunk in batch.Chunks)
-						{
-							BlobData blobData = await chunk.Handle.ReadBlobDataAsync(cancellationToken);
-							fetchedBatch.Chunks.Add(new OutputFetchedChunk(chunk, blobData));
-						}
-						await batchWriter.WriteAsync(fetchedBatch, cancellationToken);
-					}
-					catch
-					{
-						fetchedBatch.Dispose();
-					}
-#pragma warning restore CA2000
-				}
-			}
-		}
+		#region Group requests by bundles
 
 		record class OutputExport(BundleHandle BundleHandle, int PacketOffset, int ExportIdx, OutputChunk Chunk);
 		record class OutputExportBatch(BundleHandle BundleHandle, List<OutputExport> Exports);
@@ -634,6 +477,206 @@ namespace EpicGames.Horde.Storage.Nodes
 			{
 				export = null;
 				return false;
+			}
+		}
+
+		#endregion
+
+		#region Fetch data
+
+		record class OutputFetchedChunk(OutputChunk Chunk, BlobData BlobData) : OutputChunk(Chunk), IDisposable
+		{
+			public void Dispose() => BlobData.Dispose();
+		}
+
+		record class OutputFetchedBatch(List<OutputFetchedChunk> Chunks) : IDisposable
+		{
+			public OutputFetchedBatch() : this(new List<OutputFetchedChunk>()) { }
+			public void Dispose() => Chunks.DisposeAll();
+		}
+
+		static async Task FetchAsync(ChannelReader<OutputBatch> batchReader, ChannelWriter<OutputFetchedBatch> batchWriter, int numParallel, CancellationToken cancellationToken)
+		{
+			List<Task> tasks = new List<Task>();
+			for (int idx = 0; idx < numParallel; idx++)
+			{
+				tasks.Add(FetchWorkerAsync(batchReader, batchWriter, cancellationToken));
+			}
+
+			try
+			{
+				await Task.WhenAll(tasks);
+			}
+			finally
+			{
+				batchWriter.Complete();
+			}
+		}
+
+		static async Task FetchWorkerAsync(ChannelReader<OutputBatch> batchReader, ChannelWriter<OutputFetchedBatch> batchWriter, CancellationToken cancellationToken)
+		{
+			while (await batchReader.WaitToReadAsync(cancellationToken))
+			{
+				OutputBatch? batch;
+				if (batchReader.TryRead(out batch))
+				{
+#pragma warning disable CA2000 // fetchedBatch may be pushed onto the output channel, which assumes its ownership.
+					OutputFetchedBatch fetchedBatch = new OutputFetchedBatch();
+					try
+					{
+						foreach (OutputChunk chunk in batch.Chunks)
+						{
+							BlobData blobData = await chunk.Handle.ReadBlobDataAsync(cancellationToken);
+							fetchedBatch.Chunks.Add(new OutputFetchedChunk(chunk, blobData));
+						}
+						await batchWriter.WriteAsync(fetchedBatch, cancellationToken);
+					}
+					catch
+					{
+						fetchedBatch.Dispose();
+					}
+#pragma warning restore CA2000
+				}
+			}
+		}
+
+		#endregion
+
+		#region Write to disk
+
+		static async Task ExtractAsync(ChannelReader<OutputFetchedBatch> batchReader, CopyStats? copyStats, ILogger logger, CancellationToken cancellationToken)
+		{
+			const int WriteBatchSize = 64;
+			while (await batchReader.WaitToReadAsync(cancellationToken))
+			{
+				OutputFetchedBatch? batch;
+				while (batchReader.TryRead(out batch))
+				{
+					try
+					{
+						List<Task> tasks = new List<Task>();
+						foreach (IReadOnlyList<OutputFetchedChunk> group in batch.Chunks.Batch(WriteBatchSize))
+						{
+							tasks.Add(ExtractChunksAsync(group.ToArray(), copyStats, logger, cancellationToken));
+						}
+						await Task.WhenAll(tasks);
+					}
+					finally
+					{
+						batch.Dispose();
+					}
+				}
+			}
+		}
+
+		static async Task ExtractChunksAsync(ArraySegment<OutputFetchedChunk> chunks, CopyStats? copyStats, ILogger logger, CancellationToken cancellationToken)
+		{
+			for (int chunkIdx = 0; chunkIdx < chunks.Count;)
+			{
+				OutputFile file = chunks[chunkIdx].File;
+
+				int maxChunkIdx = chunkIdx + 1;
+				while (maxChunkIdx < chunks.Count && chunks[maxChunkIdx].File == file)
+				{
+					maxChunkIdx++;
+				}
+
+				try
+				{
+					await ExtractChunksToFileAsync(file, chunks.Slice(chunkIdx, maxChunkIdx - chunkIdx), copyStats, logger, cancellationToken);
+					//await ExtractChunksToNullAsync(file, chunks.Slice(chunkIdx, maxChunkIdx - chunkIdx), copyStats, logger, cancellationToken);
+				}
+				catch (OperationCanceledException)
+				{
+					throw;
+				}
+				catch (Exception ex)
+				{
+					throw new StorageException($"Unable to extract {file?.FileInfo?.FullName}: {ex.Message}", ex);
+				}
+
+				chunkIdx = maxChunkIdx;
+			}
+		}
+
+		static async Task ExtractChunksToFileAsync(OutputFile file, ArraySegment<OutputFetchedChunk> chunks, CopyStats? copyStats, ILogger logger, CancellationToken cancellationToken)
+		{
+			// Open the file for the current chunk
+			int remainingChunks = 0;
+			await using (FileStream stream = file.OpenStream())
+			{
+				if (file.FileEntry.Length == 0)
+				{
+					// If this file is empty, don't write anything and just move to the next chunk
+					for (int idx = 0; idx < chunks.Count; idx++)
+					{
+						remainingChunks = file.DecrementRemaining();
+					}
+				}
+				else
+				{
+					// Process as many chunks as we can for this file
+					using MemoryMappedFile memoryMappedFile = MemoryMappedFile.CreateFromFile(stream, null, file.FileEntry.Length, MemoryMappedFileAccess.ReadWrite, HandleInheritability.None, false);
+					using MemoryMappedView memoryMappedView = new MemoryMappedView(memoryMappedFile, 0, file.FileEntry.Length);
+
+					for (int chunkIdx = 0; chunkIdx < chunks.Count; chunkIdx++)
+					{
+						OutputFetchedChunk chunk = chunks[chunkIdx];
+						cancellationToken.ThrowIfCancellationRequested();
+
+						// Write this chunk
+						TraceBlobRead("Leaf", chunk.File.Path, chunk.Handle, logger);
+						chunk.BlobData.Data.CopyTo(memoryMappedView!.GetMemory(chunk.Offset, chunk.BlobData.Data.Length));
+
+						// Update the stats
+						remainingChunks = file.DecrementRemaining();
+						copyStats?.Update(0, chunk.Length);
+					}
+				}
+			}
+
+			// Set correct permissions on the output file
+			if (remainingChunks == 0)
+			{
+				FileEntry.SetPermissions(file.FileInfo!, file.FileEntry.Flags);
+				copyStats?.Update(1, 0);
+			}
+		}
+
+#pragma warning disable IDE0051
+		// Update counters for extracting chunks without writing any data. Useful for profiling bottlenecks in other stages of the pipeline.
+		static Task ExtractChunksToNullAsync(OutputFile file, ArraySegment<OutputFetchedChunk> chunks, CopyStats? copyStats, ILogger logger, CancellationToken cancellationToken)
+		{
+			_ = logger;
+			_ = cancellationToken;
+
+			foreach (OutputFetchedChunk chunk in chunks)
+			{
+				int remainingChunks = file.DecrementRemaining();
+				if (remainingChunks == 0)
+				{
+					copyStats?.Update(1, chunk.Length);
+				}
+				else
+				{
+					copyStats?.Update(0, chunk.Length);
+				}
+			}
+			return Task.CompletedTask;
+		}
+#pragma warning restore IDE0051
+
+		#endregion
+
+		static string CombinePaths(string basePath, string nextPath)
+		{
+			if (basePath.Length > 0)
+			{
+				return $"{basePath}/{nextPath}";
+			}
+			else
+			{
+				return nextPath;
 			}
 		}
 	}

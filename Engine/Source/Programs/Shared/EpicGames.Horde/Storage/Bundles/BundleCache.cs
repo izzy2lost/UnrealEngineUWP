@@ -181,6 +181,7 @@ namespace EpicGames.Horde.Storage
 		readonly MemoryAllocator _allocator;
 
 		int _numCacheHits;
+		int _numCacheMisses;
 		long _currentSize;
 
 		readonly MemoryCache? _headerCache;
@@ -358,6 +359,7 @@ namespace EpicGames.Horde.Storage
 					}
 					else
 					{
+						Interlocked.Increment(ref _numCacheMisses);
 						item = new CacheValue(key, async () => await createAsync(key, _cancellationSource.Token));
 						_itemLookup.Add(key, item);
 					}
@@ -406,8 +408,10 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		public void GetStats(StorageStats stats)
 		{
-			stats.Add("Num cache hits", _numCacheHits);
-			stats.Add("Cache size", _currentSize);
+			stats.Add("bundle.cache.hits", _numCacheHits);
+			stats.Add("bundle.cache.misses", _numCacheMisses);
+			stats.Add("bundle.cache.size_count", _items.Count);
+			stats.Add("bundle.cache.size_bytes", _currentSize);
 		}
 
 		#region V1
