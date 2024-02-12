@@ -478,7 +478,7 @@ void FMovieGraphImagePassBase::PostRendererSubmission(
 	}
 
 	FMoviePipelineAccumulatorPoolPtr SampleAccumulatorPool = GraphRenderer->GetOrCreateAccumulatorPool<FImageOverlappedAccumulator>();
-	UE::MovieGraph::DefaultRenderer::FSurfaceAccumulatorPool::FInstancePtr AccumulatorInstance = SampleAccumulatorPool->GetAccumulatorInstance_GameThread<FImageOverlappedAccumulator>(InSampleState.TraversalContext.Time.RenderedFrameNumber, InSampleState.TraversalContext.RenderDataIdentifier);
+	UE::MovieGraph::DefaultRenderer::FSurfaceAccumulatorPool::FInstancePtr AccumulatorInstance = SampleAccumulatorPool->GetAccumulatorInstance_GameThread<FImageOverlappedAccumulator>(InSampleState.TraversalContext.Time.OutputFrameNumber, InSampleState.TraversalContext.RenderDataIdentifier);
 	
 	FMoviePipelineSurfaceQueuePtr LocalSurfaceQueue = GraphRenderer->GetOrCreateSurfaceQueue(InRenderTargetInitParams);
 	LocalSurfaceQueue->BlockUntilAnyAvailable();
@@ -502,7 +502,7 @@ void FMovieGraphImagePassBase::PostRendererSubmission(
 			if (AccumulationArgs.bIsLastSample)
 			{
 				// Final sample has now been executed, free the accumulator for reuse.
-				AccumulatorInstance->bIsActive = false;
+				AccumulatorInstance->SetIsActive(false);
 			}
 		}, AccumulatorInstance->TaskPrereq);
 
@@ -601,7 +601,7 @@ TFunction<void(TUniquePtr<FImagePixelData>&&)> FMovieGraphImagePassBase::MakeFor
 			if (AccumulationArgs.bIsLastSample)
 			{
 				// Final sample has now been executed, free the accumulator for reuse.
-				AccumulatorInstance->bIsActive = false;
+				AccumulatorInstance->SetIsActive(false);
 			}
 		}, AccumulatorInstance->TaskPrereq);
 
