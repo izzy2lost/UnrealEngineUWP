@@ -7,7 +7,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGameplayTagCountContainerTests, "System.Abilit
 
 #include "NativeGameplayTags.h"
 
-namespace UE::Private::GameplayTagCountContainerTests
+namespace UE::AbilitySystem::Private::GameplayTagCountContainerTests
 {
 	UE_DEFINE_GAMEPLAY_TAG_STATIC(TestsDotGenericTag, "Tests.GenericTag");
 	UE_DEFINE_GAMEPLAY_TAG_STATIC(TestsDotGenericTagDotOne, "Tests.GenericTag.One");
@@ -16,7 +16,7 @@ namespace UE::Private::GameplayTagCountContainerTests
 
 bool FGameplayTagCountContainerTests::RunTest(const FString& Parameters)
 {
-	using namespace UE::Private::GameplayTagCountContainerTests;
+	using namespace UE::AbilitySystem::Private::GameplayTagCountContainerTests;
 
 	// Create the container and add the first tag
 	FGameplayTagCountContainer TagCountContainer;
