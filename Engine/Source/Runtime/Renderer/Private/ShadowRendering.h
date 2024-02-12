@@ -436,6 +436,9 @@ public:
 	/** Whether the the shadow overlaps any nanite primitives */
 	uint32 bContainsNaniteSubjects : 1;
 	uint32 bShouldRenderVSM : 1;
+
+	/** Whether this shadow should support casting shadows from volumetric surfaces. */
+	uint32 bVolumetricShadow : 1;
 	
 	/** Used to fetch the correct cached static mesh draw commands */
 	EMeshPass::Type MeshPassTargetType = EMeshPass::CSMShadowDepth;
