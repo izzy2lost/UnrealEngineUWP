@@ -21,6 +21,7 @@ namespace UnrealBuildTool.Rules
 				"ContentBrowser",
 				"ContentBrowserAssetDataSource",
 				"ContentBrowserData",
+				"EditorStyle",
 				"Engine",
 				"InputCore",
 				"Json",

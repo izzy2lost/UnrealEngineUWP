@@ -4,8 +4,6 @@
 
 #include "UI/Window/ILiveLinkHubComponent.h"
 
-
-class ILiveLinkClient;
 class FSpawnTabArgs;
 class SLiveLinkHubMainTabView;
 class SWindow;
@@ -27,7 +25,4 @@ private:
 
 	/** Spawn the main tab. */
 	TSharedRef<SDockTab> SpawnMainTab(const FSpawnTabArgs& Args, TSharedPtr<SWindow> RootWindow);
-
-	/** LiveLink Client */
-	ILiveLinkClient* LiveLinkClient = nullptr;
 };

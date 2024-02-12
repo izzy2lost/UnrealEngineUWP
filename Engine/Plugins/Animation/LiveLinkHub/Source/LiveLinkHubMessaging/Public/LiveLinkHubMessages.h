@@ -4,6 +4,8 @@
 
 #include "LiveLinkMessages.h"
 #include "LiveLinkTypes.h"
+#include "Misc/FrameRate.h"
+
 #include "LiveLinkHubMessages.generated.h"
 
 /** Annotation put on MessageBus messages to indicate the type of provider used. 
@@ -19,6 +21,42 @@ namespace UE::LiveLinkHub::Private
 	/** LiveLink Hub provider type used to identify messages coming from a LiveLinkProvider that lives on a LiveLink Hub. */
 	extern const LIVELINKHUBMESSAGING_API FName LiveLinkHubProviderType;
 }
+
+
+UENUM()
+enum class ELiveLinkHubTimecodeSource
+{
+	// Not defined by the Hub and thus should use the default system settings.
+	NotDefined,
+
+	// Using system time of the editor.
+	SystemTimeEditor,
+
+	// Using the provided subject name
+	UseSubjectName
+};
+
+/** Special message to communicate / override time code used by the connected editor. */
+USTRUCT()
+struct LIVELINKHUBMESSAGING_API FLiveLinkHubTimecodeSettings
+{
+	GENERATED_BODY()
+
+	/** Source time code value.  If it is not defined then we use the default time code provider in the engine. */
+	UPROPERTY()
+	ELiveLinkHubTimecodeSource Source = ELiveLinkHubTimecodeSource::NotDefined;
+
+	/** Name of the subject to map timecode if Source == ELiveLinkHubTimecodeSource::UseSubjectName */
+	UPROPERTY()
+	FName SubjectName;
+
+	/** Desired frame rate to set if Source == ELiveLinkHubTimecodeSource::SystemTimeEditor. */
+	UPROPERTY()
+	FFrameRate DesiredFrameRate;
+
+	/** Assign the settings to a new timecode provider and override the current engine settings. */
+	void AssignTimecodeSettingsAsProviderToEngine() const;
+};
 
 /** Status of a UE client connected to a live link hub. */
 UENUM()

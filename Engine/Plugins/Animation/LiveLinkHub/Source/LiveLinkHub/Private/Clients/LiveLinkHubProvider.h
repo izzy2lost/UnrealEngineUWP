@@ -7,12 +7,14 @@
 #include "Clients/LiveLinkHubUEClientInfo.h"
 #include "Engine/TimerHandle.h"
 #include "IMessageContext.h"
+#include "LiveLinkHubMessages.h"
 #include "LiveLinkProviderImpl.h"
 
 class ILiveLinkHubSessionManager;
 struct FLiveLinkHubClientId;
 struct FLiveLinkHubConnectMessage;
 struct FLiveLinkHubUEClientInfo;
+
 
 /** 
  * LiveLink Provider that allows getting more information about a UE client by communicating with a LiveLinkHub MessageBus Source.
@@ -50,12 +52,18 @@ public:
 	/** Retrieve the existing client map. */
 	const TMap<FLiveLinkHubClientId, FLiveLinkHubUEClientInfo>& GetClientsMap() const { return ClientsMap; }
 
+	/** Timecode settings that should be shared to connected editors. */
+	void SetTimecodeSettings(FLiveLinkHubTimecodeSettings InSettings);
+
 private:
 	/** Handle a connection message resulting from a livelink hub message bus source connecting to this provider. */
 	void HandleHubConnectMessage(const FLiveLinkHubConnectMessage& Message, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context);
 	
 	/** Handle a client info message being received. Happens when new information about a client is received (ie. Client has changed map) */
 	void HandleClientInfoMessage(const FLiveLinkClientInfoMessage& Message, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context);
+
+	/** Send timecode settings to connected Live Link Hub provider. */
+	void SendTimecodeSettings();
 
 protected:
 	//~ Begin ILiveLinkHubClientsModel interface
@@ -89,6 +97,9 @@ private:
 	TWeakPtr<ILiveLinkHubSessionManager> SessionManager;
 	/** Cache used to retrieve the client id from a message bus address. */
 	TMap<FMessageAddress, FLiveLinkHubClientId> AddressToIdCache;
+	/** Cached value of timecode connection settings. */
+	FLiveLinkHubTimecodeSettings TimecodeSettings;
+
 	/** Lock used to access the clients map from different threads. */
 	mutable FRWLock ClientsMapLock;
 };

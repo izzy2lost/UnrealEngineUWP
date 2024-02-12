@@ -8,6 +8,7 @@ class UWorld;
 enum class EMapChangeType : uint8;
 struct FLiveLinkClientInfoMessage;
 struct FMessageAddress;
+struct FLiveLinkHubTimecodeSettings;
 
 /** LiveLink Message bus source that is connected to a livelink hub. */
 class FLiveLinkHubMessageBusSource : public FLiveLinkMessageBusSource
@@ -18,11 +19,13 @@ public:
 
 protected:
 	//~ Begin FLiveLinkMessageBusSource interface
+	virtual void InitializeMessageEndpoint(FMessageEndpointBuilder& EndpointBuilder);
 	virtual double GetDeadSourceTimeout() const override;
 	virtual void SendConnectMessage() override;
 	//~ End FLiveLinkMessageBusSource
 
 private:
+	void HandleTimecodeSettings(const FLiveLinkHubTimecodeSettings& Message, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context);
 	/** Send information about this UE client to the connected provider */
 	void SendClientInfoMessage();
 	/** Handler called on map changed to update the livelink hub. */

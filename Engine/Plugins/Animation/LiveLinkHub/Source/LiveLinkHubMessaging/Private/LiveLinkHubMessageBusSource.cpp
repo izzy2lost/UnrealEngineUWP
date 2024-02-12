@@ -3,13 +3,17 @@
 #include "LiveLinkHubMessageBusSource.h"
 
 #include "Engine/Level.h"
+#include "Engine/SystemTimeTimecodeProvider.h"
 #include "Engine/World.h"
 #include "HAL/PlatformProcess.h"
 #include "ILiveLinkClient.h"
 #include "ILiveLinkModule.h"
 #include "LiveLinkHubMessages.h"
 #include "LiveLinkMessages.h"
+#include "LiveLinkTimecodeProvider.h"
+#include "LiveLinkTypes.h"
 #include "MessageEndpoint.h"
+#include "MessageEndpointBuilder.h"
 #include "Misc/App.h"
 #include "Misc/EngineVersion.h"
 
@@ -28,7 +32,6 @@ FLiveLinkHubMessageBusSource::FLiveLinkHubMessageBusSource(const FText& InSource
 		LevelEditorModule->OnMapChanged().AddRaw(this, &FLiveLinkHubMessageBusSource::OnMapChanged);
 	}
 #endif
-
 }
 
 FLiveLinkHubMessageBusSource::~FLiveLinkHubMessageBusSource()
@@ -65,6 +68,18 @@ void FLiveLinkHubMessageBusSource::SendClientInfoMessage()
 void FLiveLinkHubMessageBusSource::OnMapChanged(UWorld* World, EMapChangeType ChangeType)
 {
 	SendClientInfoMessage();
+}
+
+void FLiveLinkHubMessageBusSource::InitializeMessageEndpoint(FMessageEndpointBuilder& EndpointBuilder)
+{
+	FLiveLinkMessageBusSource::InitializeMessageEndpoint(EndpointBuilder);
+	EndpointBuilder
+		.Handling<FLiveLinkHubTimecodeSettings>(this, &FLiveLinkHubMessageBusSource::HandleTimecodeSettings);
+}
+
+void FLiveLinkHubMessageBusSource::HandleTimecodeSettings(const FLiveLinkHubTimecodeSettings& Message, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context)
+{
+	Message.AssignTimecodeSettingsAsProviderToEngine();
 }
 
 FLiveLinkClientInfoMessage FLiveLinkHubMessageBusSource::CreateLiveLinkClientInfo() const
