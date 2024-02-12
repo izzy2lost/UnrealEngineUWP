@@ -4,6 +4,8 @@
 
 #include "DMEDefs.h"
 #include "SlateMaterialBrush.h"
+#include "UObject/WeakObjectPtr.h"
+#include "UObject/WeakObjectPtrTemplates.h"
 #include "Widgets/SCompoundWidget.h"
 
 class UDMMaterialComponent;
@@ -20,7 +22,7 @@ class SDMStageSourcePreview : public SCompoundWidget
 public:
 
 	SDMStageSourcePreview();
-	virtual ~SDMStageSourcePreview();
+	virtual ~SDMStageSourcePreview() override;
 
 	void Construct(const FArguments& InArgs, UDMMaterialStageSource* InStageSource);
 
@@ -28,6 +30,7 @@ public:
 
 protected:
 	TWeakObjectPtr<UDMMaterialStageSource> StageSourceWeak;
+	TWeakObjectPtr<UMaterialInterface> PreviewMaterialWeak;
 	FSlateMaterialBrush Brush;
 
 	void OnStageSourceUpdated(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType);

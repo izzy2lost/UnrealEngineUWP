@@ -4,6 +4,8 @@
 
 #include "DMEDefs.h"
 #include "SlateMaterialBrush.h"
+#include "UObject/WeakObjectPtr.h"
+#include "UObject/WeakObjectPtrTemplates.h"
 #include "Widgets/SCompoundWidget.h"
 
 class UDMMaterialComponent;
@@ -29,6 +31,7 @@ public:
 
 protected:
 	TWeakObjectPtr<UDMMaterialStage> StageWeak;
+	TWeakObjectPtr<UMaterialInterface> PreviewMaterialWeak;
 	FSlateMaterialBrush Brush;
 	TAttribute<FVector2D> PreviewSize;
 

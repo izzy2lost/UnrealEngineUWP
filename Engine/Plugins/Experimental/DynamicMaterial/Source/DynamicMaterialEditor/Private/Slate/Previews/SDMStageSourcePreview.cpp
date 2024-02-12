@@ -53,6 +53,11 @@ void SDMStageSourcePreview::Tick(const FGeometry& AllottedGeometry, const double
 {
 	SCompoundWidget::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
 
+	if (!PreviewMaterialWeak.IsValid())
+	{
+		Brush.SetMaterial(nullptr);
+	}
+
 	if (UDMMaterialComponent::CanClean())
 	{
 		if (UDMMaterialStageSource* Source = StageSourceWeak.Get())
@@ -77,6 +82,7 @@ void SDMStageSourcePreview::OnStageSourceUpdated(UDMMaterialComponent* InCompone
 			if (Brush.GetResourceObject() != PreviewMaterial)
 			{
 				Brush.SetMaterial(PreviewMaterial);
+				PreviewMaterialWeak = PreviewMaterial;
 			}
 		}
 	}

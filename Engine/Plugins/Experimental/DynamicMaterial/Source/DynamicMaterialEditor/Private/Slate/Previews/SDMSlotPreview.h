@@ -5,6 +5,8 @@
 #include "DMDefs.h"
 #include "SlateMaterialBrush.h"
 #include "Types/WidgetMouseEventsDelegate.h"
+#include "UObject/WeakObjectPtr.h"
+#include "UObject/WeakObjectPtrTemplates.h"
 #include "Widgets/SCompoundWidget.h"
 
 class UDMMaterialComponent;
@@ -22,7 +24,7 @@ class SDMSlotPreview : public SCompoundWidget
 
 public:
 	SDMSlotPreview();
-	virtual ~SDMSlotPreview();
+	virtual ~SDMSlotPreview() override;
 
 	void Construct(const FArguments& InArgs, UDMMaterialSlot* InSlot, EDMMaterialLayerStage InLayerStage);
 
@@ -35,6 +37,7 @@ public:
 
 protected:
 	TWeakObjectPtr<UDMMaterialSlot> SlotWeak;
+	TWeakObjectPtr<UMaterialInterface> PreviewMaterialWeak;
 	EDMMaterialLayerStage LayerStage;
 	FSlateMaterialBrush Brush;
 
