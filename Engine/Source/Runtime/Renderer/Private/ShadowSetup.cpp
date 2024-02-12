@@ -750,6 +750,7 @@ FProjectedShadowInfo::FProjectedShadowInfo()
 	, bNaniteGeometry(true)
 	, bContainsNaniteSubjects(false)
 	, bShouldRenderVSM(true)
+	, bVolumetricShadow(false)
 	, PerObjectShadowFadeStart(UE_OLD_WORLD_MAX)		// LWC_TODO: Upgrade to double? Should have been HALF_WORLD_MAX to match precision.
 	, InvPerObjectShadowFadeLength(0.0f)
 	, OverlappedUVOnCachedShadowMap(-1.0f, -1.0f, -1.0f, -1.0f)
@@ -803,6 +804,7 @@ bool FProjectedShadowInfo::SetupPerObjectProjection(
 	bSelfShadowOnly = InParentSceneInfo->Proxy->CastsSelfShadowOnly();
 	bTransmission = InLightSceneInfo->Proxy->Transmission();
 	bHairStrandsDeepShadow = InLightSceneInfo->Proxy->CastsHairStrandsDeepShadow();
+	bVolumetricShadow = InLightSceneInfo->Proxy->CastsVolumetricShadow();
 	
 	check(!bRayTracedDistanceField);
 	
@@ -940,6 +942,7 @@ void FProjectedShadowInfo::SetupWholeSceneProjection(
 	bWholeSceneShadow = true;
 	bTransmission = InLightSceneInfo->Proxy->Transmission();
 	bHairStrandsDeepShadow = InLightSceneInfo->Proxy->CastsHairStrandsDeepShadow();
+	bVolumetricShadow = InLightSceneInfo->Proxy->CastsVolumetricShadow();
 	BorderSize = InBorderSize;
 
 	// Scale matrix to also include the border
@@ -2051,7 +2054,7 @@ bool FProjectedShadowInfo::AddSubjectPrimitive(FDynamicShadowsTaskData& TaskData
 			bWasAdded = true;
 		}
 
-		if (bHeterogeneousVolumeRelevance)
+		if (bVolumetricShadow && bHeterogeneousVolumeRelevance)
 		{
 			SubjectHeterogeneousVolumePrimitives.Add(PrimitiveSceneInfo);
 			bWasAdded = true;
@@ -2263,7 +2266,7 @@ uint64 FProjectedShadowInfo::AddSubjectPrimitive_AnyThread(
 			++OutStats.NumTranslucentSubs;
 		}
 
-		if (bHeterogeneousVolumeRelevance)
+		if (bVolumetricShadow && bHeterogeneousVolumeRelevance)
 		{
 			Result.bHeterogeneousVolumeSubjectPrimitive = true;
 			++OutStats.NumHeterogeneousVolumeSubs;
