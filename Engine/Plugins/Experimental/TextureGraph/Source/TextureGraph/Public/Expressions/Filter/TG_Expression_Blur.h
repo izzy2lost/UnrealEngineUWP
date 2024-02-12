@@ -29,11 +29,11 @@ public:
 #endif
 
 	// Controls how much an texture is blurred
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NoCategory, meta = (TGType = "TG_Setting", ClampMin = 0, ClampMax = 20, EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NoCategory, meta = (TGType = "TG_Setting", ClampMin = 0, ClampMax = 100, EditConditionHides))
 	int32 Radius = 1;
 
 	// Adjusting the angle changes the direction at which the blur effect is applied." 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NoCategory, meta = (TGType = "TG_Setting", ClampMin = -180, ClampMax = 180, EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NoCategory, meta = (TGType = "TG_Setting", ClampMin = -180, ClampMax = 180,EditConditionHides))
 	float Angle = 0.0f;
 
 	// Determines how intense the blurring effect is applied. Higher values result in stronger blur, while lower values produce a milder effect.
