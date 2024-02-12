@@ -2024,3 +2024,8 @@ bool FEditorModeTools::EndTransform(const FGizmoState& InState) const
 	
 	return bHandled;
 }
+
+bool FEditorModeTools::HasOngoingTransform() const
+{
+	return bHasOngoingTransform;
+}

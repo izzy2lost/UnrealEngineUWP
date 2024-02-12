@@ -1651,7 +1651,7 @@ EMouseCursor::Type FEditorViewportClient::GetCursor(FViewport* InViewport,int32 
 		MouseCursor = EMouseCursor::CardinalCross;
 	}
 	// Don't select widget axes by mouse over while they're being controlled by a mouse drag.
-	else if( InViewport->IsCursorVisible() && !bWidgetAxisControlledByDrag )
+	else if( InViewport->IsCursorVisible() && !bWidgetAxisControlledByDrag && !ModeTools->HasOngoingTransform())
 	{
 		// allow editor modes to override cursor
 		EMouseCursor::Type EditorModeCursor = EMouseCursor::Default;
