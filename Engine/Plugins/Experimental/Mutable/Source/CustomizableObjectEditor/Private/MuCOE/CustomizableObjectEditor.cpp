@@ -886,26 +886,38 @@ UCustomSettings* FCustomizableObjectEditor::GetCustomSettings()
 }
 
 
+void FCustomizableObjectEditor::SelectSingleNode(UCustomizableObjectNode& Node)
+{
+	FGraphPanelSelectionSet SelectedNodes = GraphEditor->GetSelectedNodes();
+	if (SelectedNodes.Num() != 1 || Cast<UCustomizableObjectNode>(*SelectedNodes.CreateIterator()) != &Node)
+	{
+		GraphEditor->ClearSelectionSet();
+		GraphEditor->SetNodeSelection(&Node, true);
+	}
+}
+
+
 void FCustomizableObjectEditor::HideGizmo()
 {
 	HideGizmoProjectorNodeProjectorConstant();
 	HideGizmoProjectorNodeProjectorParameter();
+	HideGizmoProjectorParameter();
 	HideGizmoClipMorph();
 	HideGizmoClipMesh();
 	HideGizmoLight();
-
-	FCustomizableObjectInstanceEditor::HideGizmo(SharedThis(this), Viewport, CustomizableInstanceDetailsView);
 }
 
 
 void FCustomizableObjectEditor::ShowGizmoProjectorNodeProjectorConstant(UCustomizableObjectNodeProjectorConstant& Node)
 {
-	HideGizmo();
-	
-	ProjectorGizmo = EProjectorGizmo::NodeProjectorConstant;
-	
-	GraphEditor->ClearSelectionSet();
-	GraphEditor->SetNodeSelection(&Node, true);
+	if (GizmoType != EGizmoType::NodeProjectorConstant)
+	{
+		HideGizmo();
+	}
+
+	GizmoType = EGizmoType::NodeProjectorConstant;
+
+	SelectSingleNode(Node);
 	
 	FProjectorTypeDelegate ProjectorTypeDelegate;
 	ProjectorTypeDelegate.BindUObject(&Node, &UCustomizableObjectNodeProjectorConstant::GetProjectorType);		
@@ -962,10 +974,12 @@ void FCustomizableObjectEditor::ShowGizmoProjectorNodeProjectorConstant(UCustomi
 
 void FCustomizableObjectEditor::HideGizmoProjectorNodeProjectorConstant()
 {
-	if (ProjectorGizmo != EProjectorGizmo::NodeProjectorConstant)
+	if (GizmoType != EGizmoType::NodeProjectorConstant)
 	{
 		return;
 	}
+
+	GizmoType = EGizmoType::Hidden;
 	
 	Viewport->HideGizmoProjector();
 
@@ -984,12 +998,13 @@ void FCustomizableObjectEditor::HideGizmoProjectorNodeProjectorConstant()
 
 void FCustomizableObjectEditor::ShowGizmoProjectorNodeProjectorParameter(UCustomizableObjectNodeProjectorParameter& Node)
 {
-	HideGizmo();
+	if (GizmoType != EGizmoType::NodeProjectorParameter)
+	{
+		HideGizmo();
+		GizmoType = EGizmoType::NodeProjectorParameter;
+	}
 
-	ProjectorGizmo = EProjectorGizmo::NodeProjectorParameter;
-	
-	GraphEditor->ClearSelectionSet();
-	GraphEditor->SetNodeSelection(&Node, true);
+	SelectSingleNode(Node);
 	
 	FProjectorTypeDelegate ProjectorTypeDelegate;
 	ProjectorTypeDelegate.BindUObject(&Node, &UCustomizableObjectNodeProjectorParameter::GetProjectorType);		
@@ -1046,11 +1061,13 @@ void FCustomizableObjectEditor::ShowGizmoProjectorNodeProjectorParameter(UCustom
 
 void FCustomizableObjectEditor::HideGizmoProjectorNodeProjectorParameter()
 {
-	if (ProjectorGizmo != EProjectorGizmo::NodeProjectorParameter)
+	if (GizmoType != EGizmoType::NodeProjectorParameter)
 	{
 		return;
 	}
-	
+
+	GizmoType = EGizmoType::Hidden;
+
 	Viewport->HideGizmoProjector();
 
 	const FGraphPanelSelectionSet SelectedNodes = GraphEditor->GetSelectedNodes();
@@ -1068,7 +1085,11 @@ void FCustomizableObjectEditor::HideGizmoProjectorNodeProjectorParameter()
 
 void FCustomizableObjectEditor::ShowGizmoProjectorParameter(const FString& ParamName, int32 RangeIndex)
 {
-	ProjectorGizmo = EProjectorGizmo::Parameter;
+	if (GizmoType != EGizmoType::ProjectorParameter)
+	{
+		HideGizmo();		
+		GizmoType = EGizmoType::ProjectorParameter;
+	}
 	
 	FCustomizableObjectInstanceEditor::ShowGizmoProjectorParameter(ParamName, RangeIndex, SharedThis(this), Viewport, CustomizableInstanceDetailsView, ProjectorParameter, PreviewInstance);
 }
@@ -1076,31 +1097,45 @@ void FCustomizableObjectEditor::ShowGizmoProjectorParameter(const FString& Param
 
 void FCustomizableObjectEditor::HideGizmoProjectorParameter()
 {
-	if (ProjectorGizmo != EProjectorGizmo::Parameter)
+	if (GizmoType != EGizmoType::ProjectorParameter)
 	{
 		return;	
 	}
-	
+
+	GizmoType = EGizmoType::Hidden;
+
 	FCustomizableObjectInstanceEditor::HideGizmoProjectorParameter(SharedThis(this), Viewport, CustomizableInstanceDetailsView);
 }
 
 
 void FCustomizableObjectEditor::ShowGizmoClipMorph(UCustomizableObjectNodeMeshClipMorph& Node)
 {
-	if (Node.BoneName != FName())
-	{
-		HideGizmo();
-
-		GraphEditor->ClearSelectionSet();
-		GraphEditor->SetNodeSelection(&Node, true);
-
-		Viewport->ShowGizmoClipMorph(Node);
+	if (Node.BoneName == FName())
+	{	
+		return;
 	}
+
+	if (GizmoType != EGizmoType::ClipMorph)
+	{
+		HideGizmo();		
+		GizmoType = EGizmoType::ClipMorph;
+	}
+	
+	SelectSingleNode(Node);
+
+	Viewport->ShowGizmoClipMorph(Node);
 }
 
 
 void FCustomizableObjectEditor::HideGizmoClipMorph()
 {
+	if (GizmoType != EGizmoType::ClipMorph)
+	{
+		return;	
+	}
+	
+	GizmoType = EGizmoType::Hidden;
+
 	Viewport->HideGizmoClipMorph();
 
 	const FGraphPanelSelectionSet SelectedNodes = GraphEditor->GetSelectedNodes();
@@ -1137,10 +1172,13 @@ void FCustomizableObjectEditor::ShowGizmoClipMesh(UCustomizableObjectNodeMeshCli
 
 	if (ClipMesh)
 	{
-		HideGizmo();
+		if (GizmoType != EGizmoType::ClipMesh)
+		{
+			HideGizmo();
+			GizmoType = EGizmoType::ClipMesh;
+		}
 
-		GraphEditor->ClearSelectionSet();
-		GraphEditor->SetNodeSelection(&Node, true);
+		SelectSingleNode(Node);
 
 		Viewport->ShowGizmoClipMesh(Node, *ClipMesh);
 	}
@@ -1149,6 +1187,13 @@ void FCustomizableObjectEditor::ShowGizmoClipMesh(UCustomizableObjectNodeMeshCli
 
 void FCustomizableObjectEditor::HideGizmoClipMesh()
 {
+	if (GizmoType != EGizmoType::ClipMesh)
+	{
+		return;	
+	}
+
+	GizmoType = EGizmoType::Hidden;
+
 	Viewport->HideGizmoClipMesh();
 
 	const FGraphPanelSelectionSet SelectedNodes = GraphEditor->GetSelectedNodes();
@@ -1166,8 +1211,12 @@ void FCustomizableObjectEditor::HideGizmoClipMesh()
 
 void FCustomizableObjectEditor::ShowGizmoLight(ULightComponent& InSelectedLight)
 {
-	HideGizmo();
-
+	if (GizmoType != EGizmoType::Light)
+	{
+		HideGizmo();
+		GizmoType = EGizmoType::Light;
+	}
+	
 	CustomSettings->SetSelectedLight(&InSelectedLight);
 
 	Viewport->ShowGizmoLight(InSelectedLight);
@@ -1178,6 +1227,13 @@ void FCustomizableObjectEditor::ShowGizmoLight(ULightComponent& InSelectedLight)
 
 void FCustomizableObjectEditor::HideGizmoLight()
 {
+	if (GizmoType != EGizmoType::Light)
+	{
+		return;	
+	}
+	
+	GizmoType = EGizmoType::Hidden;
+
 	CustomSettings->SetSelectedLight(nullptr);
 
 	Viewport->HideGizmoLight();

@@ -50,6 +50,19 @@ DECLARE_DELEGATE(FCreatePreviewInstanceFlagDelegate);
 
 extern void RemoveRestrictedChars(FString& String);
 
+
+enum class EGizmoType : uint8
+{
+	Hidden,
+	ProjectorParameter,
+	NodeProjectorConstant,
+	NodeProjectorParameter,
+	ClipMorph,
+	ClipMesh,
+	Light,
+};
+
+
 /**
 * Wrapper UObject class for the UCustomizableObjectInstance::FObjectInstanceUpdatedDelegate dynamic multicast delegate
 */
@@ -209,6 +222,9 @@ public:
 	virtual void ShowGizmoLight(ULightComponent& SelectedLight) override;
 	virtual void HideGizmoLight() override;
 
+	/** Select only this node only. Do nothing if already was only selected. */
+	void SelectSingleNode(UCustomizableObjectNode& Node);
+	
 	/** Called to undo the last action */
 	void UndoGraphAction();
 
@@ -447,7 +463,7 @@ private:
 
 	bool bRecursionGuard = false;
 	
-	EProjectorGizmo ProjectorGizmo = EProjectorGizmo::None;
+	EGizmoType GizmoType = EGizmoType::Hidden;
 
 protected:
 	/** @return the documentation location for this editor */

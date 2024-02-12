@@ -1262,7 +1262,7 @@ FReply FCustomizableInstanceDetails::OnProjectorSelectChanged(const FString Para
 	const UProjectorParameter* ProjectorParameter = Editor->GetProjectorParameter();
 	if (ProjectorParameter->IsProjectorSelected(ParamName, RangeIndex))
 	{
-		Editor->HideGizmoProjectorParameter();
+		Editor->HideGizmo();
 	}
 	else
 	{

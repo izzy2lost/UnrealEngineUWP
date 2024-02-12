@@ -27,13 +27,6 @@ struct FFrame;
 
 DECLARE_DELEGATE(FCreatePreviewInstanceFlagDelegate);
 
-enum class EProjectorGizmo : uint8
-{
-	None,
-	Parameter,
-	NodeProjectorConstant,
-	NodeProjectorParameter
-};
 
 /**
 * Wrapper UObject class for the UCustomizableObjectInstance::FObjectInstanceUpdatedDelegate dynamic multicast delegate
@@ -307,8 +300,6 @@ private:
 
 	TObjectPtr<UCustomSettings> CustomSettings = nullptr;
 
-	EProjectorGizmo ProjectorGizmo = EProjectorGizmo::None;
-	
 	/** Adds the customizable Object Instance Editor commands to the default toolbar */
 	void ExtendToolbar();
 };

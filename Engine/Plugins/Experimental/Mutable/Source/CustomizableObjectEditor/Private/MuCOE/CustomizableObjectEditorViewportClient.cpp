@@ -689,33 +689,28 @@ void FCustomizableObjectEditorViewportClient::ShowGizmoClipMorph(UCustomizableOb
 {
 	SetWidgetType(EWidgetType::ClipMorph);
 
-	if (ClipMorphNode != &NodeMeshClipMorph || NodeMeshClipMorph.bUpdateViewportWidget)
-	{	
-		NodeMeshClipMorph.bUpdateViewportWidget = false;
-
-		bClipMorphLocalStartOffset = NodeMeshClipMorph.bLocalStartOffset;
-		MorphLength = NodeMeshClipMorph.B;
-		Radius1 = NodeMeshClipMorph.Radius;
-		Radius2 = NodeMeshClipMorph.Radius2;
-		RotationAngle = NodeMeshClipMorph.RotationAngle;
-		ClipMorphOrigin = NodeMeshClipMorph.Origin;
-		ClipMorphLocalOffset = NodeMeshClipMorph.StartOffset;
-
-		NodeMeshClipMorph.FindLocalAxes(ClipMorphXAxis, ClipMorphYAxis, ClipMorphNormal);
-
-		if (bClipMorphLocalStartOffset)
-		{
-			ClipMorphOffset = ClipMorphLocalOffset.X * ClipMorphXAxis
-				+ ClipMorphLocalOffset.Y * ClipMorphYAxis
-				+ ClipMorphLocalOffset.Z * ClipMorphNormal;
-		}
-		else
-		{
-			ClipMorphOffset = ClipMorphLocalOffset;
-		}
-	}
-
 	ClipMorphNode = &NodeMeshClipMorph;
+
+	bClipMorphLocalStartOffset = NodeMeshClipMorph.bLocalStartOffset;
+	MorphLength = NodeMeshClipMorph.B;
+	Radius1 = NodeMeshClipMorph.Radius;
+	Radius2 = NodeMeshClipMorph.Radius2;
+	RotationAngle = NodeMeshClipMorph.RotationAngle;
+	ClipMorphOrigin = NodeMeshClipMorph.Origin;
+	ClipMorphLocalOffset = NodeMeshClipMorph.StartOffset;
+
+	NodeMeshClipMorph.FindLocalAxes(ClipMorphXAxis, ClipMorphYAxis, ClipMorphNormal);
+
+	if (bClipMorphLocalStartOffset)
+	{
+		ClipMorphOffset = ClipMorphLocalOffset.X * ClipMorphXAxis
+			+ ClipMorphLocalOffset.Y * ClipMorphYAxis
+			+ ClipMorphLocalOffset.Z * ClipMorphNormal;
+	}
+	else
+	{
+		ClipMorphOffset = ClipMorphLocalOffset;
+	}
 }
 
 
