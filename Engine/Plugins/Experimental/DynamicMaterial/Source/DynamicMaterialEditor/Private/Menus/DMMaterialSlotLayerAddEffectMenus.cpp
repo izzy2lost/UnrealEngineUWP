@@ -151,7 +151,7 @@ namespace UE::DynamicMaterialEditor::Private
 			Section.AddMenuEntry(
 				FName(*Description),
 				FText::FromString(Description),
-				FText::FromString(MaterialFunction->GetDescription()),
+				FText::FromString(MaterialFunction->GetUserExposedCaption()),
 				FSlateIcon(),
 				FToolUIActionChoice(Action)
 			);
