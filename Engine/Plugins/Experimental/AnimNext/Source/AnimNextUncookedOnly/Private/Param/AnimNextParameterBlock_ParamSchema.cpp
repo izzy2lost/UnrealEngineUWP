@@ -1,6 +1,6 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "PAram/AnimNextParameterBlock_ParamSchema.h"
+#include "Param/AnimNextParameterBlock_ParamSchema.h"
 
 #include "AnimNextExecuteContext.h"
 #include "Param/RigUnit_AnimNextParameterBase.h"
