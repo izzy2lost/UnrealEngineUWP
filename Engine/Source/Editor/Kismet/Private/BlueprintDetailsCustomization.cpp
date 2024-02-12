@@ -1092,6 +1092,7 @@ void FBlueprintVarActionDetails::CustomizeDetails( IDetailLayoutBuilder& DetailL
 				UK2Node_FunctionEntry* FuncEntry = EntryNodes[0];
 
 				TSharedPtr<FStructOnScope> StructData = MakeShareable(new FStructOnScope((UFunction*)StructScope));
+				StructData->SetPackage(BlueprintObj->GetPackage());
 
 				for (const FBPVariableDescription& LocalVar : FuncEntry->LocalVariables)
 				{
