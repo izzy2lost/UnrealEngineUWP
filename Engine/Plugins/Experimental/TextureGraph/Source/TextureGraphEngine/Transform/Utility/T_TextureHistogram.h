@@ -8,7 +8,7 @@
 #include "Model/Mix/MixUpdateCycle.h"
 #include <DataDrivenShaderPlatformInfo.h>
 
-class CSH_Histogram : public CmpSH_Base<1, 1, 1>
+class CSH_Histogram : public CmpSH_Base<16, 16, 1>
 {
 public:
 	DECLARE_GLOBAL_SHADER(CSH_Histogram);
