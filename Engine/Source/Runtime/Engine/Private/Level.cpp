@@ -1133,6 +1133,8 @@ void ULevel::PreSave(FObjectPreSaveContext ObjectSaveContext)
 
 void ULevel::PostLoad()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(ULevel::PostLoad);
+
 	Super::PostLoad();
 
 	// Ensure that the level is pointed to the owning world.  For streamed levels, this will be the world of the P map
@@ -1175,7 +1177,7 @@ void ULevel::PostLoad()
 
 	if (IsUsingActorFolders() && IsUsingExternalObjects() && IsActorFolderObjectsFeatureAvailable())
 	{
-		if (!bWasDuplicated)
+		if (!bWasDuplicated && !FPackageName::IsTempPackage(GetPackage()->GetName()))
 		{
 			// Load all folders for this level
 			FExternalPackageHelper::LoadObjectsFromExternalPackages<UActorFolder>(this, [this](UActorFolder* LoadedFolder)
