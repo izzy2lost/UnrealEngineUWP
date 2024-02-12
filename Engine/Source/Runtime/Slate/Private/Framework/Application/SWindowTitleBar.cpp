@@ -199,6 +199,7 @@ void SWindowTitleBar::MakeTitleBarContentWidgets( TSharedPtr< SWidget >& OutLeft
 			.AutoWidth()
 			.HAlign(HAlign_Left)
 			.VAlign(VAlign_Top)
+			.Padding(FMargin(0, 0, 0, 4.0f))
 			[
 				SAssignNew(AppIconWidget, SAppIconWidget)
 				.IconColorAndOpacity(this, &SWindowTitleBar::GetWindowTitleContentColor)
