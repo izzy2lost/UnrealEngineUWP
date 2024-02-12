@@ -27,7 +27,6 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FHairDeepShadowRasterUniformParameters, REN
 	SHADER_PARAMETER(FMatrix44f, CPU_TranslatedWorldToClipMatrix)
 	SHADER_PARAMETER(FVector4f, SliceValue)
 	SHADER_PARAMETER(FIntRect, AtlasRect)
-	SHADER_PARAMETER(FIntPoint, ViewportResolution)
 	SHADER_PARAMETER(uint32, AtlasSlotIndex)
 	SHADER_PARAMETER(FVector4f, LayerDepths)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, FrontDepthTexture)
