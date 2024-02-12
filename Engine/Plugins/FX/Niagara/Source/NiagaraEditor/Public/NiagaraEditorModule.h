@@ -268,6 +268,9 @@ public:
 	
 	/** Callback whenever a script is applied/updated in the editor. */
 	FOnScriptApplied& OnScriptApplied();
+
+	UPackage* GetTempPackage() { return TempPackage; }
+
 private:
 	class FDeferredDestructionContainerBase
 	{
@@ -499,4 +502,6 @@ private:
 	TArray<UClass*> PluginAssetClassesPreloaded;
 
 	TSharedPtr<FNiagaraRecentAndFavoritesManager> RecentAndFavoritesManager;
+
+	UPackage* TempPackage = nullptr;
 };

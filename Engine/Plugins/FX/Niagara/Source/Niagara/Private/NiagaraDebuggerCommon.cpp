@@ -1,9 +1,20 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NiagaraDebuggerCommon.h"
+#include "NiagaraModule.h"
+#include "Modules/ModuleManager.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NiagaraDebuggerCommon)
 
+INiagaraDebuggerClient* INiagaraDebuggerClient::Get()
+{
+#if WITH_NIAGARA_DEBUGGER
+	INiagaraModule& NiagaraModule = FModuleManager::LoadModuleChecked<INiagaraModule>("Niagara");
+	return reinterpret_cast<INiagaraDebuggerClient*>(NiagaraModule.GetDebuggerClient());
+#else
+	return nullptr;
+#endif
+}
 
 //////////////////////////////////////////////////////////////////////////
 
