@@ -8,6 +8,7 @@
 #include "LearningAgentsNeuralNetwork.h" // Included for ELearningAgentsActivationFunction
 
 #include "Engine/EngineTypes.h"
+#include "GameFramework/OnlineReplStructs.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 
 #include "LearningAgentsObservations.generated.h"
@@ -43,6 +44,15 @@ bool operator==(const FLearningAgentsObservationObjectElement& Lhs, const FLearn
 
 /** Hashing operator for Observation Object Elements */
 uint32 GetTypeHash(const FLearningAgentsObservationObjectElement& Element);
+
+template<>
+struct TStructOpsTypeTraits<FLearningAgentsObservationObjectElement> : public TStructOpsTypeTraitsBase2<FLearningAgentsObservationObjectElement>
+{
+	enum
+	{
+		WithIdenticalViaEquality = true,
+	};
+};
 
 /**
  * Observation Schema
