@@ -4208,126 +4208,119 @@ static void GetSequenceSceneComponentWorldTransforms(USceneComponent* SceneCompo
 	Interrogator.Reset();
 }
 
-static void GetSequencerActorWorldTransforms(IMovieScenePlayer* Player, UMovieSceneSequence* InSequence, FMovieSceneSequenceIDRef Template, const FActorForWorldTransforms& ActorSelection, const TArray<FFrameNumber>& Frames, TArray<FTransform>& OutTransforms)
+static void GetSequencerActorWorldTransforms(IMovieScenePlayer* Player, FMovieSceneSequenceTransform RootToLocalTransform, UMovieSceneSequence* InSequence, FMovieSceneSequenceIDRef Template, const FActorForWorldTransforms& ActorSelection, const TArray<FFrameNumber>& Frames, TArray<FTransform>& OutTransforms)
 {
-	if (AActor* Actor = ActorSelection.Actor.Get())
+	USceneComponent* SceneComponent = nullptr;
+	AActor* Actor = ActorSelection.Actor.Get();
+	if (Actor)
 	{
-
-		USkeletalMeshComponent* SkelMeshComp = ActorSelection.Component.IsValid() ? Cast<USkeletalMeshComponent>(ActorSelection.Component.Get()) : nullptr;
+		SceneComponent = Actor->GetRootComponent();
+	}
+	else
+	{
+		SceneComponent = ActorSelection.Component.IsValid() ? Cast<USceneComponent>(ActorSelection.Component.Get()) : nullptr;
+		if (SceneComponent)
+		{
+			Actor = SceneComponent->GetTypedOuter<AActor>();
+		}
+	}
+	
+	if(Actor && SceneComponent)
+	{
+		USkeletalMeshComponent* SkelMeshComp =  Cast<USkeletalMeshComponent>(SceneComponent);
 
 		if (!SkelMeshComp)
 		{
 			SkelMeshComp = MovieSceneToolHelpers::AcquireSkeletalMeshFromObject(Actor);
 		}
 
-		if (ActorSelection.SocketName != NAME_None && SkelMeshComp)
+		if (UMovieScene* MovieScene = InSequence->GetMovieScene())
 		{
+			OutTransforms.SetNum(Frames.Num());
 
-			if (UMovieScene* MovieScene = InSequence->GetMovieScene())
+			FFrameRate TickResolution = MovieScene->GetTickResolution();
+			FFrameRate DisplayRate = MovieScene->GetDisplayRate();
+			const TArray<IMovieSceneToolsAnimationBakeHelper*>& BakeHelpers = FMovieSceneToolsModule::Get().GetAnimationBakeHelpers();
+
+			for (IMovieSceneToolsAnimationBakeHelper* BakeHelper : BakeHelpers)
 			{
-				OutTransforms.SetNum(Frames.Num());
+				if (BakeHelper)
+				{
+					BakeHelper->StartBaking(MovieScene);
+				}
+			}
 
-				FMovieSceneSequenceTransform RootToLocalTransform;
-
-				FFrameRate TickResolution = MovieScene->GetTickResolution();
-				FFrameRate DisplayRate = MovieScene->GetDisplayRate();
-				const TArray<IMovieSceneToolsAnimationBakeHelper*>& BakeHelpers = FMovieSceneToolsModule::Get().GetAnimationBakeHelpers();
+			for (int32 Index = 0; Index < Frames.Num(); ++Index)
+			{
+				const FFrameNumber& FrameNumber = Frames[Index];
+				FFrameTime GlobalTime(FrameNumber);
+				GlobalTime = GlobalTime * RootToLocalTransform.InverseNoLooping(); //player evals in root time so need to go back to it.
 
 				for (IMovieSceneToolsAnimationBakeHelper* BakeHelper : BakeHelpers)
 				{
 					if (BakeHelper)
 					{
-						BakeHelper->StartBaking(MovieScene);
+						BakeHelper->PreEvaluation(MovieScene, FrameNumber);
 					}
 				}
 
-				for (int32 Index = 0; Index < Frames.Num(); ++Index)
+				FMovieSceneContext Context = FMovieSceneContext(FMovieSceneEvaluationRange(GlobalTime, TickResolution), Player->GetPlaybackStatus()).SetHasJumped(true);
+				if (Index == 0) // similar with baking first time in we need to evaluate twice (think due to double buffering that happens with skel mesh components).
 				{
-					const FFrameNumber& FrameNumber = Frames[Index];
-					FFrameTime GlobalTime(FrameNumber);
-
-					for (IMovieSceneToolsAnimationBakeHelper* BakeHelper : BakeHelpers)
-					{
-						if (BakeHelper)
-						{
-							BakeHelper->PreEvaluation(MovieScene, FrameNumber);
-						}
-					}
-
-					FMovieSceneContext Context = FMovieSceneContext(FMovieSceneEvaluationRange(GlobalTime, TickResolution), Player->GetPlaybackStatus()).SetHasJumped(true);
-					if (Index == 0) // similar with baking first time in we need to evaluate twice (think due to double buffering that happens with skel mesh components).
-					{
-						Player->GetEvaluationTemplate().EvaluateSynchronousBlocking(Context);
-					}
 					Player->GetEvaluationTemplate().EvaluateSynchronousBlocking(Context);
-
-
-					const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(Actor->GetWorld());
-					Controller.EvaluateAllConstraints();
-					
-					for (IMovieSceneToolsAnimationBakeHelper* BakeHelper : BakeHelpers)
-					{
-						if (BakeHelper)
-						{
-							BakeHelper->PostEvaluation(MovieScene, FrameNumber);
-						}
-					}
-
-					AActor* Parent = ActorSelection.Actor.Get();
-					while (Parent)
-					{
-						TArray<USkeletalMeshComponent*> MeshComps;
-						Parent->GetComponents(MeshComps, true);
-
-						for (USkeletalMeshComponent* MeshComp : MeshComps)
-						{
-							MeshComp->TickAnimation(0.03f, false);
-							MeshComp->RefreshBoneTransforms();
-							MeshComp->RefreshFollowerComponents();
-							MeshComp->UpdateComponentToWorld();
-							MeshComp->FinalizeBoneTransform();
-							MeshComp->MarkRenderTransformDirty();
-							MeshComp->MarkRenderDynamicDataDirty();
-						}
-
-						Parent = Parent->GetAttachParentActor();
-					}
-
-					OutTransforms[Index] = SkelMeshComp->GetSocketTransform(ActorSelection.SocketName);// GetSocketTransofrm is world space in theory*OutTransforms[Index];
-
 				}
+				Player->GetEvaluationTemplate().EvaluateSynchronousBlocking(Context);
 
+
+				const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(Actor->GetWorld());
+				Controller.EvaluateAllConstraints();
+					
 				for (IMovieSceneToolsAnimationBakeHelper* BakeHelper : BakeHelpers)
 				{
 					if (BakeHelper)
 					{
-						BakeHelper->StopBaking(MovieScene);
+						BakeHelper->PostEvaluation(MovieScene, FrameNumber);
 					}
 				}
-			}
-		}
-		else //no attached skelmesh socket so use Interrogator
-		{
-			USceneComponent* SceneComponent = Actor->GetRootComponent();
-			if (SceneComponent)
-			{
-				GetSequenceSceneComponentWorldTransforms(SceneComponent, Player, InSequence, Template, Frames, OutTransforms);
-			}
-			
-		}
-	}
-	else //no actor so check to see if there's a scene component
-	{
-		USceneComponent* SceneComponent = ActorSelection.Component.IsValid() ? Cast<USceneComponent>(ActorSelection.Component.Get()) : nullptr;
-		if (SceneComponent)
-		{
-			GetSequenceSceneComponentWorldTransforms(SceneComponent, Player, InSequence, Template, Frames, OutTransforms);
-		}
 
+				AActor* Parent = ActorSelection.Actor.Get();
+				while (Parent)
+				{
+					TArray<USkeletalMeshComponent*> MeshComps;
+					Parent->GetComponents(MeshComps, true);
+
+					for (USkeletalMeshComponent* MeshComp : MeshComps)
+					{
+						MeshComp->TickAnimation(0.03f, false);
+						MeshComp->RefreshBoneTransforms();
+						MeshComp->RefreshFollowerComponents();
+						MeshComp->UpdateComponentToWorld();
+						MeshComp->FinalizeBoneTransform();
+						MeshComp->MarkRenderTransformDirty();
+						MeshComp->MarkRenderDynamicDataDirty();
+					}
+
+					Parent = Parent->GetAttachParentActor();
+				}
+
+				OutTransforms[Index] = (SkelMeshComp && ActorSelection.SocketName != NAME_None)
+					? SkelMeshComp->GetSocketTransform(ActorSelection.SocketName)
+					: SceneComponent->GetComponentToWorld();
+
+			}
+
+			for (IMovieSceneToolsAnimationBakeHelper* BakeHelper : BakeHelpers)
+			{
+				if (BakeHelper)
+				{
+					BakeHelper->StopBaking(MovieScene);
+				}
+			}
+		}	
 	}
 }
 
-static void GetNonSequencerActorWorldTransforms(IMovieScenePlayer* Player, UMovieSceneSequence* InSequence, FMovieSceneSequenceIDRef Template, const FActorForWorldTransforms& ActorSelection, const TArray<FFrameNumber>& Frames, TArray<FTransform>& OutTransforms)
+static void GetNonSequencerActorWorldTransforms(IMovieScenePlayer* Player, FMovieSceneSequenceTransform RootToLocalTransform, UMovieSceneSequence* InSequence, FMovieSceneSequenceIDRef Template, const FActorForWorldTransforms& ActorSelection, const TArray<FFrameNumber>& Frames, TArray<FTransform>& OutTransforms)
 {
 	FName SocketName = ActorSelection.SocketName;
 	AActor* Actor = ActorSelection.Actor.Get();
@@ -4342,7 +4335,7 @@ static void GetNonSequencerActorWorldTransforms(IMovieScenePlayer* Player, UMovi
 			{
 				if (InSequence->GetMovieScene()->FindTrack<UMovieScene3DTransformTrack>(ActorHandle))
 				{
-					GetSequencerActorWorldTransforms(Player, InSequence, Template, NewActorSelection, Frames, OutTransforms);
+					GetSequencerActorWorldTransforms(Player, RootToLocalTransform, InSequence, Template, NewActorSelection, Frames, OutTransforms);
 					for (FTransform& OutTransform : OutTransforms)
 					{
 						OutTransform = WorldTransform * OutTransform;
@@ -4386,7 +4379,7 @@ void MovieSceneToolHelpers::GetActorWorldTransforms(ISequencer* Sequencer, const
 	{
 		if (Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene()->FindTrack<UMovieScene3DTransformTrack>(ObjectHandle))
 		{
-			GetSequencerActorWorldTransforms(Sequencer, Sequencer->GetFocusedMovieSceneSequence(), Template, ActorSelection, Frames, OutWorldTransforms);
+			GetSequencerActorWorldTransforms(Sequencer, Sequencer->GetFocusedMovieSceneSequenceTransform(), Sequencer->GetFocusedMovieSceneSequence(), Template, ActorSelection, Frames, OutWorldTransforms);
 			return;
 		}
 	}
@@ -4396,18 +4389,18 @@ void MovieSceneToolHelpers::GetActorWorldTransforms(ISequencer* Sequencer, const
 	{
 		if (Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene()->FindTrack<UMovieScene3DTransformTrack>(ObjectHandle))
 		{
-			GetSequencerActorWorldTransforms(Sequencer, Sequencer->GetFocusedMovieSceneSequence(), Template, ActorSelection, Frames, OutWorldTransforms);
+			GetSequencerActorWorldTransforms(Sequencer, Sequencer->GetFocusedMovieSceneSequenceTransform(), Sequencer->GetFocusedMovieSceneSequence(), Template, ActorSelection, Frames, OutWorldTransforms);
 			return;
 		}
 	}
 	if (bAvoidEvaluates)
 	{
 		TArray<FFrameNumber> NoFrame; //this will make sure we don't evaluate
-		GetNonSequencerActorWorldTransforms(Sequencer, Sequencer->GetFocusedMovieSceneSequence(), Template, ActorSelection, NoFrame, OutWorldTransforms);
+		GetNonSequencerActorWorldTransforms(Sequencer, Sequencer->GetFocusedMovieSceneSequenceTransform(), Sequencer->GetFocusedMovieSceneSequence(), Template, ActorSelection, NoFrame, OutWorldTransforms);
 	}
 	else
 	{
-		GetNonSequencerActorWorldTransforms(Sequencer, Sequencer->GetFocusedMovieSceneSequence(), Template, ActorSelection, Frames, OutWorldTransforms);
+		GetNonSequencerActorWorldTransforms(Sequencer, Sequencer->GetFocusedMovieSceneSequenceTransform(), Sequencer->GetFocusedMovieSceneSequence(), Template, ActorSelection, Frames, OutWorldTransforms);
 	}
 }
 
@@ -4624,6 +4617,7 @@ void MovieSceneToolHelpers::GetActorWorldTransforms(IMovieScenePlayer* Player, U
 {
 	FGuid ActorHandle = GetHandleToObject(ActorSelection.Actor.Get(), InSequence, Player, Template,false);
 	FGuid ComponentHandle = GetHandleToObject(ActorSelection.Component.Get(), InSequence, Player, Template,false);
+	FMovieSceneSequenceTransform RootToLocalTransform;
 	if (ActorHandle.IsValid() || ComponentHandle.IsValid())
 	{
 		//we can have handles but if they don't have a transform track the interrogator will return identity
@@ -4644,16 +4638,16 @@ void MovieSceneToolHelpers::GetActorWorldTransforms(IMovieScenePlayer* Player, U
 		}
 		if (bHaveTransformTrack)
 		{
-			GetSequencerActorWorldTransforms(Player, InSequence, Template, ActorSelection, Frames, OutWorldTransforms);
+			GetSequencerActorWorldTransforms(Player, RootToLocalTransform,InSequence, Template, ActorSelection, Frames, OutWorldTransforms);
 		}
 		else
 		{
-			GetNonSequencerActorWorldTransforms(Player, InSequence, Template, ActorSelection, Frames, OutWorldTransforms);
+			GetNonSequencerActorWorldTransforms(Player, RootToLocalTransform, InSequence, Template, ActorSelection, Frames, OutWorldTransforms);
 		}
 	}
 	else
 	{
-		GetNonSequencerActorWorldTransforms(Player, InSequence, Template, ActorSelection, Frames, OutWorldTransforms);
+		GetNonSequencerActorWorldTransforms(Player, RootToLocalTransform, InSequence, Template, ActorSelection, Frames, OutWorldTransforms);
 	}
 }
 
@@ -5393,6 +5387,8 @@ bool MovieSceneToolHelpers::AddTransformKeys(
 			}
 		}
 	}
+
+
 	//now we need to set auto tangents
 	for (const int32 ChannelIndex : ChannelsIndexToKey)
 	{

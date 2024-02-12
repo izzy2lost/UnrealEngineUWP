@@ -1025,7 +1025,8 @@ void FMovieSceneConstraintChannelHelper::CompensateIfNeeded(
 			}
 
 			const UTickableTransformConstraint* Constraint = Cast<UTickableTransformConstraint>(InChannel.GetConstraint().Get());
-			return Constraint && (Constraint->GetTargetHash() == InChildHash) && Constraint->NeedsCompensation();
+			//if no InChildHash specified(== INDEX_NONE) then do all!
+			return Constraint && (InChildHash == INDEX_NONE || Constraint->GetTargetHash() == InChildHash) && Constraint->NeedsCompensation();
 		}
 	);
 

@@ -498,4 +498,8 @@ struct FTransformConstraintUtils
 		const UTransformableHandle* InHandle,
 		TArray< TWeakObjectPtr<UTickableConstraint> >& OutConstraints,
 		const bool bIncludeTarget = false);
+	
+	/** Adjust the transform on a scene component so it's effected by the constraint*/
+	static CONSTRAINTS_API void UpdateTransformBasedOnConstraint(FTransform& CurrentTransform, USceneComponent* SceneComponent);
+
 };

@@ -1024,30 +1024,6 @@ void F3DTransformTrackEditor::AddTransformKeys( UObject* ObjectToKey, const TOpt
 	AnimatablePropertyChanged( FOnKeyProperty::CreateLambda(OnKeyProperty) );
 }
 
-//todo move to external function so it can also be used by sdk/python
-static void UpdateTransformBasedOnConstraint(FTransform& CurrentTransform, USceneComponent* SceneComponent)
-{
-	TArray< TWeakObjectPtr<UTickableConstraint> > Constraints;
-	AActor* ShapeActor = SceneComponent->GetTypedOuter<AActor>();
-	
-	if (ShapeActor)
-	{
-		FTransformConstraintUtils::GetParentConstraints(SceneComponent->GetWorld(), ShapeActor, Constraints);
-
-		const int32 LastActiveIndex = FTransformConstraintUtils::GetLastActiveConstraintIndex(Constraints);
-		if (Constraints.IsValidIndex(LastActiveIndex))
-		{
-			// switch to constraint space
-			const FTransform WorldTransform = SceneComponent->GetSocketTransform(SceneComponent->GetAttachSocketName());
-			const TOptional<FTransform> RelativeTransform =
-				FTransformConstraintUtils::GetConstraintsRelativeTransform(Constraints, CurrentTransform, WorldTransform);
-			if (RelativeTransform)
-			{
-				CurrentTransform = *RelativeTransform; 
-			}
-		}
-	}
-}
 
 FTransformData F3DTransformTrackEditor::RecomposeTransform(const FTransformData& InTransformData, UObject* AnimatedObject, UMovieSceneSection* Section)
 {
@@ -1150,7 +1126,7 @@ FTransformData F3DTransformTrackEditor::RecomposeTransform(const FTransformData&
 		CurrentTransform *= GetTransformOrigin().Inverse();
 	}
 
-	UpdateTransformBasedOnConstraint(CurrentTransform, SceneComponent);
+	FTransformConstraintUtils::UpdateTransformBasedOnConstraint(CurrentTransform, SceneComponent);
 	
 	return FTransformData(CurrentTransform.GetLocation(), CurrentTransform.GetRotation().Rotator(), CurrentTransform.GetScale3D());
 }
