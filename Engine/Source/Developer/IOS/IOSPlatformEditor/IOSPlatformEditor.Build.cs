@@ -29,7 +29,7 @@ public class IOSPlatformEditor : ModuleRules
                 "AudioSettingsEditor",
                 "GameProjectGeneration",
 				"FreeImage",
-                "MacTargetPlatform",
+                "MacTargetPlatformSettings",
 			}
 		);
 

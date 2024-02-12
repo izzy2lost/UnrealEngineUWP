@@ -392,7 +392,11 @@ namespace UnrealBuildTool
 					{
 						if (Target.bBuildDeveloperTools)
 						{
+							Rules.DynamicallyLoadedModuleNames.Add("LinuxTargetPlatformSettings");
+							Rules.DynamicallyLoadedModuleNames.Add("LinuxTargetPlatformControls");
 							Rules.DynamicallyLoadedModuleNames.Add("LinuxTargetPlatform");
+							Rules.DynamicallyLoadedModuleNames.Add("LinuxArm64TargetPlatformSettings");
+							Rules.DynamicallyLoadedModuleNames.Add("LinuxArm64TargetPlatformControls");
 							Rules.DynamicallyLoadedModuleNames.Add("LinuxArm64TargetPlatform");
 						}
 					}
@@ -401,7 +405,11 @@ namespace UnrealBuildTool
 				// allow standalone tools to use targetplatform modules, without needing Engine
 				if (Target.bForceBuildTargetPlatforms && ModuleName == "TargetPlatform")
 				{
+					Rules.DynamicallyLoadedModuleNames.Add("LinuxTargetPlatformSettings");
+					Rules.DynamicallyLoadedModuleNames.Add("LinuxTargetPlatformControls");
 					Rules.DynamicallyLoadedModuleNames.Add("LinuxTargetPlatform");
+					Rules.DynamicallyLoadedModuleNames.Add("LinuxArm64TargetPlatformSettings");
+					Rules.DynamicallyLoadedModuleNames.Add("LinuxArm64TargetPlatformControls");
 					Rules.DynamicallyLoadedModuleNames.Add("LinuxArm64TargetPlatform");
 				}
 			}
@@ -431,7 +439,11 @@ namespace UnrealBuildTool
 			{
 				if (Target.bForceBuildTargetPlatforms)
 				{
+					Rules.DynamicallyLoadedModuleNames.Add("LinuxTargetPlatformSettings");
+					Rules.DynamicallyLoadedModuleNames.Add("LinuxTargetPlatformControls");
 					Rules.DynamicallyLoadedModuleNames.Add("LinuxTargetPlatform");
+					Rules.DynamicallyLoadedModuleNames.Add("LinuxArm64TargetPlatformSettings");
+					Rules.DynamicallyLoadedModuleNames.Add("LinuxArm64TargetPlatformControls");
 					Rules.DynamicallyLoadedModuleNames.Add("LinuxArm64TargetPlatform");
 				}
 

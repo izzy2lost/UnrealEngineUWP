@@ -20,7 +20,7 @@ public class LinuxPlatformEditor : ModuleRules
 				"PropertyEditor",
 				"SharedSettingsWidgets",
 				"SourceControl",
-				"LinuxTargetPlatform",
+				"LinuxTargetPlatformSettings",
 				"TargetPlatform",
 				"MaterialShaderQualitySettings",
 				"RenderCore",

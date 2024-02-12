@@ -15,7 +15,7 @@ DEFINE_LOG_CATEGORY_STATIC(LogCookedEditorTargetPlatform, Log, All)
 
 
 
-TUniquePtr<ICookedEditorPackageManager> ICookedEditorPackageManager::FactoryForTargetPlatform(ITargetPlatform* TP, bool bIsCookedCooker)
+TUniquePtr<ICookedEditorPackageManager> ICookedEditorPackageManager::FactoryForTargetPlatform(bool bIsCookedCooker)
 {
 	if (FGameDelegates::Get().GetCookedEditorPackageManagerFactoryDelegate().IsBound())
 	{
@@ -51,7 +51,7 @@ void ICookedEditorPackageManager::AddPackagesFromPath(TArray<FName>& Packages, c
 	}
 }
 
-void ICookedEditorPackageManager::GatherAllPackagesExceptDisabled(TArray<FName>& PackageNames, const ITargetPlatform* TargetPlatform, const TArray<FString>& DisabledPlugins) const
+void ICookedEditorPackageManager::GatherAllPackagesExceptDisabled(TArray<FName>& PackageNames, const TArray<FString>& DisabledPlugins) const
 {
 	GetEnginePackagesToCook(PackageNames);
 	GetProjectPackagesToCook(PackageNames);
@@ -132,9 +132,9 @@ TArray<FString> FIniCookedEditorPackageManager::GetConfigArray(const TCHAR* Key)
 	return ResultArray;
 }
 
-void FIniCookedEditorPackageManager::GatherAllPackages(TArray<FName>& PackageNames, const ITargetPlatform* TargetPlatform) const
+void FIniCookedEditorPackageManager::GatherAllPackages(TArray<FName>& PackageNames) const
 {
-	GatherAllPackagesExceptDisabled(PackageNames, TargetPlatform, DisabledPlugins);
+	GatherAllPackagesExceptDisabled(PackageNames, DisabledPlugins);
 }
 
 void FIniCookedEditorPackageManager::FilterGatheredPackages(TArray<FName>& PackageNames) const

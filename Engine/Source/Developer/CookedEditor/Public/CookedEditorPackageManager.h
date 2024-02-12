@@ -6,36 +6,42 @@
 #include "Common/TargetPlatformBase.h"
 #include "Interfaces/IPluginManager.h"
 
-#include "GenericWindowsTargetPlatform.h"
+#include "GenericWindowsTargetPlatformControls.h"
 #include "Windows/WindowsPlatformProperties.h"
 
 #if COOKEDEDITOR_WITH_LINUXTARGETPLATFORM
-	#include "LinuxTargetPlatform.h"
+	#include "LinuxTargetPlatformSettings.h"
+	#include "LinuxTargetPlatformControls.h"
 #endif
 
 #if COOKEDEDITOR_WITH_MACTARGETPLATFORM
-	#include "GenericMacTargetPlatform.h"
+	#include "GenericMacTargetPlatformSettings.h"
+	#include "GenericMacTargetPlatformControls.h"
 #endif
 
-typedef TGenericWindowsTargetPlatform<FWindowsPlatformProperties<false, false, false>> FWindowsEditorTargetPlatformParent;
+typedef TGenericWindowsTargetPlatformSettings<FWindowsPlatformProperties<false, false, false>> FWindowsEditorTargetPlatformSettingsParent;
+typedef TGenericWindowsTargetPlatformControls<FWindowsPlatformProperties<false, false, false>> FWindowsEditorTargetPlatformControlsParent;
 
 #if COOKEDEDITOR_WITH_LINUXTARGETPLATFORM
-typedef TLinuxTargetPlatform<FLinuxPlatformProperties<false, false, false, false>> FLinuxEditorTargetPlatformParent;
+typedef TLinuxTargetPlatformSettings<FLinuxPlatformProperties<false, false, false, false>> FLinuxEditorTargetPlatformSettingsParent;
+typedef TLinuxTargetPlatformControls<FLinuxPlatformProperties<false, false, false, false>> FLinuxEditorTargetPlatformControlsParent;
 #endif
 
 #if COOKEDEDITOR_WITH_MACTARGETPLATFORM
-typedef TGenericMacTargetPlatform<false, false, false> FMacEditorTargetPlatformParent;
+typedef TGenericMacTargetPlatformSettings<false, false, false> FMacEditorTargetPlatformSettingsParent;
+typedef TGenericMacTargetPlatformControls<false, false, false> FMacEditorTargetPlatformControlsParent;
 #endif
 
 #if PLATFORM_WINDOWS
-typedef FWindowsEditorTargetPlatformParent FHostPlatformEditorTargetPlatformParent;
+typedef FWindowsEditorTargetPlatformSettingsParent FHostPlatformEditorTargetPlatformSettingsParent;
+typedef FWindowsEditorTargetPlatformControlsParent FHostPlatformEditorTargetPlatformControlsParent;
 #elif PLATFORM_LINUX
-typedef FLinuxEditorTargetPlatformParent FHostPlatformEditorTargetPlatformParent;
+typedef FLinuxEditorTargetPlatformSettingsParent FHostPlatformEditorTargetPlatformSettingsParent;
+typedef FLinuxEditorTargetPlatformControlsParent FHostPlatformEditorTargetPlatformControlsParent;
 #elif PLATFORM_MAC
-typedef FMacEditorTargetPlatformParent FHostPlatformEditorTargetPlatformParent;
+typedef FMacEditorTargetPlatformSettingsParent FHostPlatformEditorTargetPlatformSettingsParent;
+typedef FMacEditorTargetPlatformControlsParent FHostPlatformEditorTargetPlatformControlsParent;
 #endif
-
-
 
 /**
  * Allows a project to control how packages are cooked when making a cooked editor.
@@ -64,7 +70,7 @@ public:
 	/** 
 	 * Construct a package manager for the given TP
 	 */
-	static TUniquePtr<ICookedEditorPackageManager> FactoryForTargetPlatform(ITargetPlatform* TP, bool bIsCookedCooker);
+	static TUniquePtr<ICookedEditorPackageManager> FactoryForTargetPlatform(bool bIsCookedCooker);
 
 	virtual ~ICookedEditorPackageManager()
 	{
@@ -106,7 +112,7 @@ public:
 	/**
 	 * Gathers the packages this PackageManager wants to manage (ie cook)
 	 */
-	virtual void GatherAllPackages(TArray<FName>& PackageNames, const ITargetPlatform* TargetPlatform) const = 0;
+	virtual void GatherAllPackages(TArray<FName>& PackageNames) const = 0;
 
 protected:
 
@@ -134,7 +140,7 @@ protected:
 	/**
 	 * Meat of this class, this calls other functions that generally will be overridden - subclass needs to pass in disabled plugins
 	 */
-	void GatherAllPackagesExceptDisabled(TArray<FName>& PackageNames, const ITargetPlatform* TargetPlatform, const TArray<FString>& DisabledPlugins) const;
+	void GatherAllPackagesExceptDisabled(TArray<FName>& PackageNames, const TArray<FString>& DisabledPlugins) const;
 };
 
 
@@ -169,5 +175,5 @@ public:
 	virtual bool AllowEnginePluginContentToBeCooked(const TSharedRef<IPlugin>) const override;
 	virtual bool AllowProjectPluginContentToBeCooked(const TSharedRef<IPlugin>) const override;
 	
-	virtual void GatherAllPackages(TArray<FName>& PackageNames, const ITargetPlatform* TargetPlatform) const override;
+	virtual void GatherAllPackages(TArray<FName>& PackageNames) const override;
 };
