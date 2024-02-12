@@ -2868,7 +2868,7 @@ bool FScene::HasAtmosphereLightRequiringLightingBuild() const
 
 void FScene::AddOrRemoveDecal_RenderThread(FDeferredDecalProxy* Proxy, bool bAdd)
 {
-	if(bAdd)
+	if (bAdd)
 	{
 		Decals.Add(Proxy);
 		InvalidatePathTracedOutput();
@@ -2876,15 +2876,13 @@ void FScene::AddOrRemoveDecal_RenderThread(FDeferredDecalProxy* Proxy, bool bAdd
 	else
 	{
 		// can be optimized
-		for(TSparseArray<FDeferredDecalProxy*>::TIterator It(Decals); It; ++It)
+		for (int32 Index = 0; Index < Decals.Num(); ++Index)
 		{
-			FDeferredDecalProxy* CurrentProxy = *It;
-
-			if (CurrentProxy == Proxy)
+			if (Decals[Index] == Proxy)
 			{
 				InvalidatePathTracedOutput();
-				It.RemoveCurrent();
-				delete CurrentProxy;
+				Decals.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+				delete Proxy;
 				break;
 			}
 		}

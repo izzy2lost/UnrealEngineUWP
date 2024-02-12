@@ -3044,7 +3044,7 @@ public:
 	TArray<FLightSceneInfo*, TInlineAllocator<4>> DirectionalLights;
 
 	/** The decals in the scene. */
-	TSparseArray<FDeferredDecalProxy*> Decals;
+	TArray<FDeferredDecalProxy*> Decals;
 
 	/** Potential capsule shadow casters registered to the scene. */
 	TArray<FPrimitiveSceneInfo*> DynamicIndirectCasterPrimitives; 

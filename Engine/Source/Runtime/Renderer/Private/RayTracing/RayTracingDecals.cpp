@@ -471,7 +471,7 @@ void BuildDecalGrid(FRDGBuilder& GraphBuilder, uint32 NumDecals, FRDGBufferSRVRe
 	}
 }
 
-FTransientDecalRenderDataList GetSortedDecals(const TSparseArray<FDeferredDecalProxy*>& Decals, FScene& Scene, const FViewInfo& View)
+FTransientDecalRenderDataList GetSortedDecals(TConstArrayView<FDeferredDecalProxy*> Decals, FScene& Scene, const FViewInfo& View)
 {
 	const float FadeMultiplier = DecalRendering::GetDecalFadeScreenSizeMultiplier();
 	const bool bIsPerspectiveProjection = View.IsPerspectiveProjection();
