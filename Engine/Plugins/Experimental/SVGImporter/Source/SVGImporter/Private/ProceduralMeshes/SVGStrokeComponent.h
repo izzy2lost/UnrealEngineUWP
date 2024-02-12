@@ -2,28 +2,8 @@
 
 #pragma once
 
-#include "SVGDynamicMeshComponent.h"
+#include "ProceduralMeshes/SVGDynamicMeshComponent.h"
 #include "SVGStrokeComponent.generated.h"
-
-/** @note: the below two enums should match the native ones exactly, so they can be cast directly */
-
-UENUM()
-enum class EPolygonOffsetJoinType : uint8
-{
-	Square, /** Uniform squaring on all convex edge joins. */
-	Round,  /** Arcs on all convex edge joins. */
-	Miter,  /** Squaring of convex edge joins with acute angles ("spikes"). Use in combination with MiterLimit. */
-};
-
-UENUM()
-enum class EPolygonOffsetEndType : uint8
-{
-	Polygon, /** Offsets only one side of a closed path */
-	Joined,  /** Offsets both sides of a path, with joined ends */
-	Butt,    /** Offsets both sides of a path, with square blunt ends */
-	Square,  /** Offsets both sides of a path, with square extended ends */
-	Round,   /** Offsets both sides of a path, with round extended ends */
-};
 
 struct FSVGStrokeParameters
 {
@@ -52,7 +32,7 @@ struct FSVGStrokeParameters
 };
 
 UCLASS(ClassGroup=(SVGImporter), Meta = (BlueprintSpawnableComponent))
-class SVGIMPORTER_API USVGStrokeComponent : public USVGDynamicMeshComponent
+class USVGStrokeComponent : public USVGDynamicMeshComponent
 {
 	GENERATED_BODY()
 
@@ -72,6 +52,7 @@ protected:
 	//~ Begin USVGDynamicMesh
 	virtual void RegisterDelegates() override;
 	virtual void RegenerateMesh() override;
+	virtual FName GetShapeType() const override { return TEXT("Stroke"); }
 	//~ End USVGDynamicMesh
 
 	void GenerateStrokeMeshInternal();

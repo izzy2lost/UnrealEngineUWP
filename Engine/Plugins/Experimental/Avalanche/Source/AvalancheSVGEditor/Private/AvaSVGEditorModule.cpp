@@ -7,7 +7,6 @@
 #include "Modifiers/AvaBevelModifier.h"
 #include "Modifiers/AvaExtrudeModifier.h"
 #include "ProceduralMeshes/SVGDynamicMeshComponent.h"
-#include "ProceduralMeshes/SVGStrokeComponent.h"
 #include "SVGEngineSubsystem.h"
 #include "SVGShapesParentActor.h"
 #include "Subsystems/ActorModifierCoreSubsystem.h"
@@ -101,7 +100,7 @@ void FAvaSVGEditorModule::OnSVGActorSplit(ASVGShapesParentActor* InSVGShapesPare
 					ExtrudeModifier->SetDepth(ExtrudeValue);
 					ExtrudeModifier->SetExtrudeMode(ExtrudeMode);
 
-					if (Shape->IsA<USVGStrokeComponent>())
+					if (Shape->GetShapeType() == TEXT("Stroke"))
 					{
 						ExtrudeModifier->SetCloseBack(false);
 					}

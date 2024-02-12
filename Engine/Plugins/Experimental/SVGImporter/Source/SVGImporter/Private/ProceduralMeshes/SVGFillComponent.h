@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "SVGDynamicMeshComponent.h"
+#include "ProceduralMeshes/SVGDynamicMeshComponent.h"
 #include "SVGTypes.h"
 #include "SVGFillComponent.generated.h"
 
@@ -62,7 +62,7 @@ struct FSVGFillParameters
 };
 
 UCLASS(ClassGroup=(SVGImporter), Meta = (BlueprintSpawnableComponent))
-class SVGIMPORTER_API USVGFillComponent : public USVGDynamicMeshComponent
+class USVGFillComponent : public USVGDynamicMeshComponent
 {
 	GENERATED_BODY()
 
@@ -82,6 +82,7 @@ protected:
 	//~ Begin USVGDynamicMesh
 	virtual void RegisterDelegates() override;
 	virtual void RegenerateMesh() override;
+	virtual FName GetShapeType() const override { return TEXT("Fill"); }
 	//~ End USVGDynamicMesh
 
 	void RefreshNormals();

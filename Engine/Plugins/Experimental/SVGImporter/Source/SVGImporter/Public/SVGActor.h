@@ -5,7 +5,6 @@
 #include "ASVGDynamicMeshesContainerActor.h"
 #include "GameFramework/Actor.h"
 #include "ProceduralMeshes/SVGDynamicMeshComponent.h"
-#include "ProceduralMeshes/SVGStrokeComponent.h"
 
 #if WITH_EDITOR
 #include "Widgets/Notifications/SNotificationList.h"
