@@ -121,24 +121,6 @@ namespace UE::PixelStreaming
 		return InputHandler->GetTargetWindow();
 	}
 
-	void FStreamer::SetTargetScreenSize(TWeakPtr<FIntPoint> InTargetScreenSize)
-	{
-		// This method is marked as deprecated but still calls the deprecated method on the input handler. As such, we disable
-		// the warnings that arise from using the input handlers method
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		InputHandler->SetTargetScreenSize(InTargetScreenSize);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	}
-
-	TWeakPtr<FIntPoint> FStreamer::GetTargetScreenSize()
-	{
-		// This method is marked as deprecated but still calls the deprecated method on the input handler. As such, we disable
-		// the warnings that arise from using the input handlers method
-        PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		return InputHandler->GetTargetScreenSize();
-        PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	}
-
 	void FStreamer::SetTargetScreenRect(TWeakPtr<FIntRect> InTargetScreenRect)
 	{
 		InputHandler->SetTargetScreenRect(InTargetScreenRect);

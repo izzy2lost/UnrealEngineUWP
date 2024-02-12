@@ -281,11 +281,6 @@ namespace UE::PixelStreaming
 		return StreamerKeys;
 	}
 
-	TSharedPtr<IPixelStreamingStreamer> FPixelStreamingModule::GetStreamer(const FString& StreamerId)
-	{
-		return FindStreamer(StreamerId);
-	}
-
 	TSharedPtr<IPixelStreamingStreamer> FPixelStreamingModule::FindStreamer(const FString& StreamerId)
 	{
 		FScopeLock Lock(&StreamersCS);
@@ -535,42 +530,6 @@ namespace UE::PixelStreaming
 	}
 	/**
 	 * End own methods
-	 */
-
-	/**
-	 * Deprecated methods
-	 */
-	const FPixelStreamingInputProtocol FPixelStreamingModule::GetProtocol()
-	{
-		return FPixelStreamingInputProtocol();
-	}
-
-	void FPixelStreamingModule::RegisterMessage(EPixelStreamingMessageDirection MessageDirection, const FString& MessageType, FPixelStreamingInputMessage Message, const TFunction<void(FString, FMemoryReader)>& Handler)
-	{
-		if (MessageDirection == EPixelStreamingMessageDirection::ToStreamer)
-		{
-			FPixelStreamingInputProtocol::ToStreamerProtocol.Add(MessageType, Message);
-			if (TSharedPtr<IPixelStreamingInputHandler> InputHandler = DefaultStreamer->GetInputHandler().Pin())
-			{
-				InputHandler->RegisterMessageHandler(MessageType, Handler);
-			}
-		}
-		else if (MessageDirection == EPixelStreamingMessageDirection::FromStreamer)
-		{
-			FPixelStreamingInputProtocol::FromStreamerProtocol.Add(MessageType, Message);
-		}
-	}
-
-	TFunction<void(FString, FMemoryReader)> FPixelStreamingModule::FindMessageHandler(const FString& MessageType)
-	{
-		if (TSharedPtr<IPixelStreamingInputHandler> InputHandler = DefaultStreamer->GetInputHandler().Pin())
-		{
-			return InputHandler->FindMessageHandler(MessageType);
-		}
-		return {};
-	}
-	/**
-	 * End deprecated methods
 	 */
 } // namespace UE::PixelStreaming
 

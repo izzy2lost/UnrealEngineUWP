@@ -311,16 +311,6 @@ namespace UE::PixelStreamingInput
 		return TargetWindow;
 	}
 
-	void FPixelStreamingInputHandler::SetTargetScreenSize(TWeakPtr<FIntPoint> InScreenSize)
-	{
-		TargetScreenSize = InScreenSize;
-	}
-
-	TWeakPtr<FIntPoint> FPixelStreamingInputHandler::GetTargetScreenSize()
-	{
-		return TargetScreenSize;
-	}
-
 	void FPixelStreamingInputHandler::SetTargetScreenRect(TWeakPtr<FIntRect> InScreenRect)
 	{
 		TargetScreenRect = InScreenRect;

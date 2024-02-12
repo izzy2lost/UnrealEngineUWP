@@ -36,8 +36,6 @@ namespace UE::PixelStreaming
 		virtual TWeakPtr<SViewport> GetTargetViewport() override;
 		virtual void SetTargetWindow(TWeakPtr<SWindow> InTargetWindow) override;
 		virtual TWeakPtr<SWindow> GetTargetWindow() override;
-		virtual void SetTargetScreenSize(TWeakPtr<FIntPoint> InTargetScreenSize) override;
-		virtual TWeakPtr<FIntPoint> GetTargetScreenSize() override;
 		virtual void SetTargetScreenRect(TWeakPtr<FIntRect> InTargetScreenRect) override;
 		virtual TWeakPtr<FIntRect> GetTargetScreenRect() override;
 

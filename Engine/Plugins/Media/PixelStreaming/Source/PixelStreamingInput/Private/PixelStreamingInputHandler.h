@@ -48,9 +48,6 @@ namespace UE::PixelStreamingInput
 		virtual TWeakPtr<SWindow> GetTargetWindow() override;
 		virtual void SetTargetViewport(TWeakPtr<SViewport> InViewport) override;
 		virtual TWeakPtr<SViewport> GetTargetViewport() override;
-		/** These two are deprectated but we keep them around until they can be removed in 5.4 */
-		virtual void SetTargetScreenSize(TWeakPtr<FIntPoint> InScreenSize) override;
-		virtual TWeakPtr<FIntPoint> GetTargetScreenSize() override;
 		virtual void SetTargetScreenRect(TWeakPtr<FIntRect> InScreenRect) override;
 		virtual TWeakPtr<FIntRect> GetTargetScreenRect() override;
 		virtual bool IsFakingTouchEvents() const override { return bFakingTouchEvents; }
