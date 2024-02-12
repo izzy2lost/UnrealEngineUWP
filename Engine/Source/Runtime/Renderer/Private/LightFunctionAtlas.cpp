@@ -525,6 +525,8 @@ void FLightFunctionAtlas::RenderLightFunctionAtlas(FRDGBuilder& GraphBuilder, TA
 		return;
 	}
 
+	QUICK_SCOPE_CYCLE_COUNTER(RenderLightFunctionAtlas);
+
 	//
 	// Render the atlas
 	//
