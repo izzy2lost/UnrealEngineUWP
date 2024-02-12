@@ -24,7 +24,7 @@ inline int32 FPropertyPathName::FSegment::Compare(const FSegment& Segment) const
 	{
 		return CompareNameWithIndex;
 	}
-	return Type < Segment.Type;
+	return (Type == Segment.Type) ? 0 : (Type < Segment.Type ? -1 : 1);
 }
 
 bool FPropertyPathName::operator==(const FPropertyPathName& Path) const
