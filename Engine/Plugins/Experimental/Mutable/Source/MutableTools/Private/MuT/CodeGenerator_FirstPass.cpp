@@ -594,6 +594,8 @@ namespace mu
                 op->parameter.m_possibleValues.Add( nullValue );
             }
 
+			ParameterNodes.Add(InNode, op);
+
             enumOp = op;
         }
 
@@ -601,7 +603,7 @@ namespace mu
         // Parse the child objects
 		for ( int32 t=0; t< Private->m_children.Num(); ++t )
         {
-            if ( const NodeObject* pChildNode = Private->m_children[t].get() )
+            if ( mu::Ptr<const NodeObject> pChildNode = Private->m_children[t] )
             {
                 // Overwrite the implicit condition
                 Ptr<ASTOp> paramOp = 0;
@@ -618,6 +620,8 @@ namespace mu
                    		op->parameter.m_uid.ImportTextItem(CStr, 0, nullptr, nullptr);
                         op->parameter.m_type = PARAMETER_TYPE::T_BOOL;
                         op->parameter.m_defaultValue.Set<ParamBoolType>(false);
+
+						ParameterNodes.Add(pChildNode, op);
 
                         paramOp = op;
                         break;
@@ -672,7 +676,7 @@ namespace mu
                 data.objectCondition = paramOp;
                 m_currentCondition.Add( data );
 
-				Generate_Generic(pChildNode);
+				Generate_Generic(pChildNode.get());
 
                 m_currentCondition.Pop();
             }

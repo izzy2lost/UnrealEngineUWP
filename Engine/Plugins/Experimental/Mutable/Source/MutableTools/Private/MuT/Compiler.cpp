@@ -249,6 +249,7 @@ namespace mu
 
         TArray< FStateCompilationData > states;
         Ptr<ErrorLog> genErrorLog;
+		TArray<FParameterDesc> Parameters;
         {
             CodeGenerator gen( m_pD->m_options->GetPrivate() );
 
@@ -266,7 +267,31 @@ namespace mu
             }
 
             genErrorLog = gen.m_pErrorLog;
-        }
+
+			// Set the parameter list from the non-optimized data, so that we have them all even if they are optimized out
+			int32 ParameterCount = gen.m_firstPass.ParameterNodes.Num();
+			Parameters.SetNum(ParameterCount);
+			int32 ParameterIndex = 0;
+			for ( const TPair<Ptr<const Node>, Ptr<ASTOpParameter>>& Entry : gen.m_firstPass.ParameterNodes )
+			{
+				Parameters[ParameterIndex] = Entry.Value->parameter;
+				++ParameterIndex;
+			}
+
+			// Sort the parameters as deterministically as possible.
+			struct FParameterSortPredicate
+			{
+				bool operator()(const FParameterDesc& A, const FParameterDesc& B) const
+				{
+					if (A.m_name < B.m_name) return true;
+					if (A.m_name > B.m_name) return false;
+					return A.m_uid < B.m_uid;
+				}
+			};
+			
+			FParameterSortPredicate SortPredicate;
+			Parameters.Sort(SortPredicate);
+		}
 
 
         // Slow AST code verification for debugging.
@@ -283,10 +308,12 @@ namespace mu
             optimiser.OptimiseAST( );
         }
 
-
         // Link the program and generate state data.
 		TSharedPtr<Model> pResult = MakeShared<Model>();
         FProgram& program = pResult->GetPrivate()->m_program;
+
+		check(program.m_parameters.IsEmpty());
+		program.m_parameters = Parameters;
 
 		// Preallocate ample memory
 		program.m_byteCode.Reserve(16 * 1024 * 1024);

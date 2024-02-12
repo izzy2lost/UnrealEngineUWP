@@ -272,10 +272,27 @@ namespace mu
         };
 		TArray<FObjectGenerationData> m_currentObject;
 
-		TMap< TPair<Ptr<Table>, FString>, TPair<Ptr<Table>,Ptr<ASTOp>> > GeneratedTables;
+		/** The key for generated tables is made of the source table and a parameter name. */
+		struct FTableCacheKey
+		{
+			Ptr<const Table> Table;
+			FString ParameterName;
 
-        //! Variables added for every node
-		TMap< Ptr<const Node>, Ptr<ASTOpParameter> > NodeVariables;
+			friend FORCEINLINE uint32 GetTypeHash(const FTableCacheKey& InKey)
+			{
+				uint32 KeyHash = ::GetTypeHash(InKey.Table.get());
+				KeyHash = HashCombineFast(KeyHash, GetTypeHash(InKey.ParameterName));
+				return KeyHash;
+			}
+
+			FORCEINLINE bool operator==(const FTableCacheKey& InKey) const
+			{
+				if (Table != InKey.Table) return false;
+				if (ParameterName != InKey.ParameterName) return false;
+				return true;
+			}
+		};
+		TMap< FTableCacheKey, Ptr<ASTOp> > GeneratedTables;
 
 		struct FConditionalExtensionDataOp
 		{
@@ -298,7 +315,7 @@ namespace mu
 
         //-----------------------------------------------------------------------------------------
         //!
-        Ptr<ASTOp> GenerateTableVariable( TablePtr pTable, const FString& strName, bool bAddNoneOption );
+        Ptr<ASTOp> GenerateTableVariable(Ptr<const Node>, const FTableCacheKey&, bool bAddNoneOption);
 
         //!
         Ptr<ASTOp> GenerateMissingBoolCode(const TCHAR* strWhere, bool value, const void* errorContext );
@@ -713,43 +730,41 @@ namespace mu
     template<class NODE_TABLE_PRIVATE, ETableColumnType TYPE, OP_TYPE OPTYPE, typename F>
     Ptr<ASTOp> CodeGenerator::GenerateTableSwitch( const NODE_TABLE_PRIVATE& node, F&& GenerateOption )
     {
-        Ptr<Table> Table;
+        Ptr<const Table> NodeTable = node.Table;
         Ptr<ASTOp> Variable;
 
-        TPair<TablePtr,Ptr<ASTOp>>* it = GeneratedTables.Find( TPair<TablePtr,FString>(node.Table,node.ParameterName) );
+		FTableCacheKey CacheKey(node.Table, node.ParameterName);
+        Ptr<ASTOp>* it = GeneratedTables.Find( CacheKey );
         if ( it )
         {
-            Table = it->Key;
-            Variable = it->Value;
+            Variable = *it;
         }
 
-        if ( !Table )
+        if ( !Variable)
         {
             // Create the table variable expression
-            Table = node.Table;
-            Variable = GenerateTableVariable( Table, node.ParameterName, node.bNoneOption);
+            Variable = GenerateTableVariable( node.m_pNode, CacheKey, node.bNoneOption);
 
-            GeneratedTables.Add( TPair<TablePtr, FString>(node.Table,node.ParameterName), TPair<TablePtr,Ptr<ASTOp>>( Table, Variable ) );
+            GeneratedTables.Add(CacheKey, Variable );
         }
 
         // Verify that the table column is the right type
-        int32 ColIndex = Table->FindColumn( node.ColumnName );
+        int32 ColIndex = NodeTable->FindColumn( node.ColumnName );
         if ( ColIndex<0 )
         {
             m_pErrorLog->GetPrivate()->Add("Table column not found.", ELMT_ERROR, node.m_errorContext);
             return nullptr;
         }
 
-        if ( Table->GetPrivate()->Columns[ ColIndex ].Type != TYPE )
+        if (NodeTable->GetPrivate()->Columns[ ColIndex ].Type != TYPE )
         {
-            m_pErrorLog->GetPrivate()->Add("Table column type is not the right type.",
-                                           ELMT_ERROR, node.m_errorContext);
+            m_pErrorLog->GetPrivate()->Add("Table column type is not the right type.", ELMT_ERROR, node.m_errorContext);
             return nullptr;
         }
 
         // Create the switch to cover all the options
         Ptr<ASTOp> lastSwitch;
-        int32 Rows = Table->GetPrivate()->Rows.Num();
+        int32 Rows = NodeTable->GetPrivate()->Rows.Num();
 
         Ptr<ASTOpSwitch> SwitchOp = new ASTOpSwitch();
 		SwitchOp->type = OPTYPE;
@@ -758,8 +773,8 @@ namespace mu
 
 		for (int32 i = 0; i < Rows; ++i)
         {
-            check( Table->GetPrivate()->Rows[i].Id <= 0xFFFF);
-            auto Condition = (uint16)Table->GetPrivate()->Rows[i].Id;
+            check(NodeTable->GetPrivate()->Rows[i].Id <= 0xFFFF);
+            auto Condition = (uint16)NodeTable->GetPrivate()->Rows[i].Id;
             Ptr<ASTOp> Branch = GenerateOption( node, ColIndex, (int)i, m_pErrorLog.get() );
 
 			if (Branch || TYPE != ETableColumnType::Mesh)
