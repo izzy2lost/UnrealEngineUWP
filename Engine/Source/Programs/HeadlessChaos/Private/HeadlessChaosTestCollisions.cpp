@@ -15,9 +15,9 @@
 
 #define SMALL_THRESHOLD 1e-4
 
-#define RESET_PQ(Particle) Particle->P() = Particle->X(); Particle->SetQ(Particle->GetR());
-#define INVARIANT_XR_START(Particle) FVec3 InvariantPreX_##Particle = Particle->X(); FRotation3 InvariantPreR_##Particle = Particle->GetR()
-#define INVARIANT_XR_END(Particle) EXPECT_TRUE(InvariantPreX_##Particle.Equals(Particle->X())); EXPECT_TRUE(InvariantPreR_##Particle.Equals(Particle->GetR()))
+#define RESET_PQ(Particle) Particle->SetP(Particle->GetX()); Particle->SetQ(Particle->GetR());
+#define INVARIANT_XR_START(Particle) FVec3 InvariantPreX_##Particle = Particle->GetX(); FRotation3 InvariantPreR_##Particle = Particle->GetR()
+#define INVARIANT_XR_END(Particle) EXPECT_TRUE(InvariantPreX_##Particle.Equals(Particle->GetX())); EXPECT_TRUE(InvariantPreR_##Particle.Equals(Particle->GetR()))
 #define INVARIANT_VW_START(Particle) FVec3 InvariantPreV_##Particle = Particle->GetV(); FVec3 InvariantPreW_##Particle = Particle->GetW()
 #define INVARIANT_VW_END(Particle) EXPECT_TRUE(InvariantPreV_##Particle.Equals(Particle->GetV())); EXPECT_TRUE(InvariantPreW_##Particle.Equals(Particle->GetW()))
 
@@ -43,20 +43,20 @@ namespace ChaosTest {
 		Particles.GetParticleHandles().AddArray(&PerParticlePhysicsMaterials);
 
 		auto Box1 = AppendDynamicParticleBox(Particles);
-		Box1->X() = FVec3(1.f);
+		Box1->SetX(FVec3(1.f));
 		Box1->SetR(FRotation3(FQuat::Identity));
-		Box1->P() = Box1->X();
+		Box1->SetP(Box1->GetX());
 		Box1->SetQ(Box1->GetR());
 		Box1->AuxilaryValue(PhysicsMaterials) = MakeSerializable(PhysicsMaterial);
-		Box1->UpdateWorldSpaceState(FRigidTransform3(Box1->X(), Box1->GetR()), FVec3(0));
+		Box1->UpdateWorldSpaceState(FRigidTransform3(Box1->GetX(), Box1->GetR()), FVec3(0));
 
 		auto Box2 = AppendDynamicParticleBox(Particles);
-		Box2->X() = FVec3(0.5f, 0.5f, 1.9f);
+		Box2->SetX(FVec3(0.5f, 0.5f, 1.9f));
 		Box2->SetR(FRotation3(FQuat::Identity));
-		Box2->P() = Box2->X();
+		Box2->SetP(Box2->GetX());
 		Box2->SetQ(Box2->GetR());
 		Box2->AuxilaryValue(PhysicsMaterials) = MakeSerializable(PhysicsMaterial);
-		Box2->UpdateWorldSpaceState(FRigidTransform3(Box2->X(), Box2->GetR()), FVec3(0));
+		Box2->UpdateWorldSpaceState(FRigidTransform3(Box2->GetX(), Box2->GetR()), FVec3(0));
 
 		FPBDCollisionConstraintAccessor Collisions(Particles, Collided, PhysicsMaterials, PerParticlePhysicsMaterials, 1, 1);
 		Collisions.ComputeConstraints(0.f);
@@ -95,20 +95,20 @@ namespace ChaosTest {
 		Particles.GetParticleHandles().AddArray(&PerParticlePhysicsMaterials);
 
 		auto Box1 = AppendDynamicParticleConvexBox(Particles, FVec3(1.f) );
-		Box1->X() = FVec3(0.f);
+		Box1->SetX(FVec3(0.f));
 		Box1->SetR(FRotation3(FQuat::Identity));
-		Box1->P() = Box1->X();
+		Box1->SetP(Box1->GetX());
 		Box1->SetQ(Box1->GetR());
 		Box1->AuxilaryValue(PhysicsMaterials) = MakeSerializable(PhysicsMaterial);
-		Box1->UpdateWorldSpaceState(FRigidTransform3(Box1->X(), Box1->GetR()), FVec3(0));
+		Box1->UpdateWorldSpaceState(FRigidTransform3(Box1->GetX(), Box1->GetR()), FVec3(0));
 
 		auto Box2 = AppendDynamicParticleBox(Particles, FVec3(1.f) );
-		Box2->X() = FVec3(1.25f, 0.f, 0.f);
+		Box2->SetX(FVec3(1.25f, 0.f, 0.f));
 		Box2->SetR(FRotation3(FQuat::Identity));
-		Box2->P() = Box2->X();
+		Box2->SetP(Box2->GetX());
 		Box2->SetQ(Box2->GetR());
 		Box2->AuxilaryValue(PhysicsMaterials) = MakeSerializable(PhysicsMaterial);
-		Box2->UpdateWorldSpaceState(FRigidTransform3(Box2->X(), Box2->GetR()), FVec3(0));
+		Box2->UpdateWorldSpaceState(FRigidTransform3(Box2->GetX(), Box2->GetR()), FVec3(0));
 
 		FPBDCollisionConstraintAccessor Collisions(Particles, Collided, PhysicsMaterials, PerParticlePhysicsMaterials, 1, 1);
 		Collisions.ComputeConstraints(0.f);
@@ -146,16 +146,16 @@ namespace ChaosTest {
 
 		auto Floor = AppendStaticAnalyticFloor(Particles);
 		auto Box = AppendDynamicParticleBox(Particles);
-		Box->P() = FVec3(0, 1, 0);
+		Box->SetP(FVec3(0, 1, 0));
 		Box->SetQ(FRotation3(FQuat::Identity));
 		Box->SetV(FVec3(0, 0, -1));
 		Box->SetPreV(Box->GetV());
-		Box->X() = Box->P() - Box->GetV() * Dt;
+		Box->SetX(Box->GetP() - Box->GetV() * Dt);
 		Box->SetR(Box->GetQ());
 		Box->AuxilaryValue(PhysicsMaterials) = MakeSerializable(PhysicsMaterial);
-		Box->UpdateWorldSpaceState(FRigidTransform3(Box->P(), Box->GetQ()), FVec3(0));
+		Box->UpdateWorldSpaceState(FRigidTransform3(Box->GetP(), Box->GetQ()), FVec3(0));
 
-		const FReal InitialBoxZ = Box->X().Z;
+		const FReal InitialBoxZ = Box->GetX().Z;
 
 		FPBDCollisionConstraintAccessor Collisions(Particles, Collided, PhysicsMaterials, PerParticlePhysicsMaterials, 2, 5);
 
@@ -203,7 +203,7 @@ namespace ChaosTest {
 
 		// Box will not move because the default depentration velocity is zero
 		const FReal ExpectedBoxZ = InitialBoxZ + Collisions.CollisionConstraints.GetSolverSettings().DepenetrationVelocity * Dt;
-		EXPECT_NEAR(Box->P().Z, ExpectedBoxZ, 1.e-2f);
+		EXPECT_NEAR(Box->GetP().Z, ExpectedBoxZ, 1.e-2f);
 
 		// Velocity is below the restitution threshold, so expecting 0 velocity despite the fact that restitution is 1
 		EXPECT_TRUE(Box->GetV().Equals(FVec3(0)));
@@ -229,14 +229,14 @@ namespace ChaosTest {
 
 		auto Floor = AppendStaticConvexFloor(Particles);
 		auto Box = AppendDynamicParticleConvexBox( Particles, FVec3(50) );
-		Box->X() = FVec3(0, 0, 49);
+		Box->SetX(FVec3(0, 0, 49));
 		Box->SetR(FRotation3(FQuat::Identity));
 		Box->SetV(FVec3(0, 0, -1));
 		Box->SetPreV(Box->GetV());
-		Box->P() = Box->X();
+		Box->SetP(Box->GetX());
 		Box->SetQ(Box->GetR());
 		Box->AuxilaryValue(PhysicsMaterials) = MakeSerializable(PhysicsMaterial);
-		Box->UpdateWorldSpaceState(FRigidTransform3(Box->P(), Box->GetQ()), FVec3(0));
+		Box->UpdateWorldSpaceState(FRigidTransform3(Box->GetP(), Box->GetQ()), FVec3(0));
 
 		const FReal Dt = FReal(1) / FReal(24.);
 
@@ -302,16 +302,16 @@ namespace ChaosTest {
 
 		auto Floor = AppendStaticAnalyticFloor(Particles);
 		auto Box = AppendDynamicParticleBox(Particles);
-		Box->P() = FVec3(0, 1, 0);
+		Box->SetP(FVec3(0, 1, 0));
 		Box->SetQ(FRotation3(FQuat::Identity));
 		Box->SetV(FVec3(0, 0, -1));
 		Box->SetPreV(Box->GetV());
-		Box->X() = Box->P() - Box->GetV() * Dt;
+		Box->SetX(Box->GetP() - Box->GetV() * Dt);
 		Box->SetR(Box->GetR());
 		Box->AuxilaryValue(PhysicsMaterials) = MakeSerializable(PhysicsMaterial);
-		Box->UpdateWorldSpaceState(FRigidTransform3(Box->P(), Box->GetQ()), FVec3(0));
+		Box->UpdateWorldSpaceState(FRigidTransform3(Box->GetP(), Box->GetQ()), FVec3(0));
 
-		FReal InitialBoxZ = Box->X().Z;
+		FReal InitialBoxZ = Box->GetX().Z;
 
 		FPBDCollisionConstraintAccessor Collisions(Particles, Collided, PhysicsMaterials, PerParticlePhysicsMaterials, 2, 5);
 
@@ -352,7 +352,7 @@ namespace ChaosTest {
 
 		// Box will not move because the default depentration velocity is zero
 		const FReal ExpectedBoxZ = InitialBoxZ + Collisions.CollisionConstraints.GetSolverSettings().DepenetrationVelocity * Dt;
-		EXPECT_TRUE(FMath::IsNearlyEqual(Box->P().Z, ExpectedBoxZ, 1.e-2));
+		EXPECT_TRUE(FMath::IsNearlyEqual(Box->GetP().Z, ExpectedBoxZ, 1.e-2));
 	}
 
 	void CollisionBoxPlaneRestitution()
@@ -373,14 +373,14 @@ namespace ChaosTest {
 
 		auto Floor = AppendStaticAnalyticFloor(Particles);
 		auto Box = AppendDynamicParticleBox(Particles);
-		Box->P() = FVec3(0, 0, 0);
+		Box->SetP(FVec3(0, 0, 0));
 		Box->SetQ(FRotation3(FQuat::Identity));
 		Box->SetV(FVec3(0, 0, -100));
 		Box->SetPreV(Box->GetV());
-		Box->X() = Box->P() - Box->GetV() * Dt;
+		Box->SetX(Box->GetP() - Box->GetV() * Dt);
 		Box->SetR(Box->GetQ());
 		Box->AuxilaryValue(PhysicsMaterials) = MakeSerializable(PhysicsMaterial);
-		Box->UpdateWorldSpaceState(FRigidTransform3(Box->P(), Box->GetQ()), FVec3(0));
+		Box->UpdateWorldSpaceState(FRigidTransform3(Box->GetP(), Box->GetQ()), FVec3(0));
 
 		FPBDCollisionConstraintAccessor Collisions(Particles, Collided, PhysicsMaterials, PerParticlePhysicsMaterials, 2, 5);
 
@@ -424,7 +424,7 @@ namespace ChaosTest {
 		EXPECT_TRUE(Box->GetW().Equals(FVec3(0)));
 
 		// should end up outside the plane
-		EXPECT_GE(Box->P().Z, -Box->GetGeometry()->BoundingBox().Min().Z);
+		EXPECT_GE(Box->GetP().Z, -Box->GetGeometry()->BoundingBox().Min().Z);
 		EXPECT_TRUE(Box->GetQ().Equals(FQuat::Identity));
 	}
 
@@ -447,18 +447,18 @@ namespace ChaosTest {
 		const FReal Dt = FReal(1) / FReal(24.);
 
 		FGeometryParticleHandle* StaticCube = AppendStaticParticleBox(Particles, FVec3(100.0f));
-		StaticCube->X() = FVec3(0, 0, -50.0f);
-		StaticCube->UpdateWorldSpaceState(FRigidTransform3(StaticCube->X(), StaticCube->GetR()), FVec3(0));
+		StaticCube->SetX(FVec3(0, 0, -50.0f));
+		StaticCube->UpdateWorldSpaceState(FRigidTransform3(StaticCube->GetX(), StaticCube->GetR()), FVec3(0));
 
 		FPBDRigidParticleHandle* DynamicCube = AppendDynamicParticleBox(Particles, FVec3(100.0f));
-		DynamicCube->X() = FVec3(0, 0, 50);
+		DynamicCube->SetX(FVec3(0, 0, 50));
 		DynamicCube->SetR(FRotation3::FromIdentity());
 		DynamicCube->SetV(FVec3(0, 0, -100));
 		DynamicCube->SetPreV(DynamicCube->GetV());
-		DynamicCube->P() = DynamicCube->X() + DynamicCube->GetV() * Dt;
+		DynamicCube->SetP(DynamicCube->GetX() + DynamicCube->GetV() * Dt);
 		DynamicCube->SetQ(DynamicCube->GetR());
 		DynamicCube->AuxilaryValue(PhysicsMaterials) = MakeSerializable(PhysicsMaterial);
-		DynamicCube->UpdateWorldSpaceState(FRigidTransform3(DynamicCube->P(), DynamicCube->GetQ()), FVec3(0));
+		DynamicCube->UpdateWorldSpaceState(FRigidTransform3(DynamicCube->GetP(), DynamicCube->GetQ()), FVec3(0));
 
 		FPBDCollisionConstraintAccessor Collisions(Particles, Collided, PhysicsMaterials, PerParticlePhysicsMaterials, 2, 5);
 
@@ -513,21 +513,21 @@ namespace ChaosTest {
 		Particles.GetParticleHandles().AddArray(&PerParticlePhysicsMaterials);
 
 		auto StaticBox = AppendStaticParticleBox(Particles);
-		StaticBox->X() = FVec3(-0.05f, -0.05f, -0.1f);
+		StaticBox->SetX(FVec3(-0.05f, -0.05f, -0.1f));
 		StaticBox->AuxilaryValue(PhysicsMaterials) = MakeSerializable(PhysicsMaterial);
-		StaticBox->UpdateWorldSpaceState(FRigidTransform3(StaticBox->X(), StaticBox->GetR()), FVec3(0));
+		StaticBox->UpdateWorldSpaceState(FRigidTransform3(StaticBox->GetX(), StaticBox->GetR()), FVec3(0));
 
 		FReal Dt = FReal(1) / FReal(24.);
 
 		auto Box2 = AppendDynamicParticleBox(Particles);
 		FVec3 StartingPoint(0.5f);
-		Box2->P() = StartingPoint;
+		Box2->SetP(StartingPoint);
 		Box2->SetQ(Box2->GetR());
 		Box2->SetV(FVec3(0, 0, -1));
 		Box2->SetPreV(Box2->GetV());
-		Box2->X() = Box2->P() - Box2->GetV() * Dt;
+		Box2->SetX(Box2->GetP() - Box2->GetV() * Dt);
 		Box2->AuxilaryValue(PhysicsMaterials) = MakeSerializable(PhysicsMaterial);
-		Box2->UpdateWorldSpaceState(FRigidTransform3(Box2->P(), Box2->GetQ()), FVec3(0));
+		Box2->UpdateWorldSpaceState(FRigidTransform3(Box2->GetP(), Box2->GetQ()), FVec3(0));
 
 		FBox Region(FVector(FReal(.2)), FVector(FReal(.5)));
 
@@ -577,7 +577,7 @@ namespace ChaosTest {
 		EXPECT_TRUE(Box2->GetV().Size() < FVector(0, -1, 0).Size()); // slowed down  
 		EXPECT_TRUE(Box2->GetW().Size() > 0); // now has rotation 
 
-		EXPECT_FALSE(Box2->P().Equals(StartingPoint)); // moved
+		EXPECT_FALSE(Box2->GetP().Equals(StartingPoint)); // moved
 		EXPECT_FALSE(Box2->GetQ().Equals(FQuat::Identity)); // and rotated
 	}
 }

@@ -42,7 +42,7 @@ namespace Chaos
 			}
 
 			BufferData.SetProxy(*Proxy);
-			BufferData.X = Particle->X();
+			BufferData.X = Particle->GetX();
 			BufferData.R = Particle->GetR();
 			BufferData.V = Particle->GetV();
 			BufferData.W = Particle->GetW();
@@ -134,7 +134,7 @@ namespace Chaos
 			Particle_Internal->SetR(InitData.InitialTransform.GetRotation());
 			Particle_Internal->SetVf(Chaos::FVec3f(0.f));
 			Particle_Internal->SetWf(Chaos::FVec3f(0.f));
-			Particle_Internal->SetP(Particle_Internal->X());
+			Particle_Internal->SetP(Particle_Internal->GetX());
 			Particle_Internal->SetQf(Particle_Internal->GetRf());
 			Particle_Internal->SetCenterOfMass(FVector3f::ZeroVector);
 			Particle_Internal->SetRotationOfMass(FQuat::Identity);
@@ -380,14 +380,14 @@ namespace Chaos
 						{
 							ParticlesToUpdate.Add(Particle);
 
-							const FRigidTransform3 ChildWorldTM(Particle->X(), Particle->GetR());
+							const FRigidTransform3 ChildWorldTM(Particle->GetX(), Particle->GetR());
 							NewChildToParent.Add(ChildWorldTM.GetRelativeTransform(NewTransform));
 						}
 					}
 				}
 			}
 
-			Evolution.SetParticleTransform(Particle_Internal, NewXR->X(), NewXR->R(), true);
+			Evolution.SetParticleTransform(Particle_Internal, NewXR->GetX(), NewXR->R(), true);
 
 			if (!ParticlesToUpdate.IsEmpty() && !NewChildToParent.IsEmpty())
 			{
@@ -400,7 +400,7 @@ namespace Chaos
 			// but this is primarily for proxies within the cluster union. They (i.e. GCs) need to see this change to the particle's transform.
 			Evolution.GetParticles().MarkTransientDirtyParticle(Particle_Internal);
 
-			const FRigidTransform3 WorldTransform{ Particle_Internal->X(), Particle_Internal->GetR() };
+			const FRigidTransform3 WorldTransform{ Particle_Internal->GetX(), Particle_Internal->GetR() };
 			Particle_Internal->UpdateWorldSpaceState(WorldTransform, FVec3(0));
 
 			Evolution.DirtyParticle(*Particle_Internal);
@@ -536,7 +536,7 @@ namespace Chaos
 			{
 				Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(NextPullData->X, FVector(2, 1, 1), NextPullData->R, FColor::Yellow, false, 5.f, 0, 0.5f);
 				Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(PullData.X, NextPullData->X, 0.5f, FColor::Yellow, false, 5.0f, 0, 0.5f);
-				Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(Particle_External->X(), FVector(2, 1, 1), Particle_External->R(), FColor::Green, false, 5.f, 0, 0.5f);
+				Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(Particle_External->GetX(), FVector(2, 1, 1), Particle_External->R(), FColor::Green, false, 5.f, 0, 0.5f);
 
 				if (bIsReplicationErrorSmoothing)
 				{
@@ -546,7 +546,7 @@ namespace Chaos
 						Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(PullData.X, (PullData.X + InterpolationData.GetErrorX(0)), 1, FColor::Red, false, 5.0f, 0, 0.5f);
 					}
 
-					Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow((Particle_External->X() - InterpolationData.GetErrorX(*Alpha)), Particle_External->X(), 1, FColor::Blue, false, 5.0f, 0, 0.5f);
+					Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow((Particle_External->GetX() - InterpolationData.GetErrorX(*Alpha)), Particle_External->GetX(), 1, FColor::Blue, false, 5.0f, 0, 0.5f);
 				}
 			}
 #endif // CHAOS_DEBUG_DRAW

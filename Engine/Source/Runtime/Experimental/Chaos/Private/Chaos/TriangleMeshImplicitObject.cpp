@@ -145,9 +145,9 @@ struct FTriangleMeshRaycastVisitor
 		constexpr FReal Epsilon = 1e-4f;
 
 		const int32 FaceIndex = TriIdx.Payload;
-		const FVec3& A = Particles.X(Elements[FaceIndex][0]);
-		const FVec3& B = Particles.X(Elements[FaceIndex][1]);
-		const FVec3& C = Particles.X(Elements[FaceIndex][2]);
+		const FVec3& A = Particles.GetX(Elements[FaceIndex][0]);
+		const FVec3& B = Particles.GetX(Elements[FaceIndex][1]);
+		const FVec3& C = Particles.GetX(Elements[FaceIndex][2]);
 
 		// Note: the math here needs to match FTriangleMeshImplicitObject::GetFaceNormal
 		// @todo(chaos) we should really preprocess the face and remove the degenerated ones to avoid paying this runtime cost
@@ -191,9 +191,9 @@ struct FTriangleMeshRaycastVisitor
 		const FReal R2 = R * R;
 
 		const int32 FaceIndex = TriIdx.Payload;		
-		const FVec3& A = Particles.X(Elements[FaceIndex][0]);
-		const FVec3& B = Particles.X(Elements[FaceIndex][1]);
-		const FVec3& C = Particles.X(Elements[FaceIndex][2]);
+		const FVec3& A = Particles.GetX(Elements[FaceIndex][0]);
+		const FVec3& B = Particles.GetX(Elements[FaceIndex][1]);
+		const FVec3& C = Particles.GetX(Elements[FaceIndex][2]);
 
 		// Note: the math here needs to match FTriangleMeshImplicitObject::GetFaceNormal
 		const FVec3 AB = B - A;
@@ -436,9 +436,9 @@ template <typename IdxType, typename ParticlesType>
 inline void TriangleMeshTransformVertsHelperSimd(const VectorRegister4Float& TriMeshScale, int32 TriIdx, const ParticlesType& Particles,
 	const TArray<TVector<IdxType, 3>>& Elements, VectorRegister4Float& OutA, VectorRegister4Float& OutB, VectorRegister4Float& OutC)
 {
-	OutA = VectorLoadFloat3(&Particles.X(Elements[TriIdx][0]).X);
-	OutB = VectorLoadFloat3(&Particles.X(Elements[TriIdx][1]).X);
-	OutC = VectorLoadFloat3(&Particles.X(Elements[TriIdx][2]).X);
+	OutA = VectorLoadFloat3(&Particles.GetX(Elements[TriIdx][0]).X);
+	OutB = VectorLoadFloat3(&Particles.GetX(Elements[TriIdx][1]).X);
+	OutC = VectorLoadFloat3(&Particles.GetX(Elements[TriIdx][2]).X);
 	OutA = VectorMultiply(OutA, TriMeshScale);
 	OutB = VectorMultiply(OutB, TriMeshScale);
 	OutC = VectorMultiply(OutC, TriMeshScale);
@@ -1010,9 +1010,9 @@ bool FTriangleMeshImplicitObject::OverlapImp(const TArray<TVec3<IdxType>>& Eleme
 
 	for (int32 TriIdx : PotentialIntersections)
 	{
-		const FVec3& A = MParticles.X(Elements[TriIdx][0]);
-		const FVec3& B = MParticles.X(Elements[TriIdx][1]);
-		const FVec3& C = MParticles.X(Elements[TriIdx][2]);
+		const FVec3& A = MParticles.GetX(Elements[TriIdx][0]);
+		const FVec3& B = MParticles.GetX(Elements[TriIdx][1]);
+		const FVec3& C = MParticles.GetX(Elements[TriIdx][2]);
 
 		const FVec3 AB = B - A;
 		const FVec3 AC = C - A;
@@ -1245,9 +1245,9 @@ struct FTriangleMeshSweepVisitor
 
 		const TParticles<FRealSingle, 3>& Particles = TriMesh.MParticles;
 
-		const TVector<FRealSingle, 3>& AVec = Particles.X(Elements[TriIdx][0]);
-		const TVector<FRealSingle, 3>& BVec = Particles.X(Elements[TriIdx][1]);
-		const TVector<FRealSingle, 3>& CVec = Particles.X(Elements[TriIdx][2]);
+		const TVector<FRealSingle, 3>& AVec = Particles.GetX(Elements[TriIdx][0]);
+		const TVector<FRealSingle, 3>& BVec = Particles.GetX(Elements[TriIdx][1]);
+		const TVector<FRealSingle, 3>& CVec = Particles.GetX(Elements[TriIdx][2]);
 
 		VectorRegister4Float A = MakeVectorRegister(AVec.X, AVec.Y, AVec.Z, 0.0f);
 		VectorRegister4Float B = MakeVectorRegister(BVec.X, BVec.Y, BVec.Z, 0.0f);
@@ -1410,9 +1410,9 @@ struct FTriangleMeshSweepVisitorCCD
 
 		const TParticles<FRealSingle, 3>& Particles = TriMesh.MParticles;
 
-		const TVector<FRealSingle, 3>& AVec = Particles.X(Elements[TriIdx][0]);
-		const TVector<FRealSingle, 3>& BVec = Particles.X(Elements[TriIdx][1]);
-		const TVector<FRealSingle, 3>& CVec = Particles.X(Elements[TriIdx][2]);
+		const TVector<FRealSingle, 3>& AVec = Particles.GetX(Elements[TriIdx][0]);
+		const TVector<FRealSingle, 3>& BVec = Particles.GetX(Elements[TriIdx][1]);
+		const TVector<FRealSingle, 3>& CVec = Particles.GetX(Elements[TriIdx][2]);
 
 		VectorRegister4Float A = MakeVectorRegister(AVec.X, AVec.Y, AVec.Z, 0.0f);
 		VectorRegister4Float B = MakeVectorRegister(BVec.X, BVec.Y, BVec.Z, 0.0f);
@@ -1755,9 +1755,9 @@ int32 FTriangleMeshImplicitObject::FindMostOpposingFace(const TArray<TVec3<IdxTy
 
 	for (int32 TriIdx : PotentialIntersections)
 	{
-		const FVec3& A = MParticles.X(Elements[TriIdx][0]) * Scale;
-		const FVec3& B = MParticles.X(Elements[TriIdx][1]) * Scale;
-		const FVec3& C = MParticles.X(Elements[TriIdx][2]) * Scale;
+		const FVec3& A = MParticles.GetX(Elements[TriIdx][0]) * Scale;
+		const FVec3& B = MParticles.GetX(Elements[TriIdx][1]) * Scale;
+		const FVec3& C = MParticles.GetX(Elements[TriIdx][2]) * Scale;
 
 		const FVec3 AB = B - A;
 		const FVec3 AC = C - A;
@@ -1905,9 +1905,9 @@ FVec3 FTriangleMeshImplicitObject::GetFaceNormal(const int32 FaceIdx) const
 	{
 		auto LambdaHelper = [&](const auto& Elements)
 		{
-			const ParticleVecType& A = MParticles.X(Elements[FaceIdx][0]);
-			const ParticleVecType& B = MParticles.X(Elements[FaceIdx][1]);
-			const ParticleVecType& C = MParticles.X(Elements[FaceIdx][2]);
+			const ParticleVecType& A = MParticles.GetX(Elements[FaceIdx][0]);
+			const ParticleVecType& B = MParticles.GetX(Elements[FaceIdx][1]);
+			const ParticleVecType& C = MParticles.GetX(Elements[FaceIdx][2]);
 
 			const ParticleVecType AB = B - A;
 			const ParticleVecType AC = C - A;
@@ -2016,7 +2016,7 @@ void FTriangleMeshImplicitObject::UpdateVertices(const TArray<FVector>& NewPosit
 		int32 InternalIdx = bRemapIndices ? (*ExternalVertexIndexMap.Get())[i] : i;
 		if (InternalIdx < (int32)MParticles.Size())
 		{
-			MParticles.X(InternalIdx) = Chaos::FVec3(NewPositions[i]);
+			MParticles.SetX(InternalIdx, Chaos::FVec3(NewPositions[i]));
 		}
 	}
 	RebuildFastBVH();

@@ -347,10 +347,10 @@ namespace Chaos
 		// to get the position at that time. This is required to handle objects with a CoM offset from the actor position.
 		// We will undo this manipulation at the end.
 		// NOTE: We do not modify the previous rotation R here - we just use the current rotation Q everywhere
-		// @todo(chaos): we should store the sweep positions in CCDParticle and onlymodify the original particle at the end
+		// @todo(chaos): we should store the sweep positions in CCDParticle and only modify the original particle at the end
 		for (int32 i = ParticleStart; i < ParticleStart + ParticleNum; i++)
 		{
-			GroupedCCDParticles[i]->Particle->X() = GroupedCCDParticles[i]->Particle->P() - GroupedCCDParticles[i]->Particle->GetV() * Dt;
+			GroupedCCDParticles[i]->Particle->SetX(GroupedCCDParticles[i]->Particle->GetP() - GroupedCCDParticles[i]->Particle->GetV() * Dt);
 		}
 
 		// Sort constraints based on TOI
@@ -497,7 +497,7 @@ namespace Chaos
 		{
 			const FVec3 CoMPrev = GroupedCCDParticles[i]->Particle->PCom() - GroupedCCDParticles[i]->Particle->GetV() * Dt;
 			const FVec3 CoMOffsetPrev = GroupedCCDParticles[i]->Particle->GetR() * GroupedCCDParticles[i]->Particle->CenterOfMass();
-			GroupedCCDParticles[i]->Particle->X() = CoMPrev - CoMOffsetPrev;
+			GroupedCCDParticles[i]->Particle->SetX(CoMPrev - CoMOffsetPrev);
 		}
 	}
 
@@ -699,7 +699,7 @@ namespace Chaos
 						{
 							AdvanceParticleXToTOI(AffectedCCDParticle, IslandTOI, Dt);
 						}
-						ParticleStartWorldTransforms[j] = FRigidTransform3(AffectedParticle->X(), AffectedParticle->GetR());
+						ParticleStartWorldTransforms[j] = FRigidTransform3(AffectedParticle->GetX(), AffectedParticle->GetR());
 					}
 					else
 					{
@@ -711,7 +711,7 @@ namespace Chaos
 						}
 						else // Static case
 						{
-							ParticleStartWorldTransforms[j] = FRigidTransform3(AffectedParticle->X(), AffectedParticle->GetR());
+							ParticleStartWorldTransforms[j] = FRigidTransform3(AffectedParticle->GetX(), AffectedParticle->GetR());
 						}
 					}
 				}
@@ -794,7 +794,7 @@ namespace Chaos
 		{
 			TPBDRigidParticleHandle<FReal, 3>* Particle = CCDParticle->Particle;
 			const FReal RestDt = (TOI - CCDParticle->TOI) * Dt;
-			Particle->X() = Particle->X() + Particle->GetV() * RestDt;
+			Particle->SetX(Particle->GetX() + Particle->GetV() * RestDt);
 			CCDParticle->TOI = TOI;
 		}
 	}
@@ -803,20 +803,20 @@ namespace Chaos
 	{
 		TPBDRigidParticleHandle<FReal, 3>* Particle = CCDParticle->Particle;
 		const FReal RestDt = (1.f - CCDParticle->TOI) * Dt;
-		Particle->P() = Particle->X() + Particle->GetV() * RestDt;
+		Particle->SetP(Particle->GetX() + Particle->GetV() * RestDt);
 	}
 
 	void FCCDManager::ClipParticleP(FCCDParticle *CCDParticle) const
 	{
 		TPBDRigidParticleHandle<FReal, 3>* Particle = CCDParticle->Particle;
-		Particle->P() = Particle->X();
+		Particle->SetP(Particle->GetX());
 	}
 
 	void FCCDManager::ClipParticleP(FCCDParticle *CCDParticle, const FVec3 Offset) const
 	{
 		TPBDRigidParticleHandle<FReal, 3>* Particle = CCDParticle->Particle;
-		Particle->X() += Offset;
-		Particle->P() = Particle->X();
+		Particle->SetX(Particle->GetX() + Offset);
+		Particle->SetP(Particle->GetX());
 	}
 
 	void FCCDManager::ApplyImpulse(FCCDConstraint *CCDConstraint)
@@ -871,7 +871,7 @@ namespace Chaos
 
 	void FCCDManager::UpdateSweptConstraints(const FReal Dt, Private::FCollisionConstraintAllocator *CollisionAllocator)
 	{
-		// Buld the set of collision whose contact data will be out of date because we moved one or both of its particles. 
+		// Build the set of collision whose contact data will be out of date because we moved one or both of its particles. 
 		// This is all collision constraints, including non-swept ones, for any particle that was relocated by the CCD sweep 
 		// logic executed in ApplySweptConstraints (i.e., contents of CCDConstraints)
 		// @todo(chaos): we could calculate the size of the Collisions array in Init
@@ -1035,14 +1035,14 @@ namespace Chaos
 					if (Bias0 > UE_SMALL_NUMBER)
 					{
 						const FVec3 Correction0 = -Bias0 * Phi * WorldNormal;
-						P0->P() = P0->P() + Correction0;
+						P0->SetP(P0->P() + Correction0);
 						P0->SetV(P0->V() - Bias0 * VelNormal * WorldNormal);
 					}
 
 					if (Bias1 > UE_SMALL_NUMBER)
 					{
 						const FVec3 Correction1 = Bias1 * Phi * WorldNormal;
-						P1->P() = P1->P() + Correction1;
+						P1->SetP(P1->P() + Correction1);
 						P1->SetV(P1->V() + Bias1 * VelNormal * WorldNormal);
 					}
 				}
@@ -1057,7 +1057,7 @@ namespace Chaos
 		for (FCCDParticle& CCDParticle : CCDParticles)
 		{
 			TPBDRigidParticleHandle<FReal, 3>* Particle = CCDParticle.Particle;
-			Particle->X() = Particle->P() - Particle->GetV() * Dt;
+			Particle->SetX(Particle->GetP() - Particle->GetV() * Dt);
 		}
 	}
 
@@ -1146,8 +1146,8 @@ namespace Chaos
 		// For non-rigids, DeltaX is zero and use R for rotation.
 		const auto Rigid0 = Particle0.CastToRigidParticle();
 		const auto Rigid1 = Particle1.CastToRigidParticle();
-		const FVec3 DeltaX0 = Rigid0 ? Rigid0->P() - Rigid0->X() : FVec3::ZeroVector;
-		const FVec3 DeltaX1 = Rigid1 ? Rigid1->P() - Rigid1->X() : FVec3::ZeroVector;
+		const FVec3 DeltaX0 = Rigid0 ? Rigid0->GetP() - Rigid0->GetX() : FVec3::ZeroVector;
+		const FVec3 DeltaX1 = Rigid1 ? Rigid1->GetP() - Rigid1->GetX() : FVec3::ZeroVector;
 		const FQuat& R0 = Rigid0 ? Rigid0->GetQ() : Particle0.GetR();
 		const FQuat& R1 = Rigid1 ? Rigid1->GetQ() : Particle1.GetR();
 		return DeltaExceedsThreshold(

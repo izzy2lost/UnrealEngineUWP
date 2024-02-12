@@ -233,7 +233,7 @@ namespace ImmediatePhysics_Chaos
 			{
 				ParticleHandle->SetHasBounds(true);
 				ParticleHandle->SetLocalBounds(Geometry->BoundingBox());
-				ParticleHandle->UpdateWorldSpaceState(FRigidTransform3(ParticleHandle->X(), ParticleHandle->GetR()), FVec3(0));
+				ParticleHandle->UpdateWorldSpaceState(FRigidTransform3(ParticleHandle->GetX(), ParticleHandle->GetR()), FVec3(0));
 			}
 
 			if (FKinematicGeometryParticleHandle* Kinematic = ParticleHandle->CastToKinematicParticle())
@@ -361,22 +361,22 @@ namespace ImmediatePhysics_Chaos
 
 		// Initialize the bounds. Important because if the particle never moves its 
 		// bounds will never get updated (see FPBDMinEvolution::ApplyKinematicTargets) 
-		ParticleHandle->UpdateWorldSpaceState(FRigidTransform3(ParticleHandle->X(), ParticleHandle->GetR()), FVec3(0));
+		ParticleHandle->UpdateWorldSpaceState(FRigidTransform3(ParticleHandle->GetX(), ParticleHandle->GetR()), FVec3(0));
 	}
 
 	void FActorHandle::SetWorldTransform(const FTransform& WorldTM)
 	{
 		using namespace Chaos;
 
-		ParticleHandle->X() = WorldTM.GetTranslation();
+		ParticleHandle->SetX(WorldTM.GetTranslation());
 		ParticleHandle->SetR(WorldTM.GetRotation());
 
 		FPBDRigidParticleHandle* Dynamic = ParticleHandle->CastToRigidParticle();
 		if(Dynamic && Dynamic->ObjectState() == Chaos::EObjectStateType::Dynamic)
 		{
-			Dynamic->P() = Dynamic->X();
+			Dynamic->SetP(Dynamic->GetX());
 			Dynamic->SetQf(Dynamic->GetRf());
-			Dynamic->AuxilaryValue(ParticlePrevXs) = Dynamic->P();
+			Dynamic->AuxilaryValue(ParticlePrevXs) = Dynamic->GetP();
 			Dynamic->AuxilaryValue(ParticlePrevRs) = Dynamic->GetQ();
 		}
 	}

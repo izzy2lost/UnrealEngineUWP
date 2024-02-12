@@ -458,9 +458,9 @@ namespace Chaos
 	inline void TriangleMeshTransformVertsHelper(const FVec3& TriMeshScale, int32 TriIdx, const ParticlesType& Particles,
 		const TArray<TVector<IdxType, 3>>& Elements, FVec3& OutA, FVec3& OutB, FVec3& OutC)
 	{
-		OutA = Particles.X(Elements[TriIdx][0]) * TriMeshScale;
-		OutB = Particles.X(Elements[TriIdx][1]) * TriMeshScale;
-		OutC = Particles.X(Elements[TriIdx][2]) * TriMeshScale;
+		OutA = Particles.GetX(Elements[TriIdx][0]) * TriMeshScale;
+		OutB = Particles.GetX(Elements[TriIdx][1]) * TriMeshScale;
+		OutC = Particles.GetX(Elements[TriIdx][2]) * TriMeshScale;
 	}
 
 	template <typename IdxType, typename ParticlesType>
@@ -472,9 +472,9 @@ namespace Chaos
 		const int32 VertexIndexB = Elements[TriIdx][1];
 		const int32 VertexIndexC = Elements[TriIdx][2];
 		// Note: deliberately using scaled transform here. See VisitTriangles
-		OutA = Transform.TransformPosition(FVector(Particles.X(VertexIndexA)));
-		OutB = Transform.TransformPosition(FVector(Particles.X(VertexIndexB)));
-		OutC = Transform.TransformPosition(FVector(Particles.X(VertexIndexC)));
+		OutA = Transform.TransformPosition(FVector(Particles.GetX(VertexIndexA)));
+		OutB = Transform.TransformPosition(FVector(Particles.GetX(VertexIndexB)));
+		OutC = Transform.TransformPosition(FVector(Particles.GetX(VertexIndexC)));
 		OutVertexIndexA = VertexIndexA;
 		OutVertexIndexB = VertexIndexB;
 		OutVertexIndexC = VertexIndexC;
@@ -507,16 +507,16 @@ namespace Chaos
 				const TArray<TVec3<IdxType>>& Tris = MElements.GetIndexBuffer<IdxType>();
 				const TVec3<IdxType>& FirstTri = Tris[0];
 
-				MLocalBoundingBox = FAABB3(MParticles.X(FirstTri[0]), MParticles.X(FirstTri[0]));
-				MLocalBoundingBox.GrowToInclude(MParticles.X(FirstTri[1]));
-				MLocalBoundingBox.GrowToInclude(MParticles.X(FirstTri[2]));
+				MLocalBoundingBox = FAABB3(MParticles.GetX(FirstTri[0]), MParticles.GetX(FirstTri[0]));
+				MLocalBoundingBox.GrowToInclude(MParticles.GetX(FirstTri[1]));
+				MLocalBoundingBox.GrowToInclude(MParticles.GetX(FirstTri[2]));
 
 				for(int32 TriangleIndex = 1; TriangleIndex < NumTriangles; ++TriangleIndex)
 				{
 					const TVec3<IdxType>& Tri = Tris[TriangleIndex];
-					MLocalBoundingBox.GrowToInclude(MParticles.X(Tri[0]));
-					MLocalBoundingBox.GrowToInclude(MParticles.X(Tri[1]));
-					MLocalBoundingBox.GrowToInclude(MParticles.X(Tri[2]));
+					MLocalBoundingBox.GrowToInclude(MParticles.GetX(Tri[0]));
+					MLocalBoundingBox.GrowToInclude(MParticles.GetX(Tri[1]));
+					MLocalBoundingBox.GrowToInclude(MParticles.GetX(Tri[2]));
 				}
 			}
 			
@@ -805,7 +805,7 @@ namespace Chaos
 			: FImplicitObject(EImplicitObject::HasBoundingBox | EImplicitObject::DisableCollisions, ImplicitObjectType::TriangleMesh)
 			, MParticles(MoveTemp(Particles))
 			, MElements(MoveTemp(Elements))
-			, MLocalBoundingBox(MParticles.X(0), MParticles.X(0))
+			, MLocalBoundingBox(MParticles.GetX(0), MParticles.GetX(0))
 			, MaterialIndices(MoveTemp(InMaterialIndices))
 			, ExternalFaceIndexMap(MoveTemp(InExternalFaceIndexMap))
 			, ExternalVertexIndexMap(MoveTemp(InExternalVertexIndexMap))
@@ -817,16 +817,16 @@ namespace Chaos
 				const TArray<TVec3<IdxType>>& Tris = MElements.GetIndexBuffer<IdxType>();
 				const TVec3<IdxType>& FirstTri = Tris[0];
 
-				MLocalBoundingBox = FAABB3(MParticles.X(FirstTri[0]), MParticles.X(FirstTri[0]));
-				MLocalBoundingBox.GrowToInclude(MParticles.X(FirstTri[1]));
-				MLocalBoundingBox.GrowToInclude(MParticles.X(FirstTri[2]));
+				MLocalBoundingBox = FAABB3(MParticles.GetX(FirstTri[0]), MParticles.GetX(FirstTri[0]));
+				MLocalBoundingBox.GrowToInclude(MParticles.GetX(FirstTri[1]));
+				MLocalBoundingBox.GrowToInclude(MParticles.GetX(FirstTri[2]));
 
 				for(int32 TriangleIndex = 1; TriangleIndex < NumTriangles; ++TriangleIndex)
 				{
 					const TVec3<IdxType>& Tri = Tris[TriangleIndex];
-					MLocalBoundingBox.GrowToInclude(MParticles.X(Tri[0]));
-					MLocalBoundingBox.GrowToInclude(MParticles.X(Tri[1]));
-					MLocalBoundingBox.GrowToInclude(MParticles.X(Tri[2]));
+					MLocalBoundingBox.GrowToInclude(MParticles.GetX(Tri[0]));
+					MLocalBoundingBox.GrowToInclude(MParticles.GetX(Tri[1]));
+					MLocalBoundingBox.GrowToInclude(MParticles.GetX(Tri[2]));
 				}
 			}
 			
@@ -850,10 +850,10 @@ namespace Chaos
 			{
 				auto LambdaHelper = [&](const auto& Elements)
 				{
-					TAABB<FRealSingle,3> Bounds(TmData->MParticles.X(Elements[Index][0]), TmData->MParticles.X(Elements[Index][0]));
+					TAABB<FRealSingle,3> Bounds(TmData->MParticles.GetX(Elements[Index][0]), TmData->MParticles.GetX(Elements[Index][0]));
 
-					Bounds.GrowToInclude(TmData->MParticles.X(Elements[Index][1]));
-					Bounds.GrowToInclude(TmData->MParticles.X(Elements[Index][2]));
+					Bounds.GrowToInclude(TmData->MParticles.GetX(Elements[Index][1]));
+					Bounds.GrowToInclude(TmData->MParticles.GetX(Elements[Index][2]));
 
 					return Bounds;
 				};

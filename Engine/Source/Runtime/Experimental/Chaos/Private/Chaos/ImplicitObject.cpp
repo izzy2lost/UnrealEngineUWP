@@ -136,12 +136,12 @@ namespace Chaos
 			TArray<int32> PotentialParticles = Particles->FindAllIntersections(ImplicitBox);
 			for(int32 i : PotentialParticles)
 			{
-				FVec3 LocalPoint = OtherToLocalTransform.TransformPosition(Particles->X(i));
+				FVec3 LocalPoint = OtherToLocalTransform.TransformPosition(Particles->GetX(i));
 				FReal LocalPhi = SignedDistance(LocalPoint);
 				if(LocalPhi < Phi)
 				{
 					Phi = LocalPhi;
-					Point = Particles->X(i);
+					Point = Particles->GetX(i);
 				}
 			}
 		}
@@ -165,12 +165,12 @@ namespace Chaos
 		int32 NumParticles = Particles->Size();
 		for(int32 i = 0; i < NumParticles; ++i)
 		{
-			FVec3 LocalPoint = OtherToLocalTransform.TransformPosition(Particles->X(i));
+			FVec3 LocalPoint = OtherToLocalTransform.TransformPosition(Particles->GetX(i));
 			FReal LocalPhi = SignedDistance(LocalPoint);
 			if(LocalPhi < Phi)
 			{
 				Phi = LocalPhi;
-				Point = Particles->X(i);
+				Point = Particles->GetX(i);
 			}
 		}
 		return MakePair(Point, Phi < Thickness);

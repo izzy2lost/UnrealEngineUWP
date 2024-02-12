@@ -82,14 +82,14 @@ namespace ChaosTest {
 			{
 				if (bQueryGameThread)
 				{
-					FTransform ParticleTransform(Data.Payload.GetExternalGeometryParticle_ExternalThread()->R(), Data.Payload.GetExternalGeometryParticle_ExternalThread()->X());
+					FTransform ParticleTransform(Data.Payload.GetExternalGeometryParticle_ExternalThread()->R(), Data.Payload.GetExternalGeometryParticle_ExternalThread()->GetX());
 					const FVec3 DirLocal = ParticleTransform.InverseTransformVectorNoScale(CurData.Dir);
 					const FVec3 StartLocal = ParticleTransform.InverseTransformPositionNoScale(Start);
 					bHit = Data.Payload.GetExternalGeometryParticle_ExternalThread()->GetGeometry()->Raycast(StartLocal, DirLocal, CurData.CurrentLength, 0, OutTime, OutPos, OutNorm, FaceIdx);
 				}
 				else
 				{
-					FTransform ParticleTransform(Data.Payload.GetGeometryParticleHandle_PhysicsThread()->GetR(), Data.Payload.GetGeometryParticleHandle_PhysicsThread()->X());
+					FTransform ParticleTransform(Data.Payload.GetGeometryParticleHandle_PhysicsThread()->GetR(), Data.Payload.GetGeometryParticleHandle_PhysicsThread()->GetX());
 					const FVec3 DirLocal = ParticleTransform.InverseTransformVectorNoScale(CurData.Dir);
 					const FVec3 StartLocal = ParticleTransform.InverseTransformPositionNoScale(Start);
 					bHit = Data.Payload.GetGeometryParticleHandle_PhysicsThread()->GetGeometry()->Raycast(StartLocal, DirLocal, CurData.CurrentLength, 0, OutTime, OutPos, OutNorm, FaceIdx);
@@ -948,7 +948,7 @@ namespace ChaosTest {
 					FPBDRigidsEvolution* Evolution = Scene.GetSolver()->GetEvolution();
 					const auto& SOA = Evolution->GetParticles();
 					const auto& InternalProxy = *SOA.GetAllParticlesView().Begin();
-					EXPECT_EQ(InternalProxy.X()[0], 0);
+					EXPECT_EQ(InternalProxy.GetX()[0], 0);
 				}
 			}
 
@@ -965,7 +965,7 @@ namespace ChaosTest {
 				FPBDRigidsEvolution* Evolution = Scene.GetSolver()->GetEvolution();
 				const auto& SOA = Evolution->GetParticles();
 				const auto& InternalProxy = *SOA.GetAllParticlesView().Begin();
-				EXPECT_EQ(InternalProxy.X()[0], 5);
+				EXPECT_EQ(InternalProxy.GetX()[0], 5);
 			}
 
 			//make sure commands are also deferred

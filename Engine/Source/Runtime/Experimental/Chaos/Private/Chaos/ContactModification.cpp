@@ -251,7 +251,7 @@ namespace Chaos
 			EObjectStateType State(RigidHandle->ObjectState());
 			if (State == EObjectStateType::Dynamic || State == EObjectStateType::Sleeping)
 			{
-				RigidHandle->SetX(RigidHandle->P() - Velocity * Modifier->Dt);
+				RigidHandle->SetX(RigidHandle->GetP() - Velocity * Modifier->Dt);
 			}
 		}
 	}
@@ -301,10 +301,10 @@ namespace Chaos
 
 		if (RigidHandle)
 		{
-			return RigidHandle->P();
+			return RigidHandle->GetP();
 		}
 
-		return Particle->X();
+		return Particle->GetX();
 	}
 
 	void FContactPairModifier::UpdateConstraintShapeTransforms()
@@ -331,12 +331,12 @@ namespace Chaos
 
 				if (bMaintainVelocity)
 				{
-					RigidHandle->SetX(RigidHandle->P() - RigidHandle->GetV() * Modifier->Dt);
+					RigidHandle->SetX(RigidHandle->GetP() - RigidHandle->GetV() * Modifier->Dt);
 				}
 				else if(Modifier->Dt > 0.0f)
 				{
 					// Update V to new implicit velocity
-					RigidHandle->SetV((RigidHandle->P() - RigidHandle->X()) / Modifier->Dt);
+					RigidHandle->SetV((RigidHandle->GetP() - RigidHandle->GetX()) / Modifier->Dt);
 				}
 				UpdateConstraintShapeTransforms();
 				return;
@@ -392,16 +392,16 @@ namespace Chaos
 			EObjectStateType State(RigidHandle->ObjectState());
 			if (State == EObjectStateType::Dynamic || State == EObjectStateType::Sleeping)
 			{
-				RigidHandle->SetQ(Rotation);
+				RigidHandle->SetQf(Rotation);
 
 				if (bMaintainVelocity)
 				{
-					RigidHandle->SetR(FRotation3::IntegrateRotationWithAngularVelocity(RigidHandle->GetQ(), -RigidHandle->GetW(), Modifier->Dt));
+					RigidHandle->SetRf(FRotation3f::IntegrateRotationWithAngularVelocity(RigidHandle->GetQf(), -RigidHandle->GetWf(), FRealSingle(Modifier->Dt)));
 				}
 				else if (Modifier->Dt > 0.0f)
 				{
 					// Update W to new implicit velocity
-					RigidHandle->SetW(FRotation3::CalculateAngularVelocity(RigidHandle->GetR(), RigidHandle->GetQ(), Modifier->Dt));
+					RigidHandle->SetWf(FRotation3::CalculateAngularVelocity(RigidHandle->GetRf(), RigidHandle->GetQf(), FRealSingle(Modifier->Dt)));
 				}
 				UpdateConstraintShapeTransforms();
 				return;
@@ -409,8 +409,8 @@ namespace Chaos
 			else
 			{
 				// Kinematic must keep Q/R in sync
-				RigidHandle->SetR(Rotation);
-				RigidHandle->SetQ(Rotation);
+				RigidHandle->SetRf(Rotation);
+				RigidHandle->SetQf(Rotation);
 				UpdateConstraintShapeTransforms();
 				return;
 			}
@@ -419,7 +419,7 @@ namespace Chaos
 		FKinematicGeometryParticleHandle* KinematicHandle = Particle->CastToKinematicParticle();
 		if (KinematicHandle)
 		{
-			KinematicHandle->SetR(Rotation);
+			KinematicHandle->SetRf(Rotation);
 			UpdateConstraintShapeTransforms();
 			return;
 		}

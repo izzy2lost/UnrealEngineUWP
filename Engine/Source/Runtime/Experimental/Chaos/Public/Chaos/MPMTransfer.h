@@ -75,7 +75,7 @@ public:
 			//use physics parallel for:
 			for (int32 p = 0; p < N; p++)
 			{
-				Grid.BaseNodeIndex(InParticles.X(p), Indices[p], Weights[p]);
+				Grid.BaseNodeIndex(InParticles.GetX(p), Indices[p], Weights[p]);
 			}
 
 		}
@@ -173,7 +173,7 @@ public:
 
 	void APICP2G(const int32 p, const int32 GlobIndex, const T mip, const TDynamicParticles<T, 3>& Particles, TArray<T>& GridData)
 	{
-		TVector<T, 3> xi_minus_xp = Grid.Node(GlobIndex) - Particles.X(p);
+		TVector<T, 3> xi_minus_xp = Grid.Node(GlobIndex) - Particles.GetX(p);
 		for (int32 l = 0; l < 3; ++l) 
 		{
 			T vl = T(0);
@@ -337,7 +337,7 @@ public:
 								}
 								else
 								{
-									TVector<T, 3> rip = Grid.Node(GlobIndexFlat) - Particles.X(p);
+									TVector<T, 3> rip = Grid.Node(GlobIndexFlat) - Particles.GetX(p);
 									T NiProdbInv = (T(4) * Ni[0] * Ni[1] * Ni[2]) / (Grid.GetDx()[0] * Grid.GetDx()[0]);
 									for (int32 l = 0; l < 3; l++)
 									{

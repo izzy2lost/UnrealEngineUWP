@@ -59,8 +59,12 @@ class TPBDRigidParticles : public TRigidParticles<T, d>
 		TArrayCollection::AddArray(&MSolverBodyIndex);
 	}
 
+	UE_DEPRECATED(5.4, "Use GetP instead")
 	FORCEINLINE const TVector<T, d>& P(const int32 index) const { return MP[index]; }
+	UE_DEPRECATED(5.4, "Use GetP or SetP instead")
 	FORCEINLINE TVector<T, d>& P(const int32 index) { return MP[index]; }
+	FORCEINLINE const TVector<T, d>& GetP(const int32 index) const { return MP[index]; }
+	FORCEINLINE void SetP(const int32 index, const TVector<T, d>& InP) { MP[index] = InP; }
 
 	UE_DEPRECATED(5.4, "Use GetQ instead")
 	FORCEINLINE const TRotation<T, d> Q(const int32 index) const { return TRotation<T, d>(MQ[index]); }
@@ -90,8 +94,8 @@ class TPBDRigidParticles : public TRigidParticles<T, d>
 	void SetPreWf(const int32 index, const TVector<FRealSingle, d>& InPreW) { MPreW[index] = InPreW; }
 
 	// World-space center of mass location
-	const TVector<T, d> XCom(const int32 index) const { return this->X(index) + this->GetR(index).RotateVector(CenterOfMass(index)); }
-	const TVector<T, d> PCom(const int32 index) const { return this->P(index) + this->GetQ(index).RotateVector(CenterOfMass(index)); }
+	const TVector<T, d> XCom(const int32 index) const { return this->GetX(index) + this->GetR(index).RotateVector(CenterOfMass(index)); }
+	const TVector<T, d> PCom(const int32 index) const { return this->GetP(index) + this->GetQ(index).RotateVector(CenterOfMass(index)); }
 
 	// World-space center of mass rotation
 	const TRotation<T, d> RCom(const int32 index) const { return this->GetR(index) * RotationOfMass(index); }
@@ -99,8 +103,8 @@ class TPBDRigidParticles : public TRigidParticles<T, d>
 
 	void SetTransformPQCom(const int32 index, const TVector<T, d>& InPCom, const TRotation<T, d>& InQCom)
 	{
-		SetQ(index,InQCom * RotationOfMass(index).Inverse());
-		P(index) = InPCom - GetQ(index) * CenterOfMass(index);
+		SetQ(index, InQCom * RotationOfMass(index).Inverse());
+		SetP(index, InPCom - GetQ(index) * CenterOfMass(index));
 	}
 
 	// The index into an FSolverBodyContainer (for dynamic particles only), or INDEX_NONE.
@@ -181,8 +185,8 @@ class TPBDRigidParticles : public TRigidParticles<T, d>
 				1.f / this->I(Index)[1],
 				1.f / this->I(Index)[2]);
 
-			this->P(Index) = this->X(Index);
-			this->SetQ(Index, this->GetR(Index));
+			this->SetP(Index, this->GetX(Index));
+			this->SetQf(Index, this->GetRf(Index));
 		}
 		else if (InObjectState == EObjectStateType::Sleeping)
 		{
@@ -214,7 +218,7 @@ class TPBDRigidParticles : public TRigidParticles<T, d>
 	FString ToString(int32 index) const
 	{
 		FString BaseString = TRigidParticles<T, d>::ToString(index);
-		return FString::Printf(TEXT("%s, MP:%s, MQ:%s, MPreV:%s, MPreW:%s"), *BaseString, *P(index).ToString(), *GetQ(index).ToString(), *GetPreV(index).ToString(), *GetPreW(index).ToString());
+		return FString::Printf(TEXT("%s, MP:%s, MQ:%s, MPreV:%s, MPreW:%s"), *BaseString, *GetP(index).ToString(), *GetQ(index).ToString(), *GetPreV(index).ToString(), *GetPreW(index).ToString());
 	}
 
 	virtual void Serialize(FChaosArchive& Ar) override

@@ -154,7 +154,7 @@ namespace Chaos
 	public:
 
 		using TArrayCollection::Size;
-		using TParticles<T,d>::X;
+		using TParticles<T,d>::GetX;
 		using TSimpleGeometryParticles<T, d>::GetR;
 		using TSimpleGeometryParticles<T, d>::GetGeometry;
 		using TSimpleGeometryParticles<T, d>::SetGeometry;
@@ -320,7 +320,7 @@ namespace Chaos
 				// Update the world-space stat of all the shapes - must be called after UpdateShapesArray
 				// world space inflated bounds needs to take expansion into account - this is done in integrate for dynamics anyway, so
 				// this computation is mainly for statics
-				UpdateWorldSpaceState(Index, TRigidTransform<FReal, 3>(X(Index), GetR(Index)), FVec3(0));
+				UpdateWorldSpaceState(Index, TRigidTransform<FReal, 3>(GetX(Index), GetR(Index)), FVec3(0));
 			}
 		}
 
@@ -587,7 +587,7 @@ public:
 				{
 					for (int32 Idx = 0; Idx < MShapesArray.Num(); ++Idx)
 					{
-						UpdateWorldSpaceState(Idx, FRigidTransform3(X(Idx), GetR(Idx)), FVec3(0));
+						UpdateWorldSpaceState(Idx, FRigidTransform3(GetX(Idx), GetR(Idx)), FVec3(0));
 					}
 				}
 			}
@@ -601,7 +601,7 @@ public:
 					{
 						MLocalBounds[Idx] = TAABB<T, d>(GetGeometry(Idx)->BoundingBox());
 						//ignore velocity too, really just trying to get something reasonable)
-						UpdateWorldSpaceState(Idx, FRigidTransform3(X(Idx), GetR(Idx)), FVec3(0));
+						UpdateWorldSpaceState(Idx, FRigidTransform3(GetX(Idx), GetR(Idx)), FVec3(0));
 					}
 				}
 			}

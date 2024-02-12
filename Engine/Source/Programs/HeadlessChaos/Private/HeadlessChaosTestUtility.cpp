@@ -25,11 +25,11 @@ namespace ChaosTest {
 		InParticles.AddParticles(1);
 		int32 RigidBodyIndex = InParticles.Size() - 1;
 
-		InParticles.X(RigidBodyIndex) = FVec3(0, 0, 0);
+		InParticles.SetX(RigidBodyIndex, FVec3(0, 0, 0));
 		InParticles.SetV(RigidBodyIndex, FVec3(0, 0, 0));
 		InParticles.SetR(RigidBodyIndex, FRotation3::MakeFromEuler(FVec3(0, 0, 0)).GetNormalized());
 		InParticles.SetW(RigidBodyIndex, FVec3(0, 0, 0));
-		InParticles.P(RigidBodyIndex) = InParticles.X(RigidBodyIndex);
+		InParticles.SetP(RigidBodyIndex, InParticles.GetX(RigidBodyIndex));
 		InParticles.SetQ(RigidBodyIndex, InParticles.GetR(RigidBodyIndex));
 
 		InParticles.M(RigidBodyIndex) = 1.0;
@@ -47,11 +47,11 @@ namespace ChaosTest {
 		InParticles.AddParticles(1);
 		int32 RigidBodyIndex = InParticles.Size() - 1;
 
-		InParticles.X(RigidBodyIndex) = FVec3(0, 0, 0);
+		InParticles.SetX(RigidBodyIndex, FVec3(0, 0, 0));
 		InParticles.SetV(RigidBodyIndex, FVec3(0, 0, 0));
 		InParticles.SetR(RigidBodyIndex, FRotation3::MakeFromEuler(FVec3(0, 0, 0)).GetNormalized());
 		InParticles.SetW(RigidBodyIndex, FVec3(0, 0, 0));
-		InParticles.P(RigidBodyIndex) = InParticles.X(RigidBodyIndex);
+		InParticles.SetP(RigidBodyIndex, InParticles.GetX(RigidBodyIndex));
 		InParticles.SetQ(RigidBodyIndex, InParticles.GetR(RigidBodyIndex));
 
 		InParticles.M(RigidBodyIndex) = 1.0;
@@ -66,7 +66,7 @@ namespace ChaosTest {
 
 	void InitAnalyticBox2(FKinematicGeometryParticleHandle* Particle, FVec3 Scale)
 	{
-		Particle->X() = FVec3(0, 0, 0);
+		Particle->SetX(FVec3(0, 0, 0));
 		Particle->SetV(FVec3(0, 0, 0));
 		Particle->SetR(FRotation3::MakeFromEuler(FVec3(0, 0, 0)).GetNormalized());
 		Particle->SetW(FVec3(0, 0, 0));
@@ -75,7 +75,7 @@ namespace ChaosTest {
 		FPBDRigidParticleHandle* DynamicParticle = Particle->CastToRigidParticle();
 		if(DynamicParticle && DynamicParticle->ObjectState() == EObjectStateType::Dynamic)
 		{
-			DynamicParticle->P() = Particle->X();
+			DynamicParticle->SetP(Particle->GetX());
 			DynamicParticle->SetQ(Particle->GetR());
 
 			DynamicParticle->M() = 1.0;
@@ -90,11 +90,11 @@ namespace ChaosTest {
 		InParticles.AddParticles(1);
 		int32 RigidBodyIndex = InParticles.Size() - 1;
 
-		InParticles.X(RigidBodyIndex) = FVec3(0, 0, 0);
+		InParticles.SetX(RigidBodyIndex, FVec3(0, 0, 0));
 		InParticles.SetV(RigidBodyIndex, FVec3(0, 0, 0));
 		InParticles.SetR(RigidBodyIndex, FRotation3::MakeFromEuler(FVec3(0, 0, 0)).GetNormalized());
 		InParticles.SetW(RigidBodyIndex, FVec3(0, 0, 0));
-		InParticles.P(RigidBodyIndex) = InParticles.X(RigidBodyIndex);
+		InParticles.SetP(RigidBodyIndex, InParticles.GetX(RigidBodyIndex));
 		InParticles.SetQ(RigidBodyIndex, InParticles.GetR(RigidBodyIndex));
 
 		check(Scale.X == Scale.Y && Scale.X == Scale.Z);
@@ -109,14 +109,14 @@ namespace ChaosTest {
 		int32 CollisionIndex = 0;
 		InParticles.CollisionParticlesInitIfNeeded(RigidBodyIndex);
 		InParticles.CollisionParticles(RigidBodyIndex)->AddParticles(8);
-		InParticles.CollisionParticles(RigidBodyIndex)->X(CollisionIndex++) = FVec3(-Scale[0] / 2.0, -Scale[1] / 2.0, -Scale[2] / 2.0);
-		InParticles.CollisionParticles(RigidBodyIndex)->X(CollisionIndex++) = FVec3(+Scale[0] / 2.0, -Scale[1] / 2.0, -Scale[2] / 2.0);
-		InParticles.CollisionParticles(RigidBodyIndex)->X(CollisionIndex++) = FVec3(-Scale[0] / 2.0, +Scale[1] / 2.0, -Scale[2] / 2.0);
-		InParticles.CollisionParticles(RigidBodyIndex)->X(CollisionIndex++) = FVec3(+Scale[0] / 2.0, +Scale[1] / 2.0, -Scale[2] / 2.0);
-		InParticles.CollisionParticles(RigidBodyIndex)->X(CollisionIndex++) = FVec3(-Scale[0] / 2.0, -Scale[1] / 2.0, +Scale[2] / 2.0);
-		InParticles.CollisionParticles(RigidBodyIndex)->X(CollisionIndex++) = FVec3(+Scale[0] / 2.0, -Scale[1] / 2.0, +Scale[2] / 2.0);
-		InParticles.CollisionParticles(RigidBodyIndex)->X(CollisionIndex++) = FVec3(-Scale[0] / 2.0, +Scale[1] / 2.0, +Scale[2] / 2.0);
-		InParticles.CollisionParticles(RigidBodyIndex)->X(CollisionIndex++) = FVec3(+Scale[0] / 2.0, +Scale[1] / 2.0, +Scale[2] / 2.0);
+		InParticles.CollisionParticles(RigidBodyIndex)->SetX(CollisionIndex++, FVec3(-Scale[0] / 2.0, -Scale[1] / 2.0, -Scale[2] / 2.0));
+		InParticles.CollisionParticles(RigidBodyIndex)->SetX(CollisionIndex++, FVec3(+Scale[0] / 2.0, -Scale[1] / 2.0, -Scale[2] / 2.0));
+		InParticles.CollisionParticles(RigidBodyIndex)->SetX(CollisionIndex++, FVec3(-Scale[0] / 2.0, +Scale[1] / 2.0, -Scale[2] / 2.0));
+		InParticles.CollisionParticles(RigidBodyIndex)->SetX(CollisionIndex++, FVec3(+Scale[0] / 2.0, +Scale[1] / 2.0, -Scale[2] / 2.0));
+		InParticles.CollisionParticles(RigidBodyIndex)->SetX(CollisionIndex++, FVec3(-Scale[0] / 2.0, -Scale[1] / 2.0, +Scale[2] / 2.0));
+		InParticles.CollisionParticles(RigidBodyIndex)->SetX(CollisionIndex++, FVec3(+Scale[0] / 2.0, -Scale[1] / 2.0, +Scale[2] / 2.0));
+		InParticles.CollisionParticles(RigidBodyIndex)->SetX(CollisionIndex++, FVec3(-Scale[0] / 2.0, +Scale[1] / 2.0, +Scale[2] / 2.0));
+		InParticles.CollisionParticles(RigidBodyIndex)->SetX(CollisionIndex++, FVec3(+Scale[0] / 2.0, +Scale[1] / 2.0, +Scale[2] / 2.0));
 
 		if (elements != nullptr)
 		{
@@ -156,12 +156,12 @@ namespace ChaosTest {
 
 	void InitDynamicParticleBox2(FPBDRigidParticleHandle* Particle, const FVec3& Scale, FReal Margin, TArray<TVector<int32, 3>>* OutElements)
 	{
-		Particle->X() = FVec3(0, 0, 0);
+		Particle->SetX(FVec3(0, 0, 0));
 		Particle->SetV(FVec3(0, 0, 0));
 		Particle->SetR(FRotation3::MakeFromEuler(FVec3(0, 0, 0)).GetNormalized());
 		Particle->SetW(FVec3(0, 0, 0));
 
-		Particle->P() = Particle->X();
+		Particle->SetP(Particle->GetX());
 		Particle->SetQ(Particle->GetR());
 
 		// Assume unit mass - this gets scaled externally by the actual mass
@@ -176,14 +176,14 @@ namespace ChaosTest {
 		int32 CollisionIndex = 0;
 		Particle->CollisionParticlesInitIfNeeded();
 		Particle->CollisionParticles()->AddParticles(8);
-		Particle->CollisionParticles()->X(CollisionIndex++) = FVec3(-Scale[0] / 2.0, -Scale[1] / 2.0, -Scale[2] / 2.0);
-		Particle->CollisionParticles()->X(CollisionIndex++) = FVec3(+Scale[0] / 2.0, -Scale[1] / 2.0, -Scale[2] / 2.0);
-		Particle->CollisionParticles()->X(CollisionIndex++) = FVec3(-Scale[0] / 2.0, +Scale[1] / 2.0, -Scale[2] / 2.0);
-		Particle->CollisionParticles()->X(CollisionIndex++) = FVec3(+Scale[0] / 2.0, +Scale[1] / 2.0, -Scale[2] / 2.0);
-		Particle->CollisionParticles()->X(CollisionIndex++) = FVec3(-Scale[0] / 2.0, -Scale[1] / 2.0, +Scale[2] / 2.0);
-		Particle->CollisionParticles()->X(CollisionIndex++) = FVec3(+Scale[0] / 2.0, -Scale[1] / 2.0, +Scale[2] / 2.0);
-		Particle->CollisionParticles()->X(CollisionIndex++) = FVec3(-Scale[0] / 2.0, +Scale[1] / 2.0, +Scale[2] / 2.0);
-		Particle->CollisionParticles()->X(CollisionIndex++) = FVec3(+Scale[0] / 2.0, +Scale[1] / 2.0, +Scale[2] / 2.0);
+		Particle->CollisionParticles()->SetX(CollisionIndex++, FVec3(-Scale[0] / 2.0, -Scale[1] / 2.0, -Scale[2] / 2.0));
+		Particle->CollisionParticles()->SetX(CollisionIndex++, FVec3(+Scale[0] / 2.0, -Scale[1] / 2.0, -Scale[2] / 2.0));
+		Particle->CollisionParticles()->SetX(CollisionIndex++, FVec3(-Scale[0] / 2.0, +Scale[1] / 2.0, -Scale[2] / 2.0));
+		Particle->CollisionParticles()->SetX(CollisionIndex++, FVec3(+Scale[0] / 2.0, +Scale[1] / 2.0, -Scale[2] / 2.0));
+		Particle->CollisionParticles()->SetX(CollisionIndex++, FVec3(-Scale[0] / 2.0, -Scale[1] / 2.0, +Scale[2] / 2.0));
+		Particle->CollisionParticles()->SetX(CollisionIndex++, FVec3(+Scale[0] / 2.0, -Scale[1] / 2.0, +Scale[2] / 2.0));
+		Particle->CollisionParticles()->SetX(CollisionIndex++, FVec3(-Scale[0] / 2.0, +Scale[1] / 2.0, +Scale[2] / 2.0));
+		Particle->CollisionParticles()->SetX(CollisionIndex++, FVec3(+Scale[0] / 2.0, +Scale[1] / 2.0, +Scale[2] / 2.0));
 
 		Particle->SetLocalBounds(Particle->GetGeometry()->BoundingBox());
 		Particle->UpdateWorldSpaceState(FRigidTransform3::Identity, FVec3(0));
@@ -227,12 +227,12 @@ namespace ChaosTest {
 
 	void InitDynamicParticleSphere2(FPBDRigidParticleHandle* Particle, const FVec3& Scale, TArray<TVec3<int32>>* OutElements) 
 	{
-		Particle->X() = FVec3(0, 0, 0);
+		Particle->SetX(FVec3(0, 0, 0));
 		Particle->SetV(FVec3(0, 0, 0));
 		Particle->SetR(FRotation3::MakeFromEuler(FVec3(0, 0, 0)).GetNormalized());
 		Particle->SetW(FVec3(0, 0, 0));
 
-		Particle->P() = Particle->X();
+		Particle->SetP(Particle->GetX());
 		Particle->SetQ(Particle->GetR());
 
 		check(Scale.X == Scale.Y && Scale.X == Scale.Z);
@@ -248,12 +248,12 @@ namespace ChaosTest {
 		Particle->CollisionParticlesInitIfNeeded();
 		Particle->CollisionParticles()->AddParticles(6);
 
-		Particle->CollisionParticles()->X(CollisionIndex++) = FVec3(-Scale[0] / 2.0, 0, 0);
-		Particle->CollisionParticles()->X(CollisionIndex++) = FVec3(+Scale[0] / 2.0, 0, 0);
-		Particle->CollisionParticles()->X(CollisionIndex++) = FVec3(0, -Scale[1] / 2.0, 0);
-		Particle->CollisionParticles()->X(CollisionIndex++) = FVec3(0, +Scale[1] / 2.0, 0);
-		Particle->CollisionParticles()->X(CollisionIndex++) = FVec3(0, 0, -Scale[2] / 2.0);
-		Particle->CollisionParticles()->X(CollisionIndex++) = FVec3(0, 0, +Scale[2] / 2.0);
+		Particle->CollisionParticles()->SetX(CollisionIndex++, FVec3(-Scale[0] / 2.0, 0, 0));
+		Particle->CollisionParticles()->SetX(CollisionIndex++, FVec3(+Scale[0] / 2.0, 0, 0));
+		Particle->CollisionParticles()->SetX(CollisionIndex++, FVec3(0, -Scale[1] / 2.0, 0));
+		Particle->CollisionParticles()->SetX(CollisionIndex++, FVec3(0, +Scale[1] / 2.0, 0));
+		Particle->CollisionParticles()->SetX(CollisionIndex++, FVec3(0, 0, -Scale[2] / 2.0));
+		Particle->CollisionParticles()->SetX(CollisionIndex++, FVec3(0, 0, +Scale[2] / 2.0));
 
 		if (OutElements != nullptr)
 		{
@@ -290,12 +290,12 @@ namespace ChaosTest {
 
 	void InitDynamicParticleCylinder2(FPBDRigidParticleHandle* Particle, const FVec3& Scale, TArray<TVec3<int32>>* OutElements, bool Tapered) 
 	{
-		Particle->X() = FVec3(0, 0, 0);
+		Particle->SetX(FVec3(0, 0, 0));
 		Particle->SetV(FVec3(0, 0, 0));
 		Particle->SetR(FRotation3::MakeFromEuler(FVec3(0, 0, 0)).GetNormalized());
 		Particle->SetW(FVec3(0, 0, 0));
 
-		Particle->P() = Particle->X();
+		Particle->SetP(Particle->GetX());
 		Particle->SetQ(Particle->GetR());
 
 		check(Scale.X == Scale.Y && Scale.X == Scale.Z);
@@ -318,14 +318,14 @@ namespace ChaosTest {
 		Particle->CollisionParticlesInitIfNeeded();
 		Particle->CollisionParticles()->AddParticles(8);
 
-		Particle->CollisionParticles()->X(CollisionIndex++) = FVec3(-Scale[0] / 2.0, 0, +Scale[2] / 2.0);
-		Particle->CollisionParticles()->X(CollisionIndex++) = FVec3(-Scale[0] / 2.0, 0, -Scale[2] / 2.0);
-		Particle->CollisionParticles()->X(CollisionIndex++) = FVec3(+Scale[0] / 2.0, 0, +Scale[2] / 2.0);
-		Particle->CollisionParticles()->X(CollisionIndex++) = FVec3(+Scale[0] / 2.0, 0, -Scale[2] / 2.0);
-		Particle->CollisionParticles()->X(CollisionIndex++) = FVec3(0, -Scale[1] / 2.0, +Scale[2] / 2.0);
-		Particle->CollisionParticles()->X(CollisionIndex++) = FVec3(0, -Scale[1] / 2.0, -Scale[2] / 2.0);
-		Particle->CollisionParticles()->X(CollisionIndex++) = FVec3(0, +Scale[1] / 2.0, +Scale[2] / 2.0);
-		Particle->CollisionParticles()->X(CollisionIndex++) = FVec3(0, +Scale[1] / 2.0, -Scale[2] / 2.0);
+		Particle->CollisionParticles()->SetX(CollisionIndex++, FVec3(-Scale[0] / 2.0, 0, +Scale[2] / 2.0));
+		Particle->CollisionParticles()->SetX(CollisionIndex++, FVec3(-Scale[0] / 2.0, 0, -Scale[2] / 2.0));
+		Particle->CollisionParticles()->SetX(CollisionIndex++, FVec3(+Scale[0] / 2.0, 0, +Scale[2] / 2.0));
+		Particle->CollisionParticles()->SetX(CollisionIndex++, FVec3(+Scale[0] / 2.0, 0, -Scale[2] / 2.0));
+		Particle->CollisionParticles()->SetX(CollisionIndex++, FVec3(0, -Scale[1] / 2.0, +Scale[2] / 2.0));
+		Particle->CollisionParticles()->SetX(CollisionIndex++, FVec3(0, -Scale[1] / 2.0, -Scale[2] / 2.0));
+		Particle->CollisionParticles()->SetX(CollisionIndex++, FVec3(0, +Scale[1] / 2.0, +Scale[2] / 2.0));
+		Particle->CollisionParticles()->SetX(CollisionIndex++, FVec3(0, +Scale[1] / 2.0, -Scale[2] / 2.0));
 
 		if (OutElements != nullptr)
 		{
@@ -405,7 +405,7 @@ namespace ChaosTest {
 
 	void InitStaticParticleBox(FGeometryParticleHandle* Particle, const FVec3& Scale, TArray<TVec3<int32>>* OutElements)
 	{
-		Particle->X() = FVec3(0, 0, 0);
+		Particle->SetX(FVec3(0, 0, 0));
 		Particle->SetR(FRotation3::FromIdentity());
 
 		FReal ScaleSq = Scale.X * Scale.X;
@@ -465,7 +465,7 @@ namespace ChaosTest {
 		InParticles.AddParticles(1);
 		int32 RigidBodyIndex = InParticles.Size() - 1;
 
-		InParticles.X(RigidBodyIndex) = FVec3(0, 0, 0);
+		InParticles.SetX(RigidBodyIndex, FVec3(0, 0, 0));
 		InParticles.SetV(RigidBodyIndex, FVec3(0, 0, 0));
 		InParticles.SetR(RigidBodyIndex, FRotation3::MakeFromEuler(FVec3(0, 0, 0)).GetNormalized());
 		InParticles.SetW(RigidBodyIndex, FVec3(0, 0, 0));
@@ -476,7 +476,7 @@ namespace ChaosTest {
 		InParticles.SetGeometry(RigidBodyIndex, MakeImplicitObjectPtr<TPlane<FReal, 3>>(FVec3(0, 0, 0), FVec3(0, 0, 1)));
 		InParticles.SetObjectState(RigidBodyIndex, EObjectStateType::Kinematic);
 
-		InParticles.P(RigidBodyIndex) = InParticles.X(RigidBodyIndex);
+		InParticles.SetP(RigidBodyIndex, InParticles.GetX(RigidBodyIndex));
 		InParticles.SetQ(RigidBodyIndex, InParticles.GetR(RigidBodyIndex));
 
 		return RigidBodyIndex;
@@ -487,7 +487,7 @@ namespace ChaosTest {
 		TArray<FKinematicGeometryParticleHandle*> Particles = SOAs.CreateKinematicParticles(1);
 		FKinematicGeometryParticleHandle* Particle = Particles[0];
 
-		Particle->X() = FVec3(0, 0, 0);
+		Particle->SetX(FVec3(0, 0, 0));
 		Particle->SetV(FVec3(0, 0, 0));
 		Particle->SetR(FRotation3::MakeFromEuler(FVec3(0, 0, 0)).GetNormalized());
 		Particle->SetW(FVec3(0, 0, 0));
@@ -535,7 +535,7 @@ namespace ChaosTest {
 		Chaos::FAABB3 BoundingBox(FVec3(0), FVec3(0));
 		for (int32 CollisionParticleIndex = 0; CollisionParticleIndex < (int32)SurfaceParticles.Size(); CollisionParticleIndex++)
 		{
-			BoundingBox.GrowToInclude(SurfaceParticles.X(CollisionParticleIndex));
+			BoundingBox.GrowToInclude(SurfaceParticles.GetX(CollisionParticleIndex));
 		}
 
 		// build cell domain
@@ -570,11 +570,11 @@ namespace ChaosTest {
 		Cube[7] = FConvex::FVec3Type{ 1, 1, 1 } * ScaleFloat;
 		Cube[8] = FConvex::FVec3Type{ 0, 0, 0 };
 
-		InParticles.X() = FVec3(0, 0, 0);
+		InParticles.SetX(FVec3(0, 0, 0));
 		InParticles.SetV(FVec3(0, 0, 0));
 		InParticles.SetR(FRotation3::MakeFromEuler(FVec3(0, 0, 0)).GetNormalized());
 		InParticles.SetW(FVec3(0, 0, 0));
-		InParticles.P() = InParticles.X();
+		InParticles.SetP(InParticles.GetX());
 		InParticles.SetQ(InParticles.GetR());
 
 		// TODO: Change this error prone API to set bounds more automatically. This is easy to forget
@@ -614,23 +614,23 @@ namespace ChaosTest {
 	/**/
 	FVec3 ObjectSpacePoint(FPBDRigidParticles& InParticles, const int32 Index, const FVec3& WorldSpacePoint)
 	{
-		FRigidTransform3 LocalToWorld(InParticles.X(Index), InParticles.GetR(Index));
+		FRigidTransform3 LocalToWorld(InParticles.GetX(Index), InParticles.GetR(Index));
 		return LocalToWorld.InverseTransformPosition(WorldSpacePoint);
 	}
 
 	FVec3 ObjectSpacePoint(FGeometryParticleHandle& Particle, const FVec3& WorldSpacePoint)
 	{
-		FRigidTransform3 LocalToWorld(Particle.X(), Particle.GetR());
+		FRigidTransform3 LocalToWorld(Particle.GetX(), Particle.GetR());
 		return LocalToWorld.InverseTransformPosition(WorldSpacePoint);
 	}
 
 	/**/
 	FReal PhiWithNormal(FPBDRigidParticles& InParticles, const int32 Index, const FVec3& WorldSpacePoint, FVec3& Normal)
 	{
-		FRigidTransform3(InParticles.X(Index), InParticles.GetR(Index));
+		FRigidTransform3(InParticles.GetX(Index), InParticles.GetR(Index));
 		FVec3 BodySpacePoint = ObjectSpacePoint(InParticles, Index, WorldSpacePoint);
 		FReal LocalPhi = InParticles.GetGeometry(Index)->PhiWithNormal(BodySpacePoint, Normal);
-		Normal = FRigidTransform3(InParticles.X(Index), InParticles.GetR(Index)).TransformVector(Normal);
+		Normal = FRigidTransform3(InParticles.GetX(Index), InParticles.GetR(Index)).TransformVector(Normal);
 		return LocalPhi;
 	}
 
@@ -644,10 +644,10 @@ namespace ChaosTest {
 	/**/
 	FReal PhiWithNormal(FGeometryParticleHandle& Particle, const FVec3& WorldSpacePoint, FVec3& Normal)
 	{
-		FRigidTransform3(Particle.X(), Particle.GetR());
+		FRigidTransform3(Particle.GetX(), Particle.GetR());
 		FVec3 BodySpacePoint = ObjectSpacePoint(Particle, WorldSpacePoint);
 		FReal LocalPhi = Particle.GetGeometry()->PhiWithNormal(BodySpacePoint, Normal);
-		Normal = FRigidTransform3(Particle.X(), Particle.GetR()).TransformVector(Normal);
+		Normal = FRigidTransform3(Particle.GetX(), Particle.GetR()).TransformVector(Normal);
 		return LocalPhi;
 	}
 

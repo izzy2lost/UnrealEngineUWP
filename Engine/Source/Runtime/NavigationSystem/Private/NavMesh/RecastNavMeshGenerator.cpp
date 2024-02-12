@@ -384,7 +384,7 @@ void ExportChaosTriMesh(const Chaos::FTriangleMeshImplicitObject* const TriMesh,
 		{
 			for (int32 i = 0; i < 3; i++)
 			{
-				const FVector UnrealCoords = LocalToWorld.TransformPosition((FVector)Vertices.X(Triangles[TriIdx][i]));
+				const FVector UnrealCoords = LocalToWorld.TransformPosition((FVector)Vertices.GetX(Triangles[TriIdx][i]));
 				UnrealBounds += UnrealCoords;
 
 				VertexBuffer.Add(UnrealCoords.X);

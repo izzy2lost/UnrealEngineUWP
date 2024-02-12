@@ -215,10 +215,10 @@ void FXPBDBendingConstraints::ApplyHelper(SolverParticlesOrRange& Particles, con
 	const FSolverReal Angle = CalcAngle(Particles.P(Index1), Particles.P(Index2), Particles.P(Index3), Particles.P(Index4));
 	const TStaticArray<FSolverVec3, 4> Grads = Base::GetGradients(Particles, ConstraintIndex);
 
-	const FSolverVec3 V1TimesDt = Particles.P(Index1) - Particles.X(Index1);
-	const FSolverVec3 V2TimesDt = Particles.P(Index2) - Particles.X(Index2);
-	const FSolverVec3 V3TimesDt = Particles.P(Index3) - Particles.X(Index3);
-	const FSolverVec3 V4TimesDt = Particles.P(Index4) - Particles.X(Index4);
+	const FSolverVec3 V1TimesDt = Particles.P(Index1) - Particles.GetX(Index1);
+	const FSolverVec3 V2TimesDt = Particles.P(Index2) - Particles.GetX(Index2);
+	const FSolverVec3 V3TimesDt = Particles.P(Index3) - Particles.GetX(Index3);
+	const FSolverVec3 V4TimesDt = Particles.P(Index4) - Particles.GetX(Index4);
 
 	FSolverReal& Lambda = bDampingOnly ? LambdasDamping[ConstraintIndex] : Lambdas[ConstraintIndex];
 	const FSolverReal AlphaInv = bDampingOnly ? (FSolverReal)0.f : BiphasicStiffnessValue * Dt * Dt;

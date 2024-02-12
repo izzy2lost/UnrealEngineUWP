@@ -1170,7 +1170,7 @@ namespace Chaos
 		// Record removal for event generation
 		FRemovalData& Removal = MAllRemovals.AddDefaulted_GetRef();
 		Removal.Proxy = Particle->PhysicsProxy();
-		Removal.Location = Particle->X();
+		Removal.Location = Particle->GetX();
 		
 		if (Chaos::FPBDRigidParticleHandle* RigidParticle = Particle->CastToRigidParticle())
 		{
@@ -1230,8 +1230,8 @@ namespace Chaos
 			{
 				Data = &TestModeData.Add(Rigid);
 			}
-			Data->X = Rigid->X();
-			Data->P = Rigid->P();
+			Data->X = Rigid->GetX();
+			Data->P = Rigid->GetP();
 			Data->R = Rigid->GetR();
 			Data->Q = Rigid->GetQ();
 			Data->V = Rigid->GetV();
@@ -1273,8 +1273,8 @@ namespace Chaos
 			FTestModeParticleData* Data = TestModeData.Find(Rigid);
 			if (Data != nullptr)
 			{
-				Rigid->X() = Data->X;
-				Rigid->P() = Data->P;
+				Rigid->SetX(Data->X);
+				Rigid->SetP(Data->P);
 				Rigid->SetR(Data->R);
 				Rigid->SetQ(Data->Q);
 				Rigid->SetV(Data->V);

@@ -557,11 +557,11 @@ namespace Chaos
 	{
 		FPBDJointSettings JointSettings;
 		JointSettings.ConnectorTransforms[0] = FRigidTransform3(
-			WorldConstraintFrame.GetTranslation() - InConstrainedParticles[0]->X(),
+			WorldConstraintFrame.GetTranslation() - InConstrainedParticles[0]->GetX(),
 			WorldConstraintFrame.GetRotation() * InConstrainedParticles[0]->GetR().Inverse()
 			);
 		JointSettings.ConnectorTransforms[1] = FRigidTransform3(
-			WorldConstraintFrame.GetTranslation() - InConstrainedParticles[1]->X(),
+			WorldConstraintFrame.GetTranslation() - InConstrainedParticles[1]->GetX(),
 			WorldConstraintFrame.GetRotation() * InConstrainedParticles[1]->GetR().Inverse()
 			);
 		return AddConstraint(InConstrainedParticles, JointSettings);

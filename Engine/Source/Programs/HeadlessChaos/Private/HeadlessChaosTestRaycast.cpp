@@ -350,9 +350,9 @@ namespace ChaosTest
 
 		FTriangleMeshImplicitObject::ParticlesType Particles;
 		Particles.AddParticles(3);
-		Particles.X(0) = FVec3(1, 1, 1);
-		Particles.X(1) = FVec3(5, 1, 1);
-		Particles.X(2) = FVec3(1, 5, 1);
+		Particles.SetX(0, FVec3(1, 1, 1));
+		Particles.SetX(1, FVec3(5, 1, 1));
+		Particles.SetX(2, FVec3(1, 5, 1));
 		TArray<TVec3<int32>> Indices;
 		Indices.Emplace(0, 1, 2);
 		FTriangleMeshImplicitObject Tri(MoveTemp(Particles), MoveTemp(Indices), MoveTemp(DummyMaterials));
@@ -441,9 +441,9 @@ namespace ChaosTest
 
 		FTriangleMeshImplicitObject::ParticlesType Particles;
 		Particles.AddParticles(3);
-		Particles.X(0) = FVec3(1, 1, 1);
-		Particles.X(1) = FVec3(1, 1, 2);
-		Particles.X(2) = FVec3(1, 1, 3);
+		Particles.SetX(0, FVec3(1, 1, 1));
+		Particles.SetX(1, FVec3(1, 1, 2));
+		Particles.SetX(2, FVec3(1, 1, 3));
 		TArray<TVec3<int32>> Indices;
 		Indices.Emplace(0, 1, 2);
 		FTriangleMeshImplicitObject Tri(MoveTemp(Particles), MoveTemp(Indices), MoveTemp(DummyMaterials));

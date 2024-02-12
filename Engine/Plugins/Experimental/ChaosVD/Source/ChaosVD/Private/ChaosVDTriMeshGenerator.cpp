@@ -15,7 +15,7 @@ void FChaosVDTriMeshGenerator::GenerateFromTriMesh(const Chaos::FTriangleMeshImp
 	// Fill the vertex buffer with the transformed vertices of the TriMesh Shape
 	for (int32 i = 0; i < NumVertices; i++)
 	{
-		Vertices[i] = FVector3d(UE::Math::TVector<double>(InTriMesh.Particles().X(i)));
+		Vertices[i] = FVector3d(UE::Math::TVector<double>(InTriMesh.Particles().GetX(i)));
 	}
 
 	const Chaos::FTrimeshIndexBuffer& IdxBuffer = InTriMesh.Elements();

@@ -236,7 +236,7 @@ namespace Chaos::Softs
 
 			ParticlePosition -= InStiffness * (ParticlePosition - AnimPosition);
 
-			const FSolverVec3 ParticleDisplacement = ParticlePosition - Particles.X(ParticleIndex);
+			const FSolverVec3 ParticleDisplacement = ParticlePosition - Particles.GetX(ParticleIndex);
 			const FSolverVec3 AnimationDisplacement = (AnimVelocity) * Dt;
 			const FSolverVec3 RelativeDisplacement = ParticleDisplacement - AnimationDisplacement;
 

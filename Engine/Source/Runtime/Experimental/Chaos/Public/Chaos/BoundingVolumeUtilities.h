@@ -167,14 +167,14 @@ template<class T, int d>
 TAABB<T, d> ComputeWorldSpaceBoundingBox(const TParticles<T, d>& Objects, const int32 i, bool bUseVelocity = false, T Dt = 0)
 {
 	ensure(!bUseVelocity);
-	return TAABB<T, d>(Objects.X(i), Objects.X(i));
+	return TAABB<T, d>(Objects.GetX(i), Objects.GetX(i));
 }
 
 template<class T, int d>
 TAABB<T, d> ComputeWorldSpaceBoundingBox(const TGeometryParticles<T, d>& Objects, const int32 i, bool bUseVelocity = false, T Dt = 0)
 {
 	ensure(!bUseVelocity);
-	TRigidTransform<T, d> LocalToWorld(Objects.X(i), Objects.GetR(i));
+	TRigidTransform<T, d> LocalToWorld(Objects.GetX(i), Objects.GetR(i));
 	const auto& LocalBoundingBox = Objects.GetGeometry(i)->BoundingBox();
 	return LocalBoundingBox.TransformedAABB(LocalToWorld);
 }
@@ -182,7 +182,7 @@ TAABB<T, d> ComputeWorldSpaceBoundingBox(const TGeometryParticles<T, d>& Objects
 template<class T, int d>
 TAABB<T, d> ComputeWorldSpaceBoundingBox(const TPBDRigidParticles<T, d>& Objects, const int32 i, bool bUseVelocity = false, T Dt = 0)
 {
-	TRigidTransform<T, d> LocalToWorld(Objects.P(i), Objects.GetQ(i));
+	TRigidTransform<T, d> LocalToWorld(Objects.GetP(i), Objects.GetQ(i));
 	TAABB<T, d> WorldSpaceBox;
 	if (Objects.GetGeometry(i))
 	{
@@ -192,10 +192,10 @@ TAABB<T, d> ComputeWorldSpaceBoundingBox(const TPBDRigidParticles<T, d>& Objects
 	else
 	{
 		check(Objects.CollisionParticles(i) && Objects.CollisionParticles(i)->Size());
-		TAABB<T, d> LocalBoundingBox(Objects.CollisionParticles(i)->X(0), Objects.CollisionParticles(i)->X(0));
+		TAABB<T, d> LocalBoundingBox(Objects.CollisionParticles(i)->GetX(0), Objects.CollisionParticles(i)->GetX(0));
 		for (uint32 j = 1; j < Objects.CollisionParticles(i)->Size(); ++j)
 		{
-			LocalBoundingBox.GrowToInclude(Objects.CollisionParticles(i)->X(j));
+			LocalBoundingBox.GrowToInclude(Objects.CollisionParticles(i)->GetX(j));
 		}
 		WorldSpaceBox = LocalBoundingBox.TransformedAABB(LocalToWorld);
 	}

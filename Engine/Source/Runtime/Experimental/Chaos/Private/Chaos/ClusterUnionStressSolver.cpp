@@ -44,7 +44,7 @@ namespace Chaos
 
 		// todo(chaos) : change this logic to be less hacky and be able to handle dynamic structures 
 		//				 we could also look for contact point and joints that cause reaction to the 
-		return (Particle->IsKinematic() && Particle->X().Z < 200.0);
+		return (Particle->IsKinematic() && Particle->GetX().Z < 200.0);
 	}
 
 	void FClusterUnionStressSolver::FNode::AddMassContribution(double MassRatio, const FVec3& CenterOfMass)

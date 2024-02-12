@@ -1521,7 +1521,7 @@ namespace ChaosTest
 
 		Evolution.SetPhysicsMaterial(Dynamic, MakeSerializable(PhysicsMaterial));
 
-		Dynamic->X() = FVec3(10, 10, 20);
+		Dynamic->SetX(FVec3(10, 10, 20));
 		Dynamic->M() = BodyMass;
 		Dynamic->InvM() = 1.0f / BodyMass;
 		Dynamic->I() = TVec3<FRealSingle>(100000.0f);
@@ -1534,7 +1534,7 @@ namespace ChaosTest
 		for (int i = 0; i < 500; ++i)
 		{
 			// latest body transform
-			const FTransform BodyTM(Dynamic->GetR(), Dynamic->X());
+			const FTransform BodyTM(Dynamic->GetR(), Dynamic->GetX());
 
 			for (int SpringIdx = 0; SpringIdx < 4; SpringIdx++)
 			{
@@ -1569,7 +1569,7 @@ namespace ChaosTest
 
 		float Tolerance = 0.5f; // half cm
 		float ExpectedRestingPosition = (10.f + PlaneZPos + WheelRadius);
-		EXPECT_LT(Dynamic->X().Z - ExpectedRestingPosition, Tolerance);
+		EXPECT_LT(Dynamic->GetX().Z - ExpectedRestingPosition, Tolerance);
 	}
 
 	GTEST_TEST(AllTraits, VehicleTest_WheelAcceleratingLongitudinalSlip_VaryingDelta)

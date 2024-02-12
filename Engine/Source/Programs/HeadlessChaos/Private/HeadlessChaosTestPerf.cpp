@@ -26,7 +26,7 @@ namespace ChaosTest {
 	Chaos::FGeometryParticleHandle* AddFloor(TEvolution& Evolution)
 	{
 		auto Static = Evolution.CreateStaticParticles(1)[0];
-		Static->X() = FVec3(0, 0, 0);
+		Static->SetX(FVec3(0, 0, 0));
 		Static->SetGeometry(MakeImplicitObjectPtr<TPlane<FReal, 3>>(FVec3(0, 0, 0), FVec3(0, 0, 1)));
 		return Static;
 	}
@@ -86,7 +86,7 @@ namespace ChaosTest {
 			{
 				auto BoxDynamic = DynamicParticles[DynamicParticleIndex++];
 				BoxDynamic->SetGeometry(Box);
-				BoxDynamic->X() = Offset + FVec3(x * Interval, y * Interval, Height);
+				BoxDynamic->SetX(Offset + FVec3(x * Interval, y * Interval, Height));
 				BoxDynamic->I() = TVec3<FRealSingle>(100000.);
 				BoxDynamic->InvI() = TVec3<FRealSingle>(1. / 100000.);
 				Evolution.SetPhysicsMaterial(BoxDynamic, Material);
@@ -94,7 +94,7 @@ namespace ChaosTest {
 
 				auto SphereDynamic = DynamicParticles[DynamicParticleIndex++];
 				SphereDynamic->SetGeometry(Sphere);
-				SphereDynamic->X() = Offset + FVec3(x * Interval, y * Interval, Height * (FReal)0.5);
+				SphereDynamic->SetX(Offset + FVec3(x * Interval, y * Interval, Height * (FReal)0.5));
 				SphereDynamic->I() = TVec3<FRealSingle>(100000.);
 				SphereDynamic->InvI() = TVec3<FRealSingle>(1. / 100000.);
 				Evolution.SetPhysicsMaterial(SphereDynamic, Material);

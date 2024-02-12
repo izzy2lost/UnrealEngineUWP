@@ -271,9 +271,9 @@ namespace Chaos
 			const int32 Idx = Particles.Size();
 			Particles.AddParticles(3);
 			// Left handed
-			Particles.X(Idx + 0) = FVec3((T)0., (T)0., (T)0.8083);
-			Particles.X(Idx + 1) = FVec3((T)0., (T)0.7, (T)-0.4041);
-			Particles.X(Idx + 2) = FVec3((T)0., (T)-0.7, (T)-0.4041);
+			Particles.SetX(Idx + 0, FVec3((T)0., (T)0., (T)0.8083));
+			Particles.SetX(Idx + 1, FVec3((T)0., (T)0.7, (T)-0.4041));
+			Particles.SetX(Idx + 2, FVec3((T)0., (T)-0.7, (T)-0.4041));
 
 			TArray<TVec3<int32>> Elements;
 			Elements.SetNum(1);

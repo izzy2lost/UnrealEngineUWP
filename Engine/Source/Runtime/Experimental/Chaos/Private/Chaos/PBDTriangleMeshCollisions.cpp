@@ -53,8 +53,8 @@ static void FindEdgeFaceIntersections(const FTriangleMesh& TriangleMesh, const T
 
 			const int32 EdgePointIndex0 = SegmentMesh.GetElements()[EdgeIndex][0];
 			const int32 EdgePointIndex1 = SegmentMesh.GetElements()[EdgeIndex][1];
-			const FSolverVec3& EdgePosition0 = Particles.X(EdgePointIndex0);
-			const FSolverVec3& EdgePosition1 = Particles.X(EdgePointIndex1);
+			const FSolverVec3& EdgePosition0 = Particles.GetX(EdgePointIndex0);
+			const FSolverVec3& EdgePosition1 = Particles.GetX(EdgePointIndex1);
 			const bool bEdgeIsKinematic = Particles.InvM(EdgePointIndex0) == (FSolverReal)0. && Particles.InvM(EdgePointIndex1) == (FSolverReal)0.;
 			if (bSkipKinematic && bEdgeIsKinematic)
 			{
@@ -1144,8 +1144,8 @@ namespace ContourMinimization
 		const TArray<TVec2<int32>>& EdgeToFaces = TriangleMesh.GetEdgeToFaces();
 		const TArray<TVec3<int32>>& Elements = TriangleMesh.GetElements();
 
-		const FSolverVec3& EdgePosition0 = Particles.X(ContourIntersection.EdgeVertices[0]);
-		const FSolverVec3& EdgePosition1 = Particles.X(ContourIntersection.EdgeVertices[1]);
+		const FSolverVec3& EdgePosition0 = Particles.GetX(ContourIntersection.EdgeVertices[0]);
+		const FSolverVec3& EdgePosition1 = Particles.GetX(ContourIntersection.EdgeVertices[1]);
 		const FSolverVec3 EdgeDir = EdgePosition1 - EdgePosition0; // Unnormalized
 		const FSolverReal EdgeDirDotNormal = FSolverVec3::DotProduct(EdgeDir, EdgeFaceIntersection.FaceNormal);
 		if (FMath::Abs(EdgeDirDotNormal) >= UE_SMALL_NUMBER)
@@ -1160,9 +1160,9 @@ namespace ContourMinimization
 					continue;
 				}
 
-				const FSolverVec3& P0 = Particles.X(Elements[EdgeFace_i][0]);
-				const FSolverVec3& P1 = Particles.X(Elements[EdgeFace_i][1]);
-				const FSolverVec3& P2 = Particles.X(Elements[EdgeFace_i][2]);
+				const FSolverVec3& P0 = Particles.GetX(Elements[EdgeFace_i][0]);
+				const FSolverVec3& P1 = Particles.GetX(Elements[EdgeFace_i][1]);
+				const FSolverVec3& P2 = Particles.GetX(Elements[EdgeFace_i][2]);
 
 				// B_i
 				const TTriangle<FSolverReal> Triangle_i(P0, P1, P2);

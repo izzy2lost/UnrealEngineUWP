@@ -35,8 +35,8 @@ namespace Chaos
 
 			const FRotation3 Q0 = bIsRigidDynamic0 ? PBDRigid0->GetQ() : Static0->GetR();
 			const FRotation3 Q1 = bIsRigidDynamic1 ? PBDRigid1->GetQ() : Static1->GetR();
-			const FVec3& P0 = bIsRigidDynamic0 ? PBDRigid0->P() : Static0->X();
-			const FVec3& P1 = bIsRigidDynamic1 ? PBDRigid1->P() : Static1->X();
+			const FVec3 P0 = bIsRigidDynamic0 ? PBDRigid0->GetP() : Static0->GetX();
+			const FVec3 P1 = bIsRigidDynamic1 ? PBDRigid1->GetP() : Static1->GetX();
 
 			// Delete constraints
 			const int32 NumSprings = SpringDistances[ConstraintIndex].Num();

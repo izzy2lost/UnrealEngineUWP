@@ -80,7 +80,7 @@ public:
 	template <typename TOther>
 	void CopyFrom(const TOther& Other)
 	{
-		MX = Other.X();
+		MX = Other.GetX();
 		MR = FRotation3f(Other.GetR());
 	}
 
@@ -96,6 +96,7 @@ public:
 	}
 
 	const FVec3& X() const { return MX; }
+	const FVec3& GetX() const { return MX; }
 	void SetX(const FVec3& InX){ MX = InX; }
 
 	const FRotation3 R() const { return FRotation3(MR); }

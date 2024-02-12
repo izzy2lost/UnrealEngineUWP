@@ -35,8 +35,8 @@ namespace ChaosTest {
 		FPBDRigidParticleHandle* Box2 = AppendClusteredParticleBox(Particles, FVec3((FReal)100, (FReal)100, (FReal)100));
 		uint32 Box2Id = FirstId++;
 
-		Box2->X() = FVec3((FReal)100, (FReal)0, (FReal)0);
-		Box2->P() = Box2->X();
+		Box2->SetX(FVec3((FReal)100, (FReal)0, (FReal)0));
+		Box2->SetP(Box2->GetX());
 
 		Evolution.EnableParticle(Box1);
 		Evolution.EnableParticle(Box2);
@@ -51,12 +51,12 @@ namespace ChaosTest {
 		Evolution.GetRigidClustering().CreateClusterParticle(0, MoveTemp(ClusterChildren), ClusterParams, FImplicitObjectPtr(nullptr));
 		EXPECT_EQ(ClusteredParticles.Size(), 3);
 
-		FVec3 ClusterX = ClusteredParticles.X(2);
+		FVec3 ClusterX = ClusteredParticles.GetX(2);
 		FRotation3 ClusterRot = ClusteredParticles.GetR(2);
 
 		EXPECT_TRUE(ClusterX.Equals(FVec3 {(FReal)50, 0, 0}));
 		EXPECT_TRUE(ClusterRot.Equals(FRotation3::Identity));
-		EXPECT_TRUE(ClusterX.Equals(ClusteredParticles.P(2)));
+		EXPECT_TRUE(ClusterX.Equals(ClusteredParticles.GetP(2)));
 		EXPECT_TRUE(ClusterRot.Equals(ClusteredParticles.GetQ(2)));
 
 		FRigidTransform3 ClusterTM(ClusterX, ClusterRot);
@@ -86,8 +86,8 @@ namespace ChaosTest {
 		{
 			BoxIDs.Add(ClusteredParticles.Size());
 			FPBDRigidParticleHandle* Box = AppendClusteredParticleBox(Particles, FVec3((FReal)100, (FReal)100, (FReal)100));
-			Box->X() = FVec3((FReal)i * (FReal)100, (FReal)0, (FReal)0);
-			Box->P() = Box->X();
+			Box->SetX(FVec3((FReal)i * (FReal)100, (FReal)0, (FReal)0));
+			Box->SetP(Box->GetX());
 			Boxes.Add(Box);
 
 			Evolution.EnableParticle(Box);
@@ -208,8 +208,8 @@ namespace ChaosTest {
 		{
 			BoxIDs.Add(ClusteredParticles.Size());
 			FPBDRigidParticleHandle* Box = AppendClusteredParticleBox(Particles, FVec3((FReal)100, (FReal)100, (FReal)100));
-			Box->X() = FVec3((FReal)i * (FReal)100, (FReal)0, (FReal)0);
-			Box->P() = Box->X();
+			Box->SetX(FVec3((FReal)i * (FReal)100, (FReal)0, (FReal)0));
+			Box->SetP(Box->GetX());
 			Boxes.Add(Box);
 
 			Evolution.EnableParticle(Box);

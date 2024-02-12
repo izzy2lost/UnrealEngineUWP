@@ -54,8 +54,8 @@ FSolverVec3 GetXPBDSpringDeltaWithDamping(const SolverParticlesOrRange& Particle
 	const FSolverReal Distance = Direction.SafeNormalize();
 	const FSolverReal Offset = Distance - RestLength;
 
-	const FSolverVec3& X1 = Particles.X(Index1);
-	const FSolverVec3& X2 = Particles.X(Index2);
+	const FSolverVec3& X1 = Particles.GetX(Index1);
+	const FSolverVec3& X2 = Particles.GetX(Index2);
 
 	const FSolverVec3 RelativeVelocityTimesDt = P1 - X1 - P2 + X2;
 
@@ -87,8 +87,8 @@ FSolverVec3 GetXPBDSpringDampingDelta(const SolverParticlesOrRange& Particles, c
 	FSolverVec3 Direction = (P1 - P2);
 	Direction.SafeNormalize();
 
-	const FSolverVec3& X1 = Particles.X(Index1);
-	const FSolverVec3& X2 = Particles.X(Index2);
+	const FSolverVec3& X1 = Particles.GetX(Index1);
+	const FSolverVec3& X2 = Particles.GetX(Index2);
 	const FSolverVec3 RelativeVelocityTimesDt = P1 - X1 - P2 + X2;
 	const FSolverReal BetaDt = Damping * Dt;
 	const FSolverReal DLambda = (-BetaDt * FSolverVec3::DotProduct(Direction, RelativeVelocityTimesDt) - Lambda) / (BetaDt * CombinedInvMass + (FSolverReal)1.);
@@ -152,9 +152,9 @@ FSolverVec3 GetXPBDAxialSpringDeltaWithDamping(const SolverParticlesOrRange& Par
 	const FSolverReal Distance = Direction.SafeNormalize();
 	const FSolverReal Offset = Distance - RestLength;
 
-	const FSolverVec3& X1 = Particles.X(Index1);
-	const FSolverVec3& X2 = Particles.X(Index2);
-	const FSolverVec3& X3 = Particles.X(Index3);
+	const FSolverVec3& X1 = Particles.GetX(Index1);
+	const FSolverVec3& X2 = Particles.GetX(Index2);
+	const FSolverVec3& X3 = Particles.GetX(Index3);
 	const FSolverVec3 X = (X2 - X3) * Bary + X3;
 
 	const FSolverVec3 RelativeVelocityTimesDt = P1 - X1 - P + X;
@@ -193,9 +193,9 @@ FSolverVec3 GetXPBDAxialSpringDampingDelta(const SolverParticlesOrRange& Particl
 	const FSolverReal Distance = Direction.SafeNormalize();
 	const FSolverReal Offset = Distance - RestLength;
 
-	const FSolverVec3& X1 = Particles.X(Index1);
-	const FSolverVec3& X2 = Particles.X(Index2);
-	const FSolverVec3& X3 = Particles.X(Index3);
+	const FSolverVec3& X1 = Particles.GetX(Index1);
+	const FSolverVec3& X2 = Particles.GetX(Index2);
+	const FSolverVec3& X3 = Particles.GetX(Index3);
 	const FSolverVec3 X = (X2 - X3) * Bary + X3;
 	const FSolverVec3 RelativeVelocityTimesDt = P1 - X1 - P + X;
 	const FSolverReal BetaDt = Damping * Dt;

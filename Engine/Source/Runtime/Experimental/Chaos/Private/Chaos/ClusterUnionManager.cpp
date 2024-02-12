@@ -42,7 +42,7 @@ namespace Chaos
 			}
 			else
 			{
-				const FRigidTransform3 ChildWorldTM(Child->X(), Child->GetR());
+				const FRigidTransform3 ChildWorldTM(Child->GetX(), Child->GetR());
 				Frame = ChildWorldTM.GetRelativeTransform(ClusterWorldTM);
 			}
 
@@ -54,7 +54,7 @@ namespace Chaos
 			if (!ClusterUnion.ChildParticles.IsEmpty() && ClusterUnion.Geometry->GetType() == ImplicitObjectType::Union)
 			{
 				constexpr FReal kAddThickness = 5.0;
-				const FRigidTransform3 ClusterWorldTM(ClusterUnion.InternalCluster->X(), ClusterUnion.InternalCluster->GetR());
+				const FRigidTransform3 ClusterWorldTM(ClusterUnion.InternalCluster->GetX(), ClusterUnion.InternalCluster->GetR());
 
 				// Use the acceleration structure of the cluster union itself to make finding overlaps easy.
 				const FImplicitObjectUnion& ShapeUnion = ClusterUnion.Geometry->GetObjectChecked<FImplicitObjectUnion>();
@@ -387,7 +387,7 @@ namespace Chaos
 		}
 
 		// TODO: Can we do something better than a union?
-		const FRigidTransform3 ClusterWorldTM(Union.InternalCluster->X(), Union.InternalCluster->GetR());
+		const FRigidTransform3 ClusterWorldTM(Union.InternalCluster->GetX(), Union.InternalCluster->GetR());
 		TArray<Chaos::FImplicitObjectPtr> Objects;
 		Objects.Reserve(Union.ChildParticles.Num());
 
@@ -689,7 +689,7 @@ namespace Chaos
 			// the deferred cluster union update properties is called, the position of the particle will get reset to the position of the cluster union.
 			if (FPBDRigidClusteredParticleHandle* ClusterParticle = Particle->CastToClustered())
 			{
-				const FRigidTransform3 ClusterWorldTM(Cluster->InternalCluster->X(), Cluster->InternalCluster->GetR());
+				const FRigidTransform3 ClusterWorldTM(Cluster->InternalCluster->GetX(), Cluster->InternalCluster->GetR());
 				const FRigidTransform3 Frame = GetParticleRigidFrameInClusterUnion(Particle, ClusterWorldTM);
 				ClusterParticle->SetChildToParent(Frame);
 			}
@@ -1106,7 +1106,7 @@ namespace Chaos
 		MEvolution.InvalidateParticle(ClusterUnion.InternalCluster);
 		ImplicitUnion->SetAllowBVH(false);
 
-		const FRigidTransform3 ClusterWorldTM(ClusterUnion.InternalCluster->X(), ClusterUnion.InternalCluster->GetR());
+		const FRigidTransform3 ClusterWorldTM(ClusterUnion.InternalCluster->GetX(), ClusterUnion.InternalCluster->GetR());
 		if (!PendingGeometryAdditions.IsEmpty())
 		{
 			ModifyAdditionOfChildrenToClusterUnionGeometry(
@@ -1357,7 +1357,7 @@ namespace Chaos
 
 						// Update the child's world transform to be consistent with its ChildToParent transform
 						const FPBDRigidClusteredParticleHandle* ParentHandle = ClusterUnion->InternalCluster;
-						const FRigidTransform3 ParticleToWorld = ChildToParent * FRigidTransform3(ParentHandle->X(), ParentHandle->GetR());
+						const FRigidTransform3 ParticleToWorld = ChildToParent * FRigidTransform3(ParentHandle->GetX(), ParentHandle->GetR());
 						ClusteredParticle->SetX(ParticleToWorld.GetTranslation());
 						ClusteredParticle->SetP(ParticleToWorld.GetTranslation());
 						ClusteredParticle->SetR(ParticleToWorld.GetRotation());

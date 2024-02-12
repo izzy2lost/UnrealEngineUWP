@@ -87,10 +87,10 @@ private:
 					return; // Bail out if the collision groups doesn't match the particle group id, or use INDEX_NONE (= global collision that affects all particle)
 				}
 
-				const FSolverRigidTransform3 Frame(CollisionParticles.X(CollisionIndex), CollisionParticles.GetR(CollisionIndex));
+				const FSolverRigidTransform3 Frame(CollisionParticles.GetX(CollisionIndex), CollisionParticles.GetR(CollisionIndex));
 
 				const Pair<FVec3, bool> PointPair = CollisionParticles.GetGeometry(CollisionIndex)->FindClosestIntersection(  // Geometry operates in FReal
-					FVec3(CollisionTransforms[CollisionIndex].InverseTransformPositionNoScale(Particles.X(Index))),        // hence the back and forth
+					FVec3(CollisionTransforms[CollisionIndex].InverseTransformPositionNoScale(Particles.GetX(Index))),        // hence the back and forth
 					FVec3(Frame.InverseTransformPositionNoScale(Particles.P(Index))), (FReal)Thickness);                   // FVec3/FReal conversions
 
 				if (PointPair.Second)
@@ -141,8 +141,8 @@ private:
 						}
 					}
 
-					const FSolverVec3 VectorToPoint = Particles.P(Index) - CollisionParticles.X(VelocityBone);
-					const FSolverVec3 RelativeDisplacement = (Particles.P(Index) - Particles.X(Index)) - (CollisionParticles.V(VelocityBone) + FSolverVec3::CrossProduct(CollisionParticles.W(VelocityBone), VectorToPoint)) * Dt;  // This corresponds to the tangential velocity multiplied by dt (friction will drive this to zero if it is high enough)
+					const FSolverVec3 VectorToPoint = Particles.P(Index) - CollisionParticles.GetX(VelocityBone);
+					const FSolverVec3 RelativeDisplacement = (Particles.P(Index) - Particles.GetX(Index)) - (CollisionParticles.V(VelocityBone) + FSolverVec3::CrossProduct(CollisionParticles.W(VelocityBone), VectorToPoint)) * Dt;  // This corresponds to the tangential velocity multiplied by dt (friction will drive this to zero if it is high enough)
 					const FSolverVec3 RelativeDisplacementTangent = RelativeDisplacement - FSolverVec3::DotProduct(RelativeDisplacement, NormalWorld) * NormalWorld;  // Project displacement into the tangential plane
 					const FSolverReal RelativeDisplacementTangentLength = RelativeDisplacementTangent.Size();
 					if (RelativeDisplacementTangentLength >= UE_SMALL_NUMBER)

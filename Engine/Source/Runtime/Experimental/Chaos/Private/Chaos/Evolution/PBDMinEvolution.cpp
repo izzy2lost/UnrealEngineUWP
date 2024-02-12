@@ -180,21 +180,21 @@ namespace Chaos
 		{
 			if (Particle.ObjectState() == EObjectStateType::Dynamic)
 			{
-				Particle.X() = FVec3::Lerp(Particle.Handle()->AuxilaryValue(ParticlePrevXs), Particle.X(), T);
-				Particle.SetR(FRotation3::Slerp(Particle.Handle()->AuxilaryValue(ParticlePrevRs), Particle.GetR(), (decltype(FQuat::X))T));	// LWC_TODO: Remove decltype cast once FQuat supports variants
+				Particle.SetX(FVec3::Lerp(Particle.Handle()->AuxilaryValue(ParticlePrevXs), Particle.GetX(), T));
+				Particle.SetRf(FRotation3f::Slerp(FRotation3f(Particle.Handle()->AuxilaryValue(ParticlePrevRs)), Particle.GetRf(), FRealSingle(T)));
 
 				if (bRewindVelocities)
 				{
-					Particle.SetV(FVec3::Lerp(Particle.GetPreV(), Particle.GetV(), T));
-					Particle.SetW(FVec3::Lerp(Particle.GetPreW(), Particle.GetW(), T));
+					Particle.SetVf(FVec3f::Lerp(Particle.GetPreVf(), Particle.GetVf(), FRealSingle(T)));
+					Particle.SetWf(FVec3f::Lerp(Particle.GetPreWf(), Particle.GetWf(), FRealSingle(T)));
 				}
 			}
 		}
 
 		for (auto& Particle : Particles.GetActiveKinematicParticlesView())
 		{
-			Particle.X() = Particle.X() - Particle.GetV() * RewindDt;
-			Particle.SetR(FRotation3::IntegrateRotationWithAngularVelocity(Particle.GetR(), -Particle.GetW(), RewindDt));
+			Particle.SetX(Particle.GetX() - Particle.GetV() * RewindDt);
+			Particle.SetRf(FRotation3f::IntegrateRotationWithAngularVelocity(Particle.GetRf(), -Particle.GetWf(), FRealSingle(RewindDt)));
 		}
 	}
 
@@ -276,7 +276,7 @@ namespace Chaos
 				// Update cached world space state, including bounds. We use the Swept bounds update so that the bounds includes P,Q and X,Q.
 				// This is because when we have joints, they often pull bodies back to their original positions, so we need to know if there
 				// are contacts at that location.
-				Particle.UpdateWorldSpaceStateSwept(FRigidTransform3(Particle.P(), Particle.GetQ()), BoundsExpansion, -V * Dt);
+				Particle.UpdateWorldSpaceStateSwept(FRigidTransform3(Particle.GetP(), Particle.GetQ()), BoundsExpansion, -V * Dt);
 			}
 		}
 	}
@@ -302,7 +302,7 @@ namespace Chaos
 			}
 
 			TKinematicTarget<FReal, 3>& KinematicTarget = Particle.KinematicTarget();
-			const FVec3 CurrentX = Particle.X();
+			const FVec3 CurrentX = Particle.GetX();
 			const FRotation3 CurrentR = Particle.GetR();
 			constexpr FReal MinDt = 1e-6f;
 
@@ -370,7 +370,7 @@ namespace Chaos
 			{
 				// Move based on velocity
 				bMoved = true;
-				Particle.X() = Particle.X() + Particle.GetV() * Dt;
+				Particle.SetX(Particle.GetX() + Particle.GetV() * Dt);
 				Particle.SetR(FRotation3::IntegrateRotationWithAngularVelocity(Particle.GetR(), Particle.GetW(), Dt));
 				break;
 			}
@@ -378,7 +378,7 @@ namespace Chaos
 			
 			// Set positions and previous velocities if we can
 			// Note: At present kinematics are in fact rigid bodies
-			Particle.P() = Particle.X();
+			Particle.SetP(Particle.GetX());
 			Particle.SetQ(Particle.GetR());
 			Particle.SetPreV(Particle.GetV());
 			Particle.SetPreW(Particle.GetW());
@@ -387,11 +387,11 @@ namespace Chaos
 			{
 				if (!Particle.CCDEnabled())
 				{
-					Particle.UpdateWorldSpaceState(FRigidTransform3(Particle.P(), Particle.GetQ()), FVec3(0));
+					Particle.UpdateWorldSpaceState(FRigidTransform3(Particle.GetP(), Particle.GetQ()), FVec3(0));
 				}
 				else
 				{
-					Particle.UpdateWorldSpaceStateSwept(FRigidTransform3(Particle.P(), Particle.GetQ()), FVec3(0), -Particle.GetV() * Dt);
+					Particle.UpdateWorldSpaceStateSwept(FRigidTransform3(Particle.GetP(), Particle.GetQ()), FVec3(0), -Particle.GetV() * Dt);
 				}
 			}
 		};
@@ -402,7 +402,7 @@ namespace Chaos
 		-> void
 		{
 			TKinematicTarget<FReal, 3>& KinematicTarget = Particle.KinematicTarget();
-			const FVec3 CurrentX = Particle.X();
+			const FVec3 CurrentX = Particle.GetX();
 			const FRotation3 CurrentR = Particle.GetR();
 			constexpr FReal MinDt = 1e-6f;
 
@@ -458,7 +458,7 @@ namespace Chaos
 						NewW = FRotation3::CalculateAngularVelocity(CurrentR, NewR, Dt);
 					}
 				}
-				Particle.X() = NewX;
+				Particle.SetX(NewX);
 				Particle.SetR(NewR);
 				Particle.SetV(NewV);
 				Particle.SetW(NewW);
@@ -470,15 +470,15 @@ namespace Chaos
 			{
 				// Move based on velocity
 				bMoved = true;
-				Particle.X() = Particle.X() + Particle.GetV() * Dt;
-				Particle.SetR(FRotation3::IntegrateRotationWithAngularVelocity(Particle.GetR(), Particle.GetW(), Dt));
+				Particle.SetX(Particle.GetX() + Particle.GetV() * Dt);
+				Particle.SetRf(FRotation3f::IntegrateRotationWithAngularVelocity(Particle.GetRf(), Particle.GetWf(), FRealSingle(Dt)));
 				break;
 			}
 			}
 
 			if (bMoved)
 			{
-				Particle.UpdateWorldSpaceState(FRigidTransform3(Particle.X(), Particle.GetR()), FVec3(0));
+				Particle.UpdateWorldSpaceState(FRigidTransform3(Particle.GetX(), Particle.GetR()), FVec3(0));
 			}
 		};
 
@@ -536,9 +536,9 @@ namespace Chaos
 
 		for (auto& Particle : Particles.GetActiveParticlesView())
 		{
-			Particle.Handle()->AuxilaryValue(ParticlePrevXs) = Particle.X();
+			Particle.Handle()->AuxilaryValue(ParticlePrevXs) = Particle.GetX();
 			Particle.Handle()->AuxilaryValue(ParticlePrevRs) = Particle.GetR();
-			Particle.X() = Particle.P();
+			Particle.SetX(Particle.GetP());
 			Particle.SetR(Particle.GetQ());
 		}
 	}

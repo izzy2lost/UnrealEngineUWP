@@ -726,7 +726,7 @@ namespace Chaos
 			{
 				FBreakingData& ClusterBreak = MAllClusterBreakings.AddDefaulted_GetRef();
 				ClusterBreak.Proxy = ClusteredParticle->PhysicsProxy();
-				ClusterBreak.Location = ClusteredParticle->X();
+				ClusterBreak.Location = ClusteredParticle->GetX();
 				ClusterBreak.Velocity = ClusteredParticle->GetV();
 				ClusterBreak.AngularVelocity = ClusteredParticle->GetW();
 				ClusterBreak.Mass = ClusteredParticle->M();
@@ -752,7 +752,7 @@ namespace Chaos
 			{
 				FCrumblingData& ClusterCrumbling = MAllClusterCrumblings.AddDefaulted_GetRef();
 				ClusterCrumbling.Proxy = ClusteredParticle->PhysicsProxy();
-				ClusterCrumbling.Location = ClusteredParticle->X();
+				ClusterCrumbling.Location = ClusteredParticle->GetX();
 				ClusterCrumbling.Orientation = ClusteredParticle->GetR();
 				ClusterCrumbling.LinearVelocity = ClusteredParticle->GetV();
 				ClusterCrumbling.AngularVelocity = ClusteredParticle->GetW();
@@ -860,12 +860,12 @@ namespace Chaos
 
 			ClusteredChild->SetClusterId(ClusterId(nullptr, ClusteredChild->ClusterIds().NumChildren)); // clear Id but retain number of children
 
-			const FRigidTransform3 PreSolveTM(ClusteredParent->P(), ClusteredParent->GetQ());
+			const FRigidTransform3 PreSolveTM(ClusteredParent->GetP(), ClusteredParent->GetQ());
 			const FRigidTransform3 ChildFrame = ClusteredChild->ChildToParent() * PreSolveTM;
 			Child->SetX(ChildFrame.GetTranslation());
 			Child->SetR(ChildFrame.GetRotation());
 
-			Child->SetP(Child->X());
+			Child->SetP(Child->GetX());
 			Child->SetQf(Child->GetRf());
 
 			//todo(ocohen): for now just inherit velocity at new COM. This isn't quite right for rotation
@@ -928,7 +928,7 @@ namespace Chaos
 		}
 		NewClusters.Reserve(NumNewClusters);
 
-		const FRigidTransform3 PreSolveTM = FRigidTransform3(ClusteredParent->P(), ClusteredParent->GetQ());
+		const FRigidTransform3 PreSolveTM = FRigidTransform3(ClusteredParent->GetP(), ClusteredParent->GetQ());
 		
 		TArray<Chaos::FPBDRigidClusteredParticleHandle*> NewClusterHandles = MEvolution.CreateClusteredParticles(NumNewClusters);
 		int32 ClusterHandlesIdx = 0;
@@ -952,7 +952,7 @@ namespace Chaos
 				NewCluster->SetWf(ClusteredParent->GetWf());
 				NewCluster->SetPreVf(ClusteredParent->GetPreVf());
 				NewCluster->SetPreWf(ClusteredParent->GetPreWf());
-				NewCluster->SetP(NewCluster->X());
+				NewCluster->SetP(NewCluster->GetX());
 				NewCluster->SetQf(NewCluster->GetRf());
 
 				UpdateTopLevelParticle(NewCluster);
@@ -2042,7 +2042,7 @@ namespace Chaos
 		FReal ClosestSquaredDist = TNumericLimits<FReal>::Max();
 		for (FPBDRigidParticleHandle* ChildHandle: Particles)
         {
-        	const FReal SquaredDist = (ChildHandle->X() - WorldLocation).SizeSquared();
+        	const FReal SquaredDist = (ChildHandle->GetX() - WorldLocation).SizeSquared();
         	if (SquaredDist < ClosestSquaredDist)
         	{
         		ClosestSquaredDist = SquaredDist;
@@ -2074,7 +2074,7 @@ namespace Chaos
 		const FReal RadiusSquared = Radius * Radius;
 		for (FPBDRigidParticleHandle* ChildHandle: Particles)
 		{
-			const FReal SquaredDist = (ChildHandle->X() - WorldLocation).SizeSquared();
+			const FReal SquaredDist = (ChildHandle->GetX() - WorldLocation).SizeSquared();
 			if (SquaredDist <= RadiusSquared)
 			{
 				Result.Add(ChildHandle);
@@ -2313,7 +2313,7 @@ namespace Chaos
 					}
 					else
 					{
-						const FRigidTransform3 WorldToClusterTM = FRigidTransform3(Cluster->P(), Cluster->GetQ());
+						const FRigidTransform3 WorldToClusterTM = FRigidTransform3(Cluster->GetP(), Cluster->GetQ());
 						const FVec3 ContactLocationClusterLocal = WorldToClusterTM.InverseTransformPosition(ContactWorldLocation);
 						FAABB3 ContactBox(ContactLocationClusterLocal, ContactLocationClusterLocal);
 						ContactBox.Thicken(ClusterDistanceThreshold);
@@ -2652,7 +2652,7 @@ namespace Chaos
 				{
 					ParticlePairArray& ConnectionList = Connections[i];
 
-					const FVec3& Child1X = Child1->X();
+					const FVec3& Child1X = Child1->GetX();
 					FRigidTransform3 TM1 = FRigidTransform3(Child1X, Child1->GetR());
 
 					const int32 Offset = i + 1;
@@ -2665,13 +2665,13 @@ namespace Chaos
 						if (Child2->CollisionParticles())
 						{
 
-							const FVec3& Child2X = Child2->X();
+							const FVec3& Child2X = Child2->GetX();
 							const FRigidTransform3 TM = TM1.GetRelativeTransform(FRigidTransform3(Child2X, Child2->GetR()));
 							const uint32 NumCollisionParticles = Child2->CollisionParticles()->Size();
 							for (uint32 CollisionIdx = 0; CollisionIdx < NumCollisionParticles; ++CollisionIdx)
 							{
 								const FVec3 LocalPoint =
-									TM.TransformPositionNoScale(Child2->CollisionParticles()->X(CollisionIdx));
+									TM.TransformPositionNoScale(Child2->CollisionParticles()->GetX(CollisionIdx));
 								const FReal Phi = Child1->GetGeometry()->SignedDistance(LocalPoint - (LocalPoint * Delta));
 								if (Phi < 0.0)
 								{
@@ -2720,7 +2720,7 @@ namespace Chaos
 		Pts.AddUninitialized(Particles.Num());
 		for (int32 i = 0; i < Particles.Num(); ++i)
 		{
-			Pts[i] = Particles[i]->X();
+			Pts[i] = Particles[i]->GetX();
 		}
 		TArray<TArray<int32>> Neighbors; // Indexes into Particles
 		VoronoiNeighbors(Pts, Neighbors);
@@ -2896,7 +2896,7 @@ namespace Chaos
 		Pts.AddUninitialized(Children.Num());
 		for (int32 i = 0; i < Children.Num(); ++i)
 		{
-			Pts[i] = Children[i]->X();
+			Pts[i] = Children[i]->GetX();
 		}
 		TArray<TArray<int>> Neighbors;
 		VoronoiNeighbors(Pts, Neighbors);

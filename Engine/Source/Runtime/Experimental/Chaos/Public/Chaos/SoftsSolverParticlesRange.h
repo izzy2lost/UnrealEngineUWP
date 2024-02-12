@@ -29,6 +29,8 @@ public:
 	// SolverParticles data
 	const FSolverVec3& P(const int32 Index) const { return GetParticles().P(Index + Offset); }
 	FSolverVec3& P(const int32 Index) { return GetParticles().P(Index + Offset); }
+	const FSolverVec3& GetP(const int32 Index) const { return GetParticles().P(Index + Offset); }
+	void SetP(const int32 Index, const FSolverVec3& InP) { GetParticles().P(Index + Offset) = InP; }
 	const FPAndInvM& PAndInvM(const int32 Index) const { return GetParticles().PAndInvM(Index + Offset); }
 	FPAndInvM& PAndInvM(const int32 Index) { return GetParticles().PAndInvM(Index + Offset); }
 	TConstArrayView<FPAndInvM> GetPAndInvM() const { return GetConstArrayView(GetParticles().GetPAndInvM()); }
@@ -57,8 +59,15 @@ public:
 	TArrayView<FSolverReal> GetInvM() { return GetArrayView(GetParticles().GetInvM()); }
 
 	// Particles data
-	const FSolverVec3& X(const int32 Index) const { return GetParticles().X(Index + Offset); }
-	FSolverVec3& X(const int32 Index) { return GetParticles().X(Index + Offset); }
+	const FSolverVec3& X(const int32 Index) const { return GetParticles().GetX(Index + Offset); }
+	FSolverVec3& X(const int32 Index) { 
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		return GetParticles().X(Index + Offset); 
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+	const FSolverVec3& GetX(const int32 Index) const { return GetParticles().GetX(Index + Offset); }
+	void SetX(const int32 Index, const FSolverVec3& InX) { GetParticles().SetX(Index + Offset, InX); }
+
 	TConstArrayView<FSolverVec3> XArray() const { return GetConstArrayView(GetParticles().XArray()); }
 	TArrayView<FSolverVec3> XArray() { return GetArrayView(GetParticles().XArray()); }
 };

@@ -63,7 +63,7 @@ FCollisionStructureManager::NewSimplicial(
 			OutsideVertices.AddUninitialized(IndicesArray.Num());
 			for (int32 Idx : IndicesArray)
 			{
-				const Chaos::FVec3& SamplePoint = Vertices.X(Idx);
+				const Chaos::FVec3& SamplePoint = Vertices.GetX(Idx);
 				if (Implicit->SignedDistance(SamplePoint) > Threshold)
 				{
 					OutsideVertices[LSVCounter] = SamplePoint;
@@ -82,8 +82,8 @@ FCollisionStructureManager::NewSimplicial(
 			OutsideVertices.AddUninitialized(IndicesArray.Num());
 			for (int32 Idx=0;Idx<IndicesArray.Num();Idx++)
 			{
-				Bounds += FVector(Vertices.X(IndicesArray[Idx]));
-				OutsideVertices[Idx] = Vertices.X(IndicesArray[Idx]);
+				Bounds += FVector(Vertices.GetX(IndicesArray[Idx]));
+				OutsideVertices[Idx] = Vertices.GetX(IndicesArray[Idx]);
 			}
 			Extent = Bounds.GetExtent().Size();
 		}
@@ -104,7 +104,7 @@ FCollisionStructureManager::NewSimplicial(
 			{
 				if (!OutsideVertices[i].ContainsNaN())
 				{
-					Simplicial->X(i) = OutsideVertices[i];
+					Simplicial->SetX(i, OutsideVertices[i]);
 					VertexCounter++;
 				}
 			}
@@ -114,7 +114,7 @@ FCollisionStructureManager::NewSimplicial(
 		if(!Simplicial->Size())
 		{
 			Simplicial->AddParticles(1);
-			Simplicial->X(0) = Chaos::FVec3(0);
+			Simplicial->SetX(0, Chaos::FVec3(0));
 		}
 
 		Simplicial->UpdateAccelerationStructures();
@@ -140,7 +140,7 @@ FCollisionStructureManager::NewSimplicial(
 		// @todo : Clean collision particles need to operate on the collision mask from the DynamicCollection,
 		//         then transfer only the good collision particles during the initialization. `
 		FCollisionStructureManager::FSimplicial * Simplicial = new FCollisionStructureManager::FSimplicial();
-		const TArrayView<const Chaos::FVec3> ArrayView(&AllParticles.X(0), AllParticles.Size());
+		const TArrayView<const Chaos::FVec3> ArrayView(&AllParticles.GetX(0), AllParticles.Size());
 		const TArray<Chaos::FVec3>& Result = Chaos::CleanCollisionParticles(TriMesh, ArrayView, CollisionParticlesFraction);
 
 		if (Result.Num())
@@ -151,7 +151,7 @@ FCollisionStructureManager::NewSimplicial(
 			{
 				if (!Result[Index].ContainsNaN())
 				{
-					Simplicial->X(Index) = Result[Index];
+					Simplicial->SetX(Index, Result[Index]);
 					VertexCounter++;
 				}
 			}
@@ -161,7 +161,7 @@ FCollisionStructureManager::NewSimplicial(
 		if (!Simplicial->Size())
 		{
 			Simplicial->AddParticles(1);
-			Simplicial->X(0) = Chaos::FVec3(0);
+			Simplicial->SetX(0, Chaos::FVec3(0));
 		}
 
 		Simplicial->UpdateAccelerationStructures();
