@@ -22,7 +22,7 @@ public:
 		bUnbound = true;
 
 		Settings.bOverride_AutoExposureBias = 1;
-		Settings.AutoExposureBias = 1.f;
+		Settings.AutoExposureBias = 0.f;
 
 		Settings.bOverride_AutoExposureMinBrightness = 1;
 		Settings.AutoExposureMinBrightness = 1.f;
