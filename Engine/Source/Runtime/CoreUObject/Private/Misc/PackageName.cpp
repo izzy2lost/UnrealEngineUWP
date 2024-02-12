@@ -2506,6 +2506,25 @@ void FPackageName::QueryRootContentPaths(TArray<FString>& OutRootContentPaths, b
 	}
 }
 
+TArray<FString> FPackageName::QueryMountPointLocalAbsPaths()
+{
+	const FLongPackagePathsSingleton& Paths = FLongPackagePathsSingleton::Get();
+	TArray<FString> OutAbsPaths;
+
+	{
+		FReadScopeLock ScopeLock(Paths.MountLock);
+		OutAbsPaths.Reserve(Paths.MountPoints.Num() + 1);
+		for (const TUniquePtr<FMountPoint>& MountPoint : Paths.MountPoints)
+		{
+			if (!MountPoint->bAlias && !MountPoint->ContentPathAbsolute.IsEmpty())
+			{
+				OutAbsPaths.Add(MountPoint->ContentPathAbsolute);
+			}
+		}
+	}
+	return OutAbsPaths;
+}
+
 void FPackageName::OnCoreUObjectInitialized()
 {
 	FLongPackagePathsSingleton::Get().OnCoreUObjectInitialized();

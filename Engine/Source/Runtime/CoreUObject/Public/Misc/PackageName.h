@@ -626,6 +626,12 @@ public:
 	 */
 	static COREUOBJECT_API void QueryRootContentPaths( TArray<FString>& OutRootContentPaths, bool bIncludeReadOnlyRoots = false, bool bWithoutLeadingSlashes = false, bool bWithoutTrailingSlashes = false);
 	
+	/**
+	 * Returns all of the local paths on disk of the root content paths, like
+	 * "c:\MyProjects\ProjectA\Content", "d:\Unreal\Engine\Content", "c:\MyProjects\ProjectA\Plugins\MyPlugin\Content"
+	 */
+	static COREUOBJECT_API TArray<FString> QueryMountPointLocalAbsPaths();
+
 	/** If the FLongPackagePathsSingleton is not created yet, this function will create it and thus allow mount points to be added */
 	static COREUOBJECT_API void OnCoreUObjectInitialized();
 
