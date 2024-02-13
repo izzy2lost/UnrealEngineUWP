@@ -25,11 +25,12 @@ public class TedsPropertyEditor : ModuleRules
 					"SlateCore",
 					"StructUtils",
 					"TypedElementFramework",
-					"TedsOutliner",
+					"TedsOutliner"
 				});
 			PrivateDependencyModuleNames.AddRange(
 				new string[]
 				{
+					"UnrealEd" // For EditorUndoClient
 				});
 
 			DynamicallyLoadedModuleNames.AddRange(new string[] {});
