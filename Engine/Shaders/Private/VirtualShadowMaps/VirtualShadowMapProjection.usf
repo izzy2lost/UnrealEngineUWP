@@ -600,7 +600,7 @@ void VirtualShadowMapProjection(
 	uint3	DispatchThreadId	: SV_DispatchThreadID )
 {
 #if USE_TILE_LIST
-	const uint2 TileCoord = UnpackTileCoord16bits(TileListData.Load(GroupId.x)); // Need to match SingleLayerWater tile encoding
+	const uint2 TileCoord = UnpackTileCoord12bits(TileListData.Load(GroupId.x)); // Need to match SingleLayerWater tile encoding
 #else
 	const uint2 TileCoord = GroupId.xy;
 #endif // USE_TILE_LIST
