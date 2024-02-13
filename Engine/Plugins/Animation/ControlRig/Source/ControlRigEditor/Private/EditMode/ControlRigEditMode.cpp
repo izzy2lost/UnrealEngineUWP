@@ -4532,7 +4532,8 @@ void FControlRigEditMode::MoveControlShape(AControlRigShapeActor* ShapeActor, co
 		{
 			if(FRigControlElement* ControlElement = InControlRig->GetHierarchy()->Find<FRigControlElement>(ShapeActor->GetElementKey()))
 			{
-				if(ControlElement->Settings.bUsePreferredRotationOrder)
+				//if(ControlElement->Settings.bUsePreferredRotationOrder) always set rotation order since
+				//sequencer depends upon it
 				{
 					FRotator Rot = ControlElement->PreferredEulerAngles.GetRotator();
 
