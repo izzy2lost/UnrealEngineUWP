@@ -691,6 +691,9 @@ public:
 	/** If the object is compiled, this flag is true if it was compiled with maximum optimizations. If the object is not compiled, its value is meaningless. */
 	bool bIsCompiledWithOptimization = true;
 
+	/** This is a non-user-controlled flag to disable streaming (set at object compilation time, depending on optimization). */
+	bool bDisableTextureStreaming = false;
+
 	ECustomizableObjectCompilationState CompilationState = ECustomizableObjectCompilationState::None;
 	
 #if WITH_EDITOR
@@ -722,9 +725,6 @@ public:
 	// This is a manual version number for the binary blobs in this asset.
 	// Increasing it invalidates all the previously compiled models.
 	// Warning: If while merging code both versions have changed, take the highest+1.
-	static constexpr int32 CurrentSupportedVersion = 424;
-
-	/** This is a non-user-controlled flag to disable streaming (set at object compilation time, depending on optimization). */
-	bool bDisableTextureStreaming = false;
+	static constexpr int32 CurrentSupportedVersion = 425;
 };
 
