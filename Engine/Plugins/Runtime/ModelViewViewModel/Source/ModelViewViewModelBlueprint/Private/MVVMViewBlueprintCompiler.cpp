@@ -2572,8 +2572,9 @@ void FMVVMViewBlueprintCompiler::CompileBindings(const FCompiledBindingLibraryCo
 		NewBinding.SourceBitField = 0;
 		NewBinding.EditorId = Binding.BindingId;
 
+		TArray<FMVVMViewClass_SourceKey, TInlineAllocator<16>>  SharedExecuteAtInitializationBindings;
+		int32 SharedBindingsCount = 0;
 		// Find the source needed by the binding. Also generate every bindings on that source (that need to register to the FieldNotify).
-		TArray<FMVVMViewClass_SourceKey, TInlineAllocator<16>>  SharedBindings;
 		for (TSharedPtr<FGeneratedReadFieldPathContext> ReadPath : ValidBinding->ReadPaths)
 		{
 			if (ReadPath->OptionalSource == nullptr)
@@ -2626,28 +2627,33 @@ void FMVVMViewBlueprintCompiler::CompileBindings(const FCompiledBindingLibraryCo
 				// Count the number of shared instance of that binding. (they can come from the same Source)
 				//This flag is used at runtime to know if we should delay the binding execution.
 				//We only delay when the field changes. It should only be shared if it has field.
-				SharedBindings.Add(FieldClassSourceKey);
+				++SharedBindingsCount;
+			}
+
+			if (bExecuteAtInitialization)
+			{
+				SharedExecuteAtInitializationBindings.Add(FieldClassSourceKey);
 			}
 		}
 
 		// Set binding flags.
 		NewBinding.Flags |= (!ValidBinding->bIsOneTimeBinding) ? (uint8)FMVVMViewClass_Binding::EFlags::OneWay : 0;
-		NewBinding.Flags |= (SharedBindings.Num() > 1) ? (uint8)FMVVMViewClass_Binding::EFlags::Shared : 0;
+		NewBinding.Flags |= (SharedBindingsCount > 1) ? (uint8)FMVVMViewClass_Binding::EFlags::Shared : 0;
 		NewBinding.Flags |= (Binding.bOverrideExecutionMode) ? (uint8)FMVVMViewClass_Binding::EFlags::OverrideExecuteMode : 0;
 		NewBinding.Flags |= (Binding.bEnabled) ? (uint8)FMVVMViewClass_Binding::EFlags::EnabledByDefault : 0;
 
-		// Only the last binding in the complex conversion.
-		if (SharedBindings.Num() > 0)
+		// Only the last binding in the complex conversion has ExecuteAtInitialization.
+		if (SharedExecuteAtInitializationBindings.Num() > 1)
 		{
-			SharedBindings.Sort([](const FMVVMViewClass_SourceKey& A, const FMVVMViewClass_SourceKey&B)
+			SharedExecuteAtInitializationBindings.Sort([](const FMVVMViewClass_SourceKey& A, const FMVVMViewClass_SourceKey&B)
 				{
 					return A.GetIndex() < B.GetIndex();
 				});
 
-			//Only the last one has ExecuteAtInitialization. Remove the flag on all the others.
-			for (int32 Index = 0; Index < SharedBindings.Num() - 2; ++Index)
+			//Remove the flag on all the binding on all the sources ecept the last one.
+			for (int32 Index = 0; Index < SharedExecuteAtInitializationBindings.Num() - 1; ++Index)
 			{
-				FMVVMViewClass_Source& ClassSource = ViewExtension->Sources[SharedBindings[Index].GetIndex()];
+				FMVVMViewClass_Source& ClassSource = ViewExtension->Sources[SharedExecuteAtInitializationBindings[Index].GetIndex()];
 				for (FMVVMViewClass_SourceBinding& SourceBinding : ClassSource.Bindings)
 				{
 					if (SourceBinding.GetBindingKey() == BindingKey)
@@ -2656,9 +2662,9 @@ void FMVVMViewBlueprintCompiler::CompileBindings(const FCompiledBindingLibraryCo
 					}
 				}
 			}
-			// keep only one ExecuteAtInitialization on the last source
+			// Keep only one ExecuteAtInitialization on the last source.
 			{
-				FMVVMViewClass_Source& ClassSource = ViewExtension->Sources[SharedBindings.Last().GetIndex()];
+				FMVVMViewClass_Source& ClassSource = ViewExtension->Sources[SharedExecuteAtInitializationBindings.Last().GetIndex()];
 				bool bFound = false;
 				for (int32 Index = ClassSource.Bindings.Num() - 1; Index >= 0; --Index)
 				{

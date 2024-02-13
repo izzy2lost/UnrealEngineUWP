@@ -167,5 +167,10 @@ void UMVVMBindingSubsystem::RemoveDelayedBindings(const UMVVMView* View, FMVVMVi
 				(*FoundView).RemoveAtSwap(Index);
 			}
 		}
+
+		if (FoundView->Num() == 0)
+		{
+			DelayedBindings.Remove(View);
+		}
 	}
 }

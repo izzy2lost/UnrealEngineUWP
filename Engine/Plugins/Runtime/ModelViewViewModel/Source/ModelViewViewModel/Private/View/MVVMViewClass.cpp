@@ -189,10 +189,8 @@ FString FMVVMViewClass_Source::ToString(const UMVVMViewClass* ViewClass, FToStri
 	StringBuilder << TEXT(", SourceName: ");
 	StringBuilder << GetName();
 
-	if (Args.bAddFlags)
-	{
-		bool bHasFlag = false;
-		auto AddPipe = [&StringBuilder, &bHasFlag]()
+	bool bHasFlag = false;
+	auto AddPipe = [&StringBuilder, &bHasFlag]()
 		{
 			if (bHasFlag)
 			{
@@ -201,7 +199,39 @@ FString FMVVMViewClass_Source::ToString(const UMVVMViewClass* ViewClass, FToStri
 			bHasFlag = true;
 		};
 
-		StringBuilder << TEXT(", Flags: ");
+	if (Args.bAddFields)
+	{
+		StringBuilder << TEXT("\n    FieldIds: ");
+		bHasFlag = false;
+		for (const FMVVMViewClass_FieldId& FieldId : GetFieldIds())
+		{
+			AddPipe();
+			StringBuilder << FieldId.GetName();
+		}
+	}
+
+	if (Args.bAddBindings)
+	{
+		StringBuilder << TEXT("\n    Bindings: ");
+		bHasFlag = false;
+		for (const FMVVMViewClass_SourceBinding& SourceBinding : GetBindings())
+		{
+			StringBuilder << TEXT("\n        FieldId: ");
+			StringBuilder << SourceBinding.GetFieldId().GetFieldName();
+			StringBuilder << TEXT(" BindingIndex: ");
+			StringBuilder << SourceBinding.GetBindingKey().GetIndex();
+			StringBuilder << TEXT(" Flags: ");
+			if (SourceBinding.ExecuteAtInitialization())
+			{
+				StringBuilder << TEXT("ExecuteAtInit ");
+			}
+		}
+	}
+
+	if (Args.bAddFlags)
+	{
+		StringBuilder << TEXT("\n    Flags: ");
+		bHasFlag = false;
 		if (IsUserWidget())
 		{
 			AddPipe();
@@ -455,8 +485,8 @@ FString FMVVMViewClass_Binding::ToString(const UMVVMViewClass* ViewClass, FToStr
 		}
 	}
 
-	StringBuilder << TEXT("Sources: ");
-	StringBuilder << SourceBitField;
+	StringBuilder << TEXT("Sources: 0x");
+	StringBuilder << FString::Printf(TEXT("%x"), SourceBitField);
 
 	if (Args.bAddFlags)
 	{
@@ -736,30 +766,39 @@ FString UMVVMViewClass::ToString(FToStringArgs Args) const
 
 	TStringBuilder<2048> Builder;
 	Builder << TEXT("Sources: ");
-	for (const FMVVMViewClass_Source& Source : GetSources())
+	for (int32 Index = 0; Index < GetSources().Num(); ++Index)
 	{
+		const FMVVMViewClass_Source& Source = GetSources()[Index];
 		Builder << TEXT("\n");
+		Builder << TEXT('(') << Index << TEXT(')');
 		Builder << Source.ToString(this, Args.Source);
 	}
 
-	Builder << TEXT("Bindings: ");
-	for (const FMVVMViewClass_Binding& Binding : GetBindings())
+	Builder << TEXT("\nBindings: ");
+	Builder << TEXT("Sources: ");
+	for (int32 Index = 0; Index < GetBindings().Num(); ++Index)
 	{
+		const FMVVMViewClass_Binding& Binding = GetBindings()[Index];
 		Builder << TEXT("\n");
+		Builder << TEXT('(') << Index << TEXT(')');
 		Builder << Binding.ToString(this, Args.Binding);
 	}
 
-	Builder << TEXT("Evaluate: ");
-	for (const FMVVMViewClass_EvaluateSource& EvaluateSource : GetEvaluateSources())
+	Builder << TEXT("\nEvaluates: ");
+	for (int32 Index = 0; Index < GetEvaluateSources().Num(); ++Index)
 	{
+		const FMVVMViewClass_EvaluateSource& EvaluateSource = GetEvaluateSources()[Index];
 		Builder << TEXT("\n");
+		Builder << TEXT('(') << Index << TEXT(')');
 		Builder << EvaluateSource.ToString(this, Args.Evaluate);
 	}
 
-	Builder << TEXT("Events: ");
-	for (const FMVVMViewClass_Event& Event : GetEvents())
+	Builder << TEXT("\nEvents: ");
+	for (int32 Index = 0; Index < GetEvents().Num(); ++Index)
 	{
+		const FMVVMViewClass_Event& Event = GetEvents()[Index];
 		Builder << TEXT("\n");
+		Builder << TEXT('(') << Index << TEXT(')');
 		Builder << Event.ToString(this, Args.Event);
 	}
 
