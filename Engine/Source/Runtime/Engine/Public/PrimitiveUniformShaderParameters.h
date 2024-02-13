@@ -39,7 +39,9 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FPrimitiveUniformShaderParameters,ENGINE_AP
 	SHADER_PARAMETER(float,			ObjectBoundsX)											// Only needed for editor/development
 	SHADER_PARAMETER(FVector4f,		ObjectWorldPositionHighAndRadius)						// Needed by some materials
 	SHADER_PARAMETER(FVector3f,		ObjectWorldPositionLow)									// Needed by some materials
+	SHADER_PARAMETER(float,			MinMaterialDisplacement)
 	SHADER_PARAMETER(FVector3f,		ActorWorldPositionHigh)
+	SHADER_PARAMETER(float,			MaxMaterialDisplacement)
 	SHADER_PARAMETER(FVector3f,		ActorWorldPositionLow)
 	SHADER_PARAMETER(uint32,		LightmapUVIndex)										// Only needed if static lighting is enabled
 	SHADER_PARAMETER_EX(FVector3f,	ObjectOrientation,   EShaderPrecisionModifier::Half)
@@ -65,8 +67,6 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FPrimitiveUniformShaderParameters,ENGINE_AP
 	SHADER_PARAMETER(float,			InstanceWPODisableDistanceSquared)
 	SHADER_PARAMETER(uint32,		NaniteRayTracingDataOffset)
 	SHADER_PARAMETER(float,			MaxWPOExtent)
-	SHADER_PARAMETER(float,			MinMaterialDisplacement)
-	SHADER_PARAMETER(float,			MaxMaterialDisplacement)
 	SHADER_PARAMETER(uint32,		CustomStencilValueAndMask)
 	SHADER_PARAMETER(uint32,		VisibilityFlags)
 	SHADER_PARAMETER_ARRAY(FVector4f, CustomPrimitiveData, [FCustomPrimitiveData::NumCustomPrimitiveDataFloat4s]) // Custom data per primitive that can be accessed through material expression parameters and modified through UStaticMeshComponent
