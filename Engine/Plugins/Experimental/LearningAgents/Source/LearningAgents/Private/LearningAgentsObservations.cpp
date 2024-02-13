@@ -1915,19 +1915,71 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeTransfo
 		Tag);
 }
 
-FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeAngleObservation(ULearningAgentsObservationObject* Object, const float Angle, const float RelativeAngle, const FName Tag)
+FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeAngleObservation(
+	ULearningAgentsObservationObject* Object, 
+	const float Angle, 
+	const float RelativeAngle, 
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
-	return MakeAngleObservationRadians(Object, FMath::DegreesToRadians(Angle), FMath::DegreesToRadians(RelativeAngle), Tag);
+	const float LocalAngle = FMath::FindDeltaAngleDegrees(RelativeAngle, Angle);
+	const float EncodedX = FMath::Sin(FMath::DegreesToRadians(Angle));
+	const float EncodedY = FMath::Cos(FMath::DegreesToRadians(Angle));
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
+	{
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+
+		UE_LEARNING_AGENTS_VLOG_ANGLE_DEGREES(VisualLoggerObject, LogLearning, Display,
+			Angle,
+			RelativeAngle,
+			VisualLoggerLocation,
+			10.0f,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nAngle: [% 6.1f]\nRelative Angle: [% 6.1f]\nLocal Angle: [% 6.1f]\nEncoded: [% 6.2f % 6.2f]"),
+			*VisualLoggerListener->GetName(),
+			*Tag.ToString(),
+			VisualLoggerAgentId,
+			Angle,
+			RelativeAngle,
+			LocalAngle,
+			EncodedX, EncodedY);
+	}
+#endif
+
+	return MakeContinuousObservationFromArrayView(Object, { EncodedX, EncodedY }, Tag);
 }
 
-FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeAngleObservationRadians(ULearningAgentsObservationObject* Object, const float Angle, const float RelativeAngle, const FName Tag)
+FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeAngleObservationRadians(
+	ULearningAgentsObservationObject* Object, 
+	const float Angle, 
+	const float RelativeAngle, 
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
-	const float LocalAngle = FMath::FindDeltaAngleRadians(RelativeAngle, Angle);
-
-	return MakeContinuousObservationFromArrayView(Object, {
-		(float)FMath::Sin(Angle),
-		(float)FMath::Cos(Angle),
-		}, Tag);
+	return MakeAngleObservation(
+		Object, 
+		FMath::RadiansToDegrees(Angle), 
+		FMath::RadiansToDegrees(RelativeAngle), 
+		Tag, 
+		bVisualLoggerEnabled, 
+		VisualLoggerListener, 
+		VisualLoggerAgentId, 
+		VisualLoggerLocation, 
+		VisualLoggerColor);
 }
 
 FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeVelocityObservation(
@@ -2067,7 +2119,16 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeLocatio
 		VisualLoggerColor);
 }
 
-FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeProportionAlongSplineObservation(ULearningAgentsObservationObject* Object, const USplineComponent* SplineComponent, const float DistanceAlongSpline, const FName Tag)
+FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeProportionAlongSplineObservation(
+	ULearningAgentsObservationObject* Object, 
+	const USplineComponent* SplineComponent, 
+	const float DistanceAlongSpline, 
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	if (!SplineComponent)
 	{
@@ -2081,12 +2142,32 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeProport
 		const float WrapDistance = FMath::Wrap(DistanceAlongSpline, 0.0f, TotalDistance);
 		const float Proportion = WrapDistance / FMath::Max(TotalDistance, UE_SMALL_NUMBER);
 		const float Angle = FMath::Wrap(UE_TWO_PI * Proportion, -UE_PI, UE_PI);
-		return MakeExclusiveUnionObservation(Object, TEXT("Angle"), MakeAngleObservation(Object, Angle), Tag);
+		
+		return MakeExclusiveUnionObservation(Object, TEXT("Angle"), MakeAngleObservationRadians(
+			Object, 
+			Angle,
+			0.0f,
+			TEXT("Angle"),
+			bVisualLoggerEnabled,
+			VisualLoggerListener,
+			VisualLoggerAgentId,
+			VisualLoggerLocation,
+			VisualLoggerColor), Tag);
 	}
 	else
 	{
 		const float Proportion = FMath::Clamp(DistanceAlongSpline / FMath::Max(SplineComponent->GetSplineLength(), UE_SMALL_NUMBER), 0.0f, 1.0f);
-		return MakeExclusiveUnionObservation(Object, TEXT("Proportion"), MakeFloatObservation(Object, Proportion), Tag);
+
+		return MakeExclusiveUnionObservation(Object, TEXT("Proportion"), MakeFloatObservation(
+			Object, 
+			Proportion, 
+			1.0f, 
+			TEXT("Float"),
+			bVisualLoggerEnabled, 
+			VisualLoggerListener, 
+			VisualLoggerAgentId, 
+			VisualLoggerLocation, 
+			VisualLoggerColor), Tag);
 	}
 }
 
@@ -2135,12 +2216,22 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeDirecti
 		VisualLoggerColor);
 }
 
-FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeProportionAlongRayObservation(ULearningAgentsObservationObject* Object, const FVector RayStart, const FVector RayEnd, const FTransform RayTransform, const ECollisionChannel CollisionChannel, const FName Tag)
+FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeProportionAlongRayObservation(
+	ULearningAgentsObservationObject* Object, 
+	const FVector RayStart, 
+	const FVector RayEnd, 
+	const FTransform RayTransform, 
+	const ECollisionChannel CollisionChannel, 
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	const FVector RayStartWorld = RayTransform.TransformPosition(RayStart);
 	const FVector RayEndWorld = RayTransform.TransformPosition(RayEnd);
 	const float RayDistance = FVector::Distance(RayStartWorld, RayEndWorld);
-
 
 	FCollisionObjectQueryParams ObjectQueryParams;
 	ObjectQueryParams.AddObjectTypesToQuery(CollisionChannel);
@@ -2148,14 +2239,51 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeProport
 	FHitResult TraceHit;
 	const bool bHit = Object->GetWorld()->LineTraceSingleByObjectType(TraceHit, RayStartWorld, RayEndWorld, ObjectQueryParams);
 
-	if (bHit)
+	const float Encoded = bHit ? 1.0f - TraceHit.Time : 0.0f;
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
 	{
-		return MakeFloatObservation(Object, 1.0f - TraceHit.Time, 1.0f, Tag);
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+
+		UE_LEARNING_AGENTS_VLOG_SEGMENT(VisualLoggerObject, LogLearning, Display,
+			RayStartWorld,
+			RayEndWorld,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		if (bHit)
+		{
+			UE_LEARNING_AGENTS_VLOG_LOCATION(VisualLoggerObject, LogLearning, Display,
+				RayStartWorld + TraceHit.Time * (RayEndWorld - RayStartWorld),
+				10.f,
+				VisualLoggerColor.ToFColor(true),
+				TEXT(""));
+		}
+
+		UE_LEARNING_AGENTS_VLOG_TRANSFORM(VisualLoggerObject, LogLearning, Display,
+			RayTransform.GetTranslation(),
+			RayTransform.GetRotation(),
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nRay Start: [% 6.1f % 6.1f % 6.1f]\nRay End: [% 6.1f % 6.1f % 6.1f]\nRay Start World: [% 6.1f % 6.1f % 6.1f]\nRay End World: [% 6.1f % 6.1f % 6.1f]\nCollision Channel: [%s]\nHit: [%s]\nEncoded: [% 6.2f]"),
+			*VisualLoggerListener->GetName(),
+			*Tag.ToString(),
+			VisualLoggerAgentId,
+			RayStart.X, RayStart.Y, RayStart.Z,
+			RayEnd.X, RayEnd.Y, RayEnd.Z,
+			RayStartWorld.X, RayStartWorld.Y, RayStartWorld.Z,
+			RayEndWorld.X, RayEndWorld.Y, RayEndWorld.Z,
+			*StaticEnum<ECollisionChannel>()->GetNameStringByValue(CollisionChannel),
+			bHit ? TEXT("true") : TEXT("false"),
+			Encoded);
 	}
-	else
-	{
-		return MakeFloatObservation(Object, 0.0f, 1.0f, Tag);
-	}
+#endif
+
+	return MakeFloatObservation(Object, Encoded, 1.0f, Tag);
 }
 
 

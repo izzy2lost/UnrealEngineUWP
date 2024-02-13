@@ -209,7 +209,7 @@ public:
 		const FLinearColor VisualLoggerColor = FLinearColor::Green);
 
 	/**
-	 * Make a reward based on how similar two angles are.
+	 * Make a reward based on how similar two angles are. Angles should be given in degrees.
 	 *
 	 * @param AngleA The first angle.
 	 * @param AngleB The second angle.
@@ -241,8 +241,8 @@ public:
 	/**
 	 * Make a reward based on how similar two directions are.
 	 *
-	 * @param DirectionA The first angle.
-	 * @param DirectionB The second angle.
+	 * @param DirectionA The first direction.
+	 * @param DirectionB The second direction.
 	 * @param RewardScale The scale of the reward. Use a negative scale to create a penalty.
 	 * @param Tag The tag for the reward. Used for debugging.
 	 * @param bVisualLoggerEnabled When true, debug data will be sent to the visual logger.

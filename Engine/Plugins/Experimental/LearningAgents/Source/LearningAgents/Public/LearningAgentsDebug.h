@@ -45,12 +45,15 @@
 		UE_LEARNING_AGENTS_VLOG_STRING(Owner, Category, Verbosity, Location + FVector(0.0f, 0.0f, 20.0f), Color, Format, ##__VA_ARGS__); \
 	}
 
-#define UE_LEARNING_AGENTS_VLOG_ANGLE(Owner, Category, Verbosity, Angle, RelativeAngle, Location, Radius, Color, Format, ...) \
+#define UE_LEARNING_AGENTS_VLOG_ANGLE_RADIANS(Owner, Category, Verbosity, Angle, RelativeAngle, Location, Radius, Color, Format, ...) \
 	{ \
 		UE_LEARNING_AGENTS_VLOG_CIRCLE(Owner, Category, Verbosity, Location, FVector::UpVector, Radius, Color, TEXT("")); \
 		UE_LEARNING_AGENTS_VLOG_SEGMENT(Owner, Category, Verbosity, Location, Location + Radius * FVector(FMath::Sin(RelativeAngle), FMath::Cos(RelativeAngle), 0.0f), Color, TEXT("")); \
 		UE_LEARNING_AGENTS_VLOG_SEGMENT(Owner, Category, Verbosity, Location, Location + Radius * FVector(FMath::Sin(Angle), FMath::Cos(Angle), 0.0f), Color, TEXT("")); \
 		UE_LEARNING_AGENTS_VLOG_LOCATION(Owner, Category, Verbosity, Location + Radius * FVector(FMath::Sin(Angle), FMath::Cos(Angle), 0.0f), static_cast<uint16>(Radius / 20.0f), Color, Format, ##__VA_ARGS__); \
 	}
+
+#define UE_LEARNING_AGENTS_VLOG_ANGLE_DEGREES(Owner, Category, Verbosity, Angle, RelativeAngle, Location, Radius, Color, Format, ...) \
+	UE_LEARNING_AGENTS_VLOG_ANGLE_RADIANS(Owner, Category, Verbosity, FMath::DegreesToRadians(Angle), FMath::DegreesToRadians(RelativeAngle), Location, Radius, Color, Format)
 
 #endif
