@@ -68,6 +68,9 @@ void UGeometryMaskWriteMeshComponent::DrawToCanvas(FCanvas* InCanvas)
 		TArray<FName> KeyNames;
 		CachedMeshData.GenerateKeyArray(KeyNames);
 
+		TMap<FName, TWeakObjectPtr<USceneComponent>> ComponentsToKeep;
+		ComponentsToKeep.Reserve(KeyNames.Num());
+
 		TRACE_CPUPROFILER_EVENT_SCOPE(UGeometryMaskWriteMeshComponent::DrawToCanvas::WriteToCanvas);
 
 		ParallelFor(KeyNames.Num(), [&](int32 TaskIdx)
@@ -76,14 +79,18 @@ void UGeometryMaskWriteMeshComponent::DrawToCanvas(FCanvas* InCanvas)
 
 			const FName KeyName = KeyNames[TaskIdx];
 			FTransform LocalToWorld;
-			
-			if (const USceneComponent* Component = CachedComponentsWeak[KeyName].Get())
+
+			if (CachedComponentsWeak.Contains(KeyName))
 			{
-				LocalToWorld = Component->GetComponentToWorld();
+				TWeakObjectPtr<USceneComponent>& CachedComponentWeak = CachedComponentsWeak[KeyName];
+				if (const USceneComponent* Component = CachedComponentWeak.Get())
+				{
+					ComponentsToKeep.Emplace(KeyName, CachedComponentWeak);
+					LocalToWorld = Component->GetComponentToWorld();
+				}
 			}
 			else
 			{
-				// @todo: remove from cache
 				return;
 			}
 
@@ -139,6 +146,8 @@ void UGeometryMaskWriteMeshComponent::DrawToCanvas(FCanvas* InCanvas)
 				InCanvas->PopTransform();
 			}
 		});
+
+		CachedComponentsWeak = ComponentsToKeep;
 	}
 }
 
@@ -198,8 +207,14 @@ void UGeometryMaskWriteMeshComponent::UpdateCachedStaticMeshData(TConstArrayView
 	{
 		if (const UStaticMesh* StaticMesh = InStaticMeshComponent->GetStaticMesh())
 		{
-			if (const FGeometryMaskBatchElementData* CachedData = CachedMeshData.Find(StaticMesh->GetFName()))
+			const FName ComponentKey = StaticMesh->GetFName();
+			if (const FGeometryMaskBatchElementData* CachedData = CachedMeshData.Find(ComponentKey))
 			{
+				if (!CachedComponentsWeak.Contains(ComponentKey))
+				{
+					return false; // Cached component invalid, don't remove from build list to ensure it's re-cached
+				}
+				
 				if (CachedData->Vertices.Num() == StaticMesh->GetNumVertices(0))
 				{
 					return true; // Cached, remove from "to build" list							
@@ -242,19 +257,18 @@ void UGeometryMaskWriteMeshComponent::UpdateCachedStaticMeshData(TConstArrayView
 				if (FStaticMeshRenderData* RenderData = StaticMesh->GetRenderData())
 				{
 					if (RenderData->LODResources.IsEmpty())
-						{
-							continue;
-						}
-
-						if (RenderData->LODResources[0].GetNumVertices() == 0)
-						{
-							continue;
-						}
-
-						StaticMeshObjectNames.Add(StaticMesh->GetFName());
-						StaticMeshResources.Add(&RenderData->LODResources[0]);
-						CachedComponentsWeak.Add(StaticMesh->GetFName(), StaticMeshComponent);
+					{
+						continue;
 					}
+
+					if (RenderData->LODResources[0].GetNumVertices() == 0)
+					{
+						continue;
+					}
+
+					StaticMeshObjectNames.Add(StaticMesh->GetFName());
+					StaticMeshResources.Add(&RenderData->LODResources[0]);
+					CachedComponentsWeak.Add(StaticMesh->GetFName(), StaticMeshComponent);
 				}
 			}
 		}
@@ -282,6 +296,7 @@ void UGeometryMaskWriteMeshComponent::UpdateCachedStaticMeshData(TConstArrayView
 				}
 			});
 		}
+	}
 }
 
 void UGeometryMaskWriteMeshComponent::UpdateCachedDynamicMeshData(TConstArrayView<UPrimitiveComponent*> InPrimitiveComponents)
@@ -311,8 +326,14 @@ void UGeometryMaskWriteMeshComponent::UpdateCachedDynamicMeshData(TConstArrayVie
 	{
 		if (const UDynamicMesh* DynamicMesh = InDynamicMeshComponent->GetDynamicMesh())
 		{
-			if (const FGeometryMaskBatchElementData* CachedData = CachedMeshData.Find(InDynamicMeshComponent->GetFName()))
+			const FName ComponentKey = InDynamicMeshComponent->GetFName();
+			if (const FGeometryMaskBatchElementData* CachedData = CachedMeshData.Find(ComponentKey))
 			{
+				if (!CachedComponentsWeak.Contains(ComponentKey))
+				{
+					return false; // Cached component invalid, don't remove from build list to ensure it's re-cached
+				}
+				
 				if (CachedData->Vertices.Num() == DynamicMesh->GetMeshRef().VertexCount()
 					&& CachedData->ChangeStamp == DynamicMesh->GetMeshRef().GetChangeStamp())
 				{

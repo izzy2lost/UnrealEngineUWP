@@ -11,12 +11,39 @@
 #include "GeometryMaskModule.h"
 #include "IGeometryMaskWriteInterface.h"
 
+const FName UGeometryMaskCanvas::ApplyBlurPropertyName = GET_MEMBER_NAME_CHECKED(UGeometryMaskCanvas, bApplyBlur);
+const FName UGeometryMaskCanvas::BlurStrengthPropertyName = GET_MEMBER_NAME_CHECKED(UGeometryMaskCanvas, BlurStrength);
+const FName UGeometryMaskCanvas::ApplyFeatherPropertyName = GET_MEMBER_NAME_CHECKED(UGeometryMaskCanvas, bApplyFeather);
+const FName UGeometryMaskCanvas::OuterFeatherRadiusPropertyName = GET_MEMBER_NAME_CHECKED(UGeometryMaskCanvas, InnerFeatherRadius);
+const FName UGeometryMaskCanvas::InnerFeatherRadiusPropertyName = GET_MEMBER_NAME_CHECKED(UGeometryMaskCanvas, OuterFeatherRadius);
+
 void UGeometryMaskCanvas::BeginDestroy()
 {
 	FreeResource();
 	
 	UObject::BeginDestroy();
 }
+
+#if WITH_EDITOR
+void UGeometryMaskCanvas::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
+{
+	UObject::PostEditChangeProperty(InPropertyChangedEvent);
+
+	static TSet<FName> UpdateRenderParameterProperties =
+	{
+		ApplyBlurPropertyName,
+		BlurStrengthPropertyName,
+		ApplyFeatherPropertyName,
+		OuterFeatherRadiusPropertyName,
+		InnerFeatherRadiusPropertyName
+	};
+
+	if (UpdateRenderParameterProperties.Contains(InPropertyChangedEvent.GetPropertyName()))
+	{
+		UpdateRenderParameters();
+	}
+}
+#endif
 
 const TArray<TWeakInterfacePtr<IGeometryMaskWriteInterface>>& UGeometryMaskCanvas::GetWriters() const
 {
@@ -51,7 +78,7 @@ void UGeometryMaskCanvas::AddWriters(const TArray<TScriptInterface<IGeometryMask
 	RemoveInvalidWriters();
 	for (const TScriptInterface<IGeometryMaskWriteInterface>& Writer : InWriters)
 	{
-		AddWriter(Writer);		
+		AddWriter(Writer);
 	}
 }
 
@@ -212,6 +239,8 @@ void UGeometryMaskCanvas::AssignResource(
 	ColorChannel = InColorChannel;
 
 	CanvasResource->OnDrawToCanvas().AddUObject(this, &UGeometryMaskCanvas::OnDrawToCanvas);
+
+	UpdateRenderParameters();
 }
 
 void UGeometryMaskCanvas::FreeResource()
@@ -225,6 +254,31 @@ void UGeometryMaskCanvas::FreeResource()
 		CanvasResource->Checkin(CanvasName);
 		CanvasResource = nullptr;
 	}
+}
+
+FName UGeometryMaskCanvas::GetApplyBlurPropertyName()
+{
+	return ApplyBlurPropertyName;
+}
+
+FName UGeometryMaskCanvas::GetBlurStrengthPropertyName()
+{
+	return BlurStrengthPropertyName;
+}
+
+FName UGeometryMaskCanvas::GetApplyFeatherPropertyName()
+{
+	return ApplyFeatherPropertyName;
+}
+
+FName UGeometryMaskCanvas::GetOuterFeatherRadiusPropertyName()
+{
+	return OuterFeatherRadiusPropertyName;
+}
+
+FName UGeometryMaskCanvas::GetInnerFeatherRadiusPropertyName()
+{
+	return InnerFeatherRadiusPropertyName;
 }
 
 void UGeometryMaskCanvas::SortWriters()
