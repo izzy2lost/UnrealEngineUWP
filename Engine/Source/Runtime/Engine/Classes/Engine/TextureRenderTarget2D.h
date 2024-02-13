@@ -128,6 +128,9 @@ class UTextureRenderTarget2D : public UTextureRenderTarget
 	UPROPERTY()
 	uint8 bForceLinearGamma:1;
 
+	/** If true fast clear will be disabled on the rendertarget. */
+	uint8 bNoFastClear:1;
+
 	/** Whether to support storing HDR values, which requires more memory. */
 	UPROPERTY()
 	uint8 bHDR_DEPRECATED:1;
