@@ -605,8 +605,14 @@ struct FRHIGlobals
 	{
 		/**
 		* True if the RHI supports reserved (AKA tiled, virtual or sparse) resources and operations related to them.
+		* Buffers and 2D textures (without mips) can be created with ReservedResource flag.
 		*/
 		bool Supported = false;
+
+		/**
+		* True if the RHI supports creating volume textures with ReservedResource flag.
+		*/
+		bool SupportsVolumeTextures = false;
 
 		/**
 		* Smallest mip dimension of reserved texture arrays must be greater or equal to this value.

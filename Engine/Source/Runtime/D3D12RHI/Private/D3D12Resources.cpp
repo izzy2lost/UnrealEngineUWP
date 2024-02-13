@@ -185,9 +185,15 @@ void FD3D12Resource::CommitReservedResource(ID3D12CommandQueue* D3DCommandQueue,
 
 	check(Desc.bReservedResource);
 	check(ReservedResourceData.IsValid());
-	checkf(Desc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER
-		|| Desc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE2D, 
-		TEXT("CommitReservedResource is currently only implemented for 2D textures and buffers"));
+
+	checkf(GRHIGlobals.ReservedResources.Supported,
+		TEXT("Current RHI does not support reserved resources"));
+
+	if (Desc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D)
+	{
+		checkf(GRHIGlobals.ReservedResources.SupportsVolumeTextures,
+			TEXT("Current RHI does not support reserved volume textures"));
+	}
 
 	if (Desc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER)
 	{
@@ -244,8 +250,7 @@ void FD3D12Resource::CommitReservedResource(ID3D12CommandQueue* D3DCommandQueue,
 	}
 	else if (PackedMipDesc.NumStandardMips != 0)
 	{
-		checkf(SubresourceTiling.DepthInTiles == 1, TEXT("3D reserved textures are not supported/implemented"));
-		NumStandardTilesPerSubresource = SubresourceTiling.WidthInTiles * SubresourceTiling.HeightInTiles;
+		NumStandardTilesPerSubresource = SubresourceTiling.WidthInTiles * SubresourceTiling.HeightInTiles * SubresourceTiling.DepthInTiles;
 		NumTotalTiles = NumStandardTilesPerSubresource * NumSubresources;
 	}
 	else // packed mip case
@@ -259,8 +264,9 @@ void FD3D12Resource::CommitReservedResource(ID3D12CommandQueue* D3DCommandQueue,
 		D3DResourceNumTiles, NumTotalTiles);
 
 	const uint32 NumRequiredCommitTiles = RequiredCommitSizeInBytes / TileSizeInBytes;
+	const uint32 NumTilesPerSlice = SubresourceTiling.WidthInTiles * SubresourceTiling.HeightInTiles;
 
-	auto GetTiledResourceCoordinate = [SubresourceTiling, NumStandardTilesPerSubresource, NumSubresources, MaxTilesPerHeap]
+	auto GetTiledResourceCoordinate = [SubresourceTiling, NumStandardTilesPerSubresource, NumSubresources, NumTilesPerSlice, MaxTilesPerHeap]
 		(uint32 OffsetInTiles, uint32 NumTiles) -> D3D12_TILED_RESOURCE_COORDINATE 
 	{
 		D3D12_TILED_RESOURCE_COORDINATE ResourceCoordinate = {}; // Coordinates are in tiles, not pixels
@@ -269,7 +275,7 @@ void FD3D12Resource::CommitReservedResource(ID3D12CommandQueue* D3DCommandQueue,
 			const uint32 TileIndexInSubresource = OffsetInTiles % NumStandardTilesPerSubresource;
 			ResourceCoordinate.X = TileIndexInSubresource % SubresourceTiling.WidthInTiles;
 			ResourceCoordinate.Y = (TileIndexInSubresource / SubresourceTiling.WidthInTiles) % SubresourceTiling.HeightInTiles;
-			ResourceCoordinate.Z = 0; // Only simple 2D / Array2D textures are implemented
+			ResourceCoordinate.Z = TileIndexInSubresource / NumTilesPerSlice;
 
 			ResourceCoordinate.Subresource = OffsetInTiles / NumStandardTilesPerSubresource;
 			check(ResourceCoordinate.Subresource <= NumSubresources);
@@ -277,7 +283,7 @@ void FD3D12Resource::CommitReservedResource(ID3D12CommandQueue* D3DCommandQueue,
 		else
 		{
 			// Packed mip level case:
-			// - Only simple 2D textures are expected (single subresource, no arrays)
+			// - Only simple textures are expected (single subresource, no arrays)
 			// - Entire packed mip level must be covered in one map operation, so mapping origin is always 0
 
 			checkf(NumSubresources == 1,

@@ -137,6 +137,12 @@ void FAutomationRHITest::Define()
 
 	Describe("Test RHI Reserved Resource", [this]()
 	{
+		It("Create Reserved Volume Texture", [this]()
+		{
+			bool bResult = RunOnRenderThreadSynchronous(FRHIReservedResourceTests::Test_ReservedResource_CreateVolumeTexture);
+			TestEqual("Create Reserved Volume Texture failed", bResult, 1);
+		});
+
 		It("Create Reserved Texture", [this]()
 		{
 			bool bResult = RunOnRenderThreadSynchronous(FRHIReservedResourceTests::Test_ReservedResource_CreateTexture);

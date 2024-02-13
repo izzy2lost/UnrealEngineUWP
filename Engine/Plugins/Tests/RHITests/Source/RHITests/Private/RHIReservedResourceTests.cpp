@@ -6,6 +6,75 @@
 #include "RenderCaptureInterface.h"
 #include "RHIStaticStates.h"
 
+bool FRHIReservedResourceTests::Test_ReservedResource_CreateVolumeTexture(FRHICommandListImmediate& RHICmdList)
+{
+	if (!GRHIGlobals.ReservedResources.SupportsVolumeTextures)
+	{
+		return true;
+	}
+
+	// Tiny volume texture with immediately committed physical memory.
+	// Expected to exercise the packed mip layout case.
+
+	{
+		FRHITextureCreateDesc Desc = FRHITextureCreateDesc::Create3D(TEXT("TestTinyReservedTexture3D"));
+		Desc.SetFlags(TexCreate_ShaderResource | TexCreate_ReservedResource | TexCreate_ImmediateCommit)
+			.SetExtent(FIntPoint(8, 8))
+			.SetDepth(8)
+			.SetNumMips(1)
+			.SetFormat(PF_A32B32G32R32F)
+			.SetInitialState(ERHIAccess::SRVCompute);
+
+		FTextureRHIRef Texture = RHICreateTexture(Desc);
+	}
+
+	// Small size volume texture (16MB) with immediately committed physical memory.
+
+	{
+		FRHITextureCreateDesc Desc = FRHITextureCreateDesc::Create3D(TEXT("TestSmallReservedTexture3D"));
+		Desc.SetFlags(TexCreate_ShaderResource | TexCreate_ReservedResource | TexCreate_ImmediateCommit)
+			.SetExtent(FIntPoint(128, 128))
+			.SetDepth(64)
+			.SetNumMips(1)
+			.SetFormat(PF_A32B32G32R32F)
+			.SetInitialState(ERHIAccess::SRVCompute);
+
+		FTextureRHIRef Texture = RHICreateTexture(Desc);
+	}
+
+	// Medium size volume texture (128MB) with immediately committed physical memory.
+	// Likely to be backed by multiple physical memory allocations.
+
+	{
+		FRHITextureCreateDesc Desc = FRHITextureCreateDesc::Create3D(TEXT("TestMediumReservedTexture3D"));
+		Desc.SetFlags(TexCreate_ShaderResource | TexCreate_ReservedResource | TexCreate_ImmediateCommit)
+			.SetExtent(FIntPoint(1024, 1024))
+			.SetDepth(8)
+			.SetNumMips(1)
+			.SetFormat(PF_A32B32G32R32F)
+			.SetInitialState(ERHIAccess::SRVCompute);
+
+		FTextureRHIRef Texture = RHICreateTexture(Desc);
+	}
+
+	// Huge volume texture without physical memory allocation.
+	// Just test the ability to reserve a huge virtual address range.
+
+	{
+		FRHITextureCreateDesc Desc = FRHITextureCreateDesc::Create3D(TEXT("TestHugeReservedTexture3D"));
+		Desc.SetFlags(TexCreate_ShaderResource | TexCreate_ReservedResource)
+			.SetExtent(FIntPoint(2048, 2048))
+			.SetDepth(2048)
+			.SetNumMips(1)
+			.SetFormat(PF_A32B32G32R32F)
+			.SetInitialState(ERHIAccess::SRVCompute);
+
+		FTextureRHIRef Texture = RHICreateTexture(Desc);
+	}
+
+	return true;
+}
+
 bool FRHIReservedResourceTests::Test_ReservedResource_CreateTexture(FRHICommandListImmediate& RHICmdList)
 {
 	if (!GRHIGlobals.ReservedResources.Supported)
@@ -81,6 +150,19 @@ bool FRHIReservedResourceTests::Test_ReservedResource_CreateTexture(FRHICommandL
 
 			FTextureRHIRef Texture = RHICreateTexture(Desc);
 		}
+	}
+
+	// Try to create huge reserved textures without committing physical memory
+
+	{
+		FRHITextureCreateDesc Desc = FRHITextureCreateDesc::Create2D(TEXT("TestHugeReservedTexture2D"));
+		Desc.SetFlags(TexCreate_ShaderResource | TexCreate_ReservedResource)
+			.SetExtent(FIntPoint(16384, 16384))
+			.SetNumMips(1)
+			.SetFormat(PF_A32B32G32R32F)
+			.SetInitialState(ERHIAccess::SRVCompute);
+
+		FTextureRHIRef Texture = RHICreateTexture(Desc);
 	}
 
 	return true;

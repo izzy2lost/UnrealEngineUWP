@@ -581,11 +581,13 @@ FD3D12ResourceDesc FD3D12DynamicRHI::GetResourceDesc(const FRHITextureDesc& Text
 	}
 
 	// Only 2D textures without mips are implemented/supported, to avoid the complexity associated with packed mips
-	if (GRHIGlobals.ReservedResources.Supported
-		&& EnumHasAllFlags(TextureDesc.Flags, TexCreate_ReservedResource)
-		&& TextureDesc.NumMips == 1
-		&& (TextureDesc.Dimension == ETextureDimension::Texture2D || TextureDesc.Dimension == ETextureDimension::Texture2DArray))
+	if (EnumHasAllFlags(TextureDesc.Flags, TexCreate_ReservedResource))
 	{
+		checkf(GRHIGlobals.ReservedResources.Supported, TEXT("Reserved resources resources are not supported on this machine"));
+		checkf(TextureDesc.NumMips == 1, TEXT("Reserved resources with mips are not supported"));
+		checkf(TextureDesc.IsTexture2D() || TextureDesc.IsTexture3D(), TEXT("Only 2D and 3D textures can be created as reserved resources"));
+		checkf(!TextureDesc.IsTexture3D() || GRHIGlobals.ReservedResources.SupportsVolumeTextures, TEXT("Current RHI does not support reserved volume textures"));
+
 		ResourceDesc.bReservedResource = true;
 		ResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_64KB_UNDEFINED_SWIZZLE;
 	}
@@ -892,8 +894,29 @@ FD3D12Texture* FD3D12DynamicRHI::CreateD3D12Texture(const FRHITextureCreateDesc&
 		}
 		else if (CreateDesc.IsTexture3D())
 		{
-			VERIFYD3D12CREATETEXTURERESULT(Device->GetTextureAllocator().AllocateTexture(
-				ResourceDesc, ClearValuePtr, CreateDesc.Format, Location, CreateState, CreateDesc.DebugName), ResourceDesc, Device->GetDevice());
+			if (ResourceDesc.bReservedResource)
+			{
+				FD3D12Resource* Resource = nullptr;
+				VERIFYD3D12CREATETEXTURERESULT(
+					Adapter->CreateReservedResource(ResourceDesc, Device->GetGPUMask(), CreateState,
+						ED3D12ResourceStateMode::MultiState, CreateState, ClearValuePtr, &Resource, CreateDesc.DebugName, false),
+					ResourceDesc, Device->GetDevice());
+
+				D3D12_RESOURCE_ALLOCATION_INFO AllocInfo = Device->GetResourceAllocationInfo(ResourceDesc);
+
+				Location.AsStandAlone(Resource, AllocInfo.SizeInBytes);
+
+				if (EnumHasAllFlags(CreateDesc.Flags, TexCreate_ImmediateCommit))
+				{
+					Resource->CommitReservedResource(Device->GetQueue(ED3D12QueueType::Direct).D3DCommandQueue, UINT64_MAX /*commit entire resource*/);
+				}
+			}
+			else
+			{
+				VERIFYD3D12CREATETEXTURERESULT(Device->GetTextureAllocator().AllocateTexture(
+					ResourceDesc, ClearValuePtr, CreateDesc.Format, Location, CreateState, CreateDesc.DebugName), ResourceDesc, Device->GetDevice());
+			}
+
 			Location.SetOwner(NewTexture);
 		}
 		else

@@ -1753,11 +1753,20 @@ bool FRHITextureDesc::Validate(const FRHITextureCreateInfo& Desc, const TCHAR* N
 			TEXT("Reserved Texture %s's can't be created because current RHI does not support reserved resources."),
 			Name);
 
-		ValidateResourceDesc(
-			Desc.Dimension == ETextureDimension::Texture2D ||
-			Desc.Dimension == ETextureDimension::Texture2DArray,
-			TEXT("Reserved Texture %s's Desc.Dimension=%s is invalid. Expected Texture2D or Texture2DArray."),
-			Name, GetTextureDimensionString(Desc.Dimension));
+		if (Desc.IsTexture3D())
+		{
+			ValidateResourceDesc(GRHIGlobals.ReservedResources.SupportsVolumeTextures,
+				TEXT("Reserved Texture %s's can't be created because current RHI does not support reserved volume textures."),
+				Name);
+		}
+		else
+		{
+			ValidateResourceDesc(
+				Desc.Dimension == ETextureDimension::Texture2D ||
+				Desc.Dimension == ETextureDimension::Texture2DArray,
+				TEXT("Reserved Texture %s's Desc.Dimension=%s is invalid. Expected Texture2D, Texture2DArray or Texture3D."),
+				Name, GetTextureDimensionString(Desc.Dimension));
+		}
 
 		ValidateResourceDesc(Desc.NumMips == 1,
 			TEXT("Reserved Texture %s's NumMips=%d is invalid. Expected only 1 mip level."),
