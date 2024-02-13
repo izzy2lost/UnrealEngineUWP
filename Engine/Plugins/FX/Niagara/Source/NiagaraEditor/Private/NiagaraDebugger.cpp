@@ -2,15 +2,12 @@
 
 #include "NiagaraDebugger.h"
 #include "Modules/ModuleManager.h"
-#include "NiagaraEditorModule.h"
 #include "MessageEndpoint.h"
 #include "MessageEndpointBuilder.h"
 #include "NiagaraDebuggerCommon.h"
 #if WITH_UNREAL_TARGET_DEVELOPER_TOOLS
 #include "ISessionServicesModule.h"
 #endif
-#include "Serialization/MemoryReader.h"
-#include "Serialization/ObjectAndNameAsStringProxyArchive.h"
 
 #if WITH_NIAGARA_DEBUGGER
 
@@ -62,8 +59,6 @@ void FNiagaraDebugger::Init()
 
 void FNiagaraDebugger::ExecConsoleCommand(const TCHAR* Cmd, bool bRequiresWorld)
 {
-#if WITH_UNREAL_TARGET_DEVELOPER_TOOLS
-
 	auto SendExecCommand = [&](FNiagaraDebugger::FClientInfo& Client)
 	{
 		UE_LOG(LogNiagaraDebugger, Log, TEXT("Sending console command %s. | Session: %s | Instance: %s |"), Cmd, *Client.SessionId.ToString(), *Client.InstanceId.ToString());
@@ -71,16 +66,6 @@ void FNiagaraDebugger::ExecConsoleCommand(const TCHAR* Cmd, bool bRequiresWorld)
 	};
 
 	ForAllConnectedClients(SendExecCommand);
-
-#else
-
-	//Session/Messaging system is not available so just send to local client.
-	if (INiagaraDebuggerClient* LocalClient = INiagaraDebuggerClient::Get())
-	{
-		LocalClient->ExecConsoleCommand(FNiagaraDebuggerExecuteConsoleCommand(Cmd, bRequiresWorld));
-	}
-
-#endif//WITH_UNREAL_TARGET_DEVELOPER_TOOLS
 }
 
 void FNiagaraDebugger::UpdateDebugHUDSettings()
@@ -88,8 +73,6 @@ void FNiagaraDebugger::UpdateDebugHUDSettings()
 	//Send the current state as a message to all connected clients.
 	if (const UNiagaraDebugHUDSettings* Settings = GetDefault<UNiagaraDebugHUDSettings>())
 	{
-#if WITH_UNREAL_TARGET_DEVELOPER_TOOLS
-
 		auto SendSettingsUpdate = [&](FNiagaraDebugger::FClientInfo& Client)
 		{
 			//Create the message and copy the current state of the settings into it.
@@ -101,23 +84,11 @@ void FNiagaraDebugger::UpdateDebugHUDSettings()
 		};
 
 		ForAllConnectedClients(SendSettingsUpdate);
-
-#else
-
-		//Session/Messaging system is not available so just send to local client.
-		if (INiagaraDebuggerClient* LocalClient = INiagaraDebuggerClient::Get())
-		{
-			LocalClient->UpdateDebugHUDSettings(Settings->Data);
-		}
-
-#endif//WITH_UNREAL_TARGET_DEVELOPER_TOOLS
 	}
 }
 
 void FNiagaraDebugger::RequestUpdatedClientInfo()
 {
-#if WITH_UNREAL_TARGET_DEVELOPER_TOOLS
-
 	auto RequestUpdate = [&](FNiagaraDebugger::FClientInfo& Client)
 	{
 		FNiagaraRequestSimpleClientInfoMessage* Message = FMessageEndpoint::MakeMessage<FNiagaraRequestSimpleClientInfoMessage>();
@@ -126,17 +97,6 @@ void FNiagaraDebugger::RequestUpdatedClientInfo()
 	};
 
 	ForAllConnectedClients(RequestUpdate);
-
-#else
-
-	//Session/Messaging system is not available so just send to local client.
-	if (INiagaraDebuggerClient* LocalClient = INiagaraDebuggerClient::Get())
-	{
-		LocalClient->GetSimpleClientInfo(SimpleClientInfo);
-		OnSimpleClientInfoChangedDelegate.Broadcast(SimpleClientInfo);
-	}
-
-#endif//WITH_UNREAL_TARGET_DEVELOPER_TOOLS
 }
 
 void FNiagaraDebugger::TriggerOutlinerCapture()
@@ -146,7 +106,6 @@ void FNiagaraDebugger::TriggerOutlinerCapture()
 	{
 		if(Outliner->CaptureSettings.bTriggerCapture)
 		{
-		#if WITH_UNREAL_TARGET_DEVELOPER_TOOLS
 			auto SendSettingsUpdate = [&](FNiagaraDebugger::FClientInfo& Client)
 			{
 				//Create the message and copy the current state of the settings into it.
@@ -158,26 +117,6 @@ void FNiagaraDebugger::TriggerOutlinerCapture()
 			};
 
 			ForAllConnectedClients(SendSettingsUpdate);
-		
-		#else
-
-			//Session/Messaging system is not available so just send to local client.
-			if (INiagaraDebuggerClient* LocalClient = INiagaraDebuggerClient::Get())
-			{
-				FNiagaraOutlinerCaptureSettings Request;
-				FNiagaraOutlinerCaptureSettings::StaticStruct()->CopyScriptStruct(&Request, &Outliner->CaptureSettings);
-
-				LocalClient->UpdateOutlinerSettings(Request, FOnNiagaraDebuggerClientOutlinerCapture::CreateLambda(
-					[&](const FNiagaraOutlinerData& NewOutlinerData)
-					{
-						if (UNiagaraOutliner* Outliner = GetOutliner())
-						{
-							Outliner->UpdateData(NewOutlinerData);
-						}
-					}));
-			}
-
-		#endif//WITH_UNREAL_TARGET_DEVELOPER_TOOLS
 
 			Outliner->CaptureSettings.bTriggerCapture = false;
 
@@ -206,7 +145,6 @@ void FNiagaraDebugger::TriggerOutlinerCapture()
 
 void FNiagaraDebugger::TriggerSimCacheCapture(FName ComponentName, int32 CaptureDelay, int32 CaptureFrames)
 {
-#if WITH_UNREAL_TARGET_DEVELOPER_TOOLS
 	auto SendCaptureRequest = [&](FNiagaraDebugger::FClientInfo& Client)
 	{
 		FNiagaraSystemSimCacheCaptureRequest* Message = FMessageEndpoint::MakeMessage<FNiagaraSystemSimCacheCaptureRequest>();
@@ -219,26 +157,6 @@ void FNiagaraDebugger::TriggerSimCacheCapture(FName ComponentName, int32 Capture
 	};
 
 	ForAllConnectedClients(SendCaptureRequest);
-
-#else
-	
-	if(INiagaraDebuggerClient* LocalClient = INiagaraDebuggerClient::Get())
-	{
-		FNiagaraSystemSimCacheCaptureRequest Request;
-		Request.CaptureDelayFrames = CaptureDelay;
-		Request.CaptureFrames = CaptureFrames;
-		Request.ComponentName = ComponentName;			
-		LocalClient->SimCacheCaptureRequest(Request, FOnNiagaraDebuggerClientSimCacheCapture::CreateLambda(
-			[&](const FNiagaraSystemSimCacheCaptureRequest& Request, TObjectPtr<UNiagaraSimCache> CapturedSimCache)
-			{
-				if (UNiagaraOutliner* Outliner = GetOutliner())
-				{
-					Outliner->UpdateSystemSimCache(Request.ComponentName, CapturedSimCache);
-				}
-		}));
-	}
-
-#endif//WITH_UNREAL_TARGET_DEVELOPER_TOOLS
 }
 
 void FNiagaraDebugger::SessionManager_OnSessionSelectionChanged(const TSharedPtr<ISessionInfo>& Session)
@@ -435,14 +353,7 @@ void FNiagaraDebugger::HandleSimCacheCaptureReply(const FNiagaraSystemSimCacheCa
 	
 	if (UNiagaraOutliner* Outliner = GetOutliner())
 	{
-		FNiagaraEditorModule& NiagaraEditorModule = FModuleManager::GetModuleChecked<FNiagaraEditorModule>("NiagaraEditor");
-		TObjectPtr<UNiagaraSimCache> NewSimCache = NewObject<UNiagaraSimCache>(NiagaraEditorModule.GetTempPackage());//Outer to the temp package so that we can "Edit" it.
-
-		FMemoryReader ArReader(Message.SimCacheData);
-		FObjectAndNameAsStringProxyArchive ProxyArReader(ArReader, false);
-		NewSimCache->Serialize(ProxyArReader);
-
-		Outliner->UpdateSystemSimCache(Message.ComponentName, NewSimCache);
+		Outliner->UpdateSystemSimCache(Message);
 	}
 }
 
