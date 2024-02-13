@@ -18,9 +18,8 @@
 	"Modules": [
 		{
 			"Name": "GameInputWindows",
-			"Type": "Runtime",
+			"Type": "RuntimeNoCommandlet",
 			"HasExplicitPlatforms": true,
-			"TargetDenyList": [ "Server" ],
 			"PlatformAllowList": [
 				"Win64"
 			]
@@ -29,8 +28,7 @@
 	"Plugins": [
 		{
 			"Name": "GameInput",
-			"Enabled": true,
-			"TargetDenyList": [ "Server" ]
+			"Enabled": true
 		}
 	]
 }
