@@ -84,6 +84,7 @@ namespace ClothingSimulationSolverDefault
 	static const int32 MaxNumIterations = 10;
 	static const int32 NumSubsteps = 1;
 	static const int32 MinNumSubsteps = 1;
+	static const FRealSingle DynamicSubstepDeltaTime = 0.f;
 	static const bool bEnableNumSelfCollisionSubsteps = false;
 	static const int32 NumSelfCollisionSubsteps = 1;
 	static const FRealSingle SolverFrequency = 60.f;
@@ -1947,11 +1948,16 @@ void FClothingSimulationSolver::Update(Softs::FSolverReal InDeltaTime)
 				Properties.GetValue<int32>(TEXT("NumSubsteps"), ClothingSimulationSolverDefault::NumSubsteps),
 				ClothingSimulationSolverDefault::MinNumSubsteps);
 
+			const Softs::FSolverReal ConfigDynamicSubstepDeltaTime = Properties.GetValue<float>(TEXT("DynamicSubstepDeltaTime"), ClothingSimulationSolverDefault::DynamicSubstepDeltaTime); //  This is in ms
+
+			// Calculate NumSubsteps for dynamic substepping.
+			NumUsedSubsteps = ConfigDynamicSubstepDeltaTime > (Softs::FSolverReal)0.f ? FMath::Clamp(FMath::RoundToInt32(DeltaTime * 1000.f / ConfigDynamicSubstepDeltaTime), 1, ConfigNumSubsteps) : ConfigNumSubsteps;
+
 			const bool bConfigEnableNumSelfCollisionSubsteps = Properties.GetValue<bool>(TEXT("EnableNumSelfCollisionSubsteps"), ClothingSimulationSolverDefault::bEnableNumSelfCollisionSubsteps);
 
-			const int32 ConfigNumSelfCollisionSubsteps = bConfigEnableNumSelfCollisionSubsteps ? FMath::Clamp(Properties.GetValue<int32>(TEXT("NumSelfCollisionSubsteps"), ClothingSimulationSolverDefault::NumSelfCollisionSubsteps), ClothingSimulationSolverDefault::MinNumSubsteps, ConfigNumSubsteps) : ConfigNumSubsteps;
+			const int32 ConfigNumSelfCollisionSubsteps = bConfigEnableNumSelfCollisionSubsteps ? FMath::Clamp(Properties.GetValue<int32>(TEXT("NumSelfCollisionSubsteps"), ClothingSimulationSolverDefault::NumSelfCollisionSubsteps), ClothingSimulationSolverDefault::MinNumSubsteps, NumUsedSubsteps) : NumUsedSubsteps;
 
-			const int32 NumSubstepsPerSelfCollisionSubstep = (ConfigNumSubsteps - 1) / ConfigNumSelfCollisionSubsteps + 1;
+			const int32 NumSubstepsPerSelfCollisionSubstep = (NumUsedSubsteps - 1) / ConfigNumSelfCollisionSubsteps + 1;
 
 			if (Evolution)
 			{
@@ -1980,14 +1986,14 @@ void FClothingSimulationSolver::Update(Softs::FSolverReal InDeltaTime)
 			}
 
 			// Advance substeps
-			const Softs::FSolverReal SubstepDeltaTime = DeltaTime / (Softs::FSolverReal)ConfigNumSubsteps;
+			const Softs::FSolverReal SubstepDeltaTime = DeltaTime / (Softs::FSolverReal)NumUsedSubsteps;
 	
-			for (int32 i = 0; i < ConfigNumSubsteps; ++i)
+			for (int32 i = 0; i < NumUsedSubsteps; ++i)
 			{
-				PreSubstep(FMath::Clamp((Softs::FSolverReal)(i + 1) / (Softs::FSolverReal)ConfigNumSubsteps, (Softs::FSolverReal)0., (Softs::FSolverReal)1.), i% NumSubstepsPerSelfCollisionSubstep == 0);
+				PreSubstep(FMath::Clamp((Softs::FSolverReal)(i + 1) / (Softs::FSolverReal)NumUsedSubsteps, (Softs::FSolverReal)0., (Softs::FSolverReal)1.), i% NumSubstepsPerSelfCollisionSubstep == 0);
 				if (Evolution)
 				{
-					Evolution->AdvanceOneTimeStep(SubstepDeltaTime, (Softs::FSolverReal)ConfigNumSubsteps);
+					Evolution->AdvanceOneTimeStep(SubstepDeltaTime, (Softs::FSolverReal)NumUsedSubsteps);
 				}
 				else
 				{

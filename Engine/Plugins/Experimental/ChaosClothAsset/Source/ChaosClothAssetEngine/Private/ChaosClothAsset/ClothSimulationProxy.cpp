@@ -255,7 +255,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		// Keep the actual used number of iterations for the stats
 		NumIterations = Solver->GetNumUsedIterations();
-		NumSubsteps = Solver->GetNumSubsteps();
+		NumSubsteps = Solver->GetNumUsedSubsteps();
 
 		// Update simulation time in ms (and provide an instant average instead of the value in real-time)
 		const float CurrSimulationTime = (float)((FPlatformTime::Seconds() - StartTime) * 1000.);
