@@ -1256,11 +1256,11 @@ void SMoviePipelineQueueEditor::Construct(const FArguments& InArgs)
 			.DefaultLabel(LOCTEXT("QueueHeaderJobName_Text", "Job"))
 
 			+ SHeaderRow::Column(SQueueJobListRow::NAME_Settings)
-			.FillWidth(0.20f)
+			.FillWidth(0.25f)
 			.DefaultLabel(LOCTEXT("QueueHeaderSettings_Text", "Settings"))
 
 			+ SHeaderRow::Column(SQueueJobListRow::NAME_Output)
-			.FillWidth(0.5f)
+			.FillWidth(0.45f)
 			.DefaultLabel(LOCTEXT("QueueHeaderOutput_Text", "Output"))
 
 			+ SHeaderRow::Column(SQueueJobListRow::NAME_Status)
