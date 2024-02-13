@@ -1923,6 +1923,7 @@ void UInterchangeGenericMaterialPipeline::HandleTextureNode(
 			if(DesiredTextureUsage == EMaterialInputType::Vector)
 			{
 				TextureFactoryNode->SetCustomCompressionSettings(TextureCompressionSettings::TC_Normalmap);
+				TextureFactoryNode->SetCustomLODGroup(TextureGroup::TEXTUREGROUP_WorldNormalMap);
 			}
 			else if(DesiredTextureUsage == EMaterialInputType::Scalar)
 			{
