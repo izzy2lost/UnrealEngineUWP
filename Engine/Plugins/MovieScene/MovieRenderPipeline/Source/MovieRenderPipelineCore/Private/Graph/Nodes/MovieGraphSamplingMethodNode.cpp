@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Graph/Nodes/MovieGraphSamplingMethodNode.h"
 
@@ -9,7 +9,6 @@
 UMovieGraphSamplingMethodNode::UMovieGraphSamplingMethodNode()
 	: SamplingMethodClass(UMovieGraphLinearTimeStep::StaticClass())
 	, TemporalSampleCount(1)
-	, SampleCount(1)
 {
 }
 

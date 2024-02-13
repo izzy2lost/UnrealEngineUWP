@@ -28,8 +28,10 @@ public:
 	virtual bool GetWriteAllSamples() const override;
 	virtual TArray<FMoviePipelinePostProcessPass> GetAdditionalPostProcessMaterials() const override;
 	virtual int32 GetNumSpatialSamples() const override;
+	virtual int32 GetNumSpatialSamplesDuringWarmUp() const override;
 	virtual bool GetDisableToneCurve() const override;
 	virtual bool GetAllowOCIO() const override;
+	virtual bool GetAllowDenoiser() const override;
 	virtual TUniquePtr<UE::MovieGraph::Rendering::FMovieGraphImagePassBase> CreateInstance() const;
 	// ~UMovieGraphImagePassBaseNode Interface
 
@@ -47,6 +49,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
 	uint8 bOverride_SpatialSampleCount : 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
+	uint8 bOverride_bDenoiser : 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
 	uint8 bOverride_bDisableToneCurve : 1;
@@ -69,6 +74,16 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (UIMin = 1, ClampMin = 1), Category = "Sampling", meta = (EditCondition = "bOverride_SpatialSampleCount"))
 	int32 SpatialSampleCount;
 
+	/** If true the resulting image will be denoised at the end of each set of Spatial Samples. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (UIMin = 1, ClampMin = 1), Category = "Sampling", meta = (EditCondition = "bOverride_bDenoiser"))
+	bool bDenoiser;
+
+	/**
+	* Debug Feature. Not currently marked BlueprintReadWrite/EditAnywhere as it's not totally implemented on the Path Tracer right now.
+	*/
+	UPROPERTY(DisplayName = "Write All Samples (Debug)", meta = (EditCondition = "bOverride_bWriteAllsamples"))
+	bool bWriteAllSamples;
+
 	/**
 	* If true, the tone curve will be disabled for this render pass. This will result in values greater than 1.0 in final renders
 	* and can optionally be combined with OCIO profiles on the file output nodes to convert from Linear Values in Working Color Space
@@ -83,13 +98,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta = (EditCondition = "bOverride_bAllowOCIO"))
 	bool bAllowOCIO;
 
-	/**
-	* Debug Feature. Can use this to write out each individual Temporal and Spatial sample rendered by this render pass,
-	* which allows you to see which images are being accumulated together. Can be useful for debugging incorrect looking
-	* frames to see which sub-frame evaluations were incorrect.
-	*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sampling", meta = (EditCondition = "bOverride_bWriteAllsamples"))
-	bool bWriteAllSamples;
+
 
 	/**
 	* An array of additional post-processing materials to run after the frame is rendered. Using this feature may add a notable amount of render time.
