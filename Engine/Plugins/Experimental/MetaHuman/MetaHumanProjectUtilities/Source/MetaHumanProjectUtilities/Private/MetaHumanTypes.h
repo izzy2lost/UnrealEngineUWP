@@ -7,7 +7,7 @@
 
 struct FMetaHumanAssetImportDescription;
 
-enum EQualityLevel: int
+enum class EQualityLevel: int
 {
 	Low,
 	Medium,

@@ -748,11 +748,11 @@ EImportOperationUserResponse DisplayUpgradeWarning(const FSourceMetaHuman& Sourc
 
 FText GetValueAsText(EQualityLevel Level)
 {
-	if (Level == High)
+	if (Level == EQualityLevel::High)
 	{
 		return LOCTEXT("EQualityLevel:High", "High");
 	}
-	if (Level == Medium)
+	if (Level == EQualityLevel::Medium)
 	{
 		return LOCTEXT("EQualityLevel:Medium", "Medium");
 	}
