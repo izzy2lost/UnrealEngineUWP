@@ -293,6 +293,8 @@ namespace Horde.Agent
 
 		static async Task CopyDefaultConfigFilesAsync(DirectoryReference configDir)
 		{
+			DirectoryReference.CreateDirectory(configDir);
+
 			DirectoryReference defaultsDir = DirectoryReference.Combine(AppDir, "Defaults");
 			if (DirectoryReference.Exists(defaultsDir))
 			{
