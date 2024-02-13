@@ -240,9 +240,12 @@ public:
 
 	///~ Begin ILODSyncInterface Interface.
 	virtual int32 GetDesiredSyncLOD() const override;
-	virtual void SetSyncLOD(int32 LODIndex) override;
+	virtual int32 GetBestAvailableLOD() const override;
+	virtual void SetForceStreamedLOD(int32 LODIndex) override;
+	virtual void SetForceRenderedLOD(int32 LODIndex) override;
 	virtual int32 GetNumSyncLODs() const override;
-	virtual int32 GetCurrentSyncLOD() const override;
+	virtual int32 GetForceStreamedLOD() const override;
+	virtual int32 GetForceRenderedLOD() const override;
 	//~ End ILODSyncInterface
 
 	int32 GetNumLODs() const;

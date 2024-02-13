@@ -59,7 +59,7 @@ FSkeletalMeshObject
 -----------------------------------------------------------------------------*/
 
 FSkeletalMeshObject::FSkeletalMeshObject(USkinnedMeshComponent* InMeshComponent, FSkeletalMeshRenderData* InSkelMeshRenderData, ERHIFeatureLevel::Type InFeatureLevel)
-:	MinDesiredLODLevel(FMath::Max<int32>(InMeshComponent->GetPredictedLODLevel(), InSkelMeshRenderData->CurrentFirstLODIdx))
+:	MinDesiredLODLevel(InMeshComponent->GetPredictedLODLevel())
 ,	MaxDistanceFactor(0.f)
 ,	WorkingMinDesiredLODLevel(MinDesiredLODLevel)
 ,	WorkingMaxDistanceFactor(0.f)
@@ -116,7 +116,7 @@ FSkeletalMeshObject::~FSkeletalMeshObject()
 {
 }
 
-void FSkeletalMeshObject::UpdateMinDesiredLODLevel(const FSceneView* View, const FBoxSphereBounds& Bounds, int32 FrameNumber, uint8 CurFirstLODIdx)
+void FSkeletalMeshObject::UpdateMinDesiredLODLevel(const FSceneView* View, const FBoxSphereBounds& Bounds, int32 FrameNumber)
 {
 	// Thumbnail rendering doesn't contribute to MinDesiredLODLevel calculation
 	if (View->Family && (View->Family->bThumbnailRendering || !View->Family->GetIsInFocus()))
@@ -161,7 +161,6 @@ void FSkeletalMeshObject::UpdateMinDesiredLODLevel(const FSceneView* View, const
 		}
 	}
 
-	NewLODLevel = FMath::Max<int32>(NewLODLevel, CurFirstLODIdx);
 	if (!LastFrameNumber)
 	{
 		// We don't have last frame value on the first call to FSkeletalMeshObject::UpdateMinDesiredLODLevel so

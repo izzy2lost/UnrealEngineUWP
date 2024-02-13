@@ -1773,7 +1773,18 @@ int32 UGroomComponent::GetDesiredSyncLOD() const
 	return LODPredictedIndex;
 }
 
-void  UGroomComponent::SetSyncLOD(int32 InLODIndex)
+int32 UGroomComponent::GetBestAvailableLOD() const
+{
+	// For now we assume all LODs are available. This could be made more accurate in future.
+	return 0;
+}
+
+void UGroomComponent::SetForceStreamedLOD(int32 LODIndex)
+{
+	// Force streaming is not supported yet
+}
+
+void UGroomComponent::SetForceRenderedLOD(int32 InLODIndex)
 {
 	SetForcedLOD(InLODIndex);
 }
@@ -1783,7 +1794,13 @@ int32 UGroomComponent::GetNumSyncLODs() const
 	return GetNumLODs();
 }
 
-int32 UGroomComponent::GetCurrentSyncLOD() const
+int32 UGroomComponent::GetForceStreamedLOD() const
+{
+	// Force streaming is not supported yet
+	return INDEX_NONE;
+}
+	
+int32 UGroomComponent::GetForceRenderedLOD() const
 {
 	return GetForcedLOD();
 }

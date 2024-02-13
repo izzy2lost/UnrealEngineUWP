@@ -526,6 +526,26 @@ public:
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=LOD)
 	int32 ForcedLodModel;
 
+private:
+	/**
+	 * Forces the specified LOD to stream in when LOD streaming is enabled.
+	 * 
+	 * If 0, streaming behavior is based on screen size, regardless of ForcedLodModel.
+	 * 
+	 * If > 0, (ForceStreamedLodModel - 1) will be streamed in.
+	 * 
+	 * This value will be copied from ForcedLodModel on initialization and will be set along with
+	 * ForcedLodModel by the SetForcedLOD function. It will only differ from ForcedLodModel if the
+	 * ILODSyncInterface functions are called, as these allow ForcedLodModel and
+	 * ForceStreamedLodModel to be set individually.
+	 * 
+	 * When ForcedLodModel and ForceStreamedLodModel are different, ForcedLodModel determines which
+	 * LOD to use for rendering and ForceStreamedLodModel determines which LOD to request for
+	 * streaming.
+	 */
+	int32 ForceStreamedLodModel;
+public:
+
 	/**
 	 * This is the min LOD that this component will use.  (e.g. if set to 2 then only 2+ LOD Models will be used.) This is useful to set on
 	 * meshes which are known to be a certain distance away and still want to have better LODs when zoomed in on them.
@@ -1855,9 +1875,12 @@ private:
 
 	// BEGIN ILODSyncComponent
 	ENGINE_API virtual int32 GetDesiredSyncLOD() const override;
-	ENGINE_API virtual void SetSyncLOD(int32 LODIndex) override;
+	ENGINE_API virtual int32 GetBestAvailableLOD() const override;
+	ENGINE_API virtual void SetForceStreamedLOD(int32 LODIndex) override;
+	ENGINE_API virtual void SetForceRenderedLOD(int32 LODIndex) override;
 	ENGINE_API virtual int32 GetNumSyncLODs() const override;
-	ENGINE_API virtual int32 GetCurrentSyncLOD() const override;
+	ENGINE_API virtual int32 GetForceStreamedLOD() const override;
+	ENGINE_API virtual int32 GetForceRenderedLOD() const override;
 	// END ILODSyncComponent
 
 	// Animation update rate control.

@@ -178,6 +178,12 @@ const TArray<FMatrix44f>& FSkeletalMeshObjectStatic::GetReferenceToLocalMatrices
 	return ReferenceToLocalMatrices;
 }
 
+int32 FSkeletalMeshObjectStatic::GetLOD() const
+{
+	// WorkingMinDesiredLODLevel can be a LOD that's not loaded, so need to clamp it to the first loaded LOD
+	return FMath::Max<int32>(WorkingMinDesiredLODLevel, SkeletalMeshRenderData->CurrentFirstLODIdx);
+}
+
 void FSkeletalMeshObjectStatic::FSkeletalMeshObjectLOD::InitResources(FSkelMeshComponentLODInfo* CompLODInfo)
 {
 	check(SkelMeshRenderData);

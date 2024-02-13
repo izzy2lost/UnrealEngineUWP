@@ -173,7 +173,7 @@ public:
 	 *	This is called from the rendering thread (PreRender) so be very careful what you read/write to.
 	 * @param FrameNumber from ViewFamily.FrameNumber
 	 */
-	void UpdateMinDesiredLODLevel(const FSceneView* View, const FBoxSphereBounds& Bounds, int32 FrameNumber, uint8 CurFirstLODIdx);
+	void UpdateMinDesiredLODLevel(const FSceneView* View, const FBoxSphereBounds& Bounds, int32 FrameNumber);
 
 	/**
 	 *	Return true if this does have valid dynamic data to render
@@ -263,7 +263,10 @@ public:
 	TArray<FCapsuleShape3f> ShadowCapsuleShapes;
 
 	/** 
-	 *	Lowest (best) LOD that was desired for rendering this SkeletalMesh last frame. 
+	 *	Lowest (best) LOD that was desired for rendering this SkeletalMesh last frame.
+	 *
+	 *	Note that if LOD streaming is enabled, the desired LOD is not guaranteed to be currently loaded.
+	 * 
 	 *	This should only ever be WRITTEN by the RENDER thread (in FSkeletalMeshProxy::PreRenderView) and READ by the GAME thread (in USkeletalMeshComponent::UpdateSkelPose).
 	 */
 	int32 MinDesiredLODLevel;
