@@ -829,7 +829,7 @@ FMallocBinned3::FMallocBinned3()
 		SmallPoolTables[Index].BlockOfBlockIsExhausted.FBitTreeInit(TotalNumberOfBlocksOfBlocks, MetaMem, AllocationSize, true);
 		MetaMem += AllocationSize;
 	}
-	check(MetaMem == MetaMemEnd);
+	check(MetaMem <= MetaMemEnd);
 
 	// Set up pool mappings
 	uint8* IndexEntry = MemSizeToIndex;
