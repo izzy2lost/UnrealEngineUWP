@@ -25,15 +25,17 @@ class UPCGManagedDebugStringMessageKey : public UPCGManagedResource
 {
 	GENERATED_BODY()
 
+public:
 #if WITH_EDITOR
 	// Debug should always be transient
 	virtual void ChangeTransientState(EPCGEditorDirtyMode NewEditingMode) override {}
+#endif // WITH_EDITOR
+
 	virtual bool Release(bool bHardRelease, TSet<TSoftObjectPtr<AActor>>& OutActorsToDelete) override;
 	virtual bool CanBeUsed() const override { return false; }
 
-public:
+	UPROPERTY()
 	uint64 HashKey = (uint64)-1;
-#endif // WITH_EDITOR
 };
 
 /**
@@ -109,7 +111,7 @@ public:
     bool bPrefixWithGraph = true;
 
 	/** Prefix the message with the name of the node. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bPrintPerComponent", EditConditionHides))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
 	bool bPrefixWithNode = true;
 
 	/** Enable the functionality of this node. Disable to bypass printing. */
