@@ -4,11 +4,13 @@
 
 #include "Containers/Array.h"
 #include "Internationalization/Text.h"
+#include "Templates/SharedPointerFwd.h"
 #include "UObject/UnrealNames.h"
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
 class AActor;
+class IAvaEditor;
 class UWorld;
 
 enum class EAvaSceneDefaultActorResponse : uint8
@@ -31,5 +33,5 @@ struct FAvaSceneDefaultActorResponse
 class FAvaSceneDefaults
 {
 public:
-	static void CreateDefaultScene(UWorld* InWorld);
+	static void CreateDefaultScene(TSharedRef<IAvaEditor> InEditor, UWorld* InWorld);
 };

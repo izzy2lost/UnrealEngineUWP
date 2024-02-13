@@ -15,10 +15,10 @@ void FAvaSceneExtension::ExtendToolbarMenu(UToolMenu& InMenu)
 {
 	FToolMenuSection& Section = InMenu.FindOrAddSection(DefaultSectionName);
 
-	FToolMenuEntry& Entry = Section.AddEntry(FToolMenuEntry::InitToolBarButton(TEXT("SpawnDefaultsButton")
+	FToolMenuEntry& Entry = Section.AddEntry(FToolMenuEntry::InitToolBarButton(TEXT("CreateDefaultsButton")
 		, FExecuteAction::CreateSP(this, &FAvaSceneExtension::SpawnDefaultScene)
-		, LOCTEXT("SpawnDefaultSceneLabel", "Spawn Defaults")
-		, LOCTEXT("SpawnDefaultSceneTooltip", "Open the spawn defaults menu to add a basic scene setup.")
+		, LOCTEXT("CreateDefaultSceneLabel", "Create Defaults")
+		, LOCTEXT("CreateDefaultSceneTooltip", "Open the Spawn Defaults menu to add a basic scene setup.")
 		, FSlateIcon(FAppStyle::GetAppStyleSetName(), "GraphEditor.SpawnActor_16x")));
 
 	Entry.StyleNameOverride = "CalloutToolbar";
@@ -31,7 +31,15 @@ void FAvaSceneExtension::RegisterTabSpawners(const TSharedRef<IAvaEditor>& InEdi
 
 void FAvaSceneExtension::SpawnDefaultScene()
 {
+	TSharedPtr<IAvaEditor> Editor = GetEditor();
+
+	if (!Editor.IsValid())
+	{
+		return;
+	}
+
 	UWorld* const World = GetWorld();
+
 	if (!IsValid(World))
 	{
 		return;
@@ -39,7 +47,7 @@ void FAvaSceneExtension::SpawnDefaultScene()
 
 	FScopedTransaction Transaction(LOCTEXT("SpawnDefaultScene", "Spawn Default Scene"));
 
-	FAvaSceneDefaults::CreateDefaultScene(World);
+	FAvaSceneDefaults::CreateDefaultScene(Editor.ToSharedRef(), World);
 }
 
 #undef LOCTEXT_NAMESPACE
