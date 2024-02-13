@@ -12,6 +12,8 @@
 #include "InterchangeTranslatorBase.h"
 #include "Nodes/InterchangeBaseNodeContainer.h"
 #include "Nodes/InterchangeFactoryBaseNode.h"
+#include "Types/AttributeStorage.h"
+
 #include "UObject/Object.h"
 #include "EditorFramework/AssetImportData.h"
 #include "HAL/FileManager.h"
@@ -346,10 +348,19 @@ namespace UE::Interchange
 				TArray<FAttributeKey> ModifiedAttributes;
 				UInterchangeBaseNode::CompareNodeStorage(PreviousAssetNode, CurrentAssetNode, RemovedAttributes, AddedAttributes, ModifiedAttributes);
 
-				//set all ModifedAttributes from the CurrentAssetNode to the pipeline node. This will put back all user changes
+				//Cache all modified attributes from the pipeline node
+				UE::Interchange::FAttributeStorage CachedAttributes;
+				UInterchangeBaseNode::CopyStorageAttributes(PipelineAssetNode, CachedAttributes, ModifiedAttributes);
+
+				//Set all ModifedAttributes from the CurrentAssetNode to PipelineAssetNode
+				//This way, call to ApplyAllCustomAttributeToObject will preserve modified attributes from CurrentAssetNode
 				UInterchangeBaseNode::CopyStorageAttributes(CurrentAssetNode, PipelineAssetNode, ModifiedAttributes);
-				//Now apply the pipeline node attribute to the asset
+
+				//Apply the pipeline node's attributes to the asset
 				PipelineAssetNode->ApplyAllCustomAttributeToObject(Asset);
+
+				//Restore all modified attributes back to the pipeline node
+				UInterchangeBaseNode::CopyStorageAttributes(CachedAttributes, PipelineAssetNode, ModifiedAttributes);
 				break;
 			}
 		}

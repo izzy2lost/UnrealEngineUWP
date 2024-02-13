@@ -502,6 +502,16 @@ void UInterchangeBaseNode::CopyStorageAttributes(const UInterchangeBaseNode* Sou
 	UE::Interchange::FAttributeStorage::CopyStorageAttributes(*(SourceNode->Attributes), *(DestinationNode->Attributes), AttributeKeys);
 }
 
+void UInterchangeBaseNode::CopyStorageAttributes(const UInterchangeBaseNode* SourceNode, UE::Interchange::FAttributeStorage& DestinationStorage, TArray<UE::Interchange::FAttributeKey>& AttributeKeys)
+{
+	UE::Interchange::FAttributeStorage::CopyStorageAttributes(*(SourceNode->Attributes), DestinationStorage, AttributeKeys);
+}
+
+void UInterchangeBaseNode::CopyStorageAttributes(const UE::Interchange::FAttributeStorage& SourceStorage, UInterchangeBaseNode* DestinationNode, TArray<UE::Interchange::FAttributeKey>& AttributeKeys)
+{
+	UE::Interchange::FAttributeStorage::CopyStorageAttributes(SourceStorage, *(DestinationNode->Attributes), AttributeKeys);
+}
+
 void UInterchangeBaseNode::CopyStorage(const UInterchangeBaseNode* SourceNode, UInterchangeBaseNode* DestinationNode)
 {
 	*(DestinationNode->Attributes) = *(SourceNode->Attributes);
