@@ -8993,22 +8993,10 @@ bool UCharacterMovementComponent::VerifyClientTimeStamp(float TimeStamp, FNetwor
 	UWorld* World = GetWorld();
 
 	const bool bFirstMoveAfterForcedUpdates = ServerData.bTriggeringForcedUpdates;
-	if (bFirstMoveAfterForcedUpdates)
-	{
-		// We have been performing ForcedUpdates because we hadn't received any moves from this connection in a while but we've now received a new move!
-		// Let's sync up to this TimeStamp in order to resolve movement desyncs ASAP
-		// This will result in this move having a zero DeltaTime, so it will perform no movement but it will send a correction, and we should be able to process the next move that arrives.
-		UE_LOG(LogNetPlayerMovement, Log, TEXT("Received a new move after performing ForcedUpdates.  Updating CurrentClientTimeStamp from %f to %f"), ServerData.CurrentClientTimeStamp, TimeStamp);
-		ServerData.CurrentClientTimeStamp = TimeStamp;
-		if (World != nullptr)
-		{
-			ServerData.ServerTimeStamp = World->GetTimeSeconds();
-		}
-	}
-
+	
 	bool bTimeStampResetDetected = false;
 	bool bNeedsForcedUpdate = false;
-	const bool bIsValid = bFirstMoveAfterForcedUpdates || IsClientTimeStampValid(TimeStamp, ServerData, bTimeStampResetDetected);
+	const bool bIsValid = IsClientTimeStampValid(TimeStamp, ServerData, bTimeStampResetDetected);
 	if (bIsValid)
 	{
 		if (bTimeStampResetDetected)
@@ -9029,6 +9017,20 @@ bool UCharacterMovementComponent::VerifyClientTimeStamp(float TimeStamp, FNetwor
 			UE_LOG(LogNetPlayerMovement, VeryVerbose, TEXT("TimeStamp %f Accepted! CurrentTimeStamp: %f"), TimeStamp, ServerData.CurrentClientTimeStamp);
 			ProcessClientTimeStampForTimeDiscrepancy(TimeStamp, ServerData);
 		}
+
+		if (bFirstMoveAfterForcedUpdates)
+		{
+			// We have been performing ForcedUpdates because we hadn't received any moves from this connection in a while but we've now received a new move!
+			// Let's sync up to this TimeStamp in order to resolve movement desyncs ASAP
+			// This will result in this move having a zero DeltaTime (TimeStamp - CurrentClientTimeStamp), so it will perform no movement but it will send a correction,
+			// and we should be able to process the next move that arrives, which will advance ServerTimeStamp and unlock the forced updates (see 'APlayerController::TickActor()').
+			UE_LOG(LogNetPlayerMovement, Log, TEXT("Received a new move after performing ForcedUpdates. Updating CurrentClientTimeStamp from %f to %f"), ServerData.CurrentClientTimeStamp, TimeStamp);
+			ServerData.CurrentClientTimeStamp = TimeStamp;
+			if (World != nullptr)
+			{
+				ServerData.ServerTimeStamp = World->GetTimeSeconds();
+			}
+		}
 	}
 	else
 	{
@@ -9038,7 +9040,8 @@ bool UCharacterMovementComponent::VerifyClientTimeStamp(float TimeStamp, FNetwor
 		}
 		else
 		{
-			bNeedsForcedUpdate = (TimeStamp <= ServerData.LastReceivedClientTimeStamp);
+			// NOTE: Disabled: can be dangerous, keeping server advancing and client can't catch up. Has been effectively disabled since CL 16194374, but other changes could enable it again.
+			//bNeedsForcedUpdate = (TimeStamp <= ServerData.LastReceivedClientTimeStamp);
 		}
 	}
 
