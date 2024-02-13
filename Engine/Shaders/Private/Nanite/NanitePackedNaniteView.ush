@@ -47,6 +47,6 @@ struct FPackedNaniteView
 
 	int4		HZBTestViewRect;
 
-	uint		LightingChannelMask;
 	float3		Padding1;
+	uint		LightingChannelMask;
 };
