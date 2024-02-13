@@ -114,9 +114,13 @@ public:
 	virtual TSharedRef<SWidget> GetActorEditorContextWidget(UWorld* InWorld) const override;
 	virtual FOnActorEditorContextClientChanged& GetOnActorEditorContextClientChanged() override { return ActorEditorContextClientChanged; }
 	//~ End IActorEditorContextClient interface
+	UFUNCTION(BlueprintCallable, Category = DataLayers)
 	void AddToActorEditorContext(UDataLayerInstance* InDataLayerInstance);
+	UFUNCTION(BlueprintCallable, Category = DataLayers)
 	void RemoveFromActorEditorContext(UDataLayerInstance* InDataLayerInstance);
+	UFUNCTION(BlueprintCallable, Category = DataLayers)
 	bool SetActorEditorContextCurrentExternalDataLayer(const UExternalDataLayerAsset* InExternalDataLayerAsset);
+	UFUNCTION(BlueprintCallable, Category = DataLayers)
 	const UExternalDataLayerAsset* GetActorEditorContextCurrentExternalDataLayer() const;
 
 	TArray<const UDataLayerInstance*> GetDataLayerInstances(const TArray<const UDataLayerAsset*> DataLayerAssets) const;
