@@ -12,10 +12,6 @@ All common code shared between the editor side debugger and debugger clients run
 #include "NiagaraCommon.h"
 #include "NiagaraDebuggerCommon.generated.h"
 
-struct FNiagaraSystemSimCacheCaptureRequest;
-class UNiagaraSimCache;
-struct FNiagaraOutlinerData;
-
 //////////////////////////////////////////////////////////////////////////
 // Niagara Outliner.
 
@@ -905,20 +901,4 @@ struct FNiagaraDebugMessage
 		, Message(InMessage)
 		, Lifetime(InLifetime)
 	{}
-};
-
-//Temporary interface allowing direct access to the local debugger client until we can get a unified messaging system that works in all required cases. i.e. when WITH_UNREAL_TARGET_DEVELOPER_TOOLS = 0 and/or we don't have assess to the messaging or sessions systems.
-DECLARE_DELEGATE_TwoParams(FOnNiagaraDebuggerClientSimCacheCapture, const FNiagaraSystemSimCacheCaptureRequest&, TObjectPtr<UNiagaraSimCache>);
-DECLARE_DELEGATE_OneParam(FOnNiagaraDebuggerClientOutlinerCapture, const FNiagaraOutlinerData&);
-class NIAGARA_API INiagaraDebuggerClient
-{
-public:
-
-	static INiagaraDebuggerClient* Get();
-
-	virtual void ExecConsoleCommand(const FNiagaraDebuggerExecuteConsoleCommand& Message) = 0;
-	virtual void UpdateDebugHUDSettings(const FNiagaraDebugHUDSettingsData& Message) = 0;
-	virtual void GetSimpleClientInfo(FNiagaraSimpleClientInfo& OutClientInfo) = 0;
-	virtual void UpdateOutlinerSettings(const FNiagaraOutlinerCaptureSettings& Message, FOnNiagaraDebuggerClientOutlinerCapture OnCapture) = 0;
-	virtual void SimCacheCaptureRequest(const FNiagaraSystemSimCacheCaptureRequest& Message, FOnNiagaraDebuggerClientSimCacheCapture OnCapture) = 0;
 };

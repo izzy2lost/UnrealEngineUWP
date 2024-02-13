@@ -58,12 +58,17 @@ void UNiagaraOutliner::UpdateData(const FNiagaraOutlinerData& NewData)
 	//Possibly keep them in the UI optionally but colour/mark them as dead until the user opts to remove them or on some timed interval.
 }
 
-void UNiagaraOutliner::UpdateSystemSimCache(FName ComponentName, TObjectPtr<UNiagaraSimCache> NewSimCache)
+void UNiagaraOutliner::UpdateSystemSimCache(const FNiagaraSystemSimCacheCaptureReply& Reply)
 {
-	if (NewSimCache)
+	if (Reply.SimCacheData.Num() > 0)
 	{
-		TObjectPtr<UNiagaraSimCache>& SimCache = SystemSimCaches.FindOrAdd(ComponentName);
-		SimCache = NewSimCache;
+		TObjectPtr<UNiagaraSimCache>& SimCache = SystemSimCaches.FindOrAdd(Reply.ComponentName);
+		
+		SimCache = NewObject<UNiagaraSimCache>(this);
+
+		FMemoryReader ArReader(Reply.SimCacheData);
+		FObjectAndNameAsStringProxyArchive ProxyArReader(ArReader, false);
+		SimCache->Serialize(ProxyArReader);
 	}
 	else
 	{
