@@ -55,7 +55,6 @@ void FContentProducerEntry::RemoveProducer()
 {
 	if( UDataprepAssetProducers* AssetProducers = AssetProducersPtr.Get() )
 	{
-		const FScopedTransaction Transaction( LOCTEXT("Producers_RemoveProducer", "Remove Producer") );
 		AssetProducers->RemoveProducer( ProducerIndex );
 	}
 }

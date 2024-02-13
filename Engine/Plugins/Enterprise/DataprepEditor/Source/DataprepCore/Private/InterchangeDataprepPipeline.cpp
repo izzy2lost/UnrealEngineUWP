@@ -5,6 +5,7 @@
 #include "InterchangeActorFactoryNode.h"
 #include "InterchangeLevelSequenceFactoryNode.h"
 #include "InterchangeMaterialFactoryNode.h"
+#include "InterchangeSceneImportAssetFactoryNode.h"
 #include "InterchangeSceneVariantSetsFactoryNode.h"
 #include "InterchangeStaticMeshFactoryNode.h"
 #include "InterchangeTextureFactoryNode.h"
@@ -60,6 +61,12 @@ void UInterchangeDataprepLevelPipeline::ExecutePipeline(UInterchangeBaseNodeCont
 		else if (UInterchangeSceneVariantSetsFactoryNode* VariantFactoryNode = Cast<UInterchangeSceneVariantSetsFactoryNode>(FactoryNode))
 		{
 			VariantFactoryNode->SetCustomSubPath(FPaths::Combine(PackageSubPath, "Variants"));
+		}
+		// Remove UInterchangeSceneImportAssetFactoryNode from the import
+		// #dataprep_todo : Revisit when consumer will have been updated.
+		else if (UInterchangeSceneImportAssetFactoryNode* SceneImportFactoryNode = Cast<UInterchangeSceneImportAssetFactoryNode>(FactoryNode))
+		{
+			SceneImportFactoryNode->SetEnabled(false);
 		}
 	};
 
