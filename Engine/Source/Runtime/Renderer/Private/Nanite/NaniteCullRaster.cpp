@@ -359,30 +359,25 @@ static bool UsePrimitiveShader()
 
 static bool ShouldCompileSvBarycentricPermutation(EShaderPlatform ShaderPlatform, bool bPixelProgrammable, bool bMeshShaderRasterPath, bool bAllowSvBarycentrics)
 {
+	if (!bPixelProgrammable || !bMeshShaderRasterPath || FDataDrivenShaderPlatformInfo::GetSupportsBarycentricsIntrinsics(ShaderPlatform))
+	{
+		return bAllowSvBarycentrics == false;
+	}
+
 	const ERHIFeatureSupport BarycentricsSemanticSupport = FDataDrivenShaderPlatformInfo::GetSupportsBarycentricsSemantic(ShaderPlatform);
 
-	if (bAllowSvBarycentrics)
-	{
-		// Only used with pixel programmable shaders with the Mesh shaders raster path when intrinsics are not supported
-		if (!bPixelProgrammable || !bMeshShaderRasterPath || FDataDrivenShaderPlatformInfo::GetSupportsBarycentricsIntrinsics(ShaderPlatform))
-		{
-			return false;
-		}
-
-		if (BarycentricsSemanticSupport == ERHIFeatureSupport::Unsupported)
-		{
-			return false;
-		}
-	}
-	else
+	if (BarycentricsSemanticSupport == ERHIFeatureSupport::RuntimeGuaranteed)
 	{
 		// We don't want disabled permutations when support is guaranteed
-		if (BarycentricsSemanticSupport == ERHIFeatureSupport::RuntimeGuaranteed)
-		{
-			return false;
-		}
+		return bAllowSvBarycentrics == true;
 	}
 
+	if (BarycentricsSemanticSupport == ERHIFeatureSupport::Unsupported)
+	{
+		return bAllowSvBarycentrics == false;
+	}
+
+	// BarycentricsSemanticSupport == ERHIFeatureSupport::RuntimeDependent
 	return true;
 }
 
