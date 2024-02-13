@@ -32,7 +32,7 @@ void UAvaOutlinerSubsystem::BroadcastActorHierarchyChanged(AActor* InActor
 	switch (InChangeType)
 	{
 	case EAvaOutlinerHierarchyChangeType::Attached:
-		GEngine->BroadcastLevelActorDetached(InActor, InParentActor);
+		GEngine->BroadcastLevelActorAttached(InActor, InParentActor);
 		break;
 
 	case EAvaOutlinerHierarchyChangeType::Detached:
