@@ -1045,9 +1045,15 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 			else
 			{
 				SetupRayTracingDefaultMissShader(RHICmdList, ReferenceView);
-				SetupRayTracingLightingMissShader(RHICmdList, ReferenceView);
+
+				// only a few passes use the light miss shaders (those that do direct lighting)
+				// simply skip setting these up if we haven't built the RT lighting data
+				if (ReferenceView.RayTracingLightGridUniformBuffer != nullptr)
+				{
+					SetupRayTracingLightingMissShader(RHICmdList, ReferenceView);
 				
-				BindLightFunctionShaders(RHICmdList, Scene, RayTracingLightFunctionMap, ReferenceView);
+					BindLightFunctionShaders(RHICmdList, Scene, RayTracingLightFunctionMap, ReferenceView);
+				}
 			}
 		}
 
