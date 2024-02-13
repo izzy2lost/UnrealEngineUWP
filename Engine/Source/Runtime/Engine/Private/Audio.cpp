@@ -22,6 +22,10 @@
 #include "XmlNode.h"
 #include "Algo/ForEach.h"
 
+#ifndef WITH_SNDFILE_IO
+#define WITH_SNDFILE_IO (0)
+#endif //WITH_SNDFILE_IO
+
 DEFINE_LOG_CATEGORY(LogAudio);
 
 DEFINE_LOG_CATEGORY(LogAudioDebug);
@@ -1622,14 +1626,16 @@ bool FWaveModInfo::ReadWaveInfo( const uint8* WaveData, int32 WaveDataSize, FStr
 	SampleDataSize = INTEL_ORDER32( RiffChunk->ChunkLen );
 	SampleDataEnd = SampleDataStart + SampleDataSize;
 
+#if !WITH_SNDFILE_IO
 	if (!IsFormatSupported())
 	{
 		ReportImportFailure();
 		if (ErrorReason) *ErrorReason = TEXT("Unsupported wave file format.  Only PCM, ADPCM, and DVI ADPCM can be imported.");
 		return false;
 	}
+#endif //WITH_SNDFILE_IO
 
-	if (!InHeaderDataOnly)
+	if (!InHeaderDataOnly && IsFormatSupported())
 	{
 		if ((uint8*)SampleDataEnd > (uint8*)WaveDataEnd)
 		{
