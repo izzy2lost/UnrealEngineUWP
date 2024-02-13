@@ -1085,12 +1085,28 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeNullObs
 	return { Object->ObservationObject.CreateNull(Tag) };
 }
 
-FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeContinuousObservation(ULearningAgentsObservationObject* Object, const TArray<float>& Values, const FName Tag)
+FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeContinuousObservation(
+	ULearningAgentsObservationObject* Object, 
+	const TArray<float>& Values, 
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
-	return MakeContinuousObservationFromArrayView(Object, Values, Tag);
+	return MakeContinuousObservationFromArrayView(Object, Values, Tag, bVisualLoggerEnabled, VisualLoggerListener, VisualLoggerAgentId, VisualLoggerLocation, VisualLoggerColor);
 }
 
-FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeContinuousObservationFromArrayView(ULearningAgentsObservationObject* Object, const TArrayView<const float> Values, const FName Tag)
+FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeContinuousObservationFromArrayView(
+	ULearningAgentsObservationObject* Object, 
+	const TArrayView<const float> Values, 
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	if (!Object)
 	{
@@ -1103,10 +1119,35 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeContinu
 		UE_LOG(LogLearning, Warning, TEXT("MakeContinuousObservationFromArrayView: Creating zero-sized Continuous Observation."));
 	}
 
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
+	{
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nValues: %s\nEncoded: %s"),
+			*VisualLoggerListener->GetName(),
+			*Tag.ToString(),
+			VisualLoggerAgentId,
+			*UE::Learning::Array::FormatFloat(Values),
+			*UE::Learning::Array::FormatFloat(Values)); // Encoded is identical to provided values
+	}
+#endif
+
 	return { Object->ObservationObject.CreateContinuous({ Values }, Tag) };
 }
 
-FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeExclusiveDiscreteObservation(ULearningAgentsObservationObject* Object, const int32 DiscreteIndex, const int32 Size, const FName Tag)
+FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeExclusiveDiscreteObservation(
+	ULearningAgentsObservationObject* Object, 
+	const int32 DiscreteIndex, 
+	const int32 Size, 
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	if (DiscreteIndex < 0 || DiscreteIndex >= Size)
 	{
@@ -1117,15 +1158,51 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeExclusi
 	TArray<float, TInlineAllocator<32>> Values;
 	Values.Init(0.0f, Size);
 	Values[DiscreteIndex] = 1.0f;
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
+	{
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nSize: [%i]\nIndex: [%i]\nEncoded: %s"),
+			*VisualLoggerListener->GetName(),
+			*Tag.ToString(),
+			VisualLoggerAgentId,
+			Size,
+			DiscreteIndex,
+			*UE::Learning::Array::FormatFloat(Values, Size));
+	}
+#endif
+
 	return MakeContinuousObservationFromArrayView(Object, Values, Tag);
 }
 
-FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeInclusiveDiscreteObservation(ULearningAgentsObservationObject* Object, const TArray<int32>& DiscreteIndices, const int32 Size, const FName Tag)
+FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeInclusiveDiscreteObservation(
+	ULearningAgentsObservationObject* Object, 
+	const TArray<int32>& DiscreteIndices, 
+	const int32 Size, 
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
-	return MakeInclusiveDiscreteObservationFromArrayView(Object, DiscreteIndices, Size, Tag);
+	return MakeInclusiveDiscreteObservationFromArrayView(Object, DiscreteIndices, Size, Tag, bVisualLoggerEnabled, VisualLoggerListener, VisualLoggerAgentId, VisualLoggerLocation, VisualLoggerColor);
 }
 
-FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeInclusiveDiscreteObservationFromArrayView(ULearningAgentsObservationObject* Object, const TArrayView<const int32> DiscreteIndices, const int32 Size, const FName Tag)
+FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeInclusiveDiscreteObservationFromArrayView(
+	ULearningAgentsObservationObject* Object, 
+	const TArrayView<const int32> DiscreteIndices, 
+	const int32 Size, 
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	if (UE::Learning::Agents::Observation::Private::ContainsDuplicates(DiscreteIndices))
 	{
@@ -1147,10 +1224,36 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeInclusi
 		Values[DiscreteIndices[Idx]] = 1.0f;
 	}
 
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
+	{
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nSize: [%i]\nIndices: %s\nEncoded: %s"),
+			*VisualLoggerListener->GetName(),
+			*Tag.ToString(),
+			VisualLoggerAgentId,
+			Size,
+			*UE::Learning::Array::FormatInt32(DiscreteIndices, Size),
+			*UE::Learning::Array::FormatFloat(Values, Size));
+	}
+#endif
+
 	return MakeContinuousObservationFromArrayView(Object, Values, Tag);
 }
 
-FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeIndexObservation(ULearningAgentsObservationObject* Object, const int32 Index, const int32 Size, const FName Tag)
+FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeIndexObservation(
+	ULearningAgentsObservationObject* Object, 
+	const int32 Index, 
+	const int32 Size, 
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	if (Index < 0 || Index >= Size)
 	{
@@ -1166,10 +1269,36 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeIndexOb
 		Values[Idx] = 1.0f;
 	}
 
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
+	{
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nIndex: [%i]\nSize: [%i]\nEncoded: %s"),
+			*VisualLoggerListener->GetName(),
+			*Tag.ToString(),
+			VisualLoggerAgentId,
+			Index,
+			Size,
+			*UE::Learning::Array::FormatFloat(Values, Size));
+	}
+#endif
+
 	return MakeContinuousObservationFromArrayView(Object, Values, Tag);
 }
 
-FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeCountObservation(ULearningAgentsObservationObject* Object, const int32 Num, const int32 MaxNum, const FName Tag)
+FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeCountObservation(
+	ULearningAgentsObservationObject* Object, 
+	const int32 Num, 
+	const int32 MaxNum, 
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	if (MaxNum == 0)
 	{
@@ -1177,7 +1306,26 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeCountOb
 		return FLearningAgentsObservationObjectElement();
 	}
 
-	return MakeContinuousObservationFromArrayView(Object, { (float)Num / (float)MaxNum }, Tag);
+	const float Encoded = (float)Num / (float)MaxNum;
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
+	{
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nNum: [%i]\nMax Num: [%i]\nEncoded: [%6.2f]"),
+			*VisualLoggerListener->GetName(),
+			*Tag.ToString(),
+			VisualLoggerAgentId,
+			Num,
+			MaxNum,
+			Encoded);
+	}
+#endif
+
+	return MakeContinuousObservationFromArrayView(Object, { Encoded }, Tag);
 }
 
 FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeStructObservation(ULearningAgentsObservationObject* Object, const TMap<FName, FLearningAgentsObservationObjectElement>& Elements, const FName Tag)
@@ -1516,7 +1664,16 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeMapObse
 	return MakeSetObservationFromArrayView(Object, SubElements);
 }
 
-FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeEnumObservation(ULearningAgentsObservationObject* Object, const UEnum* Enum, const uint8 EnumValue, const FName Tag)
+FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeEnumObservation(
+	ULearningAgentsObservationObject* Object, 
+	const UEnum* Enum, 
+	const uint8 EnumValue, 
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	if (!Enum)
 	{
@@ -1536,10 +1693,38 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeEnumObs
 	OneHot.Init(0.0f, Enum->NumEnums() - 1);
 	OneHot[EnumValueIndex] = 1.0f;
 
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
+	{
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nEnum: %s\nSize: [%i]\nValue: [%s]\nIndex: [%i]\nEncoded: %s"),
+			*VisualLoggerListener->GetName(),
+			*Tag.ToString(),
+			VisualLoggerAgentId,
+			*Enum->GetName(),
+			Enum->NumEnums() - 1,
+			*Enum->GetDisplayNameTextByValue(EnumValue).ToString(),
+			EnumValueIndex,
+			*UE::Learning::Array::FormatFloat(OneHot, Enum->NumEnums() - 1));
+	}
+#endif
+
 	return MakeContinuousObservationFromArrayView(Object, OneHot, Tag);
 }
 
-FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeBitmaskObservation(ULearningAgentsObservationObject* Object, const UEnum* Enum, const int32 BitmaskValue, const FName Tag)
+FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeBitmaskObservation(
+	ULearningAgentsObservationObject* Object, 
+	const UEnum* Enum, 
+	const int32 BitmaskValue, 
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	if (!Enum)
 	{
@@ -1563,6 +1748,40 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeBitmask
 			OneHot[EnumIdx] = 1.0f;
 		}
 	}
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
+	{
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+
+		FString ValuesString;
+		FString IndicesString;
+
+		for (int32 EnumIdx = 0; EnumIdx < Enum->NumEnums() - 1; EnumIdx++)
+		{
+			if (BitmaskValue & (1 << EnumIdx))
+			{
+				ValuesString += Enum->GetDisplayNameTextByIndex(EnumIdx).ToString() + TEXT(" ");
+				IndicesString += FString::FromInt(EnumIdx) + TEXT(" ");
+			}
+		}
+
+		ValuesString = ValuesString.TrimEnd();
+		IndicesString = IndicesString.TrimEnd();
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nEnum: %s\nSize: [%i]\nValues: [%s]\nIndices: [%s]\nEncoded: %s"),
+			*VisualLoggerListener->GetName(),
+			*Tag.ToString(),
+			VisualLoggerAgentId,
+			*Enum->GetName(),
+			Enum->NumEnums() - 1,
+			*ValuesString,
+			*IndicesString,
+			*UE::Learning::Array::FormatFloat(OneHot, Enum->NumEnums() - 1));
+	}
+#endif
 
 	return MakeContinuousObservationFromArrayView(Object, OneHot, Tag);
 }
