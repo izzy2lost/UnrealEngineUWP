@@ -462,7 +462,7 @@ private:
 	//////////////////////////////////////////////////
 	// Store settings
 
-	/** View model for a source of traces. This could be the trace store default directory or a watch directory.*/
+	/** View model for a source of traces. This could be the trace store default directory or an additional monitored directory. */
 	struct FTraceDirectoryModel
 	{
 		FTraceDirectoryModel(FString&& InPath, const FName& InColor, ETraceDirOperations InOperations)
