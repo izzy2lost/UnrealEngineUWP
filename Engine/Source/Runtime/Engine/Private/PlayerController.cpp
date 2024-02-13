@@ -5097,17 +5097,18 @@ void APlayerController::TickActor( float DeltaSeconds, ELevelTick TickType, FAct
 						ServerData->bForcedUpdateDurationExceeded = false;
 						if (ServerData->bTriggeringForcedUpdates)
 						{
-							const float PawnTimeSinceForcingUpdates = (WorldTimeStamp - ServerData->ServerTimeBeginningForcedUpdates) * GetPawn()->CustomTimeDilation;
-							const float PawnTimeForcedUpdateMaxDuration = ForcedUpdateMaxDuration * GetPawn()->GetActorTimeDilation();
-							
-							if (PawnTimeSinceForcingUpdates > PawnTimeForcedUpdateMaxDuration)
+							if (ServerData->ServerTimeStamp > ServerData->ServerTimeLastForcedUpdate)
 							{
-								if (ServerData->ServerTimeStamp > ServerData->ServerTimeLastForcedUpdate)
-								{
-									// An update came in that was not a forced update (ie a real move), since ServerTimeStamp advanced outside this code.
-									ServerData->ResetForcedUpdateState();
-								}
-								else
+								// An update came in that was not a forced update (ie a real move), since ServerTimeStamp advanced outside this code.
+								UE_LOG(LogNetPlayerMovement, Log, TEXT("Movement detected, resetting forced update state (ServerTimeStamp %.6f > ServerTimeLastForcedUpdate %.6f)"), ServerData->ServerTimeStamp, ServerData->ServerTimeLastForcedUpdate);
+								ServerData->ResetForcedUpdateState();
+							}
+							else
+							{
+								const float PawnTimeSinceForcingUpdates = (WorldTimeStamp - ServerData->ServerTimeBeginningForcedUpdates) * GetPawn()->CustomTimeDilation;
+								const float PawnTimeForcedUpdateMaxDuration = ForcedUpdateMaxDuration * GetPawn()->GetActorTimeDilation();
+
+								if (PawnTimeSinceForcingUpdates > PawnTimeForcedUpdateMaxDuration)
 								{
 									if (ServerData->bLastRequestNeedsForcedUpdates)
 									{
@@ -5117,6 +5118,7 @@ void APlayerController::TickActor( float DeltaSeconds, ELevelTick TickType, FAct
 									else
 									{
 										// Waiting for ServerTimeStamp to advance from a client move.
+										UE_LOG(LogNetPlayerMovement, Log, TEXT("Setting bForcedUpdateDurationExceeded=true (PawnTimeSinceForcingUpdates %.6f > PawnTimeForcedUpdateMaxDuration %.6f)"), PawnTimeSinceForcingUpdates, PawnTimeForcedUpdateMaxDuration);
 										ServerData->bForcedUpdateDurationExceeded = true;
 									}
 								}
