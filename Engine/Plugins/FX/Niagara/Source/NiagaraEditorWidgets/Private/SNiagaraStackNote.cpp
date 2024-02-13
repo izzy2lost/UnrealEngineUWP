@@ -135,6 +135,7 @@ void SNiagaraStackNote::Rebuild()
 					.OnTextCommitted(this, &SNiagaraStackNote::CommitStackNoteHeaderUpdate)
 					.Style(&FNiagaraEditorStyle::Get().GetWidgetStyle<FInlineEditableTextBlockStyle>("NiagaraEditor.Stack.Note.HeaderEditableText"))
 					.IsSelected(FIsSelected::CreateLambda([]() { return false; }))
+					.AutoWrapNonEditText(true)
 				]
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
