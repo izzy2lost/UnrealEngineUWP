@@ -11,6 +11,7 @@
 #include "Components/DMMaterialValue.h"
 #include "Components/MaterialStageExpressions/DMMSETextureSample.h"
 #include "Components/MaterialStageExpressions/DMMSETextureSampleEdgeColor.h"
+#include "DMPrivate.h"
 #include "DMValueDefinition.h"
 #include "DynamicMaterialEditorModule.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
@@ -711,7 +712,7 @@ void FDMMaterialStageInputMenus::GenerateChangeInputMenu_PreviousStage_Output_Ch
 		for (int32 ChannelIndex = 0; ChannelIndex < FloatSize; ++ChannelIndex)
 		{
 			const FText ChannelName = UDMValueDefinitionLibrary::GetValueDefinition(PreviousStageOutputConnectors[OutputIndex].Type).GetChannelName(ChannelIndex + 1);
-			const int32 OutputChannel = UE::DynamicMaterialEditor::ChannelIndexToChannelBit(ChannelIndex + 1);
+			const int32 OutputChannel = UE::DynamicMaterialEditor::Private::ChannelIndexToChannelBit(ChannelIndex + 1);
 
 			UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_PreviousStage_Output_Channel_Impl(InChildMenuBuilder, ChannelName, Stage, InThroughput,
 				InInputIndex, InInputChannel, InMaterialProperty, OutputIndex, OutputChannel);
@@ -997,7 +998,7 @@ void FDMMaterialStageInputMenus::GenerateChangeInputMenu_GlobalValue_Channels(FM
 		for (int32 ChannelIndex = 0; ChannelIndex < FloatSize; ++ChannelIndex)
 		{
 			const FText ChannelName = UDMValueDefinitionLibrary::GetValueDefinition(Values[InValueIndex]->GetType()).GetChannelName(ChannelIndex + 1);
-			const int32 OutputChannel = UE::DynamicMaterialEditor::ChannelIndexToChannelBit(ChannelIndex + 1);
+			const int32 OutputChannel = UE::DynamicMaterialEditor::Private::ChannelIndexToChannelBit(ChannelIndex + 1);
 
 			UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_GlobalValue_Channel_Impl(InChildMenuBuilder,
 				ChannelName, Stage, InThroughput, InInputIndex, InInputChannel, InValueIndex, Values[InValueIndex], OutputChannel);
@@ -1633,7 +1634,7 @@ void FDMMaterialStageInputMenus::GenerateChangeInputMenu_Slot_Property_Output_Ch
 		for (int32 ChannelIndex = 0; ChannelIndex < FloatSize; ++ChannelIndex)
 		{
 			const FText ChannelName = UDMValueDefinitionLibrary::GetValueDefinition(LastPropertySourceOutputConnectors[OutputIndex].Type).GetChannelName(ChannelIndex + 1);
-			const int32 OutputChannel = UE::DynamicMaterialEditor::ChannelIndexToChannelBit(ChannelIndex + 1);
+			const int32 OutputChannel = UE::DynamicMaterialEditor::Private::ChannelIndexToChannelBit(ChannelIndex + 1);
 
 			UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Slot_Property_Output_Channel_Impl(InChildMenuBuilder, ChannelName,
 				Stage, InThroughput, InInputIndex, InInputChannel, InSlot, InMaterialProperty, OutputIndex, OutputChannel);
@@ -2021,7 +2022,7 @@ void FDMMaterialStageInputMenus::GenerateChangeInputMenu_Expression_Output_Chann
 		for (int32 ChannelIndex = 0; ChannelIndex < FloatSize; ++ChannelIndex)
 		{
 			const FText ChannelName = UDMValueDefinitionLibrary::GetValueDefinition(OutputConnectors[InOutputIndex].Type).GetChannelName(ChannelIndex + 1);
-			const int32 OutputChannel = UE::DynamicMaterialEditor::ChannelIndexToChannelBit(ChannelIndex + 1);
+			const int32 OutputChannel = UE::DynamicMaterialEditor::Private::ChannelIndexToChannelBit(ChannelIndex + 1);
 
 			UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Expression_Output_Channel_Impl(InChildMenuBuilder, ChannelName, Stage, InThroughput,
 				InInputIndex, InInputChannel, InExpressionClass, InOutputIndex, OutputChannel);

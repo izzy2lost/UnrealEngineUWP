@@ -2,10 +2,12 @@
 
 #include "MaterialDesigner/AvaMaterialDesignerExtension.h"
 #include "AvaShapeActor.h"
-#include "DetailView/AvaDetailsExtension.h"
+#include "DMObjectMaterialProperty.h"
 #include "DMWorldSubsystem.h"
+#include "DetailView/AvaDetailsExtension.h"
 #include "DynamicMeshes/AvaShapeDynMeshBase.h"
 #include "Engine/World.h"
+#include "IDynamicMaterialEditorModule.h"
 #include "Material/DynamicMaterialInstance.h"
 #include "Materials/Material.h"
 #include "Model/DynamicMaterialModel.h"
@@ -137,7 +139,7 @@ void FAvaMaterialDesignerExtension::OpenEditor()
 		return;
 	}
 
-	FDynamicMaterialEditorModule::Get().OpenEditor(World);
+	IDynamicMaterialEditorModule::Get().OpenEditor(World);
 }
 
 #undef LOCTEXT_NAMESPACE

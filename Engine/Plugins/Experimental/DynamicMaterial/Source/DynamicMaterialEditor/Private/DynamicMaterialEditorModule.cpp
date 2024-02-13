@@ -17,11 +17,12 @@
 #include "Components/MaterialValues/DMMaterialValueFloat4.h"
 #include "Components/MaterialValues/DMMaterialValueTexture.h"
 #include "Components/PrimitiveComponent.h"
-#include "DetailLayoutBuilder.h"
-#include "DetailsPanel/DMPropertyTypeCustomizer.h"
-#include "DetailsPanel/Slate/SDMMaterialListExtensionWidget.h"
 #include "DMMaterialFunctionLibrary.h"
 #include "DMWorldSubsystem.h"
+#include "DetailLayoutBuilder.h"
+#include "DetailsPanel/DMMaterialInterfaceTypeCustomizer.h"
+#include "DetailsPanel/DMPropertyTypeCustomizer.h"
+#include "DetailsPanel/Slate/SDMMaterialListExtensionWidget.h"
 #include "DynamicMaterialEditorCommands.h"
 #include "DynamicMaterialEditorSettings.h"
 #include "DynamicMaterialEditorStyle.h"
@@ -197,7 +198,7 @@ FDMGetObjectMaterialPropertiesDelegate FDynamicMaterialEditorModule::GetCustomMa
 
 FDynamicMaterialEditorModule& FDynamicMaterialEditorModule::Get()
 {
-	return FModuleManager::LoadModuleChecked<FDynamicMaterialEditorModule>(TEXT("DynamicMaterialEditor"));
+	return FModuleManager::LoadModuleChecked<FDynamicMaterialEditorModule>(ModuleName);
 }
 
 FDynamicMaterialEditorModule::FDynamicMaterialEditorModule()
@@ -217,6 +218,9 @@ void FDynamicMaterialEditorModule::StartupModule()
 
 	PropertyModule.RegisterCustomPropertyTypeLayout(UDynamicMaterialModelEditorOnlyData::StaticClass()->GetFName()
 		, FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FDMPropertyTypeCustomizer::MakeInstance));
+
+	PropertyModule.RegisterCustomPropertyTypeLayout(UMaterialInterface::StaticClass()->GetFName()
+		, FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FDMMaterialInterfaceTypeCustomizer::MakeInstance), MakeShared<FDMMaterialInterfaceTypeIdentifier>());
 
 	using namespace UE::DynamicMaterialEditor::Private;
 

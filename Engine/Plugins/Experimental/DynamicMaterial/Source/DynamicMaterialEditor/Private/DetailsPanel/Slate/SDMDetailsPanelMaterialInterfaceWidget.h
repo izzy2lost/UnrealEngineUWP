@@ -9,7 +9,7 @@ class FAssetThumbnailPool;
 class IPropertyHandle;
 class UDynamicMaterialInstance;
 
-class DYNAMICMATERIALEDITOR_API SDMDetailsPanelMaterialInterfaceWidget : public SCompoundWidget
+class SDMDetailsPanelMaterialInterfaceWidget : public SCompoundWidget
 {
 public:
 	SLATE_BEGIN_ARGS(SDMDetailsPanelMaterialInterfaceWidget) {}

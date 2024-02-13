@@ -131,40 +131,6 @@ void UDMBlueprintFunctionLibrary::SetDefaultStageSourceTexture(UDMMaterialStage*
 	SetTextureValue(NewInputValue);
 }
 
-TArray<FDMObjectMaterialProperty> UDMBlueprintFunctionLibrary::GetActorDynamicMaterialSlots(AActor* InActor, const bool bInIncludeEmptySlots)
-{
-	TArray<FDMObjectMaterialProperty> OutSlots;
-
-	if (!IsValid(InActor))
-	{
-		return OutSlots;
-	}
-
-	InActor->ForEachComponent<UPrimitiveComponent>(false, [bInIncludeEmptySlots, &OutSlots](UPrimitiveComponent* InPrimComp)
-		{
-			const int32 PrimitiveMaterialCount = InPrimComp->GetNumMaterials();
-
-			for (int32 MaterialIndex = 0; MaterialIndex < PrimitiveMaterialCount; ++MaterialIndex)
-			{
-				if (UDynamicMaterialInstance* const MDI = Cast<UDynamicMaterialInstance>(InPrimComp->GetMaterial(MaterialIndex)))
-				{
-					if (UDynamicMaterialModel* const ThisMaterialModel = MDI->GetMaterialModel())
-					{
-						OutSlots.Add(FDMObjectMaterialProperty(InPrimComp, MaterialIndex));
-						continue;
-					}
-				}
-
-				if (bInIncludeEmptySlots)
-				{
-					OutSlots.Add(FDMObjectMaterialProperty(InPrimComp, MaterialIndex));
-				}
-			}
-		});
-
-	return OutSlots;
-}
-
 TArray<FDMObjectMaterialProperty> UDMBlueprintFunctionLibrary::GetActorMaterialProperties(AActor* InActor)
 {
 	TArray<FDMObjectMaterialProperty> ActorProperties;
@@ -195,58 +161,6 @@ TArray<FDMObjectMaterialProperty> UDMBlueprintFunctionLibrary::GetActorMaterialP
 		});
 
 	return ActorProperties;
-}
-
-UDynamicMaterialModel* UDMBlueprintFunctionLibrary::FindFirstValidActorMaterialSlot(const TArray<AActor*>& InActors)
-{
-	// Loop through selected actors to find first one with a valid material model on a primitive component.
-	for (AActor* Actor : InActors)
-	{
-		if (!IsValid(Actor))
-		{
-			continue;
-		}
-
-		const TArray<FDMObjectMaterialProperty> ActorMaterialProperties = GetActorMaterialProperties(Actor);
-		for (const FDMObjectMaterialProperty& ActorMaterialProperty : ActorMaterialProperties)
-		{
-			if (UDynamicMaterialModel* const ThisMaterialModel = ActorMaterialProperty.GetMaterialModel())
-			{
-				return ThisMaterialModel;
-			}
-		}
-	}
-
-	return nullptr;
-}
-
-FDMObjectMaterialProperty UDMBlueprintFunctionLibrary::MakePrimitiveComponentSlot(UPrimitiveComponent* InComponent, int32 InSlot)
-{
-	return FDMObjectMaterialProperty(InComponent, InSlot);
-}
-
-FDMObjectMaterialProperty UDMBlueprintFunctionLibrary::MakeObjectMaterialProperty(UObject* InObject, FName PropertyName)
-{
-	FProperty* Property = nullptr;
-
-	if (IsValid(InObject))
-	{
-		Property = InObject->GetClass()->FindPropertyByName(PropertyName);
-	}
-
-	return FDMObjectMaterialProperty(InObject, Property, INDEX_NONE);
-}
-
-FDMObjectMaterialProperty UDMBlueprintFunctionLibrary::MakeObjectMaterialPropertyArray(UObject* InObject, FName PropertyName, int32 ArrayIndex)
-{
-	FProperty* Property = nullptr;
-
-	if (IsValid(InObject))
-	{
-		Property = InObject->GetClass()->FindPropertyByName(PropertyName);
-	}
-
-	return FDMObjectMaterialProperty(InObject, Property, ArrayIndex);
 }
 
 UDynamicMaterialModel* UDMBlueprintFunctionLibrary::CreateDynamicMaterialInObject(FDMObjectMaterialProperty& InMaterialProperty)
@@ -289,31 +203,6 @@ UDynamicMaterialModel* UDMBlueprintFunctionLibrary::CreateDynamicMaterialInObjec
 	}
 
 	return NewInstance->GetMaterialModel();
-}
-
-UDynamicMaterialModel* UDMBlueprintFunctionLibrary::GetObjectPropertyMaterialModel(const FDMObjectMaterialProperty& InMaterialProperty) const
-{
-	return InMaterialProperty.GetMaterialModel();
-}
-
-UDynamicMaterialInstance* UDMBlueprintFunctionLibrary::GetObjectPropertyMaterial(const FDMObjectMaterialProperty& InMaterialProperty) const
-{
-	return InMaterialProperty.GetMaterial();
-}
-
-void UDMBlueprintFunctionLibrary::SetObjectPropertyMaterial(FDMObjectMaterialProperty& InMaterialProperty, UDynamicMaterialInstance* InDynamicMaterial)
-{
-	InMaterialProperty.SetMaterial(InDynamicMaterial);
-}
-
-bool UDMBlueprintFunctionLibrary::IsObjectPropertyValid(const FDMObjectMaterialProperty& InMaterialProperty) const
-{
-	return InMaterialProperty.IsValid();
-}
-
-FText UDMBlueprintFunctionLibrary::GetObjectPropertyName(const FDMObjectMaterialProperty& InMaterialProperty, bool bInIgnoreNewStatus) const
-{
-	return InMaterialProperty.GetPropertyName(bInIgnoreNewStatus);
 }
 
 bool UDMBlueprintFunctionLibrary::ExportMaterialInstance(UDynamicMaterialModel* InMaterialModel, const FString& InSavePath)

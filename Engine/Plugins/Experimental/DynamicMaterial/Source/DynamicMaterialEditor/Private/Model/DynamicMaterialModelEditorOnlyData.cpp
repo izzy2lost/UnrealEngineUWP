@@ -3,6 +3,7 @@
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetToolsModule.h"
+#include "Components/DMMaterialLayer.h"
 #include "Components/DMMaterialParameter.h"
 #include "Components/DMMaterialProperty.h"
 #include "Components/DMMaterialSlot.h"
@@ -36,13 +37,13 @@
 #include "DMComponentPath.h"
 #include "DMDefs.h"
 #include "DMMaterialFunctionLibrary.h"
+#include "DMPrivate.h"
 #include "DynamicMaterialEditorModule.h"
 #include "DynamicMaterialEditorSettings.h"
 #include "DynamicMaterialModule.h"
 #include "Factories/MaterialFactoryNew.h"
 #include "FileHelpers.h"
 #include "IAssetTools.h"
-#include "Components/DMMaterialLayer.h"
 #include "Material/DynamicMaterialInstance.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialExpressionAppendVector.h"
@@ -51,9 +52,9 @@
 #include "Materials/MaterialExpressionMultiply.h"
 #include "Materials/MaterialFunction.h"
 #include "Misc/Guid.h"
-#include "Model/DynamicMaterialModel.h"
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DMMaterialBuildUtils.h"
+#include "Model/DynamicMaterialModel.h"
 #include "UObject/Package.h"
 
 #define LOCTEXT_NAMESPACE "MaterialDesignerModel"
@@ -241,7 +242,7 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 	 */
 	for (const TPair<EDMMaterialPropertyType, TObjectPtr<UDMMaterialProperty>>& Pair : Properties)
 	{
-		if (UE::DynamicMaterialEditor::IsCustomMaterialProperty(Pair.Key))
+		if (UE::DynamicMaterialEditor::Private::IsCustomMaterialProperty(Pair.Key))
 		{
 			continue;
 		}
@@ -406,7 +407,7 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 	 */
 	for (const TPair<EDMMaterialPropertyType, TObjectPtr<UDMMaterialProperty>>& Pair : Properties)
 	{
-		if (UE::DynamicMaterialEditor::IsCustomMaterialProperty(Pair.Key))
+		if (UE::DynamicMaterialEditor::Private::IsCustomMaterialProperty(Pair.Key))
 		{
 			continue;
 		}

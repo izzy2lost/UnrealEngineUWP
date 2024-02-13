@@ -10,13 +10,14 @@
 #include "CoreGlobals.h"
 #include "DMComponentPath.h"
 #include "DMDefs.h"
+#include "DMPrivate.h"
 #include "DynamicMaterialEditorModule.h"
 #include "Factories/MaterialFactoryNew.h"
+#include "MaterialValueType.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialExpression.h"
 #include "Materials/MaterialExpressionMax.h"
 #include "Materials/MaterialExpressionMultiply.h"
-#include "MaterialValueType.h"
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DMMaterialBuildUtils.h"
 #include "Model/DynamicMaterialModel.h"
@@ -854,7 +855,7 @@ void UDMMaterialSlot::UpdateBasePreviewMaterialFull(const TSharedRef<FDMMaterial
 
 	for (const TPair<EDMMaterialPropertyType, UDMMaterialProperty*>& Pair : MaterialProperties)
 	{
-		if (UE::DynamicMaterialEditor::IsCustomMaterialProperty(Pair.Key))
+		if (UE::DynamicMaterialEditor::Private::IsCustomMaterialProperty(Pair.Key))
 		{
 			continue;
 		}

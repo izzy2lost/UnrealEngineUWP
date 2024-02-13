@@ -30,7 +30,7 @@ struct FDMMaterialEffectList
  * Material Designer Settings
  */
 UCLASS(Config=EditorPerProjectUserSettings, meta = (DisplayName = "Material Designer"))
-class DYNAMICMATERIALEDITOR_API UDynamicMaterialEditorSettings : public UDeveloperSettings
+class UDynamicMaterialEditorSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
 

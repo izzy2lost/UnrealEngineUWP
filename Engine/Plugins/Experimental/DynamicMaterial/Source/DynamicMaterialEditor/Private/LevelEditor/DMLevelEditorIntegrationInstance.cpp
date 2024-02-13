@@ -3,6 +3,7 @@
 #include "DMLevelEditorIntegrationInstance.h"
 #include "Components/PrimitiveComponent.h"
 #include "DMWorldSubsystem.h"
+#include "DynamicMaterialEditorModule.h"
 #include "EditorModeManager.h"
 #include "Elements/Framework/TypedElementSelectionSet.h"
 #include "Engine/World.h"

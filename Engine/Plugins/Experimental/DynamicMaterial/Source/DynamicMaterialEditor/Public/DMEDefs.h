@@ -24,25 +24,14 @@ class UDynamicMaterialInstance;
 class UDynamicMaterialModel;
 class UPrimitiveComponent;
 
-namespace UE::DynamicMaterialEditor
-{
-	/** Converts 0,1,2,3,4 to 0,1,2,4,8 */
-	int32 ChannelIndexToChannelBit(int32 InChannelIndex);
-
-	/** Converts 0,1,2,4,8 to 0,1,2,3,4 */
-	int32 ChannelBitToChannelIndex(int32 InChannelBit);
-
-	bool IsCustomMaterialProperty(EDMMaterialPropertyType InMaterialProperty);
-}
-
-UINTERFACE(Blueprintable, BlueprintType)
-class DYNAMICMATERIALEDITOR_API UDMBuildable : public UInterface
+UINTERFACE(MinimalAPI, Blueprintable, BlueprintType)
+class UDMBuildable : public UInterface
 {
 public:
 	GENERATED_BODY()
 };
 
-class DYNAMICMATERIALEDITOR_API IDMBuildable
+class IDMBuildable
 {
 public:
 	GENERATED_BODY()
@@ -57,7 +46,7 @@ public:
  * An input or output form a material source/stage (e.g. RGB out.)
  */
 USTRUCT(BlueprintType, Category = "Material Designer", meta = (DisplayName = "Material Designer Stage Connector"))
-struct DYNAMICMATERIALEDITOR_API FDMMaterialStageConnector
+struct FDMMaterialStageConnector
 {
 	GENERATED_BODY()
 
@@ -101,7 +90,7 @@ struct DYNAMICMATERIALEDITOR_API FDMMaterialStageConnector
  * input channels (e.g. T1.R, T2.B, T3.G -> {T2.B, T1.R, T3.G, T2.B})
  */
 USTRUCT(BlueprintType, Category = "Material Designer", meta = (DisplayName = "Material Designer Stage Connection"))
-struct DYNAMICMATERIALEDITOR_API FDMMaterialStageConnection
+struct FDMMaterialStageConnection
 {
 	GENERATED_BODY()
 
@@ -115,7 +104,7 @@ struct DYNAMICMATERIALEDITOR_API FDMMaterialStageConnection
 };
 
 USTRUCT(BlueprintType, Category = "Material Designer", meta = (DisplayName = "Material Designer Slot Output Connector Types"))
-struct DYNAMICMATERIALEDITOR_API FDMMaterialSlotOutputConnectorTypes
+struct FDMMaterialSlotOutputConnectorTypes
 {
 	GENERATED_BODY()
 

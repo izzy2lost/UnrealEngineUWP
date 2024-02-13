@@ -2,12 +2,13 @@
 
 #include "Components/DMMaterialProperty.h"
 #include "Components/DMMaterialSlot.h"
+#include "DMPrivate.h"
 #include "DMValueDefinition.h"
-#include "Materials/MaterialExpressionMaterialFunctionCall.h"
 #include "Materials/MaterialExpressionConstant.h"
 #include "Materials/MaterialExpressionConstant2Vector.h"
 #include "Materials/MaterialExpressionConstant3Vector.h"
 #include "Materials/MaterialExpressionConstant4Vector.h"
+#include "Materials/MaterialExpressionMaterialFunctionCall.h"
 #include "Materials/MaterialFunctionInterface.h"
 #include "Math/Vector.h"
 #include "Math/Vector2D.h"
@@ -37,7 +38,7 @@ FString UDMMaterialProperty::GetComponentPathComponent() const
 UDMMaterialProperty* UDMMaterialProperty::CreateCustomMaterialPropertyDefaultSubobject(UDynamicMaterialModelEditorOnlyData* InModelEditorOnlyData, EDMMaterialPropertyType InMaterialProperty, const FName& InSubObjName)
 {
 	check(InModelEditorOnlyData);
-	check(UE::DynamicMaterialEditor::IsCustomMaterialProperty(InMaterialProperty));
+	check(UE::DynamicMaterialEditor::Private::IsCustomMaterialProperty(InMaterialProperty));
 
 	UDMMaterialProperty* NewMaterialProperty = InModelEditorOnlyData->CreateDefaultSubobject<UDMMaterialProperty>(InSubObjName);
 	NewMaterialProperty->MaterialProperty = InMaterialProperty;

@@ -8,7 +8,7 @@
 class UMaterial;
 class UMaterialExpressionMaterialFunctionCall;
 
-class DYNAMICMATERIALEDITOR_API FDMMaterialFunctionLibrary
+class FDMMaterialFunctionLibrary
 {
 public:
 	static FDMMaterialFunctionLibrary& Get();
