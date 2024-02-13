@@ -148,11 +148,6 @@ namespace Audio
 		AUDIOMIXER_API virtual void RegisterSoundSubmix(USoundSubmixBase* SoundSubmix, bool bInit = true) override;
 		AUDIOMIXER_API virtual void UnregisterSoundSubmix(const USoundSubmixBase* SoundSubmix, const bool bReparentChildren) override;
 
-		AUDIOMIXER_API virtual void InitSoundEffectPresets() override;
-		UE_DEPRECATED(5.2, "The functionality for this has been moved to UAudioBusSubsystem::InitDefaultAudioBuses, which is now automatically called on subsystem creation.")
-		AUDIOMIXER_API virtual void InitDefaultAudioBuses() override;
-		UE_DEPRECATED(5.2, "The functionality for this has been moved to UAudioBusSubsystem::ShutdownDefaultAudioBuses.")
-		AUDIOMIXER_API virtual void ShutdownDefaultAudioBuses() override;
 		AUDIOMIXER_API virtual int32 GetNumActiveSources() const override;
 
 		// Updates the source effect chain (using unique object id). 
@@ -336,26 +331,6 @@ namespace Audio
 		AUDIOMIXER_API TArray<Audio::FChannelPositionInfo>* GetDefaultPositionMap(int32 NumChannels);
 
 		static AUDIOMIXER_API bool IsEndpointSubmix(const USoundSubmixBase* InSubmix);
-
-		// Audio bus API - these are deprecated. Use corresponding calls in UAudioBusSubsystem instead
-		UE_DEPRECATED(5.2, "This function is deprecated. Use UAudioBusSubsystem::StartAudioBus instead.")
-		AUDIOMIXER_API virtual void StartAudioBus(uint32 InAudioBusId, int32 InNumChannels, bool bInIsAutomatic) override;
-		UE_DEPRECATED(5.2, "This function is deprecated. Use UAudioBusSubsystem::StopAudioBus instead.")
-		AUDIOMIXER_API virtual void StopAudioBus(uint32 InAudioBusId) override;
-		UE_DEPRECATED(5.2, "This function is deprecated. Use UAudioBusSubsystem::IsAudioBusActive instead.")
-		AUDIOMIXER_API virtual bool IsAudioBusActive(uint32 InAudioBusId) const override;
-
-		UE_DEPRECATED(5.2, "AddPatchForAudioBus is deprecated.  Use UAudioBusSubsystem::AddPatchOutputForAudioBus.")
-		AUDIOMIXER_API virtual FPatchOutputStrongPtr AddPatchForAudioBus(uint32 InAudioBusId, float InPatchGain = 1.0f) override;
-
-		UE_DEPRECATED(5.2, "AddPatchForAudioBus_GameThread is deprecated.  Use UAudioBusSubsystem::AddPatchOutputForAudioBus.")
-		AUDIOMIXER_API virtual FPatchOutputStrongPtr AddPatchForAudioBus_GameThread(uint32 InAudioBusId, float InPatchGain = 1.0f) override;
-
-		UE_DEPRECATED(5.2, "This overload of AddPatchInputForAudioBus is deprecated and non-functional.  Use the overload in UAudioBusSubsystem that takes the number of frames and channels as parameters.")
-		AUDIOMIXER_API virtual void AddPatchInputForAudioBus(const FPatchInput& InPatchInput, uint32 InAudioBusId, float InPatchGain = 1.0f) override;
-
-		UE_DEPRECATED(5.2, "AddPatchInputForAudioBus_GameThread is deprecated.  Use UAudioBusSubsystem::AddPatchInputForAudioBus instead.")
-		AUDIOMIXER_API virtual void AddPatchInputForAudioBus_GameThread(const FPatchInput& InPatchInput, uint32 InAudioBusId, float InPatchGain = 1.0f) override;
 
 		AUDIOMIXER_API FPatchOutputStrongPtr MakePatch(int32 InFrames, int32 InChannels, float InGain) const;
 

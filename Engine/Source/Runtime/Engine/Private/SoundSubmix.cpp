@@ -44,9 +44,6 @@ USoundSubmix::USoundSubmix(const FObjectInitializer& ObjectInitializer)
 	, AmbisonicsPluginSettings(nullptr)
 	, EnvelopeFollowerAttackTime(10)
 	, EnvelopeFollowerReleaseTime(500)
-	, OutputVolume(-1.0f)
-	, WetLevel(-1.0f)
-	, DryLevel(-1.0f)
 {
 	OutputVolumeModulation.Value = 0.f;
 	WetLevelModulation.Value = 0.f;
@@ -62,46 +59,6 @@ void USoundSubmix::Serialize(FArchive& Ar)
 	{
 		// use -96dB as a noise floor when fixing up linear volume settings
 		static constexpr float LinearNeg96dB = 0.0000158489319f;
-
-		// convert any old deprecated values to the new value
-		if (OutputVolume >= 0.0f)
-		{
-			if (OutputVolume <= LinearNeg96dB)
-			{
-				OutputVolumeModulation.Value = -96.f;
-			}
-			else
-			{
-				OutputVolumeModulation.Value = Audio::ConvertToDecibels(OutputVolume);
-			}
-			OutputVolume = -1.0f;
-		}
-
-		if (WetLevel >= 0.0f)
-		{
-			if (WetLevel <= LinearNeg96dB)
-			{
-				WetLevelModulation.Value = -96.f;
-			}
-			else
-			{
-				WetLevelModulation.Value = Audio::ConvertToDecibels(WetLevel);
-			}
-			WetLevel = -1.0f;
-		}
-
-		if (DryLevel >= 0.0f)
-		{
-			if (DryLevel <= LinearNeg96dB)
-			{
-				DryLevelModulation.Value = -96.f;
-			}
-			else
-			{
-				DryLevelModulation.Value = Audio::ConvertToDecibels(DryLevel);
-			}
-			DryLevel = -1.0f;
-		}
 
 		// fix values previously saved as linear values
 		if (OutputVolumeModulation.Value > 0.0f)
