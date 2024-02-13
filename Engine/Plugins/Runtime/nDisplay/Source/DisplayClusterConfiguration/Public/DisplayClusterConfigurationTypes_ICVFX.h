@@ -616,7 +616,7 @@ public:
 
 	/** Look-up texture that encodes the specific amount of compensation used for each combination of wall distance and object distance */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = NDisplay)
-	UTexture2D* CompensationLUT = nullptr;
+	TSoftObjectPtr<UTexture2D> CompensationLUT = TSoftObjectPtr<UTexture2D>(FSoftObjectPath(TEXT("/nDisplay/DepthOfField/T_LUT_PointRMS.T_LUT_PointRMS")));
 
 	/** Actual LUT to use with the depth of field pipeline, copied and modified from CompensationLUT */
 	UPROPERTY(Transient)

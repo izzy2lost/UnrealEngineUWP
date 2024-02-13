@@ -585,6 +585,7 @@ bool FDisplayClusterConfigurationICVFX_ChromakeyRenderSettings::ShouldUseChromak
 
 void FDisplayClusterConfigurationICVFX_CameraDepthOfField::UpdateDynamicCompensationLUT()
 {
+	CompensationLUT.LoadSynchronous();
 	if (CompensationLUT)
 	{
 		FSharedImageConstRef CPUTextureRef = CompensationLUT->GetCPUCopy();

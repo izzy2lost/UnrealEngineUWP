@@ -286,12 +286,17 @@ void FDisplayClusterConfiguratorModule::RegisterSectionMappings()
 	// ICVFX Component
 	{
 		const TSharedRef<FPropertySection> Section = PropertyModule.FindOrCreateSection(UDisplayClusterICVFXCameraComponent::StaticClass()->GetFName(),
-		DisplayClusterConfigurationStrings::categories::ICVFXCategory, LOCTEXT("In-Camera VFX", "In-Camera VFX"));
+		DisplayClusterConfigurationStrings::categories::ICVFXCategory, LOCTEXT("InnerFrustumSectionLabel", "Inner Frustum"));
 		Section->AddCategory(DisplayClusterConfigurationStrings::categories::ICVFXCategory);
 	}
 	{
 		const TSharedRef<FPropertySection> Section = PropertyModule.FindOrCreateSection(UDisplayClusterICVFXCameraComponent::StaticClass()->GetFName(),
-		DisplayClusterConfigurationStrings::categories::CameraColorGradingCategory, LOCTEXT("Inner Frustum Color Grading", "Inner Frustum Color Grading"));
+			DisplayClusterConfigurationStrings::categories::ICVFXCameraCategory, LOCTEXT("InnerFrustumCameraSectionLabel", "Camera"));
+		Section->AddCategory(DisplayClusterConfigurationStrings::categories::ICVFXCameraCategory);
+	}
+	{
+		const TSharedRef<FPropertySection> Section = PropertyModule.FindOrCreateSection(UDisplayClusterICVFXCameraComponent::StaticClass()->GetFName(),
+		DisplayClusterConfigurationStrings::categories::CameraColorGradingCategory, LOCTEXT("InnerFrustumColorGradingLabel", "Color Grading"));
 		Section->AddCategory(DisplayClusterConfigurationStrings::categories::CameraColorGradingCategory);
 	}
 	{
