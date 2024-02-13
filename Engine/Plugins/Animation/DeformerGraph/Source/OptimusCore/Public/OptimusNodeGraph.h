@@ -75,7 +75,11 @@ public:
 	static const FName SetupGraphName;
 	static const FName UpdateGraphName;
 	static const TCHAR* LibraryRoot;
-
+	
+	// Function Graphs are addressed in a special way
+	static FString GetFunctionGraphPath(const FString& InFunctionName);
+	
+	
 	// Check if the duplication took place at the asset level
 	// if so, we have to recreate all constant/attribute nodes such that their class pointers
 	// don't point to classes in the source asset. This can happen because generated class
@@ -143,6 +147,12 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = OptimusNodeGraph)
 	TArray<UOptimusNode*> AddLoopTerminalNodes(
+		const FVector2D& InPosition
+	);
+
+	UFUNCTION(BlueprintCallable, Category = OptimusNodeGraph)
+	UOptimusNode* AddFunctionReferenceNode(
+		TSoftObjectPtr<UOptimusFunctionNodeGraph> InFunctionGraph,
 		const FVector2D& InPosition
 	);
 
@@ -257,6 +267,11 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = OptimusNodeGraph)
 	TArray<UOptimusNode *> ExpandCollapsedNodes(UOptimusNode* InFunctionNode);
+	
+	/** Take a subgraph node convert it to a function in-place
+	 */
+	UFUNCTION(BlueprintCallable, Category = OptimusNodeGraph)
+	bool ConvertToFunction(UOptimusNode* InSubGraphNode);
 	
 	/** Returns true if the node in question is a custom kernel node that can be converted to
 	  * a kernel function with ConvertCustomKernelToFunction.
@@ -378,22 +393,27 @@ public:
 	UFUNCTION(BlueprintCallable, Category = OptimusNodeGraph)
 	const TArray<UOptimusNodeGraph*> &GetGraphs() const override { return SubGraphs; }
 
-	UOptimusNodeGraph* CreateGraph(
+	UOptimusNodeGraph* CreateGraphDirect(
 		EOptimusNodeGraphType InType,
 		FName InName,
 		TOptional<int32> InInsertBefore) override;
-	bool AddGraph(
+	bool AddGraphDirect(
 		UOptimusNodeGraph* InGraph,
 		int32 InInsertBefore) override;
-	bool RemoveGraph(
+	bool RemoveGraphDirect(
 		UOptimusNodeGraph* InGraph,
 		bool bInDeleteGraph) override;
 
 	UFUNCTION(BlueprintCallable, Category = OptimusNodeGraph)
-	bool MoveGraph(
+	bool MoveGraphDirect(
 		UOptimusNodeGraph* InGraph,
 		int32 InInsertBefore) override;
 
+	UFUNCTION(BlueprintCallable, Category = OptimusNodeGraph)
+	bool RenameGraphDirect(
+		UOptimusNodeGraph* InGraph,
+		const FString& InNewName) override;
+	
 	UFUNCTION(BlueprintCallable, Category = OptimusNodeGraph)
 	bool RenameGraph(
 		UOptimusNodeGraph* InGraph,
@@ -436,10 +456,10 @@ protected:
 	);
 	
 	bool RemoveNodesToAction(
-			FOptimusCompoundAction* InAction,
-			const TArray<UOptimusNode*>& InNodes
-			) const;
-
+		FOptimusCompoundAction* InOutAction,
+		const TArray<UOptimusNode*>& InNodes
+		) const;
+	
 	// Remove a node directly. If a node still has connections this call will fail. 
 	bool RemoveNodeDirect(
 		UOptimusNode* InNode,		
@@ -497,7 +517,7 @@ private:
 		TFunction<void(UOptimusNode*)> InSecondNodeConfigFunc
 	);
 
-	void AddPairNodesToArray(const TArray<UOptimusNode*>& InNodes, TArray<UOptimusNode*>& OutNodes, TArray<UOptimusNodePair*>& OutNodePairs) const;
+	static void AddPairNodesToArray(const TArray<UOptimusNode*>& InNodes, TArray<UOptimusNode*>& OutNodes, TArray<UOptimusNodePair*>& OutNodePairs);
 
 	void RemoveNodePairByIndex(int32 NodePairIndex);
 	

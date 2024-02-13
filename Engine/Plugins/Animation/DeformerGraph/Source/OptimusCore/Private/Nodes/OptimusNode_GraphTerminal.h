@@ -31,6 +31,8 @@ class UOptimusNode_GraphTerminal :
 	GENERATED_BODY()
 	
 public:
+	static FName EntryNodeName;
+	static FName ReturnNodeName;
 	UOptimusNode_GraphTerminal();
 	
 	// UOptimusNode overrides

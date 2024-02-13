@@ -9,7 +9,7 @@
 class UOptimusNode_GraphTerminal;
 
 UCLASS()
-class UOptimusNodeSubGraph :
+class OPTIMUSCORE_API UOptimusNodeSubGraph :
 	public UOptimusNodeGraph,
 	public IOptimusParameterBindingProvider
 {
@@ -63,6 +63,8 @@ public:
 
 	UPROPERTY()
 	TWeakObjectPtr<UOptimusNode_GraphTerminal> ReturnNode;
+
+
 private:
 
 	void SanitizeBinding(FOptimusParameterBinding& InOutBinding, FName InOldName, bool bInAllowParameter);

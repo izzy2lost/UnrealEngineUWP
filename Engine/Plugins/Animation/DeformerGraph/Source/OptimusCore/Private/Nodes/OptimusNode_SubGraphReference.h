@@ -4,6 +4,7 @@
 
 #include "IOptimusNodeGraphProvider.h"
 #include "IOptimusNodePinRouter.h"
+#include "IOptimusNodeSubGraphReferencer.h"
 #include "OptimusNode.h"
 
 #include "OptimusNode_SubGraphReference.generated.h"
@@ -13,10 +14,11 @@ class UOptimusNodeSubGraph;
 
 
 UCLASS(Hidden)
-class UOptimusNode_SubGraphReference :
+class OPTIMUSCORE_API UOptimusNode_SubGraphReference :
 	public UOptimusNode,
 	public IOptimusNodePinRouter,
-	public IOptimusNodeGraphProvider
+	public IOptimusNodeGraphProvider,
+	public IOptimusNodeSubGraphReferencer
 {
 	GENERATED_BODY()
 
@@ -38,12 +40,15 @@ public:
 		const FOptimusPinTraversalContext& InTraversalContext
 	) const override;
 
+	// IOptimusNodeGraphProvider
 	UOptimusNodeGraph* GetNodeGraphToShow() override;
 
-	UOptimusComponentSourceBinding* GetDefaultComponentBinding(const FOptimusPinTraversalContext& InTraversalContext) const;
-	
+	// IOptimusNodeSubGraphReferencer
+	UOptimusComponentSourceBinding* GetDefaultComponentBinding(const FOptimusPinTraversalContext& InTraversalContext) const override;
+
 protected:
 	friend class UOptimusNodeGraph;
+	friend class UOptimusDeformer;
 
 	void SubscribeToSubGraph();
 	void UnsubscribeFromSubGraph() const;

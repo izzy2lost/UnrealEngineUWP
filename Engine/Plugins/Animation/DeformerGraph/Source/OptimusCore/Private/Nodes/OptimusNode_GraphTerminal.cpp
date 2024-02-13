@@ -16,6 +16,8 @@
 
 #define LOCTEXT_NAMESPACE "OptimusNodeGraphTerminal"
 
+FName UOptimusNode_GraphTerminal::EntryNodeName = TEXT("Entry");
+FName UOptimusNode_GraphTerminal::ReturnNodeName= TEXT("Return");
 
 UOptimusNode_GraphTerminal::UOptimusNode_GraphTerminal()
 {
@@ -142,7 +144,7 @@ UOptimusComponentSourceBinding* UOptimusNode_GraphTerminal::GetDefaultComponentB
 		return nullptr;
 	}
 	
-	const UOptimusNode_SubGraphReference* ReferenceNode = CastChecked<UOptimusNode_SubGraphReference>(PinCounterpart.NodePin->GetOwningNode());
+	const IOptimusNodeSubGraphReferencer* ReferenceNode = CastChecked<IOptimusNodeSubGraphReferencer>(PinCounterpart.NodePin->GetOwningNode());
 
 	return ReferenceNode->GetDefaultComponentBinding(PinCounterpart.TraversalContext);
 }

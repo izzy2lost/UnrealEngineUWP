@@ -116,8 +116,9 @@ const FSlateBrush* UOptimusEditorGraph::GetGraphTypeIcon(
 	case EOptimusNodeGraphType::ExternalTrigger:
 		return FOptimusEditorStyle::Get().GetBrush(TEXT("GraphType.Trigger"));	
 	case EOptimusNodeGraphType::SubGraph:
-		// TODO: need a new icon
-		return FOptimusEditorStyle::Get().GetBrush(TEXT("GraphType.Update"));
+		return FOptimusEditorStyle::Get().GetBrush(TEXT("GraphType.SubGraph"));
+	case EOptimusNodeGraphType::Function:
+		return FAppStyle::Get().GetBrush(TEXT("GraphEditor.Function_16x"));
 	default:
 		checkNoEntry();
 		break;

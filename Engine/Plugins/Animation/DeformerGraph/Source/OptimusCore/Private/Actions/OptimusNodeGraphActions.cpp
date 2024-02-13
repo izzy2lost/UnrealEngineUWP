@@ -2,6 +2,7 @@
 
 #include "OptimusNodeGraphActions.h"
 
+#include "IOptimusCoreModule.h"
 #include "IOptimusPathResolver.h"
 #include "IOptimusUnnamedNodePinProvider.h"
 #include "Nodes/OptimusNode_ComputeKernelFunction.h"
@@ -25,7 +26,7 @@
 // ---- Add graph
 
 FOptimusNodeGraphAction_AddGraph::FOptimusNodeGraphAction_AddGraph(
-	IOptimusNodeGraphCollectionOwner* InGraphOwner, 
+	const IOptimusNodeGraphCollectionOwner* InGraphOwner, 
 	EOptimusNodeGraphType InGraphType, 
 	FName InGraphName, 
 	int32 InGraphIndex,
@@ -64,7 +65,7 @@ bool FOptimusNodeGraphAction_AddGraph::Do(
 		return false;
 	}
 	
-	UOptimusNodeGraph* Graph = GraphOwner->CreateGraph(GraphType, GraphName, {});
+	UOptimusNodeGraph* Graph = GraphOwner->CreateGraphDirect(GraphType, GraphName, {});
 	if (!Graph)
 	{
 		return false;
@@ -77,7 +78,7 @@ bool FOptimusNodeGraphAction_AddGraph::Do(
 	}
 
 	// Add the graph to the collection
-	if (!GraphOwner->AddGraph(Graph, GraphIndex))
+	if (!GraphOwner->AddGraphDirect(Graph, GraphIndex))
 	{
 		Optimus::RemoveObject(Graph);
 		return false;
@@ -103,7 +104,7 @@ bool FOptimusNodeGraphAction_AddGraph::Undo(
 		return false;
 	}
 
-	return Graph->GetCollectionOwner()->RemoveGraph(Graph);
+	return Graph->GetCollectionOwner()->RemoveGraphDirect(Graph);
 }
 
 
@@ -144,7 +145,7 @@ bool FOptimusNodeGraphAction_RemoveGraph::Do(IOptimusPathResolver* InRoot)
 		Optimus::FBinaryObjectWriter GraphArchive(Graph, GraphData);
 	}
 	
-	return GraphOwner->RemoveGraph(Graph);
+	return GraphOwner->RemoveGraphDirect(Graph);
 }
 
 
@@ -160,7 +161,7 @@ bool FOptimusNodeGraphAction_RemoveGraph::Undo(
 	
 	// Create a graph, but don't add it to the list of used graphs. Otherwise interested parties
 	// will be notified with a partially constructed graph.
-	UOptimusNodeGraph* Graph = GraphOwner->CreateGraph(GraphType, GraphName, TOptional<int32>());
+	UOptimusNodeGraph* Graph = GraphOwner->CreateGraphDirect(GraphType, GraphName, TOptional<int32>());
 	if (Graph == nullptr)
 	{
 		return false;
@@ -172,7 +173,7 @@ bool FOptimusNodeGraphAction_RemoveGraph::Undo(
 	}
 	
 	// Now add the graph such that interested parties get notified.
-	if (!GraphOwner->AddGraph(Graph, GraphIndex))
+	if (!GraphOwner->AddGraphDirect(Graph, GraphIndex))
 	{
 		Optimus::RemoveObject(Graph);
 		return false;
@@ -192,6 +193,7 @@ FOptimusNodeGraphAction_RenameGraph::FOptimusNodeGraphAction_RenameGraph(
 	if (ensure(InGraph) && InGraph->GetFName() != InNewName)
 	{
 		GraphPath = InGraph->GetGraphPath();
+		GraphOwnerPath = InGraph->GetCollectionOwner()->GetCollectionPath();
 
 		// Ensure the name is unique within our namespace.
 		if (StaticFindObject(UOptimusNodeGraph::StaticClass(), InGraph->GetOuter(), *InNewName.ToString()) != nullptr)
@@ -216,10 +218,22 @@ bool FOptimusNodeGraphAction_RenameGraph::Do(
 	{
 		return false;
 	}
-	
-	return Optimus::RenameObject(Graph, *NewGraphName.ToString(), nullptr);
-}
 
+	IOptimusNodeGraphCollectionOwner* GraphOwner = InRoot->ResolveCollectionPath(GraphOwnerPath);
+	if (!GraphOwner)
+	{
+		return false;
+	}
+
+	if (GraphOwner->RenameGraphDirect(Graph, NewGraphName.ToString()))
+	{
+		GraphPath = Graph->GetGraphPath();
+		return true;
+	}
+
+	return false;
+	
+}
 
 bool FOptimusNodeGraphAction_RenameGraph::Undo(
 	IOptimusPathResolver* InRoot
@@ -231,8 +245,20 @@ bool FOptimusNodeGraphAction_RenameGraph::Undo(
 		return false;
 	}
 
-	return Optimus::RenameObject(Graph, *OldGraphName.ToString(), nullptr);
-}
+	IOptimusNodeGraphCollectionOwner* GraphOwner = InRoot->ResolveCollectionPath(GraphOwnerPath);
+	if (!GraphOwner)
+	{
+		return false;
+	}
+
+	if (GraphOwner->RenameGraphDirect(Graph, OldGraphName.ToString()))
+	{
+		GraphPath = Graph->GetGraphPath();
+		return true;
+	}
+
+	return false;	
+}	
 
 
 // ---- Add node
