@@ -17,14 +17,15 @@ class FViewInfo;
  */
 struct FTransientDecalRenderData
 {
-	const FDeferredDecalProxy& Proxy;
+	const FDeferredDecalProxy* Proxy;
 	const FMaterialRenderProxy* MaterialProxy;
 	FDecalBlendDesc BlendDesc;
 	float ConservativeRadius;
 	float FadeAlpha;
 	FLinearColor DecalColor;
 
-	FTransientDecalRenderData(const FDeferredDecalProxy& InDecalProxy, float InConservativeRadius, EShaderPlatform ShaderPlatform, ERHIFeatureLevel::Type FeatureLevel);
+	FTransientDecalRenderData() = default; // required to support TChunkedArray
+	FTransientDecalRenderData(const FDeferredDecalProxy& InDecalProxy, float InConservativeRadius, float InFadeAlpha, EShaderPlatform ShaderPlatform, ERHIFeatureLevel::Type FeatureLevel);
 };
 	
 typedef TArray<FTransientDecalRenderData, SceneRenderingAllocator> FTransientDecalRenderDataList;
