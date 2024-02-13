@@ -11,7 +11,6 @@
 #include "GameFramework/Actor.h"
 
 #if WITH_EDITOR
-#include "EngineGlobals.h"
 #include "Editor/EditorEngine.h"
 #endif // WITH_EDITOR
 
@@ -22,17 +21,17 @@ namespace PCGPrintElementConstants
 	FText Delimiter = LOCTEXT("Delimiter", "::");
 }
 
-#if WITH_EDITOR
-
 namespace PCGPrintElementHelpers
 {
 	void CleanUpMessage(uint64& OutMessageHashKey)
 	{
+#if WITH_EDITOR
 		if (GEngine && (OutMessageHashKey != (uint64)-1) && GEngine->OnScreenDebugMessageExists(OutMessageHashKey))
 		{
 			GEngine->RemoveOnScreenDebugMessage(OutMessageHashKey);
 			OutMessageHashKey = (uint64)-1;
 		}
+#endif // WITH_EDITOR
 	}
 }
 
@@ -41,8 +40,6 @@ bool UPCGManagedDebugStringMessageKey::Release(bool bHardRelease, TSet<TSoftObje
 	PCGPrintElementHelpers::CleanUpMessage(HashKey);
 	return Super::Release(bHardRelease, OutActorsToDelete);
 }
-
-#endif // WITH_EDITOR
 
 TArray<FPCGPinProperties> UPCGPrintElementSettings::InputPinProperties() const
 {
@@ -82,11 +79,15 @@ bool FPCGPrintElement::ExecuteInternal(FPCGContext* Context) const
 
 	// Build the message prefixes
 	const UPCGComponent* Component = Context->SourceComponent->GetOriginalComponent();
-	if (Component)
+	if (Settings->bPrintPerComponent && Component)
 	{
 		if (Settings->bPrefixWithOwner)
 		{
+#if WITH_EDITOR
+			Prefixes.Emplace(Component->GetOwner() ? Component->GetOwner()->GetActorLabel() : LOCTEXT("MissingOwner", "Missing Owner").ToString());
+#else
 			Prefixes.Emplace(Component->GetOwner() ? Component->GetOwner()->GetName() : LOCTEXT("MissingOwner", "Missing Owner").ToString());
+#endif // WITH_EDITOR
 		}
 
 		if (Settings->bPrefixWithComponent)
