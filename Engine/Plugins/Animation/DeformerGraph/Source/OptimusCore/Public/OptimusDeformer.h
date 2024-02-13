@@ -10,6 +10,7 @@
 #include "OptimusNodeGraph.h"
 #include "OptimusComponentSource.h"
 #include "OptimusDataDomain.h"
+#include "OptimusNodeSubGraph.h"
 
 #include "Animation/MeshDeformer.h"
 #include "Interfaces/Interface_PreviewMeshProvider.h"
@@ -27,6 +28,7 @@ class UOptimusComputeGraph;
 class UOptimusDeformer;
 class UOptimusResourceDescription;
 class UOptimusVariableDescription;
+class UOptimusFunctionNodeGraph;
 enum class EOptimusDiagnosticLevel : uint8;
 struct FOptimusCompilerDiagnostic;
 struct FOptimusCompoundAction;
@@ -122,6 +124,11 @@ class OPTIMUSCORE_API UOptimusDeformer :
 	GENERATED_BODY()
 
 public:
+
+	static const FName PublicFunctionsAssetTagName;
+	static const FName FunctionReferencesAssetTagName;
+
+	
 	UOptimusDeformer();
 
 	/** Get the action stack for this deformer graph */
@@ -157,6 +164,11 @@ public:
 	/** Remove a graph and delete it. */
 	bool RemoveGraph(UOptimusNodeGraph* InGraph);
 
+	/** Returns the sub graph reference node that is uniquely associated with the given subgraph */
+	UOptimusNode* GetSubGraphReferenceNode(
+		const UOptimusNodeSubGraph* InSubGraph
+		) const;
+	
 	// Variables
 	UOptimusVariableDescription* AddVariable(
 		FOptimusDataTypeRef InDataTypeRef,
@@ -327,29 +339,34 @@ public:
 	UOptimusNodeGraph* CreateGraph(
 		EOptimusNodeGraphType InType,
 		FName InName)
-	{ return CreateGraph(InType, InName, TOptional<int32>()); }
+	{ return CreateGraphDirect(InType, InName, TOptional<int32>()); }
 	
-	UOptimusNodeGraph* CreateGraph(
+	UOptimusNodeGraph* CreateGraphDirect(
 	    EOptimusNodeGraphType InType,
 	    FName InName,
 	    TOptional<int32> InInsertBefore
 	    ) override;
 	
-	bool AddGraph(
+	bool AddGraphDirect(
 	    UOptimusNodeGraph* InGraph,
 		int32 InInsertBefore
 		) override;
 	
-	bool RemoveGraph(
+	bool RemoveGraphDirect(
 	    UOptimusNodeGraph* InGraph,
 		bool bDeleteGraph
 		) override;
 
-	bool MoveGraph(
+	bool MoveGraphDirect(
 	    UOptimusNodeGraph* InGraph,
 	    int32 InInsertBefore
 	    ) override;
 
+	bool RenameGraphDirect(
+		UOptimusNodeGraph* InGraph,
+		const FString& InNewName
+		) override;
+	
 	bool RenameGraph(
 	    UOptimusNodeGraph* InGraph,
 	    const FString& InNewName

@@ -34,7 +34,7 @@ public:
 	FOptimusNodeGraphAction_AddGraph() = default;
 
 	FOptimusNodeGraphAction_AddGraph(
-	    IOptimusNodeGraphCollectionOwner* InGraphOwner,
+	    const IOptimusNodeGraphCollectionOwner* InGraphOwner,
 		EOptimusNodeGraphType InGraphType,
 		FName InGraphName,
 		int32 InGraphIndex,
@@ -126,6 +126,10 @@ protected:
 	bool Undo(IOptimusPathResolver* InRoot) override;
 
 private:
+
+	// The path of the graph owner that will actually perform the rename 
+	FString GraphOwnerPath;
+	
 	// The path of the graph to rename. This value will change after each rename.
 	FString GraphPath;
 

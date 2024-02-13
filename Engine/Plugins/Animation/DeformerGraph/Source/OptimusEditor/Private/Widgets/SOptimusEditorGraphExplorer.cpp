@@ -27,6 +27,7 @@
 
 // Ick.
 #include "GraphActionNode.h"
+#include "OptimusFunctionNodeGraph.h"
 
 
 #define LOCTEXT_NAMESPACE "OptimusGraphExplorer"
@@ -337,7 +338,7 @@ void SOptimusEditorGraphExplorer::CollectAllActions(FGraphActionListBuilderBase&
 	for (UOptimusNodeGraph* Graph : Deformer->GetGraphs())
 	{
 		FText GraphCategory = GetGraphSubCategory(Graph);
-		TSharedPtr<FOptimusSchemaAction_Graph> GraphAction = MakeShared<FOptimusSchemaAction_Graph>(Graph, /*Grouping=*/1);
+		TSharedPtr<FOptimusSchemaAction_Graph> GraphAction = MakeShared<FOptimusSchemaAction_Graph>(Graph);
 		OutAllActions.AddAction(GraphAction);
 
 		CollectChildGraphActions(OutAllActions, Graph, GraphCategory);
@@ -345,19 +346,19 @@ void SOptimusEditorGraphExplorer::CollectAllActions(FGraphActionListBuilderBase&
 	
 	for (UOptimusComponentSourceBinding* Binding : Deformer->GetComponentBindings())
 	{
-		TSharedPtr<FOptimusSchemaAction_Binding> BindingAction = MakeShared<FOptimusSchemaAction_Binding>(Binding, /*Grouping=*/2);
+		TSharedPtr<FOptimusSchemaAction_Binding> BindingAction = MakeShared<FOptimusSchemaAction_Binding>(Binding);
 		OutAllActions.AddAction(BindingAction);
 	}
 
 	for (UOptimusResourceDescription* Resource : Deformer->GetResources())
 	{
-		TSharedPtr<FOptimusSchemaAction_Resource> ResourceAction = MakeShared<FOptimusSchemaAction_Resource>(Resource, /*Grouping=*/3);
+		TSharedPtr<FOptimusSchemaAction_Resource> ResourceAction = MakeShared<FOptimusSchemaAction_Resource>(Resource);
 		OutAllActions.AddAction(ResourceAction);
 	}
 
 	for (UOptimusVariableDescription* Variable : Deformer->GetVariables())
 	{
-		TSharedPtr<FOptimusSchemaAction_Variable> VariableAction = MakeShared<FOptimusSchemaAction_Variable>(Variable, /*Grouping=*/4);
+		TSharedPtr<FOptimusSchemaAction_Variable> VariableAction = MakeShared<FOptimusSchemaAction_Variable>(Variable);
 		OutAllActions.AddAction(VariableAction);
 	}
 }
@@ -382,7 +383,7 @@ void SOptimusEditorGraphExplorer::CollectChildGraphActions(
 
 	for (UOptimusNodeGraph* SubGraph: InParentGraph->GetGraphs())
 	{
-		TSharedPtr<FOptimusSchemaAction_Graph> GraphAction = MakeShared<FOptimusSchemaAction_Graph>(SubGraph, /*Grouping=*/1, Category);
+		TSharedPtr<FOptimusSchemaAction_Graph> GraphAction = MakeShared<FOptimusSchemaAction_Graph>(SubGraph, Category);
 		OutAllActions.AddAction(GraphAction);
 	}
 

@@ -18,6 +18,7 @@
 #include "OptimusDeformer.h"
 #include "OptimusNode.h"
 #include "OptimusNodeGraph.h"
+#include "OptimusFunctionNodeGraph.h"
 
 #include "Animation/DebugSkelMeshComponent.h"
 #include "AnimationEditorPreviewActor.h"
@@ -50,6 +51,7 @@
 #include "ISourceCodeAccessModule.h"
 #include "ISourceCodeAccessor.h"
 #include "OptimusEditorStyle.h"
+#include "Toolkits/ToolkitManager.h"
 
 
 #define LOCTEXT_NAMESPACE "OptimusEditor"
@@ -462,6 +464,11 @@ void FOptimusEditor::DeleteSelectedNodes()
 
 bool FOptimusEditor::CanDeleteSelectedNodes() const
 {
+	if (IsGraphReadOnly())
+	{
+		return false;
+	}
+	
 	if (GraphEditorWidget->GetSelectedNodes().IsEmpty())
 	{
 		return false;
@@ -475,7 +482,7 @@ bool FOptimusEditor::CanDeleteSelectedNodes() const
 			return false;
 		}
 	}
-
+	
 	return true;
 }
 
@@ -529,6 +536,11 @@ void FOptimusEditor::PasteNodes() const
 
 bool FOptimusEditor::CanPasteNodes()
 {
+	if (IsGraphReadOnly())
+	{
+		return false;	
+	}
+	
 	return FOptimusEditorModule::Get().GetClipboard().HasValidClipboardContent();
 }
 
@@ -544,6 +556,11 @@ void FOptimusEditor::DuplicateNodes() const
 
 bool FOptimusEditor::CanDuplicateNodes() const
 {
+	if (IsGraphReadOnly())
+	{
+		return false;
+	}
+	
 	return !GetSelectedModelNodes().IsEmpty();
 }
 
@@ -567,6 +584,11 @@ void FOptimusEditor::PackageNodes()
 
 bool FOptimusEditor::CanPackageNodes() const
 {
+	if (IsGraphReadOnly())
+	{
+		return false;
+	}
+	
 	const TArray<UOptimusNode*> ModelNodes = GetSelectedModelNodes();
 	const UOptimusNodeGraph* ModelGraph = EditorGraph->GetModelGraph();	
 	for (UOptimusNode* ModelNode: ModelNodes)
@@ -600,6 +622,11 @@ void FOptimusEditor::UnpackageNodes()
 
 bool FOptimusEditor::CanUnpackageNodes() const
 {
+	if (IsGraphReadOnly())
+	{
+		return false;
+	}
+	
 	const TArray<UOptimusNode*> ModelNodes = GetSelectedModelNodes();	
 	const UOptimusNodeGraph* ModelGraph = EditorGraph->GetModelGraph();	
 	for (UOptimusNode* ModelNode: ModelNodes)
@@ -632,6 +659,10 @@ void FOptimusEditor::CollapseNodesToSubGraph()
 
 bool FOptimusEditor::CanCollapseNodes() const
 {
+	if (IsGraphReadOnly())
+	{
+		return false;
+	}
 	return CanCopyNodes();
 }
 
@@ -643,20 +674,78 @@ void FOptimusEditor::ExpandCollapsedNode()
 	TArray<UObject*> NewNodes;
 	for (UOptimusNode* ModelNode: GetSelectedModelNodes())
 	{
-		NewNodes.Append(ModelGraph->ExpandCollapsedNodes(ModelNode));
+		ModelGraph->ExpandCollapsedNodes(ModelNode);
 	}
-	InspectObjects(NewNodes);
 }
 
 
 bool FOptimusEditor::CanExpandCollapsedNode() const
 {
+	if (IsGraphReadOnly())
+	{
+		return false;
+	}
+	
 	const TArray<UOptimusNode*> ModelNodes = GetSelectedModelNodes();	
 	const UOptimusNodeGraph* ModelGraph = EditorGraph->GetModelGraph();	
 	for (UOptimusNode* ModelNode: ModelNodes)
 	{
 		if (!ModelGraph->IsFunctionReference(ModelNode) &&
 			!ModelGraph->IsSubGraphReference(ModelNode))
+		{
+			return false;
+		}
+	}
+
+	return !ModelNodes.IsEmpty();
+}
+
+void FOptimusEditor::ConvertToFunction()
+{
+	FOptimusActionScope ActionScope(*GetActionStack(), TEXT("Convert to Functions"));
+	UOptimusNodeGraph* ModelGraph = EditorGraph->GetModelGraph();
+	for (UOptimusNode* ModelNode: GetSelectedModelNodes())
+	{
+		ModelGraph->ConvertToFunction(ModelNode);
+	}
+}
+
+bool FOptimusEditor::CanConvertToFunction() const
+{
+	if (IsGraphReadOnly())
+	{
+		return false;
+	}
+	
+	const TArray<UOptimusNode*> ModelNodes = GetSelectedModelNodes();	
+	const UOptimusNodeGraph* ModelGraph = EditorGraph->GetModelGraph();	
+	for (UOptimusNode* ModelNode: ModelNodes)
+	{
+		if(!ModelGraph->IsSubGraphReference(ModelNode))
+		{
+			return false;
+		}
+	}
+
+	return !ModelNodes.IsEmpty();
+}
+
+void FOptimusEditor::ConvertToSubGraph()
+{
+}
+
+bool FOptimusEditor::CanConvertToSubGraph() const
+{
+	if (IsGraphReadOnly())
+	{
+		return false;
+	}
+	
+	const TArray<UOptimusNode*> ModelNodes = GetSelectedModelNodes();	
+	const UOptimusNodeGraph* ModelGraph = EditorGraph->GetModelGraph();	
+	for (UOptimusNode* ModelNode: ModelNodes)
+	{
+		if (!ModelGraph->IsFunctionReference(ModelNode))
 		{
 			return false;
 		}
@@ -757,7 +846,29 @@ void FOptimusEditor::OnNodeDoubleClicked(class UEdGraphNode* Node)
 	{
 		if (IOptimusNodeGraphProvider* GraphProvider = Cast<IOptimusNodeGraphProvider>(GraphNode->ModelNode))
 		{
-			SetEditGraph(GraphProvider->GetNodeGraphToShow());
+			UOptimusNodeGraph* GraphToShow = GraphProvider->GetNodeGraphToShow();
+			UOptimusNodeGraph* CurrentGraph = GraphNode->ModelNode->GetOwningGraph();
+
+			if (GraphToShow)
+			{
+				if (CurrentGraph->GetCollectionRoot() == GraphToShow->GetCollectionRoot())
+				{
+					SetEditGraph(GraphToShow);
+				}
+				else if (UOptimusDeformer* Deformer = Cast<UOptimusDeformer>(GraphToShow->GetCollectionRoot()))
+				{
+					GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(Deformer);
+
+					TSharedPtr< IToolkit > FoundAssetEditor = FToolkitManager::Get().FindEditorForAsset(Deformer);
+					
+					if (FoundAssetEditor.IsValid())
+					{
+						TSharedPtr<FOptimusEditor> OptimusEditorForExternalGraph = StaticCastSharedPtr<FOptimusEditor>(FoundAssetEditor);
+
+						OptimusEditorForExternalGraph->SetEditGraph(GraphToShow);
+					}	
+				}
+			}
 		}
 	}
 }
@@ -917,6 +1028,7 @@ void FOptimusEditor::HandleDetailsCreated(
 	)
 {
 	PropertyDetailsWidget = InDetailsView;
+	PropertyDetailsWidget->SetIsPropertyReadOnlyDelegate(FIsPropertyReadOnly::CreateSP(this, &FOptimusEditor::IsPropertyReadOnly));
 }
 
 
@@ -971,7 +1083,7 @@ TSharedRef<SGraphEditor> FOptimusEditor::CreateGraphEditorWidget()
 			FExecuteAction::CreateSP(this, &FOptimusEditor::DuplicateNodes),
 			FCanExecuteAction::CreateSP(this, &FOptimusEditor::CanDuplicateNodes)
 		);
-
+#if 0
 		// Packaging commands
 		GraphEditorCommands->MapAction(FOptimusEditorGraphCommands::Get().ConvertToKernelFunction,
 			FExecuteAction::CreateSP(this, &FOptimusEditor::PackageNodes),
@@ -987,7 +1099,8 @@ TSharedRef<SGraphEditor> FOptimusEditor::CreateGraphEditorWidget()
 			FExecuteAction::CreateSP(this, &FOptimusEditor::CollapseNodesToFunction),
 			FCanExecuteAction::CreateSP(this, &FOptimusEditor::CanCollapseNodes)
 		);
-
+#endif
+		
 		GraphEditorCommands->MapAction(FOptimusEditorGraphCommands::Get().CollapseNodesToSubGraph,
 			FExecuteAction::CreateSP(this, &FOptimusEditor::CollapseNodesToSubGraph),
 			FCanExecuteAction::CreateSP(this, &FOptimusEditor::CanCollapseNodes)
@@ -996,6 +1109,16 @@ TSharedRef<SGraphEditor> FOptimusEditor::CreateGraphEditorWidget()
 		GraphEditorCommands->MapAction(FOptimusEditorGraphCommands::Get().ExpandCollapsedNode,
 			FExecuteAction::CreateSP(this, &FOptimusEditor::ExpandCollapsedNode),
 			FCanExecuteAction::CreateSP(this, &FOptimusEditor::CanExpandCollapsedNode)
+		);
+
+		GraphEditorCommands->MapAction(FOptimusEditorGraphCommands::Get().ConvertToFunction,
+			FExecuteAction::CreateSP(this, &FOptimusEditor::ConvertToFunction),
+			FCanExecuteAction::CreateSP(this, &FOptimusEditor::CanConvertToFunction)
+		);
+		
+		GraphEditorCommands->MapAction(FOptimusEditorGraphCommands::Get().ConvertToSubGraph,
+			FExecuteAction::CreateSP(this, &FOptimusEditor::ConvertToSubGraph),
+			FCanExecuteAction::CreateSP(this, &FOptimusEditor::CanConvertToSubGraph)
 		);
 		
 #if 0
@@ -1063,9 +1186,12 @@ TSharedRef<SGraphEditor> FOptimusEditor::CreateGraphEditorWidget()
 		.OptimusEditor(SharedThis(this))
 		.OnGraphCrumbClickedEvent_Lambda([this](UOptimusNodeGraph* InNodeGraph) { SetEditGraph(InNodeGraph);});
 
+	
+
 	return SNew(SGraphEditor)
 		.AdditionalCommands(GraphEditorCommands)
-		.IsEditable(true)
+		.IsEditable(this, &FOptimusEditor::IsGraphEditable)
+		.DisplayAsReadOnly(this, &FOptimusEditor::IsGraphReadOnly)
 		.TitleBar(TitleBarWidget)
 		.Appearance(this, &FOptimusEditor::GetGraphAppearance)
 		.GraphToEdit(EditorGraph)
@@ -1079,6 +1205,42 @@ FGraphAppearanceInfo FOptimusEditor::GetGraphAppearance() const
 	FGraphAppearanceInfo Appearance;
 	Appearance.CornerText = LOCTEXT("AppearanceCornerText_DeformerGraph", "DEFORMER GRAPH");
 	return Appearance;
+}
+
+bool FOptimusEditor::IsGraphReadOnly() const
+{
+	if (EditorGraph->GetModelGraph()->GetGraphType() == EOptimusNodeGraphType::Function)
+	{
+		return true;
+	}
+
+	return false;
+}
+
+bool FOptimusEditor::IsGraphEditable() const
+{
+	return !IsGraphReadOnly();
+}
+
+bool FOptimusEditor::IsPropertyReadOnly(const FPropertyAndParent& InPropertyAndParent) const
+{
+	const TArray<TWeakObjectPtr<UObject>>& DetailsSelectedObjects = PropertyDetailsWidget->GetSelectedObjects();
+	for (const TWeakObjectPtr<UObject>& SelectedObject : DetailsSelectedObjects)
+	{
+		if (!SelectedObject.IsValid())
+		{
+			continue;
+		}
+
+		// Everything a function graph owns should be read only
+		if (SelectedObject->GetTypedOuter<UOptimusFunctionNodeGraph>())
+		{
+			return true;
+		}
+		
+	}
+
+	return false;	
 }
 
 

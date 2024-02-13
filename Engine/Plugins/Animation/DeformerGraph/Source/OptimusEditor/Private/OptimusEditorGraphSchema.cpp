@@ -19,7 +19,10 @@
 #include "OptimusActionStack.h"
 #include "OptimusComponentSource.h"
 #include "OptimusComputeDataInterface.h"
+#include "OptimusDeformer.h"
 #include "OptimusEditorGraphConnectionDrawingPolicy.h"
+#include "OptimusFunctionNodeGraph.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "Styling/SlateIconFinder.h"
 
 #include "Framework/Application/SlateApplication.h"
@@ -163,9 +166,46 @@ void UOptimusEditorGraphSchema::GetGraphActions(
 		IoActionBuilder.AddAction(Action);
 	}
 
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+
+	TArray<FAssetData> AssetDatas;
+
+	// This triggers the gathering of asset tags across assets
+	AssetRegistryModule.Get().GetAssetsByClass(UOptimusDeformer::StaticClass()->GetClassPathName(), AssetDatas);
+
+	for (FAssetData& AssetData : AssetDatas)
 	{
-		TSharedPtr< FOptimusSchemaAction_NewLoopTerminalNodes> Action(
-			new FOptimusSchemaAction_NewLoopTerminalNodes(
+		FString PublicFunctionString = AssetData.GetTagValueRef<FString>(UOptimusDeformer::PublicFunctionsAssetTagName);
+
+		if (!PublicFunctionString.IsEmpty())
+		{
+			FOptimusFunctionNodeGraphHeaderArray PublicFunctionHeaderArray;
+
+			FOptimusFunctionNodeGraphHeaderArray::StaticStruct()->ImportText(*PublicFunctionString, &PublicFunctionHeaderArray, nullptr, PPF_None, nullptr, {});
+
+			for (const FOptimusFunctionNodeGraphHeader& Header : PublicFunctionHeaderArray.Headers)
+			{
+				const FText FunctionName = FText::FromName(Header.FunctionName);
+
+				const FText Category = FText::FromName(Header.Category);
+
+				TSharedPtr< FOptimusGraphSchemaAction_NewFunctionReferenceNode> Action(
+					new FOptimusGraphSchemaAction_NewFunctionReferenceNode(
+						Category,
+						FunctionName,
+						/* Tooltip */{}, 0, /* Keywords */{}
+				));
+
+				Action->GraphPath = Header.GraphPath;
+
+				IoActionBuilder.AddAction(Action);	
+			}
+		}
+	}
+
+	{
+		TSharedPtr< FOptimusGraphSchemaAction_NewLoopTerminalNodes> Action(
+			new FOptimusGraphSchemaAction_NewLoopTerminalNodes(
 				{},
 				FText::FromName(TEXT("Loop")),
 				/* Tooltip */{}, 0, /* Keywords */{}

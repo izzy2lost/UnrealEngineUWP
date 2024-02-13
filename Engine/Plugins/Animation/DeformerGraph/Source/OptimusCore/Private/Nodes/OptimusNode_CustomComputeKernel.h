@@ -71,6 +71,7 @@ public:
 	FString GetDeclarations() const override;
 	FString GetShaderText() const override;
 	void SetShaderText(const FString& NewText) override;
+	bool IsShaderTextReadOnly() const override;
 	// IOptimusShaderTextProvider overrides
 #endif
 	

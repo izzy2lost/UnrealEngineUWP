@@ -57,6 +57,10 @@
 
 #include <limits>
 
+#include "OptimusFunctionNodeGraphHeader.h"
+#include "Nodes/OptimusNode_FunctionReference.h"
+#include "Nodes/OptimusNode_SubGraphReference.h"
+
 #define PRINT_COMPILED_OUTPUT 1
 
 #define LOCTEXT_NAMESPACE "OptimusDeformer"
@@ -64,7 +68,8 @@
 static const FName DefaultResourceName("Resource");
 static const FName DefaultVariableName("Variable");
 
-
+const FName UOptimusDeformer::PublicFunctionsAssetTagName = TEXT("PublicFunctions");
+const FName UOptimusDeformer::FunctionReferencesAssetTagName = TEXT("FunctionReferences");
 
 UOptimusDeformer::UOptimusDeformer()
 {
@@ -145,7 +150,38 @@ UOptimusNodeGraph* UOptimusDeformer::GetUpdateGraph() const
 
 bool UOptimusDeformer::RemoveGraph(UOptimusNodeGraph* InGraph)
 {
-    return GetActionStack()->RunAction<FOptimusNodeGraphAction_RemoveGraph>(InGraph);
+	FOptimusCompoundAction *Action = new FOptimusCompoundAction(TEXT("Remove Graph"));
+
+	if (UOptimusNodeSubGraph* SubGraph = Cast<UOptimusNodeSubGraph>(InGraph))
+	{
+		if (UOptimusNode* Node = GetSubGraphReferenceNode(SubGraph))
+		{
+			// Remove node also triggers the removal of the graph
+			Node->GetOwningGraph()->RemoveNodesToAction(Action, {Node} );
+			return GetActionStack()->RunAction(Action);
+		}
+	}
+	
+	Action->AddSubAction<FOptimusNodeGraphAction_RemoveGraph>(InGraph);
+	
+    return GetActionStack()->RunAction(Action);
+}
+
+UOptimusNode* UOptimusDeformer::GetSubGraphReferenceNode(const UOptimusNodeSubGraph* InSubGraph) const
+{
+	UOptimusNode* UsedNode = nullptr;
+	
+	TArray<UOptimusNode*> AllSubGraphNodes = GetAllNodesOfClass(UOptimusNode_SubGraphReference::StaticClass());
+	for (UOptimusNode* Node: AllSubGraphNodes)
+	{
+		const UOptimusNode_SubGraphReference* SubGraphReference = Cast<UOptimusNode_SubGraphReference>(Node);
+		if (SubGraphReference->SubGraph == InSubGraph)
+		{
+			UsedNode = Node;
+			break;
+		}
+	}
+	return UsedNode;
 }
 
 
@@ -1462,8 +1498,11 @@ bool UOptimusDeformer::Compile()
 
 	for (const UOptimusNodeGraph* Graph: Graphs)
 	{
-		TArray<FOptimusComputeGraphInfo> ComputeGraphInfos = CompileNodeGraphToComputeGraphs(Graph, ErrorReporter);
-		ComputeGraphs.Append(ComputeGraphInfos);
+		if (Graph->GetGraphType() != EOptimusNodeGraphType::Function)
+		{
+			TArray<FOptimusComputeGraphInfo> ComputeGraphInfos = CompileNodeGraphToComputeGraphs(Graph, ErrorReporter);
+			ComputeGraphs.Append(ComputeGraphInfos);
+		}
 	}
 
 	CompileEndDelegate.Broadcast(this);
@@ -2822,11 +2861,24 @@ UOptimusNodeGraph* UOptimusDeformer::ResolveGraphPath(
 	{
 		return nullptr;
 	}
-
+	int32 SubGraphStartIndex = 0;
+	
 	UOptimusNodeGraph* Graph = nullptr;
 	if (Path[0] == UOptimusNodeGraph::LibraryRoot)
 	{
 		// FIXME: Search the library graphs.
+		for (UOptimusNodeGraph* RootGraph : Graphs)
+		{
+			if (RootGraph->GetGraphType() == EOptimusNodeGraphType::Function)
+			{
+				if (Path[1].Equals(RootGraph->GetName(), ESearchCase::IgnoreCase))
+				{
+					SubGraphStartIndex = 2;
+					Graph = RootGraph;
+					break;
+				}
+			}
+		}
 	}
 	else
 	{
@@ -2834,6 +2886,7 @@ UOptimusNodeGraph* UOptimusDeformer::ResolveGraphPath(
 		{
 			if (Path[0].Equals(RootGraph->GetName(), ESearchCase::IgnoreCase))
 			{
+				SubGraphStartIndex = 1;
 				Graph = RootGraph;
 				break;
 			}
@@ -2846,13 +2899,12 @@ UOptimusNodeGraph* UOptimusDeformer::ResolveGraphPath(
 	}
 
 	// See if we need to traverse any sub-graphs
-	int32 GraphIndex = 1;
-	for (; GraphIndex < Path.Num(); GraphIndex++)
+	for (; SubGraphStartIndex < Path.Num(); SubGraphStartIndex++)
 	{
 		bool bFoundSubGraph = false;
 		for (UOptimusNodeGraph* SubGraph: Graph->GetGraphs())
 		{
-			if (Path[GraphIndex].Equals(SubGraph->GetName(), ESearchCase::IgnoreCase))
+			if (Path[SubGraphStartIndex].Equals(SubGraph->GetName(), ESearchCase::IgnoreCase))
 			{
 				Graph = SubGraph;
 				bFoundSubGraph = true;
@@ -2865,11 +2917,11 @@ UOptimusNodeGraph* UOptimusDeformer::ResolveGraphPath(
 		}
 	}
 
-	if (GraphIndex < Path.Num())
+	if (SubGraphStartIndex < Path.Num())
 	{
 		OutRemainingPath = FStringView(
-			Path[GraphIndex].GetData(),
-			static_cast<int32>(Path.Last().GetData() - Path[GraphIndex].GetData()) + Path.Last().Len());
+			Path[SubGraphStartIndex].GetData(),
+			static_cast<int32>(Path.Last().GetData() - Path[SubGraphStartIndex].GetData()) + Path.Last().Len());
 	}
 	else
 	{
@@ -3400,6 +3452,45 @@ void UOptimusDeformer::GetAssetRegistryTags(FAssetRegistryTagsContext Context) c
 		FSoftClassPath ClassPath(BindingClass);
 		Context.AddTag(FAssetRegistryTag(TEXT("PrimaryBindingClass"), *ClassPath.ToString(), FAssetRegistryTag::TT_Hidden));
 	}
+
+	// Expose all the public functions
+	{
+		FOptimusFunctionNodeGraphHeaderArray PublicFunctionHeadersArray;
+		for (UOptimusNodeGraph* Graph : Graphs)
+		{
+			if (UOptimusFunctionNodeGraph* FunctionNodeGraph = Cast<UOptimusFunctionNodeGraph>(Graph))
+			{
+				if (FunctionNodeGraph->AccessSpecifier == UOptimusFunctionNodeGraph::AccessSpecifierPublicName)
+				{
+					PublicFunctionHeadersArray.Headers.Add(FunctionNodeGraph->GetHeader());
+				}
+			}
+		}
+
+	
+		FString PublicFunctionString;
+	
+		FOptimusFunctionNodeGraphHeaderArray::StaticStruct()->ExportText(PublicFunctionString, &PublicFunctionHeadersArray, nullptr, nullptr, PPF_None, nullptr);
+
+		Context.AddTag(FAssetRegistryTag(PublicFunctionsAssetTagName, *PublicFunctionString, FAssetRegistryTag::TT_Hidden));	
+	}
+
+	// Record all nodes referencing a function, such that function nodes can react when the referencing function changes
+	{
+		FOptimusFunctionReferenceData FunctionReferenceData;
+		TArray<UOptimusNode*> FunctionNodes = GetAllNodesOfClass(UOptimusNode_FunctionReference::StaticClass());
+
+		for (UOptimusNode* Node : FunctionNodes)
+		{
+			UOptimusNode_FunctionReference* FunctionNode = CastChecked<UOptimusNode_FunctionReference>(Node);
+			FunctionReferenceData.FunctionReferences.FindOrAdd(FunctionNode->GetSerializedGraphPath()).Nodes.Add(FunctionNode);
+		}
+
+		FString FunctionReferenceString;
+		FOptimusFunctionReferenceData::StaticStruct()->ExportText(FunctionReferenceString, &FunctionReferenceData, nullptr, nullptr, PPF_None, nullptr);
+
+		Context.AddTag(FAssetRegistryTag(FunctionReferencesAssetTagName, *FunctionReferenceString, FAssetRegistryTag::TT_Hidden));	
+	}
 }
 
 #if WITH_EDITOR
@@ -3525,7 +3616,7 @@ UOptimusNodePin* UOptimusDeformer::ResolvePinPath(const FString& InPinPath)
 
 
 
-UOptimusNodeGraph* UOptimusDeformer::CreateGraph(
+UOptimusNodeGraph* UOptimusDeformer::CreateGraphDirect(
 	EOptimusNodeGraphType InType, 
 	FName InName, 
 	TOptional<int32> InInsertBefore
@@ -3564,9 +3655,15 @@ UOptimusNodeGraph* UOptimusDeformer::CreateGraph(
 	}
 	else if (InType == EOptimusNodeGraphType::Function)
 	{
+		if (!UOptimusNodeGraph::IsValidUserGraphName(InName.ToString()))
+		{
+			return nullptr;
+		}
 		// Not fully implemented yet.
-		checkNoEntry();
 		GraphClass = UOptimusFunctionNodeGraph::StaticClass();
+
+		// If there's already an object with this name, then attempt to make the name unique.
+		InName = Optimus::GetUniqueNameForScope(this, InName);
 	}
 
 	UOptimusNodeGraph* Graph = NewObject<UOptimusNodeGraph>(this, GraphClass, InName, RF_Transactional);
@@ -3575,7 +3672,7 @@ UOptimusNodeGraph* UOptimusDeformer::CreateGraph(
 
 	if (InInsertBefore.IsSet())
 	{
-		if (!AddGraph(Graph, InInsertBefore.GetValue()))
+		if (!AddGraphDirect(Graph, InInsertBefore.GetValue()))
 		{
 			Optimus::RemoveObject(Graph);
 			return nullptr;
@@ -3586,7 +3683,7 @@ UOptimusNodeGraph* UOptimusDeformer::CreateGraph(
 }
 
 
-bool UOptimusDeformer::AddGraph(
+bool UOptimusDeformer::AddGraphDirect(
 	UOptimusNodeGraph* InGraph,
 	int32 InInsertBefore
 	)
@@ -3647,7 +3744,7 @@ bool UOptimusDeformer::AddGraph(
 }
 
 
-bool UOptimusDeformer::RemoveGraph(
+bool UOptimusDeformer::RemoveGraphDirect(
 	UOptimusNodeGraph* InGraph,
 	bool bInDeleteGraph
 	)
@@ -3679,7 +3776,7 @@ bool UOptimusDeformer::RemoveGraph(
 
 
 
-bool UOptimusDeformer::MoveGraph(
+bool UOptimusDeformer::MoveGraphDirect(
 	UOptimusNodeGraph* InGraph, 
 	int32 InInsertBefore
 	)
@@ -3720,6 +3817,29 @@ bool UOptimusDeformer::MoveGraph(
 	return true;
 }
 
+bool UOptimusDeformer::RenameGraphDirect(UOptimusNodeGraph* InGraph, const FString& InNewName)
+{
+	FSoftObjectPath PreviousFunctionGraphPath;
+	if (InGraph->GetGraphType() == EOptimusNodeGraphType::Function)
+	{
+		PreviousFunctionGraphPath = FSoftObjectPath(InGraph);
+	}	
+	
+	if (Optimus::RenameObject(InGraph, *InNewName, nullptr))
+	{
+		if (InGraph->GetGraphType() == EOptimusNodeGraphType::Function)
+		{
+			IOptimusCoreModule& OptimusCoreModule = IOptimusCoreModule::Get();
+			OptimusCoreModule.UpdateFunctionReferences(PreviousFunctionGraphPath, FSoftObjectPath(InGraph));
+		}
+
+		Notify(EOptimusGlobalNotifyType::GraphRenamed, InGraph);
+		return true;
+	}
+
+	return false;	
+}
+
 
 bool UOptimusDeformer::RenameGraph(UOptimusNodeGraph* InGraph, const FString& InNewName)
 {
@@ -3742,12 +3862,7 @@ bool UOptimusDeformer::RenameGraph(UOptimusNodeGraph* InGraph, const FString& In
 		return false;
 	}
 
-	const bool bSuccess = GetActionStack()->RunAction<FOptimusNodeGraphAction_RenameGraph>(InGraph, FName(*InNewName));
-	if (bSuccess)
-	{
-		Notify(EOptimusGlobalNotifyType::GraphRenamed, InGraph);
-	}
-	return bSuccess;
+	return GetActionStack()->RunAction<FOptimusNodeGraphAction_RenameGraph>(InGraph, FName(*InNewName));
 }
 
 

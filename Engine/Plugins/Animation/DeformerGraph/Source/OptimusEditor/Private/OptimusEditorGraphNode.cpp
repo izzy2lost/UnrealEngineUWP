@@ -300,10 +300,11 @@ void UOptimusEditorGraphNode::GetNodeContextMenuActions(
 		Clipboard.AddMenuEntry(FGenericCommands::Get().Duplicate);
 
 		FToolMenuSection& PackagingSection = InMenu->AddSection("OptimusNodePackaging", LOCTEXT("NodeMenuPackagingHeader", "Packaging"));
-
+#if 0
+		// NOTE: Unsupported for 5.4 
 		PackagingSection.AddMenuEntry(FOptimusEditorGraphCommands::Get().ConvertToKernelFunction);
 		PackagingSection.AddMenuEntry(FOptimusEditorGraphCommands::Get().ConvertFromKernelFunction);
-
+#endif 
 #if 0
 		// NOTE: Disabled for 5.0
 		PackagingSection.AddMenuEntry(FOptimusEditorGraphCommands::Get().CollapseNodesToFunction);
@@ -311,6 +312,8 @@ void UOptimusEditorGraphNode::GetNodeContextMenuActions(
 		PackagingSection.AddMenuEntry(FOptimusEditorGraphCommands::Get().CollapseNodesToSubGraph);
 		PackagingSection.AddMenuEntry(FOptimusEditorGraphCommands::Get().ExpandCollapsedNode);
 
+		PackagingSection.AddMenuEntry(FOptimusEditorGraphCommands::Get().ConvertToFunction);
+		PackagingSection.AddMenuEntry(FOptimusEditorGraphCommands::Get().ConvertToSubGraph);
 		// FIXME: Add alignment.
 	}
 }

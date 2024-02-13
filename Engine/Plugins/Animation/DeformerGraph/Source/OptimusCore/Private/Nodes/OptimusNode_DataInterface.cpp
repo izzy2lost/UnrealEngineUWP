@@ -211,15 +211,23 @@ UOptimusComponentSourceBinding* UOptimusNode_DataInterface::GetComponentBinding(
 	}
 
 	// Default to the primary binding, but only if we're at the top-most level of the graph.
-	if (const UOptimusDeformer* Deformer = Cast<UOptimusDeformer>(Graph->GetCollectionOwner()))
+	if (Optimus::IsExecutionGraphType(Graph->GetGraphType()))
 	{
-		return Deformer->GetPrimaryComponentBinding();
+		const UOptimusDeformer* Deformer = Cast<UOptimusDeformer>(Graph->GetCollectionOwner());
+		if (ensure(Deformer))
+		{
+			return Deformer->GetPrimaryComponentBinding();
+		}
+	}
+	else
+	{
+		const UOptimusNodeSubGraph* SubGraph = Cast<UOptimusNodeSubGraph>(Graph);
+		if (ensure(SubGraph))
+		{
+			return SubGraph->GetDefaultComponentBinding(InContext);
+		}
 	}
 
-	if (const UOptimusNodeSubGraph* SubGraph = Cast<UOptimusNodeSubGraph>(Graph))
-	{
-		return SubGraph->GetDefaultComponentBinding(InContext);
-	}
 	
 	return nullptr;
 }

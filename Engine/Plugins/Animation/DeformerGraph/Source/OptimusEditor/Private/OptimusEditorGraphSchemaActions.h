@@ -7,6 +7,7 @@
 
 #include "OptimusComputeDataInterface.h"
 #include "OptimusDataType.h"
+#include "OptimusFunctionNodeGraphHeader.h"
 
 #include "OptimusEditorGraphSchemaActions.generated.h"
 
@@ -89,20 +90,37 @@ struct FOptimusGraphSchemaAction_NewDataInterfaceNode :
 
 
 USTRUCT()
-struct FOptimusSchemaAction_NewLoopTerminalNodes : public FEdGraphSchemaAction
+struct FOptimusGraphSchemaAction_NewLoopTerminalNodes : public FEdGraphSchemaAction
 {
 	GENERATED_BODY()
 
 	// Inherit the base class's constructors
 	using FEdGraphSchemaAction::FEdGraphSchemaAction;
 	
-	static FName StaticGetTypeId() { static FName Type("FOptimusSchemaAction_LoopTerminal"); return Type; }
+	static FName StaticGetTypeId() { static FName Type("FOptimusGraphSchemaAction_LoopTerminal"); return Type; }
 	FName GetTypeId() const override { return StaticGetTypeId(); }
 
 	// FEdGraphSchemaAction overrides
 	UEdGraphNode* PerformAction(class UEdGraph* InParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bInSelectNewNode = true) override;
 };
 
+USTRUCT()
+struct FOptimusGraphSchemaAction_NewFunctionReferenceNode: 
+	public FEdGraphSchemaAction
+{
+	GENERATED_BODY()
+
+	// Inherit the base class's constructors
+	using FEdGraphSchemaAction::FEdGraphSchemaAction;
+
+	TSoftObjectPtr<UOptimusFunctionNodeGraph> GraphPath;
+
+	static FName StaticGetTypeId() { static FName Type("FOptimusGraphSchemaAction_NewFunctionReferenceNode"); return Type; }
+	FName GetTypeId() const override { return StaticGetTypeId(); }
+
+	// FEdGraphSchemaAction overrides
+	UEdGraphNode* PerformAction(class UEdGraph* InParentGraph, UEdGraphPin* InFromPin, const FVector2D InLocation, bool bInSelectNewNode = true) override;
+};
 
 /// Reference to a UOptimusNodeGraph.
 USTRUCT()
@@ -126,7 +144,6 @@ struct FOptimusSchemaAction_Graph :
 
 	FOptimusSchemaAction_Graph(
 	    UOptimusNodeGraph* InGraph,
-	    int32 InGrouping,
 	    const FText& InCategory = FText::GetEmpty());
 
 	// FEdGraphSchemaAction overrides
@@ -151,10 +168,7 @@ struct FOptimusSchemaAction_Binding : public FEdGraphSchemaAction
 
 	FOptimusSchemaAction_Binding() = default;
 
-	FOptimusSchemaAction_Binding(
-		UOptimusComponentSourceBinding* InBinding,
-		int32 InGrouping);
-
+	FOptimusSchemaAction_Binding( UOptimusComponentSourceBinding* InBinding );
 	// FEdGraphSchemaAction overrides
 	bool IsParentable() const override { return false; }
 };
@@ -177,9 +191,7 @@ struct FOptimusSchemaAction_Resource : public FEdGraphSchemaAction
 
 	FOptimusSchemaAction_Resource() = default;
 
-	FOptimusSchemaAction_Resource(
-	    UOptimusResourceDescription* InResource,
-	    int32 InGrouping);
+	FOptimusSchemaAction_Resource( UOptimusResourceDescription* InResource );
 
 	// FEdGraphSchemaAction overrides
 	bool IsParentable() const override { return false; }
@@ -203,9 +215,7 @@ struct FOptimusSchemaAction_Variable : public FEdGraphSchemaAction
 
 	FOptimusSchemaAction_Variable() = default;
 
-	FOptimusSchemaAction_Variable(
-	    UOptimusVariableDescription* InVariable,
-	    int32 InGrouping);
+	FOptimusSchemaAction_Variable( UOptimusVariableDescription* InVariable );
 
 	// FEdGraphSchemaAction overrides
 	bool IsParentable() const override { return false; }
