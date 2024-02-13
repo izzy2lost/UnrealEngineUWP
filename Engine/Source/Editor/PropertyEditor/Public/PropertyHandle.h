@@ -647,7 +647,7 @@ public:
 	 * 
 	 * @return the value widget for this property
 	 */
-	virtual TSharedRef<SWidget> CreatePropertyValueWidget( const IDetailsView* DetailsView ) = 0;
+	virtual TSharedRef<SWidget> CreatePropertyValueWidgetWithCustomization( const IDetailsView* DetailsView ) = 0;
 
 	/**
 	 * Creates the default buttons which appear next to value widgets.  This is useful when creating customizations
