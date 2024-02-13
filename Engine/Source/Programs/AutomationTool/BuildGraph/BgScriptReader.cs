@@ -9,10 +9,12 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Xml;
+using System.Xml.Linq;
 using System.Xml.Schema;
 using EpicGames.BuildGraph;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json.Linq;
 using UnrealBuildBase;
 
 #nullable enable
@@ -395,12 +397,25 @@ namespace AutomationTool
 			HashSet<string> validArgumentNames = new HashSet<string>(reader._graph.Options.Select(x => x.Name), StringComparer.OrdinalIgnoreCase);
 			validArgumentNames.Add("PreflightChange");
 
+			// All default properties are valid arguments too
+			foreach (string defaultPropertyKey in defaultProperties.Keys)
+			{
+				validArgumentNames.Add(defaultPropertyKey);
+			}
+
+			bool hasInvalidArguments = false;
 			foreach (string argumentName in arguments.Keys)
 			{
 				if (!validArgumentNames.Contains(argumentName))
 				{
+					hasInvalidArguments = true;
 					logger.LogWarning("Unknown argument '{ArgumentName}' for '{Script}'", argumentName, file);
 				}
+			}
+
+			if (hasInvalidArguments)
+			{
+				logger.LogInformation("Valid arguments for '{Script}': {Arguments}", file, String.Join(", ", validArgumentNames.OrderBy(x => x, StringComparer.OrdinalIgnoreCase)));
 			}
 
 			// Return the constructed graph
