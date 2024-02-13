@@ -2419,7 +2419,7 @@ TSharedRef<SWidget> FPropertyHandleBase::CreatePropertyValueWidget( bool bDispla
 	return SNullWidget::NullWidget;
 }
 
-TSharedRef<SWidget> FPropertyHandleBase::CreatePropertyValueWidget( const IDetailsView* DetailsView )
+TSharedRef<SWidget> FPropertyHandleBase::CreatePropertyValueWidgetWithCustomization( const IDetailsView* DetailsView )
 {
 	FCustomPropertyTypeLayoutMap CustomPropertyTypeLayoutMap = [DetailsView]()
 	{
