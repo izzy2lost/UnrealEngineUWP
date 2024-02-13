@@ -566,15 +566,9 @@ class CHAOSVEHICLES_API UChaosWheeledVehicleSimulation : public UChaosVehicleSim
 {
 public:
 
-	UChaosWheeledVehicleSimulation()
-		: bOverlapHit(false)
-	{
-		QueryBox.Init();
-	}
+	UChaosWheeledVehicleSimulation();
 
-	virtual ~UChaosWheeledVehicleSimulation()
-	{
-	}
+	virtual ~UChaosWheeledVehicleSimulation();
 
 	virtual void Init(TUniquePtr<Chaos::FSimpleWheeledVehicle>& PVehicleIn) override
 	{
