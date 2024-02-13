@@ -23,16 +23,26 @@ namespace EpicGames.Core
 	{
 		class DefaultReadOnlyMemoryOwner<T> : IReadOnlyMemoryOwner<T>
 		{
-			public ReadOnlyMemory<T> Memory { get; }
-			readonly IDisposable? _owner;
+			ReadOnlyMemory<T>? _memory;
+			IDisposable? _owner;
+
+			public ReadOnlyMemory<T> Memory => _memory ?? throw new ObjectDisposedException(typeof(DefaultReadOnlyMemoryOwner<T>).FullName);
 
 			public DefaultReadOnlyMemoryOwner(ReadOnlyMemory<T> memory, IDisposable? owner)
 			{
-				Memory = memory;
+				_memory = memory;
 				_owner = owner;
 			}
 
-			public void Dispose() => _owner?.Dispose();
+			public void Dispose()
+			{
+				_memory = null;
+				if (_owner != null)
+				{
+					_owner?.Dispose();
+					_owner = null;
+				}
+			}
 		}
 
 		/// <summary>

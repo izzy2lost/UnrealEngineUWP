@@ -107,7 +107,7 @@ namespace EpicGames.Horde.Storage
 
 			public BackendWrapper(string keyPrefix, StorageBackendCache cacheStorage, IStorageBackend inner)
 			{
-				_keyPrefix = keyPrefix;
+				_keyPrefix = keyPrefix.TrimEnd('/') + "/";
 				_cacheStorage = cacheStorage;
 				_inner = inner;
 			}

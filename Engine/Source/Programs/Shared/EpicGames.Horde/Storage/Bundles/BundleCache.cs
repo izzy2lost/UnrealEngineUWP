@@ -3,6 +3,7 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
@@ -38,29 +39,38 @@ namespace EpicGames.Horde.Storage
 	/// </summary>
 	public sealed class BundleCache : IAsyncDisposable
 	{
+		[DebuggerDisplay("{Key}")]
 		class CacheValue : IDisposable
 		{
 			public object Key { get; }
 			public LinkedListNode<CacheValue> Node { get; }
 			public Task<IDisposable> InitTask { get; }
+
+			readonly BundleCache _bundleCache;
 			int _refCount;
 
 			public int RefCount => Interlocked.CompareExchange(ref _refCount, 0, 0);
 
-			public CacheValue(object key, IDisposable value)
+			public CacheValue(BundleCache bundleCache, object key, IDisposable value)
 			{
+				_bundleCache = bundleCache;
 				_refCount = 1;
 				Key = key;
 				Node = new LinkedListNode<CacheValue>(this);
 				InitTask = Task.FromResult<IDisposable>(value);
+
+				_bundleCache._purgeableItems.AddFirst(Node);
 			}
 
-			public CacheValue(object key, Func<Task<IDisposable>> initTask)
+			public CacheValue(BundleCache bundleCache, object key, Func<Task<IDisposable>> initTask)
 			{
+				_bundleCache = bundleCache;
 				_refCount = 2; // Will be released by RunAndUnlock
 				Key = key;
 				Node = new LinkedListNode<CacheValue>(this);
 				InitTask = RunAndUnlockAsync(initTask);
+
+				_bundleCache._items.AddFirst(Node);
 			}
 
 			public void Dispose()
@@ -83,8 +93,31 @@ namespace EpicGames.Horde.Storage
 				}
 			}
 
-			public void AddRef() => Interlocked.Increment(ref _refCount);
-			public void Release() => Interlocked.Decrement(ref _refCount);
+			public void AddRef()
+			{
+				lock (_bundleCache._lockObject)
+				{
+					if (_refCount == 1)
+					{
+						_bundleCache._purgeableItems.Remove(Node);
+						_bundleCache._items.AddFirst(Node);
+					}
+					_refCount++;
+				}
+			}
+
+			public void Release()
+			{
+				lock (_bundleCache._lockObject)
+				{
+					_refCount--;
+					if (_refCount == 1)
+					{
+						_bundleCache._items.Remove(Node);
+						_bundleCache._purgeableItems.AddFirst(Node);
+					}
+				}
+			}
 		}
 
 		class CacheValueHandle<T> : IRefCountedHandle<T> where T : class, IDisposable
@@ -177,12 +210,16 @@ namespace EpicGames.Horde.Storage
 		readonly BundleCacheOptions _options;
 		readonly LinkedList<CacheValue> _items = new LinkedList<CacheValue>();
 		readonly Dictionary<object, CacheValue> _itemLookup = new Dictionary<object, CacheValue>();
+		readonly LinkedList<CacheValue> _purgeableItems = new LinkedList<CacheValue>();
 		readonly CancellationTokenSource _cancellationSource = new CancellationTokenSource();
 		readonly MemoryAllocator _allocator;
 
+		int _numCacheAdds;
 		int _numCacheHits;
 		int _numCacheMisses;
 		long _currentSize;
+		int _numPurges;
+		readonly Stopwatch _createSpaceTimer = new Stopwatch();
 
 		readonly MemoryCache? _headerCache;
 		readonly MemoryCache? _packetCache;
@@ -329,8 +366,8 @@ namespace EpicGames.Horde.Storage
 			{
 				if (!_itemLookup.ContainsKey(key))
 				{
-					CacheValue item = new CacheValue(key, value);
-					_items.AddFirst(item);
+					Interlocked.Increment(ref _numCacheAdds);
+					CacheValue item = new CacheValue(this, key, value);
 					_itemLookup.Add(key, item);
 					return true;
 				}
@@ -363,11 +400,9 @@ namespace EpicGames.Horde.Storage
 					else
 					{
 						Interlocked.Increment(ref _numCacheMisses);
-						item = new CacheValue(key, async () => await createAsync(key, _cancellationSource.Token));
+						item = new CacheValue(this, key, async () => await createAsync(key, _cancellationSource.Token));
 						_itemLookup.Add(key, item);
 					}
-
-					_items.AddFirst(item);
 					item.AddRef(); // Don't allow the item to be freed while we wait for it
 				}
 
@@ -387,21 +422,20 @@ namespace EpicGames.Horde.Storage
 			{
 				lock (_lockObject)
 				{
-					LinkedListNode<CacheValue>? node = _items.Last;
-					while (node != null && Interlocked.CompareExchange(ref _currentSize, 0, 0) > _options.MaxSize)
-					{
-						// Get this item and move to the next item in the list before we consider disposing it
-						LinkedListNode<CacheValue> lastNode = node;
-						CacheValue lastItem = node.Value;
-						node = node.Previous;
+					Interlocked.Increment(ref _numPurges);
+					_createSpaceTimer.Start();
 
-						if (lastItem.RefCount == 1)
-						{
-							_items.Remove(lastNode);
-							_itemLookup.Remove(lastItem.Key);
-							lastItem.Dispose();
-						}
+					while (_purgeableItems.Count > 0 && Interlocked.CompareExchange(ref _currentSize, 0, 0) > _options.MaxSize)
+					{
+						LinkedListNode<CacheValue> lastNode = _purgeableItems.Last!;
+						CacheValue lastItem = lastNode.Value;
+
+						_purgeableItems.Remove(lastNode);
+						_itemLookup.Remove(lastItem.Key);
+						lastItem.Dispose();
 					}
+
+					_createSpaceTimer.Stop();
 				}
 			}
 		}
@@ -416,10 +450,13 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		public void GetStats(StorageStats stats)
 		{
+			stats.Add("bundle.cache.adds", _numCacheAdds);
 			stats.Add("bundle.cache.hits", _numCacheHits);
 			stats.Add("bundle.cache.misses", _numCacheMisses);
 			stats.Add("bundle.cache.size_count", _items.Count);
 			stats.Add("bundle.cache.size_bytes", _currentSize);
+			stats.Add("bundle.cache.purge.count", _numPurges);
+			stats.Add("bundle.cache.purge.time_ms", _createSpaceTimer.ElapsedMilliseconds);
 		}
 
 		#region V1
