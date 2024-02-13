@@ -25,6 +25,10 @@
 #include "Engine/GameViewportClient.h"
 #include "EngineDefines.h"
 
+#if WITH_EDITOR
+#include "Editor/EditorPerformanceSettings.h"
+#endif
+
 namespace UE::Learning::Agents
 {
 	ELearningAgentsTrainerDevice GetLearningAgentsTrainerDevice(const ETrainerDevice Device)
@@ -431,6 +435,14 @@ void ULearningAgentsTrainer::BeginTraining(
 		ViewModeIndex = ViewportClient->ViewModeIndex;
 	}
 
+#if WITH_EDITOR
+	UEditorPerformanceSettings* EditorPerformanceSettings = GetMutableDefault<UEditorPerformanceSettings>();
+	if (EditorPerformanceSettings)
+	{
+		bUseLessCPUInTheBackground = EditorPerformanceSettings->bThrottleCPUWhenNotForeground;
+	}
+#endif
+
 	// Apply Training GameState Settings
 
 	FApp::SetUseFixedTimeStep(TrainerGameSettings.bUseFixedTimeStep);
@@ -458,6 +470,17 @@ void ULearningAgentsTrainer::BeginTraining(
 	{
 		ViewportClient->ViewModeIndex = EViewModeIndex::VMI_Unlit;
 	}
+
+#if WITH_EDITOR
+	if (TrainerGameSettings.bDisableUseLessCPUInTheBackground && EditorPerformanceSettings)
+	{
+		if (TrainerGameSettings.bDisableUseLessCPUInTheBackground)
+		{
+			EditorPerformanceSettings->bThrottleCPUWhenNotForeground = false;
+			EditorPerformanceSettings->PostEditChange();
+		}
+	}
+#endif
 
 	// Start Trainer
 
@@ -591,6 +614,15 @@ void ULearningAgentsTrainer::DoneTraining()
 		{
 			ViewportClient->ViewModeIndex = ViewModeIndex;
 		}
+
+#if WITH_EDITOR
+		UEditorPerformanceSettings* EditorPerformanceSettings = GetMutableDefault<UEditorPerformanceSettings>();
+		if (EditorPerformanceSettings)
+		{
+			EditorPerformanceSettings->bThrottleCPUWhenNotForeground = bUseLessCPUInTheBackground;
+			EditorPerformanceSettings->PostEditChange();
+		}
+#endif
 
 		bIsTraining = false;
 	}
