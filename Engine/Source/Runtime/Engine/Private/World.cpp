@@ -8935,11 +8935,11 @@ void UWorld::DuplicateRequestedLevels(const FName MapName)
 }
 
 #if WITH_EDITOR
-void UWorld::ChangeFeatureLevel(ERHIFeatureLevel::Type InFeatureLevel, bool bShowSlowProgressDialog )
+void UWorld::ChangeFeatureLevel(ERHIFeatureLevel::Type InFeatureLevel, bool bShowSlowProgressDialog, bool bForceUpdate)
 {
-	if (InFeatureLevel != GetFeatureLevel())
+	if (InFeatureLevel != GetFeatureLevel() || bForceUpdate)
 	{
-		UE_LOG(LogWorld, Log, TEXT("Changing Feature Level (Enum) from %i to %i"), (int)GetFeatureLevel(), (int)InFeatureLevel);
+		UE_LOG(LogWorld, Log, TEXT("Changing Feature Level (Enum) from %i to %i%s"), (int)GetFeatureLevel(), (int)InFeatureLevel, bForceUpdate ? TEXT(" (forced)") : TEXT(""));
 		FScopedSlowTask SlowTask(100.f, NSLOCTEXT("Engine", "ChangingPreviewRenderingLevelMessage", "Changing Preview Rendering Level"), bShowSlowProgressDialog);
 		SlowTask.MakeDialog();
 		{

@@ -4598,7 +4598,16 @@ void FScene::Release()
 		[Scene](FRHICommandListImmediate& RHICmdList)
 		{
 			// Flush any remaining batched primitive update commands before deleting the scene.
-			Scene->UpdateAllPrimitiveSceneInfos(RHICmdList);
+			FUpdateParameters UpdateParameters;
+			UpdateParameters.bDestruction = true;
+
+			// Scope required so that the GraphBuilder is destructed before this Scene
+			{
+				FRDGBuilder GraphBuilder(RHICmdList, FRDGEventName(TEXT("UpdateAllPrimitiveSceneInfos")));
+				Scene->Update(GraphBuilder, UpdateParameters);
+				GraphBuilder.Execute();
+			}
+
 			delete Scene;
 		});
 }
@@ -5530,18 +5539,21 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 	RemovedPrimitiveSceneInfos.Empty();
 	bool bAnySceneUpdatesQueued = RemovedLocalPrimitiveSceneInfos.Num() + AddedPrimitiveSceneInfos.Num() + UpdatedTransforms.Num() + UpdatedInstances.Num() > 0;
 	RemovedLocalPrimitiveSceneInfos.Sort(FPrimitiveArraySortKey());
+
 	GPUScene.OnPreSceneUpdate(GraphBuilder, SceneUpdateChangeSetStorage.GetPreUpdateSet());
 
 	// Create a SceneUB that permits access to the scene for invalidation processing.
 	FSceneUniformBuffer SceneUB;
 	GPUScene.FillSceneUniformBuffer(GraphBuilder, SceneUB);
 
-	auto &SceneCullingUpdater = SceneCulling->BeginUpdate(GraphBuilder, SceneUB, bAnySceneUpdatesQueued);
+	FSceneCulling::FUpdater& SceneCullingUpdater = SceneCulling->BeginUpdate(GraphBuilder, SceneUB, bAnySceneUpdatesQueued);
 	SceneCullingUpdater.OnPreSceneUpdate(GraphBuilder, SceneUpdateChangeSetStorage.GetPreUpdateSet());
-	
-	auto& SceneExtensionsUpdaters = *GraphBuilder.AllocObject<FSceneExtensionsUpdaters>(*this);
+
+	FSceneExtensionsUpdaters& SceneExtensionsUpdaters = *GraphBuilder.AllocObject<FSceneExtensionsUpdaters>(*this);
 	SceneExtensionsUpdaters.PreSceneUpdate(GraphBuilder, SceneUpdateChangeSetStorage.GetPreUpdateSet());
 
+	// Don't queue VSM invalidations when being destroyed. This avoids issues on preview mode change when the new preview platform doesn't use VSM.
+	if (!Parameters.bDestruction)
 	{
 		SCOPED_NAMED_EVENT(FScene_VirtualShadowCacheUpdate, FColor::Orange);
 		FVirtualShadowMapArrayCacheManager* CacheManager = GetVirtualShadowMapCache();

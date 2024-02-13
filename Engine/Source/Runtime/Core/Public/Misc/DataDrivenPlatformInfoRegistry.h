@@ -101,6 +101,7 @@ struct FPreviewPlatformMenuItem
 	FName ShaderFormat;
 	FName ShaderPlatformToPreview;
 	FName PreviewShaderPlatformName;
+	FName PreviewFeatureLevelName;
 	FString ActiveIconPath;
 	FName ActiveIconName;
 	FString InactiveIconPath;

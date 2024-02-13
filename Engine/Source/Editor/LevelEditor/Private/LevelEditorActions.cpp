@@ -691,44 +691,28 @@ bool FLevelEditorActionCallbacks::CanExecutePreviewPlatform(FPreviewPlatformInfo
 		return false;
 	}
 
-	// TODO: Prevent switching from a platform with VSM to a platform without VSM at the same FeatureLevel until all issues are resolved.
-	// (for instance, GlobalShaderMap does not contain the shaders necessary for FVirtualShadowMapArrayCacheManager::ProcessInvalidations anymore)
-	// Currently this is mostly meant to isolate going to/from VULKAN_SM5 which is wildly different and causes issues with preview mechanics.
-	if (NewPreviewPlatform.PreviewFeatureLevel == GMaxRHIFeatureLevel)
-	{
-		if (FDataDrivenShaderPlatformInfo::IsValid(NewPreviewPlatform.ShaderPlatform) &&
-			FDataDrivenShaderPlatformInfo::GetIsPreviewPlatform(NewPreviewPlatform.ShaderPlatform))
-		{
-			const EShaderPlatform ParentShaderPlatform = FDataDrivenShaderPlatformInfo::GetPreviewShaderPlatformParent(NewPreviewPlatform.ShaderPlatform);
-			if (DoesPlatformSupportVirtualShadowMaps(GMaxRHIShaderPlatform) != DoesPlatformSupportVirtualShadowMaps(ParentShaderPlatform))
-			{
-				return false;
-			}
-		}
-	}
+	const EShaderPlatform PreviewShaderPlatform = NewPreviewPlatform.ShaderPlatform;
 
-	// TODO: Prevent previewing VULKAN_SM5 with a D3D renderer until all issues are resolved.
-	if (FDataDrivenShaderPlatformInfo::IsValid(NewPreviewPlatform.ShaderPlatform) &&
-		FDataDrivenShaderPlatformInfo::GetIsPreviewPlatform(NewPreviewPlatform.ShaderPlatform) &&
-		FDataDrivenShaderPlatformInfo::GetIsLanguageD3D(GMaxRHIShaderPlatform))
+	if (FDataDrivenShaderPlatformInfo::IsValid(PreviewShaderPlatform) && FDataDrivenShaderPlatformInfo::GetIsPreviewPlatform(PreviewShaderPlatform))
 	{
-		const EShaderPlatform ParentShaderPlatform = FDataDrivenShaderPlatformInfo::GetPreviewShaderPlatformParent(NewPreviewPlatform.ShaderPlatform);
-		if (FDataDrivenShaderPlatformInfo::GetIsLanguageVulkan(ParentShaderPlatform) && IsFeatureLevelSupported(ParentShaderPlatform, ERHIFeatureLevel::SM5))
+		const EShaderPlatform RealShaderPlatform = FDataDrivenShaderPlatformInfo::GetPreviewShaderPlatformParent(PreviewShaderPlatform);
+
+		// TODO: Prevent previewing VULKAN_SM5 with a D3D renderer until all issues are resolved.
+		// We have to use the real platform here since these fields are overridden in preview.
+		if (GDynamicRHI
+			&& (GDynamicRHI->GetInterfaceType() == ERHIInterfaceType::D3D12 || GDynamicRHI->GetInterfaceType() == ERHIInterfaceType::D3D11)
+			&& IsVulkanPlatform(RealShaderPlatform)
+			&& IsFeatureLevelSupported(RealShaderPlatform, ERHIFeatureLevel::SM5))
 		{
 			return false;
 		}
-	}
 
-	// When the preview platform's DDSPI MaxSamplers is > 16 and the current RHI device has support
-	// for > 16 samplers we rely on the shader compiler being able to choose an appropriate profile for the
-	// preview feature level that supports > 16 samplers. On D3D12 SM5 the D3D shader compiler will use Dxc and
-	// sm6.0. Vulkan SM5 also appears to handle > 16 samplers fine.
-	// TODO: Look into support for Metal (MacOS).
-	if (FDataDrivenShaderPlatformInfo::IsValid(NewPreviewPlatform.ShaderPlatform) &&
-		FDataDrivenShaderPlatformInfo::GetIsPreviewPlatform(NewPreviewPlatform.ShaderPlatform))
-	{
-		const EShaderPlatform ParentShaderPlatform = FDataDrivenShaderPlatformInfo::GetPreviewShaderPlatformParent(NewPreviewPlatform.ShaderPlatform);
-		if (GMaxTextureSamplers < (int32)FDataDrivenShaderPlatformInfo::GetMaxSamplers(ParentShaderPlatform))
+		// When the preview platform's DDSPI MaxSamplers is > 16 and the current RHI device has support
+		// for > 16 samplers we rely on the shader compiler being able to choose an appropriate profile for the
+		// preview feature level that supports > 16 samplers. On D3D12 SM5 the D3D shader compiler will use Dxc and
+		// sm6.0. Vulkan SM5 also appears to handle > 16 samplers fine.
+		// TODO: Look into support for Metal (MacOS).
+		if ((int32)FDataDrivenShaderPlatformInfo::GetMaxSamplers(PreviewShaderPlatform) > GRHIGlobals.MaxTextureSamplers)
 		{
 			return false;
 		}

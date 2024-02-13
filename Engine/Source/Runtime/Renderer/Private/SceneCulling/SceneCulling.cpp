@@ -2204,6 +2204,12 @@ public:
 
 	void UploadToGPU(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUniformBuffer)
 	{
+		// Early out if for some reason the platform has changed from underneath us.
+		if (!UseSceneCulling(SceneCulling.Scene.GetShaderPlatform()))
+		{
+			return;
+		}
+
 		BUILDER_LOG("UploadToGPU %d", ItemChunkUploader.GetNumScatters());
 
 		bool bValidToCapture = CellHeaderUploader.GetNumScatters() > 0;

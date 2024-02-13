@@ -245,7 +245,7 @@ void SLevelEditor::Construct( const SLevelEditor::FArguments& InArgs)
 			{
 				GEditor->BuildReflectionCaptures();
 			}
-			World->ChangeFeatureLevel(NewFeatureLevel);
+			World->ChangeFeatureLevel(NewFeatureLevel, true, true);
 		});
 
 	PreviewPlatformChangedHandle = GEditor->OnPreviewPlatformChanged().AddLambda([this]()

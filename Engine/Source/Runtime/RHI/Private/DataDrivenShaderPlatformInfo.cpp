@@ -343,6 +343,7 @@ void FGenericDataDrivenShaderPlatformInfo::Initialize()
 			if (Section.Key.StartsWith(TEXT("ShaderPlatform ")))
 			{
 				const FString& SectionName = Section.Key;
+				const FConfigSection& SectionSettings = Section.Value;
 
 				// get enum value for the string name
 				const EShaderPlatform ShaderPlatform = ParseShaderPlatform(*SectionName.Mid(15));
@@ -360,7 +361,7 @@ void FGenericDataDrivenShaderPlatformInfo::Initialize()
 				// at this point, we can start pulling information out
 				Infos[ShaderPlatform].Name = *SectionName.Mid(15);
 				PlatformNameToShaderPlatformMap.FindOrAdd(Infos[ShaderPlatform].Name) = ShaderPlatform;
-				ParseDataDrivenShaderInfo(Section.Value, ShaderPlatform);
+				ParseDataDrivenShaderInfo(SectionSettings, ShaderPlatform);
 				Infos[ShaderPlatform].bContainsValidPlatformInfo = true;
 
 #if WITH_EDITOR
@@ -375,7 +376,7 @@ void FGenericDataDrivenShaderPlatformInfo::Initialize()
 							const EShaderPlatform PreviewShaderPlatform = EShaderPlatform(CustomShaderPlatform++);
 							FGenericDataDrivenShaderPlatformInfo& PreviewInfo = Infos[PreviewShaderPlatform];
 							PreviewInfo.Name = Item.PreviewShaderPlatformName;
-							ParseDataDrivenShaderInfo(Section.Value, PreviewShaderPlatform);
+							ParseDataDrivenShaderInfo(SectionSettings, PreviewShaderPlatform);
 							PreviewInfo.bIsPreviewPlatform = true;
 							PreviewInfo.bContainsValidPlatformInfo = true;
 
@@ -384,6 +385,12 @@ void FGenericDataDrivenShaderPlatformInfo::Initialize()
 							if (!Item.OptionalFriendlyNameOverride.IsEmpty())
 							{
 								PreviewEditorInfo.FriendlyName = Item.OptionalFriendlyNameOverride;
+							}
+
+							ERHIFeatureLevel::Type PreviewFeatureLevel = ERHIFeatureLevel::Num;
+							if (GetFeatureLevelFromName(Item.PreviewFeatureLevelName, PreviewFeatureLevel))
+							{
+								PreviewInfo.MaxFeatureLevel = PreviewFeatureLevel;
 							}
 
 							PlatformNameToShaderPlatformMap.FindOrAdd(PreviewInfo.Name) = PreviewShaderPlatform;

@@ -3236,6 +3236,7 @@ public:
 	{
 		EUpdateAllPrimitiveSceneInfosAsyncOps AsyncOps = EUpdateAllPrimitiveSceneInfosAsyncOps::None;
 		UE::Tasks::FTask GPUSceneUpdateTaskPrerequisites;
+		bool bDestruction = false;
 
 		struct
 		{
