@@ -8,18 +8,10 @@ public class WebSocketMessaging : ModuleRules
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 
-
-		PublicDependencyModuleNames.AddRange(
-			new string[]
-			{
-				"Core",
-			}
-			);
-
-
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
+				"Core",
 				"CoreUObject",
 				"Engine",
 				"Messaging",
@@ -30,6 +22,6 @@ public class WebSocketMessaging : ModuleRules
 				"Cbor",
 				"Serialization"
 			}
-			);
+		);
 	}
 }

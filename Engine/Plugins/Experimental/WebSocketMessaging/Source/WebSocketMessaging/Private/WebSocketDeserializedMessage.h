@@ -2,19 +2,21 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/Array.h"
+#include "Containers/Map.h"
+#include "Containers/UnrealString.h"
 #include "IMessageAttachment.h"
 #include "IMessageContext.h"
+#include "UObject/NameTypes.h"
+#include "UObject/WeakObjectPtr.h"
+#include "UObject/WeakObjectPtrTemplates.h"
 
-
-/**
- *
- */
-class WEBSOCKETMESSAGING_API FWebSocketDeserializedMessage : public IMessageContext
+class FWebSocketDeserializedMessage : public IMessageContext
 {
 public:
 	FWebSocketDeserializedMessage();
-	~FWebSocketDeserializedMessage();
+
+	virtual ~FWebSocketDeserializedMessage() override;
 
 	virtual bool ParseJson(const FString& Json);
 
@@ -89,7 +91,6 @@ public:
 	}
 
 protected:
-
 	FDateTime Expiration;
 	FDateTime TimeSent;
 	void* Message;
