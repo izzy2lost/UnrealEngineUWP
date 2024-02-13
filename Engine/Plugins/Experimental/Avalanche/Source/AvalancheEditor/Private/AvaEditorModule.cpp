@@ -35,7 +35,6 @@
 #include "DetailView/Customizations/AvaSceneSettingsCustomization.h"
 #include "DetailView/Customizations/AvaVectorPropertyTypeCustomization.h"
 #include "DetailView/Customizations/AvaViewportQualitySettingsPropertyTypeCustomization.h"
-#include "DetailsPanel/DMMaterialInterfaceTypeCustomizer.h"
 
 DEFINE_LOG_CATEGORY(AvaLog);
 
@@ -262,11 +261,6 @@ void FAvaEditorModule::RegisterCustomLayouts()
 
 	PropertyModule.RegisterCustomClassLayout(UAvaSceneSettings::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(
 		&FAvaSceneSettingsCustomization::MakeInstance));
-
-	const TSharedRef<FDMMaterialInterfaceTypeIdentifier> MaterialPropertyTypeIdentifier = MakeShared<FDMMaterialInterfaceTypeIdentifier>();
-	
-	PropertyModule.RegisterCustomPropertyTypeLayout(UMaterialInterface::StaticClass()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(
-		&FDMMaterialInterfaceTypeCustomizer::MakeInstance), MaterialPropertyTypeIdentifier);
 
 	const TSharedRef<FAvaVectorPropertyTypeIdentifier> VectorPropertyTypeIdentifier = MakeShared<FAvaVectorPropertyTypeIdentifier>();
 

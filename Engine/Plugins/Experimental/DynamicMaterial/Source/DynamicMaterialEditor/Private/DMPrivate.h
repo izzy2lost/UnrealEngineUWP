@@ -23,6 +23,11 @@ namespace UE::DynamicMaterialEditor::Private
 	};
 
 	void SetMask(FExpressionInput& InInputConnector, const FExpressionOutput& InOutputConnector, int32 InChannelOverride);
+
+	/** Converts 0,1,2,3,4 to 0,1,2,4,8 */
+	int32 ChannelIndexToChannelBit(int32 InChannelIndex);
+
+	bool IsCustomMaterialProperty(EDMMaterialPropertyType InMaterialProperty);
 }
 
 struct FDMMaterialLayerReference

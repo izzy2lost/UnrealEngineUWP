@@ -6,7 +6,7 @@
 #include "Containers/UnrealString.h"
 #include "DynamicMaterialModelFactory.generated.h"
 
-UCLASS(MinimalAPI, hidecategories = Object)
+UCLASS()
 class UDynamicMaterialModelFactory : public UFactory
 {
 	GENERATED_BODY()

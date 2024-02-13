@@ -35,6 +35,36 @@ namespace UE::DynamicMaterialEditor::Private
 			}
 		}
 	}
+
+	int32 ChannelIndexToChannelBit(int32 InChannelIndex)
+	{
+		switch (InChannelIndex)
+		{
+		case 0:
+			return FDMMaterialStageConnectorChannel::WHOLE_CHANNEL;
+
+		case 1:
+			return FDMMaterialStageConnectorChannel::FIRST_CHANNEL;
+
+		case 2:
+			return FDMMaterialStageConnectorChannel::SECOND_CHANNEL;
+
+		case 3:
+			return FDMMaterialStageConnectorChannel::THIRD_CHANNEL;
+
+		case 4:
+			return FDMMaterialStageConnectorChannel::FOURTH_CHANNEL;
+
+		default:
+			checkNoEntry();
+			return 0;
+		}
+	}
+
+	bool IsCustomMaterialProperty(EDMMaterialPropertyType InMaterialProperty)
+	{
+		return (InMaterialProperty >= EDMMaterialPropertyType::Custom1 && InMaterialProperty <= EDMMaterialPropertyType::Custom4);
+	}
 }
 
 FDMMaterialLayerReference::FDMMaterialLayerReference()

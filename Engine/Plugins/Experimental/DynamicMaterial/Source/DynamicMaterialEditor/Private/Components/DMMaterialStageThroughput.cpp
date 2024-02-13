@@ -691,7 +691,7 @@ int32 UDMMaterialStageThroughput::ResolveInputChannel(const TSharedRef<FDMMateri
 
 			for (int32 FloatIdx = 1; FloatIdx <= InputFloatCount; ++FloatIdx)
 			{
-				ComponentMask += UE::DynamicMaterialEditor::ChannelIndexToChannelBit(FloatIdx);
+				ComponentMask += UE::DynamicMaterialEditor::Private::ChannelIndexToChannelBit(FloatIdx);
 			}
 
 			OutChannel.OutputChannel = ComponentMask;

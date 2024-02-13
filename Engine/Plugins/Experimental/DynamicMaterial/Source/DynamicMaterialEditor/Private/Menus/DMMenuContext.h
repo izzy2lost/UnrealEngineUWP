@@ -15,8 +15,8 @@ class UDMMaterialStageSource;
 class UDynamicMaterialModel;
 class UToolMenu;
 
-UCLASS(BlueprintType)
-class DYNAMICMATERIALEDITOR_API UDMMenuContext : public UObject
+UCLASS()
+class UDMMenuContext : public UObject
 {
 	GENERATED_BODY()
 
@@ -34,19 +34,14 @@ public:
 	const TWeakPtr<SDMSlot>& GetSlotWidget() const { return SlotWidgetWeak; }
 	const TWeakPtr<SDMStage>& GetStageWidget() const { return StageWidgetWeak; }
 
-	UFUNCTION(BlueprintCallable, Category = "Material Designer Extensions")
 	UDMMaterialSlot* GetSlot() const;
 
-	UFUNCTION(BlueprintCallable, Category = "Material Designer Extensions")
 	UDynamicMaterialModel* GetModel() const;
 
-	UFUNCTION(BlueprintCallable, Category = "Material Designer Extensions")
 	UDMMaterialStage* GetStage() const;
 
-	UFUNCTION(BlueprintCallable, Category = "Material Designer Extensions")
 	UDMMaterialStageSource* GetStageSource() const;
 
-	UFUNCTION(BlueprintCallable, Category = "Material Designer Extensions")
 	UDMMaterialStageBlend* GetStageSourceAsBlend() const;
 
 	const UDMMaterialLayerObject* GetLayer() const;

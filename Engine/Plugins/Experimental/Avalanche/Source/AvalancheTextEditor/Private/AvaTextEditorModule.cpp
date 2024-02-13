@@ -8,15 +8,16 @@
 #include "AvaTextEditorCommands.h"
 #include "ColorPicker/AvaViewportColorPickerActorClassRegistry.h"
 #include "ColorPicker/AvaViewportColorPickerAdapter.h"
+#include "DMObjectMaterialProperty.h"
 #include "DetailsView/AvaLinearGradientSettingsCustomization.h"
 #include "DetailsView/AvaTextAlignmentCustomization.h"
 #include "DetailsView/AvaTextComponentCustomization.h"
 #include "DetailsView/AvaTextFieldCustomization.h"
-#include "DynamicMaterialEditorModule.h"
 #include "Font/AvaFontDetailsCustomization.h"
 #include "Font/AvaFontManagerSubsystem.h"
 #include "Framework/Application/SlateApplication.h"
 #include "IAvalancheComponentVisualizersModule.h"
+#include "IDynamicMaterialEditorModule.h"
 #include "Misc/CoreDelegates.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
@@ -115,7 +116,7 @@ void FAvaTextEditorModule::UnregisterCustomLayouts()
 
 void FAvaTextEditorModule::RegisterDynamicMaterialPropertyGenerator()
 {
-	FDynamicMaterialEditorModule::RegisterCustomMaterialPropertyGenerator(
+	IDynamicMaterialEditorModule::Get().RegisterCustomMaterialPropertyGenerator(
 		AAvaTextActor::StaticClass(),
 		FDMGetObjectMaterialPropertiesDelegate::CreateLambda(
 			[](UObject* InObject)

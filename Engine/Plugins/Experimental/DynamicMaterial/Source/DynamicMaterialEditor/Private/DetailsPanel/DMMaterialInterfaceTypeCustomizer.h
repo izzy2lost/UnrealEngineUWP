@@ -7,7 +7,7 @@
 #include "PropertyHandle.h"
 #include "Templates/SharedPointer.h"
 
-class DYNAMICMATERIALEDITOR_API FDMMaterialInterfaceTypeIdentifier : public IPropertyTypeIdentifier
+class FDMMaterialInterfaceTypeIdentifier : public IPropertyTypeIdentifier
 {
 public:
 	virtual bool IsPropertyTypeCustomized(const IPropertyHandle& InPropertyHandle) const override
@@ -16,7 +16,7 @@ public:
 	}
 };
 
-class DYNAMICMATERIALEDITOR_API FDMMaterialInterfaceTypeCustomizer : public IPropertyTypeCustomization
+class FDMMaterialInterfaceTypeCustomizer : public IPropertyTypeCustomization
 {
 public:
 	static TSharedRef<IPropertyTypeCustomization> MakeInstance();

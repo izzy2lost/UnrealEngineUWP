@@ -4,7 +4,7 @@
 
 #include "DMEDefs.h"
 #include "DMObjectMaterialProperty.h"
-#include "Modules/ModuleInterface.h"
+#include "IDynamicMaterialEditorModule.h"
 #include "Templates/SharedPointer.h"
 #include "TickableEditorObject.h"
 
@@ -33,10 +33,6 @@ namespace UE::DynamicMaterialEditor
 }
 
 DECLARE_MULTICAST_DELEGATE(FDMOnUIValueUpdate);
-DECLARE_DELEGATE_OneParam(FDMSetMaterialModelDelegate, UDynamicMaterialModel*)
-DECLARE_DELEGATE_OneParam(FDMSetMaterialObjectPropertyDelegate, const FDMObjectMaterialProperty&)
-DECLARE_DELEGATE_OneParam(FDMSetMaterialActorDelegate, AActor*)
-DECLARE_DELEGATE_RetVal_OneParam(TArray<FDMObjectMaterialProperty>, FDMGetObjectMaterialPropertiesDelegate, UObject* InObject)
 
 /** Takes a UMaterialValue and returns the widget used to edit it. */
 DECLARE_DELEGATE_RetVal_TwoParams(TSharedPtr<SWidget>, FDMCreateValueEditWidgetDelegate, const TSharedPtr<SDMComponentEdit>&, UDMMaterialValue*);
@@ -64,7 +60,7 @@ struct FDMBuildRequestEntry
 /**
  * Material Designer - Build your own materials in a slimline editor!
  */
-class DYNAMICMATERIALEDITOR_API FDynamicMaterialEditorModule : public IModuleInterface, public FTickableEditorObject
+class FDynamicMaterialEditorModule : public IDynamicMaterialEditorModule, public FTickableEditorObject
 {
 public:
 	static const FName TabId;
@@ -83,8 +79,6 @@ public:
 	static void GeneratorComponentPropertyRows(const TSharedRef<SDMComponentEdit>& InComponentEditWidget, UDMMaterialComponent* InComponent, 
 		TArray<FDMPropertyHandle>& InOutPropertyRows, TSet<UDMMaterialComponent*>& InOutProcessedObjects);
 
-	static void RegisterCustomMaterialPropertyGenerator(UClass* InClass, FDMGetObjectMaterialPropertiesDelegate InGenerator);
-	template<class InObjectClass> static void RegisterCustomMaterialPropertyGenerator(FDMGetObjectMaterialPropertiesDelegate InGenerator);
 	static FDMGetObjectMaterialPropertiesDelegate GetCustomMaterialPropertyGenerator(UClass* InClass);
 
 	/** With a provided world, the editor will bind to the MD world subsystem to receive model changes. */
@@ -94,9 +88,14 @@ public:
 	FDynamicMaterialEditorModule();
 
 	//~ Begin IDynamicMaterialEditorModule
+	virtual void OpenEditor(UWorld* InWorld) override;
+	virtual void RegisterCustomMaterialPropertyGenerator(UClass* InClass, FDMGetObjectMaterialPropertiesDelegate InGenerator) override;
+	//~ End IDynamicMaterialEditorModule
+
+	//~ Begin IModuleInterface
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
-	//~ End IDynamicMaterialEditorModule
+	//~ End IModuleInterface
 
 	const TSharedPtr<FDMMaterialFunctionLibrary>& GetFunctionLibrary();
 
@@ -115,8 +114,6 @@ public:
 	void AddBuildRequest(UObject* InToBuild, bool bInDirtyAssets);
 
 	const TSharedRef<FUICommandList>& GetCommandList() const { return CommandList; }
-
-	void OpenEditor(UWorld* InWorld);
 
 protected:
 	static TMap<UClass*, FDMCreateValueEditWidgetDelegate> ValueEditWidgetDelegates;
@@ -155,10 +152,4 @@ void FDynamicMaterialEditorModule::RegisterComponentPropertyRowGeneratorDelegate
 			&InGenClass::AddComponentProperties
 		)
 	);
-}
-
-template<class InObjectClass>
-void FDynamicMaterialEditorModule::RegisterCustomMaterialPropertyGenerator(FDMGetObjectMaterialPropertiesDelegate InGenerator)
-{
-	RegisterCustomMaterialPropertyGenerator(InObjectClass::StaticClass(), InGenerator);
 }

@@ -12,9 +12,6 @@
 
 #define LOCTEXT_NAMESPACE "MaterialDesignerInstanceFactory"
 
-const FString UDynamicMaterialInstanceFactory::BaseDirectory = FString("/Game/DynamicMaterials");
-const FString UDynamicMaterialInstanceFactory::BaseName = FString("M_DynMatInst_");
-
 UDynamicMaterialInstanceFactory::UDynamicMaterialInstanceFactory()
 {
 	SupportedClass = UDynamicMaterialInstance::StaticClass();

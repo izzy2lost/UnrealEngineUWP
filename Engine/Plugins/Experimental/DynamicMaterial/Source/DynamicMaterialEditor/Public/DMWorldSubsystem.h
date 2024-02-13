@@ -2,7 +2,7 @@
  
 #pragma once
 
-#include "DynamicMaterialEditorModule.h"
+#include "Delegates/Delegate.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "Templates/SharedPointer.h"
 #include "DMWorldSubsystem.generated.h"
@@ -13,12 +13,15 @@ class UDynamicMaterialInstance;
 class UDynamicMaterialModel;
 struct FDMObjectMaterialProperty;
 
+DECLARE_DELEGATE_OneParam(FDMSetMaterialModelDelegate, UDynamicMaterialModel*)
+DECLARE_DELEGATE_OneParam(FDMSetMaterialObjectPropertyDelegate, const FDMObjectMaterialProperty&)
+DECLARE_DELEGATE_OneParam(FDMSetMaterialActorDelegate, AActor*)
 DECLARE_DELEGATE_RetVal_OneParam(bool, FDMIsValidDelegate, UDynamicMaterialModel*)
 DECLARE_DELEGATE_RetVal_TwoParams(bool, FDMSetMaterialValueDelegate, const FDMObjectMaterialProperty&, UDynamicMaterialInstance*)
 DECLARE_DELEGATE(FDMInvokeTabDelegate)
- 
-UCLASS()
-class DYNAMICMATERIALEDITOR_API UDMWorldSubsystem : public UWorldSubsystem
+
+UCLASS(MinimalAPI)
+class UDMWorldSubsystem : public UWorldSubsystem
 {
 	GENERATED_BODY()
  
@@ -26,7 +29,8 @@ public:
 	UDMWorldSubsystem();
  
 	const TSharedPtr<IDetailKeyframeHandler>& GetKeyframeHandler() const { return KeyframeHandler; }
-	void SetKeyframeHandler(const TSharedPtr<IDetailKeyframeHandler>& InKeyframeHandler);
+
+	void SetKeyframeHandler(const TSharedPtr<IDetailKeyframeHandler>& InKeyframeHandler) { KeyframeHandler = InKeyframeHandler; }
 
 	/** Sets material in a custom editor tab. */
 	FDMSetMaterialModelDelegate& GetSetCustomEditorModelDelegate() { return CustomModelEditorDelegate; }

@@ -10,8 +10,3 @@ UDMWorldSubsystem::UDMWorldSubsystem()
 	// Default fallback implementation
 	InvokeTabDelegate.BindWeakLambda(this, [this]() { FDMLevelEditorIntegration::InvokeTabForWorld(GetWorld()); });
 }
- 
-void UDMWorldSubsystem::SetKeyframeHandler(const TSharedPtr<IDetailKeyframeHandler>& InKeyframeHandler)
-{
-	KeyframeHandler = InKeyframeHandler;
-}
