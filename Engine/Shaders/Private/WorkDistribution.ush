@@ -399,9 +399,6 @@ struct FGlobalWorkQueue
 template< typename FTask >
 void GlobalTaskLoop( FGlobalWorkQueue GlobalWorkQueue )
 {
-	const uint LaneCount = WaveGetLaneCount();
-	const uint LaneIndex = WaveGetLaneIndex();
-
 	bool bTaskComplete = true;
 
 	uint TaskReadOffset = 0;
@@ -448,11 +445,8 @@ void GlobalTaskLoop( FGlobalWorkQueue GlobalWorkQueue )
 }
 
 template< typename FTask >
-void GlobalTaskLoopVariable( FGlobalWorkQueue GlobalWorkQueue )
+void GlobalTaskLoopVariable( FGlobalWorkQueue GlobalWorkQueue, uint GroupIndex )
 {
-	const uint LaneCount = WaveGetLaneCount();
-	const uint LaneIndex = WaveGetLaneIndex();
-
 	bool bTaskComplete = true;
 
 	uint TaskReadOffset = 0;
@@ -482,7 +476,7 @@ void GlobalTaskLoopVariable( FGlobalWorkQueue GlobalWorkQueue )
 				NumChildren = Task.Run();
 			}
 
-			DistributeWork( Task, LaneIndex, NumChildren );
+			DistributeWork( Task, GroupIndex, NumChildren );
 
 			if( bTaskReady )
 			{

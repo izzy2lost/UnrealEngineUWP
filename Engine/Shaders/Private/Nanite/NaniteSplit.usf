@@ -325,9 +325,9 @@ void FSplitTask::RunChild( inout FSplitTask ParentTask, bool bActive, uint Local
 }
 
 [numthreads(THREADGROUP_SIZE, 1, 1)]
-void PatchSplit() 
+void PatchSplit( uint GroupIndex : SV_GroupIndex )
 {
-	GlobalTaskLoopVariable< FSplitTask >( SplitWorkQueue );
+	GlobalTaskLoopVariable< FSplitTask >( SplitWorkQueue, GroupIndex );
 }
 
 #else	// PATCHSPLIT_PASS
