@@ -1893,19 +1893,19 @@ namespace mu
 					FImageGenerationResult Result;
 					GenerateImage(Options, Result, ImageConst);
 					ImageOp = Result.op;
-				}
 
-				int32 MaxTextureSize = FMath::Max(node.ReferenceImageDesc.m_size[0], node.ReferenceImageDesc.m_size[1]);
+					int32 MaxTextureSize = FMath::Max(node.ReferenceImageDesc.m_size[0], node.ReferenceImageDesc.m_size[1]);
 
-				if (MaxTextureSize > 0 && (MaxTextureSize < pImage->GetSizeX() || MaxTextureSize < pImage->GetSizeY()))
-				{
-					float Factor = FMath::Min(MaxTextureSize / (float)(pImage->GetSizeX()), MaxTextureSize / (float)(pImage->GetSizeY()));
-					Ptr<ASTOpFixed> op = new ASTOpFixed();
-					op->op.type = OP_TYPE::IM_RESIZE;
-					op->op.args.ImageResize.size[0] = (uint16)pImage->GetSizeX() * Factor;
-					op->op.args.ImageResize.size[1] = (uint16)pImage->GetSizeY() * Factor;
-					op->SetChild(op->op.args.ImageResize.source, ImageOp);
-					ImageOp = op;
+					if (MaxTextureSize > 0 && (MaxTextureSize < pImage->GetSizeX() || MaxTextureSize < pImage->GetSizeY()))
+					{
+						float Factor = FMath::Min(MaxTextureSize / (float)(pImage->GetSizeX()), MaxTextureSize / (float)(pImage->GetSizeY()));
+						Ptr<ASTOpFixed> op = new ASTOpFixed();
+						op->op.type = OP_TYPE::IM_RESIZE;
+						op->op.args.ImageResize.size[0] = (uint16)pImage->GetSizeX() * Factor;
+						op->op.args.ImageResize.size[1] = (uint16)pImage->GetSizeY() * Factor;
+						op->SetChild(op->op.args.ImageResize.source, ImageOp);
+						ImageOp = op;
+					}
 				}
 
 				return ImageOp;
