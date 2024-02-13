@@ -295,6 +295,7 @@ TSharedPtr<IDetailsView>& FInstanceDataObjectFixupPanel::GenerateDetailsView(boo
 	DetailsViewArgs.bHideSelectionTip = true;
 	DetailsViewArgs.ExternalScrollbar = SAssignNew(LinkableScrollBar, SLinkableScrollBar);
 	DetailsViewArgs.ScrollbarAlignment = bScrollbarOnLeft ? HAlign_Left : HAlign_Right;
+	DetailsViewArgs.DetailsNameWidgetOverrideCustomization = MakeShared<FInstanceDataObjectNameWidgetOverride>(SharedThis(this));
 	
 	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 	DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
@@ -598,6 +599,7 @@ void FInstanceDataObjectFixupPanel::RedirectProperty(const FPropertyPath& From, 
 		if (SourceProperty->SameType(DestinationProperty))
 		{
 			SourceProperty->CopyCompleteValue(Destination, Source);
+			FOverridableManager::Get().GetOverriddenProperties(*Instance)->SetOverriddenPropertyOperation(EOverriddenPropertyOperation::Modified, nullptr, DestinationProperty);
 		}
 		else
 		{
