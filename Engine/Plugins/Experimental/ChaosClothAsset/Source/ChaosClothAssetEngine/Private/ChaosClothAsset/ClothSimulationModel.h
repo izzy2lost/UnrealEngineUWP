@@ -39,6 +39,10 @@ struct FChaosClothSimulationLodModel
 	UPROPERTY()
 	TArray<FClothVertBoneData> BoneData;
 
+	/** Already remapped using UsedBoneIndices. These are bones that are needed by this LOD for skinning that aren't needed for render.*/
+	UPROPERTY()
+	TArray<uint16> RequiredExtraBoneIndices;
+
 	/** LOD Transition mesh to mesh skinning weights. */
 	TArray<FMeshToMeshVertData> LODTransitionUpData;
 	TArray<FMeshToMeshVertData> LODTransitionDownData;

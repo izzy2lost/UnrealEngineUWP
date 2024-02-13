@@ -210,7 +210,7 @@ FChaosClothSimulationModel::FChaosClothSimulationModel(const TArray<TSharedRef<c
 			LodModel.FaceIntMaps.Add(FaceIntMapName) = Cloth.GetUserDefinedAttribute<int32>(FaceIntMapName, ClothCollectionGroup::SimFaces);
 		}
 
-		// Copy bone influences and gather tether data
+		// Copy bone influences (and track all used sim bones) and gather tether data.
 		const int32 NumSimVertices3D = Cloth.GetNumSimVertices3D();
 		TConstArrayView<TArray<int32>> SimBoneIndices = Cloth.GetSimBoneIndices();
 		TConstArrayView<TArray<float>> SimBoneWeights = Cloth.GetSimBoneWeights();
@@ -219,6 +219,8 @@ FChaosClothSimulationModel::FChaosClothSimulationModel(const TArray<TSharedRef<c
 		TArray<TArray<TPair<float, int32>>> MergedTetherData;
 		LodModel.BoneData.SetNum(NumSimVertices3D);
 		MergedTetherData.SetNum(NumSimVertices3D);
+		TSet<FBoneIndexType> RequiredExtraSimBones;
+		RequiredExtraSimBones.Reserve(ReferenceSkeleton.GetRawBoneNum());
 
 		for (int32 VertexIndex = 0; VertexIndex < NumSimVertices3D; ++VertexIndex)
 		{
@@ -229,6 +231,7 @@ FChaosClothSimulationModel::FChaosClothSimulationModel(const TArray<TSharedRef<c
 			{
 				LodModel.BoneData[VertexIndex].BoneIndices[BoneIndex] = SimBoneIndices[VertexIndex][BoneIndex];
 				LodModel.BoneData[VertexIndex].BoneWeights[BoneIndex] = SimBoneWeights[VertexIndex][BoneIndex];
+				RequiredExtraSimBones.Add(LodModel.BoneData[VertexIndex].BoneIndices[BoneIndex]);
 			}
 
 			check(TetherKinematicIndex[VertexIndex].Num() == TetherReferenceLength[VertexIndex].Num());
@@ -241,6 +244,19 @@ FChaosClothSimulationModel::FChaosClothSimulationModel(const TArray<TSharedRef<c
 
 		// Batch tethers
 		LodModel.TetherData.GenerateTethers(MoveTemp(MergedTetherData));
+
+		// Find all of the used render bones. We need to store the used sim bones that aren't used for rendering.
+		TSet<FBoneIndexType> UsedRenderBones;
+		TConstArrayView<TArray<int32>> RenderBoneIndices = Cloth.GetRenderBoneIndices();
+		for (const TArray<int32>& Indices : RenderBoneIndices)
+		{
+			for (const int32 Index : Indices)
+			{
+				UsedRenderBones.Add((FBoneIndexType)Index);
+			}
+		}
+
+		LodModel.RequiredExtraBoneIndices = RequiredExtraSimBones.Difference(UsedRenderBones).Array();
 	}
 
 	// Populate used bone names and indices
