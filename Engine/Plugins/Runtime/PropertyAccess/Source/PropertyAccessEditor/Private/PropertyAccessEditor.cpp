@@ -50,6 +50,12 @@ struct FPropertyAccessEditorSystem
 
 		// Whether to apply allow-list to functions and properties along the path
 		bool bPerformValidation = false;
+
+		// Whether to use the most up to date classes when traversing the path. 
+		// This can be useful for situations where we are resolving against potentially out of date
+		// classes, but the resulting path will not be valid to use or persist due to functions and properties
+		// being on skeleton classes 
+		bool bUseMostUpToDateClasses = false;
 	};
 
 	// The result of a segment resolve operation
@@ -246,7 +252,7 @@ struct FPropertyAccessEditorSystem
 
 				InContext.CurrentStruct = Segment.Struct;
 #if WITH_EDITOR
-				if (InContext.CurrentStruct && InContext.CurrentStruct->IsA<UClass>())
+				if (InContext.bUseMostUpToDateClasses && InContext.CurrentStruct && InContext.CurrentStruct->IsA<UClass>())
 				{
 					// Try to use the skeleton class if possible in editor as the regular class may have yet to be compiled
 					InContext.CurrentStruct = FBlueprintEditorUtils::GetMostUpToDateClass(CastChecked<UClass>(InContext.CurrentStruct));
@@ -292,6 +298,7 @@ struct FPropertyAccessEditorSystem
 	{
 		FPropertyAccessPath AccessPath;
 		FResolveSegmentsContext Context(InStruct, InPath, AccessPath);
+		Context.bUseMostUpToDateClasses = InArgs.bUseMostUpToDateClasses;
 		FPropertyAccessResolveResult Result;
 		Result.Result = ResolveSegments(Context);
 		Result.bIsThreadSafe = Context.bWasThreadSafe;
