@@ -11,32 +11,31 @@ class UMaterialInstanceDynamic;
 class UObject;
 
 /** Use this if you want a parametric material */
-USTRUCT(BlueprintType)
-struct AVALANCHEMODIFIERS_API FAvaModifiersParametricMaterial
+USTRUCT()
+struct FAvaModifiersParametricMaterial
 {
 	GENERATED_BODY()
-	
-	FAvaModifiersParametricMaterial();
 
-	FAvaModifiersParametricMaterial(const FAvaModifiersParametricMaterial& Other);
-	FAvaModifiersParametricMaterial& operator=(const FAvaModifiersParametricMaterial& Other);
+	AVALANCHEMODIFIERS_API FAvaModifiersParametricMaterial();
+
+	AVALANCHEMODIFIERS_API UMaterial* GetDefaultMaterial() const;
+
+	AVALANCHEMODIFIERS_API UMaterialInstanceDynamic* GetMaterial() const;
+
+	AVALANCHEMODIFIERS_API void ApplyChanges(UObject* Outer = nullptr);
 
 	UPROPERTY()
 	FLinearColor MaskColor;
 
-	UMaterial* GetDefaultMaterial() const;
-	UMaterialInstanceDynamic* GetMaterial() const;
-	void ApplyChanges(UObject* Outer = nullptr);
+private:
+	void ApplyParams() const;
+	void CreateAndApply(UObject* Outer = nullptr);
+	void EnsureCurrentMaterial(UObject* Outer = nullptr);
+	UMaterial* LoadResource() const;
 
-protected:
 	UPROPERTY()
 	TObjectPtr<UMaterial> DefaultMaterial;
 
 	UPROPERTY(Transient, Instanced)
 	TObjectPtr<UMaterialInstanceDynamic> InstanceMaterial;
-
-	void ApplyParams() const;
-	void CreateAndApply(UObject* Outer = nullptr);
-	void EnsureCurrentMaterial(UObject* Outer = nullptr);
-	UMaterial* LoadResource() const;
 };

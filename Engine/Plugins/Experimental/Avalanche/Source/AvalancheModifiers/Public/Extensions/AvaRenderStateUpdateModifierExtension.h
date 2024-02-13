@@ -16,7 +16,7 @@ class UAvaRenderStateUpdateHandler : public UInterface
 };
 
 /** Implement this interface to handle extension event */
-class AVALANCHEMODIFIERS_API IAvaRenderStateUpdateHandler
+class IAvaRenderStateUpdateHandler
 {
 	GENERATED_BODY()
 

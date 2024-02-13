@@ -12,7 +12,7 @@ enum class EAvaOutlinerHierarchyChangeType : uint8;
 enum class EAvaReferenceContainer : uint8;
 
 USTRUCT(BlueprintType)
-struct AVALANCHEMODIFIERS_API FAvaSceneTreeActor
+struct FAvaSceneTreeActor
 {
 	friend class FAvaSceneTreeUpdateModifierExtension;
 	
@@ -73,7 +73,7 @@ class UAvaSceneTreeUpdateHandler : public UInterface
 };
 
 /** Implement this interface to handle extension event */
-class AVALANCHEMODIFIERS_API IAvaSceneTreeUpdateHandler
+class IAvaSceneTreeUpdateHandler
 {
 	GENERATED_BODY()
 	

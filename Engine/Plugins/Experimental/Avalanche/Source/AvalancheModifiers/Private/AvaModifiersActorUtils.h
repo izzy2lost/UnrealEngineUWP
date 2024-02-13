@@ -24,7 +24,7 @@ enum class EAvaModifiersAxis : uint8
 ENUM_CLASS_FLAGS(EAvaModifiersAxis);
 
 // All operations that can be reused or shared in modifiers should go here
-struct AVALANCHEMODIFIERS_API FAvaModifiersActorUtils
+struct FAvaModifiersActorUtils
 {
 	/** Begin Bounds */
 	static FBox GetActorsBounds(const TSet<TWeakObjectPtr<AActor>>& InActors, const FTransform& InReferenceTransform, bool bInSkipHidden = false);

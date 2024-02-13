@@ -16,19 +16,6 @@ FAvaModifiersParametricMaterial::FAvaModifiersParametricMaterial()
 	DefaultMaterial = LoadedMaterial;
 }
 
-FAvaModifiersParametricMaterial::FAvaModifiersParametricMaterial(const FAvaModifiersParametricMaterial& Other)
-{
-	MaskColor = Other.MaskColor;
-	InstanceMaterial = nullptr;
-}
-
-FAvaModifiersParametricMaterial& FAvaModifiersParametricMaterial::operator=(const FAvaModifiersParametricMaterial& Other)
-{
-	MaskColor = Other.MaskColor;
-	InstanceMaterial = nullptr;
-	return *this;
-}
-
 UMaterial* FAvaModifiersParametricMaterial::GetDefaultMaterial() const
 {
 	return DefaultMaterial;
