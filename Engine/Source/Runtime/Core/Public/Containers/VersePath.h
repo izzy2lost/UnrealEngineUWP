@@ -72,12 +72,12 @@ private:
 
 FORCEINLINE bool UE::Core::operator==(const FVersePath& Lhs, const FVersePath& Rhs)
 {
-	return Lhs.PathString == Rhs.PathString;
+	return Lhs.PathString.Equals(Rhs.PathString, ESearchCase::CaseSensitive);
 }
 
 FORCEINLINE bool UE::Core::operator!=(const FVersePath& Lhs, const FVersePath& Rhs)
 {
-	return Lhs.PathString == Rhs.PathString;
+	return !(Lhs == Rhs);
 }
 
 FORCEINLINE FArchive& UE::Core::operator<<(FArchive& Ar, FVersePath& VersePath)
@@ -87,5 +87,5 @@ FORCEINLINE FArchive& UE::Core::operator<<(FArchive& Ar, FVersePath& VersePath)
 
 FORCEINLINE uint32 UE::Core::GetTypeHash(const FVersePath& VersePath)
 {
-	return GetTypeHash(VersePath.AsStringView());
+	return FCrc::StrCrc32<TCHAR>(*VersePath);
 }
