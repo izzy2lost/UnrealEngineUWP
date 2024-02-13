@@ -13,7 +13,8 @@ enum class EPCGAttributeReduceOperation
 {
 	Average,
 	Max,
-	Min
+	Min,
+	Sum
 };
 
 /**
