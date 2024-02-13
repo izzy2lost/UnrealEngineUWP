@@ -56,11 +56,11 @@ bool FPCGDistanceTest_PointToPoint::RunTest(const FString& Parameters)
 
 	UTEST_EQUAL("Output point count", OutPoints.Num(), 2);
 
-	const FPCGMetadataAttribute<float> *DistanceAttribute = OutPointData->Metadata->GetConstTypedAttribute<float>(Settings->AttributeName);
+	const FPCGMetadataAttribute<double> *DistanceAttribute = OutPointData->Metadata->GetConstTypedAttribute<double>(Settings->OutputAttribute.GetAttributeName());
 	UTEST_NOT_NULL("Distance attribute", DistanceAttribute);
 
-	UTEST_EQUAL_TOLERANCE("Point 0 distance", DistanceAttribute->GetValue(OutPoints[0].MetadataEntry), 100.f, 0.01f);
-	UTEST_EQUAL_TOLERANCE("Point 1 distance", DistanceAttribute->GetValue(OutPoints[1].MetadataEntry), 50.f, 0.01f);
+	UTEST_EQUAL_TOLERANCE("Point 0 distance", DistanceAttribute->GetValue(OutPoints[0].MetadataEntry), 100.0, 0.01);
+	UTEST_EQUAL_TOLERANCE("Point 1 distance", DistanceAttribute->GetValue(OutPoints[1].MetadataEntry), 50.0, 0.01);
 
 	return true;
 }
@@ -75,7 +75,7 @@ bool FPCGDistanceTest_SetDensity::RunTest(const FString& Parameters)
 
 	Settings->SourceShape = PCGDistanceShape::Center;
 	Settings->TargetShape = PCGDistanceShape::Center;
-	Settings->AttributeName = NAME_None;
+	Settings->OutputAttribute = FPCGAttributePropertySelector();
 	Settings->bSetDensity = true;
 	Settings->MaximumDistance = 200.f;
 
@@ -178,11 +178,11 @@ bool FPCGDistanceTest_PointToSphere::RunTest(const FString& Parameters)
 
 	UTEST_EQUAL("Output point count", OutPoints.Num(), 2);
 
-	const FPCGMetadataAttribute<float> *DistanceAttribute = OutPointData->Metadata->GetConstTypedAttribute<float>(Settings->AttributeName);
+	const FPCGMetadataAttribute<double> *DistanceAttribute = OutPointData->Metadata->GetConstTypedAttribute<double>(Settings->OutputAttribute.GetAttributeName());
 	UTEST_NOT_NULL("Distance attribute", DistanceAttribute);
 
-	UTEST_EQUAL_TOLERANCE("Point 0 distance", DistanceAttribute->GetValue(OutPoints[0].MetadataEntry), 100.f-TargetPointRadius, 0.01f);
-	UTEST_EQUAL_TOLERANCE("Point 1 distance", DistanceAttribute->GetValue(OutPoints[1].MetadataEntry), 50.f-TargetPointRadius, 0.01f);
+	UTEST_EQUAL_TOLERANCE("Point 0 distance", DistanceAttribute->GetValue(OutPoints[0].MetadataEntry), 100.0 - TargetPointRadius, 0.01);
+	UTEST_EQUAL_TOLERANCE("Point 1 distance", DistanceAttribute->GetValue(OutPoints[1].MetadataEntry), 50.0 - TargetPointRadius, 0.01);
 
 	return true;
 }
@@ -243,11 +243,11 @@ bool FPCGDistanceTest_PointToBox::RunTest(const FString& Parameters)
 
 	UTEST_EQUAL("Output point count", OutPoints.Num(), 2);
 
-	const FPCGMetadataAttribute<float> *DistanceAttribute = OutPointData->Metadata->GetConstTypedAttribute<float>(Settings->AttributeName);
+	const FPCGMetadataAttribute<double> *DistanceAttribute = OutPointData->Metadata->GetConstTypedAttribute<double>(Settings->OutputAttribute.GetAttributeName());
 	UTEST_NOT_NULL("Distance attribute", DistanceAttribute);
 
-	UTEST_EQUAL_TOLERANCE("Point 0 distance", DistanceAttribute->GetValue(OutPoints[0].MetadataEntry), 10.f, 0.01f);
-	UTEST_EQUAL_TOLERANCE("Point 1 distance", DistanceAttribute->GetValue(OutPoints[1].MetadataEntry), 10.f, 0.01f);
+	UTEST_EQUAL_TOLERANCE("Point 0 distance", DistanceAttribute->GetValue(OutPoints[0].MetadataEntry), 10.0, 0.01);
+	UTEST_EQUAL_TOLERANCE("Point 1 distance", DistanceAttribute->GetValue(OutPoints[1].MetadataEntry), 10.0, 0.01);
 
 	return true;
 }
