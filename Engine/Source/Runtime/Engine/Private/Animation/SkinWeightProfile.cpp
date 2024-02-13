@@ -748,18 +748,7 @@ void FSkinWeightProfilesData::ApplyOverrideProfile(FSkinWeightVertexBuffer* Over
 	}	
 }
 
-void FSkinWeightProfilesData::CreateRHIBuffers_RenderThread(TArray<TPair<FName, FSkinWeightRHIInfo>>& OutBuffers)
-{
-	CreateRHIBuffers(FRHICommandListImmediate::Get(), OutBuffers);
-}
-
-void FSkinWeightProfilesData::CreateRHIBuffers_Async(TArray<TPair<FName, FSkinWeightRHIInfo>>& OutBuffers)
-{
-	FRHIAsyncCommandList CommandList;
-	CreateRHIBuffers(*CommandList, OutBuffers);
-}
-
-void FSkinWeightProfilesData::InitRHIForStreaming(const TArray<TPair<FName, FSkinWeightRHIInfo>>& IntermediateBuffers, FRHIResourceUpdateBatcher& Batcher)
+void FSkinWeightProfilesData::InitRHIForStreaming(const TArray<TPair<FName, FSkinWeightRHIInfo>>& IntermediateBuffers, FRHIResourceReplaceBatcher& Batcher)
 {
 	for (int32 Idx = 0; Idx < IntermediateBuffers.Num(); ++Idx)
 	{
@@ -769,7 +758,7 @@ void FSkinWeightProfilesData::InitRHIForStreaming(const TArray<TPair<FName, FSki
 	}
 }
 
-void FSkinWeightProfilesData::ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batcher)
+void FSkinWeightProfilesData::ReleaseRHIForStreaming(FRHIResourceReplaceBatcher& Batcher)
 {
 	for (TMap<FName, FSkinWeightVertexBuffer*>::TIterator It(ProfileNameToBuffer); It; ++It)
 	{

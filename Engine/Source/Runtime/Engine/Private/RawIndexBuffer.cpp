@@ -11,7 +11,7 @@
 #include "RenderUtils.h"
 #include "Modules/ModuleManager.h"
 #include "RenderingThread.h"
-#include "RHIResourceUpdates.h"
+#include "RHIResourceReplace.h"
 
 #if WITH_EDITOR
 #include "MeshUtilities.h"
@@ -353,30 +353,19 @@ FBufferRHIRef FRawStaticIndexBuffer::CreateRHIBuffer(FRHICommandListBase& RHICmd
 	return nullptr;
 }
 
-FBufferRHIRef FRawStaticIndexBuffer::CreateRHIBuffer_RenderThread()
-{
-	return CreateRHIBuffer(FRHICommandListExecutor::GetImmediateCommandList());
-}
-
-FBufferRHIRef FRawStaticIndexBuffer::CreateRHIBuffer_Async()
-{
-	FRHIAsyncCommandList CommandList;
-	return CreateRHIBuffer(*CommandList);
-}
-
-void FRawStaticIndexBuffer::InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, FRHIResourceUpdateBatcher& Batcher)
+void FRawStaticIndexBuffer::InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, FRHIResourceReplaceBatcher& Batcher)
 {
 	if (IndexBufferRHI && IntermediateBuffer)
 	{
-		Batcher.QueueUpdateRequest(IndexBufferRHI, IntermediateBuffer);
+		Batcher.EnqueueReplace(IndexBufferRHI, IntermediateBuffer);
 	}
 }
 
-void FRawStaticIndexBuffer::ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batcher)
+void FRawStaticIndexBuffer::ReleaseRHIForStreaming(FRHIResourceReplaceBatcher& Batcher)
 {
 	if (IndexBufferRHI)
 	{
-		Batcher.QueueUpdateRequest(IndexBufferRHI, nullptr);
+		Batcher.EnqueueReplace(IndexBufferRHI, nullptr);
 	}
 }
 
@@ -454,19 +443,19 @@ bool FRawStaticIndexBuffer16or32Interface::IsSRVNeeded(bool bAllowCPUAccess) con
 	return bSRV;
 }
 
-void FRawStaticIndexBuffer16or32Interface::InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, size_t IndexSize, FRHIResourceUpdateBatcher& Batcher)
+void FRawStaticIndexBuffer16or32Interface::InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, size_t IndexSize, FRHIResourceReplaceBatcher& Batcher)
 {
 	if (IndexBufferRHI && IntermediateBuffer)
 	{
-		Batcher.QueueUpdateRequest(IndexBufferRHI, IntermediateBuffer);
+		Batcher.EnqueueReplace(IndexBufferRHI, IntermediateBuffer);
 	}
 }
 
-void FRawStaticIndexBuffer16or32Interface::ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batcher)
+void FRawStaticIndexBuffer16or32Interface::ReleaseRHIForStreaming(FRHIResourceReplaceBatcher& Batcher)
 {
 	if (IndexBufferRHI)
 	{
-		Batcher.QueueUpdateRequest(IndexBufferRHI, nullptr);
+		Batcher.EnqueueReplace(IndexBufferRHI, nullptr);
 	}
 }
 

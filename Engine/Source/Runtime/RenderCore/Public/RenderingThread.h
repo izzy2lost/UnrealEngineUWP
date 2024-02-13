@@ -579,46 +579,6 @@ private:
 // RenderThread scoped work
 ////////////////////////////////////
 
-/** A utility to record RHI commands asynchronously and then enqueue the resulting commands to the render thread. */
-class FRHIAsyncCommandList
-{
-public:
-	FRHIAsyncCommandList(FRHIGPUMask InGPUMask = FRHIGPUMask::All())
-		: RHICmdListStack(InGPUMask)
-	{}
-
-	FRHICommandList& GetCommandList()
-	{
-		return RHICmdListStack;
-	}
-
-	FRHICommandList& operator*()
-	{
-		return RHICmdListStack;
-	}
-
-	FRHICommandList* operator->()
-	{
-		return &RHICmdListStack;
-	}
-
-	~FRHIAsyncCommandList()
-	{
-		RHICmdListStack.FinishRecording();
-		if (RHICmdListStack.HasCommands())
-		{
-			ENQUEUE_RENDER_COMMAND(AsyncCommandListScope)(
-				[RHICmdList = new FRHICommandList(MoveTemp(RHICmdListStack))](FRHICommandListImmediate& RHICmdListImmediate)
-			{
-				RHICmdListImmediate.QueueAsyncCommandListSubmit(RHICmdList);
-			});
-		}
-	}
-
-private:
-	FRHICommandList RHICmdListStack;
-};
-
 class FRenderThreadScope
 {
 	typedef TFunction<void(FRHICommandListImmediate&)> RenderCommandFunction;

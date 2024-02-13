@@ -9,7 +9,7 @@
 #include "VertexFactory.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "GlobalRenderResources.h"
-#include "RHIResourceUpdates.h"
+#include "RHIResourceReplace.h"
 
 /*-----------------------------------------------------------------------------
 FColorVertexBuffer
@@ -396,30 +396,19 @@ FBufferRHIRef FColorVertexBuffer::CreateRHIBuffer(FRHICommandListBase& RHICmdLis
 	return FRenderResource::CreateRHIBuffer(RHICmdList, VertexData, NumVertices, BUF_Static | BUF_ShaderResource, TEXT("FColorVertexBuffer"));
 }
 
-FBufferRHIRef FColorVertexBuffer::CreateRHIBuffer_RenderThread()
-{
-	return CreateRHIBuffer(FRHICommandListImmediate::Get());
-}
-
-FBufferRHIRef FColorVertexBuffer::CreateRHIBuffer_Async()
-{
-	FRHIAsyncCommandList CommandList;
-	return CreateRHIBuffer(*CommandList);
-}
-
-void FColorVertexBuffer::InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, FRHIResourceUpdateBatcher& Batcher)
+void FColorVertexBuffer::InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, FRHIResourceReplaceBatcher& Batcher)
 {
 	if (VertexBufferRHI && IntermediateBuffer)
 	{
-		Batcher.QueueUpdateRequest(VertexBufferRHI, IntermediateBuffer);
+		Batcher.EnqueueReplace(VertexBufferRHI, IntermediateBuffer);
 	}
 }
 
-void FColorVertexBuffer::ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batcher)
+void FColorVertexBuffer::ReleaseRHIForStreaming(FRHIResourceReplaceBatcher& Batcher)
 {
 	if (VertexBufferRHI)
 	{
-		Batcher.QueueUpdateRequest(VertexBufferRHI, nullptr);
+		Batcher.EnqueueReplace(VertexBufferRHI, nullptr);
 	}
 }
 

@@ -210,18 +210,7 @@ FBufferRHIRef FMultiSizeIndexContainer::CreateRHIBuffer(FRHICommandListBase& RHI
 	return nullptr;
 }
 
-FBufferRHIRef FMultiSizeIndexContainer::CreateRHIBuffer_RenderThread()
-{
-	return CreateRHIBuffer(FRHICommandListImmediate::Get());
-}
-
-FBufferRHIRef FMultiSizeIndexContainer::CreateRHIBuffer_Async()
-{
-	FRHIAsyncCommandList RHICmdList;
-	return CreateRHIBuffer(*RHICmdList);
-}
-
-void FMultiSizeIndexContainer::InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, FRHIResourceUpdateBatcher& Batcher)
+void FMultiSizeIndexContainer::InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, FRHIResourceReplaceBatcher& Batcher)
 {
 	check(!((uint32)!!IntermediateBuffer ^ (uint32)!!IndexBuffer));
 	if (IntermediateBuffer)
@@ -237,7 +226,7 @@ void FMultiSizeIndexContainer::InitRHIForStreaming(FRHIBuffer* IntermediateBuffe
 	}
 }
 
-void FMultiSizeIndexContainer::ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batcher)
+void FMultiSizeIndexContainer::ReleaseRHIForStreaming(FRHIResourceReplaceBatcher& Batcher)
 {
 	if (IndexBuffer)
 	{

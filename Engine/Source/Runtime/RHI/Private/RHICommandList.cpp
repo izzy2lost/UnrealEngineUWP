@@ -8,7 +8,7 @@
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "GenericPlatform/GenericPlatformCrashContext.h"
 #include "RHIBreadcrumbs.h"
-#include "RHIResourceUpdates.h"
+#include "RHIResourceReplace.h"
 #include "RHIContext.h"
 #include "RHIFwd.h"
 #include "RHITransition.h"
@@ -979,6 +979,13 @@ RHI_API void FRHICommandListExecutor::Submit(TConstArrayView<FRHICommandListBase
 {
 	check(IsInRenderingThread());
 	SCOPED_NAMED_EVENT(RHICmdList_Submit, FColor::White);
+
+	if (Bypass())
+	{
+		// Always submit to the GPU in Bypass mode. This allows us to wait for all translate tasks to 
+		// complete before  returning from this function. ensuring commands are always executed in-order.
+		EnumAddFlags(SubmitFlags, ERHISubmitFlags::SubmitToGPU);
+	}
 
 	// Commands may already be queued on the immediate command list. These need to be executed
 	// first before any parallel commands can be inserted, otherwise commands will run out-of-order.
@@ -2110,26 +2117,40 @@ void FRHICommandListBase::UpdateTextureReference(FRHITextureReference* TextureRe
 	RHIThreadFence(true);
 }
 
-void FRHICommandListImmediate::UpdateRHIResources(FRHIResourceUpdateInfo* UpdateInfos, int32 Num, bool bNeedReleaseRefs)
+void FRHICommandListBase::ReplaceResources(TArray<FRHIResourceReplaceInfo>&& ReplaceInfos)
 {
-	if (this->Bypass())
+	EnqueueLambda(TEXT("ReplaceResources"), [Infos = MoveTemp(ReplaceInfos)](FRHICommandListBase& ExecutingCmdList)
 	{
-		FRHICommandUpdateRHIResources Cmd(UpdateInfos, Num, bNeedReleaseRefs);
-		Cmd.Execute(*this);
-	}
-	else
-	{
-		const SIZE_T NumBytes = sizeof(FRHIResourceUpdateInfo) * Num;
-		FRHIResourceUpdateInfo* LocalUpdateInfos = reinterpret_cast<FRHIResourceUpdateInfo*>(this->Alloc(NumBytes, alignof(FRHIResourceUpdateInfo)));
-		FMemory::Memcpy(LocalUpdateInfos, UpdateInfos, NumBytes);
-		new (AllocCommand<FRHICommandUpdateRHIResources>()) FRHICommandUpdateRHIResources(LocalUpdateInfos, Num, bNeedReleaseRefs);
-		RHIThreadFence(true);
-		if (GetUsedMemory() > 256 * 1024)
+		RHISTAT(ReplaceResources);
+		for (FRHIResourceReplaceInfo const& Info : Infos)
 		{
-			// we could be loading a level or something, lets get this stuff going
-			ImmediateFlush(EImmediateFlushType::DispatchToRHIThread);
+			switch (Info.GetType())
+			{
+
+			case FRHIResourceReplaceInfo::EType::Buffer:
+				GDynamicRHI->RHITransferBufferUnderlyingResource(
+					ExecutingCmdList,
+					Info.GetBuffer().Dst,
+					Info.GetBuffer().Src);
+				break;
+
+#if RHI_RAYTRACING
+			case FRHIResourceReplaceInfo::EType::RTGeometry:
+				GDynamicRHI->RHITransferRayTracingGeometryUnderlyingResource(
+					ExecutingCmdList,
+					Info.GetRTGeometry().Dst,
+					Info.GetRTGeometry().Src);
+				break;
+#endif // RHI_RAYTRACING
+
+			default:
+				checkNoEntry();
+				break;
+			}
 		}
-	}
+	});
+
+	RHIThreadFence(true);
 }
 
 void FRHICommandListExecutor::CleanupGraphEvents()

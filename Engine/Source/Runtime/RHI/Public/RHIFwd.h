@@ -38,8 +38,8 @@ class FRHICommandListImmediate;
 class IRHIComputeContext;
 class IRHICommandContext;
 
-struct FRHIResourceUpdateInfo;
-struct FRHIResourceUpdateBatcher;
+class FRHIResourceReplaceInfo;
+class FRHIResourceReplaceBatcher;
 
 struct FSamplerStateInitializerRHI;
 struct FRasterizerStateInitializerRHI;

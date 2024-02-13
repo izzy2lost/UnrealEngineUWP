@@ -5,7 +5,7 @@
 #include "HAL/IConsoleManager.h"
 #include "RayTracingGeometryManagerInterface.h"
 #include "RenderUtils.h"
-#include "RHIResourceUpdates.h"
+#include "RHIResourceReplace.h"
 #include "RHITextureReference.h" // IWYU pragma: keep
 
 #if RHI_RAYTRACING
@@ -27,7 +27,7 @@ FRayTracingGeometry::~FRayTracingGeometry() = default;
 
 #if RHI_RAYTRACING
 
-void FRayTracingGeometry::InitRHIForStreaming(FRHIRayTracingGeometry* IntermediateGeometry, FRHIResourceUpdateBatcher& Batcher)
+void FRayTracingGeometry::InitRHIForStreaming(FRHIRayTracingGeometry* IntermediateGeometry, FRHIResourceReplaceBatcher& Batcher)
 {
 	ensureMsgf(RayTracingGeometryRHI || !IsRayTracingEnabled(),
 		TEXT("RayTracingGeometryRHI should be valid when ray tracing is enabled.\n")
@@ -40,7 +40,7 @@ void FRayTracingGeometry::InitRHIForStreaming(FRHIRayTracingGeometry* Intermedia
 
 	if (RayTracingGeometryRHI && IntermediateGeometry)
 	{
-		Batcher.QueueUpdateRequest(RayTracingGeometryRHI, IntermediateGeometry);
+		Batcher.EnqueueReplace(RayTracingGeometryRHI, IntermediateGeometry);
 		EnumAddFlags(GeometryState, EGeometryStateFlags::Valid);
 	}
 	else
@@ -49,7 +49,7 @@ void FRayTracingGeometry::InitRHIForStreaming(FRHIRayTracingGeometry* Intermedia
 	}
 }
 
-void FRayTracingGeometry::ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batcher)
+void FRayTracingGeometry::ReleaseRHIForStreaming(FRHIResourceReplaceBatcher& Batcher)
 {
 	RemoveBuildRequest();
 
@@ -60,7 +60,7 @@ void FRayTracingGeometry::ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batc
 
 	if (RayTracingGeometryRHI)
 	{
-		Batcher.QueueUpdateRequest(RayTracingGeometryRHI, nullptr);
+		Batcher.EnqueueReplace(RayTracingGeometryRHI, nullptr);
 	}
 }
 
@@ -117,7 +117,7 @@ void FRayTracingGeometry::MakeResident(FRHICommandList& RHICmdList)
 		// Follows the same pattern as: (1) FStaticMeshStreamIn::CreateBuffers_* (2) FStaticMeshStreamIn::DoFinishUpdate
 		// There is no other way to initialize BLAS buffers for the geometry that has a StreamingDestination type.
 		{
-			TRHIResourceUpdateBatcher<1> Batcher;
+			FRHIResourceReplaceBatcher Batcher(RHICmdList, 1);
 			FRayTracingGeometryInitializer IntermediateInitializer = Initializer;
 			IntermediateInitializer.Type = ERayTracingGeometryInitializerType::StreamingSource;
 

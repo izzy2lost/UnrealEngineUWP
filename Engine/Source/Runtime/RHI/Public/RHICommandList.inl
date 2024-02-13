@@ -129,6 +129,14 @@ inline FRHICommandListScopedPipelineGuard::~FRHICommandListScopedPipelineGuard()
 	}
 }
 
+inline FRHIResourceReplaceBatcher::~FRHIResourceReplaceBatcher()
+{
+	if (Infos.Num() > 0)
+	{
+		RHICmdList.ReplaceResources(MoveTemp(Infos));
+	}
+}
+
 #if WITH_RHI_BREADCRUMBS
 
 	template<size_t N, typename... TArgs>

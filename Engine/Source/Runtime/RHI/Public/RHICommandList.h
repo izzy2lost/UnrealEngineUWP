@@ -32,6 +32,7 @@
 #include "RHIGlobals.h"
 #include "RHIShaderParameters.h"
 #include "RHITextureReference.h"
+#include "RHIResourceReplace.h"
 #include "Trace/Trace.h"
 
 #include "DynamicRHI.h"
@@ -897,6 +898,8 @@ public:
 		return GDynamicRHI->RHICalcRayTracingGeometrySize(*this, Initializer);
 	}
 #endif
+
+	RHI_API void ReplaceResources(TArray<FRHIResourceReplaceInfo>&& ReplaceInfos);
 
 	FORCEINLINE void BindDebugLabelName(FRHITexture* Texture, const TCHAR* Name)
 	{
@@ -2118,23 +2121,6 @@ FRHICOMMAND_MACRO(FRHICommandDiscardRenderTargets)
 	{
 	}
 	
-	RHI_API void Execute(FRHICommandListBase& CmdList);
-};
-
-FRHICOMMAND_MACRO(FRHICommandUpdateRHIResources)
-{
-	FRHIResourceUpdateInfo* UpdateInfos;
-	int32 Num;
-	bool bNeedReleaseRefs;
-
-	FRHICommandUpdateRHIResources(FRHIResourceUpdateInfo* InUpdateInfos, int32 InNum, bool bInNeedReleaseRefs)
-		: UpdateInfos(InUpdateInfos)
-		, Num(InNum)
-		, bNeedReleaseRefs(bInNeedReleaseRefs)
-	{}
-
-	~FRHICommandUpdateRHIResources();
-
 	RHI_API void Execute(FRHICommandListBase& CmdList);
 };
 
@@ -4592,13 +4578,6 @@ public:
 	UE_DEPRECATED(5.5, "RHIPollRenderQueryResults is deprecated. Platform RHIs that require query polling now do this automatically as part of RHI command list submission.")
 	FORCEINLINE void PollRenderQueryResults() {}
 
-	/**
-	 * @param UpdateInfos - an array of update infos
-	 * @param Num - number of update infos
-	 * @param bNeedReleaseRefs - whether Release need to be called on RHI resources referenced by update infos
-	 */
-	RHI_API void UpdateRHIResources(FRHIResourceUpdateInfo* UpdateInfos, int32 Num, bool bNeedReleaseRefs);
-
 	//UE_DEPRECATED(5.1, "SubmitCommandsHint is deprecated. Consider calling ImmediateFlush(EImmediateFlushType::DispatchToRHIThread) instead.")
 	FORCEINLINE_DEBUGGABLE void SubmitCommandsHint()
 	{
@@ -5226,12 +5205,6 @@ UE_DEPRECATED(5.3, "RHICreateUnorderedAccessView is deprecated. Use FRHICommandL
 FORCEINLINE FShaderResourceViewRHIRef RHICreateShaderResourceView(FRHITexture* Texture, const FRHITextureSRVCreateInfo& CreateInfo)
 {
 	return FRHICommandListExecutor::GetImmediateCommandList().CreateShaderResourceView(Texture, CreateInfo);
-}
-
-FORCEINLINE void RHIUpdateRHIResources(FRHIResourceUpdateInfo* UpdateInfos, int32 Num, bool bNeedReleaseRefs)
-{
-	check(IsInRenderingThread());
-	return FRHICommandListExecutor::GetImmediateCommandList().UpdateRHIResources(UpdateInfos, Num, bNeedReleaseRefs);
 }
 
 FORCEINLINE FTextureReferenceRHIRef RHICreateTextureReference(FRHITexture* InReferencedTexture = nullptr)

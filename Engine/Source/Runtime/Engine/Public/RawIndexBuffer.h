@@ -278,16 +278,11 @@ public:
 	/** Create an RHI index buffer with CPU data. CPU data may be discarded after creation (see TResourceArray::Discard) */
 	FBufferRHIRef CreateRHIBuffer(FRHICommandListBase& RHICmdList);
 
-	UE_DEPRECATED(5.4, "Use CreateRHIBuffer instead.")
-	FBufferRHIRef CreateRHIBuffer_RenderThread();
-	UE_DEPRECATED(5.4, "Use CreateRHIBuffer instead.")
-	FBufferRHIRef CreateRHIBuffer_Async();
-
 	/** Take over ownership of IntermediateBuffer */
-	void InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, FRHIResourceUpdateBatcher& Batcher);
+	void InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, FRHIResourceReplaceBatcher& Batcher);
 
 	/** Release any GPU resource owned by the RHI object */
-	void ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batcher);
+	void ReleaseRHIForStreaming(FRHIResourceReplaceBatcher& Batcher);
 
 	/**
 	 * Serialization.
@@ -362,8 +357,8 @@ protected:
 	ENGINE_API bool IsSRVNeeded(bool bAllowCPUAccess) const;
 
 	/** Similar to Init/ReleaseRHI but only update existing SRV so references to the SRV stays valid */
-	void InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, size_t IndexSize, FRHIResourceUpdateBatcher& Batcher);
-	void ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batcher);
+	void InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, size_t IndexSize, FRHIResourceReplaceBatcher& Batcher);
+	void ReleaseRHIForStreaming(FRHIResourceReplaceBatcher& Batcher);
 
 	static ENGINE_API FBufferRHIRef CreateRHIIndexBufferInternal(
 		FRHICommandListBase& RHICmdList,
@@ -519,18 +514,13 @@ public:
 		return nullptr;
 	}
 
-	UE_DEPRECATED(5.4, "Use CreateRHIBuffer instead.")
-	FBufferRHIRef CreateRHIBuffer_RenderThread();
-	UE_DEPRECATED(5.4, "Use CreateRHIBuffer instead.")
-	FBufferRHIRef CreateRHIBuffer_Async();
-
 	/** Similar to Init/ReleaseRHI but only update existing SRV so references to the SRV stays valid */
-	void InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, FRHIResourceUpdateBatcher& Batcher)
+	void InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, FRHIResourceReplaceBatcher& Batcher)
 	{
 		FRawStaticIndexBuffer16or32Interface::InitRHIForStreaming(IntermediateBuffer, sizeof(INDEX_TYPE), Batcher);
 	}
 
-	void ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batcher)
+	void ReleaseRHIForStreaming(FRHIResourceReplaceBatcher& Batcher)
 	{
 		FRawStaticIndexBuffer16or32Interface::ReleaseRHIForStreaming(Batcher);
 	}

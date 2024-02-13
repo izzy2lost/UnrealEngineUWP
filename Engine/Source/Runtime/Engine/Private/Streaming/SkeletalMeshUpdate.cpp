@@ -13,7 +13,7 @@ SkeletalMeshUpdate.cpp: Helpers to stream in and out skeletal mesh LODs.
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "Components/SkinnedMeshComponent.h"
 #include "Streaming/RenderAssetUpdate.inl"
-#include "RHIResourceUpdates.h"
+#include "RHIResourceReplace.h"
 
 extern int32 GStreamingMaxReferenceChecks;
 
@@ -49,10 +49,8 @@ FSkeletalMeshUpdate::FSkeletalMeshUpdate(const USkeletalMesh* InMesh)
 {
 }
 
-void FSkeletalMeshStreamIn::FIntermediateBuffers::CreateFromCPUData_RenderThread(FSkeletalMeshLODRenderData& LODResource)
+void FSkeletalMeshStreamIn::FIntermediateBuffers::CreateFromCPUData(FRHICommandListBase& RHICmdList, FSkeletalMeshLODRenderData& LODResource)
 {
-	FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
-
 	FStaticMeshVertexBuffers& VBs = LODResource.StaticVertexBuffers;
 	TangentsVertexBuffer = VBs.StaticMeshVertexBuffer.CreateTangentsRHIBuffer(RHICmdList);
 	TexCoordVertexBuffer = VBs.StaticMeshVertexBuffer.CreateTexCoordRHIBuffer(RHICmdList);
@@ -64,35 +62,7 @@ void FSkeletalMeshStreamIn::FIntermediateBuffers::CreateFromCPUData_RenderThread
 	IndexBuffer = LODResource.MultiSizeIndexContainer.CreateRHIBuffer(RHICmdList);
 }
 
-void FSkeletalMeshStreamIn::FIntermediateBuffers::CreateFromCPUData_Async(FSkeletalMeshLODRenderData& LODResource)
-{
-	FRHIAsyncCommandList RHICmdList;
-
-	FStaticMeshVertexBuffers& VBs = LODResource.StaticVertexBuffers;
-	TangentsVertexBuffer = VBs.StaticMeshVertexBuffer.CreateTangentsRHIBuffer(*RHICmdList);
-	TexCoordVertexBuffer = VBs.StaticMeshVertexBuffer.CreateTexCoordRHIBuffer(*RHICmdList);
-	PositionVertexBuffer = VBs.PositionVertexBuffer.CreateRHIBuffer(*RHICmdList);
-	ColorVertexBuffer = VBs.ColorVertexBuffer.CreateRHIBuffer(*RHICmdList);
-	LODResource.SkinWeightProfilesData.CreateRHIBuffers(*RHICmdList, AltSkinWeightVertexBuffers);
-	SkinWeightVertexBuffer = LODResource.SkinWeightVertexBuffer.CreateRHIBuffer(*RHICmdList);
-	ClothVertexBuffer = LODResource.ClothVertexBuffer.CreateRHIBuffer(*RHICmdList);
-	IndexBuffer = LODResource.MultiSizeIndexContainer.CreateRHIBuffer(*RHICmdList);
-}
-
-void FSkeletalMeshStreamIn::FIntermediateBuffers::SafeRelease()
-{
-	TangentsVertexBuffer.SafeRelease();
-	TexCoordVertexBuffer.SafeRelease();
-	PositionVertexBuffer.SafeRelease();
-	ColorVertexBuffer.SafeRelease();
-	SkinWeightVertexBuffer.DataVertexBufferRHI.SafeRelease();
-	SkinWeightVertexBuffer.LookupVertexBufferRHI.SafeRelease();
-	ClothVertexBuffer.SafeRelease();
-	IndexBuffer.SafeRelease();
-	AltSkinWeightVertexBuffers.Empty();
-}
-
-void FSkeletalMeshStreamIn::FIntermediateBuffers::TransferBuffers(FSkeletalMeshLODRenderData& LODResource, FRHIResourceUpdateBatcher& Batcher)
+void FSkeletalMeshStreamIn::FIntermediateBuffers::TransferBuffers(FSkeletalMeshLODRenderData& LODResource, FRHIResourceReplaceBatcher& Batcher)
 {
 	FStaticMeshVertexBuffers& VBs = LODResource.StaticVertexBuffers;
 	VBs.StaticMeshVertexBuffer.InitRHIForStreaming(TangentsVertexBuffer, TexCoordVertexBuffer, Batcher);
@@ -102,24 +72,11 @@ void FSkeletalMeshStreamIn::FIntermediateBuffers::TransferBuffers(FSkeletalMeshL
 	LODResource.ClothVertexBuffer.InitRHIForStreaming(ClothVertexBuffer, Batcher);
 	LODResource.MultiSizeIndexContainer.InitRHIForStreaming(IndexBuffer, Batcher);
 	LODResource.SkinWeightProfilesData.InitRHIForStreaming(AltSkinWeightVertexBuffers, Batcher);
-	SafeRelease();
 }
 
-void FSkeletalMeshStreamIn::FIntermediateBuffers::CheckIsNull() const
-{
-	check(!TangentsVertexBuffer
-		&& !TexCoordVertexBuffer
-		&& !PositionVertexBuffer
-		&& !ColorVertexBuffer
-		&& !SkinWeightVertexBuffer.DataVertexBufferRHI
-		&& !SkinWeightVertexBuffer.LookupVertexBufferRHI
-		&& !ClothVertexBuffer
-		&& !IndexBuffer
-		&& !AltSkinWeightVertexBuffers.Num());
-}
-
-FSkeletalMeshStreamIn::FSkeletalMeshStreamIn(const USkeletalMesh* InMesh)
+FSkeletalMeshStreamIn::FSkeletalMeshStreamIn(const USkeletalMesh* InMesh, EThreadType CreateResourcesThread)
 	: FSkeletalMeshUpdate(InMesh)
+	, CreateResourcesThread(CreateResourcesThread)
 {
 	if (!ensure(PendingFirstLODIdx < CurrentFirstLODIdx))
 	{
@@ -129,55 +86,65 @@ FSkeletalMeshStreamIn::FSkeletalMeshStreamIn(const USkeletalMesh* InMesh)
 
 FSkeletalMeshStreamIn::~FSkeletalMeshStreamIn()
 {
-#if DO_CHECK
-	for (int32 Idx = 0; Idx < MAX_MESH_LOD_COUNT; ++Idx)
-	{
-		IntermediateBuffersArray[Idx].CheckIsNull();
-	}
-#endif
+	check(!StreamingRHICmdList);
 }
 
-template <bool bRenderThread>
-void FSkeletalMeshStreamIn::CreateBuffers_Internal(const FContext& Context)
+void FSkeletalMeshStreamIn::CreateBuffers(const FContext& Context)
 {
 	LLM_SCOPE(ELLMTag::SkeletalMesh);
 
-	const USkeletalMesh* Mesh = Context.Mesh;
-	FSkeletalMeshRenderData* RenderData = Context.RenderData;
-	if (!IsCancelled() && Mesh && RenderData)
+	check(Context.Mesh && Context.RenderData);
+
+	StreamingRHICmdList = new FRHICommandList();
+	StreamingRHICmdList->SwitchPipeline(ERHIPipeline::Graphics);
 	{
+		SCOPED_DRAW_EVENTF(*StreamingRHICmdList, SkeletalMesh_StreamIn, TEXT("SkeletalMesh - StreamIn: %s"), Context.Mesh->GetFName());
+
 		for (int32 LODIndex = PendingFirstLODIdx; LODIndex < CurrentFirstLODIdx; ++LODIndex)
 		{
 			FSkeletalMeshLODRenderData& LODResource = *Context.LODResourcesView[LODIndex];
+			IntermediateBuffersArray[LODIndex].CreateFromCPUData(*StreamingRHICmdList, LODResource);
+		}
 
-			if (bRenderThread)
+		// Use a scope to flush the batcher before updating CurrentFirstLODIdx
+		{
+			FRHIResourceReplaceBatcher Batcher(*StreamingRHICmdList, GSkelMeshMaxNumResourceUpdatesPerBatch);
+
+			for (int32 LODIndex = PendingFirstLODIdx; LODIndex < CurrentFirstLODIdx; ++LODIndex)
 			{
-				IntermediateBuffersArray[LODIndex].CreateFromCPUData_RenderThread(LODResource);
-			}
-			else
-			{
-				IntermediateBuffersArray[LODIndex].CreateFromCPUData_Async(LODResource);
+				FSkeletalMeshLODRenderData& LODResource = *Context.LODResourcesView[LODIndex];
+				LODResource.IncrementMemoryStats(Context.Mesh->GetHasVertexColors());
+				LODResource.InitMorphResources();
+				IntermediateBuffersArray[LODIndex].TransferBuffers(LODResource, Batcher);
 			}
 		}
+
+#if RHI_RAYTRACING
+		// Must happen after the batched updates have been flushed
+		if (IsRayTracingAllowed())
+		{
+			for (int32 LODIndex = PendingFirstLODIdx; LODIndex < CurrentFirstLODIdx; ++LODIndex)
+			{
+				// Skip LODs that have their render data stripped
+				if (Context.RenderData->LODRenderData[LODIndex].GetNumVertices() > 0)
+				{
+					if (Context.RenderData->LODRenderData[LODIndex].bReferencedByStaticSkeletalMeshObjects_RenderThread)
+					{
+						ensure(!Context.RenderData->LODRenderData[LODIndex].StaticRayTracingGeometry.IsInitialized());
+						Context.RenderData->LODRenderData[LODIndex].StaticRayTracingGeometry.InitResource(*StreamingRHICmdList);
+					}
+				}
+			}
+		}
+#endif
 	}
-}
 
-void FSkeletalMeshStreamIn::CreateBuffers_RenderThread(const FContext& Context)
-{
-	check(Context.CurrentThread == TT_Render);
-	CreateBuffers_Internal<true>(Context);
-}
-
-void FSkeletalMeshStreamIn::CreateBuffers_Async(const FContext& Context)
-{
-	check(Context.CurrentThread == TT_Async);
-	CreateBuffers_Internal<false>(Context);
+	StreamingRHICmdList->FinishRecording();
 }
 
 void FSkeletalMeshStreamIn::DiscardNewLODs(const FContext& Context)
 {
-	FSkeletalMeshRenderData* RenderData = Context.RenderData;
-	if (RenderData)
+	if (Context.RenderData)
 	{
 		for (int32 LODIndex = PendingFirstLODIdx; LODIndex < CurrentFirstLODIdx; ++LODIndex)
 		{
@@ -189,55 +156,17 @@ void FSkeletalMeshStreamIn::DiscardNewLODs(const FContext& Context)
 
 void FSkeletalMeshStreamIn::DoFinishUpdate(const FContext& Context)
 {
-	const USkeletalMesh* Mesh = Context.Mesh;
-	FSkeletalMeshRenderData* RenderData = Context.RenderData;
-	if (!IsCancelled() && Mesh && RenderData)
+	check(Context.CurrentThread == TT_Render);
+	check(IsInRenderingThread());
+
+	if (StreamingRHICmdList)
 	{
-		check(Context.CurrentThread == TT_Render);
-		// Use a scope to flush the batcher before updating CurrentFirstLODIdx
-		{
-			TRHIResourceUpdateBatcher<GSkelMeshMaxNumResourceUpdatesPerBatch> Batcher;
-
-			for (int32 LODIndex = PendingFirstLODIdx; LODIndex < CurrentFirstLODIdx; ++LODIndex)
-			{
-				FSkeletalMeshLODRenderData& LODResource = *Context.LODResourcesView[LODIndex];
-				LODResource.IncrementMemoryStats(Mesh->GetHasVertexColors());
-				LODResource.InitMorphResources();
-				IntermediateBuffersArray[LODIndex].TransferBuffers(LODResource, Batcher);
-			}
-		}
-
-#if RHI_RAYTRACING
-		FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
-
-		// Must happen after the batched updates have been flushed
-		if (IsRayTracingAllowed())
-		{
-			for (int32 LODIndex = PendingFirstLODIdx; LODIndex < CurrentFirstLODIdx; ++LODIndex)
-			{
-				// Skip LODs that have their render data stripped
-				if (RenderData->LODRenderData[LODIndex].GetNumVertices() > 0)
-				{
-					if (RenderData->LODRenderData[LODIndex].bReferencedByStaticSkeletalMeshObjects_RenderThread)
-					{
-						ensure(!RenderData->LODRenderData[LODIndex].StaticRayTracingGeometry.IsInitialized());
-						RenderData->LODRenderData[LODIndex].StaticRayTracingGeometry.InitResource(RHICmdList);
-					}
-				}
-			}
-		}
-#endif
-
-		RenderData->PendingFirstLODIdx = RenderData->CurrentFirstLODIdx = ResourceState.LODCountToAssetFirstLODIdx(ResourceState.NumRequestedLODs);
-		MarkAsSuccessfullyFinished();
+		FRHICommandListImmediate::Get().QueueAsyncCommandListSubmit(StreamingRHICmdList);
+		StreamingRHICmdList = nullptr;
 	}
-	else
-	{
-		for (int32 LODIndex = PendingFirstLODIdx; LODIndex < CurrentFirstLODIdx; ++LODIndex)
-		{
-			IntermediateBuffersArray[LODIndex].SafeRelease();
-		}
-	}
+
+	Context.RenderData->PendingFirstLODIdx = Context.RenderData->CurrentFirstLODIdx = ResourceState.LODCountToAssetFirstLODIdx(ResourceState.NumRequestedLODs);
+	MarkAsSuccessfullyFinished();
 }
 
 void FSkeletalMeshStreamIn::DoCancel(const FContext& Context)
@@ -247,7 +176,9 @@ void FSkeletalMeshStreamIn::DoCancel(const FContext& Context)
 	{
 		DiscardNewLODs(Context);
 	}
-	DoFinishUpdate(Context);
+
+	check(!StreamingRHICmdList);
+	MarkAsSuccessfullyFinished();
 }
 
 FSkeletalMeshStreamOut::FSkeletalMeshStreamOut(const USkeletalMesh* InMesh)
@@ -343,42 +274,47 @@ void FSkeletalMeshStreamOut::ReleaseBuffers(const FContext& Context)
 {
 	DECLARE_SCOPE_CYCLE_COUNTER(TEXT("FSkeletalMeshStreamOut::ReleaseBuffers"), STAT_SkeletalMeshStreamOut_ReleaseBuffers, STATGROUP_StreamingDetails);
 	check(Context.CurrentThread == TT_Render);
+	check(IsInRenderingThread());
+
 	const USkeletalMesh* Mesh = Context.Mesh;
 	FSkeletalMeshRenderData* RenderData = Context.RenderData;
 	if (!IsCancelled() && Mesh && RenderData)
 	{
 		RenderData->CurrentFirstLODIdx = Context.RenderData->PendingFirstLODIdx;
 
-		TRHIResourceUpdateBatcher<GSkelMeshMaxNumResourceUpdatesPerBatch> Batcher;
-
-		for (int32 LODIndex = CurrentFirstLODIdx; LODIndex < PendingFirstLODIdx; ++LODIndex)
 		{
-			FSkeletalMeshLODRenderData& LODResource = *Context.LODResourcesView[LODIndex];
-			FStaticMeshVertexBuffers& VBs = LODResource.StaticVertexBuffers;
-			LODResource.DecrementMemoryStats();
-			VBs.StaticMeshVertexBuffer.ReleaseRHIForStreaming(Batcher);
-			VBs.PositionVertexBuffer.ReleaseRHIForStreaming(Batcher);
-			VBs.ColorVertexBuffer.ReleaseRHIForStreaming(Batcher);
-			LODResource.SkinWeightVertexBuffer.ReleaseRHIForStreaming(Batcher);
-			LODResource.ClothVertexBuffer.ReleaseRHIForStreaming(Batcher);
-			LODResource.MultiSizeIndexContainer.ReleaseRHIForStreaming(Batcher);
-			LODResource.SkinWeightProfilesData.ReleaseRHIForStreaming(Batcher);
+			FRHIResourceReplaceBatcher Batcher(FRHICommandListImmediate::Get(), GSkelMeshMaxNumResourceUpdatesPerBatch);
 
-			if (!FPlatformProperties::HasEditorOnlyData())
+			for (int32 LODIndex = CurrentFirstLODIdx; LODIndex < PendingFirstLODIdx; ++LODIndex)
 			{
-				// TODO requires more testing : LODResource.ReleaseCPUResources(true);
-			}
+				FSkeletalMeshLODRenderData& LODResource = *Context.LODResourcesView[LODIndex];
+				FStaticMeshVertexBuffers& VBs = LODResource.StaticVertexBuffers;
+				LODResource.DecrementMemoryStats();
+				VBs.StaticMeshVertexBuffer.ReleaseRHIForStreaming(Batcher);
+				VBs.PositionVertexBuffer.ReleaseRHIForStreaming(Batcher);
+				VBs.ColorVertexBuffer.ReleaseRHIForStreaming(Batcher);
+				LODResource.SkinWeightVertexBuffer.ReleaseRHIForStreaming(Batcher);
+				LODResource.ClothVertexBuffer.ReleaseRHIForStreaming(Batcher);
+				LODResource.MultiSizeIndexContainer.ReleaseRHIForStreaming(Batcher);
+				LODResource.SkinWeightProfilesData.ReleaseRHIForStreaming(Batcher);
+
+				if (!FPlatformProperties::HasEditorOnlyData())
+				{
+					// TODO requires more testing : LODResource.ReleaseCPUResources(true);
+				}
 
 #if RHI_RAYTRACING
-			if (IsRayTracingAllowed())
-			{
-				if (RenderData->LODRenderData[LODIndex].bReferencedByStaticSkeletalMeshObjects_RenderThread)
+				if (IsRayTracingAllowed())
 				{
-					LODResource.StaticRayTracingGeometry.ReleaseResource();
+					if (RenderData->LODRenderData[LODIndex].bReferencedByStaticSkeletalMeshObjects_RenderThread)
+					{
+						LODResource.StaticRayTracingGeometry.ReleaseResource();
+					}
 				}
-			}
 #endif
+			}
 		}
+
 		MarkAsSuccessfullyFinished();
 	}
 }
@@ -402,11 +338,6 @@ void FSkeletalMeshStreamIn_IO::FCancelIORequestsTask::DoWork()
 	PendingUpdate->CancelIORequest();
 	PendingUpdate->DoUnlock(OldState);
 }
-
-FSkeletalMeshStreamIn_IO::FSkeletalMeshStreamIn_IO(const USkeletalMesh* InMesh, bool bHighPrio)
-	: FSkeletalMeshStreamIn(InMesh)
-	, bHighPrioIORequest(bHighPrio)
-{}
 
 void FSkeletalMeshStreamIn_IO::Abort()
 {
@@ -591,15 +522,14 @@ void FSkeletalMeshStreamIn_IO::CancelIORequest()
 	}
 }
 
-template <bool bRenderThread>
-TSkeletalMeshStreamIn_IO<bRenderThread>::TSkeletalMeshStreamIn_IO(const USkeletalMesh* InMesh, bool bHighPrio)
-	: FSkeletalMeshStreamIn_IO(InMesh, bHighPrio)
+FSkeletalMeshStreamIn_IO::FSkeletalMeshStreamIn_IO(const USkeletalMesh* InMesh, bool bHighPrio, EThreadType CreateResourcesThread)
+	: FSkeletalMeshStreamIn(InMesh, CreateResourcesThread)
+	, bHighPrioIORequest(bHighPrio)
 {
 	PushTask(FContext(InMesh, TT_None), TT_Async, SRA_UPDATE_CALLBACK(DoInitiateIO), TT_None, nullptr);
 }
 
-template <bool bRenderThread>
-void TSkeletalMeshStreamIn_IO<bRenderThread>::DoInitiateIO(const FContext& Context)
+void FSkeletalMeshStreamIn_IO::DoInitiateIO(const FContext& Context)
 {
 	check(Context.CurrentThread == TT_Async);
 
@@ -608,46 +538,37 @@ void TSkeletalMeshStreamIn_IO<bRenderThread>::DoInitiateIO(const FContext& Conte
 	PushTask(Context, TT_Async, SRA_UPDATE_CALLBACK(DoSerializeLODData), TT_Async, SRA_UPDATE_CALLBACK(DoCancelIO));
 }
 
-template <bool bRenderThread>
-void TSkeletalMeshStreamIn_IO<bRenderThread>::DoSerializeLODData(const FContext& Context)
+void FSkeletalMeshStreamIn_IO::DoSerializeLODData(const FContext& Context)
 {
 	check(Context.CurrentThread == TT_Async);
 	SerializeLODData(Context);
 	ClearIORequest(Context);
-	const EThreadType TThread = bRenderThread ? TT_Render : TT_Async;
-	const EThreadType CThread = (EThreadType)Context.CurrentThread;
-	PushTask(Context, TThread, SRA_UPDATE_CALLBACK(DoCreateBuffers), CThread, SRA_UPDATE_CALLBACK(Cancel));
+
+	PushTask(Context
+		, CreateResourcesThread, SRA_UPDATE_CALLBACK(DoCreateBuffers)
+		, (EThreadType)Context.CurrentThread, SRA_UPDATE_CALLBACK(Cancel));
 }
 
-template <bool bRenderThread>
-void TSkeletalMeshStreamIn_IO<bRenderThread>::DoCreateBuffers(const FContext& Context)
+void FSkeletalMeshStreamIn_IO::DoCreateBuffers(const FContext& Context)
 {
-	if (bRenderThread)
-	{
-		CreateBuffers_RenderThread(Context);
-	}
-	else
-	{
-		CreateBuffers_Async(Context);
-	}
+	CreateBuffers(Context);
+
 	check(!TaskSynchronization.GetValue());
-	PushTask(Context, TT_Render, SRA_UPDATE_CALLBACK(DoFinishUpdate), (EThreadType)Context.CurrentThread, SRA_UPDATE_CALLBACK(Cancel));
+	PushTask(Context, TT_Render, SRA_UPDATE_CALLBACK(DoFinishUpdate), TT_None, nullptr);
 }
 
-template <bool bRenderThread>
-void TSkeletalMeshStreamIn_IO<bRenderThread>::DoCancelIO(const FContext& Context)
+void FSkeletalMeshStreamIn_IO::DoCancelIO(const FContext& Context)
 {
 	ClearIORequest(Context);
 	PushTask(Context, TT_None, nullptr, (EThreadType)Context.CurrentThread, SRA_UPDATE_CALLBACK(Cancel));
 }
 
-template class TSkeletalMeshStreamIn_IO<true>;
-template class TSkeletalMeshStreamIn_IO<false>;
-
 #if WITH_EDITOR
-FSkeletalMeshStreamIn_DDC::FSkeletalMeshStreamIn_DDC(const USkeletalMesh* InMesh)
-	: FSkeletalMeshStreamIn(InMesh)
-{}
+FSkeletalMeshStreamIn_DDC::FSkeletalMeshStreamIn_DDC(const USkeletalMesh* InMesh, EThreadType CreateResourcesThread)
+	: FSkeletalMeshStreamIn(InMesh, CreateResourcesThread)
+{
+	PushTask(FContext(InMesh, TT_None), TT_Async, SRA_UPDATE_CALLBACK(DoLoadNewLODsFromDDC), TT_None, nullptr);
+}
 
 void FSkeletalMeshStreamIn_DDC::LoadNewLODsFromDDC(const FContext& Context)
 {
@@ -655,38 +576,21 @@ void FSkeletalMeshStreamIn_DDC::LoadNewLODsFromDDC(const FContext& Context)
 	// TODO: support streaming CPU data for editor builds
 }
 
-template <bool bRenderThread>
-TSkeletalMeshStreamIn_DDC<bRenderThread>::TSkeletalMeshStreamIn_DDC(const USkeletalMesh* InMesh)
-	: FSkeletalMeshStreamIn_DDC(InMesh)
-{
-	PushTask(FContext(InMesh, TT_None), TT_Async, SRA_UPDATE_CALLBACK(DoLoadNewLODsFromDDC), TT_None, nullptr);
-}
-
-template <bool bRenderThread>
-void TSkeletalMeshStreamIn_DDC<bRenderThread>::DoLoadNewLODsFromDDC(const FContext& Context)
+void FSkeletalMeshStreamIn_DDC::DoLoadNewLODsFromDDC(const FContext& Context)
 {
 	LoadNewLODsFromDDC(Context);
 	check(!TaskSynchronization.GetValue());
-	const EThreadType TThread = bRenderThread ? TT_Render : TT_Async;
-	const EThreadType CThread = (EThreadType)Context.CurrentThread;
-	PushTask(Context, TThread, SRA_UPDATE_CALLBACK(DoCreateBuffers), CThread, SRA_UPDATE_CALLBACK(DoCancel));
+
+	PushTask(Context
+		, CreateResourcesThread, SRA_UPDATE_CALLBACK(DoCreateBuffers)
+		, (EThreadType)Context.CurrentThread, SRA_UPDATE_CALLBACK(DoCancel));
 }
 
-template <bool bRenderThread>
-void TSkeletalMeshStreamIn_DDC<bRenderThread>::DoCreateBuffers(const FContext& Context)
+void FSkeletalMeshStreamIn_DDC::DoCreateBuffers(const FContext& Context)
 {
-	if (bRenderThread)
-	{
-		CreateBuffers_RenderThread(Context);
-	}
-	else
-	{
-		CreateBuffers_Async(Context);
-	}
+	CreateBuffers(Context);
+	
 	check(!TaskSynchronization.GetValue());
-	PushTask(Context, TT_Render, SRA_UPDATE_CALLBACK(DoFinishUpdate), (EThreadType)Context.CurrentThread, SRA_UPDATE_CALLBACK(DoCancel));
+	PushTask(Context, TT_Render, SRA_UPDATE_CALLBACK(DoFinishUpdate), TT_None, nullptr);
 }
-
-template class TSkeletalMeshStreamIn_DDC<true>;
-template class TSkeletalMeshStreamIn_DDC<false>;
 #endif

@@ -13,8 +13,6 @@
 #define INTERNAL_DECORATOR_COMPUTE(Method) CmdList.GetComputeContext().Method
 #endif
 
-#include "RHIResourceUpdates.h"
-
 class FRHICommandListBase;
 class IRHIComputeContext;
 struct FComputedBSS;
@@ -547,69 +545,6 @@ void FRHICommandSetRayTracingBindings::Execute(FRHICommandListBase& CmdList)
 }
 
 #endif // RHI_RAYTRACING
-
-void FRHIResourceUpdateInfo::ReleaseRefs()
-{
-	switch (Type)
-	{
-	case UT_Buffer:
-		Buffer.DestBuffer->Release();
-		if (Buffer.SrcBuffer)
-		{
-			Buffer.SrcBuffer->Release();
-		}
-		break;
-	case UT_RayTracingGeometry:
-		RayTracingGeometry.DestGeometry->Release();
-		if (RayTracingGeometry.SrcGeometry)
-		{
-			RayTracingGeometry.SrcGeometry->Release();
-		}
-	default:
-		// Unrecognized type, do nothing
-		break;
-	}
-}
-
-FRHICommandUpdateRHIResources::~FRHICommandUpdateRHIResources()
-{
-	if (bNeedReleaseRefs)
-	{
-		for (int32 Idx = 0; Idx < Num; ++Idx)
-		{
-			UpdateInfos[Idx].ReleaseRefs();
-		}
-	}
-}
-
-void FRHICommandUpdateRHIResources::Execute(FRHICommandListBase& CmdList)
-{
-	RHISTAT(UpdateRHIResources);
-	for (int32 Idx = 0; Idx < Num; ++Idx)
-	{
-		FRHIResourceUpdateInfo& Info = UpdateInfos[Idx];
-		switch (Info.Type)
-		{
-		case FRHIResourceUpdateInfo::UT_Buffer:
-			GDynamicRHI->RHITransferBufferUnderlyingResource(
-				CmdList,
-				Info.Buffer.DestBuffer,
-				Info.Buffer.SrcBuffer);
-			break;
-#if RHI_RAYTRACING
-		case FRHIResourceUpdateInfo::UT_RayTracingGeometry:
-			GDynamicRHI->RHITransferRayTracingGeometryUnderlyingResource(
-				CmdList,
-				Info.RayTracingGeometry.DestGeometry,
-				Info.RayTracingGeometry.SrcGeometry);
-			break;
-#endif // RHI_RAYTRACING
-		default:
-			// Unrecognized type, do nothing
-			break;
-		}
-	}
-}
 
 void FRHICommandBeginScene::Execute(FRHICommandListBase& CmdList)
 {

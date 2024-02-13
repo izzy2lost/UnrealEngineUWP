@@ -106,15 +106,9 @@ public:
 	/** Create an RHI vertex buffer with CPU data. CPU data may be discarded after creation (see TResourceArray::Discard) */
 	FBufferRHIRef CreateRHIBuffer(FRHICommandListBase& RHICmdList);
 
-	UE_DEPRECATED(5.4, "Use CreateRHIBuffer instead.")
-	FBufferRHIRef CreateRHIBuffer_RenderThread();
-
-	UE_DEPRECATED(5.4, "Use CreateRHIBuffer instead.")
-	FBufferRHIRef CreateRHIBuffer_Async();
-
 	/** Similar to Init/ReleaseRHI but only update existing SRV so references to the SRV stays valid */
-	void InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, FRHIResourceUpdateBatcher& Batcher);
-	void ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batcher);
+	void InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, FRHIResourceReplaceBatcher& Batcher);
+	void ReleaseRHIForStreaming(FRHIResourceReplaceBatcher& Batcher);
 
 	// FRenderResource interface.
 	ENGINE_API virtual void InitRHI(FRHICommandListBase& RHICmdList) override;

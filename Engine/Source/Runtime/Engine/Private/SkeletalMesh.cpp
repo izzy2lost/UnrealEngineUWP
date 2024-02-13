@@ -1100,30 +1100,20 @@ bool USkeletalMesh::StreamIn(int32 NewMipCount, bool bHighPrio)
 	check(IsInGameThread());
 	if (!HasPendingInitOrStreaming() && CachedSRRState.StreamIn(NewMipCount))
 	{
+		FRenderAssetUpdate::EThreadType CreateResourcesThread = GRHISupportsAsyncTextureCreation
+			? FRenderAssetUpdate::TT_Async
+			: FRenderAssetUpdate::TT_Render;
+
 #if WITH_EDITOR
 		// If editor data is available for the current platform, and the package isn't actually cooked.
 		if (FPlatformProperties::HasEditorOnlyData() && !GetOutermost()->bIsCookedForEditor)
 		{
-			if (GRHISupportsAsyncTextureCreation)
-			{
-				PendingUpdate = new FSkeletalMeshStreamIn_DDC_Async(this);
-			}
-			else
-			{
-				PendingUpdate = new FSkeletalMeshStreamIn_DDC_RenderThread(this);
-			}
+			PendingUpdate = new FSkeletalMeshStreamIn_DDC(this, CreateResourcesThread);
 		}
 		else
 #endif
 		{
-			if (GRHISupportsAsyncTextureCreation)
-			{
-				PendingUpdate = new FSkeletalMeshStreamIn_IO_Async(this, bHighPrio);
-			}
-			else
-			{
-				PendingUpdate = new FSkeletalMeshStreamIn_IO_RenderThread(this, bHighPrio);
-			}
+			PendingUpdate = new FSkeletalMeshStreamIn_IO(this, bHighPrio, CreateResourcesThread);
 		}
 		return !PendingUpdate->IsCancelled();
 	}

@@ -440,18 +440,9 @@ public:
 	FBufferRHIRef CreateTangentsRHIBuffer(FRHICommandListBase& RHICmdList);
 	FBufferRHIRef CreateTexCoordRHIBuffer(FRHICommandListBase& RHICmdList);
 
-	UE_DEPRECATED(5.4, "Use CreateTangentsRHIBuffer instead.")
-	FBufferRHIRef CreateTangentsRHIBuffer_RenderThread();
-	UE_DEPRECATED(5.4, "Use CreateTangentsRHIBuffer instead.")
-	FBufferRHIRef CreateTangentsRHIBuffer_Async();
-	UE_DEPRECATED(5.4, "Use CreateTexCoordRHIBuffer instead.")
-	FBufferRHIRef CreateTexCoordRHIBuffer_RenderThread();
-	UE_DEPRECATED(5.4, "Use CreateTexCoordRHIBuffer instead.")
-	FBufferRHIRef CreateTexCoordRHIBuffer_Async();
-
 	/** Similar to Init/ReleaseRHI but only update existing SRV so references to the SRV stays valid */
-	void InitRHIForStreaming(FRHIBuffer* IntermediateTangentsBuffer, FRHIBuffer* IntermediateTexCoordBuffer, FRHIResourceUpdateBatcher& Batcher);
-	void ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batcher);
+	void InitRHIForStreaming(FRHIBuffer* IntermediateTangentsBuffer, FRHIBuffer* IntermediateTexCoordBuffer, FRHIResourceReplaceBatcher& Batcher);
+	void ReleaseRHIForStreaming(FRHIResourceReplaceBatcher& Batcher);
 
 	// FRenderResource interface.
 	ENGINE_API virtual void InitRHI(FRHICommandListBase& RHICmdList) override;

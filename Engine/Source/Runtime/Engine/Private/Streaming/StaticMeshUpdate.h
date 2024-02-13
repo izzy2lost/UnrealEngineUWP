@@ -68,7 +68,7 @@ protected:
 class FStaticMeshStreamIn : public FStaticMeshUpdate
 {
 public:
-	FStaticMeshStreamIn(const UStaticMesh* InMesh);
+	FStaticMeshStreamIn(const UStaticMesh* InMesh, EThreadType CreateResourcesThread);
 
 	virtual ~FStaticMeshStreamIn();
 
@@ -86,15 +86,10 @@ protected:
 		FBufferRHIRef ReversedDepthOnlyIndexBuffer;
 		FBufferRHIRef WireframeIndexBuffer;
 
-		void CreateFromCPUData_RenderThread(FStaticMeshLODResources& LODResource);
-		void CreateFromCPUData_Async(FStaticMeshLODResources& LODResource);
-
-		void SafeRelease();
+		void CreateFromCPUData(FRHICommandListBase& RHICmdList, FStaticMeshLODResources& LODResource);
 
 		/** Transfer ownership of buffers to a LOD resource */
-		void TransferBuffers(FStaticMeshLODResources& LODResource, FRHIResourceUpdateBatcher& Batcher);
-
-		void CheckIsNull() const;
+		void TransferBuffers(FStaticMeshLODResources& LODResource, FRHIResourceReplaceBatcher& Batcher);
 	};
 
 #if RHI_RAYTRACING
@@ -106,17 +101,16 @@ protected:
 		bool bRequiresBuild = false;
 
 	public:
-		void CreateFromCPUData(FRHICommandList& RHICmdList, FRayTracingGeometry& RayTracingGeometry);
+		void CreateFromCPUData(FRHICommandListBase& RHICmdList, FRayTracingGeometry& RayTracingGeometry);
 
 		void SafeRelease();
 
-		void TransferRayTracingGeometry(FRayTracingGeometry& RayTracingGeometry, FRHIResourceUpdateBatcher& Batcher);
+		void TransferRayTracingGeometry(FRayTracingGeometry& RayTracingGeometry, FRHIResourceReplaceBatcher& Batcher);
 	};
 #endif
 
-	/** Create buffers with new LOD data on render or pooled thread */
-	void CreateBuffers_RenderThread(const FContext& Context);
-	void CreateBuffers_Async(const FContext& Context);
+	/** Create buffers with new LOD data */
+	void CreateBuffers(const FContext& Context);
 
 	/** Discard newly streamed-in CPU data */
 	void DiscardNewLODs(const FContext& Context);
@@ -134,9 +128,11 @@ protected:
 	FIntermediateRayTracingGeometry IntermediateRayTracingGeometry[MAX_MESH_LOD_COUNT];
 #endif
 
-private:
-	template <bool bRenderThread>
-	void CreateBuffers_Internal(const FContext& Context);
+	/** RHI command list used for creating buffers and replacing the streaming placeholders. Submitted in DoFinishUpdate */
+	FRHICommandList* StreamingRHICmdList = nullptr;
+
+	/** The thread to use for recording the above command list */
+	const EThreadType CreateResourcesThread;
 };
 
 /** A streamout that doesn't actually touches the CPU data. Required because DDC stream in doesn't reset. */
@@ -160,7 +156,7 @@ private:
 class FStaticMeshStreamIn_IO : public FStaticMeshStreamIn
 {
 public:
-	FStaticMeshStreamIn_IO(const UStaticMesh* InMesh, bool bHighPrio);
+	FStaticMeshStreamIn_IO(const UStaticMesh* InMesh, bool bHighPrio, EThreadType CreateResourcesThread);
 
 	virtual ~FStaticMeshStreamIn_IO() {}
 
@@ -216,17 +212,7 @@ protected:
 
 	// Whether an IO error was detected (when files do not exists).
 	bool bFailedOnIOError = false;
-};
 
-template <bool bRenderThread>
-class TStaticMeshStreamIn_IO : public FStaticMeshStreamIn_IO
-{
-public:
-	TStaticMeshStreamIn_IO(const UStaticMesh* InMesh, bool bHighPrio);
-
-	virtual ~TStaticMeshStreamIn_IO() {}
-
-protected:
 	void DoInitiateIO(const FContext& Context);
 
 	void DoSerializeLODData(const FContext& Context);
@@ -236,28 +222,16 @@ protected:
 	void DoCancelIO(const FContext& Context);
 };
 
-typedef TStaticMeshStreamIn_IO<true> FStaticMeshStreamIn_IO_RenderThread;
-typedef TStaticMeshStreamIn_IO<false> FStaticMeshStreamIn_IO_Async;
-
 #if WITH_EDITOR
 class FStaticMeshStreamIn_DDC : public FStaticMeshStreamIn
 {
 public:
-	FStaticMeshStreamIn_DDC(const UStaticMesh* InMesh);
+	FStaticMeshStreamIn_DDC(const UStaticMesh* InMesh, EThreadType CreateResourcesThread);
 
 	virtual ~FStaticMeshStreamIn_DDC() {}
 
 protected:
 	void LoadNewLODsFromDDC(const FContext& Context);
-};
-
-template <bool bRenderThread>
-class TStaticMeshStreamIn_DDC : public FStaticMeshStreamIn_DDC
-{
-public:
-	TStaticMeshStreamIn_DDC(const UStaticMesh* InMesh);
-
-	virtual ~TStaticMeshStreamIn_DDC() {}
 
 private:
 	/** Load new LOD buffers from DDC and queue a task to create RHI buffers on RT */
@@ -266,7 +240,4 @@ private:
 	/** Create RHI buffers for newly streamed-in LODs and queue a task to rename references on RT */
 	void DoCreateBuffers(const FContext& Context);
 };
-
-typedef TStaticMeshStreamIn_DDC<true> FStaticMeshStreamIn_DDC_RenderThread;
-typedef TStaticMeshStreamIn_DDC<false> FStaticMeshStreamIn_DDC_Async;
 #endif

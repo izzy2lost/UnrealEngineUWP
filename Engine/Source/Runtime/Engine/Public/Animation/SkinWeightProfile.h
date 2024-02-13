@@ -165,13 +165,8 @@ struct FSkinWeightProfilesData
 
 	ENGINE_API void CreateRHIBuffers(FRHICommandListBase& RHICmdList, TArray<TPair<FName, FSkinWeightRHIInfo>>& OutBuffers);
 
-	UE_DEPRECATED(5.4, "Use CreateRHIBuffers instead.")
-	ENGINE_API void CreateRHIBuffers_RenderThread(TArray<TPair<FName, FSkinWeightRHIInfo>>& OutBuffers);
-	UE_DEPRECATED(5.4, "Use CreateRHIBuffers instead.")
-	ENGINE_API void CreateRHIBuffers_Async(TArray<TPair<FName, FSkinWeightRHIInfo>>& OutBuffers);
-
-	ENGINE_API void InitRHIForStreaming(const TArray<TPair<FName, FSkinWeightRHIInfo>>& IntermediateBuffers, FRHIResourceUpdateBatcher& Batcher);
-	ENGINE_API void ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batcher);
+	ENGINE_API void InitRHIForStreaming(const TArray<TPair<FName, FSkinWeightRHIInfo>>& IntermediateBuffers, FRHIResourceReplaceBatcher& Batcher);
+	ENGINE_API void ReleaseRHIForStreaming(FRHIResourceReplaceBatcher& Batcher);
 
 	ENGINE_API bool IsPendingReadback() const;
 	ENGINE_API void EnqueueGPUReadback();

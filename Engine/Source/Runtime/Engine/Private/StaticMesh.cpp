@@ -7303,30 +7303,19 @@ bool UStaticMesh::StreamIn(int32 NewMipCount, bool bHighPrio)
 	check(IsInGameThread());
 	if (!HasPendingInitOrStreaming() && CachedSRRState.StreamIn(NewMipCount))
 	{
+		FRenderAssetUpdate::EThreadType CreateResourcesThread = GRHISupportsAsyncTextureCreation
+			? FRenderAssetUpdate::TT_Async
+			: FRenderAssetUpdate::TT_Render;
+
 #if WITH_EDITOR
 		if (FPlatformProperties::HasEditorOnlyData())
 		{
-			if (GRHISupportsAsyncTextureCreation)
-			{
-				PendingUpdate = new FStaticMeshStreamIn_DDC_Async(this);
-			}
-			else
-			{
-				PendingUpdate = new FStaticMeshStreamIn_DDC_RenderThread(this);
-			}
+			PendingUpdate = new FStaticMeshStreamIn_DDC(this, CreateResourcesThread);
 		}
 		else
 #endif
 		{
-			// When not using threaded rendering, rendercommands get executed on async thread which create issues on some RHI. See EnqueueUniqueRenderCommand() and IsInRenderingThread().
-			if (GRHISupportsAsyncTextureCreation && GIsThreadedRendering)
-			{
-				PendingUpdate = new FStaticMeshStreamIn_IO_Async(this, bHighPrio);
-			}
-			else
-			{
-				PendingUpdate = new FStaticMeshStreamIn_IO_RenderThread(this, bHighPrio);
-			}
+			PendingUpdate = new FStaticMeshStreamIn_IO(this, bHighPrio, CreateResourcesThread);
 		}
 		return !PendingUpdate->IsCancelled();
 	}

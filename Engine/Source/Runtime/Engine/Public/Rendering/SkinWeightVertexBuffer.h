@@ -140,14 +140,9 @@ public:
 	/** Create an RHI vertex buffer with CPU data. CPU data may be discarded after creation (see TResourceArray::Discard) */
 	FBufferRHIRef CreateRHIBuffer(FRHICommandListBase& RHICmdList);
 
-	UE_DEPRECATED(5.4, "Use CreateRHIBuffer instead.")
-	FBufferRHIRef CreateRHIBuffer_RenderThread();
-	UE_DEPRECATED(5.4, "Use CreateRHIBuffer instead.")
-	FBufferRHIRef CreateRHIBuffer_Async();
-
 	/** Similar to Init/ReleaseRHI but only update existing SRV so references to the SRV stays valid */
-	void InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, FRHIResourceUpdateBatcher& Batcher);
-	void ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batcher);
+	void InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, FRHIResourceReplaceBatcher& Batcher);
+	void ReleaseRHIForStreaming(FRHIResourceReplaceBatcher& Batcher);
 
 	void GetWeightOffsetAndInfluenceCount(uint32 VertexIndex, uint32& OutWeightOffset, uint32& OutInfluenceCount) const;
 	void SetWeightOffsetAndInfluenceCount(uint32 VertexIndex, uint32 WeightOffset, uint32 InfluenceCount);
@@ -303,14 +298,9 @@ public:
 	/** Create an RHI vertex buffer with CPU data. CPU data may be discarded after creation (see TResourceArray::Discard) */
 	FBufferRHIRef CreateRHIBuffer(FRHICommandListBase& RHICmdList);
 
-	UE_DEPRECATED(5.4, "Use CreateRHIBuffer instead.")
-	FBufferRHIRef CreateRHIBuffer_RenderThread();
-	UE_DEPRECATED(5.4, "Use CreateRHIBuffer instead.")
-	FBufferRHIRef CreateRHIBuffer_Async();
-
 	/** Similar to Init/ReleaseRHI but only update existing SRV so references to the SRV stays valid */
-	void InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, FRHIResourceUpdateBatcher& Batcher);
-	void ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batcher);
+	void InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, FRHIResourceReplaceBatcher& Batcher);
+	void ReleaseRHIForStreaming(FRHIResourceReplaceBatcher& Batcher);
 
 	bool IsWeightDataValid() const;
 
@@ -467,11 +457,6 @@ public:
 
 	FSkinWeightRHIInfo CreateRHIBuffer(FRHICommandListBase& RHICmdList);
 
-	UE_DEPRECATED(5.4, "Use CreateRHIBuffer instead.")
-	FSkinWeightRHIInfo CreateRHIBuffer_RenderThread();
-	UE_DEPRECATED(5.4, "Use CreateRHIBuffer instead.")
-	FSkinWeightRHIInfo CreateRHIBuffer_Async();
-
 	ENGINE_API GPUSkinBoneInfluenceType GetBoneInfluenceType() const;
 	ENGINE_API void GetVertexInfluenceOffsetCount(uint32 VertexIndex, uint32& VertexWeightOffset, uint32& VertexInfluenceCount) const;
 	ENGINE_API bool GetRigidWeightBone(uint32 VertexIndex, int32& OutBoneIndex) const;
@@ -492,13 +477,13 @@ public:
 	ENGINE_API void ReleaseResources();
 
 	/** Similar to Init/ReleaseRHI but only update existing SRV so references to the SRV stays valid */
-	void InitRHIForStreaming(const FSkinWeightRHIInfo& RHIInfo, FRHIResourceUpdateBatcher& Batcher)
+	void InitRHIForStreaming(const FSkinWeightRHIInfo& RHIInfo, FRHIResourceReplaceBatcher& Batcher)
 	{
 		DataVertexBuffer.InitRHIForStreaming(RHIInfo.DataVertexBufferRHI, Batcher);
 		LookupVertexBuffer.InitRHIForStreaming(RHIInfo.LookupVertexBufferRHI, Batcher);
 	}
 
-	void ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batcher)
+	void ReleaseRHIForStreaming(FRHIResourceReplaceBatcher& Batcher)
 	{
 		DataVertexBuffer.ReleaseRHIForStreaming(Batcher);
 		LookupVertexBuffer.ReleaseRHIForStreaming(Batcher);
