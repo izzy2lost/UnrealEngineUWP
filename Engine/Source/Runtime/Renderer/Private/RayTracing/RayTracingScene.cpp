@@ -348,9 +348,47 @@ uint32 FRayTracingScene::AddInstance(FRayTracingGeometryInstance Instance, const
 		{
 			InstanceDebugData.ProxyHash = Proxy->GetTypeHash();
 		}
+
+		check(Instances.Num() == InstancesDebugData.Num());
 	}
 
 	return InstanceIndex;
+}
+
+uint32 FRayTracingScene::AddInstancesUninitialized(uint32 NumInstances)
+{
+	const uint32 OldNum = Instances.AddUninitialized(NumInstances);
+
+	if (bInstanceDebugDataEnabled)
+	{
+		InstancesDebugData.AddUninitialized(NumInstances);
+
+		check(Instances.Num() == InstancesDebugData.Num());
+	}
+
+	return OldNum;
+}
+
+void FRayTracingScene::SetInstance(uint32 InstanceIndex, FRayTracingGeometryInstance InInstance, const FPrimitiveSceneProxy* Proxy, bool bDynamic)
+{
+	FRHIRayTracingGeometry* GeometryRHI = InInstance.GeometryRHI;
+
+	FRayTracingGeometryInstance* Instance = &Instances[InstanceIndex];
+	new (Instance) FRayTracingGeometryInstance(MoveTemp(InInstance));
+
+	if (bInstanceDebugDataEnabled)
+	{
+		FRayTracingInstanceDebugData InstanceDebugData;
+		InstanceDebugData.Flags = bDynamic ? 1 : 0;
+		InstanceDebugData.GeometryAddress = uint64(GeometryRHI);
+
+		if (Proxy)
+		{
+			InstanceDebugData.ProxyHash = Proxy->GetTypeHash();
+		}
+
+		InstancesDebugData[InstanceIndex] = InstanceDebugData;
+	}
 }
 
 void FRayTracingScene::Reset(bool bInInstanceDebugDataEnabled)

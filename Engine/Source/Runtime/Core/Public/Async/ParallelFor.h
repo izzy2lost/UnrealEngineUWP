@@ -666,6 +666,7 @@ inline void ParallelForWithPreWorkWithExistingTaskContext(
 	*   "workspace" that can be mutated without need for synchronization primitives. For this variant, the user provides a
 	* 	callable to construct each context element.
 	*	@param OutContexts; Array that will hold the user-defined, task-level context objects (allocated per parallel task)
+	*   @param DebugName; ProfilingScope and Debugname
 	*	@param Num; number of calls of Body; Body(0), Body(1)....Body(Num - 1)
 	* 	@param ContextConstructor; Function to call to initialize each task context allocated for the operation
 	*	@param Body; Function to call from multiple threads
@@ -673,7 +674,7 @@ inline void ParallelForWithPreWorkWithExistingTaskContext(
 	*	Notes: Please add stats around to calls to parallel for and within your lambda as appropriate. Do not clog the task graph with long running tasks or tasks that block.
 **/
 template <typename ContextType, typename ContextAllocatorType, typename ContextConstructorType, typename FunctionType>
-inline void ParallelForWithTaskContext(TArray<ContextType, ContextAllocatorType>& OutContexts, int32 Num, const ContextConstructorType& ContextConstructor, const FunctionType& Body, EParallelForFlags Flags = EParallelForFlags::None)
+inline void ParallelForWithTaskContext(const TCHAR* DebugName, TArray<ContextType, ContextAllocatorType>& OutContexts, int32 Num, const ContextConstructorType& ContextConstructor, const FunctionType& Body, EParallelForFlags Flags = EParallelForFlags::None)
 {
 	if (Num > 0)
 	{
@@ -684,8 +685,26 @@ inline void ParallelForWithTaskContext(TArray<ContextType, ContextAllocatorType>
 		{
 			new(&OutContexts[ContextIndex]) ContextType(ContextConstructor(ContextIndex, NumContexts));
 		}
-		ParallelForImpl::ParallelForInternal(TEXT("ParallelFor Task"), Num, 1, Body, [](){}, Flags, TArrayView<ContextType>(OutContexts));
+		ParallelForImpl::ParallelForInternal(DebugName, Num, 1, Body, [](){}, Flags, TArrayView<ContextType>(OutContexts));
 	}
+}
+
+/** 
+	*	General purpose parallel for that uses the taskgraph. This variant constructs for the caller a user-defined context
+	* 	object for each task that may get spawned to do work, and passes it on to the loop body to give it a task-local
+	*   "workspace" that can be mutated without need for synchronization primitives. For this variant, the user provides a
+	* 	callable to construct each context element.
+	*	@param OutContexts; Array that will hold the user-defined, task-level context objects (allocated per parallel task)
+	*	@param Num; number of calls of Body; Body(0), Body(1)....Body(Num - 1)
+	* 	@param ContextConstructor; Function to call to initialize each task context allocated for the operation
+	*	@param Body; Function to call from multiple threads
+	*	@param Flags; Used to customize the behavior of the ParallelFor if needed.
+	*	Notes: Please add stats around to calls to parallel for and within your lambda as appropriate. Do not clog the task graph with long running tasks or tasks that block.
+**/
+template <typename ContextType, typename ContextAllocatorType, typename ContextConstructorType, typename FunctionType>
+inline void ParallelForWithTaskContext(TArray<ContextType, ContextAllocatorType>& OutContexts, int32 Num, const ContextConstructorType& ContextConstructor, const FunctionType& Body, EParallelForFlags Flags = EParallelForFlags::None)
+{
+	ParallelForWithTaskContext(TEXT("ParallelFor Task"), OutContexts, Num, ContextConstructor, Body, Flags);
 }
 
 /** 
