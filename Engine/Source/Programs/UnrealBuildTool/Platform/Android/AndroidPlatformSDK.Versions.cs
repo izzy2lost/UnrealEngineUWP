@@ -4,28 +4,7 @@ using EpicGames.Core;
 
 namespace UnrealBuildTool
 {
-	/////////////////////////////////////////////////////////////////////////////////////
-	// If you are looking for any version numbers not listed here, see GDK_SDK.json
-	/////////////////////////////////////////////////////////////////////////////////////
-
-	partial class AndroidPlatformSDK : UEBuildPlatformSDK
-	{
-		protected override void GetValidSoftwareVersionRange(out string? MinVersion, out string? MaxVersion)
-		{
-			MinVersion = MaxVersion = null;
-		}
-
-		public override string GetPlatformSpecificVersion(string VersionType)
-		{
-			switch (VersionType.ToLower())
-			{
-				case "platforms": return "android-33";
-				case "build-tools": return "33.0.1";
-				case "cmake": return "3.22.1";
-				case "ndk": return "25.1.8937393";
-			}
-
-			return "";
-		}
-	}
+	////////////////////////////////////////////////////////////////////////////////////////////
+	// If you are looking for any version numbers, see Engine/Config/Android/Android_SDK.json
+	////////////////////////////////////////////////////////////////////////////////////////////
 }

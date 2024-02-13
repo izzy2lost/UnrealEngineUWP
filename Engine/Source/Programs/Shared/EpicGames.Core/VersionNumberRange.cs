@@ -2,12 +2,12 @@
 
 using System;
 
-namespace UnrealBuildTool
+namespace EpicGames.Core
 {
 	/// <summary>
 	/// Range of version numbers
 	/// </summary>
-	class VersionNumberRange
+	public class VersionNumberRange
 	{
 		/// <summary>
 		/// Minimum version number

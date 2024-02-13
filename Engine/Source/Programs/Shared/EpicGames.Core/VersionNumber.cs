@@ -5,13 +5,13 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
-namespace UnrealBuildTool
+namespace EpicGames.Core
 {
 	/// <summary>
 	/// Stores a numeric version consisting of any number of components.
 	/// </summary>
 	[Serializable]
-	class VersionNumber : IComparable<VersionNumber>
+	public class VersionNumber : IComparable<VersionNumber>
 	{
 		/// <summary>
 		/// Set of delimiters for version numbers

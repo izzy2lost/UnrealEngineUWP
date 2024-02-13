@@ -1,3 +1,4 @@
 {
-"ParentSDKFile" : "../Apple/Apple_SDK.json"
+	// inherit the IOS MinSoftwareVersion
+	"ParentSDKFile": "../IOS/IOS_SDK.json"
 }
