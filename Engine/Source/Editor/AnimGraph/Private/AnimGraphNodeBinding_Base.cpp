@@ -147,6 +147,7 @@ void UAnimGraphNodeBinding_Base::HandleVariableRenamed(UBlueprint* InBlueprint, 
 		{
 			TArray<int32> RenameIndices;
 			IPropertyAccessEditor::FResolvePropertyAccessArgs ResolveArgs;
+			ResolveArgs.bUseMostUpToDateClasses = true;
 			ResolveArgs.PropertyFunction = [InOldVarName, SkeletonVariableClass, &RenameIndices](int32 InSegmentIndex, FProperty* InProperty, int32 InStaticArrayIndex)
 			{
 				UClass* OwnerClass = InProperty->GetOwnerClass();
@@ -183,6 +184,7 @@ void UAnimGraphNodeBinding_Base::HandleFunctionRenamed(UBlueprint* InBlueprint, 
 		{
 			TArray<int32> RenameIndices;
 			IPropertyAccessEditor::FResolvePropertyAccessArgs ResolveArgs;
+			ResolveArgs.bUseMostUpToDateClasses = true;
 			ResolveArgs.FunctionFunction = [InOldFuncName, SkeletonFunctionClass, &RenameIndices](int32 InSegmentIndex, UFunction* InFunction, FProperty* InReturnProperty)
 			{
 				const UClass* OwnerSkeletonFunctionClass = FBlueprintEditorUtils::GetMostUpToDateClass(InFunction->GetOuterUClass());
@@ -224,6 +226,7 @@ void UAnimGraphNodeBinding_Base::ReplaceReferences(UBlueprint* InBlueprint, UBlu
 		{
 			TArray<int32> ReplaceIndices;
 			IPropertyAccessEditor::FResolvePropertyAccessArgs ResolveArgs;
+			ResolveArgs.bUseMostUpToDateClasses = true;
 			ResolveArgs.PropertyFunction = [SourceProperty, &ReplaceIndices](int32 InSegmentIndex, FProperty* InProperty, int32 InStaticArrayIndex)
 			{
 				if (InProperty == SourceProperty)
@@ -260,6 +263,7 @@ bool UAnimGraphNodeBinding_Base::ReferencesVariable(const FName& InVarName, cons
 			bool bReferencesVariable = false;
 
 			IPropertyAccessEditor::FResolvePropertyAccessArgs ResolveArgs;
+			ResolveArgs.bUseMostUpToDateClasses = true;
 			ResolveArgs.PropertyFunction = [InVarName, SkeletonVariableClass, &bReferencesVariable](int32 InSegmentIndex, FProperty* InProperty, int32 InStaticArrayIndex)
 			{
 				if (SkeletonVariableClass)
@@ -305,6 +309,7 @@ bool UAnimGraphNodeBinding_Base::ReferencesFunction(const FName& InFunctionName,
 			bool bReferencesFunction = false;
 
 			IPropertyAccessEditor::FResolvePropertyAccessArgs ResolveArgs;
+			ResolveArgs.bUseMostUpToDateClasses = true;
 			ResolveArgs.FunctionFunction = [InFunctionName, SkeletonFunctionClass, &bReferencesFunction](int32 InSegmentIndex, UFunction* InFunction, FProperty* InProperty)
 			{
 				if (SkeletonFunctionClass)

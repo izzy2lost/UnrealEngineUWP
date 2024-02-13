@@ -385,6 +385,14 @@ public:
 
 		/** Function called when a function is resolved. */
 		TFunction<void(int32 /*SegmentIndex*/, UFunction* /*Function*/, FProperty* /*ReturnProperty*/)> FunctionFunction;
+
+		/** 
+		 * Whether to use the most up to date classes when traversing the path. 
+		 * This can be useful for situations where we are resolving against potentially out of date
+		 * classes, but the resulting path will not be valid to use or persist due to functions and properties
+		 * being on skeleton classes 
+		 */
+		bool bUseMostUpToDateClasses = false;
 	};
 	
 	/**
