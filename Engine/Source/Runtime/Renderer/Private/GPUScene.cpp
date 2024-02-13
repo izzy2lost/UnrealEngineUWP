@@ -2324,7 +2324,7 @@ void FBatchedPrimitiveShaderData::Setup(const FPrimitiveUniformShaderParameters&
 	// ObjectWorldPosition, Radius
 	{
 		Data[i+0] = PrimitiveUniformShaderParameters.ObjectWorldPositionHighAndRadius;
-		Data[i+1] = FVector4f(PrimitiveUniformShaderParameters.ObjectWorldPositionLow, 0.0f);
+		Data[i+1] = PrimitiveUniformShaderParameters.ObjectWorldPositionLow;
 		i+=2;
 	}
 

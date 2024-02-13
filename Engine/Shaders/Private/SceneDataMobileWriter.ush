@@ -5,10 +5,6 @@
 	#define PLATFORM_USES_PRIMITIVE_UBO 0
 #endif
 
-#ifndef PRIMITIVE_HAS_TILEOFFSET_DATA
-#error "Missing PRIMITIVE_HAS_TILEOFFSET_DATA"
-#endif
-
 void WriteDataElementUBO(RWStructuredBuffer<float4> Output, uint Offset, uint DataIdx, float4 Data)
 {
 #if	PLATFORM_USES_PRIMITIVE_UBO
@@ -68,29 +64,15 @@ void WritePrimitiveDataUBO(RWStructuredBuffer<float4> Output, uint Offset, FPrim
 
 	// ObjectWorldPosition, Radius
 	{
-		#if PRIMITIVE_HAS_TILEOFFSET_DATA
-		float3 Data = PrimitiveData.ObjectWorldPositionTO.Tile;
-		float3 Data2 = PrimitiveData.ObjectWorldPositionTO.Offset;
-		#else
-		float3 Data = PrimitiveData.ObjectWorldPosition.High;
-		float3 Data2 = PrimitiveData.ObjectWorldPosition.Low;
-		#endif
-		WriteDataElementUBO(Output, Offset, DataIdx + 0, float4(Data, PrimitiveData.ObjectRadius));
-		WriteDataElementUBO(Output, Offset, DataIdx + 1, float4(Data2, 0));
+		WriteDataElementUBO(Output, Offset, DataIdx + 0, float4(PrimitiveData.ObjectWorldPosition.High, PrimitiveData.ObjectRadius));
+		WriteDataElementUBO(Output, Offset, DataIdx + 0, float4(PrimitiveData.ObjectWorldPosition.Low, 0));
 		DataIdx += 2u;
 	}
 
 	// ActorWorldPosition, TODO .w
 	{
-		#if PRIMITIVE_HAS_TILEOFFSET_DATA
-		float3 Data = PrimitiveData.ActorWorldPositionTO.Tile;
-		float3 Data2 = PrimitiveData.ActorWorldPositionTO.Offset;
-		#else
-		float3 Data = PrimitiveData.ActorWorldPosition.High;
-		float3 Data2 = PrimitiveData.ActorWorldPosition.Low;
-		#endif
-		WriteDataElementUBO(Output, Offset, DataIdx + 0, float4(Data, 0.0));
-		WriteDataElementUBO(Output, Offset, DataIdx + 1, float4(Data2, 0.0));
+		WriteDataElementUBO(Output, Offset, DataIdx + 0, float4(PrimitiveData.ActorWorldPosition.High, 0.0));
+		WriteDataElementUBO(Output, Offset, DataIdx + 0, float4(PrimitiveData.ActorWorldPosition.Low, 0.0));
 		DataIdx += 2u;
 	}
 

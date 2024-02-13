@@ -112,8 +112,6 @@ struct FPrimitiveSceneData
 	float		ObjectBoundsX;
 	FDFVector3	ObjectWorldPosition;
 	FDFVector3	ActorWorldPosition;
-	float		MinMaterialDisplacement;
-	float		MaxMaterialDisplacement;
 #if PRIMITIVE_HAS_TILEOFFSET_DATA
 	FLWCVector3	ObjectWorldPositionTO;
 	FLWCVector3	ActorWorldPositionTO;
@@ -143,6 +141,8 @@ struct FPrimitiveSceneData
 	float		InstanceWPODisableDistanceSquared;
 	uint		NaniteRayTracingDataOffset;
 	float		MaxWPOExtent;
+	float		MinMaterialDisplacement;
+	float		MaxMaterialDisplacement;
 	uint		CustomStencilValueAndMask;
 	float4		CustomPrimitiveData[NUM_CUSTOM_PRIMITIVE_DATA]; // TODO: Move to associated array to shrink primitive data and pack cachelines more effectively
 };
@@ -428,8 +428,6 @@ FPrimitiveSceneData GetPrimitiveData(uint PrimitiveId)
 	PrimitiveData.ObjectWorldPosition					= MakeDFVector3(ObjectWorldPositionHighAndRadius.xyz, ObjectWorldPositionLow.xyz);
 	PrimitiveData.ActorWorldPosition					= MakeDFVector3(ActorWorldPositionHigh.xyz, ActorWorldPositionLow.xyz);
 #endif
-	PrimitiveData.MinMaterialDisplacement				= LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 19).w;
-	PrimitiveData.MaxMaterialDisplacement				= LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 20).w;
 	PrimitiveData.LightmapUVIndex						= asuint(LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 21).w);
 	PrimitiveData.ObjectOrientation						= LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 22).xyz;
 	PrimitiveData.LightmapDataIndex						= asuint(LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 22).w);
@@ -455,7 +453,9 @@ FPrimitiveSceneData GetPrimitiveData(uint PrimitiveId)
 	PrimitiveData.InstanceWPODisableDistanceSquared		= LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 31).z;
 	PrimitiveData.NaniteRayTracingDataOffset			= asuint(LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 31).w);
 	PrimitiveData.MaxWPOExtent							= LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 32).x;
-	PrimitiveData.CustomStencilValueAndMask				= asuint(LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 32).y);
+	PrimitiveData.MinMaterialDisplacement				= LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 32).y;
+	PrimitiveData.MaxMaterialDisplacement				= LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 32).z;
+	PrimitiveData.CustomStencilValueAndMask				= asuint(LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 32).w);
 
 	// NOTE: Please make sure GetPrimitiveDataFromUniformBuffer() gets updated as well when adding new members here
 
