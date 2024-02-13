@@ -80,7 +80,8 @@ protected:
 	virtual void TeardownImpl() override;
 	virtual void RenderImpl(const FMovieGraphTraversalContext& InFrameTraversalContext, const FMovieGraphTimeStepData& InTimeData) override;
 	virtual void GatherOutputPassesImpl(UMovieGraphEvaluatedConfig* InConfig, TArray<FMovieGraphRenderDataIdentifier>& OutExpectedPasses) const override;
-	// ~UMovieGraphRenderPassNode Interface
+	virtual int32 GetNumSceneViewsRenderedImpl() const { return CurrentInstances.Num(); }
+    // ~UMovieGraphRenderPassNode Interface
 
 	virtual TUniquePtr<UE::MovieGraph::Rendering::FMovieGraphImagePassBase> CreateInstance() const { return nullptr; }
 };

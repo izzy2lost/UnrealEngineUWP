@@ -250,11 +250,38 @@ void UMovieGraphDefaultRenderer::Render(const FMovieGraphTimeStepData& InTimeSte
 	}
 #endif
 
+	// Workaround for UE-202937, we need to detect when there will be multiple scene views rendered for a given frame
+	// to have grooms handle motion blur correctly when there are multiple views being rendered.
+	int32 NumSceneViewsRendered = 0;
+	for (const TObjectPtr<UMovieGraphRenderPassNode>& RenderPass : RenderPassesInUse)
+	{
+		NumSceneViewsRendered += RenderPass->GetNumSceneViewsRendered();
+	}
+
+	if (NumSceneViewsRendered > 1)
+	{
+		IConsoleVariable* HairStrandsCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.HairStrands.Strands.MotionVectorCheckViewID"));
+		if (HairStrandsCVar)
+		{
+			HairStrandsCVar->SetWithCurrentPriority(0);
+		}
+	}
+
 	for (const TObjectPtr<UMovieGraphRenderPassNode>& RenderPass : RenderPassesInUse)
 	{
 		// Pass in a copy of the traversal context so the renderer can decide what to do with it.
 		UE::MovieGraph::FMovieGraphOutputMergerFrame& OutputFrame = GetOwningGraph()->GetOutputMerger()->GetOutputFrame_GameThread(InTimeStepData.RenderedFrameNumber);
 		RenderPass->Render(OutputFrame.TraversalContext, InTimeStepData);
+	}
+
+	if (NumSceneViewsRendered > 1)
+	{
+		// Restore the default value afterwards.
+		IConsoleVariable* HairStrandsCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.HairStrands.Strands.MotionVectorCheckViewID"));
+		if (HairStrandsCVar)
+		{
+			HairStrandsCVar->SetWithCurrentPriority(1);
+		}
 	}
 
 	// Re-enable the progress widget so when the player viewport is drawn to the preview window, it shows.
