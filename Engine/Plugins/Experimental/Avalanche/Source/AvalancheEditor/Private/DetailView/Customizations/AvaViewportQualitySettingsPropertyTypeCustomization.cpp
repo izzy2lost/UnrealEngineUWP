@@ -30,6 +30,8 @@ void FAvaViewportQualitySettingsPropertyTypeCustomization::CustomizeChildren(TSh
 
 	const TSharedRef<FDetailArrayBuilder> FeaturesArrayBuilder = MakeShared<FDetailArrayBuilder>(FeaturesProperty.ToSharedRef(), /*InGenerateHeader*/ false, /*InDisplayResetToDefault*/ true, /*InDisplayElementNum*/ false);
 
+	static const bool bDisplayDefaultPropertyButtons = false;
+
 	FeaturesArrayBuilder->OnGenerateArrayElementWidget(FOnGenerateArrayElementWidget::CreateLambda([](TSharedRef<IPropertyHandle> InElementPropertyHandle, int32 InArrayIndex, IDetailChildrenBuilder& InChildrenBuilder)
 	{
 		TSharedPtr<IPropertyHandle> NameProperty  = InElementPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FAvaViewportQualitySettingsFeature, Name));
@@ -52,7 +54,7 @@ void FAvaViewportQualitySettingsPropertyTypeCustomization::CustomizeChildren(TSh
 			]
 			.ValueContent()
 			[
-				ValueProperty->CreatePropertyValueWidget(/*bDisplayPropertyButtons*/false)
+				ValueProperty->CreatePropertyValueWidget(bDisplayDefaultPropertyButtons)
 			];
 	}));
 
