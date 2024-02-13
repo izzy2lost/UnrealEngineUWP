@@ -217,6 +217,20 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FCommonSessionOnCreateSessionComplet
  */
 DECLARE_MULTICAST_DELEGATE_OneParam(FCommonSessionOnPreClientTravel, FString& /*URL*/);
 
+/**
+ * Event triggered at different points in the session ecosystem that represent a user-presentable state of the session.
+ * This should not be used for online functionality (use OnCreateSessionComplete or OnJoinSessionComplete for those) but for features such as rich presence
+ */
+UENUM(BlueprintType)
+enum class ECommonSessionInformationState : uint8
+{
+	OutOfGame,
+	Matchmaking,
+	InGame
+};
+DECLARE_MULTICAST_DELEGATE_ThreeParams(FCommonSessionOnSessionInformationChanged, ECommonSessionInformationState /*SessionStatus*/, const FString& /*GameMode*/, const FString& /*MapName*/);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FCommonSessionOnSessionInformationChanged_Dynamic, ECommonSessionInformationState, SessionStatus, const FString&, GameMode, const FString&, MapName);
+
 //////////////////////////////////////////////////////////////////////
 // UCommonSessionSubsystem
 
@@ -286,6 +300,12 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Events", meta = (DisplayName = "On Create Session Complete"))
 	FCommonSessionOnCreateSessionComplete_Dynamic K2_OnCreateSessionCompleteEvent;
 
+	/** Native Delegate when the presentable session information has changed */
+	FCommonSessionOnSessionInformationChanged OnSessionInformationChangedEvent;
+	/** Event broadcast when the presentable session information has changed */
+	UPROPERTY(BlueprintAssignable, Category = "Events", meta = (DisplayName = "On Session Information Changed"))
+	FCommonSessionOnSessionInformationChanged_Dynamic K2_OnSessionInformationChangedEvent;
+
 	/** Native Delegate for modifying the connect URL prior to a client travel */
 	FCommonSessionOnPreClientTravel OnPreClientTravelEvent;
 
@@ -327,6 +347,7 @@ protected:
 	void NotifyUserRequestedSession(const FPlatformUserId& PlatformUserId, UCommonSession_SearchResult* RequestedSession, const FOnlineResultInformation& RequestedSessionResult);
 	void NotifyJoinSessionComplete(const FOnlineResultInformation& Result);
 	void NotifyCreateSessionComplete(const FOnlineResultInformation& Result);
+	void NotifySessionInformationUpdated(ECommonSessionInformationState SessionStatusStr, const FString& GameMode = FString(), const FString& MapName = FString());
 	void SetCreateSessionError(const FText& ErrorText);
 
 #if COMMONUSER_OSSV1
