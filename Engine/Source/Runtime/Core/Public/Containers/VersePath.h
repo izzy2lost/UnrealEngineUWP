@@ -85,7 +85,7 @@ FORCEINLINE FArchive& UE::Core::operator<<(FArchive& Ar, FVersePath& VersePath)
 	return Ar << VersePath.PathString;
 }
 
-FORCEINLINE uint32 GetTypeHash(const UE::Core::FVersePath& VersePath) // Must be outside namespace to not break Tuples. Note that it needs to match VersePathFwd.h so can't be hidden friend
+FORCEINLINE uint32 UE::Core::GetTypeHash(const FVersePath& VersePath)
 {
 	return GetTypeHash(VersePath.AsStringView());
 }
