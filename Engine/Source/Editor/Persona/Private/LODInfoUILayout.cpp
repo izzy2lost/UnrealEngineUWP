@@ -28,12 +28,15 @@ void ULODInfoUILayout::SetReferenceLODInfo(TWeakPtr<IPersonaToolkit> InPersonaTo
 void ULODInfoUILayout::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
-	
-	USkeletalMesh* SkeletalMesh = PersonaToolkit.Pin()->GetPreviewMesh();
-	FSkeletalMeshLODInfo* SkeletalMeshLODInfo = SkeletalMesh->GetLODInfo(LODIndex);
-	check(SkeletalMeshLODInfo != nullptr);
-	SkeletalMesh->Modify();
-	//Copy the LODInfo into the real skeletal mesh LODInfo data
-	*SkeletalMeshLODInfo = LODInfo;
-	FScopedSkeletalMeshPostEditChange ScopeSkeletalmeshPostEdit(SkeletalMesh);
+
+	if ((PropertyChangedEvent.ChangeType & EPropertyChangeType::Interactive) == 0)
+	{
+		USkeletalMesh* SkeletalMesh = PersonaToolkit.Pin()->GetPreviewMesh();
+		FSkeletalMeshLODInfo* SkeletalMeshLODInfo = SkeletalMesh->GetLODInfo(LODIndex);
+		check(SkeletalMeshLODInfo != nullptr);
+		SkeletalMesh->Modify();
+		//Copy the LODInfo into the real skeletal mesh LODInfo data
+		*SkeletalMeshLODInfo = LODInfo;
+		FScopedSkeletalMeshPostEditChange ScopeSkeletalmeshPostEdit(SkeletalMesh);
+	}
 }

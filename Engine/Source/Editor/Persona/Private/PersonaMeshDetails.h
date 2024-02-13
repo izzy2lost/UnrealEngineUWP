@@ -607,7 +607,8 @@ private:
 
 	FText GetMaterialSlotNameText(int32 MaterialIndex) const;
 
-	void RefreshMeshDetailLayout();
+	void ForceLayoutRebuild();
+	void RequestLayoutUpdate();
 
 	void OnNoRefStreamingLODBiasChanged(int32 NewValue, FName QualityLevel);
 	void OnNoRefStreamingLODBiasCommitted(int32 InValue, ETextCommit::Type CommitInfo, FName QualityLevel);
