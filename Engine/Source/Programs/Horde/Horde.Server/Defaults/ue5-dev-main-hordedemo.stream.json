@@ -177,6 +177,7 @@
 			"initialAgentType": "Win64",
 			"arguments": [
 				"-Script=Engine/Build/Graph/Examples/PackagedBuild.xml",
+				"-Target=Package Project",
 				"-set:UProjectPath=$(ProjectPath)"
 			],
 			"parameters": [
