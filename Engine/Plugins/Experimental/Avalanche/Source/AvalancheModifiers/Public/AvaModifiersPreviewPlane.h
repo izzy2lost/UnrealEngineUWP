@@ -32,7 +32,7 @@ struct FAvaModifierPreviewPlane
 
 	/** Update relative position of the plane */
 	void Update(const FTransform& InRelativeTransform) const;
-	
+
 	UPROPERTY(Transient)
 	FAvaModifiersParametricMaterial PreviewDynMaterial;
 	

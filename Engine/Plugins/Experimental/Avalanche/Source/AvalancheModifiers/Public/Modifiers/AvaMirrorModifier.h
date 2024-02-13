@@ -79,6 +79,7 @@ protected:
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Mirror", meta=(AllowPrivateAccess="true"))
 	bool bShowMirrorFrame = false;
 
+private:
 	UPROPERTY(Transient, DuplicateTransient, TextExportTransient)
 	FAvaModifierPreviewPlane PreviewPlane;
 #endif

@@ -19,7 +19,7 @@ struct FAvaBooleanModifierSharedChannel
 };
 
 USTRUCT(BlueprintType)
-struct AVALANCHEMODIFIERS_API FAvaBooleanModifierSharedChannelInfo
+struct FAvaBooleanModifierSharedChannelInfo
 {
 	GENERATED_BODY()
 

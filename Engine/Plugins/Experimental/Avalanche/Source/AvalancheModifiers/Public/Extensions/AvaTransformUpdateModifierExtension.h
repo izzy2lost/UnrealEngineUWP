@@ -13,7 +13,7 @@ class UAvaTransformUpdateHandler : public UInterface
 };
 
 /** Implement this interface to handle extension event */
-class AVALANCHEMODIFIERS_API IAvaTransformUpdateHandler
+class IAvaTransformUpdateHandler
 {
 	GENERATED_BODY()
 

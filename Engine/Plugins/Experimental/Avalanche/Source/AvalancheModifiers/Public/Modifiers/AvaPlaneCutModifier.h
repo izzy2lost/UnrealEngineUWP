@@ -75,6 +75,7 @@ protected:
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="PlaneCut", meta=(AllowPrivateAccess="true"))
 	bool bUsePreview = false;
 
+private:
 	UPROPERTY(Transient, DuplicateTransient, TextExportTransient)
 	FAvaModifierPreviewPlane PreviewPlane;
 #endif
