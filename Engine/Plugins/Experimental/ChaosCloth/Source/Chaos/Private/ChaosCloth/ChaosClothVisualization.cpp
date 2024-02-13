@@ -2329,6 +2329,100 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 			}
 		}
 	}
+
+	void FClothVisualization::DrawKinematicColliderWired(FPrimitiveDrawInterface* PDI) const
+	{
+		if (!Solver)
+		{
+			return;
+		}
+
+		static const FLinearColor WireframeColor = FColor::Silver;
+		const FVec3& LocalSpaceLocation = Solver->GetLocalSpaceLocation();
+
+		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
+		{
+			const int32 ParticleRangeId = Cloth->GetParticleRangeId(Solver);
+			if (ParticleRangeId == INDEX_NONE)
+			{
+				continue;
+			}
+
+			const FClothConstraints& ClothConstraints = Solver->GetClothConstraints(ParticleRangeId);
+			if (const Softs::FPBDTriangleMeshCollisions* const SelfCollisionInit = ClothConstraints.GetSelfCollisionInit().Get())
+			{
+				const FTriangleMesh& KinematicColliderMesh = SelfCollisionInit->GetCollidableSubMesh().GetKinematicColliderSubMesh();
+				// Elements are local indexed for force based solver
+				const int32 Offset = Solver->IsForceBasedSolver() ? 0 : ParticleRangeId;
+				const TConstArrayView<TVec3<int32>> Elements = KinematicColliderMesh.GetElements();
+				const TConstArrayView<Softs::FSolverVec3> Positions = Cloth->GetParticlePositions(Solver);
+				for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ++ElementIndex)
+				{
+					const TVec3<int32>& Element = Elements[ElementIndex];
+
+					const FVector Pos0 = LocalSpaceLocation + FVector(Positions[Element.X - Offset]); // TODO: Triangle Mesh shouldn't really be solver dependent (ie not use an offset)
+					const FVector Pos1 = LocalSpaceLocation + FVector(Positions[Element.Y - Offset]);
+					const FVector Pos2 = LocalSpaceLocation + FVector(Positions[Element.Z - Offset]);
+
+					DrawLine(PDI, Pos0, Pos1, WireframeColor);
+					DrawLine(PDI, Pos1, Pos2, WireframeColor);
+					DrawLine(PDI, Pos2, Pos0, WireframeColor);
+				}
+			}
+		}
+	}
+
+#if WITH_EDITOR
+	void FClothVisualization::DrawKinematicColliderShaded(FPrimitiveDrawInterface* PDI) const
+	{
+		if (!Solver || !CollisionMaterial)
+		{
+			return;
+		}
+
+		FDynamicMeshBuilder MeshBuilder(PDI->View->GetFeatureLevel());
+		int32 VertexIndex = 0;
+
+		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
+		{
+			const int32 ParticleRangeId = Cloth->GetParticleRangeId(Solver);
+			if (ParticleRangeId == INDEX_NONE)
+			{
+				continue;
+			}
+
+			const FClothConstraints& ClothConstraints = Solver->GetClothConstraints(ParticleRangeId);
+			if (const Softs::FPBDTriangleMeshCollisions* const SelfCollisionInit = ClothConstraints.GetSelfCollisionInit().Get())
+			{
+				const FTriangleMesh& KinematicColliderMesh = SelfCollisionInit->GetCollidableSubMesh().GetKinematicColliderSubMesh();
+				// Elements are local indexed for force based solver
+				const int32 Offset = Solver->IsForceBasedSolver() ? 0 : ParticleRangeId;
+				const TConstArrayView<TVec3<int32>> Elements = KinematicColliderMesh.GetElements();
+				const TConstArrayView<Softs::FSolverVec3> Positions = Cloth->GetParticlePositions(Solver);
+				for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ++ElementIndex, VertexIndex += 3)
+				{
+					const TVec3<int32>& Element = Elements[ElementIndex];
+					const FVector3f Pos0(Positions[Element.X - Offset]); // TODO: Triangle Mesh shouldn't really be solver dependent (ie not use an offset)
+					const FVector3f Pos1(Positions[Element.Y - Offset]);
+					const FVector3f Pos2(Positions[Element.Z - Offset]);
+
+					const FVector3f Normal = FVector3f::CrossProduct(Pos2 - Pos0, Pos1 - Pos0).GetSafeNormal();
+					const FVector3f Tangent = ((Pos1 + Pos2) * 0.5f - Pos0).GetSafeNormal();
+
+					MeshBuilder.AddVertex(FDynamicMeshVertex(Pos0, Tangent, Normal, FVector2f(0.f, 0.f), FColor::White));
+					MeshBuilder.AddVertex(FDynamicMeshVertex(Pos1, Tangent, Normal, FVector2f(0.f, 1.f), FColor::White));
+					MeshBuilder.AddVertex(FDynamicMeshVertex(Pos2, Tangent, Normal, FVector2f(1.f, 1.f), FColor::White));
+					MeshBuilder.AddTriangle(VertexIndex, VertexIndex + 1, VertexIndex + 2);
+				}
+			}
+		}
+
+		const FVec3& LocalSpaceLocation = Solver->GetLocalSpaceLocation();
+		FMatrix LocalSimSpaceToWorld(FMatrix::Identity);
+		LocalSimSpaceToWorld.SetOrigin(Solver->GetLocalSpaceLocation());
+		MeshBuilder.Draw(PDI, LocalSimSpaceToWorld, CollisionMaterial->GetRenderProxy(), SDPG_World, false, false);
+	}
+#endif // #if WITH_EDITOR
 }  // End namespace Chaos
 #else  // #if CHAOS_DEBUG_DRAW
 namespace Chaos
