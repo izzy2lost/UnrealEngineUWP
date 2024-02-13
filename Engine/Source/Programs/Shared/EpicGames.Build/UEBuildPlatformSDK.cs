@@ -377,6 +377,27 @@ namespace EpicGames.Core
 			return SDK;
 		}
 
+		public static T? GetSDKForPlatformOrMakeTemp<T>(string PlatformName) where T : UEBuildPlatformSDK
+		{
+			UEBuildPlatformSDK? SDK;
+			SDKRegistry.TryGetValue(PlatformName, out SDK);
+
+			// make a temp one if needed, this is not expected to happen often at all
+			if (SDK == null)
+			{
+				if (!TempSDKRegistry.TryGetValue(PlatformName, out SDK))
+				{
+					object[] parameter = new object[1];
+					parameter[0] = Log.Logger;
+					SDK = (UEBuildPlatformSDK)Activator.CreateInstance(typeof(T), parameter)!;
+					SDK.LoadJsonFile(PlatformName);
+					TempSDKRegistry.Add(PlatformName, SDK);
+				}
+			}
+			return (T?)SDK;
+		}
+
+
 		/// <summary>
 		/// Gets the set of all known SDKs
 		/// </summary>
@@ -575,7 +596,8 @@ namespace EpicGames.Core
 		/// <param name="MaxVersion">Largest version allowed (inclusive), or null if no maximum (in other words, MinVersion - infinity)y</param>
 		protected virtual void GetValidSoftwareVersionRange(out string? MinVersion, out string? MaxVersion)
 		{
-			throw new Exception($"This platform's Sdk class ({GetType().Name}) must implement either GetValidSoftwareVersionRange() or GetValidSoftwareVersionRanges(). If this triggers, and GetValidSoftwareVersionRanges() is implemented, that means GetValidSoftwareVersionRange was called directly");
+			MinVersion = GetVersionFromConfig("MinSoftwareVersion");
+			MaxVersion = GetVersionFromConfig("MaxSoftwareVersion");
 		}
 
 		protected virtual SoftwareCollection GetValidSoftwareVersions()
@@ -623,7 +645,7 @@ namespace EpicGames.Core
 		/// <returns>Version string, or empty string if not known/supported</returns>
 		public virtual string GetPlatformSpecificVersion(string VersionType)
 		{
-			return "";
+			return GetRequiredVersionFromConfig(VersionType);
 		}
 
 		/// <summary>
@@ -937,6 +959,10 @@ namespace EpicGames.Core
 		protected Dictionary<string, string> CachedManualSDKVersions = new Dictionary<string, string>();
 		private static Dictionary<string, UEBuildPlatformSDK> SDKRegistry = new Dictionary<string, UEBuildPlatformSDK>();
 
+		// this map holds on to some temporary SDK objects that are generally used once and don't want to stick around, but they could be used multiple times, 
+		// like in MicrosoftPlatofrmSDK.Version.cs, if one of the versions is needed, C# will go construct every version, needing the SDK multiple times
+		private static Dictionary<string, UEBuildPlatformSDK> TempSDKRegistry = new Dictionary<string, UEBuildPlatformSDK>();
+
 		private SDKDescriptor? GetSDKVersionForHint(SDKCollection Collection, string? Hint)
 		{
 			// if the hint is found, use it always
@@ -961,7 +987,7 @@ namespace EpicGames.Core
 
 		// cached SDK info from the SDK.json file
 		private Dictionary<string, string> ConfigSDKVersions = new(StringComparer.OrdinalIgnoreCase);
-		private Dictionary<string, string> DefaultConfigSDKVersions = new(StringComparer.OrdinalIgnoreCase);
+		private Dictionary<string, string[]> ConfigSDKVersionArrays = new(StringComparer.OrdinalIgnoreCase);
 
 		private void LoadJsonFile(string Platform)
 		{
@@ -993,9 +1019,10 @@ namespace EpicGames.Core
 			FileReference EngineSDKConfigFile = MakeConfigFilename(Unreal.EngineDirectory, true)!;
 
 			// load the file, along with any chained group file
-			ProcessJsonFile(EngineSDKConfigFile, ConfigSDKVersions);
+			ProcessJsonFile(EngineSDKConfigFile, ConfigSDKVersions, ConfigSDKVersionArrays);
 
-			// copy off the versions to the defaults, so we can later get the 
+			// copy off the versions to the defaults, so we can check if overridden by the project
+			Dictionary<string, string> DefaultConfigSDKVersions = new(ConfigSDKVersions);
 			foreach (string Key in ConfigSDKVersions.Keys)
 			{
 				DefaultConfigSDKVersions[Key] = ConfigSDKVersions[Key];
@@ -1009,7 +1036,12 @@ namespace EpicGames.Core
 				{
 					// load a project's SDK file if thre is one, into a temp dictionary
 					Dictionary<string, string> OverrideConfigSDKVersions = new(StringComparer.OrdinalIgnoreCase);
-					ProcessJsonFile(ProjectSDKConfigFile, OverrideConfigSDKVersions);
+					Dictionary<string, string[]> OverrideConfigSDKVersionArrays = new(StringComparer.OrdinalIgnoreCase);
+					ProcessJsonFile(ProjectSDKConfigFile, OverrideConfigSDKVersions, OverrideConfigSDKVersionArrays);
+					if (OverrideConfigSDKVersionArrays.Count > 0)
+					{
+						throw new Exception($"Overriding version arrays, in project '{ProjectFile.GetFileNameWithoutExtension()}', platform {Platform} is not currently supported");
+					}
 
 					// currently only care about MainVersion in the overrides
 					string? OverrideMainVersion;
@@ -1037,7 +1069,7 @@ namespace EpicGames.Core
 			}
 		}
 
-		private void ProcessJsonFile(FileReference SDKConfigFile, Dictionary<string, string> VersionMap)
+		private void ProcessJsonFile(FileReference SDKConfigFile, Dictionary<string, string> VersionMap, Dictionary<string, string[]> VersionArrayMap)
 		{
 			string Contents = FileReference.ReadAllText(SDKConfigFile);
 
@@ -1047,7 +1079,7 @@ namespace EpicGames.Core
 				AllowTrailingCommas = true,
 				ReadCommentHandling = JsonCommentHandling.Skip,
 			};
-			Dictionary<string, string>? LoadedDictionary = JsonSerializer.Deserialize<Dictionary<string, string>>(Contents, Options);
+			Dictionary<string, JsonElement>? LoadedDictionary = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(Contents, Options);
 			if (LoadedDictionary == null)
 			{
 				throw new Exception($"Failed to parse SDK version file '{SDKConfigFile}'");
@@ -1057,14 +1089,25 @@ namespace EpicGames.Core
 			List<string> Parents = new();
 			foreach (string Key in LoadedDictionary.Keys)
 			{
-				if (Key.Equals("ParentSDKFile", StringComparison.OrdinalIgnoreCase))
+				JsonElement Obj = LoadedDictionary[Key];
+				string? StringValue = Obj.ValueKind == JsonValueKind.String ? Obj.GetString() : null;
+				string[]? ArrayValue = Obj.ValueKind == JsonValueKind.Array ? Obj.EnumerateArray().Select(x => x.GetString()!).ToArray() : null;
+
+				if (StringValue != null)
 				{
-					Parents.Add(LoadedDictionary[Key]);
+					if (Key.Equals("ParentSDKFile", StringComparison.OrdinalIgnoreCase))
+					{
+						Parents.Add(StringValue);
+					}
+					// add this key if it's not already in the (case-insensitive) dictionary 
+					else if (!VersionMap.ContainsKey(Key))
+					{
+						VersionMap.Add(Key, StringValue);
+					}
 				}
-				// add this key if it's not already in the (case-insensitive) dictionary 
-				else if (!VersionMap.ContainsKey(Key))
+				else if (ArrayValue != null)
 				{
-					VersionMap.Add(Key, LoadedDictionary[Key]);
+					VersionArrayMap.Add(Key, ArrayValue);
 				}
 			}
 
@@ -1072,19 +1115,12 @@ namespace EpicGames.Core
 			foreach (string Parent in Parents)
 			{
 				FileReference ParentConfigFile = FileReference.Combine(SDKConfigFile.Directory, Parent);
-				ProcessJsonFile(ParentConfigFile, VersionMap);
+				ProcessJsonFile(ParentConfigFile, VersionMap, VersionArrayMap);
 			}
 		}
 
-		protected string GetRequiredVersionFromConfig(string VersionName)
+		private string GetHostSpecificVersionName(string VersionName)
 		{
-			// when bIsRequired is true, then we know it will return non-null
-			return GetVersionFromConfig(VersionName, bIsRequired:true)!;
-		}
-
-		protected string? GetVersionFromConfig(string VersionName, bool bIsRequired=false)
-		{
-			string? Version;
 			string HostPlatform = "Win64";
 			if (OperatingSystem.IsMacOS())
 			{
@@ -1094,9 +1130,19 @@ namespace EpicGames.Core
 			{
 				HostPlatform = "Linux";
 			}
+			return $"{VersionName}_{HostPlatform}";
+		}
+		public string GetRequiredVersionFromConfig(string VersionName)
+		{
+			// when bIsRequired is true, then we know it will return non-null
+			return GetVersionFromConfig(VersionName, bIsRequired:true)!;
+		}
+
+		public string? GetVersionFromConfig(string VersionName, bool bIsRequired=false)
+		{
+			string? Version;
 			// look up both Version_Host and Version (Host specific version wins)
-			string HostSpecificVersionName = $"{VersionName}_{HostPlatform}";
-			if (ConfigSDKVersions!.TryGetValue(HostSpecificVersionName, out Version) || ConfigSDKVersions.TryGetValue(VersionName, out Version))
+			if (ConfigSDKVersions!.TryGetValue(GetHostSpecificVersionName(VersionName), out Version) || ConfigSDKVersions.TryGetValue(VersionName, out Version))
 			{
 				return Version;
 			}
@@ -1106,6 +1152,81 @@ namespace EpicGames.Core
 				throw new Exception($"Unable to find required SDK version '{VersionName}' for platform {PlatformName}. Check your SDK.json files");
 			}
 			return null;
+		}
+
+		protected VersionNumber GetRequiredVersionNumberFromConfig(string VersionName)
+		{
+			// required won't ever return null
+			return GetVersionNumberFromConfig(VersionName, true)!;
+		}
+
+		public VersionNumber? GetVersionNumberFromConfig(string VersionName, bool bIsRequired=false)
+		{
+			string? VersionString = GetVersionFromConfig(VersionName, bIsRequired);
+
+			if (VersionString == null)
+			{
+				return null;
+			}
+
+			return VersionNumber.Parse(VersionString);
+		}
+
+
+		private VersionNumberRange? ParseVersionNumberRange(string Range)
+		{
+			string[] Versions = Range.Split("-");
+			if (Versions.Length != 2)
+			{
+				return null;
+			}
+
+			return VersionNumberRange.Parse(Versions[0], Versions[1]);
+		}
+
+		public VersionNumberRange? GetRequiredVersionNumberRangeFromConfig(string VersionName, bool bIsRequired = false)
+		{
+			// required won't ever return null
+			return GetVersionNumberRangeFromConfig(VersionName, true)!;
+		}
+
+		public VersionNumberRange? GetVersionNumberRangeFromConfig(string VersionName, bool bIsRequired = false)
+		{
+			string? VersionRange;
+			if (!ConfigSDKVersions!.TryGetValue(GetHostSpecificVersionName(VersionName), out VersionRange) && !ConfigSDKVersions.TryGetValue(VersionName, out VersionRange))
+			{
+				if (bIsRequired)
+				{
+					throw new Exception($"Unable to find required SDK version range '{VersionName}' for platform {PlatformName}. Check your SDK.json files");
+				}
+				return null;
+			}
+
+			VersionNumberRange? Range = ParseVersionNumberRange(VersionRange);
+			if (Range == null && bIsRequired)
+			{
+				throw new Exception($"Unable to parse the version number range for required version '{VersionName}' for platform {PlatformName}. Check your SDK.json files");
+			}
+			return Range;
+		}
+
+		public VersionNumberRange[] GetVersionNumberRangeArrayFromConfig(string VersionName)
+		{
+			string[]? VersionRanges;
+			List<VersionNumberRange> Ranges = new();
+			if (ConfigSDKVersionArrays.TryGetValue(GetHostSpecificVersionName(VersionName), out VersionRanges) || ConfigSDKVersionArrays.TryGetValue(VersionName, out VersionRanges))
+			{
+				foreach (string VersionRange in VersionRanges) 
+				{
+					VersionNumberRange? Range = ParseVersionNumberRange(VersionRange);
+					if (Range != null)
+					{
+						Ranges.Add(Range);
+					}
+				}
+			}
+
+			return Ranges.ToArray();
 		}
 
 		#endregion

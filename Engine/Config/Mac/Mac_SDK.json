@@ -1,3 +1,6 @@
 {
-"ParentSDKFile" : "../Apple/Apple_SDK.json"
+	"ParentSDKFile": "../Apple/Apple_SDK.json",
+
+	// macOS Monterey 12.5 (Released 2022/07/22)
+	"MinSoftwareVersion": "12.5.0"
 }
