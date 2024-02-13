@@ -9,7 +9,6 @@
 #include "DisplayDebugHelpers.h"
 #include "DisplayDebugHelpers.h"
 #include "Engine/Engine.h"
-#include "Engine/OverlapResult.h"
 #include "GameFramework/Pawn.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
 #include "PhysicsEngine/PhysicsAsset.h"
