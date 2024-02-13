@@ -6,7 +6,7 @@
 class FSourceMetaHuman;
 class FInstalledMetaHuman;
 struct FAssetOperationPaths;
-enum EQualityLevel: int;
+enum class EQualityLevel: int;
 
 enum class EImportOperationUserResponse: int
 {
