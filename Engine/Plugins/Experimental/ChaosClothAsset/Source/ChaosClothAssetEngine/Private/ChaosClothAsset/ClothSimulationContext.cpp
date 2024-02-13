@@ -3,6 +3,7 @@
 #include "ChaosClothAsset/ClothSimulationContext.h"
 #include "ChaosClothAsset/ClothAsset.h"
 #include "ChaosClothAsset/ClothComponent.h"
+#include "ChaosClothAsset/ClothSimulationModel.h"
 #include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
 #include "SceneInterface.h"
@@ -95,7 +96,15 @@ namespace UE::Chaos::ClothAsset
 		RefToLocalMatrices.Reset(NumBones);
 		if (!bIsInitialization)
 		{
-			ClothComponent.GetCurrentRefToLocalMatrices(RefToLocalMatrices, LodIndex);
+			const TArray<uint16>* RequiredExtraBones = nullptr;
+			if (TSharedPtr<const FChaosClothSimulationModel > ClothModel = ClothAsset ? ClothAsset->GetClothSimulationModel() : TSharedPtr<const FChaosClothSimulationModel >(nullptr))
+			{
+				if (ClothModel->IsValidLodIndex(LodIndex))
+				{
+					RequiredExtraBones = &ClothModel->ClothSimulationLodModels[LodIndex].RequiredExtraBoneIndices;
+				}
+			}
+			ClothComponent.GetCurrentRefToLocalMatrices(RefToLocalMatrices, LodIndex, RequiredExtraBones);
 		}
 		else
 		{

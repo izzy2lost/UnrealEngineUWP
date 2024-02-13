@@ -3464,7 +3464,7 @@ void USkinnedMeshComponent::CacheRefToLocalMatrices(TArray<FMatrix44f>& OutRefTo
 	}
 }
 
-void USkinnedMeshComponent::GetCurrentRefToLocalMatrices(TArray<FMatrix44f>& OutRefToLocals, int32 InLodIdx) const
+void USkinnedMeshComponent::GetCurrentRefToLocalMatrices(TArray<FMatrix44f>& OutRefToLocals, int32 InLodIdx, const TArray<FBoneIndexType>* ExtraRequiredBoneIndices) const
 {
 	if (const USkinnedAsset* const Asset = GetSkinnedAsset())
 	{
@@ -3474,7 +3474,7 @@ void USkinnedMeshComponent::GetCurrentRefToLocalMatrices(TArray<FMatrix44f>& Out
 			TEXT("GetCurrentRefToLocalMatrices (SkelMesh :%s) input LODIndex (%d) doesn't match with render data size (%d)."),
 			*Asset->GetPathName(), InLodIdx, RenderData->LODRenderData.Num()))
 		{
-			UpdateRefToLocalMatrices(OutRefToLocals, this, RenderData, InLodIdx, nullptr);
+			UpdateRefToLocalMatrices(OutRefToLocals, this, RenderData, InLodIdx, ExtraRequiredBoneIndices);
 		}
 		else
 		{
