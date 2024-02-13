@@ -18,7 +18,7 @@
 #include "NiagaraParameterDefinitionsBase.h"
 #include "NiagaraParameterDefinitionsSubscriber.h"
 #include "NiagaraScratchPadContainer.h"
-
+#include "NiagaraSimStageExecutionData.h"
 #include "NiagaraDataInterfacePlatformSet.h"
 
 #include "NiagaraEmitter.generated.h"
@@ -385,6 +385,7 @@ struct FVersionedNiagaraEmitterData
 	TConstArrayView<TSharedPtr<FNiagaraBoundsCalculator>> GetBoundsCalculators() const { return MakeArrayView(BoundsCalculators); }
 	NIAGARA_API bool RequiresPersistentIDs() const;
 	const TArray<UNiagaraSimulationStageBase*>& GetSimulationStages() const { return SimulationStages; }
+	FNiagaraSimStageExecutionDataPtr GetSimStageExcecutionData() const { return SimStageExecutionData; }
 	FORCEINLINE const FNiagaraEmitterScalabilitySettings& GetScalabilitySettings()const { return CurrentScalabilitySettings; }
 	NIAGARA_API const FNiagaraEmitterScalabilityOverride& GetCurrentOverrideSettings() const;
 	NIAGARA_API UNiagaraSimulationStageBase* GetSimulationStageById(FGuid ScriptUsageId) const;
@@ -483,13 +484,23 @@ struct FVersionedNiagaraEmitterData
 #endif
 
 	NIAGARA_API void GatherCompiledParticleAttributes(TArray<FNiagaraVariableBase>& OutVariables) const;
-	
+
 private:
 	UPROPERTY()
 	TArray<TObjectPtr<UNiagaraRendererProperties>> RendererProperties;
 
 	UPROPERTY(meta = (NiagaraNoMerge))
 	TArray<TObjectPtr<UNiagaraSimulationStageBase>> SimulationStages;
+
+	UPROPERTY()
+	TArray<FNiagaraSimStageExecutionLoopData> SimStageExecutionLoops;
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY(EditAnywhere, Advanceddisplay, Category = "Emitter", meta = (DisplayName = "Sim Stage Loops"))
+	TArray<FNiagaraSimStageExecutionLoopEditorData> SimStageExecutionLoopEditorData;
+#endif
+
+	FNiagaraSimStageExecutionDataPtr SimStageExecutionData;
 
 	UPROPERTY()
 	TObjectPtr<UNiagaraScript> GPUComputeScript = nullptr;

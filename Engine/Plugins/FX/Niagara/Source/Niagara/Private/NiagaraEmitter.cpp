@@ -1733,6 +1733,33 @@ void FVersionedNiagaraEmitterData::CacheFromCompiledData(const FNiagaraDataSetCo
 	}
 	UpdateDebugName(Emitter, CompiledData);
 
+	SimStageExecutionData = nullptr;
+	if (GPUComputeScript)
+	{
+		if (CompiledData)
+		{
+			for (FSimulationStageMetaData& SimStageMetaData : GPUComputeScript->GetVMExecutableData().SimulationStageMetaData)
+			{
+				if (SimStageMetaData.bParticleIterationStateEnabled)
+				{
+					if (const FNiagaraVariableLayoutInfo* VariableInfo = CompiledData->FindVariableLayoutInfo(FNiagaraVariableBase(FNiagaraTypeDefinition::GetIntDef(), SimStageMetaData.ParticleIterationStateBinding)))
+					{
+						SimStageMetaData.ParticleIterationStateComponentIndex = VariableInfo->GetInt32ComponentStart();
+					}
+				}
+			}
+		}
+
+		SimStageExecutionData = MakeShared<FNiagaraSimStageExecutionData>();
+#if WITH_EDITORONLY_DATA
+		SimStageExecutionData->Build(GPUComputeScript->GetVMExecutableData().SimulationStageMetaData, SimStageExecutionLoopEditorData);
+		SimStageExecutionLoops = SimStageExecutionData->ExecutionLoops;
+#else
+		SimStageExecutionData->ExecutionLoops = SimStageExecutionLoops;
+		SimStageExecutionData->SimStageMetaData = GPUComputeScript->GetVMExecutableData().SimulationStageMetaData;
+#endif
+	}
+
 	// Detemine if we are allowed to execute or not
 	bIsAllowedToExecute = IsAllowedByScalability();
 	if (bIsAllowedToExecute && (SimTarget == ENiagaraSimTarget::GPUComputeSim))
@@ -1789,20 +1816,6 @@ void FVersionedNiagaraEmitterData::UpdateDebugName(const UNiagaraEmitter& Emitte
 #endif
 
 	RebuildRendererBindings(Emitter);
-
-	if ( GPUComputeScript && CompiledData )
-	{
-		for (FSimulationStageMetaData& SimStageMetaData : GPUComputeScript->GetVMExecutableData().SimulationStageMetaData)
-		{
-			if (SimStageMetaData.bParticleIterationStateEnabled)
-			{
-				if (const FNiagaraVariableLayoutInfo* VariableInfo = CompiledData->FindVariableLayoutInfo(FNiagaraVariableBase(FNiagaraTypeDefinition::GetIntDef(), SimStageMetaData.ParticleIterationStateBinding)))
-				{
-					SimStageMetaData.ParticleIterationStateComponentIndex = VariableInfo->GetInt32ComponentStart();
-				}
-			}
-		}
-	}
 }
 
 bool FVersionedNiagaraEmitterData::BuildParameterStoreRendererBindings(FNiagaraParameterStore& ParameterStore) const
@@ -1842,6 +1855,13 @@ bool FVersionedNiagaraEmitterData::BuildParameterStoreRendererBindings(FNiagaraP
 			if (!SimStageMetaData.NumIterationsBinding.IsNone())
 			{
 				bAnyBindingsAdded |= ParameterStore.AddParameter(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), SimStageMetaData.NumIterationsBinding), false);
+			}
+		}
+		for ( const FNiagaraSimStageExecutionLoopData& LoopData : SimStageExecutionLoops)
+		{
+			if (!LoopData.NumLoopsBinding.IsNone())
+			{
+				bAnyBindingsAdded |= ParameterStore.AddParameter(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), LoopData.NumLoopsBinding), false);
 			}
 		}
 	}

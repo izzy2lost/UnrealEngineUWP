@@ -5,6 +5,7 @@
 #include "NiagaraCommon.h"
 #include "NiagaraScriptExecutionContext.h"
 #include "NiagaraSimStageData.h"
+#include "NiagaraSimStageExecutionData.h"
 #include "RHIGPUReadback.h"
 
 class FNiagaraGPUInstanceCountManager;
@@ -85,7 +86,7 @@ struct FNiagaraComputeExecutionContext : public INiagaraComputeDataBufferInterfa
 
 	void Reset(FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface);
 
-	void InitParams(UNiagaraScript* InGPUComputeScript, ENiagaraSimTarget InSimTarget);
+	void InitParams(UNiagaraScript* InGPUComputeScript, const FNiagaraSimStageExecutionDataPtr& InSimStageExecData, ENiagaraSimTarget InSimTarget);
 	void DirtyDataInterfaces();
 	bool Tick(FNiagaraSystemInstance* ParentSystemInstance);
 
@@ -206,7 +207,7 @@ public:
 	// The current maximum instances we should allocate on the RT
 	uint32 CurrentMaxAllocateInstances_RT = 0;
 
-	TArray<FSimulationStageMetaData> SimStageInfo;
+	FNiagaraSimStageExecutionDataPtr SimStageExecData;
 
 	bool IsOutputStage(FNiagaraDataInterfaceProxy* DIProxy, uint32 SimulationStageIndex) const;
 	bool IsInputStage(FNiagaraDataInterfaceProxy* DIProxy, uint32 SimulationStageIndex) const;

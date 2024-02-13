@@ -827,16 +827,14 @@ void FNiagaraGpuComputeDispatch::PrepareTicksForProxy(FRHICommandListImmediate& 
 
 			//-OPT: Do we need this test?  Can remove in favor of MaxUpdateIterations
 			bool bFirstStage = true;
-			for (int32 SimStageIndex=0; SimStageIndex < ComputeContext->SimStageInfo.Num(); ++SimStageIndex)
+			for (const FNiagaraComputeInstanceData::FPerStageInfo& PerStageInfo : InstanceData.PerStageInfo)
 			{
-				const FSimulationStageMetaData& SimStageMetaData = ComputeContext->SimStageInfo[SimStageIndex];
-				if (InstanceData.PerStageInfo[SimStageIndex].ShouldRunStage() == false)
-				{
-					continue;
-				}
+				const int32 SimStageIndex = PerStageInfo.SimStageIndex;
+				const FSimulationStageMetaData& SimStageMetaData = ComputeContext->SimStageExecData->SimStageMetaData[SimStageIndex];
 
 				FNiagaraDataInterfaceProxyRW* IterationInterface = InstanceData.FindIterationInterface(SimStageIndex);
-				for ( int32 IterationIndex=0; IterationIndex < InstanceData.PerStageInfo[SimStageIndex].NumIterations; ++IterationIndex )
+				const int32 NumIterations = PerStageInfo.NumIterations;
+				for ( int32 IterationIndex=0; IterationIndex < NumIterations; ++IterationIndex )
 				{
 					// Build SimStage data
 					FNiagaraGpuDispatchGroup& DispatchGroup = GpuDispatchList.DispatchGroups[iInstanceCurrDispatchGroup++];
@@ -844,8 +842,11 @@ void FNiagaraGpuComputeDispatch::PrepareTicksForProxy(FRHICommandListImmediate& 
 					FNiagaraSimStageData& SimStageData = DispatchInstance.SimStageData;
 					SimStageData.bFirstStage = bFirstStage;
 					SimStageData.StageIndex = SimStageIndex;
+					SimStageData.NumIterations = NumIterations;
 					SimStageData.IterationIndex = IterationIndex;
-					SimStageData.DispatchArgs.ElementCount = InstanceData.PerStageInfo[SimStageIndex].ElementCountXYZ;
+					SimStageData.NumLoops = PerStageInfo.NumLoops;
+					SimStageData.LoopIndex = PerStageInfo.LoopIndex;
+					SimStageData.DispatchArgs.ElementCount = PerStageInfo.ElementCountXYZ;
 					SimStageData.StageMetaData = &SimStageMetaData;
 					SimStageData.AlternateIterationSource = IterationInterface;
 
@@ -1561,8 +1562,7 @@ void FNiagaraGpuComputeDispatch::DispatchStage(FRDGBuilder& GraphBuilder, const 
 	// Z = Iteration Index
 	// W = Num Iterations
 	{
-		DispatchParameters->SimulationStageIterationInfo = FIntVector4(INDEX_NONE, -1, 0, 0);
-		DispatchParameters->SimulationStageNormalizedIterationIndex = 0.0f;
+		DispatchParameters->SimulationStageIterationInfo = FUintVector4(INDEX_NONE, 0, 0, 0);
 		switch (SimStageData.StageMetaData->IterationSourceType)
 		{
 			case ENiagaraIterationSource::Particles:
@@ -1582,11 +1582,11 @@ void FNiagaraGpuComputeDispatch::DispatchStage(FRDGBuilder& GraphBuilder, const 
 				break;
 		}
 
-		const int32 NumIterations = InstanceData.PerStageInfo[SimStageData.StageIndex].NumIterations;
-		const int32 IterationIndex = SimStageData.IterationIndex;
-		DispatchParameters->SimulationStageIterationInfo.Z = IterationIndex;
-		DispatchParameters->SimulationStageIterationInfo.W = NumIterations;
-		DispatchParameters->SimulationStageNormalizedIterationIndex = NumIterations > 1 ? float(IterationIndex) / float(NumIterations - 1) : 1.0f;
+		DispatchParameters->SimulationStageIterationInfo.Z  = uint32(SimStageData.NumIterations) << 16;
+		DispatchParameters->SimulationStageIterationInfo.Z |= uint32(SimStageData.IterationIndex);
+
+		DispatchParameters->SimulationStageIterationInfo.W  = uint32(SimStageData.NumLoops) << 16;
+		DispatchParameters->SimulationStageIterationInfo.W |= uint32(SimStageData.LoopIndex);
 	}
 
 	// Set particle iteration state info
