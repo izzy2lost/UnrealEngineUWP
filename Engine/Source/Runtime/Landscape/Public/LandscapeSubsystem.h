@@ -8,6 +8,7 @@
 #include "LandscapeSubsystem.generated.h"
 
 class ALandscapeProxy;
+class ALandscape;
 class AWorldSettings;
 class IConsoleVariable;
 class ULandscapeInfo;
@@ -153,6 +154,7 @@ private:
 	void HandlePostGarbageCollect();
 
 	bool bIsGrassCreationPrioritized = false;
+	TArray<TWeakObjectPtr<ALandscape>> LandscapeActors;
 	TArray<TWeakObjectPtr<ALandscapeProxy>> Proxies;
 	FDelegateHandle OnNaniteWorldSettingsChangedHandle;
 
