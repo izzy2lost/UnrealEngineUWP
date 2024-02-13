@@ -22,33 +22,33 @@ namespace EpicGames.Core
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="Min"></param>
-		/// <param name="Max"></param>
-		public VersionNumberRange(VersionNumber Min, VersionNumber Max)
+		/// <param name="min"></param>
+		/// <param name="max"></param>
+		public VersionNumberRange(VersionNumber min, VersionNumber max)
 		{
-			this.Min = Min;
-			this.Max = Max;
+			this.Min = min;
+			this.Max = max;
 		}
 
 		/// <summary>
 		/// Tests whether this range contains the given version
 		/// </summary>
-		/// <param name="Version"></param>
+		/// <param name="version"></param>
 		/// <returns></returns>
-		public bool Contains(VersionNumber Version)
+		public bool Contains(VersionNumber version)
 		{
-			return Version >= Min && Version <= Max;
+			return version >= Min && version <= Max;
 		}
 
 		/// <summary>
 		/// Parse a version range from two strings
 		/// </summary>
-		/// <param name="MinText"></param>
-		/// <param name="MaxText"></param>
+		/// <param name="minText"></param>
+		/// <param name="maxText"></param>
 		/// <returns></returns>
-		public static VersionNumberRange Parse(string MinText, string MaxText)
+		public static VersionNumberRange Parse(string minText, string maxText)
 		{
-			return new VersionNumberRange(VersionNumber.Parse(MinText), VersionNumber.Parse(MaxText));
+			return new VersionNumberRange(VersionNumber.Parse(minText), VersionNumber.Parse(maxText));
 		}
 
 		/// <inheritdoc/>
