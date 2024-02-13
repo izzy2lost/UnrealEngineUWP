@@ -1377,7 +1377,7 @@ public:
 #if WITH_EDITOR
 
 	/** Change the feature level that this world is current rendering with */
-	void ChangeFeatureLevel(ERHIFeatureLevel::Type InFeatureLevel, bool bShowSlowProgressDialog = true);
+	void ChangeFeatureLevel(ERHIFeatureLevel::Type InFeatureLevel, bool bShowSlowProgressDialog = true, bool bForceUpdate = false);
 
 	void ShaderPlatformChanged();
 
