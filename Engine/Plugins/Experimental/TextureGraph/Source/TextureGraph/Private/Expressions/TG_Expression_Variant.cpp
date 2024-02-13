@@ -110,7 +110,7 @@ void UTG_Expression_Variant::Evaluate(FTG_EvaluationContext* InContext)
 	}
 	case FTG_Variant::EType::Texture:
 	{
-		Output.EditTexture() = EvaluateTexture(InContext);
+		Output.EditTexture() = EvaluateTexture(InContext).RasterBlob;
 		break;
 	}
 	}

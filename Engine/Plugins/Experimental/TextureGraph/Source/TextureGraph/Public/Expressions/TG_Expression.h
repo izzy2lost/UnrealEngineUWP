@@ -111,10 +111,12 @@ protected:
 	virtual FTG_SignaturePtr BuildSignatureDynamically() const { return nullptr; }
 
 
-
+public:
 	// If some state has changed in the expression that affects its representation
 	// triggered when a property has changed and needs to be copied over to its corresponding Var
-	virtual void NotifyExpressionChanged(FPropertyChangedEvent& PropertyChangedEvent) const final;
+	// NB: required to be public for calling from TG_Variant customization
+	virtual void NotifyExpressionChanged(const FPropertyChangedEvent& PropertyChangedEvent) const final;
+protected:
 
 	// If the signature changes and the node need to regenerate its own signature.
 	// Only concrete implementation for Dynamic Expression

@@ -13,6 +13,7 @@
 #include "EdGraph/TG_EditorErrorReporter.h"
 #include "Customizations/TG_ParameterCustomization.h"
 #include "Customizations/TG_TextureCustomization.h"
+#include "Customizations/TG_VariantCustomization.h"
 #include "Customizations/TG_ScalarCustomization.h"
 #include "Customizations/TG_MaterialMappingInfoCustomization.h"
 #include "Customizations/TG_OutputSettingsCustomization.h"
@@ -32,6 +33,7 @@ void FTextureGraphEditorModule::StartupModule()
 	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 	PropertyEditorModule.RegisterCustomPropertyTypeLayout("TG_ParameterInfo", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTG_ParameterInfoCustomization::Create));
 	PropertyEditorModule.RegisterCustomPropertyTypeLayout("TG_Texture", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTG_TextureCustomization::Create));
+	PropertyEditorModule.RegisterCustomPropertyTypeLayout("TG_Variant", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTG_VariantCustomization::Create));
 	auto ScalarIdentifier = MakeShared<FTG_ScalarTypeIdentifier>();
 	PropertyEditorModule.RegisterCustomPropertyTypeLayout("FloatProperty", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTG_ScalarCustomization::Create), ScalarIdentifier);
 	PropertyEditorModule.RegisterCustomPropertyTypeLayout("MaterialMappingInfo", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTG_MaterialMappingInfoCustomization::Create));

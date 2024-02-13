@@ -34,7 +34,7 @@ UTG_Node* UTG_Expression::GetParentNode() const
 	return Cast<UTG_Node>(GetOuter());
 }
 
-void UTG_Expression::NotifyExpressionChanged(FPropertyChangedEvent& PropertyChangedEvent)const
+void UTG_Expression::NotifyExpressionChanged(const FPropertyChangedEvent& PropertyChangedEvent)const
 {
 	UTG_Node* ParentNode = GetParentNode();
 	if (ParentNode)
