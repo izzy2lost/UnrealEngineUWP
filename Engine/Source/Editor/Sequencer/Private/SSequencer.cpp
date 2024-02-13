@@ -2417,6 +2417,11 @@ void SSequencer::FillColumnVisibilityMenu(FMenuBuilder& InMenuBuilder)
 
 	for (FSequencerOutlinerColumnVisibility& ColumnVisibility : OutlinerColumnVisibilities)
 	{
+		if (EnumHasAnyFlags(ColumnVisibility.Column->GetLayout().Flags, EOutlinerColumnFlags::Hidden))
+		{
+			continue;
+		}
+
 		auto ToggleVisibility = [this, &ColumnVisibility]
 		{
 			ColumnVisibility.bIsColumnVisible = !ColumnVisibility.bIsColumnVisible;
