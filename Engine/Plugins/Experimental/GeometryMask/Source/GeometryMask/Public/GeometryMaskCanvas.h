@@ -31,7 +31,11 @@ class GEOMETRYMASK_API UGeometryMaskCanvas : public UObject
 
 public:
 	virtual void BeginDestroy() override;
-	
+
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
+#endif
+
 	/** Returns all writers. */
     const TArray<TWeakInterfacePtr<IGeometryMaskWriteInterface>>& GetWriters() const;
 
@@ -98,6 +102,20 @@ public:
 	void AssignResource(UGeometryMaskCanvasResource* InResource, EGeometryMaskColorChannel InColorChannel);
 	void FreeResource();
 
+public:
+	static FName GetApplyBlurPropertyName();
+	static FName GetBlurStrengthPropertyName();
+	static FName GetApplyFeatherPropertyName();
+	static FName GetOuterFeatherRadiusPropertyName();
+	static FName GetInnerFeatherRadiusPropertyName();
+
+private:
+	static const FName ApplyBlurPropertyName;
+	static const FName BlurStrengthPropertyName;
+	static const FName ApplyFeatherPropertyName;
+	static const FName OuterFeatherRadiusPropertyName;
+	static const FName InnerFeatherRadiusPropertyName;
+
 private:
 	/** Sorts writers by various criteria for proper rendering order. */
 	void SortWriters();
@@ -114,7 +132,8 @@ private:
 private:
 	// Allow the subsystem to set the CanvasName
 	friend class UGeometryMaskSubsystem;
-	
+	friend class UGeometryMaskWorldSubsystem;
+
 	FOnGeometryMaskCanvasActivated OnActivatedDelegate;
 	FOnGeometryMaskCanvasDeactivated OnDeactivatedDelegate;
 

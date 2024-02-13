@@ -12,6 +12,7 @@
 #include "GeometryMaskCanvas.h"
 #include "GeometryMaskReadComponent.h"
 #include "GeometryMaskSubsystem.h"
+#include "GeometryMaskWorldSubsystem.h"
 #include "GeometryMaskWriteComponent.h"
 #include "Handling/AvaHandleUtilities.h"
 #include "Handling/AvaObjectHandleSubsystem.h"
@@ -46,6 +47,16 @@ namespace UE::AvaMask::Private
 
 		return InNew.Emplace(InKey, InValueFactory());
 	}
+
+	// @note: It's crucial these remain in sync with the defaults in UGeometryMaskCanvas
+	namespace CanvasPropertyDefaults
+	{
+		static bool bApplyBlur = false;
+		static double BlurStrength = 16;
+		static bool bApplyFeather = false;
+		static int32 OuterFeatherRadius = 16;
+		static int32 InnerFeatherRadius = 16;
+	}
 }
 
 #if WITH_EDITOR
@@ -59,6 +70,7 @@ const TAvaPropertyChangeDispatcher<UAvaMask2DBaseModifier> UAvaMask2DBaseModifie
 	{ GET_MEMBER_NAME_CHECKED(UAvaMask2DBaseModifier, bUseFeathering), &UAvaMask2DBaseModifier::OnFeatherChanged },
 	{ GET_MEMBER_NAME_CHECKED(UAvaMask2DBaseModifier, OuterFeatherRadius), &UAvaMask2DBaseModifier::OnFeatherChanged },
 	{ GET_MEMBER_NAME_CHECKED(UAvaMask2DBaseModifier, InnerFeatherRadius), &UAvaMask2DBaseModifier::OnFeatherChanged },
+	{ GET_MEMBER_NAME_CHECKED(UAvaMask2DBaseModifier, CanvasWeak), &UAvaMask2DBaseModifier::OnCanvasChanged }
 };
 #endif
 
@@ -163,6 +175,66 @@ void UAvaMask2DBaseModifier::OnFeatherChanged()
 	MarkModifierDirty();
 }
 
+void UAvaMask2DBaseModifier::OnCanvasChanged()
+{
+	OnBlurChanged();
+	OnFeatherChanged();
+}
+
+void UAvaMask2DBaseModifier::CanvasParamsToLocal()
+{
+	if (UGeometryMaskCanvas* Canvas = GetCurrentCanvas())
+	{
+		bUseBlur = Canvas->IsBlurApplied();
+		BlurStrength = Canvas->GetBlurStrength();
+
+		bUseFeathering = Canvas->IsFeatherApplied();
+		OuterFeatherRadius = Canvas->GetOuterFeatherRadius();
+		InnerFeatherRadius = Canvas->GetInnerFeatherRadius();
+	}
+}
+
+void UAvaMask2DBaseModifier::LocalParamsToCanvas()
+{
+	if (UGeometryMaskCanvas* Canvas = GetCurrentCanvas())
+	{
+		// Only set if not defaults
+		
+		const bool bModifierUseBlur = bUseBlur;
+		if (bModifierUseBlur != UE::AvaMask::Private::CanvasPropertyDefaults::bApplyBlur)
+		{
+			Canvas->SetApplyBlur(bModifierUseBlur);
+		}
+
+		const double ModifierBlurStrength = BlurStrength;		
+		if (!FMath::IsNearlyEqual(ModifierBlurStrength, UE::AvaMask::Private::CanvasPropertyDefaults::BlurStrength))
+		{
+			const double CanvasBlurStrength = Canvas->GetBlurStrength();
+			Canvas->SetBlurStrength(FMath::Max(ModifierBlurStrength, CanvasBlurStrength));
+		}
+
+		const bool bModifierUseFeathering = bUseFeathering;
+		if (bModifierUseFeathering != UE::AvaMask::Private::CanvasPropertyDefaults::bApplyFeather)
+		{
+			Canvas->SetApplyFeather(bModifierUseFeathering);
+		}
+
+		const int32 ModifierOuterFeatherRadius = OuterFeatherRadius;
+		if (ModifierOuterFeatherRadius != UE::AvaMask::Private::CanvasPropertyDefaults::OuterFeatherRadius)
+		{
+			const int32 CanvasOuterFeatherRadius = Canvas->GetOuterFeatherRadius();
+			Canvas->SetOuterFeatherRadius(FMath::Max(ModifierOuterFeatherRadius, CanvasOuterFeatherRadius));
+		}
+
+		const int32 ModifierInnerFeatherRadius = InnerFeatherRadius;
+		if (ModifierInnerFeatherRadius != UE::AvaMask::Private::CanvasPropertyDefaults::InnerFeatherRadius)
+		{
+			const int32 CanvasInnerFeatherRadius = Canvas->GetInnerFeatherRadius();
+			Canvas->SetInnerFeatherRadius(FMath::Max(ModifierInnerFeatherRadius, CanvasInnerFeatherRadius));
+		}
+	}
+}
+
 #if WITH_EDITOR
 void UAvaMask2DBaseModifier::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
 {
@@ -185,6 +257,11 @@ void UAvaMask2DBaseModifier::OnModifierAdded(EActorModifierCoreEnableReason InRe
 	{
 		SetupChannelName();
 	}
+
+	if (InReason == EActorModifierCoreEnableReason::Load)
+	{
+		LocalParamsToCanvas();
+	}
 }
 
 void UAvaMask2DBaseModifier::OnModifierRemoved(EActorModifierCoreDisableReason InReason)
@@ -192,6 +269,11 @@ void UAvaMask2DBaseModifier::OnModifierRemoved(EActorModifierCoreDisableReason I
 	Super::OnModifierRemoved(InReason);
 
 	TRACE_BOOKMARK(TEXT("UAvaMask2DModifier::OnModifierRemoved"));
+
+	if (InReason == EActorModifierCoreDisableReason::Destroyed)
+	{
+		CanvasParamsToLocal();
+	}
 
 	TArray<AActor*> ActorDataActors;
 	ActorDataActors.Reserve(ActorData.Num());	
@@ -269,15 +351,7 @@ void UAvaMask2DBaseModifier::RestorePreState()
 
 void UAvaMask2DBaseModifier::Apply()
 {
-	if (UGeometryMaskCanvas* Canvas = GetCurrentCanvas())
-	{
-		Canvas->SetApplyBlur(bUseBlur);
-		Canvas->SetBlurStrength(BlurStrength);
-
-		Canvas->SetApplyFeather(bUseFeathering);
-		Canvas->SetOuterFeatherRadius(OuterFeatherRadius);
-		Canvas->SetInnerFeatherRadius(InnerFeatherRadius);
-	}
+	LocalParamsToCanvas();
 }
 
 void UAvaMask2DBaseModifier::SaveActorPreState(AActor* InActor, FAvaMask2DActorData& InActorData)
@@ -320,8 +394,6 @@ void UAvaMask2DBaseModifier::OnSceneTreeTrackedActorParentChanged(
 	, const TArray<TWeakObjectPtr<AActor>>& InNewParentActor)
 {
 	Super::OnSceneTreeTrackedActorParentChanged(InIdx, InPreviousParentActor, InNewParentActor);
-
-	// @todo: remove stuff from child writers/readers if necessary
 
 	// We don't use the provided parent here, instead we just use the event to trigger custom parent discovery
 	if (bUseParentChannel)

@@ -126,6 +126,13 @@ protected:
 	void OnInvertedChanged();
 	void OnBlurChanged();
 	void OnFeatherChanged();
+	void OnCanvasChanged();
+
+	/** Stores specific properties on the canvas locally. */	
+	void CanvasParamsToLocal();
+
+	/** Apply locally stored parameters to the canvas. */
+	void LocalParamsToCanvas();
 
 	void SetupChannelName();
 	virtual void SetupMaskComponent(UActorComponent* InComponent);
@@ -176,19 +183,19 @@ protected:
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Getter = "IsInverted", Setter = "SetIsInverted", Category = "Mask2D", meta = (AllowPrivateAccess = "true"))
 	bool bInverted = false;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Getter = "UseBlur", Setter = "UseBlur", Category = "Mask2D|Shared", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(BlueprintReadWrite, Getter = "UseBlur", Setter = "UseBlur", Category = "Mask2D|Shared", meta = (AllowPrivateAccess = "true"))
 	bool bUseBlur = false;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Getter, Setter, Category = "Mask2D|Shared", meta = (ClampMin = 0.0, AllowPrivateAccess = "true", EditCondition = "bUseBlur", EditConditionHides))
-	float BlurStrength = 1.0f;
+	UPROPERTY(BlueprintReadWrite, Getter, Setter, Category = "Mask2D|Shared", meta = (ClampMin = 0.0, AllowPrivateAccess = "true", EditCondition = "bUseBlur", EditConditionHides))
+	float BlurStrength = 16.0f;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Getter = "UseFeathering", Setter = "UseFeathering", Category = "Mask2D|Shared", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(BlueprintReadWrite, Getter = "UseFeathering", Setter = "UseFeathering", Category = "Mask2D|Shared", meta = (AllowPrivateAccess = "true"))
 	bool bUseFeathering = false;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Getter, Setter, Category = "Mask2D|Shared", meta = (ClampMin = 0, AllowPrivateAccess = "true", EditCondition = "bUseFeathering", EditConditionHides))
+	UPROPERTY(BlueprintReadWrite, Getter, Setter, Category = "Mask2D|Shared", meta = (ClampMin = 0, AllowPrivateAccess = "true", EditCondition = "bUseFeathering", EditConditionHides))
 	int32 OuterFeatherRadius = 16;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Getter, Setter, Category = "Mask2D|Shared", meta = (ClampMin = 0, AllowPrivateAccess = "true", EditCondition = "bUseFeathering", EditConditionHides))
+	UPROPERTY(BlueprintReadWrite, Getter, Setter, Category = "Mask2D|Shared", meta = (ClampMin = 0, AllowPrivateAccess = "true", EditCondition = "bUseFeathering", EditConditionHides))
 	int32 InnerFeatherRadius = 16;
 
 #if WITH_EDITOR
@@ -218,7 +225,7 @@ protected:
 	FName LastResolvedCanvasName;
 
 	/** Reference to the Canvas used */
-	UPROPERTY(Transient, DuplicateTransient)
+	UPROPERTY(EditAnywhere, Transient, DuplicateTransient, Category = "Mask2D|Shared", NoClear,	meta = (DisplayName = "Canvas", AllowPrivateAccess = "true", ShowInnerProperties, NoResetToDefault))
 	TWeakObjectPtr<UGeometryMaskCanvas> CanvasWeak;
 
 	/** Reference to the underlying canvas texture */

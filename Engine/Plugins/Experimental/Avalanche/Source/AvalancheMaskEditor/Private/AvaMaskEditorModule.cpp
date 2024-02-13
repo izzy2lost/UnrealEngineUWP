@@ -5,7 +5,11 @@
 #include "AvaMaskEditorCommands.h"
 #include "AvaMaskEditorMode.h"
 #include "AvaMaskEditorSubsystem.h"
+#include "Details/AvaMask2DModifierDetails.h"
 #include "EditorModeManager.h"
+#include "Mask2D/AvaMask2DReadModifier.h"
+#include "Mask2D/AvaMask2DWriteModifier.h"
+#include "PropertyEditorModule.h"
 #include "Templates/SharedPointer.h"
 #include "ToolMenuEntry.h"
 #include "ToolMenus.h"
@@ -15,6 +19,17 @@
 
 void FAvalancheMaskEditorModule::StartupModule()
 {
+	// Details
+	{
+		FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+
+		FOnGetDetailCustomizationInstance MaskCustomization = FOnGetDetailCustomizationInstance::CreateStatic(&FAvaMask2DModifierDetails::MakeInstance);
+		PropertyModule.RegisterCustomClassLayout(UAvaMask2DReadModifier::StaticClass()->GetFName(), MaskCustomization);
+		PropertyModule.RegisterCustomClassLayout(UAvaMask2DWriteModifier::StaticClass()->GetFName(), MaskCustomization);
+		
+		PropertyModule.NotifyCustomizationModuleChanged();
+	}
+
 	FAvaMaskEditorCommands::Register();
 
 	CommandList = MakeShared<FUICommandList>();
@@ -24,9 +39,20 @@ void FAvalancheMaskEditorModule::StartupModule()
 
 void FAvalancheMaskEditorModule::ShutdownModule()
 {
+	// Details
+	if (FModuleManager::Get().IsModuleLoaded(TEXT("PropertyEditor")))
+	{
+		if (FPropertyEditorModule* PropertyModule = FModuleManager::GetModulePtr<FPropertyEditorModule>("PropertyEditor"))
+		{
+			PropertyModule->UnregisterCustomClassLayout(UAvaMask2DReadModifier::StaticClass()->GetFName());
+			PropertyModule->UnregisterCustomClassLayout(UAvaMask2DWriteModifier::StaticClass()->GetFName());
+			PropertyModule->NotifyCustomizationModuleChanged();
+		}
+	}
+	
 	UToolMenus::UnRegisterStartupCallback(this);
 	UToolMenus::UnregisterOwner(this);
-	
+
 	FAvaMaskEditorCommands::Unregister();
 }
 

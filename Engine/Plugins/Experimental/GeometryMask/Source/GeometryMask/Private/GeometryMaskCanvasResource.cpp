@@ -225,7 +225,7 @@ void UGeometryMaskCanvasResource::UpdateRenderParameters(
 
 	if (UCanvasRenderTarget2D* Texture = GetRenderTargetTexture())
 	{
-		if (bInApplyBlur || bInApplyFeather)
+		if (bApplyBlur || bApplyDF)
 		{
 			// MSAA not supported for these effects (they need UAV access)
 			Texture->SetSampleCount(ETextureRenderTargetSampleCount::RTSC_1);
