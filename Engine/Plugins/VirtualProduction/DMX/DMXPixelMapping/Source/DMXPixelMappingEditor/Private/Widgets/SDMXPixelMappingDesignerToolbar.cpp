@@ -297,11 +297,6 @@ namespace UE::DMX
 		}
 		MenuBuilder.EndSection();
 
-		MenuBuilder.BeginSection("LayoutSettings", LOCTEXT("LayoutSettingsSection", "Layout Settings"));
-		{
-			MenuBuilder.AddMenuEntry(FDMXPixelMappingEditorCommands::Get().ToggleApplyLayoutScriptWhenLoaded);
-		}
-
 		return MenuBuilder.MakeWidget();
 	}
 

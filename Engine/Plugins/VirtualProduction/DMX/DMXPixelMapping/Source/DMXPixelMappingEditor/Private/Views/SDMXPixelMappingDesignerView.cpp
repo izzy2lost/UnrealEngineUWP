@@ -125,6 +125,7 @@ void SDMXPixelMappingDesignerView::Construct(const FArguments& InArgs, const TSh
 						.ZoomAmount(this, &SDMXPixelMappingDesignerView::GetZoomAmount)
 						.ViewOffset(this, &SDMXPixelMappingDesignerView::GetViewOffset)
 						.Visibility(this, &SDMXPixelMappingDesignerView::GetZoomPanVisibility)
+						
 
 						[
 							SNew(SOverlay)
