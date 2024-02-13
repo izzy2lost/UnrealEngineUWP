@@ -485,7 +485,8 @@ private:
 	/* Check on tick to see if movie scene has changed, returns true if it has*/
 	bool CheckMovieSceneSig();
 	void SetControlShapeTransform( const AControlRigShapeActor* InShapeActor, const FTransform& InGlobalTransform,
-		const FTransform& InToWorldTransform, const FRigControlModifiedContext& InContext, const bool bPrintPython) const;
+		const FTransform& InToWorldTransform, const FRigControlModifiedContext& InContext, const bool bPrintPython,
+		const bool bFixEulerFlips = true) const;
 	static FTransform GetControlShapeTransform(const AControlRigShapeActor* ShapeActor);
 	void MoveControlShape(AControlRigShapeActor* ShapeActor, const bool bTranslation, FVector& InDrag, 
 		const bool bRotation, FRotator& InRot, const bool bScale, FVector& InScale, const FTransform& ToWorldTransform,
