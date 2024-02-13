@@ -25,6 +25,11 @@ namespace UE::Landscape
 */
 LANDSCAPE_API bool DoesPlatformSupportEditLayers(EShaderPlatform InShaderPlatform);
 
+int32 ComputeMaxDeltasOffsetForMip(int32 InMipIndex, int32 InNumRelevantMips);
+int32 ComputeMaxDeltasCountForMip(int32 InMipIndex, int32 InNumRelevantMips);
+int32 ComputeMipToMipMaxDeltasIndex(int32 InSourceMipIndex, int32 InDestinationMipIndex, int32 InNumRelevantMips);
+int32 ComputeMipToMipMaxDeltasCount(int32 InNumRelevantMips);
+
 #if WITH_EDITOR
 
 struct FTextureCopyRequest

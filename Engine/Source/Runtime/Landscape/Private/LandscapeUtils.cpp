@@ -28,6 +28,38 @@ bool DoesPlatformSupportEditLayers(EShaderPlatform InShaderPlatform)
 		&& !IsMobilePlatform(InShaderPlatform);
 }
 
+int32 ComputeMaxDeltasOffsetForMip(int32 InMipIndex, int32 InNumRelevantMips)
+{
+	int32 Offset = 0;
+	for (int32 X = 0; X < InMipIndex; ++X)
+	{
+		Offset += InNumRelevantMips - 1 - X;
+	}
+	return Offset;
+}
+
+int32 ComputeMaxDeltasCountForMip(int32 InMipIndex, int32 InNumRelevantMips)
+{
+	return InNumRelevantMips - 1 - InMipIndex;
+}
+
+int32 ComputeMipToMipMaxDeltasIndex(int32 InSourceMipIndex, int32 InDestinationMipIndex, int32 InNumRelevantMips)
+{
+	check((InSourceMipIndex >= 0) && (InSourceMipIndex < InNumRelevantMips));
+	check((InDestinationMipIndex > InSourceMipIndex) && (InDestinationMipIndex < InNumRelevantMips));
+	return ComputeMaxDeltasOffsetForMip(InSourceMipIndex, InNumRelevantMips) + InDestinationMipIndex - InSourceMipIndex - 1;
+}
+
+int32 ComputeMipToMipMaxDeltasCount(int32 InNumRelevantMips)
+{
+	int32 Count = 0;
+	for (int32 MipIndex = 0; MipIndex < InNumRelevantMips - 1; ++MipIndex)
+	{
+		Count += InNumRelevantMips - 1 - MipIndex;
+	}
+	return Count;
+}
+
 #if WITH_EDITOR
 
 FString GetSharedAssetsPath(const FString& InPath)

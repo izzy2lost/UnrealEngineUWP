@@ -466,6 +466,17 @@ class ULandscapeComponent : public UPrimitiveComponent
 	UPROPERTY()
 	FBox CachedLocalBox;
 
+	/** Maximum deltas between vertices and their counterparts from other mips. This mip-to-mip data is laid out in a contiguous array following the following pattern : 
+	*  Say, we have 5 "relevant" mips and [N -> M] is the delta from mip N to M (where M > N and M < (NumRelevantMips - 1)) then the array will contain : 
+	*  [0 -> 1], [0 -> 2], [0 -> 3], [1 -> 2], [1 -> 3], [2 -> 3]
+	*  i.e. for mip 0 : (NumRelevantMips - 1) deltas, then for mip 1 : (NumRelevantMips - 2) deltas, until mip == (NumRelevantMips - 2) : 1 delta
+	*  Note: a "relevant" mip is one with more than 1 vertex. i.e.:
+	*   - In the case of a 1x1 subsection, the last mip index (NumMips - 1) has a single pixel and is therefore not relevant (we cannot draw a landscape component with a single vertex!), hence the last relevant mip index will be NumMips - 2
+	*   - In the case of 2x2 subsections, the penultimate mip index (NumMips - 2) has 4 pixels, which means 4 subsections, each with a single pixel, and is therefore not relevant either, hence the last relevant mip index will be NumMips - 3
+	*/
+	UPROPERTY()
+	TArray<double> MipToMipMaxDeltas;
+
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	TLazyObjectPtr<ULandscapeHeightfieldCollisionComponent> CollisionComponent_DEPRECATED;
@@ -531,9 +542,9 @@ private:
 #endif // WITH_EDITORONLY_DATA
 
 	/** Cached list of grass types supported by the component's material.
-	  *	This is needed in a cooked build, as the grass types list is not available
-	  * on the cooked material.
-	  * Call UpdateGrassTypes() to ensure this array is up to date */
+	* This is needed in a cooked build, as the grass types list is not available
+	* on the cooked material.
+	* Call UpdateGrassTypes() to ensure this array is up to date */
 	UPROPERTY()
 	TArray<TObjectPtr<ULandscapeGrassType>> GrassTypes;
 
@@ -955,6 +966,13 @@ public:
 		SectionBaseX = InSectionBase.X;
 		SectionBaseY = InSectionBase.Y;
 	}
+
+	/** 
+	* Computes the number of mips that are actually usable, i.e.:
+	*  - For 1x1 subsection, the last mip is not usable (it has a single vertex)
+	*  - For 2x2 subsections, the last 2 mips are not usable (a single vertex per subsection)
+	*/
+	int32 GetNumRelevantMips() const;
 
 	/** @todo document */
 	const FGuid& GetLightingGuid() const

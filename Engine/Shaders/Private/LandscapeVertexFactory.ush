@@ -828,4 +828,12 @@ uint VertexFactoryGetPrimitiveId(FVertexFactoryInterpolantsVSToPS Interpolants)
 #endif // VF_USE_PRIMITIVE_SCENE_DATA
 }
 
+// Tell the VSM depth shader that we are supplying a constant bias
+#define VF_USE_VSM_CONSTANT_BIAS 1
+
+float VertexFactoryGetNonNaniteVirtualShadowMapConstantDepthBias()
+{
+	return LandscapeParameters.NonNaniteVirtualShadowMapConstantDepthBias;
+}
+
 #include "VertexFactoryDefaultInterface.ush"

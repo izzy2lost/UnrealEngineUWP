@@ -616,7 +616,7 @@ static void ComputeSectionIntermediateData(FRDGBuilder& GraphBuilder, TArrayView
 			ViewStateIntermediates.SectionsBufferRDG = nullptr;
 
 			const FLandscapeRenderSystem& RenderSystem = *LandscapeRenderSystems.FindChecked(CullingEntry.LandscapeKey);
-			const TResourceArray<float>& SectionLODValues = RenderSystem.CachedSectionLODValues.FindRef(&View);
+			const TResourceArray<float>& SectionLODValues = RenderSystem.GetCachedSectionLODValues(View);
 
 			for (int32 SectionIdx = 0; SectionIdx < SectionLODValues.Num(); ++SectionIdx)
 			{

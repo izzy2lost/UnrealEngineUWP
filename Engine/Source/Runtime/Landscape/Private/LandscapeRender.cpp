@@ -54,6 +54,8 @@ LandscapeRender.cpp: New terrain rendering
 #include "RenderGraphBuilder.h"
 #include "Scalability.h"
 #include "Rendering/CustomRenderPass.h"
+#include "LandscapeUtils.h"
+#include "SceneRendererInterface.h"
 
 using namespace UE::Landscape;
 
@@ -62,15 +64,13 @@ IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FLandscapeFixedGridUniformShaderParamet
 IMPLEMENT_TYPE_LAYOUT(FLandscapeVertexFactoryVertexShaderParameters);
 IMPLEMENT_TYPE_LAYOUT(FLandscapeVertexFactoryPixelShaderParameters);
 
-#if !UE_BUILD_SHIPPING
-static void OnLODDistributionScaleChanged(IConsoleVariable* CVar)
+static void OnCVarNeedingRenderStateInvalidationChanged(IConsoleVariable* CVar)
 {
-	for (auto* LandscapeComponent : TObjectRange<ULandscapeComponent>(RF_ClassDefaultObject | RF_ArchetypeObject, true, EInternalObjectFlags::Garbage))
+	for (ULandscapeComponent* LandscapeComponent : TObjectRange<ULandscapeComponent>(RF_ClassDefaultObject | RF_ArchetypeObject, true, EInternalObjectFlags::Garbage))
 	{
 		LandscapeComponent->MarkRenderStateDirty();
 	}
 }
-#endif
 
 #if !UE_BUILD_SHIPPING
 float GLandscapeLOD0ScreenSizeOverride = -1.f;
@@ -78,7 +78,7 @@ FAutoConsoleVariableRef CVarLandscapeLOD0ScreenSizeOverride(
 	TEXT("landscape.OverrideLOD0ScreenSize"),
 	GLandscapeLOD0ScreenSizeOverride,
 	TEXT("When > 0, force override the landscape LOD0ScreenSize property on all landscapes"),
-	FConsoleVariableDelegate::CreateStatic(&OnLODDistributionScaleChanged),
+	FConsoleVariableDelegate::CreateStatic(&OnCVarNeedingRenderStateInvalidationChanged),
 	ECVF_Cheat
 );
 
@@ -87,7 +87,7 @@ FAutoConsoleVariableRef CVarLandscapeLOD0DistributionOverride(
 	TEXT("landscape.OverrideLOD0Distribution"),
 	GLandscapeLOD0DistributionOverride,
 	TEXT("When > 0, force override the LOD0DistributionSetting property on all landscapes, and ignore r.LandscapeLOD0DistributionScale"),
-	FConsoleVariableDelegate::CreateStatic(&OnLODDistributionScaleChanged),
+	FConsoleVariableDelegate::CreateStatic(&OnCVarNeedingRenderStateInvalidationChanged),
 	ECVF_Cheat
 );
 
@@ -96,7 +96,7 @@ FAutoConsoleVariableRef CVarLandscapeLODDistributionOverride(
 	TEXT("landscape.OverrideLODDistribution"),
 	GLandscapeLODDistributionOverride,
 	TEXT("When > 0, force override the landscape LODDistributionSetting property on all landscapes, and ignore r.LandscapeLODDistributionScale"),
-	FConsoleVariableDelegate::CreateStatic(&OnLODDistributionScaleChanged),
+	FConsoleVariableDelegate::CreateStatic(&OnCVarNeedingRenderStateInvalidationChanged),
 	ECVF_Cheat
 );
 
@@ -105,7 +105,34 @@ FAutoConsoleVariableRef CVarLandscapeLODBlendRangeOverride(
 	TEXT("landscape.OverrideLODBlendRange"),
 	GLandscapeLODBlendRangeOverride,
 	TEXT("When > 0, force the LODBlendRange property on all landscapes"),
-	FConsoleVariableDelegate::CreateStatic(&OnLODDistributionScaleChanged),
+	FConsoleVariableDelegate::CreateStatic(&OnCVarNeedingRenderStateInvalidationChanged),
+	ECVF_Cheat
+);
+
+float GLandscapeNonNaniteVirtualShadowMapConstantDepthBiasOverride = -1.f;
+FAutoConsoleVariableRef CVarLandscapeNonNaniteVirtualShadowMapConstantDepthBiasOverrideOverride(
+	TEXT("landscape.OverrideNonNaniteVirtualShadowMapConstantDepthBiasOverride"),
+	GLandscapeNonNaniteVirtualShadowMapConstantDepthBiasOverride,
+	TEXT("When > 0, force override the landscape NonNaniteVirtualShadowMapConstantDepthBias property on all landscapes"),
+	FConsoleVariableDelegate::CreateStatic(&OnCVarNeedingRenderStateInvalidationChanged),
+	ECVF_Cheat
+);
+
+float GLandscapeNonNaniteVirtualShadowMapInvalidationHeightErrorThresholdOverride = -1.f;
+FAutoConsoleVariableRef CVarLandscapeNonNaniteVirtualShadowMapInvalidationHeightErrorThresholdOverride(
+	TEXT("landscape.OverrideNonNaniteVirtualShadowMapInvalidationHeightErrorThreshold"),
+	GLandscapeNonNaniteVirtualShadowMapInvalidationHeightErrorThresholdOverride,
+	TEXT("When > 0, force override the landscape NonNaniteVirtualShadowMapInvalidationHeightErrorThreshold property on all landscapes"),
+	FConsoleVariableDelegate::CreateStatic(&OnCVarNeedingRenderStateInvalidationChanged),
+	ECVF_Cheat
+);
+
+float GLandscapeNonNaniteVirtualShadowMapInvalidationScreenSizeLimitOverride = -1.f;
+FAutoConsoleVariableRef CVarLandscapeNonNaniteVirtualShadowMapInvalidationScreenSizeLimitOverride(
+	TEXT("landscape.OverrideNonNaniteVirtualShadowMapInvalidationScreenSizeLimit"),
+	GLandscapeNonNaniteVirtualShadowMapInvalidationScreenSizeLimitOverride,
+	TEXT("When > 0, force override the landscape NonNaniteVirtualShadowMapInvalidationScreenSizeLimit property on all landscapes"),
+	FConsoleVariableDelegate::CreateStatic(&OnCVarNeedingRenderStateInvalidationChanged),
 	ECVF_Cheat
 );
 #else
@@ -117,9 +144,7 @@ FAutoConsoleVariableRef CVarLandscapeLOD0DistributionScale(
 	TEXT("r.LandscapeLOD0DistributionScale"),
 	GLandscapeLOD0DistributionScale,
 	TEXT("Multiplier for the landscape LOD0DistributionSetting property"),
-#if !UE_BUILD_SHIPPING
-	FConsoleVariableDelegate::CreateStatic(&OnLODDistributionScaleChanged),
-#endif
+	FConsoleVariableDelegate::CreateStatic(&OnCVarNeedingRenderStateInvalidationChanged),
 	ECVF_Scalability
 );
 
@@ -128,9 +153,7 @@ FAutoConsoleVariableRef CVarLandscapeLODDistributionScale(
 	TEXT("r.LandscapeLODDistributionScale"),
 	GLandscapeLODDistributionScale,
 	TEXT("Multiplier for the landscape LODDistributionSetting property"),
-#if !UE_BUILD_SHIPPING
-	FConsoleVariableDelegate::CreateStatic(&OnLODDistributionScaleChanged),
-#endif
+	FConsoleVariableDelegate::CreateStatic(&OnCVarNeedingRenderStateInvalidationChanged),
 	ECVF_Scalability
 );
 
@@ -138,20 +161,41 @@ int32 GAllowLandscapeShadows = 1;
 static FAutoConsoleVariableRef CVarAllowLandscapeShadows(
 	TEXT("r.AllowLandscapeShadows"),
 	GAllowLandscapeShadows,
-	TEXT("Allow Landscape Shadows")
+	TEXT("Allow Landscape Shadows"),
+	ECVF_RenderThreadSafe | ECVF_Scalability
 );
 
 int32 GLandscapeUseAsyncTasksForLODComputation = 1;
 FAutoConsoleVariableRef CVarLandscapeUseAsyncTasksForLODComputation(
 	TEXT("r.LandscapeUseAsyncTasksForLODComputation"),
 	GLandscapeUseAsyncTasksForLODComputation,
-	TEXT("Use async tasks for computing per-landscape component LOD biases."));
+	TEXT("Use async tasks for computing per-landscape component LOD biases."), 
+	ECVF_RenderThreadSafe
+);
 
 int32 GDisableLandscapeNaniteGI = 1;
 static FAutoConsoleVariableRef CVarDisableLandscapeNaniteGI(
 	TEXT("r.DisableLandscapeNaniteGI"),
 	GDisableLandscapeNaniteGI,
-	TEXT("Disable Landscape Nanite GI")
+	TEXT("Disable Landscape Nanite GI"),
+	FConsoleVariableDelegate::CreateStatic(&OnCVarNeedingRenderStateInvalidationChanged), 
+	ECVF_Scalability
+);
+
+bool GLandscapeAllowNonNaniteVirtualShadowMapInvalidation = true;
+FAutoConsoleVariableRef CVarLandscapeAllowNonNaniteVirtualShadowMapInvalidation(
+	TEXT("landscape.AllowNonNaniteVirtualShadowMapInvalidation"),
+	GLandscapeAllowNonNaniteVirtualShadowMapInvalidation,
+	TEXT("For non-Nanite landscape, cached virtual shadow map pages need to be invalidated when the vertex morphing introduces a height difference that is too large. This enables or disables this behavior entirely"),
+	ECVF_RenderThreadSafe | ECVF_Scalability
+);
+
+float GLandscapeNonNaniteVirtualShadowMapInvalidationLODAttenuationExponent = 2.0f;
+FAutoConsoleVariableRef CVarLandscapeNonNaniteVirtualShadowMapInvalidationLODAttenuationExponent(
+	TEXT("landscape.NonNaniteVirtualShadowMapInvalidationLODAttenuationExponent"),
+	GLandscapeNonNaniteVirtualShadowMapInvalidationLODAttenuationExponent,
+	TEXT("For non-Nanite landscape, controls the shape of the curve of the attenuation of the virtual shadow map pages' invalidation rate (1 - X^N), where X is the relative LOD value (LODValue/NumMips in the [0,1] range) and N, the CVar"),
+	ECVF_RenderThreadSafe | ECVF_Scalability
 );
 
 #if WITH_EDITOR
@@ -164,19 +208,19 @@ extern int32 GGrassMapUseRuntimeGeneration;
 extern int32 GGrassMapAlwaysBuildRuntimeGenerationResources;
 
 #if !UE_BUILD_SHIPPING
-int32 GVarDumpLandscapeLODsCurrentFrame = 0;
+uint32 GVarDumpLandscapeLODsCurrentFrame = 0;
 
 static void OnDumpLandscapeLODs(const TArray< FString >& Args)
 {
-	if (Args.Num() >= 1)
+	if (GVarDumpLandscapeLODsCurrentFrame == 0)
 	{
 		// Add some buffer to be able to correctly catch the frame during the rendering
-		GVarDumpLandscapeLODsCurrentFrame = FCString::Atoi(*Args[0]) != 0 ? GFrameNumberRenderThread + 3 : INDEX_NONE;
+		GVarDumpLandscapeLODsCurrentFrame = GFrameNumberRenderThread + 3;
 	}
 }
 
 static FAutoConsoleCommand CVarDumpLandscapeLODs(
-	TEXT("Landscape.DumpLODs"),
+	TEXT("landscape.DumpLODs"),
 	TEXT("Will dump the current status of LOD value and current texture streaming status"),
 	FConsoleCommandWithArgsDelegate::CreateStatic(&OnDumpLandscapeLODs)
 );
@@ -438,7 +482,25 @@ const static FName NAME_LandscapeResourceNameForDebugging(TEXT("Landscape"));
 
 IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FLandscapeSectionLODUniformParameters, "LandscapeContinuousLODParameters");
 
+// TODO [jonathan.bard] Move this to a ISceneExtension, where it belongs : the FLandscapeRenderSystem are associated with a scene and should have the same lifetime
 TMap<uint32, FLandscapeRenderSystem*> LandscapeRenderSystems;
+
+float FLandscapeRenderSystem::ComputeLODFromScreenSize(const LODSettingsComponent& InLODSettings, float InScreenSizeSquared)
+{
+	if (InScreenSizeSquared <= InLODSettings.LastLODScreenSizeSquared)
+	{
+		return InLODSettings.LastLODIndex;
+	}
+	else if (InScreenSizeSquared > InLODSettings.LOD1ScreenSizeSquared)
+	{
+		return (InLODSettings.LOD0ScreenSizeSquared - FMath::Min(InScreenSizeSquared, InLODSettings.LOD0ScreenSizeSquared)) / (InLODSettings.LOD0ScreenSizeSquared - InLODSettings.LOD1ScreenSizeSquared);
+	}
+	else
+	{
+		// No longer linear fraction, but worth the cache misses
+		return 1.0f + FMath::LogX(InLODSettings.LODOnePlusDistributionScalarSquared, InLODSettings.LOD1ScreenSizeSquared / InScreenSizeSquared);
+	}
+}
 
 TBitArray<> FLandscapeRenderSystem::LandscapeIndexAllocator;
 
@@ -535,13 +597,15 @@ public:
 //
 // FLandscapeRenderSystem
 //
-FLandscapeRenderSystem::FLandscapeRenderSystem()
+FLandscapeRenderSystem::FLandscapeRenderSystem(uint32 InLandscapeKey, FSceneInterface* InScene)
 	: Min(MAX_int32, MAX_int32)
 	, Size(EForceInit::ForceInitToZero)
 	, ReferenceCount(0)
 	, RegisteredCount(0)
 	, ForcedLODOverride(-1)
 	, SectionsRemovedSinceLastCompact(0)
+	, LandscapeKey(InLandscapeKey)
+	, Scene(InScene)
 {
 	SectionLODBiases.SetAllowCPUAccess(true);
 
@@ -573,7 +637,7 @@ void FLandscapeRenderSystem::CreateResources(FRHICommandListBase& RHICmdList, FL
 	FLandscapeRenderSystem*& LandscapeRenderSystem = LandscapeRenderSystems.FindOrAdd(SectionInfo->LandscapeKey);
 	if (!LandscapeRenderSystem)
 	{
-		LandscapeRenderSystem = new FLandscapeRenderSystem();
+		LandscapeRenderSystem = new FLandscapeRenderSystem(SectionInfo->LandscapeKey, SectionInfo->Scene);
 	}
 
 	LandscapeRenderSystem->CreateResources_Internal(RHICmdList, SectionInfo);
@@ -888,22 +952,87 @@ bool FLandscapeRenderSystem::AnySectionsInRangeInclusive(FIntPoint RangeMin, FIn
 	return false;
 }
 
-const TResourceArray<float>& FLandscapeRenderSystem::ComputeSectionsLODForView(const FSceneView& InView)
+float FLandscapeRenderSystem::GetSectionLODValue(const FSceneView& InView, FIntPoint InRenderCoord) const
+{
+	return GetCachedSectionLODValues(InView)[GetSectionLinearIndex(InRenderCoord)];
+}
+
+const TResourceArray<float>& FLandscapeRenderSystem::GetCachedSectionLODValues(const FSceneView& InView) const
+{
+	const uint32 ViewStateKey = InView.GetViewKey();
+	const TResourceArray<float>* CachedSectionLODValues = (ViewStateKey != 0) ? PerViewStateCachedSectionLODValues.Find(ViewStateKey) : PerViewCachedSectionLODValues.Find(&InView);
+	checkf(CachedSectionLODValues != nullptr, TEXT("No section LOD value cached for this view. Make sure FLandscapeRenderSystem::ComputeSectionsLODForView (FLandscapeSceneViewExtension::PreRenderView_RenderThread) was called"));
+	return *CachedSectionLODValues;
+}
+
+float FLandscapeRenderSystem::GetSectionLODBias(FIntPoint InRenderCoord) const
+{
+	return SectionLODBiases[GetSectionLinearIndex(InRenderCoord)];
+}
+
+const TResourceArray<float>& FLandscapeRenderSystem::ComputeSectionsLODForView(const FSceneView& InView, UE::Renderer::Private::IShadowInvalidatingInstances* InShadowInvalidatingInstances)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FLandscapeRenderSystem::ComputeSectionsLODForView);
 
-	TResourceArray<float>& SectionLODValues = CachedSectionLODValues.Add(&InView);
-	SectionLODValues.AddZeroed(SectionInfos.Num());
-
-	for (int32 SectionIndex = 0; SectionIndex < SectionInfos.Num(); SectionIndex++)
+	// Find where the CachedSectionLODValues lie (either in the persistent map, if we have a persistent view state or in the transient one) : 
+	TResourceArray<float>* CachedSectionLODValues = nullptr;
+	SectionKeyToLODValueMap* LastShadowInvalidationSectionLODValues = nullptr;
+	TArray<const FPrimitiveSceneInfo*>* PrimitivesToInvalidateForShadows = nullptr;
+	const uint32 ViewStateKey = InView.GetViewKey();
+	if (ViewStateKey != 0)
 	{
-		const float DefaultLODValue = 0.0f;
-
-		FLandscapeSectionInfo* SectionInfo = SectionInfos[SectionIndex];
-		SectionLODValues[SectionIndex] = SectionInfo ? SectionInfo->ComputeLODForView(InView) : DefaultLODValue;
+		CachedSectionLODValues = &PerViewStateCachedSectionLODValues.FindOrAdd(ViewStateKey);
+		if (InShadowInvalidatingInstances != nullptr)
+		{
+			LastShadowInvalidationSectionLODValues = &PerViewStateLastShadowInvalidationSectionLODValues.FindOrAdd(ViewStateKey);
+			PrimitivesToInvalidateForShadows = &ShadowInvalidationRequests.FindOrAdd(InShadowInvalidatingInstances);
+		}
+	}
+	else
+	{
+		CachedSectionLODValues = &PerViewCachedSectionLODValues.FindOrAdd(&InView);
 	}
 
-	return SectionLODValues;
+	CachedSectionLODValues->Reset(SectionInfos.Num());
+	for (FLandscapeSectionInfo* SectionInfo : SectionInfos)
+	{
+		constexpr float DefaultLODValue = 0.0f;
+		float& LODSectionValue = CachedSectionLODValues->Add_GetRef(DefaultLODValue);
+		if (SectionInfo != nullptr)
+		{
+			LODSectionValue = SectionInfo->ComputeLODForView(InView);
+
+			if ((InShadowInvalidatingInstances != nullptr) && (PrimitivesToInvalidateForShadows != nullptr))
+			{
+				// The shadow invalidation system requires the actual LOD that will be used in the shader, so we need to "correct" the desired LODSectionValue with the value that we *can* 
+				//  actually render the landscape with (i.e. LODSectionBias) : 
+				const float LODSectionBias = GetSectionLODBias(SectionInfo->RenderCoord);
+				const float FinalLODSectionValue = FMath::Max(LODSectionBias, LODSectionValue);
+
+				float& LastShadowInvalidationLODValue = LastShadowInvalidationSectionLODValues->FindOrAdd(SectionInfo->RenderCoord, FinalLODSectionValue);
+				if (SectionInfo->ShouldInvalidateShadows(InView, FinalLODSectionValue, LastShadowInvalidationLODValue))
+				{
+					LastShadowInvalidationLODValue = FinalLODSectionValue;
+					PrimitivesToInvalidateForShadows->Add(SectionInfo->GetPrimitiveSceneInfo());
+				}
+			}
+		}
+	}
+
+	return *CachedSectionLODValues;
+}
+
+void FLandscapeRenderSystem::PerformShadowInvalidations(UE::Renderer::Private::IShadowInvalidatingInstances& InShadowInvalidatingInstances)
+{
+	checkf(IsInRenderingThread(), TEXT("Using IShadowInvalidatingInstances is only allowed from the rendering thread!"));
+	if (TArray<const FPrimitiveSceneInfo*>* PrimitivesToInvalidateForShadows = ShadowInvalidationRequests.Find(&InShadowInvalidatingInstances))
+	{
+		for (const FPrimitiveSceneInfo* Primitive : *PrimitivesToInvalidateForShadows)
+		{
+			InShadowInvalidatingInstances.AddPrimitive(Primitive);
+		}
+		ShadowInvalidationRequests.Remove(&InShadowInvalidatingInstances);
+	}
 }
 
 void FLandscapeRenderSystem::FetchHeightmapLODBiases()
@@ -958,11 +1087,23 @@ void FLandscapeRenderSystem::UpdateBuffers(FRHICommandListBase& RHICmdList)
 
 
 //
+// FLandscapeSceneViewExtension::FLandscapeViewData
+//
+FLandscapeSceneViewExtension::FLandscapeViewData::FLandscapeViewData(FSceneView& InView)
+	: View(&InView)
+{
+	if (ISceneRenderer* ScenerRenderer = InView.Family->GetSceneRenderer())
+	{
+		ShadowInvalidatingInstances = ScenerRenderer->GetShadowInvalidatingInstancesInterface(&InView);
+	}
+}
+
+
+//
 // FLandscapeSceneViewExtension
 //
 FLandscapeSceneViewExtension::FLandscapeSceneViewExtension(const FAutoRegister& AutoReg) : FSceneViewExtensionBase(AutoReg)
 {
-
 	FCoreDelegates::OnEndFrame.AddRaw(this, &FLandscapeSceneViewExtension::EndFrame_GameThread);
 	FCoreDelegates::OnEndFrameRT.AddRaw(this, &FLandscapeSceneViewExtension::EndFrame_RenderThread);
 }
@@ -1002,60 +1143,53 @@ void FLandscapeSceneViewExtension::PreRenderView_RenderThread(FRDGBuilder& Graph
 	}
 #endif	// RHI_RAYTRACING
 
+	TArray<FLandscapeRenderSystem*> SceneLandscapeRenderSystems = GetLandscapeRenderSystems(InView.Family->Scene);
+
 	// Kick the job once all views have been collected.
-	if (!LandscapeRenderSystems.IsEmpty() && LandscapeViews.Num() == InView.Family->AllViews.Num())
+	if (!SceneLandscapeRenderSystems.IsEmpty() && LandscapeViews.Num() == InView.Family->AllViews.Num())
 	{
-		LandscapeSetupTask = GraphBuilder.AddCommandListSetupTask([this] (FRHICommandListBase& RHICmdList)
+		LandscapeSetupTask = GraphBuilder.AddCommandListSetupTask([SceneRenderSystems = MoveTemp(SceneLandscapeRenderSystems), LocalLandscapeViewsPtr = &LandscapeViews](FRHICommandListBase& RHICmdList)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(FLandscapeRenderSystem::ComputeLODs);
 			FOptionalTaskTagScope Scope(ETaskTag::EParallelRenderingThread);
+			check(!SceneRenderSystems.IsEmpty())
 
-			for (auto& Pair : LandscapeRenderSystems)
+			for (FLandscapeRenderSystem* RenderSystem : SceneRenderSystems)
 			{
-				FLandscapeRenderSystem& RenderSystem = *Pair.Value;
-				RenderSystem.CachedSectionLODValues.Reset();
-				RenderSystem.FetchHeightmapLODBiases();
+				RenderSystem->FetchHeightmapLODBiases();
 			}
 
-			for (FLandscapeViewData& LandscapeView : LandscapeViews)
+			for (FLandscapeViewData& LandscapeView : *LocalLandscapeViewsPtr)
 			{
+				const uint32 ViewStateKey = LandscapeView.View->GetViewKey() ;
+
 				LandscapeView.LandscapeIndirection.SetNum(FLandscapeRenderSystem::LandscapeIndexAllocator.Num());
 
-				for (auto& Pair : LandscapeRenderSystems)
+				for (FLandscapeRenderSystem* RenderSystem : SceneRenderSystems)
 				{
-					FLandscapeRenderSystem& RenderSystem = *Pair.Value;
-
 					// Store index where the LOD data for this landscape starts
-					LandscapeView.LandscapeIndirection[RenderSystem.LandscapeIndex] = LandscapeView.LandscapeLODData.Num();
+					LandscapeView.LandscapeIndirection[RenderSystem->LandscapeIndex] = LandscapeView.LandscapeLODData.Num();
 
 					// Compute sections lod values for this view & append to the global landscape LOD data
-					LandscapeView.LandscapeLODData.Append(RenderSystem.ComputeSectionsLODForView(*LandscapeView.View));
+					const TResourceArray<float>& CachedSectionLODValues = RenderSystem->ComputeSectionsLODForView(*LandscapeView.View, LandscapeView.ShadowInvalidatingInstances);
+					LandscapeView.LandscapeLODData.Append(CachedSectionLODValues);
 				}
 			}
 
-			for (auto& Pair : LandscapeRenderSystems)
+			for (FLandscapeRenderSystem* RenderSystem : SceneRenderSystems)
 			{
-				FLandscapeRenderSystem& RenderSystem = *Pair.Value;
-				RenderSystem.UpdateBuffers(RHICmdList);
+				RenderSystem->UpdateBuffers(RHICmdList);
 			}
 
-			for (FLandscapeViewData& LandscapeView : LandscapeViews)
+			for (FLandscapeViewData& LandscapeView : *LocalLandscapeViewsPtr)
 			{
-				if (!LandscapeRenderSystems.IsEmpty())
-				{
-					FRHIResourceCreateInfo CreateInfoLODBuffer(TEXT("LandscapeLODDataBuffer"), &LandscapeView.LandscapeLODData);
-					LandscapeLODDataBuffer = RHICmdList.CreateVertexBuffer(LandscapeView.LandscapeLODData.GetResourceDataSize(), BUF_ShaderResource | BUF_Volatile, CreateInfoLODBuffer);
-					LandscapeView.View->LandscapePerComponentDataBuffer = RHICmdList.CreateShaderResourceView(LandscapeLODDataBuffer, sizeof(float), PF_R32_FLOAT);
+				FRHIResourceCreateInfo CreateInfoLODBuffer(TEXT("LandscapeLODDataBuffer"), &LandscapeView.LandscapeLODData);
+				FBufferRHIRef LandscapeLODDataBuffer = RHICmdList.CreateVertexBuffer(LandscapeView.LandscapeLODData.GetResourceDataSize(), BUF_ShaderResource | BUF_Volatile, CreateInfoLODBuffer);
+				LandscapeView.View->LandscapePerComponentDataBuffer = RHICmdList.CreateShaderResourceView(LandscapeLODDataBuffer, sizeof(float), PF_R32_FLOAT);
 
-					FRHIResourceCreateInfo CreateInfoIndirection(TEXT("LandscapeIndirectionBuffer"), &LandscapeView.LandscapeIndirection);
-					LandscapeIndirectionBuffer = RHICmdList.CreateVertexBuffer(LandscapeView.LandscapeIndirection.GetResourceDataSize(), BUF_ShaderResource | BUF_Volatile, CreateInfoIndirection);
-					LandscapeView.View->LandscapeIndirectionBuffer = RHICmdList.CreateShaderResourceView(LandscapeIndirectionBuffer, sizeof(uint32), PF_R32_UINT);
-				}
-				else
-				{
-					LandscapeView.View->LandscapePerComponentDataBuffer = GWhiteVertexBufferWithSRV->ShaderResourceViewRHI;
-					LandscapeView.View->LandscapeIndirectionBuffer = GWhiteVertexBufferWithSRV->ShaderResourceViewRHI;
-				}
+				FRHIResourceCreateInfo CreateInfoIndirection(TEXT("LandscapeIndirectionBuffer"), &LandscapeView.LandscapeIndirection);
+				FBufferRHIRef LandscapeIndirectionBuffer = RHICmdList.CreateVertexBuffer(LandscapeView.LandscapeIndirection.GetResourceDataSize(), BUF_ShaderResource | BUF_Volatile, CreateInfoIndirection);
+				LandscapeView.View->LandscapeIndirectionBuffer = RHICmdList.CreateShaderResourceView(LandscapeIndirectionBuffer, sizeof(uint32), PF_R32_UINT);
 			}
 
 		}, GIsThreadedRendering && GLandscapeUseAsyncTasksForLODComputation);
@@ -1064,13 +1198,23 @@ void FLandscapeSceneViewExtension::PreRenderView_RenderThread(FRDGBuilder& Graph
 
 void FLandscapeSceneViewExtension::PreInitViews_RenderThread(FRDGBuilder& GraphBuilder)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FLandscapeSceneViewExtension::PreInitViews_RenderThread);
 	LandscapeSetupTask.Wait();
 
 	TArray<const FSceneView*, TInlineAllocator<2>> SceneViews;
-
 	for (FLandscapeViewData& LandscapeView : LandscapeViews)
 	{
 		SceneViews.Add(LandscapeView.View);
+
+		// Perform the accumulated shadow invalidations for this view: 
+		if (LandscapeView.ShadowInvalidatingInstances != nullptr)
+		{
+			for (auto& Pair : LandscapeRenderSystems)
+			{
+				FLandscapeRenderSystem* RenderSystem = Pair.Value;
+				RenderSystem->PerformShadowInvalidations(*LandscapeView.ShadowInvalidatingInstances);
+			}
+		}
 	}
 
 	if (Culling::UseCulling(SceneViews[0]->GetShaderPlatform()))
@@ -1087,12 +1231,19 @@ void FLandscapeSceneViewExtension::EndFrame_GameThread()
 	NumViewsWithShowCollisionAcc = 0;
 }
 
-// TODO [jonathan.bard] Ideally this should be symmetrical with FLandscapeSceneViewExtension::PreRenderView_RenderThread and should be called in FLandscapeSceneViewExtension::PostRenderView_RenderThread
-//  but PostRenderView_RenderThread is not currently called on all code paths (scene/reflection captures, etc.)
 void FLandscapeSceneViewExtension::EndFrame_RenderThread()
 {
-	LandscapeLODDataBuffer = FBufferRHIRef();
-	LandscapeIndirectionBuffer = FBufferRHIRef();
+	for (auto& Pair : LandscapeRenderSystems)
+	{
+		FLandscapeRenderSystem* RenderSystem = Pair.Value;
+		// Cleanup the transient list of cached section LOD values : they are only valid for the frame since they are associated with views that have no persistent view state :
+		RenderSystem->PerViewCachedSectionLODValues.Reset();
+		// COMMENT [jonathan.bard] : we cannot do the same for the LOD values associated with persistent view states since it's possible to run certain frames without rendering any view 
+		//  at all, which would lead us to needlessly lose the history (PreviousPerViewStateCachedSectionLODValues). We need a proper point to attach per-view state data like this, 
+		//  with the same lifetime as the view state itself, but we don't have anything for this ATM. This is good enough for now, as we don't have too many view states, so this data shouldn't
+		//  grow too much unless creating/destroying several view states, which should usually never really occur
+		checkf(RenderSystem->ShadowInvalidationRequests.IsEmpty(), TEXT("All shadow invalidation requests should have been processed by now"));
+	}
 }
 
 const TMap<uint32, FLandscapeRenderSystem*>& FLandscapeSceneViewExtension::GetLandscapeRenderSystems() const
@@ -1101,6 +1252,23 @@ const TMap<uint32, FLandscapeRenderSystem*>& FLandscapeSceneViewExtension::GetLa
 	return LandscapeRenderSystems;
 }
 
+TArray<FLandscapeRenderSystem*> FLandscapeSceneViewExtension::GetLandscapeRenderSystems(const FSceneInterface* InScene) const
+{
+	checkf(IsInParallelRenderingThread(), TEXT("Accessing the Landscape render systems is only valid from the rendering thread!"));
+	check(InScene != nullptr);
+
+	TArray<FLandscapeRenderSystem*> Result;
+	Result.Reserve(LandscapeRenderSystems.Num());
+	for (auto& Pair : LandscapeRenderSystems)
+	{
+		FLandscapeRenderSystem* RenderSystem = Pair.Value;
+		if (RenderSystem->Scene == InScene)
+		{
+			Result.Add(RenderSystem);
+		}
+	}
+	return Result;
+}
 
 //
 // FLandscapeVisibilityHelper
@@ -1153,7 +1321,6 @@ FLandscapeComponentSceneProxy::FLandscapeComponentSceneProxy(ULandscapeComponent
 	, ComponentSizeQuads(InComponent->ComponentSizeQuads)
 	, ComponentSizeVerts(InComponent->ComponentSizeQuads + 1)
 	, SectionBase(InComponent->GetSectionBase())
-	, LandscapeComponent(InComponent)
 	, bUsesLandscapeCulling(false)
 	, WeightmapScaleBias(InComponent->WeightmapScaleBias)
 	, VisibilityWeightmapTexture(nullptr)
@@ -1165,9 +1332,9 @@ FLandscapeComponentSceneProxy::FLandscapeComponentSceneProxy(ULandscapeComponent
 	, SharedBuffers(nullptr)
 	, VertexFactory(nullptr)
 	, ComponentLightInfo(nullptr)
+	, NumRelevantMips(InComponent->GetNumRelevantMips())
 #if WITH_EDITORONLY_DATA
 	, EditToolRenderData(InComponent->EditToolRenderData)
-	, LODFalloff_DEPRECATED(InComponent->GetLandscapeProxy()->LODFalloff_DEPRECATED)
 #endif
 #if WITH_EDITOR || !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	, CollisionMipLevel(InComponent->CollisionMipLevel)
@@ -1246,6 +1413,9 @@ FLandscapeComponentSceneProxy::FLandscapeComponentSceneProxy(ULandscapeComponent
 	float LOD0ScreenSize;
 	float LOD0Distribution;
 	float LODDistribution;
+	VirtualShadowMapConstantDepthBias = Proxy->NonNaniteVirtualShadowMapConstantDepthBias;
+	VirtualShadowMapInvalidationHeightErrorThreshold = Proxy->NonNaniteVirtualShadowMapInvalidationHeightErrorThreshold;
+	float NonNaniteVirtualShadowMapInvalidationScreenSizeLimit = Proxy->NonNaniteVirtualShadowMapInvalidationScreenSizeLimit;
 	
 	if (Proxy->bUseScalableLODSettings)
 	{
@@ -1275,27 +1445,47 @@ FLandscapeComponentSceneProxy::FLandscapeComponentSceneProxy(ULandscapeComponent
 	{
 		LODDistribution = GLandscapeLODDistributionOverride;
 	}
+	if (GLandscapeNonNaniteVirtualShadowMapConstantDepthBiasOverride > 0.0)
+	{
+		VirtualShadowMapConstantDepthBias = GLandscapeNonNaniteVirtualShadowMapConstantDepthBiasOverride;
+	}
+	if (GLandscapeNonNaniteVirtualShadowMapInvalidationHeightErrorThresholdOverride > 0.0)
+	{
+		VirtualShadowMapInvalidationHeightErrorThreshold = GLandscapeNonNaniteVirtualShadowMapInvalidationHeightErrorThresholdOverride;
+	}
+	if (GLandscapeNonNaniteVirtualShadowMapInvalidationScreenSizeLimitOverride > 0.0)
+	{
+		NonNaniteVirtualShadowMapInvalidationScreenSizeLimit = GLandscapeNonNaniteVirtualShadowMapInvalidationScreenSizeLimitOverride;
+	}
+
+	// For the display name, some timing issues can lead to a temporarily invalid parent actor, so fallback to the parent actor's name if that's the case, no big deal : 
+	const FString& LandscapeName = InComponent->GetLandscapeActor() ? InComponent->GetLandscapeActor()->GetName() : Proxy->GetName();
+	const FString& ComponentName = InComponent->GetName();
+	DebugName = FName(FString::Printf(TEXT(" Landscape: %s, Component: %s [%s]"), *ComponentName, *LandscapeName, *SectionBase.ToString()));
 #endif // !UE_BUILD_SHIPPING
 
-	float ScreenSizeRatioDivider = FMath::Max(LOD0Distribution, 1.01f);
-	// Cancel out so that landscape is not affected by r.StaticMeshLODDistanceScale
-	float CurrentScreenSizeRatio = LOD0ScreenSize / CVarStaticMeshLODDistanceScale.GetValueOnAnyThread();
-
-	LODScreenRatioSquared.AddUninitialized(MaxLOD + 1);
-
-	// LOD 0 handling
-	LODScreenRatioSquared[0] = FMath::Square(CurrentScreenSizeRatio);
-	LODSettings.LOD0ScreenSizeSquared = FMath::Square(CurrentScreenSizeRatio);
-	CurrentScreenSizeRatio /= ScreenSizeRatioDivider;
-	LODSettings.LOD1ScreenSizeSquared = FMath::Square(CurrentScreenSizeRatio);
-	ScreenSizeRatioDivider = FMath::Max(LODDistribution, 1.01f);
-	LODSettings.LODOnePlusDistributionScalarSquared = FMath::Square(ScreenSizeRatioDivider);
-
-	// Other LODs
-	for (int32 LODIndex = 1; LODIndex <= MaxLOD; ++LODIndex) // This should ALWAYS be calculated from the component size, not user MaxLOD override
+	// Precompute screen ratios for each LOD level : 
 	{
-		LODScreenRatioSquared[LODIndex] = FMath::Square(CurrentScreenSizeRatio);
+		float ScreenSizeRatioDivider = FMath::Max(LOD0Distribution, 1.01f);
+		// Cancel out so that landscape is not affected by r.StaticMeshLODDistanceScale
+		float CurrentScreenSizeRatio = LOD0ScreenSize / CVarStaticMeshLODDistanceScale.GetValueOnAnyThread();
+
+		LODScreenRatioSquared.AddUninitialized(MaxLOD + 1);
+
+		// LOD 0 handling
+		LODScreenRatioSquared[0] = FMath::Square(CurrentScreenSizeRatio);
+		LODSettings.LOD0ScreenSizeSquared = FMath::Square(CurrentScreenSizeRatio);
 		CurrentScreenSizeRatio /= ScreenSizeRatioDivider;
+		LODSettings.LOD1ScreenSizeSquared = FMath::Square(CurrentScreenSizeRatio);
+		ScreenSizeRatioDivider = FMath::Max(LODDistribution, 1.01f);
+		LODSettings.LODOnePlusDistributionScalarSquared = FMath::Square(ScreenSizeRatioDivider);
+
+		// Other LODs
+		for (int32 LODIndex = 1; LODIndex <= MaxLOD; ++LODIndex) // This should ALWAYS be calculated from the component size, not user MaxLOD override
+		{
+			LODScreenRatioSquared[LODIndex] = FMath::Square(CurrentScreenSizeRatio);
+			CurrentScreenSizeRatio /= ScreenSizeRatioDivider;
+		}
 	}
 
 	FirstLOD = 0;
@@ -1338,13 +1528,47 @@ FLandscapeComponentSceneProxy::FLandscapeComponentSceneProxy(ULandscapeComponent
 	LODSettings.DrawCollisionPawnLOD = LODSettings.DrawCollisionVisibilityLOD = -1;
 #endif
 
-	ComponentMaxExtend = static_cast<float>(SubsectionSizeQuads * FMath::Max(InComponent->GetComponentTransform().GetScale3D().X, InComponent->GetComponentTransform().GetScale3D().Y));
+	// Pre-compute the last LOD value at which VSM invalidation will stop occurring : 
+	if (NonNaniteVirtualShadowMapInvalidationScreenSizeLimit <= 0.0f)
+	{
+		// Special case to disable attenuation of invalidation altogether : 
+		LODSettings.VirtualShadowMapInvalidationLimitLOD = -1.0f;
+	}
+	else
+	{
+		// Screen size under which VSM invalidation stops occurring :
+		float VirtualShadowMapInvalidationScreenSizeLimitSquared = FMath::Square(NonNaniteVirtualShadowMapInvalidationScreenSizeLimit);
+		LODSettings.VirtualShadowMapInvalidationLimitLOD = 0.0f;
+		if (VirtualShadowMapInvalidationScreenSizeLimitSquared <= LODScreenRatioSquared[MaxLOD])
+		{
+			LODSettings.VirtualShadowMapInvalidationLimitLOD = MaxLOD;
+		}
+		else
+		{
+			// Since the screen size distribution between LOD levels is not linear, we have to iterate through the LOD levels to find 
+			//  where NonNaniteVirtualShadowMapInvalidationScreenSizeLimit lays and convert back to a LOD value : 
+			float CurrentScreenSizeRatioSquared = LODScreenRatioSquared[0];
+			for (int32 LODIndex = 1; LODIndex < MaxLOD; ++LODIndex) 
+			{
+				float NextScreenSizeRatioSquared = LODScreenRatioSquared[LODIndex];
+				if ((VirtualShadowMapInvalidationScreenSizeLimitSquared > NextScreenSizeRatioSquared) && (VirtualShadowMapInvalidationScreenSizeLimitSquared <= CurrentScreenSizeRatioSquared))
+				{
+					LODSettings.VirtualShadowMapInvalidationLimitLOD = LODIndex + (CurrentScreenSizeRatioSquared - VirtualShadowMapInvalidationScreenSizeLimitSquared) / (CurrentScreenSizeRatioSquared - NextScreenSizeRatioSquared);
+					break;
+				}
+				CurrentScreenSizeRatioSquared = NextScreenSizeRatioSquared;
+			}
+		}
+	}
+
+	const FVector ComponentScale = InComponent->GetComponentTransform().GetScale3D();
+	ComponentMaxExtend = static_cast<float>(SubsectionSizeQuads * FMath::Max(ComponentScale.X, ComponentScale.Y));
 
 	if (NumSubsections > 1)
 	{
-		FRotator ComponentRotator = LandscapeComponent->GetComponentRotation();
+		FRotator ComponentRotator = InComponent->GetComponentRotation();
 		float SubSectionMaxExtend = ComponentMaxExtend / 2.0f;
-		FVector ComponentTopLeftCorner = LandscapeComponent->Bounds.Origin - ComponentRotator.RotateVector(FVector(SubSectionMaxExtend, SubSectionMaxExtend, 0.0f));
+		FVector ComponentTopLeftCorner = InComponent->Bounds.Origin - ComponentRotator.RotateVector(FVector(SubSectionMaxExtend, SubSectionMaxExtend, 0.0f));
 
 		SubSectionScreenSizeTestingPosition.AddUninitialized(MAX_SUBSECTION_COUNT);
 
@@ -1449,6 +1673,10 @@ FLandscapeComponentSceneProxy::FLandscapeComponentSceneProxy(ULandscapeComponent
 
 	bOpaqueOrMasked = true; // Landscape is always opaque
 	UpdateVisibleInLumenScene();
+
+	// Read and transform MipToMipMaxDeltas to world space to avoid doing this at runtime: 
+	WorldSpaceMipToMipMaxDeltas.Reserve(InComponent->MipToMipMaxDeltas.Num());
+	Algo::Transform(InComponent->MipToMipMaxDeltas, WorldSpaceMipToMipMaxDeltas, [ZScale = ComponentScale.Z](double InMaxDelta) { return ZScale * InMaxDelta; });
 }
 
 void FLandscapeComponentSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
@@ -1469,8 +1697,13 @@ void FLandscapeComponentSceneProxy::CreateRenderThreadResources(FRHICommandListB
 	SharedBuffers = FLandscapeComponentSceneProxy::SharedBuffersMap.FindRef(SharedBuffersKey);
 	if (SharedBuffers == nullptr)
 	{
+		FName BufferOwnerName;
+#if !UE_BUILD_SHIPPING
+		BufferOwnerName = DebugName;
+#endif // !UE_BUILD_SHIPPING
+
 		SharedBuffers = new FLandscapeSharedBuffers(
-			RHICmdList, SharedBuffersKey, SubsectionSizeQuads, NumSubsections, FeatureLevel, FName(LandscapeComponent->GetPathName()));
+			RHICmdList, SharedBuffersKey, SubsectionSizeQuads, NumSubsections, FeatureLevel, BufferOwnerName);
 
 		FLandscapeComponentSceneProxy::SharedBuffersMap.Add(SharedBuffersKey, SharedBuffers);
 
@@ -1890,9 +2123,18 @@ FPrimitiveViewRelevance FLandscapeComponentSceneProxy::GetViewRelevance(const FS
 	Result.bShadowRelevance = (GAllowLandscapeShadows > 0) && IsShadowCast(View) && View->Family->EngineShowFlags.Landscape;
 
 #if !UE_BUILD_SHIPPING
-	if (GVarDumpLandscapeLODsCurrentFrame == GFrameNumberRenderThread)
+	if (GVarDumpLandscapeLODsCurrentFrame != 0)
 	{
-		Result.bDynamicRelevance = true;
+		if (GVarDumpLandscapeLODsCurrentFrame == GFrameNumberRenderThread)
+		{
+			// Enable dynamic relevance to let the dump code run on GetDynamicMeshElements : 
+			Result.bDynamicRelevance = true;
+		}
+		// Assume we've dumped the info already, reset the counter : 
+		else if (GVarDumpLandscapeLODsCurrentFrame < GFrameNumberRenderThread)
+		{
+			GVarDumpLandscapeLODsCurrentFrame = 0;
+		}
 	}
 #endif // !UE_BUILD_SHIPPING
 
@@ -2032,7 +2274,7 @@ void FLandscapeComponentSceneProxy::OnTransformChanged(FRHICommandListBase& RHIC
 	LocalToWorldNoScaling = LtoW;
 	LocalToWorldNoScaling.RemoveScaling();
 
-	// Set FLandscapeUniformVSParameters for this subsection
+	// Set FLandscapeUniformShaderParameters for this subsection
 	FLandscapeUniformShaderParameters LandscapeParams;
 	LandscapeParams.ComponentBaseX = RenderCoord.X;
 	LandscapeParams.ComponentBaseY = RenderCoord.Y;
@@ -2044,6 +2286,7 @@ void FLandscapeComponentSceneProxy::OnTransformChanged(FRHICommandListBase& RHIC
 	LandscapeParams.WeightmapUVScaleBias = WeightmapScaleBias;
 	LandscapeParams.LocalToWorldNoScaling = FMatrix44f(LocalToWorldNoScaling);			// LWC_TODO: Precision loss
 	LandscapeParams.InvLODBlendRange = InvLODBlendRange;
+	LandscapeParams.NonNaniteVirtualShadowMapConstantDepthBias = VirtualShadowMapConstantDepthBias;
 
 	LandscapeParams.LandscapeLightmapScaleBias = FVector4f(
 		LightmapScaleX,
@@ -2308,11 +2551,10 @@ void FLandscapeComponentSceneProxy::DrawStaticElements(FStaticPrimitiveDrawInter
 	check(StaticBatchParamArray.Num() <= TotalBatchCount);
 }
 
+// Deprecated : do not use
 int8 FLandscapeComponentSceneProxy::GetLODFromScreenSize(float InScreenSizeSquared, float InViewLODScale) const
 {
-	float FractionalLOD;
-
-	return FLandscapeRenderSystem::GetLODFromScreenSize(LODSettings, InScreenSizeSquared, InViewLODScale, FractionalLOD);
+	return static_cast<int8>(FLandscapeRenderSystem::ComputeLODFromScreenSize(LODSettings, InScreenSizeSquared / (InViewLODScale * InViewLODScale)));
 }
 
 namespace
@@ -2707,31 +2949,38 @@ void FLandscapeComponentSceneProxy::GetDynamicMeshElements(const TArray<const FS
 #if !UE_BUILD_SHIPPING
 	if (GVarDumpLandscapeLODsCurrentFrame == GFrameNumberRenderThread)
 	{
+		// Dump the mip-to-mip info for this component to evaluate how different mips are from one another: 
+		FString MipToMipInfoString;
+		for (int32 SourceMipIndex = 0; SourceMipIndex < NumRelevantMips - 1; ++SourceMipIndex)
+		{
+			for (int32 DestinationMipIndex = SourceMipIndex + 1; DestinationMipIndex < NumRelevantMips; ++DestinationMipIndex)
+			{
+				int32 MipToMipDeltaIndex = UE::Landscape::ComputeMipToMipMaxDeltasIndex(SourceMipIndex, DestinationMipIndex, NumRelevantMips);
+				MipToMipInfoString += FString::Printf(TEXT("- %i->%i: %f\n"), SourceMipIndex, DestinationMipIndex, WorldSpaceMipToMipMaxDeltas[MipToMipDeltaIndex]);
+			}
+		}
+		UE_LOG(LogLandscape, Display, TEXT("%s, WorldSpaceMipToMipMaxDeltas:\n%s"), *DebugName.ToString(), *MipToMipInfoString);
+
 		for (const FSceneView* View : Views)
 		{
-			const FString& LandscapeName = LandscapeComponent->GetLandscapeInfo()->LandscapeActor.IsValid()
-											 ? LandscapeComponent->GetLandscapeInfo()->LandscapeActor->GetName()
-											 : LexToString(LandscapeComponent->GetLandscapeInfo()->LandscapeGuid);
-			const FString& ComponentName = LandscapeComponent->GetName();
-
 			const float LODValue = ComputeLODForView(*View);
 			const int32 LOD = FMath::FloorToInt(LODValue);
 			const int32 Resolution = (ComponentSizeQuads + 1) >> LOD;
 
 			const int32 LoadedHeightmapResolution = [this]
 			{
-				if (!(LandscapeComponent->HeightmapTexture && LandscapeComponent->HeightmapTexture->GetResource()))
+				if (!(HeightmapTexture && HeightmapTexture->GetResource()))
 				{
 					return 0;
 				}
-				const int32 MipCount = LandscapeComponent->HeightmapTexture->GetResource()->GetCurrentMipCount();
+				const int32 MipCount = HeightmapTexture->GetResource()->GetCurrentMipCount();
 				return MipCount > 0 ? 1 << (MipCount - 1) : 0;
 			}();
 
 			const int32 LoadedWeightmapResolution = [this]
 			{
 				int32 MaxMipCount = 0;
-				for (const UTexture2D* WeightmapTexture : LandscapeComponent->WeightmapTextures)
+				for (const UTexture2D* WeightmapTexture : WeightmapTextures)
 				{
 					if (!(WeightmapTexture && WeightmapTexture->GetResource()))
 					{
@@ -2742,10 +2991,8 @@ void FLandscapeComponentSceneProxy::GetDynamicMeshElements(const TArray<const FS
 				return MaxMipCount > 0 ? 1 << (MaxMipCount - 1) : 0;
 			}();
 
-			UE_LOG(LogLandscape, Display, TEXT("\nView: %d, Landscape: %s, Component: %s [%s], "
-				       "LODValue: %f, LOD: %d, Resolution: %d, LoadedHeightmapMIP: %d, LoadedWeightmapMIP: %d"),
-			       View->GetViewKey(), *LandscapeName, *ComponentName, *SectionBase.ToString(),
-			       LODValue, LOD, Resolution, LoadedHeightmapResolution, LoadedWeightmapResolution);
+			UE_LOG(LogLandscape, Display, TEXT("\nView: %d, %s, LODValue: %f (LOD: %d), Resolution: %d, LoadedHeightmapMIP: %d, LoadedWeightmapMIP: %d"),
+			       View->GetViewKey(), *DebugName.ToString(), LODValue, LOD, Resolution, LoadedHeightmapResolution, LoadedWeightmapResolution);
 		}
 	}
 #endif // !UE_BUILD_SHIPPING
@@ -4194,8 +4441,6 @@ void FLandscapeComponentSceneProxy::GetLCIs(FLCIArray& LCIs)
 
 float FLandscapeComponentSceneProxy::ComputeLODForView(const FSceneView& InView) const
 {
-	// TODO: this function generates A LOT OF cache misses - it should be much better if we have an event of FTexture2DResource::UpdateTexture
-
 	int32 ViewLODOverride = GetViewLodOverride(InView, LandscapeKey);
 	float ViewLODDistanceFactor = InView.LODDistanceFactor;
 	bool ViewEngineShowFlagCollisionPawn = InView.Family->EngineShowFlags.CollisionPawn;
@@ -4217,11 +4462,9 @@ float FLandscapeComponentSceneProxy::ComputeLODForView(const FSceneView& InView)
 	float LODLevel = static_cast<float>(ForcedLODLevel);
 	if (ForcedLODLevel < 0)
 	{
-		float MeshScreenSizeSquared = ComputeBoundsScreenRadiusSquared(GetBounds().Origin, static_cast<float>(GetBounds().SphereRadius), ViewOrigin, ViewProjectionMatrix);
-
-		float FractionalLOD;
-		FLandscapeRenderSystem::GetLODFromScreenSize(LODSettings, MeshScreenSizeSquared, LODScale * LODScale, FractionalLOD);
-		LODLevel = FractionalLOD;
+		float SectionScreenSizeSquared = ComputeBoundsScreenRadiusSquared(GetBounds().Origin, static_cast<float>(GetBounds().SphereRadius), ViewOrigin, ViewProjectionMatrix);
+		SectionScreenSizeSquared /= FMath::Max(LODScale * LODScale, UE_SMALL_NUMBER);
+		LODLevel = FLandscapeRenderSystem::ComputeLODFromScreenSize(LODSettings, SectionScreenSizeSquared);
 	}
 
 	return FMath::Max(LODLevel, 0.f);
@@ -4243,6 +4486,11 @@ float FLandscapeComponentSceneProxy::ComputeLODBias() const
 	//XYOffsetmapTexture ? ((FTexture2DResource*)XYOffsetmapTexture->Resource)->GetCurrentFirstMip() : 0.0f);
 
 	return ComputedLODBias;
+}
+
+const FPrimitiveSceneInfo* FLandscapeComponentSceneProxy::GetPrimitiveSceneInfo() const
+{
+	return FPrimitiveSceneProxy::GetPrimitiveSceneInfo();
 }
 
 void FLandscapeComponentSceneProxy::OnRenderCoordsChanged(FRHICommandListBase& RHICmdList)
@@ -4281,14 +4529,95 @@ void FLandscapeComponentSceneProxy::GetSectionCenterAndVectors(FVector& OutSecti
 	OutSectionYVectorWorldSpace = ComponentLocalToWorld.TransformVector(FVector::YAxisVector) * ComponentResolution;
 }
 
+bool FLandscapeComponentSceneProxy::ShouldInvalidateShadows(const FSceneView& InView, float InLODValue, float InLastShadowInvalidationLODValue) const
+{
+	if (WorldSpaceMipToMipMaxDeltas.IsEmpty() // Only apply if we have computed the error estimates
+		|| !GLandscapeAllowNonNaniteVirtualShadowMapInvalidation // Global switch
+		|| (bNaniteActive && InView.Family->EngineShowFlags.NaniteMeshes) // Only applies if Nanite is not active
+		|| (VirtualShadowMapInvalidationHeightErrorThreshold <= 0.0f)) // Only applies if the threshold is valid
+	{
+		return false;
+	}
+
+	// We want to estimate the height error between the height at the current LOD transition and the height at which the last shadow invalidation took place
+	// Start by clamping the values so that we're always in the [0, last relevant mip[ range (we only have mip-to-mip data up until that mip) 
+	const float LODValueClamped = FMath::Min(InLODValue, static_cast<float>(NumRelevantMips - 1) - UE_KINDA_SMALL_NUMBER);
+	const float LastShadowInvalidationLODValueClamped = FMath::Min(InLastShadowInvalidationLODValue, static_cast<float>(NumRelevantMips - 1) - UE_KINDA_SMALL_NUMBER);
+
+	// We have at our disposal the max error between a mip and any of its higher mips (N->N+1, N->N+2, etc.) so let's evaluate the error of both LODValue and LastShadowInvalidationLODValue with the 
+	//  lowest of the 2 mips as the common basis :
+	//  e.g.:
+	//  |          Mip N           |         Mip N + 1        |         Mip N + 2        |
+	//  -------------------------------------------------------------------------------------...
+	//  ^       ^                  ^                          ^  ^                       ^
+	//  |       |                  |                          |  |                       |
+	//  |       SourceLODValue     |                          |  DestinationLODValue     |    
+	//  SourceMipIndex             SourceMipIndex + 1         DestinationMipIndex        DestinationMipIndex + 1
+
+	// It doesn't matter the direction of the change, the height difference is computed in absolute values, so invert the 2 if necessary :
+	float SourceLODValue = (LODValueClamped < LastShadowInvalidationLODValueClamped) ? LODValueClamped : LastShadowInvalidationLODValueClamped;
+	float DestinationLODValue = (LODValueClamped < LastShadowInvalidationLODValueClamped) ? LastShadowInvalidationLODValueClamped : LODValueClamped;
+
+	const int32 SourceMipIndex = FMath::FloorToInt32(SourceLODValue);
+	check(SourceMipIndex + 1 < NumRelevantMips);
+	const int32 DestinationMipIndex = FMath::FloorToInt32(DestinationLODValue);
+	check(DestinationMipIndex + 1 < NumRelevantMips);
+
+	// Evaluate the max delta for both SourceLODValue and DestinationLODValue against SourceMipIndex :
+	const int32 SourceMipToMipMaxDeltaIndex = UE::Landscape::ComputeMipToMipMaxDeltasIndex(SourceMipIndex, SourceMipIndex + 1, NumRelevantMips);
+	const double SourceMipToMipMaxDelta = WorldSpaceMipToMipMaxDeltas[SourceMipToMipMaxDeltaIndex];
+	// MipToMipMaxDelta represents the maximum delta if we were to transition from SourceMipIndex to SourceMipIndex + 1 but we want to compute the error at SourceLODValue
+	//  so re-scale the delta within that range to evaluate the actual error : 
+	const double SourceMaxDelta = SourceMipToMipMaxDelta * (SourceLODValue - SourceMipIndex);
+
+	const int32 DestinationMipToMipMaxDeltaIndex = UE::Landscape::ComputeMipToMipMaxDeltasIndex(SourceMipIndex, DestinationMipIndex + 1, NumRelevantMips);
+	const double DestinationMipToMipMaxDelta = WorldSpaceMipToMipMaxDeltas[DestinationMipToMipMaxDeltaIndex];
+	// MipToMipMaxDelta represents the maximum delta if we were to transition from SourceMipIndex to DestinationMipIndex + 1 but we want to compute the error at DestinationLODValue
+	//  so re-scale the delta within that range to evaluate the actual error : 
+	check(SourceMipIndex < DestinationMipIndex + 1);
+	const double DestinationMaxDelta = DestinationMipToMipMaxDelta * (DestinationLODValue - SourceMipIndex) / (DestinationMipIndex + 1 - SourceMipIndex);
+
+	// Now we estimate that the MaxDelta between those 2 is the difference : 
+	const double MaxDelta = FMath::Abs(DestinationMaxDelta - SourceMaxDelta);
+
+	// Perform screen size-based attenuation in order to decrease the invalidation rate as the screen size decreases (as error tends to grow on higher mips, the invalidation rate increases, which 
+	//  is not desirable, since it means the screen size of the landscape section actually decreases, and so the shadow artifacts actually become less noticeable)
+	double MaxDeltaLODAttenuationFactor = 1.0;
+	if (LODSettings.VirtualShadowMapInvalidationLimitLOD > 0.0f)
+	{
+		// The closer we get to the limit LOD, the more we attenuate : 
+		MaxDeltaLODAttenuationFactor = FMath::Clamp(1.0f - (SourceLODValue / LODSettings.VirtualShadowMapInvalidationLimitLOD), 0.0f, 1.0f);
+		// Now that we're in the [0,1] range, apply an exponent to have a non-linear attenuation : 
+		MaxDeltaLODAttenuationFactor = FMath::Pow(MaxDeltaLODAttenuationFactor, GLandscapeNonNaniteVirtualShadowMapInvalidationLODAttenuationExponent);
+	}
+
+	const double AttenuatedMaxDelta = MaxDelta * MaxDeltaLODAttenuationFactor;
+
+	bool bShouldInvalidateShadow = (AttenuatedMaxDelta > VirtualShadowMapInvalidationHeightErrorThreshold);
+
+#if !UE_BUILD_SHIPPING
+	if (bShouldInvalidateShadow)
+	{
+		UE_LOG(LogLandscape, Verbose, TEXT("Shadow invalidation occured: View: %d, %s, LODValue: %f, LastShadowInvalidationLODValue: %f, \n"
+			"MipToMipMaxDelta(%d<->%d): %f (unscaled: %f), OtherMipToMipMaxDelta(%d<->%d): %f (unscaled: %f)\n"
+			"AttenuatedMaxDelta: %f, (MaxDelta: %f, MaxDeltaLODAttenuationFactor: %f, InvalidationLimitLOD: %f)"),
+			InView.GetViewKey(), *DebugName.ToString(), InLODValue, InLastShadowInvalidationLODValue,
+			SourceMipIndex, SourceMipIndex + 1, SourceMaxDelta, SourceMipToMipMaxDelta, SourceMipIndex, DestinationMipIndex + 1, DestinationMaxDelta, DestinationMipToMipMaxDelta,
+			AttenuatedMaxDelta, MaxDelta, MaxDeltaLODAttenuationFactor, LODSettings.VirtualShadowMapInvalidationLimitLOD);
+	}
+#endif // !UE_BUILD_SHIPPING
+
+	return bShouldInvalidateShadow;
+}
+
 //
 // FLandscapeSectionInfo
 //
 FLandscapeSectionInfo::FLandscapeSectionInfo(const UWorld* InWorld, const FGuid& InLandscapeGuid, const FIntPoint& InComponentBase, uint32 LODGroupKey, uint32 InLandscapeKey)
 	: LandscapeKey(InLandscapeKey)
 	, LODGroupKey(LODGroupKey)
-	, RenderCoord(INT32_MIN, INT32_MIN)
 	, ComponentBase(InComponentBase)
+	, Scene(InWorld->Scene)
 	, bResourcesCreated(false)
 	, bRegistered(false)
 {
@@ -4345,6 +4674,11 @@ public:
 
 	virtual void OnRenderCoordsChanged(FRHICommandListBase& RHICmdList)
 	{
+	}
+
+	virtual const FPrimitiveSceneInfo* GetPrimitiveSceneInfo() const override
+	{
+		return nullptr;
 	}
 
 private:
@@ -4531,4 +4865,3 @@ FPrimitiveSceneProxy* ULandscapeNaniteComponent::CreateSceneProxy()
 	// We *only* want a Nanite proxy for this component, otherwise return null to prevent fallback rendering.
 	return nullptr;
 }
-

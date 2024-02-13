@@ -88,6 +88,7 @@ LandscapeEdit.cpp: Landscape editing
 #include "ShaderPlatformCachedIniValue.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #endif
+#include "Algo/Compare.h"
 #include "Algo/Count.h"
 #include "Algo/Transform.h"
 #include "Algo/ForEach.h"
@@ -145,8 +146,125 @@ void ULandscapeComponent::Init(int32 InBaseX, int32 InBaseY, int32 InComponentSi
 }
 
 #if WITH_EDITOR
+namespace UE::Landscape::Private
+{
+	/** 
+	* Struct to hold, for a given 4 neighboring pixels of a given mip of the heightmap, information about the difference between those and the resulting pixel in the next mip. 
+	*  This allows landscape components to evaluate the error (height delta) between any 2 mip levels
+	*/
+	struct FQuadHeightInfo
+	{
+		FQuadHeightInfo() = default;
+		FQuadHeightInfo(double InQuadVertices[4])
+		{
+			Min = FMath::Min(InQuadVertices[0], FMath::Min3(InQuadVertices[1], InQuadVertices[2], InQuadVertices[3]));
+			Max = FMath::Max(InQuadVertices[0], FMath::Max3(InQuadVertices[1], InQuadVertices[2], InQuadVertices[3]));
+			Average = (InQuadVertices[0] + InQuadVertices[1] + InQuadVertices[2] + InQuadVertices[3]) / 4.0;
+		}
+
+		double Min = DBL_MAX;
+		double Max = DBL_MIN;
+		double Average = 0.0f;
+	};
+
+	int32 ComputeQuadInfosOffset(int32 InMipIndex, int32 InTextureSize)
+	{
+		int32 NumQuadsForMip = FMath::Square(InTextureSize / 2);
+		int32 Offset = 0;
+		for (int32 X = 0; X < InMipIndex; ++X)
+		{
+			Offset += NumQuadsForMip;
+			NumQuadsForMip /= 4;
+		}
+		return Offset;
+	}
+
+	int32 ComputeQuadInfosCount(int32 InNumRelevantMips, int32 InTextureSize)
+	{
+		int32 Count = 0; 
+		int32 NumQuadsForMip = FMath::Square(InTextureSize / 2);
+		for (int32 MipIndex = 0; MipIndex < InNumRelevantMips; ++MipIndex)
+		{
+			Count += NumQuadsForMip;
+			NumQuadsForMip /= 4;
+		}
+		return Count;
+	}
+
+	TArrayView<FQuadHeightInfo> GetMipQuadInfosForMip(const TArrayView<FQuadHeightInfo>& InQuadInfos, int32 InMipIndex, int32 InTextureSize)
+	{
+		int32 MipOffset = ComputeQuadInfosOffset(InMipIndex, InTextureSize);
+		int32 NextMipOffset = ComputeQuadInfosOffset(InMipIndex + 1, InTextureSize);
+		return MakeArrayView(InQuadInfos.GetData() + MipOffset, NextMipOffset - MipOffset);
+	}
+
+	TArrayView<const FQuadHeightInfo> GetMipQuadInfosForMipConst(const TArrayView<const FQuadHeightInfo>& InQuadInfos, int32 InMipIndex, int32 InTextureSize)
+	{
+		TArrayView<FQuadHeightInfo> Result = GetMipQuadInfosForMip(MakeArrayView(const_cast<FQuadHeightInfo*>(InQuadInfos.GetData()), InQuadInfos.Num()), InMipIndex, InTextureSize);
+		return MakeArrayView<const FQuadHeightInfo>(Result.GetData(), Result.Num());
+	}
+
+	void ComputeMaxDelta(const FQuadHeightInfo& InSourceQuadInfo, const FQuadHeightInfo& InDestinationQuadInfo, double& InOutMaxDelta)
+	{
+		InOutMaxDelta = FMath::Max3(
+			InOutMaxDelta,
+			FMath::Abs(InSourceQuadInfo.Min - InDestinationQuadInfo.Average), 
+			FMath::Abs(InSourceQuadInfo.Max - InDestinationQuadInfo.Average));
+	}
+
+	TArray<double> ComputeMipToMipMaxDeltas(const TArrayView<const FQuadHeightInfo>& InAllMipsQuadInfos, int32 InNumTextureMips, int32 InNumRelevantMips)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(ComputeMipToMipMaxDeltas);
+		const int32 TextureSize = 1 << (InNumTextureMips - 1);
+
+		TArray<double> MipToMipMaxDeltas;
+		MipToMipMaxDeltas.AddZeroed(ComputeMipToMipMaxDeltasCount(InNumRelevantMips));
+
+		for (int32 SourceMipIndex = 0; SourceMipIndex < InNumRelevantMips - 1; ++SourceMipIndex)
+		{
+			TArrayView<const FQuadHeightInfo> SourceMipQuadInfos = GetMipQuadInfosForMipConst(InAllMipsQuadInfos, SourceMipIndex, TextureSize);
+			const int32 NumQuadsForSourceMip = SourceMipQuadInfos.Num();
+			const int32 SourceMipQuadsStride = (TextureSize >> SourceMipIndex) / 2;
+			check(SourceMipQuadsStride * SourceMipQuadsStride == NumQuadsForSourceMip);
+			const int32 NumMaxDeltasForSourceMip = ComputeMaxDeltasCountForMip(SourceMipIndex, InNumRelevantMips);
+			const int32 SourceMipMaxDeltasOffset = ComputeMaxDeltasOffsetForMip(SourceMipIndex, InNumRelevantMips);
+			check(SourceMipMaxDeltasOffset + NumMaxDeltasForSourceMip <= MipToMipMaxDeltas.Num());
+			TArrayView<double> SourceMipToDestinationMipMaxDeltas = MakeArrayView(MipToMipMaxDeltas.GetData() + SourceMipMaxDeltasOffset, NumMaxDeltasForSourceMip);
+			// Iterate through all remaining mips and find the max delta between the source mip and destination mips :
+			for (int32 SourceMipQuadIndex = 0; SourceMipQuadIndex < NumQuadsForSourceMip; ++SourceMipQuadIndex)
+			{
+				const FIntPoint SourceMipQuadCoords(SourceMipQuadIndex % SourceMipQuadsStride, SourceMipQuadIndex / SourceMipQuadsStride);
+				const FQuadHeightInfo& SourceMipQuadInfo = SourceMipQuadInfos[SourceMipQuadIndex];
+
+				// Special case for N to N+1 because all the info is located within the row of InAllMipsQuadInfos already so we don't need to fetch from another mip: FQuadHeightInfo's Average is the next mip's value:
+				int32 DestinationMipQuadsStride = SourceMipQuadsStride / 2;
+				FIntPoint DestinationMipQuadCoords = SourceMipQuadCoords / 2;
+				ComputeMaxDelta(SourceMipQuadInfo, SourceMipQuadInfo, SourceMipToDestinationMipMaxDeltas[0]);
+
+				for (int32 DestinationMipIndex = SourceMipIndex + 2; DestinationMipIndex < InNumRelevantMips; ++DestinationMipIndex)
+				{
+					DestinationMipQuadsStride /= 2;
+					DestinationMipQuadCoords /= 2;
+					const int32 DestinationMipQuadIndex = DestinationMipQuadCoords.X + DestinationMipQuadCoords.Y * DestinationMipQuadsStride;
+
+					TArrayView<const FQuadHeightInfo> DestinationMipQuadInfos = GetMipQuadInfosForMipConst(InAllMipsQuadInfos, DestinationMipIndex, TextureSize);
+					checkSlow(DestinationMipQuadInfos.Num() == DestinationMipQuadsStride * DestinationMipQuadsStride);
+
+					const FQuadHeightInfo& DestinationMipQuadInfo = DestinationMipQuadInfos[DestinationMipQuadIndex];
+					int32 DestinationMipRelativeIndex = DestinationMipIndex - SourceMipIndex - 1;
+					ComputeMaxDelta(SourceMipQuadInfo, DestinationMipQuadInfo, SourceMipToDestinationMipMaxDeltas[DestinationMipRelativeIndex]);
+				}
+			}
+		}
+
+		return MipToMipMaxDeltas;
+	}
+}
+
 void ULandscapeComponent::UpdateCachedBounds(bool bInApproximateBounds)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(ULandscapeComponent::UpdateCachedBounds);
+
 	// Update local-space bounding box
 	CachedLocalBox.Init();
 	if (bInApproximateBounds && GetLandscapeProxy()->HasLayersContent())
@@ -157,16 +275,71 @@ void ULandscapeComponent::UpdateCachedBounds(bool bInApproximateBounds)
 	}
 	else
 	{
-		const int32 MipLevel = 0;
-		const bool bWorkOnEditingLayer = false; // We never want to compute bounds based on anything else that final landscape layer's height data
-		FLandscapeComponentDataInterface CDI(this, MipLevel, bWorkOnEditingLayer);
+		// We purposefully don't reset MipToMipMaxDeltas when bInApproximateBounds is true because we can totally live with a MipToMipMaxDeltas that is not up-to-date
+		//  and we want to minimize the render state changes so we track if there was any change to that data here : 
+		TArray<double> PreviousMipToMipMaxDeltas;
+		Swap(MipToMipMaxDeltas, PreviousMipToMipMaxDeltas); 
 
-		for (int32 y = 0; y < ComponentSizeQuads + 1; y++)
+		// TODO [jonathan.bard] : multithread and make this async : 
+		using namespace UE::Landscape::Private;
+		TArray<FQuadHeightInfo> AllMipsQuadInfos;
+		const int32 TextureSize = (SubsectionSizeQuads + 1) * NumSubsections;
+		const int32 NumTextureMips = FMath::FloorLog2(TextureSize) + 1;
+		// We actually only don't need to process the last texture mip, since a 1 vertex landscape is meaningless. When using 2x2 subsections, we can even drop an additional mip 
+		//  as the 4 texels of the penultimate mip will be identical (i.e. 4 sub-sections of 1 vertex are equally meaningless) :
+		const int32 NumRelevantMips = GetNumRelevantMips();
+		const int32 FinalMipIndex = NumRelevantMips - 1;
+		check(FinalMipIndex > 0);
+
 		{
-			for (int32 x = 0; x < ComponentSizeQuads + 1; x++)
+			TRACE_CPUPROFILER_EVENT_SCOPE(FetchMipQuads);
+
+			double LocalMin = DBL_MAX;
+			double LocalMax = DBL_MIN;
+			AllMipsQuadInfos.AddZeroed(ComputeQuadInfosCount(NumRelevantMips, TextureSize));
+			for (int32 MipIndex = 0; MipIndex < NumRelevantMips; ++MipIndex)
 			{
-				CachedLocalBox += CDI.GetLocalVertex(x, y);
+				FLandscapeComponentDataInterface CDI(this, MipIndex, /*bWorkOnEditingLayer = */false);
+				TArrayView<FQuadHeightInfo> MipQuadInfos = GetMipQuadInfosForMip(AllMipsQuadInfos, MipIndex, TextureSize);
+				const int32 NumQuadsForMip = MipQuadInfos.Num();
+				const int32 MipTextureSize = TextureSize >> MipIndex;
+				const int32 MipTextureSubSectionSize = MipTextureSize / NumSubsections;
+				const int32 MipQuadsStride = MipTextureSize / 2;
+				for (int32 MipQuadIndex = 0; MipQuadIndex < NumQuadsForMip; ++MipQuadIndex)
+				{
+					int32 QuadY = MipQuadIndex / MipQuadsStride;
+					int32 QuadX = MipQuadIndex - QuadY * MipQuadsStride;
+					int32 X = QuadX * 2;
+					int32 Y = QuadY * 2;
+					// 2x2 Subsections have a duplicate pixel in the middle so we have to subtract one for the pixels in those subsections, since FLandscapeComponentDataInterface provides a view into 
+					//  pixels as if there was no subsection (hence the pixel indices for a 128 heightmap is in the range [0, 127] when using a single (1x1) subsection, but [0, 126] when using 2x2 subsections) :
+					X -= (X >= MipTextureSubSectionSize) ? 1 : 0;
+					Y -= (Y >= MipTextureSubSectionSize) ? 1 : 0;
+					double QuadVertices[4] = {
+						CDI.GetLocalHeight(X + 0, Y + 0),
+						CDI.GetLocalHeight(X + 1, Y + 0),
+						CDI.GetLocalHeight(X + 0, Y + 1),
+						CDI.GetLocalHeight(X + 1, Y + 1) };
+					FQuadHeightInfo QuadInfo(QuadVertices);
+					MipQuadInfos[MipQuadIndex] = QuadInfo;
+
+					if (MipIndex == 0)
+					{
+						LocalMin = FMath::Min(LocalMin, QuadInfo.Min);
+						LocalMax = FMath::Max(LocalMax, QuadInfo.Max);
+					}
+				}
 			}
+
+			CachedLocalBox = FBox(FVector(0.0, 0.0, LocalMin), FVector(ComponentSizeQuads, ComponentSizeQuads, LocalMax));
+		}
+
+		MipToMipMaxDeltas = ComputeMipToMipMaxDeltas(MakeArrayView<const FQuadHeightInfo>(AllMipsQuadInfos.GetData(), AllMipsQuadInfos.Num()), NumTextureMips, NumRelevantMips);
+
+		if (!Algo::Compare(MipToMipMaxDeltas, PreviousMipToMipMaxDeltas, [](double InLHS, double InRHS) { return FMath::IsNearlyEqual(InLHS, InRHS); }))
+		{
+			// MipToMipMaxDeltas is used on the render thread, we need to reflect the change there : 
+			MarkRenderStateDirty();
 		}
 	}
 	if (CachedLocalBox.GetExtent().Z == 0)
@@ -5769,7 +5942,10 @@ void ALandscapeProxy::PostEditChangeProperty(FPropertyChangedEvent& PropertyChan
 		|| (MemberPropertyName == GET_MEMBER_NAME_CHECKED(ALandscapeProxy, bVirtualTextureRenderWithQuadHQ))
 		|| (MemberPropertyName == GET_MEMBER_NAME_CHECKED(ALandscapeProxy, VirtualTextureNumLods))
 		|| (MemberPropertyName == GET_MEMBER_NAME_CHECKED(ALandscapeProxy, VirtualTextureLodBias))
-		|| (MemberPropertyName == GET_MEMBER_NAME_CHECKED(ALandscapeProxy, bUseDynamicMaterialInstance)))
+		|| (MemberPropertyName == GET_MEMBER_NAME_CHECKED(ALandscapeProxy, bUseDynamicMaterialInstance))
+		|| (MemberPropertyName == GET_MEMBER_NAME_CHECKED(ALandscapeProxy, NonNaniteVirtualShadowMapConstantDepthBias))
+		|| (MemberPropertyName == GET_MEMBER_NAME_CHECKED(ALandscapeProxy, NonNaniteVirtualShadowMapInvalidationHeightErrorThreshold))
+		|| (MemberPropertyName == GET_MEMBER_NAME_CHECKED(ALandscapeProxy, NonNaniteVirtualShadowMapInvalidationScreenSizeLimit)))
 	{		
 		MarkComponentsRenderStateDirty();
 	}

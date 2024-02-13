@@ -1491,6 +1491,12 @@ void ULandscapeComponent::PostLoad()
 		CollisionComponentRef = CollisionComponent_DEPRECATED.Get();
 		CollisionComponent_DEPRECATED = nullptr;
 	}
+
+	// If mip-to-mip info is missing, recompute them (they were introduced later) :
+	if (MipToMipMaxDeltas.IsEmpty())
+	{
+		UpdateCachedBounds();
+	}
 #endif // !WITH_EDITORONLY_DATA
 
 #endif // WITH_EDITOR
@@ -1878,6 +1884,17 @@ void ULandscapeComponent::GetGeneratedTexturesAndMaterialInstances(TArray<UObjec
 ALandscapeProxy* ULandscapeComponent::GetLandscapeProxy() const
 {
 	return CastChecked<ALandscapeProxy>(GetOuter());
+}
+
+int32 ULandscapeComponent::GetNumRelevantMips() const
+{
+	const int32 TextureSize = (SubsectionSizeQuads + 1) * NumSubsections;
+	const int32 NumTextureMips = FMath::FloorLog2(TextureSize) + 1;
+	// We actually only don't care about the last texture mip, since a 1 vertex landscape is meaningless. When using 2x2 subsections, we can even drop an additional mip 
+	//  as the 4 texels of the penultimate mip will be identical (i.e. 4 sub-sections of 1 vertex are equally meaningless) :
+	const int32 NumRelevantMips = (NumSubsections > 1) ? (NumTextureMips - 2) : (NumTextureMips - 1);
+	check(NumRelevantMips > 0);
+	return NumRelevantMips;
 }
 
 const FMeshMapBuildData* ULandscapeComponent::GetMeshMapBuildData() const
@@ -4427,6 +4444,9 @@ void ALandscapeProxy::GetSharedProperties(ALandscapeProxy* Landscape)
 		VirtualTextureRenderPassType = Landscape->VirtualTextureRenderPassType;
 		bEnableNanite = Landscape->bEnableNanite;
 		ShadowCacheInvalidationBehavior = Landscape->ShadowCacheInvalidationBehavior;
+		NonNaniteVirtualShadowMapConstantDepthBias = Landscape->NonNaniteVirtualShadowMapConstantDepthBias;
+		NonNaniteVirtualShadowMapInvalidationHeightErrorThreshold = Landscape->NonNaniteVirtualShadowMapInvalidationHeightErrorThreshold;
+		NonNaniteVirtualShadowMapInvalidationScreenSizeLimit = Landscape->NonNaniteVirtualShadowMapInvalidationScreenSizeLimit;
 
 		bUseCompressedHeightmapStorage = Landscape->bUseCompressedHeightmapStorage;
 #if WITH_EDITORONLY_DATA
