@@ -1033,30 +1033,27 @@ namespace Gauntlet
 			{
 				if (App != null)
 				{
-					UnrealLogParser Parser = new UnrealLogParser(App.StdOut);
-					List<string> TestLines = new List<string>();
-					// ONLY ADD RANGE ONCE. Ordering is important and will be skewed if multiple ranges are added which can skew how logs are pulled out.
-					TestLines.AddRange(Parser.GetLogChannels(LogCategories, true));
+					UnrealLogStreamParser Parser = new UnrealLogStreamParser();
+					LastLogCount += Parser.ReadStream(App.StdOut, LastLogCount);
 
-					for (int i = LastLogCount; i < TestLines.Count(); i++)
+					foreach (string TestLine in Parser.GetLogFromShortNameChannels(LogCategories))
 					{
-						Log.Info(string.Format("{0}: {1}", AppPrefix, TestLines[i]));
+						Log.Info(string.Format("{0}: {1}", AppPrefix, TestLine));
 
 						if (bUpdateHeartbeatTime)
 						{
-							if (Regex.IsMatch(TestLines[i], @".*GauntletHeartbeat\: Active.*"))
+							if (Regex.IsMatch(TestLine, @".*GauntletHeartbeat\: Active.*"))
 							{
 								LastHeartbeatTime = DateTime.Now;
 								LastActiveHeartbeatTime = DateTime.Now;
 							}
-							else if (Regex.IsMatch(TestLines[i], @".*GauntletHeartbeat\: Idle.*"))
+							else if (Regex.IsMatch(TestLine, @".*GauntletHeartbeat\: Idle.*"))
 							{
 								LastHeartbeatTime = DateTime.Now;
 							}
 						}
 					}
 
-					LastLogCount = TestLines.Count();
 				}
 			}
 
