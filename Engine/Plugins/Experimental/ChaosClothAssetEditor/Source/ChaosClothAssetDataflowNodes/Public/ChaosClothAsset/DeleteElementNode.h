@@ -4,10 +4,12 @@
 
 #include "Dataflow/DataflowNode.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
+#include "ChaosClothAsset/SelectionNode.h"
+#include "ChaosClothAsset/ConnectableValue.h"
 #include "DeleteElementNode.generated.h"
 
 UENUM()
-enum class EChaosClothAssetElementType : uint8
+enum class UE_DEPRECATED(5.4, "Use FChaosClothAssetNodeSelectionGroup instead") EChaosClothAssetElementType : uint8
 {
 	None,
 	SimMesh,
@@ -19,9 +21,12 @@ enum class EChaosClothAssetElementType : uint8
 	RenderVertex,
 	SimFace,
 	RenderFace,
-	Seam
+	Seam,
+	/** Deprecated marker */
+	Deprecated UMETA(Hidden)
 };
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS  // For EChaosClothAssetElementType
 USTRUCT(Meta = (DataflowCloth))
 struct FChaosClothAssetDeleteElementNode : public FDataflowNode
 {
@@ -34,14 +39,41 @@ public:
 	FManagedArrayCollection Collection;
 
 	/** Element type to delete.*/
-	UPROPERTY(EditAnywhere, Category = "Delete Element")
-	EChaosClothAssetElementType ElementType = EChaosClothAssetElementType::None;
+	UE_DEPRECATED(5.4, "Use Group instead")
+	UPROPERTY()
+	EChaosClothAssetElementType ElementType_DEPRECATED = EChaosClothAssetElementType::Deprecated;
 
-	/** List of Elements to apply the operation on. All Elements will be used if left empty. */
-	UPROPERTY(EditAnywhere, Category = "Delete Element", Meta = (EditCondition = "ElementType != EChaosClothAssetElementType::SimMesh && ElementType != EChaosClothAssetElementType::RenderMesh"))
+	/** Delete the sim mesh. */
+	UPROPERTY(EditAnywhere, Category = "Delete Element")
+	bool bDeleteSimMesh = false;
+
+	/** Delete the render mesh. */
+	UPROPERTY(EditAnywhere, Category = "Delete Element")
+	bool bDeleteRenderMesh = false;
+
+	/** Delete specific elements.*/
+	UPROPERTY(EditAnywhere, Category = "Delete Element")
+	FChaosClothAssetNodeSelectionGroup Group;
+
+	/** List of Elements to delete from Group. All Elements will be used if left empty. */
+	UPROPERTY(EditAnywhere, Category = "Delete Element")
 	TArray<int32> Elements;
+
+	/** Set of Elements to delete. This selection set will be deleted from the downstream collection since it will now be empty.*/
+	UPROPERTY(EditAnywhere, Category = "Delete Element")
+	FChaosClothAssetConnectableIStringValue SelectionName = {""};
 
 	FChaosClothAssetDeleteElementNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
+	/** Return a cached array of all the groups used by the input collection during at the time of the latest evaluation. */
+	const TArray<FName>& GetCachedCollectionGroupNames() const { return CachedCollectionGroupNames; }
+
+private:
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+	virtual void OnSelected(Dataflow::FContext& Context) override;
+	virtual void OnDeselected() override;
+	virtual void Serialize(FArchive& Ar);
+
+	TArray<FName> CachedCollectionGroupNames;
 };
+PRAGMA_ENABLE_DEPRECATION_WARNINGS  // For EChaosClothAssetElementType
