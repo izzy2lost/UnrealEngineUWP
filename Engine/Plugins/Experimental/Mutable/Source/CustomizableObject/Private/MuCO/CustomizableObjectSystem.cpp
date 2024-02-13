@@ -333,6 +333,19 @@ void FMutablePendingInstanceWork::RemoveUpdate(const TWeakObjectPtr<UCustomizabl
 	}	
 }
 
+#if WITH_EDITOR
+void FMutablePendingInstanceWork::RemoveUpdatesForObject(const UCustomizableObject* InObject)
+{
+	check(InObject);
+	for (auto Iterator = PendingInstanceUpdates.CreateIterator(); Iterator; ++Iterator)
+	{
+		if (Iterator->Context->Instance.IsValid() && Iterator->Context->Instance->GetCustomizableObject() == InObject)
+		{
+			Iterator.RemoveCurrent();
+		}
+	}
+}
+#endif
 
 const FMutablePendingInstanceUpdate* FMutablePendingInstanceWork::GetUpdate(const TWeakObjectPtr<const UCustomizableObjectInstance>& Instance) const
 {
@@ -1349,6 +1362,12 @@ bool UCustomizableObjectSystem::LockObject(const class UCustomizableObject* InOb
 		// Lock the object, no new file or mip streaming operations should start from this point
 		InObject->GetPrivate()->bLocked = true;
 
+		// Invalidate the current model to avoid further disk or mip updates.
+		if (InObject->GetPrivate()->GetModel())
+		{
+			InObject->GetPrivate()->GetModel()->Invalidate();
+		}
+
 		// But some could have started between the first CheckIfDiskOrMipUpdateOperationsPending and the lock a few lines back, so check again
 		if (CheckIfDiskOrMipUpdateOperationsPending(*InObject))
 		{
@@ -1371,6 +1390,8 @@ bool UCustomizableObjectSystem::LockObject(const class UCustomizableObject* InOb
 				});
 			Task.Wait();
 		}
+
+		Private->MutablePendingInstanceWork.RemoveUpdatesForObject(InObject);
 
 		// Clear the cache for the instance, since we will remake it
 		FMutableResourceCache& Cache = GetPrivate()->GetObjectCache(InObject);

@@ -142,6 +142,10 @@ public:
 	// Removes an instance update
 	void RemoveUpdate(const TWeakObjectPtr<UCustomizableObjectInstance>& Instance);
 
+#if WITH_EDITOR
+	void RemoveUpdatesForObject(const UCustomizableObject* InObject);
+#endif
+
 	const FMutablePendingInstanceUpdate* GetUpdate(const TWeakObjectPtr<const UCustomizableObjectInstance>& Instance) const;
 
 	TSet<FMutablePendingInstanceUpdate, FPendingInstanceUpdateKeyFuncs>::TIterator GetUpdateIterator()
