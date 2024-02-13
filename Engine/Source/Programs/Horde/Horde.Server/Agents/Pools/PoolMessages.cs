@@ -3,6 +3,7 @@
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
+using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Common;
 using Horde.Server.Agents.Fleet;
 
@@ -552,4 +553,18 @@ namespace Horde.Server.Agents.Pools
 			Properties = pool.Properties ?? new Dictionary<string, string>();
 		}
 	}
+
+	/// <summary>
+	/// Response describing a pool
+	/// </summary>
+	/// <param name="PoolId">Identifier for the pool</param>
+	/// <param name="Name">Name of the pool</param>
+	/// <param name="Condition">Condition for machines in the pool</param>
+	/// <param name="ColorValue">Color to render the pool label</param>
+	/// <param name="NumAgents">Number of agents in the pool</param>
+	/// <param name="NumReady">Number of agents that are ready</param>
+	/// <param name="NumOffline">Number of agents offline</param>
+	/// <param name="NumDisabled">Number of agents that are disabled</param>
+	/// <param name="Autoscaled">Whether autoscaling is enabled for this pool</param>
+	public record class GetPoolSummaryResponse(PoolId PoolId, string Name, Condition? Condition, string ColorValue, int NumAgents, int NumReady, int NumOffline, int NumDisabled, bool Autoscaled);
 }
