@@ -2,8 +2,10 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "UObject/NoExportTypes.h"
+#include "Containers/Array.h"
+#include "Containers/Map.h"
+#include "Containers/UnrealString.h"
+#include "UObject/Object.h"
 #include "WebSocketMessagingSettings.generated.h"
 
 UENUM()
@@ -13,11 +15,8 @@ enum class EWebSocketMessagingTransportFormat : uint8
 	Cbor
 };
 
-/**
- * 
- */
 UCLASS(config=Engine)
-class WEBSOCKETMESSAGING_API UWebSocketMessagingSettings : public UObject
+class UWebSocketMessagingSettings : public UObject
 {
 	GENERATED_BODY()
 

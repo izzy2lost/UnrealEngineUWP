@@ -2,9 +2,11 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/Map.h"
 #include "Containers/Ticker.h"
 #include "IMessageTransport.h"
+#include "Templates/SharedPointer.h"
+#include "Templates/UniquePtr.h"
 
 struct FWebSocketMessageConnection
 {
@@ -59,14 +61,11 @@ struct FWebSocketMessageConnection
 
 using FWebSocketMessageConnectionRef = TSharedRef<FWebSocketMessageConnection, ESPMode::ThreadSafe>;
 
-/**
- * 
- */
-class WEBSOCKETMESSAGING_API FWebSocketMessageTransport : public IMessageTransport, public TSharedFromThis<FWebSocketMessageTransport>
+class FWebSocketMessageTransport : public IMessageTransport, public TSharedFromThis<FWebSocketMessageTransport>
 {
 public:
 	FWebSocketMessageTransport();
-	~FWebSocketMessageTransport();
+	virtual ~FWebSocketMessageTransport() override;
 
 	virtual FName GetDebugName() const override
 	{
