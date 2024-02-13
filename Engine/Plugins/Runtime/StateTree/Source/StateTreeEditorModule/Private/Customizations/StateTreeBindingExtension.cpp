@@ -564,13 +564,13 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 		return false;
 	}
 
-	bool CanAcceptPropertyOrChildren(const FProperty* SourceProperty, TConstArrayView<TSharedPtr<FBindingChainElement>> InBindingChain)
+	bool CanAcceptPropertyOrChildren(const FProperty* SourceProperty, TConstArrayView<FBindingChainElement> InBindingChain)
 	{
 		ConditionallyUpdateData();
 
 		if (UE::StateTree::PropertyRefHelpers::IsPropertyRef(*PropertyHandle->GetProperty()))
 		{
-			const int32 SourceStructIndex = InBindingChain[0]->ArrayIndex;
+			const int32 SourceStructIndex = InBindingChain[0].ArrayIndex;
 			check(AccessibleStructs.IsValidIndex(SourceStructIndex));
 
 			if (!UE::StateTree::PropertyRefHelpers::IsPropertyAccessibleForPropertyRef(*SourceProperty, InBindingChain, AccessibleStructs[SourceStructIndex]))
@@ -880,7 +880,7 @@ void FStateTreeBindingExtension::ExtendWidgetRow(FDetailWidgetRow& InWidgetRow, 
 			return CachedBindingData->CanBindToContextStruct(InStruct);
 		});
 
-	Args.OnCanAcceptPropertyOrChildrenWithBindingChain = FOnCanAcceptPropertyOrChildrenWithBindingChain::CreateLambda([CachedBindingData](FProperty* InProperty, TConstArrayView<TSharedPtr<FBindingChainElement>> InBindingChain)
+	Args.OnCanAcceptPropertyOrChildrenWithBindingChain = FOnCanAcceptPropertyOrChildrenWithBindingChain::CreateLambda([CachedBindingData](FProperty* InProperty, TConstArrayView<FBindingChainElement> InBindingChain)
 		{
 			return CachedBindingData->CanAcceptPropertyOrChildren(InProperty, InBindingChain);
 		});

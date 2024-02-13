@@ -166,12 +166,12 @@ namespace UE::StateTree::PropertyRefHelpers
 		return IsPropertyAccessibleForPropertyRef(*SourcePropertyPathIndirections.Last().GetProperty(), SourceStruct, bIsOutput);
 	}
 
-	bool IsPropertyAccessibleForPropertyRef(const FProperty& SourceProperty, TConstArrayView<TSharedPtr<FBindingChainElement>> BindingChain, FStateTreeBindableStructDesc SourceStruct)
+	bool IsPropertyAccessibleForPropertyRef(const FProperty& SourceProperty, TConstArrayView<FBindingChainElement> BindingChain, FStateTreeBindableStructDesc SourceStruct)
 	{
 		bool bIsOutput = UE::StateTree::GetUsageFromMetaData(&SourceProperty) == EStateTreePropertyUsage::Output;
-		for (TSharedPtr<FBindingChainElement> ChainElement : BindingChain)
+		for (const FBindingChainElement& ChainElement : BindingChain)
 		{
-			if (const FProperty* Property = ChainElement->Field.Get<FProperty>())
+			if (const FProperty* Property = ChainElement.Field.Get<FProperty>())
 			{
 				if (UE::StateTree::GetUsageFromMetaData(Property) == EStateTreePropertyUsage::Output)
 				{

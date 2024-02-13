@@ -502,7 +502,7 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 		return false;
 	}
 
-	bool CanAcceptPropertyOrChildren(const FProperty* SourceProperty, TConstArrayView<TSharedPtr<FBindingChainElement>> InBindingChain)
+	bool CanAcceptPropertyOrChildren(const FProperty* SourceProperty, TConstArrayView<FBindingChainElement> InBindingChain)
 	{
 		ConditionallyUpdateData();
 
@@ -735,7 +735,7 @@ void FSmartObjectDefinitionBindingExtension::ExtendWidgetRow(FDetailWidgetRow& I
 			return CachedBindingData->CanBindToContextStruct(InStruct);
 		});
 
-	Args.OnCanAcceptPropertyOrChildrenWithBindingChain = FOnCanAcceptPropertyOrChildrenWithBindingChain::CreateLambda([CachedBindingData](FProperty* InProperty, TConstArrayView<TSharedPtr<FBindingChainElement>> InBindingChain)
+	Args.OnCanAcceptPropertyOrChildrenWithBindingChain = FOnCanAcceptPropertyOrChildrenWithBindingChain::CreateLambda([CachedBindingData](FProperty* InProperty, TConstArrayView<FBindingChainElement> InBindingChain)
 		{
 			return CachedBindingData->CanAcceptPropertyOrChildren(InProperty, InBindingChain);
 		});
