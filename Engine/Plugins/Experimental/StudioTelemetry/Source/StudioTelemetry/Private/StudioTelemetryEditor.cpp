@@ -505,7 +505,7 @@ void FStudioTelemetryEditor::Initialize()
 					Attributes.Emplace(TEXT("TaskName"), TaskName.ToString());
 
 					// Create and start a new slow task span
-					TSharedPtr<IAnalyticsSpan> SlowTaskSpan = FStudioTelemetry::Get().StartSpan(*TaskName.ToString(), Attributes);
+					TSharedPtr<IAnalyticsSpan> SlowTaskSpan = FStudioTelemetry::Get().StartSpan(TEXT("SlowTask"), Attributes);
 
 					// Store this SlowTask span so we can find it when it finishes
 					TaskSpans.Add(TaskGuid, SlowTaskSpan);
