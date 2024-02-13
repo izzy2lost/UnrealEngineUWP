@@ -151,10 +151,9 @@ protected:
 
 	virtual void DuplicateJobAndConfiguration();
 	virtual void ExecutePreJobScripts();
-	virtual void ExecutePostJobScripts();
+	virtual void ExecutePostJobScripts(const FMoviePipelineOutputData& InData);
 	virtual void ExecutePreShotScripts(const TObjectPtr<UMoviePipelineExecutorShot>& InShot);
-	virtual void ExecutePostShotScripts();
-	virtual bool IsPostShotCallbacksNeeded() const;
+	virtual void ExecutePostShotScripts(const FMoviePipelineOutputData& InData);
 
 	// Update our data source to isolate the shot we're currently working on, so that expanded shots don't interfere with each other.
 	virtual void SetSoloShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot);
@@ -174,6 +173,7 @@ protected:
 	virtual void ShutdownImpl(bool bIsError) override;
 	virtual bool IsShutdownRequestedImpl() const override { return bShutdownRequested; }
 	virtual EMovieRenderPipelineState GetPipelineStateImpl() const override { return PipelineState; }
+	virtual bool IsPostShotCallbackNeeded() const override;
 	// ~UMoviePipelineBase Interface
 
 protected:
