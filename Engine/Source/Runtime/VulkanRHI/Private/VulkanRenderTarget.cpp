@@ -162,7 +162,7 @@ void FVulkanDynamicRHI::RHIReadSurfaceData(FRHITexture* TextureRHI, FIntRect Rec
 	Device->PrepareForCPURead();
 
 	// Figure out the size of the buffer required to hold the requested pixels
-	const uint32 PixelByteSize = GetNumBitsPerPixel(Surface.StorageFormat) / 8;
+	const uint32 PixelByteSize = VulkanRHI::GetNumBitsPerPixel(Surface.StorageFormat) / 8;
 	checkf(GPixelFormats[TextureRHI->GetFormat()].Supported && (PixelByteSize > 0), TEXT("Trying to read from unsupported format."));
 	const uint32 BufferSize = NumRequestedPixels * PixelByteSize;
 

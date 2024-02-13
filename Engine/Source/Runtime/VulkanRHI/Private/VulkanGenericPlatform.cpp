@@ -1,7 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "VulkanRHIPrivate.h"
 #include "VulkanGenericPlatform.h"
+#include "VulkanCommandWrappers.h"
+#include "VulkanDevice.h"
 #include "HAL/FileManager.h"
 #include "Misc/CommandLine.h"
 

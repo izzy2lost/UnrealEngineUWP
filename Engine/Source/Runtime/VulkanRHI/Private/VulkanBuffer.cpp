@@ -140,7 +140,7 @@ FVulkanResourceMultiBuffer::FVulkanResourceMultiBuffer(FVulkanDevice* InDevice, 
 		else
 		{
 			const bool bUnifiedMem = InDevice->HasUnifiedMemory();
-			const uint32 BufferAlignment = FMemoryManager::CalculateBufferAlignment(*InDevice, InBufferDesc.Usage, bZeroSize);
+			const uint32 BufferAlignment = VulkanRHI::FMemoryManager::CalculateBufferAlignment(*InDevice, InBufferDesc.Usage, bZeroSize);
 
 			if (InTransientHeapAllocation != nullptr)
 			{
@@ -236,11 +236,11 @@ void FVulkanResourceMultiBuffer::AdvanceBufferIndex()
 		const bool bUnifiedMem = Device->HasUnifiedMemory();
 		const VkMemoryPropertyFlags BufferMemFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | (bUnifiedMem ? (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) : 0);
 		const uint32 BufferSize = GetSize();
-		const uint32 BufferAlignment = FMemoryManager::CalculateBufferAlignment(*Device, GetUsage(), (BufferSize == 0));
+		const uint32 BufferAlignment = VulkanRHI::FMemoryManager::CalculateBufferAlignment(*Device, GetUsage(), (BufferSize == 0));
 
 		CurrentBufferIndex = BufferAllocs.Emplace();
 		FBufferAlloc& NewBufferAlloc = BufferAllocs[CurrentBufferIndex];
-		if (!Device->GetMemoryManager().AllocateBufferPooled(NewBufferAlloc.Alloc, nullptr, BufferSize, BufferAlignment, BufferUsageFlags, BufferMemFlags, EVulkanAllocationMetaMultiBuffer, __FILE__, __LINE__))
+		if (!Device->GetMemoryManager().AllocateBufferPooled(NewBufferAlloc.Alloc, nullptr, BufferSize, BufferAlignment, BufferUsageFlags, BufferMemFlags, VulkanRHI::EVulkanAllocationMetaMultiBuffer, __FILE__, __LINE__))
 		{
 			Device->GetMemoryManager().HandleOOM();
 		}
@@ -308,7 +308,7 @@ void* FVulkanResourceMultiBuffer::Lock(FVulkanCommandListContext& Context, EReso
 		{
 			FBufferAlloc& BufferAlloc = BufferAllocs[0];
 
-			FTempFrameAllocationBuffer::FTempAllocInfo VolatileAlloc;
+			VulkanRHI::FTempFrameAllocationBuffer::FTempAllocInfo VolatileAlloc;
 			Context.GetTempFrameAllocationBuffer().Alloc(LockSize + Offset, 256, VolatileAlloc);
 			check(!VolatileAlloc.Allocation.HasAllocation());
 

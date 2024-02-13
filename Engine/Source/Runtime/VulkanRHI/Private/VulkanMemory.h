@@ -6,7 +6,10 @@
 
 #pragma once 
 
+#include "Containers/Map.h"
 #include "Misc/ScopeRWLock.h"
+#include "VulkanConfiguration.h"
+#include "VulkanThirdParty.h"
 
 //enable to store FILE/LINE, and optionally a stacktrace via r.vulkan.backtrace
 #if !UE_BUILD_SHIPPING

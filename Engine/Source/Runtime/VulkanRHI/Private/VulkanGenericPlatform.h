@@ -1,18 +1,22 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
-#include "CoreMinimal.h"
-#include "PixelFormat.h"
-#include "Containers/ArrayView.h"
-#include "RHI.h"	// for GShaderPlatformForFeatureLevel and its friends
 
-#include "VulkanLoader.h"
+#include "Containers/Array.h"
+#include "Containers/ArrayView.h"
+#include "PixelFormat.h"
+#include "Templates/UniquePtr.h"
+#include "VulkanThirdParty.h"
 
 struct FOptionalVulkanDeviceExtensions;
 class FVulkanDevice;
 class FVulkanRenderTargetLayout;
 struct FGfxPipelineDesc;
 class FVulkanPhysicalDeviceFeatures;
+
+enum EShaderPlatform : uint16;
+enum class EGpuVendorId : uint32;
+namespace ERHIFeatureLevel { enum Type : int; }
 
 using FVulkanDeviceExtensionArray = TArray<TUniquePtr<class FVulkanDeviceExtension>>;
 using FVulkanInstanceExtensionArray = TArray<TUniquePtr<class FVulkanInstanceExtension>>;

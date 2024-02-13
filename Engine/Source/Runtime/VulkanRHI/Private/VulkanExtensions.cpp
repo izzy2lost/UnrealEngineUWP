@@ -1,7 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "VulkanRHIPrivate.h"
 #include "VulkanExtensions.h"
+#include "VulkanDevice.h"
+#include "VulkanRHIPrivate.h"
 
 #include "IHeadMountedDisplayModule.h"
 #include "IHeadMountedDisplayVulkanExtensions.h"

@@ -7,10 +7,12 @@
 #pragma once
 
 #include "IVulkanDynamicRHI.h"
+#include "VulkanConfiguration.h"
 
 class FVulkanFramebuffer;
 class FVulkanDevice;
 class FVulkanQueue;
+class FVulkanUniformBuffer;
 class FVulkanViewport;
 class IHeadMountedDisplayVulkanExtensions;
 struct FRHITransientHeapAllocation;
@@ -50,7 +52,7 @@ public:
 	FVulkanDynamicRHI();
 
 	/** Destructor */
-	~FVulkanDynamicRHI() {}
+	~FVulkanDynamicRHI();
 
 	// IVulkanDynamicRHI interface
 	virtual uint32 RHIGetVulkanVersion() const final override;

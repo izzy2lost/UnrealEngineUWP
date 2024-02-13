@@ -6,7 +6,12 @@
 
 #pragma once
 
+#include "HAL/Platform.h"
 #include "Serialization/MemoryWriter.h"
+#include "Templates/UniquePtr.h"
+#include "VulkanThirdParty.h"
+
+class FVulkanDevice;
 
 namespace VulkanRHI
 {

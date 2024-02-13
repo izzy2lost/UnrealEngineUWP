@@ -4,7 +4,7 @@
 	VulkanState.cpp: Vulkan state implementation.
 =============================================================================*/
 
-#include "VulkanRHIPrivate.h"
+#include "VulkanState.h"
 #include "VulkanPendingState.h"
 #include "VulkanDescriptorSets.h"
 #include "RHIUtilities.h"

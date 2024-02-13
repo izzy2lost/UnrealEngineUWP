@@ -66,12 +66,12 @@ static void UpdateUniformBufferHelper(FVulkanCommandListContext& Context, FVulka
 	{
 		FVulkanUniformBufferUploader* UniformBufferUploader = Context.GetUniformBufferUploader();
 		const VkDeviceSize UBOffsetAlignment = Device->GetLimits().minUniformBufferOffsetAlignment;
-		const FVulkanAllocation& RingBufferAllocation = UniformBufferUploader->GetCPUBufferAllocation();
+		const VulkanRHI::FVulkanAllocation& RingBufferAllocation = UniformBufferUploader->GetCPUBufferAllocation();
 		uint64 RingBufferOffset = UniformBufferUploader->AllocateMemory(DataSize, UBOffsetAlignment, CmdBuffer);
 
 		VulkanUniformBuffer->Allocation.Init(
-			EVulkanAllocationEmpty, 
-			EVulkanAllocationMetaUnknown, 
+			VulkanRHI::EVulkanAllocationEmpty,
+			VulkanRHI::EVulkanAllocationMetaUnknown,
 			RingBufferAllocation.VulkanHandle, 
 			DataSize,
 			RingBufferOffset,
@@ -308,7 +308,7 @@ inline void FVulkanDynamicRHI::UpdateUniformBuffer(FRHICommandListBase& RHICmdLi
 	const int32 ConstantBufferSize = Layout.ConstantBufferSize;
 	const int32 NumResources = Layout.Resources.Num();
 
-	FVulkanAllocation NewUBAlloc;
+	VulkanRHI::FVulkanAllocation NewUBAlloc;
 	bool bUseUpload = GVulkanAllowUniformUpload && !RHICmdList.IsInsideRenderPass(); //inside renderpasses, a rename is enforced.
 	const bool bUseRingBuffer = UseRingBuffer(UniformBuffer->Usage);
 
@@ -377,7 +377,7 @@ inline void FVulkanDynamicRHI::UpdateUniformBuffer(FRHICommandListBase& RHICmdLi
 			NewUBAlloc.Disown(); //this releases ownership while its put into the lambda
 			RHICmdList.EnqueueLambda([UniformBuffer, NewUBAlloc, CmdListResources, NumResources](FRHICommandListBase& CmdList)
 			{
-				FVulkanAllocation Alloc;
+				VulkanRHI::FVulkanAllocation Alloc;
 				Alloc.Reference(NewUBAlloc);
 				Alloc.Own(); //this takes ownership of the allocation
 				UniformBuffer->UpdateAllocation(Alloc);
@@ -443,7 +443,7 @@ FVulkanRingBuffer::FVulkanRingBuffer(FVulkanDevice* InDevice, uint64 TotalSize, 
 	}
 
 	check(TotalSize <= (uint64)MAX_uint32);
-	InDevice->GetMemoryManager().AllocateBufferPooled(Allocation, nullptr, TotalSize, 0, Usage, MemPropertyFlags, EVulkanAllocationMetaRingBuffer, __FILE__, __LINE__);
+	InDevice->GetMemoryManager().AllocateBufferPooled(Allocation, nullptr, TotalSize, 0, Usage, MemPropertyFlags, VulkanRHI::EVulkanAllocationMetaRingBuffer, __FILE__, __LINE__);
 	MinAlignment = Allocation.GetBufferAlignment(Device);
 	// Start by wrapping around to set up the correct fence
 	BufferOffset = TotalSize;

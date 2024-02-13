@@ -1,9 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "VulkanLinuxPlatform.h"
-#include "../VulkanRHIPrivate.h"
-#include "../VulkanRayTracing.h"
-#include "../VulkanExtensions.h"
+#include "VulkanDevice.h"
+#include "VulkanRHIPrivate.h"
+#include "VulkanRayTracing.h"
+#include "VulkanExtensions.h"
 #include <dlfcn.h>
 #include <SDL.h>
 #include <SDL_vulkan.h>

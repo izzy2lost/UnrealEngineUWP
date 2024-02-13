@@ -5,6 +5,7 @@
 =============================================================================*/
 
 #include "VulkanRHIPrivate.h"
+#include "VulkanDevice.h"
 #include "VulkanResources.h"
 #include "VulkanContext.h"
 #include "VulkanCommandBuffer.h"

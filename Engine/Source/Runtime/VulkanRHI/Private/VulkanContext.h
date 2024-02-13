@@ -7,14 +7,16 @@
 #pragma once 
 
 #include "VulkanResources.h"
+#include "VulkanRHIPrivate.h"
 #include "VulkanGPUProfiler.h"
 
-class FVulkanDevice;
 class FVulkanCommandBufferManager;
+class FVulkanDevice;
+class FVulkanDynamicRHI;
+class FVulkanOcclusionQueryPool;
 class FVulkanPendingGfxState;
 class FVulkanPendingComputeState;
 class FVulkanQueue;
-class FVulkanOcclusionQueryPool;
 class FVulkanSwapChain;
 
 struct FInputAttachmentData;
@@ -333,8 +335,3 @@ private:
 	friend class FVulkanDevice;
 };
 #endif
-
-inline FVulkanCommandListContextImmediate& FVulkanDevice::GetImmediateContext()
-{
-	return *ImmediateContext;
-}

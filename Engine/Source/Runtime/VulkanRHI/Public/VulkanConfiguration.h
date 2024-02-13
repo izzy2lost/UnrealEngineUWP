@@ -10,6 +10,7 @@
 
 #include "HAL/LowLevelMemTracker.h"
 #include "VulkanCommon.h"
+#include "VulkanPlatform.h"
 
 struct VkAllocationCallbacks;
 

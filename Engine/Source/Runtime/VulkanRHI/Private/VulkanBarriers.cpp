@@ -895,7 +895,7 @@ static void AddSubresourceTransitions(TArray<VkImageMemoryBarrier>& Barriers, Vk
 			if (bIsDepthStencil)
 			{
 				const VkImageLayout OtherLayout = (CurrentLayout.NumPlanes == 1) ? SrcLayout : CurrentLayout.GetSubresLayout(LayerIdx, MipIdx, 1);
-				SrcLayout = GetMergedDepthStencilLayout(SrcLayout, OtherLayout);
+				SrcLayout = VulkanRHI::GetMergedDepthStencilLayout(SrcLayout, OtherLayout);
 			}
 
 			// Merge with the previous transition if the previous mip was in the same state as this mip.
@@ -916,7 +916,7 @@ static void AddSubresourceTransitions(TArray<VkImageMemoryBarrier>& Barriers, Vk
 				Barrier = TemplateBarrier;
 				Barrier.srcAccessMask = GetVkAccessMaskForLayout(SrcLayout);
 				Barrier.oldLayout = SrcLayout;
-				Barrier.newLayout = bIsDepthStencil ? GetMergedDepthStencilLayout(DstLayout, DstLayout) : DstLayout;
+				Barrier.newLayout = bIsDepthStencil ? VulkanRHI::GetMergedDepthStencilLayout(DstLayout, DstLayout) : DstLayout;
 				Barrier.image = ImageHandle;
 				Barrier.subresourceRange.baseMipLevel = MipIdx;
 				Barrier.subresourceRange.levelCount = 1;
@@ -1254,13 +1254,13 @@ void FTransitionProcessor<VkMemoryBarrier, VkBufferMemoryBarrier, VkImageMemoryB
 		// Merge the layout with its other half and set it in the barrier
 		if (OtherAspectMask == VK_IMAGE_ASPECT_STENCIL_BIT)
 		{
-			ImageBarrier->oldLayout = GetMergedDepthStencilLayout(ImageBarrier->oldLayout, OtherAspectOldLayout);
-			ImageBarrier->newLayout = GetMergedDepthStencilLayout(ImageBarrier->newLayout, OtherAspectNewLayout);
+			ImageBarrier->oldLayout = VulkanRHI::GetMergedDepthStencilLayout(ImageBarrier->oldLayout, OtherAspectOldLayout);
+			ImageBarrier->newLayout = VulkanRHI::GetMergedDepthStencilLayout(ImageBarrier->newLayout, OtherAspectNewLayout);
 		}
 		else
 		{
-			ImageBarrier->oldLayout = GetMergedDepthStencilLayout(OtherAspectOldLayout, ImageBarrier->oldLayout);
-			ImageBarrier->newLayout = GetMergedDepthStencilLayout(OtherAspectNewLayout, ImageBarrier->newLayout);
+			ImageBarrier->oldLayout = VulkanRHI::GetMergedDepthStencilLayout(OtherAspectOldLayout, ImageBarrier->oldLayout);
+			ImageBarrier->newLayout = VulkanRHI::GetMergedDepthStencilLayout(OtherAspectNewLayout, ImageBarrier->newLayout);
 		}
         ImageBarrier->subresourceRange.aspectMask |= OtherAspectMask;
 
@@ -1297,8 +1297,8 @@ void FTransitionProcessor<VkMemoryBarrier, VkBufferMemoryBarrier, VkImageMemoryB
 		{
 			// The only way we end up here is if the barrier transitions every aspect of the depth(-stencil) texture
 			check(Texture->GetFullAspectMask() == ImageBarrier->subresourceRange.aspectMask);
-			ImageBarrier->oldLayout = GetMergedDepthStencilLayout(ImageBarrier->oldLayout, ImageBarrier->oldLayout);
-			ImageBarrier->newLayout = GetMergedDepthStencilLayout(ImageBarrier->newLayout, ImageBarrier->newLayout);
+			ImageBarrier->oldLayout = VulkanRHI::GetMergedDepthStencilLayout(ImageBarrier->oldLayout, ImageBarrier->oldLayout);
+			ImageBarrier->newLayout = VulkanRHI::GetMergedDepthStencilLayout(ImageBarrier->newLayout, ImageBarrier->newLayout);
 		}
 
 		MergedDstStageMask |= GetVkStageFlagsForLayout(ImageBarriers[TargetIndex].newLayout);
@@ -1581,8 +1581,8 @@ void FVulkanPipelineBarrier::AddFullImageLayoutTransition(const FVulkanTexture& 
 	const VkImageSubresourceRange SubresourceRange = MakeSubresourceRange(Texture.GetFullAspectMask());
 	if (Texture.IsDepthOrStencilAspect())
 	{
-		SrcLayout = GetMergedDepthStencilLayout(SrcLayout, SrcLayout);
-		DstLayout = GetMergedDepthStencilLayout(DstLayout, DstLayout);
+		SrcLayout = VulkanRHI::GetMergedDepthStencilLayout(SrcLayout, SrcLayout);
+		DstLayout = VulkanRHI::GetMergedDepthStencilLayout(DstLayout, DstLayout);
 	}
 
 	VkImageMemoryBarrier2& ImgBarrier = ImageBarriers.AddDefaulted_GetRef();
@@ -1945,7 +1945,7 @@ VkImageLayout FVulkanLayoutManager::GetDefaultLayout(FVulkanCmdBuffer* CmdBuffer
 				FVulkanLayoutManager& LayoutMgr = CmdBuffer->GetLayoutManager();
 				const VkImageLayout DepthLayout = LayoutMgr.GetDepthStencilHint(VulkanTexture, VK_IMAGE_ASPECT_DEPTH_BIT);
 				const VkImageLayout StencilLayout = LayoutMgr.GetDepthStencilHint(VulkanTexture, VK_IMAGE_ASPECT_STENCIL_BIT);
-				return GetMergedDepthStencilLayout(DepthLayout, StencilLayout);
+				return VulkanRHI::GetMergedDepthStencilLayout(DepthLayout, StencilLayout);
 			}
 		}
 		else
@@ -2005,7 +2005,7 @@ VkImageLayout FVulkanLayoutManager::SetExpectedLayout(FVulkanCmdBuffer* CmdBuffe
 			FVulkanPipelineBarrier Barrier;
 			if (VulkanTexture.IsDepthOrStencilAspect() && (SrcLayout->NumPlanes > 1) && !LayoutMgr.bWriteOnly)
 			{
-				const VkImageLayout MergedLayout = GetMergedDepthStencilLayout(SrcLayout->GetSubresLayout(0, 0, VK_IMAGE_ASPECT_DEPTH_BIT), SrcLayout->GetSubresLayout(0, 0, VK_IMAGE_ASPECT_STENCIL_BIT));
+				const VkImageLayout MergedLayout = VulkanRHI::GetMergedDepthStencilLayout(SrcLayout->GetSubresLayout(0, 0, VK_IMAGE_ASPECT_DEPTH_BIT), SrcLayout->GetSubresLayout(0, 0, VK_IMAGE_ASPECT_STENCIL_BIT));
 				Barrier.AddImageLayoutTransition(VulkanTexture.Image, MergedLayout, ExpectedLayout, FVulkanPipelineBarrier::MakeSubresourceRange(VulkanTexture.GetFullAspectMask()));
 				PreviousLayout = MergedLayout;
 			}

@@ -5,6 +5,7 @@
 =============================================================================*/
 
 #include "VulkanRHIPrivate.h"
+#include "VulkanCommandWrappers.h"
 #include "VulkanPendingState.h"
 #include "VulkanPipeline.h"
 #include "VulkanContext.h"
@@ -296,7 +297,7 @@ void FVulkanDescriptorPoolsManager::GC()
 	for (int32 Index = PoolSets.Num() - 1; Index >= 0; Index--)
 	{
 		auto* PoolSet = PoolSets[Index];
-		if (PoolSet->IsUnused() && GFrameNumberRenderThread - PoolSet->GetLastFrameUsed() > NUM_FRAMES_TO_WAIT_BEFORE_RELEASING_TO_OS)
+		if (PoolSet->IsUnused() && GFrameNumberRenderThread - PoolSet->GetLastFrameUsed() > VulkanRHI::NUM_FRAMES_TO_WAIT_BEFORE_RELEASING_TO_OS)
 		{
 			PoolSets.RemoveAtSwap(Index, 1, EAllowShrinking::Yes);
 
@@ -853,7 +854,7 @@ void FVulkanDescriptorSetCache::FCachedPool::Reset()
 
 bool FVulkanDescriptorSetCache::FCachedPool::CanGC() const
 {
-	constexpr uint32 FramesBeforeGC = NUM_FRAMES_TO_WAIT_BEFORE_RELEASING_TO_OS;
+	constexpr uint32 FramesBeforeGC = VulkanRHI::NUM_FRAMES_TO_WAIT_BEFORE_RELEASING_TO_OS;
 	return ((GFrameNumberRenderThread - RecentFrame) > FramesBeforeGC);
 }
 

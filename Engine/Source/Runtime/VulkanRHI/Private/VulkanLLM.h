@@ -4,10 +4,10 @@
 	VulkanLLM.h: Vulkan LLM definitions.
 =============================================================================*/
 
-
 #pragma once
 
 #include "HAL/LowLevelMemTracker.h"
+#include "VulkanConfiguration.h"
 
 #if ENABLE_LOW_LEVEL_MEM_TRACKER
 

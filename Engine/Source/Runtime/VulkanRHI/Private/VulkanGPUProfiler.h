@@ -6,10 +6,13 @@
 
 #pragma once
 
+#include "Containers/Queue.h"
 #include "GPUProfiler.h"
+#include "VulkanConfiguration.h"
 
 class FVulkanCmdBuffer;
 class FVulkanCommandListContext;
+class FVulkanDevice;
 class FVulkanTimingQueryPool;
 
 class FVulkanGPUTiming : public FGPUTiming

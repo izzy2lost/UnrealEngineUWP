@@ -2,8 +2,11 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "VulkanCommon.h"
+#include "Containers/Array.h"
+#include "RHIPipeline.h"
+#include "VulkanMemory.h"
+#include "VulkanResources.h"
+#include "VulkanThirdParty.h"
 
 class FVulkanCmdBuffer;
 

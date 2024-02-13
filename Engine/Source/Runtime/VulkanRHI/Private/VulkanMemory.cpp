@@ -5130,7 +5130,7 @@ void FVulkanCustomMemManager::InternalFreeNotification(void* UserData, size_t Si
 #endif
 
 
-VkResult FDeviceMemoryManager::GetMemoryTypeFromProperties(uint32 TypeBits, VkMemoryPropertyFlags Properties, uint32* OutTypeIndex)
+VkResult VulkanRHI::FDeviceMemoryManager::GetMemoryTypeFromProperties(uint32 TypeBits, VkMemoryPropertyFlags Properties, uint32* OutTypeIndex)
 {
 	//#todo-rco: Might need to revisit based on https://gitlab.khronos.org/vulkan/vulkan/merge_requests/1165
 	// Search memtypes to find first index with those properties
@@ -5152,7 +5152,7 @@ VkResult FDeviceMemoryManager::GetMemoryTypeFromProperties(uint32 TypeBits, VkMe
 	return VK_ERROR_FEATURE_NOT_PRESENT;
 }
 
-VkResult FDeviceMemoryManager::GetMemoryTypeFromPropertiesExcluding(uint32 TypeBits, VkMemoryPropertyFlags Properties, uint32 ExcludeTypeIndex, uint32* OutTypeIndex)
+VkResult VulkanRHI::FDeviceMemoryManager::GetMemoryTypeFromPropertiesExcluding(uint32 TypeBits, VkMemoryPropertyFlags Properties, uint32 ExcludeTypeIndex, uint32* OutTypeIndex)
 {
 	// Search memtypes to find first index with those properties
 	for (uint32 i = 0; i < MemoryProperties.memoryTypeCount && TypeBits; i++)
@@ -5173,7 +5173,7 @@ VkResult FDeviceMemoryManager::GetMemoryTypeFromPropertiesExcluding(uint32 TypeB
 	return VK_ERROR_FEATURE_NOT_PRESENT;
 }
 
-const VkPhysicalDeviceMemoryProperties& FDeviceMemoryManager::GetMemoryProperties() const
+const VkPhysicalDeviceMemoryProperties& VulkanRHI::FDeviceMemoryManager::GetMemoryProperties() const
 {
 	return MemoryProperties;
 }

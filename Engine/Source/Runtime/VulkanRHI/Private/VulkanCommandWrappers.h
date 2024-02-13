@@ -4,7 +4,34 @@
 	VulkanCommandWrappers.h: Wrap all Vulkan API functions so we can add our own 'layers'
 =============================================================================*/
 
-#pragma once 
+#pragma once
+
+#include "VulkanConfiguration.h"
+#include "VulkanLoader.h"
+#include "VulkanThirdParty.h"
+
+#if !VULKAN_COMMANDWRAPPERS_ENABLE
+	#if VULKAN_DYNAMICALLYLOADED
+		// Bring functions from VulkanDynamicAPI to VulkanRHI
+		#define VK_DYNAMICAPI_TO_VULKANRHI(Type,Func) using VulkanDynamicAPI::Func;
+
+		namespace VulkanRHI
+		{
+			ENUM_VK_ENTRYPOINTS_ALL(VK_DYNAMICAPI_TO_VULKANRHI);
+		}
+	#else // VULKAN_DYNAMICALLYLOADED
+		#error "Statically linked vulkan api must be wrapped!"
+	#endif // VULKAN_DYNAMICALLYLOADED
+
+#else // VULKAN_COMMANDWRAPPERS_ENABLE
+
+#if VULKAN_DYNAMICALLYLOADED
+	// Vulkan API is defined in VulkanDynamicAPI namespace.
+	#define VULKANAPINAMESPACE VulkanDynamicAPI
+#else
+	// Vulkan API is in the global namespace.
+	#define VULKANAPINAMESPACE
+#endif
 
 #if VULKAN_ENABLE_WRAP_LAYER
 	#define  VULKAN_LAYER_BODY		;
@@ -1693,3 +1720,5 @@ namespace VulkanRHI
 	void PrintfBegin(const FString& String);
 #endif
 }
+
+#endif // VULKAN_COMMANDWRAPPERS_ENABLE

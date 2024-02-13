@@ -7,7 +7,11 @@
 #pragma once
 
 #include "VulkanMemory.h"
+#include "VulkanResources.h"
+#include "GPUProfiler.h"
 
+class FVulkanSamplerState;
+class FVulkanDynamicRHI;
 class FVulkanDescriptorSetCache;
 class FVulkanDescriptorPool;
 class FVulkanDescriptorPoolsManager;
@@ -159,7 +163,7 @@ private:
 
 namespace VulkanRHI
 {
-	class FDeferredDeletionQueue2 : public FDeviceChild
+	class FDeferredDeletionQueue2 : public VulkanRHI::FDeviceChild
 	{
 
 	public:
@@ -440,7 +444,10 @@ public:
 		return ShaderFactory;
 	}
 
-	FVulkanCommandListContextImmediate& GetImmediateContext();
+	FVulkanCommandListContextImmediate& GetImmediateContext()
+	{
+		return *ImmediateContext;
+	}
 
 	void NotifyDeletedImage(VkImage Image, bool bRenderTarget);
 

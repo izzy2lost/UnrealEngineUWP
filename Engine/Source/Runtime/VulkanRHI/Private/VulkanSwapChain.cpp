@@ -1,12 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 /*=============================================================================
-	VulkanSwapChain.h: Vulkan viewport RHI definitions.
+	VulkanSwapChain.cpp: Vulkan viewport RHI definitions.
 =============================================================================*/
 
-#include "VulkanRHIPrivate.h"
 #include "VulkanSwapChain.h"
+#include "VulkanCommandWrappers.h"
+#include "VulkanDevice.h"
 #include "VulkanPlatform.h"
+#include "VulkanRHIPrivate.h"
 #include "Engine/RendererSettings.h"
 #include "HAL/PlatformFramePacer.h"
 #include "IHeadMountedDisplayModule.h"

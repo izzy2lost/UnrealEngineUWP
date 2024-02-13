@@ -8,7 +8,9 @@
 
 #include "Async/AsyncWork.h"
 #include "VulkanConfiguration.h"
+#include "VulkanDevice.h"
 #include "VulkanMemory.h"
+#include "VulkanRHIPrivate.h"
 #include "VulkanShaderResources.h"
 
 #if (UE_BUILD_SHIPPING || UE_BUILD_TEST)

@@ -68,7 +68,7 @@ inline void FVulkanAttachmentReference<VkAttachmentReference>::SetDepthStencilAt
 {
 	attachment = AttachmentReferenceIn.attachment;
 	const VkImageLayout StencilLayout = StencilReference ? StencilReference->stencilLayout : VK_IMAGE_LAYOUT_UNDEFINED;
-	layout = GetMergedDepthStencilLayout(AttachmentReferenceIn.layout, StencilLayout);
+	layout = VulkanRHI::GetMergedDepthStencilLayout(AttachmentReferenceIn.layout, StencilLayout);
 }
 
 template <>
@@ -78,7 +78,7 @@ inline void FVulkanAttachmentReference<VkAttachmentReference2>::SetDepthStencilA
 	sType = VK_STRUCTURE_TYPE_ATTACHMENT_REFERENCE_2;
 	pNext = (bSupportsParallelRendering && StencilReference && StencilReference->stencilLayout != VK_IMAGE_LAYOUT_UNDEFINED) ? StencilReference : nullptr;
 	attachment = AttachmentReferenceIn.attachment;
-	layout = bSupportsParallelRendering ? AttachmentReferenceIn.layout : GetMergedDepthStencilLayout(AttachmentReferenceIn.layout, StencilReference->stencilLayout);
+	layout = bSupportsParallelRendering ? AttachmentReferenceIn.layout : VulkanRHI::GetMergedDepthStencilLayout(AttachmentReferenceIn.layout, StencilReference->stencilLayout);
 	aspectMask = AspectMask;
 }
 
@@ -270,11 +270,11 @@ struct FVulkanAttachmentDescription<VkAttachmentDescription>
 		stencilLoadOp = InDesc.stencilLoadOp;
 		stencilStoreOp = InDesc.stencilStoreOp;
 
-		const bool bHasStencilLayout = VulkanFormatHasStencil(InDesc.format) && (InStencilDesc != nullptr);
+		const bool bHasStencilLayout = VulkanRHI::VulkanFormatHasStencil(InDesc.format) && (InStencilDesc != nullptr);
 		const VkImageLayout StencilInitialLayout = bHasStencilLayout ? InStencilDesc->stencilInitialLayout : VK_IMAGE_LAYOUT_UNDEFINED;
-		initialLayout = GetMergedDepthStencilLayout(InDesc.initialLayout, StencilInitialLayout);
+		initialLayout = VulkanRHI::GetMergedDepthStencilLayout(InDesc.initialLayout, StencilInitialLayout);
 		const VkImageLayout StencilFinalLayout = bHasStencilLayout ? InStencilDesc->stencilFinalLayout : VK_IMAGE_LAYOUT_UNDEFINED;
-		finalLayout = GetMergedDepthStencilLayout(InDesc.finalLayout, StencilFinalLayout);
+		finalLayout = VulkanRHI::GetMergedDepthStencilLayout(InDesc.finalLayout, StencilFinalLayout);
 	}
 };
 
@@ -304,7 +304,7 @@ struct FVulkanAttachmentDescription<VkAttachmentDescription2>
 
 	FVulkanAttachmentDescription(const VkAttachmentDescription& InDesc, const VkAttachmentDescriptionStencilLayout* InStencilDesc, bool bSupportsParallelRendering)
 	{
-		const bool bHasStencilLayout = bSupportsParallelRendering && VulkanFormatHasStencil(InDesc.format) && (InStencilDesc != nullptr);
+		const bool bHasStencilLayout = bSupportsParallelRendering && VulkanRHI::VulkanFormatHasStencil(InDesc.format) && (InStencilDesc != nullptr);
 
 		sType = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2;
 		pNext = (bHasStencilLayout && (InStencilDesc->stencilFinalLayout != VK_IMAGE_LAYOUT_UNDEFINED)) ? InStencilDesc : nullptr;
@@ -315,8 +315,8 @@ struct FVulkanAttachmentDescription<VkAttachmentDescription2>
 		storeOp = InDesc.storeOp;
 		stencilLoadOp = InDesc.stencilLoadOp;
 		stencilStoreOp = InDesc.stencilStoreOp;
-		initialLayout = bSupportsParallelRendering ? InDesc.initialLayout : GetMergedDepthStencilLayout(InDesc.initialLayout, InStencilDesc->stencilInitialLayout);
-		finalLayout = bSupportsParallelRendering ? InDesc.finalLayout : GetMergedDepthStencilLayout(InDesc.finalLayout, InStencilDesc->stencilFinalLayout);
+		initialLayout = bSupportsParallelRendering ? InDesc.initialLayout : VulkanRHI::GetMergedDepthStencilLayout(InDesc.initialLayout, InStencilDesc->stencilInitialLayout);
+		finalLayout = bSupportsParallelRendering ? InDesc.finalLayout : VulkanRHI::GetMergedDepthStencilLayout(InDesc.finalLayout, InStencilDesc->stencilFinalLayout);
 	}
 };
 

@@ -4,9 +4,10 @@
 	VulkanCommandBuffer.cpp: Vulkan device RHI implementation.
 =============================================================================*/
 
-#include "VulkanRHIPrivate.h"
+#include "VulkanCommandBuffer.h"
 #include "VulkanContext.h"
 #include "VulkanDescriptorSets.h"
+#include "VulkanMemory.h"
 
 static int32 GUseSingleQueue = 0;
 static FAutoConsoleVariableRef CVarVulkanUseSingleQueue(
@@ -564,7 +565,7 @@ void FVulkanCommandBufferManager::SubmitUploadCmdBuffer(uint32 NumSignalSemaphor
 		{
 			// Add semaphores associated with the recent active cmdbuf(s), if any. That will prevent
 			// the overlap, delaying execution of this cmdbuf until the graphics one(s) is complete.
-			for (FSemaphore* WaitForThis : RenderingCompletedSemaphores)
+			for (VulkanRHI::FSemaphore* WaitForThis : RenderingCompletedSemaphores)
 			{
 				UploadCmdBuffer->AddWaitSemaphore(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, WaitForThis);
 			}
@@ -630,7 +631,7 @@ void FVulkanCommandBufferManager::SubmitActiveCmdBuffer(TArrayView<VulkanRHI::FS
 
 			// Add semaphores associated with the recent upload cmdbuf(s), if any. That will prevent
 			// the overlap, delaying execution of this cmdbuf until upload one(s) are complete.
-			for (FSemaphore* UploadCompleteSema : UploadCompletedSemaphores)
+			for (VulkanRHI::FSemaphore* UploadCompleteSema : UploadCompletedSemaphores)
 			{
 				ActiveCmdBuffer->AddWaitSemaphore(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, UploadCompleteSema);
 			}
@@ -856,7 +857,7 @@ void FVulkanCommandBufferPool::FreeUnusedCmdBuffers(FVulkanQueue* InQueue)
 	InQueue->GetLastSubmittedInfo(LastSubmittedCmdBuffer, LastSubmittedFenceCounter);
 
 	// Deferred deletion queue caches pointers to cmdbuffers
-	FDeferredDeletionQueue2& DeferredDeletionQueue = Device->GetDeferredDeletionQueue();
+	VulkanRHI::FDeferredDeletionQueue2& DeferredDeletionQueue = Device->GetDeferredDeletionQueue();
 
 	for (int32 Index = CmdBuffers.Num() - 1; Index >= 0; --Index)
 	{

@@ -6,8 +6,10 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "VulkanConfiguration.h"
+
+struct FOptionalVulkanInstanceExtensions;
+
 
 #define VULKAN_EXTENSION_NOT_PROMOTED UINT32_MAX
 #define VULKAN_EXTENSION_ENABLED      1

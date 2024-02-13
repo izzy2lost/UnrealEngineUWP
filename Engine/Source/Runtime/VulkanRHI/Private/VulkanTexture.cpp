@@ -587,7 +587,7 @@ static VkImageLayout GetInitialLayoutFromRHIAccess(ERHIAccess RHIAccess, bool bI
 	return VK_IMAGE_LAYOUT_UNDEFINED;
 }
 
-void FVulkanTexture::InternalMoveSurface(FVulkanDevice& InDevice, FVulkanCommandListContext& Context, FVulkanAllocation& DestAllocation, VkImageLayout OriginalLayout)
+void FVulkanTexture::InternalMoveSurface(FVulkanDevice& InDevice, FVulkanCommandListContext& Context, VulkanRHI::FVulkanAllocation& DestAllocation, VkImageLayout OriginalLayout)
 {
 	FImageCreateInfo ImageCreateInfo;
 	const FRHITextureDesc& Desc = GetDesc();
@@ -1529,7 +1529,7 @@ FVulkanTexture::FVulkanTexture(FRHICommandListBase* RHICmdList, FVulkanDevice& I
 
 		// Set minimum alignment to 16 bytes, as some buffers are used with CPU SIMD instructions
 		const uint32 ForcedMinAlignment = 16u;
-		const EVulkanAllocationFlags AllocFlags = EVulkanAllocationFlags::HostCached | EVulkanAllocationFlags::AutoBind;
+		const VulkanRHI::EVulkanAllocationFlags AllocFlags = VulkanRHI::EVulkanAllocationFlags::HostCached | VulkanRHI::EVulkanAllocationFlags::AutoBind;
 		InDevice.GetMemoryManager().AllocateBufferMemory(Allocation, CpuReadbackBuffer->Buffer, AllocFlags, InCreateDesc.DebugName, ForcedMinAlignment);
 
 		void* Memory = Allocation.GetMappedPointer(Device);
@@ -1597,7 +1597,7 @@ FVulkanTexture::FVulkanTexture(FRHICommandListBase* RHICmdList, FVulkanDevice& I
 	}
 	else
 	{
-		EVulkanAllocationMetaType MetaType = (bRenderTarget || bUAV) ? EVulkanAllocationMetaImageRenderTarget : EVulkanAllocationMetaImageOther;
+		VulkanRHI::EVulkanAllocationMetaType MetaType = (bRenderTarget || bUAV) ? VulkanRHI::EVulkanAllocationMetaImageRenderTarget : VulkanRHI::EVulkanAllocationMetaImageOther;
 #if VULKAN_SUPPORTS_DEDICATED_ALLOCATION
 		extern int32 GVulkanEnableDedicatedImageMemory;
 		// Per https://developer.nvidia.com/what%E2%80%99s-your-vulkan-memory-type
@@ -1938,7 +1938,7 @@ void FVulkanTexture::UpdateLinkedViews()
 	FVulkanViewableResource::UpdateLinkedViews();
 }
 
-void FVulkanTexture::Move(FVulkanDevice& InDevice, FVulkanCommandListContext& Context, FVulkanAllocation& NewAllocation)
+void FVulkanTexture::Move(FVulkanDevice& InDevice, FVulkanCommandListContext& Context, VulkanRHI::FVulkanAllocation& NewAllocation)
 {
 	const uint64 Size = GetMemorySize();
 	static uint64 TotalSize = 0;
@@ -2001,8 +2001,8 @@ void FVulkanTexture::Evict(FVulkanDevice& InDevice, FVulkanCommandListContext& C
 		MemProps = InDevice.GetDeviceMemoryManager().GetEvictedMemoryProperties();
 
 		// Create a new host allocation to move the surface to
-		FVulkanAllocation HostAllocation;
-		const EVulkanAllocationMetaType MetaType = EVulkanAllocationMetaImageOther;
+		VulkanRHI::FVulkanAllocation HostAllocation;
+		const VulkanRHI::EVulkanAllocationMetaType MetaType = VulkanRHI::EVulkanAllocationMetaImageOther;
 		if (!InDevice.GetMemoryManager().AllocateImageMemory(HostAllocation, this, MemoryRequirements, MemProps, MetaType, false, __FILE__, __LINE__))
 		{
 			InDevice.GetMemoryManager().HandleOOM();

@@ -527,6 +527,8 @@ FVulkanDynamicRHI::FVulkanDynamicRHI()
 	SelectDevice();
 }
 
+FVulkanDynamicRHI::~FVulkanDynamicRHI() = default;
+
 void FVulkanDynamicRHI::Init()
 {
 	InitInstance();
@@ -1864,13 +1866,13 @@ FVulkanRenderPass::~FVulkanRenderPass()
 {
 	DEC_DWORD_STAT(STAT_VulkanNumRenderPasses);
 
-	Device.GetDeferredDeletionQueue().EnqueueResource(FDeferredDeletionQueue2::EType::RenderPass, RenderPass);
+	Device.GetDeferredDeletionQueue().EnqueueResource(VulkanRHI::FDeferredDeletionQueue2::EType::RenderPass, RenderPass);
 	RenderPass = VK_NULL_HANDLE;
 }
 
 void FVulkanDynamicRHI::SavePipelineCache()
 {
-	FString CacheFile = GetPipelineCacheFilename();
+	FString CacheFile = VulkanRHI::GetPipelineCacheFilename();
 
 	GVulkanRHI->Device->PipelineStateCache->Save(CacheFile);
 }
@@ -1900,7 +1902,7 @@ void FVulkanDynamicRHI::SaveValidationCache()
 				Result = vkGetValidationCacheData(Device, ValidationCache, &CacheSize, Data.GetData());
 				if (Result == VK_SUCCESS)
 				{
-					FString CacheFilename = GetValidationCacheFilename();
+					FString CacheFilename = VulkanRHI::GetValidationCacheFilename();
 					if (FFileHelper::SaveArrayToFile(Data, *CacheFilename))
 					{
 						UE_LOG(LogVulkanRHI, Display, TEXT("Saved validation cache file '%s', %d bytes"), *CacheFilename, Data.Num());

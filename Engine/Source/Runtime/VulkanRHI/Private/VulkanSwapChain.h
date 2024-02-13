@@ -6,14 +6,22 @@
 
 #pragma once
 
+#include "Containers/Array.h"
+#include "VulkanConfiguration.h"
+#include "VulkanThirdParty.h"
+
+class FVulkanDevice;
+class FVulkanQueue;
 class FVulkanTexture;
+class FVulkanView;
+enum EPixelFormat : uint8;
+
 
 namespace VulkanRHI
 {
 	class FFence;
+	class FSemaphore;
 }
-
-class FVulkanQueue;
 
 struct FVulkanSwapChainRecreateInfo
 {

@@ -41,7 +41,7 @@ void FVulkanView::Invalidate()
 
 	case EType::TypedBuffer:
 		DEC_DWORD_STAT(STAT_VulkanNumBufferViews);
-		Device.GetDeferredDeletionQueue().EnqueueResource(FDeferredDeletionQueue2::EType::BufferView, Storage.Get<FTypedBufferView>().View);
+		Device.GetDeferredDeletionQueue().EnqueueResource(VulkanRHI::FDeferredDeletionQueue2::EType::BufferView, Storage.Get<FTypedBufferView>().View);
 		break;
 
 	case EType::Texture:
@@ -93,7 +93,7 @@ FVulkanView* FVulkanView::InitAsTypedBufferView(FVulkanResourceMultiBuffer* Buff
 
 	//#todo-rco: Revisit this if buffer views become VK_BUFFER_USAGE_STORAGE_BUFFER_BIT instead of VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT
 	const VkPhysicalDeviceLimits& Limits = Device.GetLimits();
-	const uint64 MaxSize = (uint64)Limits.maxTexelBufferElements * GetNumBitsPerPixel(Format) / 8;
+	const uint64 MaxSize = (uint64)Limits.maxTexelBufferElements * VulkanRHI::GetNumBitsPerPixel(Format) / 8;
 	ViewInfo.range = FMath::Min<uint64>(InSize, MaxSize);
 	// TODO: add a check() for exceeding MaxSize, to catch code which blindly makes views without checking the platform limits.
 

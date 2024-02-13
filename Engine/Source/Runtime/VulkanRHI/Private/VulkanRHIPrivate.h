@@ -19,22 +19,7 @@
 // the configuration will set up anything not set up by the platform
 #include "VulkanConfiguration.h"
 
-#if VULKAN_COMMANDWRAPPERS_ENABLE
-	#if VULKAN_DYNAMICALLYLOADED
-		// Vulkan API is defined in VulkanDynamicAPI namespace.
-		#define VULKANAPINAMESPACE VulkanDynamicAPI
-	#else
-		// Vulkan API is in the global namespace.
-		#define VULKANAPINAMESPACE
-	#endif
-	#include "VulkanCommandWrappers.h"
-#else
-	#if VULKAN_DYNAMICALLYLOADED
-		#include "VulkanCommandsDirect.h"
-	#else
-		#error "Statically linked vulkan api must be wrapped!"
-	#endif
-#endif
+#include "VulkanCommandWrappers.h"
 
 #include "VulkanState.h"
 #include "VulkanResources.h"
@@ -43,26 +28,10 @@
 #include "VulkanDynamicRHI.h"
 #include "RHI.h"
 
-#if VK_HEADER_VERSION >= 141
-//workaround for removed defines in sdk 141
-#define VK_DESCRIPTOR_TYPE_BEGIN_RANGE (VK_DESCRIPTOR_TYPE_SAMPLER)
-#define VK_DESCRIPTOR_TYPE_END_RANGE (VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT)
-#define VK_DESCRIPTOR_TYPE_RANGE_SIZE (VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT - VK_DESCRIPTOR_TYPE_SAMPLER + 1)
-#define VK_IMAGE_VIEW_TYPE_RANGE_SIZE (VK_IMAGE_VIEW_TYPE_CUBE_ARRAY - VK_IMAGE_VIEW_TYPE_1D + 1)
-#define VK_DYNAMIC_STATE_BEGIN_RANGE (VK_DYNAMIC_STATE_VIEWPORT)
-#define VK_DYNAMIC_STATE_END_RANGE (VK_DYNAMIC_STATE_STENCIL_REFERENCE)
-#define VK_DYNAMIC_STATE_RANGE_SIZE (VK_DYNAMIC_STATE_STENCIL_REFERENCE - VK_DYNAMIC_STATE_VIEWPORT + 1)
-#define VK_FORMAT_RANGE_SIZE (VK_FORMAT_ASTC_12x12_SRGB_BLOCK - VK_FORMAT_UNDEFINED + 1)
-
-#endif
-
 #include "GPUProfiler.h"
-#include "VulkanDevice.h"
 #include "VulkanQueue.h"
 #include "VulkanCommandBuffer.h"
 #include "Stats/Stats2.h"
-
-using namespace VulkanRHI;
 
 class FVulkanQueue;
 class FVulkanCmdBuffer;

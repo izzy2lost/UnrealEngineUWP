@@ -4,8 +4,8 @@
 	VulkanDescriptorSets.cpp: Vulkan descriptor set RHI implementation.
 =============================================================================*/
 
-#include "VulkanRHIPrivate.h"
 #include "VulkanDescriptorSets.h"
+#include "VulkanRHIPrivate.h"
 #include "VulkanContext.h"
 
 
@@ -747,7 +747,7 @@ void FVulkanBindlessDescriptorManager::UpdateDescriptor(FRHIDescriptorHandle Des
 		}
 		else
 		{
-			FStagingBuffer* StagingBuffer = Device->GetStagingManager().AcquireBuffer(State.DescriptorSize);
+			VulkanRHI::FStagingBuffer* StagingBuffer = Device->GetStagingManager().AcquireBuffer(State.DescriptorSize);
 			FMemory::Memcpy(StagingBuffer->GetMappedPointer(), &State.DebugDescriptors[ByteOffset], State.DescriptorSize);
 			{
 				VkMemoryBarrier2 MemoryBarrier;

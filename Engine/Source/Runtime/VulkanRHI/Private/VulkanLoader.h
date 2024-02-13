@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "VulkanPlatform.h"
 #include "VulkanThirdParty.h"
 
 // List all instance Vulkan entry points used by Unreal that need to be loaded manually

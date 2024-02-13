@@ -4,8 +4,8 @@
 	VulkanQueue.cpp: Vulkan Queue implementation.
 =============================================================================*/
 
-#include "VulkanRHIPrivate.h"
 #include "VulkanQueue.h"
+#include "VulkanDevice.h"
 #include "VulkanMemory.h"
 #include "VulkanContext.h"
 
