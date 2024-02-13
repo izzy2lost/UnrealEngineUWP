@@ -2,14 +2,14 @@
 
 #pragma once
 
-#include "FMutableTaskGraph.h"
+#include "MuCO/FMutableTaskGraph.h"
 #include "Async/TaskGraphInterfaces.h"
 #include "Engine/TextureMipDataProviderFactory.h"
 #include "MuCO/CustomizableObjectSystem.h"
 #include "MuR/Image.h"
 #include "Streaming/TextureMipDataProvider.h"
 
-#include "DefaultImageProvider.h"
+#include "MuCO/DefaultImageProvider.h"
 #include "MuR/System.h"
 
 #include "CustomizableObjectMipDataProvider.generated.h"
