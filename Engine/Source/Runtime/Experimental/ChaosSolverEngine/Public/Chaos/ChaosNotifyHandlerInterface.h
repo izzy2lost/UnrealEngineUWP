@@ -4,8 +4,12 @@
 
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "UObject/Interface.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "Engine/HitResult.h"
+#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "ChaosNotifyHandlerInterface.generated.h"
+
+struct FHitResult;
 
 USTRUCT(BlueprintType)
 struct FChaosPhysicsCollisionInfo

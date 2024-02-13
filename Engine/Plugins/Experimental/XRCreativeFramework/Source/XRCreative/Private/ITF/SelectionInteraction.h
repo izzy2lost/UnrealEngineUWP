@@ -6,11 +6,14 @@
 #include "BaseBehaviors/SingleClickBehavior.h"
 #include "Elements/Actor/ActorElementData.h"
 #include "Elements/Framework/TypedElementOwnerStore.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "Engine/HitResult.h"
+#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "InputBehaviorSet.h"
 #include "SelectionInteraction.generated.h"
 
 
+struct FHitResult;
 class UTypedElementSelectionSet;
 
 

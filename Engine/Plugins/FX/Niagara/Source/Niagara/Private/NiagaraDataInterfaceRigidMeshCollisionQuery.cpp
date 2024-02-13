@@ -10,6 +10,7 @@
 #include "FXRenderingUtils.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
+#include "Engine/OverlapResult.h"
 #include "Engine/SkeletalMesh.h"
 #include "EngineUtils.h"
 
