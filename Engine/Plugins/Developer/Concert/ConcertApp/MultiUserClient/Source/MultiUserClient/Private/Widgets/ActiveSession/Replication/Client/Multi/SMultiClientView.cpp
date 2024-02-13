@@ -85,7 +85,7 @@ namespace UE::MultiUserClient
 		
 		ConcertClientSharedSlate::FFilterablePropertyTreeViewParams TreeViewParams
 		{
-			.PropertyColumns =
+			.AdditionalPropertyColumns =
 			{
 				ReplicationColumns::Property::LabelColumn(),
 				ReplicationColumns::Property::TypeColumn(),
@@ -111,7 +111,7 @@ namespace UE::MultiUserClient
 			.ObjectHierarchy = ObjectHierarchy, // This makes actors have children in the top view
 			.NameModel = ConcertClientSharedSlate::CreateEditorObjectNameModel(), // This makes actors use their labels, and components use the names given in the BP editor
 			.OnExtendObjectsContextMenu = FExtendObjectMenu::CreateSP(this, &SMultiClientView::ExtendObjectContextMenu),
-			.AdditionalObjectColumns =
+			.ObjectColumns =
 			{
 				MultiStreamColumns::ReplicationToggle(InConcertClient, ObjecHierarchyAttribute, InClientManager),
 				MultiStreamColumns::ReassignOwnership(InConcertClient, MultiStreamEditorAttribute, ObjecHierarchyAttribute, InClientManager.GetReassignmentLogic(), InClientManager)

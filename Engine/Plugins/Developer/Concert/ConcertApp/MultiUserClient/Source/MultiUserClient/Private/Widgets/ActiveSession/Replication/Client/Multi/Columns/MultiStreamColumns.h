@@ -2,7 +2,8 @@
 
 #pragma once
 
-#include "Replication/Editor/View/PredefinedReplicationColumns.h"
+#include "Replication/Editor/View/Column/IPropertyTreeColumn.h"
+#include "Replication/Editor/View/Column/IObjectTreeColumn.h"
 
 #include "Delegates/Delegate.h"
 #include "Misc/EnumClassFlags.h"
@@ -47,7 +48,7 @@ namespace UE::MultiUserClient::MultiStreamColumns
 	 * 
 	 * @return A checkbox for controlling the authority of the object in the row
 	 */
-	ConcertSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn ReplicationToggle(
+	ConcertSharedSlate::FObjectColumnEntry ReplicationToggle(
 		TSharedRef<IConcertClient> ConcertClient,
 		TAttribute<ConcertSharedSlate::IObjectHierarchyModel*> ObjectHierarchyModelAttribute,
 		FReplicationClientManager& ClientManager,
@@ -64,7 +65,7 @@ namespace UE::MultiUserClient::MultiStreamColumns
 	 * @param ClientManager Used to access all clients for display in the combo box drop-down
 	 * @param ColumnsSortPriority The order relative to the other columns
 	 */
-	ConcertSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn ReassignOwnership(
+	ConcertSharedSlate::FObjectColumnEntry ReassignOwnership(
 		TSharedRef<IConcertClient> ConcertClient,
 		TAttribute<TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor>> MultiStreamModelAttribute,
 		TAttribute<ConcertSharedSlate::IObjectHierarchyModel*> ObjectHierarchyModelAttribute,
@@ -83,7 +84,7 @@ namespace UE::MultiUserClient::MultiStreamColumns
 	 * 
 	 * @return A column that spawns a combo box for assigning properties
 	 */
-	ConcertSharedSlate::ReplicationColumns::FReplicationPropertyColumn AssignPropertyColumn(
+	ConcertSharedSlate::FPropertyColumnEntry AssignPropertyColumn(
 		TAttribute<TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor>> MultiStreamEditor,
 		TSharedRef<IConcertClient> ConcertClient,
 		FReplicationClientManager& ClientManager,

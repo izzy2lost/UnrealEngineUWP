@@ -14,7 +14,7 @@ namespace UE::MultiUserClient::MultiStreamColumns
 {
 	const FName ReassignOwnershipColumnId(TEXT("ReassignOwnershipColumn"));
 	
-	ConcertSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn ReassignOwnership(
+	ConcertSharedSlate::FObjectColumnEntry ReassignOwnership(
 		TSharedRef<IConcertClient> ConcertClient,
 		TAttribute<TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor>> MultiStreamModelAttribute,
 		TAttribute<ConcertSharedSlate::IObjectHierarchyModel*> ObjectHierarchyModelAttribute,
@@ -23,51 +23,88 @@ namespace UE::MultiUserClient::MultiStreamColumns
 		const int32 ColumnsSortPriority
 		)
 	{
-		using namespace ConcertSharedSlate::ReplicationColumns;
+		class FObjectColumn_ReassignOwnership : public ConcertSharedSlate::IObjectTreeColumn
+		{
+		public:
 
-		auto MakeWidget =
-			[ConcertClient, MultiStreamModelAttribute = MoveTemp(MultiStreamModelAttribute), ObjectHierarchyModelAttribute = MoveTemp(ObjectHierarchyModelAttribute), &ReassignmentLogic, &ClientManager]
-			(const FReplicationTopLevelObjectColumn::FBuildArgs& InArgs)
+			FObjectColumn_ReassignOwnership(
+				TSharedRef<IConcertClient> ConcertClient,
+				TAttribute<TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor>> MultiStreamModelAttribute,
+				TAttribute<ConcertSharedSlate::IObjectHierarchyModel*> ObjectHierarchyModelAttribute,
+				FReassignObjectPropertiesLogic& ReassignmentLogic,
+				const FReplicationClientManager& ClientManager
+				)
+				: ConcertClient(MoveTemp(ConcertClient))
+				, MultiStreamModelAttribute(MoveTemp(MultiStreamModelAttribute))
+				, ObjectHierarchyModelAttribute(MoveTemp(ObjectHierarchyModelAttribute))
+				, ReassignmentLogic(ReassignmentLogic)
+				, ClientManager(ClientManager)
+			{}
+			
+			virtual SHeaderRow::FColumn::FArguments CreateHeaderRowArgs() const override
+			{
+				return SHeaderRow::Column(ReassignOwnershipColumnId)
+					.DefaultLabel(LOCTEXT("Owner.Label", "Assigned Clients"))
+					.ToolTipText(LOCTEXT("Owner.ToolTip", "Clients that have registered properties for an object"))
+					.FillSized(FMultiUserReplicationStyle::Get()->GetFloat(TEXT("AllClients.Object.OwnerColumnWidth")));
+			}
+			
+			virtual TSharedRef<SWidget> GenerateColumnWidget(const FBuildArgs& InArgs) override
 			{
 				return SNew(SReassignObjectComboBox, ConcertClient, ReassignmentLogic, ClientManager)
-					.ManagedObject(InArgs.RowData.GetObjectPath())
+					.ManagedObject(InArgs.RowItem.RowData.GetObjectPath())
 					.ObjectHierarchyModel(ObjectHierarchyModelAttribute)
 					.HighlightText(InArgs.HighlightText)
-					.OnReassignAllOptionClicked_Lambda([MultiStreamModelAttribute](auto)
+					.OnReassignAllOptionClicked_Lambda([this](auto)
 					{
 						if (const TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor> Model = MultiStreamModelAttribute.Get())
 						{
 							Model->GetEditorBase().RequestObjectColumnResort(ReassignOwnershipColumnId);
 						}
 					});
-			};
-		auto IsLessThan = [ConcertClient, &ReassignmentLogic](const ConcertSharedSlate::FReplicatedObjectData& Left, const ConcertSharedSlate::FReplicatedObjectData& Right)
-		{
-			const TOptional<FString> LeftClientDisplayString = SReassignObjectComboBox::GetDisplayString(ConcertClient, ReassignmentLogic, Left.GetObjectPath());
-			const TOptional<FString> RightClientDisplayString = SReassignObjectComboBox::GetDisplayString(ConcertClient, ReassignmentLogic, Right.GetObjectPath());
-			
-			if (LeftClientDisplayString && RightClientDisplayString)
-			{
-				return *LeftClientDisplayString < *RightClientDisplayString;
 			}
-			// Our rule: set < unset. This way unassigned appears last.
-			return LeftClientDisplayString.IsSet() && !RightClientDisplayString.IsSet();
-		};
-		
-		return FReplicationTopLevelObjectColumn(
-			FReplicationTopLevelObjectColumn::FArguments()
-				.GenerateWidgetColumn_Lambda(MoveTemp(MakeWidget))
-				.PopulateSearchItems_Lambda([ConcertClient, &ReassignmentLogic](const ConcertSharedSlate::FReplicatedObjectData& ObjectData, TArray<FString>& InOutSearchStrings)
+			virtual void PopulateSearchString(const ConcertSharedSlate::FObjectTreeRowContext& InItem, TArray<FString>& InOutSearchStrings) const override
+			{
+				SReassignObjectComboBox::PopulateSearchTerms(
+					*ConcertClient->GetCurrentSession(),
+					ReassignmentLogic,
+					InItem.RowData.GetObjectPath(),
+					InOutSearchStrings
+					);
+			}
+
+			virtual bool CanBeSorted() const override { return true; }
+			virtual bool IsLessThan(const ConcertSharedSlate::FObjectTreeRowContext& Left, const ConcertSharedSlate::FObjectTreeRowContext& Right) const override
+			{
+				const TOptional<FString> LeftClientDisplayString = SReassignObjectComboBox::GetDisplayString(ConcertClient, ReassignmentLogic, Left.RowData.GetObjectPath());
+				const TOptional<FString> RightClientDisplayString = SReassignObjectComboBox::GetDisplayString(ConcertClient, ReassignmentLogic, Right.RowData.GetObjectPath());
+			
+				if (LeftClientDisplayString && RightClientDisplayString)
 				{
-					SReassignObjectComboBox::PopulateSearchTerms(*ConcertClient->GetCurrentSession(), ReassignmentLogic, ObjectData.GetObjectPath(), InOutSearchStrings);
-				})
-				.IsLessThan_Lambda(MoveTemp(IsLessThan))
-				.ColumnSortOrder(ColumnsSortPriority),
-			SHeaderRow::Column(ReassignOwnershipColumnId)
-				.DefaultLabel(LOCTEXT("Owner.Label", "Assigned Clients"))
-				.ToolTipText(LOCTEXT("Owner.ToolTip", "Clients that have registered properties for an object"))
-				.FillSized(FMultiUserReplicationStyle::Get()->GetFloat(TEXT("AllClients.Object.OwnerColumnWidth")))
-			);
+					return *LeftClientDisplayString < *RightClientDisplayString;
+				}
+				// Our rule: set < unset. This way unassigned appears last.
+				return LeftClientDisplayString.IsSet() && !RightClientDisplayString.IsSet();
+			}
+
+		private:
+			
+			const TSharedRef<IConcertClient> ConcertClient;
+			const TAttribute<TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor>> MultiStreamModelAttribute;
+			const TAttribute<ConcertSharedSlate::IObjectHierarchyModel*> ObjectHierarchyModelAttribute;
+			FReassignObjectPropertiesLogic& ReassignmentLogic;
+			const FReplicationClientManager& ClientManager;
+		};
+
+		return {
+			ConcertSharedSlate::TReplicationColumnDelegates<ConcertSharedSlate::FObjectTreeRowContext>::FCreateColumn::CreateLambda(
+				[ConcertClient = MoveTemp(ConcertClient), MultiStreamModelAttribute = MoveTemp(MultiStreamModelAttribute), ObjectHierarchyModelAttribute = MoveTemp(ObjectHierarchyModelAttribute), &ReassignmentLogic, &ClientManager]()
+				{
+					return MakeShared<FObjectColumn_ReassignOwnership>(ConcertClient, MultiStreamModelAttribute, ObjectHierarchyModelAttribute, ReassignmentLogic, ClientManager);
+				}),
+			ReassignOwnershipColumnId,
+			{ ColumnsSortPriority }
+		};
 	}
 }
 

@@ -11,6 +11,8 @@
 #include "Replication/Editor/View/IMultiReplicationStreamEditor.h"
 #include "Replication/Editor/View/IReplicationStreamEditor.h"
 #include "SAssignPropertyComboBox.h"
+#include "Replication/Editor/View/Column/IPropertyTreeColumn.h"
+#include "Replication/Editor/View/Column/ReplicationColumnDelegates.h"
 #include "Widgets/ActiveSession/Replication/Client/ClientUtils.h"
 
 #define LOCTEXT_NAMESPACE "AssignPropertyColumn"
@@ -72,7 +74,7 @@ namespace UE::MultiUserClient::MultiStreamColumns
 		}
 	}
 	
-	ConcertSharedSlate::ReplicationColumns::FReplicationPropertyColumn AssignPropertyColumn(
+	ConcertSharedSlate::FPropertyColumnEntry AssignPropertyColumn(
 		TAttribute<TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor>> MultiStreamEditor,
 		TSharedRef<IConcertClient> ConcertClient,
 		FReplicationClientManager& ClientManager,
@@ -80,57 +82,85 @@ namespace UE::MultiUserClient::MultiStreamColumns
 		)
 	{
 		using namespace ConcertSharedSlate;
-		using namespace ConcertSharedSlate::ReplicationColumns;
-		check(MultiStreamEditor.IsBound() || MultiStreamEditor.IsSet());
+		class FPropertyColumn_AssignPropertyColumn : public IPropertyTreeColumn
+		{
+		public:
 
-		const auto PopulateSearch = [MultiStreamEditor, &ClientManager, ConcertClient](const FReplicatedPropertyData& Data, TArray<FString>& InOutSearchStrings)
-		{
-			AssignPropertyColumnUtils::ForEachStreamAssignedTo(*MultiStreamEditor.Get(), Data.GetProperty(),
-				[&ClientManager, &ConcertClient, &InOutSearchStrings](const TSharedRef<IEditableReplicationStreamModel>& Stream)
-				{
-					InOutSearchStrings.Add(AssignPropertyColumnUtils::GetClientDisplayText(*ConcertClient, ClientManager, *Stream));
-				});
-		};
-		const auto GenerateWidgetColumn = [MultiStreamEditor, ConcertClient, &ClientManager](const FReplicationPropertyColumn::FBuildArgs& Args)
-		{
-			const TArray<FSoftObjectPath> DisplayedObjects = MultiStreamEditor.Get()->GetEditorBase().GetObjectsBeingPropertyEdited();
-			return SNew(SAssignPropertyComboBox, MultiStreamEditor.Get().ToSharedRef(), ConcertClient, ClientManager)
-				.DisplayedProperty(Args.RowData.GetProperty())
-				.EditedObjects(DisplayedObjects)
-				.HighlightText(Args.HighlightText)
-				.OnOptionSelected_Lambda([MultiStreamEditor](auto)
-				{
-					if (const TSharedPtr<IMultiReplicationStreamEditor> Editor = MultiStreamEditor.Get())
-					{
-						Editor->GetEditorBase().RequestPropertyColumnResort(AssignPropertyColumnId);
-					}
-				});
-		};
-		const auto IsLessThan = [MultiStreamEditor, ConcertClient, &ClientManager](const FReplicatedPropertyData& Left, const FReplicatedPropertyData& Right)
-		{
-			const TArray<FSoftObjectPath> DisplayedObjects = MultiStreamEditor.Get()->GetEditorBase().GetObjectsBeingPropertyEdited();
-			const TOptional<FString> LeftClientDisplayString = SAssignPropertyComboBox::GetDisplayString(ConcertClient, ClientManager, Left.GetProperty(), DisplayedObjects);
-			const TOptional<FString> RightClientDisplayString = SAssignPropertyComboBox::GetDisplayString(ConcertClient, ClientManager, Right.GetProperty(), DisplayedObjects);
+			FPropertyColumn_AssignPropertyColumn(
+				TAttribute<TSharedPtr<IMultiReplicationStreamEditor>> MultiStreamEditor,
+				TSharedRef<IConcertClient> ConcertClient,
+				FReplicationClientManager& ClientManager
+				)
+				: MultiStreamEditor(MoveTemp(MultiStreamEditor))
+				, ConcertClient(MoveTemp(ConcertClient))
+				, ClientManager(ClientManager)
+			{}
 			
-			if (LeftClientDisplayString && RightClientDisplayString)
+			virtual SHeaderRow::FColumn::FArguments CreateHeaderRowArgs() const override
 			{
-				return *LeftClientDisplayString < *RightClientDisplayString;
+				return SHeaderRow::Column(AssignPropertyColumnId)
+					.DefaultLabel(LOCTEXT("Owner.Label", "Assigned Client"))
+					.ToolTipText(LOCTEXT("Owner.ToolTip", "Client that should replicate this property"))
+					.FillSized(FMultiUserReplicationStyle::Get()->GetFloat(TEXT("AllClients.Property.OwnerColumnWidth")));
 			}
-			// Our rule: set < unset. This way unassigned appears last.
-			return LeftClientDisplayString.IsSet() && !RightClientDisplayString.IsSet();
+			
+			virtual TSharedRef<SWidget> GenerateColumnWidget(const FBuildArgs& InArgs) override
+			{
+				const TArray<FSoftObjectPath> DisplayedObjects = MultiStreamEditor.Get()->GetEditorBase().GetObjectsBeingPropertyEdited();
+				return SNew(SAssignPropertyComboBox, MultiStreamEditor.Get().ToSharedRef(), ConcertClient, ClientManager)
+					.DisplayedProperty(InArgs.RowItem.RowData.GetProperty())
+					.EditedObjects(DisplayedObjects)
+					.HighlightText(InArgs.HighlightText)
+					.OnOptionSelected_Lambda([this](auto)
+					{
+						if (const TSharedPtr<IMultiReplicationStreamEditor> Editor = MultiStreamEditor.Get())
+						{
+							Editor->GetEditorBase().RequestPropertyColumnResort(AssignPropertyColumnId);
+						}
+					});
+			}
+			
+			virtual void PopulateSearchString(const FPropertyTreeRowContext& InItem, TArray<FString>& InOutSearchStrings) const override
+			{
+				AssignPropertyColumnUtils::ForEachStreamAssignedTo(*MultiStreamEditor.Get(), InItem.RowData.GetProperty(),
+					[this, &InOutSearchStrings](const TSharedRef<IEditableReplicationStreamModel>& Stream)
+					{
+						InOutSearchStrings.Add(AssignPropertyColumnUtils::GetClientDisplayText(*ConcertClient, ClientManager, *Stream));
+					});
+			}
+
+			virtual bool CanBeSorted() const override { return true; }
+			virtual bool IsLessThan(const FPropertyTreeRowContext& Left, const FPropertyTreeRowContext& Right) const override
+			{
+				const TArray<FSoftObjectPath> DisplayedObjects = MultiStreamEditor.Get()->GetEditorBase().GetObjectsBeingPropertyEdited();
+				const TOptional<FString> LeftClientDisplayString = SAssignPropertyComboBox::GetDisplayString(ConcertClient, ClientManager, Left.RowData.GetProperty(), DisplayedObjects);
+				const TOptional<FString> RightClientDisplayString = SAssignPropertyComboBox::GetDisplayString(ConcertClient, ClientManager, Right.RowData.GetProperty(), DisplayedObjects);
+			
+				if (LeftClientDisplayString && RightClientDisplayString)
+				{
+					return *LeftClientDisplayString < *RightClientDisplayString;
+				}
+				// Our rule: set < unset. This way unassigned appears last.
+				return LeftClientDisplayString.IsSet() && !RightClientDisplayString.IsSet();
+			}
+
+		private:
+
+			const TAttribute<TSharedPtr<IMultiReplicationStreamEditor>> MultiStreamEditor;
+			const TSharedRef<IConcertClient> ConcertClient;
+			FReplicationClientManager& ClientManager;
 		};
 		
-		return FReplicationPropertyColumn(
-			typename FReplicationPropertyColumn::FArguments()
-				.PopulateSearchItems_Lambda(PopulateSearch)
-				.GenerateWidgetColumn_Lambda(GenerateWidgetColumn)
-				.IsLessThan_Lambda(IsLessThan)
-				.ColumnSortOrder(ColumnsSortPriority),
-			SHeaderRow::Column(AssignPropertyColumnId)
-				.DefaultLabel(LOCTEXT("Owner.Label", "Assigned Client"))
-				.ToolTipText(LOCTEXT("Owner.ToolTip", "Client that should replicate this property"))
-				.FillSized(FMultiUserReplicationStyle::Get()->GetFloat(TEXT("AllClients.Property.OwnerColumnWidth")))
-			);
+		check(MultiStreamEditor.IsBound() || MultiStreamEditor.IsSet());
+		return {
+			TReplicationColumnDelegates<FPropertyTreeRowContext>::FCreateColumn::CreateLambda(
+				[MultiStreamEditor = MoveTemp(MultiStreamEditor), ConcertClient = MoveTemp(ConcertClient), &ClientManager]()
+				{
+					return MakeShared<FPropertyColumn_AssignPropertyColumn>(MultiStreamEditor, ConcertClient, ClientManager);
+				}),
+			AssignPropertyColumnId,
+			{ ColumnsSortPriority }
+		};
 	}
 }
 

@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "PropertySelectionColumn.h"
+#include "Replication/Editor/View/Column/ReplicationColumnsUtils.h"
 
 #include "Algo/AnyOf.h"
-#include "Replication/Editor/View/ReplicationColumnsUtils.h"
 
 #define LOCTEXT_NAMESPACE "PropertySelectionCheckboxColumn"
 
@@ -11,7 +11,7 @@ namespace UE::ConcertReplicationScriptingEditor
 {
 	const FName PropertySelectionCheckboxColumnId(TEXT("AddPropertyCheckboxColumn"));
 	
-	ConcertSharedSlate::ReplicationColumns::FReplicationPropertyColumn MakePropertySelectionCheckboxColumn(
+	ConcertSharedSlate::FPropertyColumnEntry MakePropertySelectionCheckboxColumn(
 		const TSet<FConcertPropertyChain>& SelectedProperties,
 		FOnSelectProperty OnSelectPropertyDelegate,
 		bool bIsEditable,
@@ -19,14 +19,14 @@ namespace UE::ConcertReplicationScriptingEditor
 		)
 	{
 		using namespace ConcertSharedSlate;
-		using FPropertyColumnDelegates = TReplicationColumnDelegates<FReplicatedPropertyData>;
-		return MakeCheckboxColumn<FReplicatedPropertyData>(
+		using FPropertyColumnDelegates = TCheckboxColumnDelegates<FPropertyTreeRowContext>;
+		return MakeCheckboxColumn<FPropertyTreeRowContext>(
 			PropertySelectionCheckboxColumnId,
 			FPropertyColumnDelegates(
 				FPropertyColumnDelegates::FGetColumnCheckboxState::CreateLambda(
-				[&SelectedProperties](const FReplicatedPropertyData& Data)
+				[&SelectedProperties](const FPropertyTreeRowContext& Data)
 				{
-					const FConcertPropertyChain& DisplayProperty = Data.GetProperty();
+					const FConcertPropertyChain& DisplayProperty = Data.RowData.GetProperty();
 					const bool bShouldBeSelected = SelectedProperties.Contains(DisplayProperty)
 						|| Algo::AnyOf(SelectedProperties, [&DisplayProperty](const FConcertPropertyChain& SelectedProperty)
 						{
@@ -35,16 +35,16 @@ namespace UE::ConcertReplicationScriptingEditor
 					return bShouldBeSelected ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 				}),
 				FPropertyColumnDelegates::FOnColumnCheckboxChanged::CreateLambda(
-				[OnSelectPropertyDelegate = MoveTemp(OnSelectPropertyDelegate)](bool bIsChecked, const FReplicatedPropertyData& Data)
+				[OnSelectPropertyDelegate = MoveTemp(OnSelectPropertyDelegate)](bool bIsChecked, const FPropertyTreeRowContext& Data)
 				{
-					OnSelectPropertyDelegate.Execute(Data.GetProperty(), bIsChecked);
+					OnSelectPropertyDelegate.Execute(Data.RowData.GetProperty(), bIsChecked);
 				}),
 				FPropertyColumnDelegates::FGetToolTipText::CreateLambda(
-				[](const FReplicatedPropertyData& Data)
+				[](const FPropertyTreeRowContext&)
 				{
 					return LOCTEXT("IncludePropertyTooltip", "Whether the property is included");
 				}),
-				FPropertyColumnDelegates::FIsEnabled::CreateLambda([bIsEditable](const FReplicatedPropertyData& Data)
+				FPropertyColumnDelegates::FIsEnabled::CreateLambda([bIsEditable](const FPropertyTreeRowContext&)
 				{
 					return bIsEditable;
 				})),

@@ -5,7 +5,7 @@
 #include "IConcertClient.h"
 #include "MultiUserReplicationStyle.h"
 #include "Replication/Editor/View/IReplicationStreamViewer.h"
-#include "Replication/Editor/View/ReplicationColumnsUtils.h"
+#include "Replication/Editor/View/Column/ReplicationColumnsUtils.h"
 #include "Replication/Util/GlobalAuthorityCache.h"
 #include "SOwnerClientList.h"
 #include "Widgets/ActiveSession/Replication/Client/ClientUtils.h"
@@ -28,37 +28,65 @@ namespace UE::MultiUserClient::SingleClientColumns
 		}
 	}
 	
-	ConcertSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn OwnerOfObject(
-		const TSharedRef<IConcertClient>& InClient,
+	ConcertSharedSlate::FObjectColumnEntry OwnerOfObject(
+		TSharedRef<IConcertClient> InClient,
 		FGlobalAuthorityCache& InAuthorityCache
 		)
 	{
-		using FColumnType = ConcertSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn;
-		return FColumnType(
-			FColumnType::FArguments()
-				.GenerateWidgetColumn_Lambda([InClient, &InAuthorityCache](const FColumnType::FBuildArgs& InArgs)
+		class FObjectColum_OwnerOfObject : public ConcertSharedSlate::IObjectTreeColumn
+		{
+		public:
+
+			FObjectColum_OwnerOfObject(
+				TSharedRef<IConcertClient> Client,
+				FGlobalAuthorityCache& AuthorityCache
+				)
+				: Client(MoveTemp(Client))
+				, AuthorityCache(AuthorityCache)
+			{}
+			
+			virtual SHeaderRow::FColumn::FArguments CreateHeaderRowArgs() const override
+			{
+				return SHeaderRow::Column(OwnerOfSubobjectColumnId)
+					.DefaultLabel(LOCTEXT("Owner.Label", "Assigned Clients"))
+					.ToolTipText(LOCTEXT("Owner.ToolTip", "Clients that have registered properties for an object"))
+					.FillSized(FMultiUserReplicationStyle::Get()->GetFloat(TEXT("SingleClient.Object.OwnerColumnWidth")));
+			}
+			
+			virtual TSharedRef<SWidget> GenerateColumnWidget(const FBuildArgs& InArgs) override
+			{
+				return SNew(SOwnerClientList, Client, AuthorityCache)
+					.GetClientList_Lambda([this, ObjectPath = InArgs.RowItem.RowData.GetObjectPath()](const FGlobalAuthorityCache&)
+					{
+						return AuthorityCache.GetClientsWithAuthorityOverObject(ObjectPath);
+					})
+					.HighlightText_Lambda([HighlightText = InArgs.HighlightText](){ return *HighlightText.Get(); });
+			}
+			
+			virtual void PopulateSearchString(const ConcertSharedSlate::FObjectTreeRowContext& InItem, TArray<FString>& InOutSearchStrings) const override
+			{
+				Private::Shared::PopulateSearchTerms(
+					Client,
+					AuthorityCache.GetClientsWithAuthorityOverObject(InItem.RowData.GetObjectPath()),
+					InOutSearchStrings
+					);
+			}
+
+		private:
+			
+			const TSharedRef<IConcertClient> Client;
+			FGlobalAuthorityCache& AuthorityCache;
+		};
+
+		return {
+			ConcertSharedSlate::TReplicationColumnDelegates<ConcertSharedSlate::FObjectTreeRowContext>::FCreateColumn::CreateLambda(
+				[InClient = MoveTemp(InClient), &InAuthorityCache]()
 				{
-					return SNew(SOwnerClientList, InClient, InAuthorityCache)
-						.GetClientList_Lambda([&InAuthorityCache, ObjectPath = InArgs.RowData.GetObjectPath()](const FGlobalAuthorityCache&)
-						{
-							return InAuthorityCache.GetClientsWithAuthorityOverObject(ObjectPath);
-						})
-						.HighlightText_Lambda([HighlightText = InArgs.HighlightText](){ return *HighlightText.Get(); });
-				})
-				.PopulateSearchItems_Lambda([InClient, &InAuthorityCache](const ConcertSharedSlate::FReplicatedObjectData& InArgs, TArray<FString>& InOutSearchStrings)
-				{
-					Private::Shared::PopulateSearchTerms(
-						InClient,
-						InAuthorityCache.GetClientsWithAuthorityOverObject(InArgs.GetObjectPath()),
-						InOutSearchStrings
-						);
-				})
-				.ColumnSortOrder(static_cast<int32>(ETopLevelObjectColumnOrder::Owner)),
-				SHeaderRow::Column(OwnerOfSubobjectColumnId)
-				.DefaultLabel(LOCTEXT("Owner.Label", "Assigned Clients"))
-				.ToolTipText(LOCTEXT("Owner.ToolTip", "Clients that have registered properties for an object"))
-				.FillSized(FMultiUserReplicationStyle::Get()->GetFloat(TEXT("SingleClient.Object.OwnerColumnWidth")))
-			);
+					return MakeShared<FObjectColum_OwnerOfObject>(InClient, InAuthorityCache);
+				}),
+			OwnerOfSubobjectColumnId,
+			{ static_cast<int32>(ETopLevelObjectColumnOrder::Owner) }
+		};
 	}
 	
 	namespace Private::Property
@@ -83,37 +111,68 @@ namespace UE::MultiUserClient::SingleClientColumns
 		}
 	}
 
-	ConcertSharedSlate::ReplicationColumns::FReplicationPropertyColumn OwnerOfProperty(
-		const TSharedRef<IConcertClient>& InClient,
+	ConcertSharedSlate::FPropertyColumnEntry OwnerOfProperty(
+		TSharedRef<IConcertClient> InClient,
 		FGlobalAuthorityCache& InAuthorityCache,
-		const TAttribute<const ConcertSharedSlate::IReplicationStreamViewer*>& InViewer
+		TAttribute<const ConcertSharedSlate::IReplicationStreamViewer*> InViewer
 		)
 	{
-		using FColumnType = ConcertSharedSlate::ReplicationColumns::FReplicationPropertyColumn;
-		return FColumnType(
-			FColumnType::FArguments()
-				.GenerateWidgetColumn_Lambda([InClient, &InAuthorityCache, InViewer](const FColumnType::FBuildArgs& InArgs)
+		class FPropertyColumn_OwnerOfProperty : public ConcertSharedSlate::IPropertyTreeColumn
+		{
+		public:
+			
+			FPropertyColumn_OwnerOfProperty(
+				TSharedRef<IConcertClient> Client,
+				FGlobalAuthorityCache& AuthorityCache,
+				TAttribute<const ConcertSharedSlate::IReplicationStreamViewer*> Viewer
+				)
+				: Client(MoveTemp(Client))
+				, AuthorityCache(AuthorityCache)
+				, Viewer(MoveTemp(Viewer))
+			{}
+			
+			virtual SHeaderRow::FColumn::FArguments CreateHeaderRowArgs() const override
+			{
+				return SHeaderRow::Column(OwnerOfPropertyColumnId)
+					.DefaultLabel(LOCTEXT("Property.Owner", "Owner"))
+					.FillSized(FMultiUserReplicationStyle::Get()->GetFloat(TEXT("SingleClient.Property.OwnerColumnWidth")));
+			}
+			
+			virtual TSharedRef<SWidget> GenerateColumnWidget(const FBuildArgs& InArgs) override
+			{
+				return SNew(SOwnerClientList, Client, AuthorityCache)
+					.GetClientList_Lambda([this, Property = InArgs.RowItem.RowData.GetProperty()](const FGlobalAuthorityCache&)
+					{
+						return Private::Property::GetPropertyOwners(AuthorityCache, *Viewer.Get(), Property);
+					})
+					.HighlightText_Lambda([HighlightText = InArgs.HighlightText](){ return *HighlightText.Get(); });
+			}
+			
+			virtual void PopulateSearchString(const ConcertSharedSlate::FPropertyTreeRowContext& InItem, TArray<FString>& InOutSearchStrings) const override
+			{
+				Private::Shared::PopulateSearchTerms(
+					Client,
+					Private::Property::GetPropertyOwners(AuthorityCache, *Viewer.Get(), InItem.RowData.GetProperty()),
+					InOutSearchStrings
+					);
+			}
+
+		private:
+			
+			const TSharedRef<IConcertClient> Client;
+			FGlobalAuthorityCache& AuthorityCache;
+			const TAttribute<const ConcertSharedSlate::IReplicationStreamViewer*> Viewer;
+		};
+
+		return {
+			ConcertSharedSlate::TReplicationColumnDelegates<ConcertSharedSlate::FPropertyTreeRowContext>::FCreateColumn::CreateLambda(
+				[InClient = MoveTemp(InClient), &InAuthorityCache, InViewer = MoveTemp(InViewer)]()
 				{
-					return SNew(SOwnerClientList, InClient, InAuthorityCache)
-						.GetClientList_Lambda([&InAuthorityCache, InViewer, Property = InArgs.RowData.GetProperty()](const FGlobalAuthorityCache&)
-						{
-							return Private::Property::GetPropertyOwners(InAuthorityCache, *InViewer.Get(), Property);
-						})
-						.HighlightText_Lambda([HighlightText = InArgs.HighlightText](){ return *HighlightText.Get(); });
-				})
-				.PopulateSearchItems_Lambda([InClient, &InAuthorityCache, InViewer](const ConcertSharedSlate::FReplicatedPropertyData& InArgs, TArray<FString>& InOutSearchStrings)
-				{
-					Private::Shared::PopulateSearchTerms(
-						InClient,
-						Private::Property::GetPropertyOwners(InAuthorityCache, *InViewer.Get(), InArgs.GetProperty()),
-						InOutSearchStrings
-						);
-				})
-				.ColumnSortOrder(static_cast<int32>(EPropertyColumnOrder::Owner)),
-			SHeaderRow::Column(OwnerOfPropertyColumnId)
-				.DefaultLabel(LOCTEXT("Property.Owner", "Owner"))
-				.FillSized(FMultiUserReplicationStyle::Get()->GetFloat(TEXT("SingleClient.Property.OwnerColumnWidth")))
-			);
+					return MakeShared<FPropertyColumn_OwnerOfProperty>(InClient, InAuthorityCache, InViewer);
+				}),
+			OwnerOfPropertyColumnId,
+			{ static_cast<int32>(EPropertyColumnOrder::Owner) }
+		};
 	}
 }
 

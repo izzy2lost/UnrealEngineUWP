@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Replication/Editor/View/PredefinedReplicationColumns.h"
+#include "Replication/Editor/View/Column/IPropertyTreeColumn.h"
 #include "Delegates/Delegate.h"
 
 namespace UE::ConcertReplicationScriptingEditor
@@ -17,7 +17,7 @@ namespace UE::ConcertReplicationScriptingEditor
 	 * @param SelectedProperties The checkbox is checked if the path is in SelectedProperties.
 	 * @param OnSelectPropertyDelegate Executed when a checkbox is checked or unchecked.
 	 */
-	ConcertSharedSlate::ReplicationColumns::FReplicationPropertyColumn MakePropertySelectionCheckboxColumn(
+	ConcertSharedSlate::FPropertyColumnEntry MakePropertySelectionCheckboxColumn(
 		const TSet<FConcertPropertyChain>& SelectedProperties,
 		FOnSelectProperty OnSelectPropertyDelegate,
 		bool bIsEditable,

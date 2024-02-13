@@ -6,8 +6,9 @@
 #include "Replication/Editor/Model/IReplicationStreamModel.h"
 #include "Replication/Editor/Model/Object/IObjectHierarchyModel.h"
 #include "Replication/Editor/Model/ReplicatedObjectData.h"
+#include "Replication/Editor/View/Column/ObjectColumnAdapter.h"
+#include "Replication/Editor/View/Column/SelectionViewerColumns.h"
 #include "Replication/Editor/View/ObjectViewer/Property/SPropertyTreeView.h"
-#include "Replication/Editor/View/SelectionViewerColumns.h"
 #include "Replication/ObjectUtils.h"
 #include "SReplicatedPropertyView.h"
 
@@ -189,12 +190,9 @@ namespace UE::ConcertSharedSlate
 
 	TSharedRef<SWidget> SReplicationStreamViewer::CreateOutlinerSection(const FArguments& InArgs)
 	{
-		TArray Columns
-		{
-			ReplicationColumns::TopLevel::LabelColumn(PropertiesModel.ToSharedRef(), NameModel.Get()),
-			ReplicationColumns::TopLevel::TypeColumn(PropertiesModel.ToSharedRef())
-		};
-		Columns.Append(InArgs._AdditionalObjectColumns);
+		TArray<FObjectColumnEntry> Columns = InArgs._ObjectColumns;
+		Columns.Add(ReplicationColumns::TopLevel::LabelColumn(PropertiesModel.ToSharedRef(), NameModel.Get()));
+		Columns.Add(ReplicationColumns::TopLevel::TypeColumn(PropertiesModel.ToSharedRef()));
 		
 		const bool bHasNoOutlinerObjectsAttribute = InArgs._NoOutlinerObjects.IsBound() || InArgs._NoOutlinerObjects.IsSet(); 
 		const TAttribute<FText> NoObjectsAttribute = bHasNoOutlinerObjectsAttribute ? InArgs._NoOutlinerObjects : LOCTEXT("NoObjects", "No objects to display");
@@ -218,7 +216,7 @@ namespace UE::ConcertSharedSlate
 			{
 				RequestPropertyDataRefresh();
 			})
-			.Columns(Columns)
+			.Columns(FObjectColumnAdapter::Transform(MoveTemp(Columns)))
 			.ExpandableColumnLabel(ReplicationColumns::TopLevel::LabelColumnId)
 			.PrimarySort(PrimaryObjectSort)
 			.SecondarySort(SecondaryObjectSort)

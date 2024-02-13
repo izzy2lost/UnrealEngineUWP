@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "ClientReplicationWidgetDelegates.h"
+#include "Replication/ClientReplicationWidgetDelegates.h"
 #include "Replication/ReplicationWidgetFactories.h"
 #include "Templates/SharedPointer.h"
 
@@ -11,7 +11,6 @@ struct FConcertObjectReplicationMap;
 
 namespace UE::ConcertSharedSlate
 {
-	struct FCreatePropertyTreeViewParams;
 	class IPropertySelectionSourceModel;
 	class IPropertyTreeView;
 	class IEditableReplicationStreamModel;
@@ -19,7 +18,9 @@ namespace UE::ConcertSharedSlate
 	class IReplicationStreamEditor;
 	class IStreamExtender;
 	class IObjectHierarchyModel;
+	
 	struct FCreateEditorParams;
+	struct FCreatePropertyTreeViewParams;
 }
 
 namespace UE::ConcertClientSharedSlate
@@ -48,7 +49,7 @@ namespace UE::ConcertClientSharedSlate
 	struct FFilterablePropertyTreeViewParams
 	{
 		/** The columns the property view should have. The label column is always included. */
-		TArray<ConcertSharedSlate::ReplicationColumns::FReplicationPropertyColumn> PropertyColumns
+		TArray<ConcertSharedSlate::FPropertyColumnEntry> AdditionalPropertyColumns
 		{
 			ConcertSharedSlate::ReplicationColumns::Property::LabelColumn(),
 			ConcertSharedSlate::ReplicationColumns::Property::TypeColumn()
@@ -77,7 +78,11 @@ namespace UE::ConcertClientSharedSlate
 		 * Additional property columns to add to the default ones.
 		 * By default the default editor has the label, type, and replicates (checkbox) columns.
 		 */
-		TArray<ConcertSharedSlate::ReplicationColumns::FReplicationPropertyColumn> AdditionalPropertyColumns;
+		TArray<ConcertSharedSlate::FPropertyColumnEntry> PropertyColumns
+		{
+			ConcertSharedSlate::ReplicationColumns::Property::LabelColumn(),
+			ConcertSharedSlate::ReplicationColumns::Property::TypeColumn()
+		};
 		
 		/**
 		 * Optional. Determines the objects displayed as children to the top-level objects in the top section.
@@ -102,7 +107,7 @@ namespace UE::ConcertClientSharedSlate
 		FExtendProperties OnExtendAddedProperties;
 		
 		/** Optional. Additional columns to add to the object view */
-		TArray<ConcertSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn> AdditionalObjectColumns;
+		TArray<ConcertSharedSlate::FObjectColumnEntry> ObjectColumns;
 	};
 	
 	/**

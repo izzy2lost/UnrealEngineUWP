@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ConcertFrontendStyle.h"
-#include "Replication/Editor/View/ReplicationColumn.h"
 
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SNullWidget.h"
@@ -22,10 +21,8 @@ namespace UE::ConcertSharedSlate
 	class SReplicationColumnRow : public SMultiColumnTableRow<TSharedPtr<TListItemType>>
 	{
 	public:
-
-		using TColumType = TReplicationColumn<TListItemType>;
 		
-		DECLARE_DELEGATE_RetVal_OneParam(const TColumType*, FGetColumn,
+		DECLARE_DELEGATE_RetVal_OneParam(TSharedPtr<IReplicationTreeColumn<TListItemType>>, FGetColumn,
 			const FName& ColumnId
 			);
 		DECLARE_DELEGATE_RetVal_TwoParams(TSharedPtr<SWidget>, FOverrideColumnWidget, const FName& ColumnName, const TListItemType& RowData);
@@ -85,13 +82,13 @@ namespace UE::ConcertSharedSlate
 				return ColumnOverride.ToSharedRef();
 			}
 			
-			const TColumType* Column = ColumnGetterDelegate.Execute(ColumnName); ensure(Column);
+			TSharedPtr<IReplicationTreeColumn<TListItemType>> Column = ColumnGetterDelegate.Execute(ColumnName); ensure(Column);
 			if (!Column)
 			{
 				return SNullWidget::NullWidget;
 			}
 			
-			const TSharedRef<SWidget> ColumnWidget = Column->BuildColumnWidget({ HighlightText, *RowData.Get() });
+			const TSharedRef<SWidget> ColumnWidget = Column->GenerateColumnWidget({ HighlightText, *RowData.Get() });
 			const bool bNeedsExpanderArrow = ColumnName == ExpandableColumnLabel;
 			if (!bNeedsExpanderArrow)
 			{

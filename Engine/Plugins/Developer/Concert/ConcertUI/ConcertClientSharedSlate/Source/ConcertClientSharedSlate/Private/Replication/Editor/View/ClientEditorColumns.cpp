@@ -4,12 +4,11 @@
 
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
 #include "Replication/Editor/Model/ReplicatedPropertyData.h"
-#include "Replication/Editor/View/ReplicationColumnsUtils.h"
+#include "Replication/Editor/View/Column/ReplicationColumnsUtils.h"
+#include "Replication/Editor/View/IReplicationStreamViewer.h"
 #include "Replication/ObjectUtils.h"
 
 #include "Internationalization/Internationalization.h"
-#include "Replication/Editor/View/IReplicationStreamViewer.h"
-#include "Replication/Editor/View/PredefinedReplicationColumns.h"
 
 #define LOCTEXT_NAMESPACE "ReplicationPropertyColumns"
 
@@ -87,40 +86,40 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::Property
 		}
 	}
 	
-	ConcertSharedSlate::ReplicationColumns::FReplicationPropertyColumn ReplicatesColumns(
+	ConcertSharedSlate::FPropertyColumnEntry ReplicatesColumns(
 		TAttribute<ConcertSharedSlate::IReplicationStreamViewer*> Viewer,
 		TWeakPtr<ConcertSharedSlate::IEditableReplicationStreamModel> Model,
 		FExtendProperties ExtendPropertiesDelegate,
-		ConcertSharedSlate::TReplicationColumnDelegates<ConcertSharedSlate::FReplicatedPropertyData>::FIsEnabled IsEnabledDelegate,
+		ConcertSharedSlate::TCheckboxColumnDelegates<ConcertSharedSlate::FPropertyTreeRowContext>::FIsEnabled IsEnabledDelegate,
 		TAttribute<FText> DisabledToolTipText,
 		const float ColumnWidth,
 		const int32 Priority
 		)
 	{
 		using namespace ConcertSharedSlate;
-		using FPropertyColumnDelegates = TReplicationColumnDelegates<FReplicatedPropertyData>;
-		return MakeCheckboxColumn<FReplicatedPropertyData>(
+		using FPropertyColumnDelegates = TCheckboxColumnDelegates<FPropertyTreeRowContext>;
+		return MakeCheckboxColumn<FPropertyTreeRowContext>(
 			ReplicatesColumnId,
 			FPropertyColumnDelegates(
 				FPropertyColumnDelegates::FGetColumnCheckboxState::CreateLambda(
-				[Viewer, Model](const FReplicatedPropertyData& Data)
+				[Viewer, Model](const FPropertyTreeRowContext& Data)
 				{
 					const IReplicationStreamViewer* ViewerPin = Viewer.Get();
 					const TSharedPtr<IEditableReplicationStreamModel> ModelPin = Model.Pin();
-					return ensure(ViewerPin && ModelPin) ? Private::OnGetPropertyCheckboxState(Data.GetProperty(), *ViewerPin, *ModelPin) : ECheckBoxState::Undetermined;
+					return ensure(ViewerPin && ModelPin) ? Private::OnGetPropertyCheckboxState(Data.RowData.GetProperty(), *ViewerPin, *ModelPin) : ECheckBoxState::Undetermined;
 				}),
 				FPropertyColumnDelegates::FOnColumnCheckboxChanged::CreateLambda(
-				[Viewer, Model, ExtendPropertiesDelegate = MoveTemp(ExtendPropertiesDelegate)](bool bIsChecked, const FReplicatedPropertyData& Data)
+				[Viewer, Model, ExtendPropertiesDelegate = MoveTemp(ExtendPropertiesDelegate)](bool bIsChecked, const FPropertyTreeRowContext& Data)
 				{
 					const IReplicationStreamViewer* ViewerPin = Viewer.Get();
 					const TSharedPtr<IEditableReplicationStreamModel> ModelPin = Model.Pin();
 					if (ensure(ViewerPin && ModelPin))
 					{
-						Private::OnPropertyCheckboxChanged(bIsChecked, Data.GetProperty(), *ViewerPin, *ModelPin, ExtendPropertiesDelegate);
+						Private::OnPropertyCheckboxChanged(bIsChecked, Data.RowData.GetProperty(), *ViewerPin, *ModelPin, ExtendPropertiesDelegate);
 					}
 				}),
 				FPropertyColumnDelegates::FGetToolTipText::CreateLambda(
-				[IsEnabledDelegate, DisabledToolTipText = MoveTemp(DisabledToolTipText)](const FReplicatedPropertyData& Data)
+				[IsEnabledDelegate, DisabledToolTipText = MoveTemp(DisabledToolTipText)](const FPropertyTreeRowContext& Data)
 				{
 					const bool bIsDisabled = IsEnabledDelegate.IsBound() && !IsEnabledDelegate.Execute(Data);
 					const bool bCanCall = DisabledToolTipText.IsBound() || DisabledToolTipText.IsSet();

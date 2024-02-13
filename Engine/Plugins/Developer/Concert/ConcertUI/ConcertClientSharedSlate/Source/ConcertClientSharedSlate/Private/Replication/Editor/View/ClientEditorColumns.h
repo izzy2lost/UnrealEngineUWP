@@ -3,8 +3,9 @@
 #pragma once
 
 #include "Replication/ClientReplicationWidgetDelegates.h"
-#include "Replication/Editor/View/PredefinedReplicationColumns.h"
-#include "Replication/Editor/View/ReplicationColumnsUtils.h"
+#include "Replication/Editor/View/Column/ReplicationColumnsUtils.h"
+#include "Replication/Editor/View/Column/IPropertyTreeColumn.h"
+
 #include "Templates/SharedPointer.h"
 
 namespace UE::ConcertSharedSlate
@@ -37,11 +38,11 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::Property
 	 * @param ColumnWidth Width to use for the column
 	 * @param Priority Determines position of this columns relative to the others
 	 */
-	ConcertSharedSlate::ReplicationColumns::FReplicationPropertyColumn ReplicatesColumns(
-		TAttribute<ConcertSharedSlate::IReplicationStreamViewer*> Viewer,
+	ConcertSharedSlate::FPropertyColumnEntry ReplicatesColumns(
+		TAttribute<ConcertSharedSlate::IReplicationStreamViewer*> Viewer, // TODO DP Columns: Refactor this
 		TWeakPtr<ConcertSharedSlate::IEditableReplicationStreamModel> Model,
 		FExtendProperties ExtendPropertiesDelegate = {},
-		ConcertSharedSlate::TReplicationColumnDelegates<ConcertSharedSlate::FReplicatedPropertyData>::FIsEnabled IsEnabledDelegate = {},
+		ConcertSharedSlate::TCheckboxColumnDelegates<ConcertSharedSlate::FPropertyTreeRowContext>::FIsEnabled IsEnabledDelegate = {},
 		TAttribute<FText> DisabledToolTipText = {},
 		const float ColumnWidth = 20.f,
 		const int32 Priority = static_cast<int32>(EReplicationPropertyColumnOrder::ReplicatesCheckbox)

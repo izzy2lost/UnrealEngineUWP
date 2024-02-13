@@ -7,6 +7,7 @@
 #include "Replication/Editor/View/Tree/SReplicationTreeView.h"
 
 #include "Filters/SBasicFilterBar.h"
+#include "Replication/Editor/View/Column/IPropertyTreeColumn.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
@@ -24,8 +25,6 @@ namespace UE::ConcertSharedSlate
 	{
 	public:
 		
-		using FFilterRef = TSharedRef<FFilterBase<TSharedPtr<FReplicatedPropertyData>>>;
-		
 		SLATE_BEGIN_ARGS(SPropertyTreeView)
 		{}
 			/*************** Arguments inherited by SReplicationTreeView ***************/
@@ -34,7 +33,7 @@ namespace UE::ConcertSharedSlate
 			SLATE_EVENT(SReplicationTreeView<FReplicatedPropertyData>::FCustomFilter, FilterItem)
 		
 			/** The columns this list should have */
-			SLATE_ARGUMENT(TArray<TReplicationColumn<FReplicatedPropertyData>>, Columns)
+			SLATE_ARGUMENT(TArray<FPropertyColumnEntry>, Columns)
 			/** The name of the column that will have the SExpanderArrow for the tree view. */
 			SLATE_ARGUMENT(FName, ExpandableColumnLabel)
 			/** Initial primary sort to set. */

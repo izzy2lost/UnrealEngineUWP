@@ -2,12 +2,16 @@
 
 #pragma once
 
-#include "Replication/Editor/View/PredefinedReplicationColumns.h"
-#include "Replication/Editor/View/ReplicationColumnsUtils.h"
+#include "IObjectTreeColumn.h"
+#include "IPropertyTreeColumn.h"
+#include "ReplicationColumnInfo.h"
+
 #include "Templates/SharedPointer.h"
 
 namespace UE::ConcertSharedSlate
 {
+	struct FObjectTreeRowContext;
+	struct FPropertyTreeRowContext;
 	class IEditableReplicationStreamModel;
 	class IReplicationStreamViewer;
 	class IReplicationStreamModel;
@@ -28,8 +32,8 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::TopLevel
 		Type = 30,
 	};
 
-	CONCERTSHAREDSLATE_API FReplicationTopLevelObjectColumn LabelColumn(TSharedRef<IReplicationStreamModel> Model, IObjectNameModel* OptionalNameModel = nullptr);
-	CONCERTSHAREDSLATE_API FReplicationTopLevelObjectColumn TypeColumn(TSharedRef<IReplicationStreamModel> Model);
+	CONCERTSHAREDSLATE_API FObjectColumnEntry LabelColumn(TSharedRef<IReplicationStreamModel> Model, IObjectNameModel* OptionalNameModel = nullptr);
+	CONCERTSHAREDSLATE_API FObjectColumnEntry TypeColumn(TSharedRef<IReplicationStreamModel> Model);
 }
 
 namespace UE::ConcertSharedSlate::ReplicationColumns::Property
@@ -45,6 +49,6 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::Property
 		Type = 20
 	};
 	
-	CONCERTSHAREDSLATE_API FReplicationPropertyColumn LabelColumn();
-	CONCERTSHAREDSLATE_API FReplicationPropertyColumn TypeColumn();
+	CONCERTSHAREDSLATE_API FPropertyColumnEntry LabelColumn();
+	CONCERTSHAREDSLATE_API FPropertyColumnEntry TypeColumn();
 }

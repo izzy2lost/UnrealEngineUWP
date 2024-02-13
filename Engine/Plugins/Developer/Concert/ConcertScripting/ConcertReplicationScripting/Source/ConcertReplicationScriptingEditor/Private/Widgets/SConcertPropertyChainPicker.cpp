@@ -92,10 +92,7 @@ namespace UE::ConcertReplicationScriptingEditor
 	{
 		ConcertSharedSlate::FCreatePropertyTreeViewParams Params
 		{
-			.PropertyColumns =
-			{
-				ConcertSharedSlate::ReplicationColumns::Property::LabelColumn()
-			},
+			.PropertyColumns ={ ConcertSharedSlate::ReplicationColumns::Property::LabelColumn()}
 		};
 		Params.NoItemsContent.Widget = SNew(STextBlock).Text(LOCTEXT("NoClass", "Select a class"));
 
@@ -103,7 +100,11 @@ namespace UE::ConcertReplicationScriptingEditor
 		{
 			Params.PrimaryPropertySort = { PropertySelectionCheckboxColumnId, EColumnSortMode::Ascending };
 			Params.PropertyColumns.Add(
-				MakePropertySelectionCheckboxColumn(*ContainedProperties, FOnSelectProperty::CreateSP(this, &SConcertPropertyChainPicker::OnPropertySelected), InArgs._IsEditable)
+				MakePropertySelectionCheckboxColumn(
+					*ContainedProperties,
+					FOnSelectProperty::CreateSP(this, &SConcertPropertyChainPicker::OnPropertySelected),
+					InArgs._IsEditable
+					)
 				);
 		}
 		

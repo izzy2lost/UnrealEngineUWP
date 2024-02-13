@@ -9,8 +9,8 @@
 #include "Replication/Editor/Model/Object/EditorObjectHierarchyModel.h"
 #include "Replication/Editor/Model/Object/EditorObjectNameModel.h"
 #include "Replication/Editor/Model/ReplicationStreamObject.h"
+#include "Replication/Editor/View/Column/SelectionViewerColumns.h"
 #include "Replication/Editor/View/ObjectEditor/SDefaultReplicationStreamEditor.h"
-#include "Replication/Editor/View/SelectionViewerColumns.h"
 #include "Replication/Editor/Model/TransactionalReplicationStreamModel.h"
 
 #include "UObject/UObjectGlobals.h"
@@ -84,21 +84,21 @@ namespace UE::ConcertClientSharedSlate
 		};
 		TSharedRef<FEditorIndirection> Indirection = MakeShared<FEditorIndirection>();
 		
-		const FReplicationPropertyColumn ReplicatesColumn = ReplicationColumns::Property::ReplicatesColumns(
+		const FPropertyColumnEntry ReplicatesColumn = ReplicationColumns::Property::ReplicatesColumns(
 			TAttribute<IReplicationStreamViewer*>::CreateLambda([Indirection](){ return Indirection->Editor.Get(); }),
 			Params.BaseEditorParams.DataModel,
 			MoveTemp(ExtendPropertiesDelegate),
-			TReplicationColumnDelegates<FReplicatedPropertyData>::FIsEnabled::CreateLambda([IsEnabled = Params.BaseEditorParams.IsEditingEnabled](const FReplicatedPropertyData&)
+			TCheckboxColumnDelegates<FPropertyTreeRowContext>::FIsEnabled::CreateLambda([IsEnabled = Params.BaseEditorParams.IsEditingEnabled](const FPropertyTreeRowContext&)
 			{
 				return !IsEnabled.IsBound() || IsEnabled.Get();
 			}),
 			Params.BaseEditorParams.EditingDisabledToolTipText
 			);
 		
-		TArray<FReplicationPropertyColumn>& PropertyColumns = Params.AdditionalPropertyColumns;
-		const bool bHasType = PropertyColumns.ContainsByPredicate([](const FReplicationPropertyColumn& Column)
+		TArray<FPropertyColumnEntry>& PropertyColumns = Params.PropertyColumns;
+		const bool bHasType = PropertyColumns.ContainsByPredicate([](const FPropertyColumnEntry& Entry)
 		{
-			return Column.ColumnId == Property::TypeColumnId;
+			return Entry.ColumnId == Property::TypeColumnId;
 		});
 		if (!bHasType)
 		{
@@ -108,11 +108,11 @@ namespace UE::ConcertClientSharedSlate
 
 		FCreateViewerParams ViewerParams
 		{
-			.PropertyTreeView = CreateFilterablePropertyTreeView({ .PropertyColumns = PropertyColumns }),
+			.PropertyTreeView = CreateFilterablePropertyTreeView({ .AdditionalPropertyColumns = MoveTemp(PropertyColumns) }),
 			.ObjectHierarchy = MoveTemp(Params.ObjectHierarchy),
 			.NameModel = MoveTemp(Params.NameModel),
 			.OnExtendObjectsContextMenu = MoveTemp(Params.OnExtendObjectsContextMenu),
-			.AdditionalObjectColumns = MoveTemp(Params.AdditionalObjectColumns),
+			.ObjectColumns = MoveTemp(Params.ObjectColumns),
 			.PrimaryObjectSort = FColumnSortInfo{ TopLevel::LabelColumnId, EColumnSortMode::Ascending },
 			.SecondaryObjectSort = FColumnSortInfo{ TopLevel::LabelColumnId, EColumnSortMode::Ascending },
 		};
