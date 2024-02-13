@@ -33,6 +33,7 @@ public:
 
 	const FString& GetRootWorkingDirectory() const { return RootWorkingDirectory; }
 	const FString& GetWorkingDirectory() const { return WorkingDirectory; }
+	const FString& GetDebugInfoPath() const { return DebugInfoPath; }
 
 	bool HasTasksDispatchedOrPending() const;
 
@@ -48,6 +49,7 @@ private:
 	
 	FString RootWorkingDirectory;
 	FString WorkingDirectory;
+	FString DebugInfoPath;
 
 	TAtomic<int32> NextFileID;
 	TAtomic<int32> NextTaskID;

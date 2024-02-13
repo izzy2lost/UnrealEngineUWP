@@ -36,12 +36,6 @@ namespace UbaJobProcessorOptions
 		bAutoLaunchVisualizer,
 		TEXT("If true, UBA visualizer will be launched automatically\n"));
 
-	static FString TraceFilename;
-	static FAutoConsoleVariableRef CVarTraceFilename(
-		TEXT("r.UbaController.TraceFilename"),
-		TraceFilename,
-		TEXT("The name of the trace file that uba outputs after a session"));
-
 	static bool bAllowProcessReuse = true;
 	static FAutoConsoleVariableRef CVarAllowProcessReuse(
 		TEXT("r.UbaController.AllowProcessReuse"),
@@ -296,9 +290,12 @@ void FUbaJobProcessor::StartUba()
 	info.remoteLogEnabled = UbaJobProcessorOptions::bProcessLogEnabled;
 
 	info.traceEnabled = true;
-	FString TraceOutputFile = UbaJobProcessorOptions::TraceFilename;
-	if (!TraceOutputFile.IsEmpty() && UE::GetMultiprocessId())
-		TraceOutputFile = FString::Printf(TEXT("%s_%u"), *TraceOutputFile, UE::GetMultiprocessId());
+	FString TraceOutputFile;
+	if (!ControllerModule.GetDebugInfoPath().IsEmpty())
+	{
+		static uint32 UbaLaunchCounter;
+		TraceOutputFile = ControllerModule.GetDebugInfoPath() / FString::Printf(TEXT("UbaController.run-%u.pid-%u.uba"), ++UbaLaunchCounter, UE::GetMultiprocessId());
+	}
 	info.traceOutputFile = *TraceOutputFile;
 	info.detailedTrace = UbaJobProcessorOptions::bDetailedTrace;
 	FString TraceName = FString::Printf(TEXT("UbaController_%s"), *FGuid::NewGuid().ToString(EGuidFormats::Digits));

@@ -18,6 +18,33 @@ DEFINE_LOG_CATEGORY(LogUbaController);
 namespace UbaControllerModule
 {
 	static constexpr int32 SubFolderCount = 32;
+
+	static bool bDumpTraceFiles = false;
+	static FAutoConsoleVariableRef CVarDumpTraceFiles(
+		TEXT("r.UbaController.DumpTraceFiles"),
+		bDumpTraceFiles,
+		TEXT("If true, UBA controller dumps trace files for later use with UBA visualizer in the Saved folder under UbaController"));
+
+	static FString MakeAndGetDebugInfoPath()
+	{
+		// Build machines should dump to the AutomationTool/Saved/Logs directory and they will upload as build artifacts via the AutomationTool.
+		FString BaseDebugInfoPath = FPaths::ProjectSavedDir();
+		if (GIsBuildMachine)
+		{
+			BaseDebugInfoPath = FPaths::Combine(*FPaths::EngineDir(), TEXT("Programs"), TEXT("AutomationTool"), TEXT("Saved"), TEXT("Logs"));
+		}
+
+		FString AbsoluteDebugInfoDirectory = IFileManager::Get().ConvertToAbsolutePathForExternalAppForWrite(*(BaseDebugInfoPath / TEXT("UbaController")));
+		FPaths::NormalizeDirectoryName(AbsoluteDebugInfoDirectory);
+
+		// Create directory if it doesn't exit yet
+		if (!IFileManager::Get().DirectoryExists(*AbsoluteDebugInfoDirectory))
+		{
+			IFileManager::Get().MakeDirectory(*AbsoluteDebugInfoDirectory, true);
+		}
+
+		return AbsoluteDebugInfoDirectory;
+	}
 };
 
 FUbaControllerModule::FUbaControllerModule()
@@ -177,6 +204,10 @@ void FUbaControllerModule::InitializeController()
 				IFileManager::Get().MakeDirectory(*FString::Printf(TEXT("%s/%d"), *WorkingDirectory, It));
 			}
 
+			if (UbaControllerModule::bDumpTraceFiles)
+			{
+				DebugInfoPath = UbaControllerModule::MakeAndGetDebugInfoPath();
+			}
 
 			JobDispatcherThread = MakeShared<FUbaJobProcessor>(*this);
 			JobDispatcherThread->StartThread();
