@@ -564,6 +564,7 @@ void UCustomizableObjectPrivate::SaveCompiledData(FArchive& MemoryWriter, bool b
 	MemoryWriter << GetPublic()->LODSettings.bLODStreamingEnabled;
 
 	// Editor Only data
+	MemoryWriter << bDisableTextureStreaming;
 	MemoryWriter << bIsCompiledWithOptimization;
 	MemoryWriter << CustomizableObjectPathMap;
 	MemoryWriter << GroupNodeMap;
@@ -685,6 +686,7 @@ void UCustomizableObjectPrivate::LoadCompiledData(FArchive& MemoryReader, const 
 
 		// Editor Only data
 		{
+			MemoryReader << bDisableTextureStreaming;
 			MemoryReader << bIsCompiledWithOptimization;
 			MemoryReader << CustomizableObjectPathMap;
 			MemoryReader << GroupNodeMap;
@@ -989,9 +991,6 @@ void UCustomizableObjectPrivate::SaveEmbeddedData(FArchive& Ar)
 
 	if (GetModel())
 	{
-		// General derived flags
-		Ar << bDisableTextureStreaming;
-
 		// Serialize morph data
 		{
 			Ar << GetPublic()->ContributingMorphTargetsInfo;
@@ -1032,9 +1031,6 @@ void UCustomizableObjectPrivate::LoadEmbeddedData(FArchive& Ar)
 
 	if(CurrentSupportedVersion == InternalVersion)
 	{
-		// General derived flags
-		Ar << bDisableTextureStreaming;
-
 		// Load morph data
 		{
 			Ar << GetPublic()->ContributingMorphTargetsInfo;

@@ -968,11 +968,13 @@ void UCustomizableObjectSystemPrivate::GetMipStreamingConfig(const UCustomizable
 		bOutNeverStream = State->bDisableTextureStreaming;
 	}
 
+#if WITH_EDITORONLY_DATA
 	// Was streaming disabled at object-compilation time? 
 	if (Instance.GetCustomizableObject()->GetPrivate()->bDisableTextureStreaming)
 	{
 		bOutNeverStream = true;
 	}
+#endif
 
 	OutMipsToSkip = 0; // 0 means generate all mips
 
