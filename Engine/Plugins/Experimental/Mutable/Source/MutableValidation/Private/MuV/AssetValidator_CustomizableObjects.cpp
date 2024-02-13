@@ -13,6 +13,7 @@
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCO/CustomizableObjectSystem.h"
+#include "MuCOE/GraphTraversal.h"
 #include "UObject/NameTypes.h"
 #include "UObject/Object.h"
 
@@ -92,7 +93,7 @@ EDataValidationResult UAssetValidator_CustomizableObjects::IsCustomizableObjectV
 		TUniquePtr<FCustomizableObjectCompilerBase>(UCustomizableObjectSystem::GetInstance()->GetNewCompiler());
 	
 	// Find out which is the root for this CO (it may be itself but that is OK)
-	UCustomizableObject* RootObject = Compiler->GetRootObject(InCustomizableObject);
+	UCustomizableObject* RootObject = GetRootObject(InCustomizableObject);
 	check (RootObject);
 	
 	// Check that the object to be compiled has not already been compiled
