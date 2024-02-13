@@ -30,7 +30,7 @@ class UWorldPartitionLevelStreamingDynamic : public ULevelStreamingDynamic
 	ENGINE_API void Unload();
 	ENGINE_API void Activate();
 	ENGINE_API void Deactivate();
-	ENGINE_API UWorld* GetStreamingWorld() const override;
+	ENGINE_API virtual UWorld* GetStreamingWorld() const override;
 	void SetShouldBeAlwaysLoaded(bool bInShouldBeAlwaysLoaded) { bShouldBeAlwaysLoaded = bInShouldBeAlwaysLoaded; }
 	const UWorldPartitionRuntimeCell* GetWorldPartitionRuntimeCell() const { return StreamingCell.Get(); }
 

@@ -40,9 +40,9 @@ class UWorldPartitionRuntimeLevelStreamingCell : public UWorldPartitionRuntimeCe
 	ENGINE_API bool HasActors() const;
 	ENGINE_API virtual TArray<FName> GetActors() const override;
 
-	ENGINE_API void CreateAndSetLevelStreaming(const FString& InPackageName);
+	ENGINE_API void CreateAndSetLevelStreaming(const FString& InPackageName, const FSoftObjectPath& InWorldAsset = FSoftObjectPath());
 	ENGINE_API bool CreateAndSetLevelStreaming(const TSoftObjectPtr<UWorld>& InWorldAsset, const FTransform& InInstanceTransform) const;
-	ENGINE_API class UWorldPartitionLevelStreamingDynamic* CreateLevelStreaming(const FString& InPackageName = FString()) const;
+	ENGINE_API class UWorldPartitionLevelStreamingDynamic* CreateLevelStreaming(const FString& InPackageName = FString(), const FSoftObjectPath& InWorldAsset = FSoftObjectPath()) const;
 	
 
 #if WITH_EDITOR

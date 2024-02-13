@@ -58,20 +58,32 @@ TSet<TObjectPtr<UDataLayerInstance>>& URuntimeHashExternalStreamingObjectBase::G
 	return DataLayerInstances;
 }
 
+UWorld* URuntimeHashExternalStreamingObjectBase::GetOwningWorld() const
+{
+	// Once OnStreamingObjectLoaded is called and OwningWorld is set, use this cached value
+	return OwningWorld.IsSet() ? OwningWorld.GetValue().Get() : GetOuterWorld()->GetWorldPartition()->GetWorld();
+}
+
 void URuntimeHashExternalStreamingObjectBase::OnStreamingObjectLoaded(UWorld* InjectedWorld)
 {
-	bool bIsACookedObject = !CellToLevelStreamingPackage.IsEmpty();
-	if (bIsACookedObject)
+#if !WITH_EDITOR
+	if (!CellToStreamingData.IsEmpty())
 	{
 		// Cooked streaming object's Cells do not have LevelStreaming.
 		ForEachStreamingCells([this](UWorldPartitionRuntimeCell& Cell)
 		{
 			UWorldPartitionRuntimeLevelStreamingCell* RuntimeCell = CastChecked<UWorldPartitionRuntimeLevelStreamingCell>(&Cell);
 
-			FName LevelStreamingPackage = CellToLevelStreamingPackage.FindChecked(RuntimeCell->GetFName());
-			RuntimeCell->CreateAndSetLevelStreaming(*LevelStreamingPackage.ToString());
+			const FWorldPartitionRuntimeCellStreamingData& CellStreamingData = CellToStreamingData.FindChecked(RuntimeCell->GetFName());
+			RuntimeCell->CreateAndSetLevelStreaming(CellStreamingData.PackageName, CellStreamingData.WorldAsset);
 		});
 	}
+#endif
+
+	check(GetOuterWorld());
+	check(GetOuterWorld()->GetWorldPartition());
+	check(GetOuterWorld()->GetWorldPartition()->GetWorld());
+	OwningWorld = GetOuterWorld()->GetWorldPartition()->GetWorld();
 }
 
 #if WITH_EDITOR
@@ -103,7 +115,10 @@ bool URuntimeHashExternalStreamingObjectBase::OnPopulateGeneratorPackageForCook(
 	{
 		UWorldPartitionRuntimeLevelStreamingCell* RuntimeCell = CastChecked<UWorldPartitionRuntimeLevelStreamingCell>(&Cell);
 		UWorldPartitionLevelStreamingDynamic* LevelStreamingDynamic = RuntimeCell->GetLevelStreaming();
-		CellToLevelStreamingPackage.Add(RuntimeCell->GetFName(), LevelStreamingDynamic->PackageNameToLoad);
+		FWorldPartitionRuntimeCellStreamingData& CellStreamingData = CellToStreamingData.Add(RuntimeCell->GetFName());
+		CellStreamingData.PackageName = LevelStreamingDynamic->GetWorldAsset().GetLongPackageName();
+		// SoftObjectPath will be automatically remapped when ExternalStreamingObject will be instanced/loaded at runtime
+		CellStreamingData.WorldAsset = LevelStreamingDynamic->GetWorldAsset().ToSoftObjectPath();
 
 		// Level streaming are outered to the world and would not be saved within the ExternalStreamingObject.
 		// Do not save them, instead they will be created once the external streaming object is loaded at runtime. 
@@ -175,7 +190,7 @@ EWorldPartitionStreamingPerformance UWorldPartitionRuntimeHash::GetStreamingPerf
 	return EWorldPartitionStreamingPerformance::Good;
 }
 
-URuntimeHashExternalStreamingObjectBase* UWorldPartitionRuntimeHash::CreateExternalStreamingObject(TSubclassOf<URuntimeHashExternalStreamingObjectBase> InClass, UObject* InOuter, FName InName, UWorld* InOwningWorld, UWorld* InOuterWorld)
+URuntimeHashExternalStreamingObjectBase* UWorldPartitionRuntimeHash::CreateExternalStreamingObject(TSubclassOf<URuntimeHashExternalStreamingObjectBase> InClass, UObject* InOuter, FName InName, UWorld* InOuterWorld)
 {
 	if (FindObject<URuntimeHashExternalStreamingObjectBase>(InOuter, *InName.ToString()))
 	{
@@ -184,8 +199,7 @@ URuntimeHashExternalStreamingObjectBase* UWorldPartitionRuntimeHash::CreateExter
 	}
 
 	URuntimeHashExternalStreamingObjectBase* StreamingObject = NewObject<URuntimeHashExternalStreamingObjectBase>(InOuter, InClass, InName, RF_Public);
-	StreamingObject->OwningWorld = InOwningWorld;
-	StreamingObject->OuterWorld = InOuterWorld;
+	StreamingObject->OuterWorld = InOuterWorld;	
 	return StreamingObject;
 }
 
@@ -355,7 +369,7 @@ UWorldPartitionRuntimeCell* UWorldPartitionRuntimeHash::GetCellForCookPackage(co
 
 URuntimeHashExternalStreamingObjectBase* UWorldPartitionRuntimeHash::StoreStreamingContentToExternalStreamingObject(FName InStreamingObjectName)
 {
-	URuntimeHashExternalStreamingObjectBase* NewExternalStreamingObject = CreateExternalStreamingObject(GetExternalStreamingObjectClass(), GetOuterUWorldPartition(), InStreamingObjectName, GetWorld(), GetTypedOuter<UWorld>());
+	URuntimeHashExternalStreamingObjectBase* NewExternalStreamingObject = CreateExternalStreamingObject(GetExternalStreamingObjectClass(), GetOuterUWorldPartition(), InStreamingObjectName, GetTypedOuter<UWorld>());
 	StoreStreamingContentToExternalStreamingObject(NewExternalStreamingObject);
 	return NewExternalStreamingObject;
 }

@@ -5,6 +5,7 @@
 #include "UObject/ObjectMacros.h"
 #include "UObject/Object.h"
 #include "Templates/SubclassOf.h"
+#include "Misc/Optional.h"
 #include "Engine/World.h"
 #include "WorldPartition.h"
 #include "WorldPartition/ActorDescList.h"
@@ -36,6 +37,18 @@ enum class EWorldPartitionStreamingPerformance : uint8
 	Critical
 };
 
+USTRUCT()
+struct FWorldPartitionRuntimeCellStreamingData
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FString PackageName;
+
+	UPROPERTY()
+	FSoftObjectPath WorldAsset;
+};
+
 UCLASS(Abstract, MinimalAPI)
 class URuntimeHashExternalStreamingObjectBase : public UObject, public IWorldPartitionCookPackageObject, public IDataLayerInstanceProvider
 {
@@ -51,7 +64,7 @@ public:
 #endif
 	//~ End UObject Interface
 
-	UWorld* GetOwningWorld() const { return OwningWorld.Get(); }
+	UWorld* GetOwningWorld() const;
 	UWorld* GetOuterWorld() const { return OuterWorld.Get(); }
 
 	ENGINE_API void ForEachStreamingCells(TFunctionRef<void(UWorldPartitionRuntimeCell&)> Func);
@@ -91,14 +104,13 @@ public:
 	FWorldPartitionRuntimeContainerResolver ContainerResolver;
 
 protected:
-	UPROPERTY();
-	TSoftObjectPtr<UWorld> OwningWorld;
+	TOptional<TWeakObjectPtr<UWorld>> OwningWorld;
 
 	UPROPERTY();
 	TSoftObjectPtr<UWorld> OuterWorld;
 
 	UPROPERTY();
-	TMap<FName, FName> CellToLevelStreamingPackage;
+	TMap<FName, FWorldPartitionRuntimeCellStreamingData> CellToStreamingData;
 
 	UPROPERTY()
 	TSet<TObjectPtr<UDataLayerInstance>> DataLayerInstances;
@@ -214,17 +226,9 @@ public:
 	virtual bool GetShouldMergeStreamingSourceInfo() const { return false; }
 
 protected:
-	static ENGINE_API URuntimeHashExternalStreamingObjectBase* CreateExternalStreamingObject(TSubclassOf<URuntimeHashExternalStreamingObjectBase> InClass, UObject* InOuter, FName InName, UWorld* InOwningWorld, UWorld* InOuterWorld);
+	static ENGINE_API URuntimeHashExternalStreamingObjectBase* CreateExternalStreamingObject(TSubclassOf<URuntimeHashExternalStreamingObjectBase> InClass, UObject* InOuter, FName InName, UWorld* InOuterWorld);
 	ENGINE_API UWorldPartitionRuntimeCell* CreateRuntimeCell(UClass* CellClass, UClass* CellDataClass, const FString& CellName, const FString& CellInstanceSuffix, UObject* InOuter = nullptr);
 	virtual EWorldPartitionStreamingPerformance GetStreamingPerformanceForCell(const UWorldPartitionRuntimeCell* Cell) const;
-
-#if WITH_EDITOR
-	template <class T>
-	T* CreateExternalStreamingObject(UObject* InOuter, FName InName)
-	{
-		return static_cast<T*>(CreateExternalStreamingObject(T::StaticClass(), InOuter, InName, GetWorld(), GetTypedOuter<UWorld>()));
-	}
-#endif
 
 #if WITH_EDITORONLY_DATA
 	struct FAlwaysLoadedActorForPIE
