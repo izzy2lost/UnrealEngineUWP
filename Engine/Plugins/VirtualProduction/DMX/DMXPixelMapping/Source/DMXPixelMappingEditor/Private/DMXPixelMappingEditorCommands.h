@@ -39,7 +39,6 @@ public:
 	
 	TSharedPtr<FUICommandInfo> ToggleScaleChildrenWithParent;
 	TSharedPtr<FUICommandInfo> ToggleAlwaysSelectGroup;
-	TSharedPtr<FUICommandInfo> ToggleApplyLayoutScriptWhenLoaded;
 	TSharedPtr<FUICommandInfo> ToggleShowMatrixCells;
 	TSharedPtr<FUICommandInfo> ToggleShowComponentNames;
 	TSharedPtr<FUICommandInfo> ToggleShowPatchInfo;
