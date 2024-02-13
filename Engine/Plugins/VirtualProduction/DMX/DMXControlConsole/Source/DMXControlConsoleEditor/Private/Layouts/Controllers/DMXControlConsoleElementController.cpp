@@ -239,21 +239,34 @@ void UDMXControlConsoleElementController::ResetToDefault()
 		return;
 	}
 
-	UDMXControlConsoleFaderBase* Fader = Cast<UDMXControlConsoleFaderBase>(Elements[0].GetObject());
-	if (!Fader)
-	{
-		return;
-	}
-
-	Fader->ResetToDefault();
-
-	const uint8 NumBytes = static_cast<uint8>(Fader->GetDataType()) + 1;
-	const float ValueRange = FMath::Pow(2.f, 8.f * NumBytes) - 1;
-	const float NormalizedValue = Fader->GetValue() / ValueRange;
-
-	SetValue(NormalizedValue);
 	SetMinValue(0.f);
 	SetMaxValue(1.f);
+
+	for (const TScriptInterface<IDMXControlConsoleFaderGroupElement>& Element : Elements)
+	{
+		if (!Element)
+		{
+			continue;
+		}
+
+		UDMXControlConsoleFaderBase* Fader = Cast<UDMXControlConsoleFaderBase>(Element.GetObject());
+		if (!Fader)
+		{
+			continue;
+		}
+
+		Fader->ResetToDefault();
+
+		// The controller value is the normalized value of the first valid fader
+		if (Elements.IndexOfByKey(Element) == 0)
+		{
+			const uint8 NumBytes = static_cast<uint8>(Fader->GetDataType()) + 1;
+			const float ValueRange = FMath::Pow(2.f, 8.f * NumBytes) - 1;
+			const float NormalizedValue = Fader->GetValue() / ValueRange;
+
+			SetValue(NormalizedValue);
+		}
+	}
 }
 
 void UDMXControlConsoleElementController::SetLocked(bool bLock)

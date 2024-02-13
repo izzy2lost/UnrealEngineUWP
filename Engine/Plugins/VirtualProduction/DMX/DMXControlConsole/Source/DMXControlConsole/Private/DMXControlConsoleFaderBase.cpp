@@ -96,7 +96,7 @@ void UDMXControlConsoleFaderBase::SetLocked(bool bLock)
 
 void UDMXControlConsoleFaderBase::ResetToDefault()
 {
-	Value = DefaultValue;
+	SetValue(DefaultValue);
 }
 
 void UDMXControlConsoleFaderBase::PostInitProperties()
