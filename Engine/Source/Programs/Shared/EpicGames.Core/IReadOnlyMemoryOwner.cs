@@ -39,7 +39,7 @@ namespace EpicGames.Core
 				_memory = null;
 				if (_owner != null)
 				{
-					_owner?.Dispose();
+					_owner.Dispose();
 					_owner = null;
 				}
 			}
