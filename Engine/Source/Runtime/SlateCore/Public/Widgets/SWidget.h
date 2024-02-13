@@ -822,11 +822,11 @@ private:
 
 public:
 
-	FORCEINLINE TStatId GetStatID() const
+	FORCEINLINE TStatId GetStatID(bool bForDeferredUse = false) const
 	{
 #if STATS
 		// this is done to avoid even registering stats for a disabled group (unless we plan on using it later)
-		if (FThreadStats::IsCollectingData())
+		if (bForDeferredUse || FThreadStats::IsCollectingData())
 		{
 			if (!StatID.IsValidStat())
 			{
@@ -836,7 +836,7 @@ public:
 		}
 		return TStatId(); // not doing stats at the moment, or ever
 #elif ENABLE_STATNAMEDEVENTS
-		if (!StatID.IsValidStat() && GCycleStatsShouldEmitNamedEvents)
+		if (!StatID.IsValidStat() && (bForDeferredUse || GCycleStatsShouldEmitNamedEvents))
 		{
 			CreateStatID();
 		}
