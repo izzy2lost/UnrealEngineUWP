@@ -297,6 +297,13 @@ public:
 		return CameraDepthOfField;
 	}
 
+	/** Gain direct access to internal PostProcess data of the viewport. */
+	FDisplayClusterViewport_CustomPostProcessSettings& GetCustomPostProcessSettings()
+	{
+		check(IsInGameThread());
+		return CustomPostProcessSettings;
+	}
+
 	/** Some viewports are used as internal and skip some logic steps.
 	* These viewports are handled separately from regular viewports.
 	* Context: icvfx, tile
