@@ -341,8 +341,6 @@ void UMVVMView::InitializeSourceBindings(FMVVMView_SourceKey SourceKey, bool bRu
 			{
 				const FMVVMViewClass_Binding& ClassBinding = ClassExtension->GetBinding(SourceBinding.GetBindingKey());
 				ExecuteBindingImmediately(ClassBinding, SourceBinding.GetBindingKey());
-
-				ensureMsgf(SourceBinding.GetFieldId().IsValid() == ClassBinding.IsOneWay(), TEXT("If the binding has no id, then it must be a OneTime."));
 			}
 		}
 
