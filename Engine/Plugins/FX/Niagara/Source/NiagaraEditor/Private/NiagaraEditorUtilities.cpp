@@ -4660,12 +4660,12 @@ TSharedRef<SToolTip> FNiagaraEditorUtilities::Tooltips::CreateStackNoteTooltip(U
 			]
 		]
 		+ SHorizontalBox::Slot()
-		.AutoWidth()
 		.Padding(2.f)
 		[
 			SNew(STextBlock)
 			.Text(StackNote.GetTargetStackNoteData().GetValue().MessageHeader)
 			.TextStyle(&FNiagaraEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("NiagaraEditor.Stack.Note.HeaderText"))
+			.AutoWrapText(true)
 		]
 	];
 
@@ -4685,7 +4685,7 @@ TSharedRef<SToolTip> FNiagaraEditorUtilities::Tooltips::CreateStackNoteTooltip(U
 	.Content()
 	[
 		SNew(SBox)
-		.MaxDesiredWidth(750.f)
+		.MaxDesiredWidth(500.f)
 		[
 			TooltipContent
 		]
