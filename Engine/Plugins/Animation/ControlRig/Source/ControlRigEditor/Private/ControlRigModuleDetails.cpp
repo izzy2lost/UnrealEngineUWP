@@ -627,22 +627,22 @@ void FRigModuleInstanceDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBui
 					})
 				);
 
-				// todo: remove the original row.
+				TSharedPtr<SWidget> ValueWidget = DefaultProperty->CreatePropertyValueWidgetWithCustomization(DetailBuilder.GetDetailsView());
 
-				Category.AddCustomRow(DefaultProperty->GetPropertyDisplayName())
+				const bool bShowChildren = true;
+				Category.AddProperty(DefaultProperty).CustomWidget(bShowChildren)
 				.NameContent()
 				[
 					DefaultProperty->CreatePropertyNameWidget()
 				]
 
-				// note: this doesn't work for some reason. seeking help from the editor team
 				.ValueContent()
 				[
-					DefaultProperty->CreatePropertyValueWidget()
+					ValueWidget ? ValueWidget.ToSharedRef() : SNullWidget::NullWidget
 					// todo: if the property is bound / or partially bound
 					// mark the property value widget as disabled / read only.
 				]
-				
+
 				.ExtensionContent()
 				[
 					PropertyAccessEditor.MakePropertyBindingWidget(nullptr, BindingArgs)
