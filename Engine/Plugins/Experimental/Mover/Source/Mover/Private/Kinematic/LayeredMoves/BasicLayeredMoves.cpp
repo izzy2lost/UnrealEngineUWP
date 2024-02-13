@@ -120,7 +120,7 @@ bool FLayeredMove_JumpImpulse::GenerateMove(const FMoverTickStartData& SimState,
 	}
 	else
 	{
-		ensure(0); // other mix modes not supported yet
+		ensureMsgf(false, TEXT("JumpImpulse layered move only supports Override Velocity mix mode and was queued with a different mix mode. Layered move will do nothing."));
 		return false;
 	}
 

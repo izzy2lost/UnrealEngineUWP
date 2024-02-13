@@ -132,7 +132,7 @@ bool FLayeredMove_MultiJump::PerformJump(const FMoverDefaultSyncState* SyncState
 	}
 	else
 	{
-		ensure(0); // other mix modes not supported yet
+		ensureMsgf(false, TEXT("Multi-Jump layered move only supports Override Velocity mix mode and was queued with a different mix mode. Layered move will do nothing."));
 		return false;
 	}
 
