@@ -311,7 +311,7 @@ namespace Chaos
 			return BestNormal;
 		}
 		
-		FORCEINLINE_DEBUGGABLE TVector<T, d> Support(const TVector<T, d>& Direction, const T Thickness, int32& OutVertexIndex) const
+		FORCEINLINE_DEBUGGABLE TVector<T, d> Support(const TVector<T, d>& Direction, const T Thickness, int32& VertexIndex) const
 		{
 			TVector<T, d> ChosenPt;
 			FIntVector ChosenAxis;
@@ -328,8 +328,7 @@ namespace Chaos
 					ChosenAxis[Axis] = 1;
 				}
 			}
-
-			OutVertexIndex = GetIndex(ChosenAxis);
+			VertexIndex =  ChosenAxis[0] * 4 + ChosenAxis[1] * 2 + ChosenAxis[2];
 
 			if (Thickness != (T)0)
 			{
@@ -350,7 +349,7 @@ namespace Chaos
 		}
 
 		// Support vertex in the specified direction, assuming each face has been moved inwards by InMargin
-		FORCEINLINE_DEBUGGABLE FVec3 SupportCore(const FVec3& Direction, const FReal InMargin, FReal* OutSupportDelta, int32& OutVertexIndex) const
+		FORCEINLINE_DEBUGGABLE FVec3 SupportCore(const FVec3& Direction, const FReal InMargin, FReal* OutSupportDelta, int32& VertexIndex) const
 		{
 			FVec3 ChosenPt;
 			FIntVector ChosenAxis;
@@ -367,9 +366,7 @@ namespace Chaos
 					ChosenAxis[Axis] = 1;
 				}
 			}
-
-			OutVertexIndex = GetIndex(ChosenAxis);
-
+			VertexIndex = ChosenAxis[0] * 4 + ChosenAxis[1] * 2 + ChosenAxis[2];
 			// Maximum distance between the Core+Margin position and the original outer vertex
 			constexpr FReal RootThreeMinusOne = FReal(1.7320508075688772935274463415059 - 1.0);
 			if (OutSupportDelta != nullptr)
@@ -389,7 +386,7 @@ namespace Chaos
 			return MakeVectorRegisterFloatFromDouble(MakeVectorRegister(SupportVert.X, SupportVert.Y, SupportVert.Z, 0.0));
 		}
 
-		FORCEINLINE_DEBUGGABLE TVector<T, d> SupportCoreScaled(const TVector<T, d>& Direction, const T InMargin, const TVector<T, d>& Scale, T* OutSupportDelta, int32& OutVertexIndex) const
+		FORCEINLINE_DEBUGGABLE TVector<T, d> SupportCoreScaled(const TVector<T, d>& Direction, const T InMargin, const TVector<T, d>& Scale, T* OutSupportDelta, int32& VertexIndex) const
 		{
 			const TVector<T, d> ScaledDirection = Direction * Scale; // Compensate for Negative scales, only the signs really matter here
 
@@ -408,9 +405,8 @@ namespace Chaos
 					ChosenAxis[Axis] = 1;
 				}
 			}
-
-			OutVertexIndex = GetIndex(ChosenAxis);
-
+			VertexIndex = ChosenAxis[0] * 4 + ChosenAxis[1] * 2 + ChosenAxis[2];
+			
 			constexpr T RootThreeMinusOne = T(1.7320508075688772935274463415059 - 1.0);
 			if (OutSupportDelta != nullptr)
 			{
@@ -499,24 +495,10 @@ namespace Chaos
 		FORCEINLINE TVector<T, d> GetVertex(const int32 Index) const
 		{
 			check(0 <= Index && Index < 8);
-
-			// See GetIndex() for reverse logic
 			return TVector<T, d>(
 				(Index & (1 << 0)) == 0 ? MMin.X : MMax.X,
 				(Index & (1 << 1)) == 0 ? MMin.Y : MMax.Y,
 				(Index & (1 << 2)) == 0 ? MMin.Z : MMax.Z);
-		}
-
-		/**
-		* Given a point on a unit cube expressed as an IntVector of 0s and 1s, get the vertex index of that point.
-		* 0 represents a negative axis and 1 represents a positive axis. All other values are invalid, but we do 
-		* not check this as it would add overhead to support functions. This is used by the support functions and 
-		* must invert the index logic in GetVertex().
-		*/
-		FORCEINLINE int32 GetIndex(const FIntVector& AxisSelector) const
-		{
-			// See GetVertex() for reverse logic
-			return AxisSelector[0] + AxisSelector[1] * 2 + AxisSelector[2] * 4;
 		}
 
 		/**
