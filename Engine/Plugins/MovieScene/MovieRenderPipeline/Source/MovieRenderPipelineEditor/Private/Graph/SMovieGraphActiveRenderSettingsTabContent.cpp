@@ -349,15 +349,15 @@ void SMovieGraphActiveRenderSettingsTabContent::Construct(const FArguments& InAr
 				.OnClicked(this, &SMovieGraphActiveRenderSettingsTabContent::OnEvaluateGraphClicked)
 			]
 
-			+SHorizontalBox::Slot()
-			.Padding(5, 0, 0, 0)
-			.AutoWidth()
-			[
-				SNew(SPositiveActionButton)
-				.Text(LOCTEXT("Button_EvaluationContext", "Evaluation Context..."))
-				.Icon(FAppStyle::GetBrush("EditorPreferences.TabIcon"))
-				.OnGetMenuContent(this, &SMovieGraphActiveRenderSettingsTabContent::GenerateEvaluationContextMenu)
-			]
+			// +SHorizontalBox::Slot()
+			// .Padding(5, 0, 0, 0)
+			// .AutoWidth()
+			// [
+			// 	SNew(SPositiveActionButton)
+			// 	.Text(LOCTEXT("Button_EvaluationContext", "Evaluation Context..."))
+			// 	.Icon(FAppStyle::GetBrush("EditorPreferences.TabIcon"))
+			// 	.OnGetMenuContent(this, &SMovieGraphActiveRenderSettingsTabContent::GenerateEvaluationContextMenu)
+			// ]
 		]
 
 		+ SVerticalBox::Slot()
