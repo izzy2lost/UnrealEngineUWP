@@ -25,14 +25,15 @@ namespace DisplayClusterConfigurationStrings
 		static constexpr const TCHAR* ClusterConfigurationCategory = TEXT("NDisplay Cluster Configuration");
 		static constexpr const TCHAR* ClusterPostprocessCategory   = TEXT("Post Process");
 		static constexpr const TCHAR* ColorGradingCategory         = TEXT("Color Grading");
-		static constexpr const TCHAR* CameraColorGradingCategory   = TEXT("Inner Frustum Color Grading");
+		static constexpr const TCHAR* CameraColorGradingCategory   = TEXT("Color Grading");
 		static constexpr const TCHAR* ChromaKeyCategory            = TEXT("Chromakey");
 		static constexpr const TCHAR* LightcardCategory            = TEXT("Light Cards");
 		static constexpr const TCHAR* OCIOCategory                 = TEXT("OCIO");
 		static constexpr const TCHAR* TileCategory                 = TEXT("Tile Rendering");
 		static constexpr const TCHAR* OverrideCategory             = TEXT("Texture Replacement");
 		static constexpr const TCHAR* ViewportsCategory            = TEXT("Viewports");
-		static constexpr const TCHAR* ICVFXCategory                = TEXT("In Camera VFX");
+		static constexpr const TCHAR* ICVFXCategory                = TEXT("Inner Frustum");
+		static constexpr const TCHAR* ICVFXCameraCategory          = TEXT("ICVFX Camera");
 		static constexpr const TCHAR* ConfigurationCategory        = TEXT("Configuration");
 		static constexpr const TCHAR* PreviewCategory              = TEXT("Editor Preview");
 		static constexpr const TCHAR* PreviewInGameCategory        = TEXT("Preview In Game");

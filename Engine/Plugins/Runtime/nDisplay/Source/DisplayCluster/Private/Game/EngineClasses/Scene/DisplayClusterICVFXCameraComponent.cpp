@@ -59,6 +59,13 @@ void UDisplayClusterICVFXCameraComponent::PostLoad()
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
+void UDisplayClusterICVFXCameraComponent::PostApplyToComponent()
+{
+	Super::PostApplyToComponent();
+
+	CameraSettings.CameraDepthOfField.UpdateDynamicCompensationLUT();
+}
+
 void UDisplayClusterICVFXCameraComponent::GetCameraView(float DeltaTime, FMinimalViewInfo& InOutViewInfo)
 {
 	const ADisplayClusterRootActor* RootActor = Cast<ADisplayClusterRootActor>(GetOwner());
@@ -226,7 +233,7 @@ FDisplayClusterViewport_CameraDepthOfField UDisplayClusterICVFXCameraComponent::
 	OutParameters.bEnableDepthOfFieldCompensation = CameraSettings.CameraDepthOfField.bEnableDepthOfFieldCompensation;
 	OutParameters.DistanceToWall = CameraSettings.CameraDepthOfField.DistanceToWall;
 	OutParameters.DistanceToWallOffset = CameraSettings.CameraDepthOfField.DistanceToWallOffset;
-	OutParameters.CompensationLUT = CameraSettings.CameraDepthOfField.DynamicCompensationLUT ? CameraSettings.CameraDepthOfField.DynamicCompensationLUT : CameraSettings.CameraDepthOfField.CompensationLUT;
+	OutParameters.CompensationLUT = CameraSettings.CameraDepthOfField.DynamicCompensationLUT ? CameraSettings.CameraDepthOfField.DynamicCompensationLUT : CameraSettings.CameraDepthOfField.CompensationLUT.Get();
 
 	return OutParameters;
 }
@@ -235,7 +242,14 @@ void UDisplayClusterICVFXCameraComponent::OnRegister()
 {
 	Super::OnRegister();
 
-	CameraSettings.CameraDepthOfField.UpdateDynamicCompensationLUT();
+	// If the blueprint is being reconstructed, we can't update the dynamic LUT here without causing issues
+	// when the reconstruction attempts to check if the component's properties are modified, as this call will
+	// load the compensation LUT soft pointer, resulting in a memory difference from the archetype.
+	// The PostApplyToComponent call handles rebuilding the dynamic LUT in such a case
+	if (!GIsReconstructingBlueprintInstances)
+	{
+		CameraSettings.CameraDepthOfField.UpdateDynamicCompensationLUT();
+	}
 
 #if WITH_EDITORONLY_DATA
 	// disable frustum for icvfx camera component
