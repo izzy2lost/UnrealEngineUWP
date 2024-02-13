@@ -587,14 +587,12 @@ struct FChaosVDParticleDataWrapper : public FChaosVDWrapperDataBase
 
 	UPROPERTY()
 	TArray<FChaosVDShapeCollisionData> CollisionDataPerShape;
-	
+
 	/** Only used during recording */
-	TSharedPtr<FString> DebugNamePtr;
+	FString* DebugNamePtr = nullptr;
 	bool bHasDebugName = false;
 
 	virtual bool HasValidData() const override { return bHasValidData; }
-
-	void SetHasValidData(bool bNewIsValid){ bHasValidData = bNewIsValid; }
 
 	CHAOSVDRUNTIME_API bool Serialize(FArchive& Ar);
 };

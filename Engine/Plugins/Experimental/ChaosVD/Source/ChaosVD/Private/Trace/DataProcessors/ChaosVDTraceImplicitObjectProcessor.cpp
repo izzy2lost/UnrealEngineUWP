@@ -4,6 +4,8 @@
 
 #include "Chaos/ImplicitObject.h"
 #include "ChaosVDRecording.h"
+#include "ChaosVisualDebugger/ChaosVDMemWriterReader.h"
+#include "ChaosVisualDebugger/ChaosVDSerializedNameTable.h"
 #include "ChaosVisualDebugger/ChaosVisualDebuggerTrace.h"
 #include "DataWrappers/ChaosVDImplicitObjectDataWrapper.h"
 #include "Serialization/MemoryReader.h"
@@ -23,16 +25,21 @@ bool FChaosVDTraceImplicitObjectProcessor::ProcessRawData(const TArray<uint8>& I
 		return false;
 	}
 
-	FMemoryReader MemeReader(InData);
-	Chaos::FChaosArchive Ar(MemeReader);
-
-	FChaosVDImplicitObjectWrapper WrappedGeometryData;
-	WrappedGeometryData.Serialize(Ar);
-
-	if (TSharedPtr<FChaosVDRecording> Recording = ProviderSharedPtr->GetRecordingForSession())
+	if (!ensure(ProviderSharedPtr->GetNameTable().IsValid()))
 	{
-		Recording->AddImplicitObject(WrappedGeometryData.Hash, WrappedGeometryData.ImplicitObject);
+		return false;
 	}
 
-	return !Ar.IsError() && !Ar.IsCriticalError();;
+	FChaosVDImplicitObjectWrapper WrappedGeometryData;
+	const bool bSuccess = ReadDataFromBuffer<FChaosVDImplicitObjectWrapper, Chaos::FChaosArchive>(InData, WrappedGeometryData, ProviderSharedPtr->GetNameTable().ToSharedRef());
+
+	if (bSuccess)
+	{
+		if (TSharedPtr<FChaosVDRecording> Recording = ProviderSharedPtr->GetRecordingForSession())
+		{
+			Recording->AddImplicitObject(WrappedGeometryData.Hash, WrappedGeometryData.ImplicitObject);
+		}
+	}
+
+	return bSuccess;
 }

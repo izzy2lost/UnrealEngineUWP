@@ -20,6 +20,7 @@
 
 #if WITH_CHAOS_VISUAL_DEBUGGER
 
+#include "ChaosVDMemWriterReader.h"
 #include "ChaosVDRuntimeModule.h"
 #include "DataWrappers/ChaosVDImplicitObjectDataWrapper.h"
 #include "Trace/Trace.h"
@@ -122,6 +123,11 @@ enum ECollisionChannel : int;
 
 namespace Chaos
 {
+	namespace VisualDebugger
+	{
+		class FChaosVDSerializableNameTable;
+	}
+
 	class FPBDCollisionConstraints;
 	class FPBDRigidsSOAs;
 	class FImplicitObject;
@@ -134,6 +140,7 @@ namespace Chaos
 }
 
 using FChaosVDImplicitObjectWrapper = FChaosVDImplicitObjectDataWrapper<Chaos::FImplicitObjectPtr, Chaos::FChaosArchive>;
+using FChaosVDSerializableNameTable = Chaos::VisualDebugger::FChaosVDSerializableNameTable;
 
 /** Class containing  all the Tracing logic to record data for the Chaos Visual Debugger tool */
 class FChaosVisualDebuggerTrace
@@ -203,7 +210,7 @@ public:
 	 * @param InData Data to trace
 	 * @param TypeName Type name the data represents. It is used during Trace Analysis serialize it back (this is not automatic)
 	 */
-	static CHAOS_API void TraceBinaryData(const TArray<uint8>& InData, FStringView TypeName);
+	static CHAOS_API void TraceBinaryData(TConstArrayView<uint8> InData, FStringView TypeName);
 
 	/**
 	 * Serializes the implicit object contained in the wrapper and trace its it as binary data
@@ -264,6 +271,8 @@ public:
 	/** Unbinds to the static events triggered by the ChaosVD Runtime module */
 	static void UnregisterEventHandlers();
 
+	static TSharedRef<FChaosVDSerializableNameTable>& GetNameTableInstance() { return CVDNameTable; }
+
 private:
 
 	/**
@@ -291,6 +300,7 @@ private:
 
 	static TSet<int32> SolverIDsForDeltaRecording;
 	static TSet<int32> RequestedFullCaptureSolverIDs;
+	static TSharedRef<FChaosVDSerializableNameTable> CVDNameTable;
 
 	static std::atomic<bool> bIsTracing;
 
@@ -380,4 +390,26 @@ struct FChaosVDScopeSceneQueryVisit
 
 	FChaosVDQueryVisitStep& VisitData;
 };
+
+namespace Chaos::VisualDebugger
+{
+	template<typename TDataToSerialize>
+	void WriteDataToBuffer(TArray<uint8>& InOutDataBuffer, TDataToSerialize& Data)
+	{
+		FChaosVDMemoryWriter MemWriterAr(InOutDataBuffer, FChaosVisualDebuggerTrace::GetNameTableInstance());
+		MemWriterAr.SetShouldSkipUpdateCustomVersion(true);
+
+		Data.Serialize(MemWriterAr);
+	}
+
+	template<typename TDataToSerialize, typename TArchive>
+	void WriteDataToBuffer(TArray<uint8>& InOutDataBuffer, TDataToSerialize& Data)
+	{
+		FChaosVDMemoryWriter MemWriterAr(InOutDataBuffer, FChaosVisualDebuggerTrace::GetNameTableInstance());
+		TArchive Ar(MemWriterAr);
+		Ar.SetShouldSkipUpdateCustomVersion(true);
+
+		Data.Serialize(Ar);
+	}
+}
 #endif // WITH_CHAOS_VISUAL_DEBUGGER

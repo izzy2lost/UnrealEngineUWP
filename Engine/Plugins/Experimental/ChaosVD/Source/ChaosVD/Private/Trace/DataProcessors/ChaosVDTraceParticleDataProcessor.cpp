@@ -3,8 +3,10 @@
 #include "Trace/DataProcessors/ChaosVDTraceParticleDataProcessor.h"
 
 #include "ChaosVDRecording.h"
+#include "ChaosVisualDebugger/ChaosVDMemWriterReader.h"
+#include "ChaosVisualDebugger/ChaosVDSerializedNameTable.h"
+#include "ChaosVisualDebugger/ChaosVisualDebuggerTrace.h"
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
-#include "Serialization/MemoryReader.h"
 #include "Trace/ChaosVDTraceProvider.h"
 
 FChaosVDTraceParticleDataProcessor::FChaosVDTraceParticleDataProcessor(): IChaosVDDataProcessor(FChaosVDParticleDataWrapper::WrapperTypeName)
@@ -19,22 +21,25 @@ bool FChaosVDTraceParticleDataProcessor::ProcessRawData(const TArray<uint8>& InD
 		return false;
 	}
 
-	FMemoryReader MemeReader(InData);
-	MemeReader.SetUseUnversionedPropertySerialization(true);
-
-	Chaos::FChaosArchive Ar(MemeReader);
+	if (!ensure(ProviderSharedPtr->GetNameTable().IsValid()))
+	{
+		return false;
+	}
 
 	TSharedPtr<FChaosVDParticleDataWrapper> ParticleData = MakeShared<FChaosVDParticleDataWrapper>();
-	ParticleData->Serialize(Ar);
+	const bool bSuccess = ReadDataFromBuffer(InData, *ParticleData, ProviderSharedPtr->GetNameTable().ToSharedRef());
 
-	// This can be null if the recording started Mid-Frame. In this case we just discard the data for now
-	if (FChaosVDSolverFrameData* FrameData = ProviderSharedPtr->GetCurrentSolverFrame(ParticleData->SolverID))
+	if (bSuccess)
 	{
-		if (ensureMsgf(FrameData->SolverSteps.Num() > 0, TEXT("A particle was traced without a valid step scope")))
+		// This can be null if the recording started Mid-Frame. In this case we just discard the data for now
+		if (FChaosVDSolverFrameData* FrameData = ProviderSharedPtr->GetCurrentSolverFrame(ParticleData->SolverID))
 		{
-			FrameData->SolverSteps.Last().RecordedParticlesData.Add(ParticleData);
+			if (ensureMsgf(FrameData->SolverSteps.Num() > 0, TEXT("A particle was traced without a valid step scope")))
+			{
+				FrameData->SolverSteps.Last().RecordedParticlesData.Add(ParticleData);
+			}
 		}
 	}
 
-	return !Ar.IsError() && !Ar.IsCriticalError();
+	return bSuccess;
 }

@@ -397,11 +397,7 @@ AChaosVDParticleActor* FChaosVDScene::SpawnParticleFromRecordedData(const TShare
 		return nullptr;
 	}
 
-	FActorSpawnParameters Params;
-	Params.Name = *InParticleData->DebugName;
-	Params.NameMode = FActorSpawnParameters::ESpawnActorNameMode::Requested;
-
-	if (AChaosVDParticleActor* NewActor = PhysicsVDWorld->SpawnActor<AChaosVDParticleActor>(Params))
+	if (AChaosVDParticleActor* NewActor = PhysicsVDWorld->SpawnActor<AChaosVDParticleActor>())
 	{
 		NewActor->SetIsActive(true);
 		NewActor->SetScene(AsShared());

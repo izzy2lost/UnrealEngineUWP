@@ -3,6 +3,7 @@
 #include "Trace/DataProcessors/ChaosVDConstraintDataProcessor.h"
 
 #include "ChaosVDRecording.h"
+#include "ChaosVisualDebugger/ChaosVDMemWriterReader.h"
 #include "DataWrappers/ChaosVDCollisionDataWrappers.h"
 #include "Serialization/MemoryReader.h"
 #include "Trace/ChaosVDTraceProvider.h"
@@ -19,21 +20,28 @@ bool FChaosVDConstraintDataProcessor::ProcessRawData(const TArray<uint8>& InData
 		return false;
 	}
 
-	FChaosVDConstraint RecordedConstraint;
-	FMemoryReader MemReader(InData);
-	RecordedConstraint.Serialize(MemReader);
-
-	// This can be null if the recording started Mid-Frame. In this case we just discard the data for now
-	if (FChaosVDSolverFrameData* FrameData = ProviderSharedPtr->GetCurrentSolverFrame(RecordedConstraint.SolverID))
+	if (!ensure(ProviderSharedPtr->GetNameTable().IsValid()))
 	{
-		if (ensureMsgf(FrameData->SolverSteps.Num() > 0, TEXT("A MidPhase was traced without a valid step scope")))
+		return false;
+	}
+
+	FChaosVDConstraint RecordedConstraint;
+	const bool bSuccess = ReadDataFromBuffer(InData, RecordedConstraint, ProviderSharedPtr->GetNameTable().ToSharedRef());
+
+	if (bSuccess)
+	{
+		// This can be null if the recording started Mid-Frame. In this case we just discard the data for now
+		if (FChaosVDSolverFrameData* FrameData = ProviderSharedPtr->GetCurrentSolverFrame(RecordedConstraint.SolverID))
 		{
-			AddConstraintToParticleIDMap(RecordedConstraint, RecordedConstraint.Particle0Index, *FrameData);
-			AddConstraintToParticleIDMap(RecordedConstraint, RecordedConstraint.Particle1Index, *FrameData);
+			if (ensureMsgf(FrameData->SolverSteps.Num() > 0, TEXT("A MidPhase was traced without a valid step scope")))
+			{
+				AddConstraintToParticleIDMap(RecordedConstraint, RecordedConstraint.Particle0Index, *FrameData);
+				AddConstraintToParticleIDMap(RecordedConstraint, RecordedConstraint.Particle1Index, *FrameData);
+			}
 		}
 	}
 
-	return !MemReader.IsError() && !MemReader.IsCriticalError();
+	return bSuccess;
 }
 
 void FChaosVDConstraintDataProcessor::AddConstraintToParticleIDMap(const FChaosVDConstraint& InConstraintData, int32 ParticleID, FChaosVDSolverFrameData& InFrameData)

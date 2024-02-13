@@ -94,6 +94,19 @@ inline FArchive& operator<<(FArchive& Ar, FChaosVDContactPoint& Data)
 	return Ar;
 }
 
+UENUM()
+enum class EChaosVDManifoldPointFlags : uint8
+{
+	None = 0,
+	Disabled = 1 << 0,
+	WasRestored = 1 << 1,
+	WasReplaced = 1 << 2,
+	HasStaticFrictionAnchor = 1 << 3,
+	IsValid = 1 << 4,
+	InsideStaticFrictionCone = 1 << 5,
+};
+ENUM_CLASS_FLAGS(EChaosVDManifoldPointFlags)
+
 USTRUCT()
 struct CHAOSVDRUNTIME_API FChaosVDManifoldPoint
 {
@@ -211,6 +224,24 @@ inline FArchive& operator<<(FArchive& Ar, FChaosVDCollisionMaterial& Data)
 	return Ar;
 }
 
+UENUM()
+enum class EChaosVDConstraintFlags : uint16
+{
+	None = 0,
+	IsCurrent = 1 << 0,
+	Disabled = 1 << 1,
+	UseManifold = 1 << 2,
+	UseIncrementalManifold = 1 << 3,
+	CanRestoreManifold = 1 << 4,
+	WasManifoldRestored = 1 << 5,
+	IsQuadratic0 = 1 << 6,
+	IsQuadratic1 = 1 << 7,
+	IsProbe = 1 << 8,
+	CCDEnabled = 1 << 9,
+	CCDSweepEnabled = 1 << 10,
+	ModifierApplied = 1 << 11,
+	MaterialSet = 1 << 12,
+};
 
 USTRUCT()
 struct CHAOSVDRUNTIME_API FChaosVDConstraint
@@ -329,6 +360,17 @@ inline FArchive& operator<<(FArchive& Ar, FChaosVDConstraint& Data)
 	return Ar;
 }
 
+UENUM()
+enum class EChaosVDMidPhaseFlags : uint8
+{
+	None = 0,
+	IsActive = 1 << 0,
+	IsCCD = 1 << 1,
+	IsCCDActive = 1 << 2,
+	IsSleeping = 1 << 3,
+	IsModified = 1 << 4,
+};
+
 USTRUCT()
 struct CHAOSVDRUNTIME_API FChaosVDParticlePairMidPhase
 {
@@ -426,6 +468,14 @@ inline FArchive& operator<<(FArchive& Ar, FChaosVDCollisionFilterData& Data)
 	Data.Serialize(Ar);
 	return Ar;
 }
+UENUM()
+enum class EChaosVDCollisionShapeDataFlags : uint8
+{
+	None = 0,
+	SimCollision = 1 << 0,
+	QueryCollision = 1 << 1,
+	IsProbe = 1 << 2,
+};
 
 USTRUCT()
 struct CHAOSVDRUNTIME_API FChaosVDShapeCollisionData
