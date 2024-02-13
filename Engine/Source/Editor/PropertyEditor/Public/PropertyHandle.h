@@ -629,12 +629,25 @@ public:
 	 * @param ToolTipOverride			The tooltip override to use instead of the property name
 	 */
 	virtual TSharedRef<SWidget> CreatePropertyNameWidget(const FText& NameOverride = FText::GetEmpty(), const FText& ToolTipOverride = FText::GetEmpty()) const = 0;
+	
 	/**
 	 * Creates a value widget for this property
-
+	 * 
+	 * @param bDisplayDefaultPropertyButtons	If the value widget should include the property buttons.
+	 *
 	 * @return the value widget for this property
 	 */
 	virtual TSharedRef<SWidget> CreatePropertyValueWidget( bool bDisplayDefaultPropertyButtons = true ) const = 0;
+
+	/**
+	 * Creates a value widget for this property using customization, if available.
+	 * Note that this is only the value widget for the header/main row for properties with child rows (ie: structs)
+	 * 
+	 * @param DetailsView						The details view to create the value widget for. Used to retrieve per details view customizations.
+	 * 
+	 * @return the value widget for this property
+	 */
+	virtual TSharedRef<SWidget> CreatePropertyValueWidget( const IDetailsView* DetailsView ) = 0;
 
 	/**
 	 * Creates the default buttons which appear next to value widgets.  This is useful when creating customizations
