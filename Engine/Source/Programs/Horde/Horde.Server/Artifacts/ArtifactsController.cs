@@ -253,13 +253,14 @@ namespace Horde.Server.Artifacts
 		/// </summary>
 		/// <param name="id">Identifier of the artifact to retrieve</param>
 		/// <param name="path">Path to fetch</param>
+		/// <param name="search">Optional search parameter</param>
 		/// <param name="filter">Filter for returned properties</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Information about all the artifacts</returns>
 		[HttpGet]
 		[Route("/api/v2/artifacts/{id}/browse")]
 		[ProducesResponseType(typeof(GetArtifactDirectoryResponse), 200)]
-		public async Task<ActionResult<object>> BrowseArtifactAsync(ArtifactId id, [FromQuery] string? path = null, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
+		public async Task<ActionResult<object>> BrowseArtifactAsync(ArtifactId id, [FromQuery] string? path = null, [FromQuery] string? search = null, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
 			IArtifact? artifact = await _artifactCollection.GetAsync(id, cancellationToken);
 			if (artifact == null)
@@ -297,49 +298,109 @@ namespace Horde.Server.Artifacts
 			}
 
 			GetArtifactDirectoryResponse response = new GetArtifactDirectoryResponse();
-			await ExpandDirectoriesAsync(directoryNode, 0, response, cancellationToken);
+			if (String.IsNullOrEmpty(search))
+			{
+				await ExpandDirectoriesAsync(directoryNode, 0, response, cancellationToken);
+			}
+			else
+			{
+				await SearchDirectoriesAsync(directoryNode, search, response, cancellationToken);
+			}
 			return PropertyFilter.Apply(response, filter);
 		}
 
 		static async Task ExpandDirectoriesAsync(DirectoryNode directoryNode, int depth, GetArtifactDirectoryResponse response, CancellationToken cancellationToken)
 		{
-			if (directoryNode.Directories.Count > 0)
+			foreach (DirectoryEntry subDirectoryEntry in directoryNode.Directories)
 			{
-				response.Directories = new List<GetArtifactDirectoryEntryResponse>();
-				foreach (DirectoryEntry subDirectoryEntry in directoryNode.Directories)
-				{
-					DirectoryNode subDirectoryNode = await subDirectoryEntry.Handle.ReadBlobAsync(cancellationToken: cancellationToken);
+				DirectoryNode subDirectoryNode = await subDirectoryEntry.Handle.ReadBlobAsync(cancellationToken: cancellationToken);
 
-					GetArtifactDirectoryEntryResponse subDirectoryEntryResponse = new GetArtifactDirectoryEntryResponse(subDirectoryEntry.Name.ToString(), subDirectoryEntry.Length, subDirectoryEntry.Handle.Hash);
-					if (depth == 0)
-					{
-						if (subDirectoryNode.Directories.Count + subDirectoryNode.Files.Count < 16)
-						{
-							await ExpandDirectoriesAsync(subDirectoryNode, depth + 1, subDirectoryEntryResponse, cancellationToken);
-						}
-					}
-					else if (depth == 1)
-					{
-						if (subDirectoryNode.Directories.Count + subDirectoryNode.Files.Count < 8)
-						{
-							await ExpandDirectoriesAsync(subDirectoryNode, depth + 1, subDirectoryEntryResponse, cancellationToken);
-						}
-					}
-					else if (depth < 10)
-					{
-						if (subDirectoryNode.Directories.Count == 1 && subDirectoryNode.Files.Count == 0)
-						{
-							await ExpandDirectoriesAsync(subDirectoryNode, depth + 1, subDirectoryEntryResponse, cancellationToken);
-						}
-					}
+				GetArtifactDirectoryEntryResponse subDirectoryEntryResponse = new GetArtifactDirectoryEntryResponse(subDirectoryEntry.Name.ToString(), subDirectoryEntry.Length, subDirectoryEntry.Handle.Hash);
+
+				if (IncludeInlineResponse(depth, subDirectoryNode.Directories.Count, subDirectoryNode.Files.Count))
+				{
+					await ExpandDirectoriesAsync(subDirectoryNode, depth + 1, subDirectoryEntryResponse, cancellationToken);
+				}
+
+				response.Directories ??= new List<GetArtifactDirectoryEntryResponse>();
+				response.Directories.Add(subDirectoryEntryResponse);
+			}
+
+			foreach (FileEntry fileEntry in directoryNode.Files)
+			{
+				response.Files ??= new List<GetArtifactFileEntryResponse>();
+				response.Files.Add(new GetArtifactFileEntryResponse(fileEntry.Name.ToString(), fileEntry.Length, fileEntry.StreamHash));
+			}
+		}
+
+		static async Task SearchDirectoriesAsync(DirectoryNode directoryNode, string search, GetArtifactDirectoryResponse response, CancellationToken cancellationToken)
+		{
+			await SearchDirectoriesFullAsync(directoryNode, "", search, response, cancellationToken);
+			FilterInlineResponses(0, response);
+		}
+
+		static async Task SearchDirectoriesFullAsync(DirectoryNode directoryNode, string path, string search, GetArtifactDirectoryResponse response, CancellationToken cancellationToken)
+		{
+			foreach (DirectoryEntry subDirectoryEntry in directoryNode.Directories)
+			{
+				DirectoryNode subDirectoryNode = await subDirectoryEntry.Handle.ReadBlobAsync(cancellationToken: cancellationToken);
+
+				GetArtifactDirectoryEntryResponse subDirectoryEntryResponse = new GetArtifactDirectoryEntryResponse(subDirectoryEntry.Name.ToString(), subDirectoryEntry.Length, subDirectoryEntry.Handle.Hash);
+				await SearchDirectoriesFullAsync(subDirectoryNode, $"{path}/{subDirectoryEntry.Name}", search, subDirectoryEntryResponse, cancellationToken);
+
+				if ((subDirectoryEntryResponse.Files?.Count ?? 0) > 0 || (subDirectoryEntryResponse.Directories?.Count ?? 0) > 0)
+				{
+					response.Directories ??= new List<GetArtifactDirectoryEntryResponse>();
 					response.Directories.Add(subDirectoryEntryResponse);
 				}
 			}
 
-			if (directoryNode.Files.Count > 0)
+			foreach (FileEntry fileEntry in directoryNode.Files)
 			{
-				response.Files = directoryNode.Files.Select(x => new GetArtifactFileEntryResponse(x.Name.ToString(), x.Length, x.StreamHash)).ToList();
+				string filePath = $"{path}/{fileEntry.Name}";
+				if (filePath.Contains(search, StringComparison.OrdinalIgnoreCase))
+				{
+					response.Files ??= new List<GetArtifactFileEntryResponse>();
+					response.Files.Add(new GetArtifactFileEntryResponse(fileEntry.Name.ToString(), fileEntry.Length, fileEntry.StreamHash));
+				}
 			}
+		}
+
+		static void FilterInlineResponses(int depth, GetArtifactDirectoryResponse response)
+		{
+			if (response.Directories != null)
+			{
+				foreach (GetArtifactDirectoryResponse subDirResponse in response.Directories)
+				{
+					if (IncludeInlineResponse(depth, subDirResponse.Directories?.Count ?? 0, subDirResponse.Files?.Count ?? 0))
+					{
+						FilterInlineResponses(depth + 1, subDirResponse);
+					}
+					else
+					{
+						subDirResponse.Directories = null;
+						subDirResponse.Files = null;
+					}
+				}
+			}
+		}
+
+		static bool IncludeInlineResponse(int depth, int numDirectories, int numFiles)
+		{
+			bool result = false;
+			if (depth == 0)
+			{
+				result = (numDirectories + numFiles) < 16;
+			}
+			else if (depth == 1)
+			{
+				result = (numDirectories + numFiles) < 8;
+			}
+			else if (depth < 10)
+			{
+				result = (numDirectories == 1 && numFiles == 0);
+			}
+			return result;
 		}
 
 		/// <summary>

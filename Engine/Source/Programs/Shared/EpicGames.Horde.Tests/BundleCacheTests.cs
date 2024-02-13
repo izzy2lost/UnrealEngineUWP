@@ -18,12 +18,12 @@ namespace EpicGames.Horde.Tests
 			await using BundleCache cache = new BundleCache(new BundleCacheOptions { MaxSize = 4096 });
 
 			Assert.AreEqual(0, cache.CurrentSize);
-			using (IMemoryOwner<byte> owner = cache.Allocator.Alloc(1024))
+			using (IMemoryOwner<byte> owner = cache.Allocator.Alloc(1024, null))
 			{
 				Assert.AreEqual(1024, cache.CurrentSize);
 			}
 			Assert.AreEqual(0, cache.CurrentSize);
-			using (IMemoryOwner<byte> owner = cache.Allocator.Alloc(1024))
+			using (IMemoryOwner<byte> owner = cache.Allocator.Alloc(1024, null))
 			{
 				Assert.AreEqual(1024, cache.CurrentSize);
 			}
@@ -45,7 +45,7 @@ namespace EpicGames.Horde.Tests
 
 			Assert.AreEqual(0, cache.CurrentSize);
 
-			IRefCountedHandle<TestData> result = await cache.FindOrAddAsync("test", (key, ctx) => Task.FromResult(new TestData(cache.Allocator.Alloc(1000))));
+			IRefCountedHandle<TestData> result = await cache.FindOrAddAsync("test", (key, ctx) => Task.FromResult(new TestData(cache.Allocator.Alloc(1000, null))));
 			Assert.AreEqual(1000, cache.CurrentSize);
 			Assert.AreEqual(2, result.RefCount); // cache and result
 
@@ -68,12 +68,12 @@ namespace EpicGames.Horde.Tests
 			Assert.IsNull(cache.Find<string, TestData>("other"));
 
 			// Allocate above the 1024 byte budget and check it's released
-			IMemoryOwner<byte> owner = cache.Allocator.Alloc(25);
+			IMemoryOwner<byte> owner = cache.Allocator.Alloc(25, null);
 			Assert.AreEqual(25, cache.CurrentSize);
 			Assert.IsNull(cache.Find<string, TestData>("test"));
 
 			// Allow allocating more than the limit if we don't have any cache values to free
-			IMemoryOwner<byte> owner2 = cache.Allocator.Alloc(2000);
+			IMemoryOwner<byte> owner2 = cache.Allocator.Alloc(2000, null);
 			Assert.AreEqual(2025, cache.CurrentSize);
 
 			owner2.Dispose();
@@ -88,11 +88,11 @@ namespace EpicGames.Horde.Tests
 
 			Assert.AreEqual(0, cache.CurrentSize);
 
-			IRefCountedHandle<TestData> result = await cache.FindOrAddAsync("test", (key, ctx) => Task.FromResult(new TestData(cache.Allocator.Alloc(1000))));
+			IRefCountedHandle<TestData> result = await cache.FindOrAddAsync("test", (key, ctx) => Task.FromResult(new TestData(cache.Allocator.Alloc(1000, null))));
 			Assert.AreEqual(1000, cache.CurrentSize);
 			result.Dispose();
 
-			IMemoryOwner<byte> owner = cache.Allocator.Alloc(10);
+			IMemoryOwner<byte> owner = cache.Allocator.Alloc(10, null);
 
 			Assert.AreEqual(1010, cache.CurrentSize);
 
@@ -111,11 +111,11 @@ namespace EpicGames.Horde.Tests
 			Assert.AreEqual(0, cache.CurrentSize);
 
 #pragma warning disable CA2000
-			Assert.IsTrue(cache.TryAdd("test", new TestData(cache.Allocator.Alloc(20))));
+			Assert.IsTrue(cache.TryAdd("test", new TestData(cache.Allocator.Alloc(20, null))));
 #pragma warning restore CA2000
 			Assert.AreEqual(20, cache.CurrentSize);
 
-			IRefCountedHandle<TestData> result = await cache.FindOrAddAsync("test", (key, ctx) => Task.FromResult(new TestData(cache.Allocator.Alloc(20))));
+			IRefCountedHandle<TestData> result = await cache.FindOrAddAsync("test", (key, ctx) => Task.FromResult(new TestData(cache.Allocator.Alloc(20, null))));
 			Assert.AreEqual(20, cache.CurrentSize);
 
 			cache.Trim(); 
@@ -133,10 +133,10 @@ namespace EpicGames.Horde.Tests
 
 			Assert.AreEqual(0, cache.CurrentSize);
 
-			IRefCountedHandle<TestData> result = await cache.FindOrAddAsync("test", (key, ctx) => Task.FromResult(new TestData(cache.Allocator.Alloc(20))));
+			IRefCountedHandle<TestData> result = await cache.FindOrAddAsync("test", (key, ctx) => Task.FromResult(new TestData(cache.Allocator.Alloc(20, null))));
 			Assert.AreEqual(20, cache.CurrentSize);
 
-			TestData testData = new TestData(cache.Allocator.Alloc(20));
+			TestData testData = new TestData(cache.Allocator.Alloc(20, null));
 			Assert.IsFalse(cache.TryAdd("test", testData));
 			Assert.AreEqual(40, cache.CurrentSize);
 			testData.Dispose();

@@ -126,7 +126,7 @@ namespace EpicGames.Horde.Storage.Bundles
 			{
 				BundleSignature signature = BundleSignature.Read(data.Span);
 
-				using IRefCountedHandle<Bundles.V2.Packet> packet = Bundles.V2.Packet.Decode(data, Cache.Allocator);
+				using IRefCountedHandle<Bundles.V2.Packet> packet = Bundles.V2.Packet.Decode(data, Cache.Allocator, nameof(ReadImportsFromDataV2));
 				for (int idx = 0; idx < packet.Target.GetImportCount(); idx++)
 				{
 					PacketImport import = packet.Target.GetImport(idx);

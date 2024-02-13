@@ -484,7 +484,7 @@ namespace Horde.Server.Server
 			{
 				throw new StructuredRpcException(StatusCode.NotFound, $"Missing tool {toolId}");
 			}
-			if (!toolConfig.Authorize(ToolAclAction.DownloadTool, context.GetHttpContext().User))
+			if (!toolConfig.Public && !toolConfig.Authorize(ToolAclAction.DownloadTool, context.GetHttpContext().User))
 			{
 				throw new StructuredRpcException(StatusCode.NotFound, "Access to software is forbidden");
 			}

@@ -10,8 +10,9 @@ namespace UnrealGameSync
 {
 	public enum LauncherUpdateSource
 	{
-		Perforce = 0,
-		Horde = 1,
+		Unknown = 0,
+		Perforce = 1,
+		Horde = 2,
 	}
 
 	public class LauncherSettings
@@ -28,6 +29,7 @@ namespace UnrealGameSync
 
 		public LauncherSettings()
 		{
+			UpdateSource = DeploymentSettings.Instance.UpdateSource;
 			HordeServer = DeploymentSettings.Instance.HordeUrl;
 			PerforceDepotPath = DeploymentSettings.Instance.DefaultDepotPath;
 		}
@@ -106,7 +108,7 @@ namespace UnrealGameSync
 				// Delete this legacy setting
 				Utility.DeleteRegistryKey(key, "Server");
 
-				SaveRegistryValue(key, "Source", UpdateSource.ToString(), LauncherUpdateSource.Perforce.ToString());
+				SaveRegistryValue(key, "Source", UpdateSource.ToString(), DeploymentSettings.Instance.UpdateSource.ToString());
 				SaveRegistryValue(key, "HordeServer", HordeServer, DeploymentSettings.Instance.HordeUrl);
 				SaveRegistryValue(key, "ServerAndPort", PerforceServerAndPort, null);
 				SaveRegistryValue(key, "UserName", PerforceUserName, null);

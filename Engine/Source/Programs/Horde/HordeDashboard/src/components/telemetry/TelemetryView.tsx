@@ -1,13 +1,14 @@
-import { ComboBox, DefaultButton, FontIcon, IComboBox, IComboBoxOption, IComboBoxStyles, Icon, Pivot, PivotItem, SelectableOptionMenuItemType, Spinner, SpinnerSize, Stack, Text, mergeStyleSets, mergeStyles } from "@fluentui/react";
+import { ComboBox, DefaultButton, DirectionalHint, FontIcon, IComboBox, IComboBoxOption, IComboBoxStyles, ITooltipHostStyles, ITooltipProps, Icon, Pivot, PivotItem, SelectableOptionMenuItemType, Spinner, SpinnerSize, Stack, Text, TooltipHost, mergeStyleSets, mergeStyles } from "@fluentui/react";
 import { useConst } from '@fluentui/react-hooks';
 import { action, makeObservable, observable } from "mobx";
 import { observer } from "mobx-react-lite";
-import React, { useEffect, useState } from "react";
+import moment from "moment";
+import React, { useEffect, useId, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { GetTelemetryChartResponse, GetTelemetryMetricsResponse, GetTelemetryVariableResponse, GetTelemetryViewResponse } from "../../backend/Api";
+import { GetTelemetryChartResponse, GetTelemetryMetricResponse, GetTelemetryMetricsResponse, GetTelemetryVariableResponse, GetTelemetryViewResponse } from "../../backend/Api";
 import dashboard, { StatusColor } from "../../backend/Dashboard";
 import { useWindowSize } from "../../base/utilities/hooks";
-import { msecToElapsed } from "../../base/utilities/timeUtils";
+import { displayTimeZone, msecToElapsed } from "../../base/utilities/timeUtils";
 import { getHordeStyling } from "../../styles/Styles";
 import { Breadcrumbs } from "../Breadcrumbs";
 import { TopNav } from "../TopNav";
@@ -47,6 +48,9 @@ const timeSelections: TimeSelection[] = [
 type LegendEntry = {
    display: string;
    key: string;
+   min: number;
+   max: number;
+   change: number;
 }
 
 
@@ -128,6 +132,10 @@ class MetricsHandler {
 
    getChartLegend(chartName: string): LegendEntry[] {
 
+      const mins = new Map<string, number>();
+      const maxs = new Map<string, number>();
+      const keyMetrics = new Map<string, GetTelemetryMetricResponse[]>();
+
       const chart = this.getChart(chartName);
       if (!chart) {
          return [];
@@ -148,6 +156,16 @@ class MetricsHandler {
       metrics.forEach(metric => {
 
          metric.metrics.forEach(m => {
+
+            mins.set(m.key, Math.min(mins.get(m.key) ?? Number.MAX_SAFE_INTEGER, m.value));
+            maxs.set(m.key, Math.max(maxs.get(m.key) ?? Number.MIN_SAFE_INTEGER, m.value));
+
+            if (!keyMetrics.has(m.key)) {
+               keyMetrics.set(m.key, []);
+            }
+
+            keyMetrics.get(m.key)!.push(m);
+
             legendSet.add(m.key)
          })
       })
@@ -159,9 +177,27 @@ class MetricsHandler {
             display = display.replace(replace[i], "")
          }
 
+         let change = 0;
+
+         const metrics = keyMetrics.get(key)!.sort((a, b) => {
+            return a.time.getTime() - b.time.getTime();
+         })
+
+         if (metrics.length > 1) {
+            const m1 = metrics[0].value;
+            const m2 = metrics[metrics.length - 1].value;
+            if (m1) {
+               change = (m2 - m1) / m1;
+            }
+
+         }
+
          return {
             display: display,
-            key: key
+            key: key,
+            min: mins.get(key)!,
+            max: maxs.get(key)!,
+            change: change
          }
       });
 
@@ -204,14 +240,33 @@ class MetricsHandler {
       const cmetrics = new Set<string>(chart.metrics.map(cm => cm.metricId));
 
       let metrics = this.metrics.metrics.filter(m => {
+
          return cmetrics.has(m.metricId);
       }).map(m => { return { ...m } as GetTelemetryMetricsResponse });
+
+      if (chart.min !== undefined || chart.max !== undefined) {
+         metrics.forEach(metric => {
+            metric.metrics = metric.metrics.filter(m => {
+               if (chart.min !== undefined && m.value < chart.min) {
+                  return false;
+               }
+
+               if (chart.max !== undefined && m.value > chart.max) {
+                  return false;
+               }
+
+               return true;
+            })
+         })
+      }
+
 
       if (latest) {
          const found = new Set<string>();
 
          metrics.forEach(metric => {
-            metric.metrics = metric.metrics.filter(m => {
+            metric.metrics = metric.metrics.sort((a, b) => a.time.getTime() - b.time.getTime()).filter(m => {
+
                if (found.has(m.key)) {
                   return false;
                }
@@ -259,6 +314,23 @@ class MetricsHandler {
       clearTelemetryViewMetrics();
    }
 
+   valueToString(chart: GetTelemetryChartResponse, valueIn: number): string {
+
+      let value = "";
+
+      if (chart.display === "Ratio") {
+         value = Math.round((valueIn * 100)).toString() + "%"
+      }
+      else if (chart.display === "Value") {
+         value = Math.round(valueIn).toString();
+      }
+      else {
+         value = msecToElapsed((valueIn) * 1000, true, true);
+      }
+
+      return value;
+   }
+
    async initialize() {
 
       if (this.view || this.initialized) {
@@ -272,7 +344,17 @@ class MetricsHandler {
          return;
       }
 
-      this.search = new URLSearchParams(window.location.search);
+      this.search = new URLSearchParams();
+
+      const query = new URLSearchParams(window.location.search).get("query");
+      if (query?.length) {
+         try {
+            this.search = new URLSearchParams(atob(query));
+         } catch (reason) {
+            console.error(reason);
+         }
+      }
+
       this.searchState = this.stateFromSearch();
 
       this.view = this.allViews[0]
@@ -688,28 +770,68 @@ const TimeChooser: React.FC = observer(() => {
 
 const Legend: React.FC<{ chart: GetTelemetryChartResponse }> = observer(({ chart }) => {
 
+   const { modeColors } = getHordeStyling();
+
+   const tooltipId = useId();
+
    handler.subscribe();
 
    const legend = handler.getChartLegend(chart.name);
 
    const legendStacks: JSX.Element[] = [];
 
+   const calloutProps = { gapSpace: 0 };
+   const hostStyles: Partial<ITooltipHostStyles> = { root: { display: 'inline-block' } };
+
    legend.forEach((v, index) => {
 
       const filtered = handler.filteredKeys.has(v.key);
 
-      const stack = <Stack key={`key_legend_${v.key}`} horizontal verticalAlign="center" tokens={{ childrenGap: 8 }} onClick={() => {
-         if (legend.length > 1) {
-            handler.setFilterKey(v.key, !filtered);
+      const tooltipProps: ITooltipProps = {
+
+         onRenderContent: () => {
+
+            const entry = legend.find(n => n.key === v.key);
+            if (!entry) {
+               return null;
+            }
+
+            return <Stack style={{ backgroundColor: modeColors.background, border: "solid", borderWidth: "1px", borderRadius: "3px", borderColor: dashboard.darktheme ? "#413F3D" : "#2D3F5F" }}>
+               <Stack style={{ padding: "16px 16px" }} tokens={{ childrenGap: 8 }}>
+                  <Stack>
+                     <Text variant="small">Min: {handler.valueToString(chart, entry.min)}</Text>
+                  </Stack>
+                  <Stack>
+                     <Text variant="small">Max: {handler.valueToString(chart, entry.max)}</Text>
+                  </Stack>
+                  <Stack>
+                     <Text variant="small">Change: {Math.round((entry.change * 100)).toString() + "%"}</Text>
+                  </Stack>
+               </Stack>
+            </Stack>
          }
-      }}>
-         <Stack>
-            <FontIcon style={{ color: filtered ? "#999999" : graphColors[index % graphColors.length], paddingTop: 2 }} iconName="Square" />
+      };
+
+      const stack = <TooltipHost
+         tooltipProps={tooltipProps}
+         id={tooltipId}
+         delay={0}
+         directionalHint={DirectionalHint.leftCenter}
+         calloutProps={calloutProps}
+         styles={hostStyles}>
+         <Stack key={`key_legend_${v.key}`} horizontal verticalAlign="center" tokens={{ childrenGap: 8 }} onClick={() => {
+            if (legend.length > 1) {
+               handler.setFilterKey(v.key, !filtered);
+            }
+         }}>
+            <Stack>
+               <FontIcon style={{ color: filtered ? "#999999" : graphColors[index % graphColors.length], paddingTop: 2 }} iconName="Square" />
+            </Stack>
+            <Stack>
+               <Text style={{ fontSize: "11px", color: filtered ? "#999999" : undefined }}>{v.display}</Text>
+            </Stack>
          </Stack>
-         <Stack>
-            <Text style={{ fontSize: "11px", color: filtered ? "#999999" : undefined }}>{v.display}</Text>
-         </Stack>
-      </Stack>
+      </TooltipHost>
 
       legendStacks.push(stack)
 
@@ -740,12 +862,8 @@ export type IndicatorBarStack = {
 export const IndicatorBar: React.FC<{ stack: IndicatorBarStack[], width: number, height: number, basecolor?: string, style?: any }> = ({ stack, width, height, basecolor, style }) => {
    stack = stack.filter(s => s.value > 0);
 
-   const mainTitle = stack.map((item) => {
-      return item.titleValue === undefined ? `${item.value}% ${item.title}` : `${item.titleValue} ${item.title}`
-   }).join(' ');
-
    return (
-      <div className={mergeStyles({ backgroundColor: basecolor, width: width, height: height, verticalAlign: 'middle', display: "flex" }, style)} title={mainTitle}>
+      <div className={mergeStyles({ backgroundColor: basecolor, width: width, height: height, verticalAlign: 'middle', display: "flex" }, style)}>
          {stack.map((item) => {
 
             let boxShadow = !item.brightness ? `0 0 3px ${item.color}` : undefined;
@@ -782,7 +900,7 @@ const IndicatorTile: React.FC<{ chart: GetTelemetryChartResponse }> = observer((
 
    handler.subscribe();
 
-   const metrics = handler.getFilteredChartMetrics(chart.name, true);
+   const metrics = handler.getFilteredChartMetrics(chart.name);
 
    const legend = handler.getChartLegend(chart.name);
 
@@ -792,7 +910,41 @@ const IndicatorTile: React.FC<{ chart: GetTelemetryChartResponse }> = observer((
 
    const colors = dashboard.getStatusColors();
 
-   const allMetrics = metrics.map(m => m.metrics).flat().sort((a, b) => a.key.localeCompare(b.key));
+   let allMetrics = metrics.map(m => m.metrics).flat().sort((a, b) => a.key.localeCompare(b.key));
+
+   const keyValues = new Map<string, number[]>();
+   allMetrics.forEach(m => {
+
+      if (!keyValues.has(m.key)) {
+         keyValues.set(m.key, []);
+      }
+      keyValues.get(m.key)!.push(m.value);
+   })
+
+   const keyAverages = new Map<string, number>();
+   keyValues.forEach((values, key) => {
+      let avg = 0;
+      values.forEach(v => avg += v);
+      avg /= values.length;
+      keyAverages.set(key, Math.round(avg));
+   })
+
+   const found = new Set<string>();
+
+   allMetrics = allMetrics.sort((a, b) => a.time.getTime() - b.time.getTime());
+   allMetrics = allMetrics.filter(m => {
+
+      if (found.has(m.key)) {
+         return false;
+      }
+
+      found.add(m.key);
+      return true;
+   })
+
+   allMetrics.forEach(m => {
+      m.value = keyAverages.get(m.key) ?? 0;
+   })
 
    const elements: JSX.Element[] = [];
 
@@ -819,7 +971,7 @@ const IndicatorTile: React.FC<{ chart: GetTelemetryChartResponse }> = observer((
          barStack.push({ value: 10, color: color, brightness: brightness });
       }
 
-      const name = legend.find(v => v.key === m.key)?.display ?? m.key;      
+      const name = legend.find(v => v.key === m.key)?.display ?? m.key;
 
       const element = <Stack horizontal verticalAlign="center" key={`indicator_bar_${metricIdCounter++}`}>
          <Stack style={{ width: 340 }}>
@@ -843,11 +995,111 @@ const IndicatorTile: React.FC<{ chart: GetTelemetryChartResponse }> = observer((
    </Stack>
 })
 
+
+class Tooltip {
+   constructor() {
+      makeObservable(this);
+   }
+
+   subscribe() {
+      if (this.updated) { }
+   }
+
+   @action
+   set(key: string, x: number, y: number, time: Date, value: number, color: string) {
+
+      if (key === "__clear__") {
+         this.show = false;
+         this.updated++;
+         return;
+      }
+      this.show = true;
+      this.color = color;
+      this.key = key;
+      this.x = x;
+      this.y = y;
+      this.time = time;
+      this.value = value;
+      this.updated++;
+   }
+
+   show = false;
+
+   key: string = "";
+   x: number = 0;
+   y: number = 0;
+   time: Date = new Date();
+   value: number = 0;
+   color: string = "";
+
+   @observable
+   private updated = 0;
+}
+
+const GraphTooltip: React.FC<{ chart: GetTelemetryChartResponse, tooltip: Tooltip, legend: LegendEntry[] }> = observer(({ chart, tooltip, legend }) => {
+
+   const { modeColors } = getHordeStyling();
+
+   tooltip.subscribe();
+
+   if (!tooltip.show) {
+      return null;
+   }
+
+   let tipX = tooltip.x;
+   let offsetX = 32;
+   let translateX = "0%";
+
+   if (tipX > 800) {
+      offsetX = -32;
+      translateX = "-100%";
+   }
+
+   const translateY = "-50%";
+
+   const time = moment(tooltip.time).tz(displayTimeZone());
+
+   let value = handler.valueToString(chart, tooltip.value);
+
+   let name = legend.find(k => k.key === tooltip.key)?.display ?? tooltip.key;
+
+   return <div style={{
+      position: "absolute",
+      display: "block",
+      top: `${tooltip.y}px`,
+      left: `${tooltip.x + offsetX}px`,
+      backgroundColor: modeColors.background,
+      zIndex: 1,
+      border: "solid",
+      borderWidth: "1px",
+      borderRadius: "3px",
+      width: "max-content",
+      borderColor: dashboard.darktheme ? "#413F3D" : "#2D3F5F",
+      pointerEvents: "none",
+      transform: `translate(${translateX}, ${translateY})`
+   }}>
+      <Stack style={{ padding: "16px 16px" }} tokens={{ childrenGap: 8 }}>
+         <Stack horizontal tokens={{ childrenGap: 4 }}>
+            <FontIcon style={{ color: tooltip.color, paddingTop: 3 }} iconName="Square" />
+            <Text>{name}</Text>
+         </Stack>
+         <Stack>
+            <Text>{time.format("MM/DD HH:mm")}</Text>
+         </Stack>
+         <Stack>
+            <Text>{value}</Text>
+         </Stack>
+      </Stack>
+   </div>
+
+})
+
 const LineGraphTile: React.FC<{ chart: GetTelemetryChartResponse }> = observer(({ chart }) => {
 
    const [scale] = useState(1);
    const [container, setContainer] = useState<HTMLDivElement | null>(null);
    const renderer = useConst(chart.graph === "Line" ? new TelemetryLineRenderer() : new TelemetryLineRenderer());
+   const tooltip = useConst(new Tooltip());
 
    const { hordeClasses, modeColors } = getHordeStyling();
 
@@ -878,7 +1130,12 @@ const LineGraphTile: React.FC<{ chart: GetTelemetryChartResponse }> = observer((
             handler.onTimeSelect(chartName, minTime, maxTime);
          }
 
-         const zoomed = renderer.render(chart, metrics, legend.map(v => v.key), handler.minDate!, handler.maxDate!, container, onZoom, onTimeSelect, scale);
+         const onDataHover = (key: string, x: number, y: number, time: Date, value: number, color: string) => {
+
+            tooltip.set(key, x, y, time, value, color);
+         }
+
+         const zoomed = renderer.render(chart, metrics, legend.map(v => v.key), handler.minDate!, handler.maxDate!, container, onZoom, onTimeSelect, onDataHover, scale);
          handler.setZoomHandler(chart.name, zoomed);
 
       } catch (err) {
@@ -889,7 +1146,8 @@ const LineGraphTile: React.FC<{ chart: GetTelemetryChartResponse }> = observer((
 
    return <Stack className={hordeClasses.horde} key={`metric_graph_stack_${chart.name}`}>
       <Stack style={{ width: "100%", paddingTop: 16, paddingBottom: 16, paddingLeft: 16, backgroundColor: modeColors.background }} horizontal tokens={{ childrenGap: 12 }}>
-         <Stack style={{ width: width }}>
+         <Stack style={{ width: width, position: "relative" }}>
+            <GraphTooltip chart={chart} tooltip={tooltip} legend={legend} />
             <div id={graph_container_id} style={{ shapeRendering: "geometricPrecision", userSelect: "none" }} ref={(ref: HTMLDivElement) => setContainer(ref)} onMouseEnter={() => { }} onMouseLeave={() => { }} />
          </Stack>
          <Stack>
@@ -963,10 +1221,10 @@ const TelemetryViewInternal: React.FC = observer(() => {
 export const SearchUpdate: React.FC = observer(() => {
 
    const [, setSearchParams] = useSearchParams();
-
-   const csearch = handler.search.toString();
+   const csearch = "query=" + btoa(handler.search.toString());
 
    useEffect(() => {
+
       setSearchParams(csearch, { replace: true });
    }, [csearch, setSearchParams])
 

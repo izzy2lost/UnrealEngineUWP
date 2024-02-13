@@ -731,6 +731,11 @@ namespace Horde.Server.Jobs
 		/// The change that the job is running against is invalid
 		/// </summary>
 		UnknownShelf = 11,
+
+		/// <summary>
+		/// Step was no longer needed during a job update
+		/// </summary>
+		NoLongerNeeded = 12,
 	}
 
 	/// <summary>

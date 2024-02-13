@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Http;
@@ -32,6 +33,11 @@ namespace EpicGames.Horde.Storage.Backends
 		readonly ILogger _logger;
 		bool _supportsUploadRedirects = true;
 
+		long _numBytes;
+		int _numActive;
+		TimeSpan _sequentialReadTime;
+		readonly Stopwatch _readTime = new Stopwatch();
+
 		/// <inheritdoc/>
 		public bool SupportsRedirects => _supportsUploadRedirects;
 
@@ -51,36 +57,70 @@ namespace EpicGames.Horde.Storage.Backends
 		/// <inheritdoc/>
 		public async Task<Stream> OpenBlobAsync(BlobLocator locator, int offset, int? length, CancellationToken cancellationToken = default)
 		{
-			if (offset == 0 && length == null)
+			Stopwatch blobTimer = Stopwatch.StartNew();
+			try
 			{
-				_logger.LogDebug("Reading {Locator}", locator);
-			}
-			else if (length == null)
-			{
-				_logger.LogDebug("Reading {Locator} ({Offset}..)", locator, offset);
-			}
-			else
-			{
-				_logger.LogDebug("Reading {Locator} ({Offset}+{Length})", locator, offset, length);
-			}
-
-			if (length.HasValue && length.Value == 0)
-			{
-				return new MemoryStream(Array.Empty<byte>());
-			}
-
-			using (HttpClient httpClient = _createClient())
-			{
-				using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{_basePath}/blobs/{locator}"))
+				lock (_readTime)
 				{
-					if (offset != 0 || length != null)
+					if (++_numActive == 1)
 					{
-						request.Headers.Range = new RangeHeaderValue(offset, (length == null) ? null : (offset + (length - 1)));
+						_readTime.Start();
 					}
+				}
 
-					HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
-					response.EnsureSuccessStatusCode();
-					return await response.Content.ReadAsStreamAsync(cancellationToken);
+				if (offset == 0 && length == null)
+				{
+					_logger.LogDebug("Reading {Locator}", locator);
+				}
+				else if (length == null)
+				{
+					_logger.LogDebug("Reading {Locator} ({Offset}..)", locator, offset);
+				}
+				else
+				{
+					_logger.LogDebug("Reading {Locator} ({Offset}+{Length})", locator, offset, length);
+				}
+
+				if (length.HasValue && length.Value == 0)
+				{
+					return new MemoryStream(Array.Empty<byte>());
+				}
+
+				using (HttpClient httpClient = _createClient())
+				{
+					using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{_basePath}/blobs/{locator}"))
+					{
+						if (offset != 0 || length != null)
+						{
+							request.Headers.Range = new RangeHeaderValue(offset, (length == null) ? null : (offset + (length - 1)));
+						}
+
+						HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
+						response.EnsureSuccessStatusCode();
+
+						Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+
+						try
+						{
+							Interlocked.Add(ref _numBytes, response.Content.Headers.ContentLength ?? stream.Length);
+						}
+						catch
+						{
+						}
+
+						return stream;
+					}
+				}
+			}
+			finally
+			{
+				lock (_readTime)
+				{
+					_sequentialReadTime += blobTimer.Elapsed;
+					if (--_numActive == 0)
+					{
+						_readTime.Stop();
+					}
 				}
 			}
 		}
@@ -313,7 +353,16 @@ namespace EpicGames.Horde.Storage.Backends
 		#endregion
 
 		/// <inheritdoc/>
-		public void GetStats(StorageStats stats) { }
+		public void GetStats(StorageStats stats)
+		{
+			stats.Add("backend.http.wall_time_secs", (long)_readTime.Elapsed.TotalSeconds);
+			stats.Add("backend.http.num_bytes", _numBytes);
+			if (_readTime.Elapsed > TimeSpan.Zero)
+			{
+				stats.Add("backend.http.speed_mb_sec", (long)(_numBytes / (1024.0 * 1024.0 * _readTime.Elapsed.TotalSeconds)));
+				stats.Add("backend.http.concurrency_ratio", (long)(_sequentialReadTime.TotalSeconds * 100.0 / _readTime.Elapsed.TotalSeconds));
+			}
+		}
 	}
 
 	/// <summary>

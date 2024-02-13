@@ -164,7 +164,7 @@ namespace Horde.Server.Dashboard
 
 					foreach (TelemetryChartConfig chart in category.Charts)
 					{
-						GetTelemetryChartResponse rchart = new GetTelemetryChartResponse { Name = chart.Name, Display = chart.Display.ToString(), Graph = chart.Graph.ToString(), Max = chart.Max, Metrics = new List<GetTelemetryChartMetricResponse>() };
+						GetTelemetryChartResponse rchart = new GetTelemetryChartResponse { Name = chart.Name, Display = chart.Display.ToString(), Graph = chart.Graph.ToString(), Min = chart.Min, Max = chart.Max, Metrics = new List<GetTelemetryChartMetricResponse>() };
 
 						foreach (TelemetryChartMetricConfig metric  in chart.Metrics)
 						{

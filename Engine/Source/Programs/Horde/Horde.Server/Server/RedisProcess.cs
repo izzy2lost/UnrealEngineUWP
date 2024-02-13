@@ -92,6 +92,7 @@ namespace Horde.Server.Server
 		/// </summary>
 		public async ValueTask StopAsync()
 		{
+			_logger.LogInformation("Stopping Redis...");
 			if (_processGroup != null)
 			{
 				_processGroup.Dispose();
@@ -109,6 +110,7 @@ namespace Horde.Server.Server
 			}
 
 			DeleteTempFiles();
+			_logger.LogInformation("Done.");
 		}
 
 		[DllImport("kernel32.dll", SetLastError = true)]

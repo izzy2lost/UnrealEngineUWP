@@ -194,6 +194,11 @@ export const BisectionPanel: React.FC<{ jobDetails: JobDetailsV2, stepId?: strin
       return null;
    }
 
+   if (!jobDetails.viewReady(dataView.order)) {
+      return null;
+   }
+
+
    if (dataView.gotoRail) {
       dataView.gotoRail = false;
       window.location.hash = sideRail.url;

@@ -2,20 +2,20 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using EpicGames.Horde.Storage;
+using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
+using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Bundles;
+using EpicGames.Horde.Storage.Bundles.V1;
 using Horde.Agent.Utility;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System.Linq;
-using EpicGames.Horde.Storage.Bundles.V1;
-using EpicGames.Horde.Storage.Bundles;
-using EpicGames.Horde.Jobs;
 
 namespace Horde.Agent.Tests
 {
@@ -78,6 +78,27 @@ namespace Horde.Agent.Tests
 			Assert.AreEqual(@"{""level"":""Information"",""message"":""in"",""format"":""{Line$2}"",""properties"":{""Var1"":123,""Var2"":{""$type"":""SourceFile"",""$text"":""D:\\build\\\u002B\u002BUE5\\Sync\\GenerateProjectFiles.bat"",""relativePath"":""GenerateProjectFiles.bat"",""depotPath"":""//UE5/Main/GenerateProjectFiles.bat@20392842""},""Line$2"":""in""},""line"":4,""lineCount"":7}", result[4]);
 			Assert.AreEqual(@"{""level"":""Information"",""message"":""four-end"",""format"":""{Line$3}-end"",""properties"":{""Var1"":123,""Var2"":{""$type"":""SourceFile"",""$text"":""D:\\build\\\u002B\u002BUE5\\Sync\\GenerateProjectFiles.bat"",""relativePath"":""GenerateProjectFiles.bat"",""depotPath"":""//UE5/Main/GenerateProjectFiles.bat@20392842""},""Line$3"":""four""},""line"":5,""lineCount"":7}", result[5]);
 			Assert.AreEqual(@"{""level"":""Information"",""message"":""log message 123 D:\\build\\\u002B\u002BUE5\\Sync\\GenerateProjectFiles.bat"",""format"":""log message {Var1} {Var2}"",""properties"":{""Var1"":123,""Var2"":{""$type"":""SourceFile"",""$text"":""D:\\build\\\u002B\u002BUE5\\Sync\\GenerateProjectFiles.bat"",""relativePath"":""GenerateProjectFiles.bat"",""depotPath"":""//UE5/Main/GenerateProjectFiles.bat@20392842""}},""line"":6,""lineCount"":7}", result[6]);
+		}
+
+		[TestMethod]
+		public void InvalidCharactersText()
+		{
+			byte[] data = Encoding.UTF8.GetBytes(@"{""level"":""Information"",""message"":""test"",""format"":""GOOD\nBAD""}");
+			int idx = data.AsSpan().IndexOf(Encoding.UTF8.GetBytes("BAD"));
+			data[idx] = 0xef;
+			data[idx + 1] = 0xbb;
+
+			JsonRpcLogWriter writer = new JsonRpcLogWriter();
+			int count = writer.SanitizeAndWriteEvent(JsonLogEvent.Parse(data));
+			Assert.AreEqual(1, count);
+
+			string[] result = Encoding.UTF8.GetString(writer.CreatePacket().Item1.Span).Split('\n', StringSplitOptions.RemoveEmptyEntries);
+			Assert.AreEqual(1, result.Length);
+
+			LogEvent logEvent = LogEvent.Read(Encoding.UTF8.GetBytes(result[0]));
+
+			const string ExpectedError = "Invalid json log event: {\"level\":\"Information\",\"message\":\"test\",\"format\":\"GOOD\\n\\xef\\xbbD\"}";
+			Assert.AreEqual(ExpectedError, logEvent.ToString());
 		}
 
 		[TestMethod]
@@ -240,7 +261,7 @@ namespace Horde.Agent.Tests
 			writer.SanitizeAndWriteEvent(new JsonLogEvent(baseEvent));
 			writer.SanitizeAndWriteEvent(new JsonLogEvent(baseEvent));
 
-			for(int idx = 0; idx < 2; idx++)
+			for (int idx = 0; idx < 2; idx++)
 			{
 				string output = Encoding.UTF8.GetString(writer.CreatePacket().Item1.Span);
 				string expected = @"{""time"":""2023-01-01T00:00:00"",""level"":""Information"",""message"":""abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ""}" + "\n";

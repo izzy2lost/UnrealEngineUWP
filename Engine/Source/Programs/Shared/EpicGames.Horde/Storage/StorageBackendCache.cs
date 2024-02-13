@@ -107,7 +107,7 @@ namespace EpicGames.Horde.Storage
 
 			public BackendWrapper(string keyPrefix, StorageBackendCache cacheStorage, IStorageBackend inner)
 			{
-				_keyPrefix = keyPrefix;
+				_keyPrefix = keyPrefix.TrimEnd('/') + "/";
 				_cacheStorage = cacheStorage;
 				_inner = inner;
 			}
@@ -364,11 +364,11 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		public void GetStats(StorageStats stats)
 		{
-			stats.Add("Cache clean count", _cleanCount);
-			stats.Add("Cache fetch time (ms)", (_fetchTimeTicks * 1000) / Stopwatch.Frequency);
-			stats.Add("Cache clean time (ms)", (_cleanTimeTicks * 1000) / Stopwatch.Frequency);
-			stats.Add("Cache write time (ms)", (_writeTimeTicks * 1000) / Stopwatch.Frequency);
-			stats.Add("Cache fetch bytes", _fetchBytes);
+			stats.Add("backend.cache.clean_count", _cleanCount);
+			stats.Add("backend.cache.fetch_time_ms", (_fetchTimeTicks * 1000) / Stopwatch.Frequency);
+			stats.Add("backend.cache.clean_time_ms", (_cleanTimeTicks * 1000) / Stopwatch.Frequency);
+			stats.Add("backend.cache.write_time_ms", (_writeTimeTicks * 1000) / Stopwatch.Frequency);
+			stats.Add("backend.cache.fetch_bytes", _fetchBytes);
 		}
 	}
 }

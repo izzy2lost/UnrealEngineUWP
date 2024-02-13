@@ -1,9 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
 using EpicGames.Core;
-using EpicGames.Horde.Jobs;
 using Horde.Agent.Parser;
 using Horde.Agent.Utility;
 using Horde.Common.Rpc;
@@ -214,8 +212,9 @@ namespace Horde.Agent.Execution
 				}
 			}
 
-			FileReference currentFile = new FileReference(Assembly.GetExecutingAssembly().Location);
-			await ArtifactUploader.UploadAsync(RpcConnection, JobId, BatchId, step.StepId, currentFile.GetFileName(), currentFile, logger, cancellationToken);
+			FileReference tempFileName = new (Path.GetTempFileName());
+			await File.WriteAllTextAsync(tempFileName.FullName, "Some example data", cancellationToken);
+			await ArtifactUploader.UploadAsync(RpcConnection, JobId, BatchId, step.StepId, tempFileName.GetFileName(), tempFileName, logger, cancellationToken);
 
 			logger.LogInformation("**** FINISH NODE {StepName} ****", step.Name);
 

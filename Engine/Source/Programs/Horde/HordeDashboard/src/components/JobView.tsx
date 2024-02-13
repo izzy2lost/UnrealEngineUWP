@@ -526,7 +526,7 @@ const JobList: React.FC<{ tab: string; filter: JobFilterSimple, controller: Call
 
          const row = <JobOperationsContextMenu job={item.job}>
             <Stack style={{ marginLeft: 24, marginRight: 24 }}>
-               <DetailsRow styles={{ root: { paddingTop: 8, paddingBottom: 8, width: "100%" }, cell: { selectors: { "a, a:visited, a:active, a:hover": { color: "rgb(96, 94, 92)" } } } }} {...props} />
+               <DetailsRow styles={{ root: { paddingTop: 8, paddingBottom: 8, width: "100%" }, cell: { selectors: { "a, a:visited, a:active, a:hover": { color: modeColors.text } } } }} {...props} />
             </Stack>
          </JobOperationsContextMenu>;
 

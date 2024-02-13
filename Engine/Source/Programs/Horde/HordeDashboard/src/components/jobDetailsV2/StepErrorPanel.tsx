@@ -237,7 +237,11 @@ export const StepErrorPanel: React.FC<{ jobDetails: JobDetailsV2; stepId: string
 
    const events = showErrors ? dataView.errors : dataView.warnings;
 
-   if (!events.length || !jobDetails?.viewsReady) {
+   if (!events.length) {
+      return null;
+   }
+
+   if (!jobDetails.viewReady(dataView.order)) {
       return null;
    }
 

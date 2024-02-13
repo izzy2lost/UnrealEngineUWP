@@ -61,7 +61,7 @@ namespace Horde.Server.Server
 				}
 				else if (TryStartRedisProcess())
 				{
-					connectionString = $"127.0.0.1:{_redisProcess!.Port}";
+					connectionString = $"127.0.0.1:{_redisProcess!.Port},allowAdmin=true";
 				}
 				else
 				{
@@ -109,6 +109,12 @@ namespace Horde.Server.Server
 		/// <inheritdoc/>
 		public async ValueTask DisposeAsync()
 		{
+			if (_redisProcess != null)
+			{
+				_logger.LogInformation("Sending shutdown command...");
+				ConnectionPool.GetConnection().GetServers().FirstOrDefault()?.Shutdown();
+			}
+
 			ConnectionPool.Dispose();
 
 			if (_redisProcess != null)

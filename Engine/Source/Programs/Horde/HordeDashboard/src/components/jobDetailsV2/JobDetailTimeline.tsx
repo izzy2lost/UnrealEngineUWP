@@ -962,6 +962,10 @@ export const TimelinePanel: React.FC<{ jobDetails: JobDetailsV2, stepId?: string
       return null;
    }
 
+   if (!jobDetails.viewReady(dataView.order)) {
+      return null;
+   }
+
    return (<Stack id={sideRail.url} styles={{ root: { paddingTop: 18, paddingRight: 12 } }}>
       <Stack className={hordeClasses.raised}>
          <Stack tokens={{ childrenGap: 18 }}>

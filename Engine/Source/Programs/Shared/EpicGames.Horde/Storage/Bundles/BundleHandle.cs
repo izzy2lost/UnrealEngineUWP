@@ -73,5 +73,8 @@ namespace EpicGames.Horde.Storage.Bundles
 
 		/// <inheritdoc/>
 		public override int GetHashCode() => _locator.GetHashCode();
+
+		/// <inheritdoc/>
+		public override string ToString() => _locator.ToString();
 	}
 }

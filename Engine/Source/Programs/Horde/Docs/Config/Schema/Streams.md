@@ -289,9 +289,9 @@ Parameters to create a new schedule
 Name | Type | Description
 ---- | ---- | -----------
 `daysOfWeek` | [`DayOfWeek`](#dayofweek-enum)`[]` | Days of the week to run this schedule on. If null, the schedule will run every day.
-`minTime` | `integer` | Time during the day for the first schedule to trigger. Measured in minutes from midnight.
-`maxTime` | `integer` | Time during the day for the last schedule to trigger. Measured in minutes from midnight.
-`interval` | `integer` | Interval between each schedule triggering
+`minTime` | `string` | Time during the day for the first schedule to trigger. Measured in minutes from midnight.
+`maxTime` | `string` | Time during the day for the last schedule to trigger. Measured in minutes from midnight.
+`interval` | `string` | Interval between each schedule triggering
 
 ## DayOfWeek (Enum)
 

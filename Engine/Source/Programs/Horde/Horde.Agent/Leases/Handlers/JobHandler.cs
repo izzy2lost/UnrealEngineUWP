@@ -34,6 +34,11 @@ namespace Horde.Agent.Leases.Handlers
 		/// Exposed as internal to ease testing.
 		/// </summary>
 		internal TimeSpan _stepAbortPollInterval = TimeSpan.FromSeconds(5);
+		
+		/// <summary>
+		/// How long to wait before retrying a failed step abort check request
+		/// </summary>
+		internal TimeSpan _stepAbortPollRetryDelay = TimeSpan.FromSeconds(30);
 
 		/// <summary>
 		/// Current lease ID being executed
@@ -79,10 +84,18 @@ namespace Horde.Agent.Leases.Handlers
 
 				if (executeTask.JobOptions.RunInSeparateProcess ?? false)
 				{
+					if (AgentApp.IsSelfContained)
+					{
+						// TODO: Implement handling for invoking a self-contained agent process (i.e handle "dotnet" below)
+						throw new NotSupportedException("Running job in a separate process not supported for self-contained agents");
+					}
+					
 					using (ManagedProcessGroup processGroup = new ManagedProcessGroup())
 					{
 						List<string> arguments = new List<string>();
+#pragma warning disable IL3000 // Avoid accessing Assembly file path when publishing as a single file
 						arguments.Add(Assembly.GetExecutingAssembly().Location);
+#pragma warning restore IL3000 // Avoid accessing Assembly file path when publishing as a single file						
 						arguments.Add("execute");
 						arguments.Add("job");
 						arguments.Add($"-Server={_settings.GetCurrentServerProfile().Name}");
@@ -218,7 +231,7 @@ namespace Horde.Agent.Leases.Handlers
 			IJobExecutor executor = executorFactory.CreateExecutor(workspaceInfo, autoSdkWorkspaceInfo, options);
 
 			// Try to initialize the executor
-			logger.LogInformation("Initializing...");
+			logger.LogInformation("Initializing executor...");
 			using (logger.BeginIndentScope("  "))
 			{
 				using IScope scope = GlobalTracer.Instance.BuildSpan("Initialize").StartActive();
@@ -228,6 +241,7 @@ namespace Horde.Agent.Leases.Handlers
 			try
 			{
 				// Execute the steps
+				logger.LogInformation("Executing steps...");
 				for (; ; )
 				{
 					// Get the next step to execute
@@ -240,6 +254,7 @@ namespace Horde.Agent.Leases.Handlers
 					}
 					else if (stepResponse.State == BeginStepResponse.Types.Result.Complete)
 					{
+						logger.LogInformation("No more steps to execute; finalizing lease.");
 						break;
 					}
 					else if (stepResponse.State != BeginStepResponse.Types.Result.Ready)
@@ -414,9 +429,9 @@ namespace Horde.Agent.Leases.Handlers
 
 		internal async Task PollForStepAbortAsync(IRpcConnection rpcClient, JobId jobId, JobStepBatchId batchId, JobStepId stepId, CancellationTokenSource stepCancelSource, Task finishedTask, ILogger leaseLogger, CancellationToken cancellationToken)
 		{
-			Stopwatch timer = Stopwatch.StartNew();
 			while (!finishedTask.IsCompleted)
 			{
+				TimeSpan waitTime = _stepAbortPollInterval;
 				try
 				{
 					GetStepResponse res = await rpcClient.InvokeAsync((JobRpc.JobRpcClient x) => x.GetStepAsync(new GetStepRequest(jobId, batchId, stepId), null, null, cancellationToken), cancellationToken);
@@ -429,12 +444,13 @@ namespace Horde.Agent.Leases.Handlers
 				}
 				catch (RpcException ex)
 				{
-					leaseLogger.LogError(ex, "Poll for step abort has failed. Aborting (JobId={JobId} BatchId={BatchId} StepId={StepId})", jobId, batchId, stepId);
-					stepCancelSource.Cancel();
-					break;
+					// Don't let a single RPC failure abort the running step as there can be intermittent errors on the server
+					// For example temporary downtime or overload
+					leaseLogger.LogError(ex, "Poll for step abort failed (JobId={JobId} BatchId={BatchId} StepId={StepId}). Retrying...", jobId, batchId, stepId);
+					waitTime = _stepAbortPollRetryDelay;
 				}
 
-				await Task.WhenAny(Task.Delay(_stepAbortPollInterval, cancellationToken), finishedTask);
+				await Task.WhenAny(Task.Delay(waitTime, cancellationToken), finishedTask);
 			}
 		}
 	}

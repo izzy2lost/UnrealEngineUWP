@@ -26,29 +26,9 @@ class PreflightDataView extends JobDataView {
 
    detailsUpdated() {
 
-      const details = this.details;
-
-      if (!details) {
-         return;
-      }
-
-      const jobData = details.jobData;
-
-      if (!jobData) {
-         return;
-      }
-
-      if (this.dirty) {
-         const hasPreflight = !!jobData?.preflightChange || !!jobData?.preflightDescription;
-         this.initialize(hasPreflight ? [sideRail] : undefined);
-         this.updateReady();
-         this.dirty = false;
-      }
    }
 
-   order = 0;
-
-   dirty = true;
+   order = 0;   
 
 }
 
@@ -140,16 +120,21 @@ export const PreflightPanel: React.FC<{ jobDetails: JobDetailsV2 }> = observer((
       }
    }, [preflightView]);
 
-   preflightView.subscribe();
-
    const jobData = jobDetails.jobData;
 
-   const hasPreflight = !!jobData?.preflightChange || !!jobData?.preflightDescription;
-
-   if (!jobData || !hasPreflight) {
+   if (!jobData) {
       return null;
    }
 
+   const hasPreflight = !!jobData.preflightChange || !!jobData.preflightDescription;
+
+   if (!preflightView.initialized) {
+      preflightView.initialize(hasPreflight ? [sideRail] : undefined);
+   }
+
+   if (!hasPreflight) {
+      return null;
+   }
 
    return (<Stack id={sideRail.url} styles={{ root: { paddingTop: 18, paddingRight: 12 } }}>
       <Stack className={hordeClasses.raised} >

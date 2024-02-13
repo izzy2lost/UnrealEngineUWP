@@ -30,12 +30,11 @@ namespace UnrealGameSync
 
 			// Read the settings
 			LauncherSettings launcherSettings = new LauncherSettings();
-			launcherSettings.PerforceDepotPath = DeploymentSettings.Instance.DefaultDepotPath;
 			launcherSettings.Read();
 
 			// If the shift key is held down, immediately show the settings window
 			Task SyncAndRunWrapper(IPerforceConnection? perforce, LauncherSettings settings, ILogger logWriter, CancellationToken cancellationToken) => SyncAndRun(perforce, settings, args, instanceMutex, logWriter, cancellationToken);
-			if ((Control.ModifierKeys & Keys.Shift) != 0 || openSettings)
+			if ((Control.ModifierKeys & Keys.Shift) != 0 || openSettings || launcherSettings.UpdateSource == LauncherUpdateSource.Unknown)
 			{
 				// Show the settings window immediately
 				using UpdateSettingsWindow updateWindow = new UpdateSettingsWindow(null, null, launcherSettings, SyncAndRunWrapper);

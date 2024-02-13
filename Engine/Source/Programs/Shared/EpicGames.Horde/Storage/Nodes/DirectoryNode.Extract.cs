@@ -3,12 +3,16 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.IO.MemoryMappedFiles;
+using System.Linq;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Storage.Bundles;
+using EpicGames.Horde.Storage.Bundles.V2;
 using Microsoft.Extensions.Logging;
 
 namespace EpicGames.Horde.Storage.Nodes
@@ -141,17 +145,107 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="cancellationToken"></param>
 		public static Task CopyToDirectoryAsync(this DirectoryNode directoryNode, DirectoryInfo directoryInfo, ILogger logger, CancellationToken cancellationToken) => CopyToDirectoryAsync(directoryNode, directoryInfo, null, logger, cancellationToken);
 
-		class RemainingChunkCounter
+		class OutputFile
 		{
-			public int _value;
+			public string Path { get; }
+			public FileInfo FileInfo { get; }
+			public FileEntry FileEntry { get; }
 
-			public int Increment() => Interlocked.Increment(ref _value);
-			public int Decrement() => Interlocked.Decrement(ref _value);
+			bool _createdFile;
+			int _remainingChunks;
+
+			public OutputFile(string path, FileInfo fileInfo, FileEntry fileEntry)
+			{
+				Path = path;
+				FileInfo = fileInfo;
+				FileEntry = fileEntry;
+			}
+
+			public int IncrementRemaining() => Interlocked.Increment(ref _remainingChunks);
+			public int DecrementRemaining() => Interlocked.Decrement(ref _remainingChunks);
+
+			public FileStream OpenStream()
+			{
+				lock (FileEntry)
+				{
+					if (!_createdFile)
+					{
+						if (FileInfo.Exists)
+						{
+							if ((FileInfo.Attributes & FileAttributes.ReadOnly) != 0)
+							{
+								FileInfo.Attributes &= ~FileAttributes.ReadOnly;
+							}
+							if (FileInfo.LinkTarget != null)
+							{
+								FileInfo.Delete();
+							}
+						}
+						else
+						{
+							FileInfo.Directory?.Create();
+						}
+					}
+
+					FileStream? stream = null;
+					try
+					{
+						stream = FileInfo.Open(FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
+						if (!_createdFile)
+						{
+							stream.SetLength(FileEntry.Length);
+							_createdFile = true;
+						}
+						return stream;
+					}
+					catch
+					{
+						stream?.Dispose();
+						throw;
+					}
+				}
+			}
 		}
 
-		record class OutputDir(string Path, DirectoryNode Node);
-		record class OutputFile(OutputDir Directory, FileEntry FileEntry, RemainingChunkCounter RemainingChunks);
-		record class OutputChunk(OutputFile File, long Offset, long Length, IBlobHandle? Handle);
+		record class OutputChunk(OutputFile File, long Offset, long Length, IBlobHandle Handle);
+
+		record class OutputBatch(List<OutputChunk> Chunks);
+
+		// Writes output chunks to a channel. Buffers one chunk until FlushAsync() is called to ensure
+		// the remaining chunk reference count doesn't reach zero until the last chunk has been processed.
+		class OutputChunkWriter
+		{
+			public OutputFile OutputFile { get; }
+
+			readonly ChannelWriter<OutputChunk> _chunkWriter;
+			OutputChunk? _bufferedChunk;
+
+			public OutputChunkWriter(OutputFile file, ChannelWriter<OutputChunk> chunkWriter)
+			{
+				OutputFile = file;
+				_chunkWriter = chunkWriter;
+			}
+
+			public async Task WriteAsync(long offset, long length, IBlobHandle handle, CancellationToken cancellationToken)
+			{
+				if (_bufferedChunk != null)
+				{
+					await _chunkWriter.WriteAsync(_bufferedChunk, cancellationToken);
+				}
+
+				OutputFile.IncrementRemaining();
+				_bufferedChunk = new OutputChunk(OutputFile, offset, length, handle);
+			}
+
+			public async Task FlushAsync(CancellationToken cancellationToken)
+			{
+				if (_bufferedChunk != null)
+				{
+					await _chunkWriter.WriteAsync(_bufferedChunk, cancellationToken);
+					_bufferedChunk = null;
+				}
+			}
+		}
 
 #pragma warning disable IDE0060
 		static void TraceBlobRead(string type, string path, IBlobHandle handle, ILogger logger)
@@ -179,7 +273,6 @@ namespace EpicGames.Horde.Storage.Nodes
 				copyStats = new CopyStats(progress);
 			}
 
-			Channel<OutputChunk> chunks = Channel.CreateBounded<OutputChunk>(new BoundedChannelOptions(128 * 1024) { FullMode = BoundedChannelFullMode.Wait });
 			using (CancellationTokenSource cancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
 			{
 				// Helper method to run a background task and set a cancellation source on error
@@ -201,160 +294,76 @@ namespace EpicGames.Horde.Storage.Nodes
 				}
 
 				List<Task> tasks = new List<Task>();
-				tasks.Add(RunBackgroundTask(ctx => FindOutputChunksRootAsync(directoryNode, chunks.Writer, logger, ctx)));
-				for (int idx = 0; idx < numTasks; idx++)
-				{
-					tasks.Add(RunBackgroundTask(ctx => ExtractAsync(chunks.Reader, new DirectoryReference(directoryInfo), copyStats, logger, ctx)));
-				}
 
-				await Task.WhenAll(tasks);
-			}
-		}
+				Channel<OutputChunk> chunks = Channel.CreateBounded<OutputChunk>(new BoundedChannelOptions(128 * 1024) { FullMode = BoundedChannelFullMode.Wait });
+				tasks.Add(RunBackgroundTask(ctx => FindOutputChunksRootAsync(directoryInfo, directoryNode, chunks.Writer, logger, ctx)));
 
-		static async Task ExtractAsync(ChannelReader<OutputChunk> chunkReader, DirectoryReference baseDir, CopyStats? copyStats, ILogger logger, CancellationToken cancellationToken)
-		{
-			OutputChunk? chunk = await ReadNextChunkAsync(chunkReader, cancellationToken);
-			while (chunk != null)
-			{
-				// Open the file for the current chunk
-				OutputFile file = chunk.File;
+				Channel<OutputBatch> batches = Channel.CreateUnbounded<OutputBatch>();
+				tasks.Add(RunBackgroundTask(ctx => ReadBatchesAsync(chunks.Reader, batches.Writer, ctx)));
 
-				FileReference location = FileReference.Combine(baseDir, file.Directory.Path, file.FileEntry.Name);
+				Channel<OutputFetchedBatch> prefetchBatches = Channel.CreateBounded<OutputFetchedBatch>(new BoundedChannelOptions(128) { FullMode = BoundedChannelFullMode.Wait });
 				try
 				{
-					DirectoryReference.CreateDirectory(location.Directory);
+					tasks.Add(RunBackgroundTask(ctx => FetchAsync(batches.Reader, prefetchBatches.Writer, numTasks, ctx)));
 
-					FileInfo fileInfo = location.ToFileInfo();
-					if (fileInfo.Exists)
+					for (int idx = 0; idx < numTasks; idx++)
 					{
-						if ((fileInfo.Attributes & FileAttributes.ReadOnly) != 0)
-						{
-							fileInfo.Attributes &= ~FileAttributes.ReadOnly;
-						}
-						if (fileInfo.LinkTarget != null)
-						{
-							fileInfo.Delete();
-						}
+						tasks.Add(RunBackgroundTask(ctx => ExtractAsync(prefetchBatches.Reader, copyStats, logger, ctx)));
 					}
 
-					int remainingChunks = 0;
-					await using (FileStream stream = fileInfo.Open(FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite))
-					{
-						stream.SetLength(file.FileEntry.Length);
-						if (file.FileEntry.Length == 0)
-						{
-							// If this file is empty, don't write anything and just move to the next chunk
-							chunk = await ReadNextChunkAsync(chunkReader, cancellationToken);
-							remainingChunks = file.RemainingChunks.Decrement();
-						}
-						else
-						{
-							// Process as many chunks as we can for this file
-							using MemoryMappedFile memoryMappedFile = MemoryMappedFile.CreateFromFile(stream, null, file.FileEntry.Length, MemoryMappedFileAccess.ReadWrite, HandleInheritability.None, false);
-							using MemoryMappedView memoryMappedView = new MemoryMappedView(memoryMappedFile, 0, file.FileEntry.Length);
-
-							while (chunk != null && chunk.File == file)
-							{
-								// Write this chunk
-								if (chunk.Handle != null)
-								{
-									using (BlobData data = await chunk.Handle.ReadBlobDataAsync(cancellationToken))
-									{
-										TraceBlobRead("Leaf", CombinePaths(chunk.File.Directory.Path, chunk.File.FileEntry.Name), chunk.Handle, logger);
-										data.Data.CopyTo(memoryMappedView!.GetMemory(chunk.Offset, data.Data.Length));
-									}
-								}
-
-								// Update the stats
-								remainingChunks = file.RemainingChunks.Decrement();
-								copyStats?.Update(0, chunk.Length);
-
-								// Read the next chunk
-								chunk = await ReadNextChunkAsync(chunkReader, cancellationToken);
-							}
-						}
-					}
-
-					// Set correct permissions on the output file
-					if (remainingChunks == 0)
-					{
-						FileEntry.SetPermissions(fileInfo, file.FileEntry.Flags);
-						copyStats?.Update(1, 0);
-					}
+					await Task.WhenAll(tasks);
 				}
-				catch (OperationCanceledException)
+				finally
 				{
-					throw;
-				}
-				catch (Exception ex)
-				{
-					throw new StorageException($"Unable to extract {location}: {ex.Message}", ex); 
+					while (prefetchBatches.Reader.TryRead(out OutputFetchedBatch? fetchedBatch))
+					{
+						fetchedBatch.Dispose();
+					}
 				}
 			}
 		}
 
-		static async ValueTask<OutputChunk?> ReadNextChunkAsync(ChannelReader<OutputChunk> chunkReader, CancellationToken cancellationToken)
-		{
-			await chunkReader.WaitToReadAsync(cancellationToken);
+		#region Enumerate chunks
 
-			OutputChunk? chunk;
-			if (chunkReader.TryRead(out chunk))
-			{
-				return chunk;
-			}
-			else
-			{
-				return null;
-			}
-		}
-
-		static async Task FindOutputChunksRootAsync(DirectoryNode node, ChannelWriter<OutputChunk> chunks, ILogger logger, CancellationToken cancellationToken)
+		static async Task FindOutputChunksRootAsync(DirectoryInfo rootDir, DirectoryNode node, ChannelWriter<OutputChunk> chunks, ILogger logger, CancellationToken cancellationToken)
 		{
-			await FindOutputChunksAsync("", node, chunks, logger, cancellationToken);
+			await FindOutputChunksForDirectoryAsync(rootDir, "", node, chunks, logger, cancellationToken);
 			chunks.Complete();
 		}
 
-		static async Task FindOutputChunksAsync(string path, DirectoryNode node, ChannelWriter<OutputChunk> chunks, ILogger logger, CancellationToken cancellationToken)
+		static async Task FindOutputChunksForDirectoryAsync(DirectoryInfo rootDir, string path, DirectoryNode node, ChannelWriter<OutputChunk> chunks, ILogger logger, CancellationToken cancellationToken)
 		{
-			OutputDir outputDir = new OutputDir(path, node);
-
 			foreach (FileEntry fileEntry in node.Files)
 			{
-				OutputFile outputFile = new OutputFile(outputDir, fileEntry, new RemainingChunkCounter());
+				string filePath = CombinePaths(path, fileEntry.Name);
+				FileInfo fileInfo = new FileInfo(Path.Combine(rootDir.FullName, filePath));
+				OutputFile outputFile = new OutputFile(filePath, fileInfo, fileEntry);
 
-				// Ensure that no worker finalizes the file until we've finished adding chunks
-				outputFile.RemainingChunks.Increment();
-
-				if (fileEntry.Target.Type == ChunkedDataNodeType.Leaf && fileEntry.Target.Length >= 0)
-				{
-					// If there's only one chunk for this file, queue the chunk and let the worker finalize the file in one operation
-					await chunks.WriteAsync(new OutputChunk(outputFile, 0, fileEntry.Target.Length, fileEntry.Target.Handle), cancellationToken);
-				}
-				else
-				{
-					await FindOutputChunksAsync(outputFile, 0, fileEntry.Target, chunks, logger, cancellationToken);
-					await chunks.WriteAsync(new OutputChunk(outputFile, 0, 0, null), cancellationToken);
-				}
+				await FindOutputChunksForFileAsync(outputFile, chunks, logger, cancellationToken);
 			}
 
 			foreach (DirectoryEntry directoryEntry in node.Directories)
 			{
+				string subPath = CombinePaths(path, directoryEntry.Name);
+				TraceBlobRead("Directory", subPath, directoryEntry.Handle, logger);
 				DirectoryNode subDirectoryNode = await directoryEntry.Handle.ReadBlobAsync(cancellationToken);
 
-				string subPath = CombinePaths(outputDir.Path, directoryEntry.Name);
-				TraceBlobRead("Directory", subPath, directoryEntry.Handle, logger);
-
-				await FindOutputChunksAsync(subPath, subDirectoryNode, chunks, logger, cancellationToken);
+				await FindOutputChunksForDirectoryAsync(rootDir, subPath, subDirectoryNode, chunks, logger, cancellationToken);
 			}
 		}
 
-		static async Task<long> FindOutputChunksAsync(OutputFile outputFile, long offset, ChunkedDataNodeRef dataRef, ChannelWriter<OutputChunk> chunks, ILogger logger, CancellationToken cancellationToken)
+		static async Task FindOutputChunksForFileAsync(OutputFile outputFile, ChannelWriter<OutputChunk> chunks, ILogger logger, CancellationToken cancellationToken)
+		{
+			OutputChunkWriter outputWriter = new OutputChunkWriter(outputFile, chunks);
+			await FindOutputChunksAsync(outputWriter, 0, outputFile.FileEntry.Target, logger, cancellationToken);
+			await outputWriter.FlushAsync(cancellationToken);
+		}
+
+		static async Task<long> FindOutputChunksAsync(OutputChunkWriter chunkWriter, long offset, ChunkedDataNodeRef dataRef, ILogger logger, CancellationToken cancellationToken)
 		{
 			if (dataRef.Type == ChunkedDataNodeType.Leaf)
 			{
-				await chunks.WriteAsync(new OutputChunk(outputFile, offset, dataRef.Length, dataRef.Handle), cancellationToken);
-				outputFile.RemainingChunks.Increment();
-
+				await chunkWriter.WriteAsync(offset, dataRef.Length, dataRef.Handle, cancellationToken);
 				if (dataRef.Length < 0)
 				{
 					// Backwards compatibility hack for v2 format
@@ -366,12 +375,11 @@ namespace EpicGames.Horde.Storage.Nodes
 			else
 			{
 				using BlobData data = await dataRef.Handle.ReadBlobDataAsync(cancellationToken);
-				TraceBlobRead("Interior", CombinePaths(outputFile.Directory.Path, outputFile.FileEntry.Name), dataRef.Handle, logger);
+				TraceBlobRead("Interior", chunkWriter.OutputFile.Path, dataRef.Handle, logger);
 
 				if (data.Type.Guid == LeafChunkedDataNodeConverter.BlobType.Guid)
 				{
-					await chunks.WriteAsync(new OutputChunk(outputFile, offset, dataRef.Length, dataRef.Handle), cancellationToken);
-					outputFile.RemainingChunks.Increment();
+					await chunkWriter.WriteAsync(offset, dataRef.Length, dataRef.Handle, cancellationToken);
 					return data.Data.Length;
 				}
 				else
@@ -381,13 +389,284 @@ namespace EpicGames.Horde.Storage.Nodes
 					InteriorChunkedDataNode interiorNode = BlobSerializer.Deserialize<InteriorChunkedDataNode>(data);
 					foreach (ChunkedDataNodeRef childRef in interiorNode.Children)
 					{
-						length += await FindOutputChunksAsync(outputFile, offset + length, childRef, chunks, logger, cancellationToken);
+						length += await FindOutputChunksAsync(chunkWriter, offset + length, childRef, logger, cancellationToken);
 					}
 
 					return length;
 				}
 			}
 		}
+
+		#endregion
+
+		#region Group requests by bundles
+
+		record class OutputExport(BundleHandle BundleHandle, int PacketOffset, int ExportIdx, OutputChunk Chunk);
+		record class OutputExportBatch(BundleHandle BundleHandle, List<OutputExport> Exports);
+
+		static async Task ReadBatchesAsync(ChannelReader<OutputChunk> chunkReader, ChannelWriter<OutputBatch> batchWriter, CancellationToken cancellationToken)
+		{
+			const int MaxQueueLength = 200;
+
+			int queueLength = 0;
+			Queue<OutputExportBatch> exportBatchQueue = new Queue<OutputExportBatch>();
+			Dictionary<BundleHandle, OutputExportBatch> bundleHandleToExportBatch = new Dictionary<BundleHandle, OutputExportBatch>();
+
+			for (; ; )
+			{
+				// Fill the queue up to the max length
+				while (queueLength < MaxQueueLength)
+				{
+					OutputChunk? chunk;
+					if (!chunkReader.TryRead(out chunk))
+					{
+						if (!await chunkReader.WaitToReadAsync(cancellationToken))
+						{
+							break;
+						}
+					}
+					else
+					{
+						OutputExport? outputExport;
+						if (!TryGetOutputExport(chunk, out outputExport))
+						{
+							OutputBatch batch = new OutputBatch(new List<OutputChunk> { chunk });
+							await batchWriter.WriteAsync(batch, cancellationToken);
+						}
+						else
+						{
+							BundleHandle bundleHandle = outputExport.BundleHandle;
+							if (!bundleHandleToExportBatch.TryGetValue(bundleHandle, out OutputExportBatch? existingExportBatch))
+							{
+								existingExportBatch = new OutputExportBatch(bundleHandle, new List<OutputExport>());
+								exportBatchQueue.Enqueue(existingExportBatch);
+								bundleHandleToExportBatch.Add(bundleHandle, existingExportBatch);
+							}
+
+							existingExportBatch.Exports.Add(outputExport);
+							queueLength++;
+						}
+					}
+				}
+
+				// Exit once we've processed everything and can't get any more items to read.
+				if (queueLength == 0)
+				{
+					batchWriter.TryComplete();
+					break;
+				}
+
+				// Flush the first queue
+				OutputExportBatch exportBatch = exportBatchQueue.Dequeue();
+				queueLength -= exportBatch.Exports.Count;
+				bundleHandleToExportBatch.Remove(exportBatch.BundleHandle);
+
+				List<OutputChunk> chunkBatch = exportBatch.Exports.OrderBy(x => x.PacketOffset).ThenBy(x => x.ExportIdx).Select(x => x.Chunk).ToList();
+				await batchWriter.WriteAsync(new OutputBatch(chunkBatch), cancellationToken);
+			}
+		}
+
+		static bool TryGetOutputExport(OutputChunk chunk, [NotNullWhen(true)] out OutputExport? export)
+		{
+			if (chunk.Handle.Innermost is ExportHandle exportHandle && exportHandle.Packet is FlushedPacketHandle packetHandle)
+			{
+				export = new OutputExport(packetHandle.Bundle, packetHandle.PacketOffset, exportHandle.ExportIdx, chunk);
+				return true;
+			}
+			else
+			{
+				export = null;
+				return false;
+			}
+		}
+
+		#endregion
+
+		#region Fetch data
+
+		record class OutputFetchedChunk(OutputChunk Chunk, BlobData BlobData) : OutputChunk(Chunk), IDisposable
+		{
+			public void Dispose() => BlobData.Dispose();
+		}
+
+		record class OutputFetchedBatch(List<OutputFetchedChunk> Chunks) : IDisposable
+		{
+			public OutputFetchedBatch() : this(new List<OutputFetchedChunk>()) { }
+			public void Dispose() => Chunks.DisposeAll();
+		}
+
+		static async Task FetchAsync(ChannelReader<OutputBatch> batchReader, ChannelWriter<OutputFetchedBatch> batchWriter, int numParallel, CancellationToken cancellationToken)
+		{
+			List<Task> tasks = new List<Task>();
+			for (int idx = 0; idx < numParallel; idx++)
+			{
+				tasks.Add(FetchWorkerAsync(batchReader, batchWriter, cancellationToken));
+			}
+
+			try
+			{
+				await Task.WhenAll(tasks);
+			}
+			finally
+			{
+				batchWriter.Complete();
+			}
+		}
+
+		static async Task FetchWorkerAsync(ChannelReader<OutputBatch> batchReader, ChannelWriter<OutputFetchedBatch> batchWriter, CancellationToken cancellationToken)
+		{
+			while (await batchReader.WaitToReadAsync(cancellationToken))
+			{
+				OutputBatch? batch;
+				if (batchReader.TryRead(out batch))
+				{
+#pragma warning disable CA2000 // fetchedBatch may be pushed onto the output channel, which assumes its ownership.
+					OutputFetchedBatch fetchedBatch = new OutputFetchedBatch();
+					try
+					{
+						foreach (OutputChunk chunk in batch.Chunks)
+						{
+							BlobData blobData = await chunk.Handle.ReadBlobDataAsync(cancellationToken);
+							fetchedBatch.Chunks.Add(new OutputFetchedChunk(chunk, blobData));
+						}
+						await batchWriter.WriteAsync(fetchedBatch, cancellationToken);
+					}
+					catch
+					{
+						fetchedBatch.Dispose();
+					}
+#pragma warning restore CA2000
+				}
+			}
+		}
+
+		#endregion
+
+		#region Write to disk
+
+		static async Task ExtractAsync(ChannelReader<OutputFetchedBatch> batchReader, CopyStats? copyStats, ILogger logger, CancellationToken cancellationToken)
+		{
+			const int WriteBatchSize = 64;
+			while (await batchReader.WaitToReadAsync(cancellationToken))
+			{
+				OutputFetchedBatch? batch;
+				while (batchReader.TryRead(out batch))
+				{
+					try
+					{
+						List<Task> tasks = new List<Task>();
+						foreach (IReadOnlyList<OutputFetchedChunk> group in batch.Chunks.Batch(WriteBatchSize))
+						{
+							tasks.Add(ExtractChunksAsync(group.ToArray(), copyStats, logger, cancellationToken));
+						}
+						await Task.WhenAll(tasks);
+					}
+					finally
+					{
+						batch.Dispose();
+					}
+				}
+			}
+		}
+
+		static async Task ExtractChunksAsync(ArraySegment<OutputFetchedChunk> chunks, CopyStats? copyStats, ILogger logger, CancellationToken cancellationToken)
+		{
+			for (int chunkIdx = 0; chunkIdx < chunks.Count;)
+			{
+				OutputFile file = chunks[chunkIdx].File;
+
+				int maxChunkIdx = chunkIdx + 1;
+				while (maxChunkIdx < chunks.Count && chunks[maxChunkIdx].File == file)
+				{
+					maxChunkIdx++;
+				}
+
+				try
+				{
+					await ExtractChunksToFileAsync(file, chunks.Slice(chunkIdx, maxChunkIdx - chunkIdx), copyStats, logger, cancellationToken);
+					//await ExtractChunksToNullAsync(file, chunks.Slice(chunkIdx, maxChunkIdx - chunkIdx), copyStats, logger, cancellationToken);
+				}
+				catch (OperationCanceledException)
+				{
+					throw;
+				}
+				catch (Exception ex)
+				{
+					throw new StorageException($"Unable to extract {file?.FileInfo?.FullName}: {ex.Message}", ex);
+				}
+
+				chunkIdx = maxChunkIdx;
+			}
+		}
+
+		static async Task ExtractChunksToFileAsync(OutputFile file, ArraySegment<OutputFetchedChunk> chunks, CopyStats? copyStats, ILogger logger, CancellationToken cancellationToken)
+		{
+			// Open the file for the current chunk
+			int remainingChunks = 0;
+			await using (FileStream stream = file.OpenStream())
+			{
+				if (file.FileEntry.Length == 0)
+				{
+					// If this file is empty, don't write anything and just move to the next chunk
+					for (int idx = 0; idx < chunks.Count; idx++)
+					{
+						remainingChunks = file.DecrementRemaining();
+					}
+				}
+				else
+				{
+					// Process as many chunks as we can for this file
+					using MemoryMappedFile memoryMappedFile = MemoryMappedFile.CreateFromFile(stream, null, file.FileEntry.Length, MemoryMappedFileAccess.ReadWrite, HandleInheritability.None, false);
+					using MemoryMappedView memoryMappedView = new MemoryMappedView(memoryMappedFile, 0, file.FileEntry.Length);
+
+					for (int chunkIdx = 0; chunkIdx < chunks.Count; chunkIdx++)
+					{
+						OutputFetchedChunk chunk = chunks[chunkIdx];
+						cancellationToken.ThrowIfCancellationRequested();
+
+						// Write this chunk
+						TraceBlobRead("Leaf", chunk.File.Path, chunk.Handle, logger);
+						chunk.BlobData.Data.CopyTo(memoryMappedView!.GetMemory(chunk.Offset, chunk.BlobData.Data.Length));
+
+						// Update the stats
+						remainingChunks = file.DecrementRemaining();
+						copyStats?.Update(0, chunk.Length);
+					}
+				}
+			}
+
+			// Set correct permissions on the output file
+			if (remainingChunks == 0)
+			{
+				FileEntry.SetPermissions(file.FileInfo!, file.FileEntry.Flags);
+				copyStats?.Update(1, 0);
+			}
+		}
+
+#pragma warning disable IDE0051
+		// Update counters for extracting chunks without writing any data. Useful for profiling bottlenecks in other stages of the pipeline.
+		static Task ExtractChunksToNullAsync(OutputFile file, ArraySegment<OutputFetchedChunk> chunks, CopyStats? copyStats, ILogger logger, CancellationToken cancellationToken)
+		{
+			_ = logger;
+			_ = cancellationToken;
+
+			foreach (OutputFetchedChunk chunk in chunks)
+			{
+				int remainingChunks = file.DecrementRemaining();
+				if (remainingChunks == 0)
+				{
+					copyStats?.Update(1, chunk.Length);
+				}
+				else
+				{
+					copyStats?.Update(0, chunk.Length);
+				}
+			}
+			return Task.CompletedTask;
+		}
+#pragma warning restore IDE0051
+
+		#endregion
 
 		static string CombinePaths(string basePath, string nextPath)
 		{
@@ -402,4 +681,3 @@ namespace EpicGames.Horde.Storage.Nodes
 		}
 	}
 }
-

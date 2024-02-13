@@ -25,7 +25,7 @@ Name | Type | Description
 `agentShutdownIfDisabledGracePeriod` | `string` | Time to wait before shutting down an agent that has been disabled Used if no value is set on the actual pool.
 `storage` | [`StorageConfig`](#storageconfig) | Storage configuration
 `artifactTypes` | [`ArtifactTypeConfig`](#artifacttypeconfig)`[]` | Configuration for different artifact types
-`telemetry` | [`TelemetryConfig`](#telemetryconfig) | Metrics to aggregate on the Horde server
+`telemetryStores` | [`TelemetryStoreConfig`](#telemetrystoreconfig)`[]` | Metrics to aggregate on the Horde server
 `acl` | [`AclConfig`](#aclconfig) | Access control list
 
 ## ConfigInclude
@@ -110,6 +110,7 @@ Name | Type | Description
 `display` | [`TelemetryMetricUnitType`](#telemetrymetricunittype-enum) | The unit to display
 `graph` | [`TelemetryMetricGraphType`](#telemetrymetricgraphtype-enum) | The graph type
 `metrics` | [`TelemetryChartMetricConfig`](#telemetrychartmetricconfig)`[]` | List of configured metrics
+`min` | `integer` | The min unit value for clamping chart
 `max` | `integer` | The max unit value for clamping chart
 
 ## TelemetryMetricUnitType (Enum)
@@ -467,6 +468,7 @@ Name | Type | Description
 `id` | `string` | Unique identifier for the tool
 `name` | `string` | Name of the tool
 `description` | `string` | Description for the tool
+`parentId` | `string` | Tool id to nest this tool under
 `public` | `boolean` | Whether this tool should be exposed for download on a public endpoint without authentication
 `showInUgs` | `boolean` | Whether to show this tool for download in the UGS tools menu
 `namespaceId` | `string` | Default namespace for new deployments of this tool
@@ -547,12 +549,14 @@ Name | Type | Description
 `name` | `string` | Name of the artifact type
 `keepDays` | `integer` | Number of days to retain artifacts of this type
 
-## TelemetryConfig
+## TelemetryStoreConfig
 
 Config for metrics
 
 Name | Type | Description
 ---- | ---- | -----------
+`id` | `string` | Identifier for this store
+`acl` | [`AclConfig`](#aclconfig) | Permissions for this store
 `metrics` | [`MetricConfig`](#metricconfig)`[]` | Metrics to aggregate on the Horde server
 `include` | [`ConfigInclude`](#configinclude)`[]` | Includes for other configuration files
 

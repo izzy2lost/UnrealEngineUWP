@@ -204,8 +204,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// <summary>
 		/// Decodes this packet
 		/// </summary>
-		/// <returns></returns>
-		public static IRefCountedHandle<Packet> Decode(ReadOnlyMemory<byte> data, IMemoryAllocator<byte> allocator)
+		public static IRefCountedHandle<Packet> Decode(ReadOnlyMemory<byte> data, IMemoryAllocator<byte> allocator, object? allocationTag)
 		{
 			BundleSignature signature = BundleSignature.Read(data.Span);
 			if (signature.Version <= BundleVersion.LatestV1 || signature.Version > BundleVersion.LatestV2)
@@ -222,7 +221,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			BundleCompressionFormat format = (BundleCompressionFormat)span[0];
 			span = span[1..];
 
-			IMemoryOwner<byte> owner = allocator.Alloc(decodedLength);
+			IMemoryOwner<byte> owner = allocator.Alloc(decodedLength, allocationTag);
 			Memory<byte> memory = owner.Memory.Slice(0, decodedLength);
 
 			BundleData.Decompress(format, data.Slice(data.Length - span.Length), memory);

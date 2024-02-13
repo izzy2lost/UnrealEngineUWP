@@ -14,6 +14,8 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 	/// </summary>
 	public sealed class PacketWriter : IDisposable
 	{
+		const string AllocationTag = nameof(PacketWriter);
+
 		readonly BundleHandle _bundleHandle;
 		readonly PacketHandle _packetHandle;
 		readonly IMemoryAllocator<byte> _allocator;
@@ -56,7 +58,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			_importMap[_bundleHandle] = PacketImport.CurrentBundleBaseIdx;
 			_importMap[_packetHandle] = PacketImport.CurrentPacketBaseIdx;
 
-			_bufferHandle = RefCountedHandle.Create(_allocator.Alloc(1024));
+			_bufferHandle = RefCountedHandle.Create(_allocator.Alloc(1024, AllocationTag));
 			_buffer = _bufferHandle.Target;
 
 			BundleSignature signature = new BundleSignature(BundleVersion.LatestV2, 0);
@@ -284,7 +286,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 				{
 					int newSize = (_length + desiredSize + 4096 + 16384) & ~16384;
 
-					IRefCountedHandle<Memory<byte>> newBufferHandle = RefCountedHandle.Create(_allocator.Alloc(newSize));
+					IRefCountedHandle<Memory<byte>> newBufferHandle = RefCountedHandle.Create(_allocator.Alloc(newSize, AllocationTag));
 					_buffer.Slice(0, _length + usedSize).CopyTo(newBufferHandle.Target);
 					_buffer = newBufferHandle.Target;
 					_bufferHandle.Dispose();

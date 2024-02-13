@@ -66,8 +66,7 @@ namespace Horde.Agent.Leases.Handlers
 				//				}
 
 				// Get the current process and assembly. This may be different if running through dotnet.exe rather than a native PE image.
-				FileReference assemblyFileName = new FileReference(Assembly.GetExecutingAssembly().Location);
-				DirectoryReference targetDir = assemblyFileName.Directory;
+				DirectoryReference targetDir = new (AppContext.BaseDirectory);
 				StringBuilder currentArguments = new StringBuilder();
 				
 				foreach (string arg in AgentApp.Args)
@@ -103,6 +102,10 @@ namespace Horde.Agent.Leases.Handlers
 				}
 				else
 				{
+#pragma warning disable IL3000 // Avoid accessing Assembly file path when publishing as a single file
+					FileReference assemblyFileName = new (Assembly.GetExecutingAssembly().Location);
+#pragma warning restore IL3000 // Avoid accessing Assembly file path when publishing as a single file
+					
 					// New unpacked agent is not self-contained, launch the upgrade command via "dotnet" external executable
 					executable = "dotnet";
 					FileReference newAssemblyFileName = FileReference.Combine(extractedDir, assemblyFileName.MakeRelativeTo(targetDir));

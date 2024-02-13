@@ -13,7 +13,7 @@ namespace EpicGames.Core.Tests
 		{
 			GlobalHeapAllocator allocator = new GlobalHeapAllocator();
 
-			using IMemoryOwner<byte> handle = allocator.Alloc(1024);
+			using IMemoryOwner<byte> handle = allocator.Alloc(1024, null);
 			handle.Memory.Span[0] = 123;
 		}
 
@@ -22,7 +22,7 @@ namespace EpicGames.Core.Tests
 		{
 			VirtualMemoryAllocator allocator = new VirtualMemoryAllocator();
 
-			using IMemoryOwner<byte> handle = allocator.Alloc(1024);
+			using IMemoryOwner<byte> handle = allocator.Alloc(1024, null);
 			handle.Memory.Span[0] = 123;
 		}
 	}

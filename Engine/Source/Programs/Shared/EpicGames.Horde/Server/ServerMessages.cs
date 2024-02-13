@@ -159,5 +159,74 @@ namespace EpicGames.Horde.Server
 		/// </summary>
 		public string? Detail { get; set; }
 	}
+
+	/// <summary>
+	/// Status for a subsystem within Horde
+	/// </summary>
+	public class ServerStatusSubsystem
+	{
+		/// <summary>
+		/// Category of this subsystem
+		/// </summary>
+		public string Category { get; set; } = "";
+		
+		/// <summary>
+		/// Name of the subsystem
+		/// </summary>
+		public string Name { get; init; } = "";
+		
+		/// <summary>
+		/// List of updates
+		/// </summary>
+		public ServerStatusUpdate[] Updates { get; set; } = Array.Empty<ServerStatusUpdate>();
+	}
+	
+	/// <summary>
+	/// Type of status result for a single update
+	/// </summary>
+	public enum ServerStatusResult
+	{
+		/// <summary>
+		/// Ok/success
+		/// </summary>
+		Ok,
+
+		/// <summary>
+		/// Error/failure
+		/// </summary>
+		Error
+	}
+	
+	/// <summary>
+	/// A single status update
+	/// </summary>
+	public class ServerStatusUpdate
+	{
+		/// <summary>
+		/// Result of status update
+		/// </summary>
+		public ServerStatusResult Result { get; set; }
+		
+		/// <summary>
+		/// Optional message describing the result
+		/// </summary>
+		public string? Message { get; set; }
+		
+		/// <summary>
+		/// Time this update was created
+		/// </summary>
+		public DateTimeOffset UpdatedAt { get; set; }
+	}
+
+	/// <summary>
+	/// Response from server status controller
+	/// </summary>
+	public class ServerStatusResponse
+	{
+		/// <summary>
+		/// List of subsystem statuses
+		/// </summary>
+		public ServerStatusSubsystem[] Statuses { get; set; } = Array.Empty<ServerStatusSubsystem>();
+	}
 }
 

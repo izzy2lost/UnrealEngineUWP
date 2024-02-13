@@ -52,14 +52,23 @@ namespace Horde.Agent.Leases.Handlers
 			IList<AgentWorkspace> pendingWorkspaces = conformTask.Workspaces;
 			for (; ; )
 			{
+				bool isPerforceExecutor = _settings.Executor.Equals(PerforceExecutor.Name, StringComparison.OrdinalIgnoreCase);
+				bool isWorkspaceExecutor = _settings.Executor.Equals(WorkspaceExecutor.Name, StringComparison.OrdinalIgnoreCase);
+				
+				// When using WorkspaceExecutor, only job options can override exact materializer to use
+				// It will default to ManagedWorkspaceMaterializer, which is compatible with the conform call below
+				// Therefore, compatibility is assumed for now. Exact materializer to use should be changed to a per workspace setting.
+				// See WorkspaceExecutorFactory.CreateExecutor
+				bool isExecutorConformCompatible = isPerforceExecutor || isWorkspaceExecutor;
+				
 				// Run the conform task
-				if (_settings.Executor.Equals(PerforceExecutor.Name, StringComparison.OrdinalIgnoreCase) && _settings.PerforceExecutor.RunConform)
+				if (isExecutorConformCompatible && _settings.PerforceExecutor.RunConform)
 				{
 					await PerforceExecutor.ConformAsync(session.WorkingDir, pendingWorkspaces, removeUntrackedFiles, logger, cancellationToken);
 				}
 				else
 				{
-					logger.LogInformation("Skipping due to Settings.RunConform flag");
+					logger.LogInformation("Skipping conform. Executor={Executor} RunConform={RunConform}", _settings.Executor, _settings.PerforceExecutor.RunConform);
 				}
 
 				// Update the new set of workspaces

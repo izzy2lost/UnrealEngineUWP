@@ -253,7 +253,7 @@ namespace EpicGames.Horde.Tests
 			BundleOptions bundleOptions = new BundleOptions();
 			bundleOptions.MaxBlobSize = 1;
 
-			await using (IBlobWriter writer = new DedupeStorageWriter(_storage.CreateBlobWriter(bundleOptions: bundleOptions)))
+			await using (IBlobWriter writer = new DedupeBlobWriter(_storage.CreateBlobWriter(bundleOptions: bundleOptions)))
 			{
 				DirectoryNode root = new DirectoryNode();
 				for (int idx = 1; idx <= 3; idx++)
