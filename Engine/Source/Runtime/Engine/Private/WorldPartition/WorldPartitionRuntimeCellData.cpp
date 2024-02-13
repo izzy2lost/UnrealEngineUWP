@@ -90,11 +90,14 @@ int32 UWorldPartitionRuntimeCellData::SortCompare(const UWorldPartitionRuntimeCe
 		if (!Result)
 		{
 			// Cell priority (lower value is higher prio)
-			Result = Priority - InOther->Priority;			
-
+			Result = Priority - InOther->Priority;		
 			if (!Result)
 			{
-				Result = (CachedMinSpatialSortingPriority < InOther->CachedMinSpatialSortingPriority) ? -1 : 1;
+				double Diff = CachedMinSpatialSortingPriority - InOther->CachedMinSpatialSortingPriority;
+				if (!FMath::IsNearlyZero(Diff))
+				{
+					Result = (CachedMinSpatialSortingPriority < InOther->CachedMinSpatialSortingPriority) ? -1 : 1;
+				}
 			}
 		}
 	}
