@@ -7,7 +7,7 @@
 #include "TargetTagsGameplayEffectComponent.generated.h"
 
 /** Handles granting Tags to the Target (sometimes referred to as the Owner) of the Gameplay Effect */
-UCLASS()
+UCLASS(DisplayName="Grant Tags to Target Actor")
 class GAMEPLAYABILITIES_API UTargetTagsGameplayEffectComponent : public UGameplayEffectComponent
 {
 	GENERATED_BODY()
