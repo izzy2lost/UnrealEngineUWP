@@ -674,6 +674,8 @@ void USkinnedMeshComponent::OnRegister()
 		CachedSceneFeatureLevel = ERHIFeatureLevel::Num;
 	}
 
+	ForceStreamedLodModel = GetForcedLOD();
+
 #if WITH_EDITOR
 	// When we are in editor, ensure that the initial setup is done at LOD 0 so that non-ticking components dont
 	// get unexpected behavior when transitioning LODs post-construction script
@@ -1560,8 +1562,13 @@ void USkinnedMeshComponent::GetStreamingRenderAssetInfo(FStreamingTextureLevelCo
 
 	if (GetSkinnedAsset() && GetSkinnedAsset()->IsStreamable())
 	{
-		const int32 LocalForcedLodModel = GetForcedLOD();
-		const float TexelFactor = LocalForcedLodModel > 0 ? -(GetSkinnedAsset()->GetLODNum() - LocalForcedLodModel + 1) : Bounds.SphereRadius * 2.f;
+		const int32 LocalForcedLodModel = GetForceStreamedLOD();
+
+		// A positive texel factor tells the streaming system the size of the component.
+		// 
+		// A negative texel factor selects a specific LOD index, starting at -1 for the worst LOD
+		const float TexelFactor = LocalForcedLodModel >= 0 ? LocalForcedLodModel - GetSkinnedAsset()->GetLODNum() : Bounds.SphereRadius * 2.f;
+
 		new (OutStreamingRenderAssets) FStreamingRenderAssetPrimitiveInfo(GetSkinnedAsset(), Bounds, TexelFactor, PackedRelativeBox_Identity, false, false);
 	}
 }
@@ -3657,14 +3664,8 @@ void USkinnedMeshComponent::UnHideBoneByName( FName BoneName )
 
 void USkinnedMeshComponent::SetForcedLOD(int32 InNewForcedLOD)
 {
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	const int32 OldValue = ForcedLodModel;
-	ForcedLodModel = FMath::Clamp(InNewForcedLOD, 0, GetNumLODs());
-	if (OldValue != ForcedLodModel)
-	{
-		IStreamingManager::Get().NotifyPrimitiveUpdated(this);
-	}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	SetForceStreamedLOD(InNewForcedLOD - 1);
+	SetForceRenderedLOD(InNewForcedLOD - 1);
 }
 
 int32 USkinnedMeshComponent::GetForcedLOD() const
@@ -3759,19 +3760,59 @@ int32 USkinnedMeshComponent::GetDesiredSyncLOD() const
 	return INDEX_NONE;
 }
 
-void USkinnedMeshComponent::SetSyncLOD(int32 LODIndex)
+int32 USkinnedMeshComponent::GetBestAvailableLOD() const
 {
-	SetForcedLOD(LODIndex + 1);
+	if (GetSkinnedAsset() && MeshObject)
+	{
+		const FSkeletalMeshRenderData& RenderData = MeshObject->GetSkeletalMeshRenderData();
+		
+		// If PendingFirstLODIdx is higher (worse) than CurrentFirstLODIdx, it means that
+		// CurrentFirstLODIdx is about to be streamed out, so we can't rely on it to be available.
+		const int32 BestAvailableLOD = FMath::Max<int32>(RenderData.PendingFirstLODIdx, RenderData.CurrentFirstLODIdx);
+		check(BestAvailableLOD >= 0);
+
+		return BestAvailableLOD;
+	}
+
+	return INDEX_NONE;
 }
 
-int32 USkinnedMeshComponent::GetCurrentSyncLOD() const
+void USkinnedMeshComponent::SetForceStreamedLOD(int32 LODIndex)
 {
-	return GetForcedLOD() - 1; // Weird API for forced LOD where 0 means auto, 1 means force to 0 etc
+	const int32 OldValue = ForceStreamedLodModel;
+	// Need to add 1 here, because LODIndex is 0-based but ForceStreamedLodModel is 1-based
+	ForceStreamedLodModel = FMath::Clamp(LODIndex + 1, 0, GetNumLODs());
+	if (OldValue != ForceStreamedLodModel)
+	{
+		IStreamingManager::Get().NotifyPrimitiveUpdated(this);
+	}
+}
+
+void USkinnedMeshComponent::SetForceRenderedLOD(int32 LODIndex)
+{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	// Need to add 1 here, because LODIndex is 0-based but ForcedLodModel is 1-based
+	ForcedLodModel = FMath::Clamp(LODIndex + 1, 0, GetNumLODs());
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+
+int32 USkinnedMeshComponent::GetForceRenderedLOD() const
+{
+	// Subtract 1 because ILODSyncInterface::GetForceRenderedLOD requires the return value to be 
+	// 0-based, but the return value of GetForcedLOD() is 1-based for legacy reasons.
+	return GetForcedLOD() - 1;
 }
 
 int32 USkinnedMeshComponent::GetNumSyncLODs() const
 {
 	return GetNumLODs();
+}
+
+int32 USkinnedMeshComponent::GetForceStreamedLOD() const
+{
+	// Subtract 1 because ILODSyncInterface::GetForceStreamedLOD requires the return value to be 
+	// 0-based, but ForceStreamedLodModel is 1-based for legacy reasons.
+	return ForceStreamedLodModel - 1;
 }
 
 bool USkinnedMeshComponent::UpdateLODStatus()
@@ -3854,7 +3895,12 @@ bool USkinnedMeshComponent::UpdateLODStatus_Internal(int32 InLeaderPoseComponent
 
 		if (GetSkinnedAsset()->IsStreamable() && MeshObject)
 		{
-			NewPredictedLODLevel = FMath::Max<int32>(NewPredictedLODLevel, MeshObject->GetSkeletalMeshRenderData().PendingFirstLODIdx);
+			// LOD streaming is enabled for this mesh, so clamp the predicted LOD to the best LOD
+			// that is loaded and is not waiting to be streamed out.
+
+			const FSkeletalMeshRenderData& RenderData = MeshObject->GetSkeletalMeshRenderData();
+			NewPredictedLODLevel = FMath::Max<int32>(NewPredictedLODLevel, RenderData.PendingFirstLODIdx);
+			NewPredictedLODLevel = FMath::Max<int32>(NewPredictedLODLevel, RenderData.CurrentFirstLODIdx);
 		}
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
