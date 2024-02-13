@@ -29,13 +29,13 @@ public:
 
 	/** Add the specified property to the list of properties handled by this Tracker Component */
 	void AddTrackedProperty(const FRCFieldPathInfo& InFieldPathInfo, UObject* InOwnerObject);
-	
+
 	/** Remove the specified property from the list of properties handled by this Tracker Component */
 	void RemoveTrackedProperty(const FRCFieldPathInfo& InFieldPathInfo, UObject* InOwnerObject);
 
 	/** Expose all Tracked Properties handled by this component to the current Remote Control Preset */
 	void ExposeAllProperties();
-	
+
 	/**
 	 * Unexpose all Tracked Properties handled by this component from the current Remote Control Preset.
 	 * It will also stop tracking all unexposed properties.
@@ -56,7 +56,7 @@ public:
 
 	/** returns true if Tracker Component is tracking the property for the specified FieldPathInfo and Owner Object */
 	bool IsTrackingProperty(const FRCFieldPathInfo& InFieldPathInfo, UObject* InOwnerObject) const;
-	
+
 	/** Get the Actor owning this Tracker Component */
 	AActor* GetTrackedActor() const;
 
@@ -65,12 +65,13 @@ protected:
 	virtual void OnComponentCreated() override;
 	virtual void OnComponentDestroyed(bool bInDestroyingHierarchy) override;
 	//~ End UActorComponent
-	
+
 	//~ Begin UObject Interface
 	virtual void PostInitProperties() override;
 	virtual void PostDuplicate(bool bInDuplicateForPIE) override;
 	virtual void PostEditImport() override;
 	virtual void PostLoad() override;
+	virtual void PreSave(FObjectPreSaveContext InSaveContext) override;
 #if WITH_EDITOR
 	virtual void PostTransacted(const FTransactionObjectEvent& InTransactionEvent) override;
 #endif
@@ -81,11 +82,12 @@ private:
 	void UnregisterTrackedActor() const;
 
 	void OnTrackerDuplicated();
-	
+
 	void RefreshTracker();
 	void RefreshExposedProperties();
 	void MarkPropertiesForRefresh();
-	
+	void CleanupProperties();
+
 	void RegisterPropertyIdChangeDelegate();
 	void UnregisterPropertyIdChangeDelegate() const;
 	void OnPropertyIdUpdated();
