@@ -473,7 +473,7 @@ ENUM_CLASS_FLAGS(EStreamableManagerCombinedHandleOptions);
 struct FStreamableManager : public FGCObject
 {
 	// Default priority for all async loads
-	static const TAsyncLoadPriority DefaultAsyncLoadPriority = 0;
+	static constexpr TAsyncLoadPriority DefaultAsyncLoadPriority = 0;
 	// Priority to try and load immediately
 	static const TAsyncLoadPriority AsyncLoadHighPriority = 100;
 
