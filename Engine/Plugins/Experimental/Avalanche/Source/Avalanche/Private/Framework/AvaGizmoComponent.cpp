@@ -74,9 +74,9 @@ void UAvaGizmoComponent::OnRegister()
 			PostRegisterComponentsHandle = World->AddOnPostRegisterAllActorComponentsHandler(
 				FOnPostRegisterAllActorComponents::FDelegate::CreateUObject(this, &UAvaGizmoComponent::OnPostRegisterParentComponents));
 		}
+		
+		Super::OnRegister();
 	}
-
-	Super::OnRegister();
 }
 
 void UAvaGizmoComponent::OnUnregister()
@@ -89,11 +89,11 @@ void UAvaGizmoComponent::OnUnregister()
 		{
 			World->RemoveOnPostRegisterAllActorComponentsHandler(PostRegisterComponentsHandle);
 		}
+
+		Super::OnUnregister();
 	}
 
 	RestoreComponentValues();
-	
-	Super::OnUnregister();
 }
 
 void UAvaGizmoComponent::OnComponentCreated()
