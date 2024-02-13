@@ -278,8 +278,7 @@ namespace Dataflow
 								{
 									// output has been serialized but cannot be found
 									// this means the definition of the node has changed and the output is no longer registered
-									ensureMsgf(false,
-										TEXT("Error: Cannot find registered output (%s) in node (%s) - this may result in missing connection ")
+									UE_LOG(LogChaos, Display, TEXT("Cannot find registered output (%s) in Dataflow node (%s) - this may result in missing connection(s).")
 										, *ArName.ToString(), *ArNodeName.ToString());
 								}
 							}
@@ -305,8 +304,7 @@ namespace Dataflow
 								{
 									// input has been serialized but cannot be found
 									// this means the definition of the node has changed and the input is no longer registered
-									ensureMsgf(false,
-										TEXT("Error: Cannot find registered input (%s) in node (%s) - this may result in missing connection ")
+									UE_LOG(LogChaos, Display, TEXT("Cannot find registered input (%s) in Dataflow node (%s) - this may result in missing connection(s).")
 										, *ArName.ToString(), *ArNodeName.ToString());
 								}
 							}
