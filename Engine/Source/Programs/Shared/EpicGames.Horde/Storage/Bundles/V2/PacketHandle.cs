@@ -3,7 +3,6 @@
 using System;
 using System.Buffers;
 using System.Buffers.Text;
-using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -280,6 +279,6 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		{
 			return await _outer.ReadAsync(key.Index * BundlePageSize, BundlePageSize, cancellationToken);
 		}
-#endregion
+		#endregion
 	}
 }

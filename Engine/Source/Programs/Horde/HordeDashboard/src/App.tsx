@@ -19,7 +19,6 @@ import { JobRedirector } from './components/JobRedirector';
 import { LogView } from './components/LogView';
 import { NoticeView } from './components/NoticeView';
 import { PerforceServerView } from './components/PerforceView';
-import { PoolView } from './components/PoolView';
 import { PreflightRedirector } from './components/Preflight';
 import { ProjectHome } from './components/ProjectHome';
 import { StreamView } from './components/StreamView';
@@ -36,6 +35,7 @@ import { darkTheme } from './styles/darkTheme';
 import { lightTheme } from './styles/lightTheme';
 import { ThemeTester } from './base/components/ThemeTester/ThemeTester';
 import { TelemetryView } from './components/telemetry/TelemetryView';
+import { PoolsView } from './components/PoolsView';
 
 let router: any;
 
@@ -107,7 +107,7 @@ const Main: React.FC = () => {
             path: "/", element: <Root />, errorElement: <RouteError />, children: [
                { path: "index", element: <UserHomeView /> },
                { path: "project/:projectId", element: <ProjectHome /> },
-               { path: "pools", element: <PoolView /> },
+               { path: "pools", element: <PoolsView /> },
                { path: "job/:jobId", element: <JobDetailViewV2 /> },
                { path: "job", element: <JobRedirector /> },
                { path: "log/:logId", element: <LogView /> },
