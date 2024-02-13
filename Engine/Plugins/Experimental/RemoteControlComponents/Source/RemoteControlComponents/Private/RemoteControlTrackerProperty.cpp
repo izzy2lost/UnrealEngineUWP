@@ -55,6 +55,11 @@ void FRemoteControlTrackerProperty::MarkUnexposed()
 	bIsExposed = false;
 }
 
+bool FRemoteControlTrackerProperty::IsValid() const
+{
+	return OwnerObject.IsValid();
+}
+
 bool FRemoteControlTrackerProperty::operator==(const FRemoteControlTrackerProperty& Other) const
 {
 	return FieldPathInfo == Other.FieldPathInfo && OwnerObject == Other.OwnerObject;
@@ -72,15 +77,15 @@ void FRemoteControlTrackerProperty::Expose(URemoteControlPreset* InRemoteControl
 		// Property is already exposed to specified preset, just return
 		return;
 	}
-	
-	if (!InRemoteControlPreset || !OwnerObject.IsValid())
+
+	if (!InRemoteControlPreset || !IsValid())
 	{
 		return;
 	}
-	
+
 	FRemoteControlComponentsUtils::ExposeProperty(InRemoteControlPreset, OwnerObject.Get(), FieldPathInfo);
 	CurrentPresetWeak = MakeWeakObjectPtr<URemoteControlPreset>(InRemoteControlPreset);
-	bIsExposed = true;	
+	bIsExposed = true;
 }
 
 void FRemoteControlTrackerProperty::Unexpose()
@@ -89,8 +94,8 @@ void FRemoteControlTrackerProperty::Unexpose()
 	{
 		return;
 	}
-	
-	if (!OwnerObject.IsValid())
+
+	if (!IsValid())
 	{
 		return;
 	}
@@ -105,6 +110,11 @@ void FRemoteControlTrackerProperty::Unexpose()
 
 void FRemoteControlTrackerProperty::ReadPropertyIdFromPreset()
 {
+	if (!IsValid())
+	{
+		return;
+	}
+
 	if (URemoteControlPreset* Preset = GetPreset())
 	{
 		const FName& Id = FRemoteControlComponentsUtils::GetExposedPropertyId(Preset, OwnerObject.Get(), FieldPathInfo);
@@ -117,7 +127,7 @@ void FRemoteControlTrackerProperty::ReadPropertyIdFromPreset()
 
 void FRemoteControlTrackerProperty::WritePropertyIdToPreset() const
 {
-	if (!IsExposed())
+	if (!IsExposed() || !IsValid())
 	{
 		return;
 	}

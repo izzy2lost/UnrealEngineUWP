@@ -7,6 +7,7 @@
 #include "RemoteControlTrackerProperty.h"
 #include "RemoteControlPreset.h"
 #include "Subsystems/RemoteControlComponentsSubsystem.h"
+#include "UObject/ObjectSaveContext.h"
 
 URemoteControlPreset* URemoteControlTrackerComponent::GetCurrentPreset() const
 {
@@ -65,7 +66,7 @@ void URemoteControlTrackerComponent::UnexposeAllProperties()
 	{
 		TrackedProperty.Unexpose();
 	}
-	
+
 	UnregisterPropertyIdChangeDelegate();
 }
 
@@ -121,7 +122,7 @@ void URemoteControlTrackerComponent::OnComponentDestroyed(bool bInDestroyingHier
 	Super::OnComponentDestroyed(bInDestroyingHierarchy);
 
 	UnexposeAllProperties();
-	
+
 	if (AActor* TrackedActor = GetTrackedActor())
 	{
 		if (URemoteControlComponentsSubsystem* RemoteControlComponentsSubsystem = URemoteControlComponentsSubsystem::Get())
@@ -162,6 +163,13 @@ void URemoteControlTrackerComponent::PostLoad()
 	RegisterPropertyIdChangeDelegate();
 }
 
+void URemoteControlTrackerComponent::PreSave(FObjectPreSaveContext InSaveContext)
+{
+	Super::PreSave(InSaveContext);
+
+	CleanupProperties();
+}
+
 #if WITH_EDITOR
 void URemoteControlTrackerComponent::PostTransacted(const FTransactionObjectEvent& InTransactionEvent)
 {
@@ -169,8 +177,9 @@ void URemoteControlTrackerComponent::PostTransacted(const FTransactionObjectEven
 
 	if (InTransactionEvent.GetEventType() == ETransactionObjectEventType::UndoRedo)
 	{
+		CleanupProperties();
 		RefreshTracker();
-		
+
 		// In case the component was destroyed and created again with an Undo, let's try fixing potentially broken bindings
 		if (URemoteControlPreset* Preset = GetCurrentPreset())
 		{
@@ -181,7 +190,7 @@ void URemoteControlTrackerComponent::PostTransacted(const FTransactionObjectEven
 #endif
 
 void URemoteControlTrackerComponent::RegisterTrackedActor() const
-{	
+{
 	if (AActor* OuterActor = GetTrackedActor())
 	{
 		if (URemoteControlComponentsSubsystem* RemoteControlComponentsSubsystem = URemoteControlComponentsSubsystem::Get())
@@ -204,6 +213,8 @@ void URemoteControlTrackerComponent::UnregisterTrackedActor() const
 
 void URemoteControlTrackerComponent::OnTrackerDuplicated()
 {
+	CleanupProperties();
+
 	// Early out if Preset duplication is being blocked from the conventional Duplicate->Renew->RefreshTracker
 	// Not allowing preset guid renewal is analogous to duplicating the preset "as-is", and the tracker should not manipulate the preset
 	if (!FRCPresetGuidRenewGuard::IsAllowingPresetGuidRenewal())
@@ -233,6 +244,19 @@ void URemoteControlTrackerComponent::MarkPropertiesForRefresh()
 	for (FRemoteControlTrackerProperty& TrackedProperty : TrackedProperties)
 	{
 		TrackedProperty.MarkUnexposed();
+	}
+}
+
+void URemoteControlTrackerComponent::CleanupProperties()
+{
+	for (TArray<FRemoteControlTrackerProperty>::TIterator PropertyIt = TrackedProperties.CreateIterator(); PropertyIt; ++PropertyIt)
+	{
+		FRemoteControlTrackerProperty TrackedProperty(*PropertyIt);
+
+		if (!TrackedProperty.IsValid())
+		{
+			PropertyIt.RemoveCurrent();
+		}
 	}
 }
 

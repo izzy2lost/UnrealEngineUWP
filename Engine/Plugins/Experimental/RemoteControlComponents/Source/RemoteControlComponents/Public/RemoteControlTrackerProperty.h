@@ -57,6 +57,11 @@ public:
 	 */
 	void MarkUnexposed();
 
+	/** Check if this property can still be exposed (internally verifies if Owner Object is valid) */
+	bool IsValid() const;
+
+	const FRCFieldPathInfo& GetFieldPathInfo() const { return FieldPathInfo; }
+
 	bool operator==(const FRemoteControlTrackerProperty& Other) const;
 
 	bool operator!=(const FRemoteControlTrackerProperty& Other) const;
