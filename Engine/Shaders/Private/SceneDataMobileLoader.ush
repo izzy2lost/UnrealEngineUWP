@@ -5,6 +5,10 @@
 	#define PLATFORM_USES_PRIMITIVE_UBO 0
 #endif
 
+#ifndef PRIMITIVE_HAS_TILEOFFSET_DATA
+#error "Missing PRIMITIVE_HAS_TILEOFFSET_DATA"
+#endif
+
 float4 LoadPrimitiveDataElementUBO(uint DrawInstanceId, uint DataIdx)
 {
 #if PLATFORM_USES_PRIMITIVE_UBO
@@ -62,7 +66,12 @@ FPrimitiveSceneData LoadPrimitiveDataUBO(uint DrawInstanceId)
 	{
 		float4 Data = LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+0);
 		float4 Data2 = LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+1);
+		#if PRIMITIVE_HAS_TILEOFFSET_DATA
+		PrimitiveData.ObjectWorldPositionTO = MakeLWCVector3(Data.xyz, Data2.xyz);
+		PrimitiveData.ObjectWorldPosition = DFFromTileOffset(PrimitiveData.ObjectWorldPositionTO);
+		#else
 		PrimitiveData.ObjectWorldPosition = MakeDFVector3(Data.xyz, Data2.xyz);
+		#endif
 		PrimitiveData.ObjectRadius = Data.w;
 		DataIdx += 2u;
 	}
@@ -71,7 +80,12 @@ FPrimitiveSceneData LoadPrimitiveDataUBO(uint DrawInstanceId)
 	{
 		float4 Data = LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+0);
 		float4 Data2 = LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+1);
+		#if PRIMITIVE_HAS_TILEOFFSET_DATA
+		PrimitiveData.ActorWorldPositionTO = MakeLWCVector3(Data.xyz, Data2.xyz);
+		PrimitiveData.ActorWorldPosition = DFFromTileOffset(PrimitiveData.ActorWorldPositionTO);
+		#else
 		PrimitiveData.ActorWorldPosition = MakeDFVector3(Data.xyz, Data2.xyz);
+		#endif
 		DataIdx += 2u;
 	}
 

@@ -202,9 +202,8 @@ void FPrimitiveSceneShaderData::Setup(const FPrimitiveUniformShaderParameters& P
 
 	OutData[17]	= FVector4f(PrimitiveUniformShaderParameters.InvNonUniformScale, PrimitiveUniformShaderParameters.ObjectBoundsX);
 	OutData[18]	= PrimitiveUniformShaderParameters.ObjectWorldPositionHighAndRadius;
-	OutData[19]	= PrimitiveUniformShaderParameters.ObjectWorldPositionLow;
-
-	OutData[20]	= FVector4f(PrimitiveUniformShaderParameters.ActorWorldPositionHigh, 0.0f);
+	OutData[19]	= FVector4f(PrimitiveUniformShaderParameters.ObjectWorldPositionLow, PrimitiveUniformShaderParameters.MinMaterialDisplacement);
+	OutData[20]	= FVector4f(PrimitiveUniformShaderParameters.ActorWorldPositionHigh, PrimitiveUniformShaderParameters.MaxMaterialDisplacement);
 
 	Store4(OutData, 21, PrimitiveUniformShaderParameters.ActorWorldPositionLow, PrimitiveUniformShaderParameters.LightmapUVIndex);
 	Store4(OutData, 22, PrimitiveUniformShaderParameters.ObjectOrientation, PrimitiveUniformShaderParameters.LightmapDataIndex);
@@ -231,12 +230,8 @@ void FPrimitiveSceneShaderData::Setup(const FPrimitiveUniformShaderParameters& P
 		PrimitiveUniformShaderParameters.InstanceDrawDistanceMinMaxSquared.Y, 
 		PrimitiveUniformShaderParameters.InstanceWPODisableDistanceSquared, 
 		PrimitiveUniformShaderParameters.NaniteRayTracingDataOffset);
-	
-	Store4(OutData, 32,
-		PrimitiveUniformShaderParameters.MaxWPOExtent,
-		PrimitiveUniformShaderParameters.MinMaterialDisplacement,
-		PrimitiveUniformShaderParameters.MaxMaterialDisplacement,
-		PrimitiveUniformShaderParameters.CustomStencilValueAndMask);
+
+	OutData[32]	= FVector4f(PrimitiveUniformShaderParameters.MaxWPOExtent, PrimitiveUniformShaderParameters.CustomStencilValueAndMask, 0.0, 0.0);
 
 	// Set all the custom primitive data float4. This matches the loop in SceneData.ush
 	const int32 CustomPrimitiveDataStartIndex = 33;
