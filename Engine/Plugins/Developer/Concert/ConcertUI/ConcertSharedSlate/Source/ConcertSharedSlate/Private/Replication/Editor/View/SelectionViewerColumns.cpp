@@ -1,17 +1,17 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Replication/Editor/View/SelectionViewerColumns.h"
+#include "Replication/Editor/View/Column/SelectionViewerColumns.h"
 
 #include "ConcertFrontendStyle.h"
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
 #include "Replication/Editor/Model/ReplicatedPropertyData.h"
 #include "Replication/Editor/Model/ReplicatedObjectData.h"
 #include "Replication/Editor/View/DisplayUtils.h"
-#include "Replication/Editor/View/ObjectEditor/SBaseReplicationStreamEditor.h"
-#include "Replication/Editor/View/ReplicationColumnsUtils.h"
+#include "Replication/Editor/View/Column/ReplicationColumnsUtils.h"
 #include "Replication/PropertyChainUtils.h"
 
 #include "Internationalization/Internationalization.h"
+#include "Replication/Editor/View/Column/IObjectTreeColumn.h"
 #include "Textures/SlateIcon.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/SBoxPanel.h"
@@ -27,80 +27,135 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::TopLevel
 	const FName LabelColumnId = TEXT("LabelColumn");
 	const FName TypeColumnId = TEXT("TypeColumn");
 	
-	FReplicationTopLevelObjectColumn LabelColumn(TSharedRef<IReplicationStreamModel> Model, IObjectNameModel* OptionalNameModel)
+	FObjectColumnEntry LabelColumn(TSharedRef<IReplicationStreamModel> Model, IObjectNameModel* OptionalNameModel)
 	{
-		auto GetDisplayText = [OptionalNameModel](const FReplicatedObjectData& ObjectData)
+		class FLabelColumn_Object : public IObjectTreeColumn
 		{
-			const FSoftObjectPath& ObjectPath = ObjectData.GetObjectPath();
-			return DisplayUtils::GetObjectDisplayText(ObjectPath, OptionalNameModel);
+		public:
+			
+			FLabelColumn_Object(TSharedRef<IReplicationStreamModel> Model, IObjectNameModel* OptionalNameModel)
+				: Model(MoveTemp(Model))
+				, OptionalNameModel(OptionalNameModel)
+			{}
+
+			virtual SHeaderRow::FColumn::FArguments CreateHeaderRowArgs() const override
+			{
+				return SHeaderRow::Column(LabelColumnId)
+					.DefaultLabel(LOCTEXT("LabelColumnLabel", "Label"))
+					.FillSized(FConcertFrontendStyle::Get()->GetFloat("Concert.Replication.Tree.Object.LabelRowWidth"));
+			}
+			
+			virtual TSharedRef<SWidget> GenerateColumnWidget(const FBuildArgs& InArgs) override
+			{
+				const FReplicatedObjectData& ObjectData = InArgs.RowItem.RowData;
+				const FText Text = GetDisplayText(ObjectData);
+					
+				return SNew(SHorizontalBox)
+					.ToolTipText(FText::FromString(ObjectData.GetObjectPath().ToString()))
+					
+					+SHorizontalBox::Slot()
+					.AutoWidth()
+					.HAlign(HAlign_Center)
+					.VAlign(VAlign_Center)
+					[
+						SNew(SImage)
+						.Image(DisplayUtils::GetObjectIcon(*Model, ObjectData.GetObjectPath()).GetOptionalIcon())
+					]
+					
+					+SHorizontalBox::Slot()
+					.HAlign(HAlign_Left)
+					.VAlign(VAlign_Center)
+					.Padding(6.f, 0.f, 0.f, 0.f)
+					[
+						SNew(STextBlock)
+						.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = InArgs.HighlightText](){ return *HighlightText; }))
+						.Text(Text)
+					];
+			}
+			
+			virtual void PopulateSearchString(const FObjectTreeRowContext& InItem, TArray<FString>& InOutSearchStrings) const override
+			{
+				const FReplicatedObjectData& ObjectData = InItem.RowData;
+				InOutSearchStrings.Add(DisplayUtils::GetObjectDisplayText(ObjectData.GetObjectPath(), OptionalNameModel).ToString());
+			}
+			
+			virtual bool CanBeSorted() const override { return true; } 
+			virtual bool IsLessThan(const FObjectTreeRowContext& Left, const FObjectTreeRowContext& Right) const override
+			{
+				return GetDisplayText(Left.RowData).ToString() < GetDisplayText(Right.RowData).ToString();
+			}
+
+		private:
+			
+			const TSharedRef<IReplicationStreamModel> Model;
+			IObjectNameModel* const OptionalNameModel;
+			
+			FText GetDisplayText(const FReplicatedObjectData& ObjectData) const
+			{
+				const FSoftObjectPath& ObjectPath = ObjectData.GetObjectPath();
+				return DisplayUtils::GetObjectDisplayText(ObjectPath, OptionalNameModel);
+			}
 		};
-		
-		return FReplicationTopLevelObjectColumn(
-			FReplicationTopLevelObjectColumn::FArguments()
-				.GenerateWidgetColumn_Lambda([Model = MoveTemp(Model), GetDisplayText](const FReplicationTopLevelObjectColumn::FBuildArgs& Args)
-				{
-					const FText Text = GetDisplayText(Args.RowData);
-					
-					return SNew(SHorizontalBox)
-						.ToolTipText(FText::FromString(Args.RowData.GetObjectPath().ToString()))
-					
-						+SHorizontalBox::Slot()
-						.AutoWidth()
-						.HAlign(HAlign_Center)
-						.VAlign(VAlign_Center)
-						[
-							SNew(SImage)
-							.Image(DisplayUtils::GetObjectIcon(*Model, Args.RowData.GetObjectPath()).GetOptionalIcon())
-						]
-					
-						+SHorizontalBox::Slot()
-						.HAlign(HAlign_Left)
-						.VAlign(VAlign_Center)
-						.Padding(6.f, 0.f, 0.f, 0.f)
-						[
-							SNew(STextBlock)
-							.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = Args.HighlightText](){ return *HighlightText; }))
-							.Text(Text)
-						];
-				})
-				.PopulateSearchItems_Lambda([OptionalNameModel](const FReplicatedObjectData& ObjectData, TArray<FString>& InOutSearchStrings)
-				{
-					InOutSearchStrings.Add(DisplayUtils::GetObjectDisplayText(ObjectData.GetObjectPath(), OptionalNameModel).ToString());
-				})
-				.IsLessThan_Lambda([GetDisplayText](const FReplicatedObjectData& Left, const FReplicatedObjectData& Right)
-				{
-					return GetDisplayText(Left).ToString() < GetDisplayText(Right).ToString();
-				})
-				.ColumnSortOrder(static_cast<int32>(ETopLevelColumnOrder::Label)),
-			SHeaderRow::Column(LabelColumnId)
-				.DefaultLabel(LOCTEXT("LabelColumnLabel", "Label"))
-				.FillSized(FConcertFrontendStyle::Get()->GetFloat("Concert.Replication.Tree.Object.LabelRowWidth"))
-			);
+
+		return {
+			TReplicationColumnDelegates<FObjectTreeRowContext>::FCreateColumn::CreateLambda([Model = MoveTemp(Model), OptionalNameModel]()
+			{
+				return MakeShared<FLabelColumn_Object>(Model, OptionalNameModel);
+			}),
+			LabelColumnId,
+			{ static_cast<int32>(ETopLevelColumnOrder::Label) }
+		};
 	}
 	
-	FReplicationTopLevelObjectColumn TypeColumn(TSharedRef<IReplicationStreamModel> Model)
+	FObjectColumnEntry TypeColumn(TSharedRef<IReplicationStreamModel> Model)
 	{
-		return FReplicationTopLevelObjectColumn(
-			FReplicationTopLevelObjectColumn::FArguments()
-				.GenerateWidgetColumn_Lambda([Model](const FReplicationTopLevelObjectColumn::FBuildArgs& Args)
-				{
-					return SNew(STextBlock)
-						.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = Args.HighlightText](){ return *HighlightText; }))
-						.Text(DisplayUtils::GetObjectTypeText(*Model, Args.RowData.GetObjectPath()));
-				})
-				.PopulateSearchItems_Lambda([Model](const FReplicatedObjectData& ObjectData, TArray<FString>& InOutSearchStrings)
-				{
-					InOutSearchStrings.Add(DisplayUtils::GetObjectTypeText(Model.Get(), ObjectData.GetObjectPath()).ToString());
-				})
-				.IsLessThan_Lambda([Model](const FReplicatedObjectData& Left, const FReplicatedObjectData& Right)
-				{
-					return DisplayUtils::GetObjectTypeText(*Model, Left.GetObjectPath()).ToString() < DisplayUtils::GetObjectTypeText(*Model, Right.GetObjectPath()).ToString();
-				})
-				.ColumnSortOrder(static_cast<int32>(ETopLevelColumnOrder::Type)),
-			SHeaderRow::Column(TypeColumnId)
-				.DefaultLabel(LOCTEXT("TypeColumnLabel", "Type"))
-				.FillWidth(1.f)
-			);
+		class FLabelColumn_Type : public IObjectTreeColumn
+		{
+		public:
+			
+			FLabelColumn_Type(TSharedRef<IReplicationStreamModel> Model)
+				: Model(MoveTemp(Model))
+			{}
+
+			virtual SHeaderRow::FColumn::FArguments CreateHeaderRowArgs() const override
+			{
+				return SHeaderRow::Column(TypeColumnId)
+					.DefaultLabel(LOCTEXT("TypeColumnLabel", "Type"))
+					.FillWidth(1.f);
+			}
+			
+			virtual TSharedRef<SWidget> GenerateColumnWidget(const FBuildArgs& InArgs) override
+			{
+				return SNew(STextBlock)
+					.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = InArgs.HighlightText](){ return *HighlightText; }))
+					.Text(DisplayUtils::GetObjectTypeText(*Model, InArgs.RowItem.RowData.GetObjectPath()));
+			}
+			
+			virtual void PopulateSearchString(const FObjectTreeRowContext& InItem, TArray<FString>& InOutSearchStrings) const override
+			{
+				InOutSearchStrings.Add(DisplayUtils::GetObjectTypeText(Model.Get(), InItem.RowData.GetObjectPath()).ToString());
+			}
+			
+			virtual bool CanBeSorted() const override { return true; } 
+			virtual bool IsLessThan(const FObjectTreeRowContext& Left, const FObjectTreeRowContext& Right) const override
+			{
+				return DisplayUtils::GetObjectTypeText(*Model, Left.RowData.GetObjectPath()).ToString()
+					< DisplayUtils::GetObjectTypeText(*Model, Right.RowData.GetObjectPath()).ToString();
+			}
+
+		private:
+			
+			const TSharedRef<IReplicationStreamModel> Model;
+		};
+
+		return {
+			TReplicationColumnDelegates<FObjectTreeRowContext>::FCreateColumn::CreateLambda([Model = MoveTemp(Model)]()
+			{
+				return MakeShared<FLabelColumn_Type>(Model);
+			}),
+			TypeColumnId,
+			{ static_cast<int32>(ETopLevelColumnOrder::Type) }
+		};
 	}
 }
 
@@ -113,63 +168,102 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::Property
 	const FName LabelColumnId = TEXT("LabelColumn");
 	const FName TypeColumnId = TEXT("TypeColumn");
 	
-	FReplicationPropertyColumn LabelColumn()
+	FPropertyColumnEntry LabelColumn()
 	{
-		return FReplicationPropertyColumn(
-			FReplicationPropertyColumn::FArguments()
-				.GenerateWidgetColumn_Lambda([](const FReplicationPropertyColumn::FBuildArgs& Args)
-				{
-					return SNew(STextBlock)
-						.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
-						.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = Args.HighlightText](){ return *HighlightText; }))
-						.Text(DisplayUtils::GetPropertyDisplayText(Args.RowData.GetProperty()));
-				})
-				.PopulateSearchItems_Lambda([](const FReplicatedPropertyData& ObjectData, TArray<FString>& InOutSearchStrings)
-				{
-					InOutSearchStrings.Add(DisplayUtils::GetPropertyDisplayText(ObjectData.GetProperty()).ToString());
-				})
-				.IsLessThan_Lambda([](const FReplicatedPropertyData& Left, const FReplicatedPropertyData& Right)
-				{
-					return DisplayUtils::GetPropertyDisplayString(Left.GetProperty()) < DisplayUtils::GetPropertyDisplayString(Right.GetProperty());
-				})
-				.ColumnSortOrder(static_cast<int32>(EReplicationPropertyColumnOrder::Label)),
-			SHeaderRow::Column(LabelColumnId)
-				.DefaultLabel(LOCTEXT("LabelColumnLabel", "Label"))
-				.FillSized(FConcertFrontendStyle::Get()->GetFloat("Concert.Replication.Tree.Property.LabelRowWidth"))
-			);
-	}
-	
-	FReplicationPropertyColumn TypeColumn()
-	{
-		static auto GetDisplayText = [](const FReplicatedPropertyData& Args)
+		class FLabelColumn_Property : public IPropertyTreeColumn
 		{
-			UClass* Class = Args.GetOwningClass().TryLoadClass<UObject>();
-			const FProperty* Property = Class ? ConcertSyncCore::PropertyChain::ResolveProperty(*Class, Args.GetProperty()) : nullptr;
-			return Property ? FText::FromString(Property->GetCPPType()) : LOCTEXT("Unknown", "Unknown");	
+		public:
+
+			virtual SHeaderRow::FColumn::FArguments CreateHeaderRowArgs() const override
+			{
+				return SHeaderRow::Column(LabelColumnId)
+					.DefaultLabel(LOCTEXT("LabelColumnLabel", "Label"))
+					.FillSized(FConcertFrontendStyle::Get()->GetFloat("Concert.Replication.Tree.Property.LabelRowWidth"));
+			}
+			
+			virtual TSharedRef<SWidget> GenerateColumnWidget(const FBuildArgs& InArgs) override
+			{
+				const FReplicatedPropertyData& PropertyData = InArgs.RowItem.RowData;
+				return SNew(STextBlock)
+						.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
+						.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = InArgs.HighlightText](){ return *HighlightText; }))
+						.Text(DisplayUtils::GetPropertyDisplayText(PropertyData.GetProperty()));
+			}
+			
+			virtual void PopulateSearchString(const FPropertyTreeRowContext& InItem, TArray<FString>& InOutSearchStrings) const override
+			{
+				InOutSearchStrings.Add(DisplayUtils::GetPropertyDisplayText(InItem.RowData.GetProperty()).ToString());
+			}
+			
+			virtual bool CanBeSorted() const override { return true; } 
+			virtual bool IsLessThan(const FPropertyTreeRowContext& Left, const FPropertyTreeRowContext& Right) const override
+			{
+				return DisplayUtils::GetPropertyDisplayString(Left.RowData.GetProperty())
+					< DisplayUtils::GetPropertyDisplayString(Right.RowData.GetProperty());
+			}
 		};
 		
-		return FReplicationPropertyColumn(
-			FReplicationPropertyColumn::FArguments()
-				.GenerateWidgetColumn_Lambda([](const FReplicationPropertyColumn::FBuildArgs& Args)
-				{
-					return SNew(STextBlock)
+		return {
+			TReplicationColumnDelegates<FPropertyTreeRowContext>::FCreateColumn::CreateLambda([]()
+			{
+				return MakeShared<FLabelColumn_Property>();
+			}),
+			LabelColumnId,
+			{ static_cast<int32>(EReplicationPropertyColumnOrder::Label) }
+		};
+	}
+	
+	FPropertyColumnEntry TypeColumn()
+	{
+		class FTypeColumn_Property : public IPropertyTreeColumn
+		{
+		public:
+
+			virtual SHeaderRow::FColumn::FArguments CreateHeaderRowArgs() const override
+			{
+				return SHeaderRow::Column(TypeColumnId)
+					.DefaultLabel(LOCTEXT("TypeColumnLabel", "Type"))
+					.FillWidth(1.f);
+			}
+			
+			virtual TSharedRef<SWidget> GenerateColumnWidget(const FBuildArgs& InArgs) override
+			{
+				const FReplicatedPropertyData& PropertyData = InArgs.RowItem.RowData;
+				return SNew(STextBlock)
 						.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
-						.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = Args.HighlightText](){ return *HighlightText; }))
-						.Text(GetDisplayText(Args.RowData));
-				})
-				.PopulateSearchItems_Lambda([](const FReplicatedPropertyData& ObjectData, TArray<FString>& InOutSearchStrings)
-				{
-					InOutSearchStrings.Add(GetDisplayText(ObjectData).ToString());
-				})
-				.IsLessThan_Lambda([](const FReplicatedPropertyData& Left, const FReplicatedPropertyData& Right)
-				{
-					return GetDisplayText(Left).ToString() < GetDisplayText(Right).ToString();
-				})
-				.ColumnSortOrder(static_cast<int32>(EReplicationPropertyColumnOrder::Type)),
-			SHeaderRow::Column(TypeColumnId)
-				.DefaultLabel(LOCTEXT("TypeColumnLabel", "Type"))
-				.FillWidth(1.f)
-			);
+						.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = InArgs.HighlightText](){ return *HighlightText; }))
+						.Text(GetDisplayText(InArgs.RowItem.RowData));
+			}
+			
+			virtual void PopulateSearchString(const FPropertyTreeRowContext& InItem, TArray<FString>& InOutSearchStrings) const override
+			{
+				InOutSearchStrings.Add(GetDisplayText(InItem.RowData).ToString());
+			}
+			
+			virtual bool CanBeSorted() const override { return true; } 
+			virtual bool IsLessThan(const FPropertyTreeRowContext& Left, const FPropertyTreeRowContext& Right) const override
+			{
+				return GetDisplayText(Left.RowData).ToString() < GetDisplayText(Right.RowData).ToString();
+			}
+
+		private:
+			
+			static FText GetDisplayText(const FReplicatedPropertyData& Args)
+			{
+				UClass* Class = Args.GetOwningClass().TryLoadClass<UObject>();
+				const FProperty* Property = Class ? ConcertSyncCore::PropertyChain::ResolveProperty(*Class, Args.GetProperty()) : nullptr;
+				return Property ? FText::FromString(Property->GetCPPType()) : LOCTEXT("Unknown", "Unknown");	
+			};
+		};
+		
+		return {
+			TReplicationColumnDelegates<FPropertyTreeRowContext>::FCreateColumn::CreateLambda([]()
+			{
+				return MakeShared<FTypeColumn_Property>();
+			}),
+			TypeColumnId,
+			{ static_cast<int32>(EReplicationPropertyColumnOrder::Type) }
+		};
 	}
 }
 

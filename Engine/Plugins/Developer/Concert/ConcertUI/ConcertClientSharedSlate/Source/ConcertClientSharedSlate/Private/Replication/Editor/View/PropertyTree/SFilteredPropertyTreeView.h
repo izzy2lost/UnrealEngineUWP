@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Replication/Editor/View/IPropertyTreeView.h"
-#include "Replication/Editor/View/ReplicationColumnsUtils.h"
+#include "Replication/Editor/View/Column/ReplicationColumnsUtils.h"
 
 #include "Filters/SBasicFilterBar.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
@@ -31,22 +31,6 @@ namespace UE::ConcertClientSharedSlate
 		
 		SLATE_BEGIN_ARGS(SFilteredPropertyTreeView)
 		{}
-			/*************** Arguments inherited by SReplicationTreeView ***************/
-		
-			/** The columns this list should have */
-			SLATE_ARGUMENT(TArray<ConcertSharedSlate::TReplicationColumn<ConcertSharedSlate::FReplicatedPropertyData>>, Columns)
-			/** The name of the column that will have the SExpanderArrow for the tree view. */
-			SLATE_ARGUMENT(FName, ExpandableColumnLabel)
-			/** Initial primary sort to set. */
-			SLATE_ARGUMENT(ConcertSharedSlate::FColumnSortInfo, PrimarySort)
-			/** Initial secondary sort to set. */
-			SLATE_ARGUMENT(ConcertSharedSlate::FColumnSortInfo, SecondarySort)
-		
-			/** Optional widget to add to the left of the search bar. */
-			SLATE_NAMED_SLOT(FArguments, LeftOfSearchBar)
-			/** Optional widget to add to the left of the search bar. */
-			SLATE_NAMED_SLOT(FArguments, RightOfSearchBar)
-		
 		SLATE_END_ARGS()
 
 		void Construct(const FArguments& InArgs, FFilterablePropertyTreeViewParams Params);

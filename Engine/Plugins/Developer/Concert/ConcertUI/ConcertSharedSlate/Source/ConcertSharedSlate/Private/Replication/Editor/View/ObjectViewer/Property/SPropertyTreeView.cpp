@@ -5,6 +5,7 @@
 #include "Replication/Editor/Model/ReplicatedPropertyData.h"
 
 #include "Algo/ForEach.h"
+#include "Replication/Editor/View/Column/PropertyColumnAdapter.h"
 #include "UObject/UnrealType.h"
 
 #define LOCTEXT_NAMESPACE "SReplicatedPropertiesView"
@@ -19,7 +20,7 @@ namespace UE::ConcertSharedSlate
 				.RootItemsSource(&RootPropertyRowData)
 				.OnGetChildren(this, &SPropertyTreeView::GetPropertyRowChildren)
 				.FilterItem(InArgs._FilterItem)
-				.Columns(InArgs._Columns)
+				.Columns(FPropertyColumnAdapter::Transform(InArgs._Columns))
 				.ExpandableColumnLabel(InArgs._ExpandableColumnLabel)
 				.PrimarySort(InArgs._PrimarySort)
 				.SecondarySort(InArgs._SecondarySort)

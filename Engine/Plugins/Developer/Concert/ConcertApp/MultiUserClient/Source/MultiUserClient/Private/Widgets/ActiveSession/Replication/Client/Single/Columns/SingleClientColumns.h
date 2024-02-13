@@ -2,7 +2,8 @@
 
 #pragma once
 
-#include "Replication/Editor/View/PredefinedReplicationColumns.h"
+#include "Replication/Editor/View/Column/IObjectTreeColumn.h"
+#include "Replication/Editor/View/Column/IPropertyTreeColumn.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
@@ -40,33 +41,17 @@ namespace UE::MultiUserClient::SingleClientColumns
 
 
 	/********** Toggle authority **********/
-	extern const FName ToggleTopLevelAuthorityColumnId;
-
-	/**
-	 * Checkbox placed in the top-level view.
-	 * It gives / removes authority for the top-level object and all of its subobjects.
-	 *
-	 * @param ClientStreamModel Used to discover the client's registered subobjects
-	 * @param ChangeTracker Used to determine the checkbox state and change authority.
-	 * @param SubmissionWorkflow Used to determine whether changing authority is at all enabled
-	 * @return Column that can be placed in the table
-	 */
-	ConcertSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn ToggleTopLevelAuthority(
-		ConcertSharedSlate::IReplicationStreamModel& ClientStreamModel,
-		FAuthorityChangeTracker& ChangeTracker,
-		ISubmissionWorkflow& SubmissionWorkflow
-		);
+	extern const FName ToggleObjectAuthorityColumnId;
 
 	/**
 	 * Checkbox placed in the subobject view
 	 * It gives / removes authority for the object it is placed next to.
 	 * 
-	 * @param AuthoritySynchronizer Determines whether the client has authority or not.
 	 * @param ChangeTracker Used to determine the checkbox state and change authority.
-	 * @param AuthoritySynchronizer Used to determine whether changing authority is at all enabled
+	 * @param SubmissionWorkflow
 	 * @return Column that can be placed in the table
 	 */
-	ConcertSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn ToggleObjectAuthority(
+	ConcertSharedSlate::FObjectColumnEntry ToggleObjectAuthority(
 		FAuthorityChangeTracker& ChangeTracker,
 		ISubmissionWorkflow& SubmissionWorkflow
 		);
@@ -75,19 +60,6 @@ namespace UE::MultiUserClient::SingleClientColumns
 	/********** Owner **********/
 	extern const FName OwnerOfSubobjectColumnId;
 	extern const FName OwnerOfPropertyColumnId;
-	
-	/**
-	 * Displays the owner of a top-level object.
-	 * @param InClient The local Concert client used to look up other client display info
-	 * @param InAuthorityCache Used to determine which client owns the property
-	 * @param InObjectModel Used to get subobjects for a top-level object
-	 * @return Column that can be placed in the table
-	 */
-	ConcertSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn OwnerOfTopLevelObject(
-		const TSharedRef<IConcertClient>& InClient,
-		FGlobalAuthorityCache& InAuthorityCache,
-		ConcertSharedSlate::IReplicationStreamModel& InObjectModel
-		);
 
 	/**
 	 * Displays the owner of a subobject.
@@ -95,8 +67,8 @@ namespace UE::MultiUserClient::SingleClientColumns
 	 * @param InAuthorityCache Used to determine which client owns the property
 	 * @return Column that can be placed in the table
 	 */
-	ConcertSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn OwnerOfObject(
-		const TSharedRef<IConcertClient>& InClient,
+	ConcertSharedSlate::FObjectColumnEntry OwnerOfObject(
+		TSharedRef<IConcertClient> InClient,
 		FGlobalAuthorityCache& InAuthorityCache
 		);
 	
@@ -107,16 +79,15 @@ namespace UE::MultiUserClient::SingleClientColumns
 	 * @param InViewerAttribute Used to determine which objects the property box is displaying
 	 * @return Column that can be placed in the table
 	 */
-	ConcertSharedSlate::ReplicationColumns::FReplicationPropertyColumn OwnerOfProperty(
-		const TSharedRef<IConcertClient>& InClient,
+	ConcertSharedSlate::FPropertyColumnEntry OwnerOfProperty(
+		TSharedRef<IConcertClient> InClient,
 		FGlobalAuthorityCache& InAuthorityCache,
-		const TAttribute<const ConcertSharedSlate::IReplicationStreamViewer*>& InViewerAttribute
+		TAttribute<const ConcertSharedSlate::IReplicationStreamViewer*> InViewerAttribute
 		);
 
 	
 	/********** Conflict warning **********/
 	extern const FName ConflictWarningTopLevelObjectColumnId;
-	extern const FName ConflictWarningSubobjectColumnId;
 	extern const FName ConflictWarningPropertyColumnId;
 	
 	/**
@@ -128,7 +99,7 @@ namespace UE::MultiUserClient::SingleClientColumns
 	 * 
 	 * @return Column that can be placed in the table
 	 */
-	ConcertSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn ConflictWarningForObject(
+	ConcertSharedSlate::FObjectColumnEntry ConflictWarningForObject(
 		TSharedRef<IConcertClient> InClient,
 		FGlobalAuthorityCache& InAuthorityCache,
 		const FGuid& ClientId
@@ -144,7 +115,7 @@ namespace UE::MultiUserClient::SingleClientColumns
 	 * 
 	 * @return Column that can be placed in the table
 	 */
-	ConcertSharedSlate::ReplicationColumns::FReplicationPropertyColumn ConflictWarningForProperty(
+	ConcertSharedSlate::FPropertyColumnEntry ConflictWarningForProperty(
 		TSharedRef<IConcertClient> InClient,
 		TAttribute<const ConcertSharedSlate::IReplicationStreamViewer*> InViewer,
 		FGlobalAuthorityCache& InAuthorityCache,

@@ -44,7 +44,7 @@ namespace UE::ConcertSharedSlate
 		[
 			SAssignNew(ReplicationViewer, SReplicationStreamViewer, PropertiesModelAdapter.ToSharedRef())
 				.PropertyTreeView(InArgs._PropertyTreeView)
-				.AdditionalObjectColumns(InArgs._AdditionalObjectColumns)
+				.ObjectColumns(InArgs._ObjectColumns)
 				.PrimaryObjectSort(InArgs._PrimaryObjectSort)
 				.SecondaryObjectSort(InArgs._SecondaryObjectSort)
 				.ObjectHierarchy(InArgs._ObjectHierarchy)

@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Replication/Editor/View/IPropertyTreeView.h"
-#include "Replication/Editor/View/SelectionViewerColumns.h"
+#include "Replication/Editor/View/Column/SelectionViewerColumns.h"
 
 #include "Misc/Optional.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"

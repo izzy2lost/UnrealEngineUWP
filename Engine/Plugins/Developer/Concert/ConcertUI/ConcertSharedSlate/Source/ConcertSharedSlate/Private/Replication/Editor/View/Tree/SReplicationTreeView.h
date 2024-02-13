@@ -2,8 +2,8 @@
 
 #pragma once
 
-#include "Replication/Editor/View/ReplicationColumn.h"
-#include "Replication/Editor/View/ReplicationColumnsUtils.h"
+#include "Replication/Editor/View/Column/ReplicationColumnInfo.h"
+#include "Replication/Editor/View/Column/ReplicationColumnsUtils.h"
 #include "SReplicationColumnRow.h"
 
 #include "Algo/RemoveIf.h"
@@ -77,7 +77,7 @@ namespace UE::ConcertSharedSlate
 			SLATE_EVENT(FIsSearchableItem, IsSearchableItem)
 			
 			/** The columns this list should have */
-			SLATE_ARGUMENT(TArray<TReplicationColumn<TItemType>>, Columns)
+			SLATE_ARGUMENT(TArray<TReplicationColumnEntry<TItemType>>, Columns)
 			/** The name of the column that will have the SExpanderArrow for the tree view. */
 			SLATE_ARGUMENT(FName, ExpandableColumnLabel)
 			/** Visibility of the header row */
@@ -219,7 +219,7 @@ namespace UE::ConcertSharedSlate
 
 		void SetPrimarySortMode(FName SortedColumnId, EColumnSortMode::Type SortMode)
 		{
-			const TReplicationColumn<TItemType>* Column = FindColumnByName(SortedColumnId);
+			const TSharedPtr<IReplicationTreeColumn<TItemType>> Column = FindColumnByName(SortedColumnId);
 			if (ensureAlways(Column && Column->CanBeSorted()))
 			{
 				PrimarySortInfo = { SortedColumnId, SortMode };
@@ -244,7 +244,7 @@ namespace UE::ConcertSharedSlate
 				return;
 			}
 			
-			const TReplicationColumn<TItemType>* Column = FindColumnByName(SortedColumnId);
+			const TSharedPtr<IReplicationTreeColumn<TItemType>> Column = FindColumnByName(SortedColumnId);
 			if (ensure(Column && Column->CanBeSorted()))
 			{
 				SecondarySortInfo = { SortedColumnId, SortMode };
@@ -290,6 +290,15 @@ namespace UE::ConcertSharedSlate
 		TSharedPtr<STreeView<TSharedPtr<TItemType>>> TreeView;
 		/** The name of the column which will have the SExpandableArrow widget for the tree view. */
 		FName ExpandableColumnId;
+		
+		/** Binds column names to their infos. */
+		TMap<FName, TReplicationColumnEntry<TItemType>> ColumnInfos;
+		/**
+		 * Columns currently being displayed.
+		 * Currently columns are created statically on widget construction but in the future we could add dynamic column registration.
+		 * Hence for now every entry in ColumnInfos will have a corresponding entry here.
+		 */
+		TMap<FName, TSharedRef<IReplicationTreeColumn<TItemType>>> ColumnInstances;
 
 		TArray<TSharedPtr<TItemType>>* AllRootItems = nullptr;
 		/** Contains only the root items that passed the filters */
@@ -347,7 +356,7 @@ namespace UE::ConcertSharedSlate
 		// Sorting
 		void Resort();
 		void Sort(TArray<TSharedPtr<TItemType>>& Items);
-		const TReplicationColumn<TItemType>* FindColumnByName(const FName& ColumnId) const;
+		TSharedPtr<IReplicationTreeColumn<TItemType>> FindColumnByName(const FName& ColumnId) const;
 	};
 
 	template <typename TItemType>
@@ -429,23 +438,28 @@ namespace UE::ConcertSharedSlate
 	template <typename TItemType>
 	TSharedRef<SHeaderRow> SReplicationTreeView<TItemType>::CreateHeaderRow(const FArguments& InArgs)
 	{
-		TArray<TReplicationColumn<TItemType>> Columns = InArgs._Columns;
-		Columns.Sort([](const TReplicationColumn<TItemType>& Left, const TReplicationColumn<TItemType>& Right) { return Left.GetColumnSortOrderValue() < Right.GetColumnSortOrderValue(); });
+		for (const TReplicationColumnEntry<TItemType>& ColumnEntry : InArgs._Columns)
+		{
+			const FName& ColumnId = ColumnEntry.ColumnId;
+			checkf(!ColumnInfos.Contains(ColumnId), TEXT("Duplicate column ID %s"), *ColumnId.ToString());
+			ColumnInfos.Add(ColumnId, ColumnEntry);
+		}
+		
+		TArray<FName> ColumnNames;
+		ColumnInfos.GenerateKeyArray(ColumnNames);
+		ColumnNames.Sort([this](const FName& Left, const FName& Right) { return ColumnInfos[Left].ColumnInfo.SortOrder < ColumnInfos[Right].ColumnInfo.SortOrder; });
 		
 		HeaderRow = SNew(SHeaderRow).Visibility(InArgs._HeaderRowVisibility);
-		TSet<FName> DuplicateColumnDetection;
-		for (TReplicationColumn<TItemType>& Column : Columns)
+		for (const FName& ColumnName : ColumnNames)
 		{
-			const FName ColumnId = Column.ColumnId;
-			check(!DuplicateColumnDetection.Contains(ColumnId));
-			DuplicateColumnDetection.Add(ColumnId);
+			check(ColumnInfos[ColumnName].CreateColumn.IsBound());
+			TSharedRef<IReplicationTreeColumn<TItemType>> ColumnInstance = ColumnInfos[ColumnName].CreateColumn.Execute();
 			
-			// SHeaderRow owns the columns and deletes them when destroyed
-			TReplicationColumn<TItemType>* ManagedByHeaderRow = new TReplicationColumn<TItemType>(MoveTemp(Column));
-			ManagedByHeaderRow->SortPriority.Bind(TAttribute<EColumnSortPriority::Type>::FGetter::CreateSP(this, &SReplicationTreeView::GetColumnSortPriority, ColumnId));
-			ManagedByHeaderRow->SortMode.Bind(TAttribute<EColumnSortMode::Type>::FGetter::CreateSP(this, &SReplicationTreeView::GetColumnSortMode, ColumnId));
-			ManagedByHeaderRow->OnSortModeChanged.BindSP(this, &SReplicationTreeView::OnColumnSortModeChanged);
-			HeaderRow->AddColumn(*ManagedByHeaderRow);
+			const SHeaderRow::FColumn::FArguments HeaderRowArgs = ColumnInstance->CreateHeaderRowArgs();
+			checkf(HeaderRowArgs._ColumnId == ColumnName, TEXT("CreateHeaderRowArgs returned %s but in the TMap was bound to %s"), *HeaderRowArgs._ColumnId.ToString(), *ColumnName.ToString());
+			HeaderRow->AddColumn(HeaderRowArgs);
+			
+			ColumnInstances.Add(ColumnName, MoveTemp(ColumnInstance));
 		}
 
 		return HeaderRow.ToSharedRef();
@@ -527,7 +541,7 @@ namespace UE::ConcertSharedSlate
 		const EColumnSortMode::Type InSortMode
 		)
 	{
-		const TReplicationColumn<TItemType>* Column = FindColumnByName(ColumnId);
+		const TSharedPtr<IReplicationTreeColumn<TItemType>> Column = FindColumnByName(ColumnId);
 		if (!ensure(Column)
 			// Cannot bind
 			|| !Column->CanBeSorted())
@@ -571,11 +585,10 @@ namespace UE::ConcertSharedSlate
 		{
 			return;
 		}
-	
-		for (const SHeaderRow::FColumn& Column : HeaderRow->GetColumns())
+
+		for (const TPair<FName, TSharedRef<IReplicationTreeColumn<TItemType>>>& ColumnEntry : ColumnInstances)
 		{
-			const TReplicationColumn<TItemType>& CastColumn = static_cast<const TReplicationColumn<TItemType>&>(Column);
-			CastColumn.ExecutePopulateSearchString(*Item.Get(), OutSearchStrings);
+			ColumnEntry.Value->PopulateSearchString(*Item, OutSearchStrings);
 		}
 	}
 
@@ -652,7 +665,7 @@ namespace UE::ConcertSharedSlate
 	{
 		const auto IsLessThan = [this](const TSharedPtr<TItemType>& Left, const TSharedPtr<TItemType>& Right, const FName& ColumnName, EColumnSortMode::Type SortMode)
 		{
-			const TReplicationColumn<TItemType>* Column = FindColumnByName(ColumnName);
+			const TSharedPtr<IReplicationTreeColumn<TItemType>> Column = FindColumnByName(ColumnName);
 			if (!ensure(Column) || !ensureMsgf(Column->CanBeSorted(), TEXT("Validate why invariant was broken.")))
 			{
 				return false;
@@ -689,16 +702,10 @@ namespace UE::ConcertSharedSlate
 	}
 
 	template <typename TItemType>
-	const TReplicationColumn<TItemType>* SReplicationTreeView<TItemType>::FindColumnByName(const FName& ColumnId) const
+	TSharedPtr<IReplicationTreeColumn<TItemType>> SReplicationTreeView<TItemType>::FindColumnByName(const FName& ColumnId) const
 	{
-		for (const SHeaderRow::FColumn& Column : HeaderRow->GetColumns())
-		{
-			if (Column.ColumnId == ColumnId)
-			{
-				return static_cast<const TReplicationColumn<TItemType>*>(&Column);
-			}
-		}
-		return nullptr;
+		const TSharedRef<IReplicationTreeColumn<TItemType>>* Instance = ColumnInstances.Find(ColumnId);
+		return Instance ? Instance->ToSharedPtr() : nullptr;
 	}
 }
 

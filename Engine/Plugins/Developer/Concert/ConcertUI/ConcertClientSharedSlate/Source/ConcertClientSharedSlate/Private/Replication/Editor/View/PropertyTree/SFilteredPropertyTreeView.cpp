@@ -60,27 +60,12 @@ namespace UE::ConcertClientSharedSlate
 		using namespace UE::ConcertSharedSlate;
 		FCreatePropertyTreeViewParams TreeViewParams
 		{
-			.PropertyColumns = MoveTemp(Params.PropertyColumns),
+			.PropertyColumns = MoveTemp(Params.AdditionalPropertyColumns),
 			.FilterItem = FFilterPropertyData::CreateSP(this, &SFilteredPropertyTreeView::PassesFilters),
 			.PrimaryPropertySort = Params.PrimaryPropertySort,
 			.SecondaryPropertySort = Params.SecondaryPropertySort
 		};
-		TreeViewParams.LeftOfPropertySearchBar.Widget = 
-			SNew(SHorizontalBox)
-
-			// The combo button for selecting the property filters
-			+SHorizontalBox::Slot()
-			.AutoWidth()
-			[
-				SBasicFilterBar<const FReplicatedPropertyData&>::MakeAddFilterButton(FilterBar.ToSharedRef())
-			]
-
-			+SHorizontalBox::Slot()
-			.AutoWidth()
-			[
-				InArgs._LeftOfSearchBar.Widget
-			]
-		;
+		TreeViewParams.LeftOfPropertySearchBar.Widget = SBasicFilterBar<const FReplicatedPropertyData&>::MakeAddFilterButton(FilterBar.ToSharedRef());
 		TreeViewParams.RowBelowSearchBar.Widget = FilterBar.ToSharedRef();
 		TreeViewParams.NoItemsContent.Widget = SNew(STextBlock).Text(LOCTEXT("AllFitlered", "All properties filtered."));
 			

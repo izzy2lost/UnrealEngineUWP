@@ -3,10 +3,6 @@
 #pragma once
 
 #include "Replication/Editor/View/IReplicationStreamEditor.h"
-#include "Replication/Editor/View/PredefinedReplicationColumns.h"
-#include "Replication/Editor/View/ReplicationColumnsUtils.h"
-#include "Replication/ReplicationWidgetDelegates.h"
-
 #include "Widgets/DeclarativeSyntaxSupport.h"
 
 class SHorizontalBox;

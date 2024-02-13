@@ -4,8 +4,8 @@
 
 #include "Model/Item/SourceModelBuilders.h"
 #include "Replication/Editor/View/IReplicationStreamEditor.h"
-#include "Replication/Editor/View/PredefinedReplicationColumns.h"
-#include "Replication/Editor/View/ReplicationColumnsUtils.h"
+#include "Replication/Editor/View/Column/IObjectTreeColumn.h"
+#include "Replication/Editor/View/Column/ReplicationColumnsUtils.h"
 #include "Replication/ReplicationWidgetDelegates.h"
 
 #include "Widgets/DeclarativeSyntaxSupport.h"
@@ -56,7 +56,7 @@ namespace UE::ConcertSharedSlate
 			SLATE_ARGUMENT(TSharedPtr<IPropertyTreeView>, PropertyTreeView)
 		
 			/** Additional columns to add to the object view */
-			SLATE_ARGUMENT(TArray<ReplicationColumns::FReplicationTopLevelObjectColumn>, AdditionalObjectColumns)
+			SLATE_ARGUMENT(TArray<FObjectColumnEntry>, ObjectColumns)
 			/** Initial primary sort to set. */
 			SLATE_ARGUMENT(FColumnSortInfo, PrimaryObjectSort)
 			/** Initial secondary sort to set. */

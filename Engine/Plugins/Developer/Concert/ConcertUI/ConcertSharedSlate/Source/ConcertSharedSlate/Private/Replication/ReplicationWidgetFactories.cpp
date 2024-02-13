@@ -21,7 +21,7 @@ namespace UE::ConcertSharedSlate
 	{
 		return SNew(SBaseReplicationStreamEditor, MoveTemp(EditorParams.DataModel), MoveTemp(EditorParams.ObjectSource), MoveTemp(EditorParams.PropertySource))
 			.PropertyTreeView(MoveTemp(ViewerParams.PropertyTreeView))
-			.AdditionalObjectColumns(MoveTemp(ViewerParams.AdditionalObjectColumns))
+			.ObjectColumns(MoveTemp(ViewerParams.ObjectColumns))
 			.PrimaryObjectSort(ViewerParams.PrimaryObjectSort)
 			.SecondaryObjectSort(ViewerParams.SecondaryObjectSort)
 			.ObjectHierarchy(MoveTemp(ViewerParams.ObjectHierarchy))
@@ -35,10 +35,10 @@ namespace UE::ConcertSharedSlate
 	
 	TSharedRef<IPropertyTreeView> CreateSearchablePropertyTreeView(FCreatePropertyTreeViewParams Params)
 	{
-		// The label columns is always required
-		const bool bHasLabel = Params.PropertyColumns.ContainsByPredicate([](const ReplicationColumns::FReplicationPropertyColumn& Column)
+		// The label column is always required
+		const bool bHasLabel = Params.PropertyColumns.ContainsByPredicate([](const FPropertyColumnEntry& Entry)
 		{
-			return Column.ColumnId == ReplicationColumns::Property::LabelColumnId;
+			return Entry.ColumnId == ReplicationColumns::Property::LabelColumnId;
 		});
 		if (!bHasLabel)
 		{

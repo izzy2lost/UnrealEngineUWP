@@ -79,20 +79,20 @@ namespace UE::MultiUserClient
 				.IsEditingEnabled = TAttribute<bool>::CreateLambda([&SubmissionWorkflow](){ return CanEverSubmit(SubmissionWorkflow.GetUploadability()); }),
 				.EditingDisabledToolTipText = LOCTEXT("Editing.NotImplemented", "Editing remote clients is not implemented. You can only edit the local client."),
 			},
-			.AdditionalPropertyColumns =
+			.PropertyColumns =
 			{
-				SingleClientColumns::OwnerOfProperty(ConcertClient.ToSharedRef(), AuthorityCache, GetReplicationViewerAttribute),
-				SingleClientColumns::ConflictWarningForProperty(ConcertClient.ToSharedRef(), GetReplicationViewerAttribute, AuthorityCache, InReplicationClient.GetEndpointId())
+				SingleClientColumns::ConflictWarningForProperty(ConcertClient.ToSharedRef(), GetReplicationViewerAttribute, AuthorityCache, InReplicationClient.GetEndpointId()),
+				SingleClientColumns::OwnerOfProperty(ConcertClient.ToSharedRef(), AuthorityCache, GetReplicationViewerAttribute) 
 			},
 			.ObjectHierarchy = ConcertClientSharedSlate::CreateObjectHierarchyForComponentHierarchy(), // This makes actors have children in the top view
             .NameModel = ConcertClientSharedSlate::CreateEditorObjectNameModel(), // This makes actors use their labels, and components use the names given in the BP editor
             .OnExtendObjectsContextMenu = FExtendObjectMenu::CreateSP(this, &SReplicationClientView::ExtendObjectContextMenu),
-            .AdditionalObjectColumns = 
-            {
-            	SingleClientColumns::ToggleObjectAuthority(AuthorityTracker, SubmissionWorkflow),
-            	SingleClientColumns::ConflictWarningForObject(ConcertClient.ToSharedRef(), AuthorityCache, InReplicationClient.GetEndpointId()),
-            	SingleClientColumns::OwnerOfObject(ConcertClient.ToSharedRef(), AuthorityCache)
-            },
+			.ObjectColumns =
+			{
+				SingleClientColumns::ToggleObjectAuthority(AuthorityTracker, SubmissionWorkflow),
+				SingleClientColumns::OwnerOfObject(ConcertClient.ToSharedRef(), AuthorityCache),
+				SingleClientColumns::ConflictWarningForObject(ConcertClient.ToSharedRef(), AuthorityCache, InReplicationClient.GetEndpointId())
+			}
 		};
 
 		EditorView = ConcertClientSharedSlate::CreateDefaultStreamEditor(MoveTemp(DefaultEditorParams));
