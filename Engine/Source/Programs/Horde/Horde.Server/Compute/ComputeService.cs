@@ -388,10 +388,14 @@ namespace Horde.Server.Compute
 						LeaseId leaseId = new LeaseId(BinaryIdUtils.CreateNew());
 						ILogFile? log = await _logService.CreateLogFileAsync(JobId.Empty, leaseId, agent.SessionId, LogType.Json, cancellationToken: cancellationToken);
 
+						using TelemetrySpan createTaskSpan = _tracer.StartActiveSpan("CreateComputeTask");
+
 						ComputeTask computeTask = CreateComputeTask(assignedResources, log?.Id, arp.Encryption, arp.ParentLeaseId, protocol);
 
 						byte[] payload = Any.Pack(computeTask).ToByteArray();
 						AgentLease lease = new AgentLease(leaseId, arp.ParentLeaseId, "Compute task", null, null, log?.Id, LeaseState.Pending, assignedResources, arp.Requirements.Exclusive, payload);
+
+						using TelemetrySpan assignSpan = _tracer.StartActiveSpan("TryAssignAsync");
 
 						ComputeResource? resource = await TryAssignAsync(arp, agent, computeTask, leaseId);
 						if (resource != null)
