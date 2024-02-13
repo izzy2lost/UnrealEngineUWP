@@ -75,6 +75,10 @@ struct MOVER_API FLayeredMoveBase
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mover)
 	EMoveMixMode MixMode;
 
+	// Determines if this layered move should take priority over other layered moves when different moves have conflicting overrides - higher numbers taking precedent.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mover)
+	uint8 Priority;
+	
 	// This move will expire after a set amount of time if > 0. If 0, it will be ticked only once, regardless of time step. It will need to be manually ended if < 0. 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mover)
 	float DurationMs;
@@ -197,6 +201,12 @@ protected:
 
 	// Helper function for gathering any residual velocity settings from layered moves that just ended
 	void GatherResidualVelocitySettings(const TSharedPtr<FLayeredMoveBase>& Move, bool& bResidualVelocityOverriden, bool& bClampVelocityOverriden);
+
+	/**
+	 * Helper function for layered move mixing to check priority and start time if priority is the same.
+	 * Returns true if this layered move should take priority given current HighestPriority and CurrentLayeredMoveStartTimeMs
+	 */
+	static bool CheckPriority(const FLayeredMoveBase* LayeredMove, uint8& InOutHighestPriority, float& InOutCurrentLayeredMoveStartTimeMs);
 	
 	/** Helper function for serializing array of root motion sources */
 	static void NetSerializeLayeredMovesArray(FArchive& Ar, TArray< TSharedPtr<FLayeredMoveBase> >& LayeredMovesArray, uint8 MaxNumLayeredMovesToSerialize = MAX_uint8);
