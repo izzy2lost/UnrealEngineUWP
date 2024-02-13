@@ -7,7 +7,7 @@
 #include "BlockAbilityTagsGameplayEffectComponent.generated.h"
 
 /** Handles blocking the activation of Gameplay Abilities based on Gameplay Tags for the Target actor of the owner Gameplay Effect */
-UCLASS()
+UCLASS(DisplayName="Block Abilities with Tags")
 class GAMEPLAYABILITIES_API UBlockAbilityTagsGameplayEffectComponent : public UGameplayEffectComponent
 {
 	GENERATED_BODY()
