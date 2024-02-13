@@ -48,9 +48,6 @@ public:
 	// Return true if this object doesn't reference a parent object.
 	virtual bool IsRootObject(const class UCustomizableObject* Object) const { return true; }
 
-	/** Returns the Customizable Object that does start the CO tree */
-	virtual UCustomizableObject* GetRootObject( class UCustomizableObject* Object) = 0;
-
 	/** Provides the caller with the warning and error messages produced during compilation */
 	virtual void GetCompilationMessages(TArray<FText>& OutWarningMessages, TArray<FText>& OutErrorMessages) const = 0;
 	

@@ -32,14 +32,6 @@ public:
 	/** Check for pending compilation process. Returns true if an object has been updated. */
 	CUSTOMIZABLEOBJECTEDITOR_API virtual bool Tick() override;
 
-	/** Provided a CO object it provides the root CO it is connected. In other words : it returns the root of the entire
-	 * mutable graph.
-	 * @param InObject Customizable object whose root CO we are asking for.
-	 * @return The CO that is the root of the provided Customizable Object. It can be equal to InObject if the provided
-	 * object does not have any parent.
-	 */
-	virtual UCustomizableObject* GetRootObject(UCustomizableObject* InObject) override;
-
 	/** Generate the Mutable Graph from the Unreal Graph. */
 	mu::NodePtr Export(UCustomizableObject* Object, const FCompilationOptions& Options, TArray<TSoftObjectPtr<UTexture>>& OutRuntimeReferencedTextures, TArray<TSoftObjectPtr<UTexture>>& OutCompilerReferencedTextures);
 

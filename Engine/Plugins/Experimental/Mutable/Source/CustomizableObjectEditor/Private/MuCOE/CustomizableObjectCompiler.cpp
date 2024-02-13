@@ -451,24 +451,6 @@ void FCustomizableObjectCompiler::DisplayOrphanNodesWarning(FMutableGraphGenerat
 }
 
 
-UCustomizableObject* FCustomizableObjectCompiler::GetRootObject( UCustomizableObject* InObject)
-{
-	// Grab a node to start the search -> Get the root since it should be always present
-	bool bMultipleBaseObjectsFound = false;
-	UCustomizableObjectNodeObject* ObjectRootNode = GetRootNode(InObject, bMultipleBaseObjectsFound);
-
-	if (ObjectRootNode && ObjectRootNode->ParentObject)
-	{
-		TArray<UCustomizableObject*> VisitedNodes;
-		return GetFullGraphRootObject(ObjectRootNode,VisitedNodes);
-	}
-
-	// No parent object found, return input as the parent of the graph
-	// This can also mean the ObjectRootNode does not exist because it has not been opened yet (so no nodes have been generated)
-	return InObject;
-}
-
-
 mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot( 
 	UCustomizableObject* Object, 
 	FMutableGraphGenerationContext& GenerationContext, 
