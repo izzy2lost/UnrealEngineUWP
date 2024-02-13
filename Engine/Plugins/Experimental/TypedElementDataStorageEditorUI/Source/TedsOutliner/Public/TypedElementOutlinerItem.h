@@ -19,6 +19,13 @@ struct FTypedElementOutlinerTreeItem : ISceneOutlinerTreeItem
 {
 public:
 	
+	DECLARE_DELEGATE_RetVal_OneParam(bool, FFilterPredicate, const TypedElementDataStorage::RowHandle);
+
+	bool Filter(FFilterPredicate Pred) const
+	{
+		return Pred.Execute(RowHandle);
+	}
+
 	FTypedElementOutlinerTreeItem(const TypedElementRowHandle& InRowHandle, FBaseTEDSOutlinerMode& InMode);
 
 	/* Begin ISceneOutlinerTreeItem Implementation */

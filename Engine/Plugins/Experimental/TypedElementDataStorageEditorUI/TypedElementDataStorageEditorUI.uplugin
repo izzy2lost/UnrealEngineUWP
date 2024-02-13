@@ -18,6 +18,10 @@
 		{
 			"Name": "TedsOutliner",
 			"Type": "Editor"
+		},
+		{
+			"Name": "TedsPropertyEditor",
+			"Type": "Editor"
 		}
 	],
 	"Plugins": [
