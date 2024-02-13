@@ -156,6 +156,9 @@ bool FSerializedShaderArchive::FindOrAddShader(const FSHAHash& Hash, int32& OutI
 		ShaderEntries.AddDefaulted();
 		check(ShaderEntries.Num() == ShaderHashes.Num());
 		ShaderHashTable.Add(Key, OutIndex);
+#if WITH_EDITOR
+		ShaderTypes.AddDefaulted();
+#endif
 		return true;
 	}
 
@@ -200,6 +203,18 @@ FCbWriter& operator<<(FCbWriter& Writer, const FSerializedShaderArchive& Archive
 			Writer.EndArray();
 		}
 		Writer.EndArray();
+
+		Writer.BeginArray("ShaderTypes");
+		for (const TArray<uint64>& SingleShaderTypes : Archive.ShaderTypes)
+		{
+			Writer.BeginArray();
+			for (uint64 ShaderTypeHash : SingleShaderTypes)
+			{
+				Writer << ShaderTypeHash;
+			}
+			Writer.EndArray();
+		}
+		Writer.EndArray();
 	}
 	Writer.EndObject();
 	return Writer;
@@ -218,29 +233,52 @@ bool LoadFromCompactBinary(FCbFieldView Field, FSerializedShaderArchive& OutArch
 		}
 	}
 
-	FCbFieldView ShaderCodeToAssetsField = Field["ShaderCodeToAssets"];
-	// Map size is array size divided by two because pairs are written as successive elements
-	int32 NumShaderCodeToAssets = ShaderCodeToAssetsField.AsArrayView().Num()/2;
-	bool bOk = !ShaderCodeToAssetsField.HasError();
-	OutArchive.ShaderCodeToAssets.Empty(NumShaderCodeToAssets);
-	FCbFieldViewIterator It = ShaderCodeToAssetsField.CreateViewIterator();
-	while (It)
+	bool bOk = true;
+
 	{
-		FSHAHash ShaderMapHash;
-		if (!LoadFromCompactBinary(*It++, ShaderMapHash))
+		FCbFieldView ShaderCodeToAssetsField = Field["ShaderCodeToAssets"];
+		// Map size is array size divided by two because pairs are written as successive elements
+		int32 NumShaderCodeToAssets = ShaderCodeToAssetsField.AsArrayView().Num() / 2;
+		bOk = !ShaderCodeToAssetsField.HasError();
+		OutArchive.ShaderCodeToAssets.Empty(NumShaderCodeToAssets);
+		FCbFieldViewIterator It = ShaderCodeToAssetsField.CreateViewIterator();
+		while (It)
 		{
-			bOk = false;
-			continue;
+			FSHAHash ShaderMapHash;
+			if (!LoadFromCompactBinary(*It++, ShaderMapHash))
+			{
+				bOk = false;
+				continue;
+			}
+			FShaderMapAssetPaths& Paths = OutArchive.ShaderCodeToAssets.FindOrAdd(ShaderMapHash);
+			FCbFieldView AssetNameArrayField = *It++;
+			Paths.Reserve((*It).AsArrayView().Num());
+			bOk = (!AssetNameArrayField.HasError()) && bOk;
+			for (FCbFieldView AssetNameField : AssetNameArrayField)
+			{
+				FName AssetName;
+				bOk = LoadFromCompactBinary(AssetNameField, AssetName) && bOk;
+				Paths.Add(AssetName);
+			}
 		}
-		FShaderMapAssetPaths& Paths = OutArchive.ShaderCodeToAssets.FindOrAdd(ShaderMapHash);
-		FCbFieldView AssetNameArrayField = *It++;
-		Paths.Reserve((*It).AsArrayView().Num());
-		bOk = (!AssetNameArrayField.HasError()) & bOk;
-		for (FCbFieldView AssetNameField : AssetNameArrayField)
+	}
+
+	{
+		FCbFieldView ShaderTypesField = Field["ShaderTypes"];
+		bOk = !ShaderTypesField.HasError() && bOk;
+		OutArchive.ShaderTypes.Empty(ShaderTypesField.AsArrayView().Num());
+		FCbFieldViewIterator It = ShaderTypesField.CreateViewIterator();
+		while (It)
 		{
-			FName AssetName;
-			bOk = LoadFromCompactBinary(AssetNameField, AssetName) & bOk;
-			Paths.Add(AssetName);
+			bOk = !It->HasError() && bOk;
+			TArray<uint64>& ShaderTypeHashes = OutArchive.ShaderTypes.AddDefaulted_GetRef();
+			FCbArrayView ArrayView = It.AsArrayView();
+			ShaderTypeHashes.Reserve(ArrayView.Num());
+			for (FCbFieldViewIterator ArrayIt = It.AsArrayView().CreateViewIterator(); ArrayIt; ++ArrayIt)
+			{
+				ShaderTypeHashes.Add(ArrayIt.AsUInt64());
+			}
+			It++;
 		}
 	}
 
@@ -739,6 +777,9 @@ void FSerializedShaderArchive::CreateAsChunkFrom(const FSerializedShaderArchive&
 
 						// copy the entry as is
 						ShaderEntries[ShaderIndex] = Parent.ShaderEntries[ParentShaderIndex];
+#if WITH_EDITOR
+						ShaderTypes[ShaderIndex] = Parent.ShaderTypes[ParentShaderIndex];
+#endif
 					}
 					ShaderIndices[ShaderMapDescriptor.ShaderIndicesOffset + ShaderIdx] = ShaderIndex;
 				}
