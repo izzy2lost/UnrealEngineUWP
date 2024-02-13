@@ -730,21 +730,25 @@ void FDeferredShadingSceneRenderer::SetupRayTracingLightDataForViews(FRDGBuilder
 		return;
 	}
 
-	const bool bIsPathTracing = ViewFamily.EngineShowFlags.PathTracing;
+	const bool bPathTracingEnabled = ViewFamily.EngineShowFlags.PathTracing && FDataDrivenShaderPlatformInfo::GetSupportsPathTracing(Scene->GetShaderPlatform());
 
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
 	{
 		FViewInfo& View = Views[ViewIndex];
+		View.RayTracingLightGridUniformBuffer = nullptr;
 
-		if (bIsPathTracing)
+		// Path Tracing currently uses its own code to manage lights, so doesn't need to run this.
+		if (!bPathTracingEnabled)
 		{
-			// Path Tracing currently uses its own code to manage lights, so doesn't need to run this.
-			// TODO: merge the lighting representations between ray traced and path traced cases?
-		}
-		else
-		{
-			// The light data is built in TranslatedWorld space so must be built per view
-			View.RayTracingLightGridUniformBuffer = CreateRayTracingLightData(GraphBuilder, Scene, View, View.ShaderMap);
+			const bool bLumenEnabled = GetViewPipelineState(View).DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen || GetViewPipelineState(View).ReflectionsMethod == EReflectionsMethod::Lumen;
+
+			if (Lumen::IsUsingRayTracingLightingGrid(ViewFamily, View, bLumenEnabled)
+				|| GetRayTracingTranslucencyOptions(View).bEnabled
+				|| ViewFamily.EngineShowFlags.RayTracingDebug)
+			{
+				// The light data is built in TranslatedWorld space so must be built per view
+				View.RayTracingLightGridUniformBuffer = CreateRayTracingLightData(GraphBuilder, Scene, View, View.ShaderMap);
+			}
 		}
 	}
 }

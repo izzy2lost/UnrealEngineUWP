@@ -100,6 +100,7 @@ namespace Lumen
 	bool UseHardwareRayTracedRadianceCache(const FSceneViewFamily& ViewFamily);
 	bool UseHardwareRayTracedRadiosity(const FSceneViewFamily& ViewFamily);
 	bool UseHardwareRayTracedVisualize(const FSceneViewFamily& ViewFamily);
+	bool IsUsingRayTracingLightingGrid(const FSceneViewFamily& ViewFamily, const FViewInfo& View, bool bLumenGIEnabled);
 
 	bool ShouldRenderRadiosityHardwareRayTracing(const FSceneViewFamily& ViewFamily);
 	bool ShouldVisualizeHardwareRayTracing(const FSceneViewFamily& ViewFamily);

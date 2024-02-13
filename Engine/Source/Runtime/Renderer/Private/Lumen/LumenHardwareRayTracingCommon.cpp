@@ -7,6 +7,8 @@
 #include "PipelineStateCache.h"
 #include "ShaderParameterStruct.h"
 #include "ComponentRecreateRenderStateContext.h"
+#include "LumenReflections.h"
+#include "LumenVisualize.h"
 
 static TAutoConsoleVariable<int32> CVarLumenUseHardwareRayTracing(
 	TEXT("r.Lumen.HardwareRayTracing"),
@@ -101,6 +103,17 @@ bool Lumen::UseHardwareRayTracing(const FSceneViewFamily& ViewFamily)
 #else
 	return false;
 #endif
+}
+
+bool Lumen::IsUsingRayTracingLightingGrid(const FSceneViewFamily& ViewFamily, const FViewInfo& View, bool bLumenGIEnabled)
+{
+	if (UseHardwareRayTracing(ViewFamily) 
+		&& (LumenReflections::UseHitLighting(View, bLumenGIEnabled) || LumenVisualize::UseHitLighting(View, bLumenGIEnabled)))
+	{
+		return true;
+	}
+
+	return false;
 }
 
 float LumenHardwareRayTracing::GetMinTraceDistanceToSampleSurfaceCache()

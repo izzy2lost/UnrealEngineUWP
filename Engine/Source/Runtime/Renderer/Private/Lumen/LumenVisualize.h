@@ -68,6 +68,7 @@ namespace LumenVisualize
 		bool bLumenGIEnabled);
 
 	bool IsHitLightingForceEnabled(const FViewInfo& View, bool bLumenGIEnabled);
+	bool UseHitLighting(const FViewInfo& View, bool bLumenGIEnabled);
 	bool UseSurfaceCacheFeedback(const FEngineShowFlags& ShowFlags);
 };
 
