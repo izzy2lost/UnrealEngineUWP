@@ -2,6 +2,7 @@
 
 #include "ChaosClothAsset/SelectionGroupCustomization.h"
 #include "ChaosClothAsset/SelectionNode.h"
+#include "ChaosClothAsset/DeleteElementNode.h"
 #include "ChaosClothAsset/ClothDataflowTools.h"  // For MakeCollectionName
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Input/SComboButton.h"
@@ -107,14 +108,21 @@ namespace UE::Chaos::ClothAsset
 		// Find all group names in the parent selection node's collection
 		GroupNames.Reset();
 
+		TArray<FName> CollectionGroupNames;
 		if (const FChaosClothAssetSelectionNode* const SelectionNode = GetOwnerStruct<FChaosClothAssetSelectionNode>())
 		{
-			const TArray<FName> CollectionGroupNames = SelectionNode->GetCachedCollectionGroupNames();
+			CollectionGroupNames = SelectionNode->GetCachedCollectionGroupNames();
 
-			for (const FName& CollectionGroupName : CollectionGroupNames)
-			{
-				GroupNames.Add(MakeShareable(new FText(FText::FromName(CollectionGroupName))));
-			}
+		}
+		else if (const FChaosClothAssetDeleteElementNode* const DeleteNode =
+			GetOwnerStruct<FChaosClothAssetDeleteElementNode>())
+		{
+			CollectionGroupNames = DeleteNode->GetCachedCollectionGroupNames();
+		}
+
+		for (const FName& CollectionGroupName : CollectionGroupNames)
+		{
+			GroupNames.Add(MakeShareable(new FText(FText::FromName(CollectionGroupName))));
 		}
 
 		return SNew(SVerticalBox)
