@@ -1237,6 +1237,7 @@ private:
 			delete Decoder;
 			Decoder = nullptr;
 			LastSentAUCodecData.Reset();
+			LastBufferSourceInfo.Reset();
 		}
 		void Flush()
 		{
@@ -1285,6 +1286,7 @@ private:
 
 		FStreamCodecInformation CurrentCodecInfo;
 		TSharedPtrTS<FAccessUnit::CodecData> LastSentAUCodecData;
+		TSharedPtrTS<const FBufferSourceInfo> LastBufferSourceInfo;
 		FAdaptiveStreamingPlayer* Parent = nullptr;
 		IVideoDecoder* Decoder = nullptr;
 		bool bDrainingForCodecChange = false;
@@ -1387,7 +1389,7 @@ private:
 				Decoder->AUdataClearEOD();
 			}
 		}
-		
+
 		void Start()
 		{
 			if (Decoder)
@@ -1399,7 +1401,7 @@ private:
 				}
 			}
 		}
-		
+
 		void Stop()
 		{
 			if (bIsRunning)
@@ -1981,8 +1983,8 @@ private:
 		}
 		bool Handle(const FTimeValue& InAtTime);
 		TSharedPtrTS<UtilsMP4::FMetadataParser> GetActive() const
-		{ 
-			return ActiveMetadata; 
+		{
+			return ActiveMetadata;
 		}
 
 		struct FEntry

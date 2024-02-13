@@ -55,6 +55,7 @@ public:
 
 	void SetPlayerSessionServices(IPlayerSessionServices* SessionServices) override;
 	void Open(TSharedPtrTS<FAccessUnit::CodecData> InCodecData, FParamDict&& InAdditionalOptions, const FStreamCodecInformation* InMaxStreamConfiguration) override;
+	bool Reopen(TSharedPtrTS<FAccessUnit::CodecData> InCodecData, const FParamDict& InAdditionalOptions, const FStreamCodecInformation* InMaxStreamConfiguration) override;
 	void Close() override;
 	void DrainForCodecChange() override;
 	void SetVideoResourceDelegate(TWeakPtr<IVideoDecoderResourceDelegate, ESPMode::ThreadSafe> InVideoResourceDelegate) override;
@@ -256,7 +257,20 @@ TSharedPtr<IElectraCodecFactory, ESPMode::ThreadSafe> FVideoDecoderImpl::GetDeco
 	OutAddtlCfg.Add(TEXT("width"), FVariant((uint32)InCodecInfo.GetResolution().Width));
 	OutAddtlCfg.Add(TEXT("height"), FVariant((uint32)InCodecInfo.GetResolution().Height));
 	OutAddtlCfg.Add(TEXT("bitrate"), FVariant((int64)InCodecInfo.GetBitrate()));
-	OutAddtlCfg.Add(TEXT("fps"), FVariant((double)(InCodecInfo.GetFrameRate().IsValid() ? InCodecInfo.GetFrameRate().GetAsDouble() : 0.0)));
+	Electra::FTimeFraction Framerate = InCodecInfo.GetFrameRate();
+	if (Framerate.IsValid())
+	{
+		OutAddtlCfg.Add(TEXT("fps"), FVariant((double)Framerate.GetAsDouble()));
+		OutAddtlCfg.Add(TEXT("fps_n"), FVariant((int64)Framerate.GetNumerator()));
+		OutAddtlCfg.Add(TEXT("fps_d"), FVariant((uint32)Framerate.GetDenominator()));
+	}
+	else
+	{
+		OutAddtlCfg.Add(TEXT("fps"), FVariant((double)0.0));
+		OutAddtlCfg.Add(TEXT("fps_n"), FVariant((int64)0));
+		OutAddtlCfg.Add(TEXT("fps_d"), FVariant((uint32)1));
+	}
+
 	OutAddtlCfg.Add(TEXT("aspect_w"), FVariant((uint32)InCodecInfo.GetAspectRatio().Width));
 	OutAddtlCfg.Add(TEXT("aspect_h"), FVariant((uint32)InCodecInfo.GetAspectRatio().Height));
 	if (InCodecData.IsValid() && InCodecData->CodecSpecificData.Num())
@@ -307,6 +321,41 @@ void FVideoDecoderImpl::Open(TSharedPtrTS<FAccessUnit::CodecData> InCodecData, F
 		InitialMaxStreamProperties = *InMaxStreamConfiguration;
 	}
 	StartThread();
+}
+
+bool FVideoDecoderImpl::Reopen(TSharedPtrTS<FAccessUnit::CodecData> InCodecData, const FParamDict& InAdditionalOptions, const FStreamCodecInformation* InMaxStreamConfiguration)
+{
+	// Check if we can be used to decode the next set of streams.
+	// If no new information is provided, err on the safe side and say we can't be used for this.
+	if (!InCodecData.IsValid() || !InMaxStreamConfiguration)
+	{
+		return false;
+	}
+	// Check new against old limits.
+	if (InitialMaxStreamProperties.IsSet() && InMaxStreamConfiguration)
+	{
+		// If the codec has suddenly changed, we cannot be used.
+		if (InitialMaxStreamProperties.GetValue().GetCodec() != InMaxStreamConfiguration->GetCodec())
+		{
+			return false;
+		}
+		// If this is a H.265 stream of different profile (Main vs. Main10) we cannot be used.
+		if (InMaxStreamConfiguration->GetCodec() == FStreamCodecInformation::ECodec::H265 &&
+			InMaxStreamConfiguration->GetProfile() != InitialMaxStreamProperties.GetValue().GetProfile())
+		{
+			return false;
+		}
+		// If the current maximum resolution is less than what is required now, we cannot be used.
+		if (InitialMaxStreamProperties.GetValue().GetResolution().Width  < InMaxStreamConfiguration->GetResolution().Width ||
+			InitialMaxStreamProperties.GetValue().GetResolution().Height < InMaxStreamConfiguration->GetResolution().Height)
+		{
+			return false;
+		}
+		// Assume at this point that we can be used.
+		return true;
+	}
+
+	return false;
 }
 
 void FVideoDecoderImpl::Close()
@@ -807,7 +856,14 @@ IElectraDecoder::EOutputStatus FVideoDecoderImpl::HandleOutput()
 				CurrentDecoderOutput->GetTransferHandle()->ReleaseHandle();
 			}
 
-			NotifyReadyBufferListener(true);
+			// Check if the output can actually be output or if the decoder says this is not to be output (incorrectly decoded)
+			//bool bUseOutput = CurrentDecoderOutput->GetOutputType() == IElectraDecoderVideoOutput::EOutputType::Output;
+			bool bUseOutput = true;
+			if (bUseOutput)
+			{
+				NotifyReadyBufferListener(true);
+			}
+			if (1)
 			{
 				SCOPE_CYCLE_COUNTER(STAT_ElectraPlayer_VideoConvertOutput);
 				CSV_SCOPED_TIMING_STAT(ElectraPlayer, VideoConvertOutput);
@@ -828,6 +884,9 @@ IElectraDecoder::EOutputStatus FVideoDecoderImpl::HandleOutput()
 							Not the first element. This is not expected, but possible if decoding did not start on a SAP type 1
 							with PTS's increasing from there. On an open GOP or SAP type 2 or worse there may be frames with
 							PTS's earlier than the starting frame.
+
+							It may also be that the decoder could not produce valid output for some of the earlier input because
+							of a broken frame or a frame that needed nonexisting frames as references.
 
 							We check if there is a precise match somewhere in our list and use it.
 							Any elements in the list that are far too old we remove since it is not likely for the decoder to
@@ -864,13 +923,14 @@ IElectraDecoder::EOutputStatus FVideoDecoderImpl::HandleOutput()
 				// Set properties from the bitstream messages.
 				BitstreamProcessor->SetPropertiesOnOutput(CurrentDecoderOutput, BufferProperties.Get(), MatchingInput->BitstreamInfo);
 
-				if (!FPlatformElectraDecoderResourceManager::SetupRenderBufferFromDecoderOutput(CurrentOutputBuffer, BufferProperties, CurrentDecoderOutput, PlatformResource))
+				if (bUseOutput && !FPlatformElectraDecoderResourceManager::SetupRenderBufferFromDecoderOutput(CurrentOutputBuffer, BufferProperties, CurrentDecoderOutput, PlatformResource))
 				{
 					PostError(0, TEXT("Failed to set up the decoder output!"), ERRCODE_VIDEO_INTERNAL_FAILED_TO_CONVERT_OUTPUT);
 					return IElectraDecoder::EOutputStatus::Error;
 				}
 
-				Renderer->ReturnBuffer(CurrentOutputBuffer, MatchingInput->AdjustedPTS.IsValid(), *BufferProperties);
+				bUseOutput = bUseOutput ? MatchingInput->AdjustedPTS.IsValid() : false;
+				Renderer->ReturnBuffer(CurrentOutputBuffer, bUseOutput, *BufferProperties);
 				CurrentDecoderOutput.Reset();
 				CurrentOutputBuffer = nullptr;
 			}
@@ -1283,7 +1343,18 @@ void FVideoDecoderImpl::WorkerThread()
 			DecoderFactoryAddtlCfg.Add(TEXT("max_width"), FVariant((uint32)InitialMaxStreamProperties.GetValue().GetResolution().Width));
 			DecoderFactoryAddtlCfg.Add(TEXT("max_height"), FVariant((uint32)InitialMaxStreamProperties.GetValue().GetResolution().Height));
 			DecoderFactoryAddtlCfg.Add(TEXT("max_bitrate"), FVariant((int64)InitialMaxStreamProperties.GetValue().GetBitrate()));
-			DecoderFactoryAddtlCfg.Add(TEXT("max_fps"), FVariant((double)(InitialMaxStreamProperties.GetValue().GetFrameRate().IsValid() ? InitialMaxStreamProperties.GetValue().GetFrameRate().GetAsDouble() : 0.0)));
+			if (InitialMaxStreamProperties.GetValue().GetFrameRate().IsValid())
+			{
+				DecoderFactoryAddtlCfg.Add(TEXT("max_fps"), FVariant((double)InitialMaxStreamProperties.GetValue().GetFrameRate().GetAsDouble()));
+				DecoderFactoryAddtlCfg.Add(TEXT("max_fps_n"), FVariant((int64)InitialMaxStreamProperties.GetValue().GetFrameRate().GetNumerator()));
+				DecoderFactoryAddtlCfg.Add(TEXT("max_fps_d"), FVariant((uint32)InitialMaxStreamProperties.GetValue().GetFrameRate().GetDenominator()));
+			}
+			else
+			{
+				DecoderFactoryAddtlCfg.Add(TEXT("max_fps"), FVariant((double)0.0));
+				DecoderFactoryAddtlCfg.Add(TEXT("max_fps_n"), FVariant((int64)0));
+				DecoderFactoryAddtlCfg.Add(TEXT("max_fps_d"), FVariant((uint32)0));
+			}
 			DecoderFactoryAddtlCfg.Add(TEXT("max_codecprofile"), FVariant(InitialMaxStreamProperties.GetValue().GetCodecSpecifierRFC6381()));
 		}
 		if (DecoderFactory.IsValid())

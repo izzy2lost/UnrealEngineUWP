@@ -254,6 +254,7 @@ int32 FAdaptiveStreamingPlayer::CreateDecoder(EStreamType type)
 				check(AccessUnit->BufferSourceInfo.IsValid());
 				FString PeriodID = AccessUnit->BufferSourceInfo.IsValid() ? AccessUnit->BufferSourceInfo->PeriodID : FString();
 				VideoDecoder.CurrentCodecInfo.Clear();
+				VideoDecoder.LastBufferSourceInfo = AccessUnit->BufferSourceInfo;
 				if (AccessUnit->AUCodecData.IsValid())
 				{
 					VideoDecoder.CurrentCodecInfo = AccessUnit->AUCodecData->ParsedInfo;
@@ -296,8 +297,7 @@ int32 FAdaptiveStreamingPlayer::CreateDecoder(EStreamType type)
 				VideoDecoder.CheckIfNewDecoderMustBeSuspendedImmediately();
 				if (VideoDecoder.Decoder)
 				{
-					// Now we get the currently limited stream resolution and let the decoder now what we will be using
-					// at most right now. This allows the decoder to be created with a smaller memory footprint at first.
+					// Apply the current limit.
 					UpdateStreamResolutionLimit();
 				}
 				else
@@ -574,32 +574,45 @@ void FAdaptiveStreamingPlayer::FeedDecoder(EStreamType Type, IAccessUnitBufferIn
 	FBufferStats* pStats = nullptr;
 	FStreamCodecInformation* CurrentCodecInfo = nullptr;
 	TSharedPtrTS<FAccessUnit::CodecData>* LastSentAUCodecData = nullptr;
+	TSharedPtrTS<const FBufferSourceInfo>* LastBufferSourceInfo = nullptr;
+
 	bool bCodecChangeDetected = false;
 	bool bIsDeselected = false;
 
 	switch(Type)
 	{
 		case EStreamType::Video:
+		{
 			pStats = &VideoBufferStats;
 			CurrentCodecInfo = &VideoDecoder.CurrentCodecInfo;
 			LastSentAUCodecData = &VideoDecoder.LastSentAUCodecData;
+			LastBufferSourceInfo = &VideoDecoder.LastBufferSourceInfo;
 			bIsDeselected = bIsVideoDeselected;
 			break;
+		}
 		case EStreamType::Audio:
+		{
 			pStats = &AudioBufferStats;
 			CurrentCodecInfo = &AudioDecoder.CurrentCodecInfo;
 			LastSentAUCodecData = &AudioDecoder.LastSentAUCodecData;
+			//LastBufferSourceInfo = &AudioDecoder.LastBufferSourceInfo;
 			bIsDeselected = bIsAudioDeselected;
 			break;
+		}
 		case EStreamType::Subtitle:
+		{
 			pStats = &TextBufferStats;
 			CurrentCodecInfo = &SubtitleDecoder.CurrentCodecInfo;
 			LastSentAUCodecData = &SubtitleDecoder.LastSentAUCodecData;
+			//LastBufferSourceInfo = &SubtitleDecoder.LastBufferSourceInfo;
 			bIsDeselected = bIsTextDeselected;
 			break;
+		}
 		default:
+		{
 			checkNoEntry();
 			return;
+		}
 	}
 
 	// Lock the AU buffer for the duration of this function to ensure this can never clash with a Flush() call
@@ -659,9 +672,23 @@ void FAdaptiveStreamingPlayer::FeedDecoder(EStreamType Type, IAccessUnitBufferIn
 					bCodecChangeDetected = true;
 				}
 				// Mimetype change in subtitles?
-				else if (Type == EStreamType::Subtitle && !PeekedAU->AUCodecData->ParsedInfo.GetMimeType().Equals(CurrentCodecInfo->GetMimeType()))
+				if (Type == EStreamType::Subtitle && !PeekedAU->AUCodecData->ParsedInfo.GetMimeType().Equals(CurrentCodecInfo->GetMimeType()))
 				{
 					bCodecChangeDetected = true;
+				}
+				// Change in period of the video stream that may have a new maximum resolution from the one before?
+				if (!bCodecChangeDetected && Type == EStreamType::Video && VideoDecoder.Decoder && LastBufferSourceInfo && PeekedAU->BufferSourceInfo.IsValid() &&
+					(((*LastBufferSourceInfo)->PeriodID != PeekedAU->BufferSourceInfo->PeriodID) || ((*LastBufferSourceInfo)->PeriodAdaptationSetID != PeekedAU->BufferSourceInfo->PeriodAdaptationSetID)))
+				{
+					// Get the new highest stream properties and check if the decoder can still handle those.
+					FStreamCodecInformation HighestStream;
+					if (FindMatchingStreamInfo(HighestStream, PeekedAU->BufferSourceInfo->PeriodID, PeekedAU->EarliestPTS.IsValid() ? PeekedAU->EarliestPTS : PeekedAU->PTS, PeekedAU->AUCodecData->ParsedInfo))
+					{
+						if (!VideoDecoder.Decoder->Reopen(PeekedAU->AUCodecData, PlayerOptions.GetDictionary(), &HighestStream))
+						{
+							bCodecChangeDetected = true;
+						}
+					}
 				}
 			}
 
@@ -714,6 +741,11 @@ void FAdaptiveStreamingPlayer::FeedDecoder(EStreamType Type, IAccessUnitBufferIn
 						Decoder->AUdataClearEOD();
 					}
 					Decoder->AUdataPushAU(AccessUnit);
+					// Remember the buffer info for period transition checks.
+					if (Type == EStreamType::Video)
+					{
+						VideoDecoder.LastBufferSourceInfo = AccessUnit->BufferSourceInfo;
+					}
 				}
 
 				// If there is any pertinent format change, emit an event.

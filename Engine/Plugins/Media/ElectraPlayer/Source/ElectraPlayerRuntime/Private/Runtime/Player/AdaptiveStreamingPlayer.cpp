@@ -4011,7 +4011,7 @@ void FAdaptiveStreamingPlayer::UpdateDataAvailabilityState(Metrics::FDataAvailab
 
 //-----------------------------------------------------------------------------
 /**
- * Updates the ABR and video decoder with maximum stream resolution limits.
+ * Updates the ABR with maximum stream resolution limits.
  */
 void FAdaptiveStreamingPlayer::UpdateStreamResolutionLimit()
 {
