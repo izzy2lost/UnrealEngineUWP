@@ -1065,9 +1065,13 @@ UCustomizableObjectPrivate* UCustomizableObject::GetPrivate() const
 
 bool UCustomizableObject::IsCompiled() const
 {
-	bool IsCompiled = Private->GetModel() != nullptr;
+#if WITH_EDITOR
+	const bool bIsCompiled = Private->GetModel() != nullptr && Private->GetModel()->IsValid();
+#else
+	const bool bIsCompiled = Private->GetModel() != nullptr;
+#endif
 
-	return IsCompiled;
+	return bIsCompiled;
 }
 
 
