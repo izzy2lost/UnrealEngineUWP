@@ -176,7 +176,11 @@ void FTG_Editor::InitEditor(const EToolkitMode::Type Mode, const TSharedPtr< cla
 	// All the modifications are applied to original TextureGraph when asset is saved.
 	// Propagate all object flags except for RF_Standalone, otherwise the preview material won't GC once
 	// the TS editor releases the reference.
-	EditedTextureGraph = Cast<UTextureGraph>(StaticDuplicateObject(OriginalTextureGraph, OriginalTextureGraph->GetOuter(), NAME_None, ~RF_Standalone, UTextureGraph::StaticClass()));
+	// overwrite the original TextureGraph in place by constructing a new one with the same name
+	FObjectDuplicationParameters Params = InitStaticDuplicateObjectParams(OriginalTextureGraph, OriginalTextureGraph->GetOuter(), NAME_None,
+	~RF_Standalone, UTextureGraph::StaticClass(), EDuplicateMode::Normal, EInternalObjectFlags::None);
+	
+	EditedTextureGraph = Cast<UTextureGraph>(StaticDuplicateObjectEx(Params));
 	FCoreUObjectDelegates::OnObjectPreSave.AddSP(this, &FTG_Editor::OnTextureGraphPreSave);
 
 	//Editor gets notified when rendering is done
@@ -1608,7 +1612,11 @@ bool FTG_Editor::UpdateOriginalTextureGraph()
 		const TMap<FName, FString>* MetaData = UMetaData::GetMapForObject(OriginalTextureGraph);
 
 		// overwrite the original TextureGraph in place by constructing a new one with the same name
-		OriginalTextureGraph = Cast<UTextureGraph>(StaticDuplicateObject(EditedTextureGraph, OriginalTextureGraph->GetOuter(), OriginalTextureGraph->GetFName(), RF_AllFlags, OriginalTextureGraph->GetClass()));
+		FObjectDuplicationParameters Params = InitStaticDuplicateObjectParams(EditedTextureGraph, OriginalTextureGraph->GetOuter(), OriginalTextureGraph->GetFName(),
+		RF_AllFlags, UTextureGraph::StaticClass(), EDuplicateMode::Normal, EInternalObjectFlags::None);
+
+		// UObject* NewAsset = StaticDuplicateObjectEx(Params);
+		OriginalTextureGraph = Cast<UTextureGraph>(StaticDuplicateObjectEx(Params));
 
 		// Restore the metadata
 		if (MetaData)

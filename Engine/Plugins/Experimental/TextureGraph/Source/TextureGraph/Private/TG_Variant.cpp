@@ -36,6 +36,14 @@ FTG_Variant::FTG_Variant(FTG_Texture RHS)
 	EditTexture() = RHS;
 }
 
+bool FTG_Variant::Serialize(FArchive& Ar)
+{
+	Ar << *this;
+	UE_LOG(LogTextureGraph, Log, TEXT("FTG_Variant::Serialize"));
+	return true;
+}
+
+
 bool FTG_Variant::ResetTypeAs(EType InType)
 {
 	if (InType != GetType())
@@ -243,6 +251,30 @@ FTG_Variant& FTG_Variant::operator = (const FTG_Texture RHS)
 {
 	EditTexture() = RHS;
 	return *this;
+}
+
+bool FTG_Variant::operator==(const FTG_Variant& RHS) const
+{
+	if (GetType() == RHS.GetType())
+	{
+		switch(GetType())
+		{
+		default:
+		case EType::Scalar:
+			return Data.Get<float>() == RHS.Data.Get<float>();
+			break;
+		case EType::Color:
+			return Data.Get<FLinearColor>() == RHS.Data.Get<FLinearColor>();
+			break;
+		case EType::Vector:
+			return Data.Get<FVector4f>() == RHS.Data.Get<FVector4f>();
+			break;
+		case EType::Texture:
+			return Data.Get<FTG_Texture>() == RHS.Data.Get<FTG_Texture>();
+			break;
+		}
+	}
+	return false;
 }
 
 FTG_Variant::operator bool() const

@@ -44,6 +44,7 @@ public:
 	FTG_Variant& operator = (const FVector4f RHS);
 	FTG_Variant& operator = (const FLinearColor RHS);
 	FTG_Variant& operator = (const FTG_Texture RHS);
+	bool operator == (const FTG_Variant& RHS) const;
 
 	// Retrieve the FName corresponding to a variant type
 	static FName GetNameFromType(ETG_VariantType InType)
@@ -107,7 +108,12 @@ public:
 		else
 			return T1;
 	}
-
+	friend FArchive& operator<<(FArchive& Ar, FTG_Variant& D)
+	{
+		return Ar << D.Data;
+	}
+	bool Serialize( FArchive& Ar );
+	
 	// FTG_Variant struct members and methods
 
 	// The concrete data
@@ -150,6 +156,17 @@ public:
 	FTG_Texture& EditTexture();
 };
 
+template<>
+struct TStructOpsTypeTraits<FTG_Variant>
+	: public TStructOpsTypeTraitsBase2<FTG_Variant>
+{
+	enum
+	{
+		WithSerializer = true,
+		WithCopy = true,
+		WithIdenticalViaEquality = true
+	};
+};
 //////////////////////////////////////////////////////////////////////////
 /// Base class for making working with Variants easier and less repetitive
 //////////////////////////////////////////////////////////////////////////

@@ -45,6 +45,14 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	UPROPERTY(EditAnywhere, Category = "TextureDescriptor", DisplayName = "Texture Format")
 		ETG_TextureFormat TextureFormat = ETG_TextureFormat::Auto;
 
+	friend FArchive& operator<<(FArchive& Ar, FTG_TextureDescriptor& D)
+	{
+ 		Ar << D.Width;
+		Ar << D.Height;
+		Ar << D.TextureFormat;
+		return Ar;
+	}
+
 	FORCEINLINE BufferDescriptor ToBufferDescriptor() const
 	{
 		uint32 NumChannels = 0;
@@ -78,7 +86,11 @@ public:
 	operator TiledBlobPtr() { return RasterBlob; }
 	operator TiledBlobRef() { return RasterBlob; }
 	operator bool() const { return !!RasterBlob; }
-	
+	friend FArchive& operator<<(FArchive& Ar, FTG_Texture& T)
+	{
+		Ar << T.Descriptor;
+		return Ar;
+	}
 	FTG_Texture& operator = (TiledBlobRef RHS) { RasterBlob = RHS; return *this; }
 	FTG_Texture& operator = (TiledBlobPtr RHS) { RasterBlob = RHS; return *this; }
 	FORCEINLINE TiledBlob* operator -> () const { return RasterBlob.get(); }
@@ -95,6 +107,7 @@ public:
 	static FTG_Texture GetMagenta() { return { TextureHelper::GMagenta}; } 
 	static FTG_Texture GetWhiteMask() { return { TextureHelper::GWhiteMask}; } 
 	static FTG_Texture GetBlackMask() { return { TextureHelper::GBlackMask}; } 
+	
 
 	//////////////////////////////////////////////////////////////////////////
 	/// Inline functions
