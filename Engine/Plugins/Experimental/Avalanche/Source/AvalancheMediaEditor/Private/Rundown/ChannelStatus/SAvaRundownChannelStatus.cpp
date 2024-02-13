@@ -1,13 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SAvaRundownChannelStatus.h"
-
+#include "AvaMediaDefines.h"
 #include "AvaMediaEditorUtils.h"
 #include "Broadcast/AvaBroadcast.h"
+#include "Broadcast/Channel/AvaBroadcastOutputChannel.h"
+#include "Internationalization/Text.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
+#include "UObject/NameTypes.h"
 
 void SAvaRundownChannelStatus::Construct(const FArguments& InArgs, const FAvaBroadcastOutputChannel& InChannel)
 {

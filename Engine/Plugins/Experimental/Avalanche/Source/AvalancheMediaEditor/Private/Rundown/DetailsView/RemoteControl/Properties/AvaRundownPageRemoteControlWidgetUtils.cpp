@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaRundownPageRemoteControlWidgetUtils.h"
-
 #include "IDetailTreeNode.h"
 #include "PropertyHandle.h"
 #include "SlateOptMacros.h"

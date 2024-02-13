@@ -2,21 +2,31 @@
 
 #pragma once
 
+#include "AvaMediaDefines.h"
 #include "Broadcast/Channel/AvaBroadcastOutputChannel.h"
 #include "Broadcast/ChannelGrid/AvaBroadcastOutputTileItem.h"
-#include "CoreMinimal.h"
+#include "Misc/Attribute.h"
+#include "Templates/SharedPointer.h"
+#include "Types/SlateEnums.h"
 #include "Widgets/SCompoundWidget.h"
 
 class FAvaBroadcastEditor;
+class FName;
+class FReply;
+class FText;
 class FUICommandList;
 class IStructureDetailsView;
 class ITableRow;
 class SAvaBroadcastChannel;
 class SInlineEditableTextBlock;
+class SlateBrush;
 class SMenuAnchor;
 class STableViewBase;
+class SWidget;
 class UMediaOutput;
+struct EVisibility;
 struct FAvaBroadcastOutputChannel;
+struct FGeometry;
 struct FSlateImageBrush;
 template<typename ItemType> class SListView;
 
@@ -26,7 +36,6 @@ DECLARE_DELEGATE_OneParam(FAvaBroadcastOnChannelMaximizeClicked, const TSharedRe
 class SAvaBroadcastChannel : public SCompoundWidget
 {
 public:
-	
 	SLATE_BEGIN_ARGS(SAvaBroadcastChannel) {}
 		SLATE_ARGUMENT(FName, ChannelName)
 		SLATE_ATTRIBUTE(bool, CanMaximize)

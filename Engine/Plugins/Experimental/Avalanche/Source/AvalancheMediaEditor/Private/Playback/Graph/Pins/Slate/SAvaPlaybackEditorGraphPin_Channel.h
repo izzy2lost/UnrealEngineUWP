@@ -2,15 +2,19 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "SGraphPin.h"
+#include "Templates/SharedPointer.h"
 
 struct FAvaBroadcastOutputChannel;
+class UEdGraphPin;
+class SWidget;
+class FText;
+struct FSlateBrush;
+struct FSlateColor;
 
 class SAvaPlaybackEditorGraphPin_Channel : public SGraphPin
 {
 public:
-
 	SLATE_BEGIN_ARGS(SAvaPlaybackEditorGraphPin_Channel){}
 	SLATE_END_ARGS()
 	
@@ -30,7 +34,6 @@ public:
 	virtual FSlateColor GetPinColor() const override;
 	
 protected:
-
 	const FSlateBrush* ChannelStateBrush = nullptr;
 	
 	FText ChannelStateText;

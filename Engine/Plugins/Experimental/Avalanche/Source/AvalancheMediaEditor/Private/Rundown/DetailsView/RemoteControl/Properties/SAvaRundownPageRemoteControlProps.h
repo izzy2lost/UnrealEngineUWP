@@ -2,8 +2,10 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "RemoteControlPreset.h"
+#include "Containers/Array.h"
+#include "Containers/Map.h"
+#include "Containers/Set.h"
+#include "Templates/SharedPointer.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Views/SListView.h"
 #include "Widgets/Views/ITableRow.h"
@@ -11,9 +13,16 @@
 class FAvaRundownEditor;
 class FAvaRundownManagedInstance;
 class FAvaRundownRCPropertyItem;
+class FName;
+class ITableRow;
 class SAvaRundownPageRemoteControlProps;
+class STableViewBase;
+class SWidget;
+class URemoteControlPreset;
 struct FAvaPlayableRemoteControlValue;
 struct FAvaRundownPage;
+struct FGuid;
+struct FRemoteControlEntity;
 
 using FAvaRundownRCPropertyItemPtr = TSharedPtr<FAvaRundownRCPropertyItem>;
 

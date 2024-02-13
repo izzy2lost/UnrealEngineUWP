@@ -2,11 +2,13 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Templates/SharedPointer.h"
 #include "Widgets/SCompoundWidget.h"
 
 class FAvaRundownEditor;
 class FUICommandList;
+class FText;
+class SWidget;
 
 class SAvaRundownShowControl : public SCompoundWidget
 {

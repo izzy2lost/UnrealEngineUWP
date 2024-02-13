@@ -2,7 +2,9 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/UnrealString.h"
+#include "Misc/Guid.h"
+#include "UObject/NameTypes.h"
 #include "AvaBroadcastMediaOutputInfo.generated.h"
 
 /**
@@ -17,7 +19,7 @@ struct AVALANCHEMEDIA_API FAvaBroadcastMediaOutputInfo
 public:
 	/**
 	 * Unique identifier for this output.
-	 * Allows easier management fo client/server status and configuration replication.
+	 * Allows easier management for client/server status and configuration replication.
 	 */
 	UPROPERTY()
 	FGuid Guid;

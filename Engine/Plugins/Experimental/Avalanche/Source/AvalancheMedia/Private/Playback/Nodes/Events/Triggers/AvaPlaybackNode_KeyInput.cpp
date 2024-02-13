@@ -4,6 +4,7 @@
 
 #include "Framework/Application/SlateApplication.h"
 #include "Input/Events.h"
+#include "Internationalization/Text.h"
 #include "Playback/AvaPlaybackGraph.h"
 
 #define LOCTEXT_NAMESPACE "AvaPlaybackNode_KeyInput"
@@ -70,7 +71,7 @@ FText UAvaPlaybackNode_KeyInput::GetNodeTooltipText() const
 
 bool UAvaPlaybackNode_KeyInput::HandleKeyDownEvent(FSlateApplication& SlateApp, const FKeyEvent& InKeyEvent)
 {
-	//Dont process input while not Playing
+	// Don't process input while not Playing
 	UAvaPlaybackGraph* const Playback = GetPlayback();
 	if (!Playback || !Playback->IsPlaying())
 	{

@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SAvaPlaybackEditorGraphNode_Player.h"
-
 #include "Broadcast/Channel/AvaBroadcastOutputChannel.h"
 #include "Broadcast/OutputDevices/Slate/SAvaBroadcastCaptureImage.h"
 #include "Brushes/SlateImageBrush.h"
@@ -9,6 +8,7 @@
 #include "GraphEditorSettings.h"
 #include "Playback/Graph/Nodes/AvaPlaybackEditorGraphNode.h"
 #include "Playback/Nodes/AvaPlaybackNodePlayer.h"
+#include "Styling/SlateBrush.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SScaleBox.h"
 #include "Widgets/SBoxPanel.h"

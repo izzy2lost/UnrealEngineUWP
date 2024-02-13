@@ -1,15 +1,23 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Rundown/Pages/Slate/SAvaRundownPageViewRow.h"
-
 #include "AvaMediaEditorStyle.h"
+#include "Input/DragAndDrop.h"
+#include "Input/Events.h"
+#include "Input/Reply.h"
+#include "Layout/Geometry.h"
+#include "Misc/Attribute.h"
 #include "Rundown/Pages/Columns/IAvaRundownPageViewColumn.h"
+#include "Rundown/Pages/PageViews/IAvaRundownPageView.h"
 #include "SAvaRundownPageList.h"
 #include "ScopedTransaction.h"
+#include "Styling/SlateBrush.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/SNullWidget.h"
+#include "Widgets/SWidget.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Views/SListView.h"
+#include "UObject/NameTypes.h"
 
 #define LOCTEXT_NAMESPACE "SAvaRundownPageViewRow"
 

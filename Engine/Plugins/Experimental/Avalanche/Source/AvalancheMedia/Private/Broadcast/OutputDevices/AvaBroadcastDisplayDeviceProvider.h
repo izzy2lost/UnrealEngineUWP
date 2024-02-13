@@ -2,9 +2,17 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/Array.h"
 #include "IMediaIOCoreDeviceProvider.h"
-#include "UObject/ObjectMacros.h"
+
+class FText;
+struct FMediaIOConfiguration;
+struct FMediaIOConnection;
+struct FMediaIODevice;
+struct FMediaIOInputConfiguration;
+struct FMediaIOMode;
+struct FMediaIOOutputConfiguration;
+struct FMediaIOVideoTimecodeConfiguration;
 
 /**
  * Implementation of IMediaIOCoreDeviceProvider for UAvaBroadcastDisplayMediaOutput.

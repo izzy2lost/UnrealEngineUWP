@@ -1,8 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaPlaybackNode_PreloadPlayer.h"
-
+#include "AvaMediaDefines.h"
 #include "Broadcast/AvaBroadcast.h"
+#include "Internationalization/Text.h"
 #include "Playback/AvaPlaybackGraph.h"
 
 #define LOCTEXT_NAMESPACE "AvaPlaybackNode_PreloadPlayer"

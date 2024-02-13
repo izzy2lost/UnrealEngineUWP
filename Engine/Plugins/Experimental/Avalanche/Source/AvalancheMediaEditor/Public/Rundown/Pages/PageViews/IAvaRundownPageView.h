@@ -3,11 +3,14 @@
 #pragma once
 
 #include "AvaType.h"
-#include "CoreMinimal.h"
+#include "Delegates/Delegate.h"
+#include "Templates/SharedPointer.h"
 
 class FReply;
+class FText;
 class UAvaRundown;
 struct FAssetData;
+struct FSoftObjectPath;
 
 enum class EAvaRundownPageActionState : uint8
 {

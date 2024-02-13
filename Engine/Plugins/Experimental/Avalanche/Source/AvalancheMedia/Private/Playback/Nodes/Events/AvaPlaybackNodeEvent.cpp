@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Playback/Nodes/Events/AvaPlaybackNodeEvent.h"
+#include "AvaMediaDefines.h"
 
 void UAvaPlaybackNodeEvent::TickEvent(float DeltaTime, FAvaPlaybackEventParameters& OutEventParameters)
 {

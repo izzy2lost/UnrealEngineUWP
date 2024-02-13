@@ -2,9 +2,14 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Factories/Factory.h"
 #include "AvaBroadcastDisplayMediaOutputFactory.generated.h"
+
+class FFeedbackContext;
+class FName;
+class UClass;
+class UObject;
+enum EObjectFlags;
 
 /**
  * Implements a factory for UAvaBroadcastDisplayMediaOutput objects.

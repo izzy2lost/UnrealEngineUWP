@@ -1,12 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SAvaRundownPageChannelSelector.h"
-
 #include "Broadcast/AvaBroadcast.h"
+#include "Internationalization/Text.h"
 #include "Rundown/Pages/PageViews/IAvaRundownInstancedPageView.h"
 #include "Rundown/Pages/PageViews/AvaRundownInstancedPageViewImpl.h"
 #include "Rundown/Pages/PageViews/AvaRundownPageViewImpl.h"
 #include "Rundown/Pages/Slate/SAvaRundownPageViewRow.h"
+#include "UObject/NameTypes.h"
+#include "Widgets/SWidget.h"
+#include "Widgets/Text/STextBlock.h"
 
 void SAvaRundownPageChannelSelector::Construct(const FArguments& InArgs, const FAvaRundownPageViewRef& InPageView, const TSharedPtr<SAvaRundownPageViewRow>& InRow)
 {

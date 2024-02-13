@@ -2,11 +2,15 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/Array.h"
+#include "Containers/EnumAsByte.h"
+#include "Containers/StringFwd.h"
 #include "Engine/DeveloperSettings.h"
 #include "Framework/AvaInstanceSettings.h"
 #include "Logging/LogVerbosity.h"
+#include "Math/MathFwd.h"
 #include "PixelFormat.h"
+#include "UObject/SoftObjectPtr.h"
 #include "AvaMediaSettings.generated.h"
 
 class UUserWidget;

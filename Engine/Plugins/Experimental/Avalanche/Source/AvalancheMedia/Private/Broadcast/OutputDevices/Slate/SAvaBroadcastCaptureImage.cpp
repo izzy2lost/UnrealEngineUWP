@@ -1,6 +1,17 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Broadcast/OutputDevices/Slate/SAvaBroadcastCaptureImage.h"
+#include "Layout/FlowDirection.h"
+#include "Layout/Geometry.h"
+#include "Layout/SlateRect.h"
+#include "Math/TransformCalculus2D.h"
+#include "Rendering/DrawElements.h"
+#include "Rendering/DrawElementTypes.h"
+#include "Rendering/SlateRenderTransform.h"
+#include "Styling/SlateBrush.h"
+#include "Styling/WidgetStyle.h"
+#include "Types/PaintArgs.h"
+#include "UObject/NoExportTypes.h"
 
 void SAvaBroadcastCaptureImage::Construct(const FArguments& InArgs)
 {

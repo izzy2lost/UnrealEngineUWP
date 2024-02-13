@@ -2,10 +2,12 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Rundown/AvaRundownDefines.h"
+#include "Templates/SharedPointer.h"
+#include "Types/SlateEnums.h"
 #include "Widgets/SCompoundWidget.h"
 
+class FText;
 class IAvaRundownPageView;
 class SAvaRundownPageViewRow;
 class SInlineEditableTextBlock;
@@ -14,7 +16,6 @@ enum class EAvaRundownPageActionState : uint8;
 class SAvaRundownPageName : public SCompoundWidget
 {
 public:
-	
 	SLATE_BEGIN_ARGS(SAvaRundownPageName){}
 	SLATE_END_ARGS()
 
@@ -35,7 +36,6 @@ public:
 	bool IsReadOnly() const;
 	
 protected:
-
 	TWeakPtr<IAvaRundownPageView> PageViewWeak;
 	
 	TWeakPtr<SAvaRundownPageViewRow> PageViewRowWeak;

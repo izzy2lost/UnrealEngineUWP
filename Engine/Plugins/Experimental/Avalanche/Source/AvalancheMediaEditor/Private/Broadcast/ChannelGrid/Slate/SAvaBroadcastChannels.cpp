@@ -6,6 +6,7 @@
 #include "Broadcast/AvaBroadcast.h"
 #include "Broadcast/AvaBroadcastEditor.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "Input/Reply.h"
 #include "SAvaBroadcastChannel.h"
 #include "ScopedTransaction.h"
 #include "Widgets/Layout/SGridPanel.h"

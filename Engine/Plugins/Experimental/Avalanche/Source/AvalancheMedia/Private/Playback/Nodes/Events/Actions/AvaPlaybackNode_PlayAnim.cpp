@@ -1,14 +1,18 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaPlaybackNode_PlayAnim.h"
-
 #include "Async/Async.h"
+#include "AvaMediaDefines.h"
 #include "AvaScene.h"
 #include "AvaSequence.h"
 #include "Broadcast/AvaBroadcast.h"
 #include "Engine/Level.h"
+#include "Internationalization/Text.h"
 #include "Playback/AvaPlaybackGraph.h"
+#include "Playback/Nodes/AvaPlaybackNode.h"
 #include "Playback/Nodes/AvaPlaybackNodeLevelPlayer.h"
+#include "Playback/Nodes/Events/Actions/AvaPlaybackAnimations.h"
+#include "UObject/NoExportTypes.h"
 
 #define LOCTEXT_NAMESPACE "AvaPlaybackNode_PlayAnim"
 

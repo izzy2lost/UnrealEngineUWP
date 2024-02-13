@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SAvaRundownPageName.h"
-
 #include "Framework/Application/SlateApplication.h"
+#include "Internationalization/Text.h"
 #include "Rundown/Pages/PageViews/IAvaRundownPageView.h"
 #include "Rundown/Pages/Slate/SAvaRundownPageViewRow.h"
 #include "Widgets/Text/SInlineEditableTextBlock.h"

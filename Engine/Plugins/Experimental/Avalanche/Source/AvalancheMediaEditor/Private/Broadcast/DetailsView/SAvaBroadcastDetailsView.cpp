@@ -5,6 +5,8 @@
 #include "Broadcast/AvaBroadcastEditor.h"
 #include "Broadcast/Channel/AvaBroadcastOutputChannel.h"
 #include "Broadcast/ChannelGrid/AvaBroadcastOutputTileItem.h"
+#include "DetailsViewArgs.h"
+#include "Layout/Visibility.h"
 #include "MediaOutput.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"

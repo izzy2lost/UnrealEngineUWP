@@ -1,9 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SAvaRundownPageDetails.h"
-
 #include "Async/Async.h"
 #include "IAvaMediaModule.h"
+#include "Input/Reply.h"
+#include "Internationalization/Text.h"
 #include "RemoteControl/Controllers/SAvaRundownRCControllerPanel.h"
 #include "Rundown/AvaRundown.h"
 #include "Rundown/AvaRundownEditor.h"
@@ -12,6 +13,7 @@
 #include "Rundown/DetailsView/RemoteControl/Properties/SAvaRundownPageRemoteControlProps.h"
 #include "Rundown/Pages/Slate/SAvaRundownInstancedPageList.h"
 #include "Rundown/Pages/Slate/SAvaRundownPageList.h"
+#include "Styling/SlateBrush.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SEditableTextBox.h"

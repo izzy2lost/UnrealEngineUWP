@@ -2,8 +2,8 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "EdGraph/EdGraph.h"
+#include "Templates/SubclassOf.h"
 #include "AvaPlaybackEditorGraph.generated.h"
 
 class UAvaPlaybackGraph;
@@ -15,7 +15,6 @@ class UAvaPlaybackEditorGraph : public UEdGraph
 	GENERATED_BODY()
 
 public:
-	
 	UAvaPlaybackGraph* GetPlaybackGraph() const;
 	
 	UAvaPlaybackEditorGraphNode* CreatePlaybackEditorGraphNode(TSubclassOf<UAvaPlaybackEditorGraphNode> NewNodeClass

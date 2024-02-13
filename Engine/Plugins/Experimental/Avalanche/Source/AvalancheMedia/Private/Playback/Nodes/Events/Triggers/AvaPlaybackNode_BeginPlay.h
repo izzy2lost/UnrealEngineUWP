@@ -2,9 +2,10 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Playback/Nodes/Events/AvaPlaybackNodeTrigger.h"
 #include "AvaPlaybackNode_BeginPlay.generated.h"
+
+class FText;
 
 UCLASS()
 class AVALANCHEMEDIA_API UAvaPlaybackNode_BeginPlay : public UAvaPlaybackNodeTrigger
@@ -12,9 +13,7 @@ class AVALANCHEMEDIA_API UAvaPlaybackNode_BeginPlay : public UAvaPlaybackNodeTri
 	GENERATED_BODY()
 
 public:
-
 	virtual FText GetNodeDisplayNameText() const override;
 	virtual FText GetNodeTooltipText() const override;
 	virtual void NotifyPlaybackStateChanged(bool bPlaying) override;
-	
 };

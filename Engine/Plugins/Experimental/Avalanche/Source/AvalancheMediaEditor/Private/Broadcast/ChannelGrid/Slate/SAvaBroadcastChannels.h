@@ -4,12 +4,15 @@
 
 #include "Animation/CurveSequence.h"
 #include "AvaMediaDefines.h"
-#include "CoreMinimal.h"
+#include "Containers/Map.h"
+#include "Templates/SharedPointer.h"
 #include "Widgets/SCompoundWidget.h"
 
 class FAvaBroadcastEditor;
+class FReply;
 class SAvaBroadcastChannel;
 class SGridPanel;
+class SWidget;
 class UAvaBroadcast;
 
 class SAvaBroadcastChannels : public SCompoundWidget
@@ -30,7 +33,6 @@ class SAvaBroadcastChannels : public SCompoundWidget
 	};
 	
 public:
-	
 	SLATE_BEGIN_ARGS(SAvaBroadcastChannels) {}
 	SLATE_END_ARGS()
 	
@@ -56,7 +58,6 @@ public:
 	virtual FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;;
 	
 protected:
-	
 	TWeakObjectPtr<UAvaBroadcast> BroadcastWeak;
 	
 	TWeakPtr<FAvaBroadcastEditor> BroadcastEditorWeak;

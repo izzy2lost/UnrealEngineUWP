@@ -2,15 +2,15 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Templates/SharedPointer.h"
 #include "Widgets/SCompoundWidget.h"
 
+class FText;
 class STextBlock;
 
 class AVALANCHEMEDIA_API SAvaBroadcastPlaceholderWidget : public SCompoundWidget
 {
 public:
-	
 	SLATE_BEGIN_ARGS(SAvaBroadcastPlaceholderWidget) {}
 	SLATE_END_ARGS()
 
@@ -20,6 +20,5 @@ public:
 	void SetChannelName(const FText& InChannelName);
 	
 protected:
-
 	TSharedPtr<STextBlock> ChannelText;
 };

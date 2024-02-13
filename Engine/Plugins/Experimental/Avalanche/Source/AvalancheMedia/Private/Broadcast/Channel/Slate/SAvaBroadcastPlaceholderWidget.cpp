@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Broadcast/Channel/Slate/SAvaBroadcastPlaceholderWidget.h"
-
 #include "AvaMediaStyle.h"
+#include "Internationalization/Text.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Images/SThrobber.h"
 #include "Widgets/Layout/SBox.h"

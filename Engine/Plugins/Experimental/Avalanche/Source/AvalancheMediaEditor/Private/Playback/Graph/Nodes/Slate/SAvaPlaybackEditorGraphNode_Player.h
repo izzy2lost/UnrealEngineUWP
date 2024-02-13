@@ -2,10 +2,15 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Playback/Graph/Nodes/Slate/SAvaPlaybackEditorGraphNode.h"
+#include "Templates/SharedPointer.h"
+#include "Templates/UniquePtr.h"
+#include "UObject/WeakObjectPtrTemplates.h"
 
 class UAvaPlaybackNodePlayer;
+class SWidget;
+struct FSlateBrush;
+class SVerticalBox;
 
 class SAvaPlaybackEditorGraphNode_Player : public SAvaPlaybackEditorGraphNode
 {
@@ -26,7 +31,6 @@ public:
 	//~SGraphNode Interface
 
 protected:
-
 	TWeakObjectPtr<UAvaPlaybackNodePlayer> PlayerNode;
 
 	struct FPreviewBrush;

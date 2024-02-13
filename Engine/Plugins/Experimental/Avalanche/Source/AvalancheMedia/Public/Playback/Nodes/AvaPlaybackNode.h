@@ -3,12 +3,18 @@
 #pragma once
 
 #include "AvaMediaDefines.h"
-#include "CoreMinimal.h"
+#include "Containers/Array.h"
+#include "Delegates/IDelegateInstance.h"
 #include "UObject/Object.h"
+#include "UObject/ObjectPtr.h"
 #include "AvaPlaybackNode.generated.h"
 
+class FName;
+class FText;
+class FReferenceCollector;
 class UAvaPlaybackGraph;
 class UEdGraphNode;
+struct FPropertyChangedEvent;
 
 /**
  * Base Class for all the Nodes found in the Motion Design Playback Graph
@@ -150,7 +156,6 @@ public:
 #endif
 	
 protected:
-
 	UPROPERTY()
 	TArray<TObjectPtr<UAvaPlaybackNode>> ChildNodes;
 

@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SAvaPlaybackDetailsView.h"
-
+#include "DetailsViewArgs.h"
 #include "Modules/ModuleManager.h"
 #include "Playback/AvaPlaybackGraphEditor.h"
 #include "PropertyEditorModule.h"

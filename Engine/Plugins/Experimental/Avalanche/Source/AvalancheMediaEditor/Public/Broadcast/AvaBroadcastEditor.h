@@ -3,19 +3,28 @@
 #pragma once
 
 #include "AvaMediaDefines.h"
-#include "CoreMinimal.h"
 #include "WorkflowOrientedApp/WorkflowCentricApplication.h"
+#include "Templates/SharedPointer.h"
+#include "UObject/WeakObjectPtrTemplates.h"
 
 class FAvaBroadcastOutputTileItem;
+class FName;
+class FReply;
+class FText;
+class FToolBarBuilder;
+class FExtender;
 class UAvaBroadcast;
 class UMediaOutput;
+class UObject;
+struct FLinearColor;
+struct FPropertyChangedEvent;
+struct FSlateBrush;
 
 class FAvaBroadcastEditor : public FWorkflowCentricApplication
 {
 	struct FPrivateToken { explicit FPrivateToken() = default; };
 	
 public:
-
 	explicit FAvaBroadcastEditor(FPrivateToken) {}
 	
 	virtual ~FAvaBroadcastEditor() override;
@@ -29,7 +38,6 @@ public:
 	FOnOutputItemSelectionChanged OnOutputTileSelectionChanged;
 	
 protected:
-	
 	void InitBroadcastEditor(UAvaBroadcast* InBroadcast);
 
 	void OnBroadcastChanged(EAvaBroadcastChange ChangedEvent);
@@ -55,7 +63,6 @@ protected:
 	//~ End FAssetEditorToolkit Interface
 
 public:
-	
 	UAvaBroadcast* GetBroadcastObject() const;
 
 	void ExtendToolBar(TSharedPtr<FExtender> Extender);
@@ -69,7 +76,6 @@ public:
 	FReply OnProfileSelected(FName InProfileName);
 	
 protected:
-	
 	void RegisterApplicationModes();
 	void CreateDefaultCommands();
 
@@ -78,7 +84,6 @@ protected:
 	static void StartPlaybackClientAction();
 
 protected:
-	
 	static TSharedPtr<FAvaBroadcastEditor> BroadcastEditor;
 	
 	TWeakObjectPtr<UAvaBroadcast> BroadcastWeak;

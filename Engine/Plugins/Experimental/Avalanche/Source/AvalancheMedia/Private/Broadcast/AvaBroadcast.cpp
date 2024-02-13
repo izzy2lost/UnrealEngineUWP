@@ -1,14 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Broadcast/AvaBroadcast.h"
-
 #include "Async/Async.h"
 #include "AvaMediaSerializationUtils.h"
+#include "Containers/UnrealString.h"
+#include "Delegates/IDelegateInstance.h"
 #include "Formatters/XmlArchiveInputFormatter.h"
 #include "Formatters/XmlArchiveOutputFormatter.h"
 #include "HAL/FileManager.h"
 #include "IAvaMediaModule.h"
 #include "Misc/Paths.h"
+#include "UObject/NameTypes.h"
 #include "UObject/Package.h"
 
 DEFINE_LOG_CATEGORY(LogAvaBroadcast);

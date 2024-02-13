@@ -1,10 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Playback/Graph/Nodes/AvaPlaybackEditorGraphNode.h"
-
 #include "AvaMediaEditorSettings.h"
+#include "EdGraph/EdGraphNode.h"
+#include "EdGraph/EdGraphPin.h"
+#include "EdGraph/EdGraphSchema.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "GraphEditorActions.h"
+#include "Math/Color.h"
 #include "Playback/AvaPlaybackCommands.h"
 #include "Playback/AvaPlaybackGraph.h"
 #include "Playback/Graph/AvaPlaybackEditorGraph.h"
@@ -13,7 +16,10 @@
 #include "Playback/Graph/Nodes/Slate/SAvaPlaybackEditorGraphNode.h"
 #include "Playback/Nodes/AvaPlaybackNode.h"
 #include "ScopedTransaction.h"
+#include "SGraphNode.h"
 #include "ToolMenu.h"
+#include "UObject/NameTypes.h"
+#include "UObject/NoExportTypes.h"
 
 #define LOCTEXT_NAMESPACE "AvaPlaybackEditorGraphNode"
 

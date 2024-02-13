@@ -3,11 +3,14 @@
 #pragma once
 
 #include "Broadcast/Channel/AvaBroadcastOutputChannel.h"
-#include "CoreMinimal.h"
 #include "Widgets/SCompoundWidget.h"
+#include "Templates/SharedPointer.h"
 
 class SImage;
 class UAvaBroadcast;
+class FName;
+struct FAvaBroadcastOutputChannel;
+enum class EAvaBroadcastChannelChange : uint8;
 
 /*
  * Widget displaying the Status of a Single Channel
@@ -15,7 +18,6 @@ class UAvaBroadcast;
 class SAvaRundownChannelStatus : public SCompoundWidget
 {
 public:
-	
 	SLATE_BEGIN_ARGS(SAvaRundownChannelStatus) {}
 	SLATE_END_ARGS()
 
@@ -26,7 +28,6 @@ public:
 	void OnChannelChanged(const FAvaBroadcastOutputChannel& InChannel, EAvaBroadcastChannelChange InChange);
 	
 protected:
-
 	FName ChannelName;
 
 	TSharedPtr<SImage> ChannelStatusIcon;

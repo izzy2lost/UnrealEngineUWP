@@ -2,13 +2,16 @@
 
 #pragma once
 
-#include "AvaMediaDefines.h"
-#include "CoreMinimal.h"
+#include "Containers/Map.h"
+#include "Templates/SharedPointer.h"
 #include "Widgets/SCompoundWidget.h"
+#include "UObject/WeakObjectPtrTemplates.h"
 
 class SAvaRundownChannelStatus;
 class SWrapBox;
 class UAvaBroadcast;
+class FName;
+enum class EAvaBroadcastChange : uint8;
 
 /*
  * Widget containing the Status of all Channels in Broadcast. It contains a list of SAvaRundownChannelStatus widgets
@@ -16,7 +19,6 @@ class UAvaBroadcast;
 class SAvaRundownChannelStatusList : public SCompoundWidget
 {
 public:
-	
 	SLATE_BEGIN_ARGS(SAvaRundownChannelStatusList){}
 	SLATE_END_ARGS()
 
@@ -30,7 +32,6 @@ public:
 	void OnBroadcastChanged(EAvaBroadcastChange InChange);
 
 protected:
-
 	TSharedPtr<SWrapBox> WrapBox;
 
 	TWeakObjectPtr<UAvaBroadcast> BroadcastWeak;

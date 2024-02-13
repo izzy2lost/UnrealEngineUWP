@@ -2,12 +2,15 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Framework/Application/IInputProcessor.h"
 #include "Framework/Commands/InputChord.h"
 #include "Playback/Nodes/Events/AvaPlaybackNodeTrigger.h"
+#include "Templates/SharedPointer.h"
 #include "AvaPlaybackNode_KeyInput.generated.h"
 
+class ICursor;
+class FSlateApplication;
+class FText;
 struct FKeyEvent;
 
 UCLASS()
@@ -18,18 +21,15 @@ class AVALANCHEMEDIA_API UAvaPlaybackNode_KeyInput : public UAvaPlaybackNodeTrig
 	class FEventInputProcessor: public IInputProcessor
 	{
 	public:
-		
 		FEventInputProcessor(UAvaPlaybackNode_KeyInput* InNode) : Node(InNode) {}
 		virtual void Tick(const float DeltaTime, FSlateApplication& SlateApp, TSharedRef<ICursor> Cursor) override {}
 		virtual bool HandleKeyDownEvent(FSlateApplication& SlateApp, const FKeyEvent& InKeyEvent) override;
 		
 	protected:
-		
-		UAvaPlaybackNode_KeyInput* Node;
+		UAvaPlaybackNode_KeyInput* Node = nullptr;
 	};
 
 public:
-	
 	virtual void PostAllocateNode() override;
 	virtual void BeginDestroy() override;
 
@@ -39,8 +39,7 @@ public:
 	bool HandleKeyDownEvent(FSlateApplication& SlateApp, const FKeyEvent& InKeyEvent);
 
 protected:
-
-	TSharedPtr<FEventInputProcessor> InputProcessor;
+	TSharedPtr<UAvaPlaybackNode_KeyInput::FEventInputProcessor> InputProcessor;
 	
 	UPROPERTY(EditAnywhere, Category = "Motion Design", meta = (ShowOnlyInnerProperties))
 	FInputChord InputChord;

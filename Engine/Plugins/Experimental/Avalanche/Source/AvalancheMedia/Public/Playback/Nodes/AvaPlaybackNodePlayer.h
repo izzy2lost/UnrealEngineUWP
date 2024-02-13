@@ -3,10 +3,14 @@
 #pragma once
 
 #include "AvaPlaybackNode.h"
-#include "CoreMinimal.h"
+#include "Containers/Array.h"
+#include "Framework/AvaSoftAssetPtr.h"
 #include "AvaPlaybackNodePlayer.generated.h"
 
+class FText;
 class UTextureRenderTarget2D;
+struct FAvaPlaybackChannelParameters;
+struct FPropertyChangedEvent;
 
 UCLASS(Abstract)
 class AVALANCHEMEDIA_API UAvaPlaybackNodePlayer : public UAvaPlaybackNode
@@ -55,4 +59,3 @@ protected:
 	TArray<int32> ChannelIndices;
 	TArray<int32> LastTickChannelIndices;
 };
-

@@ -3,11 +3,14 @@
 #pragma once
 
 #include "AvaType.h"
-#include "CoreMinimal.h"
 #include "Rundown/AvaRundownDefines.h"
+#include "Templates/SharedPointer.h"
 #include "Widgets/Views/SHeaderRow.h"
 
+class FName;
+class FText;
 class SAvaRundownPageViewRow;
+class SWidget;
 
 class IAvaRundownPageViewColumn : public IAvaTypeCastable, public TSharedFromThis<IAvaRundownPageViewColumn>
 {

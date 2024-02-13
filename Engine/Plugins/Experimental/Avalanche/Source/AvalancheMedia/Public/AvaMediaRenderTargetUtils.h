@@ -2,11 +2,14 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "HAL/Platform.h"
 #include "Math/MathFwd.h"
 #include "PixelFormat.h"
 
+class FName;
 class UTextureRenderTarget2D;
+struct FLinearColor;
+enum EPixelFormat : uint8;
 
 namespace UE::AvaMediaRenderTargetUtils
 {

@@ -2,18 +2,25 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Styling/SlateTypes.h"
+#include "Templates/SharedPointer.h"
+#include "Types/SlateEnums.h"
 #include "Widgets/SCompoundWidget.h"
 
+class FName;
+class FReply;
+class FText;
 class SInlineEditableTextBlock;
+struct FButtonStyle;
+struct FGeometry;
+struct FPointerEvent;
+struct FSlateBrush;
 
 DECLARE_DELEGATE_RetVal_OneParam(FReply, FOnAvaBroadcastProfileEntrySelected, FName ProfileName);
 
 class SAvaBroadcastProfileEntry : public SCompoundWidget
 {
 public:
-	
 	SLATE_BEGIN_ARGS(SAvaBroadcastProfileEntry){}
 		SLATE_EVENT(FOnAvaBroadcastProfileEntrySelected, OnProfileEntrySelected)
 	SLATE_END_ARGS()
@@ -39,7 +46,6 @@ public:
 	const FSlateBrush* GetBorderImage() const;
 
 protected:
-
 	FName ProfileName;
 	
 	FText ProfileNameText;

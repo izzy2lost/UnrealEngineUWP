@@ -2,8 +2,13 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Misc/Attribute.h"
 #include "Widgets/Images/SImage.h"
+
+class FSlateRect;
+class FSlateWindowElementList;
+class FWidgetStyle;
+struct FGeometry;
 
 class AVALANCHEMEDIA_API SAvaBroadcastCaptureImage : public SImage
 {

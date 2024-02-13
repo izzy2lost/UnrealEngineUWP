@@ -2,17 +2,18 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Rundown/AvaRundownDefines.h"
 #include "Rundown/Pages/PageViews/IAvaRundownPageView.h"
+#include "Templates/SharedPointer.h"
+#include "Types/SlateEnums.h"
 #include "Widgets/SCompoundWidget.h"
 
 class SInlineEditableTextBlock;
+class FText;
 
 class SAvaRundownPageId : public SCompoundWidget
 {
 public:
-	
 	SLATE_BEGIN_ARGS(SAvaRundownPageId){}
 	SLATE_END_ARGS()
 
@@ -33,7 +34,6 @@ public:
 	void RenumberPageId(const FText& InText, const FAvaRundownPageViewPtr& InPageView);
 	
 protected:
-
 	TWeakPtr<IAvaRundownPageView> PageViewWeak;
 	
 	TSharedPtr<SInlineEditableTextBlock> InlineTextBlock;

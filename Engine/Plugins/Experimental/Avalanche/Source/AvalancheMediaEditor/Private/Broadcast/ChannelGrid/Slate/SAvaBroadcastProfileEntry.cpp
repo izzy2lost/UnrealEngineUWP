@@ -1,10 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SAvaBroadcastProfileEntry.h"
-
 #include "Broadcast/AvaBroadcast.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Input/Events.h"
+#include "Input/Reply.h"
+#include "Internationalization/Text.h"
+#include "Layout/Geometry.h"
 #include "ScopedTransaction.h"
+#include "Styling/SlateBrush.h"
+#include "Styling/SlateTypes.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBox.h"
@@ -12,6 +17,7 @@
 #include "Widgets/Layout/SSpacer.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/SInlineEditableTextBlock.h"
+#include "UObject/NameTypes.h"
 
 #define LOCTEXT_NAMESPACE "SAvaBroadcastProfileEntry"
 

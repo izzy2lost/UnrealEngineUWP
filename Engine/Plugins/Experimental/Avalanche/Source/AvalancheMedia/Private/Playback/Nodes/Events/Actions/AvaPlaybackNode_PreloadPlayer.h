@@ -2,9 +2,11 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Playback/Nodes/Events/AvaPlaybackNodeAction.h"
 #include "AvaPlaybackNode_PreloadPlayer.generated.h"
+
+class FText;
+struct FAvaPlaybackEventParameters;
 
 UCLASS()
 class AVALANCHEMEDIA_API UAvaPlaybackNode_PreloadPlayer : public UAvaPlaybackNodeAction
@@ -12,7 +14,6 @@ class AVALANCHEMEDIA_API UAvaPlaybackNode_PreloadPlayer : public UAvaPlaybackNod
 	GENERATED_BODY()
 
 public:
-	
 	virtual FText GetNodeDisplayNameText() const override;
 	virtual FText GetNodeTooltipText() const override;
 	virtual void OnEventTriggered(const FAvaPlaybackEventParameters& InEventParameters) override;

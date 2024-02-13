@@ -4,6 +4,9 @@
 
 #include "AvaRundownRCPropertyItem.h"
 #include "Playable/AvaPlayableRemoteControl.h"
+#include "Playable/AvaPlayableRemoteControlValues.h"
+#include "RemoteControlEntity.h"
+#include "RemoteControlPreset.h"
 #include "Rundown/AvaRundownEditor.h"
 #include "Rundown/AvaRundownManagedInstanceCache.h"
 #include "Rundown/AvaRundownPage.h"
@@ -12,6 +15,7 @@
 #include "Widgets/Views/ITableRow.h"
 #include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableViewBase.h"
+#include "UObject/NameTypes.h"
 
 #define LOCTEXT_NAMESPACE "SAvaRundownPageRemoteControlProps"
 

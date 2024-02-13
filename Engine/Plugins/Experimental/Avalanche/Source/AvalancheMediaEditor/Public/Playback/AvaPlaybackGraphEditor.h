@@ -2,31 +2,50 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/Array.h"
+#include "Containers/Map.h"
+#include "Containers/Set.h"
+#include "Containers/StringFwd.h"
+#include "Math/MathFwd.h"
 #include "Playback/IAvaPlaybackGraphEditor.h"
 #include "Templates/SharedPointer.h"
+#include "Templates/SubclassOf.h"
+#include "Toolkits/IToolkit.h"
+#include "Toolkits/IToolkitHost.h"
+#include "Types/SlateEnums.h"
 #include "WorkflowOrientedApp/WorkflowCentricApplication.h"
+#include "UObject/WeakObjectPtrTemplates.h"
 
+class FExtender;
+class FName;
 class FSlateRect;
+class FText;
+class FToolBarBuilder;
+class FUICommandList;
 class SGraphEditor;
 class UAvaPlaybackEditorGraphNode;
+class UAvaPlaybackGraph;
+class UAvaPlaybackNode;
+class UEdGraph;
+class UEdGraphNode;
+class UObject;
+struct FLinearColor;
 
 class FAvaPlaybackGraphEditor
 	: public FWorkflowCentricApplication
 	, public IAvaPlaybackGraphEditor
 {
 public:
-
 	void InitPlaybackEditor(const EToolkitMode::Type InMode
 		, const TSharedPtr<IToolkitHost>& InitToolkitHost
 		, UAvaPlaybackGraph* InPlayback);
 
-	//IToolkit Interface
+	//~ Begin IToolkit
 	virtual FName GetToolkitFName() const override;
 	virtual FText GetBaseToolkitName() const override;
 	virtual FString GetWorldCentricTabPrefix() const override;
 	virtual FLinearColor GetWorldCentricTabColorScale() const override;
-	//~IToolkit Interface
+	//~ End IToolkit
 
 	UAvaPlaybackGraph* GetPlaybackObject() const;
 	
@@ -34,12 +53,11 @@ public:
 	void FillPlayToolBar(FToolBarBuilder& ToolBarBuilder);
 
 public:
-
 	static void CacheOverrideNodeClasses();
 	
 	TSharedRef<SGraphEditor> CreateGraphEditor();
 	
-	//IAvaPlaybackGraphEditor Interface
+	//~ Begin IAvaPlaybackGraphEditor
 	virtual UEdGraph* CreatePlaybackGraph(UAvaPlaybackGraph* InPlayback) override;
 	virtual void SetupPlaybackNode(UEdGraph* InGraph, UAvaPlaybackNode* InPlaybackNode, bool bSelectNewNode) override;
 	virtual void CompilePlaybackNodesFromGraphNodes(UAvaPlaybackGraph* InPlayback) override;
@@ -47,7 +65,7 @@ public:
 	virtual void RefreshNode(UEdGraphNode& InGraphNode) override;
 	virtual bool GetBoundsForSelectedNodes(FSlateRect& Rect, float Padding) override;
 	virtual TSet<UObject*> GetSelectedNodes() const override;
-	//~IAvaPlaybackGraphEditor Interface
+	//~ End IAvaPlaybackGraphEditor
 	
 	/** Called when the selection changes in the GraphEditor */
 	void OnSelectedNodesChanged(const TSet<UObject*>& NewSelection);
@@ -65,14 +83,12 @@ public:
 	FOnPlaybackSelectionChanged OnPlaybackSelectionChanged;
 	
 protected:
-	
 	void RegisterApplicationModes();
 	
 	void CreateDefaultCommands();
 	void CreateGraphCommands();
 
 public:
-	
 	bool CanAddInputPin() const;
 	void AddInputPin();
 
@@ -113,7 +129,6 @@ public:
 	void OnDistributeNodesV();
 	
 protected:
-	
 	TWeakObjectPtr<UAvaPlaybackGraph> PlaybackGraphWeak;
 	
 	TSharedPtr<FUICommandList> GraphEditorCommands;

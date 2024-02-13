@@ -2,7 +2,9 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/Array.h"
+#include "Containers/StringFwd.h"
+#include "Templates/SharedPointer.h"
 
 class IDetailTreeNode;
 class IPropertyHandle;
