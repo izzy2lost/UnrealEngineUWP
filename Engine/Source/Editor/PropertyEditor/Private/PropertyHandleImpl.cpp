@@ -27,6 +27,7 @@
 #include "UObject/EnumProperty.h"
 #include "UObject/FieldPathProperty.h"
 #include "IDetailPropertyRow.h"
+#include "IDetailsViewPrivate.h"
 #include "ObjectEditorUtils.h"
 #include "SResetToDefaultPropertyEditor.h"
 #include "PropertyPathHelpers.h"
@@ -34,6 +35,9 @@
 #include "HAL/PlatformApplicationMisc.h"
 #include "UObject/OverridableManager.h"
 #include "UObject/PropertyOptional.h"
+#include "SStandaloneCustomizedValueWidget.h"
+#include "Modules/ModuleManager.h"
+#include "PropertyEditorModule.h"
 
 #define LOCTEXT_NAMESPACE "PropertyHandleImplementation"
 
@@ -2413,6 +2417,37 @@ TSharedRef<SWidget> FPropertyHandleBase::CreatePropertyValueWidget( bool bDispla
 	}
 
 	return SNullWidget::NullWidget;
+}
+
+TSharedRef<SWidget> FPropertyHandleBase::CreatePropertyValueWidget( const IDetailsView* DetailsView )
+{
+	FCustomPropertyTypeLayoutMap CustomPropertyTypeLayoutMap = [DetailsView]()
+	{
+		if ( DetailsView )
+		{
+			return static_cast<const IDetailsViewPrivate*>( DetailsView )->GetCustomPropertyTypeLayoutMap();
+		}
+		else
+		{
+			return FCustomPropertyTypeLayoutMap();
+		}
+	}();
+
+	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+
+	FPropertyTypeLayoutCallback LayoutCallback = PropertyEditorModule.GetPropertyTypeCustomization( GetProperty(), *this, CustomPropertyTypeLayoutMap );
+	if (LayoutCallback.IsValid())
+	{
+		TSharedRef<IPropertyTypeCustomization> PropertyTypeCustomization = LayoutCallback.GetCustomizationInstance();
+
+		return SNew( SStandaloneCustomizedValueWidget, PropertyTypeCustomization, AsShared() );
+	}
+	else
+	{
+		// Opting to not generate the default buttons since the code path that goes through a customization would likely not have them
+		const bool bDisplayDefaultPropertyButtons = false;
+		return CreatePropertyValueWidget( bDisplayDefaultPropertyButtons );
+	}
 }
 
 class SDefaultPropertyButtonWidgets : public SCompoundWidget
