@@ -31,8 +31,8 @@ FCrashReportCoreConfig::FCrashReportCoreConfig()
 
 	if (!GConfig->GetString(*SectionName, TEXT("DataRouterUrl"), DataRouterUrl, GEngineIni))
 	{
-#if defined CRC_DATAROUTER_FALLBACK
-		DataRouterUrl = TEXT(CRC_DATAROUTER_FALLBACK);
+#if defined CRC_DEFAULT_URL
+		DataRouterUrl = TEXT(CRC_DEFAULT_URL);
 #else
 		DataRouterUrl = TEXT("");
 #endif
@@ -88,8 +88,8 @@ FCrashReportCoreConfig::FCrashReportCoreConfig()
 
 	if (!GConfig->GetString(*SectionName, TEXT("CompanyName"), CompanyName, GEngineIni))
 	{
-#if defined(CRC_COMPANY_NAME_FALLBACK)
-		CompanyName = TEXT(CRC_COMPANY_NAME_FALLBACK);
+#if defined(CRC_DEFAULT_COMPANY_NAME)
+		CompanyName = TEXT(CRC_DEFAULT_COMPANY_NAME);
 #else
 		CompanyName = TEXT("");
 #endif
