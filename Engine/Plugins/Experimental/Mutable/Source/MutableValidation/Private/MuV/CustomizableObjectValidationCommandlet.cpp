@@ -6,6 +6,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Containers/Array.h"
 #include "MuCO/CustomizableObject.h"
+#include "MuCO/CustomizableObjectInstancePrivate.h"
 #include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCO/CustomizableObjectSystem.h"
 #include "MuR/Model.h"
@@ -117,7 +118,7 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 					// Force generation of all LODS
 					TArray<uint16> RequestedLodLevels{};
 					RequestedLodLevels.Init(MAX_uint8, GeneratedInstance->GetNumComponents());
-					GeneratedInstance->GetDescriptor().SetRequestedLODLevels(RequestedLodLevels);
+					GeneratedInstance->GetPrivate()->GetDescriptor().SetRequestedLODLevels(RequestedLodLevels);
 					
 					// Randomize instance values
 					GeneratedInstance->SetRandomValuesFromStream(RandomizationStream);

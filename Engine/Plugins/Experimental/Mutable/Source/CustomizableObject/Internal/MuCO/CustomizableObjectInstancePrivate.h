@@ -26,11 +26,17 @@ struct FModelResources;
 struct FMutableModelImageProperties;
 struct FMutableRefSkeletalMeshData;
 struct FMutableImageCacheKey;
+struct FStreamableManager;
 struct FStreamableHandle;
 struct FGeneratedMaterial;
 struct FGeneratedTexture;
 class UPhysicsAsset;
 class USkeleton;
+
+
+/** \param OnlyLOD: If not 0, extract and convert only one single LOD from the source image.
+  * \param ExtractChannel: If different than -1, extract a single-channel image with the specified source channel data. */
+CUSTOMIZABLEOBJECT_API void ConvertImage(UTexture2D* Texture, mu::Ptr<const mu::Image> MutableImage, const FMutableModelImageProperties& Props, int32 OnlyLOD = -1, int32 ExtractChannel = -1);
 
 
 /** CustomizableObject Instance flags for internal use  */
@@ -157,7 +163,7 @@ struct FAnimBpGeneratedPhysicsAssets
 
 
 UCLASS()
-class UCustomizableInstancePrivate : public UObject
+class CUSTOMIZABLEOBJECT_API UCustomizableInstancePrivate : public UObject
 {
 public:
 	GENERATED_BODY()
@@ -216,7 +222,7 @@ public:
 	void ReuseTexture(UTexture2D* Texture, TSharedRef<FTexturePlatformData, ESPMode::ThreadSafe>& PlatformData);
 
 	// Return an event that will be fired when the assets  have been loaded. It returns null if no asset needs loading.
-	FGraphEventRef LoadAdditionalAssetsAsync(const TSharedRef<FUpdateContextPrivate>& OperationData, UCustomizableObjectInstance* Public, struct FStreamableManager &StreamableManager);
+	FGraphEventRef LoadAdditionalAssetsAsync(const TSharedRef<FUpdateContextPrivate>& OperationData, FStreamableManager &StreamableManager);
 	void AdditionalAssetsAsyncLoaded(UCustomizableObjectInstance* Public);
 
 	void TickUpdateCloseCustomizableObjects(UCustomizableObjectInstance& Public, FMutableInstanceUpdateMap& InOutRequestedUpdates);
@@ -280,6 +286,26 @@ private:
 	void SetLastMeshId(int32 ComponentIndex, int32 LODIndex, mu::FResourceID MeshId);
 
 public:
+	bool LoadParametersFromProfile(int32 ProfileIndex);
+	
+	bool SaveParametersToProfile(int32 ProfileIndex);
+	
+	bool MigrateProfileParametersToCurrentInstance(int32 ProfileIndex);
+
+	void SetSelectedParameterProfileDirty();
+
+	bool IsSelectedParameterProfileDirty() const;
+
+	int32 GetState() const;
+
+	void SetState(int32 InState);
+
+	void AdditionalAssetsAsyncLoaded(FGraphEventRef CompletionEvent);
+
+	FCustomizableObjectInstanceDescriptor& GetDescriptor() const;
+	
+	UCustomizableObjectInstance* GetPublic() const;
+
 	// If any components are using this instance, they will store the min of their distances to the player here every frame for LOD purposes
 	float MinSquareDistFromComponentToPlayer;
 	float LastMinSquareDistFromComponentToPlayer; // The same as the previous dist for last frame
@@ -338,5 +364,34 @@ public:
 	
 	/** Status of the generated Skeletal Mesh. Not to be confused with the Update Result. */
 	ESkeletalMeshStatus SkeletalMeshStatus = ESkeletalMeshStatus::NotGenerated;
+
+	TMap<FString, bool> ParamNameToExpandedMap; // Used to check whether a mutable param is expanded in the editor to show its child params
+
+#if WITH_EDITOR
+	/** During editor, always remember the duration of the last update in the mutable runtime, for profiling. */
+	int32 LastUpdateMutableRuntimeCycles = 0;
+#endif
+
+	bool bShowOnlyRuntimeParameters = true;
+	bool bShowOnlyRelevantParameters = true;
+	bool bShowUISections = false;
+
+	/** Flag to know if a property of this instance changed in the editor */
+	bool bEditorPropertyChanged = false;
+	
+	// TEMP VARIABLE to check the Min desired LODs for this instance
+	TWeakObjectPtr<UCustomizableObjectInstanceUsage> NearestToActor;
+	TWeakObjectPtr<const AActor> NearestToViewCenter;
+
+#if WITH_EDITOR
+	/** Profile index the instance parameters are in and if the profile needs to be refreshed */
+	int32 SelectedProfileIndex = INDEX_NONE;
+	bool bSelectedProfileDirty = false;
+#endif 
+	
+#if WITH_EDITORONLY_DATA
+	/** Preview Instance Properties search box filter. Saved here to avoid losing the text during UI refreshes. */
+	FText ParametersSearchFilter;
+#endif
 };
 

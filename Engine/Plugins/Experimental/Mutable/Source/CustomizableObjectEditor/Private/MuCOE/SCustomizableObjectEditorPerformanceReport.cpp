@@ -15,6 +15,7 @@
 #include "MuCOE/SCustomizableObjectEditorTextureAnalyzer.h"
 #include "MuCOE/UnrealEditorPortabilityHelpers.h"
 #include "PropertyCustomizationHelpers.h"
+#include "MuCO/CustomizableObjectInstancePrivate.h"
 #include "MuCO/CustomizableObjectPrivate.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SNumericEntryBox.h"
@@ -720,7 +721,7 @@ void SCustomizableObjecEditorPerformanceReport::WorstTimeFound(float CurrentInst
 		WorstCase->SetInstance(Instance);
 		if (WorstCase->WorstCaseInstance)
 		{
-			WorstCase->WorstCaseInstance->SetState(LongesTimeStateIndex);
+			WorstCase->WorstCaseInstance->GetPrivate()->SetState(LongesTimeStateIndex);
 		}
 		WorstCase->LongestUpdateTimeStateIndex = LongesTimeStateIndex;
 		WorstCase->LongestUpdateTimeParameterIndexInCO = LongesTimeParameterIndexInCO;

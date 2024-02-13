@@ -1665,7 +1665,7 @@ void FCustomizableObjectInstanceDescriptor::SetProjectorValue(const FString& Pro
 }
 
 
-void FCustomizableObjectInstanceDescriptor::SetProjectorPosition(const FString& ProjectorParamName, const FVector3f& Pos, const int32 RangeIndex)
+void FCustomizableObjectInstanceDescriptor::SetProjectorPosition(const FString& ProjectorParamName, const FVector& Pos, const int32 RangeIndex)
 {
 	FVector DummyPos, Direction, Up, Scale;
 	float Angle;

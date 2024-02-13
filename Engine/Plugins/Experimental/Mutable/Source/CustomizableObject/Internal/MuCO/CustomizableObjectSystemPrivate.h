@@ -50,6 +50,45 @@ struct FTexturePlatformData;
 void FinishUpdateGlobal(const TSharedRef<FUpdateContextPrivate>& Context);
 
 
+class FMutableUpdateCandidate
+{
+public:
+	// The Instance to possibly update
+	UCustomizableObjectInstance* CustomizableObjectInstance;
+	EQueuePriorityType Priority = EQueuePriorityType::Med;
+
+	// These are the LODs that would be applied if this candidate is chosen
+	int32 MinLOD = 0;
+	int32 MaxLOD = INT32_MAX;
+
+	/** Array of RequestedLODs per component to generate if this candidate is chosen */
+	TArray<uint16> RequestedLODLevels;
+
+	FMutableUpdateCandidate(UCustomizableObjectInstance* InCustomizableObjectInstance) : CustomizableObjectInstance(InCustomizableObjectInstance)
+	{
+		const FCustomizableObjectInstanceDescriptor& Descriptor = InCustomizableObjectInstance->GetDescriptor();
+		MinLOD = Descriptor.GetMinLod();
+		MaxLOD = Descriptor.GetMaxLod();
+		RequestedLODLevels = Descriptor.GetRequestedLODLevels();
+	}
+
+	FMutableUpdateCandidate(const UCustomizableObjectInstance* InCustomizableObjectInstance, const int32 InMinLOD, const int32 InMaxLOD,
+		const TArray<uint16>& InRequestedLODLevels) :
+		CustomizableObjectInstance(const_cast<UCustomizableObjectInstance*>(InCustomizableObjectInstance)), MinLOD(InMinLOD), MaxLOD(InMaxLOD),
+		RequestedLODLevels(InRequestedLODLevels) {}
+
+	bool HasBeenIssued() const;
+
+	void Issue();
+
+	void ApplyLODUpdateParamsToInstance(FUpdateContextPrivate& Context);
+
+private:
+	/** If true it means that EnqueueUpdateSkeletalMesh has decided this update should be performed, if false it should be ignored. Just used for consistency checks */
+	bool bHasBeenIssued = false;
+};
+
+
 struct FMutablePendingInstanceUpdate
 {
 	TSharedRef<FUpdateContextPrivate> Context;

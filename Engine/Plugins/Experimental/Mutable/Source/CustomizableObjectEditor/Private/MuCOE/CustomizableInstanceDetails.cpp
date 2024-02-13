@@ -66,9 +66,9 @@ void FCustomizableInstanceDetails::CustomizeDetails(const TSharedPtr<IDetailLayo
 
 	WeakEditor = StaticCastSharedPtr<ICustomizableObjectInstanceEditor>(FoundAssetEditor).ToWeakPtr();
 
-	if (CustomInstance->IsSelectedParameterProfileDirty())
+	if (CustomInstance->GetPrivate()->IsSelectedParameterProfileDirty())
 	{
-		CustomInstance->SaveParametersToProfile(CustomInstance->SelectedProfileIndex);
+		CustomInstance->GetPrivate()->SaveParametersToProfile(CustomInstance->GetPrivate()->SelectedProfileIndex);
 	}
 
 	// Delegate to refresh the detils when the instance has finished the Update
@@ -157,7 +157,7 @@ void FCustomizableInstanceDetails::CustomizeDetails(const TSharedPtr<IDetailLayo
 	.HAlign(EHorizontalAlignment::HAlign_Fill)
 	[
 		SNew(SCheckBox)
-		.IsChecked(CustomInstance->bShowOnlyRuntimeParameters ? ECheckBoxState::Checked : ECheckBoxState::Unchecked)
+		.IsChecked(CustomInstance->GetPrivate()->bShowOnlyRuntimeParameters ? ECheckBoxState::Checked : ECheckBoxState::Unchecked)
 		.OnCheckStateChanged(this, &FCustomizableInstanceDetails::OnShowOnlyRuntimeSelectionChanged)
 	];
 	
@@ -172,7 +172,7 @@ void FCustomizableInstanceDetails::CustomizeDetails(const TSharedPtr<IDetailLayo
 	.HAlign(EHorizontalAlignment::HAlign_Fill)
 	[
 		SNew(SCheckBox)
-		.IsChecked(CustomInstance->bShowOnlyRelevantParameters ? ECheckBoxState::Checked : ECheckBoxState::Unchecked)
+		.IsChecked(CustomInstance->GetPrivate()->bShowOnlyRelevantParameters ? ECheckBoxState::Checked : ECheckBoxState::Unchecked)
 		.OnCheckStateChanged(this, &FCustomizableInstanceDetails::OnShowOnlyRelevantSelectionChanged)
 	];
 	
@@ -187,7 +187,7 @@ void FCustomizableInstanceDetails::CustomizeDetails(const TSharedPtr<IDetailLayo
 	.HAlign(EHorizontalAlignment::HAlign_Fill)
 	[
 		SNew(SCheckBox)
-		.IsChecked(CustomInstance->bShowUISections ? ECheckBoxState::Checked : ECheckBoxState::Unchecked)
+		.IsChecked(CustomInstance->GetPrivate()->bShowUISections ? ECheckBoxState::Checked : ECheckBoxState::Unchecked)
 		.OnCheckStateChanged(this, &FCustomizableInstanceDetails::OnUseUISectionsSelectionChanged)
 	];
 
@@ -257,7 +257,7 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateStateSelector()
 
 	// States selector options
 	const int NumStates = CustomizableObject->GetStateCount();
-	const int CurrentState = CustomInstance->GetState();
+	const int CurrentState = CustomInstance->GetPrivate()->GetState();
 	TSharedPtr<FString> CurrentStateName = nullptr;
 	
 	//I think that this is not necessary. There is always a "Default" state
@@ -287,7 +287,7 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateStateSelector()
 
 	return SNew(STextComboBox)
 		.OptionsSource(&StateNames)
-		.InitiallySelectedItem((CustomInstance->GetState() != -1) ? CurrentStateName : StateNames[0])
+		.InitiallySelectedItem((CustomInstance->GetPrivate()->GetState() != -1) ? CurrentStateName : StateNames[0])
 		.OnSelectionChanged(this, &FCustomizableInstanceDetails::OnStateComboBoxSelectionChanged);
 }
 
@@ -309,7 +309,7 @@ void FCustomizableInstanceDetails::OnStateComboBoxSelectionChanged(TSharedPtr<FS
 TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateInstanceProfileSelector()
 {
 	UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
-	const int32 ProfileIdx = CustomInstance->SelectedProfileIndex;
+	const int32 ProfileIdx = CustomInstance->GetPrivate()->SelectedProfileIndex;
 
 	ParameterProfileNames.Emplace(MakeShared<FString>("None"));
 	TSharedPtr<FString> CurrentProfileName = ParameterProfileNames.Last();
@@ -363,7 +363,7 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateInstanceProfileSelecto
 			SNew(SButton)
 			.Text(LOCTEXT("RemoveButtonLabel", " - "))
 			.ToolTipText(FText::FromString(CustomInstance->HasAnyParameters() ? FString("Delete selected profile") : FString("Delete selected profile functionality is not available, no profile is selected.")))
-			.IsEnabled(CustomInstance->SelectedProfileIndex != INDEX_NONE)
+			.IsEnabled(CustomInstance->GetPrivate()->SelectedProfileIndex != INDEX_NONE)
 			.IsFocusable(false)
 			.OnClicked(this, &FCustomizableInstanceDetails::RemoveParameterProfile)
 		];
@@ -425,7 +425,7 @@ FReply FCustomizableInstanceDetails::RemoveParameterProfile()
 {
 	UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
 
-	const int32 ProfileIdx = CustomInstance->SelectedProfileIndex;
+	const int32 ProfileIdx = CustomInstance->GetPrivate()->SelectedProfileIndex;
 
 	if (ProfileIdx == INDEX_NONE)
 	{
@@ -435,7 +435,7 @@ FReply FCustomizableInstanceDetails::RemoveParameterProfile()
 	TArray<FProfileParameterDat>& Profiles = CustomizableObject->InstancePropertiesProfiles;
 
 	Profiles.RemoveAt(ProfileIdx);
-	CustomInstance->SelectedProfileIndex = INDEX_NONE;
+	CustomInstance->GetPrivate()->SelectedProfileIndex = INDEX_NONE;
 	CustomizableObject->Modify();
 
 	CustomInstance->PreEditChange(nullptr);
@@ -451,15 +451,15 @@ FReply FCustomizableInstanceDetails::RemoveParameterProfile()
 
 void FCustomizableInstanceDetails::OnProfileSelectedChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo)
 {
-	const int32 ProfileIdx = CustomInstance->SelectedProfileIndex;
-	if (CustomInstance->IsSelectedParameterProfileDirty())
+	const int32 ProfileIdx = CustomInstance->GetPrivate()->SelectedProfileIndex;
+	if (CustomInstance->GetPrivate()->IsSelectedParameterProfileDirty())
 	{
-		CustomInstance->SaveParametersToProfile(ProfileIdx);
+		CustomInstance->GetPrivate()->SaveParametersToProfile(ProfileIdx);
 	}
 
 	if (*Selection == "None")
 	{
-		CustomInstance->SelectedProfileIndex = INDEX_NONE;
+		CustomInstance->GetPrivate()->SelectedProfileIndex = INDEX_NONE;
 	}
 	else
 	{
@@ -469,13 +469,13 @@ void FCustomizableInstanceDetails::OnProfileSelectedChanged(TSharedPtr<FString> 
 		{
 			if (Profiles[Idx].ProfileName == *Selection)
 			{
-				CustomInstance->SelectedProfileIndex = Idx;
+				CustomInstance->GetPrivate()->SelectedProfileIndex = Idx;
 				break;
 			}
 		}
 	}	
 
-	CustomInstance->LoadParametersFromProfile(CustomInstance->SelectedProfileIndex);
+	CustomInstance->GetPrivate()->LoadParametersFromProfile(CustomInstance->GetPrivate()->SelectedProfileIndex);
 	CustomInstance->PreEditChange(nullptr);
 	CustomInstance->UpdateSkeletalMeshAsync(true, true);
 	CustomInstance->PostEditChange();
@@ -487,21 +487,21 @@ void FCustomizableInstanceDetails::OnProfileSelectedChanged(TSharedPtr<FString> 
 
 void FCustomizableInstanceDetails::OnShowOnlyRuntimeSelectionChanged(ECheckBoxState InCheckboxState)
 {
-	CustomInstance->bShowOnlyRuntimeParameters = InCheckboxState == ECheckBoxState::Checked;
+	CustomInstance->GetPrivate()->bShowOnlyRuntimeParameters = InCheckboxState == ECheckBoxState::Checked;
 	Refresh();
 }
 
 
 void FCustomizableInstanceDetails::OnShowOnlyRelevantSelectionChanged(ECheckBoxState InCheckboxState)
 {
-	CustomInstance->bShowOnlyRelevantParameters = InCheckboxState == ECheckBoxState::Checked;
+	CustomInstance->GetPrivate()->bShowOnlyRelevantParameters = InCheckboxState == ECheckBoxState::Checked;
 	Refresh();
 }
 
 
 void FCustomizableInstanceDetails::OnUseUISectionsSelectionChanged(ECheckBoxState InCheckboxState)
 {
-	CustomInstance->bShowUISections = InCheckboxState == ECheckBoxState::Checked;
+	CustomInstance->GetPrivate()->bShowUISections = InCheckboxState == ECheckBoxState::Checked;
 	Refresh();
 }
 
@@ -550,14 +550,14 @@ void FCustomizableInstanceDetails::GenerateParametersView(IDetailCategoryBuilder
 		return;
 	}
 	
-	if (CustomInstance->bShowOnlyRuntimeParameters)
+	if (CustomInstance->GetPrivate()->bShowOnlyRuntimeParameters)
 	{
-		const int32 NumStateParameters = CustomizableObject->GetStateParameterCount(CustomInstance->GetState());
+		const int32 NumStateParameters = CustomizableObject->GetStateParameterCount(CustomInstance->GetPrivate()->GetState());
 
 		for (int32 ParamIndexInState = 0; ParamIndexInState < NumStateParameters; ++ParamIndexInState)
 		{
 			FParameterInfo ParameterSortInfo;
-			ParameterSortInfo.ParameterIndex = CustomizableObject->GetStateParameterIndex(CustomInstance->GetState(), ParamIndexInState);
+			ParameterSortInfo.ParameterIndex = CustomizableObject->GetStateParameterIndex(CustomInstance->GetPrivate()->GetState(), ParamIndexInState);
 
 			if (CustomInstance->IsParameterRelevant(ParameterSortInfo.ParameterIndex) && IsVisible(ParameterSortInfo.ParameterIndex))
 			{
@@ -573,7 +573,7 @@ void FCustomizableInstanceDetails::GenerateParametersView(IDetailCategoryBuilder
 		{
 			const FParameterInfo& ParamInfo = ParametersTree[ParamIndexInObject];
 			
-			if (CustomInstance->bShowUISections)
+			if (CustomInstance->GetPrivate()->bShowUISections)
 			{
 				IDetailGroup* CurrentSection = GenerateParameterSection(ParamIndexInObject, DetailsCategory);
 				check(CurrentSection);
@@ -617,7 +617,7 @@ void FCustomizableInstanceDetails::GenerateParametersView(IDetailCategoryBuilder
 		{
 			FParameterInfo ParameterSortInfo;
 			ParameterSortInfo.ParameterIndex = ParamIndexInObject;
-			if ((!CustomInstance->bShowOnlyRelevantParameters || CustomInstance->IsParameterRelevant(ParameterSortInfo.ParameterIndex)) && IsVisible(ParameterSortInfo.ParameterIndex))
+			if ((!CustomInstance->GetPrivate()->bShowOnlyRelevantParameters || CustomInstance->IsParameterRelevant(ParameterSortInfo.ParameterIndex)) && IsVisible(ParameterSortInfo.ParameterIndex))
 			{
 				ParameterSortInfo.ParameterUIOrder = CustomizableObject->GetParameterUIMetadataFromIndex(ParameterSortInfo.ParameterIndex).ParamUIMetadata.UIOrder;
 				ParameterSortInfo.ParameterName = CustomizableObject->GetParameterName(ParameterSortInfo.ParameterIndex);
@@ -653,7 +653,7 @@ void FCustomizableInstanceDetails::RecursivelyAddParamAndChildren(const int32 Pa
 
 	if (ParentName.IsEmpty())
 	{
-		if (CustomInstance->bShowUISections)
+		if (CustomInstance->GetPrivate()->bShowUISections)
 		{
 			IDetailGroup* CurrentSection = GenerateParameterSection(ParamIndexInObject, DetailsCategory);
 			check(CurrentSection);
@@ -740,7 +740,7 @@ bool FCustomizableInstanceDetails::IsVisible(int32 ParamIndexInObject)
 		|| (ParamName.EndsWith(FMultilayerProjector::OPACITY_PARAMETER_POSTFIX) && CustomizableObject->IsParameterMultidimensional(ParamIndexInObject))
 		|| (ParamName.EndsWith(FMultilayerProjector::POSE_PARAMETER_POSTFIX));
 
-	if (!IsAProjectorParam && ParentName && CustomInstance->bShowOnlyRelevantParameters)
+	if (!IsAProjectorParam && ParentName && CustomInstance->GetPrivate()->bShowOnlyRelevantParameters)
 	{
 		FString* Value = UIData.ParamUIMetadata.ExtraInformation.Find(FString("__DisplayWhenParentValueEquals"));
 
@@ -940,7 +940,7 @@ void FCustomizableInstanceDetails::OnIntParameterComboBoxChanged(TSharedPtr<FStr
 		}
 	}
 
-	CustomInstance->SetSelectedParameterProfileDirty();
+	CustomInstance->GetPrivate()->SetSelectedParameterProfileDirty();
 	CustomInstance->PreEditChange(nullptr);
 	CustomInstance->UpdateSkeletalMeshAsync(true, true);
 	CustomInstance->PostEditChange();
@@ -995,7 +995,7 @@ void FCustomizableInstanceDetails::OnFloatParameterSliderEnd(float Value, FStrin
 {
 	CustomInstance->SetFloatParameterSelectedOption(ParamName, Value, RangeIndex);
 
-	CustomInstance->SetSelectedParameterProfileDirty();
+	CustomInstance->GetPrivate()->SetSelectedParameterProfileDirty();
 	CustomInstance->PreEditChange(nullptr);
 	CustomInstance->UpdateSkeletalMeshAsync(true, true);
 	CustomInstance->PostEditChange();
@@ -1070,7 +1070,7 @@ void FCustomizableInstanceDetails::GenerateTextureParameterOptions()
 	}
 
 	// Get values from TextureParameterDeclarations.
-	for (TObjectPtr<UTexture2D> Declaration : CustomInstance->GetTextureParameterDeclarations())
+	for (TObjectPtr<UTexture2D> Declaration : CustomInstance->TextureParameterDeclarations)
 	{
 		if (!Declaration)
 		{
@@ -1108,7 +1108,7 @@ void FCustomizableInstanceDetails::OnTextureParameterComboBoxSelectionChanged(TS
 		}
 	}
 
-	CustomInstance->SetSelectedParameterProfileDirty();
+	CustomInstance->GetPrivate()->SetSelectedParameterProfileDirty();
 	CustomInstance->UpdateSkeletalMeshAsync(true, true);
 	CustomInstance->PostEditChange();
 
@@ -1165,7 +1165,7 @@ void FCustomizableInstanceDetails::OnSetColorFromColorPicker(FLinearColor NewCol
 {
 	CustomInstance->PreEditChange(nullptr);
 	CustomInstance->SetColorParameterSelectedOption(PickerParamName, NewColor);
-	CustomInstance->SetSelectedParameterProfileDirty();
+	CustomInstance->GetPrivate()->SetSelectedParameterProfileDirty();
 
 	PickerParamName = FString();
 
@@ -1675,7 +1675,7 @@ FReply FCustomizableInstanceDetails::OnProjectorLayerAdded(FString ParamName) co
 	check(CustomInstance->FindFloatParameterNameIndex(OpacitySliderParamName) != INDEX_NONE);
 	check(NumLayers == FloatParameters[CustomInstance->FindFloatParameterNameIndex(OpacitySliderParamName)].ParameterRangeValues.Num());
 
-	CustomInstance->SetSelectedParameterProfileDirty();
+	CustomInstance->GetPrivate()->SetSelectedParameterProfileDirty();
 	CustomInstance->PreEditChange(nullptr);
 	CustomInstance->UpdateSkeletalMeshAsync(true, true);
 	CustomInstance->PostEditChange();
@@ -1713,7 +1713,7 @@ FReply FCustomizableInstanceDetails::OnProjectorLayerRemoved(const FString Param
 	check(CustomInstance->FindFloatParameterNameIndex(OpacitySliderParamName) != INDEX_NONE);
 	check(NumLayers == FloatParameters[CustomInstance->FindFloatParameterNameIndex(OpacitySliderParamName)].ParameterRangeValues.Num());
 
-	CustomInstance->SetSelectedParameterProfileDirty();
+	CustomInstance->GetPrivate()->SetSelectedParameterProfileDirty();
 	CustomInstance->PreEditChange(nullptr);
 	CustomInstance->UpdateSkeletalMeshAsync(true, true);
 	CustomInstance->PostEditChange();
@@ -1761,7 +1761,7 @@ void FCustomizableInstanceDetails::OnProjectorTextureParameterComboBoxChanged(TS
 		}
 	}
 
-	CustomInstance->SetSelectedParameterProfileDirty();
+	CustomInstance->GetPrivate()->SetSelectedParameterProfileDirty();
 	CustomInstance->UpdateSkeletalMeshAsync(true, true);
 	CustomInstance->PostEditChange();
 
@@ -1809,7 +1809,7 @@ void FCustomizableInstanceDetails::OnBoolParameterChanged(ECheckBoxState InCheck
 {
 	CustomInstance->PreEditChange(nullptr);
 	CustomInstance->SetBoolParameterSelectedOption(ParamName, InCheckboxState == ECheckBoxState::Checked);
-	CustomInstance->SetSelectedParameterProfileDirty();
+	CustomInstance->GetPrivate()->SetSelectedParameterProfileDirty();
 	CustomInstance->UpdateSkeletalMeshAsync(true, true);
 	CustomInstance->PostEditChange();
 
@@ -1847,7 +1847,7 @@ FReply FCustomizableInstanceDetails::OnPasteAllParameters()
 		FromBinary.Seek(0);
 
 		CustomInstance->LoadDescriptor(FromBinary);
-		CustomInstance->SetSelectedParameterProfileDirty();
+		CustomInstance->GetPrivate()->SetSelectedParameterProfileDirty();
 		CustomInstance->UpdateSkeletalMeshAsync(true, true);
 		CustomInstance->PostEditChange();
 
@@ -1875,7 +1875,7 @@ FReply FCustomizableInstanceDetails::OnResetAllParameters()
 
 	CustomInstance->UpdateSkeletalMeshAsync(true, true);
 	CustomInstance->PostEditChange();
-	CustomInstance->SelectedProfileIndex = INDEX_NONE;
+	CustomInstance->GetPrivate()->SelectedProfileIndex = INDEX_NONE;
 
 	// Non-continuous change: collect garbage.
 	GEngine->ForceGarbageCollection();
@@ -1888,7 +1888,7 @@ void FCustomizableInstanceDetails::OnResetParameterButtonClicked(int32 Parameter
 {	
 	CustomInstance->PreEditChange(nullptr);
 	SetParameterValueToDefault(ParameterIndex);
-	CustomInstance->SetSelectedParameterProfileDirty();
+	CustomInstance->GetPrivate()->SetSelectedParameterProfileDirty();
 	CustomInstance->UpdateSkeletalMeshAsync(true, true);
 	CustomInstance->PostEditChange();
 }
@@ -2101,11 +2101,11 @@ void SProfileParametersWindow::OnNameChange(const FText& NewName, ETextCommit::T
 		UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
 		CustomizableObject->GetPrivate()->AddNewParameterProfile(GetFileName(), *CustomInstance.Get());
 
-		if (CustomInstance->bSelectedProfileDirty && CustomInstance->SelectedProfileIndex != INDEX_NONE)
+		if (CustomInstance->GetPrivate()->bSelectedProfileDirty && CustomInstance->GetPrivate()->SelectedProfileIndex != INDEX_NONE)
 		{
-			CustomInstance->SaveParametersToProfile(CustomInstance->SelectedProfileIndex);
+			CustomInstance->GetPrivate()->SaveParametersToProfile(CustomInstance->GetPrivate()->SelectedProfileIndex);
 		}
-		CustomInstance->SelectedProfileIndex = CustomizableObject->InstancePropertiesProfiles.Num() - 1;
+		CustomInstance->GetPrivate()->SelectedProfileIndex = CustomizableObject->InstancePropertiesProfiles.Num() - 1;
 
 		if (InstanceDetails)
 		{
@@ -2126,11 +2126,11 @@ FReply SProfileParametersWindow::OnButtonClick(EAppReturnType::Type ButtonID)
 		UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
 		CustomizableObject->GetPrivate()->AddNewParameterProfile(GetFileName(), *CustomInstance.Get());
 
-		if (CustomInstance->bSelectedProfileDirty && CustomInstance->SelectedProfileIndex != INDEX_NONE)
+		if (CustomInstance->GetPrivate()->bSelectedProfileDirty && CustomInstance->GetPrivate()->SelectedProfileIndex != INDEX_NONE)
 		{
-			CustomInstance->SaveParametersToProfile(CustomInstance->SelectedProfileIndex);
+			CustomInstance->GetPrivate()->SaveParametersToProfile(CustomInstance->GetPrivate()->SelectedProfileIndex);
 		}
-		CustomInstance->SelectedProfileIndex = CustomizableObject->InstancePropertiesProfiles.Num() - 1;
+		CustomInstance->GetPrivate()->SelectedProfileIndex = CustomizableObject->InstancePropertiesProfiles.Num() - 1;
 
 		if (InstanceDetails)
 		{
