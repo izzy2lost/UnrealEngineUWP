@@ -262,7 +262,7 @@ namespace UnrealBuildTool
 										// Create the command
 										StringBuilder CommandBuilder = new StringBuilder();
 										string CommandArguments = Action.CommandArguments.Replace(".rsp", ".rsp.gcd").Replace(".response", ".response.gcd");
-										CommandBuilder.AppendFormat("\"{0}\" {1}", Action.CommandPath, CommandArguments);
+										CommandBuilder.AppendFormat("{0} {1}", Action.CommandPath, CommandArguments);
 
 										foreach (string ExtraArgument in GetExtraPlatformArguments(TargetToolChain))
 										{
@@ -333,14 +333,19 @@ namespace UnrealBuildTool
 					continue;
 				}
 				// The file that is going to compile
-				else if (!Line.StartsWith("-") && !Line.StartsWith("/"))
+				else if (!Line.StartsWith("-") && !Line.StartsWith("/") && !Line.StartsWith("@"))
 				{
 					Line = ConvertPath(Line, Line);
 				}
 				// Arguments
 				else
 				{
+					 // TODO this needs a clean way to handle path separators that is used in all instances
 					int StrIndex = Line.IndexOf("..\\");
+					if (StrIndex == -1)
+					{
+						StrIndex = Line.IndexOf("../");
+					}
 					if (StrIndex != -1)
 					{
 						Line = ConvertPath(Line, Line.Substring(StrIndex));
@@ -353,6 +358,11 @@ namespace UnrealBuildTool
 							Line = ConvertPath(Line, LineMatch.Groups[2].Value);
 						}
 					}
+				}
+				// TODO DIRTY DIRTY HACK because we don't support recursion in response files
+				if (Line.StartsWith("@"))
+				{
+					Line = Line.Replace(".rsp", ".rsp.gcd").Replace(".response", ".response.gcd");
 				}
 
 				NewFileContents[i] = Line;
