@@ -107,6 +107,24 @@ namespace PCGAttributeReduceElement
 				});
 		}
 	}
+
+	template<typename T>
+	bool Sum(const IPCGAttributeAccessorKeys& Keys, const IPCGAttributeAccessor& Accessor, T& OutValue)
+	{
+		if constexpr (!PCG::Private::MetadataTraits<T>::CanSubAdd)
+		{
+			return false;
+		}
+		else
+		{
+			OutValue = PCG::Private::MetadataTraits<T>::ZeroValue();
+
+			return PCGMetadataElementCommon::ApplyOnAccessor<T>(Keys, Accessor, [&OutValue](const T& InValue, int32)
+			{
+				OutValue = PCG::Private::MetadataTraits<T>::Add(OutValue, InValue);
+			});
+		}
+	}
 }
 
 #if WITH_EDITOR
@@ -281,6 +299,9 @@ bool FPCGAttributeReduceElement::ExecuteInternal(FPCGContext* Context) const
 				break;
 			case EPCGAttributeReduceOperation::Min:
 				bSuccess = PCGAttributeReduceElement::MinMax<AttributeType, /*bIsMin*/true>(*Keys, *Accessor, OutputValue);
+				break;
+			case EPCGAttributeReduceOperation::Sum:
+				bSuccess = PCGAttributeReduceElement::Sum<AttributeType>(*Keys, *Accessor, OutputValue);
 				break;
 			default:
 				break;
