@@ -99,6 +99,14 @@ public:
 	/** If true, the viewport rendering will be unlit; Otherwise, it will not. Disabling lighting can speed up the game simulation. */
 	UPROPERTY(EditAnywhere, Category = "LearningAgents")
 	bool bUseUnlitViewportRendering = false;
+
+#if WITH_EDITORONLY_DATA
+
+	/** If true, the Use Less CPU In The Background editor setting will be disabled. This prevents the editor from running slowly when minimized. */
+	UPROPERTY(EditAnywhere, Category = "LearningAgents")
+	bool bDisableUseLessCPUInTheBackground = true;
+
+#endif
 };
 
 /** Enumeration of the training devices. */
@@ -681,6 +689,7 @@ private:
 // ----- Private Recording of GameSettings ----- 
 private:
 
+	bool bUseLessCPUInTheBackground = true;
 	bool bFixedTimestepUsed = false;
 	float FixedTimeStepDeltaTime = -1.0f;
 	bool bVSyncEnabled = true;
