@@ -6,7 +6,7 @@
 #include "DrawDebugHelpers.h"
 #include "Misc/CoreMisc.h"
 #include "Subsystems/GameInstanceSubsystem.h"
-#include "Tasks/TargetingTask.h"
+#include "Tasks/CollisionQueryTaskData.h" 
 #include "Tickable.h"
 #include "Types/TargetingSystemTypes.h"
 
@@ -19,7 +19,6 @@ class UCanvas;
 class UTargetingPreset;
 class UTargetingTask;
 class UWorld;
-struct FCollisionQueryTaskData;
 
 
 #if ENABLE_DRAW_DEBUG
@@ -124,8 +123,13 @@ public:
 	TARGETINGSYSTEM_API static void ReleaseTargetRequestHandle(FTargetingRequestHandle& Handle);
 
 	/** The handle released delegate that fires right before a handle is release so all data stores can clean up their state */
+	UE_DEPRECATED(5.4, "Use FTargetingRequestHandle::FOnTargetingRequestHandleReleased instead")
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnTargetingRequestHandleReleased, FTargetingRequestHandle)
-	TARGETINGSYSTEM_API static FOnTargetingRequestHandleReleased& ReleaseHandleDelegate();
+
+	UE_DEPRECATED(5.4, "Call FTargetingRequestHandle::GetReleaseHandleDelegate instead.")
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	TARGETINGSYSTEM_API static FTargetingRequestHandle::FOnTargetingRequestHandleReleased& ReleaseHandleDelegate();
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** Target Handle Generation Methods */
 

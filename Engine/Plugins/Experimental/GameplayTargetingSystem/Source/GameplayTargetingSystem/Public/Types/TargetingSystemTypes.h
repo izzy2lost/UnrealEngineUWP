@@ -50,6 +50,10 @@ public:
 	/** We override NetSeralize because we should never be network serializing this handle */
 	bool NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess);
 
+	/** The handle released delegate that fires right before a handle is release so all data stores can clean up their state */
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnTargetingRequestHandleReleased, FTargetingRequestHandle)
+	TARGETINGSYSTEM_API static FOnTargetingRequestHandleReleased& GetReleaseHandleDelegate();
+	
 	/** overloaded operators */
 	FORCEINLINE bool operator==(const FTargetingRequestHandle& InHandle) const { return Handle == InHandle.Handle; }
 	FORCEINLINE bool operator!=(const FTargetingRequestHandle& InHandle) const { return !this->operator==(InHandle); }

@@ -5,7 +5,6 @@
 #include "CoreMinimal.h"
 #include "Delegates/DelegateCombinations.h"
 #include "Engine/EngineTypes.h"
-#include "TargetingSystem/TargetingSubsystem.h"
 #include "TargetingSystemTypes.h"
 
 
@@ -28,14 +27,14 @@ namespace UE
 		{
 			TTargetingDataStore()
 			{
-				ReleaseDelegateHandle = UTargetingSubsystem::ReleaseHandleDelegate().AddStatic(&TTargetingDataStore::OnTargetingRequestHandleReleased);
+				ReleaseDelegateHandle = FTargetingRequestHandle::GetReleaseHandleDelegate().AddStatic(&TTargetingDataStore::OnTargetingRequestHandleReleased);
 			}
 
 			~TTargetingDataStore()
 			{
 				if (ReleaseDelegateHandle.IsValid())
 				{
-					UTargetingSubsystem::ReleaseHandleDelegate().Remove(ReleaseDelegateHandle);
+					FTargetingRequestHandle::GetReleaseHandleDelegate().Remove(ReleaseDelegateHandle);
 				}
 			}
 
