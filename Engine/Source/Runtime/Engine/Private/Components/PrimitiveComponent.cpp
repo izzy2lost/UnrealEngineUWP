@@ -961,6 +961,10 @@ void UPrimitiveComponent::OnDestroyPhysicsState()
 	UnWeldFromParent();
 	UnWeldChildren();
 
+	// Remove all user defined entities here
+	TArray<Chaos::FPhysicsObject*> PhysicsObjects = GetAllPhysicsObjects();
+	FPhysicsObjectExternalInterface::LockWrite(PhysicsObjects)->SetUserDefinedEntity(PhysicsObjects, nullptr);
+
 	// clean up physics engine representation
 	if(BodyInstance.IsValidBodyInstance())
 	{

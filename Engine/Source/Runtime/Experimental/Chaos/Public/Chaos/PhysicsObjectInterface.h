@@ -125,7 +125,7 @@ namespace Chaos
 	class FWritePhysicsObjectInterface: public FReadPhysicsObjectInterface<Id>
 	{
 	public:
-		CHAOS_API void SetUserDefinedEntity(TArrayView<const FPhysicsObjectHandle> InObjects, FChaosUserDefinedEntity* UserDefinedEntity);
+		CHAOS_API void SetUserDefinedEntity(TArrayView<const FPhysicsObjectHandle> InObjects, FChaosUserDefinedEntity* UserDefinedEntity); // Set the user defined entity, use nullptr to remove the Entity and release the memory
 		CHAOS_API void PutToSleep(TArrayView<const FPhysicsObjectHandle> InObjects);
 		CHAOS_API void WakeUp(TArrayView<const FPhysicsObjectHandle> InObjects);
 		CHAOS_API void ForceKinematic(TArrayView<const FPhysicsObjectHandle> InObjects);
