@@ -4,6 +4,7 @@
 
 #include "NiagaraDataInterface.h"
 #include "NiagaraCommon.h"
+#include "NiagaraSimCacheCustomStorageInterface.h"
 #include "VectorVM.h"
 
 #include "NiagaraDataInterfaceLandscape.generated.h"
@@ -35,7 +36,7 @@ enum class ENDILandscape_SourceMode : uint8
 
 /** Data Interface allowing sampling of a Landscape */
 UCLASS(EditInlineNew, Category = "Landscape", CollapseCategories, meta = (DisplayName = "Landscape Sample"), MinimalAPI)
-class UNiagaraDataInterfaceLandscape : public UNiagaraDataInterface
+class UNiagaraDataInterfaceLandscape : public UNiagaraDataInterface, public INiagaraSimCacheCustomStorageInterface
 {
 	GENERATED_UCLASS_BODY()
 
@@ -62,9 +63,15 @@ public:
 #if WITH_EDITORONLY_DATA
 	NIAGARA_API virtual bool UpgradeFunctionCall(FNiagaraFunctionSignature& FunctionSignature) override;
 #endif
+	NIAGARA_API virtual bool Equals(const UNiagaraDataInterface* Other) const override;
 	//UNiagaraDataInterface Interface End
 
-	NIAGARA_API virtual bool Equals(const UNiagaraDataInterface* Other) const override;
+	//~ INiagaraSimCacheCustomStorageInterface interface BEGIN
+	NIAGARA_API virtual UObject* SimCacheBeginWrite(UObject* SimCache, FNiagaraSystemInstance* NiagaraSystemInstance, const void* OptionalPerInstanceData, FNiagaraSimCacheFeedbackContext& FeedbackContext) const override;
+	NIAGARA_API virtual bool SimCacheWriteFrame(UObject* StorageObject, int FrameIndex, FNiagaraSystemInstance* SystemInstance, const void* OptionalPerInstanceData, FNiagaraSimCacheFeedbackContext& FeedbackContext) const override;
+	//NIAGARA_API virtual bool SimCacheEndWrite(UObject* StorageObject) const override;
+	NIAGARA_API virtual bool SimCacheReadFrame(UObject* StorageObject, int FrameA, int FrameB, float Interp, FNiagaraSystemInstance* SystemInstance, void* OptionalPerInstanceData) override;
+	//~ UNiagaraDataInterface interface END
 
 	// GPU sim functionality
 #if WITH_EDITORONLY_DATA
@@ -94,4 +101,15 @@ protected:
 	static NIAGARA_API const FName GetHeightName;
 	static NIAGARA_API const FName GetWorldNormalName;
 	static NIAGARA_API const FName GetPhysicalMaterialIndexName;
+};
+
+
+UCLASS(MinimalAPI)
+class UNDILandscapeSimCacheData : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY()
+	TArray<TObjectPtr<UTexture2D>> HeightFieldTextures;
 };
