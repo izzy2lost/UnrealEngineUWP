@@ -8,7 +8,7 @@
 
 class UMoviePipelinePrimaryConfig;
 
-UCLASS(config=EditorPerProjectUserSettings, meta=(DisplayName="Movie Render Queue Settings"))
+UCLASS(config=EditorPerProjectUserSettings, meta=(DisplayName="Movie Render Queue"))
 class UAvaMRQEditorSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
