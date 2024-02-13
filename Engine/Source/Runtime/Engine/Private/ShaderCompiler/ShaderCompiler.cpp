@@ -1886,7 +1886,16 @@ void FShaderJobCache::AddToCacheAndProcessPending(FShaderCommonCompileJob* Finis
 		}
 
 		// remove ourselves from the jobs in flight
-		JobData.JobInFlight = nullptr;
+		if (JobData.JobInFlight)
+		{
+#if WITH_EDITOR
+			if (JobData.JobInFlight->RequestOwner.IsValid())
+			{
+				JobData.JobInFlight->RequestOwner->KeepAlive();
+			}
+#endif
+			JobData.JobInFlight = nullptr;
+		}
 		FinishedJob->JobCacheRef.Clear();
 	}
 
@@ -10809,7 +10818,16 @@ FShaderJobCacheRef FShaderJobCache::FindOrAdd(const FJobInputHash& Hash, EShader
 								UE_LOG(LogShaderCompilers, Display, TEXT("Cancelled job 0x%p (data 0x%p) with pending DDC hit."), JobDataPtr->JobInFlight.GetReference(), JobDataPtr);
 
 								delete NewStoredOutput;
-								JobDataPtr->JobInFlight = nullptr;
+								if (JobDataPtr->JobInFlight)
+								{
+#if WITH_EDITOR
+									if (JobDataPtr->JobInFlight->RequestOwner.IsValid())
+									{
+										JobDataPtr->JobInFlight->RequestOwner->KeepAlive();
+									}
+#endif
+									JobDataPtr->JobInFlight = nullptr;
+								}
 								JobLock.WriteUnlock();
 								return;
 							}
@@ -10856,7 +10874,16 @@ FShaderJobCacheRef FShaderJobCache::FindOrAdd(const FJobInputHash& Hash, EShader
 								CurHead = CurHead->NextLink;
 							}
 							JobDataPtr->DuplicateJobsWaitList = nullptr;
-							JobDataPtr->JobInFlight = nullptr;
+							if (JobDataPtr->JobInFlight)
+							{
+#if WITH_EDITOR
+								if (JobDataPtr->JobInFlight->RequestOwner.IsValid())
+								{
+									JobDataPtr->JobInFlight->RequestOwner->KeepAlive();
+								}
+#endif
+								JobDataPtr->JobInFlight = nullptr;
+							}
 							Job->JobCacheRef.Clear();
 
 							// Need to release the lock before calling ProcessFinishedJobs
@@ -10890,7 +10917,16 @@ FShaderJobCacheRef FShaderJobCache::FindOrAdd(const FJobInputHash& Hash, EShader
 							{
 								UE_LOG(LogShaderCompilers, Display, TEXT("Cancelled job 0x%p (data 0x%p) with pending DDC miss."), Job, JobDataPtr);
 
-								JobDataPtr->JobInFlight = nullptr;
+								if (JobDataPtr->JobInFlight)
+								{
+#if WITH_EDITOR
+									if (JobDataPtr->JobInFlight->RequestOwner.IsValid())
+									{
+										JobDataPtr->JobInFlight->RequestOwner->KeepAlive();
+									}
+#endif
+									JobDataPtr->JobInFlight = nullptr;
+								}
 								return;
 							}
 							else
