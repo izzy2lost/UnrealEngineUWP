@@ -201,8 +201,9 @@ namespace Chaos
 		// Get the index of the plane that most opposes the normal
 		int32 GetMostOpposingPlane(const TVector<T, d>& Normal) const
 		{
+			// NOTE: Index returned here must match indices as set up in SNormals (see Box.cpp)
 			int32 AxisIndex = FVec3(Normal.GetAbs()).MaxAxis();
-			if (Normal[AxisIndex] > 0.0f)
+			if (Normal[AxisIndex] < 0.0f)
 			{
 				AxisIndex += 3;
 			}
