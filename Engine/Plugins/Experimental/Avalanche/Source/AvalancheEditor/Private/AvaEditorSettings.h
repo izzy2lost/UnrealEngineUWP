@@ -92,10 +92,4 @@ public:
 	//~ End UObject
 
 	void OpenEditorSettingsWindow() const;
-
-	/**
-	 * AvaCineCamera uses CameraDistance property to setup manual focus in its default object.
-	 * This function updates that default value to match the one from AvaEditorSettings
-	 */
-	void UpdateAvaCineCameraDefaults() const;
 };

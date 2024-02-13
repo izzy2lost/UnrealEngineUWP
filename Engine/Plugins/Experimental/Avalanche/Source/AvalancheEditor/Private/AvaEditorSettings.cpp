@@ -66,10 +66,4 @@ void UAvaEditorSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyC
 	OnChanged.Broadcast(this, PropertyChangedEvent.GetPropertyName());
 }
 
-// todo: when the reset to defaults issue will be solved, this function could be used from both PostInitProperties and PECP to update AAvaCineCameraActor defaults
-void UAvaEditorSettings::UpdateAvaCineCameraDefaults() const
-{
-	AAvaCineCameraActor::SetDefaultCameraDistance(CameraDistance);
-}
-
 #undef LOCTEXT_NAMESPACE
