@@ -98,9 +98,9 @@ TArray<FName> UWorldPartitionRuntimeLevelStreamingCell::GetActors() const
 	return Actors;
 }
 
-void UWorldPartitionRuntimeLevelStreamingCell::CreateAndSetLevelStreaming(const FString& InPackageName)
+void UWorldPartitionRuntimeLevelStreamingCell::CreateAndSetLevelStreaming(const FString& InPackageName, const FSoftObjectPath& InWorldAsset)
 {
-	LevelStreaming = CreateLevelStreaming(InPackageName);
+	LevelStreaming = CreateLevelStreaming(InPackageName, InWorldAsset);
 }
 
 bool UWorldPartitionRuntimeLevelStreamingCell::CreateAndSetLevelStreaming(const TSoftObjectPtr<UWorld>& InWorldAsset, const FTransform& InInstanceTransform) const
@@ -136,28 +136,45 @@ bool UWorldPartitionRuntimeLevelStreamingCell::CreateAndSetLevelStreaming(const 
 
 #if WITH_EDITOR
 	LevelStreaming->SetShouldPerformStandardLevelLoading(true);
-#endif
 
 	if (OwningWorld->IsPlayInEditor() && OwningWorld->GetPackage()->HasAnyPackageFlags(PKG_PlayInEditor) && OwningWorld->GetPackage()->GetPIEInstanceID() != INDEX_NONE)
 	{
 		// When renaming for PIE, make sure to keep World's name so that linker can properly remap with Package's instancing context
 		LevelStreaming->RenameForPIE(OwningWorld->GetPackage()->GetPIEInstanceID(), /*bKeepWorldAssetName*/true);
 	}
+#endif
+
 	return true;
 }
 
-UWorldPartitionLevelStreamingDynamic* UWorldPartitionRuntimeLevelStreamingCell::CreateLevelStreaming(const FString& InPackageName) const
+UWorldPartitionLevelStreamingDynamic* UWorldPartitionRuntimeLevelStreamingCell::CreateLevelStreaming(const FString& InPackageName, const FSoftObjectPath& InWorldAsset) const
 {
+	auto GetUniqueLevelStreamingName = [this]()
+	{
+		const UWorld* OuterWorld = GetOuterWorld();
+		TStringBuilder<128> LevelStreamingNameBuilder;
+		LevelStreamingNameBuilder.Appendf(TEXT("WorldPartitionLevelStreaming_%s"), *GetName());
+		if (OuterWorld->IsGameWorld())
+		{
+			FString OuterWorldPackageShortName = FPackageName::GetShortName(OuterWorld->GetPackage());
+#if WITH_EDITOR
+			OuterWorldPackageShortName = UWorld::RemovePIEPrefix(OuterWorldPackageShortName);
+#endif
+			// Include outer world package name to make sure we generate a unique name since we it is 
+			LevelStreamingNameBuilder.Appendf(TEXT("_%s"), *OuterWorldPackageShortName);
+		}
+		return FName(*LevelStreamingNameBuilder);
+	};
+
 	if (HasActors())
 	{
 		UWorld* OuterWorld = GetOuterWorld();
 		UWorld* OwningWorld = GetOwningWorld();
-		const UWorldPartition* WorldPartition = OuterWorld->GetWorldPartition();
-		const FName LevelStreamingName = FName(*FString::Printf(TEXT("WorldPartitionLevelStreaming_%s"), *GetName()));
-
+		
 		// When called by Commandlet (PopulateGeneratedPackageForCook), LevelStreaming's outer is set to Cell/WorldPartition's outer to prevent warnings when saving Cell Levels (Warning: Obj in another map). 
 		// At runtime, LevelStreaming's outer will be properly set to the main world (see UWorldPartitionRuntimeLevelStreamingCell::Activate).
 		UWorld* LevelStreamingOuterWorld = IsRunningCommandlet() ? OuterWorld : OwningWorld;
+		const FName LevelStreamingName = GetUniqueLevelStreamingName();
 		UWorldPartitionLevelStreamingDynamic* NewLevelStreaming = NewObject<UWorldPartitionLevelStreamingDynamic>(LevelStreamingOuterWorld, UWorldPartitionLevelStreamingDynamic::StaticClass(), LevelStreamingName, RF_NoFlags, NULL);
 
 		FName WorldName = OuterWorld->GetFName();
@@ -174,18 +191,31 @@ UWorldPartitionLevelStreamingDynamic* UWorldPartitionRuntimeLevelStreamingCell::
 		FString PackageName = InPackageName;
 #endif
 
-		TSoftObjectPtr<UWorld> WorldAsset(FSoftObjectPath(FString::Printf(TEXT("%s.%s"), *PackageName, *WorldName.ToString())));
-		NewLevelStreaming->SetWorldAsset(WorldAsset);
+		// Set both PackageNameToLoad and WorldAsset (necessary to properly support instancing)
+		NewLevelStreaming->PackageNameToLoad = *PackageName;
+		if (InWorldAsset.IsValid())
+		{
+			NewLevelStreaming->SetWorldAsset(TSoftObjectPtr<UWorld>(InWorldAsset));
+		}
+		else
+		{
+			TSoftObjectPtr<UWorld> WorldAsset(FSoftObjectPath(FString::Printf(TEXT("%s.%s"), *PackageName, *WorldName.ToString())));
+			NewLevelStreaming->SetWorldAsset(WorldAsset);
+		}
+
 		// Transfer WorldPartition's transform to Level
-		NewLevelStreaming->LevelTransform = WorldPartition->GetInstanceTransform();
+		const UWorldPartition* OuterWorldPartition = OuterWorld->GetWorldPartition();
+		NewLevelStreaming->LevelTransform = OuterWorldPartition->GetInstanceTransform();
 		NewLevelStreaming->bClientOnlyVisible = GetClientOnlyVisible();
 		NewLevelStreaming->Initialize(*this);
 
+#if WITH_EDITOR
 		if (OwningWorld->IsPlayInEditor() && OwningWorld->GetPackage()->HasAnyPackageFlags(PKG_PlayInEditor) && OwningWorld->GetPackage()->GetPIEInstanceID() != INDEX_NONE)
 		{
 			// When renaming for PIE, make sure to keep World's name so that linker can properly remap with Package's instancing context
 			NewLevelStreaming->RenameForPIE(OwningWorld->GetPackage()->GetPIEInstanceID(), /*bKeepWorldAssetName*/true);
 		}
+#endif
 
 		return NewLevelStreaming;
 	}
@@ -490,7 +520,7 @@ UWorldPartitionLevelStreamingDynamic* UWorldPartitionRuntimeLevelStreamingCell::
 		{
 			LevelStreaming->Rename(nullptr, OwningWorld, REN_ForceNoResetLoaders);
 		}
-
+		
 		// Transfer WorldPartition's transform to LevelStreaming
 		LevelStreaming->SetLevelTransform(WorldPartition->GetInstanceTransform());
 

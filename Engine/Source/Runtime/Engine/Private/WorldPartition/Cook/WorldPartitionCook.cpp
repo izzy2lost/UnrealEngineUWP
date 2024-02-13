@@ -100,14 +100,38 @@ bool UWorldPartition::PrepareGeneratorPackageForCook(IWorldPartitionCookPackageC
 
 bool UWorldPartition::PopulateGeneratorPackageForCook(IWorldPartitionCookPackageContext& CookContext, const TArray<FWorldPartitionCookPackage*>& InPackagesToCook, TArray<UPackage*>& OutModifiedPackages)
 {
+	auto OnPopulateGeneratorPackageForCook = [this](const FWorldPartitionCookPackage* InPackageToCook)
+	{
+		IWorldPartitionCookPackageObject* CookPackageObject = GetCookPackageObject(*InPackageToCook);
+		return CookPackageObject && CookPackageObject->OnPopulateGeneratorPackageForCook(InPackageToCook->GetPackage());
+	};
+
+	TArray<const FWorldPartitionCookPackage*> GenericPackagesToCook;
 	for (const FWorldPartitionCookPackage* PackageToCook : InPackagesToCook)
 	{
-		IWorldPartitionCookPackageObject* CookPackageObject = GetCookPackageObject(*PackageToCook);
-		if (!CookPackageObject || !CookPackageObject->OnPopulateGeneratorPackageForCook(PackageToCook->GetPackage()))
+		// Defer generic packages as they depend on level packages
+		if (PackageToCook->Type == FWorldPartitionCookPackage::EType::Level)
+		{
+			if (!OnPopulateGeneratorPackageForCook(PackageToCook))
+			{
+				return false;
+			}
+		}
+		else
+		{
+			check(PackageToCook->Type == FWorldPartitionCookPackage::EType::Generic);
+			GenericPackagesToCook.Add(PackageToCook);
+		}
+	}
+
+	for (const FWorldPartitionCookPackage* GenericPackageToCook : GenericPackagesToCook)
+	{
+		if (!OnPopulateGeneratorPackageForCook(GenericPackageToCook))
 		{
 			return false;
 		}
 	}
+
 	return true;
 }
 

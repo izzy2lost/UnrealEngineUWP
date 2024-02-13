@@ -5,6 +5,8 @@
 #include "Misc/PackageName.h"
 #include "Misc/PathViews.h"
 #include "UObject/Package.h"
+#include "LevelInstance/LevelInstanceInterface.h"
+#include "LevelInstance/LevelInstanceSubsystem.h"
 #include "WorldPartition/ContentBundle/ContentBundleEngineSubsystem.h"
 #include "WorldPartition/DataLayer/DataLayerManager.h"
 #include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
@@ -47,26 +49,20 @@ void UExternalDataLayerManager::Serialize(FArchive& Ar)
 
 void UExternalDataLayerManager::Initialize()
 {
+	UWorld* OuterWorld = GetTypedOuter<UWorld>();
+	UWorld* OwningWorld = GetOuterUWorldPartition()->GetWorld();
+
 	// EDL in LevelInstance is not currently supported
 	// In this case, don't initialize to make sure it will do nothing.
-	UWorldPartition* OuterWorldPartition = GetOuterUWorldPartition();
-	UWorld* OuterWorldPartitionWorld = OuterWorldPartition->GetWorld();
-	if (OuterWorldPartitionWorld != GetTypedOuter<UWorld>())
+	const ULevelInstanceSubsystem* LevelInstanceSubsystem = OwningWorld->GetSubsystem<ULevelInstanceSubsystem>();
+	if (ILevelInstanceInterface* LevelInstance = LevelInstanceSubsystem ? LevelInstanceSubsystem->GetOwningLevelInstance(OuterWorld->PersistentLevel) : nullptr)
 	{
 		return;
 	}
-
+	
+	const bool bIsInstanced = (OuterWorld && OwningWorld && (OuterWorld != OwningWorld));
+	bIsRunningGameOrInstancedWorldPartition = IsRunningGame() || bIsInstanced;
 	bIsInitialized = true;
-	bIsRunningGameOrInstancedWorldPartition = false;
-	if (IsRunningGame())
-	{
-		bIsRunningGameOrInstancedWorldPartition = true;
-	}
-	//@todo_ow: Add support EDL for instanced partitioned worlds
-	/*else
-	{
-		bIsRunningGameOrInstancedWorldPartition = OuterWorldPartition->GetWorld() && OuterWorldPartitionWorld && OuterWorldPartition->GetWorld() != OuterWorldPartitionWorld;
-	}*/
 
 	UExternalDataLayerEngineSubsystem& ExternalDataLayerEngineSubsystem = UExternalDataLayerEngineSubsystem::Get();
 	ExternalDataLayerEngineSubsystem.OnExternalDataLayerAssetRegistrationStateChanged.AddUObject(this, &UExternalDataLayerManager::OnExternalDataLayerAssetRegistrationStateChanged);
@@ -174,7 +170,26 @@ bool UExternalDataLayerManager::RegisterExternalStreamingObjectForGameWorld(cons
 		return false;
 	}
 
-	UPackage* ExternalStreamingObjectPackage = LoadPackage(nullptr, *ExternalStreamingObjectPackagePath, LOAD_Quiet | LOAD_NoWarn);
+	// Find outer world's instancing suffix and use it to create the package for the ExternalStreamingObject
+	UPackage* DestPackage = nullptr;
+	FLinkerInstancingContext InstancingContext;
+	FLinkerInstancingContext InstancingContext;
+	FString SourceWorldPath, RemappedWorldPath;
+	if (GetTypedOuter<UWorld>()->GetSoftObjectPathMapping(SourceWorldPath, RemappedWorldPath))
+	{
+		FString Source = FTopLevelAssetPath(SourceWorldPath).GetPackageName().ToString();
+		FString Remapped = FTopLevelAssetPath(RemappedWorldPath).GetPackageName().ToString();
+		InstancingContext.AddPackageMapping(FName(Source), FName(Remapped));
+		int32 Index = UE::String::FindFirst(Remapped, Source, ESearchCase::IgnoreCase);
+		if (Index != INDEX_NONE)
+		{
+			const FString Suffix = Remapped.RightChop(Index + Source.Len());
+			const FString RemappedExternalStreamingObjectPackagePath = ExternalStreamingObjectPackagePath + Suffix;
+			DestPackage = CreatePackage(*RemappedExternalStreamingObjectPackagePath);
+		}
+	}
+
+	UPackage* ExternalStreamingObjectPackage = LoadPackage(DestPackage, *ExternalStreamingObjectPackagePath, LOAD_Quiet | LOAD_NoWarn, nullptr, &InstancingContext);
 	if (!ExternalStreamingObjectPackage)
 	{
 		UE_LOG(LogWorldPartition, Error, TEXT("[EDL: %s] No external streaming object found."), *InExternalDataLayerAsset->GetName());
@@ -188,6 +203,10 @@ bool UExternalDataLayerManager::RegisterExternalStreamingObjectForGameWorld(cons
 		UE_LOG(LogWorldPartition, Error, TEXT("[EDL: %s] No external streaming object found in package %s."), *InExternalDataLayerAsset->GetName(), *ExternalStreamingObjectPackagePath);
 		return false;
 	}
+
+	// Do some validation on ExternalStreamingObject's OuterWorld and OwningWorld
+	check(ExternalStreamingObject->GetOuterWorld() == GetTypedOuter<UWorld>());
+	check(ExternalStreamingObject->GetOwningWorld() == GetOuterUWorldPartition()->GetWorld());
 
 	ExternalStreamingObjects.Emplace(InExternalDataLayerAsset, ExternalStreamingObject);
 #endif
