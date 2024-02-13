@@ -52,6 +52,7 @@ float FAnimNode_AssetPlayerBase::GetAccumulatedTime() const
 void FAnimNode_AssetPlayerBase::SetAccumulatedTime(float NewTime)
 {
 	InternalTimeAccumulator = NewTime;
+	MarkerTickRecord.Reset();
 }
 
 float FAnimNode_AssetPlayerBase::GetCachedBlendWeight() const

@@ -574,6 +574,16 @@ public:
 	ENGINE_API bool UpdateBlendSamples(const FVector& InBlendSpacePosition, float InDeltaTime, TArray<FBlendSampleData>& InOutSampleDataCache, int32& InOutCachedTriangulationIndex) const;
 	
 	/**
+	 * Resets a cached set of blend samples to match a given input time. All samples will be advanced using sync marker if possible, otherwise, their time will just be set match the input normalized time.
+	 * 
+	 * @param	InOutSampleDataCache			The sample data cache to use.
+	 * @param	InNormalizedCurrentTime			The time to match when advancing samples. 
+	 * @param	bLooping						If true, advance samples as a looping blend space would.
+	 * @param	bMatchSyncPhases				If true, all follower samples will pass the same amount of markers the leader sample has passed to match its sync phase. Otherwise, followers samples will only match their next valid sync position.  
+	 */
+	ENGINE_API void ResetBlendSamples(TArray<FBlendSampleData>& InOutSampleDataCache, float InNormalizedCurrentTime, bool bLooping, bool bMatchSyncPhases = true) const;
+
+	/**
 	 * Allows the user to iterate through all the data samples available in the blend space.
 	 * @param Func The function to run for each blend sample
 	 */
