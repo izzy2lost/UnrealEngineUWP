@@ -29,5 +29,5 @@ regularly. The terms are used interchangably in this documentation.
 8. Download the `Horde Agent` installer from the tools page on the server. For Windows, it's easiest to use the MSI
    installer. Install the agent on a worker machine, entering the URL of the Horde Server when prompted.
 9. Click on the `Agents` link from the `Server` menu and make sure the agent has registered with the server correctly.
-  It should have automatically been added to the correct pool.
+   A new agent must manually be enabled. It should have automatically been added to the correct pool.
 10. Attempt a test build.
