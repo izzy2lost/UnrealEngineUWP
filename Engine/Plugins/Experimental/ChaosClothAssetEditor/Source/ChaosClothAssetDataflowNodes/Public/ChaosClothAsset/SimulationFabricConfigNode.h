@@ -42,3 +42,11 @@ protected :
 		const TArray<FName>& SimilarPropertyNames, ECollectionPropertyFlags PropertyFlags = ECollectionPropertyFlags::None);
 };
 
+template<>
+struct TStructOpsTypeTraits<FChaosClothAssetSimulationFabricConfigNode> : public TStructOpsTypeTraitsBase2<FChaosClothAssetSimulationFabricConfigNode>
+{
+	enum
+	{
+		WithPureVirtual = true,
+	};
+};
