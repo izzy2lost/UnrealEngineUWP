@@ -207,6 +207,7 @@ void FHttpThreadBase::Process(TArray<IHttpThreadedRequest*>& RequestsToCancel, T
 
 		while (NewThreadedRequests.Dequeue(Request))
 		{
+			Request->StartWaitingInQueue();
 			RateLimitedThreadedRequests.Add(Request);
 		}
 	}
@@ -249,25 +250,28 @@ void FHttpThreadBase::Process(TArray<IHttpThreadedRequest*>& RequestsToCancel, T
 	const int32 LocalRunningThreadedRequestLimit = GetRunningThreadedRequestLimit();
 	if (RunningThreadedRequestsCounter < LocalRunningThreadedRequestLimit)
 	{
-		while(RunningThreadedRequestsCounter < LocalRunningThreadedRequestLimit && RateLimitedThreadedRequests.Num())
+		while(RunningThreadedRequestsCounter < LocalRunningThreadedRequestLimit && !RateLimitedThreadedRequests.IsEmpty())
 		{
 			SCOPE_CYCLE_COUNTER(STAT_HTTPThread_StartThreadedRequest);
 
 			IHttpThreadedRequest* ReadyThreadedRequest = RateLimitedThreadedRequests[0];
 			RateLimitedThreadedRequests.RemoveAt(0);
 
+			float DurationInQueue = FPlatformTime::Seconds() - ReadyThreadedRequest->GetTimeStartedWaitingInQueue();
+			UE_CLOG(DurationInQueue > 10.0f, LogHttp, Warning, TEXT("Request (%p) waited in queue for %.2fs before starting"), ReadyThreadedRequest, DurationInQueue);
+			float StartImmediately = 0.01f;
+			if (DurationInQueue > StartImmediately)
+			{
+				FHttpModule::Get().GetHttpManager().RecordMaxTimeToWaitInQueue(DurationInQueue);
+			}
+
 			if (StartThreadedRequest(ReadyThreadedRequest))
 			{
 				RunningThreadedRequestsCounter++;
 				RunningThreadedRequests.Add(ReadyThreadedRequest);
 				ReadyThreadedRequest->TickThreadedRequest(0.0f);
-				UE_LOG(LogHttp, Verbose, TEXT("Started running threaded request (%p). Running threaded requests (%d) Rate limited threaded requests (%d)"), ReadyThreadedRequest, RunningThreadedRequests.Num(), RateLimitedThreadedRequests.Num());
-#if WITH_SERVER_CODE
-				if (RunningThreadedRequestsCounter == LocalRunningThreadedRequestLimit)
-				{
-					UE_LOG(LogHttp, Warning, TEXT("Reached threaded request limit (%d)"), RunningThreadedRequestsCounter);
-				}
-#endif // WITH_SERVER_CODE
+				UE_LOG(LogHttp, Verbose, TEXT("Started http request in thread (%p). Waited in queue for (%.2fs) Running threaded requests (%d) Rate limited threaded requests (%d)"), 
+					ReadyThreadedRequest, DurationInQueue, RunningThreadedRequests.Num(), RateLimitedThreadedRequests.Num());
 			}
 			else
 			{

@@ -1766,7 +1766,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Test platform request requests 
 		{
 			TSharedRef<IHttpRequest> HttpRequest = FHttpModule::Get().CreateRequest();
 			// Requests server to serve 1024b chunks to allow time for cancel to happen
-			HttpRequest->SetURL(UrlStreamDownload(2, 1024, 1));
+			HttpRequest->SetURL(UrlStreamDownload(2, HTTP_TEST_TIMEOUT_CHUNK_SIZE, /*ChunkLatency=*/bCheckCancel ? 1 : 0));
 			HttpRequest->SetVerb(TEXT("GET"));
 			HttpRequest->OnProcessRequestComplete().BindLambda([bCheckCancel](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded)
 			{

@@ -589,3 +589,8 @@ void FHttpManager::RecordStatRequestsInQueue(uint32 RequestsInQueue)
 {
 	HttpStats.MaxRequestsInQueue = FGenericPlatformMath::Max(RequestsInQueue, HttpStats.MaxRequestsInQueue);
 }
+
+void FHttpManager::RecordMaxTimeToWaitInQueue(float Duration)
+{
+	HttpStats.MaxTimeToWaitInQueue = FGenericPlatformMath::Max(Duration, HttpStats.MaxTimeToWaitInQueue);
+}

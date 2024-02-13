@@ -56,10 +56,14 @@ struct FHttpStats
 	float MaxTimeToConnect = -1.0f;
 	/** The max waiting queue in http manager */
 	uint32 MaxRequestsInQueue = 0;
+	/** The max waiting time in queue of http manager */
+	float MaxTimeToWaitInQueue = 0.0f;
 
 	bool operator==(const FHttpStats& Other) const
 	{
-		return MaxRequestsInQueue == Other.MaxRequestsInQueue && FMath::IsNearlyEqual(MaxTimeToConnect, Other.MaxTimeToConnect);
+		return MaxRequestsInQueue == Other.MaxRequestsInQueue
+			&& FMath::IsNearlyEqual(MaxTimeToConnect, Other.MaxTimeToConnect)
+			&& FMath::IsNearlyEqual(MaxTimeToWaitInQueue, Other.MaxTimeToWaitInQueue);
 	}
 };
 
@@ -355,4 +359,7 @@ PACKAGE_SCOPE:
 
 	/** Record the requests waiting in queue, to have an idea if there are too many requests or if request number limit is too small */
 	HTTP_API void RecordStatRequestsInQueue(uint32 RequestsInQueue);
+
+	/** Record the time to wait in queue, to have a general idea how long the client usually wait before actually starting, to adjust the requests */
+	HTTP_API void RecordMaxTimeToWaitInQueue(float Duration);
 };

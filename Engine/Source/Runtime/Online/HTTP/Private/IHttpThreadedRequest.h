@@ -12,4 +12,10 @@ public:
 	virtual bool StartThreadedRequest() = 0;
 	virtual bool IsThreadedRequestComplete() = 0;
 	virtual void TickThreadedRequest(float DeltaSeconds) = 0;
+
+	void StartWaitingInQueue();
+	float GetTimeStartedWaitingInQueue() const;
+
+public:
+	float TimeStartedWaitingInQueue = 0.0f;
 };
