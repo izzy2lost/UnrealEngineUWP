@@ -888,155 +888,155 @@ bool FSetProperty::SameType(const FProperty* Other) const
 
 EConvertFromTypeResult FSetProperty::ConvertFromType(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot, uint8* Data, UStruct* DefaultsStruct, const uint8* Defaults)
 {
+	// Ar related calls in this function must be mirrored in FSetProperty::SerializeItem
 	FArchive& UnderlyingArchive = Slot.GetUnderlyingArchive();
 
-	// Ar related calls in this function must be mirrored in FSetProperty::ConvertFromType
 	checkSlow(ElementProp);
 
-	// Ar related calls in this function must be mirrored in FSetProperty::SerializeItem
-	if (Tag.Type == NAME_SetProperty)
+	if (FStructProperty* ElementPropAsStruct = CastField<FStructProperty>(ElementProp))
 	{
-		if (Tag.InnerType != NAME_None && Tag.InnerType != ElementProp->GetID())
+		if (!ElementPropAsStruct->Struct || (ElementPropAsStruct->Struct->GetCppStructOps() && !ElementPropAsStruct->Struct->GetCppStructOps()->HasGetTypeHash()))
 		{
+			// If the type we contain is no longer hashable, we're going to drop the saved data here.
+			// This can happen if the native GetTypeHash function is removed.
+			ensureMsgf(false, TEXT("Set Property %s has an unhashable type %s and will lose its saved data. Package: %s"),
+				*Tag.Name.ToString(), *ElementPropAsStruct->Struct->GetFName().ToString(), *UnderlyingArchive.GetArchiveName());
+
 			FScriptSetHelper ScriptSetHelper(this, ContainerPtrToValuePtr<void>(Data));
+			ScriptSetHelper.EmptyElements();
 
-			uint8* TempElementStorage = nullptr;
-			ON_SCOPE_EXIT
-			{
-				if (TempElementStorage)
-				{
-					ElementProp->DestroyValue(TempElementStorage);
-					FMemory::Free(TempElementStorage);
-				}
-			};
-
-			FPropertyTag InnerPropertyTag;
-			InnerPropertyTag.Type = Tag.InnerType;
-			InnerPropertyTag.ArrayIndex = 0;
-
-			bool bConversionSucceeded = true;
-
-			FStructuredArchive::FRecord ValueRecord = Slot.EnterRecord();
-
-			// When we saved this instance we wrote out any elements that were in the 'Default' instance but not in the 
-			// instance that was being written. Presumably we were constructed from our defaults and must now remove 
-			// any of the elements that were not present when we saved this Set:
-			int32 NumElementsToRemove = 0;
-			FStructuredArchive::FArray ElementsToRemoveArray = ValueRecord.EnterArray(TEXT("ElementsToRemove"), NumElementsToRemove);
-
-			if(NumElementsToRemove)
-			{
-				TempElementStorage = (uint8*)FMemory::Malloc(SetLayout.Size);
-				ElementProp->InitializeValue(TempElementStorage);
-
-				EConvertFromTypeResult ConvertResult = ElementProp->ConvertFromType(InnerPropertyTag, ElementsToRemoveArray.EnterElement(), TempElementStorage, DefaultsStruct, nullptr);
-				if (ConvertResult == EConvertFromTypeResult::Converted || ConvertResult == EConvertFromTypeResult::Serialized)
-				{
-					int32 Found = ScriptSetHelper.FindElementIndex(TempElementStorage);
-					if (Found != INDEX_NONE)
-					{
-						ScriptSetHelper.RemoveAt(Found);
-					}
-
-					for (int32 I = 1; I < NumElementsToRemove; ++I)
-					{
-						ConvertResult = ElementProp->ConvertFromType(InnerPropertyTag, ElementsToRemoveArray.EnterElement(), TempElementStorage, DefaultsStruct, nullptr);
-						check(ConvertResult == EConvertFromTypeResult::Converted || ConvertResult == EConvertFromTypeResult::Serialized);
-
-						Found = ScriptSetHelper.FindElementIndex(TempElementStorage);
-						if (Found != INDEX_NONE)
-						{
-							ScriptSetHelper.RemoveAt(Found);
-						}
-					}
-				}
-				else
-				{
-					bConversionSucceeded = false;
-				}
-			}
-
-			int32 Num = 0;
-			FStructuredArchive::FArray ElementsArray = ValueRecord.EnterArray(TEXT("Elements"), Num);
-
-			if(bConversionSucceeded)
-			{
-				if (Num != 0)
-				{
-					// Allocate temporary key space if we haven't allocated it already above
-					if( TempElementStorage == nullptr )
-					{
-						TempElementStorage = (uint8*)FMemory::Malloc(SetLayout.Size);
-						ElementProp->InitializeValue(TempElementStorage);
-					}
-
-					// and read the first entry, we have to check for conversion possibility again because 
-					// NumElementsToRemove may not have run (in fact, it likely did not):
-					EConvertFromTypeResult ConvertResult = ElementProp->ConvertFromType(InnerPropertyTag, ElementsArray.EnterElement(), TempElementStorage, DefaultsStruct, nullptr);
-					if (ConvertResult == EConvertFromTypeResult::Converted || ConvertResult == EConvertFromTypeResult::Serialized)
-					{
-						if (ScriptSetHelper.FindElementIndex(TempElementStorage) == INDEX_NONE)
-						{
-							const int32 NewElementIndex = ScriptSetHelper.AddDefaultValue_Invalid_NeedsRehash();
-							uint8* NewElementPtr = ScriptSetHelper.GetElementPtrWithoutCheck(NewElementIndex);
-
-							// Copy over deserialized key from temporary storage
-							ElementProp->CopyCompleteValue_InContainer(NewElementPtr, TempElementStorage);
-						}
-
-						// Read remaining items into container
-						for (int32 I = 1; I < Num; ++I)
-						{
-							// Read key into temporary storage
-							ConvertResult = ElementProp->ConvertFromType(InnerPropertyTag, ElementsArray.EnterElement(), TempElementStorage, DefaultsStruct, nullptr);
-							check(ConvertResult == EConvertFromTypeResult::Converted || ConvertResult == EConvertFromTypeResult::Serialized);
-
-							// Add a new entry if the element doesn't currently exist in the set
-							if (ScriptSetHelper.FindElementIndex(TempElementStorage) == INDEX_NONE)
-							{
-								const int32 NewElementIndex = ScriptSetHelper.AddDefaultValue_Invalid_NeedsRehash();
-								uint8* NewElementPtr = ScriptSetHelper.GetElementPtrWithoutCheck(NewElementIndex);
-
-								// Copy over deserialized key from temporary storage
-								ElementProp->CopyCompleteValue_InContainer(NewElementPtr, TempElementStorage);
-							}
-						}
-					}
-					else
-					{
-						bConversionSucceeded = false;
-					}
-				}
-
-				ScriptSetHelper.Rehash();
-			}
-
-			// if we could not convert the property ourself, then indicate that calling code needs to advance the property
-			if(!bConversionSucceeded)
-			{
-				UE_LOG(LogClass, Warning, TEXT("Set Element Type mismatch in %s of %s - Previous (%s) Current (%s) for package: %s"), *Tag.Name.ToString(), *GetName(), *Tag.InnerType.ToString(), *ElementProp->GetID().ToString(), *UnderlyingArchive.GetArchiveName() );
-			}
-
-			return bConversionSucceeded ? EConvertFromTypeResult::Converted : EConvertFromTypeResult::CannotConvert;
-		}
-
-		if(FStructProperty* ElementPropAsStruct = CastField<FStructProperty>(ElementProp))
-		{
-			if(!ElementPropAsStruct->Struct || (ElementPropAsStruct->Struct->GetCppStructOps() && !ElementPropAsStruct->Struct->GetCppStructOps()->HasGetTypeHash()) )
-			{
-				// If the type we contain is no longer hashable, we're going to drop the saved data here. This can
-				// happen if the native GetTypeHash function is removed.
-				ensureMsgf(false, TEXT("FSetProperty %s with tag %s has an unhashable type %s and will lose its saved data"), *GetName(), *Tag.Name.ToString(), *ElementProp->GetID().ToString());
-
-				FScriptSetHelper ScriptSetHelper(this, ContainerPtrToValuePtr<void>(Data));
-				ScriptSetHelper.EmptyElements();
-
-				return EConvertFromTypeResult::CannotConvert;
-			}
+			return EConvertFromTypeResult::CannotConvert;
 		}
 	}
 
-	return EConvertFromTypeResult::UseSerializeItem;
+	if (Tag.Type != NAME_SetProperty)
+	{
+		return EConvertFromTypeResult::UseSerializeItem;
+	}
+
+	if (Tag.InnerType.IsNone() || Tag.InnerType == ElementProp->GetID())
+	{
+		return EConvertFromTypeResult::UseSerializeItem;
+	}
+
+	FScriptSetHelper ScriptSetHelper(this, ContainerPtrToValuePtr<void>(Data));
+
+	uint8* TempElementStorage = nullptr;
+	ON_SCOPE_EXIT
+	{
+		if (TempElementStorage)
+		{
+			ElementProp->DestroyAndFreeValue(TempElementStorage);
+		}
+	};
+
+	FPropertyTag InnerPropertyTag;
+	InnerPropertyTag.Type = Tag.InnerType;
+	InnerPropertyTag.ArrayIndex = 0;
+
+	bool bConversionSucceeded = true;
+
+	FStructuredArchive::FRecord ValueRecord = Slot.EnterRecord();
+
+	// When we saved this instance we wrote out any elements that were in the 'Default' instance but not in the
+	// instance that was being written. Presumably we were constructed from our defaults and must now remove
+	// any of the elements that were not present when we saved this Set:
+	int32 NumElementsToRemove = 0;
+	FStructuredArchive::FArray ElementsToRemoveArray = ValueRecord.EnterArray(TEXT("ElementsToRemove"), NumElementsToRemove);
+
+	if (NumElementsToRemove)
+	{
+		TempElementStorage = (uint8*)ElementProp->AllocateAndInitializeValue();
+
+		EConvertFromTypeResult ConvertResult = ElementProp->ConvertFromType(InnerPropertyTag, ElementsToRemoveArray.EnterElement(), TempElementStorage, DefaultsStruct, nullptr);
+		if (ConvertResult == EConvertFromTypeResult::Converted || ConvertResult == EConvertFromTypeResult::Serialized)
+		{
+			int32 Found = ScriptSetHelper.FindElementIndex(TempElementStorage);
+			if (Found != INDEX_NONE)
+			{
+				ScriptSetHelper.RemoveAt(Found);
+			}
+
+			for (int32 I = 1; I < NumElementsToRemove; ++I)
+			{
+				ConvertResult = ElementProp->ConvertFromType(InnerPropertyTag, ElementsToRemoveArray.EnterElement(), TempElementStorage, DefaultsStruct, nullptr);
+				check(ConvertResult == EConvertFromTypeResult::Converted || ConvertResult == EConvertFromTypeResult::Serialized);
+
+				Found = ScriptSetHelper.FindElementIndex(TempElementStorage);
+				if (Found != INDEX_NONE)
+				{
+					ScriptSetHelper.RemoveAt(Found);
+				}
+			}
+		}
+		else
+		{
+			bConversionSucceeded = false;
+		}
+	}
+
+	int32 Num = 0;
+	FStructuredArchive::FArray ElementsArray = ValueRecord.EnterArray(TEXT("Elements"), Num);
+
+	if (bConversionSucceeded)
+	{
+		if (Num != 0)
+		{
+			// Allocate temporary key space if we haven't allocated it already above
+			if (TempElementStorage == nullptr)
+			{
+				TempElementStorage = (uint8*)ElementProp->AllocateAndInitializeValue();
+			}
+
+			// and read the first entry, we have to check for conversion possibility again because 
+			// NumElementsToRemove may not have run (in fact, it likely did not):
+			EConvertFromTypeResult ConvertResult = ElementProp->ConvertFromType(InnerPropertyTag, ElementsArray.EnterElement(), TempElementStorage, DefaultsStruct, nullptr);
+			if (ConvertResult == EConvertFromTypeResult::Converted || ConvertResult == EConvertFromTypeResult::Serialized)
+			{
+				if (ScriptSetHelper.FindElementIndex(TempElementStorage) == INDEX_NONE)
+				{
+					const int32 NewElementIndex = ScriptSetHelper.AddDefaultValue_Invalid_NeedsRehash();
+					uint8* NewElementPtr = ScriptSetHelper.GetElementPtrWithoutCheck(NewElementIndex);
+
+					// Copy over deserialized key from temporary storage
+					ElementProp->CopyCompleteValue_InContainer(NewElementPtr, TempElementStorage);
+				}
+
+				// Read remaining items into container
+				for (int32 I = 1; I < Num; ++I)
+				{
+					// Read key into temporary storage
+					ConvertResult = ElementProp->ConvertFromType(InnerPropertyTag, ElementsArray.EnterElement(), TempElementStorage, DefaultsStruct, nullptr);
+					check(ConvertResult == EConvertFromTypeResult::Converted || ConvertResult == EConvertFromTypeResult::Serialized);
+
+					// Add a new entry if the element doesn't currently exist in the set
+					if (ScriptSetHelper.FindElementIndex(TempElementStorage) == INDEX_NONE)
+					{
+						const int32 NewElementIndex = ScriptSetHelper.AddDefaultValue_Invalid_NeedsRehash();
+						uint8* NewElementPtr = ScriptSetHelper.GetElementPtrWithoutCheck(NewElementIndex);
+
+						// Copy over deserialized key from temporary storage
+						ElementProp->CopyCompleteValue_InContainer(NewElementPtr, TempElementStorage);
+					}
+				}
+			}
+			else
+			{
+				bConversionSucceeded = false;
+			}
+
+			ScriptSetHelper.Rehash();
+		}
+	}
+
+	// if we could not convert the property ourself, then indicate that calling code needs to advance the property
+	if (!bConversionSucceeded)
+	{
+		UE_LOG(LogClass, Warning, TEXT("Set Element Type mismatch in %s - Previous (%s) Current (%s) for package: %s"),
+			*WriteToString<32>(Tag.Name), *WriteToString<32>(InnerPropertyTag.Type), *WriteToString<32>(ElementProp->GetID()), *UnderlyingArchive.GetArchiveName());
+	}
+
+	return bConversionSucceeded ? EConvertFromTypeResult::Converted : EConvertFromTypeResult::CannotConvert;
 }
 
 #if WITH_EDITORONLY_DATA
