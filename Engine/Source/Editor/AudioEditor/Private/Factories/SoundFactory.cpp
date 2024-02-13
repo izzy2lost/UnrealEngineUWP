@@ -152,8 +152,6 @@ USoundFactory::USoundFactory(const FObjectInitializer& ObjectInitializer)
 	Formats.Add(TEXT("aiff;Audio Interchange File Format"));
 	Formats.Add(TEXT("ogg;OGG Vorbis bitstream format "));
 	Formats.Add(TEXT("flac;Free Lossless Audio Codec"));
-	Formats.Add(TEXT("opus;OGG OPUS bitstream format"));
-	Formats.Add(TEXT("mp3;MPEG Layer 3 Audio"));
 #endif // WITH_SNDFILE_IO
 
 	bCreateNew = false;
@@ -375,8 +373,7 @@ UObject* USoundFactory::CreateObject
 			return nullptr;
 		}
 
-		// If we need to change bit depth, or if the format is not something we know, use libsndfile.
-		if (*WaveInfo.pBitsPerSample != 16 || !WaveInfo.IsFormatSupported()) 
+		if (*WaveInfo.pBitsPerSample != 16)
 		{
 #if WITH_SNDFILE_IO
 			const uint32 OrigNumSamples = Audio::SoundFileUtils::GetNumSamples(RawWaveData);
