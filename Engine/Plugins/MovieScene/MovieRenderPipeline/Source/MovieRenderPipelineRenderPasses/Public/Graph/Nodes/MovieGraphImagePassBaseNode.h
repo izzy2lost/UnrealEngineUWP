@@ -47,11 +47,17 @@ public:
 	/** How many spatial samples should be rendered each frame? */
 	virtual int32 GetNumSpatialSamples() const { return 1; }
 
+	/** How many spatial samples should be used during warm-up frames? */
+	virtual int32 GetNumSpatialSamplesDuringWarmUp() const { return GetNumSpatialSamples(); }
+
 	/** Should the tone curve be disabled while rendering? Allows for linear values in exrs but changes the look of the final image. */
 	virtual bool GetDisableToneCurve() const { return false; }
 
 	/** Should the output file be allowed to apply an OCIO transform on this render? */
 	virtual bool GetAllowOCIO() const { return true; }
+
+	/** Should the denoiser be run on the resulting image (only has any effect with the Path Tracer) */
+	virtual bool GetAllowDenoiser() const { return true; }
 
 	/** Which AA Method should be used? */
 	virtual EAntiAliasingMethod GetAntiAliasingMethod() const { return EAntiAliasingMethod::AAM_None; }

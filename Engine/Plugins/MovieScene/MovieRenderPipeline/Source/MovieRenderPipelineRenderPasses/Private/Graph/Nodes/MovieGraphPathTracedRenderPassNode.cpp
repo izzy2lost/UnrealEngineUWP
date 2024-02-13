@@ -12,9 +12,10 @@ TUniquePtr<UE::MovieGraph::Rendering::FMovieGraphImagePassBase> UMovieGraphPathT
 
 UMovieGraphPathTracedRenderPassNode::UMovieGraphPathTracedRenderPassNode()
 	: SpatialSampleCount(1)
+	, bDenoiser(true)
+	, bWriteAllSamples(false)
 	, bDisableToneCurve(false)
 	, bAllowOCIO(true)
-	, bWriteAllSamples(false)
 {
 	ShowFlags->ApplyDefaultShowFlagValue(VMI_PathTracing, true);
 	// TODO: Showflag for SetMotionBlur()?
@@ -76,6 +77,14 @@ int32 UMovieGraphPathTracedRenderPassNode::GetNumSpatialSamples() const
 	return SpatialSampleCount;
 }
 
+int32 UMovieGraphPathTracedRenderPassNode::GetNumSpatialSamplesDuringWarmUp() const
+{
+	// Path Tracer doesn't have an image history like the deferred renderer, so it doesn't need
+	// to run all the spatial samples.
+	return 1;
+}
+
+
 bool UMovieGraphPathTracedRenderPassNode::GetDisableToneCurve() const
 {
 	return bDisableToneCurve;
@@ -85,3 +94,9 @@ bool UMovieGraphPathTracedRenderPassNode::GetAllowOCIO() const
 {
 	return bAllowOCIO;
 }
+
+bool UMovieGraphPathTracedRenderPassNode::GetAllowDenoiser() const
+{
+	return bDenoiser;
+}
+
