@@ -786,10 +786,13 @@ TSharedRef<SWidget> FAnimDetailValueCustomization::MakeDoubleWidget(
 		.Value_Lambda([WeakHandlePtr,this,Proxy ]()
 			{
 				bool bIsMultiple = IsMultiple(Proxy, WeakHandlePtr.Pin()->GetProperty()->GetFName());
+				
+				/* wip attempt to try to get sliders working with multiple values,
+				one issue is that we need a bIsUsingSliderOnThisProxy, not a global one for al
 				if (bIsMultiple && bIsUsingSlider)
 				{
 					return TOptional<double>(MultipleValue);
-				}
+				}*/
 				double Value = 0.;
 				return (bIsMultiple == false && WeakHandlePtr.Pin()->GetValue(Value) == FPropertyAccess::Success) ?
 					TOptional<double>(Value) :

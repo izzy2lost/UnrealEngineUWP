@@ -31,6 +31,8 @@
 #include "DetailCategoryBuilder.h"
 #include "DetailWidgetRow.h"
 #include "SEnumCombo.h"
+#include "LevelEditorViewport.h"
+#include "ConstraintsManager.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRigControlsProxy)
 
@@ -298,6 +300,9 @@ void UControlRigControlsProxy::PostEditChangeChainProperty(struct FPropertyChang
 			FRigControlModifiedContext Context;
 			Context.SetKey = EControlRigSetKey::DoNotCare;
 			Context.KeyMask = (uint32)GetChannelToKeyFromPropertyName(Property->GetFName());
+			UWorld* World = GCurrentLevelEditingViewportClient ? GCurrentLevelEditingViewportClient->GetWorld() : nullptr;
+			const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(World);
+			Controller.EvaluateAllConstraints();
 
 			for (const TPair<TWeakObjectPtr<UControlRig>, FControlRigProxyItem>& Items : ControlRigItems)
 			{
@@ -327,6 +332,7 @@ void UControlRigControlsProxy::PostEditChangeChainProperty(struct FPropertyChang
 				}
 			}
 		}
+		ValueChanged();
 	}
 #endif
 }
