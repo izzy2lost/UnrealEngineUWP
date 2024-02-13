@@ -2,16 +2,21 @@
 
 #pragma once
 
+#include "AvaRundownRCPropertyItem.h"
+#include "IPropertyRowGenerator.h"
+#include "Rundown/DetailsView/RemoteControl/Properties/AvaRundownRCPropertyItem.h"
 #include "SAvaRundownPageRemoteControlProps.h"
+#include "Templates/SharedPointer.h"
 #include "Widgets/Views/STableRow.h"
+#include "Widgets/Layout/SBox.h"
+#include "Widgets/SWidget.h"
 
-class SBox;
-class SWidget;
+class FText;
 
 class SAvaRundownRCPropertyItemRow : public SMultiColumnTableRow<FAvaRundownRCPropertyItemPtr>
 {
 public:
-	SLATE_BEGIN_ARGS(SAvaRundownRCPropertyItemRow) { }
+	SLATE_BEGIN_ARGS(SAvaRundownRCPropertyItemRow) {}
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs, TSharedRef<SAvaRundownPageRemoteControlProps> InPropertyPanel,

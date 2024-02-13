@@ -1,13 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SAvaRundownRCPropertyItemRow.h"
-
 #include "AvaRundownPageRemoteControlWidgetUtils.h"
 #include "AvaRundownRCPropertyItem.h"
 #include "IDetailTreeNode.h"
+#include "Internationalization/Text.h"
 #include "IPropertyRowGenerator.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
+#include "RemoteControlEntity.h"
+#include "RemoteControlField.h"
+#include "Rundown/DetailsView/RemoteControl/Properties/AvaRundownPageRemoteControlWidgetUtils.h"
 #include "Widgets/Layout/SScissorRectBox.h"
 #include "Widgets/SNullWidget.h"
 #include "Widgets/Text/STextBlock.h"
@@ -129,7 +132,7 @@ TSharedRef<SWidget> SAvaRundownRCPropertyItemRow::CreateValue()
 							[
 								ValueWidget.ToSharedRef()
 							]
-						+ SHorizontalBox::Slot()
+							+ SHorizontalBox::Slot()
 							.VAlign(EVerticalAlignment::VAlign_Center)
 							.Padding(3.f, 0.f, 0.f, 0.f)
 							[
