@@ -49,6 +49,9 @@ public:
 	/** Sets the execution stack that want to inspect. */
 	void SetStackBeingInspected(const FPCGStack& FullStack);
 
+	/** Clear current inspection. */
+	void ClearStackBeingInspected();
+
 	/** Gets the PCG component we are debugging */
 	UPCGComponent* GetPCGComponentBeingInspected() const { return const_cast<UPCGComponent*>(StackBeingInspected.GetRootComponent()); }
 	

@@ -908,16 +908,14 @@ void SPCGEditorGraphDebugObjectTree::OnSelectionChanged(FPCGEditorGraphDebugObje
 		return;
 	}
 
-	if (!InItem)
-	{
-		PCGEditor.Pin()->SetStackBeingInspected(FPCGStack());
-		return;
-	}
-
-	const FPCGStack* InspectedStack = PCGEditor.Pin()->GetStackBeingInspected();
-	if (!InspectedStack || SelectedStack != *InspectedStack)
+	// Only attempt to inspect stacks that correspond to the edited graph. Other graphs need to be inspected in their own editor.
+	if (InItem && SelectedStack.GetGraphForCurrentFrame() == PCGEditor.Pin()->GetPCGGraph())
 	{
 		PCGEditor.Pin()->SetStackBeingInspected(SelectedStack);
+	}
+	else
+	{
+		PCGEditor.Pin()->ClearStackBeingInspected();
 	}
 }
 

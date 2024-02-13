@@ -233,62 +233,73 @@ UPCGEditorGraph* FPCGEditor::GetPCGEditorGraph()
 
 void FPCGEditor::SetStackBeingInspected(const FPCGStack& FullStack)
 {
+	if (FullStack == StackBeingInspected)
+	{
+		// No-op if we're already inspecting this stack.
+		return;
+	}
+
 	UPCGComponent* OldComponent = PCGComponentBeingInspected.Get();
 	UPCGComponent* NewComponent = const_cast<UPCGComponent*>(FullStack.GetRootComponent());
 	const bool bComponentChanged = (NewComponent != OldComponent);
 
-	if (StackBeingInspected != FullStack)
+	if (OldComponent)
 	{
-		if (OldComponent)
+		if (bComponentChanged)
 		{
-			if (bComponentChanged)
-			{
-				OldComponent->DisableInspection();
-			}
-
-			if (PCGGraphBeingEdited)
-			{
-				PCGGraphBeingEdited->DisableInspection();
-			}
+			OldComponent->DisableInspection();
 		}
 
-		const bool bNewComponentStartedInspecting = NewComponent && !NewComponent->IsInspecting();
-
-		PCGComponentBeingInspected = NewComponent;
-
-		StackBeingInspected = FullStack;
-		OnInspectedStackChangedDelegate.Broadcast(StackBeingInspected);
-
-		if (NewComponent)
+		if (PCGGraphBeingEdited)
 		{
-			if (bComponentChanged)
-			{
-				PCGComponentBeingInspected->EnableInspection();
-			}
+			PCGGraphBeingEdited->DisableInspection();
+		}
+	}
 
-			if (PCGGraphBeingEdited)
-			{
-				PCGGraphBeingEdited->EnableInspection();
-			}
+	const bool bNewComponentStartedInspecting = NewComponent && !NewComponent->IsInspecting();
+
+	PCGComponentBeingInspected = NewComponent;
+
+	StackBeingInspected = FullStack;
+	OnInspectedStackChangedDelegate.Broadcast(StackBeingInspected);
+
+	if (NewComponent)
+	{
+		if (bComponentChanged)
+		{
+			PCGComponentBeingInspected->EnableInspection();
 		}
 
-		UpdateDebugAfterComponentSelection(OldComponent, NewComponent, bNewComponentStartedInspecting);
-
-		check(PCGEditorGraph);
-		for (UEdGraphNode* Node : PCGEditorGraph->Nodes)
+		if (PCGGraphBeingEdited)
 		{
-			if (UPCGEditorGraphNodeBase* PCGNode = Cast<UPCGEditorGraphNodeBase>(Node))
-			{
-				// Update now that component has changed. Will fire OnNodeChanged if necessary.
-				EPCGChangeType ChangeType = PCGNode->UpdateErrorsAndWarnings();
-				ChangeType |= PCGNode->UpdateStructuralVisualization(NewComponent, &StackBeingInspected);
+			PCGGraphBeingEdited->EnableInspection();
+		}
+	}
 
-				if (ChangeType != EPCGChangeType::None)
-				{
-					PCGNode->ReconstructNode();
-				}
+	UpdateDebugAfterComponentSelection(OldComponent, NewComponent, bNewComponentStartedInspecting);
+
+	check(PCGEditorGraph);
+	for (UEdGraphNode* Node : PCGEditorGraph->Nodes)
+	{
+		if (UPCGEditorGraphNodeBase* PCGNode = Cast<UPCGEditorGraphNodeBase>(Node))
+		{
+			// Update now that component has changed. Will fire OnNodeChanged if necessary.
+			EPCGChangeType ChangeType = PCGNode->UpdateErrorsAndWarnings();
+			ChangeType |= PCGNode->UpdateStructuralVisualization(NewComponent, &StackBeingInspected);
+
+			if (ChangeType != EPCGChangeType::None)
+			{
+				PCGNode->ReconstructNode();
 			}
 		}
+	}
+}
+
+void FPCGEditor::ClearStackBeingInspected()
+{
+	if (GetStackBeingInspected())
+	{
+		SetStackBeingInspected(FPCGStack());
 	}
 }
 
