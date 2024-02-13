@@ -115,8 +115,10 @@ public:
 
 	// add a new placeholder type to swap in for a missing type on load; this will be associated with a property bag when instances are serialized so we don't lose its data
 	static void AddPropertyBagPlaceholderType(UClass* ClassType);
-	// query for whether or not the given class has been registered as a placeholder type
-	static COREUOBJECT_API bool IsPropertyBagPlaceholderType(UClass* ClassType);
+	// query for whether or not the given object was created as a placeholder type
+	static COREUOBJECT_API bool IsPropertyBagPlaceholderObject(UObject* Object);
+	// query for whether or not creating property bag placeholder objects should be allowed
+	static COREUOBJECT_API bool IsPropertyBagPlaceholderObjectSupportEnabled();
 
 private:
 	void Lock() const { CriticalSection.Lock(); }

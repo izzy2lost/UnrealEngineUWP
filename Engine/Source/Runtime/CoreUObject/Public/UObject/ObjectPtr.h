@@ -373,6 +373,12 @@ namespace ObjectPtr_Private
 	template <typename T, typename U>
 	bool IsObjectPtrEqualToRawPtrOfRelatedType(const TObjectPtr<T>& Ptr, const U* Other)
 	{
+		// simple test if Ptr is null (avoids resolving either side)
+		if (!Ptr)
+		{
+			return !Other;
+		}
+
 #if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
 		if (Ptr.IsResolved())
 		{
@@ -380,7 +386,7 @@ namespace ObjectPtr_Private
 		}
 		else if (!Other) //avoids resolving if Other is null
 		{
-			return !Ptr;
+			return false;	// from above, we already know that !Ptr is false
 		}
 #endif
 		return Ptr.GetNoReadNoCheck() == Other;
@@ -558,7 +564,13 @@ public:
 	>
 	FORCEINLINE bool operator==(const TObjectPtr<U>& Other) const
 	{
+#if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
+		// Do a NULL test first before comparing the underlying handles, in case either side is
+		// a non-NULL, but unsafe type pointer (which would equate to NULL when Get() is called).
+		return !ObjectPtr ? !Other : ObjectPtr == Other.ObjectPtr;
+#else
 		return ObjectPtr == Other.ObjectPtr;
+#endif
 	}
 
 	// Equality/Inequality comparisons against nullptr

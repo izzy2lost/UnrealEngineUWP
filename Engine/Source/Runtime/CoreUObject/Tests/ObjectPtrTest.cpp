@@ -15,6 +15,7 @@
 #include "UObject/Package.h"
 #include "UObject/SoftObjectPath.h"
 #include "Misc/ScopeExit.h"
+#include "Tests/Benchmark.h"
 #include <type_traits>
 
 namespace UE::CoreObject::Private::Tests
@@ -165,6 +166,8 @@ TEST_CASE("CoreUObject::TObjectPtr::FindLoadBehavior")
 TEST_CASE("CoreUObject::TObjectPtr::Null", "[CoreUObject][ObjectPtr]")
 {
 	TObjectPtr<UObject> NullObjectPtr(nullptr);
+	TEST_TRUE(TEXT("NULL should equal a null object pointer"), NULL == NullObjectPtr);
+	TEST_TRUE(TEXT("A null object pointer should equal NULL"), NullObjectPtr == NULL);
 	TEST_TRUE(TEXT("Nullptr should equal a null object pointer"), nullptr == NullObjectPtr);
 	TEST_TRUE(TEXT("A null object pointer should equal nullptr"), NullObjectPtr == nullptr);
 	TEST_FALSE(TEXT("A null object pointer should evaluate to false"), !!NullObjectPtr);
@@ -342,6 +345,117 @@ TEST_CASE_METHOD(FObjectPtrTestBase, "CoreUObject::TObjectPtr::Long Path", "[Cor
 	TEST_EQUAL(TEXT("Resolved path from FObjectPathId should have TestObject4 at element 3"), ResolvedNames[3], TestObject4->GetFName());
 }
 #endif
+
+void ObjectPtrStressTest(int32 NumTestNodes, bool bIsContiguousTest, bool bIsEvalOnlyTest)
+{
+	const FName TestPackageName(TEXT("/Engine/Test/ObjectPtr/EvalStressTest/Transient"));
+	UPackage* TestPackage = NewObject<UPackage>(nullptr, TestPackageName, RF_Transient);
+	TestPackage->AddToRoot();
+	ON_SCOPE_EXIT
+	{
+		TestPackage->RemoveFromRoot();
+		CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
+	};
+
+	int32 NumObjectsAllocated = 0;
+	const int32 MaxAllowedAllocations = GUObjectArray.GetObjectArrayEstimatedAvailable();
+	TArray<TObjectPtr<UObjectPtrStressTestClass>*> TestNodePtrs;
+	TArray<TObjectPtr<UObjectPtrStressTestClass>> TestNodeStore;
+
+	if (bIsContiguousTest)
+	{
+		TestNodeStore.Reserve(NumTestNodes);
+		for (int32 NodeIdx = 0; NodeIdx < NumTestNodes; ++NodeIdx)
+		{
+			TestNodePtrs.Add(&TestNodeStore.AddDefaulted_GetRef());
+		}
+	}
+	else
+	{
+		for (int32 NodeIdx = 0; NodeIdx < NumTestNodes; ++NodeIdx)
+		{
+			TestNodePtrs.Add(new TObjectPtr<UObjectPtrStressTestClass>());
+		}
+	}
+
+	for (TObjectPtr<UObjectPtrStressTestClass>* TestNodePtr : TestNodePtrs)
+	{
+		// randomize the allocation of a test object
+		UObjectPtrStressTestClass* TestObject = nullptr;
+		if (NumObjectsAllocated < MaxAllowedAllocations && (FMath::Rand() % 2))
+		{
+			TestObject = NewObject<UObjectPtrStressTestClass>(TestPackage, NAME_None, RF_Transient);
+			++NumObjectsAllocated;
+		}
+
+		*TestNodePtr = TestObject;
+	}
+
+	for (TObjectPtr<UObjectPtrStressTestClass>* TestNodePtr : TestNodePtrs)
+	{
+		// fill out the remaining unallocated slots if we can
+		TObjectPtr<UObjectPtrStressTestClass>& TestNode = *TestNodePtr;
+		if (!TestNode && NumObjectsAllocated < MaxAllowedAllocations)
+		{
+			TestNode = NewObject<UObjectPtrStressTestClass>(TestPackage, NAME_None, RF_Transient);
+			++NumObjectsAllocated;
+		}
+
+		if (!bIsEvalOnlyTest)
+		{
+			// access the pointer (i.e. resolve to a raw UObject ptr) and do something with it
+			UObjectPtrStressTestClass* ResolvedObject = TestNode.Get();
+			if (ResolvedObject)
+			{
+				FMemory::Memzero(ResolvedObject->Data, PLATFORM_CACHE_LINE_SIZE);
+			}
+		}
+
+		if (!bIsContiguousTest)
+		{
+			if (TestNode)
+			{
+				TestNode->MarkAsGarbage();
+			}
+
+			delete TestNodePtr;
+		}
+	}
+}
+
+// Enable this method to add stress test benchmarks or to do A/B comparisons with features turned on/off.
+DISABLED_TEST_CASE_METHOD(FObjectPtrTestBase, "CoreUObject::TObjectPtr::Stress Tests", "[CoreUObject][ObjectPtr]")
+{
+	constexpr bool CONTIGUOUS = true;
+	constexpr bool NON_CONTIGUOUS = false;
+	constexpr bool EVAL_ONLY = true;
+	constexpr bool EVAL_AND_RESOLVE = false;
+
+	FSnapshotObjectRefMetrics ObjectRefMetrics(*this);
+
+	// contiguous object pointer blocks, eval-only
+	UE_BENCHMARK(5, [] { ObjectPtrStressTest(1000, CONTIGUOUS, EVAL_ONLY); } );
+	UE_BENCHMARK(5, [] { ObjectPtrStressTest(10000, CONTIGUOUS, EVAL_ONLY); });
+	UE_BENCHMARK(5, [] { ObjectPtrStressTest(100000, CONTIGUOUS, EVAL_ONLY); });
+
+	// non-contiguous list of object pointers, eval-only
+	UE_BENCHMARK(5, [] { ObjectPtrStressTest(1000, NON_CONTIGUOUS, EVAL_ONLY); });
+	UE_BENCHMARK(5, [] { ObjectPtrStressTest(10000, NON_CONTIGUOUS, EVAL_ONLY); });
+	UE_BENCHMARK(5, [] { ObjectPtrStressTest(100000, NON_CONTIGUOUS, EVAL_ONLY); });
+
+	// make sure that nothing was resolved above
+	ObjectRefMetrics.TestNumResolves(TEXT("Eval-only stress tests should not have triggered a resolve attempt"), 0);
+
+	// contiguous object pointer blocks, with resolve attempts
+	UE_BENCHMARK(5, [] { ObjectPtrStressTest(1000, CONTIGUOUS, EVAL_AND_RESOLVE); });
+	UE_BENCHMARK(5, [] { ObjectPtrStressTest(10000, CONTIGUOUS, EVAL_AND_RESOLVE); });
+	UE_BENCHMARK(5, [] { ObjectPtrStressTest(100000, CONTIGUOUS, EVAL_AND_RESOLVE); });
+
+	// non-contiguous list of object pointers, with resolve attempts
+	UE_BENCHMARK(5, [] { ObjectPtrStressTest(1000, NON_CONTIGUOUS, EVAL_AND_RESOLVE); });
+	UE_BENCHMARK(5, [] { ObjectPtrStressTest(10000, NON_CONTIGUOUS, EVAL_AND_RESOLVE); });
+	UE_BENCHMARK(5, [] { ObjectPtrStressTest(100000, NON_CONTIGUOUS, EVAL_AND_RESOLVE); });
+}
 
 TEST_CASE("CoreUObject::TObjectPtr::GetPathName", "[CoreUObject][ObjectPtr]")
 {

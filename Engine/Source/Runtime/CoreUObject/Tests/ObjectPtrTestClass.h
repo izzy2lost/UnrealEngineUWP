@@ -70,4 +70,14 @@ public:
 };
 
 
+//stress testing class
+class UObjectPtrStressTestClass : public UObject
+{
+	DECLARE_CLASS_INTRINSIC(UObjectPtrStressTestClass, UObject, CLASS_MatchedSerializers, TEXT("/Script/CoreUObject"))
+
+public:
+	uint8 Data[PLATFORM_CACHE_LINE_SIZE];
+};
+
+
 #endif
