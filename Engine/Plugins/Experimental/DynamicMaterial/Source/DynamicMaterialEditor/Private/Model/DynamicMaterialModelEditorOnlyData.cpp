@@ -755,6 +755,11 @@ void UDynamicMaterialModelEditorOnlyData::SetBlendMode(TEnumAsByte<EBlendMode> I
 		}
 	}
 
+	if (BlendMode == EBlendMode::BLEND_Translucent)
+	{
+		SetPixelAnimationFlag(false);
+	}
+
 	RequestMaterialBuild();
 }
 

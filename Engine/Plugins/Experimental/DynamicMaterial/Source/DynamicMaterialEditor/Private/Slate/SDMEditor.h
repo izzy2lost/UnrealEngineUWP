@@ -183,6 +183,7 @@ protected:
 	ECheckBoxState IsMaterialUnlit() const;
 	void OnMaterialUnlitChanged(const ECheckBoxState InNewCheckState);
 
+	bool CanMaterialBeAnimated() const;
 	ECheckBoxState IsMaterialAnimated() const;
 	void OnMaterialAnimatedChanged(const ECheckBoxState InNewCheckState);
 
