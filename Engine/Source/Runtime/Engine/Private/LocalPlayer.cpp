@@ -687,14 +687,6 @@ void ULocalPlayer::GetViewPoint(FMinimalViewInfo& OutViewInfo) const
 			OutViewInfo = PlayerController->PlayerCameraManager->GetCameraCacheView();
 			OutViewInfo.FOV = PlayerController->PlayerCameraManager->GetFOVAngle();
 			PlayerController->GetPlayerViewPoint(/*out*/ OutViewInfo.Location, /*out*/ OutViewInfo.Rotation);
-			if (PlayerController->PlayerCameraManager->bAutoCalculateOrthoPlanes)
-			{
-				OutViewInfo.bAutoCalculateOrthoPlanes = true;
-				if (const APawn* Owner = PlayerController->GetPawn())
-				{
-					OutViewInfo.SetOrthoCameraArmLengthFromOwnerLocation(Owner->GetActorLocation());
-				}
-			}
 		}
 		else
 		{

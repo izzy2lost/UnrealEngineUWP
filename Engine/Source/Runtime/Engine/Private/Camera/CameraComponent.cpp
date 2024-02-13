@@ -419,10 +419,9 @@ void UCameraComponent::GetCameraView(float DeltaTime, FMinimalViewInfo& DesiredV
 	DesiredView.OrthoWidth = OrthoWidth;
 	DesiredView.OrthoNearClipPlane = OrthoNearClipPlane;
 	DesiredView.OrthoFarClipPlane = OrthoFarClipPlane;
-
+	DesiredView.bAutoCalculateOrthoPlanes = bAutoCalculateOrthoPlanes;
 	if (bAutoCalculateOrthoPlanes)
 	{
-		DesiredView.bAutoCalculateOrthoPlanes = true;
 		if (const AActor* ViewTarget = GetOwner())
 		{
 			DesiredView.SetOrthoCameraArmLengthFromOwnerLocation(ViewTarget->GetActorLocation());

@@ -365,10 +365,9 @@ void APlayerCameraManager::UpdateViewTarget(FTViewTarget& OutVT, float DeltaTime
 	OutVT.POV.bConstrainAspectRatio = bDefaultConstrainAspectRatio;
 	OutVT.POV.ProjectionMode = bIsOrthographic ? ECameraProjectionMode::Orthographic : ECameraProjectionMode::Perspective;
 	OutVT.POV.PostProcessBlendWeight = 1.0f;
-
+	OutVT.POV.bAutoCalculateOrthoPlanes = bAutoCalculateOrthoPlanes;
 	if (bAutoCalculateOrthoPlanes)
 	{
-		OutVT.POV.bAutoCalculateOrthoPlanes = true;
 		if (OutVT.Target)
 		{
 			OutVT.POV.SetOrthoCameraArmLengthFromOwnerLocation(OutVT.Target->GetActorLocation());
