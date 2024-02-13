@@ -87,7 +87,7 @@ bool FDatabasePreviewActor::SpawnPreviewActor(UWorld* World, const UPoseSearchDa
 	Mesh->SetSkeletalMesh(DatabasePreviewMesh ? DatabasePreviewMesh : PoseSearchDatabase->Schema->GetSkeleton(Role)->GetPreviewMesh(true));
 	Mesh->EnablePreview(true, PreviewAsset);
 		
-	AnimInstance->SetAnimationAsset(PreviewAsset, false, 0.0f);
+	AnimInstance->SetAnimationAsset(PreviewAsset, IndexAsset.IsLooping(), 0.0f);
 	AnimInstance->SetBlendSpacePosition(IndexAsset.GetBlendParameters());
 		
 	if (IndexAsset.IsMirrored() && PoseSearchDatabase->Schema)
@@ -108,8 +108,7 @@ bool FDatabasePreviewActor::SpawnPreviewActor(UWorld* World, const UPoseSearchDa
 		RootTransformOrigin = MirrorDataCache.MirrorTransform(Sampler.ExtractRootTransform(PlayTimeOffset));
 	}
 
-	AnimInstance->PlayAnim(false, 0.0f);
-
+	AnimInstance->PlayAnim(IndexAsset.IsLooping(), 0.0f);
 	if (!ActorPtr->GetRootComponent())
 	{
 		ActorPtr->SetRootComponent(Mesh);

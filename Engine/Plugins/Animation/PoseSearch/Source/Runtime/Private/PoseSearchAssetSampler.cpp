@@ -149,24 +149,49 @@ static void ProcessRootTransform(const UBlendSpace* BlendSpace, const FVector& B
 	// Pre-compute root motion
 	const int32 NumRootSamples = FMath::Max(CachedPlayLength * RootTransformSamplingRate + 1, 1);
 	AccumulatedRootTransform.Init(FTransform::Identity, NumRootSamples);
+	
+	TArray<FBlendSampleData> BlendSamplesData;
 
-	TArray<FBlendSampleData> BlendSamples;
 	int32 TriangulationIndex = 0;
-	if (BlendSpace->GetSamplesFromBlendInput(BlendParameters, BlendSamples, TriangulationIndex, true))
+	if (BlendSpace->GetSamplesFromBlendInput(BlendParameters, BlendSamplesData, TriangulationIndex, true))
 	{
+		TArray<float, TInlineAllocator<16, TMemStackAllocator<>>> PrevSampleTimes;
+		PrevSampleTimes.AddDefaulted(BlendSamplesData.Num());
+		
+		// Get starting time for all samples.
+		BlendSpace->ResetBlendSamples(BlendSamplesData, 0.0f, bIsLoopable, true);
+		
 		for (int32 SampleIdx = 1; SampleIdx < NumRootSamples; ++SampleIdx)
 		{
-			FRootMotionMovementParams RootMotionMovementParams;
-			for (int32 BlendSampleIdex = 0; BlendSampleIdex < BlendSamples.Num(); BlendSampleIdex++)
+			// Keep track of previous samples
+			for (int32 BlendSampleIndex = 0; BlendSampleIndex < BlendSamplesData.Num(); BlendSampleIndex++)
 			{
-				FBlendSampleData& BlendSample = BlendSamples[BlendSampleIdex];
-				// @todo: add support for synch marker
-				const float PlayLength = BlendSample.Animation->GetPlayLength();
-				const float DeltaTime = PlayLength / (NumRootSamples - 1);
-				const float PreviousTime = (SampleIdx - 1) * DeltaTime;
+				PrevSampleTimes[BlendSampleIndex] = BlendSamplesData[BlendSampleIndex].Time;
+			}
 
-				const FTransform BlendSampleRootMotion = BlendSample.Animation->ExtractRootMotion(PreviousTime, DeltaTime, BlendSpace->bLoop);
-				RootMotionMovementParams.AccumulateWithBlend(BlendSampleRootMotion, BlendSample.GetClampedWeight());
+			// Compute samples with new data.
+			const float SampleTime = static_cast<float>(SampleIdx) / (NumRootSamples - 1);
+			BlendSpace->ResetBlendSamples(BlendSamplesData, SampleTime, bIsLoopable, true);
+
+			// Accumulate root motion after samples have been updated.
+			FRootMotionMovementParams RootMotionMovementParams;
+			for (int32 BlendSampleIndex = 0; BlendSampleIndex < BlendSamplesData.Num(); BlendSampleIndex++)
+			{
+				FBlendSampleData& BlendSample = BlendSamplesData[BlendSampleIndex];
+
+				if (BlendSample.TotalWeight > ZERO_ANIMWEIGHT_THRESH)
+				{
+					float DeltaTime = BlendSample.Time - PrevSampleTimes[BlendSampleIndex];
+
+					// Account for looping.
+					if (DeltaTime < 0.0f)
+					{
+						DeltaTime += BlendSample.Animation->GetPlayLength();
+					}
+					
+					const FTransform BlendSampleRootMotion = BlendSample.Animation->ExtractRootMotion(PrevSampleTimes[BlendSampleIndex], DeltaTime, bIsLoopable);
+					RootMotionMovementParams.AccumulateWithBlend(BlendSampleRootMotion, BlendSample.GetClampedWeight());
+				}
 			}
 
 			AccumulatedRootTransform[SampleIdx] = RootMotionMovementParams.GetRootMotionTransform() * AccumulatedRootTransform[SampleIdx - 1];
@@ -224,14 +249,6 @@ float FAnimationAssetSampler::GetPlayLength(const UAnimationAsset* AnimAsset, co
 			{
 				PlayLength = BlendSpace->GetAnimationLengthFromSampleData(BlendSamples);
 			}
-
-#if !NO_LOGGING
-			const TArray<FName>* UniqueMarkerNames = const_cast<UBlendSpace*>(BlendSpace)->GetUniqueMarkerNames();
-			if (UniqueMarkerNames && !UniqueMarkerNames->IsEmpty())
-			{
-				UE_LOG(LogPoseSearch, Warning, TEXT("FAnimationAssetSampler::Init: sampling blend space (%s) with synch markers is currently not supported"), *BlendSpace->GetName());
-			}
-#endif // !NO_LOGGING
 		}
 		else
 		{
@@ -339,19 +356,7 @@ void FAnimationAssetSampler::ExtractPose(const FAnimExtractContext& ExtractionCt
 		int32 TriangulationIndex = 0;
 		if (BlendSpace->GetSamplesFromBlendInput(BlendParameters, BlendSamples, TriangulationIndex, true))
 		{
-			for (int32 BlendSampleIdex = 0; BlendSampleIdex < BlendSamples.Num(); BlendSampleIdex++)
-			{
-				FBlendSampleData& BlendSample = BlendSamples[BlendSampleIdex];
-				const float Scale = BlendSample.Animation && CachedPlayLength > UE_KINDA_SMALL_NUMBER ? BlendSample.Animation->GetPlayLength() / CachedPlayLength : 1.f;
-
-				FDeltaTimeRecord BlendSampleDeltaTimeRecord;
-				BlendSampleDeltaTimeRecord.Set(ExtractionCtx.DeltaTimeRecord.GetPrevious() * Scale, ExtractionCtx.DeltaTimeRecord.Delta * Scale);
-
-				BlendSample.DeltaTimeRecord = BlendSampleDeltaTimeRecord;
-				BlendSample.PreviousTime = ExtractionCtx.DeltaTimeRecord.GetPrevious() * Scale;
-				BlendSample.Time = ExtractionCtx.CurrentTime * Scale;
-			}
-
+			BlendSpace->ResetBlendSamples(BlendSamples, ToNormalizedTime(ExtractionCtx.CurrentTime), ExtractionCtx.bLooping, false);
 			BlendSpace->GetAnimationPose(BlendSamples, ExtractionCtx, OutAnimPoseData);
 		}
 	}
@@ -387,7 +392,7 @@ void FAnimationAssetSampler::ExtractPose(float Time, FCompactPose& OutPose) cons
 
 	FDeltaTimeRecord DeltaTimeRecord;
 	DeltaTimeRecord.Set(Time, 0.f);
-	FAnimExtractContext ExtractionCtx(double(Time), false, DeltaTimeRecord, false);
+	FAnimExtractContext ExtractionCtx(double(Time), false, DeltaTimeRecord, IsLoopable());
 
 	ExtractPose(ExtractionCtx, AnimPoseData);
 }

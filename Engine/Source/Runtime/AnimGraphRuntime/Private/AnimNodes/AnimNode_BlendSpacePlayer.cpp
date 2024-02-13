@@ -207,6 +207,8 @@ void FAnimNode_BlendSpacePlayerBase::Reinitialize(bool bResetTime)
 			// Blend spaces run between 0 and 1
 			InternalTimeAccumulator = 1.0f;
 		}
+
+		MarkerTickRecord.Reset();
 	}
 
 	UBlendSpace* CurrentBlendSpace = GetBlendSpace();

@@ -2868,7 +2868,7 @@ bool IsMarkerValid(const FAnimSyncMarker* Marker, bool bLooping, const TArray<FN
 void UAnimSequence::AdvanceMarkerPhaseAsLeader(bool bLooping, float MoveDelta, const TArray<FName>& ValidMarkerNames, float& CurrentTime, FMarkerPair& PrevMarker, FMarkerPair& NextMarker, TArray<FPassedMarker>& MarkersPassed, const UMirrorDataTable* MirrorTable) const
 {
 	check(MoveDelta != 0.f);
-	const bool bPlayingForwards = MoveDelta > 0.f;
+	const bool bPlayingForwards = MoveDelta >= 0.f;
 	float CurrentMoveDelta = MoveDelta;
 
 	// Hard to reproduce issue triggering this, ensure & clamp for now
@@ -3536,7 +3536,7 @@ void UAnimSequence::MoveAttributesToModel()
 
 void UAnimSequence::AdvanceMarkerPhaseAsFollower(const FMarkerTickContext& Context, float DeltaRemaining, bool bLooping, float& CurrentTime, FMarkerPair& PreviousMarker, FMarkerPair& NextMarker, const UMirrorDataTable* MirrorTable) const
 {
-	const bool bPlayingForwards = DeltaRemaining > 0.f;
+	const bool bPlayingForwards = DeltaRemaining >= 0.f;
 
 	// Ensures the sequence's markers match the sync start position.
 	ValidateCurrentPosition(Context.GetMarkerSyncStartPosition(), bPlayingForwards, bLooping, CurrentTime, PreviousMarker, NextMarker, MirrorTable);
