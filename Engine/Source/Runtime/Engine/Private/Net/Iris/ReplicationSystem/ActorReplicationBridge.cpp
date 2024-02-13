@@ -168,69 +168,69 @@ UE::Net::FNetRefHandle UActorReplicationBridge::BeginReplication(AActor* Actor, 
 
 	if (!ShouldUseIrisReplication(Actor))
 	{
-		return FNetRefHandle();
+		return FNetRefHandle::GetInvalid();
 	}
 
 	if (!ensureMsgf(Actor == nullptr || !(Actor->HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject)), TEXT("Actor %s is a CDO or Archetype and should not be replicated."), ToCStr(GetFullNameSafe(Actor))))
 	{
-		return FNetRefHandle();
+		return FNetRefHandle::GetInvalid();
 	}
 
 	const bool bIsNetActor = ULevel::IsNetActor(Actor);
 	if (!bIsNetActor)
 	{
 		UE_LOG_ACTORREPLICATIONBRIDGE(VeryVerbose, TEXT("Actor %s doesn't have a NetRole."), ToCStr(GetFullNameSafe(Actor)));
-		return FNetRefHandle();
+		return FNetRefHandle::GetInvalid();
 	}
 
 	if (Actor->GetLocalRole() != ROLE_Authority)
 	{
 		UE_LOG_ACTORREPLICATIONBRIDGE(VeryVerbose, TEXT("Actor %s NetRole isn't Authority."), ToCStr(GetFullNameSafe(Actor)));
-		return FNetRefHandle();
+		return FNetRefHandle::GetInvalid();
 	}
 
 	if (Actor->IsActorBeingDestroyed() || !IsValid(Actor) || Actor->IsUnreachable())
 	{
 		UE_LOG_ACTORREPLICATIONBRIDGE(Verbose, TEXT("Actor %s is being destroyed or unreachable and can't be replicated."), ToCStr(GetFullNameSafe(Actor)));
-		return FNetRefHandle();
+		return FNetRefHandle::GetInvalid();
 	}
 
 	if (!Actor->GetIsReplicated())
 	{
 		UE_LOG_ACTORREPLICATIONBRIDGE(Verbose, TEXT("Actor %s is not supposed to be replicated."), ToCStr(GetFullNameSafe(Actor)));
-		return FNetRefHandle();
+		return FNetRefHandle::GetInvalid();
 	}
 
 	if (Actor->GetTearOff())
 	{
 		UE_LOG_ACTORREPLICATIONBRIDGE(Verbose, TEXT("Actor %s is torn off and should not be replicated."), ToCStr(GetFullNameSafe(Actor)));
-		return FNetRefHandle();
+		return FNetRefHandle::GetInvalid();
 	}
 
 	if (!Actor->IsActorInitialized())
 	{
 		UE_LOG_ACTORREPLICATIONBRIDGE(Warning, TEXT("Actor %s is not initialized and won't be replicated."), ToCStr(GetFullNameSafe(Actor)));
-		return FNetRefHandle();
+		return FNetRefHandle::GetInvalid();
 	}
 
 	if (!NetDriver)
 	{
 		UE_LOG_ACTORREPLICATIONBRIDGE(VeryVerbose, TEXT("There's no NetDriver so nothing can be replicated."));
-		return FNetRefHandle();
+		return FNetRefHandle::GetInvalid();
 	}
 
 
 	if (!NetDriver->ShouldReplicateActor(Actor))
 	{
 		UE_LOG_ACTORREPLICATIONBRIDGE(VeryVerbose, TEXT("Actor %s doesn't want to replicate with NetDriver %s."), ToCStr(GetFullNameSafe(Actor)), ToCStr(NetDriver->GetName()));
-		return FNetRefHandle();
+		return FNetRefHandle::GetInvalid();
 	}
 
 	// Initially dormant actors begin replication when their dormancy is flushed
 	const ENetDormancy Dormancy = Actor->NetDormancy;	
 	if (Actor->IsNetStartupActor() && (Dormancy == DORM_Initial))
 	{
-		return FNetRefHandle();
+		return FNetRefHandle::GetInvalid();
 	}
 
 	FNetRefHandle ExistingHandle = GetReplicatedRefHandle(Actor);
@@ -263,7 +263,7 @@ UE::Net::FNetRefHandle UActorReplicationBridge::BeginReplication(AActor* Actor, 
 	if (!ActorRefHandle.IsValid())
 	{
 		ensureMsgf(false, TEXT("Failed to create NetRefHandle for Actor Named %s"), ToCStr(Actor->GetName()));
-		return FNetRefHandle();
+		return FNetRefHandle::GetInvalid();
 	}
 
 	// Set owning connection filtering if actor is only relevant to owner
@@ -356,7 +356,7 @@ UE::Net::FNetRefHandle UActorReplicationBridge::BeginReplication(FNetRefHandle O
 
 	if (!OwnerHandle.IsValid() || !ShouldUseIrisReplication(SubObject))
 	{
-		return FNetRefHandle();
+		return FNetRefHandle::GetInvalid();
 	}
 
 	AActor* Owner = SubObject->GetOwner();
@@ -372,7 +372,7 @@ UE::Net::FNetRefHandle UActorReplicationBridge::BeginReplication(FNetRefHandle O
 			|| SubObject->HasAnyFlags(RF_ArchetypeObject | RF_ClassDefaultObject)
 		)
 		{
-			return FNetRefHandle();
+			return FNetRefHandle::GetInvalid();
 		}
 
 		if (!SubObject->IsUsingRegisteredSubObjectList())
@@ -382,7 +382,7 @@ UE::Net::FNetRefHandle UActorReplicationBridge::BeginReplication(FNetRefHandle O
 
 		if (RepComponentInfo == nullptr || RepComponentInfo->NetCondition == ELifetimeCondition::COND_Never)
 		{
-			return FNetRefHandle();
+			return FNetRefHandle::GetInvalid();
 		}
 
 		// Start replicating the subobject with its owner.
@@ -392,7 +392,7 @@ UE::Net::FNetRefHandle UActorReplicationBridge::BeginReplication(FNetRefHandle O
 	if (!ReplicatedComponentHandle.IsValid())
 	{
 		ensureMsgf(false, TEXT("Failed to create or find NetRefHandle for ActorComponent Named %s"), ToCStr(SubObject->GetName()));
-		return FNetRefHandle();
+		return FNetRefHandle::GetInvalid();
 	}
 
 	// Update or set any conditionals

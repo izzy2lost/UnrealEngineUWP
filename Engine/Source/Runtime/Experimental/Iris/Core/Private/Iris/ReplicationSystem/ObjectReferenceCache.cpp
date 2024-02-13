@@ -343,7 +343,7 @@ bool FObjectReferenceCache::CreateObjectReferenceInternal(const UObject* Object,
 			constexpr bool bReading = false;
 			// The connection ID isn't used unless reading.
 			RenamePathForPie(UE::Net::InvalidConnectionId, ObjectPath, bReading);
-			OutReference = MakeNetObjectReference(FNetRefHandle(), StringTokenStore->GetOrCreateToken(ObjectPath));	
+			OutReference = MakeNetObjectReference(FNetRefHandle::GetInvalid(), StringTokenStore->GetOrCreateToken(ObjectPath));	
 			return true;
 		}
 	}
@@ -423,7 +423,7 @@ FNetRefHandle FObjectReferenceCache::GetObjectReferenceHandleFromObject(const UO
 {
 	if (Object == nullptr)
 	{
-		return FNetRefHandle();
+		return FNetRefHandle::GetInvalid();
 	}
 
 	// Check if we already know about this object
@@ -436,7 +436,7 @@ FNetRefHandle FObjectReferenceCache::GetObjectReferenceHandleFromObject(const UO
 		{
 			UE_LOG_REFERENCECACHE(Verbose, TEXT("ObjectReferenceCache::GetObjectReferenceHandleFromObject removed %s from ObjectToNetReferenceHandle due to ReferenceHandleToCachedReference not holding the handle. For Object %s (0x%p) "), *Reference->ToString(), *GetNameSafe(Object), Object);
 			const_cast<TMap<const UObject*, FNetRefHandle>&>(ObjectToNetReferenceHandle).Remove(Object);
-			return FNetRefHandle();
+			return FNetRefHandle::GetInvalid();
 		}
 
 		const FCachedNetObjectReference& CachedObject = *CachedObjectPtr;
@@ -455,7 +455,7 @@ FNetRefHandle FObjectReferenceCache::GetObjectReferenceHandleFromObject(const UO
 		}
 	}
 
-	return FNetRefHandle();
+	return FNetRefHandle::GetInvalid();
 }
 
 void FObjectReferenceCache::AddRemoteReference(FNetRefHandle RefHandle, const UObject* Object)
@@ -504,7 +504,7 @@ void FObjectReferenceCache::AddRemoteReference(FNetRefHandle RefHandle, const UO
 			CachedObject.ObjectKey = Object;
 			CachedObject.NetRefHandle = RefHandle;
 			CachedObject.RelativePath = FNetToken();
-			CachedObject.OuterNetRefHandle = FNetRefHandle();
+			CachedObject.OuterNetRefHandle = FNetRefHandle::GetInvalid();
 			CachedObject.bIsPackage = false;
 			CachedObject.bNoLoad = false;
 			CachedObject.bIsBroken = false;
@@ -1113,7 +1113,7 @@ FNetObjectReference FObjectReferenceCache::GetReplicatedOuter(const FNetObjectRe
 	}
 
 	const FCachedNetObjectReference* CachedObject = ReferenceHandleToCachedReference.Find(Reference.GetRefHandle());
-	FNetRefHandle OuterNetRefHandle = CachedObject ? CachedObject->OuterNetRefHandle : FNetRefHandle();
+	FNetRefHandle OuterNetRefHandle = CachedObject ? CachedObject->OuterNetRefHandle : FNetRefHandle::GetInvalid();
 
 	while (OuterNetRefHandle.IsValid())
 	{
@@ -1123,7 +1123,7 @@ FNetObjectReference FObjectReferenceCache::GetReplicatedOuter(const FNetObjectRe
 		}
 
 		CachedObject = ReferenceHandleToCachedReference.Find(OuterNetRefHandle);
-		OuterNetRefHandle = CachedObject ? CachedObject->OuterNetRefHandle : FNetRefHandle();
+		OuterNetRefHandle = CachedObject ? CachedObject->OuterNetRefHandle : FNetRefHandle::GetInvalid();
 	};
 
 	return FNetObjectReference();
@@ -1143,7 +1143,7 @@ FNetRefHandle FObjectReferenceCache::GetDynamicRoot(const FNetRefHandle Handle) 
 	}
 	else
 	{
-		return FNetRefHandle();
+		return FNetRefHandle::GetInvalid();
 	}
 }
 
@@ -1248,7 +1248,7 @@ void FObjectReferenceCache::WriteFullReferenceInternal(FNetSerializationContext&
 	{
 		UE_CLOG(RefHandle.IsValid(), LogIris, Log, TEXT("ObjectReferenceCache::WriteFullReference Trying to write Stale handle, %s"), *RefHandle.ToString());
 
-		WriteNetRefHandle(Context, FNetRefHandle());
+		WriteNetRefHandle(Context, FNetRefHandle::GetInvalid());
 		return;			
 	}
 
@@ -1297,7 +1297,7 @@ void FObjectReferenceCache::ReadFullReferenceInternal(FNetSerializationContext& 
 		return;
 	}
 
-	UE_NET_TRACE_NAMED_OBJECT_SCOPE(ReferenceScope, FNetRefHandle(), *Context.GetBitStreamReader(), Context.GetTraceCollector(), ENetTraceVerbosity::Verbose);
+	UE_NET_TRACE_NAMED_OBJECT_SCOPE(ReferenceScope, FNetRefHandle::GetInvalid(), *Context.GetBitStreamReader(), Context.GetTraceCollector(), ENetTraceVerbosity::Verbose);
 
 	const FNetRefHandle NetRefHandle = ReadNetRefHandle(Context);
 
@@ -1442,7 +1442,7 @@ void FObjectReferenceCache::ReadFullReference(FNetSerializationContext& Context,
 
 	FNetObjectReference ObjectRef;
 
-	UE_NET_TRACE_NAMED_OBJECT_SCOPE(ReferenceScope, FNetRefHandle(), *Reader, Context.GetTraceCollector(), ENetTraceVerbosity::Verbose);
+	UE_NET_TRACE_NAMED_OBJECT_SCOPE(ReferenceScope, FNetRefHandle::GetInvalid(), *Reader, Context.GetTraceCollector(), ENetTraceVerbosity::Verbose);
 	ReadFullReferenceInternal(Context, ObjectRef, 0U);
 
 	UE_NET_TRACE_SET_SCOPE_OBJECTID(ReferenceScope, ObjectRef.GetRefHandle());
@@ -1508,7 +1508,7 @@ void FObjectReferenceCache::WriteReference(FNetSerializationContext& Context, FN
 	{
 		UE_CLOG(RefHandle.IsValid(), LogIris, Verbose, TEXT("ObjectReferenceCache::WriteReference Trying to write Stale handle, %s"), *RefHandle.ToString());
 
-		WriteNetRefHandle(Context, FNetRefHandle());
+		WriteNetRefHandle(Context, FNetRefHandle::GetInvalid());
 
 		return;
 	}
@@ -1524,7 +1524,7 @@ void FObjectReferenceCache::WriteReference(FNetSerializationContext& Context, FN
 void FObjectReferenceCache::ReadReference(FNetSerializationContext& Context, FNetObjectReference& OutRef)
 {
 	UE_NET_TRACE_SCOPE(NetObjectReference, *Context.GetBitStreamReader(), Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
-	UE_NET_TRACE_NAMED_OBJECT_SCOPE(ReferenceScope, FNetRefHandle(), *Context.GetBitStreamReader(), Context.GetTraceCollector(), ENetTraceVerbosity::Verbose);
+	UE_NET_TRACE_NAMED_OBJECT_SCOPE(ReferenceScope, FNetRefHandle::GetInvalid(), *Context.GetBitStreamReader(), Context.GetTraceCollector(), ENetTraceVerbosity::Verbose);
 
 	FNetBitStreamReader* Reader = Context.GetBitStreamReader();
 
@@ -1729,7 +1729,7 @@ void FObjectReferenceCache::ReadMustBeMappedExports(FNetSerializationContext& Co
 
 	while (bHasExportsToRead && !Context.HasErrorOrOverflow())
 	{
-		UE_NET_TRACE_NAMED_OBJECT_SCOPE(ReferenceScope, FNetRefHandle(), *Context.GetBitStreamReader(), Context.GetTraceCollector(), ENetTraceVerbosity::Verbose);
+		UE_NET_TRACE_NAMED_OBJECT_SCOPE(ReferenceScope, FNetRefHandle::GetInvalid(), *Context.GetBitStreamReader(), Context.GetTraceCollector(), ENetTraceVerbosity::Verbose);
 		const FNetRefHandle MustBeMappedHandle = ReadNetRefHandle(Context);
 		UE_NET_TRACE_SET_SCOPE_OBJECTID(ReferenceScope, MustBeMappedHandle);	
 

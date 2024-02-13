@@ -205,7 +205,7 @@ UE::Net::FNetRefHandle UObjectReplicationBridge::GetReplicatedRefHandle(const UO
 {
 	FNetRefHandle Handle = GetObjectReferenceCache()->GetObjectReferenceHandleFromObject(Object);
 
-	return IsReplicatedHandle(Handle) ? Handle : FNetRefHandle();
+	return IsReplicatedHandle(Handle) ? Handle : FNetRefHandle::GetInvalid();
 }
 
 UE::Net::FNetRefHandle UObjectReplicationBridge::GetReplicatedRefHandle(FNetHandle Handle) const
@@ -217,7 +217,7 @@ UE::Net::FNetRefHandle UObjectReplicationBridge::GetReplicatedRefHandle(FNetHand
 	FInternalNetRefIndex ObjectInternalIndex = NetRefHandleManager->GetInternalIndexFromNetHandle(Handle);
 	if (ObjectInternalIndex == FNetRefHandleManager::InvalidInternalIndex)
 	{
-		return FNetRefHandle();
+		return FNetRefHandle::GetInvalid();
 	}
 
 	const FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectDataNoCheck(ObjectInternalIndex);
@@ -234,7 +234,7 @@ UE::Net::FNetRefHandle UObjectReplicationBridge::BeginReplication(UObject* Insta
 	if (bBlockBeginReplication)
 	{
 		ensureMsgf(false, TEXT("BeginReplication is not allowed during this operation. %s will not be replicated"), *GetNameSafe(Instance));
-		return FNetRefHandle();
+		return FNetRefHandle::GetInvalid();
 	}
 
 	FNetRefHandle AllocatedRefHandle = ObjectReferenceCache->CreateObjectReferenceHandle(Instance);
@@ -242,7 +242,7 @@ UE::Net::FNetRefHandle UObjectReplicationBridge::BeginReplication(UObject* Insta
 	// If we failed to assign a handle, or if the Handle already is replicating, just return the handle
 	if (!AllocatedRefHandle.IsValid())
 	{
-		return FNetRefHandle();
+		return FNetRefHandle::GetInvalid();
 	}
 
 	if (IsReplicatedHandle(AllocatedRefHandle))
@@ -306,7 +306,7 @@ UE::Net::FNetRefHandle UObjectReplicationBridge::BeginReplication(UObject* Insta
 		if (!bIsValidProtocol)
 		{
 			UE_LOG_OBJECTREPLICATIONBRIDGE(Error, TEXT("BeginReplication Found invalid protocol ProtocolId:0x%" UINT64_x_FMT " for Object named %s"), ReplicationProtocol->ProtocolIdentifier, *Instance->GetName());
-			return FNetRefHandle();
+			return FNetRefHandle::GetInvalid();
 		}
 	}
 #endif
@@ -398,7 +398,7 @@ UE::Net::FNetRefHandle UObjectReplicationBridge::BeginReplication(UObject* Insta
 	// If we get here, it means that we failed to assign an internal handle for the object. We've probably run out of handles which currently is a fatal error.
 	UE_LOG(LogIris, Error, TEXT("UObjectReplicationBridge::BeginReplication - Failed to create NetRefHandle for object %s"), ToCStr(Instance->GetPathName()));
 
-	return FNetRefHandle();
+	return FNetRefHandle::GetInvalid();
 }
 
 void UObjectReplicationBridge::AssignDynamicFilter(UObject* Instance, const FCreateNetRefHandleParams& Params, FNetRefHandle RefHandle)
@@ -485,7 +485,7 @@ UE::Net::FNetRefHandle UObjectReplicationBridge::BeginReplication(FNetRefHandle 
 		return SubObjectRefHandle;
 	}
 
-	return FNetRefHandle();
+	return FNetRefHandle::GetInvalid();
 }
 
 void UObjectReplicationBridge::SetSubObjectNetCondition(FNetRefHandle SubObjectRefHandle, ELifetimeCondition Condition)

@@ -451,7 +451,7 @@ FNetRefHandle FNetRefHandleManager::GetCompleteNetRefHandle(FNetRefHandle Incomp
 	}
 	else
 	{
-		return FNetRefHandle();
+		return FNetRefHandle::GetInvalid();
 	}
 }
 
@@ -489,7 +489,7 @@ uint32 FNetRefHandleManager::GetOriginalDestroyedStartupObjectIndex(FInternalNet
 
 inline bool FNetRefHandleManager::AddSubObject(FNetRefHandle OwnerHandle, FNetRefHandle SubObjectHandle, EAddSubObjectFlags Flags)
 {
-	return AddSubObject(OwnerHandle, SubObjectHandle, FNetRefHandle(), Flags);
+	return AddSubObject(OwnerHandle, SubObjectHandle, FNetRefHandle::GetInvalid(), Flags);
 }
 
 TArrayView<const FInternalNetRefIndex> FNetRefHandleManager::GetSubObjects(FInternalNetRefIndex OwnerIndex) const
