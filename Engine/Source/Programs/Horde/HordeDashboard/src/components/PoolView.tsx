@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-import { Checkbox, ComboBox, DefaultButton, DetailsList, DetailsListLayoutMode, Dialog, DialogFooter, DialogType, IColumn, IComboBoxOption, ITag, IconButton, MessageBar, MessageBarType, Modal, Position, PrimaryButton, ScrollablePane, ScrollbarVisibility, SelectionMode, Slider, SpinButton, Spinner, SpinnerSize, Stack, TagPicker, Text, TextField } from "@fluentui/react";
+import { Checkbox, ComboBox, DefaultButton, DetailsList, DetailsListLayoutMode, Dialog, DialogFooter, DialogType, IColumn, IComboBoxOption, IconButton, MessageBar, MessageBarType, Modal, Position, PrimaryButton, ScrollablePane, ScrollbarVisibility, SelectionMode, Slider, SpinButton, Spinner, SpinnerSize, Stack, Text, TextField } from "@fluentui/react";
 import { observer } from "mobx-react-lite";
 import moment from "moment";
 import React, { useEffect, useState } from "react";
@@ -10,14 +10,11 @@ import { GetAgentLeaseResponse, GetAgentResponse, GetBatchResponse, GetJobTiming
 import dashboard from "../backend/Dashboard";
 import { PollBase } from "../backend/PollBase";
 import { projectStore } from "../backend/ProjectStore";
-import { useWindowSize } from "../base/utilities/hooks";
 import { getElapsedString, getShortNiceTime, getStepElapsed, getStepStartTime } from "../base/utilities/timeUtils";
 import { getHordeStyling, linearInterpolate } from "../styles/Styles";
 import { AgentPanel } from "./AgentView";
-import { BreadcrumbItem, Breadcrumbs } from "./Breadcrumbs";
 import { HistoryModal } from "./HistoryModal";
 import { LeaseStatusIcon, StepStatusIcon } from "./StatusIcon";
-import { TopNav } from "./TopNav";
 
 
 type PendingBatch = {
@@ -50,20 +47,6 @@ class PoolHandler extends PollBase {
       this.jobData = new Map();
       this.activeConforms = new Map<string, GetAgentLeaseResponse>();
       super.stop();
-   }
-
-   loadPools() {
-
-      if (PoolHandler.pools) {
-         return;
-      }
-
-      PoolHandler.pools = [];
-
-      backend.getPools().then(p => {
-         PoolHandler.pools = p.sort((a, b) => a.name.localeCompare(b.name));
-         this.setUpdated();
-      });
    }
 
    set(poolId?: string) {
@@ -665,7 +648,7 @@ const BatchPanel: React.FC = () => {
 const ConformPanel: React.FC = () => {
 
    const [lastSelectedAgent, setLastSelectedAgent] = useState<string | undefined>(undefined);
-   const {modeColors } = getHordeStyling();
+   const { modeColors } = getHordeStyling();
 
    const pool = handler.pool;
    if (!pool) {
@@ -1022,7 +1005,7 @@ const StreamPanel: React.FC = observer(() => {
       agents: number;
       preflights: number;
    }
-   
+
    const active = agents.filter(a => !!a.leases?.length).length;
    const ready = agents.filter(a => !a.leases?.length && a.online && a.enabled && !a.pendingConform && !a.pendingFullConform).length;
 
@@ -1091,20 +1074,20 @@ const StreamPanel: React.FC = observer(() => {
             let text = "";
             if (ready + active) {
                text = `${percent((item.preflights + item.agents) / (ready + active))} (`
-            }                     
+            }
 
             if (item.agents) {
                text += `${item.agents}`;
             }
-                     
+
             if (item.preflights) {
                if (item.agents) {
                   text += ` + ${item.preflights} Preflights`;
                } else {
-                  text+= `${item.preflights} Preflights`;
-               }                              
+                  text += `${item.preflights} Preflights`;
+               }
             }
-            
+
             text += ")"
 
 
@@ -1244,10 +1227,10 @@ const PoolPanel: React.FC = () => {
       summaryItems.push({ name: "Autoscaling", value: pool.enableAutoscaling ? "On" : "Off" });
       if (pool.enableAutoscaling) {
          summaryItems.push({ name: "Min/Reserve", value: `${pool.minAgents?.toString() ?? "???"} / ${pool.numReserveAgents?.toString() ?? "???"}` });
-         summaryItems.push({ name: "Strategy", value: pool.sizeStrategy ?? PoolSizeStrategy.LeaseUtilization });         
-      }     
-      summaryItems.push({ name: "Conform Interval", value: interval});
-      
+         summaryItems.push({ name: "Strategy", value: pool.sizeStrategy ?? PoolSizeStrategy.LeaseUtilization });
+      }
+      summaryItems.push({ name: "Conform Interval", value: interval });
+
    }
 
    let color = pool.colorValue;
@@ -1258,7 +1241,7 @@ const PoolPanel: React.FC = () => {
          <Stack tokens={{ childrenGap: 12 }}>
             <Stack horizontal tokens={{ childrenGap: 48 }}>
                <Stack style={{ minWidth: 224 }}>
-                  <Stack horizontal style={{ paddingBottom: 18 }} tokens={{childrenGap: 8}}>
+                  <Stack horizontal style={{ paddingBottom: 18 }} tokens={{ childrenGap: 8 }}>
                      <PrimaryButton text={pool.name} href={`/agents?agent=${encodeURI(pool.id)}&exact=true`} target="_blank" style={{ color: "#FFFFFF", backgroundColor: color, border: "unset", flexShrink: 1 }} />
                      {!!dashboard.user?.dashboardFeatures?.showPoolEditor && <IconButton iconProps={{ iconName: "Edit" }} onClick={() => { setState({ ...state, showSettings: true }) }} style={{ color: "#FFFFFF", backgroundColor: color, border: "unset", flexShrink: 1 }} />}
                   </Stack>
@@ -1298,10 +1281,9 @@ const PoolPanel: React.FC = () => {
 };
 
 
-export const PoolView: React.FC = observer(() => {
+export const PoolView: React.FC<{ pools: GetPoolResponse[] }> = observer(({ pools }) => {
 
-   const windowSize = useWindowSize();
-   const [searchParams, setSearchParams] = useSearchParams();
+   const [searchParams] = useSearchParams();
 
    useEffect(() => {
 
@@ -1313,15 +1295,13 @@ export const PoolView: React.FC = observer(() => {
 
    }, []);
 
-   const { hordeClasses, modeColors } = getHordeStyling();
+   const { hordeClasses } = getHordeStyling();
+
+   PoolHandler.pools = pools;
 
    // subscribe
    if (handler.updated) { };
 
-   if (!PoolHandler.pools) {
-      handler.loadPools();
-      return null;
-   }
 
    if (!PoolHandler.pools.length) {
       return null;
@@ -1334,110 +1314,27 @@ export const PoolView: React.FC = observer(() => {
    }
 
    const pool = handler.pool;
-
-   const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
-
-   const poolTags: ITag[] = PoolHandler.pools.map(p => {
-      return { key: p.id, name: p.name }
-   });
-
-   let defaultItems: ITag[] | undefined;
-   if (poolId) {
-      const d = poolTags.find(t => t.key === poolId);
-      if (d) {
-         defaultItems = [d];
-      }
-   }
-
-
-
-   const listContainsTagList = (tag: ITag, tagList?: ITag[]) => {
-      if (!tagList || !tagList.length || tagList.length === 0) {
-         return false;
-      }
-      return tagList.some(compareTag => compareTag.key === tag.key);
-   };
-
-   const filterSuggestedTags = (filterText: string, tagList?: ITag[]): ITag[] => {
-      return filterText
-         ? poolTags.filter(
-            tag => tag.name.toLowerCase().indexOf(filterText.toLowerCase()) !== -1 && !listContainsTagList(tag, tagList),
-         )
-         : poolTags;
-   };
-
-   const getTextFromItem = (item: ITag) => item.name;
-
-   const crumbs: BreadcrumbItem[] = [];
-   crumbs.push({ text: "Pools" });
-   if (pool) {
-      crumbs.push({ text: pool.name});
-   } 
-
+   
    return <Stack className={hordeClasses.horde}>
-      <TopNav />
-      <Breadcrumbs items={crumbs} />
-      <Stack>
-         <Stack horizontal style={{ flexBasis: 64 }}>
-            <div key={`windowsize_poolview_${windowSize.width}_${windowSize.height}`} style={{ width: vw / 2 - (1440 / 2), flexShrink: 0, backgroundColor: modeColors.background }} />
-            <Stack tokens={{ childrenGap: 0 }} styles={{ root: { backgroundColor: modeColors.background, width: "100%" } }}>
-               <Stack style={{ maxWidth: 1440, paddingTop: 6, marginLeft: 4 }}>
-                  <Stack horizontal style={{ paddingTop: 8, paddingBottom: 16 }}>
-                     <Stack grow />
-                     <Stack style={{ width: 320 }}>
-                        <TagPicker inputProps={{ placeholder: "Select a pool" }}
-                           defaultSelectedItems={defaultItems}
-                           onResolveSuggestions={filterSuggestedTags}
-                           getTextFromItem={getTextFromItem}
-                           onEmptyResolveSuggestions={(selected) => {
-                              return poolTags;
-                           }}
-
-                           onItemSelected={(item) => {
-
-                              if (!item?.key) {
-                                 return null;
-                              }
-
-                              setSearchParams(`?pool=${item.key}`, { replace: true });
-
-                              return item;
-
-                           }}
-
-                           itemLimit={1} />
-                     </Stack>
+      {!!pool && <Stack style={{ width: "100%", height: "100%" }}>
+         <div style={{ marginTop: 8, width: "100%", height: 'calc(100vh - 280px)', position: 'relative' }} data-is-scrollable={true}>
+            <ScrollablePane scrollbarVisibility={ScrollbarVisibility.always} onScroll={() => { }}>
+               <Stack style={{ width: 1352, height: "fit-content" }}>
+                  <Stack tokens={{ childrenGap: 18 }}>
+                     <PoolPanel />
+                     <PoolAgentPanel poolId={poolId} />
+                     <StepPanel stepState={StepState.Active} />
+                     <ConformPanel />
+                     <StepPanel stepState={StepState.Pending} />
+                     <BatchPanel />
                   </Stack>
                </Stack>
-            </Stack>
-         </Stack>
-         <Stack style={{ height: "100%", backgroundColor: modeColors.background }}>
-            <Stack horizontal style={{ height: "100%" }}>
-               <div key={`windowsize_poolview_2_${windowSize.width}_${windowSize.height}`} style={{ width: vw / 2 - (1440 / 2), flexShrink: 0, backgroundColor: modeColors.background }} />
-               {!!pool && <Stack style={{ width: "100%", height: "100%" }}>
-                  <div style={{ marginTop: 8, width: "100%", height: 'calc(100vh - 258px)', position: 'relative' }} data-is-scrollable={true}>
-                     <ScrollablePane scrollbarVisibility={ScrollbarVisibility.always} onScroll={() => { }}>
-
-                        <Stack className={hordeClasses.raised} style={{ width: 1443, height: "fit-content" }}>
-                           <Stack tokens={{ childrenGap: 18 }}>
-                              <PoolPanel />
-                              <PoolAgentPanel poolId={poolId} />
-                              <StepPanel stepState={StepState.Active} />
-                              <ConformPanel />
-                              <StepPanel stepState={StepState.Pending} />
-                              <BatchPanel />
-                           </Stack>
-                        </Stack>
-                     </ScrollablePane>
-                  </div>
-               </Stack>}
-               {!pool && !!poolId && <Stack horizontalAlign="center" style={{ width: 1443 }}>
-                  <Spinner size={SpinnerSize.large} />
-               </Stack>}
-            </Stack>
-         </Stack>
-      </Stack>
+            </ScrollablePane>
+         </div>
+      </Stack>}
+      {!pool && !!poolId && <Stack horizontalAlign="center" style={{ width: 1443 }}>
+         <Spinner size={SpinnerSize.large} />
+      </Stack>}
    </Stack>
-
 });
 

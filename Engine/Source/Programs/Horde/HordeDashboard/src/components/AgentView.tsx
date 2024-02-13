@@ -459,16 +459,24 @@ class LocalState {
 
    private _updateColumnDefs() {
       this.columnsState.forEach(colState => {
+
+         let colSize = colState.colSize;
+
+         if (!this.agentView && colState.displayText === "Pools") {
+            colSize = 480;
+         }
+
          colState.columnDef = {
             key: colState.key,
             name: colState.displayText,
-            minWidth: colState.colSize,
-            maxWidth: colState.colSize,
+            minWidth: colSize,
+            maxWidth: colSize,
             isResizable: false,
             isSorted: colState.key === "pools" ? undefined : colState.isSorted,
             isSortedDescending: colState.key === "pools" ? undefined : colState.isSortedDescending,
             onColumnClick: this._onColumnClick.bind(this)
          };
+
       });
    }
 
@@ -642,6 +650,8 @@ class LocalState {
       return state;
    }
 
+   agentView:boolean | undefined  = true;
+
    constructor() {
       makeObservable(this);
       this.columnsState = [
@@ -757,6 +767,10 @@ class LocalState {
       this.columnMenuProps = this._updateColumnProps();
       this._updateColumnDefs();
    }
+
+   updateColumns() {
+      this._updateColumnDefs();
+   }   
 }
 
 // pool editor list item
@@ -2758,6 +2772,9 @@ export const AgentPanel: React.FC<{ agentId?: string, poolId?: string, agentView
    // subscribe
    if (localState.searchUpdated) { }
 
+   localState.agentView = agentView;
+   localState.updateColumns();
+
    return <Stack>
       <AgentViewInner agentId={localState.searchState?.agentId} agentView={agentView} poolId={poolId} />
    </Stack>
@@ -2771,6 +2788,9 @@ export const AgentView: React.FC = () => {
    const { hordeClasses } = getHordeStyling();
 
    const agentId = searchParams.get("agentId") ? searchParams.get("agentId") : undefined;
+
+   localState.agentView = true;
+   localState.updateColumns();
 
    // adjust automatically to viewport changes
    useWindowSize();

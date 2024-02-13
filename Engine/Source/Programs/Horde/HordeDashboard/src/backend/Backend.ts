@@ -103,9 +103,14 @@ export class Backend {
         });
     }
 
-    getPools(): Promise<PoolData[]> {
+    getPools(filter?: string): Promise<PoolData[]> {
+
+        const params: any = {
+            filter: filter
+        };
+
         return new Promise<PoolData[]>((resolve, reject) => {
-            this.backend.get("/api/v1/pools").then((response) => {
+            this.backend.get("/api/v1/pools", { params: params }).then((response) => {
                 const pools = response.data as PoolData[];
                 resolve(pools);
             }).catch(reason => { reject(reason); });
