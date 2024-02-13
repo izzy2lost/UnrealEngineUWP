@@ -7,22 +7,20 @@ using UnrealBuildTool;
 public sealed class CrashReportClientEditorTarget : CrashReportClientTarget
 {
 	// Override the configuration values from CrashReportClient with these using another
-	// configuration block: [CrashReportClientEditorBuildSettings]
+	// configuration block: [CrashReportClientEditorBuildSettings]. See CrashReportClient.target.cs for
+	// descriptions of the settings.
 	
-	[ConfigFile(ConfigHierarchyType.Engine, "CrashReportClientEditorBuildSettings", "DataRouterFallback")]
-	public new string DataRouterFallback;
+	[ConfigFile(ConfigHierarchyType.Engine, "CrashReportClientEditorBuildSettings", "DefaultUrl")]
+	public new string DefaultUrl;
 		
-	[ConfigFile(ConfigHierarchyType.Engine, "CrashReportClientEditorBuildSettings", "CompanyName")]
-	public new string CompanyName;
+	[ConfigFile(ConfigHierarchyType.Engine, "CrashReportClientEditorBuildSettings", "DefaultCompanyName")]
+	public new string DefaultCompanyName;
 	
 	[ConfigFile(ConfigHierarchyType.Engine, "CrashReportClientEditorBuildSettings", "TelemetryUrl")]
 	public new string TelemetryUrl;
 
-	[ConfigFile(ConfigHierarchyType.Engine, "CrashReportClientEditorBuildSettings", "TelemetryKey_Dev")]
-	public new string TelemetryKey_Dev;
-
-	[ConfigFile(ConfigHierarchyType.Engine, "CrashReportClientEditorBuildSettings", "TelemetryKey_Release")]
-	public new string TelemetryKey_Release;
+	[ConfigFile(ConfigHierarchyType.Engine, "CrashReportClientEditorBuildSettings", "TelemetryKey")]
+	public new string TelemetryKey;
 	
 	public CrashReportClientEditorTarget(TargetInfo Target) : base(Target, false /* bSetConfiguredDefinitions */)
 	{
@@ -50,7 +48,7 @@ public sealed class CrashReportClientEditorTarget : CrashReportClientTarget
 		
 		// We can now set the configured definitions from CrashReportClientEditorBuildSettings section
 		GlobalDefinitions.AddRange(SetupConfiguredDefines(
-			DataRouterFallback, CompanyName, TelemetryUrl, TelemetryKey_Dev, TelemetryKey_Release));
+			DefaultUrl, DefaultCompanyName, TelemetryUrl, TelemetryKey));
 	}
 	
 }

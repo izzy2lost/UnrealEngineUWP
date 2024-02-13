@@ -7,21 +7,22 @@ using System.Collections.Generic;
 [SupportedConfigurations(UnrealTargetConfiguration.Debug, UnrealTargetConfiguration.Development, UnrealTargetConfiguration.Shipping)]
 public class CrashReportClientTarget : TargetRules
 {
-	[ConfigFile(ConfigHierarchyType.Engine, "CrashReportClientBuildSettings", "DataRouterFallback")]
-	public string DataRouterFallback;
+	// Default crash reporting url. This is the default value. Overrideable per project.
+	[ConfigFile(ConfigHierarchyType.Engine, "CrashReportClientBuildSettings", "DefaultUrl")]
+	public string DefaultUrl;
 		
-	[ConfigFile(ConfigHierarchyType.Engine, "CrashReportClientBuildSettings", "CompanyName")]
-	public string CompanyName;
+	// Default company name displayed in the UX. Overrideable per project
+	[ConfigFile(ConfigHierarchyType.Engine, "CrashReportClientBuildSettings", "DefaultCompanyName")]
+	public string DefaultCompanyName;
 	
+	// Url for telemetry. (Not used by licensees)
 	[ConfigFile(ConfigHierarchyType.Engine, "CrashReportClientBuildSettings", "TelemetryUrl")]
 	public string TelemetryUrl;
 
-	[ConfigFile(ConfigHierarchyType.Engine, "CrashReportClientBuildSettings", "TelemetryKey_Dev")]
-	public string TelemetryKey_Dev;
+	// Key used by telemetry (Not used by licensees)
+	[ConfigFile(ConfigHierarchyType.Engine, "CrashReportClientBuildSettings", "TelemetryKey")]
+	public string TelemetryKey;
 
-	[ConfigFile(ConfigHierarchyType.Engine, "CrashReportClientBuildSettings", "TelemetryKey_Release")]
-	public string TelemetryKey_Release;
-	
 	public CrashReportClientTarget(TargetInfo Target) : this(Target, true)
 	{}
 
@@ -70,26 +71,25 @@ public class CrashReportClientTarget : TargetRules
 		if (bSetConfiguredDefinitions)
 		{
 			GlobalDefinitions.AddRange(SetupConfiguredDefines(
-				 DataRouterFallback, CompanyName, TelemetryUrl, TelemetryKey_Dev, TelemetryKey_Release));
+				 DefaultUrl, DefaultCompanyName, TelemetryUrl, TelemetryKey));
 		}
 	}
 
 	protected static List<string> SetupConfiguredDefines(
-		string DataRouterFallback, 
-		string CompanyName, 
+		string DefaultUrl, 
+		string DefaultCompanyName, 
 		string TelemetryUrl, 
-		string TelemetryKeyDev,
-		string TelemetryKeyRelease)
+		string TelemetryKey)
 	{
 		var Definitions = new List<string>();
-		if (!string.IsNullOrEmpty(DataRouterFallback))
+		if (!string.IsNullOrEmpty(DefaultUrl))
 		{
-			Definitions.Add($"CRC_DATAROUTER_FALLBACK=\"{DataRouterFallback}\"");
+			Definitions.Add($"CRC_DEFAULT_URL=\"{DefaultUrl}\"");
 		}
 
-		if (!string.IsNullOrEmpty(CompanyName))
+		if (!string.IsNullOrEmpty(DefaultCompanyName))
 		{
-			Definitions.Add($"CRC_COMPANY_NAME_FALLBACK=\"{CompanyName}\"");
+			Definitions.Add($"CRC_DEFAULT_COMPANY_NAME=\"{DefaultCompanyName}\"");
 		}
 
 		if(!string.IsNullOrWhiteSpace(TelemetryUrl))
@@ -97,14 +97,9 @@ public class CrashReportClientTarget : TargetRules
 			Definitions.Add($"CRC_TELEMETRY_URL=\"{TelemetryUrl}\"");
 		}
 
-		if (!string.IsNullOrWhiteSpace(TelemetryKeyDev))
+		if (!string.IsNullOrWhiteSpace(TelemetryKey))
 		{
-			Definitions.Add($"CRC_TELEMETRY_KEY_DEV=\"{TelemetryKeyDev}\"");
-		}
-
-		if (!string.IsNullOrWhiteSpace(TelemetryKeyRelease))
-		{
-			Definitions.Add($"CRC_TELEMETRY_KEY_RELEASE=\"{TelemetryKeyRelease}\"");
+			Definitions.Add($"CRC_TELEMETRY_KEY=\"{TelemetryKey}\"");
 		}
 
 		return Definitions;
