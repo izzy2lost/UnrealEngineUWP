@@ -201,11 +201,6 @@ static FAutoConsoleVariable CVarStripLayerTextureMipsOnLoad(
 	false,
 	TEXT("Remove (on load) the mip chain from textures used in layers which don't require them"));
 
-static FAutoConsoleVariable CVarAllowPhysicsStripping(
-	TEXT("landscape.AllowPhysicsStripping"),
-	true,
-	TEXT("Enables the conditional stripping of physics data during cook.  Disabling this means the bStripPhysicsWhenCooked* will be ignored."));
-
 static FAutoConsoleVariable CVarAllowGrassStripping(
 	TEXT("landscape.AllowGrassStripping"),
 	true,
@@ -3678,59 +3673,6 @@ void ALandscapeProxy::PreSave(FObjectPreSaveContext ObjectSaveContext)
 				UTexture2D* HeightmapTex = LandscapeComponent->GetHeightmap();
 				FVector LandscapeGridScale = GetRootComponent()->GetRelativeScale3D();
 				ULandscapeTextureStorageProviderFactory::ApplyTo(HeightmapTex, LandscapeGridScale);
-			}
-		}
-	}
-
-	// Strip data according to flags when cooked (and not cooking for editor)
-	if (ObjectSaveContext.IsCooking() && !ObjectSaveContext.GetTargetPlatform()->AllowsEditorObjects())
-	{
-		if (CVarAllowPhysicsStripping->GetBool() &&
-			((bStripPhysicsWhenCookedClient && bStripPhysicsWhenCookedServer) ||
-			(bStripPhysicsWhenCookedClient && ObjectSaveContext.GetTargetPlatform()->IsClientOnly()) ||
-			(bStripPhysicsWhenCookedServer && ObjectSaveContext.GetTargetPlatform()->IsServerOnly())))
-		{
-			// Clear old CollisionComponent containers
-			CollisionComponents.Empty();
-
-			// Destroy any owned collision components
-			TInlineComponentArray<ULandscapeHeightfieldCollisionComponent*> CollisionComps;
-			GetComponents(CollisionComps);
-			for (ULandscapeHeightfieldCollisionComponent* Component : CollisionComps)
-			{
-				Component->DestroyComponent();
-			}
-
-			// Destroy any attached but un-owned collision components (not sure what would be here that is not already caught above ^^)
-			TArray<USceneComponent*> AttachedCollisionComponents = RootComponent->GetAttachChildren().FilterByPredicate(
-				[](USceneComponent* Component)
-				{
-					return Cast<ULandscapeHeightfieldCollisionComponent>(Component);
-				});
-
-			for (USceneComponent* Component : AttachedCollisionComponents)
-			{
-				Component->DestroyComponent();
-			}
-
-			// ULandscapeComponents have refs... null them
-			for (ULandscapeComponent* Component : LandscapeComponents)
-			{
-				Component->DestroyCollisionData();
-				Component->SetCollisionComponent(nullptr);
-			}
-		}
-		
-		if (CVarAllowGrassStripping->GetBool() &&
-			((bStripGrassWhenCookedClient && bStripGrassWhenCookedServer) ||
-			(bStripGrassWhenCookedClient && ObjectSaveContext.GetTargetPlatform()->IsClientOnly()) ||
-			(bStripGrassWhenCookedServer && ObjectSaveContext.GetTargetPlatform()->IsServerOnly())))
-		{
-			for (ULandscapeComponent* Component : LandscapeComponents)
-			{
-				TUniquePtr<FLandscapeComponentGrassData> NewGrassData = MakeUnique<FLandscapeComponentGrassData>();
-				Component->GrassData = MakeShareable(NewGrassData.Release());
-				Component->GrassData->NumElements = 0;
 			}
 		}
 	}
