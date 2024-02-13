@@ -598,7 +598,7 @@ TSharedRef<SWidget> SDMEditor::CreateMaterialSettingsRow()
 		.Padding(10.0f, 0.0f, 0.0f, 2.0f)
 		[
 			SNew(SHorizontalBox)
-			.ToolTipText(LOCTEXT("MaterialDesignerInstanceTypeTooltip", "Enables the material's TSR pixel animation flag."))
+			.ToolTipText(LOCTEXT("MaterialDesignerInstanceTypeTooltip", "Enables the material's TSR pixel animation flag. Not available in translucent blend modes."))
 			+ SHorizontalBox::Slot()
 			.AutoWidth()
 			.HAlign(HAlign_Left)
@@ -618,6 +618,7 @@ TSharedRef<SWidget> SDMEditor::CreateMaterialSettingsRow()
 			[
 				SNew(SCheckBox)
 				.IsChecked(this, &SDMEditor::IsMaterialAnimated)
+				.IsEnabled(this, &SDMEditor::CanMaterialBeAnimated)
 				.OnCheckStateChanged(this, &SDMEditor::OnMaterialAnimatedChanged)
 			]
 		]
@@ -1461,6 +1462,16 @@ void SDMEditor::OnMaterialUnlitChanged(const ECheckBoxState InNewCheckState)
 		ModelEditorOnlyData->SetShadingModel(InNewCheckState == ECheckBoxState::Checked
 			? EDMMaterialShadingModel::Unlit : EDMMaterialShadingModel::DefaultLit);
 	}
+}
+
+bool SDMEditor::CanMaterialBeAnimated() const
+{
+	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak))
+	{
+		return ModelEditorOnlyData->GetBlendMode() != EBlendMode::BLEND_Translucent;
+	}
+
+	return false;
 }
 
 bool SDMEditor::CanChangeMaterialShadingModel() const
