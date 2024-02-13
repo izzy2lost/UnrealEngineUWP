@@ -269,7 +269,7 @@ float ULearningAgentsRewards::MakeRewardFromAngleSimilarity(
 	{
 		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
 
-		UE_LEARNING_AGENTS_VLOG_ANGLE(
+		UE_LEARNING_AGENTS_VLOG_ANGLE_DEGREES(
 			VisualLoggerObject,
 			LogLearning,
 			Display,
@@ -280,7 +280,7 @@ float ULearningAgentsRewards::MakeRewardFromAngleSimilarity(
 			VisualLoggerColor.ToFColor(true),
 			TEXT(""));
 
-		UE_LEARNING_AGENTS_VLOG_ANGLE(
+		UE_LEARNING_AGENTS_VLOG_ANGLE_DEGREES(
 			VisualLoggerObject,
 			LogLearning,
 			Display,
