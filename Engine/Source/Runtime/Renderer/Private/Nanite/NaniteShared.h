@@ -72,8 +72,9 @@ struct FPackedView
 
 	FIntVector4	HZBTestViewRect;	// In full resolution
 
-	uint32		LightingChannelMask;
 	FVector3f	Padding1;
+	uint32		LightingChannelMask;
+	
 
 	
 
