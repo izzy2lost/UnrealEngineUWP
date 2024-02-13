@@ -1083,15 +1083,6 @@ void UChaosWheeledVehicleSimulation::FillOutputState(FChaosVehicleAsyncOutput& O
 
 }
 
-UChaosWheeledVehicleSimulation::UChaosWheeledVehicleSimulation(): bOverlapHit(false)
-{
-	QueryBox.Init();
-}
-
-UChaosWheeledVehicleSimulation::~UChaosWheeledVehicleSimulation()
-{
-}
-
 void UChaosWheeledVehicleSimulation::UpdateConstraintHandles(TArray<FPhysicsConstraintHandle>& ConstraintHandlesIn)
 {
 	UChaosVehicleSimulation::UpdateConstraintHandles(ConstraintHandlesIn);

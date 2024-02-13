@@ -8,7 +8,6 @@
 #include "UObject/ObjectKey.h"
 #include "UObject/ObjectPtr.h"
 #include "UObject/SoftObjectPtr.h"
-#include "UObject/WeakInterfacePtr.h"
 #include "AvaPlayableGroup.generated.h"
 
 class UAvaPlayable;
