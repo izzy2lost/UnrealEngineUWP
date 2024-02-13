@@ -2228,6 +2228,16 @@ void FNiagaraStackGraphUtilities::SetLinkedValueHandleForFunctionInput(UEdGraphP
 			ParameterToRead = ParameterAlternative;
 		}
 	}
+	else
+	{
+		// check if a static var of the requested input exists and use that instead
+		FNiagaraTypeDefinition StaticInputType = InputType.ToStaticDef();
+		FNiagaraVariable StaticParameter(StaticInputType, LinkedParameterHandle.GetParameterHandleString());
+		if (KnownParameters.Contains(StaticParameter))
+		{
+			ParameterToRead = StaticParameter;
+		}
+	}
 	
 	UEdGraphPin* GetOutputPin = GetNode->RequestNewTypedPin(EGPD_Output, ParameterToRead.GetType(), LinkedParameterHandle.GetParameterHandleString());
 	MakeLinkTo(GetInputPin, PreviousStackNodeOutputPin);

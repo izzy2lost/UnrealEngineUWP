@@ -1592,16 +1592,17 @@ void FNiagaraUtilities::PrepareRapidIterationParameters(const TArray<UNiagaraScr
 	}
 }
 
-bool FNiagaraUtilities::AreTypesAssignable(const FNiagaraTypeDefinition& TypeA, const FNiagaraTypeDefinition& TypeB)
+bool FNiagaraUtilities::AreTypesAssignable(const FNiagaraTypeDefinition& FromType, const FNiagaraTypeDefinition& ToType)
 {
 	const UNiagaraSettings* Settings = GetDefault<UNiagaraSettings>();
+	bool bStrictAssignable = (FromType == ToType) || (FromType.IsStatic() && !ToType.IsStatic() && FromType == ToType.ToStaticDef());
 	if (Settings->bEnforceStrictStackTypes)
 	{
-		return TypeA == TypeB;
+		return bStrictAssignable;
 	}
-	return (TypeA == TypeB)
-		|| (TypeA == FNiagaraTypeDefinition::GetPositionDef() && TypeB == FNiagaraTypeDefinition::GetVec3Def())
-		|| (TypeB == FNiagaraTypeDefinition::GetPositionDef() && TypeA == FNiagaraTypeDefinition::GetVec3Def());
+	return bStrictAssignable
+		|| (FromType == FNiagaraTypeDefinition::GetPositionDef() && ToType == FNiagaraTypeDefinition::GetVec3Def())
+		|| (ToType == FNiagaraTypeDefinition::GetPositionDef() && FromType == FNiagaraTypeDefinition::GetVec3Def());
 }
 
 #endif
