@@ -16,7 +16,7 @@ class TRACEINSIGHTS_API STraceServerControl
 {
 public:
 	STraceServerControl(const TCHAR* Host, uint32 Port = 0, FName StyleSet = NAME_None);
-	~STraceServerControl() = default;
+	~STraceServerControl();
 
 	void MakeMenu(FMenuBuilder& Builder);
 
@@ -36,9 +36,9 @@ private:
 	void UpdateStatus();
 	void ResetStatus();
 
-	bool CanServerBeStarted() const { return bIsLocalHost && State.load(std::memory_order_relaxed) == EState::NotConnected; }
-	bool CanServerBeStopped() const { return bIsLocalHost && State.load(std::memory_order_relaxed) == EState::Connected; }
-	bool AreControlsEnabled() const { return bIsLocalHost && State.load(std::memory_order_relaxed) == EState::Connected; }
+	bool CanServerBeStarted() const { return !bIsCancelRequested && bIsLocalHost && State.load(std::memory_order_relaxed) == EState::NotConnected; }
+	bool CanServerBeStopped() const { return !bIsCancelRequested && bIsLocalHost && State.load(std::memory_order_relaxed) == EState::Connected; }
+	bool AreControlsEnabled() const { return !bIsCancelRequested && bIsLocalHost && State.load(std::memory_order_relaxed) == EState::Connected; }
 	bool IsSponsored() const { return bSponsored.load(std::memory_order_relaxed); }
 
 	void OnStart_Clicked();
@@ -50,14 +50,17 @@ private:
 	std::atomic<bool> bCanServerBeStarted = false;
 	std::atomic<bool> bCanServerBeStopped = false;
 	std::atomic<bool> bSponsored = false;
+	std::atomic<bool> bIsCancelRequested = false;
+
+	FCriticalSection AsyncTaskLock;
 	FCriticalSection StringsLock;
 	FString StatusString;
 
 	FString Host;
-	uint32 Port;
+	uint32 Port = 0;
 	FName StyleSet;
-	bool bIsLocalHost;
+	bool bIsLocalHost = false;
 	TUniquePtr<UE::Trace::FStoreClient> Client;
-	
+
 	friend const TCHAR* LexState(EState);
 };
