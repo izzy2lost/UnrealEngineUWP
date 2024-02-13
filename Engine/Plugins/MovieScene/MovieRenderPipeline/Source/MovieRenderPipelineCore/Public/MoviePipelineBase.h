@@ -78,6 +78,28 @@ public:
 	*/
 	FMoviePipelineWorkFinishedNative& OnMoviePipelineShotWorkFinished() { return OnMoviePipelineShotWorkFinishedImpl(); }
 
+	/**
+	* Called when we have completely finished this pipeline. This means that all frames have been rendered,
+	* all files written to disk, and any post-finalize exports have finished. This Pipeline will call
+	* Shutdown() on itself before calling this delegate to ensure we've unregistered from all delegates
+	* and are no longer trying to do anything (even if we still exist).
+	*
+	* The params struct in the return will have metadata about files written to disk for each shot.
+	*/
+	UPROPERTY(BlueprintAssignable, Category = "Movie Render Pipeline")
+	FMoviePipelineWorkFinished OnMoviePipelineWorkFinishedDelegate;
+
+
+
+	/**
+	* Only called if `IsPostShotCallbackNeeded()` returns true!
+	* Called after each shot is finished and files have been flushed to disk. The returned data in
+	* the params struct will have only the per-shot metadata for the just finished shot. Use
+	* OnMoviePipelineFinished() if you need all of the metadata.
+	*/
+	UPROPERTY(BlueprintAssignable, Category = "Movie Render Pipeline")
+	FMoviePipelineWorkFinished OnMoviePipelineShotWorkFinishedDelegate;
+
 protected:
 	virtual void RequestShutdownImpl(bool bIsError) {}
 	virtual void ShutdownImpl(bool bIsError) {}
@@ -85,6 +107,7 @@ protected:
 	virtual EMovieRenderPipelineState GetPipelineStateImpl() const { return EMovieRenderPipelineState::Uninitialized; }
 	virtual FMoviePipelineWorkFinishedNative& OnMoviePipelineWorkFinishedImpl() { return OnMoviePipelineWorkFinishedDelegateNative; }
 	virtual FMoviePipelineWorkFinishedNative& OnMoviePipelineShotWorkFinishedImpl() { return OnMoviePipelineShotWorkFinishedDelegateNative; }
+	virtual bool IsPostShotCallbackNeeded() const { return false; }
 
 	/** Called when we have completely finished. This object will call Shutdown before this and stop ticking. */
 	FMoviePipelineWorkFinishedNative OnMoviePipelineWorkFinishedDelegateNative;

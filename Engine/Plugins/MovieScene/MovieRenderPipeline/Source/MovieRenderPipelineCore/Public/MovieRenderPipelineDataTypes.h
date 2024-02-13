@@ -13,6 +13,7 @@
 #include "Async/ParallelFor.h"
 #include "MovieSceneSequenceID.h"
 #include "MovieRenderDebugWidget.h"
+#include "Graph/MovieGraphRenderDataIdentifier.h"
 #include "MovieRenderPipelineDataTypes.generated.h"
 
 class UMovieSceneCinematicShotSection;
@@ -1311,9 +1312,12 @@ struct FMoviePipelineOutputData
 	* Provided here for backwards compatibility.
 	*/
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient, Category = "Movie Pipeline")
-	TObjectPtr<UMoviePipeline> Pipeline;
+	TObjectPtr<class UMoviePipelineBase> Pipeline;
 	
-	/** Job the data is for. Job may still be in progress (if a shot callback) so be careful about modifying properties on it */
+	/** 
+	* Job the data is for. Job may still be in progress (if a shot callback) so be careful about modifying properties on it 
+	* When using the Movie Render Graph this will point to the duplicated job created during execution.
+	*/
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient, Category = "Movie Pipeline")
 	TObjectPtr<UMoviePipelineExecutorJob> Job;
 	
@@ -1325,9 +1329,23 @@ struct FMoviePipelineOutputData
 	* The file data for each shot that was rendered. If no files were written this will be empty. If this is from the per-shot work
 	* finished callback it will only have one entry (for the just finished shot). Will not include shots that did not get rendered
 	* due to the pipeline encountering an error.
+	*
+	* This will be empty when using the Movie Render Graph. If a job is a Movie Render Graph job, use GraphData instead, which has
+	* a similar layout but with different data types.
 	*/
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Movie Pipeline")
 	TArray<FMoviePipelineShotOutputData> ShotData;
+
+	/** 
+	* The file data for each shot that was rendered. If no files were written this will be empty. If this is from the per-shot work
+	* finished callback it will only have one entry (for the just finished shot). Will not include shots that did not get rendered
+	* due to the pipeline encountering an error.
+	*
+	* This will be empty when using the legacy Movie Pipeline Configurations. If a job is a legacy configuration, use ShotData instead, which has
+	* a similar layout but with different data types.
+	*/
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Movie Pipeline")
+	TArray<FMovieGraphRenderOutputData> GraphData;
 };
 
 /**

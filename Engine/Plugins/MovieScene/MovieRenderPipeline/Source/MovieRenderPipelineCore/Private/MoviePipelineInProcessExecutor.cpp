@@ -220,7 +220,10 @@ void UMoviePipelineInProcessExecutor::OnMoviePipelineFinished(FMoviePipelineOutp
 	RestoreState();
 
 	// Now that another frame has passed and we should be OK to start another PIE session, notify our owner.
-	OnIndividualPipelineFinished(InOutputData.Pipeline);
+	// We do the cast to UMoviePipeline (which will return nullptr during a graph render) because the functions
+	// all take a pointer, but it's never actually used, and you can only have one pipeline at once so the API
+	// doesn't really need to pass back the pointer to a soon-to-be-destroyed object.
+	OnIndividualPipelineFinished(Cast<UMoviePipeline>(InOutputData.Pipeline));
 }
 
 void UMoviePipelineInProcessExecutor::BackupState()

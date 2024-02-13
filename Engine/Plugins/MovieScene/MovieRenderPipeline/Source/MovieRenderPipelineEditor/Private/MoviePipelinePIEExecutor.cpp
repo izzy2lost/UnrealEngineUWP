@@ -316,7 +316,10 @@ void UMoviePipelinePIEExecutor::OnPIEMoviePipelineFinished(FMoviePipelineOutputD
 {
 	if (!InOutputData.bSuccess)
 	{
-		OnPipelineErrored(InOutputData.Pipeline, true, FText());
+		// We do the cast to UMoviePipeline (which will return nullptr during a graph render) because the functions
+		// all take a pointer, but it's never actually used, and you can only have one pipeline at once so the API
+		// doesn't really need to pass back the pointer to a soon-to-be-destroyed object.
+		OnPipelineErrored(Cast<UMoviePipeline>(InOutputData.Pipeline), true, FText());
 	}
 
 	// Unsubscribe to the EndPIE event so we don't think the user canceled it.

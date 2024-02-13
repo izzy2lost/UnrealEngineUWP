@@ -59,6 +59,7 @@ public:
 	virtual void ShutdownImpl(bool bError ) override;
 	virtual bool IsShutdownRequestedImpl() const override { return bShutdownRequested; }
 	virtual EMovieRenderPipelineState GetPipelineStateImpl() const override { return PipelineState; }
+	virtual bool IsPostShotCallbackNeeded() const override { return IsFlushDiskWritesPerShot(); }
 	// ~UMoviePipelineBase Interface
 
 	/**
@@ -89,30 +90,6 @@ public:
 	UE_DEPRECATED(4.27, "Use OnMoviePipelineWorkFinishedDelegate instead.")
 	UPROPERTY(BlueprintAssignable, Category = "Movie Render Pipeline")
 	FMoviePipelineFinished OnMoviePipelineFinishedDelegate;
-
-
-	
-	/**
-	* Called when we have completely finished this pipeline. This means that all frames have been rendered,
-	* all files written to disk, and any post-finalize exports have finished. This Pipeline will call
-	* Shutdown() on itself before calling this delegate to ensure we've unregistered from all delegates
-	* and are no longer trying to do anything (even if we still exist).
-	*
-	* The params struct in the return will have metadata about files written to disk for each shot.
-	*/
-	UPROPERTY(BlueprintAssignable, Category = "Movie Render Pipeline")
-	FMoviePipelineWorkFinished OnMoviePipelineWorkFinishedDelegate;
-
-
-
-	/**
-	* Only called if `IsFlushDiskWritesPerShot()` is set!
-	* Called after each shot is finished and files have been flushed to disk. The returned data in
-	* the params struct will have only the per-shot metadata for the just finished shot. Use
-	* OnMoviePipelineFinished() if you need all ot the metadata.
-	*/
-	UPROPERTY(BlueprintAssignable, Category = "Movie Render Pipeline")
-	FMoviePipelineWorkFinished OnMoviePipelineShotWorkFinishedDelegate;
 
 	/**
 	* Get the Primary Configuration used to render this shot. This contains the global settings for the shot, as well as per-shot

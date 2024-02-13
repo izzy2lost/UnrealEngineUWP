@@ -81,3 +81,30 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movie Pipeline")
 	FString CameraName;
 };
+
+USTRUCT(BlueprintType)
+struct MOVIERENDERPIPELINECORE_API FMovieGraphRenderLayerOutputData
+{
+	GENERATED_BODY()
+public:
+	/** A list of file paths on disk (in order) that were generated for this particular render pass. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Movie Pipeline")
+	TArray<FString> FilePaths;
+};
+
+USTRUCT(BlueprintType)
+struct MOVIERENDERPIPELINECORE_API FMovieGraphRenderOutputData
+{
+	GENERATED_BODY()
+public:
+	/** Which shot is this output data for. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Movie Graph")
+	TWeakObjectPtr<class UMoviePipelineExecutorShot> Shot;
+
+	/**
+	* A mapping between render layers (such as "beauty") and an array containing the files written for that shot.
+	* Will be multiple files if using image sequences.
+	*/
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Movie Graph")
+	TMap<FMovieGraphRenderDataIdentifier, FMovieGraphRenderLayerOutputData> RenderLayerData;
+};
