@@ -21,6 +21,12 @@ bool FTargetingRequestHandle::NetSerialize(FArchive& Ar, class UPackageMap* Map,
 	return false;
 }
 
+FTargetingRequestHandle::FOnTargetingRequestHandleReleased& FTargetingRequestHandle::GetReleaseHandleDelegate()
+{
+	static FTargetingRequestHandle::FOnTargetingRequestHandleReleased Delegate;
+	return Delegate;
+}
+
 /**	@struct FTargetingTaskSet */
 
 const FTargetingTaskSet*& FTargetingTaskSet::FindOrAdd(FTargetingRequestHandle Handle)
