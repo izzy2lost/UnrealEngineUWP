@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MockPhysicsGrenade.h"
+#include "Engine/OverlapResult.h"
 #include "NetworkPredictionModelDefRegistry.h"
 #include "NetworkPredictionProxyInit.h"
 #include "NetworkPredictionPhysics.h"
