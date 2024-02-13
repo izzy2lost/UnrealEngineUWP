@@ -48,6 +48,10 @@ public:
 	*/
 	void GatherOutputPasses(UMovieGraphEvaluatedConfig* InConfig, TArray<FMovieGraphRenderDataIdentifier>& OutExpectedPasses) const { GatherOutputPassesImpl(InConfig, OutExpectedPasses); }
 
+	/** Gets the number of Scene Views (that is, renders of the 3d scene) that this pass will produce. Can be zero for things like UI Renderers,
+	* or more than one for things like panoramic or tiling. */
+	int32 GetNumSceneViewsRendered() const { return GetNumSceneViewsRenderedImpl(); }
+
 #if WITH_EDITOR
 	virtual FText GetMenuCategory() const override
 	{
@@ -73,4 +77,5 @@ protected:
 	virtual void TeardownImpl() {}
 	virtual void RenderImpl(const FMovieGraphTraversalContext& InFrameTraversalContext, const FMovieGraphTimeStepData& InTimeData) {}
 	virtual void GatherOutputPassesImpl(UMovieGraphEvaluatedConfig* InConfig, TArray<FMovieGraphRenderDataIdentifier>& OutExpectedPasses) const {}
+	virtual int32 GetNumSceneViewsRenderedImpl() const { return 0; }
 };
