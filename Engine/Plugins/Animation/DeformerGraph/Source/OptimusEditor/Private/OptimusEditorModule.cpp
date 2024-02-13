@@ -2,15 +2,12 @@
 
 #include "OptimusEditorModule.h"
 
-#include "Actions/OptimusResourceActions.h"
-#include "Algo/Transform.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetToolsModule.h"
 #include "AssetViewUtils.h"
 #include "EdGraphUtilities.h"
 #include "IAssetTools.h"
 #include "OptimusExecutionDomain.h"
-#include "ObjectTools.h"
 #include "OptimusBindingTypes.h"
 #include "OptimusComponentSource.h"
 #include "OptimusDataType.h"
