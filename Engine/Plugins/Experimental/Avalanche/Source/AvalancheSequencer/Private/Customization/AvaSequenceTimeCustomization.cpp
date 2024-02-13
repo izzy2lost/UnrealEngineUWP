@@ -16,7 +16,7 @@ void FAvaSequenceTimeCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> 
 	{
 		TSharedPtr<IPropertyHandle> ChildPropertyHandle = InPropertyHandle->GetChildHandle(InPropertyName);
 
-		TSharedRef<SWidget> PropertyValueWidget = ChildPropertyHandle->CreatePropertyValueWidget(/*bDisplayDefaultPropertyButtons*/false);
+		TSharedRef<SWidget> PropertyValueWidget = ChildPropertyHandle->CreatePropertyValueWidget();
 
 		TAttribute<EVisibility>::FGetter VisibilityGetter = TAttribute<EVisibility>::FGetter::CreateLambda([ChildPropertyHandle]
 			{
@@ -47,6 +47,8 @@ void FAvaSequenceTimeCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> 
 
 	TSharedPtr<IPropertyHandle> HasTimeHandle = InPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FAvaSequenceTime, bHasTimeConstraint));
 
+	static const bool bDisplayDefaultPropertyButtons = false;
+
 	InHeaderRow
 		.NameContent()
 		[
@@ -58,7 +60,7 @@ void FAvaSequenceTimeCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> 
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
 				[
-					HasTimeHandle->CreatePropertyValueWidget(/*bDisplayDefaultPropertyButtons*/false)
+					HasTimeHandle->CreatePropertyValueWidget(bDisplayDefaultPropertyButtons)
 				]
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
@@ -71,7 +73,7 @@ void FAvaSequenceTimeCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> 
 				.Padding(0.f, 0.f, 5.f, 0.f)
 				.HAlign(HAlign_Right)
 				[
-					PositionTypeHandle->CreatePropertyValueWidget(/*bDisplayDefaultPropertyButtons*/false)
+					PositionTypeHandle->CreatePropertyValueWidget(bDisplayDefaultPropertyButtons)
 				]
 			]
 		]
