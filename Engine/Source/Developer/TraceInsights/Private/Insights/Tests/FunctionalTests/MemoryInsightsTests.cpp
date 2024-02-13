@@ -115,7 +115,7 @@ void FAutomationDriverUnrealInsightsHubMemoryInsightsTest::Define()
 					const FString SuccessTestResult = TEXT("Test Completed. Result={Success}");
 
 					// Test live trace
-					FString TraceParameters = FString::Printf(TEXT("-InsightsTest -ABSLOG=\"%s\" -AutoQuit -ExecOnAnalysisCompleteCmd=\"Automation RunTests Insights.UploadMemoryInsightsLLMXMLReportsTrace\" -OpenTraceFile=\"%s\""), *LogPath, *StoreTracePath);
+					FString TraceParameters = FString::Printf(TEXT("-InsightsTest -ABSLOG=\"%s\" -AutoQuit -ExecOnAnalysisCompleteCmd=\"Automation RunTests System.Insights.Trace.Analysis.MemoryInsights.UploadMemoryInsightsLLMXMLReportsTrace\" -OpenTraceFile=\"%s\""), *LogPath, *StoreTracePath);
 					InsightsManager->OpenUnrealInsights(*TraceParameters);
 					bool bLineFound = Utils.FileContainsString(LogPath, SuccessTestResult, 60.0f);
 					TestTrue("Test for live trace should pass", bLineFound);
