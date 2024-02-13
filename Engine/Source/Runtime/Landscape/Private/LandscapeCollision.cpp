@@ -102,6 +102,11 @@ static TAutoConsoleVariable<bool> CVarLandscapeCollisionMeshShowPhysicalMaterial
 	TEXT("When enabled, vertex colors of the collision mesh are chosen based on the physical material"),
 	ECVF_RenderThreadSafe);
 
+static FAutoConsoleVariable CVarAllowPhysicsStripping(
+	TEXT("landscape.AllowPhysicsStripping"),
+	true,
+	TEXT("Enables the conditional stripping of physics data during cook.  Disabling this means the bStripPhysicsWhenCooked* will be ignored."));
+
 #if ENABLE_COOK_STATS
 namespace LandscapeCollisionCookStats
 {
@@ -2537,7 +2542,8 @@ bool ULandscapeHeightfieldCollisionComponent::NeedsLoadForClient() const
 	ALandscapeProxy* Proxy = GetLandscapeProxy();
 	if (ensure(Proxy))
 	{
-		return !Proxy->bStripPhysicsWhenCookedClient;
+		bool bStrip = Proxy->bStripPhysicsWhenCookedClient && CVarAllowPhysicsStripping->GetBool();
+		return !bStrip;
 	}
 	return true;
 }
@@ -2547,7 +2553,8 @@ bool ULandscapeHeightfieldCollisionComponent::NeedsLoadForServer() const
 	ALandscapeProxy* Proxy = GetLandscapeProxy();
 	if (ensure(Proxy))
 	{
-		return !Proxy->bStripPhysicsWhenCookedServer;
+		bool bStrip = Proxy->bStripPhysicsWhenCookedServer && CVarAllowPhysicsStripping->GetBool();
+		return !bStrip;
 	}
 	return true;
 }
