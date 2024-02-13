@@ -2,14 +2,20 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/Array.h"
 #include "Rundown/AvaRundownDefines.h"
+#include "Templates/SharedPointer.h"
+#include "Types/SlateEnums.h"
 #include "Widgets/SCompoundWidget.h"
 
 class FAvaRundownEditor;
+class FReply;
+class FText;
 class SAvaRundownPageRemoteControlProps;
 class SAvaRundownRCControllerPanel;
 struct FAvaRundownPage;
+struct FSoftObjectPath;
+struct FSlateBrush;
 
 class SAvaRundownPageDetails : public SCompoundWidget
 {

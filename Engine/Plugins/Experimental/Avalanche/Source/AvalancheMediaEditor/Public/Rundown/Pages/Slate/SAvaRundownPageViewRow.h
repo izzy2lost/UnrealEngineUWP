@@ -2,12 +2,23 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/Array.h"
+#include "Input/DragAndDrop.h"
 #include "Rundown/AvaRundownDefines.h"
+#include "Templates/SharedPointer.h"
 #include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableRow.h"
+#include "UObject/NameTypes.h"
+#include "Misc/Optional.h"
 
+class FDragDropEvent;
+class FReply;
+class IAvaRundownPageView;
 class SAvaRundownPageList;
+class SWidget;
+struct FGeometry;
+struct FPointerEvent;
+struct FSlateBrush;
 
 enum class EAvaRundownRowState
 {
@@ -20,14 +31,14 @@ class FAvaRundownPageViewRowDragDropOp : public FDragDropOperation, public TShar
 public:
 	DRAG_DROP_OPERATOR_TYPE(FAvaRundownPageViewRowDragDropOp, FDragDropOperation)
 
-	FName Color;
-
 	virtual TSharedPtr<SWidget> GetDefaultDecorator() const override;
 
 	static TSharedRef<FAvaRundownPageViewRowDragDropOp> New(const TSharedPtr<SAvaRundownPageList>& InPageList);
 
 	TSharedPtr<SAvaRundownPageList> GetPageList() const { return PageListWeak.Pin(); }
 	const TArray<int32>& GetDraggedIds() const { return DraggedIds; }
+
+	FName Color;
 
 protected:
 	TWeakPtr<SAvaRundownPageList> PageListWeak;

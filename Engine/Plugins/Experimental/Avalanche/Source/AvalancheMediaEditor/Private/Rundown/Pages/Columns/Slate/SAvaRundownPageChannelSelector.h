@@ -2,13 +2,18 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/Array.h"
 #include "Rundown/AvaRundownDefines.h"
 #include "Widgets/Input/SComboBox.h"
 #include "Widgets/SCompoundWidget.h"
+#include "Templates/SharedPointer.h"
+#include "Types/SlateEnums.h"
 
 class IAvaRundownInstancedPageView;
 class SAvaRundownPageViewRow;
+class FName;
+class FText;
+class SWidget;
 
 class SAvaRundownPageChannelSelector : public SCompoundWidget
 {

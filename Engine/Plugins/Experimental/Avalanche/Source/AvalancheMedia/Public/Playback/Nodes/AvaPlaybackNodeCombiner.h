@@ -3,8 +3,14 @@
 #pragma once
 
 #include "AvaPlaybackNode.h"
-#include "CoreMinimal.h"
 #include "AvaPlaybackNodeCombiner.generated.h"
+
+class FText;
+struct FAvaPlaybackChannelParameters;
+
+#if WITH_EDITOR
+class FName;
+#endif
 
 UCLASS()
 class AVALANCHEMEDIA_API UAvaPlaybackNodeCombiner : public UAvaPlaybackNode
@@ -25,7 +31,6 @@ class AVALANCHEMEDIA_API UAvaPlaybackNodeCombiner : public UAvaPlaybackNode
 #endif
 	
 protected:
-
 	UPROPERTY(EditAnywhere, Category = "Motion Design")
 	TArray<bool> EnabledIndices;	
 };

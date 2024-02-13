@@ -1,12 +1,19 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SAvaPlaybackEditorGraphPin_Channel.h"
-
 #include "AvaMediaEditorUtils.h"
 #include "Broadcast/AvaBroadcast.h"
+#include "Broadcast/Channel/AvaBroadcastOutputChannel.h"
+#include "EdGraph/EdGraphPin.h"
+#include "Internationalization/Text.h"
 #include "Playback/Graph/AvaPlaybackEditorGraphSchema.h"
+#include "SGraphPin.h"
+#include "Styling/SlateColor.h"
+#include "Styling/SlateBrush.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/SBoxPanel.h"
+#include "Widgets/Text/STextBlock.h"
+#include "Widgets/SWidget.h"
 
 void SAvaPlaybackEditorGraphPin_Channel::Construct(const FArguments& InArgs, UEdGraphPin* InPin)
 {
@@ -45,13 +52,13 @@ void SAvaPlaybackEditorGraphPin_Channel::UpdateChannelState()
 TSharedRef<SWidget> SAvaPlaybackEditorGraphPin_Channel::GetDefaultValueWidget()
 {
 	return SNew(SHorizontalBox)
-		+SHorizontalBox::Slot()
+		+ SHorizontalBox::Slot()
 		.AutoWidth()
 		[
 			SNew(SImage)
 			.Image(this, &SAvaPlaybackEditorGraphPin_Channel::GetChannelStatusBrush)
 		]
-		+SHorizontalBox::Slot()
+		+ SHorizontalBox::Slot()
 		.Padding(2.f, 0.f, 0.f, 0.f)
 		.HAlign(EHorizontalAlignment::HAlign_Left)
 		.VAlign(EVerticalAlignment::VAlign_Center)

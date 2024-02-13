@@ -2,18 +2,23 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/Array.h"
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
 #include "Toolkits/AssetEditorToolkit.h"
-
-DECLARE_LOG_CATEGORY_EXTERN(LogAvaMediaEditor, Log, All);
+#include "Templates/SharedPointer.h"
 
 class FAvaRundownServer;
 class IAvaRundownFilterSuggestionFactory;
-enum class EAvaRundownSearchListType : uint8;
+class FExtensibilityManager;
+class FName;
 struct FAvaRundownPage;
 struct FAvaRundownTextFilterArgs;
+struct FSlateIcon;
+enum class EAvaRundownSearchListType : uint8;
+enum class ETextFilterComparisonOperation : uint8;
+
+DECLARE_LOG_CATEGORY_EXTERN(LogAvaMediaEditor, Log, All);
 
 class IAvaMediaEditorModule : public IModuleInterface
 {

@@ -1,11 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SAvaRundownChannelStatusList.h"
-
+#include "AvaMediaDefines.h"
 #include "Broadcast/AvaBroadcast.h"
+#include "Misc/EnumClassFlags.h"
 #include "SAvaRundownChannelStatus.h"
 #include "Widgets/Layout/SGridPanel.h"
 #include "Widgets/Layout/SWrapBox.h"
+#include "UObject/NameTypes.h"
 
 void SAvaRundownChannelStatusList::Construct(const FArguments& InArgs)
 {

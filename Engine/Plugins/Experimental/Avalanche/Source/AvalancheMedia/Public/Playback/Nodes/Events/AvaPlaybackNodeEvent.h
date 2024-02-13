@@ -2,9 +2,11 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Playback/Nodes/AvaPlaybackNode.h"
 #include "AvaPlaybackNodeEvent.generated.h"
+
+struct FAvaPlaybackChannelParameters;
+struct FAvaPlaybackEventParameters;
 
 /*
  * Base Class for all Event Nodes
@@ -15,7 +17,6 @@ class AVALANCHEMEDIA_API UAvaPlaybackNodeEvent : public UAvaPlaybackNode
 	GENERATED_BODY()
 
 public:
-
 	//UAvaPlaybackNode Interface
 	virtual void Tick(float DeltaTime, FAvaPlaybackChannelParameters& ChannelParameters) override final {}
 	//~UAvaPlaybackNode Interface

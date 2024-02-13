@@ -1,8 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Playback/Nodes/AvaPlaybackNodeLevelPlayer.h"
-
 #include "Engine/World.h"
+#include "Framework/AvaSoftAssetPtr.h"
+#include "Internationalization/Text.h"
 #include "Playback/AvaPlaybackGraph.h"
 
 #define LOCTEXT_NAMESPACE "AvaPlaybackNodeLevelPlayer"

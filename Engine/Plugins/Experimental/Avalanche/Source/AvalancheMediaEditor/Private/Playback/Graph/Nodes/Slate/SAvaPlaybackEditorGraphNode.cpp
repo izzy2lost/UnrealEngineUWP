@@ -1,12 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Playback/Graph/Nodes/Slate/SAvaPlaybackEditorGraphNode.h"
-
+#include "EdGraph/EdGraphPin.h"
 #include "GraphEditorSettings.h"
+#include "Input/Reply.h"
 #include "KismetPins/SGraphPinExec.h"
+#include "Layout/Visibility.h"
 #include "Playback/Graph/AvaPlaybackEditorGraphSchema.h"
 #include "Playback/Graph/Nodes/AvaPlaybackEditorGraphNode.h"
+#include "SGraphPin.h"
 #include "Widgets/SBoxPanel.h"
+#include "Layout/Margin.h"
 
 #define LOCTEXT_NAMESPACE "SAvaPlaybackEditorGraphNode"
 

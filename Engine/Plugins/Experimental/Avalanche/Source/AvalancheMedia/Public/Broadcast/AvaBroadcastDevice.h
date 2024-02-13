@@ -2,8 +2,11 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "AvaBroadcastDevice.h"
+#include "Containers/UnrealString.h"
 #include "MediaIOCoreDefinitions.h"
+#include "Internationalization/Text.h"
+#include "UObject/NameTypes.h"
 
 #define LOCTEXT_NAMESPACE "AvaBroadcastDevice"
 
@@ -47,7 +50,6 @@ struct FAvaBroadcastDevice
 	const FString& GetServerName() const { return ServerName;}
 	
 protected:
-	
 	FMediaIODevice Device;
 
 	/** Name of the device provider for this device. */

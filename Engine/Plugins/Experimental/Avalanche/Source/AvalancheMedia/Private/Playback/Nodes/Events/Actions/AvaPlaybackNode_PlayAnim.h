@@ -2,10 +2,18 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/Array.h"
+#include "Containers/Map.h"
+#include "Containers/Set.h"
 #include "Playback/Nodes/Events/Actions/AvaPlaybackAnimations.h"
 #include "Playback/Nodes/Events/AvaPlaybackNodeAction.h"
 #include "AvaPlaybackNode_PlayAnim.generated.h"
+
+class FText;
+class UAvaPlaybackNode;
+struct FAvaPlaybackAnimations;
+struct FAvaPlaybackEventParameters;
+struct FSoftObjectPath;
 
 UCLASS()
 class AVALANCHEMEDIA_API UAvaPlaybackNode_PlayAnim : public UAvaPlaybackNodeAction
@@ -13,7 +21,6 @@ class AVALANCHEMEDIA_API UAvaPlaybackNode_PlayAnim : public UAvaPlaybackNodeActi
 	GENERATED_BODY()
 
 public:
-	
 	virtual FText GetNodeDisplayNameText() const override;
 	virtual FText GetNodeTooltipText() const override;
 	virtual void OnEventTriggered(const FAvaPlaybackEventParameters& InEventParameters) override;
@@ -21,8 +28,8 @@ public:
 	virtual void PreDryRun() override;
 	virtual void DryRun(const TArray<UAvaPlaybackNode*>& InAncestors) override;
 	virtual void PostDryRun() override;
+
 protected:
-	
 	UPROPERTY(VisibleAnywhere, Category = "Motion Design")
 	TMap<FSoftObjectPath, FAvaPlaybackAnimations> AnimationMap;
 

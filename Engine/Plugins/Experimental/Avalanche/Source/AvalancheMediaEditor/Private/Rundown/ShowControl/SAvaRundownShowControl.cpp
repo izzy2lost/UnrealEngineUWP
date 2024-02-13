@@ -1,13 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SAvaRundownShowControl.h"
-
+#include "Framework/Commands/UICommandList.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "Internationalization/Text.h"
 #include "Playback/AvaPlaybackGraph.h"
 #include "Rundown/AvaRundownCommands.h"
 #include "Rundown/AvaRundownEditor.h"
 #include "Rundown/Pages/Slate/SAvaRundownInstancedPageList.h"
 #include "Rundown/Pages/Slate/SAvaRundownPageList.h"
+#include "Widgets/SWidget.h"
 
 #define LOCTEXT_NAMESPACE "SAvaRundownShowControl"
 

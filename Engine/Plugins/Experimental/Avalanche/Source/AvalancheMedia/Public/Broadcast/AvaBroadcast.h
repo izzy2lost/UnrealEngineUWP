@@ -4,9 +4,13 @@
 
 #include "AvaBroadcastProfile.h"
 #include "AvaMediaDefines.h"
-#include "CoreMinimal.h"
+#include "Containers/Array.h"
+#include "Containers/StringFwd.h"
 #include "UObject/Object.h"
 #include "AvaBroadcast.generated.h"
+
+class FName;
+class FDelegateHandle;
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnAvaBroadcastChanged, EAvaBroadcastChange)
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnAvaBroadcastChannelsListChanged, const FAvaBroadcastProfile& /*InProfile*/);
@@ -22,7 +26,6 @@ class AVALANCHEMEDIA_API UAvaBroadcast : public UObject
 	GENERATED_BODY()
 	
 public:
-
 	static UAvaBroadcast& Get();
 
 	virtual void BeginDestroy() override;
@@ -92,7 +95,6 @@ public:
 	void RemoveChangeListener(const void* InUserObject);
 
 public:
-
 	int32 GetChannelNameCount() const;
 
 	/**
@@ -151,7 +153,6 @@ public:
 	FOnAvaBroadcastChannelsListChanged& GetOnChannelsListChanged() { return OnChannelsListChanged; }
 
 protected:
-
 	// Todo: Proposal - make the events static and pass in the UAvaBroadcast that caused the event.
 	// Reason: Attempt at gradually getting rid of the global UAvaBroadcast object. Channel events are also global.
 	FOnAvaBroadcastChanged OnBroadcastChanged;
@@ -175,7 +176,6 @@ protected:
 	TArray<int32> BuildChannelIndices() const;
 
 protected:
-	
 	UPROPERTY()
 	FName CurrentProfile;
 

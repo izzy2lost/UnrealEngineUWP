@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/StringFwd.h"
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
 
@@ -12,6 +12,7 @@ class FAvaPlaybackManager;
 class FAvaPlaybackServer;
 class FAvaRundownManagedInstanceCache;
 class FCommonViewportClient;
+class FName;
 class IAvaBroadcastDeviceProviderProxyManager;
 class IAvaBroadcastSettings;
 class IAvaMediaSyncProvider;
@@ -36,13 +37,13 @@ class AVALANCHEMEDIA_API IAvaMediaModule : public IModuleInterface
 public:
 	static bool IsModuleLoaded()
 	{
-		static const FName ModuleName = TEXT( "AvalancheMedia" );
+		static const FName ModuleName = TEXT("AvalancheMedia");
 		return FModuleManager::Get().IsModuleLoaded(ModuleName);
 	}
 	
 	static IAvaMediaModule& Get()
 	{
-		static const FName ModuleName = TEXT( "AvalancheMedia" );
+		static const FName ModuleName = TEXT("AvalancheMedia");
 		return FModuleManager::LoadModuleChecked<IAvaMediaModule>(ModuleName);
 	};
 

@@ -1,13 +1,19 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Playback/Graph/SchemaActions/AvaPlaybackAction_NewNode.h"
-
+#include "EdGraph/EdGraphNode.h"
+#include "Internationalization/Text.h"
 #include "Playback/AvaPlaybackGraph.h"
 #include "Playback/Graph/AvaPlaybackEditorGraph.h"
 #include "Playback/Nodes/AvaPlaybackNode.h"
 #include "ScopedTransaction.h"
 
 #define LOCTEXT_NAMESPACE "AvaPlaybackAction_NewNode"
+
+FAvaPlaybackAction_NewNode::FAvaPlaybackAction_NewNode(FText InNodeCategory, FText InMenuDesc, FText InToolTip, const int32 InGrouping)
+	: FEdGraphSchemaAction(MoveTemp(InNodeCategory), MoveTemp(InMenuDesc), MoveTemp(InToolTip), InGrouping)
+{
+}
 
 UEdGraphNode* FAvaPlaybackAction_NewNode::PerformAction(UEdGraph* ParentGraph
 	, UEdGraphPin* FromPin

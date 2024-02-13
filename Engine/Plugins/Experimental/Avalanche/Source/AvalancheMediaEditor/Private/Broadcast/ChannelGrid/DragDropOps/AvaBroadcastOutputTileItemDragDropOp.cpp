@@ -1,10 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaBroadcastOutputTileItemDragDropOp.h"
-
 #include "Broadcast/AvaBroadcast.h"
+#include "Input/Reply.h"
 #include "MediaOutput.h"
 #include "ScopedTransaction.h"
+#include "UObject/NameTypes.h"
 
 #define LOCTEXT_NAMESPACE "AvaBroadcastOutputTileItemDragDropOp"
 

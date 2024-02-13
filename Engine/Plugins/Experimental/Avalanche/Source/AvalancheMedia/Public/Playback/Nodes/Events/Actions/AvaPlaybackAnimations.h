@@ -3,7 +3,8 @@
 #pragma once
 
 #include "AvaSequenceShared.h"
-#include "CoreMinimal.h"
+#include "Containers/Set.h"
+#include "UObject/NameTypes.h"
 #include "AvaPlaybackAnimations.generated.h"
 
 UENUM()

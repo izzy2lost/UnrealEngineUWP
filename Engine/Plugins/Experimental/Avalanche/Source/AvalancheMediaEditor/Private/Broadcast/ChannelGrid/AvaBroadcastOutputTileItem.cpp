@@ -1,14 +1,26 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Broadcast/ChannelGrid/AvaBroadcastOutputTileItem.h"
-
+#include "AvaMediaDefines.h"
 #include "AvaMediaEditorStyle.h"
 #include "Broadcast/AvaBroadcast.h"
+#include "Broadcast/Channel/AvaBroadcastOutputChannel.h"
 #include "Broadcast/OutputDevices/AvaBroadcastOutputUtils.h"
 #include "ClassIconFinder.h"
 #include "DragDropOps/AvaBroadcastOutputTileItemDragDropOp.h"
+#include "Input/Events.h"
+#include "Input/Reply.h"
+#include "Layout/Geometry.h"
 #include "MediaOutput.h"
+#include "Rundown/ChannelStatus/SAvaRundownChannelStatus.h"
+#include "Styling/SlateBrush.h"
+#include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SScaleBox.h"
+#include "Widgets/SBoxPanel.h"
+#include "Widgets/SWidget.h"
+#include "Widgets/Text/STextBlock.h"
+#include "UObject/NoExportTypes.h"
+#include "UObject/UnrealType.h"
 
 #define LOCTEXT_NAMESPACE "AvaBroadcastOutputTileItem"
 

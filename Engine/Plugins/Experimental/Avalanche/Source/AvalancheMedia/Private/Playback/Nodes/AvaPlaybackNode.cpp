@@ -1,11 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Playback/Nodes/AvaPlaybackNode.h"
-
 #include "EngineUtils.h"
+#include "Internationalization/Text.h"
 #include "Misc/App.h"
 #include "Playback/AvaPlaybackGraph.h"
 #include "Playback/IAvaPlaybackGraphEditor.h"
+#include "UObject/NameTypes.h"
+#include "UObject/UObjectGlobals.h"
 
 #if WITH_EDITOR
 #include "EdGraph/EdGraph.h"

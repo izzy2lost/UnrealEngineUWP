@@ -2,17 +2,17 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Templates/SharedPointer.h"
 #include "Widgets/SCompoundWidget.h"
 
 class FAvaBroadcastEditor;
 class FAvaBroadcastOutputTileItem;
 class IDetailsView;
+struct EVisibility;
 
 class SAvaBroadcastDetailsView : public SCompoundWidget
 {
 public:
-	
 	SLATE_BEGIN_ARGS(SAvaBroadcastDetailsView) {}
 	SLATE_END_ARGS()
 	
@@ -25,7 +25,6 @@ public:
 	EVisibility GetEmptySelectionTextVisibility() const;
 	
 protected:
-
 	TWeakPtr<FAvaBroadcastEditor> BroadcastEditorWeak;
 	
 	TSharedPtr<IDetailsView> DetailsView;

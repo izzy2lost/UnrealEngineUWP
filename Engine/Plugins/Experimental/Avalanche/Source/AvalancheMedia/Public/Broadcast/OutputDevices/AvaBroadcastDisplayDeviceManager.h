@@ -2,7 +2,8 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/Array.h"
+#include "Containers/UnrealString.h"
 #include "GenericPlatform/GenericApplication.h"
 #include "Misc/FrameRate.h"
 
@@ -49,7 +50,7 @@ public:
 	static const TArray<FAvaBroadcastMonitorInfo>&  GetCachedMonitors(bool bForceUpdate = false);
 
 	/**
-	 *	Returns a string with a display name for the monitor.
+	 * Returns a string with a display name for the monitor.
 	 **/
 	static FString GetMonitorDisplayName(const FAvaBroadcastMonitorInfo& InMonitorInfo);
 	

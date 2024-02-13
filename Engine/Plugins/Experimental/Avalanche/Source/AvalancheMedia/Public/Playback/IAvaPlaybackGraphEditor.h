@@ -4,18 +4,19 @@
 
 #if WITH_EDITOR
 
-#include "CoreMinimal.h"
+#include "Containers/Set.h"
+#include "Math/MathFwd.h"
 
 class UEdGraphNode;
 class UEdGraph;
 class UAvaPlaybackNode;
 class UAvaPlaybackGraph;
+class UObject;
 class FSlateRect;
 
 class IAvaPlaybackGraphEditor
 {
 public:
-	
 	virtual ~IAvaPlaybackGraphEditor() = default;
 	
 	virtual UEdGraph* CreatePlaybackGraph(UAvaPlaybackGraph* InPlayback) = 0;
@@ -42,7 +43,6 @@ public:
 
 	virtual bool CanPasteNodes() const = 0;
 	virtual void PasteNodesHere(const FVector2D& Location) = 0;
-	
 };
 
 #endif

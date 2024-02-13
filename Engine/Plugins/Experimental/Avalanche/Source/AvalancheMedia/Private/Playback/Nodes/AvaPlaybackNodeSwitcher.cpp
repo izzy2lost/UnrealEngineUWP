@@ -1,6 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Playback/Nodes/AvaPlaybackNodeSwitcher.h"
+#include "AvaMediaDefines.h"
+#include "Containers/UnrealString.h"
+#include "Internationalization/Text.h"
+
+#if WITH_EDITOR
+#include "UObject/NameTypes.h"
+#endif
 
 #define LOCTEXT_NAMESPACE "AvaPlaybackNodeSwitcher"
 

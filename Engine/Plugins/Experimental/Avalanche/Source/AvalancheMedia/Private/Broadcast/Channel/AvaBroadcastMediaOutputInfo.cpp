@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Broadcast/Channel/AvaBroadcastMediaOutputInfo.h"
-
 #include "Broadcast/OutputDevices/AvaBroadcastDeviceProviderProxy.h"
 
 bool FAvaBroadcastMediaOutputInfo::IsRemote(const FString& InServerName)

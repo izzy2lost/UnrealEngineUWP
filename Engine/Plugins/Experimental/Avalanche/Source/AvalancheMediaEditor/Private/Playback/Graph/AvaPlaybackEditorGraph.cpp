@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Playback/Graph/AvaPlaybackEditorGraph.h"
-
 #include "Playback/AvaPlaybackGraph.h"
 #include "Playback/Graph/Nodes/AvaPlaybackEditorGraphNode.h"
 

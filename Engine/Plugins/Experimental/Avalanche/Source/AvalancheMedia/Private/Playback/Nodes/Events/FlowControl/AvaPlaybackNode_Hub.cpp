@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaPlaybackNode_Hub.h"
+#include "AvaMediaDefines.h"
+#include "Internationalization/Text.h"
 
 #define LOCTEXT_NAMESPACE "AvaPlaybackNode_Hub"
 

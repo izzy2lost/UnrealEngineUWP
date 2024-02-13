@@ -2,25 +2,35 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/Array.h"
+#include "Containers/StringFwd.h"
 #include "EdGraph/EdGraphSchema.h"
+#include "Math/MathFwd.h"
+#include "Templates/SubclassOf.h"
+#include "Templates/SharedPointer.h"
 #include "AvaPlaybackEditorGraphSchema.generated.h"
 
 class IAvaPlaybackGraphEditor;
+class FName;
 class UAvaPlaybackGraph;
 class UAvaPlaybackNode;
+class UEdGraph;
+class UEdGraphNode;
+class UEdGraphPin;
+class UGraphNodeContextMenuContext;
+class UToolMenu;
+struct FAssetData;
+struct FEdGraphPinType;
+struct FGraphContextMenuBuilder;
+struct FLinearColor;
+struct FPinConnectionResponse;
 
 UCLASS()
 class UAvaPlaybackEditorGraphSchema : public UEdGraphSchema
 {
 	GENERATED_BODY()
 
-protected:
-
-	TSharedPtr<IAvaPlaybackGraphEditor> GetPlaybackGraphEditor(const UEdGraph* Graph) const;
-
 public:
-
 	static const FLinearColor ActivePinColor;
 	static const FLinearColor InactivePinColor;
 	
@@ -33,7 +43,7 @@ public:
 	/** Check whether connecting these pins would cause a loop */
 	bool ConnectionCausesLoop(const UEdGraphPin* InputPin, const UEdGraphPin* OutputPin) const;
 	
-	//UEdGraphSchema Interface.
+	//~ Begin UEdGraphSchema
 	virtual void GetGraphContextActions(FGraphContextMenuBuilder& ContextMenuBuilder) const override;
 	virtual void GetContextMenuActions(UToolMenu* Menu, class UGraphNodeContextMenuContext* Context) const override;
 	virtual void CreateDefaultNodesForGraph(UEdGraph& Graph) const override;
@@ -50,7 +60,7 @@ public:
 	virtual void DroppedAssetsOnNode(const TArray<FAssetData>& Assets, const FVector2D& GraphPosition, UEdGraphNode* Node) const override;
 	virtual int32 GetNodeSelectionCount(const UEdGraph* Graph) const override;
 	virtual TSharedPtr<FEdGraphSchemaAction> GetCreateCommentAction() const override;
-	//~UEdGraphSchema
+	//~ End UEdGraphSchema
 
 	static void CachePlaybackNodeClasses();
 	
@@ -59,7 +69,7 @@ public:
 	void GetCommentAction(FGraphActionMenuBuilder& ActionMenuBuilder, const UEdGraph* CurrentGraph = nullptr) const;
 
 protected:
-
 	static TArray<TSubclassOf<UAvaPlaybackNode>> PlaybackNodeClasses;
-	
+
+	TSharedPtr<IAvaPlaybackGraphEditor> GetPlaybackGraphEditor(const UEdGraph* Graph) const;
 };

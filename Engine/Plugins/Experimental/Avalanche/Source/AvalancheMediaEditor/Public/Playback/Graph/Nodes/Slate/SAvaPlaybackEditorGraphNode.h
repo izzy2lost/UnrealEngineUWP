@@ -2,16 +2,20 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "SGraphNode.h"
+#include "Templates/SharedPointer.h"
+#include "UObject/WeakObjectPtrTemplates.h"
 
+class FReply;
+class SGraphPin;
 class SVerticalBox;
 class UAvaPlaybackEditorGraphNode;
+class UEdGraphPin;
+struct EVisibility;
 
 class AVALANCHEMEDIAEDITOR_API SAvaPlaybackEditorGraphNode : public SGraphNode
 {
 public:
-	
 	SLATE_BEGIN_ARGS(SAvaPlaybackEditorGraphNode) {}
 	SLATE_END_ARGS()
 
@@ -20,15 +24,13 @@ public:
 	virtual void PostConstruct() {};
 	
 protected:
-	
-	//SGraphNode Interface
+	//~ Begin SGraphNode
 	virtual void CreateOutputSideAddButton(TSharedPtr<SVerticalBox> OutputBox) override;
 	virtual EVisibility IsAddPinButtonVisible() const override;
 	virtual FReply OnAddPin() override;
 	virtual TSharedPtr<SGraphPin> CreatePinWidget(UEdGraphPin* Pin) const override;
-	//~SGraphNode Interface
+	//~ End SGraphNode
 	
 protected:
-
 	TWeakObjectPtr<UAvaPlaybackEditorGraphNode> PlaybackGraphNode;
 };

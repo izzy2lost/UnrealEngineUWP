@@ -3,8 +3,11 @@
 #pragma once
 
 #include "AvaPlaybackNode.h"
-#include "CoreMinimal.h"
 #include "AvaPlaybackNodeSwitcher.generated.h"
+
+class FName;
+class FText;
+struct FAvaPlaybackChannelParameters;
 
 UCLASS()
 class AVALANCHEMEDIA_API UAvaPlaybackNodeSwitcher : public UAvaPlaybackNode
@@ -25,7 +28,6 @@ class AVALANCHEMEDIA_API UAvaPlaybackNodeSwitcher : public UAvaPlaybackNode
 #endif
 	
 protected:
-
 	UPROPERTY(EditAnywhere, Category = "Motion Design")
 	bool bEnabled = true;
 	

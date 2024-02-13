@@ -1,9 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaBroadcastDisplayDeviceProvider.h"
-
 #include "Broadcast/OutputDevices/AvaBroadcastDisplayDeviceManager.h"
+#include "Internationalization/Text.h"
 #include "MediaIOCoreCommonDisplayMode.h"
+#include "MediaIOCoreDefinitions.h"
 
 #define LOCTEXT_NAMESPACE "AvaBroadcastDisplayDeviceProvider"
 

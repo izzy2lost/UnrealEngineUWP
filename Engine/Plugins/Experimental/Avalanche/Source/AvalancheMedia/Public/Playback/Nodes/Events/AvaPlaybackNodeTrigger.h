@@ -3,8 +3,10 @@
 #pragma once
 
 #include "AvaPlaybackNodeEvent.h"
-#include "CoreMinimal.h"
 #include "AvaPlaybackNodeTrigger.generated.h"
+
+class FText;
+struct FAvaPlaybackEventParameters;
 
 /*
  * Node part of the Event Nodes that Listens to an Event and Triggers the Event Flow
@@ -15,7 +17,6 @@ class AVALANCHEMEDIA_API UAvaPlaybackNodeTrigger : public UAvaPlaybackNodeEvent
 	GENERATED_BODY()
 
 public:
-
 	virtual FText GetNodeCategoryText() const override final;
 	
 	virtual int32 GetMinChildNodes() const override final { return 0; }
@@ -26,6 +27,5 @@ public:
 	virtual void TickEvent(float DeltaTime, FAvaPlaybackEventParameters& OutEventParameters) override;
 	
 private:
-
 	bool bEventTriggered = false;
 };

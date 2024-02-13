@@ -1,19 +1,29 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Broadcast/AvaBroadcastEditor.h"
-
 #include "AppModes/AvaBroadcastDefaultMode.h"
 #include "AvaMediaSettings.h"
 #include "Broadcast/AvaBroadcast.h"
+#include "Broadcast/ChannelGrid/AvaBroadcastOutputTileItem.h"
+#include "Containers/UnrealString.h"
 #include "ChannelGrid/Slate/SAvaBroadcastProfileEntry.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "Framework/MultiBox/MultiBoxExtender.h"
 #include "IAvaMediaEditorModule.h"
 #include "IAvaMediaModule.h"
+#include "Input/Reply.h"
+#include "Internationalization/Text.h"
+#include "MediaOutput.h"
 #include "Misc/MessageDialog.h"
 #include "Playback/IAvaPlaybackClient.h"
 #include "ScopedTransaction.h"
+#include "Styling/SlateBrush.h"
+#include "UObject/NameTypes.h"
 #include "WorkflowOrientedApp/ApplicationMode.h"
+#include "WorkflowOrientedApp/WorkflowCentricApplication.h"
+#include "UObject/NoExportTypes.h"
+#include "UObject/UnrealType.h"
 
 #define LOCTEXT_NAMESPACE "AvaBroadcastEditor"
 

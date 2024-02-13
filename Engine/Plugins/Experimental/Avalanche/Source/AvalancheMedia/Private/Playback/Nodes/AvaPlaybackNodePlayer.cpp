@@ -1,8 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Playback/Nodes/AvaPlaybackNodePlayer.h"
-
+#include "AvaMediaDefines.h"
 #include "Broadcast/AvaBroadcast.h"
+#include "Engine/TextureRenderTarget2D.h"
+#include "Internationalization/Text.h"
 #include "Playable/AvaPlayable.h"
 #include "Playback/AvaPlaybackGraph.h"
 #include "Playback/Nodes/Events/AvaPlaybackNodeEvent.h"

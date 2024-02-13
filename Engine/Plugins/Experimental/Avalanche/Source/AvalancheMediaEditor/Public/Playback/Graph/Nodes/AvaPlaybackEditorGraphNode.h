@@ -2,13 +2,24 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/Array.h"
+#include "Containers/Set.h"
 #include "EdGraph/EdGraphNode.h"
 #include "Templates/SubclassOf.h"
+#include "Templates/SharedPointer.h"
+#include "UObject/ObjectPtr.h"
 #include "AvaPlaybackEditorGraphNode.generated.h"
 
+class FName;
+class SGraphNode;
 class UAvaPlaybackGraph;
 class UAvaPlaybackNode;
+class UEdGraphPin;
+class UEdGraphSchema;
+class UGraphNodeContextMenuContext;
+class UToolMenu;
+class UObject;
+struct FLinearColor;
 
 UCLASS()
 class AVALANCHEMEDIAEDITOR_API UAvaPlaybackEditorGraphNode : public UEdGraphNode
@@ -16,7 +27,6 @@ class AVALANCHEMEDIAEDITOR_API UAvaPlaybackEditorGraphNode : public UEdGraphNode
 	GENERATED_BODY()
 
 public:
-
 	UAvaPlaybackGraph* GetPlayback() const;
 	
 	void SetPlaybackNode(UAvaPlaybackNode* InPlaybackNode);
@@ -49,14 +59,12 @@ public:
 	}
 	
 protected:
-	
 	/** Create all of the input pins required */
 	void CreateInputPins();
 	void CreateOutputPin();
 
 public:
-	
-	/** Is this the undeletable root node */
+	/** Is this the non-deletable root node */
 	bool IsRootNode() const;
 	
 	UEdGraphPin* GetOutputPin() const;
@@ -75,13 +83,13 @@ public:
 	 */
 	void InsertNewNode(UEdGraphPin* FromPin, UEdGraphPin* NewLinkPin, TSet<UEdGraphNode*>& OutNodeList);
 
-	//UObject interface
+	//~ Begin UObject
 	virtual void PostLoad() override;
 	virtual void PostEditImport() override;
 	virtual void PostDuplicate(bool bDuplicateForPIE) override;
-	//~UObject interface
+	//~ End UObject
 	
-	//UEdGraphNode
+	//~ Begin UEdGraphNode
 	virtual FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
 	virtual FText GetTooltipText() const override;
 	virtual void GetNodeContextMenuActions(UToolMenu* Menu, UGraphNodeContextMenuContext* Context) const override;
@@ -91,7 +99,7 @@ public:
 	virtual bool CanCreateUnderSpecifiedSchema(const UEdGraphSchema* Schema) const override;
 	virtual FLinearColor GetNodeTitleColor() const override;
 	virtual TSharedPtr<SGraphNode> CreateVisualWidget() override;
-	//~UEdGraphNode
+	//~ End UEdGraphNode
 	
 	virtual FName GetInputPinName(int32 InputPinIndex) const;
 	virtual FName GetInputPinCategory(int32 InputPinIndex) const;
@@ -101,7 +109,6 @@ public:
 	virtual FName GetOutputPinCategory() const;
 	
 protected:
-	
 	// The Playback Node this represents
 	UPROPERTY(VisibleAnywhere, Instanced, Category=Playback)
 	TObjectPtr<UAvaPlaybackNode> PlaybackNode;

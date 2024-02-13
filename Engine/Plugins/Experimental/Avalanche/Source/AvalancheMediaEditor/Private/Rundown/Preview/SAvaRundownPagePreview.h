@@ -2,13 +2,19 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Math/MathFwd.h"
+#include "Templates/SharedPointer.h"
+#include "Templates/UniquePtr.h"
 #include "Widgets/SCompoundWidget.h"
 
 class FAvaRundownEditor;
 class FMenuBuilder;
+class FText;
 class FUICommandList;
+class SWidget;
 class UTextureRenderTarget2D;
+struct EVisibility;
+struct FSlateBrush;
 
 class SAvaRundownPagePreview : public SCompoundWidget
 {

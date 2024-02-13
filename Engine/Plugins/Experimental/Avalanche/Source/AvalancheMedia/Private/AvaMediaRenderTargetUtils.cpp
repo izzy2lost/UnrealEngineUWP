@@ -1,10 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaMediaRenderTargetUtils.h"
-
 #include "Engine/Engine.h"
 #include "Engine/TextureRenderTarget2D.h"
+#include "PixelFormat.h"
 #include "UObject/Package.h"
+#include "UObject/NameTypes.h"
+#include "UObject/NoExportTypes.h"
 
 namespace UE::AvaMediaRenderTargetUtils
 {

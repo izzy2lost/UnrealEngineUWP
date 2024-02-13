@@ -3,10 +3,12 @@
 #pragma once
 
 #include "AvaPlaybackNodePlayer.h"
-#include "CoreMinimal.h"
+#include "UObject/SoftObjectPtr.h"
+#include "UObject/NoExportTypes.h"
 #include "AvaPlaybackNodeLevelPlayer.generated.h"
 
 class UWorld;
+struct FAvaSoftAssetPtr;
 
 UCLASS()
 class AVALANCHEMEDIA_API UAvaPlaybackNodeLevelPlayer : public UAvaPlaybackNodePlayer
@@ -14,7 +16,6 @@ class AVALANCHEMEDIA_API UAvaPlaybackNodeLevelPlayer : public UAvaPlaybackNodePl
 	GENERATED_BODY()
 
 public:
-	
 	UAvaPlaybackNodeLevelPlayer();
 	
 	virtual void RefreshNode(bool bDryRunGraph) override;
@@ -30,8 +31,6 @@ public:
 	virtual FAvaSoftAssetPtr GetAssetPtr() const override;
 
 protected:
-	
 	UPROPERTY(EditAnywhere, Category = "Motion Design")
 	TSoftObjectPtr<UWorld> LevelAsset;
 };
-
