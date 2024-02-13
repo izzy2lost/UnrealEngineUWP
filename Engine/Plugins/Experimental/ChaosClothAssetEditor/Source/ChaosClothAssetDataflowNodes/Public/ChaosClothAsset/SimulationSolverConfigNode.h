@@ -36,6 +36,17 @@ public:
 	UPROPERTY(EditAnywhere, Category = Simulation, meta = (UIMin = "1", UIMax = "10", ClampMin = "1", ClampMax = "100"))
 	int32 NumSubsteps = 1;
 
+	/**
+	 * Enable dynamic substepping.
+	 */
+	UPROPERTY(EditAnywhere, Category = Simulation, meta = (InlineEditConditionToggle))
+	bool bEnableDynamicSubstepping = false;
+
+	/**
+	 * Choose the number of substeps based on a target substep delta time in milliseconds. Substeps are clamped to [1, NumSubsteps]. 
+	 */
+	UPROPERTY(EditAnywhere, Category = Simulation, meta = (UIMin = "1", UIMax = "30", ClampMin = "0", ClampMax = "1000", EditCondition = "bEnableDynamicSubstepping"))
+	float DynamicSubstepDeltaTime = 16.67f;
 
 	/**
 	* Enable setting separate SelfCollisionSubsteps. Otherwise, self collisions will be detected every substep.

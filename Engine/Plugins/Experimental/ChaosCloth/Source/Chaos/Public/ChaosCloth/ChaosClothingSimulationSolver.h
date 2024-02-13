@@ -108,6 +108,7 @@ namespace Chaos
 
 		// Return the actual of number of iterations used by the Evolution solver after the update (different from the number of iterations, depends on frame rate)
 		CHAOSCLOTH_API int32 GetNumUsedIterations() const;
+		int32 GetNumUsedSubsteps() const { return NumUsedSubsteps; }
 		// Return the actual number of linear solver iterations used by the Evolution solver after the update (force-based solver only)
 		CHAOSCLOTH_API int32 GetNumLinearSolverIterations(int32 ParticleRangeId) const;
 		// Return the final error of the linear solver after the update (force-based solver only)
@@ -433,6 +434,7 @@ namespace Chaos
 		// Time stepping
 		FSolverReal Time;
 		FSolverReal DeltaTime;
+		int32 NumUsedSubsteps;  // may change depending on dynamic substepping.
 
 		// FEvolution-only
 		TArray<FSolverVec3> CollisionContacts;

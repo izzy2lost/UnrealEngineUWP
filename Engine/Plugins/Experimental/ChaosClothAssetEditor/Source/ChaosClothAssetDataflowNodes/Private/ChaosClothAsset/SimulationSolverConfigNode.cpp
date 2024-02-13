@@ -16,6 +16,8 @@ void FChaosClothAssetSimulationSolverConfigNode::AddProperties(FPropertyHelper& 
 	PropertyHelper.SetProperty(this, &NumIterations);
 	PropertyHelper.SetProperty(this, &MaxNumIterations);
 	PropertyHelper.SetProperty(this, &NumSubsteps);
+	const float DynamicSubstepDeltaTimeValue = bEnableDynamicSubstepping ? DynamicSubstepDeltaTime : 0.f;
+	PropertyHelper.SetProperty(TEXT("DynamicSubstepDeltaTime"), DynamicSubstepDeltaTimeValue);
 	PropertyHelper.SetPropertyBool(this, &bEnableNumSelfCollisionSubsteps);
 	PropertyHelper.SetProperty(this, &NumSelfCollisionSubsteps);
 	PropertyHelper.SetPropertyBool(this, &bEnableForceBasedSolver, {}, ECollectionPropertyFlags::Intrinsic);
