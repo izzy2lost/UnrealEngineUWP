@@ -1555,6 +1555,11 @@ FRigName URigHierarchy::GetSafeNewName(const FRigName& InPotentialNewName, ERigE
 		const FControlRigExecuteContext& CRContext = ExecuteContext->GetPublicData<FControlRigExecuteContext>();
 		if(CRContext.IsRigModule())
 		{
+			FRigName LastSegmentName;
+			if(SplitNameSpace(SanitizedName, nullptr, &LastSegmentName, true))
+			{
+				SanitizedName = LastSegmentName;
+			}
 			SanitizedName = CRContext.GetRigModuleNameSpace() + SanitizedName.GetName();
 			bAllowNameSpaceWhenSanitizingName = true;
 		}

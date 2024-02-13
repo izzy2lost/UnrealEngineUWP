@@ -2029,6 +2029,12 @@ int32 URigHierarchyController::AddElement(FRigBaseElement* InElementToAdd, FRigB
 
 	FRigName DesiredName = InDesiredName;
 	URigHierarchy::SanitizeName(DesiredName);
+	
+	FRigName LastSegmentName;
+	if(URigHierarchy::SplitNameSpace(DesiredName, nullptr, &LastSegmentName, true))
+	{
+		DesiredName = LastSegmentName;
+	}
 
 	if(!InDesiredName.IsNone() &&
 		!InElementToAdd->GetFName().IsEqual(DesiredName.GetFName(), ENameCase::CaseSensitive))
