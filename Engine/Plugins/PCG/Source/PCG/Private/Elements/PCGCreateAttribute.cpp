@@ -287,7 +287,7 @@ bool FPCGAddAttributeElement::ExecuteInternal(FPCGContext* Context) const
 				OutputMetadata->AddEntry();
 			}
 
-			FPCGTaggedData& NewData = Context->OutputData.TaggedData.Emplace_GetRef();
+			FPCGTaggedData& NewData = Context->OutputData.TaggedData.Add_GetRef(Inputs[i]);
 			NewData.Data = OutputData;
 		}
 
