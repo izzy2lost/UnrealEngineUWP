@@ -7,7 +7,6 @@
 #include "AudioLinkSettingsAbstract.h"
 #include "Sound/SoundCue.h"
 #include "Engine/Engine.h"
-#include "Engine/HitResult.h"
 #include "Engine/World.h"
 #include "Sound/SoundNodeAttenuation.h"
 #include "IAudioParameterTransmitter.h"

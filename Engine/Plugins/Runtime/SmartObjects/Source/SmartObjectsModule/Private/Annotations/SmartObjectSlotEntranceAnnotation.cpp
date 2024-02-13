@@ -1,8 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Annotations/SmartObjectSlotEntranceAnnotation.h"
-#include "Engine/HitResult.h"
-#include "Engine/OverlapResult.h"
+#include "SmartObjectSubsystem.h"
 #include "SmartObjectDefinition.h"
 #include "SmartObjectVisualizationContext.h"
 #include "SceneManagement.h" // FPrimitiveDrawInterface
@@ -10,7 +9,9 @@
 #include "NavigationData.h"
 #include "NavFilters/NavigationQueryFilter.h"
 #include "AI/Navigation/NavAgentInterface.h"
+#include "SmartObjectSettings.h"
 #include "SmartObjectUserComponent.h"
+#include "PhysicsEngine/ClusterUnionComponent.h"
 
 #if WITH_GAMEPLAY_DEBUGGER
 #include "GameplayDebuggerCategory.h"

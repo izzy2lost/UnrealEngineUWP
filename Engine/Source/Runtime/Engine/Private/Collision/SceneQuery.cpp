@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Engine/World.h"
-#include "Engine/OverlapResult.h"
 #include "CollisionDebugDrawingPublic.h"
 #include "Physics/Experimental/PhysScene_Chaos.h"
 #include "Physics/PhysicsInterfaceUtils.h"

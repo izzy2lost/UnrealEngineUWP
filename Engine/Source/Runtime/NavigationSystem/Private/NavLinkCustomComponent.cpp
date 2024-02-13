@@ -14,7 +14,6 @@
 #include "NavigationOctree.h"
 #include "AI/NavigationSystemHelpers.h"
 #include "AI/Navigation/PathFollowingAgentInterface.h"
-#include "Engine/OverlapResult.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NavLinkCustomComponent)

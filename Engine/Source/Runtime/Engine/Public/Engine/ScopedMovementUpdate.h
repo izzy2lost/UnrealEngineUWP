@@ -2,13 +2,10 @@
 
 #pragma once
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "CoreMinimal.h"
 #include "Engine/HitResult.h"
-#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "Engine/OverlapInfo.h"
 
-struct FHitResult;
 enum class ETeleportType : uint8;
 
 /**

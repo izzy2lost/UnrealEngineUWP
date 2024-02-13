@@ -2,7 +2,6 @@
 
 #include "Collision/CollisionConversions.h"
 #include "BodySetupCore.h"
-#include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 #include "Chaos/Capsule.h"
 #include "Chaos/ImplicitObjectType.h"
@@ -788,16 +787,4 @@ FHitResult ConvertOverlapToHitResult(const FOverlapResult& Overlap)
 	Hit.Component = Overlap.Component;
 	Hit.HitObjectHandle = Overlap.OverlapObjectHandle;
 	return Hit;
-}
-
-bool FCompareFHitResultTime::operator()(const FHitResult& A, const FHitResult& B) const
-{
-	if (A.Time == B.Time)
-	{
-		// Sort blocking hits after non-blocking hits, if they are at the same time. Also avoid swaps if they are the same.
-		// This is important so initial touches are reported before processing stops on the first blocking hit.
-		return (A.bBlockingHit == B.bBlockingHit) ? true : B.bBlockingHit;
-	}
-
-	return A.Time < B.Time;
 }

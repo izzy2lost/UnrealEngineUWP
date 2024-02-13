@@ -6,7 +6,6 @@
 #include "AISystem.h"
 #include "CollisionQueryParams.h"
 #include "Engine/Engine.h"
-#include "Engine/HitResult.h"
 #include "EngineDefines.h"
 #include "EngineGlobals.h"
 #include "Perception/AIPerceptionComponent.h"

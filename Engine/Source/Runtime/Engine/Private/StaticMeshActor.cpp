@@ -7,7 +7,6 @@
 #include "Engine/StaticMeshActor.h"
 #include "UObject/FrameworkObjectVersion.h"
 #include "Engine/CollisionProfile.h"
-#include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 #include "Logging/MessageLog.h"
 #include "Misc/UObjectToken.h"

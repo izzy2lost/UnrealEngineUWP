@@ -6,17 +6,10 @@
 
 #pragma once
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "CoreMinimal.h"
-#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
-#include "Math/Vector.h"
 #include "Stats/Stats.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "Engine/HitResult.h"
-#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "EngineDefines.h"
-
-struct FHitResult;
 
 /**
  * Collision stats
@@ -147,5 +140,44 @@ private:
  *	Algorithm based on "Fast, Minimum Storage Ray/Triangle Intersection"
  *	Returns true if the line segment does hit the triangle
  */
-ENGINE_API bool LineCheckWithTriangle(FHitResult& Result,const FVector& V1,const FVector& V2,const FVector& V3,const FVector& Start,const FVector& End,const FVector& Direction);
+FORCEINLINE bool LineCheckWithTriangle(FHitResult& Result,const FVector& V1,const FVector& V2,const FVector& V3,const FVector& Start,const FVector& End,const FVector& Direction)
+{
+	FVector	Edge1 = V3 - V1,
+		Edge2 = V2 - V1,
+		P = Direction ^ Edge2;
+	FVector::FReal	Determinant = Edge1 | P;
+
+	if(Determinant < UE_DELTA)
+	{
+		return false;
+	}
+
+	FVector	T = Start - V1;
+	FVector::FReal	U = T | P;
+
+	if(U < 0.0f || U > Determinant)
+	{
+		return false;
+	}
+
+	FVector	Q = T ^ Edge1;
+	FVector::FReal	V = Direction | Q;
+
+	if(V < 0.0f || U + V > Determinant)
+	{
+		return false;
+	}
+
+	FVector::FReal	Time = (Edge2 | Q) / Determinant;
+
+	if(Time < 0.0f || Time > Result.Time)
+	{
+		return false;
+	}
+
+	Result.Normal = ((V3-V2)^(V2-V1)).GetSafeNormal();
+	Result.Time = static_cast<float>(((V1 - Start)|Result.Normal) / (Result.Normal|Direction));							// LWC_TODO: precision loss. Make FHitResult::Time/Distance doubles?
+
+	return true;
+}
 

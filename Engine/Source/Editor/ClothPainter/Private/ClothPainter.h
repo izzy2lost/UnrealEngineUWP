@@ -7,9 +7,7 @@
 #include "Containers/Map.h"
 #include "Delegates/IDelegateInstance.h"
 #include "Engine/EngineBaseTypes.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "Engine/HitResult.h"
-#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "IMeshPainter.h"
 #include "InputCoreTypes.h"
 #include "Internationalization/Text.h"
@@ -34,7 +32,6 @@ class UMeshComponent;
 class UMeshPaintSettings;
 class UPaintBrushSettings;
 class USkeletalMesh;
-struct FHitResult;
 
 enum class EPaintableClothProperty;
 class FClothPaintToolBase;

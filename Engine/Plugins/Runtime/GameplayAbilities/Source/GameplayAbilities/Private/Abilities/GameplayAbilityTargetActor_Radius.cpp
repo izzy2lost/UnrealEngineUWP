@@ -4,7 +4,6 @@
 #include "GameFramework/Pawn.h"
 #include "WorldCollision.h"
 #include "Abilities/GameplayAbility.h"
-#include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GameplayAbilityTargetActor_Radius)

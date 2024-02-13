@@ -3,7 +3,6 @@
 #include "WaterBodyExclusionVolume.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
 #include "UObject/FortniteValkyrieBranchObjectVersion.h"
-#include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 #include "UObject/UObjectIterator.h"
 #include "WaterBodyActor.h"

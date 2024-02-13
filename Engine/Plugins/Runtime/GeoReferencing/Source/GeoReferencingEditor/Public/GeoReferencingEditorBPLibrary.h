@@ -2,15 +2,12 @@
 
 #pragma once
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "CoreMinimal.h"
 #include "Engine/HitResult.h"
-#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "Kismet/BlueprintFunctionLibrary.h"
 
 #include "GeoReferencingEditorBPLibrary.generated.h"
 
-struct FHitResult;
 
 UCLASS()
 class GEOREFERENCINGEDITOR_API UGeoReferencingEditorBPLibrary : public UBlueprintFunctionLibrary

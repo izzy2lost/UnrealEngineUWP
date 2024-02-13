@@ -6,7 +6,6 @@
 
 
 #include "Components/SceneComponent.h"
-#include "Engine/OverlapResult.h"
 #include "Engine/Level.h"
 #include "EngineStats.h"
 #include "Components/StaticMeshComponent.h"

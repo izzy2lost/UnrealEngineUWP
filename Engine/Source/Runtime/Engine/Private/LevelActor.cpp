@@ -10,7 +10,6 @@
 #include "GameFramework/OnlineReplStructs.h"
 #include "Engine/Engine.h"
 #include "Engine/LevelStreaming.h"
-#include "Engine/OverlapResult.h"
 #include "ContentStreaming.h"
 #include "EditorSupportDelegates.h"
 #include "GameFramework/GameModeBase.h"

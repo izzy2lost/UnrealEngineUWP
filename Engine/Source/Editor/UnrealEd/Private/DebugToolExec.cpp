@@ -4,7 +4,6 @@
 #include "DebugToolExec.h"
 #include "CollisionQueryParams.h"
 #include "Engine/GameInstance.h"
-#include "Engine/HitResult.h"
 #include "GameFramework/Pawn.h"
 #include "Modules/ModuleManager.h"
 #include "UObject/ObjectMacros.h"

@@ -2,15 +2,11 @@
 
 #pragma once
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "CoreMinimal.h"
 #include "Engine/HitResult.h"
-#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "GameFramework/MovementComponent.h"
 #include "UObject/ObjectMacros.h"
 #include "ProjectileMovementComponent.generated.h"
-
-struct FHitResult;
 
 /**
  * ProjectileMovementComponent updates the position of another component during its tick.

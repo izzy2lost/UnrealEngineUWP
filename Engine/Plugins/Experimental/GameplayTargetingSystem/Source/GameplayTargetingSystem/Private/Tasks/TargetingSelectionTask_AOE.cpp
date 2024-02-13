@@ -6,7 +6,6 @@
 #include "Components/PrimitiveComponent.h"
 #include "Engine/CollisionProfile.h"
 #include "Engine/EngineTypes.h"
-#include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include "TargetingSystem/TargetingSubsystem.h"

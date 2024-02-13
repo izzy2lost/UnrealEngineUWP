@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "EnvironmentQuery/EnvQueryTraceHelpers.h"
-#include "Engine/HitResult.h"
 #include "NavigationData.h"
 #include "NavFilters/NavigationQueryFilter.h"
 #include "Algo/RemoveIf.h"
@@ -294,6 +293,7 @@ void FEQSHelpers::RunRaycastsOnNavHitOnlyWalls(const ANavigationData& NavData, c
 		TraceParams.AddIgnoredActors(IgnoredActors);
 
 		FBatchTrace TraceHelper(NavData.GetWorld(), TraceData, TraceParams, TraceExtent, TraceMode);
+		FVector HitPos(FVector::ZeroVector);
 
 		switch (TraceData.TraceShape)
 		{
@@ -317,38 +317,6 @@ void FEQSHelpers::RunRaycastsOnNavHitOnlyWalls(const ANavigationData& NavData, c
 			break;
 		}
 	}
-}
-
-bool FEQSHelpers::FBatchTrace::RunLineTrace(const FVector& StartPos, const FVector& EndPos, FVector& HitPos) const
-{
-	FHitResult OutHit;
-	const bool bHit = World->LineTraceSingleByChannel(OutHit, StartPos, EndPos, Channel, QueryParams, ResponseParams);
-	HitPos = OutHit.Location;
-	return bHit;
-}
-
-bool FEQSHelpers::FBatchTrace::RunSphereTrace(const FVector& StartPos, const FVector& EndPos, FVector& HitPos) const
-{
-	FHitResult OutHit;
-	const bool bHit = World->SweepSingleByChannel(OutHit, StartPos, EndPos, FQuat::Identity, Channel, FCollisionShape::MakeSphere(FloatCastChecked<float>(Extent.X, UE::LWC::DefaultFloatPrecision)), QueryParams, ResponseParams);
-	HitPos = OutHit.Location;
-	return bHit;
-}
-
-bool FEQSHelpers::FBatchTrace::RunCapsuleTrace(const FVector& StartPos, const FVector& EndPos, FVector& HitPos) const
-{
-	FHitResult OutHit;
-	const bool bHit = World->SweepSingleByChannel(OutHit, StartPos, EndPos, FQuat::Identity, Channel, FCollisionShape::MakeCapsule(FloatCastChecked<float>(Extent.X, UE::LWC::DefaultFloatPrecision), FloatCastChecked<float>(Extent.Z, 1./16.)), QueryParams, ResponseParams);
-	HitPos = OutHit.Location;
-	return bHit;
-}
-
-bool FEQSHelpers::FBatchTrace::RunBoxTrace(const FVector& StartPos, const FVector& EndPos, FVector& HitPos) const
-{
-	FHitResult OutHit;
-	const bool bHit = World->SweepSingleByChannel(OutHit, StartPos, EndPos, FQuat((EndPos - StartPos).Rotation()), Channel, FCollisionShape::MakeBox(Extent), QueryParams, ResponseParams);
-	HitPos = OutHit.Location;
-	return bHit;
 }
 
 void FEQSHelpers::RunNavRaycasts(const ANavigationData& NavData, const UObject& Querier, const FEnvTraceData& TraceData, const FVector& SourcePt, TArray<FNavLocation>& Points, const ETraceMode TraceMode /*= ETraceMode::Keep*/)
