@@ -17,6 +17,11 @@ namespace PCGLog
 	PCG_API void LogWarningOnGraph(const FText& InMsg, const FPCGContext* InContext = nullptr);
 }
 
+namespace PCGEngineShowFlags
+{
+	static constexpr TCHAR Debug[] = TEXT("PCGDebug");
+}
+
 // Stats
 DECLARE_STATS_GROUP(TEXT("PCG"), STATGROUP_PCG, STATCAT_Advanced);
 

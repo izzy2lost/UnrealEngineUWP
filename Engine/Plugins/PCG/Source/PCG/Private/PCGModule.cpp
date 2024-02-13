@@ -10,6 +10,7 @@
 #if WITH_EDITOR
 #include "Elements/PCGDifferenceElement.h"
 #include "ISettingsModule.h"
+#include "ShowFlags.h"
 #include "Tests/Determinism/PCGDeterminismNativeTests.h"
 #include "Tests/Determinism/PCGDifferenceDeterminismTest.h"
 #endif
@@ -46,6 +47,8 @@ void FPCGModule::StartupModule()
 	PCGDeterminismTests::FNativeTestRegistry::Create();
 
 	RegisterNativeElementDeterminismTests();
+
+	FEngineShowFlags::RegisterCustomShowFlag(PCGEngineShowFlags::Debug, /*DefaultEnabled=*/true, EShowFlagGroup::SFG_Developer, LOCTEXT("ShowFlagDisplayName", "PCG Debug"));
 }
 
 void FPCGModule::ShutdownModule()
