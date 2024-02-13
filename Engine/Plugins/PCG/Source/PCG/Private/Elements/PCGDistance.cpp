@@ -8,6 +8,7 @@
 #include "Data/PCGPointData.h"
 #include "Elements/PCGGather.h"
 #include "Helpers/PCGAsync.h"
+#include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
 
 #define LOCTEXT_NAMESPACE "PCGDistanceElement"
 
@@ -82,6 +83,30 @@ FPCGElementPtr UPCGDistanceSettings::CreateElement() const
 	return MakeShared<FPCGDistanceElement>();
 }
 
+void UPCGDistanceSettings::PostLoad()
+{
+	Super::PostLoad();
+
+#if WITH_EDITOR
+	if (AttributeName_DEPRECATED != PCGDistanceConstants::DefaultOutputAttributeName)
+	{
+		// "None" was previously used to indicate that nothing should be written to attribute
+		if (AttributeName_DEPRECATED == NAME_None)
+		{
+			bOutputToAttribute = false;
+			OutputAttribute.SetAttributeName(PCGDistanceConstants::DefaultOutputAttributeName);
+		}
+		else
+		{
+			bOutputToAttribute = true;
+			OutputAttribute.SetAttributeName(AttributeName_DEPRECATED);
+		}
+
+		AttributeName_DEPRECATED = PCGDistanceConstants::DefaultOutputAttributeName;
+	}
+#endif // WITH_EDITOR
+}
+
 bool FPCGDistanceElement::ExecuteInternal(FPCGContext* Context) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGDistanceElement::Execute);
@@ -97,7 +122,6 @@ bool FPCGDistanceElement::ExecuteInternal(FPCGContext* Context) const
 	const UPCGDistanceSettings* Settings = Context->GetInputSettings<UPCGDistanceSettings>();
 	check(Settings);
 
-	const FName AttributeName = Settings->AttributeName;
 	const bool bSetDensity = Settings->bSetDensity;
 	const bool bOutputDistanceVector = Settings->bOutputDistanceVector;
 	const PCGDistanceShape SourceShape = Settings->SourceShape;
@@ -157,95 +181,161 @@ bool FPCGDistanceElement::ExecuteInternal(FPCGContext* Context) const
 		OutputData->InitializeFromData(SourcePointData);
 		Outputs.Add_GetRef(Source).Data = OutputData;
 
-		FPCGMetadataAttribute<float>* ScalarAttribute = nullptr;
-		FPCGMetadataAttribute<FVector>* VectorAttribute = nullptr;
-
-		if (AttributeName != NAME_None && !bOutputDistanceVector)
+		if (Settings->bOutputToAttribute && Settings->OutputAttribute.IsBasicAttribute())
 		{
-			ScalarAttribute = OutputData->Metadata->FindOrCreateAttribute<float>(AttributeName, 0.0f);
-		}
-
-		if (AttributeName != NAME_None && bOutputDistanceVector)
-		{
-			VectorAttribute = OutputData->Metadata->FindOrCreateAttribute<FVector>(AttributeName, FVector::ZeroVector);
-		}
-
-		FPCGAsync::AsyncPointProcessing(Context, SourcePointData->GetPoints(), OutputData->GetMutablePoints(),
-			[OutputData, SourceShape, TargetShape, &TargetPointDatas, MaximumDistance, MaximumDistanceRecip, ScalarAttribute, VectorAttribute, bSetDensity](const FPCGPoint& SourcePoint, FPCGPoint& OutPoint) {
-
-				OutPoint = SourcePoint;
-
-				const FBoxSphereBounds SourceQueryBounds = FBoxSphereBounds(FBox(SourcePoint.BoundsMin - FVector(MaximumDistance), SourcePoint.BoundsMax + FVector(MaximumDistance))).TransformBy(SourcePoint.Transform);
-
-				const FVector SourceCenter = SourcePoint.Transform.TransformPosition(SourcePoint.GetLocalCenter());
-
-				double MinDistanceSquared = MaximumDistance * MaximumDistance;
-				FVector MinDistanceVector = FVector::ZeroVector;
-
-				// Signed distance field for calculating the closest point of source and target
-				auto CalculateSDF = [&MinDistanceSquared, &MinDistanceVector, &SourcePoint, SourceCenter, SourceShape, TargetShape](const FPCGPointRef& TargetPointRef)
-				{
-					// If the source pointer and target pointer are the same, ignore distance to the exact same point
-					if (&SourcePoint == TargetPointRef.Point)
-					{
-						return;
-					}
-					
-					const FPCGPoint& TargetPoint = *TargetPointRef.Point;
-					const FVector& TargetCenter = TargetPointRef.Bounds.Origin;
-
-					const FVector SourceShapePos = PCGDistance::CalcPosition(SourceShape, SourcePoint, TargetPoint, SourceCenter, TargetCenter);
-					const FVector TargetShapePos = PCGDistance::CalcPosition(TargetShape, TargetPoint, SourcePoint, TargetCenter, SourceCenter);
-
-					const FVector ToTargetShapeDir = TargetShapePos - SourceShapePos;
-					const FVector ToTargetCenterDir = TargetCenter - SourceCenter;
-
-					const double Sign = FMath::Sign(ToTargetShapeDir.Dot(ToTargetCenterDir));
-					const double ThisDistanceSquared = ToTargetShapeDir.SquaredLength() * Sign;
-
-					if (ThisDistanceSquared < MinDistanceSquared)
-					{
-						MinDistanceSquared = ThisDistanceSquared;
-						MinDistanceVector = ToTargetShapeDir;
-					}
-				};
-
-				for (const UPCGPointData* TargetPointData : TargetPointDatas)
-				{
-					const UPCGPointData::PointOctree& Octree = TargetPointData->GetOctree();
-
-					Octree.FindElementsWithBoundsTest(
-						FBoxCenterAndExtent(SourceQueryBounds.Origin, SourceQueryBounds.BoxExtent),
-						CalculateSDF
-					);
-				}
-
-				const double Distance = FMath::Sign(MinDistanceSquared) * FMath::Sqrt(FMath::Abs(MinDistanceSquared));
-
-				if (ScalarAttribute || VectorAttribute)
-				{
-					OutputData->Metadata->InitializeOnSet(OutPoint.MetadataEntry);
-				}
-
-				if (ScalarAttribute)
-				{
-					ScalarAttribute->SetValue(OutPoint.MetadataEntry, Distance);
-				}
-
-				if (VectorAttribute)
-				{
-					VectorAttribute->SetValue(OutPoint.MetadataEntry, MinDistanceVector);
-				}
-				
-				if (bSetDensity)
-				{
-					// Set density instead
-					OutPoint.Density = MaximumDistance > UE_DOUBLE_SMALL_NUMBER ? (FMath::Clamp(Distance, -MaximumDistance, MaximumDistance) * MaximumDistanceRecip) : 1.0f;
-				}
-
-				return true;
+			if (bOutputDistanceVector)
+			{
+				OutputData->Metadata->FindOrCreateAttribute<FVector>(Settings->OutputAttribute.GetAttributeName());
 			}
-		);
+			else
+			{
+				OutputData->Metadata->FindOrCreateAttribute<double>(Settings->OutputAttribute.GetAttributeName());
+			}
+		}
+
+		TUniquePtr<IPCGAttributeAccessor> Accessor;
+		TUniquePtr<IPCGAttributeAccessorKeys> Keys;
+
+		if (Settings->bOutputToAttribute)
+		{
+			Accessor = PCGAttributeAccessorHelpers::CreateAccessor(OutputData, Settings->OutputAttribute);
+		}
+
+		// If the selected attribute is a property or extra property and not the correct type, invalidate the accessor
+		if (Accessor.IsValid())
+		{
+			using PCG::Private::MetadataTypes;
+
+			if ((bOutputDistanceVector && !IsBroadcastableOrConstructible(Accessor->GetUnderlyingType(), MetadataTypes<FVector>::Id)) ||
+				(!bOutputDistanceVector && !IsBroadcastableOrConstructible(Accessor->GetUnderlyingType(), MetadataTypes<double>::Id)))
+			{
+				PCGE_LOG(Warning, GraphAndLog, LOCTEXT("InvalidAccessorType", "Selected type for Output Attribute is incompatible with distance as output."));
+				Accessor = nullptr;
+			}
+		}
+
+		TArray<FPCGPoint>& OutPoints = OutputData->GetMutablePoints();
+		const TArray<FPCGPoint>& SourcePoints = SourcePointData->GetPoints();
+		OutPoints.SetNumUninitialized(SourcePoints.Num());
+
+		if (Accessor.IsValid())
+		{
+			Keys = PCGAttributeAccessorHelpers::CreateKeys(OutputData, Settings->OutputAttribute);
+
+			if (!Keys.IsValid())
+			{
+				PCGE_LOG(Warning, GraphAndLog, LOCTEXT("CannotCreateAccessorKeys", "Cannot create accessor keys on output points."));
+				Accessor = nullptr;
+			}
+		}
+
+		struct TemporaryResultCache
+		{
+			TArray<double> Distances;
+			TArray<FVector> DistanceVectors;
+		} ResultCache;
+
+		// Set up a cache so we can set all the attributes in a single range set
+		if (Accessor.IsValid())
+		{
+			if (bOutputDistanceVector)
+			{
+				ResultCache.DistanceVectors.SetNumUninitialized(SourcePoints.Num());
+			}
+			else
+			{
+				ResultCache.Distances.SetNumUninitialized(SourcePoints.Num());
+			}
+		}
+
+		auto ProcessDistance = [SourceShape, TargetShape, &TargetPointDatas, MaximumDistance, MaximumDistanceRecip, bSetDensity, bOutputDistanceVector, &OutPoints, &SourcePoints, &ResultCache, bWriteToAttribute = Accessor.IsValid()](int32 ReadIndex, int32 WriteIndex)
+		{
+			FPCGPoint& OutPoint = OutPoints[WriteIndex];
+			const FPCGPoint& SourcePoint = SourcePoints[ReadIndex];
+
+			OutPoint = SourcePoint;
+
+			const FBoxSphereBounds SourceQueryBounds = FBoxSphereBounds(FBox(SourcePoint.BoundsMin - FVector(MaximumDistance), SourcePoint.BoundsMax + FVector(MaximumDistance))).TransformBy(SourcePoint.Transform);
+
+			const FVector SourceCenter = SourcePoint.Transform.TransformPosition(SourcePoint.GetLocalCenter());
+
+			double MinDistanceSquared = MaximumDistance * MaximumDistance;
+			FVector MinDistanceVector = FVector::ZeroVector;
+
+			// Signed distance field for calculating the closest point of source and target
+			auto CalculateSDF = [&MinDistanceSquared, &MinDistanceVector, &SourcePoint, SourceCenter, SourceShape, TargetShape](const FPCGPointRef& TargetPointRef)
+			{
+				// If the source pointer and target pointer are the same, ignore distance to the exact same point
+				if (&SourcePoint == TargetPointRef.Point)
+				{
+					return;
+				}
+
+				const FPCGPoint& TargetPoint = *TargetPointRef.Point;
+				const FVector& TargetCenter = TargetPointRef.Bounds.Origin;
+
+				const FVector SourceShapePos = PCGDistance::CalcPosition(SourceShape, SourcePoint, TargetPoint, SourceCenter, TargetCenter);
+				const FVector TargetShapePos = PCGDistance::CalcPosition(TargetShape, TargetPoint, SourcePoint, TargetCenter, SourceCenter);
+
+				const FVector ToTargetShapeDir = TargetShapePos - SourceShapePos;
+				const FVector ToTargetCenterDir = TargetCenter - SourceCenter;
+
+				const double Sign = FMath::Sign(ToTargetShapeDir.Dot(ToTargetCenterDir));
+				const double ThisDistanceSquared = ToTargetShapeDir.SquaredLength() * Sign;
+
+				if (ThisDistanceSquared < MinDistanceSquared)
+				{
+					MinDistanceSquared = ThisDistanceSquared;
+					MinDistanceVector = ToTargetShapeDir;
+				}
+			};
+
+			for (const UPCGPointData* TargetPointData : TargetPointDatas)
+			{
+				const UPCGPointData::PointOctree& Octree = TargetPointData->GetOctree();
+
+				Octree.FindElementsWithBoundsTest(
+						FBoxCenterAndExtent(SourceQueryBounds.Origin, SourceQueryBounds.BoxExtent),
+						CalculateSDF);
+			}
+
+			const double Distance = FMath::Sign(MinDistanceSquared) * FMath::Sqrt(FMath::Abs(MinDistanceSquared));
+
+			if (bWriteToAttribute)
+			{
+				if (bOutputDistanceVector)
+				{
+					ResultCache.DistanceVectors[WriteIndex] = MinDistanceVector;
+				}
+				else
+				{
+					ResultCache.Distances[WriteIndex] = Distance;
+				}
+			}
+
+			if (bSetDensity)
+			{
+				OutPoint.Density = MaximumDistance > UE_DOUBLE_SMALL_NUMBER ? (FMath::Clamp(Distance, -MaximumDistance, MaximumDistance) * MaximumDistanceRecip) : 1.0f;
+			}
+
+			return true;
+		};
+
+		if (FPCGAsync::AsyncProcessingOneToOneEx(&Context->AsyncState, SourcePoints.Num(), /*InitializeFunc=*/[]{}, ProcessDistance, /*bEnableTimeSlicing=*/false))
+		{
+			if (Accessor.IsValid())
+			{
+				// Set all the attributes at once
+				if (bOutputDistanceVector)
+				{
+					Accessor->SetRange<FVector>(ResultCache.DistanceVectors, 0, *Keys);
+				}
+				else
+				{
+					Accessor->SetRange<double>(ResultCache.Distances, 0, *Keys);
+				}
+			}
+		}
 	}
 
 	return true;

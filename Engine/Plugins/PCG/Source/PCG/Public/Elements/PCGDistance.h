@@ -20,6 +20,11 @@ namespace PCGDistance
 	extern const FName TargetLabel;
 }
 
+namespace PCGDistanceConstants
+{
+	const FName DefaultOutputAttributeName = TEXT("Distance");
+}
+
 /**
  * Calculates the distance between two points (inherently a n*n operation)
  */
@@ -45,13 +50,20 @@ protected:
 	//~End UPCGSettings interface
 
 public:
+	// ~Begin UObject interface
+	virtual void PostLoad() override;
+	// ~End UObject interface
 
-	/** The name of the attribute to store on the point.Use 'None' to disable */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
-	FName AttributeName = TEXT("Distance");
+	/** Output the distance or distance vector to an attribute. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (InlineEditConditionToggle, PCG_Overridable))
+	bool bOutputToAttribute = true;
+
+	/** The attribute output for the resulting distance value. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bOutputToAttribute", PCG_Overridable))
+	FPCGAttributePropertySelector OutputAttribute = FPCGAttributePropertySelector::CreateAttributeSelector(PCGDistanceConstants::DefaultOutputAttributeName);
 
 	/** Controls whether the attribute will be a scalar or a vector */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bOutputToAttribute", EditConditionHides, PCG_Overridable))
 	bool bOutputDistanceVector = false;
 
 	/** If true, will also set the density to be 0 - 1 based on MaximumDistance */
@@ -69,6 +81,11 @@ public:
 	/** What shape is used on the 'target' points */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	PCGDistanceShape TargetShape = PCGDistanceShape::SphereBounds;
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY(meta=(DeprecatedProperty, DeprecationMessage="Use OutputAttribute selector instead."))
+	FName AttributeName_DEPRECATED = PCGDistanceConstants::DefaultOutputAttributeName;
+#endif // WITH_EDITORONLY_DATA
 };
 
 class FPCGDistanceElement : public FPCGPointProcessingElementBase
@@ -76,8 +93,3 @@ class FPCGDistanceElement : public FPCGPointProcessingElementBase
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 };
-
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif
