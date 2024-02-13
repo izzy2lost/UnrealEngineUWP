@@ -526,5 +526,6 @@ protected:
 class ISlateBrushSource
 {
 public:
+	virtual ~ISlateBrushSource() = default;
 	virtual const FSlateBrush* GetSlateBrush() const = 0;
 };
