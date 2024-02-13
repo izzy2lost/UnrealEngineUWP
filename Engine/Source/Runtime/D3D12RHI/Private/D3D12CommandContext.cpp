@@ -689,12 +689,13 @@ void FD3D12DynamicRHI::RHIBeginFrame(FRHICommandListImmediate& RHICmdList)
 {
 	RHICmdList.EnqueueLambda([](FRHICommandListBase& ExecutingCmdList)
 	{
-		FD3D12CommandContext& Context = static_cast<FD3D12CommandContext&>(ExecutingCmdList.GetContext());
-		FD3D12Device* Device = Context.Device;
-
-		Device->GetGPUProfiler().BeginFrame();
-		Device->GetDefaultBufferAllocator().BeginFrame(ExecutingCmdList);
-		Device->GetTextureAllocator().BeginFrame(ExecutingCmdList);
+		for (uint32 GPUIndex : FRHIGPUMask::All())
+		{
+			FD3D12CommandContext& Context = FD3D12CommandContext::Get(ExecutingCmdList, GPUIndex);
+			Context.Device->GetGPUProfiler().BeginFrame();
+			Context.Device->GetDefaultBufferAllocator().BeginFrame(ExecutingCmdList);
+			Context.Device->GetTextureAllocator().BeginFrame(ExecutingCmdList);
+		}
 	});
 }
 
