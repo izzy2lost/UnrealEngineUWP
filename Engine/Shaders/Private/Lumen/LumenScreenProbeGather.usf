@@ -529,13 +529,14 @@ RWTexture2DArray<uint> RWTileClassificationModes;
 
 uint DefaultDiffuseIntegrationMethod;
 float MaxRoughnessToEvaluateRoughSpecular;
+float MaxRoughnessToEvaluateRoughSpecularForFoliage;
 
 // Computes the lerp factor to diffuse for rough specular, as an optimization to skip rough specular computations
 // 1 = fully diffuse
-float GetDiffuseLerp(float Roughness)
+float GetDiffuseLerp(float Roughness, bool bHasBackfaceDiffuse)
 {
 	float FadeLength = 0.2f;
-	return saturate((Roughness - MaxRoughnessToEvaluateRoughSpecular + FadeLength) / FadeLength);
+	return saturate((Roughness - (bHasBackfaceDiffuse ? MaxRoughnessToEvaluateRoughSpecularForFoliage : MaxRoughnessToEvaluateRoughSpecular) + FadeLength) / FadeLength);
 }
 
 groupshared uint SharedTileClassification[TILE_CLASSIFICATION_NUM];
@@ -640,8 +641,9 @@ void ScreenProbeTileClassificationMarkCS(
 					TileClassification = TILE_CLASSIFICATION_SUPPORT_IMPORTANCE_SAMPLE_BRDF;
 				}
 
-				const float DiffuseLerp = GetDiffuseLerp(Material.Roughness);
-				const float LumenSpecularRayAlpha = LumenCombineReflectionsAlpha(Material.Roughness, HasBackfaceDiffuse(Material));
+				const bool bHasBackfaceDiffuse = HasBackfaceDiffuse(Material);
+				const float DiffuseLerp = GetDiffuseLerp(Material.Roughness, bHasBackfaceDiffuse);
+				const float LumenSpecularRayAlpha = LumenCombineReflectionsAlpha(Material.Roughness, bHasBackfaceDiffuse);
 				if ((DiffuseLerp < 1.0f && LumenSpecularRayAlpha < 1.0f) || IsClearCoat(Material))
 				{
 					TileClassification = TILE_CLASSIFICATION_SUPPORT_IMPORTANCE_SAMPLE_BRDF;
@@ -1463,7 +1465,7 @@ void ScreenProbeIntegrateCS(
 		#else
 			float3 SpecularLighting = DiffuseLighting / PI;
 		#endif
-			const float DiffuseLerp = GetDiffuseLerp(Material.Roughness);
+			const float DiffuseLerp = GetDiffuseLerp(Material.Roughness, HasBackfaceDiffuse(Material));
 
 			// Prevent NaNs from ImportanceSampleVisibleGGX
 			Material.Roughness = max(Material.Roughness, 0.01f);

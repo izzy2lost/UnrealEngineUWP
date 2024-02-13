@@ -300,11 +300,17 @@ FAutoConsoleVariableRef CVarLumenScreenProbeStochasticInterpolation(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-float GLumenScreenProbeMaxRoughnessToEvaluateRoughSpecular = .8f;
-FAutoConsoleVariableRef GVarLumenScreenProbeMaxRoughnessToEvaluateRoughSpecular(
+static TAutoConsoleVariable<float> GVarLumenScreenProbeMaxRoughnessToEvaluateRoughSpecular(
 	TEXT("r.Lumen.ScreenProbeGather.MaxRoughnessToEvaluateRoughSpecular"),
-	GLumenScreenProbeMaxRoughnessToEvaluateRoughSpecular,
-	TEXT("Maximum roughness value to evaluate rough specular in Screen Probe Gather.  Lower values reduce GPU cost of integration, but also lose rough specular."),
+	0.8f,
+	TEXT("Maximum roughness value to evaluate rough specular in Screen Probe Gather. Lower values reduce GPU cost of integration, but also lose rough specular."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<float> GVarLumenScreenProbeMaxRoughnessToEvaluateRoughSpecularForFoliage(
+	TEXT("r.Lumen.ScreenProbeGather.MaxRoughnessToEvaluateRoughSpecularForFoliage"),
+	0.8f,
+	TEXT("Maximum roughness value to evaluate rough specular in Screen Probe Gather for foliage pixels, where foliage pixel is a pixel with two sided or subsurface shading model. Lower values reduce GPU cost of integration, but also lose rough specular."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
@@ -774,6 +780,7 @@ class FScreenProbeTileClassificationMarkCS : public FGlobalShader
 		SHADER_PARAMETER_STRUCT_INCLUDE(LumenReflections::FCompositeParameters, ReflectionsCompositeParameters)
 		SHADER_PARAMETER(uint32, DefaultDiffuseIntegrationMethod)
 		SHADER_PARAMETER(float, MaxRoughnessToEvaluateRoughSpecular)
+		SHADER_PARAMETER(float, MaxRoughnessToEvaluateRoughSpecularForFoliage)
 		RDG_BUFFER_ACCESS(TileIndirectBuffer, ERHIAccess::IndirectArgs)
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -862,6 +869,7 @@ class FScreenProbeIntegrateCS : public FGlobalShader
 		SHADER_PARAMETER_STRUCT_INCLUDE(LumenReflections::FCompositeParameters, ReflectionsCompositeParameters)
 		SHADER_PARAMETER(float, FullResolutionJitterWidth)
 		SHADER_PARAMETER(float, MaxRoughnessToEvaluateRoughSpecular)
+		SHADER_PARAMETER(float, MaxRoughnessToEvaluateRoughSpecularForFoliage)
 		SHADER_PARAMETER(uint32, ApplyMaterialAO)
 		SHADER_PARAMETER(float, MaxAOMultibounceAlbedo)
 		SHADER_PARAMETER(uint32, LumenReflectionInputIsSSR)
@@ -1141,7 +1149,8 @@ void InterpolateAndIntegrate(
 				PassParameters->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
 				PassParameters->DefaultDiffuseIntegrationMethod = (uint32)LumenScreenProbeGather::GetDiffuseIntegralMethod();
 				PassParameters->ReflectionsCompositeParameters = ReflectionsCompositeParameters;
-				PassParameters->MaxRoughnessToEvaluateRoughSpecular = GLumenScreenProbeMaxRoughnessToEvaluateRoughSpecular;
+				PassParameters->MaxRoughnessToEvaluateRoughSpecular = GVarLumenScreenProbeMaxRoughnessToEvaluateRoughSpecular.GetValueOnRenderThread();
+				PassParameters->MaxRoughnessToEvaluateRoughSpecularForFoliage = GVarLumenScreenProbeMaxRoughnessToEvaluateRoughSpecularForFoliage.GetValueOnRenderThread();
 
 				FScreenProbeTileClassificationMarkCS::FPermutationDomain PermutationVector;
 				PermutationVector.Set<FScreenProbeTileClassificationMarkCS::FOverflowTile>(bOverflow);
@@ -1250,7 +1259,8 @@ void InterpolateAndIntegrate(
 				PassParameters->SceneTexturesStruct = SceneTextures.UniformBuffer;
 				PassParameters->FullResolutionJitterWidth = LumenScreenProbeGather::GetScreenProbeFullResolutionJitterWidth(View);
 				PassParameters->ReflectionsCompositeParameters = ReflectionsCompositeParameters;
-				PassParameters->MaxRoughnessToEvaluateRoughSpecular = GLumenScreenProbeMaxRoughnessToEvaluateRoughSpecular;
+				PassParameters->MaxRoughnessToEvaluateRoughSpecular = GVarLumenScreenProbeMaxRoughnessToEvaluateRoughSpecular.GetValueOnRenderThread();
+				PassParameters->MaxRoughnessToEvaluateRoughSpecularForFoliage = GVarLumenScreenProbeMaxRoughnessToEvaluateRoughSpecularForFoliage.GetValueOnRenderThread();
 				PassParameters->ApplyMaterialAO = GLumenScreenProbeMaterialAO;
 				PassParameters->MaxAOMultibounceAlbedo = GLumenMaxShortRangeAOMultibounceAlbedo;
 				PassParameters->LumenReflectionInputIsSSR = bSSREnabled ? 1 : 0;
@@ -1319,7 +1329,8 @@ void InterpolateAndIntegrate(
 			PassParameters->SceneTexturesStruct = SceneTextures.UniformBuffer;
 			PassParameters->FullResolutionJitterWidth = LumenScreenProbeGather::GetScreenProbeFullResolutionJitterWidth(View);
 			PassParameters->ReflectionsCompositeParameters = ReflectionsCompositeParameters;
-			PassParameters->MaxRoughnessToEvaluateRoughSpecular = GLumenScreenProbeMaxRoughnessToEvaluateRoughSpecular;
+			PassParameters->MaxRoughnessToEvaluateRoughSpecular = GVarLumenScreenProbeMaxRoughnessToEvaluateRoughSpecular.GetValueOnRenderThread();
+			PassParameters->MaxRoughnessToEvaluateRoughSpecularForFoliage = GVarLumenScreenProbeMaxRoughnessToEvaluateRoughSpecularForFoliage.GetValueOnRenderThread();
 			PassParameters->ApplyMaterialAO = GLumenScreenProbeMaterialAO;
 			PassParameters->MaxAOMultibounceAlbedo = GLumenMaxShortRangeAOMultibounceAlbedo;
 			PassParameters->ScreenSpaceBentNormalParameters = ScreenSpaceBentNormalParameters;
