@@ -94,17 +94,28 @@ namespace Audio
 	static void* GetSoundFileDllHandle()
 	{
 		void* DllHandle = nullptr;
+#if WITH_SNDFILE_IO 
+		
 #if PLATFORM_WINDOWS
-		FString Path = FPaths::EngineDir() / FString(TEXT("Binaries/ThirdParty/libsndfile/Win64/"));
+		const FString PlatformPath = TEXT("Win64/");
+		const FString DllName = TEXT("libsndfile-1.dll");
+#elif PLATFORM_MAC //PLATFORM_WINDOWS
+		const FString PlatformPath = TEXT("Mac/");
+		const FString DllName = TEXT("libsndfile.1.dylib");
+#elif PLATFORM_LINUX //PLATFORM_MAC
+		const FString PlatformPath = TEXT("Linux/");
+		const FString DllName = ("libsndfile.so.1");
+#else //PLATFORM_LINUX
+		#pragma message ("Platform not supported");
+		const FString PlatformPath;
+		const FString DllName;
+#endif //PLATFORM_LINUX
+#endif //WITH_SNDFILE_IO
+
+		const FString Path = FPaths::EngineDir() / FString(TEXT("Binaries/ThirdParty/libsndfile/")) / PlatformPath;
 		FPlatformProcess::PushDllDirectory(*Path);
-		DllHandle = FPlatformProcess::GetDllHandle(*(Path + "libsndfile-1.dll"));
+		DllHandle = FPlatformProcess::GetDllHandle(*(Path + DllName));
 		FPlatformProcess::PopDllDirectory(*Path);
-#elif PLATFORM_MAC
-		//		FString Path = FPaths::EngineDir() / FString(TEXT("Binaries/ThirdParty/libsndfile/Mac/"));
-		//		FPlatformProcess::PushDllDirectory(*Path);
-		DllHandle = FPlatformProcess::GetDllHandle(TEXT("libsndfile.1.dylib"));
-		//		FPlatformProcess::PopDllDirectory(*Path);
-#endif
 		return DllHandle;
 	}
 

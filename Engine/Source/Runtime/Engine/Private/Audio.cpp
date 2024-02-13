@@ -1622,14 +1622,16 @@ bool FWaveModInfo::ReadWaveInfo( const uint8* WaveData, int32 WaveDataSize, FStr
 	SampleDataSize = INTEL_ORDER32( RiffChunk->ChunkLen );
 	SampleDataEnd = SampleDataStart + SampleDataSize;
 
+#if !WITH_SNDFILE_IO
 	if (!IsFormatSupported())
 	{
 		ReportImportFailure();
 		if (ErrorReason) *ErrorReason = TEXT("Unsupported wave file format.  Only PCM, ADPCM, and DVI ADPCM can be imported.");
 		return false;
 	}
+#endif //WITH_SNDFILE_IO
 
-	if (!InHeaderDataOnly)
+	if (!InHeaderDataOnly && IsFormatSupported())
 	{
 		if ((uint8*)SampleDataEnd > (uint8*)WaveDataEnd)
 		{
