@@ -1,0 +1,154 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using EpicGames.Horde.Accounts;
+using Horde.Server.Acls;
+using Horde.Server.Server;
+using Horde.Server.Users;
+using Horde.Server.Utilities;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
+
+namespace Horde.Server.Accounts
+{
+	/// <summary>
+	/// Controller for the /api/v1/accounts endpoint
+	/// </summary>
+	[ApiController]
+	[Authorize]
+	[Route("[controller]")]
+	public class AccountsController : HordeControllerBase
+	{
+		readonly IHordeAccountCollection _accountCollection;
+		readonly GlobalConfig _globalConfig;
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public AccountsController(IHordeAccountCollection accountCollection, IOptionsSnapshot<GlobalConfig> globalConfig)
+		{
+			_accountCollection = accountCollection;
+			_globalConfig = globalConfig.Value;
+		}
+
+		/// <summary>
+		/// Gets a list of accounts
+		/// </summary>
+		[HttpPost]
+		[Route("/api/v1/accounts")]
+		[ProducesResponseType(typeof(CreateAccountResponse), 200)]
+		public async Task<ActionResult<CreateAccountResponse>> CreateAccountAsync([FromBody] CreateAccountRequest request, CancellationToken cancellationToken = default)
+		{
+			if (!_globalConfig.Authorize(AccountAclAction.CreateAccount, User))
+			{
+				return Forbid(AccountAclAction.CreateAccount);
+			}
+
+			List<IUserClaim> claims = request.Claims.ConvertAll<IUserClaim>(x => new UserClaim(x.Type, x.Value));
+			IHordeAccount account = await _accountCollection.AddAsync(request.Name, request.Login, claims, request.Description, request.Email, request.SecretToken, request.Password, request.Enabled, cancellationToken);
+			return new CreateAccountResponse(account.Id);
+		}
+
+		/// <summary>
+		/// Gets a list of accounts
+		/// </summary>
+		[HttpGet]
+		[Route("/api/v1/accounts")]
+		[ProducesResponseType(typeof(List<GetAccountResponse>), 200)]
+		public async Task<ActionResult<List<GetAccountResponse>>> FindAccountsAsync([FromQuery] int? index = null, [FromQuery] int? count = null, CancellationToken cancellationToken = default)
+		{
+			if (!_globalConfig.Authorize(AccountAclAction.ViewAccount, User))
+			{
+				return Forbid(AccountAclAction.ViewAccount);
+			}
+
+			List<GetAccountResponse> responses = new List<GetAccountResponse>();
+
+			IReadOnlyList<IHordeAccount> accounts = await _accountCollection.FindAsync(index, count, cancellationToken);
+			foreach (IHordeAccount account in accounts)
+			{
+				responses.Add(CreateGetAccountResponse(account));
+			}
+
+			return responses;
+		}
+
+		/// <summary>
+		/// Gets information about an account by id
+		/// </summary>
+		[HttpGet]
+		[Route("/api/v1/accounts/{id}")]
+		[ProducesResponseType(typeof(List<GetAccountResponse>), 200)]
+		[ProducesResponseType(404)]
+		public async Task<ActionResult<object>> GetAccountAsync(AccountId id, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
+		{
+			if (!_globalConfig.Authorize(AccountAclAction.ViewAccount, User))
+			{
+				return Forbid(AccountAclAction.ViewAccount);
+			}
+
+			IHordeAccount? account = await _accountCollection.GetAsync(id, cancellationToken);
+			if (account == null)
+			{
+				return NotFound(id);
+			}
+
+			GetAccountResponse response = CreateGetAccountResponse(account);
+			return PropertyFilter.Apply(response, filter);
+		}
+
+		/// <summary>
+		/// Updates an account by id
+		/// </summary>
+		[HttpPut]
+		[Route("/api/v1/accounts/{id}")]
+		[ProducesResponseType(200)]
+		[ProducesResponseType(404)]
+		public async Task<ActionResult> UpdateAccountAsync(AccountId id, UpdateAccountRequest request, CancellationToken cancellationToken = default)
+		{
+			if (!_globalConfig.Authorize(AccountAclAction.UpdateAccount, User))
+			{
+				return Forbid(AccountAclAction.UpdateAccount);
+			}
+
+			IReadOnlyList<IUserClaim>? claims = null;
+			if (request.Claims != null)
+			{
+				claims = request.Claims.ConvertAll(x => new UserClaim(x.Type, x.Value));
+			}
+
+			await _accountCollection.UpdateAsync(id, request.Name, request.Login, claims, request.Description, request.Email, request.SecretToken, request.Password, request.Enabled, cancellationToken);
+			return Ok();
+		}
+
+		/// <summary>
+		/// Deletes an account by id
+		/// </summary>
+		[HttpDelete]
+		[Route("/api/v1/accounts/{id}")]
+		[ProducesResponseType(200)]
+		public async Task<ActionResult> DeleteAccountAsync(AccountId id, CancellationToken cancellationToken = default)
+		{
+			if (!_globalConfig.Authorize(AccountAclAction.DeleteAccount, User))
+			{
+				return Forbid(AccountAclAction.DeleteAccount);
+			}
+
+			await _accountCollection.DeleteAsync(id, cancellationToken);
+			return Ok();
+		}
+
+		static GetAccountResponse CreateGetAccountResponse(IHordeAccount account)
+		{
+			List<AccountClaimMessage> claims = new List<AccountClaimMessage>();
+			foreach (IUserClaim claim in account.GetClaims())
+			{
+				claims.Add(new AccountClaimMessage(claim.Type, claim.Value));
+			}
+			return new GetAccountResponse(account.Name, account.Login, claims, account.Description, account.Email, account.Enabled);
+		}
+	}
+}

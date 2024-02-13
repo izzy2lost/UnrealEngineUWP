@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Core;
+using EpicGames.Horde.Accounts;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Artifacts;
@@ -164,6 +165,15 @@ namespace Horde.Server.Utilities
 		protected ActionResult Forbid(string message, params object[] args)
 		{
 			return StatusCode(StatusCodes.Status403Forbidden, LogEvent.Create(LogLevel.Error, message, args));
+		}
+
+		/// <summary>
+		/// Returns a 404 response for the given object
+		/// </summary>
+		[NonAction]
+		protected ActionResult NotFound(AccountId accountId)
+		{
+			return NotFound("Account {AccountId} not found", accountId);
 		}
 
 		/// <summary>
