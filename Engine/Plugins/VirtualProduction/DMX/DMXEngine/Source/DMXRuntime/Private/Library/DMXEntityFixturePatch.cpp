@@ -1291,8 +1291,6 @@ void UDMXEntityFixturePatch::SendResetDataToAllAttributes(bool bUseDefaultValues
 	}
 
 	// Send to the library's output ports
-	UE_DMX_SCOPED_TRACE_SENDDMX(DMXLibrary->GetFName());
-	UE_DMX_SCOPED_TRACE_SENDDMX(*GetDisplayName());
 	for (const FDMXOutputPortSharedRef& OutputPort : DMXLibrary->GetOutputPorts())
 	{
 		OutputPort->SendDMX(UniverseID, DMXChannelToValueMap);
