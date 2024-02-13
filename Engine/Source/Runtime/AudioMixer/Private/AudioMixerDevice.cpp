@@ -1481,7 +1481,7 @@ namespace Audio
 		FMixerSubmixPtr MixerSubmix = GetSubmixInstance(InSoundSubmix).Pin();
 		if (MixerSubmix.IsValid())
 		{
-			const float NewVolume = CastedSubmix->OutputVolume;
+			const float NewVolume = CastedSubmix->OutputVolumeModulation.Value;
 			AudioRenderThreadCommand([MixerSubmix, NewVolume]()
 			{
 				MixerSubmix->SetOutputVolume(NewVolume);
@@ -1987,14 +1987,6 @@ namespace Audio
 		Submixes.Remove(InSoundSubmix.GetUniqueID());
 	}
 
-	void FMixerDevice::InitSoundEffectPresets()
-	{
-#if WITH_EDITOR
-		IAudioEditorModule* AudioEditorModule = &FModuleManager::LoadModuleChecked<IAudioEditorModule>("AudioEditor");
-		AudioEditorModule->RegisterEffectPresetAssetActions();
-#endif
-	}
-
 	FMixerSubmixPtr FMixerDevice::FindSubmixInstanceByObjectId(uint32 InObjectId)
 	{
 		for (int32 i = 0; i < RequiredSubmixes.Num(); i++)
@@ -2021,14 +2013,6 @@ namespace Audio
 		}
 
 		return Submixes.FindRef(InObjectId);
-	}
-
-	void FMixerDevice::InitDefaultAudioBuses()
-	{
-	}
-
-	void FMixerDevice::ShutdownDefaultAudioBuses()
-	{
 	}
 
 	FMixerSubmixWeakPtr FMixerDevice::GetSubmixInstance(const USoundSubmixBase* SoundSubmix) const
@@ -2793,66 +2777,6 @@ namespace Audio
 	void FMixerDevice::FlushExtended(UWorld* WorldToFlush, bool bClearActivatedReverb)
 	{
 		QuantizedEventClockManager.Flush();
-	}
-
-	void FMixerDevice::StartAudioBus(uint32 InAudioBusId, int32 InNumChannels, bool bInIsAutomatic)
-	{
-		UAudioBusSubsystem* AudioBusSubsystem = GetSubsystem<UAudioBusSubsystem>();
-		if (AudioBusSubsystem)
-		{
-			AudioBusSubsystem->StartAudioBus(FAudioBusKey(InAudioBusId), InNumChannels, bInIsAutomatic);
-		}
-	}
-
-	void FMixerDevice::StopAudioBus(uint32 InAudioBusId)
-	{
-		UAudioBusSubsystem* AudioBusSubsystem = GetSubsystem<UAudioBusSubsystem>();
-		if (AudioBusSubsystem)
-		{
-			AudioBusSubsystem->StopAudioBus(FAudioBusKey(InAudioBusId));
-		}
-	}
-
-	bool FMixerDevice::IsAudioBusActive(uint32 InAudioBusId) const
-	{
-		UAudioBusSubsystem* AudioBusSubsystem = GetSubsystem<UAudioBusSubsystem>();
-		if (AudioBusSubsystem)
-		{
-			return AudioBusSubsystem->IsAudioBusActive(FAudioBusKey(InAudioBusId));
-		}
-		return false;
-	}
-
-	//UE_DEPRECATED(5.2, "AddPatchForAudioBus is deprecated.  Use UAudioBusSubsystem::AddPatchOutputForAudioBus.")
-	FPatchOutputStrongPtr FMixerDevice::AddPatchForAudioBus(uint32 InAudioBusId, float InPatchGain)
-	{
-		UAudioBusSubsystem* AudioBusSubsystem = GetSubsystem<UAudioBusSubsystem>();
-		if (AudioBusSubsystem)
-		{
-			return AudioBusSubsystem->AddPatchOutputForAudioBus(FAudioBusKey(InAudioBusId), SourceManager->GetNumOutputFrames(), 8, InPatchGain);
-		}
-		return nullptr;
-	}
-
-	//UE_DEPRECATED(5.2, "AddPatchForAudioBus_GameThread is deprecated.  Use UAudioBusSubsystem::AddPatchOutputForAudioBus.")
-	FPatchOutputStrongPtr FMixerDevice::AddPatchForAudioBus_GameThread(uint32 InAudioBusId, float InPatchGain)
-	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		return FMixerDevice::AddPatchForAudioBus(InAudioBusId, InPatchGain);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	}
-
-	//UE_DEPRECATED(5.2, "This overload of AddPatchInputForAudioBus is deprecated and non-functional.  Use the overload that takes the number of frames and channels as parameters.")
-	void FMixerDevice::AddPatchInputForAudioBus(const FPatchInput& InPatchInput, uint32 InAudioBusId, float InPatchGain)
-	{
-	}
-
-	//UE_DEPRECATED(5.2, "AddPatchInputForAudioBus_GameThread is deprecated.  Use UAudioBusSubsystem::AddPatchInputForAudioBus.")
-	void FMixerDevice::AddPatchInputForAudioBus_GameThread(const FPatchInput& InPatchInput, uint32 InAudioBusId, float InPatchGain)
-	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		FMixerDevice::AddPatchInputForAudioBus(InPatchInput, InAudioBusId, InPatchGain);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	FPatchOutputStrongPtr FMixerDevice::MakePatch(int32 InFrames, int32 InChannels, float InGain) const

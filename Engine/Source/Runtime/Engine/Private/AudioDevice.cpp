@@ -537,7 +537,6 @@ bool FAudioDevice::Init(Audio::FDeviceId InDeviceID, int32 InMaxSources, int32 I
 
 	// Parses sound classes.
 	InitSoundClasses();
-	InitSoundEffectPresets();
 
 	// Audio mixer needs to create effects manager before initializing the plugins.
 	if (IsStoppingVoicesEnabled())
@@ -672,8 +671,6 @@ bool FAudioDevice::Init(Audio::FDeviceId InDeviceID, int32 InMaxSources, int32 I
 
 	FCoreUObjectDelegates::GetPreGarbageCollectDelegate().AddRaw(this, &FAudioDevice::OnPreGarbageCollect);
 	FCoreUObjectDelegates::PreGarbageCollectConditionalBeginDestroy.AddRaw(this, &FAudioDevice::OnPreGarbageCollect);
-
-	InitDefaultAudioBuses();
 
 	UE_LOG(LogInit, Log, TEXT("FAudioDevice initialized with ID %d."), InDeviceID);
 
@@ -923,8 +920,6 @@ void FAudioDevice::Teardown()
 	const bool bDidRemoveDelegate = FAudioDeviceManagerDelegates::OnAudioDeviceCreated.Remove(DeviceCreatedHandle);
 	checkf(!bDidRemoveDelegate, TEXT("DelegateHandle not removed. Should be removed during FAudioDevice::OnDeviceDestroyed(...)"));
 #endif
-
-	ShutdownDefaultAudioBuses();
 
 	// Make sure we process any pending game thread tasks before tearing down the audio device.
 	FTaskGraphInterface::Get().ProcessThreadUntilIdle(ENamedThreads::GameThread);
@@ -6861,16 +6856,6 @@ void FAudioDevice::UnregisterSubmixBufferListener(TSharedRef<ISubmixBufferListen
 Audio::FPatchOutputStrongPtr FAudioDevice::AddPatchForSubmix(uint32 InObjectId, float InPatchGain)
 {
 	UE_LOG(LogAudio, Error, TEXT("Submix patching only works with the audio mixer. Please run with audio mixer enabled."));
-	return nullptr;
-}
-
-Audio::FPatchOutputStrongPtr FAudioDevice::AddPatchForAudioBus(uint32 InAudioBusId, float InPatchGain)
-{
-	return nullptr;
-}
-
-Audio::FPatchOutputStrongPtr FAudioDevice::AddPatchForAudioBus_GameThread(uint32 InAudioBusId, float InPatchGain)
-{
 	return nullptr;
 }
 

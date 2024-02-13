@@ -943,12 +943,6 @@ public:
 	*/
 	ENGINE_API void UnregisterSoundClass(USoundClass* SoundClass);
 
-	/* Initialized audio buses marked as default that are to be enabled for the duration of the application. */
-	virtual void InitDefaultAudioBuses() {}
-
-	/* Shutdown all audio buses marked as default. */
-	virtual void ShutdownDefaultAudioBuses() {}
-
 	/** Initializes sound submixes. */
 	virtual void InitSoundSubmixes() {}
 
@@ -979,40 +973,9 @@ public:
 
 	ENGINE_API virtual Audio::FPatchOutputStrongPtr AddPatchForSubmix(uint32 InObjectId, float InPatchGain);
 
-	virtual void StartAudioBus(uint32 InAudioBusId, int32 InNumChannels, bool bInIsAutomatic)
-	{
-	}
-
-	virtual void StopAudioBus(uint32 InAudioBusId)
-	{
-	}
-
-	virtual bool IsAudioBusActive(uint32 InAudioBusId) const
-	{
-		return false;
-	}
-
-	UE_DEPRECATED(5.2, "AddPatchForAudioBus is deprecated.  Use AddPatchOutputForAudioBus.")
-	ENGINE_API virtual Audio::FPatchOutputStrongPtr AddPatchForAudioBus(uint32 InAudioBusId, float InPatchGain = 1.0f);
-
-	UE_DEPRECATED(5.2, "AddPatchForAudioBus_GameThread is deprecated.  Use AddPatchOutputForAudioBus.")
-	ENGINE_API virtual Audio::FPatchOutputStrongPtr AddPatchForAudioBus_GameThread(uint32 InAudioBusId, float InPatchGain = 1.0f);
-
-	UE_DEPRECATED(5.2, "This overload of AddPatchInputForAudioBus is deprecated.  Use the overload that takes the number of frames and channels as parameters.")
-	virtual void AddPatchInputForAudioBus(const Audio::FPatchInput& InPatchInput, uint32 InAudioBusId, float InPatchGain = 1.0f)
-	{
-	}
-
-	UE_DEPRECATED(5.2, "AddPatchInputForAudioBus_GameThread is deprecated.  Use AddPatchInputForAudioBus.")
-	virtual void AddPatchInputForAudioBus_GameThread(const Audio::FPatchInput& InPatchInput, uint32 InAudioBusId, float InPatchGain = 1.0f)
-	{
-	}
-
 	ENGINE_API virtual Audio::FPatchInput AddPatchInputForAudioBus(uint32 InAudioBusId, int32 InFrames, int32 InChannels, float InGain = 1.f);
 
 	ENGINE_API virtual Audio::FPatchOutputStrongPtr AddPatchOutputForAudioBus(uint32 InAudioBusId, int32 InFrames, int32 InChannels, float InGain = 1.f);
-
-	virtual void InitSoundEffectPresets() {}
 
 	/**
 	* Gets the current properties of a sound class, if the sound class hasn't been registered, then it returns nullptr

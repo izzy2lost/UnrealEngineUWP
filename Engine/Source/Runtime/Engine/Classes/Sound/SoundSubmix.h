@@ -338,18 +338,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = EnvelopeFollower, meta = (ClampMin = "0", UIMin = "0"))
 	int32 EnvelopeFollowerReleaseTime;
 
-	/** Deprecated -- The output volume of the submix. Applied after submix effects and analysis are performed.*/
-	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "5.0 - Removed in favor of OutputVolumeModulation."))
-	float OutputVolume;
-
-	/** Deprecated -- The wet level of the submix. Applied after submix effects and analysis are performed. */
-	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "5.0 - Removed in favor of WetLevelModulation."))
-	float WetLevel;
-
-	/** Deprecated -- The dry level of the submix. Applied before submix effects and analysis are performed. */
-	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "5.0 - Removed in favor of DryLevelModulation."))
-	float DryLevel;
-
 	/** The output volume of the submix in Decibels. Applied after submix effects and analysis are performed.*/
 	UPROPERTY(EditAnywhere, BlueprintSetter=SetOutputVolumeModulation, Category = SubmixLevel, meta = (DisplayName = "Output Volume (dB)", AudioParam = "Volume", AudioParamClass = "SoundModulationParameterVolume", ClampMin = "-96.0", ClampMax = "0.0", UIMin = "-96.0", UIMax = "0.0"))
 	FSoundModulationDestinationSettings OutputVolumeModulation;

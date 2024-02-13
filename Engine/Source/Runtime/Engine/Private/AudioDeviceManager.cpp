@@ -843,12 +843,7 @@ void FAudioDeviceManager::InitSoundSubmixes()
 
 void FAudioDeviceManager::InitSoundEffectPresets()
 {
-	IterateOverAllDevices(
-		[](Audio::FDeviceId, FAudioDevice* InDevice)
-		{
-			InDevice->InitSoundEffectPresets();
-		}
-	);
+	// Deprecated.
 }
 
 void FAudioDeviceManager::UpdateSourceEffectChain(const uint32 SourceEffectChainId, const TArray<FSourceEffectChainEntry>& SourceEffectChain, const bool bPlayEffectChainTails)
