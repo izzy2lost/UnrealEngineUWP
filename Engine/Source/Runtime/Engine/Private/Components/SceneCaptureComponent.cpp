@@ -687,10 +687,9 @@ void USceneCaptureComponent2D::GetCameraView(float DeltaTime, FMinimalViewInfo& 
 	OutMinimalViewInfo.bConstrainAspectRatio = false;
 	OutMinimalViewInfo.ProjectionMode = ProjectionType;
 	OutMinimalViewInfo.OrthoWidth = OrthoWidth;
-		
+	OutMinimalViewInfo.bAutoCalculateOrthoPlanes = bAutoCalculateOrthoPlanes;		
 	if (bAutoCalculateOrthoPlanes)
 	{
-		OutMinimalViewInfo.bAutoCalculateOrthoPlanes = true;
 		if(const AActor* ViewTarget = GetOwner())
 		{
 			OutMinimalViewInfo.SetOrthoCameraArmLengthFromOwnerLocation(ViewTarget->GetActorLocation());
