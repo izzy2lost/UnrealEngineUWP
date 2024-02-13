@@ -292,9 +292,12 @@ bool UAvaPlayableLocalTransition::Start()
 		++ArrayIndex;
 	}
 
+	const EAvaPlayableTransitionEntryRole PlayingPlayablesRole = EnumHasAnyFlags(TransitionFlags, EAvaPlayableTransitionFlags::TreatPlayingAsExiting) ?
+		EAvaPlayableTransitionEntryRole::Exit : EAvaPlayableTransitionEntryRole::Playing;
+
 	for (UAvaPlayable* Playable : PlayingPlayables)
 	{
-		if (!Helper.AddTransitionBehaviorInstance(Playable, EAvaPlayableTransitionEntryRole::Playing))
+		if (!Helper.AddTransitionBehaviorInstance(Playable, PlayingPlayablesRole))
 		{
 			// No Transition Tree:
 			// Stop exit/playing playable without any transition.

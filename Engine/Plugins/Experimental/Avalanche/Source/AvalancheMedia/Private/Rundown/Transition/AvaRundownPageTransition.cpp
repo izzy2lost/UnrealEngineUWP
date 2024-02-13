@@ -484,10 +484,10 @@ void UAvaRundownPageTransition::MakePlayableTransition()
 	AddPlayersToBuilder(TransitionBuilder, ExitPlayersWeak, TEXT("Exit"), EAvaPlayableTransitionEntryRole::Exit);
 	PlayableTransition = TransitionBuilder.MakeTransition(this);
 
-	// Mark exit only transitions to ensure they properly create the null behavior instances. 
-	if (PlayableTransition && EnterPlayersWeak.IsEmpty())
+	// For non-TL enter pages, we need to kick out the playing pages too. 
+	if (PlayableTransition && HasEnterPagesWithNoTransitionLogic())
 	{
-		PlayableTransition->SetTransitionFlags(EAvaPlayableTransitionFlags::ExitOnly);
+		PlayableTransition->SetTransitionFlags(EAvaPlayableTransitionFlags::TreatPlayingAsExiting);
 	}
 }
 

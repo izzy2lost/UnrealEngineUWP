@@ -124,8 +124,8 @@ enum class EAvaPlayableSequenceEventType : uint8
 enum class EAvaPlayableTransitionFlags : uint8
 {
 	None = 0,
-	/** This transition contains only exit playables. */
-	ExitOnly = 1 << 0,
+	/** Playing playables will be treated as exit playables. */
+	TreatPlayingAsExiting = 1 << 0,
 };
 ENUM_CLASS_FLAGS(EAvaPlayableTransitionFlags);
 
