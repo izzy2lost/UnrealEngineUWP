@@ -176,7 +176,7 @@ namespace FNiagaraEditorUtilities
 
 	FText GetTypeDefinitionCategory(const FNiagaraTypeDefinition& TypeDefinition);
 
-	NIAGARAEDITOR_API bool AreTypesAssignable(const FNiagaraTypeDefinition& TypeA, const FNiagaraTypeDefinition& TypeB);
+	NIAGARAEDITOR_API bool AreTypesAssignable(const FNiagaraTypeDefinition& FromType, const FNiagaraTypeDefinition& ToType);
 
 	void MarkDependentCompilableAssetsDirty(TArray<UObject*> InObjects);
 	void MarkDependentCompilableAssetsDirty(const TArray<FAssetData>& InAssets);
