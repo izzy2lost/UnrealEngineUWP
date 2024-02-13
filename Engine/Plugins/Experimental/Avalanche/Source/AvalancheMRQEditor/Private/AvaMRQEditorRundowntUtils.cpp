@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaMRQEditorRundownUtils.h"
+#include "AvaMRQEditorSettings.h"
 #include "AvaMRQRundownPageSetting.h"
 #include "AvaSceneSubsystem.h"
 #include "IAvaSceneInterface.h"
@@ -34,6 +35,11 @@ namespace UE::AvaMRQEditor::Private
 		{
 			QueueSubsystem = GEditor ? GEditor->GetEditorSubsystem<UMoviePipelineQueueSubsystem>() : nullptr;
 			ensureMsgf(QueueSubsystem, TEXT("Not able to access UMoviePipelineQueueSubsystem (returned null)"));
+
+			// todo: optionally prompt the user for a different preset
+			const UAvaMRQEditorSettings* MRQEditorSettings = GetDefault<UAvaMRQEditorSettings>();
+			check(MRQEditorSettings);
+			PresetConfig = MRQEditorSettings->PresetConfig.LoadSynchronous();
 		}
 
 		~FAvaMRQScopedRender()
@@ -64,6 +70,11 @@ namespace UE::AvaMRQEditor::Private
 			}
 			if (UMoviePipelineExecutorJob* Job = Queue->AllocateNewJob(UMoviePipelineExecutorJob::StaticClass()))
 			{
+				UMoviePipelinePrimaryConfig* Config = Job->GetConfiguration();
+				if (PresetConfig && Config)
+				{
+					Config->CopyFrom(PresetConfig);
+				}
 				++JobAllocationCount;
 				return Job;
 			}
@@ -91,6 +102,8 @@ namespace UE::AvaMRQEditor::Private
 		uint32 JobAllocationCount = 0;
 
 		TArray<TWeakObjectPtr<UWorld>> RootedWorlds;
+
+		UMoviePipelineConfigBase* PresetConfig = nullptr;
 	};
 
 	void RenderSequence(FAvaMRQScopedRender& InScopedRender, UWorld* InWorld, const UAvaRundown& InRundown, const FAvaRundownPage& InPage, UAvaSequence* InSequence)

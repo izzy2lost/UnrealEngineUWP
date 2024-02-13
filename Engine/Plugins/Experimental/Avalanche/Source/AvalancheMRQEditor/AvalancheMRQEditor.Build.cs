@@ -19,6 +19,7 @@ public class AvalancheMRQEditor : ModuleRules
                 "AvalancheSequencer",
                 "Core",
                 "CoreUObject",
+                "DeveloperSettings",
                 "Engine",
                 "MovieRenderPipelineCore",
                 "MovieRenderPipelineEditor",
