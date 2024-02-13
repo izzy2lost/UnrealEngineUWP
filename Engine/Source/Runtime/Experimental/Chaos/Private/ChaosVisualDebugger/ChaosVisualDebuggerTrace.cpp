@@ -10,6 +10,8 @@
 #include "Chaos/PBDCollisionConstraints.h"
 #include "Chaos/PBDRigidsSOAs.h"
 #include "ChaosVisualDebugger/ChaosVDDataWrapperUtils.h"
+#include "ChaosVisualDebugger/ChaosVDMemWriterReader.h"
+#include "ChaosVisualDebugger/ChaosVDSerializedNameTable.h"
 #include "Compression/OodleDataCompressionUtil.h"
 #include "DataWrappers/ChaosVDCollisionDataWrappers.h"
 #include "DataWrappers/ChaosVDImplicitObjectDataWrapper.h"
@@ -17,7 +19,6 @@
 #include "DataWrappers/ChaosVDQueryDataWrappers.h"
 #include "HAL/CriticalSection.h"
 #include "Misc/ScopeRWLock.h"
-#include "Serialization/MemoryWriter.h"
 #include "Templates/UniquePtr.h"
 
 UE_TRACE_EVENT_DEFINE(ChaosVDLogger, ChaosVDSolverFrameStart)
@@ -37,15 +38,20 @@ UE_TRACE_EVENT_DEFINE(ChaosVDLogger, ChaosVDDummyEvent)
 UE_TRACE_EVENT_DEFINE(ChaosVDLogger, ChaosVDNonSolverLocation)
 UE_TRACE_EVENT_DEFINE(ChaosVDLogger, ChaosVDNonSolverTransform)
 
-static FAutoConsoleVariable CVarChaosVDCompressBinaryData(
+namespace Chaos::VisualDebugger::Cvars
+{
+	static bool bCompressBinaryData = false;
+	FAutoConsoleVariableRef CVarChaosVDCompressBinaryData(
 	TEXT("p.Chaos.VD.CompressBinaryData"),
-	false,
+	bCompressBinaryData,
 	TEXT("If true, serialized binary data will be compressed using Oodle on the fly before being traced"));
 
-static FAutoConsoleVariable CVarChaosVDCompressionMode(
+	static int32 CompressionMode = 2;
+	FAutoConsoleVariableRef CVarChaosVDCompressionMode(
 	TEXT("p.Chaos.VD.CompressionMode"),
-	2,
+	CompressionMode,
 	TEXT("Oodle compression mode to use, 4 is by default which equsals to ECompressionLevel::VeryFast"));
+}
 
 /** Struct where we keep track of the geometry we are tracing */
 struct FChaosVDGeometryTraceContext
@@ -103,6 +109,7 @@ FDelegateHandle FChaosVisualDebuggerTrace::RecordingFullCaptureRequestedHandle =
 FRWLock FChaosVisualDebuggerTrace::DeltaRecordingStatesLock = FRWLock();
 TSet<int32> FChaosVisualDebuggerTrace::SolverIDsForDeltaRecording = TSet<int32>();
 TSet<int32> FChaosVisualDebuggerTrace::RequestedFullCaptureSolverIDs = TSet<int32>();
+TSharedRef<FChaosVDSerializableNameTable> FChaosVisualDebuggerTrace::CVDNameTable = MakeShared<FChaosVDSerializableNameTable>();
 std::atomic<bool> FChaosVisualDebuggerTrace::bIsTracing = false;
 
 void FChaosVisualDebuggerTrace::TraceParticle(const Chaos::FGeometryParticleHandle* ParticleHandle)
@@ -140,7 +147,7 @@ void FChaosVisualDebuggerTrace::TraceParticle(Chaos::FGeometryParticleHandle* Pa
 	TraceImplicitObject({ GeometryHash, ParticleHandle->GetGeometry() });
 
 	{
-		FChaosVDParticleDataWrapper ParticleDataWrapper = FChaosVDDataWrapperUtils::BuildParticleDataWrapperFromParticle(ParticleHandle);
+		FChaosVDParticleDataWrapper ParticleDataWrapper = FChaosVDDataWrapperUtils::BuildParticleDataWrapperFromParticle(ParticleHandle, CVDNameTable);
 		ParticleDataWrapper.GeometryHash = GeometryHash;
 		ParticleDataWrapper.SolverID = ContextData.Id;
 		
@@ -156,11 +163,7 @@ void FChaosVisualDebuggerTrace::TraceParticle(Chaos::FGeometryParticleHandle* Pa
 		
 		FChaosVDScopedTLSBufferAccessor TLSDataBuffer;
 
-		FMemoryWriter MemWriterAr(TLSDataBuffer.BufferRef);
-		MemWriterAr.SetShouldSkipUpdateCustomVersion(true);
-		MemWriterAr.SetUseUnversionedPropertySerialization(true);
-
-		ParticleDataWrapper.Serialize(MemWriterAr);
+		Chaos::VisualDebugger::WriteDataToBuffer(TLSDataBuffer.BufferRef, ParticleDataWrapper);
 
 		TraceBinaryData(TLSDataBuffer.BufferRef, FChaosVDParticleDataWrapper::WrapperTypeName);
 	}
@@ -286,14 +289,11 @@ void FChaosVisualDebuggerTrace::TraceMidPhase(const Chaos::FParticlePairMidPhase
 	FChaosVDParticlePairMidPhase CVDMidPhase = FChaosVDDataWrapperUtils::BuildMidPhaseDataWrapperFromMidPhase(*MidPhase);
 	CVDMidPhase.SolverID = CVDContextData->Id;
 
-	FChaosVDScopedTLSBufferAccessor CVDBuffer;
-	FMemoryWriter MemWriter(CVDBuffer.BufferRef);
-		
-	CVDMidPhase.Serialize(MemWriter);
+	FChaosVDScopedTLSBufferAccessor TLSDataBuffer;
+	Chaos::VisualDebugger::WriteDataToBuffer(TLSDataBuffer.BufferRef, CVDMidPhase);
 
-	TraceBinaryData(CVDBuffer.BufferRef, FChaosVDParticlePairMidPhase::WrapperTypeName);
+	TraceBinaryData(TLSDataBuffer.BufferRef, FChaosVDParticlePairMidPhase::WrapperTypeName);
 }
-
 
 void FChaosVisualDebuggerTrace::TraceMidPhasesFromCollisionConstraints(Chaos::FPBDCollisionConstraints& InCollisionConstraints)
 {
@@ -336,12 +336,10 @@ void FChaosVisualDebuggerTrace::TraceCollisionConstraint(const Chaos::FPBDCollis
 	FChaosVDConstraint CVDConstraint = FChaosVDDataWrapperUtils::BuildConstraintDataWrapperFromConstraint(*CollisionConstraint);
 	CVDConstraint.SolverID = CVDContextData->Id;
 
-	FChaosVDScopedTLSBufferAccessor CVDBuffer;
-	FMemoryWriter MemWriter(CVDBuffer.BufferRef);
-		
-	CVDConstraint.Serialize(MemWriter);
+	FChaosVDScopedTLSBufferAccessor TLSDataBuffer;
+	Chaos::VisualDebugger::WriteDataToBuffer(TLSDataBuffer.BufferRef, CVDConstraint);
 
-	TraceBinaryData(CVDBuffer.BufferRef, FChaosVDConstraint::WrapperTypeName);
+	TraceBinaryData(TLSDataBuffer.BufferRef, FChaosVDConstraint::WrapperTypeName);
 }
 
 void FChaosVisualDebuggerTrace::TraceCollisionConstraintView(TArrayView<Chaos::FPBDCollisionConstraint* const> CollisionConstraintView)
@@ -487,7 +485,7 @@ void FChaosVisualDebuggerTrace::TraceSolverSimulationSpace(const Chaos::FRigidTr
 		<< CVD_TRACE_ROTATOR_ON_EVENT(ChaosVDSolverSimulationSpace, Rotation, Transform.GetRotation());
 }
 
-void FChaosVisualDebuggerTrace::TraceBinaryData(const TArray<uint8>& InData, FStringView TypeName)
+void FChaosVisualDebuggerTrace::TraceBinaryData(TConstArrayView<uint8> InData, FStringView TypeName)
 {
 	if (!IsTracing())
 	{
@@ -501,21 +499,21 @@ void FChaosVisualDebuggerTrace::TraceBinaryData(const TArray<uint8>& InData, FSt
 
 	ensure(DataID < TNumericLimits<int32>::Max());
 
-	const TArray<uint8>* DataToTrace = &InData;
+	TConstArrayView<uint8> DataViewToTrace = InData;
 
 	// Handle Compression if enabled
-	const bool bIsCompressed = CVarChaosVDCompressBinaryData->GetBool();
+	const bool bIsCompressed = Chaos::VisualDebugger::Cvars::bCompressBinaryData;
 	TArray<uint8> CompressedData;
 	if (bIsCompressed)
 	{
 		CompressedData.Reserve(CompressedData.Num());
-		FOodleCompressedArray::CompressTArray(CompressedData, InData, FOodleDataCompression::ECompressor::Kraken,
-			static_cast<FOodleDataCompression::ECompressionLevel>(CVarChaosVDCompressionMode->GetInt()));
+		FOodleCompressedArray::CompressData(CompressedData, InData.GetData(),InData.Num(), FOodleDataCompression::ECompressor::Kraken,
+			static_cast<FOodleDataCompression::ECompressionLevel>(Chaos::VisualDebugger::Cvars::CompressionMode));
 
-		DataToTrace = &CompressedData;
+		DataViewToTrace = CompressedData;
 	}
 
-	const uint32 DataSize = static_cast<uint32>(DataToTrace->Num());
+	const uint32 DataSize = static_cast<uint32>(DataViewToTrace.Num());
 	constexpr uint32 MaxChunkSize = TNumericLimits<uint16>::Max();
 	const uint32 ChunkNum = (DataSize + MaxChunkSize - 1) / MaxChunkSize;
 
@@ -531,7 +529,7 @@ void FChaosVisualDebuggerTrace::TraceBinaryData(const TArray<uint8>& InData, FSt
 	for (uint32 Index = 0; Index < ChunkNum; ++Index)
 	{
 		const uint16 Size = static_cast<uint16>(FMath::Min(RemainingSize, MaxChunkSize));
-		const uint8* ChunkData = DataToTrace->GetData() + MaxChunkSize * Index;
+		const uint8* ChunkData = DataViewToTrace.GetData() + MaxChunkSize * Index;
 
 		UE_TRACE_LOG(ChaosVDLogger, ChaosVDBinaryDataContent, ChaosVDChannel)
 			<< ChaosVDBinaryDataContent.Cycle(FPlatformTime::Cycles64())
@@ -570,13 +568,7 @@ void FChaosVisualDebuggerTrace::TraceImplicitObject(FChaosVDImplicitObjectWrappe
 	}
 
 	FChaosVDScopedTLSBufferAccessor TLSDataBuffer;
-
-	FMemoryWriter MemWriterAr(TLSDataBuffer.BufferRef);
-	Chaos::FChaosArchive Ar(MemWriterAr);
-
-	Ar.SetShouldSkipUpdateCustomVersion(true);
-
-	WrappedGeometryData.Serialize(Ar);
+	Chaos::VisualDebugger::WriteDataToBuffer<FChaosVDImplicitObjectWrapper, Chaos::FChaosArchive>(TLSDataBuffer.BufferRef, WrappedGeometryData);
 
 	TraceBinaryData(TLSDataBuffer.BufferRef, FChaosVDImplicitObjectWrapper::WrapperTypeName);
 }
@@ -670,12 +662,7 @@ void FChaosVisualDebuggerTrace::TraceSceneQueryStart(const Chaos::FImplicitObjec
 	WrappedQueryData.Type = QueryType;
 
 	FChaosVDScopedTLSBufferAccessor TLSDataBuffer;
-
-	FMemoryWriter MemWriterAr(TLSDataBuffer.BufferRef);
-	MemWriterAr.SetShouldSkipUpdateCustomVersion(true);
-	MemWriterAr.SetUseUnversionedPropertySerialization(true);
-
-	WrappedQueryData.Serialize(MemWriterAr);
+	Chaos::VisualDebugger::WriteDataToBuffer(TLSDataBuffer.BufferRef, WrappedQueryData);
 
 	TraceBinaryData(TLSDataBuffer.BufferRef, FChaosVDQueryDataWrapper::WrapperTypeName);
 }
@@ -704,12 +691,7 @@ void FChaosVisualDebuggerTrace::TraceSceneQueryVisit(FChaosVDQueryVisitStep&& In
 	InQueryVisitData.OwningQueryID = CVDContextData->Id;
 
 	FChaosVDScopedTLSBufferAccessor TLSDataBuffer;
-
-	FMemoryWriter MemWriterAr(TLSDataBuffer.BufferRef);
-	MemWriterAr.SetShouldSkipUpdateCustomVersion(true);
-	MemWriterAr.SetUseUnversionedPropertySerialization(true);
-
-	InQueryVisitData.Serialize(MemWriterAr);
+	Chaos::VisualDebugger::WriteDataToBuffer(TLSDataBuffer.BufferRef, InQueryVisitData);
 
 	TraceBinaryData(TLSDataBuffer.BufferRef, FChaosVDQueryVisitStep::WrapperTypeName);
 }
@@ -765,6 +747,8 @@ void FChaosVisualDebuggerTrace::UnregisterEventHandlers()
 
 void FChaosVisualDebuggerTrace::Reset()
 {
+	CVDNameTable->ResetTable();
+
 	{
 		FWriteScopeLock WriteLock(DeltaRecordingStatesLock);
 		RequestedFullCaptureSolverIDs.Reset();

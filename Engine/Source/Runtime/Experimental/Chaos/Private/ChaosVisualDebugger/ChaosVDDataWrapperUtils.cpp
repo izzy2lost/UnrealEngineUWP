@@ -4,12 +4,12 @@
 
 #if WITH_CHAOS_VISUAL_DEBUGGER
 
-#include "Algo/Copy.h"
 #include "Chaos/Collision/ParticlePairMidPhase.h"
+#include "Chaos/Collision/CollisionConstraintAllocator.h"
 #include "Chaos/ParticleHandle.h"
+#include "ChaosVisualDebugger/ChaosVDSerializedNameTable.h"
 #include "DataWrappers/ChaosVDCollisionDataWrappers.h"
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
-#include "Chaos/Collision/CollisionConstraintAllocator.h"
 
 namespace Chaos::VisualDebugger::Utils
 {
@@ -71,7 +71,7 @@ void FChaosVDDataWrapperUtils::CopyCollisionMaterialToDataWrapper(const Chaos::F
 	OutCopyTo.InvInertiaScale1 = InCopyFrom.InvInertiaScale1;
 }
 
-FChaosVDParticleDataWrapper FChaosVDDataWrapperUtils::BuildParticleDataWrapperFromParticle(const Chaos::FGeometryParticleHandle* ParticleHandlePtr)
+FChaosVDParticleDataWrapper FChaosVDDataWrapperUtils::BuildParticleDataWrapperFromParticle(const Chaos::FGeometryParticleHandle* ParticleHandlePtr, const TSharedRef<Chaos::VisualDebugger::FChaosVDSerializableNameTable>& InNameTableInstance)
 {
 	check(ParticleHandlePtr);
 
@@ -81,7 +81,10 @@ FChaosVDParticleDataWrapper FChaosVDDataWrapperUtils::BuildParticleDataWrapperFr
 	WrappedParticleData.Type =  static_cast<EChaosVDParticleType>(ParticleHandlePtr->Type);
 
 #if CHAOS_DEBUG_NAME
-	WrappedParticleData.DebugNamePtr = ParticleHandlePtr->DebugName();
+	// Passing it as a Ptr because from here until it is serialized right after this function ends this string does not change
+	// Passing it as a sharedptr has an additional 20% cost as it has to increment the reference counter, which adds up
+	// TODO: We should switch to FName to take advantage of the new CVD Serializable name table so they can be de-duplicated, but to do so we need to change how we create our debug names to not be unique strings
+	WrappedParticleData.DebugNamePtr = ParticleHandlePtr->DebugName().IsValid() ? ParticleHandlePtr->DebugName().Get() : nullptr;
 #endif
 
 	WrappedParticleData.ParticlePositionRotation.CopyFrom(*ParticleHandlePtr);
@@ -102,6 +105,8 @@ FChaosVDParticleDataWrapper FChaosVDDataWrapperUtils::BuildParticleDataWrapperFr
 	{
 		WrappedParticleData.ParticleCluster.CopyFrom(*ClusteredParticle);
 	}
+
+	WrappedParticleData.MarkAsValid();
 
 	return MoveTemp(WrappedParticleData);
 }

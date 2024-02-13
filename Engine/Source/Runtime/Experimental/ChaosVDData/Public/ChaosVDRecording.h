@@ -12,6 +12,11 @@
 #include "Chaos/ImplicitObject.h"
 #include "DataWrappers/ChaosVDQueryDataWrappers.h"
 
+namespace Chaos::VisualDebugger
+{
+class FChaosVDSerializableNameTable;
+}
+
 DECLARE_MULTICAST_DELEGATE(FChaosVDRecordingUpdated)
 DECLARE_MULTICAST_DELEGATE_TwoParams(FChaosVDGeometryDataLoaded, const Chaos::FConstImplicitObjectPtr&, const uint32 GeometryID)
 
@@ -96,7 +101,9 @@ struct FChaosVDGameFrameData
  * It is currently populated while analyzing a Trace session
  */
 struct CHAOSVDDATA_API FChaosVDRecording
-{	
+{
+	FChaosVDRecording();
+
 	/** Returns the current available recorded solvers number */
 	int32 GetAvailableSolversNumber_AssumesLocked() const { return RecordedFramesDataPerSolver.Num(); }
 	
@@ -257,6 +264,8 @@ struct CHAOSVDDATA_API FChaosVDRecording
 	/** Sets if this recording is being populated from a live session */
 	void SetIsLive(bool bNewIsLive) { bIsLive = bNewIsLive; }
 
+	TSharedPtr<Chaos::VisualDebugger::FChaosVDSerializableNameTable> GetNameTableInstance() const { return NameTable; }
+
 protected:
 
 	/** Adds an Implicit Object to the recording and takes ownership of it */
@@ -280,6 +289,8 @@ protected:
 
 	/** Id to Ptr map of all shared geometry data required to visualize */
 	TMap<uint32, Chaos::FConstImplicitObjectPtr> ImplicitObjects;
+
+	TSharedPtr<Chaos::VisualDebugger::FChaosVDSerializableNameTable> NameTable;
 
 	mutable FRWLock RecordingDataLock;
 

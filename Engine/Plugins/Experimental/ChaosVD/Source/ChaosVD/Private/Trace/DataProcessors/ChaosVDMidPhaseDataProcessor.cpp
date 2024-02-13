@@ -3,7 +3,7 @@
 #include "Trace/DataProcessors/ChaosVDMidPhaseDataProcessor.h"
 #include "DataWrappers/ChaosVDCollisionDataWrappers.h"
 #include "ChaosVDRecording.h"
-#include "Serialization/MemoryReader.h"
+#include "ChaosVisualDebugger/ChaosVDMemWriterReader.h"
 #include "Trace/ChaosVDTraceProvider.h"
 
 FChaosVDMidPhaseDataProcessor::FChaosVDMidPhaseDataProcessor() : IChaosVDDataProcessor(FChaosVDParticlePairMidPhase::WrapperTypeName)
@@ -17,25 +17,33 @@ bool FChaosVDMidPhaseDataProcessor::ProcessRawData(const TArray<uint8>& InData)
 	{
 		return false;
 	}
+	
+	if (!ensure(ProviderSharedPtr->GetNameTable().IsValid()))
+	{
+		return false;
+	}
+
 
 	TSharedPtr<FChaosVDParticlePairMidPhase> MidPhase = MakeShared<FChaosVDParticlePairMidPhase>();
-	FMemoryReader MemReader(InData);
 
-	MidPhase->Serialize(MemReader);
+	const bool bSuccess = ReadDataFromBuffer(InData, *MidPhase, ProviderSharedPtr->GetNameTable().ToSharedRef());
 
-	// This can be null if the recording started Mid-Frame. In this case we just discard the data for now
-	if (FChaosVDSolverFrameData* FrameData = ProviderSharedPtr->GetCurrentSolverFrame(MidPhase->SolverID))
+	if (bSuccess)
 	{
-		if (ensureMsgf(FrameData->SolverSteps.Num() > 0, TEXT("A MidPhase was traced without a valid step scope")))
+		// This can be null if the recording started Mid-Frame. In this case we just discard the data for now
+		if (FChaosVDSolverFrameData* FrameData = ProviderSharedPtr->GetCurrentSolverFrame(MidPhase->SolverID))
 		{
-			FrameData->SolverSteps.Last().RecordedMidPhases.Add(MidPhase);
+			if (ensureMsgf(FrameData->SolverSteps.Num() > 0, TEXT("A MidPhase was traced without a valid step scope")))
+			{
+				FrameData->SolverSteps.Last().RecordedMidPhases.Add(MidPhase);
 
-			AddMidPhaseToParticleIDMap(MidPhase, MidPhase->Particle0Idx, *FrameData);
-			AddMidPhaseToParticleIDMap(MidPhase, MidPhase->Particle1Idx, *FrameData);
+				AddMidPhaseToParticleIDMap(MidPhase, MidPhase->Particle0Idx, *FrameData);
+				AddMidPhaseToParticleIDMap(MidPhase, MidPhase->Particle1Idx, *FrameData);
+			}
 		}
 	}
 
-	return !MemReader.IsError() && !MemReader.IsCriticalError();
+	return bSuccess;
 }
 
 void FChaosVDMidPhaseDataProcessor::AddMidPhaseToParticleIDMap(const TSharedPtr<FChaosVDParticlePairMidPhase>& MidPhaseData, int32 ParticleID, FChaosVDSolverFrameData& InFrameData)

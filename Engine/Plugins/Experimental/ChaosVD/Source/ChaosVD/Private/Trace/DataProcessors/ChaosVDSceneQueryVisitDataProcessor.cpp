@@ -3,10 +3,11 @@
 #include "Trace/DataProcessors/ChaosVDSceneQueryVisitDataProcessor.h"
 
 #include "ChaosVDRecording.h"
+#include "ChaosVisualDebugger/ChaosVDMemWriterReader.h"
+#include "ChaosVisualDebugger/ChaosVDSerializedNameTable.h"
+#include "ChaosVisualDebugger/ChaosVisualDebuggerTrace.h"
 #include "DataWrappers/ChaosVDQueryDataWrappers.h"
-#include "Serialization/MemoryReader.h"
 #include "Trace/ChaosVDTraceProvider.h"
-
 
 FChaosVDSceneQueryVisitDataProcessor::FChaosVDSceneQueryVisitDataProcessor() : IChaosVDDataProcessor(FChaosVDQueryVisitStep::WrapperTypeName)
 {
@@ -20,29 +21,34 @@ bool FChaosVDSceneQueryVisitDataProcessor::ProcessRawData(const TArray<uint8>& I
 		return false;
 	}
 
-	if (const TSharedPtr<FChaosVDGameFrameData> CurrentFrameData = ProviderSharedPtr->GetCurrentGameFrame().Pin())
+	if (!ensure(ProviderSharedPtr->GetNameTable().IsValid()))
 	{
-		FChaosVDQueryVisitStep VisitStepData;
+		return false;
+	}
 
-		FMemoryReader MemReader(InData);
+	FChaosVDQueryVisitStep VisitStepData;
+	const bool bSuccess = ReadDataFromBuffer(InData, VisitStepData, ProviderSharedPtr->GetNameTable().ToSharedRef());
 
-		VisitStepData.Serialize(MemReader);
-		
-		if (TSharedPtr<FChaosVDQueryDataWrapper>* QueryDataPtrPtr = CurrentFrameData->RecordedSceneQueries.Find(VisitStepData.OwningQueryID))
-		{
-			TSharedPtr<FChaosVDQueryDataWrapper> QueryDataPtr = *QueryDataPtrPtr;
-			if (QueryDataPtrPtr->IsValid())
+	if (bSuccess)
+	{
+		if (const TSharedPtr<FChaosVDGameFrameData> CurrentFrameData = ProviderSharedPtr->GetCurrentGameFrame().Pin())
+		{	
+			if (TSharedPtr<FChaosVDQueryDataWrapper>* QueryDataPtrPtr = CurrentFrameData->RecordedSceneQueries.Find(VisitStepData.OwningQueryID))
 			{
-				if (VisitStepData.HitData.HasValidData())
+				TSharedPtr<FChaosVDQueryDataWrapper> QueryDataPtr = *QueryDataPtrPtr;
+				if (QueryDataPtrPtr->IsValid())
 				{
-					// Quick and dirty way of show the hits in the details panel. If copying this data around becomes a bottle neck we can write a customization layout for it
-					QueryDataPtr->Hits.Add(VisitStepData);
-				}
+					if (VisitStepData.HitData.HasValidData())
+					{
+						// Quick and dirty way of show the hits in the details panel. If copying this data around becomes a bottle neck we can write a customization layout for it
+						QueryDataPtr->Hits.Add(VisitStepData);
+					}
 	
-				QueryDataPtr->SQVisitData.Emplace(MoveTemp(VisitStepData));
+					QueryDataPtr->SQVisitData.Emplace(MoveTemp(VisitStepData));
+				}
 			}
 		}
 	}
 
-	return true;
+	return bSuccess;
 }

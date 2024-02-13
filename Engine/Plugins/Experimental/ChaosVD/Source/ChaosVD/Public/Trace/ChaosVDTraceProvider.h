@@ -13,6 +13,11 @@
 #include "Templates/SharedPointer.h"
 #include "TraceServices/Model/AnalysisSession.h"
 
+namespace Chaos::VisualDebugger
+{
+	class FChaosVDSerializableNameTable;
+}
+
 struct FChaosVDGameFrameData;
 class FChaosVDEngine;
 struct FChaosVDSolverFrameData;
@@ -69,6 +74,8 @@ public:
 	TSharedPtr<FChaosVDRecording> GetRecordingForSession() const;
 
 	void RegisterDataProcessor(TSharedPtr<IChaosVDDataProcessor> InDataProcessor);
+
+	TSharedPtr<Chaos::VisualDebugger::FChaosVDSerializableNameTable> GetNameTable() const;
 
 private:
 

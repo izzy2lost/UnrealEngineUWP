@@ -2,6 +2,12 @@
 
 #include "ChaosVDRecording.h"
 #include "Chaos/ImplicitObject.h"
+#include "ChaosVisualDebugger/ChaosVDSerializedNameTable.h"
+
+FChaosVDRecording::FChaosVDRecording()
+{
+	NameTable = MakeShared<Chaos::VisualDebugger::FChaosVDSerializableNameTable>();
+}
 
 int32 FChaosVDRecording::GetAvailableGameFramesNumber() const
 {

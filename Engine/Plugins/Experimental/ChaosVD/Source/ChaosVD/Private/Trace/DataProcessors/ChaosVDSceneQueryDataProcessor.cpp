@@ -3,10 +3,11 @@
 #include "Trace/DataProcessors/ChaosVDSceneQueryDataProcessor.h"
 
 #include "ChaosVDRecording.h"
+#include "ChaosVisualDebugger/ChaosVDMemWriterReader.h"
+#include "ChaosVisualDebugger/ChaosVDSerializedNameTable.h"
+#include "ChaosVisualDebugger/ChaosVisualDebuggerTrace.h"
 #include "DataWrappers/ChaosVDQueryDataWrappers.h"
-#include "Serialization/MemoryReader.h"
 #include "Trace/ChaosVDTraceProvider.h"
-
 
 FChaosVDSceneQueryDataProcessor::FChaosVDSceneQueryDataProcessor() : IChaosVDDataProcessor(FChaosVDQueryDataWrapper::WrapperTypeName)
 {
@@ -19,26 +20,31 @@ bool FChaosVDSceneQueryDataProcessor::ProcessRawData(const TArray<uint8>& InData
 	{
 		return false;
 	}
-
-	if (const TSharedPtr<FChaosVDGameFrameData> CurrentFrameData = ProviderSharedPtr->GetCurrentGameFrame().Pin())
+	if (!ensure(ProviderSharedPtr->GetNameTable().IsValid()))
 	{
-		const TSharedPtr<FChaosVDQueryDataWrapper> QueryData = MakeShared<FChaosVDQueryDataWrapper>();
-		FMemoryReader MemReader(InData);
-
-		QueryData->Serialize(MemReader);
-
-		// If ParentQueryID was set, this is a sub query, so find the parent add it to the sub-queries list so we can navigate trough the query "hierarchy" later on
-		if (QueryData->ParentQueryID != INDEX_NONE)
-		{
-			if (const TSharedPtr<FChaosVDQueryDataWrapper>* ParentQueryData = CurrentFrameData->RecordedSceneQueries.Find(QueryData->ParentQueryID))
-			{
-				(*ParentQueryData)->SubQueriesIDs.Add(QueryData->ID);
-			}
-		}
-
-		CurrentFrameData->RecordedSceneQueries.Add(QueryData->ID, QueryData);
+		return false;
 	}
 
-	return true;
+	const TSharedPtr<FChaosVDQueryDataWrapper> QueryData = MakeShared<FChaosVDQueryDataWrapper>();
+	const bool bSuccess = ReadDataFromBuffer(InData, *QueryData, ProviderSharedPtr->GetNameTable().ToSharedRef());
+
+	if (bSuccess)
+	{
+		if (const TSharedPtr<FChaosVDGameFrameData> CurrentFrameData = ProviderSharedPtr->GetCurrentGameFrame().Pin())
+		{
+			// If ParentQueryID was set, this is a sub query, so find the parent add it to the sub-queries list so we can navigate trough the query "hierarchy" later on
+			if (QueryData->ParentQueryID != INDEX_NONE)
+			{
+				if (const TSharedPtr<FChaosVDQueryDataWrapper>* ParentQueryData = CurrentFrameData->RecordedSceneQueries.Find(QueryData->ParentQueryID))
+				{
+					(*ParentQueryData)->SubQueriesIDs.Add(QueryData->ID);
+				}
+			}
+
+			CurrentFrameData->RecordedSceneQueries.Add(QueryData->ID, QueryData);
+		}
+	}
+
+	return bSuccess;
 }
 

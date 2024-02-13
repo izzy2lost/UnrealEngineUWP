@@ -10,6 +10,11 @@
 
 namespace Chaos
 {
+	namespace VisualDebugger
+	{
+		class FChaosVDSerializableNameTable;
+	}
+
 	class FParticlePairMidPhase;
 	class FPBDCollisionConstraint;
 	class FPBDCollisionConstraintMaterial;
@@ -42,7 +47,7 @@ private:
 	static void CopyCollisionMaterialToDataWrapper(const Chaos::FPBDCollisionConstraintMaterial& InCopyFrom, FChaosVDCollisionMaterial& OutCopyTo);
 
 	/** Creates and populates a FChaosVDParticleDataWrapper with the data of the provided FGeometryParticleHandle */
-	static FChaosVDParticleDataWrapper BuildParticleDataWrapperFromParticle(const Chaos::FGeometryParticleHandle* ParticleHandlePtr);
+	static FChaosVDParticleDataWrapper BuildParticleDataWrapperFromParticle(const Chaos::FGeometryParticleHandle* ParticleHandlePtr, const TSharedRef<Chaos::VisualDebugger::FChaosVDSerializableNameTable>& InNameTableInstance);
 
 	/** Creates and populates a FChaosVDConstraint with the data of the provided FPBDCollisionConstraint */
 	static FChaosVDConstraint BuildConstraintDataWrapperFromConstraint(const Chaos::FPBDCollisionConstraint& InConstraint);

@@ -94,6 +94,32 @@ struct TStructOpsTypeTraits<FChaosVDCollisionObjectQueryParams> : public TStruct
 	};
 };
 
+UENUM()
+enum class EChaosVDCollisionQueryParamsFlags : uint16
+{
+	None = 0,
+	/** Whether we should trace against complex collision */
+	TraceComplex = 1 << 0,
+	/** Whether we want to find out initial overlap or not. If true, it will return if this was initial overlap. */
+	FindInitialOverlaps = 1 << 1,
+	/** Whether we want to return the triangle face index for complex static mesh traces */
+	ReturnFaceIndex = 1 << 2,
+	/** Whether we want to include the physical material in the results. */
+	ReturnPhysicalMaterial = 1 << 3,
+	/** Whether to ignore blocking results. */
+	IgnoreBlocks = 1 << 4,
+	/** Whether to ignore touch/overlap results. */
+	IgnoreTouches = 1 << 5,
+	/** Whether to skip narrow phase checks (only for overlaps). */
+	SkipNarrowPhase = 1 << 6,
+	/** Whether to ignore traces to the cluster union and trace against its children instead. */
+	TraceIntoSubComponents = 1 << 7,
+	/** Extra filtering done on the query. See declaration for filtering logic */
+	ReplaceHitWithSubComponents = 1 << 8
+};
+
+ENUM_CLASS_FLAGS(EChaosVDCollisionQueryParamsFlags)
+
 USTRUCT()
 struct FChaosVDCollisionQueryParams : public FChaosVDWrapperDataBase
 {
@@ -117,9 +143,6 @@ struct FChaosVDCollisionQueryParams : public FChaosVDWrapperDataBase
 		bReplaceHitWithSubComponents = Other.bReplaceHitWithSubComponents;
 		IgnoreMask = Other.IgnoreMask;
 
-		IgnoredComponentsIDs = Other.GetIgnoredComponents();
-		IgnoredActorsIDs = Other.GetIgnoredActors();
-
 		bHasValidData = true;
 	}
 	
@@ -133,39 +156,39 @@ struct FChaosVDCollisionQueryParams : public FChaosVDWrapperDataBase
 
 	/** Whether we should trace against complex collision */
 	UPROPERTY(VisibleAnywhere, Category=QueryData)
-	bool bTraceComplex = false;
+	uint16 bTraceComplex : 1 = false;
 
 	/** Whether we want to find out initial overlap or not. If true, it will return if this was initial overlap. */
 	UPROPERTY(VisibleAnywhere, Category=QueryData)
-	bool bFindInitialOverlaps = false;
+	uint16 bFindInitialOverlaps : 1= false;
 
 	/** Whether we want to return the triangle face index for complex static mesh traces */
 	UPROPERTY(VisibleAnywhere, Category=QueryData)
-	bool bReturnFaceIndex = false;
+	uint16 bReturnFaceIndex : 1 = false;
 
 	/** Whether we want to include the physical material in the results. */
 	UPROPERTY(VisibleAnywhere, Category=QueryData)
-	bool bReturnPhysicalMaterial = false;
+	uint16 bReturnPhysicalMaterial : 1 = false;
 
 	/** Whether to ignore blocking results. */
 	UPROPERTY(VisibleAnywhere, Category=QueryData)
-	bool bIgnoreBlocks = false;
+	uint16 bIgnoreBlocks : 1 = false;
 
 	/** Whether to ignore touch/overlap results. */
 	UPROPERTY(VisibleAnywhere, Category=QueryData)
-	bool bIgnoreTouches = false;
+	uint16 bIgnoreTouches : 1 = false;
 
 	/** Whether to skip narrow phase checks (only for overlaps). */
 	UPROPERTY(VisibleAnywhere, Category=QueryData)
-	bool bSkipNarrowPhase = false;
+	uint16 bSkipNarrowPhase : 1 = false;
 
 	/** Whether to ignore traces to the cluster union and trace against its children instead. */
 	UPROPERTY(VisibleAnywhere, Category=QueryData)
-	bool bTraceIntoSubComponents = false;
+	uint16 bTraceIntoSubComponents : 1 = false;
 
 	/** If bTraceIntoSubComponents is true, whether to replace the hit of the cluster union with its children instead. */
 	UPROPERTY(VisibleAnywhere, Category=QueryData)
-	bool bReplaceHitWithSubComponents = false;
+	uint16 bReplaceHitWithSubComponents : 1 = false;
 
 	/** Extra filtering done on the query. See declaration for filtering logic */
 	UPROPERTY(VisibleAnywhere, Category=QueryData)
@@ -197,6 +220,15 @@ struct TStructOpsTypeTraits<FChaosVDCollisionQueryParams> : public TStructOpsTyp
 	};
 };
 
+UENUM()
+enum class EChaosVDQueryFastDataParallelFlags : uint8
+{
+	None = 0,
+	Parallel0 = 1 << 0,
+	Parallel1 = 1 << 1,
+	Parallel2 = 1 << 2
+};
+
 USTRUCT()
 struct FChaosVDQueryFastData : public FChaosVDWrapperDataBase
 {
@@ -217,13 +249,13 @@ struct FChaosVDQueryFastData : public FChaosVDWrapperDataBase
 	double InvCurrentLength = 0.0;
 
 	UPROPERTY(VisibleAnywhere, Category=QueryFastData)
-	bool bParallel0 = false;
+	uint8 bParallel0 : 1 = false;
 
 	UPROPERTY(VisibleAnywhere, Category=QueryFastData)
-	bool bParallel1 = false;
+	uint8 bParallel1 : 1 = false;
 
 	UPROPERTY(VisibleAnywhere, Category=QueryFastData)
-	bool bParallel2 = false;
+	uint8 bParallel2 : 1 = false;
 };
 
 inline FArchive& operator<<(FArchive& Ar, FChaosVDQueryFastData& Data)
