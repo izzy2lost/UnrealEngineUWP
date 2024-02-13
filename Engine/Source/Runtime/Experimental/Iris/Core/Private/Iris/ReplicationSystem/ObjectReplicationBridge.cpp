@@ -11,6 +11,7 @@
 #include "Iris/Core/IrisMemoryTracker.h"
 #include "Iris/Core/IrisProfiler.h"
 #include "Iris/Core/IrisDebugging.h"
+#include "Iris/Core/IrisDelegates.h"
 
 #include "Net/Core/NetBitArrayPrinter.h"
 #include "Net/Core/NetHandle/NetHandleManager.h"
@@ -736,6 +737,8 @@ FReplicationBridgeCreateNetRefHandleResult UObjectReplicationBridge::CreateNetRe
 		{
 			UE::Net::Private::ObjectBridgeDebugging::RemoteProtocolMismatchDetected(ReplicationSystem, Context.ConnectionId, RegisteredFragments, ArchetypeOrCDOUsedAsKey, InstancePtr);
 		}
+
+		FIrisDelegates::GetCriticalErrorDetectedDelegate().Broadcast(ReplicationSystem);
 
 		OnProtocolMismatchDetected(WantedNetHandle);
 	}
