@@ -1715,6 +1715,17 @@ public:
 #endif
 	}
 
+	FORCEINLINE_STATS void StartTrace(const FName Name, const TCHAR* Desc)
+	{
+#if CPUPROFILERTRACE_ENABLED
+		if (UE_TRACE_CHANNELEXPR_IS_ENABLED(CpuChannel))
+		{
+			FCpuProfilerTrace::OutputBeginDynamicEventWithId(Name, Desc);
+			EmittedEvent |= TraceEvent;
+		}
+#endif
+	}
+
 	/**
 	 * Stops the capturing and stores the result
 	 */
