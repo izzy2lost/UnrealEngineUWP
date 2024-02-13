@@ -263,7 +263,7 @@ void FReplicationReader::Deinit()
 // Read incomplete handle
 FNetRefHandle FReplicationReader::ReadNetRefHandleId(FNetSerializationContext& Context, FNetBitStreamReader& Reader) const
 {
-	UE_NET_TRACE_NAMED_OBJECT_SCOPE(ReferenceScope, FNetRefHandle(), *Context.GetBitStreamReader(), Context.GetTraceCollector(), ENetTraceVerbosity::Verbose);
+	UE_NET_TRACE_NAMED_OBJECT_SCOPE(ReferenceScope, FNetRefHandle::GetInvalid(), *Context.GetBitStreamReader(), Context.GetTraceCollector(), ENetTraceVerbosity::Verbose);
 
 	const uint64 NetId = ReadPackedUint64(&Reader);
 	FNetRefHandle RefHandle = FNetRefHandleManager::MakeNetRefHandleFromId(NetId);
@@ -273,7 +273,7 @@ FNetRefHandle FReplicationReader::ReadNetRefHandleId(FNetSerializationContext& C
 	if (RefHandle.GetId() != NetId)
 	{
 		Context.SetError(GNetError_InvalidNetHandle);
-		return FNetRefHandle();
+		return FNetRefHandle::GetInvalid();
 	}
 
 	return RefHandle;
@@ -294,7 +294,7 @@ uint32 FReplicationReader::ReadObjectsPendingDestroy(FNetSerializationContext& C
 	
 		for (uint32 It = 0; It < ObjectsToRead; ++It)
 		{
-			UE_NET_TRACE_NAMED_OBJECT_SCOPE(DestroyedObjectScope, FNetRefHandle(), Reader, Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
+			UE_NET_TRACE_NAMED_OBJECT_SCOPE(DestroyedObjectScope, FNetRefHandle::GetInvalid(), Reader, Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
 
 			FNetRefHandle IncompleteHandle = ReadNetRefHandleId(Context, Reader);
 			FNetRefHandle SubObjectRootOrHandle = IncompleteHandle;
