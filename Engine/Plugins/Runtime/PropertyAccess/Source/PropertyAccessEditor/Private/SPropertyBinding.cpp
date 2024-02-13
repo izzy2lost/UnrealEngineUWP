@@ -215,19 +215,11 @@ void SPropertyBinding::ForEachBindableProperty(UStruct* InStruct, TConstArrayVie
 				break;
 			}
 
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			if (Args.OnCanAcceptPropertyOrChildren.IsBound() && Args.OnCanAcceptPropertyOrChildren.Execute(Property) == false)
+			if (!CanAcceptPropertyOrChildren(Property, BindingChain))
 			{
 				continue;
 			}
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			
-			if (Args.OnCanAcceptPropertyOrChildrenWithBindingChain.IsBound()
-				&& Args.OnCanAcceptPropertyOrChildrenWithBindingChain.Execute(Property, BindingChain) == false)
-			{
-				continue;
-			}
-
 			if (SkeletonClass)
 			{
 				if (!UEdGraphSchema_K2::CanUserKismetAccessVariable(Property, SkeletonClass, UEdGraphSchema_K2::CannotBeDelegate))
@@ -1086,6 +1078,32 @@ FReply SPropertyBinding::HandleGotoBindingClicked()
 	}
 
 	return FReply::Unhandled();
+}
+
+bool SPropertyBinding::CanAcceptPropertyOrChildren(FProperty* InProperty, TConstArrayView<TSharedPtr<FBindingChainElement>> InBindingChain) const
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (Args.OnCanAcceptPropertyOrChildren.IsBound() && Args.OnCanAcceptPropertyOrChildren.Execute(InProperty) == false)
+	{
+		return false;
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			
+	if (Args.OnCanAcceptPropertyOrChildrenWithBindingChain.IsBound())
+	{
+		TArray<FBindingChainElement, TInlineAllocator<32>> BindingChain;
+		Algo::Transform(InBindingChain, BindingChain, [](TSharedPtr<FBindingChainElement> InElement)
+		{
+			return *InElement.Get();
+		});
+
+		if (!Args.OnCanAcceptPropertyOrChildrenWithBindingChain.Execute(InProperty, BindingChain))
+		{
+			return false;
+		}
+	}
+
+	return true;
 }
 
 FReply SPropertyBinding::OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)

@@ -143,7 +143,7 @@ TSharedRef<SWidget> SPropertyAccessChainWidget::CreatePropertyAccessWidget()
 			return true;
 		});
 
-	Args.OnCanAcceptPropertyOrChildrenWithBindingChain = FOnCanAcceptPropertyOrChildrenWithBindingChain::CreateLambda([](FProperty* InProperty, TConstArrayView<TSharedPtr<FBindingChainElement>> BindingChain)
+	Args.OnCanAcceptPropertyOrChildrenWithBindingChain = FOnCanAcceptPropertyOrChildrenWithBindingChain::CreateLambda([](FProperty* InProperty, TConstArrayView<FBindingChainElement> BindingChain)
 		{
 			// Make only blueprint visible properties visible for binding.
 			return InProperty->HasAnyPropertyFlags(CPF_BlueprintVisible);

@@ -39,7 +39,7 @@ namespace UE::StateTree::PropertyRefHelpers
 	 * @param SourceStruct Bindable owner of referenced property
 	 * @return true if property can be referenced by PropertyRef
 	 */
-	bool STATETREEMODULE_API IsPropertyAccessibleForPropertyRef(const FProperty& SourceProperty, TConstArrayView<TSharedPtr<FBindingChainElement>> BindingChain, FStateTreeBindableStructDesc SourceStruct);
+	bool STATETREEMODULE_API IsPropertyAccessibleForPropertyRef(const FProperty& SourceProperty, TConstArrayView<FBindingChainElement> BindingChain, FStateTreeBindableStructDesc SourceStruct);
 
 	/**
 	 * @param Property Property to check
