@@ -46,8 +46,8 @@ FArchive& FPIEFixupSerializer::operator<<(UObject*& Object)
 #if WITH_EDITOR
 		if (UPackage* ExternalPackage = Object->GetExternalPackage())
 		{
-			check(Object->IsPackageExternal());
-			check(ExternalPackage->HasAnyPackageFlags(PKG_PlayInEditor));
+			checkf(Object->IsPackageExternal(), TEXT("Expected an external package. Package: '%s'. Object: '%s'."), *ExternalPackage->GetFullName(), *Object->GetFullName());
+			checkf(ExternalPackage->HasAnyPackageFlags(PKG_PlayInEditor), TEXT("Package missing the PKG_PlayInEditor flag. Package: '%s'. Object: '%s'."), *ExternalPackage->GetFullName(), *Object->GetFullName());
 			ExternalPackage->SetPIEInstanceID(PIEInstanceID);
 		}
 #endif
