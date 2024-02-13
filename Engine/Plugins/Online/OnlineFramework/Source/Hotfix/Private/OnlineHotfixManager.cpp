@@ -1181,8 +1181,6 @@ UOnlineHotfixManager::FConfigFileBackup& UOnlineHotfixManager::BackupIniFile(con
 	FConfigFileBackup& NewBackup = IniBackups[AddAt];
 	NewBackup.IniName = BackupIniName;
 	NewBackup.ConfigData = *ConfigFile;
-	// There's a lack of deep copy related to the SourceConfigFile so null it out
-	NewBackup.ConfigData.SourceConfigFile = nullptr;
 	return NewBackup;
 }
 

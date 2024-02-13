@@ -122,7 +122,7 @@ void CacheAudioCookOverrides(FPlatformAudioCookOverrides& OutOverrides, const TC
 		if (RetrievedCacheSize == 0)
 		{
 			UE_LOG(LogConfig, Display, TEXT("Audio Stream Cache \"Max Cache Size KB\" set to 0 by config: \"%s%s.ini\". Default value of %d KB will be used. You can update Project Settings here: Project Settings->Platforms->%s->Audio->Cook Overrides->Stream Caching->Max Cache Size (KB)"),
-				*PlatformFile->SourceProjectConfigDir, *PlatformFile->Name.ToString(), DefaultCacheSizeKB, *PlatformFile->PlatformName);
+				PlatformFile->Branch ? *PlatformFile->Branch->SourceProjectConfigDir : TEXT(""), *PlatformFile->Name.ToString(), DefaultCacheSizeKB, *PlatformFile->PlatformName);
 			RetrievedCacheSize = DefaultCacheSizeKB;
 		}
 	}

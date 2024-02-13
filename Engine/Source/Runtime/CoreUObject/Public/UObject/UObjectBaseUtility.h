@@ -805,6 +805,12 @@ private:
 	}
 #endif
 
+		
+	/*******
+	 * Config
+	 *******/
+public:
+	COREUOBJECT_API static void ReloadObjectsFromModifiedConfigSections(const TSet<FString>& ModifiedSections, const FString& IniFilename);
 };
 
 /** Returns false if this pointer cannot be a valid pointer to a UObject */

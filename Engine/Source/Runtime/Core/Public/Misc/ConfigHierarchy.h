@@ -64,6 +64,17 @@ inline FConfigLayer GPluginLayers[] =
 	{ TEXT("ProjectDefault"),			TEXT("{PROJECT}/Config/{PLATFORM}/{PLATFORM}{TYPE}.ini") },
 };
 
+/// <summary>
+/// These are for the modifications to existing config files (for instance Plugin/Config/Engine.ini
+/// </summary>
+inline FConfigLayer GPluginModificationLayers[] =
+{
+	// Plugin/*.ini, can be plugin name, or say Engine.ini
+	{ TEXT("PluginMod"),				TEXT("{PLUGIN}/Config/{TYPE}.ini") },
+	// Plugin/Platform/Platform*.ini
+	{ TEXT("PluginMModPlatform"),		TEXT("{PLUGIN}/Config/{PLATFORM}/{PLATFORM}{TYPE}.ini") },
+};
+
 
 
 /**************************************************

@@ -1880,102 +1880,37 @@ bool FPluginManager::ConfigureEnabledPlugins()
 			TMap<FString, TArray<FPendingConfigFile>> PendingConfigs;
 
 			// Mount all the enabled plugins
-			ParallelFor(PluginsArray.Num(), [&PluginsArray, &ConfigCS, &PluginPakCS, &PendingConfigsCS, &PendingConfigs, &ConfigFilesPluginsCannotOverride, &AllIniFiles, this](int32 Index)
+			FConfigModificationTracker ChangeTracker;
+			ChangeTracker.bTrackLoadedFiles = true;
+
+			// walk over each plugin, and add the config files that are named for the plugin
+			// this is a separate loop so that a plugin can modify another plugin's configs in the second loop below
+			for (TSharedRef<FPlugin> PluginPtr : PluginsArray)
 			{
-				FString PlatformName = FPlatformProperties::PlatformName();
-				FPlugin& Plugin = *PluginsArray[Index];
+				FPlugin& Plugin = *PluginPtr;
+				FName PluginName(*Plugin.Name);
 				UE_LOG(LogPluginManager, Log, TEXT("Mounting %s plugin %s"), *EnumToString(Plugin.Type), *Plugin.GetName());
 				UE_LOG(LogPluginManager, Verbose, TEXT("Plugin path: %s"), *Plugin.FileName);
+				
+				// register this plugin, so it can be found right now, but also when loading other platforms, or when modifying it by other plugins
+				const bool bIncludePluginNameInBranchName = false;
+				FConfigCacheIni::RegisterPlugin(PluginName, Plugin.GetBaseDir(), Plugin.GetExtensionBaseDirs(), DynamicLayerPriority::Plugin, bIncludePluginNameInBranchName);
+				
+				FConfigContext Context = FConfigContext::ReadIntoGConfig();
+				Context.ChangeTracker = &ChangeTracker;
+				Context.ConfigFileTag = *Plugin.Name;
+				Context.Load(*Plugin.Name);
+			}
 
-				auto AppendPluginConfigData = [&ConfigFilesPluginsCannotOverride](FConfigFile& DestinationPluginConfig, const FString& DestinationPluginConfigFilename, const FString& SourcePluginName, const FString& SourcePluginConfigDir, const FString& SourcePluginConfigFile)
-				{
-					UE_LOG(LogPluginManager, Log, TEXT("Found config from plugin[%s] %s"), *SourcePluginName, *DestinationPluginConfigFilename);
+			// walk over each plugin, modify existing ini's, mount the content, etc
+			ParallelFor(PluginsArray.Num(), [&PluginsArray, &ConfigCS, &PluginPakCS, &PendingConfigsCS, &PendingConfigs, &ConfigFilesPluginsCannotOverride, &AllIniFiles, &ChangeTracker, this](int32 Index)
+			{
+				FPlugin& Plugin = *PluginsArray[Index];
+				FName PluginName(*Plugin.Name);
 
-					FString BaseConfigFile = *FPaths::GetBaseFilename(SourcePluginConfigFile);
-					if (ConfigFilesPluginsCannotOverride.Contains(BaseConfigFile))
-					{
-						// Not allowed, skip it
-						FText FailureMessage = FText::Format(LOCTEXT("PluginOverrideFailureFormat", "Plugin '{0}' cannot override config file: '{1}'"), FText::FromString(SourcePluginName), FText::FromString(BaseConfigFile));
-						FText DialogTitle = LOCTEXT("PluginConfigFileOverride", "Plugin config file override");
-						UE_LOG(LogPluginManager, Error, TEXT("%s"), *FailureMessage.ToString());
-						FMessageDialog::Open(EAppMsgType::Ok, FailureMessage, DialogTitle);
-						return;
-					}
+				// handle any overrides for Engine.ini, etc in the plugin
+				FConfigCacheIni::AddPluginToAllBranches(PluginName, &ChangeTracker);
 
-					DestinationPluginConfig.AddDynamicLayerToHierarchy(FPaths::Combine(SourcePluginConfigDir, SourcePluginConfigFile));
-
-#if ALLOW_INI_OVERRIDE_FROM_COMMANDLINE
-					// Don't allow plugins to stomp command line overrides, so re-apply them
-					FConfigFile::OverrideFromCommandline(&DestinationPluginConfig, DestinationPluginConfigFilename);
-#endif // ALLOW_INI_OVERRIDE_FROM_COMMANDLINE
-				};
-
-				// Build the config system key for PluginName.ini
-				FString PluginConfigFilename = GConfig->GetConfigFilename(*Plugin.Name);
-				{
-					FScopeLock Locker(&ConfigCS);
-
-					FConfigFile& PluginConfig = GConfig->Add(PluginConfigFilename, FConfigFile());
-
-					FConfigContext Context = FConfigContext::ReadIntoPluginFile(PluginConfig, FPaths::GetPath(Plugin.FileName), Plugin.GetExtensionBaseDirs());
-
-					if (PluginSystemDefs::IsCachingIniFilesForProcessing())
-					{
-						Context.IniCacheSet = &AllIniFiles;
-					}
-
-					if (Context.Load(*Plugin.Name))
-					{
-						// Process anything relevant that was discovered before we loaded
-						FScopeLock PendingConfigsLock(&PendingConfigsCS);
-						if (const TArray<FPendingConfigFile>* PendingConfigArray = PendingConfigs.Find(Plugin.Name))
-						{
-							for (const FPendingConfigFile& PendingConfigFile : *PendingConfigArray)
-							{
-								AppendPluginConfigData(PluginConfig, PluginConfigFilename, PendingConfigFile.PluginName, PendingConfigFile.PluginConfigDir, PendingConfigFile.PluginConfigFile);
-							}
-						}
-					}
-					else
-					{
-						// Nothing to add, remove from map
-						GConfig->Remove(PluginConfigFilename);
-					}
-				}
-
-				// Load <PluginName>.ini config file if it exists
-				FString PluginConfigDir = FPaths::GetPath(Plugin.FileName) / TEXT("Config/");
-
-				// override config cache entries with plugin configs (Engine.ini, Game.ini, etc in <PluginDir>\Config\)
-				TArray<FString> PluginConfigs;
-				IFileManager::Get().FindFiles(PluginConfigs, *PluginConfigDir, TEXT("ini"));
-				for (const FString& ConfigFile : PluginConfigs)
-				{
-					FString BaseConfigFile = *FPaths::GetBaseFilename(ConfigFile);					
-
-					if (BaseConfigFile == Plugin.Name)
-					{
-						// We just handled this, skip it
-						continue;
-					}
-
-					// Build the config system key for the overridden config
-					PluginConfigFilename = GConfig->GetConfigFilename(*BaseConfigFile);
-					{
-						FScopeLock Locker(&ConfigCS);
-						FConfigFile* FoundConfig = GConfig->FindConfigFile(PluginConfigFilename);
-
-						if (FoundConfig != nullptr)
-						{
-							AppendPluginConfigData(*FoundConfig, PluginConfigFilename, Plugin.GetName(), PluginConfigDir, ConfigFile);
-						}
-						else if (PluginsToConfigure.Contains(BaseConfigFile))
-						{
-							FScopeLock PendingConfigsLock(&PendingConfigsCS);
-							PendingConfigs.FindOrAdd(BaseConfigFile).Add(FPendingConfigFile{ Plugin.GetName(), PluginConfigDir, ConfigFile });
-						}
-					}
-				}
 
 				// Build the list of content folders
 				if (Plugin.Descriptor.bCanContainContent)
