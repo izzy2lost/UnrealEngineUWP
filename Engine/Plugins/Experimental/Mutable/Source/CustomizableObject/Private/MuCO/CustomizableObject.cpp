@@ -20,8 +20,10 @@
 #include "Misc/PackageName.h"
 #include "Misc/Paths.h"
 #include "MuCO/CustomizableObjectInstance.h"
+#include "MuCO/CustomizableObjectInstancePrivate.h"
 #include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCO/CustomizableObjectSystem.h"
+#include "MuCO/CustomizableObjectSystemPrivate.h"
 #include "MuCO/CustomizableObjectUIData.h"
 #include "MuCO/ICustomizableObjectModule.h"
 #include "MuCO/MutableProjectorTypeUtils.h"
@@ -38,8 +40,6 @@
 #include "Editor.h"
 #endif
 
-
-#include "MuCO/CustomizableObjectSystemPrivate.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(CustomizableObject)
 
@@ -951,7 +951,7 @@ FReply UCustomizableObjectPrivate::AddNewParameterProfile(FString Name, UCustomi
 	int32 ProfileIndex = GetPublic()->InstancePropertiesProfiles.Emplace();
 
 	GetPublic()->InstancePropertiesProfiles[ProfileIndex].ProfileName = ProfileName;
-	CustomInstance.SaveParametersToProfile(ProfileIndex);
+	CustomInstance.GetPrivate()->SaveParametersToProfile(ProfileIndex);
 
 	Modify();
 
@@ -1234,7 +1234,7 @@ UCustomizableObjectInstance* UCustomizableObject::CreateInstance()
 
 	UCustomizableObjectInstance* PreviewInstance = NewObject<UCustomizableObjectInstance>(GetTransientPackage(), NAME_None, RF_Transient);
 	PreviewInstance->SetObject(this);
-	PreviewInstance->bShowOnlyRuntimeParameters = false;
+	PreviewInstance->GetPrivate()->bShowOnlyRuntimeParameters = false;
 
 	UE_LOG(LogMutable, Verbose, TEXT("Created Customizable Object Instance."));
 

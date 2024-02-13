@@ -251,15 +251,9 @@ UCustomizableObjectInstance::UCustomizableObjectInstance()
 }
 
 
-FCustomizableObjectInstanceDescriptor& UCustomizableObjectInstance::GetDescriptor()
-{
-	return Descriptor;	
-}
-
-
 const FCustomizableObjectInstanceDescriptor& UCustomizableObjectInstance::GetDescriptor() const
 {
-	return const_cast<UCustomizableObjectInstance*>(this)->GetDescriptor();
+	return Descriptor;
 }
 
 
@@ -321,14 +315,8 @@ void UCustomizableInstancePrivate::PostDuplicate(bool bDuplicateForPIE)
 
 void UCustomizableInstancePrivate::OnPostCompile()
 {
-	UCustomizableObjectInstance* Instance = Cast<UCustomizableObjectInstance>(GetOuter());
-	if (!Instance)
-	{
-		return;
-	}
-
-	Instance->GetDescriptor().ReloadParameters();
-	InitCustomizableObjectData(Instance->GetCustomizableObject());
+	GetDescriptor().ReloadParameters();
+	InitCustomizableObjectData(GetPublic()->GetCustomizableObject());
 }
 
 
@@ -368,7 +356,7 @@ void UCustomizableObjectInstance::PostEditChangeProperty(FPropertyChangedEvent& 
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
-	bEditorPropertyChanged = true;
+	GetPrivate()->bEditorPropertyChanged = true;
 
 	const FName PropertyName = PropertyChangedEvent.MemberProperty ? PropertyChangedEvent.MemberProperty->GetFName() : NAME_None;
 
@@ -413,9 +401,6 @@ bool UCustomizableObjectInstance::IsEditorOnly() const
 
 void UCustomizableObjectInstance::BeginDestroy()
 {
-	BeginDestroyDelegate.Broadcast(this);
-	BeginDestroyNativeDelegate.Broadcast(this);
-
 	// Release the Live Instance ID if there it hadn't been released before
 	DestroyLiveUpdateInstance();
 
@@ -671,12 +656,6 @@ int32 UCustomizableObjectInstance::GetTextureValueRange(const FString& ParamName
 }
 
 
-bool UCustomizableObjectInstance::IsParamMultidimensional(const FString& ParamName) const
-{
-	return GetCustomizableObject()->IsParameterMultidimensional(ParamName);
-}
-
-
 // Only safe to call if the Mutable texture ref count system returns 0 and absolutely sure nobody holds a reference to the texture
 void UCustomizableInstancePrivate::ReleaseMutableTexture(const FMutableImageCacheKey& MutableTextureKey, UTexture2D* Texture, FMutableResourceCache& Cache)
 {
@@ -713,19 +692,6 @@ UCustomizableObject* UCustomizableObjectInstance::GetCustomizableObject() const
 }
 
 
-// Marked as deprecated. Will be removed in future versions.
-bool UCustomizableObjectInstance::GetBuildParameterDecorations() const
-{
-	return false;
-}
-
-
-// Marked as deprecated. Will be removed in future versions.
-void UCustomizableObjectInstance::SetBuildParameterDecorations(const bool Value)
-{
-}
-
-
 bool UCustomizableObjectInstance::GetBuildParameterRelevancy() const
 {
 	return Descriptor.GetBuildParameterRelevancy();
@@ -738,22 +704,22 @@ void UCustomizableObjectInstance::SetBuildParameterRelevancy(bool Value)
 }
 
 
-int32 UCustomizableObjectInstance::GetState() const
+int32 UCustomizableInstancePrivate::GetState() const
 {
-	return Descriptor.GetState();
+	return GetPublic()->Descriptor.GetState();
 }
 
 
-void UCustomizableObjectInstance::SetState(const int32 InState)
+void UCustomizableInstancePrivate::SetState(const int32 InState)
 {
 	const int32 OldState = GetState();
 	
-	Descriptor.SetState(InState);
+	GetPublic()->Descriptor.SetState(InState);
 
 	if (OldState != InState)
 	{
 		// State may change texture properties, so invalidate the texture reuse cache
-		PrivateData->TextureReuseCache.Empty();
+		TextureReuseCache.Empty();
 	}
 }
 
@@ -770,23 +736,16 @@ void UCustomizableObjectInstance::SetCurrentState(const FString& StateName)
 }
 
 
-// Marked as deprecated. Will be removed in future versions.
-UTexture2D* UCustomizableObjectInstance::GetParameterDescription(const FString& ParamName, int32 DescIndex)
-{
-	return nullptr;
-}
-
-
 bool UCustomizableObjectInstance::IsParameterRelevant(int32 ParameterIndex) const
 {
-	// This should have been precalculated in the last update if the appropiate flag in the instance was set.
+	// This should have been precalculated in the last update if the appropriate flag in the instance was set.
 	return GetPrivate()->RelevantParameters.Contains(ParameterIndex);
 }
 
 
 bool UCustomizableObjectInstance::IsParameterRelevant(const FString& ParamName) const
 {
-	// This should have been precalculated in the last update if the appropiate flag in the instance was set.
+	// This should have been precalculated in the last update if the appropriate flag in the instance was set.
 	int32 ParameterIndexInObject = GetCustomizableObject()->FindParameter(ParamName);
 	return GetPrivate()->RelevantParameters.Contains(ParameterIndexInObject);
 }
@@ -2177,7 +2136,7 @@ UCustomizableObjectInstance* UCustomizableObjectInstance::CloneStatic(UObject* O
 {
 	UCustomizableObjectInstance* NewInstance = NewObject<UCustomizableObjectInstance>(Outer, GetClass());
 	NewInstance->CopyParametersFromInstance(this);
-	NewInstance->bShowOnlyRuntimeParameters = false;
+	NewInstance->GetPrivate()->bShowOnlyRuntimeParameters = false;
 
 	return NewInstance;
 }
@@ -2414,7 +2373,7 @@ void UCustomizableObjectInstance::SetProjectorValue(const FString& ProjectorPara
 }
 
 
-void UCustomizableObjectInstance::SetProjectorPosition(const FString& ProjectorParamName, const FVector3f& Pos, const int32 RangeIndex)
+void UCustomizableObjectInstance::SetProjectorPosition(const FString& ProjectorParamName, const FVector& Pos, const int32 RangeIndex)
 {
 	Descriptor.SetProjectorPosition(ProjectorParamName, Pos, RangeIndex);
 }
@@ -2544,9 +2503,9 @@ void UCustomizableObjectInstance::SetRandomValuesFromStream(const FRandomStream&
 }
 
 
-bool UCustomizableObjectInstance::LoadParametersFromProfile(int32 ProfileIndex)
+bool UCustomizableInstancePrivate::LoadParametersFromProfile(int32 ProfileIndex)
 {
-	UCustomizableObject* CustomizableObject = GetCustomizableObject();
+	UCustomizableObject* CustomizableObject = GetPublic()->GetCustomizableObject();
 	if (!CustomizableObject)
 	{
 		return false;
@@ -2563,20 +2522,20 @@ bool UCustomizableObjectInstance::LoadParametersFromProfile(int32 ProfileIndex)
 
 	const FProfileParameterDat& Profile = CustomizableObject->InstancePropertiesProfiles[ProfileIndex];
 
-	Descriptor.BoolParameters = Profile.BoolParameters;
-	Descriptor.IntParameters = Profile.IntParameters;
-	Descriptor.FloatParameters = Profile.FloatParameters;
-	Descriptor.TextureParameters = Profile.TextureParameters;
-	Descriptor.ProjectorParameters = Profile.ProjectorParameters;
-	Descriptor.VectorParameters = Profile.VectorParameters;
+	GetPublic()->Descriptor.BoolParameters = Profile.BoolParameters;
+	GetPublic()->Descriptor.IntParameters = Profile.IntParameters;
+	GetPublic()->Descriptor.FloatParameters = Profile.FloatParameters;
+	GetPublic()->Descriptor.TextureParameters = Profile.TextureParameters;
+	GetPublic()->Descriptor.ProjectorParameters = Profile.ProjectorParameters;
+	GetPublic()->Descriptor.VectorParameters = Profile.VectorParameters;
 #endif
 	return true;
 
 }
 
-bool UCustomizableObjectInstance::SaveParametersToProfile(int32 ProfileIndex)
+bool UCustomizableInstancePrivate::SaveParametersToProfile(int32 ProfileIndex)
 {
-	UCustomizableObject* CustomizableObject = GetCustomizableObject();
+	UCustomizableObject* CustomizableObject = GetPublic()->GetCustomizableObject();
 	if (!CustomizableObject)
 	{
 		return false;
@@ -2592,19 +2551,19 @@ bool UCustomizableObjectInstance::SaveParametersToProfile(int32 ProfileIndex)
 
 	FProfileParameterDat& Profile = CustomizableObject->InstancePropertiesProfiles[ProfileIndex];
 
-	Profile.BoolParameters = Descriptor.BoolParameters;
-	Profile.IntParameters = Descriptor.IntParameters;
-	Profile.FloatParameters = Descriptor.FloatParameters;
-	Profile.TextureParameters = Descriptor.TextureParameters;
-	Profile.ProjectorParameters = Descriptor.ProjectorParameters;
-	Profile.VectorParameters = Descriptor.VectorParameters;
+	Profile.BoolParameters = GetPublic()->Descriptor.BoolParameters;
+	Profile.IntParameters = GetPublic()->Descriptor.IntParameters;
+	Profile.FloatParameters = GetPublic()->Descriptor.FloatParameters;
+	Profile.TextureParameters = GetPublic()->Descriptor.TextureParameters;
+	Profile.ProjectorParameters = GetPublic()->Descriptor.ProjectorParameters;
+	Profile.VectorParameters = GetPublic()->Descriptor.VectorParameters;
 #endif
 	return true;
 }
 
-bool UCustomizableObjectInstance::MigrateProfileParametersToCurrentInstance(int32 ProfileIndex)
+bool UCustomizableInstancePrivate::MigrateProfileParametersToCurrentInstance(int32 ProfileIndex)
 {
-	UCustomizableObject* CustomizableObject = GetCustomizableObject();
+	UCustomizableObject* CustomizableObject = GetPublic()->GetCustomizableObject();
 	if (!CustomizableObject)
 	{
 		return false;
@@ -2620,12 +2579,12 @@ bool UCustomizableObjectInstance::MigrateProfileParametersToCurrentInstance(int3
 	FProfileParameterDat TempProfile;
 
 	TempProfile.ProfileName = Profile.ProfileName;
-	TempProfile.BoolParameters = Descriptor.BoolParameters;
-	TempProfile.FloatParameters = Descriptor.FloatParameters;
-	TempProfile.IntParameters = Descriptor.IntParameters;
-	TempProfile.ProjectorParameters = Descriptor.ProjectorParameters;
-	TempProfile.TextureParameters = Descriptor.TextureParameters;
-	TempProfile.VectorParameters = Descriptor.VectorParameters;
+	TempProfile.BoolParameters = GetPublic()->Descriptor.BoolParameters;
+	TempProfile.FloatParameters = GetPublic()->Descriptor.FloatParameters;
+	TempProfile.IntParameters = GetPublic()->Descriptor.IntParameters;
+	TempProfile.ProjectorParameters = GetPublic()->Descriptor.ProjectorParameters;
+	TempProfile.TextureParameters = GetPublic()->Descriptor.TextureParameters;
+	TempProfile.VectorParameters = GetPublic()->Descriptor.VectorParameters;
 	
 
 	// Populate TempProfile with the parameters found in the profile.
@@ -2713,9 +2672,18 @@ bool UCustomizableObjectInstance::MigrateProfileParametersToCurrentInstance(int3
 }
 
 
-void UCustomizableObjectInstance::SetSelectedParameterProfileDirty()
+UCustomizableObjectInstance* UCustomizableInstancePrivate::GetPublic() const
 {
-	UCustomizableObject* CustomizableObject = GetCustomizableObject();
+	UCustomizableObjectInstance* Public = StaticCast<UCustomizableObjectInstance*>(GetOuter());
+	check(Public);
+
+	return Public;
+}
+
+
+void UCustomizableInstancePrivate::SetSelectedParameterProfileDirty()
+{
+	UCustomizableObject* CustomizableObject = GetPublic()->GetCustomizableObject();
 	if (!CustomizableObject)
 	{
 		return;
@@ -2731,7 +2699,7 @@ void UCustomizableObjectInstance::SetSelectedParameterProfileDirty()
 #endif
 }
 
-bool UCustomizableObjectInstance::IsSelectedParameterProfileDirty() const
+bool UCustomizableInstancePrivate::IsSelectedParameterProfileDirty() const
 {
 	
 #if WITH_EDITOR
@@ -2740,43 +2708,6 @@ bool UCustomizableObjectInstance::IsSelectedParameterProfileDirty() const
 	return false;
 #endif
 }
-
-//int32 UCustomizableObjectInstance::GetIntParameterNumOptions(int32 IntParamIndex)
-//{
-//	if (CustomizableObject && IntParamIndex>=0 && IntParamIndex<IntParameters.Num())
-//	{
-//		int32 ObjectParamIndex = CustomizableObject->FindParameter(IntParameters[IntParamIndex].ParameterName);
-//		return CustomizableObject->GetIntParameterNumOptions(ObjectParamIndex);
-//	}
-//
-//	return 0;
-//}
-
-
-//void UCustomizableObjectInstance::SetIntParameter(int32 IntParamIndex, int32 i)
-//{
-//	if (CustomizableObject && IntParamIndex >= 0 && IntParamIndex < IntParameters.Num())
-//	{
-//		int32 ObjectParamIndex = CustomizableObject->FindParameter(IntParameters[IntParamIndex].ParameterName);
-//		int32 PossibleValue = CustomizableObject->GetIntParameterAvailableOptionValue(ObjectParamIndex, i);
-//		IntParameters[IntParamIndex].ParameterValue = PossibleValue;
-//	}
-//}
-
-
-//const FString & UCustomizableObjectInstance::GetIntParameterAvailableOption(int32 IntParamIndex, int32 K)
-//{
-//	if (CustomizableObject && IntParamIndex >= 0 && IntParamIndex<IntParameters.Num())
-//	{
-//		int32 ObjectParamIndex = CustomizableObject->FindParameter(IntParameters[IntParamIndex].ParameterName);
-//		if (ObjectParamIndex != INDEX_NONE)
-//		{
-//			return CustomizableObject->GetIntParameterAvailableOption(ObjectParamIndex,K);
-//		}
-//	}
-//
-//	return s_EmptyStringCI;
-//}
 
 
 void UCustomizableInstancePrivate::DiscardResources()
@@ -2896,14 +2827,6 @@ void SetTexturePropertiesFromMutableImageProps(UTexture2D* Texture, const FMutab
 	Texture->AddressX = Props.AddressX;
 	Texture->AddressY = Props.AddressY;
 }
-
-
-#if WITH_EDITOR
-const TArray<TObjectPtr<UTexture2D>>& UCustomizableObjectInstance::GetTextureParameterDeclarations() const
-{
-	return TextureParameterDeclarations;
-}
-#endif
 
 
 UCustomizableInstancePrivate* UCustomizableObjectInstance::GetPrivate() const
@@ -3289,7 +3212,6 @@ void ConvertImage(UTexture2D* Texture, mu::Ptr<const mu::Image> MutableImage, co
 	}
 
 	Texture->SetPlatformData(MutableCreateImagePlatformData(MutableImage,OnlyLOD,0,0) );
-
 }
 
 
@@ -4833,11 +4755,11 @@ FAutoConsoleVariableRef CVarMutableHighPriorityLoading(
 	TEXT("If enabled, the request to load additional assets will have high priority."));
 
 
-FGraphEventRef UCustomizableInstancePrivate::LoadAdditionalAssetsAsync(const TSharedRef<FUpdateContextPrivate>& OperationData, UCustomizableObjectInstance* Public, FStreamableManager& StreamableManager)
+FGraphEventRef UCustomizableInstancePrivate::LoadAdditionalAssetsAsync(const TSharedRef<FUpdateContextPrivate>& OperationData, FStreamableManager& StreamableManager)
 {
 	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::LoadAdditionalAssetsAsync);
 
-	UCustomizableObject* CustomizableObject = Public->GetCustomizableObject();
+	UCustomizableObject* CustomizableObject = GetPublic()->GetCustomizableObject();
 
 	const FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources();
 
@@ -5095,7 +5017,7 @@ FGraphEventRef UCustomizableInstancePrivate::LoadAdditionalAssetsAsync(const TSh
 		check(!StreamingHandle);
 
 		Result = FGraphEvent::CreateGraphEvent();
-		StreamingHandle = StreamableManager.RequestAsyncLoad(AssetsToStream, FStreamableDelegate::CreateUObject(Public, &UCustomizableObjectInstance::AdditionalAssetsAsyncLoaded, Result),
+		StreamingHandle = StreamableManager.RequestAsyncLoad(AssetsToStream, FStreamableDelegate::CreateUObject(this, &UCustomizableInstancePrivate::AdditionalAssetsAsyncLoaded, Result),
 			bEnableHighPriorityLoading ? FStreamableManager::AsyncLoadHighPriority : FStreamableManager::DefaultAsyncLoadPriority);
 	}
 
@@ -5103,13 +5025,19 @@ FGraphEventRef UCustomizableInstancePrivate::LoadAdditionalAssetsAsync(const TSh
 }
 
 
-void UCustomizableObjectInstance::AdditionalAssetsAsyncLoaded( FGraphEventRef CompletionEvent )
+void UCustomizableInstancePrivate::AdditionalAssetsAsyncLoaded( FGraphEventRef CompletionEvent )
 {
 	// TODO: Do we need this separated?
-	PrivateData->AdditionalAssetsAsyncLoaded(this);
+	AdditionalAssetsAsyncLoaded(GetPublic());
 	CompletionEvent->DispatchSubsequents(); // TODO: we know it is game thread?
 
-	PrivateData->StreamingHandle = nullptr;
+	StreamingHandle = nullptr;
+}
+
+
+FCustomizableObjectInstanceDescriptor& UCustomizableInstancePrivate::GetDescriptor() const
+{
+	return GetPublic()->Descriptor;
 }
 
 
@@ -6134,12 +6062,6 @@ void UCustomizableObjectInstance::SetMinSquareDistToPlayer(float NewValue)
 }
 
 
-void UCustomizableObjectInstance::SetMinMaxLODToLoad(FMutableInstanceUpdateMap& InOutRequestedUpdates, int32 NewMinLOD, int32 NewMaxLOD, bool bLimitLODUpgrades)
-{
-	SetRequestedLODs(NewMinLOD, NewMaxLOD, Descriptor.RequestedLODLevels, InOutRequestedUpdates);
-}
-
-
 int32 UCustomizableObjectInstance::GetNumComponents() const
 {
 	return GetCustomizableObject() ? GetCustomizableObject()->GetComponentCount() : 0;
@@ -6490,10 +6412,12 @@ void UCustomizableObjectInstance::ForEachAnimInstance(int32 ComponentIndex, FEac
 	}
 }
 
+
 bool UCustomizableObjectInstance::AnimInstanceNeedsFixup(TSubclassOf<UAnimInstance> AnimInstanceClass) const
 {
 	return PrivateData->AnimBpPhysicsAssets.Contains(AnimInstanceClass);
 }
+
 
 void UCustomizableObjectInstance::AnimInstanceFixup(UAnimInstance* InAnimInstance) const
 {

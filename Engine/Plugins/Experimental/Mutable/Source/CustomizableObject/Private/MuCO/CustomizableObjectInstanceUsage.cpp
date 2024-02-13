@@ -438,8 +438,8 @@ void UCustomizableObjectInstanceUsage::UpdateDistFromComponentToPlayer(const AAc
 
 				if (CustomizableObjectInstance->GetPrivate()->MinSquareDistFromComponentToPlayer == SquareDist)
 				{
-					CustomizableObjectInstance->NearestToActor = this;
-					CustomizableObjectInstance->NearestToViewCenter = ViewCenter;
+					CustomizableObjectInstance->GetPrivate()->NearestToActor = this;
+					CustomizableObjectInstance->GetPrivate()->NearestToViewCenter = ViewCenter;
 				}
 			}
 		}

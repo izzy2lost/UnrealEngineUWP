@@ -270,8 +270,8 @@ void FCustomizableObjectInstanceEditor::InitCustomizableObjectInstanceEditor( co
 	// Set the instance
 	check(InCustomizableObjectInstance);
 	CustomizableObjectInstance = InCustomizableObjectInstance;
-	bOnlyRelevantParameters = InCustomizableObjectInstance->bShowOnlyRelevantParameters;
-	bOnlyRuntimeParameters = InCustomizableObjectInstance->bShowOnlyRuntimeParameters;
+	bOnlyRelevantParameters = InCustomizableObjectInstance->GetPrivate()->bShowOnlyRelevantParameters;
+	bOnlyRuntimeParameters = InCustomizableObjectInstance->GetPrivate()->bShowOnlyRuntimeParameters;
 
 	FAdvancedPreviewSceneModule& AdvancedPreviewSceneModule = FModuleManager::LoadModuleChecked<FAdvancedPreviewSceneModule>("AdvancedPreviewScene");
 
@@ -713,15 +713,15 @@ void FCustomizableObjectInstanceEditor::Tick(float InDeltaTime)
 	}
 
 	// If we want to show the Relevant/Runtime parameters, we need to refresh the details view to make sure that the scroll bar appears		
-	if (bOnlyRelevantParameters != CustomizableObjectInstance->bShowOnlyRelevantParameters)
+	if (bOnlyRelevantParameters != CustomizableObjectInstance->GetPrivate()->bShowOnlyRelevantParameters)
 	{
-		bOnlyRelevantParameters = CustomizableObjectInstance->bShowOnlyRelevantParameters;
+		bOnlyRelevantParameters = CustomizableObjectInstance->GetPrivate()->bShowOnlyRelevantParameters;
 		CustomizableInstanceDetailsView->ForceRefresh();
 	}
 
-	if (bOnlyRuntimeParameters != CustomizableObjectInstance->bShowOnlyRuntimeParameters)
+	if (bOnlyRuntimeParameters != CustomizableObjectInstance->GetPrivate()->bShowOnlyRuntimeParameters)
 	{
-		bOnlyRuntimeParameters = CustomizableObjectInstance->bShowOnlyRuntimeParameters;
+		bOnlyRuntimeParameters = CustomizableObjectInstance->GetPrivate()->bShowOnlyRuntimeParameters;
 		CustomizableInstanceDetailsView->ForceRefresh();
 	}
 }
@@ -841,7 +841,7 @@ void FCustomizableObjectInstanceEditor::ShowGizmoProjectorParameter(const FStrin
 		
 		Editor->GetProjectorParameter()->SetPosition(Location);
 		
-		Instance->SetProjectorPosition(ParamName, static_cast<FVector3f>(Location), RangeIndex);
+		Instance->SetProjectorPosition(ParamName, Location, RangeIndex);
 		Instance->UpdateSkeletalMeshAsync(true, true);
 	});
 

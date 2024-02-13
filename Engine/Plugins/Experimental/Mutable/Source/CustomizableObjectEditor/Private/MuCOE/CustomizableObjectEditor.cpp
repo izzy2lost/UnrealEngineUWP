@@ -166,9 +166,9 @@ FCustomizableObjectEditor::~FCustomizableObjectEditor()
 
 	if (PreviewInstance)
 	{
-		if (PreviewInstance->bSelectedProfileDirty && PreviewInstance->SelectedProfileIndex != INDEX_NONE)
+		if (PreviewInstance->GetPrivate()->bSelectedProfileDirty && PreviewInstance->GetPrivate()->SelectedProfileIndex != INDEX_NONE)
 		{
-			PreviewInstance->SaveParametersToProfile(PreviewInstance->SelectedProfileIndex);
+			PreviewInstance->GetPrivate()->SaveParametersToProfile(PreviewInstance->GetPrivate()->SelectedProfileIndex);
 		}
 	}
 	
@@ -1577,9 +1577,9 @@ void FCustomizableObjectEditor::SaveAsset_Execute()
 {
 	if (PreviewInstance)
 	{
-		if (PreviewInstance->IsSelectedParameterProfileDirty())
+		if (PreviewInstance->GetPrivate()->IsSelectedParameterProfileDirty())
 		{
-			PreviewInstance->SaveParametersToProfile(PreviewInstance->SelectedProfileIndex);
+			PreviewInstance->GetPrivate()->SaveParametersToProfile(PreviewInstance->GetPrivate()->SelectedProfileIndex);
 		}
 	}
 
