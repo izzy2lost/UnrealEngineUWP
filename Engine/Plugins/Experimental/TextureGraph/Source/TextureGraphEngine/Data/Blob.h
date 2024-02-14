@@ -6,6 +6,7 @@
 #include "Device/DeviceBuffer.h"
 #include "BlobRef.h"
 #include "Helper/DataUtil.h"
+#include "2D/TextureHelper.h"
 
 class Device;
 class RawBuffer;
@@ -142,6 +143,7 @@ public:
 	virtual bool					HasLODLevel(int32 Index) const;
 	virtual int32					NumLODLevels() const;
 	virtual void					SetLODLevel(int32 Level, BlobPtr LODBlob, BlobPtrW LODParentBlob, BlobPtrW LODSourceBlob, bool bAddToBlobber); 
+	BlobPtr							GetHistogram() const; 
 
 	//////////////////////////////////////////////////////////////////////////
 	/// Ownership related
@@ -184,8 +186,6 @@ public:
 	FORCEINLINE void				SetHistogram(BlobPtr InHistogram) { check(!Histogram); Histogram = InHistogram; }
 	//Check if blob already has a histogram
 	FORCEINLINE bool				HasHistogram() const { return Histogram != nullptr; }
-
-	FORCEINLINE BlobPtr				GetHistogram() { check(HasHistogram()); return Histogram; }
 
 	//////////////////////////////////////////////////////////////////////////
 	/// Static functions
