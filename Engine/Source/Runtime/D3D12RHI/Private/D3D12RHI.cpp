@@ -4,6 +4,7 @@
 	D3D12RHI.cpp: Unreal D3D RHI library implementation.
 	=============================================================================*/
 
+#include "D3D12RHI.h"
 #include "D3D12RHIPrivate.h"
 #include "RHIStaticStates.h"
 #include "OneColorShader.h"

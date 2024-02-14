@@ -2,12 +2,19 @@
 
 #pragma once
 
-#include "D3D12NvidiaExtensions.h"
+#include "Stats/Stats.h"
 
 /**
 * The D3D RHI stats.
 */
 
+DECLARE_STATS_GROUP(TEXT("D3D12RHI"), STATGROUP_D3D12RHI, STATCAT_Advanced);
+DECLARE_STATS_GROUP(TEXT("D3D12RHI: Memory"), STATGROUP_D3D12Memory, STATCAT_Advanced);
+DECLARE_STATS_GROUP(TEXT("D3D12RHI: Memory Details"), STATGROUP_D3D12MemoryDetails, STATCAT_Advanced);
+DECLARE_STATS_GROUP(TEXT("D3D12RHI: Resources"), STATGROUP_D3D12Resources, STATCAT_Advanced);
+DECLARE_STATS_GROUP(TEXT("D3D12RHI: Buffer Details"), STATGROUP_D3D12BufferDetails, STATCAT_Advanced);
+DECLARE_STATS_GROUP(TEXT("D3D12RHI: Pipeline State (PSO)"), STATGROUP_D3D12PipelineState, STATCAT_Advanced);
+DECLARE_STATS_GROUP(TEXT("D3D12RHI: Descriptor Heap (GPU Visible)"), STATGROUP_D3D12DescriptorHeap, STATCAT_Advanced);
 
 DECLARE_CYCLE_STAT_EXTERN(TEXT("Present time"), STAT_D3D12PresentTime, STATGROUP_D3D12RHI, );
 DECLARE_CYCLE_STAT_EXTERN(TEXT("CustomPresent time"), STAT_D3D12CustomPresentTime, STATGROUP_D3D12RHI, );
@@ -69,6 +76,8 @@ DECLARE_MEMORY_STAT_EXTERN(TEXT("Demoted Video Memory"), STAT_D3D12DemotedVideoM
 DECLARE_MEMORY_STAT_EXTERN(TEXT("Used Video Memory"), STAT_D3D12UsedVideoMemory, STATGROUP_D3D12Memory, );
 DECLARE_MEMORY_STAT_EXTERN(TEXT("Used System Memory"), STAT_D3D12UsedSystemMemory, STATGROUP_D3D12Memory, );
 DECLARE_CYCLE_STAT_EXTERN(TEXT("Video Memory stats update time"), STAT_D3D12UpdateVideoMemoryStats, STATGROUP_D3D12RHI, );
+
+DECLARE_CYCLE_STAT_EXTERN(TEXT("Global Constant buffer update time"), STAT_D3D12GlobalConstantBufferUpdateTime, STATGROUP_D3D12RHI, );
 
 DECLARE_MEMORY_STAT_EXTERN(TEXT("TOTAL"), STAT_D3D12MemoryCurrentTotal, STATGROUP_D3D12Resources, );
 DECLARE_MEMORY_STAT_EXTERN(TEXT("Render Targets"), STAT_D3D12RenderTargets, STATGROUP_D3D12Resources, );
@@ -150,6 +159,7 @@ DECLARE_DWORD_COUNTER_STAT_EXTERN(TEXT("Max used explicit sampler descriptors in
 DECLARE_DWORD_COUNTER_STAT_EXTERN(TEXT("Used explicit sampler descriptors (per frame)"), STAT_ExplicitUsedSamplerDescriptors, STATGROUP_D3D12DescriptorHeap, );
 DECLARE_DWORD_COUNTER_STAT_EXTERN(TEXT("Used explicit view descriptors (per frame)"), STAT_ExplicitUsedViewDescriptors, STATGROUP_D3D12DescriptorHeap, );
 
+
 struct FD3D12GlobalStats
 {
 	// in bytes, never change after RHI, needed to scale game features
@@ -164,120 +174,3 @@ struct FD3D12GlobalStats
 	// In bytes. Never changed after RHI init. Our estimate of the amount of memory that we can use for graphics resources in total.
 	static int64 GTotalGraphicsMemory;
 };
-
-// This class has multiple inheritance but really FGPUTiming is a static class
-class FD3D12BufferedGPUTiming : public FGPUTiming, public FD3D12DeviceChild
-{
-public:
-	FD3D12BufferedGPUTiming(class FD3D12Device* InParent);
-
-	void StartTiming();
-	void EndTiming();
-
-	/**
-	* Retrieves the most recently resolved timing measurement.
-	* The unit is the same as for FPlatformTime::Cycles(). Returns 0 if there are no resolved measurements.
-	*
-	* @return	Value of the most recently resolved timing, or 0 if no measurements have been resolved by the GPU yet.
-	*/
-	uint64 GetTiming();
-
-	static void CalibrateTimers(FD3D12Adapter* ParentAdapter);
-
-	static void Initialize(FD3D12Adapter* ParentAdapter);
-
-private:
-	struct
-	{
-		uint64 Result = 0;
-		FD3D12SyncPointRef SyncPoint;
-	} Begin, End;
-
-	/** Whether we are currently timing the GPU: between StartTiming() and EndTiming(). */
-	bool bIsTiming = false;
-	/** Whether stable power state is currently enabled */
-	bool bStablePowerState = false;
-};
-
-/** A single perf event node, which tracks information about a appBeginDrawEvent/appEndDrawEvent range. */
-class FD3D12EventNode : public FGPUProfilerEventNode, public FD3D12DeviceChild
-{
-public:
-	FD3D12EventNode(const TCHAR* InName, FGPUProfilerEventNode* InParent, class FD3D12Device* InParentDevice)
-		: FGPUProfilerEventNode(InName, InParent)
-		, FD3D12DeviceChild(InParentDevice)
-		, Timing(InParentDevice)
-	{}
-
-	virtual ~FD3D12EventNode() = default;
-
-	/**
-	* Returns the time in ms that the GPU spent in this draw event.
-	* This blocks the CPU if necessary, so can cause hitching.
-	*/
-	virtual float GetTiming() override;
-
-	virtual void StartTiming() override
-	{
-		Timing.StartTiming();
-	}
-
-	virtual void StopTiming() override
-	{
-		Timing.EndTiming();
-	}
-
-	FD3D12BufferedGPUTiming Timing;
-};
-
-/** An entire frame of perf event nodes, including ancillary timers. */
-class FD3D12EventNodeFrame : public FGPUProfilerEventNodeFrame, public FD3D12DeviceChild
-{
-public:
-
-	FD3D12EventNodeFrame(class FD3D12Device* InParent)
-		: FGPUProfilerEventNodeFrame()
-		, FD3D12DeviceChild(InParent)
-		, RootEventTiming(InParent)
-	{}
-
-	virtual ~FD3D12EventNodeFrame() = default;
-
-	/** Start this frame of per tracking */
-	virtual void StartFrame() override;
-
-	/** End this frame of per tracking, but do not block yet */
-	virtual void EndFrame() override;
-
-	/** Calculates root timing base frequency (if needed by this RHI) */
-	virtual float GetRootTimingResults() override;
-
-	/** Timer tracking inclusive time spent in the root nodes. */
-	FD3D12BufferedGPUTiming RootEventTiming;
-};
-
-namespace D3D12RHI
-{
-	/**
-	* Encapsulates GPU profiling logic and data.
-	* There's only one global instance of this struct so it should only contain global data, nothing specific to a frame.
-	*/
-	struct FD3DGPUProfiler : public FGPUProfiler, public FD3D12DeviceChild
-	{
-		/** GPU hitch profile histories */
-		TIndirectArray<FD3D12EventNodeFrame> GPUHitchEventNodeFrames;
-
-		FD3DGPUProfiler(FD3D12Device* Parent)
-			: FD3D12DeviceChild(Parent)
-		{}
-
-		virtual FGPUProfilerEventNode* CreateEventNode(const TCHAR* InName, FGPUProfilerEventNode* InParent) override
-		{
-			FD3D12EventNode* EventNode = new FD3D12EventNode(InName, InParent, GetParentDevice());
-			return EventNode;
-		}
-
-		void BeginFrame();
-		void EndFrame();
-	};
-}

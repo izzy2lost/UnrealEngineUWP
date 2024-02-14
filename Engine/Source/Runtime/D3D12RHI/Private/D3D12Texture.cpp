@@ -4,6 +4,7 @@
 	D3D12Texture.cpp: D3D texture RHI implementation.
 	=============================================================================*/
 
+#include "D3D12Texture.h"
 #include "D3D12RHIPrivate.h"
 #include "TextureProfiler.h"
 #include "ProfilingDebugging/MemoryTrace.h"

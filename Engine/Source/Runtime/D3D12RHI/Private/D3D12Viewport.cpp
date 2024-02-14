@@ -4,6 +4,7 @@
 	D3D12Viewport.cpp: D3D viewport RHI implementation.
 	=============================================================================*/
 
+#include "D3D12Viewport.h"
 #include "D3D12RHIPrivate.h"
 #include "RenderCore.h"
 #include "Engine/RendererSettings.h"
@@ -586,6 +587,33 @@ FD3D12UnorderedAccessView_RHI* FD3D12Viewport::GetBackBufferUAV_RenderThread() c
 #else
 	return BackBufferUAV_RenderThread;
 #endif
+}
+
+#if D3D12_VIEWPORT_EXPOSES_SWAP_CHAIN
+void* FD3D12Viewport::GetNativeSwapChain() const
+{
+	return SwapChain1;
+}
+#endif // #if D3D12_VIEWPORT_EXPOSES_SWAP_CHAIN
+
+void* FD3D12Viewport::GetNativeBackBufferTexture() const
+{
+	return GetBackBuffer_RHIThread()->GetResource();
+}
+
+void* FD3D12Viewport::GetNativeBackBufferRT() const
+{
+	return GetBackBuffer_RHIThread()->GetRenderTargetView(0, 0);
+}
+
+void FD3D12Viewport::SetCustomPresent(FRHICustomPresent* InCustomPresent)
+{
+	CustomPresent = InCustomPresent;
+}
+
+FRHICustomPresent* FD3D12Viewport::GetCustomPresent() const
+{
+	return CustomPresent;
 }
 
 /** Update the expected next present GPU back buffer index from RenderThread point of view */

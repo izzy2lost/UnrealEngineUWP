@@ -1053,7 +1053,7 @@ static inline bool ResourceViewsIntersect(FD3D12View* pLeftView, FD3D12View* pRi
 bool FD3D12StateCache::AssertResourceStates(ED3D12PipelineType PipelineType)
 {
 // This requires the debug layer
-#if !D3D12_PLATFORM_SUPPORTS_ASSERTRESOURCESTATES
+#if !D3D12_SUPPORTS_DEBUG_COMMAND_LIST
 	UE_LOG(LogD3D12RHI, Log, TEXT("*** VerifyResourceStates requires the debug layer ***"), this);
 	return true;
 #else

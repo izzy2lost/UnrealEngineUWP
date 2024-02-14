@@ -8,6 +8,7 @@
 #include "Templates/Function.h"
 #include "Templates/RefCounting.h"
 #include "D3D12BindlessDescriptors.h"
+#include "RHIBreadcrumbs.h"
 
 enum class ED3D12QueueType;
 

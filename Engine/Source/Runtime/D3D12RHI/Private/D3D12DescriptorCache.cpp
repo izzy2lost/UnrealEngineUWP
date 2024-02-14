@@ -3,6 +3,7 @@
 //-----------------------------------------------------------------------------
 //	Include Files
 //-----------------------------------------------------------------------------
+#include "D3D12DescriptorCache.h"
 #include "D3D12RHIPrivate.h"
 
 bool FD3D12DescriptorCache::HeapRolledOver(ERHIDescriptorHeapType InHeapType)
@@ -1223,4 +1224,9 @@ uint32 GetTypeHash(const FD3D12SamplerArrayDesc& Key)
 uint32 GetTypeHash(const FD3D12QuantizedBoundShaderState& Key)
 {
 	return FD3D12PipelineStateCache::HashData((void*)&Key, sizeof(Key));
+}
+
+uint32 GetTypeHash(const FD3D12UniqueSamplerTable& Table)
+{
+	return FD3D12PipelineStateCache::HashData((void*)Table.Key.SamplerID, Table.Key.Count * sizeof(Table.Key.SamplerID[0]));
 }

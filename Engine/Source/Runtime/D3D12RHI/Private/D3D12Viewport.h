@@ -6,8 +6,17 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "D3D12RHICommon.h"
 #include "HAL/Runnable.h"
+#include "MultiGPU.h"
+#include "RHIResources.h"
+#include "Templates/RefCounting.h"
+
+class FD3D12Texture;
+class FD3D12UnorderedAccessView_RHI;
+
+class FD3D12SyncPoint;
+using FD3D12SyncPointRef = TRefCountPtr<FD3D12SyncPoint>;
 
 #define ALTERNATE_TIMESTAMP_METRIC 0
 
@@ -100,17 +109,14 @@ public:
 	virtual void IssueFrameEvent() override;
 
 #if D3D12_VIEWPORT_EXPOSES_SWAP_CHAIN
-	virtual void* GetNativeSwapChain() const override { return SwapChain1; }
+	virtual void* GetNativeSwapChain() const override;
 #endif // #if D3D12_VIEWPORT_EXPOSES_SWAP_CHAIN
 
-	virtual void* GetNativeBackBufferTexture() const override { return GetBackBuffer_RHIThread()->GetResource(); }
-	virtual void* GetNativeBackBufferRT() const override { return GetBackBuffer_RHIThread()->GetRenderTargetView(0, 0); }
+	virtual void* GetNativeBackBufferTexture() const override;
+	virtual void* GetNativeBackBufferRT() const override;
 
-	virtual void SetCustomPresent(FRHICustomPresent* InCustomPresent) override
-	{
-		CustomPresent = InCustomPresent;
-	}
-	virtual FRHICustomPresent* GetCustomPresent() const { return CustomPresent; }
+	virtual void SetCustomPresent(FRHICustomPresent* InCustomPresent) override;
+	virtual FRHICustomPresent* GetCustomPresent() const override;
 
 	virtual void* GetNativeWindow(void** AddParam = nullptr) const override { return (void*)WindowHandle; }
 

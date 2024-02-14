@@ -3,7 +3,7 @@
 /*=============================================================================
 	D3D12Adapter.h: D3D12 Adapter Interfaces
 
-	The D3D12 RHI is layed out in the following stucture. 
+	The D3D12 RHI is laid out in the following structure. 
 
 		[Engine]--
 				|
@@ -33,7 +33,12 @@
 
 #pragma once
 
-#include "D3D12RHIPrivate.h"
+#include "D3D12ThirdParty.h"
+#include "D3D12CommandContext.h"
+#include "D3D12RootSignature.h"
+
+class FD3D12TransientHeapCache;
+class IRHITransientMemoryCache;
 
 struct FD3D12DeviceBasicInfo
 {
@@ -215,7 +220,7 @@ public:
 
 	FORCEINLINE TArray<FD3D12Viewport*>& GetViewports() { return Viewports; }
 	FORCEINLINE FD3D12Viewport* GetDrawingViewport() { return DrawingViewport; }
-	FORCEINLINE void SetDrawingViewport(FD3D12Viewport* InViewport) { DrawingViewport = InViewport; }
+	void SetDrawingViewport(FD3D12Viewport* InViewport);
 
 	FORCEINLINE int32 GetMaxDescriptorsForHeapType(ERHIDescriptorHeapType InHeapType) { return InHeapType == ERHIDescriptorHeapType::Sampler ? MaxSamplerDescriptors : MaxNonSamplerDescriptors; }
 

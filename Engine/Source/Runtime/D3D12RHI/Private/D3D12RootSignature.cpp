@@ -4,6 +4,7 @@
 	D3D12RootSignature.cpp: D3D12 Root Signatures
 =============================================================================*/
 
+#include "D3D12RootSignature.h"
 #include "D3D12RHIPrivate.h"
 #include "D3D12AmdExtensions.h"
 #include "D3D12RootSignatureDefinitions.h"

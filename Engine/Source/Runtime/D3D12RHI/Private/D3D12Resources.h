@@ -24,14 +24,19 @@ constexpr D3D12_RESOURCE_STATES BackBufferBarrierWriteTransitionTargets = D3D12_
 	uint32(D3D12_RESOURCE_STATE_RESOLVE_DEST));
 
 // Forward Decls
+class FD3D12CommandList;
 class FD3D12Resource;
 class FD3D12StateCache;
 class FD3D12CommandListManager;
 class FD3D12CommandContext;
 class FD3D12SegListAllocator;
 class FD3D12PoolAllocator;
+struct FD3D12ComputePipelineState;
 struct FD3D12GraphicsPipelineState;
 struct FD3D12ResourceDesc;
+
+class FD3D12SyncPoint;
+using FD3D12SyncPointRef = TRefCountPtr<FD3D12SyncPoint>;
 
 #if D3D12_RHI_RAYTRACING
 class FD3D12RayTracingGeometry;

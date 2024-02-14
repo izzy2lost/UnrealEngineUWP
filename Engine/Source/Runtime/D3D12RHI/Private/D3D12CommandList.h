@@ -12,10 +12,6 @@ D3D12CommandList.h: Implementation of D3D12 Command List functions
 #include "D3D12Submission.h"
 #include "D3D12Util.h"
 
-#if !defined(D3D12_PLATFORM_SUPPORTS_ASSERTRESOURCESTATES)
-	#define D3D12_PLATFORM_SUPPORTS_ASSERTRESOURCESTATES 1
-#endif
-
 class FD3D12ContextCommon;
 class FD3D12Device;
 class FD3D12DynamicRHI;
@@ -139,7 +135,7 @@ private:
 #if D3D12_MAX_COMMANDLIST_INTERFACE >= 9
 		TRefCountPtr<ID3D12GraphicsCommandList9> GraphicsCommandList9;
 #endif
-#if D3D12_PLATFORM_SUPPORTS_ASSERTRESOURCESTATES
+#if D3D12_SUPPORTS_DEBUG_COMMAND_LIST
 		TRefCountPtr<ID3D12DebugCommandList>     DebugCommandList;
 #endif
 #if NV_AFTERMATH
@@ -223,7 +219,7 @@ public:
 #if D3D12_MAX_COMMANDLIST_INTERFACE >= 9
 	auto GraphicsCommandList9 () { return BuildRValuePtr(&FInterfaces::GraphicsCommandList9); }
 #endif
-#if D3D12_PLATFORM_SUPPORTS_ASSERTRESOURCESTATES
+#if D3D12_SUPPORTS_DEBUG_COMMAND_LIST
 	auto DebugCommandList     () { return BuildRValuePtr(&FInterfaces::DebugCommandList    ); }
 #endif
 #if D3D12_RHI_RAYTRACING

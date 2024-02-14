@@ -4,6 +4,10 @@
 
 #pragma once
 
+#include "HAL/Platform.h"
+#include "Containers/UnrealString.h"
+#include "Windows/WindowsHWrapper.h"
+
 #define IL_MAX_SEMANTIC_NAME 255
 
 class FDiskCacheInterface
@@ -20,7 +24,7 @@ class FDiskCacheInterface
 
 private:
 	FString mFileName;
-	byte*   mFileStart;
+	uint8*  mFileStart;
 	HANDLE  mFile;
 	HANDLE  mMemoryMap;
 	HANDLE  mMapAddress;

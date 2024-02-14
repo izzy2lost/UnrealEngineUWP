@@ -2,22 +2,19 @@
 
 #pragma once
 
-#if WITH_NVAPI
-
-	#include "Microsoft/AllowMicrosoftPlatformTypes.h"
-	THIRD_PARTY_INCLUDES_START
-		#include "nvapi.h"
-		#include "nvShaderExtnEnums.h"
-	THIRD_PARTY_INCLUDES_END
-	#include "Microsoft/HideMicrosoftPlatformTypes.h"
-
-#endif // WITH_NVAPI
-
+#include "D3D12ThirdParty.h"
 #include "RHICoreNvidiaAftermath.h"
 
-#if NV_AFTERMATH
+#if WITH_NVAPI
+	#include "Microsoft/AllowMicrosoftPlatformTypes.h"
+	THIRD_PARTY_INCLUDES_START
+		#include <nvapi.h>
+		#include <nvShaderExtnEnums.h>
+	THIRD_PARTY_INCLUDES_END
+	#include "Microsoft/HideMicrosoftPlatformTypes.h"
+#endif // WITH_NVAPI
 
-	#include "Windows/WindowsD3D12ThirdParty.h"
+#if NV_AFTERMATH
 
 	struct GFSDK_Aftermath_ContextHandle__;
 	struct GFSDK_Aftermath_ResourceHandle__;

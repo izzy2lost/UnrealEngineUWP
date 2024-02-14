@@ -5,8 +5,8 @@
 //-----------------------------------------------------------------------------
 //	Include Files
 //-----------------------------------------------------------------------------
-#include "D3D12RHIPrivate.h"
 #include "D3D12Allocation.h"
+#include "D3D12RHIPrivate.h"
 #include "Misc/BufferedOutputDevice.h"
 #include "HAL/PlatformStackWalk.h"
 #include "ProfilingDebugging/MemoryTrace.h"

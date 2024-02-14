@@ -7,6 +7,7 @@
 #include "Async/AsyncWork.h"
 #include "D3D12DiskCache.h"
 #include "D3D12Shader.h"
+#include "D3D12Stats.h"
 
 class FD3D12VertexShader;
 class FD3D12MeshShader;
@@ -51,6 +52,9 @@ DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Compute: Num low-level cache entries"), STA
 DECLARE_DWORD_COUNTER_STAT(TEXT("Compute: Low-level cache hit"), STAT_PSOComputeLowlevelCacheHit, STATGROUP_D3D12PipelineState);
 DECLARE_DWORD_COUNTER_STAT(TEXT("Compute: Low-level cache miss"), STAT_PSOComputeLowlevelCacheMiss, STATGROUP_D3D12PipelineState);
 
+struct FD3D12_GRAPHICS_PIPELINE_STATE_STREAM;
+struct FD3D12_MESH_PIPELINE_STATE_STREAM;
+struct FD3D12_COMPUTE_PIPELINE_STATE_STREAM;
 
 // Graphics pipeline struct that represents the latest versions of PSO subobjects currently supported by the RHI.
 struct FD3D12_GRAPHICS_PIPELINE_STATE_DESC
@@ -270,6 +274,8 @@ template <> struct equality_pipeline_state_desc<FD3D12ComputePipelineStateDesc>
 
 struct ComputePipelineCreationArgs;
 struct GraphicsPipelineCreationArgs;
+struct ComputePipelineCreationArgs_POD;
+struct GraphicsPipelineCreationArgs_POD;
 
 struct FD3D12PipelineStateWorker : public FD3D12AdapterChild, public FNonAbandonableTask
 {

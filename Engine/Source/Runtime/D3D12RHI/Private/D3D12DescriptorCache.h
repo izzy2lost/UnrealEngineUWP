@@ -2,15 +2,32 @@
 
 #pragma once
 
+#include "HAL/Platform.h"
+#include "Containers/Set.h"
+#include "Misc/AssertionMacros.h"
+#include "Templates/UnrealTemplate.h"
+#include "D3D12RHICommon.h"
+#include "D3D12Descriptors.h"
+
+class FD3D12CommandContext;
 class FD3D12DynamicRHI;
-struct FD3D12DefaultViews;
+class FD3D12DepthStencilView;
+class FD3D12RenderTargetView;
+class FD3D12ShaderResourceView;
+class FD3D12UnorderedAccessView;
 class FD3D12DescriptorCache;
+class FD3D12RootSignature;
+
+struct FD3D12DefaultViews;
 struct FD3D12VertexBufferCache;
 struct FD3D12IndexBufferCache;
 struct FD3D12ConstantBufferCache;
 struct FD3D12ShaderResourceViewCache;
 struct FD3D12UnorderedAccessViewCache;
 struct FD3D12SamplerStateCache;
+
+class FD3D12SyncPoint;
+using FD3D12SyncPointRef = TRefCountPtr<FD3D12SyncPoint>;
 
 // Like a TMap<KeyType, ValueType>
 // Faster lookup performance, but possibly has false negatives
@@ -79,11 +96,11 @@ private:
 	TArray<Entry> Table;
 };
 
-uint32 GetTypeHash(const D3D12_SAMPLER_DESC& Desc);
 struct FD3D12SamplerArrayDesc
 {
 	uint32 Count;
 	uint16 SamplerID[MAX_SAMPLERS];
+
 	inline bool operator==(const FD3D12SamplerArrayDesc& rhs) const
 	{
 		check(Count <= UE_ARRAY_COUNT(SamplerID));
@@ -100,7 +117,10 @@ struct FD3D12SamplerArrayDesc
 		}
 	}
 };
+
+uint32 GetTypeHash(const D3D12_SAMPLER_DESC& Desc);
 uint32 GetTypeHash(const FD3D12SamplerArrayDesc& Key);
+
 typedef FD3D12ConservativeMap<FD3D12SamplerArrayDesc, D3D12_GPU_DESCRIPTOR_HANDLE> FD3D12SamplerMap;
 
 struct FD3D12UniqueSamplerTable
@@ -112,17 +132,14 @@ struct FD3D12UniqueSamplerTable
 		FMemory::Memcpy(CPUTable, Table, Key.Count * sizeof(D3D12_CPU_DESCRIPTOR_HANDLE));
 	}
 
-	FORCEINLINE uint32 GetTypeHash(const FD3D12UniqueSamplerTable& Table)
-	{
-		return FD3D12PipelineStateCache::HashData((void*)Table.Key.SamplerID, Table.Key.Count * sizeof(Table.Key.SamplerID[0]));
-	}
-
 	FD3D12SamplerArrayDesc Key{};
 	D3D12_CPU_DESCRIPTOR_HANDLE CPUTable[MAX_SAMPLERS]{};
 
 	// This will point to the table start in the global heap
 	D3D12_GPU_DESCRIPTOR_HANDLE GPUHandle{};
 };
+uint32 GetTypeHash(const FD3D12UniqueSamplerTable& Table);
+
 
 struct FD3D12UniqueSamplerTableKeyFuncs : BaseKeyFuncs<FD3D12UniqueSamplerTable, FD3D12UniqueSamplerTable, /*bInAllowDuplicateKeys = */ false>
 {

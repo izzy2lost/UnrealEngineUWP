@@ -4,6 +4,7 @@
 D3D12Adapter.cpp:D3D12 Adapter implementation.
 =============================================================================*/
 
+#include "D3D12Adapter.h"
 #include "D3D12RHIPrivate.h"
 #include "D3D12AmdExtensions.h"
 #include "D3D12IntelExtensions.h"
@@ -769,6 +770,11 @@ void FD3D12Adapter::CreateRootDevice(bool bWithDebug)
 		UE_LOG(LogD3D12RHI, Log, TEXT("Enabling multi-GPU with %d nodes"), Desc.NumDeviceNodes);
 	}
 #endif
+}
+
+void FD3D12Adapter::SetDrawingViewport(FD3D12Viewport* InViewport)
+{
+	DrawingViewport = InViewport;
 }
 
 FD3D12TransientHeapCache& FD3D12Adapter::GetOrCreateTransientHeapCache()
@@ -1900,4 +1906,5 @@ void FD3D12Adapter::SetResidencyPriority(ID3D12Pageable* Pageable, D3D12_RESIDEN
 	}
 #endif // D3D12_RHI_RAYTRACING
 }
+
 

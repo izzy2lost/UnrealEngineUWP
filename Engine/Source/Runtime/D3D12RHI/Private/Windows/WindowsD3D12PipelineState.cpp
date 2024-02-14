@@ -5,6 +5,7 @@
 //-----------------------------------------------------------------------------
 //	Include Files
 //-----------------------------------------------------------------------------
+#include "WindowsD3D12PipelineState.h"
 #include "D3D12RHIPrivate.h"
 #include "D3D12NvidiaExtensions.h"
 #include "Misc/ScopeRWLock.h"

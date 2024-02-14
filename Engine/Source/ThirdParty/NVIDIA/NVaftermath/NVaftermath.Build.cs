@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
 using System.IO;
 using UnrealBuildTool;
 
@@ -25,6 +24,10 @@ public class NVAftermath : ModuleRules
 			RuntimeDependencies.Add(Path.Combine(BinariesDir, "GFSDK_Aftermath_Lib.x64.dll"));
             PublicDelayLoadDLLs.Add("GFSDK_Aftermath_Lib.x64.dll");
         }
+		else
+		{
+			PublicDefinitions.Add("NV_AFTERMATH=0");
+		}
 	}
 }
 

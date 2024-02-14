@@ -4,6 +4,7 @@
 	D3D12Query.cpp: D3D query RHI implementation.
 =============================================================================*/
 
+#include "D3D12Query.h"
 #include "D3D12RHIPrivate.h"
 #include "ProfilingDebugging/AssetMetadataTrace.h"
 
@@ -14,14 +15,6 @@ namespace D3D12RHI
 	*/
 	namespace RHIConsoleVariables
 	{
-		int32 bStablePowerState = 0;
-		static FAutoConsoleVariableRef CVarStablePowerState(
-			TEXT("D3D12.StablePowerState"),
-			bStablePowerState,
-			TEXT("If true, enable stable power state. This increases GPU timing measurement accuracy but may decrease overall GPU clock rate."),
-			ECVF_Default
-			);
-
 		int32 GInsertOuterOcclusionQuery = 0;
 		static FAutoConsoleVariableRef CVarInsertOuterOcclusionQuery(
 			TEXT("D3D12.InsertOuterOcclusionQuery"),
@@ -363,114 +356,3 @@ bool FD3D12DynamicRHI::RHIGetRenderQueryResult(FRHIRenderQuery* QueryRHI, uint64
  * class FD3D12BufferedGPUTiming
  *=============================================================================*/
 
- /**
-  * Constructor.
-  *
-  * @param InD3DRHI			RHI interface
-  * @param InBufferSize		Number of buffered measurements
-  */
-FD3D12BufferedGPUTiming::FD3D12BufferedGPUTiming(FD3D12Device* InParent)
-	: FD3D12DeviceChild(InParent)
-{
-}
-
-void FD3D12BufferedGPUTiming::Initialize(FD3D12Adapter* ParentAdapter)
-{
-	StaticInitialize(ParentAdapter, [](void* UserData)
-	{
-		// Are the static variables initialized?
-		check(!GAreGlobalsInitialized);
-
-		FD3D12Adapter* ParentAdapter = (FD3D12Adapter*)UserData;
-		CalibrateTimers(ParentAdapter);
-	});
-}
-
-void FD3D12BufferedGPUTiming::CalibrateTimers(FD3D12Adapter* ParentAdapter)
-{
-	for (uint32 GPUIndex : FRHIGPUMask::All())
-	{
-		FD3D12Device* Device = ParentAdapter->GetDevice(GPUIndex);
-
-		uint64 TimingFrequency = Device->GetTimestampFrequency(ED3D12QueueType::Direct);
-		SetTimingFrequency(TimingFrequency, GPUIndex);
-
-		FGPUTimingCalibrationTimestamp CalibrationTimestamp = Device->GetCalibrationTimestamp(ED3D12QueueType::Direct);
-		SetCalibrationTimestamp(CalibrationTimestamp, GPUIndex);
-	}
-}
-
-/**
- * Start a GPU timing measurement.
- */
-void FD3D12BufferedGPUTiming::StartTiming()
-{
-	FD3D12Device* Device = GetParentDevice();
-	ID3D12Device* D3DDevice = Device->GetDevice();
-
-	// Issue a timestamp query for the 'start' time.
-	if (GIsSupported && !bIsTiming)
-	{
-		// Check to see if stable power state cvar has changed
-		const bool bStablePowerStateCVar = RHIConsoleVariables::bStablePowerState != 0;
-		if (bStablePowerState != bStablePowerStateCVar)
-		{
-			if (SUCCEEDED(D3DDevice->SetStablePowerState(bStablePowerStateCVar)))
-			{
-				// SetStablePowerState succeeded. Update timing frequency.
-				uint64 TimingFrequency = Device->GetTimestampFrequency(ED3D12QueueType::Direct);
-				SetTimingFrequency(TimingFrequency, Device->GetGPUIndex());
-				bStablePowerState = bStablePowerStateCVar;
-			}
-			else
-			{
-				// SetStablePowerState failed. This can occur if SDKLayers is not present on the system.
-				RHIConsoleVariables::CVarStablePowerState->Set(0, ECVF_SetByConsole);
-			}
-		}
-
-		FD3D12CommandContext& CmdContext = Device->GetDefaultCommandContext();
-		CmdContext.InsertTimestamp(ED3D12Units::Raw, &Begin.Result);
-
-		Begin.SyncPoint = CmdContext.GetContextSyncPoint();
-
-		bIsTiming = true;
-	}
-}
-
-/**
- * End a GPU timing measurement.
- * The timing for this particular measurement will be resolved at a later time by the GPU.
- */
-void FD3D12BufferedGPUTiming::EndTiming()
-{
-	// Issue a timestamp query for the 'end' time.
-	if (GIsSupported && bIsTiming)
-	{
-		FD3D12CommandContext& CmdContext = GetParentDevice()->GetDefaultCommandContext();
-		CmdContext.InsertTimestamp(ED3D12Units::Raw, &End.Result);
-
-		End.SyncPoint = CmdContext.GetContextSyncPoint();
-
-		bIsTiming = false;
-	}
-}
-
-/**
- * Retrieves the most recently resolved timing measurement.
- * The unit is the same as for FPlatformTime::Cycles(). Returns 0 if there are no resolved measurements.
- *
- * @return	Value of the most recently resolved timing, or 0 if no measurements have been resolved by the GPU yet.
- */
-uint64 FD3D12BufferedGPUTiming::GetTiming()
-{
-	if (End.SyncPoint)
-		End.SyncPoint->Wait();
-
-	if (Begin.SyncPoint)
-		Begin.SyncPoint->Wait();
-
-	return End.Result >= Begin.Result
-		? End.Result - Begin.Result
-		: 0;
-}

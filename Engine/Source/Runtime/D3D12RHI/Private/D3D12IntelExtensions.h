@@ -3,6 +3,8 @@
 #pragma once
 
 #if INTEL_EXTENSIONS
+	#include "D3D12ThirdParty.h"
+
 	#define INTC_IGDEXT_D3D12 1
 
 	#include "Microsoft/AllowMicrosoftPlatformTypes.h"

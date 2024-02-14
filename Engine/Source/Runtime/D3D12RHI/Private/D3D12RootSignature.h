@@ -4,7 +4,10 @@
 	D3D12RootSignature.h: D3D12 Root Signatures
 =============================================================================*/
 
+#pragma once
+
 #include "D3D12RootSignatureDefinitions.h"
+#include "D3D12Util.h"
 
 // Root parameter keys grouped by visibility.
 enum ERootParameterKeys

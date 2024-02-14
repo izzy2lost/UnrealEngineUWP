@@ -4,6 +4,7 @@
 D3D12CommandContext.cpp: RHI  Command Context implementation.
 =============================================================================*/
 
+#include "D3D12CommandContext.h"
 #include "D3D12RHIPrivate.h"
 
 #include "D3D12AmdExtensions.h"
@@ -199,7 +200,7 @@ void FD3D12ContextCommon::BindDiagnosticBuffer(FD3D12RootSignature const* RootSi
 
 		if (IsDefaultContext() && !IsAsyncComputeContext())
 		{
-			D3D12RHI::FD3DGPUProfiler& GPUProfiler = GetParentDevice()->GetGPUProfiler();
+			FD3D12GPUProfiler& GPUProfiler = GetParentDevice()->GetGPUProfiler();
 			if (GPUProfiler.IsProfilingGPU())
 			{
 				GPUProfiler.PushEvent(GetNameStr(), FColor::White);
@@ -211,7 +212,7 @@ void FD3D12ContextCommon::BindDiagnosticBuffer(FD3D12RootSignature const* RootSi
 	{
 		if (IsDefaultContext() && !IsAsyncComputeContext())
 		{
-			D3D12RHI::FD3DGPUProfiler& GPUProfiler = GetParentDevice()->GetGPUProfiler();
+			FD3D12GPUProfiler& GPUProfiler = GetParentDevice()->GetGPUProfiler();
 			if (GPUProfiler.IsProfilingGPU())
 			{
 				GPUProfiler.PopEvent();

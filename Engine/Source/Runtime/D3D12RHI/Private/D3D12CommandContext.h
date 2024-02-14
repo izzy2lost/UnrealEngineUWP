@@ -6,24 +6,38 @@ D3D12CommandContext.h: D3D12 Command Context Interfaces
 
 #pragma once
 
-#include "D3D12RHIPrivate.h"
-#include "D3D12Queue.h"
+#include "D3D12Allocation.h"
 #include "D3D12BindlessDescriptors.h"
-
-#include "Windows/AllowWindowsPlatformTypes.h"
-THIRD_PARTY_INCLUDES_START
-#if USE_PIX
-	#include "pix3.h"
-#endif
-#include "Windows/HideWindowsPlatformTypes.h"
-THIRD_PARTY_INCLUDES_END
+#include "D3D12CommandList.h"
+#include "D3D12Queue.h"
+#include "D3D12Query.h"
+#include "D3D12Resources.h"
+#include "D3D12StateCachePrivate.h"
+#include "D3D12Submission.h"
+#include "D3D12Texture.h"
 
 #include "RHICoreShader.h"
 #include "RHICore.h"
 
+#if USE_PIX
+	#include "Windows/AllowWindowsPlatformTypes.h"
+	THIRD_PARTY_INCLUDES_START
+		#include <pix3.h>
+	#include "Windows/HideWindowsPlatformTypes.h"
+	THIRD_PARTY_INCLUDES_END
+#endif
+
+enum class ED3D12PipelineType : uint8;
+
 struct FD3D12DescriptorHeap;
 struct FRayTracingShaderBindings;
+struct FD3D12ViewSubset;
 class FD3D12Device;
+class FD3D12Resource;
+class FD3D12Heap;
+struct FD3D12DescriptorHeap;
+class FD3D12ResourceLocation;
+class FD3D12RootSignature;
 
 struct FD3D12DeferredDeleteObject
 {
@@ -238,7 +252,9 @@ public:
 
 private:
 	// Allocators to manage query heaps
-	FD3D12QueryAllocator TimestampQueries, OcclusionQueries, PipelineStatsQueries;
+	FD3D12QueryAllocator TimestampQueries;
+	FD3D12QueryAllocator OcclusionQueries;
+	FD3D12QueryAllocator PipelineStatsQueries;
 
 	// Batches resource barriers together until it's explicitly flushed
 	FD3D12ResourceBarrierBatcher ResourceBarrierBatcher;
@@ -342,7 +358,7 @@ public:
 #if D3D12_MAX_COMMANDLIST_INTERFACE >= 9
 	auto GraphicsCommandList9 () { return GetCommandList().GraphicsCommandList9(); }
 #endif
-#if D3D12_PLATFORM_SUPPORTS_ASSERTRESOURCESTATES			    
+#if D3D12_SUPPORTS_DEBUG_COMMAND_LIST			    
 	auto DebugCommandList     () { return GetCommandList().DebugCommandList(); }
 #endif
 #if D3D12_RHI_RAYTRACING

@@ -4,6 +4,7 @@
 D3D12Resources.cpp: D3D RHI utility implementation.
 =============================================================================*/
 
+#include "D3D12Resources.h"
 #include "D3D12RHIPrivate.h"
 #include "D3D12IntelExtensions.h"
 #include "EngineModule.h"

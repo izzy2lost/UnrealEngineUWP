@@ -6,15 +6,21 @@ D3D12Device.h: D3D12 Device Interfaces
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "RHIBreadcrumbs.h"
 
 #include "D3D12BindlessDescriptors.h"
+#include "D3D12CommandContext.h"
 #include "D3D12Descriptors.h"
+#include "D3D12Query.h"
+#include "D3D12Queue.h"
+#include "D3D12Resources.h"
+#include "D3D12Submission.h"
+#include "D3D12GPUProfiler.h"
 
 class FD3D12Device;
 class FD3D12DynamicRHI;
 class FD3D12Buffer;
+class FD3D12Queue;
 class FD3D12ExplicitDescriptorHeapCache;
 class FD3D12RayTracingPipelineCache;
 class FD3D12RayTracingCompactionRequestHandler;
@@ -199,7 +205,7 @@ public:
 	ID3D12Device* GetDevice();
 
 	// GPU Profiler
-	FORCEINLINE D3D12RHI::FD3DGPUProfiler& GetGPUProfiler() { return GPUProfilingData; }
+	FORCEINLINE FD3D12GPUProfiler& GetGPUProfiler() { return GPUProfilingData; }
 
 	void RegisterGPUWork(uint32 NumPrimitives = 0, uint32 NumVertices = 0);
 	void RegisterGPUDispatch(FIntVector GroupCount);
@@ -274,10 +280,10 @@ public:
 
 	// Contexts
 	FD3D12CommandContext&   GetDefaultCommandContext() { return *ImmediateCommandContext; }
+	FD3D12ContextCommon*    ObtainContext           (ED3D12QueueType QueueType);
 	FD3D12ContextCopy*      ObtainContextCopy       () { return static_cast<FD3D12ContextCopy*   >(ObtainContext(ED3D12QueueType::Copy  )); }
 	FD3D12CommandContext*   ObtainContextCompute    () { return static_cast<FD3D12CommandContext*>(ObtainContext(ED3D12QueueType::Async )); }
 	FD3D12CommandContext*   ObtainContextGraphics   () { return static_cast<FD3D12CommandContext*>(ObtainContext(ED3D12QueueType::Direct)); }
-	FD3D12ContextCommon*    ObtainContext           (ED3D12QueueType QueueType);
 	void                    ReleaseContext          (FD3D12ContextCommon* Context);
 
 	// Queries
@@ -316,7 +322,7 @@ private:
 	void UpdateMSAASettings();
 	void UpdateConstantBufferPageProperties();
 
-	D3D12RHI::FD3DGPUProfiler GPUProfilingData;
+	FD3D12GPUProfiler GPUProfilingData;
 
 	struct FResidencyManager : public FD3D12ResidencyManager
 	{

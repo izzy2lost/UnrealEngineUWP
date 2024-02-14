@@ -2,11 +2,12 @@
 
 #pragma once
 
-#include "D3D12RHIPrivate.h"
+#include "D3D12RHICommon.h"
 #include "Experimental/Containers/SherwoodHashTable.h"
 
 class FD3D12DynamicRHI;
 struct FD3D12DefaultViews;
+class FD3D12CommandContext;
 class FD3D12DescriptorCache;
 struct FD3D12VertexBufferCache;
 struct FD3D12IndexBufferCache;

@@ -4,6 +4,7 @@
 	D3D12State.cpp: D3D state implementation.
 	=============================================================================*/
 
+#include "D3D12State.h"
 #include "D3D12RHIPrivate.h"
 #include "RHIUtilities.h"
 

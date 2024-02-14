@@ -4,7 +4,24 @@
 //	thread performance by removing redundant device context calls.
 
 #pragma once
+
+#include "D3D12ConstantBuffer.h"
 #include "D3D12DirectCommandListManager.h"
+#include "D3D12DescriptorCache.h"
+// TODO reorder includes so we just include D3D12PipelineState.h here
+#include COMPILED_PLATFORM_HEADER(D3D12PipelineState.h)
+#include "D3D12Resources.h"
+
+#include "Math/IntVector.h"
+
+enum class EShaderParameterTypeMask : uint16;
+
+class FD3D12SamplerState;
+
+struct FD3D12ComputePipelineState;
+struct FD3D12GraphicsPipelineState;
+struct FD3D12PipelineState;
+struct FD3D12ShaderData;
 
 //-----------------------------------------------------------------------------
 //	Configuration

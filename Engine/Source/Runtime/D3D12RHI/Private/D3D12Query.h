@@ -5,6 +5,14 @@ D3D12Query.h: Implementation of D3D12 Query
 =============================================================================*/
 #pragma once
 
+#include "D3D12RHICommon.h"
+#include "D3D12Submission.h"
+#include "D3D12Residency.h"
+#include "RHIResources.h"
+
+class FD3D12SyncPoint;
+using FD3D12SyncPointRef = TRefCountPtr<FD3D12SyncPoint>;
+
 /** D3D12 Render query */
 class FD3D12RenderQuery : public FRHIRenderQuery, public FD3D12DeviceChild, public FD3D12LinkedAdapterObject<FD3D12RenderQuery>
 {

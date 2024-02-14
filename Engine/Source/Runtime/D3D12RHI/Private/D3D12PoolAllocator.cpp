@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "D3D12RHIPrivate.h"
 #include "D3D12PoolAllocator.h"
+#include "D3D12RHIPrivate.h"
 
 #ifndef NEEDS_D3D12_INDIRECT_ARGUMENT_HEAP_WORKAROUND
 #define NEEDS_D3D12_INDIRECT_ARGUMENT_HEAP_WORKAROUND 0

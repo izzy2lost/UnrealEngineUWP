@@ -2,8 +2,12 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "RHI.h"
+#include "Containers/Array.h"
+#include "D3D12ThirdParty.h"
+#include "Templates/RefCounting.h"
+
+class FD3D12Adapter;
+class FD3D12CommandContext;
 
 extern int32 GEmitRgpFrameMarkers;
 
@@ -15,7 +19,7 @@ class FD3D12ManualFence final
 	struct FFencePair
 	{
 		TRefCountPtr<ID3D12Fence> Fence;
-		class FD3D12CommandContext* Context;
+		FD3D12CommandContext* Context;
 	};
 
 	TArray<FFencePair> FencePairs;

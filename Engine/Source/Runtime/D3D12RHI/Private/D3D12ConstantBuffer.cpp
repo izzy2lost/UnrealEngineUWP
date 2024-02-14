@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "D3D12ConstantBuffer.h"
 #include "D3D12RHIPrivate.h"
 
 DEFINE_STAT(STAT_D3D12GlobalConstantBufferUpdateTime);

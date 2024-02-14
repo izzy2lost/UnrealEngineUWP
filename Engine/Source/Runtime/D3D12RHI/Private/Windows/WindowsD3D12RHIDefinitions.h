@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "D3D12ThirdParty.h"
+
 // Windows uses the graphics command list interface for the copy queue.
 typedef ID3D12GraphicsCommandList ID3D12CopyCommandList;
 

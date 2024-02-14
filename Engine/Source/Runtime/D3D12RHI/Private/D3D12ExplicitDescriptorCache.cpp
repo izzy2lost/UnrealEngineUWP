@@ -1,6 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "D3D12ExplicitDescriptorCache.h"
+#include "D3D12Adapter.h"
+#include "D3D12Device.h"
+#include "D3D12DirectCommandListManager.h"
+#include "D3D12RHIPrivate.h"
+#include "D3D12Stats.h"
+#include "HAL/ConsoleManager.h"
 #include "Hash/xxhash.h"
 
 // Whether to compare the full descriptor table on cache lookup or only use FXxHash64 digest.

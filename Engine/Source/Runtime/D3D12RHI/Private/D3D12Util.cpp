@@ -4,6 +4,7 @@
 D3D12Util.h: D3D RHI utility implementation.
 =============================================================================*/
 
+#include "D3D12Util.h"
 #include "D3D12RHIPrivate.h"
 #include "EngineModule.h"
 #include "RendererInterface.h"

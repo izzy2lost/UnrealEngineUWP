@@ -8,6 +8,9 @@ D3D12Allocation.h: A Collection of allocators
 
 #include "D3D12Resources.h"
 #include "D3D12PoolAllocator.h"
+#include "Misc/ScopeRWLock.h"
+
+class FD3D12ConstantBufferView;
 
 #define SUB_ALLOCATED_DEFAULT_ALLOCATIONS	1
 

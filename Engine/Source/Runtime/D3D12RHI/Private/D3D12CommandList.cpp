@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "D3D12RHIPrivate.h"
 #include "D3D12CommandList.h"
+#include "D3D12RHIPrivate.h"
 #include "RHIValidation.h"
 
 static int32 GD3D12BatchResourceBarriers = 1;
@@ -195,7 +195,7 @@ FD3D12CommandList::FD3D12CommandList(FD3D12CommandAllocator* CommandAllocator, F
 #if D3D12_MAX_COMMANDLIST_INTERFACE >= 9
 		Interfaces.CommandList->QueryInterface(IID_PPV_ARGS(Interfaces.GraphicsCommandList9.GetInitReference()));
 #endif
-#if D3D12_PLATFORM_SUPPORTS_ASSERTRESOURCESTATES
+#if D3D12_SUPPORTS_DEBUG_COMMAND_LIST
 		Interfaces.CommandList->QueryInterface(IID_PPV_ARGS(Interfaces.DebugCommandList.GetInitReference()));
 #endif
 		break;

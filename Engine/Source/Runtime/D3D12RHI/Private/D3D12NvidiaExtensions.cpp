@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "D3D12RHICommon.h"
 #include "D3D12NvidiaExtensions.h"
+#include "D3D12RHICommon.h"
 
 #if NV_AFTERMATH
 

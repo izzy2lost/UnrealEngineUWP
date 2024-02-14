@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "D3D12Submission.h"
 #include "D3D12RHIPrivate.h"
 #include "HAL/Runnable.h"
 #include "HAL/RunnableThread.h"
