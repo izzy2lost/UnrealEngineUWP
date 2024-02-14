@@ -225,6 +225,11 @@ USkeletalMeshComponent* UAnimInstance::GetOwningComponent() const
 	return GetSkelMeshComponent();
 }
 
+UAnimInstance* UAnimInstance::Blueprint_GetMainAnimInstance() const
+{
+	return GetSkelMeshComponent()->GetAnimInstance();
+}
+
 UWorld* UAnimInstance::GetWorld() const
 {
 	// The CDO isn't owned by a SkelMeshComponent (and doesn't have a World)

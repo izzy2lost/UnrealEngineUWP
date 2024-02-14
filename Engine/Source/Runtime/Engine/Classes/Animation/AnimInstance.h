@@ -506,6 +506,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Animation")
 	ENGINE_API USkeletalMeshComponent* GetOwningComponent() const;
 
+	/** Get the 'main' anim instance, i.e. the one that is hosted on the skeletal mesh component */
+	UFUNCTION(BlueprintCallable, Category = "Animation", meta = (DisplayName="Get Main Anim Instance", BlueprintThreadSafe))
+	ENGINE_API UAnimInstance* Blueprint_GetMainAnimInstance() const;
+
 public:
 
 	/** Executed when the Animation is initialized */
@@ -531,7 +535,7 @@ public:
 	/** Executed when the Animation Blueprint is updated on a worker thread, just prior to graph update */
 	UFUNCTION(BlueprintImplementableEvent, meta=(BlueprintThreadSafe))
 	ENGINE_API void BlueprintThreadSafeUpdateAnimation(float DeltaTime);
-	
+
 	ENGINE_API bool CanTransitionSignature() const;
 	
 	/*********************************************************************************************
