@@ -314,10 +314,6 @@ void FGroupTopologySelector::Initialize(const FDynamicMesh3* MeshIn, const FGrou
 	GroupTopologyUtils.GroupTopology = TopologyIn;
 	bGeometryInitialized = false;
 	bGeometryUpToDate = false;
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	Topology = TopologyIn;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 
