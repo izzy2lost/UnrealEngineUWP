@@ -26,7 +26,10 @@ enum class EPhysicsMovementType : uint8
 	// kinematic target set in the Body Modifier.
 	Kinematic,
 	// Simulated means that the object will be controlled by the physics solver
-	Simulated
+	Simulated,
+	// Default means that the movement type shouldn't be changed - for example, it will use the
+	// value in the physics asset
+	Default
 };
 
 inline FName GetPhysicsMovementTypeName(const EPhysicsMovementType MovementType)
@@ -39,6 +42,8 @@ inline FName GetPhysicsMovementTypeName(const EPhysicsMovementType MovementType)
 		return "Kinematic";
 	case EPhysicsMovementType::Simulated:
 		return "Simulated";
+	case EPhysicsMovementType::Default:
+		return "Default";
 	}
 	return "None";
 }

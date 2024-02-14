@@ -739,6 +739,9 @@ void UPhysicsControlComponent::ApplyBodyModifier(FPhysicsBodyModifierRecord& Rec
 		case EPhysicsMovementType::Simulated:
 			BodyInstance->SetInstanceSimulatePhysics(true, false, true);
 			break;
+		case EPhysicsMovementType::Default:
+			// Default means do nothing, so let's do exactly that
+			break;
 		default:
 			UE_LOG(LogPhysicsControl, Warning, TEXT("Invalid movement type %d"),
 				int(Record.BodyModifier.ModifierData.MovementType));

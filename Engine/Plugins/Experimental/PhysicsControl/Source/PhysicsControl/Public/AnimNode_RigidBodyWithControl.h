@@ -179,6 +179,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (editcondition = "bEnableWorldGeometry"))
 	TEnumAsByte<ECollisionChannel> OverlapChannel;
 
+	/** What space to simulate the bodies in. This affects how velocities are generated */
+	UPROPERTY(EditAnywhere, Category = Settings)
+	ESimulationSpace SimulationSpace;
+
 	/** 
 	 * Whether or not to calculate velocities for world geometry. Note that if the simulation space is
 	 * not set to world, then even static objects "should" have velocities calculated. There is a cost 
@@ -188,17 +192,20 @@ public:
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (editcondition = "bEnableWorldGeometry"))
 	uint8 bCalculateVelocitiesForWorldGeometry : 1;
 
-	/** What space to simulate the bodies in. This affects how velocities are generated */
-	UPROPERTY(EditAnywhere, Category = Settings)
-	ESimulationSpace SimulationSpace;
-
 	/** Whether to allow collisions between two bodies joined by a constraint  */
 	UPROPERTY(EditAnywhere, Category = Settings)
-	bool bForceDisableCollisionBetweenConstraintBodies;
+	uint8 bForceDisableCollisionBetweenConstraintBodies : 1;
 
 	/** If true, kinematic objects will be added to the simulation at runtime to represent any cloth colliders defined for the parent object. */
 	UPROPERTY(EditAnywhere, Category = Settings)
-	bool bUseExternalClothCollision;
+	uint8 bUseExternalClothCollision : 1;
+
+	/** 
+	 * If true, constraints will be made even when both objects are kinematic, in case they are subsequently 
+	 * made dynamic. There may be a small performance benefit to disabling this if you know this won't happen. 
+	 */
+	UPROPERTY(EditAnywhere, Category = Settings)
+	uint8 bMakeKinematicConstraints : 1;
 
 private:
 	ETeleportType ResetSimulatedTeleportType;
@@ -492,7 +499,9 @@ public:
 
 	/* 
 	 * Whether the physics simulation runs synchronously with the node's evaluation or is run in the 
-	 * background until the next frame. 
+	 * background until the next frame. Note that running with deferred timing can improve performance, 
+	 * but there will be a frame's lag in the output (relative to the input animation), and there can
+	 * be problems with handling collisions.
 	 */
 	UPROPERTY(EditAnywhere, Category=Settings, AdvancedDisplay)
 	ESimulationTiming SimulationTiming;
