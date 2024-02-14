@@ -27,7 +27,6 @@
 #include "UObject/FortniteMainBranchObjectVersion.h"
 #include "UObject/Package.h" // IWYU pragma: keep
 #include "UObject/PrimaryAssetId.h"
-#include "UObject/SparseClassDataUtils.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
 #include "GenericPlatform/GenericPlatformCrashContext.h"
 
@@ -821,7 +820,7 @@ void UBlueprintGeneratedClass::SerializeDefaultObject(UObject* Object, FStructur
 		if (UnderlyingArchive.IsSaving())
 		{
 			UScriptStruct* SerializedSparseClassDataStruct = SparseClassDataStruct;
-			if (!UE::Reflection::CompareSparseClassDataToArchetype(this, [&UnderlyingArchive](FProperty* P) { return P->ShouldSerializeValue(UnderlyingArchive);}))
+			if (!OverridesSparseClassDataArchetype())
 			{
 				// If this class doesn't override the sparse class data of its archetype, then we can skip saving it 
 				// since it can be lazily regenerated from the archetype data on load

@@ -3462,7 +3462,6 @@ public:
 	COREUOBJECT_API UScriptStruct* GetSparseClassDataArchetypeStruct() const;
 
 	/** Returns whether the sparse class data on this instance overrides that of its archetype (in type or value) */
-	UE_DEPRECATED(5.5, "Replace with UE::Reflection::CompareSparseClassDataToArchetype(Class, [](const FProperty*){return true;})")
 	COREUOBJECT_API bool OverridesSparseClassDataArchetype() const;
 
 	/**

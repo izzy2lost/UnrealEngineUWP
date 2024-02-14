@@ -10,7 +10,6 @@
 #include "UObject/TextProperty.h"
 #include "UObject/PropertyPortFlags.h"
 #include "UObject/PropertyOptional.h"
-#include "UObject/SparseClassDataUtils.h"
 #include "HAL/UnrealMemory.h"
 #include "Internationalization/TextNamespaceUtil.h"
 #include "Internationalization/TextPackageNamespaceUtil.h"
@@ -228,11 +227,7 @@ void FPropertyLocalizationDataGatherer::GatherLocalizationDataFromObject(const U
 	// Also gather from the sparse data on UClass types.
 	if (const UClass* Class = Cast<UClass>(Object))
 	{
-		const auto FilterTransientProperties = [](const FProperty* P)
-			{
-				return !P->HasAnyPropertyFlags(CPF_Transient);
-			};
-		if (UE::Reflection::CompareSparseClassDataToArchetype(Class, FilterTransientProperties))
+		if (Class->OverridesSparseClassDataArchetype())
 		{
 			const UScriptStruct* SparseDataStruct = Class->GetSparseClassDataStruct();
 			const void* SparseData = const_cast<UClass*>(Class)->GetOrCreateSparseClassData();
