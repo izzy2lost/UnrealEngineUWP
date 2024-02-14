@@ -213,9 +213,9 @@ void FSVGImporterEditorUtils::ParseSVGElement(const TSharedRef<FSVGRawElement>& 
 			if (const TSharedPtr<FSVGRawAttribute> AttributeStyle = GetAttribute(SVGConstants::Style, AttributesMap))
 			{
 				// todo: handle this case in the style parser itself, so we don't have to add brackets here
-				const FString& StyleString = TEXT("{") + AttributeStyle->AsString().TrimStartAndEnd() + TEXT("}");
+				FString StyleString = TEXT("{") + AttributeStyle->AsString().TrimStartAndEnd() + TEXT("}");
 
-				TArray<FSVGStyle> Styles = FSVGImporterUtils::StylesFromCSS(StyleString);
+				TArray<FSVGStyle> Styles = FSVGImporterUtils::StylesFromCSS(MoveTemp(StyleString));
 
 				// Really, this should be just one
 				if (Styles.Num() > 0) 

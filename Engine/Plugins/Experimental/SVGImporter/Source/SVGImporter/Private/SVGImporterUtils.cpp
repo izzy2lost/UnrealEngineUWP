@@ -339,15 +339,18 @@ TArray<FSVGStyle> FSVGImporterUtils::StylesFromCSS(FString InData)
 					CurrClassContentBeginIndex = i + 1;
 
 					const int32 CurrClassNameEndIndex = i;
-
-					// todo: expand on this kind of syntax?  something.class
-					CurrClassName = FString(CurrClassNameEndIndex - CurrClassNameBeginIndex, Start + CurrClassNameBeginIndex);
-					if (CurrClassName.StartsWith("."))
+					const int32 ClassNameLength = CurrClassNameEndIndex - CurrClassNameBeginIndex;
+					if (ClassNameLength >= 0)
 					{
-						CurrClassName.RemoveAt(0);
-					}
+						// todo: expand on this kind of syntax?  something.class
+						CurrClassName = FString(ClassNameLength, Start + CurrClassNameBeginIndex);
+						if (CurrClassName.StartsWith("."))
+						{
+							CurrClassName.RemoveAt(0);
+						}
 
-					CurrAttributeNameBeginIndex = i + 1;
+						CurrAttributeNameBeginIndex = i + 1;
+					}
 				}
 				else
 				{
@@ -375,17 +378,26 @@ TArray<FSVGStyle> FSVGImporterUtils::StylesFromCSS(FString InData)
 				{
 					const int32 CurrAttributeValueEndIndex = i;
 
-					FString AttributeName = FString(CurrAttributeNameEndIndex - CurrAttributeNameBeginIndex, Start + CurrAttributeNameBeginIndex);
-					AttributeName.RemoveSpacesInline();
+					const int32 AttributeNameLength = CurrAttributeNameEndIndex - CurrAttributeNameBeginIndex;
+					const int32 AttributeValueLength = CurrAttributeValueEndIndex - CurrAttributeValueBeginIndex;
+					if (AttributeNameLength >= 0 || AttributeValueLength >= 0)
+					{
+						FString AttributeName = FString(AttributeNameLength, Start + CurrAttributeNameBeginIndex);
+						AttributeName.RemoveSpacesInline();
 
-					FString AttributeValue = FString(CurrAttributeValueEndIndex - CurrAttributeValueBeginIndex, Start + CurrAttributeValueBeginIndex);
-					AttributeValue.RemoveSpacesInline();
+						FString AttributeValue = FString(CurrAttributeValueEndIndex - CurrAttributeValueBeginIndex, Start + CurrAttributeValueBeginIndex);
+						AttributeValue.RemoveSpacesInline();
 
-					CurrStyleAttributes.Add(AttributeName, AttributeValue);
+						CurrStyleAttributes.Add(AttributeName, AttributeValue);
 
-					CurrAttributeNameBeginIndex = i + 1;
-					CurrAttributeNameEndIndex = INDEX_NONE;
-					CurrAttributeValueBeginIndex = INDEX_NONE;
+						CurrAttributeNameBeginIndex = i + 1;
+						CurrAttributeNameEndIndex = INDEX_NONE;
+						CurrAttributeValueBeginIndex = INDEX_NONE;
+					}
+					else
+					{
+						UE_LOG(LogSVGImporter, Warning, TEXT("Error parsing attribute, skipping."));
+					}
 				}
 				else
 				{
@@ -540,13 +552,13 @@ bool FSVGImporterUtils::GetAvailableFolderPath(const FString& InAssetPath, FStri
 
 UTexture2D* FSVGImporterUtils::CreateSVGTexture(const FString& InSVGString, UObject* InOuter)
 {
-	if (InSVGString.IsEmpty())
+	if (InSVGString.IsEmpty() || !InOuter)
 	{
 		return nullptr;
 	}
 
 	// Bytes per pixel (RGBA)
-	constexpr static int32 SVG_BPP = 4;	
+	constexpr static int32 SVG_BPP = 4;
 	constexpr static int32 SVG_DPI = 96;
 
 	NSVGimage* Image = nsvgParse(TCHAR_TO_ANSI(*InSVGString), "px", SVG_DPI);

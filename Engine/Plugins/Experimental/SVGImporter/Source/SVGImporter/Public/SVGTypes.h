@@ -39,7 +39,7 @@ struct SVGIMPORTER_API FSVGStyle
 
 	bool HasStroke() const { return bHasStroke; }
 
-	bool HasFill() const { return bHasFill; }
+	bool HasFill() const { return bHasFill || !bHasStroke; }
 
 	const FColor& GetFillColor() const { return FillColor; }
 
@@ -58,7 +58,7 @@ private:
 	FString Name;
 
 	UPROPERTY()
-	bool bHasFill = true;
+	bool bHasFill = false;
 
 	UPROPERTY()
 	FColor FillColor = FColor::Black;
