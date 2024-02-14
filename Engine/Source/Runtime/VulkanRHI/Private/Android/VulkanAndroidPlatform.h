@@ -59,7 +59,7 @@ public:
 
 	static void* GetHardwareWindowHandle();
 
-	static bool SupportsBCTextureFormats() { return false; }
+	static bool SupportsBCTextureFormats();
 	static bool SupportsASTCTextureFormats() { return true; }
 	static bool SupportsETC2TextureFormats() { return true; }
 	// GLES does not support R16Unorm, so all Android has to fallback to R16F instead

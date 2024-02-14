@@ -68,6 +68,15 @@ static TAutoConsoleVariable<int32> CVarVulkanSupportsTimestampQueries(
 	ECVF_SetByDeviceProfile
 );
 
+static TAutoConsoleVariable<int32> CVarVulkanSupportsBCTextureFormats(
+	TEXT("r.Vulkan.SupportsBCTextureFormats"),
+	0,
+	TEXT("Whether or not BC Texture formats are supported\n")
+	TEXT("  0 = unsupported\n")
+	TEXT("  1 = supported."),
+	ECVF_SetByDeviceProfile
+);
+
 // Vulkan function pointers
 #define DEFINE_VK_ENTRYPOINTS(Type,Func) Type VulkanDynamicAPI::Func = NULL;
 ENUM_VK_ENTRYPOINTS_ALL(DEFINE_VK_ENTRYPOINTS)
@@ -402,6 +411,11 @@ void* FVulkanAndroidPlatform::GetHardwareWindowHandle()
 	}
 
 	return WindowHandle;
+}
+
+bool FVulkanAndroidPlatform::SupportsBCTextureFormats()
+{
+	return (CVarVulkanSupportsBCTextureFormats.GetValueOnAnyThread() == 1);
 }
 
 void FVulkanAndroidPlatform::CreateSurface(void* WindowHandle, VkInstance Instance, VkSurfaceKHR* OutSurface)
