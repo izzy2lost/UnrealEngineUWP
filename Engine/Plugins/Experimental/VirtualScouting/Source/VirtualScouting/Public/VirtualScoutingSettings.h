@@ -65,10 +65,5 @@ public:
 
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category="Virtual Scouting User", meta=(DisplayName= "Use Teleport Rotation", ToolTip="Use the forward axis roll from the motion controller to define and adjust teleport rotation"));
 	bool bUseTeleportRotation = false;
-
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category="Virtual Scouting User", meta=(DisplayName= "Teleport Rotation Threshold", ToolTip="How many degrees of rotation of the Motion Controller before the teleporter rotation is modified. Default is 22 degrees"));
-	float TeleportRotationThreshold = 22.0f;
-
-	
 	
 };
