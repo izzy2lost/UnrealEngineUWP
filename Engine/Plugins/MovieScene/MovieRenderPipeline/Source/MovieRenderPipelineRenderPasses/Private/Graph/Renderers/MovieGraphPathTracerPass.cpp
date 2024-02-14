@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Graph/Renderers/MovieGraphPathTracerPass.h"
-#include "Graph/Nodes/MovieGraphPathTracedRenderPassNode.h"
+#include "Graph/Nodes/MovieGraphPathTracerPassNode.h"
 
 namespace UE::MovieGraph::Rendering
 {
@@ -12,7 +12,7 @@ UMovieGraphImagePassBaseNode* FMovieGraphPathTracerPass::GetParentNode(UMovieGra
 	// since that instance changes every frame. So instead we have a virtual function here so the node can look it up by type, and then we can
 	// call a bunch of virtual functions on the right instance to fetch values.
 	const bool bIncludeCDOs = true;
-	UMovieGraphPathTracedRenderPassNode* ParentNode = InConfig->GetSettingForBranch<UMovieGraphPathTracedRenderPassNode>(GetBranchName(), bIncludeCDOs);
+	UMovieGraphPathTracerRenderPassNode* ParentNode = InConfig->GetSettingForBranch<UMovieGraphPathTracerRenderPassNode>(GetBranchName(), bIncludeCDOs);
 	if (!ensureMsgf(ParentNode, TEXT("PathTracerPass should not exist without parent node in graph.")))
 	{
 		return nullptr;

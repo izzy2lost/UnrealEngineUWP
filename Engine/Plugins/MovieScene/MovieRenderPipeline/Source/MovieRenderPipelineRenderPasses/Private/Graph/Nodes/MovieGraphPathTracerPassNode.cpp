@@ -1,16 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Graph/Nodes/MovieGraphPathTracedRenderPassNode.h"
+#include "Graph/Nodes/MovieGraphPathTracerPassNode.h"
 #include "Graph/Renderers/MovieGraphPathTracerPass.h"
 #include "Engine/EngineBaseTypes.h"
 #include "ShowFlags.h"
 
-TUniquePtr<UE::MovieGraph::Rendering::FMovieGraphImagePassBase> UMovieGraphPathTracedRenderPassNode::CreateInstance() const
+TUniquePtr<UE::MovieGraph::Rendering::FMovieGraphImagePassBase> UMovieGraphPathTracerRenderPassNode::CreateInstance() const
 {
 	return MakeUnique<UE::MovieGraph::Rendering::FMovieGraphPathTracerPass>();
 }
 
-UMovieGraphPathTracedRenderPassNode::UMovieGraphPathTracedRenderPassNode()
+UMovieGraphPathTracerRenderPassNode::UMovieGraphPathTracerRenderPassNode()
 	: SpatialSampleCount(1)
 	, bDenoiser(true)
 	, bWriteAllSamples(false)
@@ -22,16 +22,16 @@ UMovieGraphPathTracedRenderPassNode::UMovieGraphPathTracedRenderPassNode()
 }
 
 #if WITH_EDITOR
-FText UMovieGraphPathTracedRenderPassNode::GetNodeTitle(const bool bGetDescriptive) const
+FText UMovieGraphPathTracerRenderPassNode::GetNodeTitle(const bool bGetDescriptive) const
 {
 	return NSLOCTEXT("MovieGraphNodes", "PathTracedRenderPassGraphNode_Description", "Path Traced Renderer");
 }
 #endif
 
-void UMovieGraphPathTracedRenderPassNode::SetupImpl(const FMovieGraphRenderPassSetupData& InSetupData)
+void UMovieGraphPathTracerRenderPassNode::SetupImpl(const FMovieGraphRenderPassSetupData& InSetupData)
 {
 	Super::SetupImpl(InSetupData);
-	
+
 	// Hide the progress display during the render
 	if (IConsoleVariable* ProgressDisplayCvar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PathTracing.ProgressDisplay")))
 	{
@@ -40,7 +40,7 @@ void UMovieGraphPathTracedRenderPassNode::SetupImpl(const FMovieGraphRenderPassS
 	}
 }
 
-void UMovieGraphPathTracedRenderPassNode::TeardownImpl()
+void UMovieGraphPathTracerRenderPassNode::TeardownImpl()
 {
 	Super::TeardownImpl();
 
@@ -51,33 +51,33 @@ void UMovieGraphPathTracedRenderPassNode::TeardownImpl()
 	}
 }
 
-FString UMovieGraphPathTracedRenderPassNode::GetRendererNameImpl() const
+FString UMovieGraphPathTracerRenderPassNode::GetRendererNameImpl() const
 {
 	static const FString RendererNameImpl(TEXT("PathTraced"));
 	return RendererNameImpl;
 }
 
-EViewModeIndex UMovieGraphPathTracedRenderPassNode::GetViewModeIndex() const
+EViewModeIndex UMovieGraphPathTracerRenderPassNode::GetViewModeIndex() const
 {
 	return VMI_PathTracing;
 }
 
-bool UMovieGraphPathTracedRenderPassNode::GetWriteAllSamples() const
+bool UMovieGraphPathTracerRenderPassNode::GetWriteAllSamples() const
 {
 	return bWriteAllSamples;
 }
 
-TArray<FMoviePipelinePostProcessPass> UMovieGraphPathTracedRenderPassNode::GetAdditionalPostProcessMaterials() const
+TArray<FMoviePipelinePostProcessPass> UMovieGraphPathTracerRenderPassNode::GetAdditionalPostProcessMaterials() const
 {
 	return AdditionalPostProcessMaterials;
 }
 
-int32 UMovieGraphPathTracedRenderPassNode::GetNumSpatialSamples() const
+int32 UMovieGraphPathTracerRenderPassNode::GetNumSpatialSamples() const
 {
 	return SpatialSampleCount;
 }
 
-int32 UMovieGraphPathTracedRenderPassNode::GetNumSpatialSamplesDuringWarmUp() const
+int32 UMovieGraphPathTracerRenderPassNode::GetNumSpatialSamplesDuringWarmUp() const
 {
 	// Path Tracer doesn't have an image history like the deferred renderer, so it doesn't need
 	// to run all the spatial samples.
@@ -85,17 +85,17 @@ int32 UMovieGraphPathTracedRenderPassNode::GetNumSpatialSamplesDuringWarmUp() co
 }
 
 
-bool UMovieGraphPathTracedRenderPassNode::GetDisableToneCurve() const
+bool UMovieGraphPathTracerRenderPassNode::GetDisableToneCurve() const
 {
 	return bDisableToneCurve;
 }
 
-bool UMovieGraphPathTracedRenderPassNode::GetAllowOCIO() const
+bool UMovieGraphPathTracerRenderPassNode::GetAllowOCIO() const
 {
 	return bAllowOCIO;
 }
 
-bool UMovieGraphPathTracedRenderPassNode::GetAllowDenoiser() const
+bool UMovieGraphPathTracerRenderPassNode::GetAllowDenoiser() const
 {
 	return bDenoiser;
 }
