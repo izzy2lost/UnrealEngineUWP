@@ -63,24 +63,16 @@ struct FPageTopology
 		uint32 PageCount; // Number of pages in this mip
 	};
 
-	struct FPage
-	{
-		uint32 PackedPageTableCoord; // 11|11|10
-		uint32 TileIndex; // Index of the tile this page points to. Indexes into compressed tile data and is relative to each mip level (starts at 0 for every mip)
-		uint32 ParentIndex;
-	};
-
-	struct FInteriorPageData
-	{
-		uint32 ChildIndices[8];
-	};
-
 	TArray<FMip> MipInfo;
-	TArray<FPage> Pages; // One entry for every page in the sparse topology. This single array is shared across all mip levels
-	TArray<FInteriorPageData> InteriorPageData; // One entry for every interior page/node (all mips except mip0)
+	TArray<uint32> PackedPageTableCoords; // 11|11|10 packed coords of the page within the dense page table. One entry per (sparse) page.
+	TArray<uint32> TileIndices; // Index of tile data the page points to. One entry per (sparse) page.
+	TArray<uint32> ParentIndices; // Parent index. One entry per (sparse) page.
 
 	void Reset();
 	void Serialize(FArchive& Ar);
+	uint32 NumPages() const { return PackedPageTableCoords.Num(); }
+	bool IsValidPageIndex(uint32 PageIndex) const { return PackedPageTableCoords.IsValidIndex(PageIndex); }
+	void GetTileRange(uint32 PageOffset, uint32 PageCount, uint32& OutTileOffset, uint32& OutTileCount) const;
 };
 
 // Describes a mip level of a SVT frame in terms of the sizes and offsets of the data in the built bulk data.
@@ -116,6 +108,68 @@ struct FMipLevelStreamingInfo
 	int32 NumPhysicalTiles;
 };
 
+// All the tiles are essentially stored as an array of structs with each tile having different memory sections:
+// 
+//    | OccupancyBitsA | OccupancyBitsB | VoxelsA | VoxelsB |
+// 
+// OccupancyBitsA and OccupancyBitsB will only be stored if the respective texture/attributes group exists (Format is != Unknown).
+// Each set of occupancy bits has a fixed size, so it doesn't need to be stored explicitely.
+// VoxelsA and VoxelsB are the compacted non-fallback-value voxels of the tile. The sizes of these sections varies with the number of active
+// voxels in the tile (and in each texture).
+
+struct FTileInfo
+{
+	uint32 Offset;
+	uint32 Size;
+	TStaticArray<uint32, 2> OccupancyBitsOffsets; // Relative to Offset
+	TStaticArray<uint32, 2> OccupancyBitsSizes; // Relative to Offset
+	TStaticArray<uint32, 2> VoxelDataOffsets; // Relative to Offset
+	TStaticArray<uint32, 2> VoxelDataSizes;
+	TStaticArray<uint32, 2> NumVoxels;
+};
+
+// Compactly stores data to construct a FTileInfo for every stored (and compressed) tile.
+struct FTileStreamingMetaData
+{
+	// Array of byte offsets into the tile data. Has N+1 entries, with the last entry effectively being the total size of all tiles. This is a "logical" offset
+	// so we can compute the size of each tile as TileDataOffsets[N+1] - TileDataOffsets[N]. Tiles < FirstStreamingTileIndex are not actually stored with the rest of the
+	// streaming tiles, so to get the actual file offset of a streaming tile, the size of the root/non-streaming tile needs to be subtracted first. GetTileInfo() takes this into account.
+	TArray<uint32> TileDataOffsets;
+	TArray<uint16> NumVoxelsA; // Number of stored voxels for texture A for every tile. We reconstruct the number of voxels for texture B based on NumVoxelsA and the tile size.
+	uint32 FirstStreamingTileIndex; // Index of first tile that does not belong to the root mip level. Root tiles are always in memory/resident and do not stream.
+
+	void Reset()
+	{
+		TileDataOffsets.Reset();
+		NumVoxelsA.Reset();
+		FirstStreamingTileIndex = 0;
+	}
+
+	uint32 GetNumTiles() const
+	{
+		return NumVoxelsA.Num();
+	}
+
+	uint32 GetNumStreamingTiles() const
+	{
+		return GetNumTiles() - FirstStreamingTileIndex;
+	}
+
+	uint32 GetRootTileSize() const
+	{
+		return TileDataOffsets[FirstStreamingTileIndex] - TileDataOffsets[0];
+	}
+
+	uint32 GetTileMemorySize(uint32 TileIndex) const
+	{
+		return TileDataOffsets[TileIndex + 1] - TileDataOffsets[TileIndex];
+	}
+
+	FTileInfo GetTileInfo(uint32 TileIndex, uint32 FormatSizeA, uint32 FormatSizeB) const;
+
+	void GetNumVoxelsInTileRange(uint32 TileOffset, uint32 TileCount, uint32 FormatSizeA, uint32 FormatSizeB, uint32& OutNumVoxelsA, uint32& OutNumVoxelsB) const;
+};
+
 enum EResourceFlag : uint32
 {
 	EResourceFlag_StreamingDataInDDC = 1 << 0u, // FResources was cached, so MipLevelStreamingInfo can be streamed from DDC
@@ -127,8 +181,9 @@ struct FResources
 public:
 	FHeader Header;
 	uint32 ResourceFlags = 0;
-	// Info about sizes and offsets into the streamable mip level data. The last entry refers to the root mip level which is stored in RootData, not StreamableMipLevels.
-	TArray<FMipLevelStreamingInfo> MipLevelStreamingInfo;
+	int32 NumMipLevels = 0;
+	// Info about offsets into the tile data. 
+	FTileStreamingMetaData StreamingMetaData;
 	// Data for the highest/"root" mip level
 	TArray<uint8> RootData;
 	// Data for all streamable mip levels
@@ -175,13 +230,7 @@ private:
 	void EndRebuildBulkDataFromCache();
 #endif
 
-	// Stores page table into BulkData as two consecutive arrays of packed page coordinates and linear indices into the physical tiles array.
-	// Returns number of written/non-zero page table entries
-	static int32 CompressPageTable(const TArray<uint32>& PageTable, const FIntVector3& Resolution, TArray<uint8>& BulkData, TMap<uint32, uint32>& CoordToIndexMap);
-
-	static void CompressTiles(int32 NumTiles, const TArray64<uint8>& PhysicalTileDataA, const TArray64<uint8>& PhysicalTileDataB, const TArrayView<EPixelFormat>& Formats, const TArrayView<FVector4f>& FallbackValues, TArray<uint8>& BulkData, FMipLevelStreamingInfo& MipStreamingInfo);
-	
-	static FPageTopology BuildTopology(const FTextureData& InTextureData, const TArray<uint8>& InRootData, const TArray<uint8>& InStreamableBulkData, const TArray<TMap<uint32, uint32>, TInlineAllocator<16>>& InCoordToPageIndexInMipData, const TArray<FMipLevelStreamingInfo>& InMipLevelStreamingInfo);
+	static FTileStreamingMetaData CompressTiles(const FPageTopology& Topology, const struct FDerivedTextureData& DerivedTextureData, TArray<uint8>& OutRootBulkData, TArray<uint8>& OutStreamingBulkData);
 };
 
 // Encapsulates RHI resources needed to render a SparseVolumeTexture.
@@ -221,8 +270,6 @@ private:
 
 FArchive& operator<<(FArchive& Ar, UE::SVT::FHeader& Header);
 FArchive& operator<<(FArchive& Ar, UE::SVT::FPageTopology::FMip& Mip);
-FArchive& operator<<(FArchive& Ar, UE::SVT::FPageTopology::FPage& Page);
-FArchive& operator<<(FArchive& Ar, UE::SVT::FPageTopology::FInteriorPageData& Children);
 
 enum ESparseVolumeTextureShaderUniform
 {

@@ -94,6 +94,9 @@ FTileUploader::FTileUploader()
 
 void FTileUploader::Init(FRDGBuilder& GraphBuilder, int32 InMaxNumTiles, int32 InMaxNumVoxelsA, int32 InMaxNumVoxelsB, EPixelFormat InFormatA, EPixelFormat InFormatB)
 {
+	check(InMaxNumTiles >= 0);
+	check(InMaxNumVoxelsA >= 0);
+	check(InMaxNumVoxelsB >= 0);
 	check(InFormatA != PF_Unknown || InFormatB != PF_Unknown);
 	ResetState();
 	MaxNumTiles = InMaxNumTiles;

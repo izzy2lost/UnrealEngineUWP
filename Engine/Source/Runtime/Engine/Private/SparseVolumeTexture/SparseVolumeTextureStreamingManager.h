@@ -127,8 +127,7 @@ private:
 		int32 NumMipLevels; // Number of actual mip levels of this frame. Depending on virtual volume extents, frames can have different numbers of levels.
 		int32 LowestRequestedMipLevel; // Lowest mip level that should be resident. Can be lower than LowestResidentMipLevel when streaming in new mips. Stream-out is instant, so it should never be higher.
 		int32 LowestResidentMipLevel; // Actually resident on the GPU
-		TArray<TArray<uint32>> TileAllocations; // TileAllocations[MipLevel][PhysicalTileIndex]
-		TArray<uint32> PageEntries; // Flat array of sparse page table. Reflects the current state of the GPU page table
+		TArray<uint32> TileAllocations; // TileAllocations[PhysicalTileIndex]
 		TBitArray<> ResidentPages; //  One bit for every (non-zero) page (in the sparse page octree) for all mip levels, starting at the highest mip
 		TBitArray<> ResidentPagesNew; // Reflects changes made during an update of the streaming system
 		TBitArray<> InvalidatedPages; // All pages that need updated page table entries
@@ -208,32 +207,17 @@ private:
 
 	// Encapsulates all the src/dst pointers for memcpy-ing the streamed data into GPU memory.
 	// See the comment on FMipLevelStreamingInfo for details about these pointers.
-	struct FUploadTask
+	struct FTileDataTask
 	{
-		struct FTileDataTask
-		{
-			TStaticArray<uint8*, 2> DstOccupancyBitsPtrs;
-			TStaticArray<uint8*, 2> DstTileDataOffsetsPtrs;
-			TStaticArray<uint8*, 2> DstTileDataPtrs;
-			uint8* DstPhysicalTileCoords;
-			TStaticArray<const uint8*, 2> SrcOccupancyBitsPtrs;
-			TStaticArray<const uint8*, 2> SrcTileDataOffsetsPtrs;
-			TStaticArray<const uint8*, 2> SrcTileDataPtrs;
-			const uint8* SrcPhysicalTileCoords;
-			TStaticArray<uint32, 2> TileDataBaseOffsets;
-			TStaticArray<int32, 2> TileDataSizes;
-			int32 NumPhysicalTiles;
-		};
-
-		struct FPageTableTask
-		{
-			FPendingMipLevel* PendingMipLevel;
-			const uint8* SrcPageCoords;
-			const uint8* SrcPageEntries;
-			int32 NumPageTableUpdates;
-		};
-
-		TUnion<FTileDataTask, FPageTableTask> Union;
+		TStaticArray<uint8*, 2> DstOccupancyBitsPtrs;
+		TStaticArray<uint8*, 2> DstTileDataOffsetsPtrs;
+		TStaticArray<uint8*, 2> DstTileDataPtrs;
+		uint8* DstPhysicalTileCoordsPtr;
+		TStaticArray<const uint8*, 2> SrcOccupancyBitsPtrs;
+		TStaticArray<const uint8*, 2> SrcVoxelDataPtrs;
+		TStaticArray<uint32, 2> VoxelDataSizes;
+		TStaticArray<uint32, 2> VoxelDataBaseOffsets;
+		uint32 PhysicalTileCoord;
 	};
 
 	struct FAsyncState
@@ -253,6 +237,15 @@ private:
 		FVector4f FallbackValueB = FVector4f(0.0f, 0.0f, 0.0f, 0.0f);
 		int32 NumMipLevelsGlobal = 0;
 		TArray<FFrameInfo> FrameInfo; // Only Resources and TextureRenderResources are initialized
+	};
+
+	// Helper struct representing a range of tiles within the cooked data corresponding to a given mip level
+	struct FMipTileReadInfo
+	{
+		uint32 TileOffset;
+		uint32 TileCount;
+		uint32 ReadOffset;
+		uint32 ReadSize;
 	};
 
 	TMap<UStreamableSparseVolumeTexture*, TUniquePtr<FStreamingInfo>> StreamingInfo; // Do not dereference the key! We just read the pointer itself.
@@ -277,7 +270,7 @@ private:
 	TSet<FFrameInfo*> InvalidatedSVTFrames; // Set of SVT frames where pages have been streamed in or out. Used in PatchPageTable().
 	TArray<FStreamingRequest> PrioritizedRequestsHeap;
 	TArray<FStreamingRequest> SelectedRequests;
-	TArray<FUploadTask> UploadTasks; // accessed on the async thread
+	TArray<FTileDataTask> UploadTasks; // accessed on the async thread
 	TArray<FPendingMipLevel*> UploadCleanupTasks; // accessed on the async thread
 
 	void AddInternal(FRDGBuilder& GraphBuilder, FNewSparseVolumeTextureInfo&& NewSVTInfo);
@@ -292,9 +285,10 @@ private:
 	void InstallReadyMipLevels();
 	void PatchPageTable(FRDGBuilder& GraphBuilder); // Patches the page table to reflect streamed in/out pages and to ensure non-resident mip levels fall back to coarser mip level tile data
 	FStreamingInfo* FindStreamingInfo(UStreamableSparseVolumeTexture* Key); // Returns nullptr if the key can't be found
+	static FMipTileReadInfo GetMipTileReadInfo(const FFrameInfo& FrameInfo, int32 MipLevel);
 
 #if WITH_EDITORONLY_DATA
-	UE::DerivedData::FCacheGetChunkRequest BuildDDCRequest(const FResources& Resources, const FMipLevelStreamingInfo& MipLevelStreamingInfo, const uint32 PendingMipLevelIndex);
+	UE::DerivedData::FCacheGetChunkRequest BuildDDCRequest(const FResources& Resources, uint64 ReadOffset, uint64 ReadSize, uint32 PendingMipLevelIndex);
 	void RequestDDCData(TConstArrayView<UE::DerivedData::FCacheGetChunkRequest> DDCRequests, bool bBlocking);
 #endif
 };
