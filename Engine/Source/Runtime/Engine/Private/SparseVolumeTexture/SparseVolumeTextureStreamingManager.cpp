@@ -392,17 +392,18 @@ void FStreamingManager::BeginAsyncUpdate(FRDGBuilder& GraphBuilder, bool bBlocki
 			double SumFrameMiB = 0.0;
 
 			const int32 NumFrames = Pair.Value->PerFrameInfo.Num();
-			UE_LOG(LogSparseVolumeTextureStreamingManager, Display, TEXT("Memory stats for SVT '%p': Each mip level is printed as a tuple of [PageTable Size | VoxelData Size | Total]"), Pair.Key);
+			UE_LOG(LogSparseVolumeTextureStreamingManager, Display, TEXT("Memory stats for SVT '%p': Each frame is displayed as a list of mip levels like this: [Mip0] [Mip1] [MipN]"), Pair.Key);
 
 			for (int32 FrameIdx = 0; FrameIdx < NumFrames; ++FrameIdx)
 			{
 				const FFrameInfo& FrameInfo = Pair.Value->PerFrameInfo[FrameIdx];
 				FString Str;
 				int32 TotalSize = 0;
-				for (const auto& SInfo : FrameInfo.Resources->MipLevelStreamingInfo)
+				for (int32 MipLevelIdx = 0; MipLevelIdx < FrameInfo.NumMipLevels; ++MipLevelIdx)
 				{
-					Str += FString::Printf(TEXT("[%5.2f KiB|%5.2f KiB|%5.2f KiB] "), SInfo.PageTableSize / 1024.0f, (SInfo.TileDataSize[0] + SInfo.TileDataSize[1]) / 1024.0f, (SInfo.PageTableSize + SInfo.TileDataSize[0] + SInfo.TileDataSize[1]) / 1024.0f);
-					TotalSize += SInfo.BulkSize;
+					const FMipTileReadInfo MipReadInfo = GetMipTileReadInfo(FrameInfo, MipLevelIdx);
+					Str += FString::Printf(TEXT("[%u Tiles, %5.2f KiB] "), MipReadInfo.TileCount, MipReadInfo.ReadSize / 1024.0f);
+					TotalSize += MipReadInfo.ReadSize;
 				}
 
 				MinFrameMiB = FMath::Min(MinFrameMiB, TotalSize / 1024.0 / 1024.0);
@@ -450,11 +451,16 @@ void FStreamingManager::BeginAsyncUpdate(FRDGBuilder& GraphBuilder, bool bBlocki
 			const int32 FormatSizeA = GPixelFormats[SVTInfo->FormatA].BlockBytes;
 			const int32 FormatSizeB = GPixelFormats[SVTInfo->FormatB].BlockBytes;
 			const FResources* Resources = SVTInfo->PerFrameInfo[PendingMipLevel.FrameIndex].Resources;
-			const int32 NumTilesToUpload = Resources->MipLevelStreamingInfo[PendingMipLevel.MipLevelIndex].NumPhysicalTiles;
-			const int32 NumVoxelsToUploadA = FormatSizeA > 0 ? Resources->MipLevelStreamingInfo[PendingMipLevel.MipLevelIndex].TileDataSize[0] / FormatSizeA : 0;
-			const int32 NumVoxelsToUploadB = FormatSizeB > 0 ? Resources->MipLevelStreamingInfo[PendingMipLevel.MipLevelIndex].TileDataSize[1] / FormatSizeB : 0;
+			const FPageTopology::FMip& MipInfo = Resources->Topology.MipInfo[PendingMipLevel.MipLevelIndex];
+			
+			uint32 TileRangeOffset = 0;
+			uint32 TileRangeCount = 0;
+			Resources->Topology.GetTileRange(MipInfo.PageOffset, MipInfo.PageCount, TileRangeOffset, TileRangeCount);
+			uint32 NumVoxelsA = 0;
+			uint32 NumVoxelsB = 0;
+			Resources->StreamingMetaData.GetNumVoxelsInTileRange(TileRangeOffset, TileRangeCount, FormatSizeA, FormatSizeB, NumVoxelsA, NumVoxelsB);
 
-			SVTInfo->TileDataTexture->ReserveUpload(NumTilesToUpload, NumVoxelsToUploadA, NumVoxelsToUploadB);
+			SVTInfo->TileDataTexture->ReserveUpload(TileRangeCount, NumVoxelsA, NumVoxelsB);
 
 			TileDataTexturesToUpdate.Add(SVTInfo->TileDataTexture.Get());
 		}
@@ -582,34 +588,28 @@ void FStreamingManager::AddInternal(FRDGBuilder& GraphBuilder, FNewSparseVolumeT
 		FFrameInfo& FrameInfo = SVTInfo.PerFrameInfo[FrameIdx];
 		check(FrameInfo.TextureRenderResources && FrameInfo.TextureRenderResources->IsInitialized());
 		const FResources* Resources = FrameInfo.Resources;
+		const FPageTopology& Topology = Resources->Topology;
 
-		FrameInfo.NumMipLevels = Resources->MipLevelStreamingInfo.Num();
+		const int32 NumPhysicalTiles = Resources->StreamingMetaData.GetNumTiles();
+		MaxNumPhysicalTiles = FMath::Max(NumPhysicalTiles, MaxNumPhysicalTiles);
+
+		FrameInfo.NumMipLevels = Topology.MipInfo.Num();
 		FrameInfo.LowestRequestedMipLevel = FrameInfo.NumMipLevels - 1;
 		FrameInfo.LowestResidentMipLevel = FrameInfo.NumMipLevels - 1;
-		FrameInfo.TileAllocations.SetNum(FrameInfo.NumMipLevels);
-		for (int32 MipLevel = 0; MipLevel < FrameInfo.NumMipLevels; ++MipLevel)
-		{
-			FrameInfo.TileAllocations[MipLevel].SetNumZeroed(Resources->MipLevelStreamingInfo[MipLevel].NumPhysicalTiles);
-		}
-		const int32 NumPagesTotal = Resources->Topology.Pages.Num();
+		FrameInfo.TileAllocations.SetNum(NumPhysicalTiles);
+
+		const int32 NumPagesTotal = Topology.NumPages();
 		FrameInfo.ResidentPages.SetNum(NumPagesTotal, false);
 		FrameInfo.ResidentPagesNew.SetNum(NumPagesTotal, false);
-		FrameInfo.PageEntries.SetNum(NumPagesTotal);
 		
-		int32 NumPhysicalTiles = 0;
-		for (const FMipLevelStreamingInfo& MipLevelStreamingInfo : Resources->MipLevelStreamingInfo)
+		if (!Topology.MipInfo.IsEmpty() && Topology.MipInfo.Last().PageCount > 0)
 		{
-			NumPhysicalTiles += MipLevelStreamingInfo.NumPhysicalTiles;
-		}
-
-		MaxNumPhysicalTiles = FMath::Max(NumPhysicalTiles, MaxNumPhysicalTiles);
-		if (NumPhysicalTiles > 0)
-		{
+			check(Topology.MipInfo.Last().PageOffset == 0);
+			check(Topology.MipInfo.Last().PageCount == 1);
 			++NumRootPhysicalTiles;
-			check(FormatSizes[0] == 0 || (Resources->MipLevelStreamingInfo.Last().TileDataSize[0] % FormatSizes[0]) == 0);
-			check(FormatSizes[1] == 0 || (Resources->MipLevelStreamingInfo.Last().TileDataSize[1] % FormatSizes[1]) == 0);
-			NumRootVoxelsA += FormatSizes[0] > 0 ? (Resources->MipLevelStreamingInfo.Last().TileDataSize[0] / FormatSizes[0]) : 0;
-			NumRootVoxelsB += FormatSizes[1] > 0 ? (Resources->MipLevelStreamingInfo.Last().TileDataSize[1] / FormatSizes[1]) : 0;
+			FTileInfo RootTileInfo = Resources->StreamingMetaData.GetTileInfo(0, FormatSizes[0], FormatSizes[1]);
+			NumRootVoxelsA += RootTileInfo.NumVoxels[0];
+			NumRootVoxelsB += RootTileInfo.NumVoxels[1];
 		}
 
 		for (int32 MipIdx = 0; MipIdx < SVTInfo.NumMipLevelsGlobal; ++MipIdx)
@@ -662,7 +662,8 @@ void FStreamingManager::AddInternal(FRDGBuilder& GraphBuilder, FNewSparseVolumeT
 		{
 			FFrameInfo& FrameInfo = SVTInfo.PerFrameInfo[FrameIdx];
 			const FResources* Resources = FrameInfo.Resources;
-			const int32 NumMipLevels = Resources->MipLevelStreamingInfo.Num();
+			const FPageTopology& Topology = Resources->Topology;
+			const int32 NumMipLevels = Topology.MipInfo.Num();
 
 			FrameInfo.LowestRequestedMipLevel = NumMipLevels - 1;
 			FrameInfo.LowestResidentMipLevel = NumMipLevels - 1;
@@ -697,16 +698,17 @@ void FStreamingManager::AddInternal(FRDGBuilder& GraphBuilder, FNewSparseVolumeT
 			FrameInfo.TextureRenderResources->NumLogicalMipLevels = NumMipLevels;
 
 			// Upload root mip data and update page tables
-			const FMipLevelStreamingInfo* RootStreamingInfo = !Resources->MipLevelStreamingInfo.IsEmpty() ? &Resources->MipLevelStreamingInfo.Last() : nullptr;
-			if (!Resources->RootData.IsEmpty() && RootStreamingInfo)
+			if (!Topology.MipInfo.IsEmpty() && Topology.MipInfo.Last().PageCount > 0)
 			{
+				check(!Resources->RootData.IsEmpty());
 				const uint32 TileCoord = SVTInfo.TileDataTexture->Allocate();
 				check(TileCoord != INDEX_NONE);
-				FrameInfo.TileAllocations.Last()[0] = TileCoord;
-				FrameInfo.PageEntries[Resources->Topology.MipInfo.Last().PageOffset] = TileCoord;
+				check(TileCoord != 0);
+				FrameInfo.TileAllocations[0] = TileCoord;
 
-				const int32 NumVoxelsA = FormatSizes[0] > 0 ? RootStreamingInfo->TileDataSize[0] / FormatSizes[0] : 0;
-				const int32 NumVoxelsB = FormatSizes[1] > 0 ? RootStreamingInfo->TileDataSize[1] / FormatSizes[1] : 0;
+				const FTileInfo RootTileInfo = Resources->StreamingMetaData.GetTileInfo(0, FormatSizes[0], FormatSizes[1]);
+				const int32 NumVoxelsA = RootTileInfo.NumVoxels[0];
+				const int32 NumVoxelsB = RootTileInfo.NumVoxels[1];
 				FTileUploader::FAddResult AddResult = RootTileUploader.Add_GetRef(1, NumVoxelsA, NumVoxelsB);
 
 				FMemory::Memcpy(AddResult.PackedPhysicalTileCoordsPtr, &TileCoord, sizeof(TileCoord));
@@ -715,26 +717,25 @@ void FStreamingManager::AddInternal(FRDGBuilder& GraphBuilder, FNewSparseVolumeT
 					if (FormatSizes[AttributesIdx] > 0)
 					{
 						// Occupancy bits
-						const uint8* SrcOccupancyBits = Resources->RootData.GetData() + RootStreamingInfo->OccupancyBitsOffset[AttributesIdx];
+						const uint8* SrcOccupancyBits = Resources->RootData.GetData() + RootTileInfo.OccupancyBitsOffsets[AttributesIdx];
 						check(AddResult.OccupancyBitsPtrs[AttributesIdx]);
-						FMemory::Memcpy(AddResult.OccupancyBitsPtrs[AttributesIdx], SrcOccupancyBits, RootStreamingInfo->OccupancyBitsSize[AttributesIdx]);
+						FMemory::Memcpy(AddResult.OccupancyBitsPtrs[AttributesIdx], SrcOccupancyBits, RootTileInfo.OccupancyBitsSizes[AttributesIdx]);
 
 						// Per-tile offsets into tile data
-						const uint32* SrcTileDataOffsets = reinterpret_cast<const uint32*>(Resources->RootData.GetData() + RootStreamingInfo->TileDataOffsetsOffset[AttributesIdx]);
 						check(AddResult.TileDataOffsetsPtrs[AttributesIdx]);
-						check(RootStreamingInfo->TileDataOffsetsSize[AttributesIdx] == sizeof(uint32));
-						reinterpret_cast<uint32*>(AddResult.TileDataOffsetsPtrs[AttributesIdx])[0] = AddResult.TileDataBaseOffsets[AttributesIdx] + SrcTileDataOffsets[0];
+						reinterpret_cast<uint32*>(AddResult.TileDataOffsetsPtrs[AttributesIdx])[0] = AddResult.TileDataBaseOffsets[AttributesIdx] + 0; // + 0 because we're only uploading this single tile in the current batch
 
 						// Tile data
-						const uint8* SrcTileData = Resources->RootData.GetData() + RootStreamingInfo->TileDataOffset[AttributesIdx];
+						const uint8* SrcTileData = Resources->RootData.GetData() + RootTileInfo.VoxelDataOffsets[AttributesIdx];
 						check(AddResult.TileDataPtrs[AttributesIdx]);
-						FMemory::Memcpy(AddResult.TileDataPtrs[AttributesIdx], SrcTileData, RootStreamingInfo->TileDataSize[AttributesIdx]);
+						FMemory::Memcpy(AddResult.TileDataPtrs[AttributesIdx], SrcTileData, RootTileInfo.VoxelDataSizes[AttributesIdx]);
 					}
 				}
-			}
 
-			const FPageTopology::FMip& TopologyMipInfo = Resources->Topology.MipInfo[NumMipLevels - 1];
-			FrameInfo.ResidentPagesNew.SetRange(TopologyMipInfo.PageOffset, TopologyMipInfo.PageCount, true);
+				// Mark page as resident
+				const FPageTopology::FMip& TopologyMipInfo = Topology.MipInfo.Last();
+				FrameInfo.ResidentPagesNew.SetRange(TopologyMipInfo.PageOffset, TopologyMipInfo.PageCount, true);
+			}
 
 			InvalidatedSVTFrames.Add(&FrameInfo);
 		}
@@ -883,7 +884,7 @@ void FStreamingManager::SelectHighestPriorityRequestsAndUpdateLRU(int32 MaxSelec
 				|| Request.Key.FrameIndex >= SVTInfo->PerFrameInfo.Num()
 				|| Request.Key.MipLevelIndex < 0
 				|| Request.Key.MipLevelIndex >= (SVTInfo->PerFrameInfo[Request.Key.FrameIndex].NumMipLevels - 1)
-				|| SVTInfo->PerFrameInfo[Request.Key.FrameIndex].Resources->MipLevelStreamingInfo[Request.Key.MipLevelIndex].BulkSize == 0)
+				|| SVTInfo->PerFrameInfo[Request.Key.FrameIndex].Resources->Topology.MipInfo[Request.Key.MipLevelIndex].PageCount == 0)
 			{
 				continue;
 			}
@@ -973,8 +974,9 @@ void FStreamingManager::IssueRequests(int32 MaxSelectedRequests)
 		check(SVTInfo->PerFrameInfo.Num() > SelectedKey.FrameIndex && SelectedKey.FrameIndex >= 0);
 		check(SVTInfo->PerFrameInfo[SelectedKey.FrameIndex].LowestRequestedMipLevel > SelectedKey.MipLevelIndex);
 		const FResources* Resources = SVTInfo->PerFrameInfo[SelectedKey.FrameIndex].Resources;
-		check((SelectedKey.MipLevelIndex + 1) < Resources->MipLevelStreamingInfo.Num()); // The lowest/last mip level is always resident and does not stream.
-		const FMipLevelStreamingInfo& MipLevelStreamingInfo = Resources->MipLevelStreamingInfo[SelectedKey.MipLevelIndex];
+		check((SelectedKey.MipLevelIndex + 1) < Resources->Topology.MipInfo.Num()); // The lowest/last mip level is always resident and does not stream.
+
+		const FMipTileReadInfo MipTileReadInfo = GetMipTileReadInfo(SVTInfo->PerFrameInfo[SelectedKey.FrameIndex], SelectedKey.MipLevelIndex);
 
 		TUniquePtr<FTileDataTexture>& TileDataTexture = SVTInfo->TileDataTexture;
 		check(TileDataTexture);
@@ -982,7 +984,7 @@ void FStreamingManager::IssueRequests(int32 MaxSelectedRequests)
 		// Ensure that enough tiles are available in the tile texture
 		const int32 TileDataTextureCapacity = TileDataTexture->GetTileCapacity();
 		const int32 NumAvailableTiles = TileDataTexture->GetNumAvailableTiles();
-		const int32 NumRequiredTiles = MipLevelStreamingInfo.NumPhysicalTiles;
+		const int32 NumRequiredTiles = MipTileReadInfo.TileCount;
 		if (NumAvailableTiles < NumRequiredTiles)
 		{
 #if SVT_STREAMING_LOG_VERBOSE
@@ -1002,7 +1004,12 @@ void FStreamingManager::IssueRequests(int32 MaxSelectedRequests)
 					if (Node.RefCount == 0 && Node.LastRequested < NextUpdateIndex)
 					{
 						MipLevelsToFree.Add(&Node);
-						NumNewlyAvailableTiles += SVTInfo->PerFrameInfo[Node.FrameIndex].Resources->MipLevelStreamingInfo[Node.MipLevelIndex].NumPhysicalTiles;
+						const FPageTopology& Topology = SVTInfo->PerFrameInfo[Node.FrameIndex].Resources->Topology;
+						const FPageTopology::FMip& TopologyMip = Topology.MipInfo[Node.MipLevelIndex];
+						uint32 TilesInMipCount = 0;
+						uint32 TilesInMipOffset = 0;
+						Topology.GetTileRange(TopologyMip.PageOffset, TopologyMip.PageCount, TilesInMipOffset, TilesInMipCount);
+						NumNewlyAvailableTiles += TilesInMipCount;
 
 						// Decrement ref count of mip levels higher up the chain
 						FLRUNode* Dependency = Node.NextHigherMipLevel;
@@ -1065,7 +1072,7 @@ void FStreamingManager::IssueRequests(int32 MaxSelectedRequests)
 		{
 			if (Resources->ResourceFlags & EResourceFlag_StreamingDataInDDC)
 			{
-				UE::DerivedData::FCacheGetChunkRequest DDCRequest = BuildDDCRequest(*Resources, MipLevelStreamingInfo, NextPendingMipLevelIndex);
+				UE::DerivedData::FCacheGetChunkRequest DDCRequest = BuildDDCRequest(*Resources, MipTileReadInfo.ReadOffset, MipTileReadInfo.ReadSize, NextPendingMipLevelIndex);
 				if (PendingMipLevel.bBlocking)
 				{
 					DDCRequestsBlocking.Add(DDCRequest);
@@ -1084,9 +1091,9 @@ void FStreamingManager::IssueRequests(int32 MaxSelectedRequests)
 		else
 #endif
 		{
-			PendingMipLevel.RequestBuffer = FIoBuffer(MipLevelStreamingInfo.BulkSize); // SVT_TODO: Use FIoBuffer::Wrap with preallocated memory
+			PendingMipLevel.RequestBuffer = FIoBuffer(MipTileReadInfo.ReadSize); // SVT_TODO: Use FIoBuffer::Wrap with preallocated memory
 			const EAsyncIOPriorityAndFlags Priority = PendingMipLevel.bBlocking ? AIOP_CriticalPath : AIOP_Low;
-			Batch.Read(BulkData, MipLevelStreamingInfo.BulkOffset, MipLevelStreamingInfo.BulkSize, Priority, PendingMipLevel.RequestBuffer, PendingMipLevel.Request);
+			Batch.Read(BulkData, MipTileReadInfo.ReadOffset, MipTileReadInfo.ReadSize, Priority, PendingMipLevel.RequestBuffer, PendingMipLevel.Request);
 			bIssueIOBatch = true;
 
 #if WITH_EDITORONLY_DATA
@@ -1102,13 +1109,19 @@ void FStreamingManager::IssueRequests(int32 MaxSelectedRequests)
 
 		// Allocate tiles in the tile data texture
 		{
-			TArray<uint32>& TileAllocations = FrameInfo.TileAllocations[SelectedKey.MipLevelIndex];
-			check(TileAllocations.Num() == NumRequiredTiles);
-			for (int32 TileIdx = 0; TileIdx < NumRequiredTiles; ++TileIdx)
+			const FPageTopology::FMip& MipInfo = FrameInfo.Resources->Topology.MipInfo[SelectedKey.MipLevelIndex];
+
+			uint32 TilesInMipCount = 0;
+			uint32 TilesInMipOffset = 0;
+			Resources->Topology.GetTileRange(MipInfo.PageOffset, MipInfo.PageCount, TilesInMipOffset, TilesInMipCount);
+
+			for (uint32 TileIndex = TilesInMipOffset; TileIndex < (TilesInMipOffset + TilesInMipCount); ++TileIndex)
 			{
+				check(FrameInfo.TileAllocations[TileIndex] == 0);
 				const int32 TileCoord = TileDataTexture->Allocate();
 				check(TileCoord != INDEX_NONE);
-				TileAllocations[TileIdx] = TileCoord;
+				check(TileCoord != 0);
+				FrameInfo.TileAllocations[TileIndex] = TileCoord;
 			}
 		}
 
@@ -1199,10 +1212,20 @@ void FStreamingManager::StreamOutMipLevel(FStreamingInfo* SVTInfo, FLRUNode* LRU
 	LRUNode->LastRequested = INDEX_NONE;
 
 	// Free allocated tiles
-	for (uint32& TileCoord : FrameInfo.TileAllocations[MipLevelIndex])
 	{
-		SVTInfo->TileDataTexture->Free(TileCoord);
-		TileCoord = 0;
+		const FPageTopology& Topology = FrameInfo.Resources->Topology;
+		const FPageTopology::FMip& TopologyMip = Topology.MipInfo[MipLevelIndex];
+		uint32 TilesInMipCount = 0;
+		uint32 TilesInMipOffset = 0;
+		Topology.GetTileRange(TopologyMip.PageOffset, TopologyMip.PageCount, TilesInMipOffset, TilesInMipCount);
+
+		for (uint32 TileIndex = TilesInMipOffset; TileIndex < (TilesInMipOffset + TilesInMipCount); ++TileIndex)
+		{
+			uint32& TileCoord = FrameInfo.TileAllocations[TileIndex];
+			check(TileCoord != 0);
+			SVTInfo->TileDataTexture->Free(TileCoord);
+			TileCoord = 0;
+		}
 	}
 
 	const FPageTopology::FMip& TopologyMipInfo = FrameInfo.Resources->Topology.MipInfo[MipLevelIndex];
@@ -1259,8 +1282,8 @@ int32 FStreamingManager::DetermineReadyMipLevels()
 					*Resources->ResourceName, PendingMipLevel.FrameIndex, PendingMipLevel.MipLevelIndex);
 			}
 
-			const FMipLevelStreamingInfo& MipLevelStreamingInfo = Resources->MipLevelStreamingInfo[PendingMipLevel.MipLevelIndex];
-			FCacheGetChunkRequest Request = BuildDDCRequest(*Resources, MipLevelStreamingInfo, PendingMipLevelIndex);
+			const FMipTileReadInfo MipTileReadInfo = GetMipTileReadInfo(SVTInfo->PerFrameInfo[PendingMipLevel.FrameIndex], PendingMipLevel.MipLevelIndex);
+			FCacheGetChunkRequest Request = BuildDDCRequest(*Resources, MipTileReadInfo.ReadOffset, MipTileReadInfo.ReadSize, PendingMipLevelIndex);
 			const bool bBlocking = GSVTStreamingForceBlockingRequests || PendingMipLevel.bBlocking;
 			RequestDDCData(MakeArrayView(&Request, 1), bBlocking);
 
@@ -1282,12 +1305,12 @@ int32 FStreamingManager::DetermineReadyMipLevels()
 				if (!PendingMipLevel.Request.IsOk())
 				{
 					// Retry if IO request failed for some reason
-					const FMipLevelStreamingInfo& MipLevelStreamingInfo = Resources->MipLevelStreamingInfo[PendingMipLevel.MipLevelIndex];
+					const FMipTileReadInfo MipTileReadInfo = GetMipTileReadInfo(SVTInfo->PerFrameInfo[PendingMipLevel.FrameIndex], PendingMipLevel.MipLevelIndex);
 					UE_LOG(LogSparseVolumeTextureStreamingManager, Warning, TEXT("SVT IO request failed for %p (frame %i, mip %i, offset %i, size %i). Retrying..."),
-						PendingMipLevel.SparseVolumeTexture, PendingMipLevel.FrameIndex, PendingMipLevel.MipLevelIndex, MipLevelStreamingInfo.BulkOffset, MipLevelStreamingInfo.BulkSize);
+						PendingMipLevel.SparseVolumeTexture, PendingMipLevel.FrameIndex, PendingMipLevel.MipLevelIndex, MipTileReadInfo.ReadOffset, MipTileReadInfo.ReadSize);
 					
 					FBulkDataBatchRequest::FBatchBuilder Batch = FBulkDataBatchRequest::NewBatch(1);
-					Batch.Read(Resources->StreamableMipLevels, MipLevelStreamingInfo.BulkOffset, MipLevelStreamingInfo.BulkSize, AIOP_Low, PendingMipLevel.RequestBuffer, PendingMipLevel.Request);
+					Batch.Read(Resources->StreamableMipLevels, MipTileReadInfo.ReadOffset, MipTileReadInfo.ReadSize, AIOP_Low, PendingMipLevel.RequestBuffer, PendingMipLevel.Request);
 					(void)Batch.Issue();
 					break;
 				}
@@ -1339,22 +1362,26 @@ void FStreamingManager::InstallReadyMipLevels()
 
 		FFrameInfo& FrameInfo = SVTInfo->PerFrameInfo[PendingMipLevel.FrameIndex];
 		const FResources* Resources = FrameInfo.Resources;
-		const FMipLevelStreamingInfo& MipLevelStreamingInfo = Resources->MipLevelStreamingInfo[PendingMipLevel.MipLevelIndex];
+		const FPageTopology& Topology = FrameInfo.Resources->Topology;
+		const FMipTileReadInfo MipTileReadInfo = GetMipTileReadInfo(FrameInfo, PendingMipLevel.MipLevelIndex);
 
 		const uint8* SrcPtr = nullptr;
+		const uint8* SrcEndPtr = nullptr;
 
 #if WITH_EDITORONLY_DATA
 		if (PendingMipLevel.State == FPendingMipLevel::EState::DDC_Ready)
 		{
 			check(Resources->ResourceFlags & EResourceFlag_StreamingDataInDDC);
 			SrcPtr = (const uint8*)PendingMipLevel.SharedBuffer.GetData();
+			SrcEndPtr = SrcPtr + PendingMipLevel.SharedBuffer.GetSize();
 		}
 		else if (PendingMipLevel.State == FPendingMipLevel::EState::Memory)
 		{
 			const uint8** BulkDataPtrPtr = ResourceToBulkPointer.Find(Resources);
 			if (BulkDataPtrPtr)
 			{
-				SrcPtr = *BulkDataPtrPtr + MipLevelStreamingInfo.BulkOffset;
+				SrcPtr = *BulkDataPtrPtr + MipTileReadInfo.ReadOffset;
+				SrcEndPtr = SrcPtr + MipTileReadInfo.ReadSize;
 			}
 			else
 			{
@@ -1362,7 +1389,8 @@ void FStreamingManager::InstallReadyMipLevels()
 				check(BulkData.IsBulkDataLoaded() && BulkData.GetBulkDataSize() > 0);
 				const uint8* BulkDataPtr = (const uint8*)BulkData.LockReadOnly();
 				ResourceToBulkPointer.Add(Resources, BulkDataPtr);
-				SrcPtr = BulkDataPtr + MipLevelStreamingInfo.BulkOffset;
+				SrcPtr = BulkDataPtr + MipTileReadInfo.ReadOffset;
+				SrcEndPtr = BulkDataPtr + BulkData.GetBulkDataSize();
 			}
 		}
 		else
@@ -1379,48 +1407,29 @@ void FStreamingManager::InstallReadyMipLevels()
 		const int32 FormatSizeA = GPixelFormats[SVTInfo->FormatA].BlockBytes;
 		const int32 FormatSizeB = GPixelFormats[SVTInfo->FormatB].BlockBytes;
 
-		const int32 NumPhysicalTiles = MipLevelStreamingInfo.NumPhysicalTiles;
-		const int32 NumVoxelsA = FormatSizeA > 0 ? MipLevelStreamingInfo.TileDataSize[0] / FormatSizeA : 0;
-		const int32 NumVoxelsB = FormatSizeB > 0 ? MipLevelStreamingInfo.TileDataSize[1] / FormatSizeB : 0;
-		TArray<uint32>& TileAllocations = FrameInfo.TileAllocations[PendingMipLevel.MipLevelIndex];
-		check(TileAllocations.Num() == NumPhysicalTiles);
-		check((MipLevelStreamingInfo.PageTableSize % (sizeof(uint32) * 2)) == 0);
-		const int32 NumPageTableUpdates = MipLevelStreamingInfo.PageTableSize / (sizeof(uint32) * 2);
-
-		FTileUploader::FAddResult TileDataAddResult = SVTInfo->TileDataTexture->AddUpload(NumPhysicalTiles, NumVoxelsA, NumVoxelsB);
-
-		// Tile data
+		for (uint32 TileIndex = MipTileReadInfo.TileOffset; TileIndex < (MipTileReadInfo.TileOffset + MipTileReadInfo.TileCount); ++TileIndex)
 		{
-			FUploadTask::FTileDataTask TileDataTask = {};
+			const FTileInfo TileInfo = Resources->StreamingMetaData.GetTileInfo(TileIndex, FormatSizeA, FormatSizeB);
+
+			check(TileInfo.Offset >= MipTileReadInfo.ReadOffset);
+			const uint8* TileSrcPtr = SrcPtr + (TileInfo.Offset - MipTileReadInfo.ReadOffset);
+
+			check((TileSrcPtr + TileInfo.Size) <= SrcEndPtr);
+
+			FTileUploader::FAddResult TileDataAddResult = SVTInfo->TileDataTexture->AddUpload(1, TileInfo.NumVoxels[0], TileInfo.NumVoxels[1]);
+
+			FTileDataTask& TileDataTask = UploadTasks.AddDefaulted_GetRef();
 			TileDataTask.DstOccupancyBitsPtrs = TileDataAddResult.OccupancyBitsPtrs;
 			TileDataTask.DstTileDataOffsetsPtrs = TileDataAddResult.TileDataOffsetsPtrs;
 			TileDataTask.DstTileDataPtrs = TileDataAddResult.TileDataPtrs;
-			TileDataTask.DstPhysicalTileCoords = TileDataAddResult.PackedPhysicalTileCoordsPtr;
-			TileDataTask.SrcOccupancyBitsPtrs[0] = SrcPtr + MipLevelStreamingInfo.OccupancyBitsOffset[0];
-			TileDataTask.SrcOccupancyBitsPtrs[1] = SrcPtr + MipLevelStreamingInfo.OccupancyBitsOffset[1];
-			TileDataTask.SrcTileDataOffsetsPtrs[0] = SrcPtr + MipLevelStreamingInfo.TileDataOffsetsOffset[0];
-			TileDataTask.SrcTileDataOffsetsPtrs[1] = SrcPtr + MipLevelStreamingInfo.TileDataOffsetsOffset[1];
-			TileDataTask.SrcTileDataPtrs[0] = SrcPtr + MipLevelStreamingInfo.TileDataOffset[0];
-			TileDataTask.SrcTileDataPtrs[1] = SrcPtr + MipLevelStreamingInfo.TileDataOffset[1];
-			TileDataTask.SrcPhysicalTileCoords = reinterpret_cast<const uint8*>(TileAllocations.GetData());
-			TileDataTask.TileDataBaseOffsets = TileDataAddResult.TileDataBaseOffsets;
-			TileDataTask.TileDataSizes = MipLevelStreamingInfo.TileDataSize;
-			TileDataTask.NumPhysicalTiles = NumPhysicalTiles;
-
-			FUploadTask& Task = UploadTasks.AddDefaulted_GetRef();
-			Task.Union.SetSubtype<FUploadTask::FTileDataTask>(TileDataTask);
-		}
-
-		// Page table
-		{
-			FUploadTask::FPageTableTask PageTableTask = {};
-			PageTableTask.PendingMipLevel = &PendingMipLevel;
-			PageTableTask.SrcPageCoords = SrcPtr + MipLevelStreamingInfo.PageTableOffset;
-			PageTableTask.SrcPageEntries = SrcPtr + MipLevelStreamingInfo.PageTableOffset + NumPageTableUpdates * sizeof(uint32);
-			PageTableTask.NumPageTableUpdates = NumPageTableUpdates;
-
-			FUploadTask& Task = UploadTasks.AddDefaulted_GetRef();
-			Task.Union.SetSubtype<FUploadTask::FPageTableTask>(PageTableTask);
+			TileDataTask.DstPhysicalTileCoordsPtr = TileDataAddResult.PackedPhysicalTileCoordsPtr;
+			TileDataTask.SrcOccupancyBitsPtrs[0] = TileSrcPtr + TileInfo.OccupancyBitsOffsets[0];
+			TileDataTask.SrcOccupancyBitsPtrs[1] = TileSrcPtr + TileInfo.OccupancyBitsOffsets[1];
+			TileDataTask.SrcVoxelDataPtrs[0] = TileSrcPtr + TileInfo.VoxelDataOffsets[0];
+			TileDataTask.SrcVoxelDataPtrs[1] = TileSrcPtr + TileInfo.VoxelDataOffsets[1];
+			TileDataTask.VoxelDataSizes = TileInfo.VoxelDataSizes;
+			TileDataTask.VoxelDataBaseOffsets = TileDataAddResult.TileDataBaseOffsets;
+			TileDataTask.PhysicalTileCoord = FrameInfo.TileAllocations[TileIndex];
 		}
 
 		// Cleanup
@@ -1444,82 +1453,48 @@ void FStreamingManager::InstallReadyMipLevels()
 		const int32 LRUNodeIndex = PendingMipLevel.FrameIndex * SVTInfo->NumMipLevelsGlobal + PendingMipLevel.MipLevelIndex;
 		SVTInfo->LRUNodes[LRUNodeIndex].PendingMipLevelIndex = INDEX_NONE;
 
-		const FPageTopology::FMip& TopologyMipInfo = FrameInfo.Resources->Topology.MipInfo[PendingMipLevel.MipLevelIndex];
+		const FPageTopology::FMip& TopologyMipInfo = Topology.MipInfo[PendingMipLevel.MipLevelIndex];
 		FrameInfo.ResidentPagesNew.SetRange(TopologyMipInfo.PageOffset, TopologyMipInfo.PageCount, true);
 	}
 
 	// Do all the memcpy's in parallel
-	ParallelFor(UploadTasks.Num(), [&](int32 TaskIndex)
-		{
-			FUploadTask& Task = UploadTasks[TaskIndex];
+	ParallelFor(TEXT("SVT::UploadTileDataTasks"), UploadTasks.Num(), 8, [&](int32 TaskIndex)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(SVT::StreamingTileDataUpload);
 
-			if (Task.Union.HasSubtype<FUploadTask::FPageTableTask>())
+		FTileDataTask& TileDataTask = UploadTasks[TaskIndex];
+		for (int32 TexIdx = 0; TexIdx < 2; ++TexIdx)
+		{
+			if (TileDataTask.DstOccupancyBitsPtrs[TexIdx])
 			{
-				TRACE_CPUPROFILER_EVENT_SCOPE(SVT::StreamingPageTableUpload);
-				FUploadTask::FPageTableTask& PageTableTask = Task.Union.GetSubtype<FUploadTask::FPageTableTask>();
-				if (PageTableTask.NumPageTableUpdates > 0)
-				{
-					const int32 FrameIndex = PageTableTask.PendingMipLevel->FrameIndex;
-					const int32 MipLevelIndex = PageTableTask.PendingMipLevel->MipLevelIndex;
-					FStreamingInfo* SVTInfo = FindStreamingInfo(PageTableTask.PendingMipLevel->SparseVolumeTexture);
-					FFrameInfo& FrameInfo = SVTInfo->PerFrameInfo[FrameIndex];
-					TArray<uint32>& TileAllocations = FrameInfo.TileAllocations[MipLevelIndex];
-					const uint32* SrcEntries = reinterpret_cast<const uint32*>(PageTableTask.SrcPageEntries);
-					uint32* EntriesForBookKeeping = FrameInfo.PageEntries.GetData() + FrameInfo.Resources->Topology.MipInfo[MipLevelIndex].PageOffset;
-					const uint32 MipLevelEntry = static_cast<uint32>(MipLevelIndex) << 24u;					
-					for (int32 i = 0; i < PageTableTask.NumPageTableUpdates; ++i)
-					{
-						const uint32 Entry = TileAllocations[SrcEntries[i]] | MipLevelEntry;
-						EntriesForBookKeeping[i] = Entry;
-					}
-				}
+				FMemory::Memcpy(TileDataTask.DstOccupancyBitsPtrs[TexIdx], TileDataTask.SrcOccupancyBitsPtrs[TexIdx], SVT::NumOccupancyWordsPerPaddedTile * sizeof(uint32));
 			}
-			else if(Task.Union.HasSubtype<FUploadTask::FTileDataTask>())
+			if (TileDataTask.VoxelDataSizes[TexIdx] > 0)
 			{
-				TRACE_CPUPROFILER_EVENT_SCOPE(SVT::StreamingTileDataUpload);
-				FUploadTask::FTileDataTask& TileDataTask = Task.Union.GetSubtype<FUploadTask::FTileDataTask>();
-				for (int32 i = 0; i < 2; ++i)
-				{
-					if (TileDataTask.DstOccupancyBitsPtrs[i])
-					{
-						FMemory::Memcpy(TileDataTask.DstOccupancyBitsPtrs[i], TileDataTask.SrcOccupancyBitsPtrs[i], TileDataTask.NumPhysicalTiles * SVT::NumOccupancyWordsPerPaddedTile * sizeof(uint32));
-					}
-					if (TileDataTask.TileDataSizes[i] > 0)
-					{
-						FMemory::Memcpy(TileDataTask.DstTileDataPtrs[i], TileDataTask.SrcTileDataPtrs[i], TileDataTask.TileDataSizes[i]);
-					}
-					if (TileDataTask.DstTileDataOffsetsPtrs[i])
-					{
-						uint32* Dst = reinterpret_cast<uint32*>(TileDataTask.DstTileDataOffsetsPtrs[i]);
-						const uint32* Src = reinterpret_cast<const uint32*>(TileDataTask.SrcTileDataOffsetsPtrs[i]);
-						for (int32 TileIndex = 0; TileIndex < TileDataTask.NumPhysicalTiles; ++TileIndex)
-						{
-							Dst[TileIndex] = Src[TileIndex] + TileDataTask.TileDataBaseOffsets[i];
-						}
-					}
-				}
-				FMemory::Memcpy(TileDataTask.DstPhysicalTileCoords, TileDataTask.SrcPhysicalTileCoords, TileDataTask.NumPhysicalTiles * sizeof(uint32));
+				FMemory::Memcpy(TileDataTask.DstTileDataPtrs[TexIdx], TileDataTask.SrcVoxelDataPtrs[TexIdx], TileDataTask.VoxelDataSizes[TexIdx]);
 			}
-			else
+			if (TileDataTask.DstTileDataOffsetsPtrs[TexIdx])
 			{
-				checkNoEntry();
+				FMemory::Memcpy(TileDataTask.DstTileDataOffsetsPtrs[TexIdx], &TileDataTask.VoxelDataBaseOffsets[TexIdx], sizeof(uint32));
 			}
-		});
+		}
+		FMemory::Memcpy(TileDataTask.DstPhysicalTileCoordsPtr, &TileDataTask.PhysicalTileCoord, sizeof(uint32));
+	});
 
 	ParallelFor(UploadCleanupTasks.Num(), [&](int32 TaskIndex)
-		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(SVT::StreamingUploadCleanupTask);
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(SVT::StreamingUploadCleanupTask);
 
-			FPendingMipLevel* PendingMipLevel = UploadCleanupTasks[TaskIndex];
+		FPendingMipLevel* PendingMipLevel = UploadCleanupTasks[TaskIndex];
 #if WITH_EDITORONLY_DATA
-			PendingMipLevel->SharedBuffer.Reset();
+		PendingMipLevel->SharedBuffer.Reset();
 #endif
-			if (!PendingMipLevel->Request.IsNone())
-			{
-				check(PendingMipLevel->Request.IsCompleted());
-				PendingMipLevel->Request.Reset();
-			}
-		});
+		if (!PendingMipLevel->Request.IsNone())
+		{
+			check(PendingMipLevel->Request.IsCompleted());
+			PendingMipLevel->Request.Reset();
+		}
+	});
 
 #if DO_CHECK // Clear processed pending mip levels for better debugging
 	for (int32 i = 0; i < AsyncState.NumReadyMipLevels; ++i)
@@ -1551,34 +1526,31 @@ void FStreamingManager::PatchPageTable(FRDGBuilder& GraphBuilder)
 		const FPageTopology& Topology = FrameInfo.Resources->Topology;
 
 		// Get all pages that were streamed in or out in this streaming update.
-		const TBitArray<> ResidentPagesDiff = TBitArray<>::BitwiseXOR(FrameInfo.ResidentPages, FrameInfo.ResidentPagesNew, EBitwiseOperatorFlags::MaxSize);
+		TBitArray<> ResidentPagesDiff = TBitArray<>::BitwiseXOR(FrameInfo.ResidentPages, FrameInfo.ResidentPagesNew, EBitwiseOperatorFlags::MaxSize);
 		
 		// Initialize InvalidatedPages with the diff. In the following loop, we then find all descendants of the newly streamed in/out pages and also mark them as invalidated.
 		FrameInfo.InvalidatedPages = ResidentPagesDiff;
+		// Iterate over all pages that were NOT changed in this update. We then dig down into their parents and try to figure out if they were newly streamed in/out. If so, mark the current page as also invalidated.
+		ResidentPagesDiff.BitwiseNOT();
 		for (TConstSetBitIterator It(ResidentPagesDiff); It; ++It)
 		{
 			const int32 PageIndex = It.GetIndex();
-			check(Topology.Pages.IsValidIndex(PageIndex));
+			check(Topology.IsValidPageIndex(PageIndex));
 
-			auto InvalidateDescendants = [&](uint32 InPageIndex, auto& InRecursiveLambda) -> void
+			// Only try to invalidate this page if it is not already resident in GPU memory
+			if (!FrameInfo.InvalidatedPages[PageIndex] && !FrameInfo.ResidentPages[PageIndex])
 			{
-				// Mip0 pages are leaf-nodes in the topology and don't have children
-				const bool bIsInteriorPage = Topology.InteriorPageData.IsValidIndex(InPageIndex);
-				if (bIsInteriorPage)
+				uint32 ParentPageIndex = Topology.ParentIndices[PageIndex];
+				while (ParentPageIndex != INDEX_NONE)
 				{
-					for (uint32 ChildPageIndex : Topology.InteriorPageData[InPageIndex].ChildIndices)
+					if (FrameInfo.InvalidatedPages[ParentPageIndex])
 					{
-						// Only process child if it is not already resident or included in the set of invalidated pages
-						if (ChildPageIndex != INDEX_NONE && !FrameInfo.InvalidatedPages[ChildPageIndex] && !FrameInfo.ResidentPages[ChildPageIndex])
-						{
-							FrameInfo.InvalidatedPages[ChildPageIndex] = true;
-							InRecursiveLambda(ChildPageIndex, InRecursiveLambda); // Let the child node walk its own children
-						}
+						FrameInfo.InvalidatedPages[PageIndex] = true;
+						break;
 					}
+					ParentPageIndex = Topology.ParentIndices[ParentPageIndex];
 				}
-			};
-
-			InvalidateDescendants(PageIndex, InvalidateDescendants);
+			}
 		}
 
 		NumUpdates += FrameInfo.InvalidatedPages.CountSetBits();
@@ -1606,7 +1578,7 @@ void FStreamingManager::PatchPageTable(FRDGBuilder& GraphBuilder)
 			for (TConstSetBitIterator It(FrameInfo.InvalidatedPages); It; ++It)
 			{
 				const int32 PageIndex = It.GetIndex();
-				check(Topology.Pages.IsValidIndex(PageIndex));
+				check(Topology.IsValidPageIndex(PageIndex));
 
 				auto IsInMipRange = [](const FPageTopology& InTopology, uint32 InIndex, int32 InMipLevel)
 				{
@@ -1638,35 +1610,34 @@ void FStreamingManager::PatchPageTable(FRDGBuilder& GraphBuilder)
 				uint32 PageTableEntry = 0;
 				if (FrameInfo.ResidentPagesNew[PageIndex])
 				{
-					// This page is already resident, so we can simply use its value in PageEntries
-					PageTableEntry = FrameInfo.PageEntries[PageIndex];
+					// This page is already resident, so we can simply use its value from TileAllocations
+					PageTableEntry = FrameInfo.TileAllocations[Topology.TileIndices[PageIndex]];
 					check(PageTableEntry);
 					PageTableEntry |= MipLevel << 24u;
 				}
 				else
 				{
 					// This page is not resident but needs a fallback value written to it, so we probe the parent pages until we find a resident one
-					uint32 ParentPageIndex = Topology.Pages[PageIndex].ParentIndex;
+					uint32 ParentPageIndex = Topology.ParentIndices[PageIndex];
 					int32 ParentMipLevel = MipLevel + 1;
 					while (ParentPageIndex != INDEX_NONE)
 					{
 						// The parent page is resident in GPU memory, so we can use it's cached value in PageEntries.
 						if (FrameInfo.ResidentPagesNew[ParentPageIndex])
 						{
-							PageTableEntry = FrameInfo.PageEntries[ParentPageIndex];
+							PageTableEntry = FrameInfo.TileAllocations[Topology.TileIndices[ParentPageIndex]];
 							check(PageTableEntry);
 							PageTableEntry |= ParentMipLevel << 24u;
-							FrameInfo.PageEntries[PageIndex] = PageTableEntry; // Don't forget to update the PageEntries value of our current page to reflect that it falls back to a coarser mip.
 							break;
 						}
-						ParentPageIndex = Topology.Pages[ParentPageIndex].ParentIndex;
+						ParentPageIndex = Topology.ParentIndices[ParentPageIndex];
 						++ParentMipLevel;
 					}
 					check(ParentPageIndex != INDEX_NONE); // If we hit this, then we tried to find the root node's parent. This should never happen as the root node should always be resident.
 				}
 
 				// Write the update to the upload buffer pointers
-				reinterpret_cast<uint32*>(DstCoordsPtr)[MipUpdateWriteIndex] = Topology.Pages[PageIndex].PackedPageTableCoord;
+				reinterpret_cast<uint32*>(DstCoordsPtr)[MipUpdateWriteIndex] = Topology.PackedPageTableCoords[PageIndex];
 				reinterpret_cast<uint32*>(DstEntryPtr)[MipUpdateWriteIndex] = PageTableEntry;
 				++MipUpdateWriteIndex;
 			}
@@ -1687,9 +1658,35 @@ FStreamingManager::FStreamingInfo* FStreamingManager::FindStreamingInfo(UStreama
 	return SVTInfoPtr ? SVTInfoPtr->Get() : nullptr;
 }
 
+FStreamingManager::FMipTileReadInfo FStreamingManager::GetMipTileReadInfo(const FFrameInfo& FrameInfo, int32 MipLevel)
+{
+	check(FrameInfo.Resources->Topology.MipInfo.IsValidIndex(MipLevel));
+	const bool bIsRootMipLevel = (MipLevel + 1) == FrameInfo.NumMipLevels;
+	const FPageTopology::FMip& MipInfo = FrameInfo.Resources->Topology.MipInfo[MipLevel];
+
+	uint32 TileRangeOffset = 0;
+	uint32 TileRangeCount = 0;
+	FrameInfo.Resources->Topology.GetTileRange(MipInfo.PageOffset, MipInfo.PageCount, TileRangeOffset, TileRangeCount);
+
+	const uint32 ReadOffsetLogical = FrameInfo.Resources->StreamingMetaData.TileDataOffsets[TileRangeOffset];
+	// TileDataOffsets are expressed as if all data is stored in the same buffer, when the root tile is actually stored separately. The root tile can't stream, so we simply subtract its size from the offset.
+	const uint32 RootTileSize = FrameInfo.Resources->RootData.Num();
+	check(RootTileSize == 0 || RootTileSize == FrameInfo.Resources->StreamingMetaData.GetTileMemorySize(0));
+	const uint32 ReadOffset = bIsRootMipLevel ? ReadOffsetLogical : (ReadOffsetLogical - RootTileSize);
+	const uint32 ReadSize = FrameInfo.Resources->StreamingMetaData.TileDataOffsets[TileRangeOffset + TileRangeCount] - ReadOffsetLogical;
+
+	FMipTileReadInfo ReadInfo;
+	ReadInfo.TileOffset = TileRangeOffset;
+	ReadInfo.TileCount = TileRangeCount;
+	ReadInfo.ReadOffset = ReadOffset;
+	ReadInfo.ReadSize = ReadSize;
+
+	return ReadInfo;
+}
+
 #if WITH_EDITORONLY_DATA
 
-UE::DerivedData::FCacheGetChunkRequest FStreamingManager::BuildDDCRequest(const FResources& Resources, const FMipLevelStreamingInfo& MipLevelStreamingInfo, const uint32 PendingMipLevelIndex)
+UE::DerivedData::FCacheGetChunkRequest FStreamingManager::BuildDDCRequest(const FResources& Resources, uint64 ReadOffset, uint64 ReadSize, uint32 PendingMipLevelIndex)
 {
 	using namespace UE::DerivedData;
 
@@ -1701,8 +1698,8 @@ UE::DerivedData::FCacheGetChunkRequest FStreamingManager::BuildDDCRequest(const 
 	FCacheGetChunkRequest Request;
 	Request.Id = FValueId::FromName("SparseVolumeTextureStreamingData");
 	Request.Key = Key;
-	Request.RawOffset = MipLevelStreamingInfo.BulkOffset;
-	Request.RawSize = MipLevelStreamingInfo.BulkSize;
+	Request.RawOffset = ReadOffset;
+	Request.RawSize = ReadSize;
 	Request.RawHash = Resources.DDCRawHash;
 	Request.UserData = (((uint64)PendingMipLevelIndex) << uint64(32)) | (uint64)PendingMipLevels[PendingMipLevelIndex].RequestVersion;
 	return Request;

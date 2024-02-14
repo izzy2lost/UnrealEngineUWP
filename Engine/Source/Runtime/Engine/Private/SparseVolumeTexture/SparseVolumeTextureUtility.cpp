@@ -24,6 +24,11 @@ namespace Private
 } // SVT
 } // UE
 
+uint32 UE::SVT::PackX11Y11Z10(const FIntVector3& Value)
+{
+	return (Value.X & 0x7FFu) | ((Value.Y & 0x7FFu) << 11u) | ((Value.Z & 0x3FFu) << 22u);
+}
+
 uint32 UE::SVT::PackPageTableEntry(const FIntVector3& Coord)
 {
 	uint32 Result = (Coord.X & 0xFFu) | ((Coord.Y & 0xFFu) << 8u) | ((Coord.Z & 0xFFu) << 16u);

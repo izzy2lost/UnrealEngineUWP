@@ -135,6 +135,9 @@ void FTileDataTexture::BeginReserveUpload()
 void FTileDataTexture::ReserveUpload(int32 NumTiles, int32 NumVoxelsA, int32 NumVoxelsB)
 {
 	check(UploaderState == EUploaderState::Reserving);
+	check((NumReservedUploadTiles + NumTiles) >= 0);
+	check((NumReservedUploadVoxelsA + NumVoxelsA) >= 0);
+	check((NumReservedUploadVoxelsB + NumVoxelsB) >= 0);
 	NumReservedUploadTiles += NumTiles;
 	NumReservedUploadVoxelsA += NumVoxelsA;
 	NumReservedUploadVoxelsB += NumVoxelsB;
