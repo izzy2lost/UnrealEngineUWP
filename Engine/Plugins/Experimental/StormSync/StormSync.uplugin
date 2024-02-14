@@ -1,18 +1,18 @@
 {
 	"FileVersion": 3,
 	"Version": 1,
-	"VersionName": "0.16.0",
-	"FriendlyName": "StormSync",
+	"VersionName": "1.0",
+	"FriendlyName": "Storm Sync",
 	"Description": "Sync, Pull, Push, asset dependencies.",
-	"Category": "Other",
+	"Category": "Experimental",
 	"CreatedBy": "Epic Games, Inc.",
-	"CreatedByURL": "",
+	"CreatedByURL": "https://epicgames.com",
 	"DocsURL": "",
 	"MarketplaceURL": "",
 	"SupportURL": "",
 	"CanContainContent": true,
 	"IsBetaVersion": false,
-	"IsExperimentalVersion": false,
+	"IsExperimentalVersion": true,
 	"Installed": false,
 	"Modules": [
 		{
