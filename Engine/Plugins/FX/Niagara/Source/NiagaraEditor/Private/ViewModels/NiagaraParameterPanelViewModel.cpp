@@ -2609,9 +2609,10 @@ void FNiagaraScriptToolkitParameterPanelViewModel::DeleteParameters(const TArray
 			{
 				VariableObjectSelection->ClearSelectedObjects();
 			}
+			Graph->Modify();
 			Graph->RemoveParameter(ItemToDelete.GetVariable());
 			
-			if(!bAnyChange)
+			if (!bAnyChange)
 			{
 				bAnyChange = true;
 			}
