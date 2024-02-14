@@ -7,7 +7,6 @@
 class FAvaInteractiveToolsEdModeToolkit : public FModeToolkit
 {
 public:
-
 	FAvaInteractiveToolsEdModeToolkit();
 	virtual ~FAvaInteractiveToolsEdModeToolkit() override;
 
@@ -27,6 +26,11 @@ public:
 	virtual void OnToolStarted(UInteractiveToolManager* InManager, UInteractiveTool* InTool) override;
 	virtual void OnToolEnded(UInteractiveToolManager* InManager, UInteractiveTool* InTool) override;
 	virtual void InvokeUI() override;
+	//~ End FModeToolkit
+
+protected:
+	//~ Begin FModeToolkit
+	virtual void RequestModeUITabs() override;
 	//~ End FModeToolkit
 
 private:

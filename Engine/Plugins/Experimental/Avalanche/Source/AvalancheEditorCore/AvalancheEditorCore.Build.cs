@@ -28,6 +28,7 @@ public class AvalancheEditorCore : ModuleRules
 				"EditorFramework",
 				"Engine",
 				"LevelEditor",
+				"Projects",
 				"StatusBar",
 				"ToolMenus",
 				"TypedElementFramework",

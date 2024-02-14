@@ -17,7 +17,7 @@ UAvaInteractiveToolsEdMode::UAvaInteractiveToolsEdMode()
 {
 	Info = FEditorModeInfo(IAvalancheInteractiveToolsModule::EM_AvaInteractiveToolsEdModeId,
 		LOCTEXT("AvaInteractiveToolsEdModeName", "Motion Design"),
-		FSlateIcon(),
+		FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("LevelEditor.Tabs.EditorModes")),
 		true);
 
 	LastActiveTool = "";
