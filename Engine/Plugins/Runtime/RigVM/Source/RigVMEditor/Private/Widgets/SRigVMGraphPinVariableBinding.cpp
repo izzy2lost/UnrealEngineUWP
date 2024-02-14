@@ -33,7 +33,11 @@ void SRigVMGraphVariableBinding::Construct(const FArguments& InArgs)
 	BindingArgs.CurrentBindingImage.BindRaw(this, &SRigVMGraphVariableBinding::GetBindingImage);
 	BindingArgs.CurrentBindingColor.BindRaw(this, &SRigVMGraphVariableBinding::GetBindingColor);
 
-	BindingArgs.OnCanBindProperty.BindSP(this, &SRigVMGraphVariableBinding::OnCanBindProperty);
+	BindingArgs.OnCanBindPropertyWithBindingChain = FOnCanBindPropertyWithBindingChain::CreateLambda([this](FProperty* InProperty, TConstArrayView<FBindingChainElement> InBindingChain)
+	{
+		return OnCanBindProperty(InProperty);
+	});
+
 	BindingArgs.OnCanBindToClass.BindSP(this, &SRigVMGraphVariableBinding::OnCanBindToClass);
 
 	BindingArgs.OnAddBinding.BindSP(this, &SRigVMGraphVariableBinding::OnAddBinding);

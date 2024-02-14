@@ -107,7 +107,10 @@ TSharedRef<SWidget> FViewModelPropertyAccessEditor::MakePropertyBindingWidget(TS
 	Args.bGeneratePureBindings = true;
 
 	Args.CurrentBindingText.BindStatic(&Private::BindingWidgetForVM_GetName);
-	Args.OnCanBindProperty.BindRaw(this, &FViewModelPropertyAccessEditor::CanBindProperty);
+	Args.OnCanBindPropertyWithBindingChain = FOnCanBindPropertyWithBindingChain::CreateLambda([this](FProperty* InProperty, TConstArrayView<FBindingChainElement> InBindingChain)
+	{
+		return CanBindProperty(InProperty);
+	});
 	Args.OnCanBindFunction.BindRaw(this, &FViewModelPropertyAccessEditor::CanBindFunction);
 	Args.OnCanBindToClass.BindRaw(this, &FViewModelPropertyAccessEditor::CanBindToClass);
 	Args.OnAddBinding.BindRaw(this, &FViewModelPropertyAccessEditor::AddBinding);

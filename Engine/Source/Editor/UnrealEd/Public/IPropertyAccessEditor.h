@@ -112,6 +112,9 @@ DECLARE_DELEGATE_RetVal_TwoParams(bool, FOnCanAcceptPropertyOrChildrenWithBindin
 DECLARE_DELEGATE_RetVal_OneParam(bool, FOnCanAcceptPropertyOrChildren, FProperty* /*InProperty*/);
 
 /** Delegate used to check whether a property can be bound to the property in question */
+DECLARE_DELEGATE_RetVal_TwoParams(bool, FOnCanBindPropertyWithBindingChain, FProperty* /*InProperty*/, TConstArrayView<FBindingChainElement> /*InBindingChain*/);
+
+// UE_DEPRECATED(5.4, "Please use OnCanBindPropertyWithBindingChain instead.")
 DECLARE_DELEGATE_RetVal_OneParam(bool, FOnCanBindProperty, FProperty* /*InProperty*/);
 
 /** Delegate used to check whether a function can be bound to the property in question */
@@ -178,6 +181,9 @@ struct FPropertyBindingWidgetArgs
 	FOnCanAcceptPropertyOrChildren OnCanAcceptPropertyOrChildren;
 	
 	/** Delegate used to check whether a property can be bound to the property in question */
+	FOnCanBindPropertyWithBindingChain OnCanBindPropertyWithBindingChain;
+
+	UE_DEPRECATED(5.4, "Please use OnCanBindPropertyWithBindingChain instead.")
 	FOnCanBindProperty OnCanBindProperty;
 
 	/** Delegate used to check whether a function can be bound to the property in question */

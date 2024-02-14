@@ -96,7 +96,7 @@ void FBlueprintMemberReferenceDetails::CustomizeHeader(TSharedRef<IPropertyHandl
 			return DefaultBindingName;
 		};
 		
-		auto OnCanBindProperty = [](FProperty* InProperty)
+		auto OnCanBindProperty = [](FProperty* InPropertyOnCanBindProperty, TConstArrayView<FBindingChainElement> InBindingChain)
 		{
 			return true;
 		};
@@ -268,7 +268,7 @@ void FBlueprintMemberReferenceDetails::CustomizeHeader(TSharedRef<IPropertyHandl
 		FPropertyBindingWidgetArgs Args;
 		Args.BindableSignature = PrototypeFunction;
 		Args.OnGenerateBindingName = FOnGenerateBindingName::CreateLambda(OnGenerateBindingName);
-		Args.OnCanBindProperty = FOnCanBindProperty::CreateLambda(OnCanBindProperty);
+		Args.OnCanBindPropertyWithBindingChain = FOnCanBindPropertyWithBindingChain::CreateLambda(OnCanBindProperty);
 		Args.OnGotoBinding = FOnGotoBinding::CreateLambda(OnGoToBinding);
 		Args.OnCanGotoBinding = FOnCanGotoBinding::CreateLambda(OnCanGotoBinding);
 		Args.OnCanBindFunction = FOnCanBindFunction::CreateLambda(OnCanBindFunction);

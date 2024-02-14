@@ -28,7 +28,7 @@ void SRigVMGraphChangePinType::Construct(const FArguments& InArgs)
 	BindingArgs.CurrentBindingImage.BindRaw(this, &SRigVMGraphChangePinType::GetBindingImage);
 	BindingArgs.CurrentBindingColor.BindRaw(this, &SRigVMGraphChangePinType::GetBindingColor);
 
-	BindingArgs.OnCanBindProperty.BindLambda([](const FProperty* InProperty) -> bool { return true; });
+	BindingArgs.OnCanBindPropertyWithBindingChain.BindLambda([](const FProperty* InProperty, TConstArrayView<FBindingChainElement> InBindingChain) -> bool { return true; });
 	BindingArgs.OnCanBindToClass.BindLambda([](UClass* InClass) -> bool { return false; });
 
 	BindingArgs.bGeneratePureBindings = true;

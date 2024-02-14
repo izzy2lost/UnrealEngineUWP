@@ -201,7 +201,11 @@ void SPropertyBinding::ForEachBindableFunction(UClass* FromClass, Predicate Pred
 template <typename Predicate>
 void SPropertyBinding::ForEachBindableProperty(UStruct* InStruct, TConstArrayView<TSharedPtr<FBindingChainElement>> BindingChain, Predicate Pred) const
 {
-	if(InStruct && Args.OnCanBindProperty.IsBound())
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	const bool bIsOnCanBindPropertyBound = Args.OnCanBindProperty.IsBound() || Args.OnCanBindPropertyWithBindingChain.IsBound();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	if(InStruct && bIsOnCanBindPropertyBound)
 	{
 		UBlueprintGeneratedClass* SkeletonClass = Blueprint ? Cast<UBlueprintGeneratedClass>(Blueprint->SkeletonGeneratedClass) : nullptr;
 
@@ -219,7 +223,6 @@ void SPropertyBinding::ForEachBindableProperty(UStruct* InStruct, TConstArrayVie
 			{
 				continue;
 			}
-			
 			if (SkeletonClass)
 			{
 				if (!UEdGraphSchema_K2::CanUserKismetAccessVariable(Property, SkeletonClass, UEdGraphSchema_K2::CannotBeDelegate))
@@ -275,16 +278,23 @@ bool SPropertyBinding::HasBindablePropertiesRecursive(UStruct* InStruct, TSet<US
 
 		FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property);
 
-		if(Args.OnCanBindProperty.Execute(Property))
+		if(CanBindProperty(Property, BindingChain))
 		{
 			BindableCount++;
 			return;
 		}
 
-		if(Args.bAllowArrayElementBindings && ArrayProperty != nullptr && Args.OnCanBindProperty.Execute(ArrayProperty->Inner))
+		if(Args.bAllowArrayElementBindings && ArrayProperty != nullptr)
 		{
-			BindableCount++;
-			return;
+			BindingChain.Emplace(MakeShared<FBindingChainElement>(Property));
+			BindingChain.Last()->ArrayIndex = 0;
+			ON_SCOPE_EXIT{ BindingChain.Pop(); };
+
+			if(CanBindProperty(ArrayProperty->Inner, BindingChain))
+			{
+				BindableCount++;
+				return;
+			}	
 		}
 
 		FProperty* InnerProperty = Property;
@@ -350,7 +360,7 @@ bool SPropertyBinding::HasBindablePropertiesRecursive(UStruct* InStruct, TSet<US
 			FProperty* ReturnProperty = Info.Function->GetReturnProperty();
 			
 			// We can get here if we accept non-leaf UObject functions, so if so we need to check the return value for compatibility
-			if(!Args.bAllowUObjectFunctions || Args.OnCanBindProperty.Execute(ReturnProperty))
+			if(!Args.bAllowUObjectFunctions || CanBindProperty(ReturnProperty, BindingChain))
 			{
 				BindableCount++;
 			}
@@ -730,7 +740,7 @@ void SPropertyBinding::FillPropertyMenu(FMenuBuilder& MenuBuilder, UStruct* InOw
 
 					FProperty* ReturnProperty = Info.Function->GetReturnProperty();
 					// We can get here if we accept non-leaf UObject functions, so if so we need to check the return value for compatibility
-					if(!Args.bAllowUObjectFunctions || Args.OnCanBindProperty.Execute(ReturnProperty))
+					if(!Args.bAllowUObjectFunctions || CanBindProperty(ReturnProperty, InBindingChain))
 					{
 						MenuBuilder.AddMenuEntry(
 							FUIAction(FExecuteAction::CreateSP(this, &SPropertyBinding::HandleAddBinding, NewBindingChain)),
@@ -783,7 +793,7 @@ void SPropertyBinding::FillPropertyMenu(FMenuBuilder& MenuBuilder, UStruct* InOw
 
 		// Find the binder that can handle the delegate return type, don't bother allowing people 
 		// to look for bindings that we don't support
-		if ( Args.OnCanBindProperty.IsBound() && Args.OnCanBindProperty.Execute(BindingProperty) )
+		if (CanBindProperty(BindingProperty, InBindingChain))
 		{
 			UStruct* BindingStruct = nullptr;
 			FObjectPropertyBase* ObjectProperty = CastField<FObjectPropertyBase>(BindingProperty);
@@ -804,20 +814,22 @@ void SPropertyBinding::FillPropertyMenu(FMenuBuilder& MenuBuilder, UStruct* InOw
 					TArray<TSharedPtr<FBindingChainElement>> NewBindingChain(InBindingChain);
 					NewBindingChain.Emplace(MakeShared<FBindingChainElement>(Property));
 
-					if(Args.OnCanBindProperty.Execute(Property))
+					if(CanBindProperty(Property, NewBindingChain))
 					{
 						MakePropertyEntry(Property, NewBindingChain);
 					}
 
 					FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property);
 
-					if(Args.bAllowArrayElementBindings && ArrayProperty != nullptr && Args.OnCanBindProperty.Execute(ArrayProperty->Inner))
+					if(Args.bAllowArrayElementBindings && ArrayProperty != nullptr)
 					{
 						TArray<TSharedPtr<FBindingChainElement>> NewArrayElementBindingChain(InBindingChain);
 						NewArrayElementBindingChain.Emplace(MakeShared<FBindingChainElement>(Property));
 						NewArrayElementBindingChain.Last()->ArrayIndex = 0;
-
-						MakeArrayElementEntry(ArrayProperty->Inner, NewArrayElementBindingChain);
+						if(CanBindProperty(ArrayProperty->Inner, NewArrayElementBindingChain))
+						{
+							MakeArrayElementEntry(ArrayProperty->Inner, NewArrayElementBindingChain);
+						}
 					}
 
 					FProperty* InnerProperty = Property;
@@ -962,6 +974,7 @@ void SPropertyBinding::HandleAddBinding(TArray<TSharedPtr<FBindingChainElement>>
 		const FScopedTransaction Transaction(LOCTEXT("BindDelegate", "Set Binding"));
 
 		TArray<FBindingChainElement> BindingChain;
+		BindingChain.Reserve(InBindingChain.Num());
 		Algo::Transform(InBindingChain, BindingChain, [](TSharedPtr<FBindingChainElement> InElement)
 		{
 			return *InElement.Get();
@@ -975,7 +988,7 @@ void SPropertyBinding::HandleSetBindingArrayIndex(int32 InArrayIndex, ETextCommi
 	InBindingChain.Last()->ArrayIndex = InArrayIndex;
 
 	// If the user hit enter on a compatible property, assume they want to accept
-	if(Args.OnCanBindProperty.Execute(InProperty) && InCommitType == ETextCommit::OnEnter)
+	if(CanBindProperty(InProperty, InBindingChain) && InCommitType == ETextCommit::OnEnter)
 	{
 		HandleAddBinding(InBindingChain);
 	}
@@ -1036,19 +1049,20 @@ void SPropertyBinding::HandleCreateAndAddBinding()
 	HandleGotoBindingClicked();
 }
 
-UStruct* SPropertyBinding::ResolveIndirection(const TArray<TSharedPtr<FBindingChainElement>>& BindingChain) const
+UStruct* SPropertyBinding::ResolveIndirection(const TArray<TSharedPtr<FBindingChainElement>>& InBindingChain) const
 {
 	UStruct* ResolvedStruct = nullptr;
 
 	if (Args.OnResolveIndirection.IsBound())
 	{
-		TArray<FBindingChainElement> RawBindingChain;
-		Algo::Transform(BindingChain, RawBindingChain, [](TSharedPtr<FBindingChainElement> InElement)
+		TArray<FBindingChainElement> BindingChain;
+		BindingChain.Reserve(InBindingChain.Num());
+		Algo::Transform(InBindingChain, BindingChain, [](TSharedPtr<FBindingChainElement> InElement)
 		{
 			return *InElement.Get();
 		});
 
-		ResolvedStruct = Args.OnResolveIndirection.Execute(RawBindingChain);
+		ResolvedStruct = Args.OnResolveIndirection.Execute(BindingChain);
 	}
 
 	return ResolvedStruct;
@@ -1098,6 +1112,32 @@ bool SPropertyBinding::CanAcceptPropertyOrChildren(FProperty* InProperty, TConst
 		});
 
 		if (!Args.OnCanAcceptPropertyOrChildrenWithBindingChain.Execute(InProperty, BindingChain))
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+bool SPropertyBinding::CanBindProperty(FProperty* InProperty, TConstArrayView<TSharedPtr<FBindingChainElement>> InBindingChain) const
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (Args.OnCanBindProperty.IsBound() && Args.OnCanBindProperty.Execute(InProperty) == false)
+	{
+		return false;
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			
+	if (Args.OnCanBindPropertyWithBindingChain.IsBound())
+	{
+		TArray<FBindingChainElement, TInlineAllocator<32>> BindingChain;
+		Algo::Transform(InBindingChain, BindingChain, [](TSharedPtr<FBindingChainElement> InElement)
+		{
+			return *InElement.Get();
+		});
+
+		if (!Args.OnCanBindPropertyWithBindingChain.Execute(InProperty, BindingChain))
 		{
 			return false;
 		}

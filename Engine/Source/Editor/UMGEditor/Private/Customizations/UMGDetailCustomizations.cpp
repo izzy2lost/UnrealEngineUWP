@@ -234,7 +234,7 @@ TSharedRef<SWidget> FBlueprintWidgetCustomization::MakePropertyBindingWidget(TWe
 		return false;
 	});
 
-	Args.OnCanBindProperty = FOnCanBindProperty::CreateLambda([SignatureFunction](FProperty* InProperty)
+	Args.OnCanBindPropertyWithBindingChain = FOnCanBindPropertyWithBindingChain::CreateLambda([SignatureFunction](FProperty* InProperty, TConstArrayView<FBindingChainElement> InBindingChain)
 	{
 		if (SignatureFunction != nullptr)
 		{

@@ -30,7 +30,7 @@ TSharedRef<SWidget> SPropertyAccessChainWidget::CreatePropertyAccessWidget()
 	Args.bAllowUObjectFunctions = true;
 	Args.bAllowOnlyThreadSafeFunctions = true;
 
-	auto CanBindProperty = [this](FProperty* Property)
+	auto CanBindProperty = [this](FProperty* Property, TConstArrayView<FBindingChainElement> InBindingChain)
 	{
 		if (TypeFilter == "" || Property == nullptr)
 		{
@@ -99,7 +99,7 @@ TSharedRef<SWidget> SPropertyAccessChainWidget::CreatePropertyAccessWidget()
 		return false;
 	});
 
-	Args.OnCanBindProperty = FOnCanBindProperty::CreateLambda(CanBindProperty);
+	Args.OnCanBindPropertyWithBindingChain = FOnCanBindPropertyWithBindingChain::CreateLambda(CanBindProperty);
 
 	Args.OnCanBindFunction = FOnCanBindFunction::CreateLambda([CanBindProperty](UFunction* Function)
 	{
@@ -111,7 +111,7 @@ TSharedRef<SWidget> SPropertyAccessChainWidget::CreatePropertyAccessWidget()
 
 		if (FProperty* ReturnProperty = Function->GetReturnProperty())
 		{
-			return CanBindProperty(ReturnProperty);
+			return CanBindProperty(ReturnProperty, {});
 		}
 	
 		return false;

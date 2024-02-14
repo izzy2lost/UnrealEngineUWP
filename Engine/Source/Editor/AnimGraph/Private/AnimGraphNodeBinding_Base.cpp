@@ -404,7 +404,7 @@ TSharedRef<SWidget> UAnimGraphNodeBinding_Base::MakePropertyBindingWidget(const 
 		TFieldPath<FProperty> BindingPropertyPath(PropertyToBindTo);
 		TFieldPath<FProperty> PinPropertyPath(InArgs.PinProperty);
 		
-		auto OnCanBindProperty = [BindingPropertyPath](FProperty* InProperty)
+		auto OnCanBindProperty = [BindingPropertyPath](FProperty* InProperty, TConstArrayView<FBindingChainElement> InBindingChain)
 		{
 			// Note: We support type promotion here
 			IPropertyAccessEditor& PropertyAccessEditor = IModularFeatures::Get().GetModularFeature<IPropertyAccessEditor>("PropertyAccessEditor");
@@ -1080,7 +1080,7 @@ TSharedRef<SWidget> UAnimGraphNodeBinding_Base::MakePropertyBindingWidget(const 
 
 		FPropertyBindingWidgetArgs Args;
 		Args.Property = PropertyToBindTo;
-		Args.OnCanBindProperty = FOnCanBindProperty::CreateLambda(OnCanBindProperty);
+		Args.OnCanBindPropertyWithBindingChain = FOnCanBindPropertyWithBindingChain::CreateLambda(OnCanBindProperty);
 		Args.OnCanBindFunction = FOnCanBindFunction::CreateLambda(OnCanBindFunction);
 		Args.OnCanBindToClass = FOnCanBindToClass::CreateLambda([](UClass* InClass){ return true; });
 		Args.OnAddBinding = FOnAddBinding::CreateLambda(OnAddBinding);
