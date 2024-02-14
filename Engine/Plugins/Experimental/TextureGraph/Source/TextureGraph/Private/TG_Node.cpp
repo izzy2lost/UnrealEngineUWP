@@ -137,16 +137,9 @@ void UTG_Node::OnExpressionChangedWithoutVar(const FPropertyChangedEvent& Proper
 
 	if (PropertyChangedEvent.Property)
 	{
-		auto PinId = GetPinId(PropertyChangedEvent.GetPropertyName());
-
-		// we check the property against the pin name. In most cases, the value modified is actually the property.
-		// In the case of FLinear color, we can modify R, G, B and A values independently too.
-		// The property will be R, G, B or A which will not match the pin name.
-		// To fix it, If we don't find the pin for the property changed, we will also try to find it in the Member property.
-		if (!PinId.IsValid())
-		{
-			PinId = GetPinId(PropertyChangedEvent.GetMemberPropertyName());
-		}
+		// MemberProperty name is what we're interested in, the expression's member property has triggered an event
+		// and we want to find the matching pin and take the value in from the expression's member
+		FTG_Id PinId = GetPinId(PropertyChangedEvent.GetMemberPropertyName());
 
 		if (PinId.IsValid())
 		{
