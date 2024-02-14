@@ -119,10 +119,13 @@ namespace uba
 			return true;
 		}
 
-		bool SendAsync(u8 value)
+		bool SendInitialResponse(u8 value)
 		{
+			u8 data[32];
+			*data = value;
+			*(Guid*)(data+1) = m_server.m_uid;
 			NetworkBackend::SendContext context(NetworkBackend::SendFlags_Async);
-			return m_backend.Send(m_server.m_logger, m_backendConnection, &value, 1, context);
+			return m_backend.Send(m_server.m_logger, m_backendConnection, data, 1 + sizeof(Guid), context);
 		}
 
 		static bool ReceiveHandshakeHeader(void* context, u8* headerData, void*& outBodyContext, u8*& outBodyData, u32& outBodySize)
@@ -156,7 +159,7 @@ namespace uba
 			u32 clientVersion = *(u32*)headerData;
 			if (clientVersion != SystemNetworkVersion)
 			{
-				conn.SendAsync(1);
+				conn.SendInitialResponse(1);
 				return false;
 			}
 
@@ -180,7 +183,7 @@ namespace uba
 					found |= kv.second.uid == clientUid;
 				if (!found)
 				{
-					conn.SendAsync(3);
+					conn.SendInitialResponse(3);
 					return false;
 				}
 			}
@@ -188,7 +191,7 @@ namespace uba
 			constexpr u32 HeaderSize = 6;
 			conn.m_backend.SetRecvCallbacks(conn.m_backendConnection, &conn, HeaderSize, ReceiveMessageHeader, ReceiveMessageBody, TC("ReceiveMessage"));
 
-			if (!conn.SendAsync(0))
+			if (!conn.SendInitialResponse(0))
 				return false;
 			
 			ScopedWriteLock clientsLock(server.m_clientsLock);
@@ -407,14 +410,14 @@ namespace uba
 
 			if (!rec.func)
 			{
-				server.m_logger.Error(TC("WORKER FUNCTION NOT FOUND. id: %u, serviceid: %u type: %s"), m_id, m_serviceId, rec.toString(m_messageType));
+				server.m_logger.Error(TC("WORKER FUNCTION NOT FOUND. id: %u, serviceid: %u type: %s, client: %s"), m_id, m_serviceId, rec.toString(m_messageType), GuidToString(m_connection->m_client->uid).str);
 				m_connection->SetShouldDisconnect();
 				size = ErrorSize;
 			}
 			else if (!rec.func({m_connection}, m_messageType, reader, writer))
 			{
 				if (m_connection->SetShouldDisconnect())
-					server.m_logger.Error(TC("WORKER FUNCTION FAILED. id: %u, serviceid: %u type: %s"), m_id, m_serviceId, rec.toString(m_messageType));
+					server.m_logger.Error(TC("WORKER FUNCTION FAILED. id: %u, serviceid: %u type: %s, client: %s"), m_id, m_serviceId, rec.toString(m_messageType), GuidToString(m_connection->m_client->uid).str);
 				size = ErrorSize;
 			}
 			else
@@ -534,6 +537,9 @@ namespace uba
 			{
 				return HandleSystemMessage(connectionInfo, messageType, reader, writer);
 			};
+
+		if (!CreateGuid(m_uid))
+			outCtorSuccess = false;
 	}
 
 	NetworkServer::~NetworkServer()

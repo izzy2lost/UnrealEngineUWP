@@ -16,7 +16,7 @@ namespace uba
 	static constexpr u8 StorageServiceId = 1;
 	static constexpr u8 SessionServiceId = 2;
 	
-	static constexpr u32 SystemNetworkVersion = 1338;
+	static constexpr u32 SystemNetworkVersion = 1339;
 	static constexpr u32 StorageNetworkVersion = 3;
 	static constexpr u32 SessionNetworkVersion = 27;
 
