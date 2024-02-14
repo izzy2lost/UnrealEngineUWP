@@ -10,7 +10,9 @@ class UObject;
 class IMovieScenePlayer;
 class UMovieSceneSequence;
 struct FGuid;
+struct FMovieScenePossessable;
 struct FMovieSceneSequenceID;
+struct FMovieSceneSpawnable;
 
 namespace UE::MovieScene
 {
@@ -22,10 +24,16 @@ namespace UE::MovieScene
  */
 struct FMovieSceneDynamicBindingInvoker
 {
+	using FSharedPlaybackState = UE::MovieScene::FSharedPlaybackState;
+
 	/** Invoke the dynamic binding, if any, and return the result */
-	static FMovieSceneDynamicBindingResolveResult ResolveDynamicBinding(TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, UMovieSceneSequence* Sequence, const FMovieSceneSequenceID& SequenceID, const FGuid& InGuid, const FMovieSceneDynamicBinding& DynamicBinding);
+	static FMovieSceneDynamicBindingResolveResult ResolveDynamicBinding(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, UMovieSceneSequence* Sequence, const FMovieSceneSequenceID& SequenceID, const FMovieScenePossessable& Possessable);
+
+	/** Invoke the dynamic binding, if any, and return the result */
+	static FMovieSceneDynamicBindingResolveResult ResolveDynamicBinding(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, UMovieSceneSequence* Sequence, const FMovieSceneSequenceID& SequenceID, const FMovieSceneSpawnable& Spawnable);
 
 private:
+	static FMovieSceneDynamicBindingResolveResult ResolveDynamicBinding(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, UMovieSceneSequence* Sequence, const FMovieSceneSequenceID& SequenceID, const FGuid& InGuid, const FMovieSceneDynamicBinding& DynamicBinding);
 	static FMovieSceneDynamicBindingResolveResult InvokeDynamicBinding(UObject* DirectorInstance, const FMovieSceneDynamicBinding& DynamicBinding, const FMovieSceneDynamicBindingResolveParams& Params);
 };
 
