@@ -33,7 +33,6 @@ public:
 	FOnPinSelectionUpdated OnPinSelectionUpdated;
 
 private:
-	void SelectPin(UEdGraphPin* Pin, bool IsSelected);
 
 	TArray<UEdGraphPin*> SelectedItems;
 };
