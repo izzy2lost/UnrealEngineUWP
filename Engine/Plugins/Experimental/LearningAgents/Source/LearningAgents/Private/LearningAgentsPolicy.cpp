@@ -255,7 +255,7 @@ void ULearningAgentsPolicy::SetupPolicy(
 		UE::NNE::RuntimeBasic::FModelBuilder Builder(UE::Learning::Random::Int(Seed ^ 0x69315bf9));
 
 		const int32 PolicyHiddenLayerSize = PolicySettings.HiddenLayerSize;
-		const int32 PolicyLayerNum = PolicySettings.LayerNum;
+		const int32 PolicyHiddenLayerNum = PolicySettings.HiddenLayerNum;
 		const ELearningAgentsActivationFunction PolicyActivationFunction = PolicySettings.ActivationFunction;
 		const float PolicyInitialEncodedActionScale = PolicySettings.InitialEncodedActionScale;
 
@@ -268,7 +268,7 @@ void ULearningAgentsPolicy::SetupPolicy(
 					ObservationEncodedVectorSize,
 					PolicyHiddenLayerSize,
 					PolicyHiddenLayerSize,
-					FMath::Max(PolicyLayerNum / 2 + 1, 2),
+					PolicyHiddenLayerNum / 2 + 2, // Add 2 to account for input and output layers
 					UE::Learning::Agents::Policy::Private::GetBuilderActivationFunction(PolicyActivationFunction),
 					true),
 				Builder.MakeMemoryCellWithLinearRandomKaimingWeights(
@@ -281,7 +281,7 @@ void ULearningAgentsPolicy::SetupPolicy(
 						PolicyHiddenLayerSize,
 						ActionEncodedVectorSize,
 						PolicyHiddenLayerSize,
-						FMath::Max(PolicyLayerNum / 2 + 1, 2),
+						PolicyHiddenLayerNum / 2 + 2, // Add 2 to account for input and output layers
 						UE::Learning::Agents::Policy::Private::GetBuilderActivationFunction(PolicyActivationFunction)),
 					Builder.MakeDenormalize(
 						ActionEncodedVectorSize,

@@ -1067,7 +1067,7 @@ FLearningAgentsActionSchemaElement ULearningAgentsActions::SpecifyEitherAction(U
 	return SpecifyExclusiveUnionActionFromArrayViews(Schema, { TEXT("A"), TEXT("B") }, { A, B }, { 1.0f - PriorProbabilityOfA, PriorProbabilityOfA }, Tag);
 }
 
-FLearningAgentsActionSchemaElement ULearningAgentsActions::SpecifyEncodingAction(ULearningAgentsActionSchema* Schema, const FLearningAgentsActionSchemaElement Element, const int32 EncodingSize, const int32 LayerNum, const ELearningAgentsActivationFunction ActivationFunction, const FName Tag)
+FLearningAgentsActionSchemaElement ULearningAgentsActions::SpecifyEncodingAction(ULearningAgentsActionSchema* Schema, const FLearningAgentsActionSchemaElement Element, const int32 EncodingSize, const int32 HiddenLayerNum, const ELearningAgentsActivationFunction ActivationFunction, const FName Tag)
 {
 	if (!Schema)
 	{
@@ -1081,9 +1081,9 @@ FLearningAgentsActionSchemaElement ULearningAgentsActions::SpecifyEncodingAction
 		return FLearningAgentsActionSchemaElement();
 	}
 
-	if (LayerNum < 1)
+	if (HiddenLayerNum < 1)
 	{
-		UE_LOG(LogLearning, Error, TEXT("SpecifyEncodingAction: Invalid Action LayerNum '%i' - must be greater than zero."), LayerNum);
+		UE_LOG(LogLearning, Error, TEXT("SpecifyEncodingAction: Invalid Action HiddenLayerNum '%i' - must be greater than zero."), HiddenLayerNum);
 		return FLearningAgentsActionSchemaElement();
 	}
 
@@ -1093,7 +1093,7 @@ FLearningAgentsActionSchemaElement ULearningAgentsActions::SpecifyEncodingAction
 		return FLearningAgentsActionSchemaElement();
 	}
 
-	return { Schema->ActionSchema.CreateEncoding({ Element.SchemaElement, EncodingSize, LayerNum, UE::Learning::Agents::Action::Private::GetEncodingActivationFunction(ActivationFunction) }, Tag)};
+	return { Schema->ActionSchema.CreateEncoding({ Element.SchemaElement, EncodingSize, HiddenLayerNum, UE::Learning::Agents::Action::Private::GetEncodingActivationFunction(ActivationFunction) }, Tag)};
 }
 
 FLearningAgentsActionSchemaElement ULearningAgentsActions::SpecifyBoolAction(ULearningAgentsActionSchema* Schema, const float PriorProbability, const FName Tag)

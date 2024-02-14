@@ -444,13 +444,13 @@ public:
 	 * @param Schema The Action Schema
 	 * @param Element The sub-action.
 	 * @param EncodingSize The encoding size used to decode this sub-action.
-	 * @param LayerNum The number of layers used to decode this sub-action.
+	 * @param HiddenLayerNum The number of hidden layers used to decode this sub-action.
 	 * @param ActivationFunction The activation function used to decode this sub-action.
 	 * @param Tag The tag of this new action. Used during action object validation and debugging.
 	 * @return The newly created action schema element.
 	 */
 	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 2))
-	static FLearningAgentsActionSchemaElement SpecifyEncodingAction(ULearningAgentsActionSchema* Schema, const FLearningAgentsActionSchemaElement Element, const int32 EncodingSize = 128, const int32 LayerNum = 1, const ELearningAgentsActivationFunction ActivationFunction = ELearningAgentsActivationFunction::ELU, const FName Tag = TEXT("EncodingAction"));
+	static FLearningAgentsActionSchemaElement SpecifyEncodingAction(ULearningAgentsActionSchema* Schema, const FLearningAgentsActionSchemaElement Element, const int32 EncodingSize = 128, const int32 HiddenLayerNum = 1, const ELearningAgentsActivationFunction ActivationFunction = ELearningAgentsActivationFunction::ELU, const FName Tag = TEXT("EncodingAction"));
 
 	/**
 	 * Specifies a new bool action. This represents an action which is either true or false.

@@ -27,9 +27,9 @@ struct LEARNINGAGENTS_API FLearningAgentsCriticSettings
 
 public:
 
-	/** Total layers for critic network including input, hidden, and output layers */
-	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "2", UIMin = "2"))
-	int32 LayerNum = 3;
+	/** Number of hidden layers for critic network. */
+	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0", UIMin = "0"))
+	int32 HiddenLayerNum = 1;
 
 	/** Number of neurons in each hidden layer of the critic network */
 	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "1", UIMin = "1"))
