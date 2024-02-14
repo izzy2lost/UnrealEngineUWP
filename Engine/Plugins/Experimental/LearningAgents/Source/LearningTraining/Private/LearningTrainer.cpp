@@ -296,14 +296,14 @@ namespace UE::Learning::Trainer
 	{
 		UE_LEARNING_CHECKF(PLATFORM_WINDOWS || PLATFORM_MAC || PLATFORM_LINUX, TEXT("Python only supported on Windows, Mac, and Linux."));
 
-		return EngineDir / TEXT("Binaries/ThirdParty/Python3") / FPlatformMisc::GetUBTPlatform() / (PLATFORM_WINDOWS ? TEXT("python.exe") : TEXT("bin/python3"));
+		return EngineDir / TEXT("Binaries/ThirdParty/Python3") / FPlatformMisc::GetUBTPlatform() / (PLATFORM_WINDOWS ? TEXT("python.exe") : TEXT("bin/python"));
 	}
 
-	FString GetSitePackagesPath(const FString& IntermediateDir)
+	FString GetSitePackagesPath(const FString& EngineDir)
 	{
 		UE_LEARNING_CHECKF(PLATFORM_WINDOWS || PLATFORM_MAC || PLATFORM_LINUX, TEXT("Python only supported on Windows, Mac, and Linux."));
 
-		return PLATFORM_WINDOWS ? IntermediateDir / TEXT("PipInstall/Lib/site-packages") : IntermediateDir / TEXT("PipInstall/lib/python3.9/site-packages");
+		return EngineDir / TEXT("Plugins/Experimental/PythonFoundationPackages/Content/Python/Lib") / FPlatformMisc::GetUBTPlatform() / TEXT("site-packages");
 	}
 
 	FString GetPythonContentPath(const FString& EngineDir)
