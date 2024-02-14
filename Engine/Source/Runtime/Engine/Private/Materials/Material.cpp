@@ -6595,10 +6595,10 @@ void UMaterial::NotifyCompilationFinished(UMaterialInterface* Material)
 	UMaterial::OnMaterialCompilationFinished().Broadcast(Material);
 }
 
-void UMaterial::ForceRecompileForRendering()
+void UMaterial::ForceRecompileForRendering(EMaterialShaderPrecompileMode CompileMode)
 {
 	UpdateCachedExpressionData();
-	CacheResourceShadersForRendering( false );
+	CacheResourceShadersForRendering(false,  CompileMode);
 }
 
 bool UMaterial::CheckInValidStateForCompilation(class FMaterialCompiler* Compiler) const

@@ -14591,6 +14591,8 @@ void UMaterialFunctionInterface::PostEditChangeProperty(FPropertyChangedEvent& P
 
 void UMaterialFunctionInterface::ForceRecompileForRendering(FMaterialUpdateContext& UpdateContext, UMaterial* InPreviewMaterial)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UMaterialFunctionInterface::ForceRecompileForRendering)
+
 	//@todo - recreate guid only when needed, not when a comment changes
 	StateId = FGuid::NewGuid();
 
@@ -14636,7 +14638,7 @@ void UMaterialFunctionInterface::ForceRecompileForRendering(FMaterialUpdateConte
 		{
 			// Propagate the change to this material
 			UpdateContext.AddMaterialInterface(CurrentMaterialInterface);
-			CurrentMaterialInterface->ForceRecompileForRendering();
+			CurrentMaterialInterface->ForceRecompileForRendering(EMaterialShaderPrecompileMode::None);
 		}
 	}
 }

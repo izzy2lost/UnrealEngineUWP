@@ -1036,7 +1036,7 @@ public:
 
 #if WITH_EDITOR
 	/** Clears the shader cache and recompiles the shader for rendering. */
-	virtual void ForceRecompileForRendering() {}
+	virtual void ForceRecompileForRendering(EMaterialShaderPrecompileMode CompileMode = EMaterialShaderPrecompileMode::Default) {}
 #endif // WITH_EDITOR
 
 	/**
