@@ -24,6 +24,7 @@
 #include "UObject/UnrealType.h"
 #include "UObject/WeakObjectPtr.h"
 #include "DetailWidgetRow.h"
+#include "PropertyEditorArchetypePolicy.h"
 
 #define LOCTEXT_NAMESPACE "LightComponentDetails"
 
@@ -242,7 +243,7 @@ void FLightComponentDetails::SetComponentIntensity(ULightComponent* Component, f
 
 void FLightComponentDetails::ResetIntensityToDefault(TSharedPtr<IPropertyHandle> PropertyHandle, TWeakObjectPtr<ULightComponent> Component)
 {
-	ULightComponent* ArchetypeComponent = Component.IsValid() ? Cast<ULocalLightComponent>(Component->GetArchetype()) : nullptr;
+	ULightComponent* ArchetypeComponent = Component.IsValid() ? Cast<ULocalLightComponent>(PropertyEditorPolicy::GetArchetype(Component.Get())) : nullptr;
 	if (ArchetypeComponent)
 	{
 		SetComponentIntensity(Component.Get(), ArchetypeComponent->ComputeLightBrightness());
@@ -256,7 +257,7 @@ void FLightComponentDetails::ResetIntensityToDefault(TSharedPtr<IPropertyHandle>
 
 bool FLightComponentDetails::IsIntensityResetToDefaultVisible(TSharedPtr<IPropertyHandle> PropertyHandle, TWeakObjectPtr<ULightComponent> Component) const
 {
-	ULightComponent* ArchetypeComponent = Component.IsValid() ? Cast<ULocalLightComponent>(Component->GetArchetype()) : nullptr;
+	ULightComponent* ArchetypeComponent = Component.IsValid() ? Cast<ULocalLightComponent>(PropertyEditorPolicy::GetArchetype(Component.Get())) : nullptr;
 	if (ArchetypeComponent)
 	{
 		return !FMath::IsNearlyEqual(Component->ComputeLightBrightness(), ArchetypeComponent->ComputeLightBrightness());
@@ -331,7 +332,7 @@ namespace
 void FLightComponentDetails::ResetIntensityUnitsToDefault(TSharedPtr<IPropertyHandle> PropertyHandle, ULocalLightComponent* Component)
 {
 	// Actors (and blueprints) spawned from the actor factory inherit the intensity units from the project settings.
-	if (Component && Component->GetArchetype() && !Component->GetArchetype()->IsInBlueprint())
+	if (Component && PropertyEditorPolicy::GetArchetype(Component) && !PropertyEditorPolicy::GetArchetype(Component)->IsInBlueprint())
 	{
 		static const auto CVarDefaultLightUnits = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.DefaultFeature.LightUnits"));
 		const ELightUnits DefaultUnits = (ELightUnits)CVarDefaultLightUnits->GetValueOnGameThread();
@@ -351,7 +352,7 @@ void FLightComponentDetails::ResetIntensityUnitsToDefault(TSharedPtr<IPropertyHa
 bool FLightComponentDetails::IsIntensityUnitsResetToDefaultVisible(TSharedPtr<IPropertyHandle> PropertyHandle, ULocalLightComponent* Component) const
 {
 	// Actors (and blueprints) spawned from the actor factory inherit the project settings.
-	if (Component && Component->GetArchetype() && !Component->GetArchetype()->IsInBlueprint())
+	if (Component && PropertyEditorPolicy::GetArchetype(Component) && !PropertyEditorPolicy::GetArchetype(Component)->IsInBlueprint())
 	{
 		static const auto CVarDefaultLightUnits = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.DefaultFeature.LightUnits"));
 		const ELightUnits DefaultUnits = (ELightUnits)CVarDefaultLightUnits->GetValueOnGameThread();

@@ -13,6 +13,7 @@
 #include "UObject/UObjectAnnotation.h"
 #include "Stats/StatsMisc.h"
 #include "HAL/IConsoleManager.h"
+#include "UObject/UObjectArchetypeHelper.h"
 
 #define UE_CACHE_ARCHETYPE (1 && !WITH_EDITORONLY_DATA)
 #define UE_VERIFY_CACHED_ARCHETYPE 0
@@ -69,7 +70,9 @@ FAutoConsoleVariableRef CVarEnableArchetypeCache(
 }
 #endif // UE_CACHE_ARCHETYPE
 
-UObject* GetArchetypeFromRequiredInfoImpl(const UClass* Class, const UObject* Outer, FName Name, EObjectFlags ObjectFlags, bool bUseUpToDateClass)
+UObject* GetArchetypeImpl(const UObject* InObject, const FObjectArchetypeHelper::IObjectArchetypePolicy* Policy);
+
+UObject* GetArchetypeFromRequiredInfoImpl(const UClass* Class, const UObject* Outer, FName Name, EObjectFlags ObjectFlags, bool bUseUpToDateClass, const FObjectArchetypeHelper::IObjectArchetypePolicy* Policy)
 {
 	UObject* Result = NULL;
 	const bool bIsCDO = !!(ObjectFlags & RF_ClassDefaultObject);
@@ -87,15 +90,23 @@ UObject* GetArchetypeFromRequiredInfoImpl(const UClass* Class, const UObject* Ou
 
 			UObject* ArchetypeToSearch = nullptr;
 #if UE_CACHE_ARCHETYPE
-			ArchetypeToSearch = Outer->GetArchetype();
+			ArchetypeToSearch = GetArchetypeImpl(Outer, Policy);
 #if UE_VERIFY_CACHED_ARCHETYPE
 			{
-				UObject* VerifyArchetype = GetArchetypeFromRequiredInfoImpl(Outer->GetClass(), Outer->GetOuter(), Outer->GetFName(), Outer->GetFlags(), bUseUpToDateClass);
+				UObject* VerifyArchetype = GetArchetypeFromRequiredInfoImpl(Outer->GetClass(), Outer->GetOuter(), Outer->GetFName(), Outer->GetFlags(), bUseUpToDateClass, Policy);
 				checkf(ArchetypeToSearch == VerifyArchetype, TEXT("Cached archetype mismatch, expected: %s, cached: %s"), *GetFullNameSafe(VerifyArchetype), *GetFullNameSafe(ArchetypeToSearch));
 			}
 #endif // UE_VERIFY_CACHED_ARCHETYPE
 #else
-			ArchetypeToSearch = GetArchetypeFromRequiredInfoImpl(Outer->GetClass(), Outer->GetOuter(), Outer->GetFName(), Outer->GetFlags(), bUseUpToDateClass);
+			
+#if WITH_EDITOR
+			ArchetypeToSearch = Policy ? Policy->GetArchetype(Outer) : nullptr;
+#endif
+
+			if (!ArchetypeToSearch)
+			{
+				ArchetypeToSearch = GetArchetypeFromRequiredInfoImpl(Outer->GetClass(), Outer->GetOuter(), Outer->GetFName(), Outer->GetFlags(), bUseUpToDateClass, Policy);
+			}
 #endif // UE_CACHE_ARCHETYPE
 			UObject* MyArchetype = static_cast<UObject*>(FindObjectWithOuter(ArchetypeToSearch, Class, Name));
 			if (MyArchetype)
@@ -172,33 +183,44 @@ void CacheArchetypeForObject(UObject* Object, UObject* Archetype)
 UObject* UObject::GetArchetypeFromRequiredInfo(const UClass* Class, const UObject* Outer, FName Name, EObjectFlags ObjectFlags)
 {
 	bool bUseUpToDateClass = false;
-	return GetArchetypeFromRequiredInfoImpl(Class, Outer, Name, ObjectFlags, bUseUpToDateClass);
+	return GetArchetypeFromRequiredInfoImpl(Class, Outer, Name, ObjectFlags, bUseUpToDateClass, nullptr);
 }
 
 //DECLARE_FLOAT_ACCUMULATOR_STAT(TEXT("UObject::GetArchetype"), STAT_FArchiveRealtimeGC_GetArchetype, STATGROUP_GC);
 
-UObject* UObject::GetArchetype() const
+UObject* GetArchetypeImpl(const UObject* InObject, const FObjectArchetypeHelper::IObjectArchetypePolicy* Policy)
 {
 	//SCOPE_SECONDS_ACCUMULATOR(STAT_FArchiveRealtimeGC_GetArchetype);
 
+#if WITH_EDITOR
+	if (Policy)
+	{
+		if (UObject* Archetype = Policy->GetArchetype(InObject))
+		{
+			return Archetype;
+		}
+	}
+#endif
+
+	bool bUseUpToDateClass = false;
 #if UE_CACHE_ARCHETYPE
 	if (!bEnableArchetypeCache)
 	{
-		return GetArchetypeFromRequiredInfo(GetClass(), GetOuter(), GetFName(), GetFlags());
+		return GetArchetypeFromRequiredInfoImpl(InObject->GetClass(), InObject->GetOuter(), InObject->GetFName(), InObject->GetFlags(), bUseUpToDateClass, Policy);
 	}
 
 	UObject* Archetype = nullptr;
-	FArchetypeInfo Annoatation = ArchetypeAnnotation.GetAnnotation(this);
+	FArchetypeInfo Annoatation = ArchetypeAnnotation.GetAnnotation(InObject);
 	int32 ArchetypeIndex = Annoatation.ArchetypeIndex;
 	int32 SerialNumber = ArchetypeIndex == INDEX_NONE ? INDEX_NONE : GUObjectArray.GetSerialNumber(ArchetypeIndex);
 	if ((ArchetypeIndex == INDEX_NONE) || (SerialNumber != Annoatation.SerialNumber))
 	{
-		Archetype = GetArchetypeFromRequiredInfo(GetClass(), GetOuter(), GetFName(), GetFlags());
+		Archetype = GetArchetypeFromRequiredInfoImpl(InObject->GetClass(), InObject->GetOuter(), InObject->GetFName(), InObject->GetFlags(), bUseUpToDateClass, Policy);
 		// If the Outer is pending load we can't cache the archetype as it may be inacurate
-		if (Archetype && !(GetOuter() && GetOuter()->HasAnyFlags(RF_NeedLoad)))
+		if (Archetype && !(InObject->GetOuter() && InObject->GetOuter()->HasAnyFlags(RF_NeedLoad)))
 		{
 			ArchetypeIndex = GUObjectArray.ObjectToIndex(Archetype);
-			ArchetypeAnnotation.AddAnnotation(this, FArchetypeInfo{ ArchetypeIndex, GUObjectArray.AllocateSerialNumber(ArchetypeIndex) });
+			ArchetypeAnnotation.AddAnnotation(InObject, FArchetypeInfo{ ArchetypeIndex, GUObjectArray.AllocateSerialNumber(ArchetypeIndex) });
 		}
 	}
 	else
@@ -207,7 +229,7 @@ UObject* UObject::GetArchetype() const
 		check(ArchetypeItem != nullptr);
 		Archetype = static_cast<UObject*>(ArchetypeItem->Object);
 #if UE_VERIFY_CACHED_ARCHETYPE
-		UObject* ExpectedArchetype = GetArchetypeFromRequiredInfo(GetClass(), GetOuter(), GetFName(), GetFlags());
+		UObject* ExpectedArchetype = GetArchetypeFromRequiredInfoImpl(InObject->GetClass(), InObject->GetOuter(), InObject->GetFName(), InObject->GetFlags(), bUseUpToDateClass, Policy);
 		if (ExpectedArchetype != Archetype)
 		{
 			UE_LOG(LogClass, Fatal, TEXT("Cached archetype mismatch, expected: %s, cached: %s"), *GetFullNameSafe(ExpectedArchetype), *GetFullNameSafe(Archetype));
@@ -219,8 +241,18 @@ UObject* UObject::GetArchetype() const
 
 	return Archetype;
 #else
-	return GetArchetypeFromRequiredInfo(GetClass(), GetOuter(), GetFName(), GetFlags());
+	return GetArchetypeFromRequiredInfoImpl(InObject->GetClass(), InObject->GetOuter(), InObject->GetFName(), InObject->GetFlags(), bUseUpToDateClass, Policy);
 #endif // UE_CACHE_ARCHETYPE
+}
+
+UObject* UObject::GetArchetype() const
+{
+	return GetArchetypeImpl(this, nullptr);
+}
+
+UObject* FObjectArchetypeHelper::GetArchetype(const UObject* InObject, const FObjectArchetypeHelper::IObjectArchetypePolicy* Policy)
+{
+	return GetArchetypeImpl(InObject, Policy);
 }
 
 /** Removes all cached archetypes to avoid doing it in static exit where it may cause crashes */

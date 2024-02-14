@@ -22,6 +22,12 @@ class FPropertyNode;
 class FPropertyRestriction;
 class FStructurePropertyNode;
 
+namespace PropertyEditorPolicy
+{
+	class IEditConstPolicy;
+	class IArchetypePolicy;
+}
+
 DECLARE_LOG_CATEGORY_EXTERN(LogPropertyNode, Log, All);
 
 namespace EPropertyNodeFlags
@@ -921,6 +927,18 @@ public:
 		return PossibleExtensions;
 	}
 
+	static UObject* GetArchetype(const UObject* Object);
+
+	static void RegisterArchetypePolicy(PropertyEditorPolicy::IArchetypePolicy* ArchetypePolicy);
+	static void UnregisterArchetypePolicy(PropertyEditorPolicy::IArchetypePolicy* ArchetypePolicy);
+	
+	static void RegisterEditConstPolicy(PropertyEditorPolicy::IEditConstPolicy* EditConstPolicy);
+	static void UnregisterEditConstPolicy(PropertyEditorPolicy::IEditConstPolicy* EditConstPolicy);
+
+	static bool IsPropertyEditConst(const FEditPropertyChain& PropertyChain, UObject* Object);
+
+	static bool IsPropertyEditConst(const FProperty* Property, UObject* Object);
+
 	/**
 	 * Adds a restriction to the possible values for this property.
 	 * @param Restriction	The restriction being added to this property.
@@ -1305,8 +1323,10 @@ protected:
 	*/
 	mutable bool bIsEditConst;
 	mutable bool bUpdateEditConstState;
+	mutable int32 UpdateEditConstStateEpoch;
 	mutable bool bDiffersFromDefault;
 	mutable bool bUpdateDiffersFromDefault;
+	mutable int32 UpdateDiffersFromDefaultEpoch;
 };
 
 class FComplexPropertyNode : public FPropertyNode

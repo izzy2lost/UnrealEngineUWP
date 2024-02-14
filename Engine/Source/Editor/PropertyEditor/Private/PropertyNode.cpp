@@ -16,6 +16,8 @@
 #include "PropertyHandleImpl.h"
 #include "PropertyRestriction.h"
 #include "PropertyTextUtilities.h"
+#include "PropertyEditorEditConstPolicy.h"
+#include "PropertyEditorArchetypePolicy.h"
 #include "StringPrefixTree.h"
 #include "StructurePropertyNode.h"
 
@@ -26,8 +28,134 @@
 #include "UObject/UnrealType.h"
 
 #include "UObject/PropertyOptional.h"
+#include "UObject/UObjectArchetypeHelper.h"
 
 #define LOCTEXT_NAMESPACE "PropertyNode"
+
+namespace PropertyEditorPolicy
+{
+	struct FPropertyNodePolicyImpl : public FObjectArchetypeHelper::IObjectArchetypePolicy
+	{
+		FPropertyNodePolicyImpl() {}
+		virtual ~FPropertyNodePolicyImpl() {}
+		
+		virtual UObject* GetArchetype(const UObject* Object) const override
+		{
+			for (const IArchetypePolicy* ArchetypePolicy : ArchetypePolicies)
+			{
+				if (UObject* Archetype = ArchetypePolicy->GetArchetypeForObject(Object))
+				{
+					return Archetype;
+				}
+			}
+
+			return nullptr;
+		}
+
+		bool CanEditProperty(const FEditPropertyChain& PropertyChain, const UObject* Object) const
+		{
+			for (const IEditConstPolicy* EditConstPolicy : EditConstPolicies)
+			{
+				if (!EditConstPolicy->CanEditProperty(PropertyChain, Object))
+				{
+					return false;
+				}
+			}
+			
+			return true;
+		}
+
+		bool CanEditProperty(const FProperty* Property, const UObject* Object) const
+		{
+			for (const IEditConstPolicy* EditConstPolicy : EditConstPolicies)
+			{
+				if (!EditConstPolicy->CanEditProperty(Property, Object))
+				{
+					return false;
+				}
+			}
+
+			return true;
+		}
+
+		void RegisterArchetypePolicy(IArchetypePolicy* ArchetypePolicy)
+		{
+			check(!ArchetypePolicies.Contains(ArchetypePolicy));
+			ArchetypePolicies.Add(ArchetypePolicy);
+			PolicyEpoch++;
+		}
+
+		void UnregisterArchetypePolicy(IArchetypePolicy* ArchetypePolicy)
+		{
+			check(ArchetypePolicies.Contains(ArchetypePolicy));
+			ArchetypePolicies.Remove(ArchetypePolicy);
+			PolicyEpoch++;
+		}
+
+		void RegisterEditConstPolicy(IEditConstPolicy* EditConstPolicy)
+		{
+			check(!EditConstPolicies.Contains(EditConstPolicy));
+			EditConstPolicies.Add(EditConstPolicy);
+			PolicyEpoch++;
+		}
+
+		void UnregisterEditConstPolicy(IEditConstPolicy* EditConstPolicy)
+		{
+			check(EditConstPolicies.Contains(EditConstPolicy));
+			EditConstPolicies.Remove(EditConstPolicy);
+			PolicyEpoch++;
+		}
+
+		int32 GetPolicyEpoch() const
+		{
+			return PolicyEpoch;
+		}
+				
+		TArray<IArchetypePolicy*> ArchetypePolicies;
+		TArray<IEditConstPolicy*> EditConstPolicies;
+		int32 PolicyEpoch = 0;
+	};
+
+	FPropertyNodePolicyImpl& Get()
+	{
+		static FPropertyNodePolicyImpl Policy;
+		return Policy;
+	}
+}
+void FPropertyNode::RegisterArchetypePolicy(PropertyEditorPolicy::IArchetypePolicy* ArchetypePolicy)
+{
+	PropertyEditorPolicy::Get().RegisterArchetypePolicy(ArchetypePolicy);
+}
+
+void FPropertyNode::UnregisterArchetypePolicy(PropertyEditorPolicy::IArchetypePolicy* ArchetypePolicy)
+{
+	PropertyEditorPolicy::Get().UnregisterArchetypePolicy(ArchetypePolicy);
+}
+
+void FPropertyNode::RegisterEditConstPolicy(PropertyEditorPolicy::IEditConstPolicy* EditConstPolicy)
+{
+	PropertyEditorPolicy::Get().RegisterEditConstPolicy(EditConstPolicy);
+}
+
+void FPropertyNode::UnregisterEditConstPolicy(PropertyEditorPolicy::IEditConstPolicy* EditConstPolicy)
+{
+	PropertyEditorPolicy::Get().UnregisterEditConstPolicy(EditConstPolicy);
+}
+
+UObject* FPropertyNode::GetArchetype(const UObject* Object)
+{
+	return Object ? FObjectArchetypeHelper::GetArchetype(Object, &PropertyEditorPolicy::Get()) : nullptr;
+}
+
+bool FPropertyNode::IsPropertyEditConst(const FEditPropertyChain& PropertyChain, UObject* Object)
+{
+	return !PropertyEditorPolicy::Get().CanEditProperty(PropertyChain, Object);
+}
+
+bool FPropertyNode::IsPropertyEditConst(const FProperty* Property, UObject* Object)
+{
+	return !PropertyEditorPolicy::Get().CanEditProperty(Property, Object);
+}
 
 FEditConditionParser FPropertyNode::EditConditionParser;
 
@@ -74,8 +202,10 @@ FPropertyNode::FPropertyNode()
 	, PropertyPath(TEXT(""))
 	, bIsEditConst(false)
 	, bUpdateEditConstState(true)
+	, UpdateEditConstStateEpoch(0)
 	, bDiffersFromDefault(false)
 	, bUpdateDiffersFromDefault(true)
+	, UpdateDiffersFromDefaultEpoch(0)
 {
 }
 
@@ -1197,8 +1327,10 @@ bool FPropertyNode::IsPropertyConst() const
 /** @return whether this window's property is constant (can't be edited by the user) */
 bool FPropertyNode::IsEditConst() const
 {
-	if (bUpdateEditConstState)
+	if (bUpdateEditConstState || UpdateEditConstStateEpoch != PropertyEditorPolicy::Get().GetPolicyEpoch())
 	{
+		UpdateEditConstStateEpoch = PropertyEditorPolicy::Get().GetPolicyEpoch();
+
 		// Ask the objects whether this property can be changed
 		const FObjectPropertyNode* ObjectPropertyNode = FindObjectItemParent();
 
@@ -1267,6 +1399,12 @@ bool FPropertyNode::IsEditConst() const
 					const TWeakObjectPtr<UObject> CurObject = *CurObjectIt;
 					if (CurObject.IsValid())
 					{
+						if (!PropertyEditorPolicy::Get().CanEditProperty(*PropertyChain, CurObject.Get()))
+						{
+							bIsEditConst = true;
+							break;
+						}
+						
 						if (!CurObject->CanEditChange(*PropertyChain))
 						{
 							// At least one of the objects didn't like the idea of this property being changed.
@@ -1711,7 +1849,7 @@ public:
 			// calculate the addresses for the default object if it exists
 			if (bHasDefaultValue)
 			{
-				PropertyDefaultValueRoot.OwnerObject = PropertyValueRoot.OwnerObject ? PropertyValueRoot.OwnerObject->GetArchetype() : nullptr;
+				PropertyDefaultValueRoot.OwnerObject = PropertyValueRoot.OwnerObject ? FPropertyNode::GetArchetype(PropertyValueRoot.OwnerObject) : nullptr;
 
 				PropertyDefaultBaseAddress = Node->GetValueBaseAddressFromObject(PropertyDefaultValueRoot.OwnerObject);
 				PropertyDefaultAddress = PropertyNode->GetValueAddressFromObject(PropertyDefaultValueRoot.OwnerObject);
@@ -1876,7 +2014,7 @@ private:
 			}
 			check(PropertyValueBaseAddress);
 			check(PropertyValueRoot.OwnerObject);
-			UObject* ParentDefault = PropertyValueRoot.OwnerObject->GetArchetype();
+			UObject* ParentDefault = FPropertyNode::GetArchetype(PropertyValueRoot.OwnerObject);
 			check(ParentDefault);
 			if (OwnerClass == ParentDefault->GetClass())
 			{
@@ -2348,8 +2486,9 @@ bool FPropertyNode::GetDiffersFromDefaultForObject( FPropertyItemValueDataTracke
  */
 bool FPropertyNode::GetDiffersFromDefault()
 {
-	if( bUpdateDiffersFromDefault )
+	if( bUpdateDiffersFromDefault || UpdateDiffersFromDefaultEpoch != PropertyEditorPolicy::Get().GetPolicyEpoch())
 	{
+		UpdateDiffersFromDefaultEpoch = PropertyEditorPolicy::Get().GetPolicyEpoch();
 		bUpdateDiffersFromDefault = false;
 		bDiffersFromDefault = false;
 
@@ -3617,7 +3756,7 @@ void FPropertyNode::GatherInstancesAffectedByContainerPropertyChange(UObject* Mo
 		{
 			UObject* Obj = ArchetypeInstances[i];
 
-			if (Obj->GetArchetype() == ObjToChange)
+			if (GetArchetype(Obj) == ObjToChange)
 			{
 				ObjectsToChange.Push(Obj);
 				ArchetypeInstances.RemoveAt(i--);
@@ -3916,7 +4055,7 @@ void FPropertyNode::PropagatePropertyChange( UObject* ModifiedObject, const TCHA
 		{
 			UObject* Obj = ArchetypeInstances[InstanceIndex];
 
-			if (Obj->GetArchetype() == ObjToChange)
+			if (GetArchetype(Obj) == ObjToChange)
 			{
 				ObjectsToChange.Push(Obj);
 				ArchetypeInstances.RemoveAt(InstanceIndex--);
