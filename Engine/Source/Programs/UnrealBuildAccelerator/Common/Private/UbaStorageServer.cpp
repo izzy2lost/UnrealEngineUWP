@@ -330,7 +330,7 @@ namespace uba
 								proxy.port = info.proxyPort;
 								proxy.zone = proxyName.data;
 
-								m_logger.Info(TC("%s:%u is assigned as proxy for zone %s"), proxy.host.c_str(), proxy.port, proxy.zone.c_str());
+								m_logger.Info(TC("%s:%u (%s) is assigned as proxy for zone %s"), proxy.host.c_str(), proxy.port, GuidToString(connectionInfo.GetUid()).str, proxy.zone.c_str());
 
 								writer.WriteBool(true);
 								writer.WriteU16(info.proxyPort);
@@ -383,7 +383,7 @@ namespace uba
 						m_logger.Info(TC("Server did not find cas for %s in file table lookup. Recalculating cas key"), hint.data);
 						if (!CalculateCasKey(checkedCasKey, hint.data))
 						{
-							m_logger.Error(TC("FetchBegin failed for cas file %s (%s). Can't calculate cas key for file"), CasKeyString(casKey).str, hint.data);
+							m_logger.Error(TC("FetchBegin failed for cas file %s (%s) requested by %s. Can't calculate cas key for file"), CasKeyString(casKey).str, hint.data, GuidToString(connectionInfo.GetUid()).str);
 							writer.WriteU16(0);
 							return false;
 						}

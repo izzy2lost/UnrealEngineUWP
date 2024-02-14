@@ -151,14 +151,14 @@ namespace uba
 						writer2.WriteBytes(reader.GetPositionData(), reader.GetLeft());
 
 						if (!msg.Send(reader2))
-							return false;
+							return m_logger.Error(TC("FetchBegin failed for cas file %s (%s). Requested by %s"), CasKeyString(casKey).str, hint.data, GuidToString(connectionInfo.GetUid()).str);
 
 						BinaryReader tempReader(reader2.GetPositionData(), 0, reader2.GetLeft());
 						u32 sizeOfFirstMessage = u32(reader2.GetLeft());
 						u16 fetchId = tempReader.ReadU16();
 						if (fetchId == 0)
 						{
-							m_logger.Error(TC("FetchBegin failed for cas file %s (%s)"), CasKeyString(casKey).str, hint.data);
+							m_logger.Error(TC("FetchBegin failed for cas file %s (%s). Requested by %s"), CasKeyString(casKey).str, hint.data, GuidToString(connectionInfo.GetUid()).str);
 							writer.WriteU16(0);
 							return true;
 						}

@@ -87,7 +87,8 @@ namespace uba
 		ExtendedTimerScope ts(SystemStats::GetCurrent().readFile);
 		u8* buffer = (u8*)b;
 		u64 readLeft = bufferLen;
-		
+		u64 firstZeroReadTime = 0;
+
 		while (readLeft)
 		{
 			u32 toRead = u32(Min(readLeft, u64(~u32(0)) - 1));
@@ -104,6 +105,14 @@ namespace uba
 				return false;
 			}
 #endif
+			if (wasRead == 0)
+			{
+				if (firstZeroReadTime == 0)
+					firstZeroReadTime = GetTime();
+				else if (TimeToMs(GetTime() - firstZeroReadTime) > 3*1000)
+					return logger.Error(TC("ERROR reading file %s trying to read %u bytes from offset %llu but ReadFile returns 0 bytes read.. Is the file big enough?"), fileName, toRead, bufferLen - readLeft);
+			}
+
 			readLeft -= wasRead;
 			buffer += wasRead;
 		}
