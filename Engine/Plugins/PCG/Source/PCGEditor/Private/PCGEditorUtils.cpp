@@ -2,13 +2,14 @@
 
 #include "PCGEditorUtils.h"
 
-#include "Blueprint/BlueprintSupport.h"
+#include "PCGDataAsset.h"
 #include "PCGGraph.h"
 #include "Elements/PCGExecuteBlueprint.h"
 
 #include "AssetToolsModule.h"
 #include "AssetRegistry/ARFilter.h"
 #include "AssetRegistry/AssetRegistryModule.h"
+#include "Blueprint/BlueprintSupport.h"
 #include "IAssetTools.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/KismetEditorUtilities.h"
@@ -84,6 +85,15 @@ void PCGEditorUtils::ForEachPCGGraphAssetData(TFunctionRef<bool(const FAssetData
 {
 	FARFilter Filter;
 	Filter.ClassPaths.Add(UPCGGraph::StaticClass()->GetClassPathName());
+	Filter.bRecursiveClasses = true;
+
+	ForEachAssetData(Filter, InFunc);
+}
+
+void PCGEditorUtils::ForEachPCGAssetData(TFunctionRef<bool(const FAssetData&)> InFunc)
+{
+	FARFilter Filter;
+	Filter.ClassPaths.Add(UPCGDataAsset::StaticClass()->GetClassPathName());
 	Filter.bRecursiveClasses = true;
 
 	ForEachAssetData(Filter, InFunc);

@@ -130,6 +130,33 @@ struct FPCGEditorGraphSchemaAction_NewBlueprintElement : public FEdGraphSchemaAc
 };
 
 USTRUCT()
+struct FPCGEditorGraphSchemaAction_NewLoadAssetElement : public FEdGraphSchemaAction
+{
+	GENERATED_BODY()
+
+	// Inherit the base class's constructors
+	using FEdGraphSchemaAction::FEdGraphSchemaAction;
+
+	// Simple type info
+	static FName StaticGetTypeId()
+	{
+		static FName Type("FPCGEditorGraphSchemaAction_NewLoadAssetElement");
+		return Type;
+	}
+
+	UPROPERTY()
+	FAssetData Asset;
+
+	UPROPERTY()
+	TSubclassOf<UPCGSettings> SettingsClass;
+
+	//~ Begin FEdGraphSchemaAction Interface
+	virtual FName GetTypeId() const override { return StaticGetTypeId(); }
+	virtual UEdGraphNode* PerformAction(UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode = true) override;
+	//~ End FEdGraphSchemaAction Interface
+};
+
+USTRUCT()
 struct FPCGEditorGraphSchemaAction_NewSubgraphElement : public FEdGraphSchemaAction
 {
 	GENERATED_BODY()

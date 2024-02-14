@@ -4,18 +4,23 @@
 
 #include "PCGEditorCommands.h"
 #include "PCGEditorGraphNodeFactory.h"
+#include "PCGEditorMenuUtils.h"
 #include "PCGEditorSettings.h"
 #include "PCGEditorStyle.h"
 #include "PCGEditorUtils.h"
 #include "PCGSubsystem.h"
 #include "PCGVolumeFactory.h"
 
+#include "ContentBrowserMenuContexts.h"
+#include "ContentBrowserModule.h"
 #include "Editor.h"
 #include "EditorModeManager.h"
 #include "EditorModes.h"
+#include "IContentBrowserSingleton.h"
 #include "ISettingsModule.h"
 #include "PropertyEditorModule.h"
 #include "ToolMenus.h"
+
 #include "Details/EnumSelectorDetails.h"
 #include "Details/PCGAttributePropertySelectorDetails.h"
 #include "Details/PCGBlueprintSettingsDetails.h"
@@ -30,8 +35,9 @@
 void FPCGEditorModule::StartupModule()
 {
 	RegisterDetailsCustomizations();
-	RegisterMenuExtensions();
 	RegisterSettings();
+
+	UToolMenus::RegisterStartupCallback(FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FPCGEditorModule::RegisterMenuExtensions));
 
 	FPCGEditorCommands::Register();
 	FPCGEditorStyle::Register();
@@ -143,14 +149,35 @@ void FPCGEditorModule::UnregisterDetailsCustomizations()
 void FPCGEditorModule::RegisterMenuExtensions()
 {
 	FToolMenuOwnerScoped OwnerScoped(this);
-	UToolMenu* Menu = UToolMenus::Get()->ExtendMenu("LevelEditor.MainMenu.Tools");
-	FToolMenuSection& Section = Menu->AddSection("PCGToolsSection", LOCTEXT("PCGToolsSection", "Procedural Generation Tools"));
+	
+	if (UToolMenu* Menu = UToolMenus::Get()->ExtendMenu("LevelEditor.MainMenu.Tools"))
+	{
+		FToolMenuSection& Section = Menu->AddSection("PCGToolsSection", LOCTEXT("PCGToolsSection", "Procedural Generation Tools"));
 
-	Section.AddSubMenu(
-		"PCGToolsSubMenu",
-		LOCTEXT("PCGSubMenu", "PCG Framework"),
-		LOCTEXT("PCGSubMenu_Tooltip", "PCG Framework related functionality"),
-		FNewMenuDelegate::CreateRaw(this, &FPCGEditorModule::PopulateMenuActions));
+		Section.AddSubMenu(
+			"PCGToolsSubMenu",
+			LOCTEXT("PCGSubMenu", "PCG Framework"),
+			LOCTEXT("PCGSubMenu_Tooltip", "Procedural Content Generation (PCG) Framework related functionality"),
+			FNewMenuDelegate::CreateRaw(this, &FPCGEditorModule::PopulateMenuActions));
+	}
+
+	if (UToolMenu* WorldAssetMenu = UToolMenus::Get()->ExtendMenu("ContentBrowser.AssetContextMenu.AssetActionsSubMenu"))
+	{
+		// Use a dynamic section here because we might have plugins registering at a later time
+		FToolMenuSection& Section = WorldAssetMenu->AddDynamicSection("PCG", FNewToolMenuDelegate::CreateLambda([this](UToolMenu* ToolMenu)
+		{
+			if (!GEditor || GEditor->GetPIEWorldContext() || !ToolMenu)
+			{
+				return;
+			}
+
+			if (UContentBrowserAssetContextMenuContext* AssetMenuContext = ToolMenu->Context.FindContext<UContentBrowserAssetContextMenuContext>())
+			{
+				PCGEditorMenuUtils::CreateOrUpdatePCGAssetFromMenu(ToolMenu, AssetMenuContext->SelectedAssets);
+			}
+
+		}), FToolMenuInsert(NAME_None, EToolMenuInsertType::Default));
+	}
 }
 
 void FPCGEditorModule::UnregisterMenuExtensions()
