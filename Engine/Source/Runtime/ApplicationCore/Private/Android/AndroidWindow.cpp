@@ -329,10 +329,10 @@ void FAndroidWindow::ReleaseWindowRef(ANativeWindow* InWindow)
 #endif
 }
 
- void FAndroidWindow::SetHardwareWindow_EventThread(void* InWindow)
+void FAndroidWindow::SetHardwareWindow_EventThread(void* InWindow)
 {
 #if USE_ANDROID_EVENTS
-	 STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("SetHardwareWindow_EventThread(USE_ANDROID_EVENTS) -> InWindow(%p), GAndroidWindowOverride(%p), IsInAndroidEventThread()=%d"), InWindow, GAndroidWindowOverride, IsInAndroidEventThread());
+	STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("SetHardwareWindow_EventThread(USE_ANDROID_EVENTS) -> InWindow(%p), GAndroidWindowOverride(%p), IsInAndroidEventThread()=%d"), InWindow, GAndroidWindowOverride, IsInAndroidEventThread());
 
 	check(IsInAndroidEventThread());
 #endif
@@ -345,7 +345,7 @@ void FAndroidWindow::ReleaseWindowRef(ANativeWindow* InWindow)
 #endif
 
 	//using raw native window handle for now. Could be changed to use AndroidWindow later if needed
-	NativeWindow = InWindow; 
+	NativeWindow = InWindow;
 }
 
 void* FAndroidWindow::GetHardwareWindow_EventThread()
@@ -376,7 +376,7 @@ bool FAndroidWindow::WaitForWindowDimensions()
 	{
 		if (IsEngineExitRequested()
 #if USE_ANDROID_EVENTS
-		|| FAppEventManager::GetInstance()->WaitForEventInQueue(EAppEventState::APP_EVENT_STATE_ON_DESTROY, 0.0f)
+			|| FAppEventManager::GetInstance()->WaitForEventInQueue(EAppEventState::APP_EVENT_STATE_ON_DESTROY, 0.0f)
 #endif
 			)
 		{
@@ -392,7 +392,7 @@ bool FAndroidWindow::WaitForWindowDimensions()
 // once set the dimensions are 'valid' and further changes are updated via FAppEventManager::Tick 
 void FAndroidWindow::SetWindowDimensions_EventThread(ANativeWindow* DimensionWindow)
 {
-	if(bAreCachedNativeDimensionsValid == false)
+	if (bAreCachedNativeDimensionsValid == false)
 	{
 #if USE_ANDROID_JNI
 		CachedNativeWindowWidth = ANativeWindow_getWidth(DimensionWindow);
@@ -417,7 +417,7 @@ void FAndroidWindow::EventManagerUpdateWindowDimensions(int32 Width, int32 Heigh
 	check(Width >= 0 && Height >= 0);
 
 #if USE_ANDROID_STANDALONE
-	STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("FAndroidWindow::EventManagerUpdateWindowDimensions GAndroidWindowOverride=%p, Width=%d, Height=%d, GSurfaceViewWidth=%d, GSurfaceViewHeight=%d, CachedNativeWindowWidth=%d, CachedNativeWindowHeight=%d"), 
+	STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("FAndroidWindow::EventManagerUpdateWindowDimensions GAndroidWindowOverride=%p, Width=%d, Height=%d, GSurfaceViewWidth=%d, GSurfaceViewHeight=%d, CachedNativeWindowWidth=%d, CachedNativeWindowHeight=%d"),
 		GAndroidWindowOverride, Width, Height, GSurfaceViewWidth, GSurfaceViewHeight, CachedNativeWindowWidth, CachedNativeWindowHeight);
 
 	if (GAndroidWindowOverride && GSurfaceViewWidth > 0)
@@ -629,7 +629,7 @@ FPlatformRect FAndroidWindow::GetScreenRect(bool bUseEventThreadWindow)
 				FAndroidDisplayInfo Info = GetAndroidDisplayInfoFromDPITargets(CurrentParams.WindowDPI, CurrentParams.SceneMaxDesiredPixelCount, CurrentParams.SceneMinDPI);
 				ScreenWidth = Info.WindowDims.X;
 				ScreenHeight = Info.WindowDims.Y;
-				if(IsInGameThread())
+				if (IsInGameThread())
 				{
 					static IConsoleVariable* CVarSSP = IConsoleManager::Get().FindConsoleVariable(TEXT("r.SecondaryScreenPercentage.GameViewport"));
 					CVarSSP->Set((float)Info.SceneScaleFactor * 100.0f);

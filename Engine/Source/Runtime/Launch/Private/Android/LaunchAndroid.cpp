@@ -187,7 +187,7 @@ extern FString GFilePathBase;
 FEngineLoop	GEngineLoop;
 
 #if USE_ANDROID_STANDALONE
-	FString GAndroidCommandLine;
+FString GAndroidCommandLine;
 #endif
 
 extern void* GAndroidWindowOverride;
@@ -233,7 +233,7 @@ static void SetSustainedPerformanceMode()
 {
 	static bool bSustainedPerformanceMode = false;
 	bool bIncomingSustainedPerformanceMode = CVarEnableSustainedPerformanceMode.GetValueOnAnyThread() != 0;
-	if(bSustainedPerformanceMode != bIncomingSustainedPerformanceMode)
+	if (bSustainedPerformanceMode != bIncomingSustainedPerformanceMode)
 	{
 		bSustainedPerformanceMode = bIncomingSustainedPerformanceMode;
 		UE_LOG(LogAndroid, Log, TEXT("Setting sustained performance mode: %d"), (int32)bSustainedPerformanceMode);
@@ -271,7 +271,7 @@ static void IssueConsoleCommand(FString Command)
 				GEngine->DeferredCommands.Add(Command);
 			});
 	}
-// to avoid out of order console command issues that were overwritten in configs, for non standalone we do not store pending.
+	// to avoid out of order console command issues that were overwritten in configs, for non standalone we do not store pending.
 #if USE_ANDROID_STANDALONE
 	else
 	{
@@ -601,6 +601,11 @@ void* AndroidMain(void* param)
 {
 	struct android_app* state = (struct android_app*)param;
 
+	FTaskTagScope Scope(ETaskTag::EGameThread);
+	GGameThreadId = FPlatformTLS::GetCurrentThreadId();
+	GNativeAndroidApp = state;
+	check(GNativeAndroidApp);
+
 #else
 int32 AndroidMain(struct android_app* state)
 {
@@ -609,11 +614,6 @@ int32 AndroidMain(struct android_app* state)
 	BootTimingPoint("AndroidMain");
 
 	FPlatformMisc::LowLevelOutputDebugString(TEXT("Entered AndroidMain()\n"));
-
-	FTaskTagScope Scope(ETaskTag::EGameThread);
-	GGameThreadId = FPlatformTLS::GetCurrentThreadId();
-	GNativeAndroidApp = state;
-	check(GNativeAndroidApp);
 
 	// Force the first call to GetJavaEnv() to happen on the game thread, allowing subsequent calls to occur on any thread
 	FAndroidApplication::GetJavaEnv();
@@ -728,7 +728,7 @@ int32 AndroidMain(struct android_app* state)
 	}
 #endif
 
-	STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("LogLoad::AndroidMain - NDKVersion = %d"), PLATFORM_USED_NDK_VERSION_INTEGER );
+	STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("LogLoad::AndroidMain - NDKVersion = %d"), PLATFORM_USED_NDK_VERSION_INTEGER);
 
 	bool bEnableGuarded = false;
 
@@ -791,7 +791,7 @@ int32 AndroidMain(struct android_app* state)
 		GAndroidWindowLock_Lock("AndroidMain lock");
 	}
 
-	FPlatformMisc::LowLevelOutputDebugString( TEXT("After GAndroidWindowLock in AndroidMain"));
+	FPlatformMisc::LowLevelOutputDebugString(TEXT("After GAndroidWindowLock in AndroidMain"));
 
 	FDelegateHandle ConfigReadyHandle = FCoreDelegates::TSConfigReadyForUse().AddStatic(&ApplyAndroidCompatConfigRules);
 
@@ -1074,7 +1074,7 @@ static void* AndroidEventThreadWorker( void* param )
 	//continue to process events until the engine is shutting down
 	while (!IsEngineExitRequested())
 	{
-//		FPlatformMisc::LowLevelOutputDebugString(TEXT("AndroidEventThreadWorker"));
+		//		FPlatformMisc::LowLevelOutputDebugString(TEXT("AndroidEventThreadWorker"));
 
 		AndroidProcessEvents(state);
 
@@ -1098,7 +1098,7 @@ static void AndroidProcessEvents(struct android_app* state)
 	int events;
 	struct android_poll_source* source;
 
-	while((ident = ALooper_pollAll(-1, &fdesc, &events, (void**)&source)) >= 0)
+	while ((ident = ALooper_pollAll(-1, &fdesc, &events, (void**)&source)) >= 0)
 	{
 		// process this event
 		if (source)
@@ -1353,10 +1353,10 @@ static int32_t HandleInputCB(struct android_app* app, AInputEvent* event)
 				return 0;
 			}
 
-			int32_t Width = 0 ;
-			int32_t Height = 0 ;
+			int32_t Width = 0;
+			int32_t Height = 0;
 
-			if(Window)
+			if (Window)
 			{
 				// we are on the event thread. true here indicates we will retrieve dimensions from the current window.
 				FAndroidWindow::CalculateSurfaceSize(Width, Height, true);
@@ -1387,9 +1387,9 @@ static int32_t HandleInputCB(struct android_app* app, AInputEvent* event)
 				}
 				UE_LOG(LogAndroid, Verbose, TEXT("Received touch event %d"), type);
 			}
-			if(isActionTargeted)
+			if (isActionTargeted)
 			{
-				if(actionPointer < 0 || pointerCount < (int)actionPointer)
+				if (actionPointer < 0 || pointerCount < (int)actionPointer)
 				{
 					return 1;
 				}
@@ -1424,7 +1424,7 @@ static int32_t HandleInputCB(struct android_app* app, AInputEvent* event)
 					UE_LOG(LogAndroid, Verbose, TEXT("Received motion event from index %u (id %d) action %d: (%.2f, %.2f)"), i, pointerId, action, x, y);
 
 					TouchInput TouchMessage;
-					TouchMessage.DeviceId= device;
+					TouchMessage.DeviceId = device;
 					TouchMessage.Handle = pointerId;
 					TouchMessage.Type = type;
 					TouchMessage.Position = FVector2D(x, y);
@@ -1674,7 +1674,7 @@ static void SuspendApp_EventThread()
 
 	// wait for a period of time before blocking rendering
 	UE_LOG(LogAndroid, Log, TEXT("SuspendApp_EventThread -> , waiting for event manager to process. tid: %d"), FPlatformTLS::GetCurrentThreadId());
-	
+
 	bool bSuccess = EMDoneTrigger->Wait(4000);
 	float ElapsedTimeInMs_EMDoneTrigger_Wait = FPlatformTime::ToMilliseconds(FPlatformTime::Cycles() - StartCycles);
 	UE_CLOG(!bSuccess, LogAndroid, Log, TEXT("SuspendApp_EventThread -> backgrounding callback, not responded in timely manner."));
@@ -1722,7 +1722,7 @@ static void OnAppCommandCB(struct android_app* app, int32_t cmd)
 		 * receiving this command, android_app->window will contain the new window
 		 * surface.
 		 */
-		// get the window ready for showing
+		 // get the window ready for showing
 		DEVELOPER_LOG_COMMANDCB_CASE(APP_CMD_INIT_WINDOW);
 		UE_LOG(LogAndroid, Log, TEXT("Case APP_CMD_INIT_WINDOW"));
 
