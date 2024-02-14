@@ -4,6 +4,8 @@
 
 #include "AvaEaseCurveTangents.h"
 #include "Containers/Array.h"
+#include "Containers/Map.h"
+#include "Containers/StringFwd.h"
 #include "EditorSubsystem.h"
 #include "Templates/SharedPointer.h"
 #include "AvaEaseCurveSubsystem.generated.h"
@@ -22,6 +24,12 @@ public:
 
 	static FString ProjectPresetPath();
 	static FString PluginPresetPath();
+
+	/**
+	 * Mainly used to compare clicked presets names for engine analytics, thus returns static category
+	 * and preset names of the default presets instead of looking on disk for the actual default names.
+	 */
+	static const TMap<FString, TArray<FString>>& GetDefaultCategoryPresetNames();
 
 	void ReloadPresetsFromJson();
 

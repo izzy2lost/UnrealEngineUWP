@@ -5,11 +5,12 @@
 #include "AssetToolsModule.h"
 #include "AvaSequencer.h"
 #include "CurveEditor.h"
+#include "Dialogs/DlgPickAssetPath.h"
 #include "EaseCurveTool/AvaEaseCurveToolCommands.h"
 #include "EaseCurveTool/AvaEaseCurveToolSettings.h"
 #include "EaseCurveTool/Widgets/SAvaEaseCurveEditor.h"
 #include "EaseCurveTool/Widgets/SAvaEaseCurveTool.h"
-#include "Dialogs/DlgPickAssetPath.h"
+#include "EngineAnalytics.h"
 #include "Factories/CurveFactory.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "HAL/PlatformApplicationMisc.h"
@@ -275,6 +276,24 @@ void FAvaEaseCurveTool::ApplyQuickEaseToSequencerKeySelections(const EOperation 
 	if (ToolWidget.IsValid())
 	{
 		ToolWidget->ZoomToFit();
+	}
+
+	if (FEngineAnalytics::IsAvailable())
+	{
+		FString ParamValue;
+		switch (InOperation)
+		{
+		case EOperation::InOut:
+			ParamValue = TEXT("InOut");
+			break;
+		case EOperation::In:
+			ParamValue = TEXT("In");
+			break;
+		case EOperation::Out:
+			ParamValue = TEXT("Out");
+			break;
+		}
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MotionDesign.EaseCurveTool"), TEXT("QuickEase"), ParamValue);
 	}
 }
 

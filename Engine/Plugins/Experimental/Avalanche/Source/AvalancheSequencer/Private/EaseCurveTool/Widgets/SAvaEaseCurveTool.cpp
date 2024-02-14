@@ -12,6 +12,7 @@
 #include "EaseCurveTool/Widgets/SAvaEaseCurveEditor.h"
 #include "EaseCurveTool/Widgets/SAvaEaseCurvePreset.h"
 #include "Editor.h"
+#include "EngineAnalytics.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "IAvaSequencer.h"
@@ -480,6 +481,21 @@ void SAvaEaseCurveTool::OnPresetChanged(const TSharedPtr<FAvaEaseCurvePreset>& I
 	SetTangents(InPreset->Tangents, ToolOperation.Get(), true, true, true);
 
 	FSlateApplication::Get().SetAllUserFocus(CurveEaseEditorWidget);
+
+	if (FEngineAnalytics::IsAvailable())
+	{
+		// Only send analytics for default presets
+		const TMap<FString, TArray<FString>>& DefaultPresetNames = UAvaEaseCurveSubsystem::GetDefaultCategoryPresetNames();
+		if (DefaultPresetNames.Contains(InPreset->Category)
+			&& DefaultPresetNames[InPreset->Category].Contains(InPreset->Name))
+		{
+			TArray<FAnalyticsEventAttribute> Attributes;
+			Attributes.Emplace(TEXT("Category"), InPreset->Category);
+			Attributes.Emplace(TEXT("Name"), InPreset->Name);
+
+			FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MotionDesign.EaseCurveTool.SetTangentsPreset"), Attributes);
+		}
+	}
 }
 
 void SAvaEaseCurveTool::OnQuickPresetChanged(const TSharedPtr<FAvaEaseCurvePreset>& InPreset) const
