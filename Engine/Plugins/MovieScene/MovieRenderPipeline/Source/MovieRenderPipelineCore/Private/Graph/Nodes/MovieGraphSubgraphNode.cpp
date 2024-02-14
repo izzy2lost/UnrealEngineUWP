@@ -75,8 +75,14 @@ TArray<UMovieGraphPin*> UMovieGraphSubgraphNode::EvaluatePinsToFollow(FMovieGrap
 {
 	TArray<UMovieGraphPin*> PinsToFollow;
 
+	if (!ensure(InContext.PinBeingFollowed))
+	{
+		return PinsToFollow;
+	}
+
 	// If the node is disabled, follow the pin for the first option available.
-	if (IsDisabled())
+	// This is only important for branch connections. For data pins, just continue following the connection.
+	if (IsDisabled() && InContext.PinBeingFollowed->Properties.bIsBranch)
 	{
 		if (UMovieGraphPin* GraphPin = GetFirstConnectedInputPin())
 		{
@@ -86,11 +92,6 @@ TArray<UMovieGraphPin*> UMovieGraphSubgraphNode::EvaluatePinsToFollow(FMovieGrap
 		return PinsToFollow;
 	}
 	
-	if (!ensure(InContext.PinBeingFollowed))
-	{
-		return PinsToFollow;
-	}
-
 	const UMovieGraphConfig* SubgraphPtr = SubgraphAsset.LoadSynchronous();
 	if (!SubgraphPtr)
 	{
@@ -105,6 +106,17 @@ TArray<UMovieGraphPin*> UMovieGraphSubgraphNode::EvaluatePinsToFollow(FMovieGrap
 		// Normally there shouldn't be two identical graphs in the stack (cycle!), but for the purposes of error reporting, include this graph
 		// as the last in the stack so the cycle is clear
 		InContext.SubgraphStack.Add(this);
+		
+		return PinsToFollow;
+	}
+
+	// If an input on the node is being followed, just follow the connection on the pin, nothing fancy required.
+	if (InContext.PinBeingFollowed->IsInputPin())
+	{
+		if (UMovieGraphPin* ConnectedInputPin = InContext.PinBeingFollowed->GetFirstConnectedPin())
+		{
+			PinsToFollow.Add(ConnectedInputPin);
+		}
 		
 		return PinsToFollow;
 	}
@@ -137,6 +149,22 @@ TArray<UMovieGraphPin*> UMovieGraphSubgraphNode::EvaluatePinsToFollow(FMovieGrap
 	InContext.SubgraphStack.Add(this);
 	
 	return PinsToFollow;
+}
+
+FString UMovieGraphSubgraphNode::GetResolvedValueForOutputPin(const FName& InPinName, const FMovieGraphTraversalContext* InContext) const
+{
+	if (const UMovieGraphConfig* Subgraph = SubgraphAsset.LoadSynchronous())
+	{
+		for (UMovieGraphOutput* Output : Subgraph->GetOutputs())
+		{
+			if (Output && (FName(Output->GetMemberName()) == InPinName))
+			{
+				return Output->GetValueSerializedString();
+			}
+		}
+	}
+
+	return FString();
 }
 
 #if WITH_EDITOR

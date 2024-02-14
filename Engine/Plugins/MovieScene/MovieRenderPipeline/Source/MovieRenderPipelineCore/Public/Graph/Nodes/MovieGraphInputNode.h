@@ -18,6 +18,7 @@ public:
 	//~ Begin UMovieGraphNode interface
 	virtual TArray<FMovieGraphPinProperties> GetOutputPinProperties() const override;
 	virtual TArray<UMovieGraphPin*> EvaluatePinsToFollow(FMovieGraphEvaluationContext& InContext) const override;
+	virtual FString GetResolvedValueForOutputPin(const FName& InPinName, const FMovieGraphTraversalContext* InContext) const override;
 	virtual bool CanBeDisabled() const override;
 	
 	virtual bool CanBeAddedByUser() const override { return false; }

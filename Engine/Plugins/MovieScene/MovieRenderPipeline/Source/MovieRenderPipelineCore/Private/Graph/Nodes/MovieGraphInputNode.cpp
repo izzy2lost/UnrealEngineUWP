@@ -80,6 +80,22 @@ TArray<UMovieGraphPin*> UMovieGraphInputNode::EvaluatePinsToFollow(FMovieGraphEv
 	return PinsToFollow;
 }
 
+FString UMovieGraphInputNode::GetResolvedValueForOutputPin(const FName& InPinName, const FMovieGraphTraversalContext* InContext) const
+{
+	if (const UMovieGraphConfig* Graph = GetGraph())
+	{
+		for (UMovieGraphInput* Input : Graph->GetInputs())
+		{
+			if (Input && (FName(Input->GetMemberName()) == InPinName))
+			{
+				return Input->GetValueSerializedString();
+			}
+		}
+	}
+
+	return FString();
+}
+
 bool UMovieGraphInputNode::CanBeDisabled() const
 {
 	return false;

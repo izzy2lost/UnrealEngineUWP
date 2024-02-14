@@ -499,15 +499,37 @@ TArray<FMovieGraphPropertyInfo> UMovieGraphNode::GetOverrideablePropertyInfo() c
 TArray<UMovieGraphPin*> UMovieGraphNode::EvaluatePinsToFollow(FMovieGraphEvaluationContext& InContext) const
 {
 	TArray<UMovieGraphPin*> PinsToFollow;
-
+	
+	if (!ensure(InContext.PinBeingFollowed))
+    {
+    	return PinsToFollow;
+    }
+    
 	// If the node is disabled, only follow the first connected pin.
-	if (IsDisabled())
+    // This is only important for branch connections. For data pins, just continue following the connection.
+	if (IsDisabled() && InContext.PinBeingFollowed->Properties.bIsBranch)
 	{
 		if (UMovieGraphPin* GraphPin = GetFirstConnectedInputPin())
 		{
 			PinsToFollow.Add(GraphPin);
 		}
 
+		return PinsToFollow;
+	}
+
+	// If this is a data (non-branch) connection, just return the first connected pin.
+	if (!InContext.PinBeingFollowed->Properties.bIsBranch)
+	{
+		// Only do this if the pin is an input though. For data output pins, the generic case does not have enough information to determine what
+		// the upstream connected data pin is.
+		if (InContext.PinBeingFollowed->IsInputPin())
+		{
+			if (UMovieGraphPin* ConnectedInputPin = InContext.PinBeingFollowed->GetFirstConnectedPin())
+			{
+				PinsToFollow.Add(ConnectedInputPin);
+			}
+		}
+		
 		return PinsToFollow;
 	}
 
@@ -521,6 +543,7 @@ TArray<UMovieGraphPin*> UMovieGraphNode::EvaluatePinsToFollow(FMovieGraphEvaluat
 			PinsToFollow.Add(InputPin);
 		}
 	}
+	
 	return PinsToFollow;
 }
 

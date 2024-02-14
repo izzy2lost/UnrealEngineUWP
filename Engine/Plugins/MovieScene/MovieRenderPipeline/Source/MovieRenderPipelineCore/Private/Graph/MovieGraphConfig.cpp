@@ -1164,7 +1164,7 @@ void UMovieGraphConfig::InitializeFlattenedNode(UMovieGraphNode* InNode)
 	InNode->UpdateDynamicProperties();
 }
 
-void UMovieGraphConfig::CopyOverriddenProperties(UMovieGraphNode* FromNode, UMovieGraphNode* ToNode, const FMovieGraphTraversalContext* InContext)
+void UMovieGraphConfig::CopyOverriddenProperties(UMovieGraphNode* FromNode, UMovieGraphNode* ToNode, const FMovieGraphEvaluationContext& InEvaluationContext)
 {
 	if (!ensure(FromNode && ToNode))
 	{
@@ -1228,15 +1228,52 @@ void UMovieGraphConfig::CopyOverriddenProperties(UMovieGraphNode* FromNode, UMov
 		// If this property (dynamic or not) has been exposed, attempt to get its value via the connection to it (if any)
 		if (bIsExposed)
 		{
-			if (const UMovieGraphPin* InputPin = FromNode->GetInputPin(PropertyName))
+			if (UMovieGraphPin* InputPin = FromNode->GetInputPin(PropertyName))
 			{
-				// For the connected value to be used, the type must match and the node the value is originating from must be enabled
-				const UMovieGraphPin* ConnectedPin = InputPin->GetFirstConnectedPin();
-				if (ConnectedPin && (ConnectedPin->Properties.Type == InputPin->Properties.Type) && ConnectedPin->Node && !ConnectedPin->Node->IsDisabled())
+				TArray<UMovieGraphPin*> ConnectionPath;
+				
+				// Iterate up the connection chain and find all pins which might have a value that can be resolved.
+				FMovieGraphEvaluationContext ValueConnectionContext;
+				ValueConnectionContext.PinBeingFollowed = InputPin;
+				ValueConnectionContext.SubgraphStack = InEvaluationContext.SubgraphStack;
+				TArray<UMovieGraphPin*> ConnectedValuePins = InputPin->Node->EvaluatePinsToFollow(ValueConnectionContext);
+				while (!ConnectedValuePins.IsEmpty())
 				{
-					// There was a valid connection to the input pin; resolve the value from the connected output and set the
-					// value on this property
-					const FString ResolvedValue = ConnectedPin->Node->GetResolvedValueForOutputPin(ConnectedPin->Properties.Label, InContext);
+					UMovieGraphPin* ConnectedValuePin = ConnectedValuePins[0];
+					if (ConnectionPath.Contains(ConnectedValuePin))
+					{
+						// Recursive connection found
+						UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Found a cycle when following the data connection on pin '%s' for node '%s'. Value will not be resolved."),
+							*ConnectedValuePin->Properties.Label.ToString(), *FromNode->GetName());
+						break;
+					}
+
+					// For the connected value to be used, the type must match and the node the value is originating from must be enabled
+					if (ConnectedValuePin && (ConnectedValuePin->Properties.Type == InputPin->Properties.Type) && ConnectedValuePin->Node && !ConnectedValuePin->Node->IsDisabled())
+					{
+						ConnectionPath.Add(ConnectedValuePin);
+					}
+
+					ValueConnectionContext.PinBeingFollowed = ConnectedValuePin;
+					ConnectedValuePins = ConnectedValuePin->Node->EvaluatePinsToFollow(ValueConnectionContext);
+				}
+
+				// Work backwards and use the most upstream value that can be resolved. The most upstream values wins. For example, if a node has an
+				// exposed pin, that pin is connected to a subgraph's input, and that input is then connected to a variable node in the parent graph.
+				// The variable node's value should be used if it can be resolved, not the subgraph's input value.
+				bool bFoundResolvedValue = false;
+				for (int32 Index = ConnectionPath.Num() - 1; Index >= 0; --Index)
+				{
+					const UMovieGraphPin* ConnectedPin = ConnectionPath[Index];
+					
+					const FString ResolvedValue = ConnectedPin->Node->GetResolvedValueForOutputPin(ConnectedPin->Properties.Label, &InEvaluationContext.UserContext);
+					if (ResolvedValue.IsEmpty())
+					{
+						continue;
+					}
+
+					bFoundResolvedValue = true;
+					
 					if (bIsDynamic)
 					{
 						ToNode->SetDynamicPropertyValue(PropertyName, ResolvedValue);
@@ -1248,7 +1285,13 @@ void UMovieGraphConfig::CopyOverriddenProperties(UMovieGraphNode* FromNode, UMov
 						EditConditionProperty->SetPropertyValue_InContainer(ToNode, true);
 					}
 
-					// The property value was set via a connected pin; move on to the next property
+					// Resolved a value for this pin; stop iterating over the connection chain
+					break;
+				}
+				
+				// The property value was set via a connected pin; move on to the next property
+				if (bFoundResolvedValue)
+				{
 					continue;
 				}
 			}
@@ -1391,7 +1434,7 @@ bool UMovieGraphConfig::CreateFlattenedGraph_Recursive(UMovieGraphEvaluatedConfi
 		// Now do a property-copy from this node onto our flattened one. We don't use the generic property
 		// copy routines in the engine because we have special handling (we want to check if the property
 		// is actually marked for override, and also skip if this has already been overridden).
-		CopyOverriddenProperties(Node, ExistingNode, &InEvaluationContext.UserContext);
+		CopyOverriddenProperties(Node, ExistingNode, InEvaluationContext);
 	}
 
 	// If this is a special "removal" node, keep track of the type that should be removed. Since this method is recursive,
