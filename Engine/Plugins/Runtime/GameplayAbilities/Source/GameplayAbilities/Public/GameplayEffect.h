@@ -1942,6 +1942,7 @@ private:
 
 	mutable int32 ScopedLockCount;
 	int32 PendingRemoves;
+	uint32 NumConsecutiveUnmappedReferencesDebug = 0;
 
 	FActiveGameplayEffect*	PendingGameplayEffectHead;	// Head of pending GE linked list
 	FActiveGameplayEffect** PendingGameplayEffectNext;	// Points to the where to store the next pending GE (starts pointing at head, as more are added, points further down the list).

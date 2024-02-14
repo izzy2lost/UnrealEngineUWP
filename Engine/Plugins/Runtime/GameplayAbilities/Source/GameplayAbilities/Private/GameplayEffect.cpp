@@ -4863,10 +4863,19 @@ void FActiveGameplayEffectsContainer::PostReplicatedReceive(const FFastArraySeri
 
 		if (!Parameters.bHasMoreUnmappedReferences) // Do not invoke GCs when we have missing information (like AActor*s in EffectContext)
 		{
+			NumConsecutiveUnmappedReferencesDebug = 0;
 			if (Owner->IsReadyForGameplayCues())
 			{
 				Owner->HandleDeferredGameplayCues(this);
 			}
+		}
+		else
+		{
+			++NumConsecutiveUnmappedReferencesDebug;
+
+			constexpr uint32 HighNumberOfConsecutiveUnmappedRefs = 30;
+			ensureMsgf(NumConsecutiveUnmappedReferencesDebug < HighNumberOfConsecutiveUnmappedRefs, TEXT("%hs: bHasMoreUnmappedReferences is preventing GameplayCues from firing"), __func__);
+			UE_CLOG((NumConsecutiveUnmappedReferencesDebug % HighNumberOfConsecutiveUnmappedRefs) == 0, LogAbilitySystem, Error, TEXT("%hs: bHasMoreUnmappedReferences is preventing GameplayCues from firing (%u consecutive misses)"), __func__, NumConsecutiveUnmappedReferencesDebug);
 		}
 	}
 }
