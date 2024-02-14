@@ -77,8 +77,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", PinDisplayName = "", MD_LevelsSettings, PinNotConnectable = true))
 	FTG_LevelsSettings					Levels;
 
-	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", PinNotConnectable = true))
-	bool								AutoLevels = true;
+	// TODO: Show Property after 5.4 release
+	//	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", PinNotConnectable = true))
+	bool								AutoLevels = false;
 
 	// The output image filtered result of the Levels operator 
 	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Output", PinDisplayName = ""))
