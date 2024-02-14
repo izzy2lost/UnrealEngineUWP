@@ -591,7 +591,7 @@ UTexture2D* FSVGImporterUtils::CreateSVGTexture(const FString& InSVGString, UObj
 	const FString BaseTextureName = FString(TEXT("SVGTexture"));
 	const FName TextureName = MakeUniqueObjectName(InOuter, UTexture2D::StaticClass(), FName(*BaseTextureName));
 
-	UTexture2D* SVGTexture = NewObject<UTexture2D>(InOuter, UTexture2D::StaticClass(), TextureName, InOuter->GetFlags());
+	UTexture2D* SVGTexture = NewObject<UTexture2D>(InOuter, UTexture2D::StaticClass(), TextureName, RF_Public | RF_Transactional);
 
 	if (!SVGTexture)
 	{
