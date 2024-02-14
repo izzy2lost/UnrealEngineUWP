@@ -140,7 +140,7 @@ private:
 		FLRUNode* NextHigherMipLevel = nullptr;
 		uint32 LastRequested = INDEX_NONE;
 		uint32 RefCount = 0; // Keep track of how many lower mip levels have a dependency on this one
-		uint32 PendingMipLevelIndex = INDEX_NONE;
+		uint32 PendingRequestIndex = INDEX_NONE;
 		int16 FrameIndex = INDEX_NONE;
 		int16 MipLevelIndex = INDEX_NONE;
 	};
@@ -163,7 +163,7 @@ private:
 	};
 
 	// Represents an IO request for a mip level
-	struct FPendingMipLevel
+	struct FPendingRequest
 	{
 		UStreamableSparseVolumeTexture* SparseVolumeTexture = nullptr; // Do not dereference!
 		int32 FrameIndex = INDEX_NONE;
@@ -222,7 +222,7 @@ private:
 
 	struct FAsyncState
 	{
-		int32 NumReadyMipLevels = 0;
+		int32 NumReadyRequests = 0;
 		bool bUpdateActive = false;
 		bool bUpdateIsAsync = false;
 	};
@@ -250,7 +250,7 @@ private:
 
 	TMap<UStreamableSparseVolumeTexture*, TUniquePtr<FStreamingInfo>> StreamingInfo; // Do not dereference the key! We just read the pointer itself.
 	TMap<FMipLevelKey, uint32> RequestsHashTable;
-	TArray<FPendingMipLevel> PendingMipLevels;
+	TArray<FPendingRequest> PendingRequests;
 #if WITH_EDITORONLY_DATA
 	TUniquePtr<UE::DerivedData::FRequestOwner> RequestOwner;
 	TUniquePtr<UE::DerivedData::FRequestOwner> RequestOwnerBlocking;
@@ -259,9 +259,9 @@ private:
 	TUniquePtr<class FPageTableUpdater> PageTableUpdater;
 	FGraphEventArray AsyncTaskEvents;
 	FAsyncState AsyncState;
-	int32 MaxPendingMipLevels = 0;
-	int32 NumPendingMipLevels = 0;
-	int32 NextPendingMipLevelIndex = 0;
+	int32 MaxPendingRequests = 0;
+	int32 NumPendingRequests = 0;
+	int32 NextPendingRequestIndex = 0;
 	uint32 NextUpdateIndex = 1;
 
 	// Transient lifetime
@@ -271,7 +271,7 @@ private:
 	TArray<FStreamingRequest> PrioritizedRequestsHeap;
 	TArray<FStreamingRequest> SelectedRequests;
 	TArray<FTileDataTask> UploadTasks; // accessed on the async thread
-	TArray<FPendingMipLevel*> UploadCleanupTasks; // accessed on the async thread
+	TArray<FPendingRequest*> UploadCleanupTasks; // accessed on the async thread
 
 	void AddInternal(FRDGBuilder& GraphBuilder, FNewSparseVolumeTextureInfo&& NewSVTInfo);
 	void RemoveInternal(UStreamableSparseVolumeTexture* SparseVolumeTexture);
@@ -281,14 +281,14 @@ private:
 	void SelectHighestPriorityRequestsAndUpdateLRU(int32 MaxSelectedRequests);
 	void IssueRequests(int32 MaxSelectedRequests);
 	void StreamOutMipLevel(FStreamingInfo* SVTInfo, FLRUNode* LRUNode);
-	int32 DetermineReadyMipLevels();
-	void InstallReadyMipLevels();
+	int32 DetermineReadyRequests();
+	void InstallReadyRequests();
 	void PatchPageTable(FRDGBuilder& GraphBuilder); // Patches the page table to reflect streamed in/out pages and to ensure non-resident mip levels fall back to coarser mip level tile data
 	FStreamingInfo* FindStreamingInfo(UStreamableSparseVolumeTexture* Key); // Returns nullptr if the key can't be found
 	static FMipTileReadInfo GetMipTileReadInfo(const FFrameInfo& FrameInfo, int32 MipLevel);
 
 #if WITH_EDITORONLY_DATA
-	UE::DerivedData::FCacheGetChunkRequest BuildDDCRequest(const FResources& Resources, uint64 ReadOffset, uint64 ReadSize, uint32 PendingMipLevelIndex);
+	UE::DerivedData::FCacheGetChunkRequest BuildDDCRequest(const FResources& Resources, uint64 ReadOffset, uint64 ReadSize, uint32 PendingRequestIndex);
 	void RequestDDCData(TConstArrayView<UE::DerivedData::FCacheGetChunkRequest> DDCRequests, bool bBlocking);
 #endif
 };
