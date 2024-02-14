@@ -2839,6 +2839,7 @@ FCsvProfiler::FCsvProfiler()
 	, CaptureFrameNumberRT(0)
 	, CaptureOnEventFrameCount(-1)
 	, bInsertEndFrameAtFrameStart(false)
+	, bNamedEventsWasEnabled(false)
 	, LastEndFrameTimestamp(0)
 	, CaptureEndFrameCount(0)
 	, ProcessingThread(nullptr)
@@ -3061,7 +3062,8 @@ void FCsvProfiler::BeginFrame()
 
 					SetMetadataInternal(TEXT("TargetFramerate"), *FString::FromInt(TargetFPS));
 					SetMetadataInternal(TEXT("StartTimestamp"), *FString::Printf(TEXT("%lld"), FDateTime::UtcNow().ToUnixTimestamp()));
-					SetMetadataInternal(TEXT("NamedEvents"), GCycleStatsShouldEmitNamedEvents ? TEXT("1") : TEXT("0"));
+					SetMetadataInternal(TEXT("NamedEvents"), (GCycleStatsShouldEmitNamedEvents > 0) ? TEXT("1") : TEXT("0"));
+					bNamedEventsWasEnabled = (GCycleStatsShouldEmitNamedEvents > 0);
 
 					GCsvStatCounts = !!CVarCsvStatCounts.GetValueOnGameThread();
 
@@ -3080,6 +3082,12 @@ void FCsvProfiler::BeginFrame()
 			if (CaptureFrameNumber == 0)
 			{
 				OnCSVProfileFirstFrameDelegate.Broadcast();
+			}
+
+			if (!bNamedEventsWasEnabled && (GCycleStatsShouldEmitNamedEvents > 0))
+			{
+				bNamedEventsWasEnabled = true;
+				SetMetadataInternal(TEXT("NamedEvents"), TEXT("1"));
 			}
 		}
 	}

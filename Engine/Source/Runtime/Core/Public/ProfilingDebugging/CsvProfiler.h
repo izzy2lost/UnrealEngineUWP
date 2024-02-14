@@ -499,6 +499,7 @@ private:
 	int32 CaptureOnEventFrameCount;
 
 	bool bInsertEndFrameAtFrameStart;
+	bool bNamedEventsWasEnabled;
 
 	uint64 LastEndFrameTimestamp;
 	uint32 CaptureEndFrameCount;
