@@ -20,19 +20,27 @@ enum class EChaosVDContextType : int32
 	SubTraceQuery,
 };
 
+enum class EChaosVDContextAttributes : int32
+{
+	None = 0,
+	Resimulated = 1 << 0
+};
+ENUM_CLASS_FLAGS(EChaosVDContextAttributes)
+
 /** Chaos Visual Debugger data used to context for logging or debugging purposes */
 struct FChaosVDContext
 {
 	int32 OwnerID = INDEX_NONE;
 	int32 Id = INDEX_NONE;
 	int32 Type = INDEX_NONE;
+	int32 Attributes = 0;
 
 	FORCEINLINE void SetDataChannel(const TSharedRef<Chaos::VisualDebugger::FChaosVDOptionalDataChannel>& NewDataChannel)
 	{
 		CurrentDataChannel = NewDataChannel;
 	}
 
-	FORCEINLINE bool IsDataChannelEnabled () const { return CurrentDataChannel->IsChannelEnabled(); }
+	FORCEINLINE bool IsDataChannelEnabled() const { return CurrentDataChannel->IsChannelEnabled(); }
 
 private:
 	TSharedRef<Chaos::VisualDebugger::FChaosVDOptionalDataChannel> CurrentDataChannel = CVDDC_Default;

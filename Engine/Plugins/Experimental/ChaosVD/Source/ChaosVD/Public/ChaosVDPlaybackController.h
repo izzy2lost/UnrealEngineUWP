@@ -39,6 +39,7 @@ struct FChaosVDTrackInfo
 	int32 LockedOnStep = INDEX_NONE;
 	int32 MaxFrames = INDEX_NONE;
 	FString TrackName;
+	bool bIsReSimulated = false;
 };
 
 struct FChaosVDQueuedTrackInfoUpdate
