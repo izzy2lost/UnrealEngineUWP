@@ -1189,7 +1189,8 @@ void FVulkanCommandListContext::RHIEndFrame()
 
 	GetGPUProfiler().EndFrame();
 
-	GetCommandBufferManager()->FreeUnusedCmdBuffers();
+	bool bTrimMemory = false;
+	GetCommandBufferManager()->FreeUnusedCmdBuffers(bTrimMemory);
 
 	Device->GetStagingManager().ProcessPendingFree(false, true);
 	Device->GetMemoryManager().ReleaseFreedPages(*this);
@@ -1282,6 +1283,9 @@ bool FVulkanDynamicRHI::RHIGetAvailableResolutions(FScreenResolutionArray& Resol
 
 void FVulkanDynamicRHI::RHIFlushResources()
 {
+	FVulkanCommandListContextImmediate& ImmediateContext = GetDevice()->GetImmediateContext();
+	bool bTrimMemory = true;
+	ImmediateContext.GetCommandBufferManager()->FreeUnusedCmdBuffers(bTrimMemory);
 }
 
 void FVulkanDynamicRHI::RHIAcquireThreadOwnership()
