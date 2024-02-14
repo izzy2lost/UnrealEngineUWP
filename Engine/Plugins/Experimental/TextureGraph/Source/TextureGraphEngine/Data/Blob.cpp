@@ -494,6 +494,11 @@ void Blob::UpdateLinkedBlobs(bool bDoFinalise)
 	}
 }
 
+BlobPtr	Blob::GetHistogram() const
+{ 
+	return Histogram ? Histogram : std::static_pointer_cast<Blob>(TextureHelper::GetBlack()); 
+}
+
 void Blob::AddLinkedBlob(BlobPtr LinkedBlob)
 {
 	if (IsFinalised())
