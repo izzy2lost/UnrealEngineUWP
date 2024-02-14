@@ -569,7 +569,7 @@ void AGameplayDebuggerCategoryReplicator::BeginPlay()
 	check(World);
 	const ENetMode NetMode = World->GetNetMode();
 	bHasAuthority = FGameplayDebuggerUtils::IsAuthority(World);
-	bIsLocal = (NetMode != NM_DedicatedServer);
+	bIsLocal = !OwnerPC || OwnerPC->IsLocalPlayerController();
 
 	Init();
 }

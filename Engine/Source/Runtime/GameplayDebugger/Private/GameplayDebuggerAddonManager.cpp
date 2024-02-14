@@ -123,7 +123,6 @@ void FGameplayDebuggerAddonManager::CreateCategories(AGameplayDebuggerCategoryRe
 	check(World);
 	const ENetMode NetMode = World->GetNetMode();
 	const bool bHasAuthority = FGameplayDebuggerUtils::IsAuthority(World);
-	const bool bIsLocal = (NetMode != NM_DedicatedServer);
 	const bool bIsSimulate = FGameplayDebuggerAddonBase::IsSimulateInEditor();
 
 	TArray<TSharedRef<FGameplayDebuggerCategory> > UnsortedCategories;
@@ -141,7 +140,7 @@ void FGameplayDebuggerAddonManager::CreateCategories(AGameplayDebuggerCategoryRe
 		CategoryObject.CategoryId = CategoryObjects.Num();
 		CategoryObject.CategoryName = It.Key;
 		CategoryObject.bHasAuthority = bHasAuthority;
-		CategoryObject.bIsLocal = bIsLocal;
+		CategoryObject.bIsLocal = Owner.IsLocal();
 		CategoryObject.bIsEnabled =
 			(It.Value.CategoryState == EGameplayDebuggerCategoryState::EnabledInGameAndSimulate) ||
 			(It.Value.CategoryState == EGameplayDebuggerCategoryState::EnabledInGame && !bIsSimulate) ||
