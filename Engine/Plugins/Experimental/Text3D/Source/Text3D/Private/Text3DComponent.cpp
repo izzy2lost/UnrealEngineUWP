@@ -1053,7 +1053,7 @@ void UText3DComponent::UpdateTransforms()
 		}
 	}
 
-	ModifyFlags &= EText3DModifyFlags::Layout; 
+	ModifyFlags &= ~EText3DModifyFlags::Layout;
 }
 
 void UText3DComponent::ClearTextMesh()
