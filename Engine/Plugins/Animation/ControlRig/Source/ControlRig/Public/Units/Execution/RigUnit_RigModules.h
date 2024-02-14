@@ -21,7 +21,7 @@ struct CONTROLRIG_API FRigUnit_RigModulesBaseMutable : public FRigUnitMutable
 /**
 * Returns the resolved item of the connector.
 */
-USTRUCT(meta=(DisplayName="Resolve", Keywords="Connector,GetResolved,Target", Varying))
+USTRUCT(meta=(DisplayName="Get Connection", Keywords="Connector,GetResolved,Target,Resolve", Varying))
 struct CONTROLRIG_API FRigUnit_ResolveConnector : public FRigUnit_RigModulesBase
 {
 	GENERATED_BODY()
@@ -30,6 +30,7 @@ struct CONTROLRIG_API FRigUnit_ResolveConnector : public FRigUnit_RigModulesBase
 	{
 		Connector = Result = FRigElementKey(NAME_None, ERigElementType::Connector);
 		SkipSocket = false;
+		bIsConnected = false;
 	}
 
 	RIGVM_METHOD()
@@ -53,6 +54,12 @@ struct CONTROLRIG_API FRigUnit_ResolveConnector : public FRigUnit_RigModulesBase
 	 */
 	UPROPERTY(meta = (Output))
 	FRigElementKey Result;
+
+	/*
+	 * Returns true if the connector is resolved to a target.
+	 */
+	UPROPERTY(meta = (Output))
+	bool bIsConnected;
 };
 
 /**

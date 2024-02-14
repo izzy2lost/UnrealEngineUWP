@@ -22,6 +22,8 @@ FRigUnit_ResolveConnector_Execute()
 			}
 		}
 	}
+
+	bIsConnected = Result != Connector;
 }
 
 FRigUnit_GetCurrentNameSpace_Execute()
