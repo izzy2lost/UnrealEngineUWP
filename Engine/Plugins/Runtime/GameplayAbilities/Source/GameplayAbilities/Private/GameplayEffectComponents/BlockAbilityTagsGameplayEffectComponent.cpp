@@ -16,10 +16,10 @@ void UBlockAbilityTagsGameplayEffectComponent::PostInitProperties()
 #endif
 }
 
-void UBlockAbilityTagsGameplayEffectComponent::OnGameplayEffectChanged() const
+void UBlockAbilityTagsGameplayEffectComponent::OnGameplayEffectChanged()
 {
 	Super::OnGameplayEffectChanged();
-	ApplyBlockedAbilityTagChanges();
+	SetAndApplyBlockedAbilityTagChanges(InheritableBlockedAbilityTagsContainer);
 }
 
 #if WITH_EDITOR
@@ -29,8 +29,6 @@ void UBlockAbilityTagsGameplayEffectComponent::PostEditChangeProperty(FPropertyC
 
 	if (PropertyChangedEvent.GetMemberPropertyName() == GetInheritableBlockedAbilityTagsContainerPropertyName())
 	{
-		SetAndApplyBlockedAbilityTagChanges(InheritableBlockedAbilityTagsContainer);
-		
 		// Tell the GE it needs to reconfigure itself based on these updated properties (this will reaggregate the tags)
 		UGameplayEffect* Owner = GetOwner();
 		Owner->OnGameplayEffectChanged();
