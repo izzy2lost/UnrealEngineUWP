@@ -63,7 +63,7 @@ namespace Horde.Server.Agents.Utilization
 			DateTime maxTime = currentTime.Date + TimeSpan.FromHours(currentTime.Hour);
 
 			// Get the latest telemetry data
-			IUtilizationData? latest = await _utilizationDataCollection.GetLatestUtilizationDataAsync();
+			IUtilizationData? latest = await _utilizationDataCollection.GetLatestUtilizationDataAsync(stoppingToken);
 			TimeSpan interval = TimeSpan.FromHours(1.0);
 			int count = (latest == null) ? (7 * 24) : (int)Math.Round((maxTime - latest.FinishTime) / interval);
 			DateTime minTime = maxTime - count * interval;
@@ -84,7 +84,7 @@ namespace Horde.Server.Agents.Utilization
 			for (int idx = 0; idx < count; idx++)
 			{
 				DateTime bucketMaxTime = bucketMinTime + interval;
-				_logger.LogInformation("Creating telemetry for {MinTime} to {MaxTime}", bucketMinTime, bucketMaxTime);
+				_logger.LogDebug("Calculating utilization data for {MinTime} to {MaxTime}", bucketMinTime, bucketMaxTime);
 
 				UtilizationData telemetry = new UtilizationData(bucketMinTime, bucketMaxTime);
 				telemetry.NumAgents = agents.Count;
@@ -133,7 +133,7 @@ namespace Horde.Server.Agents.Utilization
 						}
 					}
 				}
-				await _utilizationDataCollection.AddUtilizationDataAsync(telemetry);
+				await _utilizationDataCollection.AddUtilizationDataAsync(telemetry, stoppingToken);
 
 				bucketMinTime = bucketMaxTime;
 			}

@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Agents.Pools;
@@ -107,24 +108,37 @@ namespace Horde.Server.Agents.Utilization
 		}
 
 		/// <inheritdoc/>
-		public async Task AddUtilizationDataAsync(IUtilizationData newTelemetry)
+		public async Task AddUtilizationDataAsync(IUtilizationData newTelemetry, CancellationToken cancellationToken)
 		{
-			await _utilization.InsertOneAsync(new UtilizationDocument(newTelemetry));
+			await _utilization.InsertOneAsync(new UtilizationDocument(newTelemetry), (InsertOneOptions?)null, cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		public async Task<List<IUtilizationData>> GetUtilizationDataAsync(DateTime startTimeUtc, DateTime finishTimeUtc)
+		public async Task<IReadOnlyList<IUtilizationData>> GetUtilizationDataAsync(DateTime? startTimeUtc, DateTime? finishTimeUtc, int? count, CancellationToken cancellationToken)
 		{
-			FilterDefinition<UtilizationDocument> filter = Builders<UtilizationDocument>.Filter.Gte(x => x.FinishTime, startTimeUtc) & Builders<UtilizationDocument>.Filter.Lte(x => x.StartTime, finishTimeUtc);
+			if (startTimeUtc == null || finishTimeUtc == null)
+			{
+				count ??= 10;
+			}
 
-			List<UtilizationDocument> documents = await _utilization.Find(filter).ToListAsync();
-			return documents.ConvertAll<IUtilizationData>(x => x);
+			List<FilterDefinition<UtilizationDocument>> filters = new List<FilterDefinition<UtilizationDocument>>();
+			if (startTimeUtc.HasValue)
+			{
+				filters.Add(Builders<UtilizationDocument>.Filter.Gte(x => x.FinishTime, startTimeUtc.Value));
+			}
+			if (finishTimeUtc.HasValue)
+			{
+				filters.Add(Builders<UtilizationDocument>.Filter.Lte(x => x.StartTime, finishTimeUtc.Value));
+			}
+
+			FilterDefinition<UtilizationDocument> filter = (filters.Count > 0)? Builders<UtilizationDocument>.Filter.And(filters) : FilterDefinition<UtilizationDocument>.Empty;
+			return await _utilization.Find(filter).SortByDescending(x => x.FinishTime).Limit(count).ToListAsync(cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		public async Task<IUtilizationData?> GetLatestUtilizationDataAsync()
+		public async Task<IUtilizationData?> GetLatestUtilizationDataAsync(CancellationToken cancellationToken)
 		{
-			return await _utilization.Find(FilterDefinition<UtilizationDocument>.Empty).SortByDescending(x => x.FinishTime).FirstOrDefaultAsync();
+			return await _utilization.Find(FilterDefinition<UtilizationDocument>.Empty).SortByDescending(x => x.FinishTime).FirstOrDefaultAsync(cancellationToken);
 		}
 	}
 }

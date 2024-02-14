@@ -3,49 +3,43 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Agents.Telemetry;
 using Microsoft.AspNetCore.Mvc;
+using EpicGames.Core;
 
 namespace Horde.Server.Agents.Utilization
 {
 	/// <summary>
-	/// Controller for the /api/v1/reports endpoint, used for the reports pages
+	/// Controller for the /api/v1/utilization endpoint.
 	/// </summary>
 	[ApiController]
 	[Route("[controller]")]
 	public sealed class UtilizationController : ControllerBase
 	{
-		/// <summary>
-		/// the Telemetry collection singleton
-		/// </summary>
 		readonly IUtilizationDataCollection _utilizationDataCollection;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="utilizationDataCollection">The telemetry collection</param>
 		public UtilizationController(IUtilizationDataCollection utilizationDataCollection)
 		{
 			_utilizationDataCollection = utilizationDataCollection;
 		}
 
 		/// <summary>
-		/// Gets a collection of utilization data including an endpoint and a range
+		/// Gets utilization data for a time range.
 		/// </summary>
+		/// <param name="after">Start time for the search.</param>
+		/// <param name="before">End time for the search.</param>
+		/// <param name="count">Number of samples to include</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		[HttpGet]
 		[Route("/api/v1/utilization")]
-		public async Task<ActionResult<List<GetUtilizationDataResponse>>> GetUtilizationDataAsync([FromQuery] DateTime endDate, [FromQuery(Name = "Range")] int range, [FromQuery(Name = "TzOffset")] int? tzOffset)
+		public async Task<ActionResult<List<GetUtilizationDataResponse>>> GetUtilizationDataAsync([FromQuery] DateTime? after = null, [FromQuery] DateTime? before = null, [FromQuery] int count = 10, CancellationToken cancellationToken = default)
 		{
-			// Logic here is a bit messy. The client is always passing in a date at midnight
-			// If user passes in 12/1/2020 into the date with range of 1, the range should be 12/1/2020:00:00:00 to 12/1/2020:23:59:59
-			// Range 2 should be 11/30/2020:00:00:00 to 12/1/2020:23:59:59
-			int offset = tzOffset ?? 0;
-			DateTimeOffset endDateOffset = new DateTimeOffset(endDate, TimeSpan.FromHours(offset)).Add(new TimeSpan(23, 59, 59));
-			DateTimeOffset startDateOffset = endDate.Subtract(new TimeSpan(range - 1, 0, 0, 0));
-
-			List<IUtilizationData> data = await _utilizationDataCollection.GetUtilizationDataAsync(startDateOffset.UtcDateTime, endDateOffset.UtcDateTime);
-
+			IReadOnlyList<IUtilizationData> data = await _utilizationDataCollection.GetUtilizationDataAsync(after, before, count, cancellationToken);
 			return data.ConvertAll(CreateTelemetryResponse);
 		}
 
@@ -55,9 +49,18 @@ namespace Horde.Server.Agents.Utilization
 		[HttpGet]
 		[Obsolete("Use the /api/v1/utilization endpoint instead.")]
 		[Route("/api/v1/reports/utilization/{endDate}")]
-		public Task<ActionResult<List<GetUtilizationDataResponse>>> GetStreamUtilizationDataAsync(DateTime endDate, [FromQuery(Name = "Range")] int range, [FromQuery(Name = "TzOffset")] int? tzOffset)
+		public async Task<ActionResult<List<GetUtilizationDataResponse>>> GetStreamUtilizationDataAsync(DateTime endDate, [FromQuery(Name = "Range")] int range, [FromQuery(Name = "TzOffset")] int? tzOffset, CancellationToken cancellationToken = default)
 		{
-			return GetUtilizationDataAsync(endDate, range, tzOffset);
+			// Logic here is a bit messy. The client is always passing in a date at midnight
+			// If user passes in 12/1/2020 into the date with range of 1, the range should be 12/1/2020:00:00:00 to 12/1/2020:23:59:59
+			// Range 2 should be 11/30/2020:00:00:00 to 12/1/2020:23:59:59
+			int offset = tzOffset ?? 0;
+			DateTimeOffset endDateOffset = new DateTimeOffset(endDate, TimeSpan.FromHours(offset)).Add(new TimeSpan(23, 59, 59));
+			DateTimeOffset startDateOffset = endDate.Subtract(new TimeSpan(range - 1, 0, 0, 0));
+
+			IReadOnlyList<IUtilizationData> data = await _utilizationDataCollection.GetUtilizationDataAsync(startDateOffset.UtcDateTime, endDateOffset.UtcDateTime, cancellationToken: cancellationToken);
+
+			return data.ConvertAll(CreateTelemetryResponse);
 		}
 
 		static GetUtilizationDataResponse CreateTelemetryResponse(IUtilizationData telemetry)
