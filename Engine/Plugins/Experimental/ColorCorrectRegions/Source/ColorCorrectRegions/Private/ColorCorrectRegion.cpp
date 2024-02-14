@@ -86,7 +86,7 @@ void AColorCorrectRegion::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	if (ColorCorrectRegionsSubsystem.IsValid())
 	{
-		ColorCorrectRegionsSubsystem->OnActorDeleted(this);
+		ColorCorrectRegionsSubsystem->OnActorDeleted(this, false);
 		ColorCorrectRegionsSubsystem = nullptr;
 	}
 	Super::EndPlay(EndPlayReason);
@@ -96,7 +96,7 @@ void AColorCorrectRegion::BeginDestroy()
 {
 	if (ColorCorrectRegionsSubsystem.IsValid())
 	{
-		ColorCorrectRegionsSubsystem->OnActorDeleted(this);
+		ColorCorrectRegionsSubsystem->OnActorDeleted(this, true);
 		ColorCorrectRegionsSubsystem = nullptr;
 	}
 	
