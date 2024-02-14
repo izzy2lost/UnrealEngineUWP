@@ -165,6 +165,9 @@ private:
 	void											ToggleAutoUpdate();
 	bool											IsShowingAutoUpdate() const;
 
+	void											HandleTabWindowSelected(const FName TabID,const FString OuputName);
+	bool											GetTabSelected(const FName TabID);
+
 	void											OnRenderingDone(UMixInterface* TextureGraph, const FInvalidationDetails* Details);
 	void											OnViewportSettingsChanged();
 	void											OnMaterialMappingChanged();
@@ -255,11 +258,7 @@ private:
 	TSharedRef<SDockTab>							SpawnTab_Settings(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab>							SpawnTab_Errors(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab>							SpawnTab_TextureDetails(const FSpawnTabArgs& Args);
-	void 											DisplayNodeHistogramView(bool bShow3DPreview);
-	
-	void 											ToggleNodeHistogramView();
-	void 											TogglePaletteView();
-	void 											DisplayPaletteView(bool bShowSelectionPreview);
+
 	void											ExportAsUAsset();
 	FReply											OnExportClick();
 
@@ -274,9 +273,6 @@ private:
 	// FEditorUndoClient Interface
 	virtual void 									PostUndo(bool bSuccess) override;
 	virtual void 									PostRedo(bool bSuccess) override { PostUndo(bSuccess); }
-	
-	FORCEINLINE bool 								IsShowingNodeHistogramView() const { return bShowNodeHistogram; }
-	FORCEINLINE bool 								IsShowingPaletteView() const { return bShowPaletteView; };
 public:
 	/** Original Texture Graph */
 	TObjectPtr<UTextureGraph>						OriginalTextureGraph;
@@ -285,8 +281,6 @@ public:
 	TObjectPtr<UTextureGraph>						EditedTextureGraph;
 	TObjectPtr<UTG_EdGraph>							TG_EdGraph;
 	FDateTime										SessionStartTime;
-	bool 											bShowNodeHistogram = false;
-	bool 											bShowPaletteView = false;
 
 private:
 	TObjectPtr<UTG_Parameters>						TG_Parameters;
