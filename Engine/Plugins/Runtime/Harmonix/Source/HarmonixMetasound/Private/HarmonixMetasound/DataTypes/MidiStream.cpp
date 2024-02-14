@@ -6,7 +6,7 @@
 
 #include "MetasoundDataTypeRegistrationMacro.h"
 
-REGISTER_METASOUND_DATATYPE(HarmonixMetasound::FMidiStream, "MidiStream")
+REGISTER_METASOUND_DATATYPE(HarmonixMetasound::FMidiStream, "MIDIStream")
 
 namespace HarmonixMetasound
 {
@@ -146,7 +146,7 @@ namespace HarmonixMetasound
 	void FMidiStream::CopyMidiEvents(const FMidiStream& InStream, const FCopyMidiEventsPredicate& Predicate)
 	{
 		const TArray<FMidiStreamEvent>& MidiEvents = InStream.GetEventsInBlock();
-		if (!ensureAlwaysMsgf(EventsInBlock.Num()==0, TEXT("Existing midi events in midi stream are being destroyed during copy!")))
+		if (!ensureAlwaysMsgf(EventsInBlock.Num()==0, TEXT("Existing MIDI events in MIDI stream are being destroyed during copy!")))
 		{
 			EventsInBlock.Empty(FMath::Max(MidiEvents.Num(), 32));
 			ActiveVoices.Reset();
@@ -164,7 +164,7 @@ namespace HarmonixMetasound
 	{
 		if (GetMidiClockSource() && GetMidiClockSource()->Get() != InStream->GetMidiClockSource()->Get())
 		{
-			UE_LOG(LogMidiStreamDataType, Warning, TEXT("Cannot copy midi events from one stream to another if they have different clocks."));
+			UE_LOG(LogMidiStreamDataType, Warning, TEXT("Cannot copy MIDI events from one stream to another if they have different clocks."));
 			return;
 		}
 		if (EventsOnly)
@@ -194,7 +194,7 @@ namespace HarmonixMetasound
 			}
 			else
 			{
-				UE_LOG(LogMidiStreamDataType, Warning, TEXT("Cannot copy midi events from one stream to another if they have different clocks."));
+				UE_LOG(LogMidiStreamDataType, Warning, TEXT("Cannot copy MIDI events from one stream to another if they have different clocks."));
 			}
 		}
 	}

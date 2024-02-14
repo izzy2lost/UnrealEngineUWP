@@ -13,7 +13,7 @@ struct FSongMaps;
 /////////////////////////////////////////////////////////////////////////////
 // Position within a song (midi info)
 //
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintType, Meta = (DisplayName = "MIDI Song Position"))
 struct HARMONIXMIDI_API FMidiSongPos
 {
 	GENERATED_BODY()

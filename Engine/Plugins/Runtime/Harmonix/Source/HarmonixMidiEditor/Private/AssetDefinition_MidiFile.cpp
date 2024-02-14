@@ -21,7 +21,7 @@ TSoftClassPtr<UObject> UAssetDefinition_MidiFile::GetAssetClass() const
 
 FText UAssetDefinition_MidiFile::GetAssetDisplayName() const
 {
-	return NSLOCTEXT("AssetTypeActions", "MidiFileDefinition", "Midi File");
+	return NSLOCTEXT("AssetTypeActions", "MIDIFileDefinition", "Standard MIDI File");
 }
 
 FLinearColor  UAssetDefinition_MidiFile::GetAssetColor() const
@@ -49,8 +49,8 @@ void UAssetDefinition_MidiFile::RegisterContextMenu()
 	Section.AddDynamicEntry("MidiFile_ExportMid",
 		FNewToolMenuSectionDelegate::CreateLambda([](FToolMenuSection& InSection)
 			{
-				const TAttribute<FText> Label = LOCTEXT("MidiFile_ExportMid", "Export Standard Midi File (.mid)");
-				const TAttribute<FText> ToolTip = LOCTEXT("MidiFile_ExportMidToolTip", "Exports standard midi file(s)");
+				const TAttribute<FText> Label = LOCTEXT("MidiFile_ExportMid", "Export Standard MIDI File (.mid)");
+				const TAttribute<FText> ToolTip = LOCTEXT("MidiFile_ExportMidToolTip", "Exports standard MIDI file(s)");
 				const FSlateIcon Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.MidiFile");
 				const FToolMenuExecuteAction UIAction = FToolMenuExecuteAction::CreateStatic(&UAssetDefinition_MidiFile::ExecuteExportMidiFile);
 				InSection.AddMenuEntry("MidiFile_ExportMid", Label, ToolTip, Icon, UIAction);
@@ -75,10 +75,10 @@ void UAssetDefinition_MidiFile::ExecuteExportMidiFile(const FToolMenuContext& Me
 				TArray<FString> SaveFileNames;
 				const bool bFileSelected = DesktopPlatform->SaveFileDialog(
 					FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr),
-					LOCTEXT("MidiFile_ExportMid_SaveFileDialogTitle", "Save standard midi file as...").ToString(),
+					LOCTEXT("MidiFile_ExportMid_SaveFileDialogTitle", "Save Standard MIDI File as...").ToString(),
 					LastMidiExportFolder.IsEmpty() ? FPaths::ProjectDir() : LastMidiExportFolder,
 					DefaultFileName,
-					TEXT("Standard Midi File (*.mid)|*.mid"),
+					TEXT("Standard MIDI File (*.mid)|*.mid"),
 					EFileDialogFlags::None,
 					SaveFileNames);
 
@@ -104,7 +104,7 @@ void UAssetDefinition_MidiFile::ExportAllMidiToFolder(const UContentBrowserAsset
 	if (DesktopPlatform)
 	{
 		FString SelectedFolderName;
-		if (DesktopPlatform->OpenDirectoryDialog(FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr), "Select destination for standard MIDI files...", LastMidiExportFolder.IsEmpty() ? FPaths::ProjectDir() : LastMidiExportFolder, SelectedFolderName))
+		if (DesktopPlatform->OpenDirectoryDialog(FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr), "Select destination for Standard MIDI Files...", LastMidiExportFolder.IsEmpty() ? FPaths::ProjectDir() : LastMidiExportFolder, SelectedFolderName))
 		{
 			LastMidiExportFolder = SelectedFolderName;
 			bool bKeepWarning = true;

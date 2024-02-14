@@ -24,7 +24,7 @@ enum class EMidiFileLengthConformOption : uint8
 	Nearest
 };
 
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintType, Meta = (DisplayName = "MIDI File Data"))
 struct HARMONIXMIDI_API FMidiFileData
 {
 	GENERATED_BODY()
@@ -83,7 +83,7 @@ struct TStructOpsTypeTraits<FMidiFileData> : public TStructOpsTypeTraitsBase2<FM
  * This class can handle loading and saving standard midi files, as well
  * as serializing itself to standard Unreal Engine FArchives.
  */
-UCLASS(BlueprintType, Category="Music")
+UCLASS(BlueprintType, Category="Music", Meta = (DisplayName = "Standard MIDI File"))
 class HARMONIXMIDI_API UMidiFile : public UObject, public IAudioProxyDataFactory
 {
 	GENERATED_BODY()

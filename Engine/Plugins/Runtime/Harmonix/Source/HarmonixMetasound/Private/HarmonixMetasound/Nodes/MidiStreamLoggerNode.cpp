@@ -12,7 +12,7 @@
 #include "HarmonixMetasound/DataTypes/MidiStream.h"
 #include "HarmonixMetasound/DataTypes/MusicTransport.h"
 
-DEFINE_LOG_CATEGORY_STATIC(LogMidiStreamLogger, Log, All);
+DEFINE_LOG_CATEGORY_STATIC(LogMIDIStreamLogger, Log, All);
 
 #define LOCTEXT_NAMESPACE "HarmonixMetaSound"
 
@@ -66,11 +66,11 @@ namespace HarmonixMetasound
 		auto InitNodeInfo = []() -> FNodeClassMetadata
 		{
 			FNodeClassMetadata Info;
-			Info.ClassName        = { HarmonixNodeNamespace, TEXT("MidiStreamLogger"), TEXT("")};
+			Info.ClassName        = { HarmonixNodeNamespace, TEXT("MIDIStreamLogger"), TEXT("")};
 			Info.MajorVersion     = 0;
 			Info.MinorVersion     = 1;
-			Info.DisplayName      = METASOUND_LOCTEXT("MidiStreamLoggerNode_DisplayName", "MIDI Logger");
-			Info.Description      = METASOUND_LOCTEXT("MidiStreamLoggerNode_Description", "Receives MIDI messages and writes them to the log.");
+			Info.DisplayName      = METASOUND_LOCTEXT("MIDIStreamLoggerNode_DisplayName", "MIDI Logger");
+			Info.Description      = METASOUND_LOCTEXT("MIDIStreamLoggerNode_Description", "Receives MIDI messages and writes them to the log.");
 			Info.Author           = PluginAuthor;
 			Info.PromptIfMissing  = PluginNodeMissingPrompt;
 			Info.DefaultInterface = GetVertexInterface();
@@ -194,12 +194,12 @@ namespace HarmonixMetasound
 
 	void FMidiStreamLoggerOperator::DumpTransportEvent(const FMidiTimestampTransportState& TransportEvent)
 	{
-		UE_LOG(LogMidiStreamLogger, Log, TEXT("[%d (%f)] Transport: %s"), TransportEvent.BlockSampleFrameIndex, TransportEvent.BlockSampleFrameOffset, *FMusicTransportControllable::StateToString(TransportEvent.TransportState));
+		UE_LOG(LogMIDIStreamLogger, Log, TEXT("[%d (%f)] Transport: %s"), TransportEvent.BlockSampleFrameIndex, TransportEvent.BlockSampleFrameOffset, *FMusicTransportControllable::StateToString(TransportEvent.TransportState));
 	}
 
 	void FMidiStreamLoggerOperator::DumpMidiEvent(const FMidiStreamEvent& MidiEvent)
 	{
-		UE_LOG(LogMidiStreamLogger, Log, TEXT("[%d (%f)] Track: %d, Auth Tick %d, Render Tick %d, Ms Offset %f, Message: %s"),
+		UE_LOG(LogMIDIStreamLogger, Log, TEXT("[%d (%f)] Track: %d, Auth Tick %d, Render Tick %d, Ms Offset %f, Message: %s"),
 			MidiEvent.BlockSampleFrameIndex,
 			MidiEvent.BlockSampleFrameOffset,
 			MidiEvent.TrackIndex,

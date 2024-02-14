@@ -267,8 +267,8 @@ namespace HarmonixMetasound::Nodes::MidiCCTriggerNode
 				Info.ClassName = GetClassName();
 				Info.MajorVersion = 0;
 				Info.MinorVersion = 1;
-				Info.DisplayName = METASOUND_LOCTEXT("MidiCCTriggerNode_DisplayName", "Midi CC Trigger");
-				Info.Description = METASOUND_LOCTEXT("MidiCCTriggerNode_Description", "Find the Midi CC messages in a midi stream and output them as triggers, floats, ints by the specified Midi track, Midi channel, and Midi Controller ID.");
+				Info.DisplayName = METASOUND_LOCTEXT("MIDICCTriggerNode_DisplayName", "MIDI CC Trigger");
+				Info.Description = METASOUND_LOCTEXT("MIDICCTriggerNode_Description", "Find the MIDI CC messages in a MIDI stream and output them as triggers, floats, ints by the specified MIDI track, MIDI channel, and MIDI Controller ID.");
 				Info.Author = PluginAuthor;
 				Info.PromptIfMissing = PluginNodeMissingPrompt;
 				Info.DefaultInterface = GetVertexInterface();

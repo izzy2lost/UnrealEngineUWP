@@ -11,6 +11,9 @@ class UMidiStepSequenceFactory : public UFactory
 	GENERATED_BODY()
 public:
 	UMidiStepSequenceFactory();
-	UObject* FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn);
+	//~ BEGIN UFactory interface
+	virtual FText GetDisplayName() const override;
+	virtual UObject* FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn) override;
+	//~ END UFactory interface
 };
 

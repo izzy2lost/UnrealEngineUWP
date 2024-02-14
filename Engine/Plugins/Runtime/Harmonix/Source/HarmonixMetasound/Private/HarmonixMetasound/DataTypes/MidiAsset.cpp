@@ -4,7 +4,7 @@
 
 #include "MetasoundDataTypeRegistrationMacro.h"
 
-REGISTER_METASOUND_DATATYPE(HarmonixMetasound::FMidiAsset, "MidiAsset", Metasound::ELiteralType::UObjectProxy, UMidiFile);
+REGISTER_METASOUND_DATATYPE(HarmonixMetasound::FMidiAsset, "MIDIAsset", Metasound::ELiteralType::UObjectProxy, UMidiFile);
 
 namespace HarmonixMetasound
 {

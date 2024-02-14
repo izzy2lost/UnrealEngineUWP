@@ -66,8 +66,8 @@ namespace HarmonixMetasound
 			Info.ClassName        = { HarmonixNodeNamespace, TEXT("MidiStreamMerge"), TEXT("")};
 			Info.MajorVersion     = 0;
 			Info.MinorVersion     = 1;
-			Info.DisplayName      = METASOUND_LOCTEXT("MidiStreamMergeNode_DisplayName", "Midi Merge");
-			Info.Description      = METASOUND_LOCTEXT("MidiStreamMergeNode_Description", "Combines two midi streams into a single stream.");
+			Info.DisplayName      = METASOUND_LOCTEXT("MIDIStreamMergeNode_DisplayName", "MIDI Merge");
+			Info.Description      = METASOUND_LOCTEXT("MIDIStreamMergeNode_Description", "Combines two MIDI streams into a single stream.");
 			Info.Author           = PluginAuthor;
 			Info.PromptIfMissing  = PluginNodeMissingPrompt;
 			Info.DefaultInterface = GetVertexInterface();
@@ -82,8 +82,8 @@ namespace HarmonixMetasound
 
 	namespace MergePinNames
 	{
-		METASOUND_PARAM(InputMidiStreamA, "Midi Stream A", "The first midi stream to merge");
-		METASOUND_PARAM(InputMidiStreamB, "Midi Stream B", "The second midi stream to merge");
+		METASOUND_PARAM(InputMidiStreamA, "MIDI Stream A", "The first MIDI stream to merge");
+		METASOUND_PARAM(InputMidiStreamB, "MIDI Stream B", "The second MIDI stream to merge");
 	}
 
 	const FVertexInterface& FMidiStreamMergeOperator::GetVertexInterface()

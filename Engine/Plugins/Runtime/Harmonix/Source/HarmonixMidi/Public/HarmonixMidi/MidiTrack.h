@@ -14,7 +14,7 @@ class FMidiWriter;
 	* It can be created dynamically or be the end result of importing a 
 	* standard midi file.
 	*/
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintType, Meta = (DisplayName = "MIDI Track"))
 struct HARMONIXMIDI_API FMidiTrack
 {
 	GENERATED_BODY()

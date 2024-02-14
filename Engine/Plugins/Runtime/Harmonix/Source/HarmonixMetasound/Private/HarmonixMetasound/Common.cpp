@@ -22,18 +22,18 @@ namespace HarmonixMetasound
 		namespace Inputs
 		{
 			DEFINE_INPUT_METASOUND_PARAM(Enable,                        "Enable",                             "Enables processing.")
-			DEFINE_INPUT_METASOUND_PARAM(MidiStream,                    "Midi Stream",						  "Midi event stream.")
-			DEFINE_INPUT_METASOUND_PARAM(MidiChannelNumber,             "Midi Channel",                       "Midi channel to render (1-16, 0 for all).")
-			DEFINE_INPUT_METASOUND_PARAM(MidiChannelFilterSpecifier,    "Midi Channel Filter",                "Midi channels to process. '*' for all, or a string like '1,3,4-8' to identify specific channels.")
+			DEFINE_INPUT_METASOUND_PARAM(MidiStream,                    "MIDI Stream",						  "MIDI event stream.")
+			DEFINE_INPUT_METASOUND_PARAM(MidiChannelNumber,             "MIDI Channel",                       "MIDI channel to render (1-16, 0 for all).")
+			DEFINE_INPUT_METASOUND_PARAM(MidiChannelFilterSpecifier,    "MIDI Channel Filter",                "MIDI channels to process. '*' for all, or a string like '1,3,4-8' to identify specific channels.")
 			DEFINE_INPUT_METASOUND_PARAM(MidiTrackNumber,               "Track Number",                       "Track number (1 based).")
-			DEFINE_INPUT_METASOUND_PARAM(MidiTrackIndexFilterSpecifier, "Midi Track Filter",                  "Midi tracks to process. '*' for all, or a string like '1,3,4-8' to identify specific tracks.")
-			DEFINE_INPUT_METASOUND_PARAM(MinMidiNote,                   "Min Note #",                         "Minimum midi note number (0-127).")
-			DEFINE_INPUT_METASOUND_PARAM(MaxMidiNote,                   "Max Note #",                         "Maximum midi note number (0-127).")
+			DEFINE_INPUT_METASOUND_PARAM(MidiTrackIndexFilterSpecifier, "MIDI Track Filter",                  "MIDI tracks to process. '*' for all, or a string like '1,3,4-8' to identify specific tracks.")
+			DEFINE_INPUT_METASOUND_PARAM(MinMidiNote,                   "Min Note #",                         "Minimum MIDI note number (0-127).")
+			DEFINE_INPUT_METASOUND_PARAM(MaxMidiNote,                   "Max Note #",                         "Maximum MIDI note number (0-127).")
 			DEFINE_INPUT_METASOUND_PARAM(MinMidiVelocity,               "Min Velocity",                       "Minimum Velocity (0-127).")
 			DEFINE_INPUT_METASOUND_PARAM(MaxMidiVelocity,               "Max Velocity",                       "Maximum Velocity (0-127).")
-			DEFINE_INPUT_METASOUND_PARAM(MidiFileAsset,                 "Midi File",                          "Standard Midi file.")
+			DEFINE_INPUT_METASOUND_PARAM(MidiFileAsset,                 "MIDI File",                          "Standard MIDI file.")
 			DEFINE_INPUT_METASOUND_PARAM(Transport,                     "Transport",                          "Play, pause, continue, stop, etc.")
-			DEFINE_INPUT_METASOUND_PARAM(MidiClock,                     "Midi Clock",                         "Midi timing information.")
+			DEFINE_INPUT_METASOUND_PARAM(MidiClock,                     "MIDI Clock",                         "MIDI timing information.")
 			DEFINE_INPUT_METASOUND_PARAM(Tempo,                         "Tempo",                              "BPM. This is MIDI bpm... ALWAYS QUARTER NOTES PER MINUTE regardless of time signature!")
 			DEFINE_INPUT_METASOUND_PARAM(TimeSigNumerator,	            "Time Sig. Numerator",                "Time Signature Numerator")
 			DEFINE_INPUT_METASOUND_PARAM(TimeSigDenominator,            "Time Sig. Denominator",              "TimeSignature Denominator")
@@ -48,7 +48,7 @@ namespace HarmonixMetasound
 			DEFINE_INPUT_METASOUND_PARAM(TransportKill,                 "Kill",                               "Causes a transport kill request.")
 			DEFINE_INPUT_METASOUND_PARAM(TriggerSeek,                   "Trigger Seek",                       "Causes a transport seek request. Seek destination provided on a separate input.")
 			DEFINE_INPUT_METASOUND_PARAM(SeekDestination,               "Seek Target",                        "Destination for the next seek when it is triggered.")
-			DEFINE_INPUT_METASOUND_PARAM(PrerollBars,                   "Pre-roll Bars",                      "Number of bars to look back when seeking midi to find note-on messages that should hold over.")
+			DEFINE_INPUT_METASOUND_PARAM(PrerollBars,                   "Pre-roll Bars",                      "Number of bars to look back when seeking MIDI to find note-on messages that should hold over.")
 			DEFINE_INPUT_METASOUND_PARAM(GridSizeUnits,                 "Base Grid Size",                     "Base size of the qrid squares in musical terms.")
 			DEFINE_INPUT_METASOUND_PARAM(GridSizeMult,                  "Grid Size Multiplier",               "Grid size multiplier.")
 			DEFINE_INPUT_METASOUND_PARAM(OffsetUnits,                   "Base Offset Size ",                  "Base size of the qrid offset.")
@@ -57,8 +57,8 @@ namespace HarmonixMetasound
 			DEFINE_INPUT_METASOUND_PARAM(FloatBeat,			            "Beat",                               "Musical beat index. 0 based and in units of the time signature denomninator! The value is rounded to the nearest 32nd note.")
 			DEFINE_INPUT_METASOUND_PARAM(SynthPatch,                    "Patch",                              "Synthesizer patch asset.")
 			DEFINE_INPUT_METASOUND_PARAM(Transposition,                 "Transposition",                      "Transposition in semitones.")
-			DEFINE_INPUT_METASOUND_PARAM(ClockSpeedToPitch,             "Midi Clock Speed Affects Pitch",     "When true the clock speed of the incoming midi stream will affect the pitch of the synth.")
-			DEFINE_INPUT_METASOUND_PARAM(ClockSpeedToFrequency,         "Midi Clock Speed Affects Frequency", "When true the clock speed of the incoming midi stream will affect the calculated frequency.")
+			DEFINE_INPUT_METASOUND_PARAM(ClockSpeedToPitch,             "MIDI Clock Speed Affects Pitch",     "When true the clock speed of the incoming MIDI stream will affect the pitch of the synth.")
+			DEFINE_INPUT_METASOUND_PARAM(ClockSpeedToFrequency,         "MIDI Clock Speed Affects Frequency", "When true the clock speed of the incoming MIDI stream will affect the calculated frequency.")
 			DEFINE_INPUT_METASOUND_PARAM(LFOSyncType,					"LFO Sync Type",					  "Specifies if and how the LFO should sync to a clock");
 			DEFINE_INPUT_METASOUND_PARAM(LFOFrequency,				    "LFO Frequency",					  "The period of the LFO. If Sync Type is TempoSync, the unit is cycles per quarter note. Otherwise, the unit is Hz (cycles per second).");
 			DEFINE_INPUT_METASOUND_PARAM(LFOInvert,					    "Invert LFO",						  "Toggle to invert the LFO");
@@ -66,18 +66,21 @@ namespace HarmonixMetasound
 			DEFINE_INPUT_METASOUND_PARAM(AudioMono,					    "Audio Mono",					      "The mono audio.");
 			DEFINE_INPUT_METASOUND_PARAM(AudioLeft,					    "Audio Left",					      "The left channel audio.");
 			DEFINE_INPUT_METASOUND_PARAM(AudioRight,					"Audio Right",					      "The right channel audio.");
+			DEFINE_INPUT_METASOUND_PARAM(Timestamp,                     "Music Timestamp",                    "The Bar and Beat of interest.");
+			DEFINE_INPUT_METASOUND_PARAM(ShouldQuantizeTimestamp,       "Quantize",                           "Quantize the provide timestamp (Bar & Beat) to a musical subdivision.");
+			DEFINE_INPUT_METASOUND_PARAM(QuantizationUnit,              "Quantization Unit",                  "The music subdivision that a music timestamp should be quantized to.");
 		}
 		namespace Outputs
 		{
 			DEFINE_OUTPUT_METASOUND_PARAM(Transport,          "Transport",                   "Play, pause, continue, stop, etc.")
-			DEFINE_OUTPUT_METASOUND_PARAM(MidiClock,          "Midi Clock",                  "Midi timing information.")
-			DEFINE_OUTPUT_METASOUND_PARAM(MidiFileAsset,      "Midi File",                   "Standard Midi file.")
-			DEFINE_OUTPUT_METASOUND_PARAM(MidiStream,         "Midi Stream",				 "Midi event stream.")
-			DEFINE_OUTPUT_METASOUND_PARAM(NoteOn,             "Note On",                     "Midi note on.")
-			DEFINE_OUTPUT_METASOUND_PARAM(NoteOff,            "Note Off",                    "Midi note off.")
-			DEFINE_OUTPUT_METASOUND_PARAM(MidiNoteNumber,     "Midi Note #",                 "Midi note number (0 - 127).")
-			DEFINE_OUTPUT_METASOUND_PARAM(Frequency,          "Frequency",                   "Midi note number converted to frequency.")
-			DEFINE_OUTPUT_METASOUND_PARAM(MidiVelocity,       "Velocity",                    "Midi velocity (0 - 127).")
+			DEFINE_OUTPUT_METASOUND_PARAM(MidiClock,          "MIDI Clock",                  "MIDI timing information.")
+			DEFINE_OUTPUT_METASOUND_PARAM(MidiFileAsset,      "MIDI File",                   "Standard MIDI file.")
+			DEFINE_OUTPUT_METASOUND_PARAM(MidiStream,         "MIDI Stream",				 "MIDI event stream.")
+			DEFINE_OUTPUT_METASOUND_PARAM(NoteOn,             "Note On",                     "MIDI note on.")
+			DEFINE_OUTPUT_METASOUND_PARAM(NoteOff,            "Note Off",                    "MIDI note off.")
+			DEFINE_OUTPUT_METASOUND_PARAM(MidiNoteNumber,     "MIDI Note #",                 "MIDI note number (0 - 127).")
+			DEFINE_OUTPUT_METASOUND_PARAM(Frequency,          "Frequency",                   "MIDI note number converted to frequency.")
+			DEFINE_OUTPUT_METASOUND_PARAM(MidiVelocity,       "Velocity",                    "MIDI velocity (0 - 127).")
 			DEFINE_OUTPUT_METASOUND_PARAM(NormalizedVelocity, "Normalized Velocity",         "Velocity (0.0 - 1.0).")
 			DEFINE_OUTPUT_METASOUND_PARAM(TransportPrepare,   "Prepare",                     "Causes receiving nodes to prepare to play (pre-buffer, cache, etc.)")
 			DEFINE_OUTPUT_METASOUND_PARAM(TransportPlay,      "Play",                        "Causes a transport play request.")

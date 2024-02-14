@@ -205,7 +205,7 @@ DECLARE_AUDIORENDERABLE_ASSET(HarmonixMetasound, FMidiStepSequenceAsset, FStepSe
 
 // This class represents a step sequence table. It is used by the MetasSound Step Sequence node
 // to generate midi note on/off messages.
-UCLASS(BlueprintType)
+UCLASS(BlueprintType, Category = "Music", Meta = (DisplayName = "MIDI Step Sequence"))
 class HARMONIXMETASOUND_API UMidiStepSequence : public UObject, public IAudioProxyDataFactory
 {
 	GENERATED_BODY()

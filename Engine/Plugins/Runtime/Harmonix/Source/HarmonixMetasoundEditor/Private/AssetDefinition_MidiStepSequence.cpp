@@ -10,7 +10,7 @@ TSoftClassPtr<UObject> UAssetDefinition_MidiStepSequence::GetAssetClass() const
 
 FText UAssetDefinition_MidiStepSequence::GetAssetDisplayName() const
 {
-	return NSLOCTEXT("AssetTypeActions", "MidiStepSequenceDefinition", "Midi Step Sequence");
+	return NSLOCTEXT("AssetTypeActions", "MIDIStepSequenceDefinition", "MIDI Step Sequence");
 }
 
 FLinearColor  UAssetDefinition_MidiStepSequence::GetAssetColor() const

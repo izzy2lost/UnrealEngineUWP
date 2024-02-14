@@ -5,9 +5,9 @@
 
 #include "Harmonix/PropertyUtility.h"
 
-DEFINE_LOG_CATEGORY_STATIC(LogMidiStepSequence, Log, All);
+DEFINE_LOG_CATEGORY_STATIC(LogMIDIStepSequence, Log, All);
 
-DEFINE_AUDIORENDERABLE_ASSET(HarmonixMetasound, FMidiStepSequenceAsset, MidiStepSequenceAsset, UMidiStepSequence)
+DEFINE_AUDIORENDERABLE_ASSET(HarmonixMetasound, FMidiStepSequenceAsset, MIDIStepSequenceAsset, UMidiStepSequence)
 
 bool FStepSequenceTable::IsPageBlank(int32 PageIdx) const
 {
