@@ -3,35 +3,7 @@
 
 #include "RHI.h"
 
-#if PLATFORM_WINDOWS
-	#include "Windows/AllowWindowsPlatformTypes.h"
-	THIRD_PARTY_INCLUDES_START
-		#include <GL/glcorearb.h>
-		#include <GL/glext.h>
-		#include <GL/wglext.h>
-	THIRD_PARTY_INCLUDES_END
-	#include "Windows/HideWindowsPlatformTypes.h"
-#elif PLATFORM_LINUX
-	THIRD_PARTY_INCLUDES_START
-		#include <GL/glcorearb.h>
-		#include <GL/glext.h>
-	THIRD_PARTY_INCLUDES_END
-#elif PLATFORM_ANDROID
-	#include "Android/AndroidPlatform.h"
-	THIRD_PARTY_INCLUDES_START
-		#include <EGL/egl.h>
-		#include <EGL/eglext.h>
-		#include <GLES3/gl31.h>
-	THIRD_PARTY_INCLUDES_END
-
-	#ifndef USE_ANDROID_EGL_NO_ERROR_CONTEXT
-		#if UE_BUILD_SHIPPING
-			#define USE_ANDROID_EGL_NO_ERROR_CONTEXT 1
-		#else
-			#define USE_ANDROID_EGL_NO_ERROR_CONTEXT 0
-		#endif
-	#endif
-#endif
+#include "OpenGLThirdParty.h"
 
 struct IOpenGLDynamicRHI : public FDynamicRHIPSOFallback
 {

@@ -8,22 +8,14 @@
 
 // HEADER_UNIT_SKIP - Not included directly
 
-#include "HAL/UnrealMemory.h"
-#include "Templates/UnrealTemplate.h"
 #include "Containers/Array.h"
-#include "Misc/Crc.h"
-#include "Containers/UnrealString.h"
-#include "Containers/Map.h"
-#include "Misc/SecureHash.h"
-#include "HAL/IConsoleManager.h"
-#include "RHI.h"
-#include "ShaderCore.h"
 #include "CrossCompilerCommon.h"
-#include "ShaderCodeLibrary.h"
-#include "Async/AsyncFileHandle.h"
-#include "ShaderPipelineCache.h"
+#include "OpenGLThirdParty.h"
 
 class FOpenGLLinkedProgram;
+
+/** Set to 1 to enable shader debugging which e.g. keeps the GLSL source as members of TOpenGLShader*/
+#define DEBUG_GL_SHADERS (UE_BUILD_DEBUG || UE_EDITOR)
 
 /**
  * Shader related constants.
@@ -327,17 +319,9 @@ class FOpenGLVertexShader : public FRHIVertexShader, public FOpenGLShader
 public:
 	static constexpr EShaderFrequency Frequency = SF_Vertex;
 
-	FOpenGLVertexShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
-		: FOpenGLShader(Code, Hash, GL_VERTEX_SHADER)
-	{}
+	FOpenGLVertexShader(TArrayView<const uint8> Code, const FSHAHash& Hash);
 
-	void ConditionalyCompile()
-	{
-		if (Resource == 0)
-		{
-			Compile(GL_VERTEX_SHADER);
-		}
-	}
+	void ConditionalyCompile();
 };
 
 class FOpenGLPixelShader : public FRHIPixelShader, public FOpenGLShader
@@ -345,17 +329,9 @@ class FOpenGLPixelShader : public FRHIPixelShader, public FOpenGLShader
 public:
 	static constexpr EShaderFrequency Frequency = SF_Pixel;
 
-	FOpenGLPixelShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
-		: FOpenGLShader(Code, Hash, GL_FRAGMENT_SHADER)
-	{}
+	FOpenGLPixelShader(TArrayView<const uint8> Code, const FSHAHash& Hash);
 
-	void ConditionalyCompile()
-	{
-		if (Resource == 0)
-		{
-			Compile(GL_FRAGMENT_SHADER);
-		}
-	}
+	void ConditionalyCompile();
 };
 
 class FOpenGLGeometryShader : public FRHIGeometryShader, public FOpenGLShader
@@ -363,17 +339,9 @@ class FOpenGLGeometryShader : public FRHIGeometryShader, public FOpenGLShader
 public:
 	static constexpr EShaderFrequency Frequency = SF_Geometry;
 
-	FOpenGLGeometryShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
-		: FOpenGLShader(Code, Hash, GL_GEOMETRY_SHADER)
-	{}
+	FOpenGLGeometryShader(TArrayView<const uint8> Code, const FSHAHash& Hash);
 
-	void ConditionalyCompile()
-	{
-		if (Resource == 0)
-		{
-			Compile(GL_GEOMETRY_SHADER);
-		}
-	}
+	void ConditionalyCompile();
 };
 
 class FOpenGLComputeShader : public FRHIComputeShader, public FOpenGLShader
@@ -381,17 +349,9 @@ class FOpenGLComputeShader : public FRHIComputeShader, public FOpenGLShader
 public:
 	static constexpr EShaderFrequency Frequency = SF_Compute;
 
-	FOpenGLComputeShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
-		: FOpenGLShader(Code, Hash, GL_COMPUTE_SHADER)
-	{}
+	FOpenGLComputeShader(TArrayView<const uint8> Code, const FSHAHash& Hash);
 
-	void ConditionalyCompile()
-	{
-		if (Resource == 0)
-		{
-			Compile(GL_COMPUTE_SHADER);
-		}
-	}
+	void ConditionalyCompile();
 
 	bool NeedsTextureStage(int32 TextureStageIndex);
 	int32 MaxTextureStageUsed();

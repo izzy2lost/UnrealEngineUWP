@@ -57,7 +57,7 @@
 	#define GL_TESS_CONTROL_SHADER 0x8E88
 	#endif
 #endif
-#include "OpenGLUtil.h"
+
 #include "OpenGLShaderResources.h"
 
 THIRD_PARTY_INCLUDES_START

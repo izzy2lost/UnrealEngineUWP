@@ -5,7 +5,10 @@
 =============================================================================*/
 
 #pragma once
+
 #include "RHICommandList.h"
+#include "OpenGLThirdParty.h"
+#include "OpenGLShaderResources.h"
 
 /** Set to 1 to enable the VERIFY_GL macros which call glGetError */
 #define ENABLE_VERIFY_GL (0 & DO_CHECK)
@@ -30,9 +33,6 @@ int32 GetOGLDebugOutputLevel();
 
 /** Set to 1 to additinally dump uniform buffer layout at shader link time, this assumes ENABLE_UNIFORM_BUFFER_LAYOUT_VERIFICATION == 1 */
 #define ENABLE_UNIFORM_BUFFER_LAYOUT_DUMP 0
-
-/** Set to 1 to enable shader debugging which e.g. keeps the GLSL source as members of TOpenGLShader*/
-#define DEBUG_GL_SHADERS (UE_BUILD_DEBUG || UE_EDITOR)
 
 /** Set to 1 to enable calls to place event markers into the OpenGL stream
     this is purposefully not considered for OPENGL_PERFORMANCE_DATA_INVALID, 

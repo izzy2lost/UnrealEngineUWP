@@ -1061,6 +1061,54 @@ FOpenGLShader::FOpenGLShader(TArrayView<const uint8> Code, const FSHAHash& Hash,
 	// The shader is compiled when we link program
 }
 
+FOpenGLVertexShader::FOpenGLVertexShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
+	: FOpenGLShader(Code, Hash, GL_VERTEX_SHADER)
+{}
+
+void FOpenGLVertexShader::ConditionalyCompile()
+{
+	if (Resource == 0)
+	{
+		Compile(GL_VERTEX_SHADER);
+	}
+}
+
+FOpenGLPixelShader::FOpenGLPixelShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
+	: FOpenGLShader(Code, Hash, GL_FRAGMENT_SHADER)
+{}
+
+void FOpenGLPixelShader::ConditionalyCompile()
+{
+	if (Resource == 0)
+	{
+		Compile(GL_FRAGMENT_SHADER);
+	}
+}
+
+FOpenGLGeometryShader::FOpenGLGeometryShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
+	: FOpenGLShader(Code, Hash, GL_GEOMETRY_SHADER)
+{}
+
+void FOpenGLGeometryShader::ConditionalyCompile()
+{
+	if (Resource == 0)
+	{
+		Compile(GL_GEOMETRY_SHADER);
+	}
+}
+
+FOpenGLComputeShader::FOpenGLComputeShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
+	: FOpenGLShader(Code, Hash, GL_COMPUTE_SHADER)
+{}
+
+void FOpenGLComputeShader::ConditionalyCompile()
+{
+	if (Resource == 0)
+	{
+		Compile(GL_COMPUTE_SHADER);
+	}
+}
+
 FVertexShaderRHIRef FOpenGLDynamicRHI::RHICreateVertexShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
 {
 	return new FOpenGLVertexShader(Code, Hash);

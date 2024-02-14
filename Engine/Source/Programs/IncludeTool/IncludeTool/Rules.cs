@@ -363,12 +363,12 @@ namespace IncludeTool
 			"/Engine/Source/Runtime/Slate/Public/Framework/Text/GenericPlatformTextField.h",
 
 			// Base definitions for OpenGL3/4
-			"/Engine/Source/Runtime/OpenGLDrv/Public/OpenGL.h",
-			"/Engine/Source/Runtime/OpenGLDrv/Public/OpenGL3.h",
-			"/Engine/Source/Runtime/OpenGLDrv/Public/OpenGL4.h",
+			"/Engine/Source/Runtime/OpenGLDrv/Private/OpenGL.h",
+			"/Engine/Source/Runtime/OpenGLDrv/Private/OpenGL3.h",
+			"/Engine/Source/Runtime/OpenGLDrv/Private/OpenGL4.h",
 			"/Engine/Source/Runtime/OpenGLDrv/Public/OpenGLUtil.h", // Requires external OpenGL headers
-			"/Engine/Source/Runtime/OpenGLDrv/Public/OpenGLState.h", // Requires external OpenGL headers
-			"/Engine/Source/Runtime/OpenGLDrv/Public/OpenGLResources.h", // Requires external OpenGL headers
+			"/Engine/Source/Runtime/OpenGLDrv/Private/OpenGLState.h", // Requires external OpenGL headers
+			"/Engine/Source/Runtime/OpenGLDrv/Private/OpenGLResources.h", // Requires external OpenGL headers
 		};
 
 		/// <summary>
