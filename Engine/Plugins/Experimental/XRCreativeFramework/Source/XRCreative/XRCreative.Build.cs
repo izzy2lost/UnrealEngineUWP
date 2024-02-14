@@ -7,7 +7,6 @@ public class XRCreative : ModuleRules
 	public XRCreative(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
-		bTreatAsEngineModule = true;
 
 		PublicDependencyModuleNames.AddRange(
 			new string[]
