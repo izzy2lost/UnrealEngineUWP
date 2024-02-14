@@ -18,7 +18,9 @@ class MOVER_API UPhysicsMovementUtils
 {
 public:
 	static void FindFloor(const FVector& Location, const FVector& DeltaPos, const UPrimitiveComponent* UpdatedPrimitive, const FVector& UpDir, float QueryRadius, float TargetHeight, float MaxStepHeight, float MaxWalkSlopeCosine, FFloorCheckResult& OutFloorResult, FWaterCheckResult& OutWaterResult);
-	static const Chaos::FPBDRigidParticleHandle* GetRigidParticelHandleFromHitResult(const FHitResult& HitResult);
+
+	// If the hit result hit something, return the particle handle
+	static const Chaos::FPBDRigidParticleHandle* GetRigidParticleHandleFromHitResult(const FHitResult& HitResult);
 
 	// Checks if the hit surface is walkable and, if stepping up, whether the surface can be stepped up on
 	static bool IsHitSurfaceWalkableWithStepUpCheck(const FHitResult& Hit, float StepHeight, float MaxStepHeight, float MinStepUpHeight, float MaxWalkSlopeCosine);
@@ -26,5 +28,9 @@ public:
 	// Checks if any hit is with water and, if so, fills in the OutWaterResult
 	static bool GetWaterResultFromHitResults(const TArray<FHitResult>& Hits, const FVector& Location, FWaterCheckResult& OutWaterResult);
 
+	// Returns the current ground velocity at the character position
 	static FVector ComputeGroundVelocityFromHitResult(const FVector& CharacterPosition, const FHitResult& FloorHit, const float DeltaSeconds);
+
+	// Returns the integrated with gravity velocity of the ground at the character position
+	static FVector ComputeIntegratedGroundVelocityFromHitResult(const FVector& CharacterPosition, const FHitResult& FloorHit, const float DeltaSeconds);
 };
