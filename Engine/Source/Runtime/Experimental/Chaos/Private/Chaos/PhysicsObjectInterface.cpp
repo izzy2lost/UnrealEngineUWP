@@ -862,14 +862,26 @@ namespace Chaos
 					FChaosUserEntityAppend* UserEntityAppend = FChaosUserData::Get<FChaosUserEntityAppend>(Particle->UserData());
 					if (!UserEntityAppend)
 					{
-						UserEntityAppend = new FChaosUserEntityAppend;
-						UserEntityAppend->ChaosUserData = reinterpret_cast<FChaosUserData*>(Particle->UserData());
-						UserEntityAppend->UserDefinedEntity = UserDefinedEntity;
-						Particle->SetUserData(UserEntityAppend);
+						if (UserDefinedEntity)
+						{
+							UserEntityAppend = new FChaosUserEntityAppend;
+							UserEntityAppend->ChaosUserData = reinterpret_cast<FChaosUserData*>(Particle->UserData());
+							UserEntityAppend->UserDefinedEntity = UserDefinedEntity;
+							Particle->SetUserData(UserEntityAppend);
+						}
 					}
 					else
 					{
-						UserEntityAppend->UserDefinedEntity = UserDefinedEntity; // Overwrite previous used defined entity
+						if (UserDefinedEntity)
+						{
+							UserEntityAppend->UserDefinedEntity = UserDefinedEntity; // Overwrite previous used defined entity
+						}
+						else
+						{
+							// Restore the particle user data and delete unused memory
+							Particle->SetUserData(UserEntityAppend->ChaosUserData);
+							delete UserEntityAppend;
+						}
 					}
 				}
 			}
