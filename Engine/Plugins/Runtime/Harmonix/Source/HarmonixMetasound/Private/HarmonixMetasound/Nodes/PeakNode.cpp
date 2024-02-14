@@ -77,7 +77,7 @@ namespace HarmonixMetasound::Nodes::Peak
 				Info.Author = Metasound::PluginAuthor;
 				Info.PromptIfMissing = Metasound::PluginNodeMissingPrompt;
 				Info.DefaultInterface = GetVertexInterface();
-				Info.CategoryHierarchy = { MetasoundNodeCategories::Harmonix, Metasound::NodeCategories::Envelopes };
+				Info.CategoryHierarchy = { MetasoundNodeCategories::Harmonix, MetasoundNodeCategories::Analysis };
 				return Info;
 			};
 

@@ -180,7 +180,7 @@ namespace HarmonixMetasound::DelayNode
 				Info.MajorVersion = 0;
 				Info.MinorVersion = 1;
 				Info.DisplayName = METASOUND_LOCTEXT("Delay_DisplayName", "Clock-Synced Delay");
-				Info.CategoryHierarchy = { NodeCategories::Delays };
+				Info.CategoryHierarchy = { MetasoundNodeCategories::Harmonix, NodeCategories::Delays };
 				Info.Description = METASOUND_LOCTEXT("Delay_Description", "Delay effect with optional music clock sync.");
 				Info.Author = PluginAuthor;
 				Info.PromptIfMissing = PluginNodeMissingPrompt;

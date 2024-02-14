@@ -116,7 +116,7 @@ namespace HarmonixMetasound
 				Info.MajorVersion = 0;
 				Info.MinorVersion = 1;
 				Info.DisplayName = METASOUND_LOCTEXT("FFTAnalyzer_DisplayName", "FFT Analyzer");
-				Info.CategoryHierarchy = { NodeCategories::Dynamics };
+				Info.CategoryHierarchy = { MetasoundNodeCategories::Harmonix, MetasoundNodeCategories::Analysis };
 				Info.Description = METASOUND_LOCTEXT("FFTAnalyzer_Description", "Fast Fourier Transform Analysis.");
 				Info.Author = PluginAuthor;
 				Info.PromptIfMissing = PluginNodeMissingPrompt;

@@ -234,7 +234,7 @@ namespace HarmonixMetasound
 				Info.MajorVersion = 0;
 				Info.MinorVersion = 1;
 				Info.DisplayName = METASOUND_LOCTEXT("Distortion_DisplayName", "Distortion");
-				Info.CategoryHierarchy = { NodeCategories::Dynamics };
+				Info.CategoryHierarchy = { MetasoundNodeCategories::Harmonix, NodeCategories::Dynamics };
 				Info.Description = METASOUND_LOCTEXT("Distortion_Description", "Distortion audio effect.");
 				Info.Author = PluginAuthor;
 				Info.PromptIfMissing = PluginNodeMissingPrompt;

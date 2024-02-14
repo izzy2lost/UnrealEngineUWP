@@ -14,6 +14,7 @@ namespace HarmonixMetasound
 	{
 		const FText Harmonix = METASOUND_LOCTEXT("Metasound_HarmonixCategory", "Harmonix");
 		const FText Modulation = METASOUND_LOCTEXT("Metasound_ModulationCategory", "Modulation");
+		const FText Analysis = METASOUND_LOCTEXT("Metasound_AnalsisCategory", "Analysis");
 	}
 	
 	namespace CommonPinNames
