@@ -183,7 +183,7 @@ void ULearningAgentsCritic::SetupCritic(
 				ObservationEncodedVectorSize + MemoryStateSize,
 				1,
 				CriticSettings.HiddenLayerSize,
-				FMath::Max(CriticSettings.LayerNum, 2),
+				CriticSettings.HiddenLayerNum + 2, // Add 2 to account for input and output layers
 				UE::Learning::Agents::Critic::Private::GetBuilderActivationFunction(CriticSettings.ActivationFunction)));
 
 		UE_LEARNING_CHECK(CriticInputSize == ObservationEncodedVectorSize + MemoryStateSize);

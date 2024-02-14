@@ -26,9 +26,9 @@ struct LEARNINGAGENTS_API FLearningAgentsPolicySettings
 
 public:
 
-	/** Total layers for policy network including input, hidden, and output layers */
-	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "2", UIMin = "2"))
-	int32 LayerNum = 3;
+	/** Number of hidden layers for policy network. */
+	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0", UIMin = "0"))
+	int32 HiddenLayerNum = 1;
 
 	/** Number of neurons in each hidden layer of the policy network */
 	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "1", UIMin = "1"))

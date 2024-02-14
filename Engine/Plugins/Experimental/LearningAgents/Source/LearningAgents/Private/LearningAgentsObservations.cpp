@@ -943,7 +943,7 @@ FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyEith
 	return SpecifyExclusiveUnionObservationFromArrayViews(Schema, { TEXT("A"), TEXT("B") }, { A, B }, EncodingSize, Tag);
 }
 
-FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyEncodingObservation(ULearningAgentsObservationSchema* Schema, const FLearningAgentsObservationSchemaElement Element, const int32 EncodingSize, const int32 LayerNum, const ELearningAgentsActivationFunction ActivationFunction, const FName Tag)
+FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyEncodingObservation(ULearningAgentsObservationSchema* Schema, const FLearningAgentsObservationSchemaElement Element, const int32 EncodingSize, const int32 HiddenLayerNum, const ELearningAgentsActivationFunction ActivationFunction, const FName Tag)
 {
 	if (!Schema)
 	{
@@ -957,9 +957,9 @@ FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyEnco
 		return FLearningAgentsObservationSchemaElement();
 	}
 
-	if (LayerNum < 1)
+	if (HiddenLayerNum < 1)
 	{
-		UE_LOG(LogLearning, Error, TEXT("SpecifyEncodingObservation: Invalid Observation LayerNum '%i' - must be greater than zero."), LayerNum);
+		UE_LOG(LogLearning, Error, TEXT("SpecifyEncodingObservation: Invalid Observation HiddenLayerNum '%i' - must be greater than zero."), HiddenLayerNum);
 		return FLearningAgentsObservationSchemaElement();
 	}
 
@@ -969,7 +969,7 @@ FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyEnco
 		return FLearningAgentsObservationSchemaElement();
 	}
 
-	return { Schema->ObservationSchema.CreateEncoding({ Element.SchemaElement, EncodingSize, LayerNum, UE::Learning::Agents::Observation::Private::GetEncodingActivationFunction(ActivationFunction) }, Tag)};
+	return { Schema->ObservationSchema.CreateEncoding({ Element.SchemaElement, EncodingSize, HiddenLayerNum, UE::Learning::Agents::Observation::Private::GetEncodingActivationFunction(ActivationFunction) }, Tag)};
 }
 
 FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyBoolObservation(ULearningAgentsObservationSchema* Schema, const FName Tag)

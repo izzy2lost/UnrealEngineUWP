@@ -450,12 +450,12 @@ public:
 	 * @param Schema The Observation Schema
 	 * @param Element The sub-observation to be encoded.
 	 * @param EncodingSize The encoding size used to encode this sub-observation.
-	 * @param LayerNum The number of layers used to encode this sub-observation.
+	 * @param HiddenLayerNum The number of hidden layers used to encode this sub-observation.
 	 * @param ActivationFunction The activation function used to encode this sub-observation.
 	 * @return The newly created observation schema element.
 	 */
 	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 2))
-	static FLearningAgentsObservationSchemaElement SpecifyEncodingObservation(ULearningAgentsObservationSchema* Schema, const FLearningAgentsObservationSchemaElement Element, const int32 EncodingSize = 128, const int32 LayerNum = 1, const ELearningAgentsActivationFunction ActivationFunction = ELearningAgentsActivationFunction::ELU, const FName Tag = TEXT("EncodingObservation"));
+	static FLearningAgentsObservationSchemaElement SpecifyEncodingObservation(ULearningAgentsObservationSchema* Schema, const FLearningAgentsObservationSchemaElement Element, const int32 EncodingSize = 128, const int32 HiddenLayerNum = 1, const ELearningAgentsActivationFunction ActivationFunction = ELearningAgentsActivationFunction::ELU, const FName Tag = TEXT("EncodingObservation"));
 
 	/**
 	 * Specifies a new bool observation. A true or false observation.
