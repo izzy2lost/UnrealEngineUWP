@@ -131,6 +131,8 @@ protected:
 	virtual void Deinitialize() override;
 	//~ End UEngineSubsystem
 
+	void OnInsertModifier(const FActorModifierCoreStackInsertOp& InInsertOp) const;
+
 	/** Register a root actor stack to query this actor stack from everywhere, is called automatically at creation or deserialization by stack */
 	bool RegisterActorModifierStack(UActorModifierCoreStack* InStack);
 

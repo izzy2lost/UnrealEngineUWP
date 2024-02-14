@@ -27,6 +27,8 @@ class AAvaScene : public AActor, public IAvaSequenceProvider, public IAvaSceneIn
 {
 	GENERATED_BODY()
 
+	static void OnSceneCreated(FString&& InCreationType);
+
 public:
 	AVALANCHE_API static AAvaScene* GetScene(ULevel* InLevel, bool bInCreateSceneIfNotFound);
 

@@ -2,15 +2,16 @@
 
 #include "Tools/AvaInteractiveToolsToolBase.h"
 #include "AvaInteractiveToolsSettings.h"
-#include "AvalancheInteractiveToolsModule.h"
 #include "AvaViewportUtils.h"
+#include "AvalancheInteractiveToolsModule.h"
 #include "BaseBehaviors/SingleClickBehavior.h"
 #include "BaseBehaviors/SingleKeyCaptureBehavior.h"
 #include "ContextObjectStore.h"
+#include "EdMode/AvaInteractiveToolsEdMode.h"
 #include "Editor/EditorEngine.h"
 #include "EditorViewportClient.h"
-#include "EdMode/AvaInteractiveToolsEdMode.h"
 #include "Engine/World.h"
+#include "EngineAnalytics.h"
 #include "Framework/Application/SlateApplication.h"
 #include "IAvaInteractiveToolsModeDetailsObject.h"
 #include "IAvaInteractiveToolsModeDetailsObjectProvider.h"
@@ -572,6 +573,17 @@ void UAvaInteractiveToolsToolBase::OnComplete()
 	{
 		PreviewActor->Destroy();
 		PreviewActor = nullptr;
+	}
+
+	if (FEngineAnalytics::IsAvailable())
+	{
+		TArray<FAnalyticsEventAttribute> Attributes;
+		Attributes.Emplace(TEXT("ToolClass"), GetClass()->GetName());
+		if (SpawnedActor)
+		{
+			Attributes.Emplace(TEXT("ActorClass"), SpawnedActor->GetClass()->GetName());	
+		}
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MotionDesign.CompleteTool"), Attributes);
 	}
 }
 
