@@ -17,19 +17,20 @@ FWorldPartitionRuntimeSpatialHashGridPreviewer::FWorldPartitionRuntimeSpatialHas
 #if WITH_EDITORONLY_DATA
 	: MID(nullptr)
 	, Volume(nullptr)
+	, bIsInitialized(false)
 #endif
 {
-#if WITH_EDITORONLY_DATA
-	if (!IsRunningCookCommandlet())
-	{
-		Material = LoadObject<UMaterial>(nullptr, TEXT("/Engine/EditorMaterials/WorldPartition/WorldPartitionSpatialHashGridPreviewMaterial"));
-	}
-#endif
 }
 
 #if WITH_EDITOR
 void FWorldPartitionRuntimeSpatialHashGridPreviewer::Draw(UWorld* World, const TArray<FSpatialHashRuntimeGrid>& Grids, bool bEnabled, int32 PreviewGridLevel, bool bUseAlignedGridLevels)
 {
+	if (!bIsInitialized)
+	{
+		Material = LoadObject<UMaterial>(nullptr, TEXT("/Engine/EditorMaterials/WorldPartition/WorldPartitionSpatialHashGridPreviewMaterial"));
+		bIsInitialized = true;
+	}
+
 	if (bEnabled && Material)
 	{
 		if (!Volume)
