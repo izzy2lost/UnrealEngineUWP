@@ -9,6 +9,7 @@
 #include "Engine/Engine.h"
 #include <SchematicGraphPanel/SchematicGraphStyle.h>
 #include "Fonts/FontMeasure.h"
+#include "HAL/PlatformApplicationMisc.h"
 
 #define LOCTEXT_NAMESPACE "SSchematicGraphPanel"
 
@@ -1018,6 +1019,8 @@ TStatId SSchematicGraphPanel::GetStatId() const
 
 void SSchematicGraphPanel::Tick(float DeltaTime)
 {
+	DPIScale.Reset();
+	
 	if(GraphData)
 	{
 		GraphData->Tick(DeltaTime);
@@ -1181,7 +1184,14 @@ FVector2d SSchematicGraphPanel::GetPositionForNode(FGuid InNodeGuid) const
 		{
 			FVector2d Position = GraphData->GetPositionOffsetForNode(Node);
 			Position += GraphData->GetPositionForNode(Node);
-			return Position;
+
+			if(!DPIScale.IsSet())
+			{
+				const float WidgetX = CachedGeometry.GetAbsolutePosition().X;
+				const float WidgetY = CachedGeometry.GetAbsolutePosition().Y;
+				DPIScale = 1.f / FPlatformApplicationMisc::GetDPIScaleFactorAtPoint(WidgetX, WidgetY);
+			}
+			return DPIScale.GetValue() * Position;
 		}
 	}
 	return FVector2d::ZeroVector;
