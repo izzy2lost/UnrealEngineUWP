@@ -141,17 +141,13 @@ void FGameInputDeviceContainer::InitalizeDeviceProcessors_Impl()
 		}
 	}
 
+	// Racing wheels
+	if (DeviceKind & AllowedGameInputKinds & GameInputKindRacingWheel)
+	{
+		Processors.Emplace(MakeShared<FGameInputRacingWheelProcessor>());
+	}
+
 	// TODO: Implement these kinds of input! 
-	
-	//if (DeviceKind & AllowedGameInputKinds &  GameInputKindController)
-	//{
-
-	//}
-
-	//if (DeviceKind & AllowedGameInputKinds & GameInputKindRacingWheel)
-	//{
-
-	//}
 
 	//if (DeviceKind & AllowedGameInputKinds & GameInputKindFlightStick)
 	//{
@@ -159,11 +155,6 @@ void FGameInputDeviceContainer::InitalizeDeviceProcessors_Impl()
 	//}
 
 	//if (DeviceKind & AllowedGameInputKinds & GameInputKindArcadeStick)
-	//{
-
-	//}
-
-	//if (DeviceKind &AllowedGameInputKinds &  GameInputKindRawDeviceReport)
 	//{
 
 	//}

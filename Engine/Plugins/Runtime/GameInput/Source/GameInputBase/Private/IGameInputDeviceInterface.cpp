@@ -281,7 +281,12 @@ GameInputKind IGameInputDeviceInterface::GetCurrentGameInputKindSupport() const
 		RegisterInputKindMask |= GameInputKindMouse;
 	}
 
-	// TODO_BH: Future expansion of game input on Xbox
+	if (PlatformSettings->bProcessRacingWheel)
+	{
+		RegisterInputKindMask |= GameInputKindRacingWheel;
+	}
+
+	// TODO: Future expansion of GameInput devices!
 	/*if (Settings->bProcessArcadeStick)
 	{
 
