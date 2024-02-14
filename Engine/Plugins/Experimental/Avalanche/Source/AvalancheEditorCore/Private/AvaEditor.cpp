@@ -12,6 +12,7 @@
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "Elements/Framework/TypedElementUtil.h"
 #include "Elements/Interfaces/TypedElementObjectInterface.h"
+#include "EngineAnalytics.h"
 #include "Framework/Docking/LayoutExtender.h"
 #include "Framework/Docking/WorkspaceItem.h"
 #include "HAL/PlatformApplicationMisc.h"
@@ -223,6 +224,23 @@ void FAvaEditor::ForEachExtension(TFunctionRef<void(const TSharedRef<IAvaEditorE
 	}
 }
 
+void FAvaEditor::RecordActivationChangedEvent()
+{
+	if (!FEngineAnalytics::IsAvailable())
+	{
+		return;
+	}
+
+	if (bIsActive)
+	{
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MotionDesign.Activated"));
+	}
+	else
+	{
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MotionDesign.Deactivated"));
+	}
+}
+
 void FAvaEditor::Activate(TSharedPtr<IToolkitHost> InOverrideToolkitHost)
 {
 	if (!CanActivate())
@@ -233,6 +251,8 @@ void FAvaEditor::Activate(TSharedPtr<IToolkitHost> InOverrideToolkitHost)
 	TGuardValue<bool> StateChangeGuard(bActiveStateChanging, true);
 
 	bIsActive = true;
+
+	RecordActivationChangedEvent();
 
 	BindDelegates();
 
@@ -285,6 +305,8 @@ void FAvaEditor::Deactivate()
 	TGuardValue<bool> StateChangeGuard(bActiveStateChanging, true);
 
 	bIsActive = false;
+
+	RecordActivationChangedEvent();
 
 	UnbindDelegates();
 

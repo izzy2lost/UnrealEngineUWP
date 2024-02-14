@@ -3,11 +3,12 @@
 #include "Material/DynamicMaterialInstanceFactory.h"
 #include "AssetToolsModule.h"
 #include "DMPrivate.h"
+#include "EngineAnalytics.h"
 #include "IAssetTools.h"
 #include "Material/DynamicMaterialInstance.h"
 #include "Model/DynamicMaterialModel.h"
-#include "Model/IDynamicMaterialModelEditorOnlyDataInterface.h"
 #include "Model/DynamicMaterialModelFactory.h"
+#include "Model/IDynamicMaterialModelEditorOnlyDataInterface.h"
 #include "Modules/ModuleManager.h"
 
 #define LOCTEXT_NAMESPACE "MaterialDesignerInstanceFactory"
@@ -29,6 +30,11 @@ UObject* UDynamicMaterialInstanceFactory::FactoryCreateNew(UClass* Class, UObjec
 
 	UDynamicMaterialInstance* NewInstance = NewObject<UDynamicMaterialInstance>(InParent, Class, Name, Flags | RF_Transactional);
 	check(NewInstance);
+
+	if (FEngineAnalytics::IsAvailable())
+	{
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MaterialDesigner.CreateMaterial"));
+	}
 
 	UDynamicMaterialModelFactory* EditorFactory = NewObject<UDynamicMaterialModelFactory>();
 	check(EditorFactory);

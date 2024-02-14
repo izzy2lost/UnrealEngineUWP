@@ -1,9 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Subsystems/ActorModifierCoreSubsystem.h"
-
-#include "EngineUtils.h"
 #include "Engine/Engine.h"
+#include "EngineUtils.h"
 #include "GameFramework/Actor.h"
 #include "Internationalization/Text.h"
 #include "Modifiers/ActorModifierCoreComponent.h"
@@ -13,6 +12,7 @@
 #include "UObject/UObjectIterator.h"
 
 #if WITH_EDITOR
+#include "EngineAnalytics.h"
 #include "ScopedTransaction.h"
 #endif
 
@@ -57,6 +57,18 @@ void UActorModifierCoreSubsystem::Deinitialize()
 	}
 
 	Super::Deinitialize();
+}
+
+void UActorModifierCoreSubsystem::OnInsertModifier(const FActorModifierCoreStackInsertOp& InInsertOp) const
+{
+#if WITH_EDITOR
+	if (FEngineAnalytics::IsAvailable())
+	{
+		TArray<FAnalyticsEventAttribute> Attributes;
+		Attributes.Emplace(TEXT("Name"), InInsertOp.NewModifierName.ToString());
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.ActorModifiers.InsertModifier"), Attributes);
+	}
+#endif
 }
 
 bool UActorModifierCoreSubsystem::RegisterModifierClass(const UClass* InModifierClass, bool bInOverrideIfExists)
@@ -1155,6 +1167,8 @@ TArray<UActorModifierCoreBase*> UActorModifierCoreSubsystem::AddActorsModifiers(
 	InAddOp.InsertPositionContext = nullptr;
 	InAddOp.InsertPosition = EActorModifierCoreStackPosition::Before;
 
+	OnInsertModifier(InAddOp);
+
 	for (UActorModifierCoreStack* ActorStack : ActorStacks)
 	{
 		NewModifiers.Add(ActorStack->InsertModifier(InAddOp));
@@ -1214,6 +1228,8 @@ UActorModifierCoreBase* UActorModifierCoreSubsystem::InsertModifier(UActorModifi
 	}
 	FScopedTransaction Transaction(TransactionText, InInsertOp.bShouldTransact);
 #endif
+
+	OnInsertModifier(InInsertOp);
 
 	// insert modifier in stack
 	NewModifier = InStack->InsertModifier(InInsertOp);

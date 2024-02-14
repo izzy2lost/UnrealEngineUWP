@@ -1,21 +1,21 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Subsystems/PropertyAnimatorCoreSubsystem.h"
-
 #include "Animators/PropertyAnimatorCoreBase.h"
 #include "Components/PropertyAnimatorCoreComponent.h"
 #include "Engine/Engine.h"
 #include "GameFramework/Actor.h"
 #include "Presets/PropertyAnimatorCorePresetBase.h"
 #include "Properties/Converters/PropertyAnimatorCoreConverterBase.h"
-#include "Properties/PropertyAnimatorCoreResolver.h"
 #include "Properties/Handlers/PropertyAnimatorCoreHandlerBase.h"
+#include "Properties/PropertyAnimatorCoreResolver.h"
 #include "TimeSources/PropertyAnimatorCoreTimeSourceBase.h"
 #include "TimeSources/PropertyAnimatorCoreWorldTimeSource.h"
 #include "UObject/Class.h"
 #include "UObject/UObjectIterator.h"
 
 #if WITH_EDITOR
+#include "EngineAnalytics.h"
 #include "ScopedTransaction.h"
 #endif
 
@@ -323,6 +323,13 @@ TSet<UPropertyAnimatorCoreBase*> UPropertyAnimatorCoreSubsystem::CreateAnimators
 	const FText ActorCount = FText::FromString(FString::FromInt(InActors.Num()));
 
 	FScopedTransaction Transaction(FText::Format(TransactionText, AnimatorName, ActorCount), bInTransact);
+
+	if (FEngineAnalytics::IsAvailable())
+	{
+		TArray<FAnalyticsEventAttribute> Attributes;
+		Attributes.Emplace(TEXT("Class"), InAnimatorClass->GetName());
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.PropertyAnimator.CreateAnimator"), Attributes);
+	}
 #endif
 
 	for (AActor* Actor : InActors)

@@ -17,6 +17,7 @@
 
 #if WITH_EDITOR
 #include "AvaField.h"
+#include "EngineAnalytics.h"
 #include "Misc/ScopedSlowTask.h"
 #include "RemoteControlBinding.h"
 #endif
@@ -24,6 +25,16 @@
 DEFINE_LOG_CATEGORY_STATIC(LogAvaScene, Log, All);
 
 #define LOCTEXT_NAMESPACE "AvaScene"
+
+void AAvaScene::OnSceneCreated(FString&& InCreationType)
+{
+#if WITH_EDITOR
+	if (FEngineAnalytics::IsAvailable())
+	{
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MotionDesign.SceneCreated"), FAnalyticsEventAttribute(TEXT("CreationType"), MoveTemp(InCreationType)));
+	}
+#endif
+}
 
 AAvaScene* AAvaScene::GetScene(ULevel* InLevel, bool bInCreateSceneIfNotFound)
 {
@@ -53,6 +64,7 @@ AAvaScene* AAvaScene::GetScene(ULevel* InLevel, bool bInCreateSceneIfNotFound)
 #endif
 
 	AAvaScene* const NewScene = World->SpawnActor<AAvaScene>(SpawnParameters);
+	OnSceneCreated(/*CreationType*/TEXT("Spawned"));
 	return NewScene;
 }
 
@@ -170,6 +182,14 @@ bool AAvaScene::AddSequence(UAvaSequence* InSequence)
 	{
 		Animations.Add(InSequence);
 		ScheduleRebuildSequenceTree();
+
+#if WITH_EDITOR
+		if (FEngineAnalytics::IsAvailable())
+		{
+			FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MotionDesign.AddedSequence"));
+		}
+#endif
+
 		return true;
 	}
 	return false;
