@@ -55,12 +55,19 @@ namespace Metasound
 		OperatorInstanceCounterManager = MakeShared<FConcurrentInstanceCounterManager>(InstanceCounterCategory);
 	}
 
-	void FMetasoundGeneratorModule::ShutdownModule() 
+	void FMetasoundGeneratorModule::ShutdownModule()
 	{
-		// Have to cancel independent of resetting the shared pointer as tasks
-		// may still be holding on to pool and therefore keeping it alive
-		OperatorPool->CancelAllBuildEvents();
-		OperatorPool.Reset();
+		if (OperatorPool.IsValid())
+		{
+			TSharedPtr<FOperatorPool> PoolShuttingDown = OperatorPool;
+			OperatorPool.Reset();
+
+			// Clear the pool reference and cancel independent of resetting
+			// the shared pointer to ensure if any references are held elsewhere,
+			// they are properly invalidate.
+			PoolShuttingDown->CancelAllBuildEvents();
+		}
+
 		OperatorInstanceCounterManager.Reset();
 	}
 

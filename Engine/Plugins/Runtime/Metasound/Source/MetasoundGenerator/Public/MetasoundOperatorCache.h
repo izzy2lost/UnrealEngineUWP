@@ -49,7 +49,6 @@ namespace Metasound
 	
 			void FirstUpdate();
 			void SetWindowLength(const float InNewLengthSeconds);
-			void AddResult(IntermediateResult&& InResultToAdd);
 			void ExpireResult(const IntermediateResult& InResultToExpire);
 			void TickResults(const float DeltaTimeSeconds);
 	
