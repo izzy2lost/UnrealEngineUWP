@@ -115,7 +115,7 @@ public:
 
 	bool IsValid() const;
 
-	#if !UE_BUILD_SHIPPING
+	#if WITH_NIAGARA_DEBUGGER
 	void SetVerboseLogging(bool bValue){ bVerboseLogging = bValue; }
 	bool GetVerboseLogging()const { return bVerboseLogging; }
 	#endif

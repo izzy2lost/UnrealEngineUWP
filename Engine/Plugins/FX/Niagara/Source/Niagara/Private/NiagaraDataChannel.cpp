@@ -750,7 +750,7 @@ int32 FNiagaraDataChannelData::ConsumePublishRequests(UNiagaraDataChannelHandler
 
 	CPUSimData->EndSimulate();
 
-#if WITH_NIAGARA_DEBUGGER && !UE_BUILD_SHIPPING
+#if WITH_NIAGARA_DEBUGGER
 	if(Owner->GetDataChannel()->GetVerboseLogging())
 	{
 		FString Label = FString::Printf(TEXT("Data Channel %s - CURR"), *Owner->GetDataChannel()->GetName());

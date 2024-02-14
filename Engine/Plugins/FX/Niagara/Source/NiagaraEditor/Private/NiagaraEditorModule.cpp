@@ -1028,6 +1028,9 @@ void FNiagaraEditorModule::OnPreExit()
 	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
 	IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
 	AssetRegistry.OnFilesLoaded().Remove(AssetRegistryOnLoadCompleteHandle);
+
+	TempPackage->RemoveFromRoot();
+	TempPackage = nullptr;
 }
 
 void FNiagaraEditorModule::PostGarbageCollect()
@@ -1049,6 +1052,9 @@ void FNiagaraEditorModule::StartupModule()
 	UNiagaraAssetBrowserConfig::Initialize();
 
 	FNiagaraAssetDetailDatabase::Init();
+
+	TempPackage = NewObject<UPackage>(nullptr, TEXT("/Temp/NiagaraEditor"), RF_Transient);
+	TempPackage->AddToRoot();
 
 	FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
 	ContentBrowserModule.AddDynamicTagAssetClass(TEXT("NiagaraSystem"));
