@@ -47,9 +47,6 @@ public:
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnPageEvent, const TArray<int32>&, UE::AvaRundown::EPageEvent);
 	FOnPageEvent& GetOnPageEvent() { return OnPageEvent; }
 
-	static TArray<TSharedPtr<FAvaRundownManagedInstance>> GetManagedInstancesForPage(const UAvaRundown* InRundown, const FAvaRundownPage& InPage);
-	static bool MergeDefaultRemoteControlValues(const TArray<TSharedPtr<FAvaRundownManagedInstance>>& InManagedInstances, FAvaPlayableRemoteControlValues& OutMergedValues);
-
 	bool IsKeyRelevant(const FKeyEvent& InKeyEvent) const;
 	bool HandleKeyDownEvent(const FKeyEvent& InKeyEvent);
 

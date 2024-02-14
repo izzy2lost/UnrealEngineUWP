@@ -10,6 +10,7 @@
 #include "Playable/AvaPlayableRemoteControl.h"
 #include "RCVirtualProperty.h"
 #include "Rundown/AvaRundownEditor.h"
+#include "Rundown/AvaRundownEditorUtils.h"
 #include "Rundown/AvaRundownManagedInstanceCache.h"
 #include "Rundown/AvaRundownPage.h"
 #include "Widgets/Views/SHeaderRow.h"
@@ -226,14 +227,13 @@ void SAvaRundownRCControllerPanel::Refresh(const TArray<int32>& InSelectedPageId
        	ManagedInstances.Reset();
 		return;
 	}
-		
-	ManagedInstances = FAvaRundownEditor::GetManagedInstancesForPage(Rundown, Page);
+
+	ManagedInstances = UE::AvaRundownEditor::Utils::GetManagedInstancesForPage(Rundown, Page);
 
 	int32 NumItems = 0;
 	for (const TSharedPtr<FAvaRundownManagedInstance>& ManagedInstance : ManagedInstances)
 	{
-		const URemoteControlPreset* Preset = ManagedInstance ? ManagedInstance->GetRemoteControlPreset() : nullptr;
-		if (Preset)
+		if (const URemoteControlPreset* Preset = ManagedInstance ? ManagedInstance->GetRemoteControlPreset() : nullptr)
 		{
 			NumItems += Preset->GetNumControllers();
 		}
@@ -265,49 +265,26 @@ TSharedRef<ITableRow> SAvaRundownRCControllerPanel::OnGenerateControllerRow(FAva
 	return InItem->CreateWidget(SharedThis(this), InOwnerTable);
 }
 
-void SAvaRundownRCControllerPanel::UpdateDefaultValuesAndRefresh()
+void SAvaRundownRCControllerPanel::UpdateDefaultValuesAndRefresh(const TArray<int32>& InSelectedPageIds)
 {
 	// Remark: The RC values might be already updated in SAvaRundownPageRemoteControlProps.
 	// But order of callback is not guaranteed. Code could reach here first, so
-	// it needs to update and refresh just in case. Calling UpdateRemoteControlValues
+	// it needs to update and refresh just in case. Calling UpdateDefaultRemoteControlValues
 	// multiple time (from different code paths) is harmless (fast if nothing changed).
 	
-	const TSharedPtr<FAvaRundownEditor> RundownEditor = RundownEditorWeak.Pin();
-	if (!RundownEditor)
+	if (const TSharedPtr<FAvaRundownEditor> RundownEditor = RundownEditorWeak.Pin())
 	{
-		return;
+		if (UAvaRundown* Rundown = RundownEditor->GetRundown())
+		{
+			using namespace UE::AvaRundownEditor::Utils;
+			if (UpdateDefaultRemoteControlValues(Rundown, InSelectedPageIds) != EAvaPlayableRemoteControlChanges::None)
+			{
+				RundownEditor->MarkAsModified();
+			}
+		}
 	}
 	
-	UAvaRundown* Rundown = RundownEditor->GetRundown();
-	if (!Rundown)
-	{
-		return;
-	}
-	
-	const FAvaRundownPage& Page = GetActivePage(Rundown);
-	if (!Page.IsValidPage())
-	{
-		return;
-	}
-	
-	ManagedInstances = FAvaRundownEditor::GetManagedInstancesForPage(Rundown, ActivePageId);
-					
-	if (ManagedInstances.IsEmpty())
-	{
-		return;
-	}
-	
-	FAvaPlayableRemoteControlValues MergedDefaultRCValues;
-	FAvaRundownEditor::MergeDefaultRemoteControlValues(ManagedInstances, MergedDefaultRCValues);
-
-	// Using the rundown API for event propagation.
-	constexpr bool bUpdateDefaults = true;	
-	if (Rundown->UpdateRemoteControlValues(ActivePageId, MergedDefaultRCValues, bUpdateDefaults) != EAvaPlayableRemoteControlChanges::None)
-	{
-		RundownEditor->MarkAsModified();
-	}
-	
-	Refresh({ActivePageId});
+	Refresh(InSelectedPageIds);
 }
 
 void SAvaRundownRCControllerPanel::OnRemoteControlControllerModified(URemoteControlPreset* InPreset, const TSet<FGuid>& InModifiedControllerIds)

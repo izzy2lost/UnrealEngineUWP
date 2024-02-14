@@ -59,12 +59,12 @@ private:
 	
 	void RefreshForManagedInstance(int32 InInstanceIndex, const FAvaRundownManagedInstance& InManagedInstance, const FAvaRundownPage& InPage);
 	
-	/** Update the current page's remote control values from the defaults then refresh the widget. */
-	void UpdateDefaultValuesAndRefresh();
+	/** Update the given pages remote control values from the defaults then refresh the widget. */
+	void UpdateDefaultValuesAndRefresh(const TArray<int32>& InSelectedPageIds);
 
-	void OnRemoteControlControllerAdded(URemoteControlPreset* InPreset, const FName NewControllerName, const FGuid& InControllerId) { UpdateDefaultValuesAndRefresh(); }
-	void OnRemoteControlControllerRemoved(URemoteControlPreset* InPreset, const FGuid& InControllerId) { UpdateDefaultValuesAndRefresh(); }
-	void OnRemoteControlControllerRenamed(URemoteControlPreset* InPreset, const FName InOldLabel, const FName InNewLabel) { UpdateDefaultValuesAndRefresh(); }
+	void OnRemoteControlControllerAdded(URemoteControlPreset* InPreset, const FName NewControllerName, const FGuid& InControllerId) { UpdateDefaultValuesAndRefresh({ActivePageId}); }
+	void OnRemoteControlControllerRemoved(URemoteControlPreset* InPreset, const FGuid& InControllerId) { UpdateDefaultValuesAndRefresh({ActivePageId}); }
+	void OnRemoteControlControllerRenamed(URemoteControlPreset* InPreset, const FName InOldLabel, const FName InNewLabel) { UpdateDefaultValuesAndRefresh({ActivePageId}); }
 	void OnRemoteControlControllerModified(URemoteControlPreset* InPreset, const TSet<FGuid>& InModifiedControllerIds);
 	void BindRemoteControlDelegates(URemoteControlPreset* InPreset);
 

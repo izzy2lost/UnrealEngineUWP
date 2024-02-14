@@ -189,20 +189,10 @@ SAvaRundownPageDetails::~SAvaRundownPageDetails()
 
 void SAvaRundownPageDetails::OnPageEvent(const TArray<int32>& InSelectedPageIds, UE::AvaRundown::EPageEvent InPageEvent)
 {
-	if (InPageEvent == UE::AvaRundown::EPageEvent::SelectionChanged)
+	if (InPageEvent == UE::AvaRundown::EPageEvent::SelectionChanged || InPageEvent == UE::AvaRundown::EPageEvent::ReimportRequest)
 	{
 		OnPageSelectionChanged(InSelectedPageIds);
 		RemoteControlProps->Refresh(InSelectedPageIds);
-		RCControllerPanel->Refresh(InSelectedPageIds);
-	}
-	else if (InPageEvent == UE::AvaRundown::EPageEvent::ReimportRequest)
-	{
-		// Note: all widgets are refreshed in this event handler to ensure it is done
-		// after the cache is invalidated.
-		OnPageSelectionChanged(InSelectedPageIds);
-		// Only call SAvaRundownPageRemoteControlProps::UpdateDefaultValuesAndRefresh to have it update the values of all selected pages.
-		RemoteControlProps->UpdateDefaultValuesAndRefresh(InSelectedPageIds);
-		// Pages values already updated above, only need to refresh UI.
 		RCControllerPanel->Refresh(InSelectedPageIds);
 	}
 }

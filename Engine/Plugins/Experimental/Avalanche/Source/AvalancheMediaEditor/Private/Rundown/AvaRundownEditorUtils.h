@@ -8,6 +8,7 @@
 #include "Templates/SharedPointer.h"
 #include "XmlSerializationDefines.h"
 
+class FAvaRundownManagedInstance;
 class UAvaRundown;
 
 namespace UE::AvaRundownEditor::Utils
@@ -107,4 +108,8 @@ namespace UE::AvaRundownEditor::Utils
 		const FAvaRundownPageInsertPosition& InInsertPosition = FAvaRundownPageInsertPosition());
 	
 	UAvaRundown* SaveDuplicateRundown(UAvaRundown* InSourceRundown, const FString& InAssetName, const FString& InPackagePath);
+
+	TArray<TSharedPtr<FAvaRundownManagedInstance>> GetManagedInstancesForPage(const UAvaRundown* InRundown, const FAvaRundownPage& InPage);
+	bool MergeDefaultRemoteControlValues(const TArray<TSharedPtr<FAvaRundownManagedInstance>>& InManagedInstances, FAvaPlayableRemoteControlValues& OutMergedValues);
+	EAvaPlayableRemoteControlChanges UpdateDefaultRemoteControlValues(UAvaRundown* InRundown, const TArray<int32>& InSelectedPageIds);
 }

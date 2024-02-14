@@ -985,37 +985,6 @@ void FAvaRundownEditor::MarkAsModified()
 	}
 }
 
-TArray<TSharedPtr<FAvaRundownManagedInstance>> FAvaRundownEditor::GetManagedInstancesForPage(const UAvaRundown* InRundown, const FAvaRundownPage& InPage)
-{
-	const TArray<FSoftObjectPath> AssetPaths = InPage.GetAssetPaths(InRundown);
-	
-	TArray<TSharedPtr<FAvaRundownManagedInstance>> ManagedInstances;
-	ManagedInstances.Reserve(AssetPaths.Num());
-	
-	FAvaRundownManagedInstanceCache& ManagedInstanceCache = IAvaMediaModule::Get().GetManagedInstanceCache();
-	
-	for (const FSoftObjectPath& AssetPath : AssetPaths)
-	{		
-		if (TSharedPtr<FAvaRundownManagedInstance> ManagedInstance = ManagedInstanceCache.GetOrLoadInstance(AssetPath))
-		{
-			ManagedInstances.Add(ManagedInstance);
-		}
-	}
-	return ManagedInstances;
-}
-
-bool FAvaRundownEditor::MergeDefaultRemoteControlValues(const TArray<TSharedPtr<FAvaRundownManagedInstance>>& InManagedInstances, FAvaPlayableRemoteControlValues& OutMergedValues)
-{
-	bool bAllUniqueIds = true;
-	
-	for (const TSharedPtr<FAvaRundownManagedInstance>& ManagedInstance : InManagedInstances)
-	{
-		bAllUniqueIds &= OutMergedValues.Merge(ManagedInstance->GetDefaultRemoteControlValues());
-	}
-	
-	return bAllUniqueIds;
-}
-
 void FAvaRundownEditor::OnActiveSubListChanged()
 {
 	UAvaRundown* Rundown = AvaRundown.Get();

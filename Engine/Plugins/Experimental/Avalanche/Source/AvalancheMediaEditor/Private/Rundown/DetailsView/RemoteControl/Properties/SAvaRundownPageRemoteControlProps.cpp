@@ -8,14 +8,15 @@
 #include "RemoteControlEntity.h"
 #include "RemoteControlPreset.h"
 #include "Rundown/AvaRundownEditor.h"
+#include "Rundown/AvaRundownEditorUtils.h"
 #include "Rundown/AvaRundownManagedInstanceCache.h"
 #include "Rundown/AvaRundownPage.h"
 #include "SAvaRundownRCPropertyItemRow.h"
 #include "SlateOptMacros.h"
+#include "UObject/NameTypes.h"
 #include "Widgets/Views/ITableRow.h"
 #include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableViewBase.h"
-#include "UObject/NameTypes.h"
 
 #define LOCTEXT_NAMESPACE "SAvaRundownPageRemoteControlProps"
 
@@ -73,52 +74,25 @@ SAvaRundownPageRemoteControlProps::~SAvaRundownPageRemoteControlProps()
 
 void SAvaRundownPageRemoteControlProps::UpdateDefaultValuesAndRefresh(const TArray<int32>& InSelectedPageIds)
 {
-	// Remark:
-	// This is used in the "reimport page" work flow. We want to be able to
-	// reimport multiple pages at the same time.
-	
 	if (const TSharedPtr<FAvaRundownEditor> RundownEditor = RundownEditorWeak.Pin())
 	{
-		UAvaRundown* Rundown = RundownEditor->GetRundown();
-
-		if (IsValid(Rundown))
+		if (UAvaRundown* Rundown = RundownEditor->GetRundown())
 		{
-			EAvaPlayableRemoteControlChanges Changes = EAvaPlayableRemoteControlChanges::None;
-			for (const int32 PageId : InSelectedPageIds)
-			{
-				FAvaRundownPage& Page = RundownEditor->GetRundown()->GetPage(PageId);
-
-				if (Page.IsValidPage())
-				{
-					ManagedInstances = FAvaRundownEditor::GetManagedInstancesForPage(Rundown, Page);
-					
-					if (!ManagedInstances.IsEmpty())
-					{
-						FAvaPlayableRemoteControlValues MergedDefaultRCValues;
-						FAvaRundownEditor::MergeDefaultRemoteControlValues(ManagedInstances, MergedDefaultRCValues);
-
-						// Using the rundown API for event propagation.
-						constexpr bool bUpdateDefaults = true;
-						Changes |= Rundown->UpdateRemoteControlValues(ActivePageId, MergedDefaultRCValues, bUpdateDefaults);
-					}
-				}
-			}
-			
-			if (Changes != EAvaPlayableRemoteControlChanges::None)
+			using namespace UE::AvaRundownEditor::Utils;
+			if (UpdateDefaultRemoteControlValues(Rundown, InSelectedPageIds) != EAvaPlayableRemoteControlChanges::None)
 			{
 				RundownEditor->MarkAsModified();
 			}
-			
-			Refresh(InSelectedPageIds);
 		}
 	}
+
+	Refresh(InSelectedPageIds);
 }
 
 TSharedRef<ITableRow> SAvaRundownPageRemoteControlProps::OnGenerateControllerRow(FAvaRundownRCPropertyItemPtr InItem, const TSharedRef<STableViewBase>& InOwnerTable)
 {
 	return InItem->CreateWidget(SharedThis(this), InOwnerTable);
 }
-
 
 void SAvaRundownPageRemoteControlProps::RefreshTable(const TSet<FGuid>& InEntityIds)
 {
@@ -157,21 +131,18 @@ void SAvaRundownPageRemoteControlProps::Refresh(const TArray<int32>& InSelectedP
 
 			if (FAvaRundownPage* ActivePage = GetActivePage())
 			{
-				ManagedInstances = FAvaRundownEditor::GetManagedInstancesForPage(Rundown, *ActivePage);
+				using namespace UE::AvaRundownEditor::Utils;
+				ManagedInstances = GetManagedInstancesForPage(Rundown, *ActivePage);
 
 				for (const TSharedPtr<FAvaRundownManagedInstance>& ManagedInstance : ManagedInstances)
 				{
-					URemoteControlPreset* Preset = ManagedInstance ? ManagedInstance->GetRemoteControlPreset() : nullptr;
-					if (Preset)
-					{
-						BindRemoteControlDelegates(Preset);	
-					}
+					BindRemoteControlDelegates(ManagedInstance ? ManagedInstance->GetRemoteControlPreset() : nullptr);	
 				}
 
 				if (!ManagedInstances.IsEmpty())
 				{
 					FAvaPlayableRemoteControlValues MergedDefaultRCValues;
-					FAvaRundownEditor::MergeDefaultRemoteControlValues(ManagedInstances, MergedDefaultRCValues);
+					MergeDefaultRemoteControlValues(ManagedInstances, MergedDefaultRCValues);
 					
 					// Prune any extra stale values. This happens if templates are changed.
 					if (ActivePage->PruneRemoteControlValues(MergedDefaultRCValues) != EAvaPlayableRemoteControlChanges::None)
@@ -190,6 +161,7 @@ void SAvaRundownPageRemoteControlProps::Refresh(const TArray<int32>& InSelectedP
 		};
 
 		TArray<FAvaPropertyDetails> NewItems;
+		int32 TotalNumExposedEntities = 0;
 
 		for (const TSharedPtr<FAvaRundownManagedInstance>& ManagedInstance : ManagedInstances)
 		{
@@ -200,7 +172,7 @@ void SAvaRundownPageRemoteControlProps::Refresh(const TArray<int32>& InSelectedP
 			}
 			
 			const TArray<TWeakPtr<FRemoteControlEntity>> ExposedEntities = RemoteControlPreset->GetExposedEntities<FRemoteControlEntity>();
-			NewItems.Reserve(ExposedEntities.Num());
+			NewItems.Reserve(TotalNumExposedEntities += ExposedEntities.Num());
 			
 			for (const TWeakPtr<FRemoteControlEntity>& EntityWeakPtr : ExposedEntities)
 			{
