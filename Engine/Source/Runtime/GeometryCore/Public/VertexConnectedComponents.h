@@ -16,6 +16,12 @@ struct FSizedDisjointSet
 {
 	TArray<int32> Parents, Sizes;
 
+	FSizedDisjointSet() = default;
+	FSizedDisjointSet(int32 NumIDs)
+	{
+		Init(NumIDs);
+	}
+
 	void Init(int32 NumIDs)
 	{
 		Parents.SetNumUninitialized(NumIDs);
