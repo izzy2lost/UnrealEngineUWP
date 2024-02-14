@@ -120,14 +120,20 @@ void ExponentialPixelMain(
 	// Coverage of the cloud layer itself does not change.
 	OutColor.a   = CloudLuminanceTransmittance.a;
 
-#else
+#else // PERMUTATION_SAMPLE_FOG_ON_CLOUDS
 
 	if (bOnlyOnRenderedOpaque > 0.0 && !bIsRendered)
 	{
 		FogInscatteringAndOpacity.rgb = 0;
 		FogInscatteringAndOpacity.a = 1;
 	}
-
+	
+#if POST_PROCESS_ALPHA
+	// We need to output coverage so that we can potentially apply alpha hold out blending. See RenderViewFog.
+	OutColor = RETURN_COLOR(float4(FogInscatteringAndOpacity.rgb, 1.0 - FogInscatteringAndOpacity.w));
+#else
 	OutColor = RETURN_COLOR(float4(FogInscatteringAndOpacity.rgb, FogInscatteringAndOpacity.w));
 #endif
+	
+#endif // PERMUTATION_SAMPLE_FOG_ON_CLOUDS
 }
