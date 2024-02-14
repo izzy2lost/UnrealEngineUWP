@@ -61,7 +61,7 @@ void UColorCorrectRegionsSubsystem::Initialize(FSubsystemCollectionBase& Collect
 	if (GetWorld()->WorldType == EWorldType::Editor)
 	{
 		GEngine->OnLevelActorAdded().AddUObject(this, &UColorCorrectRegionsSubsystem::OnActorSpawned);
-		GEngine->OnLevelActorDeleted().AddUObject(this, &UColorCorrectRegionsSubsystem::OnActorDeleted);
+		GEngine->OnLevelActorDeleted().AddUObject(this, &UColorCorrectRegionsSubsystem::OnActorDeleted, true);
 		GEngine->OnLevelActorListChanged().AddUObject(this, &UColorCorrectRegionsSubsystem::OnLevelActorListChanged);
 		GEditor->RegisterForUndo(this);
 
@@ -172,7 +172,7 @@ void UColorCorrectRegionsSubsystem::OnActorSpawned(AActor* InActor)
 	}
 }
 
-void UColorCorrectRegionsSubsystem::OnActorDeleted(AActor* InActor)
+void UColorCorrectRegionsSubsystem::OnActorDeleted(AActor* InActor, bool bClearStencilIdValues)
 {
 	AColorCorrectRegion* AsRegion = Cast<AColorCorrectRegion>(InActor);
 	if (AsRegion 
@@ -183,7 +183,12 @@ void UColorCorrectRegionsSubsystem::OnActorDeleted(AActor* InActor)
 #endif
 	{
 #if WITH_EDITOR
-		FColorCorrectRegionsStencilManager::OnCCRRemoved(GetWorld(), AsRegion);
+		// In some cases, specifically in case when EndPlay is called or when CCA are part of a hidden sublevel
+		// we don't want the stencil Ids to be reset.
+		if (bClearStencilIdValues)
+		{
+			FColorCorrectRegionsStencilManager::OnCCRRemoved(GetWorld(), AsRegion);
+		}
 #endif
 
 		FScopeLock RegionScopeLock(&RegionAccessCriticalSection);
