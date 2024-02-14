@@ -235,6 +235,7 @@ void FChaosVDPlaybackController::GoToRecordedSolverStep_AssumesLocked(const int3
 
 				CurrentTrackInfo->CurrentFrame = FrameNumber;
 				CurrentTrackInfo->CurrentStep = Step;
+				CurrentTrackInfo->bIsReSimulated = SolverFrameData->bIsResimulated;
 			
 				EnqueueTrackInfoUpdate(*CurrentTrackInfo.Get(), InstigatorID);
 			}

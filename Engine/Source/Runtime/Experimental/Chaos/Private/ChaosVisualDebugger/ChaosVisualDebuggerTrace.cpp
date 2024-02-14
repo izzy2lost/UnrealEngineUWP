@@ -384,6 +384,8 @@ void FChaosVisualDebuggerTrace::TraceSolverFrameStart(const FChaosVDContext& Con
 
 	FChaosVDThreadContext::Get().PushContext(ContextData);
 
+	bool bIsReSimulatedFrame = EnumHasAnyFlags(static_cast<EChaosVDContextAttributes>(ContextData.Attributes), EChaosVDContextAttributes::Resimulated);
+
 	// Check if we need to do a full capture for this solver, and setup accordingly
 	bool bOutIsFullCaptureRequested;
 	SetupForFullCaptureIfNeeded(ContextData.Id, bOutIsFullCaptureRequested);
@@ -392,7 +394,8 @@ void FChaosVisualDebuggerTrace::TraceSolverFrameStart(const FChaosVDContext& Con
 		<< ChaosVDSolverFrameStart.SolverID(ContextData.Id)
 		<< ChaosVDSolverFrameStart.Cycle(FPlatformTime::Cycles64())
 		<< ChaosVDSolverFrameStart.DebugName(*InDebugName, InDebugName.Len())
-		<< ChaosVDSolverFrameStart.IsKeyFrame(bOutIsFullCaptureRequested);
+		<< ChaosVDSolverFrameStart.IsKeyFrame(bOutIsFullCaptureRequested)
+		<< ChaosVDSolverFrameStart.IsReSimulated(bIsReSimulatedFrame);
 }
 
 void FChaosVisualDebuggerTrace::TraceSolverFrameEnd(const FChaosVDContext& ContextData)

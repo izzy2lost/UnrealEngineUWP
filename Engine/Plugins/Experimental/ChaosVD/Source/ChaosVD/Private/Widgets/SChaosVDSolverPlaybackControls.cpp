@@ -7,6 +7,7 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SChaosVDPlaybackViewport.h"
 #include "Widgets/SChaosVDTimelineWidget.h"
+#include "Widgets/Input/SButton.h"
 #include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
@@ -27,7 +28,7 @@ void SChaosVDSolverPlaybackControls::Construct(const FArguments& InArgs, int32 I
 			+SHorizontalBox::Slot()
 			.FillWidth(0.7f)
 			[
-			SNew(SVerticalBox)
+				SNew(SVerticalBox)
 				+SVerticalBox::Slot()
 				.AutoHeight()
 				.Padding(0.0f, 0.0f, 0.0f, 2.0f)
@@ -38,10 +39,32 @@ void SChaosVDSolverPlaybackControls::Construct(const FArguments& InArgs, int32 I
 				]
 				+SVerticalBox::Slot()
 				[
-					SAssignNew(FramesTimelineWidget, SChaosVDTimelineWidget)
+					SNew(SHorizontalBox)
+					+SHorizontalBox::Slot()
+					.FillWidth(0.95f)
+					[
+						SAssignNew(FramesTimelineWidget, SChaosVDTimelineWidget)
 						.ButtonVisibilityFlags(static_cast<uint16>(EChaosVDTimelineElementIDFlags::AllPlayback))
 						.OnFrameChanged_Raw(this, &SChaosVDSolverPlaybackControls::OnFrameSelectionUpdated)
 						.MaxFrames(0)
+					]
+					+SHorizontalBox::Slot()
+					.FillWidth(0.05f)
+					[
+						SNew(SBorder)
+						.BorderImage_Raw(this, &SChaosVDSolverPlaybackControls::GetFrameTypeBadgeBrush)
+						.Padding(1.5f)
+						.Content()
+						[
+							SNew(SBox)
+							.VAlign(VAlign_Center)
+							[
+								SNew(STextBlock)
+								.Justification(ETextJustify::Center)
+								.Text_Lambda([this]()->FText{ return bIsReSimFrame ? LOCTEXT("PlaybackViewportWidgetPhysicsFramesResimLabel", "ReSim" ) : LOCTEXT("PlaybackViewportWidgetPhysicsFramesNormalLabel", "Normal" );})
+							]
+						]
+					]
 				]
 			]
 			+SHorizontalBox::Slot()
@@ -54,12 +77,12 @@ void SChaosVDSolverPlaybackControls::Construct(const FArguments& InArgs, int32 I
 				[
 					SNew(STextBlock)
 					.Justification(ETextJustify::Center)
-					.Text_Lambda([this]()->FText{ return FText::Format(LOCTEXT("PlaybackViewportWidgetStepsLabel","Step {0}"), FText::AsCultureInvariant(CurrentStepName));})
+					.Text_Lambda([this]()->FText{ return FText::Format(LOCTEXT("PlaybackViewportWidgetStepsLabel","Solver Stage: {0}"), FText::AsCultureInvariant(CurrentStepName));})
 				]
 				+SVerticalBox::Slot()
 				[
 					SAssignNew(StepsTimelineWidget, SChaosVDTimelineWidget)
-					.ButtonVisibilityFlags(static_cast<uint16>(EChaosVDTimelineElementIDFlags::AllManualStepping | EChaosVDTimelineElementIDFlags::Lock))
+					.ButtonVisibilityFlags(static_cast<uint16>(EChaosVDTimelineElementIDFlags::AllManualStepping))
 					.OnFrameLockStateChanged_Raw(this, &SChaosVDSolverPlaybackControls::HandleLockStateChanged)
 					.OnFrameChanged_Raw(this, &SChaosVDSolverPlaybackControls::OnStepSelectionUpdated)
 					.MaxFrames(0)
@@ -163,6 +186,8 @@ void SChaosVDSolverPlaybackControls::HandleControllerTrackFrameUpdated(TWeakPtr<
 				UpdateStepsWidgetForFrame(*CurrentPlaybackControllerPtr.Get(), SolverTrackInfo->CurrentFrame, SolverTrackInfo->CurrentStep);
 			}
 
+			bIsReSimFrame = SolverTrackInfo->bIsReSimulated;
+
 			FramesTimelineWidget->SetTargetFrameTime(CurrentPlaybackControllerPtr->GetFrameTimeForTrack(EChaosVDTrackType::Solver, SolverID, *SolverTrackInfo));
 		}
 	}
@@ -181,6 +206,12 @@ void SChaosVDSolverPlaybackControls::HandleLockStateChanged(bool NewIsLocked)
 			CurrentPlaybackControllerPtr->UnlockTrackStep(EChaosVDTrackType::Solver, SolverID);
 		}
 	}
+}
+
+const FSlateBrush* SChaosVDSolverPlaybackControls::GetFrameTypeBadgeBrush() const
+{
+	const FButtonStyle& ButtonStyle = FAppStyle::Get().GetWidgetStyle<FButtonStyle>("Menu.Button");
+	return bIsReSimFrame ? &ButtonStyle.Pressed : FCoreStyle::Get().GetBrush("Border");
 }
 
 void SChaosVDSolverPlaybackControls::OnFrameSelectionUpdated(int32 NewFrameIndex)

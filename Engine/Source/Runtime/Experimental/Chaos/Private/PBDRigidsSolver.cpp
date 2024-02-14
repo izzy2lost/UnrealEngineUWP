@@ -1940,7 +1940,7 @@ namespace Chaos
 					UE_LOG(LogTemp, Warning, TEXT("COMMON | PT | ConditionalApplyRewind_Internal | PERFORMING RESIMULATION | Resim From Frame = %d | Num Steps = %d | To Current Frame: %d"), ResimStep, NumResimSteps, CurrentFrame);
 #endif
 
-					GetEvolution()->SetResim(true);
+					SetIsResimming(true);
 					CurrentFrame = ResimStep;
 
 					TArray<FPushPhysicsData*> RecordedPushData = MarshallingManager.StealHistory_Internal(NumResimSteps);
@@ -2004,7 +2004,7 @@ namespace Chaos
 					}
 					GetEvolution()->GetIslandManager().ResetParticleResimFrame();
 
-					GetEvolution()->SetResim(false);
+					SetIsResimming(false);
 					GetEvolution()->SetReset(false);
 
 					ResimTimer.Stop();
@@ -2026,6 +2026,25 @@ namespace Chaos
 			// Clear the ResimFrame no matter if resimulation succeeded or failed (if it failed it's not going to succeed next frame either based on the same ResimFrame)
 			MRewindData->SetResimFrame(INDEX_NONE);
 		}
+	}
+
+	void FPBDRigidsSolver::SetIsResimming(bool bIsResimming)
+	{
+		GetEvolution()->SetResim(bIsResimming);
+
+#if WITH_CHAOS_VISUAL_DEBUGGER
+		EChaosVDContextAttributes Attributes = static_cast<EChaosVDContextAttributes>(GetChaosVDContextData().Attributes);
+		if (bIsResimming)
+		{
+			EnumAddFlags(Attributes,  EChaosVDContextAttributes::Resimulated);
+		}
+		else
+		{
+			EnumRemoveFlags(Attributes,  EChaosVDContextAttributes::Resimulated);
+		}
+
+		GetChaosVDContextData().Attributes = static_cast<int32>(Attributes);
+#endif	
 	}
 
 	void FPBDRigidsSolver::CompleteSceneSimulation()

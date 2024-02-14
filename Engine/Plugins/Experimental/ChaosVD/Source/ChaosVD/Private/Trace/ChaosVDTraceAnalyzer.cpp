@@ -82,6 +82,7 @@ bool FChaosVDTraceAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEvent
 			NewFrameData.SolverID = EventData.GetValue<int32>("SolverID");
 			NewFrameData.FrameCycle = EventData.GetValue<uint64>("Cycle");
 			NewFrameData.bIsKeyFrame = EventData.GetValue<bool>("IsKeyFrame");
+			NewFrameData.bIsResimulated = EventData.GetValue<bool>("IsReSimulated");
 			NewFrameData.StartTime = Context.EventTime.AsSeconds(NewFrameData.FrameCycle);
 
 			FWideStringView DebugNameView;

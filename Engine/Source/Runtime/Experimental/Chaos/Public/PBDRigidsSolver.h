@@ -425,6 +425,9 @@ namespace Chaos
 
 		/** Check if we are resimming or not */
 		virtual bool IsResimming() const {return GetEvolution()->IsResimming();}
+
+		/** Sets if we are resimming or not */
+		void SetIsResimming(bool bIsResimming);
 	};
 
 	template<>

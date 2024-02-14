@@ -33,6 +33,7 @@ UE_TRACE_EVENT_BEGIN_EXTERN(ChaosVDLogger, ChaosVDSolverFrameStart)
 	UE_TRACE_EVENT_FIELD(uint64, Cycle)
 	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, DebugName)
 	UE_TRACE_EVENT_FIELD(bool, IsKeyFrame)
+	UE_TRACE_EVENT_FIELD(bool, IsReSimulated)
 UE_TRACE_EVENT_END()
 
 UE_TRACE_EVENT_BEGIN_EXTERN(ChaosVDLogger, ChaosVDSolverFrameEnd)

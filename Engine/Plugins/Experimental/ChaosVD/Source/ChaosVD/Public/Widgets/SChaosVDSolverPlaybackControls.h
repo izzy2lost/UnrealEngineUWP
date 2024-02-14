@@ -45,7 +45,10 @@ private:
 
 	void HandleLockStateChanged(bool NewIsLocked);
 
+	const FSlateBrush* GetFrameTypeBadgeBrush() const;
+
 	int32 SolverID = INDEX_NONE;
+	bool bIsReSimFrame = false;
 	FString CurrentStepName;
 	TSharedPtr<SChaosVDTimelineWidget> FramesTimelineWidget;
 	TSharedPtr<SChaosVDTimelineWidget> StepsTimelineWidget;

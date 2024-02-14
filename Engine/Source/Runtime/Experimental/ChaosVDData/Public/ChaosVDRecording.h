@@ -52,6 +52,7 @@ struct CHAOSVDDATA_API FChaosVDSolverFrameData
 	uint64 FrameCycle = 0;
 	Chaos::FRigidTransform3 SimulationTransform;
 	bool bIsKeyFrame = false;
+	bool bIsResimulated = false;
 	FChaosVDStepsContainer SolverSteps;
 	TSet<int32> ParticlesDestroyedIDs;
 	double StartTime = -1.0;
