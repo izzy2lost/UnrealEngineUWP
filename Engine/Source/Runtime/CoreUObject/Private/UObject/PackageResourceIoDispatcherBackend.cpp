@@ -172,15 +172,17 @@ public:
 	~FPackageResourceIoBackend();
 
 	virtual void Initialize(TSharedRef<const FIoDispatcherBackendContext> Context) override;
-	virtual bool Resolve(FIoRequestImpl* Request) override;
+	virtual void ResolveIoRequests(FIoRequestList Requests, FIoRequestList& OutUnresolved) override;
 	virtual void CancelIoRequest(FIoRequestImpl* Request) override;
 	virtual void UpdatePriorityForIoRequest(FIoRequestImpl* Request) override { }
 	virtual bool DoesChunkExist(const FIoChunkId& ChunkId) const override;
 	virtual TIoStatusOr<uint64> GetSizeForChunk(const FIoChunkId& ChunkId) const override;
-	virtual FIoRequestImpl* GetCompletedRequests() override;
+	virtual FIoRequestImpl* GetCompletedIoRequests() override;
 	virtual TIoStatusOr<FIoMappedRegion> OpenMapped(const FIoChunkId& ChunkId, const FIoReadOptions& Options) override;
 
 private:
+	bool Resolve(FIoRequestImpl* Request);
+
 	IPackageResourceManager& ResourceMgr;
 	TSharedPtr<const FIoDispatcherBackendContext> BackendContext;
 	FPendingRequests PendingRequests;
@@ -260,6 +262,17 @@ bool FPackageResourceIoBackend::Resolve(FIoRequestImpl* Request)
 	return true;
 }
 
+void FPackageResourceIoBackend::ResolveIoRequests(FIoRequestList Requests, FIoRequestList& OutUnresolved)
+{
+	while (FIoRequestImpl* Request = Requests.PopHead())
+	{
+		if (Resolve(Request) == false)
+		{
+			OutUnresolved.AddTail(Request);
+		}
+	}
+}
+
 void FPackageResourceIoBackend::CancelIoRequest(FIoRequestImpl* Request)
 {
 	PendingRequests.Cancel(Request);
@@ -298,7 +311,7 @@ TIoStatusOr<uint64> FPackageResourceIoBackend::GetSizeForChunk(const FIoChunkId&
 	return FIoStatus(EIoErrorCode::NotFound);
 }
 
-FIoRequestImpl* FPackageResourceIoBackend::GetCompletedRequests()
+FIoRequestImpl* FPackageResourceIoBackend::GetCompletedIoRequests()
 {
 	FIoRequestImpl* Requests = CompletedRequests.Dequeue();
 

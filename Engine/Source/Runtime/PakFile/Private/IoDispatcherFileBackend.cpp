@@ -1381,7 +1381,7 @@ bool FFileIoStore::Unmount(const TCHAR* InTocPath)
 
 bool FFileIoStore::Resolve(FIoRequestImpl* Request)
 {
-	FReadScopeLock _(IoStoreReadersLock);
+	// Assumes readers are locked, see ResolveIoRequests
 	for (const TUniquePtr<FFileIoStoreReader>& Reader : IoStoreReaders)
 	{
 		if (const FIoOffsetAndLength* OffsetAndLength = Reader->Resolve(Request->ChunkId))
@@ -1437,6 +1437,18 @@ bool FFileIoStore::Resolve(FIoRequestImpl* Request)
 	}
 
 	return false;
+}
+
+void FFileIoStore::ResolveIoRequests(FIoRequestList Requests, FIoRequestList& OutUnresolved)
+{
+	FReadScopeLock _(IoStoreReadersLock);
+	while (FIoRequestImpl* Request = Requests.PopHead())
+	{
+		if (Resolve(Request) == false)
+		{
+			OutUnresolved.AddTail(Request);
+		}
+	}
 }
 
 void FFileIoStore::CancelIoRequest(FIoRequestImpl* Request)
@@ -1678,7 +1690,7 @@ void FFileIoStore::FinalizeCompressedBlock(FFileIoStoreCompressedBlock* Compress
 	}
 }
 
-FIoRequestImpl* FFileIoStore::GetCompletedRequests()
+FIoRequestImpl* FFileIoStore::GetCompletedIoRequests()
 {
 	LLM_SCOPE(ELLMTag::FileSystem);
 	//TRACE_CPUPROFILER_EVENT_SCOPE(GetCompletedRequests);

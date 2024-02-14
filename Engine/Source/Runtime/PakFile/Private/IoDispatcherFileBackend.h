@@ -109,12 +109,12 @@ public:
 	void Shutdown() override;
 	TIoStatusOr<FIoContainerHeader> Mount(const TCHAR* InTocPath, int32 Order, const FGuid& EncryptionKeyGuid, const FAES::FAESKey& EncryptionKey);
 	bool Unmount(const TCHAR* InTocPath);
-	bool Resolve(FIoRequestImpl* Request) override;
+	void ResolveIoRequests(FIoRequestList Requests, FIoRequestList& OutUnresolved) override;
 	void CancelIoRequest(FIoRequestImpl* Request) override;
 	void UpdatePriorityForIoRequest(FIoRequestImpl* Request) override;
 	bool DoesChunkExist(const FIoChunkId& ChunkId) const override;
 	TIoStatusOr<uint64> GetSizeForChunk(const FIoChunkId& ChunkId) const;
-	FIoRequestImpl* GetCompletedRequests() override;
+	FIoRequestImpl* GetCompletedIoRequests() override;
 	TIoStatusOr<FIoMappedRegion> OpenMapped(const FIoChunkId& ChunkId, const FIoReadOptions& Options) override;
 	void ReopenAllFileHandles();
 
@@ -157,6 +157,7 @@ private:
 		FFileIoStoreCompressedBlock* CompressedBlock;
 	};
 
+	bool Resolve(FIoRequestImpl* Request);
 	void OnNewPendingRequestsAdded();
 	void ReadBlocks(FFileIoStoreResolvedRequest& ResolvedRequest);
 	void FreeBuffer(FFileIoStoreBuffer& Buffer);

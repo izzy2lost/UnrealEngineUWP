@@ -21,12 +21,12 @@ public:
 
 	void Initialize(TSharedRef<const FIoDispatcherBackendContext> Context) override;
 	void Shutdown() override;
-	bool Resolve(FIoRequestImpl* Request) override;
+	void ResolveIoRequests(FIoRequestList Requests, FIoRequestList& OutUnresolved) override;
 	void CancelIoRequest(FIoRequestImpl* Request) override {};
 	void UpdatePriorityForIoRequest(FIoRequestImpl* Request) override {};
 	bool DoesChunkExist(const FIoChunkId& ChunkId) const override;
 	TIoStatusOr<uint64> GetSizeForChunk(const FIoChunkId& ChunkId) const override;
-	FIoRequestImpl* GetCompletedRequests() override;
+	FIoRequestImpl* GetCompletedIoRequests() override;
 	TIoStatusOr<FIoMappedRegion> OpenMapped(const FIoChunkId& ChunkId, const FIoReadOptions& Options) override
 	{
 		return FIoStatus(EIoErrorCode::NotFound);
@@ -79,6 +79,7 @@ private:
 		TUniquePtr<FStorageServerSerializationContext> SerializationContext;
 	};
 
+	bool Resolve(FIoRequestImpl* Request);
 	void SubmitBatch(FBatch* Batch);
 	void OnBatchCompleted(FBatch* Batch);
 	bool WaitForBatchToComplete(uint32 WaitTime = MAX_uint32);

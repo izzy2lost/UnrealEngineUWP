@@ -178,6 +178,17 @@ bool FStorageServerIoDispatcherBackend::Resolve(FIoRequestImpl* Request)
 	return true;
 }
 
+void FStorageServerIoDispatcherBackend::ResolveIoRequests(FIoRequestList Requests, FIoRequestList& OutUnresolved)
+{
+	while (FIoRequestImpl* Request = Requests.PopHead())
+	{
+		if (Resolve(Request) == false)
+		{
+			OutUnresolved.AddTail(Request);
+		}
+	}
+}
+
 bool FStorageServerIoDispatcherBackend::DoesChunkExist(const FIoChunkId& ChunkId) const
 {
 	return GetSizeForChunk(ChunkId).IsOk();
@@ -197,7 +208,7 @@ TIoStatusOr<uint64> FStorageServerIoDispatcherBackend::GetSizeForChunk(const FIo
 	}
 }
 
-FIoRequestImpl* FStorageServerIoDispatcherBackend::GetCompletedRequests()
+FIoRequestImpl* FStorageServerIoDispatcherBackend::GetCompletedIoRequests()
 {
 	FScopeLock Lock(&CompletedRequestsCritical);
 	FIoRequestImpl* Result = CompletedRequestsHead;

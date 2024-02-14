@@ -1369,14 +1369,14 @@ public:
 	// I/O dispatcher backend
 	virtual void Initialize(TSharedRef<const FIoDispatcherBackendContext> Context) override;
 	virtual void Shutdown() override;
-	virtual bool Resolve(FIoRequestImpl* Request) override;
+	virtual void ResolveIoRequests(FIoRequestList Requests, FIoRequestList& OutUnresolved) override;
 	virtual void CancelIoRequest(FIoRequestImpl* Request) override;
 	virtual void UpdatePriorityForIoRequest(FIoRequestImpl* Request) override;
 	virtual bool DoesChunkExist(const FIoChunkId& ChunkId) const override;
 	virtual bool DoesChunkExist(const FIoChunkId& ChunkId, const FIoOffsetAndLength& ChunkRange) const override;
 	virtual TIoStatusOr<uint64> GetSizeForChunk(const FIoChunkId& ChunkId) const override;
 	virtual TIoStatusOr<uint64> GetSizeForChunk(const FIoChunkId& ChunkId, const FIoOffsetAndLength& ChunkRange, uint64& OutAvailable) const;
-	virtual FIoRequestImpl* GetCompletedRequests() override;
+	virtual FIoRequestImpl* GetCompletedIoRequests() override;
 	virtual TIoStatusOr<FIoMappedRegion> OpenMapped(const FIoChunkId& ChunkId, const FIoReadOptions& Options) override;
 
 	// I/O Http backend
@@ -1393,7 +1393,7 @@ public:
 	virtual void Stop() override;
 
 private:
-
+	bool Resolve(FIoRequestImpl* Request);
 	void MountContainer(FStringView ContainerPath);
 	void UnmountContainer(FStringView ContainerPath);
 
@@ -1843,6 +1843,17 @@ bool FOnDemandIoBackend::Resolve(FIoRequestImpl* Request)
 	return true;
 }
 
+void FOnDemandIoBackend::ResolveIoRequests(FIoRequestList Requests, FIoRequestList& OutUnresolved)
+{
+	while (FIoRequestImpl* Request = Requests.PopHead())
+	{
+		if (Resolve(Request) == false)
+		{
+			OutUnresolved.AddTail(Request);
+		}
+	}
+}
+
 void FOnDemandIoBackend::CancelIoRequest(FIoRequestImpl* Request)
 {
 	if (ChunkRequests.Cancel(Request, Cache.Get()))
@@ -1916,7 +1927,7 @@ TIoStatusOr<uint64> FOnDemandIoBackend::GetSizeForChunk(const FIoChunkId& ChunkI
 	return TIoStatusOr<uint64>(ChunkInfo.Entry->RawSize);
 }
 
-FIoRequestImpl* FOnDemandIoBackend::GetCompletedRequests()
+FIoRequestImpl* FOnDemandIoBackend::GetCompletedIoRequests()
 {
 	FIoRequestImpl* Requests = CompletedRequests.Dequeue();
 
