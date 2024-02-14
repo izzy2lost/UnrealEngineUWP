@@ -77,6 +77,10 @@ private:
 
 	FReply HandleCreateViewModelClicked();
 
+	bool IsDetailsViewEditingEnabled() const;
+	void RefreshDetailsView();
+	void RefreshNotifyHookBinding();
+
 	EVisibility GetViewModelMessageVisibility() const;
 	EVisibility GetBindingMessageVisibility() const;
 

@@ -9,8 +9,6 @@
 
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Layout/SBox.h"
-#include "Widgets/Layout/SWidgetSwitcher.h"
-#include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "MVVMFieldSelector"
 
@@ -31,9 +29,7 @@ void SFieldSelector::Construct(const FArguments& InArgs, const UWidgetBlueprint*
 {
 	WidgetBlueprint = InWidgetBlueprint;
 	check(InWidgetBlueprint);
-	
-	TextStyle = InArgs._TextStyle;
-	OnGetLinkedValue = InArgs._OnGetLinkedValue;
+
 	OnSelectionChanged = InArgs._OnSelectionChanged;
 	OnGetSelectionContext = InArgs._OnGetSelectionContext;
 	OnDragEnterEvent = InArgs._OnDragEnter;
@@ -51,77 +47,26 @@ void SFieldSelector::Construct(const FArguments& InArgs, const UWidgetBlueprint*
 			.ContentPadding(FMargin(4.0f, 2.0f))
 			.ButtonContent()
 			[
-				SNew(SWidgetSwitcher)
-				.WidgetIndex(this, &SFieldSelector::GetCurrentDisplayIndex)
-				//0-Property/Function (from Widget or Viewmodel).
-				//0-Property/Function argument of conversion function
-				+ SWidgetSwitcher::Slot()
-				.Padding(0.0f, 0.0f, 8.0f, 0.0f)
-				.HAlign(HAlign_Left)
-				.VAlign(VAlign_Center)
-				[
-					SNew(SCachedViewBindingPropertyPath, WidgetBlueprint.Get())
-					.TextStyle(TextStyle)
-					.ShowContext(InArgs._ShowContext)
-					.OnGetPropertyPath(this, &SFieldSelector::HandleGetPropertyPath)
-				]
-
-				//1-Conversion Function
-				+ SWidgetSwitcher::Slot()
-				.Padding(0.0f, 0.0f, 8.0f, 0.0f)
-				.HAlign(HAlign_Left)
-				.VAlign(VAlign_Center)
-				[
-					SNew(SCachedViewBindingConversionFunction, WidgetBlueprint.Get())
-					.TextStyle(TextStyle)
-					.OnGetConversionFunction(this, &SFieldSelector::HandleGetConversionFunction)
-				]
-
-				//2-Nothing selected.
-				+ SWidgetSwitcher::Slot()
-				[
-					SNew(SBox)
-					.Padding(FMargin(8.0f, 0.0f, 8.0f, 0.0f))
-					[
-						SNew(STextBlock)
-						.TextStyle(FAppStyle::Get(), "HintText")
-						.Text(LOCTEXT("None", "No field selected"))
-					]
-				]
+				SAssignNew(FieldDisplay, SFieldDisplay, InWidgetBlueprint)
+				.TextStyle(InArgs._TextStyle)
+				.OnGetLinkedValue(InArgs._OnGetLinkedValue)
 			]
 		]
 	];
 }
 
-int32 SFieldSelector::GetCurrentDisplayIndex() const
-{
-	if (OnGetLinkedValue.IsBound())
-	{
-		FMVVMLinkedPinValue LinkedValue = OnGetLinkedValue.Execute();
-		if (LinkedValue.IsConversionFunction() || LinkedValue.IsConversionNode())
-		{
-			return 1;
-		}
-		else if (LinkedValue.IsPropertyPath())
-		{
-			return 0;
-		}
-	}
-	return 2;
-}
-
 TSharedRef<SWidget> SFieldSelector::HandleGetMenuContent()
 {
 	const UWidgetBlueprint* WidgetBlueprintPtr = WidgetBlueprint.Get();
-	if (!WidgetBlueprintPtr)
+	if (!WidgetBlueprintPtr || !FieldDisplay)
 	{
 		return SNullWidget::NullWidget;
 	}
 
 	TOptional<FMVVMLinkedPinValue> CurrentSelected;
-	if (OnGetLinkedValue.IsBound())
+	if (FieldDisplay->OnGetLinkedValue.IsBound())
 	{
-		CurrentSelected = OnGetLinkedValue.Execute();
+		CurrentSelected = FieldDisplay->OnGetLinkedValue.Execute();
 	}
 
 	FFieldSelectionContext SelectionContext;
@@ -154,41 +99,6 @@ void SFieldSelector::HandleFieldSelectionChanged(FMVVMLinkedPinValue LinkedValue
 	{
 		OnSelectionChanged.Execute(LinkedValue);
 	}
-}
-
-FMVVMBlueprintPropertyPath SFieldSelector::HandleGetPropertyPath() const
-{
-	if (OnGetLinkedValue.IsBound())
-	{
-		FMVVMLinkedPinValue LinkedValue = OnGetLinkedValue.Execute();
-		if (LinkedValue.IsPropertyPath())
-		{
-			return LinkedValue.GetPropertyPath();
-		}
-	}
-	return FMVVMBlueprintPropertyPath();
-}
-
-TVariant<const UFunction*, TSubclassOf<UK2Node>, FEmptyVariantState> SFieldSelector::HandleGetConversionFunction() const
-{
-	using FReturnType = TVariant<const UFunction*, TSubclassOf<UK2Node>, FEmptyVariantState>;
-	if (OnGetLinkedValue.IsBound())
-	{
-		FMVVMLinkedPinValue LinkedValue = OnGetLinkedValue.Execute();
-		if (ensure(LinkedValue.IsConversionFunction() || LinkedValue.IsConversionNode()))
-		{
-			if (LinkedValue.IsConversionFunction())
-			{
-				return FReturnType(TInPlaceType<const UFunction*>(), LinkedValue.GetConversionFunction());
-			}
-			else
-			{
-				check(LinkedValue.IsConversionNode());
-				return FReturnType(TInPlaceType<TSubclassOf<UK2Node>>(), LinkedValue.GetConversionNode());
-			}
-		}
-	}
-	return FReturnType(TInPlaceType<FEmptyVariantState>());
 }
 
 void SFieldSelector::OnDragEnter(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
