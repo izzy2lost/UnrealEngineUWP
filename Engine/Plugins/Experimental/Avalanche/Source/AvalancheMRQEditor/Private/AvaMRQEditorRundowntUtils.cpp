@@ -6,9 +6,6 @@
 #include "AvaSceneSubsystem.h"
 #include "IAvaSceneInterface.h"
 #include "IAvaSequenceProvider.h"
-#include "MoviePipelineDeferredPasses.h"
-#include "MoviePipelineImageSequenceOutput.h"
-#include "MoviePipelineOutputSetting.h"
 #include "MoviePipelinePIEExecutor.h"
 #include "MoviePipelineQueueSubsystem.h"
 #include "Playback/AvaPlaybackUtils.h"
@@ -127,16 +124,6 @@ namespace UE::AvaMRQEditor::Private
 		{
 			OutSettings = Cast<InSettingType>(MRQConfig->FindOrAddSettingByClass(InSettingType::StaticClass()));
 		};
-
-		UMoviePipelineImageSequenceOutput_PNG* OutputPNG;
-		CreatePipelineSetting(OutputPNG);
-
-		UMoviePipelineDeferredPassBase* DeferredPass;
-		CreatePipelineSetting(DeferredPass);
-
-		UMoviePipelineOutputSetting* OutputSettings;
-		CreatePipelineSetting(OutputSettings);
-		OutputSettings->FileNameFormat = TEXT("{job_name}.{frame_number}");;
 
 		UAvaMRQRundownPageSetting* RundownPageSetting;
 		CreatePipelineSetting(RundownPageSetting);
