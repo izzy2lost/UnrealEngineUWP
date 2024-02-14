@@ -39,16 +39,19 @@ namespace UE::VCamCore::LevelViewportUtils::Private
 			if (LevelViewportClient)
 			{
 				AActor* const CurrentLockActor = LevelViewportClient->GetActorLock().LockedActor.Get();
+				AActor* const CurrentCinematicLockActor = LevelViewportClient->GetCinematicActorLock().LockedActor.Get();;
 				ON_SCOPE_EXIT
 				{
 					// Get it again because the GetActorLock value may have changed
 					ViewportLockState.LastKnownEditorLockActor = LevelViewportClient->GetActorLock().LockedActor.Get();
 				};
+
+				const bool bIsLockedByAnotherSystem = CurrentLockActor || CurrentCinematicLockActor;
+				// Do not override the lock if another system has a lock
+				const bool bCanLock = !bIsLockedByAnotherSystem || !LevelViewportClient->bLockedCameraView;
+				const bool bCanUnlock = CurrentLockActor == &ActorToLockWith;
 				
-				if (bNewLockState
-					// Do not override the lock if another system has a lock
-					&& (!CurrentLockActor
-						|| !LevelViewportClient->bLockedCameraView))
+				if (bNewLockState && bCanLock)
 				{
 					ViewportLockState.bWasLockedToViewport = true;
 					
@@ -82,8 +85,7 @@ namespace UE::VCamCore::LevelViewportUtils::Private
 					LevelViewportClient->SetActorLock(&ActorToLockWith);
 					LevelViewportClient->bLockedCameraView = true;
 				}
-				else if (!bNewLockState && ViewportLockState.bWasLockedToViewport
-					&& (CurrentLockActor == &ActorToLockWith || !CurrentLockActor))
+				else if (!bNewLockState && ViewportLockState.bWasLockedToViewport && bCanUnlock)
 				{
 					ViewportLockState.bWasLockedToViewport = false;
 					
