@@ -338,7 +338,7 @@ private:
 private:
 	TMap<FName, UWidget*> WidgetNameToWidgetPointerMap;
 	FWidgetBlueprintCompilerContext& WidgetBlueprintCompilerContext;
-	TStrongObjectPtr<UMVVMBlueprintView> BlueprintView = nullptr;
+	TObjectPtr<UMVVMBlueprintView> BlueprintView = nullptr;
 	FCompiledBindingLibraryCompiler BindingLibraryCompiler;
 	bool bIsCreateVariableStepValid = true;
 	bool bIsCreateFunctionsStepValid = true;

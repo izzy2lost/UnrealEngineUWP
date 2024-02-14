@@ -159,7 +159,7 @@ FMVVMViewBlueprintCompiler::FMVVMViewBlueprintCompiler(FWidgetBlueprintCompilerC
 	, BlueprintView(InBlueprintView)
 	, BindingLibraryCompiler(InCreationContext.WidgetBlueprint())
 {
-	check(BlueprintView.IsValid());
+	check(BlueprintView);
 }
 
 
