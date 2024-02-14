@@ -8,7 +8,7 @@ void UTG_Expression_Shape::Evaluate(FTG_EvaluationContext* InContext)
 {
 	Super::Evaluate(InContext);
 
-	auto DesiredDescriptor = Output.Descriptor;
+	FTG_TextureDescriptor DesiredDescriptor = Output.Descriptor;
 
 	/// If it's auto then make it grey scale as we don't need more than a single channel output
 	if (DesiredDescriptor.TextureFormat == ETG_TextureFormat::Auto)

@@ -326,6 +326,8 @@ FName UTG_EdGraphNode::GetPinCategory(UTG_Pin* Pin, TWeakObjectPtr<UObject>& Sub
 
 void UTG_EdGraphNode::ReconstructNode()
 {
+	const FName SelectedPinName = (SelectedPin) ? SelectedPin->PinName : FName();
+	UEdGraphPin* NewSelectedPin = nullptr;
 	// Store copy of old pins
 	TArray<UEdGraphPin*> OldPins = MoveTemp(Pins);
 	Pins.Reset();
@@ -347,6 +349,11 @@ void UTG_EdGraphNode::ReconstructNode()
 			{
 				(*NewPin)->MovePersistentDataFromOldPin(*OldPin);
 			}
+
+			if ((*NewPin)->PinName == SelectedPinName)
+			{
+				NewSelectedPin = (*NewPin);
+			}
 		}
 	}
 	
@@ -360,14 +367,13 @@ void UTG_EdGraphNode::ReconstructNode()
 	OnNodeReconstructDelegate.Broadcast();
 
 	// if no selected pin, we set it to the first output pin
-	if (GetSelectedPin() == nullptr)
+	if (!NewSelectedPin && GetOutputPins().Num() > 0)
 	{
-		if (GetOutputPins().Num() > 0)
-		{
-			UTG_EdGraph* TSEdGraph = Cast<UTG_EdGraph>(GetGraph());
-			TSEdGraph->PinSelectionManager.UpdateSelection(GetOutputPins()[0]);
-		}
+		NewSelectedPin = GetOutputPins()[0];
 	}
+	
+	UTG_EdGraph* TSEdGraph = Cast<UTG_EdGraph>(GetGraph());
+	TSEdGraph->PinSelectionManager.UpdateSelection(NewSelectedPin);
 }
 
 FString UTG_EdGraphNode::GetTitleDetail()
