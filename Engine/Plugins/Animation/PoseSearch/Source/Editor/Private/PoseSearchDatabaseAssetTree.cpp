@@ -510,37 +510,61 @@ namespace UE::PoseSearch
 		const TArray<TSharedPtr<FDatabaseAssetTreeNode>> SelectedNodes = TreeView->GetSelectedItems();
 		if (!SelectedNodes.IsEmpty())
 		{
-			MenuBuilder.AddMenuEntry(
-				LOCTEXT("Remove", "Remove"),
-				LOCTEXT("RemoveTooltip", "Removes assets from database"),
-				FSlateIcon(),
-				FUIAction(FExecuteAction::CreateSP(this, &SDatabaseAssetTree::OnDeleteNodes)),
-				NAME_None,
-				EUserInterfaceActionType::Button);
+			MenuBuilder.BeginSection("SelectedAssetsEdit", LOCTEXT("SelectedAssetEdit", "Asset Actions"));
+			{
+				MenuBuilder.AddMenuEntry(
+					LOCTEXT("Enable", "Enable selected assets"),
+					LOCTEXT("EnableTooltip", "Sets Assets Enabled."),
+					FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Visible"),
+					FUIAction(FExecuteAction::CreateSP(this, &SDatabaseAssetTree::OnEnableNodes)),
+					NAME_None,
+					EUserInterfaceActionType::Button);
 
-			MenuBuilder.AddMenuEntry(
-				LOCTEXT("Enable", "Enable"),
-				LOCTEXT("EnableTooltip", "Sets Assets Enabled."),
-				FSlateIcon(),
-				FUIAction(FExecuteAction::CreateSP(this, &SDatabaseAssetTree::OnEnableNodes)),
-				NAME_None,
-				EUserInterfaceActionType::Button);
+				MenuBuilder.AddMenuEntry(
+					LOCTEXT("Disable", "Disable selected assets"),
+					LOCTEXT("DisableToolTip", "Sets Assets Disabled."),
+					FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Hidden"),
+					FUIAction(FExecuteAction::CreateSP(this, &SDatabaseAssetTree::OnDisableNodes)),
+					NAME_None,
+					EUserInterfaceActionType::Button);
 
-			MenuBuilder.AddMenuEntry(
-				LOCTEXT("Disable", "Disable"),
-				LOCTEXT("DisableToolTip", "Sets Assets Disabled."),
-				FSlateIcon(),
-				FUIAction(FExecuteAction::CreateSP(this, &SDatabaseAssetTree::OnDisableNodes)),
-				NAME_None,
-				EUserInterfaceActionType::Button);
+				MenuBuilder.AddMenuEntry(
+					LOCTEXT("ConvertToBranchIn", "Convert selected assets to sample via BranchIn notify"),
+					LOCTEXT("ConvertToBranchInToolTip", "Creates PoseSearchBranchIn notify state for the asset sampling range"),
+					FSlateIcon(),
+					FUIAction(FExecuteAction::CreateSP(this, &SDatabaseAssetTree::OnConvertToBranchIn)),
+					NAME_None,
+					EUserInterfaceActionType::Button);	
+			}
+			MenuBuilder.EndSection();
 
-			MenuBuilder.AddMenuEntry(
-				LOCTEXT("ConvertToBranchIn", "ConvertToBranchIn"),
-				LOCTEXT("ConvertToBranchInToolTip", "Creates PoseSearchBranchIn notify state for the asset sampling range"),
-				FSlateIcon(),
-				FUIAction(FExecuteAction::CreateSP(this, &SDatabaseAssetTree::OnConvertToBranchIn)),
-				NAME_None,
-				EUserInterfaceActionType::Button);
+			MenuBuilder.BeginSection("SelectionAssetsClipboardEdit", LOCTEXT("SelectionAssetsClipboardEdit", "Edit"));
+			{
+				MenuBuilder.AddMenuEntry(FGenericCommands::Get().Cut);
+				MenuBuilder.AddMenuEntry(FGenericCommands::Get().Copy);
+				MenuBuilder.AddMenuEntry(FGenericCommands::Get().Paste);
+				MenuBuilder.AddMenuEntry(FGenericCommands::Get().Delete);
+			}
+			MenuBuilder.EndSection();
+		}
+		else
+		{
+			// Asset actions
+			MenuBuilder.BeginSection("Edit", LOCTEXT("EditSection", "Edit"));
+			MenuBuilder.AddWrapperSubMenu(
+				LOCTEXT("AddNewAnimAssetNoNodes", "Add"),
+				LOCTEXT("AddNewAnimAssetNoNodesToolTip", "Add a new Sequence, Blend Space, Anim Composite, or Anim Montage"),
+				FOnGetContent::CreateSP(this, &SDatabaseAssetTree::CreateAddNewMenuWidget),
+				FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Plus"));
+			MenuBuilder.EndSection();
+			
+			// Edit / Clipboard actions
+			MenuBuilder.BeginSection("Clipboard", LOCTEXT("ClipboardSection", "Clipboard"));
+			{
+				MenuBuilder.AddMenuEntry(FGenericCommands::Get().Paste);
+			}
+			
+			MenuBuilder.EndSection();
 		}
 
 		return MenuBuilder.MakeWidget();

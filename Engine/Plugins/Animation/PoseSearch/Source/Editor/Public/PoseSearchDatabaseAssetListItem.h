@@ -38,15 +38,20 @@ namespace UE::PoseSearch
 		void OnAddAnimMontage();
 		virtual FReply OnMouseButtonDoubleClick(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) override;
 
+		
 		EVisibility GetSelectedActorIconVisbility() const;
 
 		FSlateColor GetNameTextColorAndOpacity() const;
+		
 		FSlateColor GetLoopingColorAndOpacity() const;
 		FText GetLoopingToolTip() const;
+		
 		FSlateColor GetRootMotionColorAndOpacity() const;
 		FText GetRootMotionOptionToolTip() const;
+		
 		const FSlateBrush* GetMirrorOptionSlateBrush() const;
 		FText GetMirrorOptionToolTip() const;
+		FReply MirrorOptionOnMouseButtonDown(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent);
 		
 		FText GetDisableReselectionToolTip() const;
 		ECheckBoxState GetDisableReselectionChecked() const;
