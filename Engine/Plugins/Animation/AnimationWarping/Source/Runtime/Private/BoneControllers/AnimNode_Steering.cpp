@@ -6,6 +6,7 @@
 #include "Animation/AnimRootMotionProvider.h"
 #include "HAL/IConsoleManager.h"
 #include "Animation/AnimTrace.h"
+#include "BoneControllers/AnimNode_OffsetRootBone.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Logging/LogVerbosity.h"
 #include "VisualLogger/VisualLogger.h"
@@ -16,9 +17,9 @@ void FAnimNode_Steering::UpdateInternal(const FAnimationUpdateContext& Context)
 {
 	FAnimNode_SkeletalControlBase::UpdateInternal(Context);
 
-	if (USkeletalMeshComponent* SkelMeshComponent = Context.AnimInstanceProxy->GetSkelMeshComponent())
+	if (UE::AnimationWarping::FRootOffsetProvider* RootOffsetProvider = Context.GetMessage<UE::AnimationWarping::FRootOffsetProvider>())
 	{
-		RootBoneTransform = SkelMeshComponent->GetBoneTransform(0); 
+		RootBoneTransform = RootOffsetProvider->GetRootTransform();
 	}
 	else
 	{
@@ -31,6 +32,7 @@ void FAnimNode_Steering::Initialize_AnyThread(const FAnimationInitializeContext&
 	FAnimNode_SkeletalControlBase::Initialize_AnyThread(Context);
 	bResetFilter = true;
 }
+
 
 void FAnimNode_Steering::EvaluateSkeletalControl_AnyThread(FComponentSpacePoseContext& Output, TArray<FBoneTransform>& OutBoneTransforms)
 {
@@ -69,7 +71,7 @@ void FAnimNode_Steering::EvaluateSkeletalControl_AnyThread(FComponentSpacePoseCo
 
 						UE_VLOG_ARROW(Output.AnimInstanceProxy->GetAnimInstanceObject(), "Steering", Display,
 							RootBoneTransform.GetLocation(),
-							RootBoneTransform.GetLocation()  + RootBoneRotation.GetRightVector() * 100,
+							RootBoneTransform.GetLocation()  + RootBoneRotation.GetRightVector() * 90,
 							FColor::Green, TEXT(""));
 						
 						UE_VLOG_ARROW(Output.AnimInstanceProxy->GetAnimInstanceObject(), "Steering", Display,
@@ -119,7 +121,7 @@ void FAnimNode_Steering::EvaluateSkeletalControl_AnyThread(FComponentSpacePoseCo
 							}
 						}
 						
-						if (ProceduralTargetTime > 0)
+						if (ProceduralTargetTime > DeltaSeconds)
 						{	
 							DeltaToTargetOrientation = FQuat::Slerp(FQuat::Identity, DeltaToTargetOrientation,  DeltaSeconds/ProceduralTargetTime);
 						}

@@ -61,21 +61,20 @@ struct ANIMATIONWARPINGRUNTIME_API FAnimNode_Steering : public FAnimNode_Skeleta
 
 	// FAnimNodeBase interface
 	virtual void Initialize_AnyThread(const FAnimationInitializeContext& Context) override;
-	virtual void UpdateInternal(const FAnimationUpdateContext& Context) override;
 	// End of FAnimNodeBase interface
 	
 	// FAnimNode_SkeletalControlBase interface
+	virtual void UpdateInternal(const FAnimationUpdateContext& Context) override;
 	virtual void EvaluateSkeletalControl_AnyThread(FComponentSpacePoseContext& Output, TArray<FBoneTransform>& OutBoneTransforms) override;
 	virtual bool IsValidToEvaluate(const USkeleton* Skeleton, const FBoneContainer& RequiredBones) override { return true; }
 	// End of FAnimNode_SkeletalControlBase interface
 
 private:
 
-	FTransform RootBoneTransform;
-
 	bool bResetFilter = true;
 
 	FQuat FilteredTarget = FQuat::Identity;
 	FQuaternionSpringState TargetSmoothingState;
 	
+	FTransform RootBoneTransform;
 };
