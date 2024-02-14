@@ -539,7 +539,7 @@ bool UModelingSceneSnappingManager::ExecuteSceneSnapQueryPosition(const FSceneSn
 	};
 
 
-	auto TrySnapToEdge = [](const FSceneSnapQueryRequest& RequestIn, const FRay3d& WorldRay, FSceneSnapQueryResult& SnapResult, double& SmallestSnapAngle)
+	auto TrySnapToEdge = [](const FSceneSnapQueryRequest& RequestIn, const FVector& SurfacePoint, const FRay3d& WorldRay, FSceneSnapQueryResult& SnapResult, double& SmallestSnapAngle)
 	{
 		if ( ((RequestIn.TargetTypes & ESceneSnapQueryTargetType::MeshEdge) != ESceneSnapQueryTargetType::None) &&
 			  (SnapResult.TargetType != ESceneSnapQueryTargetType::MeshVertex) )
@@ -547,7 +547,7 @@ bool UModelingSceneSnappingManager::ExecuteSceneSnapQueryPosition(const FSceneSn
 			for (int j = 0; j < 3; ++j)
 			{
 				UE::Geometry::FSegment3d Segment(SnapResult.TriVertices[j], SnapResult.TriVertices[(j+1)%3]);
-				FVector3d EdgeNearestPt = Segment.NearestPoint(RequestIn.Position);
+				FVector3d EdgeNearestPt = Segment.NearestPoint(SurfacePoint);
 				double VisualAngle = UE::Geometry::VectorUtil::OpeningAngleD(RequestIn.Position, EdgeNearestPt, WorldRay.Origin);
 				if (VisualAngle < SmallestSnapAngle )
 				{
@@ -617,7 +617,7 @@ bool UModelingSceneSnappingManager::ExecuteSceneSnapQueryPosition(const FSceneSn
 			TrySnapToVertex(Request, WorldRay, SnapResult, SmallestAngle);
 
 			// try snapping to nearest points on edges
-			TrySnapToEdge(Request, WorldRay, SnapResult, SmallestAngle);
+			TrySnapToEdge(Request, HitPoint.WorldPoint, WorldRay, SnapResult, SmallestAngle);
 
 			// if we found a valid snap, return it
 			if (SmallestAngle < (double)Request.VisualAngleThresholdDegrees)
@@ -647,7 +647,7 @@ bool UModelingSceneSnappingManager::ExecuteSceneSnapQueryPosition(const FSceneSn
 				TrySnapToVertex(Request, WorldRay, SnapResult, SmallestAngle);
 
 				// try snapping to nearest points on edges
-				TrySnapToEdge(Request, WorldRay, SnapResult, SmallestAngle);
+				TrySnapToEdge(Request, HitResult.ImpactPoint, WorldRay, SnapResult, SmallestAngle);
 
 				// if we found a valid snap, return it
 				if (SmallestAngle < (double)Request.VisualAngleThresholdDegrees)
