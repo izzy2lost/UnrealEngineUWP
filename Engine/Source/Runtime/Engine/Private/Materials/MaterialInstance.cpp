@@ -2091,6 +2091,7 @@ void UMaterialInstance::UpdateOverridableBaseProperties()
 		bIsShadingModelFromMaterialExpression = 0;
 		bOutputTranslucentVelocity = false;
 		bHasPixelAnimation = false;
+		bEnableTessellation = false;
 		DisplacementScaling = FDisplacementScaling();
 		MaxWorldPositionOffsetDisplacement = 0.0f;
 		return;
@@ -2134,6 +2135,16 @@ void UMaterialInstance::UpdateOverridableBaseProperties()
 	{
 		bHasPixelAnimation = Parent->HasPixelAnimation();
 		BasePropertyOverrides.bHasPixelAnimation = bHasPixelAnimation;
+	}
+
+	if (BasePropertyOverrides.bOverride_bEnableTessellation)
+	{
+		bEnableTessellation = BasePropertyOverrides.bEnableTessellation;
+	}
+	else
+	{
+		bEnableTessellation = Parent->IsTessellationEnabled();
+		BasePropertyOverrides.bEnableTessellation = bEnableTessellation;
 	}
 
 	if (BasePropertyOverrides.bOverride_ShadingModel)
@@ -4538,6 +4549,7 @@ bool UMaterialInstance::HasOverridenBaseProperties()const
 		(GetCastDynamicShadowAsMasked() != Parent->GetCastDynamicShadowAsMasked()) ||
 		(IsTranslucencyWritingVelocity() != Parent->IsTranslucencyWritingVelocity()) ||
 		(HasPixelAnimation() != Parent->HasPixelAnimation()) ||
+		(IsTessellationEnabled() != Parent->IsTessellationEnabled()) ||
 		(GetDisplacementScaling() != Parent->GetDisplacementScaling()) ||
 		(GetMaxWorldPositionOffsetDisplacement() != Parent->GetMaxWorldPositionOffsetDisplacement())
 		))
@@ -4563,6 +4575,7 @@ FString UMaterialInstance::GetBasePropertyOverrideString() const
 		BasePropString += FString::Printf(TEXT("bOverride_CastDynamicShadowAsMasked_%d, "), (GetCastDynamicShadowAsMasked() != Parent->GetCastDynamicShadowAsMasked()));
 		BasePropString += FString::Printf(TEXT("bOverride_OutputTranslucentVelocity_%d "), (IsTranslucencyWritingVelocity() != Parent->IsTranslucencyWritingVelocity()));
 		BasePropString += FString::Printf(TEXT("bOverride_bHasPixelAnimation_%d "), (HasPixelAnimation() != Parent->HasPixelAnimation()));
+		BasePropString += FString::Printf(TEXT("bOverride_bEnableTessellation_%d "), (IsTessellationEnabled() != Parent->IsTessellationEnabled()));
 		BasePropString += FString::Printf(TEXT("bOverride_DisplacementScaling_%d "), (GetDisplacementScaling() != Parent->GetDisplacementScaling()));
 		BasePropString += FString::Printf(TEXT("bOverride_MaxWorldPositionOffsetDisplacement_%d "), (GetMaxWorldPositionOffsetDisplacement() != Parent->GetMaxWorldPositionOffsetDisplacement()));
 	}
@@ -4661,6 +4674,11 @@ bool UMaterialInstance::CastsRayTracedShadows() const
 {
 	//#dxr_todo: do per material instance override?
 	return Parent ? Parent->CastsRayTracedShadows() : true;
+}
+
+bool UMaterialInstance::IsTessellationEnabled() const
+{
+	return bEnableTessellation;
 }
 
 /** Checks to see if an input property should be active, based on the state of the material */

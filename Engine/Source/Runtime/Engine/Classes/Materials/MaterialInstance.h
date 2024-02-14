@@ -582,6 +582,7 @@ class UMaterialInstance : public UMaterialInterface
 	uint8 bOutputTranslucentVelocity : 1;
 	uint8 bIsShadingModelFromMaterialExpression : 1;
 	uint8 bHasPixelAnimation : 1;
+	uint8 bEnableTessellation : 1;
 protected:
 	uint8 bLoadedCachedData : 1;
 public:
@@ -812,6 +813,7 @@ public:
 	ENGINE_API virtual bool HasPixelAnimation() const override;
 	ENGINE_API virtual USubsurfaceProfile* GetSubsurfaceProfile_Internal() const override;
 	ENGINE_API virtual bool CastsRayTracedShadows() const override;
+	ENGINE_API virtual bool IsTessellationEnabled() const override;
 
 	/** Checks to see if an input property should be active, based on the state of the material */
 	ENGINE_API virtual bool IsPropertyActive(EMaterialProperty InProperty) const override;

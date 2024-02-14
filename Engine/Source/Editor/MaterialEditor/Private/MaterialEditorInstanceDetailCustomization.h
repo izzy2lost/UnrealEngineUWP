@@ -118,6 +118,7 @@ private:
 	bool OverrideDitheredLODTransitionEnabled() const;
 	bool OverrideOutputTranslucentVelocityEnabled() const;
 	bool OverrideHasPixelAnimationEnabled() const;
+	bool OverrideTessellationEnabled() const;
 	bool OverrideDisplacementScalingEnabled() const;
 	bool OverrideMaxWorldPositionOffsetDisplacementEnabled() const;
 	void OnOverrideOpacityClipMaskValueChanged(bool NewValue);
@@ -128,6 +129,7 @@ private:
 	void OnOverrideDitheredLODTransitionChanged(bool NewValue);
 	void OnOverrideOutputTranslucentVelocityChanged(bool NewValue);
 	void OnOverrideHasPixelAnimationChanged(bool NewValue);
+	void OnOverrideEnableTessellationChanged(bool NewValue);
 	void OnOverrideDisplacementScalingChanged(bool NewValue);
 	void OnOverrideMaxWorldPositionOffsetDisplacementChanged(bool NewValue);
 	bool OverrideCastDynamicShadowAsMaskedEnabled() const;

@@ -938,6 +938,7 @@ public:
 	ENGINE_API virtual USpecularProfile* GetSpecularProfile_Internal(uint32 Index) const;
 	ENGINE_API virtual UNeuralProfile* GetNeuralProfile_Internal() const;
 	ENGINE_API virtual bool CastsRayTracedShadows() const;
+	ENGINE_API virtual bool IsTessellationEnabled() const;
 
 	/**
 	 * Force the streaming system to disregard the normal logic for the specified duration and

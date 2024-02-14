@@ -466,7 +466,7 @@ class UMaterial : public UMaterialInterface
 	UPROPERTY(EditAnywhere, Category=Nanite, meta = (EditInline, ShowOnlyInnerProperties))
 	FMaterialOverrideNanite NaniteOverrideMaterial;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Nanite, meta = (DisplayName = "Displacement"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Nanite, meta = (DisplayName = "Displacement", EditCondition="bEnableTessellation"))
 	FDisplacementScaling DisplacementScaling;
 
 private:
@@ -545,6 +545,10 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, Category=Material, meta=(DisplayName = "Has Pixel Animation"), AdvancedDisplay)
 	uint8 bHasPixelAnimation : 1;
+	
+	/** Whether tessellation is enabled on the material. NOTE: Required for displacement to work. */
+	UPROPERTY(EditAnywhere, Category=Nanite)
+	uint8 bEnableTessellation : 1;
 
 	/**
 	 * Specifies the separate pass in which to render translucency.
@@ -1162,6 +1166,7 @@ public:
 	ENGINE_API virtual USpecularProfile* GetSpecularProfile_Internal(uint32 Index) const override;
 	ENGINE_API virtual UNeuralProfile* GetNeuralProfile_Internal() const override;
 	ENGINE_API virtual bool CastsRayTracedShadows() const override;
+	ENGINE_API virtual bool IsTessellationEnabled() const override;
 	ENGINE_API virtual FDisplacementScaling GetDisplacementScaling() const override;
 	ENGINE_API virtual float GetMaxWorldPositionOffsetDisplacement() const override;
 	ENGINE_API virtual bool ShouldAlwaysEvaluateWorldPositionOffset() const override;

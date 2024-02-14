@@ -2245,7 +2245,7 @@ FMaterialAudit& AuditMaterialsImp(const T* InProxyDesc, FMaterialAudit& Audit)
 			Entry.bHasPerInstanceCustomData		= CachedMaterialData.bHasPerInstanceCustomData;
 			Entry.bHasPixelDepthOffset			= Material->HasPixelDepthOffsetConnected();
 			Entry.bHasWorldPositionOffset		= Material->HasVertexPositionOffsetConnected();
-			Entry.bHasDynamicDisplacement		= Material->HasDisplacementConnected();
+			Entry.bHasTessellationEnabled		= Material->IsTessellationEnabled();
 			Entry.bHasUnsupportedBlendMode		= !IsSupportedBlendMode(BlendMode);
 			Entry.bHasUnsupportedShadingModel	= !IsSupportedShadingModel(Material->GetShadingModels());
 			Entry.bHasInvalidUsage				= bUsingCookedEditorData ? Material->NeedsSetMaterialUsage_Concurrent(bUsageSetSuccessfully, MATUSAGE_Nanite) : !Material->CheckMaterialUsage_Concurrent(MATUSAGE_Nanite);

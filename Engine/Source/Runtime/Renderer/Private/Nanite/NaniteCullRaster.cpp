@@ -1445,7 +1445,7 @@ class FMicropolyRasterizeCS : public FNaniteMaterialShader
 		if (PermutationVector.Get<FTessellationDim>() || PermutationVector.Get<FPatchesDim>())
 		{
 			// TODO Don't compile useless shaders for default material
-			if (!NaniteTessellationSupported() || (!Parameters.MaterialParameters.bIsDefaultMaterial && !Parameters.MaterialParameters.bHasDisplacementConnected))
+			if (!NaniteTessellationSupported() || (!Parameters.MaterialParameters.bIsDefaultMaterial && !Parameters.MaterialParameters.bIsTessellationEnabled))
 			{
 				return false;
 			}
