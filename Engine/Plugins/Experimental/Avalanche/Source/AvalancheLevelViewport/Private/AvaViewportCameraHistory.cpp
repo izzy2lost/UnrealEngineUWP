@@ -93,7 +93,7 @@ void FAvaViewportCameraHistory::PostEngineInit()
 void FAvaViewportCameraHistory::Reset()
 {
 	CameraTransformHistory.Reset();
-	CameraTransformHistory.SetNumUninitialized(UE::AvalancheEditor::Internal::CameraUndoHistoryCapacity, false);
+	CameraTransformHistory.SetNumUninitialized(UE::AvalancheEditor::Internal::CameraUndoHistoryCapacity, EAllowShrinking::No);
 	CameraTransformHistoryIndex = INDEX_NONE;
 	CameraTransformHistoryHeadIndex = 1;
 }
