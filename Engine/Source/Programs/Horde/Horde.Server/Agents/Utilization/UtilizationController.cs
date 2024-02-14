@@ -14,7 +14,7 @@ namespace Horde.Server.Agents.Telemetry
 	/// </summary>
 	[ApiController]
 	[Route("[controller]")]
-	public sealed class ReportsController : ControllerBase
+	public sealed class UtilizationController : ControllerBase
 	{
 		/// <summary>
 		/// the Telemetry collection singleton
@@ -25,7 +25,7 @@ namespace Horde.Server.Agents.Telemetry
 		/// Constructor
 		/// </summary>
 		/// <param name="utilizationDataCollection">The telemetry collection</param>
-		public ReportsController(IUtilizationDataCollection utilizationDataCollection)
+		public UtilizationController(IUtilizationDataCollection utilizationDataCollection)
 		{
 			_utilizationDataCollection = utilizationDataCollection;
 		}
@@ -34,8 +34,8 @@ namespace Horde.Server.Agents.Telemetry
 		/// Gets a collection of utilization data including an endpoint and a range
 		/// </summary>
 		[HttpGet]
-		[Route("/api/v1/reports/utilization/{endDate}")]
-		public async Task<ActionResult<List<UtilizationTelemetryResponse>>> GetStreamUtilizationDataAsync(DateTime endDate, [FromQuery(Name = "Range")] int range, [FromQuery(Name = "TzOffset")] int? tzOffset)
+		[Route("/api/v1/utilization")]
+		public async Task<ActionResult<List<GetUtilizationDataResponse>>> GetUtilizationDataAsync([FromQuery] DateTime endDate, [FromQuery(Name = "Range")] int range, [FromQuery(Name = "TzOffset")] int? tzOffset)
 		{
 			// Logic here is a bit messy. The client is always passing in a date at midnight
 			// If user passes in 12/1/2020 into the date with range of 1, the range should be 12/1/2020:00:00:00 to 12/1/2020:23:59:59
@@ -44,14 +44,25 @@ namespace Horde.Server.Agents.Telemetry
 			DateTimeOffset endDateOffset = new DateTimeOffset(endDate, TimeSpan.FromHours(offset)).Add(new TimeSpan(23, 59, 59));
 			DateTimeOffset startDateOffset = endDate.Subtract(new TimeSpan(range - 1, 0, 0, 0));
 
-			List<IUtilizationData> telemetry = await _utilizationDataCollection.GetUtilizationDataAsync(startDateOffset.UtcDateTime, endDateOffset.UtcDateTime);
+			List<IUtilizationData> data = await _utilizationDataCollection.GetUtilizationDataAsync(startDateOffset.UtcDateTime, endDateOffset.UtcDateTime);
 
-			return telemetry.ConvertAll(CreateTelemetryResponse);
+			return data.ConvertAll(CreateTelemetryResponse);
 		}
 
-		static UtilizationTelemetryResponse CreateTelemetryResponse(IUtilizationData telemetry)
+		/// <summary>
+		/// Gets a collection of utilization data including an endpoint and a range
+		/// </summary>
+		[HttpGet]
+		[Obsolete("Use the /api/v1/utilization endpoint instead.")]
+		[Route("/api/v1/reports/utilization/{endDate}")]
+		public Task<ActionResult<List<GetUtilizationDataResponse>>> GetStreamUtilizationDataAsync(DateTime endDate, [FromQuery(Name = "Range")] int range, [FromQuery(Name = "TzOffset")] int? tzOffset)
 		{
-			UtilizationTelemetryResponse response = new UtilizationTelemetryResponse();
+			return GetUtilizationDataAsync(endDate, range, tzOffset);
+		}
+
+		static GetUtilizationDataResponse CreateTelemetryResponse(IUtilizationData telemetry)
+		{
+			GetUtilizationDataResponse response = new GetUtilizationDataResponse();
 			response.StartTime = telemetry.StartTime;
 			response.FinishTime = telemetry.FinishTime;
 			response.AdminTime = telemetry.AdminTime;
@@ -62,10 +73,10 @@ namespace Horde.Server.Agents.Telemetry
 			return response;
 		}
 
-		static UtilizationTelemetryPool CreatePoolTelemetryResponse(IPoolUtilizationData pool)
+		static GetUtilizationPoolDataResponse CreatePoolTelemetryResponse(IPoolUtilizationData pool)
 		{
-			UtilizationTelemetryPool response = new UtilizationTelemetryPool();
-			response.PoolId = pool.PoolId.ToString();
+			GetUtilizationPoolDataResponse response = new GetUtilizationPoolDataResponse();
+			response.PoolId = pool.PoolId;
 			response.NumAgents = pool.NumAgents;
 			response.AdminTime = pool.AdminTime;
 			response.HibernatingTime = pool.HibernatingTime;
@@ -74,10 +85,10 @@ namespace Horde.Server.Agents.Telemetry
 			return response;
 		}
 
-		static UtilizationTelemetryStream CreateStreamTelemetryResponse(IStreamUtilizationData stream)
+		static GetUtilizationStreamDataResponse CreateStreamTelemetryResponse(IStreamUtilizationData stream)
 		{
-			UtilizationTelemetryStream response = new UtilizationTelemetryStream();
-			response.StreamId = stream.StreamId.ToString();
+			GetUtilizationStreamDataResponse response = new GetUtilizationStreamDataResponse();
+			response.StreamId = stream.StreamId;
 			response.Time = stream.Time;
 			return response;
 		}

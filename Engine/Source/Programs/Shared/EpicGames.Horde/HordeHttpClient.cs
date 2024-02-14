@@ -273,7 +273,7 @@ namespace EpicGames.Horde
 		/// <param name="range">Number of hours to return</param>
 		/// <param name="tzOffset">Timezone offset</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public Task<List<UtilizationTelemetryResponse>> GetTelemetryAsync(DateTime endDate, int range, int? tzOffset = null, CancellationToken cancellationToken = default)
+		public Task<List<GetUtilizationDataResponse>> GetTelemetryAsync(DateTime endDate, int range, int? tzOffset = null, CancellationToken cancellationToken = default)
 		{
 			QueryStringBuilder queryParams = new QueryStringBuilder();
 			queryParams.Add("Range", range.ToString());
@@ -281,7 +281,7 @@ namespace EpicGames.Horde
 			{
 				queryParams.Add("TzOffset", tzOffset.Value.ToString());
 			}
-			return GetAsync<List<UtilizationTelemetryResponse>>(_httpClient, $"api/v1/reports/utilization/{endDate}?{queryParams}", cancellationToken);
+			return GetAsync<List<GetUtilizationDataResponse>>(_httpClient, $"api/v1/reports/utilization/{endDate}?{queryParams}", cancellationToken);
 		}
 
 		#endregion
