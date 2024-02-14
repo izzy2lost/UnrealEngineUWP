@@ -2239,7 +2239,30 @@ void FConvexDecomposition3::InitializeProximityFromDecompositionBoundingBoxOverl
 int32 FConvexDecomposition3::MergeBest(int32 InTargetNumParts, double MaxErrorTolerance, double MinThicknessToleranceWorldSpace, bool bAllowCompact, bool bRequireHullTriangles, int32 MaxOutputHulls,
 	const FSphereCovering* OptionalNegativeSpace, const FTransform* OptionalTransformIntoNegativeSpace)
 {
-	int32 TargetNumParts = FMath::Max(1, InTargetNumParts);
+	FMergeSettings Settings;
+	Settings.TargetNumParts = InTargetNumParts;
+	Settings.ErrorTolerance = MaxErrorTolerance;
+	Settings.MinThicknessTolerance = MinThicknessToleranceWorldSpace;
+	Settings.bAllowCompact = bAllowCompact;
+	Settings.bRequireHullTriangles = bRequireHullTriangles;
+	Settings.MaxOutputHulls = MaxOutputHulls;
+	Settings.OptionalNegativeSpace = OptionalNegativeSpace;
+	Settings.OptionalTransformIntoNegativeSpace = OptionalTransformIntoNegativeSpace;
+	return MergeBest(Settings);
+}
+
+int32 FConvexDecomposition3::MergeBest(const FMergeSettings& Settings)
+{
+	// expand some settings out to variables for convenience
+	int32 TargetNumParts = FMath::Max(1, Settings.TargetNumParts);
+	double MaxErrorTolerance = Settings.ErrorTolerance;
+	double MinThicknessToleranceWorldSpace = Settings.MinThicknessTolerance;
+	bool bAllowCompact = Settings.bAllowCompact;
+	bool bRequireHullTriangles = Settings.bRequireHullTriangles;
+	int32 MaxOutputHulls = Settings.MaxOutputHulls;
+	const FSphereCovering* OptionalNegativeSpace = Settings.OptionalNegativeSpace;
+	const FTransform* OptionalTransformIntoNegativeSpace = Settings.OptionalTransformIntoNegativeSpace;
+
 	const bool bHasValidMaxHulls = MaxOutputHulls > 0;
 	if (bHasValidMaxHulls)
 	{
@@ -2401,6 +2424,17 @@ int32 FConvexDecomposition3::MergeBest(int32 InTargetNumParts, double MaxErrorTo
 		}
 	}
 
+	// If we have a MergeCallback, maintain a mapping from current decomposition part indices back to original part indices
+	TArray<int32> ToOriginalPartIdx;
+	if (Settings.MergeCallback)
+	{
+		ToOriginalPartIdx.SetNumUninitialized(Decomposition.Num());
+		for (int32 PartIdx = 0; PartIdx < ToOriginalPartIdx.Num(); ++PartIdx)
+		{
+			ToOriginalPartIdx[PartIdx] = PartIdx;
+		}
+	}
+
 
 	auto CreateMergedPart = [this, &IsPartBelowSizeTolerance](FProximity& Prox) -> TUniquePtr<FConvexPart>
 	{
@@ -2437,7 +2471,7 @@ int32 FConvexDecomposition3::MergeBest(int32 InTargetNumParts, double MaxErrorTo
 	for (; MustMergeCount > 0 || VolumeTolerance > 0 || Decomposition.Num() > TargetNumParts; MergeNum++)
 	{
 		double BestKnownCost = FMathd::MaxReal;
-		bool bOnlyAllowMustMerges = VolumeTolerance == 0 && Decomposition.Num() <= TargetNumParts;
+		bool bOnlyAllowMustMerges = (VolumeTolerance == 0 || !Settings.bErrorToleranceOverridesNumParts) && Decomposition.Num() <= TargetNumParts;
 		int32 BestKnownIdx = -1;
 		int32 ConsideredCount = 0;
 		for (int32 ProxIdx = 0; ProxIdx < Proximities.Num(); ProxIdx++)
@@ -2466,6 +2500,15 @@ int32 FConvexDecomposition3::MergeBest(int32 InTargetNumParts, double MaxErrorTo
 			bool bOnlyMustMergeParts =
 				Decomposition[Proximities[ProxIdx].Link.A].bMustMerge &&
 				Decomposition[Proximities[ProxIdx].Link.B].bMustMerge;
+
+			// Run the custom allow-merge function (if we have one)
+			if (Settings.CustomAllowMergeParts)
+			{
+				if (!Settings.CustomAllowMergeParts(Decomposition[Proximities[ProxIdx].Link.A], Decomposition[Proximities[ProxIdx].Link.B]))
+				{
+					continue;
+				}
+			}
 
 			double MergeCost;
 			// attempt to remove parts from the proximity store if we're at the size limit
@@ -2641,10 +2684,21 @@ int32 FConvexDecomposition3::MergeBest(int32 InTargetNumParts, double MaxErrorTo
 		NewLinks.Remove(DecoToKeep);
 		NewLinks.Remove(DecoToRm);
 
+		if (Settings.MergeCallback)
+		{
+			int32 OrigKeep = ToOriginalPartIdx[DecoToKeep];
+			int32 OrigRm = ToOriginalPartIdx[DecoToRm];
+			Settings.MergeCallback(OrigKeep, OrigRm);
+		}
+
 		// Remove the unused convex, updating references to the part that was swapped back
 		int32 LastIdx = Decomposition.Num() - 1;
 		if (DecoToRm != LastIdx)
 		{
+			if (Settings.MergeCallback)
+			{
+				ToOriginalPartIdx[DecoToRm] = ToOriginalPartIdx[LastIdx];
+			}
 			// Before swap-removing DecoToRm, update references that used to point to the last element of the array to now point to DecoToRm
 			[this](int32 OrigIdx, int32 NewIdx)
 			{
