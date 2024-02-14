@@ -67,6 +67,7 @@ public:
 protected:
 	//~ Begin UObject Interface.
 	ENGINE_API virtual void Serialize(FArchive& Ar) override;
+	ENGINE_API virtual bool IsEditorOnly() const override;
 	ENGINE_API virtual bool NeedsLoadForServer() const override;
 	ENGINE_API virtual void PostLoad() override;
 #if WITH_EDITOR

@@ -146,6 +146,17 @@ void AWorldPartitionHLOD::Serialize(FArchive& Ar)
 #endif
 }
 
+bool AWorldPartitionHLOD::IsEditorOnly() const
+{
+	// Treat HLOD actors which were never built (or failed to build components for various reasons) as editor only.
+	if (!IsTemplate() && GetRootComponent() == nullptr)
+	{
+		return true;
+	}
+
+	return Super::IsEditorOnly();
+}
+
 bool AWorldPartitionHLOD::NeedsLoadForServer() const
 {
 	// Only needed on server if this HLOD actor has anything to replicate to clients
