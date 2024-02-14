@@ -49,15 +49,21 @@ void FAnimNode_OffsetRootBone::GatherDebugData(FNodeDebugData& DebugData)
 
 void FAnimNode_OffsetRootBone::Initialize_AnyThread(const FAnimationInitializeContext& Context)
 {
-	FAnimNode_Base::Initialize_AnyThread(Context);
+	Super::Initialize_AnyThread(Context);
 	AnimInstanceProxy = Context.AnimInstanceProxy;
 	Source.Initialize(Context);
 	Reset(Context);
 }
 
+void FAnimNode_OffsetRootBone::CacheBones_AnyThread(const FAnimationCacheBonesContext& Context)
+{
+	Super::CacheBones_AnyThread(Context);
+	Source.CacheBones(Context);
+}
+
 void FAnimNode_OffsetRootBone::Update_AnyThread(const FAnimationUpdateContext& Context)
 {
-	FAnimNode_Base::Update_AnyThread(Context);
+	Super::Update_AnyThread(Context);
 	CachedDeltaTime = Context.GetDeltaTime();
 
 	// If we just became relevant and haven't been initialized yet, then reset.
