@@ -15,4 +15,12 @@ struct FAvaInstanceSettings
 	/** Enable loading dependent levels as sub-playables. */
 	UPROPERTY(config, EditAnywhere, Category = Settings)
 	bool bEnableLoadSubPlayables = true;
+
+	/**
+	 * For default playable transitions (when there is no transition tree),
+	 * wait for the sequences to finish before ending the transition.
+	 */
+	UPROPERTY(config, EditAnywhere, Category = Settings)
+	bool bDefaultPlayableTransitionWaitForSequences = false;
+	
 };
