@@ -132,10 +132,11 @@ FAnimNode_RigidBodyWithControl::FAnimNode_RigidBodyWithControl()
 	, bUpdateCacheEveryFrame(true)
 	, BaseBoneRef()
 	, OverlapChannel(ECC_WorldStatic)
-	, bCalculateVelocitiesForWorldGeometry(true)
 	, SimulationSpace(ESimulationSpace::ComponentSpace)
+	, bCalculateVelocitiesForWorldGeometry(true)
 	, bForceDisableCollisionBetweenConstraintBodies(false)
 	, bUseExternalClothCollision(false)
+	, bMakeKinematicConstraints(true)
 	, ResetSimulatedTeleportType(ETeleportType::None)
 	, bEnableWorldGeometry(false)
 	, bOverrideWorldGravity(false)
@@ -150,7 +151,7 @@ FAnimNode_RigidBodyWithControl::FAnimNode_RigidBodyWithControl()
 	, bSimulationStarted(false)
 	, bCheckForBodyTransformInit(false)
 	, bHaveSetupControls(false)
-	, SimulationTiming(ESimulationTiming::Default)
+	, SimulationTiming(ESimulationTiming::Synchronous)
 	, WorldTimeSeconds(0.0f)
 	, LastEvalTimeSeconds(0.0f)
 	, AccumulatedDeltaTime(0.0f)
@@ -460,6 +461,7 @@ void FAnimNode_RigidBodyWithControl::DestroyPhysicsSimulation()
 	FlushDeferredSimulationTask();
 	delete PhysicsSimulation;
 	PhysicsSimulation = nullptr;
+	CurrentConstraintProfile = FName();
 }
 
 void FAnimNode_RigidBodyWithControl::SetupControls(USkeletalMeshComponent* const SkeletalMeshComponent)
@@ -512,6 +514,10 @@ void FAnimNode_RigidBodyWithControl::EvaluateSkeletalControl_AnyThread(FComponen
 		if (!bHaveSetupControls && bEnableControls)
 		{
 			SetupControls(Output.AnimInstanceProxy->GetSkelMeshComponent());
+		}
+		else if (bHaveSetupControls && !bEnableControls)
+		{
+			DestroyControlsAndBodyModifiers();
 		}
 
 		const FBoneContainer& BoneContainer = Output.Pose.GetPose().GetBoneContainer();
@@ -762,16 +768,19 @@ void FAnimNode_RigidBodyWithControl::EvaluateSkeletalControl_AnyThread(FComponen
 				ApplyCurrentConstraintProfile();
 			}
 
-			if (ControlProfile != CurrentControlProfile)
+			if (bHaveSetupControls)
 			{
-				CurrentControlProfile = ControlProfile;
-				ApplyCurrentControlProfile();
-			}
+				if (ControlProfile != CurrentControlProfile)
+				{
+					CurrentControlProfile = ControlProfile;
+					ApplyCurrentControlProfile();
+				}
 
-			// Apply the controls. Note that these won't set kinematic targets - we'll do that afterwards as they
-			// can apply to bodies that aren't under the influence of a modifier
-			ApplyControlAndModifierUpdatesAndParametersToRecords(ControlAndModifierUpdates, ControlAndModifierParameters);
-			ApplyControlsAndModifiers(SimSpaceGravity, DeltaSeconds);
+				// Apply the controls. Note that these won't set kinematic targets - we'll do that afterwards as they
+				// can apply to bodies that aren't under the influence of a modifier
+				ApplyControlAndModifierUpdatesAndParametersToRecords(ControlAndModifierUpdates, ControlAndModifierParameters);
+				ApplyControlsAndModifiers(SimSpaceGravity, DeltaSeconds);
+			}
 
 			// Note that the simulation interpolates kinematic targets to handle substepping
 			for (const RigidBodyWithControl::FOutputBoneData& OutputData : OutputBoneData)
@@ -1078,7 +1087,12 @@ void FAnimNode_RigidBodyWithControl::InitPhysics(const UAnimInstance* InAnimInst
 					TotalMass += InvMass > 0.f ? 1.f / InvMass : 0.f;
 					if (!bSimulated)
 					{
-						ActorHandle->SetIsKinematic(true);
+						// Note that particles are always created disabled (why?). However,
+						// SetEnabled only operates on dyanmics, so we need to enable the particle
+						// before making it kinematic, otherwise we end up with particles that are
+						// disabled, but still simulate.
+						ActorHandle->SetEnabled(true);
+						PhysicsSimulation->SetIsKinematic(ActorHandle, true);
 					}
 
 					ActorHandle->SetName(BodySetup->BoneName);
@@ -1143,13 +1157,14 @@ void FAnimNode_RigidBodyWithControl::InitPhysics(const UAnimInstance* InAnimInst
 
 				if(Body1Handle && Body2Handle)
 				{
-					if (Body1Handle->IsSimulated() || Body2Handle->IsSimulated())
+					if (bMakeKinematicConstraints || (Body1Handle->IsSimulated() || Body2Handle->IsSimulated()))
 					{
-						ImmediatePhysics::FJointHandle* NewJointHandle =
+						ImmediatePhysics::FJointHandle* JointHandle =
 							PhysicsSimulation->CreateJoint(CI, Body1Handle, Body2Handle);
+
 						// Record the joint handle under the child bone (i.e. more leaf-ward bone),
 						// since each bone may have multiple children, but only one parent.
-						NamesToJointHandles.Add(CI->ConstraintBone1, NewJointHandle);
+						NamesToJointHandles.Add(CI->ConstraintBone1, JointHandle);
 
 						if (bForceDisableCollisionBetweenConstraintBodies)
 						{
@@ -1164,7 +1179,7 @@ void FAnimNode_RigidBodyWithControl::InitPhysics(const UAnimInstance* InAnimInst
 						int32 BodyIndex;
 						if (Bodies.Find(Body1Handle, BodyIndex))
 						{
-							Joints[BodyIndex] = NewJointHandle;
+							Joints[BodyIndex] = JointHandle;
 						}
 
 						if (CI->IsCollisionDisabled())
@@ -1614,7 +1629,7 @@ inline bool IsComponentDesiredInSim(const UPrimitiveComponent* Component)
 	{
 		return false;
 	}
-	if (!Component->GetBodyInstance()->GetCollisionEnabled())
+	if (!CollisionEnabledHasPhysics(Component->GetBodyInstance()->GetCollisionEnabled()))
 	{
 		return false;
 	}

@@ -357,16 +357,17 @@ void FAnimNode_RigidBodyWithControl::InitControlsAndBodyModifiers(const FReferen
 	TMap<FName, FPhysicsControlLimbBones> AllLimbBones =
 		UE::PhysicsControl::GetLimbBones(SetupData.LimbSetupData, RefSkeleton, GetPhysicsAsset());
 
-	FPhysicsControlAndBodyModifierCreationDatas AdditionalOperators;
+	FPhysicsControlAndBodyModifierCreationDatas ControlAndBodyModifierCreationDatas;
 	if (IsValid(PhysicsControlProfileAsset))
 	{
-		AdditionalOperators = PhysicsControlProfileAsset->AdditionalControlsAndModifiers;
+		ControlAndBodyModifierCreationDatas = PhysicsControlProfileAsset->AdditionalControlsAndModifiers;
 	}
-	AdditionalOperators += AdditionalControlsAndBodyModifiers;
+	ControlAndBodyModifierCreationDatas += AdditionalControlsAndBodyModifiers;
 
 	// An "operator" is a control or a body modifier. This will also add them to sets etc.
 	UE::PhysicsControl::CreateOperatorsForNode(
-		this, SetupData, AdditionalControlsAndBodyModifiers, AllLimbBones, RefSkeleton, GetPhysicsAsset(), NameRecords);
+		this, SetupData, ControlAndBodyModifierCreationDatas, 
+		AllLimbBones, RefSkeleton, GetPhysicsAsset(), NameRecords);
 
 	for (TMap<FName, FRigidBodyControlRecord>::ElementType& NameRecordPair : ControlRecords)
 	{
@@ -395,11 +396,22 @@ void FAnimNode_RigidBodyWithControl::InitControlsAndBodyModifiers(const FReferen
 //======================================================================================================================
 void FAnimNode_RigidBodyWithControl::DestroyControlsAndBodyModifiers()
 {
-	// TODO - make sure this fn is complete
+	// This is needed because deleting the joint handle doesn't actually remove the constraint from
+	// the simulation.
+	for (TMap<FName, FRigidBodyControlRecord>::ElementType& NameRecordPair : ControlRecords)
+	{
+		ImmediatePhysics::FJointHandle* JointHandle = NameRecordPair.Value.JointHandle;
+		if (JointHandle)
+		{
+			PhysicsSimulation->DestroyJoint(JointHandle);
+		}
+	}
+
 	ControlRecords.Reset();
 	ModifierRecords.Reset();
 	NameRecords.Reset();
 	bHaveSetupControls = false;
+	CurrentControlProfile = FName();
 }
 
 //======================================================================================================================
@@ -664,10 +676,13 @@ void FAnimNode_RigidBodyWithControl::ApplyModifier(
 {
 	if (BodyModifierRecord.ActorHandle)
 	{
-		// Note that there's an early out if there's no change needed, so this should be OK.
-		PhysicsSimulation->SetIsKinematic(
-			BodyModifierRecord.ActorHandle,
-			BodyModifierRecord.ModifierData.MovementType != EPhysicsMovementType::Simulated);
+		if (BodyModifierRecord.ModifierData.MovementType != EPhysicsMovementType::Default)
+		{
+			// Note that there's an early out if there's no change needed, so this should be OK.
+			PhysicsSimulation->SetIsKinematic(
+				BodyModifierRecord.ActorHandle,
+				BodyModifierRecord.ModifierData.MovementType != EPhysicsMovementType::Simulated);
+		}
 
 		// Note that the actual kinematic targets will be set separately, since they need to be set
 		// for all kinematics whether or not they were under a modifier.
@@ -682,8 +697,8 @@ void FAnimNode_RigidBodyWithControl::ApplyModifier(
 		}
 
 		// Set collision
-		Chaos::FGeometryParticleHandle* ParticleHandle = BodyModifierRecord.ActorHandle->GetParticle();
-		//ParticleHandle->SetHasCollision(CollisionEnabledHasPhysics(BodyModifierRecord.ModifierData.CollisionType));
+		PhysicsSimulation->SetHasCollision(
+			BodyModifierRecord.ActorHandle, CollisionEnabledHasPhysics(BodyModifierRecord.ModifierData.CollisionType));
 	}
 }
 
