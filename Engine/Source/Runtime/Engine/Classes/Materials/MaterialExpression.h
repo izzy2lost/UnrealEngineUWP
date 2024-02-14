@@ -167,6 +167,11 @@ struct FMaterialExpressionCollection
 	/** Array of material expressions, excluding Comments.  Used by the material editor. */
 	UPROPERTY()
 	TArray<TObjectPtr<UMaterialExpression>> Expressions;
+	
+	/** Temporary debug info strings for each expression to help debugging the sporadic
+	 *  unexpected occurrence of nulls in Expressions on PostLoad() (UE-198712) */
+	UPROPERTY()
+	TArray<FString> DebugExpressionInfos;
 
 	/** Array of comments associated with this material; viewed in the material editor. */
 	UPROPERTY()
