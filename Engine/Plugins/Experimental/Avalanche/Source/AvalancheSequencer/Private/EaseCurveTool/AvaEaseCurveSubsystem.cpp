@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaEaseCurveSubsystem.h"
+#include "Containers/UnrealString.h"
 #include "EaseCurveTool/AvaEaseCurvePreset.h"
 #include "EaseCurveTool/AvaEaseCurveToolSettings.h"
 #include "Editor.h"
@@ -634,22 +635,22 @@ void UAvaEaseCurveSubsystem::ResetToDefaultPresets(const bool bInOnlyIfNoProject
 {
 	IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
 
-	const FString ProjectPresetPath = FPaths::ConvertRelativePathToFull(UAvaEaseCurveSubsystem::ProjectPresetPath());
+	const FString SourceProjectPresetPath = FPaths::ConvertRelativePathToFull(UAvaEaseCurveSubsystem::ProjectPresetPath());
 
 	if (!bInOnlyIfNoProjectPresets)
 	{
-		PlatformFile.DeleteDirectoryRecursively(*ProjectPresetPath);
-		PlatformFile.CreateDirectory(*ProjectPresetPath);
+		PlatformFile.DeleteDirectoryRecursively(*SourceProjectPresetPath);
+		PlatformFile.CreateDirectory(*SourceProjectPresetPath);
 	}
 
 	TArray<FString> JsonFiles;
-	IFileManager::Get().FindFilesRecursive(JsonFiles, *ProjectPresetPath, TEXT("*.json"), true, false);
+	IFileManager::Get().FindFilesRecursive(JsonFiles, *SourceProjectPresetPath, TEXT("*.json"), true, false);
 
 	if (JsonFiles.IsEmpty())
 	{
-		const FString PluginPresetPath = FPaths::ConvertRelativePathToFull(UAvaEaseCurveSubsystem::PluginPresetPath());
+		const FString DestPluginPresetPath = FPaths::ConvertRelativePathToFull(UAvaEaseCurveSubsystem::PluginPresetPath());
 
-		if (PlatformFile.CopyDirectoryTree(*ProjectPresetPath, *PluginPresetPath, false))
+		if (PlatformFile.CopyDirectoryTree(*SourceProjectPresetPath, *DestPluginPresetPath, false))
 		{
 			UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("Motion Design ease curve tool project presets are empty. "
 				"Copied default presets to [Project]/Config/EaseCurves"));
@@ -657,4 +658,25 @@ void UAvaEaseCurveSubsystem::ResetToDefaultPresets(const bool bInOnlyIfNoProject
 			ReloadPresetsFromJson();
 		}
 	}
+}
+
+const TMap<FString, TArray<FString>>& UAvaEaseCurveSubsystem::GetDefaultCategoryPresetNames()
+{
+	static const TArray<FString> Names = {
+		TEXT("Sine"), 
+		TEXT("Cubic"), 
+		TEXT("Quintic"), 
+		TEXT("Circular"), 
+		TEXT("Quadratic"), 
+		TEXT("Quartic"), 
+		TEXT("Exponential") 
+	};
+
+	static const TMap<FString, TArray<FString>> CategoryPresetNames = {
+		{ TEXT("Ease In Out"), Names },
+		{ TEXT("Ease In"), Names },
+		{ TEXT("Ease Out"), Names }
+	};
+
+	return CategoryPresetNames;
 }
