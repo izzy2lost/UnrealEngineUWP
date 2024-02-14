@@ -786,7 +786,7 @@ public:
 	virtual ENGINE_API FGraphEventArray PrecachePSOs(const FPSOPrecacheVertexFactoryDataList& VertexFactoryDataList, const FPSOPrecacheParams& PreCacheParams, EPSOPrecachePriority Priority, TArray<FMaterialPSOPrecacheRequestID>& OutMaterialPSORequestIDs) override;
 
 #if WITH_EDITOR
-	ENGINE_API virtual void ForceRecompileForRendering() override;
+	ENGINE_API virtual void ForceRecompileForRendering(EMaterialShaderPrecompileMode CompileMode = EMaterialShaderPrecompileMode::Default) override;
 #endif // WITH_EDITOR
 
 	ENGINE_API virtual float GetOpacityMaskClipValue() const override;

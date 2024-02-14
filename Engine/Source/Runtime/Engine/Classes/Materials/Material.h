@@ -1187,7 +1187,7 @@ public:
 	/** Allows material properties to be compiled with the option of being overridden by the material attributes input. */
 	ENGINE_API virtual int32 CompilePropertyEx( class FMaterialCompiler* Compiler, const FGuid& AttributeID ) override;
 	ENGINE_API virtual bool ShouldForcePlanePreview() override;
-	ENGINE_API virtual void ForceRecompileForRendering() override;
+	ENGINE_API virtual void ForceRecompileForRendering(EMaterialShaderPrecompileMode CompileMode = EMaterialShaderPrecompileMode::Default) override;
 #endif // WITH_EDITOR
 	//~ End UMaterialInterface Interface.
 

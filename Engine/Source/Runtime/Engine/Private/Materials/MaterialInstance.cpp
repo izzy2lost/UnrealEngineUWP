@@ -2034,10 +2034,10 @@ void UMaterialInstance::GetDependentFunctions(TArray<UMaterialFunctionInterface*
 #endif // WITH_EDITORONLY_DATA
 
 #if WITH_EDITOR
-void UMaterialInstance::ForceRecompileForRendering()
+void UMaterialInstance::ForceRecompileForRendering(EMaterialShaderPrecompileMode CompileMode)
 {
 	UpdateCachedData();
-	CacheResourceShadersForRendering();
+	CacheResourceShadersForRendering(CompileMode);
 }
 #endif // WITH_EDITOR
 
