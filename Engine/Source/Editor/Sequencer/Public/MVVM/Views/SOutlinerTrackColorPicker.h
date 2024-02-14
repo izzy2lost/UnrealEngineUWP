@@ -21,7 +21,7 @@ public:
 	SLATE_BEGIN_ARGS(SOutlinerTrackColorPicker){}
 	SLATE_END_ARGS()
 
-	void Construct(const FArguments& InArgs, TWeakViewModelPtr<IOutlinerExtension> InWeakOutlinerExtension, const TSharedPtr<FEditorViewModel>& EditorViewModel);
+	SEQUENCER_API void Construct(const FArguments& InArgs, TWeakViewModelPtr<IOutlinerExtension> InWeakOutlinerExtension, const TSharedPtr<FEditorViewModel>& EditorViewModel);
 
 private:
 

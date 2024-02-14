@@ -20,11 +20,20 @@ void SKeyAreaEditorSwitcher::Construct(const FArguments& InArgs, TSharedPtr<FCha
 	WeakModel = InModel;
 	WeakEditorModel = InWeakEditorModel;
 	CachedChannelsSerialNumber = 0;
+
+	SetVisibility(MakeAttributeSP(this, &SKeyAreaEditorSwitcher::ComputeVisibility));
 }
 
 int32 SKeyAreaEditorSwitcher::GetWidgetIndex() const
 {
 	return VisibleIndex;
+}
+
+EVisibility SKeyAreaEditorSwitcher::ComputeVisibility() const
+{
+	return VisibleIndex != INDEX_NONE
+		? EVisibility::Visible
+		: EVisibility::Collapsed;
 }
 
 void SKeyAreaEditorSwitcher::Rebuild()
@@ -45,39 +54,21 @@ void SKeyAreaEditorSwitcher::Rebuild()
 	}
 
 	SetEnabled(MakeAttributeSP(Editor.ToSharedRef(), &FEditorViewModel::IsEditable));
-
-	// Index 0 is always the spacer node
-	VisibleIndex = 0;
+	VisibleIndex = INDEX_NONE;
 
 	TSharedRef<SWidgetSwitcher> Switcher = SNew(SWidgetSwitcher)
-		.WidgetIndex(this, &SKeyAreaEditorSwitcher::GetWidgetIndex)
-
-		+ SWidgetSwitcher::Slot()
-		[
-			SNullWidget::NullWidget
-		];
+		.WidgetIndex(this, &SKeyAreaEditorSwitcher::GetWidgetIndex);
 
 	TSharedPtr<IObjectBindingExtension> ParentObjectBinding = Model->FindAncestorOfType<IObjectBindingExtension>();
 	FGuid ObjectBindingID = ParentObjectBinding.IsValid() ? ParentObjectBinding->GetObjectGuid() : FGuid();
 
 	for (TSharedRef<IKeyArea> KeyArea : CachedKeyAreas)
 	{
-		if (!KeyArea->CanCreateKeyEditor())
-		{
-			// Always generate a slot so that indices line up correctly
-			Switcher->AddSlot()
-			[
-				SNullWidget::NullWidget
-			];
-		}
-		else
-		{
-			Switcher->AddSlot()
-			.HAlign(HAlign_Left)
-			[
-				KeyArea->CreateKeyEditor(Editor->GetSequencer(), ObjectBindingID)
-			];
-		}
+		Switcher->AddSlot()
+		.HAlign(HAlign_Left)
+		[
+			KeyArea->CreateKeyEditor(Editor->GetSequencer(), ObjectBindingID)
+		];
 	}
 
 	ChildSlot
@@ -109,6 +100,13 @@ void SKeyAreaEditorSwitcher::Tick( const FGeometry& AllottedGeometry, const doub
 		{
 			CachedChannelsSerialNumber = NewChannelsSerialNumber;
 			CachedKeyAreas = Model->GetAllKeyAreas();
+			for (int32 Index = CachedKeyAreas.Num()-1; Index >= 0; --Index)
+			{
+				if (!CachedKeyAreas[Index]->CanCreateKeyEditor())
+				{
+					CachedKeyAreas.RemoveAtSwap(Index);
+				}
+			}
 			Rebuild();
 		}
 
@@ -119,16 +117,7 @@ void SKeyAreaEditorSwitcher::Tick( const FGeometry& AllottedGeometry, const doub
 			AllSections.Add(KeyArea->GetOwningSection());
 		}
 
-		const int32 ActiveKeyArea = SequencerHelpers::GetSectionFromTime(AllSections, Editor->GetSequencer()->GetLocalTime().Time.FrameNumber);
-		if (ActiveKeyArea != INDEX_NONE)
-		{
-			// Index 0 is the spacer node, so add 1 to the key area index to get the widget index
-			VisibleIndex = 1 + ActiveKeyArea;
-		}
-		else
-		{
-			VisibleIndex = 0;
-		}
+		VisibleIndex = SequencerHelpers::GetSectionFromTime(AllSections, Editor->GetSequencer()->GetLocalTime().Time.FrameNumber);
 	}
 }
 

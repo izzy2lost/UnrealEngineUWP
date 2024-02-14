@@ -36,6 +36,8 @@ private:
 
 	int32 GetWidgetIndex() const;
 
+	EVisibility ComputeVisibility() const;
+
 private:
 
 	/** Our overlay widget */
