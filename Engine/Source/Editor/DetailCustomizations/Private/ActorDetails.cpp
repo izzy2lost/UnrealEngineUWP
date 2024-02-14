@@ -476,8 +476,8 @@ void FActorDetails::AddTransformCategory( IDetailLayoutBuilder& DetailBuilder )
 	{
 		return;
 	}
-	
-	TSharedRef<FComponentTransformDetails> TransformDetails = MakeShareable( new FComponentTransformDetails( DetailBuilder.GetSelectedObjects(), SelectedActorInfo, DetailBuilder ) );
+
+	TSharedRef<FComponentTransformDetails> TransformDetails = MakeShared<FComponentTransformDetails>(DetailBuilder.GetSelectedObjects(), SelectedActorInfo, DetailBuilder);
 
 	IDetailCategoryBuilder& TransformCategory = DetailBuilder.EditCategory( "TransformCommon", LOCTEXT("TransformCommonCategory", "Transform"), ECategoryPriority::Transform );
 
