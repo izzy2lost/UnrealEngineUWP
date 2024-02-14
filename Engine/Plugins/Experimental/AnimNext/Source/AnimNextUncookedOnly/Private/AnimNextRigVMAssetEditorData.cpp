@@ -75,6 +75,7 @@ void UAnimNextRigVMAssetEditorData::Serialize(FArchive& Ar)
 void UAnimNextRigVMAssetEditorData::Initialize(bool bRecompileVM)
 {
 	RigVMClient.bDefaultModelCanBeRemoved = true;
+	RigVMClient.SetDefaultSchemaClass(UAnimNextRigVMAssetSchema::StaticClass());
 	RigVMClient.SetControllerClass(GetControllerClass());
 	RigVMClient.SetOuterClientHost(this, GET_MEMBER_NAME_CHECKED(UAnimNextRigVMAssetEditorData, RigVMClient));
 	{

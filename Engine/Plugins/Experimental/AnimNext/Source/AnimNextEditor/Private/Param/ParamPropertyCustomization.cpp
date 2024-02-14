@@ -43,7 +43,7 @@ void FParamPropertyTypeCustomization::CustomizeHeader(TSharedRef<IPropertyHandle
 	FAnimNextParamType FilterType = FAnimNextParamType::FromString(ParamTypeString);
 
 	FParameterPickerArgs PickerArgs;
-	PickerArgs.bShowBlocks = false;
+	PickerArgs.bShowSourceGraph = false;
 	PickerArgs.bMultiSelect = false;
 	PickerArgs.OnFilterParameterType = FOnFilterParameterType::CreateLambda([FilterType](const FAnimNextParamType& InParameterType)
 	{

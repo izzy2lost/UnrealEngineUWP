@@ -7,12 +7,12 @@
 
 FText UAnimGraphNode_AnimNextParameters::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
-	return LOCTEXT("NodeTitle", "AnimNext Parameter Block");
+	return LOCTEXT("NodeTitle", "AnimNext Parameters");
 }
 
 FText UAnimGraphNode_AnimNextParameters::GetTooltipText() const
 {
-	return LOCTEXT("NodeTooltip", "Pushes parameter blocks that can be used by all nodes leaf-wards");
+	return LOCTEXT("NodeTooltip", "Pushes parameters that can be used by all nodes leaf-wards");
 }
 
 FText UAnimGraphNode_AnimNextParameters::GetMenuCategory() const

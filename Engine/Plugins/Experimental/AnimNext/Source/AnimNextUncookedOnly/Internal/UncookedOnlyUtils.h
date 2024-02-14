@@ -17,8 +17,6 @@ class UAnimNextGraph_EditorData;
 class UAnimNextGraph_EdGraph;
 class URigVMController;
 class URigVMGraph;
-class UAnimNextParameterBlock;
-class UAnimNextParameterBlock_EditorData;
 class UAnimNextGraph_EdGraph;
 struct FEdGraphPinType;
 class UAnimNextRigVMAsset;
@@ -87,11 +85,17 @@ namespace UE::AnimNext::UncookedOnly
 struct ANIMNEXTUNCOOKEDONLY_API FUtils
 {
 	static void Compile(UAnimNextGraph* InGraph);
-	
+
+	static void CompileVM(UAnimNextGraph* InGraph);
+
+	static void CompileStruct(UAnimNextGraph* InGraph);
+
 	static UAnimNextGraph_EditorData* GetEditorData(const UAnimNextGraph* InAnimNextGraph);
-	
+
 	static UAnimNextGraph* GetGraph(const UAnimNextGraph_EditorData* InEditorData);
-	
+
+	static FInstancedPropertyBag* GetPropertyBag(UAnimNextGraph* InAnimNextGraph);
+
 	static void RecreateVM(UAnimNextGraph* InGraph);
 
 	/**
@@ -99,20 +103,6 @@ struct ANIMNEXTUNCOOKEDONLY_API FUtils
 	 * Note that the returned handle may not be valid, so should be checked using IsValid() before use.
 	 **/
 	static FParamTypeHandle GetParameterHandleFromPin(const FEdGraphPinType& InPinType);
-
-	static void Compile(UAnimNextParameterBlock* InParameterBlock);
-
-	static void CompileVM(UAnimNextParameterBlock* InParameterBlock);
-
-	static void CompileStruct(UAnimNextParameterBlock* InParameterBlock);
-	
-	static UAnimNextParameterBlock_EditorData* GetEditorData(const UAnimNextParameterBlock* InParameterBlock);
-
-	static UAnimNextParameterBlock* GetBlock(const UAnimNextParameterBlock_EditorData* InEditorData);
-
-	static FInstancedPropertyBag* GetPropertyBag(UAnimNextParameterBlock* ReferencedBlock);
-
-	static void RecreateVM(UAnimNextParameterBlock* InParameterBlock);
 
 	static UAnimNextRigVMAsset* GetAsset(UAnimNextRigVMAssetEditorData* InEditorData);
 
@@ -142,8 +132,8 @@ struct ANIMNEXTUNCOOKEDONLY_API FUtils
 	/** Set up a simple animation graph */
 	static void SetupAnimGraph(UAnimNextRigVMAssetEntry* InEntry, URigVMController* InController);
 	
-	/** Set up a simple parameter graph */
-	static void SetupParameterGraph(URigVMController* InController);
+	/** Set up a simple event graph */
+	static void SetupEventGraph(URigVMController* InController);
 	
 	/** Converts the Verse-tag-like snake_case_parameter_name to a period-separated display name similar to a gameplay tag */
 	static FText GetParameterDisplayNameText(FName InParameterName);

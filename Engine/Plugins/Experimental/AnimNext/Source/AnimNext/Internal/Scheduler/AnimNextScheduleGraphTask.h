@@ -7,7 +7,6 @@
 #include "AnimNextScheduleGraphTask.generated.h"
 
 class UAnimNextGraph;
-class UAnimNextParameterBlock;
 struct FAnimNextParam;
 
 namespace UE::AnimNext

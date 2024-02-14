@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "AnimNextRigVMAssetEntry.h"
 #include "IAnimNextRigVMGraphInterface.h"
-#include "AnimNextGraphEntry.generated.h"
+#include "AnimNextGraph_AnimationGraph.generated.h"
 
 class UAnimNextGraph_EditorData;
 class UAnimNextGraph_EdGraph;
@@ -18,7 +18,7 @@ namespace UE::AnimNext::Editor
 
 /** A single entry in an AnimNext graph asset */
 UCLASS(MinimalAPI, Category = "Animation Graphs")
-class UAnimNextGraphEntry : public UAnimNextRigVMAssetEntry, public IAnimNextRigVMGraphInterface
+class UAnimNextGraph_AnimationGraph : public UAnimNextRigVMAssetEntry, public IAnimNextRigVMGraphInterface
 {
 	GENERATED_BODY()
 
@@ -32,10 +32,12 @@ class UAnimNextGraphEntry : public UAnimNextRigVMAssetEntry, public IAnimNextRig
 	// IAnimNextRigVMGraphInterface interface
 	virtual URigVMGraph* GetRigVMGraph() const override;
 	virtual URigVMEdGraph* GetEdGraph() const override;
+	virtual void SetRigVMGraph(URigVMGraph* InGraph) override;
+	virtual void SetEdGraph(URigVMEdGraph* InGraph) override;
 
 protected:
 	/** The name of the graph */
-	UPROPERTY(VisibleAnywhere, Category = Parameter)
+	UPROPERTY(VisibleAnywhere, Category = AnimationGraph)
 	FName GraphName;
 
 	/** RigVM graph */
@@ -45,4 +47,14 @@ protected:
 	/** Editor graph */
 	UPROPERTY()
 	TObjectPtr<UAnimNextGraph_EdGraph> EdGraph;
+};
+
+// Old deprecated entry
+UCLASS()
+class UAnimNextGraphEntry : public UAnimNextRigVMAssetEntry
+{
+	GENERATED_BODY()
+
+	// UAnimNextRigVMAssetEntry interface
+	virtual FName GetEntryName() const override { return NAME_None; }
 };

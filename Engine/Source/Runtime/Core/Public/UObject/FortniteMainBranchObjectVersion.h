@@ -420,6 +420,9 @@ struct FFortniteMainBranchObjectVersion
 		// Combine graph contexts for AnimNext graphs
 		AnimNextCombineGraphContexts,
 
+		// Combine parameter blocks and graphs
+		AnimNextCombineParameterBlocksAndGraphs,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

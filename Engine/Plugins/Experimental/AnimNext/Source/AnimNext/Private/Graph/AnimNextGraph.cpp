@@ -15,10 +15,15 @@
 #include "Graph/AnimNextGraphInstance.h"
 #include "Serialization/MemoryReader.h"
 #include "AnimNextStats.h"
+#include "RigVMRuntimeDataRegistry.h"
 #include "Graph/AnimNextGraphEntryPoint.h"
+#include "Graph/RigUnit_AnimNextBeginExecution.h"
 #include "Graph/RigUnit_AnimNextGraphRoot.h"
+#include "UObject/LinkerLoad.h"
+#include "UObject/ObjectResource.h"
 
 DEFINE_STAT(STAT_AnimNext_Graph_AllocateInstance);
+DEFINE_STAT(STAT_AnimNext_Graph_UpdateParamLayer);
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNextGraph)
 
@@ -92,6 +97,34 @@ void UAnimNextGraph::AllocateInstanceImpl(FAnimNextGraphInstance* ParentGraphIns
 #endif
 }
 
+void UAnimNextGraph::UpdateLayer(UE::AnimNext::FParamStackLayerHandle& InHandle, float InDeltaTime) const
+{
+	SCOPE_CYCLE_COUNTER(STAT_AnimNext_Graph_UpdateParamLayer);
+	
+	if (VM)
+	{
+		if (TSharedPtr<UE::AnimNext::FRigVMRuntimeData> RuntimeData = UE::AnimNext::FRigVMRuntimeDataRegistry::FindOrAddLocalRuntimeData(VM, GetRigVMExtendedExecuteContext()).Pin())
+		{
+			FRigVMExtendedExecuteContext& Context = RuntimeData->Context;
+
+			check(Context.VMHash == VM->GetVMHash());
+
+			FAnimNextExecuteContext& AnimNextContext = Context.GetPublicDataSafe<FAnimNextExecuteContext>();
+
+			// Parameter setup
+			AnimNextContext.SetContextData<FAnimNextParamContextData>(InHandle);
+
+			// RigVM setup
+			AnimNextContext.SetDeltaTime(InDeltaTime);
+
+			VM->ExecuteVM(Context, FRigUnit_AnimNextBeginExecution::EventName);
+
+			// Reset the context to avoid issues if we forget to reset it the next time we use it
+			AnimNextContext.DebugReset<FAnimNextParamContextData>();
+		}
+	}
+}
+
 void UAnimNextGraph::PostLoad()
 {
 	using namespace UE::AnimNext;
@@ -108,23 +141,36 @@ void UAnimNextGraph::Serialize(FArchive& Ar)
 
 	if (Ar.IsLoading())
 	{
-		int32 SharedDataArchiveBufferSize = 0;
-		Ar << SharedDataArchiveBufferSize;
+		if(Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::AnimNextCombineParameterBlocksAndGraphs)
+		{
+			// Skip over shared archive buffer if we are loading from an older version
+			if (const FLinkerLoad* Linker = GetLinker())
+			{
+				const int32 LinkerIndex = GetLinkerIndex();
+				const FObjectExport& Export = Linker->ExportMap[LinkerIndex];
+				Ar.Seek(Export.SerialOffset + Export.SerialSize);
+			}
+		}
+		else
+		{
+			int32 SharedDataArchiveBufferSize = 0;
+			Ar << SharedDataArchiveBufferSize;
 
 #if !WITH_EDITORONLY_DATA
-		// When editor data isn't present, we don't persist the archive buffer as it is only needed on load
-		// to populate the graph shared data
-		TArray<uint8> SharedDataArchiveBuffer;
+			// When editor data isn't present, we don't persist the archive buffer as it is only needed on load
+			// to populate the graph shared data
+			TArray<uint8> SharedDataArchiveBuffer;
 #endif
 
-		SharedDataArchiveBuffer.SetNumUninitialized(SharedDataArchiveBufferSize);
-		Ar.Serialize(SharedDataArchiveBuffer.GetData(), SharedDataArchiveBufferSize);
+			SharedDataArchiveBuffer.SetNumUninitialized(SharedDataArchiveBufferSize);
+			Ar.Serialize(SharedDataArchiveBuffer.GetData(), SharedDataArchiveBufferSize);
 
-		if (Ar.IsLoadingFromCookedPackage())
-		{
-			// If we are cooked, we populate our graph shared data otherwise in the editor we'll compile on load
-			// and re-populate everything then to account for changes in code/content
-			LoadFromArchiveBuffer(SharedDataArchiveBuffer);
+			if (Ar.IsLoadingFromCookedPackage())
+			{
+				// If we are cooked, we populate our graph shared data otherwise in the editor we'll compile on load
+				// and re-populate everything then to account for changes in code/content
+				LoadFromArchiveBuffer(SharedDataArchiveBuffer);
+			}
 		}
 	}
 	else if (Ar.IsSaving())

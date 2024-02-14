@@ -36,10 +36,6 @@ UObject* UAnimNextGraphFactory::FactoryCreateNew(UClass* Class, UObject* InParen
 	NewGraph->EditorData = EditorData;
 	EditorData->Initialize(/*bRecompileVM*/false);
 
-	// Add root graph
-	EditorData->AddGraph(FRigUnit_AnimNextGraphRoot::DefaultEntryPoint, false);
-	check(EditorData->Entries.Num() > 0);
-
 	// Compile the initial skeleton
 	UE::AnimNext::UncookedOnly::FUtils::Compile(NewGraph);
 	check(!EditorData->bErrorsDuringCompilation);

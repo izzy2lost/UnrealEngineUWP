@@ -2,15 +2,16 @@
 
 #include "SRigVMAssetView.h"
 
+#include "AnimNextRigVMAsset.h"
+#include "AnimNextRigVMAssetEditorData.h"
 #include "AnimNextRigVMAssetEntry.h"
-#include "Param/AnimNextParameterBlock.h"
-#include "Param/AnimNextParameterBlock_EditorData.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Input/SSearchBox.h"
 #include "DetailLayoutBuilder.h"
 #include "ISourceControlModule.h"
 #include "ISourceControlProvider.h"
 #include "EditorUtils.h"
+#include "IAnimNextRigVMParameterInterface.h"
 #include "InstancedPropertyBagStructureDataProvider.h"
 #include "UncookedOnlyUtils.h"
 #include "RigVMAssetViewMenuContext.h"
@@ -22,8 +23,6 @@
 #include "Widgets/Text/SInlineEditableTextBlock.h"
 #include "ToolMenus.h"
 #include "ScopedTransaction.h"
-#include "Param/AnimNextParameterBlockParameter.h"
-#include "Param/AnimNextParameterBlockGraph.h"
 #include "Framework/Application/SlateApplication.h"
 #include "PropertyEditorModule.h"
 #include "ISinglePropertyView.h"
@@ -35,7 +34,7 @@
 namespace UE::AnimNext::Editor
 {
 
-namespace ParameterBlockView
+namespace RigVMAssetView
 {
 
 static FName ContextMenuName(TEXT("AnimNext.RigVMAssetView.ContextMenu"));
@@ -205,7 +204,7 @@ void SRigVMAssetView::UnregisterCategoryFactory(FName InCategory)
 
 void SRigVMAssetView::Construct(const FArguments& InArgs, UAnimNextRigVMAssetEditorData* InEditorData)
 {
-	using namespace ParameterBlockView;
+	using namespace RigVMAssetView;
 	
 	check(InEditorData);
 
@@ -233,7 +232,7 @@ void SRigVMAssetView::Construct(const FArguments& InArgs, UAnimNextRigVMAssetEdi
 	OnOpenGraphDelegate = InArgs._OnOpenGraph;
 	OnDeleteEntriesDelegate = InArgs._OnDeleteEntries;
 
-	EditorData->ModifiedDelegate.AddSP(this, &SRigVMAssetView::HandleBlockModified);
+	EditorData->ModifiedDelegate.AddSP(this, &SRigVMAssetView::HandleAssetModified);
 
 	ChildSlot
 	[
@@ -442,7 +441,7 @@ void SRigVMAssetView::RefreshEntries()
 
 void SRigVMAssetView::RefreshFilter()
 {
-	using namespace ParameterBlockView;
+	using namespace RigVMAssetView;
 
 	FilteredEntries = Categories;
 
@@ -457,8 +456,8 @@ void SRigVMAssetView::RefreshFilter()
 	{
 		if (Entry->PassesFilter(FilterTextAsString))
 		{
-			const UObject* BlockEntry = Entry->WeakEntry.Get();
-			const UClass* EntryClass = BlockEntry->GetClass();
+			const UObject* AssetEntry = Entry->WeakEntry.Get();
+			const UClass* EntryClass = AssetEntry->GetClass();
 			const FString& CategoryMetaData = EntryClass->GetMetaData(NAME_Category);
 			TSharedRef<FRigVMAssetViewEntry> CategoryEntry = GetCategoryEntry(*CategoryMetaData);
 			CategoryEntry->Children.Add(Entry);
@@ -481,7 +480,7 @@ void SRigVMAssetView::BindCommands()
 		FCanExecuteAction::CreateSP(this, &SRigVMAssetView::HasValidSingleSelection));
 }
 
-void SRigVMAssetView::HandleBlockModified(UAnimNextRigVMAssetEditorData* InEditorData)
+void SRigVMAssetView::HandleAssetModified(UAnimNextRigVMAssetEditorData* InEditorData)
 {
 	check(InEditorData == EditorData);
 
@@ -490,7 +489,7 @@ void SRigVMAssetView::HandleBlockModified(UAnimNextRigVMAssetEditorData* InEdito
 
 TSharedRef<SWidget> SRigVMAssetView::HandleGetContextContent()
 {
-	using namespace ParameterBlockView;
+	using namespace RigVMAssetView;
 	
 	UToolMenus* ToolMenus = UToolMenus::Get();
 
@@ -639,7 +638,7 @@ class SRigVMAssetViewRow : public SMultiColumnTableRow<TSharedRef<FRigVMAssetVie
 
 	virtual TSharedRef<SWidget> GenerateWidgetForColumn(const FName& InColumnName) override
 	{
-		using namespace ParameterBlockView;
+		using namespace RigVMAssetView;
 		
 		if(InColumnName == Column_RevisionControl)
 		{

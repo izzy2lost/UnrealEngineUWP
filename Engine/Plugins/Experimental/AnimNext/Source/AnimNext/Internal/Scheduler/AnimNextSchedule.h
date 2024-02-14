@@ -13,7 +13,6 @@
 #include "AnimNextSchedule.generated.h"
 
 class UAnimNextGraph;
-class UAnimNextParameterBlock;
 class UAnimNextSchedule;
 class UAnimNextSchedulerWorldSubsystem;
 class UAnimNextComponent;
@@ -144,7 +143,7 @@ private:
 
 	// Parameters to apply in this scope
 	UPROPERTY(EditAnywhere, Category = "Parameters")
-	TArray<TObjectPtr<UAnimNextParameterBlock>> ParameterBlocks;
+	TArray<TObjectPtr<UAnimNextGraph>> Parameters;
 
 	// Entries that are part of this scope
 	UPROPERTY(EditAnywhere, Category = "Parameters", Instanced)

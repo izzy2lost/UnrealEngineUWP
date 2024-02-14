@@ -95,7 +95,7 @@ void SLinkParametersDialog::Construct(const FArguments& InArgs)
 						.HAlign(HAlign_Center)
 						.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("PrimaryButton"))
 						.Text(LOCTEXT("LinkButton", "Link"))
-						.ToolTipText(LOCTEXT("LinkButtonTooltip", "Link the selected parameters to the current parameter block"))
+						.ToolTipText(LOCTEXT("LinkButtonTooltip", "Link the selected parameters to the current graph"))
 						.OnClicked_Lambda([this]()
 						{
 							RequestDestroyWindow();

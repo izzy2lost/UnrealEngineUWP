@@ -11,25 +11,21 @@
 #include "EdGraphNode_Comment.h"
 #include "EditorUtils.h"
 #include "ExternalPackageHelper.h"
-#include "Framework/Commands/GenericCommands.h"
 #include "RigVMModel/RigVMController.h"
 #include "Kismet2/BlueprintEditorUtils.h"
-#include "ScopedTransaction.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "WorkflowOrientedApp/WorkflowUObjectDocuments.h"
 #include "SWorkspacePicker.h"
-#include "Dialog/SCustomDialog.h"
-#include "Graph/AnimNextGraphDocumentSummoner.h"
-#include "Param/AnimNextParameterBlock.h"
-#include "Param/AnimNextParameterBlock_EditorData.h"
-#include "Param/ParameterBlockGraphDocumentSummoner.h"
+#include "Graph/AnimationGraphDocumentSummoner.h"
+#include "Param/EventGraphDocumentSummoner.h"
 #include "Scheduler/AnimNextSchedule.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Graph/AnimNextGraph.h"
-#include "Graph/AnimNextGraph_EdGraphNode.h"
-#include "GraphEditAction.h"
 #include "IAnimNextRigVMGraphInterface.h"
 #include "UncookedOnlyUtils.h"
+#include "EdGraph/RigVMEdGraph.h"
+#include "RigVMModel/RigVMClient.h"
+#include "AnimNextRigVMAssetEditorData.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextWorkspaceEditor"
 
@@ -47,8 +43,8 @@ namespace WorkspaceTabs
 	const FName WorkspaceView("WorkspaceView");
 	const FName LeftAssetDocument("LeftAssetDocument");
 	const FName MiddleAssetDocument("MiddleAssetDocument");
-	const FName AnimNextGraphDocument("AnimNextGraphDocument");
-	const FName ParameterBlockGraphDocument("ParameterBlockGraphDocument");
+	const FName AnimationGraphDocument("AnimationGraphDocument");
+	const FName EventGraphDocument("EventGraphDocument");
 }
 
 const FName WorkspaceAppIdentifier("AnimNextWorkspaceEditor");
@@ -70,19 +66,18 @@ void FWorkspaceEditor::InitEditor(const EToolkitMode::Type InMode, const TShared
 	DocumentManager = MakeShared<FDocumentTracker>(NAME_None);
 	DocumentManager->Initialize(SharedThis(this));
 
-	TSharedRef<FParameterBlockGraphDocumentSummoner> ParameterGraphDocumentSummoner = MakeShared<FParameterBlockGraphDocumentSummoner>(WorkspaceTabs::ParameterBlockGraphDocument, SharedThis(this));
+	TSharedRef<FEventGraphDocumentSummoner> ParameterGraphDocumentSummoner = MakeShared<FEventGraphDocumentSummoner>(WorkspaceTabs::EventGraphDocument, SharedThis(this));
 	ParameterGraphDocumentSummoner->OnSaveGraphState().BindSP(this, &FWorkspaceEditor::HandleSaveGraphState);
 	DocumentManager->RegisterDocumentFactory(ParameterGraphDocumentSummoner);
 
-	TSharedRef<FAnimNextGraphDocumentSummoner> GraphDocumentSummoner = MakeShared<FAnimNextGraphDocumentSummoner>(WorkspaceTabs::AnimNextGraphDocument, SharedThis(this));
-	GraphDocumentSummoner->OnSaveGraphState().BindSP(this, &FWorkspaceEditor::HandleSaveGraphState);
-	DocumentManager->RegisterDocumentFactory(GraphDocumentSummoner);
+	TSharedRef<FAnimationGraphDocumentSummoner> AnimationGraphDocumentSummoner = MakeShared<FAnimationGraphDocumentSummoner>(WorkspaceTabs::AnimationGraphDocument, SharedThis(this));
+	AnimationGraphDocumentSummoner->OnSaveGraphState().BindSP(this, &FWorkspaceEditor::HandleSaveGraphState);
+	DocumentManager->RegisterDocumentFactory(AnimationGraphDocumentSummoner);
 
 	TSharedRef<FAssetDocumentSummoner> LeftAssetDocumentSummoner = MakeShared<FAssetDocumentSummoner>(WorkspaceTabs::LeftAssetDocument, SharedThis(this));
 	LeftAssetDocumentSummoner->SetAllowedAssetClassPaths(
 	{
 		UAnimNextGraph::StaticClass()->GetClassPathName(),
-		UAnimNextParameterBlock::StaticClass()->GetClassPathName(),
 	});
 	LeftAssetDocumentSummoner->OnSaveDocumentState().BindSP(this, &FWorkspaceEditor::HandleSaveDocumentState);
 	DocumentManager->RegisterDocumentFactory(LeftAssetDocumentSummoner);

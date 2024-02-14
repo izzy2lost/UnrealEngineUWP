@@ -26,7 +26,7 @@ FWorkspaceEditorMode::FWorkspaceEditorMode(TSharedRef<FWorkspaceEditor> InHostin
 	TabFactories.RegisterFactory(MakeShared<FDetailsTabSummoner>(WorkspaceEditor, FOnDetailsViewCreated::CreateSP(&WorkspaceEditor.Get(), &FWorkspaceEditor::HandleDetailsViewCreated)));
 	TabFactories.RegisterFactory(MakeShared<FWorkspaceTabSummoner>(WorkspaceEditor));
 
-	TabLayout = FTabManager::NewLayout("Standalone_AnimNextWorkspaceEditor_Layout_v1.1")
+	TabLayout = FTabManager::NewLayout("Standalone_AnimNextWorkspaceEditor_Layout_v1.2")
 		->AddArea
 		(
 			FTabManager::NewPrimaryArea()
@@ -49,8 +49,8 @@ FWorkspaceEditorMode::FWorkspaceEditorMode(TSharedRef<FWorkspaceEditor> InHostin
 					FTabManager::NewStack()
 					->SetSizeCoefficient(0.5f)
 					->SetHideTabWell(false)
-					->AddTab(WorkspaceTabs::ParameterBlockGraphDocument, ETabState::ClosedTab)
-					->AddTab(WorkspaceTabs::AnimNextGraphDocument, ETabState::ClosedTab)
+					->AddTab(WorkspaceTabs::EventGraphDocument, ETabState::ClosedTab)
+					->AddTab(WorkspaceTabs::AnimationGraphDocument, ETabState::ClosedTab)
 					->AddTab(WorkspaceTabs::MiddleAssetDocument, ETabState::ClosedTab)
 				)
 				->Split

@@ -14,9 +14,7 @@
 #include "Graph/AnimNextGraphPanelNodeFactory.h"
 #include "Graph/AnimNextGraph_EdGraphNodeCustomization.h"
 #include "Graph/AnimNextGraph_EditorData.h"
-#include "Param/AnimNextParameterBlock.h"
-#include "Param/AnimNextParameterBlock_EditorData.h"
-#include "Param/ParameterBlockParameterCustomization.h"
+#include "Param/ParameterCustomization.h"
 #include "Param/ParameterPickerArgs.h"
 #include "Param/ParametersGraphPanelPinFactory.h"
 #include "Param/ParamNamePropertyCustomization.h"
@@ -59,8 +57,8 @@ class FModule : public IModule
 			FOnGetPropertyTypeCustomizationInstance::CreateLambda([] { return MakeShared<FParamNamePropertyTypeCustomization>(); }),
 			Identifier);
 
-		PropertyModule.RegisterCustomClassLayout("AnimNextParameterBlockParameter", 
-			FOnGetDetailCustomizationInstance::CreateLambda([] { return MakeShared<FParameterBlockParameterCustomization>(); }));
+		PropertyModule.RegisterCustomClassLayout("AnimNextGraph_Parameter", 
+			FOnGetDetailCustomizationInstance::CreateLambda([] { return MakeShared<FParameterCustomization>(); }));
 
 		PropertyModule.RegisterCustomClassLayout("AnimNextGraph_EdGraphNode",
 			FOnGetDetailCustomizationInstance::CreateLambda([] { return MakeShared<FAnimNextGraph_EdGraphNodeCustomization>(); }));
@@ -70,16 +68,6 @@ class FModule : public IModule
 
 		ParametersGraphPanelPinFactory = MakeShared<FParametersGraphPanelPinFactory>();
 		FEdGraphUtilities::RegisterVisualPinFactory(ParametersGraphPanelPinFactory);
-
-		FWorkspaceEditor::RegisterAssetDocumentWidget(UAnimNextParameterBlock::StaticClass()->GetFName(), [](TSharedRef<FWorkspaceEditor> InEditor, UObject* InAsset)
-		{
-			UAnimNextParameterBlock* ParameterBlock = CastChecked<UAnimNextParameterBlock>(InAsset);
-			UAnimNextParameterBlock_EditorData* EditorData = UncookedOnly::FUtils::GetEditorData(ParameterBlock);
-			return SNew(SRigVMAssetView, EditorData)
-				.OnSelectionChanged(&InEditor.Get(), &FWorkspaceEditor::SetSelectedObjects)
-				.OnOpenGraph(&InEditor.Get(), &FWorkspaceEditor::OnOpenGraph)
-				.OnDeleteEntries(&InEditor.Get(), &FWorkspaceEditor::OnDeleteEntries);
-		});
 
 		FWorkspaceEditor::RegisterAssetDocumentWidget(UAnimNextSchedule::StaticClass()->GetFName(), [](TSharedRef<FWorkspaceEditor> InEditor, UObject* InAsset)
 		{
@@ -108,7 +96,7 @@ class FModule : public IModule
 
 		SRigVMAssetView::RegisterCategoryFactory("Parameters", [](UAnimNextRigVMAssetEditorData* InEditorData)
 		{
-			UAnimNextParameterBlock_EditorData* EditorData = CastChecked<UAnimNextParameterBlock_EditorData>(InEditorData);
+			UAnimNextGraph_EditorData* EditorData = CastChecked<UAnimNextGraph_EditorData>(InEditorData);
 			return SNew(SSimpleComboButton)
 				.Text(LOCTEXT("AddParameterButton", "Add Parameter"))
 				.Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
@@ -119,13 +107,13 @@ class FModule : public IModule
 					
 					FParameterPickerArgs Args;
 					Args.bMultiSelect = false;
-					Args.bShowBlocks = false;
+					Args.bShowSourceGraph = false;
 					Args.bShowBoundParameters = false;
 					Args.bShowBuiltInParameters = false; // Built-In parameters disabled for MVP
 					Args.OnFilterParameter = FOnFilterParameter::CreateLambda([EditorData, AssetData](const FParameterBindingReference& InParameterBinding)
 					{
-						// Skip params that are already bound in this block
-						if(InParameterBinding.Block == AssetData)
+						// Skip params that are already bound in this graph
+						if(InParameterBinding.Graph == AssetData)
 						{
 							return EFilterParameterResult::Exclude;
 						}
@@ -160,18 +148,18 @@ class FModule : public IModule
 				});
 		});
 
-		SRigVMAssetView::RegisterCategoryFactory("Parameter Graphs", [](UAnimNextRigVMAssetEditorData* InEditorData)
+		SRigVMAssetView::RegisterCategoryFactory("Event Graphs", [](UAnimNextRigVMAssetEditorData* InEditorData)
 		{
-			UAnimNextParameterBlock_EditorData* EditorData = CastChecked<UAnimNextParameterBlock_EditorData>(InEditorData);
+			UAnimNextGraph_EditorData* EditorData = CastChecked<UAnimNextGraph_EditorData>(InEditorData);
 			return SNew(SSimpleButton)
-				.Text(LOCTEXT("AddGraphButton", "Add Graph"))
+				.Text(LOCTEXT("AddEventGraphButton", "Add Event Graph"))
 				.Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
 				.OnClicked_Lambda([EditorData]()
 				{
-					FScopedTransaction Transaction(LOCTEXT("AddGraph", "Add Graph"));
+					FScopedTransaction Transaction(LOCTEXT("AddEventGraph", "Add Event Graph"));
 
 					// Create a new entry for the graph
-					EditorData->AddGraph(TEXT("NewGraph"));
+					EditorData->AddEventGraph(TEXT("NewGraph"));
 
 					return FReply::Handled();
 				});
@@ -181,14 +169,14 @@ class FModule : public IModule
 		{
 			UAnimNextGraph_EditorData* EditorData = CastChecked<UAnimNextGraph_EditorData>(InEditorData);
 			return SNew(SSimpleButton)
-				.Text(LOCTEXT("AddGraphButton", "Add Graph"))
+				.Text(LOCTEXT("AddGraphButton", "Add Animation Graph"))
 				.Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
 				.OnClicked_Lambda([EditorData]()
 				{
-					FScopedTransaction Transaction(LOCTEXT("AddGraph", "Add Graph"));
+					FScopedTransaction Transaction(LOCTEXT("AddAnimationGraph", "Add Animation Graph"));
 
 					// Create a new entry for the graph
-					EditorData->AddGraph(TEXT("NewGraph"));
+					EditorData->AddAnimationGraph(TEXT("NewGraph"));
 
 					return FReply::Handled();
 				});
@@ -203,7 +191,7 @@ class FModule : public IModule
 			PropertyModule.UnregisterCustomPropertyTypeLayout("AnimNextParamType");
 			PropertyModule.UnregisterCustomPropertyTypeLayout("AnimNextParam");
 			PropertyModule.UnregisterCustomPropertyTypeLayout("NameProperty");
-			PropertyModule.UnregisterCustomClassLayout("AnimNextParameterBlockParameter");
+			PropertyModule.UnregisterCustomClassLayout("AnimNextGraph_Parameter");
 			PropertyModule.UnregisterCustomClassLayout("AnimNextGraph_EdGraphNode");
 		}
 
@@ -212,7 +200,6 @@ class FModule : public IModule
 		FEdGraphUtilities::UnregisterVisualPinFactory(ParametersGraphPanelPinFactory);
 
 		FWorkspaceEditor::UnregisterAssetDocumentWidget("AnimNextSchedule");
-		FWorkspaceEditor::UnregisterAssetDocumentWidget("AnimNextParameterBlock");
 		FWorkspaceEditor::UnregisterAssetDocumentWidget("AnimNextGraph");
 		
 		SRigVMAssetView::UnregisterCategoryFactory("Parameters");

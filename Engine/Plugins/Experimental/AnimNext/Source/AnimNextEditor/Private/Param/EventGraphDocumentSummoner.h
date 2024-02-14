@@ -8,10 +8,10 @@
 namespace UE::AnimNext::Editor
 {
 
-class FAnimNextGraphDocumentSummoner : public FGraphDocumentSummoner
+class FEventGraphDocumentSummoner : public FGraphDocumentSummoner
 {
 public:
-	explicit FAnimNextGraphDocumentSummoner(FName InIdentifier, TSharedPtr<FWorkspaceEditor> InHostingApp);
+	explicit FEventGraphDocumentSummoner(FName InIdentifier, TSharedPtr<FWorkspaceEditor> InHostingApp);
 
 private:
 	// FGraphDocumentSummoner interface

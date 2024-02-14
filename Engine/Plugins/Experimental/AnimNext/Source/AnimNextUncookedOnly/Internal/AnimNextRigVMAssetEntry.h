@@ -15,7 +15,7 @@ namespace UE::AnimNext::Editor
 	struct FRigVMAssetViewEntry;
 }
 
-/** Base class that defines an entry in a parameter block, e.g. a parameter binding */
+/** Base class that defines an entry in a graph, e.g. a parameter binding */
 UCLASS(MinimalAPI, BlueprintType, Abstract)
 class UAnimNextRigVMAssetEntry : public UObject
 {

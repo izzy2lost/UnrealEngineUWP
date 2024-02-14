@@ -9,7 +9,7 @@
 namespace UE::AnimNext::Editor
 {
 
-class FParameterBlockParameterCustomization : public IDetailCustomization
+class FParameterCustomization : public IDetailCustomization
 {
 private:
 

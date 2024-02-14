@@ -16,7 +16,6 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Docking/TabManager.h"
 #include "Widgets/Layout/SUniformGridPanel.h"
-#include "Widgets/Layout/SBorder.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Text/SInlineEditableTextBlock.h"
@@ -56,7 +55,6 @@ void SAddParametersDialog::Construct(const FArguments& InArgs)
 {
 	using namespace AddParametersDialog;
 
-	TargetBlock = InArgs._Block;
 	OnFilterParameterType = InArgs._OnFilterParameterType;
 
 	SWindow::Construct(SWindow::FArguments()
@@ -147,7 +145,7 @@ void SAddParametersDialog::Construct(const FArguments& InArgs)
 									return FText::Format(LOCTEXT("AddParametersButtonTooltip_InvalidEntry", "A parameter to add is not valid: {0}"), Reason);
 								}
 							}
-							return LOCTEXT("AddParametersButtonTooltip", "Add the selected parameters to the current parameter block");
+							return LOCTEXT("AddParametersButtonTooltip", "Add the selected parameters to the current graph");
 						})
 						.OnClicked_Lambda([this]()
 						{

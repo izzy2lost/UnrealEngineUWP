@@ -8,8 +8,6 @@
 #include "Param/ParamId.h"
 #include "Param/ParamTypeHandle.h"
 
-class UAnimNextParameterBlock;
-
 namespace UE::AnimNext
 {
 	struct FParamStackLayer;
@@ -169,7 +167,6 @@ public:
 
 private:
 	friend struct FParamStack;
-	friend class UAnimNextParameterBlock;
 
 	// Set parameter values
 	ANIMNEXT_API FParamResult SetValuesInternal(TConstArrayView<Private::FParamEntry> InParams);

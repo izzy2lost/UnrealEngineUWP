@@ -10,7 +10,7 @@
 
 class SWrapBox;
 class UAnimNextParameterLibrary;
-class UAnimNextParameterBlock_EditorData;
+class UAnimNextGraph_EditorData;
 
 namespace UE::AnimNext::Editor
 {
@@ -21,11 +21,8 @@ class SAddParametersDialog : public SWindow
 {
 public:
 	SLATE_BEGIN_ARGS(SAddParametersDialog)
-		: _Block(nullptr),
-		_AllowMultiple(true)
+		: _AllowMultiple(true)
 	{}
-
-	SLATE_ARGUMENT(UAnimNextParameterBlock_EditorData*, Block)
 
 	/** Whether we allow multiple parameters to be added or just one at a time */
 	SLATE_ARGUMENT(bool, AllowMultiple)
@@ -60,8 +57,6 @@ private:
 
 	TArray<TSharedRef<FParameterToAdd>> Entries;
 
-	UAnimNextParameterBlock_EditorData* TargetBlock = nullptr;
-	
 	FOnFilterParameterType OnFilterParameterType;
 
 	bool bCancelPressed = false;

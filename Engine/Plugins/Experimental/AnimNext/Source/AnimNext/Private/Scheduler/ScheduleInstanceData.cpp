@@ -9,7 +9,7 @@
 #include "AnimNextStats.h"
 #include "Param/ExternalParameterRegistry.h"
 #include "Param/IParameterSourceFactory.h"
-#include "Param/ParameterBlockProxy.h"
+#include "Param/ParametersProxy.h"
 #include "Param/PropertyBagProxy.h"
 #include "Scheduler/AnimNextScheduleExternalParamTask.h"
 
@@ -33,12 +33,12 @@ FScheduleInstanceData::FScheduleInstanceData(const FScheduleContext& InScheduleC
 	{
 		const FAnimNextScheduleParamScopeEntryTask& EntryTask = InSchedule->ParamScopeEntryTasks[EntryIndex];
 		FScopeCache& ScopeCache = ScopeCaches[EntryTask.ParamScopeIndex];
-		ScopeCache.ParameterSources.Reserve(EntryTask.ParameterBlocks.Num());
-		for(UAnimNextParameterBlock* ParameterBlock : EntryTask.ParameterBlocks)
+		ScopeCache.ParameterSources.Reserve(EntryTask.Parameters.Num());
+		for(UAnimNextGraph* Graph : EntryTask.Parameters)
 		{
-			if(ParameterBlock)
+			if(Graph)
 			{
-				ScopeCache.ParameterSources.Emplace(MakeUnique<FParameterBlockProxy>(ParameterBlock));
+				ScopeCache.ParameterSources.Emplace(MakeUnique<FParametersProxy>(Graph));
 			}
 		}
 

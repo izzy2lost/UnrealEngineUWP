@@ -2,22 +2,21 @@
 
 #pragma once
 
-#include "UObject/WeakObjectPtrTemplates.h"
 #include "Param/IParameterSource.h"
 #include "PropertyBag.h"
 #include "UObject/StrongObjectPtr.h"
 
-class UAnimNextParameterBlock;
+class UAnimNextGraph;
 
 namespace UE::AnimNext
 {
 
-// Proxy struct used to reference parameter block instance data
-struct FParameterBlockProxy : public IParameterSource
+// Proxy struct used to reference parameter instance data
+struct FParametersProxy : public IParameterSource
 {
-	FParameterBlockProxy() = delete;
+	FParametersProxy() = delete;
 
-	FParameterBlockProxy(UAnimNextParameterBlock* InParameterBlock);
+	FParametersProxy(UAnimNextGraph* InGraph);
 
 	// IParameterSource interface
 	virtual void Update(float DeltaTime) override;
@@ -25,9 +24,9 @@ struct FParameterBlockProxy : public IParameterSource
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 
 	// The object that this proxy wraps
-	TObjectPtr<UAnimNextParameterBlock> ParameterBlock;
+	TObjectPtr<UAnimNextGraph> Graph;
 
-	// Copy of the parameter block's data
+	// Copy of the parameter data
 	FInstancedPropertyBag PropertyBag;
 
 	// Layer handle - must be updated if PropertyBag changes layout

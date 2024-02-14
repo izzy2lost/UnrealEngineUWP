@@ -2,12 +2,10 @@
 
 #include "SParameterPicker.h"
 
-#include "Param/AnimNextParameterBlock.h"
 #include "UncookedOnlyUtils.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Param/ParamType.h"
-#include "Param/AnimNextParameterBlock_EditorData.h"
 #include "DetailLayoutBuilder.h"
 #include "EditorUtils.h"
 #include "SAddParametersDialog.h"
@@ -20,6 +18,7 @@
 #include "Framework/Application/SlateApplication.h"
 #include "ScopedTransaction.h"
 #include "SSimpleButton.h"
+#include "Graph/AnimNextGraph.h"
 #include "Param/ExternalParameterRegistry.h"
 
 #define LOCTEXT_NAMESPACE "SParameterPicker"
@@ -30,7 +29,7 @@ namespace UE::AnimNext::Editor
 namespace ParameterPicker
 {
 static FName Column_Parameter(TEXT("Parameter"));
-static FName Column_Block(TEXT("Block"));
+static FName Column_Graph(TEXT("Graph"));
 static FName Column_Type(TEXT("Type"));
 static FName Column_New(TEXT("New"));
 }
@@ -232,12 +231,12 @@ void SParameterPicker::Construct(const FArguments& InArgs)
 	];
 
 	
-	if (Args.bShowBlocks)
+	if (Args.bShowSourceGraph)
 	{
 		HeaderRow->AddColumn(
-			SHeaderRow::Column(Column_Block)
-			.DefaultLabel(LOCTEXT("BlockColumnHeader", "Block"))
-			.ToolTipText(LOCTEXT("BlockColumnHeaderTooltip", "The parameter block that has a binding to the parameter"))
+			SHeaderRow::Column(Column_Graph)
+			.DefaultLabel(LOCTEXT("GraphColumnHeader", "Graph"))
+			.ToolTipText(LOCTEXT("GraphColumnHeaderTooltip", "The graph that has a binding to the parameter"))
 			.FillWidth(0.33f));
 	}
 
@@ -305,23 +304,23 @@ void SParameterPicker::RefreshEntries()
 		Entries.Add(MakeShared<FParameterPickerEntry>(FParameterBindingReference(NAME_None, FAnimNextParamType())));
 	}
 	
-	// Find all blocks and their bound parameters
+	// Find all graphs and their bound parameters
 	if(Args.bShowBoundParameters)
 	{
-		ARFilter.ClassPaths = { UAnimNextParameterBlock::StaticClass()->GetClassPathName() };
+		ARFilter.ClassPaths = { UAnimNextGraph::StaticClass()->GetClassPathName() };
 		
-		TArray<FAssetData> BlockAssets;
-		AssetRegistry.GetAssets(ARFilter, BlockAssets);
+		TArray<FAssetData> GraphAssets;
+		AssetRegistry.GetAssets(ARFilter, GraphAssets);
 
-		for(const FAssetData& BlockAsset : BlockAssets)
+		for(const FAssetData& GraphAsset : GraphAssets)
 		{
 			FAnimNextParameterProviderAssetRegistryExports Exports;
-			if(UncookedOnly::FUtils::GetExportedParametersForAsset(BlockAsset, Exports))
+			if(UncookedOnly::FUtils::GetExportedParametersForAsset(GraphAsset, Exports))
 			{
 				for(const FAnimNextParameterAssetRegistryExportEntry& Export : Exports.Parameters)
 				{
-					BoundParameters.Add({ Export.Name, BlockAsset });
-					FParameterBindingReference NewReference(Export.Name, Export.Type, BlockAsset);
+					BoundParameters.Add({ Export.Name, GraphAsset });
+					FParameterBindingReference NewReference(Export.Name, Export.Type, GraphAsset);
 					if(!Args.OnFilterParameter.IsBound() || Args.OnFilterParameter.Execute(NewReference) == EFilterParameterResult::Include)
 					{
 						FAnimNextParamType ParamType = UE::AnimNext::UncookedOnly::FUtils::GetParameterTypeFromName(Export.Name);
@@ -601,9 +600,9 @@ class SParameterPickerRow : public SMultiColumnTableRow<TSharedRef<FParameterPic
 					})
 				];
 		}
-		else if(InColumnName == Column_Block)
+		else if(InColumnName == Column_Graph)
 		{
-			if(Entry->Binding.Block.IsValid())
+			if(Entry->Binding.Graph.IsValid())
 			{
 				return
 					SNew(SBox)
@@ -611,8 +610,8 @@ class SParameterPickerRow : public SMultiColumnTableRow<TSharedRef<FParameterPic
 					[
 						SNew(STextBlock)
 						.Font(IDetailLayoutBuilder::GetDetailFont())
-						.Text(FText::FromName(Entry->Binding.Block.AssetName))
-						.ToolTipText(FText::FromName(Entry->Binding.Block.PackageName))
+						.Text(FText::FromName(Entry->Binding.Graph.AssetName))
+						.ToolTipText(FText::FromName(Entry->Binding.Graph.PackageName))
 					];
 			}
 		}

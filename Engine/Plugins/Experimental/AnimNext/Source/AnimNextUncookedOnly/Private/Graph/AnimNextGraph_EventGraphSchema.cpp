@@ -1,11 +1,11 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Param/AnimNextParameterBlock_ParamSchema.h"
+#include "Graph/AnimNextGraph_EventGraphSchema.h"
 
 #include "AnimNextExecuteContext.h"
 #include "Param/RigUnit_AnimNextParameterBase.h"
 
-bool UAnimNextParameterBlock_ParamSchema::SupportsUnitFunction(URigVMController* InController, const FRigVMFunction* InUnitFunction) const
+bool UAnimNextGraph_EventGraphSchema::SupportsUnitFunction(URigVMController* InController, const FRigVMFunction* InUnitFunction) const
 {
 	if(const UScriptStruct* FunctionExecuteContextStruct = InUnitFunction->GetExecuteContextStruct())
 	{

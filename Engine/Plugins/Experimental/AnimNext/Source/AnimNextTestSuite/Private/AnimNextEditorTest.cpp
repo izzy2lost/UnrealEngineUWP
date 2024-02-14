@@ -3,15 +3,12 @@
 #include "CoreMinimal.h"
 #include "AnimNextTest.h"
 #include "UncookedOnlyUtils.h"
-#include "Param/AnimNextParameterBlock_EditorData.h"
 #include "Misc/AutomationTest.h"
-#include "Param/ParameterBlockFactory.h"
-#include "Param/AnimNextParameterBlock.h"
-#include "Param/AnimNextParameterBlockParameter.h"
 #include "Animation/AnimSequence.h"
 #include "Graph/AnimNextGraph.h"
-#include "Graph/AnimNextGraphEntry.h"
+#include "Graph/AnimNextGraph_Parameter.h"
 #include "Graph/AnimNextGraph_EditorData.h"
+#include "Graph/AnimNextGraph_AnimationGraph.h"
 #include "Graph/GraphFactory.h"
 #if WITH_EDITOR
 #include "ScopedTransaction.h"
@@ -26,59 +23,59 @@
 namespace UE::AnimNext::Tests
 {
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEditor_Parameters_ParameterBlock, "Animation.AnimNext.Editor.Parameters.ParameterBlock", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEditor_Parameters, "Animation.AnimNext.Editor.Parameters", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FEditor_Parameters_ParameterBlock::RunTest(const FString& InParameters)
+bool FEditor_Parameters::RunTest(const FString& InParameters)
 {
 	using namespace UE::AnimNext;
 
-	const TStrongObjectPtr<UFactory> BlockFactory(NewObject<UAnimNextParameterBlockFactory>());
-	UAnimNextParameterBlock* Block = Cast<UAnimNextParameterBlock>(BlockFactory->FactoryCreateNew(UAnimNextParameterBlock::StaticClass(), GetTransientPackage(), TEXT("TestAnimNextParameterBlock"), RF_Transient, nullptr, nullptr, NAME_None));
-	if(Block == nullptr)
+	const TStrongObjectPtr<UFactory> GraphFactory(NewObject<UAnimNextGraphFactory>());
+	UAnimNextGraph* Graph = Cast<UAnimNextGraph>(GraphFactory->FactoryCreateNew(UAnimNextGraph::StaticClass(), GetTransientPackage(), TEXT("TestAnimNextGraph"), RF_Transient, nullptr, nullptr, NAME_None));
+	if(Graph == nullptr)
 	{
-		AddError(TEXT("Could not create parameter block."));
+		AddError(TEXT("Could not create graph."));
 		return false;
 	}
 
-	UAnimNextParameterBlock_EditorData* EditorData = UncookedOnly::FUtils::GetEditorData(Block);
+	UAnimNextGraph_EditorData* EditorData = UncookedOnly::FUtils::GetEditorData(Graph);
 	if(EditorData == nullptr)
 	{
-		AddError(TEXT("Parameter block has no editor data."));
+		AddError(TEXT("Graph has no editor data."));
 		return false;
 	}
 
 	static FName TestParameterName = TEXT("TestParam");
 	
 	// AddParameter
-	UAnimNextParameterBlockParameter* Parameter = nullptr;
+	UAnimNextGraph_Parameter* Parameter = nullptr;
 	{
-		FScopedTransaction Transaction(FText::GetEmpty());		
+		FScopedTransaction Transaction(FText::GetEmpty());
 		Parameter = EditorData->AddParameter(TestParameterName, FAnimNextParamType::GetType<bool>());
 
-		if (AddErrorIfFalse(Parameter != nullptr, TEXT("Could not create new parameter in block.")))
+		if (AddErrorIfFalse(Parameter != nullptr, TEXT("Could not create new parameter in graph.")))
 		{
-			AddErrorIfFalse(Parameter->GetParamType() == FAnimNextParamType::GetType<bool>(), TEXT("Incorrect parameter type found"));			
+			AddErrorIfFalse(Parameter->GetParamType() == FAnimNextParamType::GetType<bool>(), TEXT("Incorrect parameter type found"));
 		}
 	}
 
-	AddExpectedError(TEXT("UAnimNextParameterBlock_EditorData::AddParameter: A parameter already exists for the supplied parameter name."));
+	AddExpectedError(TEXT("UAnimNextGraph_EditorData::AddParameter: A parameter already exists for the supplied parameter name."));
 	AddErrorIfFalse(EditorData->AddParameter(TestParameterName, FAnimNextParamType::GetType<bool>()) == nullptr, TEXT("Expected duplicate parameter name argument to fail"));
 
 	GEditor->UndoTransaction();
-	AddErrorIfFalse(EditorData->Entries.Num() == 0, FString::Printf(TEXT("Unexpected entry count found in parameter block (Have %d, expected 0)."), EditorData->Entries.Num()));
+	AddErrorIfFalse(EditorData->Entries.Num() == 0, FString::Printf(TEXT("Unexpected entry count found in graph (Have %d, expected 0)."), EditorData->Entries.Num()));
 
 	GEditor->RedoTransaction();
-	AddErrorIfFalse(EditorData->Entries.Num() == 1, FString::Printf(TEXT("Unexpected entry count found in parameter block (Have %d, expected 1)."), EditorData->Entries.Num()));
+	AddErrorIfFalse(EditorData->Entries.Num() == 1, FString::Printf(TEXT("Unexpected entry count found in graph (Have %d, expected 1)."), EditorData->Entries.Num()));
 
 	// Failure cases
-	AddExpectedError(TEXT("UAnimNextParameterBlock_EditorData::AddParameter: Invalid parameter name supplied."));
+	AddExpectedError(TEXT("UAnimNextGraph_EditorData::AddParameter: Invalid parameter name supplied."));
 	AddErrorIfFalse(EditorData->AddParameter(NAME_None, FAnimNextParamType::GetType<bool>()) == nullptr, TEXT("Expected invalid argument to fail"));
 
 	auto TestParameterType = [this, EditorData](FAnimNextParamType InType)
 	{
-		UAnimNextParameterBlockParameter* TypedParameter = EditorData->AddParameter(TEXT("TestParam0"), InType);
+		UAnimNextGraph_Parameter* TypedParameter = EditorData->AddParameter(TEXT("TestParam0"), InType);
 		const bool bValidParameter = TypedParameter != nullptr;
-		if (bValidParameter && AddErrorIfFalse(bValidParameter, FString::Printf(TEXT("Could not create new parameter of type %s in block."), *InType.ToString())))
+		if (bValidParameter && AddErrorIfFalse(bValidParameter, FString::Printf(TEXT("Could not create new parameter of type %s in graph."), *InType.ToString())))
 		{
 			AddErrorIfFalse(TypedParameter->GetParamType() == InType, TEXT("Incorrect parameter type found"));
 			EditorData->RemoveEntry(TypedParameter);
@@ -111,31 +108,31 @@ bool FEditor_Parameters_ParameterBlock::RunTest(const FString& InParameters)
 	}
 
 	GEditor->UndoTransaction();
-	AddErrorIfFalse(EditorData->Entries.Num() == 1, FString::Printf(TEXT("Unexpected entry count found in parameter block (Have %d, expected 1)."), EditorData->Entries.Num()));
+	AddErrorIfFalse(EditorData->Entries.Num() == 1, FString::Printf(TEXT("Unexpected entry count found in graph (Have %d, expected 1)."), EditorData->Entries.Num()));
 
 	GEditor->RedoTransaction();
-	AddErrorIfFalse(EditorData->Entries.Num() == 0, FString::Printf(TEXT("Unexpected entry count found in parameter block (Have %d, expected 0)."), EditorData->Entries.Num()));
+	AddErrorIfFalse(EditorData->Entries.Num() == 0, FString::Printf(TEXT("Unexpected entry count found in graph (Have %d, expected 0)."), EditorData->Entries.Num()));
 
 	GEditor->UndoTransaction();
-	AddErrorIfFalse(EditorData->Entries.Num() == 1, FString::Printf(TEXT("Unexpected entry count found in parameter block (Have %d, expected 1)."), EditorData->Entries.Num()));
+	AddErrorIfFalse(EditorData->Entries.Num() == 1, FString::Printf(TEXT("Unexpected entry count found in graph (Have %d, expected 1)."), EditorData->Entries.Num()));
 
 	// FindEntry
-	AddErrorIfFalse(EditorData->FindEntry(TestParameterName) != nullptr, TEXT("Could not find entry in block."));
+	AddErrorIfFalse(EditorData->FindEntry(TestParameterName) != nullptr, TEXT("Could not find entry in graph."));
 	GEditor->UndoTransaction();
 
 	// Add graph
-	UAnimNextParameterBlockGraph* Graph = nullptr;
+	UAnimNextGraph_EventGraph* EventGraph = nullptr;
 	{
 		FScopedTransaction Transaction(FText::GetEmpty());
-		Graph = EditorData->AddGraph(TEXT("TestGraph"));
-		AddErrorIfFalse(Graph != nullptr, TEXT("Could not create new graph in block."));
+		EventGraph = EditorData->AddEventGraph(TEXT("TestGraph"));
+		AddErrorIfFalse(EventGraph != nullptr, TEXT("Could not create new event graph in graph."));
 	}
 
 	GEditor->UndoTransaction();
-	AddErrorIfFalse(EditorData->Entries.Num() == 0, FString::Printf(TEXT("Unexpected entry count found in parameter block (Have %d, expected 0)."), EditorData->Entries.Num()));
+	AddErrorIfFalse(EditorData->Entries.Num() == 0, FString::Printf(TEXT("Unexpected entry count found in graph (Have %d, expected 0)."), EditorData->Entries.Num()));
 
 	GEditor->RedoTransaction();
-	AddErrorIfFalse(EditorData->Entries.Num() == 1, FString::Printf(TEXT("Unexpected entry count found in parameter block (Have %d, expected 1)."), EditorData->Entries.Num()));
+	AddErrorIfFalse(EditorData->Entries.Num() == 1, FString::Printf(TEXT("Unexpected entry count found in graph (Have %d, expected 1)."), EditorData->Entries.Num()));
 	GEditor->UndoTransaction();
 
 	FUtils::CleanupAfterTests();
@@ -151,10 +148,11 @@ bool FEditor_Parameters_Python::RunTest(const FString& InParameters)
 
 	const TCHAR* Script = TEXT(
 		"asset_tools = unreal.AssetToolsHelpers.get_asset_tools()\n"
-		"block = unreal.AssetTools.create_asset(asset_tools, asset_name = \"TestBlock\", package_path = \"/Game/\", asset_class = unreal.AnimNextParameterBlock, factory = unreal.AnimNextParameterBlockFactory())\n"
-		"block.add_parameter(name = \"TestParam\", value_type = unreal.PropertyBagPropertyType.BOOL, container_type = unreal.PropertyBagContainerType.NONE)\n"
-		"block.add_graph(name = \"TestGraph\")\n"
-		"unreal.EditorAssetLibrary.delete_loaded_asset(block)\n"
+		"graph = unreal.AssetTools.create_asset(asset_tools, asset_name = \"TestGraph\", package_path = \"/Game/\", asset_class = unreal.AnimNextGraph, factory = unreal.AnimNextGraphFactory())\n"
+		"graph.add_parameter(name = \"TestParam\", value_type = unreal.PropertyBagPropertyType.BOOL, container_type = unreal.PropertyBagContainerType.NONE)\n"
+		"graph.add_event_graph(name = \"TestEventGraph\")\n"
+		"graph.add_animation_graph(name = \"TestAnimationGraph\")\n"
+		"unreal.EditorAssetLibrary.delete_loaded_asset(graph)\n"
 	);
 
 	IPythonScriptPlugin::Get()->ExecPythonCommand(Script);
@@ -164,7 +162,7 @@ bool FEditor_Parameters_Python::RunTest(const FString& InParameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEditor_Graph, "Animation.AnimNext.Editor.Graph", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEditor_Graph, "Animation.AnimNext.Editor.AnimationGraph", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FEditor_Graph::RunTest(const FString& InParameters)
 {
@@ -186,18 +184,18 @@ bool FEditor_Graph::RunTest(const FString& InParameters)
 	}
 
 	// Add graph
-	UAnimNextGraphEntry* GraphEntry = nullptr;
+	UAnimNextGraph_AnimationGraph* GraphEntry = nullptr;
 	{
 		FScopedTransaction Transaction(FText::GetEmpty());
-		GraphEntry = EditorData->AddGraph(TEXT("TestGraph"));
-		AddErrorIfFalse(Graph != nullptr, TEXT("Could not create new graph in asset."));
+		GraphEntry = EditorData->AddAnimationGraph(TEXT("TestGraph"));
+		AddErrorIfFalse(Graph != nullptr, TEXT("Could not create new animation graph in asset."));
 	}
 
 	GEditor->UndoTransaction();
-	AddErrorIfFalse(EditorData->Entries.Num() == 1, FString::Printf(TEXT("Unexpected entry count found in graph asset (Have %d, expected 1)."), EditorData->Entries.Num()));
+	AddErrorIfFalse(EditorData->Entries.Num() == 0, FString::Printf(TEXT("Unexpected entry count found in graph asset (Have %d, expected 0)."), EditorData->Entries.Num()));
 
 	GEditor->RedoTransaction();
-	AddErrorIfFalse(EditorData->Entries.Num() == 2, FString::Printf(TEXT("Unexpected entry count found in graph asset (Have %d, expected 2)."), EditorData->Entries.Num()));
+	AddErrorIfFalse(EditorData->Entries.Num() == 1, FString::Printf(TEXT("Unexpected entry count found in graph asset (Have %d, expected 1)."), EditorData->Entries.Num()));
 
 	// RemoveEntry
 	{
@@ -206,13 +204,13 @@ bool FEditor_Graph::RunTest(const FString& InParameters)
 	}
 
 	GEditor->UndoTransaction();
-	AddErrorIfFalse(EditorData->Entries.Num() == 2, FString::Printf(TEXT("Unexpected entry count found in graph asset (Have %d, expected 2)."), EditorData->Entries.Num()));
-
-	GEditor->RedoTransaction();
 	AddErrorIfFalse(EditorData->Entries.Num() == 1, FString::Printf(TEXT("Unexpected entry count found in graph asset (Have %d, expected 1)."), EditorData->Entries.Num()));
 
+	GEditor->RedoTransaction();
+	AddErrorIfFalse(EditorData->Entries.Num() == 0, FString::Printf(TEXT("Unexpected entry count found in graph asset (Have %d, expected 0)."), EditorData->Entries.Num()));
+
 	GEditor->UndoTransaction();
-	AddErrorIfFalse(EditorData->Entries.Num() == 2, FString::Printf(TEXT("Unexpected entry count found in graph asset (Have %d, expected 2)."), EditorData->Entries.Num()));
+	AddErrorIfFalse(EditorData->Entries.Num() == 1, FString::Printf(TEXT("Unexpected entry count found in graph asset (Have %d, expected 1)."), EditorData->Entries.Num()));
 
 	// FindEntry
 	AddErrorIfFalse(EditorData->FindEntry(TEXT("TestGraph")) != nullptr, TEXT("Could not find entry in asset."));

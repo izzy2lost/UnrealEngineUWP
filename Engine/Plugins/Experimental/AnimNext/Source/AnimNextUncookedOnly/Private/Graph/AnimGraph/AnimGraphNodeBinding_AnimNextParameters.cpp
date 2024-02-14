@@ -550,7 +550,7 @@ TSharedRef<SWidget> UAnimGraphNodeBinding_AnimNextParameters::MakePropertyBindin
 				});
 				Args.NewParameterType = FParamTypeHandle::FromProperty(PropertyToBindTo).GetType();
 				Args.bMultiSelect = false;
-				Args.bShowBlocks = false;
+				Args.bShowSourceGraph = false;
 			
 				MenuBuilder.AddWidget(
 					SNew(SBox)

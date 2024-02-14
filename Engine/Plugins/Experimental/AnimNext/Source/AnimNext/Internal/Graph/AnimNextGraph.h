@@ -35,6 +35,7 @@ namespace UE::AnimNext
 	struct FExecutionContext;
 	class FModule;
 	struct FTestUtils;
+	struct FParametersProxy;
 }
 
 namespace UE::AnimNext::UncookedOnly
@@ -45,6 +46,7 @@ namespace UE::AnimNext::UncookedOnly
 namespace UE::AnimNext::Editor
 {
 	class FGraphEditor;
+	class FParameterCustomization;
 }
 
 namespace UE::AnimNext::Graph
@@ -89,6 +91,9 @@ public:
 	// Get the parameter to use to access the current LOD
 	UE::AnimNext::FParamId GetCurrentLODParam() const { return CurrentLODId; }
 
+	// Update the parameter layer, if any
+	void UpdateLayer(UE::AnimNext::FParamStackLayerHandle& InHandle, float InDeltaTime) const;
+
 protected:
 
 	// Loads the graph data from the provided archive buffer and returns true on success, false otherwise
@@ -108,6 +113,7 @@ protected:
 
 	friend class UAnimNextGraphFactory;
 	friend class UAnimNextGraph_EditorData;
+	friend class UAnimNextGraph_Parameter;
 	friend struct UE::AnimNext::UncookedOnly::FUtils;
 	friend class UE::AnimNext::Editor::FGraphEditor;
 	friend struct UE::AnimNext::FTestUtils;
@@ -118,7 +124,9 @@ protected:
 	friend class UAnimNextSchedule;
 	friend struct FAnimNextScheduleGraphTask;
 	friend UE::AnimNext::FModule;
-	
+	friend class UE::AnimNext::Editor::FParameterCustomization;
+	friend struct UE::AnimNext::FParametersProxy;
+
 #if WITH_EDITORONLY_DATA
 	mutable FCriticalSection GraphInstancesLock;
 
@@ -170,6 +178,10 @@ protected:
 	// All the parameters that are required for this graph to run
 	UPROPERTY()
 	TArray<FAnimNextParam> RequiredParameters;
+
+	// Property bag that holds state for this graph 
+	UPROPERTY()
+	FInstancedPropertyBag PropertyBag;
 
 #if WITH_EDITORONLY_DATA
 	// This buffer holds the output of the FTraitWriter post compilation

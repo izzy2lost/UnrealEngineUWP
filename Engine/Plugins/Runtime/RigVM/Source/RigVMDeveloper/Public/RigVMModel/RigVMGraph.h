@@ -217,7 +217,7 @@ private:
 	UPROPERTY()
 	TArray<FRigVMGraphVariableDescription> LocalVariables;
 
-	UPROPERTY(transient, DuplicateTransient)
+	UPROPERTY()
 	TSubclassOf<URigVMSchema> SchemaClass;
 
 	bool IsNameAvailable(const FString& InName) const;

@@ -5,9 +5,12 @@
 #include "UncookedOnlyUtils.h"
 #include "Curves/CurveFloat.h"
 #include "Graph/AnimNextGraph.h"
-#include "Graph/AnimNextGraphEntry.h"
+#include "Graph/AnimNextGraph_AnimationGraph.h"
 #include "Graph/AnimNextGraph_EdGraphSchema.h"
-#include "Graph/AnimNextGraph_TraitSchema.h"
+#include "Graph/AnimNextGraph_EventGraph.h"
+#include "Graph/AnimNextGraph_EventGraphSchema.h"
+#include "Graph/AnimNextGraph_Parameter.h"
+#include "Graph/AnimNextGraph_AnimationGraphSchema.h"
 #include "RigVMModel/RigVMFunctionLibrary.h"
 #include "RigVMModel/RigVMNotifications.h"
 #include "RigVMModel/Nodes/RigVMCollapseNode.h"
@@ -16,54 +19,111 @@
 
 void UAnimNextGraph_EditorData::PostLoad()
 {
+	Super::PostLoad();
+
+	auto FindEntryForRigVMGraph = [this](URigVMGraph* InRigVMGraph)
+	{
+		UAnimNextRigVMAssetEntry* FoundEntry = nullptr;
+		for(UAnimNextRigVMAssetEntry* Entry : Entries)
+		{
+			if(IAnimNextRigVMGraphInterface* GraphEntry = Cast<IAnimNextRigVMGraphInterface>(Entry))
+			{
+				if(InRigVMGraph == GraphEntry->GetRigVMGraph())
+				{
+					FoundEntry = Entry;
+					break;
+				}
+			}
+		}
+		return FoundEntry;
+	};
+
 	if(GetLinkerCustomVersion(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::AnimNextCombineGraphContexts)
 	{
+		// Must preload entries so their data is populated or we cannot find the appropriate entries for graphs
+		for(UAnimNextRigVMAssetEntry* Entry : Entries) 
+		{
+			Entry->GetLinker()->Preload(Entry);
+		}
+
 		TArray<URigVMGraph*> AllModels = RigVMClient.GetAllModels(false, true);
 		for(URigVMGraph* Graph : AllModels)
 		{
 			Graph->SetExecuteContextStruct(FAnimNextExecuteContext::StaticStruct());
-			Graph->SetSchemaClass(UAnimNextGraph_TraitSchema::StaticClass());
+			if(UAnimNextRigVMAssetEntry* FoundEntry = FindEntryForRigVMGraph(Graph))
+			{
+				if(FoundEntry->IsA(UAnimNextGraph_AnimationGraph::StaticClass()))
+				{
+					Graph->SetSchemaClass(UAnimNextGraph_AnimationGraphSchema::StaticClass());
+				}
+				else
+				{
+					Graph->SetSchemaClass(UAnimNextGraph_EventGraphSchema::StaticClass());
+				}
+			}
+			else
+			{
+				Graph->SetSchemaClass(UAnimNextGraph_AnimationGraphSchema::StaticClass());
+			}
 		}
 	}
 
-	Super::PostLoad();
-	
 	if(GetLinkerCustomVersion(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::AnimNextMoveGraphsToEntries)
 	{
+		// Must preload entries so their data is populated or we cannot find the appropriate entries for graphs
+		for(UAnimNextRigVMAssetEntry* Entry : Entries) 
+		{
+			Entry->GetLinker()->Preload(Entry);
+		}
+		
 		for(TObjectPtr<UAnimNextGraph_EdGraph> Graph : Graphs_DEPRECATED)
 		{
-			// Must preload entries so their data is populated or we cannot find the appropriate entries for graphs
-			for(UAnimNextRigVMAssetEntry* Entry : Entries) 
-			{
-				Entry->GetLinker()->Preload(Entry);
-			}
-			
 			URigVMGraph* FoundRigVMGraph = GetRigVMGraphForEditorObject(Graph);
 			if(FoundRigVMGraph)
 			{
-				UAnimNextRigVMAssetEntry* FoundEntry = nullptr;
-				for(UAnimNextRigVMAssetEntry* Entry : Entries)
+				if(UAnimNextRigVMAssetEntry* FoundEntry = FindEntryForRigVMGraph(FoundRigVMGraph))
 				{
-					if(UAnimNextGraphEntry* GraphEntry = Cast<UAnimNextGraphEntry>(Entry))
+					if(UAnimNextGraph_AnimationGraph* AnimationGraphEntry = Cast<UAnimNextGraph_AnimationGraph>(FoundEntry))
 					{
-						if(FoundRigVMGraph == static_cast<IAnimNextRigVMGraphInterface*>(GraphEntry)->GetRigVMGraph())
-						{
-							FoundEntry = Entry;
-							break;
-						}
+						AnimationGraphEntry->EdGraph = Graph;
 					}
-				}
-
-				if(FoundEntry)
-				{
-					UAnimNextGraphEntry* GraphEntry = CastChecked<UAnimNextGraphEntry>(FoundEntry);
-					GraphEntry->EdGraph = Graph;
+					else if(UAnimNextGraph_EventGraph* EventGraphEntry = Cast<UAnimNextGraph_EventGraph>(FoundEntry))
+					{
+						EventGraphEntry->EdGraph = Graph;
+					}
 
 					Graph->Rename(nullptr, FoundEntry, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 					Graph->Initialize(this);
 				}
 			}
 		}
+
+		// We used to add a default model that is no longer needed
+		URigVMGraph* DefaultModel = RigVMClient.GetDefaultModel();
+		if(DefaultModel && DefaultModel->GetName() == TEXT("RigVMGraph"))
+		{
+			bool bFound = false;
+			for(UAnimNextRigVMAssetEntry* Entry : Entries)
+			{
+				if(UAnimNextGraph_EventGraph* EventGraphEntry = Cast<UAnimNextGraph_EventGraph>(Entry))
+				{
+					if(DefaultModel == static_cast<IAnimNextRigVMGraphInterface*>(EventGraphEntry)->GetRigVMGraph())
+					{
+						bFound = true;
+						break;
+					}
+				}
+			}
+
+			if(!bFound)
+			{
+				TGuardValue<bool> DisablePythonPrint(bSuspendPythonMessagesForRigVMClient, false);
+				TGuardValue<bool> DisableAutoCompile(bAutoRecompileVM, false);
+				RigVMClient.RemoveModel(DefaultModel->GetNodePath(), false);
+			}
+		}
+
+		RecompileVM();
 	}
 }
 
@@ -97,7 +157,9 @@ TConstArrayView<TSubclassOf<UAnimNextRigVMAssetEntry>> UAnimNextGraph_EditorData
 {
 	static const TSubclassOf<UAnimNextRigVMAssetEntry> Classes[] =
 	{
-		UAnimNextGraphEntry::StaticClass(),
+		UAnimNextGraph_AnimationGraph::StaticClass(),
+		UAnimNextGraph_EventGraph::StaticClass(),
+		UAnimNextGraph_Parameter::StaticClass(),
 	};
 	
 	return Classes;
@@ -134,14 +196,14 @@ UEdGraph* UAnimNextGraph_EditorData::CreateEdGraph(URigVMGraph* InRigVMGraph, bo
 		return nullptr;
 	}
 
-	UAnimNextGraphEntry* Entry = Cast<UAnimNextGraphEntry>(FindEntryForRigVMGraph(InRigVMGraph));
+	IAnimNextRigVMGraphInterface* Entry = Cast<IAnimNextRigVMGraphInterface>(FindEntryForRigVMGraph(InRigVMGraph));
 	if(Entry == nullptr)
 	{
 		// Not found, we could be adding a new entry, in which case the graph wont be assigned yet
 		check(Entries.Num() > 0);
 		check(Cast<IAnimNextRigVMGraphInterface>(Entries.Last()) != nullptr);
 		check(Cast<IAnimNextRigVMGraphInterface>(Entries.Last())->GetRigVMGraph() == nullptr);
-		Entry = Cast<UAnimNextGraphEntry>(FindEntryForRigVMGraph(nullptr));
+		Entry = Cast<IAnimNextRigVMGraphInterface>(FindEntryForRigVMGraph(nullptr));
 	}
 
 	if(Entry == nullptr)
@@ -157,21 +219,21 @@ UEdGraph* UAnimNextGraph_EditorData::CreateEdGraph(URigVMGraph* InRigVMGraph, bo
 	FString GraphName = InRigVMGraph->GetName();
 	check(!GraphName.IsEmpty());
 
-	UAnimNextGraph_EdGraph* RigFunctionGraph = NewObject<UAnimNextGraph_EdGraph>(Entry, NAME_None, RF_Transactional);
+	UAnimNextGraph_EdGraph* RigFunctionGraph = NewObject<UAnimNextGraph_EdGraph>(CastChecked<UObject>(Entry), NAME_None, RF_Transactional);
 	RigFunctionGraph->Schema = UAnimNextGraph_EdGraphSchema::StaticClass();
 	RigFunctionGraph->bAllowDeletion = true;
 	RigFunctionGraph->bIsFunctionDefinition = false;
 	RigFunctionGraph->ModelNodePath = InRigVMGraph->GetNodePath();
 	RigFunctionGraph->Initialize(this);
 
-	Entry->EdGraph = RigFunctionGraph;
-	if(Entry->Graph == nullptr)
+	Entry->SetEdGraph(RigFunctionGraph);
+	if(Entry->GetRigVMGraph() == nullptr)
 	{
-		Entry->Graph = InRigVMGraph;
+		Entry->SetRigVMGraph(InRigVMGraph);
 	}
 	else
 	{
-		check(Entry->Graph == InRigVMGraph);
+		check(Entry->GetRigVMGraph() == InRigVMGraph);
 	}
 
 	return RigFunctionGraph;
@@ -179,7 +241,7 @@ UEdGraph* UAnimNextGraph_EditorData::CreateEdGraph(URigVMGraph* InRigVMGraph, bo
 
 bool UAnimNextGraph_EditorData::RemoveEdGraph(URigVMGraph* InModel)
 {
-	if(UAnimNextGraphEntry* Entry = Cast<UAnimNextGraphEntry>(FindEntryForRigVMGraph(InModel)))
+	if(UAnimNextGraph_AnimationGraph* Entry = Cast<UAnimNextGraph_AnimationGraph>(FindEntryForRigVMGraph(InModel)))
 	{
 		RigVMClient.DestroyObject(Entry->EdGraph);
 		Entry->EdGraph = nullptr;
@@ -188,16 +250,63 @@ bool UAnimNextGraph_EditorData::RemoveEdGraph(URigVMGraph* InModel)
 	return false;
 }
 
-UAnimNextGraphEntry* UAnimNextGraphLibrary::AddGraph(UAnimNextGraph* InGraph, FName InName, bool bSetupUndoRedo, bool bPrintPythonCommand)
+UAnimNextGraph_Parameter* UAnimNextGraphLibrary::AddParameter(UAnimNextGraph* InGraph, FName InName, EPropertyBagPropertyType InValueType,
+	EPropertyBagContainerType InContainerType, const UObject* InValueTypeObject, bool bSetupUndoRedo, bool bPrintPythonCommand)
 {
-	return UE::AnimNext::UncookedOnly::FUtils::GetEditorData(InGraph)->AddGraph(InName, bSetupUndoRedo, bPrintPythonCommand);
+	return UE::AnimNext::UncookedOnly::FUtils::GetEditorData(InGraph)->AddParameter(InName, FAnimNextParamType(InValueType, InContainerType, InValueTypeObject), bSetupUndoRedo, bPrintPythonCommand);
 }
 
-UAnimNextGraphEntry* UAnimNextGraph_EditorData::AddGraph(FName InName, bool bSetupUndoRedo, bool bPrintPythonCommand)
+UAnimNextGraph_Parameter* UAnimNextGraph_EditorData::AddParameter(FName InName, FAnimNextParamType InType, bool bSetupUndoRedo, bool bPrintPythonCommand)
 {
 	if(InName == NAME_None)
 	{
-		ReportError(TEXT("UAnimNextGraph_EditorData::AddGraph: Invalid graph name supplied."));
+		ReportError(TEXT("UAnimNextGraph_EditorData::AddParameter: Invalid parameter name supplied."));
+		return nullptr;
+	}
+
+	// Check for duplicate parameter
+	const bool bAlreadyExists = Entries.ContainsByPredicate([InName](const UAnimNextRigVMAssetEntry* InEntry)
+	{
+		if(const UAnimNextGraph_Parameter* Parameter = Cast<UAnimNextGraph_Parameter>(InEntry))
+		{
+			return Parameter->ParameterName == InName;
+		}
+		return false;
+	});
+
+	if(bAlreadyExists)
+	{
+		ReportError(TEXT("UAnimNextGraph_EditorData::AddParameter: A parameter already exists for the supplied parameter name."));
+		return nullptr;
+	}
+
+	UAnimNextGraph_Parameter* NewEntry = CreateNewSubEntry<UAnimNextGraph_Parameter>(this);
+	NewEntry->ParameterName = InName;
+	NewEntry->Type = InType;
+
+	if(bSetupUndoRedo)
+	{
+		NewEntry->Modify();
+		Modify();
+	}
+	
+	Entries.Add(NewEntry);
+
+	BroadcastModified();
+
+	return NewEntry;
+}
+
+UAnimNextGraph_EventGraph* UAnimNextGraphLibrary::AddEventGraph(UAnimNextGraph* InGraph, FName InName, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	return UE::AnimNext::UncookedOnly::FUtils::GetEditorData(InGraph)->AddEventGraph(InName, bSetupUndoRedo, bPrintPythonCommand);
+}
+
+UAnimNextGraph_EventGraph* UAnimNextGraph_EditorData::AddEventGraph(FName InName, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	if(InName == NAME_None)
+	{
+		ReportError(TEXT("UAnimNextGraph_EditorData::AddEventGraph: Invalid graph name supplied."));
 		return nullptr;
 	}
 
@@ -216,7 +325,63 @@ UAnimNextGraphEntry* UAnimNextGraph_EditorData::AddGraph(FName InName, bool bSet
 		bAlreadyExists =  Entries.ContainsByPredicate(DuplicateNamePredicate);
 	}
 
-	UAnimNextGraphEntry* NewEntry = CreateNewSubEntry<UAnimNextGraphEntry>(this);
+	UAnimNextGraph_EventGraph* NewEntry = CreateNewSubEntry<UAnimNextGraph_EventGraph>(this);
+	NewEntry->GraphName = NewGraphName;
+
+	if(bSetupUndoRedo)
+	{
+		NewEntry->Modify();
+		Modify();
+	}
+
+	Entries.Add(NewEntry);
+
+	// Add new graph
+	{
+		TGuardValue<bool> EnablePythonPrint(bSuspendPythonMessagesForRigVMClient, !bPrintPythonCommand);
+		TGuardValue<bool> DisableAutoCompile(bAutoRecompileVM, false);
+		URigVMGraph* NewGraph = RigVMClient.AddModel(URigVMGraph::StaticClass()->GetFName(), UAnimNextGraph_EventGraphSchema::StaticClass(), bSetupUndoRedo);
+		ensure(NewGraph);
+		NewEntry->Graph = NewGraph;
+
+		URigVMController* Controller = RigVMClient.GetController(NewGraph);
+		UE::AnimNext::UncookedOnly::FUtils::SetupEventGraph(Controller);
+	}
+
+	BroadcastModified();
+
+	return NewEntry;
+}
+
+UAnimNextGraph_AnimationGraph* UAnimNextGraphLibrary::AddAnimationGraph(UAnimNextGraph* InGraph, FName InName, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	return UE::AnimNext::UncookedOnly::FUtils::GetEditorData(InGraph)->AddAnimationGraph(InName, bSetupUndoRedo, bPrintPythonCommand);
+}
+
+UAnimNextGraph_AnimationGraph* UAnimNextGraph_EditorData::AddAnimationGraph(FName InName, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	if(InName == NAME_None)
+	{
+		ReportError(TEXT("UAnimNextGraph_EditorData::AddAnimationGraph: Invalid graph name supplied."));
+		return nullptr;
+	}
+
+	// Check for duplicate name
+	FName NewGraphName = InName;
+	auto DuplicateNamePredicate = [&NewGraphName](const UAnimNextRigVMAssetEntry* InEntry)
+	{
+		return InEntry->GetEntryName() == NewGraphName;
+	};
+
+	bool bAlreadyExists = Entries.ContainsByPredicate(DuplicateNamePredicate);
+	int32 NameNumber = InName.GetNumber() + 1;
+	while(bAlreadyExists)
+	{
+		NewGraphName = FName(InName, NameNumber++);
+		bAlreadyExists =  Entries.ContainsByPredicate(DuplicateNamePredicate);
+	}
+
+	UAnimNextGraph_AnimationGraph* NewEntry = CreateNewSubEntry<UAnimNextGraph_AnimationGraph>(this);
 	NewEntry->GraphName = NewGraphName;
 
 	if(bSetupUndoRedo)
@@ -231,7 +396,7 @@ UAnimNextGraphEntry* UAnimNextGraph_EditorData::AddGraph(FName InName, bool bSet
 	{
 		TGuardValue<bool> EnablePythonPrint(bSuspendPythonMessagesForRigVMClient, !bPrintPythonCommand);
 		TGuardValue<bool> DisableAutoCompile(bAutoRecompileVM, false);
-		URigVMGraph* NewGraph = RigVMClient.AddModel(URigVMGraph::StaticClass()->GetFName(), UAnimNextGraph_TraitSchema::StaticClass(), bSetupUndoRedo);
+		URigVMGraph* NewGraph = RigVMClient.AddModel(URigVMGraph::StaticClass()->GetFName(), UAnimNextGraph_AnimationGraphSchema::StaticClass(), bSetupUndoRedo);
 		ensure(NewGraph);
 		NewEntry->Graph = NewGraph;
 

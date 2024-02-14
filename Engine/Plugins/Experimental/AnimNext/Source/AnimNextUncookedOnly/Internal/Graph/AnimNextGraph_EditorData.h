@@ -29,21 +29,23 @@ namespace UE::AnimNext::Editor
 	struct FUtils;
 }
 
-UCLASS()
-class UAnimNextTraitGraph_Schema : public URigVMSchema
-{
-	GENERATED_BODY()
-};
-
 // Script-callable editor API hoisted onto UAnimNextGraph
 UCLASS()
 class ANIMNEXTUNCOOKEDONLY_API UAnimNextGraphLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
 
-	/** Adds a graph to an AnimNext Graph asset */
+	/** Adds an animation graph to an AnimNext Graph asset */
 	UFUNCTION(BlueprintCallable, Category = "AnimNext|Graph", meta=(ScriptMethod))
-	static UAnimNextGraphEntry* AddGraph(UAnimNextGraph* InGraph, FName InName, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
+	static UAnimNextGraph_AnimationGraph* AddAnimationGraph(UAnimNextGraph* InGraph, FName InName, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
+
+	/** Adds a parameter to an AnimNext Graph asset */
+	UFUNCTION(BlueprintCallable, Category = "AnimNext|Graph", meta=(ScriptMethod))
+	static UAnimNextGraph_Parameter* AddParameter(UAnimNextGraph* InGraph, FName InName, EPropertyBagPropertyType InValueType, EPropertyBagContainerType InContainerType = EPropertyBagContainerType::None, const UObject* InValueTypeObject = nullptr, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
+
+	/** Adds an event graph to an AnimNext Graph asset */
+	UFUNCTION(BlueprintCallable, Category = "AnimNext|Graph", meta=(ScriptMethod))
+	static UAnimNextGraph_EventGraph* AddEventGraph(UAnimNextGraph* InGraph, FName InName, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
 };
 
 /** Editor data for AnimNext graphs */
@@ -66,8 +68,14 @@ class UAnimNextGraph_EditorData : public UAnimNextRigVMAssetEditorData
 	friend class FAnimationAnimNextRuntimeTest_GraphExecuteLatent;
 	
 public:
-	/** Adds a graph to this asset */
-	ANIMNEXTUNCOOKEDONLY_API UAnimNextGraphEntry* AddGraph(FName InName, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
+	/** Adds an animation graph to this asset */
+	ANIMNEXTUNCOOKEDONLY_API UAnimNextGraph_AnimationGraph* AddAnimationGraph(FName InName, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
+
+	/** Adds a parameter to this asset */
+	ANIMNEXTUNCOOKEDONLY_API UAnimNextGraph_Parameter* AddParameter(FName InName, FAnimNextParamType InType, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
+
+	/** Adds an event graph to this asset */
+	ANIMNEXTUNCOOKEDONLY_API UAnimNextGraph_EventGraph* AddEventGraph(FName InName, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
 
 private:
 	// UObject interface

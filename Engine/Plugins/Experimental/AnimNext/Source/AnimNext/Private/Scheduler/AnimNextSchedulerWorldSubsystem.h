@@ -15,7 +15,6 @@
 #include "AnimNextSchedulerWorldSubsystem.generated.h"
 
 class UAnimNextSchedule;
-class UAnimNextParameterBlock;
 
 namespace UE::AnimNext
 {

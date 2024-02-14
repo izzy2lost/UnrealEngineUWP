@@ -6,7 +6,7 @@
 #include "AnimNextScheduleParamScopeTask.generated.h"
 
 class UAnimNextSchedule;
-class UAnimNextParameterBlock;
+class UAnimNextGraph;
 class UAnimNextSchedulerWorldSubsystem;
 class UAnimNextComponent;
 
@@ -55,9 +55,9 @@ private:
 	UPROPERTY()
 	FName Scope;
 
-	// Parameters to apply in this scope
+	// Parameters to apply in this scopes
 	UPROPERTY()
-	TArray<TObjectPtr<UAnimNextParameterBlock>> ParameterBlocks;
+	TArray<TObjectPtr<UAnimNextGraph>> Parameters;
 };
 
 USTRUCT()

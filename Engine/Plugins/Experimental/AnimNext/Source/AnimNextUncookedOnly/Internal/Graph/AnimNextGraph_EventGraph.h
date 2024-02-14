@@ -5,18 +5,17 @@
 #include "CoreMinimal.h"
 #include "AnimNextRigVMAssetEntry.h"
 #include "IAnimNextRigVMGraphInterface.h"
-#include "AnimNextParameterBlockGraph.generated.h"
+#include "AnimNextGraph_EventGraph.generated.h"
 
-class UAnimNextParameterLibrary;
-class UAnimNextParameterBlock_EditorData;
-class UAnimNextParameterBlock_EdGraph;
+class UAnimNextGraph_EditorData;
+class UAnimNextGraph_EdGraph;
 
-UCLASS(Category = "Parameter Graphs")
-class UAnimNextParameterBlockGraph : public UAnimNextRigVMAssetEntry, public IAnimNextRigVMGraphInterface
+UCLASS(MinimalAPI, Category = "Event Graphs")
+class UAnimNextGraph_EventGraph : public UAnimNextRigVMAssetEntry, public IAnimNextRigVMGraphInterface
 {
 	GENERATED_BODY()
 
-	friend class UAnimNextParameterBlock_EditorData;
+	friend class UAnimNextGraph_EditorData;
 
 	// UAnimNextRigVMAssetEntry interface
 	virtual FName GetEntryName() const override { return GraphName; }
@@ -27,9 +26,11 @@ class UAnimNextParameterBlockGraph : public UAnimNextRigVMAssetEntry, public IAn
 	// IAnimNextRigVMGraphInterface interface
 	virtual URigVMGraph* GetRigVMGraph() const override;
 	virtual URigVMEdGraph* GetEdGraph() const override;
+	virtual void SetRigVMGraph(URigVMGraph* InGraph) override;
+	virtual void SetEdGraph(URigVMEdGraph* InGraph) override;
 
 	/** The name of the graph */
-	UPROPERTY(VisibleAnywhere, Category = Parameter)
+	UPROPERTY(VisibleAnywhere, Category = EventGraph)
 	FName GraphName;
 
 	/** Graph */
@@ -38,5 +39,15 @@ class UAnimNextParameterBlockGraph : public UAnimNextRigVMAssetEntry, public IAn
 
 	/** Graph */
 	UPROPERTY()
-	TObjectPtr<UAnimNextParameterBlock_EdGraph> EdGraph;
+	TObjectPtr<UAnimNextGraph_EdGraph> EdGraph;
+};
+
+// Old deprecated entry
+UCLASS()
+class UAnimNextParameterBlockGraph : public UAnimNextRigVMAssetEntry
+{
+	GENERATED_BODY()
+
+	// UAnimNextRigVMAssetEntry interface
+	virtual FName GetEntryName() const override { return NAME_None; }
 };

@@ -56,8 +56,8 @@ private:
 	// Bind input commands
 	void BindCommands();
 
-	// Handle modifications to the block
-	void HandleBlockModified(UAnimNextRigVMAssetEditorData* InEditorData);
+	// Handle modifications to the asset
+	void HandleAssetModified(UAnimNextRigVMAssetEditorData* InEditorData);
 
 	// Get the content for the context menu
 	TSharedRef<SWidget> HandleGetContextContent();

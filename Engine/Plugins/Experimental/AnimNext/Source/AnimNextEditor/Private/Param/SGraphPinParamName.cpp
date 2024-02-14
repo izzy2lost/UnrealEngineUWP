@@ -31,12 +31,12 @@ void SGraphPinParamName::Construct(const FArguments& InArgs, UEdGraphPin* InPin)
 TSharedRef<SWidget> SGraphPinParamName::GetDefaultValueWidget()
 {
 	FParameterPickerArgs Args;
-	Args.bShowBlocks = false;
+	Args.bShowSourceGraph = false;
 	Args.bMultiSelect = false;
 
 	CachedType = UncookedOnly::FUtils::GetParameterTypeFromName(FName(*GraphPinObj->DefaultValue));
 
-	// Check whether this is a Set/Get parameter from block node, and if so only show bound parameters
+	// Check whether this is a Set/Get parameter node, and if so only show bound parameters
 	if (ModelPin)
 	{
 		if (const URigVMTemplateNode* TemplateNode = Cast<URigVMTemplateNode>(ModelPin->GetOuter()))

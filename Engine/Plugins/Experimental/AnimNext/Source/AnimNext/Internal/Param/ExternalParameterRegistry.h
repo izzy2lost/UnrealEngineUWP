@@ -7,7 +7,7 @@
 #include "Param/IParameterSourceFactory.h"
 
 class UAnimNextSchedule;
-class UAnimNextParameterBlockParameter;
+class UAnimNextGraph_Parameter;
 class AActor;
 class UActorComponent;
 
@@ -49,7 +49,7 @@ struct FExternalParameterRegistry
 
 private:
 	friend class ::UAnimNextSchedule;
-	friend class ::UAnimNextParameterBlockParameter;
+	friend class ::UAnimNextGraph_Parameter;
 	friend class UE::AnimNext::Editor::SParameterPicker;
 	friend struct UE::AnimNext::UncookedOnly::FUtils;
 

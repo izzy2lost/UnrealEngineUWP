@@ -1,19 +1,21 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "AnimNextGraphDocumentSummoner.h"
+#include "EventGraphDocumentSummoner.h"
 #include "Common/SActionMenu.h"
+#include "Graph/AnimNextGraph.h"
 #include "Graph/AnimNextGraph_EdGraph.h"
+
 #include "Workspace/AnimNextWorkspaceEditor.h"
 
 namespace UE::AnimNext::Editor
 {
 
-FAnimNextGraphDocumentSummoner::FAnimNextGraphDocumentSummoner(FName InIdentifier, TSharedPtr<FWorkspaceEditor> InHostingApp)
+FEventGraphDocumentSummoner::FEventGraphDocumentSummoner(FName InIdentifier, TSharedPtr<FWorkspaceEditor> InHostingApp)
 	: FGraphDocumentSummoner(InIdentifier, InHostingApp)
 {
 }
 
-FActionMenuContent FAnimNextGraphDocumentSummoner::OnCreateGraphActionMenu(UEdGraph* InGraph, const FVector2D& InNodePosition, const TArray<UEdGraphPin*>& InDraggedPins, bool bAutoExpand, SGraphEditor::FActionMenuClosed InOnMenuClosed) const
+FActionMenuContent FEventGraphDocumentSummoner::OnCreateGraphActionMenu(UEdGraph* InGraph, const FVector2D& InNodePosition, const TArray<UEdGraphPin*>& InDraggedPins, bool bAutoExpand, SGraphEditor::FActionMenuClosed InOnMenuClosed) const
 {
 	TSharedRef<SActionMenu> ActionMenu = SNew(SActionMenu, InGraph)
 		.AutoExpandActionMenu(bAutoExpand)
@@ -25,7 +27,7 @@ FActionMenuContent FAnimNextGraphDocumentSummoner::OnCreateGraphActionMenu(UEdGr
 	return FActionMenuContent(StaticCastSharedRef<SWidget>(ActionMenu), FilterTextBox);
 }
 
-bool FAnimNextGraphDocumentSummoner::IsPayloadSupported(TSharedRef<FTabPayload> Payload) const
+bool FEventGraphDocumentSummoner::IsPayloadSupported(TSharedRef<FTabPayload> Payload) const
 {
 	UObject* Object = Payload->IsValid() ? FTabPayload_UObject::CastChecked<UObject>(Payload) : nullptr;
 	return Object && Object->IsA<UAnimNextGraph_EdGraph>();

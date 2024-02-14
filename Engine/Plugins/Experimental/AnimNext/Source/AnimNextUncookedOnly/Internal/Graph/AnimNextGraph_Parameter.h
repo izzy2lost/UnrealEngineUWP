@@ -6,29 +6,28 @@
 #include "AnimNextRigVMAssetEntry.h"
 #include "IAnimNextRigVMParameterInterface.h"
 #include "Param/ParamType.h"
-#include "AnimNextParameterBlockParameter.generated.h"
+#include "AnimNextGraph_Parameter.generated.h"
 
-class UAnimNextParameterLibrary;
-class UAnimNextParameterBlock_EditorData;
+class UAnimNextGraph_EditorData;
 
 namespace UE::AnimNext::Editor
 {
-	class FParameterBlockParameterCustomization;
+	class FParameterCustomization;
 }
 
 namespace UE::AnimNext::Tests
 {
-	class FEditor_Parameters_ParameterBlock;
+	class FEditor_Parameters;
 }
 
 UCLASS(MinimalAPI, Category = "Parameters")
-class UAnimNextParameterBlockParameter : public UAnimNextRigVMAssetEntry, public IAnimNextRigVMParameterInterface
+class UAnimNextGraph_Parameter : public UAnimNextRigVMAssetEntry, public IAnimNextRigVMParameterInterface
 {
 	GENERATED_BODY()
 
-	friend class UAnimNextParameterBlock_EditorData;
-	friend class UE::AnimNext::Tests::FEditor_Parameters_ParameterBlock;
-	friend class UE::AnimNext::Editor::FParameterBlockParameterCustomization;
+	friend class UAnimNextGraph_EditorData;
+	friend class UE::AnimNext::Tests::FEditor_Parameters;
+	friend class UE::AnimNext::Editor::FParameterCustomization;
 
 	// UAnimNextRigVMAssetEntry interface
 	virtual FName GetEntryName() const override;
@@ -52,4 +51,14 @@ class UAnimNextParameterBlockParameter : public UAnimNextRigVMAssetEntry, public
 	/** Comment to display in editor */
 	UPROPERTY(EditAnywhere, Category = "Parameter", meta=(MultiLine))
 	FString Comment;
+};
+
+// Old deprecated class
+UCLASS()
+class UAnimNextParameterBlockParameter : public UAnimNextRigVMAssetEntry
+{
+	GENERATED_BODY()
+
+	// UAnimNextRigVMAssetEntry interface
+	virtual FName GetEntryName() const { return NAME_None; }
 };

@@ -407,13 +407,11 @@ TArray<FRigVMGraphVariableDescription> URigVMGraph::GetOutputArguments() const
 
 URigVMSchema* URigVMGraph::GetSchema() const
 {
-	check(SchemaClass);
-	return SchemaClass->GetDefaultObject<URigVMSchema>();
+	return SchemaClass ? SchemaClass->GetDefaultObject<URigVMSchema>() : nullptr;
 }
 
 void URigVMGraph::SetSchemaClass(TSubclassOf<URigVMSchema> InSchemaClass)
 {
-	check(InSchemaClass);
 	SchemaClass = InSchemaClass;
 }
 

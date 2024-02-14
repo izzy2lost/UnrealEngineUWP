@@ -33,15 +33,15 @@ struct FParameterToAdd
 	FName Name;
 };
 
-// A parameter asset, optionally bound in a block
+// A parameter asset, optionally bound in a graph
 struct FParameterBindingReference
 {
 	FParameterBindingReference() = default;
 
-	FParameterBindingReference(FName InParameter, const FAnimNextParamType& InType, const FAssetData& InBlock = FAssetData())
+	FParameterBindingReference(FName InParameter, const FAnimNextParamType& InType, const FAssetData& InGraph = FAssetData())
 		: Parameter(InParameter)
 		, Type(InType)
-		, Block(InBlock)
+		, Graph(InGraph)
 	{
 	}
 
@@ -54,14 +54,14 @@ struct FParameterBindingReference
 	// Asset (first found in asset registry) that the parameter is used in
 	FAssetData Asset;
 
-	// Optional block asset that the parameter is bound in
-	FAssetData Block;
+	// Optional graph asset that the parameter is bound in
+	FAssetData Graph;
 };
 
-// Delegate called when a parameter has been picked. Block argument is invalid when an unbound parameter is chosen.
+// Delegate called when a parameter has been picked. Graph argument is invalid when an unbound parameter is chosen.
 DECLARE_DELEGATE_OneParam(FOnGetParameterBindings, TArray<FParameterBindingReference>& /*OutParameterBindings*/);
 
-// Delegate called when a parameter has been picked. Block argument is invalid when an unbound parameter is chosen.
+// Delegate called when a parameter has been picked. Graph argument is invalid when an unbound parameter is chosen.
 DECLARE_DELEGATE_OneParam(FOnParameterPicked, const FParameterBindingReference& /*InParameterBinding*/);
 
 // Delegate called when a parameter is due to be added.
@@ -109,17 +109,17 @@ struct FParameterPickerArgs
 	// Whether we allow selecting multiple parameters or just one
 	bool bMultiSelect = true;
 
-	// Whether we should show parameters that are bound in a parameter block
+	// Whether we should show parameters that are bound in a graph
 	bool bShowBoundParameters = true;
 
-	// Whether we should show parameters that are not bound in a parameter block (if bShowBoundParameters is false this will show all parameters)
+	// Whether we should show parameters that are not bound in a graph (if bShowBoundParameters is false this will show all parameters)
 	bool bShowUnboundParameters = true;	
 
 	// Whether we should show parameters that are built in
 	bool bShowBuiltInParameters = true;
 
-	// Whether we should show the block alongside bound parameters
-	bool bShowBlocks = true;
+	// Whether we should show the source graph alongside bound parameters
+	bool bShowSourceGraph = true;
 
 	// Whether we should allow new parameters to be created by this widget
 	bool bAllowNew = true;

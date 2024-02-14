@@ -14,8 +14,6 @@
 #include "Graph/RigUnit_AnimNextGraphRoot.h"
 #include "Graph/RigUnit_AnimNextGraphEvaluator.h"
 #include "Graph/RigUnit_AnimNextShimRoot.h"
-#include "Param/AnimNextParameterBlock.h"
-#include "Param/AnimNextParameterBlock_EditorData.h"
 #include "Graph/RigDecorator_AnimNextCppTrait.h"
 #include "Param/RigUnit_AnimNextParameterBeginExecution.h"
 #include "Param/RigVMDispatch_GetParameter.h"
@@ -45,6 +43,7 @@
 #include "AnimNextRigVMAssetEditorData.h"
 #include "AnimNextRigVMAssetEntry.h"
 #include "Graph/AnimNextGraphEntryPoint.h"
+#include "Graph/AnimNextGraph_AnimationGraphSchema.h"
 
 namespace UE::AnimNext::UncookedOnly
 {
@@ -492,6 +491,14 @@ void FUtils::Compile(UAnimNextGraph* InGraph)
 {
 	check(InGraph);
 
+	CompileStruct(InGraph);
+	CompileVM(InGraph);
+}
+
+void FUtils::CompileVM(UAnimNextGraph* InGraph)
+{
+	check(InGraph);
+
 	UAnimNextGraph_EditorData* EditorData = GetEditorData(InGraph);
 
 	if (EditorData->bIsCompiling)
@@ -500,8 +507,6 @@ void FUtils::Compile(UAnimNextGraph* InGraph)
 	}
 
 	TGuardValue<bool> CompilingGuard(EditorData->bIsCompiling, true);
-
-
 	
 	// Before we re-compile a graph, we need to release and live instances since we need the metadata we are about to replace
 	// to call trait destructors etc
@@ -537,20 +542,21 @@ void FUtils::Compile(UAnimNextGraph* InGraph)
 		return;
 	}
 
-	TArray<URigVMGraph*> VMTempGraphs;
+	TArray<URigVMGraph*> TempGraphs;
 	for(const URigVMGraph* SourceGraph : VMClient->GetAllModels(false, false))
 	{
 		// We use a temporary graph models to build our final graphs that we'll compile
-		URigVMGraph* VMTempGraph = CastChecked<URigVMGraph>(StaticDuplicateObject(SourceGraph, GetTransientPackage(), NAME_None, RF_Transient));
-		VMTempGraphs.Add(VMTempGraph);
+		URigVMGraph* TempGraph = CastChecked<URigVMGraph>(StaticDuplicateObject(SourceGraph, GetTransientPackage(), NAME_None, RF_Transient));
+		TempGraph->SetFlags(RF_Transient);
+		TempGraphs.Add(TempGraph);
 	}
 
-	if(VMTempGraphs.Num() == 0)
+	if(TempGraphs.Num() == 0)
 	{
 		return;
 	}
 
-	UAnimNextGraph_Controller* TempController = CastChecked<UAnimNextGraph_Controller>(VMClient->GetOrCreateController(VMTempGraphs[0]));
+	UAnimNextGraph_Controller* TempController = CastChecked<UAnimNextGraph_Controller>(VMClient->GetOrCreateController(TempGraphs[0]));
 
 	FTraitWriter TraitWriter;
 
@@ -559,53 +565,59 @@ void FUtils::Compile(UAnimNextGraph* InGraph)
 	TArray<Private::FTraitGraph> TraitGraphs;
 
 	// Build entry points and extract their required latent pins
-	for(const URigVMGraph* VMTempGraph : VMTempGraphs)
+	for(const URigVMGraph* TempGraph : TempGraphs)
 	{
-		// Gather our trait stacks
-		Private::FTraitGraph& TraitGraph = TraitGraphs.Add_GetRef(Private::CollectGraphInfo(VMTempGraph, TempController->GetControllerForGraph(VMTempGraph)));
-		check(!TraitGraph.TraitStackNodes.IsEmpty());
-
-		FAnimNextGraphEntryPoint& EntryPoint = InGraph->EntryPoints.AddDefaulted_GetRef();
-		EntryPoint.EntryPointName = TraitGraph.EntryPoint;
-
-		// Extract latent pins for this graph
-		Private::CollectLatentPins(TraitGraph.TraitStackNodes, LatentPins, LatentPinMapping);
-
-		// Iterate over every trait stack and register our node templates
-		for (Private::FTraitStackMapping& NodeMapping : TraitGraph.TraitStackNodes)
+		if(TempGraph->GetSchemaClass() == UAnimNextGraph_AnimationGraphSchema::StaticClass())
 		{
-			NodeMapping.TraitStackNodeHandle = Private::RegisterTraitNodeTemplate(TraitWriter, NodeMapping.DecoratorStackNode);
-		}
+			// Gather our trait stacks
+			Private::FTraitGraph& TraitGraph = TraitGraphs.Add_GetRef(Private::CollectGraphInfo(TempGraph, TempController->GetControllerForGraph(TempGraph)));
+			check(!TraitGraph.TraitStackNodes.IsEmpty());
 
-		// Find our root node handle, if we have any stack nodes, the first one is our root stack
-		if (TraitGraph.TraitStackNodes.Num() != 0)
-		{
-			EntryPoint.RootTraitHandle = FAnimNextEntryPointHandle(TraitGraph.TraitStackNodes[0].TraitStackNodeHandle);
+			FAnimNextGraphEntryPoint& EntryPoint = InGraph->EntryPoints.AddDefaulted_GetRef();
+			EntryPoint.EntryPointName = TraitGraph.EntryPoint;
+
+			// Extract latent pins for this graph
+			Private::CollectLatentPins(TraitGraph.TraitStackNodes, LatentPins, LatentPinMapping);
+
+			// Iterate over every trait stack and register our node templates
+			for (Private::FTraitStackMapping& NodeMapping : TraitGraph.TraitStackNodes)
+			{
+				NodeMapping.TraitStackNodeHandle = Private::RegisterTraitNodeTemplate(TraitWriter, NodeMapping.DecoratorStackNode);
+			}
+
+			// Find our root node handle, if we have any stack nodes, the first one is our root stack
+			if (TraitGraph.TraitStackNodes.Num() != 0)
+			{
+				EntryPoint.RootTraitHandle = FAnimNextEntryPointHandle(TraitGraph.TraitStackNodes[0].TraitStackNodeHandle);
+			}
 		}
 	}
 
-	// We need a unique method name to match our unique argument list
-	InGraph->ExecuteDefinition = Private::GetGraphEvaluatorExecuteMethod(LatentPins);
-
-	// Add our runtime shim root node
-	URigVMUnitNode* TempShimRootNode = TempController->AddUnitNode(FRigUnit_AnimNextShimRoot::StaticStruct(), FRigUnit_AnimNextShimRoot::EventName, FVector2D::ZeroVector, FString(), false);
-	URigVMUnitNode* GraphEvaluatorNode = TempController->AddUnitNodeWithPins(FRigUnit_AnimNextGraphEvaluator::StaticStruct(), LatentPins, *InGraph->ExecuteDefinition.MethodName, FVector2D::ZeroVector, FString(), false);
-
-	// Link our shim and evaluator nodes together using the execution context
-	TempController->AddLink(
-		TempShimRootNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_AnimNextShimRoot, ExecuteContext)),
-		GraphEvaluatorNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_AnimNextGraphEvaluator, ExecuteContext)),
-		false);
-
-	// Link our latent pins
-	for (const FRigVMPinInfo& LatentPin : LatentPins)
+	if(LatentPins.Num() > 0)
 	{
+		// We need a unique method name to match our unique argument list
+		InGraph->ExecuteDefinition = Private::GetGraphEvaluatorExecuteMethod(LatentPins);
+
+		// Add our runtime shim root node
+		URigVMUnitNode* TempShimRootNode = TempController->AddUnitNode(FRigUnit_AnimNextShimRoot::StaticStruct(), FRigUnit_AnimNextShimRoot::EventName, FVector2D::ZeroVector, FString(), false);
+		URigVMUnitNode* GraphEvaluatorNode = TempController->AddUnitNodeWithPins(FRigUnit_AnimNextGraphEvaluator::StaticStruct(), LatentPins, *InGraph->ExecuteDefinition.MethodName, FVector2D::ZeroVector, FString(), false);
+
+		// Link our shim and evaluator nodes together using the execution context
 		TempController->AddLink(
-			LatentPinMapping[LatentPin.Name],
-			GraphEvaluatorNode->FindPin(LatentPin.Name.ToString()),
+			TempShimRootNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_AnimNextShimRoot, ExecuteContext)),
+			GraphEvaluatorNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_AnimNextGraphEvaluator, ExecuteContext)),
 			false);
+
+		// Link our latent pins
+		for (const FRigVMPinInfo& LatentPin : LatentPins)
+		{
+			TempController->AddLink(
+				LatentPinMapping[LatentPin.Name],
+				GraphEvaluatorNode->FindPin(LatentPin.Name.ToString()),
+				false);
+		}
 	}
-	
+
 	// Write our node shared data
 	TraitWriter.BeginNodeWriting();
 
@@ -636,10 +648,14 @@ void FUtils::Compile(UAnimNextGraph* InGraph)
 	URigVMCompiler* Compiler = URigVMCompiler::StaticClass()->GetDefaultObject<URigVMCompiler>();
 	EditorData->VMCompileSettings.SetExecuteContextStruct(FAnimNextExecuteContext::StaticStruct());
 	const FRigVMCompileSettings Settings = (EditorData->bCompileInDebugMode) ? FRigVMCompileSettings::Fast(EditorData->VMCompileSettings.GetExecuteContextStruct()) : EditorData->VMCompileSettings;
-	Compiler->Compile(Settings, VMTempGraphs, TempController, InGraph->VM, InGraph->ExtendedExecuteContext, TArray<FRigVMExternalVariable>(), & EditorData->PinToOperandMap);
+	Compiler->Compile(Settings, TempGraphs, TempController, InGraph->VM, InGraph->ExtendedExecuteContext, TArray<FRigVMExternalVariable>(), & EditorData->PinToOperandMap);
 
 	// Initialize right away, in packaged builds we initialize during PostLoad
 	InGraph->VM->Initialize(InGraph->ExtendedExecuteContext);
+	InGraph->GenerateUserDefinedDependenciesData(InGraph->ExtendedExecuteContext);
+
+	// Notable difference with vanilla RigVM host behavior - we init the VM here at the moment as we only have one 'instance'
+	InGraph->InitializeVM(FRigUnit_AnimNextBeginExecution::EventName);
 
 	if (EditorData->bErrorsDuringCompilation)
 	{
@@ -655,9 +671,9 @@ void FUtils::Compile(UAnimNextGraph* InGraph)
 		EditorData->RigVMCompiledEvent.Broadcast(InGraph, InGraph->VM, InGraph->ExtendedExecuteContext);
 	}
 
-	for(URigVMGraph* VMTempGraph : VMTempGraphs)
+	for(URigVMGraph* TempGraph : TempGraphs)
 	{
-		VMClient->RemoveController(VMTempGraph);
+		VMClient->RemoveController(TempGraph);
 	}
 
 	// Now that the graph has been re-compiled, re-allocate the previous live instances
@@ -811,81 +827,11 @@ FParamTypeHandle FUtils::GetParameterHandleFromPin(const FEdGraphPinType& InPinT
 	return FAnimNextParamType(ValueType, ContainerType, ValueTypeObject).GetHandle();
 }
 
-void FUtils::CompileVM(UAnimNextParameterBlock* InParameterBlock)
+void FUtils::CompileStruct(UAnimNextGraph* InGraph)
 {
-	check(InParameterBlock);
+	check(InGraph);
 
-	UAnimNextParameterBlock_EditorData* EditorData = FUtils::GetEditorData(InParameterBlock);
-	if(EditorData->bIsCompiling)
-	{
-		return;
-	}
-
-	TGuardValue<bool> CompilingGuard(EditorData->bIsCompiling, true);
-
-	EditorData->bErrorsDuringCompilation = false;
-
-	EditorData->RigGraphDisplaySettings.MinMicroSeconds = EditorData->RigGraphDisplaySettings.LastMinMicroSeconds = DBL_MAX;
-	EditorData->RigGraphDisplaySettings.MaxMicroSeconds = EditorData->RigGraphDisplaySettings.LastMaxMicroSeconds = (double)INDEX_NONE;
-	
-	TGuardValue<bool> ReentrantGuardSelf(EditorData->bSuspendModelNotificationsForSelf, true);
-	TGuardValue<bool> ReentrantGuardOthers(EditorData->bSuspendModelNotificationsForOthers, true);
-
-	RecreateVM(InParameterBlock);
-
-	InParameterBlock->VMRuntimeSettings = EditorData->VMRuntimeSettings;
-
-	EditorData->CompileLog.Messages.Reset();
-	EditorData->CompileLog.NumErrors = EditorData->CompileLog.NumWarnings = 0;
-
-	FRigVMClient* VMClient = EditorData->GetRigVMClient();
-	URigVMGraph* RootGraph = VMClient->GetDefaultModel();
-
-	if(RootGraph == nullptr)
-	{
-		return;
-	}
-
-	URigVMCompiler* Compiler = URigVMCompiler::StaticClass()->GetDefaultObject<URigVMCompiler>();
-	EditorData->VMCompileSettings.SetExecuteContextStruct(FAnimNextExecuteContext::StaticStruct());
-	FRigVMExtendedExecuteContext& CDOContext = InParameterBlock->GetRigVMExtendedExecuteContext();
-	const FRigVMCompileSettings Settings = (EditorData->bCompileInDebugMode) ? FRigVMCompileSettings::Fast(EditorData->VMCompileSettings.GetExecuteContextStruct()) : EditorData->VMCompileSettings;
-	URigVMController* RootController = VMClient->GetOrCreateController(RootGraph);
-	Compiler->Compile(Settings, VMClient->GetAllModels(false, false), RootController, InParameterBlock->VM, CDOContext, InParameterBlock->GetExternalVariables(), &EditorData->PinToOperandMap);
-
-	InParameterBlock->VM->Initialize(CDOContext);
-	InParameterBlock->GenerateUserDefinedDependenciesData(CDOContext);
-
-	// Notable difference with vanilla RigVM host behavior - we init the VM here at the moment as we only have one 'instance'
-	InParameterBlock->InitializeVM(FRigUnit_AnimNextBeginExecution::EventName);
-
-	if (EditorData->bErrorsDuringCompilation)
-	{
-		if(Settings.SurpressErrors)
-		{
-			Settings.Reportf(EMessageSeverity::Info, InParameterBlock,
-				TEXT("Compilation Errors may be suppressed for ControlRigBlueprint: %s. See VM Compile Setting in Class Settings for more Details"), *InParameterBlock->GetName());
-		}
-		EditorData->bVMRecompilationRequired = false;
-		if(InParameterBlock->VM)
-		{
-			EditorData->RigVMCompiledEvent.Broadcast(InParameterBlock, InParameterBlock->VM, InParameterBlock->GetRigVMExtendedExecuteContext());
-		}
-		return;
-	}
-
-//	InitializeArchetypeInstances();
-
-#if WITH_EDITOR
-//	RefreshBreakpoints(EditorData);
-#endif
-}
-
-void FUtils::CompileStruct(UAnimNextParameterBlock* InParameterBlock)
-{
-	check(InParameterBlock);
-
-	UAnimNextParameterBlock_EditorData* EditorData = GetEditorData(InParameterBlock);
+	UAnimNextGraph_EditorData* EditorData = GetEditorData(InGraph);
 	if(EditorData->bIsCompiling)
 	{
 		return;
@@ -896,7 +842,7 @@ void FUtils::CompileStruct(UAnimNextParameterBlock* InParameterBlock)
 	TArray<FPropertyBagPropertyDesc> PropertyDescs;
 	PropertyDescs.Reserve(EditorData->Entries.Num());
 	
-	// Gather all parameters in this block
+	// Gather all parameters in this asset
 	for(const UAnimNextRigVMAssetEntry* Entry : EditorData->Entries)
 	{
 		if(const IAnimNextRigVMParameterInterface* Binding = Cast<IAnimNextRigVMParameterInterface>(Entry))
@@ -912,9 +858,9 @@ void FUtils::CompileStruct(UAnimNextParameterBlock* InParameterBlock)
 		// find any existing IDs for old properties with name-matching
 		for(FPropertyBagPropertyDesc& NewDesc : PropertyDescs)
 		{
-			if(InParameterBlock->PropertyBag.GetPropertyBagStruct())
+			if(InGraph->PropertyBag.GetPropertyBagStruct())
 			{
-				for(const FPropertyBagPropertyDesc& ExistingDesc : InParameterBlock->PropertyBag.GetPropertyBagStruct()->GetPropertyDescs())
+				for(const FPropertyBagPropertyDesc& ExistingDesc : InGraph->PropertyBag.GetPropertyBagStruct()->GetPropertyDescs())
 				{
 					if(ExistingDesc.Name == NewDesc.Name)
 					{
@@ -927,30 +873,12 @@ void FUtils::CompileStruct(UAnimNextParameterBlock* InParameterBlock)
 
 		// Create new property bag and migrate
 		const UPropertyBag* NewBagStruct = UPropertyBag::GetOrCreateFromDescs(PropertyDescs);
-		InParameterBlock->PropertyBag.MigrateToNewBagStruct(NewBagStruct);
+		InGraph->PropertyBag.MigrateToNewBagStruct(NewBagStruct);
 	}
 	else
 	{
-		InParameterBlock->PropertyBag.Reset();
+		InGraph->PropertyBag.Reset();
 	}
-}
-
-void FUtils::Compile(UAnimNextParameterBlock* InParameterBlock)
-{
-	check(InParameterBlock);
-
-	CompileStruct(InParameterBlock);
-	CompileVM(InParameterBlock);
-}
-
-void FUtils::RecreateVM(UAnimNextParameterBlock* InParameterBlock)
-{
-	if(InParameterBlock->VM == nullptr)
-	{
-		InParameterBlock->VM = NewObject<URigVM>(InParameterBlock, TEXT("VM"), RF_NoFlags);
-	}
-	InParameterBlock->VM->Reset(InParameterBlock->GetRigVMExtendedExecuteContext());
-	InParameterBlock->RigVM = InParameterBlock->VM; // Local serialization
 }
 
 UAnimNextRigVMAsset* FUtils::GetAsset(UAnimNextRigVMAssetEditorData* InEditorData)
@@ -965,23 +893,9 @@ UAnimNextRigVMAssetEditorData* FUtils::GetEditorData(UAnimNextRigVMAsset* InAsse
 	return CastChecked<UAnimNextRigVMAssetEditorData>(InAsset->EditorData);
 }
 
-UAnimNextParameterBlock_EditorData* FUtils::GetEditorData(const UAnimNextParameterBlock* InParameterBlock)
+FInstancedPropertyBag* FUtils::GetPropertyBag(UAnimNextGraph* InAnimNextGraph)
 {
-	check(InParameterBlock);
-
-	return CastChecked<UAnimNextParameterBlock_EditorData>(InParameterBlock->EditorData);
-}
-
-UAnimNextParameterBlock* FUtils::GetBlock(const UAnimNextParameterBlock_EditorData* InEditorData)
-{
-	check(InEditorData);
-
-	return CastChecked<UAnimNextParameterBlock>(InEditorData->GetOuter());
-}
-
-FInstancedPropertyBag* FUtils::GetPropertyBag(UAnimNextParameterBlock* ReferencedBlock)
-{
-	FInstancedPropertyBag* InstancedPropertyBag =&ReferencedBlock->PropertyBag;
+	FInstancedPropertyBag* InstancedPropertyBag = &InAnimNextGraph->PropertyBag;
 
 	return InstancedPropertyBag;
 }
@@ -1280,7 +1194,7 @@ void FUtils::SetupAnimGraph(UAnimNextRigVMAssetEntry* InEntry, URigVMController*
 	InController->SetPinDefaultValue(EntryPointPin->GetPinPath(), InEntry->GetEntryName().ToString());
 }
 
-void FUtils::SetupParameterGraph(URigVMController* InController)
+void FUtils::SetupEventGraph(URigVMController* InController)
 {
 	// Clear the graph
 	InController->RemoveNodes(InController->GetGraph()->GetNodes());
@@ -1878,7 +1792,7 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 				ParamScopeEntryTask.ParamParentScopeIndex = ParentScopeIndex;
 				ParamScopeEntryTask.TickFunctionIndex = InSchedule->NumTickFunctions;
 				ParamScopeEntryTask.Scope = ParamScopeTaskEntry->Scope;
-				ParamScopeEntryTask.ParameterBlocks = ParamScopeTaskEntry->ParameterBlocks;
+				ParamScopeEntryTask.Parameters = ParamScopeTaskEntry->Parameters;
 				int32 ParamScopeTaskEntryIndex = InSchedule->ParamScopeEntryTasks.Add(ParamScopeEntryTask);
 
 				Emit(EAnimNextScheduleScheduleOpcode::RunParamScopeEntry, ParamScopeTaskEntryIndex);
@@ -2024,12 +1938,12 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 				}
 				else if (UAnimNextScheduleEntry_ParamScope* ParamScopeTaskEntry = Cast<UAnimNextScheduleEntry_ParamScope>(Entry))
 				{
-					for(UAnimNextParameterBlock* ParameterBlock : ParamScopeTaskEntry->ParameterBlocks)
+					for(UAnimNextGraph* Parameters : ParamScopeTaskEntry->Parameters)
 					{
-						if(ParameterBlock)
+						if(Parameters)
 						{
 							FAnimNextParameterProviderAssetRegistryExports Exports;
-							if(UncookedOnly::FUtils::GetExportedParametersForAsset(FAssetData(ParameterBlock), Exports))
+							if(UncookedOnly::FUtils::GetExportedParametersForAsset(FAssetData(Parameters), Exports))
 							{
 								TArray<FAnimNextParam> RequiredParameters;
 								RequiredParameters.Reserve(Exports.Parameters.Num());

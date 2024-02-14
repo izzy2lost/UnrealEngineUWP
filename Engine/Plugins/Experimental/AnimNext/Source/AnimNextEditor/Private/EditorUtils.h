@@ -9,11 +9,7 @@
 class UAnimNextGraph;
 class UAnimNextRigVMAssetEditorData;
 struct FAnimNextParamType;
-class UAnimNextParameterBlock;
-class UAnimNextParameterBlockBinding;
-class UAnimNextParameterBlock_EditorData;
 class URigVMController;
-struct FAnimNextParameterBlockAssetRegistryExports;
 struct FAnimNextWorkspaceAssetRegistryExports;
 
 struct FAnimNextParameterProviderAssetRegistryExports;
@@ -28,8 +24,6 @@ struct FUtils
 	static void GetAllEntryNames(const UAnimNextRigVMAssetEditorData* InEditorData, TSet<FName>& OutNames);
 
 	static FAnimNextParamType GetParameterTypeFromMetaData(const FStringView& InStringView);
-
-	static FName ValidateName(const UAnimNextParameterBlock_EditorData* InEditorData, const FString& InName);
 
 	static void GetFilteredVariableTypeTree(TArray<TSharedPtr<UEdGraphSchema_K2::FPinTypeTreeInfo>>& TypeTree, ETypeTreeFilter TypeTreeFilter);
 

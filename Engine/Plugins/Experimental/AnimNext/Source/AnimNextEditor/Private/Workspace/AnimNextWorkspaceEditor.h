@@ -39,8 +39,8 @@ namespace WorkspaceTabs
 	extern const FName WorkspaceView;
 	extern const FName LeftAssetDocument;
 	extern const FName MiddleAssetDocument;
-	extern const FName AnimNextGraphDocument;
-	extern const FName ParameterBlockGraphDocument;
+	extern const FName AnimationGraphDocument;
+	extern const FName EventGraphDocument;
 }
 
 class FWorkspaceEditor : public FWorkflowCentricApplication

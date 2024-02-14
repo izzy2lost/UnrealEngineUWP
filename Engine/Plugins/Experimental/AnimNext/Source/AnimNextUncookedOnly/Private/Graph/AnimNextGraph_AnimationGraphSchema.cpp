@@ -1,12 +1,12 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Graph/AnimNextGraph_TraitSchema.h"
+#include "Graph/AnimNextGraph_AnimationGraphSchema.h"
 
 #include "AnimNextExecuteContext.h"
 #include "Graph/RigUnit_AnimNextBase.h"
 #include "Param/RigVMDispatch_GetParameter.h"
 
-bool UAnimNextGraph_TraitSchema::SupportsUnitFunction(URigVMController* InController, const FRigVMFunction* InUnitFunction) const
+bool UAnimNextGraph_AnimationGraphSchema::SupportsUnitFunction(URigVMController* InController, const FRigVMFunction* InUnitFunction) const
 {
 	if(InUnitFunction)
 	{
@@ -26,7 +26,7 @@ bool UAnimNextGraph_TraitSchema::SupportsUnitFunction(URigVMController* InContro
 	return Super::SupportsUnitFunction(InController, InUnitFunction);
 }
 
-bool UAnimNextGraph_TraitSchema::SupportsDispatchFactory(URigVMController* InController, const FRigVMDispatchFactory* InDispatchFactory) const
+bool UAnimNextGraph_AnimationGraphSchema::SupportsDispatchFactory(URigVMController* InController, const FRigVMDispatchFactory* InDispatchFactory) const
 {
 	if(InDispatchFactory)
 	{

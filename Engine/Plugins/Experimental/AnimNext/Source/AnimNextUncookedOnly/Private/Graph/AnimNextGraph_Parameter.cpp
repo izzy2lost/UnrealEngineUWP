@@ -1,12 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Param/AnimNextParameterBlockParameter.h"
-
-#include "Param/AnimNextParameterBlock.h"
-#include "Param/AnimNextParameterBlock_EditorData.h"
+#include "Graph/AnimNextGraph_Parameter.h"
+#include "Graph/AnimNextGraph.h"
 #include "Param/ExternalParameterRegistry.h"
 
-FAnimNextParamType UAnimNextParameterBlockParameter::GetParamType() const
+FAnimNextParamType UAnimNextGraph_Parameter::GetParamType() const
 {
 	using namespace UE::AnimNext;
 
@@ -20,12 +18,12 @@ FAnimNextParamType UAnimNextParameterBlockParameter::GetParamType() const
 	return Type;
 }
 
-FName UAnimNextParameterBlockParameter::GetEntryName() const
+FName UAnimNextGraph_Parameter::GetEntryName() const
 {
 	return ParameterName;
 }
 
-bool UAnimNextParameterBlockParameter::SetParamType(const FAnimNextParamType& InType, bool bSetupUndoRedo)
+bool UAnimNextGraph_Parameter::SetParamType(const FAnimNextParamType& InType, bool bSetupUndoRedo)
 {
 	if(bSetupUndoRedo)
 	{
@@ -39,15 +37,15 @@ bool UAnimNextParameterBlockParameter::SetParamType(const FAnimNextParamType& In
 	return true;
 }
 
-FInstancedPropertyBag& UAnimNextParameterBlockParameter::GetPropertyBag() const
+FInstancedPropertyBag& UAnimNextGraph_Parameter::GetPropertyBag() const
 {
 	// TODO: move property bag for defaults onto this entry!
-	UAnimNextParameterBlock* Asset = GetTypedOuter<UAnimNextParameterBlock>();
+	UAnimNextGraph* Asset = GetTypedOuter<UAnimNextGraph>();
 	check(Asset);
 	return Asset->PropertyBag;
 }
 
-void UAnimNextParameterBlockParameter::SetEntryName(FName InName, bool bSetupUndoRedo)
+void UAnimNextGraph_Parameter::SetEntryName(FName InName, bool bSetupUndoRedo)
 {
 	if(bSetupUndoRedo)
 	{
@@ -58,12 +56,12 @@ void UAnimNextParameterBlockParameter::SetEntryName(FName InName, bool bSetupUnd
 	BroadcastModified();
 }
 
-FText UAnimNextParameterBlockParameter::GetDisplayName() const
+FText UAnimNextGraph_Parameter::GetDisplayName() const
 {
 	return FText::FromName(ParameterName);
 }
 
-FText UAnimNextParameterBlockParameter::GetDisplayNameTooltip() const
+FText UAnimNextGraph_Parameter::GetDisplayNameTooltip() const
 {
 	using namespace UE::AnimNext;
 

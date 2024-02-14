@@ -24,3 +24,22 @@ EAssetCommandResult UAssetDefinition_AnimNextGraph::OpenAssets(const FAssetOpenA
 
 	return EAssetCommandResult::Handled;
 }
+
+
+FText UAssetDefinition_AnimNextParameter::GetObjectDisplayNameText(UObject* Object) const
+{
+	UAnimNextRigVMAssetEntry* Parameter = CastChecked<UAnimNextRigVMAssetEntry>(Object);
+	return Parameter->GetDisplayName();
+}
+
+FText UAssetDefinition_AnimNextAnimationGraph::GetObjectDisplayNameText(UObject* Object) const
+{
+	UAnimNextRigVMAssetEntry* Parameter = CastChecked<UAnimNextRigVMAssetEntry>(Object);
+	return Parameter->GetDisplayName();
+}
+
+FText UAssetDefinition_AnimNextEventGraph::GetObjectDisplayNameText(UObject* Object) const
+{
+	UAnimNextRigVMAssetEntry* Parameter = CastChecked<UAnimNextRigVMAssetEntry>(Object);
+	return Parameter->GetDisplayName();
+}

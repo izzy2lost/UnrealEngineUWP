@@ -6,12 +6,12 @@
 #include "Animation/AnimNodeBase.h"
 #include "AnimNode_AnimNextParameters.generated.h"
 
+class UAnimNextGraph;
+
 namespace UE::AnimNext
 {
-	struct FParameterBlockProxy;
+	struct FParametersProxy;
 }
-
-class UAnimNextParameterBlock;
 
 USTRUCT(BlueprintInternalUseOnly)
 struct FAnimNode_AnimNextParameters : public FAnimNode_Base
@@ -32,13 +32,13 @@ private:
 	FPoseLink Source;
 
 	UPROPERTY(EditAnywhere, Category = Settings)
-	TObjectPtr<UAnimNextParameterBlock> Parameters;
+	TObjectPtr<UAnimNextGraph> Parameters;
 
-	// Cache previous param block so we know when it changes via pin
-	TObjectPtr<UAnimNextParameterBlock> PreviousParameters;
+	// Cache previous parameters so we know when it changes via pin
+	TObjectPtr<UAnimNextGraph> PreviousParameters;
 
 	// Cached proxy
-	TUniquePtr<UE::AnimNext::FParameterBlockProxy> ParametersProxy;
+	TUniquePtr<UE::AnimNext::FParametersProxy> ParametersProxy;
 
 private:
 	// FAnimNode_Base

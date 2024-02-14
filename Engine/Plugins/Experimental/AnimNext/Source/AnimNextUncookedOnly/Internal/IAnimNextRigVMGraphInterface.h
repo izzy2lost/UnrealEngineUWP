@@ -25,4 +25,13 @@ public:
 
 	// Get the Editor graph
 	virtual URigVMEdGraph* GetEdGraph() const = 0;
+
+private:
+	friend class UAnimNextGraph_EditorData;
+
+	// Set the RigVM graph
+	virtual void SetRigVMGraph(URigVMGraph* InGraph) = 0;
+
+	// Get the Editor graph
+	virtual void SetEdGraph(URigVMEdGraph* InGraph) = 0;
 };

@@ -1,15 +1,15 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Graph/AnimNextGraphEntry.h"
+#include "Graph/AnimNextGraph_AnimationGraph.h"
 #include "Graph/AnimNextGraph_EdGraph.h"
 #include "Graph/RigUnit_AnimNextGraphRoot.h"
 
-FName UAnimNextGraphEntry::GetEntryName() const
+FName UAnimNextGraph_AnimationGraph::GetEntryName() const
 {
 	return GraphName;
 }
 
-void UAnimNextGraphEntry::SetEntryName(FName InName, bool bSetupUndoRedo)
+void UAnimNextGraph_AnimationGraph::SetEntryName(FName InName, bool bSetupUndoRedo)
 {
 	if(bSetupUndoRedo)
 	{
@@ -38,12 +38,22 @@ void UAnimNextGraphEntry::SetEntryName(FName InName, bool bSetupUndoRedo)
 	BroadcastModified();
 }
 
-URigVMGraph* UAnimNextGraphEntry::GetRigVMGraph() const
+URigVMGraph* UAnimNextGraph_AnimationGraph::GetRigVMGraph() const
 {
 	return Graph;
 }
 
-URigVMEdGraph* UAnimNextGraphEntry::GetEdGraph() const
+URigVMEdGraph* UAnimNextGraph_AnimationGraph::GetEdGraph() const
 {
 	return EdGraph;
+}
+
+void UAnimNextGraph_AnimationGraph::SetRigVMGraph(URigVMGraph* InGraph)
+{
+	Graph = InGraph;
+}
+
+void UAnimNextGraph_AnimationGraph::SetEdGraph(URigVMEdGraph* InGraph)
+{
+	EdGraph = CastChecked<UAnimNextGraph_EdGraph>(InGraph);
 }

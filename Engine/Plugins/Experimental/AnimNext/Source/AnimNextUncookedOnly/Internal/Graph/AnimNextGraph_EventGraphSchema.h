@@ -4,10 +4,10 @@
 
 #include "CoreMinimal.h"
 #include "AnimNextRigVMAssetSchema.h"
-#include "AnimNextParameterBlock_ParamSchema.generated.h"
+#include "AnimNextGraph_EventGraphSchema.generated.h"
 
 UCLASS()
-class UAnimNextParameterBlock_ParamSchema : public UAnimNextRigVMAssetSchema
+class UAnimNextGraph_EventGraphSchema : public UAnimNextRigVMAssetSchema
 {
 	GENERATED_BODY()
 

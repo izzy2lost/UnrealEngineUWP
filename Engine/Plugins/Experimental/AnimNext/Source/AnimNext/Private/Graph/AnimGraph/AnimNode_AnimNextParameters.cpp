@@ -2,9 +2,9 @@
 
 #include "Graph/AnimGraph/AnimNode_AnimNextParameters.h"
 #include "Param/ParamStack.h"
-#include "Param/AnimNextParameterBlock.h"
+#include "Graph/AnimNextGraph.h"
 #include "AnimGraphParamStackScope.h"
-#include "Param/ParameterBlockProxy.h"
+#include "Param/ParametersProxy.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNode_AnimNextParameters)
 
@@ -57,16 +57,16 @@ void FAnimNode_AnimNextParameters::Update_AnyThread(const FAnimationUpdateContex
 
 	GetEvaluateGraphExposedInputs().Execute(Context);
 
-	UAnimNextParameterBlock* CurrentParameters = Parameters;
+	UAnimNextGraph* CurrentParameters = Parameters;
 
-	// Reconstruct param block's cached layer if required
+	// Reconstruct parameter's cached layer if required
 	if (CurrentParameters != PreviousParameters || !ParametersProxy.IsValid())
 	{
 		ParametersProxy.Reset();
 
 		if (CurrentParameters)
 		{
-			ParametersProxy = MakeUnique<FParameterBlockProxy>(CurrentParameters);
+			ParametersProxy = MakeUnique<FParametersProxy>(CurrentParameters);
 		}
 
 		PreviousParameters = CurrentParameters;

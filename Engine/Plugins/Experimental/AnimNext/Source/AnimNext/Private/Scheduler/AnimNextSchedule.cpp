@@ -6,7 +6,6 @@
 #include "EngineLogs.h"
 #include "UObject/AssetRegistryTagsContext.h"
 #include "Graph/AnimNextGraph.h"
-#include "Param/AnimNextParameterBlock.h"
 
 #if WITH_EDITOR
 TUniqueFunction<void(UAnimNextSchedule*)> UAnimNextSchedule::CompileFunction;
@@ -24,9 +23,9 @@ void UAnimNextScheduleEntry_ParamScope::GetPreloadDependencies(TArray<UObject*>&
 {
 	Super::GetPreloadDependencies(OutDeps);
 
-	for(UAnimNextParameterBlock* ParameterBlock : ParameterBlocks)
+	for(UAnimNextGraph* Graph : Parameters)
 	{
-		OutDeps.Add(ParameterBlock);
+		OutDeps.Add(Graph);
 	}
 
 	for(UAnimNextScheduleEntry* SubEntry : SubEntries)
