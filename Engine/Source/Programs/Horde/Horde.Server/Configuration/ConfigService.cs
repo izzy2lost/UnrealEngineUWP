@@ -198,6 +198,8 @@ namespace Horde.Server.Configuration
 
 			public string Scheme => _inner.Scheme;
 
+			public TimeSpan UpdateInterval => TimeSpan.FromSeconds(1.0);
+
 			public OverrideConfigSource(IConfigSource inner, Dictionary<Uri, OverrideConfigFile> overrides)
 			{
 				_inner = inner;
@@ -365,8 +367,6 @@ namespace Horde.Server.Configuration
 				_logger.LogDebug("Initial snapshot for update: {@Info}", GetSnapshotInfo(initialData.Span, snapshot));
 			}
 
-			TimeSpan tickInterval = GetConfigUpdateInterval();
-			
 			// Update the snapshot until we're asked to stop
 			while (!cancellationToken.IsCancellationRequested)
 			{
@@ -385,6 +385,8 @@ namespace Horde.Server.Configuration
 						}
 					}
 				}
+
+				TimeSpan tickInterval = GetConfigUpdateInterval(snapshot);
 				await Task.Delay(tickInterval, cancellationToken);
 			}
 		}
@@ -460,9 +462,36 @@ namespace Horde.Server.Configuration
 		/// <summary>
 		/// Get the appropriate update interval for checking of new config updates
 		/// </summary>
-		TimeSpan GetConfigUpdateInterval()
+		TimeSpan GetConfigUpdateInterval(ConfigSnapshot? snapshot)
 		{
-			return GetGlobalConfigUri().Scheme == "file" ? TimeSpan.FromSeconds(5) : TimeSpan.FromMinutes(1);
+			TimeSpan interval = TimeSpan.FromSeconds(5.0);
+			foreach (Uri sourceUri in GetConfigSourceUris(snapshot))
+			{
+				if (_sources.TryGetValue(sourceUri.Scheme, out IConfigSource? configSource))
+				{
+					TimeSpan sourceInterval = configSource.UpdateInterval;
+					if (sourceInterval > interval)
+					{
+						interval = sourceInterval;
+					}
+				}
+			}
+			return interval;
+		}
+
+		/// <summary>
+		/// Enumerates all the known URIs for reading the given config snapshot.
+		/// </summary>
+		IEnumerable<Uri> GetConfigSourceUris(ConfigSnapshot? snapshot)
+		{
+			if (snapshot == null)
+			{
+				return new[] { GetGlobalConfigUri() };
+			}
+			else
+			{
+				return snapshot.Dependencies.Keys;
+			}
 		}
 
 		/// <summary>

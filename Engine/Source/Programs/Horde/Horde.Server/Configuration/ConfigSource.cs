@@ -28,6 +28,11 @@ namespace Horde.Server.Configuration
 		string Scheme { get; }
 
 		/// <summary>
+		/// Update interval for this source
+		/// </summary>
+		TimeSpan UpdateInterval { get; }
+
+		/// <summary>
 		/// Reads a config file from this source
 		/// </summary>
 		/// <param name="uris">Locations of the config files to query</param>
@@ -87,6 +92,9 @@ namespace Horde.Server.Configuration
 		/// <inheritdoc/>
 		string IConfigSource.Scheme => Scheme;
 
+		/// <inheritdoc/>
+		public TimeSpan UpdateInterval => TimeSpan.FromSeconds(1.0);
+
 		/// <summary>
 		/// Manually adds a new config file
 		/// </summary>
@@ -145,6 +153,9 @@ namespace Horde.Server.Configuration
 
 		/// <inheritdoc/>
 		string IConfigSource.Scheme => Scheme;
+
+		/// <inheritdoc/>
+		public TimeSpan UpdateInterval => TimeSpan.FromSeconds(5.0);
 
 		readonly DirectoryReference _baseDir;
 		readonly ConcurrentDictionary<FileReference, ConfigFileImpl> _files = new ConcurrentDictionary<FileReference, ConfigFileImpl>();
@@ -243,6 +254,9 @@ namespace Horde.Server.Configuration
 
 		/// <inheritdoc/>
 		string IConfigSource.Scheme => Scheme;
+
+		/// <inheritdoc/>
+		public TimeSpan UpdateInterval => TimeSpan.FromMinutes(1.0);
 
 		readonly IOptionsMonitor<ServerSettings> _settings;
 		readonly IUserCollection _userCollection;
