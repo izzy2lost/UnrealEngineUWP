@@ -81,7 +81,6 @@ FScreenPassTextureSlice FScreenPassTextureSlice::CreateFromScreenPassTexture(FRD
 		return FScreenPassTextureSlice(nullptr, ScreenTexture.ViewRect);
 	}
 
-	check(!ScreenTexture.Texture->Desc.IsTextureArray());
 	return FScreenPassTextureSlice(GraphBuilder.CreateSRV(FRDGTextureSRVDesc(ScreenTexture.Texture)), ScreenTexture.ViewRect);
 }
 

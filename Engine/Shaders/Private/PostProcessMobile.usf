@@ -9,7 +9,11 @@
 #include "PostprocessHistogramCommon.ush"
 #include "ScreenPass.ush"
 
+#if USE_MULTI_VIEW_ID_SV
+Texture2DArray SceneColorTexture;
+#else
 Texture2D SceneColorTexture;
+#endif
 SamplerState SceneColorSampler;
 
 Texture2D LastFrameSceneColorTexture;
@@ -132,6 +136,15 @@ half2 SunConstDepthMaskScaleBias()
 	return half2(Scale,-DepthMin * Scale);
 }
 
+float4 SampleSceneColor(float2 SceneUV, float ArrayIndex)
+{
+#if USE_MULTI_VIEW_ID_SV
+	return Texture2DArraySample(SceneColorTexture, SceneColorSampler, float3(SceneUV.xy, ArrayIndex));
+#else
+	return Texture2DSample(SceneColorTexture, SceneColorSampler, SceneUV);
+#endif
+}
+
 //
 // Convert depth in alpha into combined circle of confusion and sun intensity.
 //
@@ -140,13 +153,20 @@ half2 SunConstDepthMaskScaleBias()
 
 void SunMaskPS_Mobile(
 	float4 InUVPos : TEXCOORD0,
+#if USE_MULTI_VIEW_ID_SV
+	in uint MultiViewId : SV_ViewID,
+#endif
 	out HALF_TYPE OutSunShaftAndDof : SV_Target0
 #if MOBILE_USESUN && METAL_MSAA_HDR_DECODE
 	, out HALF4_TYPE OutColor : SV_Target1
 #endif
 	)
 {
-	half4 SceneColor = SceneColorTexture.Sample(SceneColorSampler, InUVPos.xy);
+	#if !USE_MULTI_VIEW_ID_SV
+		uint MultiViewId = 0;
+	#endif
+
+	half4 SceneColor = SampleSceneColor(InUVPos.xy,MultiViewId);
 
 	#if MOBILE_USEDEPTHTEXTURE 
 		half InDepth = ConvertFromDeviceZ(Texture2DSampleLevel(MobileSceneTextures.SceneDepthTexture, MobileSceneTextures.SceneDepthTextureSampler, InUVPos.xy, 0).r);
@@ -258,6 +278,9 @@ float HdrWeightInv4(float3 Color)
 
 void BloomPS_Mobile(
 	float2 InUVs[4] : TEXCOORD0
+#if USE_MULTI_VIEW_ID_SV
+	, in uint MultiViewId : SV_ViewID
+#endif
 #if MOBILE_USEBLOOM
 
 	, out HALF4_TYPE OutColor : SV_Target0
@@ -304,10 +327,14 @@ void BloomPS_Mobile(
 
 #if MOBILE_USEBLOOM || MOBILE_USESUN || MOBILE_USEEYEADAPTATION
 
-	float4 C0 = SceneColorTexture.Sample(SceneColorSampler, InUVs[0]);
-	float4 C1 = SceneColorTexture.Sample(SceneColorSampler, InUVs[1]);
-	float4 C2 = SceneColorTexture.Sample(SceneColorSampler, InUVs[2]);
-	float4 C3 = SceneColorTexture.Sample(SceneColorSampler, InUVs[3]);
+#if !USE_MULTI_VIEW_ID_SV
+	uint MultiViewId = 0;
+#endif
+	
+	float4 C0 = SampleSceneColor(InUVs[0],MultiViewId);
+	float4 C1 = SampleSceneColor(InUVs[1],MultiViewId);
+	float4 C2 = SampleSceneColor(InUVs[2],MultiViewId);
+	float4 C3 = SampleSceneColor(InUVs[3],MultiViewId);
 
 	C0 *= HdrWeight4(C0);
 	C1 *= HdrWeight4(C1);
@@ -681,6 +708,9 @@ void DofDownVS_Mobile(
 
 void DofDownPS_Mobile(
 	float2 InUVs[5] : TEXCOORD0,
+#if USE_MULTI_VIEW_ID_SV
+	in uint MultiViewId : SV_ViewID,
+#endif
 	out HALF4_TYPE OutColor : SV_Target0
 	)
 {
@@ -689,10 +719,14 @@ void DofDownPS_Mobile(
 	// Fetch near diolation and scale to (0 to 16384.0) range.
 	float N = DofNearTexture.Sample(DofNearSampler, InUVs[0]).r * 16384.0;
 
-	float4 A = SceneColorTexture.Sample(SceneColorSampler, InUVs[1]);
-	float4 B = SceneColorTexture.Sample(SceneColorSampler, InUVs[2]);
-	float4 C = SceneColorTexture.Sample(SceneColorSampler, InUVs[3]);
-	float4 D = SceneColorTexture.Sample(SceneColorSampler, InUVs[4]);
+#if !USE_MULTI_VIEW_ID_SV
+	uint MultiViewId = 0;
+#endif
+	
+	float4 A = SampleSceneColor(InUVs[1],MultiViewId);
+	float4 B = SampleSceneColor(InUVs[2],MultiViewId);
+	float4 C = SampleSceneColor(InUVs[3],MultiViewId);
+	float4 D = SampleSceneColor(InUVs[4],MultiViewId);
 
 	A.a = SunShaftAndDofTexture.Sample(SunShaftAndDofSampler, InUVs[1]).r;
 	B.a = SunShaftAndDofTexture.Sample(SunShaftAndDofSampler, InUVs[2]).r;
@@ -871,12 +905,19 @@ void IntegrateDOFVS_Mobile(
 void IntegrateDOFPS_Mobile(
 	in float4 TexCoords : TEXCOORD0,
 	in float2 FineDofGrain : TEXCOORD1,
+#if USE_MULTI_VIEW_ID_SV
+	in uint MultiViewId : SV_ViewID,
+#endif
 	out HALF4_TYPE OutColor : SV_Target0
 )
 {
-	half4 SceneColor = Texture2DSample(SceneColorTexture, SceneColorSampler, TexCoords.xy);
-
-	half4 DofFine = Texture2DSample(SceneColorTexture, SceneColorSampler, FineDofGrain.xy);
+	#if !USE_MULTI_VIEW_ID_SV
+		uint MultiViewId = 0;;
+	#endif
+	
+	half4 SceneColor = SampleSceneColor(TexCoords.xy,MultiViewId);
+	half4 DofFine = SampleSceneColor(FineDofGrain.xy,MultiViewId);
+	
 	half4 Dof = Texture2DSample(DofBlurTexture, DofBlurSampler, TexCoords.zw);
 	half DofCoc = Texture2DSample(SunShaftAndDofTexture, SunShaftAndDofSampler, TexCoords.xy).r;
 	// Convert alpha back into circle of confusion.
