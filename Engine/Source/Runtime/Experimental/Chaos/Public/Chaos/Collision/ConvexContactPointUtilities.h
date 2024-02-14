@@ -69,7 +69,7 @@ namespace Chaos
 		else
 		{
 			MinVertexIndex = 1;
-			MaxVertexIndex = 01;
+			MaxVertexIndex = 0;
 			PMin = D1;
 			PMax = D0;
 		}
