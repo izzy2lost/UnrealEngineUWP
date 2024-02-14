@@ -1035,9 +1035,9 @@ void UMoverNetworkPhysicsLiaisonComponent::OnContactModification_Internal(const 
 		const float CharacterHeight = CharacterParticle->GetX().Z;
 		const float EndCapHeight = CharacterHeight - PawnHalfHeight + PawnRadius;
 
-		const float CosThetaMax = 0.97f;
+		const float CosThetaMax = 0.707f;
 
-		float MinContactHeightStepUps = CharacterHeight + 1.0e10f;
+		float MinContactHeightStepUps = CharacterHeight - 1.0e10f;
 		if (SyncState->MovementMode == KinematicModeNames::Walking)
 		{
 			if (const UPhysicsDrivenWalkingMode* WalkingMode = Cast<UPhysicsDrivenWalkingMode>(MoverComp->FindMode_Mutable<UPhysicsDrivenWalkingMode>()))
@@ -1061,26 +1061,23 @@ void UMoverNetworkPhysicsLiaisonComponent::OnContactModification_Internal(const 
 			const int32 CharacterIdx = CharacterParticle == PairModifier.GetParticlePair()[0] ? 0 : 1;
 			const int32 OtherIdx = CharacterIdx == 0 ? 1 : 0;
 
-			if (GroundParticle == PairModifier.GetParticlePair()[OtherIdx])
+			for (int32 Idx = 0; Idx < PairModifier.GetNumContacts(); ++Idx)
 			{
-				for (int32 Idx = 0; Idx < PairModifier.GetNumContacts(); ++Idx)
-				{
-					Chaos::FVec3 Point0, Point1;
-					PairModifier.GetWorldContactLocations(Idx, Point0, Point1);
-					Chaos::FVec3 CharacterPoint = CharacterIdx == 0 ? Point0 : Point1;
+				Chaos::FVec3 Point0, Point1;
+				PairModifier.GetWorldContactLocations(Idx, Point0, Point1);
+				Chaos::FVec3 CharacterPoint = CharacterIdx == 0 ? Point0 : Point1;
 
-					Chaos::FVec3 ContactNormal = PairModifier.GetWorldNormal(Idx);
-					if ((ContactNormal.Z > CosThetaMax) && CharacterPoint.Z < EndCapHeight)
-					{
-						// Disable any nearly vertical contact with the end cap of the capsule
-						// This will be handled by the character ground constraint
-						PairModifier.SetContactPointDisabled(Idx);
-					}
-					else if (CharacterPoint.Z < MinContactHeightStepUps)
-					{
-						// In the case of steps ups disable all contacts below the max step height
-						PairModifier.SetContactPointDisabled(Idx);
-					}
+				Chaos::FVec3 ContactNormal = PairModifier.GetWorldNormal(Idx);
+				if ((ContactNormal.Z > CosThetaMax) && CharacterPoint.Z < EndCapHeight)
+				{
+					// Disable any nearly vertical contact with the end cap of the capsule
+					// This will be handled by the character ground constraint
+					PairModifier.SetContactPointDisabled(Idx);
+				}
+				else if ((CharacterPoint.Z < MinContactHeightStepUps) && (GroundParticle == PairModifier.GetParticlePair()[OtherIdx]))
+				{
+					// In the case of steps ups disable all contacts below the max step height
+					PairModifier.SetContactPointDisabled(Idx);
 				}
 			}
 		}

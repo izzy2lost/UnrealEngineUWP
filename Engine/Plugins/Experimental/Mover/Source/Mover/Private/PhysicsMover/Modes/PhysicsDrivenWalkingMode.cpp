@@ -123,23 +123,8 @@ void UPhysicsDrivenWalkingMode::OnSimulationTick(const FSimulationTickParams& Pa
 		{
 			CharacterGravity = PhysVolume->GetGravityZ();
 		}
-		const FVector ProjectedVelocity = TargetVelocity + CharacterGravity * UpDir * DeltaSeconds;
-
-		float GroundGravity = 0.0f;
-		if (const Chaos::FPBDRigidParticleHandle* Rigid = UPhysicsMovementUtils::GetRigidParticelHandleFromHitResult(FloorResult.HitResult))
-		{
-			if (Rigid->IsDynamic() && Rigid->GravityEnabled())
-			{
-				if (const UPrimitiveComponent* GroundComp = FloorResult.HitResult.GetComponent())
-				{
-					if (const APhysicsVolume* PhysVolume = GroundComp->GetPhysicsVolume())
-					{
-						GroundGravity = PhysVolume->GetGravityZ();
-					}
-				}
-			}
-		}
-		const FVector ProjectedGroundVelocity = StartGroundVelocity + GroundGravity * UpDir * DeltaSeconds;
+		const FVector ProjectedVelocity = TargetVelocity + CharacterGravity * FVector::UpVector * DeltaSeconds;
+		const FVector ProjectedGroundVelocity = UPhysicsMovementUtils::ComputeIntegratedGroundVelocityFromHitResult(StartingSyncState->GetLocation_WorldSpace(), FloorResult.HitResult, DeltaSeconds);
 
 		const float ProjectedRelativeVerticalVelocity = FloorResult.HitResult.ImpactNormal.Dot(ProjectedVelocity - ProjectedGroundVelocity);
 		const float VerticalVelocityLimit = 2.0f / DeltaSeconds;

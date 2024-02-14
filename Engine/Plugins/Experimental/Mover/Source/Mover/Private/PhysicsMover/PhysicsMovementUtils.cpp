@@ -5,6 +5,7 @@
 #include "Chaos/PhysicsObjectInternalInterface.h"
 #include "Components/PrimitiveComponent.h"
 #include "Engine/World.h"
+#include "GameFramework/PhysicsVolume.h"
 #include "MoveLibrary/FloorQueryUtils.h"
 #include "MoveLibrary/GroundMovementUtils.h"
 #include "MoveLibrary/WaterMovementUtils.h"
@@ -224,7 +225,7 @@ bool UPhysicsMovementUtils::IsHitSurfaceWalkableWithStepUpCheck(const FHitResult
 	return bWalkable;
 }
 
-const Chaos::FPBDRigidParticleHandle* UPhysicsMovementUtils::GetRigidParticelHandleFromHitResult(const FHitResult& HitResult)
+const Chaos::FPBDRigidParticleHandle* UPhysicsMovementUtils::GetRigidParticleHandleFromHitResult(const FHitResult& HitResult)
 {
 	if (IPhysicsComponent* PhysicsComp = Cast<IPhysicsComponent>(HitResult.Component))
 	{
@@ -244,7 +245,7 @@ const Chaos::FPBDRigidParticleHandle* UPhysicsMovementUtils::GetRigidParticelHan
 FVector UPhysicsMovementUtils::ComputeGroundVelocityFromHitResult(const FVector& CharacterPosition, const FHitResult& FloorHit, const float DeltaSeconds)
 {
 	FVector GroundVelocity = FVector::ZeroVector;
-	if (const Chaos::FPBDRigidParticleHandle* Rigid = GetRigidParticelHandleFromHitResult(FloorHit))
+	if (const Chaos::FPBDRigidParticleHandle* Rigid = GetRigidParticleHandleFromHitResult(FloorHit))
 	{
 		FVector Offset = CharacterPosition - Rigid->GetX();
 		Offset -= Offset.ProjectOnToNormal(FloorHit.ImpactNormal);
@@ -259,6 +260,40 @@ FVector UPhysicsMovementUtils::ComputeGroundVelocityFromHitResult(const FVector&
 		else
 		{
 			GroundVelocity = Rigid->GetV() + Rigid->GetW().Cross(Offset);
+		}
+	}
+	return GroundVelocity;
+}
+
+FVector UPhysicsMovementUtils::ComputeIntegratedGroundVelocityFromHitResult(const FVector& CharacterPosition, const FHitResult& FloorHit, const float DeltaSeconds)
+{
+	FVector GroundVelocity = FVector::ZeroVector;
+	if (const Chaos::FPBDRigidParticleHandle* Rigid = GetRigidParticleHandleFromHitResult(FloorHit))
+	{
+		FVector Offset = CharacterPosition - Rigid->GetX();
+		Offset -= Offset.ProjectOnToNormal(FloorHit.ImpactNormal);
+
+		if (Rigid->KinematicTarget().IsSet())
+		{
+			const FVector LinearDisplacement = Rigid->KinematicTarget().GetTargetPosition() - Rigid->GetX();
+			const FQuat RelativeQuat = Rigid->GetR().Inverse() * Rigid->KinematicTarget().GetTargetRotation();
+			const FVector AngularDisplacement = RelativeQuat.ToRotationVector();
+			GroundVelocity = (LinearDisplacement + AngularDisplacement.Cross(Offset)) / DeltaSeconds;
+		}
+		else
+		{
+			GroundVelocity = Rigid->GetV() + Rigid->GetW().Cross(Offset);
+		}
+
+		if (Rigid->IsDynamic() && Rigid->GravityEnabled())
+		{
+			if (const UPrimitiveComponent* GroundComp = FloorHit.GetComponent())
+			{
+				if (const APhysicsVolume* PhysVolume = GroundComp->GetPhysicsVolume())
+				{
+					GroundVelocity += PhysVolume->GetGravityZ() * FVector::UpVector * DeltaSeconds;
+				}
+			}
 		}
 	}
 	return GroundVelocity;
