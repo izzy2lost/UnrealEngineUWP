@@ -32,6 +32,59 @@ namespace Metasound
 	DEFINE_METASOUND_ENUM_END()
 }
 
+float SubdivisionToBeats(EMidiClockSubdivisionQuantization Subdivision, const FTimeSignature& TimeSignature)
+{
+	// Easy cases first
+	if (Subdivision == EMidiClockSubdivisionQuantization::Bar)
+	{
+		return TimeSignature.Numerator;
+	}
+
+	if (Subdivision == EMidiClockSubdivisionQuantization::Beat)
+	{
+		return 1;
+	}
+
+	const float BeatsPerQuarter = TimeSignature.Denominator / 4.0f;
+	
+	switch (Subdivision)
+	{
+	case EMidiClockSubdivisionQuantization::ThirtySecondNote:
+		return BeatsPerQuarter / 8;
+	case EMidiClockSubdivisionQuantization::SixteenthNote:
+		return BeatsPerQuarter / 4;
+	case EMidiClockSubdivisionQuantization::EighthNote:
+		return BeatsPerQuarter / 2;
+	case EMidiClockSubdivisionQuantization::QuarterNote:
+		return BeatsPerQuarter;
+	case EMidiClockSubdivisionQuantization::HalfNote:
+		return BeatsPerQuarter * 2;
+	case EMidiClockSubdivisionQuantization::WholeNote:
+		return BeatsPerQuarter * 4;
+	case EMidiClockSubdivisionQuantization::DottedSixteenthNote:
+		return BeatsPerQuarter / 4 + BeatsPerQuarter / 8; 
+	case EMidiClockSubdivisionQuantization::DottedEighthNote:
+		return BeatsPerQuarter / 2 + BeatsPerQuarter / 4;
+	case EMidiClockSubdivisionQuantization::DottedQuarterNote:
+		return BeatsPerQuarter + BeatsPerQuarter / 2;
+	case EMidiClockSubdivisionQuantization::DottedHalfNote:
+		return BeatsPerQuarter * 3;
+	case EMidiClockSubdivisionQuantization::DottedWholeNote:
+		return BeatsPerQuarter * 6;
+	case EMidiClockSubdivisionQuantization::SixteenthNoteTriplet:
+		return (BeatsPerQuarter / 4) * 2 / 3;
+	case EMidiClockSubdivisionQuantization::EighthNoteTriplet:
+		return (BeatsPerQuarter / 2) * 2 / 3;
+	case EMidiClockSubdivisionQuantization::QuarterNoteTriplet:
+		return BeatsPerQuarter * 2 / 3;
+	case EMidiClockSubdivisionQuantization::HalfNoteTriplet:
+		return BeatsPerQuarter * 4 / 3;
+	default:
+		checkNoEntry();
+		return 0;
+	}
+}
+
 int32 SubdivisionToMidiTicks(const EMidiClockSubdivisionQuantization Division, const int32 CurrentTick, const FSongMaps& SongMap)
 {
 	int32 BarMapPointIndex = SongMap.GetBarMap().GetPointIndexForTick(CurrentTick);
