@@ -31,6 +31,9 @@ protected:
 	ECheckBoxState IsPropertyEnabled() const;
 	void OnPropertyEnabled(ECheckBoxState InNewState) const;
 
+	/** Hide converter custom value widget */
+	void HideCustomValueWidget(IDetailPropertyRow* InConverterRow);
+
 	FReply UnlinkProperty() const;
 
 	TSharedPtr<IPropertyHandle> PropertyContextHandle;

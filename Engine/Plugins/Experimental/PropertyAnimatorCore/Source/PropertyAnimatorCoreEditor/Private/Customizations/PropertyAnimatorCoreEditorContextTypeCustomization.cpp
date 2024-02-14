@@ -115,13 +115,7 @@ void FPropertyAnimatorCoreEditorContextTypeCustomization::CustomizeChildren(TSha
 						}));
 
 						// Hide customization dropdown to avoid user changing instanced struct type
-						PropertyUtilities->EnqueueDeferredAction(FSimpleDelegate::CreateLambda([Row]()
-						{
-							if (Row && Row->CustomValueWidget())
-							{
-								Row->CustomValueWidget()->Widget->SetVisibility(EVisibility::Hidden);
-							}
-						}));
+						PropertyUtilities->EnqueueDeferredAction(FSimpleDelegate::CreateSP(this, &FPropertyAnimatorCoreEditorContextTypeCustomization::HideCustomValueWidget, Row));
 					}
 				}
 			}
@@ -161,6 +155,14 @@ void FPropertyAnimatorCoreEditorContextTypeCustomization::OnPropertyEnabled(EChe
 	if (UPropertyAnimatorCoreContext* PropertyContext = GetPropertyContextValue(PropertyContextHandle))
 	{
 		PropertyContext->SetAnimated(InNewState == ECheckBoxState::Checked);
+	}
+}
+
+void FPropertyAnimatorCoreEditorContextTypeCustomization::HideCustomValueWidget(IDetailPropertyRow* InConverterRow)
+{
+	if (InConverterRow && InConverterRow->CustomValueWidget())
+	{
+		InConverterRow->CustomValueWidget()->Widget->SetVisibility(EVisibility::Hidden);
 	}
 }
 
