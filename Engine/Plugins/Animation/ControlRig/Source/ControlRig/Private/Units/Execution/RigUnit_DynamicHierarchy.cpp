@@ -920,6 +920,12 @@ FRigUnit_HierarchyAddAnimationChannelBool_Execute()
 		return;
 	}
 
+	const FString NameStr = Name.ToString();
+	if (NameStr.Contains(TEXT(":")))
+	{
+		UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("Animation channel name %s contains invalid ':' character."), *NameStr);
+	}
+
 	Item.Reset();
 
 	if(URigHierarchyController* Controller = ExecuteContext.Hierarchy->GetController(true))
@@ -957,6 +963,12 @@ FRigUnit_HierarchyAddAnimationChannelFloat_Execute()
 			UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("%s"), *ErrorMessage);
 		}
 		return;
+	}
+
+	const FString NameStr = Name.ToString();
+	if (NameStr.Contains(TEXT(":")))
+	{
+		UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("Animation channel name %s contains invalid ':' character."), *NameStr);
 	}
 
 	Item.Reset();
@@ -999,6 +1011,13 @@ FRigUnit_HierarchyAddAnimationChannelScaleFloat_Execute()
 		return;
 	}
 
+	const FString NameStr = Name.ToString();
+	if (NameStr.Contains(TEXT(":")))
+	{
+		UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("Animation channel name %s contains invalid ':' character."), *NameStr);
+	}
+
+
 	Item.Reset();
 
 	if(URigHierarchyController* Controller = ExecuteContext.Hierarchy->GetController(true))
@@ -1038,6 +1057,13 @@ FRigUnit_HierarchyAddAnimationChannelInteger_Execute()
 		}
 		return;
 	}
+
+	const FString NameStr = Name.ToString();
+	if (NameStr.Contains(TEXT(":")))
+	{
+		UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("Animation channel name %s contains invalid ':' character."), *NameStr);
+	}
+
 
 	Item.Reset();
 
@@ -1080,6 +1106,13 @@ FRigUnit_HierarchyAddAnimationChannelVector2D_Execute()
 		return;
 	}
 
+	const FString NameStr = Name.ToString();
+	if (NameStr.Contains(TEXT(":")))
+	{
+		UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("Animation channel name %s contains invalid ':' character."), *NameStr);
+	}
+
+
 	Item.Reset();
 
 	if(URigHierarchyController* Controller = ExecuteContext.Hierarchy->GetController(true))
@@ -1120,6 +1153,13 @@ FRigUnit_HierarchyAddAnimationChannelVector_Execute()
 		}
 		return;
 	}
+
+	const FString NameStr = Name.ToString();
+	if (NameStr.Contains(TEXT(":")))
+	{
+		UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("Animation channel name %s contains invalid ':' character."), *NameStr);
+	}
+
 
 	Item.Reset();
 
@@ -1163,6 +1203,13 @@ FRigUnit_HierarchyAddAnimationChannelScaleVector_Execute()
 		return;
 	}
 
+	const FString NameStr = Name.ToString();
+	if (NameStr.Contains(TEXT(":")))
+	{
+		UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("Animation channel name %s contains invalid ':' character."), *NameStr);
+	}
+
+
 	Item.Reset();
 
 	if(URigHierarchyController* Controller = ExecuteContext.Hierarchy->GetController(true))
@@ -1204,6 +1251,13 @@ FRigUnit_HierarchyAddAnimationChannelRotator_Execute()
 		}
 		return;
 	}
+
+	const FString NameStr = Name.ToString();
+	if (NameStr.Contains(TEXT(":")))
+	{
+		UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("Animation channel name %s contains invalid ':' character."), *NameStr);
+	}
+
 
 	Item.Reset();
 
