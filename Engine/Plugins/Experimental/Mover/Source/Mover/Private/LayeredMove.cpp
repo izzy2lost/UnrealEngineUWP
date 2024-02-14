@@ -115,109 +115,15 @@ void FLayeredMoveGroup::QueueLayeredMove(TSharedPtr<FLayeredMoveBase> Move)
 	}
 }
 
-bool FLayeredMoveGroup::DoGenerateMove(const FMoverTickStartData& StartState, const FMoverTimeStep& TimeStep, const UMoverComponent* MoverComp, UMoverBlackboard* SimBlackboard, FProposedMove& OutMove)
+TArray<TSharedPtr<FLayeredMoveBase>> FLayeredMoveGroup::GenerateActiveMoves(const FMoverTimeStep& TimeStep, const UMoverComponent* MoverComp, UMoverBlackboard* SimBlackboard)
 {
 	const float SimStartTimeMs		= TimeStep.BaseSimTimeMs;
 	const float SimTimeAfterTickMs	= SimStartTimeMs + TimeStep.StepMs;
 
 	FlushMoveArrays(MoverComp, SimBlackboard, SimStartTimeMs);
 
-	FProposedMove CumulativeMoveStep;
-	CumulativeMoveStep.MixMode = EMoveMixMode::AdditiveVelocity;
-
-	bool bDidAccumulateAnyMoves = false;
-	uint8 HighestPriority = 0;
-	float CurrentLayeredMoveStartTime = TNumericLimits<float>::Max();
-
-	// Tick and accumulate all active moves
-	// Gather all proposed moves and distill this into a final movement report. May include separate additive vs override moves.
-	// TODO: may want to sort by priority or other factors
-	for (TSharedPtr<FLayeredMoveBase>& ActiveMove : ActiveLayeredMoves)
-	{
-		FProposedMove MoveStep;
-		
-		if (ActiveMove->GenerateMove(StartState, TimeStep, MoverComp, SimBlackboard, MoveStep))
-		{
-			bDidAccumulateAnyMoves = true;
-
-			if (CumulativeMoveStep.PreferredMode != MoveStep.PreferredMode &&
-				!CumulativeMoveStep.PreferredMode.IsNone() && !MoveStep.PreferredMode.IsNone())
-			{
-				UE_LOG(LogMover, Log, TEXT("Multiple LayeredMoves are conflicting with preferred moves. %s will override %s"),
-					*MoveStep.PreferredMode.ToString(), *CumulativeMoveStep.PreferredMode.ToString());
-			}
-
-			if (MoveStep.bHasDirIntent && CumulativeMoveStep.MixMode != EMoveMixMode::OverrideAll && ActiveMove->Priority >= HighestPriority)
-			{
-				if (CumulativeMoveStep.bHasDirIntent)
-				{
-					UE_LOG(LogMover, Log, TEXT("Multiple LayeredMoves are setting direction intent and the layered move with highest priority will be used."));
-				}
-				
-				CumulativeMoveStep.bHasDirIntent = MoveStep.bHasDirIntent;
-				CumulativeMoveStep.DirectionIntent = MoveStep.DirectionIntent;
-			}
-
-			if (ActiveMove->MixMode == EMoveMixMode::OverrideVelocity)
-			{
-				if (CheckPriority(ActiveMove.Get(), HighestPriority, CurrentLayeredMoveStartTime))
-				{
-					if (CumulativeMoveStep.MixMode == EMoveMixMode::OverrideVelocity || CumulativeMoveStep.MixMode == EMoveMixMode::OverrideAll)
-					{
-						UE_LOG(LogMover, Log, TEXT("Multiple LayeredMoves with Override mix mode are active simultaneously. Layered move with the highest priority will take effect."));
-					}
-
-					if (!MoveStep.PreferredMode.IsNone())
-					{
-						CumulativeMoveStep.PreferredMode = MoveStep.PreferredMode;
-					}
-				
-					CumulativeMoveStep.MixMode = EMoveMixMode::OverrideVelocity;
-					CumulativeMoveStep.LinearVelocity  = MoveStep.LinearVelocity;
-					CumulativeMoveStep.AngularVelocity = MoveStep.AngularVelocity;
-				}
-			}
-			else if (ActiveMove->MixMode == EMoveMixMode::AdditiveVelocity)
-			{
-				if (CumulativeMoveStep.MixMode != EMoveMixMode::OverrideVelocity && CumulativeMoveStep.MixMode != EMoveMixMode::OverrideAll)
-				{
-					if (!MoveStep.PreferredMode.IsNone())
-					{
-						CumulativeMoveStep.PreferredMode = MoveStep.PreferredMode;
-					}
-
-					CumulativeMoveStep.PreferredMode = MoveStep.PreferredMode;
-					CumulativeMoveStep.LinearVelocity += MoveStep.LinearVelocity;
-					CumulativeMoveStep.AngularVelocity += MoveStep.AngularVelocity;
-				}
-			}
-			else if (ActiveMove->MixMode == EMoveMixMode::OverrideAll)
-			{
-				if (CheckPriority(ActiveMove.Get(), HighestPriority, CurrentLayeredMoveStartTime))
-				{
-					if (CumulativeMoveStep.MixMode == EMoveMixMode::OverrideVelocity || CumulativeMoveStep.MixMode == EMoveMixMode::OverrideAll)
-					{
-						UE_LOG(LogMover, Log, TEXT("Multiple LayeredMoves with Override mix mode are active simultaneously. Layered move with the highest priority will take effect."));
-					}
-				
-					CumulativeMoveStep = MoveStep;
-				}
-			}
-			else
-			{
-				check(0);	// unhandled case
-			}
-		}
-	}
-
-	if (bDidAccumulateAnyMoves)
-	{
-		OutMove = CumulativeMoveStep;
-	}
-
-	return bDidAccumulateAnyMoves;
+	return ActiveLayeredMoves;
 }
-
 
 void FLayeredMoveGroup::NetSerialize(FArchive& Ar, uint8 MaxNumMovesToSerialize/* = MAX_uint8*/)
 {
@@ -467,23 +373,6 @@ void FLayeredMoveGroup::GatherResidualVelocitySettings(const TSharedPtr<FLayered
 			check(0);	// unhandled case
 		}
 	}
-}
-
-bool FLayeredMoveGroup::CheckPriority(const FLayeredMoveBase* LayeredMove, uint8& InOutHighestPriority, float& InOutCurrentLayeredMoveStartTimeMs)
-{
-	if (LayeredMove->Priority > InOutHighestPriority)
-	{
-		InOutHighestPriority = LayeredMove->Priority;
-		InOutCurrentLayeredMoveStartTimeMs = LayeredMove->StartSimTimeMs;
-		return true;
-	}
-	if (LayeredMove->Priority == InOutHighestPriority && LayeredMove->StartSimTimeMs < InOutCurrentLayeredMoveStartTimeMs)
-	{
-		InOutCurrentLayeredMoveStartTimeMs = LayeredMove->StartSimTimeMs;
-		return true;
-	}
-
-	return false;
 }
 
 struct FLayeredMoveDeleter

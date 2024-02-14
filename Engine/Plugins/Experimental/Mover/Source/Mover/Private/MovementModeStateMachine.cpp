@@ -6,6 +6,7 @@
 #include "MoverLog.h"
 #include "MoveLibrary/MovementUtils.h"
 #include "MoverComponent.h"
+#include "MoveLibrary/MovementMixer.h"
 #include "Templates/SubclassOf.h"
 
 
@@ -136,6 +137,7 @@ void UMovementModeStateMachine::OnSimulationTick(USceneComponent* UpdatedCompone
 	FMoverDefaultSyncState* SubstepStartSyncState = SubstepStartData.SyncState.SyncStateCollection.FindMutableDataByType<FMoverDefaultSyncState>();
 
 	UMoverComponent* MoverComp = CastChecked<UMoverComponent>(GetOuter());
+	check(MoverComp->MovementMixer);
 
 	if (!QueuedModeTransition->IsSet())
 	{
@@ -163,7 +165,24 @@ void UMovementModeStateMachine::OnSimulationTick(USceneComponent* UpdatedCompone
 
 		// Gather any layered move contributions
 		FProposedMove CombinedLayeredMove;
-		const bool bHasLayeredMoveContributions = CurrentLayeredMoves.DoGenerateMove(SubstepStartData, SubTimeStep, MoverComp, SimBlackboard, OUT CombinedLayeredMove);
+		CombinedLayeredMove.MixMode = EMoveMixMode::AdditiveVelocity;
+		bool bHasLayeredMoveContributions = false;
+		MoverComp->MovementMixer->ResetMixerState();
+		
+		TArray<TSharedPtr<FLayeredMoveBase>> ActiveMoves = CurrentLayeredMoves.GenerateActiveMoves(SubTimeStep, MoverComp, SimBlackboard);
+
+		// Tick and accumulate all active moves
+		// Gather all proposed moves and distill this into a cumulative movement report. May include separate additive vs override moves.
+		// TODO: may want to sort by priority or other factors
+		for (TSharedPtr<FLayeredMoveBase>& ActiveMove : ActiveMoves)
+		{
+			FProposedMove MoveStep;
+			if (ActiveMove->GenerateMove(StartState, TimeStep, MoverComp, SimBlackboard, MoveStep))
+			{
+				bHasLayeredMoveContributions = true;
+				MoverComp->MovementMixer->MixLayeredMove(*ActiveMove, MoveStep, CombinedLayeredMove);
+			}
+		}
 
 		if (bHasLayeredMoveContributions && !CombinedLayeredMove.PreferredMode.IsNone())
 		{
@@ -180,27 +199,7 @@ void UMovementModeStateMachine::OnSimulationTick(USceneComponent* UpdatedCompone
 
 			if (bHasLayeredMoveContributions)
 			{
-				if (CombinedLayeredMove.bHasDirIntent && CombinedMove.MixMode != EMoveMixMode::OverrideAll)
-				{
-					CombinedMove.bHasDirIntent = CombinedLayeredMove.bHasDirIntent;
-					CombinedMove.DirectionIntent = CombinedLayeredMove.DirectionIntent;
-				}
-				
-				// Combine movement parameters from layered moves into what the mode wants to do
-				if (CombinedLayeredMove.MixMode == EMoveMixMode::OverrideAll)
-				{
-					CombinedMove = CombinedLayeredMove;
-				}
-				else if (CombinedLayeredMove.MixMode == EMoveMixMode::AdditiveVelocity)
-				{
-					CombinedMove.LinearVelocity += CombinedLayeredMove.LinearVelocity;
-					CombinedMove.AngularVelocity += CombinedLayeredMove.AngularVelocity;
-				}
-				else if (CombinedLayeredMove.MixMode == EMoveMixMode::OverrideVelocity)
-				{
-					CombinedMove.LinearVelocity = CombinedLayeredMove.LinearVelocity;
-					CombinedMove.AngularVelocity = CombinedLayeredMove.AngularVelocity;
-				}
+				MoverComp->MovementMixer->MixProposedMoves(CombinedLayeredMove, CombinedMove);
 			}
 
 			// Apply any layered move finish velocity settings

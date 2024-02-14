@@ -7,6 +7,7 @@
 #include "Kinematic/Modes/WalkingMode.h"
 #include "Kinematic/Modes/FallingMode.h"
 #include "Kinematic/Modes/FlyingMode.h"
+#include "MoveLibrary/MovementMixer.h"
 #include "MoveLibrary/MovementUtils.h"
 #include "MoveLibrary/FloorQueryUtils.h"
 #include "MoverLog.h"
@@ -188,6 +189,11 @@ void UMoverComponent::BeginPlay()
 				InputProducer = FoundInputProducerComp;
 			}
 		}
+	}
+	
+	if (!MovementMixer)
+	{
+		MovementMixer = NewObject<UMovementMixer>(this, TEXT("Default Movement Mixer"));
 	}
 }
 
