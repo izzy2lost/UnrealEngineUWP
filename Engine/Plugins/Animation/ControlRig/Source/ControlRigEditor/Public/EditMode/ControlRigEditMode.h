@@ -453,6 +453,8 @@ private:
 	bool HasPivotTransformsChanged() const;
 	/** Set a RigElement's selection state */
 	void SetRigElementSelectionInternal(UControlRig* ControlRig, ERigElementType Type, const FName& InRigElementName, bool bSelected);
+	/** Updates the pivot transforms before ticking to ensure that they are up-to-date when needed. */
+	void UpdatePivotTransformsIfNeeded();
 	
 	FEditorViewportClient* CurrentViewportClient;
 	TArray<UE::Widget::EWidgetMode> RequestedWidgetModes;
@@ -572,6 +574,8 @@ private:
 	static uint8 GetInteractionType(const FEditorViewportClient* InViewportClient);
 	uint8 InteractionType;
 	bool bShowControlsAsOverlay;
+
+	bool bPivotsNeedUpdate = true;
 
 	bool bIsConstructionEventRunning;
 	TArray<uint32> LastHierarchyHash;
