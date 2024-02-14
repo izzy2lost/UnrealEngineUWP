@@ -106,7 +106,7 @@ namespace uba
 
 		NetworkBackend* m_listenBackend = nullptr;
 		CryptoKey m_listenCrypto = InvalidCryptoKey;
-
+		Guid m_uid;
 		bool m_allowNewClients = true;
 
 		struct WorkerRec { WorkerFunction func; TypeToNameFunction* toString = nullptr; };

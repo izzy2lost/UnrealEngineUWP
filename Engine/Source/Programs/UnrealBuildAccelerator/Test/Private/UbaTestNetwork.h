@@ -115,6 +115,8 @@ namespace uba
 		Sleep(100);
 		if (!server.AddClient(serverTcp, TC("127.0.0.1"), 1239))
 			return logger.Error(TC("Server failed to connect"));
+		if (!server.AddClient(serverTcp, TC("127.0.0.1"), 1239))
+			return logger.Error(TC("Server failed to connect second"));
 
 		u64 time = GetTime();
 		while (!client.GetConnectionCount())

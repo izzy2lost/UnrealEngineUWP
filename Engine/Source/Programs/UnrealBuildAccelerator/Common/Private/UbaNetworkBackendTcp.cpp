@@ -42,6 +42,8 @@
 
 namespace uba
 {
+	constexpr u32 MaxHeaderSize = 24;
+
 	struct NetworkBackendTcp::ListenEntry
 	{
 		StringBuffer<128> ip;
@@ -194,7 +196,7 @@ namespace uba
 	void NetworkBackendTcp::SetRecvCallbacks(void* connection, void* context, u32 headerSize, RecvHeaderCallback* h, RecvBodyCallback* b, const tchar* recvHint)
 	{
 		UBA_ASSERT(h);
-		UBA_ASSERT(headerSize <= 16);
+		UBA_ASSERT(headerSize <= MaxHeaderSize);
 		auto& conn = *(Connection*)connection;
 		conn.recvContext = context;
 		conn.headerSize = headerSize;
@@ -428,7 +430,7 @@ namespace uba
 				u8* bodyData = nullptr;
 				u32 bodySize = 0;
 
-				u8 headerData[16];
+				u8 headerData[MaxHeaderSize];
 				if (!RecvSocket(m_logger, connection.socket, headerData, connection.headerSize, connection.recvTimeoutMs, connectionUid, connection.recvHint, TC(""), isFirst))
 					break;
 				isFirst = false;

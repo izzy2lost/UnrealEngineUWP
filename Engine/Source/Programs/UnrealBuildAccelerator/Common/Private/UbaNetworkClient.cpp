@@ -86,12 +86,24 @@ namespace uba
 				c.recvEvent.Set();
 			});
 
-		backend.SetRecvCallbacks(backendConnection, &rc, 1, [](void* context, u8* headerData, void*& outBodyContext, u8*& outBodyData, u32& outBodySize)
+		backend.SetRecvCallbacks(backendConnection, &rc, 1 + sizeof(Guid), [](void* context, u8* headerData, void*& outBodyContext, u8*& outBodyData, u32& outBodySize)
 			{
 				auto& c = *(RecvContext*)context;
 				c.error = *headerData;
+				Guid serverUid = *(Guid*)(headerData+1);
+
+				if (!c.error)
+				{
+					ScopedWriteLock lock(c.client.m_serverUidLock);
+					if (c.client.m_serverUid == Guid())
+						c.client.m_serverUid = serverUid;
+					else if (c.client.m_serverUid != serverUid) // Seems like two different servers tried to connect to this client.. keep the first one and ignore the others
+						c.error = 5;
+				}
+
 				if (!c.error)
 					c.client.ConnectedCallback(c.backend, c.backendConnection);
+
 				c.recvEvent.Set();
 				return true;
 			}, nullptr, TC("Connecting"));
@@ -151,6 +163,13 @@ namespace uba
 			Sleep(1000); // Kind of ugly, but we want the retry-clients to keep retrying so we pretend it is a timeout
 			return false;
 		}
+
+		if (rc.error == 5)
+		{
+			m_logger.Warning(TC("A connection from a server with different uid was requested. Ignore"));
+			return false;
+		}
+
 		if (m_connectionCount.fetch_add(1) != 0)
 			return true;
 

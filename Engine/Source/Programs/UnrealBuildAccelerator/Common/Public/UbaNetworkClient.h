@@ -94,6 +94,9 @@ namespace uba
 		u32 m_sendSize;
 		u32 m_receiveTimeoutSeconds;
 
+		ReaderWriterLock m_serverUidLock;
+		Guid m_serverUid;
+
 		Event m_isConnected;
 		Event m_isOrWasConnected;
 		Atomic<u32> m_connectionCount;
