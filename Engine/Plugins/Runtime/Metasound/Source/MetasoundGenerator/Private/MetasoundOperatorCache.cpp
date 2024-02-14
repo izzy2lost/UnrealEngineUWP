@@ -267,7 +267,8 @@ namespace Metasound
 				{
 					FMetasoundGeneratorModule& Module = FModuleManager::GetModuleChecked<FMetasoundGeneratorModule>(ModuleName);
 					TSharedPtr<FOperatorPool> Pool = Module.GetOperatorPool();
-					if (Pool.IsValid())
+
+					if (Pool.IsValid() && !Pool->IsStopping())
 					{
 						Pool->RemoveBuildEvent(EventRef);
 					}
