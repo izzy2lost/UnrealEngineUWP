@@ -65,7 +65,7 @@ namespace Dataflow
 				DynamicMesh.EnableAttributes();
 
 				// Build Remmaping indices back into the colleciton. 
-				if (ensure(Remapping.Num() < Facade.NumVertices()))
+				if (Remapping.Num() < Facade.NumVertices())
 				{
 					UE::Geometry::FNonManifoldMappingSupport::AttachNonManifoldVertexMappingData(Remapping, DynamicMesh);
 				}
