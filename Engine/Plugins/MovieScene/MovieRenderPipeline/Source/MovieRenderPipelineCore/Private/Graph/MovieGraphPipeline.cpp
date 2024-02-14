@@ -6,7 +6,7 @@
 #include "Graph/MovieGraphDataTypes.h"
 #include "Graph/MovieGraphLinearTimeStep.h"
 #include "Graph/MovieGraphOutputMerger.h"
-#include "Graph/MoviePipelineRenderLayerSubsystem.h"
+#include "Graph/MovieGraphRenderLayerSubsystem.h"
 #include "Graph/Nodes/MovieGraphCollectionNode.h"
 #include "Graph/Nodes/MovieGraphFileOutputNode.h"
 #include "Graph/Nodes/MovieGraphGlobalGameOverrides.h"
@@ -48,7 +48,7 @@ void UMovieGraphPipeline::Initialize(UMoviePipelineExecutorJob* InJob, const FMo
 		return;
 	}
 
-	if (!ensureAlwaysMsgf(InJob->GetGraphPreset(), TEXT("MoviePipeline cannot be initialized with a null job configuration. Make sure you've created a Graph Config for this job (or use the regular UMoviePipeline instead of UMovieGraphPipeline). Aborting.")))
+	if (!ensureAlwaysMsgf(InJob->GetGraphPreset(), TEXT("MoviePipeline cannot be initialized with a null job configuration. Make sure you've created a Graph Config for this job (or use the regular UMovieGraph instead of UMovieGraphPipeline). Aborting.")))
 	{
 		//Shutdown(true);
 		return;
@@ -248,7 +248,7 @@ TArray<FMovieGraphRenderOutputData>& UMovieGraphPipeline::GetGeneratedOutputData
 
 void UMovieGraphPipeline::CreateLayersInRenderLayerSubsystem(const UMovieGraphEvaluatedConfig* EvaluatedConfig) const
 {
-	UMoviePipelineRenderLayerSubsystem* LayerSubsystem = GetWorld()->GetSubsystem<UMoviePipelineRenderLayerSubsystem>();
+	UMovieGraphRenderLayerSubsystem* LayerSubsystem = GetWorld()->GetSubsystem<UMovieGraphRenderLayerSubsystem>();
 	if (!LayerSubsystem)
 	{
 		return;
@@ -267,7 +267,7 @@ void UMovieGraphPipeline::CreateLayersInRenderLayerSubsystem(const UMovieGraphEv
 		
 		if (RenderLayerNode && !RenderLayerNode->IsDisabled())
 		{
-			UMoviePipelineRenderLayer* RenderLayer = NewObject<UMoviePipelineRenderLayer>();
+			UMovieGraphRenderLayer* RenderLayer = NewObject<UMovieGraphRenderLayer>();
 			RenderLayer->SetRenderLayerName(BranchName);
 			LayerSubsystem->AddRenderLayer(RenderLayer);
 		}
@@ -276,13 +276,13 @@ void UMovieGraphPipeline::CreateLayersInRenderLayerSubsystem(const UMovieGraphEv
 
 void UMovieGraphPipeline::UpdateLayerContentsInRenderLayerSubsystem(const UMovieGraphEvaluatedConfig* EvaluatedConfig) const
 {
-	UMoviePipelineRenderLayerSubsystem* LayerSubsystem = GetWorld()->GetSubsystem<UMoviePipelineRenderLayerSubsystem>();
+	UMovieGraphRenderLayerSubsystem* LayerSubsystem = GetWorld()->GetSubsystem<UMovieGraphRenderLayerSubsystem>();
 	if (!LayerSubsystem)
 	{
 		return;
 	}
 
-	for (UMoviePipelineRenderLayer* RenderLayer : LayerSubsystem->GetRenderLayers())
+	for (UMovieGraphRenderLayer* RenderLayer : LayerSubsystem->GetRenderLayers())
 	{
 		const FName& LayerName = RenderLayer->GetRenderLayerName();
 		
@@ -309,7 +309,7 @@ void UMovieGraphPipeline::UpdateLayerContentsInRenderLayerSubsystem(const UMovie
 		for (const UMovieGraphModifierNode* ModifierNode : ModifierNodes)
 		{
 			// For each modifier instance, find the collection(s) that it is modifying
-			for (UMoviePipelineCollectionModifier* ModifierInstance : ModifierNode->GetModifiers())
+			for (UMovieGraphCollectionModifier* ModifierInstance : ModifierNode->GetModifiers())
 			{
 				ModifierInstance->SetCollections({});
 				TArray<UMovieGraphCollection*> ModifierCollections;
@@ -582,9 +582,9 @@ void UMovieGraphPipeline::TickFinalizeOutputContainers(const bool bInForceFinish
 		return;
 	}
 
-	//TArray<UMoviePipelineOutputBase*> Settings = GetPipelinePrimaryConfig()->GetOutputContainers();
-	//Algo::SortBy(Settings, [](const UMoviePipelineOutputBase* Setting) { return Setting->GetPriority(); });
-	//for (UMoviePipelineOutputBase* Container : Settings)
+	//TArray<UMovieGraphOutputBase*> Settings = GetPipelinePrimaryConfig()->GetOutputContainers();
+	//Algo::SortBy(Settings, [](const UMovieGraphOutputBase* Setting) { return Setting->GetPriority(); });
+	//for (UMovieGraphOutputBase* Container : Settings)
 	//{
 	//	// All containers have finished processing, final shutdown.
 	//	Container->Finalize();
@@ -677,9 +677,9 @@ void UMovieGraphPipeline::SetupShot(const TObjectPtr<UMoviePipelineExecutorShot>
 	SetSoloShot(InShot);
 
 	// Loop through just our primary settings and let them know which shot we're about to start.
-	//TArray<UMoviePipelineSetting*> Settings = GetPipelinePrimaryConfig()->GetAllSettings();
-	//Algo::SortBy(Settings, [](const UMoviePipelineSetting* Setting) { return Setting->GetPriority(); });
-	//for (UMoviePipelineSetting* Setting : Settings)
+	//TArray<UMovieGraphSetting*> Settings = GetPipelinePrimaryConfig()->GetAllSettings();
+	//Algo::SortBy(Settings, [](const UMovieGraphSetting* Setting) { return Setting->GetPriority(); });
+	//for (UMovieGraphSetting* Setting : Settings)
 	//{
 	//	Setting->OnSetupForShot(InShot);
 	//}
@@ -687,9 +687,9 @@ void UMovieGraphPipeline::SetupShot(const TObjectPtr<UMoviePipelineExecutorShot>
 	//if (InShot->GetShotOverrideConfiguration() != nullptr)
 	//{
 	//	// Any shot-specific overrides haven't had first time initialization. So we'll do that now.
-	//	TArray<UMoviePipelineSetting*> ShotSettings = InShot->GetShotOverrideConfiguration()->GetUserSettings();
-	//	Algo::SortBy(ShotSettings, [](const UMoviePipelineSetting* Setting) { return Setting->GetPriority(); });
-	//	for (UMoviePipelineSetting* Setting : ShotSettings)
+	//	TArray<UMovieGraphSetting*> ShotSettings = InShot->GetShotOverrideConfiguration()->GetUserSettings();
+	//	Algo::SortBy(ShotSettings, [](const UMovieGraphSetting* Setting) { return Setting->GetPriority(); });
+	//	for (UMovieGraphSetting* Setting : ShotSettings)
 	//	{
 	//		Setting->OnMoviePipelineInitialized(this);
 	//	}
@@ -1195,9 +1195,9 @@ void UMovieGraphPipeline::TransitionToState(const EMovieRenderPipelineState InNe
 			PipelineState = EMovieRenderPipelineState::Finished;
 
 			// Uninitialize our primary config settings. Reverse sorted so settings that cached values restore correctly.
-			//TArray<UMoviePipelineSetting*> Settings = GetPipelinePrimaryConfig()->GetAllSettings();
-			//Algo::SortBy(Settings, [](const UMoviePipelineSetting* Setting) { return Setting->GetPriority(); }, TLess<int32>());
-			//for (UMoviePipelineSetting* Setting : Settings)
+			//TArray<UMovieGraphSetting*> Settings = GetPipelinePrimaryConfig()->GetAllSettings();
+			//Algo::SortBy(Settings, [](const UMovieGraphSetting* Setting) { return Setting->GetPriority(); }, TLess<int32>());
+			//for (UMovieGraphSetting* Setting : Settings)
 			//{
 			//	Setting->OnMoviePipelineShutdown(this);
 			//}
@@ -1223,9 +1223,9 @@ void UMovieGraphPipeline::TransitionToState(const EMovieRenderPipelineState InNe
 			// Job-level evaluated graph should not be referenced after export has finished
 			PostRenderEvaluatedGraph = nullptr;
 
-			//TArray<UMoviePipelineOutputBase*> ContainerSettings = GetPipelinePrimaryConfig()->GetOutputContainers();
-			//Algo::SortBy(ContainerSettings, [](const UMoviePipelineOutputBase* Setting) { return Setting->GetPriority(); });
-			//for (UMoviePipelineOutputBase* Setting : ContainerSettings)
+			//TArray<UMovieGraphOutputBase*> ContainerSettings = GetPipelinePrimaryConfig()->GetOutputContainers();
+			//Algo::SortBy(ContainerSettings, [](const UMovieGraphOutputBase* Setting) { return Setting->GetPriority(); });
+			//for (UMovieGraphOutputBase* Setting : ContainerSettings)
 			//{
 			//	Setting->OnPipelineFinished();
 			//}
@@ -1250,7 +1250,7 @@ void UMovieGraphPipeline::TransitionToState(const EMovieRenderPipelineState InNe
 
 			//UE_LOG(LogMovieRenderPipeline, Log, TEXT("Movie Pipeline completed. Duration: %s"), *(FDateTime::UtcNow() - InitializationTime).ToString());
 
-			//UMoviePipelineDebugSettings* DebugSetting = FindOrAddSettingForShot<UMoviePipelineDebugSettings>(nullptr);
+			//UMovieGraphDebugSettings* DebugSetting = FindOrAddSettingForShot<UMovieGraphDebugSettings>(nullptr);
 			//if (DebugSetting)
 			//{
 			//	if (DebugSetting->bCaptureUnrealInsightsTrace)

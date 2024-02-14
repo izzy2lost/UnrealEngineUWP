@@ -7,7 +7,7 @@
 #include "DetailWidgetRow.h"
 #include "Graph/MovieGraphConfig.h"
 #include "Graph/MovieGraphSharedWidgets.h"
-#include "Graph/MoviePipelineRenderLayerSubsystem.h"
+#include "Graph/MovieGraphRenderLayerSubsystem.h"
 #include "Graph/Nodes/MovieGraphCollectionNode.h"
 #include "Graph/Nodes/MovieGraphModifierNode.h"
 #include "Widgets/Images/SLayeredImage.h"
@@ -297,7 +297,7 @@ void FMovieGraphModifiersCustomization::CustomizeDetails(IDetailLayoutBuilder& I
 	];
 
 	// For all modifiers added to the node, add a category for each, and add each modifier's EditAnywhere properties to the category
-	for (UMoviePipelineCollectionModifier* Modifier : ModifierNode->GetModifiers())
+	for (UMovieGraphCollectionModifier* Modifier : ModifierNode->GetModifiers())
 	{
 		if (!Modifier)
 		{

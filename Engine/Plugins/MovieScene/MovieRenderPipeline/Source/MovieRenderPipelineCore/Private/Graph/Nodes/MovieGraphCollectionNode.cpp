@@ -3,7 +3,7 @@
 #include "Graph/Nodes/MovieGraphCollectionNode.h"
 
 #include "Graph/MovieGraphConfig.h"
-#include "Graph/MoviePipelineRenderLayerSubsystem.h"
+#include "Graph/MovieGraphRenderLayerSubsystem.h"
 #include "Styling/AppStyle.h"
 
 #define LOCTEXT_NAMESPACE "MovieGraph"

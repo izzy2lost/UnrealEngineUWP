@@ -12,10 +12,10 @@ void UMovieGraphMergeableModifierContainer::Merge(const IMovieGraphTraversableOb
 	const UMovieGraphMergeableModifierContainer* InSourceModifiers = Cast<UMovieGraphMergeableModifierContainer>(InSourceObject);
 	checkf(InSourceModifiers, TEXT("UMovieGraphMergeableModifierContainer cannot merge with null or an object of another type."));
 
-	for (TObjectPtr<UMoviePipelineCollectionModifier>& ModifierInstance : Modifiers)
+	for (TObjectPtr<UMovieGraphCollectionModifier>& ModifierInstance : Modifiers)
 	{
 		// Find the equivalent modifier in the source modifier container
-		for (const TObjectPtr<UMoviePipelineCollectionModifier>& SourceModifier : InSourceModifiers->Modifiers)
+		for (const TObjectPtr<UMovieGraphCollectionModifier>& SourceModifier : InSourceModifiers->Modifiers)
 		{
 			if (ModifierInstance && SourceModifier && (ModifierInstance->GetClass() == SourceModifier->GetClass()))
 			{
@@ -31,7 +31,7 @@ TArray<TPair<FString, FString>> UMovieGraphMergeableModifierContainer::GetMerged
 	TArray<TPair<FString, FString>> MergedProperties;
 
 	// Include properties from modifiers if they have a bOverride_* counterpart
-	for (const TObjectPtr<UMoviePipelineCollectionModifier>& ModifierInstance : Modifiers)
+	for (const TObjectPtr<UMovieGraphCollectionModifier>& ModifierInstance : Modifiers)
 	{
 		for (TFieldIterator<FProperty> PropertyIterator(ModifierInstance->GetClass()); PropertyIterator; ++PropertyIterator)
 		{
@@ -61,7 +61,7 @@ TArray<TPair<FString, FString>> UMovieGraphMergeableModifierContainer::GetMerged
 	return MergedProperties;
 }
 
-void UMovieGraphMergeableModifierContainer::MergeProperties(const TObjectPtr<UMoviePipelineCollectionModifier>& InDestModifier, const TObjectPtr<UMoviePipelineCollectionModifier>& InSourceModifier)
+void UMovieGraphMergeableModifierContainer::MergeProperties(const TObjectPtr<UMovieGraphCollectionModifier>& InDestModifier, const TObjectPtr<UMovieGraphCollectionModifier>& InSourceModifier)
 {
 	for (TFieldIterator<FProperty> PropertyIterator(InDestModifier->GetClass()); PropertyIterator; ++PropertyIterator)
 	{
@@ -98,8 +98,8 @@ UMovieGraphModifierNode::UMovieGraphModifierNode()
 	// Add some default modifiers
 	if (!HasAnyFlags(RF_ClassDefaultObject))
 	{
-		AddModifier(UMoviePipelineVisibilityModifier::StaticClass());
-		AddModifier(UMoviePipelineMaterialModifier::StaticClass());
+		AddModifier(UMovieGraphRenderPropertyModifier::StaticClass());
+		AddModifier(UMovieGraphMaterialModifier::StaticClass());
 	}
 }
 
@@ -151,10 +151,10 @@ void UMovieGraphModifierNode::PostEditChangeProperty(FPropertyChangedEvent& Prop
 }
 #endif // WITH_EDITOR
 
-UMoviePipelineCollectionModifier* UMovieGraphModifierNode::GetModifier(TSubclassOf<UMoviePipelineCollectionModifier> ModifierType) const
+UMovieGraphCollectionModifier* UMovieGraphModifierNode::GetModifier(TSubclassOf<UMovieGraphCollectionModifier> ModifierType) const
 {
-	const TObjectPtr<UMoviePipelineCollectionModifier>* FoundModifier =
-		ModifiersContainer->Modifiers.FindByPredicate([&ModifierType](const TObjectPtr<UMoviePipelineCollectionModifier>& Modifier)
+	const TObjectPtr<UMovieGraphCollectionModifier>* FoundModifier =
+		ModifiersContainer->Modifiers.FindByPredicate([&ModifierType](const TObjectPtr<UMovieGraphCollectionModifier>& Modifier)
         {
            	return Modifier && (Modifier->GetClass() == ModifierType);
         });
@@ -162,15 +162,15 @@ UMoviePipelineCollectionModifier* UMovieGraphModifierNode::GetModifier(TSubclass
 	return (FoundModifier == nullptr) ? nullptr : *FoundModifier;
 }
 
-const TArray<UMoviePipelineCollectionModifier*>& UMovieGraphModifierNode::GetModifiers() const
+const TArray<UMovieGraphCollectionModifier*>& UMovieGraphModifierNode::GetModifiers() const
 {
 	return ModifiersContainer->Modifiers;
 }
 
-UMoviePipelineCollectionModifier* UMovieGraphModifierNode::AddModifier(TSubclassOf<UMoviePipelineCollectionModifier> ModifierType)
+UMovieGraphCollectionModifier* UMovieGraphModifierNode::AddModifier(TSubclassOf<UMovieGraphCollectionModifier> ModifierType)
 {
-	const TObjectPtr<UMoviePipelineCollectionModifier>* FoundModifier =
-		ModifiersContainer->Modifiers.FindByPredicate([&ModifierType](const TObjectPtr<UMoviePipelineCollectionModifier>& Modifier)
+	const TObjectPtr<UMovieGraphCollectionModifier>* FoundModifier =
+		ModifiersContainer->Modifiers.FindByPredicate([&ModifierType](const TObjectPtr<UMovieGraphCollectionModifier>& Modifier)
 		{
 			return Modifier && (Modifier->GetClass() == ModifierType);
 		});
@@ -183,7 +183,7 @@ UMoviePipelineCollectionModifier* UMovieGraphModifierNode::AddModifier(TSubclass
 
 	if (const UClass* ModifierClass = ModifierType.Get())
 	{
-		UMoviePipelineCollectionModifier* NewModifier = NewObject<UMoviePipelineCollectionModifier>(this, ModifierType, ModifierClass->GetFName());
+		UMovieGraphCollectionModifier* NewModifier = NewObject<UMovieGraphCollectionModifier>(this, ModifierType, ModifierClass->GetFName());
 		ModifiersContainer->Modifiers.Add(NewModifier);
 
 		return NewModifier;
@@ -192,9 +192,9 @@ UMoviePipelineCollectionModifier* UMovieGraphModifierNode::AddModifier(TSubclass
 	return nullptr;
 }
 
-bool UMovieGraphModifierNode::RemoveModifier(TSubclassOf<UMoviePipelineCollectionModifier> ModifierType)
+bool UMovieGraphModifierNode::RemoveModifier(TSubclassOf<UMovieGraphCollectionModifier> ModifierType)
 {
-	const int32 NumRemoved = ModifiersContainer->Modifiers.RemoveAll([&ModifierType](const TObjectPtr<UMoviePipelineCollectionModifier>& Modifier)
+	const int32 NumRemoved = ModifiersContainer->Modifiers.RemoveAll([&ModifierType](const TObjectPtr<UMovieGraphCollectionModifier>& Modifier)
 	{
 		return Modifier && (Modifier->GetClass() == ModifierType);
 	});
