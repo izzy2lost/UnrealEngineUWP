@@ -448,6 +448,8 @@ FSmartObjectRuntime* USmartObjectSubsystem::AddCollectionEntryToSimulation(
 
 FSmartObjectRuntime* USmartObjectSubsystem::CreateRuntimeInstance(const FSmartObjectHandle Handle, const USmartObjectDefinition& Definition, const FBox Bounds, USmartObjectComponent* OwnerComponent)
 {
+	ensure(IsInGameThread() || IsInParallelGameThread());
+
 	if (!ensureMsgf(Handle.IsValid(), TEXT("SmartObject needs a valid Handle to be added to the simulation")))
 	{
 		return nullptr;
@@ -472,19 +474,18 @@ FSmartObjectRuntime* USmartObjectSubsystem::CreateRuntimeInstance(const FSmartOb
 	// Always initialize state (handles empty conditions)
 	Runtime.PreconditionState.Initialize(*this, Definition.GetPreconditions());
 
-	// Activate Object Preconditions if any
-	const FWorldConditionContext ObjectContext(Runtime.PreconditionState, ConditionContextData);
-	if (!ObjectContext.Activate())
+	// Activate preconditions only if associated actor is available, otherwise we wait on hydration since
+	// many world conditions relies on actor at the moment.
+	const bool bActivateConditions = Runtime.GetOwnerActor(ETrySpawnActorIfDehydrated::No) != nullptr;
+	if (bActivateConditions)
 	{
-		UE_VLOG_UELOG(this, LogSmartObject, Error, TEXT("Failed to activate Preconditions on SmartObject '%s'."), *LexToString(Handle));
+		ActivateObjectPreconditions(ConditionContextData, Runtime);
 	}
 	
 	// Create runtime data and entity for each slot
-	int32 SlotIndex = 0;
-	const USmartObjectWorldConditionSchema* DefaultWorldConditionSchema = GetDefault<USmartObjectWorldConditionSchema>();
-
 	Runtime.Slots.Reserve(Definition.GetSlots().Num());
-	
+
+	int32 SlotIndex = 0;
 	for (const FSmartObjectSlotDefinition& SlotDefinition : Definition.GetSlots())
 	{
 		FSmartObjectRuntimeSlot& Slot = Runtime.Slots.AddDefaulted_GetRef();
@@ -499,17 +500,9 @@ FSmartObjectRuntime* USmartObjectSubsystem::CreateRuntimeInstance(const FSmartOb
 		// Always initialize state (handles empty conditions)
 		Slot.PreconditionState.Initialize(*this, SlotDefinition.SelectionPreconditions);
 
-		FSmartObjectSlotHandle SlotHandle(Handle, SlotIndex);
-		
-		// Activate slot Preconditions if any
-		ensureMsgf(ConditionContextData.SetContextData(DefaultWorldConditionSchema->GetSlotHandleRef(), &SlotHandle),
-			TEXT("Expecting USmartObjectWorldConditionSchema::SlotHandleRef to be valid."));
-
-		const FWorldConditionContext SlotContext(Slot.PreconditionState, ConditionContextData);
-		if (!SlotContext.Activate())
+		if (bActivateConditions)
 		{
-			UE_VLOG_UELOG(this, LogSmartObject, Error,
-				TEXT("Failed to activate Preconditions on SmartObject '%s' slot '%s'."), *LexToString(Handle), *LexToString(SlotHandle));
+			ActivateSlotPreconditions(ConditionContextData, Slot, FSmartObjectSlotHandle(Handle, SlotIndex));
 		}
 		
 		SlotIndex++;
@@ -574,23 +567,26 @@ void USmartObjectSubsystem::DestroyRuntimeInstanceInternal(
 	checkfSlow(SpacePartition != nullptr, TEXT("Space partition is expected to be valid since we use the plugins default in OnWorldComponentsUpdated."));
 	SpacePartition->Remove(Handle, SmartObjectRuntime.SpatialEntryData);
 
-	FWorldConditionContextData ConditionContextData(*SmartObjectRuntime.GetDefinition().GetWorldConditionSchema());
-	SetupConditionContextCommonData(ConditionContextData, SmartObjectRuntime);
-
-	// Deactivate object and slot Preconditions
-	const FWorldConditionContext ObjectContext(SmartObjectRuntime.PreconditionState, ConditionContextData);
-	ObjectContext.Deactivate();
-
-	const USmartObjectWorldConditionSchema* DefaultWorldConditionSchema = GetDefault<USmartObjectWorldConditionSchema>();
-	for (TConstEnumerateRef<FSmartObjectRuntimeSlot> RuntimeSlot : EnumerateRange(SmartObjectRuntime.Slots))
+	if (SmartObjectRuntime.PreconditionState.AreConditionsActivated())
 	{
-		const FSmartObjectSlotHandle SlotHandle(Handle, RuntimeSlot.GetIndex());
-		ensureMsgf(ConditionContextData.SetContextData(DefaultWorldConditionSchema->GetSlotHandleRef(), &SlotHandle),
-			TEXT("Expecting USmartObjectWorldConditionSchema::SlotHandleRef to be valid."));
+		FWorldConditionContextData ConditionContextData(*SmartObjectRuntime.GetDefinition().GetWorldConditionSchema());
+		SetupConditionContextCommonData(ConditionContextData, SmartObjectRuntime);
 
-		// Deactivate slot Preconditions (if successfully initialized)
-		const FWorldConditionContext SlotContext(RuntimeSlot->PreconditionState, ConditionContextData);
-		SlotContext.Deactivate();
+		// Deactivate object and slot Preconditions
+		const FWorldConditionContext ObjectContext(SmartObjectRuntime.PreconditionState, ConditionContextData);
+		ObjectContext.Deactivate();
+
+		const USmartObjectWorldConditionSchema* DefaultWorldConditionSchema = GetDefault<USmartObjectWorldConditionSchema>();
+		for (TConstEnumerateRef<FSmartObjectRuntimeSlot> RuntimeSlot : EnumerateRange(SmartObjectRuntime.Slots))
+		{
+			const FSmartObjectSlotHandle SlotHandle(Handle, RuntimeSlot.GetIndex());
+			ensureMsgf(ConditionContextData.SetContextData(DefaultWorldConditionSchema->GetSlotHandleRef(), &SlotHandle),
+				TEXT("Expecting USmartObjectWorldConditionSchema::SlotHandleRef to be valid."));
+
+			// Deactivate slot Preconditions (if successfully initialized)
+			const FWorldConditionContext SlotContext(RuntimeSlot->PreconditionState, ConditionContextData);
+			SlotContext.Deactivate();
+		}
 	}
 }
 
@@ -1094,6 +1090,85 @@ void USmartObjectSubsystem::BindPropertiesFromStruct(FWorldConditionContextData&
 	}
 }
 
+bool USmartObjectSubsystem::ActivateObjectPreconditions(const FWorldConditionContextData& ContextData, const FSmartObjectRuntime& SmartObjectRuntime) const
+{
+	if (SmartObjectRuntime.PreconditionState.GetNumConditions() == 0)
+	{
+		// Nothing to activate is considered a success
+		return true;
+	}
+
+	const FWorldConditionContext ObjectContext(SmartObjectRuntime.PreconditionState, ContextData);
+	if (!ObjectContext.Activate())
+	{
+		UE_VLOG_UELOG(this, LogSmartObject, Error, TEXT("Failed to activate Preconditions on SmartObject '%s'."),
+			*LexToString(SmartObjectRuntime.GetRegisteredHandle()));
+		return false;
+	}
+
+	return true;
+}
+
+bool USmartObjectSubsystem::ActivateSlotPreconditions(FWorldConditionContextData& ContextData, const FSmartObjectRuntimeSlot& Slot, const FSmartObjectSlotHandle SlotHandle) const
+{
+	if (Slot.PreconditionState.GetNumConditions() > 0)
+	{
+		// Nothing to activate is considered a success
+		return true;
+	}
+
+	// Activate slot Preconditions if any
+	ensureMsgf(ContextData.SetContextData(CastChecked<const USmartObjectWorldConditionSchema>(ContextData.GetSchema())->GetSlotHandleRef(), &SlotHandle),
+		TEXT("Expecting USmartObjectWorldConditionSchema::SlotHandleRef to be valid."));
+
+	const FWorldConditionContext SlotContext(Slot.PreconditionState, ContextData);
+	if (!SlotContext.Activate())
+	{
+		UE_VLOG_UELOG(this, LogSmartObject, Error,
+			TEXT("Failed to activate Preconditions on SmartObject '%s' slot '%s'."), *LexToString(SlotHandle.GetSmartObjectHandle()), *LexToString(SlotHandle));
+		return false;
+	}
+
+	return true;
+}
+
+bool USmartObjectSubsystem::TryActivatePreconditions(const FSmartObjectRuntime& SmartObjectRuntime) const
+{
+	if (SmartObjectRuntime.PreconditionState.AreConditionsActivated())
+	{
+		return true;
+	}
+
+	if (!SmartObjectRuntime.ResolveOwnerActor())
+	{
+		UE_VLOG_UELOG(this, LogSmartObject, Warning, TEXT("Preconditions for owning SmartObject '%s' can't be activated: no owner actor"),
+			*LexToString(SmartObjectRuntime.GetRegisteredHandle()));
+		return false;
+	}
+
+	FWorldConditionContextData ContextData(*SmartObjectRuntime.GetDefinition().GetWorldConditionSchema());
+	SetupConditionContextCommonData(ContextData, SmartObjectRuntime);
+
+	if (!ActivateObjectPreconditions(ContextData, SmartObjectRuntime))
+	{
+		// No need to continue with slot preconditions, we already failed. Errors are reported by ActivateObjectPreconditions.
+		return false;
+	}
+
+	int32 SlotIndex = 0;
+	for (const FSmartObjectRuntimeSlot& Slot : SmartObjectRuntime.Slots)
+	{
+		if (!ActivateSlotPreconditions(ContextData, Slot, FSmartObjectSlotHandle(SmartObjectRuntime.GetRegisteredHandle(), SlotIndex)))
+		{
+			// No need to continue with other slots preconditions, we already failed. Errors are reported by ActivateSlotPreconditions.
+			return false;
+		}
+		SlotIndex++;
+	}
+
+	return true;
+}
+
 bool USmartObjectSubsystem::EvaluateObjectConditions(const FWorldConditionContextData& ConditionContextData, const FSmartObjectRuntime& SmartObjectRuntime) const
 {
 	// Evaluate object conditions. Note that unsuccessfully initialized conditions is supported (i.e. error during activation)
@@ -1104,14 +1179,23 @@ bool USmartObjectSubsystem::EvaluateObjectConditions(const FWorldConditionContex
 	// The world condition context's FWorldConditionQueryState will never be initialized on the client (bIsInitialized) will always be false
 	// because FWorldConditionQueryState::InitializeInternal is always going to be called with a null InSharedDefinition param.
 
-	if (IsRunningOnServer())
+	if (!IsRunningOnServer() || SmartObjectRuntime.PreconditionState.GetNumConditions() == 0)
 	{
-		const FWorldConditionContext Context(SmartObjectRuntime.PreconditionState, ConditionContextData);
-		if (!Context.IsTrue())
-		{
-			UE_VLOG_UELOG(this, LogSmartObject, Verbose, TEXT("Preconditions for owning SmartObject '%s' failed."), *LexToString(SmartObjectRuntime.GetRegisteredHandle()));
-			return false;
-		}	
+		return true;
+	}
+
+	// Preconditions activation might have been delayed for dehydrated actors
+	if (!TryActivatePreconditions(SmartObjectRuntime))
+	{
+		// Errors are reported by TryActivatePreconditions.
+		return false;
+	}
+
+	const FWorldConditionContext Context(SmartObjectRuntime.PreconditionState, ConditionContextData);
+	if (!Context.IsTrue())
+	{
+		UE_VLOG_UELOG(this, LogSmartObject, Verbose, TEXT("Preconditions for owning SmartObject '%s' failed."), *LexToString(SmartObjectRuntime.GetRegisteredHandle()));
+		return false;
 	}
 
 	return true;
@@ -1123,13 +1207,28 @@ bool USmartObjectSubsystem::EvaluateSlotConditions(
 	const FSmartObjectSlotHandle SlotHandle
 	) const
 {
+	FWorldConditionQueryState& QueryState = SmartObjectRuntime.Slots[SlotHandle.GetSlotIndex()].PreconditionState;
+	
+	if (!IsRunningOnServer() || QueryState.GetNumConditions() == 0)
+	{
+		return true;
+	}
+
+	// Preconditions activation might have been delayed for dehydrated actors
+	// We try activate also for slots since the object might not have preconditions so it didn't need to activate any.
+	if (!TryActivatePreconditions(SmartObjectRuntime))
+	{
+		UE_VLOG_UELOG(this, LogSmartObject, Warning, TEXT("Preconditions for owning SmartObject '%s' can't be activated."), *LexToString(SmartObjectRuntime.GetRegisteredHandle()));
+		return false;
+	}
+
 	// Add slot data to the context
 	const USmartObjectWorldConditionSchema* DefaultSchema = GetDefault<USmartObjectWorldConditionSchema>();
 	ensureMsgf(ConditionContextData.SetContextData(DefaultSchema->GetSlotHandleRef(), &SlotHandle),
 		TEXT("Expecting USmartObjectWorldConditionSchema::SlotHandleRef to be valid."));
 
 	// Evaluate slot conditions. Note that unsuccessfully initialized conditions is supported (i.e. error during activation)
-	const FWorldConditionContext Context(SmartObjectRuntime.Slots[SlotHandle.GetSlotIndex()].PreconditionState, ConditionContextData);
+	const FWorldConditionContext Context(QueryState, ConditionContextData);
 	if (!Context.IsTrue())
 	{
 		UE_VLOG_UELOG(this, LogSmartObject, VeryVerbose, TEXT("Preconditions for slot '%s' failed."), *LexToString(SlotHandle));

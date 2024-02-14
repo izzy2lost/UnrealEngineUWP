@@ -3,8 +3,8 @@
 #pragma once
 
 #include "MassEntityTypes.h"
+#include "Engine/ActorInstanceHandle.h"
 #include "MassCommonFragments.h"
-#include "MassEntityTemplate.h"
 #include "Misc/MTAccessDetector.h"
 #include "UObject/ObjectKey.h"
 #include "MassSubsystemBase.h"
@@ -24,7 +24,31 @@ struct MASSACTORS_API FMassGuidFragment : public FObjectWrapperFragment
 };
 
 /**
- * Fragment to save the actor pointer of a mass entity if it exist
+ * Fragment to store the instanced actor handle of a mass entity if it needs one.
+ */
+USTRUCT()
+struct MASSACTORS_API FMassActorInstanceFragment : public FMassFragment
+{
+	GENERATED_BODY();
+
+	FMassActorInstanceFragment() = default;
+	explicit FMassActorInstanceFragment(const FActorInstanceHandle& InHandle)
+		: Handle(InHandle)
+	{
+	}
+
+	UPROPERTY()
+	FActorInstanceHandle Handle;
+};
+
+namespace UE::Mass::Signals
+{
+	/** Signal use when the actor instance handle is set or cleared in the associated fragment. */
+	const FName ActorInstanceHandleChanged = FName(TEXT("ActorInstanceHandleChanged"));
+}
+
+/**
+ * Fragment to save the actor pointer of a mass entity if it exists
  */
 USTRUCT()
 struct MASSACTORS_API FMassActorFragment : public FObjectWrapperFragment
