@@ -523,11 +523,6 @@ FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyIncl
 	return SpecifyContinuousObservation(Schema, Size, Tag);
 }
 
-FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyIndexObservation(ULearningAgentsObservationSchema* Schema, const int32 Size, const FName Tag)
-{
-	return SpecifyContinuousObservation(Schema, Size, Tag);
-}
-
 FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyCountObservation(ULearningAgentsObservationSchema* Schema, const FName Tag)
 {
 	return SpecifyContinuousObservation(Schema, 1, Tag);
@@ -902,7 +897,7 @@ FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyPair
 
 FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyArrayObservation(ULearningAgentsObservationSchema* Schema, const FLearningAgentsObservationSchemaElement Element, const int32 MaxNum, const int32 AttentionEncodingSize, const int32 AttentionHeadNum, const int32 ValueEncodingSize, const FName Tag)
 {
-	return SpecifySetObservation(Schema, SpecifyPairObservation(Schema, SpecifyIndexObservation(Schema, MaxNum), Element), MaxNum, AttentionEncodingSize, AttentionHeadNum, ValueEncodingSize);
+	return SpecifySetObservation(Schema, SpecifyPairObservation(Schema, SpecifyCountObservation(Schema), Element), MaxNum, AttentionEncodingSize, AttentionHeadNum, ValueEncodingSize);
 }
 
 FLearningAgentsObservationSchemaElement ULearningAgentsObservations::SpecifyMapObservation(ULearningAgentsObservationSchema* Schema, const FLearningAgentsObservationSchemaElement KeyElement, const FLearningAgentsObservationSchemaElement ValueElement, const int32 MaxNum, const int32 AttentionEncodingSize, const int32 AttentionHeadNum, const int32 ValueEncodingSize, const FName Tag)
@@ -1244,51 +1239,6 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeInclusi
 	return MakeContinuousObservationFromArrayView(Object, Values, Tag);
 }
 
-FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeIndexObservation(
-	ULearningAgentsObservationObject* Object, 
-	const int32 Index, 
-	const int32 Size, 
-	const FName Tag,
-	const bool bVisualLoggerEnabled,
-	ULearningAgentsManagerListener* VisualLoggerListener,
-	const int32 VisualLoggerAgentId,
-	const FVector VisualLoggerLocation,
-	const FLinearColor VisualLoggerColor)
-{
-	if (Index < 0 || Index >= Size)
-	{
-		UE_LOG(LogLearning, Error, TEXT("MakeIndexObservation: Discrete index out of range: Got %i, expected <= %i."), Index, Size);
-		return FLearningAgentsObservationObjectElement();
-	}
-
-	TArray<float, TInlineAllocator<32>> Values;
-	Values.Init(0.0f, Size);
-
-	for (int32 Idx = 0; Idx < Index; Idx++)
-	{
-		Values[Idx] = 1.0f;
-	}
-
-#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
-	if (bVisualLoggerEnabled && VisualLoggerListener)
-	{
-		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
-
-		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
-			VisualLoggerColor.ToFColor(true),
-			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nIndex: [%i]\nSize: [%i]\nEncoded: %s"),
-			*VisualLoggerListener->GetName(),
-			*Tag.ToString(),
-			VisualLoggerAgentId,
-			Index,
-			Size,
-			*UE::Learning::Array::FormatFloat(Values, Size));
-	}
-#endif
-
-	return MakeContinuousObservationFromArrayView(Object, Values, Tag);
-}
-
 FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeCountObservation(
 	ULearningAgentsObservationObject* Object, 
 	const int32 Num, 
@@ -1570,12 +1520,12 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakePairObs
 	return MakeStructObservationFromArrayViews(Object, { TEXT("Key"), TEXT("Value") }, { Key, Value }, Tag);
 }
 
-FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeArrayObservation(ULearningAgentsObservationObject* Object, const TArray<FLearningAgentsObservationObjectElement>& Elements, const FName Tag)
+FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeArrayObservation(ULearningAgentsObservationObject* Object, const TArray<FLearningAgentsObservationObjectElement>& Elements, const int32 MaxNum, const FName Tag)
 {
-	return MakeArrayObservationFromArrayView(Object, Elements, Tag);
+	return MakeArrayObservationFromArrayView(Object, Elements, MaxNum, Tag);
 }
 
-FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeArrayObservationFromArrayView(ULearningAgentsObservationObject* Object, const TArrayView<const FLearningAgentsObservationObjectElement> Elements, const FName Tag)
+FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeArrayObservationFromArrayView(ULearningAgentsObservationObject* Object, const TArrayView<const FLearningAgentsObservationObjectElement> Elements, const int32 MaxNum, const FName Tag)
 {
 	if (!Object)
 	{
@@ -1596,7 +1546,7 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeArrayOb
 			return FLearningAgentsObservationObjectElement();
 		}
 
-		SubElements.Add(MakePairObservation(Object, MakeIndexObservation(Object, ElementIdx, Elements.Num()), Element));
+		SubElements.Add(MakePairObservation(Object, MakeCountObservation(Object, ElementIdx, MaxNum), Element));
 	}
 
 	return MakeSetObservationFromArrayView(Object, SubElements);
@@ -2366,7 +2316,7 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeProport
 			Object, 
 			Angle,
 			0.0f,
-			TEXT("Angle"),
+			TEXT("AngleObservation"),
 			bVisualLoggerEnabled,
 			VisualLoggerListener,
 			VisualLoggerAgentId,
@@ -2381,7 +2331,7 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeProport
 			Object, 
 			Proportion, 
 			1.0f, 
-			TEXT("Float"),
+			TEXT("FloatObservation"),
 			bVisualLoggerEnabled, 
 			VisualLoggerListener, 
 			VisualLoggerAgentId, 
@@ -2747,32 +2697,6 @@ bool ULearningAgentsObservations::GetInclusiveDiscreteObservationToArrayView(TAr
 	for (int32 Idx = 0; Idx < DiscreteValueNum; Idx++)
 	{
 		if (OneHot[Idx]) { OutIndices[Offset] = Idx; Offset++; }
-	}
-
-	return true;
-}
-
-bool ULearningAgentsObservations::GetIndexObservation(int32& OutIndex, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FName Tag)
-{
-	int32 DiscreteValueNum;
-	if (!GetContinuousObservationNum(DiscreteValueNum, Object, Element, Tag))
-	{
-		OutIndex = INDEX_NONE;
-		return false;
-	}
-
-	TArray<float, TInlineAllocator<32>> OneHot;
-	OneHot.SetNumUninitialized(DiscreteValueNum);
-	if (!GetContinuousObservationToArrayView(OneHot, Object, Element, Tag))
-	{
-		OutIndex = INDEX_NONE;
-		return false;
-	}
-
-	OutIndex = 0;
-	for (int32 Idx = 0; Idx < DiscreteValueNum; Idx++)
-	{
-		if (OneHot[Idx]) { OutIndex = Idx; }
 	}
 
 	return true;
@@ -3455,7 +3379,7 @@ bool ULearningAgentsObservations::GetArrayObservationNum(int32& OutNum, const UL
 	return GetSetObservationNum(OutNum, Object, Element, Tag);
 }
 
-bool ULearningAgentsObservations::GetArrayObservation(TArray<FLearningAgentsObservationObjectElement>& OutElements, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FName Tag)
+bool ULearningAgentsObservations::GetArrayObservation(TArray<FLearningAgentsObservationObjectElement>& OutElements, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const int32 MaxNum, const FName Tag)
 {
 	int32 OutElementNum = 0;
 	if (!GetArrayObservationNum(OutElementNum, Object, Element, Tag))
@@ -3466,7 +3390,7 @@ bool ULearningAgentsObservations::GetArrayObservation(TArray<FLearningAgentsObse
 
 	OutElements.SetNumUninitialized(OutElementNum);
 
-	if (!GetArrayObservationToArrayView(OutElements, Object, Element, Tag))
+	if (!GetArrayObservationToArrayView(OutElements, Object, Element, MaxNum, Tag))
 	{
 		OutElements.Empty();
 		return false;
@@ -3475,7 +3399,7 @@ bool ULearningAgentsObservations::GetArrayObservation(TArray<FLearningAgentsObse
 	return true;
 }
 
-bool ULearningAgentsObservations::GetArrayObservationToArrayView(TArrayView<FLearningAgentsObservationObjectElement> OutElements, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FName Tag)
+bool ULearningAgentsObservations::GetArrayObservationToArrayView(TArrayView<FLearningAgentsObservationObjectElement> OutElements, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const int32 MaxNum, const FName Tag)
 {
 	TArray<FLearningAgentsObservationObjectElement, TInlineAllocator<16>> Pairs;
 	Pairs.SetNumUninitialized(OutElements.Num());
@@ -3495,11 +3419,12 @@ bool ULearningAgentsObservations::GetArrayObservationToArrayView(TArrayView<FLea
 		}
 
 		int32 Index = INDEX_NONE;
-		if (!GetIndexObservation(Index, Object, Key))
+		if (!GetCountObservation(Index, Object, Key, MaxNum))
 		{
 			UE::Learning::Array::Set<1, FLearningAgentsObservationObjectElement>(OutElements, FLearningAgentsObservationObjectElement());
 			return false;
 		}
+		Index = FMath::Clamp(Index, 0, OutElements.Num() - 1);
 
 		OutElements[Index] = Value;
 	}

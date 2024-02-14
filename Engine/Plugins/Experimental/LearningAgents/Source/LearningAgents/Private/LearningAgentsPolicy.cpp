@@ -611,10 +611,10 @@ void ULearningAgentsPolicy::EvaluatePolicy()
 		return;
 	}
 
-	if (PolicyObject->GetNeuralNetwork()->GetOutputSize() != ActionDistributionVectors.Num<1>() + MemoryState.Num<1>())
+	if (PolicyObject->GetNeuralNetwork()->GetOutputSize() != ActionVectorsEncoded.Num<1>() + MemoryState.Num<1>())
 	{
 		UE_LOG(LogLearning, Error, TEXT("%s: Policy Network Output size don't match. Network output size is %i but Policy expects %i."), *GetName(),
-			PolicyObject->GetNeuralNetwork()->GetOutputSize(), ActionDistributionVectors.Num<1>() + MemoryState.Num<1>());
+			PolicyObject->GetNeuralNetwork()->GetOutputSize(), ActionVectorsEncoded.Num<1>() + MemoryState.Num<1>());
 		return;
 	}
 

@@ -187,18 +187,7 @@ public:
 	static FLearningAgentsObservationSchemaElement SpecifyInclusiveDiscreteObservation(ULearningAgentsObservationSchema* Schema, const int32 Size, const FName Tag = TEXT("InclusiveDiscreteObservation"));
 
 	/**
-	 * Specifies a new index observation. This represents an index into something such as an array.
-	 *
-	 * @param Schema The Observation Schema
-	 * @param Size The size of the object being indexed.
-	 * @param Tag The tag of this new observation. Used during observation object validation and debugging.
-	 * @return The newly created observation schema element.
-	 */
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 2))
-	static FLearningAgentsObservationSchemaElement SpecifyIndexObservation(ULearningAgentsObservationSchema* Schema, const int32 Size, const FName Tag = TEXT("IndexObservation"));
-
-	/**
-	 * Specifies a new count observation. This represents a count of something such as the size of an array.
+	 * Specifies a new count observation. This represents a count of something such as the size of, or index into, an array.
 	 *
 	 * @param Schema The Observation Schema
 	 * @param Tag The tag of this new observation. Used during observation object validation and debugging.
@@ -742,32 +731,6 @@ public:
 		const FLinearColor VisualLoggerColor = FLinearColor::Red);
 
 	/**
-	 * Make a new index observation.
-	 *
-	 * @param Object The Observation Object
-	 * @param Index The index. Value must be smaller than the given Size.
-	 * @param Size The size of the discrete observation. Must be equal to the size given during Specify.
-	 * @param Tag The tag of the corresponding observation. Must match the tag given during Specify.
-	 * @param bVisualLoggerEnabled When true, debug data will be sent to the visual logger.
-	 * @param VisualLoggerListener The listener object which is making this observation. This must be set to use logging.
-	 * @param VisualLoggerAgentId The agent id associated with this observation.
-	 * @param VisualLoggerLocation A location for the visual logger information in the world.
-	 * @param VisualLoggerColor The color for the visual logger display.
-	 * @return The newly created observation object element.
-	 */
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3, DefaultToSelf = "VisualLoggerListener"))
-	static FLearningAgentsObservationObjectElement MakeIndexObservation(
-		ULearningAgentsObservationObject* Object, 
-		const int32 Index, 
-		const int32 Size, 
-		const FName Tag = TEXT("IndexObservation"),
-		const bool bVisualLoggerEnabled = false,
-		ULearningAgentsManagerListener* VisualLoggerListener = nullptr,
-		const int32 VisualLoggerAgentId = -1,
-		const FVector VisualLoggerLocation = FVector::ZeroVector,
-		const FLinearColor VisualLoggerColor = FLinearColor::Red);
-
-	/**
 	 * Make a new count observation.
 	 *
 	 * @param Object The Observation Object
@@ -847,7 +810,7 @@ public:
 	 * @param Tag The tag of the corresponding observation. Must match the tag given during Specify.
 	 * @return The newly created observation object element.
 	 */
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 2))
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 2, AutoCreateRefTerm = "Elements"))
 	static FLearningAgentsObservationObjectElement MakeInclusiveUnionObservation(ULearningAgentsObservationObject* Object, const TMap<FName, FLearningAgentsObservationObjectElement>& Elements, const FName Tag = TEXT("InclusiveUnionObservation"));
 
 	/**
@@ -859,7 +822,7 @@ public:
 	 * @param Tag The tag of the corresponding observation. Must match the tag given during Specify.
 	 * @return The newly created observation object element.
 	 */
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3))
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3, AutoCreateRefTerm = "ElementNames,Elements"))
 	static FLearningAgentsObservationObjectElement MakeInclusiveUnionObservationFromArrays(ULearningAgentsObservationObject* Object, const TArray<FName>& ElementNames, const TArray<FLearningAgentsObservationObjectElement>& Elements, const FName Tag = TEXT("InclusiveUnionObservation"));
 	
 	/**
@@ -902,7 +865,7 @@ public:
 	 * @param Tag The tag of the corresponding observation. Must match the tag given during Specify.
 	 * @return The newly created observation object element.
 	 */
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 2))
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 2, AutoCreateRefTerm = "Elements"))
 	static FLearningAgentsObservationObjectElement MakeSetObservation(ULearningAgentsObservationObject* Object, const TSet<FLearningAgentsObservationObjectElement>& Elements, const FName Tag = TEXT("SetObservation"));
 
 	/**
@@ -913,7 +876,7 @@ public:
 	 * @param Tag The tag of the corresponding observation. Must match the tag given during Specify.
 	 * @return The newly created observation object element.
 	 */
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 2))
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 2, AutoCreateRefTerm = "Elements"))
 	static FLearningAgentsObservationObjectElement MakeSetObservationFromArray(ULearningAgentsObservationObject* Object, const TArray<FLearningAgentsObservationObjectElement>& Elements, const FName Tag = TEXT("SetObservation"));
 
 	/**
@@ -943,21 +906,23 @@ public:
 	 *
 	 * @param Object The Observation Object
 	 * @param Elements The sub-observations. The number of elements here must be less than or equal to the maximum that was given during Specify.
+	 * @param MaxNum The maximum number of elements possible for this observation. Must match what was given during Specify.
 	 * @param Tag The tag of the corresponding observation. Must match the tag given during Specify.
 	 * @return The newly created observation object element.
 	 */
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 2))
-	static FLearningAgentsObservationObjectElement MakeArrayObservation(ULearningAgentsObservationObject* Object, const TArray<FLearningAgentsObservationObjectElement>& Elements, const FName Tag = TEXT("ArrayObservation"));
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3, AutoCreateRefTerm = "Elements"))
+	static FLearningAgentsObservationObjectElement MakeArrayObservation(ULearningAgentsObservationObject* Object, const TArray<FLearningAgentsObservationObjectElement>& Elements, const int32 MaxNum, const FName Tag = TEXT("ArrayObservation"));
 
 	/**
 	 * Make a new array observation.
 	 *
 	 * @param Object The Observation Object
 	 * @param Elements The sub-observations. The number of elements here must be less than or equal to the maximum that was given during Specify.
+	 * @param MaxNum The maximum number of elements possible for this observation. Must match what was given during Specify.
 	 * @param Tag The tag of the corresponding observation. Must match the tag given during Specify.
 	 * @return The newly created observation object element.
 	 */
-	static FLearningAgentsObservationObjectElement MakeArrayObservationFromArrayView(ULearningAgentsObservationObject* Object, const TArrayView<const FLearningAgentsObservationObjectElement> Elements, const FName Tag = TEXT("ArrayObservation"));
+	static FLearningAgentsObservationObjectElement MakeArrayObservationFromArrayView(ULearningAgentsObservationObject* Object, const TArrayView<const FLearningAgentsObservationObjectElement> Elements, const int32 MaxNum, const FName Tag = TEXT("ArrayObservation"));
 
 	/**
 	 * Make a new map observation.
@@ -967,7 +932,7 @@ public:
 	 * @param Tag The tag of the corresponding observation. Must match the tag given during Specify.
 	 * @return The newly created observation object element.
 	 */
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 2))
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 2, AutoCreateRefTerm = "Map"))
 	static FLearningAgentsObservationObjectElement MakeMapObservation(ULearningAgentsObservationObject* Object, const TMap<FLearningAgentsObservationObjectElement, FLearningAgentsObservationObjectElement>& Map, const FName Tag = TEXT("MapObservation"));
 
 	/**
@@ -978,7 +943,7 @@ public:
 	 * @param Tag The tag of the corresponding observation. Must match the tag given during Specify.
 	 * @return The newly created observation object element.
 	 */
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3))
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3, AutoCreateRefTerm = "Keys,Values"))
 	static FLearningAgentsObservationObjectElement MakeMapObservationFromArrays(ULearningAgentsObservationObject* Object, const TArray<FLearningAgentsObservationObjectElement>& Keys, const TArray<FLearningAgentsObservationObjectElement>& Values, const FName Tag = TEXT("MapObservation"));
 	
 	/**
@@ -1563,9 +1528,6 @@ public:
 	static bool GetInclusiveDiscreteObservationToArrayView(TArrayView<int32> OutIndices, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FName Tag = TEXT("InclusiveDiscreteObservation"));
 
 	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (AdvancedDisplay = 3, ReturnDisplayName = "Success"))
-	static bool GetIndexObservation(int32& OutIndex, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FName Tag = TEXT("IndexObservation"));
-
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (AdvancedDisplay = 3, ReturnDisplayName = "Success"))
 	static bool GetCountObservation(int32& OutNum, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const int32 MaxNum, const FName Tag = TEXT("CountObservation"));
 
 	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (AdvancedDisplay = 3, ReturnDisplayName = "Success"))
@@ -1615,8 +1577,8 @@ public:
 	static bool GetArrayObservationNum(int32& OutNum, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FName Tag = TEXT("ArrayObservation"));
 
 	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (AdvancedDisplay = 3, ReturnDisplayName = "Success"))
-	static bool GetArrayObservation(TArray<FLearningAgentsObservationObjectElement>& OutElements, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FName Tag = TEXT("ArrayObservation"));
-	static bool GetArrayObservationToArrayView(TArrayView<FLearningAgentsObservationObjectElement> OutElements, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FName Tag = TEXT("ArrayObservation"));
+	static bool GetArrayObservation(TArray<FLearningAgentsObservationObjectElement>& OutElements, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const int32 MaxNum, const FName Tag = TEXT("ArrayObservation"));
+	static bool GetArrayObservationToArrayView(TArrayView<FLearningAgentsObservationObjectElement> OutElements, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const int32 MaxNum, const FName Tag = TEXT("ArrayObservation"));
 
 	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (AdvancedDisplay = 3, ReturnDisplayName = "Success"))
 	static bool GetMapObservationNum(int32& OutNum, const ULearningAgentsObservationObject* Object, const FLearningAgentsObservationObjectElement Element, const FName Tag = TEXT("MapObservation"));
