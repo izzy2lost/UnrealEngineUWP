@@ -433,8 +433,8 @@ void FChaosClothAssetDeleteElementNode::Serialize(FArchive& Ar)
 		ElementType_DEPRECATED = EChaosClothAssetElementType::Deprecated;  // This is only for clarity since the Type property won't be saved from now on
 
 		FClothDataflowTools::LogAndToastWarning(*this,
-			LOCTEXT("DeprecatedDeleteElementType", "Outdated Dataflow asset."),
-				LOCTEXT("DeprecatedDeleteElementType", "This node is out of data and contain deprecated data. The asset needs to be re-saved before it stops working at the next version update."));
+			LOCTEXT("DeprecatedDeleteElementTypeHeadline", "Outdated Dataflow asset."),
+				LOCTEXT("DeprecatedDeleteElementTypeDetails", "This node is out of data and contain deprecated data. The asset needs to be re-saved before it stops working at the next version update."));
 	}
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
