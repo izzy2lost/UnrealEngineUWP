@@ -2330,17 +2330,17 @@ void SSequencer::FillViewDensityMenu(FMenuBuilder& InMenuBuilder)
 
 		if (USequencerSettings* Settings = this->GetSequencerSettings())
 		{
-			if (InViewDensity == EViewDensity::Relaxed)
+			if (InViewDensity == EViewDensity::Compact)
+			{
+				Settings->SetViewDensity("Compact");
+			}
+			else if (InViewDensity == EViewDensity::Relaxed)
 			{
 				Settings->SetViewDensity("Relaxed");
 			}
-			else if (InViewDensity == EViewDensity::Expanded)
-			{
-				Settings->SetViewDensity("Expanded");
-			}
 			else
 			{
-				Settings->SetViewDensity("Compact");
+				Settings->SetViewDensity("Variable");
 			}
 		}
 	};
@@ -2350,8 +2350,21 @@ void SSequencer::FillViewDensityMenu(FMenuBuilder& InMenuBuilder)
 	};
 
 	InMenuBuilder.AddMenuEntry(
+		LOCTEXT("VariableViewDensity_Label", "Variable"),
+		LOCTEXT("VariableViewDensity_Tooltip", "Change Sequencer to use a variable height view mode withe inner items displaying more condensed than outer items"),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateLambda(SetViewDensity, EViewDensity::Variable),
+			FCanExecuteAction(),
+			FIsActionChecked::CreateLambda(IsCurrentViewDensity, EViewDensity::Variable)
+		),
+		NAME_None,
+		EUserInterfaceActionType::RadioButton
+	);
+
+	InMenuBuilder.AddMenuEntry(
 		LOCTEXT("CompactViewDensity_Label", "Compact"),
-		LOCTEXT("CompactViewDensity_Tooltip", "Change Sequencer to use a compact view mode"),
+		LOCTEXT("CompactViewDensity_Tooltip", "Change Sequencer to use a compact view mode with uniform track heights"),
 		FSlateIcon(),
 		FUIAction(
 			FExecuteAction::CreateLambda(SetViewDensity, EViewDensity::Compact),
@@ -2364,25 +2377,12 @@ void SSequencer::FillViewDensityMenu(FMenuBuilder& InMenuBuilder)
 
 	InMenuBuilder.AddMenuEntry(
 		LOCTEXT("RelaxedViewDensity_Label", "Relaxed"),
-		LOCTEXT("RelaxedViewDensity_Tooltip", "Change Sequencer to use a relaxed view mode with uniform track heights"),
+		LOCTEXT("RelaxedViewDensity_Tooltip", "Change Sequencer to use a relaxed view mode with larger uniform track heights"),
 		FSlateIcon(),
 		FUIAction(
 			FExecuteAction::CreateLambda(SetViewDensity, EViewDensity::Relaxed),
 			FCanExecuteAction(),
 			FIsActionChecked::CreateLambda(IsCurrentViewDensity, EViewDensity::Relaxed)
-		),
-		NAME_None,
-		EUserInterfaceActionType::RadioButton
-	);
-
-	InMenuBuilder.AddMenuEntry(
-		LOCTEXT("ExpandedViewDensity_Label", "Expanded"),
-		LOCTEXT("ExpandedViewDensity_Tooltip", "Change Sequencer to use an expanded view mode with larger uniform track heights"),
-		FSlateIcon(),
-		FUIAction(
-			FExecuteAction::CreateLambda(SetViewDensity, EViewDensity::Expanded),
-			FCanExecuteAction(),
-			FIsActionChecked::CreateLambda(IsCurrentViewDensity, EViewDensity::Expanded)
 		),
 		NAME_None,
 		EUserInterfaceActionType::RadioButton

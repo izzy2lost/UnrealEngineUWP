@@ -983,17 +983,17 @@ void USequencerSettings::SetTreeViewWidth(float InTreeViewWidth)
 
 UE::Sequencer::EViewDensity USequencerSettings::GetViewDensity() const
 {
+	static FName NAME_Compact("Compact");
 	static FName NAME_Relaxed("Relaxed");
-	static FName NAME_Expanded("Expanded");
+	if (ViewDensity == NAME_Compact)
+	{
+		return UE::Sequencer::EViewDensity::Compact;
+	}
 	if (ViewDensity == NAME_Relaxed)
 	{
 		return UE::Sequencer::EViewDensity::Relaxed;
 	}
-	if (ViewDensity == NAME_Expanded)
-	{
-		return UE::Sequencer::EViewDensity::Expanded;
-	}
-	return UE::Sequencer::EViewDensity::Compact;
+	return UE::Sequencer::EViewDensity::Variable;
 }
 
 void USequencerSettings::SetViewDensity(FName InViewDensity)
