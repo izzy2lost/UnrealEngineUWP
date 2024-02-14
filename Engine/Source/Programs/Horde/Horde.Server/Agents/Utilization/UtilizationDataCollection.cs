@@ -17,16 +17,16 @@ namespace Horde.Server.Agents.Telemetry
 	/// <summary>
 	/// Collection of utilization data
 	/// </summary>
-	public class TelemetryCollection : ITelemetryCollection
+	public class UtilizationDataCollection : IUtilizationDataCollection
 	{
-		class UtilizationDocument : IUtilizationTelemetry
+		class UtilizationDocument : IUtilizationData
 		{
 			public DateTime StartTime { get; set; }
 			public DateTime FinishTime { get; set; }
 
 			public int NumAgents { get; set; }
 			public List<PoolUtilizationDocument> Pools { get; set; }
-			IReadOnlyList<IPoolUtilizationTelemetry> IUtilizationTelemetry.Pools => Pools;
+			IReadOnlyList<IPoolUtilizationData> IUtilizationData.Pools => Pools;
 
 			public double AdminTime { get; set; }
 			public double HibernatingTime { get; set; }
@@ -38,7 +38,7 @@ namespace Horde.Server.Agents.Telemetry
 				Pools = new List<PoolUtilizationDocument>();
 			}
 
-			public UtilizationDocument(IUtilizationTelemetry other)
+			public UtilizationDocument(IUtilizationData other)
 			{
 				StartTime = other.StartTime;
 				FinishTime = other.FinishTime;
@@ -49,13 +49,13 @@ namespace Horde.Server.Agents.Telemetry
 			}
 		}
 
-		class PoolUtilizationDocument : IPoolUtilizationTelemetry
+		class PoolUtilizationDocument : IPoolUtilizationData
 		{
 			public PoolId PoolId { get; set; }
 			public int NumAgents { get; set; }
 
 			public List<StreamUtilizationDocument> Streams { get; set; } 
-			IReadOnlyList<IStreamUtilizationTelemetry> IPoolUtilizationTelemetry.Streams => Streams;
+			IReadOnlyList<IStreamUtilizationData> IPoolUtilizationData.Streams => Streams;
 
 			public double AdminTime { get; set; }
 			public double HibernatingTime { get; set; }
@@ -67,7 +67,7 @@ namespace Horde.Server.Agents.Telemetry
 				Streams = new List<StreamUtilizationDocument>();
 			}
 
-			public PoolUtilizationDocument(IPoolUtilizationTelemetry other)
+			public PoolUtilizationDocument(IPoolUtilizationData other)
 			{
 				PoolId = other.PoolId;
 				NumAgents = other.NumAgents;
@@ -78,7 +78,7 @@ namespace Horde.Server.Agents.Telemetry
 			}
 		}
 
-		class StreamUtilizationDocument : IStreamUtilizationTelemetry
+		class StreamUtilizationDocument : IStreamUtilizationData
 		{
 			public StreamId StreamId { get; set; }
 			public double Time { get; set; }
@@ -88,7 +88,7 @@ namespace Horde.Server.Agents.Telemetry
 			{
 			}
 
-			public StreamUtilizationDocument(IStreamUtilizationTelemetry other)
+			public StreamUtilizationDocument(IStreamUtilizationData other)
 			{
 				StreamId = other.StreamId;
 				Time = other.Time;
@@ -101,28 +101,28 @@ namespace Horde.Server.Agents.Telemetry
 		/// Constructor
 		/// </summary>
 		/// <param name="database"></param>
-		public TelemetryCollection(MongoService database)
+		public UtilizationDataCollection(MongoService database)
 		{
 			_utilization = database.GetCollection<UtilizationDocument>("Utilization", keys => keys.Ascending(x => x.FinishTime).Ascending(x => x.StartTime));
 		}
 
 		/// <inheritdoc/>
-		public async Task AddUtilizationTelemetryAsync(IUtilizationTelemetry newTelemetry)
+		public async Task AddUtilizationDataAsync(IUtilizationData newTelemetry)
 		{
 			await _utilization.InsertOneAsync(new UtilizationDocument(newTelemetry));
 		}
 
 		/// <inheritdoc/>
-		public async Task<List<IUtilizationTelemetry>> GetUtilizationTelemetryAsync(DateTime startTimeUtc, DateTime finishTimeUtc)
+		public async Task<List<IUtilizationData>> GetUtilizationDataAsync(DateTime startTimeUtc, DateTime finishTimeUtc)
 		{
 			FilterDefinition<UtilizationDocument> filter = Builders<UtilizationDocument>.Filter.Gte(x => x.FinishTime, startTimeUtc) & Builders<UtilizationDocument>.Filter.Lte(x => x.StartTime, finishTimeUtc);
 
 			List<UtilizationDocument> documents = await _utilization.Find(filter).ToListAsync();
-			return documents.ConvertAll<IUtilizationTelemetry>(x => x);
+			return documents.ConvertAll<IUtilizationData>(x => x);
 		}
 
 		/// <inheritdoc/>
-		public async Task<IUtilizationTelemetry?> GetLatestUtilizationTelemetryAsync()
+		public async Task<IUtilizationData?> GetLatestUtilizationDataAsync()
 		{
 			return await _utilization.Find(FilterDefinition<UtilizationDocument>.Empty).SortByDescending(x => x.FinishTime).FirstOrDefaultAsync();
 		}

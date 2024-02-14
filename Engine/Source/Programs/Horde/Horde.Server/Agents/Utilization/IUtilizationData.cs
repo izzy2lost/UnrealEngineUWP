@@ -10,7 +10,7 @@ namespace Horde.Server.Agents.Telemetry
 	/// <summary>
 	/// Information about the utilization of a pool
 	/// </summary>
-	public interface IUtilizationTelemetry
+	public interface IUtilizationData
 	{
 		/// <summary>
 		/// Start time for the bucket
@@ -30,7 +30,7 @@ namespace Horde.Server.Agents.Telemetry
 		/// <summary>
 		/// Breakdown of utilization by pool
 		/// </summary>
-		public IReadOnlyList<IPoolUtilizationTelemetry> Pools { get; }
+		public IReadOnlyList<IPoolUtilizationData> Pools { get; }
 
 		/// <summary>
 		/// Amount of time that agents were hibernating
@@ -44,9 +44,9 @@ namespace Horde.Server.Agents.Telemetry
 	}
 
 	/// <summary>
-	/// Concrete implementation of <see cref="IUtilizationTelemetry"/>
+	/// Concrete implementation of <see cref="IUtilizationData"/>
 	/// </summary>
-	public sealed class NewUtilizationTelemetry : IUtilizationTelemetry
+	public sealed class UtilizationData : IUtilizationData
 	{
 		/// <inheritdoc/>
 		public DateTime StartTime { get; set; }
@@ -58,10 +58,10 @@ namespace Horde.Server.Agents.Telemetry
 		public int NumAgents { get; set; }
 
 		/// <inheritdoc/>
-		List<NewPoolUtilizationTelemetry> Pools { get; set; } = new List<NewPoolUtilizationTelemetry>();
-		IReadOnlyList<IPoolUtilizationTelemetry> IUtilizationTelemetry.Pools => Pools;
+		List<PoolUtilizationData> Pools { get; set; } = new List<PoolUtilizationData>();
+		IReadOnlyList<IPoolUtilizationData> IUtilizationData.Pools => Pools;
 
-		Dictionary<PoolId, NewPoolUtilizationTelemetry> PoolsLookup { get; set; } = new Dictionary<PoolId, NewPoolUtilizationTelemetry>();
+		Dictionary<PoolId, PoolUtilizationData> PoolsLookup { get; set; } = new Dictionary<PoolId, PoolUtilizationData>();
 
 		/// <inheritdoc/>
 		public double HibernatingTime { get; set; }
@@ -74,7 +74,7 @@ namespace Horde.Server.Agents.Telemetry
 		/// </summary>
 		/// <param name="startTime"></param>
 		/// <param name="finishTime"></param>
-		public NewUtilizationTelemetry(DateTime startTime, DateTime finishTime)
+		public UtilizationData(DateTime startTime, DateTime finishTime)
 		{
 			StartTime = startTime;
 			FinishTime = finishTime;
@@ -85,12 +85,12 @@ namespace Horde.Server.Agents.Telemetry
 		/// </summary>
 		/// <param name="poolId">The pool id</param>
 		/// <returns>Telemetry for the given pool</returns>
-		public NewPoolUtilizationTelemetry FindOrAddPool(PoolId poolId)
+		public PoolUtilizationData FindOrAddPool(PoolId poolId)
 		{
-			NewPoolUtilizationTelemetry? pool;
+			PoolUtilizationData? pool;
 			if (!PoolsLookup.TryGetValue(poolId, out pool))
 			{
-				pool = new NewPoolUtilizationTelemetry(poolId);
+				pool = new PoolUtilizationData(poolId);
 				Pools.Add(pool);
 				PoolsLookup.Add(poolId, pool);
 			}
@@ -101,7 +101,7 @@ namespace Horde.Server.Agents.Telemetry
 	/// <summary>
 	/// Information about the utilization of a pool
 	/// </summary>
-	public interface IPoolUtilizationTelemetry
+	public interface IPoolUtilizationData
 	{
 		/// <summary>
 		/// Pool containing the work to execute
@@ -116,7 +116,7 @@ namespace Horde.Server.Agents.Telemetry
 		/// <summary>
 		/// The stream executing work. If this is null, the time accounts for the machine executing work in another pool.
 		/// </summary>
-		public IReadOnlyList<IStreamUtilizationTelemetry> Streams { get; }
+		public IReadOnlyList<IStreamUtilizationData> Streams { get; }
 
 		/// <summary>
 		/// Amount of time spent running 
@@ -135,9 +135,9 @@ namespace Horde.Server.Agents.Telemetry
 	}
 
 	/// <summary>
-	/// Concrete implementation of <see cref="IPoolUtilizationTelemetry"/>
+	/// Concrete implementation of <see cref="IPoolUtilizationData"/>
 	/// </summary>
-	public sealed class NewPoolUtilizationTelemetry : IPoolUtilizationTelemetry
+	public sealed class PoolUtilizationData : IPoolUtilizationData
 	{
 		/// <inheritdoc/>
 		public PoolId PoolId { get; set; }
@@ -146,10 +146,10 @@ namespace Horde.Server.Agents.Telemetry
 		public int NumAgents { get; set; }
 
 		/// <inheritdoc/>
-		List<NewPoolUtilizationTelemetryStream> Streams { get; set; } = new List<NewPoolUtilizationTelemetryStream>();
-		IReadOnlyList<IStreamUtilizationTelemetry> IPoolUtilizationTelemetry.Streams => Streams;
+		List<StreamUtilizationData> Streams { get; set; } = new List<StreamUtilizationData>();
+		IReadOnlyList<IStreamUtilizationData> IPoolUtilizationData.Streams => Streams;
 
-		Dictionary<StreamId, NewPoolUtilizationTelemetryStream> StreamLookup { get; set; } = new Dictionary<StreamId, NewPoolUtilizationTelemetryStream>();
+		Dictionary<StreamId, StreamUtilizationData> StreamLookup { get; set; } = new Dictionary<StreamId, StreamUtilizationData>();
 
 		/// <inheritdoc/>
 		public double AdminTime { get; set; }
@@ -164,7 +164,7 @@ namespace Horde.Server.Agents.Telemetry
 		/// Constructor
 		/// </summary>
 		/// <param name="poolId"></param>
-		public NewPoolUtilizationTelemetry(PoolId poolId)
+		public PoolUtilizationData(PoolId poolId)
 		{
 			PoolId = poolId;
 		}
@@ -173,12 +173,12 @@ namespace Horde.Server.Agents.Telemetry
 		/// Adds a stream to the object
 		/// </summary>
 		/// <param name="streamId"></param>
-		public NewPoolUtilizationTelemetryStream FindOrAddStream(StreamId streamId)
+		public StreamUtilizationData FindOrAddStream(StreamId streamId)
 		{
-			NewPoolUtilizationTelemetryStream? stream;
+			StreamUtilizationData? stream;
 			if (!StreamLookup.TryGetValue(streamId, out stream))
 			{
-				stream = new NewPoolUtilizationTelemetryStream(streamId);
+				stream = new StreamUtilizationData(streamId);
 				Streams.Add(stream);
 				StreamLookup.Add(streamId, stream);
 			}
@@ -189,7 +189,7 @@ namespace Horde.Server.Agents.Telemetry
 	/// <summary>
 	/// Utilization of a pool for a particular stream
 	/// </summary>
-	public interface IStreamUtilizationTelemetry
+	public interface IStreamUtilizationData
 	{
 		/// <summary>
 		/// The stream id
@@ -203,9 +203,9 @@ namespace Horde.Server.Agents.Telemetry
 	}
 
 	/// <summary>
-	/// Concrete implementation of <see cref="IStreamUtilizationTelemetry"/>
+	/// Concrete implementation of <see cref="IStreamUtilizationData"/>
 	/// </summary>
-	public sealed class NewPoolUtilizationTelemetryStream : IStreamUtilizationTelemetry
+	public sealed class StreamUtilizationData : IStreamUtilizationData
 	{
 		/// <inheritdoc/>
 		public StreamId StreamId { get; set; }
@@ -217,7 +217,7 @@ namespace Horde.Server.Agents.Telemetry
 		/// Constructor
 		/// </summary>
 		/// <param name="streamId"></param>
-		public NewPoolUtilizationTelemetryStream(StreamId streamId)
+		public StreamUtilizationData(StreamId streamId)
 		{
 			StreamId = streamId;
 		}

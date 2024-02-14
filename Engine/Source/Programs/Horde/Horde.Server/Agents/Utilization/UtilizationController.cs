@@ -19,15 +19,15 @@ namespace Horde.Server.Agents.Telemetry
 		/// <summary>
 		/// the Telemetry collection singleton
 		/// </summary>
-		readonly ITelemetryCollection _telemetryCollection;
+		readonly IUtilizationDataCollection _utilizationDataCollection;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="telemetryCollection">The telemetry collection</param>
-		public ReportsController(ITelemetryCollection telemetryCollection)
+		/// <param name="utilizationDataCollection">The telemetry collection</param>
+		public ReportsController(IUtilizationDataCollection utilizationDataCollection)
 		{
-			_telemetryCollection = telemetryCollection;
+			_utilizationDataCollection = utilizationDataCollection;
 		}
 
 		/// <summary>
@@ -44,12 +44,12 @@ namespace Horde.Server.Agents.Telemetry
 			DateTimeOffset endDateOffset = new DateTimeOffset(endDate, TimeSpan.FromHours(offset)).Add(new TimeSpan(23, 59, 59));
 			DateTimeOffset startDateOffset = endDate.Subtract(new TimeSpan(range - 1, 0, 0, 0));
 
-			List<IUtilizationTelemetry> telemetry = await _telemetryCollection.GetUtilizationTelemetryAsync(startDateOffset.UtcDateTime, endDateOffset.UtcDateTime);
+			List<IUtilizationData> telemetry = await _utilizationDataCollection.GetUtilizationDataAsync(startDateOffset.UtcDateTime, endDateOffset.UtcDateTime);
 
 			return telemetry.ConvertAll(CreateTelemetryResponse);
 		}
 
-		static UtilizationTelemetryResponse CreateTelemetryResponse(IUtilizationTelemetry telemetry)
+		static UtilizationTelemetryResponse CreateTelemetryResponse(IUtilizationData telemetry)
 		{
 			UtilizationTelemetryResponse response = new UtilizationTelemetryResponse();
 			response.StartTime = telemetry.StartTime;
@@ -62,7 +62,7 @@ namespace Horde.Server.Agents.Telemetry
 			return response;
 		}
 
-		static UtilizationTelemetryPool CreatePoolTelemetryResponse(IPoolUtilizationTelemetry pool)
+		static UtilizationTelemetryPool CreatePoolTelemetryResponse(IPoolUtilizationData pool)
 		{
 			UtilizationTelemetryPool response = new UtilizationTelemetryPool();
 			response.PoolId = pool.PoolId.ToString();
@@ -74,7 +74,7 @@ namespace Horde.Server.Agents.Telemetry
 			return response;
 		}
 
-		static UtilizationTelemetryStream CreateStreamTelemetryResponse(IStreamUtilizationTelemetry stream)
+		static UtilizationTelemetryStream CreateStreamTelemetryResponse(IStreamUtilizationData stream)
 		{
 			UtilizationTelemetryStream response = new UtilizationTelemetryStream();
 			response.StreamId = stream.StreamId.ToString();

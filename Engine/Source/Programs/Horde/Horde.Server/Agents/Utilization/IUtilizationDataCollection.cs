@@ -9,14 +9,14 @@ namespace Horde.Server.Agents.Telemetry
 	/// <summary>
 	/// Collection of utilization collection
 	/// </summary>
-	public interface ITelemetryCollection
+	public interface IUtilizationDataCollection
 	{
 		/// <summary>
 		/// Adds entries for the given utilization
 		/// </summary>
-		/// <param name="telemetry">Telemetry data to add</param>
+		/// <param name="data">Telemetry data to add</param>
 		/// <returns>Async task</returns>
-		Task AddUtilizationTelemetryAsync(IUtilizationTelemetry telemetry);
+		Task AddUtilizationDataAsync(IUtilizationData data);
 
 		/// <summary>
 		/// Finds utilization data matching the given criteria
@@ -24,12 +24,12 @@ namespace Horde.Server.Agents.Telemetry
 		/// <param name="startTimeUtc">Start time to query utilization for</param>
 		/// <param name="finishTimeUtc">Finish time to query utilization for</param>
 		/// <returns>The utilization data</returns>
-		Task<List<IUtilizationTelemetry>> GetUtilizationTelemetryAsync(DateTime startTimeUtc, DateTime finishTimeUtc);
+		Task<List<IUtilizationData>> GetUtilizationDataAsync(DateTime startTimeUtc, DateTime finishTimeUtc);
 
 		/// <summary>
 		/// Finds the latest utilization data
 		/// </summary>
 		/// <returns>The utilization data</returns>
-		Task<IUtilizationTelemetry?> GetLatestUtilizationTelemetryAsync();
+		Task<IUtilizationData?> GetLatestUtilizationDataAsync();
 	}
 }
