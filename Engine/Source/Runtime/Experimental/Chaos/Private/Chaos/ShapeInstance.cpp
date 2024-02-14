@@ -69,7 +69,7 @@ namespace Chaos
 			{
 				for (auto& Shape : ShapesArray)
 				{
-					Shape->UpdateShapeBounds(ActorTM, FVec3(0));
+					Shape->UpdateShapeBounds(ActorTM);
 				}
 			}
 		}
@@ -266,12 +266,12 @@ namespace Chaos
 
 		if (Ar.CustomVer(FExternalPhysicsCustomObjectVersion::GUID) >= FExternalPhysicsCustomObjectVersion::SerializeShapeWorldSpaceBounds)
 		{
-			TBox<FReal, 3>::SerializeAsAABB(Ar, WorldSpaceInflatedShapeBounds);
+			TBox<FReal, 3>::SerializeAsAABB(Ar, WorldSpaceShapeBounds);
 		}
 		else
 		{
 			// This should be set by particle serializing this FPerShapeData.
-			WorldSpaceInflatedShapeBounds = FAABB3(FVec3(0.0f, 0.0f, 0.0f), FVec3(0.0f, 0.0f, 0.0f));
+			WorldSpaceShapeBounds = FAABB3(FVec3(0.0f, 0.0f, 0.0f), FVec3(0.0f, 0.0f, 0.0f));
 		}
 	}
 
@@ -333,21 +333,21 @@ namespace Chaos
 	///////////////////////////////////////////////////////////////////////////////////////////////
 
 
-	void FShapeInstanceProxy::UpdateShapeBounds(const FRigidTransform3& WorldTransform, const FVec3& BoundsExpansion)
+	void FShapeInstanceProxy::UpdateShapeBounds(const FRigidTransform3& WorldTransform)
 	{
 		if (Geometry && Geometry->HasBoundingBox())
 		{
-			WorldSpaceInflatedShapeBounds = Geometry->CalculateTransformedBounds(WorldTransform).ThickenSymmetrically(BoundsExpansion);
+			WorldSpaceShapeBounds = Geometry->CalculateTransformedBounds(WorldTransform);
 		}
 		else
 		{
-			WorldSpaceInflatedShapeBounds = FAABB3(WorldTransform.GetLocation(), WorldTransform.GetLocation()).ThickenSymmetrically(BoundsExpansion);
+			WorldSpaceShapeBounds = FAABB3(WorldTransform.GetLocation(), WorldTransform.GetLocation());
 		}
 	}
 
-	void FShapeInstanceProxy::UpdateWorldSpaceState(const FRigidTransform3& WorldTransform, const FVec3& BoundsExpansion)
+	void FShapeInstanceProxy::UpdateWorldSpaceState(const FRigidTransform3& WorldTransform)
 	{
-		UpdateShapeBounds(WorldTransform, BoundsExpansion);
+		UpdateShapeBounds(WorldTransform);
 	}
 
 	const FImplicitObject* FShapeInstanceProxy::GetLeafGeometry() const
@@ -397,19 +397,19 @@ namespace Chaos
 	///////////////////////////////////////////////////////////////////////////////////////////////
 
 
-	void FShapeInstance::UpdateShapeBounds(const FRigidTransform3& WorldTransform, const FVec3& BoundsExpansion)
+	void FShapeInstance::UpdateShapeBounds(const FRigidTransform3& WorldTransform)
 	{
 		if (Geometry && Geometry->HasBoundingBox())
 		{
-			WorldSpaceInflatedShapeBounds = Geometry->CalculateTransformedBounds(WorldTransform).ThickenSymmetrically(BoundsExpansion);
+			WorldSpaceShapeBounds = Geometry->CalculateTransformedBounds(WorldTransform);
 		}
 		else
 		{
-			WorldSpaceInflatedShapeBounds = FAABB3(WorldTransform.GetLocation(), WorldTransform.GetLocation()).ThickenSymmetrically(BoundsExpansion);
+			WorldSpaceShapeBounds = FAABB3(WorldTransform.GetLocation(), WorldTransform.GetLocation());
 		}
 	}
 
-	void FShapeInstance::UpdateWorldSpaceState(const FRigidTransform3& WorldTransform, const FVec3& BoundsExpansion)
+	void FShapeInstance::UpdateWorldSpaceState(const FRigidTransform3& WorldTransform)
 	{
 		FRigidTransform3 LeafWorldTransform = WorldTransform;
 		const FRigidTransform3* LeafRelativeTransform = nullptr;
@@ -430,11 +430,11 @@ namespace Chaos
 		// Update the bounds at the world transform
 		if ((LeafGeometry != nullptr) && LeafGeometry->HasBoundingBox())
 		{
-			WorldSpaceInflatedShapeBounds = LeafGeometry->CalculateTransformedBounds(LeafWorldTransform).ThickenSymmetrically(BoundsExpansion);;
+			WorldSpaceShapeBounds = LeafGeometry->CalculateTransformedBounds(LeafWorldTransform);
 		}
 		else
 		{
-			WorldSpaceInflatedShapeBounds = FAABB3(WorldTransform.GetLocation(), WorldTransform.GetLocation()).ThickenSymmetrically(BoundsExpansion);
+			WorldSpaceShapeBounds = FAABB3(WorldTransform.GetLocation(), WorldTransform.GetLocation());
 		}
 	}
 
