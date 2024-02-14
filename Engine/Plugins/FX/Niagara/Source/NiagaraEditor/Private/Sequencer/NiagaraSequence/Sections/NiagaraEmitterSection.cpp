@@ -5,6 +5,7 @@
 #include "ViewModels/NiagaraEmitterHandleViewModel.h"
 #include "ViewModels/NiagaraEmitterViewModel.h"
 
+#include "MVVM/ViewModels/ViewDensity.h"
 #include "SequencerSectionPainter.h"
 #include "ISectionLayoutBuilder.h"
 
@@ -18,6 +19,11 @@ FNiagaraEmitterSection::FNiagaraEmitterSection(UMovieSceneNiagaraEmitterSection 
 UMovieSceneSection* FNiagaraEmitterSection::GetSectionObject(void)
 {
 	return EmitterSection;
+}
+
+float FNiagaraEmitterSection::GetSectionHeight(const UE::Sequencer::FViewDensityInfo& ViewDensity) const
+{
+	return ViewDensity.UniformHeight.Get(20.0f);
 }
 
 int32 FNiagaraEmitterSection::OnPaintSection(FSequencerSectionPainter& InPainter) const

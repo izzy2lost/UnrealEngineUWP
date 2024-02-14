@@ -13,7 +13,7 @@ FLabelOutlinerColumn::FLabelOutlinerColumn()
 	Name     = FCommonOutlinerNames::Label;
 	Label    = NSLOCTEXT("FLabelOutlinerColumn", "LabelColumnLabel", "Label");
 	Position = FOutlinerColumnPosition{ 0, EOutlinerColumnGroup::Center };
-	Layout   = FOutlinerColumnLayout{ 0.75f, FMargin(4.f, 0.f), HAlign_Fill, VAlign_Center, EOutlinerColumnSizeMode::Stretch, Flags };
+	Layout   = FOutlinerColumnLayout{ 0.6f, FMargin(4.f, 0.f), HAlign_Fill, VAlign_Center, EOutlinerColumnSizeMode::Stretch, Flags };
 }
 
 TSharedPtr<SWidget> FLabelOutlinerColumn::CreateColumnWidget(const FCreateOutlinerColumnParams& InParams, const TSharedRef<ISequencerTreeViewRow>& TreeViewRow)
