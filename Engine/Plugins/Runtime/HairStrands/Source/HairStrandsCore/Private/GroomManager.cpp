@@ -1630,6 +1630,7 @@ static void RunHairStrandsInterpolation_Strands(
 		{
 			if (InstanceData.bNeedRaytracing)
 			{
+				// Note: VFInput.Strands.Common.Radius already contains RadiusScale from discrete LOD setup, for backward compatibility.
 				const float CLODScale = InstanceData.Instance->HairGroupPublicData->ContinuousLODCoverageScale;
 				const float HairRadiusRT = InstanceData.Instance->HairGroupPublicData->VFInput.Strands.Common.RaytracingRadiusScale * InstanceData.Instance->HairGroupPublicData->VFInput.Strands.Common.Radius * CLODScale;
 				const float HairRootScaleRT = InstanceData.Instance->HairGroupPublicData->VFInput.Strands.Common.RootScale;
@@ -2373,6 +2374,27 @@ static float ComputeActiveCurveCoverageScale(const FHairStrandsBulkData& InData,
 	return InData.GetCoverageScale(CurveRatio);
 }
 
+static float ComputeActiveCurveRadiusScale(const FHairStrandsClusterResource* InResource, float InLODIndex)
+{
+	float Out = 1.f;
+	if (InResource && InResource->BulkData.IsValid())
+	{
+		const FHairStrandsClusterBulkData& InData = InResource->BulkData;
+		const uint32 MaxLODCount = InData.Header.LODInfos.Num();
+		InLODIndex = FMath::Clamp(InLODIndex, 0.f,MaxLODCount-1);
+		const int32 iLODIndex0 = FMath::Floor(InLODIndex);
+		const int32 iLODIndex1 = FMath::Min(iLODIndex0+1,int32(MaxLODCount-1));
+		const float S = InLODIndex - iLODIndex0;
+		check(InData.Header.LODInfos.IsValidIndex(iLODIndex0));
+		check(InData.Header.LODInfos.IsValidIndex(iLODIndex1));
+
+		const float RadiusScale0 = InData.Header.LODInfos[iLODIndex0].RadiusScale;
+		const float RadiusScale1 = InData.Header.LODInfos[iLODIndex1].RadiusScale;
+		Out = iLODIndex0 != iLODIndex1 ? FMath::LerpStable(RadiusScale0, RadiusScale1, S) : RadiusScale0;
+	}
+	return Out;
+}
+
 static uint32 ComputeActiveCurveCount(float InScreenSize, float InAutoLODBias, uint32 InCurveCount, uint32 InClusterCount)
 {
 	const float Power = 1.f;  // This could be exposed per asset
@@ -2398,6 +2420,7 @@ struct FHairLOD
 	FVector2f ContinuousLODScreenPos = FVector2f(0,0);
 	FBoxSphereBounds ContinuousLODBounds;
 	float ContinuousLODCoverageScale = 1.f;
+	float ContinuousLODRadiusScale = 1.f;
 };
 
 static FHairLOD ComputeHairLODIndex(const FHairGroupInstance* Instance, const TArray<const FSceneView*>& Views)
@@ -2451,6 +2474,7 @@ static FHairLOD ComputeHairLODIndex(const FHairGroupInstance* Instance, const TA
 	Out.ContinuousLODScreenPos = MaxContinuousLODScreenPos;
 	Out.ContinuousLODBounds = SphereBound;
 	Out.ContinuousLODCoverageScale = 1.f;
+	Out.ContinuousLODRadiusScale = 1.f;
 
 	// Extract the min/max LOD with strands. 
 	// This assumes that these LODs are contiguous
@@ -2492,6 +2516,7 @@ static FHairLOD ComputeHairLODIndex(const FHairGroupInstance* Instance, const TA
 		Out.ContinuousLODCurveCount = EffectiveCurveCount;
 		Out.ContinuousLODPointCount = EffectiveCurveCount > 0 ? Instance->Strands.GetData().Header.CurveToPointCount[EffectiveCurveCount - 1] : 0;
 		Out.ContinuousLODCoverageScale = ComputeActiveCurveCoverageScale(Instance->Strands.GetData(), EffectiveCurveCount);
+		Out.ContinuousLODRadiusScale = ComputeActiveCurveRadiusScale(Instance->Strands.ClusterResource, Out.HairLODIndex);
 	}
 
 	return Out;
@@ -2508,6 +2533,7 @@ static void ApplyHairLOD(const FHairLOD& In, FHairGroupInstance* OutInstance)
 	OutInstance->HairGroupPublicData->ContinuousLODScreenPos = In.ContinuousLODScreenPos;
 	OutInstance->HairGroupPublicData->ContinuousLODBounds = In.ContinuousLODBounds;
 	OutInstance->HairGroupPublicData->ContinuousLODCoverageScale = In.ContinuousLODCoverageScale;
+	OutInstance->HairGroupPublicData->ContinuousLODRadiusScale = In.ContinuousLODRadiusScale;
 }
 
 // Function for selecting, loading, & initializing LOD resources
@@ -2712,7 +2738,8 @@ static bool SelectValidLOD(
 		const uint32 EffectiveCurveCount = FMath::Min(ResourceStatus.AvailableCurveCount, Instance->HairGroupPublicData->ContinuousLODCurveCount);
 		Instance->HairGroupPublicData->ContinuousLODCurveCount = EffectiveCurveCount;
 		Instance->HairGroupPublicData->ContinuousLODPointCount = EffectiveCurveCount > 0 ? Instance->Strands.GetData().Header.CurveToPointCount[EffectiveCurveCount - 1] : 0;
-		Instance->HairGroupPublicData->ContinuousLODCoverageScale = ComputeActiveCurveCoverageScale(Instance->Strands.GetData(), EffectiveCurveCount);
+		Instance->HairGroupPublicData->ContinuousLODCoverageScale = ComputeActiveCurveCoverageScale(Instance->Strands.GetData(), EffectiveCurveCount); 
+		Instance->HairGroupPublicData->ContinuousLODRadiusScale = ComputeActiveCurveRadiusScale(Instance->Strands.ClusterResource, HairLODIndex); // default is 1.f - Only used for backward compatibility
 		check(Instance->HairGroupPublicData->ContinuousLODPointCount <= Instance->HairGroupPublicData->RestPointCount);
 	}
 	return true;

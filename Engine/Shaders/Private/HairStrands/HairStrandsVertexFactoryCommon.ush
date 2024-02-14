@@ -86,7 +86,6 @@ float3 ReadCardPositionOffset(StructuredBuffer<float4> In, uint InIndex, uint In
 	ByteAddressBuffer 			Prefix##_PointAttributeBuffer; \
 	Buffer<uint>				Prefix##_CullingIndirectBuffer; \
 	Buffer<uint>				Prefix##_CullingIndexBuffer; \
-	Buffer<float>				Prefix##_CullingRadiusScaleBuffer; \
 	Buffer<uint> 				Prefix##_CullingIndirectBufferArgs; \
 	float3 Prefix##_GetHairInstancePositionOffset() { return ReadRenPositionOffset(Prefix##_PositionOffsetBuffer, Prefix##_RegisteredIndex); }
 

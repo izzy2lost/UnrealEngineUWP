@@ -439,10 +439,8 @@ void BinningCS(uint DispatchThreadID : SV_DispatchThreadID, uint GroupThreadID :
 
 			const uint VertexIndex0 = HairStrandsVF_CullingIndexBuffer[FetchIndex0];
 			const uint VertexIndex1 = HairStrandsVF_CullingIndexBuffer[FetchIndex1];
-			const float LodRadiusScale0 = HairStrandsVF_CullingRadiusScaleBuffer[FetchIndex0];
-			const float LodRadiusScale1 = HairStrandsVF_CullingRadiusScaleBuffer[FetchIndex1];
 
-			if ((LodRadiusScale0 <= 0.0f) || (VertexIndex1 != VertexIndex0 + 1))
+			if (VertexIndex1 != VertexIndex0 + 1)
 			{
 				bSegValid = false;
 			}

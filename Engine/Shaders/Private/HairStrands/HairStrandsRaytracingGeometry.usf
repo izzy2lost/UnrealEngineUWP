@@ -29,7 +29,6 @@ uint HairStrandsVF_bCullingEnable;
 #if PERMUTATION_CULLING == 1
 Buffer<uint>	HairStrandsVF_CullingIndirectBuffer;
 Buffer<uint>	HairStrandsVF_CullingIndexBuffer;
-Buffer<float>	HairStrandsVF_CullingRadiusScaleBuffer;
 Buffer<uint>	HairStrandsVF_CullingIndirectBufferArgs;
 #endif
 
@@ -168,9 +167,6 @@ void MainCS(uint DispatchThreadId : SV_DispatchThreadID)
 		return;
 	}
 
-	float LodRadiusScale0 = 1;
-	float LodRadiusScale1 = 1;
-
 	uint SourceIndex0 = VertexIndex0;
 	uint SourceIndex1 = VertexIndex1;
 #if PERMUTATION_CULLING == 1
@@ -184,15 +180,7 @@ void MainCS(uint DispatchThreadId : SV_DispatchThreadID)
 		}
 
 		SourceIndex0 = HairStrandsVF_CullingIndexBuffer[VertexIndex0];
-		LodRadiusScale0 = HairStrandsVF_CullingRadiusScaleBuffer[VertexIndex0];
 		SourceIndex1 = HairStrandsVF_CullingIndexBuffer[VertexIndex1];
-		LodRadiusScale1 = HairStrandsVF_CullingRadiusScaleBuffer[VertexIndex1];
-
-		if (LodRadiusScale0 <= 0.0f)
-		{
-			SetInvalidSegment(VertexIndex0);
-			return;
-		}
 	}
 #endif
 
@@ -213,8 +201,8 @@ void MainCS(uint DispatchThreadId : SV_DispatchThreadID)
 		}
 		else
 		{
-			float4 A = float4(P0.Position, P0.WorldRadius * LodRadiusScale0);
-			float4 B = float4(P1.Position, P1.WorldRadius * LodRadiusScale1);
+			float4 A = float4(P0.Position, P0.WorldRadius);
+			float4 B = float4(P1.Position, P1.WorldRadius);
 			if ((A.w == 0 && B.w == 0) || length2(B.xyz - A.xyz) == 0 || any(!IsFinite(A)) || any(!IsFinite(B)))
 			{
 				// this segment is degenerate, don't bother adding it
@@ -262,10 +250,10 @@ void MainCS(uint DispatchThreadId : SV_DispatchThreadID)
 
 	const uint BaseOutIndex = VertexIndex0 * 4;
 	{
-		const float3 Px0 = P0.Position - N * P0.WorldRadius * LodRadiusScale0;
-		const float3 Px1 = P0.Position + N * P0.WorldRadius * LodRadiusScale0;
-		const float3 Py0 = P0.Position - B * P0.WorldRadius * LodRadiusScale0;
-		const float3 Py1 = P0.Position + B * P0.WorldRadius * LodRadiusScale0;
+		const float3 Px0 = P0.Position - N * P0.WorldRadius;
+		const float3 Px1 = P0.Position + N * P0.WorldRadius;
+		const float3 Py0 = P0.Position - B * P0.WorldRadius;
+		const float3 Py1 = P0.Position + B * P0.WorldRadius;
 
 		OutputPositionBuffer[BaseOutIndex    ] = float4(Px0, 1);
 		OutputPositionBuffer[BaseOutIndex + 1] = float4(Py0, 1);

@@ -106,7 +106,6 @@ struct FVertexInfo
 	uint IsTip;				// The vertex is on the quad side toward the tip of the strand.
 #if !RAYHITGROUPSHADER
 	uint IsLeft;
-	float LodRadiusScale;
 	bool bForceInvalidQuad;
 #endif
 };
@@ -133,7 +132,6 @@ FVertexInfo GetVertexInfo(FVertexFactoryInput Input)
 	VertexInfo.HairControlPointId = BaseIndex;
 	VertexInfo.VertexIndex = BaseIndex + VertexInfo.IsTip;
 #if !RAYHITGROUPSHADER
-	VertexInfo.LodRadiusScale = 1.0f;
 	VertexInfo.bForceInvalidQuad = false;
 #endif
 
@@ -141,10 +139,6 @@ FVertexInfo GetVertexInfo(FVertexFactoryInput Input)
 	if (HairStrandsVF.bCullingEnable)
 	{
 		VertexInfo.VertexIndex = HairStrandsVF.CullingIndexBuffer[BaseIndex + VertexInfo.IsTip];
-#if !RAYHITGROUPSHADER
-		VertexInfo.LodRadiusScale = HairStrandsVF.CullingRadiusScaleBuffer[BaseIndex + VertexInfo.IsTip];
-		VertexInfo.bForceInvalidQuad = VertexInfo.LodRadiusScale <= 0.0f;
-#endif
 		VertexInfo.HairControlPointId = VertexInfo.VertexIndex - VertexInfo.IsTip;
 	}
 #endif
@@ -212,11 +206,7 @@ FHairControlPoint GetVertexPosition(const FVertexInfo VertexInfo, bool bInvalidJ
 		HairStrandsVF.PositionBuffer,
 		VertexInfo.VertexIndex, 
 		PositionOffset,
-#if RAYHITGROUPSHADER
 		HairStrandsVF.Radius,
-#else
-		HairStrandsVF.Radius * VertexInfo.LodRadiusScale,
-#endif
 		HairStrandsVF.RootScale,
 		HairStrandsVF.TipScale);
 	
@@ -254,11 +244,7 @@ float3 GetVertexPreviousPosition(FVertexFactoryInput Input, bool bInvalidJointVe
 		HairStrandsVF.PreviousPositionBuffer,
 		VertexInfo.VertexIndex,
 		PreviousPositionOffset,
-#if RAYHITGROUPSHADER
 		HairStrandsVF.Radius,
-#else
-		HairStrandsVF.Radius * VertexInfo.LodRadiusScale,
-#endif
 		HairStrandsVF.RootScale,
 		HairStrandsVF.TipScale);
 
@@ -410,11 +396,8 @@ RAY_TRACING_ENTRY_INTERSECTION(MaterialIS)
 
 	uint VertexIndex0 = PrimitiveIndex() / HairStrandsVF.RaytracingProceduralSplits;
 	uint VertexIndex1 = VertexIndex0 + 1;
-	float ScaleR0 = 1, ScaleR1 = 1;
 	if (HairStrandsVF.bCullingEnable)
 	{
-		ScaleR0 = HairStrandsVF.CullingRadiusScaleBuffer[VertexIndex0];
-		ScaleR1 = HairStrandsVF.CullingRadiusScaleBuffer[VertexIndex1];
 		VertexIndex0 = HairStrandsVF.CullingIndexBuffer[VertexIndex0];
 		VertexIndex1 = HairStrandsVF.CullingIndexBuffer[VertexIndex1];
 	}
@@ -425,14 +408,14 @@ RAY_TRACING_ENTRY_INTERSECTION(MaterialIS)
 		HairStrandsVF.PositionBuffer,
 		VertexIndex0,
 		PositionOffset,
-		EffectiveRadius * ScaleR0,
+		EffectiveRadius,
 		HairStrandsVF.RootScale,
 		HairStrandsVF.TipScale);
 	FHairControlPoint P1 = ReadHairControlPoint(
 		HairStrandsVF.PositionBuffer,
 		VertexIndex1,
 		PositionOffset,
-		EffectiveRadius * ScaleR1,
+		EffectiveRadius,
 		HairStrandsVF.RootScale,
 		HairStrandsVF.TipScale);
 

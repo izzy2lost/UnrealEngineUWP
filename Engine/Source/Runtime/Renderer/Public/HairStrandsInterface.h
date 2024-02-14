@@ -84,7 +84,6 @@ BEGIN_SHADER_PARAMETER_STRUCT(FHairStrandsInstanceCullingParameters, RENDERER_AP
 	SHADER_PARAMETER(uint32, bCullingEnable)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, CullingIndirectBuffer)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, CullingIndexBuffer)
-	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, CullingRadiusScaleBuffer)
 	RDG_BUFFER_ACCESS(CullingIndirectBufferArgs, ERHIAccess::IndirectArgs)
 END_SHADER_PARAMETER_STRUCT()
 
@@ -116,7 +115,6 @@ BEGIN_SHADER_PARAMETER_STRUCT(FHairStrandsInstanceCullingRawParameters, RENDERER
 	SHADER_PARAMETER(uint32, bCullingEnable)
 //	SHADER_PARAMETER_SRV(Buffer<uint>, CullingIndirectBuffer)
 	SHADER_PARAMETER_SRV(Buffer<uint>, CullingIndexBuffer)
-	SHADER_PARAMETER_SRV(Buffer<float>, CullingRadiusScaleBuffer)
 END_SHADER_PARAMETER_STRUCT()
 
 // Intermediate struct which can be referenced by FHairStrandsInstanceParameters for getting 
@@ -231,11 +229,9 @@ public:
 
 	const FRDGExternalBuffer& GetCulledCurveBuffer() const { return Culling->CulledCurveBuffer; }
 	const FRDGExternalBuffer& GetCulledVertexIdBuffer() const { return Culling->CulledVertexIdBuffer; }
-	const FRDGExternalBuffer& GetCulledVertexRadiusScaleBuffer() const { return Culling->CulledVertexRadiusScaleBuffer; }
 
 	FRDGExternalBuffer& GetCulledCurveBuffer() { return Culling->CulledCurveBuffer; }
 	FRDGExternalBuffer& GetCulledVertexIdBuffer() { return Culling->CulledVertexIdBuffer; }
-	FRDGExternalBuffer& GetCulledVertexRadiusScaleBuffer() { return Culling->CulledVertexRadiusScaleBuffer; }
 
 	bool GetCullingResultAvailable() const { return Culling->bCullingResultAvailable; }
 	void SetCullingResultAvailable(bool b) { Culling->bCullingResultAvailable = b; }
@@ -294,6 +290,7 @@ public:
 	RENDERER_API uint32 GetActiveStrandsPointCount() const;
 	RENDERER_API uint32 GetActiveStrandsCurveCount() const;
 	RENDERER_API float  GetActiveStrandsCoverageScale() const;
+	RENDERER_API float  GetActiveStrandsRadiusScale() const;
 
 	struct FVertexFactoryInput 
 	{
@@ -358,7 +355,6 @@ public:
 		/* Culling & LODing results for a hair group */ // Better to be transient?
 		FRDGExternalBuffer CulledCurveBuffer;
 		FRDGExternalBuffer CulledVertexIdBuffer;
-		FRDGExternalBuffer CulledVertexRadiusScaleBuffer;
 		bool bCullingResultAvailable = false;
 	};
 
@@ -404,6 +400,7 @@ public:
 	uint32 ContinuousLODCurveCount = 0;
 	float ContinuousLODScreenSize = 1.f;
 	float ContinuousLODCoverageScale = 1.f;
+	float ContinuousLODRadiusScale = 1.f;
 	FVector2f ContinuousLODScreenPos = FVector2f(0,0);
 	FBoxSphereBounds ContinuousLODBounds; 	//used by Continuous LOD
 

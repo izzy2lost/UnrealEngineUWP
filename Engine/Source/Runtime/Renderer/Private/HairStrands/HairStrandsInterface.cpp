@@ -346,6 +346,11 @@ float FHairGroupPublicData::GetActiveStrandsCoverageScale() const
 	return ContinuousLODCoverageScale; 
 }
 
+float FHairGroupPublicData::GetActiveStrandsRadiusScale() const
+{
+	return ContinuousLODRadiusScale; 
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Bookmark API
 THairStrandsBookmarkFunction  GHairStrandsBookmarkFunction = nullptr;
