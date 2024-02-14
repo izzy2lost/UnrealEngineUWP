@@ -149,7 +149,7 @@ void ULearningAgentsController::EvaluateController()
 
 	for (int32 AgentIdx = 0; AgentIdx < Manager->GetAgentNum(); AgentIdx++)
 	{
-		if (ULearningAgentsActions::ValidateObjectMatchesSchema(
+		if (ULearningAgentsActions::ValidateActionObjectMatchesSchema(
 			Interactor->ActionSchema,
 			Interactor->ActionSchemaElement, 
 			Interactor->ActionObject, 
