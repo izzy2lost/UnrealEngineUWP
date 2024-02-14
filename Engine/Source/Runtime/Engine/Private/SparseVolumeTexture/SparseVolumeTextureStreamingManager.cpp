@@ -1400,6 +1400,7 @@ void FStreamingManager::InstallReadyRequests()
 			check(PendingRequest.State == FPendingRequest::EState::Disk);
 #endif
 			SrcPtr = PendingRequest.RequestBuffer.GetData();
+			SrcEndPtr = SrcPtr + PendingRequest.RequestBuffer.DataSize();
 		}
 
 		check(SrcPtr);
