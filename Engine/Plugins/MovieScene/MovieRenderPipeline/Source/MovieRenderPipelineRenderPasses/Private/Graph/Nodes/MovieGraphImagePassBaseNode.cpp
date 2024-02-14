@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Graph/Nodes/MovieGraphImagePassBaseNode.h"
-#include "Graph/MoviePipelineRenderLayerSubsystem.h" 
+#include "Graph/MovieGraphRenderLayerSubsystem.h" 
 
 
 static TAutoConsoleVariable<bool> CVarMoviePipelineFlushRenderingPerLayerHack(
@@ -52,8 +52,8 @@ void UMovieGraphImagePassBaseNode::RenderImpl(const FMovieGraphTraversalContext&
 {
 	for (const TUniquePtr<UE::MovieGraph::Rendering::FMovieGraphImagePassBase>& Instance : CurrentInstances)
 	{
-		UMoviePipelineRenderLayerSubsystem* LayerSubsystem =
-			Instance->GetRenderer()->GetWorld()->GetSubsystem<UMoviePipelineRenderLayerSubsystem>();
+		UMovieGraphRenderLayerSubsystem* LayerSubsystem =
+			Instance->GetRenderer()->GetWorld()->GetSubsystem<UMovieGraphRenderLayerSubsystem>();
 		
 		// Apply all modifiers in the evaluated graph
 		if (LayerSubsystem)

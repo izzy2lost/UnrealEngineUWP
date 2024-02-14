@@ -6,7 +6,7 @@
 #include "Graph/MovieGraphDataTypes.h"
 #include "Graph/MovieGraphDefaultRenderer.h"
 #include "Graph/MovieGraphPipeline.h"
-#include "Graph/MoviePipelineRenderLayerSubsystem.h"
+#include "Graph/MovieGraphRenderLayerSubsystem.h"
 #include "Graph/MovieGraphBlueprintLibrary.h"
 #include "MovieRenderOverlappedImage.h"
 #include "MoviePipelineSurfaceReader.h"

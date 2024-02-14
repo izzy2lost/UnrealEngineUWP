@@ -4,7 +4,7 @@
 
 #include "Graph/MovieGraphConfig.h"
 #include "Graph/MovieGraphNode.h"
-#include "Graph/MoviePipelineRenderLayerSubsystem.h"
+#include "Graph/MovieGraphRenderLayerSubsystem.h"
 
 #include "MovieGraphModifierNode.generated.h"
 
@@ -21,11 +21,11 @@ public:
 	// ~IMovieGraphTraversableObject interface
 
 private:
-	void MergeProperties(const TObjectPtr<UMoviePipelineCollectionModifier>& InDestModifier, const TObjectPtr<UMoviePipelineCollectionModifier>& InSourceModifier);
+	void MergeProperties(const TObjectPtr<UMovieGraphCollectionModifier>& InDestModifier, const TObjectPtr<UMovieGraphCollectionModifier>& InSourceModifier);
 
 public:
 	UPROPERTY()
-	TArray<TObjectPtr<UMoviePipelineCollectionModifier>> Modifiers;
+	TArray<TObjectPtr<UMovieGraphCollectionModifier>> Modifiers;
 };
 
 /** 
@@ -55,22 +55,22 @@ public:
 
 	/** Gets the modifier of the specified type, or nullptr if one does not exist on this node. */
 	UFUNCTION(BlueprintCallable, Category = "Modifiers")
-	UMoviePipelineCollectionModifier* GetModifier(TSubclassOf<UMoviePipelineCollectionModifier> ModifierType) const;
+	UMovieGraphCollectionModifier* GetModifier(TSubclassOf<UMovieGraphCollectionModifier> ModifierType) const;
 
 	/** Gets all modifiers currently added to the node. */
 	UFUNCTION(BlueprintCallable, Category = "Modifiers")
-	const TArray<UMoviePipelineCollectionModifier*>& GetModifiers() const;
+	const TArray<UMovieGraphCollectionModifier*>& GetModifiers() const;
 
 	/**
 	 * Adds a new modifier of the specified type. Returns a pointer to the new modifier, or nullptr if a modifier of the specified type already
 	 * exists on this node (only one modifier of each type can be added to the node).
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Modifiers")
-	UMoviePipelineCollectionModifier* AddModifier(TSubclassOf<UMoviePipelineCollectionModifier> ModifierType);
+	UMovieGraphCollectionModifier* AddModifier(TSubclassOf<UMovieGraphCollectionModifier> ModifierType);
 
 	/** Removes the modifier of the specified type. Returns true on success, or false if a modifier of the specified type does not exist on the node. */
 	UFUNCTION(BlueprintCallable, Category = "Modifiers")
-	bool RemoveModifier(TSubclassOf<UMoviePipelineCollectionModifier> ModifierType);
+	bool RemoveModifier(TSubclassOf<UMovieGraphCollectionModifier> ModifierType);
 
 	/** Add a collection identified by the given name which will be affected by the modifiers on this node. */
 	UFUNCTION(BlueprintCallable, Category = "Modifiers")

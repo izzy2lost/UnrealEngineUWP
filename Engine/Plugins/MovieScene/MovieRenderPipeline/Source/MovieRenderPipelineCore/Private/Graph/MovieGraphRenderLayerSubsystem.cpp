@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Graph/MoviePipelineRenderLayerSubsystem.h"
+#include "Graph/MovieGraphRenderLayerSubsystem.h"
 
 #include "Components/PrimitiveComponent.h"
 #include "Components/SkyAtmosphereComponent.h"
@@ -81,7 +81,7 @@ namespace UE::MovieGraph::Private
 #endif
 }
 
-void UMoviePipelineMaterialModifier::ApplyModifier(const UWorld* World)
+void UMovieGraphMaterialModifier::ApplyModifier(const UWorld* World)
 {
 	UMaterialInterface* NewMaterial = Material.LoadSynchronous();
 	if (!NewMaterial)
@@ -119,7 +119,7 @@ void UMoviePipelineMaterialModifier::ApplyModifier(const UWorld* World)
 	}
 }
 
-void UMoviePipelineMaterialModifier::UndoModifier()
+void UMovieGraphMaterialModifier::UndoModifier()
 {
 	for (const FComponentToMaterialMap::ElementType& ModifiedComponent : ModifiedComponents) 
 	{
@@ -147,7 +147,7 @@ void UMoviePipelineMaterialModifier::UndoModifier()
 	ModifiedComponents.Empty();
 }
 
-UMoviePipelineVisibilityModifier::UMoviePipelineVisibilityModifier()
+UMovieGraphRenderPropertyModifier::UMovieGraphRenderPropertyModifier()
 	: bIsHidden(false)
 	, bCastsShadows(true)
 	, bCastShadowWhileHidden(false)
@@ -158,7 +158,7 @@ UMoviePipelineVisibilityModifier::UMoviePipelineVisibilityModifier()
 	// override will initially be a no-op due to the defaults being the same.
 }
 
-void UMoviePipelineVisibilityModifier::ApplyModifier(const UWorld* World)
+void UMovieGraphRenderPropertyModifier::ApplyModifier(const UWorld* World)
 {
 	ModifiedActors.Empty();
 
@@ -236,7 +236,7 @@ void UMoviePipelineVisibilityModifier::ApplyModifier(const UWorld* World)
 	}
 }
 
-void UMoviePipelineVisibilityModifier::UndoModifier()
+void UMovieGraphRenderPropertyModifier::UndoModifier()
 {
 	for (const FActorVisibilityState& PrevVisibilityState : ModifiedActors)
 	{
@@ -246,7 +246,7 @@ void UMoviePipelineVisibilityModifier::UndoModifier()
 	ModifiedActors.Empty();
 }
 
-void UMoviePipelineVisibilityModifier::SetActorVisibilityState(const FActorVisibilityState& NewVisibilityState)
+void UMovieGraphRenderPropertyModifier::SetActorVisibilityState(const FActorVisibilityState& NewVisibilityState)
 {
 	const TSoftObjectPtr<AActor> Actor = NewVisibilityState.Actor.LoadSynchronous();
 	if (!Actor)
@@ -320,7 +320,7 @@ void UMoviePipelineVisibilityModifier::SetActorVisibilityState(const FActorVisib
 }
 
 // TODO: This really should be "DoesComponentMatchQuery()"
-bool UMoviePipelineCollectionCommonQuery::DoesActorMatchQuery(const AActor* Actor) const
+bool UMovieGraphCollectionCommonQuery::DoesActorMatchQuery(const AActor* Actor) const
 {
 	if (!Actor)
 	{
@@ -371,7 +371,7 @@ bool UMoviePipelineCollectionCommonQuery::DoesActorMatchQuery(const AActor* Acto
 	const bool bUsingComponentTypes = !ComponentTypes.IsEmpty();
 	const bool bUsingTags = !Tags.IsEmpty();
 
-	if (QueryMode == EMoviePipelineCollectionCommonQueryMode::And)
+	if (QueryMode == EMovieGraphCollectionCommonQueryMode::And)
 	{
 		return (!bUsingActorNames || bMatchesActorNames) &&
 			   (!bUsingTags || bMatchesTags) &&
@@ -381,7 +381,7 @@ bool UMoviePipelineCollectionCommonQuery::DoesActorMatchQuery(const AActor* Acto
 	return bMatchesActorNames || bMatchesTags || bMatchesComponentTypes;
 }
 
-bool UMoviePipelineCollectionLightingQuery::DoesActorMatchQuery(const AActor* Actor) const
+bool UMovieGraphCollectionLightingQuery::DoesActorMatchQuery(const AActor* Actor) const
 {
 	const TArray<UClass*> LightingComponentTypes = {
 		ULightComponentBase::StaticClass(),
@@ -408,49 +408,7 @@ bool UMoviePipelineCollectionLightingQuery::DoesActorMatchQuery(const AActor* Ac
 	return false;
 }
 
-TArray<AActor*> UMoviePipelineCollection::GetMatchingActors(const UWorld* World, const bool bInvertResult) const
-{
-	TRACE_CPUPROFILER_EVENT_SCOPE(MRQ::Collection::GetMatchingActors);
-	
-	TArray<AActor*> MatchingActors;
-
-	for (TActorIterator<AActor> ActorItr(World); ActorItr; ++ActorItr)
-	{
-		AActor* Actor = *ActorItr;
-		if (!Actor)
-		{
-			continue;
-		}
-
-		// If there aren't any queries, and the result should be inverted, just include the actor
-		if (bInvertResult && Queries.IsEmpty())
-		{
-			MatchingActors.Add(Actor);
-			continue;
-		}
-
-		for (const UMoviePipelineCollectionQuery* Query : Queries)
-		{
-			const bool bActorMatchesQuery = Query->DoesActorMatchQuery(Actor);
-			
-			if (bActorMatchesQuery && !bInvertResult)
-			{
-				MatchingActors.Add(Actor);
-				break;
-			}
-
-			if (!bActorMatchesQuery && bInvertResult)
-			{
-				MatchingActors.Add(Actor);
-				break;
-			}
-		}
-	}
-	
-	return MatchingActors;
-}
-
-void UMoviePipelineCollectionModifier::AddCollection(UMovieGraphCollection* Collection)
+void UMovieGraphCollectionModifier::AddCollection(UMovieGraphCollection* Collection)
 {
 	// Don't allow adding a duplicate collection
 	for (const UMovieGraphCollection* ExistingCollection : Collections)
@@ -462,14 +420,6 @@ void UMoviePipelineCollectionModifier::AddCollection(UMovieGraphCollection* Coll
 	}
 	
 	Collections.Add(Collection);
-}
-
-void UMoviePipelineCollection::AddQuery(UMoviePipelineCollectionQuery* Query)
-{
-	if (!Queries.Contains(Query))
-	{
-		Queries.Add(Query);
-	}
 }
 
 UMovieGraphConditionGroupQueryBase::UMovieGraphConditionGroupQueryBase()
@@ -1866,9 +1816,9 @@ const FString& UMovieGraphCollection::GetCollectionName() const
 	return CollectionName;
 }
 
-UMovieGraphCollection* UMoviePipelineRenderLayer::GetCollectionByName(const FString& Name) const
+UMovieGraphCollection* UMovieGraphRenderLayer::GetCollectionByName(const FString& Name) const
 {
-	for (const UMoviePipelineCollectionModifier* Modifier : Modifiers)
+	for (const UMovieGraphCollectionModifier* Modifier : Modifiers)
 	{
 		if (!Modifier)
 		{
@@ -1887,7 +1837,7 @@ UMovieGraphCollection* UMoviePipelineRenderLayer::GetCollectionByName(const FStr
 	return nullptr;
 }
 
-void UMoviePipelineRenderLayer::AddModifier(UMoviePipelineCollectionModifier* Modifier)
+void UMovieGraphRenderLayer::AddModifier(UMovieGraphCollectionModifier* Modifier)
 {
 	if (!Modifiers.Contains(Modifier))
 	{
@@ -1895,12 +1845,12 @@ void UMoviePipelineRenderLayer::AddModifier(UMoviePipelineCollectionModifier* Mo
 	}
 }
 
-void UMoviePipelineRenderLayer::RemoveModifier(UMoviePipelineCollectionModifier* Modifier)
+void UMovieGraphRenderLayer::RemoveModifier(UMovieGraphCollectionModifier* Modifier)
 {
 	Modifiers.Remove(Modifier);
 }
 
-void UMoviePipelineRenderLayer::Preview(const UWorld* World)
+void UMovieGraphRenderLayer::Preview(const UWorld* World)
 {
 	if (!World)
 	{
@@ -1908,13 +1858,13 @@ void UMoviePipelineRenderLayer::Preview(const UWorld* World)
 	}
 	
 	// Apply all modifiers
-	for (UMoviePipelineCollectionModifier* Modifier : Modifiers)
+	for (UMovieGraphCollectionModifier* Modifier : Modifiers)
 	{
 		Modifier->ApplyModifier(World);
 	}
 }
 
-void UMoviePipelineRenderLayer::UndoPreview(const UWorld* World)
+void UMovieGraphRenderLayer::UndoPreview(const UWorld* World)
 {
 	if (!World)
 	{
@@ -1925,7 +1875,7 @@ void UMoviePipelineRenderLayer::UndoPreview(const UWorld* World)
 	// state of one modifier may depend on modifiers that were previously applied.
 	for (int32 Index = Modifiers.Num() - 1; Index >= 0; Index--)
 	{
-		if (UMoviePipelineCollectionModifier* Modifier = Modifiers[Index])
+		if (UMovieGraphCollectionModifier* Modifier = Modifiers[Index])
 		{
 			Modifier->UndoModifier();
 		}
@@ -1933,45 +1883,45 @@ void UMoviePipelineRenderLayer::UndoPreview(const UWorld* World)
 }
 
 
-UMoviePipelineRenderLayerSubsystem* UMoviePipelineRenderLayerSubsystem::GetFromWorld(const UWorld* World)
+UMovieGraphRenderLayerSubsystem* UMovieGraphRenderLayerSubsystem::GetFromWorld(const UWorld* World)
 {
 	if (World)
 	{
-		return UWorld::GetSubsystem<UMoviePipelineRenderLayerSubsystem>(World);
+		return UWorld::GetSubsystem<UMovieGraphRenderLayerSubsystem>(World);
 	}
 
 	return nullptr;
 }
 
-void UMoviePipelineRenderLayerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+void UMovieGraphRenderLayerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	VisualizationEmptyCollection = NewObject<UMovieGraphCollection>(GetTransientPackage(), NAME_None, RF_Transient);
 
 	// By default, the visualizer should hide everything in the world
-	VisualizationModifier_HideWorld = NewObject<UMoviePipelineVisibilityModifier>(GetTransientPackage(), NAME_None, RF_Transient);
+	VisualizationModifier_HideWorld = NewObject<UMovieGraphRenderPropertyModifier>(GetTransientPackage(), NAME_None, RF_Transient);
 	VisualizationModifier_HideWorld->AddCollection(VisualizationEmptyCollection);
 	VisualizationModifier_HideWorld->SetHidden(true);
 
 	// Selectively show collections in the visualization
-	VisualizationModifier_VisibleCollections = NewObject<UMoviePipelineVisibilityModifier>(GetTransientPackage(), NAME_None, RF_Transient);
+	VisualizationModifier_VisibleCollections = NewObject<UMovieGraphRenderPropertyModifier>(GetTransientPackage(), NAME_None, RF_Transient);
 
 	// The visualizer render layer will hide the world, selectively show specified collections, and then apply any other provided modifiers
-	VisualizationRenderLayer = NewObject<UMoviePipelineRenderLayer>(GetTransientPackage(), NAME_None, RF_Transient);
+	VisualizationRenderLayer = NewObject<UMovieGraphRenderLayer>(GetTransientPackage(), NAME_None, RF_Transient);
 	VisualizationRenderLayer->AddModifier(VisualizationModifier_HideWorld);
 	VisualizationRenderLayer->AddModifier(VisualizationModifier_VisibleCollections);
 }
 
-void UMoviePipelineRenderLayerSubsystem::Deinitialize()
+void UMovieGraphRenderLayerSubsystem::Deinitialize()
 {
 }
 
-void UMoviePipelineRenderLayerSubsystem::Reset()
+void UMovieGraphRenderLayerSubsystem::Reset()
 {
 	ClearAllPreviews();
 	RenderLayers.Empty();
 }
 
-bool UMoviePipelineRenderLayerSubsystem::AddRenderLayer(UMoviePipelineRenderLayer* RenderLayer)
+bool UMovieGraphRenderLayerSubsystem::AddRenderLayer(UMovieGraphRenderLayer* RenderLayer)
 {
 	if (!RenderLayer)
 	{
@@ -1979,7 +1929,7 @@ bool UMoviePipelineRenderLayerSubsystem::AddRenderLayer(UMoviePipelineRenderLaye
 		return false;
 	}
 	
-	const bool bRenderLayerExists = RenderLayers.ContainsByPredicate([RenderLayer](const UMoviePipelineRenderLayer* RL)
+	const bool bRenderLayerExists = RenderLayers.ContainsByPredicate([RenderLayer](const UMovieGraphRenderLayer* RL)
 	{
 		return RL && (RenderLayer->GetRenderLayerName() == RL->GetName());
 	});
@@ -1994,14 +1944,14 @@ bool UMoviePipelineRenderLayerSubsystem::AddRenderLayer(UMoviePipelineRenderLaye
 	return true;
 }
 
-void UMoviePipelineRenderLayerSubsystem::RemoveRenderLayer(const FString& RenderLayerName)
+void UMovieGraphRenderLayerSubsystem::RemoveRenderLayer(const FString& RenderLayerName)
 {
 	if (ActiveRenderLayer && (ActiveRenderLayer->GetName() == RenderLayerName))
 	{
 		ClearAllPreviews();
 	}
 	
-	const uint32 Index = RenderLayers.IndexOfByPredicate([&RenderLayerName](const UMoviePipelineRenderLayer* RenderLayer)
+	const uint32 Index = RenderLayers.IndexOfByPredicate([&RenderLayerName](const UMovieGraphRenderLayer* RenderLayer)
 	{
 		return RenderLayer->GetRenderLayerName() == RenderLayerName;
 	});
@@ -2012,7 +1962,7 @@ void UMoviePipelineRenderLayerSubsystem::RemoveRenderLayer(const FString& Render
 	}
 }
 
-void UMoviePipelineRenderLayerSubsystem::SetActiveRenderLayerByObj(UMoviePipelineRenderLayer* RenderLayer)
+void UMovieGraphRenderLayerSubsystem::SetActiveRenderLayerByObj(UMovieGraphRenderLayer* RenderLayer)
 {
 	if (!RenderLayer)
 	{
@@ -2023,9 +1973,9 @@ void UMoviePipelineRenderLayerSubsystem::SetActiveRenderLayerByObj(UMoviePipelin
 	SetAndPreviewRenderLayer(RenderLayer);
 }
 
-void UMoviePipelineRenderLayerSubsystem::SetActiveRenderLayerByName(const FName& RenderLayerName)
+void UMovieGraphRenderLayerSubsystem::SetActiveRenderLayerByName(const FName& RenderLayerName)
 {
-	const uint32 Index = RenderLayers.IndexOfByPredicate([&RenderLayerName](const UMoviePipelineRenderLayer* RenderLayer)
+	const uint32 Index = RenderLayers.IndexOfByPredicate([&RenderLayerName](const UMovieGraphRenderLayer* RenderLayer)
 	{
 		return RenderLayer->GetRenderLayerName() == RenderLayerName;
 	});
@@ -2036,12 +1986,12 @@ void UMoviePipelineRenderLayerSubsystem::SetActiveRenderLayerByName(const FName&
 	}
 }
 
-void UMoviePipelineRenderLayerSubsystem::ClearActiveRenderLayer()
+void UMovieGraphRenderLayerSubsystem::ClearActiveRenderLayer()
 {
 	ClearAllPreviews();
 }
 
-void UMoviePipelineRenderLayerSubsystem::PreviewCollection(UMovieGraphCollection* Collection)
+void UMovieGraphRenderLayerSubsystem::PreviewCollection(UMovieGraphCollection* Collection)
 {
 	if (!Collection)
 	{
@@ -2056,12 +2006,12 @@ void UMoviePipelineRenderLayerSubsystem::PreviewCollection(UMovieGraphCollection
 	SetAndPreviewRenderLayer(VisualizationRenderLayer);
 }
 
-void UMoviePipelineRenderLayerSubsystem::ClearCollectionPreview()
+void UMovieGraphRenderLayerSubsystem::ClearCollectionPreview()
 {
 	ClearAllPreviews();
 }
 
-void UMoviePipelineRenderLayerSubsystem::ClearAllPreviews()
+void UMovieGraphRenderLayerSubsystem::ClearAllPreviews()
 {
 	// Render layer previews and collection previews both use the active render layer, so undoing the preview this
 	// way will clear previews for both
@@ -2084,13 +2034,13 @@ void UMoviePipelineRenderLayerSubsystem::ClearAllPreviews()
 	ActiveModifier = nullptr;
 }
 
-void UMoviePipelineRenderLayerSubsystem::SetAndPreviewRenderLayer(UMoviePipelineRenderLayer* RenderLayer)
+void UMovieGraphRenderLayerSubsystem::SetAndPreviewRenderLayer(UMovieGraphRenderLayer* RenderLayer)
 {
 	ActiveRenderLayer = RenderLayer;
 	ActiveRenderLayer->Preview(GetWorld());
 }
 
-void UMoviePipelineRenderLayerSubsystem::PreviewModifier(UMoviePipelineCollectionModifier* Modifier)
+void UMovieGraphRenderLayerSubsystem::PreviewModifier(UMovieGraphCollectionModifier* Modifier)
 {
 	if (!Modifier)
 	{
@@ -2112,7 +2062,7 @@ void UMoviePipelineRenderLayerSubsystem::PreviewModifier(UMoviePipelineCollectio
 	SetAndPreviewRenderLayer(VisualizationRenderLayer);
 }
 
-void UMoviePipelineRenderLayerSubsystem::ClearModifierPreview()
+void UMovieGraphRenderLayerSubsystem::ClearModifierPreview()
 {
 	ClearAllPreviews();
 }

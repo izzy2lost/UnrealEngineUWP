@@ -11,42 +11,9 @@
 #include "ContentBrowserDelegates.h"
 #endif	// WITH_EDITOR
 
-#include "MoviePipelineRenderLayerSubsystem.generated.h"
+#include "MovieGraphRenderLayerSubsystem.generated.h"
 
 class SWidget;
-
-/**
- * EXPERIMENTAL
- */
-
-/**
- * Generates a collection of actors via provided queries.
- */
-UCLASS(BlueprintType)
-class UMoviePipelineCollection : public UObject
-{
-	GENERATED_BODY()
-
-public:
-	UFUNCTION(BlueprintCallable, Category = "Settings")
-	TArray<AActor*> GetMatchingActors(const UWorld* World, const bool bInvertResult = false) const;
-
-	UFUNCTION(BlueprintCallable, Category = "Settings")
-	void AddQuery(UMoviePipelineCollectionQuery* Query);
-
-	UFUNCTION(BlueprintCallable, Category = "Settings")
-	void SetCollectionName(const FString& InName) { CollectionName = InName; }
-
-	UFUNCTION(BlueprintCallable, Category = "Settings")
-	FString GetCollectionName() const { return CollectionName; }
-
-private:
-	UPROPERTY()
-	FString CollectionName;
-
-	UPROPERTY()
-	TArray<TObjectPtr<UMoviePipelineCollectionQuery>> Queries;
-};
 
 /** Operation types available on condition groups. */
 UENUM(BlueprintType)
@@ -609,7 +576,7 @@ private:
  * Base class for providing actor modification functionality via collections.
  */
 UCLASS(Abstract)
-class MOVIERENDERPIPELINECORE_API UMoviePipelineCollectionModifier : public UObject
+class MOVIERENDERPIPELINECORE_API UMovieGraphCollectionModifier : public UObject
 {
 	GENERATED_BODY()
 
@@ -625,8 +592,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Settings")
 	TArray<UMovieGraphCollection*> GetCollections() const { return Collections; }
 
-	virtual void ApplyModifier(const UWorld* World) PURE_VIRTUAL(UMoviePipelineCollectionModifier::ApplyModifier, );
-	virtual void UndoModifier() PURE_VIRTUAL(UMoviePipelineCollectionModifier::UndoModifier, );
+	virtual void ApplyModifier(const UWorld* World) PURE_VIRTUAL(UMovieGraphCollectionModifier::ApplyModifier, );
+	virtual void UndoModifier() PURE_VIRTUAL(UMovieGraphCollectionModifier::UndoModifier, );
 
 protected:
 	/** The collections which this modifier will operate on. */
@@ -638,7 +605,7 @@ protected:
  * Modifies actor materials.
  */
 UCLASS(BlueprintType, DisplayName="Material")
-class MOVIERENDERPIPELINECORE_API UMoviePipelineMaterialModifier : public UMoviePipelineCollectionModifier
+class MOVIERENDERPIPELINECORE_API UMovieGraphMaterialModifier : public UMovieGraphCollectionModifier
 {
 	GENERATED_BODY()
 
@@ -671,12 +638,12 @@ public:
  * Modifies actor visibility.
  */
 UCLASS(BlueprintType, DisplayName="Visibility")
-class MOVIERENDERPIPELINECORE_API UMoviePipelineVisibilityModifier : public UMoviePipelineCollectionModifier
+class MOVIERENDERPIPELINECORE_API UMovieGraphRenderPropertyModifier : public UMovieGraphCollectionModifier
 {
 	GENERATED_BODY()
 
 public:
-	UMoviePipelineVisibilityModifier();
+	UMovieGraphRenderPropertyModifier();
 	
 	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void SetHidden(const bool bInIsHidden) { bIsHidden = bInIsHidden; }
@@ -766,16 +733,16 @@ public:
  * Base class for providing the ability to determine if an actor matches a query.
  */
 UCLASS(Abstract)
-class UMoviePipelineCollectionQuery : public UObject
+class UMovieGraphCollectionQueryBase : public UObject
 {
 	GENERATED_BODY()
 
 public:
-	virtual bool DoesActorMatchQuery(const AActor* Actor) const PURE_VIRTUAL(UMoviePipelineCollectionQuery::DoesActorMatchQuery, return false; );  
+	virtual bool DoesActorMatchQuery(const AActor* Actor) const PURE_VIRTUAL(UMovieGraphCollectionQueryBase::DoesActorMatchQuery, return false; );  
 };
 
 UENUM(BlueprintType)
-enum class EMoviePipelineCollectionCommonQueryMode : uint8
+enum class EMovieGraphCollectionCommonQueryMode : uint8
 {
 	And UMETA(ToolTip = "All specifiers in the query must be true"),
 	Or UMETA(ToolTip = "At least one specifier in the query must be true")
@@ -786,7 +753,7 @@ enum class EMoviePipelineCollectionCommonQueryMode : uint8
  * AND'd or OR'd together (eg, matches provided names OR provided tags, vs matches provided names AND provided tags).
  */
 UCLASS(BlueprintType)
-class UMoviePipelineCollectionCommonQuery : public UMoviePipelineCollectionQuery
+class UMovieGraphCollectionCommonQuery : public UMovieGraphCollectionQueryBase
 {
 	GENERATED_BODY()
 
@@ -802,7 +769,7 @@ public:
 	void SetComponentTypes(TArray<UClass*> InComponentTypes) { ComponentTypes = InComponentTypes; }
 
 	UFUNCTION(BlueprintCallable, Category = "Settings")
-	void SetQueryMode(const EMoviePipelineCollectionCommonQueryMode InQueryMode) { QueryMode = InQueryMode; }
+	void SetQueryMode(const EMovieGraphCollectionCommonQueryMode InQueryMode) { QueryMode = InQueryMode; }
 
 	UFUNCTION(BlueprintCallable, Category = "Settings")
 	virtual bool DoesActorMatchQuery(const AActor* Actor) const override;
@@ -812,7 +779,7 @@ public:
 	TArray<TObjectPtr<UClass>> ComponentTypes;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "General")
-	EMoviePipelineCollectionCommonQueryMode QueryMode = EMoviePipelineCollectionCommonQueryMode::And;
+	EMovieGraphCollectionCommonQueryMode QueryMode = EMovieGraphCollectionCommonQueryMode::And;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "General")
 	TArray<FString> ActorNames;
@@ -823,7 +790,7 @@ public:
 
 /** Generates a query that matches all lighting components. */
 UCLASS(BlueprintType)
-class UMoviePipelineCollectionLightingQuery : public UMoviePipelineCollectionQuery
+class UMovieGraphCollectionLightingQuery : public UMovieGraphCollectionQueryBase
 {
 	GENERATED_BODY()
 
@@ -836,12 +803,12 @@ public:
  * Provides a means of assembling modifiers together to generate a desired view of a scene. 
  */
 UCLASS(BlueprintType)
-class UMoviePipelineRenderLayer : public UObject
+class UMovieGraphRenderLayer : public UObject
 {
 	GENERATED_BODY()
 
 public:
-	UMoviePipelineRenderLayer() = default;
+	UMovieGraphRenderLayer() = default;
 
 	UFUNCTION(BlueprintCallable, Category = "Settings")
 	FName GetRenderLayerName() const { return RenderLayerName; };
@@ -853,13 +820,13 @@ public:
 	UMovieGraphCollection* GetCollectionByName(const FString& Name) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Settings")
-	void AddModifier(UMoviePipelineCollectionModifier* Modifier);
+	void AddModifier(UMovieGraphCollectionModifier* Modifier);
 
 	UFUNCTION(BlueprintCallable, Category = "Settings")
-	TArray<UMoviePipelineCollectionModifier*> GetModifiers() const { return Modifiers; };
+	TArray<UMovieGraphCollectionModifier*> GetModifiers() const { return Modifiers; };
 
 	UFUNCTION(BlueprintCallable, Category = "Settings")
-	void RemoveModifier(UMoviePipelineCollectionModifier* Modifier);
+	void RemoveModifier(UMovieGraphCollectionModifier* Modifier);
 
 	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void Preview(const UWorld* World);
@@ -874,7 +841,7 @@ private:
 
 	/** The modifiers that are active when this render layer is active. */
 	UPROPERTY()
-	TArray<TObjectPtr<UMoviePipelineCollectionModifier>> Modifiers;
+	TArray<TObjectPtr<UMovieGraphCollectionModifier>> Modifiers;
 };
 
 /**
@@ -883,16 +850,16 @@ private:
  * the subsystem ahead of time.
  */
 UCLASS()
-class MOVIERENDERPIPELINECORE_API UMoviePipelineRenderLayerSubsystem : public UWorldSubsystem
+class MOVIERENDERPIPELINECORE_API UMovieGraphRenderLayerSubsystem : public UWorldSubsystem
 {
 	GENERATED_BODY()
 
 public:
-	UMoviePipelineRenderLayerSubsystem() = default;
+	UMovieGraphRenderLayerSubsystem() = default;
 
 	/* Get this subsystem for a specific world. Handy for use from Python. */
 	UFUNCTION(BlueprintCallable, Category = "Settings")
-	static UMoviePipelineRenderLayerSubsystem* GetFromWorld(const UWorld* World);
+	static UMovieGraphRenderLayerSubsystem* GetFromWorld(const UWorld* World);
 
 	//~ Begin USubsystem interface
 	virtual bool ShouldCreateSubsystem(UObject* Outer) const override { return true; }
@@ -909,16 +876,16 @@ public:
 	 * if the layer was added successfully, else false.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Settings")
-	bool AddRenderLayer(UMoviePipelineRenderLayer* RenderLayer);
+	bool AddRenderLayer(UMovieGraphRenderLayer* RenderLayer);
 
 	UFUNCTION(BlueprintCallable, Category = "Settings")
-	const TArray<UMoviePipelineRenderLayer*>& GetRenderLayers() { return RenderLayers; }
+	const TArray<UMovieGraphRenderLayer*>& GetRenderLayers() { return RenderLayers; }
 
 	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void RemoveRenderLayer(const FString& RenderLayerName);
 
 	UFUNCTION(BlueprintCallable, Category = "Settings")
-	UMoviePipelineRenderLayer* GetActiveRenderLayer() const { return ActiveRenderLayer; }
+	UMovieGraphRenderLayer* GetActiveRenderLayer() const { return ActiveRenderLayer; }
 
 	/** Previews the layer with the given name. The layer needs to have been registered with AddRenderLayer(). */
 	UFUNCTION(BlueprintCallable, Category = "Settings")
@@ -926,7 +893,7 @@ public:
 
 	/** Previews the given layer. The layer does not need to have been registered with AddRenderLayer(). */
 	UFUNCTION(BlueprintCallable, Category = "Settings")
-	void SetActiveRenderLayerByObj(UMoviePipelineRenderLayer* RenderLayer);
+	void SetActiveRenderLayerByObj(UMovieGraphRenderLayer* RenderLayer);
 
 	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void ClearActiveRenderLayer();
@@ -938,7 +905,7 @@ public:
 	void ClearCollectionPreview();
 
 	UFUNCTION(BlueprintCallable, Category = "Settings")
-	void PreviewModifier(UMoviePipelineCollectionModifier* Modifier);
+	void PreviewModifier(UMovieGraphCollectionModifier* Modifier);
 
 	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void ClearModifierPreview();
@@ -948,16 +915,16 @@ private:
 	void ClearAllPreviews();
 
 	/** Sets the active render layer and previews it. */
-	void SetAndPreviewRenderLayer(UMoviePipelineRenderLayer* RenderLayer);
+	void SetAndPreviewRenderLayer(UMovieGraphRenderLayer* RenderLayer);
 
 private:
 	/** Render layers which have been added/registered with the subsystem. These can be found by name. */
 	UPROPERTY(Transient)
-	TArray<TObjectPtr<UMoviePipelineRenderLayer>> RenderLayers;
+	TArray<TObjectPtr<UMovieGraphRenderLayer>> RenderLayers;
 
 	/** The render layer that is currently being viewed/previewed. */
 	UPROPERTY(Transient)
-	TObjectPtr<UMoviePipelineRenderLayer> ActiveRenderLayer = nullptr;
+	TObjectPtr<UMovieGraphRenderLayer> ActiveRenderLayer = nullptr;
 
 	/** The collection that is currently being viewed/previewed. */
 	UPROPERTY(Transient)
@@ -965,11 +932,11 @@ private:
 
 	/** The modifier that is currently being viewed/previewed. */
 	UPROPERTY(Transient)
-	TObjectPtr<UMoviePipelineCollectionModifier> ActiveModifier = nullptr;
+	TObjectPtr<UMovieGraphCollectionModifier> ActiveModifier = nullptr;
 
 	/** A render layer dedicated to visualizing collections and modifiers. */
 	UPROPERTY(Transient)
-	TObjectPtr<UMoviePipelineRenderLayer> VisualizationRenderLayer = nullptr;
+	TObjectPtr<UMovieGraphRenderLayer> VisualizationRenderLayer = nullptr;
 
 	/** Empty collection used for visualization purposes (in conjunction w/ the viz render layer). */
 	UPROPERTY(Transient)
@@ -977,9 +944,9 @@ private:
 
 	/** A modifier used for visualization purposes (to hide the entire world). */
 	UPROPERTY(Transient)
-	TObjectPtr<UMoviePipelineVisibilityModifier> VisualizationModifier_HideWorld = nullptr;
+	TObjectPtr<UMovieGraphRenderPropertyModifier> VisualizationModifier_HideWorld = nullptr;
 
 	/** A modifier used for visualization purposes (to show collections used with the modifier). */
 	UPROPERTY(Transient)
-	TObjectPtr<UMoviePipelineVisibilityModifier> VisualizationModifier_VisibleCollections = nullptr;
+	TObjectPtr<UMovieGraphRenderPropertyModifier> VisualizationModifier_VisibleCollections = nullptr;
 };

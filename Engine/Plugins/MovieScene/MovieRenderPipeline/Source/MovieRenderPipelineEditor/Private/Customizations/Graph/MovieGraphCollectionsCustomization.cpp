@@ -7,7 +7,7 @@
 #include "DetailWidgetRow.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
-#include "Graph/MoviePipelineRenderLayerSubsystem.h"
+#include "Graph/MovieGraphRenderLayerSubsystem.h"
 #include "Graph/Nodes/MovieGraphCollectionNode.h"
 #include "IDetailChildrenBuilder.h"
 #include "MovieRenderPipelineStyle.h"
