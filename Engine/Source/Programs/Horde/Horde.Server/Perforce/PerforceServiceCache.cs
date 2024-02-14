@@ -450,6 +450,7 @@ namespace Horde.Server.Perforce
 					IoHash prevHash;
 					if (state.Streams.TryGetValue(streamInfo.StreamConfig.Id, out prevHash) && prevHash != streamInfo.Hash)
 					{
+						_logger.LogInformation("Invalidating cached commits for stream {StreamId} due to definition change ({OldHash} -> {NewHash})", streamInfo.StreamConfig.Id, prevHash, streamInfo.Hash);
 						state.MinChanges.Remove(streamInfo.StreamConfig.Id);
 						modified = true;
 					}
