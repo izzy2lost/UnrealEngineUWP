@@ -8,6 +8,8 @@
 #include "Behavior/IAvaTransitionBehavior.h"
 #include "Execution/AvaTransitionExecutorBuilder.h"
 #include "Execution/IAvaTransitionExecutor.h"
+#include "Framework/AvaInstanceSettings.h"
+#include "IAvaMediaModule.h"
 #include "IAvaSceneInterface.h"
 #include "IAvaSequenceProvider.h"
 #include "Playable/AvaPlayable.h"
@@ -431,7 +433,9 @@ void UAvaPlayableLocalTransition::PostTransitionExecutorPhase()
 		}
 	}
 
-	if (bSequenceStarted)
+	const FAvaInstanceSettings& PlaybackInstanceSettings = IAvaMediaModule::Get().GetAvaInstanceSettings();
+
+	if (bSequenceStarted && PlaybackInstanceSettings.bDefaultPlayableTransitionWaitForSequences)
 	{
 		StartWaitOnPostExecutorSequences();
 	}
