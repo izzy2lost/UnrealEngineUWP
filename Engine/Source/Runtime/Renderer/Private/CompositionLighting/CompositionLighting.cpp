@@ -498,8 +498,10 @@ FCompositionLighting::FCompositionLighting(TArrayView<const FViewInfo> InViews, 
 	, ViewFamily(*InViews[0].Family)
 	, SceneTextures(InSceneTextures)
 	, bEnableDBuffer(IsDBufferEnabled(ViewFamily, SceneTextures.Config.ShaderPlatform))
-	, bEnableDecals(ViewFamily.EngineShowFlags.Decals && !ViewFamily.EngineShowFlags.VisualizeLightCulling)
+	, bEnableDecals(AreDecalsEnabled(ViewFamily))
 {
+	checkf(bEnableDecals || !bEnableDBuffer, TEXT("DBuffer should only be enabled when Decals are enabled."));
+
 	const FScene& Scene = *(FScene*)ViewFamily.Scene;
 
 	ViewAOConfigs.SetNum(Views.Num());
