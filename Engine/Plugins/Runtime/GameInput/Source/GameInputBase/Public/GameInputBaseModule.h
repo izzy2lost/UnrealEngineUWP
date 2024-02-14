@@ -32,4 +32,10 @@ public:
 protected:
 
 	void InitializeGameInputKeys();
+
+#if PLATFORM_WINDOWS && GAME_INPUT_SUPPORT
+	// Handle to the game input dll which is set on StartupModule.
+	// If we can't find the DLL then we will early exit and not attempt to initalize GameInput.
+	void* GameInputDLLHandle = nullptr;
+#endif // endif PLATFORM_WINDOWS && GAME_INPUT_SUPPORT
 };

@@ -58,16 +58,10 @@ namespace UnrealBuildTool.Rules
 			string GRDKLatestPath = Environment.GetEnvironmentVariable("GRDKLatest");
 			
 			// GameInput.h is from    <GRDKLatest>\GameKit\Include\GameInput.h
-			// GameInput.lib is from  <GRDKLatest>\GameKit\Lib\amd64\GameInput.lib
 			
-			string LibPath = Path.Combine(GRDKLatestPath, "GameKit", "Lib", "amd64", "GameInput.lib");
 			string IncludePath = Path.Combine(GRDKLatestPath, "GameKit", "Include");
 			
-			PublicAdditionalLibraries.Add(LibPath);
 			PublicSystemIncludePaths.Add(IncludePath);
-			
-			// Add this as a delay loaded DLL for cooking of the client
-			PublicDelayLoadDLLs.Add("GameInput.dll");
 		}
 
 		public GameInputBase(ReadOnlyTargetRules Target) : base(Target)
