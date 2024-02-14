@@ -137,11 +137,30 @@ public sealed class TcpSslTransport : ComputeTransport
 	/// Generate a self-signed certificate to be used for communicating between client and server of this transport
 	/// </summary>
 	/// <returns>A X509 certificate serialized as bytes</returns>
-	public static byte[] GenerateCert()
+	public static byte[] GenerateCert(Encryption encryption)
 	{
-		using RSA rsa = RSA.Create(2048);
-		CertificateRequest req = new ("cn=horde", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
-		X509Certificate2 cert = req.CreateSelfSigned(DateTimeOffset.UtcNow - TimeSpan.FromSeconds(10), DateTimeOffset.UtcNow.AddHours(24));
+		X509Certificate2 cert;
+		DateTimeOffset notBefore = DateTimeOffset.UtcNow - TimeSpan.FromSeconds(10);
+		DateTimeOffset notAfter = DateTimeOffset.UtcNow.AddHours(24);
+		string subjectName = "cn=horde";
+		
+		if (encryption == Encryption.Ssl)
+		{
+			using RSA rsa = RSA.Create(2048);
+			CertificateRequest req = new (subjectName, rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+			cert = req.CreateSelfSigned(notBefore, notAfter);
+		}
+		else if (encryption == Encryption.SslEcdsaP256)
+		{
+			using ECDsa ecdsa = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+			CertificateRequest req = new (subjectName, ecdsa, HashAlgorithmName.SHA256);
+			cert = req.CreateSelfSigned(notBefore, notAfter);
+		}
+		else
+		{
+			throw new ArgumentException($"Cannot generate certificate for encryption {encryption}", nameof(encryption));
+		}
+		
 		return cert.Export(X509ContentType.Pkcs12); // Note: Need to reimport this to use immediately, otherwise key is ephemeral
 	}
 }

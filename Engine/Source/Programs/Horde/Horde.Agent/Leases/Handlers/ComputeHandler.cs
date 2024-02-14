@@ -123,7 +123,8 @@ namespace Horde.Agent.Leases.Handlers
 		{
 			switch (computeTask.Encryption)
 			{
-				case ComputeEncryption.Ssl:
+				case ComputeEncryption.SslRsa2048:
+				case ComputeEncryption.SslEcdsaP256:
 					TcpSslTransport sslTransport = new(socket, computeTask.Certificate.ToByteArray(), true);
 					await sslTransport.AuthenticateAsync(cancellationToken);
 					return sslTransport;

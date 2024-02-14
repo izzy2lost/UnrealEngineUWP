@@ -363,6 +363,12 @@ namespace Horde.Server.Compute
 				span.SetAttribute($"req.res.{name}.max", resReq.Max);
 			}
 
+			byte[] certificate;
+			using (TelemetrySpan _ = _tracer.StartActiveSpan("Generating certificate"))
+			{
+				certificate = GenerateCert(arp.Encryption); // A no-op if certificate is not required	
+			}
+
 			try
 			{
 				List<IAgent> agents = await _agentCollection.FindAsync();
@@ -390,7 +396,7 @@ namespace Horde.Server.Compute
 
 						using TelemetrySpan createTaskSpan = _tracer.StartActiveSpan("CreateComputeTask");
 
-						ComputeTask computeTask = CreateComputeTask(assignedResources, log?.Id, arp.Encryption, arp.ParentLeaseId, protocol);
+						ComputeTask computeTask = CreateComputeTask(assignedResources, log?.Id, arp.Encryption, certificate, arp.ParentLeaseId, protocol);
 
 						byte[] payload = Any.Pack(computeTask).ToByteArray();
 						AgentLease lease = new AgentLease(leaseId, arp.ParentLeaseId, "Compute task", null, null, log?.Id, LeaseState.Pending, assignedResources, arp.Requirements.Exclusive, payload);
@@ -750,18 +756,53 @@ namespace Horde.Server.Compute
 			return relayIps[0];
 		}
 
-		static ComputeTask CreateComputeTask(Dictionary<string, int> assignedResources, LogId? logId, ComputeEncryption encryption, LeaseId? parentLeaseId, ComputeProtocol protocol)
+		static ComputeTask CreateComputeTask(Dictionary<string, int> assignedResources, LogId? logId, ComputeEncryption encryption, byte[] certificateData, LeaseId? parentLeaseId, ComputeProtocol protocol)
 		{
 			ComputeTask computeTask = new ComputeTask();
 			computeTask.Encryption = encryption;
 			computeTask.Nonce = UnsafeByteOperations.UnsafeWrap(RandomNumberGenerator.GetBytes(ServerComputeClient.NonceLength));
 			computeTask.Key = UnsafeByteOperations.UnsafeWrap(AesTransport.CreateKey());
-			computeTask.Certificate = UnsafeByteOperations.UnsafeWrap(TcpSslTransport.GenerateCert());
+			computeTask.Certificate = UnsafeByteOperations.UnsafeWrap(certificateData);
 			computeTask.Resources.Add(assignedResources);
 			computeTask.LogId = logId?.ToString();
 			computeTask.ParentLeaseId = parentLeaseId?.ToString() ?? String.Empty;
 			computeTask.Protocol = (int)protocol;
 			return computeTask;
+		}
+
+		static byte[] GenerateCert(ComputeEncryption encryption)
+		{
+			return encryption switch
+			{
+				ComputeEncryption.SslRsa2048 => TcpSslTransport.GenerateCert(ConvertEncryptionFromProto(encryption)),
+				ComputeEncryption.SslEcdsaP256 => TcpSslTransport.GenerateCert(ConvertEncryptionFromProto(encryption)),
+				_ => Array.Empty<byte>()
+			};
+		}
+		
+		internal static Encryption ConvertEncryptionFromProto(ComputeEncryption proto)
+		{
+			return proto switch
+			{
+				ComputeEncryption.Aes => Encryption.Aes,
+				ComputeEncryption.SslRsa2048 => Encryption.Ssl,
+				ComputeEncryption.SslEcdsaP256 => Encryption.SslEcdsaP256,
+				ComputeEncryption.None => Encryption.None,
+				ComputeEncryption.Unspecified => Encryption.None,
+				_ => throw new ArgumentOutOfRangeException(nameof(proto), proto, null)
+			};
+		}
+		
+		internal static ComputeEncryption ConvertEncryptionToProto(Encryption? json)
+		{
+			return json switch
+			{
+				Encryption.Aes => ComputeEncryption.Aes,
+				Encryption.Ssl => ComputeEncryption.SslRsa2048,
+				Encryption.SslEcdsaP256 => ComputeEncryption.SslEcdsaP256,
+				Encryption.None => ComputeEncryption.None,
+				_ => ComputeEncryption.None
+			};
 		}
 	}
 }

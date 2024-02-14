@@ -231,9 +231,14 @@ namespace EpicGames.Horde.Compute
 		Aes,
 		
 		/// <summary>
-		/// Use SSL/TLS encryption
+		/// Use SSL/TLS encryption with RSA 2048-bits
 		/// </summary>
-		Ssl
+		Ssl,
+		
+		/// <summary>
+		/// Use SSL/TLS encryption with ECDSA P-256
+		/// </summary>
+		SslEcdsaP256
 	}
 	
 	/// <summary>
