@@ -381,6 +381,7 @@ TMap<FName, TWeakObjectPtr<UWorld> > ULevel::StreamedLevelsOwningWorld;
 #if WITH_EDITOR
 const FName ULevel::LoadAllExternalObjectsTag(TEXT("LoadAllExternalObjectsTag"));
 const FName ULevel::DontLoadExternalObjectsTag(TEXT("DontLoadExternalObjectsTag"));
+const FName ULevel::DontLoadExternalFoldersTag(TEXT("DontLoadExternalFoldersTag"));
 #endif
 
 ULevel::ULevel( const FObjectInitializer& ObjectInitializer )
@@ -1153,11 +1154,13 @@ void ULevel::PostLoad()
 	}
 
 #if WITH_EDITOR
+	const FLinkerLoad* Linker = GetLinker();
+	check(Linker || bWasDuplicated);
+
 	if ((IsUsingExternalActors() || IsUsingExternalObjects())
 		&& OwningWorld
 		&& OwningWorld->WorldType == EWorldType::Editor)
 	{
-		const FLinkerLoad* Linker = GetLinker();
 		if (Linker && Linker->IsPackageRelocated())
 		{
 			const FString LevelPackageName = GetPackage()->GetName();
@@ -1177,7 +1180,7 @@ void ULevel::PostLoad()
 
 	if (IsUsingActorFolders() && IsUsingExternalObjects() && IsActorFolderObjectsFeatureAvailable())
 	{
-		if (!bWasDuplicated && !FPackageName::IsTempPackage(GetPackage()->GetName()))
+		if (!bWasDuplicated && !Linker->GetInstancingContext().HasTag(ULevel::DontLoadExternalFoldersTag))
 		{
 			// Load all folders for this level
 			FExternalPackageHelper::LoadObjectsFromExternalPackages<UActorFolder>(this, [this](UActorFolder* LoadedFolder)
@@ -1191,9 +1194,6 @@ void ULevel::PostLoad()
 	// if we use external actors, load dynamic actors here
 	if (IsUsingExternalActors())
 	{
-		const FLinkerLoad* Linker = GetLinker();
-		check(Linker || bWasDuplicated);
-
 		if (!bWasDuplicated &&
 			(!bIsPartitioned || Linker->GetInstancingContext().HasTag(ULevel::LoadAllExternalObjectsTag)) &&
 			!Linker->GetInstancingContext().HasTag(ULevel::DontLoadExternalObjectsTag))
