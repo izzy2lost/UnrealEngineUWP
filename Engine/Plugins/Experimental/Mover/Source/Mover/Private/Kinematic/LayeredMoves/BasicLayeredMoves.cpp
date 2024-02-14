@@ -315,6 +315,7 @@ FLayeredMove_Teleport::FLayeredMove_Teleport()
 {
 	DurationMs = 0.f;
 	MixMode = EMoveMixMode::OverrideAll;
+	Priority = 10;
 }
 
 bool FLayeredMove_Teleport::GenerateMove(const FMoverTickStartData& SimState, const FMoverTimeStep& TimeStep, const UMoverComponent* MoverComp, UMoverBlackboard* SimBlackboard, FProposedMove& OutProposedMove)
