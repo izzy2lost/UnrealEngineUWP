@@ -44,7 +44,7 @@ public:
 
 	bool InitializeForData(const UPCGData* InData, UPCGData* OutData)
 	{
-		if (!InData || !InData->IsA<UPCGPointData>() || !OutData || !OutData->IsA<UPCGPointData>())
+		if (!InData || !InData->IsA<UPCGPointData>())
 		{
 			return false;
 		}
