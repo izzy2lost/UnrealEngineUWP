@@ -92,7 +92,14 @@ double UAvaPropertyAnimatorSequenceTimeSource::GetTimeElapsed()
 	// Use sequencer global time if sequencer active
 	if (const TSharedPtr<ISequencer> Sequencer = GetSequencer())
 	{
-		return Sequencer->GetGlobalTime().AsSeconds();
+		// Scrub to global time only if root sequence is the selected sequence
+		if (const UMovieSceneSequence* RootSequence = Sequencer->GetRootMovieSceneSequence())
+		{
+			if (RootSequence->GetName() == SequenceName)
+			{
+				return Sequencer->GetGlobalTime().AsSeconds();
+			}
+		}
 	}
 #endif
 
