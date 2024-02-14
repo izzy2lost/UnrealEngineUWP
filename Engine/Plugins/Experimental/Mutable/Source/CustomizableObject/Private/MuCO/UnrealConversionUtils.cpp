@@ -177,7 +177,9 @@ namespace UnrealConversionUtils
 			Section.BaseVertexIndex = FirstVertex;
 			Section.MaxBoneInfluences = NumBoneInfluences;
 			Section.NumVertices = VertexCount;
-			Section.bCastShadow = bCastShadow;
+
+			//TODO(Max): MTBL-1779
+			//Section.bCastShadow = bCastShadow;
 
 			// InBoneMaps may contain bonemaps from other sections. Copy the bones belonging to this mesh.
 			FirstBone += InFirstBoneMapIndex;
@@ -479,7 +481,9 @@ namespace UnrealConversionUtils
 					 DestSection->MaxBoneInfluences = SrcSection.MaxBoneInfluences;
 					 DestSection->NumVertices = SrcSection.NumVertices;
 					 DestSection->BoneMap = SrcSection.BoneMap;
-					 DestSection->bCastShadow = SrcSection.bCastShadow;
+
+					 //TODO(Max): MTBL-1779
+					 //DestSection->bCastShadow = SrcSection.bCastShadow;
 				 }
 			 }
 		 }

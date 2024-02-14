@@ -6780,7 +6780,9 @@ void UCustomizableInstancePrivate::RegenerateImportedModels()
 				SectionUserData.CorrespondClothAssetIndex = RenderSection.CorrespondClothAssetIndex;
 				SectionUserData.ClothingData.AssetGuid = RenderSection.ClothingData.AssetGuid;
 				SectionUserData.ClothingData.AssetLodIndex = RenderSection.ClothingData.AssetLodIndex;
-				SectionUserData.bCastShadow = RenderSection.bCastShadow;
+				
+				//TODO(Max): MTBL-1779
+				//SectionUserData.bCastShadow = RenderSection.bCastShadow;
 
 				ImportedModel->LODModels[LODIndex].SyncronizeUserSectionsDataArray();
 
