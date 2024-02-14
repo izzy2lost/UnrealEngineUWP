@@ -63,7 +63,7 @@ void UExternalDataLayerManager::Initialize()
 		return;
 	}
 	
-	const bool bIsInstanced = (OuterWorld && OwningWorld && (OuterWorld != OwningWorld));
+	const bool bIsInstanced = (OuterWorld != OwningWorld);
 	bIsRunningGameOrInstancedWorldPartition = IsRunningGame() || bIsInstanced;
 	bIsInitialized = true;
 
