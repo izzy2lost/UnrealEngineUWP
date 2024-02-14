@@ -9,8 +9,6 @@
 #include "MeshMaterialShader.h"
 #include "DataDrivenShaderPlatformInfo.h"
 
-extern TMap<uint32, FLandscapeRenderSystem*> LandscapeRenderSystems;
-
 static TAutoConsoleVariable<int32> CVarLandscapeSupportCulling(
 	TEXT("landscape.SupportGPUCulling"),
 	1,
@@ -615,39 +613,43 @@ static void ComputeSectionIntermediateData(FRDGBuilder& GraphBuilder, TArrayView
 			FViewStateIntermediateData& ViewStateIntermediates = CullingEntry.IntermediateData.AddDefaulted_GetRef();
 			ViewStateIntermediates.SectionsBufferRDG = nullptr;
 
-			const FLandscapeRenderSystem& RenderSystem = *LandscapeRenderSystems.FindChecked(CullingEntry.LandscapeKey);
-			const TResourceArray<float>& SectionLODValues = RenderSystem.GetCachedSectionLODValues(View);
-
-			for (int32 SectionIdx = 0; SectionIdx < SectionLODValues.Num(); ++SectionIdx)
+			const FLandscapeRenderSystem* RenderSystem = FLandscapeSceneViewExtension::GetLandscapeRenderSystem(View.Family->Scene, CullingEntry.LandscapeKey);
+			// This landscape render system might not correspond to the scene we're rendering, so we might end up with nothing here : 
+			if (RenderSystem != nullptr)
 			{
-				const int32 LODValue = static_cast<int32>(SectionLODValues[SectionIdx]);
-				FLandscapeSectionInfo* SectionInfo = RenderSystem.SectionInfos[SectionIdx];
+				const TResourceArray<float>& SectionLODValues = RenderSystem->GetCachedSectionLODValues(View);
 
-				if (LODValue == 0 && SectionInfo != nullptr)
+				for (int32 SectionIdx = 0; SectionIdx < SectionLODValues.Num(); ++SectionIdx)
 				{
-					FBuildLandscapeTileDataCS::FLandscapeSection& Section = SectionsData.AddDefaulted_GetRef();
+					const int32 LODValue = static_cast<int32>(SectionLODValues[SectionIdx]);
+					FLandscapeSectionInfo* SectionInfo = RenderSystem->SectionInfos[SectionIdx];
 
-					FBoxSphereBounds SectionLocalBounds;
-					FMatrix SectionLocalToWorld;
-					SectionInfo->GetSectionBoundsAndLocalToWorld(SectionLocalBounds, SectionLocalToWorld);
-					const FLargeWorldRenderPosition SectionAbsoluteOrigin(SectionLocalToWorld.GetOrigin());
-					const int32 NeighborsMaxLOD = static_cast<int32>(FMath::RoundFromZero(ComputeNeighborsMaxLOD(RenderSystem, SectionLODValues, SectionInfo->RenderCoord)));
+					if (LODValue == 0 && SectionInfo != nullptr)
+					{
+						FBuildLandscapeTileDataCS::FLandscapeSection& Section = SectionsData.AddDefaulted_GetRef();
 
-					Section.LocalToRelativeWorld = FLargeWorldRenderScalar::MakeToRelativeWorldMatrix(SectionAbsoluteOrigin.GetTileOffset(), SectionLocalToWorld);
-					Section.TilePosition = SectionAbsoluteOrigin.GetTile();
-					Section.LocalZ = static_cast<float>(SectionLocalBounds.Origin.Z);
-					Section.HalfHeight = static_cast<float>(SectionLocalBounds.BoxExtent.Z);
-					// How many quads to add to each tile extent to compensate for a neighbors LOD
-					Section.NeighborLODExtent = FMath::Max(static_cast<float>((1 << NeighborsMaxLOD) - 1), 1.f);
+						FBoxSphereBounds SectionLocalBounds;
+						FMatrix SectionLocalToWorld;
+						SectionInfo->GetSectionBoundsAndLocalToWorld(SectionLocalBounds, SectionLocalToWorld);
+						const FLargeWorldRenderPosition SectionAbsoluteOrigin(SectionLocalToWorld.GetOrigin());
+						const int32 NeighborsMaxLOD = static_cast<int32>(FMath::RoundFromZero(ComputeNeighborsMaxLOD(*RenderSystem, SectionLODValues, SectionInfo->RenderCoord)));
 
-					ViewStateIntermediates.SectionRenderCoords.Add(SectionInfo->RenderCoord);
+						Section.LocalToRelativeWorld = FLargeWorldRenderScalar::MakeToRelativeWorldMatrix(SectionAbsoluteOrigin.GetTileOffset(), SectionLocalToWorld);
+						Section.TilePosition = SectionAbsoluteOrigin.GetTile();
+						Section.LocalZ = static_cast<float>(SectionLocalBounds.Origin.Z);
+						Section.HalfHeight = static_cast<float>(SectionLocalBounds.BoxExtent.Z);
+						// How many quads to add to each tile extent to compensate for a neighbors LOD
+						Section.NeighborLODExtent = FMath::Max(static_cast<float>((1 << NeighborsMaxLOD) - 1), 1.f);
+
+						ViewStateIntermediates.SectionRenderCoords.Add(SectionInfo->RenderCoord);
+					}
 				}
-			}
 
-			if (SectionsData.Num() != 0)
-			{
-				ViewStateIntermediates.SectionsBufferRDG = CreateStructuredBuffer<FBuildLandscapeTileDataCS::FLandscapeSection>(GraphBuilder, TEXT("LandscapeCulling.SectionsData"), SectionsData);
-				SectionsData.Reset();
+				if (SectionsData.Num() != 0)
+				{
+					ViewStateIntermediates.SectionsBufferRDG = CreateStructuredBuffer<FBuildLandscapeTileDataCS::FLandscapeSection>(GraphBuilder, TEXT("LandscapeCulling.SectionsData"), SectionsData);
+					SectionsData.Reset();
+				}
 			}
 		}
 	}

@@ -1246,13 +1246,13 @@ void FLandscapeSceneViewExtension::EndFrame_RenderThread()
 	}
 }
 
-const TMap<uint32, FLandscapeRenderSystem*>& FLandscapeSceneViewExtension::GetLandscapeRenderSystems() const
+const TMap<uint32, FLandscapeRenderSystem*>& FLandscapeSceneViewExtension::GetLandscapeRenderSystems()
 {
 	checkf(IsInParallelRenderingThread(), TEXT("Accessing the Landscape render systems is only valid from the rendering thread!"));
 	return LandscapeRenderSystems;
 }
 
-TArray<FLandscapeRenderSystem*> FLandscapeSceneViewExtension::GetLandscapeRenderSystems(const FSceneInterface* InScene) const
+TArray<FLandscapeRenderSystem*> FLandscapeSceneViewExtension::GetLandscapeRenderSystems(const FSceneInterface* InScene)
 {
 	checkf(IsInParallelRenderingThread(), TEXT("Accessing the Landscape render systems is only valid from the rendering thread!"));
 	check(InScene != nullptr);
@@ -1268,6 +1268,13 @@ TArray<FLandscapeRenderSystem*> FLandscapeSceneViewExtension::GetLandscapeRender
 		}
 	}
 	return Result;
+}
+
+FLandscapeRenderSystem* FLandscapeSceneViewExtension::GetLandscapeRenderSystem(const class FSceneInterface* InScene, uint32 InLandscapeKey)
+{
+	TArray<FLandscapeRenderSystem*> ViewLandscapeRenderSystems = GetLandscapeRenderSystems(InScene);
+	FLandscapeRenderSystem** Found = ViewLandscapeRenderSystems.FindByPredicate([InLandscapeKey](FLandscapeRenderSystem* InRenderSystem) { return InRenderSystem->LandscapeKey == InLandscapeKey; });
+	return (Found != nullptr) ? *Found : nullptr;
 }
 
 //
