@@ -1469,6 +1469,15 @@ namespace mu
 			}
 		}
 
+		// If any source has only 1 LOD, then the result has to have 1 LOD and the rest be regenerated later on
+		for (int32 SourceIndex = 0; SourceIndex < MUTABLE_OP_MAX_SWIZZLE_CHANNELS; ++SourceIndex)
+		{
+			if (Sources[SourceIndex] && Sources[SourceIndex]->GetLODCount() == 1)
+			{
+				ResultLODs = 1;
+			}
+		}
+
 		Result = Runner->CreateImage(Sources[0]->GetSizeX(), Sources[0]->GetSizeY(), ResultLODs, Args.format, EInitializationType::Black);
 		return true;
 	}
