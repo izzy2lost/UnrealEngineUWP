@@ -3148,6 +3148,22 @@ void FWrapLayer::ResetCommandPool(VkResult Result, VkDevice Device, VkCommandPoo
 	}
 }
 
+void FWrapLayer::TrimCommandPool(VkResult Result, VkDevice Device, VkCommandPool CommandPool, VkCommandPoolTrimFlags Flags)
+{
+	if (Result == VK_RESULT_MAX_ENUM)
+	{
+#if VULKAN_ENABLE_DUMP_LAYER
+		DevicePrintfBeginResult(Device, FString::Printf(TEXT("vkTrimCommandPool(CommandPool=0x%p, Flags=0x%08X)"), CommandPool, Flags));
+#endif
+	}
+	else
+	{
+#if VULKAN_ENABLE_DUMP_LAYER
+		PrintResult(Result);
+#endif
+	}
+}
+
 void FWrapLayer::AllocateCommandBuffers(VkResult Result, VkDevice Device, const VkCommandBufferAllocateInfo* AllocateInfo, VkCommandBuffer* CommandBuffers)
 {
 	if (Result == VK_RESULT_MAX_ENUM)

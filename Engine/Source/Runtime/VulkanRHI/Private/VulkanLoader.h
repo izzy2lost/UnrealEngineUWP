@@ -97,6 +97,7 @@
 	EnumMacro(PFN_vkCreateCommandPool, vkCreateCommandPool) \
 	EnumMacro(PFN_vkDestroyCommandPool, vkDestroyCommandPool) \
 	EnumMacro(PFN_vkResetCommandPool, vkResetCommandPool) \
+	EnumMacro(PFN_vkTrimCommandPool, vkTrimCommandPool) \
 	EnumMacro(PFN_vkAllocateCommandBuffers, vkAllocateCommandBuffers) \
 	EnumMacro(PFN_vkFreeCommandBuffers, vkFreeCommandBuffers) \
 	EnumMacro(PFN_vkBeginCommandBuffer, vkBeginCommandBuffer) \

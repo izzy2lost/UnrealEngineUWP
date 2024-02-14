@@ -134,6 +134,7 @@ struct FWrapLayer
 	static void CreateCommandPool(VkResult Result, VkDevice Device, const VkCommandPoolCreateInfo* CreateInfo, VkCommandPool* CommandPool) VULKAN_LAYER_BODY
 	static void DestroyCommandPool(VkResult Result, VkDevice Device, VkCommandPool CommandPool) VULKAN_LAYER_BODY
 	static void ResetCommandPool(VkResult Result, VkDevice Device, VkCommandPool CommandPool, VkCommandPoolResetFlags Flags) VULKAN_LAYER_BODY
+	static void TrimCommandPool(VkResult Result, VkDevice Device, VkCommandPool CommandPool, VkCommandPoolTrimFlags Flags) VULKAN_LAYER_BODY
 	static void AllocateCommandBuffers(VkResult Result, VkDevice Device, const VkCommandBufferAllocateInfo* AllocateInfo, VkCommandBuffer* CommandBuffers) VULKAN_LAYER_BODY
 	static void FreeCommandBuffers(VkResult Result, VkDevice Device, VkCommandPool CommandPool, uint32 CommandBufferCount, const VkCommandBuffer* CommandBuffers) VULKAN_LAYER_BODY
 	static void BeginCommandBuffer(VkResult Result, VkCommandBuffer CommandBuffer, const VkCommandBufferBeginInfo* BeginInfo) VULKAN_LAYER_BODY
@@ -958,6 +959,13 @@ namespace VulkanRHI
 		VkResult Result = VULKANAPINAMESPACE::vkResetCommandPool(Device, CommandPool, Flags);
 		FWrapLayer::ResetCommandPool(Result, Device, CommandPool, Flags);
 		return Result;
+	}
+
+	static FORCEINLINE_DEBUGGABLE void  vkTrimCommandPool(VkDevice Device, VkCommandPool CommandPool, VkCommandPoolTrimFlags Flags)
+	{
+		FWrapLayer::TrimCommandPool(VK_RESULT_MAX_ENUM, Device, CommandPool, Flags);
+		VULKANAPINAMESPACE::vkTrimCommandPool(Device, CommandPool, Flags);
+		FWrapLayer::TrimCommandPool(VK_SUCCESS, Device, CommandPool, Flags);
 	}
 
 	static FORCEINLINE_DEBUGGABLE VkResult  vkAllocateCommandBuffers(VkDevice Device, const VkCommandBufferAllocateInfo* AllocateInfo, VkCommandBuffer* CommandBuffers)
