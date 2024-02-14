@@ -178,28 +178,6 @@ FSSDSignalSample MulSignal(FSSDSignalSample Sample, float Scalar)
 	return OutSample;
 }
 
-FSSDSignalSample MulSignals(FSSDSignalSample Sample, float2 Scalars)
-{
-	FSSDSignalSample OutSample;
-#if COMPILE_SIGNAL_COLOR
-	OutSample.SceneColor = Sample.SceneColor * Scalars.x;
-#endif
-#if COMPILE_SIGNAL_COLOR_ARRAY
-	{
-		UNROLL_N(COMPILE_SIGNAL_COLOR_ARRAY)
-			for (uint ColorId = 0; ColorId < COMPILE_SIGNAL_COLOR_ARRAY; ColorId++)
-				OutSample.ColorArray[ColorId] = Sample.ColorArray[ColorId] * Scalars.x;
-	}
-#endif
-#if COMPILE_SIGNAL_COLOR_SH
-	OutSample.ColorSH = MulSH(Sample.ColorSH, Scalars.x);
-#endif
-	OutSample.SampleCount = Sample.SampleCount * Scalars.x;
-	OutSample.MissCount = Sample.MissCount * Scalars.x;
-	OutSample.TransmissionDistance = Sample.TransmissionDistance * Scalars.y;
-	return OutSample;
-}
-
 FSSDSignalSample AddSignal(FSSDSignalSample SampleA, FSSDSignalSample SampleB)
 {
 	#if COMPILE_SIGNAL_COLOR
