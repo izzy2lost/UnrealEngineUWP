@@ -98,7 +98,6 @@ struct FRDGHairStrandsCullingData
 	bool bCullingResultAvailable = false;
 	FRDGImportedBuffer HairStrandsVF_CullingIndirectBuffer;
 	FRDGImportedBuffer HairStrandsVF_CullingIndexBuffer;
-	FRDGImportedBuffer HairStrandsVF_CullingRadiusScaleBuffer;
 };
 
 FRDGHairStrandsCullingData ImportCullingData(FRDGBuilder& GraphBuilder, FHairGroupPublicData* In);

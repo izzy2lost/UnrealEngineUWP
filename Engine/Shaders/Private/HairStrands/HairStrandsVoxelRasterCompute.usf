@@ -678,8 +678,6 @@ void MainCS(uint2 DispatchThreadID : SV_DispatchThreadID)
 	if (!bIsValid)
 		return;
 
-	float LodRadiusScale0 = 1;
-	float LodRadiusScale1 = 1;
 #if PERMUTATION_CULLING == 1
 	if (HairStrandsVF_bCullingEnable)
 	{
@@ -694,15 +692,7 @@ void MainCS(uint2 DispatchThreadID : SV_DispatchThreadID)
 		FetchIndex1 = min(FetchIndex0 + 1, VertexCountAfterCulling - 1);
 
 		VertexIndex0 = HairStrandsVF_CullingIndexBuffer[FetchIndex0];
-		LodRadiusScale0 = HairStrandsVF_CullingRadiusScaleBuffer[FetchIndex0];
-
 		VertexIndex1 = HairStrandsVF_CullingIndexBuffer[FetchIndex1];
-		LodRadiusScale1 = HairStrandsVF_CullingRadiusScaleBuffer[FetchIndex1];
-
-		if (LodRadiusScale0 <= 0.0f)
-		{
-			return;
-		}
 	}
 #endif
 
@@ -712,7 +702,7 @@ void MainCS(uint2 DispatchThreadID : SV_DispatchThreadID)
 		HairStrandsVF_PositionBuffer,
 		VertexIndex0,
 		PositionOffset,
-		HairStrandsVF_Radius * LodRadiusScale0,
+		HairStrandsVF_Radius,
 		HairStrandsVF_RootScale,
 		HairStrandsVF_TipScale);
 
@@ -723,7 +713,7 @@ void MainCS(uint2 DispatchThreadID : SV_DispatchThreadID)
 		HairStrandsVF_PositionBuffer,
 		VertexIndex1,
 		PositionOffset,
-		HairStrandsVF_Radius * LodRadiusScale1,
+		HairStrandsVF_Radius,
 		HairStrandsVF_RootScale,
 		HairStrandsVF_TipScale);
 

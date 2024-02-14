@@ -89,7 +89,6 @@ uint HairStrandsVFTODO_bCullingEnable;
 #if PERMUTATION_CULLING == 1
 Buffer<uint>	HairStrandsVFTODO_CullingIndirectBuffer; 
 Buffer<uint>	HairStrandsVFTODO_CullingIndexBuffer;
-Buffer<float>	HairStrandsVFTODO_CullingRadiusScaleBuffer;
 #endif
 
 #if PERMUTATION_DEFORMER

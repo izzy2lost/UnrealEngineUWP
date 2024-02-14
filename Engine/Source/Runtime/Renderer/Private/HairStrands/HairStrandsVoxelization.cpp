@@ -1368,7 +1368,6 @@ void VoxelizeHairStrands(
 		if (InstanceData.Data->GetCullingResultAvailable())
 		{
 			Transitions.Add(RegisterAsSRV(GraphBuilder, InstanceData.Data->GetDrawIndirectRasterComputeBuffer()));
-			Transitions.Add(RegisterAsSRV(GraphBuilder, InstanceData.Data->GetCulledVertexRadiusScaleBuffer()));
 			Transitions.Add(RegisterAsSRV(GraphBuilder, InstanceData.Data->GetCulledVertexIdBuffer()));
 		}
 	}

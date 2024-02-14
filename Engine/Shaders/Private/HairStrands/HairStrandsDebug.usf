@@ -266,10 +266,8 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 		return;
 
 	uint VertexIndex = VertexId;
-	float ScaleR = 1;
 	if (HairStrandsVF.bCullingEnable)
 	{
-		ScaleR = HairStrandsVF.CullingRadiusScaleBuffer[VertexIndex];
 		VertexIndex = HairStrandsVF.CullingIndexBuffer[VertexIndex];
 	}
 
@@ -277,7 +275,7 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 		HairStrandsVF.PositionBuffer,
 		VertexIndex,
 		ReadRenPositionOffset(HairStrandsVF.PositionOffsetBuffer, HairStrandsVF.RegisteredIndex),
-		HairStrandsVF.Radius * ScaleR,
+		HairStrandsVF.Radius,
 		HairStrandsVF.RootScale,
 		HairStrandsVF.TipScale).Position;
 

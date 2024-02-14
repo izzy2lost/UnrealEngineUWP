@@ -1498,8 +1498,6 @@ void FHairStrandsCullingResource::InternalAllocate(FRDGBuilder& GraphBuilder, ui
 
 		InternalCreateByteAddressBufferRDG(GraphBuilder, CurveCount * FHairStrandsUintFormat::SizeInByte, Resources.CulledCurveBuffer, TEXT("Hair.Cluster_CulledCurveBuffer"), GetOwnerName(), EHairResourceUsageType::Dynamic);
 		InternalCreateVertexBufferRDG<FHairStrandsUintFormat>(GraphBuilder, PointCount, Resources.CulledVertexIdBuffer, TEXT("Hair.Cluster_CulledVertexIdBuffer"), GetOwnerName(), EHairResourceUsageType::Dynamic);
-		InternalCreateVertexBufferRDG<FHairStrandsFloatFormat>(GraphBuilder, PointCount, Resources.CulledVertexRadiusScaleBuffer, TEXT("Hair.Cluster_CulledVertexRadiusScaleBuffer"), GetOwnerName(), EHairResourceUsageType::Dynamic);
-		AddClearUAVFloatPass(GraphBuilder, RegisterAsUAV(GraphBuilder, Resources.CulledVertexRadiusScaleBuffer), 0.f);
 	
 		// Only allocated once, as cluster count does not change
 		if (Resources.DrawIndirectBuffer.Buffer == nullptr)
@@ -1517,7 +1515,6 @@ void FHairStrandsCullingResource::InternalRelease()
 	Resources.DrawIndirectRasterComputeBuffer.Release();
 	Resources.CulledCurveBuffer.Release();
 	Resources.CulledVertexIdBuffer.Release();
-	Resources.CulledVertexRadiusScaleBuffer.Release();
 	MaxAvailableCurveCount = 0;
 }
 
