@@ -80,3 +80,53 @@ class IPhysicsCharacterMovementModeInterface
 public:
 	virtual void UpdateConstraintSettings(Chaos::FCharacterGroundConstraint& Constraint) const = 0;
 };
+
+//////////////////////////////////////////////////////////////////////////
+// FMovementSettingsInput
+
+// Data block containing movement settings inputs that are networked from client to server.
+// This is useful if settings changes need to be predicted on the client and synced on the server.
+// Also supports rewind/resimulation of settings changes.
+USTRUCT(BlueprintType)
+struct MOVER_API FMovementSettingsInputs : public FMoverDataStructBase
+{
+	GENERATED_USTRUCT_BODY()
+
+public:
+	// Maximum speed in cm/s
+	UPROPERTY(BlueprintReadWrite, Category = Mover)
+		float MaxSpeed;
+
+	// Maximum acceleration in cm/s^2
+	UPROPERTY(BlueprintReadWrite, Category = Mover)
+		float Acceleration;
+
+	FMovementSettingsInputs()
+		: MaxSpeed(800.0f)
+		, Acceleration(4000.0f)
+	{
+	}
+
+	virtual ~FMovementSettingsInputs() {}
+
+	// @return newly allocated copy of this FKinematicDefaultInputs. Must be overridden by child classes
+	virtual FMoverDataStructBase* Clone() const override;
+
+	virtual bool NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bOutSuccess) override;
+
+	virtual UScriptStruct* GetScriptStruct() const override { return StaticStruct(); }
+
+	virtual void ToString(FAnsiStringBuilderBase& Out) const override;
+
+	virtual void AddReferencedObjects(FReferenceCollector& Collector) override { Super::AddReferencedObjects(Collector); }
+};
+
+template<>
+struct TStructOpsTypeTraits< FMovementSettingsInputs > : public TStructOpsTypeTraitsBase2< FMovementSettingsInputs >
+{
+	enum
+	{
+		WithNetSerializer = true,
+		WithCopy = true
+	};
+};

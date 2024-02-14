@@ -38,6 +38,9 @@ struct MOVER_API FNetworkPhysicsMoverInputs : public FNetworkPhysicsData
 	
 	/** Merge data into this input */
 	virtual void MergeData(const FNetworkPhysicsData& FromData) override;
+
+	/** Check input data is valid - Input is send from client to server, no need to make sure it's reasonable */
+	virtual void ValidateData(const UActorComponent* NetworkComponent) override;
 };
 
 template<>
@@ -120,6 +123,7 @@ public:
 	void SetCurrentInputData(const FMoverInputCmdContext& InputCmd);
 	void GetCurrentStateData(OUT FMoverSyncState& SyncState) const;
 	void SetCurrentStateData(const FMoverSyncState& SyncState);
+	bool ValidateInputData(FMoverInputCmdContext& InputCmd) const;
 
 	// Used by the manager to uniquely identify the component
 	Chaos::FUniqueIdx GetUniqueIdx() const;
@@ -158,7 +162,7 @@ protected:
 
 	TUniquePtr<Chaos::FCharacterGroundConstraint> Constraint;
 	TObjectPtr<UMoverComponent> MoverComp;
-	TObjectPtr<const UCommonLegacyMovementSettings> CommonMovementSettings;
+	TObjectPtr<UCommonLegacyMovementSettings> CommonMovementSettings;
 
 	TObjectPtr<UNetworkPhysicsComponent> NetworkPhysicsComponent;
 
