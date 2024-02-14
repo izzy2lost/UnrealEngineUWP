@@ -216,61 +216,43 @@ struct TConvertIntToEnumProperty
 
 EConvertFromTypeResult FByteProperty::ConvertFromType(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot, uint8* Data, UStruct* DefaultsStruct, const uint8* Defaults)
 {
-	const EName* TagType= Tag.Type.ToEName();
-	if (UNLIKELY(Tag.Type.GetNumber() || !TagType))
+	if (Tag.Type == NAME_ByteProperty  && ((Tag.EnumName == NAME_None) != (Enum == nullptr)))
 	{
-		return EConvertFromTypeResult::UseSerializeItem;
-	}
-
-	switch (*TagType)
-	{
-	default:
-		return EConvertFromTypeResult::UseSerializeItem;
-	case NAME_ByteProperty:
-	{
-		if ((Tag.EnumName == NAME_None) != (Enum == nullptr))
+		// a byte property gained or lost an enum
+		// attempt to convert it
+		uint8 PreviousValue = 0;
+		if (Tag.EnumName == NAME_None)
 		{
-			// A byte property gained or lost an enum.
-			uint8 PreviousValue = 0;
-			if (Tag.EnumName == NAME_None)
+			// If we're a nested property the EnumName tag got lost. Fail to read in this case
+			FProperty* const PropertyOwner = GetOwner<FProperty>();
+			if (PropertyOwner)
 			{
-				// If we're a nested property the EnumName tag got lost. Fail to read in this case
-				FProperty* const PropertyOwner = GetOwner<FProperty>();
-				if (PropertyOwner)
-				{
-					return EConvertFromTypeResult::UseSerializeItem;
-				}
-
-				// simply pretend the property still doesn't have an enum and serialize the single byte
-				Slot << PreviousValue;
-			}
-			else
-			{
-				// attempt to find the old enum and get the byte value from the serialized enum name
-				PreviousValue = (uint8)ReadEnumAsInt64(Slot, DefaultsStruct, Tag);
+				return EConvertFromTypeResult::UseSerializeItem;
 			}
 
-			// now copy the value into the object's address space
-			SetPropertyValue_InContainer(Data, PreviousValue, Tag.ArrayIndex);
-			return EConvertFromTypeResult::Converted;
+			// simply pretend the property still doesn't have an enum and serialize the single byte
+			Slot << PreviousValue;
 		}
-		return EConvertFromTypeResult::UseSerializeItem;
-	}
-	case NAME_EnumProperty:
-	{
-		if (Enum == nullptr || Tag.EnumName == Enum->GetFName() || Tag.EnumName.ToString() == Enum->GetPathName())
+		else
 		{
-			// an enum property became a byte
 			// attempt to find the old enum and get the byte value from the serialized enum name
-			uint8 PreviousValue = (uint8)ReadEnumAsInt64(Slot, DefaultsStruct, Tag);
-
-			// now copy the value into the object's address space
-			SetPropertyValue_InContainer(Data, PreviousValue, Tag.ArrayIndex);
-			return EConvertFromTypeResult::Converted;
+			PreviousValue = (uint8)ReadEnumAsInt64(Slot, DefaultsStruct, Tag);
 		}
-		return EConvertFromTypeResult::UseSerializeItem;
+
+		// now copy the value into the object's address space
+		SetPropertyValue_InContainer(Data, PreviousValue, Tag.ArrayIndex);
 	}
-	case NAME_Int8Property:
+	else if (Tag.Type == NAME_EnumProperty && (Enum == nullptr || Tag.EnumName == Enum->GetFName() || Tag.EnumName.ToString() == Enum->GetPathName()))
+	{
+		// an enum property became a byte
+		// attempt to find the old enum and get the byte value from the serialized enum name
+		uint8 PreviousValue = (uint8)ReadEnumAsInt64(Slot, DefaultsStruct, Tag);
+
+		// now copy the value into the object's address space
+		SetPropertyValue_InContainer(Data, PreviousValue, Tag.ArrayIndex);
+	}
+	else if (Tag.Type == NAME_Int8Property)
+	{
 		if (Enum)
 		{
 			TConvertIntToEnumProperty<int8>::Convert(Slot, this, Enum, Data, Tag);
@@ -279,8 +261,9 @@ EConvertFromTypeResult FByteProperty::ConvertFromType(const FPropertyTag& Tag, F
 		{
 			ConvertFromArithmeticValue<int8>(Slot, Data, Tag);
 		}
-		return EConvertFromTypeResult::Converted;
-	case NAME_Int16Property:
+	}
+	else if (Tag.Type == NAME_Int16Property)
+	{
 		if (Enum)
 		{
 			TConvertIntToEnumProperty<int16>::Convert(Slot, this, Enum, Data, Tag);
@@ -289,8 +272,9 @@ EConvertFromTypeResult FByteProperty::ConvertFromType(const FPropertyTag& Tag, F
 		{
 			ConvertFromArithmeticValue<int16>(Slot, Data, Tag);
 		}
-		return EConvertFromTypeResult::Converted;
-	case NAME_IntProperty:
+	}
+	else if (Tag.Type == NAME_IntProperty)
+	{
 		if (Enum)
 		{
 			TConvertIntToEnumProperty<int32>::Convert(Slot, this, Enum, Data, Tag);
@@ -299,8 +283,9 @@ EConvertFromTypeResult FByteProperty::ConvertFromType(const FPropertyTag& Tag, F
 		{
 			ConvertFromArithmeticValue<int32>(Slot, Data, Tag);
 		}
-		return EConvertFromTypeResult::Converted;
-	case NAME_Int64Property:
+	}
+	else if (Tag.Type == NAME_Int64Property)
+	{
 		if (Enum)
 		{
 			TConvertIntToEnumProperty<int64>::Convert(Slot, this, Enum, Data, Tag);
@@ -309,8 +294,9 @@ EConvertFromTypeResult FByteProperty::ConvertFromType(const FPropertyTag& Tag, F
 		{
 			ConvertFromArithmeticValue<int64>(Slot, Data, Tag);
 		}
-		return EConvertFromTypeResult::Converted;
-	case NAME_UInt16Property:
+	}
+	else if (Tag.Type == NAME_UInt16Property)
+	{
 		if (Enum)
 		{
 			TConvertIntToEnumProperty<uint16>::Convert(Slot, this, Enum, Data, Tag);
@@ -319,8 +305,9 @@ EConvertFromTypeResult FByteProperty::ConvertFromType(const FPropertyTag& Tag, F
 		{
 			ConvertFromArithmeticValue<uint16>(Slot, Data, Tag);
 		}
-		return EConvertFromTypeResult::Converted;
-	case NAME_UInt32Property:
+	}
+	else if (Tag.Type == NAME_UInt32Property)
+	{
 		if (Enum)
 		{
 			TConvertIntToEnumProperty<uint32>::Convert(Slot, this, Enum, Data, Tag);
@@ -329,8 +316,9 @@ EConvertFromTypeResult FByteProperty::ConvertFromType(const FPropertyTag& Tag, F
 		{
 			ConvertFromArithmeticValue<uint32>(Slot, Data, Tag);
 		}
-		return EConvertFromTypeResult::Converted;
-	case NAME_UInt64Property:
+	}
+	else if (Tag.Type == NAME_UInt64Property)
+	{
 		if (Enum)
 		{
 			TConvertIntToEnumProperty<uint64>::Convert(Slot, this, Enum, Data, Tag);
@@ -339,8 +327,9 @@ EConvertFromTypeResult FByteProperty::ConvertFromType(const FPropertyTag& Tag, F
 		{
 			ConvertFromArithmeticValue<uint64>(Slot, Data, Tag);
 		}
-		return EConvertFromTypeResult::Converted;
-	case NAME_BoolProperty:
+	}
+	else if (Tag.Type == NAME_BoolProperty)
+	{
 		if (Enum)
 		{
 			TConvertIntToEnumProperty<uint64>::ConvertValue(Tag.BoolVal, this, Enum, Data, Tag);
@@ -349,8 +338,13 @@ EConvertFromTypeResult FByteProperty::ConvertFromType(const FPropertyTag& Tag, F
 		{
 			SetPropertyValue_InContainer(Data, Tag.BoolVal, Tag.ArrayIndex);
 		}
-		return EConvertFromTypeResult::Converted;
 	}
+	else
+	{
+		return EConvertFromTypeResult::UseSerializeItem;
+	}
+
+	return EConvertFromTypeResult::Converted;
 }
 
 #if WITH_EDITORONLY_DATA
