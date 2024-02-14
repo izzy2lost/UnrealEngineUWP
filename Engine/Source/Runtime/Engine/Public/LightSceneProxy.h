@@ -110,6 +110,11 @@ public:
 	/** Whether this light should create CSM for dynamic objects only (forward renderer) */
 	ENGINE_API virtual bool UseCSMForDynamicObjects() const;
 
+	ENGINE_API float GetVSMTexelDitherScale() const
+	{
+		return VSMTexelDitherScale;
+	}
+
 	/** Returns the number of view dependent shadows this light will create, not counting distance field shadow cascades. */
 	virtual uint32 GetNumViewDependentWholeSceneShadows(const FSceneView& View, bool bPrecomputedLightingIsValid) const { return 0; }
 
@@ -456,6 +461,9 @@ protected:
 
 	/** The name of the level the light is in. */
 	FName LevelName;
+
+	/** Used to control the amount of additional dither filtering applied to shadows for each light. */
+	float VSMTexelDitherScale;
 
 	/** Only for whole scene directional lights, if FarShadowCascadeCount > 0 and FarShadowDistance >= WholeSceneDynamicShadowRadius, where far shadow cascade should end. */
 	float FarShadowDistance;

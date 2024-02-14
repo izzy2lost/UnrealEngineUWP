@@ -219,6 +219,7 @@ FVirtualShadowMapProjectionShaderData FShadowSceneRenderer::GetLocalLightProject
 	Data.LightRadius							= ProjectedShadowInfo->GetLightSceneInfo().Proxy->GetRadius();
 	Data.LightDirection                         = FVector3f(0, 0, 0);	// Unused for local lights
 	Data.Flags									= Flags;
+	Data.TexelDitherScale						= ProjectedShadowInfo->GetLightSceneInfo().Proxy->GetVSMTexelDitherScale();
 
 	return Data;
 }
