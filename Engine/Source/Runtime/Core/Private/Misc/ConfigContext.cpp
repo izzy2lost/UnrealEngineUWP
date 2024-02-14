@@ -14,21 +14,19 @@
 #include "ProfilingDebugging/AssetMetadataTrace.h"
 #include "HAL/LowLevelMemStats.h"
 
+extern double GPrepareForLoadTime;
+extern double GPerformLoadTime;
+
 namespace
 {
-	FName VersionName("Version");
-	FName PreserveName("Preserve");
+	FString VersionName = TEXT("Version");
+	FString PreserveName = TEXT("Preserve");
 	FString LegacyIniVersionString = TEXT("IniVersion");
 	FString LegacyEngineString = TEXT("Engine.Engine");
 	FString CurrentIniVersionString = TEXT("CurrentIniVersion");
 	const TCHAR* SectionsToSaveString = TEXT("SectionsToSave");
 	const TCHAR* SaveAllSectionsKey = TEXT("bCanSaveAllSections");
 }
-
-#if ALLOW_OTHER_PLATFORM_CONFIG
-TMap<FString, TUniquePtr<FConfigPluginDirs>> FConfigContext::ConfigToPluginDirs;
-FCriticalSection FConfigContext::ConfigToPluginDirsLock;
-#endif
 
 FConfigContext::FConfigContext(FConfigCacheIni* InConfigSystem, bool InIsHierarchicalConfig, const FString& InPlatform, FConfigFile* DestConfigFile)
 	: ConfigSystem(InConfigSystem)
@@ -37,7 +35,7 @@ FConfigContext::FConfigContext(FConfigCacheIni* InConfigSystem, bool InIsHierarc
 {
 	if (DestConfigFile != nullptr)
 	{
-		ConfigFile = DestConfigFile;
+		ExistingFile = DestConfigFile;
 		bDoNotResetConfigFile = true;
 	}
 
@@ -58,7 +56,6 @@ FConfigContext::FConfigContext(FConfigCacheIni* InConfigSystem, bool InIsHierarc
 		SavePlatform = Platform;
 	}
 
-
 	// now set to defaults anything not already set
 	EngineConfigDir = FPaths::EngineConfigDir();
 	ProjectConfigDir = FPaths::SourceConfigDir();
@@ -73,11 +70,28 @@ FConfigContext::FConfigContext(FConfigCacheIni* InConfigSystem, bool InIsHierarc
 	}
 }
 
+FConfigContext::~FConfigContext()
+{
+	delete TemporaryBranch;
+}
+
 void FConfigContext::CachePaths()
 {
 	// these are needed for single ini files
 	if (bIsHierarchicalConfig)
 	{
+		// are we loading a plugin?
+		if (ConfigSystem != nullptr)
+		{
+			FConfigCacheIni::FPluginInfo* PluginInfo = ConfigSystem->RegisteredPlugins.FindRef(ConfigFileTag == NAME_None ? FName(*BaseIniName) : ConfigFileTag);
+			if (PluginInfo != nullptr)
+			{
+				bIsForPlugin = true;
+				PluginRootDir = PluginInfo->PluginDir;
+				ChildPluginBaseDirs = PluginInfo->ChildPluginDirs;
+			}
+		}
+		
 		// for the hierarchy replacements, we need to have a directory called Config - or we will have to do extra processing for these non-standard cases
 		check(EngineConfigDir.EndsWith(TEXT("Config/")));
 		check(ProjectConfigDir.EndsWith(TEXT("Config/")));
@@ -107,7 +121,7 @@ FConfigContext& FConfigContext::ResetBaseIni(const TCHAR* InBaseIniName)
 
 	if (!bDoNotResetConfigFile)
 	{
-		ConfigFile = nullptr;
+		Branch = nullptr;
 	}
 
 	return *this;
@@ -118,7 +132,6 @@ const FConfigContext::FPerPlatformDirs& FConfigContext::GetPerPlatformDirs(const
 	FConfigContext::FPerPlatformDirs* Dirs = FConfigContext::PerPlatformDirs.Find(PlatformName);
 	if (Dirs == nullptr)
 	{
-		// default to <skip> so we don't look in non-existant platform extension directories
 		FString PluginExtDir = TEXT("<skip>");
 		if (bIsForPlugin)
 		{
@@ -146,23 +159,76 @@ const FConfigContext::FPerPlatformDirs& FConfigContext::GetPerPlatformDirs(const
 	return *Dirs;
 }
 
+static FConfigFile& ActiveFile(FConfigContext* Context)
+{
+	if (Context->ExistingFile) return *Context->ExistingFile;
+	if (Context->Branch) return Context->Branch->InMemoryFile;
+	unimplemented();
+	static FConfigFile Empty;
+	return Empty;
+}
+
+
 bool FConfigContext::Load(const TCHAR* InBaseIniName, FString& OutFinalFilename)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FConfigContext::Load);
-	// for single file loads, just return early of the file doesn't exist
-	const bool bBaseIniNameIsFullInIFilePath = FString(InBaseIniName).EndsWith(TEXT(".ini"));
-	if (!bIsHierarchicalConfig && bBaseIniNameIsFullInIFilePath && !DoesConfigFileExistWrapper(InBaseIniName, IniCacheSet))
+
+	// set up a branch if needed
+	if (ExistingFile != nullptr)
 	{
-		return false;
+		Branch = ExistingFile->Branch;
+
+		// setup a branch one time now, not in Reset
+		if (bIsHierarchicalConfig && Branch == nullptr)
+		{
+			Branch = TemporaryBranch = new FConfigBranch;
+			Branch->ReplayMethod = EBranchReplayMethod::NoReplay;
+			TemporaryBranch->bIsHierarchical = true;
+		}
 	}
+
 
 	if (bCacheOnNextLoad || BaseIniName != InBaseIniName)
 	{
-		ResetBaseIni(InBaseIniName);
+		if (bIncludeTagNameInBranchName)
+		{
+			// prepend the BaseIniName with the Tag if desired
+			ResetBaseIni(*(ConfigFileTag.ToString() + InBaseIniName));
+		}
+		else
+		{
+			ResetBaseIni(InBaseIniName);
+		}
+		
 		CachePaths();
 		bCacheOnNextLoad = false;
 	}
 
+	
+	// perform short-circuited loading for single file
+	if (!bIsHierarchicalConfig)
+	{
+		return PerformSingleFileLoad();
+	}
+	
+	// find existing branch if we are loading into dynamic layers - we need to do it early in case bIncludeTagNameInBranchName is true, as
+	// we will need the original InBaseIniName
+	if (bIsForPluginModification)
+	{
+		Branch = ConfigSystem->FindBranch(InBaseIniName, DestIniFilename);
+		// if not found, make one, so we can add dynamic layers to an empty branch
+		// note: this is unexpected for now since we are going to be looking in KnownConfigFiles
+		if (Branch == nullptr)
+		{
+			if (DestIniFilename.IsEmpty())
+			{
+				return false;
+			}
+
+			UE_LOG(LogConfig, Warning, TEXT("Unable to find branch %s, making a new one to read plugin layers into. This isn't expected, tell JoshA if you see this"), InBaseIniName);
+			Branch = &ConfigSystem->AddNewBranch(DestIniFilename);
+		}
+	}
 
 	bool bPerformLoad;
 	if (!PrepareForLoad(bPerformLoad))
@@ -182,18 +248,17 @@ bool FConfigContext::Load(const TCHAR* InBaseIniName, FString& OutFinalFilename)
 		OutFinalFilename = DestIniFilename;
 	}
 
+	bool bSuccess = true;
 	// now load if we need (PrepareForLoad may find an existing file and just use it)
-	bool bSuccess = bPerformLoad ? PerformLoad() : true;
-
-#if ALLOW_OTHER_PLATFORM_CONFIG
-	if (bSuccess && bIsForPlugin && Platform == FPlatformProperties::IniPlatformName())
+	if (bPerformLoad)
 	{
-		// We have successfuly loaded a plugin ini file for the main platform. Cache the plugin info in case we want to load this ForPlatform.	
-		FScopeLock Lock(&FConfigContext::ConfigToPluginDirsLock);
-		FConfigContext::ConfigToPluginDirs.Add(InBaseIniName, TUniquePtr<FConfigPluginDirs>(new FConfigPluginDirs(PluginRootDir, ChildPluginBaseDirs)));
+		bSuccess = PerformLoad();
+		if (bSuccess && ExistingFile != nullptr && TemporaryBranch != nullptr && Branch->ReplayMethod != EBranchReplayMethod::NoReplay)
+		{
+			// we need to copy the temporary branch's final result back into the output
+			*ExistingFile = TemporaryBranch->InMemoryFile;
+		}
 	}
-#endif
-
 	return bSuccess;
 }
 
@@ -203,10 +268,143 @@ bool FConfigContext::Load(const TCHAR* InBaseIniName)
 	return Load(InBaseIniName, Discard);
 }
 
+/**
+ * This will completely load a single .ini file into the passed in FConfigFile.
+ *
+ * @param FilenameToLoad - this is the path to the file to
+ * @param ConfigFile - This is the FConfigFile which will have the contents of the .ini loaded into
+ *
+ **/
+static bool LoadAnIniFile(const FString& FilenameToLoad, FConfigFile& ConfigFile)
+{
+	if (!IsUsingLocalIniFile(*FilenameToLoad, nullptr) || DoesConfigFileExistWrapper(*FilenameToLoad))
+	{
+		ProcessIniContents(*FilenameToLoad, *FilenameToLoad, &ConfigFile, false, false);
+		return true;
+	}
+
+	//UE_LOG(LogConfig, Warning, TEXT( "LoadAnIniFile was unable to find FilenameToLoad: %s "), *FilenameToLoad);
+	return false;
+}
+
+bool FConfigContext::PerformSingleFileLoad()
+{
+#if UE_WITH_CONFIG_TRACKING
+	FConfigFile& File = ActiveFile(this);
+	if (File.LoadType == UE::ConfigAccessTracking::ELoadType::Uninitialized)
+	{
+		File.LoadType = UE::ConfigAccessTracking::ELoadType::LocalSingleIniFile;
+	}
+	if (File.LoadType == UE::ConfigAccessTracking::ELoadType::LocalSingleIniFile ||
+		File.LoadType == UE::ConfigAccessTracking::ELoadType::ExternalSingleIniFile)
+	{
+		UE::ConfigAccessTracking::FFile* FileAccess = File.GetFileAccess();
+		if (FileAccess)
+		{
+			FileAccess->OverrideFilenameToLoad = FName(FStringView(DestIniFilename));
+		}
+	}
+#endif
+
+	// if the ini name passed in already is a full path, just use it
+	if (BaseIniName.EndsWith(TEXT(".ini")))
+	{
+		DestIniFilename = BaseIniName;
+		BaseIniName = FPaths::GetBaseFilename(BaseIniName);
+	}
+	else
+	{
+		// generate path to the .ini file (not a Default ini, IniName is the complete name of the file, without path)
+		DestIniFilename = FString::Printf(TEXT("%s/%s.ini"), *ProjectConfigDir, *BaseIniName);
+	}
+
+	FConfigFile* DestFile;
+	
+	// if this is for a config system, find/add the branch
+	if (ConfigSystem != nullptr)
+	{
+		Branch = ConfigSystem->FindBranch(*BaseIniName, DestIniFilename);
+		
+		// if the Branch already exists, then we don't want to load anything unless bForceReload is set
+		if (Branch != nullptr)
+		{
+			if (!bForceReload)
+			{
+				// already loaded and done, we can stop now
+				return true;
+			}
+		}
+		else
+		{
+			Branch = &ConfigSystem->AddNewBranch(DestIniFilename);
+			Branch->bIsHierarchical = false;
+		}
+		DestFile = &Branch->InMemoryFile;
+	}
+	else
+	{
+		DestFile = ExistingFile;
+	}
+	
+	DestFile->Name = FName(*BaseIniName);
+	DestFile->PlatformName.Reset();
+	DestFile->bHasPlatformName = false;
+
+	// load the .ini file straight up
+	LoadAnIniFile(*DestIniFilename, *DestFile);
+
+	if (ChangeTracker != nullptr && ChangeTracker->bTrackLoadedFiles)
+	{
+		UE_LOG(LogConfig, Display, TEXT("Tracking dest ini %s"), *DestIniFilename);
+		ChangeTracker->LoadedFiles.Add(DestIniFilename);
+	}
+
+	return DestFile->Num() > 0;
+}
 
 bool FConfigContext::PrepareForLoad(bool& bPerformLoad)
 {
-	checkf(ConfigSystem != nullptr || ConfigFile != nullptr, TEXT("Loading config expects to either have a ConfigFile already passed in, or have a ConfigSystem passed in"));
+	if (IsInGameThread()) GPrepareForLoadTime -= FPlatformTime::Seconds();
+
+	checkf(ConfigSystem != nullptr || ExistingFile != nullptr, TEXT("Loading config expects to either have a ConfigFile already passed in, or have a ConfigSystem passed in"));
+
+	// assume we will load, unless some code below determines not to
+	bPerformLoad = true;
+	
+	// first, make sure the DestIniFilename is set, if needed
+	if (bWriteDestIni || bAllowGeneratedIniWhenCooked || FPlatformProperties::RequiresCookedData())
+	{
+		// delay filling out GeneratedConfigDir because some early configs can be read in that set -savedir, and
+		// FPaths::GeneratedConfigDir() will permanently cache the value
+		if (GeneratedConfigDir.IsEmpty())
+		{
+			GeneratedConfigDir = FPaths::GeneratedConfigDir();
+		}
+
+		// calculate where this file will be saved/generated to (or at least the key to look up in the ConfigSystem)
+		DestIniFilename = FConfigCacheIni::GetDestIniFilename(*BaseIniName, *SavePlatform, *GeneratedConfigDir);
+	}
+	// if we are reading in another platform's plugin ini files, we need some DestIniFilename to store the Branch with
+	else if (bIsForPlugin && !bIsForPluginModification)
+	{
+		DestIniFilename = BaseIniName + TEXT(".ini");
+	}
+
+	// we can re-use (and skip loading) an existing branch/file if:
+	//   we are not loading into an existing ConfigFile
+	//   we don't want to reload
+	//   we found an existing file in the ConfigSystem
+	//   the existing file has entries (because Known config files are always going to be found, but they will be empty)
+	const bool bLookForExistingBranch = (Branch == nullptr && !bForceReload && ConfigSystem != nullptr);
+	if (bLookForExistingBranch)
+	{
+		Branch = ConfigSystem->FindBranch(*BaseIniName, DestIniFilename);
+		if (Branch && Branch->InMemoryFile.Num() > 0)
+		{
+			// cache off the file just in case something looks in the Context after the Load()
+			bPerformLoad = false;
+		}
+	}
 
 	if (bForceReload)
 	{
@@ -216,17 +414,17 @@ bool FConfigContext::PrepareForLoad(bool& bPerformLoad)
 		{
 			bool bNeedRecache = false;
 			FConfigCacheIni* SearchSystem = ConfigSystem == nullptr ? GConfig : ConfigSystem;
-			FConfigFile* BaseConfigFile = SearchSystem->FindConfigFileWithBaseName(*BaseIniName);
-			if (BaseConfigFile != nullptr)
+			FConfigBranch* ExistingBranch = SearchSystem->FindBranch(*BaseIniName, DestIniFilename);
+			if (ExistingBranch != nullptr)
 			{
-				if (!BaseConfigFile->SourceEngineConfigDir.IsEmpty() && BaseConfigFile->SourceEngineConfigDir != EngineConfigDir)
+				if (!ExistingBranch->SourceEngineConfigDir.IsEmpty() && ExistingBranch->SourceEngineConfigDir != EngineConfigDir)
 				{
-					EngineConfigDir = BaseConfigFile->SourceEngineConfigDir;
+					EngineConfigDir = ExistingBranch->SourceEngineConfigDir;
 					bNeedRecache = true;
 				}
-				if (!BaseConfigFile->SourceProjectConfigDir.IsEmpty() && BaseConfigFile->SourceProjectConfigDir != ProjectConfigDir)
+				if (!ExistingBranch->SourceProjectConfigDir.IsEmpty() && ExistingBranch->SourceProjectConfigDir != ProjectConfigDir)
 				{
-					ProjectConfigDir = BaseConfigFile->SourceProjectConfigDir;
+					ProjectConfigDir = ExistingBranch->SourceProjectConfigDir;
 					bNeedRecache = true;
 				}
 				if (bNeedRecache)
@@ -235,244 +433,133 @@ bool FConfigContext::PrepareForLoad(bool& bPerformLoad)
 				}
 			}
 		}
-
 	}
 
-	// setup for writing out later on
-	if (bWriteDestIni || bAllowGeneratedIniWhenCooked || FPlatformProperties::RequiresCookedData())
+
+	// get or make the Branch to use
+	if (Branch == nullptr)
 	{
-		// delay filling out GeneratedConfigDir because some early configs can be read in that set -savedir, and 
-		// FPaths::GeneratedConfigDir() will permanently cache the value
-		if (GeneratedConfigDir.IsEmpty())
-		{
-			GeneratedConfigDir = FPaths::GeneratedConfigDir();
-		}
-
-		// calculate where this file will be saved/generated to (or at least the key to look up in the ConfigSystem)
-		DestIniFilename = FConfigCacheIni::GetDestIniFilename(*BaseIniName, *SavePlatform, *GeneratedConfigDir);
-
-		if (bAllowRemoteConfig)
-		{
-			// Start the loading process for the remote config file when appropriate
-			if (FRemoteConfig::Get()->ShouldReadRemoteFile(*DestIniFilename))
-			{
-				FRemoteConfig::Get()->Read(*DestIniFilename, *BaseIniName);
-			}
-
-			FRemoteConfigAsyncIOInfo* RemoteInfo = FRemoteConfig::Get()->FindConfig(*DestIniFilename);
-			if (RemoteInfo && (!RemoteInfo->bWasProcessed || !FRemoteConfig::Get()->IsFinished(*DestIniFilename)))
-			{
-				// Defer processing this remote config file to until it has finish its IO operation
-				bPerformLoad = false;
-				return false;
-			}
-		}
-	}
-
-	// we can re-use an existing file if:
-	//   we are not loading into an existing ConfigFile
-	//   we don't want to reload
-	//   we found an existing file in the ConfigSystem
-	//   the existing file has entries (because Known config files are always going to be found, but they will be empty)
-	bool bLookForExistingFile = ConfigFile == nullptr && !bForceReload && ConfigSystem != nullptr;
-	if (bLookForExistingFile)
-	{
-		// look up a file that already exists and matches the name
-		FConfigFile* FoundConfigFile = ConfigSystem->KnownFiles.GetMutableFile(*BaseIniName);
-		if (FoundConfigFile == nullptr)
-		{
-			FoundConfigFile = ConfigSystem->FindConfigFile(*DestIniFilename);
-			//// @todo: this is test to see if we can simplify this to FindConfigFileWithBaseName always (if it never fires, we can)
-			//check(FoundConfigFile == nullptr || FoundConfigFile == ConfigSystem->FindConfigFileWithBaseName(*BaseIniName))
-		}
-
-		if (FoundConfigFile != nullptr && FoundConfigFile->Num() > 0)
-		{
-			ConfigFile = FoundConfigFile;
-			bPerformLoad = false;
-			return true;
-		}
-	}
-
-	// setup ConfigFile to read into if one isn't already set
-	if (ConfigFile == nullptr)
-	{
-		// first look for a KnownFile
-		ConfigFile = ConfigSystem->KnownFiles.GetMutableFile(*BaseIniName);
-		if (ConfigFile == nullptr)
+		Branch = ConfigSystem->FindBranch(*BaseIniName, DestIniFilename);
+		if (Branch == nullptr)
 		{
 			check(!DestIniFilename.IsEmpty());
-
-			ConfigFile = &ConfigSystem->Add(DestIniFilename, FConfigFile());
+			
+			Branch = &ConfigSystem->AddNewBranch(DestIniFilename);
+			Branch->bIsHierarchical = bIsHierarchicalConfig;
 		}
 	}
 
-	bPerformLoad = true;
-	return true;
-}
+	if (IsInGameThread()) GPrepareForLoadTime += FPlatformTime::Seconds();
 
-/**
- * This will completely load a single .ini file into the passed in FConfigFile.
- *
- * @param FilenameToLoad - this is the path to the file to
- * @param ConfigFile - This is the FConfigFile which will have the contents of the .ini loaded into
- *
- **/
-static void LoadAnIniFile(const FString& FilenameToLoad, FConfigFile& ConfigFile)
-{
-	if (!IsUsingLocalIniFile(*FilenameToLoad, nullptr) || DoesConfigFileExistWrapper(*FilenameToLoad))
-	{
-		ProcessIniContents(*FilenameToLoad, *FilenameToLoad, &ConfigFile, false, false);
-	}
-	else
-	{
-		//UE_LOG(LogConfig, Warning, TEXT( "LoadAnIniFile was unable to find FilenameToLoad: %s "), *FilenameToLoad);
-	}
+	return true;
 }
 
 bool FConfigContext::PerformLoad()
 {
 	LLM_SCOPE(ELLMTag::ConfigSystem);
-	static const FName ConfigContextClassName = TEXT("ConfigContext");
 
-	// if bIsBaseIniName is false, that means the .ini is a ready-to-go .ini file, and just needs to be loaded into the FConfigFile
-	if (!bIsHierarchicalConfig)
+	if (IsInGameThread()) GPerformLoadTime -= FPlatformTime::Seconds();
+
+#if DISABLE_GENERATED_INI_WHEN_COOKED
+	UE_LOG(LogConfig, Display, TEXT("IniName = %s"), *BaseIniName);
+
+	if (BaseIniName == TEXT("GameUserSettings"))
 	{
-		// if the ini name passed in already is a full path, just use it
-		if (BaseIniName.EndsWith(TEXT(".ini")))
-		{
-			DestIniFilename = BaseIniName;
-			BaseIniName = FPaths::GetBaseFilename(BaseIniName);
-		}
-		else
-		{
-			// generate path to the .ini file (not a Default ini, IniName is the complete name of the file, without path)
-			DestIniFilename = FString::Printf(TEXT("%s/%s.ini"), *ProjectConfigDir, *BaseIniName);
-		}
-
-		const FName BaseName = FName(*BaseIniName);
-		LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(BaseName, ELLMTagSet::Assets);
-		LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(ConfigContextClassName, ELLMTagSet::AssetClasses);
-		UE_TRACE_METADATA_SCOPE_ASSET_FNAME(BaseName, ConfigContextClassName, BaseName);
-
-#if UE_WITH_CONFIG_TRACKING
-		if (ConfigFile->LoadType == UE::ConfigAccessTracking::ELoadType::Uninitialized)
-		{
-			ConfigFile->LoadType = UE::ConfigAccessTracking::ELoadType::LocalSingleIniFile;
-		}
-		if (ConfigFile->LoadType == UE::ConfigAccessTracking::ELoadType::LocalSingleIniFile || 
-			ConfigFile->LoadType == UE::ConfigAccessTracking::ELoadType::ExternalSingleIniFile)
-		{
-			UE::ConfigAccessTracking::FFile* FileAccess = ConfigFile->GetFileAccess();
-			if (FileAccess)
-			{
-				FileAccess->OverrideFilenameToLoad = FName(FStringView(DestIniFilename));
-			}
-		}
-#endif
-
-		// load the .ini file straight up
-		LoadAnIniFile(*DestIniFilename, *ConfigFile);
-
-		ConfigFile->Name = BaseName;
-		ConfigFile->PlatformName.Reset();
-		ConfigFile->bHasPlatformName = false;
+		bAllowGeneratedIniWhenCooked = true;
 	}
 	else
 	{
-		const FName BaseName = FName(*BaseIniName);
-		LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(BaseName, ELLMTagSet::Assets);
-		LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(ConfigContextClassName, ELLMTagSet::AssetClasses);
-		UE_TRACE_METADATA_SCOPE_ASSET_FNAME(BaseName, ConfigContextClassName, BaseName);
-#if DISABLE_GENERATED_INI_WHEN_COOKED
-		if (BaseIniName != TEXT("GameUserSettings"))
+		// If we asked to disable ini when cooked, disable all ini files except GameUserSettings, which stores user preferences
+		bAllowGeneratedIniWhenCooked = false;
+		if (FPlatformProperties::RequiresCookedData())
 		{
-			// If we asked to disable ini when cooked, disable all ini files except! GameUserSettings, which stores user preferences
-			bAllowGeneratedIniWhenCooked = false;
-			if (FPlatformProperties::RequiresCookedData())
-			{
-				ConfigFile->NoSave = true;
-			}
+			Branch->InMemoryFile.NoSave = true;
 		}
-		else
-		{
-			bAllowGeneratedIniWhenCooked = true;
-		}
+	}
 #endif
 
-		// generate the whole standard ini hierarchy
-		AddStaticLayersToHierarchy();
-
-		// clear previous source config file and reset
-		delete ConfigFile->SourceConfigFile;
-		ConfigFile->SourceConfigFile = new FConfigFile();
 #if UE_WITH_CONFIG_TRACKING
-		// Ignore the SourceConfigFile for access tracking since it is not publicly accessible
-		ConfigFile->SourceConfigFile->SuppressReporting();
-
-		// Set the LoadType before calling GenerateDestIniFile, because it will set it if not
-		// already set.
-		if (ConfigFile->LoadType == UE::ConfigAccessTracking::ELoadType::Uninitialized)
-		{
-			ConfigFile->LoadType = UE::ConfigAccessTracking::ELoadType::LocalIniFile;
-		}
+	// Set the LoadType before calling GenerateDestIniFile, because it will set it if not
+	// already set.
+	if (Branch->InMemoryFile.LoadType == UE::ConfigAccessTracking::ELoadType::Uninitialized)
+	{
+		Branch->InMemoryFile.LoadType = UE::ConfigAccessTracking::ELoadType::LocalIniFile;
+	}
 #endif
+	
+	if (bIsForPluginModification)
+	{
+		// gather the list of files to load (these will become dynamic layers below)
+		TArray<FString> GatheredFiles;
+		AddStaticLayersToHierarchy(&GatheredFiles);
+	
+		// now add them all as one operation (optimization to not perform unnecessary duplicated work for each file)
+		Branch->AddDynamicLayersToHierarchy(GatheredFiles, ConfigFileTag, PluginModificationPriority, ChangeTracker);
+		if (IsInGameThread()) GPerformLoadTime += FPlatformTime::Seconds();
+		return true;
+	}
+	
+	// generate the whole standard ini hierarchy
+	AddStaticLayersToHierarchy(nullptr);
 
-		// now generate and make sure it's up to date (using IniName as a Base for an ini filename)
-		// @todo This bNeedsWrite afaict is always true even if it loaded a completely valid generated/final .ini, and the write below will
-		// just write out the exact same thing it read in!
-		bool bNeedsWrite = GenerateDestIniFile();
+	// now generate and make sure it's up to date (using IniName as a Base for an ini filename)
+	// @todo This bNeedsWrite afaict is always true even if it loaded a completely valid generated/final .ini, and the write below will
+	// just write out the exact same thing it read in!
+	bool bNeedsWrite = GenerateDestIniFile();
 
-		ConfigFile->Name = BaseName;
-		ConfigFile->PlatformName = Platform;
-		ConfigFile->bHasPlatformName = true;
+	Branch->InMemoryFile.Name = FName(*BaseIniName);
+	Branch->InMemoryFile.PlatformName = Platform;
+	Branch->InMemoryFile.bHasPlatformName = true;
 
-		// check if the config file wants to save all sections
-		bool bLocalSaveAllSections = false;
-		// Do not report the read of SectionsToSave. Some ConfigFiles are reallocated without it, and reporting
-		// logs that the section disappeared. But this log is spurious since if the only reason it was read was
-		// for the internal save before the FConfigFile is made publicly available.
-		const FConfigSection* SectionsToSaveSection = ConfigFile->FindSection(SectionsToSaveString);
-		if (SectionsToSaveSection)
+	// chcek if the config file wants to save all sections
+	bool bLocalSaveAllSections = false;
+	// Do not report the read of SectionsToSave. Some ConfigFiles are reallocated without it, and reporting
+	// logs that the section disappeared. But this log is spurious since if the only reason it was read was
+	// for the internal save before the FConfigFile is made publicly available.
+	const FConfigSection* SectionsToSaveSection = Branch->InMemoryFile.FindSection(SectionsToSaveString);
+	if (SectionsToSaveSection)
+	{
+		const FConfigValue* Value = SectionsToSaveSection->Find(SaveAllSectionsKey);
+		if (Value)
 		{
-			const FConfigValue* Value = SectionsToSaveSection->Find(SaveAllSectionsKey);
-			if (Value)
-			{
-				const FString& ValueStr = UE::ConfigCacheIni::Private::FAccessor::GetValueForWriting(*Value);
-				bLocalSaveAllSections = FCString::ToBool(*ValueStr);
-			}
-		}
-
-		// we can always save all sections of a User config file, Editor* (not Editor.ini tho, that is already handled in the normal method)
-		bool bIsUserFile = BaseIniName.Contains(TEXT("User"));
-		bool bIsEditorSettingsFile = BaseIniName.Contains(TEXT("Editor")) && BaseIniName != TEXT("Editor");
-
-		ConfigFile->bCanSaveAllSections = bLocalSaveAllSections || bIsUserFile || bIsEditorSettingsFile;
-
-		// don't write anything to disk in cooked builds - we will always use re-generated INI files anyway.
-		// Note: Unfortunately bAllowGeneratedIniWhenCooked is often true even in shipping builds with cooked data
-		// due to default parameters. We don't dare change this now.
-		//
-		// Check GIsInitialLoad since no INI changes that should be persisted could have occurred this early.
-		// INI changes from code, environment variables, CLI parameters, etc should not be persisted. 
-		if (!GIsInitialLoad && bWriteDestIni && (!FPlatformProperties::RequiresCookedData() || bAllowGeneratedIniWhenCooked)
-			// We shouldn't save config files when in multiprocess mode,
-			// otherwise we get file contention in XGE shader builds.
-			&& !FParse::Param(FCommandLine::Get(), TEXT("Multiprocess")))
-		{
-			// Check the config system for any changes made to defaults and propagate through to the saved.
-			ConfigFile->ProcessSourceAndCheckAgainstBackup();
-
-			if (bNeedsWrite)
-			{
-				// if it was dirtied during the above function, save it out now
-				ConfigFile->Write(DestIniFilename);
-			}
+			const FString& ValueStr = Value->GetValueForWriting();
+			bLocalSaveAllSections = FCString::ToBool(*ValueStr);
 		}
 	}
 
+	Branch->InMemoryFile.GetBool(SectionsToSaveString, SaveAllSectionsKey, bLocalSaveAllSections);
+
+	// we can always save all sections of a User config file, Editor* (not Editor.ini tho, that is already handled in the normal method)
+	bool bIsUserFile = BaseIniName.Contains(TEXT("User"));
+	bool bIsEditorSettingsFile = BaseIniName.Contains(TEXT("Editor")) && BaseIniName != TEXT("Editor");
+
+	Branch->InMemoryFile.bCanSaveAllSections = bLocalSaveAllSections || bIsUserFile || bIsEditorSettingsFile;
+
+	// don't write anything to disk in cooked builds - we will always use re-generated INI files anyway.
+	// Note: Unfortunately bAllowGeneratedIniWhenCooked is often true even in shipping builds with cooked data
+	// due to default parameters. We don't dare change this now.
+	//
+	// Check GIsInitialLoad since no INI changes that should be persisted could have occurred this early.
+	// INI changes from code, environment variables, CLI parameters, etc should not be persisted.
+	if (!GIsInitialLoad && bWriteDestIni && (!FPlatformProperties::RequiresCookedData() || bAllowGeneratedIniWhenCooked)
+		// We shouldn't save config files when in multiprocess mode,
+		// otherwise we get file contention in XGE shader builds.
+		&& !FParse::Param(FCommandLine::Get(), TEXT("Multiprocess")))
+	{
+		// Check the config system for any changes made to defaults and propagate through to the saved.
+		Branch->InMemoryFile.ProcessSourceAndCheckAgainstBackup();
+
+		if (bNeedsWrite)
+		{
+			// if it was dirtied during the above function, save it out now
+			Branch->InMemoryFile.Write(DestIniFilename);
+		}
+	}
+
+	if (IsInGameThread()) GPerformLoadTime += FPlatformTime::Seconds();
+
 	// GenerateDestIniFile returns true if nothing is loaded, so check if we actually loaded something
-	return ConfigFile->Num() > 0;
+	return Branch->InMemoryFile.Num() > 0;
 }
 
 
@@ -571,13 +658,42 @@ FString FConfigContext::PerformFinalExpansions(const FString& InString, const FS
 	return OutString;
 }
 
+void FConfigContext::LogVariables(const TCHAR* InBaseIniName, const FString& InPlatform)
+{
+	static bool bDumpIniLoadInfo = FParse::Param(FCommandLine::Get(), TEXT("dumpiniloads"));
+
+	if (!bDumpIniLoadInfo)
+	{
+		return;
+	}
+	
+#define BASIC(x) 	UE_LOG(LogConfig, Display, TEXT("  %hs: %s"), #x, *PerformBasicReplacements("{" #x "}", InBaseIniName));
+#define EXTRA(x) 	UE_LOG(LogConfig, Display, TEXT("  %hs: %s"), #x, *PerformFinalExpansions("{" #x "}", InPlatform));
+
+	UE_LOG(LogConfig, Display, TEXT("Variables for expansion:"));
+	BASIC(TYPE);
+	BASIC(USERSETTINGS);
+	BASIC(USER);
+	BASIC(CUSTOMCONFIG);
+	
+	EXTRA(ENGINE);
+	EXTRA(PROJECT);
+	EXTRA(RESTRICTEDPROJECT_NFL);
+	EXTRA(RESTRICTEDPROJECT_NR);
+	EXTRA(OPT_SUBDIR);
+	EXTRA(EXTENGINE);
+	EXTRA(EXTPROJECT);
+	EXTRA(PLATFORM);
+	EXTRA(PLUGIN);
+	EXTRA(EXTPLUGIN);
+}
 
 
-void FConfigContext::AddStaticLayersToHierarchy(TArray<FString>* GatheredLayerFilenames, bool bIsLogging)
+void FConfigContext::AddStaticLayersToHierarchy(TArray<FString>* GatheredLayerFilenames, bool bIsForLogging)
 {
 	// remember where this file was loaded from
-	ConfigFile->SourceEngineConfigDir = EngineConfigDir;
-	ConfigFile->SourceProjectConfigDir = ProjectConfigDir;
+	Branch->SourceEngineConfigDir = EngineConfigDir;
+	Branch->SourceProjectConfigDir = ProjectConfigDir;
 
 	// string that can have a reference to it, lower down
 	const FString DedicatedServerString = IsRunningDedicatedServer() ? TEXT("DedicatedServer") : TEXT("");
@@ -598,8 +714,22 @@ void FConfigContext::AddStaticLayersToHierarchy(TArray<FString>* GatheredLayerFi
 	{
 		// this has priority over cooked/uncooked
 		ExpansionMode = EConfigExpansionFlags::ForPlugin;
-		Layers = GPluginLayers;
-		NumLayers = UE_ARRAY_COUNT(GPluginLayers);
+		if (bIsForPluginModification)
+		{
+			Layers = GPluginModificationLayers;
+			NumLayers = UE_ARRAY_COUNT(GPluginModificationLayers);
+		}
+		else
+		{
+			Layers = GPluginLayers;
+			NumLayers = UE_ARRAY_COUNT(GPluginLayers);
+		}
+	}
+	
+	if (OverrideLayers.Num() > 0)
+	{
+		Layers = OverrideLayers.GetData();
+		NumLayers = OverrideLayers.Num();
 	}
 	// let the context override the layers if needed
 	if (OverrideLayers.Num() > 0)
@@ -622,6 +752,9 @@ void FConfigContext::AddStaticLayersToHierarchy(TArray<FString>* GatheredLayerFi
 		// start replacing basic variables
 		FString LayerPath = PerformBasicReplacements(Layer.Path, *BaseIniName);
 		bool bHasPlatformTag = LayerPath.Contains(TEXT("{PLATFORM}"));
+		bool bHasEngineTag = LayerPath.StartsWith(TEXT("{ENGINE}"));
+		bool bHasProjectTag = !bHasEngineTag && LayerPath.StartsWith(TEXT("{PROJECT}"));
+		
 
 		// expand if it it has {ED} or {EF} expansion tags
 		if (!EnumHasAnyFlags(Layer.Flag, EConfigLayerFlags::NoExpand))
@@ -698,7 +831,7 @@ void FConfigContext::AddStaticLayersToHierarchy(TArray<FString>* GatheredLayerFi
 					// add this to the list!
 					if (GatheredLayerFilenames != nullptr)
 					{
-						if (bIsLogging)
+						if (bIsForLogging)
 						{
 							GatheredLayerFilenames->Add(FString::Printf(TEXT("%s[Exp-%d]: %s"), Layer.EditorName, ExpansionIndex, *PlatformPath));
 						}
@@ -709,7 +842,7 @@ void FConfigContext::AddStaticLayersToHierarchy(TArray<FString>* GatheredLayerFi
 					}
 					else
 					{
-						ConfigFile->SourceIniHierarchy.AddStaticLayer(PlatformPath, LayerIndex, ExpansionIndex, PlatformIndex);
+						Branch->Hierarchy.AddStaticLayer(PlatformPath, LayerIndex, ExpansionIndex, PlatformIndex);
 					}
 				}
 			}
@@ -720,7 +853,7 @@ void FConfigContext::AddStaticLayersToHierarchy(TArray<FString>* GatheredLayerFi
 			checkfSlow(!bHasPlatformTag, TEXT("Non-expanded config %s shouldn't have a PLATFORM in it"), Layer.Path);
 			checkfSlow(!EnumHasAnyFlags(Layer.Flag, EConfigLayerFlags::AllowCommandLineOverride), TEXT("Non-expanded config can't have a EConfigLayerFlags::AllowCommandLineOverride"));
 
-			FString FinalPath = PerformFinalExpansions(LayerPath, TEXT(""));
+			FString FinalPath = PerformFinalExpansions(LayerPath, Platform);
 
 			// if we match the StartSkippingAtFilename, we are done adding to the hierarchy, so just return
 			if (FinalPath == StartSkippingAtFilename)
@@ -731,7 +864,7 @@ void FConfigContext::AddStaticLayersToHierarchy(TArray<FString>* GatheredLayerFi
 			// add with no expansion
 			if (GatheredLayerFilenames != nullptr)
 			{
-				if (bIsLogging)
+				if (bIsForLogging)
 				{
 					GatheredLayerFilenames->Add(FString::Printf(TEXT("%s: %s"), Layer.EditorName, *FinalPath));
 				}
@@ -742,7 +875,7 @@ void FConfigContext::AddStaticLayersToHierarchy(TArray<FString>* GatheredLayerFi
 			}
 			else
 			{
-				ConfigFile->SourceIniHierarchy.AddStaticLayer(FinalPath, LayerIndex);
+				Branch->Hierarchy.AddStaticLayer(FinalPath, LayerIndex);
 			}
 		}
 	}
@@ -758,13 +891,15 @@ void FConfigContext::AddStaticLayersToHierarchy(TArray<FString>* GatheredLayerFi
  * @param ConfigFile - This is the FConfigFile which will have the contents of the .ini loaded into and Combined()
  *
  **/
-static bool LoadIniFileHierarchy(const FConfigFileHierarchy& HierarchyToLoad, FConfigFile& ConfigFile, bool bUseCache, const TSet<FString>* IniCacheSet)
+bool FConfigContext::LoadIniFileHierarchy()
 {
 	static bool bDumpIniLoadInfo = FParse::Param(FCommandLine::Get(), TEXT("dumpiniloads"));
 	
+	// LogVariables(*BaseIniName, Platform);
+
 	TRACE_CPUPROFILER_EVENT_SCOPE(LoadIniFileHierarchy);
 	// Traverse ini list back to front, merging along the way.
-	for (const TPair<int32, FString>& HierarchyIt : HierarchyToLoad)
+	for (const TPair<int32, FString>& HierarchyIt : Branch->Hierarchy)
 	{
 		bool bDoCombine = (HierarchyIt.Key != 0);
 		const FString& IniFileName = HierarchyIt.Value;
@@ -777,16 +912,50 @@ static bool LoadIniFileHierarchy(const FConfigFileHierarchy& HierarchyToLoad, FC
 			continue;
 		}
 
+		UE_CLOG(bDumpIniLoadInfo, LogConfig, Display, TEXT("   Found!"));
+
 		bool bDoEmptyConfig = false;
 		//UE_LOG(LogConfig, Log,  TEXT( "Combining configFile: %s" ), *IniList(IniIndex) );
-		ProcessIniContents(*IniFileName, *IniFileName, &ConfigFile, bDoEmptyConfig, bDoCombine);
 
-		UE_CLOG(bDumpIniLoadInfo, LogConfig, Display, TEXT("   Found!"));
+		if (Branch->ReplayMethod == EBranchReplayMethod::FullReplay)
+		{
+			FConfigCommandStream& NewFile = Branch->StaticLayers.Add(IniFileName, FConfigCommandStream());
+			NewFile.FillFileFromDisk(IniFileName, bDoCombine);
+
+			// now combine this in to our Static cache
+			Branch->CombinedStaticLayers.ApplyFile(&NewFile);
+		}
+		else if (Branch->ReplayMethod == EBranchReplayMethod::DynamicLayerReplay)
+		{
+			// apply the file directly info the Static cache
+			Branch->CombinedStaticLayers.FillFileFromDisk(IniFileName, bDoCombine);
+		}
+		else
+		{
+			// apply the file directly into the InMemory cache
+			if (ExistingFile != nullptr)
+			{
+				ExistingFile->FillFileFromDisk(IniFileName, bDoCombine);
+			}
+			else
+			{
+				Branch->InMemoryFile.FillFileFromDisk(IniFileName, bDoCombine);
+			}
+		}
+
+		if (ChangeTracker != nullptr && ChangeTracker->bTrackLoadedFiles)
+		{
+			UE_LOG(LogConfig, Display, TEXT("Tracking ini %s"), *IniFileName);
+			ChangeTracker->LoadedFiles.Add(IniFileName);
+		}
 	}
 
-	// Set this configs files source ini hierarchy to show where it was loaded from.
-	ConfigFile.SourceIniHierarchy = HierarchyToLoad;
-
+	// if we had been reading into the Static cache, not InMemory, then start the InMemory from this point
+	if (Branch->ReplayMethod != EBranchReplayMethod::NoReplay)
+	{
+		Branch->InMemoryFile = Branch->CombinedStaticLayers;
+	}
+	Branch->FinalCombinedLayers = Branch->InMemoryFile;
 	return true;
 }
 
@@ -800,87 +969,67 @@ static bool LoadIniFileHierarchy(const FConfigFileHierarchy& HierarchyToLoad, FC
  */
 bool FConfigContext::GenerateDestIniFile()
 {
-	bool bResult = LoadIniFileHierarchy(ConfigFile->SourceIniHierarchy, *ConfigFile->SourceConfigFile, bUseHierarchyCache, IniCacheSet);
+	// reset the file to empty
+	Branch->InMemoryFile.Cleanup();
+	Branch->CombinedStaticLayers.Cleanup();
+	Branch->SavedLayer.Empty();
+	Branch->CommandLineOverrides.Empty();
+	Branch->StaticLayers.Empty();
+	Branch->DynamicLayers.Empty();
+
+	// read the static files into the branch
+	bool bResult = LoadIniFileHierarchy();
 	if (bResult == false)
 	{
 		return false;
 	}
-
-	if (!FPlatformProperties::RequiresCookedData() || bAllowGeneratedIniWhenCooked)
+	
+	// Don't try to load any generated files from disk in cooked builds. We will always use the re-generated INIs.
+	if (IS_PROGRAM || !FPlatformProperties::RequiresCookedData() || bAllowGeneratedIniWhenCooked)
 	{
-		if (bForceReload)
+		if (DestIniFilename.Len() > 0)
 		{
-			// if we are reloading from disk (probably to update GConfig's understanding after updating a Default ini file), we need to 
-			// flush any pending updates, replace the in memory version with the hierarchy, and then read the flushed file back on  
-			// this will make sure the in-memory version has what is on disk, so when Flush happens later, it does not write out an outdated value
-			// note: we only want to copy the TMap base class slice of the FConfigFile, none of the specific members of the FConfigFile class itself
-			ConfigFile->TMap<FString, FConfigSection>::operator=(*ConfigFile->SourceConfigFile);
-#if UE_WITH_CONFIG_TRACKING
-			UE::ConfigAccessTracking::FFile* LocalFileAccess = ConfigFile->GetFileAccess();
-			for (TPair<FString, FConfigSection>& SectionPair : static_cast<TMap<FString, FConfigSection>>(*ConfigFile))
+			static bool bDumpIniLoadInfo = FParse::Param(FCommandLine::Get(), TEXT("dumpiniloads"));
+			UE_CLOG(bDumpIniLoadInfo, LogConfig, Display, TEXT("Looking for saved user ini file: %s"), *DestIniFilename);
+			if (DoesConfigFileExistWrapper(*DestIniFilename))
 			{
-				UE::ConfigAccessTracking::FSection* SectionAccess = LocalFileAccess ?
-					new UE::ConfigAccessTracking::FSection(*LocalFileAccess, FStringView(SectionPair.Key)) : nullptr;
-				SectionPair.Value.SectionAccess = SectionAccess;
-				for (TPair<FName, FConfigValue>& ValuePair : SectionPair.Value)
-				{
-					ValuePair.Value.SetSectionAccess(SectionAccess);
-				}
+				UE_CLOG(bDumpIniLoadInfo, LogConfig, Display, TEXT("   Found!"));
+				Branch->SavedLayer.FillFileFromDisk(*DestIniFilename, false);
+				Branch->SavedLayer.bIsSavedConfigFile = true;
 			}
-#endif
 		}
-
-		LoadAnIniFile(*DestIniFilename, *ConfigFile);
 	}
-
-#if ALLOW_INI_OVERRIDE_FROM_COMMANDLINE
-	// process any commandline overrides
-	FConfigFile::OverrideFromCommandline(ConfigFile, BaseIniName);
-#endif
-
+	
+	// if we loaded nothing at all, we are done
+	if (Branch->InMemoryFile.Num() == 0)
+	{
+		return false;
+	}
+	
 	bool bForceRegenerate = false;
-	bool bShouldUpdate = FPlatformProperties::RequiresCookedData();
 
 	// New versioning
 	int32 SourceConfigVersionNum = -1;
 	int32 CurrentIniVersion = -1;
 	bool bVersionChanged = false;
 
-	// Lambda for functionality that we can do in more than one place.
-	auto RegenerateFileLambda = [](const FConfigFileHierarchy& InSourceIniHierarchy, FConfigFile& InDestConfigFile, const bool bInUseCache)
+	// don't do version checking if we have nothing saved
+	if (Branch->SavedLayer.Num() > 0)
 	{
-		// Regenerate the file.
-		bool bReturnValue = LoadIniFileHierarchy(InSourceIniHierarchy, InDestConfigFile, bInUseCache, nullptr);
-		if (InDestConfigFile.SourceConfigFile)
+		// get the version that was last saved, if any
+		FConfigCommandStreamSection* VersionSection = Branch->SavedLayer.Find(CurrentIniVersionString);
+		if (VersionSection)
 		{
-			delete InDestConfigFile.SourceConfigFile;
-			InDestConfigFile.SourceConfigFile = nullptr;
+			FConfigValue* VersionKey = VersionSection->Find(*VersionName);
+			if (VersionKey)
+			{
+				TTypeFromString<int32>::FromString(CurrentIniVersion, *VersionKey->GetValue());
+			}
 		}
-		InDestConfigFile.SourceConfigFile = new FConfigFile(InDestConfigFile);
-#if UE_WITH_CONFIG_TRACKING
-		// Ignore the SourceConfigFile for access tracking since it is not publicly accessible
-		InDestConfigFile.SourceConfigFile->SuppressReporting();
-#endif
-		// mark it as dirty (caller may want to save)
-		InDestConfigFile.Dirty = true;
-
-		return bReturnValue;
-	};
-
-	// Don't try to load any generated files from disk in cooked builds. We will always use the re-generated INIs.
-	if (!FPlatformProperties::RequiresCookedData() || bAllowGeneratedIniWhenCooked)
-	{
-		FString VersionString;
-		if (ConfigFile->GetString(*CurrentIniVersionString, *VersionName.ToString(), VersionString))
-		{
-			CurrentIniVersion = FCString::Atoi(*VersionString);
-		}
-
+		
 		// now compare to the source config file
-		if (ConfigFile->SourceConfigFile->GetString(*CurrentIniVersionString, *VersionName.ToString(), VersionString))
+		if (Branch->CombinedStaticLayers.GetInt(*CurrentIniVersionString, *VersionName, SourceConfigVersionNum))
 		{
-			SourceConfigVersionNum = FCString::Atoi(*VersionString);
-
 			if (SourceConfigVersionNum > CurrentIniVersion)
 			{
 				UE_LOG(LogInit, Log, TEXT("%s version has been updated. It will be regenerated."), *FPaths::ConvertRelativePathToFull(DestIniFilename));
@@ -897,132 +1046,48 @@ bool FConfigContext::GenerateDestIniFile()
 		{
 			bForceRegenerate = true;
 		}
-		else if (FParse::Param(FCommandLine::Get(), TEXT("NOAUTOINIUPDATE")))
-		{
-			// Flag indicating whether the user has requested 'Yes/No To All'.
-			static int32 GIniYesNoToAll = -1;
-			// Make sure GIniYesNoToAll's 'uninitialized' value is kosher.
-			static_assert(EAppReturnType::YesAll != -1, "EAppReturnType::YesAll must not be -1.");
-			static_assert(EAppReturnType::NoAll != -1, "EAppReturnType::NoAll must not be -1.");
-
-			// The file exists but is different.
-			// Prompt the user if they haven't already responded with a 'Yes/No To All' answer.
-			uint32 YesNoToAll;
-			if (GIniYesNoToAll != EAppReturnType::YesAll && GIniYesNoToAll != EAppReturnType::NoAll)
-			{
-				YesNoToAll = FMessageDialog::Open(EAppMsgType::YesNoYesAllNoAll, FText::Format(NSLOCTEXT("Core", "IniFileOutOfDate", "Your ini ({0}) file is outdated. Do you want to automatically update it saving the previous version? Not doing so might cause crashes!"), FText::FromString(DestIniFilename)));
-				// Record whether the user responded with a 'Yes/No To All' answer.
-				if (YesNoToAll == EAppReturnType::YesAll || YesNoToAll == EAppReturnType::NoAll)
-				{
-					GIniYesNoToAll = YesNoToAll;
-				}
-			}
-			else
-			{
-				// The user has already responded with a 'Yes/No To All' answer, so note it 
-				// in the output arg so that calling code can operate on its value.
-				YesNoToAll = GIniYesNoToAll;
-			}
-			// Regenerate the file if approved by the user.
-			bShouldUpdate = (YesNoToAll == EAppReturnType::Yes) || (YesNoToAll == EAppReturnType::YesAll);
-		}
-		else
-		{
-			// If the version changes, we regenerate, so no need to do this.
-			if (!bVersionChanged)
-			{
-				bShouldUpdate = true;
-			}
-		}
 	}
 
 	// Order is important, we want to let force regenerate happen before version change, in case we're trying to wipe everything.
 	//	Version tries to save some info.
-	if (ConfigFile->Num() == 0 && ConfigFile->SourceConfigFile->Num() == 0)
+	if (bForceRegenerate)
 	{
-		// If both are empty, don't save
-		return false;
-	}
-	else if (bForceRegenerate)
-	{
-		bResult = RegenerateFileLambda(ConfigFile->SourceIniHierarchy, *ConfigFile, bUseHierarchyCache);
+		Branch->SavedLayer.Empty();
 	}
 	else if (bVersionChanged)
 	{
-		// Clear out everything but the preserved sections with the properties in that section, then update the version.
-		//	The ini syntax is Preserve=Section=<section name, like /Scipt/FortniteGame.FortConsole>.
-		//	Go through and save the preserved sections before we regenerate the file. We'll re-add those after.
-		FConfigSection PreservedConfigSectionData;
-		if (const FConfigSection* SourceConfigSectionIniVersion = ConfigFile->SourceConfigFile->FindSection(CurrentIniVersionString))
+		// get list of preserved sections (those we want to keep from the Saved, even if the version changed)
+		TArray<FString> PreservedSections;
+		Branch->InMemoryFile.GetArray(*CurrentIniVersionString, *PreserveName, PreservedSections);
+
+		// get the saved keys, and remove non-preserved ones
+		TSet<FString> SavedKeys;
+		Branch->SavedLayer.GetKeys(SavedKeys);
+		for (const FString& SavedSection : SavedKeys)
 		{
-			for (FConfigSectionMap::TConstIterator ItSourceConfigSectionIniVersion(*SourceConfigSectionIniVersion); ItSourceConfigSectionIniVersion; ++ItSourceConfigSectionIniVersion)
+			if (!PreservedSections.Contains(SavedSection))
 			{
-				if (ItSourceConfigSectionIniVersion.Key() == PreserveName)
-				{
-					PreservedConfigSectionData.Add(ItSourceConfigSectionIniVersion.Key(), ItSourceConfigSectionIniVersion.Value());
-				}
+				Branch->SavedLayer.Remove(*SavedSection);
 			}
 		}
-
-		FConfigFile PreservedConfigFileData;
-		for (FConfigSectionMap::TConstIterator ItPreservedConfigSectionData(PreservedConfigSectionData); ItPreservedConfigSectionData; ++ItPreservedConfigSectionData)
-		{
-			FString SectionString = ItPreservedConfigSectionData.Value().GetSavedValue();
-			if (const FConfigSection* FoundSection = ConfigFile->FindSection(SectionString))
-			{
-				for (FConfigSectionMap::TConstIterator ItFoundSection(*FoundSection); ItFoundSection; ++ItFoundSection)
-				{
-					if (FConfigSection* CreatedSection = PreservedConfigFileData.FindOrAddSectionInternal(SectionString))
-					{
-						CreatedSection->Add(ItFoundSection.Key(), ItFoundSection.Value());
-					}
-				}
-			}
-		}
-
-		// Remove everything before we regenerate.
-		ConfigFile->Empty();
-
-		// Regnerate.
-		bResult = RegenerateFileLambda(ConfigFile->SourceIniHierarchy, *ConfigFile, bUseHierarchyCache);
-
-		// Add back the CurrentIniVersion section.
-		if (FConfigSection* DestConfigSectionIniVersion = ConfigFile->FindOrAddSectionInternal(CurrentIniVersionString))
-		{
-			// Update the version. If it's already there then good but if not, we add it.
-			DestConfigSectionIniVersion->FindOrAdd(VersionName, FConfigValue(DestConfigSectionIniVersion, VersionName, FString::FromInt(SourceConfigVersionNum)));
-		}
-
-		// Add back any preserved sections.
-		for (TMap<FString, FConfigSection>::TConstIterator ItPreservedConfigFileData(PreservedConfigFileData); ItPreservedConfigFileData; ++ItPreservedConfigFileData)
-		{
-			if (FConfigSection* DestConfigSectionPreserved = ConfigFile->FindOrAddSectionInternal(ItPreservedConfigFileData.Key()))
-			{
-				FConfigSection PreservedConfigFileSection = ItPreservedConfigFileData.Value();
-				for (FConfigSectionMap::TConstIterator ItPreservedConfigFileSection(PreservedConfigFileSection); ItPreservedConfigFileSection; ++ItPreservedConfigFileSection)
-				{
-					DestConfigSectionPreserved->Add(ItPreservedConfigFileSection.Key(), ItPreservedConfigFileSection.Value());
-				}
-			}
-		}
-	}
-	else if (bShouldUpdate)
-	{
-		// Merge the .ini files by copying over properties that exist in the default .ini but are
-		// missing from the generated .ini
-		// NOTE: Most of the time there won't be any properties to add here, since LoadAnIniFile will
-		//		 combine properties in the Default .ini with those in the Project .ini
-		ConfigFile->AddMissingProperties(*ConfigFile->SourceConfigFile);
-
-		// mark it as dirty (caller may want to save)
-		ConfigFile->Dirty = true;
+		
+		// make sure current version is saved out (this would only be needed if we preserved the CurrentIniVersionString section, but doesn't hurt to do)
+		Branch->SavedLayer.FindOrAdd(CurrentIniVersionString).Remove(*VersionName);
+		Branch->SavedLayer.FindOrAdd(CurrentIniVersionString).Add(*VersionName, FConfigValue(FString::Printf(TEXT("%d"), SourceConfigVersionNum), FConfigValue::EValueType::Set));
 	}
 
-	if (!IsUsingLocalIniFile(*DestIniFilename, nullptr))
-	{
-		// Save off a copy of the local file prior to overwriting it with the contents of a remote file
-		MakeLocalCopy(*DestIniFilename);
-	}
+	// now merge in the saved info that is still around after the above logic
+	Branch->InMemoryFile.ApplyFile(&Branch->SavedLayer);
+
+#if ALLOW_INI_OVERRIDE_FROM_COMMANDLINE
+	// process any commandline overrides
+	FConfigFile::OverrideFromCommandline(&Branch->CommandLineOverrides, BaseIniName);
+	// and push it into the current values
+	Branch->InMemoryFile.ApplyFile(&Branch->CommandLineOverrides);
+#endif
+
+
+//	Branch->CombinedStaticLayers.Cleanup();
 
 	return bResult;
 }
@@ -1100,7 +1165,14 @@ void FConfigContext::VisualizeHierarchy(FOutputDevice& Ar, const TCHAR* IniName)
 {
 	Ar.Logf(TEXT("======================================================="));
 
-	ResetBaseIni(IniName);
+	if (bIncludeTagNameInBranchName)
+	{
+		ResetBaseIni(*(ConfigFileTag.ToString() + IniName));
+	}
+	else
+	{
+		ResetBaseIni(IniName);
+	}
 	CachePaths();
 	bool _;
 	PrepareForLoad(_);

@@ -7756,7 +7756,7 @@ bool UCookOnTheFlyServer::GetCurrentIniVersionStrings( const ITargetPlatform* Ta
 		{
 			// This is logged as Warning; it is unexpected that we were able to load a file from disk that
 			// existed previously when we received the OnConfigValueRead call.
-			UE_LOG(LogCook, Warning,
+			UE_LOG(LogCook, Display,
 				TEXT("Could not load config file '%s'. Changes to settings in this file will not be detected in iterative cooks."),
 				*FullConfigFileNameStr);
 			continue;
