@@ -66,7 +66,8 @@ void FMaterialXOpenPBRSurfaceShader::Translate(MaterialX::NodePtr OpenPBRSurface
 	//Transmission
 	ConnectNodeOutputToInput(Input::TransmissionColor, OpenPBRSurfaceShaderNode, OpenPBRSurface::Parameters::TransmissionColor.ToString(), DefaultValue::TransmissionColor);
 	ConnectNodeOutputToInput(Input::TransmissionDepth, OpenPBRSurfaceShaderNode, OpenPBRSurface::Parameters::TransmissionDepth.ToString(), DefaultValue::TransmissionDepth);
-	ConnectNodeOutputToInput(Input::TransmissionDispersion, OpenPBRSurfaceShaderNode, OpenPBRSurface::Parameters::TransmissionDispersion.ToString(), DefaultValue::TransmissionDispersion);
+	ConnectNodeOutputToInput(Input::TransmissionDispersionScale, OpenPBRSurfaceShaderNode, OpenPBRSurface::Parameters::TransmissionDispersionScale.ToString(), DefaultValue::TransmissionDispersionScale);
+	ConnectNodeOutputToInput(Input::TransmissionDispersionAbbeNumber, OpenPBRSurfaceShaderNode, OpenPBRSurface::Parameters::TransmissionDispersionAbbeNumber.ToString(), DefaultValue::TransmissionDispersionAbbeNumber);
 	ConnectNodeOutputToInput(Input::TransmissionScatter, OpenPBRSurfaceShaderNode, OpenPBRSurface::Parameters::TransmissionScatter.ToString(), DefaultValue::TransmissionScatter);
 	ConnectNodeOutputToInput(Input::TransmissionScatterAnisotropy, OpenPBRSurfaceShaderNode, OpenPBRSurface::Parameters::TransmissionScatterAnisotropy.ToString(), DefaultValue::TransmissionScatterAnisotropy);
 	ConnectNodeOutputToInput(Input::TransmissionWeight, OpenPBRSurfaceShaderNode, OpenPBRSurface::Parameters::TransmissionWeight.ToString(), DefaultValue::TransmissionWeight);

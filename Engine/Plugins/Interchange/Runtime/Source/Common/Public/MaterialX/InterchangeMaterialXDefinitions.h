@@ -155,7 +155,8 @@ MATERIALX_NAMESPACE_BEGIN
 			static constexpr const char* TransmissionDepth = "transmission_depth";
 			static constexpr const char* TransmissionScatter = "transmission_scatter";
 			static constexpr const char* TransmissionScatterAnisotropy= "transmission_scatter_anisotropy";
-			static constexpr const char* TransmissionDispersion = "transmission_dispersion";
+			static constexpr const char* TransmissionDispersionScale = "transmission_dispersion_scale";
+			static constexpr const char* TransmissionDispersionAbbeNumber= "transmission_dispersion_abbe_number";
 			static constexpr const char* SubsurfaceWeight = "subsurface_weight";
 			static constexpr const char* SubsurfaceColor = "subsurface_color";
 			static constexpr const char* SubsurfaceRadius = "subsurface_radius";
@@ -200,7 +201,8 @@ MATERIALX_NAMESPACE_BEGIN
 			static constexpr float TransmissionDepth = 0.f;
 			static constexpr FLinearColor TransmissionScatter{ 0, 0, 0 };
 			static constexpr float TransmissionScatterAnisotropy = 0.f;
-			static constexpr float TransmissionDispersion = 0.f;
+			static constexpr float TransmissionDispersionScale = 0.f;
+			static constexpr float TransmissionDispersionAbbeNumber = 0.f;
 			static constexpr float SubsurfaceWeight = 0.f;
 			static constexpr FLinearColor SubsurfaceColor{ 0.8, 0.8, 0.8 };
 			static constexpr float SubsurfaceRadius = 1.f;
