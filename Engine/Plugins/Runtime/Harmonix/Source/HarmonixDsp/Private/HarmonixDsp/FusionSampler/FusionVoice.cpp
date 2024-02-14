@@ -364,7 +364,7 @@ void FFusionVoice::AttackWithTargetNote(uint8 InMidiNoteNumber, float InGain, in
 			if (ErrorMs > 10.0f)
 			{
 				// gotta let the render code skip forward a bit in process otherwise this voice will be out of sync by a lot!
-				StartBeat = (float)InEventTick / MidiConstants::kTicksPerQuarterNote;
+				StartBeat = (float)InEventTick / Harmonix::Midi::Constants::GTicksPerQuarterNote;
 			}
 			else
 			{
@@ -378,7 +378,7 @@ void FFusionVoice::AttackWithTargetNote(uint8 InMidiNoteNumber, float InGain, in
 	}
 	else
 	{
-		StartBeat = (float)InEventTick / MidiConstants::kTicksPerQuarterNote;
+		StartBeat = (float)InEventTick / Harmonix::Midi::Constants::GTicksPerQuarterNote;
 	}
 
 	// multiply by 100.0?

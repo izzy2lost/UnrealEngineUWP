@@ -31,7 +31,7 @@ public:
 		return Ms == Other.Ms && MidiTempo == Other.MidiTempo;
 	}
 
-	float GetBPM() const { return MidiConstants::MidiTempoToBPM(MidiTempo); }
+	float GetBPM() const { return Harmonix::Midi::Constants::MidiTempoToBPM(MidiTempo); }
 
 	UPROPERTY()
 	float Ms = 0;        // The time at which the tempo is changing
@@ -61,7 +61,7 @@ struct HARMONIXMIDI_API FTempoMap
 public:
 
 	FTempoMap() 
-		: TicksPerQuarterNote(MidiConstants::kTicksPerQuarterNoteInt)
+		: TicksPerQuarterNote(Harmonix::Midi::Constants::GTicksPerQuarterNoteInt)
 	{}
 	virtual ~FTempoMap() {}
 

@@ -47,7 +47,7 @@ struct HARMONIXMIDI_API FChordProgressionMap
 
 public:
 	FChordProgressionMap()
-		: TicksPerQuarterNote(MidiConstants::kTicksPerQuarterNoteInt)
+		: TicksPerQuarterNote(Harmonix::Midi::Constants::GTicksPerQuarterNoteInt)
 	{}
 	friend bool operator==(const FChordProgressionMap& Left, const FChordProgressionMap& Right);
 

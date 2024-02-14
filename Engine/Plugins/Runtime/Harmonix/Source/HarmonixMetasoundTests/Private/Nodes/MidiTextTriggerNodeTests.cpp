@@ -21,16 +21,16 @@ namespace HarmonixMetasoundTests::MidiTextTriggerNode
 		// Make a midi file...
 		UMidiFile* TheMidi = NewObject<UMidiFile>();
 		// Set the initial tempo...
-		TheMidi->GetSongMaps()->GetTempoMap().AddTempoInfoPoint(MidiConstants::BPMToMidiTempo(120),0);
+		TheMidi->GetSongMaps()->GetTempoMap().AddTempoInfoPoint(Harmonix::Midi::Constants::BPMToMidiTempo(120),0);
 		// Make a track to hold some text events. This will be track 1 (track 0 is always the conductor track)...
 		FMidiTrack* TextTrack = TheMidi->AddTrack("TextEventTest");
 		// Make a text event...
 		uint16 TextIndex = TextTrack->AddText("ThisIsText");
-		FMidiEvent ATextEvent(0, FMidiMsg::CreateText(TextIndex, MidiConstants::kMeta_Text));
+		FMidiEvent ATextEvent(0, FMidiMsg::CreateText(TextIndex, Harmonix::Midi::Constants::GMeta_Text));
 		TextTrack->AddEvent(ATextEvent);
 		// Make another text event...
 		TextIndex = TextTrack->AddText("ThisIsAnotherText");
-		FMidiEvent ASecondTextEvent(TheMidi->GetSongMaps()->MsToTick(15.0f), FMidiMsg::CreateText(TextIndex, MidiConstants::kMeta_Text));
+		FMidiEvent ASecondTextEvent(TheMidi->GetSongMaps()->MsToTick(15.0f), FMidiMsg::CreateText(TextIndex, Harmonix::Midi::Constants::GMeta_Text));
 		TextTrack->AddEvent(ASecondTextEvent);
 		// Tell the midi file its tracks have been changed so it can recalculate song length data...
 		TheMidi->TracksChanged();

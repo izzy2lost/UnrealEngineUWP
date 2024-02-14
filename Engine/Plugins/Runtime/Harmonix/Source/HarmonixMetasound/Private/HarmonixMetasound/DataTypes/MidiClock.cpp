@@ -97,26 +97,29 @@ int32 SubdivisionToMidiTicks(const EMidiClockSubdivisionQuantization Division, c
 	{
 		return 0;
 	}
+
+	using namespace Harmonix::Midi::Constants;
+	
 	switch (Division)
 	{
 	case EMidiClockSubdivisionQuantization::Bar: 					return SongMap.GetBarMap().GetTicksInBarAfterPoint(BarMapPointIndex);
-	case EMidiClockSubdivisionQuantization::Beat:					return (MidiConstants::kTicksPerQuarterNoteInt * 4) / TimeSignature->Denominator;
-	case EMidiClockSubdivisionQuantization::ThirtySecondNote:		return MidiConstants::kTicksPerQuarterNoteInt / 8;
-	case EMidiClockSubdivisionQuantization::SixteenthNote:			return MidiConstants::kTicksPerQuarterNoteInt / 4;
-	case EMidiClockSubdivisionQuantization::EighthNote:				return MidiConstants::kTicksPerQuarterNoteInt / 2;
-	case EMidiClockSubdivisionQuantization::QuarterNote:			return MidiConstants::kTicksPerQuarterNoteInt;
-	case EMidiClockSubdivisionQuantization::HalfNote:				return MidiConstants::kTicksPerQuarterNoteInt * 2;
-	case EMidiClockSubdivisionQuantization::WholeNote:				return MidiConstants::kTicksPerQuarterNoteInt * 4;
-	case EMidiClockSubdivisionQuantization::DottedSixteenthNote:	return (MidiConstants::kTicksPerQuarterNoteInt / 4) + (MidiConstants::kTicksPerQuarterNoteInt / 8);
-	case EMidiClockSubdivisionQuantization::DottedEighthNote:		return (MidiConstants::kTicksPerQuarterNoteInt / 2) + (MidiConstants::kTicksPerQuarterNoteInt / 4);
-	case EMidiClockSubdivisionQuantization::DottedQuarterNote:		return (MidiConstants::kTicksPerQuarterNoteInt)     + (MidiConstants::kTicksPerQuarterNoteInt / 2);
-	case EMidiClockSubdivisionQuantization::DottedHalfNote:			return (MidiConstants::kTicksPerQuarterNoteInt * 2) + (MidiConstants::kTicksPerQuarterNoteInt);
-	case EMidiClockSubdivisionQuantization::DottedWholeNote:		return (MidiConstants::kTicksPerQuarterNoteInt * 4) + (MidiConstants::kTicksPerQuarterNoteInt * 2);
-	case EMidiClockSubdivisionQuantization::SixteenthNoteTriplet:   return (MidiConstants::kTicksPerQuarterNoteInt / 2) / 3;
-	case EMidiClockSubdivisionQuantization::EighthNoteTriplet:		return MidiConstants::kTicksPerQuarterNoteInt / 3;
-	case EMidiClockSubdivisionQuantization::QuarterNoteTriplet:		return (MidiConstants::kTicksPerQuarterNoteInt * 2) / 3;
-	case EMidiClockSubdivisionQuantization::HalfNoteTriplet:        return (MidiConstants::kTicksPerQuarterNoteInt * 4) / 3;
-	default:	/* Beat */											return (MidiConstants::kTicksPerQuarterNoteInt * 4) / TimeSignature->Denominator;
+	case EMidiClockSubdivisionQuantization::Beat:					return (GTicksPerQuarterNoteInt * 4) / TimeSignature->Denominator;
+	case EMidiClockSubdivisionQuantization::ThirtySecondNote:		return GTicksPerQuarterNoteInt / 8;
+	case EMidiClockSubdivisionQuantization::SixteenthNote:			return GTicksPerQuarterNoteInt / 4;
+	case EMidiClockSubdivisionQuantization::EighthNote:				return GTicksPerQuarterNoteInt / 2;
+	case EMidiClockSubdivisionQuantization::QuarterNote:			return GTicksPerQuarterNoteInt;
+	case EMidiClockSubdivisionQuantization::HalfNote:				return GTicksPerQuarterNoteInt * 2;
+	case EMidiClockSubdivisionQuantization::WholeNote:				return GTicksPerQuarterNoteInt * 4;
+	case EMidiClockSubdivisionQuantization::DottedSixteenthNote:	return (GTicksPerQuarterNoteInt / 4) + (GTicksPerQuarterNoteInt / 8);
+	case EMidiClockSubdivisionQuantization::DottedEighthNote:		return (GTicksPerQuarterNoteInt / 2) + (GTicksPerQuarterNoteInt / 4);
+	case EMidiClockSubdivisionQuantization::DottedQuarterNote:		return (GTicksPerQuarterNoteInt)     + (GTicksPerQuarterNoteInt / 2);
+	case EMidiClockSubdivisionQuantization::DottedHalfNote:			return (GTicksPerQuarterNoteInt * 2) + (GTicksPerQuarterNoteInt);
+	case EMidiClockSubdivisionQuantization::DottedWholeNote:		return (GTicksPerQuarterNoteInt * 4) + (GTicksPerQuarterNoteInt * 2);
+	case EMidiClockSubdivisionQuantization::SixteenthNoteTriplet:   return (GTicksPerQuarterNoteInt / 2) / 3;
+	case EMidiClockSubdivisionQuantization::EighthNoteTriplet:		return GTicksPerQuarterNoteInt / 3;
+	case EMidiClockSubdivisionQuantization::QuarterNoteTriplet:		return (GTicksPerQuarterNoteInt * 2) / 3;
+	case EMidiClockSubdivisionQuantization::HalfNoteTriplet:        return (GTicksPerQuarterNoteInt * 4) / 3;
+	default:	/* Beat */											return (GTicksPerQuarterNoteInt * 4) / TimeSignature->Denominator;
 	}
 }
 
@@ -240,7 +243,7 @@ namespace HarmonixMetasound
 
 		check(BlockFrameIndex >= MyMidiClock->TempoChangesInBlock.Last().BlockSampleFrameIndex);
 		MyMidiClock->HasTempoChangeInBlock = true;
-		float Bpm = MidiConstants::MidiTempoToBPM(Tempo);
+		float Bpm = Harmonix::Midi::Constants::MidiTempoToBPM(Tempo);
 		if (MyMidiClock->TempoChangesInBlock.Last().BlockSampleFrameIndex == BlockFrameIndex)
 		{
 			MyMidiClock->TempoChangesInBlock.Last().Tempo = Bpm;
@@ -570,7 +573,7 @@ namespace HarmonixMetasound
 
 		// add tempo info
 		float TempoBPM = FMath::Max(1.0f, InTempoBPM);
-		int32 MidiTempo = MidiConstants::BPMToMidiTempo(TempoBPM);
+		int32 MidiTempo = Harmonix::Midi::Constants::BPMToMidiTempo(TempoBPM);
 		Track.AddEvent(FMidiEvent(0, FMidiMsg(MidiTempo)));
 		TempoMap.AddTempoInfoPoint(MidiTempo, 0);
 

@@ -355,8 +355,9 @@ namespace HarmonixMetasound::Nodes::MidiCCTriggerNode
 					continue;
 				}
 
-				if (Event.TrackIndex != *Inputs.TrackNumber || Event.MidiMessage.GetStdChannel() + 1 != *Inputs.ChannelNumber
-					|| Event.MidiMessage.GetStdStatus() != MidiConstants::kControl)
+				if (Event.TrackIndex != *Inputs.TrackNumber
+					|| !Event.MidiMessage.IsControlChange()
+					|| Event.MidiMessage.GetStdChannel() + 1 != *Inputs.ChannelNumber)
 				{
 					continue;
 				}

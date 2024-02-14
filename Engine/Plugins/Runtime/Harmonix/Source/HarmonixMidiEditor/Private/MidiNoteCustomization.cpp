@@ -53,7 +53,7 @@ void FMidiNoteCustomization::OnValueStringSelected(const FString& SelectedString
 
 void FMidiNoteCustomization::OnGetStrings(TArray< TSharedPtr<FString> >& OutStrings, TArray<TSharedPtr<SToolTip>>& OutToolTips, TArray<bool>& OutRestrictedItems) const
 {
-	for (uint8 NoteNumber = MidiConstants::kMinNote; NoteNumber < MidiConstants::kMaxNumNotes; ++NoteNumber)
+	for (uint8 NoteNumber = Harmonix::Midi::Constants::GMinNote; NoteNumber < Harmonix::Midi::Constants::GMaxNumNotes; ++NoteNumber)
 	{
 		OutStrings.Add(MakeShared<FString>(FMidiNote(NoteNumber).ToEditorString()));
 		OutRestrictedItems.Add(false);

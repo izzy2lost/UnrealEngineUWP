@@ -155,7 +155,7 @@ public:
 protected:
 	friend class FSongMapReceiver;
 	UPROPERTY()
-	int32 TicksPerQuarterNote = MidiConstants::kTicksPerQuarterNoteInt;
+	int32 TicksPerQuarterNote = Harmonix::Midi::Constants::GTicksPerQuarterNoteInt;
 	UPROPERTY()
 	FTempoMap TempoMap;
 	UPROPERTY()

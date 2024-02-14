@@ -40,8 +40,8 @@ void FMidiWriter::Close()
 void FMidiWriter::EndOfTrack()
 {
 	ProcessTick(CurTick);
-	_WRITE_TRACK_MIDI_BYTE(MidiConstants::kFile_Meta);
-	_WRITE_TRACK_MIDI_BYTE(MidiConstants::kMeta_EndOfTrack);
+	_WRITE_TRACK_MIDI_BYTE(Harmonix::Midi::Constants::GFile_Meta);
+	_WRITE_TRACK_MIDI_BYTE(Harmonix::Midi::Constants::GMeta_EndOfTrack);
 	_WRITE_TRACK_MIDI_BYTE(0);
 	TSharedPtr<FBufferWriter> Writer = MakeShared<FBufferWriter>(FMemory::Malloc(1024), 1024, EBufferWriterFlags::TakeOwnership | EBufferWriterFlags::AllowResize);
 	TrackWriters.Add(Writer);
@@ -51,24 +51,25 @@ void FMidiWriter::EndOfTrack()
 
 void FMidiWriter::MidiMessage(int32 Tick, uint8 Status, uint8 Data1, uint8 Data2)
 {
+	using namespace Harmonix::Midi::Constants;
 	ProcessTick(Tick);
 
 	*CurrentWriter << Status;
 
 	// messages are of varying length:
-	switch (Status & MidiConstants::kMessageTypeMask)
+	switch (Status & GMessageTypeMask)
 	{
-	case MidiConstants::kNoteOn: // 3-byte
-	case MidiConstants::kNoteOff:
-	case MidiConstants::kControl:
-	case MidiConstants::kPitch:
-	case MidiConstants::kPolyPres:
+	case GNoteOn: // 3-byte
+	case GNoteOff:
+	case GControl:
+	case GPitch:
+	case GPolyPres:
 		*CurrentWriter << Data1 << Data2;
 		break;
 
 		// 2 byte messages
-	case MidiConstants::kProgram:
-	case MidiConstants::kChanPres:
+	case GProgram:
+	case GChanPres:
 		*CurrentWriter << Data1;
 		break;
 
@@ -80,10 +81,11 @@ void FMidiWriter::MidiMessage(int32 Tick, uint8 Status, uint8 Data1, uint8 Data2
 
 void FMidiWriter::Tempo(int32 Tick, int32 Tempo)
 {
+	using namespace Harmonix::Midi::Constants;
 	check(Tempo <= 0xFFFFFF);
 	ProcessTick(Tick);
-	_WRITE_TRACK_MIDI_BYTE(MidiConstants::kFile_Meta);  // meta-event
-	_WRITE_TRACK_MIDI_BYTE(MidiConstants::kMeta_Tempo); // tempo tag
+	_WRITE_TRACK_MIDI_BYTE(GFile_Meta);  // meta-event
+	_WRITE_TRACK_MIDI_BYTE(GMeta_Tempo); // tempo tag
 	_WRITE_TRACK_MIDI_BYTE(0x03);							// size of following
 	_WRITE_TRACK_MIDI_BYTE(uint8((Tempo >> 16) & 0xFF));  // 3 bytes of tempo
 	_WRITE_TRACK_MIDI_BYTE(uint8((Tempo >> 8) & 0xFF));
@@ -94,7 +96,7 @@ void FMidiWriter::Text(int32 Tick, const TCHAR* Str, uint8 Type)
 {
 	check(Type >= 0x01 && Type <= 0x07);
 	ProcessTick(Tick);
-	_WRITE_TRACK_MIDI_BYTE(MidiConstants::kFile_Meta); // meta-event
+	_WRITE_TRACK_MIDI_BYTE(Harmonix::Midi::Constants::GFile_Meta); // meta-event
 	_WRITE_TRACK_MIDI_BYTE(Type);						   // tag
 
 	auto TextAsUtf8 = StringCast<UTF8CHAR>(Str);
@@ -105,11 +107,12 @@ void FMidiWriter::Text(int32 Tick, const TCHAR* Str, uint8 Type)
 
 void FMidiWriter::TimeSignature(int32 Tick, int32 Numerator, int32 Denominator)
 {
+	using namespace Harmonix::Midi::Constants;
 	check(Numerator > 0);
 	check(Denominator > 0);
 	ProcessTick(Tick);
-	_WRITE_TRACK_MIDI_BYTE(MidiConstants::kFile_Meta);    // meta-event
-	_WRITE_TRACK_MIDI_BYTE(MidiConstants::kMeta_TimeSig); // tag
+	_WRITE_TRACK_MIDI_BYTE(GFile_Meta);    // meta-event
+	_WRITE_TRACK_MIDI_BYTE(GMeta_TimeSig); // tag
 	_WRITE_TRACK_MIDI_BYTE(0x04);							  // size of following
 	_WRITE_TRACK_MIDI_BYTE(uint8(Numerator));               // numerator of time signature
 

@@ -29,7 +29,7 @@ namespace Harmonix::Midi::Ops::Tests
 		constexpr uint8 Velocity = 54;
 
 		// Add some note ons on all the channels
-		for (uint8 ChannelIdx = 0; ChannelIdx < MidiConstants::kNumChannels; ++ChannelIdx)
+		for (uint8 ChannelIdx = 0; ChannelIdx < Constants::GNumChannels; ++ChannelIdx)
 		{
 			InputStream.AddMidiEvent({ static_cast<uint32>(0), FMidiMsg::CreateNoteOn(ChannelIdx, NoteNumber, Velocity)});
 		}
@@ -55,7 +55,7 @@ namespace Harmonix::Midi::Ops::Tests
 		// Add some note ons on all the channels
 		InputStream.PrepareBlock();
 		OutputStream.PrepareBlock();
-		for (uint8 ChannelIdx = 0; ChannelIdx < MidiConstants::kNumChannels; ++ChannelIdx)
+		for (uint8 ChannelIdx = 0; ChannelIdx < Constants::GNumChannels; ++ChannelIdx)
 		{
 			InputStream.AddMidiEvent({ static_cast<uint32>(0), FMidiMsg::CreateNoteOn(ChannelIdx, NoteNumber, Velocity)});
 		}
@@ -67,7 +67,7 @@ namespace Harmonix::Midi::Ops::Tests
 		// Now send note offs on all the channels, process, and expect no additional note offs
 		InputStream.PrepareBlock();
 		OutputStream.PrepareBlock();
-		for (uint8 ChannelIdx = 0; ChannelIdx < MidiConstants::kNumChannels; ++ChannelIdx)
+		for (uint8 ChannelIdx = 0; ChannelIdx < Constants::GNumChannels; ++ChannelIdx)
 		{
 			InputStream.AddMidiEvent({ static_cast<uint32>(0), FMidiMsg::CreateNoteOff(ChannelIdx, NoteNumber)});
 		}

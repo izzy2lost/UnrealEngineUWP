@@ -57,8 +57,10 @@ void FSongMapReceiver::OnMidiMessage(int32 Tick, uint8 Status, uint8 Data1, uint
 	{
 		return;
 	}
+	
+	using namespace Harmonix::Midi::Constants;
 
-	if (MidiConstants::GetType(Status) != MidiConstants::kNoteOn)
+	if (GetType(Status) != GNoteOn)
 	{
 		return;
 	}
@@ -73,9 +75,9 @@ void FSongMapReceiver::OnMidiMessage(int32 Tick, uint8 Status, uint8 Data1, uint
 	if ((LastBeatTick != -1) && !bHaveBeatFailure)
 	{
 		// Don't allow beat tracks faster than 16th note denominators.
-		if ((Tick - LastBeatTick) < MidiConstants::kTicksPerQuarterNoteInt / 4)
+		if ((Tick - LastBeatTick) < GTicksPerQuarterNoteInt / 4)
 		{
-			_LOG_SONGMAP_ERROR("Beat track cannot be faster than 16th notes; beats are less than %d ticks apart at %s", MidiConstants::kTicksPerQuarterNoteInt / 4, *FmtTick(Tick));
+			_LOG_SONGMAP_ERROR("Beat track cannot be faster than 16th notes; beats are less than %d ticks apart at %s", GTicksPerQuarterNoteInt / 4, *FmtTick(Tick));
 			bHaveBeatFailure = true;
 		}
 
@@ -102,11 +104,11 @@ void FSongMapReceiver::OnMidiMessage(int32 Tick, uint8 Status, uint8 Data1, uint
 void FSongMapReceiver::OnText(int32 Tick, const FString& Str, uint8 Type)
 {
 	// we only care about track name
-	if (Type == MidiConstants::kMeta_TrackName)
+	if (Type == Harmonix::Midi::Constants::GMeta_TrackName)
 	{
 		OnTrackName(Str);
 	}
-	else if (Type == MidiConstants::kMeta_Text)
+	else if (Type == Harmonix::Midi::Constants::GMeta_Text)
 	{
 		switch (CurrentTrack)
 		{
@@ -130,7 +132,6 @@ void FSongMapReceiver::OnTempo(int32 Tick, int32 Tempo)
 
 void FSongMapReceiver::OnTimeSignature(int32 Tick, int32 Numerator, int32 Denominator, bool FailOnError)
 {
-	FMusicTimestamp Timestamp;
 	check(Tick == 0 || SongMaps->BarMap.GetNumTimeSignaturePoints() > 0);
 	int32 BarIndex = SongMaps->BarMap.TickToBarIncludingCountIn(Tick);
 

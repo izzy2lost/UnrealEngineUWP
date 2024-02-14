@@ -390,7 +390,7 @@ namespace HarmonixMetasound
 		FMidiFileProxyPtr MidiFileSourceOfEvents;
 		int32 NumFramesPerBlock = 0;
 		Metasound::FSampleRate SampleRate  = 0;
-		int32 TicksPerQuarterNote = MidiConstants::kTicksPerQuarterNoteInt;
+		int32 TicksPerQuarterNote = Harmonix::Midi::Constants::GTicksPerQuarterNoteInt;
 
 		FMidiTimestampTransportState CurrentTransportState;
 		TArray<FMidiTimestampTransportState> TransportChangesInBlock;

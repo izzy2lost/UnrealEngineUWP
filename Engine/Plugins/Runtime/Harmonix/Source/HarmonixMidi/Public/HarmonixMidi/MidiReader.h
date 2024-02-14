@@ -43,16 +43,32 @@ public:
 class FStdMidiFileReader : public  IMidiReader
 {
 public:
+	FStdMidiFileReader(
+		TSharedPtr<FArchive> Archive,
+		const FString& InFilename,
+		IMidiReceiver* InReceiver, 
+		int32 TicksPerQuarterNote = Harmonix::Midi::Constants::GTicksPerQuarterNoteInt,
+		Harmonix::Midi::Constants::EMidiTextEventEncoding InTextEncoding = Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8);
+	FStdMidiFileReader(
+		const FString& FilePath,
+		IMidiReceiver* Receiver,
+		int32 TicksPerQuarterNote = Harmonix::Midi::Constants::GTicksPerQuarterNoteInt,
+		Harmonix::Midi::Constants::EMidiTextEventEncoding InTextEncoding = Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8);
+	FStdMidiFileReader(
+		void* Buffer,
+		int32 BufferSize,
+		const FString& FileName,
+		IMidiReceiver* Receiver,
+		int32 TicksPerQuarterNote = Harmonix::Midi::Constants::GTicksPerQuarterNoteInt,
+		Harmonix::Midi::Constants::EMidiTextEventEncoding InTextEncoding = Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8);
 
-	FStdMidiFileReader(TSharedPtr<FArchive> Archive, const FString& InFilename, IMidiReceiver* InReceiver, 
-			int32 TicksPerQuarterNote = MidiConstants::kTicksPerQuarterNoteInt, MidiConstants::EMidiTextEventEncoding InTextEncoding = MidiConstants::EMidiTextEventEncoding::UTF8);
-	FStdMidiFileReader(const FString& FilePath, IMidiReceiver* Receiver,
-			int32 TicksPerQuarterNote = MidiConstants::kTicksPerQuarterNoteInt, MidiConstants::EMidiTextEventEncoding InTextEncoding = MidiConstants::EMidiTextEventEncoding::UTF8);
-	FStdMidiFileReader(void* Buffer, int32 BufferSize, const FString& FileName, IMidiReceiver* Receiver,
-			int32 TicksPerQuarterNote = MidiConstants::kTicksPerQuarterNoteInt, MidiConstants::EMidiTextEventEncoding InTextEncoding = MidiConstants::EMidiTextEventEncoding::UTF8);
-
-	static bool ReadStdMidiFileForReceiver(void* Buffer, int32 BufferSize, const FString& FileName, IMidiReceiver* Receiver,
-			int32 TicksPerQuarterNote = MidiConstants::kTicksPerQuarterNoteInt, MidiConstants::EMidiTextEventEncoding InTextEncoding = MidiConstants::EMidiTextEventEncoding::UTF8);
+	static bool ReadStdMidiFileForReceiver(
+		void* Buffer,
+		int32 BufferSize,
+		const FString& FileName,
+		IMidiReceiver* Receiver,
+		int32 TicksPerQuarterNote = Harmonix::Midi::Constants::GTicksPerQuarterNoteInt,
+		Harmonix::Midi::Constants::EMidiTextEventEncoding InTextEncoding = Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8);
 
 	virtual ~FStdMidiFileReader() {}
 
@@ -105,10 +121,10 @@ private:
 	TSharedPtr<FArchiveFileReaderGeneric> FileArchive;
 
 	IMidiReceiver* Receiver = nullptr;
-	MidiConstants::EMidiTextEventEncoding TextEncoding = MidiConstants::EMidiTextEventEncoding::Latin1;
+	Harmonix::Midi::Constants::EMidiTextEventEncoding TextEncoding = Harmonix::Midi::Constants::EMidiTextEventEncoding::Latin1;
 	EState State = EState::Start;
 
-	int32 DestinationTicksPerQuarterNote = MidiConstants::kTicksPerQuarterNoteInt;
+	int32 DestinationTicksPerQuarterNote = Harmonix::Midi::Constants::GTicksPerQuarterNoteInt;
 	float TickConversionFactor = 1.0f; // factor to convert from file's tick-per-quarternote to kTicksPerQuarterNote 
 
 	int16 Format = 1;             // Format 0 or Format 1 standard midi file?
@@ -144,16 +160,17 @@ private:
 	{
 		inline int32 MidiRank(uint8 Status) const
 		{
-			switch (Status & MidiConstants::kMessageTypeMask)
+			using namespace Harmonix::Midi::Constants;
+			switch (Status & GMessageTypeMask)
 			{
-			case MidiConstants::kNoteOff:  return 1;
-			case MidiConstants::kControl:  return 2;
-			case MidiConstants::kProgram:  return 3;
-			case MidiConstants::kChanPres: return 4;
-			case MidiConstants::kPitch:    return 5;
-			case MidiConstants::kPolyPres: return 6;
-			case MidiConstants::kNoteOn:   return 7;
-			default:             return 8;
+			case GNoteOff:  return 1;
+			case GControl:  return 2;
+			case GProgram:  return 3;
+			case GChanPres: return 4;
+			case GPitch:    return 5;
+			case GPolyPres: return 6;
+			case GNoteOn:   return 7;
+			default:        return 8;
 			}
 		}
 		bool operator()(const FStdMidiFileReader::FRawMidiMsg& lhs, const FStdMidiFileReader::FRawMidiMsg& rhs) const

@@ -489,7 +489,7 @@ bool FKeyzoneNoteParser::ParseNoteName(const FString& Input, FParseResult& Outpu
 	FRegexMatcher Matcher(Pattern, Input);
 	if (Matcher.FindNext())
 	{
-		Output.RootNote = MidiConstants::GetNoteNumberFromNoteName(TCHAR_TO_ANSI(*Matcher.GetCaptureGroup(1)));
+		Output.RootNote = Harmonix::Midi::Constants::GetNoteNumberFromNoteName(TCHAR_TO_ANSI(*Matcher.GetCaptureGroup(1)));
 		return true;
 	}
 	return false;

@@ -64,14 +64,14 @@ public:
 	virtual void SetRawPitchMultiplier(float RawPitch) = 0;
 	virtual float GetRawPitchMultiplier() const = 0;
 
-	void Set7BitController(MidiConstants::EControllerID InController, int8 InByteValue, int8 InMidiChannel = 0);
-	void Set14BitController(MidiConstants::EControllerID InController, int16 InByteValue, int8 InMidiChannel = 0);
+	void Set7BitController(Harmonix::Midi::Constants::EControllerID InController, int8 InByteValue, int8 InMidiChannel = 0);
+	void Set14BitController(Harmonix::Midi::Constants::EControllerID InController, int16 InByteValue, int8 InMidiChannel = 0);
 
-	virtual void GetController(MidiConstants::EControllerID InController, int8& InMsb, int8& InLsb, int8 InMidiChannel = 0) const = 0;
-	void SetController(MidiConstants::EControllerID InController, float InValue, int8 InMidiChannel = 0);
-	void SetHighOrLowControllerByte(MidiConstants::EControllerID InController, int8 InValue, int8 InMidiChannel = 0);
+	virtual void GetController(Harmonix::Midi::Constants::EControllerID InController, int8& InMsb, int8& InLsb, int8 InMidiChannel = 0) const = 0;
+	void SetController(Harmonix::Midi::Constants::EControllerID InController, float InValue, int8 InMidiChannel = 0);
+	void SetHighOrLowControllerByte(Harmonix::Midi::Constants::EControllerID InController, int8 InValue, int8 InMidiChannel = 0);
 
-	virtual float GetController(MidiConstants::EControllerID InController, int8 InMidiChannel = 0)
+	virtual float GetController(Harmonix::Midi::Constants::EControllerID InController, int8 InMidiChannel = 0)
 	{
 		int8 msb;
 		int8 lsb;
@@ -129,17 +129,17 @@ public:
 	virtual void  SetMidiChannelMute(bool InMute, int8 InMidiChannel = 0) = 0;
 	virtual bool  GetMidiChannelMute(int8 InMidiChannel = 0) const = 0;
 
-	static bool IsHighResController(MidiConstants::EControllerID ControllerId, bool& bIsHighResLowByte);
-	static bool GetMsbLsbIndexes(MidiConstants::EControllerID ControllerId, int& InMsb, int& InLsb);
+	static bool IsHighResController(Harmonix::Midi::Constants::EControllerID ControllerId, bool& bIsHighResLowByte);
+	static bool GetMsbLsbIndexes(Harmonix::Midi::Constants::EControllerID ControllerId, int& InMsb, int& InLsb);
 
 protected:
-	virtual void Set7BitControllerImpl(MidiConstants::EControllerID InController, int8 InValue, int8 InMidiChannel = 0) = 0;
-	virtual void Set14BitControllerImpl(MidiConstants::EControllerID InController, int16 InValue, int8 InMidiChannel = 0) = 0;
+	virtual void Set7BitControllerImpl(Harmonix::Midi::Constants::EControllerID InController, int8 InValue, int8 InMidiChannel = 0) = 0;
+	virtual void Set14BitControllerImpl(Harmonix::Midi::Constants::EControllerID InController, int16 InValue, int8 InMidiChannel = 0) = 0;
 	virtual void ResetInstrumentStateImpl() = 0; // heavy weight! should completely resets the instrument.
 	virtual void ResetMidiStateImpl() = 0;       // less heavy weight. should do all notes off, reset pitch bend, etc.
 
 	// convert a value in [0,127] to the range expected by SetController
-	static float ConvertCCValue(MidiConstants::EControllerID InController, uint8 InValue);
+	static float ConvertCCValue(Harmonix::Midi::Constants::EControllerID InController, uint8 InValue);
 
 	FName Name;
 	FHarmonixMeterData TimingData;

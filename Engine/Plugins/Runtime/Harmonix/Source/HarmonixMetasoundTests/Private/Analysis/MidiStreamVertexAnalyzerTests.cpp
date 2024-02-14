@@ -56,7 +56,7 @@ namespace HarmonixMetasoundTests::MidiStreamVertexAnalyzer
 		MidiData->LastEventTick = std::numeric_limits<int32>::max();
 		MidiData->Tracks[0].AddEvent(FMidiEvent(0, FMidiMsg(static_cast<uint8>(TimeSigNum), static_cast<uint8>(TimeSigDenom))));
 		MidiData->SongMaps.GetBarMap().AddTimeSignatureAtBarIncludingCountIn(0, TimeSigNum, TimeSigDenom);
-		const int32 MidiTempo = MidiConstants::BPMToMidiTempo(Tempo);
+		const int32 MidiTempo = Harmonix::Midi::Constants::BPMToMidiTempo(Tempo);
 		MidiData->Tracks[0].AddEvent(FMidiEvent(0, FMidiMsg(MidiTempo)));
 		MidiData->SongMaps.GetTempoMap().AddTempoInfoPoint(MidiTempo, 0);
 		MidiData->Tracks[0].Sort();
@@ -109,7 +109,7 @@ namespace HarmonixMetasoundTests::MidiStreamVertexAnalyzer
 		
 		bool CallbackSuccess = false;
 
-		constexpr int32 EventIntervalTicks = MidiConstants::kTicksPerQuarterNoteInt;
+		constexpr int32 EventIntervalTicks = Harmonix::Midi::Constants::GTicksPerQuarterNoteInt;
 		int32 NextExpectedNoteNumber = 60;
 		int32 NextExpectedVelocity = 20;
 		int32 NextExpectedEventTicks = 0;
@@ -151,7 +151,7 @@ namespace HarmonixMetasoundTests::MidiStreamVertexAnalyzer
 		const int32 NumBlocksToTest = FMath::CeilToInt((static_cast<float>(NumEventsToSend) * SampleRate / (Tempo / 60)) / NumSamplesPerBlock);
 		int32 SampleRemainder = 0;
 		int32 SampleCount = 0;
-		float TicksPerBlock = MidiConstants::kTicksPerQuarterNote * NumSamplesPerBlock * (Tempo / 60) / SampleRate;
+		float TicksPerBlock = Harmonix::Midi::Constants::GTicksPerQuarterNote * NumSamplesPerBlock * (Tempo / 60) / SampleRate;
 		float CurrentBlockTick = 0;
 		int32 NextEventTick = 0;
 		int32 NextNoteNumber = NextExpectedNoteNumber;
