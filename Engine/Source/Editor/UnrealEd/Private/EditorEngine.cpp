@@ -3599,7 +3599,7 @@ void UEditorEngine::ConvertSelectedBrushesToVolumes( UClass* VolumeClass )
 
 				NewVolume->PostEditChange();
 				NewVolume->PostEditMove( true );
-				NewVolume->Modify();
+				NewVolume->Modify(false);
 
 				// Make the actor visible as the brush is hidden by default
 				NewVolume->SetActorHiddenInGame(false);
@@ -5504,7 +5504,7 @@ void UEditorEngine::ReplaceActors(UActorFactory* Factory, const FAssetData& Asse
 				ULevel* BrushLevel = OldActor->GetLevel();
 				if (BrushLevel && !Brush->IsVolumeBrush())
 				{
-					BrushLevel->Model->Modify();
+					BrushLevel->Model->Modify(false);
 					LevelsToRebuildBSP.Add(BrushLevel);
 				}
 			}
