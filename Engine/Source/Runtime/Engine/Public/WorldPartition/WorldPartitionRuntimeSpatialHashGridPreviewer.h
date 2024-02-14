@@ -30,6 +30,8 @@ struct FWorldPartitionRuntimeSpatialHashGridPreviewer
 	UPROPERTY()
 	TObjectPtr<APostProcessVolume> Volume;
 
+	bool bIsInitialized;
+
 	struct FGridParametersCache
 	{
 		FGridParametersCache()
