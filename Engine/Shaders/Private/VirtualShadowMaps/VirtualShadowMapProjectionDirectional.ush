@@ -242,11 +242,12 @@ FVirtualShadowMapSampleResult TraceDirectional(
 		// in some different way.
 		//
 		// 0.5 is arbitrary but makes it consistent with the previous dither scale cvar
+		float PerLightTexelDitherScale = TexelDitherScale * ProjectionData.TexelDitherScale;
 		float DitherScale = 0.0f;
-		if (TexelDitherScale > 0.0f)
+		if (PerLightTexelDitherScale > 0.0f)
 		{
 			DitherScale =
-				((0.5f / float(CalcLevelDimsTexels(0))) * TexelDitherScale * DistanceFromViewOrigin) /
+				((0.5f / float(CalcLevelDimsTexels(0))) * PerLightTexelDitherScale * DistanceFromViewOrigin) /
 				(exp2(ProjectionData.ClipmapLevel - ProjectionData.ResolutionLodBias));
 		}
 

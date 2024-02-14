@@ -33,6 +33,7 @@ struct FVirtualShadowMapProjectionShaderData
 	int VirtualShadowMapId;
 	bool bUnCached; // see VSM_PROJ_FLAG_UNCACHED
 	bool bUnreferenced; // see VSM_PROJ_FLAG_UNREFERENCED
+	float TexelDitherScale; // Per-light additional dither filtering
 };
 
 FVirtualShadowMapProjectionShaderData DecodeVirtualShadowMapProjectionData(ByteAddressBuffer ProjectionData, int VirtualShadowMapId)
@@ -79,6 +80,8 @@ FVirtualShadowMapProjectionShaderData DecodeVirtualShadowMapProjectionData(ByteA
 	Result.Flags 							=		 (ProjectionData.Load (Base + (16*17 + 4*0)));
 	Result.ClipmapLevelWPODistanceDisabledThresholdSquared
 		                                    = asfloat(ProjectionData.Load (Base + (16*17 + 4*1)));
+	
+	Result.TexelDitherScale					= asfloat(ProjectionData.Load (Base + (16*17 + 4*2)));
 	
 	// Computed data
 	Result.PreViewTranslation				= MakeDFVector3(PreViewTranslationHigh, PreViewTranslationLow);

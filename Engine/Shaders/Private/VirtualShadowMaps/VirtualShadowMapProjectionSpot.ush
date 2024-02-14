@@ -370,7 +370,7 @@ FVirtualShadowMapSampleResult TraceLocalLight(
 		// We use a radially symmetric mapping here instead of the true function to minimize issues crossing cubemap faces.
 		const float ShadowDepthFunctionScale = abs(ProjectionData.ShadowViewToClipMatrix._43 / length2(ToLight));
 
-		const float DitherScale = TexelDitherScale * ShadowResolutionScale;
+		const float DitherScale = (TexelDitherScale * ProjectionData.TexelDitherScale) * ShadowResolutionScale;
 		const float MaxDitherSlope = MaxSlopeBias * DitherScale;
 		const float MaxDepthBias = MaxSlopeBias * ShadowResolutionScale * ShadowDepthFunctionScale;
 

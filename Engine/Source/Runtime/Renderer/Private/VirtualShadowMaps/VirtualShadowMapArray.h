@@ -110,9 +110,10 @@ struct FVirtualShadowMapProjectionShaderData
 	uint32 Flags = 0U;
 	// This clipmap level should allow WPO if this value is less than InstanceWPODisableDistanceSquared
 	float ClipmapLevelWPODistanceDisableThresholdSquared = 0.0f;
-
+	float TexelDitherScale;
+	
 	// Seems the FMatrix forces 16-byte alignment
-	float Padding[2];
+	float Padding;
 };
 static_assert(sizeof(FVirtualShadowMapProjectionShaderData) == (16*18), "FVirtualShadowMapProjectionShaderData does not match size in shader. See VirtualShadowMapProjectionStructs.ush.");
 
