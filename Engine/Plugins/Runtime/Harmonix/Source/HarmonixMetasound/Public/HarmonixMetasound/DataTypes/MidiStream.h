@@ -18,7 +18,7 @@
 
 namespace HarmonixMetasound
 {
-	DECLARE_LOG_CATEGORY_EXTERN(LogMidiStreamDataType, Log, All)
+	HARMONIXMETASOUND_API DECLARE_LOG_CATEGORY_EXTERN(LogMidiStreamDataType, Log, All)
 
 	struct HARMONIXMETASOUND_API FMidiStreamEvent
 	{
