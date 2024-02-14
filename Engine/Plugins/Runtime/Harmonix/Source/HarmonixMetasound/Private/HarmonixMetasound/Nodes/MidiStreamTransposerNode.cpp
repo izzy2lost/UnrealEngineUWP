@@ -59,7 +59,7 @@ namespace HarmonixMetasound::Nodes::MidiNoteTranspose
 				Info.Author           = PluginAuthor;
 				Info.PromptIfMissing  = PluginNodeMissingPrompt;
 				Info.DefaultInterface = GetVertexInterface();
-				Info.CategoryHierarchy.Emplace(NodeCategories::Music);
+				Info.CategoryHierarchy = { MetasoundNodeCategories::Harmonix, NodeCategories::Music };
 				return Info;
 			};
 

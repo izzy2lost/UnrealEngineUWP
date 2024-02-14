@@ -235,7 +235,7 @@ namespace HarmonixMetasound::Nodes::MultibandAnalyzer
 				Info.DisplayName = METASOUND_LOCTEXT("MultibandAnalyzer_DisplayName", "Multiband Analyzer");
 				Info.Description = METASOUND_LOCTEXT("MultibandAnalyzer_Description", "Reports levels in frequency bands for an audio signal.");
 				Info.Author = Metasound::PluginAuthor;
-				Info.CategoryHierarchy = { MetasoundNodeCategories::Harmonix, Metasound::NodeCategories::Envelopes };
+				Info.CategoryHierarchy = { MetasoundNodeCategories::Harmonix, MetasoundNodeCategories::Analysis };
 				Info.PromptIfMissing = Metasound::PluginNodeMissingPrompt;
 				Info.DefaultInterface = GetVertexInterface();
 

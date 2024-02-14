@@ -20,6 +20,7 @@ namespace HarmonixMetasound
 	{
 		HARMONIXMETASOUND_API extern const FText Harmonix;
 		HARMONIXMETASOUND_API extern const FText Modulation;
+		HARMONIXMETASOUND_API extern const FText Analysis;
 	}
 
 #define DECLARE_METASOUND_PARAM_EXTERN(NAME)      \
