@@ -446,6 +446,7 @@ bool FWorldPartitionLevelHelper::LoadActors(const FLoadActorsParams& InParams)
 				NewContext.SetSoftObjectPathRemappingEnabled(false); 
 			
 				NewContext.AddTag(ULevel::DontLoadExternalObjectsTag);
+				NewContext.AddTag(ULevel::DontLoadExternalFoldersTag);
 				NewContext.AddPackageMapping(PackageObjectMapping.ContainerPackage, ContainerPackageInstanceName);
 				Context = &NewContext;
 			}
