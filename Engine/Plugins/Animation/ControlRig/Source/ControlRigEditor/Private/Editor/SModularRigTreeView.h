@@ -121,7 +121,7 @@ public:
 	DECLARE_DELEGATE(FOnRenameRequested);
 	FOnRenameRequested OnRenameRequested;
 
-	static TMap<FSoftObjectPath, FSlateBrush> IconPathToBrush;
+	static TMap<FSoftObjectPath, TSharedPtr<FSlateBrush>> IconPathToBrush;
 
 	/** The brush to use when rendering an icon */
 	const FSlateBrush* IconBrush;
