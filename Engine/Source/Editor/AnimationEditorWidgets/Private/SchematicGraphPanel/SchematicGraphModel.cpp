@@ -448,8 +448,23 @@ const TArray<TSharedPtr<FSchematicGraphNode>> FSchematicGraphModel::GetSelectedN
 {
 	return Nodes.FilterByPredicate([](const TSharedPtr<FSchematicGraphNode>& Node)
 	{
-		return Node->IsSelected();
+		if (Node.IsValid())
+		{
+			return Node->IsSelected();
+		}
+		return false;
 	});
+}
+
+void FSchematicGraphModel::ClearSelection()
+{
+	for (TSharedPtr<FSchematicGraphNode> Node : Nodes)
+	{
+		if (Node.IsValid())
+		{
+			Node->SetSelected(false);
+		}
+	}
 }
 
 FLinearColor FSchematicGraphModel::GetBackgroundColorForTag(const FGuid& InNodeGuid, const FGuid& InTagGuid) const
