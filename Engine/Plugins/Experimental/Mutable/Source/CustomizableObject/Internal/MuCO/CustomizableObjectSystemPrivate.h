@@ -553,6 +553,11 @@ public:
 
 	/** Mutable Meshes required for each component. Outermost index is the component, inner index is the LOD. */
 	TArray<TArray<mu::FResourceID>> MeshDescriptors;
+
+	/** Used to know if the updated instances' meshes are different from the previous ones. 
+	  * The index of the array is the component's index.
+	  * @return true if the mesh is new or new to this instance (e.g. mesh cached by another instance). */
+	TArray<bool> MeshChanged;
 	
 	bool UpdateStarted = false;
 
