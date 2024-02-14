@@ -38,7 +38,7 @@ struct POSESEARCH_API FPoseSearchQueryTrajectory
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pose Search Query Trajectory")
 	TArray<FPoseSearchQueryTrajectorySample> Samples;
 
-	FPoseSearchQueryTrajectorySample GetSampleAtTime(float Time, bool bExtrapolate = true) const;
+	FPoseSearchQueryTrajectorySample GetSampleAtTime(float Time, bool bExtrapolate = false) const;
 	
 #if ENABLE_ANIM_DEBUG
 	void DebugDrawTrajectory(const UWorld* World, float HeightOffset = 0.f) const;

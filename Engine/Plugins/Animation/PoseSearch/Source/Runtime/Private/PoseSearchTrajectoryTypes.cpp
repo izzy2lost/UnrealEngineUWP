@@ -6,6 +6,7 @@
 #include "Components/SceneComponent.h"
 #include "DrawDebugHelpers.h"
 #include "PoseSearch/PoseSearchDefines.h"
+#include "Math/Axis.h"
 
 FPoseSearchQueryTrajectorySample FPoseSearchQueryTrajectorySample::Lerp(const FPoseSearchQueryTrajectorySample& Other, float Alpha) const
 {
@@ -69,15 +70,28 @@ void FPoseSearchQueryTrajectory::DebugDrawTrajectory(const UWorld* World, float 
 	{
 		for (int32 Index = 0; ; ++Index)
 		{
-			DrawDebugSphere(World, Samples[Index].Position + OffsetVector, 2.f /*Radius*/, 4 /*Segments*/, FColor::Black, false /*bPersistentLines*/, -1.f /*LifeTime*/, SDPG_Foreground);
-			DrawDebugCoordinateSystem(World, Samples[Index].Position + OffsetVector, FRotator(Samples[Index].Facing), 12.f /*Scale*/, false /*bPersistentLines*/, -1.f /*LifeTime*/, SDPG_Foreground);
+			const FVector Pos = Samples[Index].Position + OffsetVector;
+
+			DrawDebugSphere(World, Pos, 1.f, 4, FColor::Black, false, -1.f, SDPG_Foreground);
+
+			const FRotationMatrix R(FRotator(Samples[Index].Facing));
+			const FVector X = R.GetScaledAxis( EAxis::X );
+			const FVector Y = R.GetScaledAxis( EAxis::Y );
+
+			const float Scale = 12.f;
+
+			const bool IsPast = Samples[Index].AccumulatedSeconds <= 0.f;
+
+			DrawDebugLine(World, Pos, Pos + X * Scale, IsPast ? FColor::Red : FColor::Blue, false, -1.f, SDPG_Foreground);
+			DrawDebugLine(World, Pos, Pos + Y * Scale, IsPast ? FColor::Orange : FColor::Turquoise, false, -1.f, SDPG_Foreground);
 
 			if (Index == LastIndex)
 			{
 				break;
 			}
 			
-			DrawDebugLine(World, Samples[Index].Position + OffsetVector, Samples[Index + 1].Position + OffsetVector, FColor::Black, false /*bPersistentLines*/, -1.f /*LifeTime*/, SDPG_Foreground);
+			const FVector NextPos = Samples[Index + 1].Position + OffsetVector;
+			DrawDebugLine(World, Pos, NextPos, FColor::Black, false, -1.f, SDPG_Foreground);
 		}
 	}
 }
@@ -91,15 +105,28 @@ void FPoseSearchQueryTrajectory::DebugDrawTrajectory(FAnimInstanceProxy& AnimIns
 	{
 		for (int32 Index = 0; ; ++Index)
 		{
-			AnimInstanceProxy.AnimDrawDebugSphere(Samples[Index].Position + OffsetVector, 2.f /*Radius*/, 4 /*Segments*/, FColor::Black, false /*bPersistentLines*/, -1.f /*LifeTime*/, 0.f /*Thickness*/, SDPG_Foreground);
-			AnimInstanceProxy.AnimDrawDebugCoordinateSystem(Samples[Index].Position + OffsetVector, FRotator(Samples[Index].Facing), 12.f /*Scale*/, false /*bPersistentLines*/, -1.f /*LifeTime*/, 0.f /*Thickness*/, SDPG_Foreground);
+			const FVector Pos = Samples[Index].Position + OffsetVector;
+
+			AnimInstanceProxy.AnimDrawDebugSphere(Samples[Index].Position + OffsetVector, 1.f, 4, FColor::Black, false, -1.f, 0.f, SDPG_Foreground);
+
+			const FRotationMatrix R(FRotator(Samples[Index].Facing));
+			const FVector X = R.GetScaledAxis( EAxis::X );
+			const FVector Y = R.GetScaledAxis( EAxis::Y );
+
+			const float Scale = 12.f;
+
+			const bool IsPast = Samples[Index].AccumulatedSeconds <= 0.f;
+
+			AnimInstanceProxy.AnimDrawDebugLine(Pos, Pos + X * Scale, IsPast ? FColor::Red : FColor::Blue, false, -1.f, 0.f, SDPG_Foreground);
+			AnimInstanceProxy.AnimDrawDebugLine(Pos, Pos + Y * Scale, IsPast ? FColor::Orange : FColor::Turquoise, false, -1.f, 0.f, SDPG_Foreground);
 
 			if (Index == LastIndex)
 			{
 				break;
 			}
 			
-			AnimInstanceProxy.AnimDrawDebugLine(Samples[Index].Position + OffsetVector, Samples[Index + 1].Position + OffsetVector, FColor::Black, false /*bPersistentLines*/, -1.f /*LifeTime*/, 0.f /*Thickness*/, SDPG_Foreground);
+			const FVector NextPos = Samples[Index + 1].Position + OffsetVector;
+			AnimInstanceProxy.AnimDrawDebugLine(Pos, NextPos, FColor::Black, false, -1.f, 0.f, SDPG_Foreground);
 		}
 	}
 }

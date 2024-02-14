@@ -55,15 +55,6 @@ const UPoseSearchSchema* FDebugDrawParams::GetSchema() const
 	return Database ? Database->Schema : nullptr;
 }
 
-FVector FDebugDrawParams::ExtractPosition(TConstArrayView<float> PoseVector, const UPoseSearchFeatureChannel_Position* Position) const
-{
-	check(Position);
-	check(Position->SampleRole == Position->OriginRole);
-	const FVector BonePosition = FFeatureVectorHelper::DecodeVector(PoseVector, Position->GetChannelDataOffset(), Position->ComponentStripping);
-	const FVector WorldBonePosition = GetRootTransform(Position->SampleRole).TransformPosition(BonePosition);
-	return WorldBonePosition;
-}
-
 FVector FDebugDrawParams::ExtractPosition(TConstArrayView<float> PoseVector, float SampleTimeOffset, int8 SchemaBoneIdx, const FRole& Role, EPermutationTimeType PermutationTimeType, int32 SamplingAttributeId) const
 {
 	// we don't wanna ask for a SchemaOriginBoneIdx in the future or past
@@ -92,7 +83,9 @@ FVector FDebugDrawParams::ExtractPosition(TConstArrayView<float> PoseVector, flo
 					return nullptr;
 				})))
 		{
-			return ExtractPosition(PoseVector, FoundPosition);
+			const FVector BonePosition = FFeatureVectorHelper::DecodeVector(PoseVector, FoundPosition->GetChannelDataOffset(), FoundPosition->ComponentStripping);
+			const FVector WorldBonePosition = GetRootBoneTransform(FoundPosition->SampleRole).TransformPosition(BonePosition);
+			return WorldBonePosition;
 		}
 
 		if (const int32* RoleIndex = RoleToIndex.Find(Role))
@@ -117,7 +110,7 @@ FVector FDebugDrawParams::ExtractPosition(TConstArrayView<float> PoseVector, flo
 			}
 		}
 	}
-	return GetRootTransform(Role, SampleTimeOffset).GetTranslation();
+	return GetRootBoneTransform(Role, SampleTimeOffset).GetTranslation();
 }
 
 FQuat FDebugDrawParams::ExtractRotation(TConstArrayView<float> PoseVector, float SampleTimeOffset, int8 SchemaBoneIdx, const FRole& Role, EPermutationTimeType PermutationTimeType, int32 SamplingAttributeId) const
@@ -215,7 +208,7 @@ FQuat FDebugDrawParams::ExtractRotation(TConstArrayView<float> PoseVector, float
 				// world rotation associated to the time zero, we can calcualte the world rotation at time SampleTimeOffset
 				const FMatrix RotMatrix(DecodedHeading[int32(EHeadingAxis::X)], DecodedHeading[int32(EHeadingAxis::Y)], DecodedHeading[int32(EHeadingAxis::Z)], FVector::ZeroVector);
 				const FQuat RotQuat(RotMatrix);
-				const FQuat RotQuatWorld = RotQuat * GetRootTransform(Role).GetRotation();
+				const FQuat RotQuatWorld = RotQuat * GetRootBoneTransform(Role).GetRotation();
 				return RotQuatWorld;
 			}
 		}
@@ -243,16 +236,17 @@ FQuat FDebugDrawParams::ExtractRotation(TConstArrayView<float> PoseVector, float
 		}
 	}
 
-	return GetRootTransform(Role, SampleTimeOffset).GetRotation();
+	return GetRootBoneTransform(Role, SampleTimeOffset).GetRotation();
 }
 
-FTransform FDebugDrawParams::GetRootTransform(const FRole& Role, float SampleTimeOffset) const
+FTransform FDebugDrawParams::GetRootBoneTransform(const FRole& Role, float SampleTimeOffset) const
 {
+	FTransform RootBoneTransform = FTransform::Identity;
 	if (const int32* RoleIndex = RoleToIndex.Find(Role))
 	{
-		return PoseHistories[*RoleIndex]->GetTrajectory().GetSampleAtTime(SampleTimeOffset).GetTransform();
+		PoseHistories[*RoleIndex]->GetTransformAtTime(SampleTimeOffset, RootBoneTransform, nullptr, RootBoneIndexType, WorldSpaceIndexType);
 	}
-	return FTransform::Identity;
+	return RootBoneTransform;
 }
 
 void FDebugDrawParams::DrawLine(const FVector& LineStart, const FVector& LineEnd, const FColor& Color, float Thickness) const

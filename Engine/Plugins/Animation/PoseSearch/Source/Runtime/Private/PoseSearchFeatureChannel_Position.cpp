@@ -169,7 +169,7 @@ void UPoseSearchFeatureChannel_Position::DebugDraw(const UE::PoseSearch::FDebugD
 	const FVector FeaturesVector = FFeatureVectorHelper::DecodeVector(PoseVector, ChannelDataOffset, ComponentStripping);
 	const EPermutationTimeType TimeType = PermutationTimeType == EPermutationTimeType::UsePermutationTime ? EPermutationTimeType::UseSampleToPermutationTime : EPermutationTimeType::UseSampleTime;
 	const FVector OriginBonePos = DrawParams.ExtractPosition(PoseVector, OriginTimeOffset, SchemaOriginBoneIdx, OriginRole, TimeType);
-	const FVector DeltaPos = DrawParams.GetRootTransform(OriginRole).TransformVector(FeaturesVector);
+	const FVector DeltaPos = DrawParams.GetRootBoneTransform(OriginRole).TransformVector(FeaturesVector);
 	const FVector BonePos = OriginBonePos + DeltaPos;
 	DrawParams.DrawPoint(BonePos, Color);
 

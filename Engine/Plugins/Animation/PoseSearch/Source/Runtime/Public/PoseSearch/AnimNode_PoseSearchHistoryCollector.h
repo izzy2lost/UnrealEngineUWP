@@ -18,8 +18,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (ClampMin="2"))
 	int32 PoseCount = 2;
 	
-	// how often in seconds poses are collected
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (ClampMin="0.001"))
+	// how often in seconds poses are collected (if 0, it will collect every update)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (ClampMin="0"))
 	float SamplingInterval = 0.04f;
 
 	UPROPERTY(EditAnywhere, Category = Settings)
@@ -37,6 +37,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = Settings)
 	bool bStoreScales = false;
 
+	// time in seconds to recover to the reference skeleton root bone from any eventual root bone modification. if zero the behaviour will be disabled (Experimental)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Experimental, meta = (ClampMin="0"))
+	float RootBoneRecoveryTime = 0.f;
+
 	// Update Counter for detecting being relevant
 	FGraphTraversalCounter UpdateCounter;
 
@@ -46,7 +50,7 @@ public:
 #endif // WITH_EDITORONLY_DATA
 
 	// if true Trajectory the pose history node will generate the trajectory using the TrajectoryData parameters instead of relying on the input Trajectory (Experimental)
-	UPROPERTY(EditAnywhere, Category = Settings)
+	UPROPERTY(EditAnywhere, Category = Experimental)
 	bool bGenerateTrajectory = false;
 
 	// input Trajectory samples for pose search queries in Motion Matching. These are expected to be in the world space of the SkeletalMeshComponent.
@@ -55,23 +59,23 @@ public:
 	FPoseSearchQueryTrajectory Trajectory;
 
 	// Input Trajectory velocity will be multiplied by TrajectorySpeedMultiplier: values below 1 will result in selecting animation slower than requested from the original Trajectory
-	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault, ClampMin="0", EditCondition="!bGenerateTrajectory", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category = Experimental, meta = (PinHiddenByDefault, ClampMin="0", EditCondition="!bGenerateTrajectory", EditConditionHides))
 	float TrajectorySpeedMultiplier = 1.f;
 
 	// if bGenerateTrajectory is true, this is the number of trajectory past (collected) samples
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (ClampMin = "2", EditCondition = "bGenerateTrajectory", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Experimental, meta = (ClampMin = "2", EditCondition = "bGenerateTrajectory", EditConditionHides))
 	int32 TrajectoryHistoryCount = 10;
 
 	// if bGenerateTrajectory is true, this is the number of trajectory future (prediction) samples
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (ClampMin="2", EditCondition="bGenerateTrajectory", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Experimental, meta = (ClampMin="2", EditCondition="bGenerateTrajectory", EditConditionHides))
 	int32 TrajectoryPredictionCount = 8;
 
 	// if bGenerateTrajectory is true, this is the sampling interval between trajectory future (prediction) samples
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (ClampMin="0.001", EditCondition="bGenerateTrajectory", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Experimental, meta = (ClampMin="0.001", EditCondition="bGenerateTrajectory", EditConditionHides))
 	float PredictionSamplingInterval = 0.4f;
 
 	// if bGenerateTrajectory is true, TrajectoryData contains the tuning parameters to generate the trajectory
-	UPROPERTY(EditAnywhere, Category = Settings, meta=(EditCondition="bGenerateTrajectory", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category = Experimental, meta=(EditCondition="bGenerateTrajectory", EditConditionHides))
 	FPoseSearchTrajectoryData TrajectoryData;
 
 	// FAnimNode_Base interface
