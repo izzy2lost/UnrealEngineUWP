@@ -13,7 +13,6 @@
 
 #include "MidiClock.h"
 
-#include <functional>
 #include <atomic>
 
 namespace HarmonixMetasound
@@ -48,38 +47,6 @@ namespace HarmonixMetasound
 	private:
 		FMidiVoiceId VoiceId;
 	};
-
-	struct HARMONIXMETASOUND_API FMidiStreamEventTrackChannelFilter
-	{
-		uint16 MidiChannelFilter;
-		uint64 TrackFilter;
-
-		/** 
-		* Parses the FilterString to a Bitfield and assigns it to the MidiChannelFilter
-		* if it fails, will assign MidiChannelFilter to 0
-		*/
-		bool SetMidiChannelFilterFromString(const FString& FilterString, FString& OutErrorMessage);
-
-		/**
-		* Parses the FilterString to a Bitfield and assigns it to the TrackFilter
-		* if it fails, will assign TrackFilter to 0
-		*/
-		bool SetTrackFilterFromString(const FString& FilterString, FString& OutErrorMessage);
-
-		bool operator()(const FMidiStreamEvent& Event) const
-		{
-			if (!(TrackFilter & (uint64(1) << Event.TrackIndex)))
-			{
-				return false;
-			}
-
-			return !Event.MidiMessage.IsStd() || (MidiChannelFilter & (uint16(1) << Event.MidiMessage.GetStdChannel()));
-		}
-
-	private:
-		uint64 StringToBitfield(const FString& InString, FString& OutErrorMesage);
-	};
-
 
 	class HARMONIXMETASOUND_API FMidiStream
 	{
