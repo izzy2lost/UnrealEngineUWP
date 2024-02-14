@@ -932,7 +932,7 @@ FScreenPassTexture AddTonemapPass(FRDGBuilder& GraphBuilder, const FViewInfo& Vi
 
 		DesktopPermutationVector.Set<TonemapperPermutation::FTonemapperOutputDeviceDim>(EDisplayOutputFormat(CommonParameters.OutputDevice.OutputDevice));
 
-		DesktopPermutationVector.Set<TonemapperPermutation::FTonemapperOutputLuminance>(GVRSImageManager.IsVRSEnabledForFrame() && FVariableRateShadingImageManager::IsVRSCompatibleWithView(View));
+		DesktopPermutationVector.Set<TonemapperPermutation::FTonemapperOutputLuminance>(!View.bIsMobileMultiViewEnabled && GVRSImageManager.IsVRSEnabledForFrame() && FVariableRateShadingImageManager::IsVRSCompatibleWithView(View));
 
 		DesktopPermutationVector = TonemapperPermutation::RemapPermutation(DesktopPermutationVector, View.GetFeatureLevel());
 	}
@@ -995,6 +995,7 @@ FScreenPassTexture AddTonemapPass(FRDGBuilder& GraphBuilder, const FViewInfo& Vi
 		FTonemapPS::FParameters* PassParameters = GraphBuilder.AllocParameters<FTonemapPS::FParameters>();
 		PassParameters->Tonemap = CommonParameters;
 		PassParameters->RenderTargets[0] = Output.GetRenderTargetBinding();
+		PassParameters->RenderTargets.MultiViewCount = View.bIsMobileMultiViewEnabled ? 2 : 0;
 
 		if (OutputLuminance)
 		{

@@ -121,7 +121,7 @@ inline FScreenPassTextureSlice::FScreenPassTextureSlice(FRDGTextureSRVRef InText
 {
 	if (TextureSRV && TextureSRV->Desc.Texture->Desc.IsTextureArray())
 	{
-		check(TextureSRV->Desc.NumArraySlices == 1);
+		check(TextureSRV->Desc.NumArraySlices > 0);
 	}
 }
 
