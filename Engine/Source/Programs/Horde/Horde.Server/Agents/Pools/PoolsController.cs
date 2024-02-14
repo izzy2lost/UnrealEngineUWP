@@ -8,6 +8,7 @@ using EpicGames.Horde;
 using EpicGames.Horde.Agents.Pools;
 using Horde.Server.Acls;
 using Horde.Server.Agents.Fleet;
+using Horde.Server.Agents.Utilization;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
 using HordeCommon;
@@ -27,16 +28,18 @@ namespace Horde.Server.Agents.Pools
 	{
 		readonly IPoolCollection _poolCollection;
 		readonly IAgentCollection _agentCollection;
+		readonly IUtilizationDataCollection _utilizationDataCollection;
 		readonly IClock _clock;
 		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public PoolsController(IPoolCollection poolCollection, IAgentCollection agentCollection, IClock clock, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public PoolsController(IPoolCollection poolCollection, IAgentCollection agentCollection, IUtilizationDataCollection utilizationDataCollection, IClock clock, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
 			_poolCollection = poolCollection;
 			_agentCollection = agentCollection;
+			_utilizationDataCollection = utilizationDataCollection;
 			_clock = clock;
 			_globalConfig = globalConfig;
 		}
@@ -88,6 +91,16 @@ namespace Horde.Server.Agents.Pools
 			return new CreatePoolResponse(poolId.ToString());
 		}
 
+		class PoolStats
+		{
+			public int NumAgents { get; set; }
+			public int NumReady { get; set; }
+			public int NumOffline { get; set; }
+			public int NumDisabled { get; set; }
+			public List<double> Utilization { get; } = new List<double>();
+			public List<IAgent> Agents { get; } = new List<IAgent>();
+		}
+
 		/// <summary>
 		/// Query all the pools
 		/// </summary>
@@ -103,9 +116,56 @@ namespace Horde.Server.Agents.Pools
 				return Forbid(PoolAclAction.ListPools);
 			}
 
-			Dictionary<PoolId, PoolStats> poolIdToStats = await GetPoolStatsAsync();
+			DateTime utcNow = _clock.UtcNow;
 
 			List<IPoolConfig> poolConfigs = await _poolCollection.GetConfigsAsync();
+			Dictionary<PoolId, PoolStats> poolIdToStats = poolConfigs.ToDictionary(x => x.Id, x => new PoolStats());
+			
+			const int MaxAgentsPerPool = 5;
+
+			List<IAgent> agents = await _agentCollection.FindAsync();
+			foreach (IAgent agent in agents)
+			{
+				foreach (PoolId poolId in agent.GetPools())
+				{
+					PoolStats? poolStats;
+					if (poolIdToStats.TryGetValue(poolId, out poolStats))
+					{
+						poolStats.NumAgents++;
+
+						if (agent.Leases.Count == 0)
+						{
+							poolStats.NumReady++;
+						}
+						if (!agent.IsSessionValid(utcNow))
+						{
+							poolStats.NumOffline++;
+						}
+						if (!agent.Enabled)
+						{
+							poolStats.NumDisabled++;
+						}
+
+						if (poolStats.Agents.Count < MaxAgentsPerPool)
+						{
+							poolStats.Agents.Add(agent);
+						}
+					}
+				}
+			}
+
+			IUtilizationData? utilizationData = await _utilizationDataCollection.GetLatestUtilizationDataAsync();
+			if (utilizationData != null)
+			{
+				foreach (IPoolUtilizationData poolUtilizationData in utilizationData.Pools)
+				{
+					PoolStats? poolStats;
+					if (poolIdToStats.TryGetValue(poolUtilizationData.PoolId, out poolStats))
+					{
+						poolStats.Utilization.Add(poolUtilizationData.AdminTime + poolUtilizationData.HibernatingTime + poolUtilizationData.OtherTime + poolUtilizationData.Streams.Sum(x => x.Time));
+					}
+				}
+			}
 
 			List<object> responses = new List<object>();
 			foreach (IPoolConfig poolConfig in poolConfigs)
@@ -116,56 +176,19 @@ namespace Horde.Server.Agents.Pools
 					poolStats = new PoolStats();
 				}
 
-				GetPoolSummaryResponse response = new GetPoolSummaryResponse(poolConfig.Id, poolConfig.Name, poolConfig.Condition, poolConfig.GetColorValue(), poolStats.NumAgents, poolStats.NumReady, poolStats.NumOffline, poolStats.NumDisabled, poolConfig.EnableAutoscaling);
+				List<GetPoolAgentSummaryResponse> agentResponses = new List<GetPoolAgentSummaryResponse>();
+				foreach (IAgent agent in poolStats.Agents)
+				{
+					bool? idle = (agent.Leases.Count == 0)? (bool?)true : null;
+					bool? offline = agent.IsSessionValid(utcNow) ? (bool?)null : true;
+					bool? disabled = agent.Enabled? (bool?)null : true;
+					agentResponses.Add(new GetPoolAgentSummaryResponse(agent.Id, idle, offline, disabled));
+				}
+
+				GetPoolSummaryResponse response = new GetPoolSummaryResponse(poolConfig.Id, poolConfig.Name, poolConfig.Condition, poolConfig.GetColorValue(), poolStats.NumAgents, poolStats.NumReady, poolStats.NumOffline, poolStats.NumDisabled, poolConfig.EnableAutoscaling, agentResponses);
 				responses.Add(response.ApplyFilter(filter));
 			}
 			return responses;
-		}
-
-		class PoolStats
-		{
-			public int NumAgents { get; set; }
-			public int NumReady { get; set; }
-			public int NumOffline { get; set; }
-			public int NumDisabled { get; set; }
-		}
-
-		async Task<Dictionary<PoolId, PoolStats>> GetPoolStatsAsync()
-		{
-			DateTime utcNow = _clock.UtcNow;
-
-			Dictionary<PoolId, PoolStats> poolIdToStats = new Dictionary<PoolId, PoolStats>();
-
-			List<IAgent> agents = await _agentCollection.FindAsync();
-			foreach (IAgent agent in agents)
-			{
-				foreach (PoolId poolId in agent.GetPools())
-				{
-					PoolStats? poolStats;
-					if (!poolIdToStats.TryGetValue(poolId, out poolStats))
-					{
-						poolStats = new PoolStats();
-						poolIdToStats.Add(poolId, poolStats);
-					}
-
-					poolStats.NumAgents++;
-
-					if (agent.Leases.Count == 0)
-					{
-						poolStats.NumReady++;
-					}
-					if (!agent.IsSessionValid(utcNow))
-					{
-						poolStats.NumOffline++;
-					}
-					if (!agent.Enabled)
-					{
-						poolStats.NumDisabled++;
-					}
-				}
-			}
-
-			return poolIdToStats;
 		}
 
 		/// <summary>

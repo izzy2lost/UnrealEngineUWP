@@ -14,7 +14,7 @@ using Microsoft.Extensions.Logging;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Pools;
 
-namespace Horde.Server.Agents.Telemetry
+namespace Horde.Server.Agents.Utilization
 {
 	/// <summary>
 	/// Service which updates telemetry periodically

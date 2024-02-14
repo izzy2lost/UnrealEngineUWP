@@ -12,7 +12,7 @@ using Horde.Server.Utilities;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 
-namespace Horde.Server.Agents.Telemetry
+namespace Horde.Server.Agents.Utilization
 {
 	/// <summary>
 	/// Collection of utilization data

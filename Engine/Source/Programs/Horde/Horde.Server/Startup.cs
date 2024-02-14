@@ -37,7 +37,7 @@ using Horde.Server.Agents.Fleet;
 using Horde.Server.Agents.Leases;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Agents.Sessions;
-using Horde.Server.Agents.Telemetry;
+using Horde.Server.Agents.Utilization;
 using Horde.Server.Configuration;
 using Horde.Server.Dashboard;
 using Horde.Server.Devices;

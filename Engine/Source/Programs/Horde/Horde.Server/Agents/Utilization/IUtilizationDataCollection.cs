@@ -4,7 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace Horde.Server.Agents.Telemetry
+namespace Horde.Server.Agents.Utilization
 {
 	/// <summary>
 	/// Collection of utilization collection

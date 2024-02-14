@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using EpicGames.Horde.Agents.Telemetry;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Horde.Server.Agents.Telemetry
+namespace Horde.Server.Agents.Utilization
 {
 	/// <summary>
 	/// Controller for the /api/v1/reports endpoint, used for the reports pages

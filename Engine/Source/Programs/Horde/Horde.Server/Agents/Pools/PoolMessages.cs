@@ -3,6 +3,7 @@
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
+using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Common;
 using Horde.Server.Agents.Fleet;
@@ -557,14 +558,24 @@ namespace Horde.Server.Agents.Pools
 	/// <summary>
 	/// Response describing a pool
 	/// </summary>
-	/// <param name="PoolId">Identifier for the pool</param>
+	/// <param name="Id">Identifier for the pool</param>
 	/// <param name="Name">Name of the pool</param>
 	/// <param name="Condition">Condition for machines in the pool</param>
 	/// <param name="ColorValue">Color to render the pool label</param>
 	/// <param name="NumAgents">Number of agents in the pool</param>
-	/// <param name="NumReady">Number of agents that are ready</param>
+	/// <param name="NumIdle">Number of agents that are ready</param>
 	/// <param name="NumOffline">Number of agents offline</param>
 	/// <param name="NumDisabled">Number of agents that are disabled</param>
 	/// <param name="Autoscaled">Whether autoscaling is enabled for this pool</param>
-	public record class GetPoolSummaryResponse(PoolId PoolId, string Name, Condition? Condition, string ColorValue, int NumAgents, int NumReady, int NumOffline, int NumDisabled, bool Autoscaled);
+	/// <param name="Agents">Truncated list of agents</param>
+	public record class GetPoolSummaryResponse(PoolId Id, string Name, Condition? Condition, string ColorValue, int NumAgents, int NumIdle, int NumOffline, int NumDisabled, bool Autoscaled, List<GetPoolAgentSummaryResponse> Agents);
+
+	/// <summary>
+	/// Response describing an agent in a pool
+	/// </summary>
+	/// <param name="AgentId">Identifier for the pool</param>
+	/// <param name="Idle">Whether the agent is idle</param>
+	/// <param name="Offline">Whether the agent is online</param>
+	/// <param name="Disabled">Whether the agent is disabled</param>
+	public record class GetPoolAgentSummaryResponse(AgentId AgentId, bool? Idle = null, bool? Offline = null, bool? Disabled = null);
 }
