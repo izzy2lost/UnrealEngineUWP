@@ -15,6 +15,7 @@
 #include "Graph/Nodes/MovieGraphSubgraphNode.h"
 #include "Graph/Nodes/MovieGraphVariableNode.h"
 #include "Graph/Nodes/MovieGraphSelectNode.h"
+#include "Graph/MovieGraphUtils.h"
 #include "MovieGraphUtils.h"
 #include "MoviePipelineQueue.h"
 #include "MovieRenderPipelineCoreModule.h"
@@ -667,8 +668,6 @@ RetType* UMovieGraphConfig::AddMember(TArray<TObjectPtr<ArrType>>& InMemberArray
 {
 	static_assert(std::is_base_of_v<UMovieGraphMember, RetType>, "RetType is not derived from UMovieGraphMember");
 	
-	using namespace UE::MoviePipeline::RenderGraph;
-
 	// TODO: This can be replaced with just CreateDefaultSubobject() when AddDefaultMembers() isn't called from PostLoad()
 	//
 	// This method will be called in two cases: 1) when default members are being added to a new graph when it is being
@@ -698,7 +697,7 @@ RetType* UMovieGraphConfig::AddMember(TArray<TObjectPtr<ArrType>>& InMemberArray
 	{
 		TArray<FString> ExistingMemberNames;
 		Algo::Transform(InMemberArray, ExistingMemberNames, [](const ArrType* Member) { return Member->GetMemberName(); });
-		NewMember->SetMemberName(GetUniqueName(ExistingMemberNames, InBaseName.ToString()));
+		NewMember->SetMemberName(UE::MovieGraph::GetUniqueName(ExistingMemberNames, InBaseName.ToString()));
 	}
 
 	return NewMember;
