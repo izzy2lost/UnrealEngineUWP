@@ -17,7 +17,7 @@ public:
 	virtual void PostInitProperties() override;
 
 	/** Needed to properly apply FInheritedTagContainer properties */
-	virtual void OnGameplayEffectChanged() const override;
+	virtual void OnGameplayEffectChanged() override;
 
 	/** Gets the Blocked Ability Tags inherited tag structure (as configured) */
 	const FInheritedTagContainer& GetConfiguredBlockedAbilityTagChanges() const { return InheritableBlockedAbilityTagsContainer; }

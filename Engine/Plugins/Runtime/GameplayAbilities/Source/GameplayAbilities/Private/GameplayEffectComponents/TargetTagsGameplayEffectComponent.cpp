@@ -19,10 +19,10 @@ void UTargetTagsGameplayEffectComponent::PostInitProperties()
 #endif // WITH_EDITORONLY_DATA
 }
 
-void UTargetTagsGameplayEffectComponent::OnGameplayEffectChanged() const
+void UTargetTagsGameplayEffectComponent::OnGameplayEffectChanged()
 {
 	Super::OnGameplayEffectChanged();
-	ApplyTargetTagChanges();
+	SetAndApplyTargetTagChanges(InheritableGrantedTagsContainer);
 }
 
 #if WITH_EDITOR
@@ -33,8 +33,6 @@ void UTargetTagsGameplayEffectComponent::PostEditChangeProperty(FPropertyChanged
 
 	if (PropertyChangedEvent.GetMemberPropertyName() == GetInheritableGrantedTagsContainerName())
 	{
-		SetAndApplyTargetTagChanges(InheritableGrantedTagsContainer);
-
 		// Tell the GE it needs to reconfigure itself based on these updated properties (this will reaggregate the tags)
 		UGameplayEffect* Owner = GetOwner();
 		Owner->OnGameplayEffectChanged();

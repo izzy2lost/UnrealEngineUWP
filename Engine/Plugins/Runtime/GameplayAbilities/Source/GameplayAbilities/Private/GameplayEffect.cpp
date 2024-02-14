@@ -336,6 +336,10 @@ void UGameplayEffect::OnGameplayEffectChanged()
 			// Ensure the SubObject is fully loaded
 			GEComponent->ConditionalPostLoad();
 			GEComponent->OnGameplayEffectChanged();
+
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			const_cast<const UGameplayEffectComponent*>(GEComponent)->OnGameplayEffectChanged();
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 	}
 }
