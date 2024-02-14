@@ -109,6 +109,13 @@ TRACE_DECLARE_INT_COUNTER(ChaosTraceCounter_NumProjectionIterations, TEXT("Chaos
 
 namespace Chaos
 {
+	namespace DebugDraw
+	{
+		CHAOS_API const FChaosDebugDrawColorsByState& GetDefaultShapesColorsPreIntegrate();
+		CHAOS_API const FChaosDebugDrawColorsByState& GetDefaultShapesColorsPostIntegrate();
+		CHAOS_API const FChaosDebugDrawColorsByState& GetDefaultShapesColorsCollisionDetection();
+	}
+
 	namespace CVars
 	{
 		int32 ChaosSolverDebugDrawShapes = CHAOS_SOLVER_ENABLE_DEBUG_DRAW;
@@ -172,6 +179,11 @@ namespace Chaos
 		FAutoConsoleVariableRef CVarChaosSolverDebugDrawColorShapeByClientServer(TEXT("p.Chaos.Solver.DebugDraw.ColorShapeByClientServer"), ChaosSolverDebugDrawColorShapeByClientServer, TEXT("Color shape according to client and server: red = server / blue = client "));
 		FAutoConsoleVariableRef CVarChaosSolverDebugDrawShowServer(TEXT("p.Chaos.Solver.DebugDraw.ShowServer"), ChaosSolverDebugDrawShowServer, TEXT("Draw server related debug data"));
 		FAutoConsoleVariableRef CVarChaosSolverDebugDrawShowClient(TEXT("p.Chaos.Solver.DebugDraw.ShowClient"), ChaosSolverDebugDrawShowClient, TEXT("Draw client related debug data"));
+
+		int32 ChaosSolverDebugDrawPreIntegrationShapes = 0;
+		int32 ChaosSolverDebugDrawPreIntegrationCollisions = 0;
+		FAutoConsoleVariableRef CVarChaosSolverDrawPreIntegrationShapes(TEXT("p.Chaos.Solver.DebugDrawPreIntegrationShapes"), ChaosSolverDebugDrawPreIntegrationShapes, TEXT("Draw Shapes prior to integrate."));
+		FAutoConsoleVariableRef CVarChaosSolverDrawPreIntegrationCollisions(TEXT("p.Chaos.Solver.DebugDrawPreIntegrationCollisions"), ChaosSolverDebugDrawPreIntegrationCollisions, TEXT("Draw Collisions prior to integrate."));
 
 		int32 ChaosSolverDebugDrawPostIntegrationShapes = 0;
 		int32 ChaosSolverDebugDrawPostIntegrationCollisions = 0;
@@ -627,7 +639,7 @@ namespace Chaos
 			});
 
 		MEvolution->SetPreIntegrateCallback(
-			[this]()
+			[this](FReal Dt)
 			{
 				for (ISimCallbackObject* Callback : SimCallbackObjects)
 				{
@@ -637,10 +649,12 @@ namespace Chaos
 						Callback->PreIntegrate_Internal();
 					}
 				}
+
+				PreIntegrateDebugDraw(Dt);
 			});
 
 		MEvolution->SetPostIntegrateCallback(
-			[this]()
+			[this](FReal Dt)
 			{
 				for (ISimCallbackObject* Callback : SimCallbackObjects)
 				{
@@ -653,7 +667,7 @@ namespace Chaos
 			});
 
 		MEvolution->SetPreSolveCallback(
-			[this]()
+			[this](FReal Dt)
 			{
 				for (ISimCallbackObject* Callback : SimCallbackObjects)
 				{
@@ -664,11 +678,11 @@ namespace Chaos
 					}
 				}
 
-				PreSolveDebugDraw();
+				PreSolveDebugDraw(Dt);
 			});
 
 		MEvolution->SetPostSolveCallback(
-			[this]()
+			[this](FReal Dt)
 			{
 				for (ISimCallbackObject* Callback : SimCallbackObjects)
 				{
@@ -2376,60 +2390,57 @@ TRACE_COUNTER_SET(ChaosTraceCounter_##Name, Value)
 		CHAOS_COUNTER_STAT(NumDynamicShapes, NumDynamicShapes);
 	}
 
-	void FPBDRigidsSolver::PreSolveDebugDraw() const
+	void FPBDRigidsSolver::DebugDrawShapes(const bool bShowStatic, const bool bShowKinematic, const bool bShowDynamic) const
+	{
+#if CHAOS_DEBUG_DRAW
+		if (bShowStatic)
+		{
+			DebugDraw::DrawParticleShapes(FRigidTransform3(), Particles.GetActiveStaticParticlesView(), 1.0f, &ChaosSolverDebugDebugDrawSettings);
+		}
+		if (bShowKinematic)
+		{
+			DebugDraw::DrawParticleShapes(FRigidTransform3(), Particles.GetActiveKinematicParticlesView(), 1.0f, &ChaosSolverDebugDebugDrawSettings);
+		}
+		if (bShowDynamic)
+		{
+			DebugDraw::DrawParticleShapes(FRigidTransform3(), Particles.GetNonDisabledDynamicView(), 1.0f, &ChaosSolverDebugDebugDrawSettings);
+		}
+#endif
+	}
+
+	void FPBDRigidsSolver::PreIntegrateDebugDraw(FReal Dt) const
 	{
 #if CHAOS_DEBUG_DRAW
 		QUICK_SCOPE_CYCLE_COUNTER(SolverDebugDraw);
 
-#if !UE_BUILD_SHIPPING && !UE_BUILD_TEST
-		const bool bIsServer = DebugName.ToString().StartsWith(TEXT("Server"));
-		if (bIsServer && !ChaosSolverDebugDrawShowServer)
+		if (ChaosSolverDebugDrawPreIntegrationShapes == 1)
 		{
-			return;
-		}
-		if (!bIsServer && !ChaosSolverDebugDrawShowClient)
-		{
-			return;
-		}
+			ChaosSolverDebugDebugDrawSettings.ShapesColorsPerState = DebugDraw::GetDefaultShapesColorsPreIntegrate();
 
-		if (ChaosSolverDebugDrawColorShapeByClientServer)
-		{
-			if (bIsServer)
-			{
-				ChaosSolverDebugDebugDrawSettings.ShapesColorsPerState = GetSolverShapesColorsByState_Server();
-			}
-			else
-			{
-				ChaosSolverDebugDebugDrawSettings.ShapesColorsPerState = GetSolverShapesColorsByState_Client();
-			}
+			DebugDrawShapes(false, !!ChaosSolverDrawShapesShowKinematic, !!ChaosSolverDrawShapesShowDynamic);
 		}
-		else
+		if (ChaosSolverDebugDrawPreIntegrationCollisions == 1)
 		{
-			ChaosSolverDebugDebugDrawSettings.ShapesColorsPerState = DebugDraw::GetDefaultShapesColorsByState();
+			DebugDraw::DrawCollisions(FRigidTransform3(), GetEvolution()->GetCollisionConstraints().GetConstraintAllocator(), 1.f, &ChaosSolverDebugDebugDrawSettings);
 		}
 #endif
+	}
+
+	void FPBDRigidsSolver::PreSolveDebugDraw(FReal Dt) const
+	{
+#if CHAOS_DEBUG_DRAW
+		QUICK_SCOPE_CYCLE_COUNTER(SolverDebugDraw);
 
 		if (ChaosSolverDebugDrawPostIntegrationShapes == 1)
 		{
-			if (ChaosSolverDrawShapesShowStatic)
-			{
-				DebugDraw::DrawParticleShapes(FRigidTransform3(), Particles.GetActiveStaticParticlesView(), 1.0f, &ChaosSolverDebugDebugDrawSettings);
-			}
-			if (ChaosSolverDrawShapesShowKinematic)
-			{
-				DebugDraw::DrawParticleShapes(FRigidTransform3(), Particles.GetActiveKinematicParticlesView(), 1.0f, &ChaosSolverDebugDebugDrawSettings);
-			}
-			if (ChaosSolverDrawShapesShowDynamic)
-			{
-				DebugDraw::DrawParticleShapes(FRigidTransform3(), Particles.GetNonDisabledDynamicView(), 1.0f, &ChaosSolverDebugDebugDrawSettings);
-			}
-		}
+			ChaosSolverDebugDebugDrawSettings.ShapesColorsPerState = DebugDraw::GetDefaultShapesColorsPostIntegrate();
 
+			DebugDrawShapes(!!ChaosSolverDrawShapesShowStatic, !!ChaosSolverDrawShapesShowKinematic, !!ChaosSolverDrawShapesShowDynamic);
+		}
 		if (ChaosSolverDebugDrawPostIntegrationCollisions == 1)
 		{
 			DebugDraw::DrawCollisions(FRigidTransform3(), GetEvolution()->GetCollisionConstraints().GetConstraintAllocator(), 1.f, &ChaosSolverDebugDebugDrawSettings);
 		}
-
 #endif
 	}
 
@@ -2438,47 +2449,39 @@ TRACE_COUNTER_SET(ChaosTraceCounter_##Name, Value)
 #if CHAOS_DEBUG_DRAW
 		QUICK_SCOPE_CYCLE_COUNTER(SolverDebugDraw);
 
-#if !UE_BUILD_SHIPPING && !UE_BUILD_TEST
-		const bool bIsServer = DebugName.ToString().StartsWith(TEXT("Server"));
-		if (bIsServer && !ChaosSolverDebugDrawShowServer)
+		if (ChaosSolverDebugDrawShapes == 1)
 		{
-			return;
-		}
-		if (!bIsServer && !ChaosSolverDebugDrawShowClient)
-		{
-			return;
-		}
-
-		if (ChaosSolverDebugDrawColorShapeByClientServer)
-		{
-			if (bIsServer)
+			const bool bIsServer = GetDebugName().ToString().StartsWith(TEXT("Server"));
+			if (bIsServer && !ChaosSolverDebugDrawShowServer)
 			{
-				ChaosSolverDebugDebugDrawSettings.ShapesColorsPerState = GetSolverShapesColorsByState_Server();
+				return;
+			}
+			if (!bIsServer && !ChaosSolverDebugDrawShowClient)
+			{
+				return;
+			}
+
+			if (ChaosSolverDebugDrawColorShapeByClientServer)
+			{
+				if (bIsServer)
+				{
+					ChaosSolverDebugDebugDrawSettings.ShapesColorsPerState = GetSolverShapesColorsByState_Server();
+				}
+				else
+				{
+					ChaosSolverDebugDebugDrawSettings.ShapesColorsPerState = GetSolverShapesColorsByState_Client();
+				}
 			}
 			else
 			{
-				ChaosSolverDebugDebugDrawSettings.ShapesColorsPerState = GetSolverShapesColorsByState_Client();
+				ChaosSolverDebugDebugDrawSettings.ShapesColorsPerState = DebugDraw::GetDefaultShapesColorsByState();
 			}
+
+			DebugDrawShapes(!!ChaosSolverDrawShapesShowStatic, !!ChaosSolverDrawShapesShowKinematic, !!ChaosSolverDrawShapesShowDynamic);
 		}
-		else
+		if (ChaosSolverDebugDrawCollisions == 1)
 		{
-			ChaosSolverDebugDebugDrawSettings.ShapesColorsPerState = DebugDraw::GetDefaultShapesColorsByState();
-		}
-#endif
-		if (ChaosSolverDebugDrawShapes == 1)
-		{
-			if (ChaosSolverDrawShapesShowStatic)
-			{
-				DebugDraw::DrawParticleShapes(FRigidTransform3(), Particles.GetActiveStaticParticlesView(), 1.0f, &ChaosSolverDebugDebugDrawSettings);
-			}
-			if (ChaosSolverDrawShapesShowKinematic)
-			{
-				DebugDraw::DrawParticleShapes(FRigidTransform3(), Particles.GetActiveKinematicParticlesView(), 1.0f, &ChaosSolverDebugDebugDrawSettings);
-			}
-			if (ChaosSolverDrawShapesShowDynamic)
-			{
-				DebugDraw::DrawParticleShapes(FRigidTransform3(), Particles.GetNonDisabledDynamicView(), 1.0f, &ChaosSolverDebugDebugDrawSettings);
-			}
+			DebugDraw::DrawCollisions(FRigidTransform3(), GetEvolution()->GetCollisionConstraints().GetConstraintAllocator(), 1.f, &ChaosSolverDebugDebugDrawSettings);
 		}
 		if (ChaosSolverDebugDrawMass == 1)
 		{
@@ -2491,10 +2494,6 @@ TRACE_COUNTER_SET(ChaosTraceCounter_##Name, Value)
 			{
 				DebugDraw::DrawParticleBVH(FRigidTransform3(), Particle.Handle(), FColor::Silver, &ChaosSolverDebugDebugDrawSettings);
 			}
-		}
-		if (ChaosSolverDebugDrawCollisions == 1) 
-		{
-			DebugDraw::DrawCollisions(FRigidTransform3(), GetEvolution()->GetCollisionConstraints().GetConstraintAllocator(), 1.f, &ChaosSolverDebugDebugDrawSettings);
 		}
 		if (ChaosSolverDebugDrawBounds == 1)
 		{

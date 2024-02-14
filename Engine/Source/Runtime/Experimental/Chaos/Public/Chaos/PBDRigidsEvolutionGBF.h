@@ -37,7 +37,7 @@ namespace Chaos
 		CHAOS_API extern int32 ChaosSolverDrawCCDThresholds;
 	}
 
-	using FPBDRigidsEvolutionCallback = TFunction<void()>;
+	using FPBDRigidsEvolutionCallback = TFunction<void(FReal Dt)>;
 
 	using FPBDRigidsEvolutionIslandCallback = TFunction<void(int32 Island)>;
 
@@ -208,161 +208,7 @@ namespace Chaos
 
 		CHAOS_API const FChaosPhysicsMaterial* GetFirstClusteredPhysicsMaterial(const FGeometryParticleHandle* Particle) const;
 
-		template<typename TParticleView>
-		void Integrate(const TParticleView& InParticles, FReal Dt)
-		{
-			//SCOPE_CYCLE_COUNTER(STAT_Integrate);
-			CHAOS_SCOPED_TIMER(Integrate);
-
-			const FReal BoundsThickness = GetCollisionConstraints().GetDetectorSettings().BoundsExpansion;
-			const FReal VelocityBoundsMultiplier = GetCollisionConstraints().GetDetectorSettings().BoundsVelocityInflation;
-			const FReal MaxVelocityBoundsExpansion = GetCollisionConstraints().GetDetectorSettings().MaxVelocityBoundsExpansion;
-			const FReal MaxAngularSpeedSq = CVars::HackMaxAngularVelocity * CVars::HackMaxAngularVelocity;
-			const FReal MaxSpeedSq = CVars::HackMaxVelocity * CVars::HackMaxVelocity;
-			
-			FChaosVDContextWrapper CVDContext;
-			CVD_GET_WRAPPED_CURRENT_CONTEXT(CVDContext);
-			
-			InParticles.ParallelFor([&](auto& GeomParticle, int32 Index) 
-			{
-				CVD_SCOPE_CONTEXT(CVDContext.Context);
-
-				//question: can we enforce this at the API layer? Right now islands contain non dynamic which makes this hard
-				auto PBDParticle = GeomParticle.CastToRigidParticle();
-				if (PBDParticle && PBDParticle->ObjectState() == EObjectStateType::Dynamic)
-				{
-					auto& Particle = *PBDParticle;
-
-					//save off previous velocities
-					Particle.SetPreVf(Particle.GetVf());
-					Particle.SetPreWf(Particle.GetWf());
-
-					for (FForceRule ForceRule : ForceRules)
-					{
-						ForceRule(Particle, Dt);
-					}
-
-					//EulerStepVelocityRule.Apply(Particle, Dt);
-					Particle.SetV(Particle.GetV() + Particle.Acceleration() * Dt);
-					Particle.SetW(Particle.GetW() + Particle.AngularAcceleration() * Dt);
-
-					//AddImpulsesRule.Apply(Particle, Dt);
-					Particle.SetV(Particle.GetV() + Particle.LinearImpulseVelocity());
-					Particle.SetW(Particle.GetW() + Particle.AngularImpulseVelocity());
-					Particle.LinearImpulseVelocity() = FVec3(0);
-					Particle.AngularImpulseVelocity() = FVec3(0);
-
-					//EtherDragRule.Apply(Particle, Dt);
-					{
-						FVec3 V = Particle.GetV();
-						FVec3 W = Particle.GetW();
-
-						const FReal LinearDrag = LinearEtherDragOverride >= 0 ? LinearEtherDragOverride : Particle.LinearEtherDrag() * Dt;
-						const FReal LinearMultiplier = FMath::Max(FReal(0), FReal(1) - LinearDrag);
-						V *= LinearMultiplier;
-
-						const FReal AngularDrag = AngularEtherDragOverride >= 0 ? AngularEtherDragOverride : Particle.AngularEtherDrag() * Dt;
-						const FReal AngularMultiplier = FMath::Max(FReal(0), FReal(1) - AngularDrag);
-						W *= AngularMultiplier;
-
-						const FReal LinearSpeedSq = V.SizeSquared();
-						const FReal AngularSpeedSq = W.SizeSquared();
-
-						if (LinearSpeedSq > Particle.MaxLinearSpeedSq())
-						{
-							V *= FMath::Sqrt(Particle.MaxLinearSpeedSq() / LinearSpeedSq);
-						}
-
-						if (AngularSpeedSq > Particle.MaxAngularSpeedSq())
-						{
-							W *= FMath::Sqrt(Particle.MaxAngularSpeedSq() / AngularSpeedSq);
-						}
-						Particle.SetV(V);
-						Particle.SetW(W);
-					}
-
-					if (CVars::HackMaxAngularVelocity >= 0.f)
-					{
-						const FReal AngularSpeedSq = Particle.GetW().SizeSquared();
-						if (AngularSpeedSq > MaxAngularSpeedSq)
-						{
-							Particle.SetW(Particle.GetW() * (CVars::HackMaxAngularVelocity / FMath::Sqrt(AngularSpeedSq)));
-						}
-					}
-
-					if (CVars::HackMaxVelocity >= 0.f)
-					{
-						const FReal SpeedSq = Particle.GetV().SizeSquared();
-						if (SpeedSq > MaxSpeedSq)
-						{
-							Particle.SetV(Particle.GetV() * (CVars::HackMaxVelocity / FMath::Sqrt(SpeedSq)));
-						}
-					}
-
-					FVec3 PCoM = Particle.XCom();
-					FRotation3 QCoM = Particle.RCom();
-
-					PCoM = PCoM + Particle.GetV() * Dt;
-					QCoM = FRotation3::IntegrateRotationWithAngularVelocity(QCoM, Particle.GetW(), Dt);
-
-					Particle.SetTransformPQCom(PCoM, QCoM);
-
-					// We need to expand the bounds back along velocity otherwise we can miss collisions when a box
-					// lands on another box, imparting velocity to the lower box and causing the boxes to be
-					// separated by more than Cull Distance at collision detection time.
-					FVec3 VelocityBoundsDelta = FVec3(0);
-					if ((VelocityBoundsMultiplier > 0) && (MaxVelocityBoundsExpansion > 0))
-					{
-						VelocityBoundsDelta = (-VelocityBoundsMultiplier * Dt) * Particle.GetV();
-						
-						// Box clamp to avoid sqrt
-						VelocityBoundsDelta.BoundToCube(MaxVelocityBoundsExpansion);
-					}
-
-					if (!Particle.CCDEnabled())
-					{
-						// Expand bounds about P/Q by a small amount. This can still result in missed collisions, especially
-						// when we have joints that pull the body back to X/R, if P-X is greater than the BoundsThickness
-						Particle.UpdateWorldSpaceStateSwept(FRigidTransform3(Particle.GetP(), Particle.GetQ()), FVec3(BoundsThickness), VelocityBoundsDelta);
-					}
-					else
-					{
-
-#if CHAOS_DEBUG_DRAW
-						if (CVars::ChaosSolverDrawCCDThresholds)
-						{
-							DebugDraw::DrawCCDAxisThreshold(Particle.GetX(), Particle.CCDAxisThreshold(), Particle.GetP() - Particle.GetX(), Particle.GetQ());
-						}
-#endif
-
-						if (FCCDHelpers::DeltaExceedsThreshold(Particle.CCDAxisThreshold(), Particle.GetP() - Particle.GetX(), Particle.GetQ()))
-						{
-							// We sweep the bounds from P back along the velocity and expand by a small amount.
-							// If not using tight bounds we also expand the bounds in all directions by Velocity. This is necessary only for secondary CCD collisions
-							// @todo(chaos): expanding the bounds by velocity is very expensive - revisit this
-							const FVec3 VDt = Particle.GetV() * Dt;
-							FReal CCDBoundsExpansion = BoundsThickness;
-							if (!CVars::bChaosCollisionCCDUseTightBoundingBox && (CVars::ChaosCollisionCCDConstraintMaxProcessCount > 1))
-							{
-								CCDBoundsExpansion += VDt.GetAbsMax();
-							}
-							Particle.UpdateWorldSpaceStateSwept(FRigidTransform3(Particle.GetP(), Particle.GetQ()), FVec3(CCDBoundsExpansion), -VDt);
-						}
-						else
-						{
-							Particle.UpdateWorldSpaceStateSwept(FRigidTransform3(Particle.GetP(), Particle.GetQ()), FVec3(BoundsThickness), VelocityBoundsDelta);
-						}
-					}
-
-					CVD_TRACE_PARTICLE(PBDParticle->Handle())
-				}
-			});
-
-			for (auto& Particle : InParticles)
-			{
-				Base::DirtyParticle(Particle);
-			}
-		}
+		CHAOS_API void Integrate(FReal Dt);
 
 		CHAOS_API void Serialize(FChaosArchive& Ar);
 
@@ -393,7 +239,11 @@ namespace Chaos
 				Particle.WSmooth() = FMath::Lerp(Particle.WSmooth(), PredictedAngularVelocity, SmoothRate);
 			}
 		}
-		
+
+		template<typename TParticleView> 
+		UE_DEPRECATED(5.4, "Use Integrate(Dt)")
+		void Integrate(const TParticleView& InParticles, FReal Dt) { Integrate(Dt); }
+
 	protected:
 
 		CHAOS_API void AdvanceOneTimeStepImpl(const FReal dt, const FSubStepInfo& SubStepInfo);

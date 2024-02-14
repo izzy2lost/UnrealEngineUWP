@@ -325,13 +325,15 @@ namespace Chaos
 	{
 		PHYSICS_CSV_SCOPED_EXPENSIVE(PhysicsVerbose, NarrowPhase_ShapeBounds);
 
-		const FAABB3& ShapeWorldBounds0 = Shape0->GetWorldSpaceInflatedShapeBounds();
-		const FAABB3& ShapeWorldBounds1 = Shape1->GetWorldSpaceInflatedShapeBounds();
+		const FAABB3& ShapeWorldBounds0 = Shape0->GetWorldSpaceShapeBounds();
+		const FAABB3& ShapeWorldBounds1 = Shape1->GetWorldSpaceShapeBounds();
 
 		// World-space expanded bounds check
 		if (BoundsTestFlags.bEnableAABBCheck)
 		{
-			if (!ShapeWorldBounds0.Intersects(ShapeWorldBounds1))
+			// @todo(chaos): ideally this is a swept bounds test with a smaller cull distance (see FParticlePairMidPhase::GenerateCollisions)
+			const FAABB3 ExpandedShapeWorldBounds0 = FAABB3(ShapeWorldBounds0).ThickenSymmetrically(FVec3(CullDistance));
+			if (!ExpandedShapeWorldBounds0.Intersects(ShapeWorldBounds1))
 			{
 				return false;
 			}
@@ -1413,10 +1415,10 @@ namespace Chaos
 		const FRigidTransform3 ParticleWorldTransformB = PB->GetTransformPQ();
 		const FShapeInstanceArray& ShapeInstancesA = ParticleA->ShapeInstances();
 
-		// ImplicitB transforms/bounds
+		// ImplicitB transforms/bounds (expanded by cull distance)
 		const FRigidTransform3 ImplicitTransformB = RelativeTransformB * ParticleWorldTransformB;
 		const FRigidTransform3 ImplicitTransformBToA = ImplicitTransformB.GetRelativeTransform(ParticleWorldTransformA);
-		const FAABB3 ImplicitBoundsBInA = ImplicitB->CalculateTransformedBounds(ImplicitTransformBToA);
+		const FAABB3 ImplicitBoundsBInA = ImplicitB->CalculateTransformedBounds(ImplicitTransformBToA).ThickenSymmetrically(FVec3(CullDistance));
 
 		// If ImplicitB has a built-in BVH (Heightfield or TriMesh) we handle the test against the BVH differently
 		const bool bHasInternalBVHB = ImplicitB->template IsA<FHeightField>();

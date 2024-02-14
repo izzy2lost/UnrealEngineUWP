@@ -1147,9 +1147,11 @@ protected:
 
 #if CHAOS_EVOLUTION_COLLISION_TESTMODE
 	// Test Mode for Collision issues (resets particle positions every tick for repeatable testing)
+	CHAOS_API void TestModeStep();
 	CHAOS_API void TestModeParticleDisabled(FGeometryParticleHandle* Particle);
 	CHAOS_API void TestModeSaveParticles();
 	CHAOS_API void TestModeSaveParticle(FGeometryParticleHandle* Particle);
+	CHAOS_API void TestModeUpdateSavedParticle(FGeometryParticleHandle* Particle);
 	CHAOS_API void TestModeRestoreParticles();
 	CHAOS_API void TestModeRestoreParticle(FGeometryParticleHandle* Particle);
 

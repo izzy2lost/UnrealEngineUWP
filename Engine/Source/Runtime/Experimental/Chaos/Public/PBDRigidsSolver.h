@@ -244,7 +244,8 @@ namespace Chaos
 		CHAOS_API void SyncEvents_GameThread();
 
 		/**/
-		CHAOS_API void PreSolveDebugDraw() const;
+		CHAOS_API void PreIntegrateDebugDraw(FReal Dt) const;
+		CHAOS_API void PreSolveDebugDraw(FReal Dt) const;
 		CHAOS_API void PostTickDebugDraw(FReal Dt) const;
 
 		// Visual debugger (VDB) push methods
@@ -358,6 +359,8 @@ namespace Chaos
 		CHAOS_API virtual void SetExternalTimestampConsumed_Internal(const int32 Timestamp) override;
 
 		CHAOS_API void UpdateIsDeterministic();
+
+		CHAOS_API void DebugDrawShapes(const bool bShowStatic, const bool bShowKinematic, const bool bShowDynamic) const;
 
 		//
 		// Solver Data

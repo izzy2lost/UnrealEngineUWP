@@ -80,7 +80,10 @@ namespace Chaos
 
 		CHAOS_API virtual void Serialize(FChaosArchive& Ar);
 
-		CHAOS_API void UpdateShapeBounds(const FRigidTransform3& WorldTM, const FVec3& BoundsExpansion = FVec3(0));
+		CHAOS_API void UpdateShapeBounds(const FRigidTransform3& WorldTM);
+
+		UE_DEPRECATED(5.4, "Bounds no longer expanded. Use UpdateShapeBounds without BoundsExpansion")
+		CHAOS_API void UpdateShapeBounds(const FRigidTransform3& WorldTM, const FVec3& BoundsExpansion) { UpdateShapeBounds(WorldTM); }
 
 		CHAOS_API void* GetUserData() const;
 		CHAOS_API void SetUserData(void* InUserData);
@@ -93,9 +96,15 @@ namespace Chaos
 
 		CHAOS_API FImplicitObjectRef GetGeometry() const;
 
-		CHAOS_API const TAABB<FReal, 3>& GetWorldSpaceInflatedShapeBounds() const;
+		CHAOS_API const TAABB<FReal, 3>& GetWorldSpaceShapeBounds() const;
 
-		CHAOS_API void UpdateWorldSpaceState(const FRigidTransform3& WorldTransform, const FVec3& BoundsExpansion);
+		CHAOS_API void UpdateWorldSpaceState(const FRigidTransform3& WorldTransform);
+
+		UE_DEPRECATED(5.4, "Bounds no longer expanded. Use GetWorldSpaceShapeBounds()")
+		CHAOS_API const TAABB<FReal, 3>& GetWorldSpaceInflatedShapeBounds() const { return GetWorldSpaceShapeBounds(); }
+		
+		UE_DEPRECATED(5.4, "Bounds no longer expanded. Use UpdateWorldSpaceState() without BoundsExpansion")
+		CHAOS_API void UpdateWorldSpaceState(const FRigidTransform3& WorldTransform, const FVec3& BoundsExpansion) { UpdateWorldSpaceState(WorldTransform); }
 
 		// The leaf shape (with transformed and implicit wrapper removed).
 		CHAOS_API const FImplicitObject* GetLeafGeometry() const;
@@ -169,7 +178,7 @@ namespace Chaos
 			, bIsSingleMaterial(false)
 			, ShapeIdx(InShapeIdx)
 			, Geometry()
-			, WorldSpaceInflatedShapeBounds(FAABB3(FVec3(0), FVec3(0)))
+			, WorldSpaceShapeBounds(FAABB3(FVec3(0), FVec3(0)))
 		{
 		}
 		
@@ -179,7 +188,7 @@ namespace Chaos
 			, bIsSingleMaterial(false)
 			, ShapeIdx(InShapeIdx)
 			, Geometry()
-			, WorldSpaceInflatedShapeBounds(FAABB3(FVec3(0), FVec3(0)))
+			, WorldSpaceShapeBounds(FAABB3(FVec3(0), FVec3(0)))
 		{
 			check(false);
 		}
@@ -189,7 +198,7 @@ namespace Chaos
 			, bIsSingleMaterial(false)
 			, ShapeIdx(InShapeIdx)
 			, Geometry(InGeometry)
-			, WorldSpaceInflatedShapeBounds(FAABB3(FVec3(0), FVec3(0)))
+			, WorldSpaceShapeBounds(FAABB3(FVec3(0), FVec3(0)))
 		{
 		}
 
@@ -198,7 +207,7 @@ namespace Chaos
 			, bIsSingleMaterial(Other.bIsSingleMaterial)
 			, ShapeIdx(Other.ShapeIdx)
 			, Geometry(Other.Geometry)
-			, WorldSpaceInflatedShapeBounds(Other.WorldSpaceInflatedShapeBounds)
+			, WorldSpaceShapeBounds(Other.WorldSpaceShapeBounds)
 		{
 		}
 
@@ -209,7 +218,7 @@ namespace Chaos
 		uint32 ShapeIdx : 29;
 		FShapeDirtyFlags DirtyFlags;	// For use by FShapeInstanceProxy as there's 4 bytes of padding here
 		FImplicitObjectPtr Geometry;
-		TAABB<FReal, 3> WorldSpaceInflatedShapeBounds;
+		TAABB<FReal, 3> WorldSpaceShapeBounds;
 	};
 
 
@@ -262,7 +271,7 @@ namespace Chaos
 		static CHAOS_API void UpdateGeometry(TUniquePtr<FShapeInstanceProxy>& InOutShapePtr, const FImplicitObjectPtr& InGeometry);
 		static CHAOS_API FShapeInstanceProxy* SerializationFactory(FChaosArchive& Ar, FShapeInstanceProxy*);
 
-		CHAOS_API void UpdateShapeBounds(const FRigidTransform3& WorldTM, const FVec3& BoundsExpansion = FVec3(0));
+		CHAOS_API void UpdateShapeBounds(const FRigidTransform3& WorldTM);
 
 		void* GetUserData() const { return CollisionData.Read().UserData; }
 		void SetUserData(void* InUserData)
@@ -282,7 +291,7 @@ namespace Chaos
 			CollisionData.Modify(true, DirtyFlags, Proxy, ShapeIdx, [InSimData](FCollisionData& Data) { Data.SimData = InSimData; });
 		}
 
-		CHAOS_API void UpdateWorldSpaceState(const FRigidTransform3& WorldTransform, const FVec3& BoundsExpansion);
+		CHAOS_API void UpdateWorldSpaceState(const FRigidTransform3& WorldTransform);
 
 		// The leaf shape (with transformed and implicit wrapper removed).
 		CHAOS_API const FImplicitObject* GetLeafGeometry() const;
@@ -540,7 +549,7 @@ namespace Chaos
 			}
 		}
 
-		CHAOS_API void UpdateShapeBounds(const FRigidTransform3& WorldTM, const FVec3& BoundsExpansion = FVec3(0));
+		CHAOS_API void UpdateShapeBounds(const FRigidTransform3& WorldTM);
 
 		void* GetUserData() const { return CollisionData.UserData; }
 		void SetUserData(void* InUserData) { CollisionData.UserData = InUserData; }
@@ -551,7 +560,7 @@ namespace Chaos
 		const FCollisionFilterData& GetSimData() const { return CollisionData.SimData; }
 		void SetSimData(const FCollisionFilterData& InSimData) { CollisionData.SimData = InSimData; }
 
-		CHAOS_API void UpdateWorldSpaceState(const FRigidTransform3& WorldTransform, const FVec3& BoundsExpansion);
+		CHAOS_API void UpdateWorldSpaceState(const FRigidTransform3& WorldTransform);
 
 		// The leaf shape (with transformed and implicit wrapper removed).
 		CHAOS_API const FImplicitObject* GetLeafGeometry() const;
@@ -939,9 +948,9 @@ namespace Chaos
 	///////////////////////////////////////////////////////////////////////////////////////////////
 
 
-	inline void FPerShapeData::UpdateShapeBounds(const FRigidTransform3& WorldTM, const FVec3& BoundsExpansion)
+	inline void FPerShapeData::UpdateShapeBounds(const FRigidTransform3& WorldTM)
 	{
-		DownCast([&WorldTM, &BoundsExpansion](auto& ShapeInstance) { ShapeInstance.UpdateShapeBounds(WorldTM, BoundsExpansion); });
+		DownCast([&WorldTM](auto& ShapeInstance) { ShapeInstance.UpdateShapeBounds(WorldTM); });
 	}
 
 	inline void* FPerShapeData::GetUserData() const
@@ -979,14 +988,14 @@ namespace Chaos
 		return Geometry.GetReference();
 	}
 
-	inline const TAABB<FReal, 3>& FPerShapeData::GetWorldSpaceInflatedShapeBounds() const
+	inline const TAABB<FReal, 3>& FPerShapeData::GetWorldSpaceShapeBounds() const
 	{
-		return WorldSpaceInflatedShapeBounds;
+		return WorldSpaceShapeBounds;
 	}
 
-	inline void FPerShapeData::UpdateWorldSpaceState(const FRigidTransform3& WorldTransform, const FVec3& BoundsExpansion)
+	inline void FPerShapeData::UpdateWorldSpaceState(const FRigidTransform3& WorldTransform)
 	{
-		DownCast([&WorldTransform, &BoundsExpansion](auto& ShapeInstance) { ShapeInstance.UpdateWorldSpaceState(WorldTransform, BoundsExpansion); });
+		DownCast([&WorldTransform](auto& ShapeInstance) { ShapeInstance.UpdateWorldSpaceState(WorldTransform); });
 	}
 
 	inline const FImplicitObject* FPerShapeData::GetLeafGeometry() const

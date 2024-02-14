@@ -451,19 +451,23 @@ namespace Chaos
 			// If we have no shapes we are have a point bounds at our local origin
 			FAABB3 WorldBounds = (Shapes.Num() > 0) ? FAABB3::EmptyAABB() : FAABB3::ZeroAABB();
 
+			// NOTE: Individual shape bounds are not expanded. We only require that the particle bounds is expanded because that is used
+			// in the broadphase. The midphase is what requires the shape bounds and it also has all the information required to expand the shape bounds as needed.
 			for (const auto& Shape : Shapes)
 			{
-				Shape->UpdateWorldSpaceState(WorldTransform, BoundsExpansion);
-				WorldBounds.GrowToInclude(Shape->GetWorldSpaceInflatedShapeBounds());
+				Shape->UpdateWorldSpaceState(WorldTransform);
+				WorldBounds.GrowToInclude(Shape->GetWorldSpaceShapeBounds());
 			}
 
-			MWorldSpaceInflatedBounds[Index] = TAABB<T, d>(WorldBounds);
+			MWorldSpaceInflatedBounds[Index] = TAABB<T, d>(WorldBounds).ThickenSymmetrically(BoundsExpansion);
 		}
 
-		void UpdateWorldSpaceStateSwept(const int32 Index, const FRigidTransform3& EndWorldTransform, const FVec3& BoundsExpansion, const FVec3& DeltaX)
+		void UpdateWorldSpaceStateSwept(const int32 Index, const FRigidTransform3& WorldTransform, const FVec3& BoundsExpansion, const FVec3& DeltaX)
 		{
-			// NOTE: Individual shape bounds are not expanded by the DeltaX (velocity term). Maybe they should be...
-			UpdateWorldSpaceState(Index, EndWorldTransform, BoundsExpansion);
+			// Update the bounds of all shapes (individual shape bounds are not expanded) and accumulate the net bounds
+			UpdateWorldSpaceState(Index, WorldTransform, BoundsExpansion);
+
+			// Apply the swept bounds delta
 			MWorldSpaceInflatedBounds[Index].GrowByVector(DeltaX);
 		}
 

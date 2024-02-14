@@ -631,16 +631,16 @@ public:
 	}
 
 	/**
-	 * @brief Update any cached state that depends on world-space transform
-	 * @param EndWorldTransform The transform at the end of the sweep
-	 * @param BoundsExpansion A uniform expansion applied to the bounds of the particle and the all shapes
-	 * @param DeltaX A directional expansion applied to the bounds of the particle, but not the shapes
+	 * @brief Update any cached state that depends on world-space transform for a sweep between WorldTransform and WorldTransform + DeltaX
+	 * @param WorldTransform The transform at the end of the sweep
+	 * @param BoundsExpansion A uniform expansion applied to the bounds of the particle, but not the individual shapes
+	 * @param DeltaX A directional expansion applied to the bounds of the particle, but not the individual shapes
 	 * This includes the world space bounds for the particle and all its shapes. If DeltaX is not zero,
-	 * the bounds will be equivalent to a union of the bounds at EndWorldTransform and EndWorldTransform + DeltaX.
+	 * the bounds will be equivalent to a union of the bounds at WorldTransform and WorldTransform + DeltaX.
 	*/
-	void UpdateWorldSpaceStateSwept(const FRigidTransform3& EndWorldTransform, const FVec3& BoundsExpansion, const FVec3& DeltaX)
+	void UpdateWorldSpaceStateSwept(const FRigidTransform3& WorldTransform, const FVec3& BoundsExpansion, const FVec3& DeltaX)
 	{
-		GeometryParticles->UpdateWorldSpaceStateSwept(ParticleIdx, EndWorldTransform, BoundsExpansion, DeltaX);
+		GeometryParticles->UpdateWorldSpaceStateSwept(ParticleIdx, WorldTransform, BoundsExpansion, DeltaX);
 	}
 
 	bool HasBounds() const { return GeometryParticles->HasBounds(ParticleIdx); }
