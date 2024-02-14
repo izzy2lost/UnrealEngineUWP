@@ -22,7 +22,7 @@ public:
 	virtual const FSongMaps* GetCurrentSongMaps() const override;
 
 
-	bool ConnectToAudioComponentsMetasound(UAudioComponent* InAudioComponent, FName MetasoundOuputPinName = "Midi Clock");
+	bool ConnectToAudioComponentsMetasound(UAudioComponent* InAudioComponent, FName MetasoundOuputPinName = "MIDI Clock");
 
 protected:
 	void OnGeneratorAttached();

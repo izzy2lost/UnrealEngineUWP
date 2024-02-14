@@ -12,7 +12,7 @@
 * uint8 NoteNumber
 * ranging from Midi::kMinNote to Midi::kMaxNote [0 - 127]
 */
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintType, Meta = (DisplayName = "MIDI Note"))
 struct HARMONIXMIDI_API FMidiNote
 {
 	GENERATED_BODY()

@@ -105,6 +105,9 @@ namespace HarmonixMetasound
 			DECLARE_METASOUND_PARAM_EXTERN(AudioMono);
 			DECLARE_METASOUND_PARAM_EXTERN(AudioLeft);
 			DECLARE_METASOUND_PARAM_EXTERN(AudioRight);
+			DECLARE_METASOUND_PARAM_EXTERN(Timestamp);
+			DECLARE_METASOUND_PARAM_EXTERN(ShouldQuantizeTimestamp);
+			DECLARE_METASOUND_PARAM_EXTERN(QuantizationUnit);
 		}
 		namespace Outputs
 		{

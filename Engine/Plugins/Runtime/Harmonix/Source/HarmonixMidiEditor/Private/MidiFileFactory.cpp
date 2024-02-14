@@ -16,12 +16,17 @@ UMidiFileFactory::UMidiFileFactory(const FObjectInitializer& ObjectInitializer)
 	bEditorImport = true;
 	bText = false;
 
-	Formats.Add(TEXT("mid;Standard Midi File"));
+	Formats.Add(TEXT("mid;Standard MIDI File"));
+}
+
+FText UMidiFileFactory::GetDisplayName() const
+{
+	return NSLOCTEXT("MIDI", "MIDIImporterFactoryName", "Standard MIDI File");
 }
 
 FText UMidiFileFactory::GetToolTip() const
 {
-	return NSLOCTEXT("Midi", "MidiImporterFactoryDescription", "Standard Midi Files exported from Digital Audio Workstations");
+	return NSLOCTEXT("MIDI", "MIDIImporterFactoryDescription", "Standard MIDI Files exported from Digital Audio Workstations");
 }
 
 bool UMidiFileFactory::FactoryCanImport(const FString& Filename)
@@ -97,7 +102,7 @@ void UMidiFileFactory::ShowConformMidiFileLengthDialog(int32 MidiFileAssetIndex)
 	//show the dialog widgets on a window
 	TSharedPtr<SWindow> ParentWindow;
 	SAssignNew(ParentWindow, SWindow)
-		.Title(FText::FromString(TEXT("Conform Midi File Length")))
+		.Title(FText::FromString(TEXT("Conform MIDI File Length")))
 		.ClientSize(FVector2D(490, 250));
 	
 	//the custom pop up dialog that asks for conforming midi file length
@@ -148,7 +153,7 @@ void UMidiFileFactory::ShowConformMidiFileLengthDialog(int32 MidiFileAssetIndex)
 	//set text for text block that asks user whether or not to conform midi file length
 	FString MidiFileName = MidiFileAsset->GetName();
 	ConformMidiFileLengthDialog->AskConformFileLengthText->SetText(FText::FromString(FString::Printf(
-		TEXT("Midi File Name: %s.mid, Length: %.5f bars"),
+		TEXT("MIDI File Name: %s.mid, Length: %.5f bars"),
 		*MidiFileName,
 		MidiFileFractionalLength)));
 
@@ -182,7 +187,7 @@ EReimportResult::Type UMidiFileFactory::Reimport(UObject* Obj)
 	FString ReimportPath = AsMidiFile->GetImportedSrcFilePath();
 	if (ReimportPath.IsEmpty())
 	{
-		UE_LOG(LogHarmonixMidiEditor, Warning, TEXT("Failed to reimport midi file: %s"), *AsMidiFile->GetFullName());
+		UE_LOG(LogHarmonixMidiEditor, Warning, TEXT("Failed to reimport MIDI file: %s"), *AsMidiFile->GetFullName());
 		return EReimportResult::Failed;
 	}
 	
@@ -225,8 +230,8 @@ void SConformMidiFileLengthDialog::Construct(const FArguments& InArgs)
 			[
 				SNew(STextBlock)
 				.Text(FText::FromString(TEXT(
-					"Currently, all midi asset lengths must be conformed to some full number of bars."
-					"\n\n      Some or all of the midi files you are importing have fractional bar counts."
+					"Currently, all MIDI asset lengths must be conformed to some full number of bars."
+					"\n\n      Some or all of the MIDI files you are importing have fractional bar counts."
 					"\n\n                                        How would you like them conformed?\n")))
 			]
 			+ SVerticalBox::Slot()
@@ -266,7 +271,7 @@ void SConformMidiFileLengthDialog::Construct(const FArguments& InArgs)
 					.Content()
 					[
 						SNew(STextBlock)
-						.ToolTipText(FText::FromString(TEXT("move Midi events in file that exceed the last integer bar to the last tick of that bar and remove excessive events on that tick")))
+						.ToolTipText(FText::FromString(TEXT("move MIDI events in file that exceed the last integer bar to the last tick of that bar and remove excessive events on that tick")))
 						.Text(FText::FromString(TEXT("Round Down")))
 					]
 				]
@@ -283,7 +288,7 @@ void SConformMidiFileLengthDialog::Construct(const FArguments& InArgs)
 					.Content()
 					[
 						SNew(STextBlock)
-						.ToolTipText(FText::FromString(TEXT("round Midi File length to the nearest integer bar (either rounding up or rounding down)")))
+						.ToolTipText(FText::FromString(TEXT("round MIDI File length to the nearest integer bar (either rounding up or rounding down)")))
 						.Text(FText::FromString(TEXT("Round to Nearest")))
 					]
 				]

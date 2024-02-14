@@ -54,8 +54,8 @@ namespace HarmonixMetasound::Nodes::MidiNoteTranspose
 				Info.ClassName        = { HarmonixNodeNamespace, TEXT("MidiStreamTransposer"), TEXT("")};
 				Info.MajorVersion     = 1;
 				Info.MinorVersion     = 0;
-				Info.DisplayName      = METASOUND_LOCTEXT("MidiNoteTransposeNode_DisplayName", "MIDI Note Transpose");
-				Info.Description      = METASOUND_LOCTEXT("MidiNoteTransposeNode_Description", "Duplicates the incoming MIDI stream to its output with the note on/off messages transposed by the specified number of semitones.");
+				Info.DisplayName      = METASOUND_LOCTEXT("MIDINoteTransposeNode_DisplayName", "MIDI Note Transpose");
+				Info.Description      = METASOUND_LOCTEXT("MIDINoteTransposeNode_Description", "Duplicates the incoming MIDI stream to its output with the note on/off messages transposed by the specified number of semitones.");
 				Info.Author           = PluginAuthor;
 				Info.PromptIfMissing  = PluginNodeMissingPrompt;
 				Info.DefaultInterface = GetVertexInterface();

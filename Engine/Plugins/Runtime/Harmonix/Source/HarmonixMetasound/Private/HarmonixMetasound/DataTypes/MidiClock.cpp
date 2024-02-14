@@ -123,7 +123,7 @@ int32 SubdivisionToMidiTicks(const EMidiClockSubdivisionQuantization Division, c
 	}
 }
 
-REGISTER_METASOUND_DATATYPE(HarmonixMetasound::FMidiClock, "MidiClock")
+REGISTER_METASOUND_DATATYPE(HarmonixMetasound::FMidiClock, "MIDIClock")
 
 namespace HarmonixMetasound
 {

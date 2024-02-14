@@ -17,8 +17,8 @@ void FHarmonixMetasoundEditorModule::StartupModule()
 {
 	const HarmonixMetasoundEditor::FSlateStyle& Style = HarmonixMetasoundEditor::FSlateStyle::Get();
 	Metasound::Editor::IMetasoundEditorModule& MetasoundEditorModule = FModuleManager::GetModuleChecked<Metasound::Editor::IMetasoundEditorModule>("MetasoundEditor");
-	MetasoundEditorModule.RegisterPinType("MidiAsset");
-	MetasoundEditorModule.RegisterPinType("MidiStepSequenceAsset");
+	MetasoundEditorModule.RegisterPinType("MIDIAsset");
+	MetasoundEditorModule.RegisterPinType("MIDIStepSequenceAsset");
 	MetasoundEditorModule.RegisterPinType("FusionPatchAsset");
 	MetasoundEditorModule.RegisterPinType("Enum:SubdivisionQuantizationType","Int32");
 	MetasoundEditorModule.RegisterPinType("Enum:DelayFilterType", "Int32");
@@ -27,10 +27,10 @@ void FHarmonixMetasoundEditorModule::StartupModule()
 	MetasoundEditorModule.RegisterPinType("Enum:DistortionType", "Int32");
 	MetasoundEditorModule.RegisterPinType("Enum:Harmonix:BiquadFilterType", "Int32");
 	MetasoundEditorModule.RegisterPinType("Enum:Distortion:FilterPasses", "Int32");
-	MetasoundEditorModule.RegisterPinType("Enum:StdMidiControllerID", "Int32");
+	MetasoundEditorModule.RegisterPinType("Enum:StdMIDIControllerID", "Int32");
 
-	MetasoundEditorModule.RegisterPinType("MidiStream", {}, {}, Style.GetMidiStreamConnectedIcon(), Style.GetMidiStreamDisconnectedIcon());
-	MetasoundEditorModule.RegisterPinType("MidiClock", {}, {}, Style.GetMidiClockConnectedIcon(), Style.GetMidiClockDisconnectedIcon());
+	MetasoundEditorModule.RegisterPinType("MIDIStream", {}, {}, Style.GetMidiStreamConnectedIcon(), Style.GetMidiStreamDisconnectedIcon());
+	MetasoundEditorModule.RegisterPinType("MIDIClock", {}, {}, Style.GetMidiClockConnectedIcon(), Style.GetMidiClockDisconnectedIcon());
 	MetasoundEditorModule.RegisterPinType("MusicTransport", {}, {}, Style.GetTransportConnectedIcon(), Style.GetTransportDisconnectedIcon());
 
 	FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");

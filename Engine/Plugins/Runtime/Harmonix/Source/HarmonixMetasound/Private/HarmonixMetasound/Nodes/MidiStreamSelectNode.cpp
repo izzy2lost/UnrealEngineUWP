@@ -13,7 +13,7 @@
 #include "HarmonixMetasound/DataTypes/MusicTransport.h"
 #include "HarmonixMidi/MidiMsg.h"
 
-DEFINE_LOG_CATEGORY_STATIC(LogMidiStreamSelect, Log, All);
+DEFINE_LOG_CATEGORY_STATIC(LogMIDIStreamSelect, Log, All);
 
 #define LOCTEXT_NAMESPACE "HaronixMetaSound"
 
@@ -81,8 +81,8 @@ namespace HarmonixMetasound
 			Info.ClassName = { HarmonixNodeNamespace, TEXT("MidiStreamSelect"), TEXT("") };
 			Info.MajorVersion = 0;
 			Info.MinorVersion = 1;
-			Info.DisplayName = METASOUND_LOCTEXT("MidiStreamSelectNode_DisplayName", "Midi Select");
-			Info.Description = METASOUND_LOCTEXT("MidiStreamSelectNode_Description", "Copies the output of one of the inputs to the output.");
+			Info.DisplayName = METASOUND_LOCTEXT("MIDIStreamSelectNode_DisplayName", "MIDI Select");
+			Info.Description = METASOUND_LOCTEXT("MIDIStreamSelectNode_Description", "Copies the output of one of the inputs to the output.");
 			Info.Author = PluginAuthor;
 			Info.PromptIfMissing = PluginNodeMissingPrompt;
 			Info.DefaultInterface = GetVertexInterface();
@@ -97,11 +97,11 @@ namespace HarmonixMetasound
 
 	namespace SelectPinNames
 	{
-		METASOUND_PARAM(InputMidiStreamA, "Midi Stream A", "The first midi stream to select.");
-		METASOUND_PARAM(InputMidiStreamB, "Midi Stream B", "The second midi stream to select.");
-		METASOUND_PARAM(InputStreamIndex, "Index", "The index of the midi stream to copy.");
-		METASOUND_PARAM(InputImmediateNoteOff, "Immediately Note Off", "Should all active midi in the stream turn off when the index changes?");
-		METASOUND_PARAM(InputCopyInactiveNoteOffs, "Copy Inactive Note Offs", "Should note offs for active midi be copied from inactive streams?");
+		METASOUND_PARAM(InputMidiStreamA, "MIDI Stream A", "The first MIDI stream to select.");
+		METASOUND_PARAM(InputMidiStreamB, "MIDI Stream B", "The second MIDI stream to select.");
+		METASOUND_PARAM(InputStreamIndex, "Index", "The index of the MIDI stream to copy.");
+		METASOUND_PARAM(InputImmediateNoteOff, "Immediately Note Off", "Should all active MIDI in the stream turn off when the index changes?");
+		METASOUND_PARAM(InputCopyInactiveNoteOffs, "Copy Inactive Note Offs", "Should note offs for active MIDI be copied from inactive streams?");
 	}
 
 	const FVertexInterface& FMidiStreamSelectOperator::GetVertexInterface()

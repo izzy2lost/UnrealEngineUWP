@@ -5,7 +5,7 @@
 #define LOCTEXT_NAMESPACE "HarmonixMetaSound"
 
 namespace Metasound {
-	DEFINE_METASOUND_ENUM_BEGIN(EStdMidiControllerID, FEnumStdMidiControllerID, "StdMidiControllerID")
+	DEFINE_METASOUND_ENUM_BEGIN(EStdMidiControllerID, FEnumStdMidiControllerID, "StdMIDIControllerID")
 		DEFINE_METASOUND_ENUM_ENTRY(EStdMidiControllerID::BankSelection, "EStdMidiControllerID_BankSelection_DisplayName", "0  Bank Selection", "EStdMidiControllerID_BankSelection_TT", "Allow switching between groups of 128 programs"),
 		DEFINE_METASOUND_ENUM_ENTRY(EStdMidiControllerID::ModWheel, "EStdMidiControllerID_ModWheel_DisplayName", "1  Modulation Wheel", "EStdMidiControllerID_ModWheel_TT", "Modulation Wheel (pitch, loudness, brighness etc.)"),
 		DEFINE_METASOUND_ENUM_ENTRY(EStdMidiControllerID::Breath, "EStdMidiControllerID_Breath_DisplayName", "2  Breath", "EStdMidiControllerID_Breath_TT", "Breath Controller"),

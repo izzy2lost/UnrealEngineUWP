@@ -61,8 +61,8 @@ namespace HarmonixMetasound::Nodes::MidiTrackFilter
 				Info.ClassName        = GetClassName();
 				Info.MajorVersion     = 1;
 				Info.MinorVersion     = 0;
-				Info.DisplayName      = METASOUND_LOCTEXT("MidiStreamTrackFilterNodeV1_DisplayName", "Midi Stream Track Filter");
-				Info.Description      = METASOUND_LOCTEXT("MidiStreamTrackFilterNodeV1_Description", "Duplicates the incoming midi stream to its output after filtering tracks from the input Midi Stream");
+				Info.DisplayName      = METASOUND_LOCTEXT("MIDIStreamTrackFilterNodeV1_DisplayName", "MIDI Stream Track Filter");
+				Info.Description      = METASOUND_LOCTEXT("MIDIStreamTrackFilterNodeV1_Description", "Duplicates the incoming MIDI stream to its output after filtering tracks from the input MIDI Stream");
 				Info.Author           = PluginAuthor;
 				Info.PromptIfMissing  = PluginNodeMissingPrompt;
 				Info.DefaultInterface = GetVertexInterface();

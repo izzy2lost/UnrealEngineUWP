@@ -19,7 +19,7 @@ namespace HarmonixMetasound::Analysis
 
 	const Metasound::Frontend::FAnalyzerOutput& FMidiStreamVertexAnalyzer::FOutputs::GetValue()
 	{
-		static Metasound::Frontend::FAnalyzerOutput Value = { "LastMidiEvent", Metasound::GetMetasoundDataTypeName<FMidiEventInfo>() };
+		static Metasound::Frontend::FAnalyzerOutput Value = { "LastMIDIEvent", Metasound::GetMetasoundDataTypeName<FMidiEventInfo>() };
 		return Value;
 	}
 

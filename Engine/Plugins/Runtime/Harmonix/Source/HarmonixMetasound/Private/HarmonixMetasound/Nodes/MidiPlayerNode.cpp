@@ -26,8 +26,8 @@ namespace HarmonixMetasound
 
 	namespace MidiPlayerNodePinNames
 	{
-		METASOUND_PARAM(KillVoicesOnSeek, "Kill Voices On Seek", "If true, a \"Kill All Voices\" midi message will be sent when seeking. Otherwise an \"All Notes Off\" will be sent which allows to ADSR release phases.")
-		METASOUND_PARAM(KillVoicesOnMidiChange, "Kill Voices On Midi File Change", "If true, a \"Kill All Voices\" midi message will be sent when the midi file asset is changed. Otherwise an \"All Notes Off\" will be sent which allows to ADSR release phases.")
+		METASOUND_PARAM(KillVoicesOnSeek, "Kill Voices On Seek", "If true, a \"Kill All Voices\" MIDI message will be sent when seeking. Otherwise an \"All Notes Off\" will be sent which allows to ADSR release phases.")
+		METASOUND_PARAM(KillVoicesOnMidiChange, "Kill Voices On MIDI File Change", "If true, a \"Kill All Voices\" MIDI message will be sent when the MIDI file asset is changed. Otherwise an \"All Notes Off\" will be sent which allows to ADSR release phases.")
 	}
 
 	class FMidiPlayerOperator : public TExecutableOperator<FMidiPlayerOperator>, public FMidiPlayCursor, public FMidiVoiceGeneratorBase, public FMusicTransportControllable
@@ -172,11 +172,11 @@ namespace HarmonixMetasound
 		auto InitNodeInfo = []() -> FNodeClassMetadata
 		{
 			FNodeClassMetadata Info;
-			Info.ClassName        = { HarmonixNodeNamespace, TEXT("MidiPlayer"), TEXT("") };
+			Info.ClassName        = { HarmonixNodeNamespace, TEXT("MIDIPlayer"), TEXT("") };
 			Info.MajorVersion     = 0;
 			Info.MinorVersion     = 1;
-			Info.DisplayName      = METASOUND_LOCTEXT("MidiPlayerNode_DisplayName", "Midi Player");
-			Info.Description      = METASOUND_LOCTEXT("MidiPlayerNode_Description", "Plays a standard midi file.");
+			Info.DisplayName      = METASOUND_LOCTEXT("MIDIPlayerNode_DisplayName", "MIDI Player");
+			Info.Description      = METASOUND_LOCTEXT("MIDIPlayerNode_Description", "Plays a standard MIDI file.");
 			Info.Author           = PluginAuthor;
 			Info.PromptIfMissing  = PluginNodeMissingPrompt;
 			Info.DefaultInterface = GetVertexInterface();

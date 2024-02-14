@@ -200,7 +200,7 @@ void FMetasoundMusicClockDriver::TryToRegisterPlayCursor()
 			}
 			else
 			{
-				UE_LOG(LogMusicClock, Verbose, TEXT("Didn't find Midi Clock output named \"%s\" in the Metasound!"), *MetasoundOutputName.ToString());
+				UE_LOG(LogMusicClock, Verbose, TEXT("Didn't find MIDI Clock output named \"%s\" in the Metasound!"), *MetasoundOutputName.ToString());
 			}
 		}
 	}

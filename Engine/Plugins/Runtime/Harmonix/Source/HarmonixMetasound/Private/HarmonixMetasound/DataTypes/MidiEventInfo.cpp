@@ -5,7 +5,7 @@
 #include "MetasoundDataTypeRegistrationMacro.h"
 #include "MetasoundOutput.h"
 
-REGISTER_METASOUND_DATATYPE(FMidiEventInfo, "MidiEventInfo");
+REGISTER_METASOUND_DATATYPE(FMidiEventInfo, "MIDIEventInfo");
 
 uint8 FMidiEventInfo::GetChannel() const
 {

@@ -13,7 +13,7 @@
 #include "HarmonixMetasound/DataTypes/MidiStream.h"
 #include "HarmonixMetasound/DataTypes/MusicTransport.h"
 
-#define LOCTEXT_NAMESPACE "HarmonixMetaSound_MidiTextTriggerNode"
+#define LOCTEXT_NAMESPACE "HarmonixMetaSound_MIDITextTriggerNode"
 
 namespace HarmonixMetasound
 {
@@ -36,8 +36,8 @@ namespace HarmonixMetasound
 				Info.ClassName        = { HarmonixNodeNamespace, TEXT("MidiTextTrigger"), TEXT("")};
 				Info.MajorVersion     = 1;
 				Info.MinorVersion     = 0;
-				Info.DisplayName      = METASOUND_LOCTEXT("MidiTextTriggerNode_DisplayName", "MIDI Text Trigger");
-				Info.Description      = METASOUND_LOCTEXT("MidiTextTriggerNode_Description", "Receives a MIDI stream, filters for the desired messages, and outputs triggers.");
+				Info.DisplayName      = METASOUND_LOCTEXT("MIDITextTriggerNode_DisplayName", "MIDI Text Trigger");
+				Info.Description      = METASOUND_LOCTEXT("MIDITextTriggerNode_Description", "Receives a MIDI stream, filters for the desired messages, and outputs triggers.");
 				Info.Author           = PluginAuthor;
 				Info.PromptIfMissing  = PluginNodeMissingPrompt;
 				Info.DefaultInterface = GetVertexInterface();

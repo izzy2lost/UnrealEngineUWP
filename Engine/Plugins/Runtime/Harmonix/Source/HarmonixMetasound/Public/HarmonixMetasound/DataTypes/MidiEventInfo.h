@@ -9,7 +9,7 @@
 
 #include "MidiEventInfo.generated.h"
 
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintType, Meta = (DisplayName = "MIDI Event Info"))
 struct HARMONIXMETASOUND_API FMidiEventInfo
 {
 	GENERATED_BODY()

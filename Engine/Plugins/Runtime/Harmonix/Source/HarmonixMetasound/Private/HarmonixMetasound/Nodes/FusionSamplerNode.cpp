@@ -325,7 +325,7 @@ namespace HarmonixMetasound
 				Info.MajorVersion = 0;
 				Info.MinorVersion = 1;
 				Info.DisplayName = GetDisplayName();
-				Info.Description = METASOUND_LOCTEXT("FusionSamplerNode_Description", "Renders incoming midi stream using the Fusion Sampler configured with the specified patch.");
+				Info.Description = METASOUND_LOCTEXT("FusionSamplerNode_Description", "Renders incoming MIDI stream using the Fusion Sampler configured with the specified patch.");
 				Info.Author = PluginAuthor;
 				Info.PromptIfMissing = PluginNodeMissingPrompt;
 				Info.DefaultInterface = GetVertexInterface();
