@@ -2,6 +2,7 @@
 #pragma once
 
 #include "Math/NumericLimits.h"
+#include "Chaos/ChaosUserEntity.h"
 #include "Chaos/ISpatialAcceleration.h"
 #include "Chaos/PBDRigidClusteredParticles.h"
 #include "Chaos/PBDGeometryCollectionParticles.h"
@@ -12,6 +13,7 @@
 #include "ChaosCheck.h"
 #include "Chaos/ChaosDebugDrawDeclares.h"
 #include "ChaosVisualDebugger/ChaosVisualDebuggerTrace.h"
+#include "PhysicsInterfaceTypesCore.h"
 #if CHAOS_DEBUG_DRAW
 #include "Chaos/ChaosDebugDraw.h"
 #endif
@@ -2605,7 +2607,12 @@ public:
 
 	virtual ~TGeometryParticle() //only virtual for easier memory management. Should generally be a static API
 	{
-		SetUniqueIdx(FUniqueIdx{}, false); // Set to an invalid index for dangling handle detection 
+		SetUniqueIdx(FUniqueIdx{}, false); // Set to an invalid index for dangling handle detection
+		FChaosUserEntityAppend* UserEntityAppend = FChaosUserData::Get<FChaosUserEntityAppend>(MUserData);
+		if (UserEntityAppend)
+		{
+			delete UserEntityAppend;
+		}
 	}
 
 	TGeometryParticle(const TGeometryParticle&) = delete;

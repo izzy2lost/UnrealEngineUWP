@@ -10,7 +10,21 @@ namespace ChaosInterface
 	FBodyInstance* GetUserData(const Chaos::FGeometryParticle& Actor)
 	{
 		void* UserData = Actor.UserData();
-		return UserData ? FChaosUserData::Get<FBodyInstance>(Actor.UserData()) : nullptr;
+		if (UserData)
+		{
+			FBodyInstance* BodyInstance = FChaosUserData::Get<FBodyInstance>(UserData);
+			if (!BodyInstance)
+			{
+				// Check if we appended a custom entity
+				FChaosUserEntityAppend* ChaosUserEntityAppend = FChaosUserData::Get<FChaosUserEntityAppend>(UserData);
+				if (ChaosUserEntityAppend)
+				{
+					BodyInstance = FChaosUserData::Get<FBodyInstance>(ChaosUserEntityAppend->ChaosUserData);
+				}
+			}
+			return BodyInstance;
+		}
+		return nullptr;
 	}
 
 	UPhysicalMaterial* GetUserData(const Chaos::FChaosPhysicsMaterial& Material)

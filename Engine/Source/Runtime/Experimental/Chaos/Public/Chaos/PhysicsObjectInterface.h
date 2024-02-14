@@ -16,6 +16,7 @@
 #include "PhysicsObjectInterface.generated.h"
 
 class FChaosScene;
+class FChaosUserDefinedEntity;
 class IPhysicsProxyBase;
 
 USTRUCT(BlueprintType)
@@ -61,6 +62,7 @@ namespace Chaos
 	public:
 		CHAOS_API FPhysicsObjectHandle GetRootObject(const FConstPhysicsObjectHandle Object);
 		CHAOS_API bool HasChildren(const FConstPhysicsObjectHandle Object);
+		CHAOS_API FChaosUserDefinedEntity* GetUserDefinedEntity(const FConstPhysicsObjectHandle Object);
 		CHAOS_API int32 GetClusterHierarchyLevel(const FConstPhysicsObjectHandle Object);
 
 		CHAOS_API FTransform GetTransform(const FConstPhysicsObjectHandle Object);
@@ -123,6 +125,7 @@ namespace Chaos
 	class FWritePhysicsObjectInterface: public FReadPhysicsObjectInterface<Id>
 	{
 	public:
+		CHAOS_API void SetUserDefinedEntity(TArrayView<const FPhysicsObjectHandle> InObjects, FChaosUserDefinedEntity* UserDefinedEntity);
 		CHAOS_API void PutToSleep(TArrayView<const FPhysicsObjectHandle> InObjects);
 		CHAOS_API void WakeUp(TArrayView<const FPhysicsObjectHandle> InObjects);
 		CHAOS_API void ForceKinematic(TArrayView<const FPhysicsObjectHandle> InObjects);
