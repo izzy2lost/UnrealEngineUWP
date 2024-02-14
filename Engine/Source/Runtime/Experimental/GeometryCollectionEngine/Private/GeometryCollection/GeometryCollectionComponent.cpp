@@ -6998,7 +6998,10 @@ void UGeometryCollectionComponent::PostLoad()
 
 void UGeometryCollectionComponent::CollectPSOPrecacheData(const FPSOPrecacheParams& BasePrecachePSOParams, FMaterialInterfacePSOPrecacheParamsList& OutParams)
 {
-	check(RestCollection);
+	if (!RestCollection)
+	{
+		return;
+	}
 
 	FPSOPrecacheVertexFactoryDataList VFDataList;
 	const FVertexFactoryType* VFType = nullptr;
