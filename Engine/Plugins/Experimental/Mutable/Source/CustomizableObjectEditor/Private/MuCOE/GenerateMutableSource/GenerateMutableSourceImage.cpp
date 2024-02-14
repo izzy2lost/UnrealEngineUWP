@@ -477,6 +477,11 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 		{
 			ImageFromColour->SetColour(color);
 		}
+
+		if (ReferenceTextureSize > 0)
+		{
+			ImageFromColour->SetSize(ReferenceTextureSize, ReferenceTextureSize);
+		}
 	}
 
 	else if (const UCustomizableObjectNodeTextureFromChannels* TypedNodeFrom = Cast<UCustomizableObjectNodeTextureFromChannels>(Node))
