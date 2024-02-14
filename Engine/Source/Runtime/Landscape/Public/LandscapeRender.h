@@ -508,7 +508,7 @@ struct FLandscapeRenderSystem
 	// Counter used to reduce how often we call compact on the map when removing sections
 	int32 SectionsRemovedSinceLastCompact;
 
-	int32 LandscapeKey = 0; 
+	uint32 LandscapeKey = 0; 
 	FSceneInterface* Scene = nullptr;
 
 	FLandscapeRenderSystem(uint32 InLandscapeKey, FSceneInterface* InScene);
@@ -606,8 +606,9 @@ public:
 	virtual void PreRenderView_RenderThread(FRDGBuilder& GraphBuilder, FSceneView& InView) override;
 	virtual void PreInitViews_RenderThread(FRDGBuilder& GraphBuilder) override;
 
-	LANDSCAPE_API const TMap<uint32, FLandscapeRenderSystem*>& GetLandscapeRenderSystems() const;
-	TArray<FLandscapeRenderSystem*> GetLandscapeRenderSystems(const class FSceneInterface* InScene) const;
+	LANDSCAPE_API static const TMap<uint32, FLandscapeRenderSystem*>& GetLandscapeRenderSystems();
+	static TArray<FLandscapeRenderSystem*> GetLandscapeRenderSystems(const class FSceneInterface* InScene);
+	static FLandscapeRenderSystem* GetLandscapeRenderSystem(const class FSceneInterface* InScene, uint32 InLandscapeKey);
 	int32 GetNumViewsWithShowCollision() const { return NumViewsWithShowCollision; }
 
 private:
