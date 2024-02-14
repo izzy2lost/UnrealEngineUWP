@@ -1554,7 +1554,6 @@ ALandscapeProxy::ALandscapeProxy(const FObjectInitializer& ObjectInitializer)
 #if WITH_EDITORONLY_DATA
 	bLockLocation = true;
 #endif // WITH_EDITORONLY_DATA
-	ComponentScreenSizeToUseSubSections = 0.65f;
 	bCastStaticShadow = true;
 	ShadowCacheInvalidationBehavior = EShadowCacheInvalidationBehavior::Auto;
 	bUsedForNavigation = true;
@@ -4424,7 +4423,6 @@ void ALandscapeProxy::GetSharedProperties(ALandscapeProxy* Landscape)
 		NumSubsections = Landscape->NumSubsections;
 		SubsectionSizeQuads = Landscape->SubsectionSizeQuads;
 		MaxLODLevel = Landscape->MaxLODLevel;
-		ComponentScreenSizeToUseSubSections = Landscape->ComponentScreenSizeToUseSubSections;
 		ScalableLODDistributionSetting = Landscape->ScalableLODDistributionSetting;
 		ScalableLOD0DistributionSetting = Landscape->ScalableLOD0DistributionSetting;
 		ScalableLOD0ScreenSize = Landscape->ScalableLOD0ScreenSize;
