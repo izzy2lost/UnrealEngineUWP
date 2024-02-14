@@ -6015,10 +6015,23 @@ bool AActor::IsHLODRelevant() const
 		return false;
 	}
 
+	if (IsEditorOnly())
+	{
+		return false;
+	}
+
 	if (!bEnableAutoLODGeneration)
 	{
 		return false;
 	}
+
+#if WITH_EDITOR 
+	// Only spatially loaded actors can be HLOD relevant in partitioned worlds
+	if (UWorld::IsPartitionedWorld(GetWorld()) && !GetIsSpatiallyLoaded())
+	{
+		return false;
+	}
+#endif
 
 	FVector Origin, Extent;
 	GetActorBounds(false, Origin, Extent);
