@@ -358,7 +358,8 @@ namespace Interchange
 				const FName TransmissionDepth = TEXT("transmission_depth");
 				const FName TransmissionScatter = TEXT("transmission_scatter");
 				const FName TransmissionScatterAnisotropy = TEXT("transmission_scatter_anisotropy");
-				const FName TransmissionDispersion = TEXT("transmission_dispersion");
+				const FName TransmissionDispersionScale = TEXT("transmission_dispersion_scale");
+				const FName TransmissionDispersionAbbeNumber = TEXT("transmission_dispersion_abbe_number");
 				const FName SubsurfaceWeight = TEXT("subsurface_weight");
 				const FName SubsurfaceColor = TEXT("subsurface_color");
 				const FName SubsurfaceRadius = TEXT("subsurface_radius");
