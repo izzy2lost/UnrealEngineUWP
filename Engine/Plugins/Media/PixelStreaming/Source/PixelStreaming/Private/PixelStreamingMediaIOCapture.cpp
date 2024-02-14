@@ -177,15 +177,15 @@ ETextureCreateFlags UPixelStreamingMediaIOCapture::GetOutputTextureFlags() const
 #endif
 }
 
-TRefCountPtr<IPooledRenderTarget> UPixelStreamingMediaIOCapture::InitializePassOutputTexture(FRDGTextureDesc TextureDesc, const FString& TextureName) const
+TRefCountPtr<IPooledRenderTarget> UPixelStreamingMediaIOCapture::InitializePassOutputTexture(FRDGTextureDesc TextureDesc, const TCHAR* TextureName) const
 {
-	FRHITextureCreateDesc Desc = FRHITextureCreateDesc::Create2D(*TextureName, TextureDesc.Extent.X, TextureDesc.Extent.Y, TextureDesc.Format)
+	FRHITextureCreateDesc Desc = FRHITextureCreateDesc::Create2D(TextureName, TextureDesc.Extent.X, TextureDesc.Extent.Y, TextureDesc.Format)
 		.SetClearValue(TextureDesc.ClearValue)
 		.SetFlags(TextureDesc.Flags);
 
 	FTextureRHIRef Texture = RHICreateTexture(Desc);
 
-	return CreateRenderTarget(Texture, *TextureName);
+	return CreateRenderTarget(Texture, TextureName);
 }
 
 bool UPixelStreamingMediaIOCapture::PostInitializeCaptureViewport(TSharedPtr<FSceneViewport>& InSceneViewport)
