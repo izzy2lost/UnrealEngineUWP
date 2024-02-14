@@ -10,6 +10,26 @@ struct FAnimationInitializeContext;
 struct FComponentSpacePoseContext;
 struct FNodeDebugData;
 
+namespace UE::AnimationWarping
+{
+class FRootOffsetProvider : public UE::Anim::IGraphMessage
+{
+	DECLARE_ANIMGRAPH_MESSAGE(FRootOffsetProvider);
+
+public:
+
+	FRootOffsetProvider(const FTransform& InRootTransform)
+		: RootTransform(InRootTransform)
+	{
+	}
+	
+	const FTransform& GetRootTransform() const { return RootTransform; } 
+
+private:
+	FTransform RootTransform;
+};
+}
+
 UENUM(BlueprintType)
 enum class EOffsetRootBoneMode : uint8
 {
@@ -124,6 +144,14 @@ public:
 	bool GetClampToRotationVelocity() const;
 	float GetTranslationSpeedRatio() const;
 	float GetRotationSpeedRatio() const;
+
+
+	// get the current simulated root transform
+	void GetOffsetRootTransform(FTransform& OutTransform)
+	{
+		OutTransform.SetRotation(SimulatedRotation);
+		OutTransform.SetTranslation(SimulatedTranslation);
+	}
 
 private:
 

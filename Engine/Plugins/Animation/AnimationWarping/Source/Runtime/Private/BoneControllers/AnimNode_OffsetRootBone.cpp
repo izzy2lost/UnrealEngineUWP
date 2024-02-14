@@ -17,6 +17,7 @@ TAutoConsoleVariable<int32> CVarAnimNodeOffsetRootBoneEnable(TEXT("a.AnimNode.Of
 TAutoConsoleVariable<int32> CVarAnimNodeOffsetRootBoneModifyBone(TEXT("a.AnimNode.OffsetRootBone.ModifyBone"), 1, TEXT("Toggle whether the transform is applied to the bone"));
 #endif
 
+IMPLEMENT_ANIMGRAPH_MESSAGE(UE::AnimationWarping::FRootOffsetProvider);
 
 namespace UE::Anim::OffsetRootBone
 {
@@ -72,6 +73,9 @@ void FAnimNode_OffsetRootBone::Update_AnyThread(const FAnimationUpdateContext& C
 		Reset(Context);
 	}
 	UpdateCounter.SynchronizeWith(Context.AnimInstanceProxy->GetUpdateCounter());
+	
+	UE::Anim::TScopedGraphMessage<UE::AnimationWarping::FRootOffsetProvider> ScopedMessage(Context, FTransform(SimulatedRotation, SimulatedTranslation));
+	
 	Source.Update(Context);
 }
 
@@ -266,9 +270,8 @@ void FAnimNode_OffsetRootBone::Evaluate_AnyThread(FPoseContext& Output)
 	{
 		static const TCHAR* LogName = TEXT("OffsetRootBone");
 		const float InnerCircleRadius = 40.0f;
-		const float CircleThickness = 3.0f;
+		const float CircleThickness = 1.5f;
 		const FVector CircleOffset(0,0,1);
-		const float ConeThickness = 0.3f;
 
 		const FTransform TargetBoneInitialTransformWorld = InputBoneTransform * ComponentTransform;
 		const FTransform TargetBoneTransformWorld = TargetBoneTransform * ComponentTransform;
@@ -279,18 +282,18 @@ void FAnimNode_OffsetRootBone::Evaluate_AnyThread(FPoseContext& Output)
 			const float OuterCircleRadius = GetMaxTranslationError() + InnerCircleRadius;
 			UE_VLOG_CIRCLE_THICK(AnimInstanceProxy->GetAnimInstanceObject(), TEXT("OffsetRootBone"), Display, ComponentTransform.GetLocation() + CircleOffset, FVector::UpVector, OuterCircleRadius, FColor::Red, CircleThickness, TEXT(""));
 		}
-
+		
 		UE_VLOG_CIRCLE_THICK(LogOwner, LogName, Display, ComponentTransform.GetLocation() + CircleOffset, FVector::UpVector, InnerCircleRadius, FColor::Blue, CircleThickness, TEXT(""));
-		UE_VLOG_SEGMENT_THICK(LogOwner, LogName, Display,
+		UE_VLOG_ARROW(LogOwner, LogName, Display,
 			ComponentTransform.GetLocation() + CircleOffset,
 			ComponentTransform.GetLocation() + InnerCircleRadius * ComponentTransform.GetRotation().GetRightVector() + CircleOffset,
-			FColor::Blue, CircleThickness, TEXT(""));
+			FColor::Blue, TEXT(""));
 		
 		UE_VLOG_CIRCLE_THICK(LogOwner, LogName, Display, TargetBoneTransformWorld.GetLocation() + CircleOffset, FVector::UpVector, InnerCircleRadius, FColor::Green, CircleThickness, TEXT(""));
-		UE_VLOG_SEGMENT_THICK(LogOwner, LogName, Display,
-		 	TargetBoneTransformWorld.GetLocation(),
+		UE_VLOG_ARROW(LogOwner, LogName, Display,
+		 	TargetBoneTransformWorld.GetLocation() + CircleOffset,
 		 	TargetBoneTransformWorld.GetLocation() + InnerCircleRadius * TargetBoneTransformWorld.GetRotation().GetRightVector() + CircleOffset,
-			FColor::Green, CircleThickness, TEXT(""));
+			FColor::Green, TEXT(""));
 	}
 #endif
 
