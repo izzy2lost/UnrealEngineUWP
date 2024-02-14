@@ -28,11 +28,7 @@
 		{
 			"Name": "VirtualCamera",
 			"Type": "Runtime",
-			"LoadingPhase": "Default",
-			"PlatformAllowList": [
-				"Win64",
-				"Linux"
-			]
+			"LoadingPhase": "Default"
 		},
 		{
 			"Name": "VirtualCameraEditor",
