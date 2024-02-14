@@ -993,7 +993,11 @@ void UInterchangeGenericAssetsPipeline::ShowConflictDialog(const FGuid& Conflict
 							MemoryDependencies.Reserve(ReferencerObjects.Num());
 							for (UObject* ReferencerObject : ReferencerObjects)
 							{
-								MemoryDependencies.Add(*ReferencerObject->GetFullName());
+								if (ReferencerObject->GetOuter()->GetClass() == UPackage::StaticClass()
+									&& ReferencerObject != Skeleton)
+								{
+									MemoryDependencies.Add(*ReferencerObject->GetFullName());
+								}
 							}
 						}
 
