@@ -27,8 +27,14 @@ void UDMMaterialStageExpressionDivide::AddDefaultInput(int32 InInputIndex) const
  
 	UDMMaterialStage* Stage = GetStage();
 	check(Stage);
- 
-	Stage->ChangeInput_NewLocalValue(InInputIndex, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, EDMValueType::VT_Float1, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+
+	UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(
+		Stage, 
+		InInputIndex,
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+		EDMValueType::VT_Float1,
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+	);
  
 	UDMMaterialStageInputValue* InputValue = Cast<UDMMaterialStageInputValue>(Stage->GetInputs().Last());
 	check(InputValue);

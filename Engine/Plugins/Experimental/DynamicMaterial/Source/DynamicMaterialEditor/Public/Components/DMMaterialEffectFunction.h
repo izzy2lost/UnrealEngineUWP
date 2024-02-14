@@ -61,7 +61,7 @@ protected:
 
 	void DeinitFunction();
 
-	bool NeedsFunctionInit();
+	bool NeedsFunctionInit() const;
 
 	//~ Begin UDMMaterialComponent
 	virtual UDMMaterialComponent* GetSubComponentByPath(FDMComponentPath& InPath, const FDMComponentPathSegment& InPathSegment) const override;

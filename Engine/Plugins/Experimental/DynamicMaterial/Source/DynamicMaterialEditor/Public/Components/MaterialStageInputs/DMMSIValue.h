@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Components/DMMaterialStageInput.h"
+#include "Templates/SubclassOf.h"
 #include "DMMSIValue.generated.h"
 
 class UDMMaterialLayerObject;
@@ -20,6 +21,27 @@ public:
 	static FName GetValuePropertyName() { return GET_MEMBER_NAME_CHECKED(UDMMaterialStageInputValue, Value); }
 
 	static UDMMaterialStage* CreateStage(UDMMaterialValue* InValue, UDMMaterialLayerObject* InLayer = nullptr);
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	static UDMMaterialStageInputValue* ChangeStageSource_NewLocalValue(UDMMaterialStage* InStage, EDMValueType InType);
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	static UDMMaterialStageInputValue* ChangeStageSource_Value(UDMMaterialStage* InStage, UDMMaterialValue* InValue);
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	static UDMMaterialStageInputValue* ChangeStageSource_NewValue(UDMMaterialStage* InStage, EDMValueType InType);
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	static UDMMaterialStageInputValue* ChangeStageInput_NewLocalValue(UDMMaterialStage* InStage, int32 InInputIdx, int32 InInputChannel,
+		EDMValueType InType, int32 InOutputChannel);
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	static UDMMaterialStageInputValue* ChangeStageInput_Value(UDMMaterialStage* InStage, int32 InInputIdx, int32 InInputChannel,
+		UDMMaterialValue* InValue, int32 InOutputChannel);
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	static UDMMaterialStageInputValue* ChangeStageInput_NewValue(UDMMaterialStage* InStage, int32 InInputIdx, int32 InInputChannel,
+		EDMValueType InType, int32 InOutputChannel);
 
 	virtual FText GetComponentDescription() const override;
 	virtual FText GetChannelDescription(const FDMMaterialStageConnectorChannel& Channel) override;
@@ -65,4 +87,6 @@ protected:
 	//~ End UDMMaterialStageSource
 
 	bool IsSharedStageValue() const;
+
+	void ApplyWholeLayerValue();
 };

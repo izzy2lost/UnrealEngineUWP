@@ -1468,7 +1468,15 @@ bool SDMEditor::CanMaterialBeAnimated() const
 {
 	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak))
 	{
-		return ModelEditorOnlyData->GetBlendMode() != EBlendMode::BLEND_Translucent;
+		switch (ModelEditorOnlyData->GetBlendMode())
+		{
+			case EBlendMode::BLEND_Masked:
+			case EBlendMode::BLEND_Opaque:
+				return true;
+
+			default:
+				return false;
+		}
 	}
 
 	return false;

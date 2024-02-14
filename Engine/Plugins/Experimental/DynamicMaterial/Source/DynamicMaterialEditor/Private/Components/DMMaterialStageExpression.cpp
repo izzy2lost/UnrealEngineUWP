@@ -59,7 +59,14 @@ UDMMaterialStage* UDMMaterialStageExpression::CreateStage(TSubclassOf<UDMMateria
 	const FDMUpdateGuard Guard;
 
 	UDMMaterialStage* NewStage = UDMMaterialStage::CreateMaterialStage(InLayer);
-	UDMMaterialStageExpression* SourceExpression = NewObject<UDMMaterialStageExpression>(NewStage, InMaterialStageExpressionClass.Get(), NAME_None, RF_Transactional);
+
+	UDMMaterialStageExpression* SourceExpression = NewObject<UDMMaterialStageExpression>(
+		NewStage, 
+		InMaterialStageExpressionClass.Get(), 
+		NAME_None, 
+		RF_Transactional
+	);
+	
 	check(SourceExpression);
 
 	NewStage->SetSource(SourceExpression);
@@ -80,6 +87,22 @@ const TArray<TStrongObjectPtr<UClass>>& UDMMaterialStageExpression::GetAvailable
 	}
 
 	return SourceExpressions;
+}
+
+UDMMaterialStageExpression* UDMMaterialStageExpression::ChangeStageSource_Expression(UDMMaterialStage* InStage, 
+	TSubclassOf<UDMMaterialStageExpression> InExpressionClass)
+{
+	check(InStage);
+
+	if (!InStage->CanChangeSource())
+	{
+		return nullptr;
+	}
+
+	check(InExpressionClass);
+	check(!(InExpressionClass->ClassFlags & (CLASS_Abstract | CLASS_Hidden | CLASS_Deprecated | CLASS_NewerVersionExists)));
+
+	return InStage->ChangeSource<UDMMaterialStageExpression>(InExpressionClass);
 }
 
 void UDMMaterialStageExpression::GenerateExpressionList()

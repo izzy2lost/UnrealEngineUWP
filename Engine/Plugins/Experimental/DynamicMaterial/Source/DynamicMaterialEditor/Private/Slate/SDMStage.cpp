@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SDMStage.h"
+#include "Components/DMMaterialLayer.h"
 #include "Components/DMMaterialSlot.h"
 #include "Components/DMMaterialStage.h"
 #include "Components/DMMaterialStageBlend.h"
@@ -21,7 +22,6 @@
 #include "Slate/Previews/SDMStagePreview.h"
 #include "Slate/SMaterialToolTip.h"
 #include "SlateOptMacros.h"
-#include "Components/DMMaterialLayer.h"
 #include "Styling/CoreStyle.h"
 #include "Widgets/Colors/SColorBlock.h"
 #include "Widgets/Layout/SBox.h"
@@ -566,11 +566,24 @@ void SDMStage::HandleAssetDragDropOperation(FAssetDragDropOp& AssetDragDropOpera
 
 	if (DraggedOverStageSource->IsA<UDMMaterialStageBlend>())
 	{
-		UDMMaterialStageInputExpression* NewInput = DraggedOverStage->ChangeInput_Expression(UDMMaterialStageBlend::InputB, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-			UDMMaterialStageExpressionTextureSample::StaticClass(), 0, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+		UDMMaterialStageInputExpression* NewInput = UDMMaterialStageInputExpression::ChangeStageInput_Expression(
+			DraggedOverStage,
+			UDMMaterialStageExpressionTextureSample::StaticClass(), 
+			UDMMaterialStageBlend::InputB,
+			FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+			0,
+			FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+		);
 
 		UDMMaterialSubStage* SubStage = NewInput->GetSubStage();
-		UDMMaterialStageInputValue* NewInputValue = SubStage->ChangeInput_NewLocalValue(0, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, EDMValueType::VT_Texture, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+
+		UDMMaterialStageInputValue* NewInputValue = UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(
+			SubStage,
+			0, 
+			FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+			EDMValueType::VT_Texture,
+			FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+		);
 
 		TextureValue = Cast<UDMMaterialValueTexture>(NewInputValue->GetValue());
 	}
@@ -578,18 +591,38 @@ void SDMStage::HandleAssetDragDropOperation(FAssetDragDropOp& AssetDragDropOpera
 	{
 		bool bHasAlpha = UE::DynamicMaterial::Private::HasAlpha(Texture);
 
-		UDMMaterialStageInputExpression* NewInput = DraggedOverStage->ChangeInput_Expression(2, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-			UDMMaterialStageExpressionTextureSample::StaticClass(), bHasAlpha ? 1 : 0, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+		UDMMaterialStageInputExpression* NewInput = UDMMaterialStageInputExpression::ChangeStageInput_Expression(
+			DraggedOverStage,
+			UDMMaterialStageExpressionTextureSample::StaticClass(), 
+			2,
+			FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+			bHasAlpha ? 1 : 0,
+			FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+		);
 
 		UDMMaterialSubStage* SubStage = NewInput->GetSubStage();
-		UDMMaterialStageInputValue* NewInputValue = SubStage->ChangeInput_NewLocalValue(0, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, EDMValueType::VT_Texture, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+
+		UDMMaterialStageInputValue* NewInputValue = UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(
+			SubStage,
+			0, 
+			FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+			EDMValueType::VT_Texture,
+			FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+		);
 
 		TextureValue = Cast<UDMMaterialValueTexture>(NewInputValue->GetValue());
 	}
 	else
 	{
-		UDMMaterialStageExpression* NewExpression = DraggedOverStage->ChangeSource_Expression(UDMMaterialStageExpressionTextureSample::StaticClass());
-		UDMMaterialStageInputValue* NewInputValue = DraggedOverStage->ChangeInput_NewLocalValue(0, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, EDMValueType::VT_Texture, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+		UDMMaterialStageExpression* NewExpression = DraggedOverStage->ChangeSource<UDMMaterialStageExpressionTextureSample>();
+
+		UDMMaterialStageInputValue* NewInputValue = UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(
+			DraggedOverStage,
+			0, 
+			FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+			EDMValueType::VT_Texture,
+			FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+		);
 
 		TextureValue = Cast<UDMMaterialValueTexture>(NewInputValue->GetValue());
 	}

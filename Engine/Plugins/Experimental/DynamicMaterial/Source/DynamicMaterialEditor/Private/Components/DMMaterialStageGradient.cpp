@@ -33,7 +33,14 @@ UDMMaterialStage* UDMMaterialStageGradient::CreateStage(TSubclassOf<UDMMaterialS
 	const FDMUpdateGuard Guard;
 
 	UDMMaterialStage* NewStage = UDMMaterialStage::CreateMaterialStage(InLayer);
-	UDMMaterialStageGradient* SourceGradient = NewObject<UDMMaterialStageGradient>(NewStage, InMaterialStageGradientClass.Get(), NAME_None, RF_Transactional);
+
+	UDMMaterialStageGradient* SourceGradient = NewObject<UDMMaterialStageGradient>(
+		NewStage, 
+		InMaterialStageGradientClass.Get(), 
+		NAME_None, 
+		RF_Transactional
+	);
+	
 	check(SourceGradient);
 
 	NewStage->SetSource(SourceGradient);
@@ -49,6 +56,22 @@ const TArray<TStrongObjectPtr<UClass>>& UDMMaterialStageGradient::GetAvailableGr
 	}
 
 	return Gradients;
+}
+
+UDMMaterialStageGradient* UDMMaterialStageGradient::ChangeStageSource_Gradient(UDMMaterialStage* InStage, 
+	TSubclassOf<UDMMaterialStageGradient> InGradientClass)
+{
+	check(InStage);
+
+	if (!InStage->CanChangeSource())
+	{
+		return nullptr;
+	}
+
+	check(InGradientClass);
+	check(!(InGradientClass->ClassFlags & (CLASS_Abstract | CLASS_Hidden | CLASS_Deprecated | CLASS_NewerVersionExists)));
+
+	return InStage->ChangeSource<UDMMaterialStageGradient>(InGradientClass);
 }
 
 bool UDMMaterialStageGradient::CanChangeInputType(int32 InputIndex) const

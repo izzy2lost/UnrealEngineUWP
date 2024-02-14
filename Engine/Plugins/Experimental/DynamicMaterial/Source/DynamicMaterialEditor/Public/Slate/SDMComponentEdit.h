@@ -86,9 +86,5 @@ protected:
 	TSharedRef<SWidget> MakeSourceTypeEditWidgetMenuContent();
 	FText GetSourceTypeEditWidgetText() const;
 
-	void OnStageUpdate(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType);
-
-	void OnEffectUpdated(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType);
-
 	void OnUndo();
 };

@@ -342,8 +342,9 @@ void UDMMaterialStageExpressionTextureSampleBase::UpdateMask()
 	// Couldn't find a texture to update, so create a new one.
 
 	// 2nd input, 2nd output (Alpha)
-	MaskStage->ChangeInput_Expression(2, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-		UDMMaterialStageExpressionTextureSample::StaticClass(), 1, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+	UDMMaterialStageInputExpression::ChangeStageInput_Expression(MaskStage, 
+		UDMMaterialStageExpressionTextureSample::StaticClass(), 2, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+		1, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
 
 	UDMMaterialStageInputThroughput* InputThroughput = Cast<UDMMaterialStageInputThroughput>(MaskStage->GetInputs().Last());
 	UDMMaterialStageExpressionTextureSampleBase* MaskTextureSample = nullptr;
@@ -361,7 +362,9 @@ void UDMMaterialStageExpressionTextureSampleBase::UpdateMask()
 	UDMMaterialStage* MaskTextureSampleStage = MaskTextureSample->GetStage();
 	check(MaskTextureSampleStage);
 
-	MaskTextureSampleStage->ChangeInput_NewLocalValue(0, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, BaseTextureValue->GetType(), FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+	UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(MaskTextureSampleStage, 0,
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, BaseTextureValue->GetType(),
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
 
 	UDMMaterialStageInputValue* NewInputValue = Cast<UDMMaterialStageInputValue>(MaskTextureSampleStage->GetInputs().Last());
 	check(NewInputValue);

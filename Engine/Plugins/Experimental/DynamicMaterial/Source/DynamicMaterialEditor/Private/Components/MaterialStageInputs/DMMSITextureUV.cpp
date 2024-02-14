@@ -14,7 +14,6 @@
 #include "DMMaterialFunctionLibrary.h"
 #include "DynamicMaterialEditorModule.h"
 #include "DynamicMaterialModule.h"
-#include "Materials/MaterialExpressionAdd.h"
 #include "Materials/MaterialExpressionComponentMask.h"
 #include "Materials/MaterialExpressionMaterialFunctionCall.h"
 #include "Materials/MaterialExpressionScalarParameter.h"
@@ -43,6 +42,69 @@ UDMMaterialStage* UDMMaterialStageInputTextureUV::CreateStage(UDynamicMaterialMo
 	NewStage->SetSource(InputTextureUV);
 
 	return NewStage;
+}
+
+UDMMaterialStageInputTextureUV* UDMMaterialStageInputTextureUV::ChangeStageSource_UV(UDMMaterialStage* InStage, bool bInDoUpdate)
+{
+	check(InStage);
+
+	if (!InStage->CanChangeSource())
+	{
+		return nullptr;
+	}
+
+	UDMMaterialLayerObject* Layer = InStage->GetLayer();
+	check(Layer);
+
+	UDMMaterialSlot* Slot = Layer->GetSlot();
+	check(Slot);
+
+	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData();
+	check(ModelEditorOnlyData);
+
+	UDynamicMaterialModel* MaterialModel = ModelEditorOnlyData->GetMaterialModel();
+	check(MaterialModel);
+
+	UDMMaterialStageInputTextureUV* InputTextureUV = InStage->ChangeSource<UDMMaterialStageInputTextureUV>(
+		[MaterialModel](UDMMaterialStage* InStage, UDMMaterialStageSource* InNewSource)
+		{
+			const FDMUpdateGuard Guard;
+			CastChecked<UDMMaterialStageInputTextureUV>(InNewSource)->Init(MaterialModel);;
+		});
+
+	return InputTextureUV;
+}
+
+UDMMaterialStageInputTextureUV* UDMMaterialStageInputTextureUV::ChangeStageInput_UV(UDMMaterialStage* InStage, int32 InInputIdx,
+	int32 InInputChannel, int32 InOutputChannel)
+{
+	check(InStage);
+
+	UDMMaterialStageSource* Source = InStage->GetSource();
+	check(Source);
+
+	UDMMaterialLayerObject* Layer = InStage->GetLayer();
+	check(Layer);
+
+	UDMMaterialSlot* Slot = Layer->GetSlot();
+	check(Slot);
+
+	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData();
+	check(ModelEditorOnlyData);
+
+	UDynamicMaterialModel* MaterialModel = ModelEditorOnlyData->GetMaterialModel();
+	check(MaterialModel);
+
+	UDMMaterialStageInputTextureUV* NewInputTextureUV = InStage->ChangeInput<UDMMaterialStageInputTextureUV>(
+		InInputIdx, InInputChannel, 0, InOutputChannel, 
+		[MaterialModel](UDMMaterialStage* InStage, UDMMaterialStageInput* InNewInput)
+		{
+			const FDMUpdateGuard Guard;
+			CastChecked<UDMMaterialStageInputTextureUV>(InNewInput)->Init(MaterialModel);
+		}
+	);
+
+	return NewInputTextureUV;
 }
 
 FText UDMMaterialStageInputTextureUV::GetComponentDescription() const

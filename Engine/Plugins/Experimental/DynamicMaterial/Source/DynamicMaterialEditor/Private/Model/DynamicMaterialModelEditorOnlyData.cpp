@@ -756,9 +756,15 @@ void UDynamicMaterialModelEditorOnlyData::SetBlendMode(TEnumAsByte<EBlendMode> I
 		}
 	}
 
-	if (BlendMode == EBlendMode::BLEND_Translucent)
+	switch (BlendMode)
 	{
-		SetPixelAnimationFlag(false);
+		case EBlendMode::BLEND_Masked:
+		case EBlendMode::BLEND_Opaque:
+			break;
+
+		default:
+			SetPixelAnimationFlag(false);
+			break;
 	}
 
 	RequestMaterialBuild();
@@ -913,8 +919,10 @@ UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::AddSlot()
 
 	AssignMaterialPropertyToSlot(NewSlotProperty, NewSlot);
 
-	UDMMaterialStageInputExpression* BaseInputExpression = DefaultStage->ChangeInput_Expression(UDMMaterialStageBlendNormal::InputB, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-		UDMMaterialStageExpressionTextureSample::StaticClass(), 0, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+	UDMMaterialStageInputExpression* BaseInputExpression = UDMMaterialStageInputExpression::ChangeStageInput_Expression(DefaultStage,
+		UDMMaterialStageExpressionTextureSample::StaticClass(), UDMMaterialStageBlendNormal::InputB,
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 0,
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
 
 	switch (NewSlotProperty)
 	{

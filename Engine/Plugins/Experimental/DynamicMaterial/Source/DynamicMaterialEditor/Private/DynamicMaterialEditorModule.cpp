@@ -7,6 +7,7 @@
 #include "Components/DMMaterialStageSource.h"
 #include "Components/DMMaterialStageThroughput.h"
 #include "Components/DMTextureUV.h"
+#include "Components/MaterialStageInputs/DMMSIFunction.h"
 #include "Components/MaterialStageInputs/DMMSIThroughput.h"
 #include "Components/MaterialValues/DMMaterialValueBool.h"
 #include "Components/MaterialValues/DMMaterialValueFloat1.h"
@@ -46,6 +47,7 @@
 #include "Slate/Properties/Generators/DMComponentPropertyRowGenerator.h"
 #include "Slate/Properties/Generators/DMInputThroughputPropertyRowGenerator.h"
 #include "Slate/Properties/Generators/DMMaterialEffectFunctionPropertyRowGenerator.h"
+#include "Slate/Properties/Generators/DMMaterialStageFunctionPropertyRowGenerator.h"
 #include "Slate/Properties/Generators/DMMaterialValuePropertyRowGenerator.h"
 #include "Slate/Properties/Generators/DMStagePropertyRowGenerator.h"
 #include "Slate/Properties/Generators/DMTextureUVPropertyRowGenerator.h"
@@ -244,6 +246,7 @@ void FDynamicMaterialEditorModule::StartupModule()
 	RegisterComponentPropertyRowGeneratorDelegate<UDMMaterialStageThroughput,      FDMThroughputPropertyRowGenerator>();
 	RegisterComponentPropertyRowGeneratorDelegate<UDMMaterialStageInputThroughput, FDMInputThroughputPropertyRowGenerator>();
 	RegisterComponentPropertyRowGeneratorDelegate<UDMMaterialEffectFunction,       FDMMaterialEffectFunctionPropertyRowGenerator>();
+	RegisterComponentPropertyRowGeneratorDelegate<UDMMaterialStageInputFunction,   FDMMaterialStageFunctionPropertyRowGenerator>();
 
 	FDynamicMaterialModule::GetCreateEditorOnlyDataDelegate().BindLambda([](UDynamicMaterialModel* InMaterialModel) -> TScriptInterface<IDynamicMaterialModelEditorOnlyDataInterface>
 		{

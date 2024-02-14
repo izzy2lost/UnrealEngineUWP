@@ -7,6 +7,7 @@
 #include "Components/DMMaterialStage.h"
 #include "Components/DMMaterialStageBlend.h"
 #include "Components/DMMaterialStageExpression.h"
+#include "Components/DMMaterialStageFunction.h"
 #include "Components/DMMaterialStageGradient.h"
 #include "Components/DMMaterialStageSource.h"
 #include "Components/DMMaterialStageThroughput.h"
@@ -15,9 +16,15 @@
 #include "Components/MaterialStageExpressions/DMMSESceneTexture.h"
 #include "Components/MaterialStageExpressions/DMMSETextureSample.h"
 #include "Components/MaterialStageExpressions/DMMSETextureSampleEdgeColor.h"
+#include "Components/MaterialStageInputs/DMMSIExpression.h"
+#include "Components/MaterialStageInputs/DMMSIFunction.h"
+#include "Components/MaterialStageInputs/DMMSIGradient.h"
+#include "Components/MaterialStageInputs/DMMSISlot.h"
+#include "Components/MaterialStageInputs/DMMSIValue.h"
 #include "DMDefs.h"
 #include "DMValueDefinition.h"
 #include "DynamicMaterialEditorModule.h"
+#include "Materials/MaterialFunctionInterface.h"
 #include "Menus/DMMenuContext.h"
 #include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
@@ -91,7 +98,14 @@ namespace UE::DynamicMaterialEditor::Private
 
 								FScopedTransaction Transaction(LOCTEXT("SetStageInputBase", "Set Material Designer Base Source"));
 								Stage->Modify();
-								Stage->ChangeInput_NewLocalValue(UDMMaterialStageBlend::InputB, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, ValueType, OutputChannel);
+
+								UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(
+									Stage, 
+									UDMMaterialStageBlend::InputB,
+									FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+									ValueType, 
+									OutputChannel
+								);
 							}
 							else if (StageSource->IsA<UDMMaterialStageThroughputLayerBlend>())
 							{
@@ -101,13 +115,20 @@ namespace UE::DynamicMaterialEditor::Private
 
 								FScopedTransaction Transaction(LOCTEXT("SetStageInputMask", "Set Material Designer Mask Source"));
 								Stage->Modify();
-								Stage->ChangeInput_NewLocalValue(UDMMaterialStageThroughputLayerBlend::InputMaskSource, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, ValueType, OutputChannel);
+
+								UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(
+									Stage, 
+									UDMMaterialStageThroughputLayerBlend::InputMaskSource,
+									FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+									ValueType,
+									OutputChannel
+								);
 							}
 							else
 							{
 								FScopedTransaction Transaction(LOCTEXT("SetStageSource", "Set Material Designer Stage Source"));
 								Stage->Modify();
-								Stage->ChangeSource_NewLocalValue(ValueType);
+								UDMMaterialStageInputValue::ChangeStageSource_NewLocalValue(Stage, ValueType);
 							}
 
 							if (TSharedPtr<SDMSlot> SlotWidget = MenuContext->GetSlotWidget().Pin())
@@ -181,8 +202,14 @@ namespace UE::DynamicMaterialEditor::Private
 
 							FScopedTransaction Transaction(LOCTEXT("SetStageInputBase", "Set Material Designer Base Source"));
 							Stage->Modify();
-							Stage->ChangeInput_Value(UDMMaterialStageBlend::InputB, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-								Value, OutputChannel);
+
+							UDMMaterialStageInputValue::ChangeStageInput_Value(
+								Stage, 
+								UDMMaterialStageBlend::InputB,
+								FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+								Value, 
+								OutputChannel
+							);
 						}
 						else if (StageSource->IsA<UDMMaterialStageThroughputLayerBlend>())
 						{
@@ -192,14 +219,20 @@ namespace UE::DynamicMaterialEditor::Private
 
 							FScopedTransaction Transaction(LOCTEXT("SetStageInputMask", "Set Material Designer Mask Source"));
 							Stage->Modify();
-							Stage->ChangeInput_Value(UDMMaterialStageThroughputLayerBlend::InputMaskSource, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-								Value, OutputChannel);
+
+							UDMMaterialStageInputValue::ChangeStageInput_Value(
+								Stage, 
+								UDMMaterialStageThroughputLayerBlend::InputMaskSource, 
+								FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+								Value, 
+								OutputChannel
+							);
 						}
 						else
 						{
 							FScopedTransaction Transaction(LOCTEXT("SetStageSource", "Set Material Designer Stage Source"));
 							Stage->Modify();
-							Stage->ChangeSource_Value(Value);
+							UDMMaterialStageInputValue::ChangeStageSource_Value(Stage, Value);
 						}
 
 						if (TSharedPtr<SDMSlot> SlotWidget = MenuContext->GetSlotWidget().Pin())
@@ -267,7 +300,14 @@ namespace UE::DynamicMaterialEditor::Private
 
 								FScopedTransaction Transaction(LOCTEXT("SetStageInputBase", "Set Material Designer Base Source"));
 								Stage->Modify();
-								Stage->ChangeInput_NewValue(UDMMaterialStageBlend::InputB, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, ValueType, OutputChannel);
+
+								UDMMaterialStageInputValue::ChangeStageInput_NewValue(
+									Stage, 
+									UDMMaterialStageBlend::InputB, 
+									FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+									ValueType, 
+									OutputChannel
+								);
 							}
 							else if (StageSource->IsA<UDMMaterialStageThroughputLayerBlend>())
 							{
@@ -277,13 +317,20 @@ namespace UE::DynamicMaterialEditor::Private
 
 								FScopedTransaction Transaction(LOCTEXT("SetStageInputMask", "Set Material Designer Mask Source"));
 								Stage->Modify();
-								Stage->ChangeInput_NewValue(UDMMaterialStageThroughputLayerBlend::InputMaskSource, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, ValueType, OutputChannel);
+
+								UDMMaterialStageInputValue::ChangeStageInput_NewValue(
+									Stage, 
+									UDMMaterialStageThroughputLayerBlend::InputMaskSource,
+									FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+									ValueType,
+									 OutputChannel
+									);
 							}
 							else
 							{
 								FScopedTransaction Transaction(LOCTEXT("SetStageSource", "Set Material Designer Stage Source"));
 								Stage->Modify();
-								Stage->ChangeSource_NewValue(ValueType);
+								UDMMaterialStageInputValue::ChangeStageSource_NewValue(Stage, ValueType);
 							}
 
 							if (TSharedPtr<SDMSlot> SlotWidget = MenuContext->GetSlotWidget().Pin())
@@ -380,21 +427,37 @@ namespace UE::DynamicMaterialEditor::Private
 							{
 								FScopedTransaction Transaction(LOCTEXT("SetStageInputBase", "Set Material Designer Base Source"));
 								Stage->Modify();
-								Stage->ChangeInput_Slot(UDMMaterialStageBlend::InputB, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-									Slot, Property, 0, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+
+								UDMMaterialStageInputSlot::ChangeStageInput_Slot(
+									Stage, 
+									UDMMaterialStageBlend::InputB,
+									FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+									Slot, 
+									Property,
+									0, 
+									FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+								);
 							}
 							else if (StageSource->IsA<UDMMaterialStageThroughputLayerBlend>())
 							{
 								FScopedTransaction Transaction(LOCTEXT("SetStageInputMask", "Set Material Designer Mask Source"));
 								Stage->Modify();
-								Stage->ChangeInput_Slot(UDMMaterialStageThroughputLayerBlend::InputMaskSource, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-									Slot, Property, 0, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+
+								UDMMaterialStageInputSlot::ChangeStageInput_Slot(
+									Stage, 
+									UDMMaterialStageThroughputLayerBlend::InputMaskSource,
+									FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+									Slot, 
+									Property, 
+									0,
+									FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+								);
 							}
 							else
 							{
 								FScopedTransaction Transaction(LOCTEXT("SetStageSource", "Set Material Designer Stage Source"));
 								Stage->Modify();
-								Stage->ChangeSource_Slot(Slot, Property);
+								UDMMaterialStageInputSlot::ChangeStageSource_Slot(Stage, Slot, Property);
 							}
 
 							if (TSharedPtr<SDMSlot> SlotWidget = MenuContext->GetSlotWidget().Pin())
@@ -512,21 +575,37 @@ namespace UE::DynamicMaterialEditor::Private
 								{
 									FScopedTransaction Transaction(LOCTEXT("SetStageInputBase", "Set Material Designer Base Source"));
 									Stage->Modify();
-									Stage->ChangeInput_Slot(UDMMaterialStageBlend::InputB, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-										SlotIter, SlotProperty, 0, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+
+									UDMMaterialStageInputSlot::ChangeStageInput_Slot(
+										Stage, 
+										UDMMaterialStageBlend::InputB,
+										FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+										SlotIter, 
+										SlotProperty, 
+										0, 
+										FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+									);
 								}
 								else if (StageSource->IsA<UDMMaterialStageThroughputLayerBlend>())
 								{
 									FScopedTransaction Transaction(LOCTEXT("SetStageInputMask", "Set Material Designer Mask Source"));
 									Stage->Modify();
-									Stage->ChangeInput_Slot(UDMMaterialStageThroughputLayerBlend::InputMaskSource, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-										SlotIter, SlotProperty, 0, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+
+									UDMMaterialStageInputSlot::ChangeStageInput_Slot(
+										Stage, 
+										UDMMaterialStageThroughputLayerBlend::InputMaskSource,
+										FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+										SlotIter, 
+										SlotProperty, 
+										0,
+										FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+									);
 								}
 								else
 								{
 									FScopedTransaction Transaction(LOCTEXT("SetStageSource", "Set Material Designer Stage Source"));
 									Stage->Modify();
-									Stage->ChangeSource_Slot(SlotIter, SlotProperty);
+									UDMMaterialStageInputSlot::ChangeStageSource_Slot(Stage, SlotIter, SlotProperty);
 								}
 
 								if (TSharedPtr<SDMSlot> SlotWidget = MenuContext->GetSlotWidget().Pin())
@@ -607,19 +686,31 @@ namespace UE::DynamicMaterialEditor::Private
 							{
 								FScopedTransaction Transaction(LOCTEXT("SetStageInputBase", "Set Material Designer Base Source"));
 								Stage->Modify();
-								Stage->ChangeInput_Gradient(UDMMaterialStageBlend::InputB, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, GradientClass.Get(), FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+
+								UDMMaterialStageInputGradient::ChangeStageInput_Gradient(
+									Stage,
+									GradientClass.Get(), UDMMaterialStageBlend::InputB,
+									FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+									FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+								);
 							}
 							else if (StageSource->IsA<UDMMaterialStageThroughputLayerBlend>())
 							{
 								FScopedTransaction Transaction(LOCTEXT("SetStageInputMask", "Set Material Designer Mask Source"));
 								Stage->Modify();
-								Stage->ChangeInput_Gradient(UDMMaterialStageThroughputLayerBlend::InputMaskSource, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, GradientClass.Get(), FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+								UDMMaterialStageInputGradient::ChangeStageInput_Gradient(
+									Stage,
+									GradientClass.Get(), 
+									UDMMaterialStageThroughputLayerBlend::InputMaskSource,
+									FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+									FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+								);
 							}
 							else
 							{
 								FScopedTransaction Transaction(LOCTEXT("SetStageSource", "Set Material Designer Stage Source"));
 								Stage->Modify();
-								Stage->ChangeSource_Gradient(GradientClass.Get());
+								UDMMaterialStageInputGradient::ChangeStageSource_Gradient(Stage, GradientClass.Get());
 							}
 
 							if (TSharedPtr<SDMSlot> SlotWidget = MenuContext->GetSlotWidget().Pin())
@@ -658,21 +749,39 @@ namespace UE::DynamicMaterialEditor::Private
 		{
 			FScopedTransaction Transaction(LOCTEXT("SetStageInputBase", "Set Material Designer Base Source"));
 			Stage->Modify();
-			Stage->ChangeInput_Expression(UDMMaterialStageBlend::InputB, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-				UDMMaterialStageExpressionTextureSample::StaticClass(), 0, FDMMaterialStageConnectorChannel::THREE_CHANNELS);
+
+			UDMMaterialStageInputExpression::ChangeStageInput_Expression(
+				Stage,
+				UDMMaterialStageExpressionTextureSample::StaticClass(), 
+				UDMMaterialStageBlend::InputB,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+				0,
+				FDMMaterialStageConnectorChannel::THREE_CHANNELS
+			);
 		}
 		else if (StageSource->IsA<UDMMaterialStageThroughputLayerBlend>())
 		{
 			FScopedTransaction Transaction(LOCTEXT("SetStageInputMask", "Set Material Designer Mask Source"));
 			Stage->Modify();
-			Stage->ChangeInput_Expression(UDMMaterialStageThroughputLayerBlend::InputMaskSource, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-				UDMMaterialStageExpressionTextureSample::StaticClass(), 0, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+
+			UDMMaterialStageInputExpression::ChangeStageInput_Expression(
+				Stage, 
+				UDMMaterialStageExpressionTextureSample::StaticClass(), 
+				UDMMaterialStageThroughputLayerBlend::InputMaskSource,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+				0,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+			);
 		}
 		else
 		{
 			FScopedTransaction Transaction(LOCTEXT("SetStageSource", "Set Material Designer Stage Source"));
 			Stage->Modify();
-			Stage->ChangeSource_Expression(TSubclassOf<UDMMaterialStageExpression>(UDMMaterialStageExpressionTextureSample::StaticClass()));
+
+			UDMMaterialStageInputExpression::ChangeStageSource_Expression(
+				Stage, 
+				UDMMaterialStageExpressionTextureSample::StaticClass()
+			);
 		}
 
 		if (TSharedPtr<SDMSlot> SlotWidget = InMenuContext->GetSlotWidget().Pin())
@@ -706,21 +815,33 @@ namespace UE::DynamicMaterialEditor::Private
 		{
 			FScopedTransaction Transaction(LOCTEXT("SetStageInputBase", "Set Material Designer Base Source"));
 			Stage->Modify();
-			Stage->ChangeInput_NewLocalValue(UDMMaterialStageBlend::InputB, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-				EDMValueType::VT_Float3_RGB, FDMMaterialStageConnectorChannel::THREE_CHANNELS);
+
+			UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(
+				Stage, 
+				UDMMaterialStageBlend::InputB,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+				EDMValueType::VT_Float3_RGB,
+				FDMMaterialStageConnectorChannel::THREE_CHANNELS
+			);
 		}
 		else if (StageSource->IsA<UDMMaterialStageThroughputLayerBlend>())
 		{
 			FScopedTransaction Transaction(LOCTEXT("SetStageInputMask", "Set Material Designer Mask Source"));
 			Stage->Modify();
-			Stage->ChangeInput_NewLocalValue(UDMMaterialStageThroughputLayerBlend::InputMaskSource, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-				EDMValueType::VT_Float3_RGB, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+
+			UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(
+				Stage, 
+				UDMMaterialStageThroughputLayerBlend::InputMaskSource,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+				EDMValueType::VT_Float3_RGB,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+			);
 		}
 		else
 		{
 			FScopedTransaction Transaction(LOCTEXT("SetStageSource", "Set Material Designer Stage Source"));
 			Stage->Modify();
-			Stage->ChangeSource_NewLocalValue(EDMValueType::VT_Float3_RGB);
+			UDMMaterialStageInputValue::ChangeStageSource_NewLocalValue(Stage, EDMValueType::VT_Float3_RGB);
 		}
 
 		if (TSharedPtr<SDMSlot> SlotWidget = InMenuContext->GetSlotWidget().Pin())
@@ -754,22 +875,33 @@ namespace UE::DynamicMaterialEditor::Private
 		{
 			FScopedTransaction Transaction(LOCTEXT("SetStageInputBase", "Set Material Designer Base Source"));
 			Stage->Modify();
-			Stage->ChangeInput_NewLocalValue(UDMMaterialStageBlend::InputB, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-				EDMValueType::VT_ColorAtlas, FDMMaterialStageConnectorChannel::THREE_CHANNELS);
+
+			UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(
+				Stage, 
+				UDMMaterialStageBlend::InputB,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, EDMValueType::VT_ColorAtlas,
+				FDMMaterialStageConnectorChannel::THREE_CHANNELS
+			);
 
 		}
 		else if (StageSource->IsA<UDMMaterialStageThroughputLayerBlend>())
 		{
 			FScopedTransaction Transaction(LOCTEXT("SetStageInputMask", "Set Material Designer Mask Source"));
 			Stage->Modify();
-			Stage->ChangeInput_NewLocalValue(UDMMaterialStageThroughputLayerBlend::InputMaskSource, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-				EDMValueType::VT_ColorAtlas, FDMMaterialStageConnectorChannel::FOURTH_CHANNEL);
+
+			UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(
+				Stage, 
+				UDMMaterialStageThroughputLayerBlend::InputMaskSource,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+				EDMValueType::VT_ColorAtlas,
+				FDMMaterialStageConnectorChannel::FOURTH_CHANNEL
+			);
 		}
 		else
 		{
 			FScopedTransaction Transaction(LOCTEXT("SetStageSource", "Set Material Designer Stage Source"));
 			Stage->Modify();
-			Stage->ChangeSource_NewLocalValue(EDMValueType::VT_ColorAtlas);
+			UDMMaterialStageInputValue::ChangeStageSource_NewLocalValue(Stage, EDMValueType::VT_ColorAtlas);
 		}
 
 		if (TSharedPtr<SDMSlot> SlotWidget = InMenuContext->GetSlotWidget().Pin())
@@ -810,21 +942,39 @@ namespace UE::DynamicMaterialEditor::Private
 		{
 			FScopedTransaction Transaction(LOCTEXT("SetStageInputBase", "Set Material Designer Base Source"));
 			Stage->Modify();
-			Stage->ChangeInput_Expression(UDMMaterialStageBlend::InputB, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-				UDMMaterialStageExpressionTextureSampleEdgeColor::StaticClass(), 0, FDMMaterialStageConnectorChannel::THREE_CHANNELS);
+
+			UDMMaterialStageInputExpression::ChangeStageInput_Expression(
+				Stage,
+				UDMMaterialStageExpressionTextureSampleEdgeColor::StaticClass(), 
+				UDMMaterialStageBlend::InputB,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+				0,
+				FDMMaterialStageConnectorChannel::THREE_CHANNELS
+			);
 		}
 		else if (StageSource->IsA<UDMMaterialStageThroughputLayerBlend>())
 		{
 			FScopedTransaction Transaction(LOCTEXT("SetStageInputMask", "Set Material Designer Mask Source"));
 			Stage->Modify();
-			Stage->ChangeInput_Expression(UDMMaterialStageThroughputLayerBlend::InputMaskSource, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-				UDMMaterialStageExpressionTextureSampleEdgeColor::StaticClass(), 0, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+
+			UDMMaterialStageInputExpression::ChangeStageInput_Expression(
+				Stage, 
+				UDMMaterialStageExpressionTextureSampleEdgeColor::StaticClass(),
+				UDMMaterialStageThroughputLayerBlend::InputMaskSource,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+				0,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+			);
 		}
 		else
 		{
 			FScopedTransaction Transaction(LOCTEXT("SetStageInput", "Set Material Designer Source"));
 			Stage->Modify();
-			Stage->ChangeSource_Expression(TSubclassOf<UDMMaterialStageExpression>(UDMMaterialStageExpressionTextureSampleEdgeColor::StaticClass()));
+
+			UDMMaterialStageInputExpression::ChangeStageSource_Expression(
+				Stage,
+				UDMMaterialStageExpressionTextureSampleEdgeColor::StaticClass()
+			);
 		}
 
 		if (UDMMaterialStage* MaskStage = Layer->GetStage(EDMMaterialLayerStage::Mask))
@@ -870,15 +1020,30 @@ namespace UE::DynamicMaterialEditor::Private
 		{
 			FScopedTransaction Transaction(LOCTEXT("SetStageInputBase", "Set Material Designer Base Source"));
 			Stage->Modify();
-			Stage->ChangeInput_Expression(UDMMaterialStageBlend::InputB, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-				UDMMaterialStageExpressionSceneTexture::StaticClass(), 0, FDMMaterialStageConnectorChannel::THREE_CHANNELS);
+
+			UDMMaterialStageInputExpression::ChangeStageInput_Expression(
+				Stage, 
+				UDMMaterialStageExpressionSceneTexture::StaticClass(), 
+				UDMMaterialStageBlend::InputB,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+				0,
+				FDMMaterialStageConnectorChannel::THREE_CHANNELS
+			);
 
 			if (Layer->GetStageType(Stage) == EDMMaterialLayerStage::Base)
 			{
 				if (UDMMaterialStage* MaskStage = Layer->GetStage(EDMMaterialLayerStage::Mask, true))
 				{
-					MaskStage->ChangeInput_Expression(UDMMaterialStageThroughputLayerBlend::InputMaskSource, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-						UDMMaterialStageExpressionSceneTexture::StaticClass(), 0, FDMMaterialStageConnectorChannel::FOURTH_CHANNEL);
+					MaskStage->Modify();
+
+					UDMMaterialStageInputExpression::ChangeStageInput_Expression(
+						MaskStage,
+						UDMMaterialStageExpressionSceneTexture::StaticClass(),
+						UDMMaterialStageThroughputLayerBlend::InputMaskSource,
+						FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+						 0,
+						FDMMaterialStageConnectorChannel::FOURTH_CHANNEL
+					);
 				}
 			}
 		}
@@ -886,14 +1051,25 @@ namespace UE::DynamicMaterialEditor::Private
 		{
 			FScopedTransaction Transaction(LOCTEXT("SetStageInputMask", "Set Material Designer Mask Source"));
 			Stage->Modify();
-			Stage->ChangeInput_Expression(UDMMaterialStageThroughputLayerBlend::InputMaskSource, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-				UDMMaterialStageExpressionSceneTexture::StaticClass(), 0, FDMMaterialStageConnectorChannel::FOURTH_CHANNEL);
+
+			UDMMaterialStageInputExpression::ChangeStageInput_Expression(
+				Stage, 
+				UDMMaterialStageExpressionSceneTexture::StaticClass(), 
+				UDMMaterialStageThroughputLayerBlend::InputMaskSource,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+				0,
+				FDMMaterialStageConnectorChannel::FOURTH_CHANNEL
+			);
 		}
 		else
 		{
 			FScopedTransaction Transaction(LOCTEXT("SetStageInput", "Set Material Designer Source"));
 			Stage->Modify();
-			Stage->ChangeSource_Expression(UDMMaterialStageExpressionSceneTexture::StaticClass());
+
+			UDMMaterialStageInputExpression::ChangeStageSource_Expression(
+				Stage,
+				UDMMaterialStageExpressionSceneTexture::StaticClass()
+			);
 		}
 
 		if (TSharedPtr<SDMSlot> SlotWidget = InMenuContext->GetSlotWidget().Pin())
@@ -952,19 +1128,35 @@ namespace UE::DynamicMaterialEditor::Private
 		{
 			FScopedTransaction Transaction(LOCTEXT("SetStageInputBase", "Set Material Designer Base Source"));
 			Stage->Modify();
-			Stage->ChangeInput_MaterialFunction(UDMMaterialStageBlend::InputB, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+
+			UDMMaterialStageInputFunction::ChangeStageInput_Function(
+				Stage, 
+				UDMMaterialStageFunction::GetNoOpFunction(),
+				UDMMaterialStageBlend::InputB, 	
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+				0, 
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+			);
 		}
 		else if (StageSource->IsA<UDMMaterialStageThroughputLayerBlend>())
 		{
 			FScopedTransaction Transaction(LOCTEXT("SetStageInputMask", "Set Material Designer Mask Source"));
 			Stage->Modify();
-			Stage->ChangeInput_MaterialFunction(UDMMaterialStageThroughputLayerBlend::InputMaskSource, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+
+			UDMMaterialStageInputFunction::ChangeStageInput_Function(
+				Stage, 
+				UDMMaterialStageFunction::GetNoOpFunction(),
+				UDMMaterialStageThroughputLayerBlend::InputMaskSource, 
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+				0,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+			);
 		}
 		else
 		{
 			FScopedTransaction Transaction(LOCTEXT("SetStageSource", "Set Material Designer Stage Source"));
 			Stage->Modify();
-			Stage->ChangeSource_MaterialFunction();
+			UDMMaterialStageInputFunction::ChangeStageSource_Function(Stage, UDMMaterialStageFunction::GetNoOpFunction());
 		}
 
 		if (TSharedPtr<SDMSlot> SlotWidget = InMenuContext->GetSlotWidget().Pin())

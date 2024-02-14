@@ -5,6 +5,7 @@
 #include "Components/DMMaterialProperty.h"
 #include "Components/DMMaterialSlot.h"
 #include "Components/DMMaterialStage.h"
+#include "Components/DMMaterialStageThroughput.h"
 #include "DMComponentPath.h"
 #include "DMPrivate.h"
 #include "DMValueDefinition.h"
@@ -42,6 +43,97 @@ UDMMaterialStage* UDMMaterialStageInputSlot::CreateStage(UDMMaterialSlot* InSour
 	NewStage->SetSource(InputSlot);
 
 	return NewStage;
+}
+
+UDMMaterialStageInputSlot* UDMMaterialStageInputSlot::ChangeStageSource_Slot(UDMMaterialStage* InStage, UDMMaterialSlot* InSlot,
+	EDMMaterialPropertyType InProperty)
+{
+	check(InStage);
+
+	if (!InStage->CanChangeSource())
+	{
+		return nullptr;
+	}
+
+	UDMMaterialLayerObject* Layer = InStage->GetLayer();
+	check(Layer);
+
+	UDMMaterialSlot* Slot = Layer->GetSlot();
+	check(Slot);
+
+	check(InSlot);
+	check(Slot != InSlot);
+	check(InSlot->GetMaterialModelEditorOnlyData() == Slot->GetMaterialModelEditorOnlyData());
+
+	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData();
+	check(ModelEditorOnlyData);
+
+	TArray<EDMMaterialPropertyType> SlotPropertes = ModelEditorOnlyData->GetMaterialPropertiesForSlot(InSlot);
+	check(SlotPropertes.Contains(InProperty));
+
+	UDMMaterialStageInputSlot* InputSlot = InStage->ChangeSource<UDMMaterialStageInputSlot>(
+		[InSlot, InProperty](UDMMaterialStage* InStage, UDMMaterialStageSource* InNewSource)
+		{
+			const FDMUpdateGuard Guard;
+			UDMMaterialStageInputSlot* InputSlot = CastChecked<UDMMaterialStageInputSlot>(InNewSource);
+			InputSlot->SetSlot(InSlot);
+			InputSlot->SetMaterialProperty(InProperty);
+		});
+
+	return InputSlot;
+}
+
+UDMMaterialStageInputSlot* UDMMaterialStageInputSlot::ChangeStageInput_Slot(UDMMaterialStage* InStage, int32 InInputIdx, 
+	int32 InInputChannel, UDMMaterialSlot* InSlot, EDMMaterialPropertyType InProperty, int32 InOutputIdx, int32 InOutputChannel)
+{
+	check(InStage);
+
+	UDMMaterialStageSource* Source = InStage->GetSource();
+	check(Source);
+
+	UDMMaterialStageThroughput* Throughput = Cast<UDMMaterialStageThroughput>(Source);
+	check(Throughput);
+
+	const TArray<FDMMaterialStageConnector>& InputConnectors = Throughput->GetInputConnectors();
+	check(InputConnectors.IsValidIndex(InInputIdx));
+
+	UDMMaterialLayerObject* Layer = InStage->GetLayer();
+	check(Layer);
+
+	UDMMaterialSlot* Slot = Layer->GetSlot();
+	check(Slot);
+
+	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData();
+	check(ModelEditorOnlyData == InSlot->GetMaterialModelEditorOnlyData());
+
+	const TArray<EDMMaterialPropertyType> SlotPropertes = ModelEditorOnlyData->GetMaterialPropertiesForSlot(InSlot);
+	check(SlotPropertes.Contains(InProperty));
+
+	const TArray<EDMValueType>& SlotPropertyOutputTypes = InSlot->GetOutputConnectorTypesForMaterialProperty(InProperty);
+	check(SlotPropertyOutputTypes.IsValidIndex(InOutputIdx));
+
+	if (InOutputChannel == FDMMaterialStageConnectorChannel::WHOLE_CHANNEL)
+	{
+		check(Throughput->CanInputAcceptType(InInputIdx, SlotPropertyOutputTypes[InOutputIdx]));
+	}
+	else
+	{
+		check(UDMValueDefinitionLibrary::GetValueDefinition(SlotPropertyOutputTypes[InOutputIdx]).IsFloatType());
+		check(Throughput->CanInputAcceptType(InInputIdx, EDMValueType::VT_Float1));
+	}
+
+	UDMMaterialStageInputSlot* NewInputSlot = InStage->ChangeInput<UDMMaterialStageInputSlot>(
+		InInputIdx, InInputChannel, InOutputIdx, InOutputChannel, 
+		[InSlot, InProperty](UDMMaterialStage* InStage, UDMMaterialStageInput* InNewInput)
+		{
+			const FDMUpdateGuard Guard;
+			UDMMaterialStageInputSlot* NewInputSlot = CastChecked<UDMMaterialStageInputSlot>(InNewInput);
+			NewInputSlot->SetSlot(InSlot);
+			NewInputSlot->SetMaterialProperty(InProperty);
+		}
+	);
+
+	return NewInputSlot;
 }
 
 FText UDMMaterialStageInputSlot::GetComponentDescription() const

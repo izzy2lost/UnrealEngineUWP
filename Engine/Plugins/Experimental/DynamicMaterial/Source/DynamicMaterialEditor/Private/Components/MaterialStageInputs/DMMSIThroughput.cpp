@@ -289,7 +289,7 @@ void UDMMaterialStageInputThroughput::OnSubStageUpdated(UDMMaterialComponent* In
 		return;
 	}
 
-	if (InComponent == SubStage)
+	if (InComponent == SubStage && FDMUpdateGuard::CanUpdate())
 	{
 		Update(InUpdateType);
 	}
