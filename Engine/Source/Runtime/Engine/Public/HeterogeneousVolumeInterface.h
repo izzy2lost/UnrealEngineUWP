@@ -25,6 +25,7 @@ public:
 	// Volume
 	virtual FIntVector GetVoxelResolution() const = 0;
 	virtual float GetMinimumVoxelSize() const = 0;
+	virtual bool IsPivotAtCentroid() const = 0;
 
 	// Lighting
 	virtual float GetStepFactor() const = 0;
@@ -61,6 +62,7 @@ public:
 		, ShadowStepFactor(8.0)
 		, ShadowBiasFactor(0.0)
 		, LightingDownsampleFactor(1.0)
+		, bPivotAtCentroid(false)
 #if ACTOR_HAS_LABELS
 		, ReadableName(Name)
 #endif // ACTOR_HAS_LABELS
@@ -79,6 +81,7 @@ public:
 	// Volume
 	virtual FIntVector GetVoxelResolution() const { return VoxelResolution; }
 	virtual float GetMinimumVoxelSize() const { return MinimumVoxelSize; }
+	virtual bool IsPivotAtCentroid() const { return bPivotAtCentroid; }
 
 	// Lighting
 	virtual float GetStepFactor() const { return StepFactor; }
@@ -94,6 +97,7 @@ public:
 	float ShadowStepFactor;
 	float ShadowBiasFactor;
 	float LightingDownsampleFactor;
+	bool bPivotAtCentroid;
 
 #if ACTOR_HAS_LABELS
 	FString ReadableName;
