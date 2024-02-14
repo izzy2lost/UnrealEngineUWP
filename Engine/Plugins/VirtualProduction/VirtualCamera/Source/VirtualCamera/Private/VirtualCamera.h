@@ -17,5 +17,10 @@ namespace UE::VirtualCamera
 		virtual void StartupModule() override;
 		virtual void ShutdownModule() override;
 		//~ End IModuleInterface Interface
+
+	private:
+
+		void RegisterSettings();
+		void UnregisterSettings();
 	};
 }
