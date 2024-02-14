@@ -1224,6 +1224,7 @@ FString UModularRigController::ReparentModule(const FString& InModulePath, const
 	// Reparent or unparent children
 	const FString OldPath = Module->GetPath();
 	Module->PreviousParentPath = Module->ParentPath;
+	Module->PreviousName = Module->Name;
 	Module->ParentPath = (NewParentModule) ? NewParentModule->GetPath() : FString();
 	Module->Name = GetSafeNewName(Module->ParentPath, FRigName(Module->Name));
 	const FString NewPath = Module->GetPath();
