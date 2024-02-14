@@ -27,6 +27,7 @@ namespace PCGEditorUtils
 	void ForEachPCGBlueprintAssetData(TFunctionRef<bool(const FAssetData&)> InFunc);
 	void ForEachPCGSettingsAssetData(TFunctionRef<bool(const FAssetData&)> InFunc);
 	void ForEachPCGGraphAssetData(TFunctionRef<bool(const FAssetData&)> InFunc);
+	void ForEachPCGAssetData(TFunctionRef<bool(const FAssetData&)> InFunc);
 
 	/** Asset deprecation methods */
 	void ForcePCGBlueprintVariableVisibility();

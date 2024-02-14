@@ -7,9 +7,12 @@
 #include "PCGEditorGraphNode.h"
 #include "PCGEditorGraphNodeReroute.h"
 #include "PCGEditorModule.h"
+
+#include "PCGDataAsset.h"
 #include "PCGGraph.h"
 #include "PCGNode.h"
 #include "PCGSubgraph.h"
+#include "Elements/IO/PCGLoadAssetElement.h"
 #include "Elements/PCGExecuteBlueprint.h"
 #include "Elements/PCGReroute.h"
 #include "Elements/PCGUserParameterGet.h"
@@ -288,6 +291,55 @@ UEdGraphNode* FPCGEditorGraphSchemaAction_NewSettingsElement::MakeSettingsNode(U
 	{
 		NewNode->AutowireNewNode(InFromPin);
 	}
+
+	return NewNode;
+}
+
+UEdGraphNode* FPCGEditorGraphSchemaAction_NewLoadAssetElement::PerformAction(UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode)
+{
+	UPCGEditorGraph* EditorGraph = Cast<UPCGEditorGraph>(ParentGraph);
+	if (!EditorGraph)
+	{
+		UE_LOG(LogPCGEditor, Error, TEXT("Invalid EditorGraph"));
+		return nullptr;
+	}
+
+	UPCGGraph* PCGGraph = EditorGraph->GetPCGGraph();
+	if (!PCGGraph)
+	{
+		UE_LOG(LogPCGEditor, Error, TEXT("Invalid PCGGraph"));
+		return nullptr;
+	}
+
+	if(!Asset.GetSoftObjectPath().IsValid())
+	{
+		UE_LOG(LogPCGEditor, Error, TEXT("Invalid asset path."));
+		return nullptr;
+	}
+
+	// Important - do not reconstruct the editor graph node/pins midway through this function as this will invalidate FromPin.
+	const FPCGDeferNodeReconstructScope DisableReconstruct(FromPin);
+
+	const FScopedTransaction Transaction(*FPCGEditorCommon::ContextIdentifier, LOCTEXT("PCGEditorNewBlueprintELement", "PCG Editor: New Blueprint Element"), nullptr);
+	EditorGraph->Modify();
+
+	UPCGSettings* DefaultNodeSettings = nullptr;
+	UPCGNode* NewPCGNode = PCGGraph->AddNodeOfType(SettingsClass ? SettingsClass.Get() : UPCGLoadDataAssetSettings::StaticClass(), DefaultNodeSettings);
+	UPCGLoadDataAssetSettings* DefaultLoadAssetSettings = CastChecked<UPCGLoadDataAssetSettings>(DefaultNodeSettings);
+
+	DefaultLoadAssetSettings->SetFromAsset(Asset);
+
+	NewPCGNode->UpdateAfterSettingsChangeDuringCreation();
+
+	FGraphNodeCreator<UPCGEditorGraphNode> NodeCreator(*EditorGraph);
+	UPCGEditorGraphNode* NewNode = NodeCreator.CreateUserInvokedNode(bSelectNewNode);
+	NewNode->Construct(NewPCGNode);
+	NewNode->NodePosX = Location.X;
+	NewNode->NodePosY = Location.Y;
+	NodeCreator.Finalize();
+
+	NewPCGNode->PositionX = Location.X;
+	NewPCGNode->PositionY = Location.Y;
 
 	return NewNode;
 }

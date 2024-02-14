@@ -3,6 +3,7 @@
 #include "PCGEditorGraphSchema.h"
 
 #include "PCGComponent.h"
+#include "PCGDataAsset.h"
 #include "PCGEdge.h"
 #include "PCGGraph.h"
 #include "PCGPin.h"
@@ -52,6 +53,10 @@ void UPCGEditorGraphSchema::GetPaletteActions(FGraphActionMenuBuilder& ActionMen
 	{
 		GetSettingsElementActions(ActionMenuBuilder, /*bIsContextual=*/false);
 	}
+	if (!!(InPCGElementTypeFilter & EPCGElementType::Asset))
+	{
+		GetDataAssetActions(ActionMenuBuilder);
+	}
 	if (!!(InPCGElementTypeFilter & EPCGElementType::Other))
 	{
 		GetNamedRerouteUsageActions(ActionMenuBuilder);
@@ -67,6 +72,7 @@ void UPCGEditorGraphSchema::GetGraphContextActions(FGraphContextMenuBuilder& Con
 	GetSubgraphElementActions(ContextMenuBuilder);
 	GetBlueprintElementActions(ContextMenuBuilder);
 	GetSettingsElementActions(ContextMenuBuilder, /*bIsContextual=*/true);
+	GetDataAssetActions(ContextMenuBuilder);
 	GetNamedRerouteUsageActions(ContextMenuBuilder, ContextMenuBuilder.CurrentGraph);
 	GetExtraElementActions(ContextMenuBuilder);
 }
@@ -591,6 +597,32 @@ void UPCGEditorGraphSchema::GetNamedRerouteUsageActions(FGraphActionMenuBuilder&
 	}
 }
 
+void UPCGEditorGraphSchema::GetDataAssetActions(FGraphActionMenuBuilder& ActionMenuBuilder) const
+{
+	PCGEditorUtils::ForEachPCGAssetData([&ActionMenuBuilder](const FAssetData& AssetData)
+	{
+		const bool bExposeToLibrary = AssetData.GetTagValueRef<bool>(GET_MEMBER_NAME_CHECKED(UPCGDataAsset, bExposeToLibrary));
+		if (bExposeToLibrary)
+		{
+			const FText MenuDesc = FText::FromString(FName::NameToDisplayString(AssetData.AssetName.ToString(), false));
+			const FText Category = AssetData.GetTagValueRef<FText>(GET_MEMBER_NAME_CHECKED(UPCGDataAsset, Category));
+			const FText Description = AssetData.GetTagValueRef<FText>(GET_MEMBER_NAME_CHECKED(UPCGDataAsset, Description));
+			const FString AssetName = AssetData.GetTagValueRef<FString>(GET_MEMBER_NAME_CHECKED(UPCGDataAsset, Name));
+
+			const FSoftClassPath SettingsClassPath = FSoftClassPath(AssetData.GetTagValueRef<FString>(GET_MEMBER_NAME_CHECKED(UPCGDataAsset, SettingsClass)));
+			TSubclassOf<UPCGSettings> SettingsClass = SettingsClassPath.TryLoadClass<UPCGSettings>();
+
+			TSharedPtr<FPCGEditorGraphSchemaAction_NewLoadAssetElement> NewLoadDataAssetAction(new FPCGEditorGraphSchemaAction_NewLoadAssetElement(Category, AssetName.IsEmpty() ? MenuDesc : FText::FromString(AssetName), Description, 0));
+			NewLoadDataAssetAction->Asset = AssetData;
+			NewLoadDataAssetAction->SettingsClass = SettingsClass;
+
+			ActionMenuBuilder.AddAction(NewLoadDataAssetAction);
+		}
+
+		return true;
+	});
+}
+
 void UPCGEditorGraphSchema::DroppedAssetsOnGraph(const TArray<FAssetData>& Assets, const FVector2D& GraphPosition, UEdGraph* Graph) const
 {
 	FVector2D GraphPositionOffset = GraphPosition;
@@ -602,9 +634,9 @@ void UPCGEditorGraphSchema::DroppedAssetsOnGraph(const TArray<FAssetData>& Asset
 
 	for (const FAssetData& AssetData : Assets)
 	{
-		if (const UObject* Asset = AssetData.GetAsset())
+		if(const UClass* AssetClass = AssetData.GetClass())
 		{
-			if (Asset->IsA<UPCGGraphInterface>())
+			if(AssetClass->IsChildOf(UPCGGraphInterface::StaticClass()))
 			{
 				FPCGEditorGraphSchemaAction_NewSubgraphElement NewSubgraphAction;
 				NewSubgraphAction.SubgraphObjectPath = AssetData.GetSoftObjectPath();
@@ -620,7 +652,15 @@ void UPCGEditorGraphSchema::DroppedAssetsOnGraph(const TArray<FAssetData>& Asset
 				NewBlueprintAction.PerformAction(Graph, NullFromPin, GraphPositionOffset);
 				GraphPositionOffset.Y += PositionOffsetIncrementY;
 			}
-			else if (Asset->IsA<UPCGSettings>())
+			else if(AssetClass->IsChildOf(UPCGDataAsset::StaticClass()))
+			{
+				FPCGEditorGraphSchemaAction_NewLoadAssetElement NewLoadAssetAction;
+				NewLoadAssetAction.Asset = AssetData;
+				NewLoadAssetAction.SettingsClass = FSoftClassPath(AssetData.GetTagValueRef<FString>(GET_MEMBER_NAME_CHECKED(UPCGDataAsset, SettingsClass))).TryLoadClass<UPCGSettings>();
+				NewLoadAssetAction.PerformAction(Graph, NullFromPin, GraphPositionOffset);
+				GraphPositionOffset.Y += PositionOffsetIncrementY;
+			}
+			else if(AssetClass->IsChildOf(UPCGSettings::StaticClass()))
 			{
 				// Delay creation so we can open a menu, once, if needed.
 				SettingsPaths.Add(AssetData.GetSoftObjectPath());
@@ -647,14 +687,15 @@ void UPCGEditorGraphSchema::GetAssetsGraphHoverMessage(const TArray<FAssetData>&
 {
 	for (const FAssetData& AssetData : Assets)
 	{
-		if (const UObject* Asset = AssetData.GetAsset())
+		// TODO: get class from asset data, shouldn't require loading
+		if(const UClass* AssetClass = AssetData.GetClass())
 		{
-			if (Asset->IsA<UPCGGraphInterface>() || Asset->IsA<UPCGSettings>() || PCGEditorUtils::IsAssetPCGBlueprint(AssetData))
+			if(AssetClass->IsChildOf(UPCGGraphInterface::StaticClass()) || AssetClass->IsChildOf(UPCGSettings::StaticClass()) || AssetClass->IsChildOf(UPCGDataAsset::StaticClass()) || PCGEditorUtils::IsAssetPCGBlueprint(AssetData))
 			{
 				OutOkIcon = true;
 				return;
 			}
-			else if (Asset->IsA<UBlueprint>())
+			else if(AssetClass->IsChildOf(UBlueprint::StaticClass()))
 			{
 				OutTooltipText = LOCTEXT("PCGEditorDropAssetInvalidBP", "Blueprint does not derive from UPCGBlueprintElement").ToString();
 				OutOkIcon = false;

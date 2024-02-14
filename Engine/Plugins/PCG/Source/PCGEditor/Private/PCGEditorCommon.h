@@ -11,8 +11,9 @@ enum class EPCGElementType : uint8
 	Blueprint = 1 << 1,
 	Subgraph = 1 << 2,
 	Settings = 1 << 3,
-	Other = 1 << 4,
-	All = (1 << 5) - 1
+	Asset = 1 << 4,
+	Other = 1 << 5,
+	All = (1 << 6) - 1
 };
 ENUM_CLASS_FLAGS(EPCGElementType);
 
