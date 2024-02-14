@@ -386,6 +386,8 @@ public:
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(ImageWrapper.Decompress);
 
+		OutImage = FImage();
+
 		EImageFormat ImageFormat = DetectImageFormat(InCompressedData,InCompressedSize);
 		if ( ImageFormat == EImageFormat::Invalid )
 		{
@@ -419,6 +421,8 @@ public:
 	virtual bool CompressImage(TArray64<uint8> & OutData, EImageFormat ToFormat, const FImageView & InImage, int32 Quality) override
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(ImageWrapper.Compress);
+
+		OutData.Empty();
 
 		TSharedPtr<IImageWrapper> ImageWrapper = CreateImageWrapper(ToFormat);
 		if ( ! ImageWrapper.IsValid() )

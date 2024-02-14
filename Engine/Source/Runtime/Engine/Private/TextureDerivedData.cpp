@@ -302,6 +302,14 @@ static void SerializeForKey(FArchive& Ar, const FTextureBuildSettings& Settings)
 		TempGuid = FGuid(0x418B8584, 0x72D54EA5, 0xBA8E8C2B, 0xECC880DE);
 		Ar << TempGuid;
 	}
+	
+	if ( Settings.MaxTextureResolution != FTextureBuildSettings::MaxTextureResolutionDefault && Settings.bUseNewMipFilter )
+	{
+		// @todo SerializeForKey these can go away whenever we bump the overall ddc key
+		// behavior of MaxTextureResolution changed to ResizeImage 2/8/2024
+		TempName = TEXTURE_DDC_STB_IMAGE_RESIZE_VERSION;
+		Ar << TempName;
+	}
 
 	if ( Settings.bVolume )
 	{
@@ -4013,9 +4021,6 @@ bool UTexture::DownsizeImageUsingTextureSettings(const ITargetPlatform* TargetPl
 	// make sure BuildSourceImageMips doesn't reallocate :
 	constexpr int BuildSourceImageMipsMaxCount = 20; // plenty
 	BuildSourceImageMips.Empty(BuildSourceImageMipsMaxCount);
-
-	// one nice thing we do get from GenerateMipChain (as opposed to ResizeImage)
-	//	is that wrap/clamp address mode is respected and cubemaps clamp
 
 	ITextureCompressorModule::GenerateMipChain(BuildSettings, Temp, BuildSourceImageMips, 1);
 

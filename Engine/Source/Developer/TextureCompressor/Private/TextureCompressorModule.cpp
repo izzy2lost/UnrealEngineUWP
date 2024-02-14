@@ -26,6 +26,12 @@
 #include "Windows/WindowsHWrapper.h"
 #endif
 
+#if 0
+// for saving image dumps:
+#include "IImageWrapperModule.h"
+#include "Misc/FileHelper.h"
+#endif
+
 static TAutoConsoleVariable<int32> CVarDetailedMipAlphaLogging(
 	TEXT("r.DetailedMipAlphaLogging"),
 	0,
@@ -2969,6 +2975,8 @@ void ITextureCompressorModule::AdjustImageColors(FImage& Image, const FTextureBu
 	}
 }
 
+// if alpha cannot be determined, returns false and does not fill bOutAlphaIsTransparent
+// if possible, returns true, fills out bOutAlphaIsTransparent
 bool ITextureCompressorModule::DetermineAlphaChannelTransparency(const FTextureBuildSettings& InBuildSettings, const FLinearColor& InChannelMin, const FLinearColor& InChannelMax, bool& bOutAlphaIsTransparent)
 {
 	// Settings that affect alpha:
@@ -3042,13 +3050,21 @@ bool ITextureCompressorModule::DetermineAlphaChannelTransparency(const FTextureB
 		ChannelMinMax[0].A = ChannelMinMax[0].R;
 		ChannelMinMax[1].A = ChannelMinMax[1].R;
 	}
+	
+	// use the same test as FImageCore::DetectAlphaChannel
+	// @todo : this is NOT the same threshold used for RGBA16 in DetectAlphaChannel
+	const float FloatNonOpaqueAlpha = 254.5f / 255.f; // the U8 alpha threshold
 
-	bOutAlphaIsTransparent = false;
-	if (ChannelMinMax[0].A < 1 ||
-		ChannelMinMax[1].A < 1)
+	float MinAlpha = FMath::Min(ChannelMinMax[0].A ,ChannelMinMax[1].A);
+
+	bOutAlphaIsTransparent = ( MinAlpha <= FloatNonOpaqueAlpha );
+	
+	// detect ambiguity zone where alpha could easily cross the threshold due to float math :
+	if ( MinAlpha >= (254.4f/255.f) && MinAlpha <= (254.6f/255.f) )
 	{
-		bOutAlphaIsTransparent = true;
+		return false; // not possible to answer bOutAlphaIsTransparent
 	}
+
 	return true;
 }
 
@@ -3760,9 +3776,10 @@ public:
 		return MipHashBuilder.Finalize().Hash;
 	}
 
+	// SourceMips can be freed by this call
 	virtual bool BuildTexture(
-		const TArray<FImage>& SourceMips,
-		const TArray<FImage>& AssociatedNormalSourceMips,
+		TArray<FImage>& SourceMips,
+		TArray<FImage>& AssociatedNormalSourceMips,
 		const FTextureBuildSettings& BuildSettings,
 		FStringView DebugTexturePathName,
 		TArray<FCompressedImage2D>& OutTextureMips,
@@ -3814,6 +3831,8 @@ public:
 			return false;
 		}
 		
+		SourceMips.Empty();
+
 		// apply roughness adjustment depending on normal map variation
 		if (AssociatedNormalSourceMips.Num())
 		{
@@ -3851,6 +3870,8 @@ public:
 
 				return false;
 			}
+
+			AssociatedNormalSourceMips.Empty();
 
 			if (!ApplyCompositeTextureToMips(IntermediateMipChain, IntermediateAssociatedNormalSourceMipChain, BuildSettings.CompositeTextureMode, BuildSettings.CompositePower, BuildSettings.LODBias))
 			{
@@ -3980,8 +4001,9 @@ public:
 private:
 
 
+	// InSourceMipChain can be freed by this call
 	bool BuildTextureMips(
-		const TArray<FImage>& InSourceMipChain,
+		TArray<FImage>& InSourceMipChain,
 		const FTextureBuildSettings& BuildSettings,
 		const bool bNeedLinearize,
 		TArray<FImage>& OutMipChain,
@@ -3991,6 +4013,14 @@ private:
 		
 		check(InSourceMipChain.Num() > 0);
 		check(InSourceMipChain[0].SizeX > 0 && InSourceMipChain[0].SizeY > 0 && InSourceMipChain[0].NumSlices > 0);
+		
+		int32 InSourceMipChainNum = InSourceMipChain.Num();
+
+		// Calculation check before we change anything, because source mips can be freed :
+		int32 CalculatedMip0SizeX, CalculatedMip0SizeY, CalculatedMip0NumSlices;
+		int32 CalculatedMipCount = GetMipCountForBuildSettings(
+			InSourceMipChain[0].SizeX, InSourceMipChain[0].SizeY, InSourceMipChain[0].NumSlices, InSourceMipChain.Num(), BuildSettings,
+			CalculatedMip0SizeX, CalculatedMip0SizeY, CalculatedMip0NumSlices);
 
 		// Identify long-lat cubemaps.
 		const bool bLongLatCubemap = BuildSettings.bLongLatSource;
@@ -4016,7 +4046,8 @@ private:
 		//	but that will change output :(
 
 		// pSourceMips will track the current FImages we consider to be "source"
-		const TArray<FImage> * pSourceMips = &InSourceMipChain;
+		//	whenever pSourceMips is changed, previous pSourceMips is freed
+		TArray<FImage> * pSourceMips = &InSourceMipChain;
 
 		// first pad up to pow2 if requested
 		ETexturePowerOfTwoSetting::Type PowerOfTwoMode = (ETexturePowerOfTwoSetting::Type) BuildSettings.PowerOfTwoMode;
@@ -4157,6 +4188,7 @@ private:
 					}
 				}
 				// change pSourceMips to point at the one padded image we made
+				pSourceMips->Empty();
 				pSourceMips = &PaddedSourceMips;
 			}
 		}		
@@ -4196,19 +4228,11 @@ private:
 				// the source is larger than the compressor allows and no mip image exists to act as a smaller source.
 				// We must generate a suitable source image:
 				const FImage& BaseImage = pSourceMips->Last();
-				bool bSuitableFormat = BaseImage.Format == ERawImageFormat::RGBA32F;
 			
 				check( MaxTextureResolution > 0 );
 				check( BaseImage.SizeX > MaxTextureResolution || 
 					   BaseImage.SizeY > MaxTextureResolution );
-
-				FImage Temp;
-				if (!bSuitableFormat)
-				{
-					// convert to RGBA32F
-					BaseImage.CopyTo(Temp, ERawImageFormat::RGBA32F, EGammaSpace::Linear);
-				}
-
+					   
 				UE_LOG(LogTextureCompressor, Verbose,
 					TEXT("Source image %dx%d too large for compressors max dimension (%d). Resizing."),
 					BaseImage.SizeX,
@@ -4216,39 +4240,113 @@ private:
 					BuildSettings.MaxTextureResolution
 					);
 
-				// make sure BuildSourceImageMips doesn't reallocate :
-				constexpr int BuildSourceImageMipsMaxCount = 20; // plenty
-				BuildSourceImageMips.Empty(BuildSourceImageMipsMaxCount);
-
-				// Max Texture Size resizing happens here :
-				// note we do not check for TMGS_Angular here
-				// note that TMGS_NoMipMaps *can* use this path; in that case it generates mips using 2x2 simple average
-				const FImage& BaseMip = bSuitableFormat ? BaseImage : Temp;
-				GenerateMipChain(BuildSettings, BaseMip, BuildSourceImageMips, 1);
-
-				// mip data not needed anymore
-				// @todo: this could free "BaseMip" image instead, if it's ok with caller (currently const type used)
-				Temp.RawData.Empty();
-
-				while( BuildSourceImageMips.Last().SizeX > MaxTextureResolution || 
-					   BuildSourceImageMips.Last().SizeY > MaxTextureResolution )
+				if ( BuildSettings.bUseNewMipFilter && 
+					! BuildSettings.bVolume && ! BuildSettings.bDoScaleMipsForAlphaCoverage && ! BuildSettings.bPreserveBorder )
 				{
-					// note: now making mips one by one, rather than N in one call
-					//	this is not exactly the same if AlphaCoverage processing is on
-					check( BuildSourceImageMips.Num() < BuildSourceImageMipsMaxCount );
-					FImage& LastMip = BuildSourceImageMips.Last();
-					GenerateMipChain(BuildSettings, LastMip, BuildSourceImageMips, 1);
+					// BuildSourceImageMips will be used as the source for further steps, fill it :
+					BuildSourceImageMips.SetNum(1);
+					FImage & DestImage = BuildSourceImageMips[0];
+
+					// note we could resize directly to MaxTextureResolution
+					//	for now we will replicate the old logic of only doing 2X mip size steps
+					//	this results in output that is in (MaxTextureResolution/2,MaxTextureResolution]
+					int64 DestSizeX = BaseImage.SizeX;
+					int64 DestSizeY = BaseImage.SizeY;
+					while( DestSizeX > MaxTextureResolution || DestSizeY > MaxTextureResolution )
+					{
+						DestSizeX = FMath::Max(DestSizeX>>1,1);
+						DestSizeY = FMath::Max(DestSizeY>>1,1);
+					}
+
+					DestImage.Init(DestSizeX,DestSizeY,ERawImageFormat::RGBA32F, EGammaSpace::Linear);
+
+					// rather than doing a bunch of mip-step resizes,
+					//	just resize once directly to dest size using ResizeImage
+					//	also the BaseImage stays in BGRA8, no need to promote it to RGBA32F
+
+					// ResizeImage does work with Slices for cubes/arrays , but not volumes
+					check( ! BuildSettings.bVolume );
+
+					// @todo : find closest ResizeFilter that matches MipGen settings (maybe?)
+					//	 I mean, maybe not?  Most of the time MipGen is "SimpleAverage" which produces a really bad resize
+					FImageCore::EResizeImageFilter ResizeFilter = FImageCore::EResizeImageFilter::Default;
+					FImageCore::ResizeImage(BaseImage,DestImage,ResizeFilter);
+
+					#if 0
+					{
+						UE_LOG(LogTextureCompressor, Display, TEXT("ResizeImage from: %d x %d x %s -> %d x %d x %s"),
+							BaseImage.SizeX,BaseImage.SizeY,ERawImageFormat::GetName(BaseImage.Format),
+							DestImage.SizeX,DestImage.SizeY,ERawImageFormat::GetName(DestImage.Format));
+						
+						IImageWrapperModule& ImageWrapperModule = FModuleManager::LoadModuleChecked<IImageWrapperModule>( FName("ImageWrapper") );
+		
+						TArray64<uint8> Buffer;
+						ImageWrapperModule.CompressImage(Buffer,EImageFormat::PNG,BaseImage,0);
+						FFileHelper::SaveArrayToFile(Buffer,TEXT("r:\\BaseImage.png"));
+						
+						ImageWrapperModule.CompressImage(Buffer,EImageFormat::EXR,DestImage,0);
+						FFileHelper::SaveArrayToFile(Buffer,TEXT("r:\\DestImage.exr"));
+
+						FImage DestImage8;
+						DestImage.CopyTo(DestImage8,ERawImageFormat::BGRA8,EGammaSpace::sRGB);
+						ImageWrapperModule.CompressImage(Buffer,EImageFormat::PNG,DestImage8,0);
+						FFileHelper::SaveArrayToFile(Buffer,TEXT("r:\\DestImage.png"));
+						
+						bool BaseAlpha = FImageCore::DetectAlphaChannel(BaseImage);
+						bool DestAlpha = FImageCore::DetectAlphaChannel(DestImage);
+
+						check( BaseAlpha == DestAlpha );
+					}
+					#endif
+				}
+				else
+				{
+					// old way
+
+					FImage Temp;
+					bool bSuitableFormat = BaseImage.Format == ERawImageFormat::RGBA32F;
+					if (!bSuitableFormat)
+					{
+						// convert to RGBA32F
+						BaseImage.CopyTo(Temp, ERawImageFormat::RGBA32F, EGammaSpace::Linear);
+					}
+
+					// make sure BuildSourceImageMips doesn't reallocate :
+					constexpr int BuildSourceImageMipsMaxCount = 20; // plenty
+					BuildSourceImageMips.Empty(BuildSourceImageMipsMaxCount);
+
+					// Max Texture Size resizing happens here :
+					// note we do not check for TMGS_Angular here
+					// note that TMGS_NoMipMaps *can* use this path; in that case it generates mips using 2x2 simple average
+					const FImage& BaseMip = bSuitableFormat ? BaseImage : Temp;
+					GenerateMipChain(BuildSettings, BaseMip, BuildSourceImageMips, 1);
 
 					// mip data not needed anymore
-					LastMip.RawData.Empty();
-				}
-			
-				check( BuildSourceImageMips.Last().SizeX <= MaxTextureResolution &&
-					   BuildSourceImageMips.Last().SizeY <= MaxTextureResolution );
+					Temp.RawData.Empty();					
+					pSourceMips->Empty();
 
-				// change pSourceMips to point at the mip chain we made
+					while( BuildSourceImageMips.Last().SizeX > MaxTextureResolution || 
+						   BuildSourceImageMips.Last().SizeY > MaxTextureResolution )
+					{
+						// note: now making mips one by one, rather than N in one call
+						//	this is not exactly the same if AlphaCoverage processing is on
+						check( BuildSourceImageMips.Num() < BuildSourceImageMipsMaxCount );
+						FImage& LastMip = BuildSourceImageMips.Last();
+						GenerateMipChain(BuildSettings, LastMip, BuildSourceImageMips, 1);
+
+						// mip data not needed anymore
+						LastMip.RawData.Empty();
+					}
+				}				
+
+				check( BuildSourceImageMips.Last().SizeX <= MaxTextureResolution &&
+						BuildSourceImageMips.Last().SizeY <= MaxTextureResolution );
+
+				// change pSourceMips to point at the mip chain we made				
+				pSourceMips->Empty();
 				pSourceMips = &BuildSourceImageMips;
 				StartMip = BuildSourceImageMips.Num() - 1;
+
 				// [StartMip] will now references BuildSourceImageMips.Last()
 			}
 		}
@@ -4284,7 +4382,7 @@ private:
 			// LeaveExistingMips is often inadvertently used as "NoMips", so if they only brought in 1 mip, leave it as
 			// 1 mip.
 			if (BuildSettings.MipGenSettings == TMGS_LeaveExistingMips &&
-				InSourceMipChain.Num() == 1)
+				InSourceMipChainNum == 1)
 			{
 				NumOutputMips = 1;
 				check(CopyCount == 1);
@@ -4309,11 +4407,11 @@ private:
 		const bool bLinearize = bNeedLinearize || (GenerateCount > 0) || BuildSettings.bRenormalizeTopMip || (BuildSettings.Downscale > 1.f)
 			|| BuildSettings.bHasColorSpaceDefinition || BuildSettings.bComputeBokehAlpha || BuildSettings.bFlipGreenChannel
 			|| BuildSettings.bReplicateRed || BuildSettings.bReplicateAlpha || BuildSettings.bApplyYCoCgBlockScale
-			|| BuildSettings.SourceEncodingOverride != 0 || bNeedAdjustImageColors || BuildSettings.bNormalizeNormals;
+			|| (BuildSettings.SourceEncodingOverride != 0) || bNeedAdjustImageColors || BuildSettings.bNormalizeNormals;
 
 		for (int32 MipIndex = StartMip; MipIndex < StartMip + CopyCount; ++MipIndex)
 		{
-			const FImage& Image = (*pSourceMips)[MipIndex];
+			FImage& Image = (*pSourceMips)[MipIndex];
 
 			if (bDoDetailedAlphaLogging)
 			{
@@ -4370,26 +4468,26 @@ private:
 					{
 						// if image is in BGRA8 format leave it, otherwise convert to RGBA32F
 						//  we only support leaving images in source format if they are BGRA8 and require no processing (eg VT tiles)
-						ERawImageFormat::Type DestFormat = Image.Format;
-						EGammaSpace DestGammaSpace = Image.GammaSpace;
-						if ( Image.Format != ERawImageFormat::BGRA8 )
+						if ( Image.Format == ERawImageFormat::BGRA8 )
 						{
-							DestFormat = ERawImageFormat::RGBA32F;
-							DestGammaSpace = EGammaSpace::Linear;
+							// just move Image to Mip, no copy
+							Image.Swap(Mip);
 						}
-						Image.CopyTo(Mip, DestFormat, DestGammaSpace);
-						
+						else
+						{
+							Image.CopyTo(Mip, ERawImageFormat::RGBA32F, EGammaSpace::Linear);
+						}
+
 						if (bDoDetailedAlphaLogging)
 						{
 							UE_LOG(LogTextureCompressor, Display, TEXT("[alpha] Copy: %d - %.*s"), FImageCore::DetectAlphaChannel(Mip), DebugTexturePathName.Len(), DebugTexturePathName.GetData());
 						}
-						//@todo : when Mip format == Image format, we can Move instead of Copy
-						//	have to make sure that's okay with SourceMips/TextureData
 					}
 				}
 			}
 
-			//@todo Oodle: free SourceMips as we consume them?
+			// free pSourceMips as we consume them
+			Image.RawData.Empty();
 
 			if (BuildSettings.Downscale > 1.f)
 			{		
@@ -4428,6 +4526,10 @@ private:
 		check( OutMipChain.Num() == CopyCount );
 		check( GenerateCount == NumOutputMips - OutMipChain.Num() );
 
+		// no further reads from source:
+		pSourceMips->Empty();
+		pSourceMips = nullptr;
+
 		// Generate any missing mips in the chain.
 		if ( GenerateCount > 0 )
 		{
@@ -4459,10 +4561,6 @@ private:
 		}
 		check(OutMipChain.Num() == NumOutputMips);
 
-		int32 CalculatedMip0SizeX, CalculatedMip0SizeY, CalculatedMip0NumSlices;
-		int32 CalculatedMipCount = GetMipCountForBuildSettings(
-			InSourceMipChain[0].SizeX, InSourceMipChain[0].SizeY, InSourceMipChain[0].NumSlices, InSourceMipChain.Num(), BuildSettings,
-			CalculatedMip0SizeX, CalculatedMip0SizeY, CalculatedMip0NumSlices);
 		if (CalculatedMipCount != NumOutputMips ||
 			CalculatedMip0SizeX != OutMipChain[0].SizeX ||
 			CalculatedMip0SizeY != OutMipChain[0].SizeY ||

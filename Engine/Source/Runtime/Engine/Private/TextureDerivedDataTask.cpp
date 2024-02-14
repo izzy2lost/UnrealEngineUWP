@@ -831,25 +831,36 @@ static void DDC1_BuildTexture(
 
 		uint32 NumMipsInTail;
 		uint32 ExtData;
+		
+		TArray<FImage> EmptyImageArray;
+		TArray<FImage> & CompositeImageArray = ((bool)Texture.GetCompositeTexture() && CompositeTextureData.Blocks.Num() && CompositeTextureData.Blocks[0].MipsPerLayer.Num()) ? CompositeTextureData.Blocks[0].MipsPerLayer[0] : EmptyImageArray;
 
 		// Compress the texture by calling texture compressor directly.
 		TArray<FCompressedImage2D> CompressedMips;
-		if (Compressor->BuildTexture(TextureData.Blocks[0].MipsPerLayer[0],
-			((bool)Texture.GetCompositeTexture() && CompositeTextureData.Blocks.Num() && CompositeTextureData.Blocks[0].MipsPerLayer.Num()) ? CompositeTextureData.Blocks[0].MipsPerLayer[0] : TArray<FImage>(),
+
+		bSucceeded = Compressor->BuildTexture(TextureData.Blocks[0].MipsPerLayer[0],
+			CompositeImageArray,
 			InBuildSettingsPerLayer[0],
 			TexturePathName,
 			CompressedMips,
 			NumMipsInTail,
 			ExtData,
-			nullptr))
+			nullptr);
+			
+
+		if ( bSucceeded )
 		{
+			// BuildTexture can free the source images passed to it
+			//	so TextureData is invalid after this call
+			TextureData.ReleaseMemory();
+			CompositeTextureData.ReleaseMemory();;
+
 			check(CompressedMips.Num());
 
 			DDC1_StoreClassicTextureInDerivedData(
 				CompressedMips, DerivedData, InBuildSettingsPerLayer[0].bVolume, InBuildSettingsPerLayer[0].bTextureArray, InBuildSettingsPerLayer[0].bCubemap, 
 				NumMipsInTail, ExtData, bReplaceExistingDDC, TexturePathName, KeySuffix, BytesCached);
 
-			bSucceeded = true;
 			DerivedData->ResultMetadata = InBuildResultMetadata;
 
 			const bool bInlineMips = EnumHasAnyFlags(CacheFlags, ETextureCacheFlags::InlineMips);
@@ -870,7 +881,6 @@ static void DDC1_BuildTexture(
 			// will log below
 			check( DerivedData->Mips.Num() == 0 );
 			DerivedData->Mips.Empty();
-			bSucceeded = false;
 
 			UE_LOG(LogTexture, Warning, TEXT("BuildTexture failed to build %s derived data for %s"), *InBuildSettingsPerLayer[0].TextureFormatName.GetPlainNameString(), *TexturePathName);
 		}
@@ -1861,6 +1871,10 @@ bool DDC1_BuildTiledClassicTexture(
 				LinearBytesCached,
 				bHasLinearDerivedData);
 
+			// TextureData can be freed by Build, don't use it anymore :
+			TextureData.ReleaseMemory();
+			CompositeTextureData.ReleaseMemory();
+
 			// This should succeed because we asked for inline mips if the build succeeded
 			if (bHasLinearDerivedData && 
 				LinearDerivedData.TryLoadMipsWithSizes(0, LinearMipData, LinearMipSizes, TexturePathName) == false)
@@ -1887,22 +1901,6 @@ bool DDC1_BuildTiledClassicTexture(
 	FEncodedTextureExtendedData TextureExtendedData;
 	int32 OutputTextureNumStreamingMips;
 	{
-#if DO_CHECK
-		TArray<FImage>& SourceMips = TextureData.Blocks[0].MipsPerLayer[0];
-		if (SourceMips.Num()) // if we're tiling existing linear data then the texture data isn't actually loaded so we can't do this sanity check.
-		{
-			int32 LinearMip0SizeX, LinearMip0SizeY, LinearMip0NumSlices;
-			int32 LinearMipCount = Compressor->GetMipCountForBuildSettings(SourceMips[0].SizeX, SourceMips[0].SizeY, SourceMips[0].NumSlices, SourceMips.Num(), LinearSettingsPerLayerFetchOrBuild[0],
-				LinearMip0SizeX,
-				LinearMip0SizeY,
-				LinearMip0NumSlices);
-			check(LinearDerivedData.Mips[0].SizeX == LinearMip0SizeX);
-			check(LinearDerivedData.Mips[0].SizeY == LinearMip0SizeY);
-			check(LinearDerivedData.Mips.Num() == LinearMipCount);
-			check(LinearDerivedData.GetNumSlices() == LinearMip0NumSlices);
-		}
-#endif
-
 		LinearSettingsPerLayerFetchOrBuild[0].GetEncodedTextureDescriptionWithPixelFormat(
 			&TextureDescription,
 			LinearDerivedData.PixelFormat, LinearDerivedData.Mips[0].SizeX, LinearDerivedData.Mips[0].SizeY, LinearDerivedData.GetNumSlices(), LinearDerivedData.Mips.Num());
@@ -2068,6 +2066,8 @@ void FTextureCacheDerivedDataWorker::DoWork()
 					KeySuffix, bReplaceExistingDDC, RequiredMemoryEstimate, DerivedData, BytesCached, bSucceeded);
 			}
 
+			// TextureData may have been freed by Build, don't use it anymore
+
 			if (bInvalidVirtualTextureCompression && DerivedData->VTData)
 			{
 				// If we loaded data that turned out to be corrupt, flag it here so we can also recreate the VT data cached to local /DerivedDataCache/VT/ directory
@@ -2133,7 +2133,7 @@ void FTextureCacheDerivedDataWorker::Finalize()
 	// --	always happens with a ForceRebuildPlatformData, which is called whenever mip data is requested
 	//		in the editor and is missing for some reason.
 	// --	always with a lighting build, as the async light/shadowmap tasks will disallow async builds. 
-	// --	if the texture compiler cvar disallows async texture compilation
+	// --	if the texture compiler cvar disallows async texture compilation  "Editor.AsyncTextureCompilation 0"
 
 	if ( bTriedAndFailed )
 	{
@@ -2149,6 +2149,7 @@ void FTextureCacheDerivedDataWorker::Finalize()
 			return;
 		}
 
+		// note: GetSourceMips will not even try if TextureData.bValid was set to false
 		TextureData.GetSourceMips(Texture.Source, ImageWrapper);
 		if (Texture.GetCompositeTexture() && Texture.GetCompositeTexture()->Source.IsValid())
 		{

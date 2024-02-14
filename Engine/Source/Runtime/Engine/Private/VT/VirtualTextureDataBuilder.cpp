@@ -754,8 +754,6 @@ void FVirtualTextureDataBuilder::BuildLayerBlocks(FSlowTask& BuildTask, uint32 L
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(Texture.VT.BuildLayerBlocks);
 
-	const TArray<FImage> EmptyImageArray;
-
 	const int32 TileSize = SettingsPerLayer[0].VirtualTextureTileSize;
 	const int32 NumLayers = SourceData.Layers.Num();
 	const int32 NumBlocks = SourceData.Blocks.Num();
@@ -792,7 +790,7 @@ void FVirtualTextureDataBuilder::BuildLayerBlocks(FSlowTask& BuildTask, uint32 L
 	{
 		BuildTask.EnterProgressFrame();
 
-		const FTextureSourceBlockData& SourceBlockData = SourceData.Blocks[BlockIndex];
+		FTextureSourceBlockData& SourceBlockData = SourceData.Blocks[BlockIndex];
 
 		// Current lock + mips that will be compressed to tiles
 		FVTBlockPayload& BlockData = LayerPayload[LayerIndex].Blocks[BlockIndex];
@@ -809,8 +807,9 @@ void FVirtualTextureDataBuilder::BuildLayerBlocks(FSlowTask& BuildTask, uint32 L
 
 		const FTextureBuildSettings& BuildSettingsForLayer = SettingsPerLayer[LayerIndex];
 
-		const TArray<FImage>& SourceMips = SourceBlockData.MipsPerLayer[LayerIndex];
-		const TArray<FImage>* CompositeSourceMips = &EmptyImageArray;
+		TArray<FImage>& SourceMips = SourceBlockData.MipsPerLayer[LayerIndex];
+		TArray<FImage> EmptyImageArray;
+		TArray<FImage>* CompositeSourceMips = &EmptyImageArray;
 		if (CompositeSourceData.Blocks.Num() > 0)
 		{
 			CompositeSourceMips = &CompositeSourceData.Blocks[BlockIndex].MipsPerLayer[LayerIndex];
@@ -875,6 +874,10 @@ void FVirtualTextureDataBuilder::BuildLayerBlocks(FSlowTask& BuildTask, uint32 L
 		{
 			uint32 NumMipsInTail, ExtData;
 			bBuildTextureResult = Compressor->BuildTexture(SourceMips, *CompositeSourceMips, TBSettings, CurDebugTexturePathName, CompressedMips, NumMipsInTail, ExtData, nullptr);
+
+			// BuildTexture can free mips, they are no longer valid
+			SourceMips.Empty();
+			CompositeSourceMips->Empty();
 		}
 		else
 		{
@@ -1042,10 +1045,13 @@ void FVirtualTextureDataBuilder::BuildLayerBlocks(FSlowTask& BuildTask, uint32 L
 		TArray<FCompressedImage2D> CompressedMips;
 		uint32 NumMipsInTail, ExtData;
 		// this is a Build to uncompressed, to apply processing
+		TArray<FImage> EmptyImageArray;
 		if (!Compressor->BuildTexture(MiptailInputImages, EmptyImageArray, TBSettings, CurDebugTexturePathName, CompressedMips, NumMipsInTail, ExtData, nullptr))
 		{
 			check(false);
 		}
+
+		MiptailInputImages.Empty();
 
 		// We skip the first compressed mip output, since that will just be a copy of the input
 		check(CompressedMips.Num() >= BlockData.NumMips + 1);

@@ -393,10 +393,12 @@ public:
 	 * @param OutNumMipsInTail - The number of mips that are joined into a single mip tail mip
 	 * @param OutExtData - Extra data that the runtime may need
 	 * @returns true on success
+	 
+	// SourceMips can be freed by this call
 	 */
 	virtual bool BuildTexture(
-		const TArray<struct FImage>& SourceMips,
-		const TArray<struct FImage>& AssociatedNormalSourceMips,
+		TArray<struct FImage>& SourceMips,
+		TArray<struct FImage>& AssociatedNormalSourceMips,
 		const FTextureBuildSettings& BuildSettings,
 		FStringView DebugTexturePathName,
 		TArray<FCompressedImage2D>& OutTextureMips,
