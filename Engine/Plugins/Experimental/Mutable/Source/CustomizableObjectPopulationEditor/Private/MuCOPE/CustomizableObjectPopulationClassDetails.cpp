@@ -1918,50 +1918,26 @@ void SRangeSquare::Construct(const FArguments& InArgs)
 {
 	SquareColor	= InArgs._SquareColor;
 	Ranges = InArgs._Ranges;
-	Texture = InArgs._Texture;
 	bDiscrete = InArgs._bDiscrete;
-		
-	if (Texture)
-	{
-		Brush.SetResourceObject(Texture);
-		Brush.TintColor = FSlateColor(FLinearColor::White);
-		Brush.ImageSize.X = 400.0f;
-		Brush.ImageSize.Y = 20.0f;
-		Brush.DrawAs = ESlateBrushDrawType::Image;
-		
-		ChildSlot
-		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			[
-				SNew(SImage)
-				.Image(&Brush)
-			]
-		];
-	}
-	else
-	{
-		Brush.TintColor = FSlateColor(FLinearColor::Gray);
-		Brush.ImageSize.X = 400.0f;
-		Brush.ImageSize.Y = 10.0f;
-		Brush.DrawAs = ESlateBrushDrawType::Image;
+	
+	Brush.TintColor = FSlateColor(FLinearColor::Gray);
+	Brush.ImageSize.X = 400.0f;
+	Brush.ImageSize.Y = 10.0f;
+	Brush.DrawAs = ESlateBrushDrawType::Image;
 
-		ChildSlot
+	ChildSlot
+	[
+		SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
 		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			[
-				SNew(SImage)
-				.Image(&Brush)
-			]
-		];
-	}
+			SNew(SImage)
+			.Image(&Brush)
+		]
+	];
 	
 	bMouseDownMin = bMouseDownMax = false;
 	TextureRectangle = Brush.ImageSize;
-
 }
 
 
