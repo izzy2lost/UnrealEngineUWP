@@ -1864,9 +1864,15 @@ bool FTG_Editor::IsOutputNode(UTG_Node* InNode)
 
 void FTG_Editor::OnPinSelectionUpdated(UEdGraphPin* Pin)
 {
-	check(Pin);
-	//When pin get updated we need to update its Node
-	GraphEditorWidget->GetGraphPanel()->SelectionManager.SelectSingleNode(Pin->GetOwningNode());
+	if (Pin)
+	{
+		//When pin get updated we need to update its Node
+		GraphEditorWidget->GetGraphPanel()->SelectionManager.SelectSingleNode(Pin->GetOwningNode());
+	}
+	else
+	{
+		GraphEditorWidget->GetGraphPanel()->SelectionManager.ClearSelectionSet();
+	}
 }
 
 void FTG_Editor::RefreshPreviewViewport()

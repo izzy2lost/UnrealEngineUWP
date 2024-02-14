@@ -12,26 +12,42 @@ void FTG_PinSelectionManager::UpdateSelection(UEdGraphPin* Pin)
 {
 	SelectedItems.Empty();
 
-	SelectedItems.Add(Pin);
-	SelectPin(Pin, true);
+	if (Pin)
+	{
+		SelectedItems.Add(Pin);
+		{
+			auto Node = Cast<UTG_EdGraphNode>(Pin->GetOwningNode());
+			check(Node);
+			Node->SelectPin(Pin, true);
+		}
+	}
 
 	OnPinSelectionUpdated.Broadcast(Pin);
 }
 
 void FTG_PinSelectionManager::ClearPinsForNonSelectedNodes(TArray<UObject*> SelectedNodes)
 {
-	for (int32 i = SelectedItems.Num() - 1; i >= 0; --i)
+	// No Selected nodes means clear all
+	if (SelectedNodes.IsEmpty())
 	{
-		if (!SelectedNodes.Contains(Cast<UTG_EdGraphNode>(SelectedItems[i]->GetOwningNode())->GetDetailsObject()))
+		SelectedItems.Empty();
+	}
+	else
+	{
+		for (int32 i = SelectedItems.Num() - 1; i >= 0; --i)
 		{
-			SelectedItems.RemoveAt(i);
+			UEdGraphPin* SelectedItem = SelectedItems[i];
+			if (SelectedItem)
+			{
+				UTG_EdGraphNode* SelectedPinNode = Cast<UTG_EdGraphNode>(SelectedItem->GetOwningNode());
+				if (SelectedPinNode)
+				{
+					if (!SelectedNodes.Contains(Cast<UTG_EdGraphNode>(SelectedItems[i]->GetOwningNode())->GetDetailsObject()))
+					{
+						SelectedItems.RemoveAt(i);
+					}
+				}
+			}
 		}
 	}
-}
-
-void FTG_PinSelectionManager::SelectPin(UEdGraphPin* Pin,bool IsSelected)
-{
-	auto Node = Cast<UTG_EdGraphNode>(Pin->GetOwningNode());
-	check(Node);
-	Node->SelectPin(Pin, IsSelected);
 }
