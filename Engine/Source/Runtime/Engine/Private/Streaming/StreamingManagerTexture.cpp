@@ -184,14 +184,14 @@ FRenderAssetStreamingManager::FRenderAssetStreamingManager()
 
 	FCoreUObjectDelegates::GetPreGarbageCollectDelegate().AddRaw(this, &FRenderAssetStreamingManager::OnPreGarbageCollect);
 
-	FCoreDelegates::GetOnPakFileMounted2().AddLambda([this](const IPakFile& PakFile)
+	OnPakFileMounted2Handle = FCoreDelegates::GetOnPakFileMounted2().AddLambda([this](const IPakFile& PakFile)
 	{
 		FScopeLock ScopeLock(&MountedStateDirtyFilesCS);
 		bRecacheAllFiles = true;
 		MountedStateDirtyFiles.Empty();
 	});
 
-	FCoreDelegates::NewFileAddedDelegate.AddLambda([this](const FString& FileName)
+	NewFileAddedDelegateHandle = FCoreDelegates::NewFileAddedDelegate.AddLambda([this](const FString& FileName)
 	{
 		MarkMountedStateDirty(MakeIoFilenameHash(FileName));
 	});
@@ -206,6 +206,8 @@ FRenderAssetStreamingManager::~FRenderAssetStreamingManager()
 
 	RenderAssetInstanceAsyncWork->EnsureCompletion();
 	
+	FCoreDelegates::GetOnPakFileMounted2().Remove(OnPakFileMounted2Handle);
+	FCoreDelegates::NewFileAddedDelegate.Remove(NewFileAddedDelegateHandle);
 	FCoreUObjectDelegates::GetPreGarbageCollectDelegate().RemoveAll(this);
 
 	// Clear the stats

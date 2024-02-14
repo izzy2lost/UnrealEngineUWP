@@ -427,6 +427,9 @@ private:
 	typedef TSet<FIoFilenameHash> FIoFilenameHashSet;
 	FIoFilenameHashSet MountedStateDirtyFiles;
 
+	FDelegateHandle OnPakFileMounted2Handle;
+	FDelegateHandle NewFileAddedDelegateHandle;
+
 	ENGINE_API virtual void MarkMountedStateDirty(FIoFilenameHash FilenameHash) override;
 
 	// A critical section use around code that could be called in parallel with NotifyPrimitiveUpdated() or NotifyPrimitiveUpdated_Concurrent().
