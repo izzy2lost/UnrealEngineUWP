@@ -32,6 +32,7 @@ public:
 	// UObject overrides.
 	void BeginDestroy() override;
 #if WITH_EDITOR
+	void PreEditChange(FProperty* Property) override;
 	void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
 	// ~END UObject overrides.
