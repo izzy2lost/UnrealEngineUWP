@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Templates/SharedPointerFwd.h"
+#include "Templates/SharedPointer.h"
 
 class SDMEditor;
 class SWidget;

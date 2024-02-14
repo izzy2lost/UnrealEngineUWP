@@ -3,6 +3,7 @@
 #include "SDMMaterialListExtensionWidget.h"
 #include "AssetToolsModule.h"
 #include "Components/PrimitiveComponent.h"
+#include "DMObjectMaterialProperty.h"
 #include "DMWorldSubsystem.h"
 #include "DetailLayoutBuilder.h"
 #include "Engine/World.h"
