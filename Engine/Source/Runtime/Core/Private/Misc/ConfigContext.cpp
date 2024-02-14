@@ -588,7 +588,7 @@ static FString PerformBasicReplacements(const FString& InString, const TCHAR* Ba
 
 static FString PerformExpansionReplacements(const FConfigLayerExpansion& Expansion, const FString& InString)
 {
-	// if there's replacement to do, the output is just the output
+	// if there's no replacement to do, the output is just the input
 	if (Expansion.Before1 == nullptr)
 	{
 		return InString;
@@ -726,11 +726,6 @@ void FConfigContext::AddStaticLayersToHierarchy(TArray<FString>* GatheredLayerFi
 		}
 	}
 	
-	if (OverrideLayers.Num() > 0)
-	{
-		Layers = OverrideLayers.GetData();
-		NumLayers = OverrideLayers.Num();
-	}
 	// let the context override the layers if needed
 	if (OverrideLayers.Num() > 0)
 	{

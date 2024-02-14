@@ -3094,6 +3094,9 @@ FConfigFile* FConfigCacheIni::Find(const FString& Filename)
 			if (DoesConfigFileExistWrapper(*UnrealFileName))
 			{
 				Result->Read(UnrealFileName);
+				// Files added through Find are treated the same as ReadSingleIntoConfigSystem contexts,
+				// and do not use a hierarchy so they do not use a generatedini and should never be saved.
+				Result->NoSave = true;
 				UE_LOG(LogConfig, Verbose, TEXT("GConfig::Find has loaded file:  %s"), *UnrealFileName);
 			}
 		}
@@ -3211,7 +3214,7 @@ void FConfigCacheIni::Flush(bool bRemoveFromCache, const FString& Filename )
 			{
 				// flush all files
 				for (TPair<FString, FConfigBranch*>& Pair : OtherFiles)
-			{
+				{
 					SaveBranch(*Pair.Value);
 				}
 				for (FConfigBranch& Branch : KnownFiles.Branches)
