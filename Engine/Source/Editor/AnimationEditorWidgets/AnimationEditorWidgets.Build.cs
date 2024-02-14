@@ -17,6 +17,7 @@ public class AnimationEditorWidgets : ModuleRules
 				"InputCore",
 				"ToolWidgets",
 				"AnimationCore",
+				"ApplicationCore",
 			}
 		);
 

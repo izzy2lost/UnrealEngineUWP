@@ -296,6 +296,7 @@ private:
 	mutable TArray<ESchematicGraphVisibility::Type> NodeVisibilityByIndex;
 	mutable TMap<FGuid, ESchematicGraphVisibility::Type> NodeVisibilityByGuid;
 	mutable TOptional<FGuid> DropTarget;
+	mutable TOptional<float> DPIScale;
 };
 
 #endif
