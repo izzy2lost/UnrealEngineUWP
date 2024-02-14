@@ -204,10 +204,14 @@ void FRewindData::ApplyTargets(const int32 Frame, const bool bResetSimulation)
 	for (FDirtyParticleInfo& DirtyParticleInfo : DirtyParticles)
 	{
 		FGeometryParticleHandle* PTParticle = DirtyParticleInfo.GetObjectPtr();
-		FGeometryParticleStateBase& History = DirtyParticleInfo.GetHistory();	
+		FGeometryParticleStateBase& History = DirtyParticleInfo.GetHistory();
 
 		const bool bResimAsFollower = DirtyParticleInfo.bResimAsFollower;
-		RewindHelper(PTParticle, bResimAsFollower, History.TargetPositions, [](auto Particle, const auto& Data) {Particle->SetXR(Data); });
+
+		RewindHelper(PTParticle, bResimAsFollower, History.TargetPositions, [](auto Particle, const auto& Data) 
+		{
+			Particle->SetXR(Data); 
+		});
 		RewindHelper(PTParticle->CastToKinematicParticle(), bResimAsFollower, History.TargetVelocities, [](auto Particle, const auto& Data)
 		{
 			Particle->SetV(Data.V());
@@ -292,10 +296,7 @@ bool FRewindData::RewindToFrame(int32 Frame)
 	FFrameAndPhase RewindFrameAndPhase{ Frame, FFrameAndPhase::PostPushData };
 	FFrameAndPhase CurFrameAndPhase{ CurFrame, FFrameAndPhase::PrePushData };
 
-	if (!bResimAllowRewindToResimulatedFrames)
-	{
-		BlockResimFrame = CurFrame;
-	}
+	BlockResimFrame = bResimAllowRewindToResimulatedFrames ? Frame : CurFrame;
 
 	auto RewindHelper = [RewindFrameAndPhase, CurFrameAndPhase, this](auto Obj, bool bResimAsFollower, auto& Property, const auto& RewindFunc) -> bool
 	{
@@ -809,7 +810,7 @@ void FRewindData::MarkDirtyFromPT(FGeometryParticleHandle& Handle)
 
 	const FFrameAndPhase FrameAndPhase{ CurFrame, FFrameAndPhase::PostPushData };
 
-	if(bRecordingHistory || Latest.ParticlePositionRotation.IsClean(FrameAndPhase))
+	if (bRecordingHistory || Latest.ParticlePositionRotation.IsClean(FrameAndPhase))
 	{
 		if (auto Data = Latest.ParticlePositionRotation.WriteAccessNonDecreasing(FrameAndPhase, PropertiesPool))
 		{
@@ -883,7 +884,7 @@ enum class EResimFrameValidation : int32
 };
 CHAOS_API int32 ResimFrameValidation = (int32)EResimFrameValidation::IslandValidation;
 FAutoConsoleVariableRef CVarResimFrameValidationLeniency(TEXT("p.Resim.ResimFrameValidation"), ResimFrameValidation, TEXT("0 = no leniency, all dirty particles need a valid target. 1 = Island leniency, all particles in resim islands need a valid target. 2 = Full leniency, only the particle triggering the resim need a valid target."));
-CHAOS_API bool bResimIncompleteHistory = true;
+CHAOS_API bool bResimIncompleteHistory = false;
 FAutoConsoleVariableRef CVarResimIncompleteHistory(TEXT("p.Resim.IncompleteHistory"), bResimIncompleteHistory, TEXT("If a valid resim frame can't be found, use the requested resim frame and perform a resimulation with incomplete data."));
 
 int32 FRewindData::FindValidResimFrame(const int32 RequestedFrame)
@@ -987,7 +988,6 @@ int32 FRewindData::FindValidResimFrame(const int32 RequestedFrame)
 					bHasTargetHistory = false;
 					break;
 				}
-				break;
 			}
 		}
 		
@@ -1030,13 +1030,12 @@ int32 FRewindData::FindValidResimFrame(const int32 RequestedFrame)
 		ValidFrame = bResimIncompleteHistory ? RequestedFrame : INDEX_NONE;
 
 #if DEBUG_REWIND_DATA
-		UE_LOG(LogTemp, Warning, TEXT("COMMON | PT | FindValidResimFrame | No valid resim frame found | RequestedFrame: %d | ValidFrame: %d | EarliestFrame: %d | HasTargetHistory: %d | EarliestHistoryFrame: %d | CurrentFrame: %d | FramesSaved: %d, ResimFrameValidation:%d"), RequestedFrame, ValidFrame, EarliestFrame, bHasTargetHistory, GetEarliestFrame_Internal(), CurrentFrame(), FramesSaved, ResimFrameValidation);
+		UE_LOG(LogTemp, Warning, TEXT("COMMON | PT | FindValidResimFrame | No valid resim frame found | RequestedFrame: %d | ValidFrame: %d | EarliestFrame: %d | HasTargetHistory: %d | EarliestHistoryFrame: %d | CurrentFrame: %d | FramesSaved: %d | ResimFrameValidation: %d"), RequestedFrame, ValidFrame, EarliestFrame, bHasTargetHistory, GetEarliestFrame_Internal(), CurrentFrame(), FramesSaved, ResimFrameValidation);
 #endif
 	}
 
 	return ValidFrame;
 }
-
 
 void FRewindData::PushStateAtFrame(FGeometryParticleHandle& Handle, int32 Frame, FFrameAndPhase::EParticleHistoryPhase Phase, 
 	const FVector& Position, const FQuat& Quaternion, const FVector& LinVelocity, const FVector& AngVelocity, const bool bShouldSleep)
@@ -1069,7 +1068,7 @@ void FRewindData::PushStateAtFrame(FGeometryParticleHandle& Handle, int32 Frame,
 	}
 }
 
-void FRewindData::PushPTDirtyData(TPBDRigidParticleHandle<FReal,3>& Handle,const int32 SrcDataIdx)
+void FRewindData::PushPTDirtyData(TPBDRigidParticleHandle<FReal, 3>& Handle, const int32 SrcDataIdx)
 {
 	const bool bRecordingHistory = !IsResimAndInSync(Handle);
 
@@ -1077,7 +1076,7 @@ void FRewindData::PushPTDirtyData(TPBDRigidParticleHandle<FReal,3>& Handle,const
 	FGeometryParticleStateBase& Latest = Info.AddFrame(CurFrame);
 
 	const FFrameAndPhase FrameAndPhase{ CurFrame, FFrameAndPhase::PostCallbacks };
-	
+
 	if (bRecordingHistory || Latest.ParticlePositionRotation.IsClean(FrameAndPhase))
 	{
 		if (FParticlePositionRotation* PreXR = Latest.ParticlePositionRotation.WriteAccessNonDecreasing(FrameAndPhase, PropertiesPool))
@@ -1115,9 +1114,44 @@ FJointState FRewindData::GetPastJointStateAtFrame(const FPBDJointConstraintHandl
 	return GetPastStateAtFrameImp<FJointState>(DirtyJoints, Handle, Frame, Phase);
 }
 
+CHAOS_API int32 bInterpolateTargetGaps = 5;
+FAutoConsoleVariableRef CVarResimInterpolateTargetGaps(TEXT("p.Resim.InterpolateTargetGaps"), bInterpolateTargetGaps, TEXT("How many frame gaps in replicated targets we should fill by interpolating between the previous and the new target received. Value in max number of frames to interpolate, deactivate by setting to 0."));
+
 void FRewindData::SetTargetStateAtFrame(FGeometryParticleHandle& Handle, const int32 Frame, FFrameAndPhase::EParticleHistoryPhase Phase,
 	const FVector& Position, const FQuat& Quaternion, const FVector& LinVelocity, const FVector& AngVelocity, const bool bShouldSleep)
 {
+	if (bInterpolateTargetGaps)
+	{
+		FDirtyParticleInfo& Info = FindOrAddDirtyObj(Handle);
+		FGeometryParticleStateBase& Latest = Info.GetHistory();
+		FFrameAndPhase FrameAndPhase;
+
+		if (Latest.TargetPositions.GetHeadFrameAndPhase(FrameAndPhase))
+		{
+			const int32 FrameDiff = Frame - FrameAndPhase.Frame;
+			if (FrameDiff > 1 && FrameDiff <= bInterpolateTargetGaps)
+			{
+				const FParticlePositionRotation* TargetXR = Latest.TargetPositions.Read(FrameAndPhase, PropertiesPool);
+				const FParticleVelocities* TargetVW = Latest.TargetVelocities.Read(FrameAndPhase, PropertiesPool);
+				const FParticleDynamicMisc* TargetDynamic = Latest.TargetStates.Read(FrameAndPhase, PropertiesPool);
+				if (TargetXR && TargetVW && TargetDynamic)
+				{
+					for (int32 InterpFrame = 1; InterpFrame < FrameDiff; InterpFrame++)
+					{
+						const float Alpha = (1.0f / (float)FrameDiff) * (float)InterpFrame;
+
+						PushStateAtFrame(Handle, FrameAndPhase.Frame + InterpFrame, Phase,
+							FMath::Lerp(TargetXR->GetX(), Position, Alpha),
+							FRotation3::Slerp(TargetXR->GetR(), Quaternion, Alpha),
+							FMath::Lerp(TargetVW->GetV(), LinVelocity, Alpha),
+							FMath::Lerp(TargetVW->GetW(), AngVelocity, Alpha),
+							bShouldSleep && TargetDynamic->ObjectState() == EObjectStateType::Sleeping);
+					}
+				}
+			}
+		}
+	}
+
 	PushStateAtFrame(Handle, Frame, Phase,
 		Position, Quaternion, LinVelocity, AngVelocity, bShouldSleep);
 }

@@ -433,14 +433,26 @@ public:
 		return Idx != INDEX_NONE ? &GetPool(Manager).GetElement(Buffer[Idx].Ref) : nullptr;
 	}
 
+	//Get the FrameAndPhase of the head / last entry
+	const bool GetHeadFrameAndPhase(FFrameAndPhase& OutFrameAndPhase) const
+	{
+		if (NumValid)
+		{
+			const int32 Prev = Next == 0 ? Buffer.Num() - 1 : Next - 1;
+			OutFrameAndPhase = Buffer[Prev].FrameAndPhase;
+			return true;
+		}
+		return false;
+	}
+
 	//Releases data back into the pool
 	void Release(FDirtyPropertiesPool& Manager)
 	{
 		TPropertyPool<T>& Pool = GetPool(Manager);
 		for(FPropertyInterval& Interval : Buffer)
-	{
+		{
 			Pool.RemoveElement(Interval.Ref);
-	}
+		}
 
 		Buffer.Empty();
 		NumValid = 0;
@@ -459,11 +471,11 @@ public:
 	void ClearEntryAndFuture(const FFrameAndPhase FrameAndPhase)
 	{
 		//Move next backwards until FrameAndPhase and anything more future than it is gone
-		while(NumValid)
+		while (NumValid)
 		{
 			const int32 PotentialNext = Next - 1 >= 0 ? Next - 1 : Buffer.Num() - 1;
 
-			if(Buffer[PotentialNext].FrameAndPhase < FrameAndPhase)
+			if (Buffer[PotentialNext].FrameAndPhase < FrameAndPhase)
 			{
 				break;
 			}
@@ -508,14 +520,14 @@ public:
 		T* Result = nullptr;
 
 		int32 FrameIndex = FindIdx(FrameAndPhase);
-		if(FrameIndex != INDEX_NONE)
+		if (FrameIndex != INDEX_NONE)
 		{
 			Result = &GetPool(Manager).GetElement(Buffer[FrameIndex].Ref);
 		}
 		else
 		{
 			FPropertyIdx ElementRef;
-			if(Next >= Buffer.Num())
+			if (Next >= Buffer.Num())
 			{
 				GetPool(Manager).AddElement(ElementRef);
 				Buffer.Add({ ElementRef, FrameAndPhase });
@@ -545,6 +557,13 @@ public:
 				else
 				{
 					Buffer[NextFrame] = Buffer[PrevFrame];
+
+					if (Count == NumValid - 1)
+					{ 
+						// If we shift back and reach the end of the buffer, insert here
+						Buffer[PrevFrame].FrameAndPhase = FrameAndPhase;
+						Buffer[PrevFrame].Ref = ElementRef;
+					}
 				}
 			}
 
@@ -562,24 +581,25 @@ private:
 	{
 		int32 Cur = Next;	//go in reverse order because hopefully we don't rewind too far back
 		int32 Result = INDEX_NONE;
-		for(int32 Count = 0; Count < NumValid; ++Count)
+		for (int32 Count = 0; Count < NumValid; ++Count)
 		{
 			--Cur;
 			if (Cur < 0) { Cur = Buffer.Num() - 1; }
 
 			const FPropertyInterval& Interval = Buffer[Cur];
-			if(Interval.FrameAndPhase < FrameAndPhase)
+			
+			if (Interval.FrameAndPhase < FrameAndPhase)
 			{
 				//no reason to keep searching, frame is bigger than everything before this
 				break;
 			}
 			else
-	{
+			{
 				Result = Cur;
 			}
 		}
 
-		if(bNoEntryIsHead || Result == INDEX_NONE)
+		if (bNoEntryIsHead || Result == INDEX_NONE)
 		{
 			//in this mode we consider the entire interval as one entry
 			return Result;
@@ -653,17 +673,17 @@ private:
 #if VALIDATE_REWIND_DATA
 		int32 Val = Next;
 		FFrameAndPhase PrevVal;
-		for(int32 Count = 0; Count < NumValid; ++Count)
-	{
+		for (int32 Count = 0; Count < NumValid; ++Count)
+		{
 			--Val;
 			if (Val < 0) { Val = Buffer.Num() - 1; }
 			if (Count == 0)
-		{
+			{
 				PrevVal = Buffer[Val].FrameAndPhase;
-		}
-		else
-		{
-				ensure(Buffer[Val].FrameAndPhase < PrevVal);
+			}
+			else
+			{
+				ensureMsgf(Buffer[Val].FrameAndPhase < PrevVal, TEXT("ValidateOrder Idx: %d TailFrame: %d/%d, HeadFrame: %d/%d"), Val, Buffer[Val].FrameAndPhase.Frame, Buffer[Val].FrameAndPhase.Phase, PrevVal.Frame, PrevVal.Phase);
 				PrevVal = Buffer[Val].FrameAndPhase;
 			}
 		}
@@ -1014,9 +1034,9 @@ struct FGeometryParticleStateBase
 	TParticlePropertyBuffer<FParticleMassProps,EChaosProperty::MassProps> MassProps;
 	TParticlePropertyBuffer<FKinematicTarget, EChaosProperty::KinematicTarget> KinematicTarget;
 
-	TParticlePropertyBuffer<FParticlePositionRotation, EChaosProperty::XR> TargetPositions;
-	TParticlePropertyBuffer<FParticleVelocities, EChaosProperty::Velocities> TargetVelocities;
-	TParticlePropertyBuffer<FParticleDynamicMisc, EChaosProperty::DynamicMisc> TargetStates;
+	TParticlePropertyBuffer<FParticlePositionRotation, EChaosProperty::XR, /*bNoEntryIsHead=*/false> TargetPositions;
+	TParticlePropertyBuffer<FParticleVelocities, EChaosProperty::Velocities, /*bNoEntryIsHead=*/false> TargetVelocities;
+	TParticlePropertyBuffer<FParticleDynamicMisc, EChaosProperty::DynamicMisc, /*bNoEntryIsHead=*/false> TargetStates;
 
 	FShapesArrayStateBase ShapesArrayState;
 
