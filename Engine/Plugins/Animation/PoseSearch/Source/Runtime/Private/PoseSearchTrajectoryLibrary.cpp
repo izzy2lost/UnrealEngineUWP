@@ -155,7 +155,8 @@ void UPoseSearchTrajectoryLibrary::InitTrajectorySamples(
 	FPoseSearchQueryTrajectory& Trajectory,
 	const FPoseSearchTrajectoryData& TrajectoryData,
 	const FPoseSearchTrajectoryData::FDerived& TrajectoryDataDerived,
-	const FPoseSearchTrajectoryData::FSampling& TrajectoryDataSampling)
+	const FPoseSearchTrajectoryData::FSampling& TrajectoryDataSampling,
+	float DeltaTime)
 {
 	const int32 NumHistorySamples = TrajectoryDataSampling.NumHistorySamples;
 	const int32 NumPredictionSamples = TrajectoryDataSampling.NumPredictionSamples;
@@ -168,21 +169,21 @@ void UPoseSearchTrajectoryLibrary::InitTrajectorySamples(
 		Trajectory.Samples.SetNumUninitialized(TotalNumSamples);
 
 		// Initialize history samples
-		const float SecondsPerHistorySample = TrajectoryDataSampling.SecondsPerHistorySample;
+		const float SecondsPerHistorySample = FMath::Max(TrajectoryDataSampling.SecondsPerHistorySample, 0.f);
 		for (int32 i = 0; i < NumHistorySamples; ++i)
 		{
 			Trajectory.Samples[i].Position = TrajectoryDataDerived.Position;
 			Trajectory.Samples[i].Facing = TrajectoryDataDerived.Facing;
-			Trajectory.Samples[i].AccumulatedSeconds = SecondsPerHistorySample * (i - NumHistorySamples);
+			Trajectory.Samples[i].AccumulatedSeconds = SecondsPerHistorySample * (i - NumHistorySamples - 1);
 		}
 
 		// Initialize current sample and prediction
-		const float SecondsPerPredictionSample = TrajectoryDataSampling.SecondsPerPredictionSample;
+		const float SecondsPerPredictionSample = FMath::Max(TrajectoryDataSampling.SecondsPerPredictionSample, 0.f);
 		for (int32 i = NumHistorySamples; i < Trajectory.Samples.Num(); ++i)
 		{
 			Trajectory.Samples[i].Position = TrajectoryDataDerived.Position;
 			Trajectory.Samples[i].Facing = TrajectoryDataDerived.Facing;
-			Trajectory.Samples[i].AccumulatedSeconds = SecondsPerPredictionSample * (i - NumHistorySamples);
+			Trajectory.Samples[i].AccumulatedSeconds = SecondsPerPredictionSample * (i - NumHistorySamples) + DeltaTime;
 		}
 	}
 }
@@ -195,45 +196,48 @@ void UPoseSearchTrajectoryLibrary::UpdateHistory_TransformHistory(
 	float DeltaTime)
 {
 	const int32 NumHistorySamples = TrajectoryDataSampling.NumHistorySamples;
-	const float SecondsPerHistorySample = TrajectoryDataSampling.SecondsPerHistorySample;
-
-	check(NumHistorySamples <= Trajectory.Samples.Num());
-
-	// converting all the history samples relative to the previous character position (Trajectory.Samples[NumHistorySamples].Position)
-	for (int32 Index = 0; Index < NumHistorySamples; ++Index)
+	if (NumHistorySamples > 0)
 	{
-		Trajectory.Samples[Index].Position = Trajectory.Samples[NumHistorySamples].Position - Trajectory.Samples[Index].Position;
-	}
+		const float SecondsPerHistorySample = TrajectoryDataSampling.SecondsPerHistorySample;
 
-	FVector CurrentTranslation = TrajectoryDataDerived.Velocity * DeltaTime;
+		check(NumHistorySamples <= Trajectory.Samples.Num());
 
-	// Shift history Samples when it's time to record a new one.
-	if (NumHistorySamples > 0 && FMath::Abs(Trajectory.Samples[NumHistorySamples - 1].AccumulatedSeconds) >= SecondsPerHistorySample)
-	{
-		for (int32 Index = 0; Index < NumHistorySamples - 1; ++Index)
-		{
-			Trajectory.Samples[Index].AccumulatedSeconds = Trajectory.Samples[Index + 1].AccumulatedSeconds;
-			Trajectory.Samples[Index].Position = Trajectory.Samples[Index + 1].Position + CurrentTranslation;
-			Trajectory.Samples[Index].Facing = Trajectory.Samples[Index + 1].Facing;
-		}
-
-		Trajectory.Samples[NumHistorySamples - 1].AccumulatedSeconds = 0.f;
-		Trajectory.Samples[NumHistorySamples - 1].Position = CurrentTranslation;
-		Trajectory.Samples[NumHistorySamples - 1].Facing = TrajectoryDataDerived.Facing;
-	}
-	else
-	{
+		// converting all the history samples relative to the previous character position (Trajectory.Samples[NumHistorySamples].Position)
 		for (int32 Index = 0; Index < NumHistorySamples; ++Index)
 		{
-			Trajectory.Samples[Index].Position += CurrentTranslation;
+			Trajectory.Samples[Index].Position = Trajectory.Samples[NumHistorySamples].Position - Trajectory.Samples[Index].Position;
 		}
-	}
 
-	// converting the history sample positions in world space by applying the current world position.
-	for (int32 Index = 0; Index < NumHistorySamples; ++Index)
-	{
-		Trajectory.Samples[Index].AccumulatedSeconds -= DeltaTime;
-		Trajectory.Samples[Index].Position = TrajectoryDataDerived.Position - Trajectory.Samples[Index].Position;
+		FVector CurrentTranslation = TrajectoryDataDerived.Velocity * DeltaTime;
+
+		// Shift history Samples when it's time to record a new one.
+		if (SecondsPerHistorySample <= 0.f || FMath::Abs(Trajectory.Samples[NumHistorySamples - 1].AccumulatedSeconds) >= SecondsPerHistorySample)
+		{
+			for (int32 Index = 0; Index < NumHistorySamples - 1; ++Index)
+			{
+				Trajectory.Samples[Index].AccumulatedSeconds = Trajectory.Samples[Index + 1].AccumulatedSeconds - DeltaTime;
+				Trajectory.Samples[Index].Position = Trajectory.Samples[Index + 1].Position + CurrentTranslation;
+				Trajectory.Samples[Index].Facing = Trajectory.Samples[Index + 1].Facing;
+			}
+
+			Trajectory.Samples[NumHistorySamples - 1].AccumulatedSeconds = 0.f;
+			Trajectory.Samples[NumHistorySamples - 1].Position = CurrentTranslation;
+			Trajectory.Samples[NumHistorySamples - 1].Facing = Trajectory.Samples[NumHistorySamples].Facing;
+		}
+		else
+		{
+			for (int32 Index = 0; Index < NumHistorySamples; ++Index)
+			{
+				Trajectory.Samples[Index].AccumulatedSeconds -= DeltaTime;
+				Trajectory.Samples[Index].Position += CurrentTranslation;
+			}
+		}
+
+		// converting the history sample positions in world space by applying the current world position.
+		for (int32 Index = 0; Index < NumHistorySamples; ++Index)
+		{
+			Trajectory.Samples[Index].Position = TrajectoryDataDerived.Position - Trajectory.Samples[Index].Position;
+		}
 	}
 }
 
@@ -260,6 +264,7 @@ void UPoseSearchTrajectoryLibrary::UpdatePrediction_SimulateCharacterMovement(
 	const FPoseSearchTrajectoryData& TrajectoryData,
 	const FPoseSearchTrajectoryData::FDerived& TrajectoryDataDerived,
 	const FPoseSearchTrajectoryData::FSampling& TrajectoryDataSampling,
+	float DeltaTime,
 	bool bAlwaysApplyGravity)
 {
 	FVector CurrentPositionWS = TrajectoryDataDerived.Position;
@@ -297,7 +302,7 @@ void UPoseSearchTrajectoryLibrary::UpdatePrediction_SimulateCharacterMovement(
 	const float SecondsPerPredictionSample = TrajectoryDataSampling.SecondsPerPredictionSample;
 	const FQuat ControllerRotationPerStep = FQuat::MakeFromEuler(FVector(0.f, 0.f, TrajectoryDataDerived.ControllerYawRate * SecondsPerPredictionSample));
 
-	float AccumulatedSeconds = 0.f;
+	float AccumulatedSeconds = DeltaTime;
 
 	const int32 LastIndex = Trajectory.Samples.Num() - 1;
 	if (NumHistorySamples <= LastIndex)
@@ -369,9 +374,9 @@ void UPoseSearchTrajectoryLibrary::PoseSearchGenerateTrajectory(
 
 	FPoseSearchTrajectoryData::FDerived TrajectoryDataDerived;
 	InTrajectoryData.UpdateData(InDeltaTime, InAnimInstance, TrajectoryDataDerived, TrajectoryDataState);
-	InitTrajectorySamples(InOutTrajectory, InTrajectoryData, TrajectoryDataDerived, TrajectoryDataSampling);
+	InitTrajectorySamples(InOutTrajectory, InTrajectoryData, TrajectoryDataDerived, TrajectoryDataSampling, InDeltaTime);
 	UpdateHistory_TransformHistory(InOutTrajectory, InTrajectoryData, TrajectoryDataDerived, TrajectoryDataSampling, InDeltaTime);
-	UpdatePrediction_SimulateCharacterMovement(InOutTrajectory, InTrajectoryData, TrajectoryDataDerived, TrajectoryDataSampling, bAlwaysApplyGravity);
+	UpdatePrediction_SimulateCharacterMovement(InOutTrajectory, InTrajectoryData, TrajectoryDataDerived, TrajectoryDataSampling, InDeltaTime, bAlwaysApplyGravity);
 
 	InOutDesiredControllerYawLastUpdate = TrajectoryDataState.DesiredControllerYawLastUpdate;
 

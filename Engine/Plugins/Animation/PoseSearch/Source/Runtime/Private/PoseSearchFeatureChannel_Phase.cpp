@@ -371,9 +371,10 @@ void UPoseSearchFeatureChannel_Phase::DebugDraw(const UE::PoseSearch::FDebugDraw
 	const FVector2D Phase = FFeatureVectorHelper::DecodeVector2D(PoseVector, ChannelDataOffset);
 	const FVector BonePos = DrawParams.ExtractPosition(PoseVector, 0.f, SchemaBoneIdx, SampleRole);
 
-	const FVector TransformXAxisVector = DrawParams.GetRootTransform(SampleRole).TransformVector(FVector::XAxisVector);
-	const FVector TransformYAxisVector = DrawParams.GetRootTransform(SampleRole).TransformVector(FVector::YAxisVector);
-	const FVector TransformZAxisVector = DrawParams.GetRootTransform(SampleRole).TransformVector(FVector::ZAxisVector);
+	const FTransform RootBoneTransform = DrawParams.GetRootBoneTransform(SampleRole);
+	const FVector TransformXAxisVector = RootBoneTransform.TransformVector(FVector::XAxisVector);
+	const FVector TransformYAxisVector = RootBoneTransform.TransformVector(FVector::YAxisVector);
+	const FVector TransformZAxisVector = RootBoneTransform.TransformVector(FVector::ZAxisVector);
 
 	const FVector PhaseVector = (TransformZAxisVector * Phase.X + TransformYAxisVector * Phase.Y) * ScaleFactor;
 	DrawParams.DrawLine(BonePos, BonePos + PhaseVector, Color);
