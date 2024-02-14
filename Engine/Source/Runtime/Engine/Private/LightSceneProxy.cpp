@@ -140,6 +140,7 @@ FLightSceneProxy::FLightSceneProxy(const ULightComponent* InLightComponent)
 		bTransmission = false;
 	}
 	VSMTexelDitherScale = 1.0f;
+	VSMResolutionLodBias = 0.0f;
 }
 
 FLightSceneProxy::~FLightSceneProxy() = default;
