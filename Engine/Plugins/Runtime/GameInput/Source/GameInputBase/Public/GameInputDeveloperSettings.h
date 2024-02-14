@@ -339,6 +339,31 @@ public:
 	*/
 	UPROPERTY(Config, EditAnywhere, Category="Processing Options")
 	bool bProcessMouse = true;
+
+	/**
+	 * If true, then we will process the GameInputKindRacingWheel type.
+	 * 
+	 * Racing Wheels often times need to be used in conjunction with the "Controller" or "Gamepad" processors as well
+	 * in order to handle any "normal" buttons on them. For example, you may have a racing wheel with some ABXY buttons on it
+	 * that you want to process as well.
+	 * 
+	 * Note: This is experimental!
+	 * 
+	 * Default: False
+	 */
+	UPROPERTY(EditAnywhere, Config, Category = "Processing Options", meta=(DisplayName="Process Racing Wheel (Experimental)"))
+	bool bProcessRacingWheel = false;
+
+	/** The default racing wheel deadzone */
+	static constexpr float DefaultRacingWheelDeadzone = (7849.0f / 32768.0f);
+
+	/**
+	* The deadzone that should be applied when processing Racing Wheel analog values.
+	* 
+	* @see FGameInputRacingWheelProcessor::ProcessWheelAnalogState
+	*/
+	UPROPERTY(EditAnywhere, Config, Category = "Device Settings|Racing Wheel", meta=(EditCondition="bProcessRacingWheel"))
+	float RacingWheelDeadzone = DefaultRacingWheelDeadzone;
 };
 
 /**
