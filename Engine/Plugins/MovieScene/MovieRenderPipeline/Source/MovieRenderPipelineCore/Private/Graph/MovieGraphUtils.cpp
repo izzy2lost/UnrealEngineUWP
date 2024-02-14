@@ -6,7 +6,7 @@
 #include "AudioThread.h"
 #include "Engine/Engine.h"
 
-namespace UE::MoviePipeline::RenderGraph
+namespace UE::MovieGraph
 {
 	FString GetUniqueName(const TArray<FString>& InExistingNames, const FString& InBaseName)
 	{

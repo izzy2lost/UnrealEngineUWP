@@ -201,7 +201,7 @@ void UMovieGraphAudioOutputNode::GenerateFinalAudioData(TArray<FFinalAudioData>&
 
 void UMovieGraphAudioOutputNode::StartAudioExport()
 {
-	if (!UE::MoviePipeline::RenderGraph::Audio::IsMoviePipelineAudioOutputSupported(CachedPipeline.Get()))
+	if (!UE::MovieGraph::Audio::IsMoviePipelineAudioOutputSupported(CachedPipeline.Get()))
 	{
 		return;
 	}

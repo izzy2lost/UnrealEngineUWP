@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Graph/MovieGraphDefaultAudioRenderer.h"
 
@@ -20,7 +20,7 @@ void UMovieGraphDefaultAudioRenderer::StartAudioRecording()
 {
 	AudioState.bIsRecordingAudio = true;
 
-	if (Audio::FMixerDevice* MixerDevice = UE::MoviePipeline::RenderGraph::Audio::GetAudioMixerDeviceFromWorldContext(this))
+	if (Audio::FMixerDevice* MixerDevice = UE::MovieGraph::Audio::GetAudioMixerDeviceFromWorldContext(this))
 	{
 		const TWeakPtr<Audio::FMixerSubmix> MasterSubmix = MixerDevice->GetMasterSubmix();
 		if (MasterSubmix.Pin())
@@ -58,7 +58,7 @@ void UMovieGraphDefaultAudioRenderer::StopAudioRecording()
 void UMovieGraphDefaultAudioRenderer::ProcessAudioTick()
 {
 	// Only supported on the new audio mixer (with the non-realtime device, windows only).
-	Audio::FMixerDevice* MixerDevice = UE::MoviePipeline::RenderGraph::Audio::GetAudioMixerDeviceFromWorldContext(this);
+	Audio::FMixerDevice* MixerDevice = UE::MovieGraph::Audio::GetAudioMixerDeviceFromWorldContext(this);
 	if (!MixerDevice)
 	{
 		return;

@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -11,7 +11,7 @@ namespace Audio
 	class FMixerDevice;
 }
 
-namespace UE::MoviePipeline::RenderGraph
+namespace UE::MovieGraph
 {
 	/**
 	 * Generate a unique name given a set of existing names and the desired base name. The base name will
