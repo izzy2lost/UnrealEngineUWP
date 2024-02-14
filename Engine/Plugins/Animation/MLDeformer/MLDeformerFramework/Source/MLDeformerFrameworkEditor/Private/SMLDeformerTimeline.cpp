@@ -1962,6 +1962,12 @@ namespace UE::MLDeformer
 
 	void SMLDeformerTimeline::OnDeletedTrainingInputAnim(int32 Index)
 	{
+		if (TrainingAnimNames.IsEmpty())
+		{
+			SelectedTrainingAnimNameIndex = INDEX_NONE;
+			return;
+		}
+
 		const int32 OldSelectedItemIndex = SelectedTrainingAnimNameIndex;
 		if (TrainingAnimNames[SelectedTrainingAnimNameIndex]->TrainingInputAnimIndex >= Index)
 		{
