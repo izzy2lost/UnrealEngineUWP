@@ -5367,7 +5367,7 @@ bool MakeBinaryConfig(const TCHAR* CmdLine)
 	FString ProjectDir = FPaths::GetPath(ProjectFile);
 
 	FConfigCacheIni Config(EConfigCacheType::Temporary);
-	FConfigContext Context = FConfigContext::ReadIntoConfigSystem(&Config, PlatformName);
+	FConfigContext Context = FConfigContext::ReadIntoConfigSystem(&Config, TEXT(""));
 	Context.ProjectConfigDir = FPaths::Combine(ProjectDir, TEXT("Config/"));
 	Config.InitializeKnownConfigFiles(Context);
 
@@ -5389,6 +5389,9 @@ bool MakeBinaryConfig(const TCHAR* CmdLine)
 	for (const FString& Filename : Config.GetFilenames())
 	{
 		FConfigFile* File = Config.FindConfigFile(Filename);
+
+		delete File->SourceConfigFile;
+		File->SourceConfigFile = nullptr;
 
 		for (const FString& Section : SectionsDenyList)
 		{

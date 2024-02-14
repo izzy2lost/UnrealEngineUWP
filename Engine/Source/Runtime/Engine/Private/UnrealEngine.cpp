@@ -9863,8 +9863,6 @@ bool UEngine::HandleGetIniCommand(const TCHAR* Cmd, FOutputDevice& Ar)
 				TArray<FString> ConfigList;
 				ConfigSystem->GetConfigFilenames(ConfigList);
 
-				// @todo this could probably simplified to just FindBranch passing in the part before the : to both params of FindBranch
-				
 				// first try exact match (this helps with known files that have no .ini extension, etc)
 				FString SearchString = IniPlusSection.Left(IniDelim);
 				const FString* Result = Algo::FindByPredicate(ConfigList, [&SearchString](const FString& Test) { return FPaths::GetCleanFilename(Test) == SearchString; });
@@ -9901,112 +9899,19 @@ bool UEngine::HandleGetIniCommand(const TCHAR* Cmd, FOutputDevice& Ar)
 			IniName = GEngineIni;
 		}
 
-		const TCHAR* ValueTypes[] =
-		{
-			TEXT(" SET"),
-			TEXT(" ADD"),
-			TEXT("UNIQ"),
-			TEXT("REMV"),
-			TEXT(" CLR"),
-			TEXT(" AOS"),
-			TEXT(" POC"),
-			TEXT("COMB"),
-			TEXT("COMB"),
-		};
-		
 		if (!IniName.IsEmpty() && !SectionName.IsEmpty())
 		{
 			if (FParse::Token(Cmd, KeyName, UE_ARRAY_COUNT(KeyName), true))
 			{
-				FConfigBranch* Branch = ConfigSystem->FindBranch(*IniName, *IniName);
-				if (Branch != nullptr)
+				TArray<FString> Values;
+
+				bool bSuccess = !!ConfigSystem->GetArray(*SectionName, KeyName, Values, IniName);
+
+				if (bSuccess)
 				{
-					// reusable logger for various layers in the Branch
-					auto LogLayer = [&Ar, KeyName, &SectionName, ValueTypes](const FConfigFile& File, const FString& Filename, const TCHAR* Desc)
+					for (auto CurValue : Values)
 					{
-						bool bLogged = false;
-						const FConfigSection* Section = File.FindSection(*SectionName);
-						if (Section != nullptr)
-						{
-							TArray<FConfigValue> Values;
-							Section->MultiFind(KeyName, Values, true);
-							for (const FConfigValue& Value : Values)
-							{
-								if (!bLogged)
-								{
-									Ar.Logf(TEXT("%s: %s"), Desc, *Filename);
-									bLogged = true;
-								}
-								Ar.Logf(TEXT("  [%s] %s"), ValueTypes[(int)Value.ValueType], *Value.GetSavedValue());
-							}
-						}
-						return bLogged;
-					};
-					auto LogLayerStream = [&Ar, KeyName, &SectionName, ValueTypes](const FConfigCommandStream& File, const FString& Filename, const TCHAR* Desc)
-					{
-						bool bLogged = false;
-						const FConfigCommandStreamSection* Section = File.Find(*SectionName);
-						if (Section != nullptr)
-						{
-							TArray<FConfigValue> Values;
-							Section->MultiFind(KeyName, Values, true);
-							for (const FConfigValue& Value : Values)
-							{
-								if (!bLogged)
-								{
-									Ar.Logf(TEXT("%s: %s"), Desc, *Filename);
-									bLogged = true;
-								}
-								Ar.Logf(TEXT("  [%s] %s"), ValueTypes[(int)Value.ValueType], *Value.GetSavedValue());
-							}
-						}
-						return bLogged;
-					};
-
-					for (auto Pair : Branch->StaticLayers)
-					{
-						LogLayerStream(Pair.Value, Pair.Key, TEXT("Static File"));
-					}
-					
-					bool bHadDynamicValue = false;
-					for (TDoubleLinkedList<FConfigCommandStream*>::TIterator Node(Branch->DynamicLayers.GetHead()); Node; ++Node)
-					{
-						bHadDynamicValue |= LogLayerStream(**Node, Node->Filename, TEXT("Dynamic File"));
-					}
-
-					// no need to display some layers if there are no dynamic layers at all
-					if (bHadDynamicValue || Branch->StaticLayers.Num() == 0)
-					{
-						LogLayer(Branch->CombinedStaticLayers, "", TEXT("Static Combined Value(s)"));
-					}
-					if (bHadDynamicValue)
-					{
-						LogLayer(Branch->FinalCombinedLayers, "", TEXT("Static+Dynamic Combined Value(s)"));
-					}
-
-					LogLayerStream(Branch->CommandLineOverrides, "", TEXT("CommandLine Overrides:"));
-					LogLayer(Branch->InMemoryFile, "", TEXT("InMemory Layer Value(s)"));
-
-					// now log the actual final result
-					{
-						TArray<FString> FinalValues;
-						ConfigSystem->GetArray(*SectionName, KeyName, FinalValues, IniName);
-						
-						Ar.Logf(TEXT(" "));
-						Ar.Logf(TEXT("Final Value(s) [should match ImMemory above!]"));
-						Ar.Logf(TEXT("[%s]"), *SectionName);
-						
-						if (FinalValues.Num() == 1)
-						{
-							Ar.Logf(TEXT("%s = %s"), KeyName, *FinalValues[0]);
-						}
-						else
-						{
-							for (const FString& CurValue : FinalValues)
-							{
-								Ar.Logf(TEXT("  %s"), *CurValue);
-							}
-						}
+						Ar.Log(*CurValue);
 					}
 				}
 				else

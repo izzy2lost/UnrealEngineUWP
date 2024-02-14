@@ -117,14 +117,47 @@ FName FFile::GetPlatformName()
 		// yet threadsafe to access.
 		PlatformName = NAME_None;
 	}
-	else if (ConfigFile->Branch != nullptr)
-	{
-		PlatformName = ConfigFile->Branch->Platform;
-	}
 	else
 	{
-		// if it didn't have a branch or a platformname in itself, there's no Platform to be found
-		PlatformName = NAME_None;
+		// For the config files not in GConfig, we assume they were loaded from LoadConfigFile, and we match these to a platform
+		// By looking for a platform-specific filepath in their SourceIniHierarchy.
+		// Examples:
+		// (1) ROOT\Engine\Config\Windows\WindowsEngine.ini
+		// (2) ROOT\Engine\Config\Android\DataDrivePlatformInfo.ini
+		// (3) ROOT\Engine\Config\Android\AndroidWindowsCompatability.ini
+		// 
+		// Note that for config files of form #3, we want them to be matched to Android rather than windows;
+		// we assume that an exact match on a directory component is more definitive than a substring match
+		bool bFoundPlatformName = false;
+		bool bFoundPlatformGuess = false;
+		for (auto It : FDataDrivenPlatformInfoRegistry::GetAllPlatformInfos())
+		{
+			const FString CurrentPlatformName = It.Key.ToString();
+			TStringBuilder<128> PlatformDirString;
+			PlatformDirString.Appendf(TEXT("/%s/"), *CurrentPlatformName);
+			for (const TPair<int32, FString>& SourceIni : ConfigFile->SourceIniHierarchy)
+			{
+				// Look for platform in the path, rating a full subdirectory name match (/Android/ or /Windows/)
+				// higher than a partial filename match (AndroidEngine.ini or WindowsEngine.ini)
+				bool bFoundPlatformDir = UE::String::FindFirst(SourceIni.Value, PlatformDirString, ESearchCase::IgnoreCase) != INDEX_NONE;
+				bool bFoundPlatformSubstring = UE::String::FindFirst(SourceIni.Value, CurrentPlatformName, ESearchCase::IgnoreCase) != INDEX_NONE;
+				if (bFoundPlatformDir)
+				{
+					PlatformName = FName(FStringView(CurrentPlatformName));
+					bFoundPlatformName = true;
+					break;
+				}
+				else if (!bFoundPlatformGuess && bFoundPlatformSubstring)
+				{
+					PlatformName = FName(FStringView(CurrentPlatformName));
+					bFoundPlatformGuess = true;
+				}
+			}
+			if (bFoundPlatformName)
+			{
+				break;
+			}
+		}
 	}
 	return PlatformName;
 }

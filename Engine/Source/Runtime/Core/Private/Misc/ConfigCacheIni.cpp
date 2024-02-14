@@ -35,21 +35,10 @@
 namespace
 {
 	const FString CurrentIniVersionStr = TEXT("CurrentIniVersion");
-	const FName VersionSectionName = TEXT("Version");
 	const FString SectionsToSaveStr = TEXT("SectionsToSave");
 
 	TMap<FString, FString> SectionRemap;
 	TMap<FString, TMap<FString, FString>> KeyRemap;
-
-	TMap<TCHAR, FConfigValue::EValueType> CommandLookup = {
-		{ '\0', FConfigValue::EValueType::Set },
-		{ '-', FConfigValue::EValueType::Remove },
-		{ '+', FConfigValue::EValueType::ArrayAddUnique },
-		{ '.', FConfigValue::EValueType::ArrayAdd },
-		{ '!', FConfigValue::EValueType::Clear },
-		{ '@', FConfigValue::EValueType::ArrayOfStructKey },
-		{ '*', FConfigValue::EValueType::POCArrayOfStructKey },
-	};
 }
 
 DEFINE_LOG_CATEGORY(LogConfig);
@@ -321,7 +310,10 @@ bool FConfigSection::operator!=( const FConfigSection& Other ) const
 	return ! (FConfigSection::operator==(Other));
 }
 
-bool FConfigSection::AreSectionsEqualForWriting(const FConfigSection& A, const FConfigSection& B)
+namespace UE::ConfigCacheIni::Private
+{
+
+bool FAccessor::AreSectionsEqualForWriting(const FConfigSection& A, const FConfigSection& B)
 {
 	if (A.Pairs.Num() != B.Pairs.Num())
 	{
@@ -349,6 +341,8 @@ bool FConfigSection::AreSectionsEqualForWriting(const FConfigSection& A, const F
 	}
 	return true;
 }
+
+} // namespace UE::ConfigCacheIni::Private
 
 FArchive& operator<<(FArchive& Ar, FConfigSection& ConfigSection)
 {
@@ -397,11 +391,11 @@ void FConfigSection::HandleAddCommand(FName ValueName, FString&& Value, bool bAp
 	{
 		if (bAppendValueIfNotArrayOfStructsKeyUsed)
 		{
-			Add(ValueName, FConfigValue(this, ValueName, MoveTemp(Value), FConfigValue::EValueType::ArrayCombined));
+			Add(ValueName, FConfigValue(this, ValueName, MoveTemp(Value)));
 		}
 		else
 		{
-			AddUnique(ValueName, FConfigValue(this, ValueName, MoveTemp(Value), FConfigValue::EValueType::ArrayCombined));
+			AddUnique(ValueName, FConfigValue(this, ValueName, MoveTemp(Value)));
 		}
 	}
 }
@@ -430,7 +424,7 @@ bool FConfigSection::HandleArrayOfKeyedStructsCommand(FName Key, FString&& Value
 				{
 					// now look for the matching ArrayOfStruct Key as the incoming KeyValue
 					{
-						const FString& ItValue = It.Value().GetValueForWriting(); // Don't report to AccessTracking
+						const FString& ItValue = UE::ConfigCacheIni::Private::FAccessor::GetValueForWriting(It.Value()); // Don't report to AccessTracking
 						ExtractPropertyValue(ItValue, StructKeyMatch, ExistingStructValueKey);
 					}
 					if (ExistingStructValueKey == StructKeyValueToMatch)
@@ -451,8 +445,7 @@ bool FConfigSection::HandleArrayOfKeyedStructsCommand(FName Key, FString&& Value
 }
 
 // Look through the file's per object config ArrayOfStruct keys and see if this section matches
-template<typename SectionType>
-void FixupArrayOfStructKeysForSection(SectionType* Section, const FString& SectionName, const TMap<FString, TMap<FName, FString> >& PerObjectConfigKeys)
+static void FixupArrayOfStructKeysForSection(FConfigSection* Section, const FString& SectionName, const TMap<FString, TMap<FName, FString> >& PerObjectConfigKeys)
 {
 	for (TMap<FString, TMap<FName, FString> >::TConstIterator It(PerObjectConfigKeys); It; ++It)
 	{
@@ -601,238 +594,16 @@ static bool SaveConfigFileWrapper(const TCHAR* IniFile, const FString& Contents)
 	return SavedCount > 0 || bLocalWriteSucceeded;
 }
 
-static FConfigCommandStream CalculateDiff(const FConfigFile& First, const FConfigFile& Second, const FString& SingleSection=FString(), const FString& SingleProperty=FString())
-{
-	FConfigCommandStream Diff;
-
-	TArray<FString> SecondSectionKeys;
-	Second.GetKeys(SecondSectionKeys);
-
-	// loop over sections in the first file - since we are diffing to entries in a hierarchy, eveyrthing in first is in second (but not vice versa, as second can have new sections)
-	for (const TPair<FString, FConfigSection>& FirstSectionIt : First)
-	{
-		// remove from SecondSectionKeys so that it only has what's only in Second
-		SecondSectionKeys.Remove(FirstSectionIt.Key);
-
-		// find the matching sections (expected they will both have)
-		const FConfigSection* FirstSection = &FirstSectionIt.Value;
-		const FConfigSection* SecondSection = Second.FindSection(FirstSectionIt.Key);
-		FConfigCommandStreamSection* NewSection = nullptr;
-
-		TSet<FName> FirstKeys;
-		TSet<FName> SecondKeys;
-		FirstSection->GetKeys(FirstKeys);
-		if (SecondSection)
-		{
-			SecondSection->GetKeys(SecondKeys);
-		}
-
-		for (FName FirstKey : FirstKeys)
-		{
-			TArray<FConfigValue> FirstValues;
-			TArray<FConfigValue> SecondValues;
-
-			// remove the key from second, since we will already have processed it if it's in both
-			SecondKeys.Remove(FirstKey);
-
-			FirstSection->MultiFind(FirstKey, FirstValues, true);
-			if (SecondSection != nullptr)
-			{
-				SecondSection->MultiFind(FirstKey, SecondValues, true);
-			}
-			if (SecondValues.Num() == 0)
-			{
-				if (NewSection == nullptr)
-				{
-					NewSection = Diff.FindOrAddSectionInternal(FirstSectionIt.Key);
-				}
-
-				// @todo: do we clear, or remove every value with -? this is hard to decide
-				NewSection->Emplace(FirstKey, FConfigValue(TEXT("__ClearArray__"), FConfigValue::EValueType::Clear));
-			}
-
-			for (const FConfigValue& FirstValue : FirstValues)
-			{
-				FString FirstExpandedValue = FirstValue.GetSavedValueForWriting();
-
-				bool bIsArray = FirstValue.ValueType == FConfigValue::EValueType::ArrayCombined || FirstValues.Num() > 1 || SecondValues.Num() > 1;
-
-				bool bFound = false;
-				for (auto It = SecondValues.CreateIterator(); It; ++It)
-				{
-					// if the second array doesn't have the value, then we need to remove it in the diff
-					// if it found, remove it from the second array, so then the second is only what was added
-					if (FirstExpandedValue == It->GetSavedValueForWriting())
-					{
-						It.RemoveCurrent();
-						bFound = true;
-						break;
-					}
-				}
-
-				if (!bFound)
-				{
-					if (NewSection == nullptr)
-					{
-						NewSection = Diff.FindOrAddSectionInternal(FirstSectionIt.Key);
-					}
-
-					if (bIsArray)
-					{
-						// add this remove value to the diff
-						NewSection->Emplace(FirstKey, FConfigValue(FirstValue.GetSavedValueForWriting(), FConfigValue::EValueType::Remove));
-					}
-					else
-					{
-						// if the second one set the value, and it wasn't found above, that means it's different, so use ::Set
-						if (SecondValues.Num() > 0)
-						{
-							NewSection->Emplace(FirstKey, FConfigValue(SecondValues[0].GetSavedValueForWriting(), FConfigValue::EValueType::Set));
-							SecondValues.Empty();
-						}
-						// if the second didn't set it, then we want to remove the key, so we go back to defaults
-						else
-						{
-							NewSection->Emplace(FirstKey, FConfigValue(FirstExpandedValue, FConfigValue::EValueType::Clear));
-						}
-					}
-				}
-			}
-
-			// the values that are left all need to be added to the diff
-			for (const FConfigValue& SecondValue : SecondValues)
-			{
-				if (NewSection == nullptr)
-				{
-					NewSection = Diff.FindOrAddSectionInternal(FirstSectionIt.Key);
-				}
-
-				// add this value to the diff as a set (if one value) or arrayadd if there are multiple
-				FConfigValue::EValueType Type = (FirstValues.Num() == 0 && SecondValues.Num() == 1 && SecondValues[0].ValueType != FConfigValue::EValueType::ArrayCombined) ?
-					FConfigValue::EValueType::Set : FConfigValue::EValueType::ArrayAddUnique;
-				NewSection->Emplace(FirstKey, FConfigValue(SecondValue.GetSavedValueForWriting(), Type));
-			}
-		}
-
-		// now go over SecondKeys which will only have keys not in first section
-		if (SecondSection != nullptr)
-		{
-			for (FName SecondKey : SecondKeys)
-			{
-				if (NewSection == nullptr)
-				{
-					NewSection = Diff.FindOrAddSectionInternal(FirstSectionIt.Key);
-				}
-
-				TArray<FConfigValue> SecondValues;
-				SecondSection->MultiFind(SecondKey, SecondValues, true);
-
-				FConfigValue::EValueType Type = (SecondValues.Num() == 1) ? FConfigValue::EValueType::Set : FConfigValue::EValueType::ArrayAddUnique;
-				for (const FConfigValue& SecondValue : SecondValues)
-				{
-					NewSection->Emplace(SecondKey, FConfigValue(SecondValue.GetSavedValueForWriting(), Type));
-				}
-			}
-		}
-	}
-	
-	// finally sections that are only in second need to be copied added in to the diff
-	for (const FString& SecondSectionKey : SecondSectionKeys)
-	{
-		const FConfigSection& SecondSection = *Second.FindSection(SecondSectionKey);
-		FConfigCommandStreamSection* NewSection = Diff.FindOrAddSectionInternal(SecondSectionKey);
-		
-		TSet<FName> SecondKeys;
-		SecondSection.GetKeys(SecondKeys);
-
-		for (FName SecondKey : SecondKeys)
-		{
-			TArray<FConfigValue> SecondValues;
-			SecondSection.MultiFind(SecondKey, SecondValues, true);
-
-			FConfigValue::EValueType Type = (SecondValues.Num() == 1) ? FConfigValue::EValueType::Set : FConfigValue::EValueType::ArrayAddUnique;
-			for (const FConfigValue& SecondValue : SecondValues)
-			{
-				NewSection->Emplace(SecondKey, FConfigValue(SecondValue.GetSavedValueForWriting(), Type));
-
-			}
-		}
-	}
-	
-	return Diff;
-}
-
-template<typename FileType>
-static bool BuildOutputString(FString& String, const FileType& FileToWrite)
-{
-	for (auto& Section : FileToWrite)
-	{
-		String.Append(TEXT("["));
-		String.Append(Section.Key);
-		String.Append(TEXT("]" LINE_TERMINATOR_ANSI));
-		
-		for (const TPair<FName, FConfigValue>& Value : Section.Value)
-		{
-			if (Value.Value.ValueType != FConfigValue::EValueType::Set)
-			{
-				const TCHAR* Cmd = CommandLookup.FindKey(Value.Value.ValueType);
-				String.AppendChar(*Cmd);
-			}
-			FConfigFile::AppendExportedPropertyLine(String, Value.Key.ToString(), Value.Value.GetSavedValueForWriting());
-		}
-		String.Append(LINE_TERMINATOR);
-	}
-	
-	return true;
-}
-
-static bool BuildDiffOutputString(FString& String, const FConfigFile& FileToWrite, const FConfigFile& FileToDiffAgainst)
-{
-	FConfigCommandStream Diff = CalculateDiff(FileToDiffAgainst, FileToWrite);
-	return BuildOutputString(String, Diff);
-}
-
-static bool AreWritesAllowedGlobally()
-{
-	bool bNoWrite = FParse::Param(FCommandLine::Get(), TEXT("nowrite")) ||
-		// It can be useful to save configs with multiprocess if they are given INI overrides
-		(FParse::Param(FCommandLine::Get(), TEXT("Multiprocess")) && !FParse::Param(FCommandLine::Get(), TEXT("MultiprocessSaveConfig")));
-		 
-	return !bNoWrite;
-}
-
-static bool SaveBranch(FConfigBranch& Branch)
-{
-	FString Output;
-	Branch.InMemoryFile.WriteToString(Output, Branch.IniPath);
-
-	if (!Branch.InMemoryFile.Dirty || Branch.InMemoryFile.NoSave || !AreWritesAllowedGlobally())
-	{
-		return true;
-	}
-
-	if (Output.Len() > 0)
-	{
-		return SaveConfigFileWrapper(*Branch.IniPath, Output);
-	}
-
-	// delete any old crusty saved ini files from before we disabled most sections' from writing
-	IFileManager::Get().Delete(*Branch.IniPath);
-
-	// return true that we saved, even if we didn't need to write out anything
-	return true;
-}
-
-
 /*-----------------------------------------------------------------------------
 	FConfigFile
 -----------------------------------------------------------------------------*/
 FConfigFile::FConfigFile()
-    : Dirty( false )
-    , NoSave( false )
-    , bHasPlatformName( false )
-    , bCanSaveAllSections( true )
-    , Name( NAME_None )
+: Dirty( false )
+, NoSave( false )
+, bHasPlatformName( false )
+, bCanSaveAllSections( true )
+, Name( NAME_None )
+, SourceConfigFile(nullptr)
 {
 	FCoreDelegates::TSOnFConfigCreated().Broadcast(this);
 }
@@ -846,19 +617,14 @@ FConfigFile::~FConfigFile()
 		FCoreDelegates::TSOnFConfigDeleted().Broadcast(this);
 	}
 
+	delete SourceConfigFile;
+	SourceConfigFile = nullptr;
 #if UE_WITH_CONFIG_TRACKING 
 	if (FileAccess)
 	{
 		FileAccess->ConfigFile = nullptr;
 	}
 #endif
-
-	Cleanup();
-}
-
-void FConfigFile::Cleanup()
-{
-	Empty();
 }
 
 #if UE_WITH_CONFIG_TRACKING 
@@ -938,12 +704,41 @@ const FConfigSection* FConfigFile::FindOrAddConfigSection(const FString& Section
 
 bool FConfigFile::Combine(const FString& Filename)
 {
-	return FillFileFromDisk(Filename, true);
+	FString FinalFileName = Filename;
+	bool bFoundOverride = OverrideFileFromCommandline(FinalFileName);
+
+	FString Text;
+	if (LoadConfigFileWrapper(*FinalFileName, Text, bFoundOverride))
+	{
+		if (Text.StartsWith("#!"))
+		{
+			// this will import/"execute" another .ini file before this one - useful for subclassing platforms, like tvOS extending iOS
+			// the text following the #! is a relative path to another .ini file
+			FString TheLine;
+			int32 LinesConsumed = 0;
+			// skip over the #!
+			const TCHAR* Ptr = *Text + 2;
+			FParse::LineExtended(&Ptr, TheLine, LinesConsumed, false);
+			TheLine = TheLine.TrimEnd();
+		
+			// now import the relative path'd file (TVOS would have #!../IOS) recursively
+			Combine(FPaths::GetPath(Filename) / TheLine);
+		}
+
+		CombineFromBuffer(Text, Filename);
+		return true;
+	}
+	else
+	{
+		checkf(!bFoundOverride, TEXT("Failed to Load config override %s"), *FinalFileName);
+	}
+
+	return false;
 }
 
 // Assumes GetTypeHash(AltKeyType) matches GetTypeHash(KeyType)
 template<class KeyType, class ValueType, class AltKeyType>
-ValueType& FindOrAddHeterogeneous(TMap<KeyType, ValueType>& Map, const AltKeyType& Key)
+ValueType& FindOrAddHeterogeneous(TMap<KeyType, ValueType>& Map, const AltKeyType& Key) 
 {
 	checkSlow(GetTypeHash(KeyType(Key)) == GetTypeHash(Key));
 	ValueType* Existing = Map.FindByHash(GetTypeHash(Key), Key);
@@ -1040,161 +835,7 @@ static void WarnAboutKeyRemap(const FString& OldValue, const FString& NewValue, 
 
 }
 
-
-#if ALLOW_INI_OVERRIDE_FROM_COMMANDLINE
-
-/** A collection of identifiers which will help us parse the commandline opions. */
-namespace CommandlineOverrideSpecifiers
-{
-	// -ini:IniName:[Section1]:Key1=Value1,[Section2]:Key2=Value2
-	const auto& IniFileOverrideIdentifier = TEXT("-iniFile=");
-	const auto& IniSwitchIdentifier       = TEXT("-ini:");
-	const auto& IniNameEndIdentifier      = TEXT(":[");
-	const auto& SectionStartIdentifier    = TEXT("[");
-	const auto& PropertyStartIdentifier   = TEXT("]:");
-	const TCHAR PropertySeperator         = TEXT(',');
-	const auto& CustomConfigIdentifier    = TEXT("-CustomConfig=");
-}
-
-#endif
-
-static bool OverrideFileFromCommandline(FString& InOutFilename)
-{
-#if ALLOW_INI_OVERRIDE_FROM_COMMANDLINE
-	// look for this filename on the commandline in the format:
-	//		-iniFile=<PatFile1>,<PatFile2>,<PatFile3>
-	// for example:
-	//		-iniFile=D:\UE\QAGame\Config\Windows\WindowsDeviceProfiles.ini
-	//
-	//		Description:
-	//          The QAGame\Config\Windows\WindowsDeviceProfiles.ini contained in the pak file will
-	//          be replace with D:\UE\QAGame\Config\Windows\WindowsDeviceProfiles.ini.
-
-	//			Note: You will need the same base file path for this to work. If you
-	//                want to override Engine/Config/BaseEngine.ini, you will need to place the override file
-	//                under the same folder structure.
-	//          Ex1: D:\<some_folder>\Engine\Config\BaseEngine.ini
-	//			Ex2: D:\<some_folder>\QAGame\Config\Windows\WindowsEngine.ini
-	FString StagedFilePaths;
-	if(FParse::Value(FCommandLine::Get(), CommandlineOverrideSpecifiers::IniFileOverrideIdentifier, StagedFilePaths, false))
-	{
-		FString RelativePath = InOutFilename;
-		if (FPaths::IsUnderDirectory(RelativePath, FPaths::RootDir()))
-		{
-			FPaths::MakePathRelativeTo(RelativePath, *FPaths::RootDir());
-
-			TArray<FString> Files;
-			StagedFilePaths.ParseIntoArray(Files, TEXT(","), true);
-			for (int32 Index = 0; Index < Files.Num(); Index++)
-			{
-				FString NormalizedOverride = Files[Index];
-				FPaths::NormalizeFilename(NormalizedOverride);
-				if (NormalizedOverride.EndsWith(RelativePath))
-				{
-					InOutFilename = Files[Index];
-					UE_LOG(LogConfig, Warning, TEXT("Loading override ini file: %s "), *Files[Index]);
-					return true;
-				}
-			}
-		}
-	}
-#endif
-
-	return false;
-}
-
-bool FConfigFile::ApplyFile(const FConfigCommandStream* File)
-{
-	// walk over the section in the file to apply
-	for (const TPair<FString, FConfigCommandStreamSection>& SourceSectionIt : *File)
-	{
-		TSet<FName> RemovedKeys;
-
-		const FConfigCommandStreamSection* SourceSection = &SourceSectionIt.Value;
-		FConfigSection* TargetSection = FindOrAddSectionInternal(SourceSectionIt.Key);
-
-		// make sure the CurrentSection has any of the special ArrayOfStructKeys added
-		FixupArrayOfStructKeysForSection(TargetSection, SourceSectionIt.Key, PerObjectConfigArrayOfStructKeys);
-
-		for (const TPair<FName, FConfigValue>& SourceValue : *SourceSection)
-		{
-			FName Key = SourceValue.Key;
-			FString Value = SourceValue.Value.GetSavedValue();
-			FConfigValue::EValueType ValueType = SourceValue.Value.ValueType;
-
-			// Saved config files would be read in, then entries not in the Saved file that were in the Static layers
-			// would be merged into the final COnfigFile - this emulates that by removing the entries we are replacing
-			// before reading any in (we can't instantly tell if there will be 1 or N instances of the key)
-			if (File->bIsSavedConfigFile && !RemovedKeys.Contains(Key))
-			{
-				TargetSection->Remove(Key);
-				RemovedKeys.Add(Key);
-			}
-			
-			//// the value will be Combined once applied to the file
-			//Value.ValueType = FConfigValue::EValueType::Combined;
-
-			ProcessCommand(TargetSection, SourceSectionIt.Key, ValueType, Key, MoveTemp(Value));
-		}
-	}
-
-	return true;
-}
-
-void FConfigFile::ProcessCommand(FConfigSection* Section, FStringView SectionName, FConfigValue::EValueType Command, FName Key, FString&& Value)
-{
-	switch (Command)
-	{
-		case FConfigValue::EValueType::Set:
-			// First see if this can be processed as an array of keyed structs command
-			if (!Section->HandleArrayOfKeyedStructsCommand(Key, MoveTemp(Value)))
-			{
-				// Add if not present and replace if present.
-				FConfigValue* ConfigValue = Section->Find(Key);
-				if (!ConfigValue)
-				{
-					Section->Add(Key, MoveTemp(Value));
-				}
-				else
-				{
-					*ConfigValue = FConfigValue(MoveTemp(Value));
-				}
-			}
-			break;
-		case FConfigValue::EValueType::ArrayAddUnique:
-			// Add if not already present.
-			Section->HandleAddCommand(Key, MoveTemp(Value), false);
-			break;
-		case FConfigValue::EValueType::ArrayAdd:
-			// Add even if already present.
-			Section->HandleAddCommand(Key, MoveTemp(Value), true);
-			break;
-		case FConfigValue::EValueType::Remove:
-			// Remove if present.
-			Section->RemoveSingle(Key, Value);
-			Section->CompactStable();
-			break;
-		case FConfigValue::EValueType::Clear:
-			// Remove if present.
-			Section->Remove(Key);
-			break;
-		case FConfigValue::EValueType::ArrayOfStructKey:
-			// track a key to show uniqueness for arrays of structs
-			Section->ArrayOfStructKeys.Add(Key, MoveTemp(Value));
-			break;
-		case FConfigValue::EValueType::POCArrayOfStructKey:
-		{
-			// track a key to show uniqueness for arrays of structs
-			TMap<FName, FString>& POCKeys = FindOrAddHeterogeneous(PerObjectConfigArrayOfStructKeys, SectionName);
-			POCKeys.Add(Key, MoveTemp(Value));
-		}
-		break;
-		default: unimplemented();
-	}
-}
-
-template<typename FileType>
-void FillFileFromBuffer(FileType* File, FStringView Buffer, bool bHandleSymbolCommands, const FString& FileHint)
+void FConfigFile::CombineFromBuffer(const FString& Buffer, const FString& FileHint)
 {
 	static const FName ConfigFileClassName = TEXT("ConfigFile");
 	const FName FileName = FName(*FileHint);
@@ -1202,28 +843,16 @@ void FillFileFromBuffer(FileType* File, FStringView Buffer, bool bHandleSymbolCo
 	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(ConfigFileClassName, ELLMTagSet::AssetClasses);
 	UE_TRACE_METADATA_SCOPE_ASSET_FNAME(FileName, ConfigFileClassName, FileName);
 
-#if UE_WITH_CONFIG_TRACKING
-	if (File->LoadType == UE::ConfigAccessTracking::ELoadType::Uninitialized)
-	{
-		File->LoadType = UE::ConfigAccessTracking::ELoadType::LocalSingleIniFile;
-	}
-	if (File->Name.IsNone())
-	{
-		File->Name = FileName;
-	}
-#endif
-
-	const TCHAR* Ptr = Buffer.GetData();
-	
-	using SectionType = typename FileType::SectionType;
-	SectionType* CurrentSection = nullptr;
-	
+	const TCHAR* Ptr = *Buffer;
+	FConfigSection* CurrentSection = nullptr;
 	FString CurrentSectionName;
 	TMap<FString, FString>* CurrentKeyRemap = nullptr;
 	TStringBuilder<128> TheLine;
 	FString ProcessedValue;
 	bool Done = false;
-	while( !Done && Ptr - Buffer.GetData() < Buffer.Len() )
+	
+	
+	while( !Done )
 	{
 		// Advance past new line characters
 		while( *Ptr=='\r' || *Ptr=='\n' )
@@ -1265,15 +894,15 @@ void FillFileFromBuffer(FileType* File, FStringView Buffer, bool bHandleSymbolCo
 				
 				CurrentSectionName = *FoundRemap;
 			}
-			CurrentSection = File->FindOrAddSectionInternal(CurrentSectionName);
+			CurrentSection = FindOrAddSectionInternal(CurrentSectionName);
 
 			// look to see if there is a set of key remaps for this section
 			CurrentKeyRemap = KeyRemap.Find(CurrentSectionName);
 
 			// make sure the CurrentSection has any of the special ArrayOfStructKeys added
-			if (File->PerObjectConfigArrayOfStructKeys.Num() > 0)
+			if (PerObjectConfigArrayOfStructKeys.Num() > 0)
 			{
-				FixupArrayOfStructKeysForSection(CurrentSection, CurrentSectionName, File->PerObjectConfigArrayOfStructKeys);
+				FixupArrayOfStructKeysForSection(CurrentSection, CurrentSectionName, PerObjectConfigArrayOfStructKeys);
 			}
 		}
 
@@ -1296,7 +925,7 @@ void FillFileFromBuffer(FileType* File, FStringView Buffer, bool bHandleSymbolCo
 
 				// strip leading whitespace from the property name
 				while ( *Start && FChar::IsWhitespace(*Start) )
-				{
+				{						
 					Start++;
 				}
 
@@ -1307,34 +936,14 @@ void FillFileFromBuffer(FileType* File, FStringView Buffer, bool bHandleSymbolCo
 				}
 
 				// determine how this line will be merged
-				FConfigValue::EValueType Command;
-
-				if (!bHandleSymbolCommands)
+				TCHAR Cmd = Start[0];
+				if ( Cmd=='+' || Cmd=='-' || Cmd=='.' || Cmd == '!' || Cmd == '@' || Cmd == '*' )
 				{
-					// when we don't want commands, the default action is to add new entries (this is for standalone ini files that have arrays,
-					// without any + cmds) - there's no difference between a single value and an array of 1 (in terms of the Config system)
-					Command = FConfigValue::EValueType::ArrayAddUnique;
+					Start++;
 				}
 				else
 				{
-					TCHAR Cmd = Start[0];
-					if (Cmd == '+' || Cmd == '-' || Cmd == '.' || Cmd == '!' || Cmd == '@' || Cmd == '*')
-					{
-						Start++;
-					}
-					else
-					{
-						Cmd = TEXT('\0');
-					}
-					
-					// turn into a command
-					FConfigValue::EValueType* Lookup = CommandLookup.Find(Cmd);
-					if (Lookup == nullptr)
-					{
-						UE_LOG(LogConfig, Log, TEXT("Found unknown ini command %c in an ini"), Cmd);
-						continue;
-					}
-					Command = *Lookup;
+					Cmd = TEXT(' ');
 				}
 
 				// Strip trailing spaces from the property name.
@@ -1344,7 +953,7 @@ void FillFileFromBuffer(FileType* File, FStringView Buffer, bool bHandleSymbolCo
 				}
 
 				const TCHAR* KeyName = Start;
-				SectionType* OriginalCurrentSection = CurrentSection;
+				FConfigSection* OriginalCurrentSection = CurrentSection;
 				// look up for key remap
 				if (CurrentKeyRemap != nullptr)
 				{
@@ -1361,7 +970,7 @@ void FillFileFromBuffer(FileType* File, FStringView Buffer, bool bHandleSymbolCo
 						if (FoundRemap->FindChar(':', ColonLoc))
 						{
 							// find or create a section for name before the :
-							CurrentSection = File->FindOrAddSectionInternal(*FoundRemap->Mid(0, ColonLoc));
+							CurrentSection = FindOrAddSectionInternal(*FoundRemap->Mid(0, ColonLoc));
 							// the name can still point right into the FString, but right after the :
 							KeyName = **FoundRemap + ColonLoc + 1;
 						}
@@ -1393,73 +1002,240 @@ void FillFileFromBuffer(FileType* File, FStringView Buffer, bool bHandleSymbolCo
 				}
 
 				const FName Key(KeyName);
-				File->ProcessCommand(CurrentSection, FStringView(CurrentSectionName), Command, Key, MoveTemp(ProcessedValue));
+				if (Cmd == '+')
+				{
+					// Add if not already present.
+					CurrentSection->HandleAddCommand(Key, MoveTemp(ProcessedValue), false);
+				}
+				else if( Cmd=='-' )
+				{
+					// Remove if present.
+					CurrentSection->RemoveSingle(Key, FConfigValue(CurrentSection, Key, ProcessedValue));
+					CurrentSection->CompactStable();
+				}
+				else if ( Cmd=='.' )
+				{
+					CurrentSection->HandleAddCommand(Key, MoveTemp(ProcessedValue), true);
+				}
+				else if( Cmd=='!' )
+				{
+					CurrentSection->Remove(Key);
+				}
+				else if (Cmd == '@')
+				{
+					// track a key to show uniqueness for arrays of structs
+					CurrentSection->ArrayOfStructKeys.Add(Key, MoveTemp(ProcessedValue));
+				}
+				else if (Cmd == '*')
+				{
+					// track a key to show uniqueness for arrays of structs
+					TMap<FName, FString>& POCKeys = FindOrAddHeterogeneous(PerObjectConfigArrayOfStructKeys, CurrentSectionName);
+					POCKeys.Add(Key, MoveTemp(ProcessedValue));
+				}
+				else
+				{
+					// First see if this can be processed as an array of keyed structs command
+					if (!CurrentSection->HandleArrayOfKeyedStructsCommand(Key, MoveTemp(ProcessedValue)))
+					{
+						// Add if not present and replace if present.
+						FConfigValue* ConfigValue = CurrentSection->Find(Key);
+						if (!ConfigValue)
+						{
+							CurrentSection->Add(Key,
+								FConfigValue(CurrentSection, Key, MoveTemp(ProcessedValue)));
+						}
+						else
+						{
+							*ConfigValue = MoveTemp(ProcessedValue);
+						}
+					}
+				}
 				
 				// restore the current section, in case it was overridden
 				CurrentSection = OriginalCurrentSection;
 
 				// Mark as dirty so "Write" will actually save the changes.
-				File->Dirty = true;
+				Dirty = true;
 			}
 		}
 	}
 
 	// Avoid memory wasted in array slack.
-	File->Shrink();
-	for (auto Pair : AsConst(*File))
+	Shrink();
+	for( TMap<FString,FConfigSection>::TIterator It(*this); It; ++It )
 	{
-		Pair.Value.Shrink();
+		It.Value().Shrink();
 	}
-
-}
-
-template<typename FileType>
-bool FillFileFromDisk(FileType* File, const FString& Filename, bool bHandleSymbolCommands)
-{
-	FString Text;
-
-	FString FinalFileName = Filename;
-	bool bFoundOverride = OverrideFileFromCommandline(FinalFileName);
-
-	if (LoadConfigFileWrapper(*FinalFileName, Text, bFoundOverride))
-	{
-		FillFileFromBuffer(File, Text, bHandleSymbolCommands, Filename);
-		return true;
-	}
-
-	checkf(!bFoundOverride, TEXT("Failed to Load config override %s"), *FinalFileName);
-	return false;
-}
-
-
-void FConfigFile::FillFileFromBuffer(FStringView Buffer, bool bHandleSymbolCommands, const FString& FileHint)
-{
-	::FillFileFromBuffer(this, Buffer, bHandleSymbolCommands, FileHint);
-}
-
-bool FConfigFile::FillFileFromDisk(const FString& Filename, bool bHandleSymbolCommands)
-{
-	return ::FillFileFromDisk(this, Filename, bHandleSymbolCommands);
-}
-
-void FConfigFile::CombineFromBuffer(const FString& Buffer, const FString& FileHint)
-{
-	::FillFileFromBuffer(this, Buffer, true, FileHint);
 }
 
 /**
  * Process the contents of an .ini file that has been read into an FString
- *
+ * 
  * @param Contents Contents of the .ini file
  */
 void FConfigFile::ProcessInputFileContents(FStringView Contents, const FString& FileHint)
 {
-	::FillFileFromBuffer(this, Contents, false, FileHint);
+	static const FName ConfigFileClassName = TEXT("ConfigFile");
+	const FName FileName = FName(*FileHint);
+	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(FileName, ELLMTagSet::Assets);
+	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(ConfigFileClassName, ELLMTagSet::AssetClasses);
+	UE_TRACE_METADATA_SCOPE_ASSET_FNAME(FileName, ConfigFileClassName, FileName);
+#if UE_WITH_CONFIG_TRACKING
+	if (LoadType == UE::ConfigAccessTracking::ELoadType::Uninitialized)
+	{
+		LoadType = UE::ConfigAccessTracking::ELoadType::LocalSingleIniFile;
+	}
+	if (Name.IsNone())
+	{
+		Name = FileName;
+	}
+#endif
+
+	const TCHAR* Ptr = Contents.Len() > 0 ? Contents.GetData() : nullptr;
+	FConfigSection* CurrentSection = nullptr;
+	FString CurrentSectionName;
+	TMap<FString, FString>* CurrentKeyRemap = nullptr;
+	TStringBuilder<128> TheLine;
+	bool Done = false;
+	while( !Done && Ptr != nullptr )
+	{
+		// Advance past new line characters
+		while( *Ptr=='\r' || *Ptr=='\n' )
+		{
+			Ptr++;
+		}			
+		// read the next line
+		int32 LinesConsumed = 0;
+		FParse::LineExtended(&Ptr, TheLine, LinesConsumed, false);
+		if (Ptr == nullptr || *Ptr == 0)
+		{
+			Done = true;
+		}
+		TCHAR* Start = const_cast<TCHAR*>(*TheLine);
+
+		// Strip trailing spaces from the current line
+		while( *Start && FChar::IsWhitespace(Start[FCString::Strlen(Start)-1]) )
+		{
+			Start[FCString::Strlen(Start)-1] = TEXT('\0');
+		}
+
+		// If the first character in the line is [ and last char is ], this line indicates a section name
+		if( *Start=='[' && Start[FCString::Strlen(Start)-1]==']' )
+		{
+			// Remove the brackets
+			Start++;
+			Start[FCString::Strlen(Start)-1] = TEXT('\0');
+
+			// lookup to see if there is an entry in the SectionName remap
+			CurrentSectionName = Start;
+			const FString* FoundRemap;
+			if ((FoundRemap = SectionRemap.Find(CurrentSectionName)) != nullptr)
+			{
+				WarnAboutSectionRemap(CurrentSectionName, *FoundRemap, FileHint);
+				
+				CurrentSectionName = *FoundRemap;
+			}
+			// look to see if there is a set of key remaps for this section
+			CurrentKeyRemap = KeyRemap.Find(CurrentSectionName);
+
+			// If we don't have an existing section by this name, add one
+			CurrentSection = FindOrAddSectionInternal(CurrentSectionName);
+		}
+
+		// Otherwise, if we're currently inside a section, and we haven't reached the end of the stream
+		else if( CurrentSection && *Start )
+		{
+			TCHAR* Value = 0;
+
+			// ignore [comment] lines that start with ;
+			if(*Start != (TCHAR)';')
+			{
+				Value = FCString::Strstr(Start,TEXT("="));
+			}
+
+			// Ignore any lines that don't contain a key-value pair
+			if( Value )
+			{
+				// Terminate the propertyname, advancing past the =
+				*Value++ = TEXT('\0');
+
+				// strip leading whitespace from the property name
+				while ( *Start && FChar::IsWhitespace(*Start) )
+					Start++;
+
+				// Strip trailing spaces from the property name.
+				while( *Start && FChar::IsWhitespace(Start[FCString::Strlen(Start)-1]) )
+					Start[FCString::Strlen(Start)-1] = TEXT('\0');
+
+				const TCHAR* KeyName = Start;
+				// look up for key remap
+				if (CurrentKeyRemap != nullptr)
+				{
+					const FString* FoundRemap;
+					if ((FoundRemap = CurrentKeyRemap->Find(KeyName)) != nullptr)
+					{
+						WarnAboutKeyRemap(KeyName, *FoundRemap, CurrentSectionName, FileHint);
+						
+						// the Remap will not ever reallocate, so we can just point right into the FString
+						KeyName = **FoundRemap;
+					}
+				}
+
+				// Strip leading whitespace from the property value
+				while ( *Value && FChar::IsWhitespace(*Value) )
+					Value++;
+
+				// strip trailing whitespace from the property value
+				while( *Value && FChar::IsWhitespace(Value[FCString::Strlen(Value)-1]) )
+					Value[FCString::Strlen(Value)-1] = TEXT('\0');
+
+				// If this line is delimited by quotes
+				if( *Value=='\"' )
+				{
+					FString ProcessedValue;
+					FParse::QuotedString(Value, ProcessedValue);
+
+					// Add this pair to the current FConfigSection
+					CurrentSection->Add(KeyName, FConfigValue(CurrentSection, KeyName, MoveTemp(ProcessedValue)));
+				}
+				else
+				{
+					// Add this pair to the current FConfigSection
+					CurrentSection->Add(KeyName, FConfigValue(CurrentSection, KeyName, Value));
+				}
+			}
+		}
+	}
+
+	// Avoid memory wasted in array slack.
+	Shrink();
+	for( TMap<FString,FConfigSection>::TIterator It(*this); It; ++It )
+	{
+		It.Value().Shrink();
+	}
 }
 
 void FConfigFile::Read( const FString& Filename )
 {
-	::FillFileFromDisk(this, Filename, false);
+	// we can't read in a file if file IO is disabled
+	if (GConfig == nullptr || !GConfig->AreFileOperationsDisabled())
+	{
+		Empty();
+		FString Text;
+
+		FString FinalFileName = Filename;
+		bool bFoundOverride = OverrideFileFromCommandline(FinalFileName);
+	
+		if (LoadConfigFileWrapper(*FinalFileName, Text, bFoundOverride))
+		{
+			// process the contents of the string
+			ProcessInputFileContents(Text, Filename);
+		}
+		else
+		{
+			checkf(!bFoundOverride, TEXT("Failed to Load config override %s"), *FinalFileName);
+		}
+	}
 }
 
 bool FConfigFile::ShouldExportQuotedString(const FString& PropertyValue)
@@ -1552,96 +1328,72 @@ void FConfigFile::AppendExportedPropertyLine(FString& Out, const FString& Proper
 	Out.Append(LINE_TERMINATOR, LineTerminatorLen);
 }
 
+#if ALLOW_INI_OVERRIDE_FROM_COMMANDLINE
+
+/** A collection of identifiers which will help us parse the commandline opions. */
+namespace CommandlineOverrideSpecifiers
+{
+	// -ini:IniName:[Section1]:Key1=Value1,[Section2]:Key2=Value2
+	const auto& IniFileOverrideIdentifier = TEXT("-iniFile=");
+	const auto& IniSwitchIdentifier       = TEXT("-ini:");
+	const auto& IniNameEndIdentifier      = TEXT(":[");
+	const auto& SectionStartIdentifier    = TEXT("[");
+	const auto& PropertyStartIdentifier   = TEXT("]:");
+	const TCHAR PropertySeperator         = TEXT(','); //NOTE: this must be a single character
+	const auto& CustomConfigIdentifier    = TEXT("-CustomConfig=");
+}
+
+#endif
+bool FConfigFile::OverrideFileFromCommandline(FString& Filename)
+{
+#if ALLOW_INI_OVERRIDE_FROM_COMMANDLINE
+	// look for this filename on the commandline in the format:
+	//		-iniFile=<PatFile1>,<PatFile2>,<PatFile3>
+	// for example:
+	//		-iniFile=D:\FN-Main\FortniteGame\Config\Windows\WindowsDeviceProfiles.ini
+	//       
+	//		Description: 
+	//          The FortniteGame\Config\Windows\WindowsDeviceProfiles.ini contained in the pak file will
+	//          be replace with D:\FN-Main\FortniteGame\Config\Windows\WindowsDeviceProfiles.ini.
+
+	//			Note: You will need the same base file path for this to work. If you
+	//                want to override Engine/Config/BaseEngine.ini, you will need to place the override file 
+	//                under the same folder structure. 
+	//          Ex1: D:\<some_folder>\Engine\Config\BaseEngine.ini
+	//			Ex2: D:\<some_folder>\FortniteGame\Config\Windows\WindowsEngine.ini
+	FString StagedFilePaths;
+	if(FParse::Value(FCommandLine::Get(), CommandlineOverrideSpecifiers::IniFileOverrideIdentifier, StagedFilePaths, false))
+	{ 
+		FString RelativePath = Filename;
+		if (FPaths::IsUnderDirectory(RelativePath, FPaths::RootDir()))
+		{
+			FPaths::MakePathRelativeTo(RelativePath, *FPaths::RootDir());
+
+			TArray<FString> Files;
+			StagedFilePaths.ParseIntoArray(Files, TEXT(","), true);
+			for (int32 Index = 0; Index < Files.Num(); Index++)
+			{
+				FString NormalizedOverride = Files[Index];
+				FPaths::NormalizeFilename(NormalizedOverride);
+				if (NormalizedOverride.EndsWith(RelativePath))
+				{
+					Filename = Files[Index];
+					UE_LOG(LogConfig, Warning, TEXT("Loading override ini file: %s "), *Files[Index]);
+					return true;
+				}
+			}
+		}
+	}
+#endif
+
+	return false;
+}
 /**
 * Looks for any overrides on the commandline for this file
 *
 * @param File Config to possibly modify
 * @param Filename Name of the .ini file to look for overrides
 */
-void FConfigFile::OverrideFromCommandline(FConfigCommandStream* File, const FString& Filename)
-{
-#if ALLOW_INI_OVERRIDE_FROM_COMMANDLINE
-
-	// look for this filename on the commandline in the format:
-//		-ini:IniName:[Section1]:Key=Value
-// for example:
-//		-ini:Engine:[/Script/Engine.Engine]:bSmoothFrameRate=False
-//			(will update the cache after the final combined engine.ini)
-
-	TStringBuilder<260> IniSwitchStringBuilder;
-	IniSwitchStringBuilder.Append(CommandlineOverrideSpecifiers::IniSwitchIdentifier);
-	IniSwitchStringBuilder.Append(FPathViews::GetBaseFilename(Filename));
-	IniSwitchStringBuilder.Append(TEXT(":")); // Ensure we only match the exact filename
-
-	// Initial search to early out if the -ini:IniName: pattern doesn't exist anywhere in the string
-	// Cannot use find result directly as text can be found inside another argument
-	if (FCString::Strifind(FCommandLine::Get(), *IniSwitchStringBuilder, true) == nullptr)
-	{
-		return;
-	}
-
-	// Null terminate
-	const FStringView IniSwitch = *IniSwitchStringBuilder;
-	const TCHAR* RemainingCommandLineStream = FCommandLine::Get();
-
-	FString NextCommandLineArgumentToken;
-	while (FParse::Token(RemainingCommandLineStream, NextCommandLineArgumentToken, /*bUseEscape=*/false))
-	{
-		if (NextCommandLineArgumentToken.StartsWith(IniSwitch))
-		{
-			FString SettingsString = NextCommandLineArgumentToken.RightChop(IniSwitch.Len());
-
-			// break apart on the commas. WARNING: This is supported for legacy reasons only
-			// Providing multiple key-value pairs in a single -ini argument breaks when combined 
-			// with quoted values. Fixing this is non-trivial and likely platform dependent.
-			TArray<FString> SettingPairs;
-			{
-				FString NextSettingToken;
-				const TCHAR* SettingsStream = *SettingsString;
-				while (FParse::Token(SettingsStream, NextSettingToken, false, CommandlineOverrideSpecifiers::PropertySeperator))
-				{
-					SettingPairs.Add(MoveTemp(NextSettingToken));
-				}
-			}
-
-			for (int32 Index = 0; Index < SettingPairs.Num(); Index++)
-			{
-				// set each one, by splitting on the =
-				FString SectionAndKey, Value;
-				if (SettingPairs[Index].Split(TEXT("="), &SectionAndKey, &Value))
-				{
-					// now we need to split off the key from the rest of the section name
-					int32 SectionNameEndIndex = SectionAndKey.Find(CommandlineOverrideSpecifiers::PropertyStartIdentifier, ESearchCase::IgnoreCase, ESearchDir::FromEnd);
-					// check for malformed string
-					if (SectionNameEndIndex == INDEX_NONE || SectionNameEndIndex == 0)
-					{
-						continue;
-					}
-
-					FString Section = SectionAndKey.Left(SectionNameEndIndex);
-
-					// Remove commandline syntax from the section name.
-					Section = Section.Replace(CommandlineOverrideSpecifiers::IniNameEndIdentifier, TEXT(""));
-					Section = Section.Replace(CommandlineOverrideSpecifiers::PropertyStartIdentifier, TEXT(""));
-					Section = Section.Replace(CommandlineOverrideSpecifiers::SectionStartIdentifier, TEXT(""));
-
-					FString PropertyKey = SectionAndKey.Mid(SectionNameEndIndex + UE_ARRAY_COUNT(CommandlineOverrideSpecifiers::PropertyStartIdentifier) - 1);
-
-					// If the property value was quoted, remove the quotes
-					if (Value.Len() > 1 && Value.StartsWith(TEXT("\"")) && Value.EndsWith(TEXT("\"")))
-					{
-						Value = Value.Mid(1, Value.Len() - 2);
-					}
-
-					FConfigCommandStreamSection* SectionToModify = File->FindOrAddSectionInternal(Section);
-					SectionToModify->Emplace(*PropertyKey, FConfigValue(MoveTemp(Value), FConfigValue::EValueType::Set));
-				}
-			}
-		}
-	}
-#endif
-}
-
 void FConfigFile::OverrideFromCommandline(FConfigFile* File, const FString& Filename)
 {
 #if ALLOW_INI_OVERRIDE_FROM_COMMANDLINE
@@ -1735,9 +1487,18 @@ void FConfigFile::OverrideFromCommandline(FConfigFile* File, const FString& File
 
 void FConfigFile::AddDynamicLayerToHierarchy(const FString& Filename)
 {
-	checkf(Branch != nullptr, TEXT("Unable to AddDynamicLayerToHierarchy on an FConfigFile that doesn't have an internal Branch. ConfigFile = %s"), *Name.ToString());
-	
-	Branch->AddDynamicLayerToHierarchy(Filename);
+	FString ConfigContent;
+	if (!FFileHelper::LoadFileToString(ConfigContent, *Filename))
+		return;
+
+	if (SourceConfigFile)
+	{
+		SourceConfigFile->SourceIniHierarchy.AddDynamicLayer(Filename);
+		SourceConfigFile->CombineFromBuffer(ConfigContent, Filename);
+	}
+
+	SourceIniHierarchy.AddDynamicLayer(Filename);
+	CombineFromBuffer(ConfigContent, Filename);
 }
 
 
@@ -1766,7 +1527,7 @@ static bool DoesConfigPropertyValueMatch(const FConfigSection* InSection, const 
 		// Start Array check, if the property is in an array, we need to iterate over all properties.
 		for (FConfigSection::TConstKeyIterator It(*InSection, InPropertyName); It && !bFoundAMatch; ++It)
 		{
-			const FString& PropertyValue = It.Value().GetSavedValueForWriting();
+			const FString& PropertyValue = UE::ConfigCacheIni::Private::FAccessor::GetSavedValueForWriting(It.Value());
 			bFoundAMatch =
 				PropertyValue.Len() == InPropertyValue.Len() &&
 				PropertyValue == InPropertyValue;
@@ -1803,17 +1564,22 @@ static bool DoesConfigPropertyValueMatch(const FConfigSection* InSection, const 
  */
 bool PropertySetFromCommandlineOption(const FConfigFile* InConfigFile, const FString& InSectionName, const FName& InPropertyName, const FString& InPropertyValue)
 {
-	FString Value;
-	if (InConfigFile->Branch != nullptr)
+	bool bFromCommandline = false;
+
+#if ALLOW_INI_OVERRIDE_FROM_COMMANDLINE
+	for (const FConfigCommandlineOverride& CommandlineOverride : InConfigFile->CommandlineOptions)
 	{
-		FConfigCommandStreamSection* Section = InConfigFile->Branch->CommandLineOverrides.Find(InSectionName);
-		if (Section != nullptr)
+		if (CommandlineOverride.PropertyKey.Equals(InPropertyName.ToString(), ESearchCase::IgnoreCase) &&
+			CommandlineOverride.PropertyValue.Equals(InPropertyValue, ESearchCase::IgnoreCase) &&
+			CommandlineOverride.Section.Equals(InSectionName, ESearchCase::IgnoreCase) &&
+			CommandlineOverride.BaseFileName.Equals(FPaths::GetBaseFilename(InConfigFile->Name.ToString()), ESearchCase::IgnoreCase))
 		{
-			return Section->FindPair(InPropertyName, InPropertyValue) != nullptr;
+			bFromCommandline = true;
 		}
 	}
-	
-	return false;
+#endif // ALLOW_INI_OVERRIDE_FROM_COMMANDLINE
+
+	return bFromCommandline;
 }
 
 bool FConfigFile::WriteTempFileThenMove()
@@ -1855,14 +1621,21 @@ void FConfigFile::WriteToString(FString& InOutText, const FString& SimulatedFile
 
 bool FConfigFile::IsADefaultIniWrite(const FString& Filename, int32& OutIniCombineThreshold) const
 {
-	bool bIsADefaultIniWrite = Branch != nullptr && Filename != Branch->IniPath;
+	bool bIsADefaultIniWrite = false;
+	{
+		// If we are writing to a default config file and this property is an array, we need to be careful to remove those from higher up the hierarchy
+		const FString AbsoluteFilename = FPaths::ConvertRelativePathToFull(Filename);
+		const FString AbsoluteGameGeneratedConfigDir = FPaths::ConvertRelativePathToFull(FPaths::GeneratedConfigDir());
+		const FString AbsoluteGameAgnosticGeneratedConfigDir = FPaths::ConvertRelativePathToFull(FPaths::Combine(*FPaths::GameAgnosticSavedDir(), TEXT("Config")) + TEXT("/"));
+		bIsADefaultIniWrite = !AbsoluteFilename.Contains(AbsoluteGameGeneratedConfigDir) && !AbsoluteFilename.Contains(AbsoluteGameAgnosticGeneratedConfigDir);
+	}
 
 	OutIniCombineThreshold = MAX_int32;
 	if (bIsADefaultIniWrite)
 	{
 		// find the filename in ini hierarchy
 		FString IniName = FPaths::GetCleanFilename(Filename);
-		for (const auto& HierarchyFileIt : Branch->Hierarchy)
+		for (const auto& HierarchyFileIt : SourceIniHierarchy)
 		{
 			if (FPaths::GetCleanFilename(HierarchyFileIt.Value) == IniName)
 			{
@@ -1877,11 +1650,24 @@ bool FConfigFile::IsADefaultIniWrite(const FString& Filename, int32& OutIniCombi
 
 bool FConfigFile::WriteInternal(const FString& Filename, bool bDoRemoteWrite, TMap<FString, FString>& InOutSectionTexts, const TArray<FString>& InSectionOrder)
 {
+	if (!Dirty || NoSave || FParse::Param(FCommandLine::Get(), TEXT("nowrite")) ||
+		(FParse::Param(FCommandLine::Get(), TEXT("Multiprocess")) && !FParse::Param(FCommandLine::Get(), TEXT("MultiprocessSaveConfig"))) // Is can be useful to save configs with multiprocess if they are given INI overrides
+		)
+	{
+		return true;
+	}
+
 	int32 IniCombineThreshold = MAX_int32;
-	bool bIsADefaultIniWrite = IsADefaultIniWrite(Filename, IniCombineThreshold);
+	bool bIsADefaultIniWrite = IsADefaultIniWrite(Filename, IniCombineThreshold);	
 
 	FString Text;
 	WriteToStringInternal(Text, bIsADefaultIniWrite, IniCombineThreshold, InOutSectionTexts, InSectionOrder);
+
+	if (bDoRemoteWrite)
+	{
+		// Write out the remote version (assuming it was loaded)
+		FRemoteConfig::Get()->Write(*Filename, Text);
+	}
 
 	// don't write out non-default configs that are only whitespace
 	if (!bIsADefaultIniWrite && Text.TrimStart().Len() == 0)
@@ -1890,17 +1676,6 @@ bool FConfigFile::WriteInternal(const FString& Filename, bool bDoRemoteWrite, TM
 		return true;
 	}
 	
-	if (!Dirty || NoSave || !AreWritesAllowedGlobally())
-	{
-		return true;
-	}
-
-	if (bDoRemoteWrite)
-	{
-		// Write out the remote version (assuming it was loaded)
-		FRemoteConfig::Get()->Write(*Filename, Text);
-	}
-
 	bool bResult = SaveConfigFileWrapper(*Filename, Text);
 
 	// File is still dirty if it didn't save.
@@ -1950,7 +1725,7 @@ void FConfigFile::WriteToStringInternal(FString& InOutText, bool bIsADefaultIniW
 		SectionsToSave.Reserve(SectionsToSaveValues.Num());
 		for (const FConfigValue* ConfigValue : SectionsToSaveValues)
 		{
-			SectionsToSave.Add(ConfigValue->GetValueForWriting());
+			SectionsToSave.Add(UE::ConfigCacheIni::Private::FAccessor::GetValueForWriting(*ConfigValue));
 		}
 	}
 	
@@ -1968,17 +1743,17 @@ void FConfigFile::WriteToStringInternal(FString& InOutText, bool bIsADefaultIniW
 
 		// If we have a config file to check against, have a look.
 		const FConfigSection* SourceConfigSection = nullptr;
-		if (Branch != nullptr && Branch->FinalCombinedLayers.Num() > 0)
+		if (SourceConfigFile)
 		{
 			// Check the sections which could match our desired section name
-			SourceConfigSection = Branch->FinalCombinedLayers.FindSection(SectionName);
+			SourceConfigSection = SourceConfigFile->FindSection(SectionName);
 
 #if !UE_BUILD_SHIPPING
 			if (!SourceConfigSection && FPlatformProperties::RequiresCookedData() == false && SectionName.StartsWith(TEXT("/Script/")))
 			{
 				// Guard against short names in ini files
-				const FString ShortSectionName = SectionName.Replace(TEXT("/Script/"), TEXT(""));
-				if (Branch->FinalCombinedLayers.FindSection(ShortSectionName) != nullptr)
+				const FString ShortSectionName = SectionName.Replace(TEXT("/Script/"), TEXT("")); 
+				if (SourceConfigFile->FindSection(ShortSectionName) != nullptr)
 				{
 					UE_LOG(LogConfig, Fatal, TEXT("Short config section found while looking for %s"), *SectionName);
 				}
@@ -1993,7 +1768,7 @@ void FConfigFile::WriteToStringInternal(FString& InOutText, bool bIsADefaultIniW
 		{
 			const FName PropertyName = It2.Key();
 			// Use GetSavedValueForWriting rather than GetSavedValue to avoid having this save operation mark the values as having been accessed for dependency tracking
-			const FString& PropertyValue = It2.Value().GetSavedValueForWriting();
+			const FString& PropertyValue = UE::ConfigCacheIni::Private::FAccessor::GetSavedValueForWriting(It2.Value());
 
 			// Check if the we've already processed a property of this name. If it was part of an array we may have already written it out.
 			if( !PropertiesAddedLookup.Contains( PropertyName ) )
@@ -2002,7 +1777,7 @@ void FConfigFile::WriteToStringInternal(FString& InOutText, bool bIsADefaultIniW
 				const bool bOptionIsFromCommandline = PropertySetFromCommandlineOption(this, SectionName, PropertyName, PropertyValue);
 
 				// We ALWAYS want to write CurrentIniVersion.
-				const bool bIsCurrentIniVersion = SectionName == CurrentIniVersionStr && PropertyName == VersionSectionName;
+				const bool bIsCurrentIniVersion = (SectionName == CurrentIniVersionStr);
 
 				// Check if the property matches the source configs. We do not wanna write it out if so.
 				if ((bIsADefaultIniWrite || bIsCurrentIniVersion ||
@@ -2036,7 +1811,7 @@ void FConfigFile::WriteToStringInternal(FString& InOutText, bool bIsADefaultIniW
 						for (const FConfigValue* ConfigValue : CompletePropertyToWrite)
 						{
 							// Use GetSavedValueForWriting rather than GetSavedValue to avoid marking these values used during save to disk as having been accessed for dependency tracking
-							AppendExportedPropertyLine(InOutText, PropertyNameString, ConfigValue->GetSavedValueForWriting());
+							AppendExportedPropertyLine(InOutText, PropertyNameString, UE::ConfigCacheIni::Private::FAccessor::GetSavedValueForWriting(*ConfigValue));
 						}
 					}
 
@@ -2309,8 +2084,8 @@ void FConfigFile::SetString( const TCHAR* Section, const TCHAR* Key, const TCHAR
 		Sec->Add(Key, FConfigValue(Sec, FName(Key), Value));
 		Dirty = true;
 	}
-	// Use GetSavedValueForWriting rather than GetSavedValue to avoid reporting the is-it-dirty query mark the values as having been accessed for dependency tracking
-	else if( FCString::Strcmp(*ConfigValue->GetSavedValueForWriting(),Value)!=0 )
+	// Use GetSavedValueForWriting rather than GetSavedValue to avoid reporting the value as having been accessed for dependency tracking
+	else if( FCString::Strcmp(*UE::ConfigCacheIni::Private::FAccessor::GetSavedValueForWriting(*ConfigValue),Value)!=0 )
 	{
 		Dirty = true;
 		*ConfigValue = Value;
@@ -2330,8 +2105,8 @@ void FConfigFile::SetText( const TCHAR* Section, const TCHAR* Key, const FText& 
 		Sec->Add(Key, FConfigValue(Sec, FName(Key), MoveTemp(StrValue)));
 		Dirty = true;
 	}
-	// Use GetSavedValueForWriting rather than GetSavedValue to avoid reporting the is-it-dirty query mark the values as having been accessed for dependency tracking
-	else if( FCString::Strcmp(*ConfigValue->GetSavedValueForWriting(), *StrValue)!=0 )
+	// Use GetSavedValueForWriting rather than GetSavedValue to avoid reporting the value as having been accessed for dependency tracking
+	else if( FCString::Strcmp(*UE::ConfigCacheIni::Private::FAccessor::GetSavedValueForWriting(*ConfigValue), *StrValue)!=0 )
 	{
 		Dirty = true;
 		*ConfigValue = MoveTemp(StrValue);
@@ -2365,18 +2140,18 @@ void FConfigFile::SetInt64( const TCHAR* Section, const TCHAR* Key, int64 Value 
 }
 
 
-void FConfigFile::SetArray(const TCHAR* SectionName, const TCHAR* Key, const TArray<FString>& Value)
+void FConfigFile::SetArray(const TCHAR* Section, const TCHAR* Key, const TArray<FString>& Value)
 {
-	FConfigSection* Section = FindOrAddSectionInternal(SectionName);
+	FConfigSection* Sec = FindOrAddSectionInternal(Section);
 
-	if (Section->Remove(Key) > 0)
+	if (Sec->Remove(Key) > 0)
 	{
 		Dirty = true;
 	}
 
 	for (int32 i = 0; i < Value.Num(); i++)
 	{
-		Section->Add(Key, FConfigValue(Section, FName(Key), Value[i]));
+		Sec->Add(Key, FConfigValue(Sec, FName(Key), Value[i]));
 		Dirty = true;
 	}
 }
@@ -2432,21 +2207,6 @@ bool FConfigFile::RemoveFromSection(const TCHAR* SectionName, FName Key, const F
 	return true;
 }
 
-bool FConfigFile::ResetKeyInSection(const TCHAR* SectionName, FName Key)
-{
-	FConfigSection* Section = FindInternal(SectionName);
-	// if it doesn't contain the key for any number of values
-	if (Section == nullptr || !Section->Contains(Key))
-	{
-		return false;
-	}
-
-	Section->Remove(Key);
-
-	Dirty = true;
-	return true;
-}
-
 void FConfigFile::SaveSourceToBackupFile()
 {
 	FString Text;
@@ -2454,7 +2214,7 @@ void FConfigFile::SaveSourceToBackupFile()
 	FString BetweenRunsDir = (FPaths::ProjectIntermediateDir() / TEXT("Config/CoalescedSourceConfigs/"));
 	FString Filename = FString::Printf( TEXT( "%s%s.ini" ), *BetweenRunsDir, *Name.ToString() );
 
-	for( TMap<FString,FConfigSection>::TIterator SectionIterator(Branch->FinalCombinedLayers); SectionIterator; ++SectionIterator )
+	for( TMap<FString,FConfigSection>::TIterator SectionIterator(*SourceConfigFile); SectionIterator; ++SectionIterator )
 	{
 		const FString& SectionName = SectionIterator.Key();
 		const FConfigSection& Section = SectionIterator.Value();
@@ -2465,7 +2225,7 @@ void FConfigFile::SaveSourceToBackupFile()
 		{
 			const FName PropertyName = PropertyIterator.Key();
 			// Use GetSavedValueForWriting rather than GetSavedValue to avoid having this save operation mark the values as having been accessed for dependency tracking
-			const FString& PropertyValue = PropertyIterator.Value().GetSavedValueForWriting();
+			const FString& PropertyValue = UE::ConfigCacheIni::Private::FAccessor::GetSavedValueForWriting(PropertyIterator.Value());
 			Text += FConfigFile::GenerateExportedPropertyLine(PropertyName.ToString(), PropertyValue);
 		}
 		Text += LINE_TERMINATOR;
@@ -2491,13 +2251,13 @@ void FConfigFile::ProcessSourceAndCheckAgainstBackup()
 #if UE_WITH_CONFIG_TRACKING
 		UE::ConfigAccessTracking::FFile* LocalFileAccess = GetFileAccess();
 #endif
-		for (TMap<FString,FConfigSection>::TIterator SectionIterator(Branch->FinalCombinedLayers); SectionIterator; ++SectionIterator )
+		for (TMap<FString,FConfigSection>::TIterator SectionIterator(*SourceConfigFile); SectionIterator; ++SectionIterator)
 		{
 			const FString& SectionName = SectionIterator.Key();
 			const FConfigSection& SourceSection = SectionIterator.Value();
 			const FConfigSection* BackupSection = BackupFile.FindSection( SectionName );
 			
-			if (BackupSection && !FConfigSection::AreSectionsEqualForWriting(SourceSection, *BackupSection))
+			if (BackupSection && !UE::ConfigCacheIni::Private::FAccessor::AreSectionsEqualForWriting(SourceSection, *BackupSection))
 			{
 				this->Remove( SectionName );
 				FConfigSection& AddedSection = this->Add( SectionName, SourceSection );
@@ -2536,7 +2296,7 @@ static TArray<FString> GetSourceProperties(const FConfigFileHierarchy& SourceIni
 	for (const auto& HierarchyFileIt : SourceIniHierarchy)
 	{
 		// Combine everything up to the level we're writing, but not including it.
-		// Inclusion would result in a bad feedback loop where on subsequent writes
+		// Inclusion would result in a bad feedback loop where on subsequent writes 
 		// we would be diffing against the same config we've just written to.
 		if (HierarchyFileIt.Key < IniCombineThreshold)
 		{
@@ -2556,7 +2316,7 @@ static TArray<FString> GetSourceProperties(const FConfigFileHierarchy& SourceIni
 void FConfigFile::ProcessPropertyAndWriteForDefaults(int IniCombineThreshold, const TArray<const FConfigValue*>& InCompletePropertyToProcess, FString& OutText, const FString& SectionName, const FString& PropertyName)
 {
 	// Only process against a hierarchy if this config file has one.
-	if (Branch->Hierarchy.Num() > 0)
+	if (SourceIniHierarchy.Num() > 0)
 	{
 		FString CleanedPropertyName = PropertyName;
 		const bool bHadPlus = CleanedPropertyName.RemoveFromStart(TEXT("+"));
@@ -2567,7 +2327,7 @@ void FConfigFile::ProcessPropertyAndWriteForDefaults(int IniCombineThreshold, co
 		// look for pointless !Clear entries that the config system wrote out when it noticed the user didn't have any entries
 		if (bHadBang && InCompletePropertyToProcess.Num() == 1 && InCompletePropertyToProcess[0]->GetSavedValue() == TEXT("__ClearArray__"))
 		{
-			const TArray<FString> SourceArrayProperties = GetSourceProperties(Branch->Hierarchy, IniCombineThreshold, SectionName, CleanedPropertyName);
+			const TArray<FString> SourceArrayProperties = GetSourceProperties(SourceIniHierarchy, IniCombineThreshold, SectionName, CleanedPropertyName);
 			for (const FString& NextElement : SourceArrayProperties)
 			{
 				OutText.Append(GenerateExportedPropertyLine(PropertyNameWithRemoveOp, NextElement));
@@ -2580,7 +2340,7 @@ void FConfigFile::ProcessPropertyAndWriteForDefaults(int IniCombineThreshold, co
 		// Handle array elements from the configs hierarchy.
 		if (bHadPlus || InCompletePropertyToProcess.Num() > 1)
 		{
-			const TArray<FString> SourceArrayProperties = GetSourceProperties(Branch->Hierarchy, IniCombineThreshold, SectionName, CleanedPropertyName);
+			const TArray<FString> SourceArrayProperties = GetSourceProperties(SourceIniHierarchy, IniCombineThreshold, SectionName, CleanedPropertyName);
 			for (const FString& NextElement : SourceArrayProperties)
 			{
 				OutText.Append(GenerateExportedPropertyLine(PropertyNameWithRemoveOp, NextElement));
@@ -2595,385 +2355,6 @@ void FConfigFile::ProcessPropertyAndWriteForDefaults(int IniCombineThreshold, co
 	}
 }
 
-
-/*-----------------------------------------------------------------------------
-	FConfigCommandStream
------------------------------------------------------------------------------*/
-
-
-bool FConfigCommandStream::FillFileFromDisk(const FString& InFilename, bool bHandleSymbolCommands)
-{
-	return ::FillFileFromDisk(this, InFilename, bHandleSymbolCommands);
-}
-
-void FConfigCommandStream::ProcessCommand(SectionType* Section, FStringView SectionName, FConfigValue::EValueType Command, FName Key, FString&& Value)
-{
-	Section->Emplace(Key, FConfigValue(MoveTemp(Value), Command));
-}
-
-FConfigCommandStreamSection* FConfigCommandStream::FindOrAddSectionInternal(const FString& SectionName)
-{
-	return &FindOrAdd(SectionName);
-}
-
-
-
-
-/*-----------------------------------------------------------------------------
-	FConfigBranch
------------------------------------------------------------------------------*/
-
-FConfigBranch::FConfigBranch()
-{
-	static int DefaultReplayMethod = -1;
-	if (DefaultReplayMethod == -1)
-	{
-		if (!FParse::Value(FCommandLine::Get(), TEXT("ConfigReplayMethod="), DefaultReplayMethod))
-		{
-#if WITH_EDITOR
-			// editor wants full replay - and we can't put this in a cvar since we need way too early for cvar processing!
-			DefaultReplayMethod = 2;
-#else
-			// @todo We are defaulting to 0 (no replay) here because nothing is using the "unload" functionality yet until Phase 2 of the 
-			// changes, and this is using more memory. An mem saving solution will be needed before we can set the default to 1
-			// like it will need to be
-			DefaultReplayMethod = 0;
-#endif
-		}
-	}
-	
-	switch (DefaultReplayMethod)
-	{
-		case 0:
-			ReplayMethod = EBranchReplayMethod::NoReplay; break;
-		case 1:
-			ReplayMethod = EBranchReplayMethod::DynamicLayerReplay; break;
-		case 2:
-		default:
-			ReplayMethod = EBranchReplayMethod::FullReplay; break;
-	}
-
-	InitFiles();
-}
-
-FConfigBranch::FConfigBranch(const FConfigFile& ExistingFile)
-	: bIsHierarchical(false)
-	, InMemoryFile(ExistingFile)
-{
-	ReplayMethod = EBranchReplayMethod::NoReplay;
-	
-	InitFiles();
-}
-
-void FConfigBranch::InitFiles()
-{
-	SavedLayer.Branch = this;
-	CombinedStaticLayers.Branch = this;
-	FinalCombinedLayers.Branch = this;
-	CommandLineOverrides.Branch = this;
-	InMemoryFile.Branch = this;
-}
-
-bool FConfigBranch::AddDynamicLayerToHierarchy(const FString& Filename, FConfigModificationTracker* ModificationTracker)
-{
-	if (!DoesConfigFileExistWrapper(*Filename))
-	{
-		return false;
-	}
-
-	return AddDynamicLayersToHierarchy({ Filename }, NAME_None, DynamicLayerPriority::Unknown, ModificationTracker);
-}
-
-bool FConfigBranch::AddDynamicLayersToHierarchy(const TArray<FString>& Filenames, FName Tag, DynamicLayerPriority Priority, FConfigModificationTracker* ModificationTracker)
-{
-	bool bFoundAFile = false;
-	bool bInsertedAtEnd = false;
-
-	// calculate a patch so we don't lose in-memory changes
-	FConfigCommandStream Patch;
-	FConfigCommandStream* DynamicLayer=nullptr;
-	FConfigCommandStream LocalLayer;
-	for (const FString& Filename : Filenames)
-	{
-		if (!DoesConfigFileExistWrapper(*Filename))
-		{
-			continue;
-		}
-
-		if (!bFoundAFile)
-		{
-			Patch = CalculateDiff(FinalCombinedLayers, InMemoryFile);
-		}
-		
-		// if we aren't caching dynamic layers, then we need a temp layer
-		if (ReplayMethod == EBranchReplayMethod::NoReplay)
-		{
-			DynamicLayer = &LocalLayer;
-			bInsertedAtEnd = true;
-		}
-		else
-		{
-			// find the first node with higher priority
-			// @todo move this to a function
-			bool bInserted = false;
-			DynamicLayer = new FConfigCommandStream;
-			DynamicLayer->Priority = (uint16)Priority;
-			DynamicLayer->Filename = Filename;
-			for (DynamicLayerList::TIterator Node(DynamicLayers.GetHead()); Node; ++Node)
-			{
-				if (Node->Priority > DynamicLayer->Priority)
-				{
-					DynamicLayers.InsertNode(DynamicLayer, Node.GetNode());
-					bInserted = true;
-					break;
-				}
-			}
-			if (!bInserted)
-			{
-				DynamicLayers.AddTail(DynamicLayer);
-				bInsertedAtEnd = true;
-			}
-		}
-
-		// load in the file
-		FillFileFromDisk(DynamicLayer, Filename, true);
-		DynamicLayer->Tag = Tag;
-		
-		// track modified section names if desired
-		if (ModificationTracker != nullptr)
-		{
-			if (ModificationTracker->bTrackModifiedSections)
-			{
-				for (const TPair<FString, FConfigCommandStreamSection>& Pair : *DynamicLayer)
-				{
-					ModificationTracker->ModifiedSections.Add(Pair.Key);
-					if (ModificationTracker->SectionsToTrackContents.Contains(Pair.Key))
-					{
-						FConfigSection NewSection;
-						// copy just the SectionMap parts
-						(FConfigSectionMap&)NewSection = (const FConfigSectionMap&)Pair.Value;
-						ModificationTracker->TrackedSections.Add(Pair.Key, NewSection);
-					}
-				}
-			}
-			if (ModificationTracker->bTrackLoadedFiles)
-			{
-				ModificationTracker->LoadedFiles.Add(Filename);
-			}
-		}
-
-		bFoundAFile = true;
-	}
-	
-	if (bFoundAFile)
-	{
-		if (!bInsertedAtEnd)
-		{
-			// rebuild
-			FinalCombinedLayers = CombinedStaticLayers;
-			for (DynamicLayerList::TIterator Node(DynamicLayers.GetHead()); Node; ++Node)
-			{
-				FinalCombinedLayers.ApplyFile(*Node);
-			}
-			bool bOldSaveAllSections = InMemoryFile.bCanSaveAllSections;
-			InMemoryFile = FinalCombinedLayers;
-			InMemoryFile.bCanSaveAllSections = bOldSaveAllSections;
-		}
-		else
-		{
-			FinalCombinedLayers.ApplyFile(DynamicLayer);
-			InMemoryFile.ApplyFile(DynamicLayer);
-		}
-
-		// re-apply the in-memory changes
-		InMemoryFile.ApplyFile(&Patch);
-	}
-
-
-	return bFoundAFile;
-}
-
-bool FConfigBranch::AddDynamicLayerStringToHierarchy(const FString& Filename, const FString& Contents, FName Tag, DynamicLayerPriority Priority, FConfigModificationTracker* ModificationTracker)
-{
-	bool bInsertedAtEnd = false;
-
-	// calculate a patch so we don't lose in-memory changes
-	FConfigCommandStream Patch = CalculateDiff(FinalCombinedLayers, InMemoryFile);
-
-	FConfigCommandStream* DynamicLayer = nullptr;
-	FConfigCommandStream LocalLayer;
-	// if we aren't caching dynamic layers, then we need a temp layer
-	if (ReplayMethod == EBranchReplayMethod::NoReplay)
-	{
-		DynamicLayer = &LocalLayer;
-		bInsertedAtEnd = true;
-	}
-	else
-	{
-		// find the first node with higher priority
-		bool bInserted = false;
-		DynamicLayer = new FConfigCommandStream;
-		DynamicLayer->Priority = (uint16)Priority;
-		DynamicLayer->Filename = Filename;
-		for (DynamicLayerList::TIterator Node(DynamicLayers.GetHead()); Node; ++Node)
-		{
-			if (Node->Priority > DynamicLayer->Priority)
-			{
-				DynamicLayers.InsertNode(DynamicLayer, Node.GetNode());
-				bInserted = true;
-				break;
-			}
-		}
-		if (!bInserted)
-		{
-			DynamicLayers.AddTail(DynamicLayer);
-			bInsertedAtEnd = true;
-		}
-	}
-	
-	FillFileFromBuffer(DynamicLayer, Contents, true, Filename);
-
-	// track modified section names if desired
-	if (ModificationTracker != nullptr)
-	{
-		if (ModificationTracker->bTrackModifiedSections)
-		{
-			for (const TPair<FString, FConfigCommandStreamSection>& Pair : *DynamicLayer)
-			{
-				ModificationTracker->ModifiedSections.Add(Pair.Key);
-				if (ModificationTracker->SectionsToTrackContents.Contains(Pair.Key))
-				{
-					FConfigSection NewSection;
-					// copy just the SectionMap parts
-					(FConfigSectionMap&)NewSection = (const FConfigSectionMap&)Pair.Value;
-					ModificationTracker->TrackedSections.Add(Pair.Key, NewSection);
-				}
-			}
-		}
-		if (ModificationTracker->bTrackLoadedFiles)
-		{
-			ModificationTracker->LoadedFiles.Add(Filename);
-		}
-	}
-
-	if (!bInsertedAtEnd)
-	{
-		// rebuild
-		FinalCombinedLayers = CombinedStaticLayers;
-		for (DynamicLayerList::TIterator Node(DynamicLayers.GetHead()); Node; ++Node)
-		{
-			FinalCombinedLayers.ApplyFile(*Node);
-		}
-		bool bOldSaveAllSections = InMemoryFile.bCanSaveAllSections;
-		InMemoryFile = FinalCombinedLayers;
-		InMemoryFile.bCanSaveAllSections = bOldSaveAllSections;
-	}
-	else
-	{
-		FinalCombinedLayers.ApplyFile(DynamicLayer);
-		InMemoryFile.ApplyFile(DynamicLayer);
-	}
-
-	// re-apply the in-memory changes
-	InMemoryFile.ApplyFile(&Patch);
-
-	return true;
-}
-
-
-bool FConfigBranch::RemoveDynamicLayerFromHierarchy(const FString& Filename, FConfigModificationTracker* ModificationTracker)
-{
-	return RemoveDynamicLayersFromHierarchy({Filename}, ModificationTracker);
-}
-
-bool FConfigBranch::RemoveDynamicLayersFromHierarchy(const TArray<FString>& Filenames, FConfigModificationTracker* ModificationTracker)
-{
-	if (ReplayMethod == EBranchReplayMethod::NoReplay)
-	{
-		UE_LOG(LogConfig, Warning, TEXT("Attempted to remove dynamic layer(s) from branch %s, but it is using NoReplay mode, so this cannot work. Skipping."), *IniName.ToString());
-		return false;
-	}
-	
-	// calculate a patch so we don't lose in-memory changes
-	FConfigCommandStream Patch = CalculateDiff(FinalCombinedLayers, InMemoryFile);
-
-	for (const FString& Filename : Filenames)
-	{
-		for (DynamicLayerList::TIterator Node(DynamicLayers.GetHead()); Node; ++Node)
-		{
-			if (Node->Filename == Filename)
-			{
-				if (ModificationTracker != nullptr && ModificationTracker->bTrackModifiedSections)
-				{
-					for (const TPair<FString,FConfigCommandStreamSection>& Pair : **Node)
-					{
-						ModificationTracker->ModifiedSections.Add(Pair.Key);
-					}
-				}
-
-				// this will delete the layer
-				DynamicLayers.RemoveNode(Node.GetNode());
-				break;
-			}
-		}
-	}
-		
-	// rebuild
-	FinalCombinedLayers = CombinedStaticLayers;
-	for (DynamicLayerList::TIterator Node(DynamicLayers.GetHead()); Node; ++Node)
-	{
-		FinalCombinedLayers.ApplyFile(*Node);
-	}
-	bool bOldSaveAllSections = InMemoryFile.bCanSaveAllSections;
-	InMemoryFile = FinalCombinedLayers;
-	InMemoryFile.bCanSaveAllSections = bOldSaveAllSections;
-
-	// re-apply the in-memory changes
-	InMemoryFile.ApplyFile(&Patch);
-	
-	return true;
-
-}
-
-void FConfigBranch::RemovePluginFromHierarchy(FName PluginName, FConfigModificationTracker* ModificationTracker)
-{
-	// gather tagged layers
-	TArray<FString> LayersToRemove;
-	for (DynamicLayerList::TIterator Node(DynamicLayers.GetHead()); Node; ++Node)
-	{
-		if (Node->Tag == PluginName)
-		{
-			// @todo make a version that takes CommandStreams, not Filenames, for speed
-			LayersToRemove.Add(Node->Filename);
-		}
-	}
-	
-	// remove them
-	if (LayersToRemove.Num() > 0)
-	{
-		RemoveDynamicLayersFromHierarchy(LayersToRemove, ModificationTracker);
-	}
-}
-
-void FConfigBranch::Flush()
-{
-	SaveBranch(*this);
-}
-
-void FConfigBranch::Dump(FOutputDevice& Ar)
-{
-	Ar.Logf(TEXT("FConfigBranch %s"), *IniName.ToString());
-	Ar.Logf(TEXT("Static Layers:"));
-	for (const TPair<FString, FConfigCommandStream>& Pair : StaticLayers)
-	{
-		Ar.Logf(TEXT("  %s: %d sections"), *Pair.Key, Pair.Value.Num());
-	}
-	Ar.Logf(TEXT("Dynamic Layers:"));
-	for (DynamicLayerList::TIterator Node(DynamicLayers.GetHead()); Node; ++Node)
-	{
-		Ar.Logf(TEXT("  %s: %d sections"), *Node->Filename, Node->Num());
-	}
-}
 
 /*-----------------------------------------------------------------------------
 	FConfigCacheIni
@@ -2998,12 +2379,11 @@ static TMap<FName, TFuture<void>>& GetPlatformConfigFutures()
 }
 #endif
 
-FConfigCacheIni::FConfigCacheIni(EConfigCacheType InType, FName InPlatformName, bool bInGloballyRegistered)
+FConfigCacheIni::FConfigCacheIni(EConfigCacheType InType, bool bInGloballyRegistered)
 	: bAreFileOperationsDisabled(false)
 	, bIsReadyForUse(false)
 	, bGloballyRegistered(bInGloballyRegistered)
 	, Type(InType)
-	, PlatformName(InPlatformName)
 {
 }
 
@@ -3019,43 +2399,6 @@ FConfigCacheIni::~FConfigCacheIni()
 }
 
 
-	
-FConfigBranch* FConfigCacheIni::FindBranch(FName BaseIniName, const FString& Filename)
-{
-	// look for a known file, if there's no ini extension
-	FConfigBranch* Branch = KnownFiles.GetBranch(BaseIniName);
-
-	if (Branch == nullptr)
-	{
-		Branch = KnownFiles.GetBranch(*Filename);
-	}
-	if (Branch == nullptr)
-	{
-		Branch = OtherFiles.FindRef(Filename);
-		if (Branch == nullptr)
-		{
-			for (TPair<FString,FConfigBranch*>& CurrentFilePair : OtherFiles)
-			{
-				if (CurrentFilePair.Value->IniName == BaseIniName)
-				{
-					Branch = CurrentFilePair.Value;
-					break;
-				}
-			}
-		}
-	}
-	return Branch;
-}
-
-FConfigBranch& FConfigCacheIni::AddNewBranch(const FString& Filename)
-{
-	FConfigBranch* Branch = new FConfigBranch();
-	Branch->IniName = *FPaths::GetBaseFilename(Filename);
-	Branch->IniPath = Filename;
-	return *OtherFiles.Add(Filename, Branch);
-}
-
-
 FConfigFile* FConfigCacheIni::FindConfigFile( const FString& Filename )
 {
 	// look for a known file, if there's no ini extension
@@ -3063,14 +2406,13 @@ FConfigFile* FConfigCacheIni::FindConfigFile( const FString& Filename )
 
 	if (Result == nullptr)
 	{
-		FConfigBranch* Branch = OtherFiles.FindRef(Filename);
-		Result = Branch ? &Branch->InMemoryFile : nullptr;
+		Result = OtherFiles.FindRef(Filename);
 	}
 	return Result;
 }
 
 FConfigFile* FConfigCacheIni::Find(const FString& Filename)
-{
+{	
 	// check for non-filenames
 	if(Filename.Len() == 0)
 	{
@@ -3101,11 +2443,17 @@ FConfigFile* FConfigCacheIni::Find(const FString& Filename)
 		{
 			// We could normalize always normalize paths, but we don't want to always incur the penalty of that
 			// when callers can cache the strings ahead of time.
-			UE_LOG(LogConfig, Warning, TEXT("GConfig::Find attempting to access config with non-normalized path %s. Please use FConfigCacheIni::NormalizeConfigIniPath (which would make generate %s) before accessing INI files through ConfigCache."), *Filename, *UnrealFileName);
+			UE_LOG(LogConfig, Warning, TEXT("GConfig::Find attempting to access config with non-normalized path %s. Please use FConfigCacheIni::NormalizeConfigIniPath before accessing INI files through ConfigCache."), *Filename);
 		}
 	}
 
 	return Result;
+}
+
+FConfigFile* FConfigCacheIni::Find(const FString& Filename, bool CreateIfNotFound)
+{
+	UE_LOG(LogConfig, Verbose, TEXT("GConfig::Find is ignoring deprecated parameter CreateIfNotFound for file:  %s"), *Filename);
+	return Find(Filename);
 }
 
 FConfigFile* FConfigCacheIni::FindConfigFileWithBaseName(FName BaseName)
@@ -3115,11 +2463,11 @@ FConfigFile* FConfigCacheIni::FindConfigFileWithBaseName(FName BaseName)
 		return Result;
 	}
 
-	for (TPair<FString,FConfigBranch*>& CurrentFilePair : OtherFiles)
+	for (TPair<FString,FConfigFile*>& CurrentFilePair : OtherFiles)
 	{
-		if (CurrentFilePair.Value->InMemoryFile.Name == BaseName)
+		if (CurrentFilePair.Value->Name == BaseName)
 		{
-			return &CurrentFilePair.Value->InMemoryFile;
+			return CurrentFilePair.Value;
 		}
 	}
 	return nullptr;
@@ -3127,24 +2475,21 @@ FConfigFile* FConfigCacheIni::FindConfigFileWithBaseName(FName BaseName)
 
 FConfigFile& FConfigCacheIni::Add(const FString& Filename, const FConfigFile& File)
 {
-	FConfigBranch** Result = OtherFiles.Find(Filename);
+	FConfigFile*& Result = OtherFiles.FindOrAdd(Filename);
 	if (Result)
 	{
-		delete *Result;
+		delete Result;
 	}
-
-	FConfigBranch* Branch = new FConfigBranch(File);
-	Branch->IniName = File.Name;
-	Branch->IniPath = Filename;
+	Result = new FConfigFile(File);
 #if UE_WITH_CONFIG_TRACKING
-	UE::ConfigAccessTracking::FFile* FileAccess = Branch->InMemoryFile.GetFileAccess();
+	UE::ConfigAccessTracking::FFile* FileAccess = Result->GetFileAccess();
 	if (FileAccess)
 	{
-		FileAccess->SetAsLoadTypeConfigSystem(*this, Branch->InMemoryFile);
+		FileAccess->SetAsLoadTypeConfigSystem(*this, *Result);
 		FileAccess->OverrideFilenameToLoad = FName(FStringView(Filename));
 	}
 #endif
-	return OtherFiles.Add(Filename, Branch)->InMemoryFile;
+	return *Result;
 }
 
 bool FConfigCacheIni::ContainsConfigFile(const FConfigFile* ConfigFile) const
@@ -3154,17 +2499,17 @@ bool FConfigCacheIni::ContainsConfigFile(const FConfigFile* ConfigFile) const
 	// since the point at which the caller received the ConfigFile pointer
 	// they are testing. It is the caller's responsibility to not try to hold
 	// on to the ConfigFile pointer during writes to this ConfigCacheIni
-	for (const TPair<FString, FConfigBranch*>& CurrentFilePair : OtherFiles)
+	for (const TPair<FString, FConfigFile*>& CurrentFilePair : OtherFiles)
 	{
-		if (ConfigFile == &CurrentFilePair.Value->InMemoryFile)
+		if (ConfigFile == CurrentFilePair.Value)
 		{
 			return true;
 		}
 	}
 	// Check the known inis
-	for (const FConfigBranch& Branch : KnownFiles.Branches)
+	for (const FKnownConfigFiles::FKnownConfigFile& KnownFile : KnownFiles.Files)
 	{
-		if (ConfigFile == &Branch.InMemoryFile)
+		if (ConfigFile == &KnownFile.IniFile)
 		{
 			return true;
 		}
@@ -3179,14 +2524,13 @@ TArray<FString> FConfigCacheIni::GetFilenames()
 	TArray<FString> Result;
 	OtherFiles.GetKeys(Result);
 
-	for (const FConfigBranch& Branch : KnownFiles.Branches)
+	for (const FConfigCacheIni::FKnownConfigFiles::FKnownConfigFile& File : KnownFiles.Files)
 	{
-		Result.Add(Branch.IniName.ToString());
+		Result.Add(File.IniName.ToString());
 	}
 
 	return Result;
 }
-
 
 
 void FConfigCacheIni::Flush(bool bRemoveFromCache, const FString& Filename )
@@ -3199,24 +2543,20 @@ void FConfigCacheIni::Flush(bool bRemoveFromCache, const FString& Filename )
 		// write out the files if we can
 		if (!bAreFileOperationsDisabled)
 		{
-			if (Filename.Len() > 0)
+			for (TPair<FString, FConfigFile*>& Pair : OtherFiles)
 			{
-				// flush single file
-				if (FConfigBranch* Branch = FindBranch(*Filename, Filename))
+				if (Filename.Len() == 0 || Pair.Key == Filename)
 				{
-					SaveBranch(*Branch);
+					Pair.Value->Write(*Pair.Key);
 				}
 			}
-			else
+
+			// now flush the known files (all or a single file)
+			for (FConfigCacheIni::FKnownConfigFiles::FKnownConfigFile& File : KnownFiles.Files)
 			{
-				// flush all files
-				for (TPair<FString, FConfigBranch*>& Pair : OtherFiles)
-			{
-					SaveBranch(*Pair.Value);
-				}
-				for (FConfigBranch& Branch : KnownFiles.Branches)
+				if (Filename.Len() == 0 || Filename == File.IniName.ToString())
 				{
-					SaveBranch(Branch);
+					File.IniFile.Write(*File.IniPath);
 				}
 			}
 		}
@@ -3237,7 +2577,7 @@ void FConfigCacheIni::Flush(bool bRemoveFromCache, const FString& Filename )
 		}
 		else
 		{
-			for (TPair<FString, FConfigBranch*>& It : OtherFiles)
+			for (TPair<FString, FConfigFile*>& It : OtherFiles)
 			{
 				delete It.Value;
 			}
@@ -3623,8 +2963,8 @@ void FConfigCacheIni::SetText( const TCHAR* Section, const TCHAR* Key, const FTe
 		Sec->Add(Key, FConfigValue(Sec, FName(Key), MoveTemp(StrValue)));
 		File->Dirty = true;
 	}
-	// Use GetSavedValueForWriting rather than GetSavedValue to avoid reporting the is-it-dirty query mark the values as having been accessed for dependency tracking
-	else if( FCString::Strcmp(*ConfigValue->GetSavedValueForWriting(), *StrValue)!=0 )
+	// Use GetSavedValueForWriting rather than GetSavedValue to avoid reporting the value as having been accessed for dependency tracking
+	else if( FCString::Strcmp(*UE::ConfigCacheIni::Private::FAccessor::GetSavedValueForWriting(*ConfigValue), *StrValue)!=0 )
 	{
 		File->Dirty = true;
 		*ConfigValue = MoveTemp(StrValue);
@@ -3637,11 +2977,11 @@ bool FConfigCacheIni::RemoveKey( const TCHAR* Section, const TCHAR* Key, const F
 	if( File )
 	{
 		if (File->RemoveKeyFromSection(Section, Key))
-			{
-				File->Dirty = 1;
-				return true;
-			}
+		{
+			File->Dirty = 1;
+			return true;
 		}
+	}
 	return false;
 }
 
@@ -3834,11 +3174,11 @@ void FConfigCacheIni::DumpFile(FOutputDevice& Ar, const FString& Filename, const
 
 void FConfigCacheIni::Dump(FOutputDevice& Ar, const TCHAR* BaseIniName)
 {
-	for (const FConfigBranch& Branch : KnownFiles.Branches)
+	for (const FConfigCacheIni::FKnownConfigFiles::FKnownConfigFile& File : KnownFiles.Files)
 	{
-		if (BaseIniName == nullptr || Branch.IniName == BaseIniName)
+		if (BaseIniName == nullptr || File.IniName == BaseIniName)
 		{
-			DumpFile(Ar, Branch.IniName.ToString(), Branch.InMemoryFile);
+			DumpFile(Ar, File.IniName.ToString(), File.IniFile);
 		}
 	}
 
@@ -3850,7 +3190,7 @@ void FConfigCacheIni::Dump(FOutputDevice& Ar, const TCHAR* BaseIniName)
 	{
 		if (BaseIniName == nullptr || FPaths::GetBaseFilename(Key) == BaseIniName)
 		{
-			DumpFile(Ar, Key, OtherFiles[Key]->InMemoryFile);
+			DumpFile(Ar, Key, *OtherFiles[Key]);
 		}
 	}
 }
@@ -4266,14 +3606,6 @@ bool FConfigCacheIni::RemoveFromSection(const TCHAR* Section, FName Key, const F
 	return false;
 }
 
-bool FConfigCacheIni::ResetKeyInSection(const TCHAR* Section, FName Key, const FString& Filename)
-{
-	if (FConfigFile* File = Find(*Filename))
-	{
-		return File->ResetKeyInSection(Section, Key);
-	}
-	return false;
-}
 
 /**
  * Archive for counting config file memory usage.
@@ -4368,10 +3700,10 @@ void FConfigCacheIni::ShowMemoryUsage( FOutputDevice& Ar )
 {
 	FConfigMemoryData ConfigCacheMemoryData;
 
-	for (TPair<FString, FConfigBranch*>& Pair : OtherFiles)
+	for (TPair<FString, FConfigFile*>& Pair : OtherFiles)
 	{
 		FString Filename = Pair.Key;
-		FConfigFile& ConfigFile = Pair.Value->InMemoryFile;
+		FConfigFile* ConfigFile = Pair.Value;
 
 		FArchiveCountConfigMem MemAr;
 
@@ -4379,7 +3711,7 @@ void FConfigCacheIni::ShowMemoryUsage( FOutputDevice& Ar )
 		MemAr << Filename;
 
 		// count the bytes used for storing the array of SectionName->Section pairs
-		MemAr << ConfigFile;
+		MemAr << *ConfigFile;
 		
 		ConfigCacheMemoryData.AddConfigFile(Filename, MemAr);
 	}
@@ -4408,7 +3740,7 @@ void FConfigCacheIni::ShowMemoryUsage( FOutputDevice& Ar )
 	for ( int32 Index = 0; Index < ConfigCacheMemoryData.MemoryData.Num(); Index++ )
 	{
 		FConfigFileMemoryData& ConfigFileMemoryData = ConfigCacheMemoryData.MemoryData[Index];
-			Ar.Logf(TEXT("%*s %*u %*u"),
+			Ar.Logf(TEXT("%*s %*u %*u"), 
 			ConfigCacheMemoryData.NameIndent, *ConfigFileMemoryData.ConfigFilename,
 			ConfigCacheMemoryData.SizeIndent, (uint32)ConfigFileMemoryData.CurrentSize,
 			ConfigCacheMemoryData.MaxSizeIndent, (uint32)ConfigFileMemoryData.MaxSize);
@@ -4417,7 +3749,7 @@ void FConfigCacheIni::ShowMemoryUsage( FOutputDevice& Ar )
 		MaxMemoryUsage += ConfigFileMemoryData.MaxSize;
 	}
 
-	Ar.Logf(TEXT("%*s %*u %*u"),
+	Ar.Logf(TEXT("%*s %*u %*u"), 
 		ConfigCacheMemoryData.NameIndent, TEXT("Total"),
 		ConfigCacheMemoryData.SizeIndent, (uint32)TotalMemoryUsage,
 		ConfigCacheMemoryData.MaxSizeIndent, (uint32)MaxMemoryUsage);
@@ -4437,10 +3769,10 @@ SIZE_T FConfigCacheIni::GetMaxMemoryUsage()
 
 	FConfigMemoryData ConfigCacheMemoryData;
 
-	for (TPair<FString, FConfigBranch*>& Pair : OtherFiles)
+	for (TPair<FString, FConfigFile*>& Pair : OtherFiles)
 	{
 		FString Filename = Pair.Key;
-		FConfigFile& ConfigFile = Pair.Value->InMemoryFile;
+		FConfigFile* ConfigFile = Pair.Value;
 
 		FArchiveCountConfigMem FileMemAr;
 
@@ -4448,7 +3780,7 @@ SIZE_T FConfigCacheIni::GetMaxMemoryUsage()
 		FileMemAr << Filename;
 
 		// count the bytes used for storing the array of SectionName->Section pairs
-		FileMemAr << ConfigFile;
+		FileMemAr << *ConfigFile;
 
 		ConfigCacheMemoryData.AddConfigFile(Filename, FileMemAr);
 	}
@@ -4539,17 +3871,17 @@ void FConfigCacheIni::Serialize(FArchive& Ar)
 		for (int Index = 0; Index < Num; Index++)
 		{
 			FString Filename;
-			FConfigBranch* Branch = new FConfigBranch;
+			FConfigFile* File = new FConfigFile;
 			Ar << Filename;
-			Ar << *Branch;
-			OtherFiles.Add(Filename, Branch);
+			Ar << *File;
+			OtherFiles.Add(Filename, File);
 		}
 	}
 	else
 	{
 		int Num = OtherFiles.Num();
 		Ar << Num;
-		for (TPair<FString, FConfigBranch*>& It : OtherFiles)
+		for (TPair<FString, FConfigFile*>& It : OtherFiles)
 		{
 			Ar << It.Key;
 			Ar << *It.Value;
@@ -4559,15 +3891,14 @@ void FConfigCacheIni::Serialize(FArchive& Ar)
 	Ar << bAreFileOperationsDisabled;
 	Ar << bIsReadyForUse;
 	Ar << Type;
-	Ar << PlatformName;
 }
 
 void FConfigCacheIni::SerializeStateForBootstrap_Impl(FArchive& Ar)
 {
-	// This implementation is meant to stay private and be used for
+	// This implementation is meant to stay private and be used for 
 	// bootstrapping another processes' config cache with a serialized state.
 	// It doesn't include any versioning as it is used with the
-	// the same binary executable for both the parent and
+	// the same binary executable for both the parent and 
 	// children processes. It also takes care of saving/restoring
 	// global ini variables.
 	Serialize(Ar);
@@ -4607,17 +3938,16 @@ bool FConfigCacheIni::InitializeKnownConfigFiles(FConfigContext& Context)
 	bool bEngineConfigCreated = false;
 	for (uint8 KnownIndex = 0; KnownIndex < (uint8)EKnownIniFile::NumKnownFiles; KnownIndex++)
 	{
-		FConfigBranch& KnownBranch = Context.ConfigSystem->KnownFiles.Branches[KnownIndex];
-
+		FConfigCacheIni::FKnownConfigFiles::FKnownConfigFile& KnownFile = Context.ConfigSystem->KnownFiles.Files[KnownIndex];
 #if UE_WITH_CONFIG_TRACKING
 		// We cannot set KnownFiles' LoadType in the FConfigCacheIni constructor because we need to compare with GConfig,
 		// which is not set during GConfig's constructor. We have to set it before calling Load on the ConfigFile, since
 		// Load can read values and LoadType must be set before any values are read.
-		UE::ConfigAccessTracking::FFile* FileAccess = KnownBranch.InMemoryFile.GetFileAccess();
+		UE::ConfigAccessTracking::FFile* FileAccess = KnownFile.IniFile.GetFileAccess();
 		if (FileAccess)
 		{
-			FileAccess->SetAsLoadTypeConfigSystem(*Context.ConfigSystem, KnownBranch.InMemoryFile);
-			FileAccess->OverrideFilenameToLoad = KnownBranch.IniName;
+			FileAccess->SetAsLoadTypeConfigSystem(*Context.ConfigSystem, KnownFile.IniFile);
+			FileAccess->OverrideFilenameToLoad = KnownFile.IniName;
 		}
 #endif
 
@@ -4625,7 +3955,7 @@ bool FConfigCacheIni::InitializeKnownConfigFiles(FConfigContext& Context)
 		FConfigContext& ContextToUse = (KnownIndex == (uint8)EKnownIniFile::Scalability && ScalabilityPlatformOverrideContext) ? *ScalabilityPlatformOverrideContext : Context;
 
 		// and load it, saving the dest path to IniPath
-		bool bConfigCreated = ContextToUse.Load(*KnownBranch.IniName.ToString(), KnownBranch.IniPath);
+		bool bConfigCreated = ContextToUse.Load(*KnownFile.IniName.ToString(), KnownFile.IniPath);
 		
 		// we want to return if the Engine config was successfully created (to not remove any functionality from old code)
 		if (KnownIndex == (uint8)EKnownIniFile::Engine)
@@ -4634,7 +3964,7 @@ bool FConfigCacheIni::InitializeKnownConfigFiles(FConfigContext& Context)
 		}
 	}
 
-	// GConfig set itself ready for use later on
+	// Gconfig set itself ready for use later on
 	if (Context.ConfigSystem != GConfig)
 	{
 		Context.ConfigSystem->bIsReadyForUse = true;
@@ -4656,28 +3986,29 @@ const FConfigFile* FConfigCacheIni::FKnownConfigFiles::GetFile(FName Name)
 
 FConfigFile* FConfigCacheIni::FKnownConfigFiles::GetMutableFile(FName Name)
 {
-	FConfigBranch* Branch = GetBranch(Name);
-	return Branch ? &Branch->InMemoryFile : nullptr;
-}
-
-FConfigBranch* FConfigCacheIni::FKnownConfigFiles::GetBranch(FName Name)
-{
 	// walk the list of files looking for matching FName (a TMap was a bit slower)
-	for (FConfigBranch& Branch : Branches)
+	for (FKnownConfigFile& File : Files)
 	{
-		if (Branch.IniName == Name)
+		if (File.IniName == Name)
 		{
-			return &Branch;
+			return &File.IniFile;
 		}
 	}
+
 	return nullptr;
 }
-
 const FString& FConfigCacheIni::FKnownConfigFiles::GetFilename(FName Name)
 {
+	for (FKnownConfigFile& File : Files)
+	{
+		if (File.IniName == Name)
+		{
+			return File.IniPath;
+		}
+	}
+
 	static FString Empty;
-	const FConfigBranch* Branch = GetBranch(Name);
-	return Branch ? Branch->IniPath : Empty;
+	return Empty;
 }
 
 FConfigCacheIni::FKnownConfigFiles::FKnownConfigFiles()
@@ -4685,28 +4016,20 @@ FConfigCacheIni::FKnownConfigFiles::FKnownConfigFiles()
 	// set the FNames associated with each file
 
 	// 	Files[(uint8)EKnownIniFile::Engine].IniName = FName("Engine");
-	#define SET_KNOWN_NAME(Ini) Branches[(uint8)EKnownIniFile::Ini].IniName = FName(#Ini);
+	#define SET_KNOWN_NAME(Ini) Files[(uint8)EKnownIniFile::Ini].IniName = FName(#Ini);
 		ENUMERATE_KNOWN_INI_FILES(SET_KNOWN_NAME);
 	#undef SET_KNOWN_NAME
 }
 
-FArchive& operator<<(FArchive& Ar, FConfigCacheIni::FKnownConfigFiles& KnownFiles)
+FArchive& operator<<(FArchive& Ar, FConfigCacheIni::FKnownConfigFiles& Names)
 {
-	for (FConfigBranch& Branch : KnownFiles.Branches)
+	for (FConfigCacheIni::FKnownConfigFiles::FKnownConfigFile& File : Names.Files)
 	{
-		Ar << Branch;
+		Ar << File.IniPath << File.IniFile;
 	}
 
 	return Ar;
 }
-
-FArchive& operator<<(FArchive& Ar, FConfigBranch& ConfigBranch)
-{
-	Ar << ConfigBranch.bIsHierarchical;
-	Ar << ConfigBranch.InMemoryFile;
-	return Ar;
-}
-
 
 #if PRELOAD_BINARY_CONFIG
 
@@ -4729,7 +4052,7 @@ bool FConfigCacheIni::CreateGConfigFromSaved(const TCHAR* Filename)
 	// serialize right out of the preloaded data
 	FLargeMemoryReader MemoryReader((uint8*)PreloadedData, Size);
 	FKnownConfigFiles Names;
-	GConfig = new FConfigCacheIni(EConfigCacheType::Temporary, NAME_None /* Platform*/, true /* bInGloballyRegistered */);
+	GConfig = new FConfigCacheIni(EConfigCacheType::Temporary, true /* bInGloballyRegistered */);
 
 	// make an object that we can use to pass to delegates for any extra binary data they want to write
 //	FCoreDelegates::FExtraBinaryConfigData ExtraData(*GConfig, false);
@@ -4873,7 +4196,7 @@ void FConfigCacheIni::InitializeConfigSystem()
 		if (FFileHelper::LoadFileToArray(FileContent, *IniBootstrapFilename, FILEREAD_Silent))
 		{
 			FMemoryReader MemoryReader(FileContent, true);
-			GConfig = new FConfigCacheIni(EConfigCacheType::Temporary, NAME_None /*Platform*/, true /* bInGloballyRegistered */);
+			GConfig = new FConfigCacheIni(EConfigCacheType::Temporary, true /* bInGloballyRegistered */);
 			GConfig->SerializeStateForBootstrap_Impl(MemoryReader);
 			GConfig->bIsReadyForUse = true;
 			TRACE_CPUPROFILER_EVENT_SCOPE(ConfigReadyForUseBroadcast);
@@ -4890,7 +4213,7 @@ void FConfigCacheIni::InitializeConfigSystem()
 	FConfigManifest::UpgradeFromPreviousVersions();
 
 	// create GConfig
-	GConfig = new FConfigCacheIni(EConfigCacheType::DiskBacked, FPlatformProperties::IniPlatformName(), true /* bInGloballyRegistered */);
+	GConfig = new FConfigCacheIni(EConfigCacheType::DiskBacked, true /* bInGloballyRegistered */);
 
 	// create a context object that we will use for all of the main ini files
 	FConfigContext Context = FConfigContext::ReadIntoGConfig();
@@ -5043,8 +4366,30 @@ FConfigFile* FConfigCacheIni::FindOrLoadPlatformConfig(FConfigFile& LocalFile, c
 	FConfigFile* File = FindPlatformConfig(IniName, Platform);
 	if (File == nullptr)
 	{
-		FConfigContext Context = FConfigContext::ReadIntoLocalFile(LocalFile, Platform);
-		Context.Load(IniName);
+#if ALLOW_OTHER_PLATFORM_CONFIG
+		// Check if this ini file corresponds to a plugin
+		FConfigPluginDirs* PluginDirs = nullptr;
+		{
+			FScopeLock Lock(&FConfigContext::ConfigToPluginDirsLock);
+			TUniquePtr<FConfigPluginDirs>* PluginDirsPtr = FConfigContext::ConfigToPluginDirs.Find(IniName);
+			if (PluginDirsPtr != nullptr)
+			{
+				// we never remove the item so the raw pointer will not become invalid
+				PluginDirs = PluginDirsPtr->Get();
+			}
+		}
+		if (PluginDirs != nullptr)
+		{
+			// If so, read using the plugin hierarchy
+			FConfigContext Context = FConfigContext::ReadIntoPluginFile(LocalFile, *PluginDirs->PluginPath, PluginDirs->PluginExtensionBaseDirs, Platform);
+			Context.Load(IniName);
+		}
+		else
+#endif
+		{
+			FConfigContext Context = FConfigContext::ReadIntoLocalFile(LocalFile, Platform);
+			Context.Load(IniName);
+		}
 		File = &LocalFile;
 	}
 
@@ -5102,6 +4447,7 @@ FString FConfigCacheIni::NormalizeConfigIniPath(const FString& NonNormalizedPath
 
 FArchive& operator<<(FArchive& Ar, FConfigFile& ConfigFile)
 {
+	bool bHasSourceConfigFile = ConfigFile.SourceConfigFile != nullptr;
 	bool bDirty = ConfigFile.Dirty;
 	bool bNoSave = ConfigFile.NoSave;
 	bool bHasPlatformName = ConfigFile.bHasPlatformName;
@@ -5112,6 +4458,20 @@ FArchive& operator<<(FArchive& Ar, FConfigFile& ConfigFile)
 	Ar << bHasPlatformName;
 
 	Ar << ConfigFile.Name;
+	Ar << ConfigFile.SourceIniHierarchy;
+	Ar << ConfigFile.SourceEngineConfigDir;
+	Ar << bHasSourceConfigFile;
+	if (bHasSourceConfigFile)
+	{
+		// Handle missing instance for the loading case
+		if (ConfigFile.SourceConfigFile == nullptr)
+		{
+			ConfigFile.SourceConfigFile = new FConfigFile();
+		}
+
+		Ar << *ConfigFile.SourceConfigFile;
+	}
+	Ar << ConfigFile.SourceProjectConfigDir;
 	Ar << ConfigFile.PlatformName;
 	Ar << ConfigFile.PerObjectConfigArrayOfStructKeys;
 
@@ -5217,27 +4577,18 @@ void FConfigFile::UpdateSections(const TCHAR* DiskFilename, const TCHAR* IniRoot
 	// load the hierarchy up to right before this file
 	if (IniRootName != nullptr)
 	{
-		// we need to make a temporary file, instead of reading directly into FinalCombinedLayers, because
-		// the ConfigContext would end up clearing out the contents of the File in GenerateDestIniFile
-		// most of this code is temporary workarounds for a better way to update a section in a hierarchical
-		// layer (static or dynamic)
-		// this would be much simpler if we passed a "Defaults" FConfigFile to WriteInternal, to not use the Branch
-		// in this file - the way this function is used, this->Branch is a temp/dummy branch that isn't great for reading
-		// against
-		
-		FConfigFile Combined;
+		// Get a collection of the source hierarchy properties
+		if (SourceConfigFile)
+		{
+			delete SourceConfigFile;
+		}
+		SourceConfigFile = new FConfigFile();
 
-		// read up to right before this file to diff against
-		FConfigContext BaseContext = FConfigContext::ReadUpToBeforeFile(Combined, OverridePlatform, DiskFilename);
+		// now when Write it called below, it will diff against this SourceConfigFile
+		FConfigContext BaseContext = FConfigContext::ReadUpToBeforeFile(*SourceConfigFile, OverridePlatform, DiskFilename);
 		BaseContext.Load(IniRootName);
-		
-		// now when WriteInternal it called below, it will diff against this FinalCombinedLayers
-		Branch->FinalCombinedLayers = Combined;
-		Branch->Hierarchy = BaseContext.Branch->Hierarchy;
-		// this a quick fix to have WriteInternal treat this as a defaults write
-		// do we know if it always is default style write here? seems like it from Obj.cpp and LocalizationTargetDetailCustomization.cpp
-		// maybe we should call WriteToStringInternal and pass in bIsADefaultsWrite
-		Branch->IniPath = TEXT("");
+
+		SourceIniHierarchy = SourceConfigFile->SourceIniHierarchy;
 	}
 
 	WriteInternal(DiskFilename, true, SectionTexts, SectionOrder);
@@ -5456,7 +4807,7 @@ bool FConfigFile::UpdateSinglePropertyInSection(const TCHAR* DiskFilename, const
 		if (const FConfigValue* ConfigValue = LocalSection->Find(PropertyName))
 		{
 			// Use GetSavedValueForWriting rather than GetSavedValue to avoid having this save operation mark the value as having been accessed for dependency tracking
-			PropertyValue = ConfigValue->GetSavedValueForWriting();
+			PropertyValue = UE::ConfigCacheIni::Private::FAccessor::GetSavedValueForWriting(*ConfigValue);
 		}
 	}
 
@@ -5465,111 +4816,11 @@ bool FConfigFile::UpdateSinglePropertyInSection(const TCHAR* DiskFilename, const
 }
 
 
+
 #if ALLOW_OTHER_PLATFORM_CONFIG
 // these are knowingly leaked
-TMap<FName, FConfigCacheIni*> FConfigCacheIni::ConfigForPlatform;
-FCriticalSection FConfigCacheIni::ConfigForPlatformLock;
-#endif
-
-TMap<FName, FConfigCacheIni::FPluginInfo*> FConfigCacheIni::RegisteredPlugins;
-
-
-void FConfigCacheIni::AddPluginToAllBranches(FName PluginName, FConfigModificationTracker* ModificationTracker)
-{
-	GConfig->AddPluginToBranches(PluginName, ModificationTracker);
-	
-#if ALLOW_OTHER_PLATFORM_CONFIG
-	// need to walk over the other platforms without calling ForPlatform because that could end up loading pending plugins
-	for (auto Pair : ConfigForPlatform)
-	{
-		Pair.Value->PendingModificationPlugins.Add(PluginName);
-	}
-#endif
-}
-
-void FConfigCacheIni::RemovePluginFromAllBranches(FName PluginName, FConfigModificationTracker* ModificationTracker)
-{
-	GConfig->RemovePluginFromBranches(PluginName, ModificationTracker);
-	
-#if ALLOW_OTHER_PLATFORM_CONFIG
-	// need to walk over the other platforms without calling ForPlatform because that could end up loading pending plugins
-	for (auto Pair : ConfigForPlatform)
-	{
-		Pair.Value->RemovePluginFromBranches(PluginName, ModificationTracker);
-	}
-#endif
-
-}
-
-
-void FConfigCacheIni::AddPluginToBranches(FName PluginName, FConfigModificationTracker* ModificationTracker)
-{
-	// @todo make sure we are still pending
-	
-	FPluginInfo* PluginInfo = RegisteredPlugins.FindRef(PluginName);
-	if (PluginInfo == nullptr)
-	{
-		UE_LOG(LogConfig, Warning, TEXT("Attempting to load a dynamic plugin (%s) that was not registered ahead of time!"), *PluginName.ToString());
-		return;
-	}
-	
-	TArray<FString> PluginConfigs;
-	FString PluginConfigDir = FPaths::Combine(PluginInfo->PluginDir, TEXT("Config"));
-	IFileManager::Get().FindFiles(PluginConfigs, *PluginConfigDir, TEXT("ini"));
-	
-	// make a single context that can be used for all the branches modified by this plugin
-	FConfigContext Context = FConfigContext::ReadIntoConfigSystem(this, PlatformName.ToString());
-	Context.bIsForPluginModification = true;
-	Context.PluginModificationPriority = PluginInfo->Priority;
-	Context.bIncludeTagNameInBranchName = PluginInfo->bIncludePluginNameInBranchName;
-	Context.ChangeTracker = ModificationTracker;
-	
-	// find branches that are found in the plugin dir, platform extension dirs can be used, but there must be a .ini file in Config for it to search
-	FString StrippedPart = PluginInfo->bIncludePluginNameInBranchName ? PluginName.ToString() : FString();
-	FName CurrentPlatform(FPlatformProperties::IniPlatformName());
-	for (const FString& ConfigFilename : PluginConfigs)
-	{
-		FName BranchName = *FPaths::GetBaseFilename(ConfigFilename).Replace(*StrippedPart, TEXT(""));
-		
-		// if we have been tracking loaded files, and we've already loaded this file, we can skip it (it would be the DefaultMyPlugin.ini type of file)
-		if (ModificationTracker && ModificationTracker->bTrackLoadedFiles)
-		{
-			FString FullPath = FPaths::Combine(PluginConfigDir, ConfigFilename);
-			if (ModificationTracker->LoadedFiles.Contains(FullPath))
-			{
-				continue;
-			}
-		}
-		
-		// look up the branch to see if we can modify it
-		FConfigBranch* Branch = FindBranch(BranchName, FString());
-		if (Branch == nullptr)
-		{
-			// don't log out for other platforms, because they are being loadd later and the ModificationTracker doesn't have full context
-			// @todo: removed this because it was causing the FilterPlugin.ini files to be logged _a lot_.
-			UE_CLOG(PlatformName == CurrentPlatform, LogConfig, Verbose, TEXT("Found unknown .ini file %s in plugindir %s"), *ConfigFilename, *PluginInfo->PluginDir);
-			continue;
-		}
-		
-		Context.ConfigFileTag = PluginName;
-		Context.Load(*BranchName.ToString());
-	}
-}
-
-void FConfigCacheIni::RemovePluginFromBranches(FName PluginName, FConfigModificationTracker* ModificationTracker)
-{
-	for (uint8 KnownIndex = 0; KnownIndex < (uint8)EKnownIniFile::NumKnownFiles; KnownIndex++)
-	{
-		KnownFiles.Branches[KnownIndex].RemovePluginFromHierarchy(PluginName, ModificationTracker);
-	}
-	for (auto& Pair : OtherFiles)
-	{
-		Pair.Value->RemovePluginFromHierarchy(PluginName, ModificationTracker);
-	}
-}
-
-
-#if ALLOW_OTHER_PLATFORM_CONFIG
+static TMap<FName, FConfigCacheIni*> GConfigForPlatform;
+static FCriticalSection GConfigForPlatformLock;
 
 #if WITH_EDITOR
 void FConfigCacheIni::AsyncInitializeConfigForPlatforms()
@@ -5585,7 +4836,7 @@ void FConfigCacheIni::AsyncInitializeConfigForPlatforms()
 	for (const TPair<FName, FDataDrivenPlatformInfo>& Pair : AllPlatformInfos)
 	{
 		GetPlatformConfigFutures().Emplace(Pair.Key);
-		ConfigForPlatform.Add(Pair.Key, new FConfigCacheIni(EConfigCacheType::Temporary, Pair.Key, true /* bInGloballyRegistered */));
+		GConfigForPlatform.Add(Pair.Key, new FConfigCacheIni(EConfigCacheType::Temporary, true /* bInGloballyRegistered */));
 	}
 
 	for (const TPair<FName, FDataDrivenPlatformInfo>& Pair : AllPlatformInfos)
@@ -5595,7 +4846,7 @@ void FConfigCacheIni::AsyncInitializeConfigForPlatforms()
 		{
 			double Start = FPlatformTime::Seconds();
 
-			FConfigCacheIni* NewConfig = ConfigForPlatform.FindChecked(PlatformName);
+			FConfigCacheIni* NewConfig = GConfigForPlatform.FindChecked(PlatformName);
 			FConfigContext Context = FConfigContext::ReadIntoConfigSystem(NewConfig, PlatformName.ToString());
 			InitializeKnownConfigFiles(Context);
 	
@@ -5634,29 +4885,22 @@ FConfigCacheIni* FConfigCacheIni::ForPlatform(FName PlatformName)
 #endif
 
 	// protect against other threads clearing the array, or two threads trying to read in a missing platform at the same time
-	FScopeLock Lock(&ConfigForPlatformLock);
-	FConfigCacheIni* PlatformConfig = ConfigForPlatform.FindRef(PlatformName);
+	FScopeLock Lock(&GConfigForPlatformLock);
+	FConfigCacheIni* PlatformConfig = GConfigForPlatform.FindRef(PlatformName);
 
 	// read any missing platform configs now, on demand (this will happen when WITH_EDITOR is 0)
 	if (PlatformConfig == nullptr)
 	{
 		double Start = FPlatformTime::Seconds();
 		
-		PlatformConfig = ConfigForPlatform.Add(PlatformName, new FConfigCacheIni(EConfigCacheType::Temporary, PlatformName, true /* bInGloballyRegistered */));
+		PlatformConfig = GConfigForPlatform.Add(PlatformName, new FConfigCacheIni(EConfigCacheType::Temporary, true /* bInGloballyRegistered */));
 		FConfigContext Context = FConfigContext::ReadIntoConfigSystem(PlatformConfig, PlatformName.ToString());
 		InitializeKnownConfigFiles(Context);
 
 		UE_LOG(LogConfig, Display, TEXT("Read in platform %s ini files took %.2f seconds"), *PlatformName.ToString(), FPlatformTime::Seconds() - Start);
 	}
 
-	for (FName PluginName : PlatformConfig->PendingModificationPlugins)
-	{
-		// delayed plugin injection
-		PlatformConfig->AddPluginToBranches(PluginName, nullptr);
-	}
-	PlatformConfig->PendingModificationPlugins.Empty();
-	
-	return PlatformConfig;
+	return GConfigForPlatform.FindRef(PlatformName);
 
 #else
 	UE_LOG(LogConfig, Error, TEXT("FConfigCacheIni::ForPlatform cannot be called when not in a developer tool"));
@@ -5668,155 +4912,68 @@ void FConfigCacheIni::ClearOtherPlatformConfigs()
 {
 #if ALLOW_OTHER_PLATFORM_CONFIG
 	// this will read in on next call to ForPlatform()
-	FScopeLock Lock(&ConfigForPlatformLock);
-	ConfigForPlatform.Empty();
+	FScopeLock Lock(&GConfigForPlatformLock);
+	GConfigForPlatform.Empty();
 #endif
 }
 
-void FConfigCacheIni::RegisterPlugin(FName PluginName, const FString& PluginDir, const TArray<FString>& ChildPluginDirs, DynamicLayerPriority Priority, bool bIncludePluginNameInBranchName)
-{
-	FPluginInfo* Info = new FPluginInfo();
 
-	RegisteredPlugins.Add(PluginName, Info);
-	Info->PluginDir = PluginDir;
-	Info->ChildPluginDirs = ChildPluginDirs;
-	Info->Priority = Priority;
-	Info->bIncludePluginNameInBranchName = bIncludePluginNameInBranchName;
+
+
+
+
+
+
+
+////////////////////////////////////////
+//
+// Deprecated function wrappers
+//
+////////////////////////////////////////
+
+void ApplyCVarSettingsFromIni(const TCHAR* InSectionBaseName, const TCHAR* InIniFilename, uint32 SetBy, bool bAllowCheating)
+{
+	UE::ConfigUtilities::ApplyCVarSettingsFromIni(InSectionBaseName, InIniFilename, SetBy, bAllowCheating);
 }
 
-
-
-
-
-
-double GPrepareForLoadTime = 0;
-double GPerformLoadTime = 0;
-
-
-class FIniExec : public FSelfRegisteringExec
+void ForEachCVarInSectionFromIni(const TCHAR* InSectionName, const TCHAR* InIniFilename, TFunction<void(IConsoleVariable* CVar, const FString& KeyString, const FString& ValueString)> InEvaluationFunction)
 {
-	virtual bool Exec(class UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar) override
-	{
-		if (!FParse::Command(&Cmd, TEXT("CONFIG")))
-		{
-			return false;
-		}
+	UE::ConfigUtilities::ForEachCVarInSectionFromIni(InSectionName, InIniFilename, InEvaluationFunction);
+}
 
-		if (FParse::Command(&Cmd, TEXT("AddDyn")))
-		{
-			TCHAR BranchName[256];
-			TCHAR Filename[1024];
-			FConfigModificationTracker ChangeTracker;
+void RecordApplyCVarSettingsFromIni()
+{
+	UE::ConfigUtilities::RecordApplyCVarSettingsFromIni();
+}
 
-			if (FParse::Token(Cmd, BranchName, UE_ARRAY_COUNT(BranchName), true) &&
-				FParse::Token(Cmd, Filename, UE_ARRAY_COUNT(Filename), true))
-			{
-				FConfigBranch* Branch = GConfig->FindBranch(NAME_None, BranchName);
-				
-				if (Branch != nullptr)
-				{
-					Branch->AddDynamicLayerToHierarchy(Filename, &ChangeTracker);
-					Ar.Logf(TEXT("Modified sections:"));
-					for (const FString& Section : ChangeTracker.ModifiedSections)
-					{
-						Ar.Logf(TEXT("  %s"), *Section);
-					}
-				}
-			}
-			return true;
-		}
+void ReapplyRecordedCVarSettingsFromIni()
+{
+	UE::ConfigUtilities::ReapplyRecordedCVarSettingsFromIni();
+}
 
-		if (FParse::Command(&Cmd, TEXT("RemoveDyn")))
-		{
-			TCHAR BranchName[256];
-			TCHAR Filename[1024];
-			FConfigModificationTracker ChangeTracker;
+void DeleteRecordedCVarSettingsFromIni()
+{
+	UE::ConfigUtilities::DeleteRecordedCVarSettingsFromIni();
+}
 
-			if (FParse::Token(Cmd, BranchName, UE_ARRAY_COUNT(BranchName), true) &&
-				FParse::Token(Cmd, Filename, UE_ARRAY_COUNT(Filename), true))
-			{
-				FConfigBranch* Branch = GConfig->FindBranch(NAME_None, BranchName);
-				
-				if (Branch != nullptr)
-				{
-					Branch->RemoveDynamicLayerFromHierarchy(Filename, &ChangeTracker);
-					Ar.Logf(TEXT("Modified sections:"));
-					for (const FString& Section : ChangeTracker.ModifiedSections)
-					{
-						Ar.Logf(TEXT("  %s"), *Section);
-					}
-				}
-			}
+void RecordConfigReadsFromIni()
+{
+	UE::ConfigUtilities::RecordConfigReadsFromIni();
+}
 
-			return true;
-		}
+void DumpRecordedConfigReadsFromIni()
+{
+	UE::ConfigUtilities::DumpRecordedConfigReadsFromIni();
+}
 
+void DeleteRecordedConfigReadsFromIni()
+{
+	UE::ConfigUtilities::DeleteRecordedConfigReadsFromIni();
+}
 
-		if (FParse::Command(&Cmd, TEXT("Diff")))
-		{
-			TCHAR BranchName[256];
-			if (FParse::Token(Cmd, BranchName, UE_ARRAY_COUNT(BranchName), true))
-			{
-				FConfigBranch* Branch = GConfig->FindBranch(BranchName, BranchName);
-
-				if (Branch != nullptr)
-				{
-					FConfigCommandStream Diff = CalculateDiff(Branch->FinalCombinedLayers, Branch->InMemoryFile);
-					FString Output;
-					BuildOutputString(Output, Diff);
-					Ar.Logf(TEXT("Disk -> InMemory Diff of %s:\n%s"), BranchName, *Output);
-				}
-			}
-			return true;
-		}
-		
-		if (FParse::Command(&Cmd, TEXT("Flush")))
-		{
-			TCHAR BranchName[256];
-			if (FParse::Token(Cmd, BranchName, UE_ARRAY_COUNT(BranchName), true))
-			{
-				GConfig->Flush(false, BranchName);
-			}
-			else
-			{
-				GConfig->Flush(false);
-			}
-		}
-		
-		if (FParse::Command(&Cmd, TEXT("AddHotFix")))
-		{
-			TCHAR FileName[256];
-			if (FParse::Token(Cmd, FileName, UE_ARRAY_COUNT(FileName), true))
-			{
-				FConfigModificationTracker ChangeTracker;
-				FConfigBranch* Branch = GConfig->FindBranch(*FPaths::GetBaseFilename(FileName), FileName);
-				
-				if (Branch != nullptr)
-				{
-					Branch->AddDynamicLayersToHierarchy({ FileName }, "HotfixTest", DynamicLayerPriority::Hotfix, &ChangeTracker);
-					Ar.Logf(TEXT("HF Modified sections:"));
-					for (const FString& Section : ChangeTracker.ModifiedSections)
-					{
-						Ar.Logf(TEXT("  %s"), *Section);
-					}
-				}
-			}
-		}
-		
-		if (FParse::Command(&Cmd, TEXT("RemoveHotFixes")))
-		{
-			FConfigCacheIni::RemovePluginFromAllBranches("HotfixTest");
-		}
-		
-		if (FParse::Command(&Cmd, TEXT("Timing")))
-		{
-			Ar.Logf(TEXT("INITIME : PrepareForLoad: %fms, PreformLoad: %fms"), GPrepareForLoadTime * 1000.0, GPerformLoadTime * 1000.0);
-		}
-		
-		return true;
-	}
-	
-} GConfigExec;
-
+const TCHAR* ConvertValueFromHumanFriendlyValue(const TCHAR* Value)
+{
+	return UE::ConfigUtilities::ConvertValueFromHumanFriendlyValue(Value);
+}
 
 #undef LOCTEXT_NAMESPACE

@@ -10,8 +10,6 @@
 #include "CoreGlobals.h"
 #include "CoreTypes.h"
 #include "Misc/ConfigTypes.h"
-// @todo mvoe types into ConfigTypes.h so we don't need to include the monster here
-#include "Misc/ConfigCacheIni.h"
 
 
 #ifndef CUSTOM_CONFIG
@@ -23,9 +21,24 @@
 #endif
 
 
+#if ALLOW_OTHER_PLATFORM_CONFIG
+
+// Struct to hold the plugin base directory and any child plugin base directories, used for the ConfigToPluginDirs map.
+struct CORE_API FConfigPluginDirs
+{
+	FString PluginPath;
+	TArray<FString> PluginExtensionBaseDirs;
+
+	FConfigPluginDirs(const FString& InPluginPath, const TArray<FString>& InPluginExtensionBaseDirs)
+	:	PluginPath(InPluginPath)
+	,	PluginExtensionBaseDirs(InPluginExtensionBaseDirs)
+	{}
+};
+
+#endif
+
 class FConfigCacheIni;
 class FConfigFile;
-class FConfigBranch;
 
 class FConfigContext
 {
@@ -156,16 +169,11 @@ public:
 	 */
 	CORE_API const FPerPlatformDirs& GetPerPlatformDirs(const FString& PlatformName);
 
-	CORE_API ~FConfigContext();
-
 
 	// @todo make these private and friend the FCOnfigCacheIni and FConfigFile once everything is a member function!!!!
 	FConfigCacheIni* ConfigSystem;
 
-	FConfigFile* ExistingFile = nullptr;
-	FConfigBranch* Branch = nullptr;
-	FConfigBranch* TemporaryBranch = nullptr;
-	
+	FConfigFile* ConfigFile = nullptr;
 	FString DestIniFilename;
 	FString Platform;
 	FString SavePlatform;
@@ -179,9 +187,6 @@ public:
 	FString ProjectRootDir;
 	FString PluginRootDir;
 	TArray<FString> ChildPluginBaseDirs;
-	FConfigModificationTracker* ChangeTracker = nullptr;
-	
-	FName ConfigFileTag;
 	
 	// useful strings that are used alot when walking the hierarchy
 	FString ProjectNotForLicenseesDir;
@@ -199,14 +204,16 @@ public:
 	bool bWriteDestIni = false;
 	bool bDefaultEngineRequired = false;
 	bool bIsForPlugin = false;
-	bool bIsForPluginModification = false;
-	// GameFeaturePlugins have WindowsFooGame.ini, not WindowsGame.ini
-	bool bIncludeTagNameInBranchName = false;
-	
-	DynamicLayerPriority PluginModificationPriority;
 
 	// if this is non-null, it contains a set of pre-scanned ini files to use to find files, instead of looking on disk
 	const TSet<FString>* IniCacheSet = nullptr;
+
+#if ALLOW_OTHER_PLATFORM_CONFIG
+	// Map of Plugin config file name to plugin and child directories, for filled in by FPluginManager.ConfigureEnabledPlugins
+	// Used creating a ForPlatform FConfigContext for the Plugin ini.
+	static TMap<FString, TUniquePtr<FConfigPluginDirs>> ConfigToPluginDirs;
+	static FCriticalSection ConfigToPluginDirsLock;
+#endif
 
 protected:
 
@@ -215,22 +222,15 @@ protected:
 
 	CORE_API FConfigContext(FConfigCacheIni* InConfigSystem, bool InIsHierarchicalConfig, const FString& InPlatform, FConfigFile* DestConfigFile=nullptr);
 
-private:
+	CORE_API FConfigContext& ResetBaseIni(const TCHAR* InBaseIniName);
+	CORE_API void CachePaths();
 
-	FConfigContext& ResetBaseIni(const TCHAR* InBaseIniName);
-	void CachePaths();
-
-	bool PrepareForLoad(bool& bPerformLoad);
-	bool PerformLoad();
-	bool PerformSingleFileLoad();
+	CORE_API bool PrepareForLoad(bool& bPerformLoad);
+	CORE_API bool PerformLoad();
 
 	void AddStaticLayersToHierarchy(TArray<FString>* GatheredLayerFilenames=nullptr, bool bIsForLogging=false);
-	bool LoadIniFileHierarchy();
-	bool GenerateDestIniFile();
-
-	FString PerformFinalExpansions(const FString& InString, const FString& Platform);
-
-	void LogVariables(const TCHAR* InBaseIniName, const FString& Platform);
+	CORE_API bool GenerateDestIniFile();
+	CORE_API FString PerformFinalExpansions(const FString& InString, const FString& Platform);
 };
 
 bool DoesConfigFileExistWrapper(const TCHAR* IniFile, const TSet<FString>* IniCacheSet = nullptr);
