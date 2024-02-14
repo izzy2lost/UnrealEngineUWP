@@ -305,7 +305,6 @@ namespace UE::Landscape
 FLandscapeDebugOptions::FLandscapeDebugOptions()
 	: bShowPatches(false)
 	, bDisableStatic(false)
-	, CombineMode(eCombineMode_Default)
 	, PatchesConsoleCommand(
 		TEXT("Landscape.Patches"),
 		TEXT("Show/hide Landscape patches"),
@@ -314,10 +313,6 @@ FLandscapeDebugOptions::FLandscapeDebugOptions()
 		TEXT("Landscape.Static"),
 		TEXT("Enable/disable Landscape static drawlists"),
 		FConsoleCommandDelegate::CreateRaw(this, &FLandscapeDebugOptions::Static))
-	, CombineConsoleCommand(
-		TEXT("Landscape.Combine"),
-		TEXT("Set landscape component combining mode : 0 = Default, 1 = Combine All, 2 = Disabled"),
-		FConsoleCommandWithArgsDelegate::CreateRaw(this, &FLandscapeDebugOptions::Combine))
 {
 }
 
@@ -331,15 +326,6 @@ void FLandscapeDebugOptions::Static()
 {
 	bDisableStatic = !bDisableStatic;
 	UE_LOG(LogLandscape, Display, TEXT("Landscape.Static: %s"), bDisableStatic ? TEXT("Disabled") : TEXT("Enabled"));
-}
-
-void FLandscapeDebugOptions::Combine(const TArray<FString>& Args)
-{
-	if (Args.Num() >= 1)
-	{
-		CombineMode = (eCombineMode)FCString::Atoi(*Args[0]);
-		UE_LOG(LogLandscape, Display, TEXT("Landscape.Combine: %d"), (int32)CombineMode);
-	}
 }
 
 FLandscapeDebugOptions GLandscapeDebugOptions;
@@ -1320,7 +1306,6 @@ FLandscapeComponentSceneProxy::FLandscapeComponentSceneProxy(ULandscapeComponent
 	, FirstLOD(0)
 	, LastLOD(MaxLOD)
 	, ComponentMaxExtend(0.0f)
-	, ComponentSquaredScreenSizeToUseSubSections(FMath::Square(InComponent->GetLandscapeProxy()->ComponentScreenSizeToUseSubSections))
 	, InvLODBlendRange(1.0f / FMath::Max(0.01f, GLandscapeLODBlendRangeOverride > 0.0f ? GLandscapeLODBlendRangeOverride : InComponent->GetLandscapeProxy()->LODBlendRange))
 	, NumSubsections(InComponent->NumSubsections)
 	, SubsectionSizeQuads(InComponent->SubsectionSizeQuads)
@@ -1570,24 +1555,6 @@ FLandscapeComponentSceneProxy::FLandscapeComponentSceneProxy(ULandscapeComponent
 
 	const FVector ComponentScale = InComponent->GetComponentTransform().GetScale3D();
 	ComponentMaxExtend = static_cast<float>(SubsectionSizeQuads * FMath::Max(ComponentScale.X, ComponentScale.Y));
-
-	if (NumSubsections > 1)
-	{
-		FRotator ComponentRotator = InComponent->GetComponentRotation();
-		float SubSectionMaxExtend = ComponentMaxExtend / 2.0f;
-		FVector ComponentTopLeftCorner = InComponent->Bounds.Origin - ComponentRotator.RotateVector(FVector(SubSectionMaxExtend, SubSectionMaxExtend, 0.0f));
-
-		SubSectionScreenSizeTestingPosition.AddUninitialized(MAX_SUBSECTION_COUNT);
-
-		for (int32 SubY = 0; SubY < NumSubsections; ++SubY)
-		{
-			for (int32 SubX = 0; SubX < NumSubsections; ++SubX)
-			{
-				int32 SubSectionIndex = SubX + SubY * NumSubsections;
-				SubSectionScreenSizeTestingPosition[SubSectionIndex] = ComponentTopLeftCorner + ComponentRotator.RotateVector(FVector(ComponentMaxExtend * SubX, ComponentMaxExtend * SubY, 0.0f));
-			}
-		}
-	}
 
 	if (InComponent->StaticLightingResolution > 0.f)
 	{
@@ -2402,23 +2369,6 @@ bool FLandscapeComponentSceneProxy::GetMeshElementForFixedGrid(int32 InLodIndex,
 	OutMeshBatch.Elements.Add(BatchElement);
 
 	return true;
-}
-
-void FLandscapeComponentSceneProxy::ApplyWorldOffset(FRHICommandListBase& RHICmdList, FVector InOffset)
-{
-	FPrimitiveSceneProxy::ApplyWorldOffset(RHICmdList, InOffset);
-
-	if (NumSubsections > 1)
-	{
-		for (int32 SubY = 0; SubY < NumSubsections; ++SubY)
-		{
-			for (int32 SubX = 0; SubX < NumSubsections; ++SubX)
-			{
-				int32 SubSectionIndex = SubX + SubY * NumSubsections;
-				SubSectionScreenSizeTestingPosition[SubSectionIndex] += InOffset;
-			}
-		}
-	}
 }
 
 template<class ArrayType>
@@ -4379,7 +4329,6 @@ void ALandscapeProxy::ChangeLODDistanceFactor(float InLODDistanceFactor)
 void FLandscapeComponentSceneProxy::ChangeComponentScreenSizeToUseSubSections_RenderThread(float InComponentScreenSizeToUseSubSections)
 {
 	// Deprecated
-	ComponentSquaredScreenSizeToUseSubSections = FMath::Square(InComponentScreenSizeToUseSubSections);
 }
 
 bool FLandscapeComponentSceneProxy::HeightfieldHasPendingStreaming() const

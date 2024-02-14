@@ -659,25 +659,15 @@ struct FLandscapeDebugOptions
 {
 	LANDSCAPE_API FLandscapeDebugOptions();
 
-	enum eCombineMode
-	{
-		eCombineMode_Default = 0,
-		eCombineMode_CombineAll = 1,
-		eCombineMode_Disabled = 2
-	};
-
 	bool bShowPatches;
 	bool bDisableStatic;
-	eCombineMode CombineMode;
 
 private:
 	FAutoConsoleCommand PatchesConsoleCommand;
 	FAutoConsoleCommand StaticConsoleCommand;
-	FAutoConsoleCommand CombineConsoleCommand;
 
 	void Patches();
 	void Static();
-	void Combine(const TArray<FString>& Args);
 };
 
 LANDSCAPE_API extern FLandscapeDebugOptions GLandscapeDebugOptions;
@@ -776,9 +766,6 @@ protected:
 	int32 LastVirtualTextureLOD;
 	// The max extend value in any axis
 	float ComponentMaxExtend; 
-	// Size at which we start to draw in sub lod if LOD are different per sub section
-	// TODO [jonathan.bard] : Remove : unused
-	float ComponentSquaredScreenSizeToUseSubSections; 
 	// 1.0 / LODBlendRange
 	float InvLODBlendRange;
 
@@ -805,9 +792,6 @@ protected:
 	FIntPoint SectionBase;
 
 	FMatrix LocalToWorldNoScaling;
-
-	// TODO [jonathan.bard] : remove : unused :
-	TArray<FVector> SubSectionScreenSizeTestingPosition;	// Precomputed sub section testing position for screen size calculation
 
 	// Storage for static draw list batch params
 	TArray<FLandscapeBatchElementParams> StaticBatchParamArray;
@@ -914,7 +898,6 @@ public:
 	LANDSCAPE_API FLandscapeComponentSceneProxy(ULandscapeComponent* InComponent);
 
 	// FPrimitiveSceneProxy interface.
-	LANDSCAPE_API virtual void ApplyWorldOffset(FRHICommandListBase& RHICmdList, FVector InOffset) override;
 	LANDSCAPE_API virtual void DrawStaticElements(FStaticPrimitiveDrawInterface* PDI) override;
 	LANDSCAPE_API virtual void GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector) const override;
 	LANDSCAPE_API virtual void ApplyViewDependentMeshArguments(const FSceneView& View, FMeshBatch& ViewDependentMeshBatch) const override;
@@ -937,7 +920,7 @@ public:
 	const FMeshBatch& GetGrassMeshBatch() const { return GrassMeshBatch; }
 
 	// FLandcapeSceneProxy
-	UE_DEPRECATED(5.4, "This function has been deprecated, use ComponentScreenSizeToUseSubSections on ALandscapeProxy instead")
+	UE_DEPRECATED(5.4, "This function has been deprecated and is ineffective")
 	LANDSCAPE_API void ChangeComponentScreenSizeToUseSubSections_RenderThread(float InComponentScreenSizeToUseSubSections);
 
 	LANDSCAPE_API virtual bool HeightfieldHasPendingStreaming() const override;
