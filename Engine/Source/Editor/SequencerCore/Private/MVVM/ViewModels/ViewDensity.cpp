@@ -6,23 +6,23 @@
 namespace UE::Sequencer
 {
 
-float GSequencerOutlinerRelaxedHeight = 22.f;
+float GSequencerOutlinerCompactHeight = 22.f;
+FAutoConsoleVariableRef CVarSequencerOutlinerCompactHeight(
+	TEXT("Sequencer.Outliner.CompactHeight"),
+	GSequencerOutlinerCompactHeight,
+	TEXT("(Default: 22.f. Defines the height of outliner items when in compact mode.")
+	);
+float GSequencerOutlinerRelaxedHeight = 28.f;
 FAutoConsoleVariableRef CVarSequencerOutlinerRelaxedHeight(
 	TEXT("Sequencer.Outliner.RelaxedHeight"),
 	GSequencerOutlinerRelaxedHeight,
-	TEXT("(Default: 22.f. Defines the height of outliner items when in relaxed mode.")
-	);
-float GSequencerOutlinerExpandedHeight = 28.f;
-FAutoConsoleVariableRef CVarSequencerOutlinerExpandedHeight(
-	TEXT("Sequencer.Outliner.ExpandedHeight"),
-	GSequencerOutlinerExpandedHeight,
-	TEXT("(Default: 28.f. Defines the height of outliner items when in expanded mode.")
+	TEXT("(Default: 28.f. Defines the height of outliner items when in relaxed mode.")
 	);
 
 
 FViewDensityInfo::FViewDensityInfo()
-	: UniformHeight(GetUniformHeight(EViewDensity::Relaxed))
-	, Density(EViewDensity::Relaxed)
+	: UniformHeight(GetUniformHeight(EViewDensity::Compact))
+	, Density(EViewDensity::Compact)
 {}
 
 FViewDensityInfo::FViewDensityInfo(EViewDensity InViewDensity)
@@ -34,8 +34,8 @@ TOptional<float> FViewDensityInfo::GetUniformHeight(EViewDensity Density)
 {
 	switch(Density)
 	{
+		case EViewDensity::Compact:  return GSequencerOutlinerCompactHeight;
 		case EViewDensity::Relaxed:  return GSequencerOutlinerRelaxedHeight;
-		case EViewDensity::Expanded: return GSequencerOutlinerExpandedHeight;
 		default:                     return TOptional<float>();
 	}
 }

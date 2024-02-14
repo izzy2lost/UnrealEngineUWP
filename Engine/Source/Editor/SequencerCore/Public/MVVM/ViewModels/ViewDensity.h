@@ -10,14 +10,14 @@ namespace UE::Sequencer
 
 enum class EViewDensity
 {
-	/** The most dense view type */
+	/** Variable density where inner items are more condensed than top level or outer items */
+	Variable,
+
+	/** A compact view type with uniform heights */
 	Compact,
 
-	/** A relaxed view type with larger, uniform heights */
-	Relaxed,
-
-	/** An expanded view type with even larger, uniform heights and additional information */
-	Expanded
+	/** A relaxed view type with larger, uniform heights and additional information */
+	Relaxed
 };
 
 
