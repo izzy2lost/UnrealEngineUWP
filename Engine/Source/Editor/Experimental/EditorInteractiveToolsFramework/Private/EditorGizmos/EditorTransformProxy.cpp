@@ -17,8 +17,8 @@ FTransform UEditorTransformProxy::GetTransform() const
 {
 	if (const FEditorViewportClient* ViewportClient = GetViewportClient())
 	{
-		const FVector Location = ViewportClient->GetWidgetLocation();
 		const FQuat Rotation(ViewportClient->GetWidgetCoordSystem());
+		const FVector Location = ViewportClient->GetWidgetLocation();
 		const FVector Scale(WeakContext->GetModeTools()->GetWidgetScale());
 		return FTransform(Rotation, Location, Scale);
 	}

@@ -1323,6 +1323,9 @@ bool FControlRigEditMode::GetPivotForOrbit(FVector& OutPivot) const
 
 bool FControlRigEditMode::GetCustomDrawingCoordinateSystem(FMatrix& OutMatrix, void* InData)
 {
+	// check that the cached pivots are up-to-date and update them if needed
+	UpdatePivotTransformsIfNeeded();
+	
 	//since we strip translation just want the first one
 	for (const auto& Pairs : ControlRigShapeActors)
 	{
@@ -2636,6 +2639,16 @@ bool FControlRigEditMode::HasPivotTransformsChanged() const
 		}
 	}
 	return false;
+}
+
+void FControlRigEditMode::UpdatePivotTransformsIfNeeded()
+{
+	if (bPivotsNeedUpdate)
+	{
+		PostPoseUpdate();
+		UpdatePivotTransforms();
+		bPivotsNeedUpdate = false;
+	}
 }
 
 void FControlRigEditMode::HandleSelectionChanged()
@@ -4314,6 +4327,8 @@ void FControlRigEditMode::OnControlModified(UControlRig* Subject, FRigControlEle
 	const bool bModify = Context.SetKey != EControlRigSetKey::Never;
 	ControlProxy->ProxyChanged(Subject, InControlElement, bModify);
 
+	bPivotsNeedUpdate = true;
+	
 	/*
 	FScopedTransaction ScopedTransaction(LOCTEXT("ModifyControlTransaction", "Modify Control"),!GIsTransacting && Context.SetKey != EControlRigSetKey::Never);
 	ControlProxy->Modify();
