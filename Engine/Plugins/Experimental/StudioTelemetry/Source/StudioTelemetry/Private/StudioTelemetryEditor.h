@@ -68,8 +68,8 @@ private:
 	const FName HitchingSpanName = TEXT("Hitching");
 	const FName OpenAssetEditorSpan = TEXT("Open Asset Editor");
 	const FName AssetRegistryScanSpanName = TEXT("Asset Registry Scan");
-	const float HeartbeatIntervalSeconds = 5.0;
-	const float HitchSamplerIntervalSeconds = 0.5;
+	const float HeartbeatIntervalSeconds = 1.0;
+	const float HitchSamplerIntervalSeconds = 0.1;
 	const float MinFPSForHitching = 5.0;
 
 	TMap<FGuid, TSharedPtr<IAnalyticsSpan>> TaskSpans;

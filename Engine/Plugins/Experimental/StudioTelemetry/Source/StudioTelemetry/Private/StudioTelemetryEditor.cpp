@@ -398,11 +398,15 @@ extern ENGINE_API float GAverageFPS;
 
 void FStudioTelemetryEditor::HitchSamplerCallback()
 {
-	// Sample a rolling average of FPS 
-	HitchAvergageFPS = ( HitchAvergageFPS * HitchSampleCount + GAverageFPS ) / (double)(HitchSampleCount+1);
-	HitchSampleCount++;
+	// Only sample framerate when we have focus
+	if (FApp::HasFocus())
+	{
+		// Sample a rolling average of FPS 
+		HitchAvergageFPS = (HitchAvergageFPS * HitchSampleCount + GAverageFPS) / (double)(HitchSampleCount + 1);
+		HitchSampleCount++;
+	}
 }
-
+	
 void FStudioTelemetryEditor::HeartbeatCallback()
 {
 	if (HitchSampleCount>0)
@@ -510,11 +514,15 @@ void FStudioTelemetryEditor::Initialize()
 					// Store this SlowTask span so we can find it when it finishes
 					TaskSpans.Add(TaskGuid, SlowTaskSpan);
 				}
+
+				TRACE_BEGIN_REGION(*TaskName.ToString());
 			});
 
 		// End the SlowTask span
-		GWarn->OnFinalizeSlowTaskWithGuid().AddLambda([this](FGuid TaskGuid, double TaskDuration)
+		GWarn->OnFinalizeSlowTaskWithGuid().AddLambda([this](FGuid TaskGuid, const FText& TaskName)
 			{
+				TRACE_END_REGION(*TaskName.ToString());
+
 				// Slow tasks can possibly be finalized from multiple threads, so we need to protect the registered span table
 				FScopeLock ScopeLock(&TaskSpanCriticalSection);
 

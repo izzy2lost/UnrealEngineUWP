@@ -58,7 +58,7 @@ public:
 	DECLARE_EVENT_TwoParams(FFeedbackContext, FOnStartSlowTaskWithGuid, FGuid Guid, const FText& TaskName);
 	FOnStartSlowTaskWithGuid& OnStartSlowTaskWithGuid() { return StartSlowTaskWithGuidEvent; }
 
-	DECLARE_EVENT_TwoParams(FFeedbackContext, FOnFinalizeSlowTaskWithGuid, FGuid Guid, double DurationInSeconds);
+	DECLARE_EVENT_TwoParams(FFeedbackContext, FOnFinalizeSlowTaskWithGuid, FGuid Guid, const FText& TaskName);
 	FOnFinalizeSlowTaskWithGuid& OnFinalizeSlowTaskWithGuid() { return FinalizeSlowTaskWithGuidEvent; }
 
 	/**** Legacy API - not deprecated as it's still in heavy use, but superceded by FScopedSlowTask ****/
@@ -91,7 +91,7 @@ protected:
 	{
 		const double TaskDuration = FPlatformTime::Seconds() - TaskStartTime;
 		FinalizeSlowTaskEvent.Broadcast(TaskName, TaskDuration);
-		FinalizeSlowTaskWithGuidEvent.Broadcast(TaskGuid, TaskDuration);
+		FinalizeSlowTaskWithGuidEvent.Broadcast(TaskGuid, TaskName);
 		GIsSlowTask = false;
 	}
 
