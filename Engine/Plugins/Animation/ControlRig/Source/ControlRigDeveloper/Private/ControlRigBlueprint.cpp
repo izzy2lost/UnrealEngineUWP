@@ -2595,7 +2595,7 @@ void UControlRigBlueprint::HandleRigModulesModified(EModularRigNotification InNo
 						}
 						else if(InNotification == EModularRigNotification::ModuleReparented)
 						{
-							OldNamespace = (InModule->PreviousParentPath.IsEmpty()) ? *InModule->Name.ToString() : URigHierarchy::JoinNameSpace(InModule->PreviousParentPath, InModule->Name.ToString());
+							OldNamespace = (InModule->PreviousParentPath.IsEmpty()) ? *InModule->PreviousName.ToString() : URigHierarchy::JoinNameSpace(InModule->PreviousParentPath, InModule->PreviousName.ToString());
 						}
 						FString NewNamespace = (InModule->ParentPath.IsEmpty()) ? *InModule->Name.ToString() : URigHierarchy::JoinNameSpace(InModule->ParentPath, InModule->Name.ToString());
 						OldNamespace.Append(UModularRig::NamespaceSeparator);
