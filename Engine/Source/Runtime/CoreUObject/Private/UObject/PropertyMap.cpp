@@ -1421,198 +1421,208 @@ bool FMapProperty::SameType(const FProperty* Other) const
 
 EConvertFromTypeResult FMapProperty::ConvertFromType(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot, uint8* Data, UStruct* DefaultsStruct, const uint8* Defaults)
 {
+	// Ar related calls in this function must be mirrored in FMapProperty::SerializeItem
 	FArchive& UnderlyingArchive = Slot.GetUnderlyingArchive();
 
-	// Ar related calls in this function must be mirrored in FMapProperty::SerializeItem
 	checkSlow(KeyProp);
 	checkSlow(ValueProp);
 
-	const auto SerializeOrConvert = [](FProperty* CurrentType, const FPropertyTag& InTag, FStructuredArchive::FSlot InnerSlot, uint8* InData, UStruct* InDefaultsStruct) -> bool
+	if (FStructProperty* KeyPropAsStruct = CastField<FStructProperty>(KeyProp))
 	{
-		// Serialize wants the property address, while convert wants the container address. InData is the container address
-		if(CurrentType->GetID() == InTag.Type)
+		if (!KeyPropAsStruct->Struct || (KeyPropAsStruct->Struct->GetCppStructOps() && !KeyPropAsStruct->Struct->GetCppStructOps()->HasGetTypeHash()))
 		{
-			uint8* DestAddress = CurrentType->ContainerPtrToValuePtr<uint8>(InData, InTag.ArrayIndex);
-			CurrentType->SerializeItem(InnerSlot, DestAddress, nullptr);
-			return true;
+			// If the type we contain is no longer hashable, we're going to drop the saved data here.
+			// This can happen if the native GetTypeHash function is removed.
+			ensureMsgf(false, TEXT("Map Property %s has an unhashable key type %s and will lose its saved data. Package: %s"),
+				*Tag.Name.ToString(), *KeyPropAsStruct->Struct->GetFName().ToString(), *UnderlyingArchive.GetArchiveName());
+
+			FScriptMapHelper ScriptMapHelper(this, ContainerPtrToValuePtr<void>(Data));
+			ScriptMapHelper.EmptyValues();
+
+			return EConvertFromTypeResult::CannotConvert;
+		}
+	}
+
+	if (Tag.Type != NAME_MapProperty)
+	{
+		return EConvertFromTypeResult::UseSerializeItem;
+	}
+
+	const bool bKeyTypeMatches = (Tag.InnerType == KeyProp->GetID());
+	const bool bValueTypeMatches = (Tag.ValueType == ValueProp->GetID());
+	if ((bKeyTypeMatches || Tag.InnerType.IsNone()) && (bValueTypeMatches || Tag.ValueType.IsNone()))
+	{
+		return EConvertFromTypeResult::UseSerializeItem;
+	}
+
+	const auto SerializeOrConvert = [](bool bTypeMatches, FProperty* Inner, const FPropertyTag& InnerTag, FStructuredArchive::FSlot InnerSlot, uint8* InnerData, UStruct* InnerDefaultsStruct) -> bool
+	{
+		if (!bTypeMatches)
+		{
+			const int64 StartOfProperty = InnerSlot.GetUnderlyingArchive().Tell();
+			switch (Inner->ConvertFromType(InnerTag, InnerSlot, InnerData, InnerDefaultsStruct, nullptr))
+			{
+				case EConvertFromTypeResult::Converted:
+				case EConvertFromTypeResult::Serialized:
+					return true;
+				case EConvertFromTypeResult::CannotConvert:
+					return false;
+				case EConvertFromTypeResult::UseSerializeItem:
+					// Fall through to default SerializeItem
+					break;
+			}
 		}
 
-		EConvertFromTypeResult ConvertResult = CurrentType->ConvertFromType(InTag, InnerSlot, InData, InDefaultsStruct, nullptr);
-		return ConvertResult == EConvertFromTypeResult::Converted || ConvertResult == EConvertFromTypeResult::Serialized;
+		uint8* DestAddress = Inner->ContainerPtrToValuePtr<uint8>(InnerData, InnerTag.ArrayIndex);
+		Inner->SerializeItem(InnerSlot, DestAddress);
+		return true;
 	};
 
-	if (Tag.Type == NAME_MapProperty)
+	FScriptMapHelper MapHelper(this, ContainerPtrToValuePtr<void>(Data));
+
+	uint8* TempKeyValueStorage = nullptr;
+	ON_SCOPE_EXIT
 	{
-		if( (Tag.InnerType != NAME_None && Tag.InnerType != KeyProp->GetID()) || (Tag.ValueType != NAME_None && Tag.ValueType != ValueProp->GetID()) )
+		if (TempKeyValueStorage)
 		{
-			FScriptMapHelper MapHelper(this, ContainerPtrToValuePtr<void>(Data));
+			KeyProp->DestroyValue(TempKeyValueStorage);
+			FMemory::Free(TempKeyValueStorage);
+		}
+	};
 
-			uint8* TempKeyValueStorage = nullptr;
-			ON_SCOPE_EXIT
+	FPropertyTag KeyPropertyTag;
+	KeyPropertyTag.Type = Tag.InnerType;
+	KeyPropertyTag.ArrayIndex = 0;
+
+	FPropertyTag ValuePropertyTag;
+	ValuePropertyTag.Type = Tag.ValueType;
+	ValuePropertyTag.ArrayIndex = 0;
+
+	bool bConversionSucceeded = true;
+
+	FStructuredArchive::FRecord ValueRecord = Slot.EnterRecord();
+
+	// When we saved this instance we wrote out any elements that were in the 'Default' instance but not in the 
+	// instance that was being written. Presumably we were constructed from our defaults and must now remove 
+	// any of the elements that were not present when we saved this Map:
+	int32 NumKeysToRemove = 0;
+	FStructuredArchive::FArray KeysToRemoveArray = ValueRecord.EnterArray(TEXT("KeysToRemove"), NumKeysToRemove);
+
+	if (NumKeysToRemove)
+	{
+		TempKeyValueStorage = (uint8*)FMemory::Malloc(MapLayout.SetLayout.Size);
+		KeyProp->InitializeValue(TempKeyValueStorage);
+
+		if (SerializeOrConvert(bKeyTypeMatches, KeyProp, KeyPropertyTag, KeysToRemoveArray.EnterElement(), TempKeyValueStorage, DefaultsStruct))
+		{
+			// If the key is in the map, remove it
+			int32 Found = MapHelper.FindMapIndexWithKey(TempKeyValueStorage);
+			if (Found != INDEX_NONE)
 			{
-				if (TempKeyValueStorage)
+				MapHelper.RemoveAt(Found);
+			}
+
+			// things are going fine, remove the rest of the keys:
+			for (int32 I = 1; I < NumKeysToRemove; ++I)
+			{
+				verify(SerializeOrConvert(bKeyTypeMatches, KeyProp, KeyPropertyTag, KeysToRemoveArray.EnterElement(), TempKeyValueStorage, DefaultsStruct));
+				Found = MapHelper.FindMapIndexWithKey(TempKeyValueStorage);
+				if (Found != INDEX_NONE)
 				{
-					KeyProp->DestroyValue(TempKeyValueStorage);
-					FMemory::Free(TempKeyValueStorage);
+					MapHelper.RemoveAt(Found);
 				}
-			};
+			}
+		}
+		else
+		{
+			bConversionSucceeded = false;
+		}
+	}
 
-			FPropertyTag KeyPropertyTag;
-			KeyPropertyTag.Type = Tag.InnerType;
-			KeyPropertyTag.ArrayIndex = 0;
+	int32 Num = 0;
+	FStructuredArchive::FArray EntriesArray = ValueRecord.EnterArray(TEXT("Entries"), Num);
 
-			FPropertyTag ValuePropertyTag;
-			ValuePropertyTag.Type = Tag.ValueType;
-			ValuePropertyTag.ArrayIndex = 0;
-
-			bool bConversionSucceeded = true;
-
-			FStructuredArchive::FRecord ValueRecord = Slot.EnterRecord();
-
-			// When we saved this instance we wrote out any elements that were in the 'Default' instance but not in the 
-			// instance that was being written. Presumably we were constructed from our defaults and must now remove 
-			// any of the elements that were not present when we saved this Map:
-			int32 NumKeysToRemove = 0;
-			FStructuredArchive::FArray KeysToRemoveArray = ValueRecord.EnterArray(TEXT("KeysToRemove"), NumKeysToRemove);
-
-			if( NumKeysToRemove != 0 )
+	if (bConversionSucceeded)
+	{
+		if (Num != 0)
+		{
+			if (TempKeyValueStorage == nullptr)
 			{
 				TempKeyValueStorage = (uint8*)FMemory::Malloc(MapLayout.SetLayout.Size);
 				KeyProp->InitializeValue(TempKeyValueStorage);
+			}
 
-				if (SerializeOrConvert( KeyProp, KeyPropertyTag, KeysToRemoveArray.EnterElement(), TempKeyValueStorage, DefaultsStruct))
+			FStructuredArchive::FRecord FirstPropertyRecord = EntriesArray.EnterElement().EnterRecord();
+
+			if (SerializeOrConvert(bKeyTypeMatches, KeyProp, KeyPropertyTag, FirstPropertyRecord.EnterField(TEXT("Key")), TempKeyValueStorage, DefaultsStruct))
+			{
+				// Add a new default value if the key doesn't currently exist in the map
+				bool bKeyAlreadyPresent = true;
+				int32 NextPairIndex = MapHelper.FindMapIndexWithKey(TempKeyValueStorage);
+				if (NextPairIndex == INDEX_NONE)
 				{
-					// If the key is in the map, remove it
-					int32 Found = MapHelper.FindMapIndexWithKey(TempKeyValueStorage);
-					if (Found != INDEX_NONE)
-					{
-						MapHelper.RemoveAt(Found);
-					}
+					bKeyAlreadyPresent = false;
+					NextPairIndex = MapHelper.AddDefaultValue_Invalid_NeedsRehash();
+				}
 
-					// things are going fine, remove the rest of the keys:
-					for(int32 I = 1; I < NumKeysToRemove; ++I)
+				uint8* NextPairPtr = MapHelper.GetPairPtrWithoutCheck(NextPairIndex);
+				// This copy is unnecessary when the key was already in the map:
+				KeyProp->CopyCompleteValue_InContainer(NextPairPtr, TempKeyValueStorage);
+
+				// Deserialize value
+				if (SerializeOrConvert(bValueTypeMatches, ValueProp, ValuePropertyTag, FirstPropertyRecord.EnterField(TEXT("Value")), NextPairPtr, DefaultsStruct))
+				{
+					// first entry went fine, convert the rest:
+					for (int32 I = 1; I < Num; ++I)
 					{
-						verify(SerializeOrConvert( KeyProp, KeyPropertyTag, KeysToRemoveArray.EnterElement(), TempKeyValueStorage, DefaultsStruct));
-						Found = MapHelper.FindMapIndexWithKey(TempKeyValueStorage);
-						if (Found != INDEX_NONE)
+						FStructuredArchive::FRecord PropertyRecord = EntriesArray.EnterElement().EnterRecord();
+
+						verify(SerializeOrConvert(bKeyTypeMatches, KeyProp, KeyPropertyTag, PropertyRecord.EnterField(TEXT("Key")), TempKeyValueStorage, DefaultsStruct));
+						NextPairIndex = MapHelper.FindMapIndexWithKey(TempKeyValueStorage);
+						if (NextPairIndex == INDEX_NONE)
 						{
-							MapHelper.RemoveAt(Found);
+							NextPairIndex = MapHelper.AddDefaultValue_Invalid_NeedsRehash();
 						}
+
+						NextPairPtr = MapHelper.GetPairPtrWithoutCheck(NextPairIndex);
+						// This copy is unnecessary when the key was already in the map:
+						KeyProp->CopyCompleteValue_InContainer(NextPairPtr, TempKeyValueStorage);
+						verify(SerializeOrConvert(bValueTypeMatches, ValueProp, ValuePropertyTag, PropertyRecord.EnterField(TEXT("Value")), NextPairPtr, DefaultsStruct));
 					}
 				}
 				else
 				{
+					if (!bKeyAlreadyPresent)
+					{
+						MapHelper.EmptyValues();
+					}
+
 					bConversionSucceeded = false;
 				}
 			}
-
-			int32 NumEntries = 0;
-			FStructuredArchive::FArray EntriesArray = ValueRecord.EnterArray(TEXT("Entries"), NumEntries);
-
-			if( bConversionSucceeded )
+			else
 			{
-				if( NumEntries != 0 )
-				{
-					if(TempKeyValueStorage == nullptr )
-					{
-						TempKeyValueStorage = (uint8*)FMemory::Malloc(MapLayout.SetLayout.Size);
-						KeyProp->InitializeValue(TempKeyValueStorage);
-					}
-
-					FStructuredArchive::FRecord FirstPropertyRecord = EntriesArray.EnterElement().EnterRecord();
-
-					if( SerializeOrConvert( KeyProp, KeyPropertyTag, FirstPropertyRecord.EnterField(TEXT("Key")), TempKeyValueStorage, DefaultsStruct ) )
-					{
-						// Add a new default value if the key doesn't currently exist in the map
-						bool bKeyAlreadyPresent = true;
-						int32 NextPairIndex = MapHelper.FindMapIndexWithKey(TempKeyValueStorage);
-						if (NextPairIndex == INDEX_NONE)
-						{
-							bKeyAlreadyPresent = false;
-							NextPairIndex = MapHelper.AddDefaultValue_Invalid_NeedsRehash();
-						}
-
-						uint8* NextPairPtr = MapHelper.GetPairPtrWithoutCheck(NextPairIndex);
-						// This copy is unnecessary when the key was already in the map:
-						KeyProp->CopyCompleteValue_InContainer(NextPairPtr, TempKeyValueStorage);
-
-						// Deserialize value
-						if( SerializeOrConvert( ValueProp, ValuePropertyTag, FirstPropertyRecord.EnterField(TEXT("Value")), NextPairPtr, DefaultsStruct ) )
-						{
-							// first entry went fine, convert the rest:
-							for(int32 I = 1; I < NumEntries; ++I)
-							{
-								FStructuredArchive::FRecord PropertyRecord = EntriesArray.EnterElement().EnterRecord();
-
-								verify( SerializeOrConvert( KeyProp, KeyPropertyTag, PropertyRecord.EnterField(TEXT("Key")), TempKeyValueStorage, DefaultsStruct ) );
-								NextPairIndex = MapHelper.FindMapIndexWithKey(TempKeyValueStorage);
-								if (NextPairIndex == INDEX_NONE)
-								{
-									NextPairIndex = MapHelper.AddDefaultValue_Invalid_NeedsRehash();
-								}
-
-								NextPairPtr = MapHelper.GetPairPtrWithoutCheck(NextPairIndex);
-								// This copy is unnecessary when the key was already in the map:
-								KeyProp->CopyCompleteValue_InContainer(NextPairPtr, TempKeyValueStorage);
-								verify( SerializeOrConvert( ValueProp, ValuePropertyTag, PropertyRecord.EnterField(TEXT("Value")), NextPairPtr, DefaultsStruct ) );
-							}
-						}
-						else
-						{
-							if(!bKeyAlreadyPresent)
-							{
-								MapHelper.EmptyValues();
-							}
-
-							bConversionSucceeded = false;
-						}
-					}
-					else
-					{
-						bConversionSucceeded = false;
-					}
-
-					MapHelper.Rehash();
-				}
+				bConversionSucceeded = false;
 			}
 
-			// if we could not convert the property ourself, then indicate that calling code needs to advance the property
-			if(!bConversionSucceeded)
-			{
-				UE_LOG(
-					LogClass,
-					Warning,
-					TEXT("Map Element Type mismatch in %s of %s - Previous (%s to %s) Current (%s to %s) for package: %s"),
-					*Tag.Name.ToString(),
-					*GetName(),
-					*Tag.InnerType.ToString(),
-					*Tag.ValueType.ToString(),
-					*KeyProp->GetID().ToString(),
-					*ValueProp->GetID().ToString(),
-					*UnderlyingArchive.GetArchiveName()
-				);
-			}
-
-			return bConversionSucceeded ? EConvertFromTypeResult::Converted : EConvertFromTypeResult::CannotConvert;
-		}
-
-		if (FStructProperty* KeyPropAsStruct = CastField<FStructProperty>(KeyProp))
-		{
-			if(!KeyPropAsStruct->Struct || (KeyPropAsStruct->Struct->GetCppStructOps() && !KeyPropAsStruct->Struct->GetCppStructOps()->HasGetTypeHash() ) )
-			{
-				// If the type we contain is no longer hashable, we're going to drop the saved data here. This can
-				// happen if the native GetTypeHash function is removed.
-				ensureMsgf(false, TEXT("FMapProperty %s with tag %s has an unhashable key type %s and will lose its saved data"), *GetName(), *Tag.Name.ToString(), *KeyProp->GetID().ToString());
-
-				FScriptMapHelper ScriptMapHelper(this, ContainerPtrToValuePtr<void>(Data));
-				ScriptMapHelper.EmptyValues();
-
-				return EConvertFromTypeResult::CannotConvert;
-			}
+			MapHelper.Rehash();
 		}
 	}
 
-	return EConvertFromTypeResult::UseSerializeItem;
+	// if we could not convert the property ourself, then indicate that calling code needs to advance the property
+	if (!bConversionSucceeded)
+	{
+		UE_LOG(LogClass, Warning,
+			TEXT("Map Element Type mismatch in %s - Previous (%s to %s) Current (%s to %s) for package: %s"),
+			*WriteToString<32>(Tag.Name),
+			*WriteToString<32>(KeyPropertyTag.Type),
+			*WriteToString<32>(ValuePropertyTag.Type),
+			*WriteToString<32>(KeyProp->GetID()),
+			*WriteToString<32>(ValueProp->GetID()),
+			*UnderlyingArchive.GetArchiveName());
+	}
+
+	return bConversionSucceeded ? EConvertFromTypeResult::Converted : EConvertFromTypeResult::CannotConvert;
 }
 
 #if WITH_EDITORONLY_DATA
