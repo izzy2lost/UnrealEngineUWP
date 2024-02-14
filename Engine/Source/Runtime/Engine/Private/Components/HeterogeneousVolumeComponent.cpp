@@ -75,6 +75,7 @@ FHeterogeneousVolumeSceneProxy::FHeterogeneousVolumeSceneProxy(UHeterogeneousVol
 	bCastDynamicShadow = InComponent->CastShadow;
 
 	HeterogeneousVolumeData.VoxelResolution = InComponent->VolumeResolution;
+	HeterogeneousVolumeData.InstanceToLocal = InComponent->FrameTransform.ToMatrixWithScale();
 
 	// Infer minimum voxel size from bounds and resolution
 	FVector VoxelSize = 2.0 * InComponent->Bounds.BoxExtent;
@@ -92,6 +93,7 @@ FHeterogeneousVolumeSceneProxy::FHeterogeneousVolumeSceneProxy(UHeterogeneousVol
 	HeterogeneousVolumeData.ShadowStepFactor = InComponent->ShadowStepFactor;
 	HeterogeneousVolumeData.ShadowBiasFactor = InComponent->ShadowBiasFactor;
 	HeterogeneousVolumeData.LightingDownsampleFactor = InComponent->LightingDownsampleFactor;
+	HeterogeneousVolumeData.bPivotAtCentroid = InComponent->bPivotAtCentroid;
 
 	// Initialize vertex buffer data for a quad
 	StaticMeshVertexBuffers.PositionVertexBuffer.Init(4);
@@ -249,6 +251,7 @@ UHeterogeneousVolumeComponent::UHeterogeneousVolumeComponent(const FObjectInitia
 	LightingDownsampleFactor = 2.0f;
 	MipLevel = 0;
 	bIssueBlockingRequests = false;
+	bPivotAtCentroid = false;
 	PreviousSVT = nullptr;
 }
 
@@ -330,11 +333,19 @@ FPrimitiveSceneProxy* UHeterogeneousVolumeComponent::CreateSceneProxy()
 FBoxSphereBounds UHeterogeneousVolumeComponent::CalcBounds(const FTransform& LocalToWorld) const
 {
 	FBoxSphereBounds NewBounds;
-	NewBounds.Origin = FVector::ZeroVector;
-	NewBounds.BoxExtent = FVector(VolumeResolution) * 0.5;
-	NewBounds.SphereRadius = NewBounds.BoxExtent.Length();
 
-	return NewBounds.TransformBy(LocalToWorld);
+	FVector HalfVolumeResolution = FVector(VolumeResolution) * 0.5;
+	if (bPivotAtCentroid)
+	{
+		NewBounds.Origin = FVector::ZeroVector;
+	}
+	else
+	{
+		NewBounds.Origin = HalfVolumeResolution;
+	}
+	NewBounds.BoxExtent = HalfVolumeResolution;
+	NewBounds.SphereRadius = NewBounds.BoxExtent.Length();
+	return NewBounds.TransformBy(FrameTransform * LocalToWorld);
 }
 
 void UHeterogeneousVolumeComponent::PostLoad()
@@ -562,6 +573,13 @@ void UHeterogeneousVolumeComponent::TickComponent(float DeltaTime, ELevelTick Ti
 				if (VolumeResolution != PerFrameVolumeResolution)
 				{
 					MarkRenderTransformDirty();
+				}
+
+				FTransform PerFrameTransform = SparseVolumeTextureFrame->GetFrameTransform();
+				if (!PerFrameTransform.Equals(FrameTransform))
+				{
+					FrameTransform = PerFrameTransform;
+					MarkRenderStateDirty();
 				}
 			}
 

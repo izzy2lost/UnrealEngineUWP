@@ -24,6 +24,10 @@ class UHeterogeneousVolumeComponent : public UMeshComponent
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Volume)
 	FIntVector VolumeResolution;
 
+	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Animation, AdvancedDisplay, meta = (EditCondition = "false"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = Animation, AdvancedDisplay)
+	FTransform FrameTransform;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Animation, meta = (EditCondition = "bPlaying == false"))
 	float Frame;
 
@@ -47,6 +51,9 @@ class UHeterogeneousVolumeComponent : public UMeshComponent
 
 	UPROPERTY(EditAnywhere, Category = SparseVolumeTextureStreaming)
 	uint32 bIssueBlockingRequests : 1;
+
+	UPROPERTY(EditAnywhere, Category = Volume)
+	uint32 bPivotAtCentroid : 1;
 
 	UPROPERTY(EditAnywhere, Category = Lighting)
 	float StepFactor;

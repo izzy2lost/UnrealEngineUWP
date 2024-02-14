@@ -2010,79 +2010,97 @@ void RasterizeVolumesIntoFrustumVoxelGrid(
 			continue;
 		}
 
-		const FPrimitiveSceneInfo* PrimitiveSceneInfo = PrimitiveSceneProxy->GetPrimitiveSceneInfo();
-		const int32 PrimitiveId = PrimitiveSceneInfo->GetIndex();
-		const FBoxSphereBounds LocalBoxSphereBounds = PrimitiveSceneProxy->GetLocalBounds();
-		const FBoxSphereBounds PrimitiveBounds = PrimitiveSceneProxy->GetBounds();
-		const FMaterial& Material = MaterialRenderProxy->GetMaterialWithFallback(View.GetFeatureLevel(), MaterialRenderProxy);
-
-		FRasterizeBottomLevelFrustumGridCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FRasterizeBottomLevelFrustumGridCS::FParameters>();
+		for (int32 VolumeIndex = 0; VolumeIndex < Mesh->Elements.Num(); ++VolumeIndex)
 		{
-			// Scene data
-			PassParameters->View = View.ViewUniformBuffer;
-			PassParameters->Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
-
-			// Primitive data
-			PassParameters->PrimitiveWorldBoundsMin = FVector3f(PrimitiveBounds.Origin - PrimitiveBounds.BoxExtent);
-			PassParameters->PrimitiveWorldBoundsMax = FVector3f(PrimitiveBounds.Origin + PrimitiveBounds.BoxExtent);
-			FMatrix44f LocalToWorld = FMatrix44f(PrimitiveSceneProxy->GetLocalToWorld());
-			PassParameters->LocalToWorld = LocalToWorld;
-			PassParameters->WorldToLocal = LocalToWorld.Inverse();
-			PassParameters->LocalBoundsOrigin = FVector3f(LocalBoxSphereBounds.Origin);
-			PassParameters->LocalBoundsExtent = FVector3f(LocalBoxSphereBounds.BoxExtent);
-			PassParameters->PrimitiveId = PrimitiveId;
-
-			// Volume data
-			PassParameters->TopLevelGridResolution = TopLevelGridResolution;
-			PassParameters->VoxelDimensions = TopLevelGridResolution;
-			PassParameters->ViewToWorld = FMatrix44f(ViewToWorld);
-			PassParameters->TanHalfFOV = HeterogeneousVolumes::CalcTanHalfFOV(View.FOV);
-			PassParameters->NearPlaneDepth = NearPlaneDistance;
-			PassParameters->FarPlaneDepth = FarPlaneDistance;
-
-			// Sampling data
-			PassParameters->bJitter = BuildOptions.bJitter;
-			FBlueNoise BlueNoise = GetBlueNoiseGlobalParameters();
-			PassParameters->BlueNoise = CreateUniformBufferImmediate(BlueNoise, EUniformBufferUsage::UniformBuffer_SingleDraw);
-
-			// Raster tile data
-			PassParameters->RasterTileAllocatorBuffer = GraphBuilder.CreateSRV(RasterTileAllocatorBuffer, PF_R32_UINT);
-			PassParameters->RasterTileBuffer = GraphBuilder.CreateSRV(RasterTileBuffer);
-
-			// Indirect args
-			PassParameters->IndirectArgs = RasterizeBottomLevelGridIndirectArgsBuffer;
-
-			// Grid data
-			PassParameters->RWBottomLevelGridAllocatorBuffer = GraphBuilder.CreateUAV(BottomLevelGridAllocatorBuffer, PF_R32_UINT);
-			PassParameters->RWTopLevelGridBuffer = GraphBuilder.CreateUAV(TopLevelGridBuffer);
-
-			PassParameters->RWExtinctionGridBuffer = GraphBuilder.CreateUAV(ExtinctionGridBuffer);
-			PassParameters->RWEmissionGridBuffer = GraphBuilder.CreateUAV(EmissionGridBuffer);
-			PassParameters->RWScatteringGridBuffer = GraphBuilder.CreateUAV(ScatteringGridBuffer);
-			PassParameters->BottomLevelGridBufferSize = BottomLevelGridBufferSize;
-		}
-
-		GraphBuilder.AddPass(
-			RDG_EVENT_NAME("FrustumGrid.RasterizeBottomLevelGrid"),
-			PassParameters,
-			ERDGPassFlags::Compute,
-			// Why is scene explicitly copied??
-			[PassParameters, LocalScene = Scene, &View, MaterialRenderProxy, &Material](FRHIComputeCommandList& RHICmdList)
+			const IHeterogeneousVolumeInterface* HeterogeneousVolumeInterface = (IHeterogeneousVolumeInterface*)Mesh->Elements[VolumeIndex].UserData;
+			//check(HeterogeneousVolumeInterface != nullptr);
+			if (HeterogeneousVolumeInterface == nullptr)
 			{
-				FRasterizeBottomLevelFrustumGridCS::FPermutationDomain PermutationVector;
-				TShaderRef<FRasterizeBottomLevelFrustumGridCS> ComputeShader = Material.GetShader<FRasterizeBottomLevelFrustumGridCS>(&FLocalVertexFactory::StaticType, PermutationVector, false);
-
-				if (!ComputeShader.IsNull())
-				{
-					ClearUnusedGraphResources(ComputeShader, PassParameters);
-
-					FMeshDrawShaderBindings ShaderBindings;
-					UE::MeshPassUtils::SetupComputeBindings(ComputeShader, LocalScene, LocalScene->GetFeatureLevel(), nullptr, *MaterialRenderProxy, Material, ShaderBindings);
-
-					UE::MeshPassUtils::DispatchIndirect(RHICmdList, ComputeShader, ShaderBindings, *PassParameters, PassParameters->IndirectArgs->GetIndirectRHICallBuffer(), 0);
-				}
+				continue;
 			}
-		);
+
+			const FPrimitiveSceneInfo* PrimitiveSceneInfo = PrimitiveSceneProxy->GetPrimitiveSceneInfo();
+			const int32 PrimitiveId = PrimitiveSceneInfo->GetIndex();
+			const FBoxSphereBounds LocalBoxSphereBounds = PrimitiveSceneProxy->GetLocalBounds();
+			const FBoxSphereBounds PrimitiveBounds = PrimitiveSceneProxy->GetBounds();
+			const FMaterial& Material = MaterialRenderProxy->GetMaterialWithFallback(View.GetFeatureLevel(), MaterialRenderProxy);
+
+			FRasterizeBottomLevelFrustumGridCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FRasterizeBottomLevelFrustumGridCS::FParameters>();
+			{
+				// Scene data
+				PassParameters->View = View.ViewUniformBuffer;
+				PassParameters->Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
+
+				// Primitive data
+				PassParameters->PrimitiveWorldBoundsMin = FVector3f(PrimitiveBounds.Origin - PrimitiveBounds.BoxExtent);
+				PassParameters->PrimitiveWorldBoundsMax = FVector3f(PrimitiveBounds.Origin + PrimitiveBounds.BoxExtent);
+				
+				// TODO: Convert to relative-local space
+				//FVector3f ViewOriginHigh = FDFVector3(View.ViewMatrices.GetViewOrigin()).High;
+				//FMatrix44f RelativeLocalToWorld = FDFMatrix::MakeToRelativeWorldMatrix(ViewOriginHigh, HeterogeneousVolumeInterface->GetLocalToWorld()).M;
+				FMatrix InstanceToLocal = HeterogeneousVolumeInterface->GetInstanceToLocal();
+				FMatrix LocalToWorld = HeterogeneousVolumeInterface->GetLocalToWorld();
+				PassParameters->LocalToWorld = FMatrix44f(InstanceToLocal * LocalToWorld);
+				PassParameters->WorldToLocal = FMatrix44f(PassParameters->LocalToWorld.Inverse());
+
+				FMatrix LocalToInstance = InstanceToLocal.Inverse();
+				FBoxSphereBounds InstanceBoxSphereBounds = LocalBoxSphereBounds.TransformBy(FTransform(LocalToInstance));
+				PassParameters->LocalBoundsOrigin = FVector3f(InstanceBoxSphereBounds.Origin);
+				PassParameters->LocalBoundsExtent = FVector3f(InstanceBoxSphereBounds.BoxExtent);
+				PassParameters->PrimitiveId = PrimitiveId;
+
+				// Volume data
+				PassParameters->TopLevelGridResolution = TopLevelGridResolution;
+				PassParameters->VoxelDimensions = TopLevelGridResolution;
+				PassParameters->ViewToWorld = FMatrix44f(ViewToWorld);
+				PassParameters->TanHalfFOV = HeterogeneousVolumes::CalcTanHalfFOV(View.FOV);
+				PassParameters->NearPlaneDepth = NearPlaneDistance;
+				PassParameters->FarPlaneDepth = FarPlaneDistance;
+
+				// Sampling data
+				PassParameters->bJitter = BuildOptions.bJitter;
+				FBlueNoise BlueNoise = GetBlueNoiseGlobalParameters();
+				PassParameters->BlueNoise = CreateUniformBufferImmediate(BlueNoise, EUniformBufferUsage::UniformBuffer_SingleDraw);
+
+				// Raster tile data
+				PassParameters->RasterTileAllocatorBuffer = GraphBuilder.CreateSRV(RasterTileAllocatorBuffer, PF_R32_UINT);
+				PassParameters->RasterTileBuffer = GraphBuilder.CreateSRV(RasterTileBuffer);
+
+				// Indirect args
+				PassParameters->IndirectArgs = RasterizeBottomLevelGridIndirectArgsBuffer;
+
+				// Grid data
+				PassParameters->RWBottomLevelGridAllocatorBuffer = GraphBuilder.CreateUAV(BottomLevelGridAllocatorBuffer, PF_R32_UINT);
+				PassParameters->RWTopLevelGridBuffer = GraphBuilder.CreateUAV(TopLevelGridBuffer);
+
+				PassParameters->RWExtinctionGridBuffer = GraphBuilder.CreateUAV(ExtinctionGridBuffer);
+				PassParameters->RWEmissionGridBuffer = GraphBuilder.CreateUAV(EmissionGridBuffer);
+				PassParameters->RWScatteringGridBuffer = GraphBuilder.CreateUAV(ScatteringGridBuffer);
+				PassParameters->BottomLevelGridBufferSize = BottomLevelGridBufferSize;
+			}
+
+			GraphBuilder.AddPass(
+				RDG_EVENT_NAME("FrustumGrid.RasterizeBottomLevelGrid"),
+				PassParameters,
+				ERDGPassFlags::Compute,
+				// Why is scene explicitly copied??
+				[PassParameters, LocalScene = Scene, &View, MaterialRenderProxy, &Material](FRHIComputeCommandList& RHICmdList)
+				{
+					FRasterizeBottomLevelFrustumGridCS::FPermutationDomain PermutationVector;
+					TShaderRef<FRasterizeBottomLevelFrustumGridCS> ComputeShader = Material.GetShader<FRasterizeBottomLevelFrustumGridCS>(&FLocalVertexFactory::StaticType, PermutationVector, false);
+
+					if (!ComputeShader.IsNull())
+					{
+						ClearUnusedGraphResources(ComputeShader, PassParameters);
+
+						FMeshDrawShaderBindings ShaderBindings;
+						UE::MeshPassUtils::SetupComputeBindings(ComputeShader, LocalScene, LocalScene->GetFeatureLevel(), nullptr, *MaterialRenderProxy, Material, ShaderBindings);
+
+						UE::MeshPassUtils::DispatchIndirect(RHICmdList, ComputeShader, ShaderBindings, *PassParameters, PassParameters->IndirectArgs->GetIndirectRHICallBuffer(), 0);
+					}
+				}
+			);
+		}
 	}
 }
 
@@ -2472,102 +2490,119 @@ void RasterizeVolumesIntoOrthoVoxelGrid(
 				continue;
 			}
 
-			const FPrimitiveSceneInfo* PrimitiveSceneInfo = PrimitiveSceneProxy->GetPrimitiveSceneInfo();
-			const int32 PrimitiveId = PrimitiveSceneInfo->GetIndex();
-			const FBoxSphereBounds LocalBoxSphereBounds = PrimitiveSceneProxy->GetLocalBounds();
-			const FBoxSphereBounds PrimitiveBounds = PrimitiveSceneProxy->GetBounds();
-			const FMaterial& Material = MaterialRenderProxy->GetMaterialWithFallback(View.GetFeatureLevel(), MaterialRenderProxy);
-
-			FRasterizeBottomLevelOrthoGridCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FRasterizeBottomLevelOrthoGridCS::FParameters>();
+			for (int32 VolumeIndex = 0; VolumeIndex < Mesh->Elements.Num(); ++VolumeIndex)
 			{
-				// Scene data
-				PassParameters->View = View.ViewUniformBuffer;
-				PassParameters->Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
-
-				// Primitive data
-				PassParameters->PrimitiveWorldBoundsMin = FVector3f(PrimitiveBounds.Origin - PrimitiveBounds.BoxExtent);
-				PassParameters->PrimitiveWorldBoundsMax = FVector3f(PrimitiveBounds.Origin + PrimitiveBounds.BoxExtent);
-
-				FMatrix44f LocalToWorld = FMatrix44f(PrimitiveSceneProxy->GetLocalToWorld());
-				PassParameters->LocalToWorld = LocalToWorld;
-				PassParameters->WorldToLocal = LocalToWorld.Inverse();
-				PassParameters->LocalBoundsOrigin = FVector3f(LocalBoxSphereBounds.Origin);
-				PassParameters->LocalBoundsExtent = FVector3f(LocalBoxSphereBounds.BoxExtent);
-				PassParameters->PrimitiveId = PrimitiveId;
-
-				// Volume data
-				PassParameters->TopLevelGridResolution = TopLevelGridResolution;
-				PassParameters->TopLevelGridWorldBoundsMin = FVector3f(TopLevelGridBounds.Origin - TopLevelGridBounds.BoxExtent);
-				PassParameters->TopLevelGridWorldBoundsMax = FVector3f(TopLevelGridBounds.Origin + TopLevelGridBounds.BoxExtent);
-
-				// Sampling data
-				FBlueNoise BlueNoise = GetBlueNoiseGlobalParameters();
-				PassParameters->BlueNoise = CreateUniformBufferImmediate(BlueNoise, EUniformBufferUsage::UniformBuffer_SingleDraw);
-
-				// Unify with "object" definition??
-				PassParameters->PrimitiveWorldBoundsMin = FVector3f(PrimitiveBounds.Origin - PrimitiveBounds.BoxExtent);
-				PassParameters->PrimitiveWorldBoundsMax = FVector3f(PrimitiveBounds.Origin + PrimitiveBounds.BoxExtent);
-
-				PassParameters->BottomLevelGridBufferSize = BottomLevelGridBufferSize;
-
-				// Raster tile data
-				PassParameters->RasterTileAllocatorBuffer = GraphBuilder.CreateSRV(RasterTileAllocatorBuffer, PF_R32_UINT);
-				PassParameters->RasterTileBuffer = GraphBuilder.CreateSRV(RasterTileBuffer);
-
-				// Indirect args
-				PassParameters->IndirectArgs = RasterizeBottomLevelGridIndirectArgsBuffer;
-
-				// Sampling mode
-				PassParameters->bJitter = BuildOptions.bJitter;
-				PassParameters->bSampleAtVertices = HeterogeneousVolumes::EnableLinearInterpolation();
-
-				// Grid data
-				PassParameters->TopLevelGridBuffer = GraphBuilder.CreateSRV(TopLevelGridBuffer);
-				PassParameters->RWBottomLevelGridAllocatorBuffer = GraphBuilder.CreateUAV(BottomLevelGridAllocatorBuffer, PF_R32_UINT);
-				PassParameters->RWTopLevelGridBuffer = GraphBuilder.CreateUAV(TopLevelGridBuffer);
-				PassParameters->RWExtinctionGridBuffer = GraphBuilder.CreateUAV(ExtinctionGridBuffer);
-				PassParameters->RWEmissionGridBuffer = GraphBuilder.CreateUAV(EmissionGridBuffer);
-				PassParameters->RWScatteringGridBuffer = GraphBuilder.CreateUAV(ScatteringGridBuffer);
-
-				// Indirection Grid
-				PassParameters->FixedBottomLevelResolution = HeterogeneousVolumes::GetBottomLevelGridResolution();
-				PassParameters->RWIndirectionGridBuffer = GraphBuilder.CreateUAV(IndirectionGridBuffer);
-
-#if 0
-				// Hash table
-				if (HeterogeneousVolumes::EnableVoxelHashing())
+				const IHeterogeneousVolumeInterface* HeterogeneousVolumeInterface = (IHeterogeneousVolumeInterface*)Mesh->Elements[VolumeIndex].UserData;
+				//check(HeterogeneousVolumeInterface != nullptr);
+				if (HeterogeneousVolumeInterface == nullptr)
 				{
-					PassParameters->RWHashTable = GraphBuilder.CreateUAV(HashTableBuffer);
-					PassParameters->RWHashToVoxelBuffer = GraphBuilder.CreateUAV(HashToVoxelBuffer);
-					PassParameters->HashTableSize = HashTableBufferSize;
+					continue;
 				}
-#endif
-				PassParameters->HomogeneousThreshold = HeterogeneousVolumes::GetHomogeneousAggregationThreshold();
-			}
 
-			GraphBuilder.AddPass(
-				RDG_EVENT_NAME("RasterizeBottomLevelGrid"),
-				PassParameters,
-				ERDGPassFlags::Compute,
-				// Why is scene explicitly copied?
-				[PassParameters, LocalScene = Scene, &View, MaterialRenderProxy, &Material](FRHIComputeCommandList& RHICmdList)
+				const FPrimitiveSceneInfo* PrimitiveSceneInfo = PrimitiveSceneProxy->GetPrimitiveSceneInfo();
+				const int32 PrimitiveId = PrimitiveSceneInfo->GetIndex();
+				const FBoxSphereBounds LocalBoxSphereBounds = PrimitiveSceneProxy->GetLocalBounds();
+				const FBoxSphereBounds PrimitiveBounds = PrimitiveSceneProxy->GetBounds();
+				const FMaterial& Material = MaterialRenderProxy->GetMaterialWithFallback(View.GetFeatureLevel(), MaterialRenderProxy);
+
+				FRasterizeBottomLevelOrthoGridCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FRasterizeBottomLevelOrthoGridCS::FParameters>();
 				{
-					FRasterizeBottomLevelOrthoGridCS::FPermutationDomain PermutationVector;
-					PermutationVector.Set<FRasterizeBottomLevelOrthoGridCS::FEnableIndirectionGrid>(HeterogeneousVolumes::EnableIndirectionGrid());
-					PermutationVector.Set<FRasterizeBottomLevelOrthoGridCS::FEnableHomogeneousAggregation>(HeterogeneousVolumes::EnableHomogeneousAggregation());
-					TShaderRef<FRasterizeBottomLevelOrthoGridCS> ComputeShader = Material.GetShader<FRasterizeBottomLevelOrthoGridCS>(&FLocalVertexFactory::StaticType, PermutationVector, false);
+					// Scene data
+					PassParameters->View = View.ViewUniformBuffer;
+					PassParameters->Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
 
-					if (!ComputeShader.IsNull())
+					// Primitive data
+					PassParameters->PrimitiveWorldBoundsMin = FVector3f(PrimitiveBounds.Origin - PrimitiveBounds.BoxExtent);
+					PassParameters->PrimitiveWorldBoundsMax = FVector3f(PrimitiveBounds.Origin + PrimitiveBounds.BoxExtent);
+
+					// TODO: Convert to relative-local space
+					//FVector3f ViewOriginHigh = FDFVector3(View.ViewMatrices.GetViewOrigin()).High;
+					//FMatrix44f RelativeLocalToWorld = FDFMatrix::MakeToRelativeWorldMatrix(ViewOriginHigh, HeterogeneousVolumeInterface->GetLocalToWorld()).M;
+					FMatrix InstanceToLocal = HeterogeneousVolumeInterface->GetInstanceToLocal();
+					FMatrix LocalToWorld = HeterogeneousVolumeInterface->GetLocalToWorld();
+					PassParameters->LocalToWorld = FMatrix44f(InstanceToLocal * LocalToWorld);
+					PassParameters->WorldToLocal = FMatrix44f(PassParameters->LocalToWorld.Inverse());
+
+					FMatrix LocalToInstance = InstanceToLocal.Inverse();
+					FBoxSphereBounds InstanceBoxSphereBounds = LocalBoxSphereBounds.TransformBy(LocalToInstance);
+					PassParameters->LocalBoundsOrigin = FVector3f(InstanceBoxSphereBounds.Origin);
+					PassParameters->LocalBoundsExtent = FVector3f(InstanceBoxSphereBounds.BoxExtent);
+					PassParameters->PrimitiveId = PrimitiveId;
+
+					// Volume data
+					PassParameters->TopLevelGridResolution = TopLevelGridResolution;
+					PassParameters->TopLevelGridWorldBoundsMin = FVector3f(TopLevelGridBounds.Origin - TopLevelGridBounds.BoxExtent);
+					PassParameters->TopLevelGridWorldBoundsMax = FVector3f(TopLevelGridBounds.Origin + TopLevelGridBounds.BoxExtent);
+
+					// Sampling data
+					FBlueNoise BlueNoise = GetBlueNoiseGlobalParameters();
+					PassParameters->BlueNoise = CreateUniformBufferImmediate(BlueNoise, EUniformBufferUsage::UniformBuffer_SingleDraw);
+
+					// Unify with "object" definition??
+					PassParameters->PrimitiveWorldBoundsMin = FVector3f(PrimitiveBounds.Origin - PrimitiveBounds.BoxExtent);
+					PassParameters->PrimitiveWorldBoundsMax = FVector3f(PrimitiveBounds.Origin + PrimitiveBounds.BoxExtent);
+
+					PassParameters->BottomLevelGridBufferSize = BottomLevelGridBufferSize;
+
+					// Raster tile data
+					PassParameters->RasterTileAllocatorBuffer = GraphBuilder.CreateSRV(RasterTileAllocatorBuffer, PF_R32_UINT);
+					PassParameters->RasterTileBuffer = GraphBuilder.CreateSRV(RasterTileBuffer);
+
+					// Indirect args
+					PassParameters->IndirectArgs = RasterizeBottomLevelGridIndirectArgsBuffer;
+
+					// Sampling mode
+					PassParameters->bJitter = BuildOptions.bJitter;
+					PassParameters->bSampleAtVertices = HeterogeneousVolumes::EnableLinearInterpolation();
+
+					// Grid data
+					PassParameters->TopLevelGridBuffer = GraphBuilder.CreateSRV(TopLevelGridBuffer);
+					PassParameters->RWBottomLevelGridAllocatorBuffer = GraphBuilder.CreateUAV(BottomLevelGridAllocatorBuffer, PF_R32_UINT);
+					PassParameters->RWTopLevelGridBuffer = GraphBuilder.CreateUAV(TopLevelGridBuffer);
+					PassParameters->RWExtinctionGridBuffer = GraphBuilder.CreateUAV(ExtinctionGridBuffer);
+					PassParameters->RWEmissionGridBuffer = GraphBuilder.CreateUAV(EmissionGridBuffer);
+					PassParameters->RWScatteringGridBuffer = GraphBuilder.CreateUAV(ScatteringGridBuffer);
+
+					// Indirection Grid
+					PassParameters->FixedBottomLevelResolution = HeterogeneousVolumes::GetBottomLevelGridResolution();
+					PassParameters->RWIndirectionGridBuffer = GraphBuilder.CreateUAV(IndirectionGridBuffer);
+
+	#if 0
+					// Hash table
+					if (HeterogeneousVolumes::EnableVoxelHashing())
 					{
-						ClearUnusedGraphResources(ComputeShader, PassParameters);
-
-						FMeshDrawShaderBindings ShaderBindings;
-						UE::MeshPassUtils::SetupComputeBindings(ComputeShader, LocalScene, LocalScene->GetFeatureLevel(), nullptr, *MaterialRenderProxy, Material, ShaderBindings);
-
-						UE::MeshPassUtils::DispatchIndirect(RHICmdList, ComputeShader, ShaderBindings, *PassParameters, PassParameters->IndirectArgs->GetIndirectRHICallBuffer(), 0);
+						PassParameters->RWHashTable = GraphBuilder.CreateUAV(HashTableBuffer);
+						PassParameters->RWHashToVoxelBuffer = GraphBuilder.CreateUAV(HashToVoxelBuffer);
+						PassParameters->HashTableSize = HashTableBufferSize;
 					}
+	#endif
+					PassParameters->HomogeneousThreshold = HeterogeneousVolumes::GetHomogeneousAggregationThreshold();
 				}
-			);
+
+				GraphBuilder.AddPass(
+					RDG_EVENT_NAME("RasterizeBottomLevelGrid"),
+					PassParameters,
+					ERDGPassFlags::Compute,
+					// Why is scene explicitly copied?
+					[PassParameters, LocalScene = Scene, &View, MaterialRenderProxy, &Material](FRHIComputeCommandList& RHICmdList)
+					{
+						FRasterizeBottomLevelOrthoGridCS::FPermutationDomain PermutationVector;
+						PermutationVector.Set<FRasterizeBottomLevelOrthoGridCS::FEnableIndirectionGrid>(HeterogeneousVolumes::EnableIndirectionGrid());
+						PermutationVector.Set<FRasterizeBottomLevelOrthoGridCS::FEnableHomogeneousAggregation>(HeterogeneousVolumes::EnableHomogeneousAggregation());
+						TShaderRef<FRasterizeBottomLevelOrthoGridCS> ComputeShader = Material.GetShader<FRasterizeBottomLevelOrthoGridCS>(&FLocalVertexFactory::StaticType, PermutationVector, false);
+
+						if (!ComputeShader.IsNull())
+						{
+							ClearUnusedGraphResources(ComputeShader, PassParameters);
+
+							FMeshDrawShaderBindings ShaderBindings;
+							UE::MeshPassUtils::SetupComputeBindings(ComputeShader, LocalScene, LocalScene->GetFeatureLevel(), nullptr, *MaterialRenderProxy, Material, ShaderBindings);
+
+							UE::MeshPassUtils::DispatchIndirect(RHICmdList, ComputeShader, ShaderBindings, *PassParameters, PassParameters->IndirectArgs->GetIndirectRHICallBuffer(), 0);
+						}
+					}
+				);
+			}
 		}
 	}
 }
