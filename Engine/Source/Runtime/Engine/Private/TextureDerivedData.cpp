@@ -71,6 +71,11 @@ static TAutoConsoleVariable<int32> CVarTexturesCookToDerivedDataReferences(
 // This is put in the DDC1 key but NOT in the DDC2 key
 #define TEXTURE_VT_DERIVEDDATA_VER	TEXT("7C16439390E24F1F9468894FB4D4BC54")
 
+// TEXTURE_DDC_STB_IMAGE_RESIZE_VERSION should change whenever the stb_image_resize2.h version number changes
+//	*if* it is a version change that changes output
+//	if it's just a performance/compile fix that doesn't change output, do not change this version number
+#define TEXTURE_DDC_STB_IMAGE_RESIZE_VERSION  TEXT("2.06")
+
 // This GUID is mixed in for textures that are involved in shared linear encoded textures - both base and child. It's used
 // to rebuild textures affects by shared linear in the case of bugs that only affect such textures so we don't force a global
 // rebuild. This is in both texture build paths.
@@ -128,6 +133,7 @@ static void SerializeForKey(FArchive& Ar, const FTextureBuildSettings& Settings)
 	FVector4f TempVector4f;
 	UE::Color::FColorSpace TempColorSpace;
 	FGuid TempGuid;
+	FName TempName;
 
 	TempFloat = Settings.ColorAdjustment.AdjustBrightness; Ar << TempFloat;
 	TempFloat = Settings.ColorAdjustment.AdjustBrightnessCurve; Ar << TempFloat;
@@ -217,10 +223,9 @@ static void SerializeForKey(FArchive& Ar, const FTextureBuildSettings& Settings)
 	
 	if ( Settings.PowerOfTwoMode >= ETexturePowerOfTwoSetting::Type::StretchToPowerOfTwo )
 	{
-		// @todo SerializeForKey these can go away whenever we bump the overall ddc key
 		// Stretch power of two modes ResizeImage changed 10-31-2023
-		TempGuid = FGuid(0xb88aa846, 0xadec4199, 0x9a3cf2f2, 0x1413abc6);
-		Ar << TempGuid;
+		TempName = TEXTURE_DDC_STB_IMAGE_RESIZE_VERSION;
+		Ar << TempName;
 	}
 
 	// Avoid changing key for non-VT enabled textures
@@ -255,10 +260,9 @@ static void SerializeForKey(FArchive& Ar, const FTextureBuildSettings& Settings)
 
 		if ( Settings.bUseNewMipFilter )
 		{
-			// downscale behavior changed
-			// @todo SerializeForKey these can go away whenever we bump the overall ddc key
-			TempGuid = FGuid(0xBC9D413B, 0x2C9DF1E3, 0xBF963C7A, 0xABADF00D);
-			Ar << TempGuid;
+			// downscale behavior changed to use ResizeImage
+			TempName = TEXTURE_DDC_STB_IMAGE_RESIZE_VERSION;
+			Ar << TempName;
 		}
 	}
 
