@@ -1366,6 +1366,11 @@ bool UMaterialInterface::CastsRayTracedShadows() const
 	return true;
 }
 
+bool UMaterialInterface::IsTessellationEnabled() const
+{
+	return false;
+}
+
 void UMaterialInterface::SetFeatureLevelToCompile(ERHIFeatureLevel::Type FeatureLevel, bool bShouldCompile)
 {
 	uint32 FeatureLevelBit = (1 << FeatureLevel);

@@ -6693,6 +6693,11 @@ bool UMaterial::CastsRayTracedShadows() const
 	return bCastRayTracedShadows;
 }
 
+bool UMaterial::IsTessellationEnabled() const
+{
+	return bEnableTessellation;
+}
+
 FDisplacementScaling UMaterial::GetDisplacementScaling() const
 {
 	return DisplacementScaling;
@@ -6779,6 +6784,7 @@ static bool IsPropertyActive_Internal(EMaterialProperty InProperty,
 	EBlendMode BlendMode,
 	FMaterialShadingModelField ShadingModels,
 	ETranslucencyLightingMode TranslucencyLightingMode,
+	bool bIsTessellationEnabled,
 	bool bBlendableOutputAlpha,
 	bool bUsesDistortion,
 	bool bUsesShadingModelFromMaterialExpression,
@@ -6937,7 +6943,7 @@ static bool IsPropertyActive_Internal(EMaterialProperty InProperty,
 				Active = true;
 				break;
 			case MP_Displacement:
-				Active = true;
+				Active = bIsTessellationEnabled;
 				break;
 			case MP_PixelDepthOffset:
 				Active = (!bIsTranslucentBlendMode) || (bIsTranslucencyWritingVelocity);
@@ -7019,7 +7025,7 @@ static bool IsPropertyActive_Internal(EMaterialProperty InProperty,
 			Active = true;
 			break;
 		case MP_Displacement:
-			Active = true;
+			Active = bIsTessellationEnabled;
 			break;
 		case MP_PixelDepthOffset:
 			Active = (!bIsTranslucentBlendMode) || (bIsTranslucencyWritingVelocity);
@@ -7057,6 +7063,7 @@ bool UMaterial::IsPropertyActiveInEditor(EMaterialProperty InProperty) const
 		BlendMode,
 		ShadingModels,
 		TranslucencyLightingMode,
+		IsTessellationEnabled(),
 		IsPostProcessMaterialOutputingAlpha(),
 		bUsesDistortion,
 		IsShadingModelFromMaterialExpression(),
@@ -7082,6 +7089,7 @@ bool UMaterial::IsPropertyActiveInDerived(EMaterialProperty InProperty, const UM
 		DerivedMaterial->GetBlendMode(),
 		DerivedMaterial->GetShadingModels(),
 		TranslucencyLightingMode,
+		DerivedMaterial->IsTessellationEnabled(),
 		IsPostProcessMaterialOutputingAlpha(),
 		bUsesDistortion,
 		DerivedMaterial->IsShadingModelFromMaterialExpression(),

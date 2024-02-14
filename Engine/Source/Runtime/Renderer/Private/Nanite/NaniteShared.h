@@ -16,6 +16,7 @@
 #include "Misc/ScopeRWLock.h"
 #include "Experimental/Containers/RobinHoodHashTable.h"
 #include "LightMapRendering.h" // TODO: Remove with later refactor (moving Nanite shading into its own files)
+#include "RenderUtils.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogNanite, Warning, All);
 
@@ -374,7 +375,8 @@ public:
 
 	static bool IsVertexProgrammable(const FMaterialShaderParameters& MaterialParameters)
 	{
-		return MaterialParameters.bHasVertexPositionOffsetConnected || MaterialParameters.bHasDisplacementConnected;
+		return MaterialParameters.bHasVertexPositionOffsetConnected ||
+			(NaniteTessellationSupported() && MaterialParameters.bIsTessellationEnabled);
 	}
 
 	static bool IsVertexProgrammable(uint32 MaterialBitFlags)
@@ -404,6 +406,7 @@ public:
 		// switches' values, and therefore when true could represent the set of materials that both enable them and do not. We could
 		// isolate a narrower set of required shaders if FMaterialShaderParameters reflected the status after static switches are
 		// applied.
+		// TODO #2: Tessellation enabled is currently causing FHWRasterizeVS programmable permutations to compile unnecessarily.
 		//return IsVertexProgrammable(MaterialParameters, bPermutationPrimitiveShader) == bPermutationVertexProgrammable &&	
 		//		IsPixelProgrammable(MaterialParameters) == bPermutationPixelProgrammable;
 		return	(IsVertexProgrammable(MaterialParameters) || !bPermutationVertexProgrammable) &&

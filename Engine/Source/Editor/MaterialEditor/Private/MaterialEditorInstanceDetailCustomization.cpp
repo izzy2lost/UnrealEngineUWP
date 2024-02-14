@@ -1259,6 +1259,7 @@ void FMaterialInstanceParameterDetails::CreateBasePropertyOverrideWidgets(IDetai
 	TAttribute<bool> IsOverrideDitheredLODTransitionEnabled = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::OverrideDitheredLODTransitionEnabled));
 	TAttribute<bool> IsOverrideOutputTranslucentVelocityEnabled = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::OverrideOutputTranslucentVelocityEnabled));
 	TAttribute<bool> IsOverrideHasPixelAnimationEnabled = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::OverrideHasPixelAnimationEnabled));
+	TAttribute<bool> IsOverrideTessellationEnabled = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::OverrideTessellationEnabled));
 	TAttribute<bool> IsOverrideDisplacementScalingEnabled = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::OverrideDisplacementScalingEnabled));
 	TAttribute<bool> IsOverrideMaxWorldPositionOffsetDisplacementEnabled = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::OverrideMaxWorldPositionOffsetDisplacementEnabled));
 	TAttribute<bool> IsOverrideCastDynamicShadowAsMaskedEnabled = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::OverrideCastDynamicShadowAsMaskedEnabled));
@@ -1272,6 +1273,7 @@ void FMaterialInstanceParameterDetails::CreateBasePropertyOverrideWidgets(IDetai
 	TSharedPtr<IPropertyHandle> DitheredLODTransitionProperty = BasePropertyOverridePropery->GetChildHandle("DitheredLODTransition");
 	TSharedPtr<IPropertyHandle> OutputTranslucentVelocityProperty = BasePropertyOverridePropery->GetChildHandle("bOutputTranslucentVelocity");
 	TSharedPtr<IPropertyHandle> HasPixelAnimationProperty = BasePropertyOverridePropery->GetChildHandle("bHasPixelAnimation");
+	TSharedPtr<IPropertyHandle> EnableTessellationProperty = BasePropertyOverridePropery->GetChildHandle("bEnableTessellation");
 	TSharedPtr<IPropertyHandle> DisplacementScalingProperty = BasePropertyOverridePropery->GetChildHandle("DisplacementScaling");
 	TSharedPtr<IPropertyHandle> MaxWorldPositionOffsetDisplacementProperty = BasePropertyOverridePropery->GetChildHandle("MaxWorldPositionOffsetDisplacement");
 	TSharedPtr<IPropertyHandle> CastDynamicShadowAsMaskedProperty = BasePropertyOverridePropery->GetChildHandle("bCastDynamicShadowAsMasked");
@@ -1460,6 +1462,25 @@ void FMaterialInstanceParameterDetails::CreateBasePropertyOverrideWidgets(IDetai
 			.OverrideResetToDefault(ResetHasPixelAnimationPropertyOverride);
 	}
 	{
+		FIsResetToDefaultVisible IsEnableTessellationPropertyResetVisible = FIsResetToDefaultVisible::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle) {
+			return MaterialEditorInstance->Parent != nullptr ? MaterialEditorInstance->BasePropertyOverrides.bEnableTessellation != MaterialEditorInstance->Parent->IsTessellationEnabled() : false;
+			});
+		FResetToDefaultHandler ResetEnableTessellationPropertyHandler = FResetToDefaultHandler::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle) {
+			if (MaterialEditorInstance->Parent != nullptr)
+			{
+				MaterialEditorInstance->BasePropertyOverrides.bEnableTessellation = MaterialEditorInstance->Parent->IsTessellationEnabled();
+			}
+			});
+		FResetToDefaultOverride ResetEnableTessellationPropertyOverride = FResetToDefaultOverride::Create(IsEnableTessellationPropertyResetVisible, ResetEnableTessellationPropertyHandler);
+		IDetailPropertyRow& EnableTessellationPropertyRow = BasePropertyOverrideGroup.AddPropertyRow(EnableTessellationProperty.ToSharedRef());
+		EnableTessellationPropertyRow
+			.DisplayName(EnableTessellationProperty->GetPropertyDisplayName())
+			.ToolTip(bStaticParametersOverrideDisabled ? ParameterDisabledToolTipString : EnableTessellationProperty->GetToolTipText())
+			.EditCondition(IsOverrideTessellationEnabled, FOnBooleanValueChanged::CreateSP(this, &FMaterialInstanceParameterDetails::OnOverrideEnableTessellationChanged))
+			.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::IsOverriddenAndVisible, IsOverrideTessellationEnabled)))
+			.OverrideResetToDefault(ResetEnableTessellationPropertyOverride);
+	}
+	{
 		FIsResetToDefaultVisible IsDisplacementScalingPropertyResetVisible = FIsResetToDefaultVisible::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle)
 		{
 			return MaterialEditorInstance->Parent != nullptr ?
@@ -1569,6 +1590,11 @@ bool FMaterialInstanceParameterDetails::OverrideOutputTranslucentVelocityEnabled
 bool FMaterialInstanceParameterDetails::OverrideHasPixelAnimationEnabled() const
 {
 	return MaterialEditorInstance->BasePropertyOverrides.bOverride_bHasPixelAnimation;
+}
+
+bool FMaterialInstanceParameterDetails::OverrideTessellationEnabled() const
+{
+	return MaterialEditorInstance->BasePropertyOverrides.bOverride_bEnableTessellation;
 }
 
 bool FMaterialInstanceParameterDetails::OverrideDisplacementScalingEnabled() const
@@ -1693,6 +1719,17 @@ void FMaterialInstanceParameterDetails::OnOverrideHasPixelAnimationChanged(bool 
 		return;
 	}
 	MaterialEditorInstance->BasePropertyOverrides.bOverride_bHasPixelAnimation = NewValue;
+	MaterialEditorInstance->PostEditChange();
+	FEditorSupportDelegates::RedrawAllViewports.Broadcast();
+}
+
+void FMaterialInstanceParameterDetails::OnOverrideEnableTessellationChanged(bool NewValue)
+{
+	if (DoesSourceMaterialInstanceDisallowStaticParameterPermutation(MaterialEditorInstance, NewValue))
+	{
+		return;
+	}
+	MaterialEditorInstance->BasePropertyOverrides.bOverride_bEnableTessellation = NewValue;
 	MaterialEditorInstance->PostEditChange();
 	FEditorSupportDelegates::RedrawAllViewports.Broadcast();
 }

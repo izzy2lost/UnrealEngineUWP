@@ -2011,6 +2011,7 @@ public:
 	virtual bool HasVertexInterpolator() const { return false; }
 	virtual bool HasRuntimeVirtualTextureOutput() const { return false; }
 	virtual bool CastsRayTracedShadows() const { return true; }
+	virtual bool IsTessellationEnabled() const { return false; }
 	virtual bool HasRenderTracePhysicalMaterialOutputs() const { return false; }
 	virtual EMaterialShadingRate GetShadingRate() const { return MSR_1x1; }
 	virtual int32 GetNeuralProfileId() const { return INDEX_NONE; }
@@ -2749,6 +2750,7 @@ public:
 	ENGINE_API virtual bool HasVertexInterpolator() const override;
 	ENGINE_API virtual bool HasRuntimeVirtualTextureOutput() const override;
 	ENGINE_API virtual bool CastsRayTracedShadows() const override;
+	ENGINE_API virtual bool IsTessellationEnabled() const override;
 	ENGINE_API virtual bool HasRenderTracePhysicalMaterialOutputs() const override;
 	ENGINE_API virtual UMaterialInterface* GetMaterialInterface() const override;
 	ENGINE_API virtual int32 GetNeuralProfileId() const override;
@@ -3051,6 +3053,7 @@ struct FMaterialShaderParameters
 			uint64 bHasEmissiveColorConnected : 1;
 			uint64 bHasAmbientOcclusionConnected : 1;
 			uint64 bHasAnisotropyConnected : 1;
+			uint64 bIsTessellationEnabled : 1;
 			uint64 bHasDisplacementConnected : 1;
 			uint64 bHasVertexPositionOffsetConnected : 1;
 			uint64 bHasPixelDepthOffsetConnected : 1;

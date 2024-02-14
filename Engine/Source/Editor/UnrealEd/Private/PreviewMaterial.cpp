@@ -952,6 +952,10 @@ void UMaterialEditorInstanceConstant::CopyBasePropertiesFromParent()
 	{
 		BasePropertyOverrides.bHasPixelAnimation = SourceInstance->HasPixelAnimation();
 	}
+	if (!BasePropertyOverrides.bOverride_bEnableTessellation)
+	{
+		BasePropertyOverrides.bEnableTessellation = SourceInstance->IsTessellationEnabled();
+	}
 	if (!BasePropertyOverrides.DitheredLODTransition)
 	{
 		BasePropertyOverrides.DitheredLODTransition = SourceInstance->IsDitheredLODTransition();

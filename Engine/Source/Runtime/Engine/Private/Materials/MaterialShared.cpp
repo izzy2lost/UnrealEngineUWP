@@ -2039,7 +2039,7 @@ FString FMaterialResource::GetAssetName() const { return MaterialInstance ? GetN
 
 FDisplacementScaling FMaterialResource::GetDisplacementScaling() const
 {
-	return Material->DisplacementScaling;
+	return GetMaterialInterface()->GetDisplacementScaling();
 }
 
 uint32 FMaterialResource::GetMaterialDecalResponse() const
@@ -2207,6 +2207,11 @@ bool FMaterialResource::HasRuntimeVirtualTextureOutput() const
 bool FMaterialResource::CastsRayTracedShadows() const
 {
 	return Material->bCastRayTracedShadows;
+}
+
+bool FMaterialResource::IsTessellationEnabled() const
+{
+	return GetMaterialInterface()->IsTessellationEnabled();
 }
 
 bool FMaterialResource::HasRenderTracePhysicalMaterialOutputs() const
@@ -4929,6 +4934,7 @@ FMaterialInstanceBasePropertyOverrides::FMaterialInstanceBasePropertyOverrides()
 	,bOverride_bIsThinSurface(false)
 	,bOverride_OutputTranslucentVelocity(false)
 	,bOverride_bHasPixelAnimation(false)
+	,bOverride_bEnableTessellation(false)
 	,bOverride_DisplacementScaling(false)
 	,bOverride_MaxWorldPositionOffsetDisplacement(false)
 	,TwoSided(0)
@@ -4937,6 +4943,7 @@ FMaterialInstanceBasePropertyOverrides::FMaterialInstanceBasePropertyOverrides()
 	,bCastDynamicShadowAsMasked(false)
 	,bOutputTranslucentVelocity(false)
 	,bHasPixelAnimation(false)
+	,bEnableTessellation(false)
 	,BlendMode(BLEND_Opaque)
 	,ShadingModel(MSM_DefaultLit)
 	,OpacityMaskClipValue(.333333f)
@@ -4955,6 +4962,7 @@ bool FMaterialInstanceBasePropertyOverrides::operator==(const FMaterialInstanceB
 		bOverride_DitheredLODTransition == Other.bOverride_DitheredLODTransition &&
 		bOverride_OutputTranslucentVelocity == Other.bOverride_OutputTranslucentVelocity &&
 		bOverride_bHasPixelAnimation == Other.bOverride_bHasPixelAnimation &&
+		bOverride_bEnableTessellation == Other.bOverride_bEnableTessellation &&
 		bOverride_DisplacementScaling == Other.bOverride_DisplacementScaling &&
 		bOverride_MaxWorldPositionOffsetDisplacement == Other.bOverride_MaxWorldPositionOffsetDisplacement &&
 		OpacityMaskClipValue == Other.OpacityMaskClipValue &&
@@ -4966,6 +4974,7 @@ bool FMaterialInstanceBasePropertyOverrides::operator==(const FMaterialInstanceB
 		bCastDynamicShadowAsMasked == Other.bCastDynamicShadowAsMasked &&
 		bOutputTranslucentVelocity == Other.bOutputTranslucentVelocity &&
 		bHasPixelAnimation == Other.bHasPixelAnimation &&
+		bEnableTessellation == Other.bEnableTessellation &&
 		DisplacementScaling == Other.DisplacementScaling &&
 		MaxWorldPositionOffsetDisplacement == Other.MaxWorldPositionOffsetDisplacement;
 }
@@ -5418,6 +5427,7 @@ FMaterialShaderParameters::FMaterialShaderParameters(const FMaterial* InMaterial
 	}
 	bHasVertexPositionOffsetConnected = InMaterial->HasVertexPositionOffsetConnected();
 	bHasPixelDepthOffsetConnected = InMaterial->HasPixelDepthOffsetConnected();
+	bIsTessellationEnabled = InMaterial->IsTessellationEnabled();
 	bHasDisplacementConnected = InMaterial->HasDisplacementConnected();
 	bMaterialMayModifyMeshPosition = InMaterial->MaterialMayModifyMeshPosition();
 	bIsUsedWithStaticLighting = InMaterial->IsUsedWithStaticLighting();

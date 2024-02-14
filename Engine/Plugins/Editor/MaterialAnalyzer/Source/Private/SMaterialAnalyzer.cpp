@@ -39,6 +39,9 @@ SMaterialAnalyzer::SMaterialAnalyzer()
 	BasePropertyOverrideNames.Add(TEXT("bOverride_bIsThinSurface"), TEXT("bIsThinSurfaceOverride"));
 	BasePropertyOverrideNames.Add(TEXT("bOverride_OutputTranslucentVelocity"), TEXT("bOutputTranslucentVelocity"));
 	BasePropertyOverrideNames.Add(TEXT("bOverride_bHasPixelAnimation"), TEXT("bHasPixelAnimation"));
+	BasePropertyOverrideNames.Add(TEXT("bOverride_bEnableTessellation"), TEXT("bEnableTessellation"));
+	BasePropertyOverrideNames.Add(TEXT("bOverride_DisplacementScaling"), TEXT("DisplacementScaling"));
+	BasePropertyOverrideNames.Add(TEXT("bOverride_MaxWorldPositionOffsetDisplacement"), TEXT("MaxWorldPositionOffsetDisplacement"));
 }
 
 SMaterialAnalyzer::~SMaterialAnalyzer()
@@ -782,6 +785,38 @@ void FAnalyzeMaterialTreeAsyncTask::DoWork()
 			if (CurrentMaterialInstance)
 			{
 				bIsOverridden = CurrentMaterialInstance->BasePropertyOverrides.bOverride_OutputTranslucentVelocity;
+			}
+		}
+		else if (BasePropertyOverrideName.Key.IsEqual(TEXT("bOverride_bHasPixelAnimation")))
+		{
+			TempValue = CurrentMaterialInterface->HasPixelAnimation();
+			if (CurrentMaterialInstance)
+			{
+				bIsOverridden = CurrentMaterialInstance->BasePropertyOverrides.bOverride_bHasPixelAnimation;
+			}
+		}
+		else if (BasePropertyOverrideName.Key.IsEqual(TEXT("bOverride_bEnableTessellation")))
+		{
+			TempValue = CurrentMaterialInterface->IsTessellationEnabled();
+			if (CurrentMaterialInstance)
+			{
+				bIsOverridden = CurrentMaterialInstance->BasePropertyOverrides.bOverride_bEnableTessellation;
+			}
+		}
+		else if (BasePropertyOverrideName.Key.IsEqual(TEXT("bOverride_DisplacementScaling")))
+		{
+			TempValue = CurrentMaterialInterface->GetDisplacementScaling().Magnitude;
+			if (CurrentMaterialInstance)
+			{
+				bIsOverridden = CurrentMaterialInstance->BasePropertyOverrides.bOverride_DisplacementScaling;
+			}
+		}
+		else if (BasePropertyOverrideName.Key.IsEqual(TEXT("bOverride_MaxWorldPositionOffsetDisplacement")))
+		{
+			TempValue = CurrentMaterialInterface->GetMaxWorldPositionOffsetDisplacement();
+			if (CurrentMaterialInstance)
+			{
+				bIsOverridden = CurrentMaterialInstance->BasePropertyOverrides.bOverride_MaxWorldPositionOffsetDisplacement;
 			}
 		}
 

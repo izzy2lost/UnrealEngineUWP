@@ -48,6 +48,10 @@ struct FMaterialInstanceBasePropertyOverrides
 	/** Enables override of the has pixel animation property. */
 	UPROPERTY(EditAnywhere, Category = Material)
 	uint8 bOverride_bHasPixelAnimation : 1;
+	
+	/** Enables override of the enable tessellation property. */
+	UPROPERTY(EditAnywhere, Category = Material)
+	uint8 bOverride_bEnableTessellation : 1;
 
 	/** Enables override of the displacement magnitude and center property. */
 	UPROPERTY(EditAnywhere, Category = Material)
@@ -82,6 +86,10 @@ struct FMaterialInstanceBasePropertyOverrides
 	 */
 	UPROPERTY(EditAnywhere, Category = Material, meta = (editcondition = "bOverride_bHasPixelAnimation"))
 	uint8 bHasPixelAnimation : 1;
+	
+	/** Whether or not tessellation is enabled. Required for displacement to work. */
+	UPROPERTY(EditAnywhere, Category = Material, meta = (editcondition = "bOverride_bEnableTessellation"))
+	uint8 bEnableTessellation : 1;
 
 	/** The blend mode */
 	UPROPERTY(EditAnywhere, Category = Material, meta = (editcondition = "bOverride_BlendMode"))
