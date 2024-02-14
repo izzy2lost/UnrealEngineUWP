@@ -28,6 +28,52 @@ UDMMaterialStage* UDMMaterialStageInputGradient::CreateStage(TSubclassOf<UDMMate
 	return NewStage;
 }
 
+UDMMaterialStageInputGradient* UDMMaterialStageInputGradient::ChangeStageSource_Gradient(UDMMaterialStage* InStage,
+	TSubclassOf<UDMMaterialStageGradient> InGradientClass)
+{
+	check(InStage);
+
+	if (!InStage->CanChangeSource())
+	{
+		return nullptr;
+	}
+
+	check(InGradientClass);
+	check(!(InGradientClass->ClassFlags & (CLASS_Abstract | CLASS_Hidden | CLASS_Deprecated | CLASS_NewerVersionExists)));
+
+	UDMMaterialStageInputGradient* NewInputGradient = InStage->ChangeSource<UDMMaterialStageInputGradient>(
+		[InGradientClass](UDMMaterialStage* InStage, UDMMaterialStageSource* InNewSource)
+		{
+			const FDMUpdateGuard Guard;
+			CastChecked<UDMMaterialStageInputGradient>(InNewSource)->SetMaterialStageGradientClass(InGradientClass);
+		});
+
+	return NewInputGradient;
+}
+
+UDMMaterialStageInputGradient* UDMMaterialStageInputGradient::ChangeStageInput_Gradient(UDMMaterialStage* InStage,
+	TSubclassOf<UDMMaterialStageGradient> InGradientClass, int32 InInputIdx, int32 InInputChannel, int32 InOutputChannel)
+{
+	check(InStage);
+
+	UDMMaterialStageSource* Source = InStage->GetSource();
+	check(Source);
+
+	check(InGradientClass);
+	check(!(InGradientClass->ClassFlags & (CLASS_Abstract | CLASS_Hidden | CLASS_Deprecated | CLASS_NewerVersionExists)));
+
+	UDMMaterialStageInputGradient* NewInputGradient = InStage->ChangeInput<UDMMaterialStageInputGradient>(
+		InInputIdx, InInputChannel, 0, InOutputChannel,
+		[InGradientClass](UDMMaterialStage* InStage, UDMMaterialStageInput* InNewInput)
+		{
+			const FDMUpdateGuard Guard;
+			CastChecked<UDMMaterialStageInputGradient>(InNewInput)->SetMaterialStageGradientClass(InGradientClass);
+		}
+	);
+
+	return NewInputGradient;
+}
+
 void UDMMaterialStageInputGradient::SetMaterialStageGradientClass(TSubclassOf<UDMMaterialStageGradient> InMaterialStageGradientClass)
 {
 	SetMaterialStageThroughputClass(InMaterialStageGradientClass);

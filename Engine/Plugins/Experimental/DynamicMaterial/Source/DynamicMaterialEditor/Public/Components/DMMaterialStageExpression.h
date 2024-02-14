@@ -47,6 +47,16 @@ public:
 
 	static const TArray<TStrongObjectPtr<UClass>>& GetAvailableSourceExpressions();
 
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	static UDMMaterialStageExpression* ChangeStageSource_Expression(UDMMaterialStage* InStage,
+		TSubclassOf<UDMMaterialStageExpression> InExpressionClass);
+
+	template<typename InExpressionClass>
+	static UDMMaterialStageExpression* ChangeStageSource_Expression(UDMMaterialStage* InStage)
+	{
+		return ChangeStageSource_Expression(InStage, InExpressionClass::StaticClass());
+	}
+
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	TSubclassOf<UMaterialExpression> GetMaterialExpressionClass() const { return MaterialExpressionClass; }
 

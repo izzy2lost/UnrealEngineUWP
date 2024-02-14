@@ -8,6 +8,7 @@
 #include "Components/MaterialStageExpressions/DMMSETextureSample.h"
 #include "Components/MaterialStageInputs/DMMSIExpression.h"
 #include "Components/MaterialStageInputs/DMMSITextureUV.h"
+#include "Components/MaterialStageInputs/DMMSIValue.h"
 #include "Containers/ArrayView.h"
 #include "DMDefs.h"
 #include "DMMaterialFunctionLibrary.h"
@@ -268,7 +269,14 @@ void UDMMaterialStageThroughput::ConnectOutputToInput(const TSharedRef<FDMMateri
 	TConstArrayView<FExpressionInput*> TargetExpressionInputs = TargetExpression->GetInputsView();
 	check(TargetExpressionInputs.IsValidIndex(InInputIndex));
 
-	ConnectOutputToInput_Internal(InBuildState, TargetExpression, InInputIndex, InSourceExpression, InSourceOutputIndex, InSourceOutputChannel);
+	ConnectOutputToInput_Internal(
+		InBuildState, 
+		TargetExpression, 
+		InInputIndex, 
+		InSourceExpression, 
+		InSourceOutputIndex, 
+		InSourceOutputChannel
+	);
 }
 
 void UDMMaterialStageThroughput::ConnectOutputToInput_Internal(const TSharedRef<FDMMaterialBuildState>& InBuildState, UMaterialExpression* TargetExpression,
@@ -312,7 +320,12 @@ void UDMMaterialStageThroughput::ConnectOutputToInput_Internal(const TSharedRef<
 	}
 	else
 	{
-		UMaterialExpression* MaskExpression = InBuildState->GetBuildUtils().CreateExpressionBitMask(SourceExpression, SourceOutputIndex, SourceOutputChannel);
+		UMaterialExpression* MaskExpression = InBuildState->GetBuildUtils().CreateExpressionBitMask(
+			SourceExpression, 
+			SourceOutputIndex, 
+			SourceOutputChannel
+		);
+
 		MaskExpression->ConnectExpression(ExpressionInput, 0);
 	}
 }
@@ -332,7 +345,13 @@ FDMExpressionInput UDMMaterialStageThroughput::GetLayerMaskLinkTextureUVInputExp
 	FDMMaterialStageConnectorChannel Channel;
 	FDMExpressionInput ExpressionInput;
 
-	ExpressionInput.OutputIndex = ResolveInput(InBuildState, TextureUVInputIdx, Channel, ExpressionInput.OutputExpressions);
+	ExpressionInput.OutputIndex = ResolveInput(
+		InBuildState, 
+		TextureUVInputIdx, 
+		Channel, 
+		ExpressionInput.OutputExpressions
+	);
+
 	ExpressionInput.OutputChannel = Channel.OutputChannel;
 
 	return ExpressionInput;
@@ -397,29 +416,58 @@ void UDMMaterialStageThroughput::AddDefaultInput(int32 InInputIndex) const
 		case EDMValueType::VT_Float2:
 			if (InputConnectors[InInputIndex].Name.EqualTo(UVName))
 			{
-				Stage->ChangeInput_UV(InInputIndex, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+				UDMMaterialStageInputTextureUV::ChangeStageInput_UV(
+					Stage, 
+					InInputIndex,
+					FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+					FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+				);
 			}
 			else
 			{
-				Stage->ChangeInput_NewLocalValue(InInputIndex, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, EDMValueType::VT_Float2, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+				UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(
+					Stage, 
+					InInputIndex,
+					FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+					EDMValueType::VT_Float2,
+					FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+				);
 			}
 			break;
 
 		case EDMValueType::VT_Float3_RGB:
-			Stage->ChangeInput_Expression(InInputIndex, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-				UDMMaterialStageExpressionTextureSample::StaticClass(), 0, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+			UDMMaterialStageInputExpression::ChangeStageInput_Expression(
+				Stage, 
+				UDMMaterialStageExpressionTextureSample::StaticClass(),
+				InInputIndex,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+				0,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+			);
 			break;
 
 		case EDMValueType::VT_Float4_RGBA:
-			Stage->ChangeInput_Expression(InInputIndex, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-				UDMMaterialStageExpressionTextureSample::StaticClass(), 5, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+			UDMMaterialStageInputExpression::ChangeStageInput_Expression(
+				Stage,
+				UDMMaterialStageExpressionTextureSample::StaticClass(), 
+				InInputIndex,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+				5,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+			);
 			break;
 
 		case EDMValueType::VT_Float1:
 		case EDMValueType::VT_Float3_RPY:
 		case EDMValueType::VT_Float3_XYZ:
 		case EDMValueType::VT_Texture:
-			Stage->ChangeInput_NewLocalValue(InInputIndex, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, InputConnectors[InInputIndex].Type, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+			UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(
+				Stage, 
+				InInputIndex,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+				InputConnectors[InInputIndex].Type,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+			);
 			break;
 
 		case EDMValueType::VT_ColorAtlas:
@@ -428,12 +476,24 @@ void UDMMaterialStageThroughput::AddDefaultInput(int32 InInputIndex) const
 			{
 				if (Layer->GetStageType(Stage) == EDMMaterialLayerStage::Mask)
 				{
-					Stage->ChangeInput_NewLocalValue(InInputIndex, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, EDMValueType::VT_ColorAtlas, FDMMaterialStageConnectorChannel::FOURTH_CHANNEL);
+					UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(
+						Stage, 
+						InInputIndex,
+						FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+						EDMValueType::VT_ColorAtlas,
+						FDMMaterialStageConnectorChannel::FOURTH_CHANNEL
+					);
 					break;
 				}
 			}
 
-			Stage->ChangeInput_NewLocalValue(InInputIndex, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, EDMValueType::VT_ColorAtlas, FDMMaterialStageConnectorChannel::THREE_CHANNELS);
+			UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(
+				Stage, 
+				InInputIndex,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+				EDMValueType::VT_ColorAtlas,
+				FDMMaterialStageConnectorChannel::THREE_CHANNELS
+			);
 			break;
 		}
 	}
@@ -461,7 +521,12 @@ int32 UDMMaterialStageThroughput::ResolveInput(const TSharedRef<FDMMaterialBuild
 		&& SupportsLayerMaskTextureUVLink() 
 		&& (GetLayerMaskTextureUVLinkInputIndex() == INDEX_NONE || GetLayerMaskTextureUVLinkInputIndex() == InputIndex))
 	{
-		int32 OutputIndex = ResolveLayerMaskTextureUVLinkInput(InBuildState, InputIndex, OutChannel, OutExpressions);
+		const int32 OutputIndex = ResolveLayerMaskTextureUVLinkInput(
+			InBuildState,
+			InputIndex, 
+			OutChannel, 
+			OutExpressions
+		);
 
 		if (OutputIndex != INDEX_NONE)
 		{
@@ -483,8 +548,16 @@ int32 UDMMaterialStageThroughput::ResolveInput(const TSharedRef<FDMMaterialBuild
 
 	if (InputConnectionMap[InputIndex].Channels.Num() == 1)
 	{
-		OutChannel = InputConnectionMap[InputIndex].Channels[0]; // Full copy in case it is changed by the channel resolve.
-		return ResolveInputChannel(InBuildState, InputIndex, 0, OutChannel, OutExpressions);
+		// Full copy in case it is changed by the channel resolve.
+		OutChannel = InputConnectionMap[InputIndex].Channels[0];
+
+		return ResolveInputChannel(
+			InBuildState, 
+			InputIndex, 
+			0, 
+			OutChannel, 
+			OutExpressions
+		);
 	}
 
 	// Only floats can have sub-channel mapping
@@ -527,7 +600,14 @@ int32 UDMMaterialStageThroughput::ResolveInput(const TSharedRef<FDMMaterialBuild
 		FDMMaterialStageConnectorChannel ChannelTemp = InputConnectionMap[InputIndex].Channels[ChannelIdx];
 		TArray<UMaterialExpression*> ChannelExpressions;
 
-		ResolveInputChannel(InBuildState, InputIndex, ChannelIdx, ChannelTemp, ChannelExpressions);
+		ResolveInputChannel(
+			InBuildState, 
+			InputIndex, 
+			ChannelIdx, 
+			ChannelTemp, 
+			ChannelExpressions
+		);
+
 		check(ChannelExpressions.IsEmpty() == false);
 
 		OutExpressions.Append(ChannelExpressions);
@@ -550,7 +630,12 @@ int32 UDMMaterialStageThroughput::ResolveLayerMaskTextureUVLinkInput(const TShar
 	check(Layer);
 	check(Layer->GetStage(EDMMaterialLayerStage::Base));
 
-	return ResolveLayerMaskTextureUVLinkInputImpl(InBuildState, Layer->GetStage(EDMMaterialLayerStage::Base)->GetSource(), OutChannel, OutExpressions);
+	return ResolveLayerMaskTextureUVLinkInputImpl(
+		InBuildState, 
+		Layer->GetStage(EDMMaterialLayerStage::Base)->GetSource(), 
+		OutChannel, 
+		OutExpressions
+	);
 }
 
 int32 UDMMaterialStageThroughput::ResolveLayerMaskTextureUVLinkInputImpl(const TSharedRef<FDMMaterialBuildState>& InBuildState, 
@@ -851,11 +936,20 @@ void UDMMaterialStageThroughput::UpdatePreviewMaterial(UMaterial* InPreviewMater
 		Stage->GenerateExpressions(BuildState);
 		UMaterialExpression* StageExpression = BuildState->GetLastStageExpression(Stage);
 
-		BuildState->GetBuildUtils().UpdatePreviewMaterial(StageExpression, 0, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 32);
+		BuildState->GetBuildUtils().UpdatePreviewMaterial(
+			StageExpression, 
+			0, 
+			FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+			32
+		);
 	}
 	else
 	{
-		UE::DynamicMaterialEditor::Private::BuildExpressionInputs(BuildState, InputConnectionMap, Inputs);
+		UE::DynamicMaterialEditor::Private::BuildExpressionInputs(
+			BuildState,
+			InputConnectionMap, 
+			Inputs
+		);
 	}
 }
 

@@ -61,7 +61,9 @@ void UDMMaterialStageExpressionTextureSampleEdgeColor::AddDefaultInput(int32 InI
 	{
 		using namespace UE::DynamicMaterialEditor::TextureSampleEdgeColor::Private;
 
-		UDMMaterialStageInputValue* InputValue = Stage->ChangeInput_NewLocalValue(1, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, EDMValueType::VT_Float2, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+		UDMMaterialStageInputValue* InputValue = UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(Stage, 
+			1, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+			EDMValueType::VT_Float2, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
 		check(InputValue);
 
 		UDMMaterialValueFloat2* InputFloat2 = Cast<UDMMaterialValueFloat2>(InputValue->GetValue());

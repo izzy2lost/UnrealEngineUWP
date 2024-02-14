@@ -5,10 +5,10 @@
 #include "Components/DMMaterialParameter.h"
 #include "Components/DMMaterialSlot.h"
 #include "Components/DMMaterialStage.h"
+#include "Components/DMMaterialStageThroughputLayerBlend.h"
 #include "Components/DMMaterialSubStage.h"
 #include "Components/DMMaterialValue.h"
 #include "DMComponentPath.h"
-#include "Materials/MaterialExpressionComponentMask.h"
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
@@ -32,6 +32,247 @@ UDMMaterialStage* UDMMaterialStageInputValue::CreateStage(UDMMaterialValue* InVa
 	NewStage->SetSource(InputValue);
 
 	return NewStage;
+}
+
+UDMMaterialStageInputValue* UDMMaterialStageInputValue::ChangeStageSource_NewLocalValue(UDMMaterialStage* InStage, EDMValueType InType)
+{
+	check(InStage);
+
+	if (!InStage->CanChangeSource())
+	{
+		return nullptr;
+	}
+
+	UDMMaterialLayerObject* Layer = InStage->GetLayer();
+	check(Layer);
+
+	UDMMaterialSlot* Slot = Layer->GetSlot();
+	check(Slot);
+
+	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData();
+	check(ModelEditorOnlyData);
+
+	UDynamicMaterialModel* MaterialModel = ModelEditorOnlyData->GetMaterialModel();
+	check(MaterialModel);
+
+	// Don't add via the builder, just parent it to the builder.
+	// It won't appear in the global value list.
+	UDMMaterialValue* NewValue = UDMMaterialValue::CreateMaterialValue(MaterialModel, TEXT(""), InType, true);
+	check(NewValue);
+
+	UDMMaterialStageInputValue* InputValue = InStage->ChangeSource<UDMMaterialStageInputValue>(
+		[NewValue](UDMMaterialStage* InStage, UDMMaterialStageSource* InNewSource)
+		{
+			const FDMUpdateGuard Guard;
+			CastChecked<UDMMaterialStageInputValue>(InNewSource)->SetValue(NewValue);
+		});
+
+	return InputValue;
+}
+
+UDMMaterialStageInputValue* UDMMaterialStageInputValue::ChangeStageSource_Value(UDMMaterialStage* InStage, UDMMaterialValue* InValue)
+{
+	check(InStage);
+
+	if (!InStage->CanChangeSource())
+	{
+		return nullptr;
+	}
+
+	UDMMaterialLayerObject* Layer = InStage->GetLayer();
+	check(Layer);
+
+	UDMMaterialSlot* Slot = Layer->GetSlot();
+	check(Slot);
+
+	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData();
+	check(ModelEditorOnlyData);
+
+	UDynamicMaterialModel* MaterialModel = ModelEditorOnlyData->GetMaterialModel();
+	check(MaterialModel);
+
+	UDMMaterialStageInputValue* InputValue = InStage->ChangeSource<UDMMaterialStageInputValue>(
+		[InValue](UDMMaterialStage* InStage, UDMMaterialStageSource* InNewSource)
+		{
+			const FDMUpdateGuard Guard;
+			CastChecked<UDMMaterialStageInputValue>(InNewSource)->SetValue(InValue);
+		});
+
+	return InputValue;
+}
+
+UDMMaterialStageInputValue* UDMMaterialStageInputValue::ChangeStageSource_NewValue(UDMMaterialStage* InStage, EDMValueType InType)
+{
+	check(InStage);
+
+	if (!InStage->CanChangeSource())
+	{
+		return nullptr;
+	}
+
+	UDMMaterialLayerObject* Layer = InStage->GetLayer();
+	check(Layer);
+
+	UDMMaterialSlot* Slot = Layer->GetSlot();
+	check(Slot);
+
+	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData();
+	check(ModelEditorOnlyData);
+
+	UDynamicMaterialModel* MaterialModel = ModelEditorOnlyData->GetMaterialModel();
+	check(MaterialModel);
+
+	UDMMaterialValue* NewValue = MaterialModel->AddValue(InType);
+	check(NewValue);
+
+	UDMMaterialStageInputValue* InputValue = InStage->ChangeSource<UDMMaterialStageInputValue>(
+		[NewValue](UDMMaterialStage* InStage, UDMMaterialStageSource* InNewSource)
+		{
+			const FDMUpdateGuard Guard;
+			CastChecked<UDMMaterialStageInputValue>(InNewSource)->SetValue(NewValue);
+		});
+
+	return InputValue;
+}
+
+UDMMaterialStageInputValue* UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(UDMMaterialStage* InStage,
+	int32 InInputIdx, int32 InInputChannel, EDMValueType InType, int32 InOutputChannel)
+{
+	check(InStage);
+
+	UDMMaterialStageSource* Source = InStage->GetSource();
+	check(Source);
+
+	UDMMaterialStageThroughput* Throughput = Cast<UDMMaterialStageThroughput>(Source);
+	check(Throughput);
+
+	const TArray<FDMMaterialStageConnector>& InputConnectors = Throughput->GetInputConnectors();
+	check(InputConnectors.IsValidIndex(InInputIdx));
+	check(Throughput->CanInputAcceptType(InInputIdx, InType));
+
+	UDMMaterialLayerObject* Layer = InStage->GetLayer();
+	check(Layer);
+
+	UDMMaterialSlot* Slot = Layer->GetSlot();
+	check(Slot);
+
+	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData();
+	check(ModelEditorOnlyData);
+
+	UDynamicMaterialModel* MaterialModel = ModelEditorOnlyData->GetMaterialModel();
+	check(MaterialModel);
+
+	// Don't add via the builder, just parent it to the builder.
+	// It won't appear in the global value list.
+	UDMMaterialValue* NewValue = UDMMaterialValue::CreateMaterialValue(MaterialModel, TEXT(""), InType, true);
+	check(NewValue);
+
+	UDMMaterialStageInputValue* NewInputValue = InStage->ChangeInput<UDMMaterialStageInputValue>(
+		InInputIdx, InInputChannel, 0, InOutputChannel,
+		[NewValue](UDMMaterialStage* InStage, UDMMaterialStageInput* InNewInput)
+		{
+			const FDMUpdateGuard Guard;
+			CastChecked<UDMMaterialStageInputValue>(InNewInput)->SetValue(NewValue);
+		}
+	);
+
+	NewInputValue->ApplyWholeLayerValue();
+
+	return NewInputValue;
+}
+
+UDMMaterialStageInputValue* UDMMaterialStageInputValue::ChangeStageInput_Value(UDMMaterialStage* InStage, int32 InInputIdx, int32 InInputChannel, UDMMaterialValue* InValue, int32 OutputChannel)
+{
+	check(InStage);
+	check(InValue);
+
+	UDMMaterialStageSource* Source = InStage->GetSource();
+	check(Source);
+
+	UDMMaterialStageThroughput* Throughput = Cast<UDMMaterialStageThroughput>(Source);
+	check(Throughput);
+
+	const TArray<FDMMaterialStageConnector>& InputConnectors = Throughput->GetInputConnectors();
+	check(InputConnectors.IsValidIndex(InInputIdx));
+
+	if (OutputChannel == FDMMaterialStageConnectorChannel::WHOLE_CHANNEL)
+	{
+		check(Throughput->CanInputAcceptType(InInputIdx, InValue->GetType()));
+	}
+	else
+	{
+		check(UDMValueDefinitionLibrary::GetValueDefinition(InValue->GetType()).IsFloatType());
+		check(Throughput->CanInputAcceptType(InInputIdx, EDMValueType::VT_Float1));
+	}
+
+	UDMMaterialLayerObject* Layer = InStage->GetLayer();
+	check(Layer);
+
+	UDMMaterialSlot* Slot = Layer->GetSlot();
+	check(Slot);
+
+	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData();
+	check(ModelEditorOnlyData);
+
+	UDynamicMaterialModel* MaterialModel = ModelEditorOnlyData->GetMaterialModel();
+	check(MaterialModel);
+	check(MaterialModel == InValue->GetMaterialModel());
+
+	UDMMaterialStageInputValue* NewInputValue = InStage->ChangeInput<UDMMaterialStageInputValue>(
+		InInputIdx, InInputChannel, 0, OutputChannel,
+		[InValue](UDMMaterialStage* InStage, UDMMaterialStageInput* InNewInput)
+		{
+			const FDMUpdateGuard Guard;
+			CastChecked<UDMMaterialStageInputValue>(InNewInput)->SetValue(InValue);
+		}
+	);
+
+	NewInputValue->ApplyWholeLayerValue();
+
+	return NewInputValue;
+}
+
+UDMMaterialStageInputValue* UDMMaterialStageInputValue::ChangeStageInput_NewValue(UDMMaterialStage* InStage, int32 InInputIdx, int32 InInputChannel, EDMValueType InType, int32 InOutputChannel)
+{
+	check(InStage);
+
+	UDMMaterialStageSource* Source = InStage->GetSource();
+	check(Source);
+
+	UDMMaterialStageThroughput* Throughput = Cast<UDMMaterialStageThroughput>(Source);
+	check(Throughput);
+
+	const TArray<FDMMaterialStageConnector>& InputConnectors = Throughput->GetInputConnectors();
+	check(InputConnectors.IsValidIndex(InInputIdx));
+	check(Throughput->CanInputAcceptType(InInputIdx, InType));
+
+	UDMMaterialLayerObject* Layer = InStage->GetLayer();
+	check(Layer);
+
+	UDMMaterialSlot* Slot = Layer->GetSlot();
+	check(Slot);
+
+	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData();
+	check(ModelEditorOnlyData);
+
+	UDynamicMaterialModel* MaterialModel = ModelEditorOnlyData->GetMaterialModel();
+	check(MaterialModel);
+
+	UDMMaterialValue* NewValue = MaterialModel->AddValue(InType);
+	check(NewValue);
+
+	UDMMaterialStageInputValue* NewInputValue = InStage->ChangeInput<UDMMaterialStageInputValue>(
+		InInputIdx, InInputChannel, 0, InOutputChannel,
+		[NewValue](UDMMaterialStage* InStage, UDMMaterialStageInput* InNewInput)
+		{
+			const FDMUpdateGuard Guard;
+			CastChecked<UDMMaterialStageInputValue>(InNewInput)->SetValue(NewValue);
+		}
+	);
+
+	NewInputValue->ApplyWholeLayerValue();
+
+	return NewInputValue;
 }
 
 FText UDMMaterialStageInputValue::GetComponentDescription() const
@@ -412,6 +653,55 @@ void UDMMaterialStageInputValue::UpdateOutputConnectors()
 {
 	OutputConnectors.Empty();
 	OutputConnectors.Add({0, LOCTEXT("MaterialValue", "Value"), Value ? Value->GetType() : EDMValueType::VT_None});
+}
+
+void UDMMaterialStageInputValue::ApplyWholeLayerValue()
+{
+	if (!Value.Get() || !Value->IsWholeLayerValue())
+	{
+		return;
+	}
+
+	UDMMaterialStage* Stage = GetStage();
+
+	if (!Stage)
+	{
+		return;
+	}
+
+	UDMMaterialLayerObject* Layer = Stage->GetLayer();
+
+	if (!Layer)
+	{
+		return;
+	}
+
+	if (!Layer
+		|| Layer->GetStageType(Stage) != EDMMaterialLayerStage::Base
+		|| !Layer->IsStageEnabled(EDMMaterialLayerStage::Mask))
+	{
+		return;
+	}
+
+	UDMMaterialStage* MaskStage = Layer->GetStage(EDMMaterialLayerStage::Mask);
+
+	if (!IsValid(MaskStage))
+	{
+		return;
+	}
+
+	if (GUndo)
+	{
+		MaskStage->Modify();
+	}
+
+	ChangeStageInput_Value(
+		MaskStage,
+		UDMMaterialStageThroughputLayerBlend::InputMaskSource,
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+		Value.Get(),
+		FDMMaterialStageConnectorChannel::FOURTH_CHANNEL
+	);
 }
 
 #undef LOCTEXT_NAMESPACE

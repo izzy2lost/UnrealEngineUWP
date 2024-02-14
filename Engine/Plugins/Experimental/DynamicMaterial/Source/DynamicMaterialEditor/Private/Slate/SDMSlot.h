@@ -131,7 +131,7 @@ protected:
 
 	void OnSlotLayersUpdated(UDMMaterialSlot* InSlot);
 	void OnSlotPropertiesUpdated(UDMMaterialSlot* InSlot);
-	void OnStageUpdated(UDMMaterialStage* InStage, EDMUpdateType InUpdateType);
+	void OnComponentUpdated(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType);
 
 	void StartStageOpacityTransaction();
 	void EndStageOpacityTransaction(const float InValue) { EndTransaction(); }

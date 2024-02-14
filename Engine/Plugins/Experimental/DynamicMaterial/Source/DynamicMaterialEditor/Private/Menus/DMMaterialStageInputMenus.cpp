@@ -11,6 +11,11 @@
 #include "Components/DMMaterialValue.h"
 #include "Components/MaterialStageExpressions/DMMSETextureSample.h"
 #include "Components/MaterialStageExpressions/DMMSETextureSampleEdgeColor.h"
+#include "Components/MaterialStageInputs/DMMSIExpression.h"
+#include "Components/MaterialStageInputs/DMMSIGradient.h"
+#include "Components/MaterialStageInputs/DMMSISlot.h"
+#include "Components/MaterialStageInputs/DMMSITextureUV.h"
+#include "Components/MaterialStageInputs/DMMSIValue.h"
 #include "DMPrivate.h"
 #include "DMValueDefinition.h"
 #include "DynamicMaterialEditorModule.h"
@@ -216,7 +221,7 @@ EndStageSearch:
 			{
 				MenuBuilder.AddSubMenu(
 					LOCTEXT("ChangeInputSlot", "Slot Output"),
-					LOCTEXT("ChangeInputSlotTooltip", "Change the source of this input to the output from another Material Slot."),
+					LOCTEXT("ChangeInputSlotTooltip", "Change the source of this input to the output from another Material Slot."),					
 					FNewMenuDelegate::CreateStatic(
 						&FDMMaterialStageInputMenus::GenerateChangeInputMenu_Slots,
 						InThroughput,
@@ -237,7 +242,14 @@ EndStageSearch:
 				{
 					FScopedTransaction Transaction(LOCTEXT("SetStageInput", "Set Material Stage Input"));
 					Stage->Modify();
-					Stage->ChangeInput_NewLocalValue(InInputIndex, InInputChannel, EDMValueType::VT_Float3_RGB, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+
+					UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(
+						Stage, 
+						InInputIndex, 
+						InInputChannel,
+						EDMValueType::VT_Float3_RGB, 
+						FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+					);
 				})
 			)
 		);
@@ -252,7 +264,14 @@ EndStageSearch:
 				{
 					FScopedTransaction Transaction(LOCTEXT("SetStageInput", "Set Material Stage Input"));
 					Stage->Modify();
-					Stage->ChangeInput_NewLocalValue(InInputIndex, InInputChannel, EDMValueType::VT_ColorAtlas, FDMMaterialStageConnectorChannel::THREE_CHANNELS);
+
+					UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(
+						Stage, 
+						InInputIndex, 
+						InInputChannel,
+						EDMValueType::VT_ColorAtlas, 
+						FDMMaterialStageConnectorChannel::THREE_CHANNELS
+					);
 				})
 			)
 		);
@@ -544,11 +563,25 @@ void FDMMaterialStageInputMenus::GenerateChangeInputMenu_PreviousStages(FMenuBui
 		if (bJustOneConnector)
 		{
 			static const FText ExpressionNameFormatTemplate = LOCTEXT("ExpressionAndOutput", "{0} [{1}]");
-			const FText PropertyAndChannel = FText::Format(ExpressionNameFormatTemplate, PropertyObj->GetDescription(), PreviousStageOutputConnectors[LastValidOutputConnector].Name);
 
-			UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_PreviousStage_Output_Impl(InChildMenuBuilder,
-				PropertyAndChannel, Stage, InThroughput, InInputIndex, InInputChannel, SlotProperty, LastValidOutputConnector, 
-				bAcceptsWholeChannel, bAcceptsSubChannels);
+			const FText PropertyAndChannel = FText::Format(
+				ExpressionNameFormatTemplate, 
+				PropertyObj->GetDescription(), 
+				PreviousStageOutputConnectors[LastValidOutputConnector].Name
+				);
+
+			UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_PreviousStage_Output_Impl(
+				InChildMenuBuilder,
+				PropertyAndChannel, 
+				Stage, 
+				InThroughput, 
+				InInputIndex, 
+				InInputChannel, 
+				SlotProperty, 
+				LastValidOutputConnector, 
+				bAcceptsWholeChannel, 
+				bAcceptsSubChannels
+			);
 		}
 		else
 		{
@@ -622,12 +655,30 @@ void FDMMaterialStageInputMenus::GenerateChangeInputMenu_PreviousStage_Outputs(F
 	{
 		for (int32 OutputIdx = 0; OutputIdx < PreviousStageOutputConnectors.Num(); ++OutputIdx)
 		{
-			const bool bAcceptsWholeChannel = InThroughput->CanInputConnectTo(InInputIndex, PreviousStageOutputConnectors[OutputIdx], FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
-			const bool bAcceptsSubChannels = CanAcceptSubChannels(InThroughput, InInputIndex, PreviousStageOutputConnectors[OutputIdx]);
+			const bool bAcceptsWholeChannel = InThroughput->CanInputConnectTo(
+				InInputIndex, 
+				PreviousStageOutputConnectors[OutputIdx], 
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+			);
 
-			UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_PreviousStage_Output_Impl(InChildMenuBuilder,
-				PreviousStageOutputConnectors[OutputIdx].Name, Stage, InThroughput, InInputIndex, InInputChannel, InMaterialProperty, OutputIdx,
-				bAcceptsWholeChannel, bAcceptsSubChannels);
+			const bool bAcceptsSubChannels = CanAcceptSubChannels(
+				InThroughput, 
+				InInputIndex, 
+				PreviousStageOutputConnectors[OutputIdx]
+			);
+
+			UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_PreviousStage_Output_Impl(
+				InChildMenuBuilder,
+				PreviousStageOutputConnectors[OutputIdx].Name, 
+				Stage, 
+				InThroughput, 
+				InInputIndex, 
+				InInputChannel,
+				InMaterialProperty, 
+				OutputIdx,
+				bAcceptsWholeChannel, 
+				bAcceptsSubChannels
+			);
 		}
 	}
 }
@@ -714,8 +765,17 @@ void FDMMaterialStageInputMenus::GenerateChangeInputMenu_PreviousStage_Output_Ch
 			const FText ChannelName = UDMValueDefinitionLibrary::GetValueDefinition(PreviousStageOutputConnectors[OutputIndex].Type).GetChannelName(ChannelIndex + 1);
 			const int32 OutputChannel = UE::DynamicMaterialEditor::Private::ChannelIndexToChannelBit(ChannelIndex + 1);
 
-			UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_PreviousStage_Output_Channel_Impl(InChildMenuBuilder, ChannelName, Stage, InThroughput,
-				InInputIndex, InInputChannel, InMaterialProperty, OutputIndex, OutputChannel);
+			UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_PreviousStage_Output_Channel_Impl(
+				InChildMenuBuilder, 
+				ChannelName, 
+				Stage, 
+				InThroughput,
+				InInputIndex, 
+				InInputChannel, 
+				InMaterialProperty, 
+				OutputIndex, 
+				OutputChannel
+			);
 		}
 	}
 	InChildMenuBuilder.EndSection();
@@ -762,7 +822,14 @@ void FDMMaterialStageInputMenus::GenerateChangeInputMenu_NewLocalValues(FMenuBui
 				{
 					FScopedTransaction Transaction(LOCTEXT("SetStageInput", "Set Material Stage Input"));
 					Stage->Modify();
-					Stage->ChangeInput_NewLocalValue(InInputIndex, InInputChannel, ValueType, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+
+					UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(
+						Stage,
+						InInputIndex, 
+						InInputChannel, 
+						ValueType, 
+						FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+					);
 				})
 			)
 		);
@@ -805,7 +872,14 @@ namespace UE::DynamicMaterialEditor::Private
 						FScopedTransaction Transaction(LOCTEXT("SetStageInput", "Set Material Stage Input"));
 						InStage->Modify();
 						Value->Modify();
-						InStage->ChangeInput_Value(InInputIndex, InInputChannel, Value, InOutputChannel);
+
+						UDMMaterialStageInputValue::ChangeStageInput_Value(
+							InStage, 
+							InInputIndex,
+							InInputChannel, 
+							Value, 
+							InOutputChannel
+						);
 					}
 				})
 			)
@@ -835,7 +909,13 @@ namespace UE::DynamicMaterialEditor::Private
 						FScopedTransaction Transaction(LOCTEXT("SetStageInput", "Set Material Stage Input"));
 						InStage->Modify();
 						Value->Modify();
-						InStage->ChangeInput_Value(InInputIndex, InInputChannel, Value, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+						UDMMaterialStageInputValue::ChangeStageInput_Value(
+							InStage, 
+							InInputIndex, 
+							InInputChannel,
+							Value, 
+							FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+						);
 					}
 				})
 			),
@@ -857,19 +937,44 @@ namespace UE::DynamicMaterialEditor::Private
 		{
 			if (bInAcceptsWholeChannel)
 			{
-				UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_GlobalValue_Value_Channels_Impl(InChildMenuBuilder, InMenuName, InStage, InThroughput,
-					InInputIndex, InInputChannel, InValueIndex, InValue);
+				UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_GlobalValue_Value_Channels_Impl(
+					InChildMenuBuilder, 
+					InMenuName, 
+					InStage, 
+					InThroughput,
+					InInputIndex, 
+					InInputChannel, 
+					InValueIndex, 
+					InValue)
+				;
 			}
 			else
 			{
-				UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_GlobalValue_Channels_Impl(InChildMenuBuilder, InMenuName, InStage, InThroughput,
-					InInputIndex, InInputChannel, InValueIndex, InValue);
+				UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_GlobalValue_Channels_Impl(
+					InChildMenuBuilder, 
+					InMenuName, 
+					InStage, 
+					InThroughput,
+					InInputIndex, 
+					InInputChannel, 
+					InValueIndex, 
+					InValue
+				);
 			}
 		}
 		else
 		{
-			UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_GlobalValue_Channel_Impl(InChildMenuBuilder, InMenuName, InStage, InThroughput,
-				InInputIndex, InInputChannel, InValueIndex, InValue, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+			UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_GlobalValue_Channel_Impl(
+				InChildMenuBuilder, 
+				InMenuName, 
+				InStage, 
+				InThroughput,
+				InInputIndex, 
+				InInputChannel, 
+				InValueIndex, 
+				InValue, 
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+			);
 		}
 	}
 }
@@ -930,9 +1035,18 @@ void FDMMaterialStageInputMenus::GenerateChangeInputMenu_GlobalValues(FMenuBuild
 		const bool bAcceptsWholeChannel = InThroughput->CanInputAcceptType(InInputIndex, Values[Index]->GetType());
 		const bool bAcceptsSubChannels = CanAcceptSubChannels(InThroughput, InInputIndex, Values[Index]->GetType());
 
-		UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_GlobalValue_Impl(InChildMenuBuilder,
-			Values[Index]->GetDescription(), Stage, InThroughput, InInputIndex, InInputChannel, Index, Values[Index],
-			bAcceptsWholeChannel, bAcceptsSubChannels);
+		UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_GlobalValue_Impl(
+			InChildMenuBuilder,
+			Values[Index]->GetDescription(), 
+			Stage, 
+			InThroughput, 
+			InInputIndex, 
+			InInputChannel, 
+			Index, 
+			Values[Index],
+			bAcceptsWholeChannel, 
+			bAcceptsSubChannels
+		);
 	}
 }
 
@@ -1000,8 +1114,17 @@ void FDMMaterialStageInputMenus::GenerateChangeInputMenu_GlobalValue_Channels(FM
 			const FText ChannelName = UDMValueDefinitionLibrary::GetValueDefinition(Values[InValueIndex]->GetType()).GetChannelName(ChannelIndex + 1);
 			const int32 OutputChannel = UE::DynamicMaterialEditor::Private::ChannelIndexToChannelBit(ChannelIndex + 1);
 
-			UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_GlobalValue_Channel_Impl(InChildMenuBuilder,
-				ChannelName, Stage, InThroughput, InInputIndex, InInputChannel, InValueIndex, Values[InValueIndex], OutputChannel);
+			UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_GlobalValue_Channel_Impl(
+				InChildMenuBuilder,
+				ChannelName, 
+				Stage, 
+				InThroughput, 
+				InInputIndex, 
+				InInputChannel, 
+				InValueIndex, 
+				Values[InValueIndex], 
+				OutputChannel
+			);
 		}
 	}
 	InChildMenuBuilder.EndSection();
@@ -1048,7 +1171,14 @@ void FDMMaterialStageInputMenus::GenerateChangeInputMenu_NewGlobalValues(FMenuBu
 				{
 					FScopedTransaction Transaction(LOCTEXT("SetStageInput", "Set Material Stage Input"));
 					Stage->Modify();
-					Stage->ChangeInput_NewValue(InInputIndex, InInputChannel, ValueType, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+
+					UDMMaterialStageInputValue::ChangeStageInput_NewValue(
+						Stage, 
+						InInputIndex, 
+						InInputChannel,
+						ValueType, 
+						FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+					);
 				})
 			)
 		);
@@ -1128,7 +1258,16 @@ namespace UE::DynamicMaterialEditor::Private
 						FScopedTransaction Transaction(LOCTEXT("SetStageInput", "Set Material Stage Input"));
 						InStage->Modify();
 						Slot->Modify();
-						InStage->ChangeInput_Slot(InInputIndex, InInputChannel, Slot, InSlotProperty, InOutputIndex, InOutputChannel);
+
+						UDMMaterialStageInputSlot::ChangeStageInput_Slot(
+							InStage, 
+							InInputIndex, 
+							InInputChannel,
+							Slot, 
+							InSlotProperty, 
+							InOutputIndex, 
+							InOutputChannel
+						);
 					}
 				})
 			)
@@ -1159,7 +1298,16 @@ namespace UE::DynamicMaterialEditor::Private
 					{
 						FScopedTransaction Transaction(LOCTEXT("SetStageInput", "Set Material Stage Input"));
 						InStage->Modify();
-						InStage->ChangeInput_Slot(InInputIndex, InInputChannel, Slot, InSlotProperty, InOutputIndex, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+
+						UDMMaterialStageInputSlot::ChangeStageInput_Slot(
+							InStage, 
+							InInputIndex, 
+							InInputChannel,
+							Slot, 
+							InSlotProperty, 
+							InOutputIndex, 
+							FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+						);
 					}
 				})
 			),
@@ -1181,19 +1329,47 @@ namespace UE::DynamicMaterialEditor::Private
 		{
 			if (bInAcceptsWholeChannel)
 			{
-				UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Slot_Property_Output_Channel_Channels_Impl(InChildMenuBuilder, InMenuName, InStage, InThroughput,
-					InInputIndex, InInputChannel, InSlot, InSlotProperty, InOutputIndex);
+				UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Slot_Property_Output_Channel_Channels_Impl(
+					InChildMenuBuilder, 
+					InMenuName, 
+					InStage, 
+					InThroughput,
+					InInputIndex, 
+					InInputChannel, 
+					InSlot, 
+					InSlotProperty, 
+					InOutputIndex
+				);
 			}
 			else
 			{
-				UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Slot_Property_Output_Channels_Impl(InChildMenuBuilder, InMenuName, InStage, InThroughput,
-					InInputIndex, InInputChannel, InSlot, InSlotProperty, InOutputIndex);
+				UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Slot_Property_Output_Channels_Impl(
+					InChildMenuBuilder, 
+					InMenuName, 
+					InStage, 
+					InThroughput,
+					InInputIndex, 
+					InInputChannel, 
+					InSlot, 
+					InSlotProperty, 
+					InOutputIndex
+				);
 			}
 		}
 		else
 		{
-			UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Slot_Property_Output_Channel_Impl(InChildMenuBuilder, InMenuName, InStage, InThroughput,
-				InInputIndex, InInputChannel, InSlot, InSlotProperty, InOutputIndex, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+			UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Slot_Property_Output_Channel_Impl(
+				InChildMenuBuilder, 
+				InMenuName, 
+				InStage, 
+				InThroughput,
+				InInputIndex, 
+				InInputChannel, 
+				InSlot, 
+				InSlotProperty, 
+				InOutputIndex, 
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+			);
 		}
 	}
 }
@@ -1326,19 +1502,45 @@ void FDMMaterialStageInputMenus::GenerateChangeInputMenu_Slots(FMenuBuilder& InC
 				const bool bAcceptsWholeChannel = InThroughput->CanInputConnectTo(InInputIndex, LastPropertySourceOutputConnectors[0], FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
 				const bool bAcceptsSubChannels = CanAcceptSubChannels(InThroughput, InInputIndex, LastPropertySourceOutputConnectors[0]);
 
-				UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Slot_Property_Output_Impl(InChildMenuBuilder, SlotPropertyName,
-					Stage, InThroughput, InInputIndex, InInputChannel, SlotIter, SlotProperties[0], 0, bAcceptsWholeChannel, bAcceptsSubChannels);
+				UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Slot_Property_Output_Impl(
+					InChildMenuBuilder, 
+					SlotPropertyName,
+					Stage,
+					InThroughput, 
+					InInputIndex, 
+					InInputChannel, 
+					SlotIter, 
+					SlotProperties[0], 
+					0, 
+					bAcceptsWholeChannel, 
+					bAcceptsSubChannels
+				);
 			}
 			else // !bOneOutputType
 			{
-				UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Slot_Property_Outputs_Impl(InChildMenuBuilder, SlotPropertyName,
-					Stage, InThroughput, InInputIndex, InInputChannel, SlotIter, SlotProperties[0]);
+				UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Slot_Property_Outputs_Impl(
+					InChildMenuBuilder, 
+					SlotPropertyName,
+					Stage, 
+					InThroughput, 
+					InInputIndex, 
+					InInputChannel, 
+					SlotIter, 
+					SlotProperties[0]
+				);
 			}
 		}
 		else
 		{
-			UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Slot_Properties_Impl(InChildMenuBuilder, SlotIter->GetDescription(),
-				Stage, InThroughput, InInputIndex, InInputChannel, SlotIter);
+			UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Slot_Properties_Impl(
+				InChildMenuBuilder, 
+				SlotIter->GetDescription(),
+				Stage, 
+				InThroughput, 
+				InInputIndex, 
+				InInputChannel, 
+				SlotIter
+			);
 		}
 	}
 }
@@ -1446,13 +1648,32 @@ void FDMMaterialStageInputMenus::GenerateChangeInputMenu_Slot_Properties(FMenuBu
 				const bool bAcceptsWholeChannel = InThroughput->CanInputConnectTo(InInputIndex, LastPropertySourceOutputConnectors[0], FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
 				const bool bAcceptsSubChannels = CanAcceptSubChannels(InThroughput, InInputIndex, LastPropertySourceOutputConnectors[0]);
 
-				UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Slot_Property_Output_Impl(InChildMenuBuilder, PropertyObj->GetDescription(),
-					Stage, InThroughput, InInputIndex, InInputChannel, InSlot, SlotProperty, 0, bAcceptsWholeChannel, bAcceptsSubChannels);
+				UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Slot_Property_Output_Impl(
+					InChildMenuBuilder, 
+					PropertyObj->GetDescription(),
+					Stage, 
+					InThroughput, 
+					InInputIndex, 
+					InInputChannel, 
+					InSlot, 
+					SlotProperty, 
+					0, 
+					bAcceptsWholeChannel, 
+					bAcceptsSubChannels
+				);
 			}
 			else // !bOneOutputType
 			{
-				UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Slot_Property_Outputs_Impl(InChildMenuBuilder, PropertyObj->GetDescription(),
-					Stage, InThroughput, InInputIndex, InInputChannel, InSlot, SlotProperty);
+				UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Slot_Property_Outputs_Impl(
+					InChildMenuBuilder, 
+					PropertyObj->GetDescription(),
+					Stage, 
+					InThroughput, 
+					InInputIndex, 
+					InInputChannel, 
+					InSlot, 
+					SlotProperty
+				);
 			}
 		}
 	}
@@ -1543,8 +1764,19 @@ void FDMMaterialStageInputMenus::GenerateChangeInputMenu_Slot_Property_Outputs(F
 			const bool bAcceptsWholeChannel = InThroughput->CanInputConnectTo(InInputIndex, LastPropertySourceOutputConnectors[OutputIdx], FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
 			const bool bAcceptsSubChannels = CanAcceptSubChannels(InThroughput, InInputIndex, LastPropertySourceOutputConnectors[OutputIdx]);
 
-			UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Slot_Property_Output_Impl(InChildMenuBuilder, LastPropertySourceOutputConnectors[OutputIdx].Name,
-				Stage, InThroughput, InInputIndex, InInputChannel, InSlot, InMaterialProperty, OutputIdx, bAcceptsWholeChannel, bAcceptsSubChannels);
+			UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Slot_Property_Output_Impl(
+				InChildMenuBuilder, 
+				LastPropertySourceOutputConnectors[OutputIdx].Name,
+				Stage, 
+				InThroughput, 
+				InInputIndex, 
+				InInputChannel, 
+				InSlot, 
+				InMaterialProperty, 
+				OutputIdx, 
+				bAcceptsWholeChannel, 
+				bAcceptsSubChannels
+			);
 		}
 	}
 	InChildMenuBuilder.EndSection();
@@ -1636,8 +1868,18 @@ void FDMMaterialStageInputMenus::GenerateChangeInputMenu_Slot_Property_Output_Ch
 			const FText ChannelName = UDMValueDefinitionLibrary::GetValueDefinition(LastPropertySourceOutputConnectors[OutputIndex].Type).GetChannelName(ChannelIndex + 1);
 			const int32 OutputChannel = UE::DynamicMaterialEditor::Private::ChannelIndexToChannelBit(ChannelIndex + 1);
 
-			UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Slot_Property_Output_Channel_Impl(InChildMenuBuilder, ChannelName,
-				Stage, InThroughput, InInputIndex, InInputChannel, InSlot, InMaterialProperty, OutputIndex, OutputChannel);
+			UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Slot_Property_Output_Channel_Impl(
+				InChildMenuBuilder, 
+				ChannelName,
+				Stage, 
+				InThroughput, 
+				InInputIndex, 
+				InInputChannel,
+				InSlot, 
+				InMaterialProperty, 
+				OutputIndex, 
+				OutputChannel
+			);
 		}
 	}
 	InChildMenuBuilder.EndSection();
@@ -1735,7 +1977,13 @@ void FDMMaterialStageInputMenus::GenerateChangeInputMenu_Expressions(FMenuBuilde
 
 					for (UDMMaterialStageExpression* ExpressionCDO : InSubmenuExpressionList)
 					{
-						GenerateChangeInputMenu_Expression(ChildSubMenuBuilder, ExpressionCDO, InThroughput, InInputIndex, InInputChannel);
+						GenerateChangeInputMenu_Expression(
+							ChildSubMenuBuilder, 
+							ExpressionCDO, 
+							InThroughput, 
+							InInputIndex, 
+							InInputChannel
+						);
 					}
 
 					ChildSubMenuBuilder.EndSection();
@@ -1797,7 +2045,14 @@ namespace UE::DynamicMaterialEditor::Private
 				{
 					FScopedTransaction Transaction(LOCTEXT("SetStageInput", "Set Material Stage Input"));
 					InStage->Modify();
-					InStage->ChangeInput_Expression(InInputIndex, InInputChannel, InExpressionClass, InOutputIndex, InOutputChannel);
+					UDMMaterialStageInputExpression::ChangeStageInput_Expression(
+						InStage, 
+						InExpressionClass, 
+						InInputIndex,
+						InInputChannel, 
+						InOutputIndex, 
+						InOutputChannel
+					);
 				})
 			)
 		);
@@ -1824,7 +2079,14 @@ namespace UE::DynamicMaterialEditor::Private
 				{
 					FScopedTransaction Transaction(LOCTEXT("SetStageInput", "Set Material Stage Input"));
 					InStage->Modify();
-					InStage->ChangeInput_Expression(InInputIndex, InInputChannel, InExpressionClass, InOutputIndex, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+					UDMMaterialStageInputExpression::ChangeStageInput_Expression(
+						InStage, 
+						InExpressionClass, 
+						InInputIndex, 
+						InInputChannel, 
+						InOutputIndex,
+						FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+					);
 				})
 			),
 			NAME_None,
@@ -1845,19 +2107,44 @@ namespace UE::DynamicMaterialEditor::Private
 		{
 			if (bInAcceptsWholeChannel)
 			{
-				UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Expression_Output_Channel_Channels_Impl(InChildMenuBuilder, InMenuName, InStage, InThroughput,
-					InInputIndex, InInputChannel, InExpressionClass, InOutputIndex);
+				UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Expression_Output_Channel_Channels_Impl(
+					InChildMenuBuilder, 
+					InMenuName, 
+					InStage, 
+					InThroughput,
+					InInputIndex, 
+					InInputChannel, 
+					InExpressionClass, 
+					InOutputIndex
+				);
 			}
 			else
 			{
-				UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Expression_Output_Channels_Impl(InChildMenuBuilder, InMenuName, InStage, InThroughput,
-					InInputIndex, InInputChannel, InExpressionClass, InOutputIndex);
+				UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Expression_Output_Channels_Impl(
+					InChildMenuBuilder, 
+					InMenuName, 
+					InStage, 
+					InThroughput,
+					InInputIndex, 
+					InInputChannel, 
+					InExpressionClass, 
+					InOutputIndex
+				);
 			}
 		}
 		else
 		{
-			UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Expression_Output_Channel_Impl(InChildMenuBuilder, InMenuName, InStage, InThroughput,
-				InInputIndex, InInputChannel, InExpressionClass, InOutputIndex, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+			UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Expression_Output_Channel_Impl(
+				InChildMenuBuilder, 
+				InMenuName, 
+				InStage, 
+				InThroughput,
+				InInputIndex, 
+				InInputChannel, 
+				InExpressionClass, 
+				InOutputIndex, 
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+			);
 		}
 	}
 }
@@ -1911,13 +2198,30 @@ void FDMMaterialStageInputMenus::GenerateChangeInputMenu_Expression(FMenuBuilder
 		const bool bAcceptsWholeChannel = InThroughput->CanInputConnectTo(InInputIndex, OutputConnectors[LastValidOutputConnectorIdx], FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
 		const bool bAcceptsSubChannels = CanAcceptSubChannels(InThroughput, InInputIndex, OutputConnectors[LastValidOutputConnectorIdx]);
 
-		UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Expression_Output_Impl(InChildMenuBuilder, ExpressionName, Stage, InThroughput,
-			InInputIndex, InInputChannel, InputClass, LastValidOutputConnectorIdx, bAcceptsWholeChannel, bAcceptsSubChannels);
+		UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Expression_Output_Impl(
+			InChildMenuBuilder, 
+			ExpressionName, 
+			Stage, 
+			InThroughput,
+			InInputIndex, 
+			InInputChannel, 
+			InputClass, 
+			LastValidOutputConnectorIdx, 
+			bAcceptsWholeChannel, 
+			bAcceptsSubChannels
+		);
 	}
 	else
 	{
-		UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Expression_Outputs_Impl(InChildMenuBuilder, InExpressionCDO->GetDescription(), 
-			Stage, InThroughput, InInputIndex, InInputChannel, InputClass);
+		UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Expression_Outputs_Impl(
+			InChildMenuBuilder, 
+			InExpressionCDO->GetDescription(), 
+			Stage, 
+			InThroughput, 
+			InInputIndex, 
+			InInputChannel, 
+			InputClass
+		);
 	}
 }
 
@@ -1961,8 +2265,18 @@ void FDMMaterialStageInputMenus::GenerateChangeInputMenu_Expression_Outputs(FMen
 			const bool bAcceptsWholeChannel = InThroughput->CanInputConnectTo(InInputIndex, OutputConnectors[OutputIdx], FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
 			const bool bAcceptsSubChannels = CanAcceptSubChannels(InThroughput, InInputIndex, OutputConnectors[OutputIdx]);
 
-			UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Expression_Output_Impl(InChildMenuBuilder, OutputConnectors[OutputIdx].Name,
-				Stage, InThroughput, InInputIndex, InInputChannel, InExpressionClass, OutputIdx, bAcceptsWholeChannel, bAcceptsSubChannels);
+			UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Expression_Output_Impl(
+				InChildMenuBuilder, 
+				OutputConnectors[OutputIdx].Name,
+				Stage, 
+				InThroughput, 
+				InInputIndex, 
+				InInputChannel, 
+				InExpressionClass, 
+				OutputIdx, 
+				bAcceptsWholeChannel, 
+				bAcceptsSubChannels
+			);
 		}
 	}
 	InChildMenuBuilder.EndSection();
@@ -2024,8 +2338,17 @@ void FDMMaterialStageInputMenus::GenerateChangeInputMenu_Expression_Output_Chann
 			const FText ChannelName = UDMValueDefinitionLibrary::GetValueDefinition(OutputConnectors[InOutputIndex].Type).GetChannelName(ChannelIndex + 1);
 			const int32 OutputChannel = UE::DynamicMaterialEditor::Private::ChannelIndexToChannelBit(ChannelIndex + 1);
 
-			UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Expression_Output_Channel_Impl(InChildMenuBuilder, ChannelName, Stage, InThroughput,
-				InInputIndex, InInputChannel, InExpressionClass, InOutputIndex, OutputChannel);
+			UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_Expression_Output_Channel_Impl(
+				InChildMenuBuilder, 
+				ChannelName, 
+				Stage, 
+				InThroughput,
+				InInputIndex, 
+				InInputChannel, 
+				InExpressionClass, 
+				InOutputIndex, 
+				OutputChannel
+			);
 		}
 	}
 	InChildMenuBuilder.EndSection();
@@ -2061,7 +2384,13 @@ namespace UE::DynamicMaterialEditor::Private
 				{
 					FScopedTransaction Transaction(LOCTEXT("SetStageInput", "Set Material Stage Input"));
 					InStage->Modify();
-					InStage->ChangeInput_UV(InInputIndex, InInputChannel, InOutputChannel);
+
+					UDMMaterialStageInputTextureUV::ChangeStageInput_UV(
+						InStage, 
+						InInputIndex, 
+						InInputChannel, 
+						InOutputChannel
+					);
 				})
 			)
 		);
@@ -2085,7 +2414,13 @@ namespace UE::DynamicMaterialEditor::Private
 				{
 					FScopedTransaction Transaction(LOCTEXT("SetStageInput", "Set Material Stage Input"));
 					InStage->Modify();
-					InStage->ChangeInput_UV(InInputIndex, InInputChannel, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+
+					UDMMaterialStageInputTextureUV::ChangeStageInput_UV(
+						InStage, 
+						InInputIndex, 
+						InInputChannel, 
+						FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+					);
 				})
 			),
 			NAME_None,
@@ -2106,19 +2441,38 @@ namespace UE::DynamicMaterialEditor::Private
 		{
 			if (bInAcceptsWholeChannel)
 			{
-				UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_UV_UV_Channels_Impl(InChildMenuBuilder, InMenuName, InStage, InThroughput,
-					InInputIndex, InInputChannel);
+				UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_UV_UV_Channels_Impl(
+					InChildMenuBuilder, 
+					InMenuName, 
+					InStage, 
+					InThroughput,
+					InInputIndex, 
+					InInputChannel
+				);
 			}
 			else
 			{
-				UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_UV_Channels_Impl(InChildMenuBuilder, InMenuName, InStage, InThroughput,
-					InInputIndex, InInputChannel);
+				UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_UV_Channels_Impl(
+					InChildMenuBuilder, 
+					InMenuName, 
+					InStage, 
+					InThroughput,
+					InInputIndex, 
+					InInputChannel
+				);
 			}
 		}
 		else
 		{
-			UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_UV_Channel_Impl(InChildMenuBuilder, InMenuName, InStage, InThroughput,
-				InInputIndex, InInputChannel, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+			UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_UV_Channel_Impl(
+				InChildMenuBuilder, 
+				InMenuName, 
+				InStage, 
+				InThroughput,
+				InInputIndex, 
+				InInputChannel, 
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+			);
 		}
 	}
 }
@@ -2146,8 +2500,16 @@ void FDMMaterialStageInputMenus::GenerateChangeInputMenu_UV(FMenuBuilder& InChil
 	const bool bCompatibleWithTextureUV = InThroughput->CanInputAcceptType(InInputIndex, EDMValueType::VT_Float2);
 	const bool bCompatibleWithTextureUorV = InThroughput->CanInputAcceptType(InInputIndex, EDMValueType::VT_Float1);
 
-	UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_UV_Impl(InChildMenuBuilder, LOCTEXT("ChangeInputExpressionUV", "Texture UV"),
-		Stage, InThroughput, InInputIndex, InInputChannel, bCompatibleWithTextureUV, bCompatibleWithTextureUorV);
+	UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_UV_Impl(
+		InChildMenuBuilder, 
+		LOCTEXT("ChangeInputExpressionUV", "Texture UV"),
+		Stage, 
+		InThroughput, 
+		InInputIndex, 
+		InInputChannel, 
+		bCompatibleWithTextureUV, 
+		bCompatibleWithTextureUorV
+	);
 }
 
 void FDMMaterialStageInputMenus::GenerateChangeInputMenu_UV_Channels(FMenuBuilder& InChildMenuBuilder, UDMMaterialStageThroughput* InThroughput, 
@@ -2173,11 +2535,25 @@ void FDMMaterialStageInputMenus::GenerateChangeInputMenu_UV_Channels(FMenuBuilde
 
 	InChildMenuBuilder.BeginSection("ChangeInputOutputChannels", LOCTEXT("ChangeInputOutputChannel", "Output Channels"));
 	{
-		UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_UV_Channel_Impl(InChildMenuBuilder,
-			LOCTEXT("ChangeInputExpressionUVU", "U"), Stage, InThroughput, InInputIndex, InInputChannel, 0);
+		UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_UV_Channel_Impl(
+			InChildMenuBuilder,
+			LOCTEXT("ChangeInputExpressionUVU", "U"), 
+			Stage, 
+			InThroughput,
+			InInputIndex, 
+			InInputChannel, 
+			0
+		);
 
-		UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_UV_Channel_Impl(InChildMenuBuilder,
-			LOCTEXT("ChangeInputExpressionUVV", "V"), Stage, InThroughput, InInputIndex, InInputChannel, 1);
+		UE::DynamicMaterialEditor::Private::GenerateChangeInputMenu_UV_Channel_Impl(
+			InChildMenuBuilder,
+			LOCTEXT("ChangeInputExpressionUVV", "V"), 
+			Stage, 
+			InThroughput, 
+			InInputIndex, 
+			InInputChannel, 
+			1
+		);
 	}
 	InChildMenuBuilder.EndSection();
 }
@@ -2219,7 +2595,13 @@ void FDMMaterialStageInputMenus::GenerateChangeInputMenu_Gradients(FMenuBuilder&
 			continue;;
 		}
 
-		GenerateChangeInputMenu_Gradient(InChildMenuBuilder, GradientCDO, InThroughput, InInputIndex, InInputChannel);
+		GenerateChangeInputMenu_Gradient(
+			InChildMenuBuilder, 
+			GradientCDO, 
+			InThroughput, 
+			InInputIndex, 
+			InInputChannel
+		);
 	}
 }
 
@@ -2249,7 +2631,13 @@ void FDMMaterialStageInputMenus::GenerateChangeInputMenu_Gradient(FMenuBuilder& 
 			{
 				FScopedTransaction Transaction(LOCTEXT("SetStageInput", "Set Material Stage Input"));
 				Stage->Modify();
-				Stage->ChangeInput_Gradient(InInputIndex, InInputChannel, GradientClass, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+				UDMMaterialStageInputGradient::ChangeStageInput_Gradient(
+					Stage, 
+					GradientClass, 
+					InInputIndex,
+					InInputChannel, 
+					FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+				);
 			})
 		)
 	);

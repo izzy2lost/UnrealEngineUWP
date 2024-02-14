@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Components/DMMaterialStageInput.h"
+#include "Templates/SubclassOf.h"
 #include "DMMSISlot.generated.h"
 
 class UDMMaterialLayerObject;
@@ -20,6 +21,14 @@ public:
 
 	static UDMMaterialStage* CreateStage(UDMMaterialSlot* InSourceSlot, EDMMaterialPropertyType InMaterialProperty, 
 		UDMMaterialLayerObject* InLayer = nullptr);
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	static UDMMaterialStageInputSlot* ChangeStageSource_Slot(UDMMaterialStage* InStage, UDMMaterialSlot* InSlot,
+		EDMMaterialPropertyType InProperty);
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	static UDMMaterialStageInputSlot* ChangeStageInput_Slot(UDMMaterialStage* InStage, int32 InInputIdx, int32 InInputChannel, 
+		UDMMaterialSlot* InSlot, EDMMaterialPropertyType InProperty, int32 InOutputIdx, int32 InOutputChannel);
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	UDMMaterialSlot* GetSlot() const { return Slot; }

@@ -243,10 +243,14 @@ UDMMaterialComponent* UDMMaterialStage::GetSubComponentByPath(FDMComponentPath& 
 		{
 			for (UDMMaterialStageInput* Input : Inputs)
 			{
-				if (Input && (Input->GetClass()->GetName().Equals(InputType)
-					|| Input->GetClass()->GetName().Equals(UDMMaterialStageInput::StageInputPrefixStr + InputType)))
+				if (Input)
 				{
-					return Input;
+					const FString InputClassName = Input->GetClass()->GetName();
+					
+					if (InputClassName.Equals(InputType) || InputClassName.Equals(UDMMaterialStageInput::StageInputPrefixStr + InputType))
+					{
+						return Input;
+					}
 				}
 			}
 		}
@@ -339,47 +343,6 @@ void UDMMaterialStage::OnTextureUVUpdated(UDynamicMaterialModel* InMaterialModel
 	{
 		InTextureUV->SetMIDParameters(MaskMID);
 	}
-}
-
-void UDMMaterialStage::ApplyWholeLayerValue(UDMMaterialValue* InValue)
-{
-	if (!InValue || !InValue->IsWholeLayerValue())
-	{
-		return;
-	}
-
-	UDMMaterialLayerObject* Layer = GetLayer();
-
-	if (!Layer)
-	{
-		return;
-	}
-
-	if (!Layer 
-		|| Layer->GetStageType(this) != EDMMaterialLayerStage::Base
-		|| !Layer->IsStageEnabled(EDMMaterialLayerStage::Mask))
-	{
-		return;
-	}
-
-	UDMMaterialStage* MaskStage = Layer->GetStage(EDMMaterialLayerStage::Mask);
-
-	if (!IsValid(MaskStage))
-	{
-		return;
-	}
-
-	if (GUndo)
-	{
-		MaskStage->Modify();
-	}
-
-	MaskStage->ChangeInput_Value(
-		UDMMaterialStageThroughputLayerBlend::InputMaskSource,
-		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-		InValue,
-		FDMMaterialStageConnectorChannel::FOURTH_CHANNEL
-	);
 }
 
 UDMMaterialLayerObject* UDMMaterialStage::GetLayer() const
@@ -629,14 +592,24 @@ void UDMMaterialStage::GenerateExpressions(const TSharedRef<FDMMaterialBuildStat
 					Channel.OutputChannel = OutputChannelOverride;
 				}
 
-				const int32 NodeOutputIndex = Throughput->ResolveInput(InBuildState, InputIdx, Channel, Expressions);
+				const int32 NodeOutputIndex = Throughput->ResolveInput(
+					InBuildState, 
+					InputIdx, 
+					Channel, 
+					Expressions
+				);
 				
 				if (!Expressions.IsEmpty() && NodeOutputIndex != INDEX_NONE)
 				{
 					StageExpressions.Append(Expressions);
 
-					Throughput->ConnectOutputToInput(InBuildState, ThroughputInputs[InputIdx].Index,
-						Expressions.Last(), NodeOutputIndex, Channel.OutputChannel);
+					Throughput->ConnectOutputToInput(
+						InBuildState, 
+						ThroughputInputs[InputIdx].Index,
+						Expressions.Last(), 
+						NodeOutputIndex, 
+						Channel.OutputChannel
+					);
 				}
 			}
 		}
@@ -781,6 +754,50 @@ void UDMMaterialStage::RemoveUnusedInputs()
 	}
 }
 
+UDMMaterialStageInput* UDMMaterialStage::ChangeInput(TSubclassOf<UDMMaterialStageInput> InInputClass, int32 InInputIdx,
+	int32 InInputChannel, int32 InOutputIdx, int32 InOutputChannel, FInputInitFunctionPtr InPreInit)
+{
+	check(Source);
+
+	UDMMaterialStageThroughput* Throughput = Cast<UDMMaterialStageThroughput>(Source);
+	check(Throughput);
+
+	const TArray<FDMMaterialStageConnector>& InputConnectors = Throughput->GetInputConnectors();
+	check(InputConnectors.IsValidIndex(InInputIdx));
+
+	check(InInputClass.Get());
+	check(!(InInputClass->ClassFlags & (CLASS_Abstract | CLASS_Hidden | CLASS_Deprecated | CLASS_NewerVersionExists)));
+
+	if (UDMMaterialStageThroughput* ThroughputCDO = Cast<UDMMaterialStageThroughput>(InInputClass->GetDefaultObject(true)))
+	{
+		check(!ThroughputCDO->IsInputRequired() || ThroughputCDO->AllowsNestedInputs());
+
+		const TArray<FDMMaterialStageConnector>& OutputConnectors = ThroughputCDO->GetOutputConnectors();
+		check(Throughput->CanInputConnectTo(InInputIdx, OutputConnectors[InOutputIdx], InOutputChannel));
+	}
+
+	UDMMaterialStageInput* NewInput = NewObject<UDMMaterialStageInput>(this, InInputClass, NAME_None, RF_Transactional);
+	check(NewInput);
+
+	if (InPreInit)
+	{
+		InPreInit(this, NewInput);
+	}
+
+	AddInput(NewInput);
+
+	UpdateInputMap(
+		InInputIdx,
+		FDMMaterialStageConnectorChannel::FIRST_STAGE_INPUT + Inputs.Num() - 1,
+		InInputChannel,
+		InOutputIdx,
+		InOutputChannel,
+		EDMMaterialPropertyType::None
+	);
+
+	return NewInput;
+}
+
 UDMMaterialStageSource* UDMMaterialStage::ChangeInput_PreviousStage(int32 InInputIdx, int32 InInputChannel, EDMMaterialPropertyType InPreviousStageProperty, int32 InOutputIdx, int32 InOutputChannel)
 {
 	check(Source);
@@ -831,372 +848,6 @@ UDMMaterialStageSource* UDMMaterialStage::ChangeInput_PreviousStage(int32 InInpu
 	);
 
 	return PreviousSource;
-}
-
-UDMMaterialStageInputValue* UDMMaterialStage::ChangeInput_NewLocalValue(int32 InInputIdx, int32 InInputChannel, EDMValueType InType, int32 InOutputChannel)
-{
-	check(Source);
-
-	UDMMaterialStageThroughput* Throughput = Cast<UDMMaterialStageThroughput>(Source);
-	check(Throughput);
-
-	const TArray<FDMMaterialStageConnector>& InputConnectors = Throughput->GetInputConnectors();
-	check(InputConnectors.IsValidIndex(InInputIdx));
-	check(Throughput->CanInputAcceptType(InInputIdx, InType));
-
-	UDMMaterialLayerObject* Layer = GetLayer();
-	check(Layer);
-
-	UDMMaterialSlot* Slot = Layer->GetSlot();
-	check(Slot);
-
-	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData();
-	check(ModelEditorOnlyData);
-
-	UDynamicMaterialModel* MaterialModel = ModelEditorOnlyData->GetMaterialModel();
-	check(MaterialModel);
-
-	// Don't add via the builder, just parent it to the builder.
-	// It won't appear in the global value list.
-	UDMMaterialValue* NewValue = UDMMaterialValue::CreateMaterialValue(MaterialModel, TEXT(""), InType, true);
-	check(NewValue);
-
-	UDMMaterialStageInputValue* InputValue = NewObject<UDMMaterialStageInputValue>(this, NAME_None, RF_Transactional);
-	check(InputValue);
-
-	{
-		const FDMUpdateGuard Guard;
-		InputValue->SetValue(NewValue);
-	}
-
-	AddInput(InputValue);
-
-	UpdateInputMap(
-		InInputIdx,
-		FDMMaterialStageConnectorChannel::FIRST_STAGE_INPUT + Inputs.Num() - 1,
-		InInputChannel,
-		0,
-		InOutputChannel,
-		EDMMaterialPropertyType::None
-	);
-
-	ApplyWholeLayerValue(NewValue);
-
-	return InputValue;
-}
-
-UDMMaterialStageInputValue* UDMMaterialStage::ChangeInput_Value(int32 InInputIdx, int32 InInputChannel, UDMMaterialValue* InValue, int32 OutputChannel)
-{
-	check(Source);
-	check(InValue);
-
-	UDMMaterialStageThroughput* Throughput = Cast<UDMMaterialStageThroughput>(Source);
-	check(Throughput);
-
-	const TArray<FDMMaterialStageConnector>& InputConnectors = Throughput->GetInputConnectors();
-	check(InputConnectors.IsValidIndex(InInputIdx));
-
-	if (OutputChannel == FDMMaterialStageConnectorChannel::WHOLE_CHANNEL)
-	{
-		check(Throughput->CanInputAcceptType(InInputIdx, InValue->GetType()));
-	}
-	else
-	{
-		check(UDMValueDefinitionLibrary::GetValueDefinition(InValue->GetType()).IsFloatType());
-		check(Throughput->CanInputAcceptType(InInputIdx, EDMValueType::VT_Float1));
-	}
-
-	UDMMaterialLayerObject* Layer = GetLayer();
-	check(Layer);
-
-	UDMMaterialSlot* Slot = Layer->GetSlot();
-	check(Slot);
-
-	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData();
-	check(ModelEditorOnlyData);
-
-	UDynamicMaterialModel* MaterialModel = ModelEditorOnlyData->GetMaterialModel();
-	check(MaterialModel);
-	check(MaterialModel == InValue->GetMaterialModel());
-
-	UDMMaterialStageInputValue* InputValue = NewObject<UDMMaterialStageInputValue>(this, NAME_None, RF_Transactional);
-	check(InputValue);
-
-	{
-		const FDMUpdateGuard Guard;
-		InputValue->SetValue(InValue);
-	}
-
-	AddInput(InputValue);
-
-	UpdateInputMap(
-		InInputIdx,
-		FDMMaterialStageConnectorChannel::FIRST_STAGE_INPUT + Inputs.Num() - 1,
-		InInputChannel,
-		0,
-		OutputChannel,
-		EDMMaterialPropertyType::None
-	);
-
-	ApplyWholeLayerValue(InValue);
-
-	return InputValue;
-}
-
-UDMMaterialStageInputValue* UDMMaterialStage::ChangeInput_NewValue(int32 InInputIdx, int32 InInputChannel, EDMValueType InType, int32 InOutputChannel)
-{
-	check(Source);
-
-	UDMMaterialStageThroughput* Throughput = Cast<UDMMaterialStageThroughput>(Source);
-	check(Throughput);
-
-	const TArray<FDMMaterialStageConnector>& InputConnectors = Throughput->GetInputConnectors();
-	check(InputConnectors.IsValidIndex(InInputIdx));
-	check(Throughput->CanInputAcceptType(InInputIdx, InType));
-
-	UDMMaterialLayerObject* Layer = GetLayer();
-	check(Layer);
-
-	UDMMaterialSlot* Slot = Layer->GetSlot();
-	check(Slot);
-
-	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData();
-	check(ModelEditorOnlyData);
-
-	UDynamicMaterialModel* MaterialModel = ModelEditorOnlyData->GetMaterialModel();
-	check(MaterialModel);
-
-	UDMMaterialValue* NewValue = MaterialModel->AddValue(InType);
-	check(NewValue);
-
-	UDMMaterialStageInputValue* InputValue = NewObject<UDMMaterialStageInputValue>(this, NAME_None, RF_Transactional);
-	check(InputValue);
-
-	{
-		const FDMUpdateGuard Guard;
-		InputValue->SetValue(NewValue);
-	}
-
-	AddInput(InputValue);
-
-	UpdateInputMap(
-		InInputIdx,
-		FDMMaterialStageConnectorChannel::FIRST_STAGE_INPUT + Inputs.Num() - 1,
-		InInputChannel,
-		0,
-		InOutputChannel,
-		EDMMaterialPropertyType::None
-	);
-
-	ApplyWholeLayerValue(NewValue);
-
-	return InputValue;
-}
-
-UDMMaterialStageInputSlot* UDMMaterialStage::ChangeInput_Slot(int32 InInputIdx, int32 InInputChannel, UDMMaterialSlot* InSlot, EDMMaterialPropertyType InProperty, int32 InOutputIdx, int32 InOutputChannel)
-{
-	check(Source);
-
-	UDMMaterialStageThroughput* Throughput = Cast<UDMMaterialStageThroughput>(Source);
-	check(Throughput);
-
-	const TArray<FDMMaterialStageConnector>& InputConnectors = Throughput->GetInputConnectors();
-	check(InputConnectors.IsValidIndex(InInputIdx));
-
-	UDMMaterialLayerObject* Layer = GetLayer();
-	check(Layer);
-
-	UDMMaterialSlot* Slot = Layer->GetSlot();
-	check(Slot);
-
-	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData();
-	check(ModelEditorOnlyData == InSlot->GetMaterialModelEditorOnlyData());
-
-	const TArray<EDMMaterialPropertyType> SlotPropertes = ModelEditorOnlyData->GetMaterialPropertiesForSlot(InSlot);
-	check(SlotPropertes.Contains(InProperty));
-
-	const TArray<EDMValueType>& SlotPropertyOutputTypes = InSlot->GetOutputConnectorTypesForMaterialProperty(InProperty);
-	check(SlotPropertyOutputTypes.IsValidIndex(InOutputIdx));
-
-	if (InOutputChannel == FDMMaterialStageConnectorChannel::WHOLE_CHANNEL)
-	{
-		check(Throughput->CanInputAcceptType(InInputIdx, SlotPropertyOutputTypes[InOutputIdx]));
-	}
-	else
-	{
-		check(UDMValueDefinitionLibrary::GetValueDefinition(SlotPropertyOutputTypes[InOutputIdx]).IsFloatType());
-		check(Throughput->CanInputAcceptType(InInputIdx, EDMValueType::VT_Float1));
-	}
-
-	UDMMaterialStageInputSlot* InputSlot = NewObject<UDMMaterialStageInputSlot>(this, NAME_None, RF_Transactional);
-	check(InputSlot);
-
-	{
-		const FDMUpdateGuard Guard;
-		InputSlot->SetSlot(InSlot);
-		InputSlot->SetMaterialProperty(InProperty);
-	}
-
-	AddInput(InputSlot);
-
-	UpdateInputMap(
-		InInputIdx,
-		FDMMaterialStageConnectorChannel::FIRST_STAGE_INPUT + Inputs.Num() - 1,
-		InInputChannel,
-		InOutputIdx,
-		InOutputChannel,
-		EDMMaterialPropertyType::None
-	);
-
-	return InputSlot;
-}
-
-UDMMaterialStageInputExpression* UDMMaterialStage::ChangeInput_Expression(int32 InInputIdx, int32 InInputChannel, TSubclassOf<UDMMaterialStageExpression> InExpressionClass, int32 InOutputIdx, int32 InOutputChannel)
-{
-	check(Source);
-
-	UDMMaterialStageThroughput* Throughput = Cast<UDMMaterialStageThroughput>(Source);
-	check(Throughput);
-
-	const TArray<FDMMaterialStageConnector>& InputConnectors = Throughput->GetInputConnectors();
-	check(InputConnectors.IsValidIndex(InInputIdx));
-
-	check(InExpressionClass.Get());
-	check(InExpressionClass.Get() != UDMMaterialStageExpression::StaticClass());
-
-	UDMMaterialStageExpression* ExpressionCDO = Cast<UDMMaterialStageExpression>(InExpressionClass->GetDefaultObject(true));
-	check(ExpressionCDO);
-	check(!ExpressionCDO->IsInputRequired() || ExpressionCDO->AllowsNestedInputs());
-
-	const TArray<FDMMaterialStageConnector>& OutputConnectors = ExpressionCDO->GetOutputConnectors();
-	check(Throughput->CanInputConnectTo(InInputIdx, OutputConnectors[InOutputIdx], InOutputChannel));
-
-	UDMMaterialStageInputExpression* InputExpression = NewObject<UDMMaterialStageInputExpression>(this, NAME_None, RF_Transactional);
-	check(InputExpression);
-
-	{
-		const FDMUpdateGuard Guard;
-		InputExpression->SetMaterialStageExpressionClass(InExpressionClass);
-	}
-
-	AddInput(InputExpression);
-
-	UpdateInputMap(
-		InInputIdx,
-		FDMMaterialStageConnectorChannel::FIRST_STAGE_INPUT + Inputs.Num() - 1,
-		InInputChannel,
-		InOutputIdx,
-		InOutputChannel,
-		EDMMaterialPropertyType::None
-	);
-
-	return InputExpression;
-}
-
-UDMMaterialStageInputTextureUV* UDMMaterialStage::ChangeInput_UV(int32 InInputIdx, int32 InInputChannel, int32 OutputChannel)
-{
-	UDMMaterialStageInputTextureUV* InputTextureUV = NewObject<UDMMaterialStageInputTextureUV>(this, NAME_None, RF_Transactional);
-	check(InputTextureUV);
-
-	UDMMaterialLayerObject* Layer = GetLayer();
-	check(Layer);
-
-	UDMMaterialSlot* Slot = Layer->GetSlot();
-	check(Slot);
-
-	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData();
-	check(ModelEditorOnlyData);
-
-	UDynamicMaterialModel* MaterialModel = ModelEditorOnlyData->GetMaterialModel();
-	check(MaterialModel);
-
-	InputTextureUV->Init(MaterialModel);
-
-	AddInput(InputTextureUV);
-
-	UpdateInputMap(
-		InInputIdx,
-		FDMMaterialStageConnectorChannel::FIRST_STAGE_INPUT + Inputs.Num() - 1,
-		InInputChannel,
-		0, // Texture UVs only have 1 output.
-		OutputChannel,
-		EDMMaterialPropertyType::None
-	);
-
-	return InputTextureUV;
-}
-
-UDMMaterialStageInputGradient* UDMMaterialStage::ChangeInput_Gradient(int32 InInputIdx, int32 InInputChannel, TSubclassOf<UDMMaterialStageGradient> InGradientClass, int32 InOutputChannel)
-{
-	check(Source);
-
-	UDMMaterialStageThroughput* Throughput = Cast<UDMMaterialStageThroughput>(Source);
-	check(Throughput);
-
-	const TArray<FDMMaterialStageConnector>& InputConnectors = Throughput->GetInputConnectors();
-	check(InputConnectors.IsValidIndex(InInputIdx));
-
-	check(InGradientClass.Get());
-	check(InGradientClass.Get() != UDMMaterialStageGradient::StaticClass());
-
-	UDMMaterialStageGradient* GradientCDO = Cast<UDMMaterialStageGradient>(InGradientClass->GetDefaultObject(true));
-	check(GradientCDO);
-
-	const TArray<FDMMaterialStageConnector>& OutputConnectors = GradientCDO->GetOutputConnectors();
-	check(Throughput->CanInputAcceptType(InInputIdx, EDMValueType::VT_Float1));
-
-	UDMMaterialStageInputGradient* InputGradient = NewObject<UDMMaterialStageInputGradient>(this, NAME_None, RF_Transactional);
-	check(InputGradient);
-
-	{
-		const FDMUpdateGuard Guard;
-		InputGradient->SetMaterialStageGradientClass(InGradientClass);
-	}
-
-	AddInput(InputGradient);
-
-	UpdateInputMap(
-		InInputIdx,
-		FDMMaterialStageConnectorChannel::FIRST_STAGE_INPUT + Inputs.Num() - 1,
-		InInputChannel,
-		0,
-		InOutputChannel,
-		EDMMaterialPropertyType::None
-	);
-
-	return InputGradient;
-}
-
-UDMMaterialStageInputFunction* UDMMaterialStage::ChangeInput_MaterialFunction(int32 InInputIdx, int32 InInputChannel)
-{
-	check(Source);
-
-	UDMMaterialStageThroughput* Throughput = Cast<UDMMaterialStageThroughput>(Source);
-	check(Throughput);
-
-	const TArray<FDMMaterialStageConnector>& InputConnectors = Throughput->GetInputConnectors();
-	check(InputConnectors.IsValidIndex(InInputIdx));
-
-	UDMMaterialStageInputFunction* InputMaterialFunction = NewObject<UDMMaterialStageInputFunction>(this, NAME_None, RF_Transactional);
-	check(InputMaterialFunction);
-
-	{
-		const FDMUpdateGuard Guard;
-		InputMaterialFunction->Init();
-	}
-
-	AddInput(InputMaterialFunction);
-
-	UpdateInputMap(
-		InInputIdx,
-		FDMMaterialStageConnectorChannel::FIRST_STAGE_INPUT + Inputs.Num() - 1,
-		InInputChannel,
-		0,
-		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-		EDMMaterialPropertyType::None
-	);
-
-	return InputMaterialFunction;
 }
 
 void UDMMaterialStage::UpdateInputMap(int32 InInputIdx, int32 InSourceIndex, int32 InInputChannel, int32 InOutputIdx, int32 InOutputChannel, EDMMaterialPropertyType InStageProperty)
@@ -1552,245 +1203,27 @@ bool UDMMaterialStage::VerifyInputMap(int32 InInputIdx)
 	return bVerified;
 }
 
-UDMMaterialStageInputValue* UDMMaterialStage::ChangeSource_NewLocalValue(EDMValueType InType)
+UDMMaterialStageSource* UDMMaterialStage::ChangeSource(TSubclassOf<UDMMaterialStageSource> InSourceClass, FSourceInitFunctionPtr InPreInit)
 {
 	if (!bCanChangeSource)
 	{
 		return nullptr;
 	}
 
-	UDMMaterialLayerObject* Layer = GetLayer();
-	check(Layer);
+	check(InSourceClass);
+	check(!(InSourceClass->ClassFlags & (CLASS_Abstract | CLASS_Hidden | CLASS_Deprecated | CLASS_NewerVersionExists)));
 
-	UDMMaterialSlot* Slot = Layer->GetSlot();
-	check(Slot);
+	UDMMaterialStageSource* NewSource = NewObject<UDMMaterialStageExpression>(this, InSourceClass, NAME_None, RF_Transactional);
+	check(NewSource);
 
-	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData();
-	check(ModelEditorOnlyData);
-
-	UDynamicMaterialModel* MaterialModel = ModelEditorOnlyData->GetMaterialModel();
-	check(MaterialModel);
-
-	// Don't add via the builder, just parent it to the builder.
-	// It won't appear in the global value list.
-	UDMMaterialValue* NewValue = UDMMaterialValue::CreateMaterialValue(MaterialModel, TEXT(""), InType, true);
-	check(NewValue);
-
-	UDMMaterialStageInputValue* InputValue = NewObject<UDMMaterialStageInputValue>(this, NAME_None, RF_Transactional);
-	check(InputValue);
-
+	if (InPreInit)
 	{
-		const FDMUpdateGuard Guard;
-		InputValue->SetValue(NewValue);
+		InPreInit(this, NewSource);
 	}
 
-	SetSource(InputValue);
+	SetSource(NewSource);
 
-	return InputValue;
-}
-
-UDMMaterialStageInputValue* UDMMaterialStage::ChangeSource_Value(UDMMaterialValue* InValue)
-{
-	if (!bCanChangeSource)
-	{
-		return nullptr;
-	}
-
-	UDMMaterialLayerObject* Layer = GetLayer();
-	check(Layer);
-
-	UDMMaterialSlot* Slot = Layer->GetSlot();
-	check(Slot);
-
-	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData();
-	check(ModelEditorOnlyData);
-
-	UDynamicMaterialModel* MaterialModel = ModelEditorOnlyData->GetMaterialModel();
-	check(MaterialModel);
-
-	UDMMaterialStageInputValue* InputValue = NewObject<UDMMaterialStageInputValue>(this, NAME_None, RF_Transactional);
-	check(InputValue);
-
-	{
-		const FDMUpdateGuard Guard;
-
-		check(InputValue);
-		InputValue->SetValue(InValue);
-	}
-
-	SetSource(InputValue);
-
-	return InputValue;
-}
-
-UDMMaterialStageInputValue* UDMMaterialStage::ChangeSource_NewValue(EDMValueType InType)
-{
-	if (!bCanChangeSource)
-	{
-		return nullptr;
-	}
-
-	UDMMaterialLayerObject* Layer = GetLayer();
-	check(Layer);
-
-	UDMMaterialSlot* Slot = Layer->GetSlot();
-	check(Slot);
-
-	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData();
-	check(ModelEditorOnlyData);
-
-	UDynamicMaterialModel* MaterialModel = ModelEditorOnlyData->GetMaterialModel();
-	check(MaterialModel);
-
-	UDMMaterialValue* NewValue = MaterialModel->AddValue(InType);
-	check(NewValue);
-
-	UDMMaterialStageInputValue* InputValue = NewObject<UDMMaterialStageInputValue>(this, NAME_None, RF_Transactional);
-	check(InputValue);
-
-	{
-		const FDMUpdateGuard Guard;
-		InputValue->SetValue(NewValue);
-	}
-
-	SetSource(InputValue);
-
-	return InputValue;
-}
-
-UDMMaterialStageInputSlot* UDMMaterialStage::ChangeSource_Slot(UDMMaterialSlot* InSlot, EDMMaterialPropertyType InProperty)
-{
-	if (!bCanChangeSource)
-	{
-		return nullptr;
-	}
-
-	UDMMaterialLayerObject* Layer = GetLayer();
-	check(Layer);
-
-	UDMMaterialSlot* Slot = Layer->GetSlot();
-	check(Slot);
-
-	check(InSlot);
-	check(Slot != InSlot);
-	check(InSlot->GetMaterialModelEditorOnlyData() == Slot->GetMaterialModelEditorOnlyData());
-
-	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData();
-	check(ModelEditorOnlyData);
-
-	TArray<EDMMaterialPropertyType> SlotPropertes = ModelEditorOnlyData->GetMaterialPropertiesForSlot(InSlot);
-	check(SlotPropertes.Contains(InProperty));
-
-	UDMMaterialStageInputSlot* InputSlot = NewObject<UDMMaterialStageInputSlot>(this, NAME_None, RF_Transactional);
-	check(InputSlot);
-
-	{
-		const FDMUpdateGuard Guard;
-		InputSlot->SetSlot(InSlot);
-		InputSlot->SetMaterialProperty(InProperty);
-	}
-
-	SetSource(InputSlot);
-
-	return InputSlot;
-}
-
-UDMMaterialStageExpression* UDMMaterialStage::ChangeSource_Expression(TSubclassOf<UDMMaterialStageExpression> InExpressionClass)
-{
-	if (!bCanChangeSource)
-	{
-		return nullptr;
-	}
-
-	check(InExpressionClass);
-	check(InExpressionClass != UDMMaterialStageExpression::StaticClass());
-
-	UDMMaterialStageExpression* NewExpression = NewObject<UDMMaterialStageExpression>(this, InExpressionClass, NAME_None, RF_Transactional);
-	check(NewExpression);
-
-	SetSource(NewExpression);
-
-	return NewExpression;
-}
-
-UDMMaterialStageBlend* UDMMaterialStage::ChangeSource_Blend(TSubclassOf<UDMMaterialStageBlend> InBlendClass)
-{
-	if (!bCanChangeSource)
-	{
-		return nullptr;
-	}
-
-	check(InBlendClass);
-	check(InBlendClass != UDMMaterialStageBlend::StaticClass());
-
-	UDMMaterialStageBlend* NewBlend = NewObject<UDMMaterialStageBlend>(this, InBlendClass, NAME_None, RF_Transactional);
-	check(NewBlend);
-
-	SetSource(NewBlend);
-	
-	return NewBlend;
-}
-
-UDMMaterialStageGradient* UDMMaterialStage::ChangeSource_Gradient(TSubclassOf<UDMMaterialStageGradient> InGradientClass)
-{
-	if (!bCanChangeSource)
-	{
-		return nullptr;
-	}
-
-	check(InGradientClass);
-	check(InGradientClass != UDMMaterialStageGradient::StaticClass());
-
-	UDMMaterialStageGradient* NewGradient = NewObject<UDMMaterialStageGradient>(this, InGradientClass, NAME_None, RF_Transactional);
-	check(NewGradient);
-
-	SetSource(NewGradient);
-
-	return NewGradient;
-}
-
-UDMMaterialStageInputTextureUV* UDMMaterialStage::ChangeSource_UV(bool bInDoUpdate)
-{
-	if (!bCanChangeSource)
-	{
-		return nullptr;
-	}
-
-	UDMMaterialStageInputTextureUV* InputTextureUV = NewObject<UDMMaterialStageInputTextureUV>(this, NAME_None, RF_Transactional);
-	check(InputTextureUV);
-
-	UDMMaterialLayerObject* Layer = GetLayer();
-	check(Layer);
-
-	UDMMaterialSlot* Slot = Layer->GetSlot();
-	check(Slot);
-
-	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData();
-	check(ModelEditorOnlyData);
-
-	UDynamicMaterialModel* MaterialModel = ModelEditorOnlyData->GetMaterialModel();
-	check(MaterialModel);
-
-	InputTextureUV->Init(MaterialModel);
-
-	SetSource(InputTextureUV);
-
-	return InputTextureUV;
-}
-
-UDMMaterialStageFunction* UDMMaterialStage::ChangeSource_MaterialFunction()
-{
-	if (!bCanChangeSource)
-	{
-		return nullptr;
-	}
-
-	UDMMaterialStageFunction* NewMaterialFunction = NewObject<UDMMaterialStageFunction>(this, UDMMaterialStageFunction::StaticClass(), NAME_None, RF_Transactional);
-	check(NewMaterialFunction);
-
-	SetSource(NewMaterialFunction);
-
-	return NewMaterialFunction;
+	return NewSource;
 }
 
 bool UDMMaterialStage::IsCompatibleWithPreviousStage(const UDMMaterialStage* InPreviousStage) const
@@ -1867,6 +1300,28 @@ void UDMMaterialStage::RemoveInput(UDMMaterialStageInput* InInput)
 	}
 
 	InInput->SetComponentState(EDMComponentLifetimeState::Removed);
+
+	Update(EDMUpdateType::Structure);
+}
+
+void UDMMaterialStage::RemoveAllInputs()
+{
+	if (Inputs.IsEmpty())
+	{
+		return;
+	}
+
+	for (UDMMaterialStageInput* Input : Inputs)
+	{
+		if (GUndo)
+		{
+			Input->Modify();
+		}
+
+		Input->SetComponentState(EDMComponentLifetimeState::Removed);
+	}
+
+	Inputs.Empty();
 
 	Update(EDMUpdateType::Structure);
 }

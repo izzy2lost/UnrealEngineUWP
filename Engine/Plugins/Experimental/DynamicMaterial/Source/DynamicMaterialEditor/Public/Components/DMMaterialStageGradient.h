@@ -24,6 +24,16 @@ public:
 
 	static const TArray<TStrongObjectPtr<UClass>>& GetAvailableGradients();
 
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	static UDMMaterialStageGradient* ChangeStageSource_Gradient(UDMMaterialStage* InStage,
+		TSubclassOf<UDMMaterialStageGradient> InGradientClass);
+
+	template<typename InGradientClass>
+	static UDMMaterialStageGradient* ChangeStageSource_Gradient(UDMMaterialStage* InStage)
+	{
+		return ChangeStageSource_Gradient(InStage, InGradientClass::StaticClass());
+	}
+
 	//~ Begin UDMMaterialStageThroughput
 	virtual bool CanChangeInputType(int32 InputIndex) const override;
 	//~ End UDMMaterialStageThroughput

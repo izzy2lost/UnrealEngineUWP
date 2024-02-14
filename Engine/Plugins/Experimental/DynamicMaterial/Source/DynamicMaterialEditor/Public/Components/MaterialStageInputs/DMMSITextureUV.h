@@ -4,6 +4,7 @@
 
 #include "Components/DMMaterialStageInput.h"
 #include "Templates/SharedPointer.h"
+#include "Templates/SubclassOf.h"
 #include "DMMSITextureUV.generated.h"
 
 class SWidget;
@@ -25,6 +26,13 @@ public:
 	static const FString TextureUVPathToken;
 
 	static UDMMaterialStage* CreateStage(UDynamicMaterialModel* InMaterialModel, UDMMaterialLayerObject* InLayer = nullptr);
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	static UDMMaterialStageInputTextureUV* ChangeStageSource_UV(UDMMaterialStage* InStage, bool bInDoUpdate);
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	static UDMMaterialStageInputTextureUV* ChangeStageInput_UV(UDMMaterialStage* InStage, int32 InInputIdx, int32 InInputChannel, 
+		int32 InOutputChannel);
 
 	virtual ~UDMMaterialStageInputTextureUV() override = default;
 

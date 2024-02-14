@@ -120,20 +120,26 @@ void UDMMaterialStageThroughputLayerBlend::AddDefaultInput(int32 InInputIndex) c
  
 		case InputMaskSource:
 		{
-			UDMMaterialStageInputExpression* InputExpression = Cast<UDMMaterialStageInputExpression>(
-				Stage->ChangeInput_Expression(
-					InInputIndex, 
-					FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
-					UDMMaterialStageExpressionTextureSample::StaticClass(), 
-					0, // RGB pin
-					FDMMaterialStageConnectorChannel::WHOLE_CHANNEL // Alpha channel
-				)
+			UDMMaterialStageInputExpression* InputExpression = UDMMaterialStageInputExpression::ChangeStageInput_Expression(
+				Stage,
+				UDMMaterialStageExpressionTextureSample::StaticClass(),
+				InInputIndex,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+				0, // RGB pin
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL // Alpha channel
 			);
 
 			UDMMaterialSubStage* SubStage = InputExpression->GetSubStage();
 			check(SubStage);
 
-			UDMMaterialStageInputValue* InputValue = SubStage->ChangeInput_NewLocalValue(0, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, EDMValueType::VT_Texture, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+			UDMMaterialStageInputValue* InputValue = UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(
+				SubStage,
+				0, 
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+				EDMValueType::VT_Texture, 
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+			);
+
 			check(InputValue);
 
 			UDMMaterialValueTexture* InputTexture = Cast<UDMMaterialValueTexture>(InputValue->GetValue());
@@ -717,15 +723,36 @@ void UDMMaterialStageThroughputLayerBlend::ConnectOutputToInput(const TSharedRef
 	switch (InInputIndex)
 	{
 		case InputPreviousLayer:
-			ConnectOutputToInput_Internal(InBuildState, StageSourceExpressions[0] /* FunctionCall */, InputPreviousIndex, InSourceExpression, InSourceOutputIndex, InSourceOutputChannel);
+			ConnectOutputToInput_Internal(
+				InBuildState, 
+				StageSourceExpressions[0] /* FunctionCall */, 
+				InputPreviousIndex, 
+				InSourceExpression, 
+				InSourceOutputIndex, 
+				InSourceOutputChannel
+			);
 			break;
  
 		case InputBaseStage:
-			ConnectOutputToInput_Internal(InBuildState, StageSourceExpressions[0] /* FunctionCall */, InputLayerIndex, InSourceExpression, InSourceOutputIndex, InSourceOutputChannel);
+			ConnectOutputToInput_Internal(
+				InBuildState, 
+				StageSourceExpressions[0] /* FunctionCall */, 
+				InputLayerIndex, 
+				InSourceExpression, 
+				InSourceOutputIndex, 
+				InSourceOutputChannel
+			);
 			break;
  
 		case InputMaskSource:
-			ConnectOutputToInput_Internal(InBuildState, StageSourceExpressions[0] /* FunctionCall */, InputMaskIndex, InSourceExpression, InSourceOutputIndex, InSourceOutputChannel);
+			ConnectOutputToInput_Internal(
+				InBuildState, 
+				StageSourceExpressions[0] /* FunctionCall */, 
+				InputMaskIndex, 
+				InSourceExpression, 
+				InSourceOutputIndex, 
+				InSourceOutputChannel
+			);
 			break;
  
 		default:
@@ -775,7 +802,13 @@ int32 UDMMaterialStageThroughputLayerBlend::ResolveMaskInput(const TSharedRef<FD
 	check(ThisLayer);
 	check(ThisLayer->GetStage(EDMMaterialLayerStage::Mask));
 
-	ThisLayer->ApplyEffects(InBuildState, ThisStage, OutExpressions, OutChannel.OutputChannel, OutChannel.OutputIndex);
+	ThisLayer->ApplyEffects(
+		InBuildState, 
+		ThisStage, 
+		OutExpressions, 
+		OutChannel.OutputChannel, 
+		OutChannel.OutputIndex
+	);
 		
 	while (const UDMMaterialLayerObject* NextLayer = ThisLayer->GetNextLayer(ThisLayer->GetMaterialProperty(), EDMMaterialLayerStage::Mask))
 	{
@@ -799,18 +832,46 @@ int32 UDMMaterialStageThroughputLayerBlend::ResolveMaskInput(const TSharedRef<FD
 		// Resolve the input of the next blend layer mask channel
 		FDMMaterialStageConnectorChannel NextOutChannel;
 		TArray<UMaterialExpression*> NextOutExpressions;
-		NextMaskBlend->ResolveInput(InBuildState, InputIndex, NextOutChannel, NextOutExpressions);
+
+		NextMaskBlend->ResolveInput(
+			InBuildState, 
+			InputIndex, 
+			NextOutChannel, 
+			NextOutExpressions
+		);
  
 		if (NextOutExpressions.IsEmpty())
 		{
 			break;
 		}
 
-		NextLayer->ApplyEffects(InBuildState, NextMaskStage, NextOutExpressions, NextOutChannel.OutputChannel, NextOutChannel.OutputIndex);
+		NextLayer->ApplyEffects(
+			InBuildState, 
+			NextMaskStage, 
+			NextOutExpressions, 
+			NextOutChannel.OutputChannel, 
+			NextOutChannel.OutputIndex
+		);
 
 		UMaterialExpressionMultiply* AlphaMultiply = InBuildState->GetBuildUtils().CreateExpression<UMaterialExpressionMultiply>(UE_DM_NodeComment_Default);
-		ConnectOutputToInput_Internal(InBuildState, AlphaMultiply, 0, OutExpressions.Last(), OutChannel.OutputIndex, OutChannel.OutputChannel);
-		ConnectOutputToInput_Internal(InBuildState, AlphaMultiply, 1, NextOutExpressions.Last(), NextOutChannel.OutputIndex, NextOutChannel.OutputChannel);
+
+		ConnectOutputToInput_Internal(
+			InBuildState, 
+			AlphaMultiply, 
+			0, 
+			OutExpressions.Last(), 
+			OutChannel.OutputIndex, 
+			OutChannel.OutputChannel
+		);
+
+		ConnectOutputToInput_Internal(
+			InBuildState, 
+			AlphaMultiply, 
+			1, 
+			NextOutExpressions.Last(), 
+			NextOutChannel.OutputIndex, 
+			NextOutChannel.OutputChannel
+		);
  
 		OutExpressions.Append(NextOutExpressions);
 		OutExpressions.Add(AlphaMultiply);

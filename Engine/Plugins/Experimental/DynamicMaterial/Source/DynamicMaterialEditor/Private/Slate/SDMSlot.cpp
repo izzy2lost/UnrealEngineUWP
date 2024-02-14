@@ -6,12 +6,17 @@
 #include "Components/DMMaterialStage.h"
 #include "Components/DMMaterialStageBlend.h"
 #include "Components/DMMaterialStageExpression.h"
+#include "Components/DMMaterialStageFunction.h"
 #include "Components/DMMaterialStageGradient.h"
 #include "Components/DMMaterialStageThroughputLayerBlend.h"
 #include "Components/DMMaterialValue.h"
 #include "Components/MaterialStageBlends/DMMSBNormal.h"
 #include "Components/MaterialStageExpressions/DMMSESceneTexture.h"
 #include "Components/MaterialStageExpressions/DMMSETextureSample.h"
+#include "Components/MaterialStageInputs/DMMSIExpression.h"
+#include "Components/MaterialStageInputs/DMMSIFunction.h"
+#include "Components/MaterialStageInputs/DMMSIGradient.h"
+#include "Components/MaterialStageInputs/DMMSISlot.h"
 #include "Components/MaterialStageInputs/DMMSITextureUV.h"
 #include "Components/MaterialStageInputs/DMMSIValue.h"
 #include "Components/MaterialValues/DMMaterialValueFloat1.h"
@@ -265,7 +270,17 @@ UDMMaterialComponent* SDMSlot::GetEditedComponent() const
 
 void SDMSlot::SetEditedComponent(UDMMaterialComponent* InComponent)
 {
+	if (EditedComponent.IsValid())
+	{
+		EditedComponent->GetOnUpdate().RemoveAll(this);
+	}
+
 	EditedComponent = InComponent;
+
+	if (EditedComponent.IsValid())
+	{
+		EditedComponent->GetOnUpdate().AddSP(this, &SDMSlot::OnComponentUpdated);
+	}
 
 	InvalidateComponentEditWidget();
 }
@@ -323,7 +338,7 @@ void SDMSlot::OnSourceBlendTypedSelected(const TSubclassOf<UDMMaterialStageBlend
 				{
 					FScopedTransaction Transaction(LOCTEXT("SetStageBlendMode", "Material Designer Set Blend Mode"));
 					BaseStage->Modify();
-					BaseStage->ChangeSource_Blend(InNewItem);
+					UDMMaterialStageInputExpression::ChangeStageSource_Expression(BaseStage, InNewItem.Get());
 
 					RefreshSlotSettingsRowWidget();
 				}
@@ -1039,8 +1054,12 @@ void SDMSlot::OnSlotPropertiesUpdated(UDMMaterialSlot* InSlot)
 	InvalidateHeaderPropertyListWidget();
 }
 
-void SDMSlot::OnStageUpdated(UDMMaterialStage* InStage, EDMUpdateType InUpdateType)
+void SDMSlot::OnComponentUpdated(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType)
 {
+	if (InUpdateType == EDMUpdateType::Structure)
+	{
+		InvalidateComponentEditWidget();
+	}
 }
 
 TSharedPtr<SDMStage> SDMSlot::FindStageWidget(UDMMaterialStage* const InStage) const
@@ -1325,7 +1344,13 @@ void SDMSlot::AddNewLayer_NewLocalValue(EDMValueType InType)
 	UDMMaterialStage* NewBase = UDMMaterialStageBlend::CreateStage(UDMMaterialStageBlendNormal::StaticClass());
 	AddNewLayer(NewBase);
 
-	NewBase->ChangeInput_NewLocalValue(UDMMaterialStageBlend::InputB, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, InType, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+	UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(
+		NewBase, 
+		UDMMaterialStageBlend::InputB,
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+		InType,
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+	);
 }
 
 void SDMSlot::AddNewLayer_GlobalValue(UDMMaterialValue* InValue)
@@ -1351,8 +1376,13 @@ void SDMSlot::AddNewLayer_GlobalValue(UDMMaterialValue* InValue)
 	UDMMaterialStage* NewBase = UDMMaterialStageBlend::CreateStage(UDMMaterialStageBlendNormal::StaticClass());
 	AddNewLayer(NewBase);
 
-	NewBase->ChangeInput_Value(UDMMaterialStageBlend::InputB, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-		InValue, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+	UDMMaterialStageInputValue::ChangeStageInput_Value(
+		NewBase, 
+		UDMMaterialStageBlend::InputB,
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+		InValue,
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+	);
 }
 
 void SDMSlot::AddNewLayer_NewGlobalValue(EDMValueType InType)
@@ -1367,8 +1397,13 @@ void SDMSlot::AddNewLayer_NewGlobalValue(EDMValueType InType)
 	UDMMaterialStage* NewStage = UDMMaterialStageBlend::CreateStage(UDMMaterialStageBlendNormal::StaticClass());
 	AddNewLayer(NewStage);
 
-	NewStage->ChangeInput_NewValue(UDMMaterialStageBlend::InputB, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
-		InType, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+	UDMMaterialStageInputValue::ChangeStageInput_NewValue(
+		NewStage, 
+		UDMMaterialStageBlend::InputB,
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+		InType, 
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+	);
 }
 
 void SDMSlot::AddNewLayer_Slot(UDMMaterialSlot* InSlot, EDMMaterialPropertyType InMaterialProperty)
@@ -1389,8 +1424,15 @@ void SDMSlot::AddNewLayer_Slot(UDMMaterialSlot* InSlot, EDMMaterialPropertyType 
 	UDMMaterialStage* NewStage = UDMMaterialStageBlend::CreateStage(UDMMaterialStageBlendNormal::StaticClass());
 	AddNewLayer(NewStage);
 
-	NewStage->ChangeInput_Slot(UDMMaterialStageBlend::InputB, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
-		InSlot, InMaterialProperty, 0, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+	UDMMaterialStageInputSlot::ChangeStageInput_Slot(
+		NewStage, 
+		UDMMaterialStageBlend::InputB,
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+		InSlot, 
+		InMaterialProperty, 
+		0,
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+	);
 }
 
 void SDMSlot::AddNewLayer_Expression(TSubclassOf<UDMMaterialStageExpression> InExpressionClass, EDMMaterialLayerStage LayerEnabledMask)
@@ -1414,8 +1456,14 @@ void SDMSlot::AddNewLayer_Expression(TSubclassOf<UDMMaterialStageExpression> InE
 	UDMMaterialStage* NewStage = UDMMaterialStageBlend::CreateStage(UDMMaterialStageBlendNormal::StaticClass());
 	UDMMaterialLayerObject* NewLayer = AddNewLayer(NewStage);
 
-	NewStage->ChangeInput_Expression(UDMMaterialStageBlend::InputB, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
-		InExpressionClass, 0, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+	UDMMaterialStageInputExpression::ChangeStageInput_Expression(
+		NewStage, 
+		InExpressionClass,
+		UDMMaterialStageBlend::InputB, 
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+		0, 
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+	);
 
 	switch (LayerEnabledMask)
 	{
@@ -1456,8 +1504,14 @@ void SDMSlot::AddNewLayer_Blend(TSubclassOf<UDMMaterialStageBlend> InBlendClass)
 	UDMMaterialStage* NewStage = UDMMaterialStageBlend::CreateStage(InBlendClass);
 	AddNewLayer(NewStage);
 
-	NewStage->ChangeInput_Expression(UDMMaterialStageBlend::InputB, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
-		UDMMaterialStageExpressionTextureSample::StaticClass(), 0, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+	UDMMaterialStageInputExpression::ChangeStageInput_Expression(
+		NewStage, 
+		UDMMaterialStageExpressionTextureSample::StaticClass(),
+		UDMMaterialStageBlend::InputB, 
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+		0, 
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+	);
 }
 
 void SDMSlot::AddNewLayer_Gradient(TSubclassOf<UDMMaterialStageGradient> InGradientClass)
@@ -1477,7 +1531,13 @@ void SDMSlot::AddNewLayer_Gradient(TSubclassOf<UDMMaterialStageGradient> InGradi
 	UDMMaterialStage* NewStage = UDMMaterialStageBlend::CreateStage(UDMMaterialStageBlendNormal::StaticClass());
 	AddNewLayer(NewStage);
 
-	NewStage->ChangeInput_Gradient(UDMMaterialStageBlend::InputB, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, InGradientClass, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+	UDMMaterialStageInputGradient::ChangeStageInput_Gradient(
+		NewStage, 
+		InGradientClass, 
+		UDMMaterialStageBlend::InputB, 
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+	);
 }
 
 void SDMSlot::AddNewLayer_UV()
@@ -1519,7 +1579,14 @@ void SDMSlot::AddNewLayer_MaterialFunction()
 	UDMMaterialStage* NewStage = UDMMaterialStageBlend::CreateStage(UDMMaterialStageBlendNormal::StaticClass());
 	AddNewLayer(NewStage);
 
-	NewStage->ChangeInput_MaterialFunction(UDMMaterialStageBlend::InputB, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+	UDMMaterialStageInputFunction::ChangeStageInput_Function(
+		NewStage, 
+		UDMMaterialStageFunction::GetNoOpFunction(),
+		UDMMaterialStageBlend::InputB, 
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
+		0,
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+	);
 }
 
 void SDMSlot::AddNewLayer_SceneTexture()
@@ -1527,13 +1594,25 @@ void SDMSlot::AddNewLayer_SceneTexture()
 	UDMMaterialStage* NewStage = UDMMaterialStageBlend::CreateStage(UDMMaterialStageBlendNormal::StaticClass());
 	UDMMaterialLayerObject* NewLayer = AddNewLayer(NewStage);
 
-	NewStage->ChangeInput_Expression(UDMMaterialStageBlend::InputB, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-		UDMMaterialStageExpressionSceneTexture::StaticClass(), 0, FDMMaterialStageConnectorChannel::THREE_CHANNELS);
+	UDMMaterialStageInputExpression::ChangeStageInput_Expression(
+		NewStage, 
+		UDMMaterialStageExpressionSceneTexture::StaticClass(),
+		UDMMaterialStageBlend::InputB, 
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+		0, 
+		FDMMaterialStageConnectorChannel::THREE_CHANNELS
+	);
 
 	if (UDMMaterialStage* MaskStage = NewLayer->GetStage(EDMMaterialLayerStage::Mask))
 	{
-		MaskStage->ChangeInput_Expression(UDMMaterialStageThroughputLayerBlend::InputMaskSource, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-			UDMMaterialStageExpressionSceneTexture::StaticClass(), 0, FDMMaterialStageConnectorChannel::FOURTH_CHANNEL);
+		UDMMaterialStageInputExpression::ChangeStageInput_Expression(
+			MaskStage, 
+			UDMMaterialStageExpressionSceneTexture::StaticClass(),
+			UDMMaterialStageThroughputLayerBlend::InputMaskSource, 
+			FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+			0, 
+			FDMMaterialStageConnectorChannel::FOURTH_CHANNEL
+		);
 	}
 }
 

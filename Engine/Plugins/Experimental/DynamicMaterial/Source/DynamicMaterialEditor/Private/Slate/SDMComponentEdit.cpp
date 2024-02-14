@@ -251,15 +251,6 @@ void SDMComponentEdit::Construct(const FArguments& InArgs, UDMMaterialComponent*
 
 	if (ensure(IsValid(InComponent)))
 	{
-		if (UDMMaterialStage* Stage = Cast<UDMMaterialStage>(InComponent))
-		{
-			Stage->GetOnUpdate().AddSP(this, &SDMComponentEdit::OnStageUpdate);
-		}
-		else if (UDMMaterialEffect* Effect = Cast<UDMMaterialEffect>(InComponent))
-		{
-			Effect->GetOnUpdate().AddSP(this, &SDMComponentEdit::OnEffectUpdated);
-		}
-
 		if (const UWorld* const World = InComponent->GetWorld())
 		{
 			if (const UDMWorldSubsystem* const WorldSubsystem = World->GetSubsystem<UDMWorldSubsystem>())
@@ -698,42 +689,6 @@ FText SDMComponentEdit::GetSourceTypeEditWidgetText() const
 	return FText::GetEmpty();
 }
 
-void SDMComponentEdit::OnStageUpdate(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType)
-{
-	if (InUpdateType == EDMUpdateType::Structure)
-	{
-		if (InComponent == ComponentWeak && !UpdateHandle.IsValid())
-		{
-			UpdateHandle = FCoreDelegates::OnEndFrame.AddSPLambda(this, [this]()
-				{
-					if (Container.IsValid())
-					{
-						Container->SetContent(CreateEditWidget());
-						FCoreDelegates::OnEndFrame.Remove(UpdateHandle);
-					}
-				});
-		}
-	}
-}
-
-void SDMComponentEdit::OnEffectUpdated(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType)
-{
-	if (InUpdateType == EDMUpdateType::Structure)
-	{
-		if (InComponent == ComponentWeak.Get() && !UpdateHandle.IsValid())
-		{
-			UpdateHandle = FCoreDelegates::OnEndFrame.AddSPLambda(this, [this]()
-				{
-					if (Container.IsValid())
-					{
-						Container->SetContent(CreateEditWidget());
-						FCoreDelegates::OnEndFrame.Remove(UpdateHandle);
-					}
-				});
-		}
-	}
-}
-
 void SDMComponentEdit::OnUndo()
 {
 	if (UDMMaterialStage* Stage = Cast<UDMMaterialStage>(ComponentWeak.Get()))
@@ -744,7 +699,10 @@ void SDMComponentEdit::OnUndo()
 			{
 				if (bCreatedWithLinkedUVs != Layer->IsTextureUVLinkEnabled())
 				{
-					OnStageUpdate(Stage, EDMUpdateType::Structure);
+					if (TSharedPtr<SDMSlot> SlotWidget = SlotWidgetWeak.Pin())
+					{
+						SlotWidget->InvalidateComponentEditWidget();
+					}
 				}
 			}
 		}

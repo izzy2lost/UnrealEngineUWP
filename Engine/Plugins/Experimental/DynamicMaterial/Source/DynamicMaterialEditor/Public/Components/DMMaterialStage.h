@@ -3,7 +3,9 @@
 #pragma once
 
 #include "Components/DMMaterialComponent.h"
+#include "Components/DMMaterialStageSource.h"
 #include "DMEDefs.h"
+#include "Templates/SubclassOf.h"
 #include "DMMaterialStage.generated.h"
 
 class FAssetThumbnailPool;
@@ -103,6 +105,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	void RemoveInput(UDMMaterialStageInput* InInput);
 
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	void RemoveAllInputs();
+
 	virtual void InputUpdated(UDMMaterialStageInput* InInput, EDMUpdateType InUpdateType);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
@@ -118,63 +123,60 @@ public:
 
 	TMap<EDMMaterialPropertyType, UDMMaterialLayerObject*> GetPreviousStagesPropertyMap();
 	TMap<EDMMaterialPropertyType, UDMMaterialLayerObject*> GetPropertyMap();
+	 
+	using FSourceInitFunctionPtr = TFunction<void(UDMMaterialStage*, UDMMaterialStageSource*)>;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialStageInputValue* ChangeSource_NewLocalValue(EDMValueType InType);
+	UDMMaterialStageSource* ChangeSource(TSubclassOf<UDMMaterialStageSource> InSourceClass)
+	{
+		return ChangeSource(InSourceClass, nullptr);
+	}
+
+	UDMMaterialStageSource* ChangeSource(TSubclassOf<UDMMaterialStageSource> InSourceClass, FSourceInitFunctionPtr InPreInit);
+
+	template<typename InSourceClass>
+	InSourceClass* ChangeSource(FSourceInitFunctionPtr InPreInit = nullptr)
+	{
+		return Cast<InSourceClass>(ChangeSource(InSourceClass::StaticClass(), InPreInit));
+	}
+
+	template<typename InSourceClass>
+	InSourceClass* ChangeSource(TSubclassOf<UDMMaterialStageSource> InSourceSubclass, FSourceInitFunctionPtr InPreInit = nullptr)
+	{
+		return Cast<InSourceClass>(ChangeSource(InSourceSubclass, InPreInit));
+	}
+
+	using FInputInitFunctionPtr = TFunction<void(UDMMaterialStage*, UDMMaterialStageInput*)>;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialStageInputValue* ChangeSource_Value(UDMMaterialValue* InValue);
+	UDMMaterialStageInput* ChangeInput(TSubclassOf<UDMMaterialStageInput> InInputClass, int32 InInputIdx, int32 InInputChannel,
+		int32 InOutputIdx, int32 InOutputChannel)
+	{
+		return ChangeInput(InInputClass, InInputIdx, InInputChannel, InOutputIdx, InOutputChannel, nullptr);
+	}
 
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialStageInputValue* ChangeSource_NewValue(EDMValueType InType);
+	UDMMaterialStageInput* ChangeInput(TSubclassOf<UDMMaterialStageInput> InInputClass, int32 InInputIdx, int32 InInputChannel,
+		int32 InOutputIdx, int32 InOutputChannel, FInputInitFunctionPtr InPreInit);
 
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialStageInputSlot* ChangeSource_Slot(UDMMaterialSlot* InSlot, EDMMaterialPropertyType InProperty);
+	template<typename InInputClass>
+	InInputClass* ChangeInput(int32 InInputIdx, int32 InInputChannel, int32 InOutputIdx, int32 InOutputChannel, 
+		FInputInitFunctionPtr InPreInit = nullptr)
+	{
+		return Cast<InInputClass>(ChangeInput(InInputClass::StaticClass(), InInputIdx, InInputChannel, InOutputIdx, InOutputChannel, 
+			InPreInit));
+	}
 
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialStageExpression* ChangeSource_Expression(TSubclassOf<UDMMaterialStageExpression> InExpressionClass);
-
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialStageBlend* ChangeSource_Blend(TSubclassOf<UDMMaterialStageBlend> InBlendClass);
-
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialStageGradient* ChangeSource_Gradient(TSubclassOf<UDMMaterialStageGradient> InGradientClass);
-
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialStageInputTextureUV* ChangeSource_UV(bool bInDoUpdate);
-
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialStageFunction* ChangeSource_MaterialFunction();
+	template<typename InInputClass>
+	InInputClass* ChangeInput(TSubclassOf<UDMMaterialStageInput> InInputSubclass, int32 InInputIdx, int32 InInputChannel, 
+		int32 InOutputIdx, int32 InOutputChannel, FInputInitFunctionPtr InPreInit = nullptr)
+	{
+		return Cast<InInputClass>(ChangeInput(InInputSubclass, InInputIdx, InInputChannel, InOutputIdx, InOutputChannel,
+			InPreInit));
+	}
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	UDMMaterialStageSource* ChangeInput_PreviousStage(int32 InInputIdx, int32 InInputChannel, EDMMaterialPropertyType InPreviousStageProperty, 
 		int32 InOutputIdx, int32 InOutputChannel);
-
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialStageInputValue* ChangeInput_NewLocalValue(int32 InInputIdx, int32 InInputChannel, EDMValueType InType, int32 InOutputChannel);
-
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialStageInputValue* ChangeInput_Value(int32 InInputIdx, int32 InInputChannel, UDMMaterialValue* InValue, int32 InOutputChannel);
-
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialStageInputValue* ChangeInput_NewValue(int32 InInputIdx, int32 InInputChannel, EDMValueType InType, int32 InOutputChannel);
-
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialStageInputSlot* ChangeInput_Slot(int32 InInputIdx, int32 InInputChannel, UDMMaterialSlot* InSlot, EDMMaterialPropertyType InProperty, 
-		int32 InOutputIdx, int32 InOutputChannel);
-
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialStageInputExpression* ChangeInput_Expression(int32 InInputIdx, int32 InInputChannel, TSubclassOf<UDMMaterialStageExpression> InExpressionClass, 
-		int32 InOutputIdx, int32 InOutputChannel);
-
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialStageInputTextureUV* ChangeInput_UV(int32 InInputIdx, int32 InInputChannel, int32 InOutputChannel);
-
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialStageInputGradient* ChangeInput_Gradient(int32 InInputIdx, int32 InInputChannel, TSubclassOf<UDMMaterialStageGradient> InGradientClass, int32 InOutputChannel);
-
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialStageInputFunction* ChangeInput_MaterialFunction(int32 InInputIdx, int32 InInputChannel);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	void RemoveUnusedInputs();
@@ -264,6 +266,4 @@ protected:
 
 	void OnValueUpdated(UDynamicMaterialModel* InMaterialModel, UDMMaterialValue* InValue);
 	void OnTextureUVUpdated(UDynamicMaterialModel* InMaterialModel, UDMTextureUV* InTextureUV);
-
-	void ApplyWholeLayerValue(UDMMaterialValue* InValue);
 };

@@ -2,9 +2,9 @@
  
 #include "Components/MaterialStageExpressions/DMMSELinearInterpolate.h"
 #include "Components/DMMaterialStage.h"
-#include "Materials/MaterialExpressionLinearInterpolate.h"
 #include "Components/MaterialStageInputs/DMMSIValue.h"
 #include "Components/MaterialValues/DMMaterialValueFloat1.h"
+#include "Materials/MaterialExpressionLinearInterpolate.h"
  
 #define LOCTEXT_NAMESPACE "DMMaterialStageExpressionLinearInterpolate"
  
@@ -37,7 +37,9 @@ void UDMMaterialStageExpressionLinearInterpolate::AddDefaultInput(int32 InInputI
 	UDMMaterialStage* Stage = GetStage();
 	check(Stage);
  
-	Stage->ChangeInput_NewLocalValue(InInputIndex, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, EDMValueType::VT_Float1, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+	UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(Stage, InInputIndex,
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, EDMValueType::VT_Float1,
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
  
 	UDMMaterialStageInputValue* InputValue = Cast<UDMMaterialStageInputValue>(Stage->GetInputs().Last());
 	check(InputValue);

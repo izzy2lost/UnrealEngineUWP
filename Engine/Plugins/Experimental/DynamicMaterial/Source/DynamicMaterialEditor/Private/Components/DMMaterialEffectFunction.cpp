@@ -175,13 +175,19 @@ void UDMMaterialEffectFunction::ApplyTo(const TSharedRef<FDMMaterialBuildState>&
 			{
 				if (InOutLastExpressionOutputChannel != FDMMaterialStageConnectorChannel::WHOLE_CHANNEL)
 				{
-					LastInputExpressions[0] = InBuildState->GetBuildUtils().CreateExpressionBitMask(LastInputExpressions[0], InOutLastExpressionOutputIndex,
-						InOutLastExpressionOutputChannel);
+					LastInputExpressions[0] = InBuildState->GetBuildUtils().CreateExpressionBitMask(
+						LastInputExpressions[0], 
+						InOutLastExpressionOutputIndex,
+						InOutLastExpressionOutputChannel
+					);
 
 					InOutStageExpressions.Add(LastInputExpressions[0]);
 				}
 
-				FunctionCall->FunctionInputs[InputIndex].Input.Connect(InOutLastExpressionOutputIndex, LastInputExpressions[InputIndex]);
+				FunctionCall->FunctionInputs[InputIndex].Input.Connect(
+					InOutLastExpressionOutputIndex, 
+					LastInputExpressions[InputIndex]
+				);
 			}
 			else
 			{
@@ -264,33 +270,12 @@ void UDMMaterialEffectFunction::DeinitFunction()
 	InputValues.Empty();
 }
 
-bool UDMMaterialEffectFunction::NeedsFunctionInit()
+bool UDMMaterialEffectFunction::NeedsFunctionInit() const
 {
 	if (!IsValid(MaterialFunctionPtr))
 	{
 		// If we have no function, but we do have inputs, they need to be refreshed (removed).
 		return !InputValues.IsEmpty();
-	}
-
-	UDMMaterialSlot* Slot = GetTypedParent<UDMMaterialSlot>(/* bAllowSubclasses */ true);
-
-	if (!Slot)
-	{
-		return false;
-	}
-
-	UDynamicMaterialModelEditorOnlyData* EditorOnlyData = Slot->GetMaterialModelEditorOnlyData();
-
-	if (!EditorOnlyData)
-	{
-		return false;
-	}
-
-	UDynamicMaterialModel* MaterialModel = EditorOnlyData->GetMaterialModel();
-
-	if (!MaterialModel)
-	{
-		return false;
 	}
 
 	TArray<FFunctionExpressionInput> Inputs;
@@ -331,19 +316,9 @@ bool UDMMaterialEffectFunction::NeedsFunctionInit()
 			switch (FunctionInput->InputType)
 			{
 				case EFunctionInputType::FunctionInput_Scalar:
-					EffectTarget = EDMMaterialEffectTarget::MaskStage;
-					break;
-
 				case EFunctionInputType::FunctionInput_Vector2:
-					EffectTarget = EDMMaterialEffectTarget::TextureUV;
-					break;
-
 				case EFunctionInputType::FunctionInput_Vector3:
-					EffectTarget = EDMMaterialEffectTarget::BaseStage;
-					break;
-
 				case EFunctionInputType::FunctionInput_Vector4:
-					EffectTarget = EDMMaterialEffectTarget::Slot;
 					break;
 
 				default:
