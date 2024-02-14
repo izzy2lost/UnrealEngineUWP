@@ -164,10 +164,11 @@ FString FOnlineIdentitySteam::GetPlayerNickname(int32 LocalUserNum) const
 
 FString FOnlineIdentitySteam::GetPlayerNickname(const FUniqueNetId& UserId) const
 {
+	const FUniqueNetIdSteam& SteamId = (const FUniqueNetIdSteam&)UserId;
 	if (SteamFriendsPtr != NULL)
 	{
-		const char* PersonaName = SteamFriendsPtr->GetPersonaName();
-		return FString(UTF8_TO_TCHAR(PersonaName));
+		FString PersonaName = UTF8_TO_TCHAR(SteamFriendsPtr->GetFriendPersonaName(SteamId));
+		return PersonaName;
 	}
 	return FString(TEXT(""));
 }
