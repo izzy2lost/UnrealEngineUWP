@@ -338,6 +338,16 @@ void TraverseEventTree(
 			EventName = GpuProfilerEvents[Root].GetName();
 		}
 
+		// Since the GpuProfiler uses the Comparison Index of FName, Gpu trace events named with the pattern <base>_N where N
+		// is some non-negative integer, will all end up having the same name in Unreal Insights. Appending a space to the name
+		// avoids this.
+		if (EventName.GetNumber())
+		{
+			EventName = FName(EventName.ToString() + TEXT(" "));
+
+			checkSlow(EventName.GetNumber() == 0);
+		}
+
 		check(GpuProfilerEvents[Root].GetGPUMask().Contains(GPUIndex));
 		FGpuProfilerTrace::SpecifyEventByName(EventName);
 		FGpuProfilerTrace::BeginEventByName(EventName, GpuProfilerEvents[Root].GetFrameNumber(), GpuProfilerEvents[Root].GetStartResultMicroseconds(GPUIndex));
