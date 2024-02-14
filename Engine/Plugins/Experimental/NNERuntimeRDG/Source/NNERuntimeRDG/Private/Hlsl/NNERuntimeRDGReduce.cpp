@@ -168,16 +168,26 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterReduceOperators(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd({ {TEXT("ReduceL1"),       TEXT("Onnx")}}, CreateReduceOperator<UE::NNEHlslShaders::Internal::EReduceOperatorType::L1>, ValidateReduceOperator);
-		Registry.OpAdd({ {TEXT("ReduceL2"),       TEXT("Onnx")}}, CreateReduceOperator<UE::NNEHlslShaders::Internal::EReduceOperatorType::L2>, ValidateReduceOperator);
 		//ReduceLogSum not yet supported as multi axis case require to apply all reduction first then log.
-		Registry.OpAdd({{TEXT("ReduceLogSumExp"), TEXT("Onnx")}}, CreateReduceOperator<UE::NNEHlslShaders::Internal::EReduceOperatorType::LogSumExp>, ValidateReduceOperator);
-		Registry.OpAdd({{TEXT("ReduceMax"),       TEXT("Onnx")}}, CreateReduceOperator<UE::NNEHlslShaders::Internal::EReduceOperatorType::Max>, ValidateReduceOperator);
-		Registry.OpAdd({{TEXT("ReduceMean"),      TEXT("Onnx")}}, CreateReduceOperator<UE::NNEHlslShaders::Internal::EReduceOperatorType::Average>, ValidateReduceOperator);
-		Registry.OpAdd({{TEXT("ReduceMin"),       TEXT("Onnx")}}, CreateReduceOperator<UE::NNEHlslShaders::Internal::EReduceOperatorType::Min>, ValidateReduceOperator);
-		Registry.OpAdd({{TEXT("ReduceProd"),      TEXT("Onnx")}}, CreateReduceOperator<UE::NNEHlslShaders::Internal::EReduceOperatorType::Prod>, ValidateReduceOperator);
-		Registry.OpAdd({{TEXT("ReduceSum"),       TEXT("Onnx")}}, CreateReduceOperator<UE::NNEHlslShaders::Internal::EReduceOperatorType::Sum>, ValidateReduceOperator);
 		//ReduceSumSquare not yet supported as multi axis case require to apply square on whole tensor first then sum.
+
+		Registry.OpAdd({ {TEXT("ReduceL1"),        TEXT("Onnx")},  1  }, CreateReduceOperator<UE::NNEHlslShaders::Internal::EReduceOperatorType::L1>, ValidateReduceOperator);
+		Registry.OpAdd({ {TEXT("ReduceL2"),        TEXT("Onnx")},  1  }, CreateReduceOperator<UE::NNEHlslShaders::Internal::EReduceOperatorType::L2>, ValidateReduceOperator);
+		Registry.OpAdd({ {TEXT("ReduceLogSumExp"), TEXT("Onnx")},  1  }, CreateReduceOperator<UE::NNEHlslShaders::Internal::EReduceOperatorType::LogSumExp>, ValidateReduceOperator);
+		Registry.OpAdd({ {TEXT("ReduceMax"),       TEXT("Onnx")},  1  }, CreateReduceOperator<UE::NNEHlslShaders::Internal::EReduceOperatorType::Max>, ValidateReduceOperator);
+		Registry.OpAdd({ {TEXT("ReduceMean"),      TEXT("Onnx")},  1  }, CreateReduceOperator<UE::NNEHlslShaders::Internal::EReduceOperatorType::Average>, ValidateReduceOperator);
+		Registry.OpAdd({ {TEXT("ReduceMin"),       TEXT("Onnx")},  1  }, CreateReduceOperator<UE::NNEHlslShaders::Internal::EReduceOperatorType::Min>, ValidateReduceOperator);
+		Registry.OpAdd({ {TEXT("ReduceProd"),      TEXT("Onnx")},  1  }, CreateReduceOperator<UE::NNEHlslShaders::Internal::EReduceOperatorType::Prod>, ValidateReduceOperator);
+		Registry.OpAdd({ {TEXT("ReduceSum"),       TEXT("Onnx")},  1  }, CreateReduceOperator<UE::NNEHlslShaders::Internal::EReduceOperatorType::Sum>, ValidateReduceOperator);
+
+		Registry.OpAdd({ {TEXT("ReduceL1"),        TEXT("Onnx")}, 11 }, CreateReduceOperator<UE::NNEHlslShaders::Internal::EReduceOperatorType::L1>, ValidateReduceOperator);
+		Registry.OpAdd({ {TEXT("ReduceL2"),        TEXT("Onnx")}, 11 }, CreateReduceOperator<UE::NNEHlslShaders::Internal::EReduceOperatorType::L2>, ValidateReduceOperator);
+		Registry.OpAdd({ {TEXT("ReduceLogSumExp"), TEXT("Onnx")}, 11 }, CreateReduceOperator<UE::NNEHlslShaders::Internal::EReduceOperatorType::LogSumExp>, ValidateReduceOperator);
+		Registry.OpAdd({ {TEXT("ReduceMax"),       TEXT("Onnx")}, 11 }, CreateReduceOperator<UE::NNEHlslShaders::Internal::EReduceOperatorType::Max>, ValidateReduceOperator);
+		Registry.OpAdd({ {TEXT("ReduceMean"),      TEXT("Onnx")}, 11 }, CreateReduceOperator<UE::NNEHlslShaders::Internal::EReduceOperatorType::Average>, ValidateReduceOperator);
+		Registry.OpAdd({ {TEXT("ReduceMin"),       TEXT("Onnx")}, 11 }, CreateReduceOperator<UE::NNEHlslShaders::Internal::EReduceOperatorType::Min>, ValidateReduceOperator);
+		Registry.OpAdd({ {TEXT("ReduceProd"),      TEXT("Onnx")}, 11 }, CreateReduceOperator<UE::NNEHlslShaders::Internal::EReduceOperatorType::Prod>, ValidateReduceOperator);
+		Registry.OpAdd({ {TEXT("ReduceSum"),       TEXT("Onnx")}, 11 }, CreateReduceOperator<UE::NNEHlslShaders::Internal::EReduceOperatorType::Sum>, ValidateReduceOperator);
 
 		return true;
 	}

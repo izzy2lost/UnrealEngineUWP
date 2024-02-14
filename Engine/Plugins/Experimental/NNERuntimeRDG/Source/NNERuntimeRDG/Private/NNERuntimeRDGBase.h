@@ -233,6 +233,78 @@ public:
 		return true;
 	}
 
+	FString ListAllRegisteredOperators() const
+	{
+		class FLoggableOperatorDesc
+		{
+			FString OpDomainAndName;
+			FString SupportedOpsets;
+
+		public:
+
+			FLoggableOperatorDesc(const FOperatorDescUnversioned& InOpDesc, TArrayView<TOptional<TOperatorVersionType>> InOpVersions)
+			{
+				OpDomainAndName = FString::Printf(TEXT("%s,%s"), *InOpDesc.DomainName, *InOpDesc.OpName);
+
+				TArray<TOptional<TOperatorVersionType>, TInlineAllocator<8>> OpVersions(InOpVersions);
+
+				OpVersions.Sort([](const TOptional<TOperatorVersionType>& lhs, const TOptional<TOperatorVersionType>& rhs)
+					{
+						if (!lhs.IsSet())
+						{
+							return true;
+						}
+						else if (!rhs.IsSet())
+						{
+							return false;
+						}
+						else
+						{
+							return *lhs < *rhs;
+						}
+					});
+
+				for (const TOptional<TOperatorVersionType>& OpVersion : OpVersions)
+				{
+					SupportedOpsets += (OpVersion.IsSet() ? FString::Printf(TEXT(",%d"), *OpVersion) : TEXT(",Unversioned"));
+				}
+			}
+
+			const FString& GetDomainAndName() const
+			{
+				return OpDomainAndName;
+			}
+			const FString& GetSupportedOpset() const
+			{
+				return SupportedOpsets;
+			}
+		};
+
+		TArray<FLoggableOperatorDesc> LoggableOperatorDesc;
+		TArray<TOptional<TOperatorVersionType>> Versions;
+
+		for (const TPair<FOperatorDescUnversioned, TOperatorVersionToFunctionsMap>& Pair : Operators)
+		{
+			Pair.Value.GenerateKeyArray(Versions);
+			LoggableOperatorDesc.Emplace(Pair.Key, Versions);
+		}
+
+		LoggableOperatorDesc.Sort([](const FLoggableOperatorDesc& lhs, const FLoggableOperatorDesc& rhs) 
+		{
+			return lhs.GetDomainAndName() < rhs.GetDomainAndName();
+		});
+
+		FString OpListWithOpset;
+		for (const FLoggableOperatorDesc& LoggableOp : LoggableOperatorDesc)
+		{
+			OpListWithOpset += LoggableOp.GetDomainAndName();
+			OpListWithOpset += LoggableOp.GetSupportedOpset();
+			OpListWithOpset += TEXT("\n");
+		}
+
+		return OpListWithOpset;
+	}
+
 private:
 
 	struct FOperatorFunctions

@@ -15,6 +15,7 @@
 #ifdef NNE_UTILITIES_AVAILABLE
 #include "NNEUtilitiesModelOptimizer.h"
 #endif // NNE_UTILITIES_AVAILABLE
+#include "HAL/IConsoleManager.h"
 #include "Hlsl/NNERuntimeRDGBatchNormalization.h"
 #include "Hlsl/NNERuntimeRDGCast.h"
 #include "Hlsl/NNERuntimeRDGConv.h"
@@ -87,6 +88,22 @@ bool UNNERuntimeRDGHlslImpl::Init()
 
 	return true;
 }
+
+namespace ConsoleCommands
+{
+	static FAutoConsoleCommand GetAutomationRuntimeFilterCommand(
+		TEXT("nne.hlsl.getoperatorsupportmatrix"), TEXT("Get the NNERuntimeRDGHlsl operators support matrix in term of ONNX."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(
+			[](const TArray< FString >& Args)
+			{
+				FOperatorRegistryHlsl* Registry = FOperatorRegistryHlsl::Get();
+				check(Registry != nullptr);
+				FString SupportMatrix = Registry->ListAllRegisteredOperators();
+				UE_LOG(LogNNE, Display, TEXT("HLSL Operators support matrix: \n%s"), *SupportMatrix);
+			}
+		)
+	);
+} // ConsoleCommands
 
 UNNERuntimeRDGHlslImpl::ECanCreateModelDataStatus UNNERuntimeRDGHlslImpl::CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
 {

@@ -121,8 +121,8 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterGlobalPoolOperators(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd({{TEXT("GlobalAveragePool"), TEXT("Onnx")}}, CreateGlobalPoolOperator<UE::NNEHlslShaders::Internal::EReduceOperatorType::Average>, ValidateGlobalPoolOperator);
-		Registry.OpAdd({ {TEXT("GlobalMaxPool"), TEXT("Onnx")} }, CreateGlobalPoolOperator<UE::NNEHlslShaders::Internal::EReduceOperatorType::Max>, ValidateGlobalPoolOperator);
+		Registry.OpAdd({{TEXT("GlobalAveragePool"), TEXT("Onnx")}, 1}, CreateGlobalPoolOperator<UE::NNEHlslShaders::Internal::EReduceOperatorType::Average>, ValidateGlobalPoolOperator);
+		Registry.OpAdd({{TEXT("GlobalMaxPool"), TEXT("Onnx")}, 1}, CreateGlobalPoolOperator<UE::NNEHlslShaders::Internal::EReduceOperatorType::Max>, ValidateGlobalPoolOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl
