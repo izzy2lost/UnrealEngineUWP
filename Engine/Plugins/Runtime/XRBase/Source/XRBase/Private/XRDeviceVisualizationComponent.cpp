@@ -249,7 +249,7 @@ void UXRDeviceVisualizationComponent::OnDisplayModelLoaded(UPrimitiveComponent* 
 	if (DisplayModelLoadState == EModelLoadStatus::Pending || DisplayModelLoadState == EModelLoadStatus::InProgress)
 	{
 		UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(InDisplayComponent);
-		if (StaticMeshComponent != nullptr && StaticMeshComponent->GetStaticMesh()) 
+		if (InDisplayComponent != nullptr && StaticMeshComponent != nullptr && StaticMeshComponent->GetStaticMesh() && InDisplayComponent != nullptr)
 		{
 			SetStaticMesh(StaticMeshComponent->GetStaticMesh());
 			const int32 MatCount = FMath::Min(InDisplayComponent->GetNumMaterials(), DisplayMeshMaterialOverrides.Num());
@@ -263,7 +263,7 @@ void UXRDeviceVisualizationComponent::OnDisplayModelLoaded(UPrimitiveComponent* 
 		}
 	}
 
-	if (InDisplayComponent)
+	if (InDisplayComponent != nullptr)
 	{
 		InDisplayComponent->DestroyComponent();
 	}
