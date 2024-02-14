@@ -391,18 +391,16 @@ void FDisplayClusterMediaModule::InitializeICVFXCameraUniformTilesInput(const UD
 				{
 					if (IsValid(MediaInputTile.MediaSource))
 					{
-						const FIntPoint TileLoc{ MediaInputTile.TileX, MediaInputTile.TileY };
-
-						const FString ICVFXViewportTileId = DisplayClusterMediaHelpers::GenerateTileViewportName(ICVFXViewportId, TileLoc);
+						const FString ICVFXViewportTileId = DisplayClusterMediaHelpers::GenerateTileViewportName(ICVFXViewportId, MediaInputTile.Position);
 
 						const FString MediaInputId = DisplayClusterMediaHelpers::MediaId::GenerateMediaId(
 							DisplayClusterMediaHelpers::MediaId::EMediaDeviceType::Input,
 							DisplayClusterMediaHelpers::MediaId::EMediaOwnerType::ICVFXCamera,
 							ClusterNodeId, RootActorName, ICVFXCameraName,
-							static_cast<uint8>(Index), &TileLoc);
+							static_cast<uint8>(Index), &MediaInputTile.Position);
 
 						UE_LOG(LogDisplayClusterMedia, Log, TEXT("Initializing ICVFX media input '%s' for camera '%s' tile '%d,%d'"),
-							*MediaInputId, *ICVFXCameraName, TileLoc.X, TileLoc.Y);
+							*MediaInputId, *ICVFXCameraName, MediaInputTile.Position.X, MediaInputTile.Position.Y);
 
 						TSharedPtr<FDisplayClusterMediaInputViewport> NewICVFXTileInput = MakeShared<FDisplayClusterMediaInputViewport>(
 							MediaInputId, ClusterNodeId,
@@ -445,18 +443,16 @@ void FDisplayClusterMediaModule::InitializeICVFXCameraUniformTilesOutput(const U
 				{
 					if (IsValid(MediaOutputTile.MediaOutput))
 					{
-						const FIntPoint TileLoc{ MediaOutputTile.TileX, MediaOutputTile.TileY };
-
-						const FString ICVFXViewportTileId = DisplayClusterMediaHelpers::GenerateTileViewportName(ICVFXViewportId, TileLoc);
+						const FString ICVFXViewportTileId = DisplayClusterMediaHelpers::GenerateTileViewportName(ICVFXViewportId, MediaOutputTile.Position);
 
 						const FString MediaOutputId = DisplayClusterMediaHelpers::MediaId::GenerateMediaId(
 							DisplayClusterMediaHelpers::MediaId::EMediaDeviceType::Output,
 							DisplayClusterMediaHelpers::MediaId::EMediaOwnerType::ICVFXCamera,
 							ClusterNodeId, RootActorName, ICVFXCameraName,
-							static_cast<uint8>(Index), &TileLoc);
+							static_cast<uint8>(Index), &MediaOutputTile.Position);
 
 						UE_LOG(LogDisplayClusterMedia, Log, TEXT("Initializing ICVFX media output '%s' for camera '%s' tile '%d,%d'"),
-							*MediaOutputId, *ICVFXCameraName, TileLoc.X, TileLoc.Y);
+							*MediaOutputId, *ICVFXCameraName, MediaOutputTile.Position.X, MediaOutputTile.Position.Y);
 
 						TSharedPtr<FDisplayClusterMediaCaptureViewport> NewICVFXTileOutput = MakeShared<FDisplayClusterMediaCaptureViewport>(
 							MediaOutputId, ClusterNodeId,

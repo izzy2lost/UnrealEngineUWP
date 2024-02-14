@@ -16,7 +16,6 @@
 #include "DisplayClusterConfigurationTypes_PostRender.h"
 #include "DisplayClusterConfigurationTypes_Postprocess.h"
 #include "DisplayClusterConfigurationTypes_OCIO.h"
-#include "DisplayClusterConfigurationTypes_Tile.h"
 #include "DisplayClusterConfigurationTypes_ViewportOverscan.h"
 
 #include "Containers/DisplayClusterShader_Enums.h"
@@ -86,25 +85,6 @@ public:
 	/** Apply an OpenColorIO configuration on a per-node or group-of-nodes basis. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OCIO", meta = (DisplayName = "Per-Node OCIO Overrides", ConfigurationMode = "ClusterNodes"))
 	TArray<FDisplayClusterConfigurationOCIOProfile> PerNodeOCIOProfiles;
-};
-
-USTRUCT(Blueprintable)
-struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationICVFX_CameraTile
-{
-	GENERATED_BODY()
-
-public:
-	/** Tile rendering settings. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tile Rendering")
-	FDisplayClusterConfigurationTile_Settings TileSettings;
-
-	/** Overscan settings for tile. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tile Overscan")
-	FDisplayClusterConfigurationTile_Overscan TileOverscan;
-
-	/** Cluster nodes that should render unbound tiles. Unbound tiles are the tiles that don't have any media assigned */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Media, meta = (ClusterItemType = ClusterNodes, DisplayName = "Nodes To Render Unbound Tiles", ToolTip = "Choose nodes that should render camera tiles that don't have any media assigned"))
-	FDisplayClusterConfigurationClusterItemReferenceList ClusterNodesToRenderUnboundTiles;
 };
 
 USTRUCT(Blueprintable)
@@ -816,10 +796,6 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = OCIO)
 	FDisplayClusterConfigurationICVFX_CameraOCIO CameraOCIO;
-
-	/** Tile rendering settings for icvfx camera viewport. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tile Rendering")
-	FDisplayClusterConfigurationICVFX_CameraTile CameraTile;
 
 	/** Entire Cluster Color Grading */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inner Frustum Color Grading", meta = (DisplayName = "Enable Inner Frustum Color Grading"))

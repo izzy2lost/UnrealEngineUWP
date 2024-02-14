@@ -7,9 +7,9 @@
 
 class FDisplayClusterViewport;
 class IDisplayClusterProjectionPolicy;
-struct FDisplayClusterViewport_TileSettings;
-struct FDisplayClusterConfigurationICVFX_CameraTile;
+struct FDisplayClusterConfigurationMediaICVFX;
 struct FDisplayClusterConfigurationTile_Overscan;
+struct FDisplayClusterViewport_TileSettings;
 
 /**
 * Tile configuration helper class.
@@ -28,7 +28,7 @@ public:
 
 public:
 	/** Get tile settings for the camera viewport. */
-	static void UpdateICVFXCameraViewportTileSettings(FDisplayClusterViewport& InSourceViewport, const FDisplayClusterConfigurationICVFX_CameraTile& InCameraTile);
+	static void UpdateICVFXCameraViewportTileSettings(FDisplayClusterViewport& InSourceViewport, const FDisplayClusterConfigurationMediaICVFX& InCameraMediaSettings);
 
 	/** Get a tile viewport rect inside the rect of the source viewport. */
 	static FIntRect GetDestRect(const FDisplayClusterViewport_TileSettings& InTileSettings, const FIntRect& InSourceRect);

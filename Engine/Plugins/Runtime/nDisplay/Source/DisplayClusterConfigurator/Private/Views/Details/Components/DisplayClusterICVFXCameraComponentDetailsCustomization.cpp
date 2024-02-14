@@ -30,6 +30,7 @@ namespace DisplayClusterICVFXCameraComponentDetailsCustomizationUtils
 			DisplayClusterConfigurationStrings::categories::ICVFXCameraCategory,
 			DisplayClusterConfigurationStrings::categories::CameraColorGradingCategory,
 			DisplayClusterConfigurationStrings::categories::OCIOCategory,
+			DisplayClusterConfigurationStrings::categories::MediaCategory,
 			DisplayClusterConfigurationStrings::categories::ChromaKeyCategory,
 			DisplayClusterConfigurationStrings::categories::OverrideCategory,
 			DisplayClusterConfigurationStrings::categories::ConfigurationCategory

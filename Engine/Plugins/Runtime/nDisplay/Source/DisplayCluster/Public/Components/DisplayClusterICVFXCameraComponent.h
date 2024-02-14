@@ -172,15 +172,6 @@ private:
 	UPROPERTY(EditAnywhere, Transient, Category = OCIO, meta = (PropertyPath = "CameraSettings.CameraOCIO.PerNodeOCIOProfiles", DisplayName = "Per-Node OCIO Overrides"))
 	FDisplayClusterEditorPropertyReference PerNodeOCIOProfilesRef;
 
-	UPROPERTY(EditAnywhere, Transient, Category = "Tile Rendering", meta = (PropertyPath = "CameraSettings.CameraTile.TileSettings", DisplayName = "Tile Settings"))
-	FDisplayClusterEditorPropertyReference CameraTileSettingsRef;
-
-	UPROPERTY(EditAnywhere, Transient, Category = "Tile Rendering", meta = (PropertyPath = "CameraSettings.CameraTile.TileOverscan", DisplayName = "Tile Overscan"))
-	FDisplayClusterEditorPropertyReference CameraTileOverscanRef;
-
-	UPROPERTY(EditAnywhere, Transient, Category = "Tile Rendering", meta = (PropertyPath = "CameraSettings.CameraTile.ClusterNodesToRenderUnboundTiles", DisplayName = "Nodes To Render Unbound Tiles", ToolTip = "Choose nodes that should render camera tiles that don't have any media assigned"))
-	FDisplayClusterEditorPropertyReference CameraTileNodesToRenderUnboundTilesRef;
-
 	UPROPERTY(EditAnywhere, Transient, Category = "Color Grading", meta = (PropertyPath = "CameraSettings.EnableInnerFrustumColorGrading", DisplayName = "Enable Inner Frustum Color Grading"))
 	FDisplayClusterEditorPropertyReference EnableInnerFrustumColorGrading;
 

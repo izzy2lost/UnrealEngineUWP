@@ -6,6 +6,7 @@
 
 #include "DisplayClusterConfigurationTypes_Base.h"
 #include "DisplayClusterConfigurationTypes_MediaSync.h"
+#include "DisplayClusterConfigurationTypes_Tile.h"
 
 #include "MediaPlayer.h"
 #include "MediaSource.h"
@@ -22,7 +23,7 @@ UENUM(BlueprintType)
 enum class EDisplayClusterConfigurationMediaSplitType : uint8
 {
 	FullFrame     UMETA(DisplayName = "Full Frame"),
-	UniformTiles  UMETA(DisplayName = "Uniform Tiles"),
+	UniformTiles  UMETA(DisplayName = "Tiled"),
 };
 
 
@@ -106,10 +107,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media")
 	TArray<FDisplayClusterConfigurationMediaOutput> MediaOutputs;
 
-	/** Force late OCIO pass */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (DisplayName = "Late OCIO Pass"))
-	bool bLateOCIOPass = false;
-
 public:
 	/** Returns true if a media source assigned */
 	bool IsMediaInputAssigned() const;
@@ -183,13 +180,9 @@ struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationMediaUniformT
 	GENERATED_BODY()
 
 public:
-	/** Tile X location */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Media", meta = (UIMin = 0, ClampMin = 0, UIMax = 4, ClampMax = 4))
-	int32 TileX = 0;
-
-	/** Tile Y location */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Media", meta = (UIMin = 0, ClampMin = 0, UIMax = 4, ClampMax = 4))
-	int32 TileY = 0;
+	/** Tile position */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Media", meta = (ClampMin = 0, ClampMax = 3))
+	FIntPoint Position = FIntPoint::ZeroValue;
 
 	/** Media source to use */
 	UPROPERTY(Instanced, EditAnywhere, BlueprintReadWrite, Category = "Media")
@@ -206,13 +199,9 @@ struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationMediaUniformT
 	GENERATED_BODY()
 
 public:
-	/** Tile X location */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Media", meta = (UIMin = 0, ClampMin = 0, UIMax = 4, ClampMax = 4))
-	int32 TileX = 0;
-
-	/** Tile Y location */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Media", meta = (UIMin = 0, ClampMin = 0, UIMax = 4, ClampMax = 4))
-	int32 TileY = 0;
+	/** Tile position */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Media", meta = (ClampMin = 0, ClampMax = 3))
+	FIntPoint Position = FIntPoint::ZeroValue;
 
 	/** Media output to use */
 	UPROPERTY(Instanced, EditAnywhere, BlueprintReadWrite, Category = "Media")
@@ -276,27 +265,43 @@ public:
 	bool bEnable = false;
 
 	/** Media frame split type */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (DisplayName = "Inner Frustum Type"))
 	EDisplayClusterConfigurationMediaSplitType SplitType = EDisplayClusterConfigurationMediaSplitType::FullFrame;
 
+	/// Full-frame
+
 	/** Media input mapping (Full frame) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (DisplayName = "Media Input Groups (Full Frame)", EditCondition = "SplitType == EDisplayClusterConfigurationMediaSplitType::FullFrame"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (DisplayName = "Media Input Groups"))
 	TArray<FDisplayClusterConfigurationMediaInputGroup> MediaInputGroups;
 
 	/** Media output mapping (Full frame) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (DisplayName = "Media Output Groups (Full Frame)", EditCondition = "SplitType == EDisplayClusterConfigurationMediaSplitType::FullFrame"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (DisplayName = "Media Output Groups"))
 	TArray<FDisplayClusterConfigurationMediaOutputGroup> MediaOutputGroups;
 
+	/// Uniform tiles
+
+	/** Split layout */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (DisplayName = "Tiled Split Layout", ClampMin = 1, ClampMax = 4))
+	FIntPoint TiledSplitLayout = { 1, 1 };
+
+	/** Overscan settings for tile. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media")
+	FDisplayClusterConfigurationTile_Overscan TileOverscan;
+
+	/** Cluster nodes that should render unbound tiles. Unbound tiles are the tiles that don't have any media assigned */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (ClusterItemType = ClusterNodes, DisplayName = "Nodes To Render Unbound Tiles", ToolTip = "Choose nodes that should render camera tiles that don't have any media assigned"))
+	FDisplayClusterConfigurationClusterItemReferenceList ClusterNodesToRenderUnboundTiles;
+
 	/** Media input mapping (Tiled) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (DisplayName = "Media Input Groups (Tiled)", EditCondition = "SplitType == EDisplayClusterConfigurationMediaSplitType::UniformTiles"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (DisplayName = "Media Input Groups"))
 	TArray<FDisplayClusterConfigurationMediaTiledInputGroup> TiledMediaInputGroups;
 
 	/** Media output mapping (Tiled) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (DisplayName = "Media Output Groups (Tiled)", EditCondition = "SplitType == EDisplayClusterConfigurationMediaSplitType::UniformTiles"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (DisplayName = "Media Output Groups"))
 	TArray<FDisplayClusterConfigurationMediaTiledOutputGroup> TiledMediaOutputGroups;
 
 	/** Force late OCIO pass */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (DisplayName = "Late OCIO Pass"))
+	UPROPERTY()
 	bool bLateOCIOPass = false;
 
 public:
