@@ -1378,34 +1378,7 @@ void UAbilitySystemComponent::RemoveGameplayCue_Internal(const FGameplayTag Game
 {
 	if (IsOwnerActorAuthoritative())
 	{
-		int32 NumMatchingCues = 0;
-		for (const FActiveGameplayCue& GameplayCue : GameplayCueContainer.GameplayCues)
-		{
-			NumMatchingCues += (GameplayCue.GameplayCueTag == GameplayCueTag);
-		}
-
-		if (NumMatchingCues > 0)
-		{
-			// AbilitySystem.GameplayCueNotifyTagCheckOnRemove assumes the tag is removed before any invocation of EGameplayCueEvent::Removed.
-			// We cannot use GameplayCueContainer.RemoveCue because that removes the cues while updating the TagMap.
-			// Instead, we need to manually count the removals, update the tag map, then Invoke the Cue events while removing the Cues.
-			UpdateTagMap(GameplayCueTag, -NumMatchingCues);
-
-			for (int32 Index = GameplayCueContainer.GameplayCues.Num() - 1; Index >= 0; --Index)
-			{
-				const FActiveGameplayCue& GameplayCue = GameplayCueContainer.GameplayCues[Index];
-				if (GameplayCue.GameplayCueTag == GameplayCueTag)
-				{
-					// Call on server here, clients get it from repnotify on the GameplayCueContainer rather than a multicast rpc
-					InvokeGameplayCueEvent(GameplayCueTag, EGameplayCueEvent::Removed, GameplayCue.Parameters);
-					GameplayCueContainer.GameplayCues.RemoveAt(Index);
-				}
-			}
-
-			// Ensure that the clients are aware of these changes ASAP
-			GameplayCueContainer.MarkArrayDirty();
-			ForceReplication();
-		}
+		GameplayCueContainer.RemoveCue(GameplayCueTag);
 	}
 	else if (ScopedPredictionKey.IsLocalClientKey())
 	{
