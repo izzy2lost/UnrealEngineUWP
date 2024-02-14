@@ -267,7 +267,11 @@ void ULearningAgentsInteractor::GatherObservations(const UE::Learning::FIndexSet
 
 	for (int32 AgentIdx = 0; AgentIdx < AgentSet.Num(); AgentIdx++)
 	{
-		if (ULearningAgentsObservations::ValidateObjectMatchesSchema(ObservationSchema, ObservationSchemaElement, ObservationObject, ObservationObjectElements[AgentIdx]))
+		if (ULearningAgentsObservations::ValidateObservationObjectMatchesSchema(
+			ObservationSchema, 
+			ObservationSchemaElement, 
+			ObservationObject, 
+			ObservationObjectElements[AgentIdx]))
 		{
 			UE::Learning::Observation::SetVectorFromObject(
 				ObservationVectors[AgentSet[AgentIdx]],

@@ -58,7 +58,7 @@ namespace UE::Learning::Agents::Observation::Private
 		}
 	}
 
-	static bool ValidateObjectMatchesSchema(
+	static bool ValidateObservationObjectMatchesSchema(
 		const Learning::Observation::FSchema& Schema,
 		const Learning::Observation::FSchemaElement SchemaElement,
 		const Learning::Observation::FObject& Object,
@@ -68,13 +68,13 @@ namespace UE::Learning::Agents::Observation::Private
 
 		if (!Schema.IsValid(SchemaElement))
 		{
-			UE_LOG(LogLearning, Error, TEXT("ValidateObjectMatchesSchema: Invalid Observation Schema Element."));
+			UE_LOG(LogLearning, Error, TEXT("ValidateObservationObjectMatchesSchema: Invalid Observation Schema Element."));
 			return false;
 		}
 
 		if (!Object.IsValid(ObjectElement))
 		{
-			UE_LOG(LogLearning, Error, TEXT("ValidateObjectMatchesSchema: Invalid Observation Object Element."));
+			UE_LOG(LogLearning, Error, TEXT("ValidateObservationObjectMatchesSchema: Invalid Observation Object Element."));
 			return false;
 		}
 
@@ -85,7 +85,7 @@ namespace UE::Learning::Agents::Observation::Private
 
 		if (ObservationSchemaElementTag != ObservationObjectElementTag)
 		{
-			UE_LOG(LogLearning, Warning, TEXT("ValidateObjectMatchesSchema: Observation tag does not match Schema. Expected '%s', got '%s'."),
+			UE_LOG(LogLearning, Warning, TEXT("ValidateObservationObjectMatchesSchema: Observation tag does not match Schema. Expected '%s', got '%s'."),
 				*ObservationSchemaElementTag.ToString(), *ObservationObjectElementTag.ToString());
 		}
 
@@ -96,7 +96,7 @@ namespace UE::Learning::Agents::Observation::Private
 
 		if (ObservationSchemaElementType != ObservationObjectElementType)
 		{
-			UE_LOG(LogLearning, Error, TEXT("ValidateObjectMatchesSchema: Observation '%s' type does not match Schema. Expected type '%s', got type '%s'."),
+			UE_LOG(LogLearning, Error, TEXT("ValidateObservationObjectMatchesSchema: Observation '%s' type does not match Schema. Expected type '%s', got type '%s'."),
 				*ObservationSchemaElementTag.ToString(),
 				GetObservationTypeString(ObservationSchemaElementType),
 				GetObservationTypeString(ObservationObjectElementType));
@@ -116,7 +116,7 @@ namespace UE::Learning::Agents::Observation::Private
 
 			if (SchemaElementSize != ObjectElementSize)
 			{
-				UE_LOG(LogLearning, Error, TEXT("ValidateObjectMatchesSchema: Observation '%s' size does not match Schema. Expected '%i', got '%i'."),
+				UE_LOG(LogLearning, Error, TEXT("ValidateObservationObjectMatchesSchema: Observation '%s' size does not match Schema. Expected '%i', got '%i'."),
 					*ObservationSchemaElementTag.ToString(),
 					SchemaElementSize,
 					ObjectElementSize);
@@ -135,7 +135,7 @@ namespace UE::Learning::Agents::Observation::Private
 
 			if (SchemaParameters.Elements.Num() != ObjectParameters.Elements.Num())
 			{
-				UE_LOG(LogLearning, Error, TEXT("ValidateObjectMatchesSchema: Observation '%s' number of sub-elements does not match Schema. Expected '%i', got '%i'."),
+				UE_LOG(LogLearning, Error, TEXT("ValidateObservationObjectMatchesSchema: Observation '%s' number of sub-elements does not match Schema. Expected '%i', got '%i'."),
 					*ObservationSchemaElementTag.ToString(),
 					SchemaParameters.Elements.Num(),
 					ObjectParameters.Elements.Num());
@@ -148,13 +148,13 @@ namespace UE::Learning::Agents::Observation::Private
 
 				if (ObjectElementIdx == INDEX_NONE)
 				{
-					UE_LOG(LogLearning, Error, TEXT("ValidateObjectMatchesSchema: Observation '%s' does not include '%s' observation required by Schema."),
+					UE_LOG(LogLearning, Error, TEXT("ValidateObservationObjectMatchesSchema: Observation '%s' does not include '%s' observation required by Schema."),
 						*ObservationSchemaElementTag.ToString(),
 						*SchemaParameters.ElementNames[SchemaElementIdx].ToString());
 					return false;
 				}
 
-				if (!ValidateObjectMatchesSchema(
+				if (!ValidateObservationObjectMatchesSchema(
 					Schema,
 					SchemaParameters.Elements[SchemaElementIdx],
 					Object,
@@ -177,13 +177,13 @@ namespace UE::Learning::Agents::Observation::Private
 
 			if (SchemaSubElementIdx == INDEX_NONE)
 			{
-				UE_LOG(LogLearning, Error, TEXT("ValidateObjectMatchesSchema: Observation '%s' Schema does not include '%s' observation."),
+				UE_LOG(LogLearning, Error, TEXT("ValidateObservationObjectMatchesSchema: Observation '%s' Schema does not include '%s' observation."),
 					*ObservationSchemaElementTag.ToString(),
 					*ObjectParameters.ElementName.ToString());
 				return false;
 			}
 
-			return ValidateObjectMatchesSchema(
+			return ValidateObservationObjectMatchesSchema(
 				Schema,
 				SchemaParameters.Elements[SchemaSubElementIdx],
 				Object,
@@ -197,7 +197,7 @@ namespace UE::Learning::Agents::Observation::Private
 
 			if (ObjectParameters.Elements.Num() > SchemaParameters.Elements.Num())
 			{
-				UE_LOG(LogLearning, Error, TEXT("ValidateObjectMatchesSchema: Observation '%s' too many sub-observations provided. Expected at most '%i', got '%i'."),
+				UE_LOG(LogLearning, Error, TEXT("ValidateObservationObjectMatchesSchema: Observation '%s' too many sub-observations provided. Expected at most '%i', got '%i'."),
 					*ObservationSchemaElementTag.ToString(),
 					SchemaParameters.Elements.Num(),
 					ObjectParameters.Elements.Num());
@@ -210,13 +210,13 @@ namespace UE::Learning::Agents::Observation::Private
 
 				if (SchemaSubElementIdx == INDEX_NONE)
 				{
-					UE_LOG(LogLearning, Error, TEXT("ValidateObjectMatchesSchema: Observation '%s' Schema does not include '%s' observation."),
+					UE_LOG(LogLearning, Error, TEXT("ValidateObservationObjectMatchesSchema: Observation '%s' Schema does not include '%s' observation."),
 						*ObservationSchemaElementTag.ToString(),
 						*ObjectParameters.ElementNames[ObjectSubElementIdx].ToString());
 					return false;
 				}
 
-				if (!ValidateObjectMatchesSchema(
+				if (!ValidateObservationObjectMatchesSchema(
 					Schema,
 					SchemaParameters.Elements[SchemaSubElementIdx],
 					Object,
@@ -236,7 +236,7 @@ namespace UE::Learning::Agents::Observation::Private
 
 			if (ObjectParameters.Elements.Num() != SchemaParameters.Num)
 			{
-				UE_LOG(LogLearning, Error, TEXT("ValidateObjectMatchesSchema: Observation '%s' array incorrect size. Expected '%i' elements, got '%i'."),
+				UE_LOG(LogLearning, Error, TEXT("ValidateObservationObjectMatchesSchema: Observation '%s' array incorrect size. Expected '%i' elements, got '%i'."),
 					*ObservationSchemaElementTag.ToString(),
 					SchemaParameters.Num,
 					ObjectParameters.Elements.Num());
@@ -245,7 +245,7 @@ namespace UE::Learning::Agents::Observation::Private
 
 			for (int32 ElementIdx = 0; ElementIdx < ObjectParameters.Elements.Num(); ElementIdx++)
 			{
-				if (!ValidateObjectMatchesSchema(
+				if (!ValidateObservationObjectMatchesSchema(
 					Schema,
 					SchemaParameters.Element,
 					Object,
@@ -265,7 +265,7 @@ namespace UE::Learning::Agents::Observation::Private
 
 			if (ObjectParameters.Elements.Num() > SchemaParameters.MaxNum)
 			{
-				UE_LOG(LogLearning, Error, TEXT("ValidateObjectMatchesSchema: Observation '%s' set too large. Expected at most '%i' elements, got '%i'."),
+				UE_LOG(LogLearning, Error, TEXT("ValidateObservationObjectMatchesSchema: Observation '%s' set too large. Expected at most '%i' elements, got '%i'."),
 					*ObservationSchemaElementTag.ToString(),
 					SchemaParameters.MaxNum,
 					ObjectParameters.Elements.Num());
@@ -274,7 +274,7 @@ namespace UE::Learning::Agents::Observation::Private
 
 			for (int32 ElementIdx = 0; ElementIdx < ObjectParameters.Elements.Num(); ElementIdx++)
 			{
-				if (!ValidateObjectMatchesSchema(
+				if (!ValidateObservationObjectMatchesSchema(
 					Schema,
 					SchemaParameters.Element,
 					Object,
@@ -292,7 +292,7 @@ namespace UE::Learning::Agents::Observation::Private
 			const Learning::Observation::FSchemaEncodingParameters SchemaParameters = Schema.GetEncoding(SchemaElement);
 			const Learning::Observation::FObjectEncodingParameters ObjectParameters = Object.GetEncoding(ObjectElement);
 
-			return ValidateObjectMatchesSchema(
+			return ValidateObservationObjectMatchesSchema(
 				Schema,
 				SchemaParameters.Element,
 				Object,
@@ -455,7 +455,7 @@ UEnum* ULearningAgentsObservations::FindEnumByName(const FString& Name)
 	return FindObject<UEnum>(nullptr, *Name);
 }
 
-bool ULearningAgentsObservations::ValidateObjectMatchesSchema(
+bool ULearningAgentsObservations::ValidateObservationObjectMatchesSchema(
 	const ULearningAgentsObservationSchema* Schema,
 	const FLearningAgentsObservationSchemaElement SchemaElement,
 	const ULearningAgentsObservationObject* Object,
@@ -463,17 +463,17 @@ bool ULearningAgentsObservations::ValidateObjectMatchesSchema(
 {
 	if (!Schema)
 	{
-		UE_LOG(LogLearning, Error, TEXT("ValidateObjectMatchesSchema: Schema is nullptr."));
+		UE_LOG(LogLearning, Error, TEXT("ValidateObservationObjectMatchesSchema: Schema is nullptr."));
 		return false;
 	}
 
 	if (!Object)
 	{
-		UE_LOG(LogLearning, Error, TEXT("ValidateObjectMatchesSchema: Object is nullptr."));
+		UE_LOG(LogLearning, Error, TEXT("ValidateObservationObjectMatchesSchema: Object is nullptr."));
 		return false;
 	}
 
-	return UE::Learning::Agents::Observation::Private::ValidateObjectMatchesSchema(
+	return UE::Learning::Agents::Observation::Private::ValidateObservationObjectMatchesSchema(
 		Schema->ObservationSchema,
 		SchemaElement.SchemaElement,
 		Object->ObservationObject,
@@ -2094,15 +2094,15 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservations::MakeTransfo
 		const FRotator LocalRotation = LocalTransform.Rotator();
 		const FVector LocalScale = LocalTransform.GetScale3D();
 
-		UE_LEARNING_AGENTS_VLOG_TRANSFORM(VisualLoggerObject, LogLearning, Display,
-			LocalLocation,
-			LocalRotation,
-			VisualLoggerColor.ToFColor(true),
-			TEXT(""));
-
 		const FVector Location = Transform.GetLocation();
 		const FRotator Rotation = Transform.Rotator();
 		const FVector Scale = Transform.GetScale3D();
+
+		UE_LEARNING_AGENTS_VLOG_TRANSFORM(VisualLoggerObject, LogLearning, Display,
+			Location,
+			Rotation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
 
 		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
 			VisualLoggerColor.ToFColor(true),

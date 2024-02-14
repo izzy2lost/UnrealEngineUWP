@@ -55,7 +55,7 @@ namespace UE::Learning::Agents::Action::Private
 		}
 	}
 
-	static bool ValidateObjectMatchesSchema(
+	static bool ValidateActionObjectMatchesSchema(
 		const Learning::Action::FSchema& Schema,
 		const Learning::Action::FSchemaElement SchemaElement,
 		const Learning::Action::FObject& Object,
@@ -65,13 +65,13 @@ namespace UE::Learning::Agents::Action::Private
 
 		if (!Schema.IsValid(SchemaElement))
 		{
-			UE_LOG(LogLearning, Error, TEXT("ValidateObjectMatchesSchema: Invalid Action Schema Element."));
+			UE_LOG(LogLearning, Error, TEXT("ValidateActionObjectMatchesSchema: Invalid Action Schema Element."));
 			return false;
 		}
 
 		if (!Object.IsValid(ObjectElement))
 		{
-			UE_LOG(LogLearning, Error, TEXT("ValidateObjectMatchesSchema: Invalid Action Object Element."));
+			UE_LOG(LogLearning, Error, TEXT("ValidateActionObjectMatchesSchema: Invalid Action Object Element."));
 			return false;
 		}
 
@@ -82,7 +82,7 @@ namespace UE::Learning::Agents::Action::Private
 
 		if (ActionSchemaElementTag != ActionObjectElementTag)
 		{
-			UE_LOG(LogLearning, Warning, TEXT("ValidateObjectMatchesSchema: Action tag does not match Schema. Expected '%s', got '%s'."),
+			UE_LOG(LogLearning, Warning, TEXT("ValidateActionObjectMatchesSchema: Action tag does not match Schema. Expected '%s', got '%s'."),
 				*ActionSchemaElementTag.ToString(), *ActionObjectElementTag.ToString());
 		}
 
@@ -93,7 +93,7 @@ namespace UE::Learning::Agents::Action::Private
 
 		if (ActionSchemaElementType != ActionObjectElementType)
 		{
-			UE_LOG(LogLearning, Error, TEXT("ValidateObjectMatchesSchema: Action '%s' type does not match Schema. Expected type '%s', got type '%s'."),
+			UE_LOG(LogLearning, Error, TEXT("ValidateActionObjectMatchesSchema: Action '%s' type does not match Schema. Expected type '%s', got type '%s'."),
 				*ActionSchemaElementTag.ToString(),
 				GetActionTypeString(ActionSchemaElementType),
 				GetActionTypeString(ActionObjectElementType));
@@ -113,7 +113,7 @@ namespace UE::Learning::Agents::Action::Private
 
 			if (SchemaElementSize != ObjectElementSize)
 			{
-				UE_LOG(LogLearning, Error, TEXT("ValidateObjectMatchesSchema: Action '%s' size does not match Schema. Expected '%i', got '%i'."),
+				UE_LOG(LogLearning, Error, TEXT("ValidateActionObjectMatchesSchema: Action '%s' size does not match Schema. Expected '%i', got '%i'."),
 					*ActionSchemaElementTag.ToString(),
 					SchemaElementSize,
 					ObjectElementSize);
@@ -130,7 +130,7 @@ namespace UE::Learning::Agents::Action::Private
 
 			if (ObjectElementIndex < 0 || ObjectElementIndex >= SchemaElementSize)
 			{
-				UE_LOG(LogLearning, Error, TEXT("ValidateObjectMatchesSchema: Action '%s' index out of range for Schema. Expected '<%i', got '%i'."),
+				UE_LOG(LogLearning, Error, TEXT("ValidateActionObjectMatchesSchema: Action '%s' index out of range for Schema. Expected '<%i', got '%i'."),
 					*ActionSchemaElementTag.ToString(),
 					SchemaElementSize,
 					ObjectElementIndex);
@@ -147,7 +147,7 @@ namespace UE::Learning::Agents::Action::Private
 
 			if (ObjectElementIndices.Num() > SchemaElementSize)
 			{
-				UE_LOG(LogLearning, Error, TEXT("ValidateObjectMatchesSchema: Action '%s' too many indices provided. Expected at most '%i', got '%i'."),
+				UE_LOG(LogLearning, Error, TEXT("ValidateActionObjectMatchesSchema: Action '%s' too many indices provided. Expected at most '%i', got '%i'."),
 					*ActionSchemaElementTag.ToString(),
 					SchemaElementSize,
 					ObjectElementIndices.Num());
@@ -158,7 +158,7 @@ namespace UE::Learning::Agents::Action::Private
 			{
 				if (ObjectElementIndices[SubElementIdx] < 0 || ObjectElementIndices[SubElementIdx] >= SchemaElementSize)
 				{
-					UE_LOG(LogLearning, Error, TEXT("ValidateObjectMatchesSchema: Action '%s' index out of range for Schema. Expected '<%i', got '%i'."),
+					UE_LOG(LogLearning, Error, TEXT("ValidateActionObjectMatchesSchema: Action '%s' index out of range for Schema. Expected '<%i', got '%i'."),
 						*ActionSchemaElementTag.ToString(),
 						SchemaElementSize,
 						ObjectElementIndices[SubElementIdx]);
@@ -178,7 +178,7 @@ namespace UE::Learning::Agents::Action::Private
 
 			if (SchemaParameters.Elements.Num() != ObjectParameters.Elements.Num())
 			{
-				UE_LOG(LogLearning, Error, TEXT("ValidateObjectMatchesSchema: Action '%s' number of sub-elements does not match Schema. Expected '%i', got '%i'."),
+				UE_LOG(LogLearning, Error, TEXT("ValidateActionObjectMatchesSchema: Action '%s' number of sub-elements does not match Schema. Expected '%i', got '%i'."),
 					*ActionSchemaElementTag.ToString(),
 					SchemaParameters.Elements.Num(),
 					ObjectParameters.Elements.Num());
@@ -191,13 +191,13 @@ namespace UE::Learning::Agents::Action::Private
 
 				if (ObjectElementIdx == INDEX_NONE)
 				{
-					UE_LOG(LogLearning, Error, TEXT("ValidateObjectMatchesSchema: Action '%s' does not include '%s' action required by Schema."),
+					UE_LOG(LogLearning, Error, TEXT("ValidateActionObjectMatchesSchema: Action '%s' does not include '%s' action required by Schema."),
 						*ActionSchemaElementTag.ToString(),
 						*SchemaParameters.ElementNames[SchemaElementIdx].ToString());
 					return false;
 				}
 
-				if (!ValidateObjectMatchesSchema(
+				if (!ValidateActionObjectMatchesSchema(
 					Schema,
 					SchemaParameters.Elements[SchemaElementIdx],
 					Object,
@@ -220,13 +220,13 @@ namespace UE::Learning::Agents::Action::Private
 
 			if (SchemaSubElementIdx == INDEX_NONE)
 			{
-				UE_LOG(LogLearning, Error, TEXT("ValidateObjectMatchesSchema: Action '%s' Schema does not include '%s' action."),
+				UE_LOG(LogLearning, Error, TEXT("ValidateActionObjectMatchesSchema: Action '%s' Schema does not include '%s' action."),
 					*ActionSchemaElementTag.ToString(),
 					*ObjectParameters.ElementName.ToString());
 				return false;
 			}
 
-			return ValidateObjectMatchesSchema(
+			return ValidateActionObjectMatchesSchema(
 				Schema,
 				SchemaParameters.Elements[SchemaSubElementIdx],
 				Object,
@@ -240,7 +240,7 @@ namespace UE::Learning::Agents::Action::Private
 
 			if (ObjectParameters.Elements.Num() > SchemaParameters.Elements.Num())
 			{
-				UE_LOG(LogLearning, Error, TEXT("ValidateObjectMatchesSchema: Action '%s' too many sub-actions provided. Expected at most '%i', got '%i'."),
+				UE_LOG(LogLearning, Error, TEXT("ValidateActionObjectMatchesSchema: Action '%s' too many sub-actions provided. Expected at most '%i', got '%i'."),
 					*ActionSchemaElementTag.ToString(),
 					SchemaParameters.Elements.Num(),
 					ObjectParameters.Elements.Num());
@@ -253,13 +253,13 @@ namespace UE::Learning::Agents::Action::Private
 
 				if (SchemaSubElementIdx == INDEX_NONE)
 				{
-					UE_LOG(LogLearning, Error, TEXT("ValidateObjectMatchesSchema: Action '%s' Schema does not include '%s' action."),
+					UE_LOG(LogLearning, Error, TEXT("ValidateActionObjectMatchesSchema: Action '%s' Schema does not include '%s' action."),
 						*ActionSchemaElementTag.ToString(),
 						*ObjectParameters.ElementNames[ObjectSubElementIdx].ToString());
 					return false;
 				}
 
-				if (!ValidateObjectMatchesSchema(
+				if (!ValidateActionObjectMatchesSchema(
 					Schema,
 					SchemaParameters.Elements[SchemaSubElementIdx],
 					Object,
@@ -279,7 +279,7 @@ namespace UE::Learning::Agents::Action::Private
 
 			if (ObjectParameters.Elements.Num() != SchemaParameters.Num)
 			{
-				UE_LOG(LogLearning, Error, TEXT("ValidateObjectMatchesSchema: Action '%s' array incorrect size. Expected '%i' elements, got '%i'."),
+				UE_LOG(LogLearning, Error, TEXT("ValidateActionObjectMatchesSchema: Action '%s' array incorrect size. Expected '%i' elements, got '%i'."),
 					*ActionSchemaElementTag.ToString(),
 					SchemaParameters.Num,
 					ObjectParameters.Elements.Num());
@@ -288,7 +288,7 @@ namespace UE::Learning::Agents::Action::Private
 
 			for (int32 ElementIdx = 0; ElementIdx < ObjectParameters.Elements.Num(); ElementIdx++)
 			{
-				if (!ValidateObjectMatchesSchema(
+				if (!ValidateActionObjectMatchesSchema(
 					Schema,
 					SchemaParameters.Element,
 					Object,
@@ -306,7 +306,7 @@ namespace UE::Learning::Agents::Action::Private
 			const Learning::Action::FSchemaEncodingParameters SchemaParameters = Schema.GetEncoding(SchemaElement);
 			const Learning::Action::FObjectEncodingParameters ObjectParameters = Object.GetEncoding(ObjectElement);
 
-			return ValidateObjectMatchesSchema(
+			return ValidateActionObjectMatchesSchema(
 					Schema,
 					SchemaParameters.Element,
 					Object,
@@ -502,7 +502,7 @@ namespace UE::Learning::Agents::Action::Private
 	}
 }
 
-bool ULearningAgentsActions::ValidateObjectMatchesSchema(
+bool ULearningAgentsActions::ValidateActionObjectMatchesSchema(
 	const ULearningAgentsActionSchema* Schema,
 	const FLearningAgentsActionSchemaElement SchemaElement,
 	const ULearningAgentsActionObject* Object,
@@ -510,17 +510,17 @@ bool ULearningAgentsActions::ValidateObjectMatchesSchema(
 {
 	if (!Schema)
 	{
-		UE_LOG(LogLearning, Error, TEXT("ValidateObjectMatchesSchema: Schema is nullptr."));
+		UE_LOG(LogLearning, Error, TEXT("ValidateActionObjectMatchesSchema: Schema is nullptr."));
 		return false;
 	}
 
 	if (!Object)
 	{
-		UE_LOG(LogLearning, Error, TEXT("ValidateObjectMatchesSchema: Object is nullptr."));
+		UE_LOG(LogLearning, Error, TEXT("ValidateActionObjectMatchesSchema: Object is nullptr."));
 		return false;
 	}
 
-	return UE::Learning::Agents::Action::Private::ValidateObjectMatchesSchema(
+	return UE::Learning::Agents::Action::Private::ValidateActionObjectMatchesSchema(
 		Schema->ActionSchema,
 		SchemaElement.SchemaElement,
 		Object->ActionObject,
@@ -1152,12 +1152,6 @@ FLearningAgentsActionSchemaElement ULearningAgentsActions::SpecifyDirectionActio
 	return SpecifyContinuousAction(Schema, 3, Tag);
 }
 
-FLearningAgentsActionSchemaElement ULearningAgentsActions::SpecifySpeedAction(ULearningAgentsActionSchema* Schema, const FName Tag)
-{
-	return SpecifyContinuousAction(Schema, 1, Tag);
-}
-
-
 void ULearningAgentsActions::LogAction(const ULearningAgentsActionObject* Object, const FLearningAgentsActionObjectElement Element)
 {
 	if (!Object)
@@ -1637,11 +1631,6 @@ FLearningAgentsActionObjectElement ULearningAgentsActions::MakeDirectionAction(U
 		}, Tag);
 }
 
-FLearningAgentsActionObjectElement ULearningAgentsActions::MakeSpeedAction(ULearningAgentsActionObject* Object, const float Speed, const float SpeedScale, const FName Tag)
-{
-	return MakeContinuousActionFromArrayView(Object, { Speed / FMath::Max(SpeedScale, UE_SMALL_NUMBER) });
-}
-
 bool ULearningAgentsActions::GetNullAction(const ULearningAgentsActionObject* Object, const FLearningAgentsActionObjectElement Element, const FName Tag)
 {
 	if (!Object)
@@ -1708,7 +1697,16 @@ bool ULearningAgentsActions::GetContinuousActionNum(int32& OutNum, const ULearni
 	return true;
 }
 
-bool ULearningAgentsActions::GetContinuousAction(TArray<float>& OutValues, const ULearningAgentsActionObject* Object, const FLearningAgentsActionObjectElement Element, const FName Tag)
+bool ULearningAgentsActions::GetContinuousAction(
+	TArray<float>& OutValues, 
+	const ULearningAgentsActionObject* Object, 
+	const FLearningAgentsActionObjectElement Element, 
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	int32 OutValueNum = 0;
 	if (!GetContinuousActionNum(OutValueNum, Object, Element, Tag))
@@ -1719,7 +1717,7 @@ bool ULearningAgentsActions::GetContinuousAction(TArray<float>& OutValues, const
 
 	OutValues.SetNumUninitialized(OutValueNum);
 
-	if (!GetContinuousActionToArrayView(OutValues, Object, Element, Tag))
+	if (!GetContinuousActionToArrayView(OutValues, Object, Element, Tag, bVisualLoggerEnabled, VisualLoggerListener, VisualLoggerAgentId, VisualLoggerLocation, VisualLoggerColor))
 	{
 		OutValues.Empty();
 		return false;
@@ -1728,7 +1726,16 @@ bool ULearningAgentsActions::GetContinuousAction(TArray<float>& OutValues, const
 	return true;
 }
 
-bool ULearningAgentsActions::GetContinuousActionToArrayView(TArrayView<float> OutValues, const ULearningAgentsActionObject* Object, const FLearningAgentsActionObjectElement Element, const FName Tag)
+bool ULearningAgentsActions::GetContinuousActionToArrayView(
+	TArrayView<float> OutValues, 
+	const ULearningAgentsActionObject* Object, 
+	const FLearningAgentsActionObjectElement Element, 
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	if (!Object)
 	{
@@ -1771,10 +1778,36 @@ bool ULearningAgentsActions::GetContinuousActionToArrayView(TArrayView<float> Ou
 	}
 
 	UE::Learning::Array::Copy<1, float>(OutValues, Values);
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
+	{
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nEncoded: %s\nValues: %s"),
+			*VisualLoggerListener->GetName(),
+			*Tag.ToString(),
+			VisualLoggerAgentId,
+			*UE::Learning::Array::FormatFloat(OutValues),
+			*UE::Learning::Array::FormatFloat(OutValues)); // Encoded is identical to provided values
+	}
+#endif
+
 	return true;
 }
 
-bool ULearningAgentsActions::GetExclusiveDiscreteAction(int32& OutIndex, const ULearningAgentsActionObject* Object, const FLearningAgentsActionObjectElement Element, const FName Tag)
+bool ULearningAgentsActions::GetExclusiveDiscreteAction(
+	int32& OutIndex, 
+	const ULearningAgentsActionObject* Object, 
+	const FLearningAgentsActionObjectElement Element, 
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	if (!Object)
 	{
@@ -1806,6 +1839,22 @@ bool ULearningAgentsActions::GetExclusiveDiscreteAction(int32& OutIndex, const U
 	}
 
 	OutIndex = Object->ActionObject.GetDiscreteExclusive(Element.ObjectElement).DiscreteIndex;
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
+	{
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nIndex: [%i]"),
+			*VisualLoggerListener->GetName(),
+			*Tag.ToString(),
+			VisualLoggerAgentId,
+			OutIndex);
+	}
+#endif
+
 	return true;
 }
 
@@ -1844,7 +1893,16 @@ bool ULearningAgentsActions::GetInclusiveDiscreteActionNum(int32& OutNum, const 
 	return true;
 }
 
-bool ULearningAgentsActions::GetInclusiveDiscreteAction(TArray<int32>& OutIndices, const ULearningAgentsActionObject* Object, const FLearningAgentsActionObjectElement Element, const FName Tag)
+bool ULearningAgentsActions::GetInclusiveDiscreteAction(
+	TArray<int32>& OutIndices, 
+	const ULearningAgentsActionObject* Object, 
+	const FLearningAgentsActionObjectElement Element, 
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	int32 OutIndexNum = 0;
 	if (!GetInclusiveDiscreteActionNum(OutIndexNum, Object, Element, Tag))
@@ -1855,7 +1913,7 @@ bool ULearningAgentsActions::GetInclusiveDiscreteAction(TArray<int32>& OutIndice
 
 	OutIndices.SetNumUninitialized(OutIndexNum);
 
-	if (!GetInclusiveDiscreteActionToArrayView(OutIndices, Object, Element, Tag))
+	if (!GetInclusiveDiscreteActionToArrayView(OutIndices, Object, Element, Tag, bVisualLoggerEnabled, VisualLoggerListener, VisualLoggerAgentId, VisualLoggerLocation, VisualLoggerColor))
 	{
 		OutIndices.Empty();
 		return false;
@@ -1864,7 +1922,16 @@ bool ULearningAgentsActions::GetInclusiveDiscreteAction(TArray<int32>& OutIndice
 	return true;
 }
 
-bool ULearningAgentsActions::GetInclusiveDiscreteActionToArrayView(TArrayView<int32> OutIndices, const ULearningAgentsActionObject* Object, const FLearningAgentsActionObjectElement Element, const FName Tag)
+bool ULearningAgentsActions::GetInclusiveDiscreteActionToArrayView(
+	TArrayView<int32> OutIndices,
+	const ULearningAgentsActionObject* Object, 
+	const FLearningAgentsActionObjectElement Element, 
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	if (!Object)
 	{
@@ -1907,6 +1974,22 @@ bool ULearningAgentsActions::GetInclusiveDiscreteActionToArrayView(TArrayView<in
 	}
 
 	UE::Learning::Array::Copy<1, int32>(OutIndices, Indices);
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
+	{
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nIndices: %s"),
+			*VisualLoggerListener->GetName(),
+			*Tag.ToString(),
+			VisualLoggerAgentId,
+			*UE::Learning::Array::FormatInt32(OutIndices, 256));
+	}
+#endif
+
 	return true;
 }
 
@@ -2393,7 +2476,17 @@ bool ULearningAgentsActions::GetPairAction(FLearningAgentsActionObjectElement& O
 	return true;
 }
 
-bool ULearningAgentsActions::GetEnumAction(uint8& OutEnumValue, const ULearningAgentsActionObject* Object, const FLearningAgentsActionObjectElement Element, const UEnum* Enum, const FName Tag)
+bool ULearningAgentsActions::GetEnumAction(
+	uint8& OutEnumValue, 
+	const ULearningAgentsActionObject* Object, 
+	const FLearningAgentsActionObjectElement Element, 
+	const UEnum* Enum, 
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	if (!Enum)
 	{
@@ -2426,10 +2519,40 @@ bool ULearningAgentsActions::GetEnumAction(uint8& OutEnumValue, const ULearningA
 	}
 
 	OutEnumValue = (uint8)EnumValue;
+
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
+	{
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nEnum: %s\nSize: [%i]\nValue: [%s]\nIndex: [%i]"),
+			*VisualLoggerListener->GetName(),
+			*Tag.ToString(),
+			VisualLoggerAgentId,
+			*Enum->GetName(),
+			Enum->NumEnums() - 1,
+			*Enum->GetDisplayNameTextByValue(OutEnumValue).ToString(),
+			OutIndex);
+	}
+#endif
+
 	return true;
 }
 
-bool ULearningAgentsActions::GetBitmaskAction(int32& OutBitmaskValue, const ULearningAgentsActionObject* Object, const FLearningAgentsActionObjectElement Element, const UEnum* Enum, const FName Tag)
+bool ULearningAgentsActions::GetBitmaskAction(
+	int32& OutBitmaskValue, 
+	const ULearningAgentsActionObject* Object, 
+	const FLearningAgentsActionObjectElement Element, 
+	const UEnum* Enum, 
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	if (!Enum)
 	{
@@ -2472,6 +2595,40 @@ bool ULearningAgentsActions::GetBitmaskAction(int32& OutBitmaskValue, const ULea
 	{
 		OutBitmaskValue |= (1 << OutIndex);
 	}
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
+	{
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+
+		FString ValuesString;
+		FString IndicesString;
+
+		for (int32 EnumIdx = 0; EnumIdx < Enum->NumEnums() - 1; EnumIdx++)
+		{
+			if (OutBitmaskValue & (1 << EnumIdx))
+			{
+				ValuesString += Enum->GetDisplayNameTextByIndex(EnumIdx).ToString() + TEXT(" ");
+				IndicesString += FString::FromInt(EnumIdx) + TEXT(" ");
+			}
+		}
+
+		ValuesString = ValuesString.TrimEnd();
+		IndicesString = IndicesString.TrimEnd();
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nEnum: %s\nSize: [%i]\nValues: [%s]\nIndices: [%s]"),
+			*VisualLoggerListener->GetName(),
+			*Tag.ToString(),
+			VisualLoggerAgentId,
+			*Enum->GetName(),
+			Enum->NumEnums() - 1,
+			*ValuesString,
+			*IndicesString);
+	}
+#endif
+
 	return true;
 }
 
@@ -2537,7 +2694,16 @@ bool ULearningAgentsActions::GetEncodingAction(FLearningAgentsActionObjectElemen
 	return true;
 }
 
-bool ULearningAgentsActions::GetBoolAction(bool& bOutValue, const ULearningAgentsActionObject* Object, const FLearningAgentsActionObjectElement Element, const FName Tag)
+bool ULearningAgentsActions::GetBoolAction(
+	bool& bOutValue, 
+	const ULearningAgentsActionObject* Object, 
+	const FLearningAgentsActionObjectElement Element, 
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	int32 OutIndex = 0;
 	if (!GetExclusiveDiscreteAction(OutIndex, Object, Element, Tag))
@@ -2547,6 +2713,22 @@ bool ULearningAgentsActions::GetBoolAction(bool& bOutValue, const ULearningAgent
 	}
 
 	bOutValue = OutIndex == 1;
+	
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
+	{
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nValue: [%s]"),
+			*VisualLoggerListener->GetName(),
+			*Tag.ToString(),
+			VisualLoggerAgentId,
+			bOutValue ? TEXT("true") : TEXT("false"));
+	}
+#endif
+	
 	return true;
 }
 
@@ -2591,7 +2773,18 @@ bool ULearningAgentsActions::GetFloatAction(
 	return true;
 }
 
-bool ULearningAgentsActions::GetLocationAction(FVector& OutLocation, const ULearningAgentsActionObject* Object, const FLearningAgentsActionObjectElement Element, const FTransform RelativeTransform, const float LocationScale, const FName Tag)
+bool ULearningAgentsActions::GetLocationAction(
+	FVector& OutLocation, 
+	const ULearningAgentsActionObject* Object, 
+	const FLearningAgentsActionObjectElement Element, 
+	const FTransform RelativeTransform, 
+	const float LocationScale, 
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	TStaticArray<float, 3> OutValues;
 	if (!GetContinuousActionToArrayView(OutValues, Object, Element, Tag))
@@ -2602,13 +2795,62 @@ bool ULearningAgentsActions::GetLocationAction(FVector& OutLocation, const ULear
 
 	const FVector LocalLocation = LocationScale * FVector(OutValues[0], OutValues[1], OutValues[2]);
 	OutLocation = RelativeTransform.TransformPosition(LocalLocation);
+	
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
+	{
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+
+		UE_LEARNING_AGENTS_VLOG_LOCATION(VisualLoggerObject, LogLearning, Display,
+			OutLocation,
+			10,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_SEGMENT(VisualLoggerObject, LogLearning, Display,
+			RelativeTransform.GetTranslation(),
+			OutLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_TRANSFORM(VisualLoggerObject, LogLearning, Display,
+			RelativeTransform.GetTranslation(),
+			RelativeTransform.GetRotation(),
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nEncoded: [% 6.2f % 6.2f % 6.2f]\nScale: [% 6.2f]\nLocal Location: [% 6.1f % 6.1f % 6.1f]\nLocation: [% 6.1f % 6.1f % 6.1f]"),
+			*VisualLoggerListener->GetName(),
+			*Tag.ToString(),
+			VisualLoggerAgentId,
+			OutValues[0], OutValues[1], OutValues[2],
+			LocationScale,
+			LocalLocation.X, LocalLocation.Y, LocalLocation.Z,
+			OutLocation.X, OutLocation.Y, OutLocation.Z);
+	}
+#endif
+	
 	return true;
 }
 
-bool ULearningAgentsActions::GetRotationAction(FRotator& OutRotation, const ULearningAgentsActionObject* Object, const FLearningAgentsActionObjectElement Element, const FRotator RelativeRotation, const float RotationScale, const FName Tag)
+bool ULearningAgentsActions::GetRotationAction(
+	FRotator& OutRotation, 
+	const ULearningAgentsActionObject* Object, 
+	const FLearningAgentsActionObjectElement Element, 
+	const FRotator RelativeRotation, 
+	const float RotationScale, 
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerRotationLocation,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	FQuat OutRotationQuat;
-	if (!GetRotationActionAsQuat(OutRotationQuat, Object, Element, FQuat::MakeFromRotator(RelativeRotation), RotationScale, Tag))
+	if (!GetRotationActionAsQuat(OutRotationQuat, Object, Element, FQuat::MakeFromRotator(RelativeRotation), RotationScale, Tag, bVisualLoggerEnabled, VisualLoggerListener, VisualLoggerAgentId, VisualLoggerRotationLocation, VisualLoggerLocation, VisualLoggerColor))
 	{
 		OutRotation = FRotator::ZeroRotator;
 		return false;
@@ -2618,7 +2860,19 @@ bool ULearningAgentsActions::GetRotationAction(FRotator& OutRotation, const ULea
 	return true;
 }
 
-bool ULearningAgentsActions::GetRotationActionAsQuat(FQuat& OutRotation, const ULearningAgentsActionObject* Object, const FLearningAgentsActionObjectElement Element, const FQuat RelativeRotation, const float RotationScale, const FName Tag)
+bool ULearningAgentsActions::GetRotationActionAsQuat(
+	FQuat& OutRotation, 
+	const ULearningAgentsActionObject* Object, 
+	const FLearningAgentsActionObjectElement Element, 
+	const FQuat RelativeRotation, 
+	const float RotationScale, 
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerRotationLocation,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	TStaticArray<float, 3> OutValues;
 	if (!GetContinuousActionToArrayView(OutValues, Object, Element, Tag))
@@ -2628,11 +2882,49 @@ bool ULearningAgentsActions::GetRotationActionAsQuat(FQuat& OutRotation, const U
 	}
 
 	const FVector LocalRotationVector = FMath::DegreesToRadians(RotationScale) * FVector(OutValues[0], OutValues[1], OutValues[2]);
-	OutRotation = RelativeRotation * FQuat::MakeFromRotationVector(LocalRotationVector);
+	const FQuat LocalRotation = FQuat::MakeFromRotationVector(LocalRotationVector);
+	OutRotation = RelativeRotation * LocalRotation;
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
+	{
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+
+		UE_LEARNING_AGENTS_VLOG_TRANSFORM(VisualLoggerObject, LogLearning, Display,
+			VisualLoggerRotationLocation,
+			LocalRotation.Rotator(),
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nEncoded: [% 6.2f % 6.2f % 6.2f]\nScale: [% 6.2f]\nLocal Rotation Vector: [% 6.1f % 6.1f % 6.1f]\nLocal Rotation: [% 6.1f % 6.1f % 6.1f % 6.1f]\nRotation: [% 6.1f % 6.1f % 6.1f % 6.1f]"),
+			*VisualLoggerListener->GetName(),
+			*Tag.ToString(),
+			VisualLoggerAgentId,
+			OutValues[0], OutValues[1], OutValues[2],
+			RotationScale,
+			LocalRotationVector.X, LocalRotationVector.Y, LocalRotationVector.Z,
+			LocalRotation.X, LocalRotation.Y, LocalRotation.Z, LocalRotation.W,
+			OutRotation.X, OutRotation.Y, OutRotation.Z, OutRotation.W);
+	}
+#endif
+
 	return true;
 }
 
-bool ULearningAgentsActions::GetScaleAction(FVector& OutScale, const ULearningAgentsActionObject* Object, const FLearningAgentsActionObjectElement Element, const FVector RelativeScale, const float Scale, const FName Tag)
+bool ULearningAgentsActions::GetScaleAction(
+	FVector& OutScale, 
+	const ULearningAgentsActionObject* Object, 
+	const FLearningAgentsActionObjectElement Element, 
+	const FVector RelativeScale, 
+	const float Scale, 
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	TStaticArray<float, 3> OutValues;
 	if (!GetContinuousActionToArrayView(OutValues, Object, Element, Tag))
@@ -2643,10 +2935,42 @@ bool ULearningAgentsActions::GetScaleAction(FVector& OutScale, const ULearningAg
 
 	const FVector LocalScaleVector = UE::Learning::Agents::Action::Private::VectorExp(Scale * FVector(OutValues[0], OutValues[1], OutValues[2]));
 	OutScale = RelativeScale * LocalScaleVector;
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
+	{
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nEncoded: [% 6.2f % 6.2f % 6.2f]\nScale: [% 6.2f]\nLocal Scale: [% 6.1f % 6.1f % 6.1f]\nScale: [% 6.1f % 6.1f % 6.1f]"),
+			*VisualLoggerListener->GetName(),
+			*Tag.ToString(),
+			VisualLoggerAgentId,
+			OutValues[0], OutValues[1], OutValues[2],
+			Scale,
+			LocalScaleVector.X, LocalScaleVector.Y, LocalScaleVector.Z,
+			OutScale.X, OutScale.Y, OutScale.Z);
+	}
+#endif
+
 	return true;
 }
 
-bool ULearningAgentsActions::GetTransformAction(FTransform& OutTransform, const ULearningAgentsActionObject* Object, const FLearningAgentsActionObjectElement Element, const FTransform RelativeTransform, const float LocationScale, const float RotationScale, const float ScaleScale, const FName Tag)
+bool ULearningAgentsActions::GetTransformAction(
+	FTransform& OutTransform, 
+	const ULearningAgentsActionObject* Object, 
+	const FLearningAgentsActionObjectElement Element, 
+	const FTransform RelativeTransform, 
+	const float LocationScale, 
+	const float RotationScale, 
+	const float ScaleScale, 
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	TStaticArray<FName, 3> OutElementNames;
 	TStaticArray<FLearningAgentsActionObjectElement, 3> OutElements;
@@ -2678,36 +3002,126 @@ bool ULearningAgentsActions::GetTransformAction(FTransform& OutTransform, const 
 	}
 
 	OutTransform = FTransform(OutRotation, OutLocation, OutScale);
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
+	{
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+
+		UE_LEARNING_AGENTS_VLOG_TRANSFORM(VisualLoggerObject, LogLearning, Display,
+			OutLocation,
+			OutRotation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nLocation Scale: [% 6.1f]\nRotation Scale: [% 6.1f]\nScale Scale: [% 6.1f]\nLocation: [% 6.1f % 6.1f % 6.1f]\nRotation: [% 6.1f % 6.1f % 6.1f % 6.1f]\nScale: [% 6.1f % 6.1f % 6.1f]"),
+			*VisualLoggerListener->GetName(),
+			*Tag.ToString(),
+			VisualLoggerAgentId,
+			LocationScale,
+			RotationScale,
+			ScaleScale,
+			OutLocation.X, OutLocation.Y, OutLocation.Z,
+			OutRotation.X, OutRotation.Y, OutRotation.Z, OutRotation.W,
+			OutScale.X, OutScale.Y, OutScale.Z);
+	}
+#endif
+
 	return true;
 }
 
-bool ULearningAgentsActions::GetAngleAction(float& OutAngle, const ULearningAgentsActionObject* Object, const FLearningAgentsActionObjectElement Element, const float RelativeAngle, const float AngleScale, const FName Tag)
+bool ULearningAgentsActions::GetAngleAction(
+	float& OutAngle, 
+	const ULearningAgentsActionObject* Object, 
+	const FLearningAgentsActionObjectElement Element, 
+	const float RelativeAngle, 
+	const float AngleScale, 
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerAngleLocation,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
-	if (GetAngleActionRadians(OutAngle, Object, Element, FMath::DegreesToRadians(RelativeAngle), FMath::DegreesToRadians(AngleScale), Tag))
-	{
-		OutAngle = FMath::RadiansToDegrees(OutAngle);
-		return true;
-	}
-	else
+	float OutValue = 0.0f;
+	if (!GetContinuousActionToArrayView(MakeArrayView(&OutValue, 1), Object, Element, Tag))
 	{
 		OutAngle = 0.0f;
 		return false;
 	}
+
+	const float LocalAngle = AngleScale * OutValue;
+	OutAngle = RelativeAngle + LocalAngle;
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
+	{
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+
+		UE_LEARNING_AGENTS_VLOG_ANGLE_DEGREES(VisualLoggerObject, LogLearning, Display,
+			OutAngle,
+			0.0f,
+			VisualLoggerAngleLocation,
+			10.0f,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nEncoded: [% 6.2f]\nScale: [% 6.2f]\nLocal Angle: [% 6.1f]\nAngle: [% 6.1f]"),
+			*VisualLoggerListener->GetName(),
+			*Tag.ToString(),
+			VisualLoggerAgentId,
+			OutValue,
+			AngleScale,
+			LocalAngle,
+			OutAngle);
+	}
+#endif
+
+	return true;
 }
 
-bool ULearningAgentsActions::GetAngleActionRadians(float& OutAngle, const ULearningAgentsActionObject* Object, const FLearningAgentsActionObjectElement Element, const float RelativeAngle, const float AngleScale, const FName Tag)
+bool ULearningAgentsActions::GetAngleActionRadians(
+	float& OutAngle, 
+	const ULearningAgentsActionObject* Object, 
+	const FLearningAgentsActionObjectElement Element, 
+	const float RelativeAngle, 
+	const float AngleScale, 
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerAngleLocation,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
-	if (!GetContinuousActionToArrayView(MakeArrayView(&OutAngle, 1), Object, Element, Tag))
+	if (!GetAngleAction(OutAngle, Object, Element, FMath::RadiansToDegrees(RelativeAngle), FMath::RadiansToDegrees(AngleScale), Tag, bVisualLoggerEnabled, VisualLoggerListener, VisualLoggerAgentId, VisualLoggerAngleLocation, VisualLoggerLocation, VisualLoggerColor))
 	{
 		OutAngle = 0.0f;
 		return false;
 	}
 
-	OutAngle = RelativeAngle + AngleScale * OutAngle;
+	OutAngle = FMath::DegreesToRadians(OutAngle);
 	return true;
 }
 
-bool ULearningAgentsActions::GetVelocityAction(FVector& OutVelocity, const ULearningAgentsActionObject* Object, const FLearningAgentsActionObjectElement Element, const FTransform RelativeTransform, const float VelocityScale, const FName Tag)
+bool ULearningAgentsActions::GetVelocityAction(
+	FVector& OutVelocity, 
+	const ULearningAgentsActionObject* Object, 
+	const FLearningAgentsActionObjectElement Element, 
+	const FTransform RelativeTransform, 
+	const float VelocityScale, 
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerVelocityLocation,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	TStaticArray<float, 3> OutValues;
 	if (!GetContinuousActionToArrayView(OutValues, Object, Element, Tag))
@@ -2716,11 +3130,55 @@ bool ULearningAgentsActions::GetVelocityAction(FVector& OutVelocity, const ULear
 		return false;
 	}
 
-	OutVelocity = RelativeTransform.TransformVector(VelocityScale * FVector(OutValues[0], OutValues[1], OutValues[2]));
+	const FVector LocalVelocity = VelocityScale * FVector(OutValues[0], OutValues[1], OutValues[2]);
+	OutVelocity = RelativeTransform.TransformVector(LocalVelocity);
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
+	{
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+
+		UE_LEARNING_AGENTS_VLOG_ARROW(VisualLoggerObject, LogLearning, Display,
+			VisualLoggerVelocityLocation,
+			VisualLoggerVelocityLocation + OutVelocity,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_TRANSFORM(VisualLoggerObject, LogLearning, Display,
+			RelativeTransform.GetTranslation(),
+			RelativeTransform.GetRotation(),
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nEncoded: [% 6.2f % 6.2f % 6.2f]\nScale: [% 6.2f]\nLocal Velocity: [% 6.1f % 6.1f % 6.1f]\nVelocity: [% 6.1f % 6.1f % 6.1f]"),
+			*VisualLoggerListener->GetName(),
+			*Tag.ToString(),
+			VisualLoggerAgentId,
+			OutValues[0], OutValues[1], OutValues[2],
+			VelocityScale,
+			LocalVelocity.X, LocalVelocity.Y, LocalVelocity.Z,
+			OutVelocity.X, OutVelocity.Y, OutVelocity.Z);
+	}
+#endif
+
 	return true;
 }
 
-bool ULearningAgentsActions::GetDirectionAction(FVector& OutDirection, const ULearningAgentsActionObject* Object, const FLearningAgentsActionObjectElement Element, const FTransform RelativeTransform, const FName Tag)
+bool ULearningAgentsActions::GetDirectionAction(
+	FVector& OutDirection, 
+	const ULearningAgentsActionObject* Object, 
+	const FLearningAgentsActionObjectElement Element, 
+	const FTransform RelativeTransform, 
+	const FName Tag,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerDirectionLocation,
+	const FVector VisualLoggerLocation,
+	const float VisualLoggerArrowLength,
+	const FLinearColor VisualLoggerColor)
 {
 	TStaticArray<float, 3> OutValues;
 	if (!GetContinuousActionToArrayView(OutValues, Object, Element, Tag))
@@ -2729,18 +3187,37 @@ bool ULearningAgentsActions::GetDirectionAction(FVector& OutDirection, const ULe
 		return false;
 	}
 
-	OutDirection = RelativeTransform.TransformVectorNoScale(FVector(OutValues[0], OutValues[1], OutValues[2]).GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector));
-	return true;
-}
+	const FVector LocalDirection = FVector(OutValues[0], OutValues[1], OutValues[2]).GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
+	OutDirection = RelativeTransform.TransformVectorNoScale(LocalDirection);
 
-bool ULearningAgentsActions::GetSpeedAction(float& OutSpeed, const ULearningAgentsActionObject* Object, const FLearningAgentsActionObjectElement Element, const float SpeedScale, const FName Tag)
-{
-	if (!GetContinuousActionToArrayView(MakeArrayView(&OutSpeed, 1), Object, Element, Tag))
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
 	{
-		OutSpeed = 0.0f;
-		return false;
-	}
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
 
-	OutSpeed = SpeedScale * OutSpeed;
+		UE_LEARNING_AGENTS_VLOG_ARROW(VisualLoggerObject, LogLearning, Display,
+			VisualLoggerDirectionLocation,
+			VisualLoggerDirectionLocation + VisualLoggerArrowLength * OutDirection,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_TRANSFORM(VisualLoggerObject, LogLearning, Display,
+			RelativeTransform.GetTranslation(),
+			RelativeTransform.GetRotation(),
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nEncoded: [% 6.2f % 6.2f % 6.2f]\nLocal Direction: [% 6.1f % 6.1f % 6.1f]\nDirection: [% 6.1f % 6.1f % 6.1f]"),
+			*VisualLoggerListener->GetName(),
+			*Tag.ToString(),
+			VisualLoggerAgentId,
+			OutValues[0], OutValues[1], OutValues[2],
+			LocalDirection.X, LocalDirection.Y, LocalDirection.Z,
+			OutDirection.X, OutDirection.Y, OutDirection.Z);
+	}
+#endif
+
 	return true;
 }
