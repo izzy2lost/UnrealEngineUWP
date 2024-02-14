@@ -42,7 +42,7 @@ struct HARMONIXMIDI_API FSectionMap
 
 public:
 	FSectionMap()
-		: TicksPerQuarterNote(MidiConstants::kTicksPerQuarterNoteInt)
+		: TicksPerQuarterNote(Harmonix::Midi::Constants::GTicksPerQuarterNoteInt)
 	{}
 	friend bool operator==(const FSectionMap& Left, const FSectionMap& Right);
 

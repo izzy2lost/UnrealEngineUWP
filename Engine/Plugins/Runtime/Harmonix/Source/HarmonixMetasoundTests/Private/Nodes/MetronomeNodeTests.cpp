@@ -112,11 +112,11 @@ namespace HarmonixMetasoundTests::MetronomeNode
 				return false;
 			}
 
-			float DefaultTicksPerSec = 120.0f * MidiConstants::kTicksPerQuarterNote / 60.0f;
+			float DefaultTicksPerSec = 120.0f * Harmonix::Midi::Constants::GTicksPerQuarterNote / 60.0f;
 			float DefaultTicksPerMs = DefaultTicksPerSec / 1000.0f;
 
 			// do some math to figure out how fast the clock should be advancing...
-			float TicksPerSec = Params.Tempo * MidiConstants::kTicksPerQuarterNote / 60.0f;
+			float TicksPerSec = Params.Tempo * Harmonix::Midi::Constants::GTicksPerQuarterNote / 60.0f;
 			float TicksPerMs = TicksPerSec / 1000.0f;
 			float SecsPerBlock = Params.NumSamplesPerBlock / Params.SampleRate;
 			float TicksPerBlock = TicksPerSec * SecsPerBlock;

@@ -19,7 +19,7 @@
 class HARMONIXMIDI_API FMidiWriter
 {
 public:
-	FMidiWriter(FArchive& OutputArhive, int32 TicksPerQuarterNote = MidiConstants::kTicksPerQuarterNoteInt);
+	FMidiWriter(FArchive& OutputArhive, int32 TicksPerQuarterNote = Harmonix::Midi::Constants::GTicksPerQuarterNoteInt);
 	~FMidiWriter();
 
 	/** Flushes data to file; also called by dtor */

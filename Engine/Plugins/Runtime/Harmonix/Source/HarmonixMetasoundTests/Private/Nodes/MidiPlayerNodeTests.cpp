@@ -174,12 +174,12 @@ namespace HarmonixMetasoundTests::MidiPlayerNode
 			TOptional<FMidiClockReadRef> MidiPlayerClockOut = Generator->GetOutputReadReference<FMidiClock>(NodeNames::MidiPlayer::ClockOut);
 
 
-			float DefaultTicksPerSec = 120.0f * MidiConstants::kTicksPerQuarterNote / 60.0f;
+			float DefaultTicksPerSec = 120.0f * Harmonix::Midi::Constants::GTicksPerQuarterNote / 60.0f;
 			float DefaultTicksPerMs = DefaultTicksPerSec / 1000.0f;
 
 			// do some math to figure out how fast the clock should be advancing...
 			float Tempo = Params.MidiPlayer.MidiFile ? Params.MidiPlayer.MidiFile->SongMaps.GetTempoAtTick(0) : 120.0f;
-			float TicksPerSec = Tempo * MidiConstants::kTicksPerQuarterNote / 60.0f;
+			float TicksPerSec = Tempo * Harmonix::Midi::Constants::GTicksPerQuarterNote / 60.0f;
 			float TicksPerMs = TicksPerSec / 1000.0f;
 			float SecsPerBlock = Params.NumSamplesPerBlock / Params.SampleRate;
 			float TicksPerBlock = TicksPerSec * SecsPerBlock;
@@ -263,7 +263,7 @@ namespace HarmonixMetasoundTests::MidiPlayerNode
 
 			// add tempo info
 			float TempoBpm = FMath::Max(1.0f, InTempoBpm);
-			int32 MidiTempo = MidiConstants::BPMToMidiTempo(TempoBpm);
+			int32 MidiTempo = Harmonix::Midi::Constants::BPMToMidiTempo(TempoBpm);
 			Track.AddEvent(FMidiEvent(0, FMidiMsg(MidiTempo)));
 			TempoMap.AddTempoInfoPoint(MidiTempo, 0);
 

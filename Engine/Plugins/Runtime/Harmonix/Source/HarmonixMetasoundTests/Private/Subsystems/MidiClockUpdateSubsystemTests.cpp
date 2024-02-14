@@ -25,7 +25,7 @@ namespace HarmonixMetasoundTests::MidiClockUpdateSubsystem
 			MidiData->Tracks[0].AddEvent(FMidiEvent(0, FMidiMsg(static_cast<uint8>(TimeSigNum), static_cast<uint8>(TimeSigDenom))));
 			FBarMap& BarMap = MidiData->SongMaps.GetBarMap();
 			BarMap.AddTimeSignatureAtBarIncludingCountIn(0, TimeSigNum, TimeSigDenom);
-			const int32 MidiTempo = MidiConstants::BPMToMidiTempo(Tempo);
+			const int32 MidiTempo = Harmonix::Midi::Constants::BPMToMidiTempo(Tempo);
 			MidiData->Tracks[0].AddEvent(FMidiEvent(0, FMidiMsg(MidiTempo)));
 			FTempoMap& TempoMap = MidiData->SongMaps.GetTempoMap();
 			TempoMap.AddTempoInfoPoint(MidiTempo, 0);

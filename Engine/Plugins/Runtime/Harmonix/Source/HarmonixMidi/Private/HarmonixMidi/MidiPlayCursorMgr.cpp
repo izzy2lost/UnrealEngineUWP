@@ -25,7 +25,7 @@ FMidiPlayCursorMgr::FMidiPlayCursorMgr()
 	, CurrentAdvanceRate(1.f)
 {
 	// setup the default tempo map to have one entry...
-	DefaultMaps.GetTempoMap().AddTempoInfoPoint(MidiConstants::BPMToMidiTempo(120.0f), 0);
+	DefaultMaps.GetTempoMap().AddTempoInfoPoint(Harmonix::Midi::Constants::BPMToMidiTempo(120.0f), 0);
 	DefaultMaps.GetBarMap().AddTimeSignatureAtBarIncludingCountIn(0, 4, 4);
 }
 

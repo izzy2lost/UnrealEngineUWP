@@ -126,7 +126,7 @@ void FFusionSampler::VoicePoolWillDestruct(const FFusionVoicePool* InPool)
 void FFusionSampler::NoteOn(FMidiVoiceId InVoiceId, int8 InMidiNoteNumber, int8 InVelocity, int8 InMidiChannel, int32 InEventTick, int32 InCurrentTick, float InOffsetMs)
 {
 	// we ignore InMidiChannel because this is a single channel instrument!
-	if (InMidiNoteNumber > MidiConstants::kMaxNote)
+	if (InMidiNoteNumber > Harmonix::Midi::Constants::GMaxNote)
 	{
 		return;
 	}
@@ -154,7 +154,7 @@ void FFusionSampler::NoteOn(FMidiVoiceId InVoiceId, int8 InMidiNoteNumber, int8 
 void FFusionSampler::NoteOnWithFrameOffset(FMidiVoiceId InVoiceId, int8 InMidiNoteNumber, int8 InVelocity, int8 InMidiChannel, int32 InNumFrames)
 {
 	// we ignore InMidiChannel because this is a single channel instrument!
-	if (InMidiNoteNumber > MidiConstants::kMaxNote)
+	if (InMidiNoteNumber > Harmonix::Midi::Constants::GMaxNote)
 	{
 		return;
 	}
@@ -281,7 +281,7 @@ void FFusionSampler::ResetNoteActions(bool ClearNotes)
 void FFusionSampler::ResetNoteStatus()
 {
 	FScopeLock Lock(&GetBusLock());
-	for (int32 NoteIdx = 0; NoteIdx < MidiConstants::kMaxNumNotes; ++NoteIdx)
+	for (int32 NoteIdx = 0; NoteIdx < Harmonix::Midi::Constants::GMaxNumNotes; ++NoteIdx)
 	{
 		NoteStatus[NoteIdx].KeyedOn = false;
 		NoteStatus[NoteIdx].NumActiveVoices = 0;
@@ -399,7 +399,7 @@ int32 FFusionSampler::GatherMatchingKeyzones(uint8 TransposedNote, uint8 InVeloc
 
 int32 FFusionSampler::StartNote(FMidiVoiceId InVoiceId, uint8 InMidiNoteNumber, uint8 InVelocity, bool IsNoteOn, int32 InEventTick, int32 InTriggerTick, float InOffsetMs)
 {
-	check(InMidiNoteNumber <= MidiConstants::kMaxNote);
+	check(InMidiNoteNumber <= Harmonix::Midi::Constants::GMaxNote);
 
 	if (VoicePool == nullptr)
 	{
@@ -855,9 +855,9 @@ void FFusionSampler::ResetPatchRelatedState()
 	SetPortamentoMode(EPortamentoMode::Legato);
 	SetPortamentoTime(Defaults::kPortamentoTimeMs / 1000.0f);
 
-	FMemory::Memset(LastStartLayerSelect, -1, sizeof(int8) * MidiConstants::kMaxNumNotes);
-	FMemory::Memset(LastStopLayerSelect, -1, sizeof(int8) * MidiConstants::kMaxNumNotes);
-	FMemory::Memset(LastVelocity, 0, sizeof(int8) * MidiConstants::kMaxNumNotes);
+	FMemory::Memset(LastStartLayerSelect, -1, sizeof(int8) * Harmonix::Midi::Constants::GMaxNumNotes);
+	FMemory::Memset(LastStopLayerSelect, -1, sizeof(int8) * Harmonix::Midi::Constants::GMaxNumNotes);
+	FMemory::Memset(LastVelocity, 0, sizeof(int8) * Harmonix::Midi::Constants::GMaxNumNotes);
 
 	TimeStretchEnvelopeOverride = -1;
 
@@ -1255,7 +1255,7 @@ void FFusionSampler::Process(uint32 InSliceIdx, uint32 InSubSliceIdx, TAudioBuff
 	}
 }
 
-void FFusionSampler::GetController(MidiConstants::EControllerID InController, int8& Msb, int8& Lsb, int8 InMidiChannel) const
+void FFusionSampler::GetController(Harmonix::Midi::Constants::EControllerID InController, int8& Msb, int8& Lsb, int8 InMidiChannel) const
 {
 	// we ignore InMidiChannel because this is a single channel instrument!
 
@@ -1269,33 +1269,36 @@ void FFusionSampler::GetController(MidiConstants::EControllerID InController, in
 	Lsb = 0; // default case.
 
 	float ValueP;
+
+	using namespace Harmonix::Midi::Constants;
+	
 	switch (InController)
 	{
-	case MidiConstants::EControllerID::BankSelection:
+	case EControllerID::BankSelection:
 	{
 		break;
 	}
 
-	case MidiConstants::EControllerID::Volume:
+	case EControllerID::Volume:
 	{
 		float Exp = HarmonixDsp::DBToMidiLinear(MidiChannelVolume);
 		Msb = (int8)(Exp * 127.0f);
 		break;
 	}
 
-	case MidiConstants::EControllerID::Expression:
+	case EControllerID::Expression:
 	{
 		float Exp = HarmonixDsp::LinearToDB(ExpressionGain);
 		Exp = HarmonixDsp::DBToMidiLinear(Exp);
 		Msb = (int8)(Exp * 127.0f);
 		break;
 	}
-	case MidiConstants::EControllerID::PanRight:
+	case EControllerID::PanRight:
 	{
 		Msb = (int8)((PanSettings.Detail.Pan + 1.0f) * 64.0f);
 		break;
 	}
-	case MidiConstants::EControllerID::Release:
+	case EControllerID::Release:
 	{
 		Min = 0.005f;
 		Max = 2.000f;
@@ -1306,7 +1309,7 @@ void FFusionSampler::GetController(MidiConstants::EControllerID InController, in
 		break;
 	}
 
-	case MidiConstants::EControllerID::Attack:
+	case EControllerID::Attack:
 	{
 		Min = 0.005f;
 		Max = 2.000f;
@@ -1317,136 +1320,136 @@ void FFusionSampler::GetController(MidiConstants::EControllerID InController, in
 		break;
 	}
 
-	case MidiConstants::EControllerID::PortamentoSwitch:
+	case EControllerID::PortamentoSwitch:
 	{
 		Msb = GetIsPortamentoEnabled() ? 127 : 0;
 		break;
 	}
 
-	case MidiConstants::EControllerID::PortamentoTime:
+	case EControllerID::PortamentoTime:
 	{
 		Msb = (int8)(gPortamentoTimeInterp.InverseClamped(PortamentoTimeMs) * 127.0f);
 		break;
 	}
 
-	case MidiConstants::EControllerID::FilterFrequency:
+	case EControllerID::FilterFrequency:
 	{
 		Msb = (int8)(gFreqInterp.InverseClamped(FilterSettings.Freq) * 127.0f);
 		break;
 	}
 
-	case MidiConstants::EControllerID::FilterQ:
+	case EControllerID::FilterQ:
 	{
 		Msb = (int8)(gFilterQInterp.InverseClamped(FilterSettings.Q) * 127.0f);
 		break;
 	}
 
-	case MidiConstants::EControllerID::CoarsePitchBend:
+	case EControllerID::CoarsePitchBend:
 	{
 		Msb = (int8)(GetPitchBend() * 127.0f);
 		break;
 	}
 
-	case MidiConstants::EControllerID::SampleStartTime:
+	case EControllerID::SampleStartTime:
 	{
 		Msb = (int8)(gStartPointTimeInterp.InverseClamped(GetStartPointMs()) * 127.0f);
 		break;
 	}
 
-	case MidiConstants::EControllerID::LFO0Frequency:
-	case MidiConstants::EControllerID::LFO1Frequency:
+	case EControllerID::LFO0Frequency:
+	case EControllerID::LFO1Frequency:
 	{
-		int32 LfoIdx = (InController == MidiConstants::EControllerID::LFO1Frequency);
+		int32 LfoIdx = (InController == EControllerID::LFO1Frequency);
 
 		float Freq = LfoSettings[LfoIdx].Freq;
 		Msb = (int8)(gLfoFreqInterp.InverseClamped(Freq) * 127.0f);
 		break;
 	}
 
-	case MidiConstants::EControllerID::LFO0Depth:
-	case MidiConstants::EControllerID::LFO1Depth:
+	case EControllerID::LFO0Depth:
+	case EControllerID::LFO1Depth:
 	{
-		int32 LfoIdx = (InController == MidiConstants::EControllerID::LFO1Depth);
+		int32 LfoIdx = (InController == EControllerID::LFO1Depth);
 
 		Msb = (int8)(LfoSettings[LfoIdx].Depth * 127.0f);
 		break;
 	}
 
-	case MidiConstants::EControllerID::BitCrushWetMix:
+	case EControllerID::BitCrushWetMix:
 	{
 		break;
 	}
 
-	case MidiConstants::EControllerID::BitCrushLevel:
+	case EControllerID::BitCrushLevel:
 	{
 		break;
 	}
 
-	case MidiConstants::EControllerID::BitCrushSampleHold:
+	case EControllerID::BitCrushSampleHold:
 	{
 		break;
 	}
 
-	case MidiConstants::EControllerID::DelayTime:
+	case EControllerID::DelayTime:
 	{
 		break;
 	}
 
-	case MidiConstants::EControllerID::DelayDryGain:
+	case EControllerID::DelayDryGain:
 	{
 		break;
 	}
 
-	case MidiConstants::EControllerID::DelayWetGain:
+	case EControllerID::DelayWetGain:
 	{
 		break;
 	}
 
-	case MidiConstants::EControllerID::DelayFeedback:
+	case EControllerID::DelayFeedback:
 	{
 		break;
 	}
-	case MidiConstants::EControllerID::DelayEQEnabled:
+	case EControllerID::DelayEQEnabled:
 	{
 		break;
 	}
-	case MidiConstants::EControllerID::DelayEQType:
+	case EControllerID::DelayEQType:
 	{
 		break;
 	}
-	case MidiConstants::EControllerID::DelayEQFreq:
+	case EControllerID::DelayEQFreq:
 	{
 		break;
 	}
-	case MidiConstants::EControllerID::DelayEQQ:
+	case EControllerID::DelayEQQ:
 	{
 		break;
 	}
-	case MidiConstants::EControllerID::DelayLFOEnabled:
+	case EControllerID::DelayLFOEnabled:
 	{
 		break;
 	}
-	case MidiConstants::EControllerID::DelayLFOBeatSync:
+	case EControllerID::DelayLFOBeatSync:
 	{
 		break;
 	}
-	case MidiConstants::EControllerID::DelayLFORate:
+	case EControllerID::DelayLFORate:
 	{
 		break;
 	}
-	case MidiConstants::EControllerID::DelayLFODepth:
+	case EControllerID::DelayLFODepth:
 	{
 		break;
 	}
-	case MidiConstants::EControllerID::DelayStereoType:
+	case EControllerID::DelayStereoType:
 	{
 		break;
 	}
-	case MidiConstants::EControllerID::DelayPanLeft:
+	case EControllerID::DelayPanLeft:
 	{
 		break;
 	}
-	case MidiConstants::EControllerID::DelayPanRight:
+	case EControllerID::DelayPanRight:
 	{
 	}
 	default:
@@ -1454,81 +1457,83 @@ void FFusionSampler::GetController(MidiConstants::EControllerID InController, in
 	}
 }
 
-void FFusionSampler::SetController(MidiConstants::EControllerID InController, float InValue)
+void FFusionSampler::SetController(Harmonix::Midi::Constants::EControllerID InController, float InValue)
 {
 	FScopeLock Lock(&GetBusLock());
 	// we ignore InMidiChannel because this is a single channel instrument!
 
+	using namespace Harmonix::Midi::Constants;
+
 	switch (InController)
 	{
-	case MidiConstants::EControllerID::BankSelection: 
+	case EControllerID::BankSelection: 
 	{
 		// swap out the fusion patch with the new desired patch
 
 		// ApplyPatchSettings(); 
 		break;
 	}
-	case MidiConstants::EControllerID::Volume: 
+	case EControllerID::Volume: 
 	{ 
 		SetMidiChannelVolume(InValue); 
 		break;
 	}
-	case MidiConstants::EControllerID::Expression: 
+	case EControllerID::Expression: 
 	{ 
 		SetMidiExpressionGain(InValue); 
 		break;
 	}
-	case MidiConstants::EControllerID::PanRight: 
+	case EControllerID::PanRight: 
 	{ 
 		PanSettings.Detail.Pan = InValue; 
 		break; 
 	}
-	case MidiConstants::EControllerID::Release: 
+	case EControllerID::Release: 
 	{ 
 		AdsrVolumeSettings.ReleaseTime = InValue; 
 		AdsrVolumeSettings.BuildReleaseTable(); 
 		break; 
 	}
-	case MidiConstants::EControllerID::Attack: 
+	case EControllerID::Attack: 
 	{ 
 		AdsrVolumeSettings.AttackTime = InValue; 
 		AdsrVolumeSettings.BuildAttackTable(); 
 		break; 
 	}
-	case MidiConstants::EControllerID::PortamentoSwitch: 
+	case EControllerID::PortamentoSwitch: 
 	{ 
 		SetIsPortamentoEnabled(InValue > 0.0f); 
 		break; 
 	}
-	case MidiConstants::EControllerID::PortamentoTime: 
+	case EControllerID::PortamentoTime: 
 	{ 
 		SetPortamentoTime(gPortamentoTimeInterp.EvalClamped(InValue) / 1000);
 		break; 
 	}
-	case MidiConstants::EControllerID::FilterFrequency: 
+	case EControllerID::FilterFrequency: 
 	{ 
 		FilterSettings.Freq = gFreqInterp.EvalClamped(InValue); 
 		break; 
 	}
-	case MidiConstants::EControllerID::FilterQ: 
+	case EControllerID::FilterQ: 
 	{ 
 		FilterSettings.Q = gFilterQInterp.EvalClamped(InValue); 
 		break; 
 	}
-	case MidiConstants::EControllerID::CoarsePitchBend: 
+	case EControllerID::CoarsePitchBend: 
 	{ 
 		SetPitchBend(InValue); 
 		break; 
 	}
-	case MidiConstants::EControllerID::SampleStartTime: 
+	case EControllerID::SampleStartTime: 
 	{ 
 		SetStartPointMs(gStartPointTimeInterp.EvalClamped(InValue));
 		break; 
 	}
-	case MidiConstants::EControllerID::LFO0Frequency:
-	case MidiConstants::EControllerID::LFO1Frequency: 
+	case EControllerID::LFO0Frequency:
+	case EControllerID::LFO1Frequency: 
 	{ 
-		int32 LfoIdx = (InController == MidiConstants::EControllerID::LFO1Frequency);
+		int32 LfoIdx = (InController == EControllerID::LFO1Frequency);
 
 		if (LfoSettings[LfoIdx].Freq != InValue)
 		{
@@ -1538,10 +1543,10 @@ void FFusionSampler::SetController(MidiConstants::EControllerID InController, fl
 		}
 		break; 
 	}
-	case MidiConstants::EControllerID::LFO0Depth:
-	case MidiConstants::EControllerID::LFO1Depth: 
+	case EControllerID::LFO0Depth:
+	case EControllerID::LFO1Depth: 
 	{ 
-		int32 LfoIdx = (InController == MidiConstants::EControllerID::LFO1Depth);
+		int32 LfoIdx = (InController == EControllerID::LFO1Depth);
 		if (LfoSettings[LfoIdx].Depth != InValue)
 		{
 			LfoSettings[LfoIdx].Depth = InValue;
@@ -1550,120 +1555,120 @@ void FFusionSampler::SetController(MidiConstants::EControllerID InController, fl
 		}
 		break; 
 	}
-	case MidiConstants::EControllerID::BitCrushWetMix: 
+	case EControllerID::BitCrushWetMix: 
 	{
 		break; 
 	}
-	case MidiConstants::EControllerID::BitCrushLevel: 
+	case EControllerID::BitCrushLevel: 
 	{
 		break; 
 	}
-	case MidiConstants::EControllerID::BitCrushSampleHold: 
+	case EControllerID::BitCrushSampleHold: 
 	{
 		break; 
 	}
-	case MidiConstants::EControllerID::DelayTime: 
+	case EControllerID::DelayTime: 
 	{
 		break; 
 	}
-	case MidiConstants::EControllerID::DelayDryGain: 
+	case EControllerID::DelayDryGain: 
 	{
 		break; 
 	}
-	case MidiConstants::EControllerID::DelayWetGain: 
+	case EControllerID::DelayWetGain: 
 	{
 		break; 
 	}
-	case MidiConstants::EControllerID::DelayFeedback: 
+	case EControllerID::DelayFeedback: 
 	{
 		break; 
 	}
-	case MidiConstants::EControllerID::DelayEQEnabled: 
+	case EControllerID::DelayEQEnabled: 
 	{
 		break; 
 	}
-	case MidiConstants::EControllerID::DelayEQType: 
+	case EControllerID::DelayEQType: 
 	{
 		break; 
 	}
-	case MidiConstants::EControllerID::DelayEQFreq: 
+	case EControllerID::DelayEQFreq: 
 	{
 		break; 
 	}
-	case MidiConstants::EControllerID::DelayEQQ: 
+	case EControllerID::DelayEQQ: 
 	{
 		break; 
 	}
-	case MidiConstants::EControllerID::DelayLFOEnabled: 
+	case EControllerID::DelayLFOEnabled: 
 	{
 		break; 
 	}
-	case MidiConstants::EControllerID::DelayLFOBeatSync: 
+	case EControllerID::DelayLFOBeatSync: 
 	{
 		break; 
 	}
-	case MidiConstants::EControllerID::DelayLFORate: 
+	case EControllerID::DelayLFORate: 
 	{
 		break; 
 	}
-	case MidiConstants::EControllerID::DelayLFODepth: 
+	case EControllerID::DelayLFODepth: 
 	{
 		break; 
 	}
-	case MidiConstants::EControllerID::DelayStereoType: 
+	case EControllerID::DelayStereoType: 
 	{
 		break; 
 	}
-	case MidiConstants::EControllerID::DelayPanLeft: 
+	case EControllerID::DelayPanLeft: 
 	{
 		break; 
 	}
-	case MidiConstants::EControllerID::DelayPanRight: 
+	case EControllerID::DelayPanRight: 
 	{
 		break; 
 	}
-	case MidiConstants::EControllerID::TimeStretchEnvelopeOrder:
+	case EControllerID::TimeStretchEnvelopeOrder:
 	{
 		TimeStretchEnvelopeOverride = (int16)InValue;
 		UpdateVoicesForEnvelopeOrderChange();
 		break;
 	}
-	case MidiConstants::EControllerID::SubStreamVol1:
+	case EControllerID::SubStreamVol1:
 	{ 
 		SetSubstreamMidiGain(0, (int32)InValue); 
 		break; 
 	}
-	case MidiConstants::EControllerID::SubStreamVol2: 
+	case EControllerID::SubStreamVol2: 
 	{ 
 		SetSubstreamMidiGain(1, (int32)InValue); 
 		break; 
 	}
-	case MidiConstants::EControllerID::SubStreamVol3: 
+	case EControllerID::SubStreamVol3: 
 	{
 		SetSubstreamMidiGain(2, (int32)InValue); 
 		break;
 	}
-	case MidiConstants::EControllerID::SubStreamVol4: 
+	case EControllerID::SubStreamVol4: 
 	{
 		SetSubstreamMidiGain(3, (int32)InValue);
 		break; 
 	}
-	case MidiConstants::EControllerID::SubStreamVol5: 
+	case EControllerID::SubStreamVol5: 
 	{ 
 		SetSubstreamMidiGain(4, (int32)InValue); 
 		break;
 	}
-	case MidiConstants::EControllerID::SubStreamVol6:
+	case EControllerID::SubStreamVol6:
 	{ 
 		SetSubstreamMidiGain(5, (int32)InValue); 
 		break; 
 	}
-	case MidiConstants::EControllerID::SubStreamVol7: 
+	case EControllerID::SubStreamVol7: 
 	{ 
 		SetSubstreamMidiGain(6, (int32)InValue); 
 		break;
 	}
-	case MidiConstants::EControllerID::SubStreamVol8:
+	case EControllerID::SubStreamVol8:
 	{
 		SetSubstreamMidiGain(7, (int32)InValue); 
 		break; 
@@ -1673,7 +1678,7 @@ void FFusionSampler::SetController(MidiConstants::EControllerID InController, fl
 	}
 }
 
-void FFusionSampler::Set7BitControllerImpl(MidiConstants::EControllerID InController, int8 InValue, int8 InMidiChannel)
+void FFusionSampler::Set7BitControllerImpl(Harmonix::Midi::Constants::EControllerID InController, int8 InValue, int8 InMidiChannel)
 {
 	FScopeLock Lock(&GetBusLock());
 	// we ignore InMidiChannel because this is a single channel instrument!
@@ -1684,115 +1689,117 @@ void FFusionSampler::Set7BitControllerImpl(MidiConstants::EControllerID InContro
 
 	float ValueP = 0.0f;
 
+	using namespace Harmonix::Midi::Constants;
+
 	switch (InController)
 	{
-	case MidiConstants::EControllerID::BankSelection: 
+	case EControllerID::BankSelection: 
 	{ 
 		ValueP = (float)InValue; 
 		break; 
 	}
-	case MidiConstants::EControllerID::Volume: 
+	case EControllerID::Volume: 
 	{ 
 		ValueP = HarmonixDsp::MidiLinearToDB(InValue); 
 		break; 
 	}
-	case MidiConstants::EControllerID::Expression: 
+	case EControllerID::Expression: 
 	{ 
 		ValueP = HarmonixDsp::DBToLinear(HarmonixDsp::MidiLinearToDB(InValue)); 
 		break; 
 	}
-	case MidiConstants::EControllerID::PanRight: 
+	case EControllerID::PanRight: 
 	{ 
 		ValueP = ((float)InValue / 64.0f) - 1.0f; 
 		break; 
 	}
-	case MidiConstants::EControllerID::Release: 
+	case EControllerID::Release: 
 	{ 
 		Min = 0.005f; Max = 2.000f; Range = Max - Min;
 		ValueP = (float)InValue / 127.0f;
 		ValueP = ValueP * Range + Min; 
 		break; 
 	}
-	case MidiConstants::EControllerID::Attack: 
+	case EControllerID::Attack: 
 	{ 
 		Min = 0.005f; Max = 2.000f; Range = Max - Min;
 		ValueP = (float)InValue / 127.0f;
 		ValueP = ValueP * Range + Min; 
 		break; 
 	}
-	case MidiConstants::EControllerID::PortamentoSwitch: 
+	case EControllerID::PortamentoSwitch: 
 	{ 
 		ValueP = (InValue > 0) ? 1.0f : 0.0f; 
 		break; 
 	}
-	case MidiConstants::EControllerID::PortamentoTime:
-	case MidiConstants::EControllerID::FilterFrequency:
-	case MidiConstants::EControllerID::FilterQ:
-	case MidiConstants::EControllerID::CoarsePitchBend:
-	case MidiConstants::EControllerID::SampleStartTime: 
+	case EControllerID::PortamentoTime:
+	case EControllerID::FilterFrequency:
+	case EControllerID::FilterQ:
+	case EControllerID::CoarsePitchBend:
+	case EControllerID::SampleStartTime: 
 	{ 
 		ValueP = (float)InValue / 127.0f; 
 		break; 
 	}
-	case MidiConstants::EControllerID::LFO0Frequency:
-	case MidiConstants::EControllerID::LFO1Frequency: 
+	case EControllerID::LFO0Frequency:
+	case EControllerID::LFO1Frequency: 
 	{ 
 		ValueP = gLfoFreqInterp.EvalClamped((float)InValue / 127.0f); 
 		break; 
 	}
-	case MidiConstants::EControllerID::LFO0Depth:
-	case MidiConstants::EControllerID::LFO1Depth: 
+	case EControllerID::LFO0Depth:
+	case EControllerID::LFO1Depth: 
 	{ 
 		ValueP = (float)InValue / 127.0f; 
 		break; 
 	}
-	case MidiConstants::EControllerID::BitCrushWetMix:
+	case EControllerID::BitCrushWetMix:
 	{ 
 		ValueP = (float)InValue * 100.0f / 127.0f; 
 		break; 
 	}
-	case MidiConstants::EControllerID::BitCrushLevel: 
+	case EControllerID::BitCrushLevel: 
 	{ 
 		ValueP = (float)InValue * 15.0f / 127.0f; 
 		break; 
 	}
-	case MidiConstants::EControllerID::BitCrushSampleHold: 
+	case EControllerID::BitCrushSampleHold: 
 	{ 
 		ValueP = (1.5f + (((float)InValue / 127.0f) * 15));
 		break; 
 	}
-	case MidiConstants::EControllerID::DelayTime:
-	case MidiConstants::EControllerID::DelayDryGain:
-	case MidiConstants::EControllerID::DelayWetGain:
-	case MidiConstants::EControllerID::DelayEQEnabled:
-	case MidiConstants::EControllerID::DelayEQType:
-	case MidiConstants::EControllerID::DelayEQFreq:
-	case MidiConstants::EControllerID::DelayEQQ:
-	case MidiConstants::EControllerID::DelayLFOEnabled:
-	case MidiConstants::EControllerID::DelayLFOBeatSync:
-	case MidiConstants::EControllerID::DelayLFORate:
-	case MidiConstants::EControllerID::DelayLFODepth:
-	case MidiConstants::EControllerID::DelayStereoType:
-	case MidiConstants::EControllerID::DelayPanLeft:
-	case MidiConstants::EControllerID::DelayPanRight:
-	case MidiConstants::EControllerID::DelayFeedback: 
+	case EControllerID::DelayTime:
+	case EControllerID::DelayDryGain:
+	case EControllerID::DelayWetGain:
+	case EControllerID::DelayEQEnabled:
+	case EControllerID::DelayEQType:
+	case EControllerID::DelayEQFreq:
+	case EControllerID::DelayEQQ:
+	case EControllerID::DelayLFOEnabled:
+	case EControllerID::DelayLFOBeatSync:
+	case EControllerID::DelayLFORate:
+	case EControllerID::DelayLFODepth:
+	case EControllerID::DelayStereoType:
+	case EControllerID::DelayPanLeft:
+	case EControllerID::DelayPanRight:
+	case EControllerID::DelayFeedback: 
 	{ 
 		ValueP = (float)InValue / 127.0f; 
 		break; 
 	}
-	case MidiConstants::EControllerID::TimeStretchEnvelopeOrder: 
+	case EControllerID::TimeStretchEnvelopeOrder: 
 	{ 
 		ValueP = (float)InValue; 
 		break; 
 	}
-	case MidiConstants::EControllerID::SubStreamVol1:
-	case MidiConstants::EControllerID::SubStreamVol2:
-	case MidiConstants::EControllerID::SubStreamVol3:
-	case MidiConstants::EControllerID::SubStreamVol4:
-	case MidiConstants::EControllerID::SubStreamVol5:
-	case MidiConstants::EControllerID::SubStreamVol6:
-	case MidiConstants::EControllerID::SubStreamVol7:
-	case MidiConstants::EControllerID::SubStreamVol8: 
+	case EControllerID::SubStreamVol1:
+	case EControllerID::SubStreamVol2:
+	case EControllerID::SubStreamVol3:
+	case EControllerID::SubStreamVol4:
+	case EControllerID::SubStreamVol5:
+	case EControllerID::SubStreamVol6:
+	case EControllerID::SubStreamVol7:
+	case EControllerID::SubStreamVol8: 
 	{ 
 		ValueP = (float)InValue; 
 		break; 
@@ -1802,7 +1809,7 @@ void FFusionSampler::Set7BitControllerImpl(MidiConstants::EControllerID InContro
 	SetController(InController, ValueP);
 }
 
-void FFusionSampler::Set14BitControllerImpl(MidiConstants::EControllerID InController, int16 InValue, int8 InMidiChannel)
+void FFusionSampler::Set14BitControllerImpl(Harmonix::Midi::Constants::EControllerID InController, int16 InValue, int8 InMidiChannel)
 {
 	FScopeLock Lock(&GetBusLock());
 	// we ignore InMidiChannel because this is a single channel instrument!
@@ -1813,29 +1820,31 @@ void FFusionSampler::Set14BitControllerImpl(MidiConstants::EControllerID InContr
 
 	float ValueP;
 
+	using namespace Harmonix::Midi::Constants;
+
 	switch (InController)
 	{
-	case MidiConstants::EControllerID::BankSelection: 
+	case EControllerID::BankSelection: 
 	{
 		ValueP = (float)InValue; 
 		break; 
 	}
-	case MidiConstants::EControllerID::Volume: 
+	case EControllerID::Volume: 
 	{ 
 		ValueP = HarmonixDsp::Midi14BitLinearToDB(InValue); 
 		break; 
 	}
-	case MidiConstants::EControllerID::Expression: 
+	case EControllerID::Expression: 
 	{ 
 		ValueP = HarmonixDsp::DBToLinear(HarmonixDsp::Midi14BitLinearToDB(InValue));
 		break; 
 	}
-	case MidiConstants::EControllerID::PanRight: 
+	case EControllerID::PanRight: 
 	{
 		ValueP = ((float)InValue / 8191.0f) - 1.0f;
 		break;
 	}
-	case MidiConstants::EControllerID::Release: 
+	case EControllerID::Release: 
 	{ 
 		Min = 0.005f; Max = 2.000f; 
 		Range = Max - Min;
@@ -1843,7 +1852,7 @@ void FFusionSampler::Set14BitControllerImpl(MidiConstants::EControllerID InContr
 		ValueP = ValueP * Range + Min; 
 		break; 
 	}
-	case MidiConstants::EControllerID::Attack: 
+	case EControllerID::Attack: 
 	{ 
 		Min = 0.005f; Max = 2.000f; 
 		Range = Max - Min;
@@ -1851,79 +1860,79 @@ void FFusionSampler::Set14BitControllerImpl(MidiConstants::EControllerID InContr
 		ValueP = ValueP * Range + Min; 
 		break; 
 	}
-	case MidiConstants::EControllerID::PortamentoSwitch: 
+	case EControllerID::PortamentoSwitch: 
 	{ 
 		ValueP = (InValue > 0) ? 1.0f : 0.0f; 
 		break; 
 	}
-	case MidiConstants::EControllerID::PortamentoTime:
-	case MidiConstants::EControllerID::FilterFrequency:
-	case MidiConstants::EControllerID::FilterQ:
-	case MidiConstants::EControllerID::CoarsePitchBend:
-	case MidiConstants::EControllerID::SampleStartTime: 
+	case EControllerID::PortamentoTime:
+	case EControllerID::FilterFrequency:
+	case EControllerID::FilterQ:
+	case EControllerID::CoarsePitchBend:
+	case EControllerID::SampleStartTime: 
 	{ 
 		ValueP = (float)InValue / 16383.0f; 
 		break; 
 	}
-	case MidiConstants::EControllerID::LFO0Frequency:
-	case MidiConstants::EControllerID::LFO1Frequency: 
+	case EControllerID::LFO0Frequency:
+	case EControllerID::LFO1Frequency: 
 	{ 
 		ValueP = gLfoFreqInterp.EvalClamped((float)InValue / 16383.0f); 
 		break; 
 	}
-	case MidiConstants::EControllerID::LFO0Depth:
-	case MidiConstants::EControllerID::LFO1Depth: 
+	case EControllerID::LFO0Depth:
+	case EControllerID::LFO1Depth: 
 	{ 
 		ValueP = (float)InValue / 16383.0f;
 		break;
 	}
-	case MidiConstants::EControllerID::BitCrushWetMix: 
+	case EControllerID::BitCrushWetMix: 
 	{
 		ValueP = (float)InValue * 100.0f / 16383.0f;
 		break; 
 	}
-	case MidiConstants::EControllerID::BitCrushLevel:
+	case EControllerID::BitCrushLevel:
 	{ 
 		ValueP = (float)InValue * 15.0f / 16383.0f; 
 		break;
 	}
-	case MidiConstants::EControllerID::BitCrushSampleHold: 
+	case EControllerID::BitCrushSampleHold: 
 	{ 
 		ValueP = (1.5f + (((float)InValue / 16383.0f) * 15));
 		break; 
 	}
-	case MidiConstants::EControllerID::DelayTime:
-	case MidiConstants::EControllerID::DelayDryGain:
-	case MidiConstants::EControllerID::DelayWetGain:
-	case MidiConstants::EControllerID::DelayEQEnabled:
-	case MidiConstants::EControllerID::DelayEQType:
-	case MidiConstants::EControllerID::DelayEQFreq:
-	case MidiConstants::EControllerID::DelayEQQ:
-	case MidiConstants::EControllerID::DelayLFOEnabled:
-	case MidiConstants::EControllerID::DelayLFOBeatSync:
-	case MidiConstants::EControllerID::DelayLFORate:
-	case MidiConstants::EControllerID::DelayLFODepth:
-	case MidiConstants::EControllerID::DelayStereoType:
-	case MidiConstants::EControllerID::DelayPanLeft:
-	case MidiConstants::EControllerID::DelayPanRight:
-	case MidiConstants::EControllerID::DelayFeedback:
+	case EControllerID::DelayTime:
+	case EControllerID::DelayDryGain:
+	case EControllerID::DelayWetGain:
+	case EControllerID::DelayEQEnabled:
+	case EControllerID::DelayEQType:
+	case EControllerID::DelayEQFreq:
+	case EControllerID::DelayEQQ:
+	case EControllerID::DelayLFOEnabled:
+	case EControllerID::DelayLFOBeatSync:
+	case EControllerID::DelayLFORate:
+	case EControllerID::DelayLFODepth:
+	case EControllerID::DelayStereoType:
+	case EControllerID::DelayPanLeft:
+	case EControllerID::DelayPanRight:
+	case EControllerID::DelayFeedback:
 	{ 
 		ValueP = (float)InValue / 16383.0f;
 		break; 
 	}
-	case MidiConstants::EControllerID::TimeStretchEnvelopeOrder: 
+	case EControllerID::TimeStretchEnvelopeOrder: 
 	{ 
 		ValueP = (float)(InValue >> 7); 
 		break; 
 	}
-	case MidiConstants::EControllerID::SubStreamVol1:
-	case MidiConstants::EControllerID::SubStreamVol2:
-	case MidiConstants::EControllerID::SubStreamVol3:
-	case MidiConstants::EControllerID::SubStreamVol4:
-	case MidiConstants::EControllerID::SubStreamVol5:
-	case MidiConstants::EControllerID::SubStreamVol6:
-	case MidiConstants::EControllerID::SubStreamVol7:
-	case MidiConstants::EControllerID::SubStreamVol8: 
+	case EControllerID::SubStreamVol1:
+	case EControllerID::SubStreamVol2:
+	case EControllerID::SubStreamVol3:
+	case EControllerID::SubStreamVol4:
+	case EControllerID::SubStreamVol5:
+	case EControllerID::SubStreamVol6:
+	case EControllerID::SubStreamVol7:
+	case EControllerID::SubStreamVol8: 
 	{ 
 		ValueP = (float)(InValue >> 7); 
 		break; 

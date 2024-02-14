@@ -30,7 +30,7 @@ struct HARMONIXMIDI_API FMidiFileData
 	GENERATED_BODY()
 
 	FMidiFileData()
-		: TicksPerQuarterNote(MidiConstants::kTicksPerQuarterNoteInt)
+		: TicksPerQuarterNote(Harmonix::Midi::Constants::GTicksPerQuarterNoteInt)
 		, LastEventTick(0)
 	{}
 	UPROPERTY(BlueprintReadOnly, Category = "MidiFile")
@@ -102,14 +102,23 @@ public:
 	virtual void PostInitProperties() override;
 
 	/** A method for importing a standard midi file, with the option of providing a pointer to an FSongMaps instance that will be populated during the load. */
-	void LoadStdMidiFile(const FString& FilePath, int32 DesiredTicksPerQuarterNote = MidiConstants::kTicksPerQuarterNoteInt,
-		MidiConstants::EMidiTextEventEncoding InTextEncoding = MidiConstants::EMidiTextEventEncoding::UTF8);
+	void LoadStdMidiFile(
+		const FString& FilePath,
+		int32 DesiredTicksPerQuarterNote = Harmonix::Midi::Constants::GTicksPerQuarterNoteInt,
+		Harmonix::Midi::Constants::EMidiTextEventEncoding InTextEncoding = Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8);
 	/** A method for importing a standard midi file, with the option of providing a pointer to an FSongMaps instance that will be populated during the load. */
-	void LoadStdMidiFile(void* Buffer, int32 BufferSize, const FString& FileName, int32 DesiredTicksPerQuarterNote = MidiConstants::kTicksPerQuarterNoteInt,
-		MidiConstants::EMidiTextEventEncoding InTextEncoding = MidiConstants::EMidiTextEventEncoding::UTF8);
+	void LoadStdMidiFile(
+		void* Buffer,
+		int32 BufferSize,
+		const FString& FileName,
+		int32 DesiredTicksPerQuarterNote = Harmonix::Midi::Constants::GTicksPerQuarterNoteInt,
+		Harmonix::Midi::Constants::EMidiTextEventEncoding InTextEncoding = Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8);
 	/** A method for importing a standard midi file, with the option of providing a pointer to an FSongMaps instance that will be populated during the load. */
-	void LoadStdMidiFile(TSharedPtr<FArchive> Archive, const FString& Filename, int32 DesiredTicksPerQuarterNote = MidiConstants::kTicksPerQuarterNoteInt,
-		MidiConstants::EMidiTextEventEncoding InTextEncoding = MidiConstants::EMidiTextEventEncoding::UTF8);
+	void LoadStdMidiFile(
+		TSharedPtr<FArchive> Archive,
+		const FString& Filename,
+		int32 DesiredTicksPerQuarterNote = Harmonix::Midi::Constants::GTicksPerQuarterNoteInt,
+		Harmonix::Midi::Constants::EMidiTextEventEncoding InTextEncoding = Harmonix::Midi::Constants::EMidiTextEventEncoding::UTF8);
 
 	/** A method for exporting the midi track data to a standard midi file. */
 	void SaveStdMidiFile(const FString& FilePath);

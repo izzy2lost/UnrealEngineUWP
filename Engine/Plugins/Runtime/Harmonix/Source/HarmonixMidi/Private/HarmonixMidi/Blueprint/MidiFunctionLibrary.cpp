@@ -8,61 +8,61 @@
 
 FMidiNote UMidiNoteFunctionLibrary::GetMinMidiNote()
 {
-	return FMidiNote(MidiConstants::kMinNote);
+	return FMidiNote(Harmonix::Midi::Constants::GMinNote);
 }
 
 FMidiNote UMidiNoteFunctionLibrary::GetMaxMidiNote()
 {
-	return FMidiNote(MidiConstants::kMaxNote);
+	return FMidiNote(Harmonix::Midi::Constants::GMaxNote);
 }
 
 uint8 UMidiNoteFunctionLibrary::GetMinNoteNumber()
 {
-	return MidiConstants::kMinNote;
+	return Harmonix::Midi::Constants::GMinNote;
 }
 
 uint8 UMidiNoteFunctionLibrary::GetMaxNoteNumber()
 {
-	return MidiConstants::kMaxNote;
+	return Harmonix::Midi::Constants::GMaxNote;
 }
 
 int UMidiNoteFunctionLibrary::GetMaxNumNotes()
 {
-	return MidiConstants::kMaxNumNotes;
+	return Harmonix::Midi::Constants::GMaxNumNotes;
 }
 
 uint8 UMidiNoteFunctionLibrary::GetMinNoteVelocity()
 {
-	return MidiConstants::kMinVelocity;
+	return Harmonix::Midi::Constants::GMinVelocity;
 }
 
 uint8 UMidiNoteFunctionLibrary::GetMaxNoteVelocity()
 {
-	return MidiConstants::kMaxVelocity;
+	return Harmonix::Midi::Constants::GMaxVelocity;
 }
 
 float UMusicalTickFunctionLibrary::GetTicksPerQuarterNote()
 {
-	return MidiConstants::kTicksPerQuarterNote;
+	return Harmonix::Midi::Constants::GTicksPerQuarterNote;
 }
 
 int32 UMusicalTickFunctionLibrary::GetTicksPerQuarterNoteInt()
 {
-	return MidiConstants::kTicksPerQuarterNoteInt;
+	return Harmonix::Midi::Constants::GTicksPerQuarterNoteInt;
 }
 
 float UMusicalTickFunctionLibrary::GetQuarterNotesPerTick()
 {
-	return MidiConstants::kQuarterNotesPerTick;
+	return Harmonix::Midi::Constants::GQuarterNotesPerTick;
 }
 
 float UMusicalTickFunctionLibrary::TickToQuarterNote(float InTick)
 {
-	return InTick * MidiConstants::kQuarterNotesPerTick;
+	return InTick * Harmonix::Midi::Constants::GQuarterNotesPerTick;
 }
 
 float UMusicalTickFunctionLibrary::QuarterNoteToTick(float InQuarterNote)
 {
-	return InQuarterNote * MidiConstants::kTicksPerQuarterNote;
+	return InQuarterNote * Harmonix::Midi::Constants::GTicksPerQuarterNote;
 }
 

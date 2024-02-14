@@ -119,7 +119,10 @@ void UMidiFile::PostInitProperties()
 #endif
 }
 
-void UMidiFile::LoadStdMidiFile(const FString& FilePath, int32 DesiredTicksPerQuarterNote, MidiConstants::EMidiTextEventEncoding InTextEncoding)
+void UMidiFile::LoadStdMidiFile(
+	const FString& FilePath,
+	int32 DesiredTicksPerQuarterNote,
+	Harmonix::Midi::Constants::EMidiTextEventEncoding InTextEncoding)
 {
 	FString Filename = FPaths::GetCleanFilename(FilePath);
 	IPlatformFile& PlatformFileApi = FPlatformFileManager::Get().GetPlatformFile();
@@ -136,13 +139,22 @@ void UMidiFile::LoadStdMidiFile(const FString& FilePath, int32 DesiredTicksPerQu
 #endif
 }
 
-void UMidiFile::LoadStdMidiFile(void* Buffer, int32 BufferSize, const FString& Filename, int32 DesiredTicksPerQuarterNote, MidiConstants::EMidiTextEventEncoding InTextEncoding)
+void UMidiFile::LoadStdMidiFile(
+	void* Buffer,
+	int32 BufferSize,
+	const FString& Filename,
+	int32 DesiredTicksPerQuarterNote,
+	Harmonix::Midi::Constants::EMidiTextEventEncoding InTextEncoding)
 {
 	TSharedPtr<FBufferReader> BufferArchive = MakeShared<FBufferReader>(Buffer, BufferSize, false);
 	LoadStdMidiFile(BufferArchive, Filename, DesiredTicksPerQuarterNote, InTextEncoding);
 }
 
-void UMidiFile::LoadStdMidiFile(TSharedPtr<FArchive> Archive, const FString& Filename, int32 DesiredTicksPerQuarterNote, MidiConstants::EMidiTextEventEncoding InTextEncoding)
+void UMidiFile::LoadStdMidiFile(
+	TSharedPtr<FArchive> Archive,
+	const FString& Filename,
+	int32 DesiredTicksPerQuarterNote,
+	Harmonix::Midi::Constants::EMidiTextEventEncoding InTextEncoding)
 {
 	TheMidiData.TicksPerQuarterNote = DesiredTicksPerQuarterNote;
 	TheMidiData.SongMaps.Init(TheMidiData.TicksPerQuarterNote);
@@ -606,8 +618,10 @@ void UMidiFile::ConformMidiFileLength(EMidiFileLengthConformOption Option)
 			}
 			uint8 MsgStatus = Msg.Status;
 
+			using namespace Harmonix::Midi::Constants;
+			
 			//filter chan press/pitch bend/program change events
-			if (MsgStatus == MidiConstants::kChanPres|| MsgStatus == MidiConstants::kPitch || MsgStatus == MidiConstants::kProgram)
+			if (MsgStatus == GChanPres|| MsgStatus == GPitch || MsgStatus == GProgram)
 			{
 				int32 OtherEventIndexToRemove = -1;
 				//check if there exist multiple events with same status on the last tick
@@ -623,7 +637,7 @@ void UMidiFile::ConformMidiFileLength(EMidiFileLengthConformOption Option)
 				{
 					Events.RemoveAt(OtherEventIndexToRemove);
 					NumItemsRemoved++;
-					if (MsgStatus == MidiConstants::kChanPres || MsgStatus == MidiConstants::kPolyPres)
+					if (MsgStatus == GChanPres || MsgStatus == GPolyPres)
 					{
 						NumAftertouchEventsRemoved++;
 					}
@@ -636,7 +650,7 @@ void UMidiFile::ConformMidiFileLength(EMidiFileLengthConformOption Option)
 			}
 
 			//filter Control Change events and Poly Pres events
-			if (MsgStatus == MidiConstants::kControl || MsgStatus == MidiConstants::kPolyPres)
+			if (MsgStatus == GControl || MsgStatus == GPolyPres)
 			{
 				uint8 CurrentEventControllerId = Msg.Data1;
 				int32 ControlEventIndexToRemove = -1; 
@@ -753,7 +767,7 @@ void FMidiEventReceiver::OnEndOfTrack(int InLastTick)
 		FMidiTrack& Track = File.GetTracks().Last();
 		uint16 StringIndex = Track.AddText("track_1");
 
-		Track.AddEvent(FMidiEvent(0, FMidiMsg::CreateText(StringIndex, MidiConstants::kMeta_TrackName)));
+		Track.AddEvent(FMidiEvent(0, FMidiMsg::CreateText(StringIndex, Harmonix::Midi::Constants::GMeta_TrackName)));
 		Track.Sort();
 		CurrentTrackHasName = true;
 	}
@@ -780,7 +794,7 @@ void FMidiEventReceiver::OnText(int32 Tick, const FString& Str, uint8 Type)
 	FMidiTrack& Track = File.GetTracks().Last();
 	uint16 StringIndex = Track.AddText(Str);
 
-	if (Type == MidiConstants::kMeta_TrackName)
+	if (Type == Harmonix::Midi::Constants::GMeta_TrackName)
 	{
 		// Track name should always appear at tick 0!
 		if (Tick != 0 && !CurrentTrackHasName)
@@ -855,7 +869,7 @@ void FMidiFileData::AddTempoChange(int32 TrackIdx, int32 Tick, float TempoBPM)
 	check(Tracks.IsValidIndex(TrackIdx));
 
 	FTempoMap& TempoMap = SongMaps.GetTempoMap();
-	int32 MidiTempo = MidiConstants::BPMToMidiTempo(TempoBPM);
+	int32 MidiTempo = Harmonix::Midi::Constants::BPMToMidiTempo(TempoBPM);
 	Tracks[TrackIdx].AddEvent(FMidiEvent(Tick, FMidiMsg(MidiTempo)));
 	Tracks[TrackIdx].Sort();
 	TempoMap.AddTempoInfoPoint(MidiTempo, Tick);

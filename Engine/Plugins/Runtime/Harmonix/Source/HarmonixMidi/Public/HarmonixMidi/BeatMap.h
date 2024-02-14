@@ -99,7 +99,7 @@ struct HARMONIXMIDI_API FBeatMap
 
 public:
 	FBeatMap()
-		: TicksPerQuarterNote(MidiConstants::kTicksPerQuarterNoteInt)
+		: TicksPerQuarterNote(Harmonix::Midi::Constants::GTicksPerQuarterNoteInt)
 	{}
 	friend bool operator==(const FBeatMap& Left, const FBeatMap& Right);
 

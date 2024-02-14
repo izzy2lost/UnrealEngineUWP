@@ -143,7 +143,7 @@ struct HARMONIXMIDI_API FBarMap
 
 public:
 	FBarMap()
-		: TicksPerQuarterNote(MidiConstants::kTicksPerQuarterNoteInt)
+		: TicksPerQuarterNote(Harmonix::Midi::Constants::GTicksPerQuarterNoteInt)
 	{}
 	friend bool operator==(const FBarMap& Left, const FBarMap& Right);
 

@@ -22,6 +22,7 @@ float FMusicalTimeSpan::CalcPositionInSpan(const FMidiSongPos& Position, const F
 
 float FMusicalTimeSpan::CalcPositionInSpanWithOffset(const FMidiSongPos& Position, const FSongMaps& Maps) const
 {
+	using namespace Harmonix::Midi::Constants;
 	FMidiSongPos OffsetPosition;
 
 	int32 UnadjustedTick = Maps.MsToTick(Position.SecondsIncludingCountIn * 1000.0f);
@@ -47,49 +48,49 @@ float FMusicalTimeSpan::CalcPositionInSpanWithOffset(const FMidiSongPos& Positio
 		}
 		break;
 	case EMusicTimeSpanOffsetUnits::ThirtySecondNotes:
-		AdjustedTick = UnadjustedTick - MidiConstants::kTicksPerQuarterNoteInt * Offset / 8;
+		AdjustedTick = UnadjustedTick - GTicksPerQuarterNoteInt * Offset / 8;
 		break;
 	case EMusicTimeSpanOffsetUnits::SixteenthNotes:
-		AdjustedTick = UnadjustedTick - MidiConstants::kTicksPerQuarterNoteInt * Offset / 4;
+		AdjustedTick = UnadjustedTick - GTicksPerQuarterNoteInt * Offset / 4;
 		break;
 	case EMusicTimeSpanOffsetUnits::EighthNotes:
-		AdjustedTick = UnadjustedTick - MidiConstants::kTicksPerQuarterNoteInt * Offset / 2;
+		AdjustedTick = UnadjustedTick - GTicksPerQuarterNoteInt * Offset / 2;
 		break;
 	case EMusicTimeSpanOffsetUnits::QuarterNotes:
-		AdjustedTick = UnadjustedTick - MidiConstants::kTicksPerQuarterNoteInt * Offset;
+		AdjustedTick = UnadjustedTick - GTicksPerQuarterNoteInt * Offset;
 		break;
 	case EMusicTimeSpanOffsetUnits::HalfNotes:
-		AdjustedTick = UnadjustedTick - MidiConstants::kTicksPerQuarterNoteInt * Offset * 2;
+		AdjustedTick = UnadjustedTick - GTicksPerQuarterNoteInt * Offset * 2;
 		break;
 	case EMusicTimeSpanOffsetUnits::WholeNotes:
-		AdjustedTick = UnadjustedTick - MidiConstants::kTicksPerQuarterNoteInt * Offset * 4;
+		AdjustedTick = UnadjustedTick - GTicksPerQuarterNoteInt * Offset * 4;
 		break;
 	case EMusicTimeSpanOffsetUnits::DottedSixteenthNotes:
-		AdjustedTick = UnadjustedTick - MidiConstants::kTicksPerQuarterNoteInt * Offset * 3 / 8;
+		AdjustedTick = UnadjustedTick - GTicksPerQuarterNoteInt * Offset * 3 / 8;
 		break;
 	case EMusicTimeSpanOffsetUnits::DottedEighthNotes:
-		AdjustedTick = UnadjustedTick - MidiConstants::kTicksPerQuarterNoteInt * Offset * 3 / 4;
+		AdjustedTick = UnadjustedTick - GTicksPerQuarterNoteInt * Offset * 3 / 4;
 		break;
 	case EMusicTimeSpanOffsetUnits::DottedQuarterNotes:
-		AdjustedTick = UnadjustedTick - MidiConstants::kTicksPerQuarterNoteInt * Offset * 3 / 2;
+		AdjustedTick = UnadjustedTick - GTicksPerQuarterNoteInt * Offset * 3 / 2;
 		break;
 	case EMusicTimeSpanOffsetUnits::DottedHalfNotes:
-		AdjustedTick = UnadjustedTick - MidiConstants::kTicksPerQuarterNoteInt * Offset * 3;
+		AdjustedTick = UnadjustedTick - GTicksPerQuarterNoteInt * Offset * 3;
 		break;
 	case EMusicTimeSpanOffsetUnits::DottedWholeNotes:
-		AdjustedTick = UnadjustedTick - MidiConstants::kTicksPerQuarterNoteInt * Offset * 6;
+		AdjustedTick = UnadjustedTick - GTicksPerQuarterNoteInt * Offset * 6;
 		break;
 	case EMusicTimeSpanOffsetUnits::SixteenthNoteTriplets:
-		AdjustedTick = UnadjustedTick - MidiConstants::kTicksPerQuarterNoteInt * Offset / 6;
+		AdjustedTick = UnadjustedTick - GTicksPerQuarterNoteInt * Offset / 6;
 		break;
 	case EMusicTimeSpanOffsetUnits::EighthNoteTriplets:
-		AdjustedTick = UnadjustedTick - MidiConstants::kTicksPerQuarterNoteInt * Offset / 3;
+		AdjustedTick = UnadjustedTick - GTicksPerQuarterNoteInt * Offset / 3;
 		break;
 	case EMusicTimeSpanOffsetUnits::QuarterNoteTriplets:
-		AdjustedTick = UnadjustedTick - MidiConstants::kTicksPerQuarterNoteInt * Offset * 2 / 3;
+		AdjustedTick = UnadjustedTick - GTicksPerQuarterNoteInt * Offset * 2 / 3;
 		break;
 	case EMusicTimeSpanOffsetUnits::HalfNoteTriplets:
-		AdjustedTick = UnadjustedTick - MidiConstants::kTicksPerQuarterNoteInt * Offset * 4 / 3;
+		AdjustedTick = UnadjustedTick - GTicksPerQuarterNoteInt * Offset * 4 / 3;
 		break;
 	default:
 		checkNoEntry();

@@ -36,7 +36,7 @@ UObject* UMidiFileFactory::FactoryCreateFile(UClass* InClass, UObject* InParent,
 	{
 		MidiFileAsset = NewObject<UMidiFile>(InParent, InClass, InName, Flags);
 	}
-	MidiFileAsset->LoadStdMidiFile(Filename, MidiConstants::kTicksPerQuarterNoteInt);
+	MidiFileAsset->LoadStdMidiFile(Filename, Harmonix::Midi::Constants::GTicksPerQuarterNoteInt);
 	
 	//add the current file to the file array (for handling multi-batch import)
 	ImportedFiles.Add(MidiFileAsset);
@@ -186,7 +186,7 @@ EReimportResult::Type UMidiFileFactory::Reimport(UObject* Obj)
 		return EReimportResult::Failed;
 	}
 	
-	AsMidiFile->LoadStdMidiFile(ReimportPath, MidiConstants::kTicksPerQuarterNoteInt);
+	AsMidiFile->LoadStdMidiFile(ReimportPath, Harmonix::Midi::Constants::GTicksPerQuarterNoteInt);
 
 	//Allow file length to be reconformed after reimport 
 	AsMidiFile->bLengthRoundedDown = false;

@@ -17,11 +17,11 @@ FName FMidiNote::GetDisplayName() const
 
 FString FMidiNote::ToString() const
 {
-	int32 Octave = MidiConstants::GetNoteOctaveFromNoteNumber(NoteNumber);
+	int32 Octave = Harmonix::Midi::Constants::GetNoteOctaveFromNoteNumber(NoteNumber);
 
-	MidiConstants::ENoteNameEnharmonicStyle Style = MidiConstants::ENoteNameEnharmonicStyle::Sharp;
+	Harmonix::Midi::Constants::ENoteNameEnharmonicStyle Style = Harmonix::Midi::Constants::ENoteNameEnharmonicStyle::Sharp;
 
-	return FString::Printf(TEXT("%s%d"), *FString(MidiConstants::GetNoteNameFromNoteNumber(NoteNumber, Style)), Octave);
+	return FString::Printf(TEXT("%s%d"), *FString(Harmonix::Midi::Constants::GetNoteNameFromNoteNumber(NoteNumber, Style)), Octave);
 }
 
 FMidiNote FMidiNote::FromString(const FString& NoteName)
@@ -32,7 +32,7 @@ FMidiNote FMidiNote::FromString(const FString& NoteName)
 
 uint8 FMidiNote::NoteNumberFromString(const FString& NoteName)
 {
-	return MidiConstants::GetNoteNumberFromNoteName(TCHAR_TO_ANSI(*NoteName));
+	return Harmonix::Midi::Constants::GetNoteNumberFromNoteName(TCHAR_TO_ANSI(*NoteName));
 }
 
 #ifdef WITH_EDITOR
@@ -58,9 +58,9 @@ uint8 FMidiNote::NoteNumberFromEditorString(const FString& EditorName)
 	if (EditorName.FindLastChar(' ', Index))
 	{
 		FString NoteName = EditorName.RightChop(Index + 1);
-		return MidiConstants::GetNoteNumberFromNoteName(TCHAR_TO_ANSI(*NoteName));
+		return Harmonix::Midi::Constants::GetNoteNumberFromNoteName(TCHAR_TO_ANSI(*NoteName));
 	}
-	return MidiConstants::GetNoteNumberFromNoteName(TCHAR_TO_ANSI(*EditorName));
+	return Harmonix::Midi::Constants::GetNoteNumberFromNoteName(TCHAR_TO_ANSI(*EditorName));
 }
 
 #endif

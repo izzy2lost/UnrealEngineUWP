@@ -16,7 +16,7 @@ FMidiMsg FMidiMsg::CreateNoteOff(int32 Channel, int32 Note)
 
 FMidiMsg FMidiMsg::CreateControlChange(uint8 Channel, uint8 ControlNumber, uint8 Value)
 {
-	const uint8 StatusByte = MidiConstants::kControl | (Channel & 0xf);
+	const uint8 StatusByte = Harmonix::Midi::Constants::GControl | (Channel & 0xf);
 	return FMidiMsg{ StatusByte, ControlNumber, Value };
 }
 
@@ -115,55 +115,57 @@ void FMidiMsg::WriteStdMidi(int32 Tick, FMidiWriter& Writer, const FMidiTrack& T
 
 FString FMidiMsg::ToString(const FMidiMsg& Message, const FMidiTrack* Track /*= nullptr*/)
 {
+	using namespace Harmonix::Midi::Constants;
+	
 	FStringFormatOrderedArguments Args;
 	switch (Message.Type)
 	{
 	case EType::Std:
 		switch (Message.GetStdStatusType())
 		{
-		case MidiConstants::kNoteOff:
+		case GNoteOff:
 			Args.Add(Message.GetStdChannel() + 1);
 			Args.Add(Message.GetStdData1());
 			return FString::Format(TEXT("Note Off: Channel {0}, Note {1}"), Args);
-		case MidiConstants::kNoteOn:
+		case GNoteOn:
 			Args.Add(Message.GetStdChannel() + 1);
 			Args.Add(Message.GetStdData1());
 			Args.Add(Message.GetStdData2());
 			return FString::Format(TEXT("Note On: Channel {0}, Note {1}, Velocity {2}"), Args);
-		case MidiConstants::kPolyPres:
+		case GPolyPres:
 			Args.Add(Message.GetStdChannel() + 1);
 			Args.Add(Message.GetStdData1());
 			Args.Add(Message.GetStdData2());
 			return FString::Format(TEXT("Poly Pressure: Channel {0}, Note {1}, Pressure {2}"), Args);
-		case MidiConstants::kControl:
+		case GControl:
 			Args.Add(Message.GetStdChannel() + 1);
-			Args.Add(MidiConstants::GetControllerName((MidiConstants::EControllerID)Message.GetStdData1()));
+			Args.Add(GetControllerName((EControllerID)Message.GetStdData1()));
 			Args.Add(Message.GetStdData2());
 			return FString::Format(TEXT("Controller: Channel {0}, {1}, Value {2}"), Args);
-		case MidiConstants::kProgram:
+		case GProgram:
 			Args.Add(Message.GetStdChannel() + 1);
 			Args.Add(Message.GetStdData1());
 			return FString::Format(TEXT("Program Change: Channel {0}, Program {1}"), Args);
-		case MidiConstants::kChanPres:
+		case GChanPres:
 			Args.Add(Message.GetStdChannel() + 1);
 			Args.Add(Message.GetStdData1());
 			return FString::Format(TEXT("Aftertouch: Channel {0}, Value {1}"), Args);
-		case MidiConstants::kPitch:
+		case GPitch:
 			Args.Add(Message.GetStdChannel() + 1);
 			Args.Add(Message.GetPitchBendFromData());
 			return FString::Format(TEXT("Pitchbend: Channel {0}, Value {1}"), Args);
-		case MidiConstants::kSystem:
+		case GSystem:
 			return TEXT("!! SYstem Exclusive !!");
 		}
 	case EType::Tempo:
-		Args.Add(MidiConstants::MidiTempoToBPM(Message.GetMicrosecPerQuarterNote()));
+		Args.Add(MidiTempoToBPM(Message.GetMicrosecPerQuarterNote()));
 		return FString::Format(TEXT("Tempo Change: {0} bpm"), Args);
 	case EType::TimeSig:
 		Args.Add(Message.GetTimeSigNumerator());
 		Args.Add(Message.GetTimeSigDenominator());
 		return FString::Format(TEXT("Time Signature: {0}/{1}"), Args);
 	case EType::Text:
-		Args.Add(MidiConstants::GetTextTypeName(Message.GetTextType()));
+		Args.Add(GetTextTypeName(Message.GetTextType()));
 		if (Track)
 		{
 			Args.Add(Track->GetTextAtIndex(Message.GetTextIndex()));
@@ -176,9 +178,9 @@ FString FMidiMsg::ToString(const FMidiMsg& Message, const FMidiTrack* Track /*= 
 	case EType::Runtime:
 		switch (Message.Status)
 		{
-			case MidiConstants::kRuntimeAllNotesOffStatus:
+			case GRuntimeAllNotesOffStatus:
 				return TEXT("Runtime: All Notes Off (allow ADSR releases.)");
-			case MidiConstants::kRuntimeAllNotesKillStatus:
+			case GRuntimeAllNotesKillStatus:
 				return TEXT("Runtime: All Notes Kill (No ADSR releases. Kill all rendering.)");
 			default:
 				checkNoEntry();

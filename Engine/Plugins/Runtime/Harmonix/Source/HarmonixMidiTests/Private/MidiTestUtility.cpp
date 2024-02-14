@@ -18,7 +18,7 @@ namespace Harmonix::Testing::Utility::MidiTestUtility
 		constexpr uint8 DefaultPolyPresValue = 127;
 
 		// Set initial tempo and time signature
-		TheMidiFile->GetSongMaps()->GetTempoMap().AddTempoInfoPoint(MidiConstants::BPMToMidiTempo(InTempo), 0);
+		TheMidiFile->GetSongMaps()->GetTempoMap().AddTempoInfoPoint(Midi::Constants::BPMToMidiTempo(InTempo), 0);
 		TheMidiFile->GetSongMaps()->GetBarMap().AddTimeSignatureAtBarIncludingCountIn(0, InTimeSigNum, InTimeSigDenom);
 		TheMidiFile->GetSongMaps()->GetBarMap().SetTicksPerQuarterNote(DefaultTicksPerQuarter);
 
@@ -39,7 +39,7 @@ namespace Harmonix::Testing::Utility::MidiTestUtility
 					//(InFileLengthBars will end up being the very beginning of the next bar)
 					LastEventTickInFile -= 1;
 				}
-				FMidiEvent TextEventAtTheEnd(LastEventTickInFile, FMidiMsg::CreateText(TextIndex, MidiConstants::kMeta_Text));
+				FMidiEvent TextEventAtTheEnd(LastEventTickInFile, FMidiMsg::CreateText(TextIndex, Midi::Constants::GMeta_Text));
 				CurrentTrack->AddEvent(TextEventAtTheEnd);
 			}
 
@@ -80,7 +80,7 @@ namespace Harmonix::Testing::Utility::MidiTestUtility
 		int32 CurrentBarTick = InFile->GetSongMaps()->GetBarMap().BarIncludingCountInToTick(InBarIndex);
 		//Add Control Events to each channels/tracks
 		FMidiEvent CurrentCCEvent(CurrentBarTick,
-			FMidiMsg(MidiConstants::kControl + InChannel, InControllerID, InControlValue)
+			FMidiMsg(Midi::Constants::GControl + InChannel, InControllerID, InControlValue)
 		);
 		CurrentTrack->AddEvent(CurrentCCEvent);
 	}
@@ -92,7 +92,7 @@ namespace Harmonix::Testing::Utility::MidiTestUtility
 		int32 CurrentBarTick = InFile->GetSongMaps()->GetBarMap().BarIncludingCountInToTick(InBarIndex);
 		//text events
 		uint16 TextIndex = CurrentTrack->AddText(InText);
-		FMidiEvent CurrentTextEvent(CurrentBarTick, FMidiMsg::CreateText(TextIndex, MidiConstants::kMeta_Text));
+		FMidiEvent CurrentTextEvent(CurrentBarTick, FMidiMsg::CreateText(TextIndex, Midi::Constants::GMeta_Text));
 		CurrentTrack->AddEvent(CurrentTextEvent);
 	}
 
@@ -103,7 +103,7 @@ namespace Harmonix::Testing::Utility::MidiTestUtility
 		int32 CurrentBarTick = InFile->GetSongMaps()->GetBarMap().BarIncludingCountInToTick(InBarIndex);
 		//Add pitch bend events to channels/tracks
 		FMidiEvent CurrentPitchEvent(CurrentBarTick,
-			FMidiMsg(MidiConstants::kPitch + InChannel, InPitchValueLSB, InPitchValueMSB)
+			FMidiMsg(Midi::Constants::GPitch + InChannel, InPitchValueLSB, InPitchValueMSB)
 		);
 		CurrentTrack->AddEvent(CurrentPitchEvent);
 	}
@@ -116,7 +116,7 @@ namespace Harmonix::Testing::Utility::MidiTestUtility
 		int32 CurrentBarTick = InFile->GetSongMaps()->GetBarMap().BarIncludingCountInToTick(InBarIndex);
 		//Add Poly Pres events to channels/tracks
 		FMidiEvent CurrentPolyPresEvent(CurrentBarTick,
-			FMidiMsg(MidiConstants::kPolyPres + InChannel, InNoteNumber, InPolyPresValue)
+			FMidiMsg(Midi::Constants::GPolyPres + InChannel, InNoteNumber, InPolyPresValue)
 		);
 		CurrentTrack->AddEvent(CurrentPolyPresEvent);
 	}

@@ -37,7 +37,7 @@ TSharedRef<SWidget> SMidiNotePin::GetDefaultValueWidget()
 
 void SMidiNotePin::OnGetStrings(TArray< TSharedPtr<FString> >& OutStrings, TArray<TSharedPtr<SToolTip>>& OutToolTips, TArray<bool>& OutRestrictedItems) const
 {
-	for (uint8 noteNumber = MidiConstants::kMinNote; noteNumber < MidiConstants::kMaxNumNotes; ++noteNumber)
+	for (uint8 noteNumber = Harmonix::Midi::Constants::GMinNote; noteNumber < Harmonix::Midi::Constants::GMaxNumNotes; ++noteNumber)
 	{
 		OutStrings.Add(MakeShared<FString>(FMidiNote(noteNumber).ToEditorString()));
 		OutRestrictedItems.Add(false);

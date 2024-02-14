@@ -616,8 +616,8 @@ void UMusicClockComponent::BroadcastSongPosChanges()
 void UMusicClockComponent::MakeDefaultSongMap()
 {
 	DefaultMaps.EmptyAllMaps();
-	DefaultMaps.Init(MidiConstants::kTicksPerQuarterNoteInt);
-	DefaultMaps.GetTempoMap().AddTempoInfoPoint(MidiConstants::BPMToMidiTempo(Tempo), 0);
+	DefaultMaps.Init(Harmonix::Midi::Constants::GTicksPerQuarterNoteInt);
+	DefaultMaps.GetTempoMap().AddTempoInfoPoint(Harmonix::Midi::Constants::BPMToMidiTempo(Tempo), 0);
 	DefaultMaps.GetBarMap().AddTimeSignatureAtBarIncludingCountIn(0, TimeSignatureNum, TimeSignatureDenom);
 }
 

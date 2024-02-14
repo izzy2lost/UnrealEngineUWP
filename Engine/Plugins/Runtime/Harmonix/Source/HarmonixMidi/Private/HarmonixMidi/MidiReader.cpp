@@ -78,7 +78,13 @@ FArchive& operator<<(FArchive& Archive, FMidiChunkHeader& Header)
 
 ///////////////////////////////////////////////////////////////////////////////
 // FStdMidiFileReader
-FStdMidiFileReader::FStdMidiFileReader(void* Buffer, int32 BufferSize, const FString& InFileName, IMidiReceiver* InReceiver, int32 TicksPerQuarterNote, MidiConstants::EMidiTextEventEncoding InTextEncoding)
+FStdMidiFileReader::FStdMidiFileReader(
+	void* Buffer,
+	int32 BufferSize,
+	 const FString& InFileName,
+	 IMidiReceiver* InReceiver,
+	 int32 TicksPerQuarterNote,
+	 Harmonix::Midi::Constants::EMidiTextEventEncoding InTextEncoding)
 	: Filename(InFileName)
 	, Receiver(InReceiver)
 	, TextEncoding(InTextEncoding)
@@ -90,7 +96,11 @@ FStdMidiFileReader::FStdMidiFileReader(void* Buffer, int32 BufferSize, const FSt
 	Init();
 }
 
-FStdMidiFileReader::FStdMidiFileReader(const FString& FilePath, IMidiReceiver* InReceiver, int32 TicksPerQuarterNote, MidiConstants::EMidiTextEventEncoding InTextEncoding)
+FStdMidiFileReader::FStdMidiFileReader(
+	const FString& FilePath,
+	IMidiReceiver* InReceiver,
+	int32 TicksPerQuarterNote,
+	Harmonix::Midi::Constants::EMidiTextEventEncoding InTextEncoding)
 	: Receiver(InReceiver)
 	, TextEncoding(InTextEncoding)
 	, DestinationTicksPerQuarterNote(TicksPerQuarterNote)
@@ -104,7 +114,12 @@ FStdMidiFileReader::FStdMidiFileReader(const FString& FilePath, IMidiReceiver* I
 	Init();
 }
 
-FStdMidiFileReader::FStdMidiFileReader(TSharedPtr<FArchive> Archive, const FString& InFilename, IMidiReceiver* InReceiver, int32 TicksPerQuarterNote, MidiConstants::EMidiTextEventEncoding InTextEncoding)
+FStdMidiFileReader::FStdMidiFileReader(
+	TSharedPtr<FArchive> Archive,
+	const FString& InFilename,
+	IMidiReceiver* InReceiver,
+	int32 TicksPerQuarterNote,
+	Harmonix::Midi::Constants::EMidiTextEventEncoding InTextEncoding)
 	: Filename(InFilename)
 	, InputArchive(Archive)
 	, Receiver(InReceiver)
@@ -115,7 +130,13 @@ FStdMidiFileReader::FStdMidiFileReader(TSharedPtr<FArchive> Archive, const FStri
 	Init();
 }
 
-bool FStdMidiFileReader::ReadStdMidiFileForReceiver(void* Buffer, int32 BufferSize, const FString& FileName, IMidiReceiver* Receiver, int32 TicksPerQuarterNote, MidiConstants::EMidiTextEventEncoding InTextEncoding)
+bool FStdMidiFileReader::ReadStdMidiFileForReceiver(
+	void* Buffer,
+	int32 BufferSize,
+	const FString& FileName,
+	 IMidiReceiver* Receiver,
+	  int32 TicksPerQuarterNote,
+	  Harmonix::Midi::Constants::EMidiTextEventEncoding InTextEncoding)
 {
 	bool Success = true;
 	FStdMidiFileReader Reader(Buffer, BufferSize, FileName, Receiver, TicksPerQuarterNote, InTextEncoding);
@@ -376,7 +397,7 @@ void FStdMidiFileReader::ReadTrackHeader(FArchive& Archive)
 		{
 			CurrentTrackName = TEXT("Track-0");
 		}
-		Receiver->OnText(0, CurrentTrackName, MidiConstants::kMeta_TrackName);
+		Receiver->OnText(0, CurrentTrackName, Harmonix::Midi::Constants::GMeta_TrackName);
 	}
 }
 
@@ -410,10 +431,10 @@ void FStdMidiFileReader::ReadEvent(FArchive& Archive)
 	}
 
 	Archive << Status;
-	if (MidiConstants::IsStatus(Status))  // this byte is truly a status byte
+	if (Harmonix::Midi::Constants::IsStatus(Status))  // this byte is truly a status byte
 	{
 		RunningStatus = false;
-		if (!MidiConstants::IsSystem(Status))
+		if (!Harmonix::Midi::Constants::IsSystem(Status))
 		{
 			// save the current status byte, in case the next message uses running
 			// status.  Note that this is only for midi events; running status can
@@ -431,7 +452,7 @@ void FStdMidiFileReader::ReadEvent(FArchive& Archive)
 	}
 
 	// Check if this is a system (ie, non-channel) message
-	if (MidiConstants::IsSystem(Status))
+	if (Harmonix::Midi::Constants::IsSystem(Status))
 	{
 		ReadSystemEvent(CurrentTick, Status, Archive);
 	}                   // All other messages are channel (non-system) messages
@@ -448,39 +469,40 @@ void FStdMidiFileReader::ReadEvent(FArchive& Archive)
 
 void FStdMidiFileReader::ReadMidiEvent(int32 Tick, uint8 Status, uint8 Data1, FArchive& Archive)
 {
+	using namespace Harmonix::Midi::Constants;
 	uint8 Data2 = 0;
 	bool ValidMidiEvent = false;
-	switch (Status & MidiConstants::kMessageTypeMask)
+	switch (Status & GMessageTypeMask)
 	{
 		// special case for NoteOn (3 byte message)
-	case MidiConstants::kNoteOn:
+	case GNoteOn:
 		Archive << Data2;
 		ValidMidiEvent = true;
 		// convert note-on vel=0 -> note offs
 		if (Data2 == 0)
 		{
-			Status = MidiConstants::kNoteOff | (Status & MidiConstants::kChannelMask);
+			Status = GNoteOff | (Status & GChannelMask);
 		}
 		break;
 
 		// other 3 byte messages
-	case MidiConstants::kNoteOff:
-	case MidiConstants::kControl:
-	case MidiConstants::kPitch:
-	case MidiConstants::kPolyPres:
+	case GNoteOff:
+	case GControl:
+	case GPitch:
+	case GPolyPres:
 		Archive << Data2;
 		ValidMidiEvent = true;
 		break;
 
 		// 2 byte messages
-	case MidiConstants::kProgram:
-	case MidiConstants::kChanPres:
+	case GProgram:
+	case GChanPres:
 		Data2 = 0;
 		ValidMidiEvent = true;
 		break;
 
 	default:
-		UE_LOG(LogMidi, Error, TEXT("%s (%s): Cannot parse event %i"), *Filename, *CurrentTrackName, (Status & MidiConstants::kMessageTypeMask));
+		UE_LOG(LogMidi, Error, TEXT("%s (%s): Cannot parse event %i"), *Filename, *CurrentTrackName, (Status & GMessageTypeMask));
 		break;
 	}
 
@@ -494,10 +516,12 @@ void FStdMidiFileReader::ReadMidiEvent(int32 Tick, uint8 Status, uint8 Data1, FA
 // Read system event from the stream.  Status byte has already been read.
 void FStdMidiFileReader::ReadSystemEvent(int32 Tick, uint8 Status, FArchive& Archive)
 {
+	using namespace Harmonix::Midi::Constants;
+	
 	switch (Status)
 	{
-	case MidiConstants::kFile_SysEx:
-	case MidiConstants::kFile_Escape:
+	case GFile_SysEx:
+	case GFile_Escape:
 		{
 			// All system events start with length. We'll
 			// seek past that length and ignore these events
@@ -506,7 +530,7 @@ void FStdMidiFileReader::ReadSystemEvent(int32 Tick, uint8 Status, FArchive& Arc
 			Archive.Seek(Archive.Tell() + PacketLength);
 		}
 		break;
-	case MidiConstants::kFile_Meta:
+	case GFile_Meta:
 		{
 			uint8 type;
 			Archive << type;
@@ -523,34 +547,36 @@ void FStdMidiFileReader::ReadSystemEvent(int32 Tick, uint8 Status, FArchive& Arc
 // Status byte and event type have already been read.
 void FStdMidiFileReader::ReadMetaEvent(int32 Tick, uint8 Type, FArchive& Archive)
 {
+	using namespace Harmonix::Midi::Constants;
+	
 	int32 Length = Midi::VarLenNumber::Read(Archive);
 	int32 StartPos = int32(Archive.Tell());
 	FString WorkingString;
 
 	switch (Type)
 	{
-	case MidiConstants::kMeta_TrackName:
+	case GMeta_TrackName:
 		CurrentTrackName = ReadText(Archive, Length);
 		Receiver->OnText(Tick, CurrentTrackName, Type);
 		break;
-	case MidiConstants::kMeta_Copyright:
-	case MidiConstants::kMeta_Marker:
-	case MidiConstants::kMeta_CuePoint:
+	case GMeta_Copyright:
+	case GMeta_Marker:
+	case GMeta_CuePoint:
 		WorkingString = ReadText(Archive, Length);
 		if (TrackFilteringMode != ETrackFilteringMode::NonConductorEvents)
 		{
 			Receiver->OnText(Tick, WorkingString, Type);
 		}
 		break;
-	case MidiConstants::kMeta_Text:
-	case MidiConstants::kMeta_Lyric:
+	case GMeta_Text:
+	case GMeta_Lyric:
 		WorkingString = ReadText(Archive, Length);
 		if (TrackFilteringMode != ETrackFilteringMode::ConductorEvents)
 		{
 			Receiver->OnText(Tick, WorkingString, Type);
 		}
 		break;
-	case MidiConstants::kMeta_Tempo:
+	case GMeta_Tempo:
 		{
 			uint8 Byte1, Byte2, Byte3;
 			Archive << Byte1 << Byte2 << Byte3;
@@ -562,7 +588,7 @@ void FStdMidiFileReader::ReadMetaEvent(int32 Tick, uint8 Type, FArchive& Archive
 		}
 		break;
 
-	case MidiConstants::kMeta_EndOfTrack:
+	case GMeta_EndOfTrack:
 		ProcessMidiList();  // in case there is anything left to send out.
 		Receiver->OnEndOfTrack(Tick);
 		if (CurrentTrackIndex == NumTracks - 1)
@@ -576,7 +602,7 @@ void FStdMidiFileReader::ReadMetaEvent(int32 Tick, uint8 Type, FArchive& Archive
 		}
 		break;
 
-	case MidiConstants::kMeta_TimeSig:
+	case GMeta_TimeSig:
 		{
 			uint8 Numerator, DenominatorExp;
 			Archive << Numerator << DenominatorExp;
@@ -603,7 +629,6 @@ void FStdMidiFileReader::ReadMetaEvent(int32 Tick, uint8 Type, FArchive& Archive
 			{
 				// before telling any receivers about the time signature we update our own local tempo map
 				// so we can print better error and warning messages...
-				FMusicTimestamp Timestamp;
 				check(Tick == 0 || BarMap->GetNumTimeSignaturePoints() > 0);
 				int32 BarIndex = BarMap->TickToBarIncludingCountIn(Tick);
 				if (!BarMap->AddTimeSignatureAtBarIncludingCountIn(BarIndex, Numerator, Denominator, true, false))
@@ -621,11 +646,11 @@ void FStdMidiFileReader::ReadMetaEvent(int32 Tick, uint8 Type, FArchive& Archive
 		}
 		break;
 
-	case MidiConstants::kMeta_ChannelPrefix:
-	case MidiConstants::kMeta_Port:
-	case MidiConstants::kMeta_KeySig:
-	case MidiConstants::kMeta_SMPTE:
-	case MidiConstants::kMeta_InstrumentName:
+	case GMeta_ChannelPrefix:
+	case GMeta_Port:
+	case GMeta_KeySig:
+	case GMeta_SMPTE:
+	case GMeta_InstrumentName:
 		// these are valid events, but not currently supported by
 		// MidiReceiver; do nothing
 		break;
@@ -648,7 +673,7 @@ void FStdMidiFileReader::ReadMetaEvent(int32 Tick, uint8 Type, FArchive& Archive
 FString FStdMidiFileReader::ReadText(FArchive& Archive, int32 Length)
 {
 	unsigned char* AsUtf8 = nullptr;
-	if (TextEncoding == MidiConstants::EMidiTextEventEncoding::Latin1)
+	if (TextEncoding == Harmonix::Midi::Constants::EMidiTextEventEncoding::Latin1)
 	{
 		unsigned char* AsLatin = (unsigned char*)FMemory::Malloc(Length + 1);
 		Archive.Serialize(AsLatin, Length);

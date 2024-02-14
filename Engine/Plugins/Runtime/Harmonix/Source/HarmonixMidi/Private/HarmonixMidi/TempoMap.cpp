@@ -35,7 +35,7 @@ int32 FTempoMap::GetMicrosecondsPerQuarterNoteAtTick(int32 Tick) const
 
 float FTempoMap::GetTempoAtTick(int32 Tick) const
 {
-	return MidiConstants::MidiTempoToBPM(GetMicrosecondsPerQuarterNoteAtTick(Tick));
+	return Harmonix::Midi::Constants::MidiTempoToBPM(GetMicrosecondsPerQuarterNoteAtTick(Tick));
 }
 
 void FTempoMap::Empty()

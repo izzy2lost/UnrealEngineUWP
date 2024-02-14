@@ -21,7 +21,7 @@ FMidiTrack::FMidiTrack(const FString& Name)
 	, PrimaryMidiChannel(-1)
 {
 	uint16 stringIndex = AddText(Name);
-	AddEvent(FMidiEvent(0, FMidiMsg::CreateText(stringIndex, MidiConstants::kMeta_TrackName)));
+	AddEvent(FMidiEvent(0, FMidiMsg::CreateText(stringIndex, Harmonix::Midi::Constants::GMeta_TrackName)));
 }
 
 const FMidiEventList& FMidiTrack::GetEvents() const
@@ -48,7 +48,7 @@ void FMidiTrack::SetName(const FString& InName)
 		if (Event.GetMsg().MsgType() == FMidiMsg::EType::Text)
 		{
 			FMidiMsg& Message = Event.GetMsg();
-			if (Message.GetTextType() == MidiConstants::kMeta_TrackName)
+			if (Message.GetTextType() == Harmonix::Midi::Constants::GMeta_TrackName)
 			{
 				Strings[Message.GetTextIndex()] = InName;
 				return;
@@ -65,7 +65,7 @@ const FString* FMidiTrack::GetName() const
 		if (Event.GetMsg().MsgType() == FMidiMsg::EType::Text)
 		{
 			const FMidiMsg& Message = Event.GetMsg();
-			if (Message.GetTextType() == MidiConstants::kMeta_TrackName)
+			if (Message.GetTextType() == Harmonix::Midi::Constants::GMeta_TrackName)
 			{
 				return &GetTextAtIndex(Message.GetTextIndex());
 			}
@@ -87,7 +87,7 @@ void FMidiTrack::AddEvent(const FMidiEvent& Event)
 	}
 
 	// Last name event added at tick zero wins.
-	if (Event.GetTick() == 0 && Event.GetMsg().MsgType() == FMidiMsg::EType::Text && Event.GetMsg().GetTextType() == MidiConstants::kMeta_TrackName)
+	if (Event.GetTick() == 0 && Event.GetMsg().MsgType() == FMidiMsg::EType::Text && Event.GetMsg().GetTextType() == Harmonix::Midi::Constants::GMeta_TrackName)
 	{
 		for (auto& ExistingEvent : Events)
 		{
@@ -96,7 +96,7 @@ void FMidiTrack::AddEvent(const FMidiEvent& Event)
 				break;
 			}
 			const FMidiMsg& Message = ExistingEvent.GetMsg();
-			if (Message.MsgType() == FMidiMsg::EType::Text && Message.GetTextType() == MidiConstants::kMeta_TrackName)
+			if (Message.MsgType() == FMidiMsg::EType::Text && Message.GetTextType() == Harmonix::Midi::Constants::GMeta_TrackName)
 			{
 				ExistingEvent = Event;
 				return;
@@ -188,8 +188,8 @@ int32 FMidiTrack::CopyEvents(FMidiTrack& SourceTrack,	int32 FromTick, int32 Thru
 
 		const FMidiMsg& SourceMessage = SourceEvent.GetMsg();
 		if (SourceMessage.MsgType() == FMidiMsg::EType::Std &&
-			(SourceMessage.GetStdStatusType() == MidiConstants::kNoteOn ||
-				SourceMessage.GetStdStatusType() == MidiConstants::kNoteOff))
+			(SourceMessage.GetStdStatusType() == Harmonix::Midi::Constants::GNoteOn ||
+				SourceMessage.GetStdStatusType() == Harmonix::Midi::Constants::GNoteOff))
 		{
 			// we may have to filter or transpose...
 			int32 NoteNum = SourceMessage.GetStdData1();
@@ -205,7 +205,7 @@ int32 FMidiTrack::CopyEvents(FMidiTrack& SourceTrack,	int32 FromTick, int32 Thru
 			// we have to do something a little special for text messages...
 
 			// Is this the track name, and are we filtering the track name?
-			if (SourceMessage.GetTextType() == MidiConstants::kMeta_TrackName && FilterTrackName)
+			if (SourceMessage.GetTextType() == Harmonix::Midi::Constants::GMeta_TrackName && FilterTrackName)
 			{
 				continue;
 			}

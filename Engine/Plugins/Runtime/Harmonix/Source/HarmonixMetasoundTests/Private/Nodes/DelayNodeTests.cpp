@@ -251,7 +251,7 @@ namespace HarmonixMetasoundTests::DelayNode
 			MidiData->LastEventTick = std::numeric_limits<int32>::max();
 			MidiData->Tracks[0].AddEvent(FMidiEvent(0, FMidiMsg(static_cast<uint8>(TimeSigNum), static_cast<uint8>(TimeSigDenom))));
 			BarMap.AddTimeSignatureAtBarIncludingCountIn(0, TimeSigNum, TimeSigDenom);
-			const int32 MidiTempo = MidiConstants::BPMToMidiTempo(Tempo);
+			const int32 MidiTempo = Harmonix::Midi::Constants::BPMToMidiTempo(Tempo);
 			MidiData->Tracks[0].AddEvent(FMidiEvent(0, FMidiMsg(MidiTempo)));
 			TempoMap.AddTempoInfoPoint(MidiTempo, 0);
 			MidiData->Tracks[0].Sort();

@@ -22,8 +22,8 @@ int32 SongPosCmp(const FMidiSongPos& lhs, const FMidiSongPos& rhs)
 	}
 
 	// beat
-	if (MidiConstants::RoundToStandardBeatPrecision(lhs.Timestamp.Beat, lhs.TimeSigDenominator) ==
-		MidiConstants::RoundToStandardBeatPrecision(rhs.Timestamp.Beat, rhs.TimeSigDenominator))
+	if (Harmonix::Midi::Constants::RoundToStandardBeatPrecision(lhs.Timestamp.Beat, lhs.TimeSigDenominator) ==
+		Harmonix::Midi::Constants::RoundToStandardBeatPrecision(rhs.Timestamp.Beat, rhs.TimeSigDenominator))
 	{
 		return 0;
 	}

@@ -18,13 +18,13 @@ void FVirtualInstrument::ResetMidiState()
 	ResetMidiStateImpl();
 }
 
-void FVirtualInstrument::Set7BitController(MidiConstants::EControllerID InController, int8 InByteValue, int8 InMidiChannel)
+void FVirtualInstrument::Set7BitController(Harmonix::Midi::Constants::EControllerID InController, int8 InByteValue, int8 InMidiChannel)
 {
 	LastCcVals[InMidiChannel][(uint8)InController] = InByteValue;
 	Set7BitControllerImpl(InController, InByteValue, InMidiChannel);
 }
 
-void FVirtualInstrument::Set14BitController(MidiConstants::EControllerID InController, int16 InByteValue, int8 InMidiChannel)
+void FVirtualInstrument::Set14BitController(Harmonix::Midi::Constants::EControllerID InController, int16 InByteValue, int8 InMidiChannel)
 {
 	int32 LsbIdx;
 	int32 MsbIdx;
@@ -32,37 +32,38 @@ void FVirtualInstrument::Set14BitController(MidiConstants::EControllerID InContr
 	{
 		LastCcVals[InMidiChannel][MsbIdx] = (InByteValue >> 7) & 0x7F;
 		LastCcVals[InMidiChannel][LsbIdx] = InByteValue & 0x7F;
-		Set14BitControllerImpl((MidiConstants::EControllerID)MsbIdx, InByteValue, InMidiChannel);
+		Set14BitControllerImpl((Harmonix::Midi::Constants::EControllerID)MsbIdx, InByteValue, InMidiChannel);
 	}
 }
 
 void FVirtualInstrument::HandleMidiMessage(FMidiVoiceId InVoiceId, int8 InStatus, int8 InData1, int8 InData2, int32 InEventTick, int32 InCurrentTick, float InMsOffset)
 {
+	using namespace Harmonix::Midi::Constants;
 	int8 InChannel = InStatus & 0xF;
 	switch (InStatus & 0xF0)
 	{
-	case MidiConstants::kNoteOff:
+	case GNoteOff:
 		NoteOff(InVoiceId, InData1, InChannel);
 		break;
-	case MidiConstants::kNoteOn:
+	case GNoteOn:
 		NoteOn(InVoiceId, InData1, InData2, InChannel, InEventTick, InCurrentTick, InMsOffset);
 		break;
-	case MidiConstants::kPolyPres:
+	case GPolyPres:
 		PolyPressure(InVoiceId, InData1, InData2, InChannel);
 		break;
-	case MidiConstants::kChanPres:
+	case GChanPres:
 		ChannelPressure(InData1, InData2, InChannel);
 		break;
-	case MidiConstants::kControl:
-		SetHighOrLowControllerByte((MidiConstants::EControllerID)InData1, InData2, InChannel);
+	case GControl:
+		SetHighOrLowControllerByte((EControllerID)InData1, InData2, InChannel);
 		break;
-	case MidiConstants::kPitch:
+	case GPitch:
 		SetPitchBend(FMidiMsg::GetPitchBendFromData(InData1, InData2), InChannel);
 		break;
 	}
 }
 
-bool FVirtualInstrument::IsHighResController(MidiConstants::EControllerID InControllerId, bool& bIsHighResLowByte)
+bool FVirtualInstrument::IsHighResController(Harmonix::Midi::Constants::EControllerID InControllerId, bool& bIsHighResLowByte)
 {
 	uint8 Id = (uint8)InControllerId;
 	if (Id < 32)
@@ -88,7 +89,7 @@ bool FVirtualInstrument::IsHighResController(MidiConstants::EControllerID InCont
 	return false;
 }
 
-bool FVirtualInstrument::GetMsbLsbIndexes(MidiConstants::EControllerID InControllerId, int& InMsb, int& InLsb)
+bool FVirtualInstrument::GetMsbLsbIndexes(Harmonix::Midi::Constants::EControllerID InControllerId, int& InMsb, int& InLsb)
 {
 	uint8 Id = (uint8)InControllerId;
 	if (Id < 32)
@@ -115,16 +116,17 @@ bool FVirtualInstrument::GetMsbLsbIndexes(MidiConstants::EControllerID InControl
 }
 
 // convert a value in [0,127] to the range expected by SetController
-float FVirtualInstrument::ConvertCCValue(MidiConstants::EControllerID InController, uint8 InValue)
+float FVirtualInstrument::ConvertCCValue(Harmonix::Midi::Constants::EControllerID InController, uint8 InValue)
 {
+	using namespace Harmonix::Midi::Constants;
 	check(InValue <= 127);
 	switch (InController)
 	{
-	case MidiConstants::EControllerID::PanRight:
-	case MidiConstants::EControllerID::CoarsePitchBend:
+	case EControllerID::PanRight:
+	case EControllerID::CoarsePitchBend:
 		// map to [-1, 1], making sure 64 maps exactly to 0
 		return FMath::Max(-1.0f, ((float)InValue - 64) / 63);
-	case MidiConstants::EControllerID::PortamentoSwitch:
+	case EControllerID::PortamentoSwitch:
 		// 63 and below are "off", 64 and above are "on"
 		return InValue >= 64 ? 1.0f : 0.0f;
 	default:
@@ -133,7 +135,7 @@ float FVirtualInstrument::ConvertCCValue(MidiConstants::EControllerID InControll
 	}
 }
 
-void FVirtualInstrument::SetController(MidiConstants::EControllerID InController, float InValue, int8 InMidiChannel /*= 0*/)
+void FVirtualInstrument::SetController(Harmonix::Midi::Constants::EControllerID InController, float InValue, int8 InMidiChannel /*= 0*/)
 {
 	int32 MsbIndex;
 	int32 LsbIndex;
@@ -147,7 +149,7 @@ void FVirtualInstrument::SetController(MidiConstants::EControllerID InController
 	}
 }
 
-void FVirtualInstrument::SetHighOrLowControllerByte(MidiConstants::EControllerID InController, int8 InValue, int8 InMidiChannel)
+void FVirtualInstrument::SetHighOrLowControllerByte(Harmonix::Midi::Constants::EControllerID InController, int8 InValue, int8 InMidiChannel)
 {
 	LastCcVals[InMidiChannel][(uint8)InController] = InValue;
 	int32 HighByteIdx;
@@ -160,7 +162,7 @@ void FVirtualInstrument::SetHighOrLowControllerByte(MidiConstants::EControllerID
 		}
 		else if (LastCcVals[InMidiChannel][HighByteIdx] != -1)
 		{
-			Set14BitController((MidiConstants::EControllerID)HighByteIdx, (LastCcVals[InMidiChannel][HighByteIdx] << 7 | LastCcVals[InMidiChannel][LowByteIdx]), InMidiChannel);
+			Set14BitController((Harmonix::Midi::Constants::EControllerID)HighByteIdx, (LastCcVals[InMidiChannel][HighByteIdx] << 7 | LastCcVals[InMidiChannel][LowByteIdx]), InMidiChannel);
 		}
 	}
 	else

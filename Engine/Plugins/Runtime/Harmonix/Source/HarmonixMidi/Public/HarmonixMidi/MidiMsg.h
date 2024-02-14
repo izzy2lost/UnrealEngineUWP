@@ -41,24 +41,31 @@ public:
 	bool  IsRuntime() const { return Type == EType::Runtime; }
 	bool  IsText() const    { return Type == EType::Text;    }
 	bool  IsNoteMessage() const { return IsNoteOn() || IsNoteOff() || IsAllNotesOff() || IsAllNotesKill(); }
-	bool  IsNoteOn() const  { return Type == EType::Std && MidiConstants::IsNoteOn(Status);  }
-	bool  IsNoteOff() const { return Type == EType::Std && (MidiConstants::IsNoteOff(Status) || (MidiConstants::IsNoteOn(Status) && Data2 == 0)); }
-	bool  IsAllNotesOff() const { return Type == EType::Runtime && Status == MidiConstants::kRuntimeAllNotesOffStatus; }
-	bool  IsAllNotesKill() const { return Type == EType::Runtime && Status == MidiConstants::kRuntimeAllNotesKillStatus; }
-	bool  IsControlChange() const { return IsStd() && MidiConstants::IsControl(Status); }
+	bool  IsNoteOn() const  { return Type == EType::Std && Harmonix::Midi::Constants::IsNoteOn(Status);  }
+	bool  IsNoteOff() const
+	{
+		return Type == EType::Std && (Harmonix::Midi::Constants::IsNoteOff(Status) || (Harmonix::Midi::Constants::IsNoteOn(Status) && Data2 == 0));
+	}
+	bool  IsAllNotesOff() const { return Type == EType::Runtime && Status == Harmonix::Midi::Constants::GRuntimeAllNotesOffStatus; }
+	bool  IsAllNotesKill() const { return Type == EType::Runtime && Status == Harmonix::Midi::Constants::GRuntimeAllNotesKillStatus; }
+	bool  IsControlChange() const { return IsStd() && Harmonix::Midi::Constants::IsControl(Status); }
 
 	/** Construct a standard (std) midi message */
 	FMidiMsg(uint8 InStatus, uint8 InData1, uint8 InData2);
 	uint8 GetStdStatus()     const { check(Type == EType::Std); return Status; }
 	uint8 GetStdData1()      const { check(Type == EType::Std); return Data1; }
 	uint8 GetStdData2()      const { check(Type == EType::Std); return Data2; }
-	uint8 GetStdChannel()    const { check(Type == EType::Std); return MidiConstants::GetChannel(Status); }
-	uint8 GetStdStatusType() const { check(Type == EType::Std); return MidiConstants::GetType(Status); }
+	uint8 GetStdChannel()    const { check(Type == EType::Std); return Harmonix::Midi::Constants::GetChannel(Status); }
+	uint8 GetStdStatusType() const { check(Type == EType::Std); return Harmonix::Midi::Constants::GetType(Status); }
 	float GetPitchBendFromData() const;
 
 	/** Construct a midi tempo message */
 	FMidiMsg(int32 MicrosecPerQuarterNote);
-	int32 GetMicrosecPerQuarterNote() const { check(Type == EType::Tempo); return int32((uint32)MicsPerQuarterNoteH << 16 | (uint32)MicsPerQuarterNoteL); }
+	int32 GetMicrosecPerQuarterNote() const
+	{
+		check(Type == EType::Tempo);
+		return int32((uint32)MicsPerQuarterNoteH << 16 | (uint32)MicsPerQuarterNoteL);
+	}
 
 	/** Construct a midi time signature message */
 	FMidiMsg(uint8 Numerator, uint8 Denominator);
@@ -91,14 +98,14 @@ public:
 	{
 		FMidiMsg NewMsg;
 		NewMsg.Type = EType::Runtime;
-		NewMsg.Status = MidiConstants::kRuntimeAllNotesOffStatus;
+		NewMsg.Status = Harmonix::Midi::Constants::GRuntimeAllNotesOffStatus;
 		return NewMsg;
 	}
 	static FMidiMsg CreateAllNotesKill()
 	{
 		FMidiMsg NewMsg;
 		NewMsg.Type = EType::Runtime;
-		NewMsg.Status = MidiConstants::kRuntimeAllNotesKillStatus;
+		NewMsg.Status = Harmonix::Midi::Constants::GRuntimeAllNotesKillStatus;
 		return NewMsg;
 	}
 

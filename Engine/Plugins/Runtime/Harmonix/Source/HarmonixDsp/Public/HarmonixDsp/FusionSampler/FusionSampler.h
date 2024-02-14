@@ -58,7 +58,7 @@ public:
 	virtual void  SetExtraPitchBend(float Semitones, int8 InMidiChannel = 0) override;
 	virtual float GetPitchBend(int8 InMidiChannel = 0) const override;
 	virtual void  SetPitchBend(float Value, int8 InMidiChannel = 0) override;
-	virtual void  GetController(MidiConstants::EControllerID InController, int8& OutMsb, int8& OutLsb, int8 InMidiChannel = 0) const override;
+	virtual void  GetController(Harmonix::Midi::Constants::EControllerID InController, int8& OutMsb, int8& OutLsb, int8 InMidiChannel = 0) const override;
 
 	// Mix Volume (dB) and associated linear gain (0,1]
 	virtual void  SetMidiChannelVolume(float InVolume, float InSeconds = 0.0f, int8 InMidiChannel = 0) override;
@@ -139,13 +139,13 @@ protected:
 	// These are overrides from VirtualInstrument
 	virtual void  ResetInstrumentStateImpl() override;
 	virtual void  ResetMidiStateImpl() override;
-	virtual void  Set7BitControllerImpl(MidiConstants::EControllerID InController, int8 Value, int8 InMidiChannel = 0) override;
-	virtual void  Set14BitControllerImpl(MidiConstants::EControllerID InController, int16 Value, int8 InMidiChannel = 0) override;
+	virtual void  Set7BitControllerImpl(Harmonix::Midi::Constants::EControllerID InController, int8 Value, int8 InMidiChannel = 0) override;
+	virtual void  Set14BitControllerImpl(Harmonix::Midi::Constants::EControllerID InController, int16 Value, int8 InMidiChannel = 0) override;
 	
 	// NOTE: This next function's InValue is NOT some standard midi value. By the time it is called it is assumed 
 	// the units and range of InValue are correct for the given controller id. So, for example, if InController 
 	// is MidiConstants::LFO0Frequency than InValue is treated as Hz!
-	void SetController(MidiConstants::EControllerID InController, float InValue);
+	void SetController(Harmonix::Midi::Constants::EControllerID InController, float InValue);
 
 	void SetVoicePool(FSharedFusionVoicePoolPtr InPool, bool NoCallbacks);
 	FSharedFusionVoicePoolPtr GetVoicePool() const { return VoicePool; }
@@ -355,13 +355,13 @@ private:
 	};
 
 	TArray<FPendingNoteAction> PendingNoteActions;
-	FMIDINoteStatus NoteStatus[MidiConstants::kMaxNumNotes];
+	FMIDINoteStatus NoteStatus[Harmonix::Midi::Constants::GMaxNumNotes];
 
 	struct FFusionPatchData* FusionPatchData = nullptr;
 
-	int8 LastStartLayerSelect[MidiConstants::kMaxNumNotes];
-	int8 LastStopLayerSelect[MidiConstants::kMaxNumNotes];
-	int8 LastVelocity[MidiConstants::kMaxNumNotes];
+	int8 LastStartLayerSelect[Harmonix::Midi::Constants::GMaxNumNotes];
+	int8 LastStopLayerSelect[Harmonix::Midi::Constants::GMaxNumNotes];
+	int8 LastVelocity[Harmonix::Midi::Constants::GMaxNumNotes];
 
 	// "scratch pad" used during process to get each voice's output audio
 	static const int32 kScratchBufferFrames = 2048;
@@ -396,7 +396,7 @@ private:
 	float SubstreamGain[kMaxSubstreams];
 	void SetSubstreamMidiGain(int32 InIndex, uint8 InMidiGain);
 
-	int32 TicksPerQuarterNote = MidiConstants::kTicksPerQuarterNoteInt;
+	int32 TicksPerQuarterNote = Harmonix::Midi::Constants::GTicksPerQuarterNoteInt;
 
 	const FGainTable* GainTable = nullptr;
 };

@@ -525,7 +525,7 @@ namespace HarmonixMetasound
 		}
 
 		// Min float possible is 64th note triplets.
-		OutTicksPerCell = FMath::Max(StepSizeQuarterNotes, 0.0416666f) * MidiConstants::kTicksPerQuarterNote;
+		OutTicksPerCell = FMath::Max(StepSizeQuarterNotes, 0.0416666f) * Midi::Constants::GTicksPerQuarterNote;
 		OutTableTickLength = OutTicksPerCell * LengthColumns;
 	}
 

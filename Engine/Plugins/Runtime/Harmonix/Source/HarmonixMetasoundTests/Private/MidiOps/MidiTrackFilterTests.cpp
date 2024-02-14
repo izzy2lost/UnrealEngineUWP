@@ -25,7 +25,7 @@ namespace Harmonix::Midi::Ops::Tests
 		constexpr uint8 Data1 = 78;
 		constexpr uint8 Data2 = 87;
 		constexpr float Tempo = 135.7f;
-		const int32 MidiTempo = MidiConstants::BPMToMidiTempo(Tempo);
+		const int32 MidiTempo = Harmonix::Midi::Constants::BPMToMidiTempo(Tempo);
 		constexpr uint8 TimeSigNumerator = 7;
 		constexpr uint8 TimeSigDenominator = 8;
 

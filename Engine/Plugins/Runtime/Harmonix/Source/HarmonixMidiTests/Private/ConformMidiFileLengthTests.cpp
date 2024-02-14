@@ -122,7 +122,7 @@ namespace HarmonixMidiTests::ConformMidiFileLength
 				}
 
 				//check for pitch bend events on the last tick
-				if (MsgStatus == MidiConstants::kPitch)
+				if (MsgStatus == Harmonix::Midi::Constants::GPitch)
 				{
 					//check if there exist multiple events with same status on the last tick
 					for (int32 i = EventIndex - 1; i >= 0 && Events[i].GetTick() == ConformedLastEventTick; --i)
@@ -135,7 +135,7 @@ namespace HarmonixMidiTests::ConformMidiFileLength
 				}
 
 				//check for CC events and Poly Press on the last tick with the same controller ID
-				if (MsgStatus == MidiConstants::kControl || MsgStatus == MidiConstants::kPolyPres)
+				if (MsgStatus == Harmonix::Midi::Constants::GControl || MsgStatus == Harmonix::Midi::Constants::GPolyPres)
 				{
 					uint8 CurrentEventControllerId = CurrentMsg.Data1;
 					for (int32 i = EventIndex - 1; i >= 0 && Events[i].GetTick() == ConformedLastEventTick; --i)
