@@ -5,6 +5,7 @@
 #include "MoveLibrary/MovementUtilsTypes.h"
 #include "LayeredMove.generated.h"
 
+class UMovementMixer;
 struct FMoverTickStartData;
 struct FMoverTimeStep;
 class UMoverBlackboard;
@@ -167,7 +168,8 @@ struct MOVER_API FLayeredMoveGroup
 
 	bool HasAnyMoves() const { return (!ActiveLayeredMoves.IsEmpty() || !QueuedLayeredMoves.IsEmpty()); }
 
-	bool DoGenerateMove(const FMoverTickStartData& StartState, const FMoverTimeStep& TimeStep, const UMoverComponent* MoverComp, UMoverBlackboard* SimBlackboard, FProposedMove& OutMove);
+	// Generates active layered move list (by calling FlushMoveArrays) and returns the an array of all currently active layered moves
+	TArray<TSharedPtr<FLayeredMoveBase>> GenerateActiveMoves(const FMoverTimeStep& TimeStep, const UMoverComponent* MoverComp, UMoverBlackboard* SimBlackboard);
 
 	/** Serialize all moves and their states for this group */
 	void NetSerialize(FArchive& Ar, uint8 MaxNumMovesToSerialize = MAX_uint8);
@@ -197,16 +199,11 @@ struct MOVER_API FLayeredMoveGroup
 	void ResetResidualVelocity();
 
 protected:
+	// Clears out any finished or invalid active moves and adds any queued moves to the active moves
 	void FlushMoveArrays(const UMoverComponent* MoverComp, UMoverBlackboard* SimBlackboard, float CurrentSimTimeMs);
 
 	// Helper function for gathering any residual velocity settings from layered moves that just ended
 	void GatherResidualVelocitySettings(const TSharedPtr<FLayeredMoveBase>& Move, bool& bResidualVelocityOverriden, bool& bClampVelocityOverriden);
-
-	/**
-	 * Helper function for layered move mixing to check priority and start time if priority is the same.
-	 * Returns true if this layered move should take priority given current HighestPriority and CurrentLayeredMoveStartTimeMs
-	 */
-	static bool CheckPriority(const FLayeredMoveBase* LayeredMove, uint8& InOutHighestPriority, float& InOutCurrentLayeredMoveStartTimeMs);
 	
 	/** Helper function for serializing array of root motion sources */
 	static void NetSerializeLayeredMovesArray(FArchive& Ar, TArray< TSharedPtr<FLayeredMoveBase> >& LayeredMovesArray, uint8 MaxNumLayeredMovesToSerialize = MAX_uint8);

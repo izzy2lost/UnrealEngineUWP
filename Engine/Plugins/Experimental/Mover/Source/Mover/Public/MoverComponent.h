@@ -14,6 +14,7 @@
 
 struct FMoverTimeStep;
 class UMovementModeStateMachine;
+class UMovementMixer;
 
 namespace MoverComponentConstants
 {
@@ -124,6 +125,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Mover, meta = (MustImplement = "/Script/Mover.MoverInputProducerInterface"))
 	TObjectPtr<UObject> InputProducer;
 
+	/** Optional object for mixing proposed moves.Typically set at BeginPlay time. If not specified, UDefaultMovementMixer will be used. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Mover)
+	TObjectPtr<UMovementMixer> MovementMixer;
+	
 	/**
 	 * Queue a layered move to start during the next simulation frame. This will clone whatever move you pass in, so you'll need to fully set it up before queuing.
 	 * @param LayeredMove			The move to queue, which must be a LayeredMoveBase sub-type. 
