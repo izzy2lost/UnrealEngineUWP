@@ -208,7 +208,7 @@ void RHIDetectAndWarnOfBadDrivers(bool bHasEditorToken)
 			if (DriverInfo.IsNVIDIA())
 			{
 				VendorString = TEXT("NVIDIA");
-				HyperlinkText = NSLOCTEXT("MessageDialog", "DriverDownloadLinkNVIDIA", "https://www.nvidia.com/en-us/geforce/drivers/");
+				HyperlinkText = NSLOCTEXT("MessageDialog", "DriverDownloadLinkNVIDIA", "https://www.nvidia.com/download/index.aspx");
 			}
 			else if (DriverInfo.IsAMD())
 			{

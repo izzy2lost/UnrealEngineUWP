@@ -974,17 +974,13 @@ void FD3D12DynamicRHI::OutputGPUCrashReport(FTextBuilder& ErrorMessage)
 
 	// Build the error message
 	ErrorMessage.AppendLine(LOCTEXT("GPU Crashed", "GPU Crashed or D3D Device Removed.\n"));
-	if (!GetAdapter().IsDebugDevice())
-	{
-		ErrorMessage.AppendLine(LOCTEXT("D3D Debug Device", "Use -d3ddebug to enable the D3D debug device."));
-	}
 	if (UE::RHI::UseGPUCrashDebugging())
 	{
 		ErrorMessage.AppendLine(LOCTEXT("GPU Crash Debugging enabled", "Check log for GPU state information."));
 	}
 	else
 	{
-		ErrorMessage.AppendLine(LOCTEXT("GPU Crash Debugging disabled", "Use -gpucrashdebugging to track current GPU state."));
+		ErrorMessage.AppendLine(LOCTEXT("GPU Crash Debugging disabled", "Use -gpucrashdebugging to enable GPU state tracking."));
 	}
 #if NV_AFTERMATH
 	if (AftermathResult.DumpPath.IsSet())
