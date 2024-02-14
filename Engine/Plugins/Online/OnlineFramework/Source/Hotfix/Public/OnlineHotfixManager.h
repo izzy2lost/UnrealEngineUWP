@@ -353,7 +353,15 @@ protected:
 	/** Used in PatchAssetsFromIniFiles to hotfix only a row in a table. 
 	 *  If ChangedTables is not null then HandleDataTableChanged will not be called and the caller should call it on the data tables in ChangedTables when they're ready to
 	 */
-	void HotfixRowUpdate(UObject* Asset, const FString& AssetPath, const FString& RowName, const FString& ColumnName, const FString& NewValue, TArray<FString>& ProblemStrings, TSet<class UDataTable*>* ChangedTables = nullptr);
+	void HotfixRowUpdate(
+		UObject* Asset,
+		const FString& AssetPath,
+		const FString& RowName,
+		const FString& ColumnName,
+		const FString& NewValue,
+		TArray<FString>& ProblemStrings,
+		TSet<class UDataTable*>* ChangedDataTables = nullptr,
+		TSet<class UCurveTable*>* ChangedCurveTables = nullptr);
 	
 	/** Used in PatchAssetsFromIniFiles to hotfix an entire table. */
 	void HotfixTableUpdate(UObject* Asset, const FString& AssetPath, const FString& JsonData, TArray<FString>& ProblemStrings);

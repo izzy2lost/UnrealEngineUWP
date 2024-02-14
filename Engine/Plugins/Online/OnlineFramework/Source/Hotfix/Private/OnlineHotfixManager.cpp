@@ -6,6 +6,8 @@
 #include "UObject/UObjectIterator.h"
 #include "UObject/Package.h"
 
+#include "HAL/ConsoleManager.h"
+
 #include "Misc/PackageName.h"
 #include "Misc/EngineVersion.h"
 #include "Misc/FileHelper.h"
@@ -51,6 +53,16 @@ public:
 
 	TArray<FString> Files;
 };
+
+namespace OnlineHotfixManagerCVars
+{
+	static bool bDeferBroadcastCurveTableModified = true;
+	static FAutoConsoleVariableRef DeferBroadcastCurveTableModifiedCVar(
+		TEXT("hotfix.DeferBroadcastCurveTableModified"),
+		bDeferBroadcastCurveTableModified,
+		TEXT("Whether to wait until all asset hotfixes have been applied before broadcasting OnCurveTableChanged delegates, as opposed to broadcasting after each individual modification"),
+		ECVF_Default);
+}
 
 namespace
 {
@@ -1302,7 +1314,9 @@ void UOnlineHotfixManager::PatchAssetsFromIniFiles()
 			UCurveLinearColor::StaticClass(),
 		};
 
-		TSet<UDataTable*> ChangedTables;
+		TSet<UDataTable*> ChangedDataTables;
+		TSet<UCurveTable*> ChangedCurveTables;
+		TSet<UCurveTable*>* ChangedCurveTablesPointer = OnlineHotfixManagerCVars::bDeferBroadcastCurveTableModified ? &ChangedCurveTables : nullptr;
 
 		for (FConfigSection::TConstIterator It(*AssetHotfixConfigSection); It; ++It)
 		{
@@ -1363,7 +1377,7 @@ void UOnlineHotfixManager::PatchAssetsFromIniFiles()
 								//	+DataTable=<data table path>;RowUpdate;<row name>;<column name>;<new value>
 								//	+CurveTable=<curve table path>;RowUpdate;<row name>;<column name>;<new value>
 								//	+CurveFloat=<curve float path>;RowUpdate;None;<column name>;<new value>
-								HotfixRowUpdate(Asset, AssetPath, Tokens[2], Tokens[3], Tokens[4], ProblemStrings, &ChangedTables);
+								HotfixRowUpdate(Asset, AssetPath, Tokens[2], Tokens[3], Tokens[4], ProblemStrings, &ChangedDataTables, ChangedCurveTablesPointer);
 								bAddAssetToHotfixedList = ProblemStrings.Num() == 0;
 							}
 							else if ((HotfixType == TableUpdate || HotfixType == CurveUpdate) && Tokens.Num() == 3)
@@ -1436,11 +1450,19 @@ void UOnlineHotfixManager::PatchAssetsFromIniFiles()
 			}
 		}
 
-		for (UDataTable* Table : ChangedTables)
+		for (UDataTable* DataTable : ChangedDataTables)
 		{
-			if (Table != nullptr)
+			if (DataTable != nullptr)
 			{
-				Table->HandleDataTableChanged();
+				DataTable->HandleDataTableChanged();
+			}
+		}
+
+		for (UCurveTable* CurveTable : ChangedCurveTables)
+		{
+			if (CurveTable != nullptr)
+			{
+				CurveTable->OnCurveTableChanged().Broadcast();
 			}
 		}
 	}
@@ -1521,7 +1543,15 @@ void UOnlineHotfixManager::ReloadConfigsFromIniFiles()
 		ClassesToReload.Num(), FPlatformTime::Seconds() - StartTime, NumObjectsReloaded);
 }
 
-void UOnlineHotfixManager::HotfixRowUpdate(UObject* Asset, const FString& AssetPath, const FString& RowName, const FString& ColumnName, const FString& NewValue, TArray<FString>& ProblemStrings, TSet<UDataTable*>* ChangedTables)
+void UOnlineHotfixManager::HotfixRowUpdate(
+	UObject* Asset,
+	const FString& AssetPath,
+	const FString& RowName,
+	const FString& ColumnName,
+	const FString& NewValue,
+	TArray<FString>& ProblemStrings,
+	TSet<UDataTable*>* ChangedDataTables,
+	TSet<UCurveTable*>* ChangedCurveTables)
 {
 	if (AssetPath.IsEmpty())
 	{
@@ -1674,13 +1704,13 @@ void UOnlineHotfixManager::HotfixRowUpdate(UObject* Asset, const FString& AssetP
 
 		if (bWasDataTableChanged)
 		{
-			if (ChangedTables == nullptr)
+			if (ChangedDataTables == nullptr)
 			{
 				DataTable->HandleDataTableChanged();
 			}
 			else
 			{
-				ChangedTables->Add(DataTable);
+				ChangedDataTables->Add(DataTable);
 			}
 		}
 	}
@@ -1747,7 +1777,14 @@ void UOnlineHotfixManager::HotfixRowUpdate(UObject* Asset, const FString& AssetP
 
 		if (bWasCurveTableChanged)
 		{
-			CurveTable->OnCurveTableChanged().Broadcast();
+			if (ChangedCurveTables == nullptr)
+			{
+				CurveTable->OnCurveTableChanged().Broadcast();
+			}
+			else
+			{
+				ChangedCurveTables->Add(CurveTable);
+			}
 		}
 	}
 	else if (CurveFloat)
