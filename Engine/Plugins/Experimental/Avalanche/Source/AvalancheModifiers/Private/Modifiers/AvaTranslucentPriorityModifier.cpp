@@ -63,6 +63,23 @@ void UAvaTranslucentPriorityModifier::OnModifierAdded(EActorModifierCoreEnableRe
 		CameraActorWeak = GetDefaultCameraActor();
 		Mode = EAvaTranslucentPriorityModifierMode::AutoOutlinerTree;
 	}
+
+	if (UAvaTranslucentPriorityModifierShared* SharedObject = GetShared<UAvaTranslucentPriorityModifierShared>(true))
+	{
+		SortPriorityOffset = SharedObject->GetSortPriorityOffset();
+		SortPriorityStep = SharedObject->GetSortPriorityStep();
+		SharedObject->OnLevelGlobalsChangedDelegate.AddUObject(this, &UAvaTranslucentPriorityModifier::OnGlobalSortPriorityOffsetChanged);
+	}
+}
+
+void UAvaTranslucentPriorityModifier::OnModifierRemoved(EActorModifierCoreDisableReason InReason)
+{
+	Super::OnModifierRemoved(InReason);
+
+	if (UAvaTranslucentPriorityModifierShared* SharedObject = GetShared<UAvaTranslucentPriorityModifierShared>(false))
+	{
+		SharedObject->OnLevelGlobalsChangedDelegate.RemoveAll(this);
+	}
 }
 
 void UAvaTranslucentPriorityModifier::SavePreState()
@@ -139,8 +156,14 @@ void UAvaTranslucentPriorityModifier::Apply()
 		CachedSortedComponentStates = SharedObject->GetSortedComponentStates(this);
 	}
 
+	// Get global sort offset and step for this level
+	const int32 GlobalOffset = SharedObject->GetSortPriorityOffset();
+	const int32 GlobalStep = SharedObject->GetSortPriorityStep();
+
 	if (Mode == EAvaTranslucentPriorityModifierMode::Manual)
 	{
+		int32 TranslucentSortPriority = GlobalOffset + SortPriority;
+
 		// Sets all components with the same priority
 		for (const FAvaTranslucentPriorityModifierComponentState* SortedComponentState : CachedSortedComponentStates)
 		{
@@ -148,42 +171,50 @@ void UAvaTranslucentPriorityModifier::Apply()
 			{
 				if (UPrimitiveComponent* Component = SortedComponentState->PrimitiveComponentWeak.Get())
 				{
-					Component->SetTranslucentSortPriority(SortPriority);
+					Component->SetTranslucentSortPriority(TranslucentSortPriority);
+
+					TranslucentSortPriority += GlobalStep;
 				}
 			}
 		}
 	}
 	else
 	{
-		int32 TranslucentSortPriority = 1;
+		int32 TranslucentSortPriority = GlobalOffset;
 
 		// Increment sort priority for each component that this modifier handles
 		for (const FAvaTranslucentPriorityModifierComponentState* SortedComponentState : CachedSortedComponentStates)
 		{
-			if (!SortedComponentState
-				|| !SortedComponentState->PrimitiveComponentWeak.IsValid()
-				|| !SortedComponentState->ModifierWeak.IsValid())
+			if (!SortedComponentState)
 			{
 				continue;
 			}
 
 			UPrimitiveComponent* Component = SortedComponentState->PrimitiveComponentWeak.Get();
+			UAvaTranslucentPriorityModifier* ComponentModifier = SortedComponentState->ModifierWeak.Get();
 
-			if (SortedComponentState->ModifierWeak == this)
+			if (!Component || !ComponentModifier)
+			{
+				continue;
+			}
+
+			// This modifier handles this component
+			if (ComponentModifier == this)
 			{
 				Component->SetTranslucentSortPriority(TranslucentSortPriority);
 			}
-			else if (UAvaTranslucentPriorityModifier* OtherModifier = SortedComponentState->ModifierWeak.Get())
+			// Another modifier handles this component
+			else
 			{
 				if (Component->TranslucencySortPriority != TranslucentSortPriority)
 				{
 					// Cache to avoid doing the same query for the same result
-					OtherModifier->CachedSortedComponentStates = CachedSortedComponentStates;
-					OtherModifier->MarkModifierDirty();
+					ComponentModifier->CachedSortedComponentStates = CachedSortedComponentStates;
+					ComponentModifier->MarkModifierDirty();
 				}
 			}
 
-			TranslucentSortPriority++;
+			TranslucentSortPriority += GlobalStep;
 		}
 	}
 
@@ -245,24 +276,24 @@ void UAvaTranslucentPriorityModifier::PostEditChangeProperty(FPropertyChangedEve
 
 	const FName MemberName = PropertyChangedEvent.GetMemberPropertyName();
 
-	static const FName ModeName = GET_MEMBER_NAME_CHECKED(UAvaTranslucentPriorityModifier, Mode);
-	static const FName CameraActorName = GET_MEMBER_NAME_CHECKED(UAvaTranslucentPriorityModifier, CameraActorWeak);
-	static const FName SortPriorityName = GET_MEMBER_NAME_CHECKED(UAvaTranslucentPriorityModifier, SortPriority);
-	static const FName IncludeChildrenName = GET_MEMBER_NAME_CHECKED(UAvaTranslucentPriorityModifier, bIncludeChildren);
-
-	if (MemberName == ModeName)
+	if (MemberName == GET_MEMBER_NAME_CHECKED(UAvaTranslucentPriorityModifier, Mode))
 	{
 		OnModeChanged();
 	}
-	else if (MemberName == CameraActorName)
+	else if (MemberName == GET_MEMBER_NAME_CHECKED(UAvaTranslucentPriorityModifier, CameraActorWeak))
 	{
 		OnCameraActorChanged();
 	}
-	else if (MemberName == SortPriorityName)
+	else if (MemberName == GET_MEMBER_NAME_CHECKED(UAvaTranslucentPriorityModifier, SortPriority))
 	{
 		OnSortPriorityChanged();
 	}
-	else if (MemberName == IncludeChildrenName)
+	else if (MemberName == GET_MEMBER_NAME_CHECKED(UAvaTranslucentPriorityModifier, SortPriorityOffset)
+		|| MemberName == GET_MEMBER_NAME_CHECKED(UAvaTranslucentPriorityModifier, SortPriorityStep))
+	{
+		OnSortPriorityLevelGlobalsChanged();
+	}
+	else if (MemberName == GET_MEMBER_NAME_CHECKED(UAvaTranslucentPriorityModifier, bIncludeChildren))
 	{
 		OnIncludeChildrenChanged();
 	}
@@ -310,6 +341,28 @@ void UAvaTranslucentPriorityModifier::SetSortPriority(int32 InSortPriority)
 
 	SortPriority = InSortPriority;
 	OnSortPriorityChanged();
+}
+
+void UAvaTranslucentPriorityModifier::SetSortPriorityOffset(int32 InOffset)
+{
+	if (SortPriorityOffset == InOffset)
+	{
+		return;
+	}
+
+	SortPriorityOffset = InOffset;
+	OnSortPriorityLevelGlobalsChanged();
+}
+
+void UAvaTranslucentPriorityModifier::SetSortPriorityStep(int32 InStep)
+{
+	if (SortPriorityStep == InStep)
+	{
+		return;
+	}
+
+	SortPriorityStep = InStep;
+	OnSortPriorityLevelGlobalsChanged();
 }
 
 void UAvaTranslucentPriorityModifier::SetIncludeChildren(bool bInIncludeChildren)
@@ -424,6 +477,25 @@ void UAvaTranslucentPriorityModifier::OnSortPriorityChanged()
 {
 	if (Mode == EAvaTranslucentPriorityModifierMode::Manual)
 	{
+		MarkModifierDirty();
+	}
+}
+
+void UAvaTranslucentPriorityModifier::OnSortPriorityLevelGlobalsChanged() const
+{
+	if (UAvaTranslucentPriorityModifierShared* SharedObject = GetShared<UAvaTranslucentPriorityModifierShared>(false))
+	{
+		SharedObject->SetSortPriorityOffset(SortPriorityOffset);
+		SharedObject->SetSortPriorityStep(SortPriorityStep);
+	}
+}
+
+void UAvaTranslucentPriorityModifier::OnGlobalSortPriorityOffsetChanged()
+{
+	if (const UAvaTranslucentPriorityModifierShared* SharedObject = GetShared<UAvaTranslucentPriorityModifierShared>(false))
+	{
+		SortPriorityOffset = SharedObject->GetSortPriorityOffset();
+		SortPriorityStep = SharedObject->GetSortPriorityStep();
 		MarkModifierDirty();
 	}
 }

@@ -2,6 +2,7 @@
 
 #include "Shared/AvaTranslucentPriorityModifierShared.h"
 #include "AvaActorUtils.h"
+#include "AvaSceneItem.h"
 #include "AvaSceneTree.h"
 #include "AvaSceneTreeNode.h"
 #include "Camera/CameraActor.h"
@@ -199,7 +200,7 @@ TArray<const FAvaTranslucentPriorityModifierComponentState*> UAvaTranslucentPrio
 		}
 
 		// Sort current modifiers by distance X to a specific camera
-		SortedComponentStates.Sort([CameraActor](const FAvaTranslucentPriorityModifierComponentState& InComponentA, const FAvaTranslucentPriorityModifierComponentState& InComponentB)->bool
+		SortedComponentStates.StableSort([CameraActor](const FAvaTranslucentPriorityModifierComponentState& InComponentA, const FAvaTranslucentPriorityModifierComponentState& InComponentB)->bool
 		{
 			const FVector AForwardComponentLocation = CameraActor->GetActorForwardVector() * InComponentA.GetComponentLocation();
 			const float ADist = FVector::Distance(AForwardComponentLocation, CameraActor->GetActorLocation());
@@ -244,7 +245,7 @@ TArray<const FAvaTranslucentPriorityModifierComponentState*> UAvaTranslucentPrio
 		TSharedPtr<IAvaOutliner> AvaOutliner = FAvaOutlinerUtils::EditorGetOutliner(World);
 		if (AvaOutliner.IsValid())
 		{
-			SortedComponentStates.Sort([AvaOutliner](const FAvaTranslucentPriorityModifierComponentState& InComponentA, const FAvaTranslucentPriorityModifierComponentState& InComponentB)->bool
+			SortedComponentStates.StableSort([AvaOutliner](const FAvaTranslucentPriorityModifierComponentState& InComponentA, const FAvaTranslucentPriorityModifierComponentState& InComponentB)->bool
 			{
 				const FAvaOutlinerItemPtr OutlinerItemA = AvaOutliner->FindItem(InComponentA.GetOwningActor());
 				const FAvaOutlinerItemPtr OutlinerItemB = AvaOutliner->FindItem(InComponentB.GetOwningActor());
@@ -260,7 +261,7 @@ TArray<const FAvaTranslucentPriorityModifierComponentState*> UAvaTranslucentPrio
 			{
 				const FAvaSceneTree& SceneTree = SceneInterface->GetSceneTree();
 
-				SortedComponentStates.Sort([&SceneTree, World](const FAvaTranslucentPriorityModifierComponentState& InComponentA, const FAvaTranslucentPriorityModifierComponentState& InComponentB)->bool
+				SortedComponentStates.StableSort([&SceneTree, World](const FAvaTranslucentPriorityModifierComponentState& InComponentA, const FAvaTranslucentPriorityModifierComponentState& InComponentB)->bool
 				{
 					const FAvaSceneTreeNode* SceneItemA = SceneTree.FindTreeNode(FAvaSceneItem(InComponentA.GetOwningActor(), World));
 					const FAvaSceneTreeNode* SceneItemB = SceneTree.FindTreeNode(FAvaSceneItem(InComponentB.GetOwningActor(), World));
@@ -274,6 +275,28 @@ TArray<const FAvaTranslucentPriorityModifierComponentState*> UAvaTranslucentPrio
 	}
 
 	return SortedComponentStates;
+}
+
+void UAvaTranslucentPriorityModifierShared::SetSortPriorityOffset(int32 InOffset)
+{
+	if (SortPriorityOffset == InOffset)
+	{
+		return;
+	}
+
+	SortPriorityOffset = InOffset;
+	OnLevelGlobalsChangedDelegate.Broadcast();
+}
+
+void UAvaTranslucentPriorityModifierShared::SetSortPriorityStep(int32 InStep)
+{
+	if (SortPriorityStep == InStep)
+	{
+		return;
+	}
+
+	SortPriorityStep = InStep;
+	OnLevelGlobalsChangedDelegate.Broadcast();
 }
 
 void UAvaTranslucentPriorityModifierShared::PostLoad()

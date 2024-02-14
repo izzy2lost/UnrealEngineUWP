@@ -67,6 +67,9 @@ class AVALANCHEMODIFIERS_API UAvaTranslucentPriorityModifierShared : public UAct
 	GENERATED_BODY()
 
 public:
+	DECLARE_MULTICAST_DELEGATE(FOnLevelGlobalsChanged)
+	FOnLevelGlobalsChanged OnLevelGlobalsChangedDelegate;
+
 	/** Replaces the component linked to this context by new components set */
 	void SetComponentsState(UAvaTranslucentPriorityModifier* InModifierContext, const TSet<TWeakObjectPtr<UPrimitiveComponent>>& InComponents);
 
@@ -88,6 +91,20 @@ public:
 	/** Get sorted components state based on modifier context */
 	TArray<const FAvaTranslucentPriorityModifierComponentState*> GetSortedComponentStates(UAvaTranslucentPriorityModifier* InModifierContext) const;
 
+	int32 GetSortPriorityOffset() const
+	{
+		return SortPriorityOffset;
+	}
+
+	void SetSortPriorityOffset(int32 InOffset);
+
+	int32 GetSortPriorityStep() const
+	{
+		return SortPriorityStep;
+	}
+
+	void SetSortPriorityStep(int32 InStep);
+
 private:
 	//~ Begin UObject
 	virtual void PostLoad() override;
@@ -95,4 +112,12 @@ private:
 
 	UPROPERTY()
 	TSet<FAvaTranslucentPriorityModifierComponentState> ComponentStates;
+
+	/** Offset for the whole level */
+	UPROPERTY()
+	int32 SortPriorityOffset = 0;
+
+	/** Incremental step for the whole level */
+	UPROPERTY()
+	int32 SortPriorityStep = 1;
 };
