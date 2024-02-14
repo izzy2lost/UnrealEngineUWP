@@ -838,9 +838,6 @@ bool FMediaTextureResource::RequiresConversion(const FTextureRHIRef& SampleTextu
 		// New Style
 		// 
 
-		// For now we only allow this, single SRGB-style output format
-		check(Owner.OutputFormat == MTOF_SRGB_LINOUT || Owner.OutputFormat == MTOF_Default);
-
 		// If we have no mips in the sample, but want to have some in the output, we use the conversion pass
 		// to setup level 0 and have a suitable output texture
 		if (SampleTexture->GetNumMips() == 1 && InNumMips != 1)
@@ -874,9 +871,6 @@ bool FMediaTextureResource::RequiresConversion(const TSharedPtr<IMediaTextureSam
 		//
 		// New Style
 		// 
-
-		// For now we only allow this, single SRGB-style output format
-		check(Owner.OutputFormat == MTOF_SRGB_LINOUT || Owner.OutputFormat == MTOF_Default);
 
 		FRHITexture *Texture = Sample->GetTexture();
 
