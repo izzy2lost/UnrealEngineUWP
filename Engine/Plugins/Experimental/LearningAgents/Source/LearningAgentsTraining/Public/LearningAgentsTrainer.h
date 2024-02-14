@@ -92,6 +92,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "LearningAgents")
 	bool bSetMaxPhysicsStepToFixedTimeStep = true;
 
+	/** If true, the MaxFPS console variable will be set to a negative number during training; Otherwise, it will not. */
+	UPROPERTY(EditAnywhere, Category = "LearningAgents")
+	bool bDisableMaxFPS = true;
+
 	/** If true, VSync will be disabled; Otherwise, it will not. Disabling VSync can speed up the game simulation. */
 	UPROPERTY(EditAnywhere, Category = "LearningAgents")
 	bool bDisableVSync = true;
@@ -105,6 +109,10 @@ public:
 	/** If true, the Use Less CPU In The Background editor setting will be disabled. This prevents the editor from running slowly when minimized. */
 	UPROPERTY(EditAnywhere, Category = "LearningAgents")
 	bool bDisableUseLessCPUInTheBackground = true;
+
+	/** If true, Editor VSync will be disabled; Otherwise, it will not. Disabling Editor VSync can speed up the game simulation. */
+	UPROPERTY(EditAnywhere, Category = "LearningAgents")
+	bool bDisableEditorVSync = true;
 
 #endif
 };
@@ -689,10 +697,13 @@ private:
 // ----- Private Recording of GameSettings ----- 
 private:
 
-	bool bUseLessCPUInTheBackground = true;
 	bool bFixedTimestepUsed = false;
 	float FixedTimeStepDeltaTime = -1.0f;
-	bool bVSyncEnabled = true;
 	float MaxPhysicsStep = -1.0f;
+	int32 MaxFPS = 120;
+	bool bVSyncEnabled = true;
 	int32 ViewModeIndex = -1;
+	
+	bool bUseLessCPUInTheBackground = true;
+	bool bEditorVSyncEnabled = true;
 };

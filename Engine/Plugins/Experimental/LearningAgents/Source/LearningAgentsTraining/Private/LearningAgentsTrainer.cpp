@@ -435,6 +435,12 @@ void ULearningAgentsTrainer::BeginTraining(
 		MaxPhysicsStep = PhysicsSettings->MaxPhysicsDeltaTime;
 	}
 
+	IConsoleVariable* MaxFPSCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("t.MaxFPS"));
+	if (MaxFPSCVar)
+	{
+		MaxFPS = MaxFPSCVar->GetInt();
+	}
+
 	UGameViewportClient* ViewportClient = GetWorld() ? GetWorld()->GetGameViewport() : nullptr;
 	if (ViewportClient)
 	{
@@ -446,6 +452,7 @@ void ULearningAgentsTrainer::BeginTraining(
 	if (EditorPerformanceSettings)
 	{
 		bUseLessCPUInTheBackground = EditorPerformanceSettings->bThrottleCPUWhenNotForeground;
+		bEditorVSyncEnabled = EditorPerformanceSettings->bEnableVSync;
 	}
 #endif
 
@@ -466,6 +473,11 @@ void ULearningAgentsTrainer::BeginTraining(
 		UE_LOG(LogLearning, Warning, TEXT("%s: Provided invalid FixedTimeStepFrequency: %0.5f"), *GetName(), TrainerGameSettings.FixedTimeStepFrequency);
 	}
 
+	if (TrainerGameSettings.bDisableMaxFPS && MaxFPSCVar)
+	{
+		MaxFPSCVar->Set(0);
+	}
+
 	if (TrainerGameSettings.bDisableVSync && GameSettings)
 	{
 		GameSettings->SetVSyncEnabled(false);
@@ -480,11 +492,14 @@ void ULearningAgentsTrainer::BeginTraining(
 #if WITH_EDITOR
 	if (TrainerGameSettings.bDisableUseLessCPUInTheBackground && EditorPerformanceSettings)
 	{
-		if (TrainerGameSettings.bDisableUseLessCPUInTheBackground)
-		{
-			EditorPerformanceSettings->bThrottleCPUWhenNotForeground = false;
-			EditorPerformanceSettings->PostEditChange();
-		}
+		EditorPerformanceSettings->bThrottleCPUWhenNotForeground = false;
+		EditorPerformanceSettings->PostEditChange();
+	}
+
+	if (TrainerGameSettings.bDisableEditorVSync && EditorPerformanceSettings)
+	{
+		EditorPerformanceSettings->bEnableVSync = false;
+		EditorPerformanceSettings->PostEditChange();
 	}
 #endif
 
@@ -615,6 +630,12 @@ void ULearningAgentsTrainer::DoneTraining()
 			PhysicsSettings->MaxPhysicsDeltaTime = MaxPhysicsStep;
 		}
 
+		IConsoleVariable* MaxFPSCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("t.MaxFPS"));
+		if (MaxFPSCVar)
+		{
+			MaxFPSCVar->Set(MaxFPS);
+		}
+
 		UGameViewportClient* ViewportClient = GetWorld() ? GetWorld()->GetGameViewport() : nullptr;
 		if (ViewportClient)
 		{
@@ -626,6 +647,7 @@ void ULearningAgentsTrainer::DoneTraining()
 		if (EditorPerformanceSettings)
 		{
 			EditorPerformanceSettings->bThrottleCPUWhenNotForeground = bUseLessCPUInTheBackground;
+			EditorPerformanceSettings->bEnableVSync = bEditorVSyncEnabled;
 			EditorPerformanceSettings->PostEditChange();
 		}
 #endif
