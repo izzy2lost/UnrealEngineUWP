@@ -7,6 +7,7 @@
 #include "ClothCollisionSource.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "SkeletalMeshSceneProxy.h"
+#include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 #include "Modules/ModuleManager.h"
 #include "Physics/Experimental/PhysScene_Chaos.h"

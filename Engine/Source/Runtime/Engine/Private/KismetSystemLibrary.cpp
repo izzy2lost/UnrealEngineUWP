@@ -7,6 +7,7 @@
 #include "Engine/AssetManagerTypes.h"
 #include "Engine/BlueprintGeneratedClass.h"
 #include "HAL/FileManager.h"
+#include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 #include "Misc/EngineVersion.h"
 #include "EngineLogs.h"

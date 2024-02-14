@@ -9,6 +9,7 @@
 #include "Components/ShapeComponent.h"
 #include "GameFramework/Actor.h"
 #include "Engine/CollisionProfile.h"
+#include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 #include "SceneManagement.h"
 #include "Collision.h"

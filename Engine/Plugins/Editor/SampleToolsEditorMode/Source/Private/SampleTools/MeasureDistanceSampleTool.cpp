@@ -5,6 +5,7 @@
 #include "BaseBehaviors/ClickDragBehavior.h"
 
 // for raycast into World
+#include "Engine/HitResult.h"
 #include "Engine/World.h"
 
 #include "SceneManagement.h"

@@ -6,11 +6,14 @@
 #include "BaseBehaviors/SingleClickBehavior.h"
 #include "Elements/Actor/ActorElementData.h"
 #include "Elements/Framework/TypedElementOwnerStore.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "Engine/HitResult.h"
+#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "InputBehaviorSet.h"
 #include "SelectionInteraction.generated.h"
 
 
+struct FHitResult;
 class UTypedElementSelectionSet;
 
 
@@ -24,6 +27,8 @@ public:
 
 	using FActorPredicate = TUniqueFunction<bool(AActor*)>;
 	using FTraceMethod = TUniqueFunction<FHitResult(const FInputDeviceRay&)>;
+	
+	UXRCreativeSelectionInteraction();
 
 	/**
 	 * Set up the Interaction, creates and registers Behaviors/etc. 
@@ -72,7 +77,7 @@ protected:
 	// default predicate allows anything
 	FActorPredicate CanSelectCallback = [](AActor*) { return true; };
 
-	FTraceMethod TraceCallback = [this](const FInputDeviceRay& InRay) { return DefaultTrace(InRay); };
+	FTraceMethod TraceCallback;
 
 	// flags used to identify behavior modifier keys/buttons
 	static const int AddToSelectionModifier = 1;

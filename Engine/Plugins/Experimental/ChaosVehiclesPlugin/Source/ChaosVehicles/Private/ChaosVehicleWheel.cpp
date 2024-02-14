@@ -3,6 +3,7 @@
 #include "ChaosVehicleWheel.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Engine/World.h"
+#include "Engine/HitResult.h"
 #include "Engine/Engine.h"
 #include "Engine/StaticMesh.h"
 #include "Vehicles/TireType.h"

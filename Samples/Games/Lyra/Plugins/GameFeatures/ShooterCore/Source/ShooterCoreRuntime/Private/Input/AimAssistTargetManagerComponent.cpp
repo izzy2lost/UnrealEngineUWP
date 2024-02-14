@@ -2,6 +2,7 @@
 
 #include "Input/AimAssistTargetManagerComponent.h"
 #include "CommonInputTypeEnum.h"
+#include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 #include "GameFramework/InputSettings.h"
 #include "GameFramework/Character.h"
