@@ -16,7 +16,7 @@
 UAvaInteractiveToolsEdMode::UAvaInteractiveToolsEdMode()
 {
 	Info = FEditorModeInfo(IAvalancheInteractiveToolsModule::EM_AvaInteractiveToolsEdModeId,
-		LOCTEXT("AvaInteractiveToolsEdModeName", "Motion Design Tool Box"),
+		LOCTEXT("AvaInteractiveToolsEdModeName", "Motion Design"),
 		FSlateIcon(),
 		true);
 
