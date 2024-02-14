@@ -20,25 +20,25 @@
 #include "HarmonixMidi/MidiPlayCursor.h"
 #include "Sound/QuartzQuantizationUtilities.h"
 
-enum class EMidiClockSubdivisionQuantization : int32
+enum class EMidiClockSubdivisionQuantization : uint8
 {
-	Bar						= static_cast<int32>(EQuartzCommandQuantization::Bar),
-	Beat					= static_cast<int32>(EQuartzCommandQuantization::Beat),
-	ThirtySecondNote		= static_cast<int32>(EQuartzCommandQuantization::ThirtySecondNote),
-	SixteenthNote			= static_cast<int32>(EQuartzCommandQuantization::SixteenthNote),
-	EighthNote				= static_cast<int32>(EQuartzCommandQuantization::EighthNote),
-	QuarterNote				= static_cast<int32>(EQuartzCommandQuantization::QuarterNote),
-	HalfNote				= static_cast<int32>(EQuartzCommandQuantization::HalfNote),
-	WholeNote				= static_cast<int32>(EQuartzCommandQuantization::WholeNote),
-	DottedSixteenthNote		= static_cast<int32>(EQuartzCommandQuantization::DottedSixteenthNote),
-	DottedEighthNote		= static_cast<int32>(EQuartzCommandQuantization::DottedEighthNote),
-	DottedQuarterNote		= static_cast<int32>(EQuartzCommandQuantization::DottedQuarterNote),
-	DottedHalfNote			= static_cast<int32>(EQuartzCommandQuantization::DottedHalfNote),
-	DottedWholeNote			= static_cast<int32>(EQuartzCommandQuantization::DottedWholeNote),
-	SixteenthNoteTriplet	= static_cast<int32>(EQuartzCommandQuantization::SixteenthNoteTriplet),
-	EighthNoteTriplet		= static_cast<int32>(EQuartzCommandQuantization::EighthNoteTriplet),
-	QuarterNoteTriplet		= static_cast<int32>(EQuartzCommandQuantization::QuarterNoteTriplet),
-	HalfNoteTriplet			= static_cast<int32>(EQuartzCommandQuantization::HalfNoteTriplet),
+	Bar						= static_cast<uint8>(EQuartzCommandQuantization::Bar),
+	Beat					= static_cast<uint8>(EQuartzCommandQuantization::Beat),
+	ThirtySecondNote		= static_cast<uint8>(EQuartzCommandQuantization::ThirtySecondNote),
+	SixteenthNote			= static_cast<uint8>(EQuartzCommandQuantization::SixteenthNote),
+	EighthNote				= static_cast<uint8>(EQuartzCommandQuantization::EighthNote),
+	QuarterNote				= static_cast<uint8>(EQuartzCommandQuantization::QuarterNote),
+	HalfNote				= static_cast<uint8>(EQuartzCommandQuantization::HalfNote),
+	WholeNote				= static_cast<uint8>(EQuartzCommandQuantization::WholeNote),
+	DottedSixteenthNote		= static_cast<uint8>(EQuartzCommandQuantization::DottedSixteenthNote),
+	DottedEighthNote		= static_cast<uint8>(EQuartzCommandQuantization::DottedEighthNote),
+	DottedQuarterNote		= static_cast<uint8>(EQuartzCommandQuantization::DottedQuarterNote),
+	DottedHalfNote			= static_cast<uint8>(EQuartzCommandQuantization::DottedHalfNote),
+	DottedWholeNote			= static_cast<uint8>(EQuartzCommandQuantization::DottedWholeNote),
+	SixteenthNoteTriplet	= static_cast<uint8>(EQuartzCommandQuantization::SixteenthNoteTriplet),
+	EighthNoteTriplet		= static_cast<uint8>(EQuartzCommandQuantization::EighthNoteTriplet),
+	QuarterNoteTriplet		= static_cast<uint8>(EQuartzCommandQuantization::QuarterNoteTriplet),
+	HalfNoteTriplet			= static_cast<uint8>(EQuartzCommandQuantization::HalfNoteTriplet),
 };
 
 namespace Metasound
@@ -53,6 +53,8 @@ namespace Metasound
 		FEnumMidiClockSubdivisionQuantizationWriteRef
 	);
 }
+
+HARMONIXMETASOUND_API float SubdivisionToBeats(EMidiClockSubdivisionQuantization Subdivision, const FTimeSignature& TimeSignature);
 
 HARMONIXMETASOUND_API int32 SubdivisionToMidiTicks(EMidiClockSubdivisionQuantization Division, int32 CurrentTick, const FSongMaps& SongMap);
 
@@ -84,6 +86,8 @@ namespace HarmonixMetasound
 	class HARMONIXMETASOUND_API FMidiClock
 	{
 	public:
+		static constexpr int32 kMidiGranularity = 128;
+		
 		explicit FMidiClock(const Metasound::FOperatorSettings& InSettings);
 		FMidiClock(const FMidiClock& Other);
 		FMidiClock(FMidiClock&& Other);
@@ -242,7 +246,6 @@ namespace HarmonixMetasound
 		float SampleRate;
 		Metasound::FSampleCount SampleCount;
 		int32 FramesUntilNextProcess = 0;
-		static const int32 kMidiGranularity = 128;
 		FMidiTimestampTransportState CurrentTransportState;
 
 		TArray<FMidiTimestampTransportState> TransportChangesInBlock;

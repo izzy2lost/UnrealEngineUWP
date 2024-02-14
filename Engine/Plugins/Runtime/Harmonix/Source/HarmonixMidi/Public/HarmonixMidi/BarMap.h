@@ -9,7 +9,7 @@
 class UTempoMap;
 
 USTRUCT(BlueprintType)
-struct FMusicTimestamp
+struct HARMONIXMIDI_API FMusicTimestamp
 {
 	GENERATED_BODY()
 
