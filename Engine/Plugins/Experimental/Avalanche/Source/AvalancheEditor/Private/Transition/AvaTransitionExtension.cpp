@@ -125,15 +125,17 @@ void FAvaTransitionExtension::Deactivate()
 
 void FAvaTransitionExtension::ExtendToolbarMenu(UToolMenu& InMenu)
 {
-	FToolMenuSection& Section = InMenu.FindOrAddSection(TEXT("TransitionLogic"));
+	FToolMenuSection& Section = InMenu.FindOrAddSection(DefaultSectionName);
 
 	FSlateIcon TransitionTreeIcon = FSlateIconFinder::FindCustomIconForClass(UAvaTransitionTree::StaticClass(), TEXT("ClassThumbnail"));
 
-	Section.AddEntry(FToolMenuEntry::InitToolBarButton(TEXT("TransitionLogicButton")
+	FToolMenuEntry& Entry = Section.AddEntry(FToolMenuEntry::InitToolBarButton(TEXT("TransitionLogicButton")
 		, FExecuteAction::CreateSP(this, &FAvaTransitionExtension::OpenTransitionEditor)
 		, LOCTEXT("TransitionLogicLabel", "Transition Logic")
 		, LOCTEXT("TransitionLogicTooltip", "Opens the Transition Logic Editor for the given Scene")
 		, TransitionTreeIcon));
+
+	Entry.StyleNameOverride = TEXT("CalloutToolbar");
 
 	Section.AddEntry(FToolMenuEntry::InitComboButton(TEXT("TransitionLogicComboButton")
 		, FUIAction()
