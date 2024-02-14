@@ -4,16 +4,16 @@
 
 #include "Graph/Nodes/MovieGraphImagePassBaseNode.h"
 
-#include "MovieGraphPathTracedRenderPassNode.generated.h"
+#include "MovieGraphPathTracerPassNode.generated.h"
 
 /** A render node which uses the path tracer. */
 UCLASS()
-class MOVIERENDERPIPELINERENDERPASSES_API UMovieGraphPathTracedRenderPassNode : public UMovieGraphImagePassBaseNode
+class MOVIERENDERPIPELINERENDERPASSES_API UMovieGraphPathTracerRenderPassNode : public UMovieGraphImagePassBaseNode
 {
 	GENERATED_BODY()
 
 public:
-	UMovieGraphPathTracedRenderPassNode();
+	UMovieGraphPathTracerRenderPassNode();
 
 #if WITH_EDITOR
 	virtual FText GetNodeTitle(const bool bGetDescriptive = false) const override;
