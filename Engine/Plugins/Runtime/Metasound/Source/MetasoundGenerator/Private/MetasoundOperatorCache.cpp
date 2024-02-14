@@ -179,6 +179,11 @@ namespace Metasound
 	{
 	}
 
+	FOperatorPool::~FOperatorPool()
+	{
+		CancelAllBuildEvents();
+	}
+
 	FOperatorAndInputs FOperatorPool::ClaimOperator(const FGuid& InOperatorID)
 	{
 		FScopeLock Lock(&CriticalSection);
@@ -242,9 +247,81 @@ namespace Metasound
 		Trim();
 	}
 
+	void FOperatorPool::BuildAndAddAsync(TUniqueFunction<void()>&& InBuildFunc)
+	{
+		struct FBuildAndAddOpTask : public FAsyncGraphTaskBase
+		{
+			TUniqueFunction<void()> TaskFunc;
+
+			FBuildAndAddOpTask(TUniqueFunction<void()>&& InTaskFunc)
+				: TaskFunc(MoveTemp(InTaskFunc))
+			{
+			}
+
+			void DoTask(ENamedThreads::Type, const FGraphEventRef& EventRef)
+			{
+				TaskFunc();
+
+				const FName ModuleName = TEXT("MetasoundGenerator");
+				if (FModuleManager::Get().IsModuleLoaded(ModuleName))
+				{
+					FMetasoundGeneratorModule& Module = FModuleManager::GetModuleChecked<FMetasoundGeneratorModule>(ModuleName);
+					TSharedPtr<FOperatorPool> Pool = Module.GetOperatorPool();
+					if (Pool.IsValid())
+					{
+						Pool->RemoveBuildEvent(EventRef);
+					}
+				}
+			}
+
+			ENamedThreads::Type GetDesiredThread()
+			{
+				return ENamedThreads::AnyThread;
+			}
+		};
+
+		FGraphEventRef EventRef = TGraphTask<FBuildAndAddOpTask>::CreateTask()
+			.ConstructAndDispatchWhenReady(MoveTemp(InBuildFunc));
+
+		{
+			FScopeLock Lock(&CriticalSection);
+			ActiveBuildEvents.Add(MoveTemp(EventRef));
+		}
+	}
+
+	void FOperatorPool::CancelAllBuildEvents()
+	{
+		if (!ActiveBuildEvents.IsEmpty())
+		{
+			UE_LOG(LogMetasoundGenerator, Display, TEXT("Cancelling active MetaSound Cache Pool Operator build requests..."));
+
+			bStopping.store(true);
+			for (FGraphEventRef& EventRef : ActiveBuildEvents)
+			{
+				if (EventRef.IsValid())
+				{
+					EventRef->Wait();
+				}
+			}
+			ActiveBuildEvents.Reset();
+			bStopping.store(false);
+		}
+	}
+
+	void FOperatorPool::RemoveBuildEvent(const FGraphEventRef& InEventRef)
+	{
+		FScopeLock Lock(&CriticalSection);
+		ActiveBuildEvents.Remove(InEventRef);
+	}
+
 	void FOperatorPool::BuildAndAddOperator(TUniquePtr<FOperatorBuildData> InBuildData)
 	{
 		using namespace OperatorPoolPrivate;
+
+		if (bStopping.load())
+		{
+			return;
+		}
 
 		if (!ensure(InBuildData))
 		{
@@ -263,15 +340,16 @@ namespace Metasound
 			}
 		}
 
-		FMetasoundGeneratorModule& Module = FModuleManager::GetModuleChecked<FMetasoundGeneratorModule>("MetasoundGenerator");
-		AsyncTask(ENamedThreads::AnyThread, [Graph = Graph, PreCacheData = MoveTemp(InBuildData), OperatorPool = Module.GetOperatorPool()] ()
+		// Build operations should never keep the operator pool alive as this can delay app shutdown arbitrarily.
+		TWeakPtr<FOperatorPool> WeakOpPool = AsShared();
+		BuildAndAddAsync([Graph, PreCacheData = MoveTemp(InBuildData), WeakOpPool]()
 		{
 			using namespace OperatorPoolPrivate;
 
 			METASOUND_LLM_SCOPE;
 			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::FOperatorPool::AsyncOperatorPrecache)
 
-			if (!ensure(PreCacheData && OperatorPool))
+			if (!ensure(PreCacheData))
 			{
 				return;
 			}
@@ -302,10 +380,16 @@ namespace Metasound
 			const int32 NumInstances = PreCacheData->NumInstances;
 			for (int32 i = 0; i < NumInstances; ++i)
 			{
+				TSharedPtr<FOperatorPool> OperatorPool = WeakOpPool.Pin();
+				if (!OperatorPool.IsValid() || OperatorPool->IsStopping())
+				{
+					break;
+				}
+
 				FBuildResults BuildResults;
 				FOperatorAndInputs OperatorAndInputs = GeneratorBuilder::BuildGraphOperator(PreCacheData->InitParams.OperatorSettings, PreCacheData->InitParams, BuildResults);
 				GeneratorBuilder::LogBuildErrors(PreCacheData->InitParams.MetaSoundName, BuildResults);
-	
+
 				const FGuid& GraphID = PreCacheData->InitParams.Graph->GetInstanceID();
 				OperatorPool->AddOperator(GraphID, MoveTemp(OperatorAndInputs));
 				OperatorPool->AddAssetIdToGraphIdLookUp(PreCacheData->AssetClassID, GraphID);

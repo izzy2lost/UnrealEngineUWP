@@ -57,6 +57,9 @@ namespace Metasound
 
 	void FMetasoundGeneratorModule::ShutdownModule() 
 	{
+		// Have to cancel independent of resetting the shared pointer as tasks
+		// may still be holding on to pool and therefore keeping it alive
+		OperatorPool->CancelAllBuildEvents();
 		OperatorPool.Reset();
 		OperatorInstanceCounterManager.Reset();
 	}
