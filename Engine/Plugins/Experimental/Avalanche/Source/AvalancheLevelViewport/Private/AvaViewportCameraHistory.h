@@ -59,7 +59,7 @@ private:
 	TArray<TPair<TWeakObjectPtr<AActor>, FTransform>, TFixedAllocator<UE::AvalancheEditor::Internal::CameraUndoHistoryCapacity>> CameraTransformHistory;
 
 	// Stores current position in the camera transform history, to allow redo of actions ahead of this position
-	int32 CameraTransformHistoryIndex = 0;
+	int32 CameraTransformHistoryIndex = INDEX_NONE;
 
 	// Stores current position of the array "end", needed due to circular storage
 	int32 CameraTransformHistoryHeadIndex = 1;
