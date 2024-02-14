@@ -286,18 +286,16 @@ void SAvaSequenceTree::OnSelectionChanged(FAvaSequenceItemPtr InSelectedItem, ES
 	}
 
 	TSharedPtr<FAvaSequencer> Sequencer = SequencerWeak.Pin();
-
-	if (!Sequencer.IsValid())
+	if (!Sequencer.IsValid() || !InSelectedItem.IsValid())
 	{
 		return;
 	}
 
-	UAvaSequence* const SelectedSequence = InSelectedItem.IsValid()
-		? InSelectedItem->GetSequence()
-		: nullptr;
-
-	TGuardValue<bool> Guard(bSyncingSelection, true);
-	Sequencer->SetViewedSequence(SelectedSequence);
+	if (UAvaSequence* const SelectedSequence = InSelectedItem->GetSequence())
+	{
+		TGuardValue<bool> Guard(bSyncingSelection, true);
+		Sequencer->SetViewedSequence(SelectedSequence);
+	}
 }
 
 void SAvaSequenceTree::OnSearchChanged(const FText& InSearchText)

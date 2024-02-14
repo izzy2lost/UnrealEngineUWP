@@ -911,17 +911,33 @@ void FAvaSequencer::DeleteSequence_Execute()
 	check(Outer);
 	Outer->Modify();
 
+	TArray<UAvaSequence*> RemovedSequences;
+	RemovedSequences.Reserve(SelectedItems.Num());
+
+	// Remove the Selected Sequences from the List (not marked as garbage yet)
 	for (const FAvaSequenceItemPtr& Item : SelectedItems)
 	{
 		check(Item.IsValid());
-		SequenceProvider->RemoveSequence(Item->GetSequence());
-		SetViewedSequence(GetDefaultSequence());
+		if (UAvaSequence* Sequence = Item->GetSequence())
+		{
+			SequenceProvider->RemoveSequence(Sequence);
+			RemovedSequences.Add(Sequence);
+		}
+	}
+
+	// Set the Viewed Sequence to the Default one
+	SetViewedSequence(GetDefaultSequence());
+
+	// Once a new viewed sequence is set, the removed sequences can now be marked as garbage 
+	for (UAvaSequence* Sequence : RemovedSequences)
+	{
+		Sequence->OnSequenceRemoved();
 	}
 
 	if (UBlueprint* const Blueprint = Cast<UBlueprint>(Outer))
 	{
 		FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Blueprint);
-	}	
+	}
 }
 
 bool FAvaSequencer::RelabelSequence_CanExecute() const
@@ -1376,7 +1392,7 @@ void FAvaSequencer::SetViewedSequence(UAvaSequence* InSequenceToView)
 		return;
 	}
 
-	UAvaSequence* OldSequence = ViewedSequenceWeak.Get();
+	UAvaSequence* OldSequence = ViewedSequenceWeak.Get(/*bEvenIfPendingKill*/true);
 	ViewedSequenceWeak = InSequenceToView;
 	NotifyViewedSequenceChanged(OldSequence);
 }
@@ -1579,7 +1595,14 @@ void FAvaSequencer::NotifyOnSequenceTreeChanged()
 			RemainingItems.Append(Item->GetChildren());
 		}
 	}
-	
+
+	// Ensure the new item representing the Viewed Sequence is selected
+	UAvaSequence* ViewedSequence = GetViewedSequence();
+	if (ViewedSequence && SequenceTree.IsValid())
+	{
+		SequenceTree->OnPostSetViewedSequence(ViewedSequence);
+	}
+
 	SequenceTreeView->RequestTreeRefresh();
 }
 

@@ -178,10 +178,6 @@ bool AAvaScene::AddSequence(UAvaSequence* InSequence)
 void AAvaScene::RemoveSequence(UAvaSequence* InSequence)
 {
 	Animations.Remove(InSequence);
-	if (InSequence)
-	{
-		InSequence->OnSequenceRemoved();
-	}
 	ScheduleRebuildSequenceTree();
 }
 
