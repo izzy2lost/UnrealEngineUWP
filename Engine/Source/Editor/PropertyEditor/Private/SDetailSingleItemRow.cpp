@@ -329,6 +329,9 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 			TSharedPtr<FDetailGroup> Group = nullptr;
 			WidgetRow = Customization->GetWidgetRow();
 
+			// Populate the extension content in the WidgetRow if there's an extension handler.
+			PopulateExtensionWidget();
+
 			// Setup copy / paste actions
 			{
 				if (WidgetRow.IsCopyPasteBound())
@@ -386,9 +389,6 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 					OnPasteFromTextDelegate->AddSP(this, &SDetailSingleItemRow::OnPasteFromText);
 				}
 			}
-
-			// Populate the extension content in the WidgetRow if there's an extension handler.
-			PopulateExtensionWidget();
 
 			TSharedPtr<SWidget> NameWidget = WidgetRow.NameWidget.Widget;
 
