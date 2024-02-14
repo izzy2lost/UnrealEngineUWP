@@ -29,6 +29,8 @@ public:
 
 	static constexpr uint32 PhysicalCoordMask = (1u << 24u) - 1u; // Lower 24 bits are used for storing XYZ in 8 bit each. Upper 8 bit can be used by the caller. 
 
+	static bool ShouldUseReservedResources();
+	static int64 GetMaxTileDataTextureResourceSize(int32 InVoxelMemSize);
 	static FIntVector3 GetVolumeResolutionInTiles(int32 InNumRequiredTiles);
 	static FIntVector3 GetLargestPossibleVolumeResolutionInTiles(int32 InVoxelMemSize);
 
