@@ -419,12 +419,17 @@ bool FEnumProperty::SameType(const FProperty* Other) const
 
 EConvertFromTypeResult FEnumProperty::ConvertFromType(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot , uint8* Data, UStruct* DefaultsStruct, const uint8* Defaults)
 {
-	if ((Enum == nullptr) || (UnderlyingProp == nullptr))
+	const EName* TagType = Tag.Type.ToEName();
+	if (LIKELY(!TagType || *TagType == NAME_EnumProperty || Tag.Type.GetNumber() || !Enum || !UnderlyingProp))
 	{
 		return EConvertFromTypeResult::UseSerializeItem;
 	}
 
-	if (Tag.Type == NAME_ByteProperty)
+	switch (*TagType)
+	{
+	default:
+		return EConvertFromTypeResult::UseSerializeItem;
+	case NAME_ByteProperty:
 	{
 		uint8 PreviousValue = 0;
 		if (Tag.EnumName == NAME_None)
@@ -454,45 +459,33 @@ EConvertFromTypeResult FEnumProperty::ConvertFromType(const FPropertyTag& Tag, F
 
 		// now copy the value into the object's address space
 		UnderlyingProp->SetIntPropertyValue(ContainerPtrToValuePtr<void>(Data, Tag.ArrayIndex), (uint64)PreviousValue);
+		return EConvertFromTypeResult::Converted;
 	}
-	else if (Tag.Type == NAME_Int8Property)
-	{
+	case NAME_Int8Property:
 		UEEnumProperty_Private::ConvertIntToEnumProperty<int8>(Slot, this, UnderlyingProp, Enum, ContainerPtrToValuePtr<void>(Data, Tag.ArrayIndex));
-	}
-	else if (Tag.Type == NAME_Int16Property)
-	{
+		return EConvertFromTypeResult::Converted;
+	case NAME_Int16Property:
 		UEEnumProperty_Private::ConvertIntToEnumProperty<int16>(Slot, this, UnderlyingProp, Enum, ContainerPtrToValuePtr<void>(Data, Tag.ArrayIndex));
-	}
-	else if (Tag.Type == NAME_IntProperty)
-	{
+		return EConvertFromTypeResult::Converted;
+	case NAME_IntProperty:
 		UEEnumProperty_Private::ConvertIntToEnumProperty<int32>(Slot, this, UnderlyingProp, Enum, ContainerPtrToValuePtr<void>(Data, Tag.ArrayIndex));
-	}
-	else if (Tag.Type == NAME_Int64Property)
-	{
+		return EConvertFromTypeResult::Converted;
+	case NAME_Int64Property:
 		UEEnumProperty_Private::ConvertIntToEnumProperty<int64>(Slot, this, UnderlyingProp, Enum, ContainerPtrToValuePtr<void>(Data, Tag.ArrayIndex));
-	}
-	else if (Tag.Type == NAME_UInt16Property)
-	{
+		return EConvertFromTypeResult::Converted;
+	case NAME_UInt16Property:
 		UEEnumProperty_Private::ConvertIntToEnumProperty<uint16>(Slot, this, UnderlyingProp, Enum, ContainerPtrToValuePtr<void>(Data, Tag.ArrayIndex));
-	}
-	else if (Tag.Type == NAME_UInt32Property)
-	{
+		return EConvertFromTypeResult::Converted;
+	case NAME_UInt32Property:
 		UEEnumProperty_Private::ConvertIntToEnumProperty<uint32>(Slot, this, UnderlyingProp, Enum, ContainerPtrToValuePtr<void>(Data, Tag.ArrayIndex));
-	}
-	else if (Tag.Type == NAME_UInt64Property)
-	{
+		return EConvertFromTypeResult::Converted;
+	case NAME_UInt64Property:
 		UEEnumProperty_Private::ConvertIntToEnumProperty<uint64>(Slot, this, UnderlyingProp, Enum, ContainerPtrToValuePtr<void>(Data, Tag.ArrayIndex));
-	}
-	else if (Tag.Type == NAME_BoolProperty)
-	{
+		return EConvertFromTypeResult::Converted;
+	case NAME_BoolProperty:
 		UEEnumProperty_Private::ConvertIntValueToEnumProperty<uint8>(Tag.BoolVal, this, UnderlyingProp, Enum, ContainerPtrToValuePtr<void>(Data, Tag.ArrayIndex));
+		return EConvertFromTypeResult::Converted;
 	}
-	else
-	{
-		return EConvertFromTypeResult::UseSerializeItem;
-	}
-
-	return EConvertFromTypeResult::Converted;
 }
 
 #if WITH_EDITORONLY_DATA
