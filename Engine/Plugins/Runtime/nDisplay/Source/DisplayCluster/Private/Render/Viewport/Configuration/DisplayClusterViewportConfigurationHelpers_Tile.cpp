@@ -14,6 +14,7 @@
 
 #include "DisplayClusterEnums.h"
 #include "DisplayClusterConfigurationTypes_ICVFX.h"
+#include "DisplayClusterConfigurationTypes_Media.h"
 #include "DisplayClusterConfigurationTypes_Tile.h"
 #include "DisplayClusterProjectionStrings.h"
 
@@ -21,43 +22,55 @@
 // FDisplayClusterViewportConfigurationHelpers_Tile
 ////////////////////////////////////////////////////////////////////////
 
-void FDisplayClusterViewportConfigurationHelpers_Tile::UpdateICVFXCameraViewportTileSettings(FDisplayClusterViewport& InSourceViewport, const FDisplayClusterConfigurationICVFX_CameraTile& InCameraTile)
+void FDisplayClusterViewportConfigurationHelpers_Tile::UpdateICVFXCameraViewportTileSettings(FDisplayClusterViewport& InSourceViewport, const FDisplayClusterConfigurationMediaICVFX& InCameraMediaSettings)
 {
-	if (const FDisplayClusterConfigurationICVFX_StageSettings* StageSettings = InSourceViewport.Configuration->GetStageSettings())
+	// Nothing to do if media tiling is not configured
+	const bool bMediaEnabled = InCameraMediaSettings.bEnable;
+	const bool bMediaTiled = (InCameraMediaSettings.SplitType == EDisplayClusterConfigurationMediaSplitType::UniformTiles);
+	if (!bMediaEnabled || !bMediaTiled)
 	{
-		if (InCameraTile.TileSettings.IsEnabled(*StageSettings))
-		{
-			if (InSourceViewport.CanSplitIntoTiles())
-			{
-				const FDisplayClusterViewport_OverscanSettings& OverscanSettings = FDisplayClusterViewportConfigurationHelpers_Tile::GetTileOverscanSettings(InCameraTile.TileOverscan);
-				const FIntPoint Size(InCameraTile.TileSettings.TileX, InCameraTile.TileSettings.TileY);
-
-				// Find if this cluster node is allowed to render unbound tiles
-				const FString ThisNodeId = InSourceViewport.GetClusterNodeId();
-				const bool bAllowRenderUnbound = InCameraTile.ClusterNodesToRenderUnboundTiles.ItemNames.ContainsByPredicate([&ThisNodeId](const FString& Item)
-					{
-						return ThisNodeId.Equals(Item, ESearchCase::IgnoreCase);
-					});
-
-				// Prepare tile flags
-				EDisplayClusterViewportTileFlags TileFlags = EDisplayClusterViewportTileFlags::None;
-				TileFlags |= (bAllowRenderUnbound ? EDisplayClusterViewportTileFlags::AllowUnboundRender : EDisplayClusterViewportTileFlags::None);
-
-				// Set this viewport as the source for tile rendering.
-				FDisplayClusterViewport_TileSettings& OutTileSettings = InSourceViewport.GetRenderSettingsImpl().TileSettings;
-				OutTileSettings = FDisplayClusterViewport_TileSettings(Size, OverscanSettings, TileFlags);
-				OutTileSettings.bOptimizeTileOverscan = InCameraTile.TileOverscan.bOptimizeTileOverscan;
-
-				return;
-			}
-
-			// This viewport cannot be split because the current settings are conflicting.
-			UE_LOG(LogDisplayClusterViewport, Error, TEXT("Viewport '%s' cannot be tiled because the current settings are conflicting."), *InSourceViewport.GetId());
-		}
+		InSourceViewport.GetRenderSettingsImpl().TileSettings = { };
+		return;
 	}
 
-	// By default disable tile rendering.
-	InSourceViewport.GetRenderSettingsImpl().TileSettings = FDisplayClusterViewport_TileSettings();
+	// Perform additional validations
+	const FDisplayClusterConfigurationICVFX_StageSettings* const StageSettings = InSourceViewport.Configuration->GetStageSettings();
+	const bool bIsTilingAllowed = (StageSettings && FDisplayClusterConfigurationTile_Settings::IsEnabled(InCameraMediaSettings.TiledSplitLayout, *StageSettings));
+	if (!bIsTilingAllowed)
+	{
+		InSourceViewport.GetRenderSettingsImpl().TileSettings = { };
+		return;
+	}
+
+	// Check if viewport is able to split
+	const bool bCanSplitIntoTiles = InSourceViewport.CanSplitIntoTiles();
+	if (!bCanSplitIntoTiles)
+	{
+		InSourceViewport.GetRenderSettingsImpl().TileSettings = { };
+		return;
+	}
+
+	// Find if this cluster node is allowed to render unbound tiles
+	const FString ThisNodeId = InSourceViewport.GetClusterNodeId();
+	const bool bAllowRenderUnbound = InCameraMediaSettings.ClusterNodesToRenderUnboundTiles.ItemNames.ContainsByPredicate([&ThisNodeId](const FString& Item)
+		{
+			return ThisNodeId.Equals(Item, ESearchCase::IgnoreCase);
+		});
+
+	// Generate flags
+	EDisplayClusterViewportTileFlags TileFlags = EDisplayClusterViewportTileFlags::None;
+	if (bAllowRenderUnbound)
+	{
+		TileFlags |= EDisplayClusterViewportTileFlags::AllowUnboundRender;
+	}
+
+	// Generate overscan settings
+	const FDisplayClusterViewport_OverscanSettings& OverscanSettings = FDisplayClusterViewportConfigurationHelpers_Tile::GetTileOverscanSettings(InCameraMediaSettings.TileOverscan);
+
+	// Set this viewport as a source for tile rendering.
+	FDisplayClusterViewport_TileSettings& OutTileSettings = InSourceViewport.GetRenderSettingsImpl().TileSettings;
+	OutTileSettings = FDisplayClusterViewport_TileSettings(InCameraMediaSettings.TiledSplitLayout, OverscanSettings, TileFlags);
+	OutTileSettings.bOptimizeTileOverscan = InCameraMediaSettings.TileOverscan.bOptimizeTileOverscan;
 }
 
 FIntRect FDisplayClusterViewportConfigurationHelpers_Tile::GetDestRect(const FDisplayClusterViewport_TileSettings& InTileSettings, const FIntRect& InSourceRect)

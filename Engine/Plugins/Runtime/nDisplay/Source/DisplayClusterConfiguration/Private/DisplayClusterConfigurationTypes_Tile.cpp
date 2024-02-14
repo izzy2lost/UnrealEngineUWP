@@ -13,19 +13,24 @@ bool FDisplayClusterConfigurationTile_Settings::IsEnabled(const FDisplayClusterC
 
 	if (!bEnabled)
 	{
-		// This property should enable tile rendering.
+		// This property enables tile rendering.
 		return false;
 	}
 
-	if (TileX < 1 || TileY < 1)
+	return FDisplayClusterConfigurationTile_Settings::IsEnabled(FIntPoint{TileX, TileY}, InStageSettings);
+}
+
+bool FDisplayClusterConfigurationTile_Settings::IsEnabled(const FIntPoint& InTileLoc, const struct FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings)
+{
+	// Ignore wrong values
+	if (InTileLoc.X < 1 || InTileLoc.Y < 1)
 	{
-		// Ignore wrong values
 		return false;
 	}
 
-	if (TileX == 1 && TileY == 1)
+	// Ignore 1x1 case
+	if (InTileLoc.X == 1 && InTileLoc.Y == 1)
 	{
-		// Ignore if only 1 tile is used.
 		return false;
 	}
 
