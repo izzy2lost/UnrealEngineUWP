@@ -220,6 +220,12 @@ bool FSphereCovering::AddNegativeSpace(const TFastWindingTree<FDynamicMesh3>& Sp
 					}
 					double NearDistSq;
 					int NearTID = Spatial.GetTree()->FindNearestTriangle(Pos, NearDistSq);
+					double NearDist = FMath::Sqrt(NearDistSq);
+					if (SampleSettings.OptionalObstacleSDF)
+					{
+						double ObstacleSD = SampleSettings.ObstacleDistance(Pos);
+						NearDist = FMath::Min(ObstacleSD, NearDist);
+					}
 					double R = FMath::Sqrt(NearDistSq) - SampleSettings.ReduceRadiusMargin;
 					if (R < SampleSettings.MinRadius)
 					{
@@ -233,7 +239,7 @@ bool FSphereCovering::AddNegativeSpace(const TFastWindingTree<FDynamicMesh3>& Sp
 			}
 		}
 	}
-	else if (SampleSettings.SampleMethod == FNegativeSpaceSampleSettings::ESampleMethod::VoxelSearch)
+	else if (SampleSettings.SampleMethod == FNegativeSpaceSampleSettings::ESampleMethod::VoxelSearch || SampleSettings.SampleMethod == FNegativeSpaceSampleSettings::ESampleMethod::NavigableVoxelSearch)
 	{
 		const FDynamicMesh3* Mesh = Spatial.GetTree()->GetMesh();
 
@@ -292,31 +298,86 @@ bool FSphereCovering::AddNegativeSpace(const TFastWindingTree<FDynamicMesh3>& Sp
 
 		// Compute the empty space inside the convex hull as (Convex Hull - Original Mesh)
 		FAxisAlignedBox3d HullBox = HullAABB.GetBoundingBox();
-		// expand by 1 unit (rescaled as needed) to make sure we have some empty space at the boundary
-		// TODO: Test if a smaller expand (e.g., KINDA_SMALL_NUMBER) will do just as well here
-		HullBox.Expand(1.0 * SampleSettings.GetAppliedScaleFactor());
+		HullBox.Expand(UE_DOUBLE_KINDA_SMALL_NUMBER);
 		FMarchingCubes MarchingCubes;
-		MarchingCubes.CubeSize = FMath::Clamp(SampleSettings.ReduceRadiusMargin * .5, HullBox.MaxDim() / (double)SampleSettings.MaxVoxelsPerDim, HullBox.MinDim() * .5);
+		const double TargetCubeSize = SampleSettings.ReduceRadiusMargin * SampleSettings.MarchingCubesGridScale;
+		MarchingCubes.CubeSize = FMath::Clamp(TargetCubeSize, HullBox.MaxDim() / (double)SampleSettings.MaxVoxelsPerDim, HullBox.MinDim() * .5);
 		MarchingCubes.Bounds = HullBox;
 		MarchingCubes.RootMode = ERootfindingModes::Bisection;
-		MarchingCubes.RootModeSteps = 3;
+		MarchingCubes.RootModeSteps = 5;
 		MarchingCubes.IsoValue = 0;
-		MarchingCubes.Implicit = [&HullWinding, &Spatial, WindingSign, &SampleSettings](const FVector3d& Pt) -> double
+		MarchingCubes.bParallelCompute = true;
+		if (SampleSettings.SampleMethod == FNegativeSpaceSampleSettings::ESampleMethod::VoxelSearch)
 		{
-			// Volume is inside the hull and outside the input surface
-			if ((HullWinding.FastWindingNumber(Pt) > .5) && (Spatial.FastWindingNumber(Pt) * WindingSign <= .5))
+			MarchingCubes.Implicit = [&HullWinding, &Spatial, WindingSign, &SampleSettings](const FVector3d& Pt) -> double
 			{
-				// Volume is at least ReduceRadiusMargin away from the input surface
-				double NearDistSq = FMathd::MaxReal;
-				int32 NearTri = Spatial.GetTree()->FindNearestTriangle(Pt, NearDistSq, SampleSettings.ReduceRadiusMargin);
-				if (NearTri == INDEX_NONE)
+				// Volume is inside the hull and outside the input surface
+				if ((HullWinding.FastWindingNumber(Pt) > .5) && (Spatial.FastWindingNumber(Pt) * WindingSign <= .5))
 				{
-					return 1.0;
+					// Volume is at least ReduceRadiusMargin away from the input surface
+					double NearDistSq = FMathd::MaxReal;
+					int32 NearTri = Spatial.GetTree()->FindNearestTriangle(Pt, NearDistSq, SampleSettings.ReduceRadiusMargin);
+					if (NearTri == INDEX_NONE)
+					{
+						if (SampleSettings.OptionalObstacleSDF)
+						{
+							double LocalSD = SampleSettings.ObstacleDistance(Pt);
+							if (LocalSD < SampleSettings.ReduceRadiusMargin)
+							{
+								return -1.0;
+							}
+						}
+
+						return 1.0;
+					}
+					return -1.0;
 				}
 				return -1.0;
-			}
-			return -1.0;
-		};
+			};
+		}
+		else // SampleSettings.SampleMethod == FNegativeSpaceSampleSettings::ESampleMethod::NavigableVoxelSearch
+		{
+			MarchingCubes.Bounds = HullAABB.GetBoundingBox();
+			MarchingCubes.Bounds.Expand(SampleSettings.MinRadius + SampleSettings.ReduceRadiusMargin + UE_DOUBLE_KINDA_SMALL_NUMBER);
+			const double MinRadSq = SampleSettings.MinRadius * SampleSettings.MinRadius;
+			MarchingCubes.Implicit = [&HullMeshWrap, &HullAABB, &Spatial, WindingSign, &SampleSettings, MinRadSq](const FVector3d& Pt) -> double
+			{
+				double NearDistSq = FMathd::MaxReal;
+				int32 NearTri = Spatial.GetTree()->FindNearestTriangle(Pt, NearDistSq, SampleSettings.ReduceRadiusMargin + SampleSettings.MinRadius);
+				if (NearTri != INDEX_NONE) // If we're closer than MinRadius + ReduceRadiusMargin to the surface, we can't place a MinRadius sphere here
+				{
+					return -1.0;
+				}
+				if (!SampleSettings.bOnlyConnectedToHull && Spatial.FastWindingNumber(Pt) * WindingSign > .5) // If we're not requiring 'only connected to hull', then remove the internal spaces
+				{
+					return -1.0;
+				}
+				// Test that we're also inside the (offset) convex hull
+				double HullDistSq = FMathd::MaxReal;
+				int32 TID = HullAABB.FindNearestTriangle(Pt, HullDistSq);
+				checkSlow(TID != -1);
+				if (TID != -1)
+				{
+					FTriangle3d Tri;
+					HullMeshWrap.GetTriVertices(TID, Tri.V[0], Tri.V[1], Tri.V[2]);
+					FVector3d N = Tri.Normal();
+					if (N.Dot(Pt - Tri.V[0]) > 0 && HullDistSq > MinRadSq)
+					{
+						return -1.0; // outside the convex hull
+					}
+				}
+				// If there's an optional obstacle SDF, test that we're also not too close to that
+				if (SampleSettings.OptionalObstacleSDF)
+				{
+					double LocalSD = SampleSettings.ObstacleDistance(Pt);
+					if (LocalSD < SampleSettings.MinRadius)
+					{
+						return -1.0;
+					}
+				}
+				return 1.0;
+			};
+		}
 
 		// If we can ignore internal negative space, we can use a seeded/continuation marching cubes here, starting from the convex hull.
 		// Since our negative space surface is away from the source mesh, we need to sample the hull away from its vertices as well;
@@ -339,6 +400,13 @@ bool FSphereCovering::AddNegativeSpace(const TFastWindingTree<FDynamicMesh3>& Sp
 					Mesh->GetVertex(TriInds.C));
 				ProcessTriStack.Reset();
 				ProcessTriStack.Push(HullTri);
+
+				FVector3d TriOffset = FVector3d::ZeroVector;
+				if (SampleSettings.SampleMethod == FNegativeSpaceSampleSettings::ESampleMethod::NavigableVoxelSearch)
+				{
+					TriOffset = HullTri.Normal() * SampleSettings.MinRadius;
+				}
+
 				int32 SeedsAdded = 0;
 				while (!ProcessTriStack.IsEmpty())
 				{
@@ -354,7 +422,8 @@ bool FSphereCovering::AddNegativeSpace(const TFastWindingTree<FDynamicMesh3>& Sp
 						Mids.V[SubIdx] = (Tri.V[SubIdx] + Tri.V[LastIdx]) * .5;
 						if (EdgeLensSq[SubIdx] > AddPtLenSq)
 						{
-							Seeds.Add(Mids.V[SubIdx]);
+							FVector3d ToAdd = Mids.V[SubIdx] + TriOffset;
+							Seeds.Add(ToAdd);
 						}
 						NumLongEdges += (int32)(EdgeLensSq[SubIdx] > SubDivLenSq);
 					}
@@ -381,12 +450,15 @@ bool FSphereCovering::AddNegativeSpace(const TFastWindingTree<FDynamicMesh3>& Sp
 		// Make sure the mesh is compact to simplify downsampling below
 		NegativeSpaceMesh.CompactInPlace();
 
-		auto AddSample = [this, &Mesh, &Spatial, &SampleSettings, &bAddedPoints, WindingSign](FVector3d Pos, bool bTestCover = false)
+		auto AddSample = [this, &Mesh, &Spatial, &SampleSettings, &bAddedPoints, WindingSign](FVector3d Pos, bool bTestCover = false, bool bRequireWalk = true)
 		{
-			double Winding = Spatial.FastWindingNumber(Pos) * WindingSign;
-			if (Winding > .5)
+			if (bRequireWalk || !SampleSettings.bAllowSamplesInsideMesh)
 			{
-				return;
+				double Winding = Spatial.FastWindingNumber(Pos) * WindingSign;
+				if (Winding > .5)
+				{
+					return;
+				}
 			}
 
 			double NearDistSq;
@@ -395,34 +467,38 @@ bool FSphereCovering::AddNegativeSpace(const TFastWindingTree<FDynamicMesh3>& Sp
 
 			// Walk away from the closest point until we're far enough away to create a sample
 			// (give up if we haven't found a valid sample after a few steps, or if we stepped inside the shape)
-			int32 Steps = 0;
-			while (R < SampleSettings.MinRadius && Steps++ < 3)
+			if (bRequireWalk)
 			{
-				bool bFoundValidSample = false;
-				FDistPoint3Triangle3d Query = TMeshQueries<FDynamicMesh3>::TriangleDistance(*Mesh, NearTID, Pos);
-				FVector3d Away = Pos - Query.ClosestTrianglePoint;
-				if (!Away.Normalize())
+				int32 Steps = 0;
+				while (R < SampleSettings.MinRadius && Steps++ < 3)
 				{
-					return;
-				}
-				
-				// Move away and re-test the sample
-				Pos += Away * ((SampleSettings.MinRadius - R) * 1.1);
-				if (Spatial.FastWindingNumber(Pos) * WindingSign <= .5)
-				{
-					NearTID = Spatial.GetTree()->FindNearestTriangle(Pos, NearDistSq);
-					R = FMath::Sqrt(NearDistSq) - SampleSettings.ReduceRadiusMargin;
-					if (R >= SampleSettings.MinRadius)
+					bool bFoundValidSample = false;
+					FDistPoint3Triangle3d Query = TMeshQueries<FDynamicMesh3>::TriangleDistance(*Mesh, NearTID, Pos);
+					FVector3d Away = Pos - Query.ClosestTrianglePoint;
+					if (!Away.Normalize())
 					{
-						break;
+						return;
+					}
+
+					// Move away and re-test the sample
+					Pos += Away * ((SampleSettings.MinRadius - R) * 1.1);
+					if (Spatial.FastWindingNumber(Pos) * WindingSign <= .5)
+					{
+						NearTID = Spatial.GetTree()->FindNearestTriangle(Pos, NearDistSq);
+						R = FMath::Sqrt(NearDistSq) - SampleSettings.ReduceRadiusMargin;
+						if (R >= SampleSettings.MinRadius)
+						{
+							break;
+						}
+					}
+					else  // give up if we stepped into the volume
+					{
+						return;
 					}
 				}
-				else  // give up if we stepped into the volume
-				{
-					return;
-				}
 			}
-			if (R >= SampleSettings.MinRadius)
+
+			if (!bRequireWalk || R >= SampleSettings.MinRadius)
 			{
 				if (bTestCover)
 				{
@@ -517,20 +593,25 @@ bool FSphereCovering::AddNegativeSpace(const TFastWindingTree<FDynamicMesh3>& Sp
 		int32 NumSamples = FMath::Min(VertexPositions.Num(), SampleSettings.TargetNumSamples);
 		FPriorityOrderPoints Ordering;
 		Ordering.ComputeUniformSpaced(VertexPositions, VertexAngleMetric, SampleSettings.bRequireSearchSampleCoverage ? -1 : NumSamples);
+
+		// The 'sample walk' is used to ensure samples are at least MinRadius + ReduceRadiusMargin away from the input surface. 
+		// Note this isn't needed for the NavigableVoxelSearch method; its samples are already this distance from the surface by construction
+		bool bRequireSampleWalk = SampleSettings.SampleMethod == FNegativeSpaceSampleSettings::ESampleMethod::VoxelSearch;
 		for (int32 SampleIdx = 0; SampleIdx < NumSamples; ++SampleIdx)
 		{
 			int32 VID = Ordering.Order[SampleIdx];
-			AddSample(VertexPositions[VID]);
+			AddSample(VertexPositions[VID], false /*test cover*/, bRequireSampleWalk);
 		}
 
 		if (SampleSettings.bRequireSearchSampleCoverage)
 		{
 			double SpacingThresholdSq = SampleSettings.MinSpacing * SampleSettings.MinSpacing;
+			bool bTestCover = SpacingThresholdSq > 0;
 			for (int32 SampleIdx = NumSamples; SampleIdx < Ordering.Order.Num(); ++SampleIdx)
 			{
 				int32 VID = Ordering.Order[SampleIdx];
 				FVector3d Pos = VertexPositions[VID];
-				AddSample(Pos, true /*test cover*/);
+				AddSample(Pos, bTestCover, bRequireSampleWalk);
 			}
 		}
 	}

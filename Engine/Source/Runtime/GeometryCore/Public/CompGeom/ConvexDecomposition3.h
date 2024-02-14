@@ -40,13 +40,32 @@ struct FNegativeSpaceSampleSettings
 		: TargetNumSamples(TargetNumSamples), MinSpacing(MinSpacing), ReduceRadiusMargin(ReduceRadiusMargin)
 	{}
 
-	enum class ESampleMethod
+	enum class ESampleMethod : uint8
 	{
 		// Place sample spheres in a uniform grid pattern
 		Uniform,
 		// Use voxel-based subtraction and offsetting methods to specifically target concavities
-		VoxelSearch
+		VoxelSearch,
+		// Use a variant of VoxelSearch that aims to limit negative space to the space that can be accessed by a ball of radius >= MinRadius
+		NavigableVoxelSearch
 	};
+
+	// Enum to manage settings configurations for FNegativeSpaceSampleSettings
+	enum class EConfigDefaults : uint8
+	{
+		Latest
+	};
+
+	// Note: Class member default values are held fixed to avoid changing results for existing callers
+	// Use this method to request newer, recommended defaults
+	void ApplyDefaults(EConfigDefaults Settings = EConfigDefaults::Latest)
+	{
+		SampleMethod = ESampleMethod::NavigableVoxelSearch;
+		MarchingCubesGridScale = 1.0;
+		MaxVoxelsPerDim = 1024;
+		MinSpacing = 0.0;
+		TargetNumSamples = 0;
+	}
 
 	// Method used to place samples
 	ESampleMethod SampleMethod = ESampleMethod::Uniform;
@@ -56,6 +75,9 @@ struct FNegativeSpaceSampleSettings
 
 	// Minimum desired spacing between sampling spheres; not a strictly enforced bound.
 	double MinSpacing = 3.0;
+	
+	// Whether to allow samples w/ center inside other negative space spheres
+	bool bAllowSamplesInsideSpheres = false;
 
 	// Space to allow between spheres and actual surface
 	double ReduceRadiusMargin = 3.0;
@@ -68,15 +90,21 @@ struct FNegativeSpaceSampleSettings
 	// Whether to require that all candidate sample locations identified by Voxel Search are covered by negative space samples, up to the specified Min Sample Spacing.
 	// Note: This takes priority over TargetNumSamples if the TargetNumSamples did not achieve the required coverage.
 	bool bRequireSearchSampleCoverage = false;
-	// Whether to only consider negative space that is connected to the bounding convex hull, i.e., to ignore hollow inner pockets of negative space that cannot be reached from the outside via a larger-than-ReduceRadiusMargin-wide path
+	// Whether to only consider negative space that is connected to the bounding convex hull, i.e., to ignore hollow inner pockets of negative space that cannot be reached from the outside (for VoxelSearch and Navigable methods)
 	bool bOnlyConnectedToHull = false;
 	// Maximum number of voxels to use per dimension, when performing VoxelSearch
 	int32 MaxVoxelsPerDim = 128;
 	// Attempt to keep negative space computation deterministic, at some additional runtime cost
 	bool bDeterministic = true;
+	// Scale factor for marching cubes grid used for VoxelSearch-based methods
+	double MarchingCubesGridScale = .5;
 
 	// Whether to allow samples to be added inside the mesh, based on winding number. Can enabled for non-solid meshes; note the convex decomposition should then set bTreatAsSolid to false as well.
 	bool bAllowSamplesInsideMesh = false;
+
+	// Optional function to define an obstacle SDF which the negative space should also stay out of. Can be used for example to ignore anything below a ground plane.
+	// Note: Assumed to be in world space
+	TFunction<double(FVector Pos)> OptionalObstacleSDF;
 
 	// @return the scale factor that has been applied by Rescale()
 	double GetAppliedScaleFactor() const
@@ -108,6 +136,15 @@ struct FNegativeSpaceSampleSettings
 		ReduceRadiusMargin = FMath::Max(0.0, ReduceRadiusMargin);
 		MinRadius = FMath::Max(0.0, MinRadius);
 		MaxVoxelsPerDim = FMath::Clamp(MaxVoxelsPerDim, 4, 4096);
+	}
+
+	// helper to evaluate OptionalObstacleSDF for local positions
+	inline double ObstacleDistance(const FVector3d& LocalPos) const
+	{
+		checkSlow(OptionalObstacleSDF);
+		FVector3d WorldPos = ResultTransform.TransformPosition(LocalPos);
+		double WorldSD = OptionalObstacleSDF(WorldPos);
+		return WorldSD * AppliedScaleFactor;
 	}
 	
 private:
