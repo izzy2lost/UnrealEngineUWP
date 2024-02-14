@@ -406,13 +406,10 @@ void UNetworkPhysicsComponent::InitPhysics()
 			bCompareInputToTriggerRewind = PhysicsSettings->ResimulationSettings.GetCompareInputToTriggerRewind(PhysicsReplicationCVars::ResimulationCVars::bCompareInputToTriggerRewind);
 		}
 
-		if (APawn* Pawn = Cast<APawn>(Owner))
-		{
-			FRepMovement& RepMovement = Pawn->GetReplicatedMovement_Mutable();
-			RepMovement.LocationQuantizationLevel = EVectorQuantization::RoundTwoDecimals;
-			RepMovement.RotationQuantizationLevel = ERotatorQuantization::ShortComponents;
-			RepMovement.VelocityQuantizationLevel = EVectorQuantization::RoundTwoDecimals;
-		}
+		FRepMovement& RepMovement = Owner->GetReplicatedMovement_Mutable();
+		RepMovement.LocationQuantizationLevel = EVectorQuantization::RoundTwoDecimals;
+		RepMovement.RotationQuantizationLevel = ERotatorQuantization::ShortComponents;
+		RepMovement.VelocityQuantizationLevel = EVectorQuantization::RoundTwoDecimals;
 
 		if (UPrimitiveComponent* RootPrimComp = Cast<UPrimitiveComponent>(Owner->GetRootComponent()))
 		{
