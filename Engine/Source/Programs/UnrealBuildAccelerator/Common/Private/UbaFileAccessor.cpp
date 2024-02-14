@@ -148,14 +148,27 @@ namespace uba
 			u8* pos = (u8*)data;
 			u64 i = 0;
 
+			auto WaitAndCheckError = [&](u64 index)
+				{
+					if (!ev[index].IsSet())
+						return m_logger.Error(L"Overlapped I/O WriteFile FAILED on waiting for event!");
+					u32 error = u32(ol[index].Internal);
+					if (error != ERROR_SUCCESS)
+						return m_logger.Error(L"Overlapped I/O WriteFile FAILED!: %s", LastErrorToText(error).data);
+					return true;
+				};
+
 			auto eg = MakeGuard([&]()
 				{
 					u64 index = i % BlockCount;
 					if (i > BlockCount)
 						for (u64 j = index; j != BlockCount; ++j)
-							ev[j].IsSet();
+							if (!WaitAndCheckError(j))
+								return false;
 					for (u64 j = 0; j != index; ++j)
-						ev[j].IsSet();
+						if (!WaitAndCheckError(j))
+							return false;
+					return true;
 				});
 
 			while (writeLeft)
@@ -165,7 +178,10 @@ namespace uba
 				if (i < BlockCount)
 					ev[i].Create(false);
 				else
-					ev[index].IsSet();
+				{
+					if (!WaitAndCheckError(index))
+						return false;
+				}
 
 				u64 toWrite = Min(writeLeft, BlockSize);
 				u64 toActuallyWrite = toWrite;
@@ -197,18 +213,21 @@ namespace uba
 				{
 					u32 lastError = GetLastError();
 					if (lastError != ERROR_IO_PENDING)
-						return m_logger.Error(L"FAILED!: %ls", LastErrorToText(lastError).data);
+						return m_logger.Error(L"FAILED!: %s", LastErrorToText(lastError).data);
 				}
 				++i;
 				pos += toWrite;
 				writeLeft -= toWrite;
 			}
 
-#if 0
-			eg.Execute();
+			if (!eg.Execute())
+				return false;
+
+			#if 0
 			if (setFileSize)
 				SetEndOfFile(logger, fileName, m_fileHandle, bufferLen);
-#endif
+			#endif
+
 			return true;
 		}
 #endif

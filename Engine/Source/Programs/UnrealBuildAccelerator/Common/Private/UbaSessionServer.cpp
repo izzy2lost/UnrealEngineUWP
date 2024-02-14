@@ -1059,7 +1059,7 @@ namespace uba
 				RemoteProcess* process = (RemoteProcess*)h.m_process;
 				if (!process)
 				{
-					m_logger.Warning(TC("Client returned process that is not found on server (%s)"), reason.data);
+					m_logger.Warning(TC("Client %s returned process %u that is not found on server (%s)"), GuidToString(connectionInfo.GetUid()).str, processId, reason.data);
 					return true;
 				}
 
@@ -1067,7 +1067,7 @@ namespace uba
 				if (!m_activeRemoteProcesses.erase(process))
 				{
 					cs2.Leave();
-					m_logger.Warning(TC("Got returned process but process was not in active remote processes. Was there a disconnect happening directly after but executed before?"));
+					m_logger.Warning(TC("Got returned process %u from client %s but process was not in active remote processes. Was there a disconnect happening directly after but executed before?"), processId, GuidToString(connectionInfo.GetUid()).str);
 					return true;
 				}
 				u32 sessionIndex = process->m_sessionId - 1;
