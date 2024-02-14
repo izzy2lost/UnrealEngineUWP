@@ -73,6 +73,14 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Selection", Meta = (ClampMin = "0"))
 	TSet<int32> Indices;
 
+	/** The type of element the secondary selection refers to */
+	UPROPERTY(EditAnywhere, Category = "Secondary Selection")
+	FChaosClothAssetNodeSelectionGroup SecondaryGroup;
+
+	/** Secondary set of element indices */
+	UPROPERTY(EditAnywhere, Category = "Secondary Selection", Meta = (ClampMin = "0"))
+	TSet<int32> SecondaryIndices;
+
 	FChaosClothAssetSelectionNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 	/** Return a cached array of all the groups used by the input collection during at the time of the latest evaluation. */

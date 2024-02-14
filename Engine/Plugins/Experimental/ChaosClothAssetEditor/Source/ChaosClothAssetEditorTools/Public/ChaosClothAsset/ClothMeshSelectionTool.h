@@ -35,7 +35,9 @@ enum class EClothMeshSelectionToolActions
 {
 	NoAction,
 
-	ImportFromCollection
+	ImportFromCollection,
+	ImportSecondaryFromCollection,
+	TogglePrimarySecondary,
 };
 
 UCLASS()
@@ -56,6 +58,19 @@ public:
 	{
 		PostAction(EClothMeshSelectionToolActions::ImportFromCollection);
 	}
+
+	UFUNCTION(CallInEditor, Category = Operations)
+	void ImportSecondaryFromCollection()
+	{
+		PostAction(EClothMeshSelectionToolActions::ImportSecondaryFromCollection);
+	}
+
+	UFUNCTION(CallInEditor, Category = Operations)
+	void TogglePrimarySecondary()
+	{
+		PostAction(EClothMeshSelectionToolActions::TogglePrimarySecondary);
+	}
+
 };
 
 UCLASS()
@@ -67,6 +82,13 @@ public:
 
 	UPROPERTY(EditAnywhere, Transient, Category = Name, meta = (DisplayName = "Name", TransientToolProperty))
 	FString Name;
+
+	/**
+	* Whether the user is editing the primary or secondary selection set. Stored as a property here so that the tool will remember what the
+	* user was doing the last time the tool shut down.
+	*/
+	UPROPERTY()
+	bool bSecondarySelection = false;
 
 	UPROPERTY(EditAnywhere, Category = Visualization, meta = (DisplayName = "Show Vertices"))
 	bool bShowVertices = false;
@@ -139,7 +161,9 @@ private:
 	EClothMeshSelectionToolActions PendingAction;
 	virtual void ApplyAction(EClothMeshSelectionToolActions ActionType);
 
-	void ImportFromCollectionAction();
-
+	void ImportFromCollection(bool bImportFromSecondarySet);
+	void TogglePrimarySecondaryAction();
+	
+	void UpdatePrimarySecondaryMessage();
 };
 
