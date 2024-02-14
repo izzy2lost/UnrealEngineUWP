@@ -185,7 +185,7 @@ public:
 	}
 
 	/** 
-	* Used to determine which Branch type pins we should follow when trying to traverse the graph.
+	* Used to determine which pins we should follow when trying to traverse the graph.
 	* By default we will follow any input pin (with Branch type) on the node, but override this in
 	* inherited classes and change that if you need custom logic, such as boolean nodes that want 
 	* to choose one or the other based on the results of a conditional property.
