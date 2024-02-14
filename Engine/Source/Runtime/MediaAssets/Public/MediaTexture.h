@@ -22,7 +22,7 @@ class IMediaTextureSample;
 class UMediaPlayer;
 
 UENUM()
-enum MediaTextureOutputFormat : int
+enum UE_DEPRECATED(5.4, "No longer used") MediaTextureOutputFormat : int
 {
 	MTOF_Default					UMETA(DisplayName = "Default (sRGB)"),
 	MTOF_SRGB_LINOUT				UMETA(DisplayName = "sRGB (linear output)"),		// sRGB data, using sRGB texture formats; hence read as linear RGB
@@ -89,8 +89,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MediaTexture", meta = (DisplayName = "Enable new style output"))
 	bool NewStyleOutput;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MediaTexture", meta = (DisplayName = "Output format (new style)"))
-	TEnumAsByte<enum MediaTextureOutputFormat> OutputFormat;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+#if WITH_EDITORONLY_DATA
+	/** DEPRECATED 5.4 */
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Output format is now deprecated."))
+	TEnumAsByte<enum MediaTextureOutputFormat> OutputFormat_DEPRECATED;
+#endif
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** Current aspect ratio */
 	UPROPERTY(Transient, TextExportTransient, SkipSerialization, BlueprintReadOnly, Category = "MediaTexture", meta = (DisplayName = "Current frame's aspect ratio"))
