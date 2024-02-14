@@ -3,10 +3,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Framework/Commands/Commands.h"
+#include "Styling/AppStyle.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
 class FWidgetBlueprintEditor;
+class FUICommandInfo;
 class UBlueprint;
 class UObject;
 
@@ -17,6 +20,20 @@ namespace UMG
 	class SBindWidgetView;
 }
 }
+
+class FBindWidgetCommands : public TCommands<FBindWidgetCommands>
+{
+public:
+	FBindWidgetCommands() 
+		: TCommands<FBindWidgetCommands>(TEXT("BindWidget"), NSLOCTEXT("Contexts", "Bind Widget", "Bind Widget"), NAME_None, FAppStyle::GetAppStyleSetName())
+	{
+	}
+
+	/** Initialize commands */
+	virtual void RegisterCommands() override;
+
+	TSharedPtr<FUICommandInfo> GotoNativeVarDefinition;
+};
 
 /**
  * 

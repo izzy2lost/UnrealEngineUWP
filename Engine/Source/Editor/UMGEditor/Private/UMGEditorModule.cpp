@@ -42,6 +42,7 @@
 #include "Customizations/ListViewBaseDetails.h"
 #include "WidgetBlueprintThumbnailRenderer.h"
 #include "Customizations/WidgetThumbnailCustomization.h"
+#include "Widgets/SBindWidgetView.h"
 
 #define LOCTEXT_NAMESPACE "UMG"
 
@@ -74,6 +75,7 @@ public:
 		if (GIsEditor)
 		{
 			FDesignerCommands::Register();
+			FBindWidgetCommands::Register();
 		}
 
 		MenuExtensibilityManager = MakeShared<FExtensibilityManager>();
