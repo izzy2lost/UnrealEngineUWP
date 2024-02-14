@@ -113,6 +113,17 @@ void FNetworkPhysicsMoverInputs::MergeData(const FNetworkPhysicsData& FromData)
 	}
 }
 
+void FNetworkPhysicsMoverInputs::ValidateData(const UActorComponent* NetworkComponent)
+{
+	if (NetworkComponent)
+	{
+		if (const UMoverNetworkPhysicsLiaisonComponent* LiaisonComp = Cast<UMoverNetworkPhysicsLiaisonComponent>(NetworkComponent))
+		{
+			LiaisonComp->ValidateInputData(InputCmdContext);
+		}
+	}
+}
+
 //////////////////////////////////////////////////////////////////////////
 // FNetworkPhysicsMoverState
 
@@ -166,6 +177,7 @@ void FNetworkPhysicsMoverState::InterpolateData(const FNetworkPhysicsData& MinDa
 }
 
 //////////////////////////////////////////////////////////////////////////
+// UMoverNetworkPhysicsLiaisonComponent
 
 void UMoverNetworkPhysicsLiaisonComponent::GetCurrentInputData(OUT FMoverInputCmdContext& InputCmd) const
 {
@@ -187,8 +199,29 @@ void UMoverNetworkPhysicsLiaisonComponent::SetCurrentStateData(const FMoverSyncS
 	NetSyncState = SyncState;
 }
 
-//////////////////////////////////////////////////////////////////////////
-// UMoverNetworkPhysicsLiaisonComponent
+bool UMoverNetworkPhysicsLiaisonComponent::ValidateInputData(FMoverInputCmdContext& InputCmd) const
+{
+	bool bValidInputs = true;
+	if (FMovementSettingsInputs* MovementSettings = InputCmd.InputCollection.FindMutableDataByType<FMovementSettingsInputs>())
+	{
+		// TODO - proper data validation
+		const float MaxMaxSpeed = 1000.0f;
+		if (MovementSettings->MaxSpeed > MaxMaxSpeed)
+		{
+			MovementSettings->MaxSpeed = MaxMaxSpeed;
+			bValidInputs = false;
+		}
+
+		const float MaxAcceleration = 10000.0f;
+		if (MovementSettings->Acceleration > MaxAcceleration)
+		{
+			MovementSettings->Acceleration = MaxAcceleration;
+			bValidInputs = false;
+		}
+	}
+
+	return bValidInputs;
+}
 
 UMoverNetworkPhysicsLiaisonComponent::UMoverNetworkPhysicsLiaisonComponent()
 {
@@ -258,7 +291,7 @@ void UMoverNetworkPhysicsLiaisonComponent::OnRegister()
 	if ((MoverComp = GetOwner()->FindComponentByClass<UMoverComponent>()) != nullptr)
 	{
 	
-		CommonMovementSettings = MoverComp->FindSharedSettings<UCommonLegacyMovementSettings>();
+		CommonMovementSettings = MoverComp->FindSharedSettings_Mutable<UCommonLegacyMovementSettings>();
 		check(CommonMovementSettings);
 
 		if (MoverComp->UpdatedCompAsPrimitive)
@@ -746,7 +779,13 @@ void UMoverNetworkPhysicsLiaisonComponent::ProcessInputs_Internal(int32 PhysicsS
 				}
 			}
 		}
-		
+	}
+
+	// Override common settings data with data from FMovementSettingsInputs if present in the input cmd
+	if (const FMovementSettingsInputs* MovementSettings = Input.InputCmd.InputCollection.FindDataByType<FMovementSettingsInputs>())
+	{
+		CommonMovementSettings->MaxSpeed = MovementSettings->MaxSpeed;
+		CommonMovementSettings->Acceleration = MovementSettings->Acceleration;
 	}
 }
 

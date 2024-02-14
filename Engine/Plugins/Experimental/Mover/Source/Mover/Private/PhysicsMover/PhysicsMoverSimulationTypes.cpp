@@ -19,3 +19,32 @@ FAutoConsoleVariableRef CVarPhysicsDrivenMotionTeleportThreshold(TEXT("p.mover.p
 
 FAutoConsoleVariableRef CVarPhysicsDrivenMotionMinStepUpDistance(TEXT("p.mover.physics.MinStepUpDistance"),
 	GPhysicsDrivenMotionDebugParams.MinStepUpDistance, TEXT("Minimum distance that will be considered a step up."));
+
+//////////////////////////////////////////////////////////////////////////
+// FMovementSettingsInputs
+
+FMoverDataStructBase* FMovementSettingsInputs::Clone() const
+{
+	FMovementSettingsInputs* CopyPtr = new FMovementSettingsInputs(*this);
+	return CopyPtr;
+}
+
+bool FMovementSettingsInputs::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bOutSuccess)
+{
+	Super::NetSerialize(Ar, Map, bOutSuccess);
+
+	Ar << MaxSpeed;
+	Ar << Acceleration;
+
+	bOutSuccess = true;
+	return true;
+}
+
+
+void FMovementSettingsInputs::ToString(FAnsiStringBuilderBase& Out) const
+{
+	Super::ToString(Out);
+
+	Out.Appendf("MaxSpeed=%.2f\n", MaxSpeed);
+	Out.Appendf("Acceleration=%.2f\n", Acceleration);
+}
