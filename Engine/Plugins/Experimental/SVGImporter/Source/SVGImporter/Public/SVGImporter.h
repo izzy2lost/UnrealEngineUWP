@@ -30,6 +30,4 @@ public:
 protected:
 	DECLARE_DELEGATE_RetVal(USVGData*, FOnDefaultSVGDataRequested)
 	FOnDefaultSVGDataRequested OnDefaultSVGDataRequested;
-
-	TObjectPtr<USVGData> DefaultSVGData;
 };

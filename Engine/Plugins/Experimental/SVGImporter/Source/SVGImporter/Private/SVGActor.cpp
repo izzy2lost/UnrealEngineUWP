@@ -458,8 +458,6 @@ void ASVGActor::CreateMeshesFromShape(const FSVGShape& InShape)
 	TArray<FSVGPathPolygon> FillShapesToRender;
 	TArray<TArray<FVector>> StrokesToRender;
 
-	bool bForceFill = false;
-
 	for (const FSVGPathPolygon& ShapeToCheck : InShape.GetPolygons())
 	{
 		if (InShape.HasStroke())
@@ -478,13 +476,11 @@ void ASVGActor::CreateMeshesFromShape(const FSVGShape& InShape)
 		{
 			FillShapesToRender.Add(ShapeToCheck);
 		}
-
-		bForceFill = bShouldDrawFill;
 	}
 
 	bool bIncreaseExtrudeForDepth = false;
 
-	if (InShape.HasFill() || bForceFill)
+	if (InShape.HasFill())
 	{
 		AddFillComponent(FillShapesToRender, InShape.GetFillColor(), CurrExtrudeForDepth, InShape.GetId());
 		bIncreaseExtrudeForDepth = true;
