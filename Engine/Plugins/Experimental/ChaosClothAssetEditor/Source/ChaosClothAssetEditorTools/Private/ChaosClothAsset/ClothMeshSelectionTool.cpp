@@ -188,27 +188,6 @@ void UClothMeshSelectionTool::Setup()
 	// Hide input target mesh
 	UE::ToolTarget::HideSourceObject(Target);
 
-	// Initialize the Selection from the selected Dataflow node
-	FString ExistingSelectionName;
-	FGroupTopologySelection ExistingNodeSelection;
-	GetSelectedNodeInfo(ExistingSelectionName, ExistingNodeSelection);
-
-	constexpr bool bBroadcastChange = false;
-	SelectionMechanic->SetSelection(ExistingNodeSelection, bBroadcastChange);
-
-	if (ExistingNodeSelection.SelectedCornerIDs.Num() > 0)
-	{
-		check(ExistingNodeSelection.SelectedEdgeIDs.Num() == 0);
-		check(ExistingNodeSelection.SelectedGroupIDs.Num() == 0);
-		SelectionMechanic->Properties->bSelectVertices = true;
-		SelectionMechanic->Properties->bSelectFaces = false;
-	} 
-	else
-	{
-		SelectionMechanic->Properties->bSelectVertices = false;
-		SelectionMechanic->Properties->bSelectFaces = true;
-	}
-
 	// Setup non-manifold mapping if necessary
 	if (ClothEditorContextObject)
 	{
@@ -241,13 +220,6 @@ void UClothMeshSelectionTool::Setup()
 		}
 	}
 
-	// 
-	// Actions
-	//
-
-	ActionsProps = NewObject<UClothMeshSelectionToolActions>();
-	ActionsProps->Initialize(this);
-	AddToolPropertySource(ActionsProps);
 
 	//
 	// Properties
@@ -264,8 +236,35 @@ void UClothMeshSelectionTool::Setup()
 		SelectionMechanic->SetShowEdges(bNewShowEdges);
 	});
 
-	ToolProperties->Name = ExistingSelectionName;
+	// Order of operations is important here:
+	// ToolProperties->RestoreProperties should happen before GetSelectedNodeInfo so that we can know whether we need to get Primary or Secondary set
+	// ToolProperties->WatchProperty(ToolProperties->Name) should happen after GetSelectedNodeInfo so that we can set the OriginalName
 
+	ToolProperties->RestoreProperties(this);
+	 
+	// Initialize the Selection from the selected Dataflow node
+	FString ExistingSelectionName;
+	FGroupTopologySelection ExistingNodeSelection;
+	GetSelectedNodeInfo(ExistingSelectionName, ExistingNodeSelection);
+
+	constexpr bool bBroadcastChange = false;
+	SelectionMechanic->SetSelection(ExistingNodeSelection, bBroadcastChange);
+
+	if (ExistingNodeSelection.SelectedCornerIDs.Num() > 0)
+	{
+		check(ExistingNodeSelection.SelectedEdgeIDs.Num() == 0);
+		check(ExistingNodeSelection.SelectedGroupIDs.Num() == 0);
+		SelectionMechanic->Properties->bSelectVertices = true;
+		SelectionMechanic->Properties->bSelectFaces = false;
+	}
+	else
+	{
+		SelectionMechanic->Properties->bSelectVertices = false;
+		SelectionMechanic->Properties->bSelectFaces = true;
+	}
+
+
+    ToolProperties->Name = ExistingSelectionName;
 	ToolProperties->WatchProperty(ToolProperties->Name, [this, OriginalName = ToolProperties->Name](const FString& NewName)
 	{
 		if (NewName != OriginalName)
@@ -274,15 +273,25 @@ void UClothMeshSelectionTool::Setup()
 		}
 	});
 
+
+	// 
+	// Actions
+	//
+
+	ActionsProps = NewObject<UClothMeshSelectionToolActions>();
+	ActionsProps->Initialize(this);
+	AddToolPropertySource(ActionsProps);
+
 	AddToolPropertySource(ToolProperties);
-	ToolProperties->RestoreProperties(this);
 
 	AddToolPropertySource(SelectionMechanic->Properties);
+
+	UpdatePrimarySecondaryMessage();
 }
 
 void UClothMeshSelectionTool::OnShutdown(EToolShutdownType ShutdownType)
 {
-	if (ShutdownType == EToolShutdownType::Accept)
+	if (ShutdownType == EToolShutdownType::Accept && CanAccept())
 	{
 		GetToolManager()->BeginUndoTransaction(LOCTEXT("SelectionToolTransactionName", "Mesh Selection"));
 		UpdateSelectedNode();
@@ -373,27 +382,41 @@ bool UClothMeshSelectionTool::GetSelectedNodeInfo(FString& OutSelectionName, UE:
 		});
 	};
 
-
-	if (MeshSelectionNode->Group.Name == ClothCollectionGroup::SimVertices2D.ToString() ||
-		MeshSelectionNode->Group.Name == ClothCollectionGroup::SimVertices3D.ToString() ||
-		MeshSelectionNode->Group.Name == ClothCollectionGroup::RenderVertices.ToString())
+	auto ReadFromNode = [this, &AppendVerticesIfValid, &AppendFacesIfValid, &OutSelection](const FChaosClothAssetNodeSelectionGroup& SourceGroup, const TSet<int32>& SourceIndices)
 	{
-		if (bHasNonManifoldMapping)
+		if (SourceGroup.Name == ClothCollectionGroup::SimVertices2D.ToString() ||
+			SourceGroup.Name == ClothCollectionGroup::SimVertices3D.ToString() ||
+			SourceGroup.Name == ClothCollectionGroup::RenderVertices.ToString())
 		{
-			for (const int32 SelectionIndex : MeshSelectionNode->Indices)
+			if (bHasNonManifoldMapping)
 			{
-				AppendVerticesIfValid(OutSelection.SelectedCornerIDs, SelectionToDynamicMesh[SelectionIndex]);
+				for (const int32 SelectionIndex : SourceIndices)
+				{
+					if (SelectionIndex < SelectionToDynamicMesh.Num())		// Could be loading a render mesh selection where NumRenderVertices > NumSimVertices
+					{
+						AppendVerticesIfValid(OutSelection.SelectedCornerIDs, SelectionToDynamicMesh[SelectionIndex]);
+					}
+				}
+			}
+			else
+			{
+				AppendVerticesIfValid(OutSelection.SelectedCornerIDs, SourceIndices);
 			}
 		}
-		else
+		else if (SourceGroup.Name == ClothCollectionGroup::SimFaces.ToString() ||
+			     SourceGroup.Name == ClothCollectionGroup::RenderFaces)
 		{
-			AppendVerticesIfValid(OutSelection.SelectedCornerIDs, MeshSelectionNode->Indices);
+			AppendFacesIfValid(OutSelection.SelectedGroupIDs, SourceIndices);
 		}
-	}
-	else if (MeshSelectionNode->Group.Name == ClothCollectionGroup::SimFaces.ToString() ||
-		MeshSelectionNode->Group.Name == ClothCollectionGroup::RenderFaces)
+	};
+
+	if (ToolProperties && ToolProperties->bSecondarySelection)
 	{
-		AppendFacesIfValid(OutSelection.SelectedGroupIDs, MeshSelectionNode->Indices);
+		ReadFromNode(MeshSelectionNode->SecondaryGroup, MeshSelectionNode->SecondaryIndices);
+	}
+	else
+	{
+		ReadFromNode(MeshSelectionNode->Group, MeshSelectionNode->Indices);
 	}
 
 	OutSelectionName = MeshSelectionNode->Name;
@@ -451,24 +474,35 @@ void UClothMeshSelectionTool::UpdateSelectedNode()
 	FChaosClothAssetSelectionNode* const MeshSelectionNode = ClothEditorContextObject->GetSingleSelectedNodeOfType<FChaosClothAssetSelectionNode>();
 	check(MeshSelectionNode);
 
-	MeshSelectionNode->Name = ToolProperties->Name;
-	MeshSelectionNode->Group.Name = GroupName.ToString();
-
-	if (SelectionMechanic->Properties->bSelectVertices && bHasNonManifoldMapping)
+	auto WriteToNode = [this, &Indices, &GroupName, MeshSelectionNode](FChaosClothAssetNodeSelectionGroup& TargetGroup, TSet<int32>& TargetIndices)
 	{
-		MeshSelectionNode->Indices.Reset();
-		for (const int32 DynamicMeshIdx : Indices)
+		MeshSelectionNode->Name = ToolProperties->Name;
+		TargetGroup.Name = GroupName.ToString();
+
+		if (SelectionMechanic->Properties->bSelectVertices && bHasNonManifoldMapping)
 		{
-			const int32 MappedSelectionIndex = DynamicMeshToSelection[DynamicMeshIdx];
-			MeshSelectionNode->Indices.Add(MappedSelectionIndex);
+			TargetIndices.Reset();
+			for (const int32 DynamicMeshIdx : Indices)
+			{
+				const int32 MappedSelectionIndex = DynamicMeshToSelection[DynamicMeshIdx];
+				TargetIndices.Add(MappedSelectionIndex);
+			}
 		}
+		else
+		{
+			TargetIndices = MoveTemp(Indices);
+		}
+	};
+
+	if (!ToolProperties->bSecondarySelection)
+	{
+		WriteToNode(MeshSelectionNode->Group, MeshSelectionNode->Indices);
 	}
 	else
 	{
-		MeshSelectionNode->Indices = MoveTemp(Indices);
+		WriteToNode(MeshSelectionNode->SecondaryGroup, MeshSelectionNode->SecondaryIndices);
 	}
-
-	MeshSelectionNode->Invalidate();
+	
 }
 
 void UClothMeshSelectionTool::RequestAction(EClothMeshSelectionToolActions ActionType)
@@ -486,12 +520,18 @@ void UClothMeshSelectionTool::ApplyAction(EClothMeshSelectionToolActions ActionT
 	switch (ActionType)
 	{
 	case EClothMeshSelectionToolActions::ImportFromCollection:
-		ImportFromCollectionAction();
+		ImportFromCollection(/*bImportFromSecondarySet = */ false);
+		break;
+	case EClothMeshSelectionToolActions::ImportSecondaryFromCollection:
+		ImportFromCollection(/*bImportFromSecondarySet = */ true);
+		break;
+	case EClothMeshSelectionToolActions::TogglePrimarySecondary:
+		TogglePrimarySecondaryAction();
 		break;
 	}
 }
 
-void UClothMeshSelectionTool::ImportFromCollectionAction()
+void UClothMeshSelectionTool::ImportFromCollection(bool bImportFromSecondarySet)
 {
 	if (const TSharedPtr<const FManagedArrayCollection> ClothCollection = ClothEditorContextObject->GetSelectedInputClothCollection().Pin())
 	{
@@ -533,9 +573,11 @@ void UClothMeshSelectionTool::ImportFromCollectionAction()
 				}
 			}
 			const FName InSelectionName(ToolProperties->Name);
-			if (const TSet<int32>* const SelectionSet = SelectionFacade.FindSelectionSet(InSelectionName))
+
+			if (const TSet<int32>* const SelectionSet = bImportFromSecondarySet ? SelectionFacade.FindSelectionSecondarySet(InSelectionName) : SelectionFacade.FindSelectionSet(InSelectionName))
 			{
-				const FName& ExistingSelectionGroup = SelectionFacade.GetSelectionGroup(InSelectionName);
+				const FName& ExistingSelectionGroup = bImportFromSecondarySet ? SelectionFacade.GetSelectionSecondaryGroup(InSelectionName) : SelectionFacade.GetSelectionGroup(InSelectionName);
+
 				if (ExistingSelectionGroup == GroupName)
 				{
 					auto AppendVerticesIfValid = [this]<typename T>(TSet<int32>&Dest, const T & Source)
@@ -576,7 +618,10 @@ void UClothMeshSelectionTool::ImportFromCollectionAction()
 						{
 							for (const int32 SelectionIndex : *SelectionSet)
 							{
-								AppendVerticesIfValid(OutSelection.SelectedCornerIDs, SelectionToDynamicMesh[SelectionIndex]);
+								if (SelectionIndex < SelectionToDynamicMesh.Num())		// Could be loading a render mesh selection where NumRenderVertices > NumSimVertices
+								{
+									AppendVerticesIfValid(OutSelection.SelectedCornerIDs, SelectionToDynamicMesh[SelectionIndex]);
+								}
 							}
 						}
 						else
@@ -594,6 +639,52 @@ void UClothMeshSelectionTool::ImportFromCollectionAction()
 			}
 		}
 	}
+}
+
+void UClothMeshSelectionTool::TogglePrimarySecondaryAction()
+{
+	// Save any changes made in the current mode to the node
+	if (bAnyChangeMade)
+	{
+		UpdateSelectedNode();
+		bAnyChangeMade = false;
+	}
+
+	// Toggle
+	ToolProperties->bSecondarySelection = !ToolProperties->bSecondarySelection;
+
+	// Re-initialize the Selection from the selected Dataflow node
+	FString ExistingSelectionName;
+	FGroupTopologySelection ExistingNodeSelection;
+	GetSelectedNodeInfo(ExistingSelectionName, ExistingNodeSelection);
+
+	constexpr bool bBroadcastChange = false;
+	SelectionMechanic->SetSelection(ExistingNodeSelection, bBroadcastChange);
+
+	if (ExistingNodeSelection.SelectedCornerIDs.Num() > 0)
+	{
+		check(ExistingNodeSelection.SelectedEdgeIDs.Num() == 0);
+		check(ExistingNodeSelection.SelectedGroupIDs.Num() == 0);
+		SelectionMechanic->Properties->bSelectVertices = true;
+		SelectionMechanic->Properties->bSelectFaces = false;
+	}
+	else
+	{
+		SelectionMechanic->Properties->bSelectVertices = false;
+		SelectionMechanic->Properties->bSelectFaces = true;
+	}
+
+	ToolProperties->Name = ExistingSelectionName;
+
+	PreviewMesh->FastNotifySecondaryTrianglesChanged();
+
+	UpdatePrimarySecondaryMessage();
+}
+
+void UClothMeshSelectionTool::UpdatePrimarySecondaryMessage()
+{
+	const FText Message = ToolProperties->bSecondarySelection ? LOCTEXT("SecondarySelectionMode", "Secondary Selection") : LOCTEXT("PrimarySelectionMode", "Primary Selection");
+	GetToolManager()->DisplayMessage(Message, EToolMessageLevel::UserWarning);
 }
 
 #undef LOCTEXT_NAMESPACE

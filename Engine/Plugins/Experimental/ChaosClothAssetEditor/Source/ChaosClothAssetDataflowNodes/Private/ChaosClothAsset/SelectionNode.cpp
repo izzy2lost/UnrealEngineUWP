@@ -22,59 +22,75 @@ void FChaosClothAssetSelectionNode::Evaluate(Dataflow::FContext& Context, const 
 {
 	using namespace UE::Chaos::ClothAsset;
 
+	auto CopyIntoSelection = [this](const TSharedRef<FManagedArrayCollection> SelectionCollection, 
+		const FName& SelectionGroupName, 
+		const TSet<int32>& SourceIndices,
+		TSet<int32>& DestSelectionSet)
+	{
+		const int32 NumElementsInGroup = SelectionCollection->NumElements(SelectionGroupName);
+		bool bFoundAnyInvalidIndex = false;
+
+		for (const int32 Index : SourceIndices)
+		{
+			if (Index < 0 || Index >= NumElementsInGroup)
+			{
+				const FText LogErrorMessage = FText::Format(LOCTEXT("SelectionIndexOutOfBoundsDetails", "Selection index {0} not valid for group \"{1}\" with {2} elements"),
+					Index,
+					FText::FromName(SelectionGroupName),
+					NumElementsInGroup);
+
+				// Log all indices, but toast once
+				UE_LOG(LogChaosClothAssetDataflowNodes, Warning, TEXT("%s"), *LogErrorMessage.ToString());
+				bFoundAnyInvalidIndex = true;
+			}
+			else
+			{
+				DestSelectionSet.Add(Index);
+			}
+		}
+
+		if (bFoundAnyInvalidIndex)
+		{
+			// Toast once
+			const FText ToastErrorMessage = FText::Format(LOCTEXT("AnySelectionIndexOutOfBoundsDetails", "Found invalid selection indices for group \"{0}.\" See log for details"),
+				FText::FromName(SelectionGroupName));
+			FClothDataflowTools::LogAndToastWarning(*this, LOCTEXT("AnySelectionIndexOutOfBoundsHeadline", "Invalid selection"), ToastErrorMessage);
+		}
+	};
+
+
 	if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
 		if (Name.IsEmpty() || Group.Name.IsEmpty())
 		{
 			const FManagedArrayCollection& SelectionCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
 			SetValue(Context, SelectionCollection, &Collection);
+			return;
 		}
-		else
+
+		const FName SelectionName(*Name);
+		const FName SelectionGroupName(*Group.Name);
+
+		FManagedArrayCollection InSelectionCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
+		const TSharedRef<FManagedArrayCollection> SelectionCollection = MakeShared<FManagedArrayCollection>(MoveTemp(InSelectionCollection));
+
+		FCollectionClothSelectionFacade SelectionFacade(SelectionCollection);
+		SelectionFacade.DefineSchema();
+		check(SelectionFacade.IsValid());
+
+		TSet<int32>& SelectionSet = SelectionFacade.FindOrAddSelectionSet(SelectionName, SelectionGroupName);
+		CopyIntoSelection(SelectionCollection, SelectionGroupName, Indices, SelectionSet);
+
+		if (!SecondaryGroup.Name.IsEmpty() && !SecondaryIndices.IsEmpty())
 		{
-			const FName SelectionName(*Name);
-			const FName SelectionGroupName(*Group.Name);
+			const FName SecondarySelectionName(*Name);
+			const FName SecondarySelectionGroupName = (*SecondaryGroup.Name);		
+			TSet<int32>& SecondarySelectionSet = SelectionFacade.FindOrAddSelectionSecondarySet(SecondarySelectionName, SecondarySelectionGroupName);
 
-			FManagedArrayCollection InSelectionCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-			const TSharedRef<FManagedArrayCollection> SelectionCollection = MakeShared<FManagedArrayCollection>(MoveTemp(InSelectionCollection));
-
-			FCollectionClothSelectionFacade SelectionFacade(SelectionCollection);
-			SelectionFacade.DefineSchema();
-			check(SelectionFacade.IsValid());
-
-			TSet<int32>& SelectionSet = SelectionFacade.FindOrAddSelectionSet(SelectionName, SelectionGroupName);
-
-			const int32 NumElementsInGroup = SelectionCollection->NumElements(SelectionGroupName);
-			bool bFoundAnyInvalidIndex = false;
-
-			for (const int32 Index : Indices)
-			{
-				if (Index < 0 || Index >= NumElementsInGroup)
-				{
-					const FText LogErrorMessage = FText::Format(LOCTEXT("SelectionIndexOutOfBoundsDetails", "Selection index {0} not valid for group \"{1}\" with {2} elements"),
-						Index,
-						FText::FromName(SelectionGroupName),
-						NumElementsInGroup);
-						
-					// Log all indices, but toast once
-					UE_LOG(LogChaosClothAssetDataflowNodes, Warning, TEXT("%s"), *LogErrorMessage.ToString());
-					bFoundAnyInvalidIndex = true;
-				}
-				else
-				{
-					SelectionSet.Add(Index);
-				}
-			}
-
-			if (bFoundAnyInvalidIndex)
-			{
-				// Toast once
-				const FText ToastErrorMessage = FText::Format(LOCTEXT("AnySelectionIndexOutOfBoundsDetails", "Found invalid selection indices for group \"{0}.\" See log for details"),
-					FText::FromName(SelectionGroupName));
-				FClothDataflowTools::LogAndToastWarning(*this, LOCTEXT("AnySelectionIndexOutOfBoundsHeadline", "Invalid selection"), ToastErrorMessage);
-			}
-
-			SetValue(Context, MoveTemp(*SelectionCollection), &Collection);
+			CopyIntoSelection(SelectionCollection, SecondarySelectionGroupName, SecondaryIndices, SecondarySelectionSet);
 		}
+
+		SetValue(Context, MoveTemp(*SelectionCollection), &Collection);
 	}
 	else if (Out->IsA<FString>(&Name))
 	{
@@ -118,7 +134,7 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 
 		FClothDataflowTools::LogAndToastWarning(*this,
 			LOCTEXT("DeprecatedSelectionType", "Outdated Dataflow asset."),
-			LOCTEXT("DeprecatedSelectionDetails", "This node is out of data and contain deprecated data. The asset needs to be re-saved before it stops working at the next version update."));
+			LOCTEXT("DeprecatedSelectionDetails", "This node is out of date and contains deprecated data. The asset needs to be re-saved before it stops working at the next version update."));
 	}
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }

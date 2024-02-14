@@ -11,6 +11,7 @@ namespace UE::Chaos::ClothAsset
 	namespace Private
 	{
 		static const FName SelectionGroup(TEXT("Selection"));
+		static const FName SelectionSecondaryGroup(TEXT("SelectionSecondary"));
 	}
 
 	// --------------- FCollectionClothSelectionConstFacade -------------------------------
@@ -63,6 +64,47 @@ namespace UE::Chaos::ClothAsset
 		return Selection ? Selection->GetData() : nullptr;
 	}
 
+	bool FCollectionClothSelectionConstFacade::HasSelectionSecondarySet(const FName& Name) const
+	{
+		if (!IsValid())
+		{
+			return false;
+		}
+		const bool bPrimaryAttributeExists = ManagedArrayCollection->HasAttribute(Name, Private::SelectionGroup);
+		const bool bSecondaryAttributeExists = ManagedArrayCollection->HasAttribute(Name, Private::SelectionSecondaryGroup);
+		checkf(bPrimaryAttributeExists || !bSecondaryAttributeExists, TEXT("FCollectionClothSelectionConstFacade: Secondary Selection found with no matching Primary attribute"));
+		return bPrimaryAttributeExists && bSecondaryAttributeExists;
+	}
+
+	FName FCollectionClothSelectionConstFacade::GetSelectionSecondaryGroup(const FName& Name) const
+	{
+		check(IsValid());
+		check(HasSelectionSecondarySet(Name));	// Also checks the primary set exists
+		return ManagedArrayCollection->GetDependency(Name, Private::SelectionSecondaryGroup);
+	}
+
+	const TSet<int32>& FCollectionClothSelectionConstFacade::GetSelectionSecondarySet(const FName& Name) const
+	{
+		check(IsValid());
+		check(ManagedArrayCollection->HasAttribute(Name, Private::SelectionGroup));
+
+		const TManagedArray<TSet<int32>>* const Selection = ManagedArrayCollection->FindAttributeTyped<TSet<int32>>(Name, Private::SelectionSecondaryGroup);
+		check(Selection);
+		return *Selection->GetData();
+	}
+
+	const TSet<int32>* FCollectionClothSelectionConstFacade::FindSelectionSecondarySet(const FName& Name) const
+	{
+		check(IsValid());
+		const bool bPrimaryAttributeExists = ManagedArrayCollection->HasAttribute(Name, Private::SelectionGroup);
+		const TManagedArray<TSet<int32>>* const SecondarySelection = ManagedArrayCollection->FindAttributeTyped<TSet<int32>>(Name, Private::SelectionSecondaryGroup);
+
+		checkf(bPrimaryAttributeExists || !SecondarySelection, TEXT("FCollectionClothSelectionConstFacade: Secondary Selection found with no matching Primary attribute"));
+
+		return SecondarySelection ? SecondarySelection->GetData() : nullptr;
+	}
+
+
 	// --------------- FCollectionClothSelectionFacade -------------------------------
 
 	FCollectionClothSelectionFacade::FCollectionClothSelectionFacade(const TSharedRef<const FManagedArrayCollection>& ManagedArrayCollection) :
@@ -71,19 +113,25 @@ namespace UE::Chaos::ClothAsset
 
 	void FCollectionClothSelectionFacade::DefineSchema()
 	{
-		if (!ManagedArrayCollection->HasGroup(Private::SelectionGroup))
+		auto InitSelectionGroup = [this](const FName& SelectionGroupName)
 		{
-			ManagedArrayCollection->AddGroup(Private::SelectionGroup);
-		}
-		const int32 NumElements = ManagedArrayCollection->NumElements(Private::SelectionGroup);
-		if (NumElements > 1)
-		{
-			ManagedArrayCollection->RemoveElements(Private::SelectionGroup, NumElements - 1, 1);
-		}
-		else if (NumElements == 0)
-		{
-			ManagedArrayCollection->AddElements(1, Private::SelectionGroup);
-		}
+			if (!ManagedArrayCollection->HasGroup(SelectionGroupName))
+			{
+				ManagedArrayCollection->AddGroup(SelectionGroupName);
+			}
+			const int32 NumElements = ManagedArrayCollection->NumElements(SelectionGroupName);
+			if (NumElements > 1)
+			{
+				ManagedArrayCollection->RemoveElements(SelectionGroupName, NumElements - 1, 1);
+			}
+			else if (NumElements == 0)
+			{
+				ManagedArrayCollection->AddElements(1, SelectionGroupName);
+			}
+		};
+
+		InitSelectionGroup(Private::SelectionGroup);
+		InitSelectionGroup(Private::SelectionSecondaryGroup);
 	}
 
 	void FCollectionClothSelectionFacade::AppendWithOffsets(const FCollectionClothSelectionConstFacade& Other, bool bOverwriteExistingIfMismatched, const TMap<FName, int32>& GroupOffsets)
@@ -159,21 +207,51 @@ namespace UE::Chaos::ClothAsset
 		ManagedArrayCollection->RemoveAttribute(Name, Private::SelectionGroup);
 	}
 
-	TSet<int32>& FCollectionClothSelectionFacade::FindOrAddSelectionSet(const FName& Name, const FName& GroupName)
+
+	TSet<int32>& FCollectionClothSelectionFacade::GetSelectionSecondarySet(const FName& Name)
+	{
+		check(IsValid());
+		check(ManagedArrayCollection->FindAttributeTyped<TSet<int32>>(Name, Private::SelectionGroup) != nullptr);
+
+		TManagedArray<TSet<int32>>* const Selection = ManagedArrayCollection->FindAttributeTyped<TSet<int32>>(Name, Private::SelectionSecondaryGroup);
+		check(Selection);
+		return *Selection->GetData();
+	}
+
+	TSet<int32>* FCollectionClothSelectionFacade::FindSelectionSecondarySet(const FName& Name)
+	{
+		check(IsValid());
+		const bool bPrimaryAttributeExists = ManagedArrayCollection->HasAttribute(Name, Private::SelectionGroup);
+
+		TManagedArray<TSet<int32>>* const SecondarySelection = ManagedArrayCollection->FindAttributeTyped<TSet<int32>>(Name, Private::SelectionSecondaryGroup);	
+		
+		checkf(bPrimaryAttributeExists || !SecondarySelection, TEXT("FCollectionClothSelectionFacade: Secondary Selection found with no Primary attribute"));
+
+		return SecondarySelection ? SecondarySelection->GetData() : nullptr;
+	}
+
+	void FCollectionClothSelectionFacade::RemoveSelectionSecondarySet(const FName& Name)
+	{
+		check(IsValid());
+		ManagedArrayCollection->RemoveAttribute(Name, Private::SelectionSecondaryGroup);
+	}
+
+
+	TSet<int32>& FCollectionClothSelectionFacade::FindOrAddSelectionSetInternal(const FName& Name, const FName& GroupName, const FName& SelectionGroupName)
 	{
 		check(IsValid());
 		ensure(GroupName != NAME_None && Name != NAME_None);
 		constexpr bool bAllowCircularDependency = false;
 
-		TManagedArray<TSet<int32>>* Selection = ManagedArrayCollection->FindAttributeTyped<TSet<int32>>(Name, Private::SelectionGroup);
+		TManagedArray<TSet<int32>>* Selection = ManagedArrayCollection->FindAttributeTyped<TSet<int32>>(Name, SelectionGroupName);
 		if (Selection)
 		{
 			check(Selection->Num() == 1);  // This should always be the case if the facade is valid
 
 			// Recycle the existing selection, with the new group if needed
-			if (ManagedArrayCollection->GetDependency(Name, Private::SelectionGroup) != GroupName)
+			if (ManagedArrayCollection->GetDependency(Name, SelectionGroupName) != GroupName)
 			{
-				ManagedArrayCollection->SetDependency(Name, Private::SelectionGroup, GroupName, bAllowCircularDependency);
+				ManagedArrayCollection->SetDependency(Name, SelectionGroupName, GroupName, bAllowCircularDependency);
 				(*Selection)[0].Reset();  // No point in keeping unrelated selection indices since the group has changed better clear everything
 			}
 		}
@@ -182,13 +260,26 @@ namespace UE::Chaos::ClothAsset
 			// Create a new selection
 			constexpr bool bSaved = true;
 			const FManagedArrayCollection::FConstructionParameters GroupDependency(GroupName, bSaved, bAllowCircularDependency);
-			Selection = &ManagedArrayCollection->AddAttribute<TSet<int32>>(Name, Private::SelectionGroup, GroupDependency);
+			Selection = &ManagedArrayCollection->AddAttribute<TSet<int32>>(Name, SelectionGroupName, GroupDependency);
 
 			check(Selection->Num() == 1);  // This should always be the case if the facade is valid
 		}
 
 		return (*Selection)[0];
 	}
+
+
+	TSet<int32>& FCollectionClothSelectionFacade::FindOrAddSelectionSet(const FName& Name, const FName& GroupName)
+	{
+		return FindOrAddSelectionSetInternal(Name, GroupName, Private::SelectionGroup);
+	}
+
+	TSet<int32>& FCollectionClothSelectionFacade::FindOrAddSelectionSecondarySet(const FName& Name, const FName& GroupName)
+	{
+		checkf(HasSelection(Name), TEXT("FCollectionClothSelectionFacade: Can't add a Secondary Selection with no matching Primary attribute"));
+		return FindOrAddSelectionSetInternal(Name, GroupName, Private::SelectionSecondaryGroup);
+	}
+
 }	// namespace  UE::Chaos::ClothAsset
 
 #undef LOCTEXT_NAMESPACE
