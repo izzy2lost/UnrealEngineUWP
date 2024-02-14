@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Input/Events.h"
 #include "AnimNotifyPanelContextMenuContext.generated.h"
 
 class SAnimNotifyTrack;
