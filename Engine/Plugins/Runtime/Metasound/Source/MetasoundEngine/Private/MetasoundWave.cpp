@@ -54,7 +54,11 @@ namespace Metasound
 						{
 							if (SoundWaveProxy->GetNumChunks() > 1)
 							{
-								IStreamingManager::Get().GetAudioStreamingManager().RequestChunk(SoundWaveProxy, 1, [](EAudioChunkLoadResult) {});
+								if (FStreamingManagerCollection* StreamingMgr = IStreamingManager::Get_Concurrent())
+								{
+									IAudioStreamingManager& AudioStreamingMgr = StreamingMgr->GetAudioStreamingManager();
+									AudioStreamingMgr.RequestChunk(SoundWaveProxy, 1, [](EAudioChunkLoadResult) {});
+								}
 							}
 						}
 					}

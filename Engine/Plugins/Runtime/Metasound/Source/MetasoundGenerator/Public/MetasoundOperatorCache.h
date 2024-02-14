@@ -82,10 +82,11 @@ namespace Metasound
 
 	// Pool of re-useable metasound operators to be used / put back by the metasound generator
 	// operators can also be pre-constructed via the UMetasoundCacheSubsystem BP api.
-	class METASOUNDGENERATOR_API FOperatorPool
+	class METASOUNDGENERATOR_API FOperatorPool : public TSharedFromThis<FOperatorPool>
 	{
 	public:
 		FOperatorPool(const FOperatorPoolSettings& InSettings);
+		~FOperatorPool();
 
 		FOperatorAndInputs ClaimOperator(const FGuid& InOperatorID);
 
@@ -95,6 +96,8 @@ namespace Metasound
 
 		void TouchOperators(const FGuid& InOpeoratorID, const int32& NumToTouch = 1);
 		void TouchOperatorsViaAssetClassID(const FGuid& InAssetClassID, const int32& NumToTouch = 1);
+
+		bool IsStopping() const { return bStopping.load(); }
 
 		void RemoveOperatorsWithID(const FGuid& InOperatorID);
 		void RemoveOperatorsWithAssetClassID(const FGuid& InAssetClassID);
@@ -109,7 +112,12 @@ namespace Metasound
 		void UpdateHitRateTracker();
 #endif // #if METASOUND_OPERATORCACHEPROFILER_ENABLED
 
+		void CancelAllBuildEvents();
+
 	private:
+		void RemoveBuildEvent(const FGraphEventRef& InEventRef);
+
+		void BuildAndAddAsync(TUniqueFunction<void()>&& InBuildFunc);
 		void Trim();
 
 		FOperatorPoolSettings Settings;
@@ -118,6 +126,9 @@ namespace Metasound
 #if METASOUND_OPERATORCACHEPROFILER_ENABLED
 		OperatorPoolPrivate::FWindowedHitRate HitRateTracker;
 #endif // #if METASOUND_OPERATORCACHEPROFILER_ENABLED
+
+		std::atomic<bool> bStopping;
+		TSet<FGraphEventRef> ActiveBuildEvents;
 
 		TMap<FGuid, TArray<FOperatorAndInputs>> Operators;
 		TMap<FGuid, FGuid> AssetIdToGraphIdLookUp;
