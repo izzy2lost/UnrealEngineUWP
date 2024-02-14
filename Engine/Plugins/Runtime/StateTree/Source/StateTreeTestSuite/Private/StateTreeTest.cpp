@@ -1759,19 +1759,23 @@ struct FStateTreeTest_References : FAITestBase
 		PropertyBindings.Add(UE::StateTree::Tests::MakeBinding(SourceDesc.ID, TEXT("Item.A"), TargetDesc.ID, TEXT("RefToInt")));
 		PropertyBindings.Add(UE::StateTree::Tests::MakeBinding(SourceDesc.ID, TEXT("Array"), TargetDesc.ID, TEXT("RefToStructArray")));
 
+		FStateTreeTest_PropertyRefSourceStruct Source;
+		FStateTreeDataView SourceView = FStateTreeDataView(FStructView::Make(Source));
+
 		FStateTreeTest_PropertyRefTargetStruct Target;
 		FStateTreeDataView TargetView(FStructView::Make(Target));
-		const bool bCompileReferencesResult = BindingCompiler.CompileReferences(TargetDesc, PropertyBindings, TargetView);
+
+		TMap<FGuid, const FStateTreeDataView> IDToStructValue;
+		IDToStructValue.Emplace(SourceDesc.ID, SourceView);
+		IDToStructValue.Emplace(TargetDesc.ID, TargetView);
+
+		const bool bCompileReferencesResult = BindingCompiler.CompileReferences(TargetDesc, PropertyBindings, TargetView, IDToStructValue);
 		AITEST_TRUE("CompileReferences should succeed", bCompileReferencesResult);	
 
 		BindingCompiler.Finalize();
 
 		const bool bResolveResult = Bindings.ResolvePaths();
 		AITEST_TRUE("ResolvePaths should succeed", bResolveResult);
-
-		FStateTreeTest_PropertyRefSourceStruct Source;
-
-		FStateTreeDataView SourceView = FStateTreeDataView(FStructView::Make(Source));
 
 		{
 			const FStateTreePropertyAccess* PropertyAccess = Bindings.GetPropertyAccess(Target.RefToStruct);
@@ -1841,26 +1845,37 @@ struct FStateTreeTest_ReferencesConstness : FAITestBase
 		FStateTreePropertyPathBinding ContextPropertyBinding = UE::StateTree::Tests::MakeBinding(SourceAsTaskDesc.ID, TEXT("Item"), TargetDesc.ID, TEXT("RefToStruct"));
 		FStateTreePropertyPathBinding ContextOutputPropertyBinding = UE::StateTree::Tests::MakeBinding(SourceAsTaskDesc.ID, TEXT("Item"), TargetDesc.ID, TEXT("RefToStruct"));
 
+		FStateTreeTest_PropertyRefSourceStruct SourceAsTask;
+		FStateTreeDataView SourceAsTaskView(FStructView::Make(SourceAsTask));
+
+		FStateTreeTest_PropertyRefSourceStruct SourceAsContext;
+		FStateTreeDataView SourceAsContextView(FStructView::Make(SourceAsContext));
+
 		FStateTreeTest_PropertyRefTargetStruct Target;
 		FStateTreeDataView TargetView(FStructView::Make(Target));
 
+		TMap<FGuid, const FStateTreeDataView> IDToStructValue;
+		IDToStructValue.Emplace(SourceAsTaskDesc.ID, SourceAsTaskView);
+		IDToStructValue.Emplace(SourceAsContextDesc.ID, SourceAsContextView);
+		IDToStructValue.Emplace(TargetDesc.ID, TargetView);
+
 		{
-			const bool bCompileReferenceResult = BindingCompiler.CompileReferences(TargetDesc, {TaskPropertyBinding}, TargetView);
+			const bool bCompileReferenceResult = BindingCompiler.CompileReferences(TargetDesc, {TaskPropertyBinding}, TargetView, IDToStructValue);
 			AITEST_FALSE("CompileReferences should fail", bCompileReferenceResult);
 		}
 
 		{
-			const bool bCompileReferenceResult = BindingCompiler.CompileReferences(TargetDesc, {TaskOutputPropertyBinding}, TargetView);
+			const bool bCompileReferenceResult = BindingCompiler.CompileReferences(TargetDesc, {TaskOutputPropertyBinding}, TargetView, IDToStructValue);
 			AITEST_TRUE("CompileReferences should succeed", bCompileReferenceResult);
 		}
 
 		{
-			const bool bCompileReferenceResult = BindingCompiler.CompileReferences(TargetDesc, {ContextPropertyBinding}, TargetView);
+			const bool bCompileReferenceResult = BindingCompiler.CompileReferences(TargetDesc, {ContextPropertyBinding}, TargetView, IDToStructValue);
 			AITEST_FALSE("CompileReferences should fail", bCompileReferenceResult);
 		}
 
 		{	
-			const bool bCompileReferenceResult = BindingCompiler.CompileReferences(TargetDesc, {ContextOutputPropertyBinding}, TargetView);
+			const bool bCompileReferenceResult = BindingCompiler.CompileReferences(TargetDesc, {ContextOutputPropertyBinding}, TargetView, IDToStructValue);
 			AITEST_FALSE("CompileReferences should fail", bCompileReferenceResult);
 		}
 

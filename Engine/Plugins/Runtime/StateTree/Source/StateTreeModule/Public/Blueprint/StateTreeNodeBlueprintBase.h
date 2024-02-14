@@ -3,6 +3,7 @@
 #pragma once
 
 #include "StateTreeExecutionTypes.h"
+#include "UObject/ObjectMacros.h"
 #include "StateTreeNodeBlueprintBase.generated.h"
 
 struct FStateTreeEvent;
@@ -10,6 +11,8 @@ struct FStateTreeEventQueue;
 struct FStateTreeInstanceStorage;
 struct FStateTreeLinker;
 struct FStateTreeExecutionContext;
+struct FStateTreeBlueprintPropertyRef;
+class UStateTree;
 
 UENUM()
 enum class EStateTreeBlueprintPropertyCategory : uint8
@@ -44,6 +47,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "StateTree", meta = (HideSelfPin = "true", DisplayName = "StateTree Request Transition"))
 	void RequestTransition(const FStateTreeStateLink& TargetState, const EStateTreeTransitionPriority Priority = EStateTreeTransitionPriority::Normal);
 
+	/** Returns a reference to selected property in State Tree. */
+	UFUNCTION(CustomThunk)
+	void GetPropertyReference(const FStateTreeBlueprintPropertyRef& PropertyRef) const;
+
+	/** Returns true if reference to selected property in State Tree is accessible. */
+	UFUNCTION()
+	bool IsPropertyRefValid(const FStateTreeBlueprintPropertyRef& PropertyRef) const;
+
 protected:
 	virtual UWorld* GetWorld() const override;
 	AActor* GetOwnerActor(const FStateTreeExecutionContext& Context) const;
@@ -58,16 +69,26 @@ protected:
 	void ClearCachedEventQueue() const { ClearCachedInstanceData(); }
 	
 private:
+	DECLARE_FUNCTION(execGetPropertyReference);
 
-	/** Cached State where the node is processed on. */
-	mutable FStateTreeStateHandle CachedState;
+	void* GetMutablePtrToProperty(const FStateTreeBlueprintPropertyRef& PropertyRef, FProperty*& OutSourceProperty) const;
 	
 	/** Cached instance data while the node is active. */
-	mutable FStateTreeInstanceStorage* InstanceStorage = nullptr;
+	mutable TWeakPtr<FStateTreeInstanceStorage> WeakInstanceStorage;
 
 	/** Cached owner while the node is active. */
 	UPROPERTY()
 	mutable TObjectPtr<UObject> CachedOwner = nullptr;
+
+	/** Cached State Tree of owning execution frame. */
+	UPROPERTY()
+	mutable TObjectPtr<const UStateTree> CachedFrameStateTree = nullptr;
+
+	/** Cached root state of owning execution frame. */
+	mutable FStateTreeStateHandle CachedFrameRootState;
+
+	/** Cached State where the node is processed on. */
+	mutable FStateTreeStateHandle CachedState;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

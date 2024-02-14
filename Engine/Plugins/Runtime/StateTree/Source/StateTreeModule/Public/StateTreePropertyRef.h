@@ -4,6 +4,7 @@
 
 #include "StateTreeIndexTypes.h"
 #include "StateTreeExecutionContext.h"
+#include "StateTreePropertyRefHelpers.h"
 #include "StateTreePropertyRef.generated.h"
 
 struct FStateTreePropertyRef;
@@ -12,20 +13,63 @@ namespace UE::StateTree::PropertyRefHelpers
 {
     /**
 	 * @param PropertyRef Property's reference to get pointer to.
-	 * @param InstanceDataStorage Instance Data Storage
-	 * @param ExecutionFrame Execution frame owning referenced property
-	 * @param ParentExecutionFrame Parent of execution frame owning referenced property
-	 * @return Pointer to referenced property if succeeded.
+	 * @param InstanceDataStorage Instance Data Storage.
+	 * @param ExecutionFrame Execution frame owning referenced property.
+	 * @param ParentExecutionFrame Parent of execution frame owning referenced property.
+	 * @param OutSourceProperty On success, returns referenced property.
+	 * @return Pointer to referenced property value if succeeded.
 	 */
 	template<class T>
-	static T* GetMutablePtrToProperty(const FStateTreePropertyRef& PropertyRef, FStateTreeInstanceStorage& InstanceDataStorage, const FStateTreeExecutionFrame& ExecutionFrame, const FStateTreeExecutionFrame* ParentExecutionFrame)
+	static T* GetMutablePtrToProperty(const FStateTreePropertyRef& PropertyRef, FStateTreeInstanceStorage& InstanceDataStorage, const FStateTreeExecutionFrame& ExecutionFrame, const FStateTreeExecutionFrame* ParentExecutionFrame, const FProperty** OutSourceProperty = nullptr)
 	{
 		const FStateTreePropertyBindings& PropertyBindings = ExecutionFrame.StateTree->GetPropertyBindings();
 		if (const FStateTreePropertyAccess* PropertyAccess = PropertyBindings.GetPropertyAccess(PropertyRef))
 		{
 			// Passing empty ContextAndExternalDataViews, as PropertyRef is not allowed to point to context or external data.
 			FStateTreeDataView SourceView = FStateTreeExecutionContext::GetDataView(InstanceDataStorage, nullptr, ParentExecutionFrame, ExecutionFrame, {}, PropertyAccess->SourceDataHandle);
-			return PropertyBindings.GetMutablePropertyPtr<T>(SourceView, *PropertyAccess);
+			
+			// The only possibility when PropertyRef references another PropertyRef is when source one is a global or subtree parameter, i.e lives in parent execution frame.
+			// If that's the case, referenced PropertyRef is obtained and we recursively take the address where it points to.
+			if (UE::StateTree::PropertyRefHelpers::IsPropertyRef(*PropertyAccess->SourceLeafProperty))
+			{
+				check(PropertyAccess->SourceDataHandle.GetSource() == EStateTreeDataSourceType::GlobalParameterData || PropertyAccess->SourceDataHandle.GetSource() == EStateTreeDataSourceType::SubtreeParameterData);
+
+				if (ParentExecutionFrame == nullptr)
+				{
+					return nullptr;
+				}
+
+				const FStateTreePropertyRef* ReferencedPropertyRef = PropertyBindings.GetMutablePropertyPtr<FStateTreePropertyRef>(SourceView, *PropertyAccess);
+				if (ReferencedPropertyRef == nullptr)
+				{
+					return nullptr;
+				}
+
+				const TArray<FStateTreeExecutionFrame>& ActiveFrames = InstanceDataStorage.GetExecutionState().ActiveFrames;
+				const int32 FrameIndex = ActiveFrames.IndexOfByPredicate([ParentExecutionFrame](const FStateTreeExecutionFrame& Frame)
+				{
+					return Frame.RootState == ParentExecutionFrame->RootState && Frame.StateTree == ParentExecutionFrame->StateTree;
+				});
+
+				if (FrameIndex == INDEX_NONE)
+				{
+					return nullptr;
+				}
+
+				const FStateTreeExecutionFrame& Frame = ActiveFrames[FrameIndex];
+				const FStateTreeExecutionFrame* ParentFrame = FrameIndex > 0 ? &ActiveFrames[FrameIndex - 1] : nullptr;
+
+				return GetMutablePtrToProperty<T>(*ReferencedPropertyRef, InstanceDataStorage, Frame, ParentFrame, OutSourceProperty);
+			}
+			else
+			{
+				if (OutSourceProperty)
+				{
+					*OutSourceProperty = PropertyAccess->SourceLeafProperty;
+				}
+
+				return PropertyBindings.GetMutablePropertyPtr<T>(SourceView, *PropertyAccess);
+			}
 		}
 
 		return nullptr;
@@ -181,4 +225,67 @@ private:
 	TWeakObjectPtr<const UStateTree> WeakStateTree = nullptr;
 	FStateTreeStateHandle RootState = FStateTreeStateHandle::Invalid;
 	FStateTreePropertyRef PropertyRef;
+};
+
+UENUM()
+enum class EStateTreePropertyRefType : uint8
+{
+	None,
+	Bool,
+	Byte,
+	Int32,
+	Int64,
+	Float,
+	Double,
+	Name,
+	String,
+	Text,
+	Enum,
+	Struct,
+	Object,
+	SoftObject,
+	Class,
+	SoftClass,
+};
+
+/**
+ * FStateTreeBlueprintPropertyRef is a PropertyRef intended to be used in State Tree Blueprint nodes like tasks, conditions or evaluators, but also as a StateTree parameter.
+ */
+USTRUCT(BlueprintType, DisplayName = "State Tree Property Ref")
+struct STATETREEMODULE_API FStateTreeBlueprintPropertyRef : public FStateTreePropertyRef
+{
+	GENERATED_BODY()
+
+	FStateTreeBlueprintPropertyRef() = default;
+
+	/** Returns PropertyRef's type */
+	EStateTreePropertyRefType GetRefType() const { return RefType; }
+
+	/** Returns true if referenced property is an array. */
+	bool IsRefToArray() const { return bIsRefToArray; }
+
+	/** Returns selected ScriptStruct, Class or Enum. */
+	UObject* GetTypeObject() const { return TypeObject; }
+
+	/** Returns true if PropertyRef was marked as optional. */
+	bool IsOptional() const { return bIsOptional; }
+
+private:
+	/** Specifies the type of property to reference */
+	UPROPERTY(EditAnywhere, Category = "InternalType")
+	EStateTreePropertyRefType RefType = EStateTreePropertyRefType::None;
+
+	/** If specified, the reference is to an TArray<RefType> */
+	UPROPERTY(EditAnywhere, Category = "InternalType")
+	uint8 bIsRefToArray : 1;
+
+	/** If specified, the reference can be left unbound, otherwise the State Tree compiler report error if the reference is not bound. */
+	UPROPERTY(EditAnywhere, Category = "Parameter")
+	uint8 bIsOptional : 1;
+
+	/** Specifies the type of property to reference together with RefType, used for Enums, Structs, Objects and Classes. */
+	UPROPERTY(EditAnywhere, Category= "InternalType")
+	TObjectPtr<UObject> TypeObject = nullptr;
+
+	friend class FStateTreeBlueprintPropertyRefDetails;
 };

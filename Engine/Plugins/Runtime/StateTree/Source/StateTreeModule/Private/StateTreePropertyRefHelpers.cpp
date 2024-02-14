@@ -1,18 +1,21 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_EDITOR
 #include "StateTreePropertyRefHelpers.h"
 #include "StateTreePropertyRef.h"
 #include "UObject/TextProperty.h"
 #include "UObject/EnumProperty.h"
 #include "UObject/Class.h"
-#include "IPropertyAccessEditor.h"
 #include "StateTreePropertyBindings.h"
-#include "EdGraph/EdGraphPin.h"
+
+#if WITH_EDITOR
 #include "EdGraphSchema_K2.h"
+#include "IPropertyAccessEditor.h"
+#include "EdGraph/EdGraphPin.h"
+#endif
 
 namespace UE::StateTree::PropertyRefHelpers
 {
+#if WITH_EDITOR
 	static const FName BoolName = TEXT("bool");
 	static const FName ByteName = TEXT("byte");
 	static const FName Int32Name = TEXT("int32");
@@ -25,10 +28,23 @@ namespace UE::StateTree::PropertyRefHelpers
 
 	static const FName IsRefToArrayName = TEXT("IsRefToArray");
 	static const FName RefTypeName = TEXT("RefType");
+	static const FName IsOptionalName = TEXT("Optional");
 
-	bool IsPropertyRefCompatibleWithProperty(const FProperty& RefProperty, const FProperty& SourceProperty)
+	bool ArePropertyRefsCompatible(const FProperty& TargetRefProperty, const FProperty& SourceRefProperty, const void* TargetRefAddress, const void* SourceRefAddress)
 	{
-		ensure(IsPropertyRef(RefProperty));
+		check(IsPropertyRef(SourceRefProperty) && IsPropertyRef(TargetRefProperty));
+		check(SourceRefAddress && TargetRefAddress);
+
+		FEdGraphPinType SourceRefPin = GetPropertyRefInternalTypeAsPin(SourceRefProperty, SourceRefAddress);
+		FEdGraphPinType TargetRefPin = GetPropertyRefInternalTypeAsPin(TargetRefProperty, TargetRefAddress);
+
+		return SourceRefPin.PinCategory == TargetRefPin.PinCategory && SourceRefPin.ContainerType == TargetRefPin.ContainerType 
+			&& SourceRefPin.PinSubCategoryObject == TargetRefPin.PinSubCategoryObject;
+	}
+
+	bool IsNativePropertyRefCompatibleWithProperty(const FProperty& RefProperty, const FProperty& SourceProperty)
+	{
+		check(IsPropertyRef(RefProperty));
 
 		const FProperty* TestProperty = &SourceProperty;
 		const bool bIsTargetRefArray = RefProperty.HasMetaData(IsRefToArrayName);
@@ -52,17 +68,6 @@ namespace UE::StateTree::PropertyRefHelpers
 		}
 
 		const FName TargetTypeName = FName(*TargetTypeNameStr);
-
-		const FStructProperty* SourceStructProperty = CastField<FStructProperty>(TestProperty);
-
-		// Compare properties metadata directly if SourceProperty is PropertyRef as well
-		if (SourceStructProperty && SourceStructProperty->Struct == FStateTreePropertyRef::StaticStruct())
-		{
-			const FName SourceTypeName(SourceStructProperty->GetMetaData(RefTypeName));
-			const bool bIsSourceRefArray = SourceStructProperty->GetBoolMetaData(IsRefToArrayName);
-
-			return SourceTypeName == TargetTypeName && bIsSourceRefArray == bIsTargetRefArray;
-		}
 
 		if(TargetTypeName == BoolName)
 		{
@@ -108,7 +113,7 @@ namespace UE::StateTree::PropertyRefHelpers
 				TargetRefField = LoadObject<UField>(nullptr, *TargetTypeNameStr);
 			}
 
-			if (SourceStructProperty)
+			if (const FStructProperty* SourceStructProperty = CastField<FStructProperty>(TestProperty))
 			{
 				return SourceStructProperty->Struct->IsChildOf(Cast<UStruct>(TargetRefField));
 			}
@@ -125,6 +130,33 @@ namespace UE::StateTree::PropertyRefHelpers
 			}
 		}
 
+		return false;
+	}
+
+	bool IsPropertyRefCompatibleWithProperty(const FProperty& RefProperty, const FProperty& SourceProperty, const void* PropertyRefAddress, const void* SourceAddress)
+	{
+		check(PropertyRefAddress);
+		check(SourceAddress);
+		check(IsPropertyRef(RefProperty));
+
+		if (IsPropertyRef(SourceProperty))
+		{
+			return ArePropertyRefsCompatible(RefProperty, SourceProperty, PropertyRefAddress, SourceAddress);
+		}
+
+		if (const FStructProperty* StructProperty = CastField<FStructProperty>(&RefProperty))
+		{
+			if (StructProperty->Struct == FStateTreePropertyRef::StaticStruct())
+			{
+				return IsNativePropertyRefCompatibleWithProperty(RefProperty, SourceProperty);
+			}
+			else if (StructProperty->Struct == FStateTreeBlueprintPropertyRef::StaticStruct())
+			{
+				return IsBlueprintPropertyRefCompatibleWithProperty(SourceProperty, PropertyRefAddress);
+			}
+		}
+
+		checkNoEntry();
 		return false;
 	}
 
@@ -184,7 +216,82 @@ namespace UE::StateTree::PropertyRefHelpers
 		return IsPropertyAccessibleForPropertyRef(SourceProperty, SourceStruct, bIsOutput);
 	}
 
-	FEdGraphPinType GetPropertyRefInternalTypeAsPin(const FProperty& RefProperty)
+	FEdGraphPinType GetBlueprintPropertyRefInternalTypeAsPin(const FStateTreeBlueprintPropertyRef& PropertyRef)
+	{
+		FEdGraphPinType PinType;
+		PinType.PinSubCategory = NAME_None;
+
+		if (PropertyRef.IsRefToArray())
+		{
+			PinType.ContainerType = EPinContainerType::Array;
+		}
+
+		switch (PropertyRef.GetRefType())
+		{
+		case EStateTreePropertyRefType::None:
+			break;
+
+		case EStateTreePropertyRefType::Bool:
+			PinType.PinCategory = UEdGraphSchema_K2::PC_Boolean;
+			break;
+
+		case EStateTreePropertyRefType::Byte:
+			PinType.PinCategory = UEdGraphSchema_K2::PC_Byte;
+			break;
+
+		case EStateTreePropertyRefType::Int32:
+			PinType.PinCategory = UEdGraphSchema_K2::PC_Int;
+			break;
+
+		case EStateTreePropertyRefType::Int64:
+			PinType.PinCategory = UEdGraphSchema_K2::PC_Int64;
+			break;
+
+		case EStateTreePropertyRefType::Float:
+			PinType.PinCategory = UEdGraphSchema_K2::PC_Real;
+			PinType.PinSubCategory = UEdGraphSchema_K2::PC_Float;
+			break;
+
+		case EStateTreePropertyRefType::Double:
+			PinType.PinCategory = UEdGraphSchema_K2::PC_Real;
+			PinType.PinSubCategory = UEdGraphSchema_K2::PC_Double;
+			break;
+
+		case EStateTreePropertyRefType::Name:
+			PinType.PinCategory = UEdGraphSchema_K2::PC_Name;
+			break;
+
+		case EStateTreePropertyRefType::String:
+			PinType.PinCategory = UEdGraphSchema_K2::PC_String;
+			break;
+
+		case EStateTreePropertyRefType::Text:
+			PinType.PinCategory = UEdGraphSchema_K2::PC_Text;
+			break;
+
+		case EStateTreePropertyRefType::Enum:
+			PinType.PinCategory = UEdGraphSchema_K2::PC_Enum;
+			PinType.PinSubCategoryObject = PropertyRef.GetTypeObject();
+			break;
+
+		case EStateTreePropertyRefType::Struct:
+			PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+			PinType.PinSubCategoryObject = PropertyRef.GetTypeObject();
+			break;
+
+		case EStateTreePropertyRefType::Object:
+			PinType.PinCategory = UEdGraphSchema_K2::PC_Object;
+			PinType.PinSubCategoryObject = PropertyRef.GetTypeObject();
+			break;
+
+		default:
+			ensureMsgf(false, TEXT("Unhandled type %s"), *UEnum::GetValueAsString(PropertyRef.GetRefType()));
+			break;
+		}
+		return PinType;
+	}
+
+	FEdGraphPinType GetNativePropertyRefInternalTypeAsPin(const FProperty& RefProperty)
 	{
 		ensure(IsPropertyRef(RefProperty));
 
@@ -265,14 +372,261 @@ namespace UE::StateTree::PropertyRefHelpers
 		return PinType;
 	}
 
-	bool IsPropertyRef(const FProperty& Property)
+	FEdGraphPinType GetPropertyRefInternalTypeAsPin(const FProperty& RefProperty, const void* PropertyRefAddress)
 	{
-		if (const FStructProperty* StructProperty = CastField<FStructProperty>(&Property))
+		if (const FStructProperty* StructProperty = CastField<FStructProperty>(&RefProperty))
 		{
-			return StructProperty->Struct == FStateTreePropertyRef::StaticStruct();
+			if (StructProperty->Struct == FStateTreePropertyRef::StaticStruct())
+			{
+				return GetNativePropertyRefInternalTypeAsPin(RefProperty);
+			}
+			else if (StructProperty->Struct == FStateTreeBlueprintPropertyRef::StaticStruct())
+			{
+				check(PropertyRefAddress);
+				return GetBlueprintPropertyRefInternalTypeAsPin(*reinterpret_cast<const FStateTreeBlueprintPropertyRef*>(PropertyRefAddress));
+			}
+		}
+
+		checkNoEntry();
+		return FEdGraphPinType();
+	}
+
+	void STATETREEMODULE_API GetBlueprintPropertyRefInternalTypeFromPin(const FEdGraphPinType& PinType, EStateTreePropertyRefType& OutRefType, bool& bOutIsArray, UObject*& OutObjectType)
+	{
+		OutRefType = EStateTreePropertyRefType::None;
+		bOutIsArray = false;
+		OutObjectType = nullptr;
+
+		// Set container type
+		switch (PinType.ContainerType)
+		{
+		case EPinContainerType::Array:
+			bOutIsArray = true;
+			break;
+		case EPinContainerType::Set:
+			ensureMsgf(false, TEXT("Unsuported container type [Set] "));
+			break;
+		case EPinContainerType::Map:
+			ensureMsgf(false, TEXT("Unsuported container type [Map] "));
+			break;
+		default:
+			break;
+		}
+	
+		// Value type
+		if (PinType.PinCategory == UEdGraphSchema_K2::PC_Boolean)
+		{
+			OutRefType = EStateTreePropertyRefType::Bool;
+		}
+		else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Byte)
+		{
+			if (UEnum* Enum = Cast<UEnum>(PinType.PinSubCategoryObject))
+			{
+				OutRefType = EStateTreePropertyRefType::Enum;
+				OutObjectType = PinType.PinSubCategoryObject.Get();
+			}
+			else
+			{
+				OutRefType = EStateTreePropertyRefType::Byte;
+			}
+		}
+		else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Int)
+		{
+			OutRefType = EStateTreePropertyRefType::Int32;
+		}
+		else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Int64)
+		{
+			OutRefType = EStateTreePropertyRefType::Int64;
+		}
+		else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Real)
+		{
+			if (PinType.PinSubCategory == UEdGraphSchema_K2::PC_Float)
+			{
+				OutRefType = EStateTreePropertyRefType::Float;
+			}
+			else if (PinType.PinSubCategory == UEdGraphSchema_K2::PC_Double)
+			{
+				OutRefType = EStateTreePropertyRefType::Double;
+			}		
+		}
+		else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Name)
+		{
+			OutRefType = EStateTreePropertyRefType::Name;
+		}
+		else if (PinType.PinCategory == UEdGraphSchema_K2::PC_String)
+		{
+			OutRefType = EStateTreePropertyRefType::String;
+		}
+		else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Text)
+		{
+			OutRefType = EStateTreePropertyRefType::Text;
+		}
+		else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Enum)
+		{
+			OutRefType = EStateTreePropertyRefType::Enum;
+			OutObjectType = PinType.PinSubCategoryObject.Get();
+		}
+		else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Struct)
+		{
+			OutRefType = EStateTreePropertyRefType::Struct;
+			OutObjectType = PinType.PinSubCategoryObject.Get();
+		}
+		else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Object)
+		{
+			OutRefType = EStateTreePropertyRefType::Object;
+			OutObjectType = PinType.PinSubCategoryObject.Get();
+		}
+		else if (PinType.PinCategory == UEdGraphSchema_K2::PC_SoftObject)
+		{
+			OutRefType = EStateTreePropertyRefType::SoftObject;
+			OutObjectType = PinType.PinSubCategoryObject.Get();
+		}
+		else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Class)
+		{
+			OutRefType = EStateTreePropertyRefType::Class;
+			OutObjectType = PinType.PinSubCategoryObject.Get();
+		}
+		else if (PinType.PinCategory == UEdGraphSchema_K2::PC_SoftClass)
+		{
+			OutRefType = EStateTreePropertyRefType::SoftClass;
+			OutObjectType = PinType.PinSubCategoryObject.Get();
+		}
+		else
+		{
+			ensureMsgf(false, TEXT("Unhandled pin category %s"), *PinType.PinCategory.ToString());
+		}
+	}
+
+	bool STATETREEMODULE_API IsPropertyRefMarkedAsOptional(const FProperty& RefProperty, const void* PropertyRefAddress)
+	{
+		if (const FStructProperty* StructProperty = CastField<FStructProperty>(&RefProperty))
+		{
+			if (StructProperty->Struct == FStateTreePropertyRef::StaticStruct())
+			{
+				return RefProperty.HasMetaData(IsOptionalName);
+			}
+			else if (StructProperty->Struct == FStateTreeBlueprintPropertyRef::StaticStruct())
+			{
+				check(PropertyRefAddress);
+				return reinterpret_cast<const FStateTreeBlueprintPropertyRef*>(PropertyRefAddress)->IsOptional();
+			}
+		}
+
+		checkNoEntry();
+		return false;
+	}
+#endif
+
+	bool IsBlueprintPropertyRefCompatibleWithProperty(const FProperty& SourceProperty, const void* PropertyRefAddress)
+	{
+		const FStateTreeBlueprintPropertyRef& PropertyRef = *reinterpret_cast<const FStateTreeBlueprintPropertyRef*>(PropertyRefAddress);
+		const FProperty* TestProperty = &SourceProperty;
+		if (PropertyRef.IsRefToArray())
+		{
+			if (const FArrayProperty* ArrayProperty = CastField<FArrayProperty>(TestProperty))
+			{
+				TestProperty = ArrayProperty->Inner;
+			}
+			else
+			{
+				return false;
+			}
+		}
+
+		switch (PropertyRef.GetRefType())
+		{
+		case EStateTreePropertyRefType::None:
+			return false;
+
+		case EStateTreePropertyRefType::Bool:
+			return Validator<bool>::IsValid(*TestProperty);
+
+		case EStateTreePropertyRefType::Byte:
+			return Validator<uint8>::IsValid(*TestProperty);
+
+		case EStateTreePropertyRefType::Int32:
+			return Validator<int32>::IsValid(*TestProperty);
+
+		case EStateTreePropertyRefType::Int64:
+			return Validator<int64>::IsValid(*TestProperty);
+
+		case EStateTreePropertyRefType::Float:
+			return Validator<float>::IsValid(*TestProperty);
+
+		case EStateTreePropertyRefType::Double:
+			return Validator<double>::IsValid(*TestProperty);
+
+		case EStateTreePropertyRefType::Name:
+			return Validator<FName>::IsValid(*TestProperty);
+
+		case EStateTreePropertyRefType::String:
+			return Validator<FString>::IsValid(*TestProperty);
+
+		case EStateTreePropertyRefType::Text:
+			return Validator<FText>::IsValid(*TestProperty);
+
+		case EStateTreePropertyRefType::Enum:
+			if (const UEnum* Enum = Cast<UEnum>(PropertyRef.GetTypeObject()))
+			{
+				return IsPropertyCompatibleWithEnum(*TestProperty, *Enum);
+			}
+			return false;
+
+		case EStateTreePropertyRefType::Struct:
+			if (const UScriptStruct* Struct = Cast<UScriptStruct>(PropertyRef.GetTypeObject()))
+			{
+				return IsPropertyCompatibleWithStruct(*TestProperty, *Struct);
+			}
+			return false;
+
+		case EStateTreePropertyRefType::Object:
+			if (const UClass* Class = Cast<UClass>(PropertyRef.GetTypeObject()))
+			{
+				return IsPropertyCompatibleWithClass(*TestProperty, *Class);
+			}
+			return false;
+
+		default:
+			checkNoEntry();
 		}
 
 		return false;
 	}
+
+	bool IsPropertyRef(const FProperty& Property)
+	{
+		if (const FStructProperty* StructProperty = CastField<FStructProperty>(&Property))
+		{
+			return StructProperty->Struct->IsChildOf(FStateTreePropertyRef::StaticStruct());
+		}
+
+		return false;
+	}
+
+	bool IsPropertyCompatibleWithEnum(const FProperty& Property, const UEnum& Enum)
+	{
+		if (const FEnumProperty* EnumProperty = CastField<FEnumProperty>(&Property))
+		{
+			return EnumProperty->GetEnum() == &Enum;
+		}
+		return false;
+	}
+
+	bool IsPropertyCompatibleWithClass(const FProperty& Property, const UClass& Class)
+	{
+		if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(&Property))
+		{
+			return ObjectProperty->PropertyClass == &Class;
+		}
+		return false;
+	}
+
+	bool IsPropertyCompatibleWithStruct(const FProperty& Property, const UScriptStruct& Struct)
+	{
+		if (const FStructProperty* StructProperty = CastField<FStructProperty>(&Property))
+		{
+			return StructProperty->Struct == &Struct;
+		}
+		return false;
+	}
 }
-#endif

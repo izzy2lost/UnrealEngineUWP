@@ -614,23 +614,28 @@ bool FStateTreeCompiler::CreateStateTasksAndParameters()
 		// Add as binding source.
 		BindingsCompiler.AddSourceStruct(LinkedParamsDesc);
 
-		// Check that the bindings for this struct are still all valid.
-		TArray<FStateTreePropertyPathBinding> CopyBindings;
-		TArray<FStateTreePropertyPathBinding> ReferenceBindings;
-		if (!GetAndValidateBindings(LinkedParamsDesc, FStateTreeDataView(CompactStateTreeParameters.Parameters.GetMutableValue()), CopyBindings, ReferenceBindings))
-		{
-			return false;
-		}
-
 		int32 BatchIndex = INDEX_NONE;
-		if (!BindingsCompiler.CompileBatch(LinkedParamsDesc, CopyBindings, BatchIndex))
-		{
-			return false;
-		}
 
-		if (!BindingsCompiler.CompileReferences(LinkedParamsDesc, ReferenceBindings, FStateTreeDataView(CompactStateTreeParameters.Parameters.GetMutableValue())))
+		// Subtrees parameters cannot have bindings
+		if(State->Type != EStateTreeStateType::Subtree)
 		{
-			return false;
+			// Check that the bindings for this struct are still all valid.
+			TArray<FStateTreePropertyPathBinding> CopyBindings;
+			TArray<FStateTreePropertyPathBinding> ReferenceBindings;
+			if (!GetAndValidateBindings(LinkedParamsDesc, FStateTreeDataView(CompactStateTreeParameters.Parameters.GetMutableValue()), CopyBindings, ReferenceBindings))
+			{
+				return false;
+			}
+
+			if (!BindingsCompiler.CompileBatch(LinkedParamsDesc, CopyBindings, BatchIndex))
+			{
+				return false;
+			}
+
+			if (!BindingsCompiler.CompileReferences(LinkedParamsDesc, ReferenceBindings, FStateTreeDataView(CompactStateTreeParameters.Parameters.GetMutableValue()), IDToStructValue))
+			{
+				return false;
+			}
 		}
 			
 		if (const auto Validation = UE::StateTree::Compiler::IsValidIndex16(BatchIndex); Validation.DidFail())
@@ -1071,7 +1076,7 @@ bool FStateTreeCompiler::CreateCondition(UStateTreeState& State, const FStateTre
 		return false;
 	}
 
-	if (!BindingsCompiler.CompileReferences(StructDesc, ReferenceBindings, InstanceDataView))
+	if (!BindingsCompiler.CompileReferences(StructDesc, ReferenceBindings, InstanceDataView, IDToStructValue))
 	{
 		return false;
 	}
@@ -1246,7 +1251,7 @@ bool FStateTreeCompiler::CreateTask(UStateTreeState* State, const FStateTreeEdit
 		return false;
 	}
 
-	if (!BindingsCompiler.CompileReferences(StructDesc, ReferenceBindings, InstanceDataView))
+	if (!BindingsCompiler.CompileReferences(StructDesc, ReferenceBindings, InstanceDataView, IDToStructValue))
 	{
 		return false;
 	}
@@ -1359,7 +1364,7 @@ bool FStateTreeCompiler::CreateEvaluator(const FStateTreeEditorNode& EvalNode, c
 		return false;
 	}
 
-	if (!BindingsCompiler.CompileReferences(StructDesc, ReferenceBindings, InstanceDataView))
+	if (!BindingsCompiler.CompileReferences(StructDesc, ReferenceBindings, InstanceDataView, IDToStructValue))
 	{
 		return false;
 	}
@@ -1374,7 +1379,7 @@ bool FStateTreeCompiler::CreateEvaluator(const FStateTreeEditorNode& EvalNode, c
 	return true;
 }
 
-bool FStateTreeCompiler::IsPropertyOfType(UScriptStruct& Type, const FStateTreeBindableStructDesc& Struct, FStateTreePropertyPath Path) const
+bool FStateTreeCompiler::IsPropertyOfTypeOrChild(UScriptStruct& Type, const FStateTreeBindableStructDesc& Struct, FStateTreePropertyPath Path) const
 {
 	TArray<FStateTreePropertyPathIndirection> Indirection;
 	const bool bResolved = Path.ResolveIndirections(Struct.Struct, Indirection);
@@ -1386,7 +1391,7 @@ bool FStateTreeCompiler::IsPropertyOfType(UScriptStruct& Type, const FStateTreeB
 		{
 			if (const FStructProperty* OwnerStructProperty = CastField<FStructProperty>(OwnerProperty))
 			{
-				return OwnerStructProperty->Struct == &Type;
+				return OwnerStructProperty->Struct->IsChildOf(&Type);
 			}
 		}
 	}
@@ -1575,8 +1580,8 @@ bool FStateTreeCompiler::GetAndValidateBindings(const FStateTreeBindableStructDe
 		// Special case fo AnyEnum. StateTreeBindingExtension allows AnyEnums to bind to other enum types.
 		// The actual copy will be done via potential type promotion copy, into the value property inside the AnyEnum.
 		// We amend the paths here to point to the 'Value' property.
-		const bool bSourceIsAnyEnum = IsPropertyOfType(*TBaseStructure<FStateTreeAnyEnum>::Get(), *SourceStruct, Binding.GetSourcePath());
-		const bool bTargetIsAnyEnum = IsPropertyOfType(*TBaseStructure<FStateTreeAnyEnum>::Get(), TargetStruct, Binding.GetTargetPath());
+		const bool bSourceIsAnyEnum = IsPropertyOfTypeOrChild(*TBaseStructure<FStateTreeAnyEnum>::Get(), *SourceStruct, Binding.GetSourcePath());
+		const bool bTargetIsAnyEnum = IsPropertyOfTypeOrChild(*TBaseStructure<FStateTreeAnyEnum>::Get(), TargetStruct, Binding.GetTargetPath());
 		if (bSourceIsAnyEnum || bTargetIsAnyEnum)
 		{
 			if (bSourceIsAnyEnum)
@@ -1589,7 +1594,7 @@ bool FStateTreeCompiler::GetAndValidateBindings(const FStateTreeBindableStructDe
 			}
 		}
 
-		if (IsPropertyOfType(*FStateTreePropertyRef::StaticStruct(), TargetStruct, Binding.GetTargetPath()))
+		if (IsPropertyOfTypeOrChild(*FStateTreePropertyRef::StaticStruct(), TargetStruct, Binding.GetTargetPath()))
 		{
 			OutReferenceBindings.Add(BindingCopy);
 		}
@@ -1624,20 +1629,35 @@ bool FStateTreeCompiler::GetAndValidateBindings(const FStateTreeBindableStructDe
 		const FProperty* Property = *It;
 		check(Property);
 		const FName PropertyName = Property->GetFName();
-		const bool bIsOptional = UE::StateTree::PropertyHelpers::HasOptionalMetadata(*Property);
 
 		if (UE::StateTree::PropertyRefHelpers::IsPropertyRef(*Property))
 		{
-			if (bIsOptional == false && !IsPropertyBound(PropertyName, OutReferenceBindings))
+			TArray<FStateTreePropertyPathIndirection> TargetIndirections;
+			FStateTreePropertyPath TargetPath(TargetStruct.ID, PropertyName);
+			if (!TargetPath.ResolveIndirectionsWithValue(TargetValue, TargetIndirections))
 			{
 				Log.Reportf(EMessageSeverity::Error, TargetStruct,
+						TEXT("Couldn't resolve path to '%s' for target %s."),
+						*PropertyName.ToString(), *TargetStruct.ToString());
+				bResult = false;
+			}
+			else
+			{
+				const void* PropertyRef = TargetIndirections.Last().GetPropertyAddress();
+				const bool bIsOptional = UE::StateTree::PropertyRefHelpers::IsPropertyRefMarkedAsOptional(*Property, PropertyRef);
+
+				if (bIsOptional == false && !IsPropertyBound(PropertyName, OutReferenceBindings))
+				{
+					Log.Reportf(EMessageSeverity::Error, TargetStruct,
 						TEXT("Property reference '%s' on % s is expected to have a binding."),
 						*PropertyName.ToString(), *TargetStruct.ToString());
 					bResult = false;
+				}
 			}
 		}
 		else
 		{
+			const bool bIsOptional = UE::StateTree::PropertyHelpers::HasOptionalMetadata(*Property);
 			const EStateTreePropertyUsage Usage = UE::StateTree::GetUsageFromMetaData(Property);
 			if (Usage == EStateTreePropertyUsage::Input)
 			{

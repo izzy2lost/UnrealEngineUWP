@@ -35,6 +35,7 @@
 #include "Framework/Notifications/NotificationManager.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Debugger/StateTreeDebuggerUIExtensions.h"
+#include "StateTreePropertyBindings.h"
 
 #define LOCTEXT_NAMESPACE "StateTreeEditor"
 
@@ -180,7 +181,16 @@ namespace UE::StateTreeEditor::Internal
 				if (UE::StateTree::PropertyRefHelpers::IsPropertyRef(*Property))
 				{
 					// Use internal type to construct PinType if it's property of PropertyRef type.
-					PinType = UE::StateTree::PropertyRefHelpers::GetPropertyRefInternalTypeAsPin(*Property);
+					FStateTreeDataView TargetDataView;
+					if (ensure(EditorData->GetDataViewByID(ID, TargetDataView)))
+					{
+						TArray<FStateTreePropertyPathIndirection> TargetIndirections;
+						if (ensure(Path.ResolveIndirectionsWithValue(TargetDataView, TargetIndirections)))
+						{
+							const void* PropertyRef = TargetIndirections.Last().GetPropertyAddress();
+							PinType = UE::StateTree::PropertyRefHelpers::GetPropertyRefInternalTypeAsPin(*Property, PropertyRef);
+						}
+					}
 				}
 				else
 				{

@@ -899,7 +899,7 @@ struct STATETREEMODULE_API FStateTreePropertyBindings
 	 * @param PropertyAccess Access to the property for which we want to obtain a pointer.
 	 * @return Pointer to referenced property if it's type match, nullptr otherwise.
 	 */
-	template< class T >
+	template<class T>
 	T* GetMutablePropertyPtr(FStateTreeDataView SourceView, const FStateTreePropertyAccess& PropertyAccess) const
 	{
 		check(SourceView.GetStruct() == PropertyAccess.SourceStructType);
@@ -939,7 +939,6 @@ struct STATETREEMODULE_API FStateTreePropertyBindings
 	 */
 	[[nodiscard]] static bool ResolveCopyType(const FStateTreePropertyPathIndirection& SourceIndirection, const FStateTreePropertyPathIndirection& TargetIndirection, FStateTreePropertyCopy& OutCopy);
 
-	
 	UE_DEPRECATED(5.3, "Should not be used, will be removed in a future version.")
 	TArrayView<FStateTreeBindableStructDesc> GetSourceStructs() { return  SourceStructs; };
 
@@ -953,23 +952,12 @@ struct STATETREEMODULE_API FStateTreePropertyBindings
 	}
 
 private:
-	[[nodiscard]] static bool ResolvePath(const UStruct* Struct, const FStateTreePropertyPath& Path, TArray<FStateTreePropertyIndirection>& OutIndirections, FStateTreePropertyIndirection& OutFirstIndirection, FStateTreePropertyPathIndirection& OutLeafIndirection);
-	static uint8* GetAddress(FStateTreeDataView InStructView, TConstArrayView<FStateTreePropertyIndirection> Indirections, const FStateTreePropertyIndirection& FirstIndirection, const FProperty* LeafProperty);
-	
-	uint8* GetAddress(FStateTreeDataView InStructView, const FStateTreePropertyIndirection& FirstIndirection, const FProperty* LeafProperty) const
-	{
-		return GetAddress(InStructView, PropertyIndirections, FirstIndirection, LeafProperty);
-	}
-
-	[[nodiscard]] bool ResolvePath(const UStruct* Struct, const FStateTreePropertyPath& Path, FStateTreePropertyIndirection& OutFirstIndirection, FStateTreePropertyPathIndirection& OutLeafIndirection)
-	{
-		return ResolvePath(Struct, Path, PropertyIndirections, OutFirstIndirection, OutLeafIndirection);
-	}
-
+	[[nodiscard]] bool ResolvePath(const UStruct* Struct, const FStateTreePropertyPath& Path, FStateTreePropertyIndirection& OutFirstIndirection, FStateTreePropertyPathIndirection& OutLeafIndirection);
 	const FStateTreeBindableStructDesc* GetSourceDescByHandle(const FStateTreeDataHandle SourceDataHandle);
 
 	void PerformCopy(const FStateTreePropertyCopy& Copy, uint8* SourceAddress, uint8* TargetAddress) const;
 	void PerformResetObjects(const FStateTreePropertyCopy& Copy, uint8* TargetAddress) const;
+	uint8* GetAddress(FStateTreeDataView InStructView, const FStateTreePropertyIndirection& FirstIndirection, const FProperty* LeafProperty) const;
 
 	/** Array of expected source structs. */
 	UPROPERTY()

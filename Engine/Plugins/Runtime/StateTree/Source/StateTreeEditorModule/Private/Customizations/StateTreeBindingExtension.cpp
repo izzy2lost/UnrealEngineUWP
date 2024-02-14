@@ -38,7 +38,7 @@ UObject* FindEditorBindingsOwner(UObject* InObject)
 	return Result;
 }
 
-UStruct* ResolveLeafValueStructType(FStateTreeDataView ValueView, const TArray<FBindingChainElement>& InBindingChain)
+UStruct* ResolveLeafValueStructType(FStateTreeDataView ValueView, TConstArrayView<FBindingChainElement> InBindingChain)
 {
 	if (ValueView.GetMemory() == nullptr)
 	{
@@ -96,7 +96,7 @@ UStruct* ResolveLeafValueStructType(FStateTreeDataView ValueView, const TArray<F
 	return Result;
 }
 
-void MakeStructPropertyPathFromBindingChain(const FGuid StructID, const TArray<FBindingChainElement>& InBindingChain, FStateTreeDataView DataView, FStateTreePropertyPath& OutPath)
+void MakeStructPropertyPathFromBindingChain(const FGuid StructID, TConstArrayView<FBindingChainElement> InBindingChain, FStateTreeDataView DataView, FStateTreePropertyPath& OutPath)
 {
 	OutPath.Reset();
 	OutPath.SetStructID(StructID);
@@ -268,7 +268,7 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 	{
 	}
 
-	void AddBinding(const TArray<FBindingChainElement>& InBindingChain)
+	void AddBinding(TConstArrayView<FBindingChainElement> InBindingChain)
 	{
 		if (InBindingChain.IsEmpty())
 		{
@@ -302,8 +302,7 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 		const int32 SourceStructIndex = InBindingChain[0].ArrayIndex;
 		check(SourceStructIndex >= 0 && SourceStructIndex < AccessibleStructs.Num());
 				
-		TArray<FBindingChainElement> SourceBindingChain = InBindingChain;
-		SourceBindingChain.RemoveAt(0); // remove struct index.
+		TConstArrayView<FBindingChainElement> SourceBindingChain(InBindingChain.begin() + 1, InBindingChain.Num() - 1); // remove struct index.
 
 		FStateTreeDataView DataView;
 		BindingOwner->GetDataViewByID(AccessibleStructs[SourceStructIndex].ID, DataView);
@@ -391,12 +390,20 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 		const UEdGraphSchema_K2* Schema = GetDefault<UEdGraphSchema_K2>();
 		check(Schema);
 
+		FStateTreeDataView TargetDataView;
+		BindingOwner->GetDataViewByID(TargetPath.GetStructID(), TargetDataView);
+
 		FEdGraphPinType PinType;
 
-		if (UE::StateTree::PropertyRefHelpers::IsPropertyRef(*Property))
+		if (UE::StateTree::PropertyRefHelpers::IsPropertyRef(*Property) && TargetDataView.IsValid())
 		{
 			// Use internal type to construct PinType if it's property of PropertyRef type.
-			PinType = UE::StateTree::PropertyRefHelpers::GetPropertyRefInternalTypeAsPin(*Property);
+			TArray<FStateTreePropertyPathIndirection> TargetIndirections;
+			if (ensure(TargetPath.ResolveIndirectionsWithValue(TargetDataView, TargetIndirections)))
+			{
+				const uint8* PropertyRef = TargetIndirections.Last().GetPropertyAddress();
+				PinType = UE::StateTree::PropertyRefHelpers::GetPropertyRefInternalTypeAsPin(*Property, PropertyRef);
+			}
 		}
 		else
 		{
@@ -412,11 +419,10 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 
 				// Check that the binding is valid.
 				FStateTreeDataView SourceDataView;
-				FStateTreeDataView TargetDataView;
 				const FProperty* SourceLeafProperty = nullptr;
 				const UStruct* SourceStruct = nullptr;
 				if (BindingOwner->GetDataViewByID(SourcePath->GetStructID(), SourceDataView)
-					&& BindingOwner->GetDataViewByID(TargetPath.GetStructID(), TargetDataView))
+					&& TargetDataView.IsValid())
 				{
 					TArray<FStateTreePropertyPathIndirection> SourceIndirections;
 					TArray<FStateTreePropertyPathIndirection> TargetIndirections;
@@ -428,18 +434,19 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 						&& TargetPath.ResolveIndirectionsWithValue(TargetDataView, TargetIndirections)
 						&& !TargetIndirections.IsEmpty())
 					{
-						const FStateTreePropertyPathIndirection LastTargetIndirection = TargetIndirections.Last();
+						const FStateTreePropertyPathIndirection TargetLeafIndirection = TargetIndirections.Last();
 						if (SourceIndirections.Num() > 0)
 						{
 							// Binding to a source property.
-							SourceLeafProperty = SourceIndirections.Last().GetProperty();
-							bIsValidBinding = ArePropertiesCompatible(SourceLeafProperty, LastTargetIndirection.GetProperty(), LastTargetIndirection.GetPropertyAddress());
+							const FStateTreePropertyPathIndirection SourceLeafIndirection = SourceIndirections.Last();
+							SourceLeafProperty = SourceLeafIndirection.GetProperty();
+							bIsValidBinding = ArePropertiesCompatible(SourceLeafProperty, TargetLeafIndirection.GetProperty(), SourceLeafIndirection.GetPropertyAddress(), TargetLeafIndirection.GetPropertyAddress());
 						}
 						else
 						{
 							// Binding to a source context struct.
 							SourceStruct = SourceDataView.GetStruct();
-							bIsValidBinding = ArePropertyAndContextStructCompatible(SourceStruct, LastTargetIndirection.GetProperty());
+							bIsValidBinding = ArePropertyAndContextStructCompatible(SourceStruct, TargetLeafIndirection.GetProperty());
 						}
 					}
 				}
@@ -545,7 +552,7 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 		return ArePropertyAndContextStructCompatible(InStruct, PropertyHandle->GetProperty());
 	}
 			
-	bool CanBindToProperty(const FProperty* SourceProperty)
+	bool CanBindToProperty(const FProperty* SourceProperty, TConstArrayView<FBindingChainElement> InBindingChain)
 	{
 		ConditionallyUpdateData();
 
@@ -555,10 +562,32 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 			return true;
 		}
 
-		void* TargetValueAddress = nullptr;
-		if (PropertyHandle->GetValueData(TargetValueAddress) == FPropertyAccess::Success)
+		UObject* OwnerObject = WeakOwnerObject.Get();
+		if (!OwnerObject)
 		{
-			return ArePropertiesCompatible(SourceProperty, PropertyHandle->GetProperty(), TargetValueAddress);
+			return false;
+		}
+
+		IStateTreeEditorPropertyBindingsOwner* BindingOwner = Cast<IStateTreeEditorPropertyBindingsOwner>(OwnerObject);
+		if (!BindingOwner)
+		{
+			return false;
+		}
+
+		const int32 SourceStructIndex = InBindingChain[0].ArrayIndex;
+		check(AccessibleStructs.IsValidIndex(SourceStructIndex));
+
+		FStateTreeDataView SourceDataView;
+		BindingOwner->GetDataViewByID(AccessibleStructs[SourceStructIndex].ID, SourceDataView);
+
+		FStateTreePropertyPath SourcePath;
+		UE::StateTree::PropertyBinding::MakeStructPropertyPathFromBindingChain(AccessibleStructs[SourceStructIndex].ID, InBindingChain, SourceDataView, SourcePath);
+
+		TArray<FStateTreePropertyPathIndirection> SourceIndirections;
+		void* TargetValueAddress = nullptr;
+		if (PropertyHandle->GetValueData(TargetValueAddress) == FPropertyAccess::Success && SourcePath.ResolveIndirectionsWithValue(SourceDataView, SourceIndirections))
+		{
+			return ArePropertiesCompatible(SourceProperty, PropertyHandle->GetProperty(), SourceIndirections.Last().GetPropertyAddress(), TargetValueAddress);
 		}
 		
 		return false;
@@ -579,7 +608,8 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 			}
 		}
 
-		return SourceProperty->HasAnyPropertyFlags(CPF_Edit);
+		return SourceProperty->HasAnyPropertyFlags(CPF_Edit) 
+			&& (!SourceProperty->HasAnyPropertyFlags(CPF_NativeAccessSpecifierPrivate | CPF_NativeAccessSpecifierProtected) || SourceProperty->GetBoolMetaData(FBlueprintMetadata::MD_AllowPrivateAccess));
 	}
 
 	static bool ArePropertyAndContextStructCompatible(const UStruct* SourceStruct, const FProperty* TargetProperty)
@@ -596,7 +626,7 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 		return false;
 	}
 
-	static bool ArePropertiesCompatible(const FProperty* SourceProperty, const FProperty* TargetProperty, const void* TargetPropertyValue)
+	static bool ArePropertiesCompatible(const FProperty* SourceProperty, const FProperty* TargetProperty, const void* SourcePropertyValue, const void* TargetPropertyValue)
 	{
 		// @TODO: Refactor FStateTreePropertyBindings::ResolveCopyType() so that we can use it directly here.
 		
@@ -648,10 +678,10 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 				}
 			}
 		}
-		else if (TargetStructProperty && TargetStructProperty->Struct == FStateTreePropertyRef::StaticStruct())
+		else if (TargetStructProperty && UE::StateTree::PropertyRefHelpers::IsPropertyRef(*TargetStructProperty))
 		{
 			check(TargetPropertyValue);
-			bCanBind = UE::StateTree::PropertyRefHelpers::IsPropertyRefCompatibleWithProperty(*TargetStructProperty, *SourceProperty);
+			bCanBind = UE::StateTree::PropertyRefHelpers::IsPropertyRefCompatibleWithProperty(*TargetStructProperty, *SourceProperty, TargetPropertyValue, SourcePropertyValue);
 		}
 		else
 		{
@@ -662,7 +692,7 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 		return bCanBind;
 	}
 
-	UStruct* ResolveIndirection(TArray<FBindingChainElement> InBindingChain)
+	UStruct* ResolveIndirection(TConstArrayView<FBindingChainElement> InBindingChain)
 	{
 		UObject* OwnerObject = WeakOwnerObject.Get();
 		if (!OwnerObject)
@@ -678,9 +708,6 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 
 		const int32 SourceStructIndex = InBindingChain[0].ArrayIndex;
 		check(SourceStructIndex >= 0 && SourceStructIndex < AccessibleStructs.Num());
-		
-		TArray<FBindingChainElement> SourceBindingChain = InBindingChain;
-		SourceBindingChain.RemoveAt(0);
 
 		FStateTreeDataView DataView;
 		if (BindingOwner->GetDataViewByID(AccessibleStructs[SourceStructIndex].ID, DataView))
@@ -872,7 +899,7 @@ void FStateTreeBindingExtension::ExtendWidgetRow(FDetailWidgetRow& InWidgetRow, 
 
 	Args.OnCanBindPropertyWithBindingChain = FOnCanBindPropertyWithBindingChain::CreateLambda([CachedBindingData](FProperty* InProperty, TConstArrayView<FBindingChainElement> InBindingChain)
 		{
-			return CachedBindingData->CanBindToProperty(InProperty);
+			return CachedBindingData->CanBindToProperty(InProperty, InBindingChain);
 		});
 
 	Args.OnCanBindToContextStruct = FOnCanBindToContextStruct::CreateLambda([CachedBindingData](const UStruct* InStruct)
@@ -890,7 +917,7 @@ void FStateTreeBindingExtension::ExtendWidgetRow(FDetailWidgetRow& InWidgetRow, 
 			return true;
 		});
 
-	Args.OnAddBinding = FOnAddBinding::CreateLambda([CachedBindingData](FName InPropertyName, const TArray<FBindingChainElement>& InBindingChain)
+	Args.OnAddBinding = FOnAddBinding::CreateLambda([CachedBindingData](FName InPropertyName, TConstArrayView<FBindingChainElement> InBindingChain)
 		{
 			CachedBindingData->AddBinding(InBindingChain);
 		});
@@ -927,7 +954,7 @@ void FStateTreeBindingExtension::ExtendWidgetRow(FDetailWidgetRow& InWidgetRow, 
 
 	if (BindingOwner)
 	{
-		Args.OnResolveIndirection = FOnResolveIndirection::CreateLambda([CachedBindingData](TArray<FBindingChainElement> InBindingChain)
+		Args.OnResolveIndirection = FOnResolveIndirection::CreateLambda([CachedBindingData](TConstArrayView<FBindingChainElement> InBindingChain)
 		{
 			return CachedBindingData->ResolveIndirection(InBindingChain);
 		});

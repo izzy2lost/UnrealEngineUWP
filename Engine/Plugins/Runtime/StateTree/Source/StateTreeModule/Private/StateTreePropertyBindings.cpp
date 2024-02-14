@@ -287,7 +287,7 @@ bool FStateTreePropertyBindings::ResolvePaths()
 	return bResult;
 }
 
-bool FStateTreePropertyBindings::ResolvePath(const UStruct* Struct, const FStateTreePropertyPath& Path, TArray<FStateTreePropertyIndirection>& OutIndirections, FStateTreePropertyIndirection& OutFirstIndirection, FStateTreePropertyPathIndirection& OutLeafIndirection)
+bool FStateTreePropertyBindings::ResolvePath(const UStruct* Struct, const FStateTreePropertyPath& Path, FStateTreePropertyIndirection& OutFirstIndirection, FStateTreePropertyPathIndirection& OutLeafIndirection)
 {
 	if (!Struct)
  	{
@@ -411,9 +411,9 @@ bool FStateTreePropertyBindings::ResolvePath(const UStruct* Struct, const FState
 		FStateTreePropertyIndirection* PrevIndirection = &OutFirstIndirection;
 		for (int32 Index = 1; Index < TempIndirections.Num(); Index++)
 		{
-			const int32 IndirectionIndex = OutIndirections.Num();
+			const int32 IndirectionIndex = PropertyIndirections.Num();
 			PrevIndirection->NextIndex = FStateTreeIndex16(IndirectionIndex); // Set PrevIndirection before array add, as it can invalidate the pointer.
-			FStateTreePropertyIndirection& NewIndirection = OutIndirections.Add_GetRef(TempIndirections[Index]);
+			FStateTreePropertyIndirection& NewIndirection = PropertyIndirections.Add_GetRef(TempIndirections[Index]);
 			PrevIndirection = &NewIndirection;
 		}
 	}
@@ -811,7 +811,7 @@ EStateTreePropertyAccessCompatibility FStateTreePropertyBindings::GetPropertyCom
 	return EStateTreePropertyAccessCompatibility::Incompatible;
 }
 
-uint8* FStateTreePropertyBindings::GetAddress(FStateTreeDataView InStructView, TConstArrayView<FStateTreePropertyIndirection> Indirections, const FStateTreePropertyIndirection& FirstIndirection, const FProperty* LeafProperty)
+uint8* FStateTreePropertyBindings::GetAddress(FStateTreeDataView InStructView, const FStateTreePropertyIndirection& FirstIndirection, const FProperty* LeafProperty) const
 {
 	uint8* Address = InStructView.GetMutableMemory();
 	if (Address == nullptr)
@@ -904,7 +904,7 @@ uint8* FStateTreePropertyBindings::GetAddress(FStateTreeDataView InStructView, T
 				*StaticEnum<EStateTreePropertyAccessType>()->GetValueAsString(Indirection->Type), *LeafProperty->GetNameCPP());
 		}
 
-		Indirection = Indirection->NextIndex.IsValid() ? &Indirections[Indirection->NextIndex.Get()] : nullptr;
+		Indirection = Indirection->NextIndex.IsValid() ? &PropertyIndirections[Indirection->NextIndex.Get()] : nullptr;
 	}
 
 	return Address;

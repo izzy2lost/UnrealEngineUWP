@@ -41,7 +41,7 @@ struct STATETREEEDITORMODULE_API FStateTreePropertyBindingCompiler
 	  * @param InstanceDataView - view to the instance data
 	  * @return True on success, false on failure.
 	 */
-	[[nodiscard]] bool CompileReferences(const FStateTreeBindableStructDesc& TargetStruct, TConstArrayView<FStateTreePropertyPathBinding> PropertyReferenceBindings, FStateTreeDataView InstanceDataView);
+	[[nodiscard]] bool CompileReferences(const FStateTreeBindableStructDesc& TargetStruct, TConstArrayView<FStateTreePropertyPathBinding> PropertyReferenceBindings, FStateTreeDataView InstanceDataView, const TMap<FGuid, const FStateTreeDataView>& IDToStructValue);
 
 	/** Finalizes compilation, should be called once all batches are compiled. */
 	void Finalize();
@@ -64,6 +64,9 @@ struct STATETREEEDITORMODULE_API FStateTreePropertyBindingCompiler
 	{
 		return SourceStructs[Index];
 	}
+
+	UE_DEPRECATED(5.4, "Use CompileReferences with additional IDToStructValue parameter instead.")
+	[[nodiscard]] bool CompileReferences(const FStateTreeBindableStructDesc& TargetStruct, TConstArrayView<FStateTreePropertyPathBinding> PropertyReferenceBindings, FStateTreeDataView InstanceDataView) { return false; }
 
 	const FStateTreeBindableStructDesc* GetSourceStructDescByID(const FGuid& ID) const
 	{

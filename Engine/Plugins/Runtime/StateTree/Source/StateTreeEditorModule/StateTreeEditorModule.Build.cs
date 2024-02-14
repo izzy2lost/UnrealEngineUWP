@@ -49,7 +49,8 @@ namespace UnrealBuildTool.Rules
 				"DeveloperSettings",
 				"RewindDebuggerInterface",
 				"DetailCustomizations",
-				"AppFramework"
+				"AppFramework",
+				"KismetCompiler",
 			}
 			);
 
