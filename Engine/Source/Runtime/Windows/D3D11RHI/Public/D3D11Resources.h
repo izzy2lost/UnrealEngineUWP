@@ -7,8 +7,9 @@
 #pragma once
 
 #include "BoundShaderStateCache.h"
+#include "ShaderCore.h"
+#include "Windows/D3D11ThirdParty.h"
 
-interface ID3D11DeviceContext;
 typedef ID3D11DeviceContext FD3D11DeviceContext;
 
 template <>
@@ -570,26 +571,5 @@ template<>
 struct TD3D11ResourceTraits<FRHIUnorderedAccessView>
 {
 	typedef FD3D11UnorderedAccessView TConcreteType;
-};
-
-template<>
-struct TD3D11ResourceTraits<FRHISamplerState>
-{
-	typedef FD3D11SamplerState TConcreteType;
-};
-template<>
-struct TD3D11ResourceTraits<FRHIRasterizerState>
-{
-	typedef FD3D11RasterizerState TConcreteType;
-};
-template<>
-struct TD3D11ResourceTraits<FRHIDepthStencilState>
-{
-	typedef FD3D11DepthStencilState TConcreteType;
-};
-template<>
-struct TD3D11ResourceTraits<FRHIBlendState>
-{
-	typedef FD3D11BlendState TConcreteType;
 };
 

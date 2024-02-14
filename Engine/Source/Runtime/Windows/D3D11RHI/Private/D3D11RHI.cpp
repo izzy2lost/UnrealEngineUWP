@@ -4,6 +4,7 @@
 	D3D11RHI.cpp: Unreal D3D RHI library implementation.
 =============================================================================*/
 
+#include "D3D11RHI.h"
 #include "D3D11RHIPrivate.h"
 #include "RHIStaticStates.h"
 #include "StaticBoundShaderState.h"

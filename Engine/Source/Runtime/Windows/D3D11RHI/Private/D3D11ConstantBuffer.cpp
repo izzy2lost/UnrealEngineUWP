@@ -4,6 +4,7 @@
 	D3D11ConstantBuffer.cpp: D3D Constant buffer RHI implementation.
 =============================================================================*/
 
+#include "D3D11ConstantBuffer.h"
 #include "D3D11RHIPrivate.h"
 
 // New circular buffer system for faster constant uploads.  Avoids CopyResource and speeds things up considerably

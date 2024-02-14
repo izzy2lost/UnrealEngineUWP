@@ -7,8 +7,7 @@
 #pragma once
 
 #include "D3D11ConstantBuffer.h"
-
-struct ID3D11Buffer;
+#include "Windows/D3D11ThirdParty.h"
 
 class FWinD3D11ConstantBuffer : public FD3D11ConstantBuffer
 {

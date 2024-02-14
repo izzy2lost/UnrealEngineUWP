@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include "D3D11Resources.h"
+
 class FD3D11SamplerState : public FRHISamplerState
 {
 public:
@@ -37,3 +39,23 @@ public:
 	TRefCountPtr<ID3D11BlendState> Resource;
 };
 
+template<>
+struct TD3D11ResourceTraits<FRHISamplerState>
+{
+	typedef FD3D11SamplerState TConcreteType;
+};
+template<>
+struct TD3D11ResourceTraits<FRHIRasterizerState>
+{
+	typedef FD3D11RasterizerState TConcreteType;
+};
+template<>
+struct TD3D11ResourceTraits<FRHIDepthStencilState>
+{
+	typedef FD3D11DepthStencilState TConcreteType;
+};
+template<>
+struct TD3D11ResourceTraits<FRHIBlendState>
+{
+	typedef FD3D11BlendState TConcreteType;
+};

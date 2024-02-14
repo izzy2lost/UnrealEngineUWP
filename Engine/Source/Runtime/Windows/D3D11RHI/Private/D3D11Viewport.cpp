@@ -4,6 +4,7 @@
 	D3D11Viewport.cpp: D3D viewport RHI implementation.
 =============================================================================*/
 
+#include "D3D11Viewport.h"
 #include "D3D11RHIPrivate.h"
 #include "RenderCore.h"
 #include "HDRHelper.h"
@@ -646,6 +647,21 @@ bool FD3D11Viewport::Present(bool bLockToVsync)
 		bNativelyPresented = PresentChecked(bLockToVsync ? RHIGetSyncInterval() : 0);
 	}
 	return bNativelyPresented;
+}
+
+void* FD3D11Viewport::GetNativeSwapChain() const
+{
+	return GetSwapChain();
+}
+
+void* FD3D11Viewport::GetNativeBackBufferTexture() const
+{
+	return GetBackBuffer()->GetD3D11Texture2D();
+}
+
+void* FD3D11Viewport::GetNativeBackBufferRT() const
+{
+	return GetBackBuffer()->GetRenderTargetView(0, 0);
 }
 
 EColorSpaceAndEOTF FD3D11DynamicRHI::RHIGetColorSpace(FRHIViewport* ViewportRHI)

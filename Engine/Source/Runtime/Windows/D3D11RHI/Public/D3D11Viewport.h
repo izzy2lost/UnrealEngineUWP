@@ -6,9 +6,11 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "D3D11Resources.h"
 #include "RenderResource.h"
 #include "RenderUtils.h"
+#include "RHIResources.h"
+#include "Windows/D3D11ThirdParty.h"
 
 /** A D3D event query resource. */
 class FD3D11EventQuery
@@ -80,9 +82,9 @@ public:
 
 	IDXGISwapChain* GetSwapChain() const { return SwapChain; }
 
-	virtual void* GetNativeSwapChain() const override { return GetSwapChain(); }
-	virtual void* GetNativeBackBufferTexture() const override { return GetBackBuffer()->GetD3D11Texture2D(); }
-	virtual void* GetNativeBackBufferRT() const override { return GetBackBuffer()->GetRenderTargetView(0, 0); }
+	virtual void* GetNativeSwapChain() const override;
+	virtual void* GetNativeBackBufferTexture() const override;
+	virtual void* GetNativeBackBufferRT() const override;
 
 	virtual void SetCustomPresent(FRHICustomPresent* InCustomPresent) override
 	{

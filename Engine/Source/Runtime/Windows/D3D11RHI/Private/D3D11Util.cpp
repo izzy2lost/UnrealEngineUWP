@@ -4,6 +4,7 @@
 	D3D11Util.h: D3D RHI utility implementation.
 =============================================================================*/
 
+#include "D3D11Util.h"
 #include "D3D11RHIPrivate.h"
 #include "EngineModule.h"
 #include "RendererInterface.h"
