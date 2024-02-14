@@ -18,6 +18,7 @@
 #include "PropertyCustomizationHelpers.h"
 #include "PropertyEditorModule.h"
 #include "HAL/PlatformApplicationMisc.h"
+#include "Sequencer/MovieSceneControlRigParameterTrack.h"
 
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Layout/SBorder.h"
@@ -32,6 +33,7 @@
 #include "MVVM/ViewModels/OutlinerViewModel.h"
 #include "MVVM/ViewModels/ViewModelIterators.h"
 #include "MVVM/Extensions/IOutlinerExtension.h"
+#include "MVVM/ViewModels/TrackModel.h"
 #include "Rigs/RigControlHierarchy.h"
 #include "Tree/SCurveEditorTree.h"
 
@@ -562,26 +564,36 @@ void FAnimDetailValueCustomization::TogglePropertySelection(UControlRigControlsP
 						TParentFirstChildIterator<IOutlinerExtension> OutlinerExtenstionIt = OutlinerViewModel->GetRootItem()->GetDescendantsOfType<IOutlinerExtension>();
 						for (; OutlinerExtenstionIt; ++OutlinerExtenstionIt)
 						{
-							FName ID = OutlinerExtenstionIt->GetIdentifier();
-							FString Name = ID.ToString();
-							TArray<FString> StringArray;
-							Name.ParseIntoArray(StringArray, TEXT("."));
-
-							FString ChannelName;
-							if(GetChannelNameForCurve(StringArray, ControlElement, ChannelName))
+							if (TSharedPtr<FTrackModel> TrackModel = OutlinerExtenstionIt.GetCurrentItem()->FindAncestorOfType<FTrackModel>())
 							{
-								EControlRigContextChannelToKey ChannelToKeyFromCurve = Proxy->GetChannelToKeyFromChannelName(ChannelName);
-								if (ChannelToKey == ChannelToKeyFromCurve)
+								if (UMovieSceneControlRigParameterTrack* Track =  Cast<UMovieSceneControlRigParameterTrack>(TrackModel->GetTrack()) )
 								{
-									if (TViewModelPtr<ICurveEditorTreeItemExtension> CurveEditorItem = OutlinerExtenstionIt.GetCurrentItem().ImplicitCast())
+									if (Track->GetControlRig() != ControlRig)
 									{
-										FCurveEditorTreeItemID CurveEditorTreeItem = CurveEditorItem->GetCurveEditorItemID();
-										if (CurveEditorTreeItem != FCurveEditorTreeItemID::Invalid())
+										continue;
+									}
+									FName ID = OutlinerExtenstionIt->GetIdentifier();
+									FString Name = ID.ToString();
+									TArray<FString> StringArray;
+									Name.ParseIntoArray(StringArray, TEXT("."));
+
+									FString ChannelName;
+									if (GetChannelNameForCurve(StringArray, ControlElement, ChannelName))
+									{
+										EControlRigContextChannelToKey ChannelToKeyFromCurve = Proxy->GetChannelToKeyFromChannelName(ChannelName);
+										if (ChannelToKey == ChannelToKeyFromCurve)
 										{
-											const bool bSelected = bIsShiftDown ? true : !CurveEditorTreeView->IsItemSelected(CurveEditorTreeItem);
-											if (bIsCtrlDown || bSelected)
+											if (TViewModelPtr<ICurveEditorTreeItemExtension> CurveEditorItem = OutlinerExtenstionIt.GetCurrentItem().ImplicitCast())
 											{
-												CurveEditorTreeView->SetItemSelection(CurveEditorTreeItem, bSelected);
+												FCurveEditorTreeItemID CurveEditorTreeItem = CurveEditorItem->GetCurveEditorItemID();
+												if (CurveEditorTreeItem != FCurveEditorTreeItemID::Invalid())
+												{
+													const bool bSelected = bIsShiftDown ? true : !CurveEditorTreeView->IsItemSelected(CurveEditorTreeItem);
+													if (bIsCtrlDown || bSelected)
+													{
+														CurveEditorTreeView->SetItemSelection(CurveEditorTreeItem, bSelected);
+													}
+												}
 											}
 										}
 									}
@@ -602,33 +614,39 @@ void FAnimDetailValueCustomization::TogglePropertySelection(UControlRigControlsP
 					TParentFirstChildIterator<IOutlinerExtension> OutlinerExtenstionIt = OutlinerViewModel->GetRootItem()->GetDescendantsOfType<IOutlinerExtension>();
 					for (; OutlinerExtenstionIt; ++OutlinerExtenstionIt)
 					{
-						FName ID = OutlinerExtenstionIt->GetIdentifier();
-						FString Name = ID.ToString();
-						TArray<FString> StringArray;
-						Name.ParseIntoArray(StringArray, TEXT("."));
-
-						FString ChannelName;
-						if (StringArray.Num() == 2)
+						if (TSharedPtr<FTrackModel> TrackModel = OutlinerExtenstionIt.GetCurrentItem()->FindAncestorOfType<FTrackModel>())
 						{
-							ChannelName = StringArray[0] + "." + StringArray[1];
-						}
-						else if (StringArray.Num() == 0)
-						{
-							ChannelName = StringArray[0];
-						}
-
-						EControlRigContextChannelToKey ChannelToKeyFromCurve = Proxy->GetChannelToKeyFromChannelName(ChannelName);
-						if (ChannelToKey == ChannelToKeyFromCurve)
-						{
-							if (TViewModelPtr<ICurveEditorTreeItemExtension> CurveEditorItem = OutlinerExtenstionIt.GetCurrentItem().ImplicitCast())
+							if (TrackModel->GetTrack() == Element.WeakTrack.Get())
 							{
-								FCurveEditorTreeItemID CurveEditorTreeItem = CurveEditorItem->GetCurveEditorItemID();
-								if (CurveEditorTreeItem != FCurveEditorTreeItemID::Invalid())
+								FName ID = OutlinerExtenstionIt->GetIdentifier();
+								FString Name = ID.ToString();
+								TArray<FString> StringArray;
+								Name.ParseIntoArray(StringArray, TEXT("."));
+
+								FString ChannelName;
+								if (StringArray.Num() == 2)
 								{
-									const bool bSelected = bIsShiftDown ? true : !CurveEditorTreeView->IsItemSelected(CurveEditorTreeItem);
-									if (bIsCtrlDown || bSelected)
+									ChannelName = StringArray[0] + "." + StringArray[1];
+								}
+								else if (StringArray.Num() == 0)
+								{
+									ChannelName = StringArray[0];
+								}
+
+								EControlRigContextChannelToKey ChannelToKeyFromCurve = Proxy->GetChannelToKeyFromChannelName(ChannelName);
+								if (ChannelToKey == ChannelToKeyFromCurve)
+								{
+									if (TViewModelPtr<ICurveEditorTreeItemExtension> CurveEditorItem = OutlinerExtenstionIt.GetCurrentItem().ImplicitCast())
 									{
-										CurveEditorTreeView->SetItemSelection(CurveEditorTreeItem, bSelected);
+										FCurveEditorTreeItemID CurveEditorTreeItem = CurveEditorItem->GetCurveEditorItemID();
+										if (CurveEditorTreeItem != FCurveEditorTreeItemID::Invalid())
+										{
+											const bool bSelected = bIsShiftDown ? true : !CurveEditorTreeView->IsItemSelected(CurveEditorTreeItem);
+											if (bIsCtrlDown || bSelected)
+											{
+												CurveEditorTreeView->SetItemSelection(CurveEditorTreeItem, bSelected);
+											}
+										}
 									}
 								}
 							}
@@ -702,11 +720,11 @@ TSharedRef<SWidget> FAnimDetailValueCustomization::MakeIntegerWidget(
 			})
 		.Font(IDetailLayoutBuilder::GetDetailFont())
 		.UndeterminedString(NSLOCTEXT("PropertyEditor", "MultipleValues", "Multiple Values"))
-		.OnValueCommitted_Lambda([WeakHandlePtr](double Value, ETextCommit::Type)
+		.OnValueCommitted_Lambda([WeakHandlePtr](int64 Value, ETextCommit::Type)
 			{
 				WeakHandlePtr.Pin()->SetValue(Value, EPropertyValueSetFlags::DefaultFlags);
 			})
-		.OnValueChanged_Lambda([this, WeakHandlePtr](double Value)
+		.OnValueChanged_Lambda([this, WeakHandlePtr](int64 Value)
 			{
 				if (bIsUsingSlider)
 				{
@@ -718,7 +736,7 @@ TSharedRef<SWidget> FAnimDetailValueCustomization::MakeIntegerWidget(
 				bIsUsingSlider = true;
 				GEditor->BeginTransaction(LOCTEXT("SetVectorProperty", "Set Property"));
 			})
-		.OnEndSliderMovement_Lambda([this](double Value)
+		.OnEndSliderMovement_Lambda([this](int64 Value)
 			{
 				bIsUsingSlider = false;
 				GEditor->EndTransaction();

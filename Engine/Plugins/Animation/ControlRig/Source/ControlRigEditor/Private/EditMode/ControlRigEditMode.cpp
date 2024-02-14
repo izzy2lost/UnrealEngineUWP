@@ -4584,7 +4584,7 @@ void FControlRigEditMode::MoveControlShape(AControlRigShapeActor* ShapeActor, co
 				ControlRig->InteractionType = InteractionType;
 				ControlRig->ElementsBeingInteracted.AddUnique(ShapeActor->GetElementKey());
 				
-				ControlRig->SetControlLocalTransform(ShapeActor->ControlName, CurrentLocalTransform,true, FRigControlModifiedContext(), true, false);
+				ControlRig->SetControlLocalTransform(ShapeActor->ControlName, CurrentLocalTransform,true, FRigControlModifiedContext(), true, /*fix eulers*/ false);
 				UpdatePreferredEulerAngles(ControlRig);
 
 				FTransform CurrentTransform  = ControlRig->GetControlGlobalTransform(ShapeActor->ControlName);			// assumes it's attached to actor
@@ -4668,8 +4668,8 @@ void FControlRigEditMode::MoveControlShape(AControlRigShapeActor* ShapeActor, co
 				}
 				
 				ControlRig->Evaluate_AnyThread();
-				SetControlShapeTransform(ShapeActor, NewTransform, ToWorldTransform, Context, bPrintPythonCommands, false);
-				UpdatePreferredEulerAngles(ControlRig);
+				SetControlShapeTransform(ShapeActor, NewTransform, ToWorldTransform, Context, bPrintPythonCommands, /*fix flips*/ true);
+				//UpdatePreferredEulerAngles(ControlRig);
 				NotifyDrivenControls(ControlRig, ShapeActor->GetElementKey());
 				if(const FRigControlElement* ControlElement = ControlRig->FindControl(ShapeActor->ControlName))
 				{
@@ -5419,6 +5419,7 @@ bool FDetailKeyFrameCacheAndHandler::IsPropertyKeyable(const UClass* InObjectCla
 		&& InObjectClass->IsChildOf(UAnimDetailControlsProxyVector2D::StaticClass())
 		&& InObjectClass->IsChildOf(UAnimDetailControlsProxyFloat::StaticClass())
 		&& InObjectClass->IsChildOf(UAnimDetailControlsProxyBool::StaticClass())
+		&& InObjectClass->IsChildOf(UAnimDetailControlsProxyInteger::StaticClass())
 		)
 	{
 		return true;
@@ -5457,11 +5458,18 @@ bool FDetailKeyFrameCacheAndHandler::IsPropertyKeyable(const UClass* InObjectCla
 		return true;
 	}
 
+	if (InObjectClass && InObjectClass->IsChildOf(UAnimDetailControlsProxyInteger::StaticClass()) && InPropertyHandle.GetProperty()
+		&& InPropertyHandle.GetProperty()->GetFName() == GET_MEMBER_NAME_CHECKED(UAnimDetailControlsProxyInteger, Integer))
+	{
+		return true;
+	}
+
 	if (InObjectClass && InObjectClass->IsChildOf(UAnimDetailControlsProxyBool::StaticClass()) && InPropertyHandle.GetProperty()
 		&& InPropertyHandle.GetProperty()->GetFName() == GET_MEMBER_NAME_CHECKED(UAnimDetailControlsProxyBool, Bool))
 	{
 		return true;
 	}
+
 	if (InObjectClass && InObjectClass->IsChildOf(UAnimDetailControlsProxyFloat::StaticClass()) && InPropertyHandle.GetProperty()
 		&& InPropertyHandle.GetProperty()->GetFName() == GET_MEMBER_NAME_CHECKED(UAnimDetailControlsProxyFloat, Float))
 	{
