@@ -93,7 +93,7 @@ namespace mu
 				OP::ADDRESS sizeAt = 0;
 				uint16 rangeId = 0;
 				LinkRange(Program, d, sizeAt, rangeId);
-				Program.m_parameters.Last().m_ranges.Add(rangeId);
+				Program.m_parameters[LinkedParameterIndex].m_ranges.Add(rangeId);
 			}
 
 			linkedAddress = (OP::ADDRESS)Program.m_opAddress.Num();
