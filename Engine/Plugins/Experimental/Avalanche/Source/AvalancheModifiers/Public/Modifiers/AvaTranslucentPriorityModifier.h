@@ -54,6 +54,18 @@ public:
 	    return SortPriority;
     }
 
+	void SetSortPriorityOffset(int32 InOffset);
+	int32 GetSortPriorityOffset() const
+	{
+		return SortPriorityOffset;
+	}
+
+	void SetSortPriorityStep(int32 InStep);
+	int32 GetSortPriorityStep() const
+	{
+		return SortPriorityStep;
+	}
+
 	void SetIncludeChildren(bool bInIncludeChildren);
 	bool GetIncludeChildren() const
 	{
@@ -64,6 +76,7 @@ protected:
 	//~ Begin UActorModifierCoreBase
 	virtual void OnModifierCDOSetup(FActorModifierCoreMetadata& InMetadata) override;
 	virtual void OnModifierAdded(EActorModifierCoreEnableReason InReason) override;
+	virtual void OnModifierRemoved(EActorModifierCoreDisableReason InReason) override;
 	virtual void SavePreState() override;
 	virtual void RestorePreState() override;
 	virtual void Apply() override;
@@ -88,7 +101,10 @@ protected:
 	void OnModeChanged();
 	void OnCameraActorChanged();
 	void OnSortPriorityChanged();
+	void OnSortPriorityLevelGlobalsChanged() const;
 	void OnIncludeChildrenChanged();
+
+	void OnGlobalSortPriorityOffsetChanged();
 
 	ACameraActor* GetDefaultCameraActor() const;
 
@@ -103,6 +119,14 @@ protected:
 	/** The sort priority that will be set on the primitive component for manual mode */
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="TranslucentPriority", meta=(EditCondition="Mode == EAvaTranslucentPriorityModifierMode::Manual", EditConditionHides, AllowPrivateAccess="true"))
 	int32 SortPriority = 0;
+
+	/** Sort priority offset shared across all modifiers in this same level */
+	UPROPERTY(Transient, EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="TranslucentPriority", meta=(AllowPrivateAccess="true"))
+	int32 SortPriorityOffset = 0;
+
+	/** Sort priority incremental step shared across all modifiers in this same level */
+	UPROPERTY(Transient, EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="TranslucentPriority", meta=(AllowPrivateAccess="true"))
+	int32 SortPriorityStep = 1;
 
 	/** If true, will include children too and update their sort priority */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetIncludeChildren", Getter="GetIncludeChildren", Category="TranslucentPriority", meta=(AllowPrivateAccess="true"))

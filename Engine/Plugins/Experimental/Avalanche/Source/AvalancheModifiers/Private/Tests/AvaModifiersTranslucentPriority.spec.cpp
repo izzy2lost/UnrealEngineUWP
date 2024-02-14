@@ -43,6 +43,8 @@ void AvalancheModifiersTranslucentPriority::Define()
 		UActorModifierCoreStack* ModifierStack = ModifierTestUtils->GenerateModifierStackForActor(ModifiedActor);
 		TranslucentPriorityModifier = Cast<UAvaTranslucentPriorityModifier>(ModifierSubsystem->InsertModifier(ModifierStack, InsertOp));
 		TranslucentPriorityModifier->SetMode(EAvaTranslucentPriorityModifierMode::Manual);
+		TranslucentPriorityModifier->SetSortPriorityOffset(0);
+		TranslucentPriorityModifier->SetSortPriorityStep(0);
 		TranslucentPriorityModifier->SetSortPriority(ModifierSortPriority);
 	});
 
