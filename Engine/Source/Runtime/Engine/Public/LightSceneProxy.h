@@ -115,6 +115,11 @@ public:
 		return VSMTexelDitherScale;
 	}
 
+	ENGINE_API float GetVSMResolutionLodBias() const
+	{
+		return VSMResolutionLodBias;
+	}
+	
 	/** Returns the number of view dependent shadows this light will create, not counting distance field shadow cascades. */
 	virtual uint32 GetNumViewDependentWholeSceneShadows(const FSceneView& View, bool bPrecomputedLightingIsValid) const { return 0; }
 
@@ -464,6 +469,8 @@ protected:
 
 	/** Used to control the amount of additional dither filtering applied to shadows for each light. */
 	float VSMTexelDitherScale;
+	/** Used to control shadow resolution for each light. */
+	float VSMResolutionLodBias;
 
 	/** Only for whole scene directional lights, if FarShadowCascadeCount > 0 and FarShadowDistance >= WholeSceneDynamicShadowRadius, where far shadow cascade should end. */
 	float FarShadowDistance;
