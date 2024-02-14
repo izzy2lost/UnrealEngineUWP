@@ -806,18 +806,33 @@ namespace UnrealBuildTool
 						}
 
 						// these are parsed by external tools wishing to open this file directly
-						foreach (LinkedAction BuildAction in MergedActionsToExecute.Where(BuildAction => BuildAction.ActionType == ActionType.Compile && (BuildAction.Inner as VCCompileAction)?.bIsAnalyzing != true))
+						foreach (LinkedAction BuildAction in MergedActionsToExecute.Where(BuildAction => BuildAction.ActionType == ActionType.Compile))
 						{
-							FileItem? PreprocessedFile = BuildAction.ProducedItems.FirstOrDefault(x => x.HasExtension(".i"));
-							if (PreprocessedFile != null)
+							if (BuildAction.Inner is VCCompileAction)
 							{
-								Logger.LogInformation("PreProcessPath: {File}", PreprocessedFile);
-							}
+								if ((BuildAction.Inner as VCCompileAction)?.bIsAnalyzing != true)
+								{
+									FileItem? PreprocessedFile = BuildAction.ProducedItems.FirstOrDefault(x => x.HasExtension(".i"));
+									if (PreprocessedFile != null)
+									{
+										Logger.LogInformation("PreProcessPath: {File}", PreprocessedFile);
+									}
 
-							FileItem? AssemblyPath = BuildAction.ProducedItems.FirstOrDefault(x => x.HasExtension(".asm"));
-							if (AssemblyPath != null)
+									FileItem? AssemblyPath = BuildAction.ProducedItems.FirstOrDefault(x => x.HasExtension(".asm"));
+									if (AssemblyPath != null)
+									{
+										Logger.LogInformation("AssemblyPath: {File}", AssemblyPath);
+									}
+								}
+							}
+							else
 							{
-								Logger.LogInformation("AssemblyPath: {File}", AssemblyPath);
+								FileItem? PreprocessedFile = BuildAction.ProducedItems.FirstOrDefault(x => x.HasExtension(".n"));
+								if (PreprocessedFile != null)
+								{
+									string PreprocessedFilePath = PreprocessedFile.ToString();
+									Logger.LogInformation($"PreProcessPath: {PreprocessedFilePath.Remove(PreprocessedFilePath.Length - 2)}.i");
+								}
 							}
 						}
 					}
