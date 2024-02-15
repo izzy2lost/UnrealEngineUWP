@@ -8,7 +8,7 @@
 class FText;
 class STextBlock;
 
-class AVALANCHEMEDIA_API SAvaBroadcastPlaceholderWidget : public SCompoundWidget
+class SAvaBroadcastPlaceholderWidget : public SCompoundWidget
 {
 public:
 	SLATE_BEGIN_ARGS(SAvaBroadcastPlaceholderWidget) {}

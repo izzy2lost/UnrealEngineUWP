@@ -13,7 +13,7 @@ class UTextureRenderTarget2D;
  */
 UCLASS(BlueprintType, ClassGroup = "Motion Design Broadcast",
 	meta = (DisplayName = "Motion Design Render Target Media Output", MediaIOCustomLayout = "AvaRenderTarget"))
-class AVALANCHEMEDIA_API UAvaBroadcastRenderTargetMediaOutput : public UMediaOutput
+class UAvaBroadcastRenderTargetMediaOutput : public UMediaOutput
 {
 	GENERATED_BODY()
 

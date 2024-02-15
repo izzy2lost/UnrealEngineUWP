@@ -9,9 +9,9 @@
 /**
  * Output Media to a display adapter.
  */
-UCLASS(BlueprintType, ClassGroup = "Motion Design Broadcast",
+UCLASS(MinimalAPI, ClassGroup = "Motion Design Broadcast",
 	meta = (DisplayName = "Motion Design Broadcast Display Media Output", MediaIOCustomLayout = "AvaDisplay"))
-class AVALANCHEMEDIA_API UAvaBroadcastDisplayMediaOutput : public UMediaOutput
+class UAvaBroadcastDisplayMediaOutput : public UMediaOutput
 {
 	GENERATED_BODY()
 

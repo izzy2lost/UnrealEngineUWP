@@ -4,17 +4,14 @@
 
 #include "HAL/CriticalSection.h"
 #include "MediaCapture.h"
-#include "AvaBroadcastDisplayMediaCapture.generated.h"
+#include "AvaBroadcastRenderTargetMediaCapture.generated.h"
 
-DECLARE_LOG_CATEGORY_EXTERN(LogAvaBroadcastDisplayMedia, Log, All);
+DECLARE_LOG_CATEGORY_EXTERN(LogAvaBroadcastRenderTargetMedia, Log, All);
 
 UCLASS()
-class AVALANCHEMEDIA_API UAvaBroadcastDisplayMediaCapture : public UMediaCapture
+class UAvaBroadcastRenderTargetMediaCapture : public UMediaCapture
 {
 	GENERATED_BODY()
-
-public:
-	virtual ~UAvaBroadcastDisplayMediaCapture() override; // so we can pimpl.
 
 protected:
 	virtual bool ShouldCaptureRHIResource() const override { return true; }
@@ -30,10 +27,6 @@ protected:
 
 private:
 	bool StartNewCapture(const FIntPoint& InSourceTargetSize, EPixelFormat InSourceTargetFormat);
-
-	FCriticalSection CaptureInstanceCriticalSection;
-
-	// Private capture instance
-	class FCaptureInstance;
-	FCaptureInstance* CaptureInstance = nullptr; // lazy pimpl
+	
+	FCriticalSection RenderTargetCriticalSection;
 };
