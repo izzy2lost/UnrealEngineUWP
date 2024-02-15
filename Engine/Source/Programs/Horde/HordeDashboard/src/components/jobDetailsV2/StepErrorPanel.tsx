@@ -82,6 +82,8 @@ class StepSummaryErrorsView extends JobDataView {
 
             if (!init) {
 
+               init = true;
+
                const rails: ISideRailLink[] = [];
                if (this.events.length) {
                   rails.push(errorSideRail);
