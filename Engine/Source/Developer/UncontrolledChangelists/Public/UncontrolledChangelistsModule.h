@@ -272,6 +272,10 @@ private:
 		TSet<FString> AddedAssetsCache;
 	};
 
+	// Used to determine if the initial Asset Registry scan was completed or the module was shutdown
+	struct FInitialScanEvent : public TSharedFromThis<FInitialScanEvent> {};
+	TSharedPtr<FInitialScanEvent> InitialScanEvent;
+
 	TUniquePtr<FAsyncTask<FStartupTask>> StartupTask;
 	FUncontrolledChangelistsStateCache	UncontrolledChangelistsStateCache;
 	TSet<FString>						AddedAssetsCache;
