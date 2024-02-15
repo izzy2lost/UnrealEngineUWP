@@ -428,7 +428,7 @@ float ComputeLightSourceRadius(FSSDSignalDomainKnowledge DomainKnowledge)
 #endif
 
 /** COmpute the weight of the bilateral filter to use between a reference sample and a neighbor. */
-float2 ComputeBilateralWeight(
+float ComputeBilateralWeight(
 	const uint BilateralSettings,
 	float MaxWorldBluringDistance,
 	FSSDSignalDomainKnowledge DomainKnowledge,
@@ -453,8 +453,6 @@ float2 ComputeBilateralWeight(
 	float InvMaxWorldBluringDistance = rcp(MaxWorldBluringDistance);
 
 	float PositionBilateralWeight = 1;
-	float TransmissionPositionBilaterialWeight = 0;
-
 	if ((BilateralSettings & 0xF) == 1)
 	{
 		const float WorldRadius = MaxWorldBluringDistance;
@@ -508,7 +506,14 @@ float2 ComputeBilateralWeight(
 		
 		float PlaneMisAlignementBilateral;
 		{
-			const float	NormalEncodingError = -0.25;
+			// Use source radius as encoding error to add more penalty to depth to avoid SSS backface transmission rim for spotlight with source radius > 0.
+			// It makes the scaling of the distance by (DistanceFromLight - HitT)/HitT instead of (DistanceFromLight - HitT)/HitT*SourceRadius
+			// When light is behind close to neighbor in view direction, the light tangent bilaterial will be close to 1. Little penalty
+			// is applied in depth. Adding the effect of SourceRadius on NeighborToRefError could add more penalty to depth to mitigate the
+			// bleeding error.
+			const bool bApplyDepthPenaltyWeightForSSS = RefSceneMetadata.ShadingModelID == SHADINGMODELID_SUBSURFACE_PROFILE && ComputeLightSourceRadius(DomainKnowledge) > 0.0f;
+			const float	NormalEncodingError = bApplyDepthPenaltyWeightForSSS ? DomainKnowledge.Light.SourceRadius : -0.25;
+
 			
 			float DistFromRefPlane = dot(RefNormal, -NeighborToRefVector);
 
@@ -519,18 +524,6 @@ float2 ComputeBilateralWeight(
 		}
 
 		PositionBilateralWeight = LightTangentBilateral * PlaneMisAlignementBilateral;
-
-		{
-			// Transmission of subsurface scattering should only be denoised between subsurface profile pixels to avoid bleeding.
-			const bool bApplyFilteringForSSS = RefSceneMetadata.ShadingModelID == SHADINGMODELID_SUBSURFACE_PROFILE
-				&& NeighborSceneMetadata.ShadingModelID == SHADINGMODELID_SUBSURFACE_PROFILE
-				&& ComputeLightSourceRadius(DomainKnowledge) > 0.0f;
-
-			if (bApplyFilteringForSSS)
-			{
-				TransmissionPositionBilaterialWeight = PositionBilateralWeight;
-			}
-		}
 	}
 	else if ((BilateralSettings & 0xF) == 6)
 	{
@@ -594,7 +587,7 @@ float2 ComputeBilateralWeight(
 			return 0.0;
 	}
 
-	return float2(PositionBilateralWeight, TransmissionPositionBilaterialWeight) * NormalBilateralWeight * LobeSimilarity * AxesSimilarity;
+	return PositionBilateralWeight * NormalBilateralWeight * LobeSimilarity * AxesSimilarity;
 }
 
 float GetSignalWorldBluringRadius(FSSDSignalFrequency SampleFrequency, FSSDSampleSceneInfos SceneMetadata, FSSDSignalDomainKnowledge DomainKnowledge)
