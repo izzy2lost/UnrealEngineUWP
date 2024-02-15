@@ -451,20 +451,24 @@ void UMVVMView::ExecuteBindingImmediately(const FMVVMViewClass_Binding& ClassBin
 		}
 #endif
 	}
-	else if ((ClassBinding.GetSources() & ClassExtension->GetOptionalSources()) != ClassBinding.GetSources())
+	else
 	{
+		const uint64 MissingSources = ClassBinding.GetSources() & (~ValidSources);
+		if ((MissingSources & ClassExtension->GetOptionalSources()) != MissingSources)
+		{
 #if UE_WITH_MVVM_DEBUGGING
-		UE::MVVM::FMessageLog Log(GetUserWidget());
-		Log.Error(FText::Format(LOCTEXT("ExecuteBindingFailInvalidSource", "The binding '{0}' was not executed. There are invalid sources.")
-			, FText::FromString(ClassBinding.ToString(ClassExtension, FMVVMViewClass_Binding::FToStringArgs::Short()))
-		));
-		UE::MVVM::FDebugging::BroadcastLibraryBindingExecuted(this, KeyForLog, FMVVMCompiledBindingLibrary::EExecutionFailingReason::InvalidSource);
+			UE::MVVM::FMessageLog Log(GetUserWidget());
+			Log.Error(FText::Format(LOCTEXT("ExecuteBindingFailInvalidSource", "The binding '{0}' was not executed. There are invalid sources.")
+				, FText::FromString(ClassBinding.ToString(ClassExtension, FMVVMViewClass_Binding::FToStringArgs::Short()))
+			));
+			UE::MVVM::FDebugging::BroadcastLibraryBindingExecuted(this, KeyForLog, FMVVMCompiledBindingLibrary::EExecutionFailingReason::InvalidSource);
 #else
-		UE::MVVM::FMessageLog Log(GetUserWidget());
-		Log.Error(FText::Format(LOCTEXT("ExecuteBindingFailInvalidSource", "The binding '{0}' was not executed. There are invalid sources.")
-			, FText::AsNumber(KeyForLog.GetIndex())
-		));
+			UE::MVVM::FMessageLog Log(GetUserWidget());
+			Log.Error(FText::Format(LOCTEXT("ExecuteBindingFailInvalidSource", "The binding '{0}' was not executed. There are invalid sources.")
+				, FText::AsNumber(KeyForLog.GetIndex())
+			));
 #endif
+		}
 	}
 }
 
@@ -483,7 +487,7 @@ bool UMVVMView::EvaluateSource(FMVVMViewClass_SourceKey SourceKey)
 	UObject* NewSource = ClassSource.GetOrCreateInstance(ClassExtension, this, UserWidget);
 	ensureMsgf((NewSource == nullptr || NewSource->GetClass()->ImplementsInterface(UNotifyFieldValueChanged::StaticClass())), TEXT("The source has implement the interface. It should be check at compile time."));
 	bool bResult = SetSourceInternal(SourceKey, NewSource, true);
-	if (bResult)
+	if (!bResult)
 	{
 		UE::MVVM::FMessageLog Log(GetUserWidget());
 		Log.Error(FText::Format(LOCTEXT("ExecuteBindingFailEvaluate", "The evaluate source '{0}' fail execution.")
@@ -517,10 +521,17 @@ void UMVVMView::HandledLibraryBindingValueChanged(UObject* InSource, UE::FieldNo
 		}
 		const FMVVMView_SourceKey ViewSourceKey = FMVVMView_SourceKey(ViewSourceIndex);
 		const FMVVMView_Source& ViewSource = Sources[ViewSourceIndex];
-		ensure(ViewSource.bBindingsInitialized);
+
 		if (!ViewSource.bBindingsInitialized || !ViewSource.bSourceInitialized)
 		{
 			// we do not want to run a binding while we are initializing the bindings.
+#if UE_WITH_MVVM_DEBUGGING
+			UE::MVVM::FMessageLog Log(GetUserWidget());
+			Log.Warning(FText::Format(LOCTEXT("ExecuteBindingFailWhileInitializing", "The Field '{0}' could not execute the bindings while initializing."), FText::FromName(InFieldId.GetName())));
+#else
+			UE::MVVM::FMessageLog Log(GetUserWidget());
+			Log.Warning(FText::Format(LOCTEXT("ExecuteBindingFailInvalidSource", "The Field '{0}'  could not execute the bindings while initializing."), FText::FromName(InFieldId.GetName())));
+#endif
 			return;
 		}
 
@@ -560,7 +571,7 @@ void UMVVMView::HandledLibraryBindingValueChanged(UObject* InSource, UE::FieldNo
 							ensureAlwaysMsgf(false, TEXT("Recursive binding detected"));
 							//Todo add more infos. Callstack maybe? Log the chain?
 							UE::MVVM::FMessageLog Log(Self->GetUserWidget());
-							Log.Error(LOCTEXT("RecursionDetected", "A recursive binding was detected (ie. A->B->C->A->B->C) at runtime."));
+							Log.Warning(LOCTEXT("RecursionDetected", "A recursive binding was detected (ie. A->B->C->A->B->C) at runtime."));
 							return;
 						}
 
@@ -604,7 +615,7 @@ void UMVVMView::ExecuteDelayedBinding(const FMVVMViewClass_BindingKey& DelayedBi
 				ensureAlwaysMsgf(false, TEXT("Recursive binding detected"));
 				//Todo add more infos. Callstack maybe? Log the chain?
 				UE::MVVM::FMessageLog Log(Self->GetUserWidget());
-				Log.Error(LOCTEXT("RecursionDetected", "A recursive binding was detected (ie. A->B->C->A->B->C) at runtime."));
+				Log.Warning(LOCTEXT("RecursionDetected", "A recursive binding was detected (ie. A->B->C->A->B->C) at runtime."));
 				return;
 			}
 

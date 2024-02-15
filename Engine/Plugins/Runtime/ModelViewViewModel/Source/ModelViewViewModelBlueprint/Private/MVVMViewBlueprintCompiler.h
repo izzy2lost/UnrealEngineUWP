@@ -89,12 +89,13 @@ private:
 	// PreCompile
 	void FixCompilerBindingSelfSource(UWidgetBlueprintGeneratedClass* Class);
 	void AddWarningForPropertyWithMVVMAndLegacyBinding(UWidgetBlueprintGeneratedClass* Class);
-	void FixWriteFieldPathContext(UWidgetBlueprintGeneratedClass* Class);
+	void FixFieldPathContext(UWidgetBlueprintGeneratedClass* Class);
 	void CreateReadFieldContexts(UWidgetBlueprintGeneratedClass* Class);
 	void CreateCreatorContentFromBindingSource(UWidgetBlueprintGeneratedClass* Class);
 	void PreCompileViewModelCreatorContexts(UWidgetBlueprintGeneratedClass* Class);
 	void PreCompileBindings(UWidgetBlueprintGeneratedClass* Class);
 	void PreCompileEvents(UWidgetBlueprintGeneratedClass* Class);
+	void PreCompileSourceDependencies(UWidgetBlueprintGeneratedClass* Class);
 
 	// Compile
 	void CompileSources(const FCompiledBindingLibraryCompiler::FCompileResult& CompileResult, UWidgetBlueprintGeneratedClass* Class, UMVVMViewClass* ViewExtension);
@@ -121,6 +122,7 @@ private:
 			Self = 3,
 		};
 		const UClass* AuthoritativeClass = nullptr;
+		TArray<TWeakPtr<FCompilerBindingSource>> Dependencies;
 		FName Name;
 		EType Type;
 		bool bIsOptional = false;
@@ -234,7 +236,7 @@ private:
 		TArray<TWeakPtr<FCompilerBinding>> UsedByBindings;
 		TArray<TWeakPtr<FCompilerEvent>> UsedByEvents;
 
-		TSharedPtr<FCompilerBindingSource> OptionalSource; // Can be invalid if it's an event
+		TSharedPtr<FCompilerBindingSource> Source;
 		TArray<UE::MVVM::FMVVMConstFieldVariant> GeneratedFields; // the string path converted into field
 		TArray<UE::MVVM::FMVVMConstFieldVariant> SkeletalGeneratedFields; // the field path converted with getter and setter
 
@@ -253,8 +255,17 @@ private:
 		TArray<TWeakPtr<FCompilerBinding>> UsedByBindings;
 		TArray<TWeakPtr<FCompilerEvent>> UsedByEvents;
 
-		TArray<UE::MVVM::FMVVMConstFieldVariant> GeneratedFields; // the string path converted into field
-		TArray<UE::MVVM::FMVVMConstFieldVariant> SkeletalGeneratedFields; // the field path converted with getter and setter
+		/**
+		 * Can be invalid if it's a widget with no Read Path.
+		 * It is the start of the path.
+		 */
+		TSharedPtr<FCompilerBindingSource> OptionalSource;
+		TSharedPtr<FCompilerBindingSource> OptionalDependencySource;
+
+		/** The string path converted into field. It always start from the UserWidget. */
+		TArray<UE::MVVM::FMVVMConstFieldVariant> GeneratedFields;
+		/** The field path converted with getter and setter. It always start from the UserWidget. */
+		TArray<UE::MVVM::FMVVMConstFieldVariant> SkeletalGeneratedFields;
 		EMVVMBlueprintFieldPathSource GeneratedFrom = EMVVMBlueprintFieldPathSource::None;
 		bool bCanBeSetInNative = true;
 		bool bUseByNativeBinding = false;
@@ -361,12 +372,12 @@ private:
 
 	struct FGetFieldsResult
 	{
-		TSharedPtr<FCompilerBindingSource> Source;
+		TSharedPtr<FCompilerBindingSource> OptionalSource;
 		TArray<FMVVMConstFieldVariant> GeneratedFields;
 	};
 	struct FCreateFieldsResult
 	{
-		TSharedPtr<FCompilerBindingSource> Source;
+		TSharedPtr<FCompilerBindingSource> OptionalSource;
 		TArray<UE::MVVM::FMVVMConstFieldVariant> GeneratedFields;
 		TArray<UE::MVVM::FMVVMConstFieldVariant> SkeletalGeneratedFields;
 	};
@@ -375,7 +386,7 @@ private:
 	TValueOrError<TSharedPtr<FCompilerNotifyFieldId>, FText> CreateNotifyFieldId(const UWidgetBlueprintGeneratedClass* Class, const TSharedPtr<FGeneratedReadFieldPathContext>& ReadFieldContext, const FMVVMBlueprintViewBinding& Binding);
 
 
-	static TArray<FMVVMConstFieldVariant> GetFields(const UClass* Class, FName PropertyName, TArray<FMVVMConstFieldVariant> Properties);
+	static TArray<FMVVMConstFieldVariant> AppendBaseField(const UClass* Class, FName PropertyName, TArray<FMVVMConstFieldVariant> Properties);
 	static bool IsPropertyPathValid(const UBlueprint* Context, TArrayView<const FMVVMConstFieldVariant> PropertyPath);
 	static bool CanBeSetInNative(TArrayView<const FMVVMConstFieldVariant> PropertyPath);
 };
