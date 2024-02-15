@@ -37,7 +37,7 @@ void FCustomizableObjectNodeTableDetails::CustomizeDetails(const TSharedPtr<IDet
 		Node = Cast<UCustomizableObjectNodeTable>(DetailsView->GetSelectedObjects()[0].Get());
 	}
 
-	if (Node)
+	if (Node.IsValid())
 	{
 		IDetailCategoryBuilder& CustomizableObjectCategory = DetailBuilder->EditCategory("TableProperties");
 		IDetailCategoryBuilder& UICategory = DetailBuilder->EditCategory("UI");
@@ -95,14 +95,20 @@ void FCustomizableObjectNodeTableDetails::CustomizeDetails(const TSharedPtr<IDet
 					SNew(STextBlock)
 					.Text(LOCTEXT("AnimBPText", "Animation Blueprint Column: "))
 					.ToolTipText(LOCTEXT("AnimBlueprintColumnTooltip", "Select an animation blueprint column from the Data Table that will be applied to the mesh selected"))
-					.Visibility_Lambda([this]() -> EVisibility
+					.Visibility_Lambda([WeakDetails = SharedThis(this).ToWeakPtr()]() -> EVisibility
 					{
-						if (!AnimComboBox.IsValid())
+						const TSharedPtr<FCustomizableObjectNodeTableDetails> Details = WeakDetails.Pin();
+						if (!Details)
+						{
+							return EVisibility::Collapsed;
+						}
+						
+						if (!Details->AnimComboBox.IsValid())
 						{
 							return EVisibility::Collapsed;
 						}
 
-						return AnimComboBox->GetVisibility();
+						return Details->AnimComboBox->GetVisibility();
 					})
 				]
 
@@ -133,14 +139,20 @@ void FCustomizableObjectNodeTableDetails::CustomizeDetails(const TSharedPtr<IDet
 					SNew(STextBlock)
 					.Text(LOCTEXT("AnimSlotText", "Animation Slot Column: "))
 					.ToolTipText(LOCTEXT("AnimSlotColumnTooltip", "Select an animation slot column from the Data Table that will set to the slot value of the animation blueprint"))
-					.Visibility_Lambda([this]() -> EVisibility 
+					.Visibility_Lambda([WeakDetails = SharedThis(this).ToWeakPtr()]() -> EVisibility 
 						{
-							if (!AnimSlotComboBox.IsValid())
+							const TSharedPtr<FCustomizableObjectNodeTableDetails> Details = WeakDetails.Pin();
+							if (!Details)
 							{
 								return EVisibility::Collapsed;
 							}
 
-							return AnimSlotComboBox->GetVisibility();
+							if (!Details->AnimSlotComboBox.IsValid())
+							{
+								return EVisibility::Collapsed;
+							}
+
+							return Details->AnimSlotComboBox->GetVisibility();
 						})
 				]
 
@@ -171,14 +183,20 @@ void FCustomizableObjectNodeTableDetails::CustomizeDetails(const TSharedPtr<IDet
 					SNew(STextBlock)
 					.Text(LOCTEXT("AnimTagsText", "Animation Tags Column: "))
 					.ToolTipText(LOCTEXT("AnimTagColumnTooltip", "Select an animation tag column from the Data Table that will set to the animation tags of the animation blueprint"))
-					.Visibility_Lambda([this]() -> EVisibility 
+					.Visibility_Lambda([WeakDetails = SharedThis(this).ToWeakPtr()]() -> EVisibility 
 						{
-							if (!AnimTagsComboBox.IsValid())
+							const TSharedPtr<FCustomizableObjectNodeTableDetails> Details = WeakDetails.Pin();
+							if (!Details)
 							{
 								return EVisibility::Collapsed;
 							}
 
-							return AnimTagsComboBox->GetVisibility();
+							if (!Details->AnimTagsComboBox.IsValid())
+							{
+								return EVisibility::Collapsed;
+							}
+
+							return Details->AnimTagsComboBox->GetVisibility();								
 						})
 				]
 
