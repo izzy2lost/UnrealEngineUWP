@@ -5,14 +5,16 @@
 #include "DynamicMeshes/AvaShape3DDynMeshBase.h"
 #include "AvaShapeCubeDynMesh.generated.h"
 
-UCLASS(ClassGroup="Shape", BlueprintType, CustomConstructor, Within=AvaShapeActor)
-class AVALANCHESHAPES_API UAvaShapeCubeDynamicMesh : public UAvaShape3DDynMeshBase
+UCLASS(MinimalAPI, ClassGroup="Shape", BlueprintType, CustomConstructor, Within=AvaShapeActor)
+class UAvaShapeCubeDynamicMesh : public UAvaShape3DDynMeshBase
 {
 	GENERATED_BODY()
 
 	friend class FAvaShapeCubeDynamicMeshVisualizer;
 
 public:
+	static const FString MeshName;
+
 	static constexpr uint8 MinBevelNum = 1;
 	static constexpr uint8 MaxBevelNum = 8;
 
@@ -24,7 +26,7 @@ public:
 
 	UAvaShapeCubeDynamicMesh()
 		: UAvaShapeCubeDynamicMesh(FVector(50.f, 50.f, 50.f))
-	{ }
+	{}
 
 	UAvaShapeCubeDynamicMesh(
 		const FVector& InSize,
@@ -33,31 +35,40 @@ public:
 		float InBevel = 0.f,
 		uint8 InBevelNum = 1)
 		: UAvaShape3DDynMeshBase(InSize, InVertexColor)
-		, Segment(InSegment)
 		, BevelSizeRatio(InBevel)
 		, BevelNum(InBevelNum)
+		, Segment(InSegment)
+	{}
+
+	virtual const FString& GetMeshName() const override
 	{
+		return MeshName;
 	}
 
-	static const FString MeshName;
-	virtual const FString& GetMeshName() const override { return MeshName; }
+	AVALANCHESHAPES_API void SetSegment(float InSegment);
+	float GetSegment() const
+	{
+		return Segment;
+	}
 
-	UFUNCTION()
-	bool SetSegment(float InSegment);
-	float GetSegment() const { return Segment; }
+	AVALANCHESHAPES_API void SetBevelSizeRatio(float InBevel);
+	float GetBevelSizeRatio() const
+	{
+		return BevelSizeRatio;
+	}
 
-	UFUNCTION()
-	bool SetBevelSizeRatio(float InBevel);
-	float GetBevelSizeRatio() const { return BevelSizeRatio; }
-
-	UFUNCTION()
-	bool SetBevelNum(uint8 InBevel);
-	uint8 GetBevelNum() const { return BevelNum; }
+	AVALANCHESHAPES_API void SetBevelNum(uint8 InBevel);
+	uint8 GetBevelNum() const
+	{
+		return BevelNum;
+	}
 
 protected:
+	//~ Begin UObject
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
+	//~ End UObject
 
 	virtual void OnSegmentChanged();
 	virtual void OnBevelSizeChanged();
@@ -93,15 +104,16 @@ protected:
 
 	virtual bool CreateUVs(FAvaShapeMesh& InMesh, FAvaShapeMaterialUVParameters& InParams) override;
 
-	// segment size ratio to multiply with mesh size
-	UPROPERTY()
-	float Segment;
-
 	// represents the bevel size applied on each face of the cube, 0 means no bevels
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(ClampMin="0.0", DisplayName="Bevel Size", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0.0", DisplayName="Bevel Size", AllowPrivateAccess="true"))
 	float BevelSizeRatio;
 
 	// represents the bevel number of division, only valid when bevel size is greater than zero
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(ClampMin="1.0", ClampMax="8.0", DisplayName="Bevel Num", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="1.0", ClampMax="8.0", DisplayName="Bevel Num", AllowPrivateAccess="true"))
 	uint8 BevelNum;
+
+private:
+	// segment size ratio to multiply with mesh size
+	UPROPERTY()
+	float Segment;
 };

@@ -8,8 +8,8 @@
 
 struct FAvaShapeCachedVertex2D;
 
-UCLASS(ClassGroup="Shape", Abstract, BlueprintType, CustomConstructor)
-class AVALANCHESHAPES_API UAvaShape2DDynMeshBase : public UAvaShapeDynamicMeshBase
+UCLASS(MinimalAPI, ClassGroup="Shape", Abstract, BlueprintType, CustomConstructor)
+class UAvaShape2DDynMeshBase : public UAvaShapeDynamicMeshBase
 {
 	GENERATED_BODY()
 
@@ -18,29 +18,8 @@ class AVALANCHESHAPES_API UAvaShape2DDynMeshBase : public UAvaShapeDynamicMeshBa
 	friend class FAvaVectorPropertyTypeCustomization;
 
 public:
-	virtual ~UAvaShape2DDynMeshBase() override = default;
-
-	UFUNCTION()
-	bool SetPixelSize2D(const FVector2D& InPixelSize2D);
-	const FVector2D& GetPixelSize2D() const { return PixelSize2D; }
-
-	UFUNCTION()
-	bool SetSize2D(const FVector2D& InSize2D);
-	const FVector2D& GetSize2D() const { return Size2D; }
-
-	virtual bool SetSize3D(const FVector& InSize) override;
-	virtual const FVector& GetSize3D() const override { return Size3D; }
-
-	virtual void PostLoad() override;
-#if WITH_EDITOR
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-#endif
-
-	virtual void GetBounds(FVector& Origin, FVector& BoxExtent, FVector& Pivot) const override;
-
-protected:
 	UAvaShape2DDynMeshBase()
-		: UAvaShape2DDynMeshBase(FVector2D(50.f, 50.f))
+	: UAvaShape2DDynMeshBase(FVector2D(50.f, 50.f))
 	{}
 
 	UAvaShape2DDynMeshBase(const FVector2D& InExtent,
@@ -50,6 +29,36 @@ protected:
 		, Size2D(InExtent)
 		, Size3D(FVector(0.f, InExtent.X, InExtent.Y))
 	{}
+
+	virtual ~UAvaShape2DDynMeshBase() override = default;
+
+	AVALANCHESHAPES_API void SetPixelSize2D(const FVector2D& InPixelSize2D);
+	const FVector2D& GetPixelSize2D() const
+	{
+		return PixelSize2D;
+	}
+
+	AVALANCHESHAPES_API void SetSize2D(const FVector2D& InSize2D);
+	const FVector2D& GetSize2D() const
+	{
+		return Size2D;
+	}
+
+	AVALANCHESHAPES_API virtual void SetSize3D(const FVector& InSize) override;
+	virtual const FVector& GetSize3D() const override
+	{
+		return Size3D;
+	}
+
+	virtual void GetBounds(FVector& Origin, FVector& BoxExtent, FVector& Pivot) const override;
+
+protected:
+	//~ Begin UObject
+	virtual void PostLoad() override;
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
+	//~ End UObject
 
 	virtual void OnRegisteredMeshes() override;
 	virtual void OnPixelSizeChanged() override;
@@ -99,11 +108,11 @@ protected:
 	bool bDoNotRecenterVertices;
 
 	// pixel size of the mesh, will only be available in editor
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Transient, Category="Shape", meta=(ClampMin="0.0", DisplayName="Pixel Size", DisplayAfter="SizeType", AllowPreserveRatio, EditCondition="bAllowEditSize && SizeType == ESizeType::Pixel", EditConditionHides, AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Transient, Setter, Getter, Category="Shape", meta=(ClampMin="0.0", DisplayName="Pixel Size", DisplayAfter="SizeType", AllowPreserveRatio, EditCondition="bAllowEditSize && SizeType == ESizeType::Pixel", EditConditionHides, AllowPrivateAccess="true"))
 	FVector2D PixelSize2D = FVector2D::ZeroVector;
 
 	// total size in 2D from 0 to mesh size and not origin
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(ClampMin="0.0", DisplayName="Mesh Size", DisplayAfter="SizeType", AllowPreserveRatio, Units="Centimeters", EditCondition="bAllowEditSize && SizeType == ESizeType::UnrealUnit", EditConditionHides, AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0.0", DisplayName="Mesh Size", DisplayAfter="SizeType", AllowPreserveRatio, Units="Centimeters", EditCondition="bAllowEditSize && SizeType == ESizeType::UnrealUnit", EditConditionHides, AllowPrivateAccess="true"))
 	FVector2D Size2D = FVector2D::ZeroVector;
 
 	UPROPERTY(Transient)

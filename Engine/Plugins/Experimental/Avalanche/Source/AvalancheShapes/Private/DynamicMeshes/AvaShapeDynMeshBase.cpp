@@ -130,11 +130,11 @@ void UAvaShapeDynamicMeshBase::SetupMeshes()
 
 bool UAvaShapeDynamicMeshBase::SetAlignmentSize(AActor* InActor, const FVector& InSizeMultiplier)
 {
-	if (AAvaShapeActor* ShapeActor = Cast<AAvaShapeActor>(InActor))
+	if (const AAvaShapeActor* ShapeActor = Cast<AAvaShapeActor>(InActor))
 	{
 		if (UAvaShapeDynamicMeshBase* DynMesh = ShapeActor->GetDynamicMesh())
 		{
-			return DynMesh->SetSize3D(DynMesh->GetSize3D() * InSizeMultiplier);
+			DynMesh->SetSize3D(DynMesh->GetSize3D() * InSizeMultiplier);
 		}
 	}
 
@@ -402,6 +402,17 @@ void UAvaShapeDynamicMeshBase::SetUsePrimaryMaterialEverywhere(bool bInUse)
 
 	bUsePrimaryMaterialEverywhere = bInUse;
 	OnUsePrimaryMaterialEverywhereChanged();
+}
+
+void UAvaShapeDynamicMeshBase::SetUniformScaledSize(float InSize)
+{
+	if (UniformScaledSize == InSize)
+	{
+		return;
+	}
+
+	UniformScaledSize = InSize;
+	OnScaledSizeChanged();
 }
 
 void UAvaShapeDynamicMeshBase::OnUsePrimaryMaterialEverywhereChanged()

@@ -158,7 +158,7 @@ bool UAvaShapeIrregularPolygonDynamicMesh::DoesLineIntersectBorder(const FVector
 
 		if (DoLinesIntersect(CheckOrigin, CheckEnd, Origin, End))
 		{
-			return true;	
+			return true;
 		}
 	}
 
@@ -337,13 +337,22 @@ void UAvaShapeIrregularPolygonDynamicMesh::RestorePoints()
 	Points.Append(PreEditPoints);
 }
 
-bool UAvaShapeIrregularPolygonDynamicMesh::SetPoints(const TArray<FVector2D>& InPoints)
+void UAvaShapeIrregularPolygonDynamicMesh::SetPoints(const TArray<FVector2D>& InPoints)
 {
 	BackupPoints();
 	Points.Empty();
 	Points.Append(InPoints);
 
-	return CheckNewPointsArray();
+	CheckNewPointsArray();
+}
+
+void UAvaShapeIrregularPolygonDynamicMesh::SetPoints(const TArray<FAvaShapeRoundedCorner>& InPoints)
+{
+	BackupPoints();
+	Points.Empty();
+	Points.Append(InPoints);
+
+	CheckNewPointsArray();
 }
 
 bool UAvaShapeIrregularPolygonDynamicMesh::SetLocation(int32 PointIdx, const FVector2D& InPoint)
@@ -514,17 +523,15 @@ bool UAvaShapeIrregularPolygonDynamicMesh::ShiftPoints(const FVector2D& Amount)
 	return true;
 }
 
-bool UAvaShapeIrregularPolygonDynamicMesh::SetGlobalBevelSize(float InBevelSize)
+void UAvaShapeIrregularPolygonDynamicMesh::SetGlobalBevelSize(float InBevelSize)
 {
 	if (InBevelSize < 0 || InBevelSize > 1)
 	{
-		return false;
+		return;
 	}
 
 	GlobalBevelSize = InBevelSize;
 	OnGlobalBevelSizeChanged();
-
-	return true;
 }
 
 void UAvaShapeIrregularPolygonDynamicMesh::SetGlobalBevelSubdivisions(uint8 InBevelSubdivisions)
@@ -547,7 +554,7 @@ void UAvaShapeIrregularPolygonDynamicMesh::PreEditChange(FProperty* PropertyAbou
 	{
 		return;
 	}
-	
+
 	const FName PropertyName = PropertyAboutToChange->GetFName();
 
 	static const FName PointsName = GET_MEMBER_NAME_CHECKED(UAvaShapeIrregularPolygonDynamicMesh, Points);
@@ -571,7 +578,7 @@ void UAvaShapeIrregularPolygonDynamicMesh::PreEditChange(FProperty* PropertyAbou
 void UAvaShapeIrregularPolygonDynamicMesh::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
-	
+
 	const FName MemberName = PropertyChangedEvent.GetMemberPropertyName();
 	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
 
@@ -803,7 +810,7 @@ void UAvaShapeIrregularPolygonDynamicMesh::OnBevelSubdivisionsChanged(int32 Poin
 {
 	if (!Points.IsValidIndex(PointIdx))
 	{
-		return;	
+		return;
 	}
 
 	if (Points[PointIdx].Settings.BevelSubdivisions > 0 && Points[PointIdx].Settings.BevelSize == 0.f)

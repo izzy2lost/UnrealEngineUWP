@@ -203,14 +203,12 @@ bool FAvaShapeRoundedPolygonDynamicMeshVisualizer::HandleInputDeltaInternal(FEdi
 					if (GetViewportWidgetAxisList(InViewportClient) & EAxisList::Y)
 					{
 						float BevelSize = InitialBevelSize;
-						BevelSize       = FMath::Max(BevelSize + InAccumulatedTranslation.Y * 1.f, 0.f);
+						BevelSize = FMath::Max(BevelSize + InAccumulatedTranslation.Y * 1.f, 0.f);
+						DynMesh->Modify();
+						DynMesh->SetBevelSize(BevelSize);
 
-						if (DynMesh->SetBevelSize(BevelSize))
-						{
-							DynMesh->Modify();
-							bHasBeenModified = true;
-							NotifyPropertyModified(DynMesh, BevelSizeProperty, EPropertyChangeType::Interactive);
-						}
+						bHasBeenModified = true;
+						NotifyPropertyModified(DynMesh, BevelSizeProperty, EPropertyChangeType::Interactive);
 					}
 				}
 			}
@@ -259,8 +257,8 @@ bool FAvaShapeRoundedPolygonDynamicMeshVisualizer::ResetValue(FEditorViewportCli
 		{
 			FScopedTransaction Transaction(NSLOCTEXT("AvaShapeVisualizer", "VisualizerResetValue", "Visualizer Reset Value"));
 			HitProxyDynamicMesh->SetFlags(RF_Transactional);
-			HitProxyDynamicMesh->SetBevelSize(0.f);
 			HitProxyDynamicMesh->Modify();
+			HitProxyDynamicMesh->SetBevelSize(0.f);
 			NotifyPropertyModified(HitProxyDynamicMesh, BevelSizeProperty, EPropertyChangeType::ValueSet);
 		}
 	}

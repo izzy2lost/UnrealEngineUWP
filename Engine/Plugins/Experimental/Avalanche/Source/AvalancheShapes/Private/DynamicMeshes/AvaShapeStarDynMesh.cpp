@@ -4,47 +4,43 @@
 
 const FString UAvaShapeStarDynamicMesh::MeshName = TEXT("Star");
 
-bool UAvaShapeStarDynamicMesh::SetNumPoints(uint8 InNumPoints)
+void UAvaShapeStarDynamicMesh::SetNumPoints(uint8 InNumPoints)
 {
 	if (NumPoints == InNumPoints)
 	{
-		return false;
+		return;
 	}
 
 	if (InNumPoints < UAvaShapeStarDynamicMesh::MinNumPoints || InNumPoints > UAvaShapeStarDynamicMesh::MaxNumPoints)
 	{
-		return false;
+		return;
 	}
 
 	NumPoints = InNumPoints;
 	OnNumSidesChanged();
-
-	return true;
 }
 
-bool UAvaShapeStarDynamicMesh::SetInnerSize(float InInnerSize)
+void UAvaShapeStarDynamicMesh::SetInnerSize(float InInnerSize)
 {
 	if (InnerSize == InInnerSize)
 	{
-		return false;
+		return;
 	}
 
 	if (InInnerSize < 0.0f || InInnerSize > 0.99f)
 	{
-		return false;
+		return;
 	}
 
 	InnerSize = InInnerSize;
 	OnInnerSizeChanged();
-
-	return true;
 }
 
 #if WITH_EDITOR
 void UAvaShapeStarDynamicMesh::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
-	
+
 	static FName NumPointsName = GET_MEMBER_NAME_CHECKED(UAvaShapeStarDynamicMesh, NumPoints);
 	static FName InnerSizeName = GET_MEMBER_NAME_CHECKED(UAvaShapeStarDynamicMesh, InnerSize);
 

@@ -22,8 +22,8 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FMaskEnabledDelegate, AActor* /** NewMaskAct
 DECLARE_MULTICAST_DELEGATE_OneParam(FMaskDisabledDelegate, AActor* /** OldMaskActor */);
 DECLARE_MULTICAST_DELEGATE_TwoParams(FMaskVisibilityDelegate, const UWorld* /** CurrentWorld */, bool /** bMaskActorVisible */);
 
-UCLASS(ClassGroup="Shape", Abstract, BlueprintType, CustomConstructor, EditInlineNew, DefaultToInstanced)
-class AVALANCHESHAPES_API UAvaShapeDynamicMeshBase
+UCLASS(MinimalAPI, ClassGroup="Shape", Abstract, BlueprintType, CustomConstructor, EditInlineNew, DefaultToInstanced)
+class UAvaShapeDynamicMeshBase
 	: public UActorComponent
 	, public IAvaInteractiveToolsModeDetailsObject
 	, public IAvaGizmoObjectInterface
@@ -51,90 +51,109 @@ public:
 	static inline FMaskDisabledDelegate OnMaskDisabled;
 	static inline FMaskVisibilityDelegate OnMaskVisibility;
 
+	UAvaShapeDynamicMeshBase(const FObjectInitializer& ObjectInitializer)
+		: UAvaShapeDynamicMeshBase(FLinearColor::White)
+	{}
+
+	UAvaShapeDynamicMeshBase(const FLinearColor& InVertexColor = FLinearColor::White,
+		float InUniformScaledSize = 1.f, bool bInAllowEditSize = true);
+
 	// Converts the Outer of this object to a AAvaShapeActor.
-	AAvaShapeActor* GetShapeActor() const;
+	AVALANCHESHAPES_API AAvaShapeActor* GetShapeActor() const;
 
 	// Gets the Dynamic Mesh component from the Shape actor, this will load it if its nullptr
-	UDynamicMeshComponent* GetShapeMeshComponent() const;
+	AVALANCHESHAPES_API UDynamicMeshComponent* GetShapeMeshComponent() const;
 
 	/** Get the name of the shape */
 	virtual const FString& GetMeshName() const;
 
 	/** Can we change the size of this shape */
-	bool AllowsSizeEditing() const { return bAllowEditSize; }
+	bool AllowsSizeEditing() const
+	{
+		return bAllowEditSize;
+	}
 
 	// override in child classes, represents the mesh size
-	UFUNCTION()
-	virtual const FVector& GetSize3D() const { return FVector::ZeroVector; }
-
-	UFUNCTION()
-	virtual bool SetSize3D(const FVector& InSize) { return false; }
+	virtual void SetSize3D(const FVector& InSize) {}
+	virtual const FVector& GetSize3D() const
+	{
+		return FVector::ZeroVector;
+	}
 
 	// Primary material override
-	bool GetUsePrimaryMaterialEverywhere() const { return bUsePrimaryMaterialEverywhere; }
-	void SetUsePrimaryMaterialEverywhere(bool bInUse);
+	AVALANCHESHAPES_API void SetUsePrimaryMaterialEverywhere(bool bInUse);
+	bool GetUsePrimaryMaterialEverywhere() const
+	{
+		return bUsePrimaryMaterialEverywhere;
+	}
+
+	AVALANCHESHAPES_API void SetUniformScaledSize(float InSize);
+	float GetUniformScaledSize() const
+	{
+		return UniformScaledSize;
+	}
 
 	/** Checks if shape size is render-able and not minimal */
 	bool IsMeshSizeValid() const;
 
 	/** Checks if the mesh section is valid */
-	bool IsValidMeshIndex(int32 MeshIndex) const;
+	AVALANCHESHAPES_API bool IsValidMeshIndex(int32 MeshIndex) const;
 
-	UMaterialInterface* GetMaterial(int32 MeshIndex) const;
-	bool SetMaterial(int32 MeshIndex, UMaterialInterface* NewMaterial);
+	AVALANCHESHAPES_API UMaterialInterface* GetMaterial(int32 MeshIndex) const;
+	AVALANCHESHAPES_API bool SetMaterial(int32 MeshIndex, UMaterialInterface* NewMaterial);
 
-	const FAvaShapeParametricMaterial* GetParametricMaterial(int32 MeshIndex) const;
-	FAvaShapeParametricMaterial* GetParametricMaterial(int32 MeshIndex);
+	AVALANCHESHAPES_API const FAvaShapeParametricMaterial* GetParametricMaterial(int32 MeshIndex) const;
+	AVALANCHESHAPES_API FAvaShapeParametricMaterial* GetParametricMaterial(int32 MeshIndex);
 
 	// Internal materials are not copied over, only settings
-	bool SetParametricMaterial(int32 MeshIndex, const FAvaShapeParametricMaterial& NewMaterialParams);
+	AVALANCHESHAPES_API bool SetParametricMaterial(int32 MeshIndex, const FAvaShapeParametricMaterial& NewMaterialParams);
 
 	// Allows custom uv params per mesh section instead of using the primary one
 	bool SetOverridePrimaryUVParams(int32 MeshIndex, bool bOverride);
 
 	// Helper function to quickly get what you need instead of using GetMeshData()
-	EAvaShapeUVMode GetMaterialUVMode(int32 MeshIndex) const;
-	bool SetMaterialUVMode(int32 MeshIndex, EAvaShapeUVMode InUVMode);
+	AVALANCHESHAPES_API EAvaShapeUVMode GetMaterialUVMode(int32 MeshIndex) const;
+	AVALANCHESHAPES_API bool SetMaterialUVMode(int32 MeshIndex, EAvaShapeUVMode InUVMode);
 
 	EAvaAnchors GetMaterialUVAnchorPreset(int32 MeshIndex) const;
 	bool SetMaterialUVAnchorPreset(int32 MeshIndex, EAvaAnchors InUVAnchorPreset);
 
-	float GetMaterialUVRotation(int32 MeshIndex) const;
-	bool SetMaterialUVRotation(int32 MeshIndex, float InUVRotation);
+	AVALANCHESHAPES_API float GetMaterialUVRotation(int32 MeshIndex) const;
+	AVALANCHESHAPES_API bool SetMaterialUVRotation(int32 MeshIndex, float InUVRotation);
 
-	const FVector2D& GetMaterialUVAnchor(int32 MeshIndex) const;
-	bool SetMaterialUVAnchor(int32 MeshIndex, const FVector2D& InUVAnchor);
+	AVALANCHESHAPES_API const FVector2D& GetMaterialUVAnchor(int32 MeshIndex) const;
+	AVALANCHESHAPES_API bool SetMaterialUVAnchor(int32 MeshIndex, const FVector2D& InUVAnchor);
 
-	const FVector2D& GetMaterialUVScale(int32 MeshIndex) const;
-	bool SetMaterialUVScale(int32 MeshIndex, const FVector2D& InUVScale);
+	AVALANCHESHAPES_API const FVector2D& GetMaterialUVScale(int32 MeshIndex) const;
+	AVALANCHESHAPES_API bool SetMaterialUVScale(int32 MeshIndex, const FVector2D& InUVScale);
 
-	const FVector2D& GetMaterialUVOffset(int32 MeshIndex) const;
-	bool SetMaterialUVOffset(int32 MeshIndex, const FVector2D& InUVOffset);
+	AVALANCHESHAPES_API const FVector2D& GetMaterialUVOffset(int32 MeshIndex) const;
+	AVALANCHESHAPES_API bool SetMaterialUVOffset(int32 MeshIndex, const FVector2D& InUVOffset);
 
-	bool GetMaterialHorizontalFlip(int32 MeshIndex) const;
-	bool SetMaterialHorizontalFlip(int32 MeshIndex, bool InHorizontalFlip);
+	AVALANCHESHAPES_API bool GetMaterialHorizontalFlip(int32 MeshIndex) const;
+	AVALANCHESHAPES_API bool SetMaterialHorizontalFlip(int32 MeshIndex, bool InHorizontalFlip);
 
-	bool GetMaterialVerticalFlip(int32 MeshIndex) const;
-	bool SetMaterialVerticalFlip(int32 MeshIndex, bool InVerticalFlip);
+	AVALANCHESHAPES_API bool GetMaterialVerticalFlip(int32 MeshIndex) const;
+	AVALANCHESHAPES_API bool SetMaterialVerticalFlip(int32 MeshIndex, bool InVerticalFlip);
 
-	const FAvaShapeMaterialUVParameters* GetInUseMaterialUVParams(int32 MeshIndex) const;
-	FAvaShapeMaterialUVParameters* GetInUseMaterialUVParams(int32 MeshIndex);
+	AVALANCHESHAPES_API const FAvaShapeMaterialUVParameters* GetInUseMaterialUVParams(int32 MeshIndex) const;
+	AVALANCHESHAPES_API FAvaShapeMaterialUVParameters* GetInUseMaterialUVParams(int32 MeshIndex);
 
 	const FAvaShapeMaterialUVParameters* GetMaterialUVParams(int32 MeshIndex) const;
 	bool SetMaterialUVParams(int32 MeshIndex, const FAvaShapeMaterialUVParameters& InParams);
 
 	bool SetMaterialType(int32 MeshIndex, EMaterialType Type);
-	bool IsMaterialType(int32 MeshIndex, EMaterialType Type);
+	AVALANCHESHAPES_API bool IsMaterialType(int32 MeshIndex, EMaterialType Type);
 
 	bool HasMeshRegenWorldLocation() const { return bHasNewMeshRegenWorldLocation; }
 	const FVector& GetMeshRegenWorldLocation() const { return MeshRegenWorldLocation; }
-	void SetMeshRegenWorldLocation(const FVector& NewLocation, bool bImmediateUpdate = false);
+	AVALANCHESHAPES_API void SetMeshRegenWorldLocation(const FVector& NewLocation, bool bImmediateUpdate = false);
 
 	// Generate a list of 3d-space snap points for this shape
 	virtual TArray<FAvaSnapPoint> GetLocalSnapPoints() const;
 	void GetLocalSnapPoints(TArray<FAvaSnapPoint>& Points) const;
 
-	FTransform GetTransform() const;
+	AVALANCHESHAPES_API FTransform GetTransform() const;
 
 	/** Clear the dynamic mesh section with a specific index */
 	bool ClearDynamicMeshSection(int32 MeshIndex);
@@ -143,7 +162,7 @@ public:
 	bool ClearDynamicMesh();
 
 	/** Converts dynamic mesh to static mesh */
-	bool ExportToStaticMesh(UStaticMesh* DestinationMesh);
+	AVALANCHESHAPES_API bool ExportToStaticMesh(UStaticMesh* DestinationMesh);
 
 	// Gets the bounds of the shape, override this in child classes for custom bounds
 	// Origin is the center of the box, BoxExtent is half the size, pivot is the default location of the pivot for this shape
@@ -153,10 +172,10 @@ public:
 	virtual FAvaColorChangeData GetActiveColor() const;
 
 	/** Get the registered meshes indexes */
-	TSet<int32> GetMeshesIndexes() const;
+	AVALANCHESHAPES_API TSet<int32> GetMeshesIndexes() const;
 
 	/** Returns the name of the meshes */
-	TArray<FName> GetMeshDataNames() const;
+	AVALANCHESHAPES_API TArray<FName> GetMeshDataNames() const;
 
 	/** find a registered mesh and gets a pointer to it */
 	FAvaShapeMeshData* GetMeshData(int32 MeshIndex);
@@ -204,13 +223,6 @@ protected:
 
 	// When a parametric material is updated
 	void OnParametricMaterialChanged(FAvaShapeParametricMaterial& InMaterial);
-
-	UAvaShapeDynamicMeshBase(const FObjectInitializer& ObjectInitializer)
-		: UAvaShapeDynamicMeshBase(FLinearColor::White)
-	{ }
-
-	UAvaShapeDynamicMeshBase(const FLinearColor& InVertexColor = FLinearColor::White,
-		float InUniformScaledSize = 1.f, bool bInAllowEditSize = true);
 
 	/** Register all meshes once, calls RegisterMeshes() */
 	void SetupMeshes();
@@ -348,14 +360,14 @@ protected:
 	ESizeType SizeType = ESizeType::UnrealUnit;
 
 	// Uniform scaled size of the mesh
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Transient, Category="Shape", meta=(ClampMin="0.0", DisplayName="Uniform Scaled Size", DisplayPriority=1, Units="times", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Transient, Setter, Getter, Category="Shape", meta=(DisplayPriority=1, ClampMin="0.0", DisplayName="Uniform Scaled Size", Units="times", AllowPrivateAccess="true"))
 	float UniformScaledSize = 1.f;
 
-	UPROPERTY(BlueprintReadWrite, AdvancedDisplay, Category = "Shape", meta=(DisplayName="Material Vertex Color", DisplayPriority=1, AllowPrivateAccess="true"))
+	UPROPERTY(BlueprintReadWrite, AdvancedDisplay, Category="Shape", meta=(DisplayPriority=1, DisplayName="Material Vertex Color", AllowPrivateAccess="true"))
 	FLinearColor VertexColor;
 
 	// use primary material for every slot available
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Material", meta=(DisplayName="Use Single Material", DisplayPriority=1, AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetUsePrimaryMaterialEverywhere", Getter="GetUsePrimaryMaterialEverywhere", Category="Material", meta=(DisplayPriority=1, DisplayName="Use Single Material", AllowPrivateAccess="true"))
 	bool bUsePrimaryMaterialEverywhere;
 
 	TArray<FAvaSnapPoint> LocalSnapPoints;

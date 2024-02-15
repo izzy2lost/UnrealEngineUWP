@@ -5,58 +5,52 @@
 
 const FString UAvaShapeEllipseDynamicMesh::MeshName = TEXT("Ellipse");
 
-bool UAvaShapeEllipseDynamicMesh::SetNumSides(uint8 InNumSides)
+void UAvaShapeEllipseDynamicMesh::SetNumSides(uint8 InNumSides)
 {
 	if (NumSides == InNumSides)
 	{
-		return false;
+		return;
 	}
 
 	if (InNumSides < UAvaShapeEllipseDynamicMesh::MinNumSides || InNumSides > UAvaShapeEllipseDynamicMesh::MaxNumSides)
 	{
-		return false;
+		return;
 	}
 
 	NumSides = InNumSides;
 	OnNumSidesChanged();
-
-	return true;
 }
 
-bool UAvaShapeEllipseDynamicMesh::SetAngleDegree(float InDegree)
+void UAvaShapeEllipseDynamicMesh::SetAngleDegree(float InDegree)
 {
 	if (AngleDegree == InDegree)
 	{
-		return false;
+		return;
 	}
 
 	if (InDegree < 0.f || InDegree > 360.f)
 	{
-		return false;
+		return;
 	}
 
 	AngleDegree = InDegree;
 	OnAngleDegreeChanged();
-
-	return true;
 }
 
-bool UAvaShapeEllipseDynamicMesh::SetStartDegree(float InDegree)
+void UAvaShapeEllipseDynamicMesh::SetStartDegree(float InDegree)
 {
 	if (StartDegree == InDegree)
 	{
-		return false;
+		return;
 	}
 
 	if (InDegree < 0.f || InDegree > 360.f)
 	{
-		return false;
+		return;
 	}
 
 	StartDegree = InDegree;
 	OnStartDegreeChanged();
-
-	return true;
 }
 
 #if WITH_EDITOR

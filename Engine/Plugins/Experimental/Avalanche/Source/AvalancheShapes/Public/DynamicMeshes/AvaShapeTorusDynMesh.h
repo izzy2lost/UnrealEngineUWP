@@ -5,14 +5,15 @@
 #include "AvaShape3DDynMeshBase.h"
 #include "AvaShapeTorusDynMesh.generated.h"
 
-UCLASS(ClassGroup="Shape", BlueprintType, CustomConstructor, Within=AvaShapeActor)
-class AVALANCHESHAPES_API UAvaShapeTorusDynamicMesh : public UAvaShape3DDynMeshBase
+UCLASS(MinimalAPI, ClassGroup="Shape", BlueprintType, CustomConstructor, Within=AvaShapeActor)
+class UAvaShapeTorusDynamicMesh : public UAvaShape3DDynMeshBase
 {
 	GENERATED_BODY()
 
 	friend class FAvaShapeTorusDynamicMeshVisualizer;
 
 public:
+	static const FString MeshName;
 	static constexpr uint8 MinNumSlices = 3;
 	static constexpr uint8 MaxNumSlices = 128;
 	static constexpr uint8 MinNumSides = 4;
@@ -23,8 +24,7 @@ public:
 
 	UAvaShapeTorusDynamicMesh()
 		: UAvaShapeTorusDynamicMesh(FVector(50.f, 50.f, 50.f))
-	{
-	}
+	{}
 
 	UAvaShapeTorusDynamicMesh(
 		const FVector& InSize,
@@ -40,36 +40,49 @@ public:
 		, InnerSize(InInnerSize)
 		, AngleDegree(InAngleDegree)
 		, StartDegree(InStartDegree)
+	{}
+
+	virtual const FString& GetMeshName() const override
 	{
+		return MeshName;
 	}
 
-	static const FString MeshName;
-	virtual const FString& GetMeshName() const override { return MeshName; }
+	AVALANCHESHAPES_API void SetNumSides(uint8 InNumSides);
+	uint8 GetNumSides() const
+	{
+		return NumSides;
+	}
 
-	UFUNCTION()
-	bool SetNumSides(uint8 InNumSides);
-	uint8 GetNumSides() const { return NumSides; }
+	AVALANCHESHAPES_API void SetNumSlices(uint8 InNumSlices);
+	uint8 GetNumSlices() const
+	{
+		return NumSlices;
+	}
 
-	UFUNCTION()
-	bool SetNumSlices(uint8 InNumSlices);
-	uint8 GetNumSlices() const { return NumSlices; }
+	AVALANCHESHAPES_API void SetInnerSize(float InInnerSize);
+	float GetInnerSize() const
+	{
+		return InnerSize;
+	}
 
-	UFUNCTION()
-	bool SetInnerSize(float InInnerSize);
-	float GetInnerSize() const { return InnerSize; }
+	AVALANCHESHAPES_API void SetAngleDegree(float InAngleDegree);
+	float GetAngleDegree() const
+	{
+		return AngleDegree;
+	}
 
-	UFUNCTION()
-	bool SetAngleDegree(float InAngleDegree);
-	float GetAngleDegree() const { return AngleDegree; }
-
-	UFUNCTION()
-	bool SetStartDegree(float InStartDegree);
-	float GetStartDegree() const { return StartDegree; }
+	AVALANCHESHAPES_API void SetStartDegree(float InStartDegree);
+	float GetStartDegree() const
+	{
+		return StartDegree;
+	}
 
 protected:
+	//~ Begin UObject
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
+	//~ End UObject
 
 	virtual bool CreateBaseUVs(FAvaShapeMesh& BaseMesh, FAvaShapeMaterialUVParameters& InUseParams);
 	virtual bool GenerateBaseMeshSections(FAvaShapeMesh& BaseMesh);
@@ -92,22 +105,22 @@ protected:
 	virtual bool CreateUVs(FAvaShapeMesh& InMesh, FAvaShapeMaterialUVParameters& InParams) override;
 
 	// represents the number of slices composing the tube
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(ClampMin="3.0", ClampMax="128.0", DisplayName="Slices", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="3.0", ClampMax="128.0", DisplayName="Slices", AllowPrivateAccess="true"))
 	uint8 NumSlices;
 
 	// represents the precision of each circle composing a slice
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(ClampMin="4.0", ClampMax="128.0", DisplayName="Sides", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="4.0", ClampMax="128.0", DisplayName="Sides", AllowPrivateAccess="true"))
 	uint8 NumSides;
 
 	// represents the size ratio available inside the torus
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(ClampMin="0.5", ClampMax="0.99", DisplayName="Inner Size", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0.5", ClampMax="0.99", DisplayName="Inner Size", AllowPrivateAccess="true"))
 	float InnerSize;
 
 	// represents the tube angle in degree for the torus
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(ClampMin="0.0", ClampMax="360.0", DisplayName="Angle degree", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0.0", ClampMax="360.0", DisplayName="Angle degree", AllowPrivateAccess="true"))
 	float AngleDegree;
 
 	// represents the starting angle in degree for the torus
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(ClampMin="0.0", ClampMax="360.0", DisplayName="Start Degree", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0.0", ClampMax="360.0", DisplayName="Start Degree", AllowPrivateAccess="true"))
 	float StartDegree;
 };

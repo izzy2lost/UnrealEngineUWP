@@ -12,7 +12,7 @@ class AAvaShapeActor;
 class UAvaShapeDynamicMeshBase;
 
 UCLASS(Abstract)
-class AVALANCHESHAPESEDITOR_API UAvaShapesEditorShapeToolBase : public UAvaInteractiveToolsActorToolBase
+class UAvaShapesEditorShapeToolBase : public UAvaInteractiveToolsActorToolBase
 {
 	GENERATED_BODY()
 

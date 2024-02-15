@@ -6,86 +6,79 @@
 
 const FString UAvaShape2DArrowDynamicMesh::MeshName = TEXT("2DArrow");
 
-bool UAvaShape2DArrowDynamicMesh::SetRatioArrowLine(float InRatio)
+void UAvaShape2DArrowDynamicMesh::SetRatioArrowLine(float InRatio)
 {
 	if (RatioArrowLine == InRatio)
 	{
-		return false;
+		return;
 	}
 
 	if (InRatio < 0.01f || InRatio > 1.f)
 	{
-		return false;
+		return;
 	}
 
 	RatioArrowLine = InRatio;
 	OnRatioArrowLineChanged();
-
-	return true;
 }
 
-bool UAvaShape2DArrowDynamicMesh::SetRatioLineHeight(float InRatio)
+void UAvaShape2DArrowDynamicMesh::SetRatioLineHeight(float InRatio)
 {
 	if (RatioLineHeight == InRatio)
 	{
-		return false;
+		return;
 	}
 
 	if (InRatio < 0.01f || InRatio > 1.f)
 	{
-		return false;
+		return;
 	}
-	
+
 	RatioLineHeight = InRatio;
 	OnRatioLineHeightChanged();
-
-	return true;
 }
 
-bool UAvaShape2DArrowDynamicMesh::SetRatioArrowY(float InRatio)
+void UAvaShape2DArrowDynamicMesh::SetRatioArrowY(float InRatio)
 {
 	if (RatioArrowY == InRatio)
 	{
-		return false;
+		return;
 	}
 
 	if (InRatio < 0.01f || InRatio > 1.f)
 	{
-		return false;
+		return;
 	}
 
 	RatioArrowY = InRatio;
 	OnRatioArrowYChanged();
-	return true;
 }
 
-bool UAvaShape2DArrowDynamicMesh::SetRatioLineY(float InRatio)
+void UAvaShape2DArrowDynamicMesh::SetRatioLineY(float InRatio)
 {
 	if (RatioLineY == InRatio)
 	{
-		return false;
+		return;
 	}
 
 	if (InRatio < 0.01f || InRatio > 1.f)
 	{
-		return false;
+		return;
 	}
 
 	RatioLineY = InRatio;
 	OnRatioLineYChanged();
-	return true;
 }
 
-bool UAvaShape2DArrowDynamicMesh::SetBothSideArrows(bool bBothSide)
+void UAvaShape2DArrowDynamicMesh::SetBothSideArrows(bool bBothSide)
 {
 	if (bBothSideArrows == bBothSide)
 	{
-		return false;
+		return;
 	}
 
 	bBothSideArrows = bBothSide;
 	OnBothSideArrowsChanged();
-	return true;
 }
 
 #if WITH_EDITOR
@@ -102,7 +95,7 @@ void UAvaShape2DArrowDynamicMesh::PostEditChangeProperty(FPropertyChangedEvent& 
 	if (PropertyChangedEvent.MemberProperty->GetFName() == RatioArrowLineName)
 	{
 		OnRatioArrowLineChanged();
-	} 
+	}
 	else if (PropertyChangedEvent.MemberProperty->GetFName() == RatioLineHeightName)
 	{
 		OnRatioLineHeightChanged();

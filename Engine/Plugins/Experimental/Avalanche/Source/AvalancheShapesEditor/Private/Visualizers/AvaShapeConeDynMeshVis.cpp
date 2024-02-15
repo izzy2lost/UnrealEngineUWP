@@ -158,7 +158,7 @@ bool FAvaShapeConeDynamicMeshVisualizer::GetWidgetAxisList(const FEditorViewport
 		OutAxisList = EAxisList::Type::Screen;
 		return true;
 	}
-	
+
 	if (bEditingAngleDegree)
 	{
 		OutAxisList = EAxisList::Type::Z;
@@ -203,8 +203,8 @@ bool FAvaShapeConeDynamicMeshVisualizer::ResetValue(FEditorViewportClient* InVie
 			{
 				FScopedTransaction Transaction(NSLOCTEXT("AvaShapeVisualizer", "VisualizerResetValue", "Visualizer Reset Value"));
 				HitProxyDynamicMesh->SetFlags(RF_Transactional);
-				HitProxyDynamicMesh->SetNumSides(64);
 				HitProxyDynamicMesh->Modify();
+				HitProxyDynamicMesh->SetNumSides(64);
 				NotifyPropertyModified(HitProxyDynamicMesh, NumSidesProperty, EPropertyChangeType::ValueSet);
 			}
 		}
@@ -223,8 +223,8 @@ bool FAvaShapeConeDynamicMeshVisualizer::ResetValue(FEditorViewportClient* InVie
 			{
 				FScopedTransaction Transaction(NSLOCTEXT("AvaShapeVisualizer", "VisualizerResetValue", "Visualizer Reset Value"));
 				HitProxyDynamicMesh->SetFlags(RF_Transactional);
-				HitProxyDynamicMesh->SetTopRadius(0.f);
 				HitProxyDynamicMesh->Modify();
+				HitProxyDynamicMesh->SetTopRadius(0.f);
 				NotifyPropertyModified(HitProxyDynamicMesh, TopRadiusProperty, EPropertyChangeType::ValueSet);
 			}
 		}
@@ -243,8 +243,8 @@ bool FAvaShapeConeDynamicMeshVisualizer::ResetValue(FEditorViewportClient* InVie
 			{
 				FScopedTransaction Transaction(NSLOCTEXT("AvaShapeVisualizer", "VisualizerResetValue", "Visualizer Reset Value"));
 				HitProxyDynamicMesh->SetFlags(RF_Transactional);
-				HitProxyDynamicMesh->SetAngleDegree(360.f);
 				HitProxyDynamicMesh->Modify();
+				HitProxyDynamicMesh->SetAngleDegree(360.f);
 				NotifyPropertyModified(HitProxyDynamicMesh, AngleDegreeProperty, EPropertyChangeType::ValueSet);
 			}
 		}
@@ -286,7 +286,7 @@ void FAvaShapeConeDynamicMeshVisualizer::DrawVisualizationNotEditing(const UActo
 
 	DrawNumSidesButton(DynMesh, InView, InPDI, InOutIconIndex, Inactive);
 	++InOutIconIndex;
-	
+
 	DrawTopRadiusButton(DynMesh, InView, InPDI, InOutIconIndex, Inactive);
 	++InOutIconIndex;
 
@@ -308,7 +308,7 @@ void FAvaShapeConeDynamicMeshVisualizer::DrawVisualizationEditing(const UActorCo
 
 	DrawNumSidesButton(DynMesh, InView, InPDI, InOutIconIndex, bEditingNumSides ? Active : Inactive);
 	++InOutIconIndex;
-	
+
 	DrawTopRadiusButton(DynMesh, InView, InPDI, InOutIconIndex, bEditingTopRadius ? Active : Inactive);
 	++InOutIconIndex;
 
@@ -335,14 +335,12 @@ bool FAvaShapeConeDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorViewpor
 				if (GetViewportWidgetAxisList(InViewportClient) & EAxisList::Y)
 				{
 					int32 NumSides = InitialNumSides;
-					NumSides       = FMath::Clamp(NumSides + static_cast<int32>(InAccumulatedScale.Y), 1, 128);
+					NumSides = FMath::Clamp(NumSides + static_cast<int32>(InAccumulatedScale.Y), 1, 128);
+					DynMesh->Modify();
+					DynMesh->SetNumSides(NumSides);
 
-					if (DynMesh->SetNumSides(NumSides))
-					{
-						bHasBeenModified = true;
-						DynMesh->Modify();
-						NotifyPropertyModified(DynMesh, NumSidesProperty, EPropertyChangeType::Interactive);
-					}
+					bHasBeenModified = true;
+					NotifyPropertyModified(DynMesh, NumSidesProperty, EPropertyChangeType::Interactive);
 				}
 			}
 			return true;
@@ -354,14 +352,12 @@ bool FAvaShapeConeDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorViewpor
 				if (GetViewportWidgetAxisList(InViewportClient) & EAxisList::Y)
 				{
 					float TopRadius = InitialTopRadius;
-					TopRadius       = FMath::Clamp(TopRadius + (InAccumulatedTranslation.Y / DynMesh->GetSize3D().X * 2.f), 0.0, 1.f);
-					
-					if (DynMesh->SetTopRadius(TopRadius))
-					{
-						DynMesh->Modify();
-						bHasBeenModified = true;
-						NotifyPropertyModified(DynMesh, TopRadiusProperty, EPropertyChangeType::Interactive);
-					}
+					TopRadius = FMath::Clamp(TopRadius + (InAccumulatedTranslation.Y / DynMesh->GetSize3D().X * 2.f), 0.0, 1.f);
+					DynMesh->Modify();
+					DynMesh->SetTopRadius(TopRadius);
+
+                    bHasBeenModified = true;
+                    NotifyPropertyModified(DynMesh, TopRadiusProperty, EPropertyChangeType::Interactive);
 				}
 			}
 			return true;
@@ -373,14 +369,12 @@ bool FAvaShapeConeDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorViewpor
 				if (GetViewportWidgetAxisList(InViewportClient) & EAxisList::Z)
 				{
 					float AngleDegree = InitialAngleDegree;
-					AngleDegree       = FMath::Clamp(AngleDegree + static_cast<int32>(InAccumulatedRotation.Yaw), 0.f, 360.f);
-					
-					if (DynMesh->SetAngleDegree(AngleDegree))
-					{
-						DynMesh->Modify();
-						bHasBeenModified = true;
-						NotifyPropertyModified(DynMesh, AngleDegreeProperty, EPropertyChangeType::Interactive);
-					}
+					AngleDegree = FMath::Clamp(AngleDegree + static_cast<int32>(InAccumulatedRotation.Yaw), 0.f, 360.f);
+					DynMesh->Modify();
+					DynMesh->SetAngleDegree(AngleDegree);
+
+					bHasBeenModified = true;
+					NotifyPropertyModified(DynMesh, AngleDegreeProperty, EPropertyChangeType::Interactive);
 				}
 			}
 		}

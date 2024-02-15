@@ -7,8 +7,8 @@
 
 struct FAvaShapeCachedVertex3D;
 
-UCLASS(ClassGroup="Shape", Abstract, BlueprintType, CustomConstructor)
-class AVALANCHESHAPES_API UAvaShape3DDynMeshBase : public UAvaShapeDynamicMeshBase
+UCLASS(MinimalAPI, ClassGroup="Shape", Abstract, BlueprintType, CustomConstructor)
+class UAvaShape3DDynMeshBase : public UAvaShapeDynamicMeshBase
 {
 	GENERATED_BODY()
 
@@ -18,28 +18,33 @@ class AVALANCHESHAPES_API UAvaShape3DDynMeshBase : public UAvaShapeDynamicMeshBa
 public:
 	UAvaShape3DDynMeshBase()
 	: UAvaShape3DDynMeshBase(FVector(50.f, 50.f, 50.f))
-	{
-	}
+	{}
 
 	UAvaShape3DDynMeshBase(const FVector& InSize, const FLinearColor& InVertexColor = FLinearColor::White)
 		: UAvaShapeDynamicMeshBase(InVertexColor)
 		, Size3D(InSize)
+	{}
+
+	AVALANCHESHAPES_API void SetPixelSize3D(const FVector& InPixelSize);
+	const FVector& GetPixelSize3D() const
 	{
+		return PixelSize3D;
 	}
 
-	UFUNCTION()
-	bool SetPixelSize3D(const FVector& InPixelSize);
-	const FVector& GetPixelSize3D() const { return PixelSize3D; }
-
-	virtual bool SetSize3D(const FVector& InSize) override;
-	virtual const FVector& GetSize3D() const override { return Size3D; }
+	AVALANCHESHAPES_API virtual void SetSize3D(const FVector& InSize) override;
+	virtual const FVector& GetSize3D() const override
+	{
+		return Size3D;
+	}
 
 	virtual void GetBounds(FVector& Origin, FVector& BoxExtent, FVector& Pivot) const override;
 
 protected:
+	//~ Begin UObject
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
+	//~ End UObject
 
 	virtual void OnRegisteredMeshes() override;
 	virtual void OnPixelSizeChanged() override;
@@ -78,13 +83,13 @@ protected:
 	void AddTriangle(FAvaShapeMesh& InMesh, int32 A, int32 B, int32 C);
 
 	// pixel size of the mesh, will only be available in editor
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Transient, Category="Shape", meta=(ClampMin="0.0", DisplayName="Pixel Size", DisplayAfter="SizeType", AllowPreserveRatio, EditCondition="bAllowEditSize && SizeType == ESizeType::Pixel", EditConditionHides, AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Transient, Setter, Getter, Category="Shape", meta=(ClampMin="0.0", DisplayName="Pixel Size", DisplayAfter="SizeType", AllowPreserveRatio, EditCondition="bAllowEditSize && SizeType == ESizeType::Pixel", EditConditionHides, AllowPrivateAccess="true"))
 	FVector PixelSize3D = FVector::ZeroVector;
 
 	/*
 	 * Corresponds to the total size from 0 to mesh size
 	 */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(ClampMin="0.0", DisplayName="Mesh Size", DisplayAfter="SizeType", AllowPreserveRatio, Units="Centimeters", EditCondition="bAllowEditSize && SizeType == ESizeType::UnrealUnit", EditConditionHides, AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0.0", DisplayName="Mesh Size", DisplayAfter="SizeType", AllowPreserveRatio, Units="Centimeters", EditCondition="bAllowEditSize && SizeType == ESizeType::UnrealUnit", EditConditionHides, AllowPrivateAccess="true"))
 	FVector Size3D = FVector::ZeroVector;
 
 	UPROPERTY(Transient)

@@ -9,7 +9,7 @@ class AActor;
 class AAvaShapeActor;
 
 UCLASS(Abstract)
-class AVALANCHESHAPESEDITOR_API UAvaShapesEditorShapeAreaToolBase : public UAvaShapesEditorShapeToolBase
+class UAvaShapesEditorShapeAreaToolBase : public UAvaShapesEditorShapeToolBase
 {
 	GENERATED_BODY()
 

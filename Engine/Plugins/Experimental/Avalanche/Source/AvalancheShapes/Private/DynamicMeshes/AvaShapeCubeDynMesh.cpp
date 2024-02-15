@@ -8,58 +8,52 @@
 
 const FString UAvaShapeCubeDynamicMesh::MeshName = TEXT("Cube");
 
-bool UAvaShapeCubeDynamicMesh::SetSegment(float InSegment)
+void UAvaShapeCubeDynamicMesh::SetSegment(float InSegment)
 {
 	if (Segment == InSegment)
 	{
-		return false;
+		return;
 	}
 
 	if (InSegment < 0.01f)
 	{
-		return false;
+		return;
 	}
 
 	Segment = InSegment;
 	OnSegmentChanged();
-
-	return true;
 }
 
-bool UAvaShapeCubeDynamicMesh::SetBevelSizeRatio(float InBevel)
+void UAvaShapeCubeDynamicMesh::SetBevelSizeRatio(float InBevel)
 {
 	if (BevelSizeRatio == InBevel)
 	{
-		return false;
+		return;
 	}
 
 	if (InBevel < 0 || InBevel > GetMaxBevelSize())
 	{
-		return false;
+		return;
 	}
 
 	BevelSizeRatio = InBevel;
 	OnBevelSizeChanged();
-
-	return true;
 }
 
-bool UAvaShapeCubeDynamicMesh::SetBevelNum(uint8 InBevel)
+void UAvaShapeCubeDynamicMesh::SetBevelNum(uint8 InBevel)
 {
 	if (BevelNum == InBevel)
 	{
-		return false;
+		return;
 	}
 
 	if (InBevel < UAvaShapeCubeDynamicMesh::MinBevelNum || InBevel > UAvaShapeCubeDynamicMesh::MaxBevelNum)
 	{
-		return false;
+		return;
 	}
 
 	BevelNum = InBevel;
 	OnBevelNumChanged();
-
-	return true;
 }
 
 #if WITH_EDITOR

@@ -19,22 +19,20 @@ void UAvaShapeChevronDynamicMesh::PostEditChangeProperty(FPropertyChangedEvent& 
 }
 #endif
 
-bool UAvaShapeChevronDynamicMesh::SetRatioChevron(float InRatio)
+void UAvaShapeChevronDynamicMesh::SetRatioChevron(float InRatio)
 {
 	if (RatioChevron == InRatio)
 	{
-		return false;
+		return;
 	}
 
 	if (InRatio < 0.f || InRatio > 0.99f)
 	{
-		return false;
+		return;
 	}
 
 	RatioChevron = InRatio;
 	OnRatioChevronChanged();
-
-	return true;
 }
 
 void UAvaShapeChevronDynamicMesh::OnRatioChevronChanged()

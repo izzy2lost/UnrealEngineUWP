@@ -4,40 +4,36 @@
 
 const FString UAvaShapeLineDynamicMesh::MeshName = TEXT("Line");
 
-bool UAvaShapeLineDynamicMesh::SetLineWidth(float InLineWidth)
+void UAvaShapeLineDynamicMesh::SetLineWidth(float InLineWidth)
 {
 	if (InLineWidth == LineWidth)
 	{
-		return false;
+		return;
 	}
 
 	if (InLineWidth < 0.f)
 	{
-		return false;
+		return;
 	}
 
 	LineWidth = InLineWidth;
 	OnLineWidthChanged();
-
-	return true;
 }
 
-bool UAvaShapeLineDynamicMesh::SetVector(const FVector2D& InVector)
+void UAvaShapeLineDynamicMesh::SetVector(const FVector2D& InVector)
 {
 	if (InVector == Vector)
 	{
-		return false;
+		return;
 	}
 
 	if (InVector == FVector2D::ZeroVector)
 	{
-		return false;
+		return;
 	}
 
 	Vector = InVector;
 	OnVectorChanged();
-
-	return true;
 }
 
 void UAvaShapeLineDynamicMesh::GenerateBorderVertices(TArray<FVector2D>& BorderVertices)

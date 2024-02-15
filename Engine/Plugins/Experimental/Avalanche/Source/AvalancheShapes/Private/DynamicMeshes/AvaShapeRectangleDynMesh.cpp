@@ -6,30 +6,26 @@
 
 const FString UAvaShapeRectangleDynamicMesh::MeshName = TEXT("Rectangle");
 
-bool UAvaShapeRectangleDynamicMesh::SetHorizontalAlignment(EAvaHorizontalAlignment InHorizontalAlignment)
+void UAvaShapeRectangleDynamicMesh::SetHorizontalAlignment(EAvaHorizontalAlignment InHorizontalAlignment)
 {
 	if (HorizontalAlignment == InHorizontalAlignment)
 	{
-		return false;
+		return;
 	}
 
 	HorizontalAlignment = InHorizontalAlignment;
 	OnAlignmentChanged();
-
-	return true;
 }
 
-bool UAvaShapeRectangleDynamicMesh::SetVerticalAlignment(EAvaVerticalAlignment InVerticalAlignment)
+void UAvaShapeRectangleDynamicMesh::SetVerticalAlignment(EAvaVerticalAlignment InVerticalAlignment)
 {
 	if (VerticalAlignment == InVerticalAlignment)
 	{
-		return false;
+		return;
 	}
 
 	VerticalAlignment = InVerticalAlignment;
 	OnAlignmentChanged();
-
-	return true;
 }
 
 void UAvaShapeRectangleDynamicMesh::SetBottomRightBevelSubdivisions(uint8 InBevelSubdivisions)
@@ -91,7 +87,7 @@ FVector2D UAvaShapeRectangleDynamicMesh::GetValidRangeLeftSlantAngle() const
 	BottomLeftCorner.X = -MaxX;
 
 	const float MinLeftSlant = -90 + FMath::RadiansToDegrees(FMath::Atan2(TopLeftCorner.Y - BottomLeftCorner.Y, TopLeftCorner.X - BottomLeftCorner.X));
-	
+
 	return FVector2D(MinLeftSlant, MaxLeftSlant);
 }
 
@@ -102,19 +98,19 @@ FVector2D UAvaShapeRectangleDynamicMesh::GetValidRangeRightSlantAngle() const
 	// Flat slant = 0 deg
 	FVector2D TopRightCorner(Size2D.X, Size2D.Y);
 	FVector2D BottomRightCorner(Size2D.X, 0.f);
-	
+
 	// Max Slant
 	TopRightCorner.X = Size2D.X + MaxX;
 	BottomRightCorner.X = Size2D.X;
 
 	const float MaxLeftSlant = 90 - FMath::RadiansToDegrees(FMath::Atan2(TopRightCorner.Y - BottomRightCorner.Y, TopRightCorner.X - BottomRightCorner.X));
-	
+
 	// Min Slant
 	TopRightCorner.X = Size2D.X;
 	BottomRightCorner.X = Size2D.X - MaxX;
 
 	const float MinLeftSlant = -90 + FMath::RadiansToDegrees(FMath::Atan2(TopRightCorner.Y - BottomRightCorner.Y, TopRightCorner.X - BottomRightCorner.X));
-	
+
 	return FVector2D(MinLeftSlant, MaxLeftSlant);
 }
 
@@ -131,15 +127,15 @@ void UAvaShapeRectangleDynamicMesh::GetValidSlantAngle(float& OutLeftSlant, floa
 	{
 		return;
 	}
-	
+
 	const float MaxSizeX = Size2D.X;
-	
+
 	// check corners do not exceed max size
 	const float LeftSlantSizeX = Size2D.Y * FMath::Tan(FMath::DegreesToRadians(OutLeftSlant));
 	const float RightSlantSizeX = -Size2D.Y * FMath::Tan(FMath::DegreesToRadians(OutRightSlant));
-	
+
 	const float SizeX = FMath::Abs(LeftSlantSizeX + RightSlantSizeX);
-	
+
 	if (SizeX >= MaxSizeX)
 	{
 		const float SizeRatio = MaxSizeX / SizeX;
@@ -150,53 +146,47 @@ void UAvaShapeRectangleDynamicMesh::GetValidSlantAngle(float& OutLeftSlant, floa
 	}
 }
 
-bool UAvaShapeRectangleDynamicMesh::SetLeftSlant(float InSlant)
+void UAvaShapeRectangleDynamicMesh::SetLeftSlant(float InSlant)
 {
 	if (LeftSlant == InSlant)
 	{
-		return false;
+		return;
 	}
 
 	if (InSlant < MinSlantAngle || InSlant > MaxSlantAngle)
 	{
-		return false;
+		return;
 	}
 
 	LeftSlant = InSlant;
 	OnLeftSlantChanged();
-
-	return true;
 }
 
-bool UAvaShapeRectangleDynamicMesh::SetRightSlant(float InSlant)
+void UAvaShapeRectangleDynamicMesh::SetRightSlant(float InSlant)
 {
 	if (RightSlant == InSlant)
 	{
-		return false;
+		return;
 	}
 
 	if (InSlant < MinSlantAngle || InSlant > MaxSlantAngle)
 	{
-		return false;
+		return;
 	}
 
 	RightSlant = InSlant;
 	OnRightSlantChanged();
-
-	return true;
 }
 
-bool UAvaShapeRectangleDynamicMesh::SetGlobalBevelSize(float InBevelSize)
+void UAvaShapeRectangleDynamicMesh::SetGlobalBevelSize(float InBevelSize)
 {
 	if (InBevelSize < 0 || InBevelSize > GetMaximumBevelSize())
 	{
-		return false;
+		return;
 	}
 
 	GlobalBevelSize = InBevelSize;
 	OnGlobalBevelSizeChanged();
-
-	return true;
 }
 
 void UAvaShapeRectangleDynamicMesh::SetGlobalBevelSubdivisions(uint8 InGlobalBevelSubdivisions)
@@ -238,35 +228,31 @@ void UAvaShapeRectangleDynamicMesh::SetBottomRight(const FAvaShapeRectangleCorne
 	SetBottomRightBevelSubdivisions(InCornerSettings.BevelSubdivisions);
 }
 
-bool UAvaShapeRectangleDynamicMesh::SetTopLeftCornerType(EAvaShapeCornerType InType)
+void UAvaShapeRectangleDynamicMesh::SetTopLeftCornerType(EAvaShapeCornerType InType)
 {
 	if (TopLeft.Type == InType)
 	{
-		return false;
+		return;
 	}
 
 	TopLeft.Type = InType;
 	OnTopLeftCornerTypeChanged();
-
-	return true;
 }
 
-bool UAvaShapeRectangleDynamicMesh::SetTopLeftBevelSize(float InSize)
+void UAvaShapeRectangleDynamicMesh::SetTopLeftBevelSize(float InSize)
 {
 	if (InSize == TopLeft.BevelSize)
 	{
-		return false;
+		return;
 	}
 
 	if (InSize < 0 || InSize > GetMaximumBevelSize())
 	{
-		return false;
+		return;
 	}
 
 	TopLeft.BevelSize = InSize;
 	OnTopLeftBevelSizeChanged();
-
-	return true;
 }
 
 void UAvaShapeRectangleDynamicMesh::SetTopLeftBevelSubdivisions(uint8 InBevelSubdivisions)
@@ -285,35 +271,31 @@ void UAvaShapeRectangleDynamicMesh::SetTopLeftBevelSubdivisions(uint8 InBevelSub
 	OnTopLeftBevelSubdivisionsChanged();
 }
 
-bool UAvaShapeRectangleDynamicMesh::SetTopRightCornerType(EAvaShapeCornerType InType)
+void UAvaShapeRectangleDynamicMesh::SetTopRightCornerType(EAvaShapeCornerType InType)
 {
 	if (TopRight.Type == InType)
 	{
-		return false;
+		return;
 	}
 
 	TopRight.Type = InType;
 	OnTopRightCornerTypeChanged();
-
-	return true;
 }
 
-bool UAvaShapeRectangleDynamicMesh::SetTopRightBevelSize(float InSize)
+void UAvaShapeRectangleDynamicMesh::SetTopRightBevelSize(float InSize)
 {
 	if (InSize == TopRight.BevelSize)
 	{
-		return false;
+		return;
 	}
 
 	if (InSize < 0 || InSize > GetMaximumBevelSize())
 	{
-		return false;
+		return;
 	}
 
 	TopRight.BevelSize = InSize;
 	OnTopRightBevelSizeChanged();
-
-	return true;
 }
 
 void UAvaShapeRectangleDynamicMesh::SetTopRightBevelSubdivisions(uint8 InBevelSubdivisions)
@@ -332,35 +314,31 @@ void UAvaShapeRectangleDynamicMesh::SetTopRightBevelSubdivisions(uint8 InBevelSu
 	OnTopRightBevelSubdivisionsChanged();
 }
 
-bool UAvaShapeRectangleDynamicMesh::SetBottomLeftCornerType(EAvaShapeCornerType InType)
+void UAvaShapeRectangleDynamicMesh::SetBottomLeftCornerType(EAvaShapeCornerType InType)
 {
 	if (BottomLeft.Type == InType)
 	{
-		return false;
+		return;
 	}
-	
+
 	BottomLeft.Type = InType;
 	OnBottomLeftCornerTypeChanged();
-
-	return true;
 }
 
-bool UAvaShapeRectangleDynamicMesh::SetBottomLeftBevelSize(float InSize)
+void UAvaShapeRectangleDynamicMesh::SetBottomLeftBevelSize(float InSize)
 {
 	if (InSize == BottomLeft.BevelSize)
 	{
-		return false;
+		return;
 	}
 
 	if (InSize < 0 || InSize > GetMaximumBevelSize())
 	{
-		return false;
+		return;
 	}
 
 	BottomLeft.BevelSize = InSize;
 	OnBottomLeftBevelSizeChanged();
-
-	return true;
 }
 
 void UAvaShapeRectangleDynamicMesh::SetBottomLeftBevelSubdivisions(uint8 InBevelSubdivisions)
@@ -379,35 +357,31 @@ void UAvaShapeRectangleDynamicMesh::SetBottomLeftBevelSubdivisions(uint8 InBevel
 	OnBottomLeftBevelSubdivisionsChanged();
 }
 
-bool UAvaShapeRectangleDynamicMesh::SetBottomRightCornerType(EAvaShapeCornerType InType)
+void UAvaShapeRectangleDynamicMesh::SetBottomRightCornerType(EAvaShapeCornerType InType)
 {
 	if (BottomRight.Type == InType)
 	{
-		return false;
+		return;
 	}
 
 	BottomRight.Type = InType;
 	OnBottomRightCornerTypeChanged();
-
-	return true;
 }
 
-bool UAvaShapeRectangleDynamicMesh::SetBottomRightBevelSize(float InSize)
+void UAvaShapeRectangleDynamicMesh::SetBottomRightBevelSize(float InSize)
 {
 	if (InSize == BottomRight.BevelSize)
 	{
-		return false;
+		return;
 	}
 
 	if (InSize < 0 || InSize > GetMaximumBevelSize())
 	{
-		return false;
+		return;
 	}
 
 	BottomRight.BevelSize = InSize;
 	OnBottomRightBevelSizeChanged();
-
-	return true;
 }
 
 void UAvaShapeRectangleDynamicMesh::OnAlignmentChanged()
@@ -482,7 +456,7 @@ void UAvaShapeRectangleDynamicMesh::OnTopLeftBevelSubdivisionsChanged()
 		if (TopLeft.BevelSize == 0.f)
 		{
 			TopLeft.BevelSize = GetMaximumBevelSize() / 4.f;
-		}	
+		}
 	}
 
 	MarkAllMeshesDirty();
@@ -528,9 +502,9 @@ void UAvaShapeRectangleDynamicMesh::OnBottomLeftBevelSubdivisionsChanged()
 		if (BottomLeft.BevelSize == 0.f)
 		{
 			BottomLeft.BevelSize = GetMaximumBevelSize() / 4.f;
-		}	
+		}
 	}
-	
+
 	MarkAllMeshesDirty();
 }
 
@@ -574,9 +548,9 @@ void UAvaShapeRectangleDynamicMesh::OnTopRightBevelSubdivisionsChanged()
 		if (TopRight.BevelSize == 0.f)
 		{
 			TopRight.BevelSize = GetMaximumBevelSize() / 4.f;
-		}	
+		}
 	}
-	
+
 	MarkAllMeshesDirty();
 }
 
@@ -620,9 +594,9 @@ void UAvaShapeRectangleDynamicMesh::OnBottomRightBevelSubdivisionsChanged()
 		if (BottomRight.BevelSize == 0.f)
 		{
 			BottomRight.BevelSize = GetMaximumBevelSize() / 4.f;
-		}	
+		}
 	}
-	
+
 	MarkAllMeshesDirty();
 }
 
@@ -664,7 +638,7 @@ bool UAvaShapeRectangleDynamicMesh::GenerateBaseMeshSections(FAvaShapeMesh& Prim
 	}
 
 	const float MaxBevelSize = GetMaximumBevelSize();
-	
+
 	FAvaShapeRectangleCornerSettings TopLeftCopy = TopLeft;
 	FAvaShapeRectangleCornerSettings TopRightCopy = TopRight;
 	FAvaShapeRectangleCornerSettings BottomLeftCopy = BottomLeft;
@@ -674,7 +648,7 @@ bool UAvaShapeRectangleDynamicMesh::GenerateBaseMeshSections(FAvaShapeMesh& Prim
 	TopRightCopy.BevelSize = FMath::Min(TopRightCopy.BevelSize, MaxBevelSize);
 	BottomLeftCopy.BevelSize = FMath::Min(BottomLeftCopy.BevelSize, MaxBevelSize);
 	BottomRightCopy.BevelSize = FMath::Min(BottomRightCopy.BevelSize, MaxBevelSize);
-	
+
 	float LeftSlantCopy;
 	float RightSlantCopy;
 	GetValidSlantAngle(LeftSlantCopy, RightSlantCopy);
@@ -760,7 +734,7 @@ bool UAvaShapeRectangleDynamicMesh::GenerateBaseMeshSections(FAvaShapeMesh& Prim
 
 		if (!bTopRightCornerCurveOut)
 		{
-			TopRightCorner.Location.X -= BottomRightCopy.BevelSize;	
+			TopRightCorner.Location.X -= BottomRightCopy.BevelSize;
 		}
 	}
 
@@ -1273,7 +1247,7 @@ void UAvaShapeRectangleDynamicMesh::PostEditChangeProperty(FPropertyChangedEvent
 void UAvaShapeRectangleDynamicMesh::OnSizeChanged()
 {
 	Super::OnSizeChanged();
-	
+
 	//Only Mark Meshes Dirty any of the corners has bevels
 	if (TopLeft.IsBeveled()
 		|| TopRight.IsBeveled()

@@ -558,14 +558,12 @@ bool FAvaShapeRectangleDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorVi
 					if (GetViewportWidgetAxisList(InViewportClient) & EAxisList::Y)
 					{
 						float BevelSize = InitialGlobalBevelSize;
-						BevelSize       = FMath::Max(BevelSize + InAccumulatedTranslation.Y * 2.f, 0.f);
+						BevelSize = FMath::Max(BevelSize + InAccumulatedTranslation.Y * 2.f, 0.f);
+						DynMesh->Modify();
+						DynMesh->SetGlobalBevelSize(BevelSize);
 
-						if (DynMesh->SetGlobalBevelSize(BevelSize))
-						{
-							bHasBeenModified = true;
-							DynMesh->Modify();
-							NotifyPropertyModified(DynMesh, GlobalBevelSizeProperty, EPropertyChangeType::Interactive);
-						}
+						bHasBeenModified = true;
+						NotifyPropertyModified(DynMesh, GlobalBevelSizeProperty, EPropertyChangeType::Interactive);
 					}
 				}
 			}
@@ -603,19 +601,19 @@ bool FAvaShapeRectangleDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorVi
 
 								if (bSetGlobalBevelCorner)
 								{
-									if (DynMesh->SetGlobalBevelSize(BevelSize))
-									{
-										bHasBeenModified = true;
-										DynMesh->Modify();
-										NotifyPropertyModified(DynMesh, GlobalBevelSizeProperty, EPropertyChangeType::Interactive);
-									}
-								}
-								else if (DynMesh->SetTopLeftBevelSize(BevelSize))
-								{
-									bHasBeenModified = true;
 									DynMesh->Modify();
-									NotifyPropertyModified(DynMesh, BevelSizeProperty, EPropertyChangeType::Interactive,
-										TopLeftCornerSettingsProperty);
+									DynMesh->SetGlobalBevelSize(BevelSize);
+
+									bHasBeenModified = true;
+									NotifyPropertyModified(DynMesh, GlobalBevelSizeProperty, EPropertyChangeType::Interactive);
+								}
+								else
+								{
+									DynMesh->Modify();
+									DynMesh->SetTopLeftBevelSize(BevelSize);
+
+									bHasBeenModified = true;
+									NotifyPropertyModified(DynMesh, BevelSizeProperty, EPropertyChangeType::Interactive, TopLeftCornerSettingsProperty);
 								}
 
 								break;
@@ -626,19 +624,19 @@ bool FAvaShapeRectangleDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorVi
 
 								if (bSetGlobalBevelCorner)
 								{
-									if (DynMesh->SetGlobalBevelSize(BevelSize))
-									{
-										bHasBeenModified = true;
-										DynMesh->Modify();
-										NotifyPropertyModified(DynMesh, GlobalBevelSizeProperty, EPropertyChangeType::Interactive);
-									}
-								}
-								else if (DynMesh->SetTopRightBevelSize(BevelSize))
-								{
-									bHasBeenModified = true;
 									DynMesh->Modify();
-									NotifyPropertyModified(DynMesh, BevelSizeProperty, EPropertyChangeType::Interactive,
-										TopRightCornerSettingsProperty);
+									DynMesh->SetGlobalBevelSize(BevelSize);
+
+									bHasBeenModified = true;
+									NotifyPropertyModified(DynMesh, GlobalBevelSizeProperty, EPropertyChangeType::Interactive);
+								}
+								else
+								{
+									DynMesh->Modify();
+									DynMesh->SetTopRightBevelSize(BevelSize);
+
+									bHasBeenModified = true;
+									NotifyPropertyModified(DynMesh, BevelSizeProperty, EPropertyChangeType::Interactive, TopRightCornerSettingsProperty);
 								}
 
 								break;
@@ -649,19 +647,19 @@ bool FAvaShapeRectangleDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorVi
 
 								if (bSetGlobalBevelCorner)
 								{
-									if (DynMesh->SetGlobalBevelSize(BevelSize))
-									{
-										bHasBeenModified = true;
-										DynMesh->Modify();
-										NotifyPropertyModified(DynMesh, GlobalBevelSizeProperty, EPropertyChangeType::Interactive);
-									}
-								}
-								else if (DynMesh->SetBottomLeftBevelSize(BevelSize))
-								{
-									bHasBeenModified = true;
 									DynMesh->Modify();
-									NotifyPropertyModified(DynMesh, BevelSizeProperty, EPropertyChangeType::Interactive,
-										BottomLeftCornerSettingsProperty);
+									DynMesh->SetGlobalBevelSize(BevelSize);
+
+									bHasBeenModified = true;
+									NotifyPropertyModified(DynMesh, GlobalBevelSizeProperty, EPropertyChangeType::Interactive);
+								}
+								else
+								{
+									DynMesh->Modify();
+									DynMesh->SetBottomLeftBevelSize(BevelSize);
+
+									bHasBeenModified = true;
+									NotifyPropertyModified(DynMesh, BevelSizeProperty, EPropertyChangeType::Interactive, BottomLeftCornerSettingsProperty);
 								}
 
 								break;
@@ -672,19 +670,19 @@ bool FAvaShapeRectangleDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorVi
 
 								if (bSetGlobalBevelCorner)
 								{
-									if (DynMesh->SetGlobalBevelSize(BevelSize))
-									{
-										bHasBeenModified = true;
-										DynMesh->Modify();
-										NotifyPropertyModified(DynMesh, GlobalBevelSizeProperty, EPropertyChangeType::Interactive);
-									}
-								}
-								else if (DynMesh->SetBottomRightBevelSize(BevelSize))
-								{
-									bHasBeenModified = true;
 									DynMesh->Modify();
-									NotifyPropertyModified(DynMesh, BevelSizeProperty, EPropertyChangeType::Interactive,
-										BottomRightCornerSettingsProperty);
+									DynMesh->SetGlobalBevelSize(BevelSize);
+
+									bHasBeenModified = true;
+									NotifyPropertyModified(DynMesh, GlobalBevelSizeProperty, EPropertyChangeType::Interactive);
+								}
+								else
+								{
+									DynMesh->Modify();
+									DynMesh->SetBottomRightBevelSize(BevelSize);
+
+									bHasBeenModified = true;
+									NotifyPropertyModified(DynMesh, BevelSizeProperty, EPropertyChangeType::Interactive, BottomRightCornerSettingsProperty);
 								}
 
 								break;
@@ -725,26 +723,22 @@ bool FAvaShapeRectangleDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorVi
 							case EAvaAnchors::Left:
 								Slant = InitialLeftSlant;
 								Slant = FMath::Clamp(Slant + Delta * UAvaShapeRectangleDynamicMesh::MaxSlantAngle, UAvaShapeRectangleDynamicMesh::MinSlantAngle, UAvaShapeRectangleDynamicMesh::MaxSlantAngle);
+								DynMesh->Modify();
+								DynMesh->SetLeftSlant(Slant);
 
-								if (DynMesh->SetLeftSlant(Slant))
-								{
-									bHasBeenModified = true;
-									DynMesh->Modify();
-									NotifyPropertyModified(DynMesh, LeftSlantProperty, EPropertyChangeType::Interactive);
-								}
+								bHasBeenModified = true;
+								NotifyPropertyModified(DynMesh, LeftSlantProperty, EPropertyChangeType::Interactive);
 
 								break;
 
 							case EAvaAnchors::Right:
 								Slant = InitialRightSlant;
 								Slant = FMath::Clamp(Slant + Delta * UAvaShapeRectangleDynamicMesh::MaxSlantAngle, UAvaShapeRectangleDynamicMesh::MinSlantAngle, UAvaShapeRectangleDynamicMesh::MaxSlantAngle);
+								DynMesh->Modify();
+								DynMesh->SetRightSlant(Slant);
 
-								if (DynMesh->SetRightSlant(Slant))
-								{
-									bHasBeenModified = true;
-									DynMesh->Modify();
-									NotifyPropertyModified(DynMesh, RightSlantProperty, EPropertyChangeType::Interactive);
-								}
+								bHasBeenModified = true;
+								NotifyPropertyModified(DynMesh, RightSlantProperty, EPropertyChangeType::Interactive);
 
 								break;
 							default:
@@ -952,8 +946,8 @@ bool FAvaShapeRectangleDynamicMeshVisualizer::ResetValue(FEditorViewportClient* 
 		{
 			FScopedTransaction Transaction(NSLOCTEXT("AvaShapeVisualizer", "VisualizerResetValue", "Visualizer Reset Value"));
 			HitProxyDynamicMesh->SetFlags(RF_Transactional);
-			HitProxyDynamicMesh->SetGlobalBevelSize(0.f);
 			HitProxyDynamicMesh->Modify();
+			HitProxyDynamicMesh->SetGlobalBevelSize(0.f);
 			NotifyPropertyModified(HitProxyDynamicMesh, GlobalBevelSizeProperty, EPropertyChangeType::ValueSet);
 		}
 	}
@@ -966,6 +960,7 @@ bool FAvaShapeRectangleDynamicMeshVisualizer::ResetValue(FEditorViewportClient* 
 		{
 			FScopedTransaction Transaction(NSLOCTEXT("AvaShapeVisualizer", "VisualizerResetValue", "Visualizer Reset Value"));
 			HitProxyDynamicMesh->SetFlags(RF_Transactional);
+			HitProxyDynamicMesh->Modify();
 
 			switch (CornerHitProxy->Corner)
 			{
@@ -1001,8 +996,6 @@ bool FAvaShapeRectangleDynamicMeshVisualizer::ResetValue(FEditorViewportClient* 
 					// Nothing to do
 					break;
 			}
-
-			HitProxyDynamicMesh->Modify();
 		}
 	}
 	else if (InHitProxy->IsA(HAvaShapeRectangleSlantHitProxy::StaticGetType()))

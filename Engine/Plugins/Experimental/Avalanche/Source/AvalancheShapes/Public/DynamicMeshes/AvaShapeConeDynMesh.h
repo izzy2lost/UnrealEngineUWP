@@ -5,14 +5,16 @@
 #include "AvaShape3DDynMeshBase.h"
 #include "AvaShapeConeDynMesh.generated.h"
 
-UCLASS(ClassGroup="Shape", BlueprintType, CustomConstructor, Within=AvaShapeActor)
-class AVALANCHESHAPES_API UAvaShapeConeDynamicMesh : public UAvaShape3DDynMeshBase
+UCLASS(MinimalAPI, ClassGroup="Shape", BlueprintType, CustomConstructor, Within=AvaShapeActor)
+class UAvaShapeConeDynamicMesh : public UAvaShape3DDynMeshBase
 {
 	GENERATED_BODY()
 
 	friend class FAvaShapeConeDynamicMeshVisualizer;
 
 public:
+	static const FString MeshName;
+
 	static constexpr uint8 MinNumSides = 3;
 	static constexpr uint8 MaxNumSides = 128;
 
@@ -23,8 +25,7 @@ public:
 
 	UAvaShapeConeDynamicMesh()
 		: UAvaShapeConeDynamicMesh(FVector(50.f, 50.f, 50.f))
-	{
-	}
+	{}
 
 	UAvaShapeConeDynamicMesh(
 		const FVector& InSize,
@@ -37,43 +38,48 @@ public:
 		float InStartDegree = 0.f)
 		: UAvaShape3DDynMeshBase(InSize, InVertexColor)
 		, NumSides(InNumSides)
-		, Height(InHeight)
-		, BaseRadius(InBaseRadius)
 		, TopRadius(InTopRadius)
 		, AngleDegree(InAngleDegree)
 		, StartDegree(InStartDegree)
+		, Height(InHeight)
+		, BaseRadius(InBaseRadius)
+	{}
+
+	virtual const FString& GetMeshName() const override
 	{
+		return MeshName;
 	}
 
-	static const FString MeshName;
-	virtual const FString& GetMeshName() const override { return MeshName; };
+	AVALANCHESHAPES_API void SetNumSides(uint8 InNumSides);
+	uint8 GetNumSides() const
+	{
+		return NumSides;
+	}
 
-	UFUNCTION()
-	bool SetNumSides(uint8 InNumSides);
-	uint8 GetNumSides() const { return NumSides; }
+	AVALANCHESHAPES_API void SetTopRadius(float InTopRadius);
+	float GetTopRadius() const
+	{
+		return TopRadius;
+	}
 
-	UFUNCTION()
-	float GetBaseRadius() const { return BaseRadius; }
+	AVALANCHESHAPES_API void SetAngleDegree(float InDegree);
+	float GetAngleDegree() const
+	{
+		return AngleDegree;
+	}
 
-	UFUNCTION()
-	bool SetTopRadius(float InTopRadius);
-	float GetTopRadius() const { return TopRadius; }
-
-	UFUNCTION()
-	float GetHeight() const { return Height; }
-
-	UFUNCTION()
-	bool SetAngleDegree(float InDegree);
-	float GetAngleDegree() const { return AngleDegree; }
-
-	UFUNCTION()
-	bool SetStartDegree(float InDegree);
-	float GetStartDegree() const { return StartDegree; }
+	AVALANCHESHAPES_API void SetStartDegree(float InDegree);
+	float GetStartDegree() const
+	{
+		return StartDegree;
+	}
 
 protected:
+	//~ Begin UObject
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
+	//~ End UObject
 
 	virtual void OnHeightChanged();
 	virtual void OnBaseRadiusChanged();
@@ -103,9 +109,22 @@ protected:
 	virtual bool CreateUVs(FAvaShapeMesh& InMesh, FAvaShapeMaterialUVParameters& InParams) override;
 
 	// The number of sides around the base of the cone
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(ClampMin="3.0", ClampMax="128.0", DisplayName="Sides", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="3.0", ClampMax="128.0", DisplayName="Sides", AllowPrivateAccess="true"))
 	uint8 NumSides;
 
+	// the ratio for the radius of the cone top
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0.0", ClampMax="1.0", DisplayName="Top radius ratio", AllowPrivateAccess="true"))
+	float TopRadius;
+
+	// represents the base angle in degree for the cone
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0.0", ClampMax="360.0", DisplayName="Angle degree", AllowPrivateAccess="true"))
+	float AngleDegree;
+
+	// represents the starting angle in degree for the cone
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0.0", ClampMax="360.0", DisplayName="Start Degree", AllowPrivateAccess="true"))
+	float StartDegree;
+
+private:
 	// The height of the cone from the base to the top
 	UPROPERTY()
 	float Height;
@@ -113,16 +132,4 @@ protected:
 	// the radius of the cone base
 	UPROPERTY()
 	float BaseRadius;
-
-	// the ratio for the radius of the cone top
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(ClampMin="0.0", ClampMax="1.0", DisplayName="Top radius ratio", AllowPrivateAccess="true"))
-	float TopRadius;
-
-	// represents the base angle in degree for the cone
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(ClampMin="0.0", ClampMax="360.0", DisplayName="Angle degree", AllowPrivateAccess="true"))
-	float AngleDegree;
-
-	// represents the starting angle in degree for the cone
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(ClampMin="0.0", ClampMax="360.0", DisplayName="Start Degree", AllowPrivateAccess="true"))
-	float StartDegree;
 };

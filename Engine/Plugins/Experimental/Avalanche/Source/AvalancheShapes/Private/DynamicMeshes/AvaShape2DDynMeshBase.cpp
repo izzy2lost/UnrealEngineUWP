@@ -9,9 +9,9 @@
 #include "Operations/MinimalHoleFiller.h"
 #include "Operations/OffsetMeshRegion.h"
 
-bool UAvaShape2DDynMeshBase::SetSize3D(const FVector& InSize)
+void UAvaShape2DDynMeshBase::SetSize3D(const FVector& InSize)
 {
-	return SetSize2D({InSize.Y, InSize.Z});
+	SetSize2D({InSize.Y, InSize.Z});
 }
 
 void UAvaShape2DDynMeshBase::PostLoad()
@@ -127,45 +127,43 @@ bool UAvaShape2DDynMeshBase::CreateMesh(FAvaShapeMesh& InMesh)
 	return Super::CreateMesh(InMesh);
 }
 
-bool UAvaShape2DDynMeshBase::SetPixelSize2D(const FVector2D& InPixelSize2D)
+void UAvaShape2DDynMeshBase::SetPixelSize2D(const FVector2D& InPixelSize2D)
 {
 	if (!bAllowEditSize)
 	{
-		return false;
+		return;
 	}
 
 	if (PixelSize2D == InPixelSize2D)
 	{
-		return false;
+		return;
 	}
 
 	if (InPixelSize2D.GetMin() < UAvaShapeDynamicMeshBase::MinSizeValue)
 	{
-		return false;
+		return;
 	}
 
 	PixelSize2D = InPixelSize2D;
 	OnPixelSizeChanged();
-	return true;
 }
 
 // Special case. We can update more easily via c++ than Details panel!
-bool UAvaShape2DDynMeshBase::SetSize2D(const FVector2D& InSize2D)
+void UAvaShape2DDynMeshBase::SetSize2D(const FVector2D& InSize2D)
 {
 	if (!bAllowEditSize)
 	{
-		return false;
+		return;
 	}
 
 	const FVector2D NewSize = FVector2D::Max(FVector2D(UAvaShapeDynamicMeshBase::MinSizeValue), InSize2D);
 	if (Size2D.Equals(NewSize))
 	{
-		return false;
+		return;
 	}
 
 	Size2D = NewSize;
 	OnSizeChanged();
-	return true;
 }
 
 void UAvaShape2DDynMeshBase::OnRegisteredMeshes()

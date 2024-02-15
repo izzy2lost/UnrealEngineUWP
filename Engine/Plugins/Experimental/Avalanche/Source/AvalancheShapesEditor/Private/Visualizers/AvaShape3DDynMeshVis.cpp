@@ -348,16 +348,15 @@ bool FAvaShape3DDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorViewportC
 				}
 
 				Size3D = FVector::Max(Size3D, UAvaShapeDynamicMeshBase::MinSize3D);
-				if (DynMesh3D->SetSize3D(Size3D))
+				DynMesh3D->Modify();
+				DynMesh3D->SetSize3D(Size3D);
+
+				if (!bExtendBothSide)
 				{
-					if (!bExtendBothSide)
-					{
-						Location = Transform.TransformPosition(Location);
-						DynMesh3D->SetMeshRegenWorldLocation(Location, true);
-						bHasBeenModified = true;
-						DynMesh3D->Modify();
-						NotifyPropertiesModified(DynMesh3D, {MeshRegenWorldLocationProperty}, EPropertyChangeType::Interactive);
-					}
+					Location = Transform.TransformPosition(Location);
+					DynMesh3D->SetMeshRegenWorldLocation(Location, true);
+					bHasBeenModified = true;
+					NotifyPropertiesModified(DynMesh3D, {MeshRegenWorldLocationProperty}, EPropertyChangeType::Interactive);
 				}
 			}
 		}

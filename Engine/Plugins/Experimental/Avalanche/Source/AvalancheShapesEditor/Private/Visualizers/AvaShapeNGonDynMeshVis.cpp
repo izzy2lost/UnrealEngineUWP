@@ -173,14 +173,12 @@ bool FAvaShapeNGonDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorViewpor
 					if (GetViewportWidgetAxisList(InViewportClient) & EAxisList::Y)
 					{
 						int32 NumSides = InitialNumSides;
-						NumSides       = FMath::Clamp(NumSides + static_cast<int32>(InAccumulatedScale.Y), 3, 128);
+						NumSides = FMath::Clamp(NumSides + static_cast<int32>(InAccumulatedScale.Y), 3, 128);
+						DynMesh->Modify();
+						DynMesh->SetNumSides(NumSides);
 
-						if (DynMesh->SetNumSides(NumSides))
-						{
-							DynMesh->Modify();
-							bHasBeenModified = true;
-							NotifyPropertyModified(DynMesh, NumSidesProperty, EPropertyChangeType::Interactive);
-						}
+						bHasBeenModified = true;
+						NotifyPropertyModified(DynMesh, NumSidesProperty, EPropertyChangeType::Interactive);
 					}
 				}
 			}
@@ -229,8 +227,8 @@ bool FAvaShapeNGonDynamicMeshVisualizer::ResetValue(FEditorViewportClient* InVie
 		{
 			FScopedTransaction Transaction(NSLOCTEXT("AvaShapeVisualizer", "VisualizerResetValue", "Visualizer Reset Value"));
 			HitProxyDynamicMesh->SetFlags(RF_Transactional);
-			HitProxyDynamicMesh->SetNumSides(5);
 			HitProxyDynamicMesh->Modify();
+			HitProxyDynamicMesh->SetNumSides(5);
 			NotifyPropertyModified(HitProxyDynamicMesh, NumSidesProperty, EPropertyChangeType::ValueSet);
 		}
 	}

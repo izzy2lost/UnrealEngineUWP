@@ -243,14 +243,12 @@ bool FAvaShapeRingDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorViewpor
 				if (GetViewportWidgetAxisList(InViewportClient) & EAxisList::Y)
 				{
 					int32 NumSides = InitialNumSides;
-					NumSides       = FMath::Clamp(NumSides + static_cast<int32>(InAccumulatedScale.Y), 3, 128);
+					NumSides = FMath::Clamp(NumSides + static_cast<int32>(InAccumulatedScale.Y), 3, 128);
+					DynMesh->Modify();
+					DynMesh->SetNumSides(NumSides);
 
-					if (DynMesh->SetNumSides(NumSides))
-					{
-						bHasBeenModified = true;
-						DynMesh->Modify();
-						NotifyPropertyModified(DynMesh, NumSidesProperty, EPropertyChangeType::Interactive);
-					}
+					bHasBeenModified = true;
+					NotifyPropertyModified(DynMesh, NumSidesProperty, EPropertyChangeType::Interactive);
 				}
 			}
 
@@ -264,14 +262,12 @@ bool FAvaShapeRingDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorViewpor
 				if (GetViewportWidgetAxisList(InViewportClient) & EAxisList::YZ)
 				{
 					float InnerSize = InitialInnerSize;
-					InnerSize       = FMath::Clamp(InnerSize - InAccumulatedTranslation.Y / DynMesh->GetSize2D().X * 2.f, 0.01, 0.99);
+					InnerSize = FMath::Clamp(InnerSize - InAccumulatedTranslation.Y / DynMesh->GetSize2D().X * 2.f, 0.01, 0.99);
+					DynMesh->Modify();
+					DynMesh->SetInnerSize(InnerSize);
 
-					if (DynMesh->SetInnerSize(InnerSize))
-					{
-						bHasBeenModified = true;
-						DynMesh->Modify();
-						NotifyPropertyModified(DynMesh, InnerSizeProperty, EPropertyChangeType::Interactive);
-					}
+					bHasBeenModified = true;
+					NotifyPropertyModified(DynMesh, InnerSizeProperty, EPropertyChangeType::Interactive);
 				}
 			}
 
@@ -321,8 +317,8 @@ bool FAvaShapeRingDynamicMeshVisualizer::ResetValue(FEditorViewportClient* InVie
 			{
 				FScopedTransaction Transaction(NSLOCTEXT("AvaShapeVisualizer", "VisualizerResetValue", "Visualizer Reset Value"));
 				HitProxyDynamicMesh->SetFlags(RF_Transactional);
-				HitProxyDynamicMesh->SetNumSides(5);
 				HitProxyDynamicMesh->Modify();
+				HitProxyDynamicMesh->SetNumSides(5);
 				NotifyPropertyModified(HitProxyDynamicMesh, NumSidesProperty, EPropertyChangeType::ValueSet);
 			}
 		}
@@ -339,8 +335,8 @@ bool FAvaShapeRingDynamicMeshVisualizer::ResetValue(FEditorViewportClient* InVie
 			{
 				FScopedTransaction Transaction(NSLOCTEXT("AvaShapeVisualizer", "VisualizerResetValue", "Visualizer Reset Value"));
 				HitProxyDynamicMesh->SetFlags(RF_Transactional);
-				HitProxyDynamicMesh->SetInnerSize(0.5);
 				HitProxyDynamicMesh->Modify();
+				HitProxyDynamicMesh->SetInnerSize(0.5);
 				NotifyPropertyModified(HitProxyDynamicMesh, InnerSizeProperty, EPropertyChangeType::ValueSet);
 			}
 		}
