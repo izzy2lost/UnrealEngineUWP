@@ -212,27 +212,31 @@ private:
 	void OnLabelCommitted(const FText& InLabel, ETextCommit::Type InCommitInfo)
 	{
 		auto TreeItem = TreeItemPtr.Pin();
-		if (TreeItem.IsValid() && !InLabel.ToString().Equals(TreeItem->GetLeafName().ToString(), ESearchCase::CaseSensitive))
+		if (TreeItem.IsValid())
 		{
-			// Rename the item
-			FFolder Folder = TreeItem->GetFolder();
-			FName NewPath = Folder.GetParent().GetPath();
-			if (NewPath.IsNone())
+			const FText TrimmedLabel = FText::TrimPrecedingAndTrailing(InLabel);
+			if (!TrimmedLabel.ToString().Equals(TreeItem->GetLeafName().ToString(), ESearchCase::CaseSensitive))
 			{
-				NewPath = FName(*InLabel.ToString());
-			}
-			else
-			{
-				NewPath = FName(*(NewPath.ToString() / InLabel.ToString()));
-			}
-			FFolder TreeItemNewFolder(Folder.GetRootObject(), NewPath);
+				// Rename the item
+				FFolder Folder = TreeItem->GetFolder();
+				FName NewPath = Folder.GetParent().GetPath();
+				if (NewPath.IsNone())
+				{
+					NewPath = FName(*TrimmedLabel.ToString());
+				}
+				else
+				{
+					NewPath = FName(*(NewPath.ToString() / TrimmedLabel.ToString()));
+				}
+				FFolder TreeItemNewFolder(Folder.GetRootObject(), NewPath);
 
-			FActorFolders::Get().RenameFolderInWorld(*TreeItem->World.Get(), Folder, TreeItemNewFolder);
+				FActorFolders::Get().RenameFolderInWorld(*TreeItem->World.Get(), Folder, TreeItemNewFolder);
 
-			auto Outliner = WeakSceneOutliner.Pin();
-			if (Outliner.IsValid())
-			{
-				Outliner->SetKeyboardFocus();
+				auto Outliner = WeakSceneOutliner.Pin();
+				if (Outliner.IsValid())
+				{
+					Outliner->SetKeyboardFocus();
+				}
 			}
 		}
 	}

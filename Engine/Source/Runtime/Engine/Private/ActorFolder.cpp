@@ -52,6 +52,13 @@ bool UActorFolder::IsAsset() const
 	return IsPackageExternal() && !GetPackage()->HasAnyFlags(RF_Transient) && !HasAnyFlags(RF_Transient | RF_ClassDefaultObject) && !GetPackage()->HasAnyPackageFlags(PKG_PlayInEditor);
 }
 
+void UActorFolder::PostLoad()
+{
+	Super::PostLoad();
+
+	FolderLabel.TrimStartAndEndInline();
+}
+
 namespace ActorFolder
 {
 	static const FName NAME_FolderGuid(TEXT("FolderGuid"));
@@ -126,12 +133,13 @@ FActorFolderDesc UActorFolder::GetAssetRegistryInfoFromPackage(FName ActorFolder
 
 void UActorFolder::SetLabel(const FString& InFolderLabel)
 {
+	FString TrimmedFolderLabel = InFolderLabel.TrimStartAndEnd();
 	check(IsValid());
-	if (!FolderLabel.Equals(InFolderLabel, ESearchCase::CaseSensitive))
+	if (!FolderLabel.Equals(TrimmedFolderLabel, ESearchCase::CaseSensitive))
 	{
 		Modify();
 		FString OldFolderLabel = FolderLabel;
-		FolderLabel = InFolderLabel;
+		FolderLabel = TrimmedFolderLabel;
 		GetTypedOuter<ULevel>()->OnFolderLabelChanged(this, OldFolderLabel);
 	}
 }
