@@ -3636,7 +3636,7 @@ void AActor::PostEditImport()
 	ULevel* Level = GetLevel();
 	if (Level && Level->IsUsingActorFolders())
 	{
-		if (GetFolderPath().IsNone() && !FolderPath.IsNone())
+		if ((GetFolderPath().IsNone() || !FolderGuid.IsValid()) && !FolderPath.IsNone())
 		{
 			SetFolderPath(FolderPath);
 		}
