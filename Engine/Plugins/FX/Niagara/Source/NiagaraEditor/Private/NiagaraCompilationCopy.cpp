@@ -505,7 +505,7 @@ void FNiagaraCompilationCopyData::InstantiateCompilationCopy(const FNiagaraCompi
 
 	if (InstantiatedGraph)
 	{
-		AggregatedDataInterfaceCDODuplicates.Append(ObjectPtrDecay(InstantiatedGraph->AggregateDataInterfaceCDODuplicates));
+		SourceGraph.CollectReferencedDataInterfaceCDO(AggregatedDataInterfaceCDODuplicates);
 	}
 }
 

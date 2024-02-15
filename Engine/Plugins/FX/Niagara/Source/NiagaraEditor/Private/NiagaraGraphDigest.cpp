@@ -44,13 +44,15 @@ NIAGARA_GRAPH_DIGEST_NODE_TYPE_LIST;
 
 struct FNiagaraCompilationGraphCreateContext
 {
-	FNiagaraCompilationGraphCreateContext(FNiagaraCompilationGraphDigested& InParentGraph, const FNiagaraGraphChangeIdBuilder& InChangeIdBuilder)
+	FNiagaraCompilationGraphCreateContext(FNiagaraCompilationGraphDigested& InParentGraph, TArray<const FNiagaraCompilationGraphDigested*>& InDigestedChildGraphs, const FNiagaraGraphChangeIdBuilder& InChangeIdBuilder)
 		: ParentGraph(InParentGraph)
+		, DigestedChildGraphs(InDigestedChildGraphs)
 		, ChangeIdBuilder(InChangeIdBuilder)
 	{
 	}
 
 	FNiagaraCompilationGraphDigested& ParentGraph;
+	TArray<const FNiagaraCompilationGraphDigested*>& DigestedChildGraphs;
 	const FNiagaraGraphChangeIdBuilder& ChangeIdBuilder;
 };
 
@@ -546,7 +548,7 @@ void FNiagaraCompilationGraphDigested::Digest(const UNiagaraGraph* InGraph, cons
 
 	TMap<const UEdGraphNode*, int32> NodeIndexMap;
 
-	FNiagaraCompilationGraphCreateContext NodeContext(*this, ChangeIdBuilder);
+	FNiagaraCompilationGraphCreateContext NodeContext(*this, ChildGraphs, ChangeIdBuilder);
 
 	for (const UEdGraphNode* SourceNode : InGraph->Nodes)
 	{
@@ -721,6 +723,20 @@ void FNiagaraCompilationGraphDigested::RegisterObjectAsset(FName VariableName, U
 	else
 	{
 		CachedNamedObjectAssets.Add(VariableName, SourceObjectAsset);
+	}
+}
+
+void FNiagaraCompilationGraphDigested::CollectReferencedDataInterfaceCDO(FDataInterfaceCDOMap& Interfaces) const
+{
+	// add our collected DIs then iterate over all the child graphs
+	for (FDataInterfaceCDOMap::TConstIterator It = CachedDataInterfaceCDODuplicates.CreateConstIterator(); It; ++It)
+	{
+		Interfaces.FindOrAdd(It.Key(), It.Value());
+	}
+
+	for (const FNiagaraCompilationGraphDigested* ChildGraph : ChildGraphs)
+	{
+		ChildGraph->CollectReferencedDataInterfaceCDO(Interfaces);
 	}
 }
 
@@ -1025,9 +1041,6 @@ TSharedPtr<FNiagaraCompilationGraphInstanced, ESPMode::ThreadSafe> FNiagaraCompi
 		SubGraph->StaticSwitchInputs.AddUnique(SwitchInput);
 	}
 
-	// make sure that we've collected the CDO for the registered DI as well
-	SubGraph->AggregateDataInterfaceCDODuplicates.Append(CachedDataInterfaceCDODuplicates);
-
 	return SubGraph;
 }
 
@@ -1282,8 +1295,6 @@ TSharedPtr<FNiagaraCompilationGraphInstanced, ESPMode::ThreadSafe> FNiagaraCompi
 
 				CalledInstantiatedGraph->Refine(InstantiationContext, FunctionToInstantiate);
 
-				InstantiatedGraph->AggregateDataInterfaces(CalledInstantiatedGraph.Get());
-
 				++TotalGraphCount;
 				TotalNodeCount += CalledInstantiatedGraph->Nodes.Num();
 				TotalCulledNodeCount += CalledDigestedGraph->Nodes.Num() - CalledInstantiatedGraph->Nodes.Num();
@@ -1413,13 +1424,6 @@ void FNiagaraCompilationGraph::NodeTraversal(
 			}
 		}
 	}
-}
-
-
-void FNiagaraCompilationGraphInstanced::AggregateDataInterfaces(const FNiagaraCompilationGraphInstanced* ChildGraph)
-{
-	//AggregateDataInterfaceCDODuplicates.Append(ObjectPtrDecay(ChildGraph->AggregateDataInterfaceCDODuplicates));
-	AggregateDataInterfaceCDODuplicates.Append(ChildGraph->AggregateDataInterfaceCDODuplicates);
 }
 
 void FNiagaraCompilationGraphInstanced::AggregateChildGraph(const FNiagaraCompilationGraphInstanced* ChildGraph)
@@ -2013,6 +2017,10 @@ FNiagaraCompilationNodeEmitter::FNiagaraCompilationNodeEmitter(const UNiagaraNod
 	if (const UNiagaraGraph* DependentGraph = InNode->GetCalledGraph())
 	{
 		CalledGraph = FNiagaraDigestDatabase::Get().CreateGraphDigest(DependentGraph, Context.ChangeIdBuilder);
+		if (const FNiagaraCompilationGraphDigested* DigestedGraph = CalledGraph->AsDigested())
+		{
+			Context.DigestedChildGraphs.AddUnique(DigestedGraph);
+		}
 	}
 
 	Usage = InNode->GetUsage();
@@ -2256,6 +2264,10 @@ FNiagaraCompilationNodeFunctionCall::FNiagaraCompilationNodeFunctionCall(const U
 	if (const UNiagaraGraph* DependentGraph = InNode->GetCalledGraph())
 	{
 		CalledGraph = FNiagaraDigestDatabase::Get().CreateGraphDigest(DependentGraph, Context.ChangeIdBuilder);
+		if (const FNiagaraCompilationGraphDigested* DigestedGraph = CalledGraph->AsDigested())
+		{
+			Context.DigestedChildGraphs.AddUnique(DigestedGraph);
+		}
 	}
 
 	// Top level functions (functions invoked in the root graph) will use the serialized DebugState value, all others will
