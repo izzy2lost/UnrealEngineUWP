@@ -568,7 +568,7 @@ TArray<FString> FICUInternationalization::GetPrioritizedCultureNames(const FStri
 	};
 
 	// Apply any culture remapping
-	FString GivenCulture = FCulture::GetCanonicalName(Name);
+	FString GivenCulture = FCultureImplementation::GetCanonicalName(Name, *I18N);
 	IsCultureRemapped(Name, &GivenCulture);
 
 	TArray<FString> PrioritizedCultureNames;
@@ -653,7 +653,7 @@ FCulturePtr FICUInternationalization::GetCulture(const FString& Name)
 
 FCulturePtr FICUInternationalization::FindOrMakeCulture(const FString& Name, const EAllowDefaultCultureFallback AllowDefaultFallback)
 {
-	return FindOrMakeCanonizedCulture(FCulture::GetCanonicalName(Name), AllowDefaultFallback);
+	return FindOrMakeCanonizedCulture(FCultureImplementation::GetCanonicalName(Name, *I18N), AllowDefaultFallback);
 }
 
 FCulturePtr FICUInternationalization::FindOrMakeCanonizedCulture(const FString& Name, const EAllowDefaultCultureFallback AllowDefaultFallback)

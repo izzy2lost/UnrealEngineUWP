@@ -245,9 +245,9 @@ int FICUCultureImplementation::GetLCID() const
 	return ICULocale.getLCID();
 }
 
-FString FICUCultureImplementation::GetCanonicalName(const FString& Name)
+FString FICUCultureImplementation::GetCanonicalName(const FString& Name, FInternationalization& I18N)
 {
-	return ICUUtilities::GetCanonicalCultureName(Name, TEXT("en-US-POSIX"));
+	return ICUUtilities::GetCanonicalCultureName(Name, TEXT("en-US-POSIX"), I18N);
 }
 
 FString FICUCultureImplementation::GetName() const
