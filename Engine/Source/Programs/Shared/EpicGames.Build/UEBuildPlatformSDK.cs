@@ -325,7 +325,14 @@ namespace EpicGames.Core
 			bIsSdkAllowedOnHost = bInIsSdkAllowedOnHost;
 
 			// load the SDK config file
-			LoadJsonFile(PlatformName);
+			if (bIsSdkAllowedOnHost)
+			{
+				LoadJsonFile(PlatformName);
+			}
+			else
+			{
+				Console.WriteLine("SKIPPING JSON FOR {0}", PlatformName);
+			}
 
 			// if the parent set up autosdk, the env vars will be wrong, but we can still get the manual SDK version from before it was setup
 			string? ParentManualSDKVersions = Environment.GetEnvironmentVariable(GetPlatformManualSDKSetupEnvVar());
@@ -387,7 +394,9 @@ namespace EpicGames.Core
 					object[] parameter = new object[1];
 					parameter[0] = Log.Logger;
 					SDK = (UEBuildPlatformSDK)Activator.CreateInstance(typeof(T), parameter)!;
-					SDK.bIsSdkAllowedOnHost = true;
+					// by setting this to false, we don't require any of the RequiredVersions to exist, but if they do, they will be read
+					// this is useful on other platforms that 
+					SDK.bIsSdkAllowedOnHost = false;
 					SDK.LoadJsonFile(PlatformName);
 					TempSDKRegistry.Add(PlatformName, SDK);
 				}
