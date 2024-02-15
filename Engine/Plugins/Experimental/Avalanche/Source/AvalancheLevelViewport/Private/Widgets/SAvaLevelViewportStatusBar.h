@@ -9,7 +9,7 @@
 #include "Styling/StyleColors.h"
 #include "Templates/SharedPointer.h"
 #include "Widgets/SCompoundWidget.h"
-#include "Widgets/Engine/SAvaMultiComboButton.h"
+#include "Widgets/SAvaMultiComboButton.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboButton.h"

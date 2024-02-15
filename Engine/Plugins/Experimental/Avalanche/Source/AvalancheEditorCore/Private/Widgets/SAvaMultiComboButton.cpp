@@ -6,7 +6,7 @@
  * the button).
  */
 
-#include "Widgets/Engine/SAvaMultiComboButton.h"
+#include "Widgets/SAvaMultiComboButton.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"

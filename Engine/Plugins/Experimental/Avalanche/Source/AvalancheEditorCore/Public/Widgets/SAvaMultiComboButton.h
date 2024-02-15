@@ -82,18 +82,18 @@ public:
 	SLATE_END_ARGS()
 
 	// SMenuAnchor interface
-	virtual void SetMenuContent(TSharedRef<SWidget> InContent) override;
+	AVALANCHEEDITORCORE_API virtual void SetMenuContent(TSharedRef<SWidget> InContent) override;
 	// End of SMenuAnchor interface
 
 	/** See the OnGetMenuContent event */
-	void SetOnGetMenuContent( FOnGetContent InOnGetMenuContent );
+	AVALANCHEEDITORCORE_API void SetOnGetMenuContent( FOnGetContent InOnGetMenuContent );
 
 	/**
 	 * Construct the widget from a declaration
 	 *
 	 * @param InArgs  The declaration from which to construct
 	 */
-	void Construct(const FArguments& InArgs);
+	AVALANCHEEDITORCORE_API void Construct(const FArguments& InArgs);
 
 	void SetMenuContentWidgetToFocus( TWeakPtr<SWidget> InWidgetToFocusPtr )
 	{
@@ -101,21 +101,21 @@ public:
 	}
 
 	/** See the padding for button content. */
-	void SetButtonContentPadding(FMargin InPadding);
+	AVALANCHEEDITORCORE_API void SetButtonContentPadding(FMargin InPadding);
 
 	/** add/remove the expanding arrow. */
-	void SetHasDownArrow(bool InHasArrowDown);
+	AVALANCHEEDITORCORE_API void SetHasDownArrow(bool InHasArrowDown);
 
 	//~ Begin SWidget
-	virtual FReply OnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
+	AVALANCHEEDITORCORE_API virtual FReply OnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
 	//~ End SWidget
 
 protected:
 	/**
 	 * Handle the button being clicked by summoning the ComboButton.
 	 */
-	virtual FReply OnButtonClicked();
-	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
+	AVALANCHEEDITORCORE_API virtual FReply OnButtonClicked();
+	AVALANCHEEDITORCORE_API virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
 
 	/**
 	 * Called to query the tool tip text for this widget, but will return an empty text when the menu is already open
@@ -124,7 +124,7 @@ protected:
 	 *
 	 * @return	Tool tip text, or an empty text if filtered out
 	 */
-	FText GetFilteredToolTipText(TAttribute<FText> ToolTipText) const;
+	AVALANCHEEDITORCORE_API FText GetFilteredToolTipText(TAttribute<FText> ToolTipText) const;
 
 protected:
 	/** Area where the button's content resides */
