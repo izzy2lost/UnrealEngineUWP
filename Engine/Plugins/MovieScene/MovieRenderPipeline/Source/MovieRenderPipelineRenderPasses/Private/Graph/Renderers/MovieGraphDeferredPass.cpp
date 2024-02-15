@@ -39,6 +39,7 @@ void FMovieGraphDeferredPass::Setup(TWeakObjectPtr<UMovieGraphDefaultRenderer> I
 
 
 	RenderDataIdentifier.RootBranchName = LayerData.BranchName;
+	RenderDataIdentifier.LayerName = LayerData.LayerName;
 	RenderDataIdentifier.RendererName = InRenderPassNode->GetRendererName();
 	RenderDataIdentifier.SubResourceName = TEXT("beauty");
 	

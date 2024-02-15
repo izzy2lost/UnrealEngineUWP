@@ -60,35 +60,19 @@ FString UMovieGraphBlueprintLibrary::ResolveFilenameFormatArguments(const FStrin
 		// Use the legacy system to add filename and metadata kvp
 		MoviePipeline::GetOutputStateFormatArgs(OutMergedFormatArgs.FilenameArguments, OutMergedFormatArgs.FileMetadata, FrameNumber, FrameNumberShot, FrameNumberRel, FrameNumberShotRel, TEXT("DummyCameraToken"), ShotName);
 
-		// Look up the Render Layer display name from the evaluated config if possible.
-		FString RenderLayerName = InParams.RenderDataIdentifier.RootBranchName.ToString();
-		if (InParams.EvaluatedConfig)
-		{
-			const bool bIncludeCDOs = false;
-			TObjectPtr<UMovieGraphRenderLayerNode> RenderLayerNode = InParams.EvaluatedConfig->GetSettingForBranch<UMovieGraphRenderLayerNode>(InParams.RenderDataIdentifier.RootBranchName, bIncludeCDOs);
-			if (RenderLayerNode)
-			{
-				RenderLayerName = RenderLayerNode->GetRenderLayerName();
-			}
-
-			TObjectPtr<UMovieGraphGlobalOutputSettingNode> OutputSettingNode = InParams.EvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs);
-			if(OutputSettingNode)
-			{
-				bOverwriteExisting = OutputSettingNode->bOverwriteExistingOutput;
-			}
-		}
-
 		// Add on Render Data Identifier, overwriting the dummy camera name above.
 		OutMergedFormatArgs.FilenameArguments.Add(TEXT("camera_name"), InParams.RenderDataIdentifier.CameraName);
 		OutMergedFormatArgs.FilenameArguments.Add(TEXT("renderer_name"), InParams.RenderDataIdentifier.RendererName);
 		OutMergedFormatArgs.FilenameArguments.Add(TEXT("renderer_sub_name"), InParams.RenderDataIdentifier.SubResourceName);
-		OutMergedFormatArgs.FilenameArguments.Add(TEXT("layer_name"), RenderLayerName);
+		OutMergedFormatArgs.FilenameArguments.Add(TEXT("layer_name"), InParams.RenderDataIdentifier.LayerName);
+		OutMergedFormatArgs.FilenameArguments.Add(TEXT("branch_name"), InParams.RenderDataIdentifier.RootBranchName.ToString());
 
 		// TODO: Some of these are per render layer and need to be stored that way. EXRs will have the metadata for all the layers/cameras/etc. in one file.
 		OutMergedFormatArgs.FileMetadata.Add(TEXT("unreal/cameraName"), InParams.RenderDataIdentifier.CameraName);
 		OutMergedFormatArgs.FileMetadata.Add(TEXT("unreal/rendererName"), InParams.RenderDataIdentifier.RendererName);
 		OutMergedFormatArgs.FileMetadata.Add(TEXT("unreal/subResourceName"), InParams.RenderDataIdentifier.SubResourceName);
-		OutMergedFormatArgs.FileMetadata.Add(TEXT("unreal/layerName"), RenderLayerName);
+		OutMergedFormatArgs.FileMetadata.Add(TEXT("unreal/layerName"), InParams.RenderDataIdentifier.LayerName);
+		OutMergedFormatArgs.FileMetadata.Add(TEXT("unreal/branchName"), InParams.RenderDataIdentifier.RootBranchName.ToString());
 	}
 
 

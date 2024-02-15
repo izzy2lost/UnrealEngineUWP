@@ -47,10 +47,6 @@ struct FMovieGraphImagePreviewData
 	/** The identifier for the image, containing the branch name, renderer, etc. */
 	UPROPERTY(BlueprintReadOnly, Category = "Movie Graph")
 	FMovieGraphRenderDataIdentifier Identifier;
-	
-	/** The layer name associated with the render. */
-	UPROPERTY(BlueprintReadOnly, Category = "Movie Graph")
-	FString LayerName;
 };
 
 USTRUCT(BlueprintType)
@@ -282,6 +278,7 @@ protected:
 struct FMovieGraphRenderPassLayerData
 {
 	FName BranchName;
+	FString LayerName;
 	FGuid CameraIdentifier;
 	TWeakObjectPtr<class UMovieGraphRenderPassNode> RenderPassNode;
 };
@@ -437,6 +434,26 @@ namespace UE::MovieGraph
 			}
 
 			return BranchUseCounts.Num() > 1;
+		}
+
+		bool HasDataFromMultipleLayersWithName(const FString& InLayerName) const
+		{
+			TMap<FString, int32> Layers;
+			Layers.Reserve(ExpectedRenderPasses.Num());
+
+			for (const FMovieGraphRenderDataIdentifier& PassIdentifier : ExpectedRenderPasses)
+			{
+				int32& Count = Layers.FindOrAdd(PassIdentifier.LayerName);
+				Count++;
+			}
+
+			// For the given branch, check to see if there's more than one branch with that name.
+			if (int32* CountPtr = Layers.Find(InLayerName))
+			{
+				return *CountPtr > 1;
+			}
+
+			return false;
 		}
 
 		/** Check if the (expected) render passes come from different renderers, excluding composited ones. */

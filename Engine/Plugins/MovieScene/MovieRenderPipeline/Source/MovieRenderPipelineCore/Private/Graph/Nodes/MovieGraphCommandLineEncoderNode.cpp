@@ -115,6 +115,7 @@ void UMovieGraphCommandLineEncoderNode::StartEncodingProcess(TArray<FMovieGraphR
 		// and not the copy that we're currently iterating through.
 		FMovieGraphRenderDataIdentifier CommandLineEncoderIdentifier;
 		CommandLineEncoderIdentifier.RootBranchName = GlobalsPinName;
+		CommandLineEncoderIdentifier.LayerName = GlobalsPinName.ToString();
 		CommandLineEncoderIdentifier.RendererName = FString(TEXT("CommandLineEncoder"));
 		for (FMovieGraphRenderOutputData& OutputData : InGeneratedData)
 		{

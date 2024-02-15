@@ -151,8 +151,9 @@ void UMovieGraphAudioOutputNode::GenerateFinalAudioData(TArray<FFinalAudioData>&
 	const int32 ShotIndex = CachedPipeline->GetCurrentShotIndex();
 	const TObjectPtr<UMoviePipelineExecutorShot>& Shot = CachedPipeline->GetActiveShotList()[ShotIndex];
 	const FString SubResourceName = FString();
+	const FString LayerName = GlobalsPinNameString;
 	const FString CameraName = Shot->InnerName;
-	const FMovieGraphRenderDataIdentifier RenderDataIdentifier(GlobalsPinName, RendererName, SubResourceName, CameraName);
+	const FMovieGraphRenderDataIdentifier RenderDataIdentifier(GlobalsPinName, GlobalsPinNameString, RendererName, SubResourceName, CameraName);
 	
 	const FString FinalFilePath = GenerateOutputPath(RenderDataIdentifier, Shot);
 	
