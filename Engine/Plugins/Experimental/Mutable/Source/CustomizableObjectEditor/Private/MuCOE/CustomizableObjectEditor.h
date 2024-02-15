@@ -316,6 +316,8 @@ private:
 	TSharedPtr<STextComboBox> CompileTextureCompressionCombo;
 	TArray< TSharedPtr<FString> > CompileTextureCompressionStrings;
 	TSharedPtr<SNumericDropDown<float>> CompileTilingCombo;
+	TSharedPtr<SNumericDropDown<float>> EmbeddedDataLimitCombo;
+	TSharedPtr<SNumericDropDown<float>> PackagedDataLimitCombo;
 
 	void CompileOptions_UseDiskCompilation_Toggled();
 	bool CompileOptions_UseDiskCompilation_IsChecked();

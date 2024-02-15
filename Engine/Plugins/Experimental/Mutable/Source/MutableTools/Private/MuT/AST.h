@@ -220,6 +220,7 @@ namespace mu
 		{
 		}
 
+		// TODO: Unused?
 		int32 MinTextureResidentMipCount = 0;
 
 		/** This flag controls the splitting of image data into mips to store separately. It is usually necessary to

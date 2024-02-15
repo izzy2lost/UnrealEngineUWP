@@ -22,7 +22,10 @@ namespace mu
         //! Detailed optimization options
         FModelOptimizationOptions OptimisationOptions;
 
-		int32 MinRomSize = 0;
+		uint64 EmbeddedDataBytesLimit = 1024;
+		uint64 PackagedDataBytesLimit = 1024*1024*64;
+
+		// \TODO: Unused?
 		int32 MinTextureResidentMipCount = 3;
 
         int32 ImageCompressionQuality = 0;

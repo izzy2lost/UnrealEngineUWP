@@ -1018,7 +1018,7 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 			Object->GetPrivate()->bDisableTextureStreaming = false;
 		}
 		
-		Object->GetPrivate()->bIsCompiledWithOptimization = GenerationContext.Options.OptimizationLevel < UE_MUTABLE_MAX_OPTIMIZATION;
+		Object->GetPrivate()->bIsCompiledWithoutOptimization = GenerationContext.Options.OptimizationLevel < UE_MUTABLE_MAX_OPTIMIZATION;
 
 		Object->AlwaysLoadedExtensionData = MoveTemp(GenerationContext.AlwaysLoadedExtensionData);
 
@@ -1197,6 +1197,7 @@ void FCustomizableObjectCompiler::FinishCompilation()
 	TSharedPtr<mu::Model, ESPMode::ThreadSafe> Model = CompileTask->Model;
 
 	// Generate a map that using the resource id tells the offset and size of the resource inside the bulk data
+	// At this point it is assumed that all data goes into a single file.
 	if (Model)
 	{
 		uint64 Offset = 0;
@@ -1204,12 +1205,12 @@ void FCustomizableObjectCompiler::FinishCompilation()
 		const int32 NumStreamingFiles = Model->GetRomCount();
 		CurrentObject->HashToStreamableBlock.Empty(NumStreamingFiles);
 
-		for (size_t FileIndex = 0; FileIndex < NumStreamingFiles; ++FileIndex)
+		for (int32 FileIndex = 0; FileIndex < NumStreamingFiles; ++FileIndex)
 		{
 			const uint32 ResourceId = Model->GetRomId(FileIndex);
 			const uint32 ResourceSize = Model->GetRomSize(FileIndex);
 
-			CurrentObject->HashToStreamableBlock.Add(ResourceId, FMutableStreamableBlock({0, Offset, ResourceSize }));
+			CurrentObject->HashToStreamableBlock.Add(ResourceId, FMutableStreamableBlock{0, ResourceSize, Offset });
 			Offset += ResourceSize;
 		}
 	}

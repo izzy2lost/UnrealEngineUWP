@@ -132,12 +132,13 @@ enum class ECustomizableObjectTextureCompression : uint8
 	HighQuality
 };
 
+
 USTRUCT()
 struct FCompilationOptions
 {
 	GENERATED_USTRUCT_BODY()
 	
-	/** Enum to know what texture compression should be used. This compression is used on ly in manual compiles in editor. 
+	/** Enum to know what texture compression should be used. This compression is used only in manual compiles in editor. 
 	 *  When packaging, ECustomizableObjectTextureCompression::HighQuality is always used.
 	 */
 	UPROPERTY()
@@ -151,6 +152,16 @@ struct FCompilationOptions
 	// but it may be necessary for huge objects.
 	UPROPERTY()
 	bool bUseDiskCompilation = false;
+
+	/** High limit of the size in bytes of the packaged data when cooking this object. 
+	* This limit is before any pak or filesystem compression. This limit will be broken if a single piece of data is bigger because data is not fragmented for packaging purposes.
+	*/
+	UPROPERTY()
+	uint64 PackagedDataBytesLimit = 256*1024*1024;
+
+	/** High (inclusive) limit of the size in bytes of a data block to be included into the compiled object directly instead of stored in a streamable file. */
+	UPROPERTY()
+	uint64 EmbeddedDataBytesLimit = 1024;
 
 	// Did we have the extra bones enabled when we compiled?
 	ECustomizableObjectNumBoneInfluences CustomizableObjectNumBoneInfluences = ECustomizableObjectNumBoneInfluences::Four;
@@ -363,20 +374,19 @@ struct CUSTOMIZABLEOBJECT_API FMutableStreamableBlock
 	GENERATED_USTRUCT_BODY()
 
 	UPROPERTY()
-	uint16 FileIndex = 0;
-
-	UPROPERTY()
-	uint64 Offset = 0;
+	uint32 FileId = 0;
 
 	UPROPERTY()
 	uint32 Size = 0;
 
+	UPROPERTY()
+	uint64 Offset = 0;
 
 	friend FArchive& operator<<(FArchive& Ar, FMutableStreamableBlock& Data)
 	{
-		Ar << Data.FileIndex;
-		Ar << Data.Offset;
+		Ar << Data.FileId;
 		Ar << Data.Size;
+		Ar << Data.Offset;
 
 		return Ar;
 	}
@@ -388,7 +398,6 @@ USTRUCT()
 struct FMutableLODSettings
 {
 	GENERATED_BODY()
-
 
 	/** Minimum LOD to render per Platform. */
 	UPROPERTY(EditAnywhere, Category = LODSettings, meta = (DisplayName = "Minimum LOD"))
@@ -442,21 +451,22 @@ class CUSTOMIZABLEOBJECT_API UCustomizableObjectBulk : public UObject
 public:
 	GENERATED_BODY()
 
+	//~ Begin UObject Interface
 	virtual void PostLoad() override;
+	//~ End UObject Interface
 
-	/** Creates and returns an array with IAsyncReadFileHandles for each BulkData file.
-	 * Used by Mutable to stream in resources when generating instances. Must be deleted by the caller. */
-	TArray<TSharedPtr<IAsyncReadFileHandle>> GetAsyncReadFileHandles() const;
+	/**  */
+	const FString& GetBulkFilePrefix() const { return BulkFilePrefix; }
 
 #if WITH_EDITOR
 
 	//~ Begin UObject Interface
-	virtual void CookAdditionalFilesOverride(const TCHAR* PackageFilename, const ITargetPlatform* TargetPlatform,
-		TFunctionRef<void(const TCHAR* Filename, void* Data, int64 Size)> WriteAdditionalFile) override;
+	virtual void CookAdditionalFilesOverride(const TCHAR*, const ITargetPlatform*, TFunctionRef<void(const TCHAR*, void*, int64)> ) override;
 	//~ End UObject Interface
 
 	/** Compute the number of files and sizes the BulkData will be split into and fix up 
-	 * HashToStreamableBlock's FileIndices and Offsets. */	
+	 * the HashToStreamableBlock's FileIds and Offsets. 
+	 */	
 	void PrepareBulkData(UCustomizableObject* InCustomizableObject, const ITargetPlatform* TargetPlatform);
 
 #endif
@@ -465,17 +475,37 @@ private:
 
 #if WITH_EDITOR
 
+	struct FBlock
+	{
+		// \TODO: needed?
+		uint32 Id;
+
+		/** Size of the data block. */
+		uint32 Size;
+
+		/** Offset in the full source streamed data file that is created when compiling. */
+		uint64 Offset;
+	};
+
+	struct FFile
+	{
+		/** Id generated from a hash of the file content + offset to avoid collisions. */
+		uint32 Id;
+
+		/** List of blocks that are contained in the file, in order. */
+		TArray<FBlock> Blocks;
+	};
+
 	/** Helper to store the size of each BulkData partition. Only valid while cooking */
-	TArray<uint64> BulkDataFilesSize;
+	TArray<FFile> BulkDataFiles;
 
 	/** Helper to retrieve the BulkData from within the CookAdditionalFilesOverride */
 	TObjectPtr<UCustomizableObject> CustomizableObject;
 
 #endif
 
-	/** BulkData file paths */
-	UPROPERTY()
-	TArray<FString> BulkDataFileNames;
+	/** Prefix to locate bulkfiles for loading, using the file ids in each FMutableStreamableBlock. */
+	FString BulkFilePrefix;
 };
 
 

@@ -74,7 +74,7 @@ namespace mu
 		void SetImageTiling(int32 Tiling);
 
         //! 
-        void SetDataPackingStrategy( int32 minRomSize, int32 MinTextureResidentMipCount );
+        void SetDataPackingStrategy( int32 MinTextureResidentMipCount, uint64 EmbeddedDataBytesLimit, uint64 PackagedDataBytesLimit);
 
 		/** If enabled it will make sure that the object is compile to generate smaller mips of the images. */
 		void SetEnableProgressiveImages(bool bEnabled);

@@ -71,12 +71,16 @@ protected:
 	struct FObjectData
 	{
 		TWeakPtr<const mu::Model> Model;
-		TArray<TSharedPtr<IAsyncReadFileHandle>> ReadFileHandles;
 		TMap<OPERATION_ID, FReadRequest> CurrentReadRequests;
 		TMap<uint64, FMutableStreamableBlock> StreamableBlocks;
+		FString BulkFilePrefix;
+
+		TMap<uint32, TSharedPtr<IAsyncReadFileHandle>> ReadFileHandles;
 	};
 
 	TArray<FObjectData> Objects;
+
+	FCriticalSection FileHandlesCritical;
 
 	/** This is used to generate unique ids for read requests. */
 	OPERATION_ID LastOperationID = 0;

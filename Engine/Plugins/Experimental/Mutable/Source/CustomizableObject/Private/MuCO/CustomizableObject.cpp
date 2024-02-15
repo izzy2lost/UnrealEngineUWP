@@ -565,7 +565,7 @@ void UCustomizableObjectPrivate::SaveCompiledData(FArchive& MemoryWriter, bool b
 
 	// Editor Only data
 	MemoryWriter << bDisableTextureStreaming;
-	MemoryWriter << bIsCompiledWithOptimization;
+	MemoryWriter << bIsCompiledWithoutOptimization;
 	MemoryWriter << CustomizableObjectPathMap;
 	MemoryWriter << GroupNodeMap;
 	MemoryWriter << ParticipatingObjects;
@@ -687,7 +687,7 @@ void UCustomizableObjectPrivate::LoadCompiledData(FArchive& MemoryReader, const 
 		// Editor Only data
 		{
 			MemoryReader << bDisableTextureStreaming;
-			MemoryReader << bIsCompiledWithOptimization;
+			MemoryReader << bIsCompiledWithoutOptimization;
 			MemoryReader << CustomizableObjectPathMap;
 			MemoryReader << GroupNodeMap;
 			MemoryReader << ParticipatingObjects;
@@ -2004,41 +2004,9 @@ void UCustomizableObjectBulk::PostLoad()
 {
 	UObject::PostLoad();
 
-	const FString PackageFilename = FPackageName::LongPackageNameToFilename(GetOutermost()->GetName(), TEXT(".uasset"));
-	FString OuterPathName = FPaths::GetPath(PackageFilename);
-
-	for(FString& FilePath : BulkDataFileNames)
-	{
-		FilePath = OuterPathName / FilePath;
-	}
-
-}
-
-
-TArray<TSharedPtr<IAsyncReadFileHandle>> UCustomizableObjectBulk::GetAsyncReadFileHandles() const
-{
-	TArray<TSharedPtr<IAsyncReadFileHandle>> ReadFileHandles;
-	ReadFileHandles.Reserve(BulkDataFileNames.Num());
-
-	for (const FString& FilePath : BulkDataFileNames)
-	{
-		TSharedPtr<IAsyncReadFileHandle> ReadFileHandle = MakeShareable(FPlatformFileManager::Get().GetPlatformFile().OpenAsyncRead(*FilePath));
-		
-		if (!ReadFileHandle)
-		{
-			UE_LOG(LogMutable, Error, TEXT("Failed to create AsyncReadFileHandle. File Path [%s]."), *FilePath);
-			break;
-		}
-
-		ReadFileHandles.Add(ReadFileHandle);
-	}
-
-	if (ReadFileHandles.Num() != BulkDataFileNames.Num())
-	{
-		ReadFileHandles.Empty();
-	}
-
-	return ReadFileHandles;
+	const FString OutermostName = GetOutermost()->GetName();
+	const FString PackageFilename = FPackageName::LongPackageNameToFilename(OutermostName);
+	BulkFilePrefix = PackageFilename;
 }
 
 
@@ -2059,20 +2027,36 @@ void UCustomizableObjectBulk::CookAdditionalFilesOverride(const TCHAR* PackageFi
 	FMutableCachedPlatformData* PlatformData = CustomizableObject->GetPrivate()->CachedPlatformsData.Find(TargetPlatform->PlatformName());
 	check(PlatformData);
 
-	// Data to serialize in separate files
-	uint8* Data = PlatformData->StreamableData.GetData();
+	// Source data pointer
+	const uint8* SourceData = PlatformData->StreamableData.GetData();
 
-	// Path to the asset
-	const FString CookedFilePath = FPaths::GetPath(PackageFilename);
-
-	const uint16 NumBulkDataFiles = BulkDataFilesSize.Num();
-	for(uint16 FileIndex = 0; FileIndex < NumBulkDataFiles; ++FileIndex)
+	const int32 NumBulkDataFiles = BulkDataFiles.Num();
+	for(int32 FileIndex = 0; FileIndex < NumBulkDataFiles; ++FileIndex)
 	{
-		const FString CookedBulkFileName = CookedFilePath / BulkDataFileNames[FileIndex];
+		const FFile& CurrentFile = BulkDataFiles[FileIndex];
 
-		const int64 NumBytes = BulkDataFilesSize[FileIndex];
-		WriteAdditionalFile(*CookedBulkFileName, (void*)Data, NumBytes);
-		Data += NumBytes;
+		int64 FileSize = 0;
+		for ( const FBlock& Block: CurrentFile.Blocks )
+		{
+			FileSize += Block.Size;
+		}
+
+		// Generate the bulk data file in memory
+		TArray64<uint8> FileBulkData;
+		FileBulkData.SetNum( FileSize );
+		uint8* FileData = FileBulkData.GetData();
+
+		for (const FBlock& Block : CurrentFile.Blocks)
+		{
+			FMemory::Memcpy(FileData,SourceData+Block.Offset,Block.Size);
+			FileData += Block.Size;
+		}
+
+		// Path to the asset
+		const FString CookedFilePath = FPaths::GetPath(PackageFilename);
+
+		FString CookedBulkFileName = FString::Printf(TEXT("%s/%s-%08x.mut"), *CookedFilePath, *CustomizableObject->GetName(), CurrentFile.Id);
+		WriteAdditionalFile(*CookedBulkFileName, FileBulkData.GetData(), FileBulkData.Num());
 	}
 }
 
@@ -2082,52 +2066,129 @@ void UCustomizableObjectBulk::PrepareBulkData(UCustomizableObject* InOuter, cons
 	CustomizableObject = InOuter;
 	check(CustomizableObject);
 
-	BulkDataFilesSize.Empty();
-	BulkDataFileNames.Empty();
-	
-	// Split the Streamable data into several separate files and fix up FileIndex and Offset of each StreamableBlock
-	if (TSharedPtr<const mu::Model, ESPMode::ThreadSafe> Model = CustomizableObject->GetPrivate()->GetModel())
+	BulkDataFiles.Empty();
+
+	TSharedPtr<const mu::Model, ESPMode::ThreadSafe> Model = CustomizableObject->GetPrivate()->GetModel();
+	if (!Model)
 	{
-		const uint64 MaxChunkSize = UCustomizableObjectSystem::GetInstance()->GetMaxChunkSizeForPlatform(TargetPlatform);
+		return;
+	}
 
-		const FString BulkFileName = CustomizableObject->GetName() + FString(TEXT("_Bulk"));
+	uint64 TargetBulkDataFileBytes = CustomizableObject->CompileOptions.PackagedDataBytesLimit;
+	const uint64 MaxChunkSize = UCustomizableObjectSystem::GetInstance()->GetMaxChunkSizeForPlatform(TargetPlatform);
+	TargetBulkDataFileBytes = FMath::Min(TargetBulkDataFileBytes, MaxChunkSize);
 
-		uint16 CurrentFileIndex = 0;
-		uint64 CurrentChunkSize = 0;
+	const int32 NumBlocks = Model->GetRomCount();
 
-		const int32 NumStreamingFiles = Model->GetRomCount();
-		for (size_t FileIndex = 0; FileIndex < NumStreamingFiles; ++FileIndex)
+	// TODO:
+	// To avoid influence of the order of the streamed data (their index), classify it recursively based on hash values
+	// until the tree leaves have either a single block, or a sum of blocks below the desired file size.
+	struct FClassifyNode
+	{
+		TArray<FBlock> Blocks;
+
+		//TSharedPtr<FClassifyNode> Child0;
+		//TSharedPtr<FClassifyNode> Child1;
+		//uint32 Depth=0;
+	};
+
+	FClassifyNode RootNode;
+	RootNode.Blocks.Reserve(NumBlocks);
+
+	// Create blocks data, filtering out the ones that are too big and will go on its own file in any case.
+	uint64 SourceOffset = 0;
+	for (int32 BlockIndex = 0; BlockIndex < NumBlocks; ++BlockIndex)
+	{
+		uint32 BlockId = Model->GetRomId(BlockIndex);
+		const FMutableStreamableBlock& StreamableBlock = CustomizableObject->HashToStreamableBlock[BlockId];
+		const uint32 BlockSize = StreamableBlock.Size;
+
+		FBlock CurrentBlock = { BlockId, BlockSize, SourceOffset };
+
+		if (BlockSize > TargetBulkDataFileBytes)
 		{
-			const uint32 ResourceId = Model->GetRomId(FileIndex);
-
-			FMutableStreamableBlock& StreamableBlock = CustomizableObject->HashToStreamableBlock[ResourceId];
-
-			const uint32 BlockSize = StreamableBlock.Size;
-			if(CurrentChunkSize + BlockSize > MaxChunkSize)
-			{
-				BulkDataFileNames.Add(BulkFileName + FString::Printf(TEXT("%d.mut"), CurrentFileIndex));
-
-				if(CurrentChunkSize == 0)
-				{
-					BulkDataFilesSize.Add(BlockSize);
-					StreamableBlock.FileIndex = CurrentFileIndex++;
-					StreamableBlock.Offset = 0;
-					continue;
-				}
-
-				BulkDataFilesSize.Add(CurrentChunkSize);
-			
-				CurrentFileIndex++;
-				CurrentChunkSize = 0;
-			}
-
-			StreamableBlock.FileIndex = CurrentFileIndex;
-			StreamableBlock.Offset = CurrentChunkSize;
-			CurrentChunkSize += BlockSize;			
+			// It will go to its own file
+			BulkDataFiles.Add(FFile{ 0, {CurrentBlock} });
+		}
+		else
+		{
+			// It may merge with other small blocks
+			RootNode.Blocks.Add(CurrentBlock);
 		}
 
-		BulkDataFilesSize.Add(CurrentChunkSize);
-		BulkDataFileNames.Add(BulkFileName + FString::Printf(TEXT("%d.mut"), CurrentFileIndex));
+		SourceOffset += BlockSize;
+	}
+	
+	// Temp: Group by order in the array
+	for (int32 BlockIndex = 0; BlockIndex < RootNode.Blocks.Num(); )
+	{
+		FFile CurrentFile;
+		int32 CurrentFileSize = 0;
+
+		while(BlockIndex < RootNode.Blocks.Num())
+		{
+			FBlock CurrentBlock = RootNode.Blocks[BlockIndex];
+
+			// Next file?
+			if (CurrentFileSize>0 && CurrentFileSize + CurrentBlock.Size > TargetBulkDataFileBytes)
+			{
+				break;
+			}
+
+			// Add the block to the current file
+			CurrentFile.Blocks.Add(CurrentBlock);
+			CurrentFileSize += CurrentBlock.Size;
+
+			// Next block
+			++BlockIndex;			
+		}
+
+		BulkDataFiles.Add(MoveTemp(CurrentFile));
+	}
+
+	// Create the file list
+	for ( int32 FileIndex=0; FileIndex<BulkDataFiles.Num(); ++FileIndex )
+	{
+		// Generate the id for this file
+		FFile& CurrentFile = BulkDataFiles[FileIndex];
+		uint32 FileId = 0;
+		for (int32 FileBlockIndex = 0; FileBlockIndex < CurrentFile.Blocks.Num(); ++FileBlockIndex)
+		{
+			FBlock ThisBlock = CurrentFile.Blocks[FileBlockIndex];
+			FileId = (FileBlockIndex == 0) ? ThisBlock.Id : HashCombine( FileId, ThisBlock.Id);
+		}
+
+		// Ensure the FileId is unique
+		bool bUnique = false;
+		while (!bUnique)
+		{
+			bUnique = true;
+			for (int32 PreviousFileIndex = 0; PreviousFileIndex < FileIndex; ++PreviousFileIndex)
+			{
+				if (BulkDataFiles[PreviousFileIndex].Id == FileId)
+				{
+					bUnique = false;
+					++FileId;
+					break;
+				}
+			}
+		}
+
+		// Set it to the editor-only file descriptor
+		CurrentFile.Id = FileId;
+
+		// Set it to all streamable blocks
+		uint32 OffsetInFile = 0;
+		for (int32 FileBlockIndex = 0; FileBlockIndex < CurrentFile.Blocks.Num(); ++FileBlockIndex)
+		{
+			FBlock ThisBlock = CurrentFile.Blocks[FileBlockIndex];
+
+			FMutableStreamableBlock& StreamableBlock = CustomizableObject->HashToStreamableBlock[ThisBlock.Id];
+			check(StreamableBlock.Size == ThisBlock.Size);
+			StreamableBlock.FileId = FileId;
+			StreamableBlock.Offset = OffsetInFile;
+			OffsetInFile += ThisBlock.Size;
+		}
 	}
 }
 
