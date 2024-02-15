@@ -303,10 +303,10 @@ EAvaBroadcastIssueSeverity FAvaBroadcastOutputChannel::GetMediaOutputIssueSeveri
 	if (InOutputState == EAvaBroadcastOutputState::Live || InOutputState == EAvaBroadcastOutputState::Preparing)
 	{
 		// If the output is broadcasting remote, fetch the status from the playback client (which is proxying that output's status).
-		if (IAvaMediaModule::Get().IsMediaPlaybackClientStarted() && IsMediaOutputRemote(InMediaOutput))
+		if (IAvaMediaModule::Get().IsPlaybackClientStarted() && IsMediaOutputRemote(InMediaOutput))
 		{
 			const FAvaBroadcastMediaOutputInfo& OutputInfo = GetMediaOutputInfo(InMediaOutput);
-			const IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetMediaPlaybackClient();
+			const IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetPlaybackClient();
 			return PlaybackClient.GetMediaOutputIssueSeverity(GetMediaOutputServerName(InMediaOutput), GetChannelName().ToString(), OutputInfo.Guid);
 		}
 
@@ -330,10 +330,10 @@ EAvaBroadcastIssueSeverity FAvaBroadcastOutputChannel::GetMediaOutputIssueSeveri
 
 const TArray<FString>& FAvaBroadcastOutputChannel::GetMediaOutputIssueMessages(const UMediaOutput* InMediaOutput) const
 {
-	if (IAvaMediaModule::Get().IsMediaPlaybackClientStarted() && IsMediaOutputRemote(InMediaOutput))
+	if (IAvaMediaModule::Get().IsPlaybackClientStarted() && IsMediaOutputRemote(InMediaOutput))
 	{
 		const FAvaBroadcastMediaOutputInfo& OutputInfo = GetMediaOutputInfo(InMediaOutput);
-		const IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetMediaPlaybackClient();
+		const IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetPlaybackClient();
 		return PlaybackClient.GetMediaOutputIssueMessages(GetMediaOutputServerName(InMediaOutput), GetChannelName().ToString(), OutputInfo.Guid);
 	}
 	else
@@ -351,7 +351,7 @@ EAvaBroadcastOutputState FAvaBroadcastOutputChannel::GetMediaOutputState(const U
 {
 	if (IsMediaOutputRemote(InMediaOutput))
 	{
-		if (IAvaMediaModule::Get().IsMediaPlaybackClientStarted())
+		if (IAvaMediaModule::Get().IsPlaybackClientStarted())
 		{
 			const FAvaBroadcastMediaOutputInfo& OutputInfo = GetMediaOutputInfo(InMediaOutput);
 			if (!OutputInfo.IsValid())
@@ -361,7 +361,7 @@ EAvaBroadcastOutputState FAvaBroadcastOutputChannel::GetMediaOutputState(const U
 			}
 			
 			// If the output is broadcasting remote, fetch the status from the playback client (which is proxying that output's status).
-			const IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetMediaPlaybackClient();
+			const IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetPlaybackClient();
 			return PlaybackClient.GetMediaOutputState(GetMediaOutputServerName(InMediaOutput),GetChannelName().ToString(), OutputInfo.Guid);
 		}
 		else
@@ -628,13 +628,13 @@ bool FAvaBroadcastOutputChannel::StartChannelBroadcast()
 	bInternalStateBroadcasting = true;
 	
 	IAvaMediaModule& Module = IAvaMediaModule::Get();
-	if (Module.IsMediaPlaybackClientStarted())
+	if (Module.IsPlaybackClientStarted())
 	{
 		const TArray<UMediaOutput*> RemoteMediaOutputs = GetRemoteMediaOutputs();
 		if (!RemoteMediaOutputs.IsEmpty())
 		{
 			const FString ProfileName = GetProfileName().ToString();
-			Module.GetMediaPlaybackClient().RequestBroadcast(ProfileName, GetChannelName(), RemoteMediaOutputs, EAvaBroadcastAction::Start);
+			Module.GetPlaybackClient().RequestBroadcast(ProfileName, GetChannelName(), RemoteMediaOutputs, EAvaBroadcastAction::Start);
 		}
 	}
 
@@ -721,13 +721,13 @@ void FAvaBroadcastOutputChannel::StopChannelBroadcast()
 	StopPlaceholderTick();
 	
 	IAvaMediaModule& Module = IAvaMediaModule::Get();
-	if (Module.IsMediaPlaybackClientStarted())
+	if (Module.IsPlaybackClientStarted())
 	{
 		const TArray<UMediaOutput*> RemoteMediaOutputs = GetRemoteMediaOutputs();
 		if (!RemoteMediaOutputs.IsEmpty())
 		{
 			const FString ProfileName = GetProfileName().ToString();
-			Module.GetMediaPlaybackClient().RequestBroadcast(ProfileName, GetChannelName(), RemoteMediaOutputs, EAvaBroadcastAction::Stop);
+			Module.GetPlaybackClient().RequestBroadcast(ProfileName, GetChannelName(), RemoteMediaOutputs, EAvaBroadcastAction::Stop);
 		}
 	}
 
@@ -842,10 +842,10 @@ void FAvaBroadcastOutputChannel::OnMediaOutputModified(UMediaOutput* InMediaOutp
 	}
 	
 	IAvaMediaModule& AvaMediaModule = IAvaMediaModule::Get();
-	if (IsMediaOutputRemote(InMediaOutput) && AvaMediaModule.IsMediaPlaybackClientStarted())
+	if (IsMediaOutputRemote(InMediaOutput) && AvaMediaModule.IsPlaybackClientStarted())
 	{
 		const FString ProfileName = GetProfileName().ToString();
-		IAvaPlaybackClient& PlaybackClient = AvaMediaModule.GetMediaPlaybackClient();
+		IAvaPlaybackClient& PlaybackClient = AvaMediaModule.GetPlaybackClient();
 		PlaybackClient.RequestBroadcast(ProfileName, GetChannelName(), GetRemoteMediaOutputs(), EAvaBroadcastAction::UpdateConfig);
 	}
 	else
@@ -993,9 +993,9 @@ bool FAvaBroadcastOutputChannel::IsMediaOutputRemote(const UMediaOutput* InMedia
 	// if the playback client is started, we can try the legacy method
 	// of checking the remote device providers. This is much less reliable.
 	IAvaMediaModule& AvaMediaModule = IAvaMediaModule::Get();
-	if (AvaMediaModule.IsMediaPlaybackClientStarted())
+	if (AvaMediaModule.IsPlaybackClientStarted())
 	{
-		return AvaMediaModule.GetMediaPlaybackClient().IsMediaOutputRemoteFallback(InMediaOutput);
+		return AvaMediaModule.GetPlaybackClient().IsMediaOutputRemoteFallback(InMediaOutput);
 	}
 
 	return false;

@@ -11,7 +11,7 @@
  * the playback manager's commands.
  */
 UCLASS()
-class AVALANCHEMEDIA_API UAvaPlaybackTransition : public UObject, public IAvaPlayableVisibilityConstraint
+class UAvaPlaybackTransition : public UObject, public IAvaPlayableVisibilityConstraint
 {
 	GENERATED_BODY()
 	

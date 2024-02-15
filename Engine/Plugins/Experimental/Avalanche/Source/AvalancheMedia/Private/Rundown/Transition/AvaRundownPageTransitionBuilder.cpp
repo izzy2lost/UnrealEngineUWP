@@ -3,6 +3,7 @@
 #include "AvaRundownPageTransitionBuilder.h"
 
 #include "Rundown/AvaRundown.h"
+#include "Rundown/AvaRundownPagePlayer.h"
 #include "Rundown/Transition/AvaRundownPageTransition.h"
 
 FAvaRundownPageTransitionBuilder::~FAvaRundownPageTransitionBuilder()

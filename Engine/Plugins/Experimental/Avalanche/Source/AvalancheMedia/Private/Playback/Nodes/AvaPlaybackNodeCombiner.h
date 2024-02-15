@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "AvaPlaybackNode.h"
+#include "Playback/Nodes/AvaPlaybackNode.h"
 #include "AvaPlaybackNodeCombiner.generated.h"
 
 class FText;
@@ -13,7 +13,7 @@ class FName;
 #endif
 
 UCLASS()
-class AVALANCHEMEDIA_API UAvaPlaybackNodeCombiner : public UAvaPlaybackNode
+class UAvaPlaybackNodeCombiner : public UAvaPlaybackNode
 {
 	GENERATED_BODY()
 	

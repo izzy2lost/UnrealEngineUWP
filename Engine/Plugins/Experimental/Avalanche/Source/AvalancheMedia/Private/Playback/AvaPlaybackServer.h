@@ -4,6 +4,7 @@
 
 #include "Broadcast/IAvaBroadcastSettings.h"
 #include "Framework/AvaInstanceSettings.h"
+#include "Playback/IAvaPlaybackServer.h"
 #include "IMessageContext.h"
 #include "MessageEndpoint.h"
 #include "Playback/AvaPlaybackManager.h"
@@ -30,81 +31,60 @@ DECLARE_LOG_CATEGORY_EXTERN(LogAvaPlaybackServer, Log, All);
  * So, it will emulate a client-side playable with a local transient playback graph with one player node.
  * The use case of running a more complex playback graph asset on the server side has not occured yet.
  */
-class AVALANCHEMEDIA_API FAvaPlaybackServer : public TSharedFromThis<FAvaPlaybackServer>
+class FAvaPlaybackServer : public TSharedFromThis<FAvaPlaybackServer>, public IAvaPlaybackServer
 {
 public:
 	FAvaPlaybackServer();
-	virtual ~FAvaPlaybackServer();
+	virtual ~FAvaPlaybackServer() override;
 
 	void Init(const FString& InAssignedServerName);
-
-	struct FPlaybackInstanceReference
-	{
-		FGuid Id;
-		FSoftObjectPath Path;
-	};
 	
-	TArray<FPlaybackInstanceReference> StopPlaybacks(const FString& InChannelName = FString(), const FSoftObjectPath& InAssetPath = FSoftObjectPath(), bool bInUnload = true);
-	TArray<FPlaybackInstanceReference> StartPlaybacks();
-
 	/**
 	 * Returns a list of channel names from all the playing playback instances.
 	 * Optionally filter for a given asset.
 	 */
 	TArray<FString> GetAllChannelsFromPlayingPlaybacks(const FSoftObjectPath& InAssetPath = FSoftObjectPath()) const;
 	
-	void StartBroadcast();
-	void StopBroadcast();
-
 	/**
 	 *	Indicate the manager is in a shutdown sequence and will force game instances to destroy worlds right away.
 	*/
 	void StartShuttingDown();
-
-	/** Returns the server's name. */
-	const FString& GetName() const { return ServerName;}
-
-	bool HasUserData(const FString& InKey) const { return UserDataEntries.Contains(InKey);}
 	
-	const FString& GetUserData(const FString& InKey) const;
-
-	/** Add user data to this server. This is replicated and accessible to the client. */
-	void SetUserData(const FString& InKey, const FString& InData);
-
-	/** Remove the server's user data entry from the given key. */
-	void RemoveUserData(const FString& InKey);
-
-	/** Returns the list of connected clients. */
-	TArray<FString> GetClientNames() const;
-
-	/** Returns the client address. */
-	FMessageAddress GetClientAddress(const FString& InClientName) const;
-
-	/** Returns true if the corresponding client user data for the given client name is found. */
-	bool HasClientUserData(const FString& InClientName, const FString& InKey) const;
-
-	/**
-	 * Returns the corresponding client user data for the given client name and key.
-	 * Returns empty string if not found.
-	 */
-	const FString& GetClientUserData(const FString& InClientName, const FString& InKey) const;
-
-	/**
-	 * Access broadcast settings replicated from connected client.
-	 * Will return nullptr if no clients are connected.
-	 */
-	const IAvaBroadcastSettings* GetBroadcastSettings() const;
-
-	/**
-	 * Access Motion Design Instance settings replicated from connected client(s).
-	 * Will return nullptr if no clients are connected.
-	 */
-	const FAvaInstanceSettings* GetAvaInstanceSettings() const;
+	//~ Begin IAvaPlaybackServer Interface
 	
-	/** Access the server's playback manager. */
-	const FAvaPlaybackManager& GetPlaybackManager() const { check(Manager); return *Manager; }
-	FAvaPlaybackManager& GetPlaybackManager() { check(Manager); return *Manager; }
+	virtual TArray<FPlaybackInstanceReference> StopPlaybacks(const FString& InChannelName = FString(), const FSoftObjectPath& InAssetPath = FSoftObjectPath(), bool bInUnload = true) override;
+	virtual TArray<FPlaybackInstanceReference> StartPlaybacks() override;
+	
+	virtual void StartBroadcast() override;
+	virtual void StopBroadcast() override;
+	
+	virtual const FString& GetName() const override { return ServerName;}
 
+	virtual bool HasUserData(const FString& InKey) const override { return UserDataEntries.Contains(InKey);}
+	
+	virtual const FString& GetUserData(const FString& InKey) const override;
+
+	virtual void SetUserData(const FString& InKey, const FString& InData) override;
+
+	virtual void RemoveUserData(const FString& InKey) override;
+
+	virtual TArray<FString> GetClientNames() const override;
+
+	virtual FMessageAddress GetClientAddress(const FString& InClientName) const override;
+
+	virtual bool HasClientUserData(const FString& InClientName, const FString& InKey) const override;
+
+	virtual const FString& GetClientUserData(const FString& InClientName, const FString& InKey) const override;
+
+	virtual const IAvaBroadcastSettings* GetBroadcastSettings() const override;
+
+	virtual const FAvaInstanceSettings* GetAvaInstanceSettings() const override;
+	
+	virtual const FAvaPlaybackManager& GetPlaybackManager() const override { check(Manager); return *Manager; }
+	virtual FAvaPlaybackManager& GetPlaybackManager() override { check(Manager); return *Manager; }
+
+	//~ End IAvaPlaybackServer Interface
+	
 	TSharedPtr<FAvaPlaybackInstance> FindActivePlaybackInstance(const FGuid& InInstanceId) const
 	{
 		const TSharedPtr<FAvaPlaybackInstance>* FoundInstance = ActivePlaybackInstances.Find(InInstanceId);

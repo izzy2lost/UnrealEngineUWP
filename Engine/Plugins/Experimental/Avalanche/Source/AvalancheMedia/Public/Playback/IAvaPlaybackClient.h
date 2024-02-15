@@ -2,10 +2,13 @@
 
 #pragma once
 
+#include "AvaMediaDefines.h"
+#include "AvaPlaybackDefines.h"
+#include "Broadcast/AvaBroadcastDefines.h"
 #include "IMessageContext.h"
-#include "Playback/AvaPlaybackMessages.h"
 
 class UMediaOutput;
+struct FAvaPlayableRemoteControlValues;
 struct FAvaPlaybackAnimPlaySettings;
 
 class AVALANCHEMEDIA_API IAvaPlaybackClient

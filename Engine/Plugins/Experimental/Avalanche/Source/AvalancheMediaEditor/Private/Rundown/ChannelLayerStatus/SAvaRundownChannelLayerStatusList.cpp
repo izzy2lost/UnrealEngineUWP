@@ -5,6 +5,7 @@
 #include "Misc/CoreDelegates.h"
 #include "Rundown/AvaRundownDefines.h"
 #include "Rundown/AvaRundownEditor.h"
+#include "Rundown/AvaRundownPagePlayer.h"
 #include "Widgets/Colors/SColorBlock.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SGridPanel.h"

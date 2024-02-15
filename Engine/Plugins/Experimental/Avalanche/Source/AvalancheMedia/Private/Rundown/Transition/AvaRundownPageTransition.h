@@ -22,7 +22,7 @@ enum class EAvaPlayableTransitionEntryRole : uint8;
  * the playback graphs.
  */
 UCLASS()
-class AVALANCHEMEDIA_API UAvaRundownPageTransition : public UAvaPlaybackTransition
+class UAvaRundownPageTransition : public UAvaPlaybackTransition
 {
 	GENERATED_BODY()
 	

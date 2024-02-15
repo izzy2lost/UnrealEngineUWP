@@ -3,6 +3,7 @@
 #pragma once
 
 #include "AvaMediaDefines.h"
+#include "Broadcast/AvaBroadcastDefines.h"
 #include "Broadcast/Channel/AvaBroadcastMediaOutputInfo.h"
 #include "Framework/AvaInstanceSettings.h"
 #include "PixelFormat.h"
@@ -12,7 +13,7 @@
 #include "AvaPlaybackMessages.generated.h"
 
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvaPlaybackClientMessageBase
+struct FAvaPlaybackClientMessageBase
 {
 	GENERATED_BODY()
 
@@ -29,7 +30,7 @@ struct AVALANCHEMEDIA_API FAvaPlaybackClientMessageBase
  * The Server name is a unique key to identify a server, while the host name is not.
  */
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvaPlaybackServerMessageBase
+struct FAvaPlaybackServerMessageBase
 {
 	GENERATED_BODY()
 
@@ -41,7 +42,7 @@ struct AVALANCHEMEDIA_API FAvaPlaybackServerMessageBase
  * Request published by client to discover servers.
  */
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvaPlaybackPing : public FAvaPlaybackClientMessageBase
+struct FAvaPlaybackPing : public FAvaPlaybackClientMessageBase
 {
 	GENERATED_BODY()
 
@@ -58,7 +59,7 @@ struct AVALANCHEMEDIA_API FAvaPlaybackPing : public FAvaPlaybackClientMessageBas
  *	Response sent by server to client to be discovered.
  */
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvaPlaybackPong : public FAvaPlaybackServerMessageBase
+struct FAvaPlaybackPong : public FAvaPlaybackServerMessageBase
 {
 	GENERATED_BODY()
 
@@ -83,7 +84,7 @@ struct AVALANCHEMEDIA_API FAvaPlaybackPong : public FAvaPlaybackServerMessageBas
  *	Replicate server's log messages.
  */
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvaPlaybackLog : public FAvaPlaybackServerMessageBase
+struct FAvaPlaybackLog : public FAvaPlaybackServerMessageBase
 {
 	GENERATED_BODY()
 
@@ -104,7 +105,7 @@ struct AVALANCHEMEDIA_API FAvaPlaybackLog : public FAvaPlaybackServerMessageBase
  * Request sent by client to replicate it's information on the destination server.
  */
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvaPlaybackUpdateClientInfo : public FAvaPlaybackClientMessageBase
+struct FAvaPlaybackUpdateClientInfo : public FAvaPlaybackClientMessageBase
 {
 	GENERATED_BODY()
 
@@ -122,7 +123,7 @@ struct AVALANCHEMEDIA_API FAvaPlaybackUpdateClientInfo : public FAvaPlaybackClie
  * Request sent by client to replicate it's user data on the destination server.
  */
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvaPlaybackUpdateClientUserData : public FAvaPlaybackClientMessageBase
+struct FAvaPlaybackUpdateClientUserData : public FAvaPlaybackClientMessageBase
 {
 	GENERATED_BODY()
 
@@ -134,7 +135,7 @@ struct AVALANCHEMEDIA_API FAvaPlaybackUpdateClientUserData : public FAvaPlayback
  * Request sent by server to replicate it's user data to the client.
  */
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvaPlaybackUpdateServerUserData : public FAvaPlaybackServerMessageBase
+struct FAvaPlaybackUpdateServerUserData : public FAvaPlaybackServerMessageBase
 {
 	GENERATED_BODY()
 
@@ -143,7 +144,7 @@ struct AVALANCHEMEDIA_API FAvaPlaybackUpdateServerUserData : public FAvaPlayback
 };
 
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvaPlaybackStatCommand : public FAvaPlaybackClientMessageBase
+struct FAvaPlaybackStatCommand : public FAvaPlaybackClientMessageBase
 {
 	GENERATED_BODY()
 
@@ -170,7 +171,7 @@ struct AVALANCHEMEDIA_API FAvaPlaybackStatCommand : public FAvaPlaybackClientMes
  * Server's response when a stat command is received.
  */
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvaPlaybackStatStatus : public FAvaPlaybackServerMessageBase
+struct FAvaPlaybackStatStatus : public FAvaPlaybackServerMessageBase
 {
 	GENERATED_BODY()
 
@@ -197,7 +198,7 @@ struct AVALANCHEMEDIA_API FAvaPlaybackStatStatus : public FAvaPlaybackServerMess
  * installed on the server.
  */
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvaPlaybackDeviceProviderDataRequest : public FAvaPlaybackClientMessageBase
+struct FAvaPlaybackDeviceProviderDataRequest : public FAvaPlaybackClientMessageBase
 {
 	GENERATED_BODY()
 };
@@ -206,7 +207,7 @@ struct AVALANCHEMEDIA_API FAvaPlaybackDeviceProviderDataRequest : public FAvaPla
  *	Request for the client to replicate it's Motion Design instance settings to the server.
  **/
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvaPlaybackInstanceSettingsUpdate : public FAvaPlaybackClientMessageBase
+struct FAvaPlaybackInstanceSettingsUpdate : public FAvaPlaybackClientMessageBase
 {
 	GENERATED_BODY()
 
@@ -227,7 +228,7 @@ enum class EAvaPlaybackPackageEvent
  *	Message sent by the client to inform servers that a local package has been modified by an event.
  **/
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvaPlaybackPackageEvent : public FAvaPlaybackClientMessageBase
+struct FAvaPlaybackPackageEvent : public FAvaPlaybackClientMessageBase
 {
 	GENERATED_BODY()
 
@@ -243,7 +244,7 @@ struct AVALANCHEMEDIA_API FAvaPlaybackPackageEvent : public FAvaPlaybackClientMe
  * Note: since this is an asset on disk, there is no channel name.
  */
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvaPlaybackAssetStatusRequest : public FAvaPlaybackClientMessageBase
+struct FAvaPlaybackAssetStatusRequest : public FAvaPlaybackClientMessageBase
 {
 	GENERATED_BODY()
 	
@@ -260,7 +261,7 @@ struct AVALANCHEMEDIA_API FAvaPlaybackAssetStatusRequest : public FAvaPlaybackCl
 
 /** Response from the server to a playback asset status request. */
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvaPlaybackAssetStatus : public FAvaPlaybackServerMessageBase
+struct FAvaPlaybackAssetStatus : public FAvaPlaybackServerMessageBase
 {
 	GENERATED_BODY()
 	
@@ -271,32 +272,11 @@ struct AVALANCHEMEDIA_API FAvaPlaybackAssetStatus : public FAvaPlaybackServerMes
 	EAvaPlaybackAssetStatus Status = EAvaPlaybackAssetStatus::Unknown;
 };
 
-UENUM()
-enum class EAvaPlaybackAction
-{
-	/** No op */
-	None,
-	/** Load the given asset. Used for pre-loading assets. */
-	Load,
-	/** Start (i.e. start ticking world and rendering) the given asset, loading it if not pre-loaded. */
-	Start,
-	/** Stop ticking and rendering the world. */
-	Stop,
-	/** Unload the given asset, i.e. destroy the world, etc. */
-	Unload,
-	/** Request the status of the asset. No action is actually performed on the asset. */
-	Status,
-	/** Request to set the user data of the playback instance.*/
-	SetUserData,
-	/** Request the user data of the playback instance. No action is actually performed on the asset. */
-	GetUserData,
-};
-
 /**
  * Playback command for a given asset.
  */
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvaPlaybackCommand
+struct FAvaPlaybackCommand
 {
 	GENERATED_BODY()
 
@@ -325,7 +305,7 @@ struct AVALANCHEMEDIA_API FAvaPlaybackCommand
  * Request by a client to execute a batch playback of commands on the connected servers.
  */
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvaPlaybackRequest : public FAvaPlaybackClientMessageBase
+struct FAvaPlaybackRequest : public FAvaPlaybackClientMessageBase
 {
 	GENERATED_BODY()
 	
@@ -335,7 +315,7 @@ struct AVALANCHEMEDIA_API FAvaPlaybackRequest : public FAvaPlaybackClientMessage
 
 /** Response from the server to a playback request. */
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvaPlaybackStatus : public FAvaPlaybackServerMessageBase
+struct FAvaPlaybackStatus : public FAvaPlaybackServerMessageBase
 {
 	GENERATED_BODY()
 
@@ -364,7 +344,7 @@ struct AVALANCHEMEDIA_API FAvaPlaybackStatus : public FAvaPlaybackServerMessageB
  * Used to reduce message overhead.
  */
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvaPlaybackStatuses : public FAvaPlaybackServerMessageBase
+struct FAvaPlaybackStatuses : public FAvaPlaybackServerMessageBase
 {
 	GENERATED_BODY()
 	
@@ -423,7 +403,7 @@ struct FAvaPlaybackAnimPlaybackRequest : public FAvaPlaybackClientMessageBase
 
 /** Server replication of playback sequence events. */
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvaPlaybackSequenceEvent : public FAvaPlaybackServerMessageBase
+struct FAvaPlaybackSequenceEvent : public FAvaPlaybackServerMessageBase
 {
 	GENERATED_BODY()
 
@@ -535,16 +515,6 @@ struct FAvaPlaybackTransitionEvent : public FAvaPlaybackServerMessageBase
 	void SetEventFlags(EAvaPlayableTransitionEventFlags InFlags) { EventFlags = static_cast<uint8>(InFlags);}
 };
 
-UENUM()
-enum class EAvaBroadcastAction
-{
-	None,
-	Start,
-	Stop,
-	UpdateConfig,
-	DeleteChannel
-};
-
 class UMediaOutput;
 
 /**
@@ -573,7 +543,7 @@ struct FAvaBroadcastOutputData
 
 /** Request by a client to execute an action on broadcast channel(s). */
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvaBroadcastRequest : public FAvaPlaybackClientMessageBase
+struct FAvaBroadcastRequest : public FAvaPlaybackClientMessageBase
 {
 	GENERATED_BODY()
 	
@@ -595,7 +565,7 @@ struct AVALANCHEMEDIA_API FAvaBroadcastRequest : public FAvaPlaybackClientMessag
 
 /** Request by a client to update a broadcast channel's settings. */
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvaBroadcastChannelSettingsUpdate : public FAvaPlaybackClientMessageBase
+struct FAvaBroadcastChannelSettingsUpdate : public FAvaPlaybackClientMessageBase
 {
 	GENERATED_BODY()
 	
@@ -620,7 +590,7 @@ struct AVALANCHEMEDIA_API FAvaBroadcastChannelSettingsUpdate : public FAvaPlayba
  * status of the server upon connection.
  */
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvaBroadcastStatusRequest : public FAvaPlaybackClientMessageBase
+struct FAvaBroadcastStatusRequest : public FAvaPlaybackClientMessageBase
 {
 	GENERATED_BODY()
 
@@ -629,7 +599,7 @@ struct AVALANCHEMEDIA_API FAvaBroadcastStatusRequest : public FAvaPlaybackClient
 };
 
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvaBroadcastSettings
+struct FAvaBroadcastSettings
 {
 	GENERATED_BODY()
 
@@ -661,7 +631,7 @@ struct AVALANCHEMEDIA_API FAvaBroadcastSettings
  *	Request for the client to replicate it's broadcast settings to the server.
  **/
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvaBroadcastSettingsUpdate : public FAvaPlaybackClientMessageBase
+struct FAvaBroadcastSettingsUpdate : public FAvaPlaybackClientMessageBase
 {
 	GENERATED_BODY()
 
@@ -673,7 +643,7 @@ struct AVALANCHEMEDIA_API FAvaBroadcastSettingsUpdate : public FAvaPlaybackClien
  * Encapsulate the complete status of a media output.
  */
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvaBroadcastOutputStatus
+struct FAvaBroadcastOutputStatus
 {
 	GENERATED_BODY()
 
@@ -691,7 +661,7 @@ struct AVALANCHEMEDIA_API FAvaBroadcastOutputStatus
  * Server's response when channel's broadcast status changes
  */
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvaBroadcastStatus : public FAvaPlaybackServerMessageBase
+struct FAvaBroadcastStatus : public FAvaPlaybackServerMessageBase
 {
 	GENERATED_BODY()
 	

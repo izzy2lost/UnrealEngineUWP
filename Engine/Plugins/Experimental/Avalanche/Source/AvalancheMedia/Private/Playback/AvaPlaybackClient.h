@@ -13,7 +13,7 @@ class FAvaMediaModule;
 struct FAvaBroadcastOutputChannel;
 
 // Listens to command to play and broadcast
-class AVALANCHEMEDIA_API FAvaPlaybackClient : public IAvaPlaybackClient
+class FAvaPlaybackClient : public IAvaPlaybackClient
 {
 public:
 	FAvaPlaybackClient(FAvaMediaModule* InParentModule);

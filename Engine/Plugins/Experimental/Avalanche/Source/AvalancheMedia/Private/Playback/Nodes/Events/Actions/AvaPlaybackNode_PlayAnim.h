@@ -16,7 +16,7 @@ struct FAvaPlaybackEventParameters;
 struct FSoftObjectPath;
 
 UCLASS()
-class AVALANCHEMEDIA_API UAvaPlaybackNode_PlayAnim : public UAvaPlaybackNodeAction
+class UAvaPlaybackNode_PlayAnim : public UAvaPlaybackNodeAction
 {
 	GENERATED_BODY()
 

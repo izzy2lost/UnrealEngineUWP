@@ -4,7 +4,7 @@
 #include "IAvaMediaModule.h"
 #include "IStormSyncTransportClientModule.h"
 #include "ModularFeature/AvaMediaSyncProviderFeatureTypes.h"
-#include "Playback/AvaPlaybackServer.h"
+#include "Playback/IAvaPlaybackServer.h"
 #include "Playback/IAvaPlaybackClient.h"
 #include "StormSyncAvaBridgeCommon.h"
 #include "StormSyncAvaBridgeLog.h"
@@ -218,7 +218,7 @@ bool FStormSyncAvaSyncProvider::GetAddressFromUserData(const FString& InRemoteNa
 
 bool FStormSyncAvaSyncProvider::GetAddressFromServerUserData(const FString& InServerName, const FString& InUserDataKey, FMessageAddress& OutAddress, FText* OutErrorMessage)
 {
-	if (!IAvaMediaModule::Get().IsMediaPlaybackClientStarted())
+	if (!IAvaMediaModule::Get().IsPlaybackClientStarted())
 	{
 		if (OutErrorMessage)
 		{
@@ -227,7 +227,7 @@ bool FStormSyncAvaSyncProvider::GetAddressFromServerUserData(const FString& InSe
 		return false;
 	}
 
-	const IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetMediaPlaybackClient();
+	const IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetPlaybackClient();
 	const FString AddressId = PlaybackClient.GetServerUserData(InServerName, InUserDataKey);
 	if (AddressId.IsEmpty())
 	{
@@ -247,7 +247,7 @@ bool FStormSyncAvaSyncProvider::GetAddressFromServerUserData(const FString& InSe
 
 bool FStormSyncAvaSyncProvider::GetAddressFromClientUserData(const FString& InClientName, const FString& InUserDataKey, FMessageAddress& OutAddress, FText* OutErrorMessage)
 {
-	if (!IAvaMediaModule::Get().IsMediaPlaybackServerStarted())
+	if (!IAvaMediaModule::Get().IsPlaybackServerStarted())
 	{
 		if (OutErrorMessage)
 		{
@@ -256,8 +256,9 @@ bool FStormSyncAvaSyncProvider::GetAddressFromClientUserData(const FString& InCl
 		return false;
 	}
 
-	const TSharedPtr<FAvaPlaybackServer> PlaybackServer = IAvaMediaModule::Get().GetMediaPlaybackServer();
-	if (!PlaybackServer.IsValid())
+	const IAvaPlaybackServer* PlaybackServer = IAvaMediaModule::Get().GetPlaybackServer();
+	
+	if (!PlaybackServer)
 	{
 		if (OutErrorMessage)
 		{
@@ -285,12 +286,12 @@ bool FStormSyncAvaSyncProvider::GetAddressFromClientUserData(const FString& InCl
 
 bool FStormSyncAvaSyncProvider::IsPlaybackServer()
 {
-	return IAvaMediaModule::Get().IsMediaPlaybackServerStarted();
+	return IAvaMediaModule::Get().IsPlaybackServerStarted();
 }
 
 bool FStormSyncAvaSyncProvider::IsPlaybackClient()
 {
-	return IAvaMediaModule::Get().IsMediaPlaybackClientStarted();
+	return IAvaMediaModule::Get().IsPlaybackClientStarted();
 }
 
 TSharedPtr<FAvaMediaSyncCompareResponse> FStormSyncAvaSyncProvider::CreateErrorResponse(const FText& InText)

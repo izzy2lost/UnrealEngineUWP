@@ -2,16 +2,16 @@
 
 #pragma once
 
-#include "AvaPlaybackNodePlayer.h"
-#include "UObject/SoftObjectPtr.h"
+#include "Playback/Nodes/AvaPlaybackNodePlayer.h"
 #include "UObject/NoExportTypes.h"
+#include "UObject/SoftObjectPtr.h"
 #include "AvaPlaybackNodeLevelPlayer.generated.h"
 
 class UWorld;
 struct FAvaSoftAssetPtr;
 
-UCLASS()
-class AVALANCHEMEDIA_API UAvaPlaybackNodeLevelPlayer : public UAvaPlaybackNodePlayer
+UCLASS(MinimalAPI)
+class UAvaPlaybackNodeLevelPlayer : public UAvaPlaybackNodePlayer
 {
 	GENERATED_BODY()
 

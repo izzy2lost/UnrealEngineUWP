@@ -3,8 +3,8 @@
 #pragma once
 
 #include "AvaMediaDefines.h"
+#include "AvaRundownDefines.h"
 #include "AvaRundownPage.h"
-#include "AvaRundownPagePlayer.h"
 #include "UObject/Object.h"
 #include "AvaRundown.generated.h"
 
@@ -14,6 +14,7 @@ class FAvaPlaybackManager;
 class FAvaRundownPageTransitionBuilder;
 class FAvaRundownPlaybackClientWatcher;
 class UAvaPlaybackGraph;
+class UAvaRundownPagePlayer;
 class UAvaRundownPageTransition;
 class UTextureRenderTarget2D;
 
@@ -685,23 +686,9 @@ public:
 
 	const TArray<TObjectPtr<UAvaRundownPagePlayer>>& GetPagePlayers() const { return PagePlayers; }
 	
-	UAvaRundownPagePlayer* FindPlayerForProgramPage(int32 InPageId) const
-	{
-		const TObjectPtr<UAvaRundownPagePlayer>* FoundPlayer = PagePlayers.FindByPredicate([InPageId](const UAvaRundownPagePlayer* InPagePlayer)
-		{
-			return InPagePlayer->PageId == InPageId && !InPagePlayer->bIsPreview;
-		});
-		return FoundPlayer ? *FoundPlayer : nullptr;
-	}
+	UAvaRundownPagePlayer* FindPlayerForProgramPage(int32 InPageId) const;
 
-	UAvaRundownPagePlayer* FindPlayerForPreviewPage(int32 InPageId, const FName& InPreviewChannelFName) const
-	{
-		const TObjectPtr<UAvaRundownPagePlayer>* FoundPlayer = PagePlayers.FindByPredicate([InPageId, InPreviewChannelFName](const UAvaRundownPagePlayer* InPagePlayer)
-		{
-			return InPagePlayer->PageId == InPageId && InPagePlayer->bIsPreview && InPagePlayer->ChannelFName == InPreviewChannelFName;
-		});
-		return FoundPlayer ? *FoundPlayer : nullptr;
-	}
+	UAvaRundownPagePlayer* FindPlayerForPreviewPage(int32 InPageId, const FName& InPreviewChannelFName) const;
 	
 	UAvaRundownPagePlayer* FindPlayerForPage(int32 InPageId, bool bInIsPreview, const FName& InPreviewChannelName) const
 	{

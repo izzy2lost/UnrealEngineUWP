@@ -196,11 +196,11 @@ FSlateIcon FAvaMediaEditorModule::GetToolbarBroadcastButtonIcon() const
 {
 	const IAvaMediaModule& MediaModule = IAvaMediaModule::Get();
 
-	if (MediaModule.IsMediaPlaybackClientStarted())
+	if (MediaModule.IsPlaybackClientStarted())
 	{
 		return FSlateIcon(FAvaMediaEditorStyle::Get().GetStyleSetName(), "AvaMediaEditor.BroadcastClient", "AvaMediaEditor.BroadcastClient.Small");
 	}
-	else if (MediaModule.IsMediaPlaybackServerStarted())
+	else if (MediaModule.IsPlaybackServerStarted())
 	{
 		return FSlateIcon(FAvaMediaEditorStyle::Get().GetStyleSetName(), "AvaMediaEditor.BroadcastServer", "AvaMediaEditor.BroadcastServer.Small");
 	}

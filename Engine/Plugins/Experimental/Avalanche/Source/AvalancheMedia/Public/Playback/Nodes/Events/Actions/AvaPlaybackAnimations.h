@@ -4,19 +4,9 @@
 
 #include "AvaSequenceShared.h"
 #include "Containers/Set.h"
+#include "Playback/AvaPlaybackDefines.h"
 #include "UObject/NameTypes.h"
 #include "AvaPlaybackAnimations.generated.h"
-
-UENUM()
-enum class EAvaPlaybackAnimAction
-{
-	None,
-	Play,
-	Continue,
-	Stop,
-	PreviewFrame,
-	CameraCut
-};
 
 USTRUCT()
 struct FAvaPlaybackAnimPlaySettings

@@ -13,7 +13,7 @@ class UAvaRundown;
  */
 UCLASS(BlueprintType, Blueprintable, ClassGroup = "Motion Design Rundown", 
 	meta = (DisplayName = "Motion Design Rundown Component", BlueprintSpawnableComponent))
-class AVALANCHEMEDIA_API UAvaRundownComponent : public UActorComponent
+class UAvaRundownComponent : public UActorComponent
 {
 	GENERATED_BODY()
 

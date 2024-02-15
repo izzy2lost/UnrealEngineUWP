@@ -22,6 +22,7 @@
 #include "Rundown/AvaRundownEditorUtils.h"
 #include "Rundown/AvaRundownMacroCollection.h"
 #include "Rundown/AvaRundownManagedInstanceCache.h"
+#include "Rundown/AvaRundownPagePlayer.h"
 #include "Rundown/AvaRundownPlaybackUtils.h"
 #include "Rundown/Factories/Filters/AvaRundownFactoriesUtils.h"
 #include "Rundown/Filters/AvaRundownPageTextFilter.h"

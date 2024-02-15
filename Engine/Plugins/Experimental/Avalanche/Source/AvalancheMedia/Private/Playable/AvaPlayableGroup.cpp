@@ -361,6 +361,31 @@ bool UAvaPlayableGroup::UpdateCameraSetup()
 	return false;
 }
 
+bool UAvaPlayableGroup::IsWorldPlaying() const
+{
+	return GameInstance ? GameInstance->IsWorldPlaying() : false;
+}
+
+bool UAvaPlayableGroup::IsRenderTargetReady() const
+{
+	return GameInstance ? GameInstance->IsRenderTargetReady() : false;
+}
+
+UTextureRenderTarget2D* UAvaPlayableGroup::GetRenderTarget() const
+{
+	return GameInstance ? GameInstance->GetRenderTarget() : RenderTarget.Get();
+}
+
+UGameInstance* UAvaPlayableGroup::GetGameInstance() const
+{
+	return GameInstance;
+}
+	
+UWorld* UAvaPlayableGroup::GetPlayWorld() const
+{
+	return GameInstance ? GameInstance->GetPlayWorld() : nullptr;
+}
+
 bool UAvaPlayableGroup::ConditionalRequestUnloadWorld(bool bForceImmediate)
 {
 	if (!GameInstance)

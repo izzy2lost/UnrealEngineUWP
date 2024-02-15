@@ -9,6 +9,7 @@
 #include "Engine/Level.h"
 #include "Engine/LevelStreamingDynamic.h"
 #include "Engine/LocalPlayer.h"
+#include "Framework/AvaGameInstance.h"
 #include "Framework/AvaInstanceSettings.h"
 #include "Framework/AvaSoftAssetPtr.h"
 #include "IAvaMediaModule.h"
