@@ -13,9 +13,8 @@ class FOnlineIdentityGooglePlay :
 	public IOnlineIdentity
 {
 private:
-	FString PlayerAlias;
-	FString AuthCode;
-	FUniqueNetIdGooglePlayPtr UniqueNetId;
+	TSharedPtr<class FUserOnlineAccountGooglePlay> LocalPlayerAccount;
+
 	class FOnlineSubsystemGooglePlay* MainSubsystem;
 
     static_assert(MAX_LOCAL_PLAYERS == 1, "FOnlineIdentityGooglePlay does not support more than 1 local player");
@@ -24,7 +23,7 @@ PACKAGE_SCOPE:
 
 	FOnlineIdentityGooglePlay(FOnlineSubsystemGooglePlay* InSubsystem);
 
-	void SetIdentityData(FUniqueNetIdGooglePlayPtr PlayerNetId, FString PlayerAlias, FString AuthCode);
+	void SetIdentityData(const FUniqueNetIdGooglePlayPtr& PlayerNetId, FString PlayerAlias, FString AuthCode);
 	void ClearIdentity();
 
 public:
