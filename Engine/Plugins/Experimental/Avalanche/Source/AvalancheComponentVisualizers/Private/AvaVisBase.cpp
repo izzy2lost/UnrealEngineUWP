@@ -58,6 +58,11 @@ bool FAvaVisualizerBase::HandleInputDelta(FEditorViewportClient* InViewportClien
 		return false;
 	}
 
+	if (!bTracking)
+	{
+		TrackingStartedInternal(InViewportClient);
+	}
+
 	FVector RootComponentScale = RootComponent->GetComponentScale();
 
 	if (RootComponentScale != FVector::OneVector)
@@ -165,34 +170,12 @@ void FAvaVisualizerBase::EndEditing()
 
 void FAvaVisualizerBase::TrackingStarted(FEditorViewportClient* InViewportClient)
 {
-	if (!GetEditedComponent())
-	{
-		return;
-	}
-
-	StoreInitialValues();
-	StartTransaction();
-	bTracking = true;
-
-	if (TSharedPtr<IAvaViewportClient> AvaViewportClient = FAvaViewportUtils::GetAsAvaViewportClient(InViewportClient))
-	{
-		SnapOperation = AvaViewportClient->StartSnapOperation();
-
-		if (SnapOperation.IsValid())
-		{
-			SnapOperation->GenerateComponentSnapPoints(GetEditedComponent());
-			GenerateContextSensitiveSnapPoints();
-			SnapOperation->FinaliseSnapPoints();
-		}
-	}
+	TrackingStartedInternal(InViewportClient);
 }
 
 void FAvaVisualizerBase::TrackingStopped(FEditorViewportClient* InViewportClient, bool bInDidMove)
 {
-	EndTransaction();
-	AddSnapDataBinding();
-	bTracking = false;
-	SnapOperation.Reset();
+	TrackingStoppedInternal(InViewportClient);
 }
 
 void FAvaVisualizerBase::DrawVisualization(const UActorComponent* InComponent, const FSceneView* InView,
@@ -499,6 +482,43 @@ bool FAvaVisualizerBase::IsMouseOverComponent(const UActorComponent* Component, 
 bool FAvaVisualizerBase::ShouldDrawExtraHandles(const UActorComponent* InComponent, const FSceneView* InView) const
 {
 	return IsMouseOverComponent(InComponent, InView);
+}
+
+void FAvaVisualizerBase::TrackingStartedInternal(FEditorViewportClient* InViewportClient)
+{
+	if (!GetEditedComponent())
+	{
+		return;
+	}
+
+	if (bTracking)
+	{
+		return;
+	}
+
+	StoreInitialValues();
+	StartTransaction();
+	bTracking = true;
+
+	if (TSharedPtr<IAvaViewportClient> AvaViewportClient = FAvaViewportUtils::GetAsAvaViewportClient(InViewportClient))
+	{
+		SnapOperation = AvaViewportClient->StartSnapOperation();
+
+		if (SnapOperation.IsValid())
+		{
+			SnapOperation->GenerateComponentSnapPoints(GetEditedComponent());
+			GenerateContextSensitiveSnapPoints();
+			SnapOperation->FinaliseSnapPoints();
+		}
+	}
+}
+
+void FAvaVisualizerBase::TrackingStoppedInternal(FEditorViewportClient* InViewportClient)
+{
+	EndTransaction();
+	AddSnapDataBinding();
+	bTracking = false;
+	SnapOperation.Reset();
 }
 
 void FAvaVisualizerBase::NotifyPropertyModified(UObject* InObject, FProperty* InProperty, 

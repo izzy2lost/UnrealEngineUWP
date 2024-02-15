@@ -94,15 +94,21 @@ void UAvaComponentVisualizersEdMode::ModeTick(float DeltaTime)
 {
 	Super::ModeTick(DeltaTime);
 
-	UE::AvalancheComponentVisualizers::Private::FAvaViewportClientAndVisualizer VCnV(this);
+	UE::AvalancheComponentVisualizers::Private::FAvaViewportClientAndVisualizer VisualizerAndClient(this);
 
-	if (VCnV.ActiveVisualizer.IsValid())
+	if (VisualizerAndClient.ActiveVisualizer.IsValid())
 	{
+		if (VisualizerAndClient.EditorViewportClient && !VisualizerAndClient.EditorViewportClient->IsTracking()
+			&& VisualizerAndClient.ActiveVisualizer->IsTracking())
+		{
+			VisualizerAndClient.ActiveVisualizer->TrackingStopped(VisualizerAndClient.EditorViewportClient, /* bDidMove */ true);
+		}
+
 		FEditorModeTools* ModeManager = GetModeManager();
 		const UE::Widget::EWidgetMode CurrentModeStart = ModeManager->GetWidgetMode();
 		UE::Widget::EWidgetMode CurrentModeModified = ModeManager->GetWidgetMode();
 
-		if (VCnV.ActiveVisualizer->GetWidgetMode(VCnV.EditorViewportClient, CurrentModeModified))
+		if (VisualizerAndClient.ActiveVisualizer->GetWidgetMode(VisualizerAndClient.EditorViewportClient, CurrentModeModified))
 		{
 			if (CurrentModeStart == CurrentModeModified)
 			{
@@ -119,7 +125,7 @@ void UAvaComponentVisualizersEdMode::ModeTick(float DeltaTime)
 
 			CurrentModeModified = WidgetMode;
 
-			if (VCnV.ActiveVisualizer->GetWidgetMode(VCnV.EditorViewportClient, CurrentModeModified))
+			if (VisualizerAndClient.ActiveVisualizer->GetWidgetMode(VisualizerAndClient.EditorViewportClient, CurrentModeModified))
 			{
 				if (WidgetMode == CurrentModeModified)
 				{
