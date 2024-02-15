@@ -139,6 +139,12 @@ protected:
 	*/
 	virtual class FSingleThreadRunnable* GetSingleThreadInterface() override { return this; }
 
+private:
+	void ConsumeCanceledRequestsAndNewRequests(TArray<IHttpThreadedRequest*>& RequestsToCancel, TArray<IHttpThreadedRequest*>& RequestsToComplete);
+	void MoveCompletingRequestsToCompletedRequests(TArray<IHttpThreadedRequest*>& RequestsToComplete);
+	void StartRequestsWaitingInQueue(TArray<IHttpThreadedRequest*>& RequestsToComplete);
+	void FinishRequestsFromHttpThreadWithCallbacks(TArray<IHttpThreadedRequest*>& RequestsToComplete);
+
 protected:
 	/** Pointer to Runnable Thread */
 	FRunnableThread* Thread;
