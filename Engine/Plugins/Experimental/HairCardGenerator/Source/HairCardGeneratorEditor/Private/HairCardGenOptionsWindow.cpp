@@ -144,6 +144,9 @@ private:
 
 	void OnEditGroupSettings(TObjectPtr<UHairCardGeneratorGroupSettings> GroupSettings);
 
+	ECheckBoxState IsForceRegen() const;
+	void OnForceRegenToggle(ECheckBoxState NewState);
+
 	ESelectionMode::Type GetListSelectionMode() const { return ESelectionMode::Single; }
 	TSharedRef<ITableRow> OnGenerateOptionListRow(TObjectPtr<UHairCardGeneratorGroupSettings> InGroupSettings, const TSharedRef<STableViewBase>& OwnerTable);
 
@@ -237,6 +240,9 @@ bool HairCardGenWindow_Utils::PromptUserWithHairCardGenDialog(UHairCardGenerator
 		IMainFrameModule& MainFrame = FModuleManager::LoadModuleChecked<IMainFrameModule>("MainFrame");
 		ParentWindow = MainFrame.GetParentWindow();
 	}
+
+	// Always set force regen to false on window open
+	// SettingsObject->SetForceRegenerate(false);
 
 	// Compute centered window position based on max window size, which include when all categories are expanded
 	const float WindowWidth = 600.0f;
@@ -569,13 +575,24 @@ void SHairCardGenOptionsWindow::Construct(const FArguments& InArgs)
 				]
 				+ SUniformGridPanel::Slot(2, 0)
 				[
+					SNew(SCheckBox)
+					.HAlign(HAlign_Right)
+					.ToolTipText(LOCTEXT("HairCardSettings.ForceRegen.ToolTip", "Force full regeneration"))
+					.IsChecked(this, &SHairCardGenOptionsWindow::IsForceRegen)
+					.OnCheckStateChanged(this,  &SHairCardGenOptionsWindow::OnForceRegenToggle)
+					[
+						SNew(STextBlock).Text(LOCTEXT("HairCardSettings.ForceRegen", "Force Regenerate"))
+					]
+				]
+				+ SUniformGridPanel::Slot(3, 0)
+				[
 					SAssignNew(RunButton, SPrimaryButton)
 						.Text(LOCTEXT("HairCardSettings.Generate", "Generate"))
 						.ToolTipText(this, &SHairCardGenOptionsWindow::GetGenerateButtonTooltip)
 						.OnClicked(this, &SHairCardGenOptionsWindow::OnGenerateClick)
 						.IsEnabled(this, &SHairCardGenOptionsWindow::CanRunGeneration)
 				]
-				+ SUniformGridPanel::Slot(3, 0)
+				+ SUniformGridPanel::Slot(4, 0)
 				[
 					SNew(SButton)
 						.HAlign(HAlign_Center)
@@ -620,6 +637,7 @@ void SHairCardGenOptionsWindow::Construct(const FArguments& InArgs)
 			]
 			+ SHorizontalBox::Slot()
 				.HAlign(HAlign_Right)
+				.VAlign(VAlign_Center)
 				.Padding(FMargin(2.0f, 0.0f))
 			[
 				SNew(SButton)
@@ -728,6 +746,16 @@ void SHairCardGenOptionsWindow::OnEditGroupSettings(TObjectPtr<UHairCardGenerato
 		return;
 
 	HairCardGenWindow_Impl::PromptGroupSettingsDialog(WidgetWindow.Pin(), SettingsObject, FilterGroupIndex);
+}
+
+ECheckBoxState SHairCardGenOptionsWindow::IsForceRegen() const
+{
+	return (SettingsObject->GetForceRegenerate()) ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+}
+
+void SHairCardGenOptionsWindow::OnForceRegenToggle(ECheckBoxState NewState)
+{
+	SettingsObject->SetForceRegenerate(NewState == ECheckBoxState::Checked);
 }
 
 FText SHairCardGenOptionsWindow::GetTargetAssetName() const
