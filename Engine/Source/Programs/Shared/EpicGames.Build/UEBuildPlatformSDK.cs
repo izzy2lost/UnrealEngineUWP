@@ -329,10 +329,6 @@ namespace EpicGames.Core
 			{
 				LoadJsonFile(PlatformName);
 			}
-			else
-			{
-				Console.WriteLine("SKIPPING JSON FOR {0}", PlatformName);
-			}
 
 			// if the parent set up autosdk, the env vars will be wrong, but we can still get the manual SDK version from before it was setup
 			string? ParentManualSDKVersions = Environment.GetEnvironmentVariable(GetPlatformManualSDKSetupEnvVar());
