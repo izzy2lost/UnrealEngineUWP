@@ -152,6 +152,8 @@ protected:
 	
 	void HandleOnMaterialIdClicked(const int32 Id)
 	{
+		const FScopedTransaction Transaction(NSLOCTEXT("STG_MaterialIdMaskInfo", "Enabled", "Edit Is Enabled"));
+		
 		UTG_Expression_MaterialID* MaterialIdExpression = GetMaterialIDExpression();
 
 		const bool NewValue = !MaterialIdExpression->MaterialIDMaskInfos[Id].bIsEnabled;

@@ -52,9 +52,12 @@ void UTG_Node::OnPostUndo()
 		// For now, just copying all the values from the expression.
 		for(const auto& Pin : Pins)
 		{
-			auto Arg = Pin->GetArgument();
-			Pin->EditSelfVar()->CopyFrom(GetExpression(), Arg);	
-
+			// exclude the case of input textures 
+			if(!(Pin->IsInput() && Pin->IsArgTexture()))
+			{
+				auto Arg = Pin->GetArgument();
+				Pin->EditSelfVar()->CopyFrom(GetExpression(), Arg);	
+			}
 		}
 
 		Signature = GetExpression()->GetSignature();
