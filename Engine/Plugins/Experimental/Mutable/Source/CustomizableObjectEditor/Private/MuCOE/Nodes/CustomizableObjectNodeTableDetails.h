@@ -4,6 +4,8 @@
 
 #include "IDetailCustomization.h"
 
+#include "UObject/WeakObjectPtr.h"
+
 namespace ESelectInfo { enum Type : int; }
 
 class FString;
@@ -12,6 +14,7 @@ class STextComboBox;
 class FReply;
 class SButton;
 class SCustomizableObjectNodeLayoutBlocksEditor;
+class UCustomizableObjectNodeTable;
 
 /** Copy Material node details panel. Hides all properties from the inheret Material node. */
 class FCustomizableObjectNodeTableDetails : public IDetailCustomization
@@ -65,10 +68,8 @@ private:
 	// Callback to clear the animation combobox selections
 	FReply OnClearButtonPressed();
 
-private:
-
 	// Pointer to the node represented in this details
-	class UCustomizableObjectNodeTable* Node;
+	TWeakObjectPtr<UCustomizableObjectNodeTable> Node;
 
 	// ComboBox widget to select a column from the NodeTable
 	TSharedPtr<STextComboBox> LayoutMeshColumnComboBox;
@@ -108,5 +109,4 @@ private:
 
 	// Pointer to the Detail Builder to force the refresh on recontruct the node
 	TWeakPtr<IDetailLayoutBuilder> DetailBuilderPtr = nullptr;
-
 };
