@@ -102,6 +102,8 @@ public:
 	/** Override constant SmoothSpeedT with function */
 	TFunction<double(const FDynamicMesh3&, int)> CustomSmoothSpeedF;
 
+	/** Scale the computed edge length to allow for adaptive remeshing */
+	TFunction<double(const FDynamicMesh3& Mesh, int VertexA, int VertexB)> CustomEdgeLengthScaleF;
 
 
 	/** enable parallel projection. Only applied in AfterRefinement mode */
