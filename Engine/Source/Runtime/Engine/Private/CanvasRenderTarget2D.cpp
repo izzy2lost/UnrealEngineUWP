@@ -26,6 +26,11 @@ UCanvasRenderTarget2D::UCanvasRenderTarget2D( const FObjectInitializer& ObjectIn
 
 void UCanvasRenderTarget2D::UpdateResource()
 {
+	if (SampleCount != ETextureRenderTargetSampleCount::RTSC_1)
+	{
+		bCanCreateUAV = false;
+	}
+
 	// Call parent implementation
 	Super::UpdateResource();
 
