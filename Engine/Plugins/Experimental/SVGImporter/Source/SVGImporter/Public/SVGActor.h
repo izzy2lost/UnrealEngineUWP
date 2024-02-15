@@ -30,6 +30,15 @@ enum class ESVGRenderMode : uint8
 	Texture2D = 1       UMETA(DisplayName = "2D")
 };
 
+struct SVGIMPORTER_API FSVGActorInitGuard
+{
+	FSVGActorInitGuard();
+	~FSVGActorInitGuard();
+
+private:
+	bool bPreviousValue;
+};
+
 UCLASS()
 class SVGIMPORTER_API ASVGActor : public ASVGDynamicMeshesContainerActor
 {
@@ -37,6 +46,8 @@ class SVGIMPORTER_API ASVGActor : public ASVGDynamicMeshesContainerActor
 
 public:
 	ASVGActor();
+
+	void Initialize();
 
 	//~ Begin UObject
 	virtual void PostLoad() override;

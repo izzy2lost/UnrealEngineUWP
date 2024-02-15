@@ -1,15 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "SVGActorFactory.h"
-
+#include "Factories/SVGActorFactory.h"
 #include "LevelEditorViewport.h"
 #include "SVGActor.h"
 #include "SVGData.h"
 
-USVGActorFactory::USVGActorFactory(const FObjectInitializer& ObjectInitializer): Super(ObjectInitializer)
+USVGActorFactory::USVGActorFactory(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
 {
-	// AActor subclass this ActorFactory creates.
-	NewActorClassName = FString("ASVGActor");
 	NewActorClass = ASVGActor::StaticClass();
 }
 
@@ -25,41 +23,23 @@ AActor* USVGActorFactory::GetDefaultActor(const FAssetData& AssetData)
 
 AActor* USVGActorFactory::SpawnActor(UObject* InAsset, ULevel* InLevel, const FTransform& InTransform, const FActorSpawnParameters& InSpawnParams)
 {
-	if (!InAsset)
+	ASVGActor* SVGActor;
 	{
-		return nullptr;
+		FSVGActorInitGuard InitGuard;
+		SVGActor = Cast<ASVGActor>(Super::SpawnActor(InAsset, InLevel, InTransform, InSpawnParams));
 	}
 
-	USVGData* SVGData = Cast<USVGData>(InAsset);
-	
-	if (!SVGData)
-	{
-		return nullptr;
-	}
-	
-	const AActor* const DefaultActor = GetDefaultActor(FAssetData(InAsset));
-	
-	if (DefaultActor && InLevel)
-	{
-		const ULevel* const LocalLevel = ValidateSpawnActorLevel(InLevel, InSpawnParams);
-		
-		ASVGActor* const SVGActor = LocalLevel->OwningWorld->SpawnActorDeferred<ASVGActor>(DefaultActor->GetClass(), InTransform);
-		
-		SVGActor->SVGData = SVGData;
+	SVGActor->SVGData = Cast<USVGData>(InAsset);
 
-		if (FLevelEditorViewportClient::IsDroppingPreviewActor() || InSpawnParams.ObjectFlags & RF_Transient)
-		{
-			SVGActor->RenderMode = ESVGRenderMode::Texture2D;
-		}
-		else
-		{
-			SVGActor->RenderMode = ESVGRenderMode::DynamicMesh3D;
-		}
-		
-		SVGActor->FinishSpawning(InTransform);
-		
-		return SVGActor;
+	if (InSpawnParams.bTemporaryEditorActor)
+	{
+		SVGActor->RenderMode = ESVGRenderMode::Texture2D;
+	}
+	else
+	{
+		SVGActor->RenderMode = ESVGRenderMode::DynamicMesh3D;
 	}
 
-	return nullptr;
+	SVGActor->Initialize();
+	return SVGActor;
 }
