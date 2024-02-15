@@ -7,94 +7,84 @@
 
 const FString UAvaShapeTorusDynamicMesh::MeshName = TEXT("Torus");
 
-bool UAvaShapeTorusDynamicMesh::SetNumSides(uint8 InNumSides)
+void UAvaShapeTorusDynamicMesh::SetNumSides(uint8 InNumSides)
 {
 	if (NumSides == InNumSides)
 	{
-		return false;
+		return;
 	}
 
 	if (InNumSides < UAvaShapeTorusDynamicMesh::MinNumSides || InNumSides > UAvaShapeTorusDynamicMesh::MaxNumSides)
 	{
-		return false;
+		return;
 	}
 
 	NumSides = InNumSides;
 	OnNumSidesChanged();
-
-	return true;
 }
 
-bool UAvaShapeTorusDynamicMesh::SetNumSlices(uint8 InNumSlices)
+void UAvaShapeTorusDynamicMesh::SetNumSlices(uint8 InNumSlices)
 {
 	if (NumSlices == InNumSlices)
 	{
-		return false;
+		return;
 	}
 
 	if (InNumSlices < UAvaShapeTorusDynamicMesh::MinNumSlices || InNumSlices > UAvaShapeTorusDynamicMesh::MaxNumSlices)
 	{
-		return false;
+		return;
 	}
 
 	NumSlices = InNumSlices;
 	OnNumSlicesChanged();
-
-	return true;
 }
 
-bool UAvaShapeTorusDynamicMesh::SetInnerSize(float InInnerSize)
+void UAvaShapeTorusDynamicMesh::SetInnerSize(float InInnerSize)
 {
 	if (InnerSize == InInnerSize)
 	{
-		return false;
+		return;
 	}
 
 	if (InInnerSize < 0.5f || InInnerSize > 0.99f)
 	{
-		return false;
+		return;
 	}
 
 	InnerSize = InInnerSize;
 	OnInnerSizeChanged();
-
-	return true;
 }
 
-bool UAvaShapeTorusDynamicMesh::SetAngleDegree(float InAngleDegree)
+void UAvaShapeTorusDynamicMesh::SetAngleDegree(float InAngleDegree)
 {
 	if (AngleDegree == InAngleDegree)
 	{
-		return false;
+		return;
 	}
 
 	if (InAngleDegree < 0.f || InAngleDegree > 360.f)
 	{
-		return false;
+		return;
 	}
 
 	AngleDegree = InAngleDegree;
 	OnAngleDegreeChanged();
-
-	return true;
 }
 
-bool UAvaShapeTorusDynamicMesh::SetStartDegree(float InStartDegree)
+void UAvaShapeTorusDynamicMesh::SetStartDegree(float InStartDegree)
 {
 	if (StartDegree == InStartDegree)
 	{
-		return false;
+		return;
 	}
 
 	if (InStartDegree < 0.f || InStartDegree > 360.f)
 	{
-		return false;
+		return;
 	}
 
 	StartDegree = InStartDegree;
 	OnStartDegreeChanged();
-
-	return true;
 }
 
 #if WITH_EDITOR

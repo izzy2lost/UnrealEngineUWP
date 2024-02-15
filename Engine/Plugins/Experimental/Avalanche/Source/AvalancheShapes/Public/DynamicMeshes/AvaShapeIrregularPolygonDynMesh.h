@@ -7,7 +7,7 @@
 #include "AvaShapeIrregularPolygonDynMesh.generated.h"
 
 USTRUCT(BlueprintType)
-struct AVALANCHESHAPES_API FAvaShapeRoundedCornerSettings
+struct FAvaShapeRoundedCornerSettings
 {
 	GENERATED_BODY()
 
@@ -19,14 +19,13 @@ struct AVALANCHESHAPES_API FAvaShapeRoundedCornerSettings
 };
 
 USTRUCT(BlueprintType)
-struct AVALANCHESHAPES_API FAvaShapeRoundedCorner
+struct FAvaShapeRoundedCorner
 {
 	GENERATED_BODY()
 
 	FAvaShapeRoundedCorner()
 		: FAvaShapeRoundedCorner(FVector2D::ZeroVector)
-	{
-	}
+	{}
 
 	FAvaShapeRoundedCorner(const FVector2D& InLocation)
 	{
@@ -45,22 +44,22 @@ struct AVALANCHESHAPES_API FAvaShapeRoundedCorner
 	FAvaShapeRoundedCornerMetrics CornerMetrics;
 };
 
-UCLASS(ClassGroup="Shape", BlueprintType, CustomConstructor, Within=AvaShapeActor)
-class AVALANCHESHAPES_API UAvaShapeIrregularPolygonDynamicMesh : public UAvaShape2DDynMeshBase
+UCLASS(MinimalAPI, ClassGroup="Shape", BlueprintType, CustomConstructor, Within=AvaShapeActor)
+class UAvaShapeIrregularPolygonDynamicMesh : public UAvaShape2DDynMeshBase
 {
 	GENERATED_BODY()
 
 	friend class FAvaShapeIrregularPolygonDynamicMeshVisualizer;
 
 public:
+	static const FString MeshName;
 	static const float MinPointDistance;
 
 	static bool DoLinesIntersect(const FVector2D Origin1, const FVector2D End1, const FVector2D Origin2, const FVector2D End2);
 
 	UAvaShapeIrregularPolygonDynamicMesh(const FObjectInitializer& ObjectInitializer)
      		: UAvaShapeIrregularPolygonDynamicMesh(FLinearColor::White)
-	{
-    }
+	{}
 
 	UAvaShapeIrregularPolygonDynamicMesh(const FLinearColor& InVertexColor)
 		: UAvaShape2DDynMeshBase(FVector2D::Zero(), InVertexColor)
@@ -69,40 +68,60 @@ public:
 		bAllowEditSize = false;
 	}
 
-	static const FString MeshName;
-	virtual const FString& GetMeshName() const override { return MeshName; }
+	virtual const FString& GetMeshName() const override
+	{
+		return MeshName;
+	}
 
-	UFUNCTION()
-	bool SetGlobalBevelSize(float InBevelSize);
-	float GetGlobalBevelSize() const { return GlobalBevelSize; }
+	AVALANCHESHAPES_API void SetGlobalBevelSize(float InBevelSize);
+	float GetGlobalBevelSize() const
+	{
+		return GlobalBevelSize;
+	}
 
-	UFUNCTION()
-	void SetGlobalBevelSubdivisions(uint8 InBevelSubdivisions);
-	uint8 GetGlobalBevelSubdivisions() const { return GlobalBevelSubdivisions; }
+	AVALANCHESHAPES_API void SetGlobalBevelSubdivisions(uint8 InBevelSubdivisions);
+	uint8 GetGlobalBevelSubdivisions() const
+	{
+		return GlobalBevelSubdivisions;
+	}
 
-	bool CanAddPoint(const FVector2D& InPoint);
-	bool AddPoint(const FVector2D& InPoint);
+	AVALANCHESHAPES_API void SetPoints(const TArray<FVector2D>& InPoints);
+	AVALANCHESHAPES_API void SetPoints(const TArray<FAvaShapeRoundedCorner>& InPoints);
+	const TArray<FAvaShapeRoundedCorner>& GetPoints() const
+	{
+		return Points;
+	}
+
+	const FAvaShapeRoundedCorner& GetPoint(int32 PointIdx) const
+	{
+		return Points[PointIdx];
+	}
+
+	int32 GetNumPoints() const
+	{
+		return Points.Num();
+	}
+
+	AVALANCHESHAPES_API bool CanAddPoint(const FVector2D& InPoint);
+	AVALANCHESHAPES_API bool AddPoint(const FVector2D& InPoint);
 	bool RemovePoint(int32 PointIdx);
 	bool RemoveFirstPoint();
 	bool RemoveLastPoint();
 	bool RemoveAllPoints();
-	const FAvaShapeRoundedCorner& GetPoint(int32 PointIdx) const { return Points[PointIdx]; }
-	const TArray<FAvaShapeRoundedCorner>& GetPoints() const { return Points; }
-	int32 GetNumPoints() const { return Points.Num(); }
-	bool SetPoints(const TArray<FVector2D>& InPoints);
-
-	void RecalculateActorPosition();
+	AVALANCHESHAPES_API void RecalculateActorPosition();
 
 protected:
+	// Begin UObject
 #if WITH_EDITOR
 	virtual void PreEditChange(FProperty* PropertyAboutToChange) override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
+	//~ End UObject
 
 	void RecalculateExtent();
 
-	bool SetLocation(int32 PointIdx, const FVector2D& InPoint);
-	bool SetBevelSize(int32 PointIdx, float InBevelSize);
+	AVALANCHESHAPES_API bool SetLocation(int32 PointIdx, const FVector2D& InPoint);
+	AVALANCHESHAPES_API bool SetBevelSize(int32 PointIdx, float InBevelSize);
 	bool SetBevelSubdivisions(int32 PointIdx, uint8 InBevelSubdivisions);
 
 	bool ShiftPoints(const FVector2D& Amount);
@@ -117,12 +136,12 @@ protected:
 
 	bool IsLocationInsideShape(const FVector2D& Location);
 
-	void BackupPoints();
+	AVALANCHESHAPES_API void BackupPoints();
 
-	float GetMaxBevelSizeForPoint(int32 PointIdx) const;
+	AVALANCHESHAPES_API float GetMaxBevelSizeForPoint(int32 PointIdx) const;
 
 	// Breaks the line, adding a new point, in between InPointIdx and InPointIdx+1
-	bool BreakSide(int32 InPointIdx);
+	AVALANCHESHAPES_API bool BreakSide(int32 InPointIdx);
 
 	void RestorePoints();
 	bool CheckNewPointsArray();
@@ -142,13 +161,13 @@ protected:
 	virtual bool ClearMesh() override;
 	virtual bool CreateMesh(FAvaShapeMesh& InMesh) override;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(ClampMin="0.0",ClampMax="1.0", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0.0",ClampMax="1.0", AllowPrivateAccess="true"))
 	float GlobalBevelSize = 0.f;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(ClampMax="64.0", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMax="64.0", AllowPrivateAccess="true"))
 	uint8 GlobalBevelSubdivisions = DefaultSubdivisions;
 
-	UPROPERTY(BlueprintReadWrite, EditInstanceOnly, Category="Shape", meta=(EditFixedOrder, AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(EditFixedOrder, AllowPrivateAccess="true"))
 	TArray<FAvaShapeRoundedCorner> Points;
 	TArray<FAvaShapeRoundedCorner> PreEditPoints;
 };

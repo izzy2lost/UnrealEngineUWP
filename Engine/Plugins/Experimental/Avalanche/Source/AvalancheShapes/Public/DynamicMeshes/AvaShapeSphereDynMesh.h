@@ -5,14 +5,15 @@
 #include "DynamicMeshes/AvaShape3DDynMeshBase.h"
 #include "AvaShapeSphereDynMesh.generated.h"
 
-UCLASS(ClassGroup="Shape", BlueprintType, CustomConstructor, Within=AvaShapeActor)
-class AVALANCHESHAPES_API UAvaShapeSphereDynamicMesh : public UAvaShape3DDynMeshBase
+UCLASS(MinimalAPI, ClassGroup="Shape", BlueprintType, CustomConstructor, Within=AvaShapeActor)
+class UAvaShapeSphereDynamicMesh : public UAvaShape3DDynMeshBase
 {
 	GENERATED_BODY()
 
 	friend class FAvaShapeSphereDynamicMeshVisualizer;
 
 public:
+	static const FString MeshName;
 	static constexpr uint8 MinNumSides = 4;
 	static constexpr uint8 MaxNumSides = 128;
 
@@ -23,7 +24,7 @@ public:
 
 	UAvaShapeSphereDynamicMesh()
 		: UAvaShapeSphereDynamicMesh(FVector(50.f, 50.f, 50.f))
-	{ }
+	{}
 
 	UAvaShapeSphereDynamicMesh(
 		const FVector& InSize,
@@ -43,40 +44,50 @@ public:
 		, LatitudeDegree(InLatitudeDegree)
 		, NumSides(InNumSides)
 		, Radius(InRadius)
+	{}
+
+	virtual const FString& GetMeshName() const override
 	{
+		return MeshName;
 	}
 
-	static const FString MeshName;
-	virtual const FString& GetMeshName() const override { return MeshName; }
+	AVALANCHESHAPES_API void SetNumSides(uint8 InNumSides);
+	uint8 GetNumSides() const
+	{
+		return NumSides;
+	}
 
-	UFUNCTION()
-	bool SetNumSides(uint8 InNumSides);
-	uint8 GetNumSides() const { return NumSides; }
+	AVALANCHESHAPES_API void SetStartLatitude(float InDegree);
+	float GetStartLatitude() const
+	{
+		return StartLatitude;
+	}
 
-	UFUNCTION()
-	float GetRadius() const { return Radius; }
+	AVALANCHESHAPES_API void SetLatitudeDegree(float InDegree);
+	float GetLatitudeDegree() const
+	{
+		return LatitudeDegree;
+	}
 
-	UFUNCTION()
-	bool SetStartLatitude(float InDegree);
-	float GetStartLatitude() const { return StartLatitude; }
+	AVALANCHESHAPES_API void SetStartLongitude(float InDegree);
+	float GetStartLongitude() const
+	{
+		return StartLongitude;
+	}
 
-	UFUNCTION()
-	bool SetLatitudeDegree(float InDegree);
-	float GetLatitudeDegree() const { return LatitudeDegree; }
-
-	UFUNCTION()
-	bool SetStartLongitude(float InDegree);
-	float GetStartLongitude() const { return StartLongitude; }
-
-	UFUNCTION()
-	bool SetEndLongitude(float InDegree);
-	float GetEndLongitude() const { return EndLongitude; }
+	AVALANCHESHAPES_API void SetEndLongitude(float InDegree);
+	float GetEndLongitude() const
+	{
+		return EndLongitude;
+	}
 
 protected:
+	//~ Begin UObject
 #if WITH_EDITOR
 	virtual void PreEditChange(FProperty* PropertyAboutToChange) override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
+	//~ End UObject
 
 	virtual void OnNumSidesChanged();
 	virtual void OnRadiusChanged();
@@ -106,27 +117,28 @@ protected:
 	virtual bool CreateUVs(FAvaShapeMesh& InMesh, FAvaShapeMaterialUVParameters& InParams) override;
 
 	// represents the longitude (Z) angle in degree for the sphere at the start
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(ClampMin="0.0", ClampMax="180.0", DisplayName="Start Longitude degree", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0.0", ClampMax="180.0", DisplayName="Start Longitude degree", AllowPrivateAccess="true"))
 	float StartLongitude;
 	float PreEditStartLongitude;
 
 	// represents the longitude (Z) angle in degree for the sphere at the end
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(ClampMin="0.0", ClampMax="180.0", DisplayName="End Longitude degree", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0.0", ClampMax="180.0", DisplayName="End Longitude degree", AllowPrivateAccess="true"))
 	float EndLongitude;
 	float PreEditEndLongitude;
 
 	// represents the latitude (Y) angle in degree for the sphere at the start
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(ClampMin="0.0", ClampMax="360.0", DisplayName="Start Latitude degree", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0.0", ClampMax="360.0", DisplayName="Start Latitude degree", AllowPrivateAccess="true"))
 	float StartLatitude;
 
 	// represents the total latitude (Y) angle in degree for the sphere
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(ClampMin="0.0", ClampMax="360.0", DisplayName="Latitude degree", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0.0", ClampMax="360.0", DisplayName="Latitude degree", AllowPrivateAccess="true"))
 	float LatitudeDegree;
 
 	// represents the precision of the sphere mesh
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(ClampMin="4.0", ClampMax="128.0", DisplayName="Sides", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="4.0", ClampMax="128.0", DisplayName="Sides", AllowPrivateAccess="true"))
 	uint8 NumSides;
 
+private:
 	// represents the radius ratio of the sphere
 	UPROPERTY()
 	float Radius;

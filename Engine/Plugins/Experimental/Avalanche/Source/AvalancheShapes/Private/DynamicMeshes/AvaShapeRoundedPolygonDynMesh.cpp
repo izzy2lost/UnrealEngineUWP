@@ -5,22 +5,20 @@
 #include "DynamicMeshes/AvaShapeRectangleDynMesh.h"
 #include "Kismet/KismetMathLibrary.h"
 
-bool UAvaShapeRoundedPolygonDynamicMesh::SetBevelSize(float InBevelSize)
+void UAvaShapeRoundedPolygonDynamicMesh::SetBevelSize(float InBevelSize)
 {
 	if (BevelSize == InBevelSize)
 	{
-		return false;
+		return;
 	}
 
 	if (InBevelSize < 0.f || InBevelSize >= FMath::Min(Size2D.X, Size2D.Y))
 	{
-		return false;
+		return;
 	}
 
 	BevelSize = InBevelSize;
 	OnRoundedRadiusChanged();
-
-	return true;
 }
 
 void UAvaShapeRoundedPolygonDynamicMesh::SetBevelSubdivisions(uint8 InBevelSubdivisions)
@@ -65,7 +63,7 @@ void UAvaShapeRoundedPolygonDynamicMesh::PostEditChangeProperty(FPropertyChanged
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
 	const FName MemberName = PropertyChangedEvent.GetMemberPropertyName();
-	
+
 	static const FName BevelSizeName = GET_MEMBER_NAME_CHECKED(UAvaShapeRoundedPolygonDynamicMesh, BevelSize);
 	static const FName BevelSubdivisionsName = GET_MEMBER_NAME_CHECKED(UAvaShapeRoundedPolygonDynamicMesh, BevelSubdivisions);
 
@@ -83,7 +81,7 @@ void UAvaShapeRoundedPolygonDynamicMesh::PostEditChangeProperty(FPropertyChanged
 void UAvaShapeRoundedPolygonDynamicMesh::OnSizeChanged()
 {
 	Super::OnSizeChanged();
-	
+
 	// Only Mark Meshes Dirty if we have bevels on it
 	if (BevelSize > 0.f && BevelSubdivisions > 0)
 	{

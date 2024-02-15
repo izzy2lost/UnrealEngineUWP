@@ -48,7 +48,7 @@ bool FAvaShape2DDynamicMeshVisualizer::VisProxyHandleClick(FEditorViewportClient
 	HComponentVisProxy* InVisProxy, const FViewportClick& InClick)
 {
 	if (InClick.GetKey() != EKeys::LeftMouseButton)
-	{ 
+	{
 		EndEditing();
 		return Super::VisProxyHandleClick(InViewportClient, InVisProxy, InClick);
 	}
@@ -342,7 +342,7 @@ bool FAvaShape2DDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorViewportC
 		{
 			// multiply by 0.01 to allow for more precision in the panning
         	constexpr float UVPanDeltaScale = 1.f;
-			
+
 			// control uniform scale when pressing modifier key
 			const bool bUniformScale = FSlateApplication::Get().GetModifierKeys().IsShiftDown();
 
@@ -364,10 +364,10 @@ bool FAvaShape2DDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorViewportC
 						UVOffset.Y += InAccumulatedTranslation.Z * UVPanDeltaScale / Size2D.Y;
 					}
 
+					DynMesh2D->Modify();
 					if (DynMesh2D->SetMaterialUVOffset(UVSectionIdx, UVOffset))
 					{
 						bHasBeenModified = true;
-						DynMesh2D->Modify();
 						NotifyPropertyChainModified(DynMesh2D, UVOffsetProperty, EPropertyChangeType::Interactive, UVSectionIdx, {UVParamsProperty, MeshDataProperty});
 					}
 				}
@@ -380,10 +380,10 @@ bool FAvaShape2DDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorViewportC
 					float UVRotation = InitialPrimaryUVRotation;
 					UVRotation -= InAccumulatedRotation.Roll;
 
+					DynMesh2D->Modify();
 					if (DynMesh2D->SetMaterialUVRotation(UVSectionIdx, UVRotation))
 					{
 						bHasBeenModified = true;
-						DynMesh2D->Modify();
 						NotifyPropertyChainModified(DynMesh2D, UVRotationProperty, EPropertyChangeType::Interactive, UVSectionIdx, {UVParamsProperty, MeshDataProperty});
 					}
 				}
@@ -394,7 +394,7 @@ bool FAvaShape2DDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorViewportC
 				if (GetViewportWidgetAxisList(InViewportClient) & EAxisList::YZ)
 				{
 					FVector2D UVScale = InitialPrimaryUVScale;
-					
+
 					if (GetViewportWidgetAxisList(InViewportClient) & EAxisList::Y)
 					{
 						UVScale.X -= InAccumulatedScale.Y * UVPanDeltaScale;
@@ -415,10 +415,10 @@ bool FAvaShape2DDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorViewportC
 						}
 					}
 
+					DynMesh2D->Modify();
 					if (DynMesh2D->SetMaterialUVScale(UVSectionIdx, UVScale))
 					{
 						bHasBeenModified = true;
-						DynMesh2D->Modify();
 						NotifyPropertyChainModified(DynMesh2D, UVScaleProperty, EPropertyChangeType::Interactive, UVSectionIdx, {UVParamsProperty, MeshDataProperty});
 					}
 				}
@@ -443,10 +443,10 @@ bool FAvaShape2DDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorViewportC
 						UVAnchor.Y = FMath::Clamp(UVAnchor.Y - InAccumulatedTranslation.Z / Size2D.Y, 0.f, 1.f);
 					}
 
+					DynMesh2D->Modify();
 					if (DynMesh2D->SetMaterialUVAnchor(UVSectionIdx, UVAnchor))
 					{
 						bHasBeenModified = true;
-						DynMesh2D->Modify();
 						NotifyPropertyChainModified(DynMesh2D, UVAnchorProperty, EPropertyChangeType::Interactive, UVSectionIdx, {UVParamsProperty, MeshDataProperty});
 					}
 				}
@@ -455,10 +455,10 @@ bool FAvaShape2DDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorViewportC
 
 		return true;
 	}
-	
+
 	// ALT + drag
 	const bool bExtendBothSide = IsExtendBothSidesEnabled(DynMesh2D);
-	
+
 	if (SizeDragAnchor != INDEX_NONE)
 	{
 		if (GetViewportWidgetMode(InViewportClient) == UE::Widget::WM_Translate)
@@ -468,7 +468,7 @@ bool FAvaShape2DDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorViewportC
 				FVector2D Size2D       = InitialSize;
 				const FTransform Transform   = InitialTransform;
 				FVector Location       = FVector::ZeroVector;
-				
+
 				const FVector SizePosition3D = GetLocationFromAlignment(SizeDragAnchor, FVector(0.f, InitialSize.X, InitialSize.Y));
 				FVector2D SizePosition = FVector2D(SizePosition3D.Y, SizePosition3D.Z);
 				const FVector2D InitialSizePosition = SizePosition;
@@ -478,7 +478,7 @@ bool FAvaShape2DDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorViewportC
 				const EAvaVerticalAlignment Vertical = GetVAlignment(SizeDragAnchor);
 
 				// Update translation
-				
+
 				if (Horizontal != EAvaHorizontalAlignment::Center)
 				{
 					// Y
@@ -487,7 +487,7 @@ bool FAvaShape2DDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorViewportC
 						SizePosition.X += InAccumulatedTranslation.Y;
 					}
 				}
-				
+
 				if (Vertical != EAvaVerticalAlignment::Center)
 				{
 					// Z
@@ -526,7 +526,7 @@ bool FAvaShape2DDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorViewportC
 				if (!bExtendBothSide)
 				{
 					FVector2D SizeChange = (Size2D - InitialSize) / 2.f;
-					
+
 					if (Horizontal != EAvaHorizontalAlignment::Center)
 					{
 						// Y
@@ -547,19 +547,18 @@ bool FAvaShape2DDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorViewportC
 				}
 
 				Size2D = FVector2D::Max(Size2D, UAvaShapeDynamicMeshBase::MinSize2D);
-				if (DynMesh2D->SetSize2D(Size2D))
+				DynMesh2D->Modify();
+				DynMesh2D->SetSize2D(Size2D);
+
+				if (DynMesh2D->GetSize2D() != PrevShapeSize)
 				{
-					if (DynMesh2D->GetSize2D() != PrevShapeSize)
+					PrevShapeSize = Size2D;
+					if (!bExtendBothSide)
 					{
-						PrevShapeSize = Size2D;
-						if (!bExtendBothSide)
-						{
-							Location = Transform.TransformPosition(Location);
-							DynMesh2D->SetMeshRegenWorldLocation(Location, true);
-							bHasBeenModified = true;
-							DynMesh2D->Modify();
-							NotifyPropertiesModified(DynMesh2D, {MeshRegenWorldLocationProperty}, EPropertyChangeType::Interactive);
-						}
+						Location = Transform.TransformPosition(Location);
+						DynMesh2D->SetMeshRegenWorldLocation(Location, true);
+						bHasBeenModified = true;
+						NotifyPropertiesModified(DynMesh2D, {MeshRegenWorldLocationProperty}, EPropertyChangeType::Interactive);
 					}
 				}
 			}
@@ -597,11 +596,13 @@ bool FAvaShape2DDynamicMeshVisualizer::HandleModifiedClick(FEditorViewportClient
 			switch (UVMode)
 			{
 				case EAvaShapeUVMode::Stretch:
+					HitProxyDynamicMesh->Modify();
 					HitProxyDynamicMesh->SetMaterialUVMode(UVHitProxy->SectionIdx,
 						EAvaShapeUVMode::Uniform);
 					break;
 
 				case EAvaShapeUVMode::Uniform:
+					HitProxyDynamicMesh->Modify();
 					HitProxyDynamicMesh->SetMaterialUVMode(UVHitProxy->SectionIdx, EAvaShapeUVMode::Stretch);
 					break;
 
@@ -610,7 +611,6 @@ bool FAvaShape2DDynamicMeshVisualizer::HandleModifiedClick(FEditorViewportClient
 					break;
 			}
 
-			HitProxyDynamicMesh->Modify();
 			NotifyPropertyChainModified(HitProxyDynamicMesh, UVModeProperty, EPropertyChangeType::Interactive, UVHitProxy->SectionIdx, {UVParamsProperty, MeshDataProperty});
 		}
 		// Toggle flip flags
@@ -621,26 +621,26 @@ bool FAvaShape2DDynamicMeshVisualizer::HandleModifiedClick(FEditorViewportClient
 
 			if (!bHorizFlip && !bVerticalFlip)
 			{
-				HitProxyDynamicMesh->SetMaterialHorizontalFlip(UVHitProxy->SectionIdx, true);
 				HitProxyDynamicMesh->Modify();
+				HitProxyDynamicMesh->SetMaterialHorizontalFlip(UVHitProxy->SectionIdx, true);
 				NotifyPropertyChainModified(HitProxyDynamicMesh, UVHorizFlipProperty, EPropertyChangeType::Interactive, UVHitProxy->SectionIdx, {UVParamsProperty, MeshDataProperty});
 			}
 			else if (bHorizFlip && !bVerticalFlip)
 			{
-				HitProxyDynamicMesh->SetMaterialVerticalFlip(UVHitProxy->SectionIdx, true);
 				HitProxyDynamicMesh->Modify();
+				HitProxyDynamicMesh->SetMaterialVerticalFlip(UVHitProxy->SectionIdx, true);
 				NotifyPropertyChainModified(HitProxyDynamicMesh, UVVertFlipProperty, EPropertyChangeType::Interactive, UVHitProxy->SectionIdx, {UVParamsProperty, MeshDataProperty});
 			}
 			else if (bHorizFlip && bVerticalFlip)
 			{
-				HitProxyDynamicMesh->SetMaterialHorizontalFlip(UVHitProxy->SectionIdx, false);
 				HitProxyDynamicMesh->Modify();
+				HitProxyDynamicMesh->SetMaterialHorizontalFlip(UVHitProxy->SectionIdx, false);
 				NotifyPropertyChainModified(HitProxyDynamicMesh, UVHorizFlipProperty, EPropertyChangeType::Interactive, UVHitProxy->SectionIdx, {UVParamsProperty, MeshDataProperty});
 			}
 			else
 			{
-				HitProxyDynamicMesh->SetMaterialVerticalFlip(UVHitProxy->SectionIdx, false);
 				HitProxyDynamicMesh->Modify();
+				HitProxyDynamicMesh->SetMaterialVerticalFlip(UVHitProxy->SectionIdx, false);
 				NotifyPropertyChainModified(HitProxyDynamicMesh, UVVertFlipProperty, EPropertyChangeType::Interactive, UVHitProxy->SectionIdx, {UVParamsProperty, MeshDataProperty});
 			}
 		}
@@ -673,6 +673,7 @@ bool FAvaShape2DDynamicMeshVisualizer::ResetValue(FEditorViewportClient* InViewp
 
 	FScopedTransaction Transaction(NSLOCTEXT("AvaShapeVisualizer", "VisualizerResetValue", "Visualizer Reset Value"));
 	HitProxyDynamicMesh->SetFlags(RF_Transactional);
+	HitProxyDynamicMesh->Modify();
 
 	if (bEditingUVAnchor)
 	{
@@ -703,8 +704,6 @@ bool FAvaShape2DDynamicMeshVisualizer::ResetValue(FEditorViewportClient* InViewp
 				break;
 		}
 	}
-
-	HitProxyDynamicMesh->Modify();
 
 	return true;
 }

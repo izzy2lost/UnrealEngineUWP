@@ -86,44 +86,42 @@ void UAvaShape3DDynMeshBase::GetBounds(FVector& Origin, FVector& BoxExtent, FVec
 	Pivot = FVector(0, 0, 0);
 }
 
-bool UAvaShape3DDynMeshBase::SetPixelSize3D(const FVector& InPixelSize)
+void UAvaShape3DDynMeshBase::SetPixelSize3D(const FVector& InPixelSize)
 {
 	if (!bAllowEditSize)
 	{
-		return false;
+		return;
 	}
 
 	if (PixelSize3D == InPixelSize)
 	{
-		return false;
+		return;
 	}
 
 	if (InPixelSize.GetMin() < UAvaShapeDynamicMeshBase::MinSizeValue)
 	{
-		return false;
+		return;
 	}
 
 	PixelSize3D = InPixelSize;
 	OnPixelSizeChanged();
-	return true;
 }
 
-bool UAvaShape3DDynMeshBase::SetSize3D(const FVector& InSize)
+void UAvaShape3DDynMeshBase::SetSize3D(const FVector& InSize)
 {
 	if (!bAllowEditSize)
 	{
-		return false;
+		return;
 	}
 
 	const FVector NewSize = FVector::Max(FVector(UAvaShapeDynamicMeshBase::MinSizeValue), InSize);
 	if (Size3D.Equals(NewSize))
 	{
-		return false;
+		return;
 	}
 
 	Size3D = NewSize;
 	OnSizeChanged();
-	return true;
 }
 
 void UAvaShape3DDynMeshBase::OnRegisteredMeshes()

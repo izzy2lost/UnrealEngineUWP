@@ -305,9 +305,9 @@ bool FAvaShapeLineDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorViewpor
 						{
 							const FVector2D NewStartPosition = StartPosition + NewVector * 0.5;
 							const FVector NewLocation = InitialTransform.TransformPosition({0.f, NewStartPosition.X, NewStartPosition.Y});
+							DynMesh->Modify();
 							DynMesh->SetVector(NewVector);
 							DynMesh->SetMeshRegenWorldLocation(NewLocation, false);
-							DynMesh->Modify();
 							NotifyPropertiesModified(DynMesh, {VectorProperty, MeshRegenWorldLocationProperty},
 								EPropertyChangeType::Interactive);
 						}
@@ -343,9 +343,9 @@ bool FAvaShapeLineDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorViewpor
 						{
 							const FVector2D NewEndPosition = EndPosition - NewVector * 0.5;
 							const FVector NewLocation = InitialTransform.TransformPosition({0.f, NewEndPosition.X, NewEndPosition.Y});
+							DynMesh->Modify();
 							DynMesh->SetVector(NewVector);
 							DynMesh->SetMeshRegenWorldLocation(NewLocation, false);
-							DynMesh->Modify();
 							NotifyPropertiesModified(DynMesh, {VectorProperty, MeshRegenWorldLocationProperty},
 								EPropertyChangeType::Interactive);
 						}

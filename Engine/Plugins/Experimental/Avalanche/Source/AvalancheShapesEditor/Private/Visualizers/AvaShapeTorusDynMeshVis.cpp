@@ -214,8 +214,8 @@ bool FAvaShapeTorusDynamicMeshVisualizer::ResetValue(FEditorViewportClient* InVi
 			{
 				FScopedTransaction Transaction(NSLOCTEXT("AvaShapeVisualizer", "VisualizerResetValue", "Visualizer Reset Value"));
 				HitProxyDynamicMesh->SetFlags(RF_Transactional);
-				HitProxyDynamicMesh->SetNumSlices(32);
 				HitProxyDynamicMesh->Modify();
+				HitProxyDynamicMesh->SetNumSlices(32);
 				NotifyPropertyModified(HitProxyDynamicMesh, NumSlicesProperty, EPropertyChangeType::ValueSet);
 			}
 		}
@@ -234,8 +234,8 @@ bool FAvaShapeTorusDynamicMeshVisualizer::ResetValue(FEditorViewportClient* InVi
 			{
 				FScopedTransaction Transaction(NSLOCTEXT("AvaShapeVisualizer", "VisualizerResetValue", "Visualizer Reset Value"));
 				HitProxyDynamicMesh->SetFlags(RF_Transactional);
-				HitProxyDynamicMesh->SetNumSides(32);
 				HitProxyDynamicMesh->Modify();
+				HitProxyDynamicMesh->SetNumSides(32);
 				NotifyPropertyModified(HitProxyDynamicMesh, NumSidesProperty, EPropertyChangeType::ValueSet);
 			}
 		}
@@ -254,8 +254,8 @@ bool FAvaShapeTorusDynamicMeshVisualizer::ResetValue(FEditorViewportClient* InVi
 			{
 				FScopedTransaction Transaction(NSLOCTEXT("AvaShapeVisualizer", "VisualizerResetValue", "Visualizer Reset Value"));
 				HitProxyDynamicMesh->SetFlags(RF_Transactional);
-				HitProxyDynamicMesh->SetInnerSize(0.75f);
 				HitProxyDynamicMesh->Modify();
+				HitProxyDynamicMesh->SetInnerSize(0.75f);
 				NotifyPropertyModified(HitProxyDynamicMesh, InnerSizeProperty, EPropertyChangeType::ValueSet);
 			}
 		}
@@ -274,8 +274,8 @@ bool FAvaShapeTorusDynamicMeshVisualizer::ResetValue(FEditorViewportClient* InVi
 			{
 				FScopedTransaction Transaction(NSLOCTEXT("AvaShapeVisualizer", "VisualizerResetValue", "Visualizer Reset Value"));
 				HitProxyDynamicMesh->SetFlags(RF_Transactional);
-				HitProxyDynamicMesh->SetAngleDegree(360.f);
 				HitProxyDynamicMesh->Modify();
+				HitProxyDynamicMesh->SetAngleDegree(360.f);
 				NotifyPropertyModified(HitProxyDynamicMesh, AngleDegreeProperty, EPropertyChangeType::ValueSet);
 			}
 		}
@@ -373,14 +373,12 @@ bool FAvaShapeTorusDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorViewpo
 				if (GetViewportWidgetAxisList(InViewportClient) & EAxisList::Z)
 				{
 					int32 NumSlices = InitialNumSlices;
-					NumSlices       = FMath::Clamp(NumSlices + static_cast<int32>(InAccumulatedScale.Z), 3, 255);
+					NumSlices = FMath::Clamp(NumSlices + static_cast<int32>(InAccumulatedScale.Z), 3, 255);
+					DynMesh->Modify();
+					DynMesh->SetNumSlices(NumSlices);
 
-					if (DynMesh->SetNumSlices(NumSlices))
-					{
-						bHasBeenModified = true;
-						DynMesh->Modify();
-						NotifyPropertyModified(DynMesh, NumSlicesProperty, EPropertyChangeType::Interactive);
-					}
+					bHasBeenModified = true;
+					NotifyPropertyModified(DynMesh, NumSlicesProperty, EPropertyChangeType::Interactive);
 				}
 			}
 			return true;
@@ -392,14 +390,12 @@ bool FAvaShapeTorusDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorViewpo
 				if (GetViewportWidgetAxisList(InViewportClient) & EAxisList::X)
 				{
 					int32 NumSides = InitialNumSides;
-					NumSides       = FMath::Clamp(NumSides + static_cast<int32>(InAccumulatedScale.X), 3, 255);
+					NumSides = FMath::Clamp(NumSides + static_cast<int32>(InAccumulatedScale.X), 3, 255);
+					DynMesh->Modify();
+					DynMesh->SetNumSides(NumSides);
 
-					if (DynMesh->SetNumSides(NumSides))
-					{
-						bHasBeenModified = true;
-						DynMesh->Modify();
-						NotifyPropertyModified(DynMesh, NumSidesProperty, EPropertyChangeType::Interactive);
-					}
+					bHasBeenModified = true;
+					NotifyPropertyModified(DynMesh, NumSidesProperty, EPropertyChangeType::Interactive);
 				}
 			}
 			return true;
@@ -411,14 +407,12 @@ bool FAvaShapeTorusDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorViewpo
 				if (GetViewportWidgetAxisList(InViewportClient) & EAxisList::Z)
 				{
 					float InnerSize = InitialInnerSize;
-					InnerSize       = FMath::Clamp(InnerSize + InAccumulatedTranslation.Z / DynMesh->GetSize3D().Z, 0.5, 1.f);
-					
-					if (DynMesh->SetInnerSize(InnerSize))
-					{
-						DynMesh->Modify();
-						bHasBeenModified = true;
-						NotifyPropertyModified(DynMesh, InnerSizeProperty, EPropertyChangeType::Interactive);
-					}
+					InnerSize = FMath::Clamp(InnerSize + InAccumulatedTranslation.Z / DynMesh->GetSize3D().Z, 0.5, 1.f);
+					DynMesh->Modify();
+					DynMesh->SetInnerSize(InnerSize);
+
+					bHasBeenModified = true;
+					NotifyPropertyModified(DynMesh, InnerSizeProperty, EPropertyChangeType::Interactive);
 				}
 			}
 			return true;
@@ -430,14 +424,12 @@ bool FAvaShapeTorusDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorViewpo
 				if (GetViewportWidgetAxisList(InViewportClient) & EAxisList::X)
 				{
 					float AngleDegree = InitialAngleDegree;
-					AngleDegree       = FMath::Clamp(AngleDegree + static_cast<int32>(InAccumulatedRotation.Roll), 0.f, 360.f);
-					
-					if (DynMesh->SetAngleDegree(AngleDegree))
-					{
-						DynMesh->Modify();
-						bHasBeenModified = true;
-						NotifyPropertyModified(DynMesh, AngleDegreeProperty, EPropertyChangeType::Interactive);
-					}
+					AngleDegree = FMath::Clamp(AngleDegree + static_cast<int32>(InAccumulatedRotation.Roll), 0.f, 360.f);
+					DynMesh->Modify();
+					DynMesh->SetAngleDegree(AngleDegree);
+
+					bHasBeenModified = true;
+					NotifyPropertyModified(DynMesh, AngleDegreeProperty, EPropertyChangeType::Interactive);
 				}
 			}
 		}

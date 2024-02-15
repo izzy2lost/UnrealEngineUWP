@@ -4,81 +4,73 @@
 
 const FString UAvaShapeRingDynamicMesh::MeshName = TEXT("Ring");
 
-bool UAvaShapeRingDynamicMesh::SetNumSides(uint8 InNumSides)
+void UAvaShapeRingDynamicMesh::SetNumSides(uint8 InNumSides)
 {
 	if (NumSides == InNumSides)
 	{
-		return false;
+		return;
 	}
 
 	if (InNumSides < UAvaShapeRingDynamicMesh::MinNumSides || InNumSides > UAvaShapeRingDynamicMesh::MaxNumSides)
 	{
-		return false;
+		return;
 	}
 
 	NumSides = InNumSides;
 	OnNumSidesChanged();
-
-	return true;
 }
 
-bool UAvaShapeRingDynamicMesh::SetInnerSize(float InInnerSize)
+void UAvaShapeRingDynamicMesh::SetInnerSize(float InInnerSize)
 {
 	if (InnerSize == InInnerSize)
 	{
-		return false;
+		return;
 	}
 
 	if (InInnerSize < 0.01f)
 	{
-		return false;
+		return;
 	}
 
 	if (InInnerSize > 0.99f)
 	{
-		return false;
+		return;
 	}
 
 	InnerSize = InInnerSize;
 	OnInnerSizeChanged();
-
-	return true;
 }
 
-bool UAvaShapeRingDynamicMesh::SetAngleDegree(float InDegree)
+void UAvaShapeRingDynamicMesh::SetAngleDegree(float InDegree)
 {
 	if (AngleDegree == InDegree)
 	{
-		return false;
+		return;
 	}
 
 	if (InDegree < 0.f || InDegree > 360.f)
 	{
-		return false;
+		return;
 	}
 
 	AngleDegree = InDegree;
 	OnAngleDegreeChanged();
-
-	return true;
 }
 
-bool UAvaShapeRingDynamicMesh::SetStartDegree(float InDegree)
+void UAvaShapeRingDynamicMesh::SetStartDegree(float InDegree)
 {
 	if (StartDegree == InDegree)
 	{
-		return false;
+		return;
 	}
 
 	if (InDegree < 0.f || InDegree > 360.f)
 	{
-		return false;
+		return;
 	}
 
 	StartDegree = InDegree;
 	OnStartDegreeChanged();
-
-	return true;
 }
 
 #if WITH_EDITOR

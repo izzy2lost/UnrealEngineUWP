@@ -15,9 +15,8 @@ class UMovieSceneAvaShapeRectCornerTrack
 	, public IMovieSceneTrackTemplateProducer
 {
 	GENERATED_BODY()
-	
-public:
 
+public:
 	UMovieSceneAvaShapeRectCornerTrack(const FObjectInitializer& ObjectInitializer);
 
 	// UMovieSceneTrack Interface

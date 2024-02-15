@@ -4,21 +4,20 @@
 
 const FString UAvaShapeNGonDynamicMesh::MeshName = TEXT("RegularPolygon");
 
-bool UAvaShapeNGonDynamicMesh::SetNumSides(uint8 InNumSides)
+void UAvaShapeNGonDynamicMesh::SetNumSides(uint8 InNumSides)
 {
 	if (NumSides == InNumSides)
 	{
-		return false;
+		return;
 	}
 
 	if (InNumSides < UAvaShapeNGonDynamicMesh::MinNumSides || InNumSides > UAvaShapeNGonDynamicMesh::MaxNumSides)
 	{
-		return false;
+		return;
 	}
 
 	NumSides = InNumSides;
 	OnNumSidesChanged();
-	return true;
 }
 
 #if WITH_EDITOR

@@ -7,7 +7,7 @@
 #include "AvaShapeUVParameters.generated.h"
 
 USTRUCT(BlueprintType)
-struct AVALANCHESHAPES_API FAvaShapeMaterialUVParameters
+struct FAvaShapeMaterialUVParameters
 {
 	friend class UAvaShapeDynamicMeshBase;
 	friend class FAvaShapeDynamicMeshVisualizer;

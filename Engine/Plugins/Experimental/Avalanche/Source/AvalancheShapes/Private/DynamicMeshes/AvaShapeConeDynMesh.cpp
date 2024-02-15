@@ -7,76 +7,68 @@
 
 const FString UAvaShapeConeDynamicMesh::MeshName = TEXT("Cone");
 
-bool UAvaShapeConeDynamicMesh::SetNumSides(uint8 InNumSides)
+void UAvaShapeConeDynamicMesh::SetNumSides(uint8 InNumSides)
 {
 	if (NumSides == InNumSides)
 	{
-		return false;
+		return;
 	}
 
 	if (InNumSides < UAvaShapeConeDynamicMesh::MinNumSides || InNumSides > UAvaShapeConeDynamicMesh::MaxNumSides)
 	{
-		return false;
+		return;
 	}
 
 	NumSides = InNumSides;
 	OnNumSidesChanged();
-
-	return true;
 }
 
-bool UAvaShapeConeDynamicMesh::SetTopRadius(float InTopRadius)
+void UAvaShapeConeDynamicMesh::SetTopRadius(float InTopRadius)
 {
 	if (TopRadius == InTopRadius)
 	{
-		return false;
+		return;
 	}
 
 	if (InTopRadius < 0.f || InTopRadius > 1.f)
 	{
-		return false;
+		return;
 	}
 
 	TopRadius = InTopRadius;
 	OnTopRadiusChanged();
-
-	return true;
 }
 
-bool UAvaShapeConeDynamicMesh::SetAngleDegree(float InDegree)
+void UAvaShapeConeDynamicMesh::SetAngleDegree(float InDegree)
 {
 	if (AngleDegree == InDegree)
 	{
-		return false;
+		return;
 	}
 
 	if (InDegree < 0.f || InDegree > 360.f)
 	{
-		return false;
+		return;
 	}
 
 	AngleDegree = InDegree;
 	OnAngleDegreeChanged();
-
-	return true;
 }
 
-bool UAvaShapeConeDynamicMesh::SetStartDegree(float InDegree)
+void UAvaShapeConeDynamicMesh::SetStartDegree(float InDegree)
 {
 	if (StartDegree == InDegree)
 	{
-		return false;
+		return;
 	}
 
 	if (InDegree < 0.f || InDegree > 360.f)
 	{
-		return false;
+		return;
 	}
 
 	StartDegree = InDegree;
 	OnStartDegreeChanged();
-
-	return true;
 }
 
 #if WITH_EDITOR

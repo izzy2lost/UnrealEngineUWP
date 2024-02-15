@@ -14,15 +14,14 @@ class UMovieSceneAvaShapeRectCornerSection : public UMovieSceneSection
 	GENERATED_BODY()
 
 public:
-
 	UMovieSceneAvaShapeRectCornerSection(const FObjectInitializer& ObjectInitializer);
-	
+
 	UPROPERTY()
 	FMovieSceneByteChannel Type;
-	
+
 	UPROPERTY()
 	FMovieSceneFloatChannel BevelSize;
-	
+
 	UPROPERTY()
 	FMovieSceneByteChannel BevelSubdivisions;
 };

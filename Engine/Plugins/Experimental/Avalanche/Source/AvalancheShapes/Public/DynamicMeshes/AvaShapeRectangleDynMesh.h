@@ -6,7 +6,7 @@
 #include "AvaShapeRectangleDynMesh.generated.h"
 
 USTRUCT(BlueprintType)
-struct AVALANCHESHAPES_API FAvaShapeRectangleCornerSettings
+struct FAvaShapeRectangleCornerSettings
 {
 	GENERATED_BODY()
 
@@ -28,112 +28,175 @@ struct AVALANCHESHAPES_API FAvaShapeRectangleCornerSettings
 	FVector2D CornerPositionCache = FVector2D::ZeroVector;
 };
 
-UCLASS(ClassGroup="Shape", BlueprintType, CustomConstructor, Within=AvaShapeActor)
-class AVALANCHESHAPES_API UAvaShapeRectangleDynamicMesh : public UAvaShape2DDynMeshBase
+UCLASS(MinimalAPI, ClassGroup="Shape", BlueprintType, CustomConstructor, Within=AvaShapeActor)
+class UAvaShapeRectangleDynamicMesh : public UAvaShape2DDynMeshBase
 {
 	GENERATED_BODY()
 
 	friend class FAvaShapeRectangleDynamicMeshVisualizer;
 
 public:
+	static const FString MeshName;
 	static inline constexpr float MinSlantAngle = -45.f;
 	static inline constexpr float MaxSlantAngle = 45.f;
 	static inline constexpr float CornerMinMargin = 0.1f;
 
 	UAvaShapeRectangleDynamicMesh()
 		: UAvaShapeRectangleDynamicMesh(FVector2D(50.f, 50.f))
-	{
-	}
+	{}
 
     explicit UAvaShapeRectangleDynamicMesh(const FVector2D& Size2D, const FLinearColor& InVertexColor = FLinearColor::White)
 		: UAvaShape2DDynMeshBase(Size2D, InVertexColor)
+	{}
+
+	virtual const FString& GetMeshName() const override
 	{
+		return MeshName;
 	}
 
-	static const FString MeshName;
-	virtual const FString& GetMeshName() const override { return MeshName; }
+	AVALANCHESHAPES_API void SetHorizontalAlignment(EAvaHorizontalAlignment InHorizontalAlignment);
+	EAvaHorizontalAlignment GetHorizontalAlignment() const
+	{
+		return HorizontalAlignment;
+	}
 
-	UFUNCTION()
-	bool SetHorizontalAlignment(EAvaHorizontalAlignment InHorizontalAlignment);
-	EAvaHorizontalAlignment GetHorizontalAlignment() const { return HorizontalAlignment; }
+	AVALANCHESHAPES_API void SetVerticalAlignment(EAvaVerticalAlignment InVerticalAlignment);
+	EAvaVerticalAlignment GetVerticalAlignment() const
+	{
+		return VerticalAlignment;
+	}
 
-	UFUNCTION()
-	bool SetVerticalAlignment(EAvaVerticalAlignment InVerticalAlignment);
-	EAvaVerticalAlignment GetVerticalAlignment() const { return VerticalAlignment; }
+	AVALANCHESHAPES_API void SetLeftSlant(float InSlant);
+	float GetLeftSlant() const
+	{
+		return LeftSlant;
+	}
 
-	UFUNCTION()
-	bool SetLeftSlant(float InSlant);
-	float GetLeftSlant() const { return LeftSlant; }
+	AVALANCHESHAPES_API void SetRightSlant(float InSlant);
+	float GetRightSlant() const
+	{
+		return RightSlant;
+	}
 
-	UFUNCTION()
-	bool SetRightSlant(float InSlant);
-	float GetRightSlant() const { return RightSlant; }
-
-	UFUNCTION()
-	bool SetGlobalBevelSize(float InBevelSize);
-	float GetGlobalBevelSize() const { return GlobalBevelSize; }
+	AVALANCHESHAPES_API void SetGlobalBevelSize(float InBevelSize);
+	float GetGlobalBevelSize() const
+	{
+		return GlobalBevelSize;
+	}
 
 	/** Controls all corners bevel subdivisions */
-	UFUNCTION()
-	void SetGlobalBevelSubdivisions(uint8 InGlobalBevelSubdivisions);
-	uint8 GetGlobalBevelSubdivisions() const { return GlobalBevelSubdivisions; }
+	AVALANCHESHAPES_API void SetGlobalBevelSubdivisions(uint8 InGlobalBevelSubdivisions);
+	uint8 GetGlobalBevelSubdivisions() const
+	{
+		return GlobalBevelSubdivisions;
+	}
 
-	UFUNCTION()
-	void SetTopLeft(const FAvaShapeRectangleCornerSettings& InCornerSettings);
+	AVALANCHESHAPES_API void SetTopLeft(const FAvaShapeRectangleCornerSettings& InCornerSettings);
+	const FAvaShapeRectangleCornerSettings& GetTopLeft() const
+	{
+		return TopLeft;
+	}
 
-	UFUNCTION()
-	void SetTopRight(const FAvaShapeRectangleCornerSettings& InCornerSettings);
+	AVALANCHESHAPES_API void SetTopRight(const FAvaShapeRectangleCornerSettings& InCornerSettings);
+	const FAvaShapeRectangleCornerSettings& GetTopRight() const
+	{
+		return TopRight;
+	}
 
-	UFUNCTION()
-	void SetBottomLeft(const FAvaShapeRectangleCornerSettings& InCornerSettings);
+	AVALANCHESHAPES_API void SetBottomLeft(const FAvaShapeRectangleCornerSettings& InCornerSettings);
+	const FAvaShapeRectangleCornerSettings& GetBottomLeft() const
+	{
+		return BottomLeft;
+	}
 
-	UFUNCTION()
-	void SetBottomRight(const FAvaShapeRectangleCornerSettings& InCornerSettings);
+	AVALANCHESHAPES_API void SetBottomRight(const FAvaShapeRectangleCornerSettings& InCornerSettings);
+	const FAvaShapeRectangleCornerSettings& GetBottomRight() const
+	{
+		return BottomRight;
+	}
 
-	EAvaShapeCornerType GetTopLeftCornerType() const { return TopLeft.Type; }
-	bool SetTopLeftCornerType(EAvaShapeCornerType InType);
+	AVALANCHESHAPES_API void SetTopLeftCornerType(EAvaShapeCornerType InType);
+	EAvaShapeCornerType GetTopLeftCornerType() const
+	{
+		return TopLeft.Type;
+	}
 
-	float GetTopLeftBevelSize() const { return TopLeft.BevelSize; }
-	bool SetTopLeftBevelSize(float InSize);
+	AVALANCHESHAPES_API void SetTopLeftBevelSize(float InSize);
+	float GetTopLeftBevelSize() const
+	{
+		return TopLeft.BevelSize;
+	}
 
 	/** Bevel subdivisions for top left corner */
-	uint8 GetTopLeftBevelSubdivisions() const { return TopLeft.BevelSubdivisions; }
-	void SetTopLeftBevelSubdivisions(uint8 InBevelSubdivisions);
+	AVALANCHESHAPES_API void SetTopLeftBevelSubdivisions(uint8 InBevelSubdivisions);
+	uint8 GetTopLeftBevelSubdivisions() const
+	{
+		return TopLeft.BevelSubdivisions;
+	}
 
-	EAvaShapeCornerType GetBottomLeftCornerType() const { return BottomLeft.Type; }
-	bool SetBottomLeftCornerType(EAvaShapeCornerType InType);
+	AVALANCHESHAPES_API void SetBottomLeftCornerType(EAvaShapeCornerType InType);
+	EAvaShapeCornerType GetBottomLeftCornerType() const
+	{
+		return BottomLeft.Type;
+	}
 
-	float GetBottomLeftBevelSize() const { return BottomLeft.BevelSize; }
-	bool SetBottomLeftBevelSize(float InSize);
+	AVALANCHESHAPES_API void SetBottomLeftBevelSize(float InSize);
+	float GetBottomLeftBevelSize() const
+	{
+		return BottomLeft.BevelSize;
+	}
 
 	/** Bevel subdivisions for bottom left corner */
-	uint8 GetBottomLeftBevelSubdivisions() const { return BottomLeft.BevelSubdivisions; }
-	void SetBottomLeftBevelSubdivisions(uint8 InBevelSubdivisions);
+	AVALANCHESHAPES_API void SetBottomLeftBevelSubdivisions(uint8 InBevelSubdivisions);
+	uint8 GetBottomLeftBevelSubdivisions() const
+	{
+		return BottomLeft.BevelSubdivisions;
+	}
 
-	EAvaShapeCornerType GetTopRightCornerType() const { return TopRight.Type; }
-	bool SetTopRightCornerType(EAvaShapeCornerType InType);
+	AVALANCHESHAPES_API void SetTopRightCornerType(EAvaShapeCornerType InType);
+	EAvaShapeCornerType GetTopRightCornerType() const
+	{
+		return TopRight.Type;
+	}
 
-	float GetTopRightBevelSize() const { return TopRight.BevelSize; }
-	bool SetTopRightBevelSize(float InSize);
+	AVALANCHESHAPES_API void SetTopRightBevelSize(float InSize);
+	float GetTopRightBevelSize() const
+	{
+		return TopRight.BevelSize;
+	}
 
 	/** Bevel subdivisions for top right corner */
-	uint8 GetTopRightBevelSubdivisions() const { return TopRight.BevelSubdivisions; }
-	void SetTopRightBevelSubdivisions(uint8 InBevelSubdivisions);
+	AVALANCHESHAPES_API void SetTopRightBevelSubdivisions(uint8 InBevelSubdivisions);
+	uint8 GetTopRightBevelSubdivisions() const
+	{
+		return TopRight.BevelSubdivisions;
+	}
 
-	EAvaShapeCornerType GetBottomRightCornerType() const { return BottomRight.Type; }
-	bool SetBottomRightCornerType(EAvaShapeCornerType InType);
+	AVALANCHESHAPES_API void SetBottomRightCornerType(EAvaShapeCornerType InType);
+	EAvaShapeCornerType GetBottomRightCornerType() const
+	{
+		return BottomRight.Type;
+	}
 
-	float GetBottomRightBevelSize() const { return BottomRight.BevelSize; }
-	bool SetBottomRightBevelSize(float InSize);
+	AVALANCHESHAPES_API void SetBottomRightBevelSize(float InSize);
+	float GetBottomRightBevelSize() const
+	{
+		return BottomRight.BevelSize;
+	}
 
 	/** Bevel subdivisions for bottom right corner */
-	uint8 GetBottomRightBevelSubdivisions() const { return BottomRight.BevelSubdivisions; }
-	void SetBottomRightBevelSubdivisions(uint8 InBevelSubdivisions);
+	AVALANCHESHAPES_API void SetBottomRightBevelSubdivisions(uint8 InBevelSubdivisions);
+	uint8 GetBottomRightBevelSubdivisions() const
+	{
+		return BottomRight.BevelSubdivisions;
+	}
 
 protected:
+	//~ Begin UObject
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
+	//~ End UObject
 
 	float GetMaximumBevelSize() const;
 
@@ -172,35 +235,35 @@ protected:
 
 	virtual void OnSizeChanged() override;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(AllowPrivateAccess="true"))
 	EAvaHorizontalAlignment HorizontalAlignment = EAvaHorizontalAlignment::Center;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(AllowPrivateAccess="true"))
 	EAvaVerticalAlignment VerticalAlignment = EAvaVerticalAlignment::Center;
 
 	/** Angle in degrees for the left slant of the rectangle */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(ClampMin="-45.0",ClampMax="45.0", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="-45.0",ClampMax="45.0", AllowPrivateAccess="true"))
 	float LeftSlant = 0.f;
 
 	/** Angle in degrees for the right slant of the rectangle */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(ClampMin="-45.0",ClampMax="45.0", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="-45.0",ClampMax="45.0", AllowPrivateAccess="true"))
 	float RightSlant = 0.f;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(ClampMin="0.0", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0.0", AllowPrivateAccess="true"))
 	float GlobalBevelSize = 0.f;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(ClampMax="128.0", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMax="128.0", AllowPrivateAccess="true"))
 	uint8 GlobalBevelSubdivisions = DefaultSubdivisions;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(AllowPrivateAccess="true"))
 	FAvaShapeRectangleCornerSettings TopLeft;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(AllowPrivateAccess="true"))
 	FAvaShapeRectangleCornerSettings TopRight;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(AllowPrivateAccess="true"))
 	FAvaShapeRectangleCornerSettings BottomLeft;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(AllowPrivateAccess="true"))
 	FAvaShapeRectangleCornerSettings BottomRight;
 };

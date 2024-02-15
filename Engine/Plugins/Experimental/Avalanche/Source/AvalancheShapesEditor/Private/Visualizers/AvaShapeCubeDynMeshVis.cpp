@@ -167,8 +167,8 @@ bool FAvaShapeCubeDynamicMeshVisualizer::ResetValue(FEditorViewportClient* InVie
 			{
 				FScopedTransaction Transaction(NSLOCTEXT("AvaShapeVisualizer", "VisualizerResetValue", "Visualizer Reset Value"));
 				HitProxyDynamicMesh->SetFlags(RF_Transactional);
-				HitProxyDynamicMesh->SetBevelNum(1);
 				HitProxyDynamicMesh->Modify();
+				HitProxyDynamicMesh->SetBevelNum(1);
 				NotifyPropertyModified(HitProxyDynamicMesh, BevelNumProperty, EPropertyChangeType::ValueSet);
 			}
 		}
@@ -186,8 +186,8 @@ bool FAvaShapeCubeDynamicMeshVisualizer::ResetValue(FEditorViewportClient* InVie
 			{
 				FScopedTransaction Transaction(NSLOCTEXT("AvaShapeVisualizer", "VisualizerResetValue", "Visualizer Reset Value"));
 				HitProxyDynamicMesh->SetFlags(RF_Transactional);
-				HitProxyDynamicMesh->SetBevelSizeRatio(0.f);
 				HitProxyDynamicMesh->Modify();
+				HitProxyDynamicMesh->SetBevelSizeRatio(0.f);
 				NotifyPropertyModified(HitProxyDynamicMesh, BevelSizeRatioProperty, EPropertyChangeType::ValueSet);
 			}
 		}
@@ -271,14 +271,12 @@ bool FAvaShapeCubeDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorViewpor
 				if (GetViewportWidgetAxisList(InViewportClient) & EAxisList::Y)
 				{
 					int32 BevelNum = InitialBevelNum;
-					BevelNum       = FMath::Clamp(BevelNum + static_cast<int32>(InAccumulatedScale.Y), 1, 255);
+					BevelNum = FMath::Clamp(BevelNum + static_cast<int32>(InAccumulatedScale.Y), 1, 255);
+					DynMesh->Modify();
+					DynMesh->SetBevelNum(BevelNum);
 
-					if (DynMesh->SetBevelNum(BevelNum))
-					{
-						bHasBeenModified = true;
-						DynMesh->Modify();
-						NotifyPropertyModified(DynMesh, BevelNumProperty, EPropertyChangeType::Interactive);
-					}
+					bHasBeenModified = true;
+					NotifyPropertyModified(DynMesh, BevelNumProperty, EPropertyChangeType::Interactive);
 				}
 			}
 
@@ -292,14 +290,12 @@ bool FAvaShapeCubeDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorViewpor
 				if (GetViewportWidgetAxisList(InViewportClient) & EAxisList::Y)
 				{
 					float BevelSize = InitialBevelSizeRatio;
-					BevelSize       = FMath::Clamp(BevelSize + InAccumulatedTranslation.Y, 0.f, DynMesh->GetMaxBevelSize());
-					
-					if (DynMesh->SetBevelSizeRatio(BevelSize))
-					{
-						DynMesh->Modify();
-						bHasBeenModified = true;
-						NotifyPropertyModified(DynMesh, BevelSizeRatioProperty, EPropertyChangeType::Interactive);
-					}
+					BevelSize = FMath::Clamp(BevelSize + InAccumulatedTranslation.Y, 0.f, DynMesh->GetMaxBevelSize());
+					DynMesh->Modify();
+					DynMesh->SetBevelSizeRatio(BevelSize);
+
+					bHasBeenModified = true;
+					NotifyPropertyModified(DynMesh, BevelSizeRatioProperty, EPropertyChangeType::Interactive);
 				}
 			}
 

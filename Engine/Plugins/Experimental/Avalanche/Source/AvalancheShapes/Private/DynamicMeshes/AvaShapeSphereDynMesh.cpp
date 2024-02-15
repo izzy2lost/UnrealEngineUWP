@@ -7,106 +7,96 @@
 
 const FString UAvaShapeSphereDynamicMesh::MeshName = TEXT("Sphere");
 
-bool UAvaShapeSphereDynamicMesh::SetNumSides(uint8 InNumSides)
+void UAvaShapeSphereDynamicMesh::SetNumSides(uint8 InNumSides)
 {
 	if (NumSides == InNumSides)
 	{
-		return false;
+		return;
 	}
 
 	if (InNumSides < UAvaShapeSphereDynamicMesh::MinNumSides || InNumSides > UAvaShapeSphereDynamicMesh::MaxNumSides)
 	{
-		return false;
+		return;
 	}
 
 	NumSides = InNumSides;
 	OnNumSidesChanged();
-
-	return true;
 }
 
-bool UAvaShapeSphereDynamicMesh::SetStartLatitude(float InDegree)
+void UAvaShapeSphereDynamicMesh::SetStartLatitude(float InDegree)
 {
 	if (StartLatitude == InDegree)
 	{
-		return false;
+		return;
 	}
 
 	if (InDegree < 0.0f || InDegree > 360.f)
 	{
-		return false;
+		return;
 	}
 
 	StartLatitude = InDegree;
 	OnStartLatitudeChanged();
-
-	return true;
 }
 
-bool UAvaShapeSphereDynamicMesh::SetLatitudeDegree(float InDegree)
+void UAvaShapeSphereDynamicMesh::SetLatitudeDegree(float InDegree)
 {
 	if (LatitudeDegree == InDegree)
 	{
-		return false;
+		return;
 	}
 
 	if (InDegree < 0.0f || InDegree > 360.f)
 	{
-		return false;
+		return;
 	}
 
 	LatitudeDegree = InDegree;
 	OnLatitudeDegreeChanged();
-
-	return true;
 }
 
-bool UAvaShapeSphereDynamicMesh::SetStartLongitude(float InDegree)
+void UAvaShapeSphereDynamicMesh::SetStartLongitude(float InDegree)
 {
 	if (StartLongitude == InDegree)
 	{
-		return false;
+		return;
 	}
 
 	if (InDegree < 0.0f || InDegree > 180.f)
 	{
-		return false;
+		return;
 	}
 
 	if (InDegree > EndLongitude)
 	{
-		return false;
+		return;
 	}
 
 	PreEditStartLongitude = StartLongitude;
 	StartLongitude = InDegree;
 	OnStartLongitudeChanged();
-
-	return true;
 }
 
-bool UAvaShapeSphereDynamicMesh::SetEndLongitude(float InDegree)
+void UAvaShapeSphereDynamicMesh::SetEndLongitude(float InDegree)
 {
 	if (EndLongitude == InDegree)
 	{
-		return false;
+		return;
 	}
 
 	if (InDegree < 0.01f || InDegree > 180.f)
 	{
-		return false;
+		return;
 	}
 
 	if (InDegree < StartLongitude)
 	{
-		return false;
+		return;
 	}
 
 	PreEditEndLongitude = EndLongitude;
 	EndLongitude = InDegree;
 	OnEndLongitudeChanged();
-
-	return true;
 }
 
 #if WITH_EDITOR

@@ -530,14 +530,12 @@ bool FAvaShapeIrregularPolygonDynamicMeshVisualizer::HandleInputDeltaInternal(FE
 					if (GetViewportWidgetAxisList(InViewportClient) & EAxisList::Y)
 					{
 						float BevelSize = InitialGlobalBevelSize;
-						BevelSize       = FMath::Max(BevelSize + InAccumulatedTranslation.Y / DynMesh->GetSize2D().X * 2.f, 0.f);
+						BevelSize = FMath::Max(BevelSize + InAccumulatedTranslation.Y / DynMesh->GetSize2D().X * 2.f, 0.f);
+						DynMesh->Modify();
+						DynMesh->SetGlobalBevelSize(BevelSize);
 
-						if (DynMesh->SetGlobalBevelSize(BevelSize))
-						{
-							bHasBeenModified = true;
-							DynMesh->Modify();
-							NotifyPropertyModified(DynMesh, GlobalBevelSizeProperty, EPropertyChangeType::Interactive);
-						}
+						bHasBeenModified = true;
+						NotifyPropertyModified(DynMesh, GlobalBevelSizeProperty, EPropertyChangeType::Interactive);
 					}
 				}
 				else if (EditingPointIdx != INDEX_NONE)
@@ -558,10 +556,10 @@ bool FAvaShapeIrregularPolygonDynamicMeshVisualizer::HandleInputDeltaInternal(FE
 
 						SnapLocation2D(InViewportClient, InitialTransform, NewPointLocation);
 
+						DynMesh->Modify();
 						if (DynMesh->SetLocation(EditingPointIdx, NewPointLocation))
 						{
 							bHasBeenModified = true;
-							DynMesh->Modify();
 							NotifyPropertyModified(DynMesh, LocationProperty, EPropertyChangeType::Interactive, PointsProperty);
 						}
 					}
@@ -572,25 +570,24 @@ bool FAvaShapeIrregularPolygonDynamicMeshVisualizer::HandleInputDeltaInternal(FE
 					{
 						const bool bSetGlobalBevelCorner = FSlateApplication::Get().GetModifierKeys().IsAltDown();
 						const float MaxBevelSize = DynMesh->GetMaxBevelSizeForPoint(EditingBevelIdx);
-						float BevelSize          = InitialPointBevelSize;
+						float BevelSize = InitialPointBevelSize;
 
 						BevelSize = FMath::Clamp(BevelSize + InAccumulatedTranslation.Y / (MaxBevelSize * 0.75f), 0.f, 1.f);
-						
+
 						if (bSetGlobalBevelCorner)
 						{
-							if (DynMesh->SetGlobalBevelSize(BevelSize))
-							{
-								bHasBeenModified = true;
-								DynMesh->Modify();
-								NotifyPropertyModified(DynMesh, GlobalBevelSizeProperty, EPropertyChangeType::Interactive);
-							}
+							DynMesh->Modify();
+							DynMesh->SetGlobalBevelSize(BevelSize);
+
+							bHasBeenModified = true;
+							NotifyPropertyModified(DynMesh, GlobalBevelSizeProperty, EPropertyChangeType::Interactive);
 						}
 						else
 						{
+							DynMesh->Modify();
 							if (DynMesh->SetBevelSize(EditingBevelIdx, BevelSize))
 							{
 								bHasBeenModified = true;
-								DynMesh->Modify();
 								NotifyPropertyModified(DynMesh, BevelSizeProperty, EPropertyChangeType::Interactive, PointsProperty);
 							}
 						}
@@ -662,8 +659,8 @@ bool FAvaShapeIrregularPolygonDynamicMeshVisualizer::ResetValue(FEditorViewportC
 		{
 			FScopedTransaction Transaction(LOCTEXT("VisualizerResetValue", "Visualizer Reset Value"));
 			HitProxyDynamicMesh->SetFlags(RF_Transactional);
-			HitProxyDynamicMesh->SetGlobalBevelSize(0.f);
 			HitProxyDynamicMesh->Modify();
+			HitProxyDynamicMesh->SetGlobalBevelSize(0.f);
 			NotifyPropertyModified(HitProxyDynamicMesh, GlobalBevelSizeProperty, EPropertyChangeType::ValueSet);
 		}
 	}
@@ -677,8 +674,8 @@ bool FAvaShapeIrregularPolygonDynamicMeshVisualizer::ResetValue(FEditorViewportC
 		{
 			FScopedTransaction Transaction(LOCTEXT("VisualizerResetValue", "Visualizer Reset Value"));
 			HitProxyDynamicMesh->SetFlags(RF_Transactional);
-			HitProxyDynamicMesh->SetBevelSize(BevelHitProxy->PointIdx, 0.f);
 			HitProxyDynamicMesh->Modify();
+			HitProxyDynamicMesh->SetBevelSize(BevelHitProxy->PointIdx, 0.f);
 			NotifyPropertyModified(HitProxyDynamicMesh, BevelSizeProperty, EPropertyChangeType::ValueSet, PointsProperty);
 		}
 	}

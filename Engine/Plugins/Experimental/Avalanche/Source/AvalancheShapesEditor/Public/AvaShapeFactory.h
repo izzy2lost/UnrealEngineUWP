@@ -9,7 +9,7 @@
 class UAvaShapeDynamicMeshBase;
 
 UCLASS()
-class AVALANCHESHAPESEDITOR_API UAvaShapeFactory : public UActorFactory
+class UAvaShapeFactory : public UActorFactory
 {
 	GENERATED_BODY()
 

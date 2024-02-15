@@ -219,8 +219,8 @@ bool FAvaShapeSphereDynamicMeshVisualizer::ResetValue(FEditorViewportClient* InV
 			{
 				FScopedTransaction Transaction(NSLOCTEXT("AvaShapeVisualizer", "VisualizerResetValue", "Visualizer Reset Value"));
 				HitProxyDynamicMesh->SetFlags(RF_Transactional);
-				HitProxyDynamicMesh->SetNumSides(32);
 				HitProxyDynamicMesh->Modify();
+				HitProxyDynamicMesh->SetNumSides(32);
 				NotifyPropertyModified(HitProxyDynamicMesh, NumSidesProperty, EPropertyChangeType::ValueSet);
 			}
 		}
@@ -242,8 +242,8 @@ bool FAvaShapeSphereDynamicMeshVisualizer::ResetValue(FEditorViewportClient* InV
 				{
 					FScopedTransaction Transaction(NSLOCTEXT("AvaShapeVisualizer", "VisualizerResetValue", "Visualizer Reset Value"));
 					HitProxyDynamicMesh->SetFlags(RF_Transactional);
-					HitProxyDynamicMesh->SetStartLongitude(0.f);
 					HitProxyDynamicMesh->Modify();
+					HitProxyDynamicMesh->SetStartLongitude(0.f);
 					NotifyPropertyModified(HitProxyDynamicMesh, StartLongitudeProperty, EPropertyChangeType::ValueSet);
 				}
 				// end longitude
@@ -251,8 +251,8 @@ bool FAvaShapeSphereDynamicMeshVisualizer::ResetValue(FEditorViewportClient* InV
 				{
 					FScopedTransaction Transaction(NSLOCTEXT("AvaShapeVisualizer", "VisualizerResetValue", "Visualizer Reset Value"));
 					HitProxyDynamicMesh->SetFlags(RF_Transactional);
-					HitProxyDynamicMesh->SetEndLongitude(180.f);
 					HitProxyDynamicMesh->Modify();
+					HitProxyDynamicMesh->SetEndLongitude(180.f);
 					NotifyPropertyModified(HitProxyDynamicMesh, EndLongitudeProperty, EPropertyChangeType::ValueSet);
 				}
 				// latitude
@@ -260,8 +260,8 @@ bool FAvaShapeSphereDynamicMeshVisualizer::ResetValue(FEditorViewportClient* InV
 				{
 					FScopedTransaction Transaction(NSLOCTEXT("AvaShapeVisualizer", "VisualizerResetValue", "Visualizer Reset Value"));
 					HitProxyDynamicMesh->SetFlags(RF_Transactional);
-					HitProxyDynamicMesh->SetLatitudeDegree(0.f);
 					HitProxyDynamicMesh->Modify();
+					HitProxyDynamicMesh->SetLatitudeDegree(0.f);
 					NotifyPropertyModified(HitProxyDynamicMesh, LatitudeDegreeProperty, EPropertyChangeType::ValueSet);
 				}
 			}
@@ -360,14 +360,12 @@ bool FAvaShapeSphereDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorViewp
 				if (GetViewportWidgetAxisList(InViewportClient) & EAxisList::Y)
 				{
 					int32 NumSides = InitialNumSides;
-					NumSides       = FMath::Clamp(NumSides + static_cast<int32>(InAccumulatedScale.Y), 4, 255);
+					NumSides = FMath::Clamp(NumSides + static_cast<int32>(InAccumulatedScale.Y), 4, 255);
+					DynMesh->Modify();
+					DynMesh->SetNumSides(NumSides);
 
-					if (DynMesh->SetNumSides(NumSides))
-					{
-						bHasBeenModified = true;
-						DynMesh->Modify();
-						NotifyPropertyModified(DynMesh, NumSidesProperty, EPropertyChangeType::Interactive);
-					}
+					bHasBeenModified = true;
+					NotifyPropertyModified(DynMesh, NumSidesProperty, EPropertyChangeType::Interactive);
 				}
 			}
 			return true;
@@ -383,13 +381,11 @@ bool FAvaShapeSphereDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorViewp
 					EndLongitude = FMath::Clamp(EndLongitude + ((InAccumulatedTranslation.Z * 2) / DynMesh->GetSize3D().Z), -1.f, 1.f);
 					// get angle from ratio
 					EndLongitude = FMath::GetMappedRangeValueClamped(FVector2D(-90, 90), FVector2D(180, 0), FMath::RadiansToDegrees(FMath::Asin(EndLongitude)));
-					
-					if (DynMesh->SetEndLongitude(EndLongitude))
-					{
-						DynMesh->Modify();
-						bHasBeenModified = true;
-						NotifyPropertyModified(DynMesh, EndLongitudeProperty, EPropertyChangeType::Interactive);
-					}
+					DynMesh->Modify();
+					DynMesh->SetEndLongitude(EndLongitude);
+
+					bHasBeenModified = true;
+					NotifyPropertyModified(DynMesh, EndLongitudeProperty, EPropertyChangeType::Interactive);
 				}
 			}
 			return true;
@@ -405,13 +401,11 @@ bool FAvaShapeSphereDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorViewp
 					StartLongitude = FMath::Clamp(StartLongitude + ((InAccumulatedTranslation.Z * 2) / DynMesh->GetSize3D().Z), -1.f, 1.f);
 					// get angle from ratio
 					StartLongitude = FMath::GetMappedRangeValueClamped(FVector2D(90, -90), FVector2D(0, 180), FMath::RadiansToDegrees(FMath::Asin(StartLongitude)));
-					
-					if (DynMesh->SetStartLongitude(StartLongitude))
-					{
-						DynMesh->Modify();
-						bHasBeenModified = true;
-						NotifyPropertyModified(DynMesh, StartLongitudeProperty, EPropertyChangeType::Interactive);
-					}
+					DynMesh->Modify();
+					DynMesh->SetStartLongitude(StartLongitude);
+
+					bHasBeenModified = true;
+					NotifyPropertyModified(DynMesh, StartLongitudeProperty, EPropertyChangeType::Interactive);
 				}
 			}
 			return true;
@@ -423,14 +417,12 @@ bool FAvaShapeSphereDynamicMeshVisualizer::HandleInputDeltaInternal(FEditorViewp
 				if (GetViewportWidgetAxisList(InViewportClient) & EAxisList::Z)
 				{
 					float LatDegree = InitialLatitudeDegree;
-					LatDegree       = FMath::Clamp(LatDegree + static_cast<int32>(InAccumulatedRotation.Yaw), 0.f, 360.f);
-					
-					if (DynMesh->SetLatitudeDegree(LatDegree))
-					{
-						DynMesh->Modify();
-						bHasBeenModified = true;
-						NotifyPropertyModified(DynMesh, LatitudeDegreeProperty, EPropertyChangeType::Interactive);
-					}
+					LatDegree = FMath::Clamp(LatDegree + static_cast<int32>(InAccumulatedRotation.Yaw), 0.f, 360.f);
+					DynMesh->Modify();
+					DynMesh->SetLatitudeDegree(LatDegree);
+
+					bHasBeenModified = true;
+					NotifyPropertyModified(DynMesh, LatitudeDegreeProperty, EPropertyChangeType::Interactive);
 				}
 			}
 		}

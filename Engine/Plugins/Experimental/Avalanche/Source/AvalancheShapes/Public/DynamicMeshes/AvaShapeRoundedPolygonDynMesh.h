@@ -6,7 +6,7 @@
 #include "DynamicMeshes/AvaShape2DDynMeshBase.h"
 #include "AvaShapeRoundedPolygonDynMesh.generated.h"
 
-struct AVALANCHESHAPES_API FAvaShapeRoundedCornerMetrics
+struct FAvaShapeRoundedCornerMetrics
 {
 	float Angle;
 	FAvaShapeCachedVertex2D Start;
@@ -18,8 +18,8 @@ struct AVALANCHESHAPES_API FAvaShapeRoundedCornerMetrics
 	bool bValid = false;
 };
 
-UCLASS(ClassGroup="Shape", Abstract, BlueprintType, CustomConstructor)
-class AVALANCHESHAPES_API UAvaShapeRoundedPolygonDynamicMesh : public UAvaShape2DDynMeshBase
+UCLASS(MinimalAPI, ClassGroup="Shape", Abstract, BlueprintType, CustomConstructor)
+class UAvaShapeRoundedPolygonDynamicMesh : public UAvaShape2DDynMeshBase
 {
 	GENERATED_BODY()
 
@@ -44,18 +44,24 @@ public:
 		, BevelSubdivisions(InBevelSubdivisions)
 	{}
 
-	UFUNCTION()
-	bool SetBevelSize(float InBevelSize);
-	float GetBevelSize() const { return BevelSize; }
+	AVALANCHESHAPES_API void SetBevelSize(float InBevelSize);
+	float GetBevelSize() const
+	{
+		return BevelSize;
+	}
 
-	UFUNCTION()
-	void SetBevelSubdivisions(uint8 InBevelSubdivisions);
-	uint8 GetBevelSubdivisions() const { return BevelSubdivisions; }
+	AVALANCHESHAPES_API void SetBevelSubdivisions(uint8 InBevelSubdivisions);
+	uint8 GetBevelSubdivisions() const
+	{
+		return BevelSubdivisions;
+	}
 
 protected:
+	//~ Begin UObject
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
+	//~ End UObject
 
 	virtual void OnSizeChanged() override;
 
@@ -71,9 +77,9 @@ protected:
 	virtual bool UseCenteredVertex() { return false; }
 	virtual bool CreateMesh(FAvaShapeMesh& InMesh) override;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(ClampMin="0.0", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0.0", AllowPrivateAccess="true"))
 	float BevelSize = 0.f;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(ClampMax="64.0", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMax="64.0", AllowPrivateAccess="true"))
 	uint8 BevelSubdivisions = UAvaShapeDynamicMeshBase::DefaultSubdivisions;
 };
