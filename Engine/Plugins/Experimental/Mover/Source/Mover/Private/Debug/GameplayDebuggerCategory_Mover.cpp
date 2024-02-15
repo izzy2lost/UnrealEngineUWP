@@ -91,9 +91,15 @@ void FGameplayDebuggerCategory_Mover::CollectData(APlayerController* OwnerPC, AA
 	DataPack.PawnName = MyPawn ? MyPawn->GetHumanReadableName() : FString(TEXT("{red}No selected pawn."));
 	DataPack.LocalRole = MyPawn ? UEnum::GetValueAsString(TEXT("Engine.ENetRole"), MyPawn->GetLocalRole()) : FString();
 
+	// Set defaults for info that may not be available
+	DataPack.MovementModeName = FString("invalid");
+	DataPack.MovementBaseInfo = FString("invalid");
+	DataPack.MoveIntent = FVector::ZeroVector;
+	DataPack.ActiveLayeredMoves.Empty();
+	DataPack.ModeMap.Empty();
 	DataPack.ActiveLayeredMoves.Empty();
 
-	if (MyMoverComponent && MyMoverComponent->HasValidCachedState())
+	if (MyMoverComponent)
 	{
 		UPrimitiveComponent* MovementBaseComp = MyMoverComponent->GetMovementBase();
 
@@ -101,22 +107,38 @@ void FGameplayDebuggerCategory_Mover::CollectData(APlayerController* OwnerPC, AA
 		DataPack.MovementBaseInfo = MovementBaseComp ? FString::Printf(TEXT("%s.%s"), *GetNameSafe(MovementBaseComp->GetOwner()), *MovementBaseComp->GetName()) : FString();
 		DataPack.MoveIntent = MyMoverComponent->GetMovementIntent();
 
-		const FMoverSyncState& SyncState = MyMoverComponent->GetSyncState();
-
-		if (const FMoverDefaultSyncState* MoverState = SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>())
+		for (auto ModeIter = MyMoverComponent->MovementModes.begin(); ModeIter; ++ModeIter)
 		{
-			for (auto it = MoverState->LayeredMoves.GetActiveMovesIterator(); it; ++it)
+			UBaseMovementMode* MappedMode = ModeIter->Value;
+			DataPack.ModeMap.Add(FString::Printf(TEXT("%s => %s"), *ModeIter->Key.ToString(), (MappedMode ? *MappedMode->GetClass()->GetName() : TEXT("null"))));
+
+			if (ModeIter->Key == MyMoverComponent->GetMovementModeName())
 			{
-				DataPack.ActiveLayeredMoves.Add(*it->Get()->ToSimpleString());
+				for (UBaseMovementModeTransition* Transition : MyMoverComponent->MovementModes[ModeIter->Key]->Transitions)
+				{
+					DataPack.ActiveTransitions.Add(FString::Printf(TEXT("%s (%s)"), (Transition ? *Transition->GetClass()->GetName() : TEXT("null")), *ModeIter->Key.ToString()));
+				}
+			}
+		}
+
+		for (UBaseMovementModeTransition* Transition : MyMoverComponent->Transitions)
+		{
+			DataPack.ActiveTransitions.Add(FString::Printf(TEXT("%s (global)"), (Transition ? *Transition->GetClass()->GetName() : TEXT("null"))));
+		}
+		
+		if (MyMoverComponent->HasValidCachedState())
+		{
+			const FMoverSyncState& SyncState = MyMoverComponent->GetSyncState();
+
+			if (const FMoverDefaultSyncState* MoverState = SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>())
+			{
+				for (auto it = MoverState->LayeredMoves.GetActiveMovesIterator(); it; ++it)
+				{
+					DataPack.ActiveLayeredMoves.Add(*it->Get()->ToSimpleString());
+				}
 			}
 		}
 	}
-	else
-	{
-		DataPack.MovementModeName = FString("invalid");
-		DataPack.MovementBaseInfo = FString("invalid");
-		DataPack.MoveIntent = FVector::ZeroVector;
-	}	
 }
 
 
@@ -132,12 +154,14 @@ void FGameplayDebuggerCategory_Mover::DrawData(APlayerController* OwnerPC, FGame
 		DrawInWorldInfo(*FocusedActor, CanvasContext);
 	}
 	
-
-	CanvasContext.Printf(TEXT("{yellow}%s\n{grey}Local Role: {white}%s\n{grey}Mode: {white}%s\n{grey}Active Moves: {green}\n%s"),
+	CanvasContext.Printf(TEXT("{yellow}%s\n{grey}Local Role: {white}%s\n{grey}Mode: {white}%s\n{yellow}Active Moves: {white}\n%s\n{yellow}Mode Map: \n{white}%s\n{yellow}Active Transitions: {white}\n%s"),
 		*DataPack.PawnName,
 		*DataPack.LocalRole,
 		*DataPack.MovementModeName,
-		*FString::JoinBy(DataPack.ActiveLayeredMoves, TEXT("\n"), [](FString MoveAsString) { return MoveAsString; }));
+		*FString::JoinBy(DataPack.ActiveLayeredMoves, TEXT("\n"), [](FString MoveAsString) { return MoveAsString; }),
+		*FString::JoinBy(DataPack.ModeMap, TEXT("\n"), [](FString ModeMappingAsString) { return ModeMappingAsString; }),
+		*FString::JoinBy(DataPack.ActiveTransitions, TEXT("\n"), [](FString TransitionAsString) { return TransitionAsString; })
+		);
 }
 
 
@@ -242,6 +266,9 @@ void FGameplayDebuggerCategory_Mover::FRepData::Serialize(FArchive& Ar)
 	Ar << MovementModeName;
 	Ar << MovementBaseInfo;
 	Ar << MoveIntent;
+	Ar << ActiveLayeredMoves;
+	Ar << ModeMap;
+	Ar << ActiveTransitions;
 }
 
 #endif // WITH_GAMEPLAY_DEBUGGER
