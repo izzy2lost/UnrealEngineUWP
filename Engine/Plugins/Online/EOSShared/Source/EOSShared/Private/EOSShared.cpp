@@ -10,6 +10,8 @@
 #include "eos_auth_types.h"
 #include "eos_friends_types.h"
 #include "eos_presence_types.h"
+#include "eos_rtc_types.h"
+#include "eos_userinfo_types.h"
 
 DEFINE_LOG_CATEGORY(LogEOSSDK);
 
@@ -434,6 +436,13 @@ bool LexFromString(EOS_EIntegratedPlatformManagementFlags& OutEnum, const TCHAR*
 	}
 
 	return true;
+}
+
+FString LexToString(const EOS_RTC_Option& Option)
+{
+	UE_EOS_CHECK_API_MISMATCH(EOS_RTC_OPTION_API_LATEST, 1);
+	check(Option.ApiVersion == 1);
+	return FString::Printf(TEXT("\"%hs\"=\"%hs\""), Option.Key, Option.Value);
 }
 
 #endif // WITH_EOS_SDK

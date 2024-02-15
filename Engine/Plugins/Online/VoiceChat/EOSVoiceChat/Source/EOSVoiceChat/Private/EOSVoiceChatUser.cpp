@@ -1686,7 +1686,11 @@ void FEOSVoiceChatUser::OnJoinRoom(const EOS_RTC_JoinRoomCallbackInfo* CallbackI
 		{
 			if (Result.IsSuccess())
 			{
-				EOSVOICECHATUSER_LOG(Log, TEXT("OnJoinRoom ChannelName=[%s] Result=[%s]"), *ChannelName, *LexToString(Result));
+				EOSVOICECHATUSER_LOG(Log, TEXT("OnJoinRoom ChannelName=[%s] Result=[%s] RoomOptions=[%s]"),
+					*ChannelName,
+					*LexToString(Result),
+					*FString::JoinBy(TArrayView<const EOS_RTC_Option>(CallbackInfo->RoomOptions, CallbackInfo->RoomOptionsCount), TEXT(", "), UE_PROJECTION(LexToString))
+				);
 
 				ChannelSession->JoinState = EChannelJoinState::Joined;
 				TriggerCompletionDelegate(ChannelSession->JoinDelegate, ChannelSession->ChannelName, FVoiceChatResult::CreateSuccess());

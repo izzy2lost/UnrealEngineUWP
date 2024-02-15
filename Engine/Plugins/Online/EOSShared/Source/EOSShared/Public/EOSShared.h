@@ -38,7 +38,6 @@
 #include "eos_base.h"
 #include "eos_common.h"
 #include "eos_types.h"
-#include "eos_userinfo_types.h"
 #include "eos_version.h"
 
 #ifndef WITH_EOS_RTC
@@ -56,6 +55,11 @@ EOS_ENUM_FORWARD_DECL(EOS_ENetworkStatus);
 EOS_ENUM_FORWARD_DECL(EOS_Presence_EStatus);
 EOS_ENUM_FORWARD_DECL(EOS_UI_EInputStateButtonFlags);
 #undef EOS_ENUM_FORWARD_DECL
+
+#define EOS_STRUCT_FORWARD_DECL(name) EXTERN_C typedef struct _tag ## name name;
+EOS_STRUCT_FORWARD_DECL(EOS_UserInfo_BestDisplayName);
+EOS_STRUCT_FORWARD_DECL(EOS_RTC_Option);
+#undef EOS_STRUCT_FORWARD_DECL
 
 DECLARE_LOG_CATEGORY_EXTERN(LogEOSSDK, Log, All);
 
@@ -90,5 +94,7 @@ EOSSHARED_API bool LexFromString(EOS_EIntegratedPlatformManagementFlags& OutEnum
 
 /** Extracts the display name FString from a EOS_UserInfo_BestDisplayName using the following logic: Nickname > DisplayNameSanitized > DisplayName */
 EOSSHARED_API FString GetBestDisplayNameStr(const EOS_UserInfo_BestDisplayName& BestDisplayName);
+
+EOSSHARED_API FString LexToString(const EOS_RTC_Option& Option);
 
 #endif // WITH_EOS_SDK
