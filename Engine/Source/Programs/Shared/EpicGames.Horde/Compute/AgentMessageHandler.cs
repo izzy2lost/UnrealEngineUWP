@@ -217,11 +217,9 @@ namespace EpicGames.Horde.Compute
 				}
 				else
 				{
-					IoHash hash;
-					using (FileStream stream = FileReference.Open(file, FileMode.Open))
-					{
-						hash = await IoHash.ComputeAsync(stream, cancellationToken);
-					}
+					await using FileStream stream = FileReference.Open(file, FileMode.Open, FileAccess.Read);
+					IoHash hash = await IoHash.ComputeAsync(stream, cancellationToken);
+					
 					if (hash == fileEntry.StreamHash)
 					{
 						_logger.LogInformation("Hash of {File} is correct ({Hash})", file, hash);
