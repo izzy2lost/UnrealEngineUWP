@@ -2,13 +2,15 @@
 
 #pragma once
 
+#include "Replication/IConcertClientReplicationBridge.h"
+
 #include "Containers/Map.h"
 #include "Containers/Set.h"
 #include "UObject/SoftObjectPath.h"
 #include "UObject/WeakObjectPtr.h"
 #include "Templates/SharedPointer.h"
-#include "Replication/IConcertClientReplicationBridge.h"
 
+class AActor;
 class UObject;
 class UWorld;
 struct FWorldInitializationValues;
@@ -28,12 +30,12 @@ namespace UE::ConcertSyncClient::Replication
 		virtual bool IsObjectAvailable(const FSoftObjectPath& Path) override;
 		virtual UObject* FindObjectIfAvailable(const FSoftObjectPath& Path) override;
 		virtual FConcertClientReplicationBridgeObjectEvent& OnObjectDiscovered() override { return OnObjectDiscoveredDelegate; }
-		virtual FConcertClientReplicationBridgeObjectEvent& OnObjectHidden() override { return OnObjectRemovedDelegate; }
+		virtual FConcertClientReplicationBridgeObjectPathEvent& OnObjectHidden() override { return OnObjectRemovedDelegate; }
 		//~ End IConcertClientReplicationBridge Interface
 
 	private:
 
-		struct FTrackedObject
+		struct FTrackedObjectInfo
 		{
 			/** Tracks the number of PushTrackedObjects calls. This entry is removed upon reaching 0. */
 			int32 TrackCounter = 0;
@@ -42,17 +44,32 @@ namespace UE::ConcertSyncClient::Replication
 		};
 
 		/** The objects that wish to be tracked. */
-		TMap<FSoftObjectPath, FTrackedObject> TrackedObjects;
+		TMap<FSoftObjectPath, FTrackedObjectInfo> TrackedObjects;
 
 		/** The set of worlds currently open on this client. */
 		TSet<TWeakObjectPtr<UWorld>> LoadedWorlds;
 	
 		FConcertClientReplicationBridgeObjectEvent OnObjectDiscoveredDelegate;
-		FConcertClientReplicationBridgeObjectEvent OnObjectRemovedDelegate;
+		FConcertClientReplicationBridgeObjectPathEvent OnObjectRemovedDelegate;
 
-		// Callbacks into the engine
-		void OnPostWorldInitialization(UWorld* World, FWorldInitializationValues WorldInitializationValues);
-		void OnPostWorldCleanup(UWorld* World, bool bSessionEnded, bool bCleanupResources);
+		// Setting up delegates for worlds
+		void SetupEngineDelegates();
+		void SetupWorld(UWorld* World);
+		void CleanupWorld(UWorld* World);
+
+		// Searching everything in world
+		void DiscoverTrackedObjectsInWorld(UWorld& World);
+		void RemoveDiscoveredObjectsInWorld(UWorld& World);
+
+		// Searching a specific object
+		void DiscoverTrackedObjectsIn(UObject* AnalysedObject);
+		void RemoveDiscoveredObjectsIn(UObject* Object);
+		void DiscoverTrackedObjectsInActor(AActor* Actor);
+		void RemoveDiscoveredObjectsInActor(AActor* Actor);
+
+		// Util for formally marking objects as discovered
+		void MarkAsDiscovered(TConstArrayView<TWeakObjectPtr<UObject>> DeferredDiscoveredObjects);
+		void MarkAsUndiscovered(TConstArrayView<FSoftObjectPath> DeferredHiddenObjects);
 	};
 }
 

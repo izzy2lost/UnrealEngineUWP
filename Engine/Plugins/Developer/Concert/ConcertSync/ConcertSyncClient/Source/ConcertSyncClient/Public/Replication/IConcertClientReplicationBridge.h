@@ -11,6 +11,7 @@ struct FConcertReplication_ObjectReplicationEvent;
 struct FSoftObjectPath;
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FConcertClientReplicationBridgeObjectEvent, UObject&);
+DECLARE_MULTICAST_DELEGATE_OneParam(FConcertClientReplicationBridgeObjectPathEvent, const FSoftObjectPath&);
 
 /**
  * A session-independent object bridging Unreal Engine with Concert.
@@ -77,5 +78,5 @@ public:
 	/** Event for when a replicatable object becomes available, e.g. because its level is loaded. */
 	virtual FConcertClientReplicationBridgeObjectEvent& OnObjectDiscovered() = 0;
 	/** Event for when an object that was previously discovered becomes unavailable, e.g. because it is unloaded. */
-	virtual FConcertClientReplicationBridgeObjectEvent& OnObjectHidden() = 0;
+	virtual FConcertClientReplicationBridgeObjectPathEvent& OnObjectHidden() = 0;
 };

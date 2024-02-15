@@ -16,7 +16,7 @@ namespace UE::ConcertSyncTests::Replication
 		TArray<UObject*> AvailableObjects;
 		
 		FConcertClientReplicationBridgeObjectEvent OnObjectDiscoveredDelegate;
-		FConcertClientReplicationBridgeObjectEvent OnObjectRemovedDelegate;
+		FConcertClientReplicationBridgeObjectPathEvent OnObjectRemovedDelegate;
 
 		void InjectAvailableObject(UObject& Object)
 		{
@@ -63,6 +63,6 @@ namespace UE::ConcertSyncTests::Replication
 		}
 
 		virtual FConcertClientReplicationBridgeObjectEvent& OnObjectDiscovered() override { return OnObjectDiscoveredDelegate; }
-		virtual FConcertClientReplicationBridgeObjectEvent& OnObjectHidden() override { return OnObjectRemovedDelegate; }
+		virtual FConcertClientReplicationBridgeObjectPathEvent& OnObjectHidden() override { return OnObjectRemovedDelegate; }
 	};
 }
