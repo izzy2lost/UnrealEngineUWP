@@ -1219,7 +1219,7 @@ void UGeometryCollectionComponent::SetNotifyGlobalCrumblings(bool bNewNotifyGlob
 
 FBodyInstance* UGeometryCollectionComponent::GetBodyInstance(FName BoneName /*= NAME_None*/, bool bGetWelded /*= true*/, int32 Index /*=INDEX_NONE*/) const
 {
-	return nullptr;// const_cast<FBodyInstance*>(&DummyBodyInstance);
+	return nullptr;
 }
 
 void UGeometryCollectionComponent::SetNotifyRigidBodyCollision(bool bNewNotifyRigidBodyCollision)
@@ -4722,11 +4722,6 @@ const FDamageCollector* UGeometryCollectionComponent::GetRunTimeDataCollector() 
 void UGeometryCollectionComponent::OnDestroyPhysicsState()
 {
 	UActorComponent::OnDestroyPhysicsState();
-
-	if(DummyBodyInstance.IsValidBodyInstance())
-	{
-		DummyBodyInstance.TermBody();
-	}
 
 	// we need to unregister the events because it relies on the proxy internally 
 	if (EventDispatcher)
