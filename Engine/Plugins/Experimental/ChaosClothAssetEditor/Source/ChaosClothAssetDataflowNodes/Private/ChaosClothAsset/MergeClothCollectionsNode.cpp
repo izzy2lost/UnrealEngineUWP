@@ -308,7 +308,7 @@ void FChaosClothAssetMergeClothCollectionsNode::Evaluate(Dataflow::FContext& Con
 			if (OtherPropertyFacade.IsValid())
 			{
 				// Change that boolean to come back to the old behavior
-				static constexpr bool bOverrideProperties = false;
+				static constexpr bool bOverrideProperties = true;
 				if(bOverrideProperties)
 				{
 					constexpr bool bUpdateExistingProperties = true; // Want last one wins.
