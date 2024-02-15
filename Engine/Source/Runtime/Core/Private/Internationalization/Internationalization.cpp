@@ -21,9 +21,7 @@
 
 FInternationalization& FInternationalization::Get()
 {
-	FInternationalization& Singleton = TLazySingleton<FInternationalization>::Get();
-	Singleton.Initialize();
-	return Singleton;
+	return TLazySingleton<FInternationalization>::Get();
 }
 
 bool FInternationalization::IsAvailable()
@@ -517,6 +515,7 @@ TArray<FCultureRef> FInternationalization::GetAvailableCultures(const TArray<FSt
 FInternationalization::FInternationalization()
 	:	Implementation(this)
 {
+	Initialize();
 }
 
 FInternationalization::~FInternationalization()
