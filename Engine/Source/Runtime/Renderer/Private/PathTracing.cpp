@@ -34,6 +34,7 @@ TAutoConsoleVariable<int32> CVarPathTracing(
 #include "SkyAtmosphereRendering.h"
 #include <limits>
 #include "PathTracingSpatialTemporalDenoising.h"
+#include "EnvironmentComponentsFlags.h"
 
 TAutoConsoleVariable<int32> CVarPathTracingExperimental(
 	TEXT("r.PathTracing.Experimental"),
@@ -665,8 +666,8 @@ static void PreparePathTracingData(const FScene* Scene, const FViewInfo& View, F
 		&& (Scene->ExponentialFogs[0].FogData[0].Density > 0 ||
 			Scene->ExponentialFogs[0].FogData[1].Density > 0) ? PATH_TRACER_VOLUME_ENABLE_FOG : 0;
 	PathTracingData.VolumeFlags |= ShouldRenderHeterogeneousVolumesForView(View) ? PATH_TRACER_VOLUME_ENABLE_HETEROGENEOUS_VOLUMES : 0;
-	PathTracingData.VolumeFlags |= View.SkyAtmosphereUniformShaderParameters != nullptr &&  View.SkyAtmosphereUniformShaderParameters->bHoldout ? PATH_TRACER_VOLUME_HOLDOUT_ATMOSPHERE : 0;
-	PathTracingData.VolumeFlags |= Scene->ExponentialFogs.Num() > 0 && Scene->ExponentialFogs[0].bHoldout ? PATH_TRACER_VOLUME_HOLDOUT_FOG : 0;
+	PathTracingData.VolumeFlags |= View.SkyAtmosphereUniformShaderParameters != nullptr && IsSkyAtmosphereHoldout(View.CachedViewUniformShaderParameters->EnvironmentComponentsFlags) ? PATH_TRACER_VOLUME_HOLDOUT_ATMOSPHERE : 0;
+	PathTracingData.VolumeFlags |= Scene->ExponentialFogs.Num() > 0 && IsExponentialFogHoldout(View.CachedViewUniformShaderParameters->EnvironmentComponentsFlags) ? PATH_TRACER_VOLUME_HOLDOUT_FOG : 0;
 	PathTracingData.VolumeFlags |= EvalUseAnalyticTransmittance(View) ? PATH_TRACER_VOLUME_USE_ANALYTIC_TRANSMITTANCE : 0;
 
 	PathTracingData.EnableDBuffer = CVarPathTracingUseDBuffer.GetValueOnRenderThread();
@@ -2062,7 +2063,7 @@ void SetLightParameters(FRDGBuilder& GraphBuilder, FPathTracingRG::FParameters* 
 		DestLight.VolumetricScatteringIntensity = Scene->SkyLight->VolumetricScatteringIntensity;
 		DestLight.IESAtlasIndex = INDEX_NONE;
 		DestLight.MissShaderIndex = 0;
-		if ((Scene->SkyLight->bRealTimeCaptureEnabled && (View.SkyAtmosphereUniformShaderParameters == nullptr ||  !View.SkyAtmosphereUniformShaderParameters->bHoldout)) || CVarPathTracingVisibleLights.GetValueOnRenderThread() == 2)
+		if ((Scene->SkyLight->bRealTimeCaptureEnabled && (View.SkyAtmosphereUniformShaderParameters == nullptr ||  !IsSkyAtmosphereHoldout(View.CachedViewUniformShaderParameters->EnvironmentComponentsFlags))) || CVarPathTracingVisibleLights.GetValueOnRenderThread() == 2)
 		{
 			// When using the realtime capture system, always make the skylight visible
 			// because this is our only way of "seeing" the atmo/clouds at the moment

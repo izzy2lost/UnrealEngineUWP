@@ -1198,6 +1198,8 @@ public:
 
 	const FAtmosphereSetup& GetAtmosphereSetup() const { return AtmosphereSetup; }
 
+	bool IsHoldout() const { return bHoldout; }
+
 	void UpdateTransform(const FTransform& ComponentTransform, uint8 TranformMode) { AtmosphereSetup.UpdateTransform(ComponentTransform, TranformMode); }
 	void ApplyWorldOffset(const FVector3f& InOffset) { AtmosphereSetup.ApplyWorldOffset((FVector)InOffset); }
 
@@ -1214,6 +1216,7 @@ private:
 	float HeightFogContribution;
 	float AerialPerspectiveStartDepthKm;
 	float TraceSampleCountScale;
+	bool bHoldout;
 
 	bool OverrideAtmosphericLight[NUM_ATMOSPHERE_LIGHTS];
 	FVector OverrideAtmosphericLightDirection[NUM_ATMOSPHERE_LIGHTS];

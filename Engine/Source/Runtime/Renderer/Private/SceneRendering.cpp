@@ -99,6 +99,8 @@
 #include "OIT/OIT.h"
 #include "Rendering/CustomRenderPass.h"
 #include "LightFunctionAtlas.h"
+#include "EnvironmentComponentsFlags.h"
+#include "VolumetricCloudProxy.h"
 
 /*-----------------------------------------------------------------------------
 	Globals
@@ -1511,6 +1513,35 @@ void FViewInfo::SetupUniformBufferParameters(
 	ViewUniformShaderParameters.AtmosphereTransmittanceTextureSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
 	ViewUniformShaderParameters.AtmosphereIrradianceTextureSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
 	ViewUniformShaderParameters.AtmosphereInscatterTextureSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
+
+	// Upload environment holdout flags
+	if (Scene)
+	{
+		ViewUniformShaderParameters.EnvironmentComponentsFlags = 0;
+
+		if (ShouldRenderSkyAtmosphere(Scene, Family->EngineShowFlags))
+		{
+			FSkyAtmosphereRenderSceneInfo* SkyAtmosphere = Scene->SkyAtmosphere;
+			const FSkyAtmosphereSceneProxy& SkyAtmosphereSceneProxy = SkyAtmosphere->GetSkyAtmosphereSceneProxy();
+
+			ViewUniformShaderParameters.EnvironmentComponentsFlags |= SkyAtmosphereSceneProxy.IsHoldout() ? ENVCOMP_FLAG_SKYATMOSPHERE_HOLDOUT : 0;
+		}
+
+		if (ShouldRenderVolumetricCloud(Scene, Family->EngineShowFlags))
+		{
+			FVolumetricCloudRenderSceneInfo* VolumetricCloud = Scene->VolumetricCloud;
+			const FVolumetricCloudSceneProxy& VolumetricCloudSceneProxy = VolumetricCloud->GetVolumetricCloudSceneProxy();
+
+			ViewUniformShaderParameters.EnvironmentComponentsFlags |= VolumetricCloudSceneProxy.bHoldout ? ENVCOMP_FLAG_VOLUMETRICCLOUD_HOLDOUT : 0;
+		}
+
+		if (Scene->ExponentialFogs.Num() > 0)
+		{
+			FExponentialHeightFogSceneInfo& Fog = Scene->ExponentialFogs[0];
+
+			ViewUniformShaderParameters.EnvironmentComponentsFlags |= Fog.bHoldout ? ENVCOMP_FLAG_EXPONENTIALFOG_HOLDOUT : 0;
+		}
+	}
 
 	// This should probably be in SetupCommonViewUniformBufferParameters, but drags in too many dependencies
 	UpdateNoiseTextureParameters(ViewUniformShaderParameters);
