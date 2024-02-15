@@ -15,6 +15,7 @@
 #include "Widgets/SNiagaraColorEditor.h"
 #include "Widgets/SNiagaraDistributionCurveEditor.h"
 #include "Widgets/SNiagaraExpandedToggle.h"
+#include "Widgets/SNiagaraParameterName.h"
 
 #define LOCTEXT_NAMESPACE "NiagaraDistributionEditor"
 
@@ -113,6 +114,68 @@ private:
 	mutable TOptional<ENiagaraDistributionEditorMode> ModeCache;
 	mutable const FSlateBrush* ModeIconCache = nullptr;
 	mutable FText ModeToolTipCache;
+};
+
+class SNiagaraDistributionBindingEditor : public SCompoundWidget
+{
+public:
+	SLATE_BEGIN_ARGS(SNiagaraDistributionBindingEditor) { }
+		//SLATE_EVENT(FSimpleDelegate, OnDistributionModeChanged)
+	SLATE_END_ARGS();
+
+	void Construct(const FArguments& InArgs, TSharedRef<INiagaraDistributionAdapter> InDistributionAdapter)
+	{
+		DistributionAdapter = InDistributionAdapter;
+
+		ChildSlot
+		[
+			SNew(SComboButton)
+			.ButtonStyle(FAppStyle::Get(), "HoverHintOnly")
+			.ContentPadding(FMargin(0))
+			.OnGetMenuContent(this, &SNiagaraDistributionBindingEditor::OnGetMenuContent)
+			.ButtonContent()
+			[
+				SNew(SNiagaraParameterName)
+				.ParameterName(this, &SNiagaraDistributionBindingEditor::GetBindingName)
+				.IsReadOnly(true)
+			]
+		];
+	}
+
+private:
+	FName GetBindingName() const
+	{
+		FNiagaraVariableBase Binding = DistributionAdapter->GetBindingValue();
+		return Binding.IsValid() ? Binding.GetName() : NAME_None;
+	}
+
+	void SetBinding(FNiagaraVariableBase Binding)
+	{
+		DistributionAdapter->SetBindingValue(Binding);
+	}
+
+	TSharedRef<SWidget> OnGetMenuContent()
+	{
+		FMenuBuilder MenuBuilder(true, nullptr);
+		for (FNiagaraVariableBase Variable : DistributionAdapter->GetAvailableBindings())
+		{
+			TSharedRef<SWidget> Widget = SNew(SNiagaraParameterName)
+				.ParameterName(Variable.GetName())
+				.IsReadOnly(true);
+
+			MenuBuilder.AddMenuEntry(
+				FUIAction(
+					FExecuteAction::CreateSP(this, &SNiagaraDistributionBindingEditor::SetBinding, Variable)
+				),
+				Widget
+			);
+		}
+
+		return MenuBuilder.MakeWidget();
+	}
+
+private:
+	TSharedPtr<INiagaraDistributionAdapter> DistributionAdapter;
 };
 
 class SNiagaraDistributionValueEditor : public SCompoundWidget
@@ -587,7 +650,11 @@ void  SNiagaraDistributionEditor::OnDistributionModeChanged()
 TSharedRef<SWidget> SNiagaraDistributionEditor::ConstructContentForMode()
 {
 	ENiagaraDistributionEditorMode Mode = DistributionAdapter->GetDistributionMode();
-	if (FNiagaraDistributionEditorUtilities::IsConstant(Mode) || FNiagaraDistributionEditorUtilities::IsRange(Mode))
+	if (FNiagaraDistributionEditorUtilities::IsBinding(Mode))
+	{
+		return SNew(SNiagaraDistributionBindingEditor, DistributionAdapter.ToSharedRef());
+	}
+	else if (FNiagaraDistributionEditorUtilities::IsConstant(Mode) || FNiagaraDistributionEditorUtilities::IsRange(Mode))
 	{
 		return SNew(SNiagaraDistributionValueEditor, DistributionAdapter.ToSharedRef());
 	}

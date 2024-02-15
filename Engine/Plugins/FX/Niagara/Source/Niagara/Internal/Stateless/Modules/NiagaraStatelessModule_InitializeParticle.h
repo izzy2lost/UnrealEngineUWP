@@ -23,7 +23,7 @@ class UNiagaraStatelessModule_InitializeParticle : public UNiagaraStatelessModul
 	struct FModuleBuiltData
 	{
 		uint32							ModuleFlags = 0;
-		int32							PositionParameterBinding = INDEX_NONE;
+		FUintVector3					InitialPosition = FUintVector3::ZeroValue;
 		FNiagaraStatelessRangeFloat		LifetimeRange;
 		FNiagaraStatelessRangeColor		ColorRange;
 		FNiagaraStatelessRangeFloat		MassRange;
@@ -60,23 +60,8 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (DisplayName = "Ribbon Width", EditCondition="bWriteRibbonWidth"))
 	FNiagaraDistributionRangeFloat RibbonWidthDistribution = FNiagaraDistributionRangeFloat(FNiagaraStatelessGlobals::GetDefaultRibbonWidthValue());
 
-	UPROPERTY(EditAnywhere, Category = "Parameters")
-	FNiagaraParameterBindingWithValue	InitialPositionBinding;
-
-	//~Begin: UObject Interface
-#if WITH_EDITORONLY_DATA
-	virtual void PostInitProperties()
-	{
-		Super::PostInitProperties();
-		if (HasAnyFlags(RF_ClassDefaultObject) == false)
-		{
-			InitialPositionBinding.SetUsage(ENiagaraParameterBindingUsage::NotParticle);
-			InitialPositionBinding.SetAllowedTypeDefinitions({ FNiagaraTypeDefinition::GetVec3Def() });
-			InitialPositionBinding.SetDefaultParameter(FNiagaraTypeDefinition::GetVec3Def(), FVector3f::ZeroVector);
-		}
-	}
-#endif
-	//~End: UObject Interface
+	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (DisableCurveDistribution))
+	FNiagaraDistributionVector3	InitialPosition = FNiagaraDistributionVector3(FVector3f::ZeroVector);
 
 	virtual void BuildEmitterData(FNiagaraStatelessEmitterDataBuildContext& BuildContext) const override
 	{
@@ -84,7 +69,7 @@ public:
 		BuiltData->ModuleFlags				 = SpriteSizeDistribution.IsUniform() ? EInitializeParticleModuleFlag_UniformSpriteSize : 0;
 		BuiltData->ModuleFlags				|= MeshScaleDistribution.IsUniform() ? EInitializeParticleModuleFlag_UniformMeshScale : 0;
 
-		BuiltData->PositionParameterBinding	= BuildContext.AddRendererBinding(InitialPositionBinding);
+		BuiltData->InitialPosition			= BuildContext.AddDistribution(InitialPosition, true);
 		BuiltData->LifetimeRange			= LifetimeDistribution.CalculateRange(FNiagaraStatelessGlobals::GetDefaultLifetimeValue());
 		BuiltData->ColorRange				= ColorDistribution.CalculateRange(FNiagaraStatelessGlobals::GetDefaultColorValue());
 		BuiltData->MassRange				= MassDistribution.CalculateRange(FNiagaraStatelessGlobals::GetDefaultMassValue());
@@ -102,8 +87,8 @@ public:
 		FParameters* Parameters = SetShaderParameterContext.GetParameterNestedStruct<FParameters>();
 		const FModuleBuiltData* ModuleBuiltData = SetShaderParameterContext.ReadBuiltData<FModuleBuiltData>();
 
-		SetShaderParameterContext.GetRendererParameterValue(Parameters->InitializeParticle_Position, ModuleBuiltData->PositionParameterBinding, InitialPositionBinding.GetDefaultValue<FVector3f>());
 		Parameters->InitializeParticle_ModuleFlags			= ModuleBuiltData->ModuleFlags;
+		Parameters->InitializeParticle_InitialPosition		= ModuleBuiltData->InitialPosition;
 		Parameters->InitializeParticle_ColorScale			= ModuleBuiltData->ColorRange.GetScale();
 		Parameters->InitializeParticle_ColorBias			= ModuleBuiltData->ColorRange.Min;
 		Parameters->InitializeParticle_SpriteSizeScale		= ModuleBuiltData->SpriteSizeRange.GetScale();

@@ -8,8 +8,8 @@
 namespace NiagaraStateless
 {
 	BEGIN_SHADER_PARAMETER_STRUCT(FInitializeParticleModule_ShaderParameters, NIAGARASHADER_API)
-		SHADER_PARAMETER(uint32,	InitializeParticle_ModuleFlags)
-		SHADER_PARAMETER(FVector3f,	InitializeParticle_Position)				// Unset / Direct Set / Simulation Position
+		SHADER_PARAMETER(uint32,		InitializeParticle_ModuleFlags)
+		SHADER_PARAMETER(FUintVector3,	InitializeParticle_InitialPosition)
 
 		SHADER_PARAMETER(FVector4f,	InitializeParticle_ColorScale)				// Unset / Direct Set / Random Range(Link RGBA / Link RGB|Link A / Random Channels) / Random Hue|Saturation|Value
 		SHADER_PARAMETER(FVector4f,	InitializeParticle_ColorBias)

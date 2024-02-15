@@ -7,6 +7,7 @@
 
 #include "NiagaraGpuComputeDispatchInterface.h"
 #include "NiagaraGPUInstanceCountManager.h"
+#include "NiagaraRenderer.h"
 
 #include "GPUSortManager.h"
 #include "PrimitiveSceneProxy.h"
@@ -171,11 +172,23 @@ void FNiagaraStatelessComputeManager::OnPostPreRender(FRDGBuilder& GraphBuilder)
 			for (auto it = UsedData.CreateIterator(); it; ++it)
 			{
 				FStatelessDataCache* CacheData = it.Value().Get();
+				const NiagaraStateless::FEmitterInstance_RT* EmitterInstance = CacheData->EmitterInstance;
 				const FNiagaraStatelessEmitterData* EmitterData = CacheData->EmitterInstance->EmitterData.Get();
 
+				// Do we need to update the parameter buffer?
+				if (EmitterInstance->BindingBufferData.IsSet())
+				{
+					EmitterInstance->BindingBuffer.Release();
+					EmitterInstance->BindingBuffer.Initialize(RHICmdList, TEXT("FNiagaraStatelessEmitterInstance::BindingBuffer"), sizeof(uint32), EmitterInstance->BindingBufferData->Num() / sizeof(uint32), EPixelFormat::PF_R32_UINT, EBufferUsageFlags::Static);
+					void* LockedBuffer = RHICmdList.LockBuffer(EmitterInstance->BindingBuffer.Buffer, 0, EmitterInstance->BindingBuffer.NumBytes, RLM_WriteOnly);
+					FMemory::Memcpy(LockedBuffer, EmitterInstance->BindingBufferData->GetData(), EmitterInstance->BindingBuffer.NumBytes);
+					RHICmdList.UnlockBuffer(EmitterInstance->BindingBuffer.Buffer);
+					EmitterInstance->BindingBufferData.Reset();
+				}
+
 				// Update parameters for this compute invocation
-				NiagaraStateless::FCommonShaderParameters* ShaderParameters = CacheData->EmitterInstance->ShaderParameters.Get();
-				ShaderParameters->Common_SimulationTime			= CacheData->EmitterInstance->Age;
+				NiagaraStateless::FCommonShaderParameters* ShaderParameters = EmitterInstance->ShaderParameters.Get();
+				ShaderParameters->Common_SimulationTime			= EmitterInstance->Age;
 				ShaderParameters->Common_SimulationDeltaTime	= 1.0f / 60.0f;		//-TODO: Pull from view information, needs reworking of how we link to the dispatch
 				ShaderParameters->Common_SimulationInvDeltaTime	= 60.0f;
 				ShaderParameters->Common_OutputBufferStride		= CacheData->DataBuffer->GetFloatStride() / sizeof(float);
@@ -185,6 +198,7 @@ void FNiagaraStatelessComputeManager::OnPostPreRender(FRDGBuilder& GraphBuilder)
 				ShaderParameters->Common_IntOutputBuffer		= CacheData->DataBuffer->GetGPUBufferInt().UAV.IsValid() ? CacheData->DataBuffer->GetGPUBufferInt().UAV.GetReference() : EmptyIntBufferUAV;
 				ShaderParameters->Common_GPUCountBuffer			= CountBufferUAV;
 				ShaderParameters->Common_StaticFloatBuffer		= EmitterData->StaticFloatBuffer.SRV;
+				ShaderParameters->Common_ParameterBuffer		= FNiagaraRenderer::GetSrvOrDefaultUInt(EmitterInstance->BindingBuffer.SRV);
 
 				// Execute the simulation
 				TShaderRef<NiagaraStateless::FSimulationShader> ComputeShader = EmitterData->GetShader();

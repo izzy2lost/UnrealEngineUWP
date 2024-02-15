@@ -26,6 +26,9 @@ namespace NiagaraStateless
 		TArray<FNiagaraStatelessRuntimeSpawnInfo>				SpawnInfos;
 		TUniquePtr<NiagaraStateless::FCommonShaderParameters>	ShaderParameters;
 
+		mutable TOptional<TArray<uint8>>						BindingBufferData;
+		mutable FReadBuffer										BindingBuffer;
+
 		// Begin: INiagaraComputeDataBufferInterface
 		virtual bool HasTranslucentDataToRender() const override { return false; }
 		virtual FNiagaraDataBuffer* GetDataToRender(bool bIsLowLatencyTranslucent) const override;

@@ -3,11 +3,13 @@
 
 #define StatelessDistributionFlag_Random	0x00000001
 #define StatelessDistributionFlag_Uniform	0x00000002
+#define StatelessDistributionFlag_Binding	0x00000004
 
 struct FStatelessDistributionFloat
 {
 	bool	bRandomDistribution;
 	bool	bUniformValue;
+	bool	bBindingValue;
 	uint	TableOffset;
 	float	TableLength;
 	float	RandomOffset;
@@ -16,6 +18,7 @@ struct FStatelessDistributionFloat
 	{
 		bRandomDistribution = (Parameters.x & StatelessDistributionFlag_Random) != 0;
 		bUniformValue		= (Parameters.x & StatelessDistributionFlag_Uniform) != 0;
+		bBindingValue		= (Parameters.x & StatelessDistributionFlag_Binding) != 0;
 		TableOffset			= Parameters.y;
 		TableLength			= asfloat(Parameters.z);
 		RandomOffset		= RandomFloat(Particle);
@@ -28,7 +31,11 @@ struct FStatelessDistributionFloat
 	
 	float GetValue(float NormalizedAge)
 	{
-		if ( bRandomDistribution )
+		if ( bBindingValue )
+		{
+			return GetParameterBufferFloat(TableOffset, 0);
+		}
+		else if ( bRandomDistribution )
 		{
 			const float	Value0 = GetStaticFloat(TableOffset, 0);
 			const float	Value1 = GetStaticFloat(TableOffset, 1);
@@ -48,6 +55,7 @@ struct FStatelessDistributionFloat2
 {
 	bool	bRandomDistribution;
 	bool	bUniformValue;
+	bool	bBindingValue;
 	uint	TableOffset;
 	float	TableLength;
 	float2	RandomOffset;
@@ -56,6 +64,7 @@ struct FStatelessDistributionFloat2
 	{
 		bRandomDistribution = (Parameters.x & StatelessDistributionFlag_Random) != 0;
 		bUniformValue		= (Parameters.x & StatelessDistributionFlag_Uniform) != 0;
+		bBindingValue		= (Parameters.x & StatelessDistributionFlag_Binding) != 0;
 		TableOffset			= Parameters.y;
 		TableLength			= asfloat(Parameters.z);
 		RandomOffset		= 0;
@@ -72,7 +81,11 @@ struct FStatelessDistributionFloat2
 	
 	float2 GetValue(float NormalizedAge)
 	{
-		if ( bRandomDistribution )
+		if ( bBindingValue )
+		{
+			return GetParameterBufferFloat2(TableOffset, 0);
+		}
+		else if ( bRandomDistribution )
 		{
 			const float2 Value0 = GetStaticFloat2(TableOffset, 0);
 			const float2 Value1 = GetStaticFloat2(TableOffset, 1);
@@ -95,6 +108,7 @@ struct FStatelessDistributionFloat3
 {
 	bool	bRandomDistribution;
 	bool	bUniformValue;
+	bool	bBindingValue;
 	uint	TableOffset;
 	float	TableLength;
 	float3	RandomOffset;
@@ -103,6 +117,7 @@ struct FStatelessDistributionFloat3
 	{
 		bRandomDistribution = (Parameters.x & StatelessDistributionFlag_Random) != 0;
 		bUniformValue		= (Parameters.x & StatelessDistributionFlag_Uniform) != 0;
+		bBindingValue		= (Parameters.x & StatelessDistributionFlag_Binding) != 0;
 		TableOffset			= Parameters.y;
 		TableLength			= asfloat(Parameters.z);
 		RandomOffset		= 0;
@@ -119,7 +134,11 @@ struct FStatelessDistributionFloat3
 	
 	float3 GetValue(float NormalizedAge)
 	{
-		if ( bRandomDistribution )
+		if ( bBindingValue )
+		{
+			return GetParameterBufferFloat3(TableOffset, 0);
+		}
+		else if ( bRandomDistribution )
 		{
 			const float3 Value0 = GetStaticFloat3(TableOffset, 0);
 			const float3 Value1 = GetStaticFloat3(TableOffset, 1);
@@ -143,6 +162,7 @@ struct FStatelessDistributionFloat4
 {
 	bool	bRandomDistribution;
 	bool	bUniformValue;
+	bool	bBindingValue;
 	uint	TableOffset;
 	float	TableLength;
 	float4	RandomOffset;
@@ -151,6 +171,7 @@ struct FStatelessDistributionFloat4
 	{
 		bRandomDistribution = (Parameters.x & StatelessDistributionFlag_Random) != 0;
 		bUniformValue		= (Parameters.x & StatelessDistributionFlag_Uniform) != 0;
+		bBindingValue		= (Parameters.x & StatelessDistributionFlag_Binding) != 0;
 		TableOffset			= Parameters.y;
 		TableLength			= asfloat(Parameters.z);
 		RandomOffset		= 0;
@@ -167,7 +188,11 @@ struct FStatelessDistributionFloat4
 	
 	float4 GetValue(float NormalizedAge)
 	{
-		if ( bRandomDistribution )
+		if ( bBindingValue )
+		{
+			return GetParameterBufferFloat4(TableOffset, 0);
+		}
+		else if ( bRandomDistribution )
 		{
 			const float4 Value0 = GetStaticFloat4(TableOffset, 0);
 			const float4 Value1 = GetStaticFloat4(TableOffset, 1);

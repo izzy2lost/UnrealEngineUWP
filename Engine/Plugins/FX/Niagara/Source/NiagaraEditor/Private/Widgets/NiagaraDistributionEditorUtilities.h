@@ -19,6 +19,7 @@ namespace FNiagaraDistributionEditorUtilities
 	const FSlateBrush* DistributionModeToIconBrush(ENiagaraDistributionEditorMode InMode);
 	FSlateIcon DistributionModeToIcon(ENiagaraDistributionEditorMode InMode);
 
+	bool IsBinding(ENiagaraDistributionEditorMode InMode);
 	bool IsUniform(ENiagaraDistributionEditorMode InMode);
 	bool IsColor(ENiagaraDistributionEditorMode InMode);
 

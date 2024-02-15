@@ -33,6 +33,7 @@ namespace NiagaraStateless
 		SHADER_PARAMETER_UAV(RWBuffer<int>,		Common_IntOutputBuffer)
 		SHADER_PARAMETER_UAV(RWBuffer<int>,		Common_GPUCountBuffer)
 		SHADER_PARAMETER_SRV(Buffer<float>,		Common_StaticFloatBuffer)
+		SHADER_PARAMETER_SRV(Buffer<uint32>,	Common_ParameterBuffer)
 
 		SHADER_PARAMETER_STRUCT_INCLUDE(FSpawnInfoShaderParameters,	SpawnParameters)
 	END_SHADER_PARAMETER_STRUCT()
