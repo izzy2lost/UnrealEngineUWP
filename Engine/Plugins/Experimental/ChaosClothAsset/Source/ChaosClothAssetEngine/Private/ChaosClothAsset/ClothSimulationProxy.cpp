@@ -228,6 +228,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		Solver->SetLocalSpaceRotation((FQuat)ClothSimulationContext->ComponentTransform.GetRotation());
 		Solver->SetWindVelocity(ClothSimulationContext->WindVelocity);
 		Solver->SetGravity(ClothSimulationContext->WorldGravity);
+		Solver->EnableClothGravityOverride(true);
 
 		// Check teleport modes
 		for (const TUniquePtr<FClothingSimulationCloth>& Cloth : Cloths)
