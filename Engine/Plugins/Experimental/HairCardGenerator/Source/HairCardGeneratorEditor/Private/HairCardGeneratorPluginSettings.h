@@ -238,7 +238,10 @@ public:
 	int32 GetGenerateForGroomGroup() const { return GenerateForGroomGroup; }
 	void SetGenerateForGroomGroup(int GroupIndex) { GenerateForGroomGroup = GroupIndex; }
 	EHairTextureLayout GetChannelLayout() const { return ChannelLayout; }
-	bool ValidChannelLayouts() { return bValidChannelLayouts; }
+	bool ValidChannelLayouts() const { return bValidChannelLayouts; }
+
+	bool CanReduceFromLOD(FText* OutInvalidInfo = nullptr) const;
+	bool CanUseReservedTx(FText* OutInvalidInfo = nullptr) const;
 
 	TArray<TObjectPtr<UHairCardGeneratorGroupSettings>>& GetFilterGroupSettings() { return FilterGroupGenerationSettings; }
 	const TArray<TObjectPtr<UHairCardGeneratorGroupSettings>>& GetFilterGroupSettings() const { return FilterGroupGenerationSettings; }
@@ -255,6 +258,9 @@ private:
 
 	void UpdateParentInfo();
 	void UpdateHairWidths();
+
+	void EnforceValidLODSettings();
+
 	bool FindDerivedTextureSettings();
 	TSharedPtr<FJsonObject> GetParentTextureSettings() const;
 
@@ -282,7 +288,7 @@ private:
 
 	// Static HCS version number to force regeneration on tool updates
 	UPROPERTY(BlueprintReadOnly, Category="Asset", meta=(AllowPrivateAccess))
-	FString Version = TEXT("0.3");
+	FString Version = TEXT("0.4");
 
 	UPROPERTY(BlueprintReadOnly, Category="Settings Groups", meta=(AllowPrivateAccess))
 	TArray<TObjectPtr<UHairCardGeneratorGroupSettings>> FilterGroupGenerationSettings;

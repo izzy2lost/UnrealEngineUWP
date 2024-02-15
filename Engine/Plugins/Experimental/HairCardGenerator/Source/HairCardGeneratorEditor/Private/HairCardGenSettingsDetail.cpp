@@ -124,40 +124,7 @@ bool FHairCardSettingsDetailCustomization::CheckReduceFromLOD(const TSharedPtr<I
         return false;
     }
 
-    TObjectPtr<UHairCardGeneratorPluginSettings> SettingsPin = SettingsPtr.Get();
-    if ( SettingsPin->GetLODIndex() < 1 )
-    {
-        OutTooltipInfo = LOCTEXT("ReduceFromLOD.LOD0.ToolTip", "Cannot reduce LOD 0 (must run full generation)");
-        return false;
-    }
-
-    if ( !SettingsPin->ValidChannelLayouts() )
-    {
-        OutTooltipInfo = LOCTEXT("ReduceFromLOD.InconsistentGroupLayouts.ToolTip", "Inconsistent texture layouts for groom groups at this LOD");
-        return false;
-    }
-    
-    TSharedPtr<FJsonObject> ParentSettingsJson = SettingsPin->GetFullParent();
-    if ( !ParentSettingsJson.IsValid() )
-    {
-        OutTooltipInfo = LOCTEXT("ReduceFromLOD.InvalidParent.ToolTip", "All lower LODs must be generated using the hair card generator tool");
-        return false;
-    }
-
-    if ( !ParentSettingsJson->HasTypedField<EJson::String>(TEXT("ChannelLayout")) )
-    {
-        OutTooltipInfo = LOCTEXT("ReduceFromLOD.InvalidChannelLayout.ToolTip", "Invalid texture layout setting in previous LOD");
-        return false;
-    }
-
-    UEnum* EnumClass = StaticEnum<EHairTextureLayout>();
-    if ( !EnumClass || ParentSettingsJson->GetStringField(TEXT("ChannelLayout")) != EnumClass->GetNameStringByValue((int64)SettingsPin->GetChannelLayout()) )
-    {
-        OutTooltipInfo = LOCTEXT("ReduceFromLOD.InconsistentParentLayout.ToolTip", "Parent texture layout setting differs from current LOD texture layout");
-        return false;
-    }
-
-    return true;
+    return SettingsPtr.Get()->CanReduceFromLOD(&OutTooltipInfo);
 }
 
 bool FHairCardSettingsDetailCustomization::IsEnabledUseReservedTx(const TSharedPtr<IPropertyHandle> Property) const
@@ -183,34 +150,7 @@ bool FHairCardSettingsDetailCustomization::CheckUseReservedTx(const TSharedPtr<I
         return false;
     }
 
-    TObjectPtr<UHairCardGeneratorPluginSettings> SettingsPin = SettingsPtr.Get();
-    if ( SettingsPin->bReduceCardsFromPreviousLOD )
-    {
-        OutTooltipInfo = LOCTEXT("UseReservedTx.Reducing.ToolTip", "Reduced card geometry will use previous LOD texture UVs");
-        return false;
-    }
-
-    if ( !SettingsPin->HasDerivedTextureSettings() )
-    {
-        OutTooltipInfo = LOCTEXT("UseReservedTx.InvalidParent.ToolTip", "Lower LODs must be generated using hair card generator tool with reserved space");
-        return false;
-    }
-
-    // TODO: Handle limiting/reserving texture by using texture resolution to compute reserved space in pixels
-    if ( SettingsPin->GetDerivedReservedTextureSize() < 5 )
-    {
-        OutTooltipInfo = LOCTEXT("UseReservedTx.NoReservedSpace.ToolTip", "No space reserved in parent LOD chain");
-        return false;
-    }
-
-    UEnum* EnumClass = StaticEnum<EHairTextureLayout>();
-    if ( !EnumClass || SettingsPin->GetDerivedTextureChannelLayout() != EnumClass->GetNameStringByValue((int64)SettingsPin->GetChannelLayout()) )
-    {
-        OutTooltipInfo = LOCTEXT("UseReservedTx.InconsistentReservedLayout.ToolTip", "Parent reserved texture layout setting differs from current LOD texture layout");
-        return false;
-    }
-    
-    return true;
+    return SettingsPtr.Get()->CanUseReservedTx(&OutTooltipInfo);
 }
 
 
