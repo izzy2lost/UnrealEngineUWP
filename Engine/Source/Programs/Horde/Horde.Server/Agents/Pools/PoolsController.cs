@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Agents.Pools;
 using Horde.Server.Acls;
@@ -15,6 +16,7 @@ using Horde.Server.Utilities;
 using HordeCommon;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Extensions.Options;
 
 namespace Horde.Server.Agents.Pools
@@ -118,28 +120,28 @@ namespace Horde.Server.Agents.Pools
 			return responses;
 		}
 
-		class PoolStats
+		class PoolInfo
 		{
-			public const int NumUtilizationSamples = 6;
-
 			public int NumAgents { get; set; }
 			public int NumReady { get; set; }
 			public int NumOffline { get; set; }
 			public int NumDisabled { get; set; }
-			public List<IAgent> Agents { get; } = new List<IAgent>();
-			public double[] Utilization { get; } = new double[NumUtilizationSamples];
+			public List<IAgent>? Agents { get; set; }
+			public List<double>? Utilization { get; set; }
 		}
 
 		/// <summary>
 		/// Query all the pools
 		/// </summary>
-		/// <param name="filter">Filter for the properties to return</param>
+		/// <param name="stats">Whether to include stats in the response</param>
+		/// <param name="numAgents">Number of agents to include for each pool in the response</param>
+		/// <param name="numUtilizationSamples">Number of utilization samples to include for each pool</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Information about all the pools</returns>
 		[HttpGet]
 		[Route("/api/v2/pools")]
 		[ProducesResponseType(typeof(List<GetPoolResponse>), 200)]
-		public async Task<ActionResult<List<object>>> GetPoolSummariesAsync([FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
+		public async Task<ActionResult<List<object>>> GetPoolSummariesAsync(bool stats = false, int numAgents = 0, int numUtilizationSamples = 0, CancellationToken cancellationToken = default)
 		{
 			if (!_globalConfig.Value.Authorize(PoolAclAction.ListPools, User))
 			{
@@ -149,54 +151,71 @@ namespace Horde.Server.Agents.Pools
 			DateTime utcNow = _clock.UtcNow;
 
 			IReadOnlyList<IPoolConfig> poolConfigs = await _poolCollection.GetConfigsAsync(cancellationToken);
-			Dictionary<PoolId, PoolStats> poolIdToStats = poolConfigs.ToDictionary(x => x.Id, x => new PoolStats());
-			
-			const int MaxAgentsPerPool = 5;
 
-			IReadOnlyList<IAgent> agents = await _agentCollection.FindAsync(cancellationToken: cancellationToken);
-			foreach (IAgent agent in agents)
+			// Compute all the expensive response stuff
+			Dictionary<PoolId, PoolInfo>? poolIdToInfo = null;
+			if (stats || numAgents > 0 || numUtilizationSamples > 0)
 			{
-				foreach (PoolId poolId in agent.GetPools())
+				poolIdToInfo = poolConfigs.ToDictionary(x => x.Id, x => new PoolInfo());
+
+				if (stats || numAgents > 0)
 				{
-					PoolStats? poolStats;
-					if (poolIdToStats.TryGetValue(poolId, out poolStats))
+					IReadOnlyList<IAgent> agents = await _agentCollection.FindAsync(cancellationToken: cancellationToken);
+					foreach (IAgent agent in agents)
 					{
-						poolStats.NumAgents++;
+						foreach (PoolId poolId in agent.GetPools())
+						{
+							PoolInfo? poolInfo;
+							if (poolIdToInfo.TryGetValue(poolId, out poolInfo))
+							{
+								poolInfo.NumAgents++;
 
-						if (agent.Leases.Count == 0)
-						{
-							poolStats.NumReady++;
-						}
-						if (!agent.IsSessionValid(utcNow))
-						{
-							poolStats.NumOffline++;
-						}
-						if (!agent.Enabled)
-						{
-							poolStats.NumDisabled++;
-						}
+								if (agent.Leases.Count == 0)
+								{
+									poolInfo.NumReady++;
+								}
+								if (!agent.IsSessionValid(utcNow))
+								{
+									poolInfo.NumOffline++;
+								}
+								if (!agent.Enabled)
+								{
+									poolInfo.NumDisabled++;
+								}
 
-						if (poolStats.Agents.Count < MaxAgentsPerPool)
-						{
-							poolStats.Agents.Add(agent);
+								if (numAgents > 0)
+								{
+									poolInfo.Agents ??= new List<IAgent>();
+									poolInfo.Agents.Add(agent);
+								}
+							}
 						}
 					}
 				}
-			}
 
-			IReadOnlyList<IUtilizationData> utilizationDataList = await _utilizationDataCollection.GetUtilizationDataAsync(count: PoolStats.NumUtilizationSamples, cancellationToken: cancellationToken);
-			for(int sampleIdx = 0; sampleIdx < utilizationDataList.Count; sampleIdx++)
-			{
-				IUtilizationData utilizationData = utilizationDataList[sampleIdx];
-				foreach (IPoolUtilizationData poolUtilizationData in utilizationData.Pools)
+				if (numUtilizationSamples > 0)
 				{
-					if(poolUtilizationData.NumAgents > 0)
+					IReadOnlyList<IUtilizationData> utilizationDataList = await _utilizationDataCollection.GetUtilizationDataAsync(count: numUtilizationSamples, cancellationToken: cancellationToken);
+					for (int sampleIdx = 0; sampleIdx < utilizationDataList.Count; sampleIdx++)
 					{
-						PoolStats? poolStats;
-						if (poolIdToStats.TryGetValue(poolUtilizationData.PoolId, out poolStats))
+						IUtilizationData utilizationData = utilizationDataList[sampleIdx];
+						foreach (IPoolUtilizationData poolUtilizationData in utilizationData.Pools)
 						{
-							double activeTime = poolUtilizationData.AdminTime + poolUtilizationData.HibernatingTime + poolUtilizationData.OtherTime + poolUtilizationData.Streams.Sum(x => x.Time);
-							poolStats.Utilization[sampleIdx] = activeTime / poolUtilizationData.NumAgents;
+							if (poolUtilizationData.NumAgents > 0)
+							{
+								PoolInfo? poolInfo;
+								if (poolIdToInfo.TryGetValue(poolUtilizationData.PoolId, out poolInfo))
+								{
+									poolInfo.Utilization ??= new List<double>();
+									while (poolInfo.Utilization!.Count < sampleIdx)
+									{
+										poolInfo.Utilization.Add(0.0);
+									}
+
+									double activeTime = poolUtilizationData.AdminTime + poolUtilizationData.HibernatingTime + poolUtilizationData.OtherTime + poolUtilizationData.Streams.Sum(x => x.Time);
+									poolInfo.Utilization.Add(activeTime / poolUtilizationData.NumAgents);
+								}
+							}
 						}
 					}
 				}
@@ -205,23 +224,36 @@ namespace Horde.Server.Agents.Pools
 			List<object> responses = new List<object>();
 			foreach (IPoolConfig poolConfig in poolConfigs)
 			{
-				PoolStats? poolStats;
-				if (!poolIdToStats.TryGetValue(poolConfig.Id, out poolStats))
+				GetPoolStatsResponse? statsResponse = null;
+				List<GetPoolAgentSummaryResponse>? agentResponses = null;
+				List<double>? utilizationResponses = null;
+
+				if (poolIdToInfo != null)
 				{
-					poolStats = new PoolStats();
+					PoolInfo poolInfo = poolIdToInfo[poolConfig.Id];
+					if (stats)
+					{
+						statsResponse = new GetPoolStatsResponse(poolInfo.NumAgents, poolInfo.NumReady, poolInfo.NumOffline, poolInfo.NumDisabled);
+					}
+					if (numAgents > 0)
+					{
+						agentResponses = new List<GetPoolAgentSummaryResponse>();
+						foreach (IAgent agent in poolInfo.Agents?.OrderBy(x => x.Id).Take(numAgents) ?? Enumerable.Empty<IAgent>())
+						{
+							bool? idle = (agent.Leases.Count == 0) ? (bool?)true : null;
+							bool? offline = agent.IsSessionValid(utcNow) ? (bool?)null : true;
+							bool? disabled = agent.Enabled ? (bool?)null : true;
+							agentResponses.Add(new GetPoolAgentSummaryResponse(agent.Id, idle, offline, disabled));
+						}
+					}
+					if (numUtilizationSamples > 0)
+					{
+						utilizationResponses = poolInfo.Utilization ?? new List<double>();
+					}
 				}
 
-				List<GetPoolAgentSummaryResponse> agentResponses = new List<GetPoolAgentSummaryResponse>();
-				foreach (IAgent agent in poolStats.Agents)
-				{
-					bool? idle = (agent.Leases.Count == 0)? (bool?)true : null;
-					bool? offline = agent.IsSessionValid(utcNow) ? (bool?)null : true;
-					bool? disabled = agent.Enabled? (bool?)null : true;
-					agentResponses.Add(new GetPoolAgentSummaryResponse(agent.Id, idle, offline, disabled));
-				}
-
-				GetPoolSummaryResponse response = new GetPoolSummaryResponse(poolConfig.Id, poolConfig.Name, poolConfig.Condition, poolConfig.GetColorValue(), poolStats.NumAgents, poolStats.NumReady, poolStats.NumOffline, poolStats.NumDisabled, poolConfig.EnableAutoscaling, agentResponses);
-				responses.Add(response.ApplyFilter(filter));
+				GetPoolSummaryResponse response = new GetPoolSummaryResponse(poolConfig.Id, poolConfig.Name, poolConfig.GetColorValue(), poolConfig.EnableAutoscaling, statsResponse, agentResponses, utilizationResponses);
+				responses.Add(response);
 			}
 			return responses;
 		}

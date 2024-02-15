@@ -16,7 +16,7 @@ namespace EpicGames.Horde.Agents
 	[LogValueType]
 	[TypeConverter(typeof(AgentIdTypeConverter))]
 	[JsonConverter(typeof(AgentIdJsonConverter))]
-	public readonly struct AgentId : IEquatable<AgentId>
+	public readonly struct AgentId : IEquatable<AgentId>, IComparable<AgentId>
 	{
 		/// <summary>
 		/// The text representing this id
@@ -84,6 +84,10 @@ namespace EpicGames.Horde.Agents
 		{
 			return (_name ?? String.Empty).GetHashCode(StringComparison.Ordinal);
 		}
+
+		/// <inheritdoc/>
+		public int CompareTo(AgentId other)
+			=> String.Compare(_name, other._name, StringComparison.Ordinal);
 
 		/// <inheritdoc/>
 		public bool Equals(AgentId other)
