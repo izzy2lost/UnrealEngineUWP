@@ -2,6 +2,7 @@
 
 #include "PoseSearch/AnimNode_MotionMatching.h"
 
+#include "Animation/AnimInertializationSyncScope.h"
 #include "Animation/AnimInstanceProxy.h"
 #include "Animation/AnimNode_Inertialization.h"
 #include "Animation/AnimRootMotionProvider.h"
@@ -212,6 +213,9 @@ void FAnimNode_MotionMatching::UpdateAssetPlayer(const FAnimationUpdateContext& 
 			}
 		}
 	}
+
+	const bool bDidBlendToRequestAnInertialBlend = MotionMatchingState.bJumpedToPose && bUseInertialBlend;
+	UE::Anim::TOptionalScopedGraphMessage<UE::Anim::FAnimInertializationSyncScope> InertializationSync(bDidBlendToRequestAnInertialBlend, Context);
 	
 	FAnimNode_BlendStack_Standalone::UpdatePlayRate(MotionMatchingState.WantedPlayRate);
 	FAnimNode_BlendStack_Standalone::UpdateAssetPlayer(Context);
