@@ -111,9 +111,9 @@ namespace Chaos
 {
 	namespace DebugDraw
 	{
-		CHAOS_API const FChaosDebugDrawColorsByState& GetDefaultShapesColorsPreIntegrate();
-		CHAOS_API const FChaosDebugDrawColorsByState& GetDefaultShapesColorsPostIntegrate();
-		CHAOS_API const FChaosDebugDrawColorsByState& GetDefaultShapesColorsCollisionDetection();
+		extern const FChaosDebugDrawColorsByState& GetDefaultShapesColorsPreIntegrate();
+		extern const FChaosDebugDrawColorsByState& GetDefaultShapesColorsPostIntegrate();
+		extern const FChaosDebugDrawColorsByState& GetDefaultShapesColorsCollisionDetection();
 	}
 
 	namespace CVars
