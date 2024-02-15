@@ -31,6 +31,8 @@ protected:
 		FString MovementBaseInfo;
 		FVector MoveIntent;
 		TArray<FString> ActiveLayeredMoves;
+		TArray<FString> ModeMap;
+		TArray<FString> ActiveTransitions;
 
 		FRepData() {}
 
