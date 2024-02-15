@@ -62,7 +62,7 @@ void Draw(const USmartObjectDefinition& Definition, TConstArrayView<FGuid> Selec
 		}
 #endif 
 
-		PDI.SetHitProxy(new HSmartObjectItemProxy(/*Component*/nullptr, SlotID));
+		PDI.SetHitProxy(new HSmartObjectItemProxy(SlotID));
 
 		{
 			const FVector Location = Transform.GetLocation();
@@ -90,7 +90,7 @@ void Draw(const USmartObjectDefinition& Definition, TConstArrayView<FGuid> Selec
 		{
 			if (const FSmartObjectSlotAnnotation* Annotation = DataProxy->Data.GetPtr<FSmartObjectSlotAnnotation>())
 			{
-				PDI.SetHitProxy(new HSmartObjectItemProxy(/*Component*/nullptr, DataProxy->ID));
+				PDI.SetHitProxy(new HSmartObjectItemProxy(DataProxy->ID));
 
 				VisContext.SlotIndex = Slot.GetIndex();
 				VisContext.AnnotationIndex = DataProxy.GetIndex();
