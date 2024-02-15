@@ -56,6 +56,8 @@ BEGIN_SHADER_PARAMETER_STRUCT(FLumenReflectionTracingParameters, )
 	SHADER_PARAMETER(uint32, UseHighResSurface)
 	SHADER_PARAMETER(uint32, MaxReflectionBounces)
 	SHADER_PARAMETER(uint32, MaxRefractionBounces)
+	SHADER_PARAMETER(uint32, ReflectionsStateFrameIndex)
+	SHADER_PARAMETER(uint32, ReflectionsStateFrameIndexMod8)
 
 	SHADER_PARAMETER(float, NearFieldMaxTraceDistance)
 	SHADER_PARAMETER(float, NearFieldMaxTraceDistanceDitherScale)

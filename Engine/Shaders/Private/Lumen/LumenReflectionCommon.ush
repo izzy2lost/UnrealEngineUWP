@@ -6,8 +6,8 @@
 #include "../BlueNoise.ush"
 #include "LumenPosition.ush"
 
-// Change this to force recompilation of all lumen ray ray tracing reflection shaders
-#pragma message("UESHADERMETADATA_VERSION DEA1CB6D-0FB2-4755-8C4B-C67D227BB5D3")
+// Change this to force recompilation of all Lumen reflection shaders
+#pragma message("UESHADERMETADATA_VERSION B72EBD51-AD20-4353-B91A-4EE5FF02A797")
 
 #define REFLECTION_THREADGROUP_SIZE_2D 8 
 #define REFLECTION_THREADGROUP_SIZE_1D 64
@@ -34,36 +34,21 @@ Texture2DArray<uint> RayTraceDistance;
 Texture2DArray<float3> TraceRadiance;
 Texture2DArray<float> TraceHit;
 
-#if 1
-	#define SCREEN_TEMPORAL_INDEX			View.StateFrameIndexMod8
-#else
-	#define SCREEN_TEMPORAL_INDEX			0
-#endif
-
-#if 1
-	#define RAY_DIRECTION_TEMPORAL_INDEX	View.StateFrameIndex
-#else
-	#define RAY_DIRECTION_TEMPORAL_INDEX	0
-#endif
+uint ReflectionsStateFrameIndex;
+uint ReflectionsStateFrameIndexMod8;
 
 // Returns the jitter offset in the range [0, ReflectionDownsampleFactor - 1]
-float2 GetScreenTileJitter(uint TemporalIndex)
+float2 GetScreenTileJitter()
 {
 	return 0;
 }
 
 float2 GetScreenUVFromReflectionTracingCoord(uint2 ReflectionTracingCoord)
 {
-	float2 ScreenCoord = ReflectionTracingCoord * ReflectionDownsampleFactor + View.ViewRectMin.xy + GetScreenTileJitter(SCREEN_TEMPORAL_INDEX) + 0.5f;
+	float2 ScreenCoord = ReflectionTracingCoord * ReflectionDownsampleFactor + View.ViewRectMin.xy + GetScreenTileJitter() + 0.5f;
 	// ScreenUV can be outside of valid viewport, since viewport is downsampled with DivideAndRoundUp
 	ScreenCoord = min(ScreenCoord, View.ViewRectMin.xy + View.ViewSizeAndInvSize.xy - 1.0f);
 	return ScreenCoord * View.BufferSizeAndInvSize.zw;
-}
-
-float2 GetReflectionTracingCoordFromScreenUV(float2 ScreenUV, uint TemporalIndex)
-{
-	float2 ReflectionTracingCoord = (ScreenUV - (View.ViewRectMin.xy + GetScreenTileJitter(TemporalIndex) + 0.5f) * View.BufferSizeAndInvSize.zw) / (ReflectionDownsampleFactor * View.BufferSizeAndInvSize.zw);
-	return ReflectionTracingCoord;
 }
 
 float GetMaxHitDistance()
