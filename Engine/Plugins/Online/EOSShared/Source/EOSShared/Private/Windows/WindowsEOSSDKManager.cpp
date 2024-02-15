@@ -7,8 +7,25 @@
 #include "HAL/FileManager.h"
 #include "Misc/Paths.h"
 #include "EOSShared.h"
-
 #include "Windows/eos_Windows.h"
+
+FWindowsEOSSDKManager::FWindowsEOSSDKManager()
+{
+	PlatformSteamOptions =
+	{
+		2, //EOS_INTEGRATEDPLATFORM_STEAM_OPTIONS_API_LATEST
+		nullptr,
+		1,
+		57
+	};
+
+	UE_EOS_CHECK_API_MISMATCH(EOS_INTEGRATEDPLATFORM_STEAM_OPTIONS_API_LATEST, 2);
+}
+
+FWindowsEOSSDKManager::~FWindowsEOSSDKManager()
+{
+
+}
 
 IEOSPlatformHandlePtr FWindowsEOSSDKManager::CreatePlatform(const FEOSSDKPlatformConfig& PlatformConfig, EOS_Platform_Options& PlatformOptions)
 {
@@ -45,5 +62,16 @@ FString FWindowsEOSSDKManager::GetCacheDirBase() const
 	}
 
 }
+
+const void* FWindowsEOSSDKManager::GetIntegratedPlatformOptions()
+{
+	return &PlatformSteamOptions;
+}
+
+EOS_IntegratedPlatformType FWindowsEOSSDKManager::GetIntegratedPlatformType()
+{
+	return EOS_IPT_Steam;
+}
+
 
 #endif // WITH_EOS_SDK
