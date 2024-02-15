@@ -26,6 +26,15 @@ bool CanHaveWorldMetrics(const UWorld* World)
 // UWorldMetricsSubsystem
 //---------------------------------------------------------------------------------------------------------------------
 
+UWorldMetricsSubsystem* UWorldMetricsSubsystem::Get(const UWorld* World)
+{
+	if (LIKELY(World))
+	{
+		return World->GetSubsystem<UWorldMetricsSubsystem>();
+	}
+	return nullptr;
+}
+
 bool UWorldMetricsSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 {
 	return UE::WorldMetrics::Private::CanHaveWorldMetrics(Cast<UWorld>(Outer));

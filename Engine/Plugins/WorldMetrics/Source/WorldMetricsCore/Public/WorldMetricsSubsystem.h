@@ -25,6 +25,8 @@ class UWorldMetricsSubsystem final : public UWorldSubsystem
 	GENERATED_BODY()
 
 public:
+	[[nodiscard]] WORLDMETRICSCORE_API static UWorldMetricsSubsystem* Get(const UWorld* World);
+
 	//~ Begin USubsystem
 	WORLDMETRICSCORE_API virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
 	WORLDMETRICSCORE_API virtual void Initialize(FSubsystemCollectionBase& Collection) override;

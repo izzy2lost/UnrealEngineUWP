@@ -16,7 +16,7 @@
  * 3. Implement acquired/release semantics. The World Metrics subsystem automatically initializes extensions on
  * acquisition and deinitializes them on release. The subsystem may deallocate an extension that have no acquisitions.
  */
-UCLASS(abstract, MinimalAPI)
+UCLASS(abstract, MinimalAPI, Within=WorldMetricsSubsystem)
 class UWorldMetricsExtension : public UObject
 {
 	GENERATED_BODY()
@@ -28,6 +28,15 @@ public:
 	 */
 	[[nodiscard]] WORLDMETRICSCORE_API virtual SIZE_T GetAllocatedSize() const
 		PURE_VIRTUAL(GetAllocatedSize, return 0;);
+
+	/*
+	 * Returns the owning World Metrics Subsystem which is expected to be valid during this object's lifetime.
+	 * @return a reference to the owning World Metrics Subsystem.
+	 */
+	[[nodiscard]] UWorldMetricsSubsystem& GetOwner() const
+	{
+		return *GetOuterUWorldMetricsSubsystem();
+	}
 
 private:
 	/**
