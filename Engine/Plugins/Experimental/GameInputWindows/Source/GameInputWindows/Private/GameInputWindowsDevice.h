@@ -6,7 +6,7 @@
 
 #include "IGameInputDeviceInterface.h"
 
-class FGameInputWindowsInputDevice final : public IGameInputDeviceInterface
+class FGameInputWindowsInputDevice : public IGameInputDeviceInterface
 {
 public:
 	explicit FGameInputWindowsInputDevice(const TSharedRef<FGenericApplicationMessageHandler>& InMessageHandler, struct IGameInput* InGameInput);
