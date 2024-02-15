@@ -410,7 +410,7 @@ void FIOSTargetPlatform::HandleDeviceConnected(const FIOSLaunchDaemonPong& Messa
 			Device->SetModelId(Message.DeviceModelId);
 			Device->SetOSVersion(Message.DeviceOSVersion);
 			Device->SetDeviceConnectionType(Message.DeviceConnectionType);
-			Device->SetIsSimulated(Message.DeviceID.Contains(TEXT("Simulator")));
+			Device->SetIsSimulated(Message.DeviceConnectionType.Contains(TEXT("Simulator")));
 
 			ITargetPlatformControls::OnDeviceDiscovered().Broadcast(Device.ToSharedRef());
 		}

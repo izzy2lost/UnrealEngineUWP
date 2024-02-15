@@ -88,7 +88,7 @@ namespace TargetDeviceTypes
 	/**
 	 * Returns the string representation of the specified ETargetDeviceTypes value.
 	 *
-	 * @param Configuration The value to get the string for.
+	 * @param DeviceType The value to get the string for.
 	 * @return A string value.
 	 */
 	inline FString ToString(ETargetDeviceTypes DeviceType)
@@ -116,6 +116,38 @@ namespace TargetDeviceTypes
 	}
 }
 
+namespace TargetDeviceConnectionTypes
+{
+	/**
+	 * Returns the string representation of the specified ETargetDeviceConnectionTypes value.
+	 *
+	 * @param DeviceConnectionType The value to get the string for.
+	 * @return A string value.
+	 */
+	inline FString ToString(ETargetDeviceConnectionTypes DeviceConnectionType)
+	{
+		switch (DeviceConnectionType)
+		{
+		case ETargetDeviceConnectionTypes::USB:
+			return FString("USB");
+
+		case ETargetDeviceConnectionTypes::Wifi:
+			return FString("Wifi");
+
+		case ETargetDeviceConnectionTypes::Ethernet:
+			return FString("Ethernet");
+
+		case ETargetDeviceConnectionTypes::Simulator:
+			return FString("Simulator");
+
+		case ETargetDeviceConnectionTypes::Proprietary:
+			return FString("Proprietary");
+
+		default:
+			return FString("Unknown");
+		}
+	}
+}
 
 /**
  * Enumerates states of threads running on a target device.
