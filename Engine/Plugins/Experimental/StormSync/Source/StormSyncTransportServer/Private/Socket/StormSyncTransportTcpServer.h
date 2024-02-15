@@ -52,7 +52,7 @@ struct FClientConnection
  *
  * Heavily based on FSwitchboardListener implementation.
  *
- * Mainly used to receive a raw buffer serialized from StormSyncCoreUtils methods to transfer an avalanche pak.
+ * Mainly used to receive a raw buffer serialized from StormSyncCoreUtils methods to transfer a content spak.
  */
 class FStormSyncTransportTcpServer : public FRunnable
 {

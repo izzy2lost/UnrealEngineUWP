@@ -149,7 +149,7 @@ void FStormSyncAvaRundownExtender::CreateTemplateContextMenu(FMenuBuilder& MenuB
 	{
 		const FText TooltipText = bIsValidSelection ?
 			FText::Format(LOCTEXT("Initialize_Tooltip", "Sync asset over remote node.{0}"), DisabledTooltipReason) :
-			FText::Format(LOCTEXT("Initialize_Tooltip_Invalid", "Please ensure the rundown page is using a valid Avalanche Blueprint.{0}"), DisabledTooltipReason);
+			FText::Format(LOCTEXT("Initialize_Tooltip_Invalid", "Please ensure the rundown page is using a valid Motion Design Asset.{0}"), DisabledTooltipReason);
 
 		const TArray<FAvaRundownPage> SelectedTemplatePages = GetSelectedPages(InRundown, InRundownEditor);
 
@@ -174,7 +174,7 @@ void FStormSyncAvaRundownExtender::CreateTemplateContextMenu(FMenuBuilder& MenuB
 		if (!bIsValidSelection)
 		{
 			LabelText = LOCTEXT("PushAssetsMenuEntryInvalid", "Cannot push. Page has no valid asset.");
-			TooltipText = LOCTEXT("PushAssetsMenuEntryTooltipInvalid", "Please ensure the rundown pages are using a valid Avalanche Blueprint.");
+			TooltipText = LOCTEXT("PushAssetsMenuEntryTooltipInvalid", "Please ensure the rundown pages are using a valid Motion Design Asset.");
 		}
 		else
 		{
@@ -218,7 +218,7 @@ void FStormSyncAvaRundownExtender::CreateTemplateContextMenu(FMenuBuilder& MenuB
 		if (!bIsValidSelection)
 		{
 			LabelText = LOCTEXT("CompareAssetsMenuEntryInvalid", "Cannot compare. Page has no valid asset.");
-			TooltipText = LOCTEXT("CompareAssetsMenuEntryTooltipInvalid", "Please ensure the rundown pages are using a valid Avalanche Blueprint.");
+			TooltipText = LOCTEXT("CompareAssetsMenuEntryTooltipInvalid", "Please ensure the rundown pages are using a valid Motion Design Asset.");
 		}
 		else
 		{
@@ -412,7 +412,7 @@ TSharedRef<SWidget> FStormSyncAvaRundownExtender::GenerateToolbarMenu(TWeakPtr<F
 		if (!bIsPushEnabled)
 		{
 			LabelText = LOCTEXT("PushAssetsToolbarMenuEntryInvalid", "Cannot push. Rundown pages have no valid assets.");
-			TooltipText = LOCTEXT("PushAssetsToolbarMenuEntryTooltipInvalid", "Please ensure the rundown pages are using a valid Avalanche Blueprint");
+			TooltipText = LOCTEXT("PushAssetsToolbarMenuEntryTooltipInvalid", "Please ensure the rundown pages are using a valid Motion Design Asset");
 		}
 
 		constexpr bool bIsPushing = true;
