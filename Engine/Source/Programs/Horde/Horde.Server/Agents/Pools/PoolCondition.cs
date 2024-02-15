@@ -129,7 +129,7 @@ namespace Horde.Server.Agents.Pools
 			}
 		}
 
-		static Dictionary<string, Func<IPoolConfig, PoolInfo?, string>> s_poolPropertyHandlers = CreatePoolPropertyHandlers();
+		static readonly Dictionary<string, Func<IPoolConfig, PoolInfo?, string>> s_poolPropertyHandlers = CreatePoolPropertyHandlers();
 
 		static Dictionary<string, Func<IPoolConfig, PoolInfo?, string>> CreatePoolPropertyHandlers()
 		{
