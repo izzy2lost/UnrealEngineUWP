@@ -242,9 +242,9 @@ protected:
 
 	/** Updates cached pivot transforms */
 	void UpdatePivotTransforms();
-	void UpdatePivotFromEditedShape(UControlRig* InControlRig);
-	void UpdatePivotFromShapeActors(UControlRig* InControlRig, const bool bEachLocalSpace, const bool bIsParentSpace);
-	void UpdatePivotFromElements(UControlRig* InControlRig);
+	bool ComputePivotFromEditedShape(UControlRig* InControlRig, FTransform& OutTransform) const;
+	bool ComputePivotFromShapeActors(UControlRig* InControlRig, const bool bEachLocalSpace, const bool bIsParentSpace, FTransform& OutTransform) const;
+	bool ComputePivotFromElements(UControlRig* InControlRig, FTransform& OutTransform) const;
 	
 	/** Get the current coordinate system space */
 	ECoordSystem GetCoordSystemSpace() const;
@@ -454,7 +454,7 @@ private:
 	/** Set a RigElement's selection state */
 	void SetRigElementSelectionInternal(UControlRig* ControlRig, ERigElementType Type, const FName& InRigElementName, bool bSelected);
 	/** Updates the pivot transforms before ticking to ensure that they are up-to-date when needed. */
-	void UpdatePivotTransformsIfNeeded();
+	void UpdatePivotTransformsIfNeeded(UControlRig* InControlRig, FTransform& InOutTransform) const;
 	
 	FEditorViewportClient* CurrentViewportClient;
 	TArray<UE::Widget::EWidgetMode> RequestedWidgetModes;
@@ -497,7 +497,7 @@ private:
 	void ChangeControlShapeTransform(AControlRigShapeActor* ShapeActor, const bool bTranslation, FVector& InDrag,
 		const bool bRotation, FRotator& InRot, const bool bScale, FVector& InScale, const FTransform& ToWorldTransform);
 
-	void TickControlShape(AControlRigShapeActor* ShapeActor, const FTransform& ComponentTransform);
+	void TickControlShape(AControlRigShapeActor* ShapeActor, const FTransform& ComponentTransform) const;
 	bool ModeSupportedByShapeActor(const AControlRigShapeActor* ShapeActor, UE::Widget::EWidgetMode InMode) const;
 
 
@@ -518,7 +518,7 @@ private:
 
 	// Post pose update handler
 	void OnPoseInitialized();
-	void PostPoseUpdate();
+	void PostPoseUpdate() const;
 	void NotifyDrivenControls(UControlRig* InControlRig, const FRigElementKey& InKey);
 	void UpdateSelectabilityOnSkeletalMeshes(UControlRig* InControlRig, bool bEnabled);
 
