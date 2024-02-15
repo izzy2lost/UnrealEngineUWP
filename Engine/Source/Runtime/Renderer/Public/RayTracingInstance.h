@@ -126,17 +126,6 @@ struct FRayTracingInstance
 
 	/** When instance transforms are only available in GPU, this SRV holds them. */
 	FShaderResourceViewRHIRef InstanceGPUTransformsSRV;
-
-	/** Build mask and flags based on materials specified in Materials. You can still override Mask after calling this function.*/
-	UE_DEPRECATED(5.2, "Use BuildInstanceMaskAndFlags() with PrimitiveSceneProxy instead. Calling this function leads to incorrect path tracing result")
-	void BuildInstanceMaskAndFlags(ERHIFeatureLevel::Type FeatureLevel);
 };
 
-
-/** Build mask and flags based on materials specified in Materials. You can still override Mask after calling this function. */
-UE_DEPRECATED(5.2, "Use BuildRayTracingInstanceMaskAndFlags() with FSceneProxyRayTracingMaskInfo instead. Calling this function leads to incorrect path tracing result")
-FRayTracingMaskAndFlags BuildRayTracingInstanceMaskAndFlags(TArrayView<const FMeshBatch> MeshBatches, ERHIFeatureLevel::Type FeatureLevel, ERayTracingInstanceLayer InstanceLayer = ERayTracingInstanceLayer::NearField, uint8 ExtraMask = 0);
-
-UE_DEPRECATED(5.2, "Use BlendModeToRayTracingInstanceMask() instead. Calling this function leads to incorrect path tracing result.")
-uint8 ComputeBlendModeMask(const EBlendMode BlendMode);
 #endif
