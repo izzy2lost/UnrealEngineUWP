@@ -46,7 +46,7 @@ void PCGUtils::FExtraCapture::Update(const PCGUtils::FScopedCall& InScopedCall)
 		}
 
 		Timer.PrepareDataFrameCount++;
-		Timer.PrepareDataTime = ThisFrameTime;
+		Timer.PrepareDataTime += ThisFrameTime;
 		Timer.PrepareDataWallTime = CurrentTime - Timer.PrepareDataStartTime;
 		break;
 	case EPCGExecutionPhase::Execute:

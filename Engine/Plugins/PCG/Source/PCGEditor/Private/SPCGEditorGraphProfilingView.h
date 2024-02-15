@@ -73,6 +73,12 @@ private:
 	FText GetTotalTimeLabel() const;
 	FText GetTotalWallTimeLabel() const;
 
+	/** Called when user changes the text they are searching for */
+	void OnSearchTextChanged(const FText& InText);
+
+	/** Called when user changes commits text to the search box */
+	void OnSearchTextCommitted(const FText& InText, ETextCommit::Type InCommitType);
+
 	/** Pointer back to the PCG editor that owns us */
 	TWeakPtr<FPCGEditor> PCGEditorPtr;
 
@@ -94,4 +100,7 @@ private:
 	double TotalWallTime = 0.0;
 
 	bool bExpandSubgraph = true;
+
+	/** The string to search for */
+	FString SearchValue;
 };
