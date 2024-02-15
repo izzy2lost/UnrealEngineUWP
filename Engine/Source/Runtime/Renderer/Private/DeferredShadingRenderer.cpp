@@ -735,7 +735,8 @@ void FDeferredShadingSceneRenderer::SetupRayTracingLightDataForViews(FRDGBuilder
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
 	{
 		FViewInfo& View = Views[ViewIndex];
-		View.RayTracingLightGridUniformBuffer = nullptr;
+
+		bool bBuildLightGrid = false;
 
 		// Path Tracing currently uses its own code to manage lights, so doesn't need to run this.
 		if (!bPathTracingEnabled)
@@ -746,10 +747,12 @@ void FDeferredShadingSceneRenderer::SetupRayTracingLightDataForViews(FRDGBuilder
 				|| GetRayTracingTranslucencyOptions(View).bEnabled
 				|| ViewFamily.EngineShowFlags.RayTracingDebug)
 			{
-				// The light data is built in TranslatedWorld space so must be built per view
-				View.RayTracingLightGridUniformBuffer = CreateRayTracingLightData(GraphBuilder, Scene, View, View.ShaderMap);
+				bBuildLightGrid = true;
 			}
 		}
+
+		// The light data is built in TranslatedWorld space so must be built per view
+		View.RayTracingLightGridUniformBuffer = CreateRayTracingLightData(GraphBuilder, Scene, View, View.ShaderMap, bBuildLightGrid);
 	}
 }
 
@@ -1027,15 +1030,9 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 			else
 			{
 				SetupRayTracingDefaultMissShader(RHICmdList, ReferenceView);
+				SetupRayTracingLightingMissShader(RHICmdList, ReferenceView);
 
-				// only a few passes use the light miss shaders (those that do direct lighting)
-				// simply skip setting these up if we haven't built the RT lighting data
-				if (ReferenceView.RayTracingLightGridUniformBuffer != nullptr)
-				{
-					SetupRayTracingLightingMissShader(RHICmdList, ReferenceView);
-				
-					BindLightFunctionShaders(RHICmdList, Scene, RayTracingLightFunctionMap, ReferenceView);
-				}
+				BindLightFunctionShaders(RHICmdList, Scene, RayTracingLightFunctionMap, ReferenceView);
 			}
 		}
 

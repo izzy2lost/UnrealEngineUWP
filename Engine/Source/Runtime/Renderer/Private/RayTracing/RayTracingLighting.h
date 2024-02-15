@@ -41,7 +41,8 @@ TRDGUniformBufferRef<FRayTracingLightGrid> CreateRayTracingLightData(
 	FRDGBuilder& GraphBuilder,
 	const FScene* Scene,
 	const FSceneView& View,
-	FGlobalShaderMap* ShaderMap);
+	FGlobalShaderMap* ShaderMap,
+	bool bBuildLightGrid);
 
 void BindLightFunctionShaders(
 	FRHICommandList& RHICmdList,
