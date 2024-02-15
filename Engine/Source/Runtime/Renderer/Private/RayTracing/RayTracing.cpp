@@ -514,6 +514,8 @@ namespace RayTracing
 							RelevantPrimitive->PrimitiveIndex = PrimitiveIndex;
 							RelevantPrimitive->PersistentPrimitiveIndex = SceneInfo->GetPersistentIndex();
 
+							ensureMsgf(!SceneInfo->bCachedRaytracingDataDirty, TEXT("Cached ray tracing instances must be up-to-date at this point"));
+
 							RelevantPrimitive->CachedRayTracingInstance = &SceneInfo->CachedRayTracingInstance;
 							RelevantPrimitive->bAnySegmentsDecal = SceneInfo->bCachedRayTracingInstanceAnySegmentsDecal;
 							RelevantPrimitive->bAllSegmentsDecal = SceneInfo->bCachedRayTracingInstanceAllSegmentsDecal;
