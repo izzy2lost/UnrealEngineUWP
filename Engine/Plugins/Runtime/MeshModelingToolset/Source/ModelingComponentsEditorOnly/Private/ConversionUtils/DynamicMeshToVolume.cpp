@@ -741,7 +741,7 @@ void DynamicMeshToVolume(const FDynamicMesh3&, TArray<FDynamicMeshFace>& Faces, 
 
 	UModel* Model = TargetVolume->Brush;
 
-	Model->Modify();
+	Model->Modify(false);
 
 	Model->Initialize(TargetVolume);
 	UPolys* Polys = Model->Polys;

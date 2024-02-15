@@ -2642,7 +2642,7 @@ bool ULevel::GetPromptWhenAddingToLevelBeforeCheckout() const
 void ULevel::InvalidateModelGeometry()
 {
 	// Save the level/model state for transactions.
-	Model->Modify();
+	Model->Modify(true);
 	Modify();
 
 	// Remove existing model components.

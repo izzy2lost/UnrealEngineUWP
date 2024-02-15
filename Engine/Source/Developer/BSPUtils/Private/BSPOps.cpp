@@ -1028,7 +1028,7 @@ void FBSPOps::bspBuildBounds( UModel* Model )
 void FBSPOps::bspValidateBrush( UModel* Brush, bool ForceValidate, bool DoStatusUpdate )
 {
 	check(Brush != nullptr);
-	Brush->Modify();
+	Brush->Modify(false);
 	if( ForceValidate || !Brush->Linked )
 	{
 		Brush->Linked = 1;
@@ -1072,7 +1072,7 @@ void FBSPOps::bspValidateBrush( UModel* Brush, bool ForceValidate, bool DoStatus
 
 void FBSPOps::bspUnlinkPolys( UModel* Brush )
 {
-	Brush->Modify();
+	Brush->Modify(false);
 	Brush->Linked = 1;
 	for( int32 i=0; i<Brush->Polys->Element.Num(); i++ )
 	{
@@ -1272,7 +1272,7 @@ int32	FBSPOps::bspAddNode( UModel* Model, int32 iParent, ENodePlace NodePlace, u
  */
 void FBSPOps::RebuildBrush(UModel* Brush)
 {
-	Brush->Modify();
+	Brush->Modify(false);
 	Brush->EmptyModel(1, 0);
 
 	// Build bounding box.

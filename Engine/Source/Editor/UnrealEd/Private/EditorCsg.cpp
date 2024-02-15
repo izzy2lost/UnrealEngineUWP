@@ -144,7 +144,7 @@ void UEditorEngine::csgRebuild( UWorld* InWorld )
 	FinishAllSnaps();
 
 	// Empty the model out.
-	InWorld->GetModel()->Modify();
+	InWorld->GetModel()->Modify(false);
 	InWorld->GetModel()->EmptyModel(1, 1);
 
 	// Count brushes.
@@ -201,7 +201,7 @@ void UEditorEngine::csgRebuild( UWorld* InWorld )
 				Args.Add( TEXT("BrushTotal"), BrushTotal );
 				GWarn->StatusUpdate( BrushCount, BrushTotal, FText::Format( NSLOCTEXT("UnrealEd", "ApplyingStructuralBrushF", "Applying structural brush {BrushCount} of {BrushTotal}"), Args ) );
 
-				Brush->Modify();
+				Brush->Modify(false);
 				bspBrushCSG( Brush, InWorld->GetModel(), Brush->PolyFlags, (EBrushType)Brush->BrushType, CSG_None, false, true, false );
 			}
 		}
@@ -245,7 +245,7 @@ void UEditorEngine::csgRebuild( UWorld* InWorld )
 			Args.Add( TEXT("BrushTotal"), BrushTotal );
 			GWarn->StatusUpdate( BrushCount, BrushTotal, FText::Format( NSLOCTEXT("UnrealEd", "ApplyingDetailBrushF", "Applying detail brush {BrushCount} of {BrushTotal}"), Args ) );
 
-			Brush->Modify();
+			Brush->Modify(false);
 			bspBrushCSG( Brush, InWorld->GetModel(), Brush->PolyFlags, (EBrushType)Brush->BrushType, CSG_None, false, true, false );
 		}
 	}
@@ -1100,7 +1100,7 @@ void UEditorEngine::MapBrushGet(UWorld* InWorld)
 			check( BrushActor->GetWorld() );			
 			ABrush* WorldBrush = BrushActor->GetWorld()->GetDefaultBrush();
 			check( WorldBrush );
-			WorldBrush->Modify();
+			WorldBrush->Modify(false);
 			WorldBrush->Brush->Polys->Element = BrushActor->Brush->Polys->Element;
 			WorldBrush->CopyPosRotScaleFrom( BrushActor );
 
@@ -1128,7 +1128,7 @@ void UEditorEngine::mapBrushPut()
 			ABrush* WorldBrush = BrushActor->GetWorld()->GetDefaultBrush();
 			check( WorldBrush );
 
-			BrushActor->Modify();
+			BrushActor->Modify(false);
 			BrushActor->Brush->Polys->Element = WorldBrush->Brush->Polys->Element;
 			BrushActor->CopyPosRotScaleFrom( WorldBrush );
 			BrushActor->SetNeedRebuild(BrushActor->GetLevel());
@@ -1239,7 +1239,7 @@ void UEditorEngine::MapSetBrush( UWorld* InWorld, EMapSetBrushFlags	PropertiesMa
 		{
 			if( PropertiesMask & MSB_PolyFlags )
 			{
-				Brush->Modify();
+				Brush->Modify(false);
 				Brush->PolyFlags = (Brush->PolyFlags & ~ClearPolyFlags) | SetPolyFlags;
 				Brush->UpdateComponentTransforms();
 				Brush->MarkPackageDirty();
@@ -1247,7 +1247,7 @@ void UEditorEngine::MapSetBrush( UWorld* InWorld, EMapSetBrushFlags	PropertiesMa
 			}
 			if( PropertiesMask & MSB_BrushType )
 			{
-				Brush->Modify();
+				Brush->Modify(false);
 				Brush->BrushType = EBrushType(BrushType);
 				Brush->UpdateComponentTransforms();
 				Brush->MarkPackageDirty();

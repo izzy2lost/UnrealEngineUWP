@@ -80,8 +80,8 @@ bool UEditorBrushBuilder::EndBrush( UWorld* InWorld, ABrush* InBrush )
 		return true;
 	}
 
-	Brush->Modify();
-	BuilderBrush->Modify();
+	Brush->Modify(false);
+	BuilderBrush->Modify(false);
 
 	FRotator Temp(0.0f,0.0f,0.0f);
 	FSnappingUtils::SnapToBSPVertex( Location, FVector::ZeroVector, Temp );

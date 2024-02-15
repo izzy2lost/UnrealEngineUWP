@@ -466,7 +466,7 @@ bool UBspConversionTool::ConvertThenCombine(FText *ErrorMessage)
 			// depending on the settings.
 			// Despite the undoing, we need to call Modify now because it gets called in the conversion code, which
 			// would cause the changed property to be saved.
-			NextBrush->Modify();
+			NextBrush->Modify(false);
 			NextBrush->BrushType = EBrushType::Brush_Add;
 		}
 

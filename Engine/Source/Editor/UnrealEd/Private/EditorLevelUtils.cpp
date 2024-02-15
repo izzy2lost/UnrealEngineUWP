@@ -624,7 +624,7 @@ bool UEditorLevelUtils::PrivateRemoveInvalidLevelFromWorld(ULevelStreaming* InLe
 		{
 			if (LevelStreamingVolume)
 			{
-				LevelStreamingVolume->Modify();
+				LevelStreamingVolume->Modify(true);
 				LevelStreamingVolume->StreamingLevelNames.Remove(InLevelStreaming->GetWorldAssetPackageFName());
 			}
 		}

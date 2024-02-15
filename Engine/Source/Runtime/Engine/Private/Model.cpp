@@ -474,18 +474,18 @@ void UModel::PostEditUndo()
 
 void UModel::ModifySurf( int32 InIndex, bool UpdateBrushes )
 {
-	Modify();
+	Modify(false);
 
 	FBspSurf& Surf = Surfs[InIndex];
 	if( UpdateBrushes && Surf.Actor )
 	{
-		Surf.Actor->Brush->Modify();
+		Surf.Actor->Brush->Modify(false);
 	}
 }
 
 void UModel::ModifyAllSurfs( bool UpdateBrushes )
 {
-	Modify();
+	Modify(false);
 
 	if (UpdateBrushes)
 	{
@@ -503,14 +503,14 @@ void UModel::ModifyAllSurfs( bool UpdateBrushes )
 
 		for (UModel* Brush: Brushes)
 		{
-			Brush->Modify();
+			Brush->Modify(false);
 		}
 	}
 }
 
 void UModel::ModifySelectedSurfs( bool UpdateBrushes )
 {
-	Modify();
+	Modify(false);
 
 	if (UpdateBrushes)
 	{
@@ -528,7 +528,7 @@ void UModel::ModifySelectedSurfs( bool UpdateBrushes )
 
 		for (UModel* Brush : Brushes)
 		{
-			Brush->Modify();
+			Brush->Modify(false);
 		}
 	}
 }
@@ -621,7 +621,7 @@ IMPLEMENT_INTRINSIC_CLASS(UModel, ENGINE_API, UObject, CORE_API, "/Script/Engine
 ---------------------------------------------------------------------------------------*/
 
 #if WITH_EDITOR
-bool UModel::Modify( bool bAlwaysMarkDirty/*=false*/ )
+bool UModel::Modify( bool bAlwaysMarkDirty/*=true*/ )
 {
 	bool bSavedToTransactionBuffer = Super::Modify(bAlwaysMarkDirty);
 

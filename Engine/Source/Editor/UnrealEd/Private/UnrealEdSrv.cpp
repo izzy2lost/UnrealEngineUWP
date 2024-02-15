@@ -852,10 +852,10 @@ bool UUnrealEdEngine::Exec( UWorld* InWorld, const TCHAR* Stream, FOutputDevice&
 						{
 							const FVector OldLocation = Brush->GetActorLocation();
 							const FVector NewLocation = OldLocation * ScaleVec;
-							Brush->Modify();
+							Brush->Modify(false);
 							Brush->SetActorLocation( NewLocation );
 							
-							Brush->Brush->Modify();
+							Brush->Brush->Modify(false);
 							for( int32 poly = 0 ; poly < Brush->Brush->Polys->Element.Num() ; poly++ )
 							{
 								FPoly* Poly = &(Brush->Brush->Polys->Element[poly]);
@@ -2004,7 +2004,7 @@ bool UUnrealEdEngine::Exec_Actor( UWorld* InWorld, const TCHAR* Str, FOutputDevi
 	else if( FParse::Command(&Str,TEXT("CREATE_BV_BOUNDINGBOX")) )
 	{
 		const FScopedTransaction Transaction( NSLOCTEXT("UnrealEd", "CreateBoundingBoxBlockingVolume", "Create Bounding Box Blocking Volume") );
-		InWorld->GetDefaultBrush()->Modify();
+		InWorld->GetDefaultBrush()->Modify(false);
 
 		bool bSnapToGrid=0;
 		FParse::Bool( Str, TEXT("SNAPTOGRID="), bSnapToGrid );
@@ -2035,7 +2035,7 @@ bool UUnrealEdEngine::Exec_Actor( UWorld* InWorld, const TCHAR* Str, FOutputDevi
 	else if( FParse::Command(&Str,TEXT("CREATE_BV_CONVEXVOLUME")) )
 	{
 		const FScopedTransaction Transaction( NSLOCTEXT("UnrealEd", "CreateConvexBlockingVolume", "Create Convex Blocking Volume") );
-		InWorld->GetDefaultBrush()->Modify();
+		InWorld->GetDefaultBrush()->Modify(false);
 
 		bool bSnapToGrid=0;
 		FParse::Bool( Str, TEXT("SNAPTOGRID="), bSnapToGrid );

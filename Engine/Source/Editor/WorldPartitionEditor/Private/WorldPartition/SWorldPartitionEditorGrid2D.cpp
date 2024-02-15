@@ -738,7 +738,7 @@ void SWorldPartitionEditorGrid2D::ConvertSelectedRegionsToActors()
 			const FBox ActorVolumeBox(FVector(LoaderVolumeBox.Min.X, LoaderVolumeBox.Min.Y, WorldBounds.Min.Z), FVector(LoaderVolumeBox.Max.X, LoaderVolumeBox.Max.Y, WorldBounds.Max.Z));
 
 			ALocationVolume* LocationVolume = GetWorld()->SpawnActor<ALocationVolume>(ActorVolumeBox.GetCenter(), FRotator::ZeroRotator);
-			LocationVolume->Modify();
+			LocationVolume->Modify(true);
 			FActorLabelUtilities::SetActorLabelUnique(LocationVolume, LocationVolume->GetActorLabel());
 			
 			UCubeBuilder* Builder = NewObject<UCubeBuilder>();

@@ -530,7 +530,7 @@ bool UEditorEngine::Exec_StaticMesh( UWorld* InWorld, const TCHAR* Str, FOutputD
 		if(FParse::Command(&Str,TEXT("BRUSH")))
 		{
 			const FScopedTransaction Transaction( NSLOCTEXT("UnrealEd", "StaticMeshToBrush", "StaticMesh to Brush") );
-			WorldBrush->Brush->Modify();
+			WorldBrush->Brush->Modify(false);
 
 			// Find the first selected static mesh actor.
 			AStaticMeshActor* SelectedActor = NULL;
@@ -625,7 +625,7 @@ bool UEditorEngine::Exec_Brush( UWorld* InWorld, const TCHAR* Str, FOutputDevice
 			ABrush* DefaultBrush = InWorld->GetDefaultBrush();
 			if (DefaultBrush != NULL)
 			{
-				DefaultBrush->Brush->Modify();
+				DefaultBrush->Brush->Modify(false);
 				SnapLocation = DefaultBrush->GetActorLocation();
 				PrePivot = DefaultBrush->GetPivotOffset();
 			}
@@ -647,7 +647,7 @@ bool UEditorEngine::Exec_Brush( UWorld* InWorld, const TCHAR* Str, FOutputDevice
 	else if( FParse::Command(&Str,TEXT("RESET")) )
 	{
 		const FScopedTransaction Transaction( NSLOCTEXT("UnrealEd", "BrushReset", "Brush Reset") );
-		WorldBrush->Modify();
+		WorldBrush->Modify(false);
 		WorldBrush->InitPosRotScale();
 		RedrawLevelEditingViewports();
 		return true;
@@ -677,7 +677,7 @@ bool UEditorEngine::Exec_Brush( UWorld* InWorld, const TCHAR* Str, FOutputDevice
 			{
 				if ( Brush->Brush )
 				{
-					Brush->Brush->Modify();
+					Brush->Brush->Modify(false);
 					for( int32 poly = 0 ; poly < Brush->Brush->Polys->Element.Num() ; poly++ )
 					{
 						FPoly* Poly = &(Brush->Brush->Polys->Element[poly]);
@@ -708,7 +708,7 @@ bool UEditorEngine::Exec_Brush( UWorld* InWorld, const TCHAR* Str, FOutputDevice
 	else if( FParse::Command(&Str,TEXT("MOVETO")) )
 	{
 		const FScopedTransaction Transaction( NSLOCTEXT("UnrealEd", "BrushMoveTo", "Brush MoveTo") );
-		WorldBrush->Modify();
+		WorldBrush->Modify(false);
 		FVector TempVector(0.f);
 		GetFVECTOR( Str, TempVector );
 		WorldBrush->SetActorLocation(TempVector, false);
@@ -718,7 +718,7 @@ bool UEditorEngine::Exec_Brush( UWorld* InWorld, const TCHAR* Str, FOutputDevice
 	else if( FParse::Command(&Str,TEXT("MOVEREL")) )
 	{
 		const FScopedTransaction Transaction( NSLOCTEXT("UnrealEd", "BrushMoveRel", "Brush MoveRel") );
-		WorldBrush->Modify();
+		WorldBrush->Modify(false);
 		FVector TempVector( 0, 0, 0 );
 		GetFVECTOR( Str, TempVector );
 		FVector NewLocation = WorldBrush->GetActorLocation();
@@ -757,8 +757,8 @@ bool UEditorEngine::Exec_Brush( UWorld* InWorld, const TCHAR* Str, FOutputDevice
 					LoadAndSelectAssets( SelectedAssets, UMaterial::StaticClass() );
 				}
 
-				InWorld->GetModel()->Modify();
-				NewBrush->Modify();
+				InWorld->GetModel()->Modify(false);
+				NewBrush->Modify(false);
 				bspBrushCSG( NewBrush, InWorld->GetModel(), DWord1, Brush_Add, CSG_None, true, true, true );
 
 				if (FParse::Command(&Str, TEXT("SELECTNEWBRUSH")))
@@ -847,8 +847,8 @@ bool UEditorEngine::Exec_Brush( UWorld* InWorld, const TCHAR* Str, FOutputDevice
 					FActorLabelUtilities::SetActorLabelUnique(NewBrush, FText::Format(NSLOCTEXT("UnrealEd", "BrushName", "{0} Brush"), FText::FromString(NewBrush->GetBrushBuilder()->GetClass()->GetDescription())).ToString());
 				}
 
-				NewBrush->Modify();
-				InWorld->GetModel()->Modify();
+				NewBrush->Modify(false);
+				InWorld->GetModel()->Modify(false);
 				bspBrushCSG( NewBrush, InWorld->GetModel(), 0, Brush_Subtract, CSG_None, true, true, true );
 			}
 			InWorld->InvalidateModelGeometry( InWorld->GetCurrentLevel() );
@@ -916,7 +916,7 @@ bool UEditorEngine::Exec_Brush( UWorld* InWorld, const TCHAR* Str, FOutputDevice
 	else if( FParse::Command (&Str,TEXT("NEW")) )
 	{
 		const FScopedTransaction Transaction( NSLOCTEXT("UnrealEd", "BrushNew", "Brush New") );
-		WorldBrush->Brush->Modify();
+		WorldBrush->Brush->Modify(false);
 		WorldBrush->Brush->Polys->Element.Empty();
 		RedrawLevelEditingViewports();
 		return true;
@@ -965,7 +965,7 @@ bool UEditorEngine::Exec_Brush( UWorld* InWorld, const TCHAR* Str, FOutputDevice
 
 			GWarn->BeginSlowTask( NSLOCTEXT("UnrealEd", "ImportingBrush", "Importing brush"), true );
 
-			WorldBrush->Brush->Polys->Modify();
+			WorldBrush->Brush->Polys->Modify(false);
 			WorldBrush->Brush->Polys->Element.Empty();
 			uint32 Flags=0;
 			bool Merge=0;
@@ -1652,7 +1652,7 @@ void UEditorEngine::RebuildModelFromBrushes(UModel* Model, bool bSelectedBrushes
 	const int32 NumVectors = Model->Vectors.Num();
 	const int32 NumSurfs = Model->Surfs.Num();
 
-	Model->Modify();
+	Model->Modify(false);
 	Model->EmptyModel(1, 1);
 
 	// Reserve arrays an eighth bigger than the previous allocation
@@ -1725,7 +1725,7 @@ void UEditorEngine::RebuildModelFromBrushes(UModel* Model, bool bSelectedBrushes
 	for (ABrush* Brush : StaticBrushes)
 	{
 		SlowTask.EnterProgressFrame(1);
-		Brush->Modify();
+		Brush->Modify(false);
 		bspBrushCSG(Brush, Model, Brush->PolyFlags, (EBrushType)Brush->BrushType, CSG_None, false, true, false, false);
 	}
 
@@ -1759,7 +1759,7 @@ void UEditorEngine::RebuildModelFromBrushes(TArray<ABrush*> &BrushesToBuild, UMo
 	const int32 NumVectors = Model->Vectors.Num();
 	const int32 NumSurfs = Model->Surfs.Num();
 
-	Model->Modify();
+	Model->Modify(false);
 	Model->EmptyModel(1, 1);
 
 	// Reserve arrays an eighth bigger than the previous allocation
@@ -1776,7 +1776,7 @@ void UEditorEngine::RebuildModelFromBrushes(TArray<ABrush*> &BrushesToBuild, UMo
 	for (ABrush* Brush : BrushesToBuild)
 	{
 		SlowTask.EnterProgressFrame(1);
-		Brush->Modify();
+		Brush->Modify(false);
 		bspBrushCSG(Brush, Model, Brush->PolyFlags, (EBrushType)Brush->BrushType, CSG_None, false, true, false, false);
 	}
 
@@ -1879,8 +1879,8 @@ void UEditorEngine::BSPIntersectionHelper(UWorld* InWorld, ECsgOper Operation)
 	ABrush* DefaultBrush = InWorld->GetDefaultBrush();
 	if (DefaultBrush != NULL)
 	{
-		DefaultBrush->Modify();
-		InWorld->GetModel()->Modify();
+		DefaultBrush->Modify(false);
+		InWorld->GetModel()->Modify(false);
 		FinishAllSnaps();
 		bspBrushCSG(DefaultBrush, InWorld->GetModel(), 0, Brush_MAX, Operation, false, true, true);
 	}
@@ -4184,7 +4184,7 @@ namespace {
 		{
 			FBspSurf* Surf = *It;
 			UModel* Model = It.GetModel();
-			Model->Modify();
+			Model->Modify(false);
 			const FVector3f TextureU( Model->Vectors[Surf->vTextureU] );
 			const FVector3f TextureV( Model->Vectors[Surf->vTextureV] );
 			Surf->vTextureU = Model->Vectors.Add(TextureU);
@@ -4200,7 +4200,7 @@ namespace {
 		for( FConstLevelIterator Iterator = InWorld->GetLevelIterator(); Iterator; ++Iterator )
 		{
 			UModel* Model = (*Iterator)->Model;
-			Model->Modify();
+			Model->Modify(false);
 			GEditor->polyTexScale( Model, UU, UV, VU, VV, !!Word2 );
 		}
 	}
@@ -4495,7 +4495,7 @@ bool UEditorEngine::Exec_Poly( UWorld* InWorld, const TCHAR* Str, FOutputDevice&
 			{
 				FBspSurf* Surf = *It;
 				UModel* Model = It.GetModel();
-				Model->Modify();
+				Model->Modify(false);
 				const FVector3f Base( Model->Points[Surf->pBase] );
 				Surf->pBase = Model->Points.Add(Base);
 			}
@@ -4505,7 +4505,7 @@ bool UEditorEngine::Exec_Poly( UWorld* InWorld, const TCHAR* Str, FOutputDevice&
 				for( FConstLevelIterator Iterator = InWorld->GetLevelIterator(); Iterator; ++Iterator )
 				{
 					UModel* Model = (*Iterator)->Model;
-					Model->Modify();
+					Model->Modify(false);
 					polyTexPan( Model, 0, 0, 1 );
 				}
 			}
@@ -4515,7 +4515,7 @@ bool UEditorEngine::Exec_Poly( UWorld* InWorld, const TCHAR* Str, FOutputDevice&
 			for( FConstLevelIterator Iterator = InWorld->GetLevelIterator(); Iterator; ++Iterator )
 			{
 				UModel* Model = (*Iterator)->Model;
-				Model->Modify();
+				Model->Modify(false);
 				polyTexPan( Model, PanU, PanV, 0 );
 			}
 		}
