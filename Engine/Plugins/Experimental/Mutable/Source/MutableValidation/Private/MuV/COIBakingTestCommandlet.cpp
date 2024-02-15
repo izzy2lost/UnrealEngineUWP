@@ -12,6 +12,7 @@
 #include "HAL/FileManager.h"
 #include "MuCO/CustomizableObjectPrivate.h"
 #include "MuT/UnrealPixelFormatOverride.h"
+#include "Interfaces/ITargetPlatformManagerModule.h"
 
 
 /** Flag useful to know if we are currently updating an instance or not */
@@ -76,8 +77,13 @@ int32 UCOIBakingTestCommandlet::Main(const FString& Params)
 		UE_LOG(LogMutable,Error,TEXT("The instance %s does not have a CO to compile : Exitting commandlet."), *TargetInstance->GetName());
 		return 1;
 	}
+
 	
-	if (!CompileCustomizableObject(InstanceCustomizableObject))
+	// Set the target platform to be using for the compilation. Must not be a nullptr
+	FCompilationOptions CompilationOptions = InstanceCustomizableObject->CompileOptions;
+	ITargetPlatformManagerModule& TPM = GetTargetPlatformManagerRef();
+	CompilationOptions.TargetPlatform = TPM.GetRunningTargetPlatform();
+	if (!CompileCustomizableObject(InstanceCustomizableObject,true, &CompilationOptions))
 	{
 		UE_LOG(LogMutable,Error,TEXT("Failed to compile the target CO. Exitting commandlet."));
 		return 1;

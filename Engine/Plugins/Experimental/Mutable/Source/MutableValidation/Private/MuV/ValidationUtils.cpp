@@ -9,6 +9,7 @@
 #include "MuCO/CustomizableObjectInstance.h"
 #include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCO/CustomizableObjectSystem.h"
+#include "Interfaces/ITargetPlatform.h"
 
 void PrepareAssetRegistry()
 {
@@ -39,6 +40,14 @@ bool CompileCustomizableObject(UCustomizableObject* InCustomizableObject, const 
 	{
 		CompilationOptions = InCustomizableObject->CompileOptions;
 		UE_LOG(LogMutable,Display,TEXT("Compiling CO using it's own compilation options."));
+	}
+
+	// Ensure that the user has provided a target compilation platform.
+	// Mutable is able to run without one but we want to be explicit in the context of testing.
+	if (!CompilationOptions.TargetPlatform)
+	{
+		UE_LOG(LogMutable, Error, TEXT("The compilation of the %s model could not be started : No explicit platform was provided."), *InCustomizableObject->GetName());
+		return false;
 	}
 	
 	// Request a compiler to be able to locate the root and to compile it
@@ -80,8 +89,11 @@ bool CompileCustomizableObject(UCustomizableObject* InCustomizableObject, const 
 		UE_LOG(LogMutable, Log, TEXT("(int) model_optimization_level : %d "), CompilationOptions.OptimizationLevel);
 		UE_LOG(LogMutable, Log, TEXT("(string) model_texture_compression : %s "), *UEnum::GetValueAsString(CompilationOptions.TextureCompression));
 		UE_LOG(LogMutable, Log, TEXT("(string) model_disk_compilation : %s "), CompilationOptions.bUseDiskCompilation ? TEXT("true") : TEXT("false"));
+		UE_LOG(LogMutable, Log, TEXT("(string) model_compile_platform_name : %s "), *CompilationOptions.TargetPlatform->PlatformName());
+
 		UE_LOG(LogMutable, Log, TEXT("(double) model_compile_time_ms : %f "), CompilationEndSeconds * 1000);
 		UE_LOG(LogMutable, Log, TEXT("(string) model_compile_end_state : %s "), *UEnum::GetValueAsString(CompilationEndResult));
+
 		// TODO: Add logs for the other relevant configs of the model being compiled
 	}
 

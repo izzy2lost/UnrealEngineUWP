@@ -7,10 +7,14 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectInstance.h"
+#include "Interfaces/ITargetPlatformManagerModule.h"
 
 
 int32 UCOIBulkUpdateTestCommandlet::Main(const FString& Params)
 {
+	// Ensure we do not show any OK dialog since we are not an user that can interact with them
+	GIsRunningUnattendedScript = true;
+
 	// Get the path where to look for the Customizable Object Instances we want to validate
 	FString InstancesPackagePath;
 	{
@@ -114,16 +118,24 @@ int32 UCOIBulkUpdateTestCommandlet::Main(const FString& Params)
 	// Create the updater object so we can later call for the update a target instance
 	InstanceUpdater = NewObject<UCOIUpdater>();
 	
+	// Cache the target compilation platform so we can override the compilation configs of the target COs
+	ITargetPlatformManagerModule& TPM = GetTargetPlatformManagerRef();
+	const ITargetPlatform* TargetCompilationPlatform = TPM.GetRunningTargetPlatform();
+	
 	// Compile all found COs one by one
 	uint32 CurrentInstanceIndex = 1;
 	for (TTuple<UCustomizableObject*, TSet<UCustomizableObjectInstance*>>& MutableResourceTuple : MutableResources)
 	{
 		UCustomizableObject* CustomizableObjectToCompile = MutableResourceTuple.Key;
 		check (CustomizableObjectToCompile);
+
+		// Set the compilation platform based on what the system is currently running on
+		FCompilationOptions CompilationOptions = CustomizableObjectToCompile->CompileOptions;
+		CompilationOptions.TargetPlatform = TargetCompilationPlatform;
 		
 		// Compile the current CO object
 		const FString CustomizableObjectName = CustomizableObjectToCompile->GetName();
-		if (!CompileCustomizableObject(CustomizableObjectToCompile, false))	// Do not log mutable data since mongoDB will not be able to handle it correctly 
+		if (!CompileCustomizableObject(CustomizableObjectToCompile, false, &CompilationOptions))	// Do not log mutable data since mongoDB will not be able to handle it correctly 
 		{
 			UE_LOG(LogMutable,Error,TEXT("The CO %s could not be compiled succesfully. Skipping the update of all COIs that use it."), *CustomizableObjectName )
 			continue;
