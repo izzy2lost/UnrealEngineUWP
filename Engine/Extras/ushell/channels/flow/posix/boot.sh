@@ -18,7 +18,7 @@ if [[ -n "$FLOW_CHANNELS_DIR" ]]; then
     channels_dir+=("$FLOW_CHANNELS_DIR")
 fi
 
-"$working_dir/python/current/bin/python" -Esu "$self_dir/../core/system/boot.py" "$working_dir" "${channels_dir[@]}" -- $@
+"$working_dir/python/current/bin/python" -Esu "$self_dir/../core/system/boot.py" "$working_dir" "${channels_dir[@]}" -- "$@"
 if [ ! $? ]; then
     echo boot.py failed
     exit 1
