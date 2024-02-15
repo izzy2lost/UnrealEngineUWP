@@ -227,15 +227,13 @@ void FAvaEditorModule::RegisterPropertyEditorCategories()
 
 		Section = PropertyModule.FindOrCreateSection("AvaTextActor", "Style", LOCTEXT("Style", "Style"));
 		Section->AddCategory("Style");
+		Section->AddCategory("Materials");
 
 		Section = PropertyModule.FindOrCreateSection("AvaTextActor", "Geometry", LOCTEXT("Geometry", "Geometry"));
 		Section->AddCategory("Geometry");
 
 		Section = PropertyModule.FindOrCreateSection("AvaTextActor", "Layout", LOCTEXT("Layout", "Layout"));
 		Section->AddCategory("Layout");
-
-		Section = PropertyModule.FindOrCreateSection("AvaTextActor", "Materials", LOCTEXT("Materials", "Text Materials"));
-		Section->AddCategory("Materials");
 	}
 
 	// AvaCineCameraActor Sections
