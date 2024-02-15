@@ -377,9 +377,7 @@ FRigElementKey URigHierarchyController::AddControl(
 		NewElement->Shape.Set(ERigTransformType::InitialLocal, InShapeTransform);  
 		Hierarchy->SetControlValue(NewElement, InValue, ERigControlValueType::Initial, false);
 		const FTransform LocalTransform = Hierarchy->GetTransform(NewElement, ERigTransformType::InitialLocal);
-
-		const FVector PreferredEulerAngles = AnimationCore::EulerFromQuat(LocalTransform.GetRotation(), NewElement->Settings.PreferredRotationOrder);
-		Hierarchy->SetControlPreferredEulerAngles(NewElement, PreferredEulerAngles, NewElement->Settings.PreferredRotationOrder, true);
+		Hierarchy->SetControlPreferredEulerAngles(NewElement, LocalTransform);
 
 		NewElement->Offset.MarkDirty(ERigTransformType::InitialGlobal);
 		NewElement->Pose.MarkDirty(ERigTransformType::InitialGlobal);
@@ -2848,6 +2846,13 @@ bool URigHierarchyController::AddParent(FRigBaseElement* InChild, FRigBaseElemen
 				Hierarchy->PropagateDirtyFlags(MultiParentElement, true, true);
 				Hierarchy->PropagateDirtyFlags(MultiParentElement, false, true);
 			}
+		}
+
+		if(FRigControlElement* ChildControlElement = Cast<FRigControlElement>(InChild))
+		{
+			const FTransform LocalTransform = Hierarchy->GetTransform(ChildControlElement, ERigTransformType::InitialLocal);
+			Hierarchy->SetControlPreferredEulerAngles(ChildControlElement, LocalTransform, true);
+			ChildControlElement->PreferredEulerAngles.Current = ChildControlElement->PreferredEulerAngles.Initial;
 		}
 
 		Notify(ERigHierarchyNotification::ParentChanged, MultiParentElement);
