@@ -370,7 +370,10 @@ FStructView FAvaMaskActorMaterialCollectionHandle::GetMaterialHandleData(
 	if (InParentHandleData)
 	{
 		const FAvaMask2DComponentMaterialPath ComponentMaterialPath{ InComponent, InSlotIdx };
-		return InParentHandleData->ComponentMaterialData[ComponentMaterialPath];
+		if (InParentHandleData->ComponentMaterialData.Contains(ComponentMaterialPath))
+		{
+			return InParentHandleData->ComponentMaterialData[ComponentMaterialPath]; 
+		}
 	}
 
 	return nullptr;

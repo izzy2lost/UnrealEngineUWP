@@ -67,7 +67,14 @@ private:
 
 	bool AddMaskToSelected(const TArray<AActor*>& InMaskingActors);
 
-	UAvaMask2DBaseModifier* FindOrAddMaskModifier(AActor* InActor);
+	UAvaMask2DBaseModifier* FindOrAddMaskModifier(AActor* InActor, const TSubclassOf<UAvaMask2DBaseModifier>& InMaskModifierType);
+
+	template <typename MaskModifierType
+		UE_REQUIRES(std::is_base_of_v<UAvaMask2DBaseModifier, MaskModifierType>)>
+	MaskModifierType* FindOrAddMaskModifier(AActor* InActor)
+	{
+		return Cast<MaskModifierType>(FindOrAddMaskModifier(InActor, MaskModifierType::StaticClass()));
+	}
 
 	/** Uses USelection if SelectedActor not specified. */
 	bool CanMaskSelected(AActor* InSelectedActor = nullptr);
