@@ -1,6 +1,8 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MetaHumanProjectUtilities.h"
+
+#include "MetaHumanVersionService.h"
 #include "MetaHumanImport.h"
 #include "Modules/ModuleManager.h"
 
@@ -20,4 +22,9 @@ void METAHUMANPROJECTUTILITIES_API FMetaHumanProjectUtilities::SetBulkImportHand
 void METAHUMANPROJECTUTILITIES_API FMetaHumanProjectUtilities::ImportAsset(const FMetaHumanAssetImportDescription& AssetImportDescription)
 {
 	FMetaHumanImport::Get()->ImportAsset(AssetImportDescription);
+}
+
+void METAHUMANPROJECTUTILITIES_API FMetaHumanProjectUtilities::OverrideVersionServiceUrl(const FString& BaseUrl)
+{
+	UE::MetaHumanVersionService::SetServiceUrl(BaseUrl);
 }
