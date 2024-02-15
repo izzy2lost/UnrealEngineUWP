@@ -62,9 +62,24 @@ namespace UE::SVGImporter::Private
 
 	/** Used to ensure strokes are always slightly in front of fills within the same shape */
 	constexpr static float StrokeAddedDepthMultiplier = 1.01f;
+
+	static bool bAllowInitialization = true; 
 }
 
 #define LOCTEXT_NAMESPACE "SVGActor"
+
+FSVGActorInitGuard::FSVGActorInitGuard()
+{
+	using namespace UE::SVGImporter;
+
+	bPreviousValue = Private::bAllowInitialization;
+	Private::bAllowInitialization = false;
+}
+
+FSVGActorInitGuard::~FSVGActorInitGuard()
+{
+	UE::SVGImporter::Private::bAllowInitialization = bPreviousValue;
+}
 
 // Sets default values
 ASVGActor::ASVGActor()
@@ -119,6 +134,29 @@ ASVGActor::ASVGActor()
 	bInitialized = false;
 
 	LoadResources();
+}
+
+void ASVGActor::Initialize()
+{
+	using namespace UE::SVGImporter;
+
+	if (Private::bAllowInitialization && !bInitialized)
+	{
+		ApplyScaleAndCenter();
+		ApplyOffset();
+
+		TryLoadDefaultSVGData();
+
+		if (SVGData)
+		{
+			if (bMeshesShouldBeGenerated)
+			{
+				Generate();
+			}
+		}
+
+		bInitialized = true;
+	}
 }
 
 void ASVGActor::TryLoadDefaultSVGData()
@@ -248,24 +286,7 @@ void ASVGActor::PostDuplicate(bool bDuplicateForPIE)
 void ASVGActor::PostRegisterAllComponents()
 {
 	Super::PostRegisterAllComponents();
-
-	if (!bInitialized)
-	{
-		ApplyScaleAndCenter();
-		ApplyOffset();
-
-		TryLoadDefaultSVGData();
-
-		if (SVGData)
-		{
-			if (bMeshesShouldBeGenerated)
-			{
-				Generate();
-			}
-		}
-
-		bInitialized = true;
-	}
+	Initialize();
 }
 
 void ASVGActor::Generate()
@@ -1411,6 +1432,11 @@ void ASVGActor::BakeToBlueprint() const
 
 void ASVGActor::DisplayMissingSVGDataError(const FString& InErrorMsg)
 {
+	if (bIsEditorPreviewActor)
+	{
+		return;
+	}
+
 	// in case this notification is still hanging around, let's remove it
 	HideGenerationStartNotification();
 

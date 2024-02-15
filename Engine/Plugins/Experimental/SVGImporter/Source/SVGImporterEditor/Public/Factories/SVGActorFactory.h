@@ -5,11 +5,11 @@
 #include "ActorFactories/ActorFactory.h"
 #include "SVGActorFactory.generated.h"
 
-UCLASS()
-class SVGIMPORTEREDITOR_API USVGActorFactory : public UActorFactory
+UCLASS(MinimalAPI)
+class USVGActorFactory : public UActorFactory
 {
 	GENERATED_BODY()
-	
+
 	USVGActorFactory(const FObjectInitializer& ObjectInitializer);
 
 protected:
