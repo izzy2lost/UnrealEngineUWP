@@ -329,7 +329,7 @@ namespace FPCGAsync
 	* @param AsyncState - The context containing the information about how many tasks we can launch, async read/write index for the current job and a function to know if we need to stop processing.
 	* @param NumIterations - The number of calls that will be done to the provided function, also an upper bound on the number of data generated.
 	* @param Initialize - Signature: void(). A function that will be called once on the first timeslice, where you can reserve data for processing
-	* @param ProcessRange - Signature: bool(int32 StartReadIndex, int32 StartWriteIndex, int32 Count). A function that processes a range of values and returns the number of written values 
+	* @param ProcessRange - Signature: int32(int32 StartReadIndex, int32 StartWriteIndex, int32 Count). A function that processes a range of values and returns the number of written values 
 	* @param MoveDataRange - Signature: void(int32 ReadIndex, int32 WriteIndex, int32 Count). If the processing filters points, this will be used to move elements in chunk from one range to another 
 	* @param Finished - Signature: void(int32 Count). Called once on finished, and tells you the total count of points written.
 	* @param bEnableTimeSlicing - If false, we will not stop until all the processing is done.
