@@ -51,7 +51,7 @@ class TRACEINSIGHTS_API FGraphTrack : public FBaseTimingTrack
 
 private:
 	// Visual size of points (in pixels).
-	static constexpr float PointVisualSize = 5.0f;
+	static constexpr float PointVisualSize = 5.5f;
 
 	// Size of points (in pixels) used in reduction algorithm.
 	static constexpr double PointSizeX = 3.0f;
