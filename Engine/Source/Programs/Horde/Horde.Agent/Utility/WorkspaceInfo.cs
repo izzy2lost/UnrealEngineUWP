@@ -141,7 +141,7 @@ namespace Horde.Agent.Utility
 			}
 
 			// Create the connection
-			IPerforceConnection perforce = await PerforceConnection.CreateAsync(new PerforceSettings(serverAndPort, userName) { PreferNativeClient = false, Password = ticket}, logger);
+			IPerforceConnection perforce = await PerforceConnection.CreateAsync(new PerforceSettings(serverAndPort, userName) { PreferNativeClient = options.PreferNativeClient, Password = ticket}, logger);
 			if (userName != null)
 			{
 				if (ticket != null)
@@ -280,9 +280,10 @@ namespace Horde.Agent.Utility
 			const string MaxFileConcurrencyKey = "maxFileConcurrency";
 			const string MinScratchSpaceKey = "minScratchSpace";
 			const string UseHaveTableKey = "useHaveTable";
+			const string PreferNativeClientKey = "preferNativeClient";
 
 			ManagedWorkspaceOptions options = new ManagedWorkspaceOptions();
-			options.Partitioned = workspace.Partitioned;
+			options = options with { Partitioned = workspace.Partitioned };
 
 			string? method = workspace.Method;
 			if (!String.IsNullOrEmpty(method))
@@ -292,19 +293,23 @@ namespace Horde.Agent.Utility
 				{
 					if (Int32.TryParse(nameValues[NumParallelSyncThreadsKey], out int v))
 					{
-						options.NumParallelSyncThreads = v;
+						options = options with { NumParallelSyncThreads = v };
 					}
 					if (Int32.TryParse(nameValues[MaxFileConcurrencyKey], out v))
 					{
-						options.MaxFileConcurrency = v;
+						options = options with { MaxFileConcurrency = v };
 					}
 					if (Int32.TryParse(nameValues[MinScratchSpaceKey], out v))
 					{
-						options.MinScratchSpace = v;
+						options = options with { MinScratchSpace = v };
 					}
 					if (String.Equals(nameValues[UseHaveTableKey], "false", StringComparison.OrdinalIgnoreCase))
 					{
-						options.UseHaveTable = false;
+						options = options with { UseHaveTable = false };
+					}
+					if (String.Equals(nameValues[PreferNativeClientKey], "true", StringComparison.OrdinalIgnoreCase))
+					{
+						options = options with { PreferNativeClient = true };
 					}
 				}
 			}

@@ -64,77 +64,30 @@ namespace EpicGames.Perforce.Managed
 			View = view;
 		}
 	}
-	
+
 	/// <summary>
 	/// Extra options for configuring ManagedWorkspace
 	/// </summary>
-	public class ManagedWorkspaceOptions
-	{
-		/// <summary>
-		/// Maximum number of threads to sync in parallel
-		/// </summary>
-		public int NumParallelSyncThreads { get; set; } = 4;
-
-		/// <summary>
-		/// Maximum number of concurrent file system operations (copying, moving, deleting etc)
-		/// </summary>
-		public int MaxFileConcurrency { get; set; } = 4;
-		
-		/// <summary>
-		/// Minimum amount of space that must be on a drive after a branch is synced
-		/// </summary>
-		public long MinScratchSpace { get; set; } = 50L * 1024 * 1024 * 1024;
-		
-		/// <summary>
-		/// Use the client's have table when syncing.
-		/// 
-		/// When set to false, updates to the have table will be prevented through use of "sync -p".
-		/// Actual files to sync will be gathered through "fstat".
-		/// This puts less strain on the Perforce server and can improve sync performance.
-		/// </summary>
-		public bool UseHaveTable { get; set; } = true;
-
-		/// <summary>
-		/// Whether to allow using partitioned workspaces
-		/// </summary>
-		public bool Partitioned { get; set; }
-
-		/// <inheritdoc/>
-		protected bool Equals(ManagedWorkspaceOptions other)
-		{
-			return NumParallelSyncThreads == other.NumParallelSyncThreads && MaxFileConcurrency == other.MaxFileConcurrency && MinScratchSpace == other.MinScratchSpace && UseHaveTable == other.UseHaveTable;
-		}
-
-		/// <inheritdoc/>
-		public override bool Equals(object? obj)
-		{
-			if (ReferenceEquals(null, obj))
-			{ 
-				return false; 
-			}
-			if (ReferenceEquals(this, obj))
-			{ 
-				return true;
-			}
-			if (obj.GetType() != GetType())
-			{
-				return false;
-			}
-			return Equals((ManagedWorkspaceOptions)obj);
-		}
-
-		/// <inheritdoc/>
-		public override int GetHashCode()
-		{
-			return HashCode.Combine(NumParallelSyncThreads, MaxFileConcurrency, MinScratchSpace, UseHaveTable);
-		}
-
-		/// <inheritdoc/>
-		public override string ToString()
-		{
-			return $"{nameof(NumParallelSyncThreads)}={NumParallelSyncThreads} {nameof(MaxFileConcurrency)}={MaxFileConcurrency} {nameof(MinScratchSpace)}={MinScratchSpace} {nameof(UseHaveTable)}={UseHaveTable}";
-		}
-	}
+	/// <param name="NumParallelSyncThreads">Maximum number of threads to sync in parallel</param>
+	/// <param name="MaxFileConcurrency">Maximum number of concurrent file system operations (copying, moving, deleting etc)</param>
+	/// <param name="MinScratchSpace">Minimum amount of space that must be on a drive after a branch is synced</param>
+	/// <param name="UseHaveTable">
+	///		Use the client's have table when syncing.
+	///		
+	///		When set to false, updates to the have table will be prevented through use of "sync -p".
+	///		Actual files to sync will be gathered through "fstat". This puts less strain on the Perforce server and can improve sync performance.
+	///	</param>
+	/// <param name="Partitioned">Whether to allow using partitioned workspaces</param>
+	/// <param name="PreferNativeClient">Whether to prefer the native p4 client</param>
+	public record class ManagedWorkspaceOptions
+	(
+		int NumParallelSyncThreads = 4,
+		int MaxFileConcurrency = 4,
+		long MinScratchSpace = 50L * 1024 * 1024 * 1024,
+		bool UseHaveTable = true,
+		bool Partitioned = false,
+		bool PreferNativeClient = false
+	);
 
 	/// <summary>
 	/// Version number for managed workspace cache files
