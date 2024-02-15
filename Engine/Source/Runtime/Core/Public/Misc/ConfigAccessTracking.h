@@ -107,27 +107,6 @@ namespace Private
 {
 
 /**
- * FFilePtrClearOnCopy: Device to workaround c++'s lack of the ability to create a copyconstructor that appends custom
- * code to the default copyconstructor. FConfigFile uses a default copy constructor, and we don't want to replace that
- * with a manual one that we then have to keep up to date with any property changes. But we want to change the
- * behavior of that copy constructor; FConfigFile->FileAccess is a pointer to a new'd structure that has a backpointer
- * to FConfigFile and so every allocated FConfigFile needs to construct its own copy of it rather than copying the
- * pointer from a source FConfigFile. But that is not (and should not be) the behavior of TRefCountPtr. So we make
- * this subclass of TRefCountPtr with clearing-on-copy behavior, and allocate the FFile* on demand when accessed in
- * the new FConfigFile.
- */
-struct FFilePtrClearOnCopy : public TRefCountPtr<FFile>
-{
-	FFilePtrClearOnCopy() = default;
-	FFilePtrClearOnCopy(FFile* In) : TRefCountPtr<FFile>(In) {}
-	FFilePtrClearOnCopy(const FFilePtrClearOnCopy& Other) {}
-	FFilePtrClearOnCopy(FFilePtrClearOnCopy&& Other) {}
-	FFilePtrClearOnCopy& operator=(const FFilePtrClearOnCopy& Other) { return *this; }
-	FFilePtrClearOnCopy& operator=(FFilePtrClearOnCopy&& Other) { return *this; }
-	void Set(FFile* Ptr) { this->TRefCountPtr<UE::ConfigAccessTracking::FFile>::operator=(Ptr); }
-};
-
-/**
  * Stores the number of existing AddConfigValueReadCallback subscribers. We use it to avoid the cost
  * of a function call when no subscribers are registered.
  */

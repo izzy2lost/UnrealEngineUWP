@@ -517,11 +517,6 @@ public:
 	class FConfigBranch* Branch = nullptr;
 	FName Tag;
 	
-	// unused
-#if UE_WITH_CONFIG_TRACKING
-	UE::ConfigAccessTracking::ELoadType LoadType = UE::ConfigAccessTracking::ELoadType::Uninitialized;
-	FName Name;
-#endif
 	uint8 Dirty;
 
 	// used to determine if existing settings should be removed from a FCOnfigFile before applying this stream - used for compatibility with
@@ -571,13 +566,17 @@ private:
 	TMap<FString, TMap<FName, FString> > PerObjectConfigArrayOfStructKeys;
 
 #if UE_WITH_CONFIG_TRACKING
-	mutable UE::ConfigAccessTracking::Private::FFilePtrClearOnCopy FileAccess;
+	mutable TRefCountPtr<UE::ConfigAccessTracking::FFile> FileAccess;
 #endif
 
 public:
 	CORE_API FConfigFile();
 	FConfigFile( int32 ) {}	// @todo UE-DLL: Workaround for instantiated TMap template during DLLExport (TMap::FindRef)
 	CORE_API ~FConfigFile();
+	CORE_API FConfigFile(const FConfigFile& Other);
+	CORE_API FConfigFile(FConfigFile&& Other);
+	CORE_API FConfigFile& operator=(const FConfigFile& Other);
+	CORE_API FConfigFile& operator=(FConfigFile&& Other);
 
 	// looks for a section by name, and creates an empty one if it can't be found
 	UE_DEPRECATED(5.4, "Use FindOrAddConfigSection, and/or use the new AddToSection, etc APIs to modify sections without retrieving the section. See top of ConfigCacheIni.h for more info.")

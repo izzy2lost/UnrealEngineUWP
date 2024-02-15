@@ -478,12 +478,13 @@ bool FConfigContext::PerformLoad()
 	}
 #endif
 
+	FConfigFile& FinalFile = ExistingFile ? *ExistingFile : Branch->InMemoryFile;
 #if UE_WITH_CONFIG_TRACKING
 	// Set the LoadType before calling GenerateDestIniFile, because it will set it if not
 	// already set.
-	if (Branch->InMemoryFile.LoadType == UE::ConfigAccessTracking::ELoadType::Uninitialized)
+	if (FinalFile.LoadType == UE::ConfigAccessTracking::ELoadType::Uninitialized)
 	{
-		Branch->InMemoryFile.LoadType = UE::ConfigAccessTracking::ELoadType::LocalIniFile;
+		FinalFile.LoadType = UE::ConfigAccessTracking::ELoadType::LocalIniFile;
 	}
 #endif
 	
@@ -506,8 +507,6 @@ bool FConfigContext::PerformLoad()
 	// @todo This bNeedsWrite afaict is always true even if it loaded a completely valid generated/final .ini, and the write below will
 	// just write out the exact same thing it read in!
 	bool bGeneratedFile = GenerateDestIniFile();
-
-	FConfigFile& FinalFile = ExistingFile ? *ExistingFile : Branch->InMemoryFile;
 
 	FinalFile.Name = FName(*BaseIniName);
 	FinalFile.PlatformName = Platform;

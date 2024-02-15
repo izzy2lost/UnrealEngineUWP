@@ -856,6 +856,104 @@ FConfigFile::~FConfigFile()
 	Cleanup();
 }
 
+FConfigFile::FConfigFile(const FConfigFile& Other)
+{
+	*this = Other;
+}
+
+FConfigFile::FConfigFile(FConfigFile&& Other)
+{
+	*this = MoveTemp(Other);
+}
+
+FConfigFile& FConfigFile::operator=(const FConfigFile& Other)
+{
+	this->FConfigFileMap::operator=(Other);
+	Dirty = Other.Dirty;
+	NoSave = Other.NoSave;
+	bHasPlatformName = Other.bHasPlatformName;
+	bCanSaveAllSections = Other.bCanSaveAllSections;
+
+	// LoadType is not copied; each FConfigFile has to set it itself
+
+	Name = Other.Name;
+	PlatformName = Other.PlatformName;
+	Tag = Other.Tag;
+	Branch = Other.Branch;
+
+#if ALLOW_INI_OVERRIDE_FROM_COMMANDLINE
+	CommandlineOptions = Other.CommandlineOptions;
+#endif // ALLOW_INI_OVERRIDE_FROM_COMMANDLINE
+
+	PerObjectConfigArrayOfStructKeys = Other.PerObjectConfigArrayOfStructKeys;
+
+	// FileAccess is not copied; each FConfigFile has to set it itself
+
+	// Update the FileAccess pointers on all Sections and Values that were assigned
+#if UE_WITH_CONFIG_TRACKING
+	UE::ConfigAccessTracking::FFile* LocalFileAccess = GetFileAccess();
+	for (TMap<FString, FConfigSection>::TIterator SectionIterator(*this); SectionIterator; ++SectionIterator)
+	{
+		UE::ConfigAccessTracking::FSection* SectionAccess = nullptr;
+		if (LocalFileAccess)
+		{
+			SectionAccess = new UE::ConfigAccessTracking::FSection(*LocalFileAccess, FStringView(SectionIterator->Key));
+		}
+		SectionIterator->Value.SectionAccess = SectionAccess;
+		for (TPair<FName, FConfigValue>& ValuePair : SectionIterator->Value)
+		{
+			ValuePair.Value.SetSectionAccess(SectionAccess);
+		}
+	}
+#endif
+
+	return *this;
+}
+
+FConfigFile& FConfigFile::operator=(FConfigFile&& Other)
+{
+	this->FConfigFileMap::operator=(MoveTemp(Other));
+	Dirty = Other.Dirty;
+	NoSave = Other.NoSave;
+	bHasPlatformName = Other.bHasPlatformName;
+	bCanSaveAllSections = Other.bCanSaveAllSections;
+
+	// LoadType is not copied; each FConfigFile has to set it itself
+
+	Name = MoveTemp(Other.Name);
+	PlatformName = MoveTemp(Other.PlatformName);
+	Tag = MoveTemp(Other.Tag);
+	Branch = MoveTemp(Other.Branch);
+
+#if ALLOW_INI_OVERRIDE_FROM_COMMANDLINE
+	CommandlineOptions = MoveTemp(Other.CommandlineOptions);
+#endif // ALLOW_INI_OVERRIDE_FROM_COMMANDLINE
+
+	PerObjectConfigArrayOfStructKeys = MoveTemp(Other.PerObjectConfigArrayOfStructKeys);
+
+	// FileAccess is not copied; each FConfigFile has to set it itself
+
+	// Update the FileAccess pointers on all Sections and Values that were assigned
+#if UE_WITH_CONFIG_TRACKING
+	UE::ConfigAccessTracking::FFile* LocalFileAccess = GetFileAccess();
+	for (TMap<FString, FConfigSection>::TIterator SectionIterator(*this); SectionIterator; ++SectionIterator)
+	{
+		UE::ConfigAccessTracking::FSection* SectionAccess = nullptr;
+		if (LocalFileAccess)
+		{
+			SectionAccess = new UE::ConfigAccessTracking::FSection(*LocalFileAccess, FStringView(SectionIterator->Key));
+		}
+		SectionIterator->Value.SectionAccess = SectionAccess;
+		for (TPair<FName, FConfigValue>& ValuePair : SectionIterator->Value)
+		{
+			ValuePair.Value.SectionAccess = SectionAccess;
+		}
+	}
+#endif
+
+	return *this;
+}
+
 void FConfigFile::Cleanup()
 {
 	Empty();
@@ -880,7 +978,7 @@ UE::ConfigAccessTracking::FFile* FConfigFile::GetFileAccess() const
 		{
 			return nullptr;
 		}
-		FileAccess.Set(new UE::ConfigAccessTracking::FFile(this));
+		FileAccess = new UE::ConfigAccessTracking::FFile(this);
 	}
 	return FileAccess.GetReference();
 }
@@ -1153,11 +1251,11 @@ void FConfigFile::ProcessCommand(FConfigSection* Section, FStringView SectionNam
 				FConfigValue* ConfigValue = Section->Find(Key);
 				if (!ConfigValue)
 				{
-					Section->Add(Key, MoveTemp(Value));
+					Section->Add(Key, FConfigValue(Section, Key, MoveTemp(Value)));
 				}
 				else
 				{
-					*ConfigValue = FConfigValue(MoveTemp(Value));
+					*ConfigValue = MoveTemp(Value);
 				}
 			}
 			break;
@@ -1193,6 +1291,25 @@ void FConfigFile::ProcessCommand(FConfigSection* Section, FStringView SectionNam
 	}
 }
 
+#if UE_WITH_CONFIG_TRACKING
+static void ConditionalInitializeLoadType(FConfigFile* File, UE::ConfigAccessTracking::ELoadType LoadType,
+	FName FileName)
+{
+	if (File->LoadType == UE::ConfigAccessTracking::ELoadType::Uninitialized)
+	{
+		File->LoadType = LoadType;
+	}
+	if (File->Name.IsNone())
+	{
+		File->Name = FileName;
+	}
+}
+static void ConditionalInitializeLoadType(FConfigCommandStream* File, UE::ConfigAccessTracking::ELoadType LoadType,
+	FName FileName)
+{
+}
+#endif
+
 template<typename FileType>
 void FillFileFromBuffer(FileType* File, FStringView Buffer, bool bHandleSymbolCommands, const FString& FileHint)
 {
@@ -1203,14 +1320,7 @@ void FillFileFromBuffer(FileType* File, FStringView Buffer, bool bHandleSymbolCo
 	UE_TRACE_METADATA_SCOPE_ASSET_FNAME(FileName, ConfigFileClassName, FileName);
 
 #if UE_WITH_CONFIG_TRACKING
-	if (File->LoadType == UE::ConfigAccessTracking::ELoadType::Uninitialized)
-	{
-		File->LoadType = UE::ConfigAccessTracking::ELoadType::LocalSingleIniFile;
-	}
-	if (File->Name.IsNone())
-	{
-		File->Name = FileName;
-	}
+	ConditionalInitializeLoadType(File, UE::ConfigAccessTracking::ELoadType::LocalSingleIniFile, FileName);
 #endif
 
 	const TCHAR* Ptr = Buffer.GetData();
@@ -3052,7 +3162,18 @@ FConfigBranch& FConfigCacheIni::AddNewBranch(const FString& Filename)
 	FConfigBranch* Branch = new FConfigBranch();
 	Branch->IniName = *FPaths::GetBaseFilename(Filename);
 	Branch->IniPath = Filename;
-	return *OtherFiles.Add(Filename, Branch);
+#if UE_WITH_CONFIG_TRACKING
+	UE::ConfigAccessTracking::FFile* FileAccess = Branch->InMemoryFile.GetFileAccess();
+	if (FileAccess)
+	{
+		FileAccess->SetAsLoadTypeConfigSystem(*this, Branch->InMemoryFile);
+		FileAccess->OverrideFilenameToLoad = FName(FStringView(Filename));
+	}
+#endif
+	FConfigBranch*& Existing = OtherFiles.FindOrAdd(Filename);
+	delete Existing;
+	Existing = Branch;
+	return *Branch;
 }
 
 
@@ -3130,12 +3251,6 @@ FConfigFile* FConfigCacheIni::FindConfigFileWithBaseName(FName BaseName)
 
 FConfigFile& FConfigCacheIni::Add(const FString& Filename, const FConfigFile& File)
 {
-	FConfigBranch** Result = OtherFiles.Find(Filename);
-	if (Result)
-	{
-		delete *Result;
-	}
-
 	FConfigBranch* Branch = new FConfigBranch(File);
 	Branch->IniName = File.Name;
 	Branch->IniPath = Filename;
@@ -3147,7 +3262,10 @@ FConfigFile& FConfigCacheIni::Add(const FString& Filename, const FConfigFile& Fi
 		FileAccess->OverrideFilenameToLoad = FName(FStringView(Filename));
 	}
 #endif
-	return OtherFiles.Add(Filename, Branch)->InMemoryFile;
+	FConfigBranch*& Existing = OtherFiles.FindOrAdd(Filename);
+	delete Existing;
+	Existing = Branch;
+	return Branch->InMemoryFile;
 }
 
 bool FConfigCacheIni::ContainsConfigFile(const FConfigFile* ConfigFile) const
