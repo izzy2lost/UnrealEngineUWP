@@ -72,7 +72,7 @@ namespace EpicGames.Horde.Compute
 				{
 					case AgentMessageType.Exception:
 						ExceptionMessage exception = message.ParseExceptionMessage();
-						throw new ComputeRemoteException(exception);
+						throw new ComputeException("Error while executing remote process", new ComputeRemoteException(exception));
 					case AgentMessageType.ExecuteOutput:
 						AppendData(message.Data.Span);
 						break;
@@ -81,7 +81,8 @@ namespace EpicGames.Horde.Compute
 						_result.TrySetResult(executeProcessResponse.ExitCode);
 						return;
 					default:
-						throw new InvalidAgentMessageException(message);
+						message.ThrowIfUnexpectedType();
+						return;
 				}
 			}
 		}

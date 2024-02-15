@@ -84,9 +84,9 @@ namespace EpicGames.Horde.Compute
 		async Task RunAsync(ComputeSocket socket, int channelId, int bufferSize, Action<Exception> postException, CancellationToken cancellationToken)
 		{
 			List<Task> childTasks = new List<Task>();
+			using AgentMessageChannel channel = socket.CreateAgentMessageChannel(channelId, bufferSize);
 			try
 			{
-				using AgentMessageChannel channel = socket.CreateAgentMessageChannel(channelId, bufferSize);
 				await channel.AttachAsync(cancellationToken);
 
 				for (; ; )
@@ -144,7 +144,8 @@ namespace EpicGames.Horde.Compute
 							}
 							break;
 						default:
-							throw new InvalidAgentMessageException(message);
+							message.ThrowIfUnexpectedType();
+							return;
 					}
 				}
 			}
@@ -156,6 +157,7 @@ namespace EpicGames.Horde.Compute
 			catch (Exception ex)
 			{
 				_logger.LogInformation(ex, "Compute Channel {ChannelId}: Exception: {Message}", channelId, ex.Message);
+				await channel.SendExceptionAsync(ex, cancellationToken);
 				postException(ex);
 			}
 			finally
