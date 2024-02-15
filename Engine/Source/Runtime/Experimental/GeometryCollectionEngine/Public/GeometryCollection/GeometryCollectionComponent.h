@@ -1697,10 +1697,6 @@ private:
 	FGeometryCollectionPhysicsProxy* PhysicsProxy;
 	TUniquePtr<FGeometryDynamicCollection> DynamicCollection;
 
-	// Temporary dummies to interface with Physx expectations of the SQ syatem
-	friend class FGeometryCollectionSQAccelerator;
-	FBodyInstance DummyBodyInstance;
-
 	// Temporary storage for body setup in order to initialise a dummy body instance
 	UPROPERTY(Transient)
 	TObjectPtr<UBodySetup> DummyBodySetup;
