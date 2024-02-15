@@ -4,65 +4,8 @@
 
 #include "Misc/EnumClassFlags.h"
 #include "WorldPartition/WorldPartitionBuilder.h"
+#include "WorldPartition/WorldPartitionBuilderHelpers.h"
 #include "WorldPartitionHLODsBuilder.generated.h"
-
-
-class UWorld;
-class UWorldPartition;
-class FSourceControlHelper;
-
-
-struct FHLODModifiedFiles
-{
-	enum EFileOperation
-	{
-		FileAdded,
-		FileEdited,
-		FileDeleted,
-		NumFileOperations
-	};
-
-	void Add(EFileOperation FileOp, const FString& File)
-	{
-		Files[FileOp].Add(File);
-	}
-
-	const TSet<FString>& Get(EFileOperation FileOp) const
-	{
-		return Files[FileOp];
-	}
-
-	void Append(EFileOperation FileOp, const TArray<FString>& InFiles)
-	{
-		Files[FileOp].Append(InFiles);
-	}
-
-	void Append(const FHLODModifiedFiles& Other)
-	{
-		Files[EFileOperation::FileAdded].Append(Other.Files[EFileOperation::FileAdded]);
-		Files[EFileOperation::FileEdited].Append(Other.Files[EFileOperation::FileEdited]);
-		Files[EFileOperation::FileDeleted].Append(Other.Files[EFileOperation::FileDeleted]);
-	}
-
-	void Empty()
-	{
-		Files[EFileOperation::FileAdded].Empty();
-		Files[EFileOperation::FileEdited].Empty();
-		Files[EFileOperation::FileDeleted].Empty();
-	}
-
-	TArray<FString> GetAllFiles() const
-	{
-		TArray<FString> AllFiles;
-		AllFiles.Append(Files[EFileOperation::FileAdded].Array());
-		AllFiles.Append(Files[EFileOperation::FileEdited].Array());
-		AllFiles.Append(Files[EFileOperation::FileDeleted].Array());
-		return AllFiles;
-	}
-
-private:
-	TSet<FString> Files[NumFileOperations];
-};
 
 enum class EHLODBuildStep : uint8
 {
@@ -107,7 +50,7 @@ protected:
 	UNREALED_API TArray<TArray<FGuid>> GetHLODWorkloads(int32 NumWorkloads) const;
 	UNREALED_API bool ValidateWorkload(const TArray<FGuid>& Workload) const;
 
-	UNREALED_API bool CopyFilesToWorkingDir(const FString& TargetDir, const FHLODModifiedFiles& ModifiedFiles, TArray<FString>& BuildProducts);
+	UNREALED_API bool CopyFilesToWorkingDir(const FString& TargetDir, const FBuilderModifiedFiles& ModifiedFiles, TArray<FString>& BuildProducts);
 	UNREALED_API bool CopyFilesFromWorkingDir(const FString& SourceDir);
 
 	UNREALED_API bool ShouldRunStep(const EHLODBuildStep BuildStep) const;
@@ -116,8 +59,8 @@ protected:
 
 private:
 	UWorld* World;
-	UWorldPartition* WorldPartition;
-	FSourceControlHelper* SourceControlHelper;
+	class UWorldPartition* WorldPartition;
+	class FSourceControlHelper* SourceControlHelper;
 
 	// Options --
 	EHLODBuildStep BuildOptions;
@@ -136,5 +79,5 @@ private:
 	FString DistributedBuildWorkingDir;
 	FString DistributedBuildManifest;
 	
-	FHLODModifiedFiles ModifiedFiles;
+	FBuilderModifiedFiles ModifiedFiles;
 };

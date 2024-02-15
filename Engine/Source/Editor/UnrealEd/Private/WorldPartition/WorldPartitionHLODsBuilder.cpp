@@ -35,118 +35,6 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogWorldPartitionHLODsBuilder, All, All);
 
-class FSourceControlHelper : public ISourceControlHelper
-{
-public:
-	FSourceControlHelper(FPackageSourceControlHelper& InPackageHelper, FHLODModifiedFiles& InModifiedFiles)
-		: PackageHelper(InPackageHelper)
-		, ModifiedFiles(InModifiedFiles)
-	{}
-
-	virtual ~FSourceControlHelper()
-	{}
-
-	virtual FString GetFilename(const FString& PackageName) const override
-	{
-		return SourceControlHelpers::PackageFilename(PackageName);
-	}
-
-	virtual FString GetFilename(UPackage* Package) const override
-	{
-		return SourceControlHelpers::PackageFilename(Package);
-	}
-
-	virtual bool Checkout(UPackage* Package) const override
-	{
-		bool bCheckedOut = PackageHelper.Checkout(Package);
-		if (bCheckedOut)
-		{
-			const FString Filename = GetFilename(Package);
-			const bool bAdded = ModifiedFiles.Get(FHLODModifiedFiles::EFileOperation::FileAdded).Contains(Filename);
-			if (!bAdded)
-			{
-				ModifiedFiles.Add(FHLODModifiedFiles::EFileOperation::FileEdited, Filename);
-			}
-		}
-		return bCheckedOut;
-	}
-
-	virtual bool Add(UPackage* Package) const override
-	{
-		bool bAdded = PackageHelper.AddToSourceControl(Package);
-		if (bAdded)
-		{
-			ModifiedFiles.Add(FHLODModifiedFiles::EFileOperation::FileAdded, GetFilename(Package));
-		}
-		return bAdded;
-	}
-
-	virtual bool Delete(const FString& PackageName) const override
-	{
-		bool bDeleted = PackageHelper.Delete(PackageName);
-		if (bDeleted)
-		{
-			ModifiedFiles.Add(FHLODModifiedFiles::EFileOperation::FileDeleted, PackageName);
-		}
-		return bDeleted;
-	}
-
-	virtual bool Delete(UPackage* Package) const override
-	{
-		FString PackageName = GetFilename(Package);
-		bool bDeleted = PackageHelper.Delete(Package);
-		if (bDeleted)
-		{
-			ModifiedFiles.Add(FHLODModifiedFiles::EFileOperation::FileDeleted, PackageName);
-		}
-		return bDeleted;
-	}
-
-	virtual bool Save(UPackage* Package) const override
-	{
-		bool bFileExists = IPlatformFile::GetPlatformPhysical().FileExists(*GetFilename(Package));
-
-		// Checkout package
-		Package->MarkAsFullyLoaded();
-
-		if (bFileExists)
-		{
-			if (!Checkout(Package))
-			{
-				UE_LOG(LogWorldPartitionHLODsBuilder, Error, TEXT("Error checking out package %s."), *Package->GetName());
-				return false;
-			}
-		}
-
-		// Save package
-		FString PackageFileName = GetFilename(Package);
-		FSavePackageArgs SaveArgs;
-		SaveArgs.TopLevelFlags = RF_Standalone;
-		SaveArgs.SaveFlags = PackageHelper.UseSourceControl() ? ESaveFlags::SAVE_None : ESaveFlags::SAVE_Async;
-		if (!UPackage::SavePackage(Package, nullptr, *PackageFileName, SaveArgs))
-		{
-			UE_LOG(LogWorldPartitionHLODsBuilder, Error, TEXT("Error saving package %s."), *Package->GetName());
-			return false;
-		}
-
-		// Add new package to source control
-		if (!bFileExists)
-		{
-			if (!Add(Package))
-			{
-				UE_LOG(LogWorldPartitionHLODsBuilder, Error, TEXT("Error adding package %s to revision control."), *Package->GetName());
-				return false;
-			}
-		}
-
-		return true;
-	}
-
-private:
-	FPackageSourceControlHelper& PackageHelper;
-	FHLODModifiedFiles& ModifiedFiles;
-};
-
 static const FString DistributedBuildWorkingDirName = TEXT("HLODTemp");
 static const FString DistributedBuildManifestName = TEXT("HLODBuildManifest.ini");
 static const FString BuildProductsFileName = TEXT("BuildProducts.txt");
@@ -278,8 +166,6 @@ bool UWorldPartitionHLODsBuilder::ShouldProcessWorld(UWorld* InWorld) const
 
 bool UWorldPartitionHLODsBuilder::PreWorldInitialization(UWorld* InWorld, FPackageSourceControlHelper& PackageHelper)
 {
-	ModifiedFiles.Empty();
-
 	if (bDistributedBuild)
 	{
 		DistributedBuildWorkingDir = GetDistributedBuildWorkingDir(InWorld);
@@ -427,12 +313,12 @@ bool UWorldPartitionHLODsBuilder::SetupHLODActors()
 				FWorldPartitionHelpers::DoCollectGarbage();
 			}
 
-			TArray<FHLODModifiedFiles> BuildersFiles;
+			TArray<FBuilderModifiedFiles> BuildersFiles;
 			BuildersFiles.SetNum(BuilderCount);
 
-			for (int32 i = 0; i < FHLODModifiedFiles::EFileOperation::NumFileOperations; i++)
+			for (int32 i = 0; i < FBuilderModifiedFiles::EFileOperation::NumFileOperations; i++)
 			{
-				FHLODModifiedFiles::EFileOperation FileOp = (FHLODModifiedFiles::EFileOperation)i;
+				FBuilderModifiedFiles::EFileOperation FileOp = (FBuilderModifiedFiles::EFileOperation)i;
 				for (const FString& ModifiedFile : ModifiedFiles.Get(FileOp))
 				{
 					int32* Idx = FilesToBuilderMap.Find(ModifiedFile);
@@ -941,7 +827,7 @@ const FName FileAction_Add(TEXT("Add"));
 const FName FileAction_Edit(TEXT("Edit"));
 const FName FileAction_Delete(TEXT("Delete"));
 
-bool UWorldPartitionHLODsBuilder::CopyFilesToWorkingDir(const FString& TargetDir, const FHLODModifiedFiles& Files, TArray<FString>& BuildProducts)
+bool UWorldPartitionHLODsBuilder::CopyFilesToWorkingDir(const FString& TargetDir, const FBuilderModifiedFiles& Files, TArray<FString>& BuildProducts)
 {
 	const FString AbsoluteTargetDir = DistributedBuildWorkingDir / TargetDir / TEXT("");
 
@@ -978,9 +864,9 @@ bool UWorldPartitionHLODsBuilder::CopyFilesToWorkingDir(const FString& TargetDir
 		}
 	};
 
-	Algo::ForEach(Files.Get(FHLODModifiedFiles::EFileOperation::FileAdded), [&](const FString& SourceFilename) { CopyFileToWorkingDir(SourceFilename, FileAction_Add); });
-	Algo::ForEach(Files.Get(FHLODModifiedFiles::EFileOperation::FileEdited), [&](const FString& SourceFilename) { CopyFileToWorkingDir(SourceFilename, FileAction_Edit); });
-	Algo::ForEach(Files.Get(FHLODModifiedFiles::EFileOperation::FileDeleted), [&](const FString& SourceFilename) { CopyFileToWorkingDir(SourceFilename, FileAction_Delete); });
+	Algo::ForEach(Files.Get(FBuilderModifiedFiles::EFileOperation::FileAdded), [&](const FString& SourceFilename) { CopyFileToWorkingDir(SourceFilename, FileAction_Add); });
+	Algo::ForEach(Files.Get(FBuilderModifiedFiles::EFileOperation::FileEdited), [&](const FString& SourceFilename) { CopyFileToWorkingDir(SourceFilename, FileAction_Edit); });
+	Algo::ForEach(Files.Get(FBuilderModifiedFiles::EFileOperation::FileDeleted), [&](const FString& SourceFilename) { CopyFileToWorkingDir(SourceFilename, FileAction_Delete); });
 	if (!bSuccess)
 	{
 		return false;
@@ -998,7 +884,7 @@ bool UWorldPartitionHLODsBuilder::CopyFilesToWorkingDir(const FString& TargetDir
 	}
 
 	// Delete files we added
-	for (const FString& FileToDelete : Files.Get(FHLODModifiedFiles::EFileOperation::FileAdded))
+	for (const FString& FileToDelete : Files.Get(FBuilderModifiedFiles::EFileOperation::FileAdded))
 	{
 		if (!IFileManager::Get().Delete(*FileToDelete, false, true))
 		{
@@ -1152,9 +1038,9 @@ bool UWorldPartitionHLODsBuilder::CopyFilesFromWorkingDir(const FString& SourceD
 	}
 
 	// Keep track of all modified files
-	ModifiedFiles.Append(FHLODModifiedFiles::EFileOperation::FileAdded, ToAdd);
-	ModifiedFiles.Append(FHLODModifiedFiles::EFileOperation::FileDeleted, FilesToDelete);
-	ModifiedFiles.Append(FHLODModifiedFiles::EFileOperation::FileEdited, ToEdit);
+	ModifiedFiles.Append(FBuilderModifiedFiles::EFileOperation::FileAdded, ToAdd);
+	ModifiedFiles.Append(FBuilderModifiedFiles::EFileOperation::FileDeleted, FilesToDelete);
+	ModifiedFiles.Append(FBuilderModifiedFiles::EFileOperation::FileEdited, ToEdit);
 
 	// Force a rescan of the updated files
 	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
