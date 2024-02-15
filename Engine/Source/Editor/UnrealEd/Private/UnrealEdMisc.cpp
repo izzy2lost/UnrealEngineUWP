@@ -1110,6 +1110,11 @@ void FUnrealEdMisc::OnExit()
 	const FString& PendingProjName = FUnrealEdMisc::Get().GetPendingProjectName();
 	if( PendingProjName.Len() > 0 )
 	{
+#if WITH_EDITOR
+			// Prevent the Zen subprocess data path from being inherited by a post-close process spawn
+			// such as when the editor is restarting itself.
+			FPlatformMisc::SetEnvironmentVar(TEXT("UE-ZenSubprocessDataPath"), nullptr);
+#endif // WITH_EDITOR
 		bool bSuccess = false;
 		if (FEditorDelegates::OnRestartRequested.IsBound())
 		{
