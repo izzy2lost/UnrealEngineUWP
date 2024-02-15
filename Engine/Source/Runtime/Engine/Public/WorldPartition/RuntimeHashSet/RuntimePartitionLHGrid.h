@@ -7,11 +7,12 @@
 #include "RuntimePartitionLHGrid.generated.h"
 
 UCLASS()
-class URuntimePartitionLHGrid : public URuntimePartition
+class ENGINE_API URuntimePartitionLHGrid : public URuntimePartition
 {
 	GENERATED_BODY()
 
 	friend class UWorldPartitionRuntimeHashSet;
+	friend struct FFortWorldPartitionUtils;
 
 public:
 #if WITH_EDITOR
