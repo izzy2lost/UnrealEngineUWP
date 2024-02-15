@@ -26,7 +26,12 @@ namespace HarmonixMetasound
 #define DECLARE_METASOUND_PARAM_EXTERN(NAME)      \
 	HARMONIXMETASOUND_API extern const TCHAR* NAME##Name;       \
 	HARMONIXMETASOUND_API extern const FText NAME##Tooltip;     \
-	HARMONIXMETASOUND_API extern const FText NAME##DisplayName; 
+	HARMONIXMETASOUND_API extern const FText NAME##DisplayName;
+
+#define DECLARE_METASOUND_PARAM_ALIAS(NAME)      \
+	HARMONIXMETASOUND_API extern const TCHAR* NAME##Name;       \
+	HARMONIXMETASOUND_API extern const FText& NAME##Tooltip;     \
+	HARMONIXMETASOUND_API extern const FText& NAME##DisplayName;
 
 #if WITH_EDITOR
 #define LOC_DEFINE_REGION
@@ -53,9 +58,9 @@ namespace HarmonixMetasound
 // Alias an existing param definition. Helpful for re-using definitions while providing a public node API.
 #define DEFINE_METASOUND_PARAM_ALIAS(ALIAS_NAME, TARGET_NAME) \
 	const TCHAR* ALIAS_NAME##Name = TARGET_NAME##Name; \
-	const FText ALIAS_NAME##Tooltip = TARGET_NAME##Tooltip; \
-	const FText ALIAS_NAME##DisplayName = TARGET_NAME##DisplayName; 
-	
+	const FText& ALIAS_NAME##Tooltip = TARGET_NAME##Tooltip; \
+	const FText& ALIAS_NAME##DisplayName = TARGET_NAME##DisplayName; 
+
 	namespace CommonPinNames
 	{
 		namespace Inputs

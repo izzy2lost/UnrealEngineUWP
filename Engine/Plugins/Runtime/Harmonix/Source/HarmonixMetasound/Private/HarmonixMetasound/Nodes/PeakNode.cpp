@@ -29,8 +29,8 @@ namespace HarmonixMetasound::Nodes::Peak
 
 	namespace Inputs
 	{
+		DEFINE_INPUT_METASOUND_PARAM(Enable, "Enable", "Enable the peak node.")
 		DEFINE_METASOUND_PARAM_ALIAS(AudioMono, CommonPinNames::Inputs::AudioMono);
-		METASOUND_PARAM(ParamEnable, "Enable", "Enable the peak node.")
 	}
 
 	namespace Outputs
@@ -50,7 +50,7 @@ namespace HarmonixMetasound::Nodes::Peak
 				return {
 					FInputVertexInterface
 					{
-						TInputDataVertex<bool>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::ParamEnable), true),
+						TInputDataVertex<bool>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::Enable), true),
 						TInputDataVertex<FAudioBuffer>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::AudioMono))
 					},
 					Metasound::FOutputVertexInterface
@@ -105,7 +105,7 @@ namespace HarmonixMetasound::Nodes::Peak
 					Inputs::AudioMonoName,
 					InParams.OperatorSettings),
 				InParams.InputData.GetOrCreateDefaultDataReadReference<bool>(
-					Inputs::ParamEnableName,
+					Inputs::EnableName,
 					InParams.OperatorSettings)
 			};
 
@@ -127,7 +127,7 @@ namespace HarmonixMetasound::Nodes::Peak
 		virtual void BindInputs(Metasound::FInputVertexInterfaceData& InVertexData) override
 		{
 			InVertexData.BindReadVertex(Inputs::AudioMonoName, Inputs.Audio);
-			InVertexData.BindReadVertex(Inputs::ParamEnableName, Inputs.Enable);
+			InVertexData.BindReadVertex(Inputs::EnableName, Inputs.Enable);
 
 			UpdatePeak();
 		}

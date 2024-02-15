@@ -12,7 +12,7 @@ namespace HarmonixMetasound::Nodes::DjFilter
 	
 	namespace Inputs
 	{
-		DECLARE_METASOUND_PARAM_EXTERN(AudioMono);
+		DECLARE_METASOUND_PARAM_ALIAS(AudioMono);
 		DECLARE_METASOUND_PARAM_EXTERN(Amount);
 		DECLARE_METASOUND_PARAM_EXTERN(Resonance);
 		DECLARE_METASOUND_PARAM_EXTERN(LowPassMinFrequency);
@@ -24,6 +24,6 @@ namespace HarmonixMetasound::Nodes::DjFilter
 
 	namespace Outputs
 	{
-		DECLARE_METASOUND_PARAM_EXTERN(AudioMono);
+		DECLARE_METASOUND_PARAM_ALIAS(AudioMono);
 	}
 }

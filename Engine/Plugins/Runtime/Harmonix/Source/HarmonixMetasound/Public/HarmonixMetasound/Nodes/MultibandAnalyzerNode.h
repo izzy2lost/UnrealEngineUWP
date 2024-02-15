@@ -23,8 +23,8 @@ namespace HarmonixMetasound::Nodes::MultibandAnalyzer
 	
 	namespace Inputs
 	{
-		DECLARE_METASOUND_PARAM_EXTERN(Enable);
-		DECLARE_METASOUND_PARAM_EXTERN(AudioMono);
+		DECLARE_METASOUND_PARAM_ALIAS(Enable);
+		DECLARE_METASOUND_PARAM_ALIAS(AudioMono);
 		DECLARE_METASOUND_PARAM_EXTERN(CrossoverFrequencies);
 		DECLARE_METASOUND_PARAM_EXTERN(ApplySmoothing);
 		DECLARE_METASOUND_PARAM_EXTERN(AttackTime);

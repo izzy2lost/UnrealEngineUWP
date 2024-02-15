@@ -13,8 +13,8 @@ namespace HarmonixMetasound::Nodes::MidiTrackFilter
 
 	namespace Inputs
 	{
-		DECLARE_METASOUND_PARAM_EXTERN(Enable);
-		DECLARE_METASOUND_PARAM_EXTERN(MidiStream);
+		DECLARE_METASOUND_PARAM_ALIAS(Enable);
+		DECLARE_METASOUND_PARAM_ALIAS(MidiStream);
 		DECLARE_METASOUND_PARAM_EXTERN(MinTrackIndex);
 		DECLARE_METASOUND_PARAM_EXTERN(MaxTrackIndex);
 		DECLARE_METASOUND_PARAM_EXTERN(IncludeConductorTrack);
@@ -22,6 +22,6 @@ namespace HarmonixMetasound::Nodes::MidiTrackFilter
 
 	namespace Outputs
 	{
-		DECLARE_METASOUND_PARAM_EXTERN(MidiStream);
+		DECLARE_METASOUND_PARAM_ALIAS(MidiStream);
 	}
 }

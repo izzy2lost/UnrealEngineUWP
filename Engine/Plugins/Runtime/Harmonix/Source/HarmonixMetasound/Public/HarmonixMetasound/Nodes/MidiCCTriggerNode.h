@@ -12,8 +12,8 @@ namespace HarmonixMetasound::Nodes::MidiCCTriggerNode
 	
 	namespace Inputs
 	{
-		DECLARE_METASOUND_PARAM_EXTERN(Enable);
-		DECLARE_METASOUND_PARAM_EXTERN(MidiStream);
+		DECLARE_METASOUND_PARAM_ALIAS(Enable);
+		DECLARE_METASOUND_PARAM_ALIAS(MidiStream);
 		DECLARE_METASOUND_PARAM_EXTERN(InputMidiControllerID);
 	}
 
