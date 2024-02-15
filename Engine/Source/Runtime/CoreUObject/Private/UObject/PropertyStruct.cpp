@@ -1,18 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "CoreMinimal.h"
-#include "UObject/ObjectMacros.h"
-#include "UObject/UObjectGlobals.h"
-#include "UObject/Class.h"
 #include "UObject/UnrealType.h"
-#include "UObject/UnrealTypePrivate.h"
-#include "UObject/PropertyHelper.h"
-#include "UObject/LinkerPlaceholderBase.h"
-#include "UObject/UObjectThreadContext.h"
-#include "Serialization/ArchiveUObjectFromStructuredArchive.h"
+
 #include "Hash/Blake3.h"
 #include "IO/IoHash.h"
 #include "Misc/StringBuilder.h"
+#include "Serialization/ArchiveUObjectFromStructuredArchive.h"
+#include "UObject/LinkerLoad.h"
+#include "UObject/LinkerPlaceholderBase.h"
+#include "UObject/PropertyHelper.h"
+#include "UObject/UnrealTypePrivate.h"
+#include "UObject/UObjectThreadContext.h"
 
 static inline void PreloadInnerStructMembers(FStructProperty* StructProperty)
 {
@@ -152,8 +150,12 @@ bool FStructProperty::Identical( const void* A, const void* B, uint32 PortFlags 
 
 bool FStructProperty::UseBinaryOrNativeSerialization(const FArchive& Ar) const
 {
-	check(Struct);
+	if (Super::UseBinaryOrNativeSerialization(Ar))
+	{
+		return true;
+	}
 
+	check(Struct);
 	const bool bUseBinarySerialization = Struct->UseBinarySerialization(Ar);
 	const bool bUseNativeSerialization = Struct->UseNativeSerialization();
 	return bUseBinarySerialization || bUseNativeSerialization;
@@ -468,6 +470,28 @@ void FStructProperty::AppendSchemaHash(FBlake3& Builder, bool bSkipEditorOnly) c
 }
 #endif
 
+static const FName NAME_StructOriginalType(ANSITEXTVIEW("OriginalType"));
+
+static const FString* FindOriginalType(const FStructProperty* Struct)
+{
+	FUObjectSerializeContext* Context = FUObjectThreadContext::Get().GetSerializeContext();
+	if (Context && Context->bImpersonateProperties)
+	{
+#if WITH_EDITORONLY_DATA
+		if (const FString* OriginalType = Struct->FindMetaData(NAME_StructOriginalType))
+		{
+			return OriginalType;
+		}
+		//@note: To support metadata defined on array of struct in UPROPERTY for testing purposes
+		if (FField* OwnerField = Struct->Owner.ToField())
+		{
+			return OwnerField->FindMetaData(NAME_StructOriginalType);
+		}
+#endif
+	}
+	return nullptr;
+}
+
 bool FStructProperty::LoadFromTag(const FPropertyTag& Tag)
 {
 	if (!Super::LoadFromTag(Tag))
@@ -488,25 +512,11 @@ bool FStructProperty::LoadFromTag(const FPropertyTag& Tag)
 	return false;
 }
 
-static const FName NAME_StructOriginalType(TEXT("OriginalType"));
-
 void FStructProperty::SaveToTag(FPropertyTag& Tag)
 {
 	Super::SaveToTag(Tag);
 
-	//@note FH: revisit this once UE-197352 lands to use the new property type name
-	FUObjectSerializeContext* Context = FUObjectThreadContext::Get().GetSerializeContext();
-	const FString* OriginalType = nullptr;
-	if (Context && Context->bImpersonateProperties)
-	{
-#if WITH_EDITORONLY_DATA
-		OriginalType = FindMetaData(NAME_StructOriginalType);
-		//@note: To support metadata defined on array of struct in UPROPERTY for testing purposes
-		FField* OwnerField = OriginalType == nullptr ? Owner.ToField() : nullptr;
-		OriginalType = OwnerField ? OwnerField->FindMetaData(NAME_StructOriginalType) : OriginalType;
-#endif
-	}
-
+	const FString* OriginalType = FindOriginalType(this);
 	const UScriptStruct* LocalStruct = Struct;
 	check(LocalStruct);
 	Tag.StructName = OriginalType ? FName(**OriginalType) : LocalStruct->GetFName();
@@ -517,23 +527,75 @@ void FStructProperty::AssignToTag(FPropertyTag& Tag)
 {
 	Super::AssignToTag(Tag);
 
-	//@note FH: revisit this once UE-197352 lands to use the new property type name
-	FUObjectSerializeContext* Context = FUObjectThreadContext::Get().GetSerializeContext();
-	const FString* OriginalType = nullptr;
-	if (Context && Context->bImpersonateProperties)
-	{
-#if WITH_EDITORONLY_DATA
-		OriginalType = FindMetaData(NAME_StructOriginalType);
-		//@note: To support metadata defined on array of struct in UPROPERTY
-		FField* OwnerField = OriginalType == nullptr ? Owner.ToField() : nullptr;
-		OriginalType = OwnerField ? OwnerField->FindMetaData(NAME_StructOriginalType) : OriginalType;
-#endif
-	}
-
+	const FString* OriginalType = FindOriginalType(this);
 	const UScriptStruct* LocalStruct = Struct;
 	check(LocalStruct);
 	if (OriginalType && FName(**OriginalType) == Tag.StructName)
 	{
 		Tag.StructName = LocalStruct->GetFName();
 	}
+}
+
+bool FStructProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag)
+{
+	if (!Super::LoadTypeName(Type, Tag))
+	{
+		return false;
+	}
+
+	if (const FName Name = Type.GetTypeParameterName(0); !Name.IsNone())
+	{
+		TStringBuilder<256> NameString(InPlace, Name);
+		if (Struct = FindFirstObject<UScriptStruct>(*NameString, EFindFirstObjectOptions::NativeFirst); Struct)
+		{
+			return true;
+		}
+		// TODO: Look up the struct based on the guid.
+		// TODO: Use the fallback struct if allowed.
+	}
+
+	return false;
+}
+
+void FStructProperty::SaveTypeName(UE::FPropertyTypeNameBuilder& Type) const
+{
+	Super::SaveTypeName(Type);
+
+	const FString* OriginalType = FindOriginalType(this);
+	const UScriptStruct* LocalStruct = Struct;
+	check(LocalStruct);
+
+	Type.BeginTypeParameters();
+	Type.AddTypeName(OriginalType ? FName(**OriginalType) : LocalStruct->GetFName());
+	if (const FGuid StructGuid = LocalStruct->GetCustomGuid(); StructGuid.IsValid())
+	{
+		Type.AddTypeName(FName(WriteToString<48>(StructGuid)));
+	}
+	Type.EndTypeParameters();
+}
+
+bool FStructProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
+{
+	if (!Super::CanSerializeFromTypeName(Type))
+	{
+		return false;
+	}
+
+	const UScriptStruct* LocalStruct = Struct;
+	check(LocalStruct);
+
+	const FName StructName = Type.GetTypeParameterName(0);
+	if (StructName == LocalStruct->GetFName())
+	{
+		return true;
+	}
+
+	const FName StructGuidName = Type.GetTypeParameterName(1);
+	if (FGuid StructGuid; !StructGuidName.IsNone() && FGuid::Parse(StructGuidName.ToString(), StructGuid) && StructGuid.IsValid())
+	{
+		return StructGuid == LocalStruct->GetCustomGuid();
+	}
+
+	const FString* OriginalType = FindOriginalType(this);
+	return StructName == (OriginalType ? FName(**OriginalType) : LocalStruct->GetFName());
 }

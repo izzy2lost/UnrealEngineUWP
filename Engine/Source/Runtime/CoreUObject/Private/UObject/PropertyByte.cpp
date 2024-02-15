@@ -1,18 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "CoreMinimal.h"
-#include "UObject/ObjectMacros.h"
-#include "UObject/Class.h"
-#include "UObject/Package.h"
-#include "UObject/PropertyPortFlags.h"
 #include "UObject/UnrealType.h"
+
+#include "Algo/Find.h"
+#include "Hash/Blake3.h"
+#include "UObject/Package.h"
 #include "UObject/UnrealTypePrivate.h"
 #include "UObject/UObjectThreadContext.h"
-#include "Serialization/ArchiveUObjectFromStructuredArchive.h"
-#include "Algo/Find.h"
-#include "UObject/LinkerLoad.h"
-#include "Misc/EngineNetworkCustomVersion.h"
-#include "Hash/Blake3.h"
 
 /*-----------------------------------------------------------------------------
 	FByteProperty.
@@ -570,4 +564,63 @@ void FByteProperty::SaveToTag(FPropertyTag& Tag)
 			Tag.EnumName = FName(*LocalEnum->GetPathName());
 		}
 	}
+}
+
+bool FByteProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag)
+{
+	if (!Super::LoadTypeName(Type, Tag))
+	{
+		return false;
+	}
+
+	const FName EnumName = Type.GetTypeParameterName();
+	if (EnumName.IsNone())
+	{
+		return true;
+	}
+
+	if (UEnum* LocalEnum = FindFirstObject<UEnum>(*WriteToString<256>(EnumName), EFindFirstObjectOptions::NativeFirst))
+	{
+		Enum = LocalEnum;
+		return true;
+	}
+
+	return false;
+}
+
+void FByteProperty::SaveTypeName(UE::FPropertyTypeNameBuilder& Type) const
+{
+	Super::SaveTypeName(Type);
+
+	if (const UEnum* LocalEnum = Enum)
+	{
+		TStringBuilder<256> EnumName;
+		LocalEnum->GetPathName(nullptr, EnumName);
+
+		Type.BeginTypeParameters();
+		Type.AddTypeName(FName(EnumName));
+		Type.EndTypeParameters();
+	}
+}
+
+bool FByteProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
+{
+	if (!Super::CanSerializeFromTypeName(Type))
+	{
+		return false;
+	}
+
+	const FName EnumName = Type.GetTypeParameterName();
+	if (const UEnum* LocalEnum = Enum)
+	{
+		if (EnumName == LocalEnum->GetFName())
+		{
+			return true;
+		}
+
+		TStringBuilder<256> EnumNameString;
+		LocalEnum->GetPathName(nullptr, EnumNameString);
+		return EnumName == EnumNameString.ToView();
+	}
+	return EnumName.IsNone();
 }

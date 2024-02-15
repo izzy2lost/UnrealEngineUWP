@@ -1,33 +1,27 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-/*=============================================================================
-	Property.cpp: FProperty implementation
-=============================================================================*/
+#include "UObject/UnrealType.h"
 
-#include "CoreMinimal.h"
 #include "Hash/Blake3.h"
+#include "Math/Box2D.h"
+#include "Math/InterpCurvePoint.h"
+#include "Math/RandomStream.h"
+#include "Math/Ray.h"
+#include "Math/Sphere.h"
 #include "Misc/AsciiSet.h"
 #include "Misc/Guid.h"
 #include "Misc/StringBuilder.h"
-#include "Math/RandomStream.h"
-#include "Logging/LogScopedCategoryAndVerbosityOverride.h"
-#include "UObject/CoreNetTypes.h"
-#include "UObject/ObjectMacros.h"
-#include "UObject/UObjectGlobals.h"
-#include "UObject/Class.h"
-#include "Templates/Casts.h"
-#include "UObject/UnrealType.h"
-#include "UObject/UnrealTypePrivate.h"
-#include "UObject/PropertyHelper.h"
-#include "UObject/CoreRedirects.h"
-#include "UObject/SoftObjectPath.h"
-#include "Math/Box2D.h"
-#include "Math/Ray.h"
-#include "Math/Sphere.h"
-#include "Math/InterpCurvePoint.h"
-#include "UObject/Package.h"
-#include "UObject/ReleaseObjectVersion.h"
 #include "Serialization/TestUndeclaredScriptStructObjectReferences.h"
+#include "Templates/Casts.h"
+#include "UObject/Class.h"
+#include "UObject/CoreNetTypes.h"
+#include "UObject/CoreRedirects.h"
+#include "UObject/Package.h"
+#include "UObject/PropertyHelper.h"
+#include "UObject/PropertyTypeName.h"
+#include "UObject/SoftObjectPath.h"
+#include "UObject/UnrealTypePrivate.h"
+#include "UObject/UObjectGlobals.h"
 
 DEFINE_LOG_CATEGORY(LogProperty);
 
@@ -2105,6 +2099,11 @@ UPropertyWrapper* FProperty::GetUPropertyWrapper()
 }
 #endif //  WITH_EDITORONLY_DATA
 
+bool FProperty::UseBinaryOrNativeSerialization(const FArchive& Ar) const
+{
+	return Ar.WantBinaryPropertySerialization();
+}
+
 bool FProperty::LoadFromTag(const FPropertyTag& Tag)
 {
 	checkf(GetID() == Tag.Type, TEXT("Failed to load property '%s' of type '%s' from tag of type '%s'"),
@@ -2122,6 +2121,23 @@ void FProperty::SaveToTag(FPropertyTag& Tag)
 void FProperty::AssignToTag(FPropertyTag& Tag)
 {
 	Tag.Prop = this;
+}
+
+bool FProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag)
+{
+	return ensureMsgf(GetID() == Type.GetTypeName(),
+		TEXT("Failed to load property '%s' of type '%s' from tag of type '%s'"),
+		*WriteToString<64>(GetFName()), *WriteToString<64>(GetID()), *WriteToString<64>(Type.GetTypeName()));
+}
+
+void FProperty::SaveTypeName(UE::FPropertyTypeNameBuilder& Type) const
+{
+	Type.AddTypeName(GetID());
+}
+
+bool FProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
+{
+	return Type.GetTypeName() == GetID();
 }
 
 FProperty* UStruct::FindPropertyByName(FName InName) const

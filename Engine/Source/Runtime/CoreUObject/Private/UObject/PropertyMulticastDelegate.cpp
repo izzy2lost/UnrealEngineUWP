@@ -1,13 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "CoreMinimal.h"
-#include "UObject/ObjectMacros.h"
-#include "UObject/Class.h"
 #include "UObject/UnrealType.h"
-#include "UObject/UnrealTypePrivate.h"
-#include "UObject/PropertyHelper.h"
-#include "UObject/LinkerPlaceholderFunction.h"
+
 #include "Serialization/ArchiveUObjectFromStructuredArchive.h"
+#include "UObject/LinkerPlaceholderFunction.h"
+#include "UObject/PropertyHelper.h"
+#include "UObject/PropertyTypeName.h"
+#include "UObject/UnrealTypePrivate.h"
 
 FMulticastScriptDelegate FMulticastDelegateProperty::EmptyDelegate;
 
@@ -701,11 +700,15 @@ bool FMulticastSparseDelegateProperty::LoadFromTag(const FPropertyTag& Tag)
 	return false;
 }
 
-void FMulticastSparseDelegateProperty::SaveToTag(FPropertyTag& Tag)
+bool FMulticastSparseDelegateProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag)
 {
-	Super::SaveToTag(Tag);
+	if (!Super::LoadTypeName(Type, Tag))
+	{
+		return false;
+	}
 
-	// This needs a way to save SignatureFunction to the tag.
+	// This cannot be used without its SignatureFunction and the tag lacks the information needed to load it.
+	return false;
 }
 
 IMPLEMENT_FIELD(FMulticastSparseDelegateProperty)

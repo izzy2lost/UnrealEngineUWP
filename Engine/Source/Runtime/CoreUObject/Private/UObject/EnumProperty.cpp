@@ -1,16 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UObject/EnumProperty.h"
-#include "UObject/Package.h"
-#include "UObject/PropertyPortFlags.h"
-#include "UObject/UObjectThreadContext.h"
-#include "UObject/PropertyTag.h"
-#include "UObject/UnrealTypePrivate.h"
-#include "Templates/IsSigned.h"
+
 #include "Algo/Find.h"
-#include "UObject/LinkerLoad.h"
-#include "Misc/EngineNetworkCustomVersion.h"
 #include "Hash/Blake3.h"
+#include "UObject/Package.h"
+#include "UObject/UnrealTypePrivate.h"
+#include "UObject/UObjectThreadContext.h"
 
 namespace UEEnumProperty_Private
 {
@@ -577,4 +573,74 @@ void FEnumProperty::SaveToTag(FPropertyTag& Tag)
 			Tag.EnumName = FName(*LocalEnum->GetPathName());
 		}
 	}
+}
+
+bool FEnumProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag)
+{
+	if (!Super::LoadTypeName(Type, Tag))
+	{
+		return false;
+	}
+
+	const FName EnumName = Type.GetTypeParameterName(0);
+	UEnum* LocalEnum = FindFirstObject<UEnum>(*WriteToString<256>(EnumName), EFindFirstObjectOptions::NativeFirst);
+	if (!LocalEnum)
+	{
+		return false;
+	}
+
+	const UE::FPropertyTypeName UnderlyingType = Type.GetTypeParameter(1);
+	FField* Field = FField::TryConstruct(UnderlyingType.GetTypeName(), this, GetFName(), RF_NoFlags);
+	if (FNumericProperty* Property = CastField<FNumericProperty>(Field); Property && Property->LoadTypeName(UnderlyingType, Tag))
+	{
+		Enum = LocalEnum;
+		UE_CLOG(!Property->CanHoldValue(Enum->GetMaxEnumValue()), LogClass, Warning,
+			TEXT("Enum '%s' does not fit in a %s loading property '%s'."),
+			*WriteToString<64>(Enum->GetFName()), *WriteToString<32>(Property->GetID()), *WriteToString<32>(GetFName()));
+		AddCppProperty(Property);
+		return true;
+	}
+	delete Field;
+	return false;
+}
+
+void FEnumProperty::SaveTypeName(UE::FPropertyTypeNameBuilder& Type) const
+{
+	Super::SaveTypeName(Type);
+
+	if (const UEnum* LocalEnum = Enum)
+	{
+		TStringBuilder<256> EnumName;
+		LocalEnum->GetPathName(nullptr, EnumName);
+
+		check(UnderlyingProp);
+		Type.BeginTypeParameters();
+		Type.AddTypeName(FName(EnumName));
+		UnderlyingProp->SaveTypeName(Type);
+		Type.EndTypeParameters();
+	}
+}
+
+bool FEnumProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
+{
+	if (!Super::CanSerializeFromTypeName(Type))
+	{
+		return false;
+	}
+
+	const UEnum* LocalEnum = Enum;
+	if (!LocalEnum)
+	{
+		return false;
+	}
+
+	const FName EnumName = Type.GetTypeParameterName(0);
+	if (EnumName == LocalEnum->GetFName())
+	{
+		return true;
+	}
+
+	TStringBuilder<256> EnumNameString;
+	LocalEnum->GetPathName(nullptr, EnumNameString);
+	return EnumName == EnumNameString.ToView();
 }

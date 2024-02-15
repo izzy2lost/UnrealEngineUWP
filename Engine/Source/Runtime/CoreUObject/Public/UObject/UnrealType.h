@@ -74,6 +74,8 @@ enum ELifetimeCondition : int;
 struct CGetTypeHashable;
 struct FUObjectSerializeContext;
 template <typename FuncType> class TFunctionRef;
+namespace UE { class FPropertyTypeName; }
+namespace UE { class FPropertyTypeNameBuilder; }
 namespace UE::GC
 {
 	class FPropertyStack;
@@ -1043,6 +1045,8 @@ public:
 	}
 	COREUOBJECT_API bool ShouldSerializeValue( FArchive& Ar ) const;
 
+	COREUOBJECT_API virtual bool UseBinaryOrNativeSerialization(const FArchive& Ar) const;
+
 	/**
 	 * Determines whether this property value is eligible for copying when duplicating an object
 	 * 
@@ -1069,6 +1073,23 @@ public:
 	 * Assign the property to tag and optionally modify other fields
 	 */
 	COREUOBJECT_API virtual void AssignToTag(FPropertyTag& Tag);
+
+	/**
+	 * Restores this property and its owned properties from the type name.
+	 *
+	 * @return true if this property loaded from the type name and is in a valid and usable state.
+	 */
+	COREUOBJECT_API virtual bool LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag = nullptr);
+
+	/**
+	 * Saves the type name of this property and its owned properties.
+	 */
+	COREUOBJECT_API virtual void SaveTypeName(UE::FPropertyTypeNameBuilder& Type) const;
+
+	/**
+	 * Returns true if this property can use SerializeItem to load from a property with this type name.
+	 */
+	COREUOBJECT_API virtual bool CanSerializeFromTypeName(UE::FPropertyTypeName Type) const;
 
 	/**
 	 * Returns the first FProperty in this property's Outer chain that does not have a FProperty for an Outer
@@ -1757,7 +1778,7 @@ private:
 public:
 	virtual EConvertFromTypeResult ConvertFromType(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot, uint8* Data, UStruct* DefaultsStruct, const uint8* Defaults) override
 	{
-		if (const EName* TagType = Tag.Type.ToEName())
+		if (const EName* TagType = Tag.Type.ToEName(); TagType && Tag.Type.GetNumber() == NAME_NO_NUMBER_INTERNAL)
 		{
 			switch (*TagType)
 			{
@@ -1784,11 +1805,8 @@ public:
 					this->SetPropertyValue_InContainer(Data, (TCppType)PreviousValue, Tag.ArrayIndex);
 					return EConvertFromTypeResult::Converted;
 				}
-				else
-				{
-					ConvertFromArithmeticValue<int8>(Slot, Data, Tag);
-					return std::is_same_v<TCppType, uint8> ? EConvertFromTypeResult::Serialized : EConvertFromTypeResult::Converted;
-				}
+				ConvertFromArithmeticValue<int8>(Slot, Data, Tag);
+				return std::is_same_v<TCppType, uint8> ? EConvertFromTypeResult::Serialized : EConvertFromTypeResult::Converted;
 
 			case NAME_EnumProperty:
 			{
@@ -1989,6 +2007,9 @@ public:
 #endif
 	virtual bool LoadFromTag(const FPropertyTag& Tag) override;
 	virtual void SaveToTag(FPropertyTag& Tag) override;
+	virtual bool LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag = nullptr) override;
+	virtual void SaveTypeName(UE::FPropertyTypeNameBuilder& Type) const override;
+	virtual bool CanSerializeFromTypeName(UE::FPropertyTypeName Type) const override;
 	// End of FProperty interface
 
 	// FNumericProperty interface.
@@ -3684,8 +3705,12 @@ public:
 	}
 
 	virtual void* GetValueAddressAtIndex_Direct(const FProperty* Inner, void* InValueAddress, int32 Index) const override;
+	virtual bool UseBinaryOrNativeSerialization(const FArchive& Ar) const override;
 	virtual bool LoadFromTag(const FPropertyTag& Tag) override;
 	virtual void SaveToTag(FPropertyTag& Tag) override;
+	virtual bool LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag = nullptr) override;
+	virtual void SaveTypeName(UE::FPropertyTypeNameBuilder& Type) const override;
+	virtual bool CanSerializeFromTypeName(UE::FPropertyTypeName Type) const override;
 	// End of FProperty interface
 
 	FString GetCPPTypeCustom(FString* ExtendedTypeText, uint32 CPPExportFlags, const FString& InnerTypeText, const FString& InInnerExtendedTypeText) const;
@@ -3817,8 +3842,12 @@ public:
 	virtual bool SameType(const FProperty* Other) const override;
 	virtual EConvertFromTypeResult ConvertFromType(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot, uint8* Data, UStruct* DefaultsStruct, const uint8* Defaults) override;
 	virtual void* GetValueAddressAtIndex_Direct(const FProperty* Inner, void* InValueAddress, int32 LogicalIndex) const override;
+	virtual bool UseBinaryOrNativeSerialization(const FArchive& Ar) const override;
 	virtual bool LoadFromTag(const FPropertyTag& Tag) override;
 	virtual void SaveToTag(FPropertyTag& Tag) override;
+	virtual bool LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag = nullptr) override;
+	virtual void SaveTypeName(UE::FPropertyTypeNameBuilder& Type) const override;
+	virtual bool CanSerializeFromTypeName(UE::FPropertyTypeName Type) const override;
 	// End of FProperty interface
 
 	FString GetCPPTypeCustom(FString* ExtendedTypeText, uint32 CPPExportFlags, const FString& KeyTypeText, const FString& InKeyExtendedTypeText, const FString& ValueTypeText, const FString& InValueExtendedTypeText) const;
@@ -3945,8 +3974,12 @@ public:
 	virtual bool SameType(const FProperty* Other) const override;
 	virtual EConvertFromTypeResult ConvertFromType(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot, uint8* Data, UStruct* DefaultsStruct, const uint8* Defaults) override;
 	virtual void* GetValueAddressAtIndex_Direct(const FProperty* Inner, void* InValueAddress, int32 LogicalIndex) const override;
+	virtual bool UseBinaryOrNativeSerialization(const FArchive& Ar) const override;
 	virtual bool LoadFromTag(const FPropertyTag& Tag) override;
 	virtual void SaveToTag(FPropertyTag& Tag) override;
+	virtual bool LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag = nullptr) override;
+	virtual void SaveTypeName(UE::FPropertyTypeNameBuilder& Type) const override;
+	virtual bool CanSerializeFromTypeName(UE::FPropertyTypeName Type) const override;
 	// End of FProperty interface
 
 	FString GetCPPTypeCustom(FString* ExtendedTypeText, uint32 CPPExportFlags, const FString& ElementTypeText, const FString& InElementExtendedTypeText) const;
@@ -6067,12 +6100,15 @@ public:
 #if WITH_EDITORONLY_DATA
 	virtual void AppendSchemaHash(FBlake3& Builder, bool bSkipEditorOnly) const override;
 #endif
+	virtual bool UseBinaryOrNativeSerialization(const FArchive& Ar) const override;
 	virtual bool LoadFromTag(const FPropertyTag& Tag) override;
 	virtual void SaveToTag(FPropertyTag& Tag) override;
 	virtual void AssignToTag(FPropertyTag& Tag) override;
+	virtual bool LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag = nullptr) override;
+	virtual void SaveTypeName(UE::FPropertyTypeNameBuilder& Type) const override;
+	virtual bool CanSerializeFromTypeName(UE::FPropertyTypeName Type) const override;
 	// End of FProperty interface
 
-	bool UseBinaryOrNativeSerialization(const FArchive& Ar) const;
 	bool FindInnerPropertyInstance(FName PropertyName, const void* Data, const FProperty*& OutProp, const void*& OutData) const;
 
 private:
@@ -6389,7 +6425,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	virtual void SerializeItem(FStructuredArchive::FSlot Slot, void* Value, void const* Defaults) const override;
 	virtual const TCHAR* ImportText_Internal(const TCHAR* Buffer, void* ContainerOrPropertyPtr, EPropertyPointerType PropertyPointerType, UObject* OwnerObject, int32 PortFlags, FOutputDevice* ErrorText) const override;
 	virtual bool LoadFromTag(const FPropertyTag& Tag) override;
-	virtual void SaveToTag(FPropertyTag& Tag) override;
+	virtual bool LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag = nullptr) override;
 	// End of FProperty interface
 
 	// FMulticastDelegateProperty interface

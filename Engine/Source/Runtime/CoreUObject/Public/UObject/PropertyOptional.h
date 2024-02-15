@@ -229,7 +229,11 @@ public:
 	virtual EConvertFromTypeResult ConvertFromType(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot, uint8* Data, UStruct* DefaultsStruct, const uint8* Defaults) override;
 	virtual uint32 GetValueTypeHashInternal(const void* Src) const override;
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
+	virtual bool UseBinaryOrNativeSerialization(const FArchive& Ar) const override;
 	virtual bool LoadFromTag(const FPropertyTag& Tag) override;
 	virtual void SaveToTag(FPropertyTag& Tag) override;
+	virtual bool LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag = nullptr) override;
+	virtual void SaveTypeName(UE::FPropertyTypeNameBuilder& Type) const override;
+	virtual bool CanSerializeFromTypeName(UE::FPropertyTypeName Type) const override;
 	// End of FProperty interface
 };

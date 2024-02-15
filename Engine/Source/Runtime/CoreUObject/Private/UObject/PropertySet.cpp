@@ -1,16 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "CoreMinimal.h"
-#include "UObject/ObjectMacros.h"
-#include "UObject/PropertyPathName.h"
-#include "UObject/PropertyTag.h"
 #include "UObject/UnrealType.h"
-#include "UObject/UnrealTypePrivate.h"
-#include "UObject/LinkerLoad.h"
-#include "UObject/PropertyHelper.h"
-#include "UObject/UObjectThreadContext.h"
+
 #include "Misc/ScopeExit.h"
-#include "Serialization/ArchiveUObjectFromStructuredArchive.h"
+#include "UObject/PropertyHelper.h"
+#include "UObject/UnrealTypePrivate.h"
+#include "UObject/UObjectThreadContext.h"
 
 namespace UESetProperty_Private
 {
@@ -1090,6 +1085,18 @@ void* FSetProperty::GetValueAddressAtIndex_Direct(const FProperty* Inner, void* 
 	return nullptr;
 }
 
+bool FSetProperty::UseBinaryOrNativeSerialization(const FArchive& Ar) const
+{
+	if (Super::UseBinaryOrNativeSerialization(Ar))
+	{
+		return true;
+	}
+
+	const FProperty* LocalElementProp = ElementProp;
+	check(LocalElementProp);
+	return LocalElementProp->UseBinaryOrNativeSerialization(Ar);
+}
+
 bool FSetProperty::LoadFromTag(const FPropertyTag& Tag)
 {
 	if (!Super::LoadFromTag(Tag))
@@ -1107,4 +1114,45 @@ void FSetProperty::SaveToTag(FPropertyTag& Tag)
 	const FProperty* LocalElementProp = ElementProp;
 	check(LocalElementProp);
 	Tag.InnerType = LocalElementProp->GetID();
+}
+
+bool FSetProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag)
+{
+	if (!Super::LoadTypeName(Type, Tag))
+	{
+		return false;
+	}
+
+	const UE::FPropertyTypeName ElementType = Type.GetTypeParameter();
+	FField* Field = FField::TryConstruct(ElementType.GetTypeName(), this, GetFName(), RF_NoFlags);
+	if (FProperty* Property = CastField<FProperty>(Field); Property && Property->LoadTypeName(ElementType, Tag))
+	{
+		ElementProp = Property;
+		return true;
+	}
+	delete Field;
+	return false;
+}
+
+void FSetProperty::SaveTypeName(UE::FPropertyTypeNameBuilder& Type) const
+{
+	Super::SaveTypeName(Type);
+
+	const FProperty* LocalElementProp = ElementProp;
+	check(LocalElementProp);
+	Type.BeginTypeParameters();
+	LocalElementProp->SaveTypeName(Type);
+	Type.EndTypeParameters();
+}
+
+bool FSetProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
+{
+	if (!Super::CanSerializeFromTypeName(Type))
+	{
+		return false;
+	}
+
+	const FProperty* LocalElementProp = ElementProp;
+	check(LocalElementProp);
+	return LocalElementProp->CanSerializeFromTypeName(Type.GetTypeParameter());
 }

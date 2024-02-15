@@ -1,19 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "CoreMinimal.h"
-#include "UObject/ObjectMacros.h"
-#include "Templates/Casts.h"
+#include "UObject/UnrealType.h"
+
+#include "Misc/ScopeExit.h"
+#include "UObject/OverriddenPropertySet.h"
+#include "UObject/PropertyHelper.h"
 #include "UObject/PropertyPathName.h"
 #include "UObject/PropertyTag.h"
-#include "UObject/UnrealType.h"
 #include "UObject/UnrealTypePrivate.h"
-#include "UObject/LinkerLoad.h"
-#include "UObject/PropertyHelper.h"
 #include "UObject/UObjectThreadContext.h"
-#include "Misc/ScopeExit.h"
-#include "Serialization/ArchiveUObjectFromStructuredArchive.h"
-#include "UObject/UObjectThreadContext.h"
-#include "UObject/OverriddenPropertySet.h"
 
 namespace UEMapProperty_Private
 {
@@ -1696,6 +1691,20 @@ void* FMapProperty::GetValueAddressAtIndex_Direct(const FProperty* Inner, void* 
 	return nullptr;
 }
 
+bool FMapProperty::UseBinaryOrNativeSerialization(const FArchive& Ar) const
+{
+	if (Super::UseBinaryOrNativeSerialization(Ar))
+	{
+		return true;
+	}
+
+	const FProperty* LocalKeyProp = KeyProp;
+	const FProperty* LocalValueProp = ValueProp;
+	check(LocalKeyProp);
+	check(LocalValueProp);
+	return LocalKeyProp->UseBinaryOrNativeSerialization(Ar) || LocalValueProp->UseBinaryOrNativeSerialization(Ar);
+}
+
 bool FMapProperty::LoadFromTag(const FPropertyTag& Tag)
 {
 	if (!Super::LoadFromTag(Tag))
@@ -1716,4 +1725,56 @@ void FMapProperty::SaveToTag(FPropertyTag& Tag)
 	check(LocalValueProp);
 	Tag.InnerType = LocalKeyProp->GetID();
 	Tag.ValueType = LocalValueProp->GetID();
+}
+
+bool FMapProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag)
+{
+	if (!Super::LoadTypeName(Type, Tag))
+	{
+		return false;
+	}
+
+	const UE::FPropertyTypeName KeyType = Type.GetTypeParameter(0);
+	const UE::FPropertyTypeName ValueType = Type.GetTypeParameter(1);
+	FField* KeyField = FField::TryConstruct(KeyType.GetTypeName(), this, GetFName(), RF_NoFlags);
+	FField* ValueField = FField::TryConstruct(ValueType.GetTypeName(), this, GetFName(), RF_NoFlags);
+	FProperty* KeyProperty = CastField<FProperty>(KeyField);
+	FProperty* ValueProperty = CastField<FProperty>(ValueField);
+	if (KeyProperty && ValueProperty && KeyProperty->LoadTypeName(KeyType, Tag) && ValueProperty->LoadTypeName(ValueType, Tag))
+	{
+		KeyProp = KeyProperty;
+		ValueProp = ValueProperty;
+		return true;
+	}
+	delete KeyField;
+	delete ValueField;
+	return false;
+}
+
+void FMapProperty::SaveTypeName(UE::FPropertyTypeNameBuilder& Type) const
+{
+	Super::SaveTypeName(Type);
+
+	const FProperty* LocalKeyProp = KeyProp;
+	const FProperty* LocalValueProp = ValueProp;
+	check(LocalKeyProp);
+	check(LocalValueProp);
+	Type.BeginTypeParameters();
+	LocalKeyProp->SaveTypeName(Type);
+	LocalValueProp->SaveTypeName(Type);
+	Type.EndTypeParameters();
+}
+
+bool FMapProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
+{
+	if (!Super::CanSerializeFromTypeName(Type))
+	{
+		return false;
+	}
+
+	const FProperty* LocalKeyProp = KeyProp;
+	const FProperty* LocalValueProp = ValueProp;
+	check(LocalKeyProp);
+	check(LocalValueProp);
+	return LocalKeyProp->CanSerializeFromTypeName(Type.GetTypeParameter(0)) && LocalValueProp->CanSerializeFromTypeName(Type.GetTypeParameter(1));
 }

@@ -1,11 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UObject/PropertyOptional.h"
+
 #include "Misc/Guid.h"
 #include "Serialization/CustomVersion.h"
 #include "String/LexFromString.h"
 #include "UObject/GarbageCollectionSchema.h"
+#include "UObject/LinkerLoad.h"
 #include "UObject/PropertyHelper.h"
+#include "UObject/PropertyTypeName.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogOptionalProperty, Log, All);
 
@@ -552,6 +555,18 @@ uint32 FOptionalProperty::GetValueTypeHashInternal(const void* Src) const
 	}
 }
 
+bool FOptionalProperty::UseBinaryOrNativeSerialization(const FArchive& Ar) const
+{
+	if (Super::UseBinaryOrNativeSerialization(Ar))
+	{
+		return true;
+	}
+
+	const FProperty* LocalValueProperty = ValueProperty;
+	check(LocalValueProperty);
+	return LocalValueProperty->UseBinaryOrNativeSerialization(Ar);
+}
+
 bool FOptionalProperty::LoadFromTag(const FPropertyTag& Tag)
 {
 	if (!Super::LoadFromTag(Tag))
@@ -569,4 +584,45 @@ void FOptionalProperty::SaveToTag(FPropertyTag& Tag)
 	const FProperty* LocalValueProperty = ValueProperty;
 	check(LocalValueProperty);
 	Tag.InnerType = LocalValueProperty->GetID();
+}
+
+bool FOptionalProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag)
+{
+	if (!Super::LoadTypeName(Type, Tag))
+	{
+		return false;
+	}
+
+	const UE::FPropertyTypeName ValueType = Type.GetTypeParameter();
+	FField* Field = FField::TryConstruct(ValueType.GetTypeName(), this, GetFName(), RF_NoFlags);
+	if (FProperty* Property = CastField<FProperty>(Field); Property && Property->LoadTypeName(ValueType, Tag))
+	{
+		ValueProperty = Property;
+		return true;
+	}
+	delete Field;
+	return false;
+}
+
+void FOptionalProperty::SaveTypeName(UE::FPropertyTypeNameBuilder& Type) const
+{
+	Super::SaveTypeName(Type);
+
+	const FProperty* LocalValueProperty = ValueProperty;
+	check(LocalValueProperty);
+	Type.BeginTypeParameters();
+	LocalValueProperty->SaveTypeName(Type);
+	Type.EndTypeParameters();
+}
+
+bool FOptionalProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
+{
+	if (!Super::CanSerializeFromTypeName(Type))
+	{
+		return false;
+	}
+
+	const FProperty* LocalValueProperty = ValueProperty;
+	check(LocalValueProperty);
+	return LocalValueProperty->CanSerializeFromTypeName(Type.GetTypeParameter());
 }
