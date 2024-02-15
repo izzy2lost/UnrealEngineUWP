@@ -10,6 +10,7 @@
 #include "Animation/BlendSpace.h"
 #include "BlendStack/AnimNode_BlendStackInput.h"
 #include "BlendStackAnimEventsFilterScope.h"
+#include "Animation/AnimInertializationSyncScope.h"
 #include "BlendStack/BlendStackDefines.h"
 #include "VisualLogger/VisualLogger.h"
 
@@ -1060,9 +1061,11 @@ void FAnimNode_BlendStack::UpdateAssetPlayer(const FAnimationUpdateContext& Cont
 		BlendTo(Context, AnimationAsset, AnimationTime, bLoop, bMirrored, MirrorDataTable.Get(), BlendTime,
 			RootBoneBlendTime, BlendProfile, BlendOption, bUseInertialBlend, BlendParameters, WantedPlayRate);
 	}
+
+	const bool bDidBlendToRequestAnInertialBlend = bExecuteBlendTo && bUseInertialBlend;
+	UE::Anim::TOptionalScopedGraphMessage<UE::Anim::FAnimInertializationSyncScope> InertializationSync(bDidBlendToRequestAnInertialBlend, Context);
 	
 	UpdatePlayRate(WantedPlayRate);
-
 	Super::UpdateAssetPlayer(Context);
 }
 
