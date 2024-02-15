@@ -1288,7 +1288,25 @@ bool UsdToUnreal::ConvertSkeleton(const pxr::UsdSkelSkeletonQuery& SkeletonQuery
 		for (uint32 Index = 0; Index < JointLocalRestTransforms.size(); ++Index)
 		{
 			const GfMatrix4d& UsdMatrix = JointLocalRestTransforms[Index];
-			FTransform BoneTransform = UsdToUnreal::ConvertMatrix(StageInfo, UsdMatrix);
+
+			// Here we use DecomposeWithUniformReflection instead of the previous UsdToUnreal::ConvertMatrix(StageInfo, UsdMatrix)
+			// call, because internally that would have done the matrix decomposition via FTransform::SetFromMatrix.
+			//
+			// The only difference between the two being that if we detect any negative scaling, DecomposeWithUniformReflection will
+			// flip *all* axes instead of only one, which will keep the scaling uniform. Otherwise, we may get weird joint flipping
+			// effects and the joint rotation axes being inverted (see UE-193643). Those are likely consequences of decomposed
+			// transforms not being easily invertible (some code at some point will silently assume uniform scaling, and things would
+			// break).
+			//
+			// Note that FBX secretly does this as well, because the FBX SDK's Matrix.GetT(), Matrix.GetQ() and Matrix.GetS()
+			// (used within UnFbx::FFbxImporter::ImportBones) seem to behave the same way and flip all axes when a reflection is
+			// detected.
+			FTransform BoneTransform;
+			{
+				FMatrix Matrix = UsdToUnreal::ConvertMatrix(UsdMatrix);
+				BoneTransform = UsdUtils::DecomposeWithUniformReflection(Matrix);
+				BoneTransform = UsdUtils::ConvertTransformToUESpace(StageInfo, BoneTransform);
+			}
 			BoneTransforms.Add(BoneTransform);
 		}
 	}

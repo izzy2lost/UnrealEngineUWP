@@ -158,7 +158,15 @@ namespace UnrealToUsd
 
 namespace UsdUtils
 {
+	/**
+	 * Decomposes the FMatrix into an FTransform.
+	 * Identical to FTransform::SetFromMatrix, except that if a reflection is detected all axes are flipped instead
+	 * of only the X axis, which keeps a uniform scaling.
+	 */
+	USDUTILITIES_API FTransform DecomposeWithUniformReflection(const FMatrix& InMatrix);
+
 	USDUTILITIES_API FTransform ConvertTransformToUsdSpace(const FUsdStageInfo& StageInfo, const FTransform& TransformInUESpace);
+	USDUTILITIES_API FTransform ConvertTransformToUESpace(const FUsdStageInfo& StageInfo, const FTransform& TransformInUsdSpace);
 
 	FTransform ConvertAxes(const bool bZUp, const FTransform Transform);
 }
