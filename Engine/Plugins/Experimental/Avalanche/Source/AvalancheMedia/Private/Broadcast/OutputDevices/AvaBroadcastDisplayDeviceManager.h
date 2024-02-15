@@ -42,7 +42,7 @@ struct FAvaBroadcastMonitorInfo
  * Provides additional information on the display devices that is not available
  * in FDisplayMetrics.
  */
-class AVALANCHEMEDIA_API FAvaBroadcastDisplayDeviceManager
+class FAvaBroadcastDisplayDeviceManager
 {
 public:
 	static void EnumMonitors(TArray<FAvaBroadcastMonitorInfo>& OutMonitorInfo);

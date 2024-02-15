@@ -8,7 +8,6 @@
 #include "Containers/Map.h"
 #include "Containers/StringFwd.h"
 #include "Engine/TextureRenderTarget2D.h"
-#include "Slate/SAvaBroadcastPlaceholderWidget.h"
 #include "Viewport/AvaViewportQualitySettings.h"
 #include "UObject/ObjectPtr.h"
 #include "AvaBroadcastOutputChannel.generated.h"
@@ -16,6 +15,7 @@
 class FAudioDeviceHandle;
 class FName;
 class FWidgetRenderer;
+class SAvaBroadcastPlaceholderWidget;
 class SVirtualWindow;
 class SWidget;
 class UAvaPlayableGroup;
