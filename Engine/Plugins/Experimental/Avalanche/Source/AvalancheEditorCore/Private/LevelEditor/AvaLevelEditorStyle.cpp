@@ -2,6 +2,7 @@
 
 #include "AvaLevelEditorStyle.h"
 #include "Brushes/SlateImageBrush.h"
+#include "Interfaces/IPluginManager.h"
 #include "Misc/Paths.h"
 #include "Styling/SlateStyleMacros.h"
 #include "Styling/SlateStyleRegistry.h"
@@ -11,12 +12,15 @@ FAvaLevelEditorStyle::FAvaLevelEditorStyle()
 {
 	const FVector2f Icon16x16(16.f, 16.f);
 
-	SetContentRoot(FPaths::EngineContentDir() / TEXT("Editor/Slate"));
-	SetCoreContentRoot(FPaths::EngineContentDir() / TEXT("Slate"));
+	const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(UE_PLUGIN_NAME);
+	check(Plugin.IsValid());
 
-	Set("AvaLevelEditor.CreateScene"    , new CORE_IMAGE_BRUSH_SVG("Starship/Common/plus", Icon16x16));
-	Set("AvaLevelEditor.ActivateScene"  , new CORE_IMAGE_BRUSH_SVG("Starship/Common/play", Icon16x16));
-	Set("AvaLevelEditor.DeactivateScene", new CORE_IMAGE_BRUSH_SVG("Starship/Common/stop", Icon16x16));
+	SetContentRoot(Plugin->GetBaseDir() / TEXT("Resources"));
+	SetCoreContentRoot(FPaths::EngineContentDir() / TEXT("Slate"));
+	
+	Set("AvaLevelEditor.CreateScene", new IMAGE_BRUSH_SVG("Icons/EditorIcons/LevelEditor_CreateScene_40", Icon16x16));
+	Set("AvaLevelEditor.ActivateScene", new IMAGE_BRUSH_SVG("Icons/EditorIcons/LevelEditor_ActivateScene_40", Icon16x16));
+	Set("AvaLevelEditor.DeactivateScene", new IMAGE_BRUSH_SVG("Icons/EditorIcons/LevelEditor_DeactivateScene_40", Icon16x16));
 
 	FSlateStyleRegistry::RegisterSlateStyle(*this);
 }

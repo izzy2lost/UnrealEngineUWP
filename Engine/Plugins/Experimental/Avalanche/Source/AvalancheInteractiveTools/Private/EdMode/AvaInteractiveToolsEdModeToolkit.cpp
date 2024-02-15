@@ -4,6 +4,7 @@
 #include "AvaInteractiveToolsEdMode.h"
 #include "AvalancheInteractiveToolsModule.h"
 #include "IAvalancheInteractiveToolsModule.h"
+#include "Toolkits/AssetEditorModeUILayer.h"
 #include "Tools/UEdMode.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
@@ -97,6 +98,25 @@ void FAvaInteractiveToolsEdModeToolkit::InvokeUI()
 	FModeToolkit::InvokeUI();
 
 	InlineContentHolder->SetContent(GetInlineContent().ToSharedRef());
+}
+
+void FAvaInteractiveToolsEdModeToolkit::RequestModeUITabs()
+{
+	if (const TSharedPtr<FAssetEditorModeUILayer> ModeUILayerPtr = ModeUILayer.Pin())
+	{
+		PrimaryTabInfo.OnSpawnTab = FOnSpawnTab::CreateSP(SharedThis(this), &FAvaInteractiveToolsEdModeToolkit::CreatePrimaryModePanel);
+		PrimaryTabInfo.TabLabel = LOCTEXT("MotionDesignToolboxTab", "Motion Design");
+		PrimaryTabInfo.TabTooltip = LOCTEXT("MotionDesignToolboxTabTooltipText", "Opens the Motion Design tab.");
+		ModeUILayerPtr->SetModePanelInfo(UAssetEditorUISubsystem::TopLeftTabID, PrimaryTabInfo);
+
+		if (!HasIntegratedToolPalettes() && !HasToolkitBuilder())
+		{
+			ToolbarInfo.OnSpawnTab = FOnSpawnTab::CreateSP(SharedThis(this), &FAvaInteractiveToolsEdModeToolkit::MakeModeToolbarTab);
+			ToolbarInfo.TabLabel = LOCTEXT("MotionDesignToolbarTab", "Motion Design Toolbar");
+			ToolbarInfo.TabTooltip = LOCTEXT("MotionDesignToolbarTabTooltipText", "Opens the toolbar for the Motion Design toolbox.");
+			ModeUILayerPtr->SetModePanelInfo(UAssetEditorUISubsystem::VerticalToolbarID, ToolbarInfo);
+		}
+	}
 }
 
 void FAvaInteractiveToolsEdModeToolkit::RegisterPalettes()
