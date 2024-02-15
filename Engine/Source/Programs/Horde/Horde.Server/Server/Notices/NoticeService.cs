@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using MongoDB.Bson;
 using EpicGames.Horde.Users;
+using System.Threading;
 
 namespace Horde.Server.Server.Notices
 {
@@ -33,10 +34,11 @@ namespace Horde.Server.Server.Notices
 		/// <param name="userId"></param>
 		/// <param name="startTime"></param>
 		/// <param name="finishTime"></param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		public Task<INotice?> AddNoticeAsync(string message, UserId? userId, DateTime? startTime, DateTime? finishTime)
+		public Task<INotice?> AddNoticeAsync(string message, UserId? userId, DateTime? startTime, DateTime? finishTime, CancellationToken cancellationToken)
 		{
-			return _notices.AddNoticeAsync(message, userId, startTime, finishTime);
+			return _notices.AddNoticeAsync(message, userId, startTime, finishTime, cancellationToken);
 		}
 
 		/// <summary>
@@ -46,39 +48,43 @@ namespace Horde.Server.Server.Notices
 		/// <param name="message"></param>
 		/// <param name="startTime"></param>
 		/// <param name="finishTime"></param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		public Task<bool> UpdateNoticeAsync(ObjectId id, string? message, DateTime? startTime, DateTime? finishTime)
+		public Task<bool> UpdateNoticeAsync(ObjectId id, string? message, DateTime? startTime, DateTime? finishTime, CancellationToken cancellationToken)
 		{
-			return _notices.UpdateNoticeAsync(id, message, startTime, finishTime);
+			return _notices.UpdateNoticeAsync(id, message, startTime, finishTime, cancellationToken);
 		}
 
 		/// <summary>
 		/// Get a notice by id
 		/// </summary>
 		/// <param name="noticeId"></param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		public Task<INotice?> GetNoticeAsync(ObjectId noticeId)
+		public Task<INotice?> GetNoticeAsync(ObjectId noticeId, CancellationToken cancellationToken)
 		{
-			return _notices.GetNoticeAsync(noticeId);
+			return _notices.GetNoticeAsync(noticeId, cancellationToken);
 		}
 
 		/// <summary>
 		/// Get all notices
 		/// </summary>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		public Task<List<INotice>> GetNoticesAsync()
+		public Task<List<INotice>> GetNoticesAsync(CancellationToken cancellationToken)
 		{
-			return _notices.GetNoticesAsync();
+			return _notices.GetNoticesAsync(cancellationToken);
 		}
 
 		/// <summary>
 		/// Remove an existing notice
 		/// </summary>
 		/// <param name="id"></param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		public Task<bool> RemoveNoticeAsync(ObjectId id)
+		public Task<bool> RemoveNoticeAsync(ObjectId id, CancellationToken cancellationToken)
 		{
-			return _notices.RemoveNoticeAsync(id);
+			return _notices.RemoveNoticeAsync(id, cancellationToken);
 		}
 	}
 }

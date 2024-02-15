@@ -20,6 +20,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Horde.Server.Agents;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Jobs;
+using System.Threading;
 
 namespace Horde.Server.Tests.Notifications
 {
@@ -28,24 +29,24 @@ namespace Horde.Server.Tests.Notifications
 		public List<JobScheduledNotification> JobScheduledNotifications { get; } = new();
 		public int JobScheduledCallCount { get; set; }
 		
-		public Task NotifyJobScheduledAsync(List<JobScheduledNotification> notifications)
+		public Task NotifyJobScheduledAsync(List<JobScheduledNotification> notifications, CancellationToken cancellationToken)
 		{
 			JobScheduledNotifications.AddRange(notifications);
 			JobScheduledCallCount++;
 			return Task.CompletedTask;
 		}
 
-		public Task NotifyJobCompleteAsync(IJob job, IGraph graph, LabelOutcome outcome) { throw new NotImplementedException(); }
-		public Task NotifyJobCompleteAsync(IUser user, IJob job, IGraph graph, LabelOutcome outcome) { throw new NotImplementedException(); }
-		public Task NotifyJobStepCompleteAsync(IUser user, IJob job, IJobStepBatch batch, IJobStep step, INode node, List<ILogEventData> jobStepEventData) { throw new NotImplementedException(); }
-		public Task NotifyLabelCompleteAsync(IUser user, IJob job, ILabel label, int labelIdx, LabelOutcome outcome, List<(string, JobStepOutcome, Uri)> stepData) { throw new NotImplementedException(); }
-		public Task NotifyIssueUpdatedAsync(IIssue issue) { throw new NotImplementedException(); }
-		public Task NotifyConfigUpdateAsync(Exception? ex) => Task.CompletedTask;
-		public Task NotifyConfigUpdateFailureAsync(string errorMessage, string fileName, int? change = null, IUser? author = null, string? description = null) { throw new NotImplementedException(); }
-		public Task NotifyDeviceServiceAsync(string message, IDevice? device = null, IDevicePool? pool = null, StreamConfig? stream = null, IJob? job = null, IJobStep? step = null, INode? node = null, IUser? user = null) { throw new NotImplementedException(); }
-		public Task SendAgentReportAsync(AgentReport report) => throw new NotImplementedException();
-		public Task SendIssueReportAsync(IssueReportGroup report) => throw new NotImplementedException();
-		public Task SendDeviceIssueReportAsync(DeviceIssueReport report) => throw new NotImplementedException();
+		public Task NotifyJobCompleteAsync(IJob job, IGraph graph, LabelOutcome outcome, CancellationToken cancellationToken) { throw new NotImplementedException(); }
+		public Task NotifyJobCompleteAsync(IUser user, IJob job, IGraph graph, LabelOutcome outcome, CancellationToken cancellationToken) { throw new NotImplementedException(); }
+		public Task NotifyJobStepCompleteAsync(IUser user, IJob job, IJobStepBatch batch, IJobStep step, INode node, List<ILogEventData> jobStepEventData, CancellationToken cancellationToken) { throw new NotImplementedException(); }
+		public Task NotifyLabelCompleteAsync(IUser user, IJob job, ILabel label, int labelIdx, LabelOutcome outcome, List<(string, JobStepOutcome, Uri)> stepData, CancellationToken cancellationToken) { throw new NotImplementedException(); }
+		public Task NotifyIssueUpdatedAsync(IIssue issue, CancellationToken cancellationToken) { throw new NotImplementedException(); }
+		public Task NotifyConfigUpdateAsync(Exception? ex, CancellationToken cancellationToken) => Task.CompletedTask;
+		public Task NotifyConfigUpdateFailureAsync(string errorMessage, string fileName, int? change = null, IUser? author = null, string? description = null, CancellationToken cancellationToken = default) { throw new NotImplementedException(); }
+		public Task NotifyDeviceServiceAsync(string message, IDevice? device = null, IDevicePool? pool = null, StreamConfig? stream = null, IJob? job = null, IJobStep? step = null, INode? node = null, IUser? user = null, CancellationToken cancellationToken = default) { throw new NotImplementedException(); }
+		public Task SendAgentReportAsync(AgentReport report, CancellationToken cancellationToken) => throw new NotImplementedException();
+		public Task SendIssueReportAsync(IssueReportGroup report, CancellationToken cancellationToken) => throw new NotImplementedException();
+		public Task SendDeviceIssueReportAsync(DeviceIssueReport report, CancellationToken cancellationToken) => throw new NotImplementedException();
 	}
 
 	[TestClass]

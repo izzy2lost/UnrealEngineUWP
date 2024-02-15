@@ -18,6 +18,7 @@ using EpicGames.Horde.Users;
 using MongoDB.Driver.Linq;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Bisect;
+using System.Threading;
 
 namespace Horde.Server.Users
 {
@@ -235,7 +236,7 @@ namespace Horde.Server.Users
 		}
 
 		/// <inheritdoc/>
-		public async Task<IUser?> GetUserAsync(UserId id)
+		public async Task<IUser?> GetUserAsync(UserId id, CancellationToken cancellationToken)
 		{
 			if (id == UserId.Anonymous)
 			{
@@ -243,7 +244,7 @@ namespace Horde.Server.Users
 				return new UserDocument(id, "Anonymous", "anonymous", null);
 			}
 
-			IUser? user = await _users.Find(x => x.Id == id).FirstOrDefaultAsync();
+			IUser? user = await _users.Find(x => x.Id == id).FirstOrDefaultAsync(cancellationToken);
 			using (ICacheEntry entry = _userCache.CreateEntry(id))
 			{
 				entry.SetValue(user);
@@ -253,7 +254,7 @@ namespace Horde.Server.Users
 		}
 
 		/// <inheritdoc/>
-		public async ValueTask<IUser?> GetCachedUserAsync(UserId? id)
+		public async ValueTask<IUser?> GetCachedUserAsync(UserId? id, CancellationToken cancellationToken)
 		{
 			IUser? user;
 			if(id == null)
@@ -266,12 +267,12 @@ namespace Horde.Server.Users
 			}
 			else
 			{
-				return await GetUserAsync(id.Value);
+				return await GetUserAsync(id.Value, cancellationToken);
 			}
 		}
 
 		/// <inheritdoc/>
-		public async Task<List<IUser>> FindUsersAsync(IEnumerable<UserId>? ids, string? nameRegex = null, int? index = null, int? count = null)
+		public async Task<IReadOnlyList<IUser>> FindUsersAsync(IEnumerable<UserId>? ids, string? nameRegex = null, int? index = null, int? count = null, CancellationToken cancellationToken = default)
 		{
 			FilterDefinition<UserDocument> filter = FilterDefinition<UserDocument>.Empty;
 			if (ids != null)
@@ -287,27 +288,27 @@ namespace Horde.Server.Users
 
 			filter &= Builders<UserDocument>.Filter.Ne(x => x.Hidden, true);
 
-			return await _users.Find(filter).Range(index, count ?? 100).ToListAsync<UserDocument, IUser>();
+			return await _users.Find(filter).Range(index, count ?? 100).ToListAsync(cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		public async Task<IUser?> FindUserByLoginAsync(string login)
+		public async Task<IUser?> FindUserByLoginAsync(string login, CancellationToken cancellationToken)
 		{
 			string loginUpper = login.ToUpperInvariant();
 			FilterDefinition<UserDocument> filter = Builders<UserDocument>.Filter.Eq(x => x.LoginUpper, loginUpper) & Builders<UserDocument>.Filter.Ne(x => x.Hidden, true);
-			return await _users.Find(filter).FirstOrDefaultAsync();
+			return await _users.Find(filter).FirstOrDefaultAsync(cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		public async Task<IUser?> FindUserByEmailAsync(string email)
+		public async Task<IUser?> FindUserByEmailAsync(string email, CancellationToken cancellationToken)
 		{
 			string emailUpper = email.ToUpperInvariant();
 			FilterDefinition<UserDocument> filter = Builders<UserDocument>.Filter.Eq(x => x.EmailUpper, emailUpper) & Builders<UserDocument>.Filter.Ne(x => x.Hidden, true);
-			return await _users.Find(filter).FirstOrDefaultAsync();
+			return await _users.Find(filter).FirstOrDefaultAsync(cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		public async Task<IUser> FindOrAddUserByLoginAsync(string login, string? name, string? email)
+		public async Task<IUser> FindOrAddUserByLoginAsync(string login, string? name, string? email, CancellationToken cancellationToken)
 		{
 			UserId newUserId = new UserId(BinaryIdUtils.CreateNew());
 			UpdateDefinition<UserDocument> update = Builders<UserDocument>.Update.SetOnInsert(x => x.Id, newUserId).SetOnInsert(x => x.Login, login).Unset(x => x.Hidden);
@@ -328,7 +329,7 @@ namespace Horde.Server.Users
 
 			string loginUpper = login.ToUpperInvariant();
 
-			IUser user = await _users.FindOneAndUpdateAsync<UserDocument>(x => x.LoginUpper == loginUpper, update, new FindOneAndUpdateOptions<UserDocument, UserDocument> { IsUpsert = true, ReturnDocument = ReturnDocument.After });
+			IUser user = await _users.FindOneAndUpdateAsync<UserDocument>(x => x.LoginUpper == loginUpper, update, new FindOneAndUpdateOptions<UserDocument, UserDocument> { IsUpsert = true, ReturnDocument = ReturnDocument.After }, cancellationToken);
 			if (user.Id == newUserId)
 			{
 				_logger.LogInformation("Added new user {Name} ({UserId}, {Login}, {Email})", user.Name, user.Id, user.Login, user.Email);
@@ -338,31 +339,31 @@ namespace Horde.Server.Users
 		}
 
 		/// <inheritdoc/>
-		public async Task<IUserClaims> GetClaimsAsync(UserId userId)
+		public async Task<IUserClaims> GetClaimsAsync(UserId userId, CancellationToken cancellationToken)
 		{
-			IUserClaims? claims = await _userClaims.Find(x => x.Id == userId).FirstOrDefaultAsync();
+			IUserClaims? claims = await _userClaims.Find(x => x.Id == userId).FirstOrDefaultAsync(cancellationToken);
 			claims ??= new UserClaimsDocument(userId);
 			return claims;
 		}
 
 		/// <inheritdoc/>
-		public async Task UpdateClaimsAsync(UserId userId, IEnumerable<IUserClaim> claims)
+		public async Task UpdateClaimsAsync(UserId userId, IEnumerable<IUserClaim> claims, CancellationToken cancellationToken)
 		{
 			UserClaimsDocument newDocument = new UserClaimsDocument(userId);
 			newDocument.Claims.AddRange(claims.Select(x => new UserClaim(x)));
-			await _userClaims.ReplaceOneAsync(x => x.Id == userId, newDocument, new ReplaceOptions { IsUpsert = true });
+			await _userClaims.ReplaceOneAsync(x => x.Id == userId, newDocument, new ReplaceOptions { IsUpsert = true }, cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		public async Task<IUserSettings> GetSettingsAsync(UserId userId)
+		public async Task<IUserSettings> GetSettingsAsync(UserId userId, CancellationToken cancellationToken)
 		{
-			IUserSettings? settings = await _userSettings.Find(x => x.Id == userId).FirstOrDefaultAsync();
+			IUserSettings? settings = await _userSettings.Find(x => x.Id == userId).FirstOrDefaultAsync(cancellationToken);
 			settings ??= new UserSettingsDocument(userId);
 			return settings;
 		}
 
 		/// <inheritdoc/>
-		public async Task UpdateSettingsAsync(UserId userId, bool? enableExperimentalFeatures = null, bool? alwaysTagPreflightCL = null, BsonValue ? dashboardSettings = null, IEnumerable<JobId>? addPinnedJobIds = null, IEnumerable<JobId>? removePinnedJobIds = null, UpdateUserJobTemplateOptions? templateOptions = null, IEnumerable<BisectTaskId>? addBisectTaskIds = null, IEnumerable<BisectTaskId>? removeBisectTaskIds = null)
+		public async Task UpdateSettingsAsync(UserId userId, bool? enableExperimentalFeatures = null, bool? alwaysTagPreflightCL = null, BsonValue ? dashboardSettings = null, IEnumerable<JobId>? addPinnedJobIds = null, IEnumerable<JobId>? removePinnedJobIds = null, UpdateUserJobTemplateOptions? templateOptions = null, IEnumerable<BisectTaskId>? addBisectTaskIds = null, IEnumerable<BisectTaskId>? removeBisectTaskIds = null, CancellationToken cancellationToken = default)
 		{
 			List<UpdateDefinition<UserSettingsDocument>> updates = new List<UpdateDefinition<UserSettingsDocument>>();
 			if (enableExperimentalFeatures != null)
@@ -399,7 +400,7 @@ namespace Horde.Server.Users
 			{
 				JobTemplateSettingsDocument doc = new JobTemplateSettingsDocument(templateOptions.StreamId, templateOptions.TemplateId, templateOptions.TemplateHash, templateOptions.Arguments.ToList());
 				FilterDefinition<UserSettingsDocument> filter = Builders<UserSettingsDocument>.Filter.Eq(x => x.Id, userId) & Builders<UserSettingsDocument>.Filter.ElemMatch(x => x.JobTemplateSettings, t => t.StreamId == templateOptions.StreamId && t.TemplateId == templateOptions.TemplateId);
-				UpdateResult result = await _userSettings.UpdateOneAsync(filter, Builders<UserSettingsDocument>.Update.Set(x => x.JobTemplateSettings[-1], doc));
+				UpdateResult result = await _userSettings.UpdateOneAsync(filter, Builders<UserSettingsDocument>.Update.Set(x => x.JobTemplateSettings[-1], doc), null, cancellationToken);
 				if (result.ModifiedCount == 0)
 				{
 					updates.Add(Builders<UserSettingsDocument>.Update.PushEach(x => x.JobTemplateSettings, new[] { doc }, -100));
@@ -408,7 +409,7 @@ namespace Horde.Server.Users
 
 			if (updates.Count > 0)
 			{
-				await _userSettings.UpdateOneAsync<UserSettingsDocument>(x => x.Id == userId, Builders<UserSettingsDocument>.Update.Combine(updates), new UpdateOptions { IsUpsert = true });
+				await _userSettings.UpdateOneAsync<UserSettingsDocument>(x => x.Id == userId, Builders<UserSettingsDocument>.Update.Combine(updates), new UpdateOptions { IsUpsert = true }, cancellationToken);
 			}
 		}
 
@@ -416,16 +417,17 @@ namespace Horde.Server.Users
 		/// Upgrade from V1 collection
 		/// </summary>
 		/// <param name="userCollectionV1"></param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		public async Task ResaveDocumentsAsync(UserCollectionV1 userCollectionV1)
+		public async Task ResaveDocumentsAsync(UserCollectionV1 userCollectionV1, CancellationToken cancellationToken)
 		{
-			await foreach ((IUser user, IUserClaims claims, IUserSettings settings) in userCollectionV1.EnumerateDocumentsAsync())
+			await foreach ((IUser user, IUserClaims claims, IUserSettings settings) in userCollectionV1.EnumerateDocumentsAsync(cancellationToken))
 			{
 				try
 				{
-					await _users.ReplaceOneAsync(x => x.Id == user.Id, new UserDocument(user), new ReplaceOptions { IsUpsert = true });
-					await _userClaims.ReplaceOneAsync(x => x.Id == user.Id, new UserClaimsDocument(claims), new ReplaceOptions { IsUpsert = true });
-					await _userSettings.ReplaceOneAsync(x => x.Id == user.Id, new UserSettingsDocument(settings), new ReplaceOptions { IsUpsert = true });
+					await _users.ReplaceOneAsync(x => x.Id == user.Id, new UserDocument(user), new ReplaceOptions { IsUpsert = true }, cancellationToken);
+					await _userClaims.ReplaceOneAsync(x => x.Id == user.Id, new UserClaimsDocument(claims), new ReplaceOptions { IsUpsert = true }, cancellationToken);
+					await _userSettings.ReplaceOneAsync(x => x.Id == user.Id, new UserSettingsDocument(settings), new ReplaceOptions { IsUpsert = true }, cancellationToken);
 					_logger.LogDebug("Updated user {UserId}", user.Id);
 				}
 				catch (MongoWriteException ex)
@@ -435,7 +437,7 @@ namespace Horde.Server.Users
 
 				if(settings.PinnedJobIds.Count > 0)
 				{
-					await UpdateSettingsAsync(user.Id, addPinnedJobIds: settings.PinnedJobIds);
+					await UpdateSettingsAsync(user.Id, addPinnedJobIds: settings.PinnedJobIds, cancellationToken: cancellationToken);
 				}
 			}
 		}

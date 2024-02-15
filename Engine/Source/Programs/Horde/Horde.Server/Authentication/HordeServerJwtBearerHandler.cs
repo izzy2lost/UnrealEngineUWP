@@ -16,7 +16,7 @@ namespace Horde.Server.Authentication
 	/// <summary>
 	/// JWT handler for server-issued bearer tokens. These tokens are signed using a randomly generated key per DB instance.
 	/// </summary>
-	class HordeServerJwtBearerHandler : JwtBearerHandler
+	class HordeServerJwtBearerHandler : JwtBearerHandler, IAsyncDisposable
 	{
 		/// <summary>
 		/// Default name of the authentication scheme
@@ -28,7 +28,12 @@ namespace Horde.Server.Authentication
 		public HordeServerJwtBearerHandler(ILoggerFactory logger, UrlEncoder encoder, GlobalsService globalsService, IOptionsMonitorCache<JwtBearerOptions> optionsCache)
 			: base(GetOptionsMonitor(optionsCache), logger, encoder)
 		{
-			_globals = new AsyncCachedValue<IGlobals>(async () => await globalsService.GetAsync(), TimeSpan.FromSeconds(30.0));
+			_globals = new AsyncCachedValue<IGlobals>(async ctx => await globalsService.GetAsync(ctx), TimeSpan.FromSeconds(30.0));
+		}
+
+		public async ValueTask DisposeAsync()
+		{
+			await _globals.DisposeAsync();
 		}
 
 		private static IOptionsMonitor<JwtBearerOptions> GetOptionsMonitor(IOptionsMonitorCache<JwtBearerOptions> optionsCache)

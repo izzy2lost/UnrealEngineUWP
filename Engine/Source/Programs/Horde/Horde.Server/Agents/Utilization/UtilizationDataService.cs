@@ -55,7 +55,7 @@ namespace Horde.Server.Agents.Utilization
 		public ValueTask DisposeAsync() => _tick.DisposeAsync();
 
 		/// <inheritdoc/>
-		async ValueTask TickLeaderAsync(CancellationToken stoppingToken)
+		async ValueTask TickLeaderAsync(CancellationToken cancellationToken)
 		{
 			DateTime currentTime = _clock.UtcNow;
 
@@ -63,18 +63,18 @@ namespace Horde.Server.Agents.Utilization
 			DateTime maxTime = currentTime.Date + TimeSpan.FromHours(currentTime.Hour);
 
 			// Get the latest telemetry data
-			IUtilizationData? latest = await _utilizationDataCollection.GetLatestUtilizationDataAsync(stoppingToken);
+			IUtilizationData? latest = await _utilizationDataCollection.GetLatestUtilizationDataAsync(cancellationToken);
 			TimeSpan interval = TimeSpan.FromHours(1.0);
 			int count = (latest == null) ? (7 * 24) : (int)Math.Round((maxTime - latest.FinishTime) / interval);
 			DateTime minTime = maxTime - count * interval;
 
 			// Query all the current data
-			List<IAgent> agents = await _agentCollection.FindAsync();
-			List<IPoolConfig> pools = await _poolCollection.GetConfigsAsync(stoppingToken);
-			List<ILease> leases = await _leaseCollection.FindLeasesAsync(minTime: minTime);
+			IReadOnlyList<IAgent> agents = await _agentCollection.FindAsync(cancellationToken: cancellationToken);
+			IReadOnlyList<IPoolConfig> pools = await _poolCollection.GetConfigsAsync(cancellationToken);
+			IReadOnlyList<ILease> leases = await _leaseCollection.FindLeasesAsync(minTime: minTime, cancellationToken: cancellationToken);
 
 			// Remove any agents which are offline
-			agents.RemoveAll(x => !x.Enabled || !x.IsSessionValid(currentTime));
+			agents = agents.Where(x => x.Enabled && x.IsSessionValid(currentTime)).ToList();
 
 			// Find all the agents
 			Dictionary<AgentId, List<PoolId>> agentToPoolIds = agents.ToDictionary(x => x.Id, x => x.GetPools().ToList());
@@ -92,7 +92,7 @@ namespace Horde.Server.Agents.Utilization
 				{
 					if (pool.EnableAutoscaling)
 					{
-						int numStoppedInstances = await _fleetManager.GetNumStoppedInstancesAsync(pool, stoppingToken);
+						int numStoppedInstances = await _fleetManager.GetNumStoppedInstancesAsync(pool, cancellationToken);
 						telemetry.NumAgents += numStoppedInstances;
 
 						PoolUtilizationData poolTelemetry = telemetry.FindOrAddPool(pool.Id);
@@ -133,7 +133,7 @@ namespace Horde.Server.Agents.Utilization
 						}
 					}
 				}
-				await _utilizationDataCollection.AddUtilizationDataAsync(telemetry, stoppingToken);
+				await _utilizationDataCollection.AddUtilizationDataAsync(telemetry, cancellationToken);
 
 				bucketMinTime = bucketMaxTime;
 			}

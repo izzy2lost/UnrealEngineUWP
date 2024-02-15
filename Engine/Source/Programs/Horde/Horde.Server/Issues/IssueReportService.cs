@@ -117,7 +117,7 @@ namespace Horde.Server.Issues
 
 		async ValueTask TickAsync(CancellationToken cancellationToken)
 		{
-			IssueReportState state = await _state.GetAsync();
+			IssueReportState state = await _state.GetAsync(cancellationToken);
 			HashSet<string> invalidKeys = new HashSet<string>(state.ReportTimes.Keys, StringComparer.Ordinal);
 
 			DateTime currentTime = _clock.UtcNow;
@@ -130,8 +130,8 @@ namespace Horde.Server.Issues
 			{
 				if (streamConfig.Workflows.Count > 0)
 				{
-					List<IIssue>? issues = null;
-					List<IIssueSpan>? spans = null;
+					IReadOnlyList<IIssue>? issues = null;
+					IReadOnlyList<IIssueSpan>? spans = null;
 
 					foreach (WorkflowConfig workflowConfig in streamConfig.Workflows)
 					{
@@ -146,7 +146,7 @@ namespace Horde.Server.Issues
 						DateTime lastReportTime;
 						if (!state.ReportTimes.TryGetValue(key, out lastReportTime))
 						{
-							state = await _state.UpdateAsync(s => s.ReportTimes[key] = currentTime);
+							state = await _state.UpdateAsync(s => s.ReportTimes[key] = currentTime, cancellationToken);
 							continue;
 						}
 
@@ -160,10 +160,10 @@ namespace Horde.Server.Issues
 
 						_logger.LogInformation("Creating report for {StreamId} workflow {WorkflowId}", streamConfig.Id, workflowConfig.Id);
 
-						issues ??= await _issueCollection.FindIssuesAsync(streamId: streamConfig.Id);
-						spans ??= await _issueCollection.FindSpansAsync(issueIds: issues.Select(x => x.Id).ToArray());
+						issues ??= await _issueCollection.FindIssuesAsync(streamId: streamConfig.Id, cancellationToken: cancellationToken);
+						spans ??= await _issueCollection.FindSpansAsync(issueIds: issues.Select(x => x.Id).ToArray(), cancellationToken: cancellationToken);
 
-						Dictionary<WorkflowId, WorkflowStats> workflowIdToStats = await GetWorkflowStatsAsync(streamConfig, prevScheduledReportTime);
+						Dictionary<WorkflowId, WorkflowStats> workflowIdToStats = await GetWorkflowStatsAsync(streamConfig, prevScheduledReportTime, cancellationToken);
 						if (!workflowIdToStats.TryGetValue(workflowConfig.Id, out WorkflowStats? workflowStats))
 						{
 							workflowStats = new WorkflowStats();
@@ -201,7 +201,7 @@ namespace Horde.Server.Issues
 
 			foreach (IssueReportGroup group in groups)
 			{
-				await _notificationService.SendIssueReportAsync(group);
+				await _notificationService.SendIssueReportAsync(group, cancellationToken);
 			}
 
 			if (updateKeys.Count > 0 || invalidKeys.Count > 0)
@@ -217,13 +217,13 @@ namespace Horde.Server.Issues
 						state.ReportTimes.Remove(invalidKey);
 					}
 				}
-				state = await _state.UpdateAsync(UpdateKeys);
+				state = await _state.UpdateAsync(UpdateKeys, cancellationToken);
 			}
 		}
 
-		private async Task<Dictionary<WorkflowId, WorkflowStats>> GetWorkflowStatsAsync(StreamConfig streamConfig, DateTime minTime)
+		private async Task<Dictionary<WorkflowId, WorkflowStats>> GetWorkflowStatsAsync(StreamConfig streamConfig, DateTime minTime, CancellationToken cancellationToken)
 		{
-			List<IJob> jobs = await _jobCollection.FindAsync(streamId: streamConfig.Id, minCreateTime: minTime);
+			IReadOnlyList<IJob> jobs = await _jobCollection.FindAsync(streamId: streamConfig.Id, minCreateTime: minTime, cancellationToken: cancellationToken);
 
 			Dictionary<WorkflowId, WorkflowStats> workflowIdToStats = new Dictionary<WorkflowId, WorkflowStats>();
 			foreach (IGrouping<TemplateId, IJob> templateGroup in jobs.GroupBy(x => x.TemplateId))
@@ -236,7 +236,7 @@ namespace Horde.Server.Issues
 
 				foreach (IGrouping<ContentHash, IJob> graphGroup in templateGroup.GroupBy(x => x.GraphHash))
 				{
-					IGraph graph = await _graphCollection.GetAsync(graphGroup.Key);
+					IGraph graph = await _graphCollection.GetAsync(graphGroup.Key, cancellationToken);
 					foreach (IJob job in graphGroup)
 					{
 						foreach (IJobStepBatch batch in job.Batches)

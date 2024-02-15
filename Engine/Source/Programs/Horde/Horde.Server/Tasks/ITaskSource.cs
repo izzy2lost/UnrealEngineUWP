@@ -90,8 +90,8 @@ namespace Horde.Server.Tasks
 		/// <param name="agent">The agent that was assigned the lease</param>
 		/// <param name="leaseId">The lease id</param>
 		/// <param name="payload">Payload for the lease</param>
-		/// <returns></returns>
-		Task CancelLeaseAsync(IAgent agent, LeaseId leaseId, Any payload);
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		Task CancelLeaseAsync(IAgent agent, LeaseId leaseId, Any payload, CancellationToken cancellationToken);
 
 		/// <summary>
 		/// Notification that a lease has been started
@@ -100,7 +100,8 @@ namespace Horde.Server.Tasks
 		/// <param name="leaseId">The lease id</param>
 		/// <param name="payload">Payload for the lease</param>
 		/// <param name="logger">Logger for the agent</param>
-		Task OnLeaseStartedAsync(IAgent agent, LeaseId leaseId, Any payload, ILogger logger);
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		Task OnLeaseStartedAsync(IAgent agent, LeaseId leaseId, Any payload, ILogger logger, CancellationToken cancellationToken);
 
 		/// <summary>
 		/// Notification that a task has completed
@@ -111,14 +112,16 @@ namespace Horde.Server.Tasks
 		/// <param name="outcome">Outcome of the lease</param>
 		/// <param name="output">Output from the task</param>
 		/// <param name="logger">Logger for the agent</param>
-		Task OnLeaseFinishedAsync(IAgent agent, LeaseId leaseId, Any payload, LeaseOutcome outcome, ReadOnlyMemory<byte> output, ILogger logger);
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		Task OnLeaseFinishedAsync(IAgent agent, LeaseId leaseId, Any payload, LeaseOutcome outcome, ReadOnlyMemory<byte> output, ILogger logger, CancellationToken cancellationToken);
 
 		/// <summary>
 		/// Gets information to include for a lease in a lease info response
 		/// </summary>
 		/// <param name="payload">The lease payload</param>
 		/// <param name="details">Properties for the lease</param>
-		ValueTask GetLeaseDetailsAsync(Any payload, Dictionary<string, string> details);
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		ValueTask GetLeaseDetailsAsync(Any payload, Dictionary<string, string> details, CancellationToken cancellationToken);
 	}
 	
 	/// <summary>
@@ -179,19 +182,19 @@ namespace Horde.Server.Tasks
 		public abstract Task<Task<AgentLease?>> AssignLeaseAsync(IAgent agent, CancellationToken cancellationToken);
 
 		/// <inheritdoc/>
-		public Task CancelLeaseAsync(IAgent agent, LeaseId leaseId, Any payload) => CancelLeaseAsync(agent, leaseId, payload.Unpack<TMessage>());
+		public Task CancelLeaseAsync(IAgent agent, LeaseId leaseId, Any payload, CancellationToken cancellationToken) => CancelLeaseAsync(agent, leaseId, payload.Unpack<TMessage>(), cancellationToken);
 
 		/// <inheritdoc/>
-		public Task OnLeaseStartedAsync(IAgent agent, LeaseId leaseId, Any payload, ILogger logger) => OnLeaseStartedAsync(agent, leaseId, payload.Unpack<TMessage>(), logger);
+		public Task OnLeaseStartedAsync(IAgent agent, LeaseId leaseId, Any payload, ILogger logger, CancellationToken cancellationToken) => OnLeaseStartedAsync(agent, leaseId, payload.Unpack<TMessage>(), logger, cancellationToken);
 
 		/// <inheritdoc/>
-		public Task OnLeaseFinishedAsync(IAgent agent, LeaseId leaseId, Any payload, LeaseOutcome outcome, ReadOnlyMemory<byte> output, ILogger logger) => OnLeaseFinishedAsync(agent, leaseId, payload.Unpack<TMessage>(), outcome, output, logger);
+		public Task OnLeaseFinishedAsync(IAgent agent, LeaseId leaseId, Any payload, LeaseOutcome outcome, ReadOnlyMemory<byte> output, ILogger logger, CancellationToken cancellationToken) => OnLeaseFinishedAsync(agent, leaseId, payload.Unpack<TMessage>(), outcome, output, logger, cancellationToken);
 
-		/// <inheritdoc cref="ITaskSource.CancelLeaseAsync(IAgent, LeaseId, Any)"/>
-		public virtual Task CancelLeaseAsync(IAgent agent, LeaseId leaseId, TMessage payload) => Task.CompletedTask;
+		/// <inheritdoc cref="ITaskSource.CancelLeaseAsync(IAgent, LeaseId, Any, CancellationToken)"/>
+		public virtual Task CancelLeaseAsync(IAgent agent, LeaseId leaseId, TMessage payload, CancellationToken cancellationToken) => Task.CompletedTask;
 
-		/// <inheritdoc cref="ITaskSource.OnLeaseStartedAsync(IAgent, LeaseId, Any, ILogger)"/>
-		public virtual Task OnLeaseStartedAsync(IAgent agent, LeaseId leaseId, TMessage payload, ILogger logger)
+		/// <inheritdoc cref="ITaskSource.OnLeaseStartedAsync(IAgent, LeaseId, Any, ILogger, CancellationToken)"/>
+		public virtual Task OnLeaseStartedAsync(IAgent agent, LeaseId leaseId, TMessage payload, ILogger logger, CancellationToken cancellationToken)
 		{
 			object[] arguments = new object[2 + OnLeaseStartedProperties._accessors.Count];
 			arguments[0] = leaseId;
@@ -206,15 +209,15 @@ namespace Horde.Server.Tasks
 			return Task.CompletedTask;
 		}
 
-		/// <inheritdoc cref="ITaskSource.OnLeaseFinishedAsync(IAgent, LeaseId, Any, LeaseOutcome, ReadOnlyMemory{Byte}, ILogger)"/>
-		public virtual Task OnLeaseFinishedAsync(IAgent agent, LeaseId leaseId, TMessage payload, LeaseOutcome outcome, ReadOnlyMemory<byte> output, ILogger logger)
+		/// <inheritdoc cref="ITaskSource.OnLeaseFinishedAsync(IAgent, LeaseId, Any, LeaseOutcome, ReadOnlyMemory{Byte}, ILogger, CancellationToken)"/>
+		public virtual Task OnLeaseFinishedAsync(IAgent agent, LeaseId leaseId, TMessage payload, LeaseOutcome outcome, ReadOnlyMemory<byte> output, ILogger logger, CancellationToken cancellationToken)
 		{
 			logger.LogInformation("Lease {LeaseId} complete, outcome {LeaseOutcome}", leaseId, outcome);
 			return Task.CompletedTask;
 		}
 
 		/// <inheritdoc/>
-		public virtual ValueTask GetLeaseDetailsAsync(Any payload, Dictionary<string, string> details)
+		public virtual ValueTask GetLeaseDetailsAsync(Any payload, Dictionary<string, string> details, CancellationToken cancellationToken)
 		{
 			details["type"] = Type;
 

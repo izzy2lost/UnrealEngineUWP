@@ -568,7 +568,7 @@ namespace Horde.Server.Storage
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		async ValueTask TickBlobsAsync(CancellationToken cancellationToken)
 		{
-			GcState gcState = await _gcState.GetAsync();
+			GcState gcState = await _gcState.GetAsync(cancellationToken);
 			DateTime utcNow = _clock.UtcNow;
 
 			// Get the current state of the storage system
@@ -616,7 +616,7 @@ namespace Horde.Server.Storage
 						}
 
 						// Update the last imported blob id
-						await _gcState.UpdateAsync(state => state.LastImportBlobInfoId = latestInfoId);
+						await _gcState.UpdateAsync(state => state.LastImportBlobInfoId = latestInfoId, cancellationToken);
 					}
 				}
 			}
@@ -890,10 +890,10 @@ namespace Horde.Server.Storage
 				StorageConfig storageConfig = state.Config.Storage;
 
 				// Synchronize the list of configured namespaces with the GC state object
-				GcState gcState = await _gcState.GetAsync();
+				GcState gcState = await _gcState.GetAsync(cancellationToken);
 				if (!Enumerable.SequenceEqual(storageConfig.Namespaces.Select(x => x.Id.Text.Text).OrderBy(x => x), gcState.Namespaces.Select(x => x.Id.Text.Text).OrderBy(x => x)))
 				{
-					gcState = await _gcState.UpdateAsync(s => SyncNamespaceList(s, storageConfig.Namespaces));
+					gcState = await _gcState.UpdateAsync(s => SyncNamespaceList(s, storageConfig.Namespaces), cancellationToken);
 				}
 
 				// Find all the namespaces that need to have GC run on them
@@ -983,7 +983,7 @@ namespace Horde.Server.Storage
 				_ = _redisService.GetDatabase().SortedSetRemoveAsync(checkSet, values[0], CommandFlags.FireAndForget);
 			}
 
-			await _gcState.UpdateAsync(state => state.FindOrAddNamespace(namespaceInfo.Id).LastTime = utcNow);
+			await _gcState.UpdateAsync(state => state.FindOrAddNamespace(namespaceInfo.Id).LastTime = utcNow, cancellationToken);
 		}
 
 		static void SyncNamespaceList(GcState state, List<NamespaceConfig> namespaces)

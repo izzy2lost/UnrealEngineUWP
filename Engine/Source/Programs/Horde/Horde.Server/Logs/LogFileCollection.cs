@@ -12,7 +12,6 @@ using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
 using Horde.Server.Server;
 using Horde.Server.Storage;
-using Horde.Server.Utilities;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 
@@ -244,11 +243,11 @@ namespace Horde.Server.Logs
 		public async Task<List<ILogFile>> GetLogFilesAsync(int? index = null, int? count = null, CancellationToken cancellationToken = default)
 		{
 			IFindFluent<LogFileDocument, LogFileDocument> query = _logFiles.Find(FilterDefinition<LogFileDocument>.Empty);
-			if(index != null)
+			if (index != null)
 			{
 				query = query.Skip(index.Value);
 			}
-			if(count != null)
+			if (count != null)
 			{
 				query = query.Limit(count.Value);
 			}

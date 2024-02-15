@@ -175,7 +175,7 @@ namespace Horde.Server.Devices
 				return;
 			}
 
-			DeviceReportState state = await _state.GetAsync();
+			DeviceReportState state = await _state.GetAsync(cancellationToken);
 			DateTime currentTime = _clock.UtcNow;
 			DateTime lastReportTime = state.ReportTime == DateTime.MinValue ? DateTime.Now.Subtract(TimeSpan.FromMinutes(_reportIntervalMinutes + 1)) : state.ReportTime;
 
@@ -286,7 +286,7 @@ namespace Horde.Server.Devices
 				{
 					_logger.LogInformation("Sending device report notification");
 
-					await _notificationService.SendDeviceIssueReportAsync(issueReport);
+					await _notificationService.SendDeviceIssueReportAsync(issueReport, cancellationToken);
 				}
 				catch (Exception ex)
 				{
@@ -294,7 +294,7 @@ namespace Horde.Server.Devices
 				}
 			}
 
-			state = await _state.UpdateAsync(s => s.ReportTime = currentTime);
+			state = await _state.UpdateAsync(s => s.ReportTime = currentTime, cancellationToken);
 
 		}
 	}

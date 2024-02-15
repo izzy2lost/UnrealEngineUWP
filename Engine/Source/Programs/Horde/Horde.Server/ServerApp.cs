@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using Horde.Server.Commands;
@@ -134,7 +135,7 @@ namespace Horde.Server
 			// For installed builds, copy default config files to the data dir and use that as the config dir instead
 			if (baseServerSettings.Installed)
 			{
-				await CopyDefaultConfigFilesAsync(s_configDir, s_dataDir);
+				await CopyDefaultConfigFilesAsync(s_configDir, s_dataDir, CancellationToken.None);
 				s_configDir = s_dataDir;
 			}
 
@@ -225,7 +226,7 @@ namespace Horde.Server
 			return builder.AddEnvironmentVariables().Build();
 		}
 
-		static async Task CopyDefaultConfigFilesAsync(DirectoryReference sourceDir, DirectoryReference targetDir)
+		static async Task CopyDefaultConfigFilesAsync(DirectoryReference sourceDir, DirectoryReference targetDir, CancellationToken cancellationToken)
 		{
 			DirectoryReference.CreateDirectory(targetDir);
 			foreach (FileReference sourceFile in DirectoryReference.EnumerateFiles(sourceDir))
@@ -239,7 +240,7 @@ namespace Horde.Server
 						using (FileStream targetStream = FileReference.Open(targetFile, FileMode.Create, FileAccess.Write, FileShare.Read))
 						{
 							using FileStream sourceStream = FileReference.Open(sourceFile, FileMode.Open, FileAccess.Read, FileShare.Read);
-							await sourceStream.CopyToAsync(targetStream);
+							await sourceStream.CopyToAsync(targetStream, cancellationToken);
 						}
 					}
 				}

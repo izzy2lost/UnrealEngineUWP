@@ -16,6 +16,7 @@ using Microsoft.Extensions.Options;
 using EpicGames.Horde.Users;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Bisect;
+using System.Threading;
 
 namespace Horde.Server.Users
 {
@@ -48,17 +49,17 @@ namespace Horde.Server.Users
 		[HttpGet]
 		[Route("/api/v1/user")]
 		[ProducesResponseType(typeof(GetUserResponse), 200)]
-		public async Task<ActionResult<object>> GetUserAsync([FromQuery] PropertyFilter? filter = null)
+		public async Task<ActionResult<object>> GetUserAsync([FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
-			IUser? internalUser = await _userCollection.GetUserAsync(User);
+			IUser? internalUser = await _userCollection.GetUserAsync(User, cancellationToken);
 			if (internalUser == null)
 			{
 				return NotFound();
 			}
 
-			IAvatar? avatar = (_avatarService == null)? (IAvatar?)null : await _avatarService.GetAvatarAsync(internalUser);
-			IUserClaims claims = await _userCollection.GetClaimsAsync(internalUser.Id);
-			IUserSettings settings = await _userCollection.GetSettingsAsync(internalUser.Id);
+			IAvatar? avatar = (_avatarService == null)? (IAvatar?)null : await _avatarService.GetAvatarAsync(internalUser, cancellationToken);
+			IUserClaims claims = await _userCollection.GetClaimsAsync(internalUser.Id, cancellationToken);
+			IUserSettings settings = await _userCollection.GetSettingsAsync(internalUser.Id, cancellationToken);
 
 			GetUserResponse response = internalUser.ToApiResponse(avatar, claims, settings);
 			response.DashboardFeatures = GetDashboardFeatures(_globalConfig.Value, User);

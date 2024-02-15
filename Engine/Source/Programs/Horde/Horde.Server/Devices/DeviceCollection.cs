@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Devices;
 using EpicGames.Horde.Jobs;
@@ -624,9 +625,9 @@ namespace Horde.Server.Devices
 		}
 
 		/// <inheritdoc/>
-		public async Task<List<IDeviceReservation>> FindAllDeviceReservationsAsync(DevicePoolId? poolId = null)
+		public async Task<IReadOnlyList<IDeviceReservation>> FindAllDeviceReservationsAsync(DevicePoolId? poolId = null, CancellationToken cancellationToken = default)
 		{
-			return await _reservations.Find(a => poolId == null || a.PoolId == poolId).ToListAsync<DeviceReservationDocument, IDeviceReservation>();
+			return await _reservations.Find(a => poolId == null || a.PoolId == poolId).ToListAsync(cancellationToken);
 		}
 
 		/// <inheritdoc/>
@@ -1019,7 +1020,7 @@ namespace Horde.Server.Devices
 		public async Task CreatePoolTelemetrySnapshotAsync(List<IDevicePool> pools, int problemCooldown)
 		{
 			List<IDevice> devices = await FindAllDevicesAsync();			
-			List<IDeviceReservation> reservations = await FindAllDeviceReservationsAsync();
+			IReadOnlyList<IDeviceReservation> reservations = await FindAllDeviceReservationsAsync();
 
 			// narrow to automation pools, may want to collect telemetry on other pools in the future
 			pools = pools.Where(x => x.PoolType == DevicePoolType.Automation).ToList();

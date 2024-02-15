@@ -8,6 +8,7 @@ using Horde.Server.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using EpicGames.Horde.Users;
+using System.Threading;
 
 namespace Horde.Server.Users
 {
@@ -47,7 +48,7 @@ namespace Horde.Server.Users
 		[HttpGet]
 		[Route("/api/v1/users/{id}")]
 		[ProducesResponseType(typeof(List<GetUserResponse>), 200)]
-		public async Task<ActionResult<object>> GetUserAsync(string id, [FromQuery] PropertyFilter? filter = null)
+		public async Task<ActionResult<object>> GetUserAsync(string id, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
 			UserId? userId = ParseUserId(id);
 			if(userId == null)
@@ -55,15 +56,15 @@ namespace Horde.Server.Users
 				return BadRequest("Invalid user id '{Id}'", id);
 			}
 
-			IUser? user = await UserCollection.GetUserAsync(userId.Value);
+			IUser? user = await UserCollection.GetUserAsync(userId.Value, cancellationToken);
 			if (user == null)
 			{
 				return NotFound(userId.Value);
 			}
 
-			IAvatar? avatar = (AvatarService == null) ? (IAvatar?)null : await AvatarService.GetAvatarAsync(user);
-			IUserClaims? claims = await UserCollection.GetClaimsAsync(user.Id);
-			IUserSettings? settings = await UserCollection.GetSettingsAsync(user.Id);
+			IAvatar? avatar = (AvatarService == null) ? (IAvatar?)null : await AvatarService.GetAvatarAsync(user, cancellationToken);
+			IUserClaims? claims = await UserCollection.GetClaimsAsync(user.Id, cancellationToken);
+			IUserSettings? settings = await UserCollection.GetSettingsAsync(user.Id, cancellationToken);
 			return PropertyFilter.Apply(user.ToApiResponse(avatar, claims, settings), filter);
 		}
 
@@ -80,7 +81,8 @@ namespace Horde.Server.Users
 			[FromQuery] int index = 0,
 			[FromQuery] int count = 100,
 			[FromQuery] bool includeClaims = false,
-			[FromQuery] bool includeAvatar = false)
+			[FromQuery] bool includeAvatar = false,
+			CancellationToken cancellationToken = default)
 		{
 
 			UserId[]? userIds = null;
@@ -89,13 +91,13 @@ namespace Horde.Server.Users
 				userIds = ids.Select(x => UserId.Parse(x)).ToArray();
 			}
 
-			List<IUser> users = await UserCollection.FindUsersAsync(userIds, nameRegex, index, count);
+			IReadOnlyList<IUser> users = await UserCollection.FindUsersAsync(userIds, nameRegex, index, count, cancellationToken);
 
 			List<GetUserResponse> response = new List<GetUserResponse>();
 			foreach (IUser user in users)
 			{
-				IAvatar? avatar = (AvatarService == null || !includeAvatar) ? (IAvatar?)null : await AvatarService.GetAvatarAsync(user);
-				IUserClaims? claims = (!includeClaims) ? null : await UserCollection.GetClaimsAsync(user.Id);
+				IAvatar? avatar = (AvatarService == null || !includeAvatar) ? (IAvatar?)null : await AvatarService.GetAvatarAsync(user, cancellationToken);
+				IUserClaims? claims = (!includeClaims) ? null : await UserCollection.GetClaimsAsync(user.Id, cancellationToken);
 				response.Add(user.ToApiResponse(avatar, claims, null));
 			}
 

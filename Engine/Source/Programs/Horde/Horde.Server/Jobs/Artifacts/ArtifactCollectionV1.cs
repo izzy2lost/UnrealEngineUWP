@@ -3,15 +3,15 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Core;
+using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Storage;
 using Horde.Server.Server;
-using Horde.Server.Utilities;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
-using EpicGames.Horde.Storage;
-using EpicGames.Horde.Jobs;
-using EpicGames.Core;
 
 namespace Horde.Server.Jobs.Artifacts
 {
@@ -73,35 +73,21 @@ namespace Horde.Server.Jobs.Artifacts
 			_artifacts = mongoService.GetCollection<Artifact>("Artifacts", keys => keys.Ascending(x => x.JobId));
 		}
 
-		/// <summary>
-		/// Creates a new artifact
-		/// </summary>
-		/// <param name="jobId">Unique id of the job that owns this artifact</param>
-		/// <param name="stepId">Optional Step id</param>
-		/// <param name="name">Name of artifact</param>
-		/// <param name="mimeType">Type of artifact</param>
-		/// <param name="data">The data to write</param>
-		/// <returns>The new log file document</returns>
-		public async Task<IArtifactV1> CreateArtifactAsync(JobId jobId, JobStepId? stepId, string name, string mimeType, System.IO.Stream data)
+		/// <inheritdoc/>
+		public async Task<IArtifactV1> CreateArtifactAsync(JobId jobId, JobStepId? stepId, string name, string mimeType, System.IO.Stream data, CancellationToken cancellationToken)
 		{
 			// upload first
 			string artifactName = ValidateName(name);
-			await _objectStore.WriteAsync(GetObjectKey(jobId, stepId, artifactName), data);
+			await _objectStore.WriteAsync(GetObjectKey(jobId, stepId, artifactName), data, cancellationToken);
 
 			// then create entry
 			Artifact newArtifact = new Artifact(jobId, stepId, artifactName, data.Length, mimeType);
-			await _artifacts.InsertOneAsync(newArtifact);
+			await _artifacts.InsertOneAsync(newArtifact, (InsertOneOptions?)null, cancellationToken);
 			return newArtifact;
 		}
 
-		/// <summary>
-		/// Gets all the available artifacts for a job
-		/// </summary>
-		/// <param name="jobId">Unique id of the job to query</param>
-		/// <param name="stepId">Unique id of the Step to query</param>
-		/// <param name="name">Name of the artifact</param>
-		/// <returns>List of artifact documents</returns>
-		public async Task<List<IArtifactV1>> GetArtifactsAsync(JobId? jobId, JobStepId? stepId, string? name)
+		/// <inheritdoc/>
+		public async Task<IReadOnlyList<IArtifactV1>> GetArtifactsAsync(JobId? jobId, JobStepId? stepId, string? name, CancellationToken cancellationToken)
 		{
 			FilterDefinitionBuilder<Artifact> builder = Builders<Artifact>.Filter;
 
@@ -119,32 +105,24 @@ namespace Horde.Server.Jobs.Artifacts
 				filter &= builder.Eq(x => x.Name, name);
 			}
 
-			return await _artifacts.Find(filter).ToListAsync<Artifact, IArtifactV1>();
+			return await _artifacts.Find(filter).ToListAsync(cancellationToken);
 		}
 
-		/// <summary>
-		/// Gets a specific list of artifacts based on id
-		/// </summary>
-		/// <param name="artifactIds">The list of artifact Ids</param>
-		/// <returns>List of artifact documents</returns>
-		public async Task<List<IArtifactV1>> GetArtifactsAsync(IEnumerable<ObjectId> artifactIds)
+		/// <inheritdoc/>
+		public async Task<IReadOnlyList<IArtifactV1>> GetArtifactsAsync(IEnumerable<ObjectId> artifactIds, CancellationToken cancellationToken)
 		{
 			FilterDefinitionBuilder<Artifact> builder = Builders<Artifact>.Filter;
 
 			FilterDefinition<Artifact> filter = FilterDefinition<Artifact>.Empty;
 			filter &= builder.In(x => x.Id, artifactIds);
-			
-			return await _artifacts.Find(filter).ToListAsync<Artifact, IArtifactV1>();
+
+			return await _artifacts.Find(filter).ToListAsync(cancellationToken);
 		}
 
-		/// <summary>
-		/// Gets an artifact by ID
-		/// </summary>
-		/// <param name="artifactId">Unique id of the artifact</param>
-		/// <returns>The artifact document</returns>
-		public async Task<IArtifactV1?> GetArtifactAsync(ObjectId artifactId)
+		/// <inheritdoc/>
+		public async Task<IArtifactV1?> GetArtifactAsync(ObjectId artifactId, CancellationToken cancellationToken)
 		{
-			return await _artifacts.Find<Artifact>(x => x.Id == artifactId).FirstOrDefaultAsync();
+			return await _artifacts.Find<Artifact>(x => x.Id == artifactId).FirstOrDefaultAsync(cancellationToken);
 		}
 
 		/// <summary>
@@ -152,10 +130,11 @@ namespace Horde.Server.Jobs.Artifacts
 		/// </summary>
 		/// <param name="current">The current artifact document</param>
 		/// <param name="update">The update definition</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>True if the document was updated, false if another writer updated the document first</returns>
-		private async Task<bool> TryUpdateArtifactAsync(Artifact current, UpdateDefinition<Artifact> update)
+		private async Task<bool> TryUpdateArtifactAsync(Artifact current, UpdateDefinition<Artifact> update, CancellationToken cancellationToken)
 		{
-			UpdateResult result = await _artifacts.UpdateOneAsync<Artifact>(x => x.Id == current.Id && x.UpdateIndex == current.UpdateIndex, update.Set(x => x.UpdateIndex, current.UpdateIndex + 1));
+			UpdateResult result = await _artifacts.UpdateOneAsync<Artifact>(x => x.Id == current.Id && x.UpdateIndex == current.UpdateIndex, update.Set(x => x.UpdateIndex, current.UpdateIndex + 1), cancellationToken: cancellationToken);
 			return result.ModifiedCount == 1;
 		}
 
@@ -165,8 +144,9 @@ namespace Horde.Server.Jobs.Artifacts
 		/// <param name="artifact">The artifact</param>
 		/// <param name="newMimeType">New mime type</param>
 		/// <param name="newData">New data</param>
+		/// <param name="cancellationToken"></param>
 		/// <returns>Async task</returns>
-		public async Task<bool> UpdateArtifactAsync(IArtifactV1? artifact, string newMimeType, System.IO.Stream newData)
+		public async Task<bool> UpdateArtifactAsync(IArtifactV1? artifact, string newMimeType, System.IO.Stream newData, CancellationToken cancellationToken)
 		{
 			while (artifact != null)
 			{
@@ -178,14 +158,14 @@ namespace Horde.Server.Jobs.Artifacts
 
 				// re-upload the data to external
 				string artifactName = ValidateName(artifact.Name);
-				await _objectStore.WriteAsync(GetObjectKey(artifact.JobId, artifact.StepId, artifactName), newData);
+				await _objectStore.WriteAsync(GetObjectKey(artifact.JobId, artifact.StepId, artifactName), newData, cancellationToken);
 
-				if (await TryUpdateArtifactAsync((Artifact)artifact, updateBuilder.Combine(updates)))
+				if (await TryUpdateArtifactAsync((Artifact)artifact, updateBuilder.Combine(updates), cancellationToken))
 				{
 					return true;
 				}
 
-				artifact = await GetArtifactAsync(artifact.Id);
+				artifact = await GetArtifactAsync(artifact.Id, cancellationToken);
 			}
 			return false;
 		}
@@ -194,10 +174,11 @@ namespace Horde.Server.Jobs.Artifacts
 		/// gets artifact data
 		/// </summary>
 		/// <param name="artifact">The artifact</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The chunk data</returns>
-		public async Task<System.IO.Stream> OpenArtifactReadStreamAsync(IArtifactV1 artifact)
+		public async Task<System.IO.Stream> OpenArtifactReadStreamAsync(IArtifactV1 artifact, CancellationToken cancellationToken)
 		{
-			System.IO.Stream stream = await _objectStore.OpenAsync(GetObjectKey(artifact.JobId, artifact.StepId, artifact.Name));
+			System.IO.Stream stream = await _objectStore.OpenAsync(GetObjectKey(artifact.JobId, artifact.StepId, artifact.Name), cancellationToken);
 			return stream;
 		}
 

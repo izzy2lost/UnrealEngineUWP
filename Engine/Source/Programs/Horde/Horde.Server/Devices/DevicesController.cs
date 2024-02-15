@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Devices;
 using EpicGames.Horde.Jobs;
@@ -51,7 +52,7 @@ namespace Horde.Server.Devices
 		[HttpPost]
 		[Authorize]
 		[Route("/api/v2/devices")]
-		public async Task<ActionResult<CreateDeviceResponse>> CreateDeviceAsync([FromBody] CreateDeviceRequest deviceRequest)
+		public async Task<ActionResult<CreateDeviceResponse>> CreateDeviceAsync([FromBody] CreateDeviceRequest deviceRequest, CancellationToken cancellationToken = default)
 		{
 			DevicePoolAuthorization? poolAuth = _deviceService.GetUserPoolAuthorization(new DevicePoolId(deviceRequest.PoolId!), User, _globalConfig.CurrentValue);
 
@@ -60,7 +61,7 @@ namespace Horde.Server.Devices
 				return Forbid();
 			}
 
-			IUser? internalUser = await _userCollection.GetUserAsync(User);
+			IUser? internalUser = await _userCollection.GetUserAsync(User, cancellationToken);
 			if (internalUser == null)
 			{
 				return NotFound();
@@ -183,9 +184,9 @@ namespace Horde.Server.Devices
 		[Authorize]
 		[Route("/api/v2/devices/{deviceId}")]
 		[ProducesResponseType(typeof(List<GetDeviceResponse>), 200)]
-		public async Task<ActionResult> UpdateDeviceAsync(string deviceId, [FromBody] UpdateDeviceRequest update)
+		public async Task<ActionResult> UpdateDeviceAsync(string deviceId, [FromBody] UpdateDeviceRequest update, CancellationToken cancellationToken = default)
 		{
-			IUser? internalUser = await _userCollection.GetUserAsync(User);
+			IUser? internalUser = await _userCollection.GetUserAsync(User, cancellationToken);
 			if (internalUser == null)
 			{
 				return NotFound();
@@ -248,10 +249,10 @@ namespace Horde.Server.Devices
 		[Authorize]
 		[Route("/api/v2/devices/{deviceId}/checkout")]
 		[ProducesResponseType(typeof(List<GetDeviceResponse>), 200)]
-		public async Task<ActionResult> CheckoutDeviceAsync(string deviceId, [FromBody] CheckoutDeviceRequest request)
+		public async Task<ActionResult> CheckoutDeviceAsync(string deviceId, [FromBody] CheckoutDeviceRequest request, CancellationToken cancellationToken)
 		{
 
-			IUser? internalUser = await _userCollection.GetUserAsync(User);
+			IUser? internalUser = await _userCollection.GetUserAsync(User, cancellationToken);
 			if (internalUser == null)
 			{
 				return NotFound();

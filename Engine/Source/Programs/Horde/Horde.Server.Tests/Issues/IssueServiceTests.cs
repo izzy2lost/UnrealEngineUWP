@@ -383,7 +383,7 @@ namespace Horde.Server.Tests.Issues
 				await AddEventAsync(job, 0, 0, LogLevel.Warning);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Warnings);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 
 				Assert.AreEqual("Warnings in Update Version Files", issues[0].Summary);
@@ -396,7 +396,7 @@ namespace Horde.Server.Tests.Issues
 				UpdateConfig(x => x.Projects.Clear());
 				await Clock.AdvanceAsync(TimeSpan.FromHours(1.0));
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, issues.Count);
 			}
 		}
@@ -414,7 +414,7 @@ namespace Horde.Server.Tests.Issues
 				IJobStepRef? stepRef = await JobStepRefCollection.FindAsync(job.Id, job.Batches[0].Id, job.Batches[0].Steps[0].Id);
 				
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 
 				Assert.AreEqual("Warnings in Update Version Files", issues[0].Summary);
@@ -465,14 +465,14 @@ namespace Horde.Server.Tests.Issues
 				await AddEventAsync(job, 0, 3, LogLevel.Warning);
 				await UpdateCompleteStepAsync(job, 0, 3, JobStepOutcome.Warnings);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(4, issues.Count);
 			}
 
 			// #5
 			// Add a description to the issue
 			{
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 
 				IIssue issue = issues[0];
 				await IssueService.UpdateIssueAsync(issue.Id, description: "Hello world!");
@@ -492,7 +492,7 @@ namespace Horde.Server.Tests.Issues
 				await AddEventAsync(job, 0, 0, LogLevel.Warning);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Warnings);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 				Assert.AreEqual(IssueSeverity.Warning, issues[0].Severity);
 
@@ -507,7 +507,7 @@ namespace Horde.Server.Tests.Issues
 				await AddEventAsync(job, 0, 0, LogLevel.Error);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 				Assert.AreEqual(IssueSeverity.Error, issues[0].Severity);
 
@@ -539,7 +539,7 @@ namespace Horde.Server.Tests.Issues
 				await ParseEventsAsync(job, 0, 0, lines);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(2, issues.Count);
 				Assert.AreEqual(IssueSeverity.Error, issues[0].Severity);
 				Assert.AreEqual(IssueSeverity.Warning, issues[1].Severity);
@@ -559,7 +559,7 @@ namespace Horde.Server.Tests.Issues
 				IJob job = CreateJob(_mainStreamId, 105, "Test Build", _graph);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Success);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, issues.Count);
 			}
 
@@ -580,7 +580,7 @@ namespace Horde.Server.Tests.Issues
 				}
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Warnings);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 				Assert.AreEqual(IssueSeverity.Warning, issues[0].Severity);
 				Assert.AreEqual("PerforceCase", issues[0].Fingerprints[0].Type);
@@ -601,7 +601,7 @@ namespace Horde.Server.Tests.Issues
 				IJob job = CreateJob(_mainStreamId, 105, "Test Build", _graph);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Success);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, issues.Count);
 			}
 
@@ -630,7 +630,7 @@ namespace Horde.Server.Tests.Issues
 				await ParseEventsAsync(job, 0, 0, lines);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 				Assert.AreEqual(IssueSeverity.Error, issues[0].Severity);
 				Assert.AreEqual("Shader", issues[0].Fingerprints[0].Type);
@@ -651,10 +651,10 @@ namespace Horde.Server.Tests.Issues
 				IJob job = CreateJob(_mainStreamId, 105, "Test Build", _graph);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Success);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, issues.Count);
 
-				List<IIssue> openIssues = await IssueCollection.FindIssuesAsync(resolved: false);
+				IReadOnlyList<IIssue> openIssues = await IssueCollection.FindIssuesAsync(resolved: false);
 				Assert.AreEqual(0, openIssues.Count);
 			}
 
@@ -677,11 +677,11 @@ namespace Horde.Server.Tests.Issues
 				Assert.AreEqual(1, events.Count);
 				Assert.AreEqual(2, events[0].LineCount);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 
 				IIssue issue = issues[0];
-				List<IIssueSpan> spans = await IssueCollection.FindSpansAsync(issue.Id);
+				IReadOnlyList<IIssueSpan> spans = await IssueCollection.FindSpansAsync(issue.Id);
 				Assert.AreEqual(1, spans.Count);
 				Assert.AreEqual(1, issue.Fingerprints.Count);
 				Assert.AreEqual("Compile", issue.Fingerprints[0].Type);
@@ -699,10 +699,10 @@ namespace Horde.Server.Tests.Issues
 				IJob job = CreateJob(_mainStreamId, 105, "Test Build", _graph);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Success);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, issues.Count);
 
-				List<IIssue> openIssues = await IssueCollection.FindIssuesAsync(resolved: false);
+				IReadOnlyList<IIssue> openIssues = await IssueCollection.FindIssuesAsync(resolved: false);
 				Assert.AreEqual(0, openIssues.Count);
 			}
 
@@ -719,7 +719,7 @@ namespace Horde.Server.Tests.Issues
 				Assert.AreEqual(1, events.Count);
 				Assert.AreEqual(1, events[0].LineCount);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 			}
 		}
@@ -734,10 +734,10 @@ namespace Horde.Server.Tests.Issues
 				IJob job = CreateJob(_mainStreamId, 105, "Test Build", _graph);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Success);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, issues.Count);
 
-				List<IIssue> openIssues = await IssueCollection.FindIssuesAsync(resolved: false);
+				IReadOnlyList<IIssue> openIssues = await IssueCollection.FindIssuesAsync(resolved: false);
 				Assert.AreEqual(0, openIssues.Count);
 			}
 
@@ -754,11 +754,11 @@ namespace Horde.Server.Tests.Issues
 				await ParseEventsAsync(job, 0, 0, lines);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 
 				IIssue issue = issues[0];
-				List<IIssueSpan> spans = await IssueCollection.FindSpansAsync(issue.Id);
+				IReadOnlyList<IIssueSpan> spans = await IssueCollection.FindSpansAsync(issue.Id);
 				Assert.AreEqual(1, spans.Count);
 				Assert.AreEqual(1, issue.Fingerprints.Count);
 				Assert.AreEqual("Compile", issue.Fingerprints[0].Type);
@@ -784,7 +784,7 @@ namespace Horde.Server.Tests.Issues
 				Assert.AreEqual(_timId, suspects[0].AuthorId);
 				//				Assert.AreEqual(null, Suspects[0].OriginatingChange);
 
-				List<IIssue> openIssues = await IssueCollection.FindIssuesAsync(resolved: false);
+				IReadOnlyList<IIssue> openIssues = await IssueCollection.FindIssuesAsync(resolved: false);
 				Assert.AreEqual(1, openIssues.Count);
 			}
 
@@ -795,11 +795,11 @@ namespace Horde.Server.Tests.Issues
 				IJob job = CreateJob(_mainStreamId, 110, "Test Build", _graph);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Success);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 
 				IIssue issue = issues[0];
-				List<IIssueSpan> spans = await IssueCollection.FindSpansAsync(issue.Id);
+				IReadOnlyList<IIssueSpan> spans = await IssueCollection.FindSpansAsync(issue.Id);
 				Assert.AreEqual(spans.Count, 1);
 
 				IIssueSpan stream = spans[0];
@@ -815,7 +815,7 @@ namespace Horde.Server.Tests.Issues
 				Assert.AreEqual(75, suspects[1].Change);
 				Assert.AreEqual(_jerryId, suspects[1].AuthorId);
 
-				List<IIssue> openIssues = await IssueCollection.FindIssuesAsync(resolved: false);
+				IReadOnlyList<IIssue> openIssues = await IssueCollection.FindIssuesAsync(resolved: false);
 				Assert.AreEqual(1, openIssues.Count);
 			}
 
@@ -826,18 +826,18 @@ namespace Horde.Server.Tests.Issues
 				IJob job = CreateJob(_mainStreamId, 125, "Test Build", _graph);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Success);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync(resolved: true);
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync(resolved: true);
 				Assert.AreEqual(1, issues.Count);
 
 				IIssue issue = issues[0];
-				List<IIssueSpan> spans = await IssueCollection.FindSpansAsync(issue.Id);
+				IReadOnlyList<IIssueSpan> spans = await IssueCollection.FindSpansAsync(issue.Id);
 				Assert.AreEqual(spans.Count, 1);
 
 				IIssueSpan stream = spans[0];
 				Assert.AreEqual(110, stream.LastSuccess?.Change);
 				Assert.AreEqual(125, stream.NextSuccess?.Change);
 
-				List<IIssue> openIssues = await IssueCollection.FindIssuesAsync(resolved: false);
+				IReadOnlyList<IIssue> openIssues = await IssueCollection.FindIssuesAsync(resolved: false);
 				Assert.AreEqual(0, openIssues.Count);
 			}
 
@@ -854,18 +854,18 @@ namespace Horde.Server.Tests.Issues
 				await ParseEventsAsync(job, 0, 0, lines);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync(resolved: true);
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync(resolved: true);
 				Assert.AreEqual(1, issues.Count);
 
 				IIssue issue = issues[0];
-				List<IIssueSpan> spans = await IssueCollection.FindSpansAsync(issue.Id);
+				IReadOnlyList<IIssueSpan> spans = await IssueCollection.FindSpansAsync(issue.Id);
 				Assert.AreEqual(1, spans.Count);
 
 				IIssueSpan span = spans[0];
 				Assert.AreEqual(110, span.LastSuccess?.Change);
 				Assert.AreEqual(125, span.NextSuccess?.Change);
 
-				List<IIssueStep> steps = await IssueCollection.FindStepsAsync(span.Id);
+				IReadOnlyList<IIssueStep> steps = await IssueCollection.FindStepsAsync(span.Id);
 				Assert.AreEqual(2, steps.Count);
 			}
 
@@ -877,10 +877,10 @@ namespace Horde.Server.Tests.Issues
 				await AddEventAsync(job, 0, 1, LogLevel.Error);
 				await UpdateCompleteStepAsync(job, 0, 1, JobStepOutcome.Failure);
 
-				List<IIssue> resolvedIssues = await IssueCollection.FindIssuesAsync(resolved: true);
+				IReadOnlyList<IIssue> resolvedIssues = await IssueCollection.FindIssuesAsync(resolved: true);
 				Assert.AreEqual(1, resolvedIssues.Count);
 
-				List<IIssue> unresolvedIssues = await IssueCollection.FindIssuesAsync(resolved: false);
+				IReadOnlyList<IIssue> unresolvedIssues = await IssueCollection.FindIssuesAsync(resolved: false);
 				Assert.AreEqual(1, unresolvedIssues.Count);
 			}
 		}
@@ -895,7 +895,7 @@ namespace Horde.Server.Tests.Issues
 				IJob job = CreateJob(_mainStreamId, 105, "Compile Test", _graph);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Success);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, issues.Count);
 			}
 
@@ -916,11 +916,11 @@ namespace Horde.Server.Tests.Issues
 				await ParseEventsAsync(job, 0, 0, lines);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 				Assert.IsTrue(issues[0].Promoted);
 
-				List<IIssueSuspect> suspects = await IssueCollection.FindSuspectsAsync(issues[0]);
+				IReadOnlyList<IIssueSuspect> suspects = await IssueCollection.FindSuspectsAsync(issues[0]);
 
 				List<UserId> primarySuspects = suspects.Select(x => x.AuthorId).ToList();
 				Assert.AreEqual(2, primarySuspects.Count);
@@ -935,7 +935,7 @@ namespace Horde.Server.Tests.Issues
 				IJob job = CreateJob(_mainStreamId, 115, "Compile Test", _graph);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Success);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 
 				IIssue issue = issues[0];
@@ -957,7 +957,7 @@ namespace Horde.Server.Tests.Issues
 				IJob job = CreateJob(_mainStreamId, 105, "Compile Test", _graph);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Success);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, issues.Count);
 			}
 
@@ -978,7 +978,7 @@ namespace Horde.Server.Tests.Issues
 				await ParseEventsAsync(job, 0, 0, lines);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 				Assert.IsFalse(issues[0].Promoted);
 
@@ -1000,7 +1000,7 @@ namespace Horde.Server.Tests.Issues
 				IJob job = CreateJob(_mainStreamId, 105, "Compile Test", _graph);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Success);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, issues.Count);
 			}
 
@@ -1021,7 +1021,7 @@ namespace Horde.Server.Tests.Issues
 				await ParseEventsAsync(job, 0, 0, lines);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 				Assert.IsTrue(issues[0].Promoted);
 
@@ -1056,7 +1056,7 @@ namespace Horde.Server.Tests.Issues
 			await ParseEventsAsync(job1, 0, 0, lines1);
 			await UpdateCompleteStepAsync(job1, 0, 0, JobStepOutcome.Failure);
 
-			List<IIssue> issues1 = await IssueCollection.FindIssuesAsync();
+			IReadOnlyList<IIssue> issues1 = await IssueCollection.FindIssuesAsync();
 			Assert.AreEqual(1, issues1.Count);
 
 			IIssue issue1 = issues1[0];
@@ -1090,7 +1090,7 @@ namespace Horde.Server.Tests.Issues
 			await ParseEventsAsync(job2, 0, 0, lines2);
 			await UpdateCompleteStepAsync(job2, 0, 0, JobStepOutcome.Failure);
 
-			List<IIssue> issues2 = await IssueCollection.FindIssuesAsync();
+			IReadOnlyList<IIssue> issues2 = await IssueCollection.FindIssuesAsync();
 			Assert.AreEqual(1, issues2.Count);
 			Assert.AreEqual(issues2[0].Id, issues1[0].Id);
 		}
@@ -1112,7 +1112,7 @@ namespace Horde.Server.Tests.Issues
 			await ParseEventsAsync(job, 0, 4, lines);
 			await UpdateCompleteStepAsync(job, 0, 4, JobStepOutcome.Failure);
 
-			List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+			IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 			Assert.AreEqual(1, issues.Count);
 
 			IIssue issue = issues[0];
@@ -1129,7 +1129,7 @@ namespace Horde.Server.Tests.Issues
 				IJob job = CreateJob(_mainStreamId, 105, "Compile Test", _graph);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Success);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, issues.Count);
 			}
 
@@ -1147,7 +1147,7 @@ namespace Horde.Server.Tests.Issues
 				await ParseEventsAsync(job, 0, 0, lines);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 
 				IIssue issue = issues[0];
@@ -1175,7 +1175,7 @@ namespace Horde.Server.Tests.Issues
 			await ParseEventsAsync(job, 0, 0, lines);
 			await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
-			List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+			IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 			Assert.AreEqual(1, issues.Count);
 
 			IIssueFingerprint fingerprint = issues[0].Fingerprints[0];
@@ -1194,7 +1194,7 @@ namespace Horde.Server.Tests.Issues
 				IJob job = CreateJob(_mainStreamId, 105, "Compile Test", _graph);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Success);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, issues.Count);
 			}
 
@@ -1216,10 +1216,10 @@ namespace Horde.Server.Tests.Issues
 				await ParseEventsAsync(job, 0, 0, lines);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 
-				List<IIssueSuspect> suspects = await IssueCollection.FindSuspectsAsync(issues[0]);
+				IReadOnlyList<IIssueSuspect> suspects = await IssueCollection.FindSuspectsAsync(issues[0]);
 
 				List<UserId> primarySuspects = suspects.Select(x => x.AuthorId).ToList();
 				Assert.AreEqual(1, primarySuspects.Count);
@@ -1237,7 +1237,7 @@ namespace Horde.Server.Tests.Issues
 				IJob job = CreateJob(_mainStreamId, 105, "Compile Test", _graph);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Success);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, issues.Count);
 			}
 
@@ -1258,10 +1258,10 @@ namespace Horde.Server.Tests.Issues
 				await ParseEventsAsync(job, 0, 0, lines);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 
-				List<IIssueSuspect> suspects = await IssueCollection.FindSuspectsAsync(issues[0]);
+				IReadOnlyList<IIssueSuspect> suspects = await IssueCollection.FindSuspectsAsync(issues[0]);
 
 				List<UserId> primarySuspects = suspects.Select(x => x.AuthorId).ToList();
 				Assert.AreEqual(2, primarySuspects.Count);
@@ -1273,14 +1273,14 @@ namespace Horde.Server.Tests.Issues
 			// Scenario: Tim declines the issue
 			// Expected: Only suspect is Jerry, but owner is still unassigned
 			{
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 				await IssueService.UpdateIssueAsync(issues[0].Id, declinedById: _timId);
 
 				issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 
-				List<IIssueSuspect> suspects = await IssueCollection.FindSuspectsAsync(issues[0]);
+				IReadOnlyList<IIssueSuspect> suspects = await IssueCollection.FindSuspectsAsync(issues[0]);
 
 				List<UserId> primarySuspects = suspects.Where(x => x.DeclinedAt == null).Select(x => x.AuthorId).ToList();
 				Assert.AreEqual(1, primarySuspects.Count);
@@ -1299,7 +1299,7 @@ namespace Horde.Server.Tests.Issues
 			});
 			await UpdateCompleteStepAsync(job1, 0, 0, JobStepOutcome.Failure);
 
-			List<IIssue> issues1 = await IssueCollection.FindIssuesAsync();
+			IReadOnlyList<IIssue> issues1 = await IssueCollection.FindIssuesAsync();
 			Assert.AreEqual(1, issues1.Count);
 			Assert.AreEqual("Warnings in Phsyarum_BP.uasset", issues1[0].Summary);
 
@@ -1312,8 +1312,8 @@ namespace Horde.Server.Tests.Issues
 			});
 			await UpdateCompleteStepAsync(job2, 0, 0, JobStepOutcome.Failure);
 
-			List<IIssue> issues2 = await IssueCollection.FindIssuesAsync();
-			issues2.SortBy(x => x.Id);
+			IReadOnlyList<IIssue> issues2 = await IssueCollection.FindIssuesAsync();
+			issues2 = issues2.OrderBy(x => x.Id).ToList();
 			Assert.AreEqual(2, issues2.Count);
 			Assert.AreEqual("Warnings in Phsyarum_BP.uasset", issues2[0].Summary);
 			Assert.AreEqual("Warnings in Phsyarum_BP2.uasset", issues2[1].Summary);
@@ -1330,7 +1330,7 @@ namespace Horde.Server.Tests.Issues
 			await ParseEventsAsync(job, 0, 1, new[] { "Warning: This is a warning from the editor" });
 			await UpdateCompleteStepAsync(job, 0, 1, JobStepOutcome.Failure);
 
-			List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+			IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 			Assert.AreEqual(1, issues.Count);
 
 			IIssue issue = issues[0];
@@ -1348,8 +1348,8 @@ namespace Horde.Server.Tests.Issues
 			await ParseEventsAsync(job, 0, 1, new[] { "Warning: This is a warning from the editor2" });
 			await UpdateCompleteStepAsync(job, 0, 1, JobStepOutcome.Failure);
 
-			List<IIssue> issues = await IssueCollection.FindIssuesAsync();
-			issues.SortBy(x => x.Id);
+			IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
+			issues = issues.OrderBy(x => x.Id).ToList();
 			Assert.AreEqual(2, issues.Count);
 
 			Assert.AreEqual("Warnings in Update Version Files", issues[0].Summary);
@@ -1367,7 +1367,7 @@ namespace Horde.Server.Tests.Issues
 			await ParseEventsAsync(job, 0, 1, new[] { "Assertion failed: 1 == 2 [File:C:\\build\\++UE5+Inc\\Sync\\Engine\\Source\\Runtime\\Core\\Tests\\Misc\\AssertionMacrosTest.cpp] [Line: 119]" });
 			await UpdateCompleteStepAsync(job, 0, 1, JobStepOutcome.Failure);
 
-			List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+			IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 			Assert.AreEqual(1, issues.Count);
 
 			IIssue issue = issues[0];			
@@ -1385,7 +1385,7 @@ namespace Horde.Server.Tests.Issues
 			await ParseEventsAsync(job, 0, 1, new[] { "LogSomething: Warning: This is a warning from the editor" });
 			await UpdateCompleteStepAsync(job, 0, 1, JobStepOutcome.Failure);
 
-			List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+			IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 			Assert.AreEqual(2, issues.Count);
 
 			Assert.AreEqual("Hashed", issues[0].Fingerprints[0].Type);
@@ -1404,7 +1404,7 @@ namespace Horde.Server.Tests.Issues
 				IJob job = CreateJob(_mainStreamId, 105, "Test Build", _graph);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Success);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, issues.Count);
 			}
 
@@ -1413,7 +1413,7 @@ namespace Horde.Server.Tests.Issues
 			// Expected: Creates single issue
 			{
 				IJob job;
-				List<IIssue> issues;
+				IReadOnlyList<IIssue> issues;
 
 				string[] lines1 =
 				{
@@ -1494,7 +1494,7 @@ namespace Horde.Server.Tests.Issues
 				IJob job = CreateJob(_mainStreamId, 105, "Test Build", _graph);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Success);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, issues.Count);
 			}
 
@@ -1511,11 +1511,11 @@ namespace Horde.Server.Tests.Issues
 				await ParseEventsAsync(job, 0, 0, lines);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 
 				IIssue issue = issues[0];
-				List<IIssueSpan> spans = await IssueCollection.FindSpansAsync(issue.Id);
+				IReadOnlyList<IIssueSpan> spans = await IssueCollection.FindSpansAsync(issue.Id);
 				Assert.AreEqual(spans.Count, 1);
 				Assert.AreEqual(issue.Fingerprints.Count, 1);
 				Assert.AreEqual(issue.Fingerprints[0].Type, "Symbol");
@@ -1524,7 +1524,7 @@ namespace Horde.Server.Tests.Issues
 				Assert.AreEqual(105, stream.LastSuccess?.Change);
 				Assert.AreEqual(null, stream.NextSuccess?.Change);
 
-				List<IIssueSuspect> suspects = await IssueCollection.FindSuspectsAsync(issues[0]);
+				IReadOnlyList<IIssueSuspect> suspects = await IssueCollection.FindSuspectsAsync(issues[0]);
 
 				List<UserId> primarySuspects = suspects.Select(x => x.AuthorId).ToList();
 				Assert.AreEqual(1, primarySuspects.Count);
@@ -1542,7 +1542,7 @@ namespace Horde.Server.Tests.Issues
 				IJob job = CreateJob(_mainStreamId, 105, "Test Build", _graph);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Success);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, issues.Count);
 			}
 
@@ -1574,11 +1574,11 @@ namespace Horde.Server.Tests.Issues
 				await ParseEventsAsync(job, 0, 1, lines2);
 				await UpdateCompleteStepAsync(job, 0, 1, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 
 				IIssue issue = issues[0];
-				List<IIssueSpan> spans = await IssueCollection.FindSpansAsync(issue.Id);
+				IReadOnlyList<IIssueSpan> spans = await IssueCollection.FindSpansAsync(issue.Id);
 				Assert.AreEqual(spans.Count, 2);
 				Assert.AreEqual(issue.Fingerprints.Count, 1);
 				Assert.AreEqual(issue.Fingerprints[0].Type, "Symbol");
@@ -1603,7 +1603,7 @@ namespace Horde.Server.Tests.Issues
 				IJob job = CreateJob(_mainStreamId, 105, "Test Build", _graph);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Success);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, issues.Count);
 			}
 
@@ -1621,11 +1621,11 @@ namespace Horde.Server.Tests.Issues
 				await ParseEventsAsync(job, 0, 0, lines);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 
 				IIssue issue = issues[0];
-				List<IIssueSpan> spans = await IssueCollection.FindSpansAsync(issue.Id);
+				IReadOnlyList<IIssueSpan> spans = await IssueCollection.FindSpansAsync(issue.Id);
 				Assert.AreEqual(1, spans.Count);
 				Assert.AreEqual(1, issue.Fingerprints.Count);
 				Assert.AreEqual("Symbol", issue.Fingerprints[0].Type);
@@ -1648,11 +1648,11 @@ namespace Horde.Server.Tests.Issues
 				await ParseEventsAsync(job, 0, 0, lines);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 
 				IIssue issue = issues[0];
-				List<IIssueSpan> spans = await IssueCollection.FindSpansAsync(issue.Id);
+				IReadOnlyList<IIssueSpan> spans = await IssueCollection.FindSpansAsync(issue.Id);
 				Assert.AreEqual(1, spans.Count);
 				Assert.AreEqual(1, issue.Fingerprints.Count);
 				Assert.AreEqual("Hashed", issue.Fingerprints[0].Type);
@@ -1673,7 +1673,7 @@ namespace Horde.Server.Tests.Issues
 				IJob job = CreateJob(_mainStreamId, 105, "Test Build", _graph);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Success);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, issues.Count);
 			}
 
@@ -1692,7 +1692,7 @@ namespace Horde.Server.Tests.Issues
 				await ParseEventsAsync(job, 0, 0, lines);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 
 				IIssue issue = issues[0];
@@ -1714,7 +1714,7 @@ namespace Horde.Server.Tests.Issues
 			await ParseEventsAsync(job, 0, 0, lines);
 			await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
-			List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+			IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 			Assert.AreEqual(1, issues.Count);
 
 			IIssue issue = issues[0];
@@ -1735,7 +1735,7 @@ namespace Horde.Server.Tests.Issues
 				}
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 				Assert.AreEqual("Gauntlet", issues[0].Fingerprints[0].Type);
 				Assert.AreEqual(new IssueKey("test:Bar.Foo.Test", IssueKeyType.None), issues[0].Fingerprints[0].Keys.First());
@@ -1752,7 +1752,7 @@ namespace Horde.Server.Tests.Issues
 				}
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 				Assert.AreEqual("Gauntlet", issues[0].Fingerprints[0].Type);
 				Assert.AreEqual(new IssueKey("device:Foo", IssueKeyType.None), issues[0].Fingerprints[0].Keys.First());
@@ -1770,7 +1770,7 @@ namespace Horde.Server.Tests.Issues
 				}
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 				Assert.AreEqual("Gauntlet", issues[0].Fingerprints[0].Type);
 				Assert.AreEqual(new IssueKey("access:/Bar/Foo.txt", IssueKeyType.None), issues[0].Fingerprints[0].Keys.First());
@@ -1814,7 +1814,7 @@ namespace Horde.Server.Tests.Issues
 				}
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 				Assert.AreEqual("Gauntlet", issues[0].Fingerprints[0].Type);
 				Assert.AreEqual("hash:", issues[0].Fingerprints[0].Keys.First().Name.Substring(0, 5));
@@ -1848,7 +1848,7 @@ namespace Horde.Server.Tests.Issues
 				}
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 				Assert.AreEqual("Gauntlet", issues[0].Fingerprints[0].Type);
 				Assert.AreEqual("hash:", issues[0].Fingerprints[0].Keys.First().Name.Substring(0, 5));
@@ -1866,7 +1866,7 @@ namespace Horde.Server.Tests.Issues
 				IJob job = CreateJob(_mainStreamId, 105, "Test Build", _graph);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Success);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, issues.Count);
 			}
 
@@ -1884,11 +1884,11 @@ namespace Horde.Server.Tests.Issues
 				await ParseEventsAsync(job, 0, 0, lines);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 
 				IIssue issue = issues[0];
-				List<IIssueSpan> spans = await IssueCollection.FindSpansAsync(issue.Id);
+				IReadOnlyList<IIssueSpan> spans = await IssueCollection.FindSpansAsync(issue.Id);
 				Assert.AreEqual(1, spans.Count);
 				Assert.AreEqual(1, issue.Fingerprints.Count);
 				Assert.AreEqual("Compile", issue.Fingerprints[0].Type);
@@ -1907,11 +1907,11 @@ namespace Horde.Server.Tests.Issues
 			await ParseEventsAsync(job, 0, 0, lines);
 			await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
-			List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+			IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 			Assert.AreEqual(1, issues.Count);
 
 			IIssue issue = issues[0];
-			List<IIssueSpan> spans = await IssueCollection.FindSpansAsync(issue.Id);
+			IReadOnlyList<IIssueSpan> spans = await IssueCollection.FindSpansAsync(issue.Id);
 			Assert.AreEqual(1, spans.Count);
 			Assert.AreEqual(1, issue.Fingerprints.Count);
 			Assert.AreEqual("Copyright", issue.Fingerprints[0].Type);
@@ -1934,11 +1934,11 @@ namespace Horde.Server.Tests.Issues
 				await ParseEventsAsync(job, 0, 0, lines);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 
 				issueA = issues[0];
-				List<IIssueSpan> spans = await IssueCollection.FindSpansAsync(issueA.Id);
+				IReadOnlyList<IIssueSpan> spans = await IssueCollection.FindSpansAsync(issueA.Id);
 				Assert.AreEqual(spans.Count, 1);
 				spanA = spans[0];
 			}
@@ -1956,12 +1956,12 @@ namespace Horde.Server.Tests.Issues
 				await ParseEventsAsync(job, 0, 0, lines);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
-				issues.RemoveAll(x => x.Id == issueA.Id);
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				issues = issues.Where(x => x.Id != issueA.Id).ToList();
 				Assert.AreEqual(1, issues.Count);
 
 				issueB = issues[0];
-				List<IIssueSpan> spans = await IssueCollection.FindSpansAsync(issueB.Id);
+				IReadOnlyList<IIssueSpan> spans = await IssueCollection.FindSpansAsync(issueB.Id);
 				Assert.AreEqual(1, spans.Count);
 				spanB = spans[0];
 			}
@@ -1974,7 +1974,7 @@ namespace Horde.Server.Tests.Issues
 				Assert.IsNull(newIssueA.VerifiedAt);
 				Assert.IsNull(newIssueA.ResolvedAt);
 				Assert.AreEqual(2, newIssueA.Fingerprints.Count);
-				List<IIssueSpan> newSpansA = await IssueCollection.FindSpansAsync(newIssueA!.Id);
+				IReadOnlyList<IIssueSpan> newSpansA = await IssueCollection.FindSpansAsync(newIssueA!.Id);
 				Assert.AreEqual(2, newSpansA.Count);
 				Assert.AreEqual(newIssueA.Id, newSpansA[0].IssueId);
 				Assert.AreEqual(newIssueA.Id, newSpansA[1].IssueId);
@@ -1983,7 +1983,7 @@ namespace Horde.Server.Tests.Issues
 				Assert.IsNotNull(newIssueB.VerifiedAt);
 				Assert.IsNotNull(newIssueB.ResolvedAt);
 				Assert.AreEqual(0, newIssueB.Fingerprints.Count);
-				List<IIssueSpan> newSpansB = await IssueCollection.FindSpansAsync(newIssueB.Id);
+				IReadOnlyList<IIssueSpan> newSpansB = await IssueCollection.FindSpansAsync(newIssueB.Id);
 				Assert.AreEqual(0, newSpansB.Count);
 			}
 
@@ -1995,14 +1995,14 @@ namespace Horde.Server.Tests.Issues
 				Assert.IsNotNull(newIssueA.VerifiedAt);
 				Assert.IsNotNull(newIssueA.ResolvedAt);
 				Assert.AreEqual(0, newIssueA.Fingerprints.Count);
-				List<IIssueSpan> newSpansA = await IssueCollection.FindSpansAsync(newIssueA.Id);
+				IReadOnlyList<IIssueSpan> newSpansA = await IssueCollection.FindSpansAsync(newIssueA.Id);
 				Assert.AreEqual(0, newSpansA.Count);
 
 				IIssue newIssueB = (await IssueCollection.GetIssueAsync(issueB.Id))!;
 				Assert.IsNull(newIssueB.VerifiedAt);
 				Assert.IsNull(newIssueB.ResolvedAt);
 				Assert.AreEqual(2, newIssueB.Fingerprints.Count);
-				List<IIssueSpan> newSpansB = await IssueCollection.FindSpansAsync(newIssueB!.Id);
+				IReadOnlyList<IIssueSpan> newSpansB = await IssueCollection.FindSpansAsync(newIssueB!.Id);
 				Assert.AreEqual(2, newSpansB.Count);
 				Assert.AreEqual(newIssueB.Id, newSpansB[0].IssueId);
 				Assert.AreEqual(newIssueB.Id, newSpansB[1].IssueId);
@@ -2024,7 +2024,7 @@ namespace Horde.Server.Tests.Issues
 				await ParseEventsAsync(job, 0, 4, lines);
 				await UpdateCompleteStepAsync(job, 0, 4, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 				Assert.AreEqual("Compile", issues[0].Fingerprints[0].Type);
 			}
@@ -2034,10 +2034,10 @@ namespace Horde.Server.Tests.Issues
 				await ParseEventsAsync(job, 0, 5, lines);
 				await UpdateCompleteStepAsync(job, 0, 5, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(2, issues.Count);
 
-				issues.SortBy(x => x.Id);
+				issues = issues.OrderBy(x => x.Id).ToList();
 				Assert.AreEqual("Compile", issues[0].Fingerprints[0].Type);
 				Assert.AreEqual("Compile:StaticAnalysis", issues[1].Fingerprints[0].Type);
 			}
@@ -2056,7 +2056,7 @@ namespace Horde.Server.Tests.Issues
 				await AddEventAsync(job, 0, 0, LogLevel.Warning);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Warnings);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 				Assert.AreEqual(IssueSeverity.Warning, issues[0].Severity);
 
@@ -2071,7 +2071,7 @@ namespace Horde.Server.Tests.Issues
 			{
 				await IssueService.UpdateIssueAsync(issueId, resolvedById: _bobId);
 
-				List<IIssue> openIssues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> openIssues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, openIssues.Count);
 
 				IIssue issue = (await IssueCollection.GetIssueAsync(issueId))!;
@@ -2088,7 +2088,7 @@ namespace Horde.Server.Tests.Issues
 				await AddEventAsync(job, 0, 0, LogLevel.Warning);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Warnings);
 
-				List<IIssue> openIssues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> openIssues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, openIssues.Count);
 
 				IIssue issue = (await IssueCollection.GetIssueAsync(issueId))!;
@@ -2105,7 +2105,7 @@ namespace Horde.Server.Tests.Issues
 				await AddEventAsync(job, 0, 0, LogLevel.Warning);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Warnings);
 
-				List<IIssue> openIssues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> openIssues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, openIssues.Count);
 
 				IIssue issue = openIssues[0];
@@ -2121,7 +2121,7 @@ namespace Horde.Server.Tests.Issues
 			{
 				await IssueService.UpdateIssueAsync(issueId, resolvedById: _bobId, fixChange: 115);
 
-				List<IIssue> openIssues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> openIssues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, openIssues.Count);
 
 				IIssue issue = (await IssueCollection.GetIssueAsync(issueId))!;
@@ -2138,7 +2138,7 @@ namespace Horde.Server.Tests.Issues
 				await AddEventAsync(job, 0, 0, LogLevel.Warning);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Warnings);
 
-				List<IIssue> openIssues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> openIssues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, openIssues.Count);
 
 				IIssue issue = openIssues[0];
@@ -2154,7 +2154,7 @@ namespace Horde.Server.Tests.Issues
 			{
 				await IssueService.UpdateIssueAsync(issueId, resolvedById: _bobId, fixChange: 125);
 
-				List<IIssue> openIssues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> openIssues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, openIssues.Count);
 
 				IIssue issue = (await IssueCollection.GetIssueAsync(issueId))!;
@@ -2170,7 +2170,7 @@ namespace Horde.Server.Tests.Issues
 				IJob job = CreateJob(_mainStreamId, 125, "Test Build", _graph, TimeSpan.FromHours(25.0));
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Success);
 
-				List<IIssue> openIssues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> openIssues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, openIssues.Count);
 			}
 
@@ -2182,7 +2182,7 @@ namespace Horde.Server.Tests.Issues
 				await AddEventAsync(job, 0, 0, LogLevel.Warning);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Warnings);
 
-				List<IIssue> openIssues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> openIssues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, openIssues.Count);
 
 				IIssue issue = openIssues[0];
@@ -2203,7 +2203,7 @@ namespace Horde.Server.Tests.Issues
 				await AddEventAsync(job, 0, 0, LogLevel.Warning);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Warnings);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 				Assert.AreEqual(IssueSeverity.Warning, issues[0].Severity);
 
@@ -2222,7 +2222,7 @@ namespace Horde.Server.Tests.Issues
 				IIssue? issue = await IssueCollection.GetIssueAsync(issueId);
 				Assert.IsNotNull(issue!.ResolvedAt);
 
-				List<IIssueSpan> spans = await IssueCollection.FindSpansAsync(issue.Id);
+				IReadOnlyList<IIssueSpan> spans = await IssueCollection.FindSpansAsync(issue.Id);
 				Assert.AreEqual(spans.Count, 1);
 			}
 		}
@@ -2249,7 +2249,7 @@ namespace Horde.Server.Tests.Issues
 				await AddEventAsync(job, 0, 0, LogLevel.Warning);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Warnings);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 				Assert.AreEqual(IssueSeverity.Warning, issues[0].Severity);
 
@@ -2258,7 +2258,7 @@ namespace Horde.Server.Tests.Issues
 				issueId = issues[0].Id;
 				lastSeenAt = issues[0].LastSeenAt;
 
-				List<IIssueSpan> spans = await IssueCollection.FindSpansAsync(issues[0].Id);
+				IReadOnlyList<IIssueSpan> spans = await IssueCollection.FindSpansAsync(issues[0].Id);
 				Assert.AreEqual(1, spans.Count);
 
 				IIssueDetails details = await IssueService.GetIssueDetailsAsync(issues[0]);
@@ -2284,7 +2284,7 @@ namespace Horde.Server.Tests.Issues
 				Assert.IsNull(issue!.VerifiedAt);
 				Assert.AreEqual(issue!.OwnerId, _bobId);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 			}
 
@@ -2296,7 +2296,7 @@ namespace Horde.Server.Tests.Issues
 				await AddEventAsync(job, 0, 0, LogLevel.Warning);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Warnings);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 				Assert.AreEqual(IssueSeverity.Warning, issues[0].Severity);
 
@@ -2324,7 +2324,7 @@ namespace Horde.Server.Tests.Issues
 				IIssue? issue = await IssueCollection.GetIssueAsync(issueId);
 				Assert.IsNotNull(issue!.ResolvedAt);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, issues.Count);
 												
 			}
@@ -2343,7 +2343,7 @@ namespace Horde.Server.Tests.Issues
 				await AddEventAsync(job, 0, 0, LogLevel.Warning);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Warnings);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 				Assert.AreEqual(IssueSeverity.Warning, issues[0].Severity);
 
@@ -2358,7 +2358,7 @@ namespace Horde.Server.Tests.Issues
 			{
 				// resolved by bob
 				await IssueService.UpdateIssueAsync(issueId, resolvedById: _bobId);
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, issues.Count);
 				IIssue issue = (await IssueCollection.GetIssueAsync(issueId))!;
 				Assert.AreEqual(issue.ResolvedById, _bobId);
@@ -2371,7 +2371,7 @@ namespace Horde.Server.Tests.Issues
 			{
 				// force closed by jerry
 				await IssueService.UpdateIssueAsync(issueId, forceClosedById: _jerryId);
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, issues.Count);
 
 				IIssue issue = (await IssueCollection.GetIssueAsync(issueId))!;
@@ -2388,7 +2388,7 @@ namespace Horde.Server.Tests.Issues
 				await AddEventAsync(job, 0, 0, LogLevel.Warning);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Warnings);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 				Assert.AreEqual(IssueSeverity.Warning, issues[0].Severity);
 
@@ -2409,7 +2409,7 @@ namespace Horde.Server.Tests.Issues
 			{
 				IJob job = CreateJob(_mainStreamId, 225, "Test Build", _graph, TimeSpan.FromHours(hour++), true, false);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Success);
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, issues.Count);
 			}
 
@@ -2420,7 +2420,7 @@ namespace Horde.Server.Tests.Issues
 				IJob job = CreateJob(_mainStreamId, 226, "Test Build", _graph, TimeSpan.FromHours(hour++), true, false);
 				await AddEventAsync(job, 0, 0, LogLevel.Error);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, issues.Count);
 			}
 
@@ -2430,9 +2430,9 @@ namespace Horde.Server.Tests.Issues
 			{
 				IJob job = CreateJob(_mainStreamId, 105, "Test Build", _graph, TimeSpan.FromHours(hour++));
 				await AddEventAsync(job, 0, 0, LogLevel.Warning);
-				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Warnings);				
+				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Warnings);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 				Assert.AreEqual(IssueSeverity.Warning, issues[0].Severity);
 
@@ -2448,7 +2448,7 @@ namespace Horde.Server.Tests.Issues
 				await AddEventAsync(job, 0, 0, LogLevel.Error);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 				Assert.AreEqual(1, issues[0].Id);
 				Assert.AreEqual(IssueSeverity.Warning, issues[0].Severity);
@@ -2463,7 +2463,7 @@ namespace Horde.Server.Tests.Issues
 				await AddEventAsync(job, 0, 0, LogLevel.Error);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 				Assert.AreEqual(1, issues[0].Id);
 				Assert.AreEqual(IssueSeverity.Error, issues[0].Severity);
@@ -2525,7 +2525,7 @@ namespace Horde.Server.Tests.Issues
 				IJob job = CreateJob(_releaseStreamId, 22133008, "Test Build", _graph, TimeSpan.FromHours(hours++));
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Success);
 				await UpdateCompleteStepAsync(job, 0, 1, JobStepOutcome.Success);
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, issues.Count);
 			}
 
@@ -2535,7 +2535,7 @@ namespace Horde.Server.Tests.Issues
 				IJob job = CreateJob(_mainStreamId, 22136421, "Test Build", _graph, TimeSpan.FromHours(hours++));
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Success);
 				await UpdateCompleteStepAsync(job, 0, 1, JobStepOutcome.Success);
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, issues.Count);
 			}
 
@@ -2547,7 +2547,7 @@ namespace Horde.Server.Tests.Issues
 				await ParseEventsAsync(job, 0, 0, breakage1);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 				Assert.AreEqual(1, issues[0].Id);
 				Assert.AreEqual("Errors in Update Version Files", issues[0].Summary);
@@ -2560,7 +2560,7 @@ namespace Horde.Server.Tests.Issues
 				IJob job = CreateJob(_mainStreamId, 22151893, "Test Build", _graph, TimeSpan.FromHours(hours++));
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Success);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, issues.Count);
 			}
 
@@ -2573,7 +2573,7 @@ namespace Horde.Server.Tests.Issues
 				await ParseEventsAsync(job, 0, 0, breakage2);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 				
 				// Check that new issue was created
@@ -2591,7 +2591,7 @@ namespace Horde.Server.Tests.Issues
 				await ParseEventsAsync(job, 0, 1, breakage2);
 				await UpdateCompleteStepAsync(job, 0,1, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 
 				// Check that new issue was created
@@ -2616,7 +2616,7 @@ namespace Horde.Server.Tests.Issues
 				await ParseEventsAsync(job, 0, 0, lines);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 
 				IIssue issue = issues[0];
@@ -2642,7 +2642,7 @@ namespace Horde.Server.Tests.Issues
 				await ParseEventsAsync(job, 0, 0, lines);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
-				List<IIssue> issues = await IssueCollection.FindIssuesAsync();
+				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
 
 				IIssue issue = issues[0];

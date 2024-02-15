@@ -48,22 +48,24 @@ namespace Horde.Server.Agents.Pools
 		/// </summary>
 		/// <param name="name">Name of the new pool</param>
 		/// <param name="options">Options for the new pool</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The new pool document</returns>
 		[Obsolete("Pools should be configured through globals.json")]
-		public Task CreatePoolAsync(string name, CreatePoolConfigOptions options)
+		public Task CreatePoolAsync(string name, CreatePoolConfigOptions options, CancellationToken cancellationToken = default)
 		{
-			return _pools.CreateConfigAsync(new PoolId(StringId.Sanitize(name)), name, options);
+			return _pools.CreateConfigAsync(new PoolId(StringId.Sanitize(name)), name, options, cancellationToken);
 		}
 
 		/// <summary>
 		/// Deletes a pool
 		/// </summary>
 		/// <param name="poolId">Unique id of the pool</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Async task object</returns>
 		[Obsolete("Pools should be configured through globals.json")]
-		public Task<bool> DeletePoolAsync(PoolId poolId)
+		public Task<bool> DeletePoolAsync(PoolId poolId, CancellationToken cancellationToken = default)
 		{
-			return _pools.DeleteConfigAsync(poolId);
+			return _pools.DeleteConfigAsync(poolId, cancellationToken);
 		}
 
 		/// <summary>
@@ -71,30 +73,33 @@ namespace Horde.Server.Agents.Pools
 		/// </summary>
 		/// <param name="poolId">The pool to update</param>
 		/// <param name="options">Options for the update</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Async task object</returns>
 		[Obsolete("Pools should be configured through globals.json")]
-		public Task UpdateConfigAsync(PoolId poolId, UpdatePoolConfigOptions options)
+		public Task UpdateConfigAsync(PoolId poolId, UpdatePoolConfigOptions options, CancellationToken cancellationToken)
 		{
-			return _pools.UpdateConfigAsync(poolId, options);
+			return _pools.UpdateConfigAsync(poolId, options, cancellationToken);
 		}
 
 		/// <summary>
 		/// Gets all the available pools
 		/// </summary>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of pool documents</returns>
-		public Task<List<IPoolConfig>> GetPoolsAsync()
+		public Task<IReadOnlyList<IPoolConfig>> GetPoolsAsync(CancellationToken cancellationToken)
 		{
-			return _pools.GetConfigsAsync();
+			return _pools.GetConfigsAsync(cancellationToken);
 		}
 
 		/// <summary>
 		/// Gets a pool by ID
 		/// </summary>
 		/// <param name="poolId">Unique id of the pool</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The pool document</returns>
-		public Task<IPool?> GetPoolAsync(PoolId poolId)
+		public Task<IPool?> GetPoolAsync(PoolId poolId, CancellationToken cancellationToken = default)
 		{
-			return _pools.GetAsync(poolId);
+			return _pools.GetAsync(poolId, cancellationToken);
 		}
 
 		/// <summary>
@@ -102,10 +107,11 @@ namespace Horde.Server.Agents.Pools
 		/// </summary>
 		/// <param name="poolId"></param>
 		/// <param name="validAtTime"></param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		public async Task<IPoolConfig?> GetPoolAsync(PoolId poolId, DateTime validAtTime)
+		public async Task<IPoolConfig?> GetPoolAsync(PoolId poolId, DateTime validAtTime, CancellationToken cancellationToken)
 		{
-			Dictionary<PoolId, IPoolConfig> poolMapping = await GetPoolLookupAsync(validAtTime);
+			Dictionary<PoolId, IPoolConfig> poolMapping = await GetPoolLookupAsync(validAtTime, cancellationToken);
 			poolMapping.TryGetValue(poolId, out IPoolConfig? pool);
 			return pool;
 		}
@@ -115,10 +121,11 @@ namespace Horde.Server.Agents.Pools
 		/// </summary>
 		/// <param name="agent"></param>
 		/// <param name="validAtTime"></param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		public async Task<List<IPoolConfig>> GetPoolsAsync(IAgent agent, DateTime validAtTime)
+		public async Task<List<IPoolConfig>> GetPoolsAsync(IAgent agent, DateTime validAtTime, CancellationToken cancellationToken)
 		{
-			Dictionary<PoolId, IPoolConfig> poolMapping = await GetPoolLookupAsync(validAtTime);
+			Dictionary<PoolId, IPoolConfig> poolMapping = await GetPoolLookupAsync(validAtTime, cancellationToken);
 
 			List<IPoolConfig> pools = new List<IPoolConfig>();
 			foreach(PoolId poolId in agent.GetPools())
@@ -138,10 +145,11 @@ namespace Horde.Server.Agents.Pools
 		/// <param name="agent">The agent to return workspaces for</param>
 		/// <param name="validAtTime">Absolute time at which we expect the results to be valid. Values may be cached as long as they are after this time.</param>
 		/// <param name="globalConfig">Current configuration</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of workspaces</returns>
-		public async Task<HashSet<AgentWorkspaceInfo>> GetWorkspacesAsync(IAgent agent, DateTime validAtTime, GlobalConfig globalConfig)
+		public async Task<HashSet<AgentWorkspaceInfo>> GetWorkspacesAsync(IAgent agent, DateTime validAtTime, GlobalConfig globalConfig, CancellationToken cancellationToken)
 		{
-			List<IPoolConfig> pools = await GetPoolsAsync(agent, validAtTime);
+			List<IPoolConfig> pools = await GetPoolsAsync(agent, validAtTime, cancellationToken);
 
 			HashSet<AgentWorkspaceInfo> workspaces = new HashSet<AgentWorkspaceInfo>();
 			foreach (IPoolConfig pool in pools)
@@ -184,10 +192,11 @@ namespace Horde.Server.Agents.Pools
 		/// </summary>
 		/// <param name="agent"></param>
 		/// <param name="cluster"></param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		public async Task<AgentWorkspaceInfo?> GetAutoSdkWorkspaceAsync(IAgent agent, PerforceCluster cluster)
+		public async Task<AgentWorkspaceInfo?> GetAutoSdkWorkspaceAsync(IAgent agent, PerforceCluster cluster, CancellationToken cancellationToken)
 		{
-			List<IPoolConfig> pools = await GetPoolsAsync(agent, DateTime.UtcNow - TimeSpan.FromSeconds(10.0));
+			List<IPoolConfig> pools = await GetPoolsAsync(agent, DateTime.UtcNow - TimeSpan.FromSeconds(10.0), cancellationToken);
 
 			AutoSdkConfig? autoSdkConfig = GetAutoSdkConfig(pools);
 			if (autoSdkConfig == null)
@@ -204,12 +213,13 @@ namespace Horde.Server.Agents.Pools
 		/// <param name="agent">The agent to return workspaces for</param>
 		/// <param name="perforceCluster">The P4 cluster to find a workspace for</param>
 		/// <param name="validAtTime">Absolute time at which we expect the results to be valid. Values may be cached as long as they are after this time.</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of workspaces</returns>
-		public async Task<AgentWorkspaceInfo?> GetAutoSdkWorkspaceAsync(IAgent agent, PerforceCluster perforceCluster, DateTime validAtTime)
+		public async Task<AgentWorkspaceInfo?> GetAutoSdkWorkspaceAsync(IAgent agent, PerforceCluster perforceCluster, DateTime validAtTime, CancellationToken cancellationToken)
 		{
 			AutoSdkConfig? autoSdkConfig = null;
 
-			Dictionary<PoolId, IPoolConfig> poolMapping = await GetPoolLookupAsync(validAtTime);
+			Dictionary<PoolId, IPoolConfig> poolMapping = await GetPoolLookupAsync(validAtTime, cancellationToken);
 			foreach (PoolId poolId in agent.GetPools())
 			{
 				IPoolConfig? pool;
@@ -233,15 +243,16 @@ namespace Horde.Server.Agents.Pools
 		/// Gets a mapping from pool identifiers to definitions
 		/// </summary>
 		/// <param name="validAtTime">Absolute time at which we expect the results to be valid. Values may be cached as long as they are after this time.</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Map of pool ids to pool documents</returns>
-		private async Task<Dictionary<PoolId, IPoolConfig>> GetPoolLookupAsync(DateTime validAtTime)
+		private async Task<Dictionary<PoolId, IPoolConfig>> GetPoolLookupAsync(DateTime validAtTime, CancellationToken cancellationToken)
 		{
 			Tuple<DateTime, Dictionary<PoolId, IPoolConfig>>? cachedPoolLookupCopy = _cachedPoolLookup;
 			if (cachedPoolLookupCopy == null || cachedPoolLookupCopy.Item1 < validAtTime)
 			{
 				// Get a new list of cached pools
 				DateTime newCacheTime = _clock.UtcNow;
-				List<IPoolConfig> newPools = await _pools.GetConfigsAsync();
+				IReadOnlyList<IPoolConfig> newPools = await _pools.GetConfigsAsync(cancellationToken);
 				Tuple<DateTime, Dictionary<PoolId, IPoolConfig>> newCachedPoolLookup = Tuple.Create(newCacheTime, newPools.ToDictionary(x => x.Id, x => x));
 
 				// Try to swap it with the current version

@@ -10,6 +10,7 @@ using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 using EpicGames.Horde.Users;
+using System.Threading;
 
 namespace Horde.Server.Notifications
 {
@@ -73,9 +74,9 @@ namespace Horde.Server.Notifications
 		}
 
 		/// <inheritdoc/>
-		public async Task<INotificationTrigger?> GetAsync(ObjectId triggerId)
+		public async Task<INotificationTrigger?> GetAsync(ObjectId triggerId, CancellationToken cancellationToken)
 		{
-			TriggerDocument? trigger = await _triggers.Find(x => x.Id == triggerId).FirstOrDefaultAsync();
+			TriggerDocument? trigger = await _triggers.Find(x => x.Id == triggerId).FirstOrDefaultAsync(cancellationToken);
 			if (trigger != null)
 			{
 				for (int idx = 0; idx < trigger.Subscriptions.Count; idx++)
@@ -83,7 +84,7 @@ namespace Horde.Server.Notifications
 					SubscriptionDocument subscription = trigger.Subscriptions[idx];
 					if (subscription.User != null)
 					{
-						IUser? user = await _userCollection.FindUserByLoginAsync(subscription.User);
+						IUser? user = await _userCollection.FindUserByLoginAsync(subscription.User, cancellationToken);
 						if (user == null)
 						{
 							trigger.Subscriptions.RemoveAt(idx);
@@ -101,12 +102,12 @@ namespace Horde.Server.Notifications
 		}
 
 		/// <inheritdoc/>
-		public async Task<INotificationTrigger> FindOrAddAsync(ObjectId triggerId)
+		public async Task<INotificationTrigger> FindOrAddAsync(ObjectId triggerId, CancellationToken cancellationToken)
 		{
 			for (; ; )
 			{
 				// Find an existing trigger
-				INotificationTrigger? existing = await GetAsync(triggerId);
+				INotificationTrigger? existing = await GetAsync(triggerId, cancellationToken);
 				if (existing != null)
 				{
 					return existing;
@@ -117,7 +118,7 @@ namespace Horde.Server.Notifications
 				{
 					TriggerDocument newDocument = new TriggerDocument();
 					newDocument.Id = triggerId;
-					await _triggers.InsertOneAsync(newDocument);
+					await _triggers.InsertOneAsync(newDocument, (InsertOneOptions?)null, cancellationToken);
 					return newDocument;
 				}
 				catch (MongoWriteException ex)
@@ -135,8 +136,9 @@ namespace Horde.Server.Notifications
 		/// </summary>
 		/// <param name="trigger">The trigger to update</param>
 		/// <param name="transaction">The update definition</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The updated document</returns>
-		async Task<INotificationTrigger?> TryUpdateAsync(INotificationTrigger trigger, TransactionBuilder<TriggerDocument> transaction)
+		async Task<INotificationTrigger?> TryUpdateAsync(INotificationTrigger trigger, TransactionBuilder<TriggerDocument> transaction, CancellationToken cancellationToken)
 		{
 			TriggerDocument document = (TriggerDocument)trigger;
 			int nextUpdateIndex = document.UpdateIndex + 1;
@@ -144,7 +146,7 @@ namespace Horde.Server.Notifications
 			FilterDefinition<TriggerDocument> filter = Builders<TriggerDocument>.Filter.Expr(x => x.Id == trigger.Id && x.UpdateIndex == document.UpdateIndex);
 			UpdateDefinition<TriggerDocument> update = transaction.ToUpdateDefinition().Set(x => x.UpdateIndex, nextUpdateIndex);
 
-			UpdateResult result = await _triggers.UpdateOneAsync(filter, update);
+			UpdateResult result = await _triggers.UpdateOneAsync(filter, update, null, cancellationToken);
 			if (result.ModifiedCount > 0)
 			{
 				transaction.ApplyTo(document);
@@ -156,20 +158,20 @@ namespace Horde.Server.Notifications
 		}
 
 		/// <inheritdoc/>
-		public async Task DeleteAsync(ObjectId triggerId)
+		public async Task DeleteAsync(ObjectId triggerId, CancellationToken cancellationToken)
 		{
-			await _triggers.DeleteOneAsync(x => x.Id == triggerId);
+			await _triggers.DeleteOneAsync(x => x.Id == triggerId, cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		public async Task DeleteAsync(List<ObjectId> triggerIds)
+		public async Task DeleteAsync(List<ObjectId> triggerIds, CancellationToken cancellationToken)
 		{
 			FilterDefinition<TriggerDocument> filter = Builders<TriggerDocument>.Filter.In(x => x.Id, triggerIds);
-			await _triggers.DeleteManyAsync(filter);
+			await _triggers.DeleteManyAsync(filter, cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		public async Task<INotificationTrigger?> FireAsync(INotificationTrigger trigger)
+		public async Task<INotificationTrigger?> FireAsync(INotificationTrigger trigger, CancellationToken cancellationToken)
 		{
 			if (trigger.Fired)
 			{
@@ -181,13 +183,13 @@ namespace Horde.Server.Notifications
 				TransactionBuilder<TriggerDocument> transaction = new TransactionBuilder<TriggerDocument>();
 				transaction.Set(x => x.Fired, true);
 
-				INotificationTrigger? newTrigger = await TryUpdateAsync(trigger, transaction);
+				INotificationTrigger? newTrigger = await TryUpdateAsync(trigger, transaction, cancellationToken);
 				if (newTrigger != null)
 				{
 					return newTrigger;
 				}
 
-				newTrigger = await FindOrAddAsync(trigger.Id); // Need to add to prevent race condition on triggering vs adding
+				newTrigger = await FindOrAddAsync(trigger.Id, cancellationToken); // Need to add to prevent race condition on triggering vs adding
 				if (newTrigger == null || newTrigger.Fired)
 				{
 					return null;
@@ -196,7 +198,7 @@ namespace Horde.Server.Notifications
 		}
 
 		/// <inheritdoc/>
-		public async Task<INotificationTrigger?> UpdateSubscriptionsAsync(INotificationTrigger trigger, UserId userId, bool? email, bool? slack)
+		public async Task<INotificationTrigger?> UpdateSubscriptionsAsync(INotificationTrigger trigger, UserId userId, bool? email, bool? slack, CancellationToken cancellationToken)
 		{
 			for (; ; )
 			{
@@ -225,13 +227,13 @@ namespace Horde.Server.Notifications
 				TransactionBuilder<TriggerDocument> transaction = new TransactionBuilder<TriggerDocument>();
 				transaction.Set(x => x.Subscriptions, newSubscriptions);
 
-				INotificationTrigger? newTrigger = await TryUpdateAsync(trigger, transaction);
+				INotificationTrigger? newTrigger = await TryUpdateAsync(trigger, transaction, cancellationToken);
 				if (newTrigger != null)
 				{
 					return newTrigger;
 				}
 
-				newTrigger = await GetAsync(trigger.Id);
+				newTrigger = await GetAsync(trigger.Id, cancellationToken);
 				if (newTrigger == null)
 				{
 					return null;

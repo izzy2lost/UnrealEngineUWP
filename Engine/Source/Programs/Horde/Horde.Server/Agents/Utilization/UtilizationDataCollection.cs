@@ -9,7 +9,6 @@ using EpicGames.Core;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Streams;
 using Horde.Server.Server;
-using Horde.Server.Utilities;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 
@@ -55,7 +54,7 @@ namespace Horde.Server.Agents.Utilization
 			public PoolId PoolId { get; set; }
 			public int NumAgents { get; set; }
 
-			public List<StreamUtilizationDocument> Streams { get; set; } 
+			public List<StreamUtilizationDocument> Streams { get; set; }
 			IReadOnlyList<IStreamUtilizationData> IPoolUtilizationData.Streams => Streams;
 
 			public double AdminTime { get; set; }
@@ -131,7 +130,7 @@ namespace Horde.Server.Agents.Utilization
 				filters.Add(Builders<UtilizationDocument>.Filter.Lte(x => x.StartTime, finishTimeUtc.Value));
 			}
 
-			FilterDefinition<UtilizationDocument> filter = (filters.Count > 0)? Builders<UtilizationDocument>.Filter.And(filters) : FilterDefinition<UtilizationDocument>.Empty;
+			FilterDefinition<UtilizationDocument> filter = (filters.Count > 0) ? Builders<UtilizationDocument>.Filter.And(filters) : FilterDefinition<UtilizationDocument>.Empty;
 			return await _utilization.Find(filter).SortByDescending(x => x.FinishTime).Limit(count).ToListAsync(cancellationToken);
 		}
 

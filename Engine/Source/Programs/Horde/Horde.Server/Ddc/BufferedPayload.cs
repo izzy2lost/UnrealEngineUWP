@@ -2,6 +2,7 @@
 
 using System;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using Microsoft.AspNetCore.Http;
@@ -67,12 +68,12 @@ namespace Horde.Server.Ddc
 		/// <summary>
 		/// Create a buffered payload from a stream
 		/// </summary>
-		public static async Task<MemoryBufferedPayload> CreateAsync(Tracer tracer, Stream s)
+		public static async Task<MemoryBufferedPayload> CreateAsync(Tracer tracer, Stream s, CancellationToken cancellationToken = default)
 		{
 			using TelemetrySpan scope = tracer.StartActiveSpan("payload.buffer")
 				.SetAttribute("operation.name", "payload.buffer")
 				.SetAttribute("bufferType", "Memory");
-			MemoryBufferedPayload payload = new MemoryBufferedPayload(await s.ToByteArrayAsync());
+			MemoryBufferedPayload payload = new MemoryBufferedPayload(await s.ToByteArrayAsync(cancellationToken));
 			return payload;
 		}
 
@@ -140,7 +141,7 @@ namespace Horde.Server.Ddc
 		/// <summary>
 		/// Create a new payload instance backed by the filesystem
 		/// </summary>
-		public static async Task<FilesystemBufferedPayload> CreateAsync(Tracer tracer, Stream s)
+		public static async Task<FilesystemBufferedPayload> CreateAsync(Tracer tracer, Stream s, CancellationToken cancellationToken)
 		{
 			FileInfo tempFile = new FileInfo(Path.GetTempFileName());
 
@@ -149,7 +150,7 @@ namespace Horde.Server.Ddc
 					.SetAttribute("operation.name", "payload.buffer")
 					.SetAttribute("bufferType", "Filesystem");
 				await using FileStream fs = tempFile.OpenWrite();
-				await s.CopyToAsync(fs);
+				await s.CopyToAsync(fs, cancellationToken);
 			}
 
 			tempFile.Refresh();
@@ -218,15 +219,15 @@ namespace Horde.Server.Ddc
 		/// <summary>
 		/// Create a new buffered payload instance from a stream
 		/// </summary>
-		public async Task<BufferedPayload> CreateFromStreamAsync(Stream s, long contentLength)
+		public async Task<BufferedPayload> CreateFromStreamAsync(Stream s, long contentLength, CancellationToken cancellationToken = default)
 		{
 			// blob is small enough to fit into memory we just read it as is
 			if (contentLength < _options.CurrentValue.MemoryBufferSize)
 			{
-				return await MemoryBufferedPayload.CreateAsync(_tracer, s);
+				return await MemoryBufferedPayload.CreateAsync(_tracer, s, cancellationToken);
 			}
 
-			return await FilesystemBufferedPayload.CreateAsync(_tracer, s);
+			return await FilesystemBufferedPayload.CreateAsync(_tracer, s, cancellationToken);
 		}
 	}
 }

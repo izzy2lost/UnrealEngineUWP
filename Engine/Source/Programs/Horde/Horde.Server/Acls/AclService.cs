@@ -18,6 +18,7 @@ using Horde.Server.Jobs;
 using Horde.Server.Agents.Leases;
 using Google.Protobuf.WellKnownTypes;
 using HordeCommon.Rpc.Tasks;
+using System.Threading;
 
 namespace Horde.Server.Acls
 {
@@ -41,10 +42,11 @@ namespace Horde.Server.Acls
 		/// </summary>
 		/// <param name="claims">List of claims to include</param>
 		/// <param name="expiry">Time that the token expires</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>JWT security token with a claim for creating new agents</returns>
-		public async ValueTask<string> IssueBearerTokenAsync(IEnumerable<AclClaimConfig> claims, TimeSpan? expiry)
+		public async ValueTask<string> IssueBearerTokenAsync(IEnumerable<AclClaimConfig> claims, TimeSpan? expiry, CancellationToken cancellationToken = default)
 		{
-			return await IssueBearerTokenAsync(claims.Select(x => new Claim(x.Type, x.Value)), expiry);
+			return await IssueBearerTokenAsync(claims.Select(x => new Claim(x.Type, x.Value)), expiry, cancellationToken);
 		}
 
 		/// <summary>
@@ -52,10 +54,11 @@ namespace Horde.Server.Acls
 		/// </summary>
 		/// <param name="claims">List of claims to include</param>
 		/// <param name="expiry">Time that the token expires</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>JWT security token with a claim for creating new agents</returns>
-		public async ValueTask<string> IssueBearerTokenAsync(IEnumerable<Claim> claims, TimeSpan? expiry)
+		public async ValueTask<string> IssueBearerTokenAsync(IEnumerable<Claim> claims, TimeSpan? expiry, CancellationToken cancellationToken = default)
 		{
-			IGlobals globals = await _globalsService.GetAsync();
+			IGlobals globals = await _globalsService.GetAsync(cancellationToken);
 			SigningCredentials signingCredentials = new(globals.JwtSigningKey, SecurityAlgorithms.HmacSha256);
 
 			JwtSecurityToken token = new(globals.JwtIssuer, null, claims.DistinctBy(x => (x.Type, x.Value)), null, DateTime.UtcNow + expiry, signingCredentials);
@@ -136,18 +139,18 @@ namespace Horde.Server.Acls
 			}
 		}
 
-		public static async Task<(IJob, IJobStep)?> GetJobStepFromClaimAsync(this ClaimsPrincipal user, ILeaseCollection leaseCollection, IJobCollection jobCollection)
+		public static async Task<(IJob, IJobStep)?> GetJobStepFromClaimAsync(this ClaimsPrincipal user, ILeaseCollection leaseCollection, IJobCollection jobCollection, CancellationToken cancellationToken = default)
 		{
 			LeaseId? leaseId = user.GetLeaseClaim();
 			if (leaseId != null)
 			{
-				ILease? lease = await leaseCollection.GetAsync(leaseId.Value);
+				ILease? lease = await leaseCollection.GetAsync(leaseId.Value, cancellationToken);
 				if (lease != null)
 				{
 					Any payload = Any.Parser.ParseFrom(lease.Payload.ToArray());
 					if (payload.TryUnpack(out ExecuteJobTask jobTask))
 					{
-						IJob? job = await jobCollection.GetAsync(JobId.Parse(jobTask.JobId));
+						IJob? job = await jobCollection.GetAsync(JobId.Parse(jobTask.JobId), cancellationToken);
 						if (job != null)
 						{
 							IJobStepBatch? batch = job.Batches.FirstOrDefault(x => x.LeaseId == leaseId);

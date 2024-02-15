@@ -53,9 +53,9 @@ namespace Horde.Server.Server
 		/// <summary>
 		/// Poll for inconsistencies in the database
 		/// </summary>
-		/// <param name="stoppingToken">Stopping token</param>
+		/// <param name="cancellationToken">Stopping token</param>
 		/// <returns>Async task</returns>
-		async ValueTask TickLeaderAsync(CancellationToken stoppingToken)
+		async ValueTask TickLeaderAsync(CancellationToken cancellationToken)
 		{
 			_logger.LogInformation("Ticking consistency service...");
 
@@ -64,7 +64,7 @@ namespace Horde.Server.Server
 			Dictionary<SessionId, ISession> sessionIdToInstance = sessions.ToDictionary(x => x.Id, x => x);
 
 			// Find all the active agents
-			List<IAgent> agents = await _agentCollection.FindAsync(status: AgentStatus.Ok);
+			IReadOnlyList<IAgent> agents = await _agentCollection.FindAsync(status: AgentStatus.Ok, cancellationToken: cancellationToken);
 			Dictionary<AgentId, IAgent> agentIdToInstance = agents.ToDictionary(x => x.Id, x => x);
 
 			// Find any sessions that do not have a finish time despite their agents running something else
@@ -73,7 +73,7 @@ namespace Horde.Server.Server
 			{
 				if (!agentIdToInstance.TryGetValue(session.AgentId, out IAgent? agent) || agent.SessionId != session.Id)
 				{
-					agent = await _agentCollection.GetAsync(session.AgentId);
+					agent = await _agentCollection.GetAsync(session.AgentId, cancellationToken);
 					if (agent == null || agent.SessionId != session.Id)
 					{
 						_logger.LogWarning("Forcing agent {AgentId} session {SessionId} to complete.", session.AgentId, session.Id);
@@ -84,7 +84,7 @@ namespace Horde.Server.Server
 			}
 
 			// Find any leases that are still running when their session has terminated
-			List<ILease> leases = await _leaseCollection.FindActiveLeasesAsync();
+			IReadOnlyList<ILease> leases = await _leaseCollection.FindActiveLeasesAsync(cancellationToken: cancellationToken);
 			foreach (ILease lease in leases)
 			{
 				if (!sessionIdToInstance.ContainsKey(lease.SessionId))
@@ -92,7 +92,7 @@ namespace Horde.Server.Server
 					ISession? session = await _sessionCollection.GetAsync(lease.SessionId);
 					DateTime finishTime = session?.FinishTime ?? DateTime.UtcNow;
 					_logger.LogWarning("Setting finish time for lease {LeaseId} to {FinishTime}", lease.Id, finishTime);
-					await _leaseCollection.TrySetOutcomeAsync(lease.Id, finishTime, LeaseOutcome.Cancelled, null);
+					await _leaseCollection.TrySetOutcomeAsync(lease.Id, finishTime, LeaseOutcome.Cancelled, null, cancellationToken);
 				}
 			}
 		}

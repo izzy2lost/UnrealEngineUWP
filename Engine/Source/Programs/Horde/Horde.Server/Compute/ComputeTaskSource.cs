@@ -191,9 +191,9 @@ namespace Horde.Server.Compute
 		}
 		
 		/// <inheritdoc/>
-		public override async Task OnLeaseFinishedAsync(IAgent agent, LeaseId leaseId, ComputeTask payload, LeaseOutcome outcome, ReadOnlyMemory<byte> output, ILogger logger)
+		public override async Task OnLeaseFinishedAsync(IAgent agent, LeaseId leaseId, ComputeTask payload, LeaseOutcome outcome, ReadOnlyMemory<byte> output, ILogger logger, CancellationToken cancellationToken)
 		{
-			await base.OnLeaseFinishedAsync(agent, leaseId, payload, outcome, output, logger);
+			await base.OnLeaseFinishedAsync(agent, leaseId, payload, outcome, output, logger, cancellationToken);
 
 			// Remove any port mapping associated with this lease ID (as of now, only compute tasks can be relayed)
 			await _agentRelay.RemovePortMappingAsync(leaseId);
@@ -267,14 +267,14 @@ namespace Horde.Server.Compute
 		}
 
 		/// <inheritdoc/>
-		public override async ValueTask GetLeaseDetailsAsync(Any payload, Dictionary<string, string> details)
+		public override async ValueTask GetLeaseDetailsAsync(Any payload, Dictionary<string, string> details, CancellationToken cancellationToken)
 		{
-			await base.GetLeaseDetailsAsync(payload, details);
+			await base.GetLeaseDetailsAsync(payload, details, cancellationToken);
 
 			ComputeTask message = payload.Unpack<ComputeTask>();
 			if (!String.IsNullOrEmpty(message.ParentLeaseId) && LeaseId.TryParse(message.ParentLeaseId, out LeaseId parentLeaseId))
 			{
-				ILease? lease = await _leaseCollection.GetAsync(parentLeaseId);
+				ILease? lease = await _leaseCollection.GetAsync(parentLeaseId, cancellationToken);
 				if (lease != null)
 				{
 					details["parentLogId"] = lease.LogId.ToString() ?? String.Empty;

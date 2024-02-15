@@ -212,7 +212,7 @@ namespace Horde.Server.Server
 			}
 
 			IPoolCollection poolCollection = _serviceProvider.GetRequiredService<IPoolCollection>();
-			List<IPoolConfig> poolConfigs = await poolCollection.GetConfigsAsync(cancellationToken);
+			List<IPoolConfig> poolConfigs = (await poolCollection.GetConfigsAsync(cancellationToken)).ToList();
 			HashSet<PoolId> removePoolIds = _globalConfig.Value.Pools.Select(x => x.Id).ToHashSet();
 			poolConfigs.RemoveAll(x => removePoolIds.Contains(x.Id));
 
@@ -222,7 +222,7 @@ namespace Horde.Server.Server
 
 				Dictionary<PoolId, int> poolIdToCount = new Dictionary<PoolId, int>();
 
-				List<IAgent> agents = await agentCollection.FindAsync();
+				IReadOnlyList<IAgent> agents = await agentCollection.FindAsync(cancellationToken: cancellationToken);
 				foreach (IAgent agent in agents)
 				{
 					foreach (PoolId poolId in agent.GetPools())

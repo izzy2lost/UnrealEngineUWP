@@ -721,7 +721,7 @@ namespace Horde.Server.Tests.Jobs.Schedules
 
 		async Task<List<IJob>> GetNewJobsAsync()
 		{
-			List<IJob> jobs = await JobCollection.FindAsync();
+			List<IJob> jobs = (await JobCollection.FindAsync()).ToList();
 			jobs.RemoveAll(x => _initialJobIds.Contains(x.Id));
 			_initialJobIds.UnionWith(jobs.Select(x => x.Id));
 			return jobs.OrderBy(x => x.Change).ToList();

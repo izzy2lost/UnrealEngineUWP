@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Text.Json.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 using Amazon.CloudWatch;
 using Amazon.CloudWatch.Model;
@@ -87,12 +88,12 @@ public class LeaseUtilizationAwsMetricStrategy : IPoolSizeStrategy
 	public string Name { get; } = "LeaseUtilizationAwsMetric";
 
 	/// <inheritdoc/>
-	public async Task<PoolSizeResult> CalculatePoolSizeAsync(IPoolConfig pool, List<IAgent> agents)
+	public async Task<PoolSizeResult> CalculatePoolSizeAsync(IPoolConfig pool, List<IAgent> agents, CancellationToken cancellationToken = default)
 	{
 		using TelemetrySpan span = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(LeaseUtilizationAwsMetricStrategy)}.{nameof(CalculatePoolSizeAsync)}");
 		span.SetAttribute(OpenTelemetryTracers.DatadogResourceAttribute, pool.Id.ToString());
 
-		List<ILease> leases = await _leaseCollection.FindLeasesAsync(minTime: _clock.UtcNow - TimeSpan.FromSeconds(Settings.SamplePeriodSec));
+		IReadOnlyList<ILease> leases = await _leaseCollection.FindLeasesAsync(minTime: _clock.UtcNow - TimeSpan.FromSeconds(Settings.SamplePeriodSec), cancellationToken: cancellationToken);
 		leases = leases.Where(lease =>
 		{
 			IAgent? agent = agents.Find(a => a.Id == lease.AgentId);
@@ -125,7 +126,7 @@ public class LeaseUtilizationAwsMetricStrategy : IPoolSizeStrategy
 		};
 		
 		PutMetricDataRequest request = new() { Namespace = Settings.CloudWatchNamespace, MetricData = metricDatums };
-		PutMetricDataResponse response = await _cloudWatch.PutMetricDataAsync(request);
+		PutMetricDataResponse response = await _cloudWatch.PutMetricDataAsync(request, cancellationToken);
 
 		if (response.HttpStatusCode != HttpStatusCode.OK)
 		{

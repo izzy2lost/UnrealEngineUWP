@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde;
 using EpicGames.Horde.Agents.Pools;
@@ -105,11 +106,12 @@ namespace Horde.Server.Agents.Pools
 		/// Query all the pools
 		/// </summary>
 		/// <param name="filter">Filter for the properties to return</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Information about all the pools</returns>
 		[HttpGet]
 		[Route("/api/v1/pools")]
 		[ProducesResponseType(typeof(List<GetPoolResponse>), 200)]
-		public async Task<ActionResult<List<object>>> GetPoolsAsync([FromQuery] PropertyFilter? filter = null)
+		public async Task<ActionResult<List<object>>> GetPoolsAsync([FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
 			if (!_globalConfig.Value.Authorize(PoolAclAction.ListPools, User))
 			{
@@ -118,12 +120,12 @@ namespace Horde.Server.Agents.Pools
 
 			DateTime utcNow = _clock.UtcNow;
 
-			List<IPoolConfig> poolConfigs = await _poolCollection.GetConfigsAsync();
+			IReadOnlyList<IPoolConfig> poolConfigs = await _poolCollection.GetConfigsAsync(cancellationToken);
 			Dictionary<PoolId, PoolStats> poolIdToStats = poolConfigs.ToDictionary(x => x.Id, x => new PoolStats());
 			
 			const int MaxAgentsPerPool = 5;
 
-			List<IAgent> agents = await _agentCollection.FindAsync();
+			IReadOnlyList<IAgent> agents = await _agentCollection.FindAsync(cancellationToken: cancellationToken);
 			foreach (IAgent agent in agents)
 			{
 				foreach (PoolId poolId in agent.GetPools())
@@ -154,7 +156,7 @@ namespace Horde.Server.Agents.Pools
 				}
 			}
 
-			IUtilizationData? utilizationData = await _utilizationDataCollection.GetLatestUtilizationDataAsync();
+			IUtilizationData? utilizationData = await _utilizationDataCollection.GetLatestUtilizationDataAsync(cancellationToken);
 			if (utilizationData != null)
 			{
 				foreach (IPoolUtilizationData poolUtilizationData in utilizationData.Pools)

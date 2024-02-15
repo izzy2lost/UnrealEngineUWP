@@ -86,7 +86,7 @@ namespace Horde.Server.Logs
 			{
 				return NotFound();
 			}
-			if (!await AuthorizeAsync(logFile, LogAclAction.ViewLog, User))
+			if (!await AuthorizeAsync(logFile, LogAclAction.ViewLog, User, cancellationToken))
 			{
 				return Forbid();
 			}
@@ -112,7 +112,7 @@ namespace Horde.Server.Logs
 			{
 				return NotFound();
 			}
-			if (!await AuthorizeAsync(logFile, LogAclAction.WriteLogData, User))
+			if (!await AuthorizeAsync(logFile, LogAclAction.WriteLogData, User, cancellationToken))
 			{
 				return Forbid();
 			}
@@ -144,7 +144,7 @@ namespace Horde.Server.Logs
 			{
 				return NotFound();
 			}
-			if (!await AuthorizeAsync(logFile, LogAclAction.ViewLog, User))
+			if (!await AuthorizeAsync(logFile, LogAclAction.ViewLog, User, cancellationToken))
 			{
 				return Forbid();
 			}
@@ -179,7 +179,7 @@ namespace Horde.Server.Logs
 			{
 				return NotFound();
 			}
-			if (!await AuthorizeAsync(logFile, LogAclAction.ViewLog, User))
+			if (!await AuthorizeAsync(logFile, LogAclAction.ViewLog, User, cancellationToken))
 			{
 				return Forbid();
 			}
@@ -274,7 +274,7 @@ namespace Horde.Server.Logs
 			{
 				return NotFound();
 			}
-			if (!await AuthorizeAsync(logFile, LogAclAction.ViewLog, User))
+			if (!await AuthorizeAsync(logFile, LogAclAction.ViewLog, User, cancellationToken))
 			{
 				return Forbid();
 			}
@@ -303,7 +303,7 @@ namespace Horde.Server.Logs
 			{
 				return NotFound();
 			}
-			if (!await AuthorizeAsync(logFile, LogAclAction.ViewLog, User))
+			if (!await AuthorizeAsync(logFile, LogAclAction.ViewLog, User, cancellationToken))
 			{
 				return Forbid();
 			}
@@ -320,7 +320,7 @@ namespace Horde.Server.Logs
 				int? issueId = null;
 				if (logEvent.SpanId != null && !spanIdToIssueId.TryGetValue(logEvent.SpanId.Value, out issueId))
 				{
-					IIssueSpan? span = await _issueCollection.GetSpanAsync(logEvent.SpanId.Value);
+					IIssueSpan? span = await _issueCollection.GetSpanAsync(logEvent.SpanId.Value, cancellationToken);
 					issueId = span?.IssueId;
 					spanIdToIssueId[logEvent.SpanId.Value] = issueId;
 				}
@@ -336,8 +336,9 @@ namespace Horde.Server.Logs
 		/// <param name="logFile">The template to check</param>
 		/// <param name="action">The action being performed</param>
 		/// <param name="user">The principal to authorize</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>True if the action is authorized</returns>
-		async Task<bool> AuthorizeAsync(ILogFile logFile, AclAction action, ClaimsPrincipal user)
+		async Task<bool> AuthorizeAsync(ILogFile logFile, AclAction action, ClaimsPrincipal user, CancellationToken cancellationToken)
 		{
 			GlobalConfig globalConfig = _globalConfig.Value;
 			if (user.HasAdminClaim())
@@ -352,7 +353,7 @@ namespace Horde.Server.Logs
 			{
 				return true;
 			}
-			if (logFile.JobId != JobId.Empty && await _jobService.AuthorizeAsync(logFile.JobId, action, user, globalConfig))
+			if (logFile.JobId != JobId.Empty && await _jobService.AuthorizeAsync(logFile.JobId, action, user, globalConfig, cancellationToken))
 			{
 				return true;
 			}

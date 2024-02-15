@@ -80,7 +80,7 @@ namespace Horde.Server.Agents
 
 		async ValueTask TickAsync(CancellationToken cancellationToken)
 		{
-			AgentReportState state = await _state.GetAsync();
+			AgentReportState state = await _state.GetAsync(cancellationToken);
 			DateTime utcNow = _clock.UtcNow;
 
 			TimeSpan agentReportTime = TimeSpan.FromHours(9.0); // 9am
@@ -90,7 +90,7 @@ namespace Horde.Server.Agents
 			{
 				AgentReport report = new AgentReport();
 
-				List<IAgent> agents = await _agentCollection.FindAsync();
+				IReadOnlyList<IAgent> agents = await _agentCollection.FindAsync(cancellationToken: cancellationToken);
 				foreach (IAgent agent in agents)
 				{
 					if (agent.IsSessionValid(utcNow))
@@ -106,14 +106,14 @@ namespace Horde.Server.Agents
 					}
 				}
 
-				await _notificationService.SendAgentReportAsync(report);
+				await _notificationService.SendAgentReportAsync(report, cancellationToken);
 
 				DateTime updateTime = _clock.TimeZone.GetStartOfDayUtc(utcNow) + agentReportTime;
 				if (updateTime > utcNow)
 				{
 					updateTime -= TimeSpan.FromDays(1.0);
 				}
-				await _state.UpdateAsync(x => x.LastUpdateUtc = updateTime);
+				await _state.UpdateAsync(x => x.LastUpdateUtc = updateTime, cancellationToken);
 			}
 		}
 	}

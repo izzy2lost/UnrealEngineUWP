@@ -14,6 +14,7 @@ using MongoDB.Bson;
 using Horde.Server.Streams;
 using Horde.Server.Agents;
 using EpicGames.Horde.Jobs;
+using System.Threading;
 
 namespace Horde.Server.Notifications
 {
@@ -102,16 +103,18 @@ namespace Horde.Server.Notifications
 		/// <param name="user"></param>
 		/// <param name="email">Whether to receive email notifications</param>
 		/// <param name="slack">Whether to receive Slack notifications</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		Task<bool> UpdateSubscriptionsAsync(ObjectId triggerId, ClaimsPrincipal user, bool? email, bool? slack);
+		Task<bool> UpdateSubscriptionsAsync(ObjectId triggerId, ClaimsPrincipal user, bool? email, bool? slack, CancellationToken cancellationToken);
 
 		/// <summary>
 		/// Gets the current subscriptions for a user
 		/// </summary>
 		/// <param name="triggerId"></param>
 		/// <param name="user"></param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Subscriptions for that user</returns>
-		Task<INotificationSubscription?> GetSubscriptionsAsync(ObjectId triggerId, ClaimsPrincipal user);
+		Task<INotificationSubscription?> GetSubscriptionsAsync(ObjectId triggerId, ClaimsPrincipal user, CancellationToken cancellationToken);
 
 		/// <summary>
 		/// Notify all subscribers that a job step has finished
@@ -171,18 +174,21 @@ namespace Horde.Server.Notifications
 		/// Post a notification for device issues
 		/// </summary>
 		/// <param name="report">The report data to send</param>
-		Task SendDeviceIssueReportAsync(DeviceIssueReport report);
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		Task SendDeviceIssueReportAsync(DeviceIssueReport report, CancellationToken cancellationToken);
 
 		/// <summary>
 		/// Post a notification for any agents encountering issues
 		/// </summary>
 		/// <param name="report">The report data to send</param>
-		Task SendAgentReportAsync(AgentReport report);
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		Task SendAgentReportAsync(AgentReport report, CancellationToken cancellationToken);
 
 		/// <summary>
 		/// Post a notification for the open issues in a stream
 		/// </summary>
 		/// <param name="report">The report data to send</param>
-		Task SendIssueReportAsync(IssueReportGroup report);
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		Task SendIssueReportAsync(IssueReportGroup report, CancellationToken cancellationToken);
 	}
 }

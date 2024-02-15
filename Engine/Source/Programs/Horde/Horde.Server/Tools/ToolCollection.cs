@@ -183,21 +183,18 @@ namespace Horde.Server.Tools
 			_logger = logger;
 		}
 
-		/// <summary>
-		/// Gets a tool with the given identifier
-		/// </summary>
-		/// <param name="id">The tool identifier</param>
-		/// <param name="globalConfig">The current global configuration</param>
-		/// <returns></returns>
-		public async Task<ITool?> GetAsync(ToolId id, GlobalConfig globalConfig) => await GetInternalAsync(id, globalConfig);
+		/// <inheritdoc/>
+		public async Task<ITool?> GetAsync(ToolId id, GlobalConfig globalConfig, CancellationToken cancellationToken)
+			=> await GetInternalAsync(id, globalConfig, cancellationToken);
 
 		/// <summary>
 		/// Gets a tool with the given identifier
 		/// </summary>
 		/// <param name="toolId">The tool identifier</param>
 		/// <param name="globalConfig">The current global configuration</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		async Task<Tool?> GetInternalAsync(ToolId toolId, GlobalConfig globalConfig)
+		async Task<Tool?> GetInternalAsync(ToolId toolId, GlobalConfig globalConfig, CancellationToken cancellationToken)
 		{
 			ToolConfig? toolConfig;
 			if (globalConfig.TryGetTool(toolId, out toolConfig))
@@ -205,14 +202,14 @@ namespace Horde.Server.Tools
 				Tool? tool;
 				for (; ; )
 				{
-					tool = await _tools.Find(x => x.Id == toolId).FirstOrDefaultAsync();
+					tool = await _tools.Find(x => x.Id == toolId).FirstOrDefaultAsync(cancellationToken);
 					if (tool != null)
 					{
 						break;
 					}
 
 					tool = new Tool(toolId);
-					if (await _tools.InsertOneIgnoreDuplicatesAsync(tool))
+					if (await _tools.InsertOneIgnoreDuplicatesAsync(tool, cancellationToken))
 					{
 						break;
 					}
@@ -314,7 +311,7 @@ namespace Horde.Server.Tools
 					break;
 				}
 
-				newTool = await GetInternalAsync(tool.Id, globalConfig);
+				newTool = await GetInternalAsync(tool.Id, globalConfig, cancellationToken);
 				if (newTool == null)
 				{
 					return null;
@@ -334,7 +331,7 @@ namespace Horde.Server.Tools
 			const int MaxDeploymentCount = 5;
 			while (newTool.Deployments.Count >= MaxDeploymentCount)
 			{
-				newTool = await UpdateAsync(newTool, Builders<Tool>.Update.PopFirst(x => x.Deployments));
+				newTool = await UpdateAsync(newTool, Builders<Tool>.Update.PopFirst(x => x.Deployments), cancellationToken);
 				if (newTool == null)
 				{
 					return null;
@@ -346,27 +343,21 @@ namespace Horde.Server.Tools
 			}
 
 			// Add the new deployment
-			return await UpdateAsync(newTool, Builders<Tool>.Update.Push(x => x.Deployments, deployment));
+			return await UpdateAsync(newTool, Builders<Tool>.Update.Push(x => x.Deployments, deployment), cancellationToken);
 		}
 
-		/// <summary>
-		/// Updates the state of the current deployment
-		/// </summary>
-		/// <param name="tool">Tool to be updated</param>
-		/// <param name="deploymentId">Identifier for the deployment to modify</param>
-		/// <param name="action">New state of the deployment</param>
-		/// <returns></returns>
-		public async Task<ITool?> UpdateDeploymentAsync(ITool tool, ToolDeploymentId deploymentId, ToolDeploymentState action)
+		/// <inheritdoc/>
+		public async Task<ITool?> UpdateDeploymentAsync(ITool tool, ToolDeploymentId deploymentId, ToolDeploymentState action, CancellationToken cancellationToken)
 		{
 			if (tool.Config is BundledToolConfig)
 			{
 				throw new InvalidOperationException("Cannot update the state of bundled tools.");
 			}
 
-			return await UpdateDeploymentInternalAsync((Tool)tool, deploymentId, action);
+			return await UpdateDeploymentInternalAsync((Tool)tool, deploymentId, action, cancellationToken);
 		}
 
-		async Task<Tool?> UpdateDeploymentInternalAsync(Tool tool, ToolDeploymentId deploymentId, ToolDeploymentState action)
+		async Task<Tool?> UpdateDeploymentInternalAsync(Tool tool, ToolDeploymentId deploymentId, ToolDeploymentState action, CancellationToken cancellationToken)
 		{
 			int idx = tool.Deployments.FindIndex(x => x.Id == deploymentId);
 			if (idx == -1)
@@ -378,11 +369,11 @@ namespace Horde.Server.Tools
 			switch (action)
 			{
 				case ToolDeploymentState.Complete:
-					return await UpdateAsync(tool, Builders<Tool>.Update.Set(x => x.Deployments[idx].BaseProgress, 1.0).Unset(x => x.Deployments[idx].StartedAt));
+					return await UpdateAsync(tool, Builders<Tool>.Update.Set(x => x.Deployments[idx].BaseProgress, 1.0).Unset(x => x.Deployments[idx].StartedAt), cancellationToken);
 
 				case ToolDeploymentState.Cancelled:
 					List<ToolDeployment> newDeployments = tool.Deployments.Where(x => x != deployment).ToList();
-					return await UpdateAsync(tool, Builders<Tool>.Update.Set(x => x.Deployments, newDeployments));
+					return await UpdateAsync(tool, Builders<Tool>.Update.Set(x => x.Deployments, newDeployments), cancellationToken);
 
 				case ToolDeploymentState.Paused:
 					if (deployment.StartedAt == null)
@@ -391,7 +382,7 @@ namespace Horde.Server.Tools
 					}
 					else
 					{
-						return await UpdateAsync(tool, Builders<Tool>.Update.Set(x => x.Deployments[idx].BaseProgress, deployment.GetProgressValue(_clock.UtcNow)).Set(x => x.Deployments[idx].StartedAt, null));
+						return await UpdateAsync(tool, Builders<Tool>.Update.Set(x => x.Deployments[idx].BaseProgress, deployment.GetProgressValue(_clock.UtcNow)).Set(x => x.Deployments[idx].StartedAt, null), cancellationToken);
 					}
 
 				case ToolDeploymentState.Active:
@@ -401,7 +392,7 @@ namespace Horde.Server.Tools
 					}
 					else
 					{
-						return await UpdateAsync(tool, Builders<Tool>.Update.Set(x => x.Deployments[idx].StartedAt, _clock.UtcNow));
+						return await UpdateAsync(tool, Builders<Tool>.Update.Set(x => x.Deployments[idx].StartedAt, _clock.UtcNow), cancellationToken);
 					}
 
 				default:
@@ -467,12 +458,12 @@ namespace Horde.Server.Tools
 #pragma warning restore CA2000
 		}
 
-		async Task<Tool> UpdateAsync(Tool tool, UpdateDefinition<Tool> update)
+		async Task<Tool> UpdateAsync(Tool tool, UpdateDefinition<Tool> update, CancellationToken cancellationToken)
 		{
 			update = update.Set(x => x.LastUpdateTime, new DateTime(Math.Max(tool.LastUpdateTime.Ticks + 1, DateTime.UtcNow.Ticks)));
 
 			FilterDefinition<Tool> filter = Builders<Tool>.Filter.Eq(x => x.Id, tool.Id) & Builders<Tool>.Filter.Eq(x => x.LastUpdateTime, tool.LastUpdateTime);
-			return await _tools.FindOneAndUpdateAsync(filter, update, new FindOneAndUpdateOptions<Tool> { ReturnDocument = ReturnDocument.After });
+			return await _tools.FindOneAndUpdateAsync(filter, update, new FindOneAndUpdateOptions<Tool> { ReturnDocument = ReturnDocument.After }, cancellationToken);
 		}
 	}
 }

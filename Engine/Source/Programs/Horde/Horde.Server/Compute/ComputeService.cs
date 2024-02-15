@@ -259,15 +259,15 @@ namespace Horde.Server.Compute
 			_resourceNeedsMeasurements = await CalculateResourceNeedsAsync();
 		}
 		
-		private async ValueTask RelayPortCleanupTickAsync(CancellationToken stoppingToken)
+		private async ValueTask RelayPortCleanupTickAsync(CancellationToken cancellationToken)
 		{
-			await CleanStaleRelayPortsAsync();
+			await CleanStaleRelayPortsAsync(cancellationToken);
 		}
 
 		/// <summary>
 		/// Check for port mappings that either have no registered lease or possess an expired lease
 		/// </summary>
-		internal async Task CleanStaleRelayPortsAsync()
+		internal async Task CleanStaleRelayPortsAsync(CancellationToken cancellationToken)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(ComputeService)}.{nameof(CleanStaleRelayPortsAsync)}");
 			TimeSpan portRelayLeaseTimeout = TimeSpan.FromMinutes(10);
@@ -281,7 +281,7 @@ namespace Horde.Server.Compute
 					if (hasPotentiallyExpired)
 					{
 						LeaseId leaseId = LeaseId.Parse(pm.LeaseId);
-						ILease? lease = await _agentService.GetLeaseAsync(leaseId);
+						ILease? lease = await _agentService.GetLeaseAsync(leaseId, cancellationToken);
 						if (lease == null || lease.FinishTime != null)
 						{
 							_logger.LogInformation("Removing stale port mapping for lease {LeaseId}", leaseId);
@@ -371,7 +371,7 @@ namespace Horde.Server.Compute
 
 			try
 			{
-				List<IAgent> agents = await _agentCollection.FindAsync();
+				IReadOnlyList<IAgent> agents = await _agentCollection.FindAsync(cancellationToken: cancellationToken);
 				foreach (IAgent agent in agents)
 				{
 					Dictionary<string, int> assignedResources = new Dictionary<string, int>();
@@ -408,15 +408,15 @@ namespace Horde.Server.Compute
 						{
 							using TelemetrySpan addLeaseSpan = _tracer.StartActiveSpan("Adding lease");
 
-							IAgent? newAgent = await _agentCollection.TryAddLeaseAsync(agent, lease);
+							IAgent? newAgent = await _agentCollection.TryAddLeaseAsync(agent, lease, cancellationToken);
 							if (newAgent != null)
 							{
 								await _agentCollection.PublishUpdateEventAsync(agent.Id);
-								await _agentService.CreateLeaseAsync(newAgent, lease);
+								await _agentService.CreateLeaseAsync(newAgent, lease, cancellationToken);
 								span.SetAttribute("allocatedLeaseId", leaseId.ToString());
 								span.SetAttribute("allocatedAgentId", newAgent.Id.ToString());
 
-								await LogRequestAsync(AllocationOutcome.Accepted, arp.RequestId, arp.Requirements, arp.ParentLeaseId, span);
+								await LogRequestAsync(AllocationOutcome.Accepted, arp.RequestId, arp.Requirements, arp.ParentLeaseId, span, cancellationToken);
 								return resource;
 							}
 							else
@@ -430,7 +430,7 @@ namespace Horde.Server.Compute
 					}
 				}
 
-				await LogRequestAsync(AllocationOutcome.Denied, arp.RequestId, arp.Requirements, arp.ParentLeaseId, span);
+				await LogRequestAsync(AllocationOutcome.Denied, arp.RequestId, arp.Requirements, arp.ParentLeaseId, span, cancellationToken);
 				return null;
 			}
 			catch (AgentRelayException are)
@@ -581,9 +581,9 @@ namespace Horde.Server.Compute
 			}
 		}
 		
-		internal async Task LogRequestAsync(AllocationOutcome outcome, string? requestId, Requirements requirements, LeaseId? parentLeaseId, TelemetrySpan currentSpan)
+		internal async Task LogRequestAsync(AllocationOutcome outcome, string? requestId, Requirements requirements, LeaseId? parentLeaseId, TelemetrySpan currentSpan, CancellationToken cancellationToken = default)
 		{
-			int? numActiveLeases = await GetNumActiveLeasesAsync(parentLeaseId);
+			int? numActiveLeases = await GetNumActiveLeasesAsync(parentLeaseId, cancellationToken);
 			currentSpan.SetAttribute("numActiveLeases", numActiveLeases);
 			
 			KeyValuePair<string, object?> poolTag = new ("pool", requirements.Pool);
@@ -656,15 +656,16 @@ namespace Horde.Server.Compute
 		/// Allows compute allocation requests metric to be broken down by lease.
 		/// </summary>
 		/// <param name="parentLeaseId"></param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Number of active leases</returns>
-		private async Task<int?> GetNumActiveLeasesAsync(LeaseId? parentLeaseId)
+		private async Task<int?> GetNumActiveLeasesAsync(LeaseId? parentLeaseId, CancellationToken cancellationToken)
 		{
 			if (parentLeaseId == null)
 			{
 				return null;
 			}
 
-			List<LeaseId> childLeaseIds = await _agentCollection.GetChildLeaseIdsAsync(parentLeaseId.Value);
+			List<LeaseId> childLeaseIds = await _agentCollection.GetChildLeaseIdsAsync(parentLeaseId.Value, cancellationToken);
 			return childLeaseIds.Count;
 		}
 

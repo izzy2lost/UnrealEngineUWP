@@ -10,7 +10,6 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Perforce;
 using Horde.Server.Users;
-using Horde.Server.Utilities;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -317,7 +316,7 @@ namespace Horde.Server.Configuration
 					entry.SetValue(record.User);
 				}
 			}
-			return (author != null)? await _userCollection.FindUserByLoginAsync(author) : null;
+			return (author != null) ? await _userCollection.FindUserByLoginAsync(author, cancellationToken) : null;
 		}
 
 		async ValueTask<ReadOnlyMemory<byte>> ReadAsync(Uri uri, int change, CancellationToken cancellationToken)

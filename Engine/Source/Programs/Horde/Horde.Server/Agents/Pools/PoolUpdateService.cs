@@ -69,14 +69,14 @@ namespace Horde.Server.Agents.Pools
 		/// <summary>
 		/// Shutdown agents that have been disabled for longer than the configured grace period
 		/// </summary>
-		/// <param name="stoppingToken">Cancellation token for the async task</param>
+		/// <param name="cancellationToken">Cancellation token for the async task</param>
 		/// <returns>Async task</returns>
-		internal async ValueTask ShutdownDisabledAgentsAsync(CancellationToken stoppingToken)
+		internal async ValueTask ShutdownDisabledAgentsAsync(CancellationToken cancellationToken)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(PoolUpdateService)}.{nameof(ShutdownDisabledAgentsAsync)}");
 
-			List<IPoolConfig> pools = await _pools.GetConfigsAsync(stoppingToken);
-			IEnumerable<IAgent> disabledAgents = await _agents.FindAsync(enabled: false);
+			IReadOnlyList<IPoolConfig> pools = await _pools.GetConfigsAsync(cancellationToken);
+			IEnumerable<IAgent> disabledAgents = await _agents.FindAsync(enabled: false, cancellationToken: cancellationToken);
 			disabledAgents = disabledAgents.Where(x => IsAgentAutoScaled(x, pools));
 
 			int c = 0;
@@ -84,7 +84,7 @@ namespace Horde.Server.Agents.Pools
 			{
 				if (HasGracePeriodExpired(agent, pools, _globalConfig.CurrentValue.AgentShutdownIfDisabledGracePeriod))
 				{
-					await _agents.TryUpdateSettingsAsync(agent, requestShutdown: true);
+					await _agents.TryUpdateSettingsAsync(agent, requestShutdown: true, cancellationToken: cancellationToken);
 					_logger.LogInformation("Shutting down agent {AgentId} as it has been disabled for longer than grace period", agent.Id.ToString());
 					c++;
 				}
@@ -93,7 +93,7 @@ namespace Horde.Server.Agents.Pools
 			span.SetAttribute("numShutdown", c);
 		}
 		
-		private bool HasGracePeriodExpired(IAgent agent, List<IPoolConfig> pools, TimeSpan globalGracePeriod)
+		private bool HasGracePeriodExpired(IAgent agent, IReadOnlyList<IPoolConfig> pools, TimeSpan globalGracePeriod)
 		{
 			if (agent.LastStatusChange == null)
 			{
@@ -105,25 +105,25 @@ namespace Horde.Server.Agents.Pools
 			return _clock.UtcNow > expirationTime;
 		}
 
-		private static TimeSpan? GetGracePeriod(IAgent agent, List<IPoolConfig> pools)
+		private static TimeSpan? GetGracePeriod(IAgent agent, IReadOnlyList<IPoolConfig> pools)
 		{
 			IEnumerable<PoolId> poolIds = agent.ExplicitPools.Concat(agent.DynamicPools);
 			IPoolConfig? pool = pools.FirstOrDefault(x => poolIds.Contains(x.Id) && x.ShutdownIfDisabledGracePeriod != null);
 			return pool?.ShutdownIfDisabledGracePeriod;
 		}
 		
-		private static bool IsAgentAutoScaled(IAgent agent, List<IPoolConfig> pools)
+		private static bool IsAgentAutoScaled(IAgent agent, IReadOnlyList<IPoolConfig> pools)
 		{
 			IEnumerable<PoolId> poolIds = agent.ExplicitPools.Concat(agent.DynamicPools);
-			return pools.Find(x => poolIds.Contains(x.Id) && x.EnableAutoscaling) != null;
+			return pools.Any(x => poolIds.Contains(x.Id) && x.EnableAutoscaling);
 		}
 
 		/// <summary>
 		/// Execute the background task
 		/// </summary>
-		/// <param name="stoppingToken">Cancellation token for the async task</param>
+		/// <param name="cancellationToken">Cancellation token for the async task</param>
 		/// <returns>Async task</returns>
-		async ValueTask UpdatePoolsAsync(CancellationToken stoppingToken)
+		async ValueTask UpdatePoolsAsync(CancellationToken cancellationToken)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(PoolUpdateService)}.{nameof(UpdatePoolsAsync)}");
 			
@@ -132,7 +132,7 @@ namespace Horde.Server.Agents.Pools
 
 			// Update the list
 			bool retryUpdate = true;
-			while (retryUpdate && !stoppingToken.IsCancellationRequested)
+			while (retryUpdate && !cancellationToken.IsCancellationRequested)
 			{
 				_logger.LogDebug("Updating pool->workspace map");
 
@@ -140,7 +140,7 @@ namespace Horde.Server.Agents.Pools
 				retryUpdate = false;
 
 				// Capture the list of pools at the start of this update
-				List<IPoolConfig> currentPools = await _pools.GetConfigsAsync(stoppingToken);
+				IReadOnlyList<IPoolConfig> currentPools = await _pools.GetConfigsAsync(cancellationToken);
 
 				// Lookup table of pool id to workspaces
 				Dictionary<PoolId, AutoSdkConfig> poolToAutoSdkView = new Dictionary<PoolId, AutoSdkConfig>();
@@ -210,7 +210,7 @@ namespace Horde.Server.Agents.Pools
 						}
 
 #pragma warning disable CS0618 // Type or member is obsolete
-						await _pools.UpdateConfigAsync(currentPool.Id, new UpdatePoolConfigOptions{ Workspaces = newWorkspaces, AutoSdkConfig = newAutoSdkConfig });
+						await _pools.UpdateConfigAsync(currentPool.Id, new UpdatePoolConfigOptions{ Workspaces = newWorkspaces, AutoSdkConfig = newAutoSdkConfig }, cancellationToken);
 #pragma warning restore CS0618 // Type or member is obsolete
 					}
 				}

@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Horde.Server.Users;
 using EpicGames.Horde.Users;
+using System.Threading;
 
 namespace Horde.Server.Issues
 {
@@ -97,15 +98,16 @@ namespace Horde.Server.Issues
 		/// </summary>
 		/// <param name="issueService">The issue service</param>
 		/// <param name="issueId">Issue id to query </param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		public static async Task<IIssueDetails?> GetIssueDetailsAsync(this IssueService issueService, int issueId)
+		public static async Task<IIssueDetails?> GetIssueDetailsAsync(this IssueService issueService, int issueId, CancellationToken cancellationToken)
 		{
-			IIssue? issue = await issueService.Collection.GetIssueAsync(issueId);
+			IIssue? issue = await issueService.Collection.GetIssueAsync(issueId, cancellationToken);
 			if(issue == null)
 			{
 				return null;
 			}
-			return await issueService.GetIssueDetailsAsync(issue);
+			return await issueService.GetIssueDetailsAsync(issue, cancellationToken);
 		}
 	}
 }

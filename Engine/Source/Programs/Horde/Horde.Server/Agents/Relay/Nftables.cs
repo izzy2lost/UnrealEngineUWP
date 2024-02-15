@@ -74,9 +74,9 @@ public class Nftables
 	/// <summary>
 	/// Initialize nftables
 	/// </summary>
-	public async Task InitializeAsync()
+	public async Task InitializeAsync(CancellationToken cancellationToken)
 	{
-		string version = await GetNftablesVersionAsync();
+		string version = await GetNftablesVersionAsync(cancellationToken);
 		_logger.LogInformation("nftables version: {Version}", version);
 	}
 
@@ -133,14 +133,14 @@ public class Nftables
 		}
 	}
 
-	private async Task<string> GetNftablesVersionAsync()
+	private async Task<string> GetNftablesVersionAsync(CancellationToken cancellationToken)
 	{
 		if (!RuntimePlatform.IsLinux)
 		{
 			throw new NftablesException("nftables can only run under Linux");
 		}
 		
-		(int exitCode, string output) = await ExecuteNftAsync(new List<string> { "--version" });
+		(int exitCode, string output) = await ExecuteNftAsync(new List<string> { "--version" }, cancellationToken: cancellationToken);
 		if (exitCode != 0)
 		{
 			throw new NftablesException("Unable to get nftables version. Is 'nft' tool installed?");

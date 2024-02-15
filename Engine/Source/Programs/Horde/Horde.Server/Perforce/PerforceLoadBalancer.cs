@@ -188,9 +188,9 @@ namespace Horde.Server.Perforce
 		/// Get the current server list
 		/// </summary>
 		/// <returns></returns>
-		async Task<PerforceServerList> GetServerListAsync()
+		async Task<PerforceServerList> GetServerListAsync(CancellationToken cancellationToken)
 		{
-			PerforceServerList serverList = await _serverListSingleton.GetAsync();
+			PerforceServerList serverList = await _serverListSingleton.GetAsync(cancellationToken);
 
 			DateTime minLastUpdateTime = DateTime.UtcNow - TimeSpan.FromMinutes(2.5);
 			foreach (PerforceServerEntry server in serverList.Servers)
@@ -209,9 +209,9 @@ namespace Horde.Server.Perforce
 		/// Get the perforce servers
 		/// </summary>
 		/// <returns></returns>
-		public async Task<List<IPerforceServer>> GetServersAsync()
+		public async Task<List<IPerforceServer>> GetServersAsync(CancellationToken cancellationToken)
 		{
-			PerforceServerList serverList = await GetServerListAsync();
+			PerforceServerList serverList = await GetServerListAsync(cancellationToken);
 			return serverList.Servers.ConvertAll<IPerforceServer>(x => x);
 		}
 
@@ -219,9 +219,9 @@ namespace Horde.Server.Perforce
 		/// Allocates a server for use by a lease
 		/// </summary>
 		/// <returns>The server to use. Null if there is no healthy server available.</returns>
-		public async Task<IPerforceServer?> GetServerAsync(string cluster)
+		public async Task<IPerforceServer?> GetServerAsync(string cluster, CancellationToken cancellationToken)
 		{
-			PerforceServerList serverList = await GetServerListAsync();
+			PerforceServerList serverList = await GetServerListAsync(cancellationToken);
 
 			List<PerforceServerEntry> candidates = serverList.Servers.Where(x => x.Cluster == cluster && x.Status >= PerforceServerStatus.Healthy).ToList();
 			if(candidates.Count == 0)
@@ -236,11 +236,12 @@ namespace Horde.Server.Perforce
 		/// Select a Perforce server to use by the Horde server
 		/// </summary>
 		/// <param name="cluster"></param>
+		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public Task<IPerforceServer?> SelectServerAsync(PerforceCluster cluster)
+		public Task<IPerforceServer?> SelectServerAsync(PerforceCluster cluster, CancellationToken cancellationToken)
 		{
 			List<string> properties = new List<string>{ "HordeServer=1" };
-			return SelectServerAsync("server", cluster, properties);
+			return SelectServerAsync("server", cluster, properties, cancellationToken);
 		}
 
 		/// <summary>
@@ -248,10 +249,11 @@ namespace Horde.Server.Perforce
 		/// </summary>
 		/// <param name="cluster"></param>
 		/// <param name="agent"></param>
+		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public Task<IPerforceServer?> SelectServerAsync(PerforceCluster cluster, IAgent agent)
+		public Task<IPerforceServer?> SelectServerAsync(PerforceCluster cluster, IAgent agent, CancellationToken cancellationToken)
 		{
-			return SelectServerAsync($"agent:{agent.Id}", cluster, agent.Properties);
+			return SelectServerAsync($"agent:{agent.Id}", cluster, agent.Properties, cancellationToken);
 		}
 
 		/// <summary>
@@ -294,8 +296,9 @@ namespace Horde.Server.Perforce
 		/// <param name="key"></param>
 		/// <param name="cluster"></param>
 		/// <param name="properties"></param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		public async Task<IPerforceServer?> SelectServerAsync(string key, PerforceCluster cluster, IReadOnlyList<string> properties)
+		public async Task<IPerforceServer?> SelectServerAsync(string key, PerforceCluster cluster, IReadOnlyList<string> properties, CancellationToken cancellationToken)
 		{
 			// Find all the valid servers for this agent
 			List<PerforceServer> validServers = new List<PerforceServer>();
@@ -311,7 +314,7 @@ namespace Horde.Server.Perforce
 			HashSet<string> validServerNames = new HashSet<string>(validServers.Select(x => x.ServerAndPort), StringComparer.OrdinalIgnoreCase);
 
 			// Find all the matching servers.
-			PerforceServerList serverList = await GetServerListAsync();
+			PerforceServerList serverList = await GetServerListAsync(cancellationToken);
 
 			List<PerforceServerEntry> candidates = serverList.Servers.Where(x => x.Cluster == cluster.Name && validServerNames.Contains(x.BaseServerAndPort)).ToList();
 			if (candidates.Count == 0)
@@ -319,7 +322,7 @@ namespace Horde.Server.Perforce
 				foreach (PerforceServer validServer in validServers)
 				{
 					_logger.LogDebug("Fetching server info for {ServerAndPort}", validServer.ServerAndPort);
-					await UpdateServerAsync(cluster, validServer, candidates);
+					await UpdateServerAsync(cluster, validServer, candidates, cancellationToken);
 				}
 				if (candidates.Count == 0)
 				{
@@ -419,7 +422,7 @@ namespace Horde.Server.Perforce
 				{
 					try
 					{
-						await UpdateServerAsync(cluster, server, newServers);
+						await UpdateServerAsync(cluster, server, newServers, cancellationToken);
 					}
 					catch (Exception ex)
 					{
@@ -430,14 +433,14 @@ namespace Horde.Server.Perforce
 
 			// Update the number of leases for each entry
 			List<PerforceServerEntry> newEntries = newServers.OrderBy(x => x.Cluster).ThenBy(x => x.BaseServerAndPort).ThenBy(x => x.ServerAndPort).ToList();
-			await UpdateLeaseCountsAsync(newEntries);
-			PerforceServerList list = await _serverListSingleton.UpdateAsync(list => MergeServerList(list, newEntries));
+			await UpdateLeaseCountsAsync(newEntries, cancellationToken);
+			PerforceServerList list = await _serverListSingleton.UpdateAsync(list => MergeServerList(list, newEntries), cancellationToken);
 
 			// Now update the health of each entry
 			List<Task> tasks = new List<Task>();
 			foreach (PerforceServerEntry entry in list.Servers)
 			{
-				tasks.Add(Task.Run(() => UpdateHealthAsync(entry), CancellationToken.None));
+				tasks.Add(Task.Run(() => UpdateHealthAsync(entry, cancellationToken), cancellationToken));
 			}
 			await Task.WhenAll(tasks);
 		}
@@ -462,7 +465,7 @@ namespace Horde.Server.Perforce
 			serverList.Servers = newEntries;
 		}
 
-		async Task UpdateLeaseCountsAsync(IEnumerable<PerforceServerEntry> newServerEntries)
+		async Task UpdateLeaseCountsAsync(IEnumerable<PerforceServerEntry> newServerEntries, CancellationToken cancellationToken)
 		{
 			Dictionary<string, Dictionary<string, PerforceServerEntry>> newServerLookup = new Dictionary<string, Dictionary<string, PerforceServerEntry>>();
 			foreach (PerforceServerEntry newServerEntry in newServerEntries)
@@ -479,7 +482,7 @@ namespace Horde.Server.Perforce
 				}
 			}
 
-			List<ILease> leases = await _leaseCollection.FindActiveLeasesAsync();
+			IReadOnlyList<ILease> leases = await _leaseCollection.FindActiveLeasesAsync(cancellationToken: cancellationToken);
 			foreach (ILease lease in leases)
 			{
 				Any any = Any.Parser.ParseFrom(lease.Payload.ToArray());
@@ -524,7 +527,7 @@ namespace Horde.Server.Perforce
 			}
 		}
 
-		async Task UpdateServerAsync(PerforceCluster cluster, PerforceServer server, List<PerforceServerEntry> newServers)
+		async Task UpdateServerAsync(PerforceCluster cluster, PerforceServer server, List<PerforceServerEntry> newServers, CancellationToken cancellationToken)
 		{
 			string initialHostName = server.ServerAndPort;
 			int port = 1666;
@@ -543,7 +546,7 @@ namespace Horde.Server.Perforce
 			}
 			else
 			{
-				await ResolveServersAsync(initialHostName, hostNames);
+				await ResolveServersAsync(initialHostName, hostNames, cancellationToken);
 			}
 
 			foreach (string hostName in hostNames)
@@ -557,10 +560,10 @@ namespace Horde.Server.Perforce
 			}
 		}
 
-		async Task ResolveServersAsync(string hostName, List<string> hostNames)
+		async Task ResolveServersAsync(string hostName, List<string> hostNames, CancellationToken cancellationToken)
 		{
 			// Find all the addresses of the hosts
-			IPHostEntry entry = await Dns.GetHostEntryAsync(hostName);
+			IPHostEntry entry = await Dns.GetHostEntryAsync(hostName, cancellationToken);
 			foreach (IPAddress address in entry.AddressList)
 			{
 				try
@@ -577,9 +580,7 @@ namespace Horde.Server.Perforce
 		/// <summary>
 		/// Updates 
 		/// </summary>
-		/// <param name="entry"></param>
-		/// <returns></returns>
-		async Task UpdateHealthAsync(PerforceServerEntry entry)
+		async Task UpdateHealthAsync(PerforceServerEntry entry, CancellationToken cancellationToken)
 		{
 			DateTime? updateTime = null;
 			string detail = "Health check disabled";
@@ -592,7 +593,7 @@ namespace Horde.Server.Perforce
 				Uri healthCheckUrl = new Uri(entry.HealthCheckUrl);
 				try
 				{
-					(health, detail) = await GetServerHealthAsync(healthCheckUrl);
+					(health, detail) = await GetServerHealthAsync(healthCheckUrl, cancellationToken);
 				}
 				catch
 				{
@@ -603,7 +604,7 @@ namespace Horde.Server.Perforce
 			// Update the server record
 			if (health != entry.Status || detail != entry.Detail || updateTime != entry.LastUpdateTime)
 			{
-				await _serverListSingleton.UpdateAsync(x => UpdateHealth(x, entry.ServerAndPort, health, detail, updateTime));
+				await _serverListSingleton.UpdateAsync(x => UpdateHealth(x, entry.ServerAndPort, health, detail, updateTime), cancellationToken);
 			}
 		}
 
@@ -621,12 +622,12 @@ namespace Horde.Server.Perforce
 			}
 		}
 
-		static async Task<(PerforceServerStatus, string)> GetServerHealthAsync(Uri healthCheckUrl)
+		static async Task<(PerforceServerStatus, string)> GetServerHealthAsync(Uri healthCheckUrl, CancellationToken cancellationToken)
 		{
 			using HttpClient client = new HttpClient();
-			HttpResponseMessage response = await client.GetAsync(healthCheckUrl);
+			HttpResponseMessage response = await client.GetAsync(healthCheckUrl, cancellationToken);
 
-			byte[] data = await response.Content.ReadAsByteArrayAsync();
+			byte[] data = await response.Content.ReadAsByteArrayAsync(cancellationToken);
 			JsonDocument document = JsonDocument.Parse(data);
 
 			foreach (JsonElement element in document.RootElement.GetProperty("results").EnumerateArray())

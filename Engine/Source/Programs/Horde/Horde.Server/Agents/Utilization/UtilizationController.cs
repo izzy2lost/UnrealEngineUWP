@@ -33,11 +33,11 @@ namespace Horde.Server.Agents.Utilization
 		/// </summary>
 		/// <param name="after">Start time for the search.</param>
 		/// <param name="before">End time for the search.</param>
-		/// <param name="count">Number of samples to include</param>
+		/// <param name="count">Maximum number of samples to return. If the search range is open ended and no count is specified, the server will return a capped list of results.</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		[HttpGet]
 		[Route("/api/v1/utilization")]
-		public async Task<ActionResult<List<GetUtilizationDataResponse>>> GetUtilizationDataAsync([FromQuery] DateTime? after = null, [FromQuery] DateTime? before = null, [FromQuery] int count = 10, CancellationToken cancellationToken = default)
+		public async Task<ActionResult<List<GetUtilizationDataResponse>>> GetUtilizationDataAsync([FromQuery] DateTime? after = null, [FromQuery] DateTime? before = null, [FromQuery] int? count = null, CancellationToken cancellationToken = default)
 		{
 			IReadOnlyList<IUtilizationData> data = await _utilizationDataCollection.GetUtilizationDataAsync(after, before, count, cancellationToken);
 			return data.ConvertAll(CreateTelemetryResponse);

@@ -443,12 +443,12 @@ namespace Horde.Server.Jobs
 		}
 
 		/// <inheritdoc/>
-		public async Task<IJob> AddAsync(JobId jobId, StreamId streamId, TemplateId templateRefId, ContentHash templateHash, IGraph graph, string name, int change, int codeChange, CreateJobOptions options)
+		public async Task<IJob> AddAsync(JobId jobId, StreamId streamId, TemplateId templateRefId, ContentHash templateHash, IGraph graph, string name, int change, int codeChange, CreateJobOptions options, CancellationToken cancellationToken)
 		{
 			JobDocument newJob = new JobDocument(jobId, streamId, templateRefId, templateHash, graph.Id, name, change, codeChange, options, DateTime.UtcNow);
 			CreateBatches(newJob, graph, _logger);
 
-			await _jobs.InsertOneAsync(newJob);
+			await _jobs.InsertOneAsync(newJob, null, cancellationToken);
 
 			if (_telemetrySink.Enabled)
 			{
@@ -476,9 +476,9 @@ namespace Horde.Server.Jobs
 		}
 
 		/// <inheritdoc/>
-		public async Task<IJob?> GetAsync(JobId jobId)
+		public async Task<IJob?> GetAsync(JobId jobId, CancellationToken cancellationToken)
 		{
-			JobDocument? job = await _jobs.Find<JobDocument>(x => x.Id == jobId).FirstOrDefaultAsync();
+			JobDocument? job = await _jobs.Find<JobDocument>(x => x.Id == jobId).FirstOrDefaultAsync(cancellationToken);
 			if (job != null)
 			{
 				await PostLoadAsync(job);
@@ -487,20 +487,20 @@ namespace Horde.Server.Jobs
 		}
 
 		/// <inheritdoc/>
-		public async Task<bool> RemoveAsync(IJob job)
+		public async Task<bool> RemoveAsync(IJob job, CancellationToken cancellationToken)
 		{
-			DeleteResult result = await _jobs.DeleteOneAsync(x => x.Id == job.Id && x.UpdateIndex == job.UpdateIndex);
+			DeleteResult result = await _jobs.DeleteOneAsync(x => x.Id == job.Id && x.UpdateIndex == job.UpdateIndex, null, cancellationToken);
 			return result.DeletedCount > 0;
 		}
 
 		/// <inheritdoc/>
-		public async Task RemoveStreamAsync(StreamId streamId)
+		public async Task RemoveStreamAsync(StreamId streamId, CancellationToken cancellationToken)
 		{
-			await _jobs.DeleteManyAsync(x => x.StreamId == streamId);
+			await _jobs.DeleteManyAsync(x => x.StreamId == streamId, cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		public async Task<List<IJob>> FindAsync(JobId[]? jobIds, StreamId? streamId, string? name, TemplateId[]? templates, int? minChange, int? maxChange, int? preflightChange, bool? preflightOnly, UserId ? preflightStartedByUser, UserId? startedByUser, DateTimeOffset? minCreateTime, DateTimeOffset? maxCreateTime, DateTimeOffset? modifiedBefore, DateTimeOffset? modifiedAfter, JobStepBatchState? batchState, int? index, int? count, bool consistentRead, string? indexHint, bool? excludeUserJobs)
+		public async Task<IReadOnlyList<IJob>> FindAsync(JobId[]? jobIds, StreamId? streamId, string? name, TemplateId[]? templates, int? minChange, int? maxChange, int? preflightChange, bool? preflightOnly, UserId ? preflightStartedByUser, UserId? startedByUser, DateTimeOffset? minCreateTime, DateTimeOffset? maxCreateTime, DateTimeOffset? modifiedBefore, DateTimeOffset? modifiedAfter, JobStepBatchState? batchState, int? index, int? count, bool consistentRead, string? indexHint, bool? excludeUserJobs, CancellationToken cancellationToken)
 		{
 			FilterDefinitionBuilder<JobDocument> filterBuilder = Builders<JobDocument>.Filter;
 
@@ -591,7 +591,7 @@ namespace Horde.Server.Jobs
 			{
 				await PostLoadAsync(result);
 			}
-			return results.ConvertAll<JobDocument, IJob>(x => x);
+			return results;
 		}
 
 		/// <inheritdoc/>
@@ -621,7 +621,7 @@ namespace Horde.Server.Jobs
 		}
 
 		/// <inheritdoc/>
-		public async Task<List<IJob>> FindLatestByStreamWithTemplatesAsync(StreamId streamId, TemplateId[] templates, UserId? preflightStartedByUser, DateTimeOffset? maxCreateTime, DateTimeOffset? modifiedAfter, int? index, int? count, bool consistentRead)
+		public async Task<IReadOnlyList<IJob>> FindLatestByStreamWithTemplatesAsync(StreamId streamId, TemplateId[] templates, UserId? preflightStartedByUser, DateTimeOffset? maxCreateTime, DateTimeOffset? modifiedAfter, int? index, int? count, bool consistentRead, CancellationToken cancellationToken)
 		{
 			string indexHint = _streamThenTemplateThenCreationTimeIndex.Name;
 			
@@ -629,11 +629,11 @@ namespace Horde.Server.Jobs
 			// Casting to interface to benefit from default parameter values
 			return await (this as IJobCollection).FindAsync(
 				streamId: streamId, templates: templates, preflightStartedByUser: preflightStartedByUser, modifiedAfter: modifiedAfter, maxCreateTime: maxCreateTime,
-				index: index, count: count, indexHint: indexHint, consistentRead: consistentRead);
+				index: index, count: count, indexHint: indexHint, consistentRead: consistentRead, cancellationToken: cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		public async Task<IJob?> TryUpdateJobAsync(IJob inJob, IGraph graph, string? name, Priority? priority, bool? autoSubmit, int? autoSubmitChange, string? autoSubmitMessage, UserId? abortedByUserId, ObjectId? notificationTriggerId, List<Report>? reports, List<string>? arguments, KeyValuePair<int, ObjectId>? labelIdxToTriggerId, KeyValuePair<TemplateId, JobId>? jobTrigger)
+		public async Task<IJob?> TryUpdateJobAsync(IJob inJob, IGraph graph, string? name, Priority? priority, bool? autoSubmit, int? autoSubmitChange, string? autoSubmitMessage, UserId? abortedByUserId, ObjectId? notificationTriggerId, List<Report>? reports, List<string>? arguments, KeyValuePair<int, ObjectId>? labelIdxToTriggerId, KeyValuePair<TemplateId, JobId>? jobTrigger, CancellationToken cancellationToken)
 		{
 			// Create the update 
 			UpdateDefinitionBuilder<JobDocument> updateBuilder = Builders<JobDocument>.Update;
@@ -733,11 +733,11 @@ namespace Horde.Server.Jobs
 			}
 
 			// Update the new list of job steps
-			return await TryUpdateAsync(jobDocument, updateBuilder.Combine(updates));
+			return await TryUpdateAsync(jobDocument, updateBuilder.Combine(updates), cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		public async Task<IJob?> TryUpdateBatchAsync(IJob job, IGraph graph, JobStepBatchId batchId, LogId? newLogId, JobStepBatchState? newState, JobStepBatchError? newError)
+		public async Task<IJob?> TryUpdateBatchAsync(IJob job, IGraph graph, JobStepBatchId batchId, LogId? newLogId, JobStepBatchState? newState, JobStepBatchError? newError, CancellationToken cancellationToken)
 		{
 			JobDocument jobDocument = Clone((JobDocument)job);
 
@@ -825,7 +825,7 @@ namespace Horde.Server.Jobs
 			}
 
 			// Update the new list of job steps
-			return await TryUpdateAsync(jobDocument, updates);
+			return await TryUpdateAsync(jobDocument, updates, cancellationToken);
 		}
 
 		/// <summary>
@@ -871,7 +871,7 @@ namespace Horde.Server.Jobs
 		}
 
 		/// <inheritdoc/>
-		public Task<IJob?> TryUpdateStepAsync(IJob job, IGraph graph, JobStepBatchId batchId, JobStepId stepId, JobStepState newState, JobStepOutcome newOutcome, JobStepError? newError, bool? newAbortRequested, UserId? newAbortByUserId, LogId? newLogId, ObjectId? newNotificationTriggerId, UserId? newRetryByUserId, Priority? newPriority, List<Report>? newReports, Dictionary<string, string?>? newProperties)
+		public Task<IJob?> TryUpdateStepAsync(IJob job, IGraph graph, JobStepBatchId batchId, JobStepId stepId, JobStepState newState, JobStepOutcome newOutcome, JobStepError? newError, bool? newAbortRequested, UserId? newAbortByUserId, LogId? newLogId, ObjectId? newNotificationTriggerId, UserId? newRetryByUserId, Priority? newPriority, List<Report>? newReports, Dictionary<string, string?>? newProperties, CancellationToken cancellationToken)
 		{
 			JobDocument jobDocument = Clone((JobDocument)job);
 
@@ -1061,10 +1061,10 @@ namespace Horde.Server.Jobs
 			}
 
 			// Update the new list of job steps
-			return TryUpdateAsync(jobDocument, updates);
+			return TryUpdateAsync(jobDocument, updates, cancellationToken);
 		}
 
-		Task<IJob?> TryUpdateAsync(JobDocument job, List<UpdateDefinition<JobDocument>> updates)
+		Task<IJob?> TryUpdateAsync(JobDocument job, List<UpdateDefinition<JobDocument>> updates, CancellationToken cancellationToken)
 		{
 			if (updates.Count == 0)
 			{
@@ -1072,11 +1072,11 @@ namespace Horde.Server.Jobs
 			}
 			else
 			{
-				return TryUpdateAsync(job, Builders<JobDocument>.Update.Combine(updates));
+				return TryUpdateAsync(job, Builders<JobDocument>.Update.Combine(updates), cancellationToken);
 			}
 		}
 
-		async Task<IJob?> TryUpdateAsync(JobDocument job, UpdateDefinition<JobDocument> update)
+		async Task<IJob?> TryUpdateAsync(JobDocument job, UpdateDefinition<JobDocument> update, CancellationToken cancellationToken)
 		{
 			int newUpdateIndex = job.UpdateIndex + 1;
 			update = update.Set(x => x.UpdateIndex, newUpdateIndex);
@@ -1084,7 +1084,7 @@ namespace Horde.Server.Jobs
 			DateTime newUpdateTimeUtc = DateTime.UtcNow;
 			update = update.Set(x => x.UpdateTimeUtc, newUpdateTimeUtc);
 
-			UpdateResult result = await _jobs.UpdateOneAsync<JobDocument>(x => x.Id == job.Id && x.UpdateIndex == job.UpdateIndex, update);
+			UpdateResult result = await _jobs.UpdateOneAsync<JobDocument>(x => x.Id == job.Id && x.UpdateIndex == job.UpdateIndex, update, null, cancellationToken);
 			if (result.ModifiedCount > 0)
 			{
 				job.UpdateIndex = newUpdateIndex;
@@ -1095,7 +1095,7 @@ namespace Horde.Server.Jobs
 		}
 
 		/// <inheritdoc/>
-		public Task<IJob?> TryRemoveFromDispatchQueueAsync(IJob job)
+		public Task<IJob?> TryRemoveFromDispatchQueueAsync(IJob job, CancellationToken cancellationToken)
 		{
 			JobDocument jobDocument = Clone((JobDocument)job);
 
@@ -1107,11 +1107,11 @@ namespace Horde.Server.Jobs
 			updates.Add(updateBuilder.Set(x => x.SchedulePriority, jobDocument.SchedulePriority));
 
 			// Update the new list of job steps
-			return TryUpdateAsync(jobDocument, updates);
+			return TryUpdateAsync(jobDocument, updates, cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		public Task<IJob?> TryUpdateGraphAsync(IJob job, IGraph oldGraph, IGraph newGraph)
+		public Task<IJob?> TryUpdateGraphAsync(IJob job, IGraph oldGraph, IGraph newGraph, CancellationToken cancellationToken)
 		{
 			JobDocument jobDocument = (JobDocument)job;
 			if (job.GraphHash != oldGraph.Id)
@@ -1185,7 +1185,7 @@ namespace Horde.Server.Jobs
 			UpdateBatches(jobDocument, newGraph, updates, _logger);
 
 			// Update the new list of job steps
-			return TryUpdateAsync(jobDocument, updates);
+			return TryUpdateAsync(jobDocument, updates, cancellationToken);
 		}
 
 		static bool NodesMatch(IGraph oldGraph, INode oldNode, IGraph newGraph, INode newNode)
@@ -1213,32 +1213,26 @@ namespace Horde.Server.Jobs
 		}
 
 		/// <inheritdoc/>
-		public async Task AddIssueToJobAsync(JobId jobId, int issueId)
+		public async Task AddIssueToJobAsync(JobId jobId, int issueId, CancellationToken cancellationToken)
 		{
 			FilterDefinition<JobDocument> jobFilter = Builders<JobDocument>.Filter.Eq(x => x.Id, jobId);
 			UpdateDefinition<JobDocument> jobUpdate = Builders<JobDocument>.Update.AddToSet(x => x.ReferencedByIssues, issueId).Inc(x => x.UpdateIndex, 1).Max(x => x.UpdateTimeUtc, DateTime.UtcNow);
-			await _jobs.UpdateOneAsync(jobFilter, jobUpdate);
+			await _jobs.UpdateOneAsync(jobFilter, jobUpdate, null, cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		public async Task<List<IJob>> GetDispatchQueueAsync()
+		public async Task<IReadOnlyList<IJob>> GetDispatchQueueAsync(CancellationToken cancellationToken)
 		{
-			List<JobDocument> newJobs = await _jobs.Find(x => x.SchedulePriority > 0).SortByDescending(x => x.SchedulePriority).ThenBy(x => x.CreateTimeUtc).ToListAsync();
+			List<JobDocument> newJobs = await _jobs.Find(x => x.SchedulePriority > 0).SortByDescending(x => x.SchedulePriority).ThenBy(x => x.CreateTimeUtc).ToListAsync(cancellationToken);
 			foreach (JobDocument result in newJobs)
 			{
 				await PostLoadAsync(result);
 			}
-			return newJobs.ConvertAll<JobDocument, IJob>(x => x);
+			return newJobs;
 		}
 
-		/// <summary>
-		/// Marks a job as skipped
-		/// </summary>
-		/// <param name="job">The job to update</param>
-		/// <param name="graph">Graph for the job</param>
-		/// <param name="reason">Reason for this batch being failed</param>
-		/// <returns>Updated version of the job</returns>
-		public async Task<IJob?> SkipAllBatchesAsync(IJob? job, IGraph graph, JobStepBatchError reason)
+		/// <inheritdoc/>
+		public async Task<IJob?> SkipAllBatchesAsync(IJob? job, IGraph graph, JobStepBatchError reason, CancellationToken cancellationToken)
 		{
 			while (job != null)
 			{
@@ -1268,19 +1262,19 @@ namespace Horde.Server.Jobs
 				List<UpdateDefinition<JobDocument>> updates = new List<UpdateDefinition<JobDocument>>();
 				UpdateBatches(jobDocument, graph, updates, _logger);
 
-				IJob? newJob = await TryUpdateAsync(jobDocument, updates);
+				IJob? newJob = await TryUpdateAsync(jobDocument, updates, cancellationToken);
 				if (newJob != null)
 				{
 					return newJob;
 				}
 
-				job = await GetAsync(job.Id);
+				job = await GetAsync(job.Id, cancellationToken);
 			}
 			return job;
 		}
 
 		/// <inheritdoc/>
-		public async Task<IJob?> SkipBatchAsync(IJob? job, JobStepBatchId batchId, IGraph graph, JobStepBatchError reason)
+		public async Task<IJob?> SkipBatchAsync(IJob? job, JobStepBatchId batchId, IGraph graph, JobStepBatchError reason, CancellationToken cancellationToken)
 		{
 			while (job != null)
 			{
@@ -1308,19 +1302,19 @@ namespace Horde.Server.Jobs
 				List<UpdateDefinition<JobDocument>> updates = new List<UpdateDefinition<JobDocument>>();
 				UpdateBatches(jobDocument, graph, updates, _logger);
 
-				IJob? newJob = await TryUpdateAsync(jobDocument, updates);
+				IJob? newJob = await TryUpdateAsync(jobDocument, updates, cancellationToken);
 				if(newJob != null)
 				{
 					return newJob;
 				}
 
-				job = await GetAsync(job.Id);
+				job = await GetAsync(job.Id, cancellationToken);
 			}
 			return job;
 		}
 
 		/// <inheritdoc/>
-		public async Task<IJob?> TryAssignLeaseAsync(IJob job, int batchIdx, PoolId poolId, AgentId agentId, SessionId sessionId, LeaseId leaseId, LogId logId)
+		public async Task<IJob?> TryAssignLeaseAsync(IJob job, int batchIdx, PoolId poolId, AgentId agentId, SessionId sessionId, LeaseId leaseId, LogId logId, CancellationToken cancellationToken)
 		{
 			// Try to update the job with this agent id
 			UpdateDefinitionBuilder<JobDocument> updateBuilder = Builders<JobDocument>.Update;
@@ -1341,7 +1335,7 @@ namespace Horde.Server.Jobs
 			}
 
 			JobDocument jobDocument = Clone((JobDocument)job);
-			if (await TryUpdateAsync(jobDocument, updates) == null)
+			if (await TryUpdateAsync(jobDocument, updates, cancellationToken) == null)
 			{
 				return null;
 			}
@@ -1356,14 +1350,14 @@ namespace Horde.Server.Jobs
 		}
 
 		/// <inheritdoc/>
-		public async Task<IJob?> TryCancelLeaseAsync(IJob job, int batchIdx)
+		public async Task<IJob?> TryCancelLeaseAsync(IJob job, int batchIdx, CancellationToken cancellationToken)
 		{
 			_logger.LogInformation("Cancelling lease {LeaseId} for agent {AgentId}", job.Batches[batchIdx].LeaseId, job.Batches[batchIdx].AgentId);
 
 			JobDocument jobDocument = Clone((JobDocument)job);
 
 			UpdateDefinition<JobDocument> update = Builders<JobDocument>.Update.Unset(x => x.Batches[batchIdx].AgentId).Unset(x => x.Batches[batchIdx].SessionId).Unset(x => x.Batches[batchIdx].LeaseId);
-			if (await TryUpdateAsync(jobDocument, update) == null)
+			if (await TryUpdateAsync(jobDocument, update, cancellationToken) == null)
 			{
 				return null;
 			}
@@ -1377,7 +1371,7 @@ namespace Horde.Server.Jobs
 		}
 
 		/// <inheritdoc/>
-		public Task<IJob?> TryFailBatchAsync(IJob job, int batchIdx, IGraph graph, JobStepBatchError error)
+		public Task<IJob?> TryFailBatchAsync(IJob job, int batchIdx, IGraph graph, JobStepBatchError error, CancellationToken cancellationToken)
 		{
 			JobDocument jobDocument = Clone((JobDocument)job);
 			JobStepBatchDocument batch = jobDocument.Batches[batchIdx];
@@ -1429,7 +1423,7 @@ namespace Horde.Server.Jobs
 			RefreshDependentJobSteps(jobDocument, graph, updates, _logger);
 			RefreshJobPriority(jobDocument, updates);
 
-			return TryUpdateAsync(jobDocument, updateBuilder.Combine(updates));
+			return TryUpdateAsync(jobDocument, updateBuilder.Combine(updates), cancellationToken);
 		}
 
 		/// <summary>

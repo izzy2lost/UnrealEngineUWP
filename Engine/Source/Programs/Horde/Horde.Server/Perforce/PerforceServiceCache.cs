@@ -274,7 +274,7 @@ namespace Horde.Server.Perforce
 		/// <returns></returns>
 		async ValueTask UpdateCommitsAsync(CancellationToken cancellationToken)
 		{
-			CacheState state = await _mongoService.GetSingletonAsync<CacheState>();
+			CacheState state = await _mongoService.GetSingletonAsync<CacheState>(cancellationToken);
 
 			// Get the current list of streams and their views
 			Dictionary<string, List<StreamInfo>> clusters = await CreateStreamInfoAsync(cancellationToken);
@@ -370,9 +370,9 @@ namespace Horde.Server.Perforce
 						// Apply any updates to the global state
 						if (updateState)
 						{
-							if (!await _mongoService.TryUpdateSingletonAsync(state))
+							if (!await _mongoService.TryUpdateSingletonAsync(state, cancellationToken))
 							{
-								state = await _mongoService.GetSingletonAsync<CacheState>();
+								state = await _mongoService.GetSingletonAsync<CacheState>(cancellationToken);
 							}
 						}
 					}
@@ -616,7 +616,7 @@ namespace Horde.Server.Perforce
 				int numResults = 0;
 				_owner._logger.LogDebug("Querying Perforce cache for {StreamId} commits from {MinChange} to {MaxChange} (max: {MaxResults}, tags: {Tags})", StreamConfig.Id, minChange ?? -2, maxChange ?? -2, maxResults ?? -1, (tags == null || tags.Count == 0) ? "none" : String.Join("/", tags.Select(x => x.ToString())));
 
-				CacheState state = await _owner._mongoService.GetSingletonAsync<CacheState>();
+				CacheState state = await _owner._mongoService.GetSingletonAsync<CacheState>(cancellationToken);
 				if (state.Clusters.TryGetValue(StreamConfig.ClusterName, out ClusterState? clusterState))
 				{
 					int minReplicatedChange;
@@ -688,7 +688,7 @@ namespace Horde.Server.Perforce
 							{
 								CachedCommitDoc cachedCommit = await CachedCommitDoc.FromCommitAsync(commit, cancellationToken);
 								await _owner.AddCachedCommitAsync(cachedCommit, cancellationToken);
-								await _owner._mongoService.UpdateSingletonAsync<CacheState>(x => TryUpdateRange(x, StreamConfig, commit.Number, maxChange));
+								await _owner._mongoService.UpdateSingletonAsync<CacheState>(x => TryUpdateRange(x, StreamConfig, commit.Number, maxChange), cancellationToken);
 								_owner._logger.LogDebug("Adding new cached commit for {StreamId} at change {Change}", StreamConfig.Id, commit.Number);
 
 								if (tags == null || tags.Any(x => cachedCommit.CommitTags.Contains(x)))
@@ -703,7 +703,7 @@ namespace Horde.Server.Perforce
 							{
 								int newMinChange = minChange ?? 0;
 								_owner._logger.LogDebug("Extending range for {StreamId} cache to {Change}..", StreamConfig.Id, newMinChange);
-								await _owner._mongoService.UpdateSingletonAsync<CacheState>(x => TryUpdateRange(x, StreamConfig, newMinChange, maxChange));
+								await _owner._mongoService.UpdateSingletonAsync<CacheState>(x => TryUpdateRange(x, StreamConfig, newMinChange, maxChange), cancellationToken);
 							}
 						}
 					}
