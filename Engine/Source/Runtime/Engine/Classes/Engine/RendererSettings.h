@@ -520,6 +520,11 @@ class URendererSettings : public UDeveloperSettings
 		ToolTip="Controls which tracing method Lumen uses when using Software Ray Tracing."))
 	TEnumAsByte<ELumenSoftwareTracingMode::Type> LumenSoftwareTracingMode;
 
+	UPROPERTY(config, EditAnywhere, Category = Lumen, meta = (
+		ConsoleVariable = "r.Lumen.Reflections.HardwareRayTracing.Translucent.Refraction.EnableForProject", DisplayName = "Ray Traced Translucent Refractions",
+		ToolTip = "Whether to use Lumen refraction tracing from surfaces when using harware ray tracing and hit lighting. This will require shader recompilation to compile of translucent card capture Lumen shaders. Increases GPU cost when enabled."))
+	uint32 LumenRayTracedTranslucentRefractions : 1;
+
 	UPROPERTY(config, EditAnywhere, Category = Shadows, meta = (
 		ConsoleVariable = "r.Shadow.Virtual.Enable", DisplayName = "Shadow Map Method",
 		ToolTip = "Select the primary shadow mapping method. Automatically uses 'Shadow Maps' when Forward Shading is enabled for the project as Virtual Shadow Maps are not supported."))
