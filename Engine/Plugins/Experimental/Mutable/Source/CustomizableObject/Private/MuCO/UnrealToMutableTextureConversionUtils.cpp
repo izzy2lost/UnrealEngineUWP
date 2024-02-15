@@ -277,9 +277,9 @@ EUnrealToMutableConversionError ConvertTextureUnrealSourceToMutable(mu::Image* O
 			OutResult->Init(SizeX, SizeY, LODs, mu::EImageFormat::IF_RGBA_UBYTE, mu::EInitializationType::NotInitialized);
 			uint8* DataDest = OutResult->GetData();
 
-			// Convert to RGBA8 in place
+			// Convert to RGBA8 while copying
 			TArrayView64<FColor> ImageDataView = TempImage.AsBGRA8();
-			ParallelFor(ImageDataView.Num(),
+			ParallelFor(TEXT("MutableToRGBA"), ImageDataView.Num(), 16*1024,
 				[DataDest, &ImageDataView](uint32 p)
 				{
 					DataDest[4 * p + 0] = ImageDataView[p].R;
@@ -296,9 +296,9 @@ EUnrealToMutableConversionError ConvertTextureUnrealSourceToMutable(mu::Image* O
 			OutResult->Init(SizeX, SizeY, LODs, mu::EImageFormat::IF_RGB_UBYTE, mu::EInitializationType::NotInitialized);
 			uint8* DataDest = OutResult->GetData();
 
-			// Convert to RGB8 in place
+			// Convert to RGB8 while copying
 			TArrayView64<FColor> ImageDataView = TempImage.AsBGRA8();
-			ParallelFor(ImageDataView.Num(),
+			ParallelFor(TEXT("MutableToRGB"), ImageDataView.Num(), 16 * 1024,
 				[DataDest, &ImageDataView](uint32 p)
 				{
 					DataDest[3 * p + 0] = ImageDataView[p].R;

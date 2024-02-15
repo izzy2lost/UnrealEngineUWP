@@ -145,9 +145,10 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	void CompilerOptions::SetDataPackingStrategy(int32 MinRomSize, int32 MinTextureResidentMipCount)
+	void CompilerOptions::SetDataPackingStrategy(int32 MinTextureResidentMipCount, uint64 EmbeddedDataBytesLimit, uint64 PackagedDataBytesLimit)
 	{
-		m_pD->MinRomSize = MinRomSize;
+		m_pD->EmbeddedDataBytesLimit = EmbeddedDataBytesLimit;
+		m_pD->PackagedDataBytesLimit = PackagedDataBytesLimit;
 		m_pD->MinTextureResidentMipCount = MinTextureResidentMipCount;
 	}
 
@@ -431,8 +432,8 @@ namespace mu
         m_pD->m_pErrorLog = genErrorLog.get();
 
 		// Pack data
-		int32 MinimumBytesPerRom = 1024; // \TODO: compilation parameter
-		m_pD->GenerateRoms(pResult.Get(),MinimumBytesPerRom);
+		uint64 EmbeddedDataFileBytesLimit = m_pD->m_options->GetPrivate()->EmbeddedDataBytesLimit;
+		m_pD->GenerateRoms(pResult.Get(), EmbeddedDataFileBytesLimit);
 
 		UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("program size"), int64(program.m_opAddress.Num()));
 
@@ -478,7 +479,7 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	void Compiler::Private::GenerateRoms(Model* p, int32 MinRomSize)
+	void Compiler::Private::GenerateRoms(Model* p, int32 EmbeddedDataBytesLimit)
 	{
 		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
 		MUTABLE_CPUPROFILER_SCOPE(Mutable_GenerateRoms);
@@ -488,78 +489,74 @@ namespace mu
 		int32 NumRoms = 0;
 		int32 NumEmbedded = 0;
 
-		// Serialise roms in a separate files if possible
-		if (MinRomSize >= 0)
+		// Save images and unload from memory
+		for (int32 ResourceIndex = 0; ResourceIndex < program.m_constantImageLODs.Num(); ++ResourceIndex)
 		{
-			// Save images and unload from memory
-			for (int32 ResourceIndex = 0; ResourceIndex < program.m_constantImageLODs.Num(); ++ResourceIndex)
+			TPair<int32, mu::ImagePtrConst>& ResData = program.m_constantImageLODs[ResourceIndex];
+
+			// This shouldn't have been serialised with rom support before.
+			check(ResData.Key < 0);
+
+			// Serialize to memory, to find out final size of this rom
+			OutputMemoryStream MemStream(1024 * 1024);
+			OutputArchive MemoryArch(&MemStream);
+			Image::Serialise(ResData.Value.get(), MemoryArch);
+
+			// If the resource uses less memory than the threshold, don't save it in a separate rom.
+			if (MemStream.GetBufferSize() <= EmbeddedDataBytesLimit)
 			{
-				TPair<int32, mu::ImagePtrConst>& ResData = program.m_constantImageLODs[ResourceIndex];
-
-				// This shouldn't have been serialised with rom support before.
-				check(ResData.Key < 0);
-
-				// Serialize to memory, to find out final size of this rom
-				OutputMemoryStream MemStream(1024 * 1024);
-				OutputArchive MemoryArch(&MemStream);
-				Image::Serialise(ResData.Value.get(), MemoryArch);
-
-				// If the resource uses less memory than the threshold, don't save it in a separate rom.
-				if (MemStream.GetBufferSize() < MinRomSize)
-				{
-					NumEmbedded++;
-					continue;
-				}
-
-				NumRoms++;
-
-				FRomData RomData;
-				RomData.ResourceType = DT_IMAGE;
-				RomData.ResourceIndex = ResourceIndex;
-				RomData.Size = MemStream.GetBufferSize();
-
-				// Ensure that the Id is unique
-				RomData.Id = CityHash32(static_cast<const char*>(MemStream.GetBuffer()), MemStream.GetBufferSize());
-				EnsureUniqueRomId(RomData.Id, program);
-
-				int32 RomIndex = program.m_roms.Add(RomData);
-				ResData.Key = RomIndex;
+				NumEmbedded++;
+				continue;
 			}
 
-			// Save meshes and unload from memory
-			for (int32 ResourceIndex = 0; ResourceIndex < program.m_constantMeshes.Num(); ++ResourceIndex)
+			NumRoms++;
+
+			FRomData RomData;
+			RomData.ResourceType = DT_IMAGE;
+			RomData.ResourceIndex = ResourceIndex;
+			RomData.Size = MemStream.GetBufferSize();
+
+			// Ensure that the Id is unique
+			RomData.Id = CityHash32(static_cast<const char*>(MemStream.GetBuffer()), MemStream.GetBufferSize());
+			EnsureUniqueRomId(RomData.Id, program);
+
+			int32 RomIndex = program.m_roms.Add(RomData);
+			ResData.Key = RomIndex;
+		}
+
+		// Save meshes and unload from memory
+		for (int32 ResourceIndex = 0; ResourceIndex < program.m_constantMeshes.Num(); ++ResourceIndex)
+		{
+			TPair<int32, mu::MeshPtrConst>& ResData = program.m_constantMeshes[ResourceIndex];
+
+			// This shouldn't have been serialised with rom support before.
+			check(ResData.Key < 0);
+
+			// Serialize to memory, to find out final size of this rom
+			OutputMemoryStream MemStream(1024 * 1024);
+			OutputArchive MemoryArch(&MemStream);
+			Mesh::Serialise(ResData.Value.get(), MemoryArch);
+
+			// If the resource uses less memory than the threshold, don't save it in a separate rom.
+			if (MemStream.GetBufferSize() <= EmbeddedDataBytesLimit)
 			{
-				TPair<int32, mu::MeshPtrConst>& ResData = program.m_constantMeshes[ResourceIndex];
-
-				// This shouldn't have been serialised with rom support before.
-				check(ResData.Key < 0);
-
-				// Serialize to memory, to find out final size of this rom
-				OutputMemoryStream MemStream(1024 * 1024);
-				OutputArchive MemoryArch(&MemStream);
-				Mesh::Serialise(ResData.Value.get(), MemoryArch);
-
-				// If the resource uses less memory than the threshold, don't save it in a separate rom.
-				if (MemStream.GetBufferSize() < MinRomSize)
-				{
-					NumEmbedded++;
-					continue;
-				}
-
-				NumRoms++;
-
-				FRomData RomData;
-				RomData.ResourceType = DT_MESH;
-				RomData.ResourceIndex = ResourceIndex;
-				RomData.Size = MemStream.GetBufferSize();
-
-				// Ensure that the Id is unique
-				RomData.Id = CityHash32(static_cast<const char*>(MemStream.GetBuffer()), MemStream.GetBufferSize());
-				EnsureUniqueRomId(RomData.Id, program);
-
-				int32 RomIndex = program.m_roms.Add(RomData);
-				ResData.Key = RomIndex;
+				NumEmbedded++;
+				continue;
 			}
+
+			NumRoms++;
+
+			FRomData RomData;
+			RomData.ResourceType = DT_MESH;
+			RomData.ResourceIndex = ResourceIndex;
+			RomData.Size = MemStream.GetBufferSize();
+
+			// Ensure that the Id is unique
+			RomData.Id = CityHash32(static_cast<const char*>(MemStream.GetBuffer()), MemStream.GetBufferSize());
+			EnsureUniqueRomId(RomData.Id, program);
+
+			int32 RomIndex = program.m_roms.Add(RomData);
+			ResData.Key = RomIndex;
 		}
 
 		UE_LOG(LogMutableCore, Log, TEXT("Generated roms for model with %d embedded constants and %d in roms."), NumEmbedded, NumRoms);

@@ -64,6 +64,9 @@ bool FUnrealMutableModelBulkReader::PrepareStreamingForObject(UCustomizableObjec
 	// See if we can free previuously allocated resources
 	for (int32 ObjectIndex = 0; ObjectIndex < Objects.Num(); )
 	{
+		// Close open file handles
+		Objects[ObjectIndex].ReadFileHandles.Empty();
+
 		if (!Objects[ObjectIndex].Model.Pin() && Objects[ObjectIndex].CurrentReadRequests.IsEmpty())
 		{
 			Objects.RemoveAtSwap(ObjectIndex);
@@ -89,15 +92,7 @@ bool FUnrealMutableModelBulkReader::PrepareStreamingForObject(UCustomizableObjec
 #if WITH_EDITOR
 		FString FolderPath = CustomizableObject->GetPrivate()->GetCompiledDataFolderPath();
 		FString FullFileName = FolderPath + CustomizableObject->GetPrivate()->GetCompiledDataFileName(false, nullptr, true);
-
-		const TSharedPtr<IAsyncReadFileHandle> ReadFileHandle = MakeShareable(FPlatformFileManager::Get().GetPlatformFile().OpenAsyncRead(*FullFileName));
-		if (!ReadFileHandle)
-		{
-			UE_LOG(LogMutable, Warning, TEXT("Streaming: Customizable Object %s is missing the Editor BulkData."), *CustomizableObject->GetName());
-			return false;
-		}
-
-		NewData.ReadFileHandles.Add(ReadFileHandle);
+		NewData.BulkFilePrefix = *FullFileName;
 #else
 		const UCustomizableObjectBulk* BulkData = CustomizableObject->GetPrivate()->GetStreamableBulkData();
 		if (!BulkData)
@@ -106,17 +101,8 @@ bool FUnrealMutableModelBulkReader::PrepareStreamingForObject(UCustomizableObjec
 			return false;
 		}
 
-		NewData.ReadFileHandles = BulkData->GetAsyncReadFileHandles();
+		NewData.BulkFilePrefix = BulkData->GetBulkFilePrefix();
 #endif
-
-
-		if (NewData.ReadFileHandles.IsEmpty())
-		{
-			UE_LOG(LogMutable, Warning, TEXT("Streaming: Customizable Object %s read file handles empty."), *CustomizableObject->GetName());
-
-			check(false);
-			return false;
-		}
 
 		NewData.StreamableBlocks = CustomizableObject->HashToStreamableBlock;
 		if (NewData.StreamableBlocks.IsEmpty())
@@ -228,8 +214,8 @@ mu::ModelReader::OPERATION_ID FUnrealMutableModelBulkReader::BeginReadBlock(cons
 		return -1;
 	}
 
-	// this generally cannot fail because it is async
-	if (!ObjectData->StreamableBlocks.Contains(Key))
+	const FMutableStreamableBlock* Block = ObjectData->StreamableBlocks.Find(Key);
+	if (!Block)
 	{
 		// File Handle not found! This shouldn't really happen.
 		UE_LOG(LogMutable, Error, TEXT("Streaming Block not found!"));
@@ -243,8 +229,6 @@ mu::ModelReader::OPERATION_ID FUnrealMutableModelBulkReader::BeginReadBlock(cons
 	}
 
 	OPERATION_ID Result = ++LastOperationID;
-
-	const FMutableStreamableBlock& Block = ObjectData->StreamableBlocks[Key];
 
 	int32 BulkDataOffsetInFile = 0;
 #if WITH_EDITOR
@@ -260,10 +244,35 @@ mu::ModelReader::OPERATION_ID FUnrealMutableModelBulkReader::BeginReadBlock(cons
 			CompletionCallbackCapture(!bWasCancelled);			
 		});		
 	}
+
+	TSharedPtr<IAsyncReadFileHandle> FileHandle;
+	{
+		FScopeLock Lock(&FileHandlesCritical);
+
+		TSharedPtr<IAsyncReadFileHandle>& Found = ObjectData->ReadFileHandles.FindOrAdd( Block->FileId );
+		if (!Found)
+		{
+#if WITH_EDITOR
+			FString FilePath = ObjectData->BulkFilePrefix;
+#else
+			FString FilePath = FString::Printf(TEXT("%s-%08x.mut"), *ObjectData->BulkFilePrefix, Block->FileId);
+#endif
+
+			Found = MakeShareable(FPlatformFileManager::Get().GetPlatformFile().OpenAsyncRead(*FilePath));
+
+			if (!Found)
+			{
+				UE_LOG(LogMutable, Error, TEXT("Failed to create AsyncReadFileHandle. File Path [%s]."), *FilePath);
+				check(false);
+				return -1;
+			}
+		}
+
+		FileHandle = Found;
+	}
 	
-	check(!ObjectData->ReadFileHandles.IsEmpty());
-	ReadRequest.ReadRequest = MakeShareable(ObjectData->ReadFileHandles[Block.FileIndex]->ReadRequest(
-		BulkDataOffsetInFile + Block.Offset,
+	ReadRequest.ReadRequest = MakeShareable(FileHandle->ReadRequest(
+		BulkDataOffsetInFile + Block->Offset,
 		size,
 		(EAsyncIOPriorityAndFlags)StreamPriority,
 		ReadRequest.FileCallback.Get(),

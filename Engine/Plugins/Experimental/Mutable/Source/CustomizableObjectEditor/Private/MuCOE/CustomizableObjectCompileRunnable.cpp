@@ -168,14 +168,10 @@ uint32 FCustomizableObjectCompileRunnable::Run()
 				return true;
 			}));
 
-	// Minimum resident mip count.
 	const int32 MinResidentMips = UTexture::GetStaticMinTextureResidentMipCount();
-	// Data smaller than this will always be loaded, as part of the customizable object compiled model.
-	const int32 MinRomSizeBytes = 128;
-	CompilerOptions->SetDataPackingStrategy(MinRomSizeBytes, MinResidentMips);
+	CompilerOptions->SetDataPackingStrategy( MinResidentMips, Options.EmbeddedDataBytesLimit, Options.PackagedDataBytesLimit );
 
-	// At object compilation time we don't know if we will want progressive images or not. Assume we will. 
-	// TODO: Per-state setting?
+	// We always compile for progressive image generation.
 	CompilerOptions->SetEnableProgressiveImages(true);
 	
 	CompilerOptions->SetImageTiling(Options.ImageTiling);

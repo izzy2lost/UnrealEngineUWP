@@ -3663,14 +3663,14 @@ void UCustomizableObjectSystemPrivate::ShowOnScreenCompileWarnings()
 	{
 		// Show a warning if the compilation was not done with optimizations.
 		const uint64 KeyCompiledWithOptimization = reinterpret_cast<uint64>(Object);
-		if (Object->GetPrivate()->bIsCompiledWithOptimization && // Quicker to check
+		if (Object->GetPrivate()->bIsCompiledWithoutOptimization && // Quicker to check
 			!GEngine->OnScreenDebugMessageExists(KeyCompiledWithOptimization))
 		{
 			FString Msg = FString::Printf(TEXT("Warning: Customizable Object [%s] was compiled without optimization."), *Object->GetName());
 			GEngine->AddOnScreenDebugMessage(KeyCompiledWithOptimization, 10.0f, FColor::Red, Msg);
 		}
 
-		const uint64 KeyCompiledOutOfData = reinterpret_cast<uint64>(Object) + KEY_OFFSET_COMPILATION_OUT_OF_DATE; // Offset added to avoid collision with bIsCompiledWithOptimization warning
+		const uint64 KeyCompiledOutOfData = reinterpret_cast<uint64>(Object) + KEY_OFFSET_COMPILATION_OUT_OF_DATE; // Offset added to avoid collision with bIsCompiledWithoutOptimization warning
 		if (!GEngine->OnScreenDebugMessageExists(KeyCompiledWithOptimization) && // Quicker to check
 			Object->GetPrivate()->IsCompilationOutOfDate())
 		{
@@ -3683,7 +3683,7 @@ void UCustomizableObjectSystemPrivate::ShowOnScreenCompileWarnings()
 
 void UCustomizableObjectSystemPrivate::HideOnScreenCompileWarnings(const UCustomizableObjectPrivate& ObjectPrivate)
 {
-	if (ObjectPrivate.bIsCompiledWithOptimization) 
+	if (ObjectPrivate.bIsCompiledWithoutOptimization)
 	{
 		GEngine->RemoveOnScreenDebugMessage(reinterpret_cast<uint64>(&ObjectPrivate));
 	}
