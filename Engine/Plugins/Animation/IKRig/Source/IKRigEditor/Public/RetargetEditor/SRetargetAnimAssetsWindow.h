@@ -92,13 +92,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Animation")
 	bool bExportOnlyAnimatedBones = true;
 
-	// Either uses the "ForceRootLock" setting from the source animation or optionally forces the root to be locked or unlocked,
-	// regardless of whether the source animation has the root locked or not.
-	// This affects only the exported animation sequences, not the editor preview.
-	// This setting has no effect on runtime retargeting where root motion is copied from the source component.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Animation")
-	ERetargetRootLockMode RootLockMode;
-
 	static UBatchExportOptions* GetInstance();
 
 private:
@@ -159,6 +152,7 @@ private:
 	FPreviewScene PreviewScene;
 	TObjectPtr<UDebugSkelMeshComponent> SourceComponent;
 	TObjectPtr<UDebugSkelMeshComponent> TargetComponent;
+	TObjectPtr<UIKRetargetAnimInstance> SourceAnimInstance;
 	TObjectPtr<UIKRetargetAnimInstance> TargetAnimInstance;
 
 	// the data model

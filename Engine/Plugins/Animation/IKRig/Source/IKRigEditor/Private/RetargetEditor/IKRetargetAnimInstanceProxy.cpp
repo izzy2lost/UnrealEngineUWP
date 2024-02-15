@@ -16,6 +16,8 @@ FIKRetargetAnimInstanceProxy::FIKRetargetAnimInstanceProxy(
 	RetargetNode(InRetargetNode),
 	OutputMode(ERetargeterOutputMode::EditRetargetPose)
 {
+	// retargeting is all done in world space, moving the source component breaks root motion retargeting
+	bIgnoreRootMotion = true;
 }
 
 void FIKRetargetAnimInstanceProxy::Initialize(UAnimInstance* InAnimInstance)
