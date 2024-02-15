@@ -8,8 +8,8 @@
 /**
  * Abstract range time source allowing to start or stop based on time elapsed
  */
-UCLASS(Abstract)
-class PROPERTYANIMATORCORE_API UPropertyAnimatorCoreRangeTimeSource : public UPropertyAnimatorCoreTimeSourceBase
+UCLASS(MinimalAPI, Abstract)
+class UPropertyAnimatorCoreRangeTimeSource : public UPropertyAnimatorCoreTimeSourceBase
 {
 	GENERATED_BODY()
 
@@ -22,39 +22,39 @@ public:
 		: UPropertyAnimatorCoreTimeSourceBase(InSourceName)
 	{}
 
-	void SetUseStartTime(bool bInUse);
+	PROPERTYANIMATORCORE_API void SetUseStartTime(bool bInUse);
 
 	bool GetUseStartTime() const
 	{
 		return bUseStartTime;
 	}
 
-	void SetStartTime(double InStartTime);
+	PROPERTYANIMATORCORE_API void SetStartTime(double InStartTime);
 
 	double GetStartTime() const
 	{
 		return StartTime;
 	}
 
-	void SetUseStopTime(bool bInUse);
+	PROPERTYANIMATORCORE_API void SetUseStopTime(bool bInUse);
 
 	bool GetUseStopTime() const
 	{
 		return bUseStopTime;
 	}
 
-	void SetStopTime(double InStopTime);
+	PROPERTYANIMATORCORE_API void SetStopTime(double InStopTime);
 
 	double GetStopTime() const
 	{
 		return StopTime;
 	}
 
+protected:
 	//~ Begin UPropertyAnimatorTimeSourceBase
-	virtual bool IsValidTimeElapsed(double InTimeElapsed) const override;
+	PROPERTYANIMATORCORE_API virtual bool IsValidTimeElapsed(double InTimeElapsed) const override;
 	//~ End UPropertyAnimatorTimeSourceBase
 
-protected:
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetUseStartTime", Getter="GetUseStartTime", Category="Animator")
 	bool bUseStartTime = false;
 

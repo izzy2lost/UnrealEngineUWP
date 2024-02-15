@@ -6,37 +6,37 @@
 #include "PropertyAnimatorFloatContext.generated.h"
 
 /** Property context used by float driving animator */
-UCLASS(BlueprintType)
-class PROPERTYANIMATOR_API UPropertyAnimatorFloatContext : public UPropertyAnimatorCoreContext
+UCLASS(MinimalAPI, BlueprintType)
+class UPropertyAnimatorFloatContext : public UPropertyAnimatorCoreContext
 {
 	GENERATED_BODY()
 
 public:
-	void SetMagnitude(float InMagnitude);
+	PROPERTYANIMATOR_API void SetMagnitude(float InMagnitude);
 	float GetMagnitude() const
 	{
 		return Magnitude;
 	}
 
-	void SetAmplitudeMin(double InAmplitude);
+	PROPERTYANIMATOR_API void SetAmplitudeMin(double InAmplitude);
 	double GetAmplitudeMin() const
 	{
 		return AmplitudeMin;
 	}
 
-	void SetAmplitudeMax(double InAmplitude);
+	PROPERTYANIMATOR_API void SetAmplitudeMax(double InAmplitude);
 	double GetAmplitudeMax() const
 	{
 		return AmplitudeMax;
 	}
 
-	void SetFrequency(float InFrequency);
+	PROPERTYANIMATOR_API void SetFrequency(float InFrequency);
 	float GetFrequency() const
 	{
 		return Frequency;
 	}
 
-	void SetTimeOffset(double InTimeOffset);
+	PROPERTYANIMATOR_API void SetTimeOffset(double InTimeOffset);
 	double GetTimeOffset() const
 	{
 		return TimeOffset;

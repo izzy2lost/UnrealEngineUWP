@@ -19,8 +19,8 @@ enum class EPropertyAnimatorClockMode : uint8
 };
 
 /** Animate supported string properties with a clock feature */
-UCLASS(AutoExpandCategories=("Animator"))
-class PROPERTYANIMATOR_API UPropertyAnimatorClock : public UPropertyAnimatorCoreBase
+UCLASS(MinimalAPI, AutoExpandCategories=("Animator"))
+class UPropertyAnimatorClock : public UPropertyAnimatorCoreBase
 {
 	GENERATED_BODY()
 
@@ -29,19 +29,19 @@ public:
 
 	UPropertyAnimatorClock();
 
-	void SetMode(EPropertyAnimatorClockMode InMode);
+	PROPERTYANIMATOR_API void SetMode(EPropertyAnimatorClockMode InMode);
 	EPropertyAnimatorClockMode GetMode() const
 	{
 		return Mode;
 	}
 
-	void SetDisplayFormat(const FString& InDisplayFormat);
+	PROPERTYANIMATOR_API void SetDisplayFormat(const FString& InDisplayFormat);
 	const FString& GetDisplayFormat() const
 	{
 		return DisplayFormat;
 	}
 
-	void SetCountdownDuration(const FString& InDisplayFormat);
+	PROPERTYANIMATOR_API void SetCountdownDuration(const FString& InDuration);
 	const FString& GetCountdownDuration() const
 	{
 		return CountdownDuration;

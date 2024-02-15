@@ -2,7 +2,7 @@
 
 #include "TimeSources/PropertyAnimatorCoreManualTimeSource.h"
 
-void UPropertyAnimatorCoreManualTimeSource::SetCustomTime(float InTime)
+void UPropertyAnimatorCoreManualTimeSource::SetCustomTime(double InTime)
 {
 	if (FMath::IsNearlyEqual(InTime, CustomTime))
 	{

@@ -19,8 +19,8 @@ enum class EPropertyAnimatorOscillateFunction : uint8
 /**
  * Applies an additive regular oscillate movement with various options on supported float properties
  */
-UCLASS(AutoExpandCategories=("Animator"))
-class PROPERTYANIMATOR_API UPropertyAnimatorOscillate : public UPropertyAnimatorFloatBase
+UCLASS(MinimalAPI, AutoExpandCategories=("Animator"))
+class UPropertyAnimatorOscillate : public UPropertyAnimatorFloatBase
 {
 	GENERATED_BODY()
 
@@ -29,7 +29,7 @@ public:
 
 	UPropertyAnimatorOscillate();
 
-	void SetOscillateFunction(EPropertyAnimatorOscillateFunction InFunction);
+	PROPERTYANIMATOR_API void SetOscillateFunction(EPropertyAnimatorOscillateFunction InFunction);
 	EPropertyAnimatorOscillateFunction GetOscillateFunction() const
 	{
 		return OscillateFunction;

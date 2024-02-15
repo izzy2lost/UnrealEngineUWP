@@ -8,8 +8,8 @@
 /**
  * Applies an additive bounce movement with various options on supported float properties
  */
-UCLASS(AutoExpandCategories=("Animator"))
-class PROPERTYANIMATOR_API UPropertyAnimatorBounce : public UPropertyAnimatorFloatBase
+UCLASS(MinimalAPI, AutoExpandCategories=("Animator"))
+class UPropertyAnimatorBounce : public UPropertyAnimatorFloatBase
 {
 	GENERATED_BODY()
 
@@ -18,7 +18,7 @@ public:
 
 	UPropertyAnimatorBounce();
 
-	void SetInvertEffect(bool bInvert);
+	PROPERTYANIMATOR_API void SetInvertEffect(bool bInvert);
 	bool GetInvertEffect() const
 	{
 		return bInvertEffect;

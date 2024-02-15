@@ -8,7 +8,7 @@
 class AActor;
 class SPropertyAnimatorCoreEditorEditPanel;
 
-struct PROPERTYANIMATORCOREEDITOR_API FPropertyAnimatorCoreEditorEditPanelOptions
+struct FPropertyAnimatorCoreEditorEditPanelOptions
 {
 	FPropertyAnimatorCoreEditorEditPanelOptions()
 	{}

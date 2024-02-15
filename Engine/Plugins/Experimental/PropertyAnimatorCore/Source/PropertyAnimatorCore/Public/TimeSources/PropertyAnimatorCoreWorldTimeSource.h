@@ -9,8 +9,8 @@
  * Time source that follows world time,
  * Transient because it does not contain user saved data, can be recreated
  */
-UCLASS()
-class PROPERTYANIMATORCORE_API UPropertyAnimatorCoreWorldTimeSource : public UPropertyAnimatorCoreTimeSourceBase
+UCLASS(MinimalAPI, Transient)
+class UPropertyAnimatorCoreWorldTimeSource : public UPropertyAnimatorCoreTimeSourceBase
 {
 	GENERATED_BODY()
 

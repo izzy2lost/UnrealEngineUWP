@@ -11,8 +11,8 @@
 /**
  * Applies an additive pulse movement with various options on supported float properties
  */
-UCLASS(AutoExpandCategories=("Animator"))
-class PROPERTYANIMATOR_API UPropertyAnimatorPulse : public UPropertyAnimatorFloatBase
+UCLASS(MinimalAPI, AutoExpandCategories=("Animator"))
+class UPropertyAnimatorPulse : public UPropertyAnimatorFloatBase
 {
 	GENERATED_BODY()
 
@@ -21,13 +21,13 @@ public:
 
 	UPropertyAnimatorPulse();
 
-	void SetEasingFunction(EPropertyAnimatorEasingFunction InEasingFunction);
+	PROPERTYANIMATOR_API void SetEasingFunction(EPropertyAnimatorEasingFunction InEasingFunction);
 	EPropertyAnimatorEasingFunction GetEasingFunction() const
 	{
 		return EasingFunction;
 	}
 
-	void SetEasingType(EPropertyAnimatorEasingType InEasingType);
+	PROPERTYANIMATOR_API void SetEasingType(EPropertyAnimatorEasingType InEasingType);
 	EPropertyAnimatorEasingType GetEasingType() const
 	{
 		return EasingType;

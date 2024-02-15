@@ -12,6 +12,17 @@ UPropertyAnimatorSoundWave::UPropertyAnimatorSoundWave()
 	SetAnimatorDisplayName(DefaultControllerName);
 }
 
+void UPropertyAnimatorSoundWave::SetSampledSoundWave(USoundWave* InSoundWave)
+{
+	if (SampledSoundWave == InSoundWave)
+	{
+		return;
+	}
+
+	SampledSoundWave = InSoundWave;
+	OnSampledSoundWaveChanged();
+}
+
 void UPropertyAnimatorSoundWave::SetLoop(bool bInLoop)
 {
 	bLoop = bInLoop;
