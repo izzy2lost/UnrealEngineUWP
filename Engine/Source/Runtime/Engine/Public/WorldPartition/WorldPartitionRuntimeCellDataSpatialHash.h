@@ -28,9 +28,6 @@ class UWorldPartitionRuntimeCellDataSpatialHash : public UWorldPartitionRuntimeC
 	UPROPERTY()
 	float Extent;
 
-	UPROPERTY()
-	FName GridName;
-
 private:
 	ENGINE_API float ComputeSourceToCellAngleFactor(const FSphericalSector& SourceShape) const;
 

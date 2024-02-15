@@ -192,8 +192,10 @@ bool UWorldPartitionRuntimeHashSet::GenerateStreaming(UWorldPartitionStreamingPo
 
 		UWorldPartitionRuntimeCellData* RuntimeCellData = RuntimeCell->RuntimeCellData;
 		RuntimeCellData->DebugName = CellUniqueId.Name;
+		RuntimeCellData->CellBounds = CellDescInstance.CellBounds;
 		RuntimeCellData->HierarchicalLevel = CellDescInstance.Level;
 		RuntimeCellData->Priority = CellDescInstance.Priority;
+		RuntimeCellData->GridName = CellDescInstance.SourcePartition->Name;
 
 		return RuntimeCell;
 	};
