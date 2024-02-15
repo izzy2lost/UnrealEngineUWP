@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "MetalShaderCompiler.h"
+
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "CoreMinimal.h"
 #endif
@@ -18,7 +20,10 @@
 #include "ShaderPreprocessTypes.h"
 #include "Serialization/MemoryWriter.h"
 #include "Serialization/MemoryReader.h"
+#include "DataDrivenShaderPlatformInfo.h"
 
+#include "MetalCompileShaderSPIRV.h"
+#include "MetalCompileShaderMSC.h"
 
 #if PLATFORM_WINDOWS
 #include "Windows/AllowWindowsPlatformTypes.h"
@@ -32,7 +37,7 @@ THIRD_PARTY_INCLUDES_END
 
 #include "ShaderPreprocessor.h"
 #include "MetalBackend.h"
-#include "MetalDerivedData.h"
+#include "MetalShaderCompiler.h"
 
 #if !PLATFORM_WINDOWS
 #if PLATFORM_TCHAR_IS_CHAR16
@@ -239,6 +244,14 @@ void BuildMetalShaderOutput(
 	uint32 TypedUAVs,
 	uint32 ConstantBuffers,
 	bool bAllowFastIntriniscs
+#if UE_METAL_USE_METAL_SHADER_CONVERTER
+    , uint32 NumCBVs,
+    uint32 OutputSizeVS,
+    uint32 MaxInputPrimitivesPerMeshThreadgroupGS,
+    const bool bUsesDiscard,
+    char const* ShaderReflectionJSON,
+    FMetalShaderBytecode const& CompiledShaderBytecode
+#endif
 	)
 {
 	ShaderOutput.bSucceeded = false;
@@ -263,6 +276,7 @@ void BuildMetalShaderOutput(
 	}
 	
 	const EShaderFrequency Frequency = ShaderOutput.Target.GetFrequency();
+	const bool bBindlessEnabled = (ShaderInput.Environment.CompilerFlags.Contains(CFLAG_BindlessResources) || ShaderInput.Environment.CompilerFlags.Contains(CFLAG_BindlessSamplers));
 
 	//TODO read from toolchain
 	const bool bIsMobile = (ShaderInput.Target.Platform == SP_METAL || ShaderInput.Target.Platform == SP_METAL_MRT || ShaderInput.Target.Platform == SP_METAL_TVOS || ShaderInput.Target.Platform == SP_METAL_MRT_TVOS || ShaderInput.Target.Platform == SP_METAL_SIM);
@@ -317,6 +331,7 @@ void BuildMetalShaderOutput(
 	// Then the list of outputs.
 	static const FString TargetPrefix = "FragColor";
 	static const FString TargetPrefix2 = "SV_Target";
+	static const FString DepthTargetPrefix = "SV_Depth";
 	// Only outputs for pixel shaders must be tracked.
 	if (Frequency == SF_Pixel)
 	{
@@ -333,6 +348,10 @@ void BuildMetalShaderOutput(
 				uint8 TargetIndex = ParseNumber(*Output.Name + TargetPrefix2.Len());
 				Header.Bindings.InOutMask.EnableField(TargetIndex);
 			}
+			else if (Output.Name.StartsWith(DepthTargetPrefix))
+            {
+                Header.Bindings.InOutMask.EnableField(CrossCompiler::FShaderBindingInOutMask::DepthStencilMaskIndex);
+            }
 		}
 		
 		// For fragment shaders that discard but don't output anything we need at least a depth-stencil surface, so we need a way to validate this at runtime.
@@ -391,21 +410,34 @@ void BuildMetalShaderOutput(
 		Size = FMath::Max<uint16>(BytesPerComponent * (PackedGlobal.Offset + PackedGlobal.Count), Size);
 	}
 
+	bool bUseMetalShaderConverter = false;
+#if UE_METAL_USE_METAL_SHADER_CONVERTER
+	bUseMetalShaderConverter = ShaderInput.Target.GetPlatform() == EShaderPlatform::SP_METAL_SM6 && bBindlessEnabled;
+#endif
+	
 	// Packed Uniform Buffers
 	TMap<int, TMap<CrossCompiler::EPackedTypeName, uint16> > PackedUniformBuffersSize;
 	for (auto& PackedUB : CCHeader.PackedUBs)
 	{
 		for (auto& Member : PackedUB.Members)
 		{
-			HandleReflectedGlobalConstantBufferMember(
-				Member.Name,
-				(uint32)CrossCompiler::EPackedTypeName::HighP,
-				Member.Offset * BytesPerComponent,
-				Member.Count * BytesPerComponent,
-				ShaderOutput
-			);
-			
-			uint16& Size = PackedUniformBuffersSize.FindOrAdd(PackedUB.Attribute.Index).FindOrAdd(CrossCompiler::EPackedTypeName::HighP);
+			uint32 ConstantBufferIndex = bBindlessEnabled ? 0 : (uint32)CrossCompiler::EPackedTypeName::HighP;
+
+			// We need to distinguish Root/Global CBs when ShaderConverter is used (mainly for RT support);
+			// therefore we perform CB reflection during the previous compilation stage of the pipeline (and keep
+			// the vanilla path for SPIRV-Cross).
+			if (!bUseMetalShaderConverter)
+			{
+				HandleReflectedGlobalConstantBufferMember(
+					Member.Name,
+					ConstantBufferIndex,
+					Member.Offset * BytesPerComponent,
+					Member.Count * BytesPerComponent,
+					ShaderOutput
+				);
+			}
+
+			uint16& Size = PackedUniformBuffersSize.FindOrAdd(PackedUB.Attribute.Index).FindOrAdd((CrossCompiler::EPackedTypeName)ConstantBufferIndex);
 			Size = FMath::Max<uint16>(BytesPerComponent * (Member.Offset + Member.Count), Size);
 		}
 	}
@@ -484,6 +516,44 @@ void BuildMetalShaderOutput(
 		
 		HandleReflectedShaderSampler(SamplerState.Name, SamplerState.Index, SamplerMap[SamplerState.Name], ShaderOutput);
 	}
+
+#if UE_METAL_USE_METAL_SHADER_CONVERTER
+    if (bUseMetalShaderConverter)
+    {
+        // Only needed for VS Input (to generate the stage-in function used to convert inputs).
+        if (Frequency == SF_Vertex)
+        {
+            Header.Bindings.IRConverterReflectionJSON = ANSI_TO_TCHAR(ShaderReflectionJSON);
+            //delete ShaderReflectionJSON; // TODO: FIXME: Fails because delete calls the UE's allocator instead of the global one
+			check(ShaderReflectionJSON && Header.Bindings.IRConverterReflectionJSON.Len() > 0);
+        }
+        else
+        {
+            Header.Bindings.IRConverterReflectionJSON = TEXT("");
+        }
+
+        Header.Bindings.RSNumCBVs = NumCBVs;
+        Header.Bindings.bDiscards = bUsesDiscard;
+        Header.Bindings.OutputSizeVS = OutputSizeVS;
+
+#if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
+        Header.Bindings.MaxInputPrimitivesPerMeshThreadgroupGS = MaxInputPrimitivesPerMeshThreadgroupGS;
+#endif
+        
+        if (bBindlessEnabled)
+        {
+            if (Frequency == SF_Pixel)
+            {
+                // BINDLESS HACK: If the PS writes to UAVs only, we need to set the reflected number
+                // of UAVs to a dummy value (to make sure the RHI binds a dummy depth RT).
+                if (Header.Bindings.InOutMask.Bitmask == 0)
+                {
+                    Header.Bindings.NumUAVs = 1;
+                }
+            }
+        }
+    }
+#endif
 
 	Header.NumThreadsX = CCHeader.NumThreads[0];
 	Header.NumThreadsY = CCHeader.NumThreads[1];
@@ -613,6 +683,20 @@ void BuildMetalShaderOutput(
 			Error->ErrorLineString = TEXT("0");
 			Error->StrippedErrorMessage = FString(Message);
 		}
+#if UE_METAL_USE_METAL_SHADER_CONVERTER
+		else if (bUseMetalShaderConverter)
+        {
+            // The base name (which is <temp>/CRCHash_Length)
+            FString BaseFileName = FPaths::Combine(TempDir, HashedName);
+            FString MetalFileName = BaseFileName + FMetalCompilerToolchain::MetalExtention;
+
+            Bytecode.NativePath = MetalFileName;
+            Bytecode.ObjectFile = CompiledShaderBytecode.ObjectFile;
+            Bytecode.OutputFile = CompiledShaderBytecode.OutputFile;
+
+            bSucceeded = true;
+        }
+#endif
 		else
 		{
 			// Compiler available - more intermediate files will be created. 
@@ -757,7 +841,13 @@ void BuildMetalShaderOutput(
 bool PreprocessMetalShader(const FShaderCompilerInput& Input, const FShaderCompilerEnvironment& Environment, FShaderPreprocessOutput& PreprocessOutput)
 {
 	const EShaderFrequency Frequency = (EShaderFrequency)Input.Target.Frequency;
-	if (!(Frequency == SF_Vertex || Frequency == SF_Pixel || Frequency == SF_Compute))
+	if (!(Frequency == SF_Vertex || Frequency == SF_Pixel || Frequency == SF_Compute
+#if UE_METAL_USE_METAL_SHADER_CONVERTER
+          || Frequency == SF_Geometry
+          || Frequency == SF_Mesh
+          || Frequency == SF_Amplification
+#endif
+          ))
 	{
 		PreprocessOutput.LogError(FString::Printf(
 			TEXT("%s shaders not supported for use in Metal."),
@@ -995,7 +1085,18 @@ void CompileMetalShader(const FShaderCompilerInput& Input, const FShaderPreproce
 		FSHA1::HashBuffer(&Guid, sizeof(FGuid), GUIDHash.Hash);
 	}
 
-	DoCompileMetalShader(Input, Output, PreprocessedSource, GUIDHash, VersionEnum, Semantics, MaxUnrollLoops, (EShaderFrequency)Input.Target.Frequency, bDumpDebugInfo, Standard, MinOSVersion);
+#if UE_METAL_USE_METAL_SHADER_CONVERTER
+	const bool bBindlessEnabled = (Input.Environment.CompilerFlags.Contains(CFLAG_BindlessResources) || Input.Environment.CompilerFlags.Contains(CFLAG_BindlessSamplers));
+	
+	if(bBindlessEnabled && Input.ShaderFormat == NAME_SF_METAL_SM6)
+	{
+		FMetalCompileShaderMSC::DoCompileMetalShader(Input, Output, PreprocessedSource, GUIDHash, VersionEnum, Semantics, MaxUnrollLoops, (EShaderFrequency)Input.Target.Frequency, bDumpDebugInfo, Standard, MinOSVersion);
+	}
+	else
+#endif
+	{
+		FMetalCompileShaderSPIRV::DoCompileMetalShader(Input, Output, PreprocessedSource, GUIDHash, VersionEnum, Semantics, MaxUnrollLoops, (EShaderFrequency)Input.Target.Frequency, bDumpDebugInfo, Standard, MinOSVersion);
+	}
 	ShaderParameterParser.ValidateShaderParameterTypes(Input, bIsMobile, Output);
 }
 
@@ -1115,7 +1216,6 @@ uint64 AppendShader_Metal(FString const& WorkingDir, const FSHAHash& Hash, TArra
 	uint64 Id = 0;
 	
 	const bool bCompilerAvailable = FMetalCompilerToolchain::Get()->IsCompilerAvailable();
-	
 	if (bCompilerAvailable)
 	{
 		// Parse the existing data and extract the source code. We have to recompile it
@@ -1229,7 +1329,8 @@ bool FinalizeLibrary_Metal(FName const& Format, FString const& WorkingDir, FStri
 	const bool bCompilerAvailable = Toolchain->IsCompilerAvailable();
 	EShaderPlatform Platform = FMetalCompilerToolchain::MetalShaderFormatToLegacyShaderPlatform(Format);
 	const EAppleSDKType SDK = FMetalCompilerToolchain::MetalShaderPlatformToSDK(Platform);
-
+    bool bCompiledWithMetalShaderConverter = Platform == EShaderPlatform::SP_METAL_SM6 && RHIGetBindlessSupport(EShaderPlatform::SP_METAL_SM6) != ERHIBindlessSupport::Unsupported;
+    
 	if (bCompilerAvailable)
 	{
 		int32 ReturnCode = 0;
@@ -1243,10 +1344,123 @@ bool FinalizeLibrary_Metal(FName const& Format, FString const& WorkingDir, FStri
 		IFileManager::Get().Delete(*LibraryPath);
 
 		UE_LOG(LogMetalShaderCompiler, Display, TEXT("Creating Native Library %s"), *LibraryPath);
-	
-		bool bArchiveFileValid = false;	
-		// Archive build phase - like unix ar, build metal archive from all the object files
+        
+		bool bArchiveFileValid = false;
+#if UE_METAL_USE_METAL_SHADER_CONVERTER
+        if (bCompiledWithMetalShaderConverter)
+        {
+            // Merge .metallib into a single .metallib.
+            
+            // Number of air per batch (limited by PlatformProcessLimits::MaxArgvParameters).
+            static constexpr int32 NumArgcPerBatch = 96;
+    
+            TArray<FString> AirPackArgsBatches;
+            FString AirPackArgs;
+            uint32 CurPackArgsArgc = 0;
+    
+            uint32 Index = 0;
+            for (auto Shader : Shaders)
+            {
+                uint32 Len = (Shader >> 32);
+                uint32 CRC = (Shader & 0xffffffff);
+
+                FString FileName = FString::Printf(TEXT("Main_%0.8x_%0.8x.o"), Len, CRC);
+
+                UE_LOG(LogMetalShaderCompiler, Verbose, TEXT("[%d/%d] %s %s"), ++Index, Shaders.Num(), *Format.GetPlainNameString(), *FileName);
+
+                FString SourceFilePath = FString::Printf(TEXT("\"%s/%s\""), *FullyQualifiedWorkingDir, *FileName);
+
+                AirPackArgs += FString::Printf(TEXT("%s "), *SourceFilePath);
+                CurPackArgsArgc++;
+
+                if (CurPackArgsArgc > NumArgcPerBatch)
+                {
+                    AirPackArgsBatches.Add(AirPackArgs);
+                    AirPackArgs.Empty(); // TODO: Might switch to SetNum(0); as Empty() implicitly reallocs (IIRC)
+                    CurPackArgsArgc = 0;
+                }
+            }
+
+            // Add pending batch to the list.
+            if (AirPackArgs.Len() > 0)
+            {
+                AirPackArgsBatches.Add(AirPackArgs);
+            }
+            bArchiveFileValid = (Shaders.Num() > 0);
+
+            {
+                // handle compile error
+                if (ReturnCode == 0 && bArchiveFileValid)
+                {
+                    // AirPack each batch.
+                    FString BatchMergeArgs;
+                    for (int32 BatchIdx = 0; BatchIdx < AirPackArgsBatches.Num(); BatchIdx++)
+                    {
+                        FString BatchOutputFile = FString::Printf(TEXT("AirPackBatch_%d_"), BatchIdx);
+                        FString BatchOutputPath = FPaths::CreateTempFilename(*FullyQualifiedWorkingDir, *BatchOutputFile);
+
+                        BatchMergeArgs += FString::Printf(TEXT("\"%s\" "), *BatchOutputPath);
+
+                        UE_LOG(LogMetalShaderCompiler, Display, TEXT("[%d/%d] %s"), (BatchIdx + 1), AirPackArgsBatches.Num(), *BatchOutputPath);
+
+                        FString AirPackParams = FString::Printf(TEXT("-pack-metallibs internal -pack-descriptors internal -pack-reflections internal %s -o \"%s\""), *AirPackArgsBatches[BatchIdx], *BatchOutputPath);
+                        ReturnCode = 0;
+                        Results.Empty();
+                        Errors.Empty();
+
+                        bool bSuccess = Toolchain->ExecAirPack(SDK, *AirPackParams, &ReturnCode, &Results, &Errors);
+
+                        // handle compile error
+                        if (!bSuccess || ReturnCode != 0)
+                        {
+                            UE_LOG(LogShaders, Error, TEXT("Archiving failed: air-pack failed with code %d: %s %s"), ReturnCode, *Results, *Errors);
+                        }
+                    }
+
+                    // Final pass: merge all batches into a single lib.
+                    UE_LOG(LogMetalShaderCompiler, Display, TEXT("Post-processing archive for shader platform: %s"), *Format.GetPlainNameString());
+
+                    FString LocalMetalLibPath = LibraryPath;
+
+                    if (FPaths::FileExists(LocalMetalLibPath))
+                    {
+                        UE_LOG(LogMetalShaderCompiler, Warning, TEXT("Archiving warning: target metallib already exists and will be overwritten: %s"), *LocalMetalLibPath);
+                    }
+
+                    FString AirPackParams = FString::Printf(TEXT("-pack-metallibs internal -pack-descriptors internal -pack-reflections internal %s -o \"%s\""), *BatchMergeArgs, *LocalMetalLibPath);
+                    ReturnCode = 0;
+                    Results.Empty();
+                    Errors.Empty();
+
+                    bool bSuccess = Toolchain->ExecAirPack(SDK, *AirPackParams, &ReturnCode, &Results, &Errors);
+
+                    // handle compile error
+                    if (bSuccess && ReturnCode == 0)
+                    {
+                        check(LocalMetalLibPath == LibraryPath);
+
+                        bOK = (IFileManager::Get().FileSize(*LibraryPath) > 0);
+
+                        if (!bOK)
+                        {
+                            UE_LOG(LogShaders, Error, TEXT("Archiving failed: failed to copy to local destination: %s"), *LibraryPath);
+                        }
+                    }
+                    else
+                    {
+                        UE_LOG(LogShaders, Error, TEXT("Archiving failed: air-pack failed with code %d: %s %s"), ReturnCode, *Results, *Errors);
+                    }
+                }
+                else
+                {
+                    UE_LOG(LogShaders, Error, TEXT("Archiving failed: no valid input for air-pack."));
+                }
+            }
+        }
+        else
+#endif
 		{
+			// Archive build phase - like unix ar, build metal archive from all the object files
 			UE_LOG(LogMetalShaderCompiler, Display, TEXT("Archiving %d shaders for shader platform: %s"), Shaders.Num(), *Format.GetPlainNameString());
 
 			/*
@@ -1299,6 +1513,9 @@ bool FinalizeLibrary_Metal(FName const& Format, FString const& WorkingDir, FStri
 		}
 		
 		// Lib build phase, metalar to metallib 
+#if UE_METAL_USE_METAL_SHADER_CONVERTER
+        if (!bCompiledWithMetalShaderConverter)
+#endif
 		{
 			// handle compile error
 			if (ReturnCode == 0 && bArchiveFileValid)
