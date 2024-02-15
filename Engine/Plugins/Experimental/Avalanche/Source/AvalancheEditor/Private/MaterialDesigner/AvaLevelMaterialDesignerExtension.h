@@ -31,5 +31,5 @@ private:
 
 	static TSharedRef<FExtender> OnExtendContentBrowserAssetSelectionMenu(const TArray<FAssetData>& InSelectedAssets);
 
-	static void OpenHeaderViewForAsset(FAssetData InAssetData);
+	static void AddTextureToSene(FAssetData InAssetData);
 };
