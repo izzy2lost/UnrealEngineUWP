@@ -40,6 +40,8 @@ void UTG_Expression_MaterialID::Initialize()
 
 void UTG_Expression_MaterialID::UpdateActiveColors()
 {
+	Modify();
+	
 	ActiveColors.Empty();
 
 	ActiveColors.SetNum(128);

@@ -28,8 +28,10 @@ public:
 	UPROPERTY()
 	FMaterialIDCollection MaterialIDInfoCollection;
 
+	UPROPERTY(Transient)
 	TArray<FLinearColor> ActiveColors;
 
+	UPROPERTY(Transient)
 	int32 ActiveColorsCount;
 	
 	// The output of the node, which is the loaded texture asset
