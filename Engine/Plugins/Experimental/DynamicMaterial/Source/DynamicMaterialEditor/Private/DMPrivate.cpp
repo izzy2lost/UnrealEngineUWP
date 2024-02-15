@@ -4,7 +4,10 @@
 #include "Components/DMMaterialLayer.h"
 #include "Components/DMMaterialStage.h"
 #include "DMDefs.h"
+#include "DynamicMaterialEditorModule.h"
 #include "MaterialExpressionIO.h"
+#include "Framework/Notifications/NotificationManager.h"
+#include "Widgets/Notifications/SNotificationList.h"
 
 namespace UE::DynamicMaterialEditor::Private
 {
@@ -64,6 +67,18 @@ namespace UE::DynamicMaterialEditor::Private
 	bool IsCustomMaterialProperty(EDMMaterialPropertyType InMaterialProperty)
 	{
 		return (InMaterialProperty >= EDMMaterialPropertyType::Custom1 && InMaterialProperty <= EDMMaterialPropertyType::Custom4);
+	}
+
+	void LogError(const FString& InMessage, bool bInToast)
+	{
+		UE_LOG(LogDynamicMaterialEditor, Error, TEXT("%s"), *InMessage);
+
+		if (bInToast)
+		{
+			FNotificationInfo Info(FText::FromString(InMessage));
+			Info.ExpireDuration = 5.0f;
+			FSlateNotificationManager::Get().AddNotification(Info);
+		}
 	}
 }
 

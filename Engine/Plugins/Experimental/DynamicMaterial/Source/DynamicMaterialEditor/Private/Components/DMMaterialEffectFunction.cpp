@@ -8,6 +8,7 @@
 #include "Components/MaterialValues/DMMaterialValueFloat3XYZ.h"
 #include "Components/MaterialValues/DMMaterialValueFloat4.h"
 #include "DMComponentPath.h"
+#include "DMPrivate.h"
 #include "DynamicMaterialEditorModule.h"
 #include "Materials/MaterialExpressionComponentMask.h"
 #include "Materials/MaterialExpressionFunctionInput.h"
@@ -284,14 +285,14 @@ bool UDMMaterialEffectFunction::NeedsFunctionInit() const
 
 	if (Outputs.IsEmpty())
 	{
-		UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Effect Function must have at least one output."));
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Effect Function must have at least one output."));
 		return false;
 	}
 
 	if (!Inputs[0].ExpressionInput || !Outputs[0].ExpressionOutput
 		|| Inputs[0].ExpressionInput->InputType != Outputs[0].ExpressionOutput->GetOutputType(0))
 	{
-		UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Effect Function's first input must match its first output."));
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Effect Function's first input must match its first output."));
 		return false;
 	}
 
@@ -306,7 +307,7 @@ bool UDMMaterialEffectFunction::NeedsFunctionInit() const
 
 		if (!IsValid(FunctionInput))
 		{
-			UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Effect Function has missing input object."));
+			UE::DynamicMaterialEditor::Private::LogError(TEXT("Effect Function has missing input object."));
 			return false;
 		}
 
@@ -322,7 +323,7 @@ bool UDMMaterialEffectFunction::NeedsFunctionInit() const
 					break;
 
 				default:
-					UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Effect Function has invalid first input -  must be a scalar or vector."));
+					UE::DynamicMaterialEditor::Private::LogError(TEXT("Effect Function has invalid first input -  must be a scalar or vector."));
 					return false;
 			}
 
@@ -356,7 +357,7 @@ bool UDMMaterialEffectFunction::NeedsFunctionInit() const
 				break;
 
 			default:
-				UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Effect Function has invalid input type -  must be a scalar, vector or texture."));
+				UE::DynamicMaterialEditor::Private::LogError(TEXT("Effect Function has invalid input type -  must be a scalar, vector or texture."));
 				return false;
 		}
 
@@ -406,14 +407,14 @@ void UDMMaterialEffectFunction::InitFunction()
 
 	if (Inputs.IsEmpty())
 	{
-		UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Effect Function must have at least one input."));
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Effect Function must have at least one input."));
 		MaterialFunctionPtr = nullptr;
 		return;
 	}
 
 	if (Outputs.IsEmpty())
 	{
-		UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Effect Function must have at least one output."));
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Effect Function must have at least one output."));
 		MaterialFunctionPtr = nullptr;
 		return;
 	}
@@ -428,7 +429,7 @@ void UDMMaterialEffectFunction::InitFunction()
 
 		if (!IsValid(FunctionInput))
 		{
-			UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Effect Function has missing input object."));
+			UE::DynamicMaterialEditor::Private::LogError(TEXT("Effect Function has missing input object."));
 			MaterialFunctionPtr = nullptr;
 			return;
 		}
@@ -455,7 +456,7 @@ void UDMMaterialEffectFunction::InitFunction()
 					break;
 
 				default:
-					UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Effect Function has invalid first input -  must be a scalar or vector."));
+					UE::DynamicMaterialEditor::Private::LogError(TEXT("Effect Function has invalid first input -  must be a scalar or vector."));
 					MaterialFunctionPtr = nullptr;
 					return;
 			}
@@ -491,7 +492,7 @@ void UDMMaterialEffectFunction::InitFunction()
 				break;
 
 			default:
-				UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Effect Function has invalid input type -  must be a scalar, vector or texture."));
+				UE::DynamicMaterialEditor::Private::LogError(TEXT("Effect Function has invalid input type -  must be a scalar, vector or texture."));
 				MaterialFunctionPtr = nullptr;
 				return;
 		}

@@ -21,6 +21,7 @@
 #include "Components/PrimitiveComponent.h"
 #include "DMEDefs.h"
 #include "DMObjectMaterialProperty.h"
+#include "DMPrivate.h"
 #include "DMWorldSubsystem.h"
 #include "DynamicMaterialEditorModule.h"
 #include "Engine/Texture.h"
@@ -243,20 +244,20 @@ bool UDMBlueprintFunctionLibrary::ExportMaterialInstance(UDynamicMaterialModel* 
 {
 	if (!IsValid(InMaterialModel))
 	{
-		UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Invalid material to export."));
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Invalid material to export."));
 		return false;
 	}
 
 	if (InSavePath.IsEmpty())
 	{
-		UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Invalid material save path to export."));
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Invalid material save path to export."));
 		return false;
 	}
 
 	UDynamicMaterialInstance* Instance = InMaterialModel->GetDynamicMaterialInstance();
 	if (!Instance)
 	{
-		UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Failed to find a Material Designer Instance to export."));
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Failed to find a Material Designer Instance to export."));
 		return false;
 	}
 
@@ -265,7 +266,7 @@ bool UDMBlueprintFunctionLibrary::ExportMaterialInstance(UDynamicMaterialModel* 
 	UPackage* Package = CreatePackage(*PackagePath);
 	if (!Package)
 	{
-		UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Failed to create package for Material Designer Instance (%s)."), *PackagePath);
+		UE::DynamicMaterialEditor::Private::LogError(FString::Printf(TEXT("Failed to create package for Material Designer Instance (%s)."), *PackagePath));
 		return false;
 	}
 
@@ -277,7 +278,7 @@ bool UDMBlueprintFunctionLibrary::ExportMaterialInstance(UDynamicMaterialModel* 
 	UObject* NewAsset = StaticDuplicateObjectEx(Params);
 	if (!NewAsset)
 	{
-		UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Failed to create new Material Designer Instance asset."));
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Failed to create new Material Designer Instance asset."));
 		return false;
 	}
 
@@ -305,20 +306,20 @@ bool UDMBlueprintFunctionLibrary::ExportGeneratedMaterial(UDynamicMaterialModel*
 {
 	if (!IsValid(InMaterialModel))
 	{
-		UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Invalid material to export."));
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Invalid material to export."));
 		return false;
 	}
 
 	if (InSavePath.IsEmpty())
 	{
-		UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Invalid material save path to export."));
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Invalid material save path to export."));
 		return false;
 	}
 
 	UMaterial* GeneratedMaterial = InMaterialModel->GetGeneratedMaterial();
 	if (!GeneratedMaterial)
 	{
-		UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Failed to find a generated material to export."));
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Failed to find a generated material to export."));
 		return false;
 	}
 
@@ -327,7 +328,7 @@ bool UDMBlueprintFunctionLibrary::ExportGeneratedMaterial(UDynamicMaterialModel*
 	UPackage* Package = CreatePackage(*PackagePath);
 	if (!Package)
 	{
-		UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Failed to create package for exported material (%s)."), *PackagePath);
+		UE::DynamicMaterialEditor::Private::LogError(FString::Printf(TEXT("Failed to create package for exported material (%s)."), *PackagePath));
 		return false;
 	}
 
@@ -339,7 +340,7 @@ bool UDMBlueprintFunctionLibrary::ExportGeneratedMaterial(UDynamicMaterialModel*
 	UObject* NewAsset = StaticDuplicateObjectEx(Params);
 	if (!NewAsset)
 	{
-		UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Failed to create new material asset."));
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Failed to create new material asset."));
 		return false;
 	}
 

@@ -1,9 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Components/DMMaterialSubStage.h"
+
 #include "Components/DMMaterialLayer.h"
 #include "Components/MaterialStageInputs/DMMSIThroughput.h"
-#include "DynamicMaterialEditorModule.h"
+#include "DMPrivate.h"
 
 UDMMaterialSubStage* UDMMaterialSubStage::CreateMaterialSubStage(UDMMaterialStage* InParentStage)
 {
@@ -54,7 +55,7 @@ void UDMMaterialSubStage::PostEditorDuplicate(UDynamicMaterialModel* InMaterialM
 	}
 	else
 	{
-		UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Wrong parent component passed to substage."));
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Wrong parent component passed to substage."));
 		ParentStage = nullptr;
 		ParentComponent = nullptr;
 		Super::PostEditorDuplicate(InMaterialModel, InParent);

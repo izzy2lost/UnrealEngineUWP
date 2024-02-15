@@ -968,7 +968,7 @@ UDMMaterialLayerObject* UDMMaterialLayerObject::DeserializeFromString(UDMMateria
 
 	if (!FJsonSerializer::Deserialize(Reader, LayerJson))
 	{
-		UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Unable to deserialise clipboard data."));
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Unable to deserialise clipboard data."));
 		return nullptr;
 	}
 

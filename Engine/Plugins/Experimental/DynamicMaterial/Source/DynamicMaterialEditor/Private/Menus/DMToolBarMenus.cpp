@@ -3,6 +3,7 @@
 #include "DMToolBarMenus.h"
 #include "ContentBrowserModule.h"
 #include "DMBlueprintFunctionLibrary.h"
+#include "DMPrivate.h"
 #include "DynamicMaterialEditorModule.h"
 #include "DynamicMaterialEditorSettings.h"
 #include "IContentBrowserSingleton.h"
@@ -64,7 +65,7 @@ namespace UE::DynamicMaterialEditor::Private
 
 			if (!GeneratedMaterial)
 			{
-				UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Failed to find a generated material to export."));
+				UE::DynamicMaterialEditor::Private::LogError(TEXT("Failed to find a generated material to export."));
 				return;
 			}
 
