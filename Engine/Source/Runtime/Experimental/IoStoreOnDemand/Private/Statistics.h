@@ -33,12 +33,17 @@ public:
 	FOnDemandIoBackendStats() IAS_STATISTICS_IMPL()
 	~FOnDemandIoBackendStats() IAS_STATISTICS_IMPL()
 
-	void ReportAnalytics(TArray<FAnalyticsEventAttribute>& OutAnalyticsArray) const IAS_STATISTICS_IMPL()
+	/** Report analytics not directly associated with a specific endpoint */
+	void ReportGeneralAnalytics(TArray<FAnalyticsEventAttribute>& OutAnalyticsArray) const IAS_STATISTICS_IMPL()
+	/** Report analytics for the current endpoint */
+	void ReportEndPointAnalytics(TArray<FAnalyticsEventAttribute>& OutAnalyticsArray) const IAS_STATISTICS_IMPL()
 
 	void OnIoRequestEnqueue() IAS_STATISTICS_IMPL()
 	void OnIoRequestComplete(uint64 Size, uint64 DurationMs) IAS_STATISTICS_IMPL()
 	void OnIoRequestCancel() IAS_STATISTICS_IMPL()
 	void OnIoRequestError() IAS_STATISTICS_IMPL()
+
+	void OnIoDecodeError() IAS_STATISTICS_IMPL()
 
 	void OnCacheError() IAS_STATISTICS_IMPL()
 	void OnCacheGet(uint64 DataSize) IAS_STATISTICS_IMPL()
@@ -49,6 +54,9 @@ public:
 	void OnCachePersistedBytes(uint64 TotalSize) IAS_STATISTICS_IMPL()
 	void OnCacheWriteBytes(uint64 WriteSize) IAS_STATISTICS_IMPL()
 	void OnCacheSetMaxBytes(uint64 TotalSize) IAS_STATISTICS_IMPL()
+
+	void OnHttpConnected() IAS_STATISTICS_IMPL()
+	void OnHttpDisconnected() IAS_STATISTICS_IMPL()
 
 	void OnHttpEnqueue() IAS_STATISTICS_IMPL()
 	void OnHttpCancel() IAS_STATISTICS_IMPL()
