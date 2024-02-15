@@ -311,7 +311,9 @@ FPrimitiveSceneInfo::FPrimitiveSceneInfo(const FPrimitiveSceneInfoAdapter& InAda
 	bIsRayTracingRelevant(InAdapter.SceneProxy->IsRayTracingRelevant()),
 	bIsRayTracingStaticRelevant(InAdapter.SceneProxy->IsRayTracingStaticRelevant()),
 	bIsVisibleInRayTracing(InAdapter.SceneProxy->IsVisibleInRayTracing()),
-	bCachedRaytracingDataDirty(false),
+	bCachedRaytracingDataDirty(true),
+	bCachedRayTracingInstanceAnySegmentsDecal(false),
+	bCachedRayTracingInstanceAllSegmentsDecal(false),
 	CoarseMeshStreamingHandle(InAdapter.SceneProxy->GetCoarseMeshStreamingHandle()),
 #endif
 	// We want the unsynchronized access here, as the responsibility passes to the primitive scene info.
@@ -1131,6 +1133,7 @@ void FPrimitiveSceneInfo::CacheRayTracingPrimitives(FScene* Scene, const TArrayV
 					ERayTracingPrimitiveFlags& Flags = Scene->PrimitiveRayTracingFlags[SceneInfo->GetIndex()];
 					CacheRayTracingPrimitive<true>(Scene, SceneInfo, Context.Commands, Context.CommandContext, Context.RayTracingMeshProcessor, &Context.DeferredMeshLODCommandIndices, CachedInstance, Flags);
 					UpdateCachedRayTracingInstance(SceneInfo, CachedInstance, Flags);
+					SceneInfo->bCachedRaytracingDataDirty = false;
 				}
 			);
 
@@ -1162,6 +1165,7 @@ void FPrimitiveSceneInfo::CacheRayTracingPrimitives(FScene* Scene, const TArrayV
 				ERayTracingPrimitiveFlags& Flags = Scene->PrimitiveRayTracingFlags[SceneInfo->GetIndex()];
 				CacheRayTracingPrimitive<false>(Scene, SceneInfo, CachedRayTracingMeshCommands, CommandContext, RayTracingMeshProcessor, nullptr, CachedRayTracingInstance, Flags);
 				UpdateCachedRayTracingInstance(SceneInfo, CachedRayTracingInstance, Flags);
+				SceneInfo->bCachedRaytracingDataDirty = false;
 			}
 		}
 	}
@@ -1882,7 +1886,6 @@ void FPrimitiveSceneInfo::UpdateCachedRaytracingData(FScene* Scene, const TArray
 			// scene info is being updated here
 			check(SceneInfo->bCachedRaytracingDataDirty);
 			SceneInfo->RemoveCachedRayTracingPrimitives();
-			SceneInfo->bCachedRaytracingDataDirty = false;
 		}
 
 		CacheRayTracingPrimitives(Scene, SceneInfos);
