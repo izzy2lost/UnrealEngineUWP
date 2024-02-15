@@ -1095,6 +1095,10 @@ void FD3D12Adapter::InitializeDevices()
 			{
 				GSupportsEfficientAsyncCompute = true;
 			}
+			else if (IsRHIDeviceIntel() && GMaxRHIFeatureLevel >= ERHIFeatureLevel::SM6)
+			{
+				GSupportsEfficientAsyncCompute = true;
+			}
 #if PLATFORM_WINDOWS
 			else
 			{
