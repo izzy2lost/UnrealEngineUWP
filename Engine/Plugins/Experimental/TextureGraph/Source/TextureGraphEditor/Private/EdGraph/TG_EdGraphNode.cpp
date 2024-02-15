@@ -72,11 +72,12 @@ void UTG_EdGraphNode::SelectPin(UEdGraphPin* Pin, bool IsSelected)
 		OnPinSelectionChangeDelegate.Broadcast(SelectedPin);
 }
 
-const FGuid UTG_EdGraphNode::GetSelectedPinFGuid() const
+const UEdGraphPin* UTG_EdGraphNode::GetSelectedPin() const
 {
-	if (SelectedPin)
-		return SelectedPin->PinId;
-	else return FGuid();
+	if (SelectedPin && Pins.Contains(SelectedPin))
+		return SelectedPin;
+	else
+		return nullptr;
 }
 
 void UTG_EdGraphNode::GetNodeContextMenuActions(UToolMenu* Menu, class UGraphNodeContextMenuContext* Context) const
@@ -112,12 +113,17 @@ void UTG_EdGraphNode::GetNodeContextMenuActions(UToolMenu* Menu, class UGraphNod
 			FUIAction(
 				FExecuteAction::CreateLambda([Pin = Context->Pin, Node = Context->Node, this]
 				{
-					UTG_EdGraph* TSEdGraph = Cast<UTG_EdGraph>(Node->GetGraph());
-					TSEdGraph->PinSelectionManager.UpdateSelection(const_cast<UEdGraphPin*>(Pin));
+					const UTG_EdGraphNode* TGEdNode = Cast<UTG_EdGraphNode>(Node);
+					if (TGEdNode)
+					{
+						const_cast<UTG_EdGraphNode*>(TGEdNode)->SelectPin(const_cast<UEdGraphPin*>(Pin), true); // assign the current selected pin ion the node
+						UTG_EdGraph* TSEdGraph = Cast<UTG_EdGraph>(Node->GetGraph());
+						TSEdGraph->PinSelectionManager.UpdateSelection(const_cast<UEdGraphPin*>(Pin));
+					}
 				}),
 				FCanExecuteAction::CreateLambda([Pin = Context->Pin, this]
 				{
-					return Pin != SelectedPin;
+					return Pin != GetSelectedPin();
 				})));
 		}
 	}
@@ -326,7 +332,11 @@ FName UTG_EdGraphNode::GetPinCategory(UTG_Pin* Pin, TWeakObjectPtr<UObject>& Sub
 
 void UTG_EdGraphNode::ReconstructNode()
 {
-	const FName SelectedPinName = (SelectedPin) ? SelectedPin->PinName : FName();
+	const UEdGraphPin* SelectedPinPtr = GetSelectedPin();
+	const FName SelectedPinName = (SelectedPinPtr) ? SelectedPinPtr->PinName : FName();
+	// forget SelectedPin, eventually reassign below via the PinSelectionManager
+	SelectedPin = nullptr;
+
 	UEdGraphPin* NewSelectedPin = nullptr;
 	// Store copy of old pins
 	TArray<UEdGraphPin*> OldPins = MoveTemp(Pins);
@@ -372,6 +382,7 @@ void UTG_EdGraphNode::ReconstructNode()
 		NewSelectedPin = GetOutputPins()[0];
 	}
 	
+	SelectPin(NewSelectedPin, true); // assign the current selected pin ion the node
 	UTG_EdGraph* TSEdGraph = Cast<UTG_EdGraph>(GetGraph());
 	TSEdGraph->PinSelectionManager.UpdateSelection(NewSelectedPin);
 }
@@ -383,13 +394,15 @@ FString UTG_EdGraphNode::GetTitleDetail()
 	TArray<const UTG_Pin*> OutPins;
 	GetNode()->GetOutputPins(OutPins);
 	
+	const UEdGraphPin* SelectedPinPtr = GetSelectedPin();
+
 	for (auto Pin : OutPins)
 	{
 		const UTG_Pin* TGPin = Pin;
 		
-		if (SelectedPin)
+		if (SelectedPinPtr)
 		{
-			TGPin = Schema->GetTGPinFromEdPin(SelectedPin);
+			TGPin = Schema->GetTGPinFromEdPin(SelectedPinPtr);
 		}
 
 		// Only interested by the texture type pin

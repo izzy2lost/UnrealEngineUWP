@@ -27,12 +27,9 @@ public:
 	}
 
 	void UpdateSelection(UEdGraphPin* Pin);
-	void ClearPinsForNonSelectedNodes(TArray<UObject*> SelectedNodes);
 
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnPinSelectionUpdated, UEdGraphPin* /*Pin*/)
 	FOnPinSelectionUpdated OnPinSelectionUpdated;
 
 private:
-
-	TArray<UEdGraphPin*> SelectedItems;
 };

@@ -89,9 +89,8 @@ public:
 	*/
 	void SelectPin(UEdGraphPin* Pin, bool IsSelected);
 
-	const UEdGraphPin* GetSelectedPin() const { return SelectedPin; }
+	const UEdGraphPin* GetSelectedPin() const;
 
-	const FGuid GetSelectedPinFGuid() const;
 
 	TArray<UEdGraphPin*> GetOutputPins() const;
 	TArray<UEdGraphPin*> GetTextureOutputPins() const;
@@ -115,6 +114,6 @@ protected:
 		TObjectPtr<UTG_Node> Node;
 
 private:
-	UEdGraphPin* SelectedPin;
+	UEdGraphPin* SelectedPin = nullptr;
 };
 
