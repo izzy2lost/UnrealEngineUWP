@@ -3,6 +3,7 @@
 #pragma once
 
 #include "GeometryCollection/ManagedArray.h"
+#include "ChaosClothAsset/ClothCollectionOptionalSchemas.h"
 #include "ChaosClothAsset/IsUserAttributeType.h"
 
 struct FManagedArrayCollection;
@@ -27,10 +28,10 @@ namespace UE::Chaos::ClothAsset
 		FClothCollection& operator=(FClothCollection&&) = delete;
 
 		/** Return whether the underlying collection is a valid cloth collection. */
-		bool IsValid() const;
+		bool IsValid(EClothCollectionOptionalSchemas OptionalSchemas = EClothCollectionOptionalSchemas::None) const;
 
 		/** Make the underlying collection a cloth collection. */
-		void DefineSchema();
+		void DefineSchema(EClothCollectionOptionalSchemas OptionalSchemas = EClothCollectionOptionalSchemas::None);
 
 		/** Get the number of elements of a group. */
 		int32 GetNumElements(const FName& GroupName) const;
@@ -117,10 +118,11 @@ namespace UE::Chaos::ClothAsset
 		template<typename T>
 		static inline void CopyArrayViewData(const TArrayView<T>& To, const TConstArrayView<T>& From);
 
-		template<typename T>
+		template<typename T, TEMPLATE_REQUIRES(!TIsArray<T>::Value)>
 		static inline void CopyArrayViewDataAndApplyOffset(const TArrayView<T>& To, const TConstArrayView<T>& From, const T Offset);
 
-		static void CopyArrayViewDataAndApplyOffset(const TArrayView<TArray<int32>>& To, const TConstArrayView<TArray<int32>>& From, const int32 Offset);
+		template<typename T>
+		static inline void CopyArrayViewDataAndApplyOffset(const TArrayView<TArray<T>>& To, const TConstArrayView<TArray<T>>& From, const T Offset);
 
 		template<typename T>
 		static inline uint32 GetElementsTypeHash(const TManagedArray<T>* ElementArray);
@@ -186,6 +188,7 @@ namespace UE::Chaos::ClothAsset
 		const TManagedArray<int32>* GetRenderVerticesEnd() const { return RenderVerticesEnd; }
 		const TManagedArray<int32>* GetRenderFacesStart() const { return RenderFacesStart; }
 		const TManagedArray<int32>* GetRenderFacesEnd() const { return RenderFacesEnd; }
+		const TManagedArray<int32>* GetRenderDeformerNumInfluences() const { return RenderDeformerNumInfluences; }
 		const TManagedArray<FString>* GetRenderMaterialPathName() const { return RenderMaterialPathName; }
 
 		//~ Sim Faces Group
@@ -218,6 +221,12 @@ namespace UE::Chaos::ClothAsset
 		const TManagedArray<FLinearColor>* GetRenderColor() const { return RenderColor; }
 		const TManagedArray<TArray<int32>>* GetRenderBoneIndices() const { return RenderBoneIndices; }
 		const TManagedArray<TArray<float>>* GetRenderBoneWeights() const { return RenderBoneWeights; }
+		const TManagedArray<TArray<FVector4f>>* GetRenderDeformerPositionBaryCoordsAndDist() const { return RenderDeformerPositionBaryCoordsAndDist; }
+		const TManagedArray<TArray<FVector4f>>* GetRenderDeformerNormalBaryCoordsAndDist() const { return RenderDeformerNormalBaryCoordsAndDist; }
+		const TManagedArray<TArray<FVector4f>>* GetRenderDeformerTangentBaryCoordsAndDist() const { return RenderDeformerTangentBaryCoordsAndDist; }
+		const TManagedArray<TArray<FIntVector3>>* GetRenderDeformerSimIndices3D() const { return RenderDeformerSimIndices3D; }
+		const TManagedArray<TArray<float>>* GetRenderDeformerWeight() const { return RenderDeformerWeight; }
+		const TManagedArray<float>* GetRenderDeformerSkinningBlend() const { return RenderDeformerSkinningBlend; }
 
 		//~ LODs Group (There should be only one LOD per ClothCollection)
 		TManagedArray<FString>* GetPhysicsAssetPathName(){ return PhysicsAssetPathName; }
@@ -253,6 +262,7 @@ namespace UE::Chaos::ClothAsset
 		TManagedArray<int32>* GetRenderVerticesEnd() { return RenderVerticesEnd; }
 		TManagedArray<int32>* GetRenderFacesStart() { return RenderFacesStart; }
 		TManagedArray<int32>* GetRenderFacesEnd() { return RenderFacesEnd; }
+		TManagedArray<int32>* GetRenderDeformerNumInfluences() { return RenderDeformerNumInfluences; }
 		TManagedArray<FString>* GetRenderMaterialPathName() { return RenderMaterialPathName; }
 
 		//~ Sim Faces Group
@@ -285,6 +295,12 @@ namespace UE::Chaos::ClothAsset
 		TManagedArray<FLinearColor>* GetRenderColor() { return RenderColor; }
 		TManagedArray<TArray<int32>>* GetRenderBoneIndices() { return RenderBoneIndices; }
 		TManagedArray<TArray<float>>* GetRenderBoneWeights() { return RenderBoneWeights; }
+		TManagedArray<TArray<FVector4f>>* GetRenderDeformerPositionBaryCoordsAndDist() { return RenderDeformerPositionBaryCoordsAndDist; }
+		TManagedArray<TArray<FVector4f>>* GetRenderDeformerNormalBaryCoordsAndDist() { return RenderDeformerNormalBaryCoordsAndDist; }
+		TManagedArray<TArray<FVector4f>>* GetRenderDeformerTangentBaryCoordsAndDist() { return RenderDeformerTangentBaryCoordsAndDist; }
+		TManagedArray<TArray<FIntVector3>>* GetRenderDeformerSimIndices3D() { return RenderDeformerSimIndices3D; }
+		TManagedArray<TArray<float>>* GetRenderDeformerWeight() { return RenderDeformerWeight; }
+		TManagedArray<float>* GetRenderDeformerSkinningBlend() { return RenderDeformerSkinningBlend; }
 
 	private:
 		//~ Cloth collection
@@ -324,6 +340,7 @@ namespace UE::Chaos::ClothAsset
 		TManagedArray<int32>* RenderVerticesEnd;
 		TManagedArray<int32>* RenderFacesStart;
 		TManagedArray<int32>* RenderFacesEnd;
+		TManagedArray<int32>* RenderDeformerNumInfluences;  // Number of deformer mapping influences per render vertex, either 0 (no mappings), 1 or 5 (= NUM_INFLUENCES_PER_VERTEX as defined in the ush files)
 		TManagedArray<FString>* RenderMaterialPathName;
 
 		//~ Sim Faces Group
@@ -356,6 +373,12 @@ namespace UE::Chaos::ClothAsset
 		TManagedArray<FLinearColor>* RenderColor;
 		TManagedArray<TArray<int32>>* RenderBoneIndices;
 		TManagedArray<TArray<float>>* RenderBoneWeights;
+		TManagedArray<TArray<FVector4f>>* RenderDeformerPositionBaryCoordsAndDist;  // Barycentric coords and distance along normal for the position of the final vert
+		TManagedArray<TArray<FVector4f>>* RenderDeformerNormalBaryCoordsAndDist;  // Barycentric coords and distance along normal for the location of the unit normal endpoint
+		TManagedArray<TArray<FVector4f>>* RenderDeformerTangentBaryCoordsAndDist;  // Barycentric coords and distance along normal for the location of the unit Tangent endpoint
+		TManagedArray<TArray<FIntVector3>>* RenderDeformerSimIndices3D;  // The source mesh triangle
+		TManagedArray<TArray<float>>* RenderDeformerWeight;  // For weighted averaging of multiple triangle influences
+		TManagedArray<float>* RenderDeformerSkinningBlend;  // Render weight map. How much the vertex actually contributes, value between 0 (fully deformed) and 1 (fully skinned)
 	};
 
 	template<typename T>
@@ -466,13 +489,27 @@ namespace UE::Chaos::ClothAsset
 		}
 	}
 
-	template<typename T>
+	template<typename T, typename TEnableIf<!TIsArray<T>::Value, int>::type>
 	inline void FClothCollection::CopyArrayViewDataAndApplyOffset(const TArrayView<T>& To, const TConstArrayView<T>& From, const T Offset)
 	{
 		check(To.Num() == From.Num());
 		for (int32 Index = 0; Index < To.Num(); ++Index)
 		{
 			To[Index] = From[Index] + Offset;
+		}
+	}
+
+	template<typename T>
+	inline void FClothCollection::CopyArrayViewDataAndApplyOffset(const TArrayView<TArray<T>>& To, const TConstArrayView<TArray<T>>& From, const T Offset)
+	{
+		check(To.Num() == From.Num());
+		for (int32 Index = 0; Index < To.Num(); ++Index)
+		{
+			To[Index] = From[Index];
+			for (T& Value : To[Index])
+			{
+				Value += Offset;
+			}
 		}
 	}
 

@@ -2,11 +2,12 @@
 
 #pragma once
 
-#include "ChaosClothAsset/CollectionClothSimPatternFacade.h"
+#include "ChaosClothAsset/ClothCollectionOptionalSchemas.h"
+#include "ChaosClothAsset/CollectionClothFabricFacade.h"
 #include "ChaosClothAsset/CollectionClothRenderPatternFacade.h"
 #include "ChaosClothAsset/CollectionClothSeamFacade.h"
+#include "ChaosClothAsset/CollectionClothSimPatternFacade.h"
 #include "ChaosClothAsset/IsUserAttributeType.h"
-#include "ChaosClothAsset/CollectionClothFabricFacade.h"
 
 namespace Chaos
 {
@@ -35,7 +36,7 @@ namespace UE::Chaos::ClothAsset
 		virtual ~FCollectionClothConstFacade() = default;
 
 		/** Return whether the facade is defined on the collection. */
-		bool IsValid() const;
+		bool IsValid(EClothCollectionOptionalSchemas OptionalSchemas = EClothCollectionOptionalSchemas::None) const;
 
 		/**
 		 * Return whether the facade has a non-empty sim and render mesh data.
@@ -46,7 +47,6 @@ namespace UE::Chaos::ClothAsset
 		uint32 CalculateWeightMapTypeHash(uint32 PreviousHash = 0) const;
 		template<typename T, TEMPLATE_REQUIRES(TIsUserAttributeType<T>::Value)>
 		uint32 CalculateUserDefinedAttributesTypeHash(const FName& GroupName, uint32 PreviousHash = 0) const;
-		
 
 		//~ LOD (single per collection) Group
 		/** Return the physics asset path names used for this collection. */
@@ -88,12 +88,13 @@ namespace UE::Chaos::ClothAsset
 		/** Convenience to find which sim pattern a sim face belongs to */
 		int32 FindSimPatternByFaceIndex(int32 FaceIndex) const;
 
-
 		//~ Render Patterns Group
 		/** Return the number of patterns in this collection. */
 		int32 GetNumRenderPatterns() const;
 		/** Return a pattern facade for the specified pattern index. */
 		FCollectionClothRenderPatternConstFacade GetRenderPattern(int32 PatternIndex) const;
+		/** Return a view of all the render deformer number of influences used on this collection across all patterns. */
+		TConstArrayView<int32> GetRenderDeformerNumInfluences() const;
 		/** Return a view of all the render materials used on this collection across all patterns. */
 		TConstArrayView<FString> GetRenderMaterialPathName() const;
 		/** Convenience to find which render pattern a render vertex belongs to */
@@ -124,6 +125,12 @@ namespace UE::Chaos::ClothAsset
 		TConstArrayView<FLinearColor> GetRenderColor() const;
 		TConstArrayView<TArray<int32>> GetRenderBoneIndices() const;
 		TConstArrayView<TArray<float>> GetRenderBoneWeights() const;
+		TConstArrayView<TArray<FVector4f>> GetRenderDeformerPositionBaryCoordsAndDist() const;
+		TConstArrayView<TArray<FVector4f>> GetRenderDeformerNormalBaryCoordsAndDist() const;
+		TConstArrayView<TArray<FVector4f>> GetRenderDeformerTangentBaryCoordsAndDist() const;
+		TConstArrayView<TArray<FIntVector3>> GetRenderDeformerSimIndices3D() const;
+		TConstArrayView<TArray<float>> GetRenderDeformerWeight() const;
+		TConstArrayView<float> GetRenderDeformerSkinningBlend() const;
 
 		//~ Render Faces Group
 		int32 GetNumRenderFaces() const;
@@ -177,7 +184,7 @@ namespace UE::Chaos::ClothAsset
 		virtual ~FCollectionClothFacade() override = default;
 
 		/** Create this facade's groups and attributes. */
-		void DefineSchema();
+		void DefineSchema(EClothCollectionOptionalSchemas OptionalSchemas = EClothCollectionOptionalSchemas::None);
 
 		/** Remove all LODs from this cloth. */
 		void Reset();
@@ -244,6 +251,8 @@ namespace UE::Chaos::ClothAsset
 		FCollectionClothRenderPatternFacade AddGetRenderPattern() { return GetRenderPattern(AddRenderPattern()); }
 		/** Remove a sorted list of render patterns. */
 		void RemoveRenderPatterns(const TArray<int32>& SortedDeletionList);
+		/** Return a view of all the render deformer number of influences used on this collection across all patterns. */
+		TArrayView<int32> GetRenderDeformerNumInfluences();
 		/** Return a view of all the render materials used on this collection across all patterns. */
 		TArrayView<FString> GetRenderMaterialPathName();
 
@@ -281,6 +290,12 @@ namespace UE::Chaos::ClothAsset
 		TArrayView<FLinearColor> GetRenderColor();
 		TArrayView<TArray<int32>> GetRenderBoneIndices();
 		TArrayView<TArray<float>> GetRenderBoneWeights();
+		TArrayView<TArray<FVector4f>> GetRenderDeformerPositionBaryCoordsAndDist();
+		TArrayView<TArray<FVector4f>> GetRenderDeformerNormalBaryCoordsAndDist();
+		TArrayView<TArray<FVector4f>> GetRenderDeformerTangentBaryCoordsAndDist();
+		TArrayView<TArray<FIntVector3>> GetRenderDeformerSimIndices3D();
+		TArrayView<TArray<float>> GetRenderDeformerWeight();
+		TArrayView<float> GetRenderDeformerSkinningBlend();
 
 		//~ Render Faces Group
 		/** SetNumRenderFaces per pattern within pattern facade. */

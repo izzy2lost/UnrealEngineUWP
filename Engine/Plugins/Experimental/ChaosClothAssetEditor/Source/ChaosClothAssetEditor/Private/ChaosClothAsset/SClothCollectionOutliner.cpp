@@ -312,6 +312,12 @@ namespace ClothCollectionOutlinerHelpers
 		case FManagedArrayCollection::EArrayType::FUInt8Type:
 			ValueAsString = AttributeValueToString<uint8>(ClothCollection, AttributeName, GroupName, AttributeArrayIndex);
 			break;
+		case FManagedArrayCollection::EArrayType::FIntVector3ArrayType:
+			ValueAsString = AttributeValueToString<TArray<FIntVector3>>(ClothCollection, AttributeName, GroupName, AttributeArrayIndex);
+			break;
+		case FManagedArrayCollection::EArrayType::FVector4fArrayType:
+			ValueAsString = AttributeValueToString<TArray<FVector4f>>(ClothCollection, AttributeName, GroupName, AttributeArrayIndex);
+			break;
 		default:
 			ensure(false);
 			ValueAsString = "(Unknown Data Type)";

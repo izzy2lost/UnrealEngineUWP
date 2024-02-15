@@ -338,40 +338,83 @@ void UChaosClothAsset::FBuilder::BuildLod(FSkeletalMeshLODModel& LODModel, const
 			Section.ClothingData.AssetGuid = ClothAsset.AssetGuid;  // There is only one cloth asset,
 			Section.CorrespondClothAssetIndex = 0;       // this one
 
-			TArray<FVector3f> SectionRenderPositions;
-			TArray<FVector3f> SectionRenderNormals;
-			TArray<FVector3f> SectionRenderTangents;
-			SectionRenderPositions.Reserve(NumVertices);
-			SectionRenderNormals.Reserve(NumVertices);
-			SectionRenderTangents.Reserve(NumVertices);
-			for (const FSoftSkinVertex& SoftVert : Section.SoftVertices)
+			const int32 RenderDeformerNumInfluences = RenderPatternFacade.GetRenderDeformerNumInfluences();
+			if (RenderDeformerNumInfluences > 0)
 			{
-				SectionRenderPositions.Add(SoftVert.Position);
-				SectionRenderNormals.Add(SoftVert.TangentZ);
-				SectionRenderTangents.Add(SoftVert.TangentX);
+				TArray<FMeshToMeshVertData>& MeshToMeshVertData = Section.ClothMappingDataLODs[0];
+				MeshToMeshVertData.SetNumUninitialized(RenderDeformerNumInfluences * NumVertices);
+
+				const TConstArrayView<TArray<FVector4f>> RenderDeformerPositionBaryCoordsAndDist = RenderPatternFacade.GetRenderDeformerPositionBaryCoordsAndDist();
+				const TConstArrayView<TArray<FVector4f>> RenderDeformerNormalBaryCoordsAndDist = RenderPatternFacade.GetRenderDeformerNormalBaryCoordsAndDist();
+				const TConstArrayView<TArray<FVector4f>> RenderDeformerTangentBaryCoordsAndDist = RenderPatternFacade.GetRenderDeformerTangentBaryCoordsAndDist();
+				const TConstArrayView<TArray<FIntVector3>> RenderDeformerSimIndices3D = RenderPatternFacade.GetRenderDeformerSimIndices3D();
+				const TConstArrayView<TArray<float>> RenderDeformerWeight = RenderPatternFacade.GetRenderDeformerWeight();
+				const TConstArrayView<float> RenderDeformerSkinningBlend = RenderPatternFacade.GetRenderDeformerSkinningBlend();
+
+				for (int32 Index = 0; Index < NumVertices; ++Index)
+				{
+					const uint16 SkinningBlend = (uint16)(FMath::Clamp(RenderDeformerSkinningBlend[Index], 0.f, 1.f) * (float)TNumericLimits<uint16>::Max());
+
+					check(RenderDeformerPositionBaryCoordsAndDist[Index].Num() == RenderDeformerNumInfluences);
+					check(RenderDeformerNormalBaryCoordsAndDist[Index].Num() == RenderDeformerNumInfluences);
+					check(RenderDeformerTangentBaryCoordsAndDist[Index].Num() == RenderDeformerNumInfluences);
+					check(RenderDeformerSimIndices3D[Index].Num() == RenderDeformerNumInfluences);
+					check(RenderDeformerWeight[Index].Num() == RenderDeformerNumInfluences);
+
+					for (int32 Influence = 0; Influence < RenderDeformerNumInfluences; ++Influence)
+					{
+						const int32 InfluenceIndex = Index * RenderDeformerNumInfluences + Influence;
+
+						MeshToMeshVertData[InfluenceIndex].PositionBaryCoordsAndDist = RenderDeformerPositionBaryCoordsAndDist[Index][Influence];
+						MeshToMeshVertData[InfluenceIndex].NormalBaryCoordsAndDist = RenderDeformerNormalBaryCoordsAndDist[Index][Influence];
+						MeshToMeshVertData[InfluenceIndex].TangentBaryCoordsAndDist =  RenderDeformerTangentBaryCoordsAndDist[Index][Influence];
+						MeshToMeshVertData[InfluenceIndex].Weight = RenderDeformerWeight[Index][Influence];
+						const FIntVector3& SimIndices3D = RenderDeformerSimIndices3D[Index][Influence];
+						MeshToMeshVertData[InfluenceIndex].SourceMeshVertIndices[0] = (uint16)SimIndices3D[0];
+						MeshToMeshVertData[InfluenceIndex].SourceMeshVertIndices[1] = (uint16)SimIndices3D[1];
+						MeshToMeshVertData[InfluenceIndex].SourceMeshVertIndices[2] = (uint16)SimIndices3D[2];
+						MeshToMeshVertData[InfluenceIndex].SourceMeshVertIndices[3] = SkinningBlend;
+					}
+				}
 			}
-			TArray<uint32> SectionRenderIndices;
-			SectionRenderIndices.Reserve(NumIndices);
-			const TArrayView<uint32> SectionIndexBuffer(LODModel.IndexBuffer.GetData() + Section.BaseIndex, NumIndices);
-			for (const uint32 LodModelVertIndex : SectionIndexBuffer)
+			else
 			{
-				SectionRenderIndices.Add(LodModelVertIndex - Section.BaseVertexIndex);
+				// No mapping found in the collection, create them from scratch
+				TArray<FVector3f> SectionRenderPositions;
+				TArray<FVector3f> SectionRenderNormals;
+				TArray<FVector3f> SectionRenderTangents;
+				SectionRenderPositions.Reserve(NumVertices);
+				SectionRenderNormals.Reserve(NumVertices);
+				SectionRenderTangents.Reserve(NumVertices);
+				for (const FSoftSkinVertex& SoftVert : Section.SoftVertices)
+				{
+					SectionRenderPositions.Add(SoftVert.Position);
+					SectionRenderNormals.Add(SoftVert.TangentZ);
+					SectionRenderTangents.Add(SoftVert.TangentX);
+				}
+				TArray<uint32> SectionRenderIndices;
+				SectionRenderIndices.Reserve(NumIndices);
+				const TArrayView<uint32> SectionIndexBuffer(LODModel.IndexBuffer.GetData() + Section.BaseIndex, NumIndices);
+				for (const uint32 LodModelVertIndex : SectionIndexBuffer)
+				{
+					SectionRenderIndices.Add(LodModelVertIndex - Section.BaseVertexIndex);
+				}
+
+				const ClothingMeshUtils::ClothMeshDesc TargetMesh(
+					SectionRenderPositions,
+					SectionRenderNormals,
+					SectionRenderTangents,
+					SectionRenderIndices);
+
+				ClothingMeshUtils::GenerateMeshToMeshVertData(
+					Section.ClothMappingDataLODs[0],
+					TargetMesh,
+					SourceMesh,
+					&MaxDistances,
+					ClothAsset.bSmoothTransition,
+					ClothAsset.bUseMultipleInfluences,
+					ClothAsset.SkinningKernelRadius);
 			}
-
-			const ClothingMeshUtils::ClothMeshDesc TargetMesh(
-				SectionRenderPositions,
-				SectionRenderNormals,
-				SectionRenderTangents,
-				SectionRenderIndices);
-
-			ClothingMeshUtils::GenerateMeshToMeshVertData(
-				Section.ClothMappingDataLODs[0],
-				TargetMesh,
-				SourceMesh,
-				&MaxDistances,
-				ClothAsset.bSmoothTransition,
-				ClothAsset.bUseMultipleInfluences,
-				ClothAsset.SkinningKernelRadius);
 		}
 
 		// Compute the overlapping vertices map (inspired from MeshUtilities::BuildSkeletalMesh)
