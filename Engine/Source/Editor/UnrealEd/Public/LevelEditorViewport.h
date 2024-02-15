@@ -964,8 +964,8 @@ private:
 	/** Global shared transaction for all mouse interactions. */
 	FTrackingTransaction TrackingTransaction;
 
-	/** Transaction excluse to pilot operations. Seperate as it externally handles & prevents tracking transactions */
-	FTrackingTransaction PilotingTransaction;
+	/** Cached transform of pilot actor before transaction, used to allow other transactions while piloting by performing a single end-transaction */
+	TOptional<FTransform> CachedPilotTransform;
 
 	/** Represents the last known drop preview mouse position. */
 	int32 DropPreviewMouseX;
