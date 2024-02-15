@@ -18,6 +18,8 @@ public:
 
 	void Construct(const FArguments& InArgs, TSharedRef<INiagaraDistributionAdapter> InDistributionAdapter);
 
+	static const float DefaultInputSize;
+
 private:
 	void OnDistributionModeChanged();
 

@@ -1085,6 +1085,7 @@ SNiagaraStack::FRowWidgets SNiagaraStack::ConstructNameAndValueWidgetsForItem(UN
 
 			TSharedRef<SHorizontalBox> ValueWidget = SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot()
+			.HAlign(HAlign_Left)
 			[
 				PropertyRowWidgets.ValueWidget.ToSharedRef()
 			];

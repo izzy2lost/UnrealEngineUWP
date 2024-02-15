@@ -20,7 +20,10 @@ namespace FNiagaraDistributionEditorUtilities
 	FSlateIcon DistributionModeToIcon(ENiagaraDistributionEditorMode InMode);
 
 	bool IsUniform(ENiagaraDistributionEditorMode InMode);
+	bool IsColor(ENiagaraDistributionEditorMode InMode);
+
 	bool IsConstant(ENiagaraDistributionEditorMode InMode);
 	bool IsRange(ENiagaraDistributionEditorMode InMode);
 	bool IsCurve(ENiagaraDistributionEditorMode InMode);
+	bool IsGradient(ENiagaraDistributionEditorMode InMode);
 }

@@ -43,6 +43,7 @@ struct FNiagaraDistributionBase
 	int32 MaxLutSampleCount = 64;
 
 	virtual bool AllowCurves() const { return true; }
+	virtual bool DisplayAsColor() const { return false; }
 	virtual void UpdateValuesFromDistribution() { }
 
 	static void PostEditChangeProperty(UObject* OwnerObject, FPropertyChangedEvent& PropertyChangedEvent);
@@ -215,6 +216,7 @@ struct FNiagaraDistributionColor : public FNiagaraDistributionBase
 	NIAGARA_API FNiagaraStatelessRangeColor CalculateRange(const FLinearColor& Default = FLinearColor::White) const;
 
 #if WITH_EDITORONLY_DATA
+	virtual bool DisplayAsColor() const override { return true; }
 	virtual void UpdateValuesFromDistribution() override;
 #endif
 };
