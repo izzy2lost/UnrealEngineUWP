@@ -6,12 +6,19 @@
 #include "BoneControllers/AnimNode_SkeletalControlBase.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Engine/EngineTypes.h"
+#include "VisualLogger/VisualLogger.h"
 
 #include "AnimNode_FootPlacement.generated.h"
 
 struct FAnimationInitializeContext;
 struct FComponentSpacePoseContext;
 struct FNodeDebugData;
+
+#if ENABLE_ANIM_DEBUG && ENABLE_VISUAL_LOG
+#define ENABLE_FOOTPLACEMENT_DEBUG 1
+#else
+#define  ENABLE_FOOTPLACEMENT_DEBUG 0
+#endif
 
 namespace UE::Anim::FootPlacement
 {
@@ -372,6 +379,9 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "Pelvis Settings")
 	bool bEnableInterpolation = true;
+	
+	UPROPERTY(EditAnywhere, Category = "Pelvis Settings")
+	FName DisablePelvisCurveName = NAME_None;
 };
 
 USTRUCT()
@@ -403,6 +413,10 @@ public:
 	// This allows you to disable locking precisely, instead of relying on the procedural mechanism based on springs and foot analysis
 	UPROPERTY(EditAnywhere, Category = "Settings")
 	FName DisableLockCurveName = NAME_None;
+	
+	// Curve to disable the effect of footplacement on this leg
+	UPROPERTY(EditAnywhere, Category = "Settings")
+	FName DisableLegCurveName = NAME_None;
 
 public:
 
@@ -650,12 +664,19 @@ private:
 
 	void ResetRuntimeData();
 
-#if ENABLE_ANIM_DEBUG
+	
+#if ENABLE_FOOTPLACEMENT_DEBUG
 	UE::Anim::FootPlacement::FDebugData DebugData;
+
 	void DrawDebug(
 		const UE::Anim::FootPlacement::FEvaluationContext& Context,
 		const UE::Anim::FootPlacement::FLegRuntimeData& LegData,
 		const UE::Anim::FootPlacement::FPlantResult& PlantResult) const;
+
+	void DrawVLog(
+		const UE::Anim::FootPlacement::FEvaluationContext& Context,
+		const UE::Anim::FootPlacement::FLegRuntimeData& LegData,
+    	const UE::Anim::FootPlacement::FPlantResult& PlantResult) const;
 #endif
 
 	bool bIsFirstUpdate = false;
