@@ -167,7 +167,7 @@ private:
 
 	void ClearFontsData();
 	void LoadFavorites();
-	void OnAssetCreated(UObject* InObject);
+	void OnAssetsAdded(const FAssetData& InAssetData);
 	void OnAssetDeleted(UObject* InObject);
 	void LoadOSFonts();
 	void LoadProjectFonts();

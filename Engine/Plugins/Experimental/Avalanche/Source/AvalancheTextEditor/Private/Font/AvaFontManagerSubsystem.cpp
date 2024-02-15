@@ -111,26 +111,16 @@ bool UAvaFontManagerSubsystem::IsSupportedFontFile(const FString& InFontFilePath
 	return Extension == TEXT("ttf") || Extension == TEXT("otf");
 }
 
-void UAvaFontManagerSubsystem::OnAssetCreated(UObject* InObject)
+void UAvaFontManagerSubsystem::OnAssetsAdded(const FAssetData& InAssetData)
 {
-	if (!IsValid(InObject))
+	if (UFont* CurrFont = Cast<UFont>(InAssetData.GetAsset()))
 	{
-		return;
-	}
-
-	if (InObject->GetClass()->IsChildOf<UFont>())
-	{
-		UFont* NewFont = Cast<UFont>(InObject);
-
-		if (IsValid(NewFont))
-		{
-			CreateProjectFont(NewFont);
-		}
+		CreateProjectFont(CurrFont);
 
 		RefreshAvalancheFontsMap();
 		RefreshAvalancheFontsOptions();
 
-		OnProjectFontCreatedDelegate.Broadcast(NewFont);
+		OnProjectFontCreatedDelegate.Broadcast(CurrFont);
 	}
 }
 
@@ -500,7 +490,7 @@ void UAvaFontManagerSubsystem::UnregisterAssetsCallbacks() const
 
 		if (AssetRegistryModule.IsValid())
 		{
-			AssetRegistryModule.Get().OnInMemoryAssetCreated().RemoveAll(this);
+			AssetRegistryModule.Get().OnAssetAdded().RemoveAll(this);
 			AssetRegistryModule.Get().OnInMemoryAssetDeleted().RemoveAll(this);
 		}
 	}
@@ -512,7 +502,7 @@ void UAvaFontManagerSubsystem::RegisterAssetsCallbacks()
 
 	if (AssetRegistryModule.IsValid())
 	{
-		AssetRegistryModule.Get().OnInMemoryAssetCreated().AddUObject(this, &UAvaFontManagerSubsystem::OnAssetCreated);
+		AssetRegistryModule.Get().OnAssetAdded().AddUObject(this, &UAvaFontManagerSubsystem::OnAssetsAdded);
 		AssetRegistryModule.Get().OnInMemoryAssetDeleted().AddUObject(this, &UAvaFontManagerSubsystem::OnAssetDeleted);
 	}
 }
