@@ -2279,9 +2279,9 @@ FHttpCacheStore::FHttpCacheStore(const FHttpCacheStoreParams& Params, ICacheStor
 		ClientParams.MinRequests = UE_HTTPDDC_GET_REQUEST_POOL_SIZE;
 		GetRequestQueue.Initialize(*ConnectionPool, ClientParams);
 
-		// Disabling rate limits during PUT operations as the cause too many spurious failures to put blobs or finalize refs
-		ClientParams.LowSpeedLimit = 0;
-		ClientParams.LowSpeedTime = 0;
+		// Giving very generous rate limits during PUT operations as they cause too many spurious failures to put blobs or finalize refs
+		ClientParams.LowSpeedLimit = 1;
+		ClientParams.LowSpeedTime = 60;
 		ClientParams.MaxRequests = UE_HTTPDDC_PUTREF_REQUEST_POOL_SIZE;
 		ClientParams.MinRequests = UE_HTTPDDC_PUTREF_REQUEST_POOL_SIZE;
 		PutRefRequestQueue.Initialize(*ConnectionPool, ClientParams);
