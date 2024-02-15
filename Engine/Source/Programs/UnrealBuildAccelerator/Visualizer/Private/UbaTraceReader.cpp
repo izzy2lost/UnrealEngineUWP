@@ -33,6 +33,8 @@ namespace uba
 
 	bool TraceReader::ReadFile(TraceView& out, const tchar* fileName, bool replay)
 	{
+		Reset();
+
 		FileHandle readHandle;
 		if (!OpenFileSequentialRead(m_logger, fileName, readHandle))
 			return false;
@@ -119,6 +121,8 @@ namespace uba
 
 	bool TraceReader::StartReadClient(TraceView& out, NetworkClient& client)
 	{
+		Reset();
+
 		u32 traceMemSize = 128 * 1024 * 1024;
 		m_memoryHandle = uba::CreateMemoryMappingW(m_logger, PAGE_READWRITE, traceMemSize);
 		if (!m_memoryHandle.IsValid())
@@ -177,6 +181,8 @@ namespace uba
 
 	bool TraceReader::StartReadNamed(TraceView& out, const tchar* namedTrace, bool silentFail)
 	{
+		Reset();
+
 		m_memoryHandle.handle = ::OpenFileMappingW(PAGE_READWRITE, false, namedTrace);
 		if (!m_memoryHandle.IsValid())
 		{
@@ -895,6 +901,13 @@ namespace uba
 
 		m_activeProcesses.clear();
 		out.finished = true;
+	}
+
+	void TraceReader::Reset()
+	{
+		m_activeProcesses.clear();
+		m_activeWorkRecords.clear();
+		m_sessionIndexToSession.clear();
 	}
 
 	bool TraceReader::SaveAs(const tchar* fileName)
