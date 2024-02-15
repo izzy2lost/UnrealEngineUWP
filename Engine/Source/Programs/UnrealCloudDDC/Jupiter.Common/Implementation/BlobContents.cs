@@ -35,7 +35,6 @@ namespace Jupiter.Implementation
 			LocalPath = null;
 		}
 
-
 		public BlobContents(Uri redirectUri)
 		{
 			RedirectUri = redirectUri;
