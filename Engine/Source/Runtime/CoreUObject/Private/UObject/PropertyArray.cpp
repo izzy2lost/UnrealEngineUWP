@@ -1,17 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "CoreMinimal.h"
-#include "Misc/ScopeExit.h"
-#include "UObject/ObjectMacros.h"
-#include "Templates/Casts.h"
-#include "UObject/PropertyPathName.h"
-#include "UObject/PropertyTag.h"
 #include "UObject/UnrealType.h"
-#include "UObject/UnrealTypePrivate.h"
+
+#include "Misc/ScopeExit.h"
 #include "UObject/LinkerLoad.h"
-#include "UObject/PropertyHelper.h"
-#include "UObject/UObjectThreadContext.h"
 #include "UObject/OverriddenPropertySet.h"
+#include "UObject/PropertyHelper.h"
+#include "UObject/UnrealTypePrivate.h"
+#include "UObject/UObjectThreadContext.h"
 
 /*-----------------------------------------------------------------------------
 	FArrayProperty.
@@ -1258,6 +1254,18 @@ void* FArrayProperty::GetValueAddressAtIndex_Direct(const FProperty* InInner, vo
 	}
 }
 
+bool FArrayProperty::UseBinaryOrNativeSerialization(const FArchive& Ar) const
+{
+	if (Super::UseBinaryOrNativeSerialization(Ar))
+	{
+		return true;
+	}
+
+	const FProperty* LocalInner = Inner;
+	check(LocalInner);
+	return LocalInner->UseBinaryOrNativeSerialization(Ar);
+}
+
 bool FArrayProperty::LoadFromTag(const FPropertyTag& Tag)
 {
 	if (!Super::LoadFromTag(Tag))
@@ -1294,4 +1302,45 @@ void FArrayProperty::SaveToTag(FPropertyTag& Tag)
 	const FProperty* LocalInner = Inner;
 	check(LocalInner);
 	Tag.InnerType = LocalInner->GetID();
+}
+
+bool FArrayProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag)
+{
+	if (!Super::LoadTypeName(Type, Tag))
+	{
+		return false;
+	}
+
+	const UE::FPropertyTypeName InnerType = Type.GetTypeParameter();
+	FField* Field = FField::TryConstruct(InnerType.GetTypeName(), this, GetFName(), RF_NoFlags);
+	if (FProperty* Property = CastField<FProperty>(Field); Property && Property->LoadTypeName(InnerType, Tag))
+	{
+		Inner = Property;
+		return true;
+	}
+	delete Field;
+	return false;
+}
+
+void FArrayProperty::SaveTypeName(UE::FPropertyTypeNameBuilder& Type) const
+{
+	Super::SaveTypeName(Type);
+
+	const FProperty* LocalInner = Inner;
+	check(LocalInner);
+	Type.BeginTypeParameters();
+	LocalInner->SaveTypeName(Type);
+	Type.EndTypeParameters();
+}
+
+bool FArrayProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
+{
+	if (!Super::CanSerializeFromTypeName(Type))
+	{
+		return false;
+	}
+
+	const FProperty* LocalInner = Inner;
+	check(LocalInner);
+	return LocalInner->CanSerializeFromTypeName(Type.GetTypeParameter());
 }
