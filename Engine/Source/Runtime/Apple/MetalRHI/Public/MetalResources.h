@@ -522,6 +522,8 @@ public:
 	void WriteInternal(FMetalCommandBuffer* CmdBuffer);
 
 	virtual bool Poll() const override final;
+	
+	void WaitCPU() const;
 
 private:
     TSharedPtr<FMetalCommandBufferFence, ESPMode::ThreadSafe> Fence = nullptr;
