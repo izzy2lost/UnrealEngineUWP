@@ -19,46 +19,46 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// The default compiler version to be used, if installed. 
 		/// </summary>
-		static readonly VersionNumberRange[] PreferredClangVersions = SDK.GetVersionNumberRangeArrayFromConfig("PreferredClangVersions");
+		static VersionNumberRange[] PreferredClangVersions = SDK.GetVersionNumberRangeArrayFromConfig("PreferredClangVersions");
 
 		/// <summary>
 		/// The minimum supported Clang compiler
 		/// </summary>
-		static readonly VersionNumber MinimumClangVersion = SDK.GetRequiredVersionNumberFromConfig("MinimumClangVersion");
+		static VersionNumber MinimumClangVersion => SDK.GetRequiredVersionNumberFromConfig("MinimumClangVersion");
 
 		/// <summary>
 		/// Ranges of tested compiler toolchains to be used, in order of preference. If multiple toolchains in a range are present, the latest version will be preferred.
 		/// Note that the numbers here correspond to the installation *folders* rather than precise executable versions.
 		/// </summary>
 		/// <seealso href="https://learn.microsoft.com/en-us/lifecycle/products/visual-studio-2022"/>
-		static readonly VersionNumberRange[] PreferredVisualCppVersions = SDK.GetVersionNumberRangeArrayFromConfig("PreferredVisualCppVersions");
+		static VersionNumberRange[] PreferredVisualCppVersions => SDK.GetVersionNumberRangeArrayFromConfig("PreferredVisualCppVersions");
 
 		/// <summary>
 		/// Minimum Clang version required for MSVC toolchain versions
 		/// </summary>
-		static readonly Tuple<VersionNumber, VersionNumber>[] MinimumRequiredClangVersion = SDK.GetVersionNumberRangeArrayFromConfig("MinimumRequiredClangVersion").
+		static Tuple<VersionNumber, VersionNumber>[] MinimumRequiredClangVersion => SDK.GetVersionNumberRangeArrayFromConfig("MinimumRequiredClangVersion").
 			Select(x => new Tuple<VersionNumber, VersionNumber>(x.Min, x.Max)).ToArray();
 
 		/// <summary>
 		/// Tested compiler toolchains that should not be allowed.
 		/// </summary>
-		static readonly VersionNumberRange[] BannedVisualCppVersions = SDK.GetVersionNumberRangeArrayFromConfig("BannedVisualCppVersions");
+		static VersionNumberRange[] BannedVisualCppVersions => SDK.GetVersionNumberRangeArrayFromConfig("BannedVisualCppVersions");
 
 		/// <summary>
 		/// The minimum supported MSVC compiler
 		/// </summary>
-		static readonly VersionNumber MinimumVisualCppVersion = SDK.GetRequiredVersionNumberFromConfig("MinimumVisualCppVersion");
+		static VersionNumber MinimumVisualCppVersion => SDK.GetRequiredVersionNumberFromConfig("MinimumVisualCppVersion");
 
 		/// <summary>
 		/// The default compiler version to be used, if installed. 
 		/// https://www.intel.com/content/www/us/en/developer/articles/tool/oneapi-standalone-components.html#dpcpp-cpp
 		/// </summary>
-		static readonly VersionNumberRange[] PreferredIntelOneApiVersions = SDK.GetVersionNumberRangeArrayFromConfig("PreferredIntelOneApiVersions");
+		static VersionNumberRange[] PreferredIntelOneApiVersions => SDK.GetVersionNumberRangeArrayFromConfig("PreferredIntelOneApiVersions");
 
 		/// <summary>
 		/// The minimum supported Intel compiler
 		/// </summary>
-		static readonly VersionNumber MinimumIntelOneApiVersion = SDK.GetRequiredVersionNumberFromConfig("MinimumIntelOneApiVersion");
+		static VersionNumber MinimumIntelOneApiVersion => SDK.GetRequiredVersionNumberFromConfig("MinimumIntelOneApiVersion");
 
 		/// <summary>
 		/// If a toolchain version is a preferred version
