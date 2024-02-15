@@ -641,12 +641,17 @@ void SAvaRundownPageList::ReimportSelectedPage() const
 	{
 		if (const TSharedPtr<FAvaRundownEditor> RundownEditor = GetRundownEditor())
 		{
-			UAvaRundown* Rundown = RundownEditor->GetRundown();
-			if (IsValid(Rundown))
+			if (UAvaRundown* Rundown = RundownEditor->GetRundown(); IsValid(Rundown))
 			{
 				// Enforce invalidation of the Motion Design Managed Instance Cache for the selected page(s).
 				Rundown->InvalidateManagedInstanceCacheForPages(SelectedPageIds);
 				Rundown->UpdateAssetForPages(SelectedPageIds, true);
+				
+				using namespace UE::AvaRundownEditor::Utils;
+				if (UpdateDefaultRemoteControlValues(Rundown, SelectedPageIds) != EAvaPlayableRemoteControlChanges::None)
+				{
+					RundownEditor->MarkAsModified();
+				}
 			}
 
 			RundownEditor->GetOnPageEvent().Broadcast(SelectedPageIds, UE::AvaRundown::EPageEvent::ReimportRequest);

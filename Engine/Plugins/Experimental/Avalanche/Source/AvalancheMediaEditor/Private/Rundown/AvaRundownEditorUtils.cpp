@@ -10,11 +10,12 @@
 #include "Framework/Application/SlateApplication.h"
 #include "HAL/FileManager.h"
 #include "IAssetTools.h"
-#include "IAvaMediaEditorModule.h"
+#include "IAvaMediaModule.h"
 #include "IContentBrowserSingleton.h"
 #include "JsonObjectConverter.h"
 #include "Misc/PathViews.h"
 #include "Rundown/AvaRundown.h"
+#include "Rundown/AvaRundownManagedInstanceCache.h"
 #include "StructDeserializer.h"
 #include "StructSerializer.h"
 
@@ -621,6 +622,77 @@ TArray<int32> UE::AvaRundownEditor::Utils::ImportInstancedPagesFromRundown(UAvaR
 UAvaRundown* UE::AvaRundownEditor::Utils::SaveDuplicateRundown(UAvaRundown* InSourceRundown, const FString& InAssetName, const FString& InPackagePath)
 {
 	return Cast<UAvaRundown>(IAssetTools::Get().DuplicateAsset(InAssetName, InPackagePath, InSourceRundown));
+}
+
+TArray<TSharedPtr<FAvaRundownManagedInstance>> UE::AvaRundownEditor::Utils::GetManagedInstancesForPage(const UAvaRundown* InRundown, const FAvaRundownPage& InPage)
+{
+	const TArray<FSoftObjectPath> AssetPaths = InPage.GetAssetPaths(InRundown);
+	
+	TArray<TSharedPtr<FAvaRundownManagedInstance>> ManagedInstances;
+	ManagedInstances.Reserve(AssetPaths.Num());
+	
+	FAvaRundownManagedInstanceCache& ManagedInstanceCache = IAvaMediaModule::Get().GetManagedInstanceCache();
+	
+	for (const FSoftObjectPath& AssetPath : AssetPaths)
+	{		
+		if (TSharedPtr<FAvaRundownManagedInstance> ManagedInstance = ManagedInstanceCache.GetOrLoadInstance(AssetPath))
+		{
+			ManagedInstances.Add(ManagedInstance);
+		}
+	}
+	return ManagedInstances;
+}
+
+bool UE::AvaRundownEditor::Utils::MergeDefaultRemoteControlValues(const TArray<TSharedPtr<FAvaRundownManagedInstance>>& InManagedInstances, FAvaPlayableRemoteControlValues& OutMergedValues)
+{
+	bool bAllUniqueIds = true;
+	
+	for (const TSharedPtr<FAvaRundownManagedInstance>& ManagedInstance : InManagedInstances)
+	{
+		if (ManagedInstance.IsValid())
+		{
+			bAllUniqueIds &= OutMergedValues.Merge(ManagedInstance->GetDefaultRemoteControlValues());
+		}
+	}
+	
+	return bAllUniqueIds;
+}
+
+EAvaPlayableRemoteControlChanges UE::AvaRundownEditor::Utils::UpdateDefaultRemoteControlValues(UAvaRundown* InRundown, const TArray<int32>& InSelectedPageIds)
+{
+	EAvaPlayableRemoteControlChanges Changes = EAvaPlayableRemoteControlChanges::None;
+
+	if (!InRundown)
+	{
+		return Changes;
+	}
+	
+	for (const int32 PageId : InSelectedPageIds)
+	{
+		FAvaRundownPage& Page = InRundown->GetPage(PageId);
+
+		if (Page.IsValidPage())
+		{
+			TArray<TSharedPtr<FAvaRundownManagedInstance>> ManagedInstances = GetManagedInstancesForPage(InRundown, Page);
+					
+			if (!ManagedInstances.IsEmpty())
+			{
+				FAvaPlayableRemoteControlValues MergedDefaultRCValues;
+				MergeDefaultRemoteControlValues(ManagedInstances, MergedDefaultRCValues);
+
+				// Using the rundown API for event propagation.
+				constexpr bool bUpdateDefaults = true;
+				Changes |= InRundown->UpdateRemoteControlValues(PageId, MergedDefaultRCValues, bUpdateDefaults);
+			}
+
+			// Combo templates will also update the values of the sub-templates.
+			if (Page.IsComboTemplate())
+			{
+				Changes |= UpdateDefaultRemoteControlValues(InRundown, Page.GetCombinedTemplateIds());
+			}
+		}
+	}
+	return Changes;
 }
 
 #undef LOCTEXT_NAMESPACE
