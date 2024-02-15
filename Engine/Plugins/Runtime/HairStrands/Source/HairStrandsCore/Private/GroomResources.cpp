@@ -1908,7 +1908,8 @@ void FHairStrandsRaytracingResource::InternalAllocate(FRDGBuilder& GraphBuilder,
 		InternalCreateStructuredBufferRDG<FHairStrandsIndexFormat>(GraphBuilder, MaxIndexCount, IndexBuffer, ToHairResourceDebugName(TEXT("Hair.StrandsRaytracing_IndexBuffer"), ResourceName), OwnerName, EHairResourceUsageType::Dynamic);
 
 		// Force reallocating and rebuilding the RT geometry
-		RayTracingGeometry.ReleaseResource();
+		RayTracingGeometry.Initializer = {};
+		RayTracingGeometry.ReleaseRHI();
 		bIsRTGeometryInitialized = false;
 	}
 }
@@ -1917,7 +1918,8 @@ void FHairStrandsRaytracingResource::InternalRelease()
 {
 	PositionBuffer.Release();
 	IndexBuffer.Release();
-	RayTracingGeometry.ReleaseResource();
+	RayTracingGeometry.Initializer = {};
+	RayTracingGeometry.ReleaseRHI();
 	bIsRTGeometryInitialized = false;
 }
 #endif
