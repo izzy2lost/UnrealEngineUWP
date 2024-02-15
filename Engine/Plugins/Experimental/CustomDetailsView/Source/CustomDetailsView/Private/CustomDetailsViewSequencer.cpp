@@ -6,6 +6,7 @@
 #include "IDetailKeyframeHandler.h"
 #include "PropertyHandle.h"
 #include "Styling/AppStyle.h"
+#include "Templates/SharedPointer.h"
 #include "Textures/SlateIcon.h"
 
 namespace UE::CustomDetailsView::Private
@@ -19,7 +20,7 @@ static const TMap<EPropertyKeyedStatus, FName> KeyedStatusStyleNames =
 	{ EPropertyKeyedStatus::PartiallyKeyed, "Sequencer.KeyedStatus.PartialKey" },
 };
 
-FSlateIcon GetKeyframeIcon(TWeakPtr<IDetailKeyframeHandler> InKeyframeHandlerWeak, TSharedPtr<IPropertyHandle> InPropertyHandle)
+FSlateIcon GetKeyframeIcon(FCustomDetailsViewSequencerUtils::FGetKeyframeHandlerDelegate InKeyframeHandlerDelegate, TSharedPtr<IPropertyHandle> InPropertyHandle)
 {
 	if (!InPropertyHandle.IsValid())
 	{
@@ -27,7 +28,7 @@ FSlateIcon GetKeyframeIcon(TWeakPtr<IDetailKeyframeHandler> InKeyframeHandlerWea
 	}
 
 	EPropertyKeyedStatus KeyedStatus = EPropertyKeyedStatus::NotKeyed;
-	if (TSharedPtr<IDetailKeyframeHandler> KeyframeHandler = InKeyframeHandlerWeak.Pin())
+	if (TSharedPtr<IDetailKeyframeHandler> KeyframeHandler = InKeyframeHandlerDelegate.Execute())
 	{
 		KeyedStatus = KeyframeHandler->GetPropertyKeyedStatus(*InPropertyHandle);
 	}
@@ -40,27 +41,27 @@ FSlateIcon GetKeyframeIcon(TWeakPtr<IDetailKeyframeHandler> InKeyframeHandlerWea
 	return FSlateIcon(FAppStyle::GetAppStyleSetName(), *FoundIcon);
 }
 
-void OnAddKeyframeClicked(TWeakPtr<IDetailKeyframeHandler> InKeyframeHandlerWeak, TSharedPtr<IPropertyHandle> PropertyHandle)
+void OnAddKeyframeClicked(FCustomDetailsViewSequencerUtils::FGetKeyframeHandlerDelegate InKeyframeHandlerDelegate, TSharedPtr<IPropertyHandle> PropertyHandle)
 {
-	TSharedPtr<IDetailKeyframeHandler> KeyframeHandler = InKeyframeHandlerWeak.Pin();
+	TSharedPtr<IDetailKeyframeHandler> KeyframeHandler = InKeyframeHandlerDelegate.Execute();
 	if (KeyframeHandler.IsValid() && PropertyHandle.IsValid())
 	{
 		KeyframeHandler->OnKeyPropertyClicked(*PropertyHandle);
 	}
 }
 
-bool IsKeyframeButtonEnabled(TWeakPtr<IDetailKeyframeHandler> InKeyframeHandlerWeak)
+bool IsKeyframeButtonEnabled(FCustomDetailsViewSequencerUtils::FGetKeyframeHandlerDelegate InKeyframeHandlerDelegate)
 {
-	if (TSharedPtr<IDetailKeyframeHandler> KeyframeHandler = InKeyframeHandlerWeak.Pin())
+	if (TSharedPtr<IDetailKeyframeHandler> KeyframeHandler = InKeyframeHandlerDelegate.Execute())
 	{
 		return KeyframeHandler->IsPropertyKeyingEnabled();
 	}
 	return false;
 }
 
-bool IsKeyframeButtonVisible(TWeakPtr<IDetailKeyframeHandler> InKeyframeHandlerWeak, TSharedPtr<IPropertyHandle> PropertyHandle)
+bool IsKeyframeButtonVisible(FCustomDetailsViewSequencerUtils::FGetKeyframeHandlerDelegate InKeyframeHandlerDelegate, TSharedPtr<IPropertyHandle> PropertyHandle)
 {
-	TSharedPtr<IDetailKeyframeHandler> KeyframeHandler = InKeyframeHandlerWeak.Pin();
+	TSharedPtr<IDetailKeyframeHandler> KeyframeHandler = InKeyframeHandlerDelegate.Execute();
 	if (!KeyframeHandler.IsValid() || !PropertyHandle.IsValid())
 	{
 		return false;
@@ -77,10 +78,10 @@ bool IsKeyframeButtonVisible(TWeakPtr<IDetailKeyframeHandler> InKeyframeHandlerW
 
 }
 
-void FCustomDetailsViewSequencerUtils::CreateSequencerExtensionButton(TWeakPtr<IDetailKeyframeHandler> InKeyframeHandlerWeak, 
+void FCustomDetailsViewSequencerUtils::CreateSequencerExtensionButton(const FGetKeyframeHandlerDelegate& InKeyframeHandlerDelegate,
 	TSharedPtr<IPropertyHandle> InPropertyHandle, TArray<FPropertyRowExtensionButton>& OutExtensionButtons)
 {
-	if (!InKeyframeHandlerWeak.IsValid() || !InPropertyHandle.IsValid())
+	if (!InKeyframeHandlerDelegate.IsBound() || !InPropertyHandle.IsValid())
 	{
 		return;
 	}
@@ -88,11 +89,21 @@ void FCustomDetailsViewSequencerUtils::CreateSequencerExtensionButton(TWeakPtr<I
 	using namespace UE::CustomDetailsView::Private;
 
 	FPropertyRowExtensionButton& CreateKey = OutExtensionButtons.AddDefaulted_GetRef();
-	CreateKey.Icon = TAttribute<FSlateIcon>::Create(TAttribute<FSlateIcon>::FGetter::CreateStatic(&GetKeyframeIcon, InKeyframeHandlerWeak, InPropertyHandle));
+	CreateKey.Icon = TAttribute<FSlateIcon>::Create(TAttribute<FSlateIcon>::FGetter::CreateStatic(&GetKeyframeIcon, InKeyframeHandlerDelegate, InPropertyHandle));
 	CreateKey.Label = NSLOCTEXT("PropertyEditor", "CreateKey", "Create Key");
 	CreateKey.ToolTip = NSLOCTEXT("PropertyEditor", "CreateKeyToolTip", "Add a keyframe for this property.");
-	CreateKey.UIAction = FUIAction(FExecuteAction::CreateStatic(&OnAddKeyframeClicked, InKeyframeHandlerWeak, InPropertyHandle)
-		, FCanExecuteAction::CreateStatic(&IsKeyframeButtonEnabled, InKeyframeHandlerWeak)
+	CreateKey.UIAction = FUIAction(FExecuteAction::CreateStatic(&OnAddKeyframeClicked, InKeyframeHandlerDelegate, InPropertyHandle)
+		, FCanExecuteAction::CreateStatic(&IsKeyframeButtonEnabled, InKeyframeHandlerDelegate)
 		, FGetActionCheckState()
-		, FIsActionButtonVisible::CreateStatic(&IsKeyframeButtonVisible, InKeyframeHandlerWeak, InPropertyHandle));
+		, FIsActionButtonVisible::CreateStatic(&IsKeyframeButtonVisible, InKeyframeHandlerDelegate, InPropertyHandle));
+}
+
+void FCustomDetailsViewSequencerUtils::CreateSequencerExtensionButton(TWeakPtr<IDetailKeyframeHandler> InKeyframeHandlerWeak, TSharedPtr<IPropertyHandle> InPropertyHandle, TArray<FPropertyRowExtensionButton>& OutExtensionButtons)
+{
+	const FCustomDetailsViewSequencerUtils::FGetKeyframeHandlerDelegate KeyframeHandlerDelegate =
+		FCustomDetailsViewSequencerUtils::FGetKeyframeHandlerDelegate::CreateLambda(
+			[InKeyframeHandlerWeak]() { return InKeyframeHandlerWeak.Pin(); }
+	);
+
+	CreateSequencerExtensionButton(KeyframeHandlerDelegate, InPropertyHandle, OutExtensionButtons);
 }

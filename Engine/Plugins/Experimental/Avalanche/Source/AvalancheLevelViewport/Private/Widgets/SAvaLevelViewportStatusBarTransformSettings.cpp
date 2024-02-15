@@ -265,13 +265,6 @@ void SAvaLevelViewportStatusBarTransformSettings::CreateKeyframeButtons()
 
 	using namespace UE::AvalancheLevelViewport::Private;
 
-	TSharedPtr<IDetailKeyframeHandler> KeyframeHandler = GetKeyframeHandler();
-
-	if (!KeyframeHandler.IsValid())
-	{
-		return;
-	}
-
 	TConstArrayView<TSharedPtr<IPropertyHandle>> PropertyHandles = TransformDetails->GetPropertyHandles();
 
 	if (PropertyHandles.Num() != 3)
@@ -281,9 +274,12 @@ void SAvaLevelViewportStatusBarTransformSettings::CreateKeyframeButtons()
 
 	KeyframeButtons.Reserve(3);
 
-	FCustomDetailsViewSequencerUtils::CreateSequencerExtensionButton(KeyframeHandler, PropertyHandles[0], KeyframeButtons);
-	FCustomDetailsViewSequencerUtils::CreateSequencerExtensionButton(KeyframeHandler, PropertyHandles[1], KeyframeButtons);
-	FCustomDetailsViewSequencerUtils::CreateSequencerExtensionButton(KeyframeHandler, PropertyHandles[2], KeyframeButtons);
+	static const FCustomDetailsViewSequencerUtils::FGetKeyframeHandlerDelegate KeyframeHandlerDelegate =
+		FCustomDetailsViewSequencerUtils::FGetKeyframeHandlerDelegate::CreateStatic(&GetKeyframeHandler);
+
+	FCustomDetailsViewSequencerUtils::CreateSequencerExtensionButton(KeyframeHandlerDelegate, PropertyHandles[0], KeyframeButtons);
+	FCustomDetailsViewSequencerUtils::CreateSequencerExtensionButton(KeyframeHandlerDelegate, PropertyHandles[1], KeyframeButtons);
+	FCustomDetailsViewSequencerUtils::CreateSequencerExtensionButton(KeyframeHandlerDelegate, PropertyHandles[2], KeyframeButtons);
 }
 
 void SAvaLevelViewportStatusBarTransformSettings::UpdateKeyframeButtons()
