@@ -36,10 +36,10 @@ public:
 		return AnimatedProperty;
 	}
 
-	PROPERTYANIMATORCORE_API UPropertyAnimatorCoreBase* GetAnimator() const;
+	UPropertyAnimatorCoreBase* GetAnimator() const;
 
 	/** Get the handler responsible for this property type */
-	PROPERTYANIMATORCORE_API UPropertyAnimatorCoreHandlerBase* GetHandler() const;
+	UPropertyAnimatorCoreHandlerBase* GetHandler() const;
 
 	/** Get the active group of this property */
 	UPropertyAnimatorCoreGroupBase* GetGroup() const

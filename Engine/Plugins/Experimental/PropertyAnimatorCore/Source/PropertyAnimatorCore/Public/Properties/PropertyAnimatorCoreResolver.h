@@ -13,8 +13,8 @@
  * that we cannot reach or are transient, will be resolved when needed
  * Resolvers should remain transient and stateless
  */
-UCLASS(Abstract, Transient)
-class PROPERTYANIMATORCORE_API UPropertyAnimatorCoreResolver : public UObject
+UCLASS(MinimalAPI, Abstract, Transient)
+class UPropertyAnimatorCoreResolver : public UObject
 {
 	GENERATED_BODY()
 

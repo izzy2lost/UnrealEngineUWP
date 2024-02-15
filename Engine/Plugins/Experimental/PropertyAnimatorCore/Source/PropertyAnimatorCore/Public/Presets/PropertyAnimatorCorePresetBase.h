@@ -19,15 +19,15 @@ class UPropertyAnimatorCorePresetBase : public UObject
 	GENERATED_BODY()
 
 public:
-	PROPERTYANIMATORCORE_API UPropertyAnimatorCorePresetBase()
+	UPropertyAnimatorCorePresetBase()
 		: UPropertyAnimatorCorePresetBase(NAME_None)
 	{}
 
-	PROPERTYANIMATORCORE_API UPropertyAnimatorCorePresetBase(FName InPresetName)
+	UPropertyAnimatorCorePresetBase(FName InPresetName)
 		: PresetName(InPresetName)
 	{}
 
-	PROPERTYANIMATORCORE_API FName GetPresetName() const
+	FName GetPresetName() const
 	{
 		return PresetName;
 	}
@@ -35,7 +35,7 @@ public:
 	PROPERTYANIMATORCORE_API FString GetPresetDisplayName() const;
 
 	/** Get the preset properties for that actor */
-	PROPERTYANIMATORCORE_API virtual void GetPresetProperties(const AActor* InActor, const UPropertyAnimatorCoreBase* InAnimator, TSet<FPropertyAnimatorCoreData>& OutProperties) const {}
+	virtual void GetPresetProperties(const AActor* InActor, const UPropertyAnimatorCoreBase* InAnimator, TSet<FPropertyAnimatorCoreData>& OutProperties) const {}
 
 	/** Get the preset properties for that actor but only supported ones for that animator */
 	PROPERTYANIMATORCORE_API virtual void GetSupportedPresetProperties(const AActor* InActor, const UPropertyAnimatorCoreBase* InAnimator, TSet<FPropertyAnimatorCoreData>& OutProperties) const;
@@ -53,7 +53,7 @@ public:
 	PROPERTYANIMATORCORE_API virtual bool UnapplyPreset(UPropertyAnimatorCoreBase* InAnimator);
 
 	/** Called when this preset is applied on the animator */
-	PROPERTYANIMATORCORE_API virtual void OnPresetApplied(UPropertyAnimatorCoreBase* InAnimator, const TSet<FPropertyAnimatorCoreData>& InProperties) {}
+	virtual void OnPresetApplied(UPropertyAnimatorCoreBase* InAnimator, const TSet<FPropertyAnimatorCoreData>& InProperties) {}
 
 private:
 	/** Name used to display this preset to the user */

@@ -7,8 +7,8 @@
 #include "PropertyAnimatorCoreComponent.generated.h"
 
 /** A container for controllers that holds properties in this actor */
-UCLASS(ClassGroup=(Custom), AutoExpandCategories=("Animator"), HideCategories=("Activation", "Cooking", "AssetUserData", "Collision"), meta=(BlueprintSpawnableComponent))
-class PROPERTYANIMATORCORE_API UPropertyAnimatorCoreComponent : public UActorComponent
+UCLASS(MinimalAPI, ClassGroup=(Custom), AutoExpandCategories=("Animator"), HideCategories=("Activation", "Cooking", "AssetUserData", "Collision"), meta=(BlueprintSpawnableComponent))
+class UPropertyAnimatorCoreComponent : public UActorComponent
 {
 	GENERATED_BODY()
 

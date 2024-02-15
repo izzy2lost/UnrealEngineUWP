@@ -8,8 +8,8 @@
 /**
  * Applies an additive time movement with various options on supported float properties
  */
-UCLASS(AutoExpandCategories=("Animator"))
-class PROPERTYANIMATOR_API UPropertyAnimatorTime : public UPropertyAnimatorFloatBase
+UCLASS(MinimalAPI, AutoExpandCategories=("Animator"))
+class UPropertyAnimatorTime : public UPropertyAnimatorFloatBase
 {
 	GENERATED_BODY()
 

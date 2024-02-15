@@ -22,8 +22,8 @@ struct FPropertyAnimatorCoreEvaluationParameters
 };
 
 /** Abstract base class for any Animator, holds a set of linked properties */
-UCLASS(Abstract, EditInlineNew, AutoExpandCategories=("Animator"))
-class PROPERTYANIMATORCORE_API UPropertyAnimatorCoreBase : public UObject
+UCLASS(MinimalAPI, Abstract, EditInlineNew, AutoExpandCategories=("Animator"))
+class UPropertyAnimatorCoreBase : public UObject
 {
 	GENERATED_BODY()
 
@@ -36,39 +36,40 @@ public:
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnAnimatorUpdated, UPropertyAnimatorCoreBase* /* InAnimator */)
 
 	/** Called when a Animator is created */
-	static FOnAnimatorUpdated OnAnimatorCreatedDelegate;
+	PROPERTYANIMATORCORE_API static FOnAnimatorUpdated OnAnimatorCreatedDelegate;
 
 	/** Called when a Animator is removed */
-	static FOnAnimatorUpdated OnAnimatorRemovedDelegate;
+	PROPERTYANIMATORCORE_API static FOnAnimatorUpdated OnAnimatorRemovedDelegate;
 
 	/** Called when a Animator is renamed */
-	static FOnAnimatorUpdated OnAnimatorRenamedDelegate;
+	PROPERTYANIMATORCORE_API static FOnAnimatorUpdated OnAnimatorRenamedDelegate;
 
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnAnimatorPropertyUpdated, UPropertyAnimatorCoreBase* /* InAnimator */, const FPropertyAnimatorCoreData& /** InProperty */)
 
 	/** Called when a property is linked to a Animator */
-	static FOnAnimatorPropertyUpdated OnAnimatorPropertyLinkedDelegate;
+	PROPERTYANIMATORCORE_API static FOnAnimatorPropertyUpdated OnAnimatorPropertyLinkedDelegate;
 
 	/** Called when a property is unlinked to a Animator */
-	static FOnAnimatorPropertyUpdated OnAnimatorPropertyUnlinkedDelegate;
+	PROPERTYANIMATORCORE_API static FOnAnimatorPropertyUpdated OnAnimatorPropertyUnlinkedDelegate;
 
-	UPropertyAnimatorCoreBase();
+	PROPERTYANIMATORCORE_API UPropertyAnimatorCoreBase();
 
-	AActor* GetAnimatorActor() const;
+	PROPERTYANIMATORCORE_API AActor* GetAnimatorActor() const;
+
 	UPropertyAnimatorCoreComponent* GetAnimatorComponent() const;
 
 	/** Get the global animators magnitude */
 	float GetAnimatorComponentMagnitude() const;
 
 	/** Set the state of this animator */
-	void SetAnimatorEnabled(bool bInIsEnabled);
+	PROPERTYANIMATORCORE_API void SetAnimatorEnabled(bool bInIsEnabled);
 	bool GetAnimatorEnabled() const
 	{
 		return bAnimatorEnabled;
 	}
 
 	/** Set the time source name to use */
-	void SetTimeSourceName(FName InTimeSourceName);
+	PROPERTYANIMATORCORE_API void SetTimeSourceName(FName InTimeSourceName);
 	FName GetTimeSourceName() const
 	{
 		return TimeSourceName;
@@ -81,45 +82,45 @@ public:
 	}
 
 	/** Set the display name of this animator */
-	void SetAnimatorDisplayName(FName InName);
+	PROPERTYANIMATORCORE_API void SetAnimatorDisplayName(FName InName);
 	FString GetAnimatorDisplayName() const
 	{
 		return AnimatorDisplayName.ToString();
 	}
 
 	/** Gets the Animator original name */
-	FName GetAnimatorOriginalName() const;
+	PROPERTYANIMATORCORE_API FName GetAnimatorOriginalName() const;
 
 	/** Get all linked properties within this animator */
-	TSet<FPropertyAnimatorCoreData> GetLinkedProperties() const;
+	PROPERTYANIMATORCORE_API TSet<FPropertyAnimatorCoreData> GetLinkedProperties() const;
 
 	/** Get linked properties count within this animator */
-	int32 GetLinkedPropertiesCount() const;
+	PROPERTYANIMATORCORE_API int32 GetLinkedPropertiesCount() const;
 
 	/** Link property to this Animator to be able to drive it */
-	bool LinkProperty(const FPropertyAnimatorCoreData& InLinkProperty);
+	PROPERTYANIMATORCORE_API bool LinkProperty(const FPropertyAnimatorCoreData& InLinkProperty);
 
 	/** Unlink property from this Animator */
-	bool UnlinkProperty(const FPropertyAnimatorCoreData& InUnlinkProperty);
+	PROPERTYANIMATORCORE_API bool UnlinkProperty(const FPropertyAnimatorCoreData& InUnlinkProperty);
 
 	/** Checks if this Animator is controlling this property */
-	bool IsPropertyLinked(const FPropertyAnimatorCoreData& InPropertyData) const;
+	PROPERTYANIMATORCORE_API bool IsPropertyLinked(const FPropertyAnimatorCoreData& InPropertyData) const;
 
 	/** Checks if this animator is controlling all properties */
 	bool IsPropertiesLinked(const TSet<FPropertyAnimatorCoreData>& InProperties) const;
 
 	/** Returns all inner properties that are controlled by this Animator linked to member property */
-	TSet<FPropertyAnimatorCoreData> GetInnerPropertiesLinked(const FPropertyAnimatorCoreData& InPropertyData) const;
+	PROPERTYANIMATORCORE_API TSet<FPropertyAnimatorCoreData> GetInnerPropertiesLinked(const FPropertyAnimatorCoreData& InPropertyData) const;
 
 	/**
 	 * Checks recursively for properties inside that member property that are supported by this Animator
 	 * if the member property is directly supported only returns that one, calls IsPropertySupported to check
 	 * When recursive is false, it will stop if member property or children is controllable and not look further in the chain
 	 */
-	bool GetPropertiesSupported(const FPropertyAnimatorCoreData& InPropertyData, TSet<FPropertyAnimatorCoreData>& OutProperties, bool bInRecursiveSearch = false) const;
+	PROPERTYANIMATORCORE_API bool GetPropertiesSupported(const FPropertyAnimatorCoreData& InPropertyData, TSet<FPropertyAnimatorCoreData>& OutProperties, bool bInRecursiveSearch = false) const;
 
 	/** Does not recurse, checks if this Animator supports this specific property, use GetPropertiesSupported to check if nested properties are supported */
-	bool IsPropertySupported(const FPropertyAnimatorCoreData& InPropertyData) const;
+	PROPERTYANIMATORCORE_API bool IsPropertySupported(const FPropertyAnimatorCoreData& InPropertyData) const;
 
 	/** Override this to check if a property is directly supported by this animator */
 	virtual bool IsPropertyDirectlySupported(const FPropertyAnimatorCoreData& InPropertyData) const
@@ -134,7 +135,7 @@ public:
 	}
 
 	/** Get the context for the linked property */
-	UPropertyAnimatorCoreContext* GetLinkedPropertyContext(const FPropertyAnimatorCoreData& InProperty) const;
+	PROPERTYANIMATORCORE_API UPropertyAnimatorCoreContext* GetLinkedPropertyContext(const FPropertyAnimatorCoreData& InProperty) const;
 
 	/** Get the casted context for the linked property */
 	template<typename InContextClass
@@ -146,11 +147,11 @@ public:
 
 protected:
 	//~ Begin UObject
-	virtual void PostLoad() override;
+	PROPERTYANIMATORCORE_API virtual void PostLoad() override;
 #if WITH_EDITOR
-	virtual void PreEditUndo() override;
-	virtual void PostEditUndo() override;
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	PROPERTYANIMATORCORE_API virtual void PreEditUndo() override;
+	PROPERTYANIMATORCORE_API virtual void PostEditUndo() override;
+	PROPERTYANIMATORCORE_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
 	//~ End UObject
 
@@ -236,24 +237,25 @@ protected:
 	virtual void OnAnimatorAdded() {}
 	virtual void OnAnimatorRemoved() {}
 
-	virtual void OnAnimatorEnabled();
-	virtual void OnAnimatorDisabled();
+	PROPERTYANIMATORCORE_API virtual void OnAnimatorEnabled();
+	PROPERTYANIMATORCORE_API virtual void OnAnimatorDisabled();
 
 	/** Returns the property context class to use */
-	virtual TSubclassOf<UPropertyAnimatorCoreContext> GetPropertyContextClass(const FPropertyAnimatorCoreData& InProperty);
+	PROPERTYANIMATORCORE_API virtual TSubclassOf<UPropertyAnimatorCoreContext> GetPropertyContextClass(const FPropertyAnimatorCoreData& InProperty);
+
 	virtual void OnPropertyLinked(UPropertyAnimatorCoreContext* InLinkedProperty) {}
 	virtual void OnPropertyUnlinked(UPropertyAnimatorCoreContext* InUnlinkedProperty) {}
-
-	/** Restore modified properties to original state */
-	virtual void RestoreProperties(bool bInForce = false);
-
-	/** Allocate and saves properties in the property bag */
-	virtual void SaveProperties();
 
 	/** Apply animators effect on linked properties */
 	virtual void EvaluateProperties(const FPropertyAnimatorCoreEvaluationParameters& InParameters) {}
 
 private:
+	/** Restore modified properties to original state */
+	void RestoreProperties(bool bInForce = false);
+
+	/** Allocate and saves properties in the property bag */
+	void SaveProperties();
+
 	/** Called by the component to evaluate this animator */
 	void EvaluateAnimator();
 

@@ -10,39 +10,39 @@ class UPropertyAnimatorFloatContext;
 /**
  * Animate supported float properties with various options
  */
-UCLASS(Abstract, AutoExpandCategories=("Animator"))
-class PROPERTYANIMATOR_API UPropertyAnimatorFloatBase : public UPropertyAnimatorCoreBase
+UCLASS(MinimalAPI, Abstract, AutoExpandCategories=("Animator"))
+class UPropertyAnimatorFloatBase : public UPropertyAnimatorCoreBase
 {
 	GENERATED_BODY()
 
 	friend class FPropertyAnimatorCoreEditorDetailCustomization;
 
 public:
-	void SetGlobalMagnitude(float InMagnitude);
+	PROPERTYANIMATOR_API void SetGlobalMagnitude(float InMagnitude);
 	float GetGlobalMagnitude() const
 	{
 		return GlobalMagnitude;
 	}
 
-	void SetGlobalFrequency(float InFrequency);
+	PROPERTYANIMATOR_API void SetGlobalFrequency(float InFrequency);
 	float GetGlobalFrequency() const
 	{
 		return GlobalFrequency;
 	}
 
-	void SetAccumulatedTimeOffset(double InOffset);
+	PROPERTYANIMATOR_API void SetAccumulatedTimeOffset(double InOffset);
 	double GetAccumulatedTimeOffset() const
 	{
 		return AccumulatedTimeOffset;
 	}
 
-	void SetRandomTimeOffset(bool bInOffset);
+	PROPERTYANIMATOR_API void SetRandomTimeOffset(bool bInOffset);
 	bool GetRandomTimeOffset() const
 	{
 		return bRandomTimeOffset;
 	}
 
-	void SetSeed(int32 InSeed);
+	PROPERTYANIMATOR_API void SetSeed(int32 InSeed);
 	int32 GetSeed() const
 	{
 		return Seed;

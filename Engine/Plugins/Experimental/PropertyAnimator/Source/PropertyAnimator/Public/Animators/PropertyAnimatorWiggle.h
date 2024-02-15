@@ -8,8 +8,8 @@
 /**
  * Applies an additive random wiggle movement with various options on supported float properties
  */
-UCLASS(AutoExpandCategories=("Animator"))
-class PROPERTYANIMATOR_API UPropertyAnimatorWiggle : public UPropertyAnimatorFloatBase
+UCLASS(MinimalAPI, AutoExpandCategories=("Animator"))
+class UPropertyAnimatorWiggle : public UPropertyAnimatorFloatBase
 {
 	GENERATED_BODY()
 

@@ -10,8 +10,8 @@ class UPropertyAnimatorCoreBase;
  * Abstract base class for time source used by property animators
  * Can be transient or saved to disk if contains user set data
  */
-UCLASS(Abstract)
-class PROPERTYANIMATORCORE_API UPropertyAnimatorCoreTimeSourceBase : public UObject
+UCLASS(MinimalAPI, Abstract)
+class UPropertyAnimatorCoreTimeSourceBase : public UObject
 {
 	GENERATED_BODY()
 

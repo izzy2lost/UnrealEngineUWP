@@ -22,13 +22,13 @@ struct FPropertyRowExtensionButton;
 
 /** Singleton class that handles editor operations for property control such as windows */
 UCLASS()
-class PROPERTYANIMATORCOREEDITOR_API UPropertyAnimatorCoreEditorSubsystem : public UEditorSubsystem
+class UPropertyAnimatorCoreEditorSubsystem : public UEditorSubsystem
 {
 	GENERATED_BODY()
 
 public:
 	/** Get this subsystem instance */
-	static UPropertyAnimatorCoreEditorSubsystem* Get();
+	PROPERTYANIMATORCOREEDITOR_API static UPropertyAnimatorCoreEditorSubsystem* Get();
 
 	//~ Begin UEditorSubsystem
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
@@ -45,7 +45,7 @@ public:
 	bool IsPropertyControlWindowOpened() const;
 
 	/** Fills a menu based on context objects and menu options */
-	bool FillAnimatorMenu(UToolMenu* InMenu, const FPropertyAnimatorCoreEditorMenuContext& InContext, const FPropertyAnimatorCoreEditorMenuOptions& InOptions);
+	PROPERTYANIMATORCOREEDITOR_API bool FillAnimatorMenu(UToolMenu* InMenu, const FPropertyAnimatorCoreEditorMenuContext& InContext, const FPropertyAnimatorCoreEditorMenuOptions& InOptions);
 
 protected:
 	/** Setup details panel button customization */

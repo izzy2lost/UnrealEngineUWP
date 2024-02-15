@@ -34,14 +34,14 @@ void UPropertyAnimatorClock::SetDisplayFormat(const FString& InDisplayFormat)
 	DisplayFormat = InDisplayFormat;
 }
 
-void UPropertyAnimatorClock::SetCountdownDuration(const FString& InDisplayFormat)
+void UPropertyAnimatorClock::SetCountdownDuration(const FString& InDuration)
 {
-	if (DisplayFormat == InDisplayFormat)
+	if (CountdownDuration == InDuration)
 	{
 		return;
 	}
 
-	DisplayFormat = InDisplayFormat;
+	CountdownDuration = InDuration;
 	OnModeChanged();
 }
 

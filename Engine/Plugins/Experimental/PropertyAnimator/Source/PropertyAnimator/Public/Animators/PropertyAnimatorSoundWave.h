@@ -11,8 +11,8 @@ class USoundWave;
 /**
  * Applies a sampled sound wave movement with various options on supported float properties
  */
-UCLASS(AutoExpandCategories=("Animator"))
-class PROPERTYANIMATOR_API UPropertyAnimatorSoundWave : public UPropertyAnimatorFloatBase
+UCLASS(MinimalAPI, AutoExpandCategories=("Animator"))
+class UPropertyAnimatorSoundWave : public UPropertyAnimatorFloatBase
 {
 	GENERATED_BODY()
 
@@ -21,7 +21,13 @@ public:
 
 	UPropertyAnimatorSoundWave();
 
-	void SetLoop(bool bInLoop);
+	PROPERTYANIMATOR_API void SetSampledSoundWave(USoundWave* InSoundWave);
+	USoundWave* GetSampledSoundWave() const
+	{
+		return SampledSoundWave;
+	}
+
+	PROPERTYANIMATOR_API void SetLoop(bool bInLoop);
 	bool GetLoop() const
 	{
 		return bLoop;
@@ -45,7 +51,7 @@ protected:
 	 * Cannot be switched at runtime, only in editor due to analyzer
 	 * Analyzed audio will work at runtime since it is cached
 	 */
-	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category="Animator")
+	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Setter, Getter, Category="Animator")
 	TObjectPtr<USoundWave> SampledSoundWave;
 
 	/** Whether we keep looping after the duration has been reached or before 0 */

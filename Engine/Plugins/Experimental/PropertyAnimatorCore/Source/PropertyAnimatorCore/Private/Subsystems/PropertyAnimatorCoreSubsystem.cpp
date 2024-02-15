@@ -1174,6 +1174,11 @@ bool UPropertyAnimatorCoreSubsystem::UnregisterSetterResolver(FName InPropertyNa
 	return SetterResolvers.Remove(InPropertyName) > 0;
 }
 
+bool UPropertyAnimatorCoreSubsystem::IsSetterResolverRegistered(FName InPropertyName) const
+{
+	return SetterResolvers.Contains(InPropertyName);
+}
+
 UFunction* UPropertyAnimatorCoreSubsystem::ResolveSetter(FName InPropertyName, const UObject* InOwner)
 {
 	if (!IsValid(InOwner))

@@ -20,26 +20,26 @@ class UPropertyAnimatorCoreResolver;
 
 /** Serializable struct that contains the property and the owner with accessors */
 USTRUCT(BlueprintType)
-struct PROPERTYANIMATORCORE_API FPropertyAnimatorCoreData
+struct FPropertyAnimatorCoreData
 {
 	GENERATED_BODY()
 
 	FPropertyAnimatorCoreData() = default;
 
 	/** Takes the owner, the member property and the inner property inside */
-	explicit FPropertyAnimatorCoreData(UObject* InObject, FProperty* InMemberProperty, FProperty* InProperty, TSubclassOf<UPropertyAnimatorCoreResolver> InResolverClass = nullptr);
+	PROPERTYANIMATORCORE_API explicit FPropertyAnimatorCoreData(UObject* InObject, FProperty* InMemberProperty, FProperty* InProperty, TSubclassOf<UPropertyAnimatorCoreResolver> InResolverClass = nullptr);
 
 	/** Take the owner and the full property chain, from member property to inner property */
-	explicit FPropertyAnimatorCoreData(UObject* InObject, const TArray<FProperty*>& InChainProperties, TSubclassOf<UPropertyAnimatorCoreResolver> InResolverClass = nullptr);
+	PROPERTYANIMATORCORE_API explicit FPropertyAnimatorCoreData(UObject* InObject, const TArray<FProperty*>& InChainProperties, TSubclassOf<UPropertyAnimatorCoreResolver> InResolverClass = nullptr);
 
 	/** Take the owner, the property chain until the inner property and lastly the inner property */
-	explicit FPropertyAnimatorCoreData(UObject* InObject, const TArray<FProperty*>& InChainProperties, FProperty* InProperty, TSubclassOf<UPropertyAnimatorCoreResolver> InResolverClass = nullptr);
+	PROPERTYANIMATORCORE_API explicit FPropertyAnimatorCoreData(UObject* InObject, const TArray<FProperty*>& InChainProperties, FProperty* InProperty, TSubclassOf<UPropertyAnimatorCoreResolver> InResolverClass = nullptr);
 
 	/** Is this a resolvable property that uses a custom resolver */
-	bool IsResolvable() const;
+	PROPERTYANIMATORCORE_API bool IsResolvable() const;
 
 	/** Get the linked property resolver for resolvable properties */
-	UPropertyAnimatorCoreResolver* GetPropertyResolver() const;
+	PROPERTYANIMATORCORE_API UPropertyAnimatorCoreResolver* GetPropertyResolver() const;
 
 	/** Get the property resolver class */
 	TSubclassOf<UPropertyAnimatorCoreResolver> GetPropertyResolverClass() const;
@@ -61,10 +61,10 @@ struct PROPERTYANIMATORCORE_API FPropertyAnimatorCoreData
 	}
 
 	/** Returns the owning actor from this owner object */
-	AActor* GetOwningActor() const;
+	PROPERTYANIMATORCORE_API AActor* GetOwningActor() const;
 
 	/** Returns the owning component from this owner object if any */
-	UActorComponent* GetOwningComponent() const;
+	PROPERTYANIMATORCORE_API UActorComponent* GetOwningComponent() const;
 
 	/** The owner object of the member property */
 	UObject* GetOwner() const
@@ -97,10 +97,10 @@ struct PROPERTYANIMATORCORE_API FPropertyAnimatorCoreData
 	}
 
 	/** The member property name */
-	FName GetMemberPropertyName() const;
+	PROPERTYANIMATORCORE_API FName GetMemberPropertyName() const;
 
 	/** The leaf property name */
-	FName GetLeafPropertyName() const;
+	PROPERTYANIMATORCORE_API FName GetLeafPropertyName() const;
 
 	/** The chain properties from member to inner property */
 	const TArray<TFieldPath<FProperty>>& GetChainProperties() const
@@ -109,7 +109,7 @@ struct PROPERTYANIMATORCORE_API FPropertyAnimatorCoreData
 	}
 
 	/** Checks if the property is settable via setter */
-	bool HasSetter() const;
+	PROPERTYANIMATORCORE_API bool HasSetter() const;
 
 	/** Checks if we contain this other property directly */
 	bool IsParentOf(const FPropertyAnimatorCoreData& InOtherProperty) const;
@@ -124,13 +124,13 @@ struct PROPERTYANIMATORCORE_API FPropertyAnimatorCoreData
 	bool IsTransient() const;
 
 	/** Tries to find, based on this property, the direct child of other property */
-	TOptional<FPropertyAnimatorCoreData> GetChildOf(const FPropertyAnimatorCoreData& InOtherProperty) const;
+	PROPERTYANIMATORCORE_API TOptional<FPropertyAnimatorCoreData> GetChildOf(const FPropertyAnimatorCoreData& InOtherProperty) const;
 
 	/** Returns the parent of this property if there is one */
 	TOptional<FPropertyAnimatorCoreData> GetParent() const;
 
 	/** Returns the top most parent / member property if there is one */
-	TOptional<FPropertyAnimatorCoreData> GetRootParent() const;
+	PROPERTYANIMATORCORE_API TOptional<FPropertyAnimatorCoreData> GetRootParent() const;
 
 	template<typename InPropertyClass
 		UE_REQUIRES(std::is_base_of_v<FProperty, InPropertyClass>)>

@@ -6,6 +6,21 @@
 #include "Properties/PropertyAnimatorCoreResolver.h"
 #include "Text3DComponent.h"
 
+void UPropertyAnimatorTextGroup::SetRangeStart(float InRangeStart)
+{
+	RangeStart = FMath::Clamp(InRangeStart, 0, 1);
+}
+
+void UPropertyAnimatorTextGroup::SetRangeEnd(float InRangeEnd)
+{
+	RangeEnd = FMath::Clamp(InRangeEnd, 0, 1);
+}
+
+void UPropertyAnimatorTextGroup::SetRangeOffset(float InRangeOffset)
+{
+	RangeOffset = InRangeOffset;
+}
+
 void UPropertyAnimatorTextGroup::ManageProperties(const UPropertyAnimatorCoreContext* InContext, TArray<FPropertyAnimatorCoreData>& InOutProperties)
 {
 	if (InOutProperties.IsEmpty())
