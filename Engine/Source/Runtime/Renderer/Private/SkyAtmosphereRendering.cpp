@@ -432,7 +432,6 @@ static void CopyAtmosphereSetupToUniformShaderParameters(FAtmosphereUniformShade
 	COPYMACRO(AbsorptionDensity1LinearTerm);
 	COPYMACRO(AbsorptionExtinction);
 	COPYMACRO(GroundAlbedo);
-	COPYMACRO(bHoldout);
 #undef COPYMACRO
 }
 

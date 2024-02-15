@@ -12,6 +12,7 @@
 #include "ScreenPass.h"
 #include "TextureResource.h"
 #include "PostProcess/PostProcessing.h" // IsPostProcessingWithAlphaChannelSupported
+#include "EnvironmentComponentsFlags.h"
 
 DECLARE_GPU_DRAWCALL_STAT(Fog);
 
@@ -85,7 +86,6 @@ void SetupFogUniformParameters(FRDGBuilder& GraphBuilder, const FViewInfo& View,
 		OutParameters.IntegratedLightScatteringSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 		OutParameters.VolumetricFogStartDistance = View.VolumetricFogStartDistance;
 		OutParameters.VolumetricFogNearFadeInDistanceInv = View.VolumetricFogNearFadeInDistanceInv;
-		OutParameters.bHoldout = View.bExponentialFogHoldout;
 	}
 }
 
@@ -248,7 +248,6 @@ void FSceneRenderer::InitFogConstants()
 				View.bUseDirectionalInscattering = SunLight != nullptr;
 				View.bEnableVolumetricFog = FogInfo.bEnableVolumetricFog;
 				View.VolumetricFogStartDistance = FogInfo.VolumetricFogStartDistance;
-				View.bExponentialFogHoldout = FogInfo.bHoldout;
 				View.VolumetricFogNearFadeInDistanceInv = FogInfo.VolumetricFogNearFadeInDistance > 0.0f ? (1.0f / FogInfo.VolumetricFogNearFadeInDistance) : 100000000.0f;
 			}
 		}
@@ -320,7 +319,7 @@ static void RenderViewFog(
 		if (bSupportsAlpha)
 		{
 			// Coverage is the alpha output of the shader in this case.
-			if (View.bExponentialFogHoldout && View.CachedViewUniformShaderParameters->RenderingReflectionCaptureMask == 0.0f)
+			if (IsExponentialFogHoldout(View.CachedViewUniformShaderParameters->EnvironmentComponentsFlags) && View.CachedViewUniformShaderParameters->RenderingReflectionCaptureMask == 0.0f)
 			{
 				// Alpha holdout: apply only when requested and when not rendering reflections. We want to punch a hole according to the Coverage. (black as throughput=0 should become brighter for see throught)
 				// SceneAlpha = Coverage*1 + (1.0-Coverage)*(SceneThroughput)

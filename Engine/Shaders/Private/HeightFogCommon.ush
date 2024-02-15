@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include "/Engine/Shared/EnvironmentComponentsFlags.h"
+
 #ifndef PERMUTATION_SUPPORT_FOG_INSCATTERING_TEXTURE
 #define PERMUTATION_SUPPORT_FOG_INSCATTERING_TEXTURE 1
 #endif
@@ -210,7 +212,7 @@ half4 GetExponentialHeightFog(float3 WorldPositionRelativeToCamera, float Exclud
 	#endif
 
 #if POST_PROCESS_ALPHA
-	if (FogStruct.bHoldout && View.RenderingReflectionCaptureMask == 0.0f)
+	if (IsExponentialFogHoldout(View.EnvironmentComponentsFlags) && View.RenderingReflectionCaptureMask == 0.0f)
 	{
 		FogColor.rgb *= 0;
 	}
@@ -277,7 +279,7 @@ float4 CombineVolumetricFog(float4 GlobalFog, float3 VolumeUV, uint EyeIndex, fl
 	//VolumetricFogLookup.rgb += .1f * frac(min(ZSlice, 1.0f) / View.VolumetricFogInvGridSize.z);
 
 #if POST_PROCESS_ALPHA
-	if (FogStruct.bHoldout && View.RenderingReflectionCaptureMask == 0.0f)
+	if (IsExponentialFogHoldout(View.EnvironmentComponentsFlags) && View.RenderingReflectionCaptureMask == 0.0f)
 	{
 		VolumetricFogLookup.rgb *= 0;
 		GlobalFog.rgb *= 0;

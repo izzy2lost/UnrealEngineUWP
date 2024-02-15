@@ -8,6 +8,7 @@
 #include "Common.ush"
 #include "SceneTexturesCommon.ush"
 #include "SkyAtmosphereCommon.ush"
+#include "/Engine/Shared/EnvironmentComponentsFlags.h"
 
 #ifndef COLORED_TRANSMITTANCE_ENABLED	// Never used, UE4 does not supports dual blending
 #define COLORED_TRANSMITTANCE_ENABLED 0 
@@ -825,7 +826,7 @@ float4 PrepareOutput(float3 PreExposedLuminance, float3 Transmittance = float3(1
 	float3 SafePreExposedLuminance = min(PreExposedLuminance, Max10BitsFloat.xxx * 0.5f);
 
 #if POST_PROCESS_ALPHA
-	if (Atmosphere.bHoldout && View.RenderingReflectionCaptureMask == 0.0f)
+	if (IsSkyAtmosphereHoldout(View.EnvironmentComponentsFlags) && View.RenderingReflectionCaptureMask == 0.0f)
 	{
 		SafePreExposedLuminance *= 0;
 	}
@@ -949,7 +950,7 @@ void RenderSkyAtmosphereRayMarchingPS(
 
 		float3 SkyGreyTransmittance = 1.0f;
 	#if POST_PROCESS_ALPHA
-		if (Atmosphere.bHoldout && View.RenderingReflectionCaptureMask == 0.0f)
+		if (IsSkyAtmosphereHoldout(View.EnvironmentComponentsFlags) && View.RenderingReflectionCaptureMask == 0.0f)
 		{
 			SkyGreyTransmittance = SkyLuminanceTransmittance.aaa;
 		}
@@ -1581,7 +1582,7 @@ void RenderCameraAerialPerspectiveVolumeCS(uint3 ThreadId : SV_DispatchThreadID)
 		tMaxMax);
 
 #if POST_PROCESS_ALPHA
-	if (Atmosphere.bHoldout && !RealTimeReflection360Mode)
+	if (IsSkyAtmosphereHoldout(View.EnvironmentComponentsFlags) && !RealTimeReflection360Mode)
 	{
 		ss.L *= 0;
 		ss.LMieOnly *= 0;

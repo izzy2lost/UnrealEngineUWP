@@ -1395,7 +1395,6 @@ public:
 	FVector4f ExponentialFogParameters3;
 	FVector4f SkyAtmosphereAmbientContributionColorScale;
 	bool bEnableVolumetricFog;
-	bool bExponentialFogHoldout;
 	float VolumetricFogStartDistance;
 	float VolumetricFogNearFadeInDistanceInv;
 	FVector2f SinCosInscatteringColorCubemapRotation;
