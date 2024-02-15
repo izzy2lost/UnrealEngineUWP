@@ -39,7 +39,6 @@ struct FSVGDataInitializer
 	TArray<TSharedRef<FSVGBaseElement>> Elements;
 };
 
-
 /**
  * Can be used to set the desired fidelity when converting SVG Splines into Polylines
  */
@@ -83,13 +82,13 @@ public:
 	void CreateShapes(const TArray<TSharedRef<FSVGBaseElement>>& InSVGElements);
 #endif
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SVG Data")
+	UPROPERTY(VisibleAnywhere, Category = "SVG Data")
 	TObjectPtr<UTexture2D> SVGTexture;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SVG Data")
+	UPROPERTY(VisibleAnywhere, Category = "SVG Data")
 	FString SVGFileContent;
 
-	UPROPERTY(BlueprintReadOnly, Category = "SVG Data")
+	UPROPERTY()
 	TArray<FSVGShape> Shapes;
 
 #if WITH_EDITORONLY_DATA

@@ -30,7 +30,7 @@ namespace ESplineCoordinateSpace
 	enum Type : int;
 }
 
-class SVGIMPORTER_API FSVGImporterUtils
+class FSVGImporterUtils
 {
 public:
 	inline static double SVGScaleFactor = 0.1;
@@ -66,10 +66,10 @@ public:
 	static void RotateAroundCustomPivot(FVector& OutPointToRotate, const FVector& InPivotPosition, float InAngle);
 
 	/** Extracts a color from SVG color string */
-	static FColor GetColorFromSVGString(FString InColorString);
+	SVGIMPORTER_API static FColor GetColorFromSVGString(FString InColorString);
 
 	/** Extracts SVG Style from a CSS style string */
-	static TArray<FSVGStyle> StylesFromCSS(FString InString);
+	SVGIMPORTER_API static TArray<FSVGStyle> StylesFromCSS(FString InString);
 
 	/** Sets an SVG Matrix based on the specified SVG Transform string */
 	static bool SetSVGMatrixFromTransformString(const FString& InTransformString, FSVGMatrix& OutSVGMatrix);
@@ -122,7 +122,7 @@ public:
 	 * @param InSVGActor the source SVG Actor to split
 	 * @return the newly created Shapes Parent Actor
 	 */
-	static ASVGShapesParentActor* SplitSVGActor(ASVGActor* InSVGActor);
+	SVGIMPORTER_API static ASVGShapesParentActor* SplitSVGActor(ASVGActor* InSVGActor);
 
 	/**
 	 * Merges all SVG Shapes of this Actor into a single Actor with a single Shape.
@@ -130,7 +130,7 @@ public:
 	 * @param InSVGActor the source SVG Actor to consolidate
 	 * @return the newly created Joined Shapes Actor
 	 */
-	static ASVGJoinedShapesActor* ConsolidateSVGActor(ASVGActor* InSVGActor);
+	SVGIMPORTER_API static ASVGJoinedShapesActor* ConsolidateSVGActor(ASVGActor* InSVGActor);
 
 	/**
 	 * Joins the SVG Shapes of 2 or more Actors of type ASVGDynamicMeshesOwnerActor onto a single ASVGJoinedShapesActor
@@ -138,7 +138,7 @@ public:
 	 * @param InDynamicSVGShapesOwners the list of Actors owning the SVG Shapes which are going to be joined
 	 * @return the newly created Joined Shapes Actor
 	 */
-	static ASVGJoinedShapesActor* JoinSVGDynamicMeshOwners(const TArray<ASVGDynamicMeshesContainerActor*>& InDynamicSVGShapesOwners);
+	SVGIMPORTER_API static ASVGJoinedShapesActor* JoinSVGDynamicMeshOwners(const TArray<ASVGDynamicMeshesContainerActor*>& InDynamicSVGShapesOwners);
 
 private:
 	/** Based on the specified Asset Path, will return an available Folder Path where we can create assets for SVG Baking purposes */

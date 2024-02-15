@@ -5,11 +5,11 @@
 #include "GameFramework/Actor.h"
 #include "SVGBakedActor.generated.h"
 
-USTRUCT(Blueprintable)
+USTRUCT()
 struct FSVGBakeElement
 {
 	GENERATED_BODY()
-	
+
 	UPROPERTY(VisibleAnywhere, Category = "SVG Bake Element")
 	TObjectPtr<UStaticMesh> Mesh = nullptr;
 
@@ -20,14 +20,14 @@ struct FSVGBakeElement
 	FString Name;
 };
 
-UCLASS(Blueprintable)
-class SVGIMPORTER_API ASVGBakedActor : public AActor
+UCLASS(MinimalAPI)
+class ASVGBakedActor : public AActor
 {
 	GENERATED_BODY()
 
 public:
 	ASVGBakedActor();
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Baked SVG")
+	UPROPERTY(EditAnywhere, Category = "Baked SVG")
 	TArray<FSVGBakeElement> SVGBakeElements;
 };

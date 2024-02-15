@@ -42,13 +42,16 @@ DECLARE_DELEGATE(FSVGMeshActionDelegate)
 
 class UStaticMesh;
 
-UCLASS(ClassGroup=(SVG))
-class SVGIMPORTER_API USVGDynamicMeshComponent : public UDynamicMeshComponent
+UCLASS(MinimalAPI, ClassGroup=(SVG))
+class USVGDynamicMeshComponent : public UDynamicMeshComponent
 {
 	GENERATED_BODY()
 
 public:
 	USVGDynamicMeshComponent();
+
+	/** Calling this function will flatten the SVG Shape, converting it to a 2D polygon */
+	SVGIMPORTER_API void FlattenShape();
 
 	//~ Begin UObject
 #if WITH_EDITOR
@@ -60,9 +63,6 @@ public:
 	virtual void PostInitProperties() override;
 	virtual void PostDuplicate(bool bDuplicateForPIE) override;
 	//~ End UObject
-
-	/** Calling this function will flatten the SVG Shape, converting it to a 2D polygon */
-	void FlattenShape();
 
 	/** Calling this function will scale the SVG Shape */
 	void ScaleShape(float InScale);

@@ -6,7 +6,7 @@
 #include "SVGFactory.generated.h"
 
 UCLASS()
-class SVGIMPORTEREDITOR_API USVGFactory : public UFactory
+class USVGFactory : public UFactory
 {
 	GENERATED_BODY()
 

@@ -74,24 +74,22 @@ struct SVGIMPORTER_API FSVGMatrix
 	bool bIsInitialized = false;
 };
 
-struct SVGIMPORTER_API FSVGRadialGradient
+struct FSVGBaseElement : TSharedFromThis<FSVGBaseElement>
 {
-	FSVGRadialGradient(){}
-};
-
-struct SVGIMPORTER_API FSVGBaseElement : public TSharedFromThis<FSVGBaseElement>
-{
-public:
-	FSVGBaseElement(){}
-
 	void SetName(const FString& InName)
 	{
 		Name = InName;
 	}
 
-	bool TypeIsSet() const { return Type != ESVGElementType::None; }
+	bool TypeIsSet() const
+	{
+		return Type != ESVGElementType::None;
+	}
 
-	bool IsGraphicElement() const { return bIsGraphicElement; }
+	bool IsGraphicElement() const
+	{
+		return bIsGraphicElement;
+	}
 
 	ESVGElementType Type = ESVGElementType::None;
 
@@ -100,18 +98,16 @@ public:
 	FString Name;
 };
 
-struct SVGIMPORTER_API FSVGMainElement : public FSVGBaseElement
+struct FSVGMainElement : FSVGBaseElement
 {
-public:
 	FSVGMainElement()
 	{
 		Type = ESVGElementType::SVG;
 	}
 };
 
-struct SVGIMPORTER_API FSVGStyleElement : public FSVGBaseElement
+struct FSVGStyleElement : FSVGBaseElement
 {
-public:
 	FSVGStyleElement(const TArray<FSVGStyle>& InStyles)
 		: Styles(InStyles)
 	{
@@ -146,29 +142,31 @@ public:
 	}
 };
 
-struct SVGIMPORTER_API FSVGClipPath : public FSVGBaseElement
+struct FSVGClipPath : FSVGBaseElement
 {
-public:
 	FSVGClipPath()
 	{
 		Type = ESVGElementType::ClipPath;
 	}
-
-	/** todo */
 };
 
-struct SVGIMPORTER_API FSVGGradientElement : public FSVGBaseElement
+struct FSVGGradientElement : FSVGBaseElement
 {
-public:
 	FSVGGradientElement(const FSVGGradient& InGradient)
 		: Gradient(InGradient)
 	{
 		Type = ESVGElementType::Gradient;
 	}
 
-	bool HasID() const { return Gradient.IsValid(); }
+	bool HasID() const
+	{
+		return Gradient.IsValid();
+	}
 
-	const FString& GetID() const { return Gradient.Id; }
+	const FString& GetID() const
+	{
+		return Gradient.Id;
+	}
 
 	FSVGGradient Gradient;
 };
@@ -177,9 +175,8 @@ public:
  * Base for all elements which can be drawn.
  * They can have fill and/or stroke information, a style, and a transform.
  */
-struct SVGIMPORTER_API FSVGGraphicsElement : public FSVGBaseElement
+struct SVGIMPORTER_API FSVGGraphicsElement : FSVGBaseElement
 {
-public:
 	FSVGGraphicsElement();
 
 	/** If the specified parent is a Group element, add this Graphic Element to its children */
@@ -341,9 +338,8 @@ protected:
  * It holds a list of graphics elements.
  * It is defined as a graphic element itself, since it can contain info about elements styling.
  */
-struct SVGIMPORTER_API FSVGGroupElement : public FSVGGraphicsElement
+struct FSVGGroupElement : FSVGGraphicsElement
 {
-public:
 	TArray<TSharedRef<FSVGGraphicsElement>> Children;
 
 	FSVGGroupElement()

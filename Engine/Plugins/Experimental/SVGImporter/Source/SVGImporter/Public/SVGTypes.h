@@ -14,7 +14,7 @@
 
 class USplineComponent;
 
-USTRUCT(BlueprintType)
+USTRUCT()
 struct SVGIMPORTER_API FSVGStyle
 {
 	GENERATED_BODY()
@@ -83,7 +83,7 @@ enum class ESVGGradientPointUnit : uint8
 };
 
 USTRUCT()
-struct SVGIMPORTER_API FSVGGradientStop
+struct FSVGGradientStop
 {
 	GENERATED_BODY()
 
@@ -98,7 +98,7 @@ struct SVGIMPORTER_API FSVGGradientStop
 };
 
 USTRUCT()
-struct SVGIMPORTER_API FSVGGradient
+struct FSVGGradient
 {
 	GENERATED_BODY()
 
@@ -138,7 +138,7 @@ struct SVGIMPORTER_API FSVGGradient
 	//- gradientTransform
 	//
 
-	FColor GetAverageColor() const;
+	SVGIMPORTER_API FColor GetAverageColor() const;
 };
 
 USTRUCT(Blueprintable)
@@ -189,7 +189,7 @@ private:
 	bool bShouldBeDrawn;
 };
 
-USTRUCT(Blueprintable)
+USTRUCT()
 struct FSVGShape
 {
 	GENERATED_BODY()
