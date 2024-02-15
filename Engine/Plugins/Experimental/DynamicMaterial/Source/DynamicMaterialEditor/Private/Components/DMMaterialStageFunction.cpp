@@ -11,6 +11,7 @@
 #include "Components/MaterialValues/DMMaterialValueFloat2.h"
 #include "Components/MaterialValues/DMMaterialValueFloat3XYZ.h"
 #include "Components/MaterialValues/DMMaterialValueFloat4.h"
+#include "DMPrivate.h"
 #include "DynamicMaterialEditorModule.h"
 #include "Materials/MaterialExpressionFunctionInput.h"
 #include "Materials/MaterialExpressionFunctionOutput.h"
@@ -290,14 +291,14 @@ bool UDMMaterialStageFunction::NeedsFunctionInit() const
 
 	if (Outputs.IsEmpty())
 	{
-		UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Function must have at least one output."));
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Function must have at least one output."));
 		return false;
 	}
 
 	if (!Inputs[0].ExpressionInput || !Outputs[0].ExpressionOutput
 		|| Inputs[0].ExpressionInput->InputType != Outputs[0].ExpressionOutput->GetOutputType(0))
 	{
-		UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Function's first input must match its first output."));
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Function's first input must match its first output."));
 		return false;
 	}
 
@@ -312,7 +313,7 @@ bool UDMMaterialStageFunction::NeedsFunctionInit() const
 
 		if (!IsValid(FunctionInput))
 		{
-			UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Function has missing input object."));
+			UE::DynamicMaterialEditor::Private::LogError(TEXT("Function has missing input object."));
 			return false;
 		}
 
@@ -326,7 +327,7 @@ bool UDMMaterialStageFunction::NeedsFunctionInit() const
 					break;
 
 				default:
-					UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Function has invalid first input - must be a scalar or vector3."));
+					UE::DynamicMaterialEditor::Private::LogError(TEXT("Function has invalid first input - must be a scalar or vector3."));
 					return false;
 			}
 
@@ -360,7 +361,7 @@ bool UDMMaterialStageFunction::NeedsFunctionInit() const
 				break;
 
 			default:
-				UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Function has invalid input type - must be a scalar, vector or texture."));
+				UE::DynamicMaterialEditor::Private::LogError(TEXT("Function has invalid input type - must be a scalar, vector or texture."));
 				return false;
 		}
 
@@ -418,14 +419,14 @@ void UDMMaterialStageFunction::InitFunction()
 
 	if (Inputs.IsEmpty())
 	{
-		UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Function must have at least one input."));
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Function must have at least one input."));
 		MaterialFunction = nullptr;
 		return;
 	}
 
 	if (Outputs.IsEmpty())
 	{
-		UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Function must have at least one output."));
+		UE::DynamicMaterialEditor::Private::LogError(TEXT("Function must have at least one output."));
 		MaterialFunction = nullptr;
 		return;
 	}
@@ -447,7 +448,7 @@ void UDMMaterialStageFunction::InitFunction()
 
 		if (!IsValid(FunctionInput))
 		{
-			UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Function has missing input object."));
+			UE::DynamicMaterialEditor::Private::LogError(TEXT("Function has missing input object."));
 			InputConnectors.SetNum(1);
 			MaterialFunction = nullptr;
 			return;
@@ -463,7 +464,7 @@ void UDMMaterialStageFunction::InitFunction()
 					break;
 
 				default:
-					UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Function has invalid first input - must be a scalar or vector."));
+					UE::DynamicMaterialEditor::Private::LogError(TEXT("Function has invalid first input - must be a scalar or vector."));
 					InputConnectors.SetNum(1);
 					MaterialFunction = nullptr;
 					return;
@@ -507,7 +508,7 @@ void UDMMaterialStageFunction::InitFunction()
 				break;
 
 			default:
-				UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Function has invalid input type - must be a scalar, vector or texture."));
+				UE::DynamicMaterialEditor::Private::LogError(TEXT("Function has invalid input type - must be a scalar, vector or texture."));
 				InputConnectors.SetNum(1);
 				MaterialFunction = nullptr;
 				return;

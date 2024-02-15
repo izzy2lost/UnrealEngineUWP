@@ -28,6 +28,8 @@ namespace UE::DynamicMaterialEditor::Private
 	int32 ChannelIndexToChannelBit(int32 InChannelIndex);
 
 	bool IsCustomMaterialProperty(EDMMaterialPropertyType InMaterialProperty);
+
+	void LogError(const FString& InMessage, bool bInToast = true);
 }
 
 struct FDMMaterialLayerReference
