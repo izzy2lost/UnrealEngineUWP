@@ -4381,6 +4381,7 @@ namespace mu
 							ImOp.ImagePixelFormat(bSuccess, m_pSettings->ImageCompressionQuality, Formatted.get(), pB.get());
 							check(bSuccess);
 							Release(pB);
+							pB = Formatted;
 						}
 					}
 
