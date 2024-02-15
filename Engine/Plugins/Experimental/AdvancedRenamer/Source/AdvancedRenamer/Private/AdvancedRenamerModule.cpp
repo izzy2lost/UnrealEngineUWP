@@ -9,12 +9,6 @@
 
 DEFINE_LOG_CATEGORY(LogARP);
 
-FAdvancedRenamerModule& FAdvancedRenamerModule::Get()
-{
-	static const FName ModuleName = TEXT("AdvancedRenamer");
-	return FModuleManager::LoadModuleChecked<FAdvancedRenamerModule>(ModuleName);
-}
-
 void FAdvancedRenamerModule::StartupModule()
 {
 	FAdvancedRenamerStyle::Initialize();

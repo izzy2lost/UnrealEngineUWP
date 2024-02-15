@@ -13,8 +13,6 @@ DECLARE_LOG_CATEGORY_EXTERN(LogARP, Log, All);
 class ADVANCEDRENAMER_API FAdvancedRenamerModule : public IModuleInterface
 {
 public:	
-	static FAdvancedRenamerModule& Get();
-
 	//~ Begin IAdvancedRenamerModule interface
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
