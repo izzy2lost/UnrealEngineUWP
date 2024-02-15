@@ -12,6 +12,8 @@
 #include "WidgetBlueprintEditor.h"
 #include "WidgetBlueprintToolMenuContext.h"
 
+#include "Customizations/MVVMConversionPathCustomization.h"
+#include "Customizations/MVVMPropertyPathCustomization.h"
 #include "Hierarchy/HierarchyWidgetDragDropOp.h"
 #include "IStructureDetailsView.h"
 #include "PropertyEditorModule.h"
@@ -126,6 +128,9 @@ void SBindingsPanel::Construct(const FArguments& InArgs, TSharedPtr<FWidgetBluep
 
 		FStructureDetailsViewArgs StructureDetailsViewArgs;
 		StructDetailsView = PropertyEditorModule.CreateStructureDetailView(DetailsViewArgs, StructureDetailsViewArgs, MakeShared<FStructOnScope>(FMVVMBlueprintViewBinding::StaticStruct(), reinterpret_cast<uint8*>(&NotifyHook->Binding)));
+		StructDetailsView->GetDetailsView()->RegisterInstancedCustomPropertyTypeLayout(FMVVMBlueprintPropertyPath::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&UE::MVVM::FPropertyPathCustomization::MakeInstance, WidgetBlueprint));
+		StructDetailsView->GetDetailsView()->RegisterInstancedCustomPropertyTypeLayout(FMVVMBlueprintViewConversionPath::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&UE::MVVM::FConversionPathCustomization::MakeInstance, WidgetBlueprint));
+		StructDetailsView->GetDetailsView()->SetIsPropertyEditingEnabledDelegate(FIsPropertyEditingEnabled::CreateSP(this, &SBindingsPanel::IsDetailsViewEditingEnabled));
 	}
 
 	HandleBlueprintViewChangedDelegate();
@@ -136,6 +141,10 @@ SBindingsPanel::~SBindingsPanel()
 	if (UMVVMWidgetBlueprintExtension_View* Extension = MVVMExtension.Get())
 	{
 		Extension->OnBlueprintViewChangedDelegate().Remove(BlueprintViewChangedDelegateHandle);
+		if (UMVVMBlueprintView* View = Extension->GetBlueprintView())
+		{
+			View->OnBindingsUpdated.RemoveAll(this);
+		}
 	}
 	if (TSharedPtr<FWidgetBlueprintEditor> WidgetEditor = WeakBlueprintEditor.Pin())
 	{
@@ -150,6 +159,11 @@ SBindingsPanel::~SBindingsPanel()
 void SBindingsPanel::SaveSettings()
 {
 	GConfig->SetInt(TEXT("MVVMViewBindingPanel"), TEXT("LastAddBindingMode"), static_cast<int32>(AddBindingMode), *GEditorPerProjectIni);
+}
+
+bool SBindingsPanel::IsDetailsViewEditingEnabled() const
+{
+	return false;
 }
 
 void SBindingsPanel::LoadSettings()
@@ -199,6 +213,8 @@ void SBindingsPanel::OnBindingListSelectionChanged(TConstArrayView<FMVVMBlueprin
 	if (FMVVMBlueprintViewBinding* Binding = Selection.Num() > 0 ? Selection.Last() : nullptr)
 	{
 		NotifyHook->Binding = *Binding;
+		TSharedRef<FStructOnScope> StructScope = MakeShared<FStructOnScope>(FMVVMBlueprintViewBinding::StaticStruct(), reinterpret_cast<uint8*>(Binding));
+		StructDetailsView->SetStructureData(StructScope);
 		DetailContainer->SetContent(StructDetailsView->GetWidget().ToSharedRef());
 	}
 	else
@@ -211,6 +227,12 @@ void SBindingsPanel::OnBindingListSelectionChanged(TConstArrayView<FMVVMBlueprin
 
 void SBindingsPanel::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
+	RefreshNotifyHookBinding();
+	Super::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
+}
+
+void SBindingsPanel::RefreshNotifyHookBinding()
+{
 	if (NotifyHook->Binding.BindingId.IsValid())
 	{
 		if (UMVVMWidgetBlueprintExtension_View* Extension = MVVMExtension.Get())
@@ -221,8 +243,6 @@ void SBindingsPanel::Tick(const FGeometry& AllottedGeometry, const double InCurr
 			}
 		}
 	}
-
-	Super::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
 }
 
 void SBindingsPanel::AddBindingToWidgetList(const TSet<FWidgetReference>& WidgetsToAddBinding)
@@ -289,6 +309,24 @@ bool SBindingsPanel::CanAddBinding() const
 {
 	UMVVMWidgetBlueprintExtension_View* MVVMExtensionPtr = MVVMExtension.Get();
 	return MVVMExtensionPtr && MVVMExtensionPtr->GetBlueprintView() != nullptr;
+}
+
+void SBindingsPanel::RefreshDetailsView()
+{
+	UMVVMWidgetBlueprintExtension_View* MVVMExtensionPtr = MVVMExtension.Get();
+	if (MVVMExtensionPtr && MVVMExtensionPtr->GetBlueprintView())
+	{
+		RefreshNotifyHookBinding();
+		if (NotifyHook->Binding.BindingId.IsValid() && MVVMExtensionPtr->GetBlueprintView()->GetBinding(NotifyHook->Binding.BindingId))
+		{
+			TSharedRef<FStructOnScope> StructScope = MakeShared<FStructOnScope>(FMVVMBlueprintViewBinding::StaticStruct(), reinterpret_cast<uint8*>(&NotifyHook->Binding));
+			StructDetailsView->SetStructureData(StructScope);
+			DetailContainer->SetContent(StructDetailsView->GetWidget().ToSharedRef());
+			return;
+		}
+	}
+	DetailsView->SetObject(nullptr);
+	DetailContainer->SetContent(DetailsView.ToSharedRef());
 }
 
 FText SBindingsPanel::GetAddBindingText() const
@@ -556,6 +594,10 @@ TSharedRef<SWidget> SBindingsPanel::GenerateEditViewWidget()
 	if (MVVMExtension.Get())
 	{
 		BindingsList = SNew(SBindingsList, StaticCastSharedRef<SBindingsPanel>(AsShared()), WeakBlueprintEditor.Pin(), MVVMExtension.Get());
+		if (UMVVMBlueprintView* View = MVVMExtension->GetBlueprintView())
+		{
+			View->OnBindingsUpdated.AddSP(this, &SBindingsPanel::RefreshDetailsView);
+		}
 	}
 
 	DetailContainer = SNew(SBorder)

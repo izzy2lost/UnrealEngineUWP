@@ -6,8 +6,7 @@
 #include "Styling/SlateTypes.h"
 #include "Styling/SlateWidgetStyleAsset.h"
 #include "Widgets/SCompoundWidget.h"
-#include "Widgets/SMVVMCachedViewBindingPropertyPath.h"
-#include "Widgets/SMVVMCachedViewBindingConversionFunction.h"
+#include "Widgets/SMVVMFieldDisplay.h"
 #include "Widgets/SMVVMFieldSelectorMenu.h"
 
 namespace UE::MVVM { class SCachedViewBindingPropertyPath; }
@@ -20,7 +19,6 @@ namespace UE::MVVM
 class SFieldSelector : public SCompoundWidget
 {
 public:
-	DECLARE_DELEGATE_RetVal(FMVVMLinkedPinValue, FOnGetLinkedPinValue);
 	DECLARE_DELEGATE_RetVal(FFieldSelectionContext, FOnGetSelectionContext);
 	DECLARE_DELEGATE_RetVal_TwoParams(FReply, FOnDrop, const FGeometry&, const FDragDropEvent&);
 	DECLARE_DELEGATE_TwoParams(FOnDragEnter, const FGeometry&, const FDragDropEvent&);
@@ -32,7 +30,7 @@ public:
 		SLATE_STYLE_ARGUMENT(FTextBlockStyle, TextStyle)
 		SLATE_ARGUMENT_DEFAULT(bool, ShowContext) { true };
 		SLATE_ARGUMENT_DEFAULT(bool, IsBindingToEvent) { false };
-		SLATE_EVENT(FOnGetLinkedPinValue, OnGetLinkedValue)
+		SLATE_EVENT(SFieldDisplay::FOnGetLinkedPinValue, OnGetLinkedValue)
 		SLATE_EVENT(FOnLinkedValueSelectionChanged, OnSelectionChanged)
 		SLATE_EVENT(FOnGetSelectionContext, OnGetSelectionContext)
 		SLATE_EVENT(FOnDrop, OnDrop)
@@ -44,25 +42,18 @@ public:
 	virtual void OnDragEnter(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent) override;
 	virtual void OnDragLeave(const FDragDropEvent& DragDropEvent) override;
 
-
 private:
-	int32 GetCurrentDisplayIndex() const;
-
 	TSharedRef<SWidget> CreateSourcePanel();
 	TSharedRef<SWidget> HandleGetMenuContent();
 
 	void HandleFieldSelectionChanged(FMVVMLinkedPinValue NewValue);
-	FMVVMBlueprintPropertyPath HandleGetPropertyPath() const;
-	TVariant<const UFunction*, TSubclassOf<UK2Node>, FEmptyVariantState> HandleGetConversionFunction() const;
 	void HandleMenuClosed();
 
 private:
 	TSharedPtr<SCachedViewBindingPropertyPath> PropertyPathWidget;
 	TSharedPtr<SComboButton> ComboButton;
-
+	TSharedPtr<SFieldDisplay> FieldDisplay;
 	TWeakObjectPtr<const UWidgetBlueprint> WidgetBlueprint;
-	const FTextBlockStyle* TextStyle = nullptr;
-	FOnGetLinkedPinValue OnGetLinkedValue;
 	FOnLinkedValueSelectionChanged OnSelectionChanged;
 	FOnGetSelectionContext OnGetSelectionContext;
 	FOnDrop OnDropEvent;
