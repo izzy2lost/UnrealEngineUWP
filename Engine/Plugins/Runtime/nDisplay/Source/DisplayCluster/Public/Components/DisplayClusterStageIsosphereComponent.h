@@ -24,6 +24,10 @@ public:
 	void ResetIsosphere();
 
 private:
+	/** Checks that the isosphere static mesh used when generating the morphed geometry is loaded and has bAllowCPUAccess set to true */
+	bool IsIsosphereMeshValid() const;
+
+private:
 	/** A static mesh containing an isosphere that can be morphed */
 	UPROPERTY(Transient)
 	TObjectPtr<UStaticMesh> IsosphereMesh;

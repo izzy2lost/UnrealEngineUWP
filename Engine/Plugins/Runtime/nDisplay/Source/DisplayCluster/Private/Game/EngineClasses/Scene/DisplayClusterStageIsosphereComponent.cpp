@@ -22,10 +22,8 @@ void UDisplayClusterStageIsosphereComponent::OnComponentCreated()
 	Super::OnComponentCreated();
 
 	// Load the isosphere's geometry into the procedural mesh
-	if (ensure(IsosphereMesh))
+	if (IsIsosphereMeshValid())
 	{
-		IsosphereMesh->bAllowCPUAccess = true;
-
 		const int32 NumSections = IsosphereMesh->GetNumSections(0);
 		for (int32 SectionIndex = 0; SectionIndex < NumSections; SectionIndex++)
 		{
@@ -54,7 +52,7 @@ void UDisplayClusterStageIsosphereComponent::OnComponentCreated()
 
 void UDisplayClusterStageIsosphereComponent::ResetIsosphere()
 {
-	if (ensure(IsosphereMesh))
+	if (IsIsosphereMeshValid())
 	{
 		const int32 NumSections = IsosphereMesh->GetNumSections(0);
 		for (int32 SectionIndex = 0; SectionIndex < NumSections; SectionIndex++)
@@ -80,4 +78,11 @@ void UDisplayClusterStageIsosphereComponent::ResetIsosphere()
 			}
 		}
 	}
+}
+
+bool UDisplayClusterStageIsosphereComponent::IsIsosphereMeshValid() const
+{
+	return
+		ensureMsgf(IsosphereMesh, TEXT("UDisplayClusterStageIsosphereComponent::IsosphereMesh was not properly loaded")) &&
+		ensureMsgf(IsosphereMesh->bAllowCPUAccess, TEXT("UDisplayClusterStageIsosphereComponent::IsosphereMesh does not have Allow CPUAccess enabled"));
 }
