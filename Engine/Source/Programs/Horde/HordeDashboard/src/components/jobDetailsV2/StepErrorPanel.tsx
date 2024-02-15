@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-import { List, Pivot, PivotItem, Stack, Text } from "@fluentui/react";
+import { List, Pivot, PivotItem, Spinner, SpinnerSize, Stack, Text } from "@fluentui/react";
 import { getFocusStyle, mergeStyleSets } from '@fluentui/react/lib/Styling';
 import { observer } from "mobx-react-lite";
 import React, { useEffect } from 'react';
@@ -100,6 +100,9 @@ class StepSummaryErrorsView extends JobDataView {
 
       } finally {
 
+         this.loaded = true;
+         this.updateReady();
+
          if (!init) {
             this.initialize([]);
          }
@@ -110,6 +113,7 @@ class StepSummaryErrorsView extends JobDataView {
    clear() {
       this.stepId = "";
       this.events = [];
+      this.loaded = false;
       super.clear();
    }
 
@@ -124,6 +128,8 @@ class StepSummaryErrorsView extends JobDataView {
    stepId: string = "";
 
    events: EventData[] = []
+
+   loaded = false;
 
    order = 2;
 
@@ -268,10 +274,14 @@ export const StepErrorPanel: React.FC<{ jobDetails: JobDetailsV2; stepId: string
    const errors = dataView.errors;
    const warnings = dataView.warnings;
 
+
    return (<Stack id={errorSideRail.url} styles={{ root: { paddingTop: 18, paddingRight: 12 } }}>
       <Stack className={hordeClasses.raised}>
          <Stack tokens={{ childrenGap: 12 }}>
-            <Text variant="mediumPlus" styles={{ root: { fontFamily: "Horde Open Sans SemiBold" } }}>Events</Text>
+            <Stack horizontal tokens={{ childrenGap: 18 }}>
+               <Text variant="mediumPlus" styles={{ root: { fontFamily: "Horde Open Sans SemiBold" } }}>Events</Text>
+               {!dataView.loaded && <Spinner size={SpinnerSize.medium} />}
+            </Stack>
             <Stack styles={{ root: { paddingLeft: 4, paddingRight: 0, paddingTop: 8, paddingBottom: 4 } }}>
                <Pivot>
                   {!!errors.length && <PivotItem headerText="Errors" itemCount={errors.length}>
