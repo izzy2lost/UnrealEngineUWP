@@ -1197,8 +1197,6 @@ void FTG_Editor::OnSelectedNodesChanged(const TSet<class UObject*>& NewSelection
 		}
 	}
 
-	TG_EdGraph->PinSelectionManager.ClearPinsForNonSelectedNodes(SelectedObjects);
-
 	GetDetailView()->SetObjects(SelectedObjects, true);
 	FocusDetailsPanel();
 
