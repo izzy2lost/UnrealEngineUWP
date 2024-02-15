@@ -30,6 +30,9 @@ public:
 
 	virtual FString GetNodeInstanceName() const override;
 
+protected:
+	virtual void RegisterDelegates() override;
+
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
 	uint8 bOverride_Collection : 1 = 1;	// The collection is customized in the details panel, so the override should always be enabled

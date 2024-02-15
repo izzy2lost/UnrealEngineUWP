@@ -8,16 +8,10 @@
 
 UMovieGraphInputNode::UMovieGraphInputNode()
 {
-#if WITH_EDITOR
 	if (!HasAnyFlags(RF_ClassDefaultObject))
 	{
-		if (UMovieGraphConfig* Graph = GetGraph())
-		{
-			// Register delegates for new inputs when they're added to the graph
-			Graph->OnGraphInputAddedDelegate.AddUObject(this, &UMovieGraphInputNode::RegisterDelegates);
-		}
+		RegisterDelegates();
 	}
-#endif
 }
 
 TArray<FMovieGraphPinProperties> UMovieGraphInputNode::GetOutputPinProperties() const
@@ -130,16 +124,23 @@ void UMovieGraphInputNode::RegisterDelegates()
 {
 	Super::RegisterDelegates();
 	
-	if (const UMovieGraphConfig* Graph = GetGraph())
+	if (UMovieGraphConfig* Graph = GetGraph())
 	{
+#if WITH_EDITOR
+		// Register delegates for new inputs when they're added to the graph
+		Graph->OnGraphInputAddedDelegate.RemoveAll(this);
+		Graph->OnGraphInputAddedDelegate.AddUObject(this, &UMovieGraphInputNode::RegisterInputDelegates);
+#endif
+
+		// Register delegates for existing inputs
 		for (UMovieGraphInput* InputMember : Graph->GetInputs())
 		{
-			RegisterDelegates(InputMember);
+			RegisterInputDelegates(InputMember);
 		}
 	}
 }
 
-void UMovieGraphInputNode::RegisterDelegates(UMovieGraphInput* Input)
+void UMovieGraphInputNode::RegisterInputDelegates(UMovieGraphInput* Input)
 {
 #if WITH_EDITOR
 	if (Input)

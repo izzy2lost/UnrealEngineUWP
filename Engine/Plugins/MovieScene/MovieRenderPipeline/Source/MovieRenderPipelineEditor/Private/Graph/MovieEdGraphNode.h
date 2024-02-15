@@ -21,6 +21,7 @@ public:
 	void OnRuntimeNodeChanged(const UMovieGraphNode* InChangedNode);
 
 	//~ Begin UEdGraphNode Interface
+	virtual void PostLoad() override;
 	virtual void ReconstructNode() override;
 	virtual void AutowireNewNode(UEdGraphPin* FromPin) override;
 	virtual FLinearColor GetNodeTitleColor() const override;
@@ -70,6 +71,9 @@ protected:
 	 * Update the enable state of the underlying runtime node to match the editor node.
 	 */
 	void UpdateEnableState() const;
+
+	/** Registers any delegates needed by the node. */
+	void RegisterDelegates();
 
 protected:
 	/** The runtime node that this editor node represents. */

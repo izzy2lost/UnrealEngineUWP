@@ -792,7 +792,10 @@ public:
 #if WITH_EDITORONLY_DATA
 	// Not strongly typed to avoid a circular dependency between the editor only module
 	// and the runtime module, but it should be a UMoviePipelineEdGraph.
-	UPROPERTY(Transient)
+	//
+	// Note that the editor graph is saved with the runtime graph. This is done to prevent the runtime graph from being dirtied immediately upon loading
+	// (because the editor graph would have to be re-created from the runtime graph, thus dirtying the package).
+	UPROPERTY()
 	TObjectPtr<UEdGraph> PipelineEdGraph;
 #endif
 
