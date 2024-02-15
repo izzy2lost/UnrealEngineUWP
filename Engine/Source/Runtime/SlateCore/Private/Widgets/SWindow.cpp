@@ -991,8 +991,6 @@ void SWindow::Resize( UE::Slate::FDeprecateVector2DParameter NewClientSize )
 
 void SWindow::ResizeWindowSize( FVector2f NewWindowSize )
 {
-	Morpher.Sequence.JumpToEnd();
-
 	NewWindowSize.X = FMath::Max(SizeLimits.GetMinWidth().Get(NewWindowSize.X), NewWindowSize.X);
 	NewWindowSize.X = FMath::Min(SizeLimits.GetMaxWidth().Get(NewWindowSize.X), NewWindowSize.X);
 
@@ -1005,6 +1003,8 @@ void SWindow::ResizeWindowSize( FVector2f NewWindowSize )
 
 	if (CurrentIntSize != NewIntSize)
 	{
+		Morpher.Sequence.JumpToEnd();
+
 		if (NativeWindow.IsValid())
 		{
 			NativeWindow->ReshapeWindow(FMath::TruncToInt(ScreenPosition.X), FMath::TruncToInt(ScreenPosition.Y), NewIntSize.X, NewIntSize.Y);
