@@ -242,7 +242,7 @@ UMoverNetworkPhysicsLiaisonComponent::UMoverNetworkPhysicsLiaisonComponent()
 			MyActor->SetReplicateMovement(true);
 		}
 
-		NetworkPhysicsComponent = NewObject<UNetworkPhysicsComponent>(GetOwner(), TEXT("PhysMover_NetworkPhysicsComponent"));
+		NetworkPhysicsComponent = CreateDefaultSubobject<UNetworkPhysicsComponent>(TEXT("PhysMover_NetworkPhysicsComponent"));
 		NetworkPhysicsComponent->SetNetAddressable(); // Make DSO components net addressable
 		NetworkPhysicsComponent->SetIsReplicated(true);
 		NetworkPhysicsComponent->RegisterComponent();
