@@ -362,6 +362,11 @@ export type IssueQueryV2 = {
 	filter?: string;
 }
 
+export type LogEventQuery = {
+	index?: number;
+	count?: number;
+}
+
 
 export type UsersQuery = {
 	ids?: string[];
