@@ -29,7 +29,7 @@ public:
 	TSharedPtr<FUICommandInfo> ToggleChildActorLock;
 	TSharedPtr<FUICommandInfo> ToggleShapeEditorOverlay;
 	TSharedPtr<FUICommandInfo> TogglePostProcessNone;
-	TSharedPtr<FUICommandInfo> TogglePostProcessBackplate;
+	TSharedPtr<FUICommandInfo> TogglePostProcessBackground;
 	TSharedPtr<FUICommandInfo> TogglePostProcessChannelRed;
 	TSharedPtr<FUICommandInfo> TogglePostProcessChannelGreen;
 	TSharedPtr<FUICommandInfo> TogglePostProcessChannelBlue;

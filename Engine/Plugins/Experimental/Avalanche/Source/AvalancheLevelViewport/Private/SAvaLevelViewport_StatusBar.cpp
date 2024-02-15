@@ -64,7 +64,7 @@ void SAvaLevelViewport::ExecuteTogglePostProcessNone()
 	EndPostProcessInfoTransaction();
 }
 
-bool SAvaLevelViewport::IsPostProcessBackplateEnabled() const
+bool SAvaLevelViewport::IsPostProcessBackgroundEnabled() const
 {
 	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
 
@@ -78,10 +78,10 @@ bool SAvaLevelViewport::IsPostProcessBackplateEnabled() const
 		return false;
 	}
 
-	return ViewportClient->GetPostProcessManager()->GetType() == EAvaViewportPostProcessType::Backplate;
+	return ViewportClient->GetPostProcessManager()->GetType() == EAvaViewportPostProcessType::Background;
 }
 
-bool SAvaLevelViewport::CanTogglePostProcessBackplate() const
+bool SAvaLevelViewport::CanTogglePostProcessBackground() const
 {
 	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
 
@@ -95,20 +95,20 @@ bool SAvaLevelViewport::CanTogglePostProcessBackplate() const
 		return false;
 	}
 
-	if (IsPostProcessBackplateEnabled())
+	if (IsPostProcessBackgroundEnabled())
 	{
 		return true;
 	}
 
-	if (TSharedPtr<FAvaViewportPostProcessVisualizer> BackplateVisualizer = ViewportClient->GetPostProcessManager()->GetVisualizer(EAvaViewportPostProcessType::Backplate))
+	if (TSharedPtr<FAvaViewportPostProcessVisualizer> BackgroundVisualizer = ViewportClient->GetPostProcessManager()->GetVisualizer(EAvaViewportPostProcessType::Background))
 	{
-		return BackplateVisualizer->CanActivate(/* bInSilent */ true);
+		return BackgroundVisualizer->CanActivate(/* bInSilent */ true);
 	}
 
 	return false;
 }
 
-void SAvaLevelViewport::ExecuteTogglePostProcessBackplate()
+void SAvaLevelViewport::ExecuteTogglePostProcessBackground()
 {
 	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
 
@@ -124,7 +124,7 @@ void SAvaLevelViewport::ExecuteTogglePostProcessBackplate()
 
 	BeginPostProcessInfoTransaction();
 
-	ViewportClient->GetPostProcessManager()->SetType(EAvaViewportPostProcessType::Backplate);
+	ViewportClient->GetPostProcessManager()->SetType(EAvaViewportPostProcessType::Background);
 	ViewportClient->Invalidate();
 
 	EndPostProcessInfoTransaction();

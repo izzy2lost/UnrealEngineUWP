@@ -9,7 +9,7 @@
 #include "Viewport/Interaction/IAvaViewportDataProvider.h"
 #include "Viewport/Interaction/IAvaViewportDataProxy.h"
 #include "ViewportClient/IAvaViewportClient.h"
-#include "Visualizers/AvaViewportBackplateVisualizer.h"
+#include "Visualizers/AvaViewportBackgroundVisualizer.h"
 #include "Visualizers/AvaViewportChannelVisualizer.h"
 #include "Visualizers/AvaViewportCheckerboardVisualizer.h"
 
@@ -17,7 +17,7 @@ FAvaViewportPostProcessManager::FAvaViewportPostProcessManager(TSharedRef<IAvaVi
 {
 	AvaViewportClientWeak = InAvaViewportClient;
 
-	Visualizers.Emplace(EAvaViewportPostProcessType::Backplate,    MakeShared<FAvaViewportBackplateVisualizer>(InAvaViewportClient));
+	Visualizers.Emplace(EAvaViewportPostProcessType::Background,    MakeShared<FAvaViewportBackgroundVisualizer>(InAvaViewportClient));
 	Visualizers.Emplace(EAvaViewportPostProcessType::RedChannel,   MakeShared<FAvaViewportChannelVisualizer>(InAvaViewportClient, EAvaViewportPostProcessType::RedChannel));
 	Visualizers.Emplace(EAvaViewportPostProcessType::GreenChannel, MakeShared<FAvaViewportChannelVisualizer>(InAvaViewportClient, EAvaViewportPostProcessType::GreenChannel));
 	Visualizers.Emplace(EAvaViewportPostProcessType::BlueChannel,  MakeShared<FAvaViewportChannelVisualizer>(InAvaViewportClient, EAvaViewportPostProcessType::BlueChannel));

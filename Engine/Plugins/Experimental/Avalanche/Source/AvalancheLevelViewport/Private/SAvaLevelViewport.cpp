@@ -117,10 +117,10 @@ void SAvaLevelViewport::BindCommands()
 	);
 
 	CommandListRef.MapAction(
-		AvaLevelViewportCommands.TogglePostProcessBackplate,
-		FExecuteAction::CreateSP(this, &SAvaLevelViewport::ExecuteTogglePostProcessBackplate),
-		FCanExecuteAction::CreateSP(this, &SAvaLevelViewport::CanTogglePostProcessBackplate),
-		FIsActionChecked::CreateSP(this, &SAvaLevelViewport::IsPostProcessBackplateEnabled)
+		AvaLevelViewportCommands.TogglePostProcessBackground,
+		FExecuteAction::CreateSP(this, &SAvaLevelViewport::ExecuteTogglePostProcessBackground),
+		FCanExecuteAction::CreateSP(this, &SAvaLevelViewport::CanTogglePostProcessBackground),
+		FIsActionChecked::CreateSP(this, &SAvaLevelViewport::IsPostProcessBackgroundEnabled)
 	);
 
 	CommandListRef.MapAction(

@@ -38,7 +38,7 @@ namespace UE::Ava::LevelViewportStatusBarButtons::Private
 	static const FName AvaLevelViewportStyleName = FAvaLevelViewportStyle::Get().GetStyleSetName();
 	static const FName AppStyleSetName = FAppStyle::Get().GetStyleSetName();
 	static const FSlateIcon RGBChannelIcon = FSlateIcon(AvaLevelViewportStyleName, "AvalancheIcons.PostProcess.RGB");
-	static const FSlateIcon BackplateIcon = FSlateIcon(AppStyleSetName, "Icons.Role");
+	static const FSlateIcon BackgroundIcon = FSlateIcon(AppStyleSetName, "Icons.Role");
 	static const FSlateIcon RedChannelIcon = FSlateIcon(AvaLevelViewportStyleName, "AvalancheIcons.PostProcess.Red");
 	static const FSlateIcon GreenChannelIcon = FSlateIcon(AvaLevelViewportStyleName, "AvalancheIcons.PostProcess.Green");
 	static const FSlateIcon BlueChannelIcon = FSlateIcon(AvaLevelViewportStyleName, "AvalancheIcons.PostProcess.Blue");
@@ -179,19 +179,19 @@ void SAvaLevelViewportStatusBarButtons::CreateContextMenuWigets()
 			.ClearKeyboardFocusOnCommit(true)
 			.MaxFractionalDigits(3)
 			.MinDesiredWidth(50.f)
-			.OnBeginSliderMovement(LevelViewport, &SAvaLevelViewport::OnBackplateOpacitySliderBegin)
-			.OnEndSliderMovement(LevelViewport, &SAvaLevelViewport::OnBackplateOpacitySliderEnd)
-			.OnValueCommitted(LevelViewport, &SAvaLevelViewport::OnBackplateOpacityCommitted)
-			.Value(LevelViewport, &SAvaLevelViewport::GetBackplateOpacity)
+			.OnBeginSliderMovement(LevelViewport, &SAvaLevelViewport::OnBackgroundOpacitySliderBegin)
+			.OnEndSliderMovement(LevelViewport, &SAvaLevelViewport::OnBackgroundOpacitySliderEnd)
+			.OnValueCommitted(LevelViewport, &SAvaLevelViewport::OnBackgroundOpacityCommitted)
+			.Value(LevelViewport, &SAvaLevelViewport::GetBackgroundOpacity)
 			.MinValue(0.f)
 			.MinSliderValue(0.f)
 			.MaxValue(1.f)
 			.MaxSliderValue(1.f);
 	}
 
-	if (!BackplateTextureSelector.IsValid())
+	if (!BackgroundTextureSelector.IsValid())
 	{
-		BackplateTextureSelector = SNew(SObjectPropertyEntryBox)
+		BackgroundTextureSelector = SNew(SObjectPropertyEntryBox)
 			.AllowClear(true)
 			.AllowedClass(UTexture::StaticClass())
 			.DisplayBrowse(true)
@@ -200,8 +200,8 @@ void SAvaLevelViewportStatusBarButtons::CreateContextMenuWigets()
 			.DisplayUseSelected(true)
 			.ThumbnailPool(UThumbnailManager::Get().GetSharedThumbnailPool())
 			.EnableContentPicker(true)
-			.ObjectPath(LevelViewport, &SAvaLevelViewport::GetBackplateTextureObjectPath)
-			.OnObjectChanged(LevelViewport, &SAvaLevelViewport::OnBackplateTextureChanged)
+			.ObjectPath(LevelViewport, &SAvaLevelViewport::GetBackgroundTextureObjectPath)
+			.OnObjectChanged(LevelViewport, &SAvaLevelViewport::OnBackgroundTextureChanged)
 			.OnShouldSetAsset(FOnShouldSetAsset::CreateLambda([](const FAssetData& InAssetData) { return false; }));
 	}
 
@@ -476,7 +476,7 @@ const FSlateBrush* SAvaLevelViewportStatusBarButtons::GetPostProcessIcon() const
 	using namespace UE::Ava::LevelViewportStatusBarButtons::Private;
 
 	static const FSlateBrush* RGBBrush = RGBChannelIcon.GetIcon();
-	static const FSlateBrush* BackplateBrush = BackplateIcon.GetIcon();
+	static const FSlateBrush* BackgroundBrush = BackgroundIcon.GetIcon();
 	static const FSlateBrush* RedChannelBrush = RedChannelIcon.GetIcon();
 	static const FSlateBrush* GreenChannelBrush = GreenChannelIcon.GetIcon();
 	static const FSlateBrush* BlueChannelBrush = BlueChannelIcon.GetIcon();
@@ -494,8 +494,8 @@ const FSlateBrush* SAvaLevelViewportStatusBarButtons::GetPostProcessIcon() const
 				case EAvaViewportPostProcessType::None:
 					return RGBBrush;
 
-				case EAvaViewportPostProcessType::Backplate:
-					return BackplateBrush;
+				case EAvaViewportPostProcessType::Background:
+					return BackgroundBrush;
 
 				case EAvaViewportPostProcessType::RedChannel:
 					return RedChannelBrush;
@@ -536,15 +536,15 @@ TSharedRef<SWidget> SAvaLevelViewportStatusBarButtons::GetPostProcessMenuContent
 
 	check(Menus);
 
-	static const FName BackplateMenuName = TEXT("AvaLevelViewport.StatusBar.PostProcess.Backplate");
+	static const FName BackgroundMenuName = TEXT("AvaLevelViewport.StatusBar.PostProcess.Background");
 
-	UToolMenu* ContextMenu = Menus->FindMenu(BackplateMenuName);
+	UToolMenu* ContextMenu = Menus->FindMenu(BackgroundMenuName);
 
 	if (!ContextMenu)
 	{
 		using namespace UE::Ava::LevelViewportStatusBarButtons::Private;
 
-		ContextMenu = Menus->RegisterMenu(BackplateMenuName, NAME_None, EMultiBoxType::Menu);
+		ContextMenu = Menus->RegisterMenu(BackgroundMenuName, NAME_None, EMultiBoxType::Menu);
 
 		const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::Get();
 
@@ -564,17 +564,17 @@ TSharedRef<SWidget> SAvaLevelViewportStatusBarButtons::GetPostProcessMenuContent
 			EUserInterfaceActionType::Check
 		));
 
-		FToolUIAction BackplateAction;
-		BackplateAction.ExecuteAction = FToolMenuExecuteAction::CreateSP(this, &SAvaLevelViewportStatusBarButtons::TogglePostProcessMenu, EAvaViewportPostProcessType::Backplate);
-		BackplateAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessActiveMenu, EAvaViewportPostProcessType::Backplate);
-		BackplateAction.CanExecuteAction = FToolMenuCanExecuteAction::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessEnabledMenu);
+		FToolUIAction BackgroundAction;
+		BackgroundAction.ExecuteAction = FToolMenuExecuteAction::CreateSP(this, &SAvaLevelViewportStatusBarButtons::TogglePostProcessMenu, EAvaViewportPostProcessType::Background);
+		BackgroundAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessActiveMenu, EAvaViewportPostProcessType::Background);
+		BackgroundAction.CanExecuteAction = FToolMenuCanExecuteAction::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetPostProcessEnabledMenu);
 
 		EffectsSection.AddEntry(FToolMenuEntry::InitMenuEntry(
-			"Backplate", 
-			LOCTEXT("Backplate", "Backplate"), 
-			CommandsRef.TogglePostProcessBackplate->GetDescription(),
-			BackplateIcon,
-			FToolUIActionChoice(BackplateAction),
+			"Background", 
+			LOCTEXT("Background", "Background"), 
+			CommandsRef.TogglePostProcessBackground->GetDescription(),
+			BackgroundIcon,
+			FToolUIActionChoice(BackgroundAction),
 			EUserInterfaceActionType::Check
 		));
 
@@ -660,11 +660,11 @@ TSharedRef<SWidget> SAvaLevelViewportStatusBarButtons::GetPostProcessMenuContent
 			));
 		}
 
-		if (BackplateTextureSelector.IsValid())
+		if (BackgroundTextureSelector.IsValid())
 		{
 			OptionsSection.AddEntry(FToolMenuEntry::InitWidget(
 				"PostProcessTexture",
-				BackplateTextureSelector.ToSharedRef(),
+				BackgroundTextureSelector.ToSharedRef(),
 				LOCTEXT("PostProcessTexture", "Texture"),
 				true
 			));

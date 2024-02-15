@@ -7,7 +7,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/Package.h"
 
-#define LOCTEXT_NAMESPACE "AvaViewportBackplateVisualizer"
+#define LOCTEXT_NAMESPACE "AvaViewportBackgroundVisualizer"
 
 namespace UE::AvalancheViewport::Private
 {
