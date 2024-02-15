@@ -64,7 +64,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			
 			Pads = Attributes.GetValue<TArray<int32>>(TEXT("pads"));
 			Value = Attributes.GetValueOrDefault<float>(TEXT("value"), 0.0f);
-			FPadCS::LexFromString(Mode, *Attributes.GetValue<FString>(TEXT("mode")));
+			FPadCS::LexFromString(Mode, *Attributes.GetValueOrDefault<FString>(TEXT("mode"), TEXT("constant")));
 
 			if ((2*InputTensorDescs[0].GetShape().Rank()) != Pads.Num())
 			{
@@ -100,7 +100,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			FillTensorSizeShaderParameters(Input, Params->TensorInfo, 2);
 			for (int32 i = 0; i < Input.GetShape().Rank(); ++i)
 			{
-				Params->TensorInfo[i][3] = Pads[i];//Pre-pad
+				Params->TensorInfo[i][3] = BitCast<uint32>(Pads[i]); // Pre-pad encoded as uint32
 			}
 			Params->Value = Value;
 			Params->Num = Output.GetVolume();
@@ -134,15 +134,6 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 		AttributeValidator.AddRequired(TEXT("pads"), ENNEAttributeDataType::Int32Array);
 		AttributeValidator.AddOptional(TEXT("value"), ENNEAttributeDataType::Float);
 		bIsValid &= AttributeValidator.Validate(AttributeMap);
-
-		for (int32 Pad : AttributeMap.GetValue<TArray<int32>>(TEXT("pads")))
-		{
-			if (Pad < 0)
-			{
-				UE_LOG(LogNNE, Warning, TEXT("Pad operator does not support negative padding at the moment."));
-				return false;
-			}
-		}
 		
 		FInputValidator InputValidator;
 		InputValidator.AddSupportedType(ENNETensorDataType::Float);

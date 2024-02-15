@@ -20,6 +20,31 @@ uint ThreadCountX;
 #define REFLECT_MODE 1
 #define EDGE_MODE 2
 
+#define STATIC_LOOP(Var, From, To) \
+[unroll] \
+for(uint Var = From; Var < To; ++Var)
+
+void GetOutputDimIterator(const uint GlobalIdx, out uint DimIterator[NUM_DIMENSIONS])
+{
+	uint Offset = GlobalIdx;
+	STATIC_LOOP(DimIdx, 0, NUM_DIMENSIONS)
+	{
+		uint Remainder;
+		DivMod(Offset, TensorInfo[DimIdx][OUTPUT_STRIDE], DimIterator[DimIdx], Remainder);
+		Offset = Remainder;
+	}
+}
+
+uint GetInputGlobalIdx(const uint DimIterator[NUM_DIMENSIONS])
+{
+	uint Offset = 0;
+	STATIC_LOOP(DimIdx, 0, NUM_DIMENSIONS)
+	{
+		Offset += DimIterator[DimIdx] * TensorInfo[DimIdx][INPUT_STRIDE];
+	}
+	return Offset;
+}
+
 [numthreads(THREADGROUP_SIZE_X, 1, 1)]
 void Pad(in const uint3 DispatchThreadID : SV_DispatchThreadID)
 {
@@ -27,44 +52,42 @@ void Pad(in const uint3 DispatchThreadID : SV_DispatchThreadID)
 	
 	if (Index < Num)
 	{
-		uint InputIndex = 0;
+		uint OutputDimIterator[NUM_DIMENSIONS];
+		GetOutputDimIterator(Index, OutputDimIterator);
 
-		uint Offset = Index;
-		for (uint dim = 0; dim < NUM_DIMENSIONS; ++dim)
+		uint InputDimIterator[NUM_DIMENSIONS];
+
+		for(uint DimIdx = 0; DimIdx < NUM_DIMENSIONS; ++DimIdx)
 		{
-			uint OutDimIdx, R;
-			DivMod(Offset, TensorInfo[dim][OUTPUT_STRIDE], OutDimIdx, R);
+			const int InputDimSize = (int) TensorInfo[DimIdx][INPUT_SIZE];
 			
-			int PrePad = TensorInfo[dim][PRE_PAD];
-			int InputDimIdx = (int)OutDimIdx - PrePad;
-			int InputDimSize = (int) TensorInfo[dim][INPUT_SIZE];
+			int PrePad = asint(TensorInfo[DimIdx][PRE_PAD]); // Decode PrePad to int (can be negative)
+			int CurDimIterator = (int) OutputDimIterator[DimIdx] - PrePad;
 			
-			if (InputDimIdx < 0 || InputDimIdx >= InputDimSize)
+			if (CurDimIterator < 0 || CurDimIterator >= InputDimSize)
 			{
 				#if MODE == CONSTANT_MODE
-				Output[Index] = Value;
-				return;
+					Output[Index] = Value;
+					return;
 				#elif MODE == REFLECT_MODE
-				if (InputDimIdx >= InputDimSize)
-				{
-					int OverCnt = InputDimIdx - (InputDimSize - 2);
-					InputDimIdx = InputDimSize - OverCnt;
-				}
-				else if (InputDimIdx < 0)
-				{
-					InputDimIdx = -InputDimIdx;
-				}
+					if (CurDimIterator >= InputDimSize)
+					{
+						const int OverCnt = CurDimIterator - (InputDimSize - 2);
+						CurDimIterator = InputDimSize - OverCnt;
+					}
+					else if (CurDimIterator < 0)
+					{
+						CurDimIterator = -CurDimIterator;
+					}
 				#endif
 				//MODE == EDGE_MODE + clamping large reflect indices
-				InputDimIdx = min(InputDimIdx, InputDimSize - 1);
-				InputDimIdx = max(InputDimIdx, 0);
+				CurDimIterator = min(CurDimIterator, InputDimSize - 1);
+				CurDimIterator = max(CurDimIterator, 0);
 			}
-			
-			InputIndex += TensorInfo[dim][INPUT_STRIDE] * InputDimIdx;
-			Offset = R;
+
+			InputDimIterator[DimIdx] = (uint) CurDimIterator;
 		}
 
-		float X = Input[InputIndex];
-		Output[Index] = X;
+		Output[Index] = Input[GetInputGlobalIdx(InputDimIterator)];
 	}
 }

@@ -89,7 +89,7 @@ public:
 
 		// Read attributes
 		Value = Attributes.GetValueOrDefault<float>(TEXT("value"), 0.0f);
-		Mode = ModeFromString(Attributes.GetValue<FString>(TEXT("mode")));
+		Mode = ModeFromString(Attributes.GetValueOrDefault<FString>(TEXT("mode"), TEXT("constant")));
 
 		if (Inputs.Num() >= 2)
 		{
@@ -120,6 +120,15 @@ public:
 		{
 			UE_LOG(LogNNE, Error, TEXT("pads are empty"));
 			return -1;
+		}
+
+		for(int32 PadValue : Pads)
+		{
+			if(PadValue < 0)
+			{
+				UE_LOG(LogNNE, Error, TEXT("Pads must be >= 0"));
+				return -1;
+			}
 		}
 
 		TConstArrayView<uint32> InputShape = InputTensors[0]->GetShape().GetData();
