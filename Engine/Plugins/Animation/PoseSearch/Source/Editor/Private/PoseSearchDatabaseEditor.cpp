@@ -449,7 +449,7 @@ namespace UE::PoseSearch
 		check(Args.GetTabId() == FDatabaseEditorTabs::AssetTreeViewID);
 
 		return SNew(SDockTab)
-			.Label(LOCTEXT("AssetTreeView_Title", "Asset Tree"))
+			.Label(LOCTEXT("AssetTreeView_Title", "Asset List"))
 			[
 				AssetTreeWidget.ToSharedRef()
 			];
