@@ -1205,6 +1205,27 @@ namespace
         switch (targetLanguage)
         {
         case ShadingLanguage::Dxil:
+			// UE Change Begin: Support for specifying direct arguments to DXC
+			for (uint32_t arg = 0; arg < options.numDXCArgs; ++arg)
+			{
+				std::wstring argUTF16;
+				Unicode::UTF8ToWideString(options.DXCArgs[arg], &argUTF16);
+				if (argUTF16.compare(0, 8, L"-Oconfig") == 0)
+				{
+					// Replace previous '-O' argument with the custom configuration
+					auto dxcOptArgIter = std::find_if(dxcArgStrings.begin(), dxcArgStrings.end(),
+                                  [](const std::wstring& entry) { return entry.compare(0, 2, L"-O") == 0; });
+					if (dxcOptArgIter != dxcArgStrings.end())
+						*dxcOptArgIter = argUTF16;
+					else
+						dxcArgStrings.push_back(argUTF16);
+				}
+				else
+				{
+					dxcArgStrings.push_back(argUTF16);
+				}
+			}
+			// UE Change End: Support for specifying direct arguments to DXC
             break;
 
         case ShadingLanguage::SpirV:

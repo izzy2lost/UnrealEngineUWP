@@ -18,7 +18,8 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "FileUtilities/ZipArchiveWriter.h"
-#include "MetalDerivedData.h"
+#include "MetalShaderCompiler.h"
+#include "DataDrivenShaderPlatformInfo.h"
 
 DEFINE_LOG_CATEGORY(LogMetalCompilerSetup)
 DEFINE_LOG_CATEGORY(LogMetalShaderCompiler)
@@ -382,12 +383,28 @@ public:
 		}
 
 		Input.Environment.SetDefine(TEXT("COMPILER_HLSLCC"), 2);
-
+#if UE_METAL_USE_METAL_SHADER_CONVERTER
+		const bool bUseMetalShaderConverter = Input.Target.GetPlatform() == EShaderPlatform::SP_METAL_SM6
+		&& RHIGetBindlessSupport(EShaderPlatform::SP_METAL_SM6) != ERHIBindlessSupport::Unsupported;
+		
+		if (bUseMetalShaderConverter)
+		{
+			Input.Environment.SetDefine(TEXT("COMPILER_METAL_SHADER_CONVERTER"), 1);
+		}
+#endif
+		
+#if !UE_METAL_USE_METAL_SHADER_CONVERTER
 		if (Input.Environment.FullPrecisionInPS || (IsValidRef(Input.SharedEnvironment) && Input.SharedEnvironment->FullPrecisionInPS))
 		{
 			Input.Environment.SetDefine(TEXT("FORCE_FLOATS"), (uint32)1);
 		}
-
+#else
+		// We can use 16bits types with Msc (since we do not use the frontend).
+		if (Input.Environment.CompilerFlags.Contains(CFLAG_AllowRealTypes))
+		{
+			Input.Environment.SetDefine(TEXT("PLATFORM_SUPPORTS_REAL_TYPES"), 1);
+		}
+#endif
 		if (Input.Environment.CompilerFlags.Contains(CFLAG_AvoidFlowControl)
 			|| Input.Environment.CompilerFlags.Contains(CFLAG_PreferFlowControl))
 		{
@@ -580,10 +597,12 @@ FString FMetalCompilerToolchain::MetalObjectExtension(TEXT(".air"));
 FString FMetalCompilerToolchain::MetalFrontendBinary(TEXT("metal.exe"));
 FString FMetalCompilerToolchain::MetalArBinary(TEXT("metal-ar.exe"));
 FString FMetalCompilerToolchain::MetalLibraryBinary(TEXT("metallib.exe"));
+FString FMetalCompilerToolchain::AirPackBinary(TEXT("air-pack.exe"));
 #else
 FString FMetalCompilerToolchain::MetalFrontendBinary(TEXT("metal"));
 FString FMetalCompilerToolchain::MetalArBinary(TEXT("metal-ar"));
 FString FMetalCompilerToolchain::MetalLibraryBinary(TEXT("metallib"));
+FString FMetalCompilerToolchain::AirPackBinary(TEXT("air-pack"));
 #endif
 
 FString FMetalCompilerToolchain::MetalMapExtension(TEXT(".metalmap"));
@@ -842,10 +861,16 @@ FMetalCompilerToolchain::EMetalToolchainStatus FMetalCompilerToolchain::DoMacNat
 			MetalLibBinaryCommand[AppleSDKMac] = ToolchainBase / TEXT("macos") / TEXT("bin") / MetalLibraryBinary;
 			MetalLibBinaryCommand[AppleSDKMobile] = ToolchainBase / TEXT("ios") / TEXT("bin") / MetalLibraryBinary;
 
+			AirPackBinaryCommand[AppleSDKMac] = ToolchainBase / TEXT("macos") / TEXT("bin") / AirPackBinary;
+            AirPackBinaryCommand[AppleSDKMobile] = ToolchainBase / TEXT("ios") / TEXT("bin") / AirPackBinary;
+
 			if (!FPaths::FileExists(MetalArBinaryCommand[AppleSDKMac]) ||
 				!FPaths::FileExists(MetalArBinaryCommand[AppleSDKMobile]) ||
 				!FPaths::FileExists(MetalLibBinaryCommand[AppleSDKMac]) ||
-				!FPaths::FileExists(MetalLibBinaryCommand[AppleSDKMobile]))
+				!FPaths::FileExists(MetalLibBinaryCommand[AppleSDKMobile]) ||
+				!FPaths::FileExists(MetalLibBinaryCommand[AppleSDKMobile]) ||
+                !FPaths::FileExists(AirPackBinaryCommand[AppleSDKMac]) ||
+                !FPaths::FileExists(AirPackBinaryCommand[AppleSDKMobile]))
 			{
 				UE_LOG(LogMetalCompilerSetup, Warning, TEXT("Missing toolchain binaries in %s."), *ToolchainBase);
 				return EMetalToolchainStatus::ToolchainNotFound;
@@ -915,10 +940,15 @@ FMetalCompilerToolchain::EMetalToolchainStatus FMetalCompilerToolchain::DoWindow
 	MetalLibBinaryCommand[AppleSDKMac] = ToolchainBase / TEXT("macos") / TEXT("bin") / MetalLibraryBinary;
 	MetalLibBinaryCommand[AppleSDKMobile] = ToolchainBase / TEXT("ios") / TEXT("bin") / MetalLibraryBinary;
 
+	AirPackBinaryCommand[AppleSDKMac] = ToolchainBase / TEXT("macos") / TEXT("bin") / AirPackBinary;
+    AirPackBinaryCommand[AppleSDKMobile] = ToolchainBase / TEXT("ios") / TEXT("bin") / AirPackBinary;
+    
 	if (!FPaths::FileExists(MetalArBinaryCommand[AppleSDKMac]) ||
 		!FPaths::FileExists(MetalArBinaryCommand[AppleSDKMobile]) ||
 		!FPaths::FileExists(MetalLibBinaryCommand[AppleSDKMac]) ||
-		!FPaths::FileExists(MetalLibBinaryCommand[AppleSDKMobile]))
+		!FPaths::FileExists(MetalLibBinaryCommand[AppleSDKMobile]) ||
+        !FPaths::FileExists(AirPackBinaryCommand[AppleSDKMac]) ||
+        !FPaths::FileExists(AirPackBinaryCommand[AppleSDKMobile]))
 	{
 #if CHECK_METAL_COMPILER_TOOLCHAIN_SETUP
 		UE_LOG(LogMetalCompilerSetup, Warning, TEXT("Missing toolchain binaries."))
@@ -959,6 +989,20 @@ bool FMetalCompilerToolchain::ExecMetalLib(EAppleSDKType SDK, const TCHAR* Param
 	else
 #endif
 	return ExecGenericCommand(*this->MetalLibBinaryCommand[SDK], Parameters, OutReturnCode, OutStdOut, OutStdErr);
+}
+
+bool FMetalCompilerToolchain::ExecAirPack(EAppleSDKType SDK, const TCHAR* Parameters, int32* OutReturnCode, FString* OutStdOut, FString* OutStdErr) const
+{
+    check(this->bToolchainBinariesPresent);
+#if PLATFORM_MAC
+    if (this->AirPackBinaryCommand[SDK].IsEmpty())
+    {
+        FString BuiltParams = FString::Printf(TEXT("--sdk %s %s %s"), *SDKToString(SDK), *this->AirPackBinary, Parameters);
+        return ExecGenericCommand(*XcrunPath, *BuiltParams, OutReturnCode, OutStdOut, OutStdErr);
+    }
+    else
+#endif
+    return ExecGenericCommand(*this->AirPackBinaryCommand[SDK], Parameters, OutReturnCode, OutStdOut, OutStdErr);
 }
 
 bool FMetalCompilerToolchain::ExecMetalAr(EAppleSDKType SDK, const TCHAR* ScriptFile, int32* OutReturnCode, FString* OutStdOut, FString* OutStdErr) const

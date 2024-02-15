@@ -70,6 +70,11 @@ namespace ShaderConductor
         RayCallable,
         // UE Change End: Add ray tracing stages.
 
+        // UE Change Begin: Add mesh shading stages,
+        MeshShader,
+        AmplificationShader,
+        // UE Change Begin: Add mesh shading stages,
+        
         NumShaderStages,
     };
 

@@ -210,6 +210,9 @@ namespace CrossCompiler
 		This will update the internally loaded source (see 'LoadSource'), so the output parameter 'OutSource' is optional. */
 		bool RewriteHlsl(const FShaderConductorOptions& Options, FString* OutSource = nullptr);
 
+        /** Compiles the specified HLSL shader source code to DXIL. */
+        bool CompileHlslToDxil(const FShaderConductorOptions& Options, TArray<uint32>& OutDxil);
+        
 		/** Compiles the specified HLSL shader source code to SPIR-V. */
 		bool CompileHlslToSpirv(const FShaderConductorOptions& Options, TArray<uint32>& OutSpirv);
 

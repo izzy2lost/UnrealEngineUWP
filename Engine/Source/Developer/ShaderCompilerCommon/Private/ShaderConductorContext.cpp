@@ -61,8 +61,8 @@ namespace CrossCompiler
 		switch (Frequency)
 		{
 		case SF_Vertex:			return ShaderConductor::ShaderStage::VertexShader;
-		case SF_Mesh:			checkf(0, TEXT("SF_Mesh not support in ShaderConductor")); break;
-		case SF_Amplification:	checkf(0, TEXT("SF_Amplification not support in ShaderConductor")); break;
+		case SF_Mesh:			return ShaderConductor::ShaderStage::MeshShader;
+        case SF_Amplification:	return ShaderConductor::ShaderStage::AmplificationShader;
 		case SF_Pixel:			return ShaderConductor::ShaderStage::PixelShader;
 		case SF_Geometry:		return ShaderConductor::ShaderStage::GeometryShader;
 		case SF_Compute:		return ShaderConductor::ShaderStage::ComputeShader;
@@ -368,10 +368,13 @@ namespace CrossCompiler
 		}
 	}
 
-	static void AppendDxcArguments(const FShaderConductorOptions& InOptions, TArray<const ANSICHAR*>& DxcArguments)
+	static void AppendDxcArguments(const FShaderConductorOptions& InOptions, TArray<const ANSICHAR*>& DxcArguments, bool bGenerateSpirv = true)
 	{
-		// Select language version
-		DxcArguments.Add("-spirv");
+		if(bGenerateSpirv)
+		{
+			DxcArguments.Add("-spirv");
+		}
+		
 		DxcArguments.Add("-Qunused-arguments");
 
 		switch (InOptions.HlslVersion)
@@ -453,7 +456,7 @@ namespace CrossCompiler
 		}
 	}
 
-	static void ConvertScOptions(FShaderConductorContext::FShaderConductorIntermediates& Intermediates, const FShaderConductorOptions& InOptions, ShaderConductor::Compiler::Options& OutOptions, bool bIgnoreCustomDxcArgs = false)
+static void ConvertScOptions(FShaderConductorContext::FShaderConductorIntermediates& Intermediates, const FShaderConductorOptions& InOptions, ShaderConductor::Compiler::Options& OutOptions, bool bIgnoreCustomDxcArgs = false, bool bGenerateSpirv = true)
 	{
 		// Validate input shader model with respect to certain language features.
 		checkf(
@@ -480,8 +483,8 @@ namespace CrossCompiler
 
 		DxcArgRefs.Empty();
 
-		AppendDxcArguments(InOptions, DxcArgRefs);
-
+		AppendDxcArguments(InOptions, DxcArgRefs, bGenerateSpirv);
+		
 		if (!InOptions.SpirvCustomOptimizationPasses.IsEmpty())
 		{
 			Intermediates.InternalDxcArgs = FAnsiString::Printf("-Oconfig=%ls", SelectSpirvCustomOptimizationPasses(InOptions.SpirvCustomOptimizationPasses));
@@ -703,6 +706,46 @@ namespace CrossCompiler
 
 		return bSucceeded;
 	}
+
+    bool FShaderConductorContext::CompileHlslToDxil(const FShaderConductorOptions& Options, TArray<uint32>& OutDxil)
+    {
+		constexpr bool bGenerateSpirv = false;
+		
+        // Convert descriptors for ShaderConductor interface
+        ShaderConductor::Compiler::SourceDesc ScSourceDesc;
+        ConvertScSourceDesc(*Intermediates, ScSourceDesc);
+
+        ShaderConductor::Compiler::TargetDesc ScTargetDesc;
+        FMemory::Memzero(ScTargetDesc);
+        ScTargetDesc.language = ShaderConductor::ShadingLanguage::Dxil;
+		
+        ShaderConductor::Compiler::Options ScOptions;
+        ConvertScOptions(*Intermediates, Options, ScOptions, false, bGenerateSpirv);
+        
+        // Force PDB generation (required to generate DXIL reflection).
+        ScOptions.enableDebugInfo = true;
+
+        // Compile HLSL source code to DXIL
+        bool bSucceeded = false;
+        ShaderConductor::Compiler::ResultDesc ResultDesc;
+        ScCompileWrapper(ScSourceDesc, ScOptions, ScTargetDesc, ResultDesc);
+
+        if (!ResultDesc.hasError && ResultDesc.target.Size() > 0)
+        {
+            // Copy result blob into output DXIL module
+            OutDxil = TArray<uint32>(reinterpret_cast<const uint32*>(ResultDesc.target.Data()), ResultDesc.target.Size() / 4);
+            bSucceeded = true;
+        }
+        else
+        {
+            bSucceeded = false;
+        }
+
+        // Append compile error and warning to output reports
+        ConvertScCompileErrors(ResultDesc.errorWarningMsg, Errors);
+
+        return bSucceeded;
+    }
 
 	bool FShaderConductorContext::CompileHlslToSpirv(const FShaderConductorOptions& Options, TArray<uint32>& OutSpirv)
 	{
@@ -1006,6 +1049,11 @@ namespace CrossCompiler
 	{
 		return false; // Dummy
 	}
+ 
+    bool FShaderConductorContext::CompileHlslToDxil(const FShaderConductorOptions& Options, TArray<uint32>& OutDxil)
+    {
+        return false; // Dummy
+    }
 
 	bool FShaderConductorContext::CompileHlslToSpirv(const FShaderConductorOptions& Options, TArray<uint32>& OutSpirv)
 	{
