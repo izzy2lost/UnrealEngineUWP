@@ -33,6 +33,9 @@ public:
 		/** Optional level value that can be used to filter debug display */
 		int32 Level;
 
+		/** Optional cell bounds for partitions that work on uniform grids */
+		TOptional<FBox> CellBounds;
+
 		TArray<const IStreamingGenerationContext::FActorSetInstance*> ActorSetInstances;
 	};
 

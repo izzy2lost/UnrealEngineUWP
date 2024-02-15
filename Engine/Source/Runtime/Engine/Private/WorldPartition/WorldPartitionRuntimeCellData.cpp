@@ -112,7 +112,7 @@ const FBox& UWorldPartitionRuntimeCellData::GetContentBounds() const
 
 FBox UWorldPartitionRuntimeCellData::GetCellBounds() const
 {
-	return ContentBounds;
+	return CellBounds.IsSet() ? *CellBounds : ContentBounds;
 }
 
 FString UWorldPartitionRuntimeCellData::GetDebugName() const

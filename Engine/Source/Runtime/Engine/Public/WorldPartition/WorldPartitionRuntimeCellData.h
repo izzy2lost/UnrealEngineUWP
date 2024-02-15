@@ -55,6 +55,13 @@ class UWorldPartitionRuntimeCellData : public UObject
 	UPROPERTY()
 	FBox ContentBounds;
 
+	// Optional cell bounds
+	UPROPERTY()
+	TOptional<FBox> CellBounds;
+
+	UPROPERTY()
+	FName GridName;
+
 	UPROPERTY()
 	int32 Priority;
 

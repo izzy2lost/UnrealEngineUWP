@@ -48,6 +48,18 @@ struct FCellCoord
 		);
 	}
 
+	static inline FBox GetCellBounds(const FCellCoord& InCellCoord, int32 InCellSize)
+	{
+		check(InCellCoord.Level >= 0);
+		const int64 CellSizeForLevel = (int64)InCellSize * (1LL << InCellCoord.Level);
+		const FVector Min = FVector(
+			static_cast<FVector::FReal>(InCellCoord.X * CellSizeForLevel), 
+			static_cast<FVector::FReal>(InCellCoord.Y * CellSizeForLevel), 
+			static_cast<FVector::FReal>(InCellCoord.Z * CellSizeForLevel)
+		);
+		const FVector Max = Min + FVector(static_cast<double>(CellSizeForLevel));
+		return FBox(Min, Max);
+	}
 	friend uint32 GetTypeHash(const FCellCoord& CellCoord)
 	{
 		FHashBuilder HashBuilder;
@@ -137,7 +149,8 @@ bool URuntimePartitionLHGrid::GenerateStreaming(const FGenerateStreamingParams& 
 
 	for (auto& [CellCoord, CellActorSetInstances] : CellsActorSetInstances)
 	{
-		OutResult.RuntimeCellDescs.Emplace(CreateCellDesc(CellCoord.ToString(), true, CellCoord.Level, CellActorSetInstances));
+		URuntimePartition::FCellDesc& CellDesc = OutResult.RuntimeCellDescs.Emplace_GetRef(CreateCellDesc(CellCoord.ToString(), true, CellCoord.Level, CellActorSetInstances));
+		CellDesc.CellBounds = FCellCoord::GetCellBounds(CellCoord, CellSize);
 	}
 
 	return true;
