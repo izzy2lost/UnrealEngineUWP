@@ -19,8 +19,9 @@ namespace Horde.Server.Tools
 		/// </summary>
 		/// <param name="id">The tool identifier</param>
 		/// <param name="globalConfig">The current global configuration</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		Task<ITool?> GetAsync(ToolId id, GlobalConfig globalConfig);
+		Task<ITool?> GetAsync(ToolId id, GlobalConfig globalConfig, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Adds a new deployment to the given tool. The new deployment will replace the current active deployment.
@@ -31,7 +32,7 @@ namespace Horde.Server.Tools
 		/// <param name="globalConfig">The current configuration</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Updated tool document, or null if it does not exist</returns>
-		Task<ITool?> CreateDeploymentAsync(ITool tool, ToolDeploymentConfig options, Stream stream, GlobalConfig globalConfig, CancellationToken cancellationToken);
+		Task<ITool?> CreateDeploymentAsync(ITool tool, ToolDeploymentConfig options, Stream stream, GlobalConfig globalConfig, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Adds a new deployment to the given tool. The new deployment will replace the current active deployment.
@@ -42,7 +43,7 @@ namespace Horde.Server.Tools
 		/// <param name="globalConfig">The current configuration</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Updated tool document, or null if it does not exist</returns>
-		Task<ITool?> CreateDeploymentAsync(ITool tool, ToolDeploymentConfig options, BlobRefValue target, GlobalConfig globalConfig, CancellationToken cancellationToken);
+		Task<ITool?> CreateDeploymentAsync(ITool tool, ToolDeploymentConfig options, BlobRefValue target, GlobalConfig globalConfig, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Updates the state of the current deployment
@@ -50,8 +51,9 @@ namespace Horde.Server.Tools
 		/// <param name="tool">Tool to be updated</param>
 		/// <param name="deploymentId">Identifier for the deployment to modify</param>
 		/// <param name="action">New state of the deployment</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		Task<ITool?> UpdateDeploymentAsync(ITool tool, ToolDeploymentId deploymentId, ToolDeploymentState action);
+		Task<ITool?> UpdateDeploymentAsync(ITool tool, ToolDeploymentId deploymentId, ToolDeploymentState action, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Gets the storage backend for a particular tool

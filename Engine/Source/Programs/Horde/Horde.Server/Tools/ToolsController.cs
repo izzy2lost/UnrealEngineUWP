@@ -53,7 +53,7 @@ namespace Horde.Server.Tools
 		[Route("/api/v1/tools/{id}/blobs")]
 		public async Task<ActionResult<WriteBlobResponse>> WriteBlobAsync(ToolId id, IFormFile? file, CancellationToken cancellationToken = default)
 		{
-			ITool? tool = await _toolCollection.GetAsync(id, _globalConfig.Value);
+			ITool? tool = await _toolCollection.GetAsync(id, _globalConfig.Value, cancellationToken);
 			if (tool == null)
 			{
 				return NotFound(id);
@@ -75,7 +75,7 @@ namespace Horde.Server.Tools
 		[Route("/api/v1/tools/{id}/deployments")]
 		public async Task<ActionResult<CreateToolDeploymentResponse>> CreateDeploymentAsync(ToolId id, [FromForm] ToolDeploymentConfig options, [FromForm] IFormFile file, CancellationToken cancellationToken)
 		{
-			ITool? tool = await _toolCollection.GetAsync(id, _globalConfig.Value);
+			ITool? tool = await _toolCollection.GetAsync(id, _globalConfig.Value, cancellationToken);
 
 			if (tool == null)
 			{
@@ -105,7 +105,7 @@ namespace Horde.Server.Tools
 		[Route("/api/v2/tools/{id}/deployments")]
 		public async Task<ActionResult<CreateToolDeploymentResponse>> CreateDeploymentAsync(ToolId id, CreateToolDeploymentRequest request, CancellationToken cancellationToken)
 		{
-			ITool? tool = await _toolCollection.GetAsync(id, _globalConfig.Value);
+			ITool? tool = await _toolCollection.GetAsync(id, _globalConfig.Value, cancellationToken);
 
 			if (tool == null)
 			{
@@ -225,7 +225,7 @@ namespace Horde.Server.Tools
 		[Route("/api/v1/tools/{id}")]
 		public async Task<ActionResult> GetToolAsync(ToolId id, GetToolAction action = GetToolAction.Info, CancellationToken cancellationToken = default)
 		{
-			ITool? tool = await _toolCollection.GetAsync(id, _globalConfig.Value);
+			ITool? tool = await _toolCollection.GetAsync(id, _globalConfig.Value, cancellationToken);
 			if (tool == null)
 			{
 				return NotFound(id);
@@ -273,7 +273,7 @@ namespace Horde.Server.Tools
 		[Route("/api/v1/tools/{id}/deployments")]
 		public async Task<ActionResult> FindDeploymentAsync(ToolId id, [FromQuery] double phase = 0.0, [FromQuery] GetToolAction action = GetToolAction.Info, CancellationToken cancellationToken = default)
 		{
-			ITool? tool = await _toolCollection.GetAsync(id, _globalConfig.Value);
+			ITool? tool = await _toolCollection.GetAsync(id, _globalConfig.Value, cancellationToken);
 			if (tool == null)
 			{
 				return NotFound(id);
@@ -300,7 +300,7 @@ namespace Horde.Server.Tools
 		[Route("/api/v1/tools/{id}/deployments/{deploymentId}")]
 		public async Task<ActionResult> GetDeploymentAsync(ToolId id, ToolDeploymentId deploymentId, [FromQuery] GetToolAction action = GetToolAction.Info, CancellationToken cancellationToken = default)
 		{
-			ITool? tool = await _toolCollection.GetAsync(id, _globalConfig.Value);
+			ITool? tool = await _toolCollection.GetAsync(id, _globalConfig.Value, cancellationToken);
 			if (tool == null)
 			{
 				return NotFound(id);
@@ -382,7 +382,7 @@ namespace Horde.Server.Tools
 		[Route("/api/v1/tools/{id}/blobs/{*locator}")]
 		public async Task<ActionResult<object>> ReadToolBlobAsync(ToolId id, BlobLocator locator, CancellationToken cancellationToken = default)
 		{
-			ITool? tool = await _toolCollection.GetAsync(id, _globalConfig.Value);
+			ITool? tool = await _toolCollection.GetAsync(id, _globalConfig.Value, cancellationToken);
 			if (tool == null)
 			{
 				return NotFound(id);

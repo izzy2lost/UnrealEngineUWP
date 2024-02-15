@@ -135,7 +135,7 @@ namespace Horde.Server.Jobs.Schedules
 			{
 				if (await sharedLock.AcquireAsync(TimeSpan.FromMinutes(1.0), false))
 				{
-					await UpdateQueueAsync(utcNow);
+					await UpdateQueueAsync(utcNow, cancellationToken);
 				}
 			}
 
@@ -197,21 +197,21 @@ namespace Horde.Server.Jobs.Schedules
 
 		internal async Task TickForTestingAsync()
 		{
-			await UpdateQueueAsync(_clock.UtcNow);
+			await UpdateQueueAsync(_clock.UtcNow, CancellationToken.None);
 			await TickAsync(CancellationToken.None);
 		}
 
 		/// <summary>
 		/// Get the current set of streams and ensure there's an entry for each item
 		/// </summary>
-		public async Task UpdateQueueAsync(DateTime utcNow)
+		public async Task UpdateQueueAsync(DateTime utcNow, CancellationToken cancellationToken)
 		{
 			List<SortedSetEntry<QueueItem>> queueItems = new List<SortedSetEntry<QueueItem>>();
 
 			GlobalConfig globalConfig = _globalConfig.CurrentValue;
 			foreach(StreamConfig streamConfig in globalConfig.Streams)
 			{
-				IStream stream = await _streamCollection.GetAsync(streamConfig);
+				IStream stream = await _streamCollection.GetAsync(streamConfig, cancellationToken);
 				foreach ((TemplateId templateId, ITemplateRef templateRef) in stream.Templates)
 				{
 					if (templateRef.Schedule != null)
@@ -224,7 +224,7 @@ namespace Horde.Server.Jobs.Schedules
 								double score = QueueItem.GetScoreFromTime(nextTriggerTimeUtc.Value);
 								queueItems.Add(new SortedSetEntry<QueueItem>(new QueueItem(stream.Id, templateId), score));
 
-								await _streamCollection.UpdateScheduleTriggerAsync(stream, templateId, utcNow);
+								await _streamCollection.UpdateScheduleTriggerAsync(stream, templateId, utcNow, cancellationToken: cancellationToken);
 							}
 						}
 					}
@@ -250,7 +250,7 @@ namespace Horde.Server.Jobs.Schedules
 				return false;
 			}
 
-			IStream? stream = await _streamCollection.GetAsync(streamConfig);
+			IStream? stream = await _streamCollection.GetAsync(streamConfig, cancellationToken);
 			if (stream == null || !stream.Templates.TryGetValue(templateId, out ITemplateRef? templateRef))
 			{
 				return false;
@@ -273,14 +273,14 @@ namespace Horde.Server.Jobs.Schedules
 			List<JobId> removeJobIds = new List<JobId>();
 			foreach (JobId activeJobId in schedule.ActiveJobs)
 			{
-				IJob? job = await _jobService.GetJobAsync(activeJobId);
+				IJob? job = await _jobService.GetJobAsync(activeJobId, cancellationToken);
 				if (job == null || job.Batches.All(x => x.State == JobStepBatchState.Complete))
 				{
 					_logger.LogInformation("Removing active job {JobId}", activeJobId);
 					removeJobIds.Add(activeJobId);
 				}
 			}
-			await _streamCollection.UpdateScheduleTriggerAsync(stream, templateId, removeJobs: removeJobIds);
+			await _streamCollection.UpdateScheduleTriggerAsync(stream, templateId, removeJobs: removeJobIds, cancellationToken: cancellationToken);
 
 			// If the stream is paused, bail out
 			if (stream.IsPaused(utcNow))
@@ -449,7 +449,7 @@ namespace Horde.Server.Jobs.Schedules
 			ITemplate template = await _templateCollection.GetOrAddAsync(templateRef.Config);
 
 			// Register the graph for it
-			IGraph graph = await _graphs.AddAsync(template, stream.Config.InitialAgentType);
+			IGraph graph = await _graphs.AddAsync(template, stream.Config.InitialAgentType, cancellationToken);
 
 			// We may need to submit a new change for any new jobs. This only makes sense if there's one change.
 			if (template.SubmitNewChange != null)
@@ -469,9 +469,9 @@ namespace Horde.Server.Jobs.Schedules
 				options.Priority = template.Priority;
 				options.Arguments.AddRange(template.GetDefaultArguments(true));
 
-				IJob newJob = await _jobService.CreateJobAsync(null, stream.Config, templateId, template.Hash, graph, template.Name, change, codeChange, options);
+				IJob newJob = await _jobService.CreateJobAsync(null, stream.Config, templateId, template.Hash, graph, template.Name, change, codeChange, options, cancellationToken);
 				_logger.LogInformation("Started new job for {StreamId} template {TemplateId} at CL {Change} (Code CL {CodeChange}): {JobId}", stream.Id, templateId, change, codeChange, newJob.Id);
-				await _streamCollection.UpdateScheduleTriggerAsync(stream, templateId, utcNow, change, new List<JobId> { newJob.Id }, new List<JobId>());
+				await _streamCollection.UpdateScheduleTriggerAsync(stream, templateId, utcNow, change, new List<JobId> { newJob.Id }, new List<JobId>(), cancellationToken);
 			}
 		}
 
@@ -519,7 +519,7 @@ namespace Horde.Server.Jobs.Schedules
 			{
 				cancellationToken.ThrowIfCancellationRequested();
 
-				List<IJob> jobs = await _jobCollection.FindAsync(streamId: streamId, templates: new[] { gate.TemplateId }, minChange: minChange, maxChange: maxChange, count: 1);
+				IReadOnlyList<IJob> jobs = await _jobCollection.FindAsync(streamId: streamId, templates: new[] { gate.TemplateId }, minChange: minChange, maxChange: maxChange, count: 1, cancellationToken: cancellationToken);
 				if (jobs.Count == 0)
 				{
 					return 0;
@@ -527,7 +527,7 @@ namespace Horde.Server.Jobs.Schedules
 
 				IJob job = jobs[0];
 
-				IGraph? graph = await _graphs.GetAsync(job.GraphHash);
+				IGraph? graph = await _graphs.GetAsync(job.GraphHash, cancellationToken);
 				if (graph != null)
 				{
 					(JobStepState, JobStepOutcome)? state = job.GetTargetState(graph, gate.Target);

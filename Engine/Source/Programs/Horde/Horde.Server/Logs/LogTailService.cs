@@ -180,7 +180,8 @@ namespace Horde.Server.Logs
 		/// </summary>
 		/// <param name="logId">Log file identifier</param>
 		/// <param name="lineCount">The current flushed line count for the log file</param>
-		public async ValueTask EnableTailingAsync(LogId logId, int lineCount)
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		public async ValueTask EnableTailingAsync(LogId logId, int lineCount, CancellationToken cancellationToken = default)
 		{
 			bool waitForTailData = false;
 			if (await _redisService.GetDatabase().StringSetAsync(TailNextKey(logId), lineCount, when: When.NotExists))
@@ -208,7 +209,7 @@ namespace Horde.Server.Logs
 					}
 					else
 					{
-						await Task.Delay(100);
+						await Task.Delay(100, cancellationToken);
 					}
 				}
 
@@ -324,15 +325,16 @@ namespace Horde.Server.Logs
 		/// </summary>
 		/// <param name="logId">Log to query</param>
 		/// <param name="flushedLineCount">Number of flushed lines</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Total number of lines in the file</returns>
-		public async Task<int> GetFullLineCountAsync(LogId logId, int flushedLineCount)
+		public async Task<int> GetFullLineCountAsync(LogId logId, int flushedLineCount, CancellationToken cancellationToken)
 		{
 			RedisStringKey<int> tailNextKey = TailNextKey(logId);
 
 			int lineCount = await _redisService.GetDatabase().StringGetAsync(tailNextKey, -1);
 			if (lineCount == -1)
 			{
-				await EnableTailingAsync(logId, flushedLineCount);
+				await EnableTailingAsync(logId, flushedLineCount, cancellationToken);
 			}
 
 			return Math.Max(lineCount, flushedLineCount);

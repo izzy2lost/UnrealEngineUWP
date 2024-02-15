@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
-using MongoDB.Bson;
+using EpicGames.Horde.Accounts;
 
 namespace Horde.Server.Users
 {
@@ -16,8 +16,8 @@ namespace Horde.Server.Users
 		/// <summary>
 		/// Unique internal ID for this Horde account
 		/// </summary>
-		public ObjectId Id { get; }
-		
+		public AccountId Id { get; }
+
 		/// <summary>
 		/// Full name of the user
 		/// </summary>
@@ -32,32 +32,32 @@ namespace Horde.Server.Users
 		/// Email associated with account
 		/// </summary>
 		public string? Email { get; }
-		
+
 		/// <summary>
 		/// Secret token used for identifying API calls made as the account
 		/// </summary>
 		public string? SecretToken { get; }
-		
+
 		/// <summary>
 		/// Hashed password
 		/// </summary>
 		public string? PasswordHash { get; }
-		
+
 		/// <summary>
 		/// Salt for password hash (if PasswordHash is set)
 		/// </summary>
 		public string? PasswordSalt { get; }
-		
+
 		/// <summary>
 		/// If the account is active
 		/// </summary>
 		public bool Enabled { get; }
-		
+
 		/// <summary>
 		/// Description of the account (who is it for, is there an owner etc)
 		/// </summary>
 		public string Description { get; }
-		
+
 		/// <summary>
 		/// Get list of claims
 		/// </summary>

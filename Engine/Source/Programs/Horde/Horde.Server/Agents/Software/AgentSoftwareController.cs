@@ -93,7 +93,7 @@ namespace Horde.Server.Agents.Software
 				return Forbid();
 			}
 
-			ITool? tool = await _toolCollection.GetAsync(AgentExtensions.AgentToolId, _globalConfig.Value);
+			ITool? tool = await _toolCollection.GetAsync(AgentExtensions.AgentToolId, _globalConfig.Value, cancellationToken);
 			if (tool == null)
 			{
 				return NotFound("No agent software tool is currently registered");

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Horde.Server.Agents.Pools;
 
@@ -106,8 +107,9 @@ namespace Horde.Server.Agents.Fleet
 		/// </summary>
 		/// <param name="pool">Pool to calculate size for</param>
 		/// <param name="agents">Available agents</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>A result containing the desired agent count</returns>
-		Task<PoolSizeResult> CalculatePoolSizeAsync(IPoolConfig pool, List<IAgent> agents);
+		Task<PoolSizeResult> CalculatePoolSizeAsync(IPoolConfig pool, List<IAgent> agents, CancellationToken cancellationToken = default);
 		
 		/// <summary>
 		/// Name of the strategy
@@ -122,7 +124,7 @@ namespace Horde.Server.Agents.Fleet
 	public class NoOpPoolSizeStrategy : IPoolSizeStrategy
 	{
 		/// <inheritdoc/>
-		public Task<PoolSizeResult> CalculatePoolSizeAsync(IPoolConfig pool, List<IAgent> agents)
+		public Task<PoolSizeResult> CalculatePoolSizeAsync(IPoolConfig pool, List<IAgent> agents, CancellationToken cancellationToken)
 		{
 			return Task.FromResult(new PoolSizeResult(agents.Count, agents.Count));
 		}
@@ -152,9 +154,9 @@ namespace Horde.Server.Agents.Fleet
 		}
 
 		/// <inheritdoc/>
-		public async Task<PoolSizeResult> CalculatePoolSizeAsync(IPoolConfig pool, List<IAgent> agents)
+		public async Task<PoolSizeResult> CalculatePoolSizeAsync(IPoolConfig pool, List<IAgent> agents, CancellationToken cancellationToken)
 		{
-			PoolSizeResult result = await _backingStrategy.CalculatePoolSizeAsync(pool, agents);
+			PoolSizeResult result = await _backingStrategy.CalculatePoolSizeAsync(pool, agents, cancellationToken);
 			return new PoolSizeResult(result.CurrentAgentCount, result.DesiredAgentCount + _extraAgentCount, result.Status);
 		}
 

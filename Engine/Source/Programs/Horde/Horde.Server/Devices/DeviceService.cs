@@ -141,9 +141,9 @@ namespace Horde.Server.Devices
 		/// <summary>
 		/// Ticks service
 		/// </summary>
-		async ValueTask TickAsync(CancellationToken stoppingToken)
+		async ValueTask TickAsync(CancellationToken cancellationToken)
 		{
-			if (!stoppingToken.IsCancellationRequested)
+			if (!cancellationToken.IsCancellationRequested)
 			{
 				using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(DeviceService)}.{nameof(TickAsync)}");
 
@@ -165,7 +165,7 @@ namespace Horde.Server.Devices
 				try
 				{
 					_logger.LogDebug("Expiring reservations");
-					await ExpireReservationsAsync();
+					await ExpireReservationsAsync(cancellationToken);
 				}
 				catch (Exception ex)
 				{
@@ -182,7 +182,7 @@ namespace Horde.Server.Devices
 					{
 						foreach ((UserId, IDevice) expiredDevice in expireNotifications)
 						{
-							await NotifyDeviceServiceAsync(globalConfig, $"Device {expiredDevice.Item2.PlatformId.ToString().ToUpperInvariant()} / {expiredDevice.Item2.Name} checkout will expire in 24 hours.  Please visit {_settings.CurrentValue.DashboardUrl}/devices to renew the checkout if needed.", null, null, null, expiredDevice.Item1);
+							await NotifyDeviceServiceAsync(globalConfig, $"Device {expiredDevice.Item2.PlatformId.ToString().ToUpperInvariant()} / {expiredDevice.Item2.Name} checkout will expire in 24 hours.  Please visit {_settings.CurrentValue.DashboardUrl}/devices to renew the checkout if needed.", null, null, null, expiredDevice.Item1, cancellationToken);
 						}
 					}
 
@@ -192,7 +192,7 @@ namespace Horde.Server.Devices
 					{
 						foreach ((UserId, IDevice) expiredDevice in expireCheckouts)
 						{
-							await NotifyDeviceServiceAsync(globalConfig, $"Device {expiredDevice.Item2.PlatformId.ToString().ToUpperInvariant()} / {expiredDevice.Item2.Name} checkout has expired.  The device has been returned to the shared pool and should no longer be accessed.  Please visit {_settings.CurrentValue.DashboardUrl}/devices to checkout devices as needed.", null, null, null, expiredDevice.Item1);
+							await NotifyDeviceServiceAsync(globalConfig, $"Device {expiredDevice.Item2.PlatformId.ToString().ToUpperInvariant()} / {expiredDevice.Item2.Name} checkout has expired.  The device has been returned to the shared pool and should no longer be accessed.  Please visit {_settings.CurrentValue.DashboardUrl}/devices to checkout devices as needed.", null, null, null, expiredDevice.Item1, cancellationToken);
 						}
 					}
 				}
@@ -251,7 +251,7 @@ namespace Horde.Server.Devices
 			return false;
 		}
 
-		async Task<bool> ExpireReservationsAsync()
+		async Task<bool> ExpireReservationsAsync(CancellationToken cancellationToken)
 		{
 			List<IDeviceReservation> reserves = await _devices.FindAllReservationsAsync();
 			List<IDeviceReservation> expired = new List<IDeviceReservation>();
@@ -275,7 +275,7 @@ namespace Horde.Server.Devices
 				else
 				{					
 					// expire when all reserve steps have completed
-					IJob? job = await _jobService.GetJobAsync(JobId.Parse(r.JobId!));
+					IJob? job = await _jobService.GetJobAsync(JobId.Parse(r.JobId!), cancellationToken);
 
 					if (job == null || CheckReservedNodesComplete(job, r.ReservedStepIds!))
 					{
@@ -419,7 +419,7 @@ namespace Horde.Server.Devices
 		/// <summary>
 		/// Try to create a reservation satisfying the specified device platforms and models
 		/// </summary>
-		public async Task<(IDeviceReservation?, string? errorMessage, bool installRequired)> TryCreateReservationAsync(DevicePoolId poolId, List<DeviceRequestData> request, string? hostname = null, string? reservationDetails = null, JobId? jobId = null, JobStepId? stepId = null)
+		public async Task<(IDeviceReservation?, string? errorMessage, bool installRequired)> TryCreateReservationAsync(DevicePoolId poolId, List<DeviceRequestData> request, string? hostname = null, string? reservationDetails = null, JobId? jobId = null, JobStepId? stepId = null, CancellationToken cancellationToken = default)
 		{
 			IJob? job = null;
 			IGraph? graph = null;
@@ -433,12 +433,12 @@ namespace Horde.Server.Devices
 				IJobStep? jobStep = null;
 				INode? stepNode = null;
 
-				job = await _jobService.GetJobAsync(jobId.Value);
+				job = await _jobService.GetJobAsync(jobId.Value, cancellationToken);
 				if (job != null)
 				{
 					if (stepId != null)
 					{
-						graph = await _jobService.GetGraphAsync(job);
+						graph = await _jobService.GetGraphAsync(job, cancellationToken);
 						foreach (IJobStepBatch batch in job.Batches)
 						{
 							IJobStep? step;
@@ -634,7 +634,7 @@ namespace Horde.Server.Devices
 		/// <summary>
 		/// 
 		/// </summary>
-		public async Task NotifyDeviceServiceAsync(GlobalConfig globalConfig, string message, DeviceId? deviceId = null, string? jobId = null, string? stepId = null, UserId? userId = null)
+		public async Task NotifyDeviceServiceAsync(GlobalConfig globalConfig, string message, DeviceId? deviceId = null, string? jobId = null, string? stepId = null, UserId? userId = null, CancellationToken cancellationToken = default)
 		{
 			try 
 			{
@@ -648,7 +648,7 @@ namespace Horde.Server.Devices
 
 				if (userId.HasValue)
 				{
-					user = await _userCollection.GetUserAsync(userId.Value);
+					user = await _userCollection.GetUserAsync(userId.Value, cancellationToken);
 					if (user == null)
 					{
 						_logger.LogError("Unable to send device notification, can't find User {UserId}", userId.Value);
@@ -664,7 +664,7 @@ namespace Horde.Server.Devices
 
 				if (jobId != null)
 				{
-					job = await _jobService.GetJobAsync(JobId.Parse(jobId));
+					job = await _jobService.GetJobAsync(JobId.Parse(jobId), cancellationToken);
 
 					if (job != null)
 					{
@@ -672,7 +672,7 @@ namespace Horde.Server.Devices
 
 						if (stepId != null)
 						{
-							IGraph graph = await _jobService.GetGraphAsync(job)!;
+							IGraph graph = await _jobService.GetGraphAsync(job, cancellationToken)!;
 
 							JobStepId stepIdValue = JobStepId.Parse(stepId);
 							IJobStepBatch? batch = job.Batches.FirstOrDefault(b => b.Steps.FirstOrDefault(s => s.Id == stepIdValue) != null);

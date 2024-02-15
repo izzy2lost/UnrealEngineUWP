@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using EpicGames.Horde.Users;
+using System.Threading;
 
 namespace Horde.Server.Server.Notices
 {
@@ -25,7 +26,6 @@ namespace Horde.Server.Server.Notices
 	{
 		private readonly IUserCollection _userCollection;
 		private readonly NoticeService _noticeService;
-		private readonly LazyCachedValue<Task<List<INotice>>> _cachedNotices;
 		private readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 		private readonly IClock _clock;
 
@@ -36,7 +36,6 @@ namespace Horde.Server.Server.Notices
 		{			
 			_userCollection = userCollection;
 			_noticeService = noticeService;
-			_cachedNotices = new LazyCachedValue<Task<List<INotice>>>(() => noticeService.GetNoticesAsync(), TimeSpan.FromMinutes(1));
 			_clock = clock;
 			_globalConfig = globalConfig;
 		}
@@ -45,16 +44,17 @@ namespace Horde.Server.Server.Notices
 		/// Add a status message
 		/// </summary>
 		/// <param name="request"></param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
 		[HttpPost("/api/v1/notices")]
-		public async Task<ActionResult> AddNoticeAsync(CreateNoticeRequest request)
+		public async Task<ActionResult> AddNoticeAsync(CreateNoticeRequest request, CancellationToken cancellationToken)
 		{
 			if (!_globalConfig.Value.Authorize(NoticeAclAction.CreateNotice, User))
 			{
 				return Forbid();
 			}
 
-			INotice? notice = await _noticeService.AddNoticeAsync(request.Message, User.GetUserId(), request.StartTime, request.FinishTime);
+			INotice? notice = await _noticeService.AddNoticeAsync(request.Message, User.GetUserId(), request.StartTime, request.FinishTime, cancellationToken);
 
 			return notice == null ? NotFound() : Ok();
 
@@ -64,16 +64,17 @@ namespace Horde.Server.Server.Notices
 		/// Update a status message
 		/// </summary>
 		/// <param name="request"></param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
 		[HttpPut("/api/v1/notices")]
-		public async Task<ActionResult> UpdateNoticeAsync(UpdateNoticeRequest request)
+		public async Task<ActionResult> UpdateNoticeAsync(UpdateNoticeRequest request, CancellationToken cancellationToken)
 		{
 			if (!_globalConfig.Value.Authorize(NoticeAclAction.UpdateNotice, User))
 			{
 				return Forbid();
 			}
 
-			return await _noticeService.UpdateNoticeAsync(new ObjectId(request.Id), request.Message, request.StartTime, request.FinishTime) ? Ok() : NotFound();
+			return await _noticeService.UpdateNoticeAsync(new ObjectId(request.Id), request.Message, request.StartTime, request.FinishTime, cancellationToken) ? Ok() : NotFound();
 		}
 
 		/// <summary>
@@ -81,14 +82,14 @@ namespace Horde.Server.Server.Notices
 		/// </summary>
 		/// <returns></returns>
 		[HttpDelete("/api/v1/notices/{id}")]
-		public async Task<ActionResult> DeleteNoticeAsync(string id)
+		public async Task<ActionResult> DeleteNoticeAsync(string id, CancellationToken cancellationToken)
 		{
 			if (!_globalConfig.Value.Authorize(NoticeAclAction.DeleteNotice, User))
 			{
 				return Forbid();
 			}
 
-			await _noticeService.RemoveNoticeAsync(new ObjectId(id));
+			await _noticeService.RemoveNoticeAsync(new ObjectId(id), cancellationToken);
 			
 			return Ok();
 		}
@@ -96,9 +97,10 @@ namespace Horde.Server.Server.Notices
 		/// <summary>
 		/// Gets the current status messages
 		/// </summary>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The status messages</returns>
 		[HttpGet("/api/v1/notices")]
-		public async Task<List<GetNoticeResponse>> GetNoticesAsync()
+		public async Task<List<GetNoticeResponse>> GetNoticesAsync(CancellationToken cancellationToken)
 		{
 			List<GetNoticeResponse> messages = new List<GetNoticeResponse>();
 
@@ -112,8 +114,7 @@ namespace Horde.Server.Server.Notices
 			}
 
 			// Add user notices
-			List<INotice> notices = await _cachedNotices.GetCached();
-
+			List<INotice> notices = await _noticeService.GetNoticesAsync(cancellationToken);
 			for (int i = 0; i < notices.Count; i++)
 			{
 				INotice notice = notices[i];
@@ -121,7 +122,7 @@ namespace Horde.Server.Server.Notices
 
 				if (notice.UserId != null)
 				{
-					userInfo = (await _userCollection.GetCachedUserAsync(notice.UserId))?.ToThinApiResponse();
+					userInfo = (await _userCollection.GetCachedUserAsync(notice.UserId, cancellationToken))?.ToThinApiResponse();
 				}
 
 				messages.Add(new GetNoticeResponse() { Id = notice.Id.ToString(), Active = true, Message = notice.Message, CreatedByUser = userInfo});

@@ -260,24 +260,24 @@ namespace Horde.Server.Agents.Fleet.Providers
 
 			foreach (IAgent agent in agentsLimitedByCount)
 			{
-				await TryRequestShutdownAsync(agentCollection, pool, agent);
+				await TryRequestShutdownAsync(agentCollection, pool, agent, cancellationToken);
 			}
 		}
 
-		private static async Task<bool> TryRequestShutdownAsync(IAgentCollection agentCollection, IPool pool, IAgent agent)
+		private static async Task<bool> TryRequestShutdownAsync(IAgentCollection agentCollection, IPool pool, IAgent agent, CancellationToken cancellationToken)
 		{
 			IAuditLogChannel<AgentId> agentLogger = agentCollection.GetLogger(agent.Id);
 
 			const int MaxRetries = 5;
 			for (int retryCount = 0; retryCount < MaxRetries; retryCount++)
 			{
-				if (await agentCollection.TryUpdateSettingsAsync(agent, requestShutdown: true, shutdownReason: "Autoscaler") != null)
+				if (await agentCollection.TryUpdateSettingsAsync(agent, requestShutdown: true, shutdownReason: "Autoscaler", cancellationToken: cancellationToken) != null)
 				{
 					agentLogger.LogInformation("Marked {AgentId} in pool {PoolName} for shutdown due to autoscaling (currently {NumLeases} leases outstanding, {NumRetries} retries)", agent.Id, pool.Name, agent.Leases.Count, retryCount);
 					return true;
 				}
 
-				IAgent? updatedAgent = await agentCollection.GetAsync(agent.Id);
+				IAgent? updatedAgent = await agentCollection.GetAsync(agent.Id, cancellationToken);
 				if (updatedAgent == null)
 				{
 					agentLogger.LogError("Unable to mark agent {AgentId} in pool {PoolName} for shutdown due to autoscaling. Agent no longer exists", agent.Id, pool.Name);

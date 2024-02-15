@@ -71,11 +71,12 @@ namespace Horde.Server.Issues
 		/// <param name="index">Starting offset of the window of results to return</param>
 		/// <param name="count">Number of results to return</param>
 		/// <param name="filter">Filter for the properties to return</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of matching agents</returns>
 		[HttpGet]
 		[Route("/api/v2/issues")]
 		[ProducesResponseType(typeof(List<FindIssueResponse>), 200)]
-		public async Task<ActionResult<object>> FindIssuesV2Async([FromQuery(Name = "Id")] int[]? ids = null, [FromQuery] StreamId? streamId = null, [FromQuery] int? minChange = null, [FromQuery] int? maxChange = null, [FromQuery] bool? resolved = null, [FromQuery] int index = 0, [FromQuery] int count = 10, [FromQuery] PropertyFilter? filter = null)
+		public async Task<ActionResult<object>> FindIssuesV2Async([FromQuery(Name = "Id")] int[]? ids = null, [FromQuery] StreamId? streamId = null, [FromQuery] int? minChange = null, [FromQuery] int? maxChange = null, [FromQuery] bool? resolved = null, [FromQuery] int index = 0, [FromQuery] int count = 10, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
 			if (ids != null && ids.Length == 0)
 			{
@@ -97,7 +98,7 @@ namespace Horde.Server.Issues
 					return Forbid(StreamAclAction.ViewStream, streamId.Value);
 				}
 
-				List<IIssueSpan> spans = await _issueCollection.FindSpansAsync(null, ids, streamId.Value, minChange, maxChange, resolved);
+				IReadOnlyList<IIssueSpan> spans = await _issueCollection.FindSpansAsync(null, ids, streamId.Value, minChange, maxChange, resolved, cancellationToken: cancellationToken);
 				if(spans.Count > 0)
 				{
 					// Group all the spans by their issue id
@@ -114,7 +115,7 @@ namespace Horde.Server.Issues
 					}
 
 					// Find the matching issues
-					List<IIssue> issues = await _issueCollection.FindIssuesAsync(issueIdToSpans.Keys, index: index, count: count);
+					IReadOnlyList<IIssue> issues = await _issueCollection.FindIssuesAsync(issueIdToSpans.Keys, index: index, count: count, cancellationToken: cancellationToken);
 
 					// Create the corresponding responses
 					foreach (IIssue issue in issues.OrderByDescending(x => x.Id))
@@ -161,22 +162,22 @@ namespace Horde.Server.Issues
 
 						if (issue.OwnerId != null)
 						{
-							owner = await _userCollection.GetCachedUserAsync(issue.OwnerId.Value);
+							owner = await _userCollection.GetCachedUserAsync(issue.OwnerId.Value, cancellationToken);
 						}
 						
 						if (issue.NominatedById != null)
 						{
-							nominatedBy = await _userCollection.GetCachedUserAsync(issue.NominatedById.Value);
+							nominatedBy = await _userCollection.GetCachedUserAsync(issue.NominatedById.Value, cancellationToken);
 						}
 						
 						if (issue.ResolvedById != null)
 						{
-							resolvedBy = await _userCollection.GetCachedUserAsync(issue.ResolvedById.Value);
+							resolvedBy = await _userCollection.GetCachedUserAsync(issue.ResolvedById.Value, cancellationToken);
 						}
 
 						if (issue.QuarantinedByUserId != null)
 						{
-							quarantinedBy = await _userCollection.GetCachedUserAsync(issue.QuarantinedByUserId.Value);
+							quarantinedBy = await _userCollection.GetCachedUserAsync(issue.QuarantinedByUserId.Value, cancellationToken);
 						}
 
 						FindIssueResponse response = new FindIssueResponse(issue, owner, nominatedBy, resolvedBy, quarantinedBy, streamSeverity, spanResponses, openWorkflowIds.ToList());
@@ -210,11 +211,12 @@ namespace Horde.Server.Issues
 		/// <param name="index">Starting offset of the window of results to return</param>
 		/// <param name="count">Number of results to return</param>
 		/// <param name="filter">Filter for the properties to return</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of matching agents</returns>
 		[HttpGet]
 		[Route("/api/v1/issues")]
 		[ProducesResponseType(typeof(List<GetIssueResponse>), 200)]
-		public async Task<ActionResult<object>> FindIssuesAsync([FromQuery(Name = "Id")] int[]? ids = null, [FromQuery] string? streamId = null, [FromQuery] int? change = null, [FromQuery] int? minChange = null, [FromQuery] int? maxChange = null, [FromQuery] JobId? jobId = null, [FromQuery] JobStepBatchId? batchId = null, [FromQuery] JobStepId? stepId = null, [FromQuery(Name = "label")] int? labelIdx = null, [FromQuery] string? ownerId = null, [FromQuery] bool? resolved = null, [FromQuery] bool? promoted = null, [FromQuery] int index = 0, [FromQuery] int count = 10, [FromQuery] PropertyFilter? filter = null)
+		public async Task<ActionResult<object>> FindIssuesAsync([FromQuery(Name = "Id")] int[]? ids = null, [FromQuery] string? streamId = null, [FromQuery] int? change = null, [FromQuery] int? minChange = null, [FromQuery] int? maxChange = null, [FromQuery] JobId? jobId = null, [FromQuery] JobStepBatchId? batchId = null, [FromQuery] JobStepId? stepId = null, [FromQuery(Name = "label")] int? labelIdx = null, [FromQuery] string? ownerId = null, [FromQuery] bool? resolved = null, [FromQuery] bool? promoted = null, [FromQuery] int index = 0, [FromQuery] int count = 10, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
 			if(ids != null && ids.Length == 0)
 			{
@@ -227,7 +229,7 @@ namespace Horde.Server.Issues
 				ownerIdValue = UserId.Parse(ownerId);
 			}
 
-			List<IIssue> issues;
+			IReadOnlyList<IIssue> issues;
 			if (jobId == null)
 			{
 				StreamId? streamIdValue = null;
@@ -236,11 +238,11 @@ namespace Horde.Server.Issues
 					streamIdValue = new StreamId(streamId);
 				}
 
-				issues = await _issueService.Collection.FindIssuesAsync(ids, ownerIdValue, streamIdValue, minChange ?? change, maxChange ?? change, resolved, promoted, index, count);
+				issues = await _issueService.Collection.FindIssuesAsync(ids, ownerIdValue, streamIdValue, minChange ?? change, maxChange ?? change, resolved, promoted, index, count, cancellationToken);
 			}
 			else
 			{
-				IJob? job = await _jobService.GetJobAsync(jobId.Value);
+				IJob? job = await _jobService.GetJobAsync(jobId.Value, cancellationToken);
 				if (job == null)
 				{
 					return NotFound(jobId.Value);
@@ -250,14 +252,14 @@ namespace Horde.Server.Issues
 					return Forbid(JobAclAction.ViewJob, jobId.Value);
 				}
 
-				IGraph graph = await _jobService.GetGraphAsync(job);
-				issues = await _issueService.Collection.FindIssuesForJobAsync(job, graph, stepId, batchId, labelIdx, ownerIdValue, resolved, promoted, index, count);
+				IGraph graph = await _jobService.GetGraphAsync(job, cancellationToken);
+				issues = await _issueService.Collection.FindIssuesForJobAsync(job, graph, stepId, batchId, labelIdx, ownerIdValue, resolved, promoted, index, count, cancellationToken);
 			}
 
 			List<object> responses = new List<object>();
 			foreach (IIssue issue in issues)
 			{
-				IIssueDetails details = await _issueService.GetIssueDetailsAsync(issue);
+				IIssueDetails details = await _issueService.GetIssueDetailsAsync(issue, cancellationToken);
 				if (AuthorizeIssue(details))
 				{
 					bool showDesktopAlerts = _issueService.ShowDesktopAlertsForIssue(issue, details.Spans);
@@ -273,13 +275,14 @@ namespace Horde.Server.Issues
 		/// </summary>
 		/// <param name="issueId">Id of the issue to get information about</param>
 		/// <param name="filter">Filter for the properties to return</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of matching agents</returns>
 		[HttpGet]
 		[Route("/api/v1/issues/{issueId}")]
 		[ProducesResponseType(typeof(GetIssueResponse), 200)]
-		public async Task<ActionResult<object>> GetIssueAsync(int issueId, [FromQuery] PropertyFilter? filter = null)
+		public async Task<ActionResult<object>> GetIssueAsync(int issueId, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
-			IIssueDetails? details = await _issueService.GetIssueDetailsAsync(issueId);
+			IIssueDetails? details = await _issueService.GetIssueDetailsAsync(issueId, cancellationToken);
 			if (details == null)
 			{
 				return NotFound();
@@ -341,13 +344,14 @@ namespace Horde.Server.Issues
 		/// </summary>
 		/// <param name="issueId">Id of the issue to get information about</param>
 		/// <param name="filter">Filter for the properties to return</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of matching agents</returns>
 		[HttpGet]
 		[Route("/api/v1/issues/{issueId}/streams")]
 		[ProducesResponseType(typeof(List<GetIssueStreamResponse>), 200)]
-		public async Task<ActionResult<List<object>>> GetIssueStreamsAsync(int issueId, [FromQuery] PropertyFilter? filter = null)
+		public async Task<ActionResult<List<object>>> GetIssueStreamsAsync(int issueId, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
-			IIssueDetails? issue = await _issueService.GetIssueDetailsAsync(issueId);
+			IIssueDetails? issue = await _issueService.GetIssueDetailsAsync(issueId, cancellationToken);
 			if (issue == null)
 			{
 				return NotFound();
@@ -376,13 +380,14 @@ namespace Horde.Server.Issues
 		/// <param name="issueId">Id of the issue to get information about</param>
 		/// <param name="streamId">The stream id</param>
 		/// <param name="filter">Filter for the properties to return</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of matching agents</returns>
 		[HttpGet]
 		[Route("/api/v1/issues/{issueId}/streams/{streamId}")]
 		[ProducesResponseType(typeof(List<GetIssueStreamResponse>), 200)]
-		public async Task<ActionResult<object>> GetIssueStreamAsync(int issueId, StreamId streamId, [FromQuery] PropertyFilter? filter = null)
+		public async Task<ActionResult<object>> GetIssueStreamAsync(int issueId, StreamId streamId, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
-			IIssueDetails? details = await _issueService.GetIssueDetailsAsync(issueId);
+			IIssueDetails? details = await _issueService.GetIssueDetailsAsync(issueId, cancellationToken);
 			if (details == null)
 			{
 				return NotFound();
@@ -440,7 +445,7 @@ namespace Horde.Server.Issues
 			HashSet<LogId> logIdValues = new HashSet<LogId>();
 			if(jobId != null)
 			{
-				IJob? job = await _jobService.GetJobAsync(jobId.Value);
+				IJob? job = await _jobService.GetJobAsync(jobId.Value, cancellationToken);
 				if(job == null)
 				{
 					return NotFound();
@@ -464,7 +469,7 @@ namespace Horde.Server.Issues
 				}
 				else if (labelIdx != null)
 				{
-					IGraph graph = await _jobService.GetGraphAsync(job);
+					IGraph graph = await _jobService.GetGraphAsync(job, cancellationToken);
 
 					HashSet<NodeRef> includedNodes = new HashSet<NodeRef>(graph.Labels[labelIdx.Value].IncludedNodes);
 
@@ -490,7 +495,7 @@ namespace Horde.Server.Issues
 				logIdValues.UnionWith(logIds.Select(x => LogId.Parse(x)));
 			}
 
-			List<IIssueSpan> spans = await _issueCollection.FindSpansAsync(issueId);
+			IReadOnlyList<IIssueSpan> spans = await _issueCollection.FindSpansAsync(issueId, cancellationToken);
 			List<ILogEvent> events = await _logFileService.FindEventsForSpansAsync(spans.Select(x => x.Id), logIdValues.ToArray(), index, count, cancellationToken);
 
 			JobPermissionsCache permissionsCache = new JobPermissionsCache();
@@ -505,7 +510,7 @@ namespace Horde.Server.Issues
 					logFile = await _logFileService.GetLogFileAsync(logEvent.LogId, cancellationToken);
 					logFiles[logEvent.LogId] = logFile;
 				}
-				if (logFile != null && await _jobService.AuthorizeAsync(logFile.JobId, LogAclAction.ViewLog, User, _globalConfig.Value))
+				if (logFile != null && await _jobService.AuthorizeAsync(logFile.JobId, LogAclAction.ViewLog, User, _globalConfig.Value, cancellationToken))
 				{
 					ILogEventData data = await _logFileService.GetEventDataAsync(logFile, logEvent.LineIndex, logEvent.LineCount, cancellationToken);
 					GetLogEventResponse response = new GetLogEventResponse(logEvent, data, issueId);
@@ -609,7 +614,7 @@ namespace Horde.Server.Issues
 		[HttpGet]
 		[Authorize]
 		[Route("/api/v1/issues/external")]
-		public async Task<ActionResult<List<GetExternalIssueResponse>>> GetExternalIssuesAsync([FromQuery] StreamId streamId, [FromQuery] string[] keys)
+		public async Task<ActionResult<List<GetExternalIssueResponse>>> GetExternalIssuesAsync([FromQuery] StreamId streamId, [FromQuery] string[] keys, CancellationToken cancellationToken)
 		{
 			if (_externalIssueService == null)
 			{
@@ -628,7 +633,7 @@ namespace Horde.Server.Issues
 
 			if (keys.Length != 0)
 			{
-				List<IExternalIssue> issues = await _externalIssueService.GetIssuesAsync(keys);
+				List<IExternalIssue> issues = await _externalIssueService.GetIssuesAsync(keys, cancellationToken);
 
 				for (int i = 0; i < issues.Count; i++)
 				{
@@ -645,7 +650,7 @@ namespace Horde.Server.Issues
 		[HttpPost]
 		[Authorize]
 		[Route("/api/v1/issues/external")]
-		public async Task<ActionResult<CreateExternalIssueResponse>> CreateExternalIssueAsync([FromBody] CreateExternalIssueRequest issueRequest)
+		public async Task<ActionResult<CreateExternalIssueResponse>> CreateExternalIssueAsync([FromBody] CreateExternalIssueRequest issueRequest, CancellationToken cancellationToken)
 		{
 			if (_externalIssueService == null)
 			{
@@ -663,14 +668,14 @@ namespace Horde.Server.Issues
 				return Forbid(StreamAclAction.ViewStream, streamIdValue);
 			}
 
-			IUser? user = await _userCollection.GetUserAsync(User);
+			IUser? user = await _userCollection.GetUserAsync(User, cancellationToken);
 
 			if (user == null)
 			{
 				return BadRequest($"Missing user for {User.GetUserName()}");
 			}
 
-			(string? key, string? url) = await _externalIssueService.CreateIssueAsync(user, User.GetExternalIssueUser(), issueRequest.IssueId, issueRequest.Summary, issueRequest.ProjectId, issueRequest.ComponentId, issueRequest.IssueTypeId, issueRequest.Description, issueRequest.HordeIssueLink);
+			(string? key, string? url) = await _externalIssueService.CreateIssueAsync(user, User.GetExternalIssueUser(), issueRequest.IssueId, issueRequest.Summary, issueRequest.ProjectId, issueRequest.ComponentId, issueRequest.IssueTypeId, issueRequest.Description, issueRequest.HordeIssueLink, cancellationToken);
 
 			if (key == null)
 			{
@@ -684,11 +689,12 @@ namespace Horde.Server.Issues
 		/// Gets external issue tracking projects associated with the provided stream
 		/// </summary>
 		/// <param name="streamId"></param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
 		[HttpGet]
 		[Authorize]
 		[Route("/api/v1/issues/external/projects")]
-		public async Task<ActionResult<List<GetExternalIssueProjectResponse>>> GetExternalIssueProjectsAsync([FromQuery] string streamId)
+		public async Task<ActionResult<List<GetExternalIssueProjectResponse>>> GetExternalIssueProjectsAsync([FromQuery] string streamId, CancellationToken cancellationToken)
 		{
 			if (_externalIssueService == null)
 			{
@@ -705,7 +711,7 @@ namespace Horde.Server.Issues
 				return Forbid(StreamAclAction.ViewStream, streamIdValue);
 			}
 
-			List<IExternalIssueProject> projects = await _externalIssueService.GetProjectsAsync(streamConfig);
+			List<IExternalIssueProject> projects = await _externalIssueService.GetProjectsAsync(streamConfig, cancellationToken);
 			List<GetExternalIssueProjectResponse> response = new List<GetExternalIssueProjectResponse>();
 
 			projects.ForEach(project =>

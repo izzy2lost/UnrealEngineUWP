@@ -108,7 +108,7 @@ namespace Horde.Server.Tests.Stubs.Services
 
 		public async ValueTask<IUser> FindOrAddUserAsync(string clusterName, string userName, CancellationToken cancellationToken)
 		{
-			return await _userCollection.FindOrAddUserByLoginAsync(userName);
+			return await _userCollection.FindOrAddUserByLoginAsync(userName, cancellationToken: cancellationToken);
 		}
 
 		public void AddChange(StreamId streamId, int number, IUser author, string description, IEnumerable<string> files)

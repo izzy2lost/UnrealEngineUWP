@@ -354,7 +354,7 @@ namespace Horde.Server.Server
 				throw;
 			}
 
-			_setSchemaVersionTask = SetSchemaVersionAsync(ServerApp.Version);
+			_setSchemaVersionTask = SetSchemaVersionAsync(ServerApp.Version, CancellationToken.None);
 		}
 
 		internal const int CtrlCEvent = 0;
@@ -865,12 +865,12 @@ namespace Horde.Server.Server
 			}
 		}
 
-		async Task<bool> SetSchemaVersionAsync(SemVer schemaVersion)
+		async Task<bool> SetSchemaVersionAsync(SemVer schemaVersion, CancellationToken cancellationToken)
 		{
 			// Check we're not downgrading the data
 			for (; ; )
 			{
-				MongoSchemaDocument currentSchema = await GetSingletonAsync<MongoSchemaDocument>();
+				MongoSchemaDocument currentSchema = await GetSingletonAsync<MongoSchemaDocument>(cancellationToken);
 				if (!String.IsNullOrEmpty(currentSchema.Version))
 				{
 					SemVer currentVersion = SemVer.Parse(currentSchema.Version);
@@ -892,7 +892,7 @@ namespace Horde.Server.Server
 				{
 					return false;
 				}
-				if (await TryUpdateSingletonAsync(currentSchema))
+				if (await TryUpdateSingletonAsync(currentSchema, cancellationToken))
 				{
 					return true;
 				}
@@ -918,24 +918,25 @@ namespace Horde.Server.Server
 		/// Gets a singleton document by id
 		/// </summary>
 		/// <returns>The document</returns>
-		public Task<T> GetSingletonAsync<T>() where T : SingletonBase, new()
+		public Task<T> GetSingletonAsync<T>(CancellationToken cancellationToken) where T : SingletonBase, new()
 		{
-			return GetSingletonAsync(() => new T());
+			return GetSingletonAsync(() => new T(), cancellationToken);
 		}
 
 		/// <summary>
 		/// Gets a singleton document by id
 		/// </summary>
 		/// <param name="constructor">Method to use to construct a new object</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The document</returns>
-		public async Task<T> GetSingletonAsync<T>(Func<T> constructor) where T : SingletonBase, new()
+		public async Task<T> GetSingletonAsync<T>(Func<T> constructor, CancellationToken cancellationToken) where T : SingletonBase, new()
 		{
 			SingletonDocumentAttribute attribute = SingletonInfo<T>.Attribute;
 
 			FilterDefinition<BsonDocument> filter = new BsonDocument(new BsonElement("_id", attribute.Id));
 			for (; ; )
 			{
-				BsonDocument? document = await SingletonsV2.Find(filter).FirstOrDefaultAsync();
+				BsonDocument? document = await SingletonsV2.Find(filter).FirstOrDefaultAsync(cancellationToken);
 				if (document != null)
 				{
 					T item = BsonSerializer.Deserialize<T>(document);
@@ -946,7 +947,7 @@ namespace Horde.Server.Server
 				T? newItem = null;
 				if (attribute.LegacyId != null)
 				{
-					BsonDocument? legacyDocument = await SingletonsV1.Find(new BsonDocument(new BsonElement("_id", ObjectId.Parse(attribute.LegacyId)))).FirstOrDefaultAsync();
+					BsonDocument? legacyDocument = await SingletonsV1.Find(new BsonDocument(new BsonElement("_id", ObjectId.Parse(attribute.LegacyId)))).FirstOrDefaultAsync(cancellationToken);
 					if (legacyDocument != null)
 					{
 						legacyDocument.Remove("_id");
@@ -957,7 +958,7 @@ namespace Horde.Server.Server
 				newItem ??= constructor();
 
 				newItem.Id = new SingletonId(attribute.Id);
-				await SingletonsV2.InsertOneIgnoreDuplicatesAsync(newItem.ToBsonDocument());
+				await SingletonsV2.InsertOneIgnoreDuplicatesAsync(newItem.ToBsonDocument(), cancellationToken);
 			}
 		}
 
@@ -966,15 +967,16 @@ namespace Horde.Server.Server
 		/// </summary>
 		/// <typeparam name="T"></typeparam>
 		/// <param name="updater"></param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		public Task UpdateSingletonAsync<T>(Action<T> updater) where T : SingletonBase, new()
+		public Task UpdateSingletonAsync<T>(Action<T> updater, CancellationToken cancellationToken) where T : SingletonBase, new()
 		{
 			bool Update(T instance)
 			{
 				updater(instance);
 				return true;
 			}
-			return UpdateSingletonAsync<T>(Update);
+			return UpdateSingletonAsync<T>(Update, cancellationToken);
 		}
 
 		/// <summary>
@@ -982,17 +984,18 @@ namespace Horde.Server.Server
 		/// </summary>
 		/// <typeparam name="T"></typeparam>
 		/// <param name="updater"></param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		public async Task UpdateSingletonAsync<T>(Func<T, bool> updater) where T : SingletonBase, new()
+		public async Task UpdateSingletonAsync<T>(Func<T, bool> updater, CancellationToken cancellationToken) where T : SingletonBase, new()
 		{
 			for (; ; )
 			{
-				T document = await GetSingletonAsync(() => new T());
+				T document = await GetSingletonAsync(() => new T(), cancellationToken);
 				if (!updater(document))
 				{
 					break;
 				}
-				if (await TryUpdateSingletonAsync(document))
+				if (await TryUpdateSingletonAsync(document, cancellationToken))
 				{
 					break;
 				}
@@ -1003,15 +1006,16 @@ namespace Horde.Server.Server
 		/// Attempts to update a singleton object
 		/// </summary>
 		/// <param name="singletonObject">The singleton object</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>True if the singleton document was updated</returns>
-		public async Task<bool> TryUpdateSingletonAsync<T>(T singletonObject) where T : SingletonBase
+		public async Task<bool> TryUpdateSingletonAsync<T>(T singletonObject, CancellationToken cancellationToken) where T : SingletonBase
 		{
 			int prevRevision = singletonObject.Revision++;
 
 			BsonDocument filter = new BsonDocument { new BsonElement("_id", singletonObject.Id.ToString()), new BsonElement(nameof(SingletonBase.Revision), prevRevision) };
 			try
 			{
-				ReplaceOneResult result = await SingletonsV2.ReplaceOneAsync(filter, singletonObject.ToBsonDocument(), new ReplaceOptions { IsUpsert = true });
+				ReplaceOneResult result = await SingletonsV2.ReplaceOneAsync(filter, singletonObject.ToBsonDocument(), new ReplaceOptions { IsUpsert = true }, cancellationToken);
 				return result.MatchedCount > 0;
 			}
 			catch (MongoWriteException ex)

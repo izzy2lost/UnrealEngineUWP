@@ -3,6 +3,7 @@
 using System;
 using System.Net;
 using System.Security.Cryptography;
+using System.Threading;
 using System.Threading.Tasks;
 using Horde.Server.Utilities;
 using Microsoft.Extensions.Options;
@@ -85,9 +86,9 @@ namespace Horde.Server.Server
 		/// Gets the current globals instance
 		/// </summary>
 		/// <returns>Globals instance</returns>
-		public async ValueTask<IGlobals> GetAsync()
+		public async ValueTask<IGlobals> GetAsync(CancellationToken cancellationToken)
 		{
-			Globals globals = await _mongoService.GetSingletonAsync<Globals>(() => CreateGlobals());
+			Globals globals = await _mongoService.GetSingletonAsync<Globals>(() => CreateGlobals(), cancellationToken);
 			globals._owner = this;
 			return globals;
 		}
@@ -104,15 +105,16 @@ namespace Horde.Server.Server
 		/// </summary>
 		/// <param name="globals">The current options value</param>
 		/// <param name="configRevision"></param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		public async ValueTask<IGlobals?> TryUpdateAsync(IGlobals globals, string? configRevision)
+		public async ValueTask<IGlobals?> TryUpdateAsync(IGlobals globals, string? configRevision, CancellationToken cancellationToken)
 		{
 			Globals concreteGlobals = ((Globals)globals).Clone();
 			if (configRevision != null)
 			{
 				concreteGlobals.ConfigRevision = configRevision;
 			}
-			if (!await _mongoService.TryUpdateSingletonAsync(concreteGlobals))
+			if (!await _mongoService.TryUpdateSingletonAsync(concreteGlobals, cancellationToken))
 			{
 				return null;
 			}

@@ -97,12 +97,14 @@ namespace EpicGames.Horde.Tests
 		}
 		
 		[TestMethod]
-		public async Task TestAgentMessageLoopTcpSslAsync()
+		[DataRow(Encryption.Ssl)]
+		[DataRow(Encryption.SslEcdsaP256)]
+		public async Task TestAgentMessageLoopTcpSslAsync(Encryption encryption)
 		{
 			using CancellationTokenSource cts = new (5000);
 			(Socket clientSocket, Socket serverSocket) = await CreateSocketsAsync(cts.Token);
 			
-			byte[] certData = TcpSslTransport.GenerateCert();
+			byte[] certData = TcpSslTransport.GenerateCert(encryption);
 			await using TcpSslTransport clientTransport = new (clientSocket, certData, false);
 			await using TcpSslTransport serverTransport = new (serverSocket, certData, true);
 			

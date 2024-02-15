@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Channels;
@@ -152,18 +153,21 @@ namespace Horde.Server.Auditing
 #pragma warning restore CA2254 // Template should be a static expression
 			}
 
-			public IAsyncEnumerable<IAuditLogMessage> FindAsync(DateTime? minTime, DateTime? maxTime, int? index, int? count) => Outer.FindAsync(Subject, minTime, maxTime, index, count);
+			public IAsyncEnumerable<IAuditLogMessage> FindAsync(DateTime? minTime, DateTime? maxTime, int? index, int? count, CancellationToken cancellationToken = default)
+				=> Outer.FindAsync(Subject, minTime, maxTime, index, count, cancellationToken);
 
-			public Task<long> DeleteAsync(DateTime? minTime, DateTime? maxTime) => Outer.DeleteAsync(Subject, minTime, maxTime);
+			public Task<long> DeleteAsync(DateTime? minTime, DateTime? maxTime, CancellationToken cancellationToken = default)
+				=> Outer.DeleteAsync(Subject, minTime, maxTime, cancellationToken);
 
-			public Task FlushAsync(CancellationToken cancellationToken) => Outer.FlushAsync(cancellationToken);
+			public Task FlushAsync(CancellationToken cancellationToken)
+				=> Outer.FlushAsync(cancellationToken);
 		}
 
 		readonly IMongoCollection<AuditLogMessage> _messages;
 		readonly Channel<AuditLogMessage?> _messageChannel;
 		readonly string _subjectProperty;
 		readonly ILogger _logger;
-		readonly Task _backgroundTask;
+		readonly BackgroundTask _backgroundTask;
 		
 		TaskCompletionSource? _flushEvent;
 
@@ -180,20 +184,20 @@ namespace Horde.Server.Auditing
 			_subjectProperty = subjectProperty;
 			_logger = logger;
 
-			_backgroundTask = Task.Run(() => WriteMessagesAsync());
+			_backgroundTask = BackgroundTask.StartNew(ctx => WriteMessagesAsync(ctx));
 		}
 
 		public async ValueTask DisposeAsync()
 		{
 			_messageChannel.Writer.TryComplete();
-			await _backgroundTask;
+			await _backgroundTask.DisposeAsync();
 		}
 
 		/// <summary>
 		/// Flush any pending messages to database
 		/// Exposed as internal for use in tests
 		/// </summary>
-		internal async Task<int> FlushMessagesInternalAsync()
+		internal async Task<int> FlushMessagesInternalAsync(CancellationToken cancellationToken)
 		{
 			List<AuditLogMessage> newMessages = new ();
 			while (_messageChannel.Reader.TryRead(out AuditLogMessage? newMessage))
@@ -205,15 +209,15 @@ namespace Horde.Server.Auditing
 			}
 			if (newMessages.Count > 0)
 			{
-				await _messages.InsertManyAsync(newMessages);
+				await _messages.InsertManyAsync(newMessages, null, cancellationToken);
 			}
 			
 			return newMessages.Count;
 		}
 		
-		async Task WriteMessagesAsync()
+		async Task WriteMessagesAsync(CancellationToken cancellationToken)
 		{
-			while (await _messageChannel.Reader.WaitToReadAsync())
+			while (await _messageChannel.Reader.WaitToReadAsync(cancellationToken))
 			{
 				TaskCompletionSource? flushEvent = Interlocked.Exchange(ref _flushEvent, null);
 
@@ -227,7 +231,7 @@ namespace Horde.Server.Auditing
 				}
 				if (newMessages.Count > 0)
 				{
-					await _messages.InsertManyAsync(newMessages);
+					await _messages.InsertManyAsync(newMessages, null, cancellationToken);
 				}
 
 				flushEvent?.TrySetResult();
@@ -247,7 +251,7 @@ namespace Horde.Server.Auditing
 			await tcs.Task;
 		}
 
-		async IAsyncEnumerable<IAuditLogMessage<TSubject>> FindAsync(TSubject subject, DateTime? minTime = null, DateTime? maxTime = null, int? index = null, int? count = null)
+		async IAsyncEnumerable<IAuditLogMessage<TSubject>> FindAsync(TSubject subject, DateTime? minTime = null, DateTime? maxTime = null, int? index = null, int? count = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
 		{
 			FilterDefinition<AuditLogMessage> filter = Builders<AuditLogMessage>.Filter.Eq(x => x.Subject, subject);
 			if (minTime != null)
@@ -259,9 +263,9 @@ namespace Horde.Server.Auditing
 				filter &= Builders<AuditLogMessage>.Filter.Lte(x => x.TimeUtc, maxTime.Value);
 			}
 
-			using (IAsyncCursor<AuditLogMessage> cursor = await _messages.Find(filter).SortByDescending(x => x.TimeUtc).Range(index, count).ToCursorAsync())
+			using (IAsyncCursor<AuditLogMessage> cursor = await _messages.Find(filter).SortByDescending(x => x.TimeUtc).Range(index, count).ToCursorAsync(cancellationToken))
 			{
-				while (await cursor.MoveNextAsync())
+				while (await cursor.MoveNextAsync(cancellationToken))
 				{
 					foreach (AuditLogMessage message in cursor.Current)
 					{
@@ -271,7 +275,7 @@ namespace Horde.Server.Auditing
 			}
 		}
 
-		async Task<long> DeleteAsync(TSubject subject, DateTime? minTime = null, DateTime? maxTime = null)
+		async Task<long> DeleteAsync(TSubject subject, DateTime? minTime = null, DateTime? maxTime = null, CancellationToken cancellationToken = default)
 		{
 			FilterDefinition<AuditLogMessage> filter = Builders<AuditLogMessage>.Filter.Eq(x => x.Subject, subject);
 			if (minTime != null)
@@ -283,7 +287,7 @@ namespace Horde.Server.Auditing
 				filter &= Builders<AuditLogMessage>.Filter.Lte(x => x.TimeUtc, maxTime.Value);
 			}
 
-			DeleteResult result = await _messages.DeleteManyAsync(filter);
+			DeleteResult result = await _messages.DeleteManyAsync(filter, cancellationToken);
 			return result.DeletedCount;
 		}
 	}

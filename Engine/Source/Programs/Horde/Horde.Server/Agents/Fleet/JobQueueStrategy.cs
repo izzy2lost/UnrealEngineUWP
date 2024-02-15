@@ -18,6 +18,7 @@ using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Agents.Pools;
+using System.Threading;
 
 namespace Horde.Server.Agents.Fleet
 {
@@ -134,10 +135,11 @@ namespace Horde.Server.Agents.Fleet
 		/// </summary>
 		/// <param name="job">Job to extract from</param>
 		/// <param name="streams">Cached lookup table of streams</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		private async Task<List<(IJob Job, IJobStepBatch Batch, PoolId PoolId)>> GetJobBatchesWithPoolsAsync(IJob job, Dictionary<StreamId, StreamConfig> streams)
+		private async Task<List<(IJob Job, IJobStepBatch Batch, PoolId PoolId)>> GetJobBatchesWithPoolsAsync(IJob job, Dictionary<StreamId, StreamConfig> streams, CancellationToken cancellationToken)
 		{
-			IGraph graph = await _graphs.GetAsync(job.GraphHash);
+			IGraph graph = await _graphs.GetAsync(job.GraphHash, cancellationToken);
 
 			List<(IJob Job, IJobStepBatch Batch, PoolId PoolId)> jobBatches = new();
 			foreach (IJobStepBatch batch in job.Batches)
@@ -174,20 +176,20 @@ namespace Horde.Server.Agents.Fleet
 			return jobBatches;
 		}
 
-		internal async Task<Dictionary<PoolId, int>> GetPoolQueueSizesAsync(DateTimeOffset jobsCreatedAfter)
+		internal async Task<Dictionary<PoolId, int>> GetPoolQueueSizesAsync(DateTimeOffset jobsCreatedAfter, CancellationToken cancellationToken = default)
 		{
 			using TelemetrySpan span = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(JobQueueStrategy)}.{nameof(GetPoolQueueSizesAsync)}");
 			span.SetAttribute("after", jobsCreatedAfter);
 
 			Dictionary<StreamId, StreamConfig> streams = _globalConfig.CurrentValue.Streams.ToDictionary(x => x.Id, x => (StreamConfig)x);
-			List<IJob> recentJobs = await _jobs.FindAsync(minCreateTime: jobsCreatedAfter, batchState: JobStepBatchState.Ready);
+			IReadOnlyList<IJob> recentJobs = await _jobs.FindAsync(minCreateTime: jobsCreatedAfter, batchState: JobStepBatchState.Ready, cancellationToken: cancellationToken);
 			span.SetAttribute("numJobs", recentJobs.Count);
 			span.SetAttribute("numUniqueGraphs", recentJobs.Select(x => x.GraphHash).Distinct().Count());
 
 			List<(IJob Job, IJobStepBatch Batch, PoolId PoolId)> jobBatches = new();
 			foreach (IJob job in recentJobs)
 			{
-				jobBatches.AddRange(await GetJobBatchesWithPoolsAsync(job, streams));
+				jobBatches.AddRange(await GetJobBatchesWithPoolsAsync(job, streams, cancellationToken));
 			}
 
 			List<(PoolId PoolId, int QueueSize)> poolsWithQueueSize = jobBatches.GroupBy(t => t.PoolId).Select(t => (t.Key, t.Count())).ToList();
@@ -204,7 +206,7 @@ namespace Horde.Server.Agents.Fleet
 		}
 
 		/// <inheritdoc/>
-		public async Task<PoolSizeResult> CalculatePoolSizeAsync(IPoolConfig pool, List<IAgent> agents)
+		public async Task<PoolSizeResult> CalculatePoolSizeAsync(IPoolConfig pool, List<IAgent> agents, CancellationToken cancellationToken = default)
 		{
 			using TelemetrySpan span = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(JobQueueStrategy)}.{nameof(CalculatePoolSizeAsync)}");
 			span.SetAttribute(OpenTelemetryTracers.DatadogResourceAttribute, pool.Id.ToString());
@@ -217,7 +219,7 @@ namespace Horde.Server.Agents.Fleet
 			if (!_cache.TryGetValue(CacheKey, out Dictionary<PoolId, int>? poolQueueSizes) || poolQueueSizes == null)
 			{
 				// Pool sizes haven't been cached, update them (might happen from multiple tasks but that is fine)
-				poolQueueSizes = await GetPoolQueueSizesAsync(minCreateTime);
+				poolQueueSizes = await GetPoolQueueSizesAsync(minCreateTime, cancellationToken);
 				_cache.Set(CacheKey, poolQueueSizes, TimeSpan.FromSeconds(60));
 			}
 

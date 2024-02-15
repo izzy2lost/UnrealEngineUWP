@@ -436,7 +436,7 @@ namespace Horde.Server.Perforce
 			PooledConnectionHandle? handle = GetPooledConnectionForUser(cluster, userName);
 			if (handle == null)
 			{
-				IPerforceServer server = await GetServerAsync(cluster);
+				IPerforceServer server = await GetServerAsync(cluster, cancellationToken);
 				Credentials credentials = await GetCredentialsAsync(cluster, userName, cancellationToken);
 				handle = await CreatePooledConnectionAsync(server.ServerAndPort, credentials, null, cancellationToken);
 
@@ -487,7 +487,7 @@ namespace Horde.Server.Perforce
 				// Otherwise connect to the default
 				if (serverAndPort == null)
 				{
-					IPerforceServer server = await GetServerAsync(cluster);
+					IPerforceServer server = await GetServerAsync(cluster, cancellationToken);
 					serverAndPort = server.ServerAndPort;
 				}
 
@@ -597,7 +597,7 @@ namespace Horde.Server.Perforce
 			IUser? user;
 			if (!_userCache.TryGetValue((cluster.Name, userName), out user))
 			{
-				user = await _userCollection.FindUserByLoginAsync(userName);
+				user = await _userCollection.FindUserByLoginAsync(userName, cancellationToken);
 				if (user == null)
 				{
 					UserRecord? userRecord = null;
@@ -613,7 +613,7 @@ namespace Horde.Server.Perforce
 							_logger.LogWarning("Unable to find user {UserName} on cluster {ClusterName}", userName, cluster.Name);
 						}
 					}
-					user = await _userCollection.FindOrAddUserByLoginAsync(userRecord?.UserName ?? userName, userRecord?.FullName, userRecord?.Email);
+					user = await _userCollection.FindOrAddUserByLoginAsync(userRecord?.UserName ?? userName, userRecord?.FullName, userRecord?.Email, cancellationToken);
 				}
 
 				using (ICacheEntry entry = _userCache.CreateEntry((cluster.Name, userName)))
@@ -626,12 +626,12 @@ namespace Horde.Server.Perforce
 			return user!;
 		}
 
-		async Task<IPerforceServer> GetServerAsync(PerforceCluster cluster)
+		async Task<IPerforceServer> GetServerAsync(PerforceCluster cluster, CancellationToken cancellationToken)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(PerforceService)}.{nameof(GetServerAsync)}");
 			span.SetAttribute("clusterName", cluster.Name);
 
-			IPerforceServer? server = await _loadBalancer.SelectServerAsync(cluster);
+			IPerforceServer? server = await _loadBalancer.SelectServerAsync(cluster, cancellationToken);
 			if (server == null)
 			{
 				throw new Exception($"Unable to select server from '{cluster.Name}'");

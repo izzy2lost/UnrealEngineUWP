@@ -60,7 +60,7 @@ namespace Horde.Server.Ddc
 			{
 				try
 				{
-					referencedBlobs = await _referenceResolver.GetReferencedBlobsAsync(ns, payload).ToArrayAsync(cancellationToken);
+					referencedBlobs = await _referenceResolver.GetReferencedBlobsAsync(ns, payload, cancellationToken).ToArrayAsync(cancellationToken);
 				}
 				catch (PartialReferenceResolveException e)
 				{

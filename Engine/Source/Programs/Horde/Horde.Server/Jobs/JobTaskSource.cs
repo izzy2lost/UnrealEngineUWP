@@ -306,7 +306,7 @@ namespace Horde.Server.Jobs
 			}
 			if(waiter != null)
 			{
-				waiter.LeaseSource.TrySetCanceled();
+				waiter.LeaseSource.TrySetCanceled(CancellationToken.None);
 			}
 		}
 
@@ -334,7 +334,7 @@ namespace Horde.Server.Jobs
 		/// <param name="pools">List of all available pools</param>
 		/// <param name="agents">List of all available agents</param>
 		/// <returns></returns>
-		internal static Dictionary<PoolId, PoolStatus> GetPoolStatus(DateTime utcNow, List<IPoolConfig> pools, List<IAgent> agents)
+		internal static Dictionary<PoolId, PoolStatus> GetPoolStatus(DateTime utcNow, IReadOnlyList<IPoolConfig> pools, IReadOnlyList<IAgent> agents)
 		{
 			Dictionary<PoolId, PoolStatus> poolStatus = new ();
 
@@ -356,9 +356,9 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// Background task
 		/// </summary>
-		/// <param name="stoppingToken">Token that indicates that the service should shut down</param>
+		/// <param name="cancellationToken">Token that indicates that the service should shut down</param>
 		/// <returns>Async task</returns>
-		internal async ValueTask TickAsync(CancellationToken stoppingToken)
+		internal async ValueTask TickAsync(CancellationToken cancellationToken)
 		{
 			// Set the NewBatchIdToQueueItem member, so we capture any updated jobs during the DB query.
 			lock (_lockObject)
@@ -368,12 +368,12 @@ namespace Horde.Server.Jobs
 
 			// Query all the current streams
 			GlobalConfig globalConfig = _globalConfig.CurrentValue;
-			List<IStream> streamsList = await _streamCollection.GetAsync(globalConfig.Streams);
+			IReadOnlyList<IStream> streamsList = await _streamCollection.GetAsync(globalConfig.Streams, cancellationToken);
 			Dictionary<StreamId, IStream> streams = streamsList.ToDictionary(x => x.Id, x => x);
 
 			// Find all the pools which are valid (ie. have at least one online agent)
-			List<IAgent> agents = await _agentsCollection.FindAsync();
-			List<IPoolConfig> pools = await _poolCollection.GetConfigsAsync(stoppingToken);
+			IReadOnlyList<IAgent> agents = await _agentsCollection.FindAsync(cancellationToken: cancellationToken);
+			IReadOnlyList<IPoolConfig> pools = await _poolCollection.GetConfigsAsync(cancellationToken);
 			Dictionary<PoolId, PoolStatus> poolStatus = GetPoolStatus(_clock.UtcNow, pools, agents);
 
 			// New list of queue items
@@ -381,7 +381,7 @@ namespace Horde.Server.Jobs
 			Dictionary<(JobId, JobStepBatchId), QueueItem> newBatchIdToQueueItem = new Dictionary<(JobId, JobStepBatchId), QueueItem>();
 
 			// Query for a new list of jobs for the queue
-			List<IJob> newJobs = await _jobs.GetDispatchQueueAsync();
+			IReadOnlyList<IJob> newJobs = await _jobs.GetDispatchQueueAsync(cancellationToken);
 			for (int idx = 0; idx < newJobs.Count; idx++)
 			{
 				IJob? newJob = newJobs[idx];
@@ -389,24 +389,24 @@ namespace Horde.Server.Jobs
 				if (newJob.GraphHash == null)
 				{
 					_logger.LogError("Job {JobId} has a null graph hash and can't be started.", newJob.Id);
-					await _jobs.TryRemoveFromDispatchQueueAsync(newJob);
+					await _jobs.TryRemoveFromDispatchQueueAsync(newJob, cancellationToken);
 					continue;
 				}
 				if (newJob.AbortedByUserId != null)
 				{
 					_logger.LogError("Job {JobId} was aborted but not removed from dispatch queue", newJob.Id);
-					await _jobs.TryRemoveFromDispatchQueueAsync(newJob);
+					await _jobs.TryRemoveFromDispatchQueueAsync(newJob, cancellationToken);
 					continue;
 				}
 
 				// Get the graph for this job
-				IGraph graph = await _graphs.GetAsync(newJob.GraphHash);
+				IGraph graph = await _graphs.GetAsync(newJob.GraphHash, cancellationToken);
 
 				// Get the stream. If it fails, skip the whole job.
 				IStream? stream;
 				if (!streams.TryGetValue(newJob.StreamId, out stream))
 				{
-					newJob = await _jobs.SkipAllBatchesAsync(newJob, graph, JobStepBatchError.UnknownStream);
+					newJob = await _jobs.SkipAllBatchesAsync(newJob, graph, JobStepBatchError.UnknownStream, cancellationToken);
 					continue;
 				}
 
@@ -425,19 +425,19 @@ namespace Horde.Server.Jobs
 					IJobStepBatch batch = newJob.Batches[batchIdx];
 					if (!stream.Config.AgentTypes.TryGetValue(graph.Groups[batch.GroupIdx].AgentType, out AgentConfig? agentType))
 					{
-						newJob = await SkipBatchAsync(newJob, batch.Id, graph, JobStepBatchError.UnknownAgentType);
+						newJob = await SkipBatchAsync(newJob, batch.Id, graph, JobStepBatchError.UnknownAgentType, cancellationToken);
 					}
 					else if (!poolStatus.ContainsKey(agentType.Pool))
 					{
-						newJob = await SkipBatchAsync(newJob, batch.Id, graph, JobStepBatchError.UnknownPool);
+						newJob = await SkipBatchAsync(newJob, batch.Id, graph, JobStepBatchError.UnknownPool, cancellationToken);
 					}
 					else if (!poolStatus[agentType.Pool].HasAgents)
 					{
-						newJob = await SkipBatchAsync(newJob, batch.Id, graph, JobStepBatchError.NoAgentsInPool);
+						newJob = await SkipBatchAsync(newJob, batch.Id, graph, JobStepBatchError.NoAgentsInPool, cancellationToken);
 					}
 					else if (!stream.Config.TryGetAgentWorkspace(agentType, out AgentWorkspaceInfo? workspace, out AutoSdkConfig? autoSdkConfig))
 					{
-						newJob = await SkipBatchAsync(newJob, batch.Id, graph, JobStepBatchError.UnknownWorkspace);
+						newJob = await SkipBatchAsync(newJob, batch.Id, graph, JobStepBatchError.UnknownWorkspace, cancellationToken);
 					}
 					else
 					{
@@ -454,7 +454,7 @@ namespace Horde.Server.Jobs
 									if (step != null)
 									{
 										JobId jobId = newJob.Id;
-										newJob = await _jobs.TryUpdateStepAsync(newJob, graph, batch.Id, step.Id, JobStepState.Skipped, newError: JobStepError.Paused);
+										newJob = await _jobs.TryUpdateStepAsync(newJob, graph, batch.Id, step.Id, JobStepState.Skipped, newError: JobStepError.Paused, cancellationToken: cancellationToken);
 										if (newJob == null)
 										{
 											_logger.LogError("Job {JobId} failed to update step {StepName} pause state", jobId, state.Name);
@@ -475,7 +475,7 @@ namespace Horde.Server.Jobs
 							newQueue.Add(newQueueItem);
 							newBatchIdToQueueItem[(newJob.Id, batch.Id)] = newQueueItem;
 
-							IPoolConfig? newJobPool = pools.Find(p => p.Id == agentType.Pool);
+							IPoolConfig? newJobPool = pools.FirstOrDefault(p => p.Id == agentType.Pool);
 							if (newJobPool != null)
 							{
 								OnJobScheduled?.Invoke(newJobPool, poolStatus[agentType.Pool].HasOnlineAgents, newJob, graph, batch.Id);
@@ -489,7 +489,7 @@ namespace Horde.Server.Jobs
 					if (!newJob.Batches.Any(batch => batch.State == JobStepBatchState.Ready || batch.State == JobStepBatchState.Starting || batch.State == JobStepBatchState.Running || batch.State == JobStepBatchState.Stopping))
 					{
 						_logger.LogError("Job {JobId} is in dispatch queue but not currently executing", newJob.Id);
-						await _jobs.TryRemoveFromDispatchQueueAsync(newJob);
+						await _jobs.TryRemoveFromDispatchQueueAsync(newJob, cancellationToken);
 					}
 				}
 			}
@@ -524,16 +524,16 @@ namespace Horde.Server.Jobs
 			}
 		}
 
-		private async Task<IJob?> SkipBatchAsync(IJob job, JobStepBatchId batchId, IGraph graph, JobStepBatchError reason)
+		private async Task<IJob?> SkipBatchAsync(IJob job, JobStepBatchId batchId, IGraph graph, JobStepBatchError reason, CancellationToken cancellationToken)
 		{
 			_logger.LogInformation("Skipping batch {BatchId} for job {JobId} (reason: {Reason})", batchId, job.Id, reason);
 
 			IReadOnlyList<(LabelState, LabelOutcome)> oldLabelStates = job.GetLabelStates(graph);
-			IJob? newJob = await _jobs.SkipBatchAsync(job, batchId, graph, reason);
+			IJob? newJob = await _jobs.SkipBatchAsync(job, batchId, graph, reason, cancellationToken);
 			if(newJob != null)
 			{
 				IReadOnlyList<(LabelState, LabelOutcome)> newLabelStates = newJob.GetLabelStates(graph);
-				await UpdateUgsBadgesAsync(newJob, graph, oldLabelStates, newLabelStates);
+				await UpdateUgsBadgesAsync(newJob, graph, oldLabelStates, newLabelStates, cancellationToken);
 			}
 			return newJob;
 		}
@@ -600,7 +600,7 @@ namespace Horde.Server.Jobs
 		{
 			if (item._assignTask == null && item.Batch.SessionId == null && waiter.Agent.Enabled && waiter.Agent.Leases.Count == 0 && waiter.Agent.IsInPool(item._poolId))
 			{
-				Task startTask = new Task<Task>(() => TryCreateLeaseAsync(item, waiter));
+				Task startTask = new Task<Task>(() => TryCreateLeaseAsync(item, waiter, CancellationToken.None));
 				Task executeTask = startTask.ContinueWith(task => task, TaskScheduler.Default);
 
 				if (Interlocked.CompareExchange(ref item._assignTask, executeTask, null) == null)
@@ -738,9 +738,9 @@ namespace Horde.Server.Jobs
 		}
 
 		/// <inheritdoc/>
-		public override Task CancelLeaseAsync(IAgent agent, LeaseId leaseId, ExecuteJobTask task)
+		public override Task CancelLeaseAsync(IAgent agent, LeaseId leaseId, ExecuteJobTask task, CancellationToken cancellationToken)
 		{
-			return CancelLeaseAsync(agent, JobId.Parse(task.JobId), JobStepBatchId.Parse(task.BatchId));
+			return CancelLeaseAsync(agent, JobId.Parse(task.JobId), JobStepBatchId.Parse(task.BatchId), cancellationToken);
 		}
 
 		/// <summary>
@@ -748,8 +748,9 @@ namespace Horde.Server.Jobs
 		/// </summary>
 		/// <param name="item">The item to create a lease for</param>
 		/// <param name="waiter">The agent waiting for work</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>New work to execute</returns>
-		private async Task<AgentLease?> TryCreateLeaseAsync(QueueItem item, QueueWaiter waiter)
+		private async Task<AgentLease?> TryCreateLeaseAsync(QueueItem item, QueueWaiter waiter, CancellationToken cancellationToken)
 		{
 			IJob job = item._job;
 			IJobStepBatch batch = item.Batch;
@@ -766,7 +767,7 @@ namespace Horde.Server.Jobs
 			LogId logId = LogIdUtils.GenerateNewId();
 			
 			// Try to update the job with this agent id
-			IJob? newJob = await _jobs.TryAssignLeaseAsync(item._job, item._batchIdx, item._poolId, agent.Id, agent.SessionId!.Value, leaseId, logId);
+			IJob? newJob = await _jobs.TryAssignLeaseAsync(item._job, item._batchIdx, item._poolId, agent.Id, agent.SessionId!.Value, leaseId, logId, cancellationToken);
 			if (newJob != null)
 			{
 				job = newJob;
@@ -794,11 +795,11 @@ namespace Horde.Server.Jobs
 				if (item._useAutoSdk)
 				{
 					PerforceCluster cluster = _globalConfig.CurrentValue.FindPerforceCluster(streamConfig.ClusterName)!;
-					autoSdkWorkspace = await _poolService.GetAutoSdkWorkspaceAsync(agent, cluster, DateTime.UtcNow - TimeSpan.FromSeconds(10.0));
+					autoSdkWorkspace = await _poolService.GetAutoSdkWorkspaceAsync(agent, cluster, DateTime.UtcNow - TimeSpan.FromSeconds(10.0), cancellationToken);
 				}
 
 				// Encode the payload
-				ExecuteJobTask? task = await CreateExecuteJobTaskAsync(leaseId, streamConfig, job, batch, agent, item._workspace, autoSdkWorkspace, logId);
+				ExecuteJobTask? task = await CreateExecuteJobTaskAsync(leaseId, streamConfig, job, batch, agent, item._workspace, autoSdkWorkspace, logId, cancellationToken);
 				if (task != null)
 				{
 					byte[] payload = Any.Pack(task).ToByteArray();
@@ -808,14 +809,14 @@ namespace Horde.Server.Jobs
 					if (waiter.LeaseSource.TrySetResult(lease))
 					{
 						_logger.LogInformation("Assigned lease {LeaseId} to agent {AgentId}", leaseId, agent.Id);
-						await _logFileService.CreateLogFileAsync(job.Id, leaseId, agent.SessionId, LogType.Json, logId);
+						await _logFileService.CreateLogFileAsync(job.Id, leaseId, agent.SessionId, LogType.Json, logId, cancellationToken);
 						return lease;
 					}
 				}
 
 				// Cancel the lease
 				_logger.LogInformation("Unable to assign lease {LeaseId} to agent {AgentId}, cancelling", leaseId, agent.Id);
-				await CancelLeaseAsync(waiter.Agent, job.Id, batch.Id);
+				await CancelLeaseAsync(waiter.Agent, job.Id, batch.Id, cancellationToken);
 			}
 			else
 			{
@@ -823,7 +824,7 @@ namespace Horde.Server.Jobs
 				_logger.LogInformation("Failed to assign job {JobId}, batch {BatchId} to agent {AgentId}. Refreshing queue entries.", job.Id, batch.Id, agent.Id);
 
 				// Get the new copy of the job
-				newJob = await _jobs.GetAsync(job.Id);
+				newJob = await _jobs.GetAsync(job.Id, cancellationToken);
 				if (newJob == null)
 				{
 					lock (_lockObject)
@@ -838,7 +839,7 @@ namespace Horde.Server.Jobs
 				else
 				{
 					_logger.LogInformation("Updating job {JobId} in queue from {OldUpdateIndex} -> {NewUpdateIndex}", job.Id, job.UpdateIndex, newJob.UpdateIndex);
-					IGraph graph = await _graphs.GetAsync(newJob.GraphHash);
+					IGraph graph = await _graphs.GetAsync(newJob.GraphHash, cancellationToken);
 					UpdateQueuedJob(newJob, graph);
 				}
 			}
@@ -852,7 +853,7 @@ namespace Horde.Server.Jobs
 			return null;
 		}
 
-		async Task<ExecuteJobTask?> CreateExecuteJobTaskAsync(LeaseId leaseId, StreamConfig streamConfig, IJob job, IJobStepBatch batch, IAgent agent, AgentWorkspaceInfo workspace, AgentWorkspaceInfo? autoSdkWorkspace, LogId logId)
+		async Task<ExecuteJobTask?> CreateExecuteJobTaskAsync(LeaseId leaseId, StreamConfig streamConfig, IJob job, IJobStepBatch batch, IAgent agent, AgentWorkspaceInfo workspace, AgentWorkspaceInfo? autoSdkWorkspace, LogId logId, CancellationToken cancellationToken)
 		{
 			// Get the lease name
 			StringBuilder leaseName = new StringBuilder($"{streamConfig.Name} - ");
@@ -890,7 +891,7 @@ namespace Horde.Server.Jobs
 			task.JobOptions = job.JobOptions;
 			task.NamespaceId = namespaceId.ToString();
 			task.StoragePrefix = storagePrefix;
-			task.Token = await _aclService.IssueBearerTokenAsync(claims, null);
+			task.Token = await _aclService.IssueBearerTokenAsync(claims, null, cancellationToken);
 
 			List<AgentWorkspace> workspaces = new ();
 
@@ -904,7 +905,7 @@ namespace Horde.Server.Jobs
 			{
 				autoSdkWorkspace.Method = workspace.Method;
 				
-				if (!await agent.TryAddWorkspaceMessageAsync(autoSdkWorkspace, cluster, _perforceLoadBalancer, workspaces))
+				if (!await agent.TryAddWorkspaceMessageAsync(autoSdkWorkspace, cluster, _perforceLoadBalancer, workspaces, cancellationToken))
 				{
 					return null;
 				}
@@ -912,7 +913,7 @@ namespace Horde.Server.Jobs
 				task.AutoSdkWorkspace = workspaces.Last();
 			}
 
-			if (!await agent.TryAddWorkspaceMessageAsync(workspace, cluster, _perforceLoadBalancer, workspaces))
+			if (!await agent.TryAddWorkspaceMessageAsync(workspace, cluster, _perforceLoadBalancer, workspaces, cancellationToken))
 			{
 				return null;
 			}
@@ -928,10 +929,11 @@ namespace Horde.Server.Jobs
 		/// <param name="job">The job being updated</param>
 		/// <param name="graph">Graph for the job</param>
 		/// <param name="oldLabelStates">Previous badge states for the job</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Async task</returns>
-		public async Task UpdateUgsBadgesAsync(IJob job, IGraph graph, IReadOnlyList<(LabelState, LabelOutcome)> oldLabelStates)
+		public async Task UpdateUgsBadgesAsync(IJob job, IGraph graph, IReadOnlyList<(LabelState, LabelOutcome)> oldLabelStates, CancellationToken cancellationToken)
 		{
-			await UpdateUgsBadgesAsync(job, graph, oldLabelStates, job.GetLabelStates(graph));
+			await UpdateUgsBadgesAsync(job, graph, oldLabelStates, job.GetLabelStates(graph), cancellationToken);
 		}
 
 		/// <summary>
@@ -941,8 +943,9 @@ namespace Horde.Server.Jobs
 		/// <param name="graph">Graph for the job</param>
 		/// <param name="oldLabelStates">Previous badge states for the job</param>
 		/// <param name="newLabelStates">The new badge states for the job</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Async task</returns>
-		public async Task UpdateUgsBadgesAsync(IJob job, IGraph graph, IReadOnlyList<(LabelState, LabelOutcome)> oldLabelStates, IReadOnlyList<(LabelState, LabelOutcome)> newLabelStates)
+		public async Task UpdateUgsBadgesAsync(IJob job, IGraph graph, IReadOnlyList<(LabelState, LabelOutcome)> oldLabelStates, IReadOnlyList<(LabelState, LabelOutcome)> newLabelStates, CancellationToken cancellationToken)
 		{
 			if (!job.ShowUgsBadges || job.PreflightChange != 0)
 			{
@@ -1015,7 +1018,7 @@ namespace Horde.Server.Jobs
 				IUgsMetadata? metadata;
 				if (!metadataCache.TryGetValue(change, out metadata))
 				{
-					metadata = await _ugsMetadataCollection.FindOrAddAsync(streamConfig.Name, change, label.UgsProject);
+					metadata = await _ugsMetadataCollection.FindOrAddAsync(streamConfig.Name, change, label.UgsProject, cancellationToken);
 					metadataCache[change] = metadata;
 				}
 
@@ -1026,7 +1029,7 @@ namespace Horde.Server.Jobs
 					// Apply the update
 					Uri labelUrl = new Uri(_settings.CurrentValue.DashboardUrl, $"job/{job.Id}?label={labelIdx}");
 					_logger.LogInformation("Updating state of badge {BadgeName} at {Change} to {NewState} ({LabelUrl})", label.UgsName, change, newState, labelUrl);
-					metadata = await _ugsMetadataCollection.UpdateBadgeAsync(metadata, label.UgsName!, labelUrl, newState);
+					metadata = await _ugsMetadataCollection.UpdateBadgeAsync(metadata, label.UgsName!, labelUrl, newState, cancellationToken);
 					metadataCache[change] = metadata;
 				}
 				catch (Exception e)
@@ -1037,9 +1040,9 @@ namespace Horde.Server.Jobs
 		}
 
 		/// <inheritdoc/>
-		public override async Task OnLeaseFinishedAsync(IAgent agent, LeaseId leaseId, ExecuteJobTask task, LeaseOutcome outcome, ReadOnlyMemory<byte> output, ILogger logger)
+		public override async Task OnLeaseFinishedAsync(IAgent agent, LeaseId leaseId, ExecuteJobTask task, LeaseOutcome outcome, ReadOnlyMemory<byte> output, ILogger logger, CancellationToken cancellationToken)
 		{
-			await base.OnLeaseFinishedAsync(agent, leaseId, task, outcome, output, logger);
+			await base.OnLeaseFinishedAsync(agent, leaseId, task, outcome, output, logger, cancellationToken);
 
 			if (outcome != LeaseOutcome.Success)
 			{
@@ -1050,7 +1053,7 @@ namespace Horde.Server.Jobs
 				// Update the batch
 				for (; ; )
 				{
-					IJob? job = await _jobs.GetAsync(jobId);
+					IJob? job = await _jobs.GetAsync(jobId, cancellationToken);
 					if (job == null)
 					{
 						break;
@@ -1080,8 +1083,8 @@ namespace Horde.Server.Jobs
 						error = JobStepBatchError.ExecutionError;
 					}
 					
-					IGraph graph = await _graphs.GetAsync(job.GraphHash);
-					job = await _jobs.TryFailBatchAsync(job, batchIdx, graph, error);
+					IGraph graph = await _graphs.GetAsync(job.GraphHash, cancellationToken);
+					job = await _jobs.TryFailBatchAsync(job, batchIdx, graph, error, cancellationToken);
 
 					if (job != null)
 					{
@@ -1102,7 +1105,7 @@ namespace Horde.Server.Jobs
 						if (runningStepIdx != -1)
 						{
 							await _jobStepRefs.UpdateAsync(job, batch, batch.Steps[runningStepIdx], graph, logger);
-							await _bisectTasks.UpdateAsync(job, batch, batch.Steps[runningStepIdx], graph, logger);
+							await _bisectTasks.UpdateAsync(job, batch, batch.Steps[runningStepIdx], graph, logger, cancellationToken);
 						}
 						break;
 					}
@@ -1116,15 +1119,16 @@ namespace Horde.Server.Jobs
 		/// <param name="agent"></param>
 		/// <param name="jobId"></param>
 		/// <param name="batchId"></param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		async Task CancelLeaseAsync(IAgent agent, JobId jobId, JobStepBatchId batchId)
+		async Task CancelLeaseAsync(IAgent agent, JobId jobId, JobStepBatchId batchId, CancellationToken cancellationToken)
 		{
 			_logger.LogInformation("Cancelling lease for job {JobId}, batch {BatchId}", jobId, batchId);
 
 			// Update the batch
 			for (; ; )
 			{
-				IJob? job = await _jobs.GetAsync(jobId);
+				IJob? job = await _jobs.GetAsync(jobId, cancellationToken);
 				if (job == null)
 				{
 					break;
@@ -1142,7 +1146,7 @@ namespace Horde.Server.Jobs
 					break;
 				}
 
-				IJob? newJob = await _jobs.TryCancelLeaseAsync(job, batchIdx);
+				IJob? newJob = await _jobs.TryCancelLeaseAsync(job, batchIdx, cancellationToken);
 				if (newJob != null)
 				{
 					break;

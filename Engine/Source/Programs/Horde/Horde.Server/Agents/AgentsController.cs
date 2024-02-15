@@ -20,6 +20,7 @@ using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Common;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Agents.Sessions;
+using System.Threading;
 
 namespace Horde.Server.Agents
 {
@@ -66,7 +67,7 @@ namespace Horde.Server.Agents
 				return Forbid(AgentAclAction.ListAgents);
 			}
 
-			List<IAgent> agents = await _agentService.FindAgentsAsync(poolId, modifiedAfter?.UtcDateTime, null, includeDeleted, index, count);
+			IReadOnlyList<IAgent> agents = await _agentService.FindAgentsAsync(poolId, modifiedAfter?.UtcDateTime, null, includeDeleted, index, count, HttpContext.RequestAborted);
 
 			List<object> responses = new List<object>();
 			foreach (IAgent agent in agents)
@@ -108,7 +109,7 @@ namespace Horde.Server.Agents
 		/// <summary>
 		/// Gets an individual agent response
 		/// </summary>
-		async ValueTask<object> GetAgentResponseAsync(IAgent agent, PropertyFilter? filter = null)
+		async ValueTask<object> GetAgentResponseAsync(IAgent agent, PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
 			double? rate = null;
 			if (_globalConfig.Value.Authorize(ServerAclAction.ViewCosts, User))
@@ -121,7 +122,7 @@ namespace Horde.Server.Agents
 			{
 				try
 				{
-					Dictionary<string, string>? details = await _agentService.GetPayloadDetailsAsync(lease.Payload);
+					Dictionary<string, string>? details = await _agentService.GetPayloadDetailsAsync(lease.Payload, cancellationToken);
 					leases.Add(CreateGetAgentLeaseResponse(lease, details));
 				}
 				catch (Exception e)
@@ -366,11 +367,12 @@ namespace Horde.Server.Agents
 		/// <param name="index">Index of the first result to return</param>
 		/// <param name="count">Number of results to return</param>
 		/// <param name="filter">Filter to apply to the properties</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Sessions </returns>
 		[HttpGet]
 		[Route("/api/v1/agents/{agentId}/leases")]
 		[ProducesResponseType(200, Type = typeof(List<GetAgentLeaseResponse>))]
-		public async Task<ActionResult<List<object>>> FindLeasesAsync(AgentId agentId, [FromQuery] SessionId? sessionId, [FromQuery] DateTimeOffset? startTime, [FromQuery] DateTimeOffset? finishTime, [FromQuery] int index = 0, [FromQuery] int count = 1000, [FromQuery] PropertyFilter? filter = null)
+		public async Task<ActionResult<List<object>>> FindLeasesAsync(AgentId agentId, [FromQuery] SessionId? sessionId, [FromQuery] DateTimeOffset? startTime, [FromQuery] DateTimeOffset? finishTime, [FromQuery] int index = 0, [FromQuery] int count = 1000, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
 			if (!_globalConfig.Value.Authorize(LeaseAclAction.ViewLeases, User))
 			{
@@ -383,7 +385,7 @@ namespace Horde.Server.Agents
 				return NotFound(agentId);
 			}
 
-			List<ILease> leases = await _agentService.FindLeasesAsync(agentId, sessionId, startTime?.UtcDateTime, finishTime?.UtcDateTime, index, count);
+			IReadOnlyList<ILease> leases = await _agentService.FindLeasesAsync(agentId, sessionId, startTime?.UtcDateTime, finishTime?.UtcDateTime, index, count, cancellationToken);
 
 			double? agentRate = null;
 			if (_globalConfig.Value.Authorize(ServerAclAction.ViewCosts, User))
@@ -394,7 +396,7 @@ namespace Horde.Server.Agents
 			List<object> responses = new List<object>();
 			foreach(ILease lease in leases)
 			{
-				Dictionary<string, string>? details = await _agentService.GetPayloadDetailsAsync(lease.Payload);
+				Dictionary<string, string>? details = await _agentService.GetPayloadDetailsAsync(lease.Payload, cancellationToken);
 				responses.Add(PropertyFilter.Apply(CreateGetAgentLeaseResponse(lease, details, agentRate), filter));
 			}
 
@@ -406,10 +408,11 @@ namespace Horde.Server.Agents
 		/// </summary>
 		/// <param name="agentId">Unique id of the agent to find</param>
 		/// <param name="leaseId">Unique id of the particular lease</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Lease matching the given id</returns>
 		[HttpGet]
 		[Route("/api/v1/agents/{agentId}/leases/{leaseId}")]
-		public async Task<ActionResult<GetAgentLeaseResponse>> GetLeaseAsync(AgentId agentId, LeaseId leaseId)
+		public async Task<ActionResult<GetAgentLeaseResponse>> GetLeaseAsync(AgentId agentId, LeaseId leaseId, CancellationToken cancellationToken = default)
 		{
 			if (!_globalConfig.Value.Authorize(LeaseAclAction.ViewLeases, User))
 			{
@@ -422,7 +425,7 @@ namespace Horde.Server.Agents
 				return NotFound(agentId);
 			}
 
-			ILease? lease = await _agentService.GetLeaseAsync(leaseId);
+			ILease? lease = await _agentService.GetLeaseAsync(leaseId, cancellationToken);
 			if (lease == null || lease.AgentId != agentId)
 			{
 				return NotFound(agentId, leaseId);
@@ -434,7 +437,7 @@ namespace Horde.Server.Agents
 				agentRate = await _agentService.GetRateAsync(agentId);
 			}
 
-			Dictionary<string, string>? details = await _agentService.GetPayloadDetailsAsync(lease.Payload);
+			Dictionary<string, string>? details = await _agentService.GetPayloadDetailsAsync(lease.Payload, cancellationToken);
 			return CreateGetAgentLeaseResponse(lease, details, agentRate);
 		}
 	}

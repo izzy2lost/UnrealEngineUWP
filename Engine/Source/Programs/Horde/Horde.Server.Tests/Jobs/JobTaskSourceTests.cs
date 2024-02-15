@@ -118,7 +118,7 @@ namespace Horde.Server.Tests.Jobs
 			IGraph graph = await GraphCollection.AppendAsync(null, newGroups);
 
 			// remove the default fixture jobs
-			List<IJob> jobs = await JobCollection.FindAsync();
+			IReadOnlyList<IJob> jobs = await JobCollection.FindAsync();
 			for (int i = 0; i < jobs.Count; i++)
 			{
 				await JobCollection.RemoveAsync(jobs[i]);

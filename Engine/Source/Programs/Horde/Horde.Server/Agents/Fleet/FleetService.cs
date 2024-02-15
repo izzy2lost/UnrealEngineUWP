@@ -151,15 +151,15 @@ namespace Horde.Server.Agents.Fleet
 			await _tickerHighFrequency.DisposeAsync();
 		}
 
-		internal async ValueTask TickLeaderAsync(CancellationToken stoppingToken)
+		internal async ValueTask TickLeaderAsync(CancellationToken cancellationToken)
 		{
 			TelemetrySpan span = _tracer.StartSpan($"{nameof(FleetService)}.{nameof(TickLeaderAsync)}");
 
 			try
 			{
-				List<PoolWithAgents> poolsWithAgents = await GetPoolsWithAgentsAsync();
+				List<PoolWithAgents> poolsWithAgents = await GetPoolsWithAgentsAsync(cancellationToken);
 			
-				ParallelOptions options = new () { MaxDegreeOfParallelism = MaxParallelTasks, CancellationToken = stoppingToken };
+				ParallelOptions options = new () { MaxDegreeOfParallelism = MaxParallelTasks, CancellationToken = cancellationToken };
 				await Parallel.ForEachAsync(poolsWithAgents, options, async (input, innerCt) =>
 				{
 					try
@@ -195,15 +195,15 @@ namespace Horde.Server.Agents.Fleet
 		internal async Task CalculateSizeAndScaleAsync(IPoolConfig pool, List<IAgent> agents, CancellationToken cancellationToken)
 		{
 			IPoolSizeStrategy sizeStrategy = CreatePoolSizeStrategy(pool);
-			PoolSizeResult result = await sizeStrategy.CalculatePoolSizeAsync(pool, agents);
+			PoolSizeResult result = await sizeStrategy.CalculatePoolSizeAsync(pool, agents, cancellationToken);
 			await ScalePoolAsync(pool, agents, result, cancellationToken);
 		}
 
-		internal async Task<List<PoolWithAgents>> GetPoolsWithAgentsAsync()
+		internal async Task<List<PoolWithAgents>> GetPoolsWithAgentsAsync(CancellationToken cancellationToken = default)
 		{
-			List<IAgent> agents = (await _agentCollection.FindAsync(status: AgentStatus.Ok, enabled: true)).Where(x => !x.RequestShutdown).ToList();
+			List<IAgent> agents = (await _agentCollection.FindAsync(status: AgentStatus.Ok, enabled: true, cancellationToken: cancellationToken)).Where(x => !x.RequestShutdown).ToList();
 			List<IAgent> GetAgentsInPool(PoolId poolId) => agents.FindAll(a => a.GetPools().Any(p => p == poolId));
-			List<IPoolConfig> pools = await _poolCollection.GetConfigsAsync();
+			IReadOnlyList<IPoolConfig> pools = await _poolCollection.GetConfigsAsync(cancellationToken);
 
 			return pools.Select(pool => new PoolWithAgents(pool, GetAgentsInPool(pool.Id))).ToList();
 		}
@@ -280,7 +280,7 @@ namespace Horde.Server.Agents.Fleet
 					else
 					{
 						result = await ExpandWithPendingShutdownsFirstAsync(pool, deltaAgentCount, (agentsToAdd) =>
-							fleetManager.ExpandPoolAsync(pool, agents, agentsToAdd, cancellationToken));
+							fleetManager.ExpandPoolAsync(pool, agents, agentsToAdd, cancellationToken), cancellationToken);
 						
 						scaleOutTime = _clock.UtcNow;
 					}
@@ -450,16 +450,17 @@ namespace Horde.Server.Agents.Fleet
 		/// </summary>
 		/// <param name="pool">Pool to cancel shutdowns in</param>
 		/// <param name="count">Number of shutdowns to cancel</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Number of pending shutdown cancelled</returns>
-		private async Task<int> CancelPendingShutdownsAsync(IPool pool, int count)
+		private async Task<int> CancelPendingShutdownsAsync(IPool pool, int count, CancellationToken cancellationToken)
 		{
-			List<IAgent> agents = await _agentCollection.FindAsync(status: AgentStatus.Ok, enabled: true, poolId: pool.Id);
+			IReadOnlyList<IAgent> agents = await _agentCollection.FindAsync(status: AgentStatus.Ok, enabled: true, poolId: pool.Id, cancellationToken: cancellationToken);
 			int numShutdownsCancelled = 0;
 			foreach (IAgent agent in agents)
 			{
 				if (agent.RequestShutdown && numShutdownsCancelled < count)
 				{
-					await _agentCollection.TryUpdateSettingsAsync(agent, requestShutdown: false);
+					await _agentCollection.TryUpdateSettingsAsync(agent, requestShutdown: false, cancellationToken: cancellationToken);
 					numShutdownsCancelled++;
 				}
 			}
@@ -467,9 +468,9 @@ namespace Horde.Server.Agents.Fleet
 			return numShutdownsCancelled;
 		}
 
-		private async Task<ScaleResult> ExpandWithPendingShutdownsFirstAsync(IPool pool, int agentsToAdd, Func<int, Task<ScaleResult>> scaleOutFunc)
+		private async Task<ScaleResult> ExpandWithPendingShutdownsFirstAsync(IPool pool, int agentsToAdd, Func<int, Task<ScaleResult>> scaleOutFunc, CancellationToken cancellationToken)
 		{
-			int numShutdownsCancelled = await CancelPendingShutdownsAsync(pool, agentsToAdd);
+			int numShutdownsCancelled = await CancelPendingShutdownsAsync(pool, agentsToAdd, cancellationToken);
 			agentsToAdd -= numShutdownsCancelled;
 
 			Activity.Current?.SetTag("numShutdownsCancelled", numShutdownsCancelled);

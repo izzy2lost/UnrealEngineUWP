@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Agents;
@@ -939,8 +940,9 @@ namespace Horde.Server.Agents
 		/// <param name="cluster">The global state</param>
 		/// <param name="loadBalancer">The Perforce load balancer</param>
 		/// <param name="workspaceMessages">List of messages</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The RPC message</returns>
-		public static async Task<bool> TryAddWorkspaceMessageAsync(this IAgent agent, AgentWorkspaceInfo workspace, PerforceCluster cluster, PerforceLoadBalancer loadBalancer, IList<AgentWorkspace> workspaceMessages)
+		public static async Task<bool> TryAddWorkspaceMessageAsync(this IAgent agent, AgentWorkspaceInfo workspace, PerforceCluster cluster, PerforceLoadBalancer loadBalancer, IList<AgentWorkspace> workspaceMessages, CancellationToken cancellationToken)
 		{
 			// Find a matching server, trying to use a previously selected one if possible
 			string? baseServerAndPort;
@@ -961,7 +963,7 @@ namespace Horde.Server.Agents
 					return false;
 				}
 
-				IPerforceServer? server = await loadBalancer.SelectServerAsync(cluster, agent);
+				IPerforceServer? server = await loadBalancer.SelectServerAsync(cluster, agent, cancellationToken);
 				if (server == null)
 				{
 					return false;

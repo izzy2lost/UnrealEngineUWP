@@ -163,7 +163,7 @@ namespace Horde.Server.Issues.External
 		/// <inheritdoc/>
 		public string? GetIssueUrl(string key) => $"{_jiraUrl}browse/{key}";
 
-		public Task<List<IExternalIssueProject>> GetProjectsAsync(StreamConfig streamConfig)
+		public Task<List<IExternalIssueProject>> GetProjectsAsync(StreamConfig streamConfig, CancellationToken cancellationToken)
 		{
 			HashSet<string> projectKeys = new HashSet<string>();
 			List<IExternalIssueProject> result = new List<IExternalIssueProject>();
@@ -192,7 +192,7 @@ namespace Horde.Server.Issues.External
 			return Task.FromResult(result);
 		}
 
-		async Task UpdateJiraProjectsAsync(string[] jiraProjectKeys)
+		async Task UpdateJiraProjectsAsync(string[] jiraProjectKeys, CancellationToken cancellationToken)
 		{
 			if (jiraProjectKeys.Length == 0)
 			{
@@ -218,7 +218,7 @@ namespace Horde.Server.Issues.External
 					continue;
 				}
 
-				string responseBody = await response.Content.ReadAsStringAsync();
+				string responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
 
 				JsonElement jsonProject = JsonSerializer.Deserialize<JsonElement>(responseBody);
 
@@ -253,7 +253,7 @@ namespace Horde.Server.Issues.External
 				// We do get components from the projects endpoint, though these don't contain the archived property :/
 				try
 				{
-					response = await _retryPolicy.ExecuteAsync(() => _client.GetAsync(new Uri(_jiraUrl, $"/rest/api/2/project/{projectKey}/components")));
+					response = await _retryPolicy.ExecuteAsync(() => _client.GetAsync(new Uri(_jiraUrl, $"/rest/api/2/project/{projectKey}/components"), cancellationToken));
 					response.EnsureSuccessStatusCode();
 				}
 				catch (Exception)
@@ -262,7 +262,7 @@ namespace Horde.Server.Issues.External
 					continue;
 				}
 
-				responseBody = await response.Content.ReadAsStringAsync();
+				responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
 
 				JsonElement jiraComponents = JsonSerializer.Deserialize<JsonElement>(responseBody);
 
@@ -289,7 +289,7 @@ namespace Horde.Server.Issues.External
 			}
 		}
 
-		async ValueTask TickAsync(CancellationToken stoppingToken)
+		async ValueTask TickAsync(CancellationToken cancellationToken)
 		{
 
 			HashSet<string> jiraProjectKeys = new HashSet<string>();
@@ -310,12 +310,12 @@ namespace Horde.Server.Issues.External
 			}
 
 			// update projects
-			await UpdateJiraProjectsAsync(jiraProjectKeys.ToArray());
+			await UpdateJiraProjectsAsync(jiraProjectKeys.ToArray(), cancellationToken);
 
 			HashSet<string> jiraKeys = new HashSet<string>();
 
 			// Refresh issues
-			List<IIssue> openIssues = await _issueService.Collection.FindIssuesAsync(resolved: false);
+			IReadOnlyList<IIssue> openIssues = await _issueService.Collection.FindIssuesAsync(resolved: false, cancellationToken: cancellationToken);
 			for (int idx = 0; idx < openIssues.Count; idx++)
 			{
 				IIssue openIssue = openIssues[idx];
@@ -325,14 +325,14 @@ namespace Horde.Server.Issues.External
 				}
 			}
 
-			await GetIssuesAsync(jiraKeys.ToArray());
+			await GetIssuesAsync(jiraKeys.ToArray(), cancellationToken);
 
 		}
 
-		public async Task<(string? key, string? url)> CreateIssueAsync(IUser user, string? externalIssueUser, int issueId, string summary, string projectId, string componentId, string issueType, string? description, string? hordeIssueLink)
+		public async Task<(string? key, string? url)> CreateIssueAsync(IUser user, string? externalIssueUser, int issueId, string summary, string projectId, string componentId, string issueType, string? description, string? hordeIssueLink, CancellationToken cancellationToken)
 		{
 
-			IIssue? issue = await _issueService.Collection.GetIssueAsync(issueId);
+			IIssue? issue = await _issueService.Collection.GetIssueAsync(issueId, cancellationToken);
 			if (issue == null)
 			{
 				throw new Exception($"Issue not found: {issueId}");
@@ -379,7 +379,7 @@ namespace Horde.Server.Issues.External
 
 			response.EnsureSuccessStatusCode();
 
-			string responseBody = await response.Content.ReadAsStringAsync();
+			string responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
 
 			JiraCreateResponse? jiraResponse = JsonSerializer.Deserialize<JiraCreateResponse>(responseBody, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
@@ -388,7 +388,7 @@ namespace Horde.Server.Issues.External
 				throw new Exception($"Unable to parse returned jira json: {responseBody}");
 			}
 
-			await _issueService.UpdateIssueAsync(issueId, externalIssueKey: jiraResponse.Key, initiatedById: user.Id);
+			await _issueService.UpdateIssueAsync(issueId, externalIssueKey: jiraResponse.Key, initiatedById: user.Id, cancellationToken: cancellationToken);
 
 			// add the user as a watcher to the newly created issue
 			if (externalIssueUser != null)
@@ -410,7 +410,7 @@ namespace Horde.Server.Issues.External
 		}
 
 		/// <inheritdoc/>
-		public async Task<List<IExternalIssue>> GetIssuesAsync(string[] jiraKeys)
+		public async Task<List<IExternalIssue>> GetIssuesAsync(string[] jiraKeys, CancellationToken cancellationToken)
 		{
 			List<IExternalIssue> result = new List<IExternalIssue>();
 
@@ -440,14 +440,14 @@ namespace Horde.Server.Issues.External
 			{
 				Uri uri = new Uri(_jiraUrl, $"/rest/api/2/search?jql=issueKey%20in%20({String.Join(",", queryJiras)})&fields=assignee,status,resolution,priority&maxResults={queryJiras.Count}");
 
-				HttpResponseMessage response = await _retryPolicy.ExecuteAsync(() => _client.GetAsync(uri));
+				HttpResponseMessage response = await _retryPolicy.ExecuteAsync(ctx => _client.GetAsync(uri, ctx), cancellationToken);
 				if (!response.IsSuccessStatusCode)
 				{
-					_logger.LogWarning("GET to {Uri} returned {Code} ({Response})", uri, response.StatusCode, await response.Content.ReadAsStringAsync());
+					_logger.LogWarning("GET to {Uri} returned {Code} ({Response})", uri, response.StatusCode, await response.Content.ReadAsStringAsync(cancellationToken));
 					return result;
 				}
 
-				byte[] data = await response.Content.ReadAsByteArrayAsync();
+				byte[] data = await response.Content.ReadAsByteArrayAsync(cancellationToken);
 				IssueQueryResponse? jiras = JsonSerializer.Deserialize<IssueQueryResponse>(data.AsSpan(), new JsonSerializerOptions() { PropertyNameCaseInsensitive = true });
 
 				if (jiras != null)

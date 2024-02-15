@@ -148,7 +148,7 @@ namespace Horde.Server.Ddc
 			return identifierDecompressedPayload;
 		}
 
-		public static async Task<(BlobContents, string)> GetCompressedObjectAsync(this IBlobService blobService, NamespaceId ns, ContentId contentId, IServiceProvider provider, bool supportsRedirectUri = false)
+		public static async Task<(BlobContents, string)> GetCompressedObjectAsync(this IBlobService blobService, NamespaceId ns, ContentId contentId, IServiceProvider provider, bool supportsRedirectUri = false, CancellationToken cancellationToken = default)
 		{
 			IContentIdService contentIdStore = provider.GetService<IContentIdService>()!;
 			Tracer tracer = provider.GetService<Tracer>()!;
@@ -170,7 +170,7 @@ namespace Horde.Server.Ddc
 					mimeType = MediaTypeNames.Application.Octet;
 				}
 
-				return (await blobService.GetObjectAsync(ns, blobToReturn, supportsRedirectUri: supportsRedirectUri), mimeType);
+				return (await blobService.GetObjectAsync(ns, blobToReturn, supportsRedirectUri: supportsRedirectUri, cancellationToken: cancellationToken), mimeType);
 			}
 
 			// chunked content, combine the chunks into a single stream
@@ -179,7 +179,7 @@ namespace Horde.Server.Ddc
 			for (int i = 0; i < chunks.Length; i++)
 			{
 				// even if it was requested to support redirect, since we need to combine the chunks using redirects is not possible
-				tasks[i] = blobService.GetObjectAsync(ns, chunks[i], supportsRedirectUri: false);
+				tasks[i] = blobService.GetObjectAsync(ns, chunks[i], supportsRedirectUri: false, cancellationToken: cancellationToken);
 			}
 
 			MemoryStream ms = new MemoryStream();
@@ -187,7 +187,7 @@ namespace Horde.Server.Ddc
 			{
 				BlobContents blob = await task;
 				await using Stream s = blob.Stream;
-				await s.CopyToAsync(ms);
+				await s.CopyToAsync(ms, cancellationToken);
 			}
 
 			ms.Seek(0, SeekOrigin.Begin);

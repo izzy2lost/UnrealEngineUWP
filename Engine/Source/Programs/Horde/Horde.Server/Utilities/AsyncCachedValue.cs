@@ -4,6 +4,7 @@ using System;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Core;
 
 namespace Horde.Server.Utilities
 {
@@ -11,7 +12,7 @@ namespace Horde.Server.Utilities
 	/// Caches a value and asynchronously updates it after a period of time
 	/// </summary>
 	/// <typeparam name="T"></typeparam>
-	public class AsyncCachedValue<T>
+	public sealed class AsyncCachedValue<T> : IAsyncDisposable
 	{
 		class State
 		{
@@ -28,6 +29,8 @@ namespace Horde.Server.Utilities
 			}
 		}
 
+		CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
+
 		/// <summary>
 		/// The current state
 		/// </summary>
@@ -36,7 +39,7 @@ namespace Horde.Server.Utilities
 		/// <summary>
 		/// Generator for the new value
 		/// </summary>
-		readonly Func<Task<T>> _generator;
+		readonly Func<CancellationToken, Task<T>> _generator;
 
 		/// <summary>
 		/// Time at which to start to refresh the value
@@ -51,7 +54,7 @@ namespace Horde.Server.Utilities
 		/// <summary>
 		/// Default constructor
 		/// </summary>
-		public AsyncCachedValue(Func<Task<T>> generator, TimeSpan refreshTime)
+		public AsyncCachedValue(Func<CancellationToken, Task<T>> generator, TimeSpan refreshTime)
 			: this(generator, refreshTime * 0.75, refreshTime)
 		{
 		}
@@ -59,11 +62,27 @@ namespace Horde.Server.Utilities
 		/// <summary>
 		/// Default constructor
 		/// </summary>
-		public AsyncCachedValue(Func<Task<T>> generator, TimeSpan minRefreshTime, TimeSpan maxRefreshTime)
+		public AsyncCachedValue(Func<CancellationToken, Task<T>> generator, TimeSpan minRefreshTime, TimeSpan maxRefreshTime)
 		{
 			_generator = generator;
 			_minRefreshTime = minRefreshTime;
 			_maxRefreshTime = maxRefreshTime;
+		}
+
+		/// <inheritdoc/>
+		public async ValueTask DisposeAsync()
+		{
+			if (_current != null)
+			{
+				await _cancellationTokenSource.CancelAsync();
+				await _current.IgnoreCanceledExceptionsAsync();
+			}
+
+			if (_cancellationTokenSource != null)
+			{
+				_cancellationTokenSource.Dispose();
+				_cancellationTokenSource = null!;
+			}
 		}
 
 		/// <summary>
@@ -148,7 +167,7 @@ namespace Horde.Server.Utilities
 
 		async Task<State> CreateStateAsync()
 		{
-			return new State(await _generator());
+			return new State(await _generator(_cancellationTokenSource.Token));
 		}
 	}
 }

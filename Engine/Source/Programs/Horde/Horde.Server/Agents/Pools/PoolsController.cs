@@ -3,13 +3,16 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde;
 using EpicGames.Horde.Agents.Pools;
 using Horde.Server.Acls;
 using Horde.Server.Agents.Fleet;
+using Horde.Server.Agents.Utilization;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
+using HordeCommon;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -25,14 +28,20 @@ namespace Horde.Server.Agents.Pools
 	public class PoolsController : HordeControllerBase
 	{
 		readonly IPoolCollection _poolCollection;
+		readonly IAgentCollection _agentCollection;
+		readonly IUtilizationDataCollection _utilizationDataCollection;
+		readonly IClock _clock;
 		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public PoolsController(IPoolCollection poolCollection, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public PoolsController(IPoolCollection poolCollection, IAgentCollection agentCollection, IUtilizationDataCollection utilizationDataCollection, IClock clock, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
 			_poolCollection = poolCollection;
+			_agentCollection = agentCollection;
+			_utilizationDataCollection = utilizationDataCollection;
+			_clock = clock;
 			_globalConfig = globalConfig;
 		}
 
@@ -87,23 +96,132 @@ namespace Horde.Server.Agents.Pools
 		/// Query all the pools
 		/// </summary>
 		/// <param name="filter">Filter for the properties to return</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Information about all the pools</returns>
 		[HttpGet]
 		[Route("/api/v1/pools")]
 		[ProducesResponseType(typeof(List<GetPoolResponse>), 200)]
-		public async Task<ActionResult<List<object>>> GetPoolsAsync([FromQuery] PropertyFilter? filter = null)
+		public async Task<ActionResult<List<object>>> GetPoolsAsync([FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
 			if (!_globalConfig.Value.Authorize(PoolAclAction.ListPools, User))
 			{
 				return Forbid(PoolAclAction.ListPools);
 			}
 
-			List<IPoolConfig> poolConfigs = await _poolCollection.GetConfigsAsync();
+			IReadOnlyList<IPoolConfig> poolConfigs = await _poolCollection.GetConfigsAsync(cancellationToken);
 
 			List<object> responses = new List<object>();
 			foreach (IPoolConfig poolConfig in poolConfigs)
 			{
 				responses.Add(new GetPoolResponse(poolConfig).ApplyFilter(filter));
+			}
+			return responses;
+		}
+
+		class PoolStats
+		{
+			public const int NumUtilizationSamples = 6;
+
+			public int NumAgents { get; set; }
+			public int NumReady { get; set; }
+			public int NumOffline { get; set; }
+			public int NumDisabled { get; set; }
+			public List<IAgent> Agents { get; } = new List<IAgent>();
+			public double[] Utilization { get; } = new double[NumUtilizationSamples];
+		}
+
+		/// <summary>
+		/// Query all the pools
+		/// </summary>
+		/// <param name="filter">Filter for the properties to return</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Information about all the pools</returns>
+		[HttpGet]
+		[Route("/api/v2/pools")]
+		[ProducesResponseType(typeof(List<GetPoolResponse>), 200)]
+		public async Task<ActionResult<List<object>>> GetPoolSummariesAsync([FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
+		{
+			if (!_globalConfig.Value.Authorize(PoolAclAction.ListPools, User))
+			{
+				return Forbid(PoolAclAction.ListPools);
+			}
+
+			DateTime utcNow = _clock.UtcNow;
+
+			IReadOnlyList<IPoolConfig> poolConfigs = await _poolCollection.GetConfigsAsync(cancellationToken);
+			Dictionary<PoolId, PoolStats> poolIdToStats = poolConfigs.ToDictionary(x => x.Id, x => new PoolStats());
+			
+			const int MaxAgentsPerPool = 5;
+
+			IReadOnlyList<IAgent> agents = await _agentCollection.FindAsync(cancellationToken: cancellationToken);
+			foreach (IAgent agent in agents)
+			{
+				foreach (PoolId poolId in agent.GetPools())
+				{
+					PoolStats? poolStats;
+					if (poolIdToStats.TryGetValue(poolId, out poolStats))
+					{
+						poolStats.NumAgents++;
+
+						if (agent.Leases.Count == 0)
+						{
+							poolStats.NumReady++;
+						}
+						if (!agent.IsSessionValid(utcNow))
+						{
+							poolStats.NumOffline++;
+						}
+						if (!agent.Enabled)
+						{
+							poolStats.NumDisabled++;
+						}
+
+						if (poolStats.Agents.Count < MaxAgentsPerPool)
+						{
+							poolStats.Agents.Add(agent);
+						}
+					}
+				}
+			}
+
+			IReadOnlyList<IUtilizationData> utilizationDataList = await _utilizationDataCollection.GetUtilizationDataAsync(count: PoolStats.NumUtilizationSamples, cancellationToken: cancellationToken);
+			for(int sampleIdx = 0; sampleIdx < utilizationDataList.Count; sampleIdx++)
+			{
+				IUtilizationData utilizationData = utilizationDataList[sampleIdx];
+				foreach (IPoolUtilizationData poolUtilizationData in utilizationData.Pools)
+				{
+					if(poolUtilizationData.NumAgents > 0)
+					{
+						PoolStats? poolStats;
+						if (poolIdToStats.TryGetValue(poolUtilizationData.PoolId, out poolStats))
+						{
+							double activeTime = poolUtilizationData.AdminTime + poolUtilizationData.HibernatingTime + poolUtilizationData.OtherTime + poolUtilizationData.Streams.Sum(x => x.Time);
+							poolStats.Utilization[sampleIdx] = activeTime / poolUtilizationData.NumAgents;
+						}
+					}
+				}
+			}
+
+			List<object> responses = new List<object>();
+			foreach (IPoolConfig poolConfig in poolConfigs)
+			{
+				PoolStats? poolStats;
+				if (!poolIdToStats.TryGetValue(poolConfig.Id, out poolStats))
+				{
+					poolStats = new PoolStats();
+				}
+
+				List<GetPoolAgentSummaryResponse> agentResponses = new List<GetPoolAgentSummaryResponse>();
+				foreach (IAgent agent in poolStats.Agents)
+				{
+					bool? idle = (agent.Leases.Count == 0)? (bool?)true : null;
+					bool? offline = agent.IsSessionValid(utcNow) ? (bool?)null : true;
+					bool? disabled = agent.Enabled? (bool?)null : true;
+					agentResponses.Add(new GetPoolAgentSummaryResponse(agent.Id, idle, offline, disabled));
+				}
+
+				GetPoolSummaryResponse response = new GetPoolSummaryResponse(poolConfig.Id, poolConfig.Name, poolConfig.Condition, poolConfig.GetColorValue(), poolStats.NumAgents, poolStats.NumReady, poolStats.NumOffline, poolStats.NumDisabled, poolConfig.EnableAutoscaling, agentResponses);
+				responses.Add(response.ApplyFilter(filter));
 			}
 			return responses;
 		}

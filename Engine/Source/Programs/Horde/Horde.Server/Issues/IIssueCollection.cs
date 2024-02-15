@@ -15,6 +15,7 @@ using EpicGames.Horde.Streams;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
+using System.Threading;
 
 namespace Horde.Server.Issues
 {
@@ -436,22 +437,25 @@ namespace Horde.Server.Issues
 		/// Creates a new issue
 		/// </summary>
 		/// <param name="summary">Summary text for the issue</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The new issue instance</returns>
-		Task<IIssue> AddIssueAsync(string summary);
+		Task<IIssue> AddIssueAsync(string summary, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Retrieves and issue by id
 		/// </summary>
 		/// <param name="issueId">Unique id of the issue</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The issue matching the given id, or null</returns>
-		Task<IIssue?> GetIssueAsync(int issueId);
+		Task<IIssue?> GetIssueAsync(int issueId, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Finds the suspects for an issue
 		/// </summary>
 		/// <param name="issueId">The issue to retrieve suspects for</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of suspects</returns>
-		Task<List<IIssueSuspect>> FindSuspectsAsync(int issueId);
+		Task<IReadOnlyList<IIssueSuspect>> FindSuspectsAsync(int issueId, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Searches for open issues
@@ -465,15 +469,17 @@ namespace Horde.Server.Issues
 		/// <param name="promoted">Include only promoted issues</param>
 		/// <param name="index">Index within the results to return</param>
 		/// <param name="count">Number of results</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of streams open in the given stream at the given changelist</returns>
-		Task<List<IIssue>> FindIssuesAsync(IEnumerable<int>? ids = null, UserId? ownerId = null, StreamId? streamId = null, int? minChange = null, int? maxChange = null, bool? resolved = null, bool? promoted = null, int? index = null, int? count = null);
+		Task<IReadOnlyList<IIssue>> FindIssuesAsync(IEnumerable<int>? ids = null, UserId? ownerId = null, StreamId? streamId = null, int? minChange = null, int? maxChange = null, bool? resolved = null, bool? promoted = null, int? index = null, int? count = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Searches for open issues
 		/// </summary>
 		/// <param name="changes">List of suspect changes</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of issues that are affected by the given changes</returns>
-		Task<List<IIssue>> FindIssuesForChangesAsync(List<int> changes);
+		Task<IReadOnlyList<IIssue>> FindIssuesForChangesAsync(List<int> changes, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Try to update the state of an issue
@@ -497,8 +503,9 @@ namespace Horde.Server.Issues
 		/// <param name="newQuarantinedById">The user that quarantined the issue</param>
 		/// <param name="newForceClosedById">The user that force closed the issue</param>
 		/// <param name="newWorkflowThreadUrl">The workflow thread url associated with the issue</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>True if the issue was updated</returns>
-		Task<IIssue?> TryUpdateIssueAsync(IIssue issue, UserId? initiatedByUserId, IssueSeverity? newSeverity = null, string? newSummary = null, string? newUserSummary = null, string? newDescription = null, bool? newPromoted = null, UserId? newOwnerId = null, UserId? newNominatedById = null, bool? newAcknowledged = null, UserId? newDeclinedById = null, int? newFixChange = null, UserId? newResolvedById = null, List<ObjectId>? newExcludeSpanIds = null, DateTime? newLastSeenAt = null, string? newExternalIssueKey = null, UserId? newQuarantinedById = null, UserId? newForceClosedById = null, Uri? newWorkflowThreadUrl = null);
+		Task<IIssue?> TryUpdateIssueAsync(IIssue issue, UserId? initiatedByUserId, IssueSeverity? newSeverity = null, string? newSummary = null, string? newUserSummary = null, string? newDescription = null, bool? newPromoted = null, UserId? newOwnerId = null, UserId? newNominatedById = null, bool? newAcknowledged = null, UserId? newDeclinedById = null, int? newFixChange = null, UserId? newResolvedById = null, List<ObjectId>? newExcludeSpanIds = null, DateTime? newLastSeenAt = null, string? newExternalIssueKey = null, UserId? newQuarantinedById = null, UserId? newForceClosedById = null, Uri? newWorkflowThreadUrl = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Updates derived data for an issue (ie. data computed from the spans attached to it). Also clears the issue's 'modified' state.
@@ -512,8 +519,9 @@ namespace Horde.Server.Issues
 		/// <param name="newResolvedAt">Time for the last resolved change</param>
 		/// <param name="newVerifiedAt">Time that the issue was resolved</param>
 		/// <param name="newLastSeenAt">Last time the issue was seen</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Updated issue, or null if the issue is modified in the interim</returns>
-		Task<IIssue?> TryUpdateIssueDerivedDataAsync(IIssue issue, string newSummary, IssueSeverity newSeverity, List<NewIssueFingerprint> newFingerprints, List<NewIssueStream> newStreams, List<NewIssueSuspectData> newSuspects, DateTime? newResolvedAt, DateTime? newVerifiedAt, DateTime newLastSeenAt);
+		Task<IIssue?> TryUpdateIssueDerivedDataAsync(IIssue issue, string newSummary, IssueSeverity newSeverity, List<NewIssueFingerprint> newFingerprints, List<NewIssueStream> newStreams, List<NewIssueSuspectData> newSuspects, DateTime? newResolvedAt, DateTime? newVerifiedAt, DateTime newLastSeenAt, CancellationToken cancellationToken = default);
 
 		#endregion
 
@@ -524,15 +532,17 @@ namespace Horde.Server.Issues
 		/// </summary>
 		/// <param name="issueId">The issue that the span belongs to</param>
 		/// <param name="newSpan">Information about the new span</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>New span, or null if the sequence token is not valid</returns>
-		Task<IIssueSpan> AddSpanAsync(int issueId, NewIssueSpanData newSpan);
+		Task<IIssueSpan> AddSpanAsync(int issueId, NewIssueSpanData newSpan, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Gets a particular span
 		/// </summary>
 		/// <param name="spanId">Unique id of the span</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>New span, or null if the sequence token is not valid</returns>
-		Task<IIssueSpan?> GetSpanAsync(ObjectId spanId);
+		Task<IIssueSpan?> GetSpanAsync(ObjectId spanId, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Updates the given span. Note that data in the span's issue may be derived from this, and the issue should be updated afterwards.
@@ -543,22 +553,25 @@ namespace Horde.Server.Issues
 		/// <param name="newNextSuccess">New next successful step</param>
 		/// <param name="newSuspects">New suspects for the span</param>
 		/// <param name="newIssueId">The new issue id for this span</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The updated span, or null on failure</returns>
-		Task<IIssueSpan?> TryUpdateSpanAsync(IIssueSpan span, NewIssueStepData? newLastSuccess = null, NewIssueStepData? newFailure = null, NewIssueStepData? newNextSuccess = null, List<NewIssueSpanSuspectData>? newSuspects = null, int? newIssueId = null);
+		Task<IIssueSpan?> TryUpdateSpanAsync(IIssueSpan span, NewIssueStepData? newLastSuccess = null, NewIssueStepData? newFailure = null, NewIssueStepData? newNextSuccess = null, List<NewIssueSpanSuspectData>? newSuspects = null, int? newIssueId = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Gets all the spans for a particular issue
 		/// </summary>
 		/// <param name="issueId">Issue id</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of spans</returns>
-		Task<List<IIssueSpan>> FindSpansAsync(int issueId);
+		Task<IReadOnlyList<IIssueSpan>> FindSpansAsync(int issueId, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Retrieves multiple spans
 		/// </summary>
 		/// <param name="spanIds">The span ids</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of spans</returns>
-		Task<List<IIssueSpan>> FindSpansAsync(IEnumerable<ObjectId> spanIds);
+		Task<IReadOnlyList<IIssueSpan>> FindSpansAsync(IEnumerable<ObjectId> spanIds, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Finds the open issues for a given stream
@@ -567,8 +580,9 @@ namespace Horde.Server.Issues
 		/// <param name="templateId">The template id</param>
 		/// <param name="name">Name of the node</param>
 		/// <param name="change">Changelist number to query</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of open issues</returns>
-		Task<List<IIssueSpan>> FindOpenSpansAsync(StreamId streamId, TemplateId templateId, string name, int change);
+		Task<IReadOnlyList<IIssueSpan>> FindOpenSpansAsync(StreamId streamId, TemplateId templateId, string name, int change, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Searches for open issues
@@ -581,8 +595,9 @@ namespace Horde.Server.Issues
 		/// <param name="resolved">Include issues that are now resolved</param>
 		/// <param name="index">Index within the results to return</param>
 		/// <param name="count">Number of results</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of streams open in the given stream at the given changelist</returns>
-		Task<List<IIssueSpan>> FindSpansAsync(IEnumerable<ObjectId>? ids = null, IEnumerable<int>? issueIds = null, StreamId? streamId = null, int? minChange = null, int? maxChange = null, bool? resolved = null, int? index = null, int? count = null);
+		Task<IReadOnlyList<IIssueSpan>> FindSpansAsync(IEnumerable<ObjectId>? ids = null, IEnumerable<int>? issueIds = null, StreamId? streamId = null, int? minChange = null, int? maxChange = null, bool? resolved = null, int? index = null, int? count = null, CancellationToken cancellationToken = default);
 
 		#endregion
 
@@ -593,15 +608,17 @@ namespace Horde.Server.Issues
 		/// </summary>
 		/// <param name="spanId">Initial span for the step</param>
 		/// <param name="newStep">Information about the new step</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>New step object</returns>
-		Task<IIssueStep> AddStepAsync(ObjectId spanId, NewIssueStepData newStep);
+		Task<IIssueStep> AddStepAsync(ObjectId spanId, NewIssueStepData newStep, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Find steps for the given spans
 		/// </summary>
 		/// <param name="spanIds">Span ids</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of steps</returns>
-		Task<List<IIssueStep>> FindStepsAsync(IEnumerable<ObjectId> spanIds);
+		Task<IReadOnlyList<IIssueStep>> FindStepsAsync(IEnumerable<ObjectId> spanIds, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Find steps for the given spans
@@ -609,8 +626,9 @@ namespace Horde.Server.Issues
 		/// <param name="jobId">The job id</param>
 		/// <param name="batchId">The batch id</param>
 		/// <param name="stepId">The step id</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of steps</returns>
-		Task<List<IIssueStep>> FindStepsAsync(JobId jobId, JobStepBatchId? batchId, JobStepId? stepId);
+		Task<IReadOnlyList<IIssueStep>> FindStepsAsync(JobId jobId, JobStepBatchId? batchId, JobStepId? stepId, CancellationToken cancellationToken = default);
 
 		#endregion
 
@@ -632,10 +650,11 @@ namespace Horde.Server.Issues
 		/// </summary>
 		/// <param name="issueCollection"></param>
 		/// <param name="issue"></param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		public static Task<List<IIssueSuspect>> FindSuspectsAsync(this IIssueCollection issueCollection, IIssue issue)
+		public static Task<IReadOnlyList<IIssueSuspect>> FindSuspectsAsync(this IIssueCollection issueCollection, IIssue issue, CancellationToken cancellationToken = default)
 		{
-			return issueCollection.FindSuspectsAsync(issue.Id);
+			return issueCollection.FindSuspectsAsync(issue.Id, cancellationToken);
 		}
 
 		/// <summary>
@@ -643,10 +662,11 @@ namespace Horde.Server.Issues
 		/// </summary>
 		/// <param name="issueCollection"></param>
 		/// <param name="spanId">Span ids</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of steps</returns>
-		public static Task<List<IIssueStep>> FindStepsAsync(this IIssueCollection issueCollection, ObjectId spanId)
+		public static Task<IReadOnlyList<IIssueStep>> FindStepsAsync(this IIssueCollection issueCollection, ObjectId spanId, CancellationToken cancellationToken = default)
 		{
-			return issueCollection.FindStepsAsync(new[] { spanId });
+			return issueCollection.FindStepsAsync(new[] { spanId }, cancellationToken);
 		}
 
 		/// <summary>
@@ -663,16 +683,17 @@ namespace Horde.Server.Issues
 		/// <param name="promoted">Whether to filter by promoted issues</param>
 		/// <param name="index">Index within the results to return</param>
 		/// <param name="count">Number of results</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		public static async Task<List<IIssue>> FindIssuesForJobAsync(this IIssueCollection issueCollection, IJob job, IGraph graph, JobStepId? stepId = null, JobStepBatchId? batchId = null, int? labelIdx = null, UserId? ownerId = null, bool? resolved = null, bool? promoted = null, int? index = null, int? count = null)
+		public static async Task<IReadOnlyList<IIssue>> FindIssuesForJobAsync(this IIssueCollection issueCollection, IJob job, IGraph graph, JobStepId? stepId = null, JobStepBatchId? batchId = null, int? labelIdx = null, UserId? ownerId = null, bool? resolved = null, bool? promoted = null, int? index = null, int? count = null, CancellationToken cancellationToken = default)
 		{
-			List<IIssueStep> steps = await issueCollection.FindStepsAsync(job.Id, batchId, stepId);
-			List<IIssueSpan> spans = await issueCollection.FindSpansAsync(steps.Select(x => x.SpanId));
+			IReadOnlyList<IIssueStep> steps = await issueCollection.FindStepsAsync(job.Id, batchId, stepId, cancellationToken);
+			IReadOnlyList<IIssueSpan> spans = await issueCollection.FindSpansAsync(steps.Select(x => x.SpanId), cancellationToken);
 
 			if (labelIdx != null)
 			{
 				HashSet<string> nodeNames = new HashSet<string>(job.GetNodesForLabel(graph, labelIdx.Value).Select(x => graph.GetNode(x).Name));
-				spans.RemoveAll(x => !nodeNames.Contains(x.NodeName));
+				spans = spans.Where(x => nodeNames.Contains(x.NodeName)).ToList();
 			}
 
 			List<int> issueIds = new List<int>(spans.Select(x => x.IssueId));
@@ -681,7 +702,7 @@ namespace Horde.Server.Issues
 				return new List<IIssue>();
 			}
 
-			return await issueCollection.FindIssuesAsync(ids: issueIds, ownerId: ownerId, resolved: resolved, promoted: promoted, index: index, count: count);
+			return await issueCollection.FindIssuesAsync(ids: issueIds, ownerId: ownerId, resolved: resolved, promoted: promoted, index: index, count: count, cancellationToken: cancellationToken);
 		}
 	}
 }

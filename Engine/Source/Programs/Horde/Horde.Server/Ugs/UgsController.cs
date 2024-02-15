@@ -151,23 +151,24 @@ namespace Horde.Server.Ugs
 		/// <param name="user"></param>
 		/// <param name="includeResolved">Whether to include resolved issues</param>
 		/// <param name="maxResults">Maximum number of results to return</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of matching agents</returns>
 		[HttpGet]
 		[Route("/ugs/api/issues")]
 		[ProducesResponseType(typeof(GetUgsIssueResponse), 200)]
-		public async Task<ActionResult<List<GetUgsIssueResponse>>> GetIssuesAsync([FromQuery] string? user = null, [FromQuery] bool includeResolved = false, [FromQuery] int maxResults = 100)
+		public async Task<ActionResult<List<GetUgsIssueResponse>>> GetIssuesAsync([FromQuery] string? user = null, [FromQuery] bool includeResolved = false, [FromQuery] int maxResults = 100, CancellationToken cancellationToken = default)
 		{
-			IUser? userInfo = (user != null) ? await _userCollection.FindUserByLoginAsync(user) : null;
+			IUser? userInfo = (user != null) ? await _userCollection.FindUserByLoginAsync(user, cancellationToken) : null;
 
 			List<GetUgsIssueResponse> responses = new List<GetUgsIssueResponse>();
 			if (includeResolved)
 			{
-				List<IIssue> issues = await _issueService.Collection.FindIssuesAsync(null, resolved: null, count: maxResults);
+				IReadOnlyList<IIssue> issues = await _issueService.Collection.FindIssuesAsync(null, resolved: null, count: maxResults, cancellationToken: cancellationToken);
 				foreach(IIssue issue in issues)
 				{
-					IIssueDetails details = await _issueService.GetIssueDetailsAsync(issue);
+					IIssueDetails details = await _issueService.GetIssueDetailsAsync(issue, cancellationToken);
 					bool notify = userInfo != null && details.Suspects.Any(x => x.AuthorId == userInfo.Id);
-					responses.Add(await CreateIssueResponseAsync(details, notify));
+					responses.Add(await CreateIssueResponseAsync(details, notify, cancellationToken));
 				}
 			}
 			else
@@ -182,7 +183,7 @@ namespace Horde.Server.Ugs
 					if (cachedOpenIssue.ShowNotifications())
 					{
 						bool notify = userInfo != null && cachedOpenIssue.IncludeForUser(userInfo.Id);
-						responses.Add(await CreateIssueResponseAsync(cachedOpenIssue, notify));
+						responses.Add(await CreateIssueResponseAsync(cachedOpenIssue, notify, cancellationToken));
 					}
 				}
 			}
@@ -194,19 +195,20 @@ namespace Horde.Server.Ugs
 		/// </summary>
 		/// <param name="issueId">Id of the issue to get information about</param>
 		/// <param name="filter">Filter for the properties to return</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of matching agents</returns>
 		[HttpGet]
 		[Route("/ugs/api/issues/{issueId}")]
 		[ProducesResponseType(typeof(GetUgsIssueBuildResponse), 200)]
-		public async Task<ActionResult<object>> GetIssueAsync(int issueId, [FromQuery] PropertyFilter? filter = null)
+		public async Task<ActionResult<object>> GetIssueAsync(int issueId, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
-			IIssueDetails? issue = await _issueService.GetIssueDetailsAsync(issueId);
+			IIssueDetails? issue = await _issueService.GetIssueDetailsAsync(issueId, cancellationToken);
 			if (issue == null)
 			{
 				return NotFound();
 			}
 
-			return PropertyFilter.Apply(await CreateIssueResponseAsync(issue, false), filter);
+			return PropertyFilter.Apply(await CreateIssueResponseAsync(issue, false, cancellationToken), filter);
 		}
 
 		/// <summary>
@@ -214,13 +216,14 @@ namespace Horde.Server.Ugs
 		/// </summary>
 		/// <param name="issueId">Id of the issue to get information about</param>
 		/// <param name="filter">Filter for the properties to return</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of matching agents</returns>
 		[HttpGet]
 		[Route("/ugs/api/issues/{issueId}/builds")]
 		[ProducesResponseType(typeof(List<GetUgsIssueBuildResponse>), 200)]
-		public async Task<ActionResult<List<object>>> GetIssueBuildsAsync(int issueId, [FromQuery] PropertyFilter? filter = null)
+		public async Task<ActionResult<List<object>>> GetIssueBuildsAsync(int issueId, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
-			IIssueDetails? issue = await _issueService.GetCachedIssueDetailsAsync(issueId);
+			IIssueDetails? issue = await _issueService.GetCachedIssueDetailsAsync(issueId, cancellationToken);
 			if (issue == null)
 			{
 				return NotFound();
@@ -261,7 +264,7 @@ namespace Horde.Server.Ugs
 
 			Dictionary<LogId, ILogFile?> logFiles = new Dictionary<LogId, ILogFile?>();
 
-			List<IIssueSpan> spans = await _issueService.Collection.FindSpansAsync(issueId);
+			IReadOnlyList<IIssueSpan> spans = await _issueService.Collection.FindSpansAsync(issueId, cancellationToken);
 			List<ILogEvent> events = await _logFileService.FindEventsForSpansAsync(spans.Select(x => x.Id), null, 0, count: 10, cancellationToken);
 
 			foreach (ILogEvent logEvent in events)
@@ -291,13 +294,14 @@ namespace Horde.Server.Ugs
 		/// </summary>
 		/// <param name="details">The issue to get a URL for</param>
 		/// <param name="notify">Whether to show notifications for this issue</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The issue response</returns>
-		async Task<GetUgsIssueResponse> CreateIssueResponseAsync(IIssueDetails details, bool notify)
+		async Task<GetUgsIssueResponse> CreateIssueResponseAsync(IIssueDetails details, bool notify, CancellationToken cancellationToken)
 		{
 			Uri? buildUrl = GetIssueBuildUrl(details);
 
-			IUser? owner = details.Issue.OwnerId.HasValue ? await _userCollection.GetCachedUserAsync(details.Issue.OwnerId.Value) : null;
-			IUser? nominatedBy = details.Issue.NominatedById.HasValue ? await _userCollection.GetCachedUserAsync(details.Issue.NominatedById.Value) : null;
+			IUser? owner = details.Issue.OwnerId.HasValue ? await _userCollection.GetCachedUserAsync(details.Issue.OwnerId.Value, cancellationToken) : null;
+			IUser? nominatedBy = details.Issue.NominatedById.HasValue ? await _userCollection.GetCachedUserAsync(details.Issue.NominatedById.Value, cancellationToken) : null;
 
 			return new GetUgsIssueResponse(details, owner, nominatedBy, notify, buildUrl);
 		}

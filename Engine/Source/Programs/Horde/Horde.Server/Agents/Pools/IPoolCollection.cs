@@ -21,16 +21,17 @@ namespace Horde.Server.Agents.Pools
 		/// <param name="id">Unique id for the new pool</param>
 		/// <param name="name">Name of the new pool</param>
 		/// <param name="options">Options for the new pool</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The new pool document</returns>
 		[Obsolete("Pools should be configured through globals.json")]
-		Task CreateConfigAsync(PoolId id, string name, CreatePoolConfigOptions options);
+		Task CreateConfigAsync(PoolId id, string name, CreatePoolConfigOptions options, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Enumerates all the pools
 		/// </summary>
-		/// <param name="cancellationToken"></param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The pool documents</returns>
-		Task<List<IPoolConfig>> GetConfigsAsync(CancellationToken cancellationToken = default);
+		Task<IReadOnlyList<IPoolConfig>> GetConfigsAsync(CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Gets a pool by ID
@@ -50,17 +51,19 @@ namespace Horde.Server.Agents.Pools
 		/// Gets a pool by ID
 		/// </summary>
 		/// <param name="id">Unique id of the pool</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The pool document</returns>
 		[Obsolete("Pools should be configured through globals.json")]
-		Task<bool> DeleteConfigAsync(PoolId id);
+		Task<bool> DeleteConfigAsync(PoolId id, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Updates a pool
 		/// </summary>
 		/// <param name="poolId">The pool to update</param>
 		/// <param name="options">Options for the update</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		[Obsolete("Pools should be configured through globals.json")]
-		Task<bool> UpdateConfigAsync(PoolId poolId, UpdatePoolConfigOptions options);
+		Task<bool> UpdateConfigAsync(PoolId poolId, UpdatePoolConfigOptions options, CancellationToken cancellationToken = default);
 	}
 
 	/// <summary>

@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using Horde.Server.Jobs.Templates;
@@ -386,14 +387,15 @@ namespace Horde.Server.Jobs.Graphs
 		/// Adds a new graph document
 		/// </summary>
 		/// <param name="graph">The graph to add</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Async task</returns>
-		async Task AddAsync(GraphDocument graph)
+		async Task AddAsync(GraphDocument graph, CancellationToken cancellationToken)
 		{
-			if (!await _graphs.Find(x => x.Id == graph.Id).AnyAsync())
+			if (!await _graphs.Find(x => x.Id == graph.Id).AnyAsync(cancellationToken))
 			{
 				try
 				{
-					await _graphs.InsertOneAsync(graph);
+					await _graphs.InsertOneAsync(graph, null, cancellationToken);
 				}
 				catch (MongoWriteException ex)
 				{
@@ -406,26 +408,26 @@ namespace Horde.Server.Jobs.Graphs
 		}
 
 		/// <inheritdoc/>
-		public async Task<IGraph> AddAsync(ITemplate template, string? streamInitialAgentType)
+		public async Task<IGraph> AddAsync(ITemplate template, string? streamInitialAgentType, CancellationToken cancellationToken)
 		{
 			Node node = new Node(IJob.SetupNodeName, null, null, Array.Empty<NodeRef>(), Array.Empty<NodeRef>(), Priority.High, true, false, true, null, null, null);
 			NodeGroup group = new NodeGroup(template.InitialAgentType ?? streamInitialAgentType ?? "Win64", new List<Node> { node });
 
 			GraphDocument graph = new GraphDocument(new List<NodeGroup> { group }, new List<Aggregate>(), new List<Label>());
-			await AddAsync(graph);
+			await AddAsync(graph, cancellationToken);
 			return graph;
 		}
 
 		/// <inheritdoc/>
-		public async Task<IGraph> AppendAsync(IGraph? baseGraph, List<NewGroup>? newGroupRequests, List<NewAggregate>? newAggregateRequests, List<NewLabel>? newLabelRequests)
+		public async Task<IGraph> AppendAsync(IGraph? baseGraph, List<NewGroup>? newGroupRequests, List<NewAggregate>? newAggregateRequests, List<NewLabel>? newLabelRequests, CancellationToken cancellationToken)
 		{
 			GraphDocument graph = new GraphDocument((GraphDocument?)baseGraph ?? GraphDocument.Empty, newGroupRequests, newAggregateRequests, newLabelRequests);
-			await AddAsync(graph);
+			await AddAsync(graph, cancellationToken);
 			return graph;
 		}
 
 		/// <inheritdoc/>
-		public async Task<IGraph> GetAsync(ContentHash? hash)
+		public async Task<IGraph> GetAsync(ContentHash? hash, CancellationToken cancellationToken)
 		{
 			// Special case for an empty graph request
 			if (hash == null || hash == ContentHash.Empty || hash == GraphDocument.Empty.Id)
@@ -438,7 +440,7 @@ namespace Horde.Server.Jobs.Graphs
 				cacheEntry.SlidingExpiration = TimeSpan.FromHours(24);
 				cacheEntry.Size = 1;
 
-				GraphDocument document = await _graphs.Find<GraphDocument>(x => x.Id == hash).FirstAsync();
+				GraphDocument document = await _graphs.Find<GraphDocument>(x => x.Id == hash).FirstAsync(cancellationToken);
 				return document;
 			}
 
@@ -446,7 +448,7 @@ namespace Horde.Server.Jobs.Graphs
 		}
 
 		/// <inheritdoc/>
-		public async Task<List<IGraph>> FindAllAsync(ContentHash[]? hashes, int? index, int? count)
+		public async Task<List<IGraph>> FindAllAsync(ContentHash[]? hashes, int? index, int? count, CancellationToken cancellationToken)
 		{
 			FilterDefinitionBuilder<GraphDocument> filterBuilder = Builders<GraphDocument>.Filter;
 
@@ -467,7 +469,7 @@ namespace Horde.Server.Jobs.Graphs
 				search = search.Limit(count.Value);
 			}
 
-			results = await search.ToListAsync();
+			results = await search.ToListAsync(cancellationToken);
 			return results.ConvertAll<IGraph>(x => x);
 		}
 	}

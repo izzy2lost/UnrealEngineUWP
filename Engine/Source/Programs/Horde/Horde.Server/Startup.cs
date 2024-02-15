@@ -37,7 +37,7 @@ using Horde.Server.Agents.Fleet;
 using Horde.Server.Agents.Leases;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Agents.Sessions;
-using Horde.Server.Agents.Telemetry;
+using Horde.Server.Agents.Utilization;
 using Horde.Server.Configuration;
 using Horde.Server.Dashboard;
 using Horde.Server.Devices;
@@ -472,7 +472,7 @@ namespace Horde.Server
 			services.AddSingleton<IStreamCollection, StreamCollection>();
 			services.AddSingleton<ITemplateCollection, TemplateCollection>();
 			services.AddSingleton<ITestDataCollection, TestDataCollection>();
-			services.AddSingleton<ITelemetryCollection, TelemetryCollection>();
+			services.AddSingleton<IUtilizationDataCollection, UtilizationDataCollection>();
 			services.AddSingleton<ITemplateCollection, TemplateCollection>();
 			services.AddSingleton<IUgsMetadataCollection, UgsMetadataCollection>();
 			services.AddSingleton<IUserCollection, UserCollectionV2>();
@@ -807,7 +807,7 @@ namespace Horde.Server
 				services.AddHostedService<MetricService>();
 				services.AddHostedService(provider => provider.GetRequiredService<PerforceLoadBalancer>());
 				services.AddHostedService<PoolUpdateService>();
-				services.AddHostedService<TelemetryService>();
+				services.AddHostedService<UtilizationDataService>();
 				services.AddHostedService(provider => provider.GetRequiredService<DeviceService>());
 				services.AddHostedService<DeviceReportService>();
 				services.AddHostedService(provider => provider.GetRequiredService<TestDataService>());

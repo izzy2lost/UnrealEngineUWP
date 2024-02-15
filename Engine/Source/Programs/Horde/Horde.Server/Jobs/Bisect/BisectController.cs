@@ -234,7 +234,7 @@ namespace Horde.Server.Jobs.Bisect
 		[Route("/api/v1/bisect")]
 		public async Task<ActionResult<CreateBisectTaskResponse>> CreateAsync([FromBody] CreateBisectTaskRequest create, CancellationToken cancellationToken = default)
 		{
-			IJob? job = await _jobCollection.GetAsync(create.JobId);
+			IJob? job = await _jobCollection.GetAsync(create.JobId, cancellationToken);
 			if (job == null)
 			{
 				return NotFound(create.JobId);
@@ -254,7 +254,7 @@ namespace Horde.Server.Jobs.Bisect
 				return Forbid(BisectTaskAclAction.CreateBisectTask, streamConfig.Id);
 			}
 
-			IGraph graph = await _graphCollection.GetAsync(job.GraphHash);
+			IGraph graph = await _graphCollection.GetAsync(job.GraphHash, cancellationToken);
 
 			NodeRef nodeRef;
 			if (!graph.TryFindNode(create.NodeName, out nodeRef))
@@ -302,7 +302,7 @@ namespace Horde.Server.Jobs.Bisect
 
 			if (userId != null)
 			{
-				await _userCollection.UpdateSettingsAsync(userId.Value, addBisectTaskIds: new[] { bisectTask.Id });
+				await _userCollection.UpdateSettingsAsync(userId.Value, addBisectTaskIds: new[] { bisectTask.Id }, cancellationToken: cancellationToken);
 			}
 
 			return new CreateBisectTaskResponse(bisectTask);
@@ -382,7 +382,7 @@ namespace Horde.Server.Jobs.Bisect
 						IJob? existingJob = await _jobCollection.FindBisectTaskJobsAsync(bisectTask.Id, true, cancellationToken).FirstOrDefaultAsync(cancellationToken);
 						if (existingJob != null && existingJob.AbortedByUserId == null)
 						{
-							await _jobService.UpdateJobAsync(existingJob, null, null, null, User.GetUserId() ?? KnownUsers.System, null, null, null);
+							await _jobService.UpdateJobAsync(existingJob, null, null, null, User.GetUserId() ?? KnownUsers.System, null, null, null, cancellationToken: cancellationToken);
 						}
 					}
 					return Ok();
@@ -395,7 +395,7 @@ namespace Horde.Server.Jobs.Bisect
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(BisectTasksController)}.{nameof(CreateBisectTaskResponseAsync)}");
 			span.SetAttribute("TaskId", task.Id.ToString());
 
-			IUser? user = await _userCollection.GetCachedUserAsync(task.OwnerId);
+			IUser? user = await _userCollection.GetCachedUserAsync(task.OwnerId, cancellationToken);
 
 			List<JobStepRefId> stepIds = new List<JobStepRefId>();
 			if (task.MinJobStep != null)

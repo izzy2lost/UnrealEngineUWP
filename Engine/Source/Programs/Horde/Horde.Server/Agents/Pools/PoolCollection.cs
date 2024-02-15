@@ -241,7 +241,7 @@ namespace Horde.Server.Agents.Pools
 		}
 
 		/// <inheritdoc/>
-		public async Task CreateConfigAsync(PoolId id, string name, CreatePoolConfigOptions options)
+		public async Task CreateConfigAsync(PoolId id, string name, CreatePoolConfigOptions options, CancellationToken cancellationToken = default)
 		{
 			PoolDocumentV1 pool = new PoolDocumentV1();
 			pool.Id = id;
@@ -274,11 +274,11 @@ namespace Horde.Server.Agents.Pools
 				pool.FleetManagers = options.FleetManagers;
 			}
 
-			await _poolsV1.InsertOneAsync(pool);
+			await _poolsV1.InsertOneAsync(pool, null, cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		public async Task<List<IPoolConfig>> GetConfigsAsync(CancellationToken cancellationToken)
+		public async Task<IReadOnlyList<IPoolConfig>> GetConfigsAsync(CancellationToken cancellationToken)
 		{
 			GlobalConfig globalConfig = _globalConfig.CurrentValue;
 
@@ -349,15 +349,15 @@ namespace Horde.Server.Agents.Pools
 		}
 
 		/// <inheritdoc/>
-		public async Task<bool> DeleteConfigAsync(PoolId id)
+		public async Task<bool> DeleteConfigAsync(PoolId id, CancellationToken cancellationToken)
 		{
 			FilterDefinition<PoolDocumentV1> filter = Builders<PoolDocumentV1>.Filter.Eq(x => x.Id, id);
-			DeleteResult result = await _poolsV1.DeleteOneAsync(filter);
+			DeleteResult result = await _poolsV1.DeleteOneAsync(filter, null, cancellationToken);
 			return result.DeletedCount > 0;
 		}
 
 		/// <inheritdoc/>
-		public async Task<bool> UpdateConfigAsync(PoolId poolId, UpdatePoolConfigOptions options)
+		public async Task<bool> UpdateConfigAsync(PoolId poolId, UpdatePoolConfigOptions options, CancellationToken cancellationToken)
 		{
 			List<UpdateDefinition<PoolDocumentV1>> updates = new List<UpdateDefinition<PoolDocumentV1>>();
 			if (options.Name != null)
@@ -494,7 +494,7 @@ namespace Horde.Server.Agents.Pools
 				FilterDefinition<PoolDocumentV1> filter = Builders<PoolDocumentV1>.Filter.Expr(x => x.Id == poolId);
 				UpdateDefinition<PoolDocumentV1> update = Builders<PoolDocumentV1>.Update.Combine(updates);
 
-				UpdateResult result = await _poolsV1.UpdateOneAsync(filter, update);
+				UpdateResult result = await _poolsV1.UpdateOneAsync(filter, update, null, cancellationToken);
 				if (result.ModifiedCount == 0)
 				{
 					return false;

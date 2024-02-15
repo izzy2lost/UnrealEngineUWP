@@ -1,8 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
-using MongoDB.Bson;
+using EpicGames.Horde.Accounts;
 
 namespace Horde.Server.Users
 {
@@ -21,35 +22,51 @@ namespace Horde.Server.Users
 		/// <param name="email">Optional e-mail address</param>
 		/// <param name="secretToken">Optional secret token to authenticate for API based auth</param>
 		/// <param name="password">Optional password for interactive login</param>
+		/// <param name="enabled">Whether the account should be enabled</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		Task<IHordeAccount> AddAsync(
 			string name,
 			string login,
-			List<IUserClaim>? claims = null,
+			IReadOnlyList<IUserClaim>? claims = null,
 			string? description = null,
 			string? email = null,
 			string? secretToken = null,
-			string? password = null);
+			string? password = null,
+			bool? enabled = null,
+			CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Searches service accounts
+		/// </summary>
+		/// <param name="index">Index of the first account</param>
+		/// <param name="count">Number of results to return</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>The service account</returns>
+		Task<IReadOnlyList<IHordeAccount>> FindAsync(int? index = null, int? count = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Get service account via ID
 		/// </summary>
 		/// <param name="id">The unique service account id</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The service account</returns>
-		Task<IHordeAccount?> GetAsync(ObjectId id);
-		
+		Task<IHordeAccount?> GetAsync(AccountId id, CancellationToken cancellationToken = default);
+
 		/// <summary>
 		/// Get service account via secret token
 		/// </summary>
 		/// <param name="secretToken">Secret token to use for searching</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The service account</returns>
-		Task<IHordeAccount?> GetBySecretTokenAsync(string secretToken);
-		
+		Task<IHordeAccount?> GetBySecretTokenAsync(string secretToken, CancellationToken cancellationToken = default);
+
 		/// <summary>
 		/// Get an account via login ID
 		/// </summary>
 		/// <param name="login">Login or username to use for searching</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The service account</returns>
-		Task<IHordeAccount?> GetByLoginAsync(string login);
+		Task<IHordeAccount?> GetByLoginAsync(string login, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Update an account from the collection
@@ -57,39 +74,32 @@ namespace Horde.Server.Users
 		/// <param name="id">Account ID</param>
 		/// <param name="name">If set, name of account to update</param>
 		/// <param name="login">If set, login ID/username to update</param>
+		/// <param name="claims">If set, claims to update</param>
+		/// <param name="description">If set, description to update</param>
 		/// <param name="email">If set, email to update</param>
 		/// <param name="secretToken">If set, secret token will be set</param>
-		/// <param name="passwordHash">If set, password hash to update</param>
-		/// <param name="passwordSalt">If set, password salt to update</param>
-		/// <param name="claims">If set, claims to update</param>
+		/// <param name="password">If set, password hash to update</param>
 		/// <param name="enabled">If set, enabled flag to update</param>
-		/// <param name="description">If set, description to update</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Async task</returns>
 		Task UpdateAsync(
-			ObjectId id,
+			AccountId id,
 			string? name = null,
 			string? login = null,
+			IReadOnlyList<IUserClaim>? claims = null,
+			string? description = null,
 			string? email = null,
 			string? secretToken = null,
-			string? passwordHash = null,
-			string? passwordSalt = null,
-			List<string>? claims = null,
+			string? password = null,
 			bool? enabled = null,
-			string? description = null);
+			CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Delete a service account from the collection
 		/// </summary>
 		/// <param name="id">The service account</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Async task</returns>
-		Task DeleteAsync(ObjectId id);
-
-		/// <summary>
-		/// Set the given password and generate a new corresponding salt
-		/// </summary>
-		/// <param name="id">Account ID</param>
-		/// <param name="password">New password</param>
-		/// <returns></returns>
-		Task SetPasswordAsync(ObjectId id, string password);
+		Task DeleteAsync(AccountId id, CancellationToken cancellationToken = default);
 	}
 }

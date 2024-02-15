@@ -259,15 +259,15 @@ namespace Horde.Server.Compute
 			_resourceNeedsMeasurements = await CalculateResourceNeedsAsync();
 		}
 		
-		private async ValueTask RelayPortCleanupTickAsync(CancellationToken stoppingToken)
+		private async ValueTask RelayPortCleanupTickAsync(CancellationToken cancellationToken)
 		{
-			await CleanStaleRelayPortsAsync();
+			await CleanStaleRelayPortsAsync(cancellationToken);
 		}
 
 		/// <summary>
 		/// Check for port mappings that either have no registered lease or possess an expired lease
 		/// </summary>
-		internal async Task CleanStaleRelayPortsAsync()
+		internal async Task CleanStaleRelayPortsAsync(CancellationToken cancellationToken)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(ComputeService)}.{nameof(CleanStaleRelayPortsAsync)}");
 			TimeSpan portRelayLeaseTimeout = TimeSpan.FromMinutes(10);
@@ -281,7 +281,7 @@ namespace Horde.Server.Compute
 					if (hasPotentiallyExpired)
 					{
 						LeaseId leaseId = LeaseId.Parse(pm.LeaseId);
-						ILease? lease = await _agentService.GetLeaseAsync(leaseId);
+						ILease? lease = await _agentService.GetLeaseAsync(leaseId, cancellationToken);
 						if (lease == null || lease.FinishTime != null)
 						{
 							_logger.LogInformation("Removing stale port mapping for lease {LeaseId}", leaseId);
@@ -363,9 +363,15 @@ namespace Horde.Server.Compute
 				span.SetAttribute($"req.res.{name}.max", resReq.Max);
 			}
 
+			byte[] certificate;
+			using (TelemetrySpan _ = _tracer.StartActiveSpan("Generating certificate"))
+			{
+				certificate = GenerateCert(arp.Encryption); // A no-op if certificate is not required	
+			}
+
 			try
 			{
-				List<IAgent> agents = await _agentCollection.FindAsync();
+				IReadOnlyList<IAgent> agents = await _agentCollection.FindAsync(cancellationToken: cancellationToken);
 				foreach (IAgent agent in agents)
 				{
 					Dictionary<string, int> assignedResources = new Dictionary<string, int>();
@@ -388,25 +394,29 @@ namespace Horde.Server.Compute
 						LeaseId leaseId = new LeaseId(BinaryIdUtils.CreateNew());
 						ILogFile? log = await _logService.CreateLogFileAsync(JobId.Empty, leaseId, agent.SessionId, LogType.Json, cancellationToken: cancellationToken);
 
-						ComputeTask computeTask = CreateComputeTask(assignedResources, log?.Id, arp.Encryption, arp.ParentLeaseId, protocol);
+						using TelemetrySpan createTaskSpan = _tracer.StartActiveSpan("CreateComputeTask");
+
+						ComputeTask computeTask = CreateComputeTask(assignedResources, log?.Id, arp.Encryption, certificate, arp.ParentLeaseId, protocol);
 
 						byte[] payload = Any.Pack(computeTask).ToByteArray();
 						AgentLease lease = new AgentLease(leaseId, arp.ParentLeaseId, "Compute task", null, null, log?.Id, LeaseState.Pending, assignedResources, arp.Requirements.Exclusive, payload);
+
+						using TelemetrySpan assignSpan = _tracer.StartActiveSpan("TryAssignAsync");
 
 						ComputeResource? resource = await TryAssignAsync(arp, agent, computeTask, leaseId);
 						if (resource != null)
 						{
 							using TelemetrySpan addLeaseSpan = _tracer.StartActiveSpan("Adding lease");
 
-							IAgent? newAgent = await _agentCollection.TryAddLeaseAsync(agent, lease);
+							IAgent? newAgent = await _agentCollection.TryAddLeaseAsync(agent, lease, cancellationToken);
 							if (newAgent != null)
 							{
 								await _agentCollection.PublishUpdateEventAsync(agent.Id);
-								await _agentService.CreateLeaseAsync(newAgent, lease);
+								await _agentService.CreateLeaseAsync(newAgent, lease, cancellationToken);
 								span.SetAttribute("allocatedLeaseId", leaseId.ToString());
 								span.SetAttribute("allocatedAgentId", newAgent.Id.ToString());
 
-								await LogRequestAsync(AllocationOutcome.Accepted, arp.RequestId, arp.Requirements, arp.ParentLeaseId, span);
+								await LogRequestAsync(AllocationOutcome.Accepted, arp.RequestId, arp.Requirements, arp.ParentLeaseId, span, cancellationToken);
 								return resource;
 							}
 							else
@@ -420,7 +430,7 @@ namespace Horde.Server.Compute
 					}
 				}
 
-				await LogRequestAsync(AllocationOutcome.Denied, arp.RequestId, arp.Requirements, arp.ParentLeaseId, span);
+				await LogRequestAsync(AllocationOutcome.Denied, arp.RequestId, arp.Requirements, arp.ParentLeaseId, span, cancellationToken);
 				return null;
 			}
 			catch (AgentRelayException are)
@@ -571,9 +581,9 @@ namespace Horde.Server.Compute
 			}
 		}
 		
-		internal async Task LogRequestAsync(AllocationOutcome outcome, string? requestId, Requirements requirements, LeaseId? parentLeaseId, TelemetrySpan currentSpan)
+		internal async Task LogRequestAsync(AllocationOutcome outcome, string? requestId, Requirements requirements, LeaseId? parentLeaseId, TelemetrySpan currentSpan, CancellationToken cancellationToken = default)
 		{
-			int? numActiveLeases = await GetNumActiveLeasesAsync(parentLeaseId);
+			int? numActiveLeases = await GetNumActiveLeasesAsync(parentLeaseId, cancellationToken);
 			currentSpan.SetAttribute("numActiveLeases", numActiveLeases);
 			
 			KeyValuePair<string, object?> poolTag = new ("pool", requirements.Pool);
@@ -646,15 +656,16 @@ namespace Horde.Server.Compute
 		/// Allows compute allocation requests metric to be broken down by lease.
 		/// </summary>
 		/// <param name="parentLeaseId"></param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Number of active leases</returns>
-		private async Task<int?> GetNumActiveLeasesAsync(LeaseId? parentLeaseId)
+		private async Task<int?> GetNumActiveLeasesAsync(LeaseId? parentLeaseId, CancellationToken cancellationToken)
 		{
 			if (parentLeaseId == null)
 			{
 				return null;
 			}
 
-			List<LeaseId> childLeaseIds = await _agentCollection.GetChildLeaseIdsAsync(parentLeaseId.Value);
+			List<LeaseId> childLeaseIds = await _agentCollection.GetChildLeaseIdsAsync(parentLeaseId.Value, cancellationToken);
 			return childLeaseIds.Count;
 		}
 
@@ -746,18 +757,53 @@ namespace Horde.Server.Compute
 			return relayIps[0];
 		}
 
-		static ComputeTask CreateComputeTask(Dictionary<string, int> assignedResources, LogId? logId, ComputeEncryption encryption, LeaseId? parentLeaseId, ComputeProtocol protocol)
+		static ComputeTask CreateComputeTask(Dictionary<string, int> assignedResources, LogId? logId, ComputeEncryption encryption, byte[] certificateData, LeaseId? parentLeaseId, ComputeProtocol protocol)
 		{
 			ComputeTask computeTask = new ComputeTask();
 			computeTask.Encryption = encryption;
 			computeTask.Nonce = UnsafeByteOperations.UnsafeWrap(RandomNumberGenerator.GetBytes(ServerComputeClient.NonceLength));
 			computeTask.Key = UnsafeByteOperations.UnsafeWrap(AesTransport.CreateKey());
-			computeTask.Certificate = UnsafeByteOperations.UnsafeWrap(TcpSslTransport.GenerateCert());
+			computeTask.Certificate = UnsafeByteOperations.UnsafeWrap(certificateData);
 			computeTask.Resources.Add(assignedResources);
 			computeTask.LogId = logId?.ToString();
 			computeTask.ParentLeaseId = parentLeaseId?.ToString() ?? String.Empty;
 			computeTask.Protocol = (int)protocol;
 			return computeTask;
+		}
+
+		static byte[] GenerateCert(ComputeEncryption encryption)
+		{
+			return encryption switch
+			{
+				ComputeEncryption.SslRsa2048 => TcpSslTransport.GenerateCert(ConvertEncryptionFromProto(encryption)),
+				ComputeEncryption.SslEcdsaP256 => TcpSslTransport.GenerateCert(ConvertEncryptionFromProto(encryption)),
+				_ => Array.Empty<byte>()
+			};
+		}
+		
+		internal static Encryption ConvertEncryptionFromProto(ComputeEncryption proto)
+		{
+			return proto switch
+			{
+				ComputeEncryption.Aes => Encryption.Aes,
+				ComputeEncryption.SslRsa2048 => Encryption.Ssl,
+				ComputeEncryption.SslEcdsaP256 => Encryption.SslEcdsaP256,
+				ComputeEncryption.None => Encryption.None,
+				ComputeEncryption.Unspecified => Encryption.None,
+				_ => throw new ArgumentOutOfRangeException(nameof(proto), proto, null)
+			};
+		}
+		
+		internal static ComputeEncryption ConvertEncryptionToProto(Encryption? json)
+		{
+			return json switch
+			{
+				Encryption.Aes => ComputeEncryption.Aes,
+				Encryption.Ssl => ComputeEncryption.SslRsa2048,
+				Encryption.SslEcdsaP256 => ComputeEncryption.SslEcdsaP256,
+				Encryption.None => ComputeEncryption.None,
+				_ => ComputeEncryption.None
+			};
 		}
 	}
 }

@@ -104,7 +104,7 @@ namespace Horde.Server.Jobs
 			List<AclClaimConfig> claims = new List<AclClaimConfig>();
 			claims.Add(new AclClaimConfig(HordeClaimTypes.WriteNamespace, artifact.NamespaceId.ToString()));
 
-			string token = await _aclService.IssueBearerTokenAsync(claims, TimeSpan.FromHours(8.0));
+			string token = await _aclService.IssueBearerTokenAsync(claims, TimeSpan.FromHours(8.0), context.CancellationToken);
 			return new Common.Rpc.CreateJobArtifactResponse { Id = artifact.Id.ToString(), NamespaceId = artifact.NamespaceId.ToString(), RefName = artifact.RefName.ToString(), Token = token };
 		}
 
@@ -136,7 +136,7 @@ namespace Horde.Server.Jobs
 			List<AclClaimConfig> claims = new List<AclClaimConfig>();
 			claims.Add(new AclClaimConfig(HordeClaimTypes.WriteNamespace, $"{artifact.NamespaceId}:{artifact.RefName}"));
 
-			string token = await _aclService.IssueBearerTokenAsync(claims, TimeSpan.FromHours(8.0));
+			string token = await _aclService.IssueBearerTokenAsync(claims, TimeSpan.FromHours(8.0), context.CancellationToken);
 
 			Common.Rpc.CreateJobArtifactResponseV2 response = new Common.Rpc.CreateJobArtifactResponseV2();
 			response.Id = artifact.Id.ToString();
@@ -163,7 +163,7 @@ namespace Horde.Server.Jobs
 			List<AclClaimConfig> claims = new List<AclClaimConfig>();
 			claims.Add(new AclClaimConfig(HordeClaimTypes.ReadNamespace, $"{artifact.NamespaceId}:{artifact.RefName}"));
 
-			string token = await _aclService.IssueBearerTokenAsync(claims, TimeSpan.FromHours(8.0));
+			string token = await _aclService.IssueBearerTokenAsync(claims, TimeSpan.FromHours(8.0), context.CancellationToken);
 
 			Common.Rpc.GetJobArtifactResponse response = new Common.Rpc.GetJobArtifactResponse();
 			response.Id = artifact.Id.ToString();
@@ -241,7 +241,7 @@ namespace Horde.Server.Jobs
 		public override Task<UploadArtifactResponse> UploadArtifact(IAsyncStreamReader<UploadArtifactRequest> reader, ServerCallContext context) => _jobRpcCommon.UploadArtifactAsync(reader, context);
 
 		/// <inheritdoc/>
-		public override Task<UploadTestDataResponse> UploadTestData(IAsyncStreamReader<UploadTestDataRequest> reader, ServerCallContext context) => _jobRpcCommon.UploadTestDataAsync(reader);
+		public override Task<UploadTestDataResponse> UploadTestData(IAsyncStreamReader<UploadTestDataRequest> reader, ServerCallContext context) => _jobRpcCommon.UploadTestDataAsync(reader, context);
 
 		/// <inheritdoc/>
 		public override Task<CreateReportResponse> CreateReport(CreateReportRequest request, ServerCallContext context) => _jobRpcCommon.CreateReportAsync(request, context);
@@ -692,9 +692,9 @@ namespace Horde.Server.Jobs
 			}
 		}
 
-		async Task<IJob> GetJobAsync(JobId jobId)
+		async Task<IJob> GetJobAsync(JobId jobId, CancellationToken cancellationToken)
 		{
-			IJob? job = await _jobService.GetJobAsync(jobId);
+			IJob? job = await _jobService.GetJobAsync(jobId, cancellationToken);
 			if (job == null)
 			{
 				throw new StructuredRpcException(StatusCode.NotFound, "Job {JobId} not found", jobId);
@@ -771,7 +771,7 @@ namespace Horde.Server.Jobs
 		/// <returns>Information about the step</returns>
 		public async Task<RpcGetStepResponse> GetStepAsync(GetStepRequest request, ServerCallContext context)
 		{
-			IJob job = await GetJobAsync(JobId.Parse(request.JobId));
+			IJob job = await GetJobAsync(JobId.Parse(request.JobId), context.CancellationToken);
 			IJobStepBatch batch = AuthorizeBatch(job, JobStepBatchId.Parse(request.BatchId), context);
 
 			JobStepId stepId = JobStepId.Parse(request.StepId);
@@ -847,7 +847,7 @@ namespace Horde.Server.Jobs
 				IGraph newGraph = await _graphs.AppendAsync(null, newGroups, newAggregates, newLabels);
 
 				// Try to update the graph with the new value
-				IJob? newJob = await _jobService.TryUpdateGraphAsync(job, oldGraph, newGraph);
+				IJob? newJob = await _jobService.TryUpdateGraphAsync(job, oldGraph, newGraph, context.CancellationToken);
 				if (newJob != null)
 				{
 					_logger.LogInformation("Updating graph for {JobId} from {OldGraphHash} to {NewGraphHash}", job.Id, oldGraph.Id, newJob.GraphHash);
@@ -905,7 +905,7 @@ namespace Horde.Server.Jobs
 			}
 
 			// Get the job and step
-			IJob job = await GetJobAsync(JobId.Parse(metadata.JobId));
+			IJob job = await GetJobAsync(JobId.Parse(metadata.JobId), context.CancellationToken);
 			AuthorizeBatch(job, JobStepBatchId.Parse(metadata.BatchId), context);
 
 			IJobStep? step;
@@ -917,7 +917,7 @@ namespace Horde.Server.Jobs
 			// Upload the stream
 			using (ArtifactChunkStream inputStream = new ArtifactChunkStream(reader, metadata.Length))
 			{
-				IArtifactV1 artifact = await _artifactCollection.CreateArtifactAsync(job.Id, step.Id, metadata.Name, metadata.MimeType, inputStream);
+				IArtifactV1 artifact = await _artifactCollection.CreateArtifactAsync(job.Id, step.Id, metadata.Name, metadata.MimeType, inputStream, context.CancellationToken);
 
 				UploadArtifactResponse response = new UploadArtifactResponse();
 				response.Id = artifact.Id.ToString();
@@ -929,8 +929,9 @@ namespace Horde.Server.Jobs
 		/// Uploads new test data
 		/// </summary>
 		/// <param name="reader">Request arguments</param>
+		/// <param name="context">Context for the RPC call</param>
 		/// <returns>Information about the new agent</returns>
-		public async Task<UploadTestDataResponse> UploadTestDataAsync(IAsyncStreamReader<UploadTestDataRequest> reader)
+		public async Task<UploadTestDataResponse> UploadTestDataAsync(IAsyncStreamReader<UploadTestDataRequest> reader, ServerCallContext context)
 		{
 			IJob? job = null;
 			IJobStep? jobStep = null;
@@ -944,7 +945,7 @@ namespace Horde.Server.Jobs
 				JobId jobId = JobId.Parse(request.JobId);
 				if (job == null)
 				{
-					job = await _jobService.GetJobAsync(jobId);
+					job = await _jobService.GetJobAsync(jobId, context.CancellationToken);
 					if (job == null)
 					{
 						throw new StructuredRpcException(StatusCode.NotFound, "Unable to find job {JobId}", jobId);
@@ -976,7 +977,7 @@ namespace Horde.Server.Jobs
 
 			if (job != null && jobStep != null)
 			{
-				await _testData.AddAsync(job, jobStep, data.ToArray());
+				await _testData.AddAsync(job, jobStep, data.ToArray(), context.CancellationToken);
 			}
 			else
 			{
@@ -994,7 +995,7 @@ namespace Horde.Server.Jobs
 		/// <returns></returns>
 		public async Task<CreateReportResponse> CreateReportAsync(CreateReportRequest request, ServerCallContext context)
 		{
-			IJob job = await GetJobAsync(JobId.Parse(request.JobId));
+			IJob job = await GetJobAsync(JobId.Parse(request.JobId), context.CancellationToken);
 			if (!_globalConfig.Value.TryGetStream(job.StreamId, out StreamConfig? streamConfig))
 			{
 				throw new StructuredRpcException(StatusCode.NotFound, "Stream {StreamId} not found", job.StreamId);

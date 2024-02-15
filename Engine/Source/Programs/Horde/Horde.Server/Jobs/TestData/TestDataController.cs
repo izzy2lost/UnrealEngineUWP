@@ -15,6 +15,7 @@ using Microsoft.Extensions.Options;
 using Horde.Server.Server;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Jobs;
+using System.Threading;
 
 namespace Horde.Server.Jobs.TestData
 {
@@ -68,10 +69,8 @@ namespace Horde.Server.Jobs.TestData
 			[FromQuery(Name = "target")] string[]? targets = null,
 			[FromQuery(Name = "configuration")] string[]? configurations = null)
 		{
-			List<GetTestMetaResponse> responses = new List<GetTestMetaResponse>();
-			List<ITestMeta> metaData = await _testDataService.FindTestMetaAsync(projects, platforms, configurations, targets);
-			metaData.ForEach(m => responses.Add(new GetTestMetaResponse(m)));
-			return responses;
+			IReadOnlyList<ITestMeta> metaData = await _testDataService.FindTestMetaAsync(projects, platforms, configurations, targets);
+			return metaData.ConvertAll(m => new GetTestMetaResponse(m));
 		}
 
 		/// <summary>
@@ -85,7 +84,7 @@ namespace Horde.Server.Jobs.TestData
 		public async Task<ActionResult<List<GetTestDataDetailsResponse>>> GetTestDetailsAsync([FromQuery(Name = "id")] string[] ids)
 		{
 			TestRefId[] idValues = Array.ConvertAll(ids, x => TestRefId.Parse(x));
-			List<ITestDataDetails> details = await _testDataService.FindTestDetailsAsync(idValues);
+			IReadOnlyList<ITestDataDetails> details = await _testDataService.FindTestDetailsAsync(idValues);
 			return details.Select(d => new GetTestDataDetailsResponse(d)).ToList();
 		}
 
@@ -101,7 +100,7 @@ namespace Horde.Server.Jobs.TestData
 		{
 			HashSet<string> testIds = new HashSet<string>(request.TestIds);
 
-			List<ITest> testValues = await _testDataService.FindTestsAsync(testIds.Select(x => TestId.Parse(x)).ToArray());			
+			IReadOnlyList<ITest> testValues = await _testDataService.FindTestsAsync(testIds.Select(x => TestId.Parse(x)).ToArray());			
 
 			return testValues.Select(x => new GetTestResponse(x)).ToList();
 		}
@@ -138,7 +137,7 @@ namespace Horde.Server.Jobs.TestData
 			HashSet<TestId> testIds = new HashSet<TestId>();
 			HashSet<TestMetaId> metaIds = new HashSet<TestMetaId>();
 
-			List<ITestStream> streams = await _testDataService.FindTestStreamsAsync(queryStreams.ToArray());
+			IReadOnlyList<ITestStream> streams = await _testDataService.FindTestStreamsAsync(queryStreams.ToArray());
 
 			// flatten requested streams to single service queries		
 			HashSet<TestSuiteId> suiteIds = new HashSet<TestSuiteId>();
@@ -155,20 +154,20 @@ namespace Horde.Server.Jobs.TestData
 				}				
 			}
 
-			List<ITestSuite> suites = new List<ITestSuite>();
+			IReadOnlyList<ITestSuite> suites = new List<ITestSuite>();
 			if (suiteIds.Count > 0)
 			{
 				suites = await _testDataService.FindTestSuitesAsync(suiteIds.ToArray());
 			}
 
-			List<ITest> tests = new List<ITest>();
+			IReadOnlyList<ITest> tests = new List<ITest>();
 			if (testIds.Count > 0)
 			{
 				tests = await _testDataService.FindTestsAsync(testIds.ToArray());
 			}
 
 			// gather all meta data
-			List<ITestMeta> metaData = new List<ITestMeta>();
+			IReadOnlyList<ITestMeta> metaData = new List<ITestMeta>();
 			foreach (ITest test in tests)
 			{
 				foreach (TestMetaId metaId in test.Metadata)
@@ -191,8 +190,8 @@ namespace Horde.Server.Jobs.TestData
 			}
 
 			// generate individual stream responses
-			streams.ForEach(s => {
-				
+			foreach(ITestStream s in streams)
+			{
 				List<ITest> streamTests = tests.Where(x => s.Tests.Contains(x.Id)).ToList();
 
 				List<ITestSuite> streamSuites = new List<ITestSuite>();
@@ -225,8 +224,7 @@ namespace Horde.Server.Jobs.TestData
 				List<ITestMeta> streamMetaData = metaData.Where(x => streamMetaIds.Contains(x.Id)).ToList();
 
 				responses.Add(new GetTestStreamResponse(s.StreamId, streamTests, streamSuites, streamMetaData));				
-
-			});
+			}
 
 			return responses;
 		}
@@ -275,9 +273,11 @@ namespace Horde.Server.Jobs.TestData
 				return responses;
 			}
 
-			List<ITestDataRef> dataRefs = await _testDataService.FindTestRefsAsync(queryStreams.ToArray(), metaIds.ConvertAll(x => TestMetaId.Parse(x)).ToArray(), testIds, suiteIds, minCreateTime?.UtcDateTime, maxCreateTime?.UtcDateTime, minChange, maxChange);
-
-			dataRefs.ForEach(d => responses.Add(new GetTestDataRefResponse(d)));
+			IReadOnlyList<ITestDataRef> dataRefs = await _testDataService.FindTestRefsAsync(queryStreams.ToArray(), metaIds.ConvertAll(x => TestMetaId.Parse(x)).ToArray(), testIds, suiteIds, minCreateTime?.UtcDateTime, maxCreateTime?.UtcDateTime, minChange, maxChange);
+			foreach (ITestDataRef d in dataRefs)
+			{
+				responses.Add(new GetTestDataRefResponse(d));
+			}
 
 			return responses;
 		}
@@ -306,7 +306,7 @@ namespace Horde.Server.Jobs.TestData
 				return NotFound();
 			}
 			
-			List<ITestData> testData = await _testDataCollection.AddAsync(job, jobStep, new (string key, BsonDocument value)[] { (request.Key, new BsonDocument(request.Data))});
+			IReadOnlyList<ITestData> testData = await _testDataCollection.AddAsync(job, jobStep, new (string key, BsonDocument value)[] { (request.Key, new BsonDocument(request.Data))});
 			return new CreateTestDataResponse(testData[0].Id.ToString());
 		}
 
@@ -322,11 +322,12 @@ namespace Horde.Server.Jobs.TestData
 		/// <param name="index">Offset within the results to return</param>
 		/// <param name="count">Number of results to return</param>
 		/// <param name="filter">Filter for properties to return</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The stream document</returns>
 		[HttpGet]
 		[Route("/api/v1/testdata")]
 		[ProducesResponseType(typeof(List<GetTestDataResponse>), 200)]
-		public async Task<ActionResult<List<object>>> FindTestDataAsync([FromQuery] string? streamId = null, [FromQuery] int? minChange = null, [FromQuery] int? maxChange = null, JobId? jobId = null, JobStepId? jobStepId = null, string? key = null, int index = 0, int count = 10, PropertyFilter? filter = null)
+		public async Task<ActionResult<List<object>>> FindTestDataAsync([FromQuery] string? streamId = null, [FromQuery] int? minChange = null, [FromQuery] int? maxChange = null, JobId? jobId = null, JobStepId? jobStepId = null, string? key = null, int index = 0, int count = 10, PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
 			StreamId? streamIdValue = null;
 			if(streamId != null)
@@ -336,10 +337,10 @@ namespace Horde.Server.Jobs.TestData
 
 			List<object> results = new List<object>();
 
-			List<ITestData> documents = await _testDataCollection.FindAsync(streamIdValue, minChange, maxChange, jobId, jobStepId, key, index, count);
+			IReadOnlyList<ITestData> documents = await _testDataCollection.FindAsync(streamIdValue, minChange, maxChange, jobId, jobStepId, key, index, count, cancellationToken);
 			foreach (ITestData document in documents)
 			{
-				if (await _jobService.AuthorizeAsync(document.JobId, JobAclAction.ViewJob, User, _globalConfig.Value))
+				if (await _jobService.AuthorizeAsync(document.JobId, JobAclAction.ViewJob, User, _globalConfig.Value, cancellationToken))
 				{
 					results.Add(PropertyFilter.Apply(new GetTestDataResponse(document), filter));
 				}
@@ -353,18 +354,19 @@ namespace Horde.Server.Jobs.TestData
 		/// </summary>
 		/// <param name="testDataId">Id of the document to get information about</param>
 		/// <param name="filter">Filter for the properties to return</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of matching agents</returns>
 		[HttpGet]
 		[Route("/api/v1/testdata/{testDataId}")]
 		[ProducesResponseType(typeof(GetTestDataResponse), 200)]
-		public async Task<ActionResult<object>> GetTestDataAsync(string testDataId, [FromQuery] PropertyFilter? filter = null)
+		public async Task<ActionResult<object>> GetTestDataAsync(string testDataId, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
-			ITestData? testData = await _testDataCollection.GetAsync(ObjectId.Parse(testDataId));
+			ITestData? testData = await _testDataCollection.GetAsync(ObjectId.Parse(testDataId), cancellationToken);
 			if (testData == null)
 			{
 				return NotFound();
 			}
-			if (!await _jobService.AuthorizeAsync(testData.JobId, JobAclAction.ViewJob, User, _globalConfig.Value))
+			if (!await _jobService.AuthorizeAsync(testData.JobId, JobAclAction.ViewJob, User, _globalConfig.Value, cancellationToken))
 			{
 				return Forbid();
 			}

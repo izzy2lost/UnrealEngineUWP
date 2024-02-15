@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Text.Json.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 using Amazon.CloudWatch;
 using Amazon.CloudWatch.Model;
@@ -93,7 +94,7 @@ namespace Horde.Server.Agents.Fleet
 		public string Name { get; } = "ComputeQueueAwsMetric";
 
 		/// <inheritdoc/>
-		public async Task<PoolSizeResult> CalculatePoolSizeAsync(IPoolConfig pool, List<IAgent> agents)
+		public async Task<PoolSizeResult> CalculatePoolSizeAsync(IPoolConfig pool, List<IAgent> agents, CancellationToken cancellationToken)
 		{
 			using TelemetrySpan span = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(ComputeQueueAwsMetricStrategy)}.{nameof(CalculatePoolSizeAsync)}");
 			span.SetAttribute(OpenTelemetryTracers.DatadogResourceAttribute, pool.Id.ToString());
@@ -143,7 +144,7 @@ namespace Horde.Server.Agents.Fleet
 				cwSpan.SetAttribute("namespace", ns);
 
 				PutMetricDataRequest request = new() { Namespace = ns, MetricData = metricDatumsNs };
-				PutMetricDataResponse response = await _cloudWatch.PutMetricDataAsync(request);
+				PutMetricDataResponse response = await _cloudWatch.PutMetricDataAsync(request, cancellationToken);
 				cwSpan.SetAttribute("res.statusCode", (int)response.HttpStatusCode);
 				if (response.HttpStatusCode != HttpStatusCode.OK)
 				{

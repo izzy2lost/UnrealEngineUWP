@@ -77,7 +77,7 @@ class RelayCommand : Command
 		logger.LogInformation("   Server URL: {ServerUrl}", ServerUrl);
 		
 		Nftables nftables = new (NullLogger<Nftables>.Instance) { RunWithSudo = RunWithSudo };
-		await nftables.InitializeAsync();
+		await nftables.InitializeAsync(CancellationToken.None);
 		
 		AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
 

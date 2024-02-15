@@ -13,6 +13,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Horde.Server.Acls;
 using EpicGames.Horde.Dashboard;
+using System.Threading;
 
 namespace Horde.Server.Dashboard
 {
@@ -190,18 +191,18 @@ namespace Horde.Server.Dashboard
 		[HttpPost]
 		[Authorize]
 		[Route("/api/v1/dashboard/preview")]
-		public async Task<ActionResult<GetDashboardPreviewResponse>> CreateDashbordPreviewAsync([FromBody] CreateDashboardPreviewRequest request)
+		public async Task<ActionResult<GetDashboardPreviewResponse>> CreateDashbordPreviewAsync([FromBody] CreateDashboardPreviewRequest request, CancellationToken cancellationToken = default)
 		{
 			if (!_globalConfig.Value.Authorize(AdminAclAction.AdminWrite, User))
 			{
 				return Forbid();
 			}
 
-			IDashboardPreview preview = await _previewCollection.AddPreviewAsync(request.Summary);
+			IDashboardPreview preview = await _previewCollection.AddPreviewAsync(request.Summary, cancellationToken);
 
 			if (!String.IsNullOrEmpty(request.ExampleLink) || !String.IsNullOrEmpty(request.DiscussionLink) || !String.IsNullOrEmpty(request.TrackingLink))
 			{
-				IDashboardPreview? updated = await _previewCollection.UpdatePreviewAsync(preview.Id, null, null, null, request.ExampleLink, request.DiscussionLink, request.TrackingLink);
+				IDashboardPreview? updated = await _previewCollection.UpdatePreviewAsync(preview.Id, null, null, null, request.ExampleLink, request.DiscussionLink, request.TrackingLink, cancellationToken);
 				if (updated == null) 
 				{
 					return NotFound(preview.Id);
@@ -220,14 +221,14 @@ namespace Horde.Server.Dashboard
 		[HttpPut]
 		[Authorize]
 		[Route("/api/v1/dashboard/preview")]
-		public async Task<ActionResult<GetDashboardPreviewResponse>> UpdateDashbordPreviewAsync([FromBody] UpdateDashboardPreviewRequest request)
+		public async Task<ActionResult<GetDashboardPreviewResponse>> UpdateDashbordPreviewAsync([FromBody] UpdateDashboardPreviewRequest request, CancellationToken cancellationToken = default)
 		{
 			if (!_globalConfig.Value.Authorize(AdminAclAction.AdminWrite, User))
 			{
 				return Forbid();
 			}
 
-			IDashboardPreview? preview = await _previewCollection.UpdatePreviewAsync(request.Id, request.Summary, request.DeployedCL, request.Open, request.ExampleLink, request.DiscussionLink, request.TrackingLink);
+			IDashboardPreview? preview = await _previewCollection.UpdatePreviewAsync(request.Id, request.Summary, request.DeployedCL, request.Open, request.ExampleLink, request.DiscussionLink, request.TrackingLink, cancellationToken);
 			
 			if (preview == null)
 			{
@@ -244,9 +245,9 @@ namespace Horde.Server.Dashboard
 		[HttpGet]
 		[Authorize]
 		[Route("/api/v1/dashboard/previews")]
-		public async Task<ActionResult<List<GetDashboardPreviewResponse>>> GetDashbordPreviewsAsync([FromQuery] bool open = true)
+		public async Task<ActionResult<List<GetDashboardPreviewResponse>>> GetDashbordPreviewsAsync([FromQuery] bool open = true, CancellationToken cancellationToken = default)
 		{			
-			List <IDashboardPreview> previews = await _previewCollection.FindPreviewsAsync(open);			
+			List <IDashboardPreview> previews = await _previewCollection.FindPreviewsAsync(open, cancellationToken);			
 			return previews.Select(CreatePreviewResponse).ToList();
 		}
 

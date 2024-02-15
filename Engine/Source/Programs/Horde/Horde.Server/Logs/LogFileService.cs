@@ -604,7 +604,7 @@ namespace Horde.Server.Logs
 
 				if (!complete)
 				{
-					await _logTailService.EnableTailingAsync(logFile.Id, root?.LineCount ?? 0);
+					await _logTailService.EnableTailingAsync(logFile.Id, root?.LineCount ?? 0, cancellationToken);
 					if (index < maxIndex)
 					{
 						await _logTailService.ReadAsync(logFile.Id, index, maxIndex - index, lines);
@@ -620,7 +620,7 @@ namespace Horde.Server.Logs
 				using (System.IO.Stream stream = await OpenRawStreamAsync(logFile, minOffset, maxOffset - minOffset, cancellationToken))
 				{
 					result = new byte[stream.Length];
-					await stream.ReadFixedSizeDataAsync(result, 0, result.Length);
+					await stream.ReadFixedSizeDataAsync(result, 0, result.Length, cancellationToken);
 				}
 
 				int offset = 0;
@@ -649,7 +649,7 @@ namespace Horde.Server.Logs
 				}
 				else
 				{
-					metadata.MaxLineIndex = await _logTailService.GetFullLineCountAsync(logFile.Id, logFile.LineCount);
+					metadata.MaxLineIndex = await _logTailService.GetFullLineCountAsync(logFile.Id, logFile.LineCount, cancellationToken);
 				}
 			}
 			else

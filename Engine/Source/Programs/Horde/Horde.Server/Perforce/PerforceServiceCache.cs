@@ -3,8 +3,10 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -46,6 +48,9 @@ namespace Horde.Server.Perforce
 			public int MaxChange { get; set; }
 
 			[BsonDictionaryOptions(DictionaryRepresentation.ArrayOfDocuments)]
+			public Dictionary<StreamId, IoHash> Streams { get; set; } = new Dictionary<StreamId, IoHash>();
+
+			[BsonDictionaryOptions(DictionaryRepresentation.ArrayOfDocuments)]
 			public Dictionary<StreamId, int> MinChanges { get; set; } = new Dictionary<StreamId, int>();
 		}
 
@@ -66,8 +71,9 @@ namespace Horde.Server.Perforce
 			public StreamConfig StreamConfig { get; set; }
 			public PerforceViewMap View { get; }
 			public PerforceChangeView ChangeView { get; }
+			public IoHash Hash { get; }
 
-			public List<CommitTagInfo> CommitTags { get; set; } = new List<CommitTagInfo>();
+			public IReadOnlyList<CommitTagInfo> CommitTags { get; }
 
 			public StreamInfo(StreamConfig streamConfig, PerforceViewMap view, PerforceChangeView changeView)
 			{
@@ -75,12 +81,31 @@ namespace Horde.Server.Perforce
 				View = view;
 				ChangeView = changeView;
 
+				List<CommitTagInfo> commitTags = new List<CommitTagInfo>();
 				foreach (CommitTagConfig commitTagConfig in streamConfig.GetAllCommitTags())
 				{
 					if (streamConfig.TryGetCommitTagFilter(commitTagConfig.Name, out FileFilter? filter))
 					{
-						CommitTags.Add(new CommitTagInfo(commitTagConfig.Name, filter));
+						commitTags.Add(new CommitTagInfo(commitTagConfig.Name, filter));
 					}
+				}
+				CommitTags = commitTags;
+
+				using (StringWriter writer = new StringWriter())
+				{
+					writer.WriteLine("View");
+					foreach (PerforceViewMapEntry entry in view.Entries)
+					{
+						writer.WriteLine($"  {entry.Include}|{entry.Source}|{entry.Target}");
+					}
+
+					writer.WriteLine("ChangeView");
+					foreach (PerforceChangeViewEntry entry in changeView.Entries)
+					{
+						writer.WriteLine($"  {entry.Path}|{entry.Change}");
+					}
+
+					Hash = IoHash.Compute(Encoding.UTF8.GetBytes(writer.ToString()));
 				}
 			}
 		}
@@ -249,7 +274,7 @@ namespace Horde.Server.Perforce
 		/// <returns></returns>
 		async ValueTask UpdateCommitsAsync(CancellationToken cancellationToken)
 		{
-			CacheState state = await _mongoService.GetSingletonAsync<CacheState>();
+			CacheState state = await _mongoService.GetSingletonAsync<CacheState>(cancellationToken);
 
 			// Get the current list of streams and their views
 			Dictionary<string, List<StreamInfo>> clusters = await CreateStreamInfoAsync(cancellationToken);
@@ -345,9 +370,9 @@ namespace Horde.Server.Perforce
 						// Apply any updates to the global state
 						if (updateState)
 						{
-							if (!await _mongoService.TryUpdateSingletonAsync(state))
+							if (!await _mongoService.TryUpdateSingletonAsync(state, cancellationToken))
 							{
-								state = await _mongoService.GetSingletonAsync<CacheState>();
+								state = await _mongoService.GetSingletonAsync<CacheState>(cancellationToken);
 							}
 						}
 					}
@@ -418,6 +443,22 @@ namespace Horde.Server.Perforce
 
 			using (IPooledPerforceConnection perforce = await ConnectAsync(clusterName, null, cancellationToken))
 			{
+				// If the hash of any stream definition has changed, invalidate the replicated changes.
+				bool modified = false;
+				foreach (StreamInfo streamInfo in streamInfos)
+				{
+					IoHash prevHash;
+					if (state.Streams.TryGetValue(streamInfo.StreamConfig.Id, out prevHash) && prevHash != streamInfo.Hash)
+					{
+						_logger.LogInformation("Invalidating cached commits for stream {StreamId} due to definition change ({OldHash} -> {NewHash})", streamInfo.StreamConfig.Id, prevHash, streamInfo.Hash);
+						state.MinChanges.Remove(streamInfo.StreamConfig.Id);
+						modified = true;
+					}
+				}
+
+				// Update the new hashes
+				state.Streams = streamInfos.ToDictionary(x => x.StreamConfig.Id, x => x.Hash);
+
 				// Remove any changes we need to update
 				int[] refreshNumbers = await _redisService.GetDatabase().SetPopAsync(GetRefreshSetKey(clusterName), 100);
 
@@ -437,7 +478,7 @@ namespace Horde.Server.Perforce
 
 				if (changeNumbers.Count == 0)
 				{
-					return null;
+					return modified? state : null;
 				}
 
 				// If we've retrieved the maximum number of changes from the server, we no longer have a complete chronological cache and need to reset it.
@@ -575,7 +616,7 @@ namespace Horde.Server.Perforce
 				int numResults = 0;
 				_owner._logger.LogDebug("Querying Perforce cache for {StreamId} commits from {MinChange} to {MaxChange} (max: {MaxResults}, tags: {Tags})", StreamConfig.Id, minChange ?? -2, maxChange ?? -2, maxResults ?? -1, (tags == null || tags.Count == 0) ? "none" : String.Join("/", tags.Select(x => x.ToString())));
 
-				CacheState state = await _owner._mongoService.GetSingletonAsync<CacheState>();
+				CacheState state = await _owner._mongoService.GetSingletonAsync<CacheState>(cancellationToken);
 				if (state.Clusters.TryGetValue(StreamConfig.ClusterName, out ClusterState? clusterState))
 				{
 					int minReplicatedChange;
@@ -647,7 +688,7 @@ namespace Horde.Server.Perforce
 							{
 								CachedCommitDoc cachedCommit = await CachedCommitDoc.FromCommitAsync(commit, cancellationToken);
 								await _owner.AddCachedCommitAsync(cachedCommit, cancellationToken);
-								await _owner._mongoService.UpdateSingletonAsync<CacheState>(x => TryUpdateRange(x, StreamConfig, commit.Number, maxChange));
+								await _owner._mongoService.UpdateSingletonAsync<CacheState>(x => TryUpdateRange(x, StreamConfig, commit.Number, maxChange), cancellationToken);
 								_owner._logger.LogDebug("Adding new cached commit for {StreamId} at change {Change}", StreamConfig.Id, commit.Number);
 
 								if (tags == null || tags.Any(x => cachedCommit.CommitTags.Contains(x)))
@@ -662,7 +703,7 @@ namespace Horde.Server.Perforce
 							{
 								int newMinChange = minChange ?? 0;
 								_owner._logger.LogDebug("Extending range for {StreamId} cache to {Change}..", StreamConfig.Id, newMinChange);
-								await _owner._mongoService.UpdateSingletonAsync<CacheState>(x => TryUpdateRange(x, StreamConfig, newMinChange, maxChange));
+								await _owner._mongoService.UpdateSingletonAsync<CacheState>(x => TryUpdateRange(x, StreamConfig, newMinChange, maxChange), cancellationToken);
 							}
 						}
 					}
@@ -700,7 +741,7 @@ namespace Horde.Server.Perforce
 			public override async Task<ICommit> GetAsync(int changeNumber, CancellationToken cancellationToken = default)
 			{
 				CachedCommitDoc? commit = await _owner._commits.Find(x => x.StreamId == StreamConfig.Id && x.Number == changeNumber).FirstOrDefaultAsync(cancellationToken);
-				if(commit != null)
+				if (commit != null)
 				{
 					commit.PostLoad(_owner, StreamConfig);
 					return commit;

@@ -16,6 +16,7 @@ using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Sessions;
 using Google.Protobuf.WellKnownTypes;
 using Horde.Server.Tasks;
+using System.Threading;
 
 namespace Horde.Server.Agents.Leases
 {
@@ -55,6 +56,7 @@ namespace Horde.Server.Agents.Leases
 		/// <param name="index">Index of the first result to return</param>
 		/// <param name="count">Number of results to return</param>
 		/// <param name="filter">Filter to apply to the results</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Sessions </returns>
 		[HttpGet]
 		[Route("/api/v1/leases")]
@@ -68,7 +70,8 @@ namespace Horde.Server.Agents.Leases
 			[FromQuery] DateTimeOffset? maxFinishTime,
 			[FromQuery] int index = 0,
 			[FromQuery] int count = 1000,
-			[FromQuery] PropertyFilter? filter = null)
+			[FromQuery] PropertyFilter? filter = null,
+			CancellationToken cancellationToken = default)
 		{
 			if (!_globalConfig.Value.Authorize(LeaseAclAction.ViewLeases, User))
 			{
@@ -77,15 +80,15 @@ namespace Horde.Server.Agents.Leases
 
 			bool includeCosts = _globalConfig.Value.Authorize(ServerAclAction.ViewCosts, User);
 
-			List<ILease> leases;
+			IReadOnlyList<ILease> leases;
 			if (minFinishTime == null && maxFinishTime == null)
 			{
-				leases = await _agentService.FindLeasesAsync(agentId, sessionId, startTime?.UtcDateTime, finishTime?.UtcDateTime, index, count);
+				leases = await _agentService.FindLeasesAsync(agentId, sessionId, startTime?.UtcDateTime, finishTime?.UtcDateTime, index, count, cancellationToken);
 			}
 			else
 			{
 				// Optimized path for queries made by finish time
-				leases = await _agentService.FindLeasesByFinishTimeAsync(minFinishTime?.UtcDateTime, maxFinishTime?.UtcDateTime, index, count);
+				leases = await _agentService.FindLeasesByFinishTimeAsync(minFinishTime?.UtcDateTime, maxFinishTime?.UtcDateTime, index, count, cancellationToken);
 			}
 
 			List<object> responses = new List<object>();
@@ -102,7 +105,7 @@ namespace Horde.Server.Agents.Leases
 						cachedAgentRates.Add(lease.AgentId, agentRate);
 					}
 
-					Dictionary<string, string>? details = await _agentService.GetPayloadDetailsAsync(lease.Payload);
+					Dictionary<string, string>? details = await _agentService.GetPayloadDetailsAsync(lease.Payload, cancellationToken);
 					responses.Add(PropertyFilter.Apply(AgentsController.CreateGetAgentLeaseResponse(lease, details, agentRate), filter));
 				}
 			}
@@ -114,17 +117,18 @@ namespace Horde.Server.Agents.Leases
 		/// Get info about a particular lease
 		/// </summary>
 		/// <param name="leaseId">Unique id of the particular lease</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Lease matching the given id</returns>
 		[HttpGet]
 		[Route("/api/v1/leases/{leaseId}")]
-		public async Task<ActionResult<GetAgentLeaseResponse>> GetLeaseAsync(LeaseId leaseId)
+		public async Task<ActionResult<GetAgentLeaseResponse>> GetLeaseAsync(LeaseId leaseId, CancellationToken cancellationToken)
 		{
 			if (!_globalConfig.Value.Authorize(LeaseAclAction.ViewLeases, User))
 			{
 				return Forbid(LeaseAclAction.ViewLeases);
 			}
 
-			ILease? lease = await _agentService.GetLeaseAsync(leaseId);
+			ILease? lease = await _agentService.GetLeaseAsync(leaseId, cancellationToken);
 			if (lease == null)
 			{
 				return NotFound(leaseId);
@@ -142,7 +146,7 @@ namespace Horde.Server.Agents.Leases
 				agentRate = await _agentService.GetRateAsync(agent.Id);
 			}
 
-			Dictionary<string, string>? details = await _agentService.GetPayloadDetailsAsync(lease.Payload);
+			Dictionary<string, string>? details = await _agentService.GetPayloadDetailsAsync(lease.Payload, cancellationToken);
 			return AgentsController.CreateGetAgentLeaseResponse(lease, details, agentRate);
 		}
 
@@ -150,17 +154,18 @@ namespace Horde.Server.Agents.Leases
 		/// Gets the protobuf task descriptor  for a lease
 		/// </summary>
 		/// <param name="leaseId">Unique id of the particular lease</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Lease matching the given id</returns>
 		[HttpGet]
 		[Route("/api/v1/leases/{leaseId}/task")]
-		public async Task<ActionResult<object>> GetLeaseTaskAsync(LeaseId leaseId)
+		public async Task<ActionResult<object>> GetLeaseTaskAsync(LeaseId leaseId, CancellationToken cancellationToken)
 		{
 			if (!_globalConfig.Value.Authorize(LeaseAclAction.ViewLeaseTasks, User))
 			{
 				return Forbid(LeaseAclAction.ViewLeaseTasks);
 			}
 
-			ILease? lease = await _agentService.GetLeaseAsync(leaseId);
+			ILease? lease = await _agentService.GetLeaseAsync(leaseId, cancellationToken);
 			if (lease == null)
 			{
 				return NotFound(leaseId);
@@ -185,17 +190,18 @@ namespace Horde.Server.Agents.Leases
 		/// </summary>
 		/// <param name="leaseId">Unique id of the particular lease</param>
 		/// <param name="path">Subresource for the lease's log</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Redirect to log endpoint</returns>
 		[HttpGet]
 		[Route("/api/v1/leases/{leaseId}/log/{*path}")]
-		public async Task<ActionResult> GetLeaseLogAsync(LeaseId leaseId, string? path = null)
+		public async Task<ActionResult> GetLeaseLogAsync(LeaseId leaseId, string? path = null, CancellationToken cancellationToken = default)
 		{
 			if (!_globalConfig.Value.Authorize(LeaseAclAction.ViewLeases, User))
 			{
 				return Forbid(LeaseAclAction.ViewLeases);
 			}
 
-			ILease? lease = await _agentService.GetLeaseAsync(leaseId);
+			ILease? lease = await _agentService.GetLeaseAsync(leaseId, cancellationToken);
 			if (lease == null)
 			{
 				return NotFound(leaseId);
@@ -214,10 +220,11 @@ namespace Horde.Server.Agents.Leases
 		/// </summary>
 		/// <param name="leaseId">Unique id of the particular lease</param>
 		/// <param name="request"></param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Lease matching the given id</returns>
 		[HttpPut]
 		[Route("/api/v1/leases/{leaseId}")]
-		public async Task<ActionResult> UpdateLeaseAsync(LeaseId leaseId, [FromBody] UpdateLeaseRequest request)
+		public async Task<ActionResult> UpdateLeaseAsync(LeaseId leaseId, [FromBody] UpdateLeaseRequest request, CancellationToken cancellationToken)
 		{
 			if (!_globalConfig.Value.Authorize(AdminAclAction.AdminWrite, User))
 			{
@@ -230,7 +237,7 @@ namespace Horde.Server.Agents.Leases
 				return Ok();
 			}
 
-			ILease? lease = await _agentService.GetLeaseAsync(leaseId);
+			ILease? lease = await _agentService.GetLeaseAsync(leaseId, cancellationToken);
 			if (lease == null)
 			{
 				return NotFound(leaseId);

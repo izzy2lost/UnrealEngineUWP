@@ -476,14 +476,14 @@ namespace Horde.Server.Replicators
 			}
 
 			// Create a client to replicate from this stream
-			ReplicationClient clientInfo = await FindOrAddReplicationClientAsync(streamConfig);
+			ReplicationClient clientInfo = await FindOrAddReplicationClientAsync(streamConfig, cancellationToken);
 
 			// Connect to the server and flush the workspace
 			using IPerforceConnection perforce = await PerforceConnection.CreateAsync(clientInfo.Settings, _logger);
 
 			// Apply all the updates
 			_logger.LogInformation("Syncing client {Client} from changelist {BaseChange} to {Change}", clientInfo.Client.Name, stateNode.ParentChange, change);
-			await FlushWorkspaceAsync(clientInfo, perforce, stateNode.ParentChange);
+			await FlushWorkspaceAsync(clientInfo, perforce, stateNode.ParentChange, cancellationToken);
 			clientInfo.Change = -1;
 
 			string clientRoot = clientInfo.Client.Root;
@@ -820,7 +820,7 @@ namespace Horde.Server.Replicators
 
 		static string NormalizePathSeparators(string path) => path.Replace('\\', '/');
 
-		async Task FlushWorkspaceAsync(ReplicationClient clientInfo, IPerforceConnection perforce, int change)
+		async Task FlushWorkspaceAsync(ReplicationClient clientInfo, IPerforceConnection perforce, int change, CancellationToken cancellationToken)
 		{
 			if (clientInfo.Change != change)
 			{
@@ -828,12 +828,12 @@ namespace Horde.Server.Replicators
 				if (change == 0)
 				{
 					_logger.LogInformation("Flushing have table for {Client}", clientInfo.Client.Name);
-					await perforce.SyncQuietAsync(SyncOptions.Force | SyncOptions.KeepWorkspaceFiles, -1, $"//{clientInfo.Client.Name}/...#0");
+					await perforce.SyncQuietAsync(SyncOptions.Force | SyncOptions.KeepWorkspaceFiles, -1, $"//{clientInfo.Client.Name}/...#0", cancellationToken);
 				}
 				else
 				{
 					_logger.LogInformation("Flushing have table for {Client} to change {Change}", clientInfo.Client.Name, change);
-					await perforce.SyncQuietAsync(SyncOptions.Force | SyncOptions.KeepWorkspaceFiles, -1, $"//{clientInfo.Client.Name}/...@{change}");
+					await perforce.SyncQuietAsync(SyncOptions.Force | SyncOptions.KeepWorkspaceFiles, -1, $"//{clientInfo.Client.Name}/...@{change}", cancellationToken);
 				}
 				clientInfo.Change = change;
 			}
@@ -872,7 +872,7 @@ namespace Horde.Server.Replicators
 			return path.Substring(clientRoot.Length);
 		}
 
-		async Task<ReplicationClient?> FindReplicationClientAsync(StreamConfig streamConfig)
+		async Task<ReplicationClient?> FindReplicationClientAsync(StreamConfig streamConfig, CancellationToken cancellationToken)
 		{
 			ReplicationClient? clientInfo;
 			if (_cachedPerforceClients.TryGetValue(streamConfig.Id, out clientInfo))
@@ -883,7 +883,7 @@ namespace Horde.Server.Replicators
 					serverSettings.ClientName = null;
 
 					using IPerforceConnection perforce = await PerforceConnection.CreateAsync(_logger);
-					await perforce.DeleteClientAsync(DeleteClientOptions.None, clientInfo.Client.Name);
+					await perforce.DeleteClientAsync(DeleteClientOptions.None, clientInfo.Client.Name, cancellationToken);
 
 					_cachedPerforceClients.Remove(streamConfig.Id);
 					clientInfo = null;
@@ -892,25 +892,25 @@ namespace Horde.Server.Replicators
 			return clientInfo;
 		}
 
-		async Task<ReplicationClient> FindOrAddReplicationClientAsync(StreamConfig streamConfig)
+		async Task<ReplicationClient> FindOrAddReplicationClientAsync(StreamConfig streamConfig, CancellationToken cancellationToken = default)
 		{
-			ReplicationClient? clientInfo = await FindReplicationClientAsync(streamConfig);
+			ReplicationClient? clientInfo = await FindReplicationClientAsync(streamConfig, cancellationToken);
 			if (clientInfo == null)
 			{
-				using IPerforceConnection? perforce = await _perforceService.ConnectAsync(streamConfig.ClusterName);
+				using IPerforceConnection? perforce = await _perforceService.ConnectAsync(streamConfig.ClusterName, cancellationToken: cancellationToken);
 				if (perforce == null)
 				{
 					throw new PerforceException($"Unable to create connection to Perforce server");
 				}
 
-				InfoRecord serverInfo = await perforce.GetInfoAsync(InfoOptions.ShortOutput);
+				InfoRecord serverInfo = await perforce.GetInfoAsync(InfoOptions.ShortOutput, cancellationToken);
 
 				ClientRecord newClient = new ClientRecord($"Horde.Build_Rep_Full_{serverInfo.ClientHost}_{streamConfig.Id}", perforce.Settings.UserName, "/p4/");
 				newClient.Description = "Created to mirror Perforce content to Horde Storage";
 				newClient.Owner = perforce.Settings.UserName;
 				newClient.Host = serverInfo.ClientHost;
 				newClient.Stream = streamConfig.Name;
-				await perforce.CreateClientAsync(newClient);
+				await perforce.CreateClientAsync(newClient, cancellationToken);
 				_logger.LogInformation("Created client {ClientName} for {StreamName}", newClient.Name, streamConfig.Name);
 
 				PerforceSettings settings = new PerforceSettings(perforce.Settings);

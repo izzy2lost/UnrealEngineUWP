@@ -82,7 +82,7 @@ namespace Horde.Server.Artifacts
 			LeaseId? leaseId = User.GetLeaseClaim();
 			if (leaseId != null)
 			{
-				ILease? lease = await _leaseCollection.GetAsync(leaseId.Value);
+				ILease? lease = await _leaseCollection.GetAsync(leaseId.Value, cancellationToken);
 				if (lease == null)
 				{
 					_logger.LogInformation("Claim has invalid lease id {LeaseId}", leaseId.Value);
@@ -96,7 +96,7 @@ namespace Horde.Server.Artifacts
 					return Forbid(ArtifactAclAction.WriteArtifact);
 				}
 
-				IJob? job = await _jobCollection.GetAsync(JobId.Parse(jobTask.JobId));
+				IJob? job = await _jobCollection.GetAsync(JobId.Parse(jobTask.JobId), cancellationToken);
 				if (job == null)
 				{
 					_logger.LogInformation("Missing job {JobId} for lease {LeaseId}", JobId.Parse(jobTask.JobId), leaseId.Value);
@@ -148,7 +148,7 @@ namespace Horde.Server.Artifacts
 			claims.Add(new AclClaimConfig(HordeClaimTypes.ReadNamespace, $"{artifact.NamespaceId}:{ArtifactCollection.GetArtifactPath(streamId, name, type)}"));
 			claims.Add(new AclClaimConfig(HordeClaimTypes.WriteNamespace, $"{artifact.NamespaceId}:{artifact.RefName}"));
 
-			string token = await _aclService.IssueBearerTokenAsync(claims, TimeSpan.FromHours(8.0));
+			string token = await _aclService.IssueBearerTokenAsync(claims, TimeSpan.FromHours(8.0), cancellationToken);
 			return new CreateArtifactResponse(artifact.Id, artifact.NamespaceId, artifact.RefName, prevRefName, token);
 		}
 

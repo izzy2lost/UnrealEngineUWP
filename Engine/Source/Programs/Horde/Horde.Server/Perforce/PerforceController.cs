@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Text.Json.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 using Horde.Server.Acls;
 using Horde.Server.Server;
@@ -41,9 +42,9 @@ namespace Horde.Server.Perforce
 		/// <returns></returns>
 		[HttpGet]
 		[Route("/api/v1/perforce/status")]
-		public async Task<ActionResult<List<object>>> GetStatusAsync()
+		public async Task<ActionResult<List<object>>> GetStatusAsync(CancellationToken cancellationToken)
 		{
-			List<IPerforceServer> servers = await _perforceLoadBalancer.GetServersAsync();
+			List<IPerforceServer> servers = await _perforceLoadBalancer.GetServersAsync(cancellationToken);
 
 			List<object> responses = new List<object>();
 			foreach (IPerforceServer server in servers)

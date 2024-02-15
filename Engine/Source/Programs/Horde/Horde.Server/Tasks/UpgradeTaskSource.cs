@@ -52,7 +52,7 @@ namespace Horde.Server.Tasks
 				return SkipAsync(cancellationToken);
 			}
 
-			(ITool, IToolDeployment)? required = await GetRequiredSoftwareVersionAsync(agent);
+			(ITool, IToolDeployment)? required = await GetRequiredSoftwareVersionAsync(agent, cancellationToken);
 			if (required == null)
 			{
 				return SkipAsync(cancellationToken);
@@ -84,14 +84,15 @@ namespace Horde.Server.Tasks
 		/// Determines the client software version that should be installed on an agent
 		/// </summary>
 		/// <param name="agent">The agent instance</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Unique id of the client version this agent should be running</returns>
-		public async Task<(ITool, IToolDeployment)?> GetRequiredSoftwareVersionAsync(IAgent agent)
+		public async Task<(ITool, IToolDeployment)?> GetRequiredSoftwareVersionAsync(IAgent agent, CancellationToken cancellationToken)
 		{
 			GlobalConfig globalConfig = _globalConfig.CurrentValue;
 
 			ToolId toolId = agent.GetSoftwareToolId(globalConfig);
 
-			ITool? tool = await _toolCollection.GetAsync(toolId, globalConfig);
+			ITool? tool = await _toolCollection.GetAsync(toolId, globalConfig, cancellationToken);
 			if (tool == null)
 			{
 				return null;

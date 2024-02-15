@@ -39,9 +39,6 @@ namespace Horde.Server.Tests.Agents.Pools
 			GetPoolResponse response = (rawResult.Value![0] as GetPoolResponse)!;
 			Assert.AreEqual(poolConfig.Id.ToString(), response.Id);
 			Assert.AreEqual(poolConfig.Name, response.Name);
-#pragma warning disable CS0618
-			Assert.AreEqual(poolConfig.SizeStrategy ?? default, response.SizeStrategy);
-#pragma warning restore CS0618
 		}
 
 		[TestMethod]

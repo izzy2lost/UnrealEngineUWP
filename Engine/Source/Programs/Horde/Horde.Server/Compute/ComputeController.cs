@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -13,7 +12,6 @@ using Horde.Server.Acls;
 using Horde.Server.Agents;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
-using HordeCommon.Rpc.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -70,7 +68,7 @@ namespace Horde.Server.Compute
 				ConnectionMode = request.Connection?.ModePreference,
 				RequesterPublicIp = request.Connection?.ClientPublicIp,
 				UsePublicIp = request.Connection?.PreferPublicIp,
-				Encryption = ConvertEncryptionToProto(request.Connection?.Encryption)
+				Encryption = ComputeService.ConvertEncryptionToProto(request.Connection?.Encryption)
 			};
 
 			ComputeResource? computeResource;
@@ -99,7 +97,7 @@ namespace Horde.Server.Compute
 			response.ConnectionMode = computeResource.ConnectionMode;
 			response.ConnectionAddress = computeResource.ConnectionAddress;
 			response.Ports = responsePorts;
-			response.Encryption = ConvertEncryptionFromProto(computeResource.Task.Encryption);
+			response.Encryption = ComputeService.ConvertEncryptionFromProto(computeResource.Task.Encryption);
 			response.Nonce = StringUtils.FormatHexString(computeResource.Task.Nonce.Span);
 			response.Key = StringUtils.FormatHexString(computeResource.Task.Key.Span);
 			response.Certificate = StringUtils.FormatHexString(computeResource.Task.Certificate.Span);
@@ -114,29 +112,6 @@ namespace Horde.Server.Compute
 			}
 
 			return response;
-		}
-
-		private static Encryption ConvertEncryptionFromProto(ComputeEncryption proto)
-		{
-			return proto switch
-			{
-				ComputeEncryption.Aes => Encryption.Aes,
-				ComputeEncryption.Ssl => Encryption.Ssl,
-				ComputeEncryption.None => Encryption.None,
-				ComputeEncryption.Unspecified => Encryption.None,
-				_ => throw new ArgumentOutOfRangeException(nameof(proto), proto, null)
-			};
-		}
-		
-		private static ComputeEncryption ConvertEncryptionToProto(Encryption? json)
-		{
-			return json switch
-			{
-				Encryption.Aes => ComputeEncryption.Aes,
-				Encryption.Ssl => ComputeEncryption.Ssl,
-				Encryption.None => ComputeEncryption.None,
-				_ => ComputeEncryption.None
-			};
 		}
 		
 		/// <summary>

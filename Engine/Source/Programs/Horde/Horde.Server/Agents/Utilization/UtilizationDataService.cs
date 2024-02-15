@@ -14,14 +14,14 @@ using Microsoft.Extensions.Logging;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Pools;
 
-namespace Horde.Server.Agents.Telemetry
+namespace Horde.Server.Agents.Utilization
 {
 	/// <summary>
 	/// Service which updates telemetry periodically
 	/// </summary>
-	public sealed class TelemetryService : IHostedService, IAsyncDisposable
+	public sealed class UtilizationDataService : IHostedService, IAsyncDisposable
 	{
-		readonly ITelemetryCollection _telemetryCollection;
+		readonly IUtilizationDataCollection _utilizationDataCollection;
 		readonly IAgentCollection _agentCollection;
 		readonly ILeaseCollection _leaseCollection;
 		readonly IPoolCollection _poolCollection;
@@ -33,15 +33,15 @@ namespace Horde.Server.Agents.Telemetry
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public TelemetryService(ITelemetryCollection telemetryCollection, IAgentCollection agentCollection, ILeaseCollection leaseCollection, IPoolCollection poolCollection, IFleetManager fleetManager, IClock clock, ILogger<TelemetryService> logger)
+		public UtilizationDataService(IUtilizationDataCollection utilizationDataCollection, IAgentCollection agentCollection, ILeaseCollection leaseCollection, IPoolCollection poolCollection, IFleetManager fleetManager, IClock clock, ILogger<UtilizationDataService> logger)
 		{
-			_telemetryCollection = telemetryCollection;
+			_utilizationDataCollection = utilizationDataCollection;
 			_agentCollection = agentCollection;
 			_leaseCollection = leaseCollection;
 			_poolCollection = poolCollection;
 			_fleetManager = fleetManager;
 			_clock = clock;
-			_tick = clock.AddSharedTicker<TelemetryService>(TimeSpan.FromMinutes(10.0), TickLeaderAsync, logger);
+			_tick = clock.AddSharedTicker<UtilizationDataService>(TimeSpan.FromMinutes(10.0), TickLeaderAsync, logger);
 			_logger = logger;
 		}
 
@@ -55,7 +55,7 @@ namespace Horde.Server.Agents.Telemetry
 		public ValueTask DisposeAsync() => _tick.DisposeAsync();
 
 		/// <inheritdoc/>
-		async ValueTask TickLeaderAsync(CancellationToken stoppingToken)
+		async ValueTask TickLeaderAsync(CancellationToken cancellationToken)
 		{
 			DateTime currentTime = _clock.UtcNow;
 
@@ -63,18 +63,18 @@ namespace Horde.Server.Agents.Telemetry
 			DateTime maxTime = currentTime.Date + TimeSpan.FromHours(currentTime.Hour);
 
 			// Get the latest telemetry data
-			IUtilizationTelemetry? latest = await _telemetryCollection.GetLatestUtilizationTelemetryAsync();
+			IUtilizationData? latest = await _utilizationDataCollection.GetLatestUtilizationDataAsync(cancellationToken);
 			TimeSpan interval = TimeSpan.FromHours(1.0);
 			int count = (latest == null) ? (7 * 24) : (int)Math.Round((maxTime - latest.FinishTime) / interval);
 			DateTime minTime = maxTime - count * interval;
 
 			// Query all the current data
-			List<IAgent> agents = await _agentCollection.FindAsync();
-			List<IPoolConfig> pools = await _poolCollection.GetConfigsAsync(stoppingToken);
-			List<ILease> leases = await _leaseCollection.FindLeasesAsync(minTime: minTime);
+			IReadOnlyList<IAgent> agents = await _agentCollection.FindAsync(cancellationToken: cancellationToken);
+			IReadOnlyList<IPoolConfig> pools = await _poolCollection.GetConfigsAsync(cancellationToken);
+			IReadOnlyList<ILease> leases = await _leaseCollection.FindLeasesAsync(minTime: minTime, cancellationToken: cancellationToken);
 
 			// Remove any agents which are offline
-			agents.RemoveAll(x => !x.Enabled || !x.IsSessionValid(currentTime));
+			agents = agents.Where(x => x.Enabled && x.IsSessionValid(currentTime)).ToList();
 
 			// Find all the agents
 			Dictionary<AgentId, List<PoolId>> agentToPoolIds = agents.ToDictionary(x => x.Id, x => x.GetPools().ToList());
@@ -84,18 +84,18 @@ namespace Horde.Server.Agents.Telemetry
 			for (int idx = 0; idx < count; idx++)
 			{
 				DateTime bucketMaxTime = bucketMinTime + interval;
-				_logger.LogInformation("Creating telemetry for {MinTime} to {MaxTime}", bucketMinTime, bucketMaxTime);
+				_logger.LogDebug("Calculating utilization data for {MinTime} to {MaxTime}", bucketMinTime, bucketMaxTime);
 
-				NewUtilizationTelemetry telemetry = new NewUtilizationTelemetry(bucketMinTime, bucketMaxTime);
+				UtilizationData telemetry = new UtilizationData(bucketMinTime, bucketMaxTime);
 				telemetry.NumAgents = agents.Count;
 				foreach (IPoolConfig pool in pools)
 				{
 					if (pool.EnableAutoscaling)
 					{
-						int numStoppedInstances = await _fleetManager.GetNumStoppedInstancesAsync(pool, stoppingToken);
+						int numStoppedInstances = await _fleetManager.GetNumStoppedInstancesAsync(pool, cancellationToken);
 						telemetry.NumAgents += numStoppedInstances;
 
-						NewPoolUtilizationTelemetry poolTelemetry = telemetry.FindOrAddPool(pool.Id);
+						PoolUtilizationData poolTelemetry = telemetry.FindOrAddPool(pool.Id);
 						poolTelemetry.NumAgents += numStoppedInstances;
 						poolTelemetry.HibernatingTime += interval.TotalHours * numStoppedInstances;
 					}
@@ -116,7 +116,7 @@ namespace Horde.Server.Agents.Telemetry
 
 							foreach (PoolId poolId in leasePools)
 							{
-								NewPoolUtilizationTelemetry poolTelemetry = telemetry.FindOrAddPool(poolId);
+								PoolUtilizationData poolTelemetry = telemetry.FindOrAddPool(poolId);
 								if (lease.PoolId == null || lease.StreamId == null)
 								{
 									poolTelemetry.AdminTime += time;
@@ -133,7 +133,7 @@ namespace Horde.Server.Agents.Telemetry
 						}
 					}
 				}
-				await _telemetryCollection.AddUtilizationTelemetryAsync(telemetry);
+				await _utilizationDataCollection.AddUtilizationDataAsync(telemetry, cancellationToken);
 
 				bucketMinTime = bucketMaxTime;
 			}

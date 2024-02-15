@@ -160,7 +160,7 @@ public class HordeJwtBearerHandler
 			IUserCollection userCollection = context.HttpContext.RequestServices.GetRequiredService<IUserCollection>();
 			user = await userCollection.FindOrAddUserByLoginAsync(login, name, email);
 
-			await userCollection.UpdateClaimsAsync(user.Id, accessToken.Claims.Select(x => new UserClaim(x.Type, x.Value)));
+			await userCollection.UpdateClaimsAsync(user.Id, accessToken.Claims.Select(x => new UserClaim(x.Type, x.Value)), context.HttpContext.RequestAborted);
 
 			_subToUser[accessToken.Subject] = user;
 			_subToUserInfo[accessToken.Subject] = userInfo;

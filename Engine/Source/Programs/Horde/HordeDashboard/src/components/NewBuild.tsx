@@ -182,7 +182,7 @@ class BuildParameters {
    }
 
    addTarget(target: string, updateChanged = true) {
-      target = target?.trim();
+      target = target.trim();
       const unique = new Set<string>(this.targets);
       unique.add(target);
       this.targets = Array.from(unique);
@@ -230,7 +230,13 @@ class BuildParameters {
                }
             });
 
-            this.values[p.parameterKey] = !enabledTargets.find(t => !unique.has(t));
+            if (enabledTargets.length) {
+               this.values[p.parameterKey] = !enabledTargets.find(t => !unique.has(t));
+            }
+
+            if (disabledTargets.length && disabledTargets.find(t => unique.has(t))) {
+               this.values[p.parameterKey] = false;
+            }
          }
 
       })
@@ -242,10 +248,10 @@ class BuildParameters {
    }
 
    removeTarget(target: string, updateChanged = true) {
-      target = target?.trim();
-      this.targets = this.targets.filter(t => t !== target).sort((a, b) => {
-         return a.localeCompare(b);
-      });
+
+      target = target.trim();
+      const unique = new Set<string>(this.targets.filter(t => t !== target));      
+      this.targets = Array.from(unique);
 
       const parameters: ParameterData[] = [];
       this.template.parameters.forEach(p => {
@@ -267,23 +273,35 @@ class BuildParameters {
 
             const data = p as BoolParameterData;
 
-            let enabledTarget = "";
-            let disabledTarget = "";
+            let enabledTargets:string[] = [];
+            let disabledTargets:string[] = [];
 
             if (data.argumentIfEnabled?.toLowerCase().startsWith("-target=")) {
-               enabledTarget = data.argumentIfEnabled.slice(8);
+               enabledTargets.push(data.argumentIfEnabled.slice(8));
             }
+
+            data.argumentsIfEnabled?.forEach(a => {
+               if (a.toLowerCase().startsWith("-target=")) {
+                  enabledTargets.push(a.slice(8));
+               }
+            });
 
             if (data.argumentIfDisabled?.toLowerCase().startsWith("-target=")) {
-               disabledTarget = data.argumentIfDisabled.slice(8);
+               disabledTargets.push(data.argumentIfDisabled.slice(8));
+            }    
+
+            data.argumentsIfDisabled?.forEach(a => {
+               if (a.toLowerCase().startsWith("-target=")) {
+                  disabledTargets.push(a.slice(8));
+               }
+            });
+
+            if (enabledTargets.length) {
+               this.values[p.parameterKey] = !enabledTargets.find(t => !unique.has(t));
             }
 
-            if (target.toLowerCase() === enabledTarget.toLowerCase()) {
+            if (disabledTargets.length && disabledTargets.find(t => unique.has(t))) {
                this.values[p.parameterKey] = false;
-            }
-
-            if (target.toLowerCase() === disabledTarget.toLowerCase()) {
-               this.values[p.parameterKey] = true;
             }
 
          }

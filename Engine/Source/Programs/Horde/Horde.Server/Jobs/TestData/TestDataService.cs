@@ -42,7 +42,7 @@ namespace Horde.Server.Jobs.TestData
 
 			try
 			{
-				await _testData.UpgradeAsync();
+				await _testData.UpgradeAsync(cancellationToken);
 			}
 			catch (Exception ex)
 			{
@@ -71,7 +71,7 @@ namespace Horde.Server.Jobs.TestData
 			{
 				try
 				{
-					await _testData.UpdateAsync(_settings.CurrentValue.TestDataRetainMonths);					
+					await _testData.UpdateAsync(_settings.CurrentValue.TestDataRetainMonths, stoppingToken);					
 				}
 				catch (Exception ex)
 				{
@@ -89,31 +89,33 @@ namespace Horde.Server.Jobs.TestData
 		/// Find test streams
 		/// </summary>
 		/// <param name="streamIds"></param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		public async Task<List<ITestStream>> FindTestStreamsAsync(StreamId[] streamIds)
+		public async Task<IReadOnlyList<ITestStream>> FindTestStreamsAsync(StreamId[] streamIds, CancellationToken cancellationToken = default)
 		{
-
-			return await _testData.FindTestStreamsAsync(streamIds);			
+			return await _testData.FindTestStreamsAsync(streamIds, cancellationToken);			
 		}
 
 		/// <summary>
 		/// Find tests
 		/// </summary>
 		/// <param name="testIds"></param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		public async Task<List<ITest>> FindTestsAsync(TestId[] testIds)
+		public async Task<IReadOnlyList<ITest>> FindTestsAsync(TestId[] testIds, CancellationToken cancellationToken = default)
 		{
-			return await _testData.FindTestsAsync(testIds);
+			return await _testData.FindTestsAsync(testIds, cancellationToken);
 		}
 
 		/// <summary>
 		/// Find test suites
 		/// </summary>
 		/// <param name="suiteIds"></param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		public async Task<List<ITestSuite>> FindTestSuitesAsync(TestSuiteId[] suiteIds)
+		public async Task<IReadOnlyList<ITestSuite>> FindTestSuitesAsync(TestSuiteId[] suiteIds, CancellationToken cancellationToken = default)
 		{
-			return await _testData.FindTestSuitesAsync(suiteIds);
+			return await _testData.FindTestSuitesAsync(suiteIds, cancellationToken);
 		}
 
 		/// <summary>
@@ -126,10 +128,11 @@ namespace Horde.Server.Jobs.TestData
 		/// <param name="rhi"></param>
 		/// <param name="variation"></param>
 		/// <param name="metaIds"></param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		public async Task<List<ITestMeta>> FindTestMetaAsync(string[]? projectNames = null, string[]? platforms = null, string[]? configurations = null, string[]? buildTargets = null, string? rhi = null, string? variation = null, TestMetaId[]? metaIds = null)
+		public async Task<IReadOnlyList<ITestMeta>> FindTestMetaAsync(string[]? projectNames = null, string[]? platforms = null, string[]? configurations = null, string[]? buildTargets = null, string? rhi = null, string? variation = null, TestMetaId[]? metaIds = null, CancellationToken cancellationToken = default)
 		{
-			return await _testData.FindTestMetaAsync(projectNames, platforms, configurations, buildTargets, rhi, variation, metaIds);
+			return await _testData.FindTestMetaAsync(projectNames, platforms, configurations, buildTargets, rhi, variation, metaIds, cancellationToken);
 		}
 
 		/// <summary>
@@ -143,23 +146,25 @@ namespace Horde.Server.Jobs.TestData
 		/// <param name="maxCreateTime"></param>
 		/// <param name="minChange"></param>
 		/// <param name="maxChange"></param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		public async Task<List<ITestDataRef>> FindTestRefsAsync(StreamId[] streamIds, TestMetaId[] metaIds, string[]? testIds = null, string[]? suiteIds = null, DateTime? minCreateTime = null, DateTime? maxCreateTime = null, int? minChange = null, int? maxChange = null)
+		public async Task<IReadOnlyList<ITestDataRef>> FindTestRefsAsync(StreamId[] streamIds, TestMetaId[] metaIds, string[]? testIds = null, string[]? suiteIds = null, DateTime? minCreateTime = null, DateTime? maxCreateTime = null, int? minChange = null, int? maxChange = null, CancellationToken cancellationToken = default)
 		{
 			TestId[]? tids = testIds?.ConvertAll(x => TestId.Parse(x));
 			TestSuiteId[]? sids = suiteIds?.ConvertAll(x => TestSuiteId.Parse(x));
 
-			return await _testData.FindTestRefsAsync(streamIds, metaIds, tids, sids, minCreateTime, maxCreateTime, minChange, maxChange);
+			return await _testData.FindTestRefsAsync(streamIds, metaIds, tids, sids, minCreateTime, maxCreateTime, minChange, maxChange, cancellationToken);
 		}
 
 		/// <summary>
 		/// Find test details
 		/// </summary>
 		/// <param name="ids"></param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		public async Task<List<ITestDataDetails>> FindTestDetailsAsync(TestRefId[] ids)
+		public async Task<IReadOnlyList<ITestDataDetails>> FindTestDetailsAsync(TestRefId[] ids, CancellationToken cancellationToken = default)
 		{
-			return await _testData.FindTestDetailsAsync(ids);
+			return await _testData.FindTestDetailsAsync(ids, cancellationToken);
 		}
 	}
 }

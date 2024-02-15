@@ -154,7 +154,7 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IAsyncDispo
 	/// </summary>
 	/// <param name="sqsQueueUrl">SQS queue to fetch messages from</param>
 	/// <param name="cancellationToken">Cancellation token</param>
-	private async Task ListenForLifecycleEventsAsync(string sqsQueueUrl, CancellationToken cancellationToken)
+	private async Task ListenForLifecycleEventsAsync(string sqsQueueUrl, CancellationToken cancellationToken = default)
 	{
 		_logger.LogInformation("Listening for lifecycle events on {SqsQueueUrl}...", sqsQueueUrl);
 		while (!cancellationToken.IsCancellationRequested)
@@ -250,15 +250,17 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IAsyncDispo
 		if (e.Origin == OriginAsg)
 		{
 			string instanceIdProp = KnownPropertyNames.AwsInstanceId + "=" + e.Ec2InstanceId;
-			IAgent? agent = (await _agentService.FindAgentsAsync(null, null, instanceIdProp, true, null, null)).FirstOrDefault();
-			if (agent == null)
+
+			IReadOnlyList<IAgent> agentList = await _agentService.FindAgentsAsync(null, null, instanceIdProp, true, null, null, cancellationToken);
+			if (agentList.Count == 0)
 			{
 				_logger.LogWarning("Lifecycle action received but no agent with instance ID {InstanceId} found", e.Ec2InstanceId);
 				return false;
 			}
-		
-			await _agents.TryUpdateSettingsAsync(agent, requestShutdown: true);
-			await TrackAgentLifecycleAsync(agent.Id, e);
+
+			IAgent? agent = agentList[0];
+			await _agents.TryUpdateSettingsAsync(agent, requestShutdown: true, cancellationToken: cancellationToken);
+			await TrackAgentLifecycleAsync(agent.Id, e, cancellationToken);
 			return true;
 		}
 		else if (e.Origin == OriginWarmPool)
@@ -301,7 +303,7 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IAsyncDispo
 		}
 		
 		List<string> validInstanceIds = new();
-		List<IAgent> agents = await _agentService.FindAgentsAsync(null, null, null, true, null, null);
+		IReadOnlyList<IAgent> agents = await _agentService.FindAgentsAsync(null, null, null, true, null, null, cancellationToken);
 		foreach (IAgent agent in agents)
 		{
 			if (IsAgentSuggestedByAsg(agent, out string? instanceId))
@@ -317,12 +319,12 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IAsyncDispo
 		return validInstanceIds;
 	}
 
-	private async Task TrackAgentLifecycleAsync(AgentId agentId, LifecycleActionEvent e)
+	private async Task TrackAgentLifecycleAsync(AgentId agentId, LifecycleActionEvent e, CancellationToken cancellationToken)
 	{
 		DateTime utcNow = _clock.UtcNow;
 		AgentLifecycleInfo info = new(agentId.ToString(), utcNow, utcNow, e);
 		using MemoryStream ms = new (500);
-		await JsonSerializer.SerializeAsync(ms, info);
+		await JsonSerializer.SerializeAsync(ms, info, cancellationToken: cancellationToken);
 		await _redisService.GetDatabase().HashSetAsync(RedisKey, agentId.ToString(), ms.ToArray());
 	}
 
@@ -384,7 +386,7 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IAsyncDispo
 		span.SetAttribute("numTrackedAgents", infos.Count);
 
 		List<Task> tasks = new();
-		foreach (IAgent agent in await _agents.GetManyAsync(infos.Keys.ToList()))
+		foreach (IAgent agent in await _agents.GetManyAsync(infos.Keys.ToList(), cancellationToken))
 		{
 			ActionResult result = agent.Status == AgentStatus.Stopped ? ActionResult.Abandon : ActionResult.Continue;
 			tasks.Add(Task.Run(async () =>

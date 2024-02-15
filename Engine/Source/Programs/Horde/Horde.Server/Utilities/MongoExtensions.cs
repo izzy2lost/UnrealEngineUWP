@@ -126,27 +126,6 @@ namespace Horde.Server.Utilities
 		}
 
 		/// <summary>
-		/// Filters the documents returned from a search
-		/// </summary>
-		/// <param name="query">The query to filter</param>
-		/// <returns>New query</returns>
-		public static async Task<List<TResult>> ToListAsync<TDocument, TResult>(this IAsyncCursorSource<TDocument> query) where TDocument : TResult
-		{
-			List<TResult> results = new List<TResult>();
-			using (IAsyncCursor<TDocument> cursor = await query.ToCursorAsync())
-			{
-				while (await cursor.MoveNextAsync())
-				{
-					foreach(TDocument document in cursor.Current)
-					{
-						results.Add(document);
-					}
-				}
-			}
-			return results;
-		}
-
-		/// <summary>
 		/// Attempts to insert a document into a collection, handling the error case that a document with the given key already exists
 		/// </summary>
 		/// <typeparam name="TDocument"></typeparam>

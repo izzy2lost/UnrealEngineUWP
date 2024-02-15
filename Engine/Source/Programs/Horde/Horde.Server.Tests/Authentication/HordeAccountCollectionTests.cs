@@ -64,15 +64,14 @@ namespace Horde.Server.Tests.Authentication
 		[TestMethod]
 		public async Task UpdateAsync()
 		{
-			List<string> newClaims = new () {"newClaim1###newValue1", "newClaim2###newValue2"};
+			List<UserClaim> newClaims = new () {new UserClaim("newClaim1","newValue1"), new UserClaim("newClaim2","newValue2")};
 			await _hordeAccounts.UpdateAsync(_hordeAccount.Id,
 				name: "newName",
 				login: "newLogin",
+				claims: newClaims,
 				email: "foo@bar.com",
 				secretToken: "newToken",
-				passwordHash: "newHash",
-				passwordSalt: "newSalt",
-				claims: newClaims,
+				password: "password12345",
 				enabled: false,
 				description: "newDesc");
 			IHordeAccount sa = (await _hordeAccounts.GetAsync(_hordeAccount.Id))!;
@@ -80,8 +79,8 @@ namespace Horde.Server.Tests.Authentication
 			Assert.AreEqual("newName", sa.Name);
 			Assert.AreEqual("newLogin", sa.Login);
 			Assert.AreEqual("newToken", sa.SecretToken);
-			Assert.AreEqual("newHash", sa.PasswordHash);
-			Assert.AreEqual("newSalt", sa.PasswordSalt);
+			Assert.IsTrue(PasswordHasher.ValidatePassword("password12345", PasswordHasher.SaltFromString(sa.PasswordSalt), PasswordHasher.HashFromString(sa.PasswordHash)));
+			Assert.IsFalse(PasswordHasher.ValidatePassword("password123456", PasswordHasher.SaltFromString(sa.PasswordSalt), PasswordHasher.HashFromString(sa.PasswordHash)));
 			Assert.AreEqual(2, sa.GetClaims().Count);
 			Assert.AreEqual("newValue1", sa.GetClaims()[0].Value);
 			Assert.AreEqual("newValue2", sa.GetClaims()[1].Value);

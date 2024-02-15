@@ -8,6 +8,7 @@ using Horde.Server.Server;
 using Horde.Server.Utilities;
 using MongoDB.Bson.Serialization.Attributes;
 using System.Linq;
+using System.Threading;
 
 namespace Horde.Server.Dashboard
 {
@@ -68,8 +69,9 @@ namespace Horde.Server.Dashboard
 		/// Add a preview item
 		/// </summary>
 		/// <param name="summary"></param>
+		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		Task<IDashboardPreview> AddPreviewAsync(string summary);
+		Task<IDashboardPreview> AddPreviewAsync(string summary, CancellationToken cancellationToken);
 
 		/// <summary>
 		/// Update a dashboard preview item
@@ -81,15 +83,17 @@ namespace Horde.Server.Dashboard
 		/// <param name="exampleLink"></param>
 		/// <param name="discussionLink"></param>
 		/// <param name="trackingLink"></param>
+		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		Task<IDashboardPreview?> UpdatePreviewAsync(int previewId, string? summary = null, int? deployedCL = null, bool? open = null, string? exampleLink = null, string? discussionLink = null, string? trackingLink = null);
+		Task<IDashboardPreview?> UpdatePreviewAsync(int previewId, string? summary = null, int? deployedCL = null, bool? open = null, string? exampleLink = null, string? discussionLink = null, string? trackingLink = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Finds preview items with the given criterial
 		/// </summary>
 		/// <param name="open"></param>
+		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		Task<List<IDashboardPreview>> FindPreviewsAsync(bool? open = null);
+		Task<List<IDashboardPreview>> FindPreviewsAsync(bool? open = null, CancellationToken cancellationToken = default);
 	}
 
 	internal class DashboardPreviewCollection : IDashboardPreviewCollection
@@ -147,28 +151,27 @@ namespace Horde.Server.Dashboard
 			_previews = mongoService.GetCollection<PreviewDocument>("DashboardPreviews");
 		}
 
-		public async Task<IDashboardPreview> AddPreviewAsync(string summary)
+		public async Task<IDashboardPreview> AddPreviewAsync(string summary, CancellationToken cancellationToken)
 		{
-			PreviewLedger ledger = await _ledgerSingleton.UpdateAsync(x => x.NextId++);
+			PreviewLedger ledger = await _ledgerSingleton.UpdateAsync(x => x.NextId++, cancellationToken);
 
 			PreviewDocument newPreview = new PreviewDocument(ledger.NextId, summary);
-			await _previews.InsertOneAsync(newPreview);
-			
+			await _previews.InsertOneAsync(newPreview, (InsertOneOptions?)null, cancellationToken);
 
 			return newPreview;
 		}
 
-		public async Task<IDashboardPreview> UpdatePreviewAsync(string summary)
+		public async Task<IDashboardPreview> UpdatePreviewAsync(string summary, CancellationToken cancellationToken)
 		{
-			PreviewLedger ledger = await _ledgerSingleton.UpdateAsync(x => x.NextId++);
+			PreviewLedger ledger = await _ledgerSingleton.UpdateAsync(x => x.NextId++, cancellationToken);
 
 			PreviewDocument newPreview = new PreviewDocument(ledger.NextId, summary);
-			await _previews.InsertOneAsync(newPreview);
+			await _previews.InsertOneAsync(newPreview, (InsertOneOptions?)null, cancellationToken);
 
 			return newPreview;
 		}
 
-		public async Task<IDashboardPreview?> UpdatePreviewAsync(int previewId, string? summary = null, int? deployedCL = null, bool? open = null, string? exampleLink = null, string? discussionLink = null, string? trackingLink = null )
+		public async Task<IDashboardPreview?> UpdatePreviewAsync(int previewId, string? summary = null, int? deployedCL = null, bool? open = null, string? exampleLink = null, string? discussionLink = null, string? trackingLink = null, CancellationToken cancellationToken = default)
 		{
 			UpdateDefinitionBuilder<PreviewDocument> updateBuilder = Builders<PreviewDocument>.Update;
 			List<UpdateDefinition<PreviewDocument>> updates = new List<UpdateDefinition<PreviewDocument>>();
@@ -205,18 +208,18 @@ namespace Horde.Server.Dashboard
 
 			if (updates.Count == 0)
 			{
-				await _previews.Find(x => x.Id == previewId).FirstOrDefaultAsync();
+				await _previews.Find(x => x.Id == previewId).FirstOrDefaultAsync(cancellationToken);
 			}
 
-			if (await _previews.FindOneAndUpdateAsync(x => x.Id == previewId, updateBuilder.Combine(updates)) == null)
+			if (await _previews.FindOneAndUpdateAsync(x => x.Id == previewId, updateBuilder.Combine(updates), null, cancellationToken) == null)
 			{
 				return null;
 			}
 
-			return await _previews.Find(x => x.Id == previewId).FirstOrDefaultAsync();
+			return await _previews.Find(x => x.Id == previewId).FirstOrDefaultAsync(cancellationToken);
 		}
 
-		public async Task<List<IDashboardPreview>> FindPreviewsAsync(bool? open = null)
+		public async Task<List<IDashboardPreview>> FindPreviewsAsync(bool? open = null, CancellationToken cancellationToken = default)
 		{
 			FilterDefinition<PreviewDocument> filter = Builders<PreviewDocument>.Filter.Empty;
 			if (open != null)
@@ -224,7 +227,7 @@ namespace Horde.Server.Dashboard
 				filter &= Builders<PreviewDocument>.Filter.Eq(x => x.Open, open);
 			}
 
-			List<PreviewDocument> results = await _previews.Find(filter).ToListAsync();
+			List<PreviewDocument> results = await _previews.Find(filter).ToListAsync(cancellationToken);
 			return results.Select<PreviewDocument, IDashboardPreview>(x => x).ToList();
 		}
 	}

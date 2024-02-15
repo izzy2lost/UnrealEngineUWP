@@ -4,9 +4,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde.Accounts;
 using Horde.Server.Server;
-using MongoDB.Bson;
+using Horde.Server.Utilities;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 
@@ -41,7 +43,7 @@ namespace Horde.Server.Users
 		/// <returns></returns>
 		public static byte[] HashPassword(string password, byte[] salt)
 		{
-			using Rfc2898DeriveBytes rfc2898DeriveBytes = new (password, salt, Iterations, HashAlgorithmName.SHA256);
+			using Rfc2898DeriveBytes rfc2898DeriveBytes = new(password, salt, Iterations, HashAlgorithmName.SHA256);
 			return rfc2898DeriveBytes.GetBytes(KeySize);
 		}
 
@@ -57,7 +59,7 @@ namespace Horde.Server.Users
 			byte[] hash = HashPassword(password, salt);
 			return hash.SequenceEqual(correctHash);
 		}
-		
+
 		/// <summary>
 		/// Convert a salt string to byte array
 		/// </summary>
@@ -73,7 +75,7 @@ namespace Horde.Server.Users
 			}
 			return salt;
 		}
-		
+
 		/// <summary>
 		/// Convert a hash string to byte array
 		/// </summary>
@@ -90,7 +92,7 @@ namespace Horde.Server.Users
 			return hash;
 		}
 	}
-	
+
 	/// <summary>
 	/// Collection of service account documents
 	/// </summary>
@@ -102,35 +104,35 @@ namespace Horde.Server.Users
 		private class HordeAccountDocument : IHordeAccount
 		{
 			public const string ClaimSeparator = "###";
-			
+
 			/// <inheritdoc/>
 			[BsonRequired, BsonId]
-			public ObjectId Id { get; set; }
-			
+			public AccountId Id { get; set; }
+
 			/// <inheritdoc/>
 			public string Name { get; set; } = "";
-			
+
 			/// <inheritdoc/>
 			public string Login { get; set; } = "";
-			
+
 			/// <inheritdoc/>
 			public string? Email { get; set; }
-			
+
 			/// <inheritdoc/>
 			public string? SecretToken { get; set; }
-			
+
 			/// <inheritdoc/>
 			public string? PasswordHash { get; set; }
-			
+
 			/// <inheritdoc/>
 			public string? PasswordSalt { get; set; }
-			
+
 			[BsonRequired]
 			public List<string> Claims { get; set; } = new List<string>();
-			
+
 			/// <inheritdoc/>
 			public bool Enabled { get; set; }
-			
+
 			/// <inheritdoc/>
 			public string Description { get; set; } = "";
 
@@ -139,7 +141,7 @@ namespace Horde.Server.Users
 			{
 			}
 
-			public HordeAccountDocument(ObjectId id, string name, string login)
+			public HordeAccountDocument(AccountId id, string name, string login)
 			{
 				Id = id;
 				Name = name;
@@ -160,7 +162,7 @@ namespace Horde.Server.Users
 			{
 				bool areClaimsEqual = !Claims.Except(other.Claims).Any();
 
-                return Id.Equals(other.Id) && SecretToken == other.SecretToken && areClaimsEqual && Enabled == other.Enabled && Description == other.Description;
+				return Id.Equals(other.Id) && SecretToken == other.SecretToken && areClaimsEqual && Enabled == other.Enabled && Description == other.Description;
 			}
 
 			public override bool Equals(object? obj)
@@ -177,7 +179,7 @@ namespace Horde.Server.Users
 				{
 					return false;
 				}
-				return Equals((HordeAccountDocument) obj);
+				return Equals((HordeAccountDocument)obj);
 			}
 
 			public override int GetHashCode()
@@ -200,69 +202,84 @@ namespace Horde.Server.Users
 			_serviceAccounts = mongoService.GetCollection<HordeAccountDocument>("ServiceAccounts", keys => keys.Ascending(x => x.SecretToken));
 		}
 
+		static List<string> CreateClaims(IReadOnlyList<IUserClaim> claims)
+		{
+			return claims.Select(x => $"{x.Type}{HordeAccountDocument.ClaimSeparator}{x.Value}").ToList();
+		}
+
 		/// <inheritdoc/>
 		public async Task<IHordeAccount> AddAsync(
 			string name,
 			string login,
-			List<IUserClaim>? claims,
+			IReadOnlyList<IUserClaim>? claims,
 			string? description,
 			string? email,
 			string? secretToken,
-			string? password)
+			string? password,
+			bool? enabled,
+			CancellationToken cancellationToken = default)
 		{
-			List<string> stringClaims = (claims ?? new List<IUserClaim>())
-				.Select(x => $"{x.Type}{HordeAccountDocument.ClaimSeparator}{x.Value}").ToList();
-			
-			HordeAccountDocument account = new(ObjectId.GenerateNewId(), name, login)
+			List<string> stringClaims = (claims == null) ? new List<string>() : CreateClaims(claims);
+
+			HordeAccountDocument account = new(new AccountId(BinaryIdUtils.CreateNew()), name, login)
 			{
 				Email = email,
 				SecretToken = secretToken,
 				Description = description ?? "",
 				Claims = stringClaims,
-				Enabled = true
+				Enabled = enabled ?? true
 			};
 
-			await _serviceAccounts.InsertOneAsync(account);
 			if (password != null)
 			{
-				await SetPasswordAsync(account.Id, password);
+				(string passwordSalt, string passwordHash) = CreateSaltAndHashPassword(password);
+				account.PasswordSalt = passwordSalt;
+				account.PasswordHash = passwordHash;
 			}
+
+			await _serviceAccounts.InsertOneAsync(account, (InsertOneOptions?)null, cancellationToken);
 			return account;
 		}
 
 		/// <inheritdoc/>
-		public async Task<IHordeAccount?> GetAsync(ObjectId id)
+		public async Task<IReadOnlyList<IHordeAccount>> FindAsync(int? index = null, int? count = null, CancellationToken cancellationToken = default)
 		{
-			return await _serviceAccounts.Find(x => x.Id == id).FirstOrDefaultAsync();
+			return await _serviceAccounts.Find(FilterDefinition<HordeAccountDocument>.Empty).Range(index, count).ToListAsync(cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		public async Task<IHordeAccount?> GetBySecretTokenAsync(string secretToken)
+		public async Task<IHordeAccount?> GetAsync(AccountId id, CancellationToken cancellationToken = default)
 		{
-			return await _serviceAccounts.Find(x => x.SecretToken == secretToken).FirstOrDefaultAsync();
-		}
-		
-		/// <inheritdoc/>
-		public async Task<IHordeAccount?> GetByLoginAsync(string login)
-		{
-			return await _serviceAccounts.Find(x => x.Login == login).FirstOrDefaultAsync();
+			return await _serviceAccounts.Find(x => x.Id == id).FirstOrDefaultAsync(cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		public Task UpdateAsync(ObjectId id,
+		public async Task<IHordeAccount?> GetBySecretTokenAsync(string secretToken, CancellationToken cancellationToken = default)
+		{
+			return await _serviceAccounts.Find(x => x.SecretToken == secretToken).FirstOrDefaultAsync(cancellationToken);
+		}
+
+		/// <inheritdoc/>
+		public async Task<IHordeAccount?> GetByLoginAsync(string login, CancellationToken cancellationToken = default)
+		{
+			return await _serviceAccounts.Find(x => x.Login == login).FirstOrDefaultAsync(cancellationToken);
+		}
+
+		/// <inheritdoc/>
+		public Task UpdateAsync(AccountId id,
 			string? name,
 			string? login,
+			IReadOnlyList<IUserClaim>? claims,
+			string? description,
 			string? email,
 			string? secretToken,
-			string? passwordHash,
-			string? passwordSalt,
-			List<string>? claims,
+			string? password,
 			bool? enabled,
-			string? description)
+			CancellationToken cancellationToken = default)
 		{
 			UpdateDefinitionBuilder<HordeAccountDocument> update = Builders<HordeAccountDocument>.Update;
 			List<UpdateDefinition<HordeAccountDocument>> updates = new List<UpdateDefinition<HordeAccountDocument>>();
-		
+
 			if (name != null)
 			{
 				updates.Add(update.Set(x => x.Name, name));
@@ -279,17 +296,14 @@ namespace Horde.Server.Users
 			{
 				updates.Add(update.Set(x => x.SecretToken, secretToken));
 			}
-			if (passwordHash != null)
+			if (password != null)
 			{
-				updates.Add(update.Set(x => x.PasswordHash, passwordHash));
-			}
-			if (passwordSalt != null)
-			{
-				updates.Add(update.Set(x => x.PasswordSalt, passwordSalt));
+				(string salt, string hash) = CreateSaltAndHashPassword(password);
+				updates.Add(update.Set(x => x.PasswordSalt, salt).Set(x => x.PasswordHash, hash));
 			}
 			if (claims != null)
 			{
-				updates.Add(update.Set(x => x.Claims, claims));
+				updates.Add(update.Set(x => x.Claims, CreateClaims(claims)));
 			}
 			if (enabled != null)
 			{
@@ -300,30 +314,20 @@ namespace Horde.Server.Users
 				updates.Add(update.Set(x => x.Description, description));
 			}
 
-			return _serviceAccounts.FindOneAndUpdateAsync(x => x.Id == id, update.Combine(updates));
+			return _serviceAccounts.FindOneAndUpdateAsync(x => x.Id == id, update.Combine(updates), cancellationToken: cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		public Task DeleteAsync(ObjectId sessionId)
+		public Task DeleteAsync(AccountId sessionId, CancellationToken cancellationToken = default)
 		{
-			return _serviceAccounts.DeleteOneAsync(x => x.Id == sessionId);
+			return _serviceAccounts.DeleteOneAsync(x => x.Id == sessionId, cancellationToken);
 		}
 
-		/// <inheritdoc/>
-		public async Task SetPasswordAsync(ObjectId id, string password)
+		static (string Salt, string Hash) CreateSaltAndHashPassword(string password)
 		{
-			IHordeAccount? sa = await GetAsync(id);
-			if (sa == null)
-			{
-				throw new Exception($"Account with ID {id} not found");
-			}
-			
 			byte[] salt = PasswordHasher.GenerateSalt();
 			byte[] hashedPassword = PasswordHasher.HashPassword(password, salt);
-			await (this as IHordeAccountCollection).UpdateAsync(
-				id,
-				passwordHash: Convert.ToHexString(hashedPassword),
-				passwordSalt: Convert.ToHexString(salt));
+			return (Convert.ToHexString(salt), Convert.ToHexString(hashedPassword));
 		}
 	}
 }
