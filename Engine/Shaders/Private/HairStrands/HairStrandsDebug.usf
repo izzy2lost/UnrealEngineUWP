@@ -3123,14 +3123,17 @@ void MainCS(uint GroupIndex : SV_GroupIndex, uint3 DispatchThreadId : SV_Dispatc
 		PrintBool(Ctx, HairSkinCacheEnable);
 		Newline(Ctx);
 
-		bAdvanced = AddCheckbox(Ctx, TEXT("Advanced"), false, FontWhite); 
+		bAdvanced = AddCheckbox(Ctx, TEXT("Advanced"), false, FontSilver); 
 		Newline(Ctx);
 	}
 	Newline(Ctx);
 
 	// Draw instance details
-	Print(Ctx, TEXT("  Inst. Guide Strands Cards CacheType Sections LOD Name"));
-	Newline(Ctx);
+	if (bAdvanced)
+	{
+		Print(Ctx, TEXT("  Inst. Guide Strands Cards CacheType Sections LOD Name"));
+		Newline(Ctx);
+	}
 
 	LOOP
 	for (uint UniqueMeshIndex = 0; UniqueMeshIndex < UniqueMeshCount; ++UniqueMeshIndex)
