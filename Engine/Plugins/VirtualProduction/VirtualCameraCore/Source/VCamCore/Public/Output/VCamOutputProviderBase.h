@@ -62,11 +62,6 @@ public:
 	/** Called when the provider is being shutdown such as before changing level or on exit */
 	virtual void Deinitialize();
 	
-	/** Called when the provider is Activated */
-	virtual void OnActivate();
-	/** Called when the provider is Deactivated */
-	virtual void OnDeactivate();
-	
 	/** Called to create the UMG overlay widget. */
 	virtual void CreateUMG();
 	
@@ -155,7 +150,12 @@ protected:
 	 */
 	UPROPERTY(EditAnywhere, Instanced, Category = "Output", meta = (DisplayPriority = "99"))
 	TObjectPtr<UGameplayViewTargetPolicy> GameplayViewTargetPolicy;
-
+	
+	/** Called when the provider is Activated */
+	virtual void OnActivate();
+	/** Called when the provider is Deactivated */
+	virtual void OnDeactivate();
+	
 	/** Called by owning UVCamComponent when the target camera changes. */
 	void OnSetTargetCamera(const UCineCameraComponent* InTargetCamera);
 	
@@ -232,5 +232,5 @@ private:
 #endif
 
 	void ConditionallySetUpGameplayViewTargets();
-	void CleanUpGameplayViewTargets();
+	void ConditionallyCleanUpGameplayViewTargets();
 };

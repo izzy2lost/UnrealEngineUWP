@@ -181,6 +181,13 @@ void UVCamComponent::BeginDestroy()
 	Super::BeginDestroy();
 }
 
+void UVCamComponent::EndPlay(EEndPlayReason::Type Reason)
+{
+	CleanupRegisteredDelegates();
+	Deinitialize();
+	Super::EndPlay(Reason);
+}
+
 TStructOnScope<FActorComponentInstanceData> UVCamComponent::GetComponentInstanceData() const
 {
 	return MakeStructOnScope<FActorComponentInstanceData, FVCamComponentInstanceData>(this);
@@ -353,37 +360,41 @@ void UVCamComponent::PreEditChange(FEditPropertyChain& PropertyAboutToChange)
 
 void UVCamComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
-	FProperty* Property = PropertyChangedEvent.MemberProperty;
-	if (Property && PropertyChangedEvent.ChangeType != EPropertyChangeType::Interactive)
+	// No initialization flows when editing in Blueprint
+	if (UE::VCamCore::Private::CanInitVCamInstance(this))
 	{
-		const FName PropertyName = Property->GetFName();
+		FProperty* Property = PropertyChangedEvent.MemberProperty;
+		if (Property && PropertyChangedEvent.ChangeType != EPropertyChangeType::Interactive)
+		{
+			const FName PropertyName = Property->GetFName();
 
-		if (PropertyName == GET_MEMBER_NAME_CHECKED(UVCamComponent, ModifierStack))
-		{
-			ValidateModifierStack();
-			SavedModifierStack.Empty();
-		}
-		else if (PropertyName == GET_MEMBER_NAME_CHECKED(UVCamComponent, InputDeviceSettings))
-		{
-			SetInputDeviceSettings(InputDeviceSettings);
-		}
-
-		for (UVCamOutputProviderBase* OutputProvider : OutputProviders)
-		{
-			if (IsValid(OutputProvider))
+			if (PropertyName == GET_MEMBER_NAME_CHECKED(UVCamComponent, ModifierStack))
 			{
-				OutputProvider->NotifyAboutComponentChange();
+				ValidateModifierStack();
+				SavedModifierStack.Empty();
+			}
+			else if (PropertyName == GET_MEMBER_NAME_CHECKED(UVCamComponent, InputDeviceSettings))
+			{
+				SetInputDeviceSettings(InputDeviceSettings);
+			}
+
+			for (UVCamOutputProviderBase* OutputProvider : OutputProviders)
+			{
+				if (IsValid(OutputProvider))
+				{
+					OutputProvider->NotifyAboutComponentChange();
+				}
 			}
 		}
+
+		// Called e.g. after PostEditUndo. Must make sure that the delegates are registered.
+		SetupVCamSystemsIfNeeded();
+		ApplyInputProfile();
+
+		// Fix up any incorrect state we may be in after PostEditUndo or other types of changes.
+		// IsInitialized uses the SubsystemCollection, which is not reflected, so it should always accurately report our state.
+		RefreshInitializationState();
 	}
-
-	// Called e.g. after PostEditUndo. Must make sure that the delegates are registered.
-	SetupVCamSystemsIfNeeded();
-	ApplyInputProfile();
-
-	// Fix up any incorrect state we may be in after PostEditUndo or other types of changes.
-	// IsInitialized uses the SubsystemCollection, which is not reflected, so it should always accurately report our state.
-	RefreshInitializationState();
 	
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
@@ -391,7 +402,8 @@ void UVCamComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChang
 void UVCamComponent::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent)
 {
 	FProperty* Property = PropertyChangedEvent.PropertyChain.GetActiveNode()->GetValue();
-	if (Property && PropertyChangedEvent.ChangeType != EPropertyChangeType::Interactive)
+	if (UE::VCamCore::Private::CanInitVCamInstance(this)  // No initialization flows when editing in Blueprint
+		&& Property && PropertyChangedEvent.ChangeType != EPropertyChangeType::Interactive)
 	{
 		static FName NAME_OutputProviders = GET_MEMBER_NAME_CHECKED(UVCamComponent, OutputProviders);
 		static FName NAME_TargetViewport = UVCamOutputProviderBase::GetTargetViewportPropertyName();

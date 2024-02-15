@@ -101,30 +101,6 @@ void UVCamOutputProviderBase::Deinitialize()
 	}
 }
 
-void UVCamOutputProviderBase::OnActivate()
-{
-	ConditionallySetUpGameplayViewTargets();
-	ReapplyOverrideResolution();
-	
-	CreateUMG();
-	DisplayUMG();
-
-	OnActivatedDelegate.Broadcast(true);
-}
-
-void UVCamOutputProviderBase::OnDeactivate()
-{
-	CleanUpGameplayViewTargets();
-	if (bUseOverrideResolution)
-	{
-		RestoreOverrideResolutionForViewport(TargetViewport);
-	}
-	
-	DestroyUMG();
-	
-	OnActivatedDelegate.Broadcast(false);
-}
-
 void UVCamOutputProviderBase::Tick(const float DeltaTime)
 {
 	if (bIsActive && UMGWidget && UMGClass)
@@ -265,6 +241,31 @@ void UVCamOutputProviderBase::ReapplyOverrideResolution()
 	{
 		RestoreOverrideResolutionForViewport(TargetViewport);
 	}
+}
+void UVCamOutputProviderBase::OnActivate()
+{
+	check(IsInitialized());
+
+	ConditionallySetUpGameplayViewTargets();
+	ReapplyOverrideResolution();
+	
+	CreateUMG();
+	DisplayUMG();
+
+	OnActivatedDelegate.Broadcast(true);
+}
+
+void UVCamOutputProviderBase::OnDeactivate()
+{
+	ConditionallyCleanUpGameplayViewTargets();
+	if (bUseOverrideResolution)
+	{
+		RestoreOverrideResolutionForViewport(TargetViewport);
+	}
+	
+	DestroyUMG();
+	
+	OnActivatedDelegate.Broadcast(false);
 }
 
 void UVCamOutputProviderBase::OnSetTargetCamera(const UCineCameraComponent* InTargetCamera)
@@ -763,7 +764,7 @@ void UVCamOutputProviderBase::ConditionallySetUpGameplayViewTargets()
 		return;
 	}
 	
-	CleanUpGameplayViewTargets();
+	ConditionallyCleanUpGameplayViewTargets();
 
 	constexpr bool bWillBeActive = true;
 	const FDeterminePlayerControllersTargetPolicyParams DeterminePlayersParams{ this, CineCamera, bWillBeActive };
@@ -782,10 +783,13 @@ void UVCamOutputProviderBase::ConditionallySetUpGameplayViewTargets()
 	GameplayViewTargetPolicy->UpdateViewTarget(UpdateViewTargetParams);
 }
 
-void UVCamOutputProviderBase::CleanUpGameplayViewTargets()
+void UVCamOutputProviderBase::ConditionallyCleanUpGameplayViewTargets()
 {
 	UCineCameraComponent* CineCamera = TargetCamera.Get();
-	if (!CineCamera || !IsValid(GameplayViewTargetPolicy))
+	if (!CineCamera
+		|| !IsValid(GameplayViewTargetPolicy)
+		// This happens during GC. Not checking this will a check in UpdateViewTarget because BP events are not valid to run when unreachable.
+		|| GameplayViewTargetPolicy->IsUnreachable())
 	{
 		return;
 	}
