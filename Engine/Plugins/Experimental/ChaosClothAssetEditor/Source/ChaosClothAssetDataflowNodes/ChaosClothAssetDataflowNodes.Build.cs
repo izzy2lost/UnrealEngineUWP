@@ -48,6 +48,7 @@ public class ChaosClothAssetDataflowNodes : ModuleRules
 				"StaticMeshDescription",
 				"UnrealEd",
 				"UnrealUSDWrapper",
+				"USDClasses",
 				"USDSchemas",
 				"USDStage",
 				"USDStageImporter",

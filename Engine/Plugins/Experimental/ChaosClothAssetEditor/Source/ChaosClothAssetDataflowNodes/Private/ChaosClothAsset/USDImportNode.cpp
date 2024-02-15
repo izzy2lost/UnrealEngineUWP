@@ -20,6 +20,7 @@
 #include "UObject/Package.h"
 #include "UnrealUSDWrapper.h"
 #include "USDConversionUtils.h"
+#include "USDProjectSettings.h"
 #include "USDStageImportContext.h"
 #include "USDStageImporter.h"
 #include "USDStageImportOptions.h"
@@ -281,6 +282,32 @@ namespace UE::Chaos::ClothAsset::Private
 
 		return bHasDuplicateStitches;
 	}
+
+	static TArray<FSoftObjectPath> UsdClothOverrideMaterials {
+		FSoftObjectPath(TEXT("/ChaosClothAsset/Materials/USDImportMaterial.USDImportMaterial")),
+		FSoftObjectPath(TEXT("/ChaosClothAsset/Materials/USDImportTranslucentMaterial.USDImportTranslucentMaterial")),
+		FSoftObjectPath(TEXT("/ChaosClothAsset/Materials/USDImportTwoSidedMaterial.USDImportTwoSidedMaterial")),
+		FSoftObjectPath(TEXT("/ChaosClothAsset/Materials/USDImportTranslucentTwoSidedMaterial.USDImportTranslucentTwoSidedMaterial")),
+	};
+	
+	static void OverrideUsdImportMaterials(const TArray<FSoftObjectPath>& Materials, TArray<FSoftObjectPath>* SavedValues = nullptr)
+	{
+		if (UUsdProjectSettings* UsdProjectSettings = GetMutableDefault<UUsdProjectSettings>())
+		{
+			// Check to see if we should save the existing values
+			if (SavedValues)
+			{
+				SavedValues->Push(UsdProjectSettings->ReferencePreviewSurfaceMaterial);
+				SavedValues->Push(UsdProjectSettings->ReferencePreviewSurfaceTranslucentMaterial);
+				SavedValues->Push(UsdProjectSettings->ReferencePreviewSurfaceTwoSidedMaterial);
+				SavedValues->Push(UsdProjectSettings->ReferencePreviewSurfaceTranslucentTwoSidedMaterial);
+			}
+			UsdProjectSettings->ReferencePreviewSurfaceMaterial = Materials[0];
+			UsdProjectSettings->ReferencePreviewSurfaceTranslucentMaterial = Materials[1];
+			UsdProjectSettings->ReferencePreviewSurfaceTwoSidedMaterial = Materials[2];
+			UsdProjectSettings->ReferencePreviewSurfaceTranslucentTwoSidedMaterial = Materials[3];
+		}
+	}
 }  // End namespace UE::Chaos::ClothAsset::Private
 
 FChaosClothAssetUSDImportNode::FChaosClothAssetUSDImportNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
@@ -496,8 +523,17 @@ bool FChaosClothAssetUSDImportNode::ImportFromFile(const FString& UsdFilePath, c
 	ImportContext.Stage = UsdStage;  // Set the stage first to prevent re-opening it in the Init function
 	ImportContext.Init(TEXT(""), UsdFilePath, PackagePath, RF_NoFlags, bIsAutomated, bIsReimport, bAllowActorImport);
 
+	TArray<FSoftObjectPath> OriginalUsdMaterials;
+	// Override the project settings to point the USD importer to cloth specific parent materials.
+	// This is because we want the materials to import into UEFN and the default USD ones
+	// use operations that are not allowed.
+	Private::OverrideUsdImportMaterials(Private::UsdClothOverrideMaterials, &OriginalUsdMaterials);
+	
 	UUsdStageImporter UsdStageImporter;
 	UsdStageImporter.ImportFromFile(ImportContext);
+	
+	// Restore Original USD Materials
+	Private::OverrideUsdImportMaterials(OriginalUsdMaterials);
 
 	SlowTask.EnterProgressFrame(2.f);
 
