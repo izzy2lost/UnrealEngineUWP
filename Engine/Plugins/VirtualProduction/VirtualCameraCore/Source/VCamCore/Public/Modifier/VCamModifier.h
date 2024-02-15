@@ -19,12 +19,12 @@ struct VCAMCORE_API FVCamModifierConnectionPoint
 {
 	GENERATED_BODY()
 
-	// An optional action to associate with this connection point
+	/** An optional action to associate with this connection point. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Connection")
 	TObjectPtr<UInputAction> AssociatedAction;
 };
 
-UCLASS(Blueprintable, Abstract, EditInlineNew)
+UCLASS(Abstract, Blueprintable, EditInlineNew)
 class VCAMCORE_API UVCamModifier : public UObject
 {
 	GENERATED_BODY()
@@ -33,7 +33,8 @@ public:
 	virtual void Initialize(UVCamModifierContext* Context, UInputComponent* InputComponent = nullptr);
 	virtual void Deinitialize();
 
-	virtual void Apply(UVCamModifierContext* Context, UCineCameraComponent* CameraComponent, const float DeltaTime) {};
+	/** Called every tick to update this modifier. */
+	virtual void Apply(UVCamModifierContext* Context, UCineCameraComponent* CameraComponent, const float DeltaTime) {}
 
 	//~ Begin UObject Interface
 	virtual void BeginDestroy() override;
@@ -81,12 +82,12 @@ private:
 	bool bNeedsInitialization = true;
 };
 
-UCLASS(EditInlineNew)
+UCLASS(Abstract, EditInlineNew)
 class VCAMCORE_API UVCamBlueprintModifier : public UVCamModifier
 {
 	GENERATED_BODY()
-
 public:
+	
 	virtual void Initialize(UVCamModifierContext* Context, UInputComponent* InputComponent=nullptr) override;
 	virtual void Deinitialize() override;
 	virtual void Apply(UVCamModifierContext* Context, UCineCameraComponent* CameraComponent, const float DeltaTime) override;
@@ -97,6 +98,7 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category="VirtualCamera")
 	void OnDeinitialize();
 
+	/** Called every tick to update this modifier. */
 	UFUNCTION(BlueprintImplementableEvent, Category="VirtualCamera")
 	void OnApply(UVCamModifierContext* Context, UCineCameraComponent* CameraComponent, const float DeltaTime);
 

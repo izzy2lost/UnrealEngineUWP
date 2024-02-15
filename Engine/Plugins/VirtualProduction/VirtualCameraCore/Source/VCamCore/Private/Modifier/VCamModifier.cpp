@@ -7,7 +7,6 @@
 
 #include "EnhancedInputComponent.h"
 #include "Engine/InputDelegateBinding.h"
-
 #include "UObject/UObjectThreadContext.h"
 
 void UVCamBlueprintModifier::Initialize(UVCamModifierContext* Context, UInputComponent* InputComponent)
@@ -15,7 +14,6 @@ void UVCamBlueprintModifier::Initialize(UVCamModifierContext* Context, UInputCom
 	// Forward the Initialize call to the Blueprint Event
 	{
 		FEditorScriptExecutionGuard ScriptGuard;
-
 		OnInitialize(Context);
 	}
 
@@ -42,7 +40,6 @@ void UVCamBlueprintModifier::Apply(UVCamModifierContext* Context, UCineCameraCom
 	// Forward the Apply call to the Blueprint Event
 	{
 		FEditorScriptExecutionGuard ScriptGuard;
-
 		OnApply(Context, CameraComponent, DeltaTime);
 	}
 }
