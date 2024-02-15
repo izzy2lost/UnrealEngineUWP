@@ -402,7 +402,9 @@ void FSkeletalMeshObjectGPUSkin::Update(
 		PreviousBoneTransformUpdateMode,
 		InExternalMorphWeightData);
 
-	uint64 FrameNumberToPrepare = GFrameCounter;
+	// The goal is to mirror the exact component state to the render state, including the frame number the component was
+	// updated (as opposed to the current frame number), unless there's no associated component.
+	uint64 FrameNumberToPrepare = InMeshComponent ? InMeshComponent->GetCurrentBoneTransformFrame() : GFrameCounter;
 	uint32 RevisionNumber = 0;
 	uint32 PreviousRevisionNumber = 0;
 

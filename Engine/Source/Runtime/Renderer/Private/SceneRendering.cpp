@@ -5007,10 +5007,7 @@ void FRendererModule::BeginRenderingViewFamilies(FCanvas* Canvas, TArrayView<FSc
 
 	for (FSceneViewFamily* ViewFamily : ViewFamilies)
 	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		// If optional parameter OverrideFrameCounter is set, use its value instead of GFrameCounter.
-		ViewFamily->FrameCounter = ViewFamily->OverrideFrameCounter.IsSet() ? ViewFamily->OverrideFrameCounter.GetValue() : GFrameCounter;
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		ViewFamily->FrameCounter = GFrameCounter;
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 		{

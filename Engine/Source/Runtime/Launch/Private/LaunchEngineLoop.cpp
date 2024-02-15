@@ -2849,8 +2849,6 @@ int32 FEngineLoop::PreInitPreStartupScreen(const TCHAR* CmdLine)
 	}
 
 #if WITH_ENGINE && CSV_PROFILER
-	FCoreDelegates::OnBeginFrame.AddStatic(UpdateCoreCsvStats_BeginFrame);
-	FCoreDelegates::OnEndFrame.AddStatic(UpdateCoreCsvStats_EndFrame);
 	FCsvProfiler::Get()->Init();
 #endif
 
@@ -5734,6 +5732,10 @@ void FEngineLoop::Tick()
 			}
 		#endif
 
+#if WITH_ENGINE && CSV_PROFILER
+		UpdateCoreCsvStats_BeginFrame();
+#endif
+
 		FCoreDelegates::OnBeginFrame.Broadcast();
 
 		// flush debug output which has been buffered by other threads
@@ -6108,17 +6110,8 @@ void FEngineLoop::Tick()
 		// If multithreaded rendering is off, it can cause a bad ordering of game and rendering markers.
 		GEngine->SetSimulationLatencyMarkerEnd(CurrentFrameCounter);
 
-		// Increment global frame counter. Once for each engine tick.
-		GFrameCounter++;
-
-		ENQUEUE_RENDER_COMMAND(FrameCounter)(
-			[CurrentFrameCounter = GFrameCounter](FRHICommandListImmediate& RHICmdList)
-		{
-			GFrameCounterRenderThread = CurrentFrameCounter;
-		});
-
 		// Disregard first few ticks for total tick time as it includes loading and such.
-		if (GFrameCounter > 6)
+		if (GFrameCounter > 5)
 		{
 			TotalTickTime += FApp::GetDeltaTime();
 		}
@@ -6165,6 +6158,23 @@ void FEngineLoop::Tick()
 #endif
 
 		FCoreDelegates::OnEndFrame.Broadcast();
+
+		// Increment global frame counter. Once for each engine tick.
+		GFrameCounter++;
+
+		ENQUEUE_RENDER_COMMAND(FrameCounter)(
+			[CurrentFrameCounter = GFrameCounter](FRHICommandListImmediate& RHICmdList)
+		{
+			GFrameCounterRenderThread = CurrentFrameCounter;
+		});
+
+#if WITH_ENGINE && CSV_PROFILER
+		// By design, update this after incrementing GFrameCounter.  Calls PlatformMemoryHelpers::GetFrameMemoryStats, which caches
+		// memory stats based on the value of GFrameCounter.  Placing this after the increment guarantees that cached memory stats are
+		// canonically updated at this same point each frame, as opposed to arbitrarily in various other code paths (at least when the
+		// CSV profiler is compiled in, which is true in all builds except shipping).
+		UpdateCoreCsvStats_EndFrame();
+#endif
 
 		// Tick DumpGPU to start/stop frame dumps
 		#if WITH_ENGINE && WITH_DUMPGPU
