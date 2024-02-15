@@ -27,9 +27,8 @@ static constexpr FBoneIndexType RootBoneIndexType = 0;
 /////////////////////////////////////////////////////
 // FBlendStackAnimPlayer
 void FBlendStackAnimPlayer::Initialize(const FAnimationInitializeContext& Context, UAnimationAsset* AnimationAsset, float AccumulatedTime, bool bLoop,
-	bool bMirrored, UMirrorDataTable* MirrorDataTable, float BlendTime, float RootBoneBlendTime, 
-	const UBlendProfile* BlendProfile, EAlphaBlendOption InBlendOption, const FVector& BlendParameters, float PlayRate, float ActivationDelay, int32 InPoseLinkIdx,
-	FName GroupName, EAnimGroupRole::Type GroupRole, EAnimSyncMethod GroupMethod)
+	bool bMirrored, UMirrorDataTable* MirrorDataTable, float BlendTime, const UBlendProfile* BlendProfile, EAlphaBlendOption InBlendOption,
+	const FVector& BlendParameters, float PlayRate, float ActivationDelay, int32 InPoseLinkIdx, FName GroupName, EAnimGroupRole::Type GroupRole, EAnimSyncMethod GroupMethod)
 {
 	if (bMirrored && !MirrorDataTable)
 	{
@@ -41,7 +40,6 @@ void FBlendStackAnimPlayer::Initialize(const FAnimationInitializeContext& Contex
 	check(Skeleton);
 
 	const FReferenceSkeleton& RefSkeleton = Skeleton->GetReferenceSkeleton();
-	const bool bApplyDifferentRootBoneBlendTime = RootBoneBlendTime >= 0.f && !FMath::IsNearlyEqual(RootBoneBlendTime, BlendTime);
 	const int32 NumSkeletonBones = RefSkeleton.GetNum();
 	if (NumSkeletonBones <= 0)
 	{
@@ -53,29 +51,9 @@ void FBlendStackAnimPlayer::Initialize(const FAnimationInitializeContext& Contex
 		if (BlendProfile != nullptr)
 		{
 			TotalBlendInTimePerBone.Init(BlendTime, NumSkeletonBones);
-
 			BlendProfile->FillSkeletonBoneDurationsArray(TotalBlendInTimePerBone, BlendTime, Skeleton);
-
-			if (bApplyDifferentRootBoneBlendTime)
-			{
-				TotalBlendInTimePerBone[RootBoneIndexType] *= RootBoneBlendTime / BlendTime;
-			}
-
 			BlendTime = *Algo::MaxElement(TotalBlendInTimePerBone);
 		}
-		else if (bApplyDifferentRootBoneBlendTime)
-		{
-			TotalBlendInTimePerBone.Init(BlendTime, NumSkeletonBones);
-			TotalBlendInTimePerBone[RootBoneIndexType] *= RootBoneBlendTime / BlendTime;
-			BlendTime = FMath::Max(BlendTime, RootBoneBlendTime);
-		}
-	}
-	else if (bApplyDifferentRootBoneBlendTime)
-	{
-		// handling BlendTime ~= 0 and RootBoneBlendTime >= 0
-		TotalBlendInTimePerBone.Init(BlendTime, NumSkeletonBones);
-		TotalBlendInTimePerBone[RootBoneIndexType] = RootBoneBlendTime;
-		BlendTime = FMath::Max(BlendTime, RootBoneBlendTime);
 	}
 
 	BlendOption = InBlendOption;
@@ -816,9 +794,8 @@ static void RequestInertialBlend(const FAnimationUpdateContext& Context, float B
 }
 
 void FAnimNode_BlendStack_Standalone::BlendTo(const FAnimationUpdateContext& Context, UAnimationAsset* AnimationAsset, float AccumulatedTime, bool bLoop,
-	bool bMirrored, UMirrorDataTable* MirrorDataTable, float BlendTime, float RootBoneBlendTime, 
-	const UBlendProfile* BlendProfile, EAlphaBlendOption BlendOption, bool bUseInertialBlend, const FVector& BlendParameters, float PlayRate, float ActivationDelay,
-	FName GroupName, EAnimGroupRole::Type GroupRole, EAnimSyncMethod GroupMethod)
+	bool bMirrored, UMirrorDataTable* MirrorDataTable, float BlendTime, const UBlendProfile* BlendProfile, EAlphaBlendOption BlendOption, bool bUseInertialBlend,
+	const FVector& BlendParameters, float PlayRate, float ActivationDelay, FName GroupName, EAnimGroupRole::Type GroupRole, EAnimSyncMethod GroupMethod)
 {
 	const bool bBlendStackIsEmpty = AnimPlayers.IsEmpty();
 
@@ -826,14 +803,12 @@ void FAnimNode_BlendStack_Standalone::BlendTo(const FAnimationUpdateContext& Con
 	if (bBlendStackIsEmpty)
 	{		
 		BlendTime = 0.0f;
-		RootBoneBlendTime =  0.0f;
 	}
 
 	if (bUseInertialBlend)
 	{
 		RequestInertialBlend(Context, BlendTime, BlendProfile, BlendOption);
 		BlendTime = 0.0f;
-		RootBoneBlendTime = 0.0f;
 	}
 
 	// If we don't add a new player, re-use the same graph...
@@ -860,7 +835,7 @@ void FAnimNode_BlendStack_Standalone::BlendTo(const FAnimationUpdateContext& Con
 	FBlendStackAnimPlayer& AnimPlayer = AnimPlayers[0];
 
 	FAnimationInitializeContext InitContext(Context.AnimInstanceProxy, Context.SharedContext);
-	AnimPlayer.Initialize(InitContext, AnimationAsset, AccumulatedTime, bLoop, bMirrored, MirrorDataTable, BlendTime, RootBoneBlendTime, BlendProfile, BlendOption, BlendParameters, PlayRate, ActivationDelay, NewSamplePoseLinkIndex, GroupName, GroupRole, GroupMethod);
+	AnimPlayer.Initialize(InitContext, AnimationAsset, AccumulatedTime, bLoop, bMirrored, MirrorDataTable, BlendTime, BlendProfile, BlendOption, BlendParameters, PlayRate, ActivationDelay, NewSamplePoseLinkIndex, GroupName, GroupRole, GroupMethod);
 	InitializeSample(InitContext, AnimPlayer);
 }
 
@@ -1058,8 +1033,8 @@ void FAnimNode_BlendStack::UpdateAssetPlayer(const FAnimationUpdateContext& Cont
 
 	if (bExecuteBlendTo)
 	{
-		BlendTo(Context, AnimationAsset, AnimationTime, bLoop, bMirrored, MirrorDataTable.Get(), BlendTime,
-			RootBoneBlendTime, BlendProfile, BlendOption, bUseInertialBlend, BlendParameters, WantedPlayRate);
+		BlendTo(Context, AnimationAsset, AnimationTime, bLoop, bMirrored, MirrorDataTable.Get(),
+			BlendTime, BlendProfile, BlendOption, bUseInertialBlend, BlendParameters, WantedPlayRate);
 	}
 
 	const bool bDidBlendToRequestAnInertialBlend = bExecuteBlendTo && bUseInertialBlend;

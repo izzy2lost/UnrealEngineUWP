@@ -56,8 +56,6 @@ struct FMotionMatchingState
 
 	void UpdateWantedPlayRate(const UE::PoseSearch::FSearchContext& SearchContext, const FFloatInterval& PlayRate, float TrajectorySpeedMultiplier);
 
-	void UpdateRootBoneControl(const FAnimationUpdateContext& Context, float YawFromAnimationBlendRate);
-
 	FVector GetEstimatedFutureRootMotionVelocity() const;
 
 	UE::PoseSearch::FSearchResult CurrentSearchResult;
@@ -152,8 +150,6 @@ public:
 		float SearchThrottleTime,
 		const FFloatInterval& PlayRate,
 		FMotionMatchingState& InOutMotionMatchingState,
-		float YawFromAnimationBlendRate = -1.f,
-		float YawFromAnimationTrajectoryBlendTime = 0.1f,
 		EPoseSearchInterruptMode InterruptMode = EPoseSearchInterruptMode::DoNotInterrupt,
 		bool bShouldSearch = true,
 		bool bShouldUseCachedChannelData = true,

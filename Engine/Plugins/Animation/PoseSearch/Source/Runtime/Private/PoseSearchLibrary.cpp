@@ -217,33 +217,6 @@ void FMotionMatchingState::UpdateWantedPlayRate(const UE::PoseSearch::FSearchCon
 	}
 }
 
-void FMotionMatchingState::UpdateRootBoneControl(const FAnimationUpdateContext& Context, float YawFromAnimationBlendRate)
-{
-	const FAnimInstanceProxy* AnimInstanceProxy = Context.AnimInstanceProxy;
-
-	const float CurrentComponentWorldYaw = FRotator(AnimInstanceProxy->GetComponentTransform().GetRotation()).Yaw;
-	if (YawFromAnimationBlendRate < 0.f)
-	{
-		ComponentWorldYaw = CurrentComponentWorldYaw;
-		ComponentDeltaYaw = 0.f;
-	}
-	else
-	{
-		// integrating MotionMatchingState.ComponentWorldYaw with a lerped value between 
-		// the previous frame AnimationDeltaYaw and CurrentComponentDeltaYaw (component delta yaw happened during the delta time)
-		const float CurrentComponentDeltaYaw = FRotator::NormalizeAxis(CurrentComponentWorldYaw - ComponentWorldYaw);
-
-		// lerping the animation delta with the capsule delta
-		const float LerpValue = FMath::Min(YawFromAnimationBlendRate * Context.GetDeltaTime(), 1.f);
-		const float LerpedDeltaYaw = FMath::Lerp(AnimationDeltaYaw, CurrentComponentDeltaYaw, LerpValue);
-
-		ComponentWorldYaw = FRotator::NormalizeAxis(ComponentWorldYaw + LerpedDeltaYaw);
-
-		// @todo: handle the case when the character is on top of a rotating platform
-		ComponentDeltaYaw = FRotator::NormalizeAxis(ComponentWorldYaw - CurrentComponentWorldYaw);
-	}
-}
-
 #if UE_POSE_SEARCH_TRACE_ENABLED
 void UPoseSearchLibrary::TraceMotionMatchingState(
 	UE::PoseSearch::FSearchContext& SearchContext,
@@ -378,8 +351,6 @@ void UPoseSearchLibrary::UpdateMotionMatchingState(
 	float SearchThrottleTime,
 	const FFloatInterval& PlayRate,
 	FMotionMatchingState& InOutMotionMatchingState,
-	float YawFromAnimationBlendRate,
-	float YawFromAnimationTrajectoryBlendTime,
 	EPoseSearchInterruptMode InterruptMode,
 	bool bShouldSearch,
 	bool bShouldUseCachedChannelData,
@@ -400,32 +371,15 @@ void UPoseSearchLibrary::UpdateMotionMatchingState(
 		return;
 	}
 
-	InOutMotionMatchingState.UpdateRootBoneControl(Context, YawFromAnimationBlendRate);
-
 	const float DeltaTime = Context.GetDeltaTime();
 
 	InOutMotionMatchingState.bJumpedToPose = false;
 
 	// used when YawFromAnimationBlendRate is greater than zero, by setting a future (YawFromAnimationTrajectoryBlendTime seconds ahead) root bone to the skeleton default
-	FMemStackPoseHistory MemStackPoseHistory;
 	const IPoseHistory* PoseHistory = nullptr;
 	if (IPoseHistoryProvider* PoseHistoryProvider = Context.GetMessage<IPoseHistoryProvider>())
 	{
 		PoseHistory = &PoseHistoryProvider->GetPoseHistory();
-
-		if (YawFromAnimationBlendRate >= 0.f && YawFromAnimationTrajectoryBlendTime > 0.f)
-		{
-			MemStackPoseHistory.Init(PoseHistory);
-
-			const FTransform& RefRootBoneTransform = Context.AnimInstanceProxy->GetSkeleton()->GetReferenceSkeleton().GetRefBonePose()[RootBoneIndexType];
-			MemStackPoseHistory.AddFutureRootBone(YawFromAnimationTrajectoryBlendTime, RefRootBoneTransform, false);
-
-#if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
-			MemStackPoseHistory.DebugDraw(*Context.AnimInstanceProxy, FColor::Emerald);
-#endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
-
-			PoseHistory = &MemStackPoseHistory;
-		}
 	}
 
 	FMemMark Mark(FMemStack::Get());
