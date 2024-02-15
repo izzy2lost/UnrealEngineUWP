@@ -779,6 +779,7 @@ FString FHttpCacheStore::FHttpOperation::GetBodyAsString() const
 	EHttpMediaType ContentType = GetContentType();
 	switch (ContentType)
 	{
+	case EHttpMediaType::Any:
 	case EHttpMediaType::Text:
 	case EHttpMediaType::Json:
 	case EHttpMediaType::Yaml:
