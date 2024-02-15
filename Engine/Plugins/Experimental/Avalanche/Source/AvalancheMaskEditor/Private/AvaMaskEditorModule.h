@@ -4,8 +4,11 @@
 
 #include "Modules/ModuleInterface.h"
 
-#include "Templates/SharedPointerFwd.h"
 #include "Framework/Commands/UICommandList.h"
+#include "Input/Reply.h"
+#include "Templates/SharedPointerFwd.h"
+
+class SWidget;
 
 class FAvalancheMaskEditorModule
 	: public IModuleInterface
@@ -21,6 +24,9 @@ public:
 private:
 	void RegisterMenus();	
 	void ToggleEditorMode();
+
+	TSharedRef<SWidget> GetStatusBarWidgetMenuContent();
+	FReply OnToggleMaskModeClicked();
 
 private:
 	TSharedPtr<FUICommandList> CommandList;

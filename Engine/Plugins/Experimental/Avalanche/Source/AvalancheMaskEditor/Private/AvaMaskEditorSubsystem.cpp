@@ -25,7 +25,12 @@ void UAvaMaskEditorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	/* Commands for this subsystem */
 	const TSharedPtr<FUICommandList> CommandList = FModuleManager::Get().LoadModuleChecked<FAvalancheMaskEditorModule>(UE_MODULE_NAME).GetCommandList();
-	
+
+	CommandList->MapAction(
+		FAvaMaskEditorCommands::Get().ShowVisualizeMasks,
+		FExecuteAction::CreateUObject(this, &UAvaMaskEditorSubsystem::ShowVisualizeMasks),
+		FCanExecuteAction());
+
 	CommandList->MapAction(
 		FAvaMaskEditorCommands::Get().ToggleMaskMode,
 		FExecuteAction::CreateUObject(this, &UAvaMaskEditorSubsystem::ToggleEditorMode),
@@ -60,6 +65,12 @@ void UAvaMaskEditorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 void UAvaMaskEditorSubsystem::Deinitialize()
 {
 	Super::Deinitialize();
+}
+
+void UAvaMaskEditorSubsystem::ShowVisualizeMasks()
+{
+	static constexpr const TCHAR* Cmd = TEXT("GeometryMask.Visualize");
+	GEngine->Exec(nullptr, Cmd);
 }
 
 void UAvaMaskEditorSubsystem::ToggleEditorMode()

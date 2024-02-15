@@ -17,6 +17,7 @@ public class AvalancheMaskEditor : ModuleRules
 			new string[] {
 				"ActorModifierCore",
 				"Avalanche",
+				"AvalancheEditorCore",
 				"AvalancheMask",
 				"AvalancheModifiers",
 				"AvalancheShapes",
