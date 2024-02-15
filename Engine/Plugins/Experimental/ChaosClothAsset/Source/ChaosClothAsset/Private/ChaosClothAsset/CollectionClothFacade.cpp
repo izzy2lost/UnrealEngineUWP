@@ -19,9 +19,9 @@ namespace UE::Chaos::ClothAsset
 	{
 	}
 
-	bool FCollectionClothConstFacade::IsValid() const
+	bool FCollectionClothConstFacade::IsValid(EClothCollectionOptionalSchemas OptionalSchemas) const
 	{
-		return ClothCollection->IsValid() && ClothCollection->GetNumElements(ClothCollectionGroup::Lods) == 1;
+		return ClothCollection->IsValid(OptionalSchemas) && ClothCollection->GetNumElements(ClothCollectionGroup::Lods) == 1;
 	}
 
 	bool FCollectionClothConstFacade::HasValidData() const
@@ -66,6 +66,7 @@ namespace UE::Chaos::ClothAsset
 		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetRenderFacesStart()));
 		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetRenderFacesEnd()));
 		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetRenderMaterialPathName()));
+		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetRenderDeformerNumInfluences()));
 
 		//~ Sim Faces Group
 		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetSimIndices2D()));
@@ -107,6 +108,12 @@ namespace UE::Chaos::ClothAsset
 		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetRenderColor()));
 		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetRenderBoneIndices()));
 		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetRenderBoneWeights()));
+		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetRenderDeformerPositionBaryCoordsAndDist()));
+		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetRenderDeformerNormalBaryCoordsAndDist()));
+		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetRenderDeformerTangentBaryCoordsAndDist()));
+		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetRenderDeformerSimIndices3D()));
+		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetRenderDeformerWeight()));
+		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetRenderDeformerSkinningBlend()));
 
 		if (bIncludeWeightMaps)
 		{
@@ -260,6 +267,11 @@ namespace UE::Chaos::ClothAsset
 		return FCollectionClothRenderPatternConstFacade(ClothCollection, PatternIndex);
 	}
 
+	TConstArrayView<int32> FCollectionClothConstFacade::GetRenderDeformerNumInfluences() const
+	{
+		return ClothCollection->GetElements(ClothCollection->GetRenderDeformerNumInfluences());
+	}
+
 	TConstArrayView<FString> FCollectionClothConstFacade::GetRenderMaterialPathName() const
 	{
 		return ClothCollection->GetElements(ClothCollection->GetRenderMaterialPathName());
@@ -338,6 +350,36 @@ namespace UE::Chaos::ClothAsset
 	TConstArrayView<TArray<float>> FCollectionClothConstFacade::GetRenderBoneWeights() const
 	{
 		return ClothCollection->GetElements(ClothCollection->GetRenderBoneWeights());
+	}
+
+	TConstArrayView<TArray<FVector4f>> FCollectionClothConstFacade::GetRenderDeformerPositionBaryCoordsAndDist() const
+	{
+		return ClothCollection->GetElements(ClothCollection->GetRenderDeformerPositionBaryCoordsAndDist());
+	}
+
+	TConstArrayView<TArray<FVector4f>> FCollectionClothConstFacade::GetRenderDeformerNormalBaryCoordsAndDist() const
+	{
+		return ClothCollection->GetElements(ClothCollection->GetRenderDeformerNormalBaryCoordsAndDist());
+	}
+
+	TConstArrayView<TArray<FVector4f>> FCollectionClothConstFacade::GetRenderDeformerTangentBaryCoordsAndDist() const
+	{
+		return ClothCollection->GetElements(ClothCollection->GetRenderDeformerTangentBaryCoordsAndDist());
+	}
+
+	TConstArrayView<TArray<FIntVector3>> FCollectionClothConstFacade::GetRenderDeformerSimIndices3D() const
+	{
+		return ClothCollection->GetElements(ClothCollection->GetRenderDeformerSimIndices3D());
+	}
+
+	TConstArrayView<TArray<float>> FCollectionClothConstFacade::GetRenderDeformerWeight() const
+	{
+		return ClothCollection->GetElements(ClothCollection->GetRenderDeformerWeight());
+	}
+
+	TConstArrayView<float> FCollectionClothConstFacade::GetRenderDeformerSkinningBlend() const
+	{
+		return ClothCollection->GetElements(ClothCollection->GetRenderDeformerSkinningBlend());
 	}
 
 	int32 FCollectionClothConstFacade::GetNumRenderFaces() const
@@ -443,9 +485,9 @@ namespace UE::Chaos::ClothAsset
 	{
 	}
 
-	void FCollectionClothFacade::DefineSchema()
+	void FCollectionClothFacade::DefineSchema(EClothCollectionOptionalSchemas OptionalSchemas)
 	{
-		GetClothCollection()->DefineSchema();
+		GetClothCollection()->DefineSchema(OptionalSchemas);
 		SetDefaults();
 	}
 
@@ -536,7 +578,7 @@ namespace UE::Chaos::ClothAsset
 		SetNumRenderPatterns(StartNumRenderPatterns + OtherNumRenderPatterns);
 		for (int32 PatternIndex = 0; PatternIndex < OtherNumRenderPatterns; ++PatternIndex)
 		{
-			GetRenderPattern(PatternIndex + StartNumRenderPatterns).Initialize(Other.GetRenderPattern(PatternIndex));
+			GetRenderPattern(PatternIndex + StartNumRenderPatterns).Initialize(Other.GetRenderPattern(PatternIndex), StartNumSimVertices3D);
 		}
 
 		// Weight maps
@@ -737,6 +779,11 @@ namespace UE::Chaos::ClothAsset
 		GetClothCollection()->RemoveElements(ClothCollectionGroup::RenderPatterns, SortedDeletionList);
 	}
 
+	TArrayView<int32> FCollectionClothFacade::GetRenderDeformerNumInfluences()
+	{
+		return GetClothCollection()->GetElements(GetClothCollection()->GetRenderDeformerNumInfluences());
+	}
+
 	TArrayView<FString> FCollectionClothFacade::GetRenderMaterialPathName()
 	{
 		return GetClothCollection()->GetElements(GetClothCollection()->GetRenderMaterialPathName());
@@ -857,6 +904,36 @@ namespace UE::Chaos::ClothAsset
 	TArrayView<TArray<float>> FCollectionClothFacade::GetRenderBoneWeights()
 	{
 		return GetClothCollection()->GetElements(GetClothCollection()->GetRenderBoneWeights());
+	}
+
+	TArrayView<TArray<FVector4f>> FCollectionClothFacade::GetRenderDeformerPositionBaryCoordsAndDist()
+	{
+		return GetClothCollection()->GetElements(GetClothCollection()->GetRenderDeformerPositionBaryCoordsAndDist());
+	}
+
+	TArrayView<TArray<FVector4f>> FCollectionClothFacade::GetRenderDeformerNormalBaryCoordsAndDist()
+	{
+		return GetClothCollection()->GetElements(GetClothCollection()->GetRenderDeformerNormalBaryCoordsAndDist());
+	}
+
+	TArrayView<TArray<FVector4f>> FCollectionClothFacade::GetRenderDeformerTangentBaryCoordsAndDist()
+	{
+		return GetClothCollection()->GetElements(GetClothCollection()->GetRenderDeformerTangentBaryCoordsAndDist());
+	}
+
+	TArrayView<TArray<FIntVector3>> FCollectionClothFacade::GetRenderDeformerSimIndices3D()
+	{
+		return GetClothCollection()->GetElements(GetClothCollection()->GetRenderDeformerSimIndices3D());
+	}
+
+	TArrayView<TArray<float>> FCollectionClothFacade::GetRenderDeformerWeight()
+	{
+		return GetClothCollection()->GetElements(GetClothCollection()->GetRenderDeformerWeight());
+	}
+
+	TArrayView<float> FCollectionClothFacade::GetRenderDeformerSkinningBlend()
+	{
+		return GetClothCollection()->GetElements(GetClothCollection()->GetRenderDeformerSkinningBlend());
 	}
 
 	TArrayView<FIntVector3> FCollectionClothFacade::GetRenderIndices()

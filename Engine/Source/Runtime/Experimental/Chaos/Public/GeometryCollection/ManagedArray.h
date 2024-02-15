@@ -1681,3 +1681,77 @@ public:
 		}
 	}
 };
+
+template<>
+class TManagedArray<TArray<FIntVector3>> : public TManagedArrayBase<TArray<FIntVector3>>
+{
+public:
+	using TManagedArrayBase<TArray<FIntVector3>>::Num;
+
+	TManagedArray() = default;
+
+	TManagedArray(const TArray<TArray<FIntVector3>>& Other)
+		: TManagedArrayBase<TArray<FIntVector3>>(Other)
+	{}
+
+	TManagedArray(const TManagedArray<TArray<FIntVector3>>& Other) = delete;
+	TManagedArray(TManagedArray<TArray<FIntVector3>>&& Other) = default;
+	TManagedArray(TArray<TArray<FIntVector3>>&& Other)
+		: TManagedArrayBase<TArray<FIntVector3>>(MoveTemp(Other))
+	{}
+	
+	TManagedArray& operator=(TManagedArray<TArray<FIntVector3>>&& Other) = default;
+
+	virtual ~TManagedArray() override = default;
+
+	virtual void Reindex(const TArray<int32>& Offsets, const int32& FinalSize, const TArray<int32>& SortedDeletionList, const TSet<int32>& DeletionSet) override
+	{
+		UE_LOG(UManagedArrayLogging, Log, TEXT("TManagedArray<FIntVector>[%p]::Reindex()"), this);
+		const int32 ArraySize = Num();
+		const int32 MaskSize = Offsets.Num();
+		for (int32 Index = 0; Index < ArraySize; ++Index)
+		{
+			const TArray<FIntVector3>& RemapValArray = this->operator[](Index);
+			for (int32 ArrayIndex = 0; ArrayIndex < RemapValArray.Num(); ++ArrayIndex)
+			{
+				const FIntVector3& RemapVal = RemapValArray[ArrayIndex];
+				for (int32 i = 0; i < FIntVector3::Num(); ++i)
+				{
+					if (0 <= RemapVal[i])
+					{
+						ensure(RemapVal[i] < MaskSize);
+						if (DeletionSet.Contains(this->operator[](Index)[ArrayIndex][i]))
+						{
+							this->operator[](Index)[ArrayIndex][i] = INDEX_NONE;
+						}
+						else
+						{
+							this->operator[](Index)[ArrayIndex][i] -= Offsets[RemapVal[i]];
+						}
+						ensure(-1 <= this->operator[](Index)[ArrayIndex][i] && this->operator[](Index)[ArrayIndex][i] <= FinalSize);
+					}
+				}
+			}
+		}
+	}
+
+	virtual void ReindexFromLookup(const TArray<int32>& InverseNewOrder) override
+	{
+		const int32 ArraySize = Num();
+		for (int32 Index = 0; Index < ArraySize; ++Index)
+		{
+			TArray<FIntVector3>& RemapValArray = this->operator[](Index);
+			for (int32 ArrayIndex = 0; ArrayIndex < RemapValArray.Num(); ++ArrayIndex)
+			{
+				FIntVector3& RemapVal = RemapValArray[ArrayIndex];
+				for (int32 i = 0; i < FIntVector3::Num(); ++i)
+				{
+					if (RemapVal[i] >= 0)
+					{
+						RemapVal[i] = InverseNewOrder[RemapVal[i]];
+					}
+				}
+			}
+		}
+	}
+};

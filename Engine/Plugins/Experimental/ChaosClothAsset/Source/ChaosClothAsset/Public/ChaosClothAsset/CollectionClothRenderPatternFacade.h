@@ -26,6 +26,8 @@ namespace UE::Chaos::ClothAsset
 
 		virtual ~FCollectionClothRenderPatternConstFacade() = default;
 
+		/** Return the render deformer number of influences for this pattern. */
+		int32 GetRenderDeformerNumInfluences() const;
 		/** Return the render material for this pattern. */
 		const FString& GetRenderMaterialPathName() const;
 
@@ -43,7 +45,13 @@ namespace UE::Chaos::ClothAsset
 		TConstArrayView<FLinearColor> GetRenderColor() const;
 		TConstArrayView<TArray<int32>> GetRenderBoneIndices() const;
 		TConstArrayView<TArray<float>> GetRenderBoneWeights() const;
-		
+		TConstArrayView<TArray<FVector4f>> GetRenderDeformerPositionBaryCoordsAndDist() const;
+		TConstArrayView<TArray<FVector4f>> GetRenderDeformerNormalBaryCoordsAndDist() const;
+		TConstArrayView<TArray<FVector4f>> GetRenderDeformerTangentBaryCoordsAndDist() const;
+		TConstArrayView<TArray<FIntVector3>> GetRenderDeformerSimIndices3D() const;
+		TConstArrayView<TArray<float>> GetRenderDeformerWeight() const;
+		TConstArrayView<float> GetRenderDeformerSkinningBlend() const;
+
 		//~ Render Faces Group
 		// Note: RenderIndices points to the collection arrays, not the pattern arrays
 		int32 GetNumRenderFaces() const;
@@ -90,8 +98,14 @@ namespace UE::Chaos::ClothAsset
 		void Reset();
 
 		/** Initialize from another render pattern. Assumes all indices match between source and target. */
-		void Initialize(const FCollectionClothRenderPatternConstFacade& Other);
+		void Initialize(const FCollectionClothRenderPatternConstFacade& Other, int32 SimVertex3DOffset);
 
+		/** Initialize from another render pattern. Assumes all indices match between source and target. */
+		UE_DEPRECATED(5.4, "Use Initialize with the SimVertex3DOffset instead")
+		void Initialize(const FCollectionClothRenderPatternConstFacade& Other) { Initialize(Other, 0); }
+
+		/** Set the render deformer number of influences for this pattern. */
+		void SetRenderDeformerNumInfluences(int32 NumInfluences);
 		/** Set the render material for this pattern. */
 		void SetRenderMaterialPathName(const FString& PathName);
 
@@ -108,6 +122,12 @@ namespace UE::Chaos::ClothAsset
 		TArrayView<FLinearColor> GetRenderColor();
 		TArrayView<TArray<int32>> GetRenderBoneIndices();
 		TArrayView<TArray<float>> GetRenderBoneWeights();
+		TArrayView<TArray<FVector4f>> GetRenderDeformerPositionBaryCoordsAndDist();
+		TArrayView<TArray<FVector4f>> GetRenderDeformerNormalBaryCoordsAndDist();
+		TArrayView<TArray<FVector4f>> GetRenderDeformerTangentBaryCoordsAndDist();
+		TArrayView<TArray<FIntVector3>> GetRenderDeformerSimIndices3D();
+		TArrayView<TArray<float>> GetRenderDeformerWeight();
+		TArrayView<float> GetRenderDeformerSkinningBlend();
 
 		//~ Render Faces Group
 		/** Grow or shrink the space reserved for render faces for this pattern within the cloth collection and return its start index. */
