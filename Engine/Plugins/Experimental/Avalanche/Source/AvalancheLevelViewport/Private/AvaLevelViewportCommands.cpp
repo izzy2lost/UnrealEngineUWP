@@ -70,9 +70,9 @@ void FAvaLevelViewportCommands::RegisterViewportCommands()
 		, EUserInterfaceActionType::Check
 		, FInputChord())
 
-	UI_COMMAND(TogglePostProcessBackplate
-		, "Backplate"
-		, "Switch to the backplate post process renderer."
+	UI_COMMAND(TogglePostProcessBackground
+		, "Background"
+		, "Switch to the background post process renderer."
 		, EUserInterfaceActionType::Check
 		, FInputChord())
 

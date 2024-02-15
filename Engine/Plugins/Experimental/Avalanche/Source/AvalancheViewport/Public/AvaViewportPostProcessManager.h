@@ -6,7 +6,7 @@
 #include "Templates/SharedPointer.h"
 #include "AvaViewportPostProcessManager.generated.h"
 
-class FAvaViewportBackplateVisualizer;
+class FAvaViewportBackgroundVisualizer;
 class FAvaViewportChannelVisualizer;
 class FAvaViewportPostProcessVisualizer;
 class FSceneView;
@@ -17,7 +17,7 @@ UENUM()
 enum class EAvaViewportPostProcessType : uint8
 {
 	None,
-	Backplate,
+	Background,
 	RedChannel,
 	GreenChannel,
 	BlueChannel,

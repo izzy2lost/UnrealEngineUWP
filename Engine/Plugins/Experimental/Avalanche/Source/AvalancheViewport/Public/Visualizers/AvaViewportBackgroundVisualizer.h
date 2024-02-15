@@ -8,13 +8,13 @@
 class UTexture;
 struct FAvaViewportPostProcessInfo;
 
-class AVALANCHEVIEWPORT_API FAvaViewportBackplateVisualizer : public FAvaViewportPostProcessVisualizer
+class AVALANCHEVIEWPORT_API FAvaViewportBackgroundVisualizer : public FAvaViewportPostProcessVisualizer
 {
 public:
-	UE_AVA_INHERITS_WITH_SUPER(FAvaViewportBackplateVisualizer, FAvaViewportPostProcessVisualizer)
+	UE_AVA_INHERITS_WITH_SUPER(FAvaViewportBackgroundVisualizer, FAvaViewportPostProcessVisualizer)
 
-	FAvaViewportBackplateVisualizer(TSharedRef<IAvaViewportClient> InAvaViewportClient);
-	virtual ~FAvaViewportBackplateVisualizer() override = default;
+	FAvaViewportBackgroundVisualizer(TSharedRef<IAvaViewportClient> InAvaViewportClient);
+	virtual ~FAvaViewportBackgroundVisualizer() override = default;
 
 	UTexture* GetTexture() const;
 	void SetTexture(UTexture* InTexture);

@@ -11,7 +11,7 @@ UENUM()
 enum class EAvaViewportPostProcessType_Deprecated : uint8
 {
 	None,
-	Backplate,
+	Background,
 	RedChannel,
 	GreenChannel,
 	BlueChannel,

@@ -130,9 +130,9 @@ public:
 	bool CanTogglePostProcessNone() const;
 	void ExecuteTogglePostProcessNone();
 
-	bool IsPostProcessBackplateEnabled() const;
-	bool CanTogglePostProcessBackplate() const;
-	void ExecuteTogglePostProcessBackplate();
+	bool IsPostProcessBackgroundEnabled() const;
+	bool CanTogglePostProcessBackground() const;
+	void ExecuteTogglePostProcessBackground();
 
 	bool IsPostProcessChannelRedEnabled() const;
 	bool CanTogglePostProcessChannelRed() const;
@@ -190,7 +190,7 @@ private:
 	TArray<TSharedPtr<SAvaLevelViewportGuide>> Guides;
 	TSharedPtr<SAvaLevelViewportSnapIndicators> SnapIndicators;
 	FPanelExtensionFactory PanelExtensionFactory;
-	TSharedPtr<SWidget> BackplateTextureSelector;
+	TSharedPtr<SWidget> BackgroundTextureSelector;
 	TSharedPtr<SWidget> PostProcessOpacitySlider;
 	TSharedPtr<FScopedTransaction> PostProcessInfoTransaction;
 
@@ -237,14 +237,14 @@ private:
 	void BeginPostProcessInfoTransaction();
 	void EndPostProcessInfoTransaction();
 
-	FString GetBackplateTextureObjectPath() const;
-	void OnBackplateTextureChanged(const FAssetData& InAssetData);
+	FString GetBackgroundTextureObjectPath() const;
+	void OnBackgroundTextureChanged(const FAssetData& InAssetData);
 
-	float GetBackplateOpacity() const;
-	void OnBackplateOpacitySliderBegin();
-	void OnBackplateOpacitySliderEnd(float InValue);
-	void OnBackplateOpacityChanged(float InValue);
-	void OnBackplateOpacityCommitted(float InValue, ETextCommit::Type InCommitType);
+	float GetBackgroundOpacity() const;
+	void OnBackgroundOpacitySliderBegin();
+	void OnBackgroundOpacitySliderEnd(float InValue);
+	void OnBackgroundOpacityChanged(float InValue);
+	void OnBackgroundOpacityCommitted(float InValue, ETextCommit::Type InCommitType);
 
 	int32 GetVirtualSizeX() const;
 	int32 GetVirtualSizeY() const;

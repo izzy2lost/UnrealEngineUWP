@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Visualizers/AvaViewportBackplateVisualizer.h"
+#include "Visualizers/AvaViewportBackgroundVisualizer.h"
 #include "AvaViewportPostProcessManager.h"
 #include "AvaViewportSettings.h"
 #include "AvaViewportUtils.h"
@@ -14,17 +14,17 @@
 #include "Viewport/Interaction/IAvaViewportDataProxy.h"
 #include "ViewportClient/IAvaViewportClient.h"
 
-#define LOCTEXT_NAMESPACE "AvaViewportBackplateVisualizer"
+#define LOCTEXT_NAMESPACE "AvaViewportBackgroundVisualizer"
 
 namespace UE::AvalancheViewport::Private
 {
-	const FString BackplateReferencerName = FString(TEXT("AvaViewportBackplateVisualizer"));
+	const FString BackgroundReferencerName = FString(TEXT("AvaViewportBackgroundVisualizer"));
 	const FName TextureObjectName = FName(TEXT("TextureObject"));
 	const FName TextureOffsetName = FName(TEXT("TextureOffset"));
 	const FName TextureScaleName = FName(TEXT("TextureScale"));
 }
 
-FAvaViewportBackplateVisualizer::FAvaViewportBackplateVisualizer(TSharedRef<IAvaViewportClient> InAvaViewportClient)
+FAvaViewportBackgroundVisualizer::FAvaViewportBackgroundVisualizer(TSharedRef<IAvaViewportClient> InAvaViewportClient)
 	: FAvaViewportPostProcessVisualizer(InAvaViewportClient)
 {
 	bRequiresTonemapperSetting = true;
@@ -39,23 +39,23 @@ FAvaViewportBackplateVisualizer::FAvaViewportBackplateVisualizer(TSharedRef<IAva
 		return;
 	}
 
-	UMaterial* BackplateMaterial = ViewportSettings->ViewportBackplateMaterial.LoadSynchronous();
+	UMaterial* BackgroundMaterial = ViewportSettings->ViewportBackgroundMaterial.LoadSynchronous();
 
-	if (!BackplateMaterial)
+	if (!BackgroundMaterial)
 	{
 		return;
 	}
 
-	PostProcessBaseMaterial = BackplateMaterial;
-	PostProcessMaterial = UMaterialInstanceDynamic::Create(BackplateMaterial, GetTransientPackage());
+	PostProcessBaseMaterial = BackgroundMaterial;
+	PostProcessMaterial = UMaterialInstanceDynamic::Create(BackgroundMaterial, GetTransientPackage());
 }
 
-UTexture* FAvaViewportBackplateVisualizer::GetTexture() const
+UTexture* FAvaViewportBackgroundVisualizer::GetTexture() const
 {
 	return Texture;
 }
 
-void FAvaViewportBackplateVisualizer::SetTexture(UTexture* InTexture)
+void FAvaViewportBackgroundVisualizer::SetTexture(UTexture* InTexture)
 {
 	if (Texture == InTexture)
 	{
@@ -68,7 +68,7 @@ void FAvaViewportBackplateVisualizer::SetTexture(UTexture* InTexture)
 	UpdatePostProcessMaterial();
 }
 
-void FAvaViewportBackplateVisualizer::AddReferencedObjects(FReferenceCollector& InCollector)
+void FAvaViewportBackgroundVisualizer::AddReferencedObjects(FReferenceCollector& InCollector)
 {
 	Super::AddReferencedObjects(InCollector);
 
@@ -78,12 +78,12 @@ void FAvaViewportBackplateVisualizer::AddReferencedObjects(FReferenceCollector& 
 	}
 }
 
-FString FAvaViewportBackplateVisualizer::GetReferencerName() const
+FString FAvaViewportBackgroundVisualizer::GetReferencerName() const
 {
-	return UE::AvalancheViewport::Private::BackplateReferencerName;
+	return UE::AvalancheViewport::Private::BackgroundReferencerName;
 }
 
-void FAvaViewportBackplateVisualizer::UpdateForViewport(const FAvaVisibleArea& InVisibleArea, const FVector2f& InWidgetSize, 
+void FAvaViewportBackgroundVisualizer::UpdateForViewport(const FAvaVisibleArea& InVisibleArea, const FVector2f& InWidgetSize, 
 	const FVector2f& InCameraOffset)
 {
 	if (FMath::IsNearlyZero(PostProcessOpacity) || !Texture || !PostProcessMaterial)
@@ -153,21 +153,21 @@ void FAvaViewportBackplateVisualizer::UpdateForViewport(const FAvaVisibleArea& I
 	}
 }
 
-void FAvaViewportBackplateVisualizer::LoadPostProcessInfo(const FAvaViewportPostProcessInfo& InPostProcessInfo)
+void FAvaViewportBackgroundVisualizer::LoadPostProcessInfo(const FAvaViewportPostProcessInfo& InPostProcessInfo)
 {
 	Super::LoadPostProcessInfo(InPostProcessInfo);
 
 	SetTextureInternal(InPostProcessInfo.Texture.LoadSynchronous());
 }
 
-void FAvaViewportBackplateVisualizer::UpdatePostProcessInfo(FAvaViewportPostProcessInfo& InPostProcessInfo) const
+void FAvaViewportBackgroundVisualizer::UpdatePostProcessInfo(FAvaViewportPostProcessInfo& InPostProcessInfo) const
 {
 	Super::UpdatePostProcessInfo(InPostProcessInfo);
 
 	InPostProcessInfo.Texture = Texture;
 }
 
-void FAvaViewportBackplateVisualizer::UpdatePostProcessMaterial()
+void FAvaViewportBackgroundVisualizer::UpdatePostProcessMaterial()
 {
 	if (!PostProcessMaterial)
 	{
@@ -181,7 +181,7 @@ void FAvaViewportBackplateVisualizer::UpdatePostProcessMaterial()
 	PostProcessMaterial->SetTextureParameterValue(TextureObjectName, Texture);
 }
 
-bool FAvaViewportBackplateVisualizer::SetupPostProcessSettings(FPostProcessSettings& InPostProcessSettings) const
+bool FAvaViewportBackgroundVisualizer::SetupPostProcessSettings(FPostProcessSettings& InPostProcessSettings) const
 {
 	if (!IsValid(Texture))
 	{
@@ -191,7 +191,7 @@ bool FAvaViewportBackplateVisualizer::SetupPostProcessSettings(FPostProcessSetti
 	return FAvaViewportPostProcessVisualizer::SetupPostProcessSettings(InPostProcessSettings);
 }
 
-void FAvaViewportBackplateVisualizer::SetTextureInternal(UTexture* InTexture)
+void FAvaViewportBackgroundVisualizer::SetTextureInternal(UTexture* InTexture)
 {
 	if (!IsValid(InTexture))
 	{

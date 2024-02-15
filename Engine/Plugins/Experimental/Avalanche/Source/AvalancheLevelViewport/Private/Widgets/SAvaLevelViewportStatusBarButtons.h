@@ -24,7 +24,7 @@ public:
 protected:
 	TWeakPtr<SAvaLevelViewportFrame> ViewportFrameWeak;
 
-	TSharedPtr<SWidget> BackplateTextureSelector;
+	TSharedPtr<SWidget> BackgroundTextureSelector;
 
 	TSharedPtr<SWidget> PostProcessOpacitySlider;
 

@@ -62,7 +62,7 @@ public:
 	bool bEnableBoundingBoxes;
 
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Viewport")
-	TSoftObjectPtr<UMaterial> ViewportBackplateMaterial;
+	TSoftObjectPtr<UMaterial> ViewportBackgroundMaterial;
 
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Viewport")
 	TSoftObjectPtr<UMaterial> ViewportCheckerboardMaterial;

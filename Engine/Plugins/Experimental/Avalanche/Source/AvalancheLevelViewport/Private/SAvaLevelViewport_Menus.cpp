@@ -867,7 +867,7 @@ FReply SAvaLevelViewport::OnChildActorLockButtonClicked()
 	return FReply::Handled();
 }
 
-FString SAvaLevelViewport::GetBackplateTextureObjectPath() const
+FString SAvaLevelViewport::GetBackgroundTextureObjectPath() const
 {
 	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
 
@@ -891,7 +891,7 @@ FString SAvaLevelViewport::GetBackplateTextureObjectPath() const
 	return PostProcessInfo->Texture.ToString();
 }
 
-void SAvaLevelViewport::OnBackplateTextureChanged(const FAssetData& InAssetData)
+void SAvaLevelViewport::OnBackgroundTextureChanged(const FAssetData& InAssetData)
 {
 	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
 
@@ -921,7 +921,7 @@ void SAvaLevelViewport::OnBackplateTextureChanged(const FAssetData& InAssetData)
 	EndPostProcessInfoTransaction();
 }
 
-float SAvaLevelViewport::GetBackplateOpacity() const
+float SAvaLevelViewport::GetBackgroundOpacity() const
 {
 	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
 
@@ -976,17 +976,17 @@ void SAvaLevelViewport::EndPostProcessInfoTransaction()
 	PostProcessInfoTransaction.Reset();
 }
 
-void SAvaLevelViewport::OnBackplateOpacitySliderBegin()
+void SAvaLevelViewport::OnBackgroundOpacitySliderBegin()
 {
 	BeginPostProcessInfoTransaction();
 }
 
-void SAvaLevelViewport::OnBackplateOpacitySliderEnd(float InValue)
+void SAvaLevelViewport::OnBackgroundOpacitySliderEnd(float InValue)
 {
 	EndPostProcessInfoTransaction();
 }
 
-void SAvaLevelViewport::OnBackplateOpacityChanged(float InValue)
+void SAvaLevelViewport::OnBackgroundOpacityChanged(float InValue)
 {
 	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
 
@@ -1004,7 +1004,7 @@ void SAvaLevelViewport::OnBackplateOpacityChanged(float InValue)
 	ViewportClient->Invalidate();
 }
 
-void SAvaLevelViewport::OnBackplateOpacityCommitted(float InValue, ETextCommit::Type InCommitType)
+void SAvaLevelViewport::OnBackgroundOpacityCommitted(float InValue, ETextCommit::Type InCommitType)
 {
 	if (InCommitType == ETextCommit::OnCleared)
 	{
