@@ -268,6 +268,9 @@ namespace UE::NNE::RuntimeBasic
 
 	public:
 
+		/** Creates a array of weights from a copy of the given array view */
+		TArrayView<float> MakeWeightsCopy(const TConstArrayView<float> Weights);
+
 		/** Creates a array of weights set to zero of the given size */
 		TArrayView<float> MakeWeightsZero(const uint32 Size);
 

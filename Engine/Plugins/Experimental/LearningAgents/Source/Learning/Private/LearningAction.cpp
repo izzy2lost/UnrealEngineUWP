@@ -870,7 +870,7 @@ namespace UE::Learning::Action
 
 				ReturnElement = Builder.MakeDenormalize(
 					Parameters.Num,
-					LogPriorProbabilities,
+					Builder.MakeWeightsCopy(LogPriorProbabilities),
 					Builder.MakeWeightsConstant(Parameters.Num, 1.0f));
 
 				break;
@@ -888,7 +888,7 @@ namespace UE::Learning::Action
 				}
 
 				ReturnElement = Builder.MakeDenormalize(Parameters.Num,
-					LogPriorProbabilities,
+					Builder.MakeWeightsCopy(LogPriorProbabilities),
 					Builder.MakeWeightsConstant(Parameters.Num, 1.0f));
 				break;
 			}
@@ -929,7 +929,7 @@ namespace UE::Learning::Action
 
 				BuilderLayers.Emplace(Builder.MakeDenormalize(
 					LogPriorProbabilities.Num(),
-					LogPriorProbabilities,
+					Builder.MakeWeightsCopy(LogPriorProbabilities),
 					Builder.MakeWeightsConstant(LogPriorProbabilities.Num(), 1.0f)));
 
 				ReturnElement = Builder.MakeConcat(BuilderLayers);
@@ -956,7 +956,7 @@ namespace UE::Learning::Action
 
 				BuilderLayers.Emplace(Builder.MakeDenormalize(
 					LogPriorProbabilities.Num(),
-					LogPriorProbabilities,
+					Builder.MakeWeightsCopy(LogPriorProbabilities),
 					Builder.MakeWeightsConstant(LogPriorProbabilities.Num(), 1.0f)));
 
 				ReturnElement = Builder.MakeConcat(BuilderLayers);
