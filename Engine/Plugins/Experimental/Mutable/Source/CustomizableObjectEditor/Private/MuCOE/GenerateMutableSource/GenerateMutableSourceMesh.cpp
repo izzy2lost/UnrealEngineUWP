@@ -1153,6 +1153,10 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 		}
 
 		TArrayView<int32>  VertexMorphsInfoIndexBufferView(reinterpret_cast<int32*>(MutableMesh->GetVertexBuffers().GetBufferData(1)), VertexCount);
+		for (int32& Elem : VertexMorphsInfoIndexBufferView)
+		{
+			Elem = -1;
+		}
 
 		if (UsedMorphTargets.Num())
 		{
