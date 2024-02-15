@@ -135,23 +135,15 @@ namespace AutomationTool.Tasks
 				}
 
 			}
-			catch (FilePatternException Ex)
+			catch (FilePatternSourceFileMissingException Ex)
 			{
-				if (Ex.GetFilePatternExceptionType() == FilePatternException.FilePatternExceptionType.SourceFileDoesNotExist)
+				if (Parameters.ErrorIfNotFound)
 				{
-					if (Parameters.ErrorIfNotFound)
-					{
-						Logger.LogError("Error while trying to create file pattern match for '{SourcePattern}', error {ExceptionString}", SourcePattern, Ex.ToString());
-					}
-					else
-					{
-						Logger.LogInformation("Error while trying to create file pattern match for '{SourcePattern}', error {ExceptionString}", SourcePattern, Ex.ToString());
-					}
-					return Task.CompletedTask;
+					Logger.LogError("Error while trying to create file pattern match for '{SourcePattern}', error {ExceptionString}", SourcePattern, Ex.ToString());
 				}
 				else
 				{
-					throw Ex;
+					Logger.LogInformation("Error while trying to create file pattern match for '{SourcePattern}', error {ExceptionString}", SourcePattern, Ex.ToString());
 				}
 			}
 
