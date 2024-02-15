@@ -106,11 +106,10 @@ void FWindowsPlatformProcess::AddDllDirectory(const TCHAR* Directory)
 		// enumerate the dir and cache all the dlls
 		{
 			TArray<FString> FoundDllFileNames;
-			IPlatformFile::GetPlatformPhysical().FindFiles(FoundDllFileNames, *NormalizedDirectory, TEXT("*.dll"));
-			for (const FString& DllFileName : FoundDllFileNames)
+			IPlatformFile::GetPlatformPhysical().FindFiles(FoundDllFileNames, *NormalizedDirectory, TEXT(".dll"));
+			for (FString& DllPath : FoundDllFileNames)
 			{
-				TArray<FString>& Paths = SearchPathDllCache.FindOrAdd(*DllFileName);
-				FString DllPath(NormalizedDirectory / DllFileName);
+				TArray<FString>& Paths = SearchPathDllCache.FindOrAdd(FName(FPathViews::GetCleanFilename(DllPath)));
 				FPaths::NormalizeDirectoryName(DllPath);
 				Paths.Add(DllPath);
 			}
