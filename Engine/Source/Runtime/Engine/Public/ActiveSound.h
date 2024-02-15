@@ -371,6 +371,12 @@ public:
 	/** Whether or not the active sound is currently playing audible sound. */
 	bool IsPlayingAudio() const { return bIsPlayingAudio; }
 
+	// Returns the max distance of the active sound
+	float GetMaxDistance() const;
+	void GetMaxDistanceAndFocusFactor(float& OutMaxDistance, float& OutFocusFactor) const;
+
+	const FSoundAttenuationSettings* GetAttenuationSettings(const FSoundAttenuationSettings* SettingsAttenuationNode = nullptr) const;
+
 	/** Whether or not sound reference is valid and set to play when silent. */
 	ENGINE_API bool IsPlayWhenSilent() const;
 
@@ -584,7 +590,7 @@ public:
 	/** Last time we checked for occlusion */
 	float LastOcclusionCheckTime;
 
-	/** The max distance this sound will be audible. */
+	UE_DEPRECATED(5.4, "Please do not use MaxDistance. Use GetMaxDistance() instead.")
 	float MaxDistance;
 
 	FTransform Transform;
