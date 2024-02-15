@@ -275,3 +275,304 @@ TEST_CASE("UECore.FName")
 		}
 	}
 }
+
+TEST_CASE("UECore.STATIC_FUNCTION_FNAME")
+{
+	FName Name;
+
+	SECTION("With Abort")
+	{
+		AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]()
+			{
+				Name = STATIC_FUNCTION_FNAME(TEXT("WOWWEE"));
+				AutoRTFM::AbortTransaction();
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+		REQUIRE(Name.IsNone());
+	}
+
+	SECTION("With Commit")
+	{
+		AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]()
+			{
+				Name = STATIC_FUNCTION_FNAME(TEXT("WOWWEE"));
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+	}
+}
+
+TEST_CASE("UECore.TIntrusiveReferenceController")
+{
+	SECTION("AddSharedReference")
+	{
+		SharedPointerInternals::TIntrusiveReferenceController<int, ESPMode::ThreadSafe> Controller(42);
+
+		SECTION("With Abort")
+		{
+			AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]()
+				{
+					Controller.AddSharedReference();
+					AutoRTFM::AbortTransaction();
+				});
+
+			REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+			REQUIRE(1 == Controller.GetSharedReferenceCount());
+		}
+
+		SECTION("With Commit")
+		{
+			AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]()
+				{
+					Controller.AddSharedReference();
+				});
+
+			REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+			REQUIRE(2 == Controller.GetSharedReferenceCount());
+		}
+	}
+
+	SECTION("AddWeakReference")
+	{
+		SharedPointerInternals::TIntrusiveReferenceController<int, ESPMode::ThreadSafe> Controller(42);
+
+		SECTION("With Abort")
+		{
+			AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]()
+				{
+					Controller.AddWeakReference();
+					AutoRTFM::AbortTransaction();
+				});
+
+			REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+			REQUIRE(1 == Controller.WeakReferenceCount);
+		}
+
+		SECTION("With Commit")
+		{
+			AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]()
+				{
+					Controller.AddWeakReference();
+				});
+
+			REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+			REQUIRE(2 == Controller.WeakReferenceCount);
+		}
+	}
+
+	SECTION("ConditionallyAddSharedReference")
+	{
+		SECTION("With Shared Reference Non Zero")
+		{
+			SharedPointerInternals::TIntrusiveReferenceController<int, ESPMode::ThreadSafe> Controller(42);
+
+			SECTION("With Abort")
+			{
+				AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]()
+					{
+						Controller.ConditionallyAddSharedReference();
+						AutoRTFM::AbortTransaction();
+					});
+
+				REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+				REQUIRE(1 == Controller.GetSharedReferenceCount());
+			}
+
+			SECTION("With Commit")
+			{
+				AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]()
+					{
+						Controller.ConditionallyAddSharedReference();
+					});
+
+				REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+				REQUIRE(2 == Controller.GetSharedReferenceCount());
+			}
+		}
+
+		SECTION("With Shared Reference Zero")
+		{
+			SharedPointerInternals::TIntrusiveReferenceController<int, ESPMode::ThreadSafe> Controller(42);
+
+			// This test relies on us having a weak reference but no strong references to the object.
+			Controller.AddWeakReference();
+			Controller.ReleaseSharedReference();
+			REQUIRE(0 == Controller.GetSharedReferenceCount());
+
+			SECTION("With Abort")
+			{
+				AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]()
+					{
+						Controller.ConditionallyAddSharedReference();
+						AutoRTFM::AbortTransaction();
+					});
+
+				REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+				REQUIRE(0 == Controller.GetSharedReferenceCount());
+			}
+
+			SECTION("With Commit")
+			{
+				AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]()
+					{
+						Controller.ConditionallyAddSharedReference();
+					});
+
+				REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+				REQUIRE(0 == Controller.GetSharedReferenceCount());
+			}
+		}
+	}
+
+	SECTION("GetSharedReferenceCount")
+	{
+		SharedPointerInternals::TIntrusiveReferenceController<int, ESPMode::ThreadSafe> Controller(42);
+
+		SECTION("With Abort")
+		{
+			int32 Count = 0;
+
+			AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]()
+				{
+					Count = Controller.GetSharedReferenceCount();
+					AutoRTFM::AbortTransaction();
+				});
+
+			REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+			REQUIRE(0 == Count);
+		}
+
+		SECTION("With Commit")
+		{
+			int32 Count = 0;
+
+			AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]()
+				{
+					Count = Controller.GetSharedReferenceCount();
+				});
+
+			REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+			REQUIRE(1 == Count);
+		}
+	}
+
+	SECTION("IsUnique")
+	{
+		SharedPointerInternals::TIntrusiveReferenceController<int, ESPMode::ThreadSafe> Controller(42);
+
+		SECTION("True")
+		{
+			bool Unique = false;
+
+			AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]()
+				{
+					Unique = Controller.IsUnique();
+				});
+
+			REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+			REQUIRE(Unique);
+		}
+
+		SECTION("False")
+		{
+			// Add a count to make us not unique.
+			Controller.AddSharedReference();
+
+			bool Unique = true;
+
+			AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]()
+				{
+					Unique = Controller.IsUnique();
+				});
+
+			REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+			REQUIRE(!Unique);
+		}
+	}
+
+	SECTION("ReleaseSharedReference")
+	{
+		SharedPointerInternals::TIntrusiveReferenceController<int, ESPMode::ThreadSafe> Controller(42);
+
+		// We don't want the add weak reference deleter to trigger in this test so add another to its count.
+		Controller.AddWeakReference();
+
+		SECTION("With Abort")
+		{
+			AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]()
+				{
+					Controller.ReleaseSharedReference();
+					AutoRTFM::AbortTransaction();
+				});
+
+			REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+			REQUIRE(1 == Controller.GetSharedReferenceCount());
+		}
+
+		SECTION("With Commit")
+		{
+			AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]()
+				{
+					Controller.ReleaseSharedReference();
+				});
+
+			REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+		}
+	}
+
+	SECTION("ReleaseWeakReference")
+	{
+		auto* Controller = new SharedPointerInternals::TIntrusiveReferenceController<int, ESPMode::ThreadSafe>(42);
+
+		SECTION("With Abort")
+		{
+			AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]()
+				{
+					Controller->ReleaseWeakReference();
+					AutoRTFM::AbortTransaction();
+				});
+
+			REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+			REQUIRE(1 == Controller->WeakReferenceCount);
+		}
+
+		SECTION("With Commit")
+		{
+			AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]()
+				{
+					Controller->ReleaseWeakReference();
+				});
+
+			REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+		}
+	}
+
+	SECTION("GetObjectPtr")
+	{
+		SharedPointerInternals::TIntrusiveReferenceController<int, ESPMode::ThreadSafe> Controller(42);
+
+		SECTION("With Abort")
+		{
+			AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]()
+				{
+					*Controller.GetObjectPtr() = 13;
+					AutoRTFM::AbortTransaction();
+				});
+
+			REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+			REQUIRE(42 == *Controller.GetObjectPtr());
+		}
+
+		SECTION("With Commit")
+		{
+			AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]()
+				{
+					*Controller.GetObjectPtr() = 13;
+				});
+
+			REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+			REQUIRE(13 == *Controller.GetObjectPtr());
+		}
+	}
+}
