@@ -13,19 +13,9 @@ public class LinuxArm64TargetPlatform : ModuleRules
 				"Core",
 				"DesktopPlatform",
 				"TargetPlatform",
+				"LinuxArm64TargetPlatformSettings",
+				"LinuxArm64TargetPlatformControls",
 			}
         );
-
-        if (Target.bCompileAgainstEngine)
-        {
-            PrivateDependencyModuleNames.AddRange(new string[] {
-					"Engine"
-				}
-            );
-
-            PrivateIncludePathModuleNames.Add("TextureCompressor");
-        }
-
-		PrivateIncludePathModuleNames.Add("LinuxTargetPlatform");
     }
 }

@@ -11,7 +11,7 @@ public class WindowsPlatformEditor : ModuleRules
 				"Core",
 				"CoreUObject",
 				
-				"WindowsTargetPlatform",
+				"WindowsTargetPlatformSettings",
 			}
 		);
 

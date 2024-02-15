@@ -9,22 +9,11 @@ public class MacTargetPlatform : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
 				"Core",
-				"CoreUObject",
 				"TargetPlatform",
-				"DesktopPlatform"
+				"DesktopPlatform",
+				"MacTargetPlatformSettings",
+				"MacTargetPlatformControls",
 			}
 		);
-
-		PrivateIncludePathModuleNames.AddRange(
-			new string[] {
-				"Settings"
-			}
-		);
-
-		if (Target.bCompileAgainstEngine)
-		{
-			PrivateDependencyModuleNames.Add("Engine");
-			PrivateIncludePathModuleNames.Add("TextureCompressor");
-		}
 	}
 }
