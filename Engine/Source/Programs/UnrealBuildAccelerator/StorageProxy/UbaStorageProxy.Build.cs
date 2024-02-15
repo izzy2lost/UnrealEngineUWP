@@ -7,6 +7,8 @@ public class UbaStorageProxy : ModuleRules
 {
 	public UbaStorageProxy(ReadOnlyTargetRules Target) : base(Target)
 	{
+		PrivatePCHHeaderFile = "../Core/Public/UbaCorePch.h";
+
 		UnsafeTypeCastWarningLevel = WarningLevel.Error;
 		StaticAnalyzerDisabledCheckers.Clear();
 

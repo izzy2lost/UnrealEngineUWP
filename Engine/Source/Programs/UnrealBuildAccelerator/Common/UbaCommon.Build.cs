@@ -7,6 +7,8 @@ public class UbaCommon : ModuleRules
 {
 	public UbaCommon(ReadOnlyTargetRules Target) : base(Target)
 	{
+		PrivatePCHHeaderFile = "../Core/Public/UbaCorePch.h";
+
 		UnsafeTypeCastWarningLevel = WarningLevel.Error;
 		StaticAnalyzerDisabledCheckers.Clear();
 

@@ -7,6 +7,8 @@ public class UbaTest : ModuleRules
 {
 	public UbaTest(ReadOnlyTargetRules Target) : base(Target)
 	{
+		PrivatePCHHeaderFile = "../Core/Public/UbaCorePch.h";
+
 		UnsafeTypeCastWarningLevel = WarningLevel.Error;
 
 		PrivateDependencyModuleNames.AddRange(new string[] {
