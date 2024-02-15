@@ -57,12 +57,6 @@ public:
 	// Will not produce keys on bones that are not animated, reducing size on disk of the resulting files.
 	bool bExportOnlyAnimatedBones = true;
 
-	// Either uses the "ForceRootLock" setting from the source animation or optionally forces the root to be locked or unlocked,
-	// regardless of whether the source animation has the root locked or not.
-	// This affects only the exported animation sequences, not the editor preview.
-	// This setting has no effect on runtime retargeting where root motion is copied from the source component.
-	ERetargetRootLockMode RootLockMode;
-
 	// Reset all data (called when window re-opened
 	void Reset()
 	{

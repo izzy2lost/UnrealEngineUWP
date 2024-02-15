@@ -456,7 +456,6 @@ FReply SBatchExportOptionsDialog::OnButtonClick(EAppReturnType::Type ButtonID)
 	BatchContext->bRetargetAndConnectReferencedAssets = ExportOptions->bRetargetAndConnectReferencedAssets;
 	BatchContext->bOverwriteExistingFiles = ExportOptions->bOverwriteExistingFiles;
 	BatchContext->bExportOnlyAnimatedBones = ExportOptions->bExportOnlyAnimatedBones;
-	BatchContext->RootLockMode = ExportOptions->RootLockMode;
 	
 	UserResponse = ButtonID;
 	RequestDestroyWindow();
@@ -475,6 +474,14 @@ void SRetargetPoseViewport::Construct(const FArguments& InArgs)
 	
 	SourceComponent->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
 	TargetComponent->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+
+	SourceComponent->SetProcessRootMotionMode(EProcessRootMotionMode::Ignore);
+	TargetComponent->SetProcessRootMotionMode(EProcessRootMotionMode::Ignore);
+
+	// setup SOURCE anim instance running a preview node that suppresses root motion
+	SourceAnimInstance = NewObject<UIKRetargetAnimInstance>(SourceComponent, TEXT("IKRetargetSourceAnimScriptInstance"));
+	SourceAnimInstance->SetRetargetMode(ERetargeterOutputMode::RunRetarget);
+	SourceComponent->PreviewInstance = SourceAnimInstance.Get();
 
 	// setup TARGET anim instance running a retargeter that copies input pose from the source component
 	TargetAnimInstance = NewObject<UIKRetargetAnimInstance>(TargetComponent, TEXT("IKRetargetTargetAnimScriptInstance"));
@@ -513,6 +520,7 @@ void SRetargetPoseViewport::SetSkeletalMesh(USkeletalMesh* InSkeletalMesh, EReta
 void SRetargetPoseViewport::SetRetargetAsset(UIKRetargeter* RetargetAsset)
 {
 	// apply the IK retargeter and give a reference to the source component
+	SourceAnimInstance->ConfigureAnimInstance(ERetargetSourceOrTarget::Source, RetargetAsset, nullptr);
 	TargetAnimInstance->ConfigureAnimInstance(ERetargetSourceOrTarget::Target, RetargetAsset, SourceComponent);
 }
 

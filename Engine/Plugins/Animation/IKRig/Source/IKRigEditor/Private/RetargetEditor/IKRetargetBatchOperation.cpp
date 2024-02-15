@@ -128,14 +128,6 @@ void UIKRetargetBatchOperation::DuplicateRetargetAssets(
 		
 		TMap<UAnimationAsset*, UAnimationAsset*> DuplicateMap = DuplicateAssets<UAnimationAsset>({Asset}, DestinationPackage, &Context.NameRule);
 		DuplicatedAnimAssets.Append(DuplicateMap);
-
-		// optionally let user override root lock on exported animation sequences,
-		// (by default it will inherit the bForceRootLock state from the duplicated source animation)
-		UAnimSequence* TargetSequence = Cast<UAnimSequence>(DuplicateMap[Asset]);
-		if (Context.RootLockMode != ERetargetRootLockMode::FromSourceAnimation && TargetSequence)
-		{
-			TargetSequence->bForceRootLock = Context.RootLockMode == ERetargetRootLockMode::ForceRootLocked ? true : false;
-		}
 	}
 	for (UAnimBlueprint* Asset : AnimBlueprintsToDuplicate)
 	{
@@ -387,9 +379,9 @@ void UIKRetargetBatchOperation::ConvertAnimation(
 		// ensure we evaluate the source animation using the skeletal mesh proportions that were evaluated in the viewport
 		FAnimPoseEvaluationOptions EvaluationOptions = FAnimPoseEvaluationOptions();
 		EvaluationOptions.OptionalSkeletalMesh = SourceSkeleton.SkeletalMesh;
-		// ensure WYSIWYG with editor by ensuring the same root motion is evaluated during export as during the editor preview
-		EvaluationOptions.bExtractRootMotion = !TargetSequence->bForceRootLock;
-		EvaluationOptions.bIncorporateRootMotionIntoPose = !TargetSequence->bForceRootLock;
+		// ensure WYSIWYG with editor by ensuring the same root motion is applied to the pose, not to the component
+		EvaluationOptions.bExtractRootMotion = false;
+		EvaluationOptions.bIncorporateRootMotionIntoPose = true;
 
 		// reset the planting state
 		Processor->ResetPlanting();
@@ -444,6 +436,11 @@ void UIKRetargetBatchOperation::ConvertAnimation(
 			// store key data for each bone
 			for (int32 TargetBoneIndex=0; TargetBoneIndex<NumTargetBones; ++TargetBoneIndex)
 			{
+				if (Context.bExportOnlyAnimatedBones && !Processor->IsBoneRetargeted(TargetBoneNames[TargetBoneIndex], ERetargetSourceOrTarget::Target))
+				{
+					continue;
+				}
+				
 				const FTransform& LocalPose = TargetLocalPose[TargetBoneIndex];
 				
 				FRawAnimSequenceTrack& BoneTrack = BoneTracks[TargetBoneIndex];
@@ -459,6 +456,11 @@ void UIKRetargetBatchOperation::ConvertAnimation(
 		for (int32 TargetBoneIndex=0; TargetBoneIndex<NumTargetBones; ++TargetBoneIndex)
 		{
 			const FName& TargetBoneName = TargetBoneNames[TargetBoneIndex];
+
+			if (Context.bExportOnlyAnimatedBones && !Processor->IsBoneRetargeted(TargetBoneName, ERetargetSourceOrTarget::Target))
+			{
+				continue;
+			}
 
 			const FRawAnimSequenceTrack& RawTrack = BoneTracks[TargetBoneIndex];
 			TargetSeqController.AddBoneCurve(TargetBoneName, bShouldTransact);
