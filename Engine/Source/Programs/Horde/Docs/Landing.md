@@ -1,4 +1,4 @@
-![Horde](Images/Logo.png)
+![Horde](Images/Logo.png#gh-light-mode-only)![Horde](Images/Logo-DarkMode.png#gh-dark-mode-only)
 
 Horde has been installed successfully. To continue setting up your installation, consider following 
 the following guides:

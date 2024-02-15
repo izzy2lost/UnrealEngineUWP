@@ -1,4 +1,5 @@
 import { IImageProps, Image } from "@fluentui/react"
+import dashboard from "../../../backend/Dashboard";
 
 
 function absolute(base: string, relative: string) {
@@ -20,6 +21,14 @@ function absolute(base: string, relative: string) {
 export const MarkdownImage: React.FunctionComponent<IImageProps> = props => {
 
    const location = window.location
+
+   if (props?.src?.endsWith("#gh-light-mode-only") && dashboard.darktheme) {
+      return null;
+   }
+
+   if (props?.src?.endsWith("#gh-dark-mode-only") && !dashboard.darktheme) {
+      return null;
+   }
 
    if (props?.src && location.pathname.startsWith("/docs")) {
       const src = absolute(location.pathname.replace("/docs/", ""), props.src);
