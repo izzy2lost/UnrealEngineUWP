@@ -1047,6 +1047,7 @@ struct FIoStoreArguments
 struct FContainerTargetSpec
 {
 	FIoContainerId ContainerId;
+	FIoContainerId OptionalSegmentContainerId;
 	FIoContainerHeader Header;
 	FIoContainerHeader OptionalSegmentHeader;
 	FName Name;
@@ -2836,7 +2837,15 @@ void InitializeContainerTargetsAndPackages(
 					ContainerTarget->OptionalSegmentOutputPath = FPaths::Combine(ContainerSource.OptionalOutputPath, FPaths::GetCleanFilename(ContainerTarget->OutputPath) + FPackagePath::GetOptionalSegmentExtensionModifier());
 				}
 
-				UE_LOG(LogIoStore, Display, TEXT("Saving optional container to: '%s'"), *ContainerTarget->OptionalSegmentOutputPath);
+				// The IoContainerId is the hash of the name of the container, which gets returned in the results
+				// as the output path we provide with the extension removed, which for optional containers means
+				// that it contains the .o in the name - so make sure we have a separate id for this.
+				ContainerTarget->OptionalSegmentContainerId = FIoContainerId::FromName(*FPaths::GetCleanFilename(ContainerTarget->OptionalSegmentOutputPath));
+
+				UE_LOG(LogIoStore, Display, TEXT("Saving optional container to: '%s', id: 0x%llx (base container id: 0x%llx)"),
+					*ContainerTarget->OptionalSegmentOutputPath,
+					ContainerTarget->OptionalSegmentContainerId.Value(),
+					ContainerTarget->ContainerId.Value());
 			}
 		}
 	}
@@ -4973,7 +4982,7 @@ void CreateContainerHeader(FContainerTargetSpec& ContainerTarget, bool bIsOption
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(CreateContainerHeader);
 	FIoContainerHeader& Header = bIsOptional ? ContainerTarget.OptionalSegmentHeader : ContainerTarget.Header;
-	Header.ContainerId = ContainerTarget.ContainerId;
+	Header.ContainerId = bIsOptional ? ContainerTarget.OptionalSegmentContainerId : ContainerTarget.ContainerId;
 
 	int32 NonOptionalSegmentStoreEntriesCount = 0;
 	int32 OptionalSegmentStoreEntriesCount = 0;
@@ -5276,7 +5285,10 @@ int32 CreateTarget(const FIoStoreArguments& Arguments, const FIoStoreWriterSetti
 
 				if (!ContainerTarget->OptionalSegmentOutputPath.IsEmpty())
 				{
+					ContainerSettings.ContainerId = ContainerTarget->OptionalSegmentContainerId;
 					ContainerTarget->OptionalSegmentIoStoreWriter = IoStoreWriterContext->CreateContainer(*ContainerTarget->OptionalSegmentOutputPath, ContainerSettings);
+					ContainerSettings.ContainerId = ContainerTarget->ContainerId;
+
 					ContainerTarget->OptionalSegmentIoStoreWriter->SetReferenceChunkDatabase(ChunkDatabase);
 					IoStoreWriters.Add(ContainerTarget->OptionalSegmentIoStoreWriter);
 					IoStoreWriterInfos.Add({UE::Cook::EPluginSizeTypes::OptionalSegment, ContainerTarget->Name});
@@ -5402,12 +5414,15 @@ int32 CreateTarget(const FIoStoreArguments& Arguments, const FIoStoreWriterSetti
 		{
 			if (ContainerTarget->IoStoreWriter)
 			{
-				auto WriteContainerHeaderChunk = [](FIoContainerHeader& Header, IIoStoreWriter* IoStoreWriter)
+				auto WriteContainerHeaderChunk = [](FIoContainerHeader& Header, IIoStoreWriter* IoStoreWriter, const FIoContainerId& IoStoreWriterId)
 				{
 					FLargeMemoryWriter HeaderAr(0, true);
 					HeaderAr << Header;
 					int64 DataSize = HeaderAr.TotalSize();
 					FIoBuffer ContainerHeaderBuffer(FIoBuffer::AssumeOwnership, HeaderAr.ReleaseOwnership(), DataSize);
+
+					// The header must have the same ID so that the loading code can find it.
+					check(IoStoreWriterId == Header.ContainerId);
 
 					FIoWriteOptions WriteOptions;
 					WriteOptions.DebugName = TEXT("ContainerHeader");
@@ -5419,12 +5434,12 @@ int32 CreateTarget(const FIoStoreArguments& Arguments, const FIoStoreWriterSetti
 				};
 
 				CreateContainerHeader(*ContainerTarget, false);
-				WriteContainerHeaderChunk(ContainerTarget->Header, ContainerTarget->IoStoreWriter.Get());
+				WriteContainerHeaderChunk(ContainerTarget->Header, ContainerTarget->IoStoreWriter.Get(), ContainerTarget->ContainerId);
 
 				if (ContainerTarget->OptionalSegmentIoStoreWriter)
 				{
 					CreateContainerHeader(*ContainerTarget, true);
-					WriteContainerHeaderChunk(ContainerTarget->OptionalSegmentHeader, ContainerTarget->OptionalSegmentIoStoreWriter.Get());
+					WriteContainerHeaderChunk(ContainerTarget->OptionalSegmentHeader, ContainerTarget->OptionalSegmentIoStoreWriter.Get(), ContainerTarget->OptionalSegmentContainerId);
 				}
 			}
 
