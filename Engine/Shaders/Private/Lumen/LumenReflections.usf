@@ -270,9 +270,9 @@ float2 GenerateRandom(uint2 InReflectionTracingCoord)
 {
 #define BLUE_NOISE_LUT 1
 #if BLUE_NOISE_LUT
-	float2 E = BlueNoiseVec2(InReflectionTracingCoord, RAY_DIRECTION_TEMPORAL_INDEX);
+	float2 E = BlueNoiseVec2(InReflectionTracingCoord, ReflectionsStateFrameIndex);
 #else
-	uint2 RandomSeed = Rand3DPCG16(int3(InReflectionTracingCoord, RAY_DIRECTION_TEMPORAL_INDEX % 8)).xy;
+	uint2 RandomSeed = Rand3DPCG16(int3(InReflectionTracingCoord, ReflectionsStateFrameIndexMod8)).xy;
 	float2 E = Hammersley16(0, 1, RandomSeed);
 #endif
 	E.y *= 1 - GGXSamplingBias;
@@ -289,7 +289,7 @@ void ReflectionGenerateRaysCS(
 	bool bIsValid = all(ReflectionTracingCoord.xy < ReflectionTracingViewSize);
 
 	// SvPositionForMaterialCoord is the SvPosition for primary sample, but is PixelCoord for overflow sample
-	float2 ScreenJitter = GetScreenTileJitter(SCREEN_TEMPORAL_INDEX);
+	float2 ScreenJitter = GetScreenTileJitter();
 	uint2 SvPositionForMaterialCoord = min(ReflectionTracingCoord.xy * ReflectionDownsampleFactor + uint2(ScreenJitter + .5f) + View.ViewRectMinAndSize.xy, View.ViewRectMinAndSize.xy + View.ViewRectMinAndSize.zw - 1);
 
 	if (bIsValid)
@@ -376,7 +376,7 @@ void ReflectionGenerateRaysCS(
 
 			if (ConeAngle > RadianceCacheConeHalfAngle)
 			{
-				FRadianceCacheCoverage Coverage = GetRadianceCacheCoverageWithUncertainCoverage(WorldPosition, RayDirection, InterleavedGradientNoise(ReflectionTracingCoord.xy, View.StateFrameIndexMod8));
+				FRadianceCacheCoverage Coverage = GetRadianceCacheCoverageWithUncertainCoverage(WorldPosition, RayDirection, InterleavedGradientNoise(ReflectionTracingCoord.xy, ReflectionsStateFrameIndexMod8));
 				bUseRadianceCache = Coverage.bValid;
 				if (bUseRadianceCache)
 				{
@@ -485,7 +485,7 @@ void ReflectionResolveCS(
 				}
 				const float a2 = ax_ay.x * ax_ay.y;
 
-				uint2 RandomSeed = Rand3DPCG16(int3(ScreenCoord, SCREEN_TEMPORAL_INDEX)).xy;
+				uint2 RandomSeed = Rand3DPCG16(int3(ScreenCoord, ReflectionsStateFrameIndexMod8)).xy;
 
 				// Center sample
 				float CenterTraceHitDistance = ClosestHitDepth;
@@ -925,7 +925,7 @@ void ReflectionTemporalReprojectionCS(
 	const float2 HistoryGatherUV = (HistoryCoordFromSceneDepth.Bilinear.Origin + 1.0f) * View.BufferSizeAndInvSize.zw;
 
 	const FLumenMaterialData Material = ReadMaterialData(Coord, MaxRoughnessToTrace);
-	const float Noise = InterleavedGradientNoise(ReflectionScreenCoord.xy, SCREEN_TEMPORAL_INDEX);
+	const float Noise = InterleavedGradientNoise(ReflectionScreenCoord.xy, ReflectionsStateFrameIndexMod8);
 	float DisocclusionDistanceThreshold = HistoryDistanceThreshold * lerp(.5f, 1.5f, Noise);
 	const float PrevSceneDepth = ConvertFromDeviceZ(HistoryScreenPositionFromSceneDepth.z);
 
@@ -1095,7 +1095,7 @@ void ReflectionBilateralFilterCS(
 			float TotalWeight = 1.0f;
 			float GuassianNormalize = 2.0f / (KernelRadius * KernelRadius);
 			float InvSpecularLobeAngleThreshold = 1.0f / (lerp(.0001f * PI, PI, Material.Roughness * Material.Roughness) * BilateralFilterNormalAngleThresholdScale);
-			uint2 RandomSeed = Rand3DPCG16(int3(Coord.SvPosition, SCREEN_TEMPORAL_INDEX)).xy;
+			uint2 RandomSeed = Rand3DPCG16(int3(Coord.SvPosition, ReflectionsStateFrameIndexMod8)).xy;
 
 			float3 WorldPosition = GetWorldPositionFromScreenUV(ScreenUV, SceneDepth);
 			float4 ScenePlane = float4(Material.WorldNormal, dot(WorldPosition, Material.WorldNormal));

@@ -164,7 +164,7 @@ void ReflectionTraceScreenTexturesCS(
 				float3 HitHistoryScreenPosition = GetHistoryScreenPosition(HitScreenPosition, HitScreenUV, HitDeviceZ);
 
 				float Vignette = min(ComputeHitVignetteFromScreenPos(HitScreenPosition), ComputeHitVignetteFromScreenPos(HitHistoryScreenPosition.xy));
-				float Noise = InterleavedGradientNoise(ReflectionTracingCoord.Coord + 0.5f, SCREEN_TEMPORAL_INDEX);
+				float Noise = InterleavedGradientNoise(ReflectionTracingCoord.Coord + 0.5f, ReflectionsStateFrameIndexMod8);
 
 				// Skip reporting a hit if near the edge of the screen
 				if (Vignette < Noise)
@@ -172,7 +172,7 @@ void ReflectionTraceScreenTexturesCS(
 					bHit = false;
 					HitUVz = LastVisibleHitUVz;
 				}
-
+	
 				if (bHit)
 				{
 					// Calculate the expected depth of the pixel last frame
@@ -718,7 +718,7 @@ void TraceVoxels(FReflectionTracingCoord ReflectionTracingCoord, float TraceHitD
 	TraceInput.InitialMaxDistance = 0;
 
 	// Dither step factor to smooth out SDF stepping artifacts, but only when near mirror
-	float StepFactorNoise = lerp(.95f, 1.0f / .95f, InterleavedGradientNoise(ReflectionTracingCoord.Coord, View.StateFrameIndexMod8));
+	float StepFactorNoise = lerp(.95f, 1.0f / .95f, InterleavedGradientNoise(ReflectionTracingCoord.Coord, ReflectionsStateFrameIndexMod8));
 	TraceInput.SDFStepFactor = lerp(StepFactorNoise, 1.0f, saturate(RayData.ConeHalfAngle / (PI / 256.0f)));
 
 	FConeTraceResult TraceResult = (FConeTraceResult)0;
@@ -826,7 +826,7 @@ void TraceVoxels(FReflectionTracingCoord ReflectionTracingCoord, float TraceHitD
 #if RADIANCE_CACHE
 		if (RayData.RadianceCacheMaxTraceDistance < MaxTraceDistance * .99f)
 		{
-			FRadianceCacheCoverage Coverage = GetRadianceCacheCoverage(WorldPosition, RayData.Direction, InterleavedGradientNoise(ReflectionTracingCoord.Coord, View.StateFrameIndexMod8));
+			FRadianceCacheCoverage Coverage = GetRadianceCacheCoverage(WorldPosition, RayData.Direction, InterleavedGradientNoise(ReflectionTracingCoord.Coord, ReflectionsStateFrameIndexMod8));
 			SampleRadianceCacheAndApply(Coverage, WorldPosition, RayData.Direction, RayData.ConeHalfAngle, TraceResult.Lighting, TraceResult.Transparency);
 			TraceHitDistance = RayData.RadianceCacheMaxTraceDistance;
 		}

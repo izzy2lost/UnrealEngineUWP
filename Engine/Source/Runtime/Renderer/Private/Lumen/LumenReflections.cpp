@@ -282,6 +282,13 @@ FAutoConsoleVariableRef GVarLumenReflectionsContrast(
 	TEXT("Non-physically correct Lumen reflection contrast. Recommended to keep at 1."),
 	ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int> GVarLumenReflectionsFixedStateFrameIndex(
+	TEXT("r.Lumen.Reflections.FixedStateFrameIndex"),
+	-1,
+	TEXT("Whether to override View.StateFrameIndex for debugging Lumen Reflections."),
+	ECVF_RenderThreadSafe
+);
+
 float GetLumenReflectionSpecularScale()
 {
 	return FMath::Max(GLumenReflectionsSpecularScale, 0.f);
@@ -1041,9 +1048,19 @@ FRDGTextureRef FDeferredShadingSceneRenderer::RenderLumenReflections(
 	RDG_GPU_STAT_SCOPE(GraphBuilder, LumenReflections);
 
 	FLumenReflectionTracingParameters ReflectionTracingParameters;
-	LumenReflections::SetupCompositeParameters(View, ReflectionTracingParameters.ReflectionsCompositeParameters);
-	ReflectionTracingParameters.PreIntegratedGF = GSystemTextures.PreintegratedGF->GetRHI();
-	ReflectionTracingParameters.PreIntegratedGFSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+	{
+		LumenReflections::SetupCompositeParameters(View, ReflectionTracingParameters.ReflectionsCompositeParameters);
+		ReflectionTracingParameters.PreIntegratedGF = GSystemTextures.PreintegratedGF->GetRHI();
+		ReflectionTracingParameters.PreIntegratedGFSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+		uint32 StateFrameIndex = View.ViewState ? View.ViewState->GetFrameIndex() : 0;
+		if (GVarLumenReflectionsFixedStateFrameIndex.GetValueOnRenderThread() >= 0)
+		{
+			StateFrameIndex = GVarLumenReflectionsFixedStateFrameIndex.GetValueOnRenderThread();
+		}
+
+		ReflectionTracingParameters.ReflectionsStateFrameIndex = StateFrameIndex;
+		ReflectionTracingParameters.ReflectionsStateFrameIndexMod8 = StateFrameIndex % 8;
+	}
 
 	FRDGBufferRef VisualizeTracesData = nullptr;
 	
