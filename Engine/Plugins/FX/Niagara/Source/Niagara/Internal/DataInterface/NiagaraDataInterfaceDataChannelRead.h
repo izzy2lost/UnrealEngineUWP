@@ -100,11 +100,12 @@ public:
 	Calling GetNDCSpawnInfo() in the particle spawn script to get the spawning NDC Index is prefered.
 	*/
 	UPROPERTY(EditAnywhere, Category = "Spawning", AdvancedDisplay)
-	bool bOverrideSpawnGroupToDataChannelIndex = true;
+	bool bOverrideSpawnGroupToDataChannelIndex = false;
 
 	//UObject Interface
 	NIAGARA_API virtual void PostInitProperties() override;
 	NIAGARA_API virtual void BeginDestroy() override;
+	NIAGARA_API virtual void Serialize(FArchive& Ar) override;
 	//UObject Interface End
 
 	//UNiagaraDataInterface Interface

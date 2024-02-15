@@ -9,6 +9,7 @@
 #include "NiagaraModule.h"
 #include "NiagaraShaderParametersBuilder.h"
 
+#include "NiagaraCustomVersion.h"
 #include "NiagaraCommon.h"
 #include "NiagaraSystem.h"
 #include "NiagaraWorldManager.h"
@@ -505,6 +506,19 @@ void UNiagaraDataInterfaceDataChannelRead::BeginDestroy()
 	Super::BeginDestroy();
 }
 
+void UNiagaraDataInterfaceDataChannelRead::Serialize(FArchive& Ar)
+{
+	Ar.UsingCustomVersion(FNiagaraCustomVersion::GUID);
+	const int32 NiagaraVersion = Ar.CustomVer(FNiagaraCustomVersion::GUID);
+
+	//Before we serialize in the properties we will restore any old default values from previous versions.
+	if(NiagaraVersion < FNiagaraCustomVersion::NDCSpawnGroupOverrideDisabledByDefault)
+	{
+		bOverrideSpawnGroupToDataChannelIndex = true;
+	}
+
+	Super::Serialize(Ar);
+}
 
 bool UNiagaraDataInterfaceDataChannelRead::InitPerInstanceData(void* PerInstanceData, FNiagaraSystemInstance* SystemInstance)
 {
