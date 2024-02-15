@@ -99,13 +99,13 @@ struct TStructOpsTypeTraits<FRuntimePartitionStreamingData> : public TStructOpsT
 };
 
 UCLASS()
-class URuntimeHashSetExternalStreamingObject : public URuntimeHashExternalStreamingObjectBase
+class ENGINE_API URuntimeHashSetExternalStreamingObject : public URuntimeHashExternalStreamingObjectBase
 {
 	GENERATED_BODY()
 
 public:
 	//~ Begin UObject Interface
-	ENGINE_API static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
+	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
 	//~ End UObject Interface
 
 	void CreatePartitionsSpatialIndex() const;

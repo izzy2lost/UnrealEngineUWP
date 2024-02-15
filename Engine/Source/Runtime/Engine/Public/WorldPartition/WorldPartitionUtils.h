@@ -14,7 +14,7 @@ struct FWorldPartitionStreamingQuerySource;
 
 struct FWorldPartitionUtils
 {
-	class FSimulateCookedSession
+	class ENGINE_API FSimulateCookedSession
 	{
 	public:
 		FSimulateCookedSession(UWorld* InWorld);

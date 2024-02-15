@@ -150,6 +150,7 @@ class UWorldPartitionRuntimeHash : public UObject
 	GENERATED_UCLASS_BODY()
 
 	friend class URuntimePartition;
+	friend struct FFortWorldPartitionUtils;
 
 #if WITH_EDITOR
 	virtual void SetDefaultValues() {}
