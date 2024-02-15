@@ -225,7 +225,15 @@ void UPolyEditExtrudeActivity::Setup(UInteractiveTool* ParentToolIn)
 	SetToolPropertySourceEnabled(PushPullProperties, false);
 	PushPullProperties->WatchProperty(PushPullProperties->MeasureDirection,
 	[this](EPolyEditExtrudeDirection) {
-		if (bIsRunning)
+		if (bIsRunning && PushPullProperties->DirectionMode != EPolyEditPushPullModeOptions::SingleDirection)
+		{
+			ReinitializeExtrudeHeightMechanic();
+			ActivityContext->Preview->InvalidateResult();
+		}
+	});
+	PushPullProperties->WatchProperty(PushPullProperties->SingleDirection,
+	[this](EPolyEditExtrudeDirection) {
+		if (bIsRunning && PushPullProperties->DirectionMode == EPolyEditPushPullModeOptions::SingleDirection)
 		{
 			ReinitializeExtrudeHeightMechanic();
 			ActivityContext->Preview->InvalidateResult();
@@ -578,7 +586,8 @@ FVector3d UPolyEditExtrudeActivity::GetExtrudeDirection() const
 		DirectionToUse = OffsetProperties->MeasureDirection;
 		break;
 	case EPropertySetToUse::PushPull:
-		DirectionToUse = PushPullProperties->MeasureDirection;
+		DirectionToUse = PushPullProperties->DirectionMode == EPolyEditPushPullModeOptions::SingleDirection ?
+			PushPullProperties->SingleDirection : PushPullProperties->MeasureDirection;
 		break;
 	}
 
