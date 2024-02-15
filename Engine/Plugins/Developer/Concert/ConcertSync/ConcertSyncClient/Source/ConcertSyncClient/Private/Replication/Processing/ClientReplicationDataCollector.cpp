@@ -226,9 +226,9 @@ namespace UE::ConcertSyncClient::Replication
 		}
 	}
 
-	void FClientReplicationDataCollector::StopTrackingObject(UObject& Object)
+	void FClientReplicationDataCollector::StopTrackingObject(const FSoftObjectPath& ObjectPath)
 	{
-		if (TArray<FObjectInfo>* ObjectInfos = ObjectsToReplicate.Find(&Object))
+		if (TArray<FObjectInfo>* ObjectInfos = ObjectsToReplicate.Find(ObjectPath))
 		{
 			for (FObjectInfo& ObjectInfo : *ObjectInfos)
 			{

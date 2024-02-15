@@ -110,6 +110,6 @@ namespace UE::ConcertSyncClient::Replication
 
 		// Handle events from bridge
 		void StartTrackingObject(UObject& Object);
-		void StopTrackingObject(UObject& Object);
+		void StopTrackingObject(const FSoftObjectPath& ObjectPath);
 	};
 }
