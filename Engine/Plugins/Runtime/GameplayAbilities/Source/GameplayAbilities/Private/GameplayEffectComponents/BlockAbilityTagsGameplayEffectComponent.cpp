@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "GameplayEffectComponents/BlockAbilityTagsGameplayEffectComponent.h"
+#include "Misc/DataValidation.h"
+
+#define LOCTEXT_NAMESPACE "BlockAbilityTagsGameplayEffectComponent"
 
 void UBlockAbilityTagsGameplayEffectComponent::PostInitProperties()
 {
@@ -34,6 +37,21 @@ void UBlockAbilityTagsGameplayEffectComponent::PostEditChangeProperty(FPropertyC
 		Owner->OnGameplayEffectChanged();
 	}
 }
+
+EDataValidationResult UBlockAbilityTagsGameplayEffectComponent::IsDataValid(FDataValidationContext& Context) const
+{
+	EDataValidationResult Result = Super::IsDataValid(Context);
+
+	const bool bInstantEffect = (GetOwner()->DurationPolicy == EGameplayEffectDurationType::Instant);
+	if (bInstantEffect && !InheritableBlockedAbilityTagsContainer.CombinedTags.IsEmpty())
+	{
+		Context.AddError(FText::FormatOrdered(LOCTEXT("GEInstantAndBlockAbilityTags", "GE {0} is set to Instant so {1} will not be able to function as expected."), FText::FromString(GetNameSafe(GetOwner())), FText::FromString(EditorFriendlyName)));
+		Result = EDataValidationResult::Invalid;
+	}
+
+	return Result;
+}
+
 #endif // WITH_EDITOR
 
 void UBlockAbilityTagsGameplayEffectComponent::SetAndApplyBlockedAbilityTagChanges(const FInheritedTagContainer& TagContainerMods)
@@ -53,3 +71,5 @@ void UBlockAbilityTagsGameplayEffectComponent::ApplyBlockedAbilityTagChanges() c
 	UGameplayEffect* Owner = GetOwner();
 	InheritableBlockedAbilityTagsContainer.ApplyTo(Owner->CachedBlockedAbilityTags);
 }
+
+#undef LOCTEXT_NAMESPACE
