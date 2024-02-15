@@ -6,6 +6,7 @@
 #include "DMPrivate.h"
 #include "DynamicMaterialEditorModule.h"
 #include "DynamicMaterialEditorSettings.h"
+#include "EngineAnalytics.h"
 #include "IContentBrowserSingleton.h"
 #include "ISinglePropertyView.h"
 #include "Material/DynamicMaterialInstance.h"
@@ -35,6 +36,11 @@ namespace UE::DynamicMaterialEditor::Private
 		{
 			if (UDynamicMaterialModelEditorOnlyData* const ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(InMenuContext->GetModel()))
 			{
+				if (FEngineAnalytics::IsAvailable())
+				{
+					FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MaterialDesigner.OpenedGeneratedMaterial"));
+				}
+
 				ModelEditorOnlyData->OpenMaterialEditor();
 			}
 		}
@@ -54,6 +60,11 @@ namespace UE::DynamicMaterialEditor::Private
 			FString SaveObjectPath = ContentBrowserModule.Get().CreateModalSaveAssetDialog(SaveAssetDialogConfig);
 
 			UDMBlueprintFunctionLibrary::ExportMaterialInstance(MaterialInstance->GetMaterialModel(), SaveObjectPath);
+
+			if (FEngineAnalytics::IsAvailable())
+			{
+				FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MaterialDesigner.ExportedMaterialInstance"));
+			}
 		}
 	}
 
@@ -84,6 +95,11 @@ namespace UE::DynamicMaterialEditor::Private
 			}
 
 			UDMBlueprintFunctionLibrary::ExportGeneratedMaterial(MaterialModel, SaveObjectPath);
+
+			if (FEngineAnalytics::IsAvailable())
+			{
+				FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MaterialDesigner.ExportedGeneratedMaterial"));
+			}
 		}
 	}
 

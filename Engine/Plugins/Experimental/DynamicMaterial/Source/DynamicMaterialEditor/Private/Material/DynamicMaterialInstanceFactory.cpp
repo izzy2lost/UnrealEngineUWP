@@ -31,11 +31,6 @@ UObject* UDynamicMaterialInstanceFactory::FactoryCreateNew(UClass* Class, UObjec
 	UDynamicMaterialInstance* NewInstance = NewObject<UDynamicMaterialInstance>(InParent, Class, Name, Flags | RF_Transactional);
 	check(NewInstance);
 
-	if (FEngineAnalytics::IsAvailable())
-	{
-		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MaterialDesigner.CreateMaterial"));
-	}
-
 	UDynamicMaterialModelFactory* EditorFactory = NewObject<UDynamicMaterialModelFactory>();
 	check(EditorFactory);
 
@@ -58,6 +53,19 @@ UObject* UDynamicMaterialInstanceFactory::FactoryCreateNew(UClass* Class, UObjec
 
 	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
 	AssetTools.OpenEditorForAssets({NewInstance});
+
+	if (FEngineAnalytics::IsAvailable())
+	{
+		static const FString AssetType = TEXT("Asset");
+		static const FString SubobjectType = TEXT("Subobject");
+
+		TArray<FAnalyticsEventAttribute> Attribs;
+		const bool bIsAsset = NewInstance->IsAsset();
+
+		Attribs.Add(FAnalyticsEventAttribute(TEXT("Type"), bIsAsset ? AssetType : SubobjectType));
+
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MaterialDesigner.InstanceCreated"), Attribs);
+	}
 
 	return NewInstance;
 }
