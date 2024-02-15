@@ -65,6 +65,35 @@ namespace UsdUtils
 		return FTransform(Rotation, Translation, Scale);
 	}
 
+	FTransform DecomposeWithUniformReflection(const FMatrix& InMatrix)
+	{
+		// Reference: FTransform::SetFromMatrix
+
+		FTransform Result;
+
+		FMatrix M = InMatrix;
+
+		FVector Scale = M.ExtractScaling();
+
+		// If there is negative scaling going on, we handle that here
+		if (InMatrix.Determinant() < 0.f)
+		{
+			// Note: Here is where we flip on all three axes simultaneously. Flipping on any odd number of
+			// axes would have led to the same result (as long as the rotation matrix M is also correspondingly
+			// flipped), but by flipping 3 of them we get to keep the scaling uniform.
+			Scale *= -1.0f;
+			M.SetAxis(0, -M.GetScaledAxis(EAxis::X));
+			M.SetAxis(1, -M.GetScaledAxis(EAxis::Y));
+			M.SetAxis(2, -M.GetScaledAxis(EAxis::Z));
+		}
+
+		Result.SetScale3D(Scale);
+		Result.SetRotation(FQuat{M}.GetNormalized());
+		Result.SetTranslation(InMatrix.GetOrigin());
+
+		return Result;
+	}
+
 	FTransform ConvertTransformToUsdSpace(const FUsdStageInfo& StageInfo, const FTransform& TransformInUESpace)
 	{
 		FTransform TransformInUsdSpace = UsdUtils::ConvertAxes(StageInfo.UpAxis == EUsdUpAxis::ZAxis, TransformInUESpace);
@@ -76,6 +105,19 @@ namespace UsdUtils
 		}
 
 		return TransformInUsdSpace;
+	}
+
+	FTransform ConvertTransformToUESpace(const FUsdStageInfo& StageInfo, const FTransform& TransformInUsdSpace)
+	{
+		FTransform TransformInUESpace = UsdUtils::ConvertAxes(StageInfo.UpAxis == EUsdUpAxis::ZAxis, TransformInUsdSpace);
+
+		const float UEMetersPerUnit = 0.01f;
+		if (!FMath::IsNearlyEqual(StageInfo.MetersPerUnit, UEMetersPerUnit))
+		{
+			TransformInUESpace.ScaleTranslation(StageInfo.MetersPerUnit / UEMetersPerUnit);
+		}
+
+		return TransformInUESpace;
 	}
 }	 // namespace UsdUtils
 
@@ -497,8 +539,7 @@ namespace UnrealToUsd
 			static_cast<pxr::GfHalf>(InValue.W),
 			static_cast<pxr::GfHalf>(InValue.X),
 			static_cast<pxr::GfHalf>(InValue.Y),
-			static_cast<pxr::GfHalf>(InValue.Z)
-		};
+			static_cast<pxr::GfHalf>(InValue.Z)};
 	}
 
 	pxr::GfQuatf ConvertQuatFloat(const FQuat& InValue)
@@ -507,8 +548,7 @@ namespace UnrealToUsd
 			static_cast<float>(InValue.W),
 			static_cast<float>(InValue.X),
 			static_cast<float>(InValue.Y),
-			static_cast<float>(InValue.Z)
-		};
+			static_cast<float>(InValue.Z)};
 	}
 
 	pxr::GfQuatd ConvertQuatDouble(const FQuat& InValue)
