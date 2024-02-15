@@ -93,6 +93,11 @@ public:
         return ((uint8_t*)Buffer->contents()) + GetOffset();
     }
 	
+	uint64_t GetGPUAddress()
+	{
+		return Buffer->gpuAddress() + GetOffset();
+	}
+	
     MTLBufferPtr GetMTLBuffer() {return Buffer;};
     
 private:
@@ -245,6 +250,15 @@ public:
 		return Texture.get();
 	}
 	
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+    FRHIDescriptorHandle BindlessHandle;
+
+    virtual FRHIDescriptorHandle GetDefaultBindlessHandle() const override final
+    {
+        return BindlessHandle;
+    }
+#endif // PLATFORM_SUPPORTS_BINDLESS_RENDERING
+
 private:
 	// The movie playback IOSurface/CVTexture wrapper to avoid page-off
 	CFTypeRef ImageSurfaceRef;
@@ -475,15 +489,31 @@ class FMetalShaderResourceView final : public FRHIShaderResourceView, public FMe
 {
 public:
 	FMetalShaderResourceView(FRHICommandListBase& RHICmdList, FRHIViewableResource* InResource, FRHIViewDesc const& InViewDesc);
+	~FMetalShaderResourceView();
 	FMetalViewableResource* GetBaseResource() const;
 
 	virtual void UpdateView() override;
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+private:
+    
+
+public:
+	
+	FRHIDescriptorHandle BindlessHandle;
+	
+    virtual FRHIDescriptorHandle GetBindlessHandle() const override
+    {
+        return BindlessHandle;
+    }
+#endif // PLATFORM_SUPPORTS_BINDLESS_RENDERING
 };
 
 class FMetalUnorderedAccessView final : public FRHIUnorderedAccessView, public FMetalResourceViewBase
 {
 public:
 	FMetalUnorderedAccessView(FRHICommandListBase& RHICmdList, FRHIViewableResource* InResource, FRHIViewDesc const& InViewDesc);
+	~FMetalUnorderedAccessView();
 	FMetalViewableResource* GetBaseResource() const;
 
 	virtual void UpdateView() override;
@@ -492,6 +522,16 @@ public:
 #if UE_METAL_RHI_SUPPORT_CLEAR_UAV_WITH_BLIT_ENCODER
 	void ClearUAVWithBlitEncoder(TRHICommandList_RecursiveHazardous<FMetalRHICommandContext>& RHICmdList, uint32 Pattern);
 #endif
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+private:
+    FRHIDescriptorHandle BindlessHandle;
+
+public:
+    virtual FRHIDescriptorHandle GetBindlessHandle() const override
+    {
+        return BindlessHandle;
+    }
+#endif // PLATFORM_SUPPORTS_BINDLESS_RENDERING
 };
 
 class FMetalCommandBufferFence
@@ -544,6 +584,10 @@ class FMetalSuballocatedUniformBuffer;
 class FMetalRayTracingScene;
 class FMetalRayTracingGeometry;
 #endif // METAL_RHI_RAYTRACING
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+class FMetalMeshShader;
+class FMetalAmplificationShader;
+#endif
 
 template<class T>
 struct TMetalResourceTraits
@@ -579,6 +623,18 @@ struct TMetalResourceTraits<FRHIComputeShader>
 {
 	typedef FMetalComputeShader TConcreteType;
 };
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+template<>
+struct TMetalResourceTraits<FRHIMeshShader>
+{
+    typedef FMetalMeshShader TConcreteType;
+};
+template<>
+struct TMetalResourceTraits<FRHIAmplificationShader>
+{
+    typedef FMetalAmplificationShader TConcreteType;
+};
+#endif
 template<>
 struct TMetalResourceTraits<FRHIRenderQuery>
 {

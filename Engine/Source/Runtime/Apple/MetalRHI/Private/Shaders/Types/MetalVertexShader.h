@@ -19,4 +19,7 @@ public:
 	FMetalVertexShader(TArrayView<const uint8> InCode, MTLLibraryPtr InLibrary);
 
 	MTLFunctionPtr GetFunction();
+#if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
+    MTLFunctionPtr GetObjectFunctionForGeometryEmulation();
+#endif
 };

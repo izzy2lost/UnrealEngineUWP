@@ -2422,7 +2422,8 @@ bool FNaniteVertexFactory::ShouldCompilePermutation(const FVertexFactoryShaderPe
 		(Parameters.MaterialParameters.bIsUsedWithNanite || Parameters.MaterialParameters.bIsSpecialEngineMaterial) &&
 		Nanite::IsSupportedMaterialDomain(Parameters.MaterialParameters.MaterialDomain) &&
 		Nanite::IsSupportedBlendMode(Parameters.MaterialParameters) &&
-		!IsVulkanPlatform(Parameters.Platform) && // TODO: Support CS derivatives
+		!IsVulkanPlatform(Parameters.Platform) &&
+		!IsMetalPlatform(Parameters.Platform) && // TODO: Support CS derivatives
 		DoesPlatformSupportNanite(Parameters.Platform);
 
 	return bShouldCompile;

@@ -38,11 +38,11 @@ enum EMetalRenderFlags
 class FMetalStateCache
 {
 public:
-	FMetalStateCache(bool const bInImmediate);
+	FMetalStateCache(MTL::Device* Device, bool const bInImmediate);
 	~FMetalStateCache();
 	
 	/** Reset cached state for reuse */
-	void Reset(void);
+	void Reset();
 
 	void SetScissorRect(bool const bEnable, MTL::ScissorRect const& Rect);
 	void SetBlendFactor(FLinearColor const& InBlendFactor);
@@ -100,6 +100,31 @@ public:
 	 */
 	void SetShaderBuffer(EMetalShaderStages const Frequency, MTL::AccelerationStructure* AccelerationStructure, NS::UInteger const Index, TArray<TTuple<MTL::Resource*, MTL::ResourceUsage>> BLAS);
 #endif
+
+#if METAL_USE_METAL_SHADER_CONVERTER
+    void IRMakeSRVResident(EMetalShaderStages const Frequency, FMetalShaderResourceView* SRV);
+    void IRMakeUAVResident(EMetalShaderStages const Frequency, FMetalUnorderedAccessView* UAV);
+    void IRMakeTextureResident(EMetalShaderStages const Frequency, MTL::Texture* Texture);
+    
+    void IRForwardBindlessParameters(EMetalShaderStages const Frequency, TConstArrayView<FRHIShaderParameterResource> InBindlessParameters);
+
+    void IRBindUniformBuffer(EMetalShaderStages const Frequency, int32 Index, FMetalUniformBuffer* UB);
+    void IRBindPackedUniforms(EMetalShaderStages const Frequency, int32 Index, uint8 const* Bytes, const uint32 Size, FMetalBufferPtr& Buffer);
+
+	/*
+	 * Write GPU data to ring buffer on CPU, returns GPU address of data written
+	 * @param Content Data to upload
+	 * @param Size Size in bytes
+	 */
+    uint64 IRSideUploadToBuffer(void const* Content, uint64 Size);
+
+    template<class ShaderType, EMetalShaderStages Frequency, MTL::FunctionType FunctionType>
+    void IRBindResourcesToEncoder(ShaderType Shader, FMetalCommandEncoder* Encoder);
+
+    void IRMapVertexBuffers(MTL::RenderCommandEncoder* Encoder, bool bBindForMeshShaders = false);
+#endif
+
+	void RegisterMetalHeap(MTL::Heap* Heap);
 	
 	/*
 	 * Set a global texture for the specified shader frequency at the given bind point index.
@@ -273,6 +298,32 @@ private:
 	MTL::StoreAction ColorStore[MaxSimultaneousRenderTargets];
     MTL::StoreAction DepthStore;
     MTL::StoreAction StencilStore;
+
+	FCriticalSection               ActiveHeapsLock;
+	TArray<MTL::Heap*>             ActiveHeaps;
+		
+#if METAL_USE_METAL_SHADER_CONVERTER
+    static constexpr uint32 TopLevelABNumEntry = 16;
+    static constexpr uint32 SideAllocsBufferSize = 32 << 21; // 64Mb
+
+    struct IRResourceTableBuffer
+    {
+        FMetalBufferPtr         TableBuffer;
+        std::atomic_uint64_t    TableOffset = 0;
+    };
+
+    uint64                 CBVTable[EMetalShaderStages::Num][TopLevelABNumEntry];
+    IRResourceTableBuffer  SideAllocs;
+    
+    struct FVertexBufferBind
+    {
+        uint64_t GPUVA;
+        uint32_t Length;
+        uint32_t Stride;
+    };
+
+    FVertexBufferBind VertexBufferVAs[31];
+#endif
 
 	FMetalQueryBuffer* VisibilityResults;
     MTL::VisibilityResultMode VisibilityMode;

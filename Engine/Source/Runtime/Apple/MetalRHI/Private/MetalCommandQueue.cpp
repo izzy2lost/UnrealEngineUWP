@@ -113,7 +113,7 @@ FMetalCommandQueue::FMetalCommandQueue(MTL::Device* InDevice, uint32 const MaxNu
 			Features |= EMetalFeaturesFences;
 		}
 			
-			if (FParse::Param(FCommandLine::Get(),TEXT("metalheap")))
+		if (FParse::Param(FCommandLine::Get(),TEXT("metalheap")))
 		{
 			Features |= EMetalFeaturesHeaps;
 		}
@@ -225,15 +225,14 @@ FMetalCommandQueue::FMetalCommandQueue(MTL::Device* InDevice, uint32 const MaxNu
 			{
 				Features |= EMetalFeaturesFences;
 			}
-				
-			// There are still too many driver bugs to use MTLHeap on macOS - nothing works without causing random, undebuggable GPU hangs that completely deadlock the Mac and don't generate any validation errors or command-buffer failures
-            if (FParse::Param(FCommandLine::Get(),TEXT("forcemetalheap")))
-			{
-				Features |= EMetalFeaturesHeaps;
-			}
 		}
 	}
     
+	if (!FParse::Param(FCommandLine::Get(),TEXT("nometalheap")))
+	{
+		Features |= EMetalFeaturesHeaps;
+	}
+	
     if(Device->supportsFeatureSet(MTL::FeatureSet_macOS_GPUFamily1_v3))
 	{
 		Features |= EMetalFeaturesMultipleViewports | EMetalFeaturesPipelineBufferMutability | EMetalFeaturesGPUCaptureManager;
@@ -241,11 +240,6 @@ FMetalCommandQueue::FMetalCommandQueue(MTL::Device* InDevice, uint32 const MaxNu
 		if (FParse::Param(FCommandLine::Get(),TEXT("metalfence")))
 		{
 			Features |= EMetalFeaturesFences;
-		}
-		
-		if (FParse::Param(FCommandLine::Get(),TEXT("metalheap")))
-		{
-			Features |= EMetalFeaturesHeaps;
 		}
 		
 		if (FParse::Param(FCommandLine::Get(),TEXT("metaliabs")))

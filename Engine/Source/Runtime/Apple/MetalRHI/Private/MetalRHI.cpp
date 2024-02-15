@@ -23,7 +23,9 @@
 #include "Engine/RendererSettings.h"
 #include "MetalTransitionData.h"
 #include "EngineGlobals.h"
-
+#include "MetalBindlessDescriptors.h"
+#include "DataDrivenShaderPlatformInfo.h"
+ 
 DEFINE_LOG_CATEGORY(LogMetal)
 
 bool GIsMetalInitialized = false;
@@ -395,13 +397,6 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
             {
                 NanitePersistentThreadCVar->Set(0);
             }
-            
-            // Switch back to single page allocation for VSM (Metal does not support atomic operations on Texture2DArrays...).
-            IConsoleVariable* VSMCacheStaticSeparateCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Shadow.Virtual.Cache.StaticSeparate"));
-            if (VSMCacheStaticSeparateCVar != nullptr)
-            {
-                VSMCacheStaticSeparateCVar->Set(0);
-            }
         }
 	}
 
@@ -415,6 +410,8 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
     {
         GMaxRHIFeatureLevel = ERHIFeatureLevel::SM6;
         GMaxRHIShaderPlatform = SP_METAL_SM6;
+		
+		GRHIGlobals.SupportsNative16BitOps = true;
     }
 	else if(bSupportsSM5 && bRequestedSM5)
 	{
@@ -433,6 +430,26 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 		GMaxRHIFeatureLevel = ERHIFeatureLevel::SM5;
 		GMaxRHIShaderPlatform = SP_METAL_SM5;
 	}
+
+    GRHIBindlessSupport = RHIGetBindlessSupport(GMaxRHIShaderPlatform);
+	
+	if(GRHIAdapterName.Contains("Apple"))
+	{
+		if(GRHIBindlessSupport == ERHIBindlessSupport::Unsupported)
+		{
+			// Switch back to single page allocation for VSM (Metal does not support atomic operations on Texture2DArrays...).
+			IConsoleVariable* VSMCacheStaticSeparateCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Shadow.Virtual.Cache.StaticSeparate"));
+			if (VSMCacheStaticSeparateCVar != nullptr)
+			{
+				VSMCacheStaticSeparateCVar->Set(0);
+			}
+		}
+	}
+
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+    GRHISupportsMeshShadersTier0 = RHISupportsMeshShadersTier0(GMaxRHIShaderPlatform);
+    GRHISupportsMeshShadersTier1 = RHISupportsMeshShadersTier1(GMaxRHIShaderPlatform);
+#endif
 
 	ERHIFeatureLevel::Type PreviewFeatureLevel;
 	if (RHIGetPreviewFeatureLevel(PreviewFeatureLevel))
@@ -545,7 +562,7 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	{
 		GRHISupportsRHIThread = FParse::Param(FCommandLine::Get(),TEXT("rhithread")) || (CVarUseIOSRHIThread.GetValueOnAnyThread() > 0);
 	}
-
+	
 	if (FPlatformMisc::IsDebuggerPresent() && UE_BUILD_DEBUG)
 	{
 #if PLATFORM_IOS // @todo zebra : needs a RENDER_API or whatever
@@ -1129,6 +1146,16 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 		ImmediateContext.Profiler->BeginFrame();
 #endif
 
+#if METAL_USE_METAL_SHADER_CONVERTER
+	CompilerInstance = IRCompilerCreate();
+#endif
+
+	if(GRHIBindlessSupport != ERHIBindlessSupport::Unsupported)
+	{
+		FMetalBindlessDescriptorManager* BindlessDescriptorManager = ImmediateContext.Context->GetBindlessDescriptorManager();
+		BindlessDescriptorManager->Init();
+	}
+
 #if ENABLE_METAL_GPUPROFILE
     if (ImmediateContext.Profiler)
 		ImmediateContext.Profiler->EndFrame();
@@ -1145,6 +1172,10 @@ FMetalDynamicRHI::~FMetalDynamicRHI()
 	// Ask all initialized FRenderResources to release their RHI resources.
 	FRenderResource::ReleaseRHIForAllResources();	
 	
+#if METAL_USE_METAL_SHADER_CONVERTER
+    IRCompilerDestroy(CompilerInstance);
+#endif
+
 #if ENABLE_METAL_GPUPROFILE
 	FMetalProfiler::DestroyProfiler();
 #endif

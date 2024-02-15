@@ -33,6 +33,7 @@ typedef NS::SharedPtr<MTL::ComputeCommandEncoder> MTLComputeCommandEncoderPtr;
 typedef NS::SharedPtr<MTL::BlitCommandEncoder> MTLBlitCommandEncoderPtr;
 typedef NS::SharedPtr<MTL::AccelerationStructureCommandEncoder> MTLAccelerationStructureCommandEncoderPtr;
 typedef NS::SharedPtr<MTL::RenderPipelineDescriptor> MTLRenderPipelineDescriptorPtr;
+typedef NS::SharedPtr<MTL::MeshRenderPipelineDescriptor> MTLMeshRenderPipelineDescriptorPtr;
 typedef NS::SharedPtr<MTL::ComputePipelineDescriptor> MTLComputePipelineDescriptorPtr;
 typedef NS::SharedPtr<MTL::TileRenderPipelineDescriptor> MTLTileRenderPipelineDescriptorPtr;
 

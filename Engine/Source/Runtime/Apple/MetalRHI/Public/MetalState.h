@@ -19,12 +19,18 @@ public:
 	/** 
 	 * Constructor/destructor
 	 */
-	FMetalSamplerState(MTL::Device* Device, const FSamplerStateInitializerRHI& Initializer);
+	FMetalSamplerState(class FMetalDeviceContext* Context, const FSamplerStateInitializerRHI& Initializer);
 	~FMetalSamplerState();
 
 	MTL::SamplerState* State;
 #if !PLATFORM_MAC
     MTL::SamplerState* NoAnisoState;
+#endif
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+    FRHIDescriptorHandle BindlessHandle;
+
+    // TODO: Do we need to support NoAnisoState too? (or is it some leftover we don't care about anymore?)
+    virtual FRHIDescriptorHandle GetBindlessHandle() const override final { return BindlessHandle; }
 #endif
 };
 

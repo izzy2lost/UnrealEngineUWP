@@ -8,6 +8,8 @@
 #include "MetalProfiler.h"
 #include "RHIUtilities.h"
 
+#include "MetalBindlessDescriptors.h"
+
 static uint32 GetMetalMaxAnisotropy(ESamplerFilter Filter, uint32 MaxAniso)
 {
 	switch (Filter)
@@ -274,7 +276,9 @@ static MTL::SamplerState* FindOrCreateSamplerState(MTL::Device* Device, const FS
 #if PLATFORM_MAC
 		Desc->setBorderColor(Initializer.BorderColor == 0 ? MTL::SamplerBorderColorTransparentBlack : MTL::SamplerBorderColorOpaqueWhite);
 #endif
+#if !METAL_USE_METAL_SHADER_CONVERTER
 		if (FMetalCommandQueue::SupportsFeature(EMetalFeaturesIABs))
+#endif
 		{
 			Desc->setSupportArgumentBuffers(true);
 		}
@@ -287,8 +291,9 @@ static MTL::SamplerState* FindOrCreateSamplerState(MTL::Device* Device, const FS
 	return State;
 }
 
-FMetalSamplerState::FMetalSamplerState(MTL::Device* Device, const FSamplerStateInitializerRHI& Initializer)
+FMetalSamplerState::FMetalSamplerState(FMetalDeviceContext* Context, const FSamplerStateInitializerRHI& Initializer)
 {
+	MTL::Device* Device = Context->GetDevice();
 	State = FindOrCreateSamplerState(Device, Initializer);
 #if !PLATFORM_MAC
 	if (GetMetalMaxAnisotropy(Initializer.Filter, Initializer.MaxAnisotropy))
@@ -298,10 +303,29 @@ FMetalSamplerState::FMetalSamplerState(MTL::Device* Device, const FSamplerStateI
 		NoAnisoState = FindOrCreateSamplerState(Device, Init);
 	}
 #endif
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+    FMetalBindlessDescriptorManager* BindlessDescriptorManager = Context->GetBindlessDescriptorManager();
+    check(BindlessDescriptorManager);
+
+	if(BindlessDescriptorManager->IsSupported())
+	{
+		BindlessHandle = BindlessDescriptorManager->ReserveDescriptor(ERHIDescriptorHeapType::Sampler);
+		BindlessDescriptorManager->BindSampler(BindlessHandle, State);
+	}
+#endif
 }
 
 FMetalSamplerState::~FMetalSamplerState()
 {
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+    FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
+    check(BindlessDescriptorManager);
+
+	if(BindlessDescriptorManager->IsSupported())
+	{
+		BindlessDescriptorManager->FreeDescriptor(BindlessHandle);
+	}
+#endif
 }
 
 FMetalRasterizerState::FMetalRasterizerState(const FRasterizerStateInitializerRHI& Initializer)
@@ -517,7 +541,7 @@ bool FMetalBlendState::GetInitializer(FBlendStateInitializerRHI& Initializer)
 FSamplerStateRHIRef FMetalDynamicRHI::RHICreateSamplerState(const FSamplerStateInitializerRHI& Initializer)
 {
     MTL_SCOPED_AUTORELEASE_POOL;
-	return new FMetalSamplerState(ImmediateContext.Context->GetDevice(), Initializer);
+	return new FMetalSamplerState(ImmediateContext.Context, Initializer);
 }
 
 FRasterizerStateRHIRef FMetalDynamicRHI::RHICreateRasterizerState(const FRasterizerStateInitializerRHI& Initializer)

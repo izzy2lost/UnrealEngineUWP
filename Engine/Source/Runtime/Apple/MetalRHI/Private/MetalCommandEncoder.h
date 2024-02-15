@@ -526,7 +526,9 @@ private:
 	void FenceResource(MTL::Texture* Resource, const MTL::FunctionType Function, bool bIsRenderTarget = false);
 	void FenceResource(MTL::Buffer* Resource, const MTL::FunctionType Function);
 
+public:
 	void UseResource(MTL::Resource* Resource, MTL::ResourceUsage const Usage);
+	void UseHeaps(TArray<MTL::Heap*> const& Heaps, const MTL::FunctionType Function);
 	
 #pragma mark - Private Type Declarations -
 private:
@@ -584,7 +586,7 @@ public:
     // Cache Queue feature
     bool bSupportsMetalFeaturesSetBytes;
     
-	FMetalBufferBindings ShaderBuffers[int(MTL::FunctionTypeKernel)+1];
+	FMetalBufferBindings ShaderBuffers[int(MTL::FunctionTypeObject)+1];
 	
     MTL::StoreAction ColorStoreActions[MaxSimultaneousRenderTargets];
     MTL::StoreAction DepthStoreAction;

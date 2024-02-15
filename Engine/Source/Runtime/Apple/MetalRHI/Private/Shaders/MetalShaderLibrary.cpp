@@ -138,10 +138,31 @@ TRefCountPtr<FRHIShader> FMetalShaderLibrary::CreateShader(int32 Index)
 		case SF_Pixel:
 			Shader = CreateMetalShader<FMetalPixelShader>(Code, Library[LibraryIndex]);
 			break;
+ 
+ 		case SF_Geometry:
+#if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
+            Shader = CreateMetalShader<FMetalGeometryShader>(Code, Library[LibraryIndex]);
+#else
+            checkf(false, TEXT("Geometry shaders not supported"));
+#endif
+            break;
 
-		case SF_Geometry:
-			checkf(false, TEXT("Geometry shaders not supported"));
-			break;
+
+        case SF_Mesh:
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+            Shader = CreateMetalShader<FMetalMeshShader>(Code, Library[LibraryIndex]);
+#else
+			checkf(false, TEXT("Mesh shaders not supported"));
+#endif
+            break;
+
+        case SF_Amplification:
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+            Shader = CreateMetalShader<FMetalAmplificationShader>(Code, Library[LibraryIndex]);
+#else
+			checkf(false, TEXT("Amplification shaders not supported"));
+#endif
+            break;
 
 		case SF_Compute:
 			Shader = CreateMetalShader<FMetalComputeShader>(Code, Library[LibraryIndex]);

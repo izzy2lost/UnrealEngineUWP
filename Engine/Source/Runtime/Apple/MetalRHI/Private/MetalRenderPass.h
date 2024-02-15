@@ -45,7 +45,15 @@ public:
     void Dispatch(uint32 ThreadGroupCountX, uint32 ThreadGroupCountY, uint32 ThreadGroupCountZ);
     
     void DispatchIndirect(FMetalRHIBuffer* ArgumentBufferRHI, uint32 ArgumentOffset);
-    
+     
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+    void DispatchMeshShader(uint32 PrimitiveType, uint32 ThreadGroupCountX, uint32 ThreadGroupCountY, uint32 ThreadGroupCountZ);
+    void DispatchIndirectMeshShader(uint32 PrimitiveType, FMetalRHIBuffer* ArgumentBuffer, uint32 ArgumentOffset);
+#endif
+#if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
+    void DispatchMeshShaderGSEmulation(uint32 PrimitiveType, uint32 BaseVertexIndex, uint32 NumPrimitives, uint32 NumInstances);
+#endif
+
     TRefCountPtr<FMetalFence> const& EndRenderPass(void);
     
     void CopyFromTextureToBuffer(MTL::Texture* Texture, uint32 sourceSlice, uint32 sourceLevel, MTL::Origin sourceOrigin, MTL::Size sourceSize, FMetalBufferPtr toBuffer, uint32 destinationOffset, uint32 destinationBytesPerRow, uint32 destinationBytesPerImage, MTL::BlitOption options);
