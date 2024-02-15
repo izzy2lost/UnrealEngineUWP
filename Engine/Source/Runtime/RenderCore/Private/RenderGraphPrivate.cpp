@@ -664,8 +664,9 @@ bool IsParallelSetupEnabled()
 		;
 }
 
-FRDGScopeState::FState::FState(bool bImmediate)
-	: bImmediate(bImmediate)
+FRDGScopeState::FState::FState(bool bInImmediate, bool bInParallelExecute)
+	: bImmediate(bInImmediate),
+	  bParallelExecute(bInParallelExecute)
 #if RDG_EVENTS
 	, ScopeMode([]
 	{

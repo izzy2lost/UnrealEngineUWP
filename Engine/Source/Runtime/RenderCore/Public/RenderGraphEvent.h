@@ -84,8 +84,13 @@ struct FRDGScope_GPU
 	FRealtimeGPUProfilerQuery StartQuery;
 	FRealtimeGPUProfilerQuery StopQuery;
 
+	FName StatName;
+	TStatId StatId;
+	FString StatDescription;
+
 	TOptional<FRHIDrawStatsCategory const*> PreviousCategory {};
 	FRHIDrawStatsCategory const* CurrentCategory  = nullptr;
+	bool bEmitDuringExecute;
 
 	inline FRDGScope_GPU(FRDGScopeState& State, FRHIGPUMask GPUMask, const FName& CsvStatName, const TStatId& Stat, const TCHAR* Description, FRHIDrawStatsCategory const& Category);
 	inline ~FRDGScope_GPU();
@@ -429,6 +434,7 @@ protected:
 		uint32 Mask = 0;
 
 		bool const bImmediate;
+		bool const bParallelExecute;
 
 #if RDG_EVENTS == RDG_EVENTS_NONE
 		static constexpr ERDGScopeMode const ScopeMode = ERDGScopeMode::Disabled;
@@ -436,7 +442,7 @@ protected:
 		ERDGScopeMode const ScopeMode;
 #endif
 
-		FState(bool bImmediate);
+		FState(bool bInImmediate, bool bInParallelExecute);
 
 	} ScopeState;
 	
@@ -474,8 +480,8 @@ public:
 #endif // WITH_RHI_BREADCRUMBS
 
 public:
-	FRDGScopeState(FRHICommandListImmediate& InRHICmdList, bool bImmediate)
-		: ScopeState(bImmediate)
+	FRDGScopeState(FRHICommandListImmediate& InRHICmdList, bool bImmediate, bool bParallelExecute)
+		: ScopeState(bImmediate, bParallelExecute)
 		, RHICmdList(InRHICmdList)
 #if WITH_RHI_BREADCRUMBS
 		, CurrentBreadcrumbRef(bImmediate ? InRHICmdList.GetCurrentBreadcrumbRef() : LocalCurrentBreadcrumb)

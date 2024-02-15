@@ -4,11 +4,21 @@
 
 #if HAS_GPU_STATS
 inline FRDGScope_GPU::FRDGScope_GPU(FRDGScopeState& State, FRHIGPUMask GPUMask, const FName& CsvStatName, const TStatId& Stat, const TCHAR* Description, FRHIDrawStatsCategory const& Category)
-	: CurrentCategory(Category.ShouldCountDraws() ? &Category : nullptr)
+	: CurrentCategory(Category.ShouldCountDraws() ? &Category : nullptr),
+	  bEmitDuringExecute(!State.ScopeState.bParallelExecute)
 {
 	if (AreGPUStatsEnabled())
 	{
-		StartQuery = FRealtimeGPUProfiler::Get()->PushEvent(GPUMask, CsvStatName, Stat, Description);
+		if(bEmitDuringExecute)
+		{ 
+			StatName = CsvStatName;
+			StatId = Stat;
+			StatDescription = FString(Description);
+		}
+		else
+		{
+			StartQuery = FRealtimeGPUProfiler::Get()->PushEvent(GPUMask, CsvStatName, Stat, Description);
+		}
 	}
 }
 
@@ -50,17 +60,32 @@ inline void FRDGScope_GPU::EndCPU(FRHIComputeCommandList& RHICmdList, bool bPreS
 
 inline void FRDGScope_GPU::BeginGPU(FRHIComputeCommandList& RHICmdList)
 {
-	if (StartQuery && EnumHasAnyFlags(RHICmdList.GetPipeline(), ERHIPipeline::Graphics))
+	if (EnumHasAnyFlags(RHICmdList.GetPipeline(), ERHIPipeline::Graphics))
 	{
-		StartQuery.Submit(static_cast<FRHICommandList&>(RHICmdList), true);
+		if (bEmitDuringExecute)
+		{
+			FRealtimeGPUProfiler::Get()->PushStat(RHICmdList.GetAsImmediate(), StatName, StatId, *StatDescription);
+		}
+		else if (StartQuery)
+		{
+			StartQuery.Submit(static_cast<FRHICommandList&>(RHICmdList), true);
+		}
 	}
 }
 
 inline void FRDGScope_GPU::EndGPU(FRHIComputeCommandList& RHICmdList)
 {
-	if (StopQuery && EnumHasAnyFlags(RHICmdList.GetPipeline(), ERHIPipeline::Graphics))
+	if (EnumHasAnyFlags(RHICmdList.GetPipeline(), ERHIPipeline::Graphics))
 	{
-		StopQuery.Submit(static_cast<FRHICommandList&>(RHICmdList), false);
+		if (bEmitDuringExecute)
+		{
+			FRealtimeGPUProfiler::Get()->PopStat(static_cast<FRHICommandList&>(RHICmdList).GetAsImmediate());
+		}
+		else if (StopQuery)
+		{
+			StopQuery.Submit(static_cast<FRHICommandList&>(RHICmdList), false);
+		}
+	
 	}
 }
 #endif
