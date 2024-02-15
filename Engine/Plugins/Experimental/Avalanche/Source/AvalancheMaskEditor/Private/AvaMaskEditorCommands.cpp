@@ -7,6 +7,13 @@
 void FAvaMaskEditorCommands::RegisterCommands()
 {
 	UI_COMMAND(
+		ShowVisualizeMasks,
+		"ShowVisualizeMasks",
+		"Visualize Masks",
+		EUserInterfaceActionType::Button,
+		FInputChord());
+	
+	UI_COMMAND(
 		ToggleMaskMode,
 		"ToggleMaskMode",
 		"Toggle Mask Mode",

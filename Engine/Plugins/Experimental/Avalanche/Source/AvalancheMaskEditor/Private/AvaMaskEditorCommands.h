@@ -22,6 +22,7 @@ public:
 	virtual void RegisterCommands() override;
 
 public:
+	TSharedPtr<FUICommandInfo> ShowVisualizeMasks;
 	TSharedPtr<FUICommandInfo> ToggleMaskMode;
 	TSharedPtr<FUICommandInfo> ToggleShowAllMasks;
 	TSharedPtr<FUICommandInfo> ToggleIsolateMask;

@@ -42,6 +42,8 @@ public:
 	// ~End UEditorSubsystem
 
 private:
+	void ShowVisualizeMasks();
+	
 	void ToggleEditorMode();
 	bool IsEditorModeActive();
 

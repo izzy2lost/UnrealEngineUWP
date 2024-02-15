@@ -14,6 +14,8 @@
 #include "ToolMenuEntry.h"
 #include "ToolMenus.h"
 #include "ToolMenuSection.h"
+#include "Widgets/Images/SImage.h"
+#include "Widgets/SAvaMultiComboButton.h"
 
 #define LOCTEXT_NAMESPACE "AvalancheMaskEditor"
 
@@ -66,6 +68,39 @@ void FAvalancheMaskEditorModule::ToggleEditorMode()
 	GLevelEditorModeTools().ActivateMode(UAvaMaskEditorMode::EM_MotionDesignMaskEditorModeId, true);
 }
 
+TSharedRef<SWidget> FAvalancheMaskEditorModule::GetStatusBarWidgetMenuContent()
+{
+	UToolMenus* ToolMenus = UToolMenus::Get();
+	
+	static const FName MenuName = TEXT("AvaMaskEditor.StatusBar");
+	UToolMenu* ContextMenu = ToolMenus->FindMenu(MenuName);
+	if (!ContextMenu)
+	{
+		ContextMenu = ToolMenus->RegisterMenu(MenuName, NAME_None, EMultiBoxType::Menu);
+		FToolMenuSection& Section = ContextMenu->AddSection(TEXT("Mask"));
+		Section.AddEntry(FToolMenuEntry::InitMenuEntryWithCommandList(
+			FAvaMaskEditorCommands::Get().ShowVisualizeMasks,
+			GetCommandList(),
+			LOCTEXT("ShowVisualizeMasks", "Visualize Masks")));
+	}
+
+	if (!ContextMenu)
+	{
+		return SNullWidget::NullWidget;
+	}
+
+	return ToolMenus->GenerateWidget(ContextMenu);
+}
+
+FReply FAvalancheMaskEditorModule::OnToggleMaskModeClicked()
+{
+	check(CommandList.IsValid());
+	
+	return GetCommandList()->ExecuteAction(FAvaMaskEditorCommands::Get().ToggleMaskMode.ToSharedRef())
+		? FReply::Handled()
+		: FReply::Unhandled();
+}
+
 void FAvalancheMaskEditorModule::RegisterMenus()
 {
 	// Owner will be used for cleanup in call to UToolMenus::UnregisterOwner
@@ -94,11 +129,39 @@ void FAvalancheMaskEditorModule::RegisterMenus()
 		{
 			FToolMenuSection& Section = ToolbarMenu->FindOrAddSection("ModeToggles");
 			{
-				FToolMenuEntry& Entry = Section.AddEntry(FToolMenuEntry::InitToolBarButton(FAvaMaskEditorCommands::Get().ToggleMaskMode));				
-				Entry.Label.Set(FText::GetEmpty());
-				Entry.Icon.Set(FSlateIcon(FAvaMaskEditorStyle::Get().GetStyleSetName(), TEXT("AvaMaskEditor.ToggleMaskMode.Small")));
-				
-				Entry.SetCommandList(CommandList);
+				static const FButtonStyle* Style = &FAppStyle::Get().GetWidgetStyle<FButtonStyle>("SimpleButton");
+				static const FMargin Margin = FMargin(1.0f, 2.0f, 1.0f, 2.0f);
+				static const FVector2D ImageSize = FVector2D(16.0f, 16.0f);
+
+				TSharedRef<SWidget> MaskStatusBarWidget =
+					SNew(SAvaMultiComboButton)
+						.ButtonStyle(Style)
+						.ContentPadding(Margin)
+						.ToolTipText(FAvaMaskEditorCommands::Get().ToggleMaskMode->GetDescription())
+						.HasDownArrow(false)
+						.OnGetMenuContent(FOnGetContent::CreateRaw(this, &FAvalancheMaskEditorModule::GetStatusBarWidgetMenuContent))
+						.OnButtonClicked(FOnClicked::CreateRaw(this, &FAvalancheMaskEditorModule::OnToggleMaskModeClicked))
+						.ButtonContent()
+						[
+							SNew(SOverlay)
+							+ SOverlay::Slot()
+							.Padding(0.f, 0.f, ImageSize.X - 1.f, 0.f)
+							[
+								SNew(SImage)
+								.Image(FSlateIcon(FAvaMaskEditorStyle::Get().GetStyleSetName(), TEXT("AvaMaskEditor.ToggleMaskMode.Small")).GetIcon())
+								.DesiredSizeOverride(ImageSize)
+							]
+							+ SOverlay::Slot()
+							.Padding(ImageSize.X - 1.f, 0.f, 0.f, 0.f)
+							[
+								SNew(SImage)
+								.Image(FAppStyle::Get().GetBrush("Icons.ChevronDown"))
+								.DesiredSizeOverride(ImageSize)
+								.ColorAndOpacity(FSlateColor(FLinearColor(0.5f, 0.5f, 0.5f, 1.f)))
+							]
+						];
+
+				Section.AddEntry(FToolMenuEntry::InitWidget(TEXT("AvaMaskEditor.StatusBar.Toggle"), MaskStatusBarWidget, FText::GetEmpty(), true));
 			}
 		}
 	}
