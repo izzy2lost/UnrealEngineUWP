@@ -220,8 +220,8 @@ namespace HarmonixMetasound
 		GridOffsetMultiplier = *GridOffsetMultInPin;
 
 		const FSongMaps& SongMaps = MidiClockInPin->GetSongMaps();
-		GridOffsetTicks = SubdivisionToMidiTicks(GridOffsetUnits, 0, SongMaps) * GridOffsetMultiplier;
-		GridSizeTicks = SubdivisionToMidiTicks(GridSizeUnits, 0, SongMaps) * GridSizeMultiplier;
+		GridOffsetTicks = SongMaps.SubdivisionToMidiTicks(GridOffsetUnits, 0) * GridOffsetMultiplier;
+		GridSizeTicks = SongMaps.SubdivisionToMidiTicks(GridSizeUnits, 0) * GridSizeMultiplier;
 
 		AdvanceBlockNeeded = true;
 	}
@@ -244,7 +244,7 @@ namespace HarmonixMetasound
 				GridSizeMultiplier = 1;
 			}
 			const FSongMaps& SongMaps = MidiClockInPin->GetSongMaps();
-			GridSizeTicks = SubdivisionToMidiTicks(GridSizeUnits, CurrentTick, SongMaps) * GridSizeMultiplier;
+			GridSizeTicks = SongMaps.SubdivisionToMidiTicks(GridSizeUnits, CurrentTick) * GridSizeMultiplier;
 		}
 
 		if (*GridOffsetUnitsInPin != GridOffsetUnits || *GridOffsetMultInPin != GridOffsetMultiplier)
@@ -252,7 +252,7 @@ namespace HarmonixMetasound
 			GridOffsetUnits = *GridOffsetUnitsInPin;
 			GridOffsetMultiplier = *GridOffsetMultInPin;
 			const FSongMaps& SongMaps = MidiClockInPin->GetSongMaps();
-			GridOffsetTicks = SubdivisionToMidiTicks(GridOffsetUnits, 0, SongMaps) * GridOffsetMultiplier;
+			GridOffsetTicks = SongMaps.SubdivisionToMidiTicks(GridOffsetUnits, 0) * GridOffsetMultiplier;
 		}
 
 		AdvanceBlockNeeded = true;
@@ -316,7 +316,7 @@ namespace HarmonixMetasound
 	void FMidiClockSubdivisionTriggerOperator::OnTimeSig(int32 TrackIndex, int32 Tick, int32 Numerator, int32 Denominator, bool IsPreroll /*= false*/)
 	{
 		const FSongMaps& SongMaps = MidiClockInPin->GetSongMaps();
-		GridSizeTicks = SubdivisionToMidiTicks(GridSizeUnits, Tick, SongMaps) * GridSizeMultiplier;
+		GridSizeTicks = SongMaps.SubdivisionToMidiTicks(GridSizeUnits, Tick) * GridSizeMultiplier;
 		//NOTE: We DO NOT calculate a new grid offset because this is always specified from the beginning of the song... at the song's starting time signature.  
 	}
 

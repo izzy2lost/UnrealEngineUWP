@@ -12,6 +12,7 @@ DEFINE_LOG_CATEGORY_STATIC(LogHarmonixMidiClock, Log, All);
 namespace Metasound
 {
 	DEFINE_METASOUND_ENUM_BEGIN(EMidiClockSubdivisionQuantization, FEnumMidiClockSubdivisionQuantizationType, "SubdivisionQuantizationType")
+		DEFINE_METASOUND_ENUM_ENTRY(EMidiClockSubdivisionQuantization::None, "NoneDesc", "None", "NoneTT", "None"),
 		DEFINE_METASOUND_ENUM_ENTRY(EMidiClockSubdivisionQuantization::Bar, "BarDesc", "Bar", "BarTT", "Bar"),
 		DEFINE_METASOUND_ENUM_ENTRY(EMidiClockSubdivisionQuantization::Beat, "BeatDesc", "Beat", "BeatTT", "Beat"),
 		DEFINE_METASOUND_ENUM_ENTRY(EMidiClockSubdivisionQuantization::ThirtySecondNote, "ThirtySecondNoteDesc", "1/32", "ThirtySecondNoteTT", "1/32"),
@@ -30,97 +31,6 @@ namespace Metasound
 		DEFINE_METASOUND_ENUM_ENTRY(EMidiClockSubdivisionQuantization::QuarterNoteTriplet, "QuarterNoteTripletDesc", "1/4 (triplet)", "QuarterNoteTripletTT", "1/4 (triplet)"),
 		DEFINE_METASOUND_ENUM_ENTRY(EMidiClockSubdivisionQuantization::HalfNoteTriplet, "HalfNoteTripletDesc", "1/2 (triplet)", "HalfNoteTripletTT", "1/2 (triplet)"),
 	DEFINE_METASOUND_ENUM_END()
-}
-
-float SubdivisionToBeats(EMidiClockSubdivisionQuantization Subdivision, const FTimeSignature& TimeSignature)
-{
-	// Easy cases first
-	if (Subdivision == EMidiClockSubdivisionQuantization::Bar)
-	{
-		return TimeSignature.Numerator;
-	}
-
-	if (Subdivision == EMidiClockSubdivisionQuantization::Beat)
-	{
-		return 1;
-	}
-
-	const float BeatsPerQuarter = TimeSignature.Denominator / 4.0f;
-	
-	switch (Subdivision)
-	{
-	case EMidiClockSubdivisionQuantization::ThirtySecondNote:
-		return BeatsPerQuarter / 8;
-	case EMidiClockSubdivisionQuantization::SixteenthNote:
-		return BeatsPerQuarter / 4;
-	case EMidiClockSubdivisionQuantization::EighthNote:
-		return BeatsPerQuarter / 2;
-	case EMidiClockSubdivisionQuantization::QuarterNote:
-		return BeatsPerQuarter;
-	case EMidiClockSubdivisionQuantization::HalfNote:
-		return BeatsPerQuarter * 2;
-	case EMidiClockSubdivisionQuantization::WholeNote:
-		return BeatsPerQuarter * 4;
-	case EMidiClockSubdivisionQuantization::DottedSixteenthNote:
-		return BeatsPerQuarter / 4 + BeatsPerQuarter / 8; 
-	case EMidiClockSubdivisionQuantization::DottedEighthNote:
-		return BeatsPerQuarter / 2 + BeatsPerQuarter / 4;
-	case EMidiClockSubdivisionQuantization::DottedQuarterNote:
-		return BeatsPerQuarter + BeatsPerQuarter / 2;
-	case EMidiClockSubdivisionQuantization::DottedHalfNote:
-		return BeatsPerQuarter * 3;
-	case EMidiClockSubdivisionQuantization::DottedWholeNote:
-		return BeatsPerQuarter * 6;
-	case EMidiClockSubdivisionQuantization::SixteenthNoteTriplet:
-		return (BeatsPerQuarter / 4) * 2 / 3;
-	case EMidiClockSubdivisionQuantization::EighthNoteTriplet:
-		return (BeatsPerQuarter / 2) * 2 / 3;
-	case EMidiClockSubdivisionQuantization::QuarterNoteTriplet:
-		return BeatsPerQuarter * 2 / 3;
-	case EMidiClockSubdivisionQuantization::HalfNoteTriplet:
-		return BeatsPerQuarter * 4 / 3;
-	default:
-		checkNoEntry();
-		return 0;
-	}
-}
-
-int32 SubdivisionToMidiTicks(const EMidiClockSubdivisionQuantization Division, const int32 CurrentTick, const FSongMaps& SongMap)
-{
-	int32 BarMapPointIndex = SongMap.GetBarMap().GetPointIndexForTick(CurrentTick);
-	if (BarMapPointIndex < 0)
-	{
-		return 0;
-	}
-	const FTimeSignature* TimeSignature =  SongMap.GetTimeSignatureAtTick(CurrentTick);
-	if (!TimeSignature)
-	{
-		return 0;
-	}
-
-	using namespace Harmonix::Midi::Constants;
-	
-	switch (Division)
-	{
-	case EMidiClockSubdivisionQuantization::Bar: 					return SongMap.GetBarMap().GetTicksInBarAfterPoint(BarMapPointIndex);
-	case EMidiClockSubdivisionQuantization::Beat:					return (GTicksPerQuarterNoteInt * 4) / TimeSignature->Denominator;
-	case EMidiClockSubdivisionQuantization::ThirtySecondNote:		return GTicksPerQuarterNoteInt / 8;
-	case EMidiClockSubdivisionQuantization::SixteenthNote:			return GTicksPerQuarterNoteInt / 4;
-	case EMidiClockSubdivisionQuantization::EighthNote:				return GTicksPerQuarterNoteInt / 2;
-	case EMidiClockSubdivisionQuantization::QuarterNote:			return GTicksPerQuarterNoteInt;
-	case EMidiClockSubdivisionQuantization::HalfNote:				return GTicksPerQuarterNoteInt * 2;
-	case EMidiClockSubdivisionQuantization::WholeNote:				return GTicksPerQuarterNoteInt * 4;
-	case EMidiClockSubdivisionQuantization::DottedSixteenthNote:	return (GTicksPerQuarterNoteInt / 4) + (GTicksPerQuarterNoteInt / 8);
-	case EMidiClockSubdivisionQuantization::DottedEighthNote:		return (GTicksPerQuarterNoteInt / 2) + (GTicksPerQuarterNoteInt / 4);
-	case EMidiClockSubdivisionQuantization::DottedQuarterNote:		return (GTicksPerQuarterNoteInt)     + (GTicksPerQuarterNoteInt / 2);
-	case EMidiClockSubdivisionQuantization::DottedHalfNote:			return (GTicksPerQuarterNoteInt * 2) + (GTicksPerQuarterNoteInt);
-	case EMidiClockSubdivisionQuantization::DottedWholeNote:		return (GTicksPerQuarterNoteInt * 4) + (GTicksPerQuarterNoteInt * 2);
-	case EMidiClockSubdivisionQuantization::SixteenthNoteTriplet:   return (GTicksPerQuarterNoteInt / 2) / 3;
-	case EMidiClockSubdivisionQuantization::EighthNoteTriplet:		return GTicksPerQuarterNoteInt / 3;
-	case EMidiClockSubdivisionQuantization::QuarterNoteTriplet:		return (GTicksPerQuarterNoteInt * 2) / 3;
-	case EMidiClockSubdivisionQuantization::HalfNoteTriplet:        return (GTicksPerQuarterNoteInt * 4) / 3;
-	default:	/* Beat */											return (GTicksPerQuarterNoteInt * 4) / TimeSignature->Denominator;
-	}
 }
 
 REGISTER_METASOUND_DATATYPE(HarmonixMetasound::FMidiClock, "MIDIClock")
