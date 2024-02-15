@@ -1399,6 +1399,28 @@ FWaveInstance& FActiveSound::AddWaveInstance(const UPTRINT WaveInstanceHash)
 	return *WaveInstance;
 }
 
+float FActiveSound::GetMaxDistance() const
+{
+	float OutMaxDistance = 0.0f;
+	float OutFocusFactor = 1.0f;
+	GetMaxDistanceAndFocusFactor(OutMaxDistance, OutFocusFactor);
+	return OutMaxDistance;
+}
+
+void FActiveSound::GetMaxDistanceAndFocusFactor(float& OutMaxDistance, float& OutFocusFactor) const
+{
+	OutMaxDistance = 0.0f;
+	OutFocusFactor = 1.0f;
+
+	if (!Sound)
+	{
+		return;
+	}
+
+	check(AudioDevice);
+	AudioDevice->GetMaxDistanceAndFocusFactor(Sound, GetWorld(), LastLocation, GetAttenuationSettings(), OutMaxDistance, OutFocusFactor);
+}
+
 void FActiveSound::ApplyRadioFilter(const FSoundParseParameters& ParseParams)
 {
 	check(AudioDevice);
@@ -1674,7 +1696,7 @@ void FActiveSound::UpdateAttenuation(float DeltaTime, FSoundParseParameters& Par
 	UpdateAttenuation(DeltaTime, ParseParams, Listener.ListenerIndex, SettingsAttenuationNode);
 }
 
-void FActiveSound::UpdateAttenuation(float DeltaTime, FSoundParseParameters& ParseParams, int32 ListenerIndex, const FSoundAttenuationSettings* SettingsAttenuationNode)
+const FSoundAttenuationSettings* FActiveSound::GetAttenuationSettings(const FSoundAttenuationSettings* SettingsAttenuationNode) const
 {
 	// We default to using the copied off "overridden" settings (or default constructed settings)
 	const FSoundAttenuationSettings* Settings = &AttenuationSettings;
@@ -1693,6 +1715,13 @@ void FActiveSound::UpdateAttenuation(float DeltaTime, FSoundParseParameters& Par
 			Settings = &SoundAttenuation->Attenuation;
 		}
 	}
+	return Settings;
+}
+
+void FActiveSound::UpdateAttenuation(float DeltaTime, FSoundParseParameters& ParseParams, int32 ListenerIndex, const FSoundAttenuationSettings* SettingsAttenuationNode)
+{
+	// We default to using the copied off "overridden" settings (or default constructed settings)
+	const FSoundAttenuationSettings* Settings = GetAttenuationSettings(SettingsAttenuationNode);
 
 	// Reset Focus data and recompute if necessary
 	FAttenuationFocusData FocusDataToApply;
