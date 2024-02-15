@@ -243,6 +243,9 @@ public:
 	bool CanReduceFromLOD(FText* OutInvalidInfo = nullptr) const;
 	bool CanUseReservedTx(FText* OutInvalidInfo = nullptr) const;
 
+	bool GetForceRegenerate() const {return bForceRegen;}
+	void SetForceRegenerate(bool bForceRegenerate){bForceRegen = bForceRegenerate;}
+
 	TArray<TObjectPtr<UHairCardGeneratorGroupSettings>>& GetFilterGroupSettings() { return FilterGroupGenerationSettings; }
 	const TArray<TObjectPtr<UHairCardGeneratorGroupSettings>>& GetFilterGroupSettings() const { return FilterGroupGenerationSettings; }
 
@@ -324,6 +327,7 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<const UStaticMesh> OldGeneratedMesh = nullptr;
 
+	bool bForceRegen;
 	uint32 UnassignedStrandsCount;
 	TMap<uint32,uint32> StrandErrorCountMap;
 };

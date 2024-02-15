@@ -459,13 +459,22 @@ uint8 UHairCardGeneratorPluginSettings::GetAllPipelineGeneratedDifferences() con
 
 uint8 UHairCardGeneratorPluginSettings::GetPipelineGeneratedDifferences() const
 {
+	if ( bForceRegen )
+	{
+		return (uint8)EHairCardGenerationPipeline::All;
+	}
+
 	const FString SettingsBinFile = GetGeneratedSettingsFilename();
 	if ( !FPaths::FileExists(SettingsBinFile) )
+	{
 		return (uint8)EHairCardGenerationPipeline::All;
+	}
 
 	TArray<uint8> SettingsBytes;
 	if ( !FFileHelper::LoadFileToArray(SettingsBytes, *SettingsBinFile, 0) )
+	{
 		return (uint8)EHairCardGenerationPipeline::All;
+	}
 
 	FMemoryReader MemReader(SettingsBytes, true);
 
@@ -475,7 +484,9 @@ uint8 UHairCardGeneratorPluginSettings::GetPipelineGeneratedDifferences() const
 
 	// Early-out if HCS tool versions differ from generated settings
 	if (DiffObject->Version != Version)
+	{
 		return (uint8)EHairCardGenerationSettingsCategories::All;
+	}
 
 	return HairCardSettings_Helpers::PipelineSettingsDiff(this, DiffObject);
 }
