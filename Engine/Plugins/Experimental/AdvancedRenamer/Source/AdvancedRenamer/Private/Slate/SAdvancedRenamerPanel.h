@@ -2,18 +2,16 @@
 
 #pragma once
 
-#include "Providers/AdvancedRenamerProviderInterface.h"
+#include "Providers/IAdvancedRenamerProvider.h"
 #include "Styling/SlateTypes.h"
 #include "UObject/StrongObjectPtr.h"
 #include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableRow.h"
 #include "Widgets/Views/STableViewBase.h"
 
-class FBlueprintEditor;
 class FRegexPattern;
 class FUICommandList;
 class IAdvancedRenamerProvider;
-class IAvaOutlinerItem;
 class SAdvancedRenamerPanel;
 class SBox;
 class SButton;
@@ -22,10 +20,8 @@ class SCheckBox;
 class SEditableTextBox;
 class SHeaderRow;
 class SMultiLineEditableTextBox; 
-template<typename NumericType>
-class SSpinBox;
 class UObject;
-typedef TSharedPtr<IAvaOutlinerItem> FAvaOutlinerItemPtr;
+template<typename NumericType> class SSpinBox;
 
 struct FAdvancedRenamerPreviewListItem
 {
@@ -50,7 +46,7 @@ typedef TWeakPtr<FAdvancedRenamerPreviewListItem, ESPMode::ThreadSafe> FObjectRe
 class SAdvancedRenamerPreviewListRow : public SMultiColumnTableRow<FObjectRenamePreviewListItemPtr>
 {
 public:
-	SLATE_BEGIN_ARGS(SAdvancedRenamerPreviewListRow) { }
+	SLATE_BEGIN_ARGS(SAdvancedRenamerPreviewListRow) {}
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs, TSharedPtr<SAdvancedRenamerPanel> InRenamePanel, 
@@ -73,23 +69,16 @@ class SAdvancedRenamerPanel : public SCompoundWidget, private IAdvancedRenamerPr
 {
 	friend class SAdvancedRenamerPreviewListRow;
 
-	SLATE_BEGIN_ARGS(SAdvancedRenamerPanel) 
-		: _SharedProvider(nullptr)
-		, _ObjectProvider(nullptr)
-		{}
-		SLATE_ARGUMENT(TSharedPtr<IAdvancedRenamerProvider>, SharedProvider)
-		SLATE_ARGUMENT(UObject*, ObjectProvider)
-	SLATE_END_ARGS()
-
 public:
+	SLATE_BEGIN_ARGS(SAdvancedRenamerPanel) {}
+		SLATE_ARGUMENT(TSharedPtr<IAdvancedRenamerProvider>, SharedProvider)
+	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
 
 protected:
-
 	static const inline double MinUpdateFrequency = 0.1;
 
-	TStrongObjectPtr<UObject> ObjectProvider;
 	TSharedPtr<IAdvancedRenamerProvider> SharedProvider;
 	TArray<TSharedPtr<FAdvancedRenamerPreviewListItem>> ListData;
 	TSharedPtr<FUICommandList> CommandList;

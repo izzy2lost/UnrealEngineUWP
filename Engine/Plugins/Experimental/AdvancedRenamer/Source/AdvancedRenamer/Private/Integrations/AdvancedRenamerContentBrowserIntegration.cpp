@@ -1,13 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Integrations/AdvancedRenamerContentBrowserIntegration.h"
-#include "AdvancedRenamerBlueprintLibrary.h"
 #include "ContentBrowserDelegates.h"
 #include "ContentBrowserModule.h"
 #include "Delegates/IDelegateInstance.h"
 #include "Framework/Commands/UIAction.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Framework/MultiBox/MultiBoxExtender.h"
+#include "IAdvancedRenamerModule.h"
 #include "Providers/AdvancedRenamerAssetProvider.h"
 
 #define LOCTEXT_NAMESPACE "AdvancedRenamerContentBrowserIntegration"
@@ -23,7 +23,7 @@ namespace UE::AdvancedRenamer::Private
 
 		TSharedPtr<SWidget> HostWidget = nullptr;
 
-		UAdvancedRenamerBlueprintLibrary::OpenAdvancedRenamer(StaticCastSharedRef<IAdvancedRenamerProvider>(AssetProvider), HostWidget);
+		IAdvancedRenamerModule::Get().OpenAdvancedRenamer(StaticCastSharedRef<IAdvancedRenamerProvider>(AssetProvider), HostWidget);
 	}
 
 	void ExtendAssetMenu(FMenuBuilder& MenuBuilder, const TArray<FAssetData> AssetArray)

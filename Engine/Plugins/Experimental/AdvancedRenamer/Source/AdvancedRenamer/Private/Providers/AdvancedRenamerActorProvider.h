@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "AdvancedRenamerProviderInterface.h"
+#include "Providers/IAdvancedRenamerProvider.h"
 #include "Containers/Array.h"
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
@@ -10,18 +10,18 @@
 class FString;
 class AActor;
 
-class ADVANCEDRENAMER_API FAdvancedRenamerActorProvider : public IAdvancedRenamerProvider
+class FAdvancedRenamerActorProvider : public IAdvancedRenamerProvider
 {
 public:
-
 	FAdvancedRenamerActorProvider();
-	virtual ~FAdvancedRenamerActorProvider();
+	virtual ~FAdvancedRenamerActorProvider() override;
 
 	void SetActorList(const TArray<TWeakObjectPtr<AActor>>& InActorList);
 	void AddActorList(const TArray<TWeakObjectPtr<AActor>>& InActorList);
 	void AddActorData(AActor* InActor);
 	AActor* GetActor(int32 InIndex) const;
 
+protected:
 	//~ Begin IAdvancedRenamerProvider
 	virtual int32 Num() const override;
 	virtual bool IsValidIndex(int32 InIndex) const override;
@@ -32,6 +32,5 @@ public:
 	virtual bool ExecuteRename(int32 InIndex, const FString& InNewName) override;
 	//~ End IAdvancedRenamerProvider
 
-protected:
 	TArray<TWeakObjectPtr<AActor>> ActorList;
 };

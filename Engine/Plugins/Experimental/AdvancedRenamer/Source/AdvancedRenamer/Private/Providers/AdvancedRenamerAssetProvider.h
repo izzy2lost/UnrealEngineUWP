@@ -2,13 +2,13 @@
 
 #pragma once
 
-#include "AdvancedRenamerProviderInterface.h"
+#include "Providers/IAdvancedRenamerProvider.h"
 #include "AssetRegistry/AssetData.h"
 #include "Containers/Array.h"
 
 struct FAssetData;
 
-class ADVANCEDRENAMER_API FAdvancedRenamerAssetProvider : public IAdvancedRenamerProvider
+class FAdvancedRenamerAssetProvider : public IAdvancedRenamerProvider
 {
 public:
 	FAdvancedRenamerAssetProvider();
@@ -19,6 +19,8 @@ public:
 	void AddAssetData(const FAssetData& InAsset);
 	UObject* GetAsset(int32 Index) const;
 
+protected:
+	//~ Begin IAdvancedRenamerProvider
 	virtual int32 Num() const override;
 	virtual bool IsValidIndex(int32 Index) const override;
 	virtual uint32 GetHash(int32 Index) const override;;
@@ -26,7 +28,7 @@ public:
 	virtual bool RemoveIndex(int32 Index) override;
 	virtual bool CanRename(int32 Index) const override;
 	virtual bool ExecuteRename(int32 Index, const FString& NewName) override;
+	//~ End IAdvancedRenamerProvider
 
-protected:
 	TArray<FAssetData> AssetList;
 };

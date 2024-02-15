@@ -7,8 +7,7 @@
 #include "Framework/Commands/GenericCommands.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Internationalization/Regex.h"
-#include "Providers/AdvancedRenamerObjectProviderInterface.h"
-#include "Providers/AdvancedRenamerProviderInterface.h"
+#include "Providers/IAdvancedRenamerProvider.h"
 #include "ScopedTransaction.h"
 #include "Styling/AppStyle.h"
 #include "Styling/StyleColors.h"
@@ -116,12 +115,7 @@ TSharedRef<SWidget> SAdvancedRenamerPreviewListRow::GenerateWidgetForColumn(cons
 
 void SAdvancedRenamerPanel::Construct(const FArguments& InArgs)
 {
-	if (InArgs._ObjectProvider != nullptr)
-	{
-		ObjectProvider = TStrongObjectPtr<UObject>(InArgs._ObjectProvider);
-		check(ObjectProvider->GetClass()->ImplementsInterface(UAdvancedRenamerObjectProvider::StaticClass()));
-	}
-	else if (InArgs._SharedProvider.IsValid())
+	if (InArgs._SharedProvider.IsValid())
 	{
 		SharedProvider = InArgs._SharedProvider;
 	}
@@ -1785,50 +1779,22 @@ FReply SAdvancedRenamerPanel::OnApplyButtonClicked()
 
 int32 SAdvancedRenamerPanel::Num() const
 {
-	if (ObjectProvider.IsValid())
-	{
-		return IAdvancedRenamerObjectProvider::Execute_BP_Num(ObjectProvider.Get());
-	}
-	else
-	{
-		return SharedProvider->Num();
-	}
+	return SharedProvider->Num();
 }
 
 bool SAdvancedRenamerPanel::IsValidIndex(int32 Index) const
 {
-	if (ObjectProvider.IsValid())
-	{
-		return IAdvancedRenamerObjectProvider::Execute_BP_IsValidIndex(ObjectProvider.Get(), Index);
-	}
-	else
-	{
-		return SharedProvider->IsValidIndex(Index);
-	}
+	return SharedProvider->IsValidIndex(Index);
 }
 
 uint32 SAdvancedRenamerPanel::GetHash(int32 Index) const
 {
-	if (ObjectProvider.IsValid())
-	{
-		return static_cast<uint32>(IAdvancedRenamerObjectProvider::Execute_BP_GetHash(ObjectProvider.Get(), Index));
-	}
-	else
-	{
-		return SharedProvider->GetHash(Index);
-	}
+	return SharedProvider->GetHash(Index);
 }
 
 FString SAdvancedRenamerPanel::GetOriginalName(int32 Index) const
 {
-	if (ObjectProvider.IsValid())
-	{
-		return IAdvancedRenamerObjectProvider::Execute_BP_GetOriginalName(ObjectProvider.Get(), Index);
-	}
-	else
-	{
-		return SharedProvider->GetOriginalName(Index);
-	}
+	return SharedProvider->GetOriginalName(Index);
 }
 
 bool SAdvancedRenamerPanel::RemoveIndex(int32 Index)
@@ -1840,38 +1806,17 @@ bool SAdvancedRenamerPanel::RemoveIndex(int32 Index)
 		ListData.RemoveAt(Index);
 	}
 
-	if (ObjectProvider.IsValid())
-	{
-		return IAdvancedRenamerObjectProvider::Execute_BP_RemoveIndex(ObjectProvider.Get(), Index);
-	}
-	else
-	{
-		return SharedProvider->RemoveIndex(Index);
-	}
+	return SharedProvider->RemoveIndex(Index);
 }
 
 bool SAdvancedRenamerPanel::CanRename(int32 Index) const
 {
-	if (ObjectProvider.IsValid())
-	{
-		return IAdvancedRenamerObjectProvider::Execute_BP_CanRename(ObjectProvider.Get(), Index);
-	}
-	else
-	{
-		return SharedProvider->CanRename(Index);
-	}
+	return SharedProvider->CanRename(Index);
 }
 
 bool SAdvancedRenamerPanel::ExecuteRename(int32 Index, const FString& NewName)
 {
-	if (ObjectProvider.IsValid())
-	{
-		return IAdvancedRenamerObjectProvider::Execute_BP_ExecuteRename(ObjectProvider.Get(), Index, NewName);
-	}
-	else
-	{
-		return SharedProvider->ExecuteRename(Index, NewName);
-	}
+	return SharedProvider->ExecuteRename(Index, NewName);
 }
 
 #undef LOCTEXT_NAMESPACE
