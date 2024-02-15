@@ -83,7 +83,15 @@ class FHazardPointerCollection
 		static constexpr uintptr_t FreeHazardEntry = ~uintptr_t(0);
 
 		std::atomic<uintptr_t> Hazard{ FreeHazardEntry };
+#ifdef _MSC_VER
+	// UE_DEPRECATED - this is a workaround for https://developercommunity.visualstudio.com/t/VS-2022-1790-Preview-10-__builtin_arr/10519788 and should be removed after
+	//                 after 17.9 is no longer supported.
+	public:
 		FHazardRecord() = default;
+	private:
+#else
+		FHazardRecord() = default;
+#endif
 
 		inline void* GetHazard() const
 		{
