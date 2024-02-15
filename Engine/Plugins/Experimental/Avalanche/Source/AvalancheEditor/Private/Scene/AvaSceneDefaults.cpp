@@ -118,7 +118,7 @@ namespace UE::AvalancheEditor::Private
 			return;
 		}
 
-		InActor->SetActorTransform(FTransform::Identity);
+		InActor->SetActorLocation(FVector(-500, 0, 250));
 		InActor->SetActorLabel(TEXT("Default Scene"));
 	}
 
