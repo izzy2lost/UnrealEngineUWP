@@ -512,8 +512,9 @@ namespace HarmonixMetasound
 
 	void FMidiClockEventCursor::Reset(bool ForceNoBroadcast /*= false*/)
 	{
+		const int32 FromTick = CurrentTick;
 		FMidiPlayCursor::Reset(ForceNoBroadcast);
-		AddEvent(FMidiClockEvent::MakeResetEvent(MidiClock->GetCurrentBlockFrameIndex(), MidiClock->GetCurrentHiResTick(), ForceNoBroadcast));
+		AddEvent(FMidiClockEvent::MakeResetEvent(MidiClock->GetCurrentBlockFrameIndex(), FromTick, CurrentTick, ForceNoBroadcast));
 	}
 
 	void FMidiClockEventCursor::OnLoop(int32 LoopStartTick, int32 LoopEndTick)
@@ -522,22 +523,25 @@ namespace HarmonixMetasound
 		AddEvent(FMidiClockEvent::MakeLoopEvent(MidiClock->GetCurrentBlockFrameIndex(), LoopStartTick, LoopEndTick));
 	}
 
-	void FMidiClockEventCursor::SeekToTick(int32 Tick)
+	void FMidiClockEventCursor::SeekToTick(int32 Tick) 
 	{
+		const int32 FromTick = CurrentTick;
 		FMidiPlayCursor::SeekToTick(Tick);
-		AddEvent(FMidiClockEvent::MakeSeekToEvent(MidiClock->GetCurrentBlockFrameIndex(), Tick));
+		AddEvent(FMidiClockEvent::MakeSeekToEvent(MidiClock->GetCurrentBlockFrameIndex(), FromTick, Tick));
 	}
 
 	void FMidiClockEventCursor::SeekThruTick(int32 Tick)
 	{
+		const int32 FromTick = CurrentTick;
 		FMidiPlayCursor::SeekThruTick(Tick);
-		AddEvent(FMidiClockEvent::MakeSeekThruEvent(MidiClock->GetCurrentBlockFrameIndex(), Tick));
+		AddEvent(FMidiClockEvent::MakeSeekThruEvent(MidiClock->GetCurrentBlockFrameIndex(), FromTick, Tick));
 	}
 
 	void FMidiClockEventCursor::AdvanceThruTick(int32 Tick, bool IsPreRoll)
 	{
+		const int32 FromTick = CurrentTick;
 		FMidiPlayCursor::AdvanceThruTick(Tick, IsPreRoll);
-		AddEvent(FMidiClockEvent::MakeAdvanceThruEvent(MidiClock->GetCurrentBlockFrameIndex(), Tick, IsPreRoll));
+		AddEvent(FMidiClockEvent::MakeAdvanceThruEvent(MidiClock->GetCurrentBlockFrameIndex(), FromTick, Tick, IsPreRoll));
 	}
 
 	void FMidiClockEventCursor::AddEvent(const FMidiClockEvent& InEvent)

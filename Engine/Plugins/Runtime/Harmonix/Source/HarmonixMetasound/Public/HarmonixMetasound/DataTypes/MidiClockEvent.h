@@ -21,19 +21,25 @@ namespace HarmonixMetasound
 		const bool  IsPreRoll;
 		const bool  ForceNoBroadcast;
 		const int32 BlockFrameIndex;
-		const int32 StartTick;
-		const int32 EndTick;
 
+		// FromTick when event is SeekTo, SeekThru, AdvanceThru or Reset;
+		// LoopStartTick when OnLoop
+		const int32 Tick1;
 
-		static FMidiClockEvent MakeResetEvent(int32 InBlockFrameIndex, int32 Tick, bool ForceNoBroadcast = false);
-		static FMidiClockEvent MakeLoopEvent(int32 InBlockFrameIndex, int32 InStartTick, int32 InEndTick);
-		static FMidiClockEvent MakeSeekToEvent(int32 InBlockFrameIndex, int32 Tick);
-		static FMidiClockEvent MakeSeekThruEvent(int32 InBlockFrameIndex, int32 Tick);
-		static FMidiClockEvent MakeAdvanceThruEvent(int32 InBlockFrameIndex, int32 Tick, bool IsPreRoll);
+		// ToTick when SeekTo, Reset;
+		// ThruTick when SeekThru, AdvanceThru;
+		// LoopEndTick when OnLoop
+		const int32 Tick2;
+
+		static FMidiClockEvent MakeResetEvent(int32 InBlockFrameIndex, int32 FromTick, int32 ToTick, bool ForceNoBroadcast = false);
+		static FMidiClockEvent MakeLoopEvent(int32 InBlockFrameIndex, int32 LoopStartTick, int32 LoopEndTick);
+		static FMidiClockEvent MakeSeekToEvent(int32 InBlockFrameIndex, int32 FromTick, int32 ToTick);
+		static FMidiClockEvent MakeSeekThruEvent(int32 InBlockFrameIndex, int32 FromTick, int32 ThruTick);
+		static FMidiClockEvent MakeAdvanceThruEvent(int32 InBlockFrameIndex, int32 FromTick, int32 ThruTick, bool IsPreRoll);
 
 	private:
 
-		FMidiClockEvent(EType InType, int32 InBlockFrameIndex, int32 InStartTick, int32 InEndTick, bool InIsPreRoll, bool InBroadcastEvents);
+		FMidiClockEvent(EType InType, int32 InBlockFrameIndex, int32 InTick1, int32 InTick2, bool InIsPreRoll, bool InBroadcastEvents);
 	};
 
 };
