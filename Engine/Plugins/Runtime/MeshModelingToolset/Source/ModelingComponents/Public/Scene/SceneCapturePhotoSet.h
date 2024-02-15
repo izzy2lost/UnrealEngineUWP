@@ -117,33 +117,6 @@ public:
 	void Compute();
 
 	/**
-	 * Add captures at the corners and face centers of the "view box",
-	 * ie the bounding box that contains the view sphere (see AddExteriorCaptures)
-	 */
-	UE_DEPRECATED(5.2, "AddStandardExteriorCapturesFromBoundingBox is deprecated, please use SetSpatialPhotoParams and Compute instead.")
-	void AddStandardExteriorCapturesFromBoundingBox(
-		FImageDimensions PhotoDimensions,
-		double HorizontalFOVDegrees,
-		double NearPlaneDist,
-		bool bFaces,
-		bool bUpperCorners,
-		bool bLowerCorners,
-		bool bUpperEdges,
-		bool bSideEdges);
-
-	/**
-	 * Add captures on the "view sphere", ie a sphere centered/sized such that the target actors
-	 * will be fully contained inside a square image rendered from locations on the sphere, where
-	 * the view direction is towards the sphere center. The Directions array defines the directions.
-	 */
-	UE_DEPRECATED(5.2, "AddExteriorCaptures is deprecated, please use SetSpatialPhotoParams and Compute instead.")
-	void AddExteriorCaptures(
-		FImageDimensions PhotoDimensions,
-		double HorizontalFOVDegrees,
-		double NearPlaneDist,
-		const TArray<FVector3d>& Directions);
-
-	/**
 	 * Post-process the various PhotoSets after capture, to reduce memory usage and sampling cost.
 	 */
 	void OptimizePhotoSets();

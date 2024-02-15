@@ -172,11 +172,6 @@ public:
 	 */
 	bool ExpandSelectionByEdgeRings(FGroupTopologySelection& Selection);
 
-protected:
-
-	UE_DEPRECATED(5.2, "Use TopologyProvider in the base class")
-	const FGroupTopology* Topology = nullptr;
-
 private:
 
 	FGroupTopologyUtils GroupTopologyUtils;
