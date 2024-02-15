@@ -16,9 +16,17 @@ class UDMXEntityFixturePatch;
 class UDMXLibrary;
 
 
+UENUM(BlueprintType)
+enum class EDMXControlConsoleStopDMXMode : uint8
+{
+	SendDefaultValues UMETA(DisplayName = "Send Default Values"),
+	SendZeroValues UMETA(DisplayName = "Send Zero Values"),
+	DoNotSendValues UMETA(DisplayName = "Keep Last Mapped Values")
+};
+
 DECLARE_MULTICAST_DELEGATE_OneParam(FDMXControlConsoleFaderGroupDelegate, const UDMXControlConsoleFaderGroup*);
 
-/** This class is responsable of holding all the data of a DMX Control Console */
+/** This class is responsible to hold all the data of a DMX Control Console */
 UCLASS()
 class DMXCONTROLCONSOLE_API UDMXControlConsoleData 
 	: public UObject
@@ -65,14 +73,17 @@ public:
 	void SetSendDMXInEditorEnabled(bool bSendDMXInEditorEnabled) { bSendDMXInEditor = bSendDMXInEditorEnabled; }
 #endif // WITH_EDITOR 
 
+	/** Sets the stop DMX mode for this control console */
+	void SetStopDMXMode(EDMXControlConsoleStopDMXMode NewStopDMXMode);
+
+	/** Gets the current stop DMX mode of this control console */
+	EDMXControlConsoleStopDMXMode GetStopDMXMode() const { return StopDMXMode; }
+
 	/** Updates DMX Output Ports */
 	void UpdateOutputPorts(const TArray<FDMXOutputPortSharedRef> InOutputPorts);
 
 	/** Clears FaderGroupRows array from data */
 	void Clear(bool bOnlyPatchedFaderGroups = false);
-
-	/** Called when a Fixture Patch was added to a DMX Library */
-	void OnFixturePatchAddedToLibrary(UDMXLibrary* Library, TArray<UDMXEntity*> Entities);
 
 	//~ Begin UObject interface
 	virtual void PostLoad() override;
@@ -116,6 +127,9 @@ private:
 	/** Clears Patched Fader Groups from data */
 	void ClearPatchedFaderGroups();
 
+	/** Called when a Fixture Patch was added to a DMX Library */
+	void OnFixturePatchAddedToLibrary(UDMXLibrary* Library, TArray<UDMXEntity*> Entities);
+
 	/** Called when a Fader Group is added to the Control Console */
 	FDMXControlConsoleFaderGroupDelegate OnFaderGroupAdded;
 
@@ -144,6 +158,10 @@ private:
 
 	/** True when this object is ticking */
 	bool bSendDMX = false;
+
+	/** The stop DMX mode currently in use by the console */
+	UPROPERTY()
+	EDMXControlConsoleStopDMXMode StopDMXMode = EDMXControlConsoleStopDMXMode::DoNotSendValues;
 
 #if WITH_EDITORONLY_DATA
 	/** True if the Control Console ticks in Editor */

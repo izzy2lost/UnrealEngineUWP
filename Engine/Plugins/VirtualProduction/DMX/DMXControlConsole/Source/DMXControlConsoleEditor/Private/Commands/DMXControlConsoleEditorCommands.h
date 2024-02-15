@@ -18,7 +18,17 @@ public:
 
 	TSharedPtr<FUICommandInfo> OpenControlConsole;
 
-	TSharedPtr<FUICommandInfo> ToggleSendDMX;
+	TSharedPtr<FUICommandInfo> PlayDMX;
+	TSharedPtr<FUICommandInfo> PauseDMX;
+	TSharedPtr<FUICommandInfo> ResumeDMX;
+	TSharedPtr<FUICommandInfo> StopDMX;
+	TSharedPtr<FUICommandInfo> TogglePlayPauseDMX;
+	TSharedPtr<FUICommandInfo> TogglePlayStopDMX;
+
+	TSharedPtr<FUICommandInfo> EditorStopSendsDefaultValues;
+	TSharedPtr<FUICommandInfo> EditorStopSendsZeroValues;
+	TSharedPtr<FUICommandInfo> EditorStopKeepsLastValues;
+
 	TSharedPtr<FUICommandInfo> RemoveElements;
 	TSharedPtr<FUICommandInfo> SelectAll;
 	TSharedPtr<FUICommandInfo> ClearAll;

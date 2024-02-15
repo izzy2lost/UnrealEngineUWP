@@ -5,6 +5,7 @@
 #include "Toolkits/AssetEditorToolkit.h"
 #include "UObject/GCObject.h"
 
+enum class EDMXControlConsoleStopDMXMode : uint8;
 class FSpawnTabArgs;
 class FTabManager;
 class SDockableTab;
@@ -29,8 +30,8 @@ namespace UE::DMX::Private
 		, public FGCObject
 	{
 	public:
-		/** Constructor */
 		FDMXControlConsoleEditorToolkit();
+		virtual ~FDMXControlConsoleEditorToolkit();
 
 		/**
 		 * Edits the specified control console object.
@@ -56,10 +57,8 @@ namespace UE::DMX::Private
 		/** Returns the Control Console Editor Model, if valid */
 		UDMXControlConsoleEditorModel* GetControlConsoleEditorModel() const { return EditorModel; }
 
-		/** Toggles sending DMX state in the Control Console */
 		void ToggleSendDMX();
 
-		/** Gets wheter the Control Console is sending DMX data or not */
 		bool IsSendingDMX() const;
 
 		/** Removes all selected elements from DMX Control Console */
@@ -141,6 +140,33 @@ namespace UE::DMX::Private
 
 		/** Extends the asset toolkit's toolbar */
 		void ExtendToolbar();
+
+		/** Starts to play DMX */
+		void PlayDMX();
+
+		/** Returns true if the console currently sends DMX */
+		bool IsPlayingDMX() const;
+
+		/** Pauses playing DMX. Current DMX values will still be sent at a lower rate. */
+		void PauseDMX();
+
+		/** Stops playing DMX */
+		void StopPlayingDMX();
+
+		/** Toggles between playing and pausing DMX */
+		void TogglePlayPauseDMX();
+
+		/** Toggles between playing and stopping DMX */
+		void TogglePlayStopDMX();
+
+		/** Sets the stop mode for the asset being edited */
+		void SetStopDMXMode(EDMXControlConsoleStopDMXMode StopDMXMode);
+
+		/** Returns true if console uses tested stop mode */
+		bool IsUsingStopDMXMode(EDMXControlConsoleStopDMXMode TestStopMode) const;
+
+		/** True when sending DMX is paused */
+		bool bPaused = false;
 
 		/** Reference to this asset toolkit's toolbar */
 		TSharedPtr<FDMXControlConsoleEditorToolbar> Toolbar;

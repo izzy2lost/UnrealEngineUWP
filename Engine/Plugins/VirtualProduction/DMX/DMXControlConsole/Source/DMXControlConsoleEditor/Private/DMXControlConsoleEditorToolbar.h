@@ -39,6 +39,9 @@ namespace UE::DMX::Private
 		/** Callback, raised when the menu extender requests to build the toolbar */
 		void BuildToolbarCallback(FToolBarBuilder& ToolbarBuilder);
 
+		/** Generates a play options menu widget */
+		TSharedRef<SWidget> GeneratePlayOptionsMenuWidget();
+
 		/** Generates a widget for the clear options */
 		TSharedRef<SWidget> GenerateClearMenuWidget();
 
