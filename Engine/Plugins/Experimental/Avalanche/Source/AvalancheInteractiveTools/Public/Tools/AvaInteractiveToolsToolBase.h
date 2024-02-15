@@ -107,6 +107,14 @@ public:
 	FViewport* GetViewport(EAvaViewportStatus InViewportStatus) const;
 
 protected:
+	/** Helper to create an Actor Factory of a given class */
+	template<typename InActorFactoryClass
+		UE_REQUIRES(std::is_base_of_v<UActorFactory, InActorFactoryClass>)>
+	static InActorFactoryClass* CreateActorFactory()
+	{
+		return NewObject<InActorFactoryClass>(GetTransientPackage(), InActorFactoryClass::StaticClass(), NAME_None, RF_Standalone);
+	}
+
 	UPROPERTY()
 	UAvaSingleClickAndDragBehavior* LeftClickBehavior = nullptr;
 

@@ -3,6 +3,7 @@
 #include "Tool/AvaTextActorTool.h"
 #include "AvaInteractiveToolsSettings.h"
 #include "AvaTextActor.h"
+#include "AvaTextActorFactory.h"
 #include "AvaTextEditorCommands.h"
 #include "Builders/AvaInteractiveToolsToolBuilder.h"
 #include "IAvalancheComponentVisualizersModule.h"
@@ -33,6 +34,7 @@ FAvaInteractiveToolsToolParameters UAvaTextActorTool::GetToolParameters() const
 			{
 				return UAvaInteractiveToolsToolBuilder::CreateToolBuilder<UAvaTextActorTool>(InEdMode);
 			}),
-		ActorClass
+		ActorClass,
+		CreateActorFactory<UAvaTextActorFactory>()
 	};
 }

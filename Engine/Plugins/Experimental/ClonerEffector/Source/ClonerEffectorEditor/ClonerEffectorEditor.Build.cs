@@ -15,7 +15,8 @@ public class ClonerEffectorEditor : ModuleRules
 		        "CoreUObject",
 		        "Engine",
 		        "Slate",
-		        "SlateCore"
+		        "SlateCore",
+		        "UnrealEd",
 	        }
         );
 
@@ -25,7 +26,6 @@ public class ClonerEffectorEditor : ModuleRules
 		        "ClonerEffector",
 		        "InputCore",
 		        "Projects",
-		        "UnrealEd" 
 	        }
         );
 

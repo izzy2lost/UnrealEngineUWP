@@ -5,6 +5,7 @@
 #include "AvaInteractiveToolsSettings.h"
 #include "Builders/AvaInteractiveToolsToolBuilder.h"
 #include "Effector/CEEffectorActor.h"
+#include "Effector/CEEffectorActorFactory.h"
 
 UAvaEffectorActorTool::UAvaEffectorActorTool()
 {
@@ -32,6 +33,7 @@ FAvaInteractiveToolsToolParameters UAvaEffectorActorTool::GetToolParameters() co
 			{
 				return UAvaInteractiveToolsToolBuilder::CreateToolBuilder<UAvaEffectorActorTool>(InEdMode);
 			}),
-		ActorClass
+		ActorClass,
+		CreateActorFactory<UCEEffectorActorFactory>()
 	};
 }

@@ -18,6 +18,7 @@ public class AvalancheEffectorsEditor : ModuleRules
 				"AvalancheShapes",
 				"AvalancheShapesEditor",
 				"ClonerEffector",
+				"ClonerEffectorEditor",
 				"ComponentVisualizers",
 				"Core",
 				"CoreUObject",

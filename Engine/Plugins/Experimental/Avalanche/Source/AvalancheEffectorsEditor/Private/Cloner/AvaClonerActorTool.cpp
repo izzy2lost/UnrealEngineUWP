@@ -5,6 +5,7 @@
 #include "AvaInteractiveToolsSettings.h"
 #include "Builders/AvaInteractiveToolsToolBuilder.h"
 #include "Cloner/CEClonerActor.h"
+#include "Cloner/CEClonerActorFactory.h"
 
 UAvaClonerActorTool::UAvaClonerActorTool()
 {
@@ -32,6 +33,7 @@ FAvaInteractiveToolsToolParameters UAvaClonerActorTool::GetToolParameters() cons
 			{
 				return UAvaInteractiveToolsToolBuilder::CreateToolBuilder<UAvaClonerActorTool>(InEdMode);
 			}),
-		ActorClass
+		ActorClass,
+		CreateActorFactory<UCEClonerActorFactory>()
 	};
 }

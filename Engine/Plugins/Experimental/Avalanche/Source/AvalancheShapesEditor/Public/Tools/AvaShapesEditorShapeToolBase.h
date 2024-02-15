@@ -32,7 +32,7 @@ protected:
 		UE_REQUIRES(std::derived_from<InMeshClass, UAvaShapeDynamicMeshBase>)>
 	static UAvaShapeFactory* CreateFactory()
 	{
-		UAvaShapeFactory* Factory = NewObject<UAvaShapeFactory>(GetTransientPackage(), UAvaShapeFactory::StaticClass(), NAME_None, RF_Standalone);
+		UAvaShapeFactory* Factory = CreateActorFactory<UAvaShapeFactory>();
 		Factory->SetMeshClass(InMeshClass::StaticClass());
 		return Factory;
 	}
