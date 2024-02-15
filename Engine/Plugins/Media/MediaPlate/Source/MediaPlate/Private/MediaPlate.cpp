@@ -116,15 +116,15 @@ void AMediaPlate::PostRegisterAllComponents()
 	{
 		UseDefaultMaterial();		
 	}
+	
+	AddAssetUserData();
+#endif // WITH_EDITOR
 
 	if (IsValid(StaticMeshComponent) &&
 		IsValid(StaticMeshComponent->OverlayMaterial))
 	{
 		UE::MediaPlate::Private::ApplyTranslucencyScreenPercentageCVar(1);
 	}
-	
-	AddAssetUserData();
-#endif // WITH_EDITOR
 }
 
 void AMediaPlate::BeginDestroy()
