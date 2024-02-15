@@ -5,6 +5,7 @@
 #include "HarmonixMidi/BeatMap.h"
 #include "HarmonixMidi/ChordMap.h"
 #include "HarmonixMidi/SectionMap.h"
+#include "Sound/QuartzQuantizationUtilities.h"
 
 #include "SongMaps.generated.h"
 
@@ -12,6 +13,29 @@ class IMidiReader;
 class FStdMidiFileReader;
 class FSongMapReceiver;
 class UMidiFile;
+
+UENUM(BlueprintType)
+enum class EMidiClockSubdivisionQuantization : uint8
+{
+	Bar = static_cast<uint8>(EQuartzCommandQuantization::Bar),
+	Beat = static_cast<uint8>(EQuartzCommandQuantization::Beat),
+	ThirtySecondNote = static_cast<uint8>(EQuartzCommandQuantization::ThirtySecondNote),
+	SixteenthNote = static_cast<uint8>(EQuartzCommandQuantization::SixteenthNote),
+	EighthNote = static_cast<uint8>(EQuartzCommandQuantization::EighthNote),
+	QuarterNote = static_cast<uint8>(EQuartzCommandQuantization::QuarterNote),
+	HalfNote = static_cast<uint8>(EQuartzCommandQuantization::HalfNote),
+	WholeNote = static_cast<uint8>(EQuartzCommandQuantization::WholeNote),
+	DottedSixteenthNote = static_cast<uint8>(EQuartzCommandQuantization::DottedSixteenthNote),
+	DottedEighthNote = static_cast<uint8>(EQuartzCommandQuantization::DottedEighthNote),
+	DottedQuarterNote = static_cast<uint8>(EQuartzCommandQuantization::DottedQuarterNote),
+	DottedHalfNote = static_cast<uint8>(EQuartzCommandQuantization::DottedHalfNote),
+	DottedWholeNote = static_cast<uint8>(EQuartzCommandQuantization::DottedWholeNote),
+	SixteenthNoteTriplet = static_cast<uint8>(EQuartzCommandQuantization::SixteenthNoteTriplet),
+	EighthNoteTriplet = static_cast<uint8>(EQuartzCommandQuantization::EighthNoteTriplet),
+	QuarterNoteTriplet = static_cast<uint8>(EQuartzCommandQuantization::QuarterNoteTriplet),
+	HalfNoteTriplet = static_cast<uint8>(EQuartzCommandQuantization::HalfNoteTriplet),
+	None = static_cast<uint8>(EQuartzCommandQuantization::None)
+};
 
 USTRUCT()
 struct FSongLengthData
@@ -114,6 +138,10 @@ public:
 	bool                  BarMapIsEmpty() { return BarMap.GetNumTimeSignaturePoints() == 0; }
 	void                  EmptyBarMap() { BarMap.Empty(); }
 	void                  SetLengthTotalBars(int32 Bars);
+	int32                 CalculateMidiTick(const FMusicTimestamp& Timestamp, const EMidiClockSubdivisionQuantization Quantize) const;
+	int32                 SubdivisionToMidiTicks(const EMidiClockSubdivisionQuantization Division, const int32 Tick) const;
+	static float          SubdivisionToBeats(EMidiClockSubdivisionQuantization Subdivision, const FTimeSignature& TimeSignature);
+
 
 	// sections
 	float               GetSectionStartMsAtMs(float Ms) const;

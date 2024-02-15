@@ -542,6 +542,124 @@ void FSongMaps::SetLengthTotalBars(int32 Bars)
 	LengthData.LengthBars = Bars;
 }
 
+int32 FSongMaps::CalculateMidiTick(const FMusicTimestamp& Timestamp, const EMidiClockSubdivisionQuantization Quantize) const
+{
+	int32 TriggerTick = 0;
+	if (Quantize == EMidiClockSubdivisionQuantization::None)
+	{
+		TriggerTick = FMath::RoundToInt32(BarMap.MusicTimestampToTick(Timestamp));
+	}
+	else
+	{
+		int32 RawTick = FMath::RoundToInt32(BarMap.MusicTimestampToTick(Timestamp));
+		int32 BarTick = BarMap.MusicTimestampBarToTick(Timestamp.Bar);
+		int32 TicksPerQuantizationUnit = SubdivisionToMidiTicks(Quantize, RawTick);
+		if (ensure(TicksPerQuantizationUnit > 0))
+		{
+			float NumUnits = ((float)(RawTick - BarTick)) / (float)TicksPerQuantizationUnit;
+			int32 NumWholeUnits = FMath::RoundToInt32(NumUnits);
+			TriggerTick = BarTick + (NumWholeUnits * TicksPerQuantizationUnit);
+		}
+		else
+		{
+			TriggerTick = FMath::RoundToInt32(BarMap.MusicTimestampToTick(Timestamp));
+		}
+	}
+	return TriggerTick;
+}
+
+int32 FSongMaps::SubdivisionToMidiTicks(const EMidiClockSubdivisionQuantization Division, const int32 Tick) const
+{
+	int32 BarMapPointIndex = GetBarMap().GetPointIndexForTick(Tick);
+	if (BarMapPointIndex < 0)
+	{
+		return 1;
+	}
+	const FTimeSignature* TimeSignature = GetTimeSignatureAtTick(Tick);
+	if (!TimeSignature)
+	{
+		return 1;
+	}
+
+	using namespace Harmonix::Midi::Constants;
+
+	switch (Division)
+	{
+	case EMidiClockSubdivisionQuantization::None:                   return 1;
+	case EMidiClockSubdivisionQuantization::Bar: 					return GetBarMap().GetTicksInBarAfterPoint(BarMapPointIndex);
+	case EMidiClockSubdivisionQuantization::Beat:					return (GTicksPerQuarterNoteInt * 4) / TimeSignature->Denominator;
+	case EMidiClockSubdivisionQuantization::ThirtySecondNote:		return GTicksPerQuarterNoteInt / 8;
+	case EMidiClockSubdivisionQuantization::SixteenthNote:			return GTicksPerQuarterNoteInt / 4;
+	case EMidiClockSubdivisionQuantization::EighthNote:				return GTicksPerQuarterNoteInt / 2;
+	case EMidiClockSubdivisionQuantization::QuarterNote:			return GTicksPerQuarterNoteInt;
+	case EMidiClockSubdivisionQuantization::HalfNote:				return GTicksPerQuarterNoteInt * 2;
+	case EMidiClockSubdivisionQuantization::WholeNote:				return GTicksPerQuarterNoteInt * 4;
+	case EMidiClockSubdivisionQuantization::DottedSixteenthNote:	return (GTicksPerQuarterNoteInt / 4) + (GTicksPerQuarterNoteInt / 8);
+	case EMidiClockSubdivisionQuantization::DottedEighthNote:		return (GTicksPerQuarterNoteInt / 2) + (GTicksPerQuarterNoteInt / 4);
+	case EMidiClockSubdivisionQuantization::DottedQuarterNote:		return (GTicksPerQuarterNoteInt)+(GTicksPerQuarterNoteInt / 2);
+	case EMidiClockSubdivisionQuantization::DottedHalfNote:			return (GTicksPerQuarterNoteInt * 2) + (GTicksPerQuarterNoteInt);
+	case EMidiClockSubdivisionQuantization::DottedWholeNote:		return (GTicksPerQuarterNoteInt * 4) + (GTicksPerQuarterNoteInt * 2);
+	case EMidiClockSubdivisionQuantization::SixteenthNoteTriplet:   return (GTicksPerQuarterNoteInt / 2) / 3;
+	case EMidiClockSubdivisionQuantization::EighthNoteTriplet:		return GTicksPerQuarterNoteInt / 3;
+	case EMidiClockSubdivisionQuantization::QuarterNoteTriplet:		return (GTicksPerQuarterNoteInt * 2) / 3;
+	case EMidiClockSubdivisionQuantization::HalfNoteTriplet:        return (GTicksPerQuarterNoteInt * 4) / 3;
+	default:	                                             		checkNoEntry();	return 1;
+	}
+}
+
+float FSongMaps::SubdivisionToBeats(EMidiClockSubdivisionQuantization Subdivision, const FTimeSignature& TimeSignature)
+{
+	// Easy cases first
+	if (Subdivision == EMidiClockSubdivisionQuantization::Bar)
+	{
+		return TimeSignature.Numerator;
+	}
+
+	if (Subdivision == EMidiClockSubdivisionQuantization::Beat)
+	{
+		return 1;
+	}
+
+	const float BeatsPerQuarter = TimeSignature.Denominator / 4.0f;
+
+	switch (Subdivision)
+	{
+	case EMidiClockSubdivisionQuantization::ThirtySecondNote:
+		return BeatsPerQuarter / 8;
+	case EMidiClockSubdivisionQuantization::SixteenthNote:
+		return BeatsPerQuarter / 4;
+	case EMidiClockSubdivisionQuantization::EighthNote:
+		return BeatsPerQuarter / 2;
+	case EMidiClockSubdivisionQuantization::QuarterNote:
+		return BeatsPerQuarter;
+	case EMidiClockSubdivisionQuantization::HalfNote:
+		return BeatsPerQuarter * 2;
+	case EMidiClockSubdivisionQuantization::WholeNote:
+		return BeatsPerQuarter * 4;
+	case EMidiClockSubdivisionQuantization::DottedSixteenthNote:
+		return BeatsPerQuarter / 4 + BeatsPerQuarter / 8;
+	case EMidiClockSubdivisionQuantization::DottedEighthNote:
+		return BeatsPerQuarter / 2 + BeatsPerQuarter / 4;
+	case EMidiClockSubdivisionQuantization::DottedQuarterNote:
+		return BeatsPerQuarter + BeatsPerQuarter / 2;
+	case EMidiClockSubdivisionQuantization::DottedHalfNote:
+		return BeatsPerQuarter * 3;
+	case EMidiClockSubdivisionQuantization::DottedWholeNote:
+		return BeatsPerQuarter * 6;
+	case EMidiClockSubdivisionQuantization::SixteenthNoteTriplet:
+		return (BeatsPerQuarter / 4) * 2 / 3;
+	case EMidiClockSubdivisionQuantization::EighthNoteTriplet:
+		return (BeatsPerQuarter / 2) * 2 / 3;
+	case EMidiClockSubdivisionQuantization::QuarterNoteTriplet:
+		return BeatsPerQuarter * 2 / 3;
+	case EMidiClockSubdivisionQuantization::HalfNoteTriplet:
+		return BeatsPerQuarter * 4 / 3;
+	default:
+		checkNoEntry();
+		return 0;
+	}
+}
+
 ///////////////////////////////////////////////////////////////////////////////////
 // Sections
 

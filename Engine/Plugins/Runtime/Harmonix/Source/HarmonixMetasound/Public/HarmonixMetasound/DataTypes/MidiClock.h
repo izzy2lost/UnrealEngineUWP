@@ -13,39 +13,17 @@
 
 #include "HarmonixMidi/MidiFile.h"
 #include "HarmonixMidi/SongMaps.h"
-#include "HarmonixMidi/MidiFile.h"
 #include "HarmonixMetasound/DataTypes/MusicTransport.h"
 #include "HarmonixMetasound/DataTypes/MidiClockEvent.h"
 #include "HarmonixMidi/MidiPlayCursorMgr.h"
 #include "HarmonixMidi/MidiPlayCursor.h"
 #include "Sound/QuartzQuantizationUtilities.h"
 
-enum class EMidiClockSubdivisionQuantization : uint8
-{
-	Bar						= static_cast<uint8>(EQuartzCommandQuantization::Bar),
-	Beat					= static_cast<uint8>(EQuartzCommandQuantization::Beat),
-	ThirtySecondNote		= static_cast<uint8>(EQuartzCommandQuantization::ThirtySecondNote),
-	SixteenthNote			= static_cast<uint8>(EQuartzCommandQuantization::SixteenthNote),
-	EighthNote				= static_cast<uint8>(EQuartzCommandQuantization::EighthNote),
-	QuarterNote				= static_cast<uint8>(EQuartzCommandQuantization::QuarterNote),
-	HalfNote				= static_cast<uint8>(EQuartzCommandQuantization::HalfNote),
-	WholeNote				= static_cast<uint8>(EQuartzCommandQuantization::WholeNote),
-	DottedSixteenthNote		= static_cast<uint8>(EQuartzCommandQuantization::DottedSixteenthNote),
-	DottedEighthNote		= static_cast<uint8>(EQuartzCommandQuantization::DottedEighthNote),
-	DottedQuarterNote		= static_cast<uint8>(EQuartzCommandQuantization::DottedQuarterNote),
-	DottedHalfNote			= static_cast<uint8>(EQuartzCommandQuantization::DottedHalfNote),
-	DottedWholeNote			= static_cast<uint8>(EQuartzCommandQuantization::DottedWholeNote),
-	SixteenthNoteTriplet	= static_cast<uint8>(EQuartzCommandQuantization::SixteenthNoteTriplet),
-	EighthNoteTriplet		= static_cast<uint8>(EQuartzCommandQuantization::EighthNoteTriplet),
-	QuarterNoteTriplet		= static_cast<uint8>(EQuartzCommandQuantization::QuarterNoteTriplet),
-	HalfNoteTriplet			= static_cast<uint8>(EQuartzCommandQuantization::HalfNoteTriplet),
-};
-
 namespace Metasound
 {
 	DECLARE_METASOUND_ENUM(
 		EMidiClockSubdivisionQuantization,
-		EMidiClockSubdivisionQuantization::Beat,
+		EMidiClockSubdivisionQuantization::None,
 		HARMONIXMETASOUND_API,
 		FEnumMidiClockSubdivisionQuantizationType,
 		FEnumMidiClockSubdivisionQuantizationTypeInfo,
@@ -53,10 +31,6 @@ namespace Metasound
 		FEnumMidiClockSubdivisionQuantizationWriteRef
 	);
 }
-
-HARMONIXMETASOUND_API float SubdivisionToBeats(EMidiClockSubdivisionQuantization Subdivision, const FTimeSignature& TimeSignature);
-
-HARMONIXMETASOUND_API int32 SubdivisionToMidiTicks(EMidiClockSubdivisionQuantization Division, int32 CurrentTick, const FSongMaps& SongMap);
 
 namespace HarmonixMetasound
 {

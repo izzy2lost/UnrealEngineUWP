@@ -38,7 +38,6 @@ namespace HarmonixMetasound
 									const FBoolReadRef&                                 InEnabled,
 		                            const FMidiClockReadRef&                            InMidiClock,
 									const FMusicTimestampReadRef&                       InTimestamp,
-									const FBoolReadRef&                                 InShouldQuantize,
 									const FEnumMidiClockSubdivisionQuantizationReadRef& InQuanitizationUnit,
 									const FBoolReadRef&                                 InTriggerDuringSeek);
 		virtual ~FMidiClockTimestampTriggerOperator() override;
@@ -55,7 +54,6 @@ namespace HarmonixMetasound
 		FMidiClockReadRef                            MidiClockInPin;
 		FBoolReadRef                                 EnableInPin;
 		FMusicTimestampReadRef                       TimestampInPin;
-		FBoolReadRef                                 ShouldQuantizeInPin;
 		FEnumMidiClockSubdivisionQuantizationReadRef QuantizeUnitInPin;
 		FBoolReadRef		                         TriggerDuringSeekInPin;
 
@@ -64,8 +62,7 @@ namespace HarmonixMetasound
 
  		//** DATA (current state)
 		FMusicTimestamp CurrentTimestamp{1, 1.0f};
-		bool            bShouldQuantize = false;
-		EMidiClockSubdivisionQuantization QuantizeUnit = EMidiClockSubdivisionQuantization::ThirtySecondNote;
+		EMidiClockSubdivisionQuantization Quantize = EMidiClockSubdivisionQuantization::None;
 
 		int32 TriggerTick = 0;
 
@@ -144,8 +141,7 @@ namespace HarmonixMetasound
 				TInputDataVertex<FMidiClock>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::MidiClock)),
 				TInputDataVertex<bool>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::Enable), true),
 				TInputDataVertex<FMusicTimestamp>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::Timestamp)),
-				TInputDataVertex<bool>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::ShouldQuantizeTimestamp), false),
-				TInputDataVertex<FEnumMidiClockSubdivisionQuantizationType>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::QuantizationUnit), (int32)EMidiClockSubdivisionQuantization::Beat),
+				TInputDataVertex<FEnumMidiClockSubdivisionQuantizationType>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::QuantizationUnit), (int32)EMidiClockSubdivisionQuantization::None),
 				TInputDataVertex<bool>(METASOUND_GET_PARAM_NAME_AND_METADATA(TriggerDuringSeek), false)
 				),
 			FOutputVertexInterface(
@@ -167,7 +163,6 @@ namespace HarmonixMetasound
 		FMidiClockReadRef InMidiClock      = InputData.GetOrConstructDataReadReference<FMidiClock>(METASOUND_GET_PARAM_NAME(Inputs::MidiClock), InParams.OperatorSettings);
 		FBoolReadRef  InEnabled            = InputData.GetOrCreateDefaultDataReadReference<bool>(METASOUND_GET_PARAM_NAME(Inputs::Enable), InParams.OperatorSettings);
 		FMusicTimestampReadRef InTimestamp = InputData.GetOrConstructDataReadReference<FMusicTimestamp>(METASOUND_GET_PARAM_NAME(Inputs::Timestamp), 1, 1.0f);
-		FBoolReadRef  InShouldQuantize     = InputData.GetOrCreateDefaultDataReadReference<bool>(METASOUND_GET_PARAM_NAME(Inputs::ShouldQuantizeTimestamp), InParams.OperatorSettings);
 		FEnumMidiClockSubdivisionQuantizationReadRef InQuantizeUnits = InputData.GetOrCreateDefaultDataReadReference<FEnumMidiClockSubdivisionQuantizationType>(METASOUND_GET_PARAM_NAME(Inputs::QuantizationUnit), InParams.OperatorSettings);
 		FBoolReadRef  InTriggerDuringSeek  = InputData.GetOrCreateDefaultDataReadReference<bool>(METASOUND_GET_PARAM_NAME(TriggerDuringSeek), InParams.OperatorSettings);
 
@@ -175,22 +170,20 @@ namespace HarmonixMetasound
 			InEnabled,
 			InMidiClock,
 			InTimestamp,
-			InShouldQuantize,
 			InQuantizeUnits,
 			InTriggerDuringSeek);
 	}
 
-	FMidiClockTimestampTriggerOperator::FMidiClockTimestampTriggerOperator(const FBuildOperatorParams&           InParams,
-															 const FBoolReadRef&                                 InEnabled,
-															 const FMidiClockReadRef&                            InMidiClock,
-															 const FMusicTimestampReadRef&                       InTimestamp,
-															 const FBoolReadRef&                                 InShouldQuantize,
-															 const FEnumMidiClockSubdivisionQuantizationReadRef& InQuanitizationUnit,
-															 const FBoolReadRef&                                 InTriggerDuringSeek)
+	FMidiClockTimestampTriggerOperator::FMidiClockTimestampTriggerOperator(
+			const FBuildOperatorParams&                         InParams,
+			const FBoolReadRef&                                 InEnabled,
+			const FMidiClockReadRef&                            InMidiClock,
+			const FMusicTimestampReadRef&                       InTimestamp,
+			const FEnumMidiClockSubdivisionQuantizationReadRef& InQuanitizationUnit,
+			const FBoolReadRef&                                 InTriggerDuringSeek)
 		: MidiClockInPin(InMidiClock)
 		, EnableInPin(InEnabled)
 		, TimestampInPin(InTimestamp)
-		, ShouldQuantizeInPin(InShouldQuantize)
 		, QuantizeUnitInPin(InQuanitizationUnit)
 		, TriggerDuringSeekInPin(InTriggerDuringSeek)
 		, TriggerOutPin(FTriggerWriteRef::CreateNew(InParams.OperatorSettings))
@@ -207,10 +200,9 @@ namespace HarmonixMetasound
 		using namespace CommonPinNames;
 		using namespace MidiClockTimestampTriggerPinNames;
 
-		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::Enable),    EnableInPin);
+		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::Enable), EnableInPin);
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::MidiClock), MidiClockInPin);
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::Timestamp), TimestampInPin);
-		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::ShouldQuantizeTimestamp), ShouldQuantizeInPin);
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::QuantizationUnit), QuantizeUnitInPin);
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(TriggerDuringSeek), TriggerDuringSeekInPin);
 	}
@@ -230,8 +222,7 @@ namespace HarmonixMetasound
 		MidiClockInPin->RegisterHiResPlayCursor(this);
 
 		CurrentTimestamp = *TimestampInPin;
-		bShouldQuantize = *ShouldQuantizeInPin;
-		QuantizeUnit = *QuantizeUnitInPin;
+		
 		TriggerTick = 0;
 		CalculateTriggerTick();
 	}
@@ -239,27 +230,7 @@ namespace HarmonixMetasound
 	void FMidiClockTimestampTriggerOperator::CalculateTriggerTick()
 	{
 		const FSongMaps& SongMaps = MidiClockInPin->GetSongMaps();
-		if (!bShouldQuantize)
-		{
-			TriggerTick = SongMaps.GetBarMap().MusicTimestampToTick(CurrentTimestamp);
-		}
-		else
-		{
-			const FBarMap& BarMap = SongMaps.GetBarMap();
-			int32 RawTick = BarMap.MusicTimestampToTick(CurrentTimestamp);
-			int32 BarTick = BarMap.MusicTimestampBarToTick(CurrentTimestamp.Bar);
-			int32 TicksPerQuantizationUnit = SubdivisionToMidiTicks(QuantizeUnit, RawTick, SongMaps);
-			if (ensure(TicksPerQuantizationUnit > 0))
-			{
-				float NumUnits = ((float)(RawTick - BarTick)) / (float)TicksPerQuantizationUnit;
-				int32 NumWholeUnits = FMath::RoundToInt(NumUnits);
-				TriggerTick = BarTick + (NumWholeUnits * TicksPerQuantizationUnit);
-			}
-			else
-			{
-				TriggerTick = SongMaps.GetBarMap().MusicTimestampToTick(CurrentTimestamp);
-			}
-		}
+		TriggerTick = SongMaps.CalculateMidiTick(CurrentTimestamp, Quantize);
 	}
 
 	void FMidiClockTimestampTriggerOperator::Execute()
@@ -267,11 +238,10 @@ namespace HarmonixMetasound
 		TriggerOutPin->AdvanceBlock();
 
 		// first let's see if our configuration has changed at all...
-		if (CurrentTimestamp != *TimestampInPin || bShouldQuantize != *ShouldQuantizeInPin || QuantizeUnit != *QuantizeUnitInPin)
+		if (CurrentTimestamp != *TimestampInPin || Quantize != *QuantizeUnitInPin)
 		{
 			CurrentTimestamp = *TimestampInPin;
-			bShouldQuantize = *ShouldQuantizeInPin;
-			QuantizeUnit = *QuantizeUnitInPin;
+			Quantize = *QuantizeUnitInPin;
 			CalculateTriggerTick();
 		}
 
