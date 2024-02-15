@@ -97,6 +97,16 @@ TArray<URigVMHost*> URigVMHost::FindRigVMHosts(UObject* Outer, TSubclassOf<URigV
 	return Result;
 }
 
+bool URigVMHost::IsGarbageOrDestroyed(const UObject* InObject)
+{
+	if(!IsValid(InObject))
+	{
+		return true;
+	}
+	return InObject->HasAnyFlags(RF_BeginDestroyed | RF_FinishDestroyed) ||
+		InObject->HasAnyInternalFlags(EInternalObjectFlags::Garbage);
+}
+
 UWorld* URigVMHost::GetWorld() const
 {
 	if (const UObject* Outer = GetOuter())

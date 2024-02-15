@@ -3693,7 +3693,7 @@ void FRigVMEditor::HandleSetObjectBeingDebugged(UObject* InObject)
 {
 	if(URigVMHost* PreviouslyDebuggedHost = Cast<URigVMHost>(GetBlueprintObj()->GetObjectBeingDebugged()))
 	{
-		if(!PreviouslyDebuggedHost->HasAnyFlags(RF_BeginDestroyed))
+		if(!URigVMHost::IsGarbageOrDestroyed(PreviouslyDebuggedHost))
 		{
 			PreviouslyDebuggedHost->OnExecuted_AnyThread().RemoveAll(this);
 		}

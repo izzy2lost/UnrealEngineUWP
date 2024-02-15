@@ -144,7 +144,7 @@ void UControlRig::BeginDestroy()
 	{
 		if(UControlRig* CDO = GetClass()->GetDefaultObject<UControlRig>())
 		{
-			if (!CDO->HasAnyFlags(RF_BeginDestroyed))
+			if (!IsGarbageOrDestroyed(CDO))
 			{
 				if (CDO->GetHierarchy())
 				{
