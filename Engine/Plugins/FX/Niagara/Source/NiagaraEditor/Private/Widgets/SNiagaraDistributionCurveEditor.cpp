@@ -500,6 +500,7 @@ void SNiagaraDistributionCurveEditor::Construct(const FArguments& InArgs, TShare
 				.Padding(FMargin(KeyHandleWidth / 2, 3, KeyHandleWidth / 2, 3))
 				[
 					SNew(SNiagaraCompactCurveView, &EditCurve)
+					.Width(1000)
 					.Height(50)
 					.CurveColor(InArgs._CurveColor)
 					.SelectedKeyHandle(this, &SNiagaraDistributionCurveEditor::GetSelectedKeyHandle)

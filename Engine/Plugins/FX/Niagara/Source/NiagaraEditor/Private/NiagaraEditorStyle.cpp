@@ -440,10 +440,16 @@ void FNiagaraEditorStyle::InitIcons()
 
 	Set("NiagaraEditor.DistributionEditor.UniformConstant", new IMAGE_BRUSH_SVG("Icons/DistributionEditor/UniformConstant", Icon20x20));
 	Set("NiagaraEditor.DistributionEditor.NonUniformConstant", new IMAGE_BRUSH_SVG("Icons/DistributionEditor/NonUniformConstant", Icon20x20));
+	Set("NiagaraEditor.DistributionEditor.ColorConstant", new IMAGE_BRUSH_SVG("Icons/DistributionEditor/ColorConstant", Icon20x20));
+
 	Set("NiagaraEditor.DistributionEditor.UniformRange", new IMAGE_BRUSH_SVG("Icons/DistributionEditor/UniformRange", Icon20x20));
 	Set("NiagaraEditor.DistributionEditor.NonUniformRange", new IMAGE_BRUSH_SVG("Icons/DistributionEditor/NonUniformRange", Icon20x20));
+	Set("NiagaraEditor.DistributionEditor.ColorRange", new IMAGE_BRUSH_SVG("Icons/DistributionEditor/ColorRange", Icon20x20));
+
 	Set("NiagaraEditor.DistributionEditor.UniformCurve", new IMAGE_BRUSH_SVG("Icons/DistributionEditor/UniformCurve", Icon20x20));
 	Set("NiagaraEditor.DistributionEditor.NonUniformCurve", new IMAGE_BRUSH_SVG("Icons/DistributionEditor/NonUniformCurve", Icon20x20));
+	Set("NiagaraEditor.DistributionEditor.ColorGradient", new IMAGE_BRUSH_SVG("Icons/DistributionEditor/ColorGradient", Icon20x20));
+	
 	Set("NiagaraEditor.DistributionEditor.CurveKeyHandle", new IMAGE_BRUSH_SVG("Icons/DistributionEditor/CurveKeyHandle", Icon20x20));
 }
 

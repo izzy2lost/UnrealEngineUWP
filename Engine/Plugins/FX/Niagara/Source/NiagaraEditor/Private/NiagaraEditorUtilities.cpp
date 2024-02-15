@@ -4629,6 +4629,12 @@ UNiagaraDataInterface* FNiagaraEditorUtilities::GetResolvedRuntimeInstanceForEdi
 			}
 		}
 	}
+	UNiagaraNodeFunctionCall* OuterFunctionCall = EditorDataInterfaceInstance.GetTypedOuter<UNiagaraNodeFunctionCall>();
+	if (OuterFunctionCall != nullptr)
+	{
+		// Placeholder data interfaces are outered to the function call defines their input.
+
+	}
 	return nullptr;
 }
 
