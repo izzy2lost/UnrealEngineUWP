@@ -154,11 +154,11 @@ FText FAvaBroadcastEditor::GetToolkitName() const
 
 FText FAvaBroadcastEditor::GetToolkitToolTipText() const
 {
-	if (IAvaMediaModule::Get().IsMediaPlaybackServerStarted())
+	if (IAvaMediaModule::Get().IsPlaybackServerStarted())
 	{
 		return LOCTEXT("BroadcastServerAppToolTip", "Motion Design Broadcast: Playback Server running");
 	}
-	else if (IAvaMediaModule::Get().IsMediaPlaybackClientStarted())
+	else if (IAvaMediaModule::Get().IsPlaybackClientStarted())
 	{
 		return LOCTEXT("BroadcastClientAppToolTip", "Motion Design Broadcast: Playback Client running");
 	}
@@ -267,12 +267,12 @@ void FAvaBroadcastEditor::FillPlayToolBar(FToolBarBuilder& ToolBarBuilder)
 				})
 				, FCanExecuteAction::CreateLambda([]
 				{
-					return !IAvaMediaModule::Get().IsMediaPlaybackClientStarted();
+					return !IAvaMediaModule::Get().IsPlaybackClientStarted();
 				})
 				, FGetActionCheckState()
 				, FIsActionButtonVisible::CreateLambda([]
 				{
-					return !IAvaMediaModule::Get().IsMediaPlaybackClientStarted();
+					return !IAvaMediaModule::Get().IsPlaybackClientStarted();
 				})
 			)
 			, NAME_None
@@ -284,16 +284,16 @@ void FAvaBroadcastEditor::FillPlayToolBar(FToolBarBuilder& ToolBarBuilder)
 		// Add Stop button for the playback client service.
 		ToolBarBuilder.AddToolBarButton(FUIAction(FExecuteAction::CreateLambda([]
 				{
-					IAvaMediaModule::Get().StopMediaPlaybackClient();
+					IAvaMediaModule::Get().StopPlaybackClient();
 				})
 				, FCanExecuteAction::CreateLambda([]
 				{
-					return IAvaMediaModule::Get().IsMediaPlaybackClientStarted();
+					return IAvaMediaModule::Get().IsPlaybackClientStarted();
 				})
 				, FGetActionCheckState()
 				, FIsActionButtonVisible::CreateLambda([]
 				{
-					return IAvaMediaModule::Get().IsMediaPlaybackClientStarted();
+					return IAvaMediaModule::Get().IsPlaybackClientStarted();
 				})
 			)
 			, NAME_None
@@ -309,7 +309,7 @@ void FAvaBroadcastEditor::FillPlayToolBar(FToolBarBuilder& ToolBarBuilder)
     			, FCanExecuteAction::CreateLambda([]
     			{
     				const IAvaMediaModule& AvaMediaModule = IAvaMediaModule::Get();
-    				return AvaMediaModule.IsMediaPlaybackClientStarted() && !AvaMediaModule.IsGameModeLocalPlaybackServerLaunched();
+    				return AvaMediaModule.IsPlaybackClientStarted() && !AvaMediaModule.IsGameModeLocalPlaybackServerLaunched();
     			})
     			, FGetActionCheckState()
 				, FIsActionButtonVisible::CreateLambda([]
@@ -349,17 +349,16 @@ void FAvaBroadcastEditor::FillPlayToolBar(FToolBarBuilder& ToolBarBuilder)
 		// to reset all the servers.
 		ToolBarBuilder.AddToolBarButton(FUIAction(FExecuteAction::CreateLambda([]
 				{
+					IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetPlaybackClient(); 
 					// Stop and unload all playbacks.
-					IAvaMediaModule::Get().GetMediaPlaybackClient().RequestPlayback(
-						FGuid(), FSoftObjectPath(), FString(), EAvaPlaybackAction::Unload);
+					PlaybackClient.RequestPlayback(FGuid(), FSoftObjectPath(), FString(), EAvaPlaybackAction::Unload);
 					// Stop all broadcast channels.
-					IAvaMediaModule::Get().GetMediaPlaybackClient().RequestBroadcast(
-						TEXT(""), FName(), TArray<UMediaOutput*>(), EAvaBroadcastAction::Stop);
+					PlaybackClient.RequestBroadcast(TEXT(""), FName(), TArray<UMediaOutput*>(), EAvaBroadcastAction::Stop);
 				})
 				, FCanExecuteAction::CreateLambda([]
 				{
 					IAvaMediaModule& MediaModule = IAvaMediaModule::Get();
-					return MediaModule.IsMediaPlaybackClientStarted() && MediaModule.GetMediaPlaybackClient().GetNumConnectedServers() > 0;
+					return MediaModule.IsPlaybackClientStarted() && MediaModule.GetPlaybackClient().GetNumConnectedServers() > 0;
 				})
 				, FGetActionCheckState()
 				, FIsActionButtonVisible()
@@ -517,7 +516,7 @@ void FAvaBroadcastEditor::StartPlaybackClientAction()
 	// We can't run both playback client and server at the same time in the same process.
 	// If the user ask for the client to start, we need to stop the server, but we'll
 	// ask user confirmation.
-	if (AvaMediaModule.IsMediaPlaybackServerStarted())
+	if (AvaMediaModule.IsPlaybackServerStarted())
 	{
 		const EAppReturnType::Type Reply = FMessageDialog::Open(EAppMsgType::YesNo
 			, LOCTEXT("PlaybackServerStop_Message", "This action will stop the playback server, continue anyway?"));
@@ -527,7 +526,7 @@ void FAvaBroadcastEditor::StartPlaybackClientAction()
 			return;
 		}
 
-		AvaMediaModule.StopMediaPlaybackServer();
+		AvaMediaModule.StopPlaybackServer();
 
 		// Stopping the playback server requires a reload of the broadcast client config.
 		if (BroadcastEditor && BroadcastEditor->GetBroadcastObject())
@@ -538,12 +537,12 @@ void FAvaBroadcastEditor::StartPlaybackClientAction()
 		}
 	}
 		
-	AvaMediaModule.StartMediaPlaybackClient();
+	AvaMediaModule.StartPlaybackClient();
 }
 
 FText FAvaBroadcastEditor::GetLaunchLocalServerTooltip()
 {
-	if (IAvaMediaModule::Get().IsMediaPlaybackClientStarted())
+	if (IAvaMediaModule::Get().IsPlaybackClientStarted())
 	{
 		return LOCTEXT("LaunchLocalServerAuto_ToolTip", "Launches Game Mode Local Server Process");
 	}

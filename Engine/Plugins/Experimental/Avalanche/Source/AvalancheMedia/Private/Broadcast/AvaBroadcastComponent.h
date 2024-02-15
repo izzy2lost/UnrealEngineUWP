@@ -11,7 +11,7 @@
  */
 UCLASS(BlueprintType, Blueprintable, ClassGroup = "Motion Design Broadcast",
 	meta = (Displayname = "Motion Design Broadcast Component", BlueprintSpawnableComponent))
-class AVALANCHEMEDIA_API UAvaBroadcastComponent : public UActorComponent
+class UAvaBroadcastComponent : public UActorComponent
 {
 	GENERATED_BODY()
 

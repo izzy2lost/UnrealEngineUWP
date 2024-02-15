@@ -9,7 +9,7 @@ class FText;
 struct FAvaPlaybackEventParameters;
 
 UCLASS()
-class AVALANCHEMEDIA_API UAvaPlaybackNode_Hub : public UAvaPlaybackNodeFlow
+class UAvaPlaybackNode_Hub : public UAvaPlaybackNodeFlow
 {
 	GENERATED_BODY()
 

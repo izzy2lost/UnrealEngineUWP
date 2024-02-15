@@ -5,6 +5,8 @@
 #include "Containers/Queue.h"
 #include "Rundown/AvaRundown.h"
 
+class FAvaPlaybackInstance;
+
 /**
  * Manager for page loading requests.
  *

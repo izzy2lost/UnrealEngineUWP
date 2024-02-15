@@ -10,6 +10,7 @@
 #include "Playback/AvaPlaybackManager.h"
 #include "Rundown/AvaRundownManagedInstanceCache.h"
 #include "Rundown/AvaRundownPageLoadingManager.h"
+#include "Rundown/AvaRundownPagePlayer.h"
 #include "Rundown/AvaRundownPlaybackClientWatcher.h"
 #include "Rundown/Transition/AvaRundownPageTransition.h"
 #include "Rundown/Transition/AvaRundownPageTransitionBuilder.h"
@@ -2042,6 +2043,24 @@ void UAvaRundown::StopPageTransitionsForPage(const FAvaRundownPage& InPage, bool
 			PageTransitions.Remove(Transition);
 		}
 	}
+}
+
+UAvaRundownPagePlayer* UAvaRundown::FindPlayerForProgramPage(int32 InPageId) const
+{
+	const TObjectPtr<UAvaRundownPagePlayer>* FoundPlayer = PagePlayers.FindByPredicate([InPageId](const UAvaRundownPagePlayer* InPagePlayer)
+	{
+		return InPagePlayer->PageId == InPageId && !InPagePlayer->bIsPreview;
+	});
+	return FoundPlayer ? *FoundPlayer : nullptr;
+}
+
+UAvaRundownPagePlayer* UAvaRundown::FindPlayerForPreviewPage(int32 InPageId, const FName& InPreviewChannelFName) const
+{
+	const TObjectPtr<UAvaRundownPagePlayer>* FoundPlayer = PagePlayers.FindByPredicate([InPageId, InPreviewChannelFName](const UAvaRundownPagePlayer* InPagePlayer)
+	{
+		return InPagePlayer->PageId == InPageId && InPagePlayer->bIsPreview && InPagePlayer->ChannelFName == InPreviewChannelFName;
+	});
+	return FoundPlayer ? *FoundPlayer : nullptr;
 }
 
 void UAvaRundown::RemoveStoppedPagePlayers()

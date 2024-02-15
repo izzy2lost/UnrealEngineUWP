@@ -234,7 +234,7 @@ void UAvaPlaybackServerTransition::Stop()
 	UnregisterFromPlayableTransitionEvent();
 	
 	// Remove transition from server.
-	if (const TSharedPtr<FAvaPlaybackServer> PlaybackServer = IAvaMediaModule::Get().GetMediaPlaybackServer())
+	if (const TSharedPtr<FAvaPlaybackServer> PlaybackServer = IAvaMediaModule::Get().GetPlaybackServerInternal())
 	{
 		if (!PlaybackServer->RemovePlaybackInstanceTransition(TransitionId))
 		{
@@ -315,7 +315,7 @@ void UAvaPlaybackServerTransition::OnTransitionEvent(UAvaPlayable* InPlayable, U
 		return;
 	}
 
-	const TSharedPtr<FAvaPlaybackServer> PlaybackServer = IAvaMediaModule::Get().GetMediaPlaybackServer();
+	const TSharedPtr<FAvaPlaybackServer> PlaybackServer = IAvaMediaModule::Get().GetPlaybackServerInternal();
 
 	// Find the page player for this playable
 	if (const TSharedPtr<FAvaPlaybackInstance> Instance = FindInstanceForPlayable(InPlayable))

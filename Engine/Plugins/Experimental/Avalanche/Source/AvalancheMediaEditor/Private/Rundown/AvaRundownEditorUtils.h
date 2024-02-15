@@ -6,6 +6,7 @@
 #include "Rundown/AvaRundown.h"
 #include "Rundown/AvaRundownPage.h"
 #include "Templates/SharedPointer.h"
+#include "UObject/StrongObjectPtr.h"
 #include "XmlSerializationDefines.h"
 
 class FAvaRundownManagedInstance;

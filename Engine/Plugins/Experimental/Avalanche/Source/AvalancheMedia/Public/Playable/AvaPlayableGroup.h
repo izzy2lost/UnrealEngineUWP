@@ -2,18 +2,21 @@
 
 #pragma once
 
-#include "Framework/AvaGameInstance.h"
 #include "Playable/IAvaPlayableVisibilityConstraint.h"
 #include "UObject/Object.h"
 #include "UObject/ObjectKey.h"
 #include "UObject/ObjectPtr.h"
 #include "UObject/SoftObjectPtr.h"
+#include "UObject/WeakInterfacePtr.h"
 #include "AvaPlayableGroup.generated.h"
 
+class UAvaGameInstance;
 class UAvaPlayable;
 class UAvaPlayableGroupManager;
 class UAvaPlayableTransition;
+class UGameInstance;
 class UTextureRenderTarget2D;
+struct FAvaInstancePlaySettings;
 
 /**
  * This defines a game instance playable group.
@@ -97,19 +100,19 @@ public:
 	/** Search for the first remaining playing playable and use it's camera. */
 	bool UpdateCameraSetup();
 
-	bool IsWorldPlaying() const { return GameInstance ? GameInstance->IsWorldPlaying() : false;}
+	bool IsWorldPlaying() const;
 
-	bool IsRenderTargetReady() const { return GameInstance ? GameInstance->IsRenderTargetReady() : false;}
+	bool IsRenderTargetReady() const;
 
 	/**
 	 * Current logic for the render target, use the game instance's if there, fallback to internal one if not.
 	 */
-	UTextureRenderTarget2D* GetRenderTarget() const { return GameInstance ? GameInstance->GetRenderTarget() : RenderTarget.Get(); }
+	UTextureRenderTarget2D* GetRenderTarget() const;
 
 	/** Return a vanilla game instance, we want to eventually support any game instance. */
-	UGameInstance* GetGameInstance() const { return GameInstance;}
+	UGameInstance* GetGameInstance() const;
 	
-	UWorld* GetPlayWorld() const { return GameInstance ? GameInstance->GetPlayWorld() : nullptr; }
+	UWorld* GetPlayWorld() const;
 	
 	/**
 	 * Unloads the game instance's world if no more playables are loaded.

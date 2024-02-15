@@ -17,6 +17,7 @@ class IAvaBroadcastDeviceProviderProxyManager;
 class IAvaBroadcastSettings;
 class IAvaMediaSyncProvider;
 class IAvaPlaybackClient;
+class IAvaPlaybackServer;
 class IMediaIOCoreDeviceProvider;
 class UWorld;
 struct FAvaInstanceSettings;
@@ -50,36 +51,37 @@ public:
 	/**
 	 * @brief Returns true if the playback client is started.
 	 */
-	virtual bool IsMediaPlaybackClientStarted() const = 0;
+	virtual bool IsPlaybackClientStarted() const = 0;
 
 	/**
 	 * @brief Starts the playback client (if not already started).
 	 */
-	virtual void StartMediaPlaybackClient() = 0;
+	virtual void StartPlaybackClient() = 0;
 
 	/**
 	 * @brief Stops the playback client.
 	 */
-	virtual void StopMediaPlaybackClient() = 0;
+	virtual void StopPlaybackClient() = 0;
 
 	/**
 	 * @brief Returns true if the playback server is started.
 	 */
-	virtual bool IsMediaPlaybackServerStarted() const = 0;
+	virtual bool IsPlaybackServerStarted() const = 0;
 
 	/**
 	 * @brief Starts the playback server (if not already started).
 	 * @param InPlaybackServerName Optional server name. If empty, the host (computer) name will be used.
 	 */
-	virtual void StartMediaPlaybackServer(const FString& InPlaybackServerName) = 0;
+	virtual void StartPlaybackServer(const FString& InPlaybackServerName) = 0;
 
 	/**
 	 * @brief Stops the playback server.
 	 */
-	virtual void StopMediaPlaybackServer() = 0;
+	virtual void StopPlaybackServer() = 0;
 
-	virtual IAvaPlaybackClient& GetMediaPlaybackClient() = 0;
-	virtual TSharedPtr<FAvaPlaybackServer> GetMediaPlaybackServer() const = 0;
+	virtual IAvaPlaybackClient& GetPlaybackClient() = 0;
+	virtual TSharedPtr<FAvaPlaybackServer> GetPlaybackServerInternal() const = 0;
+	virtual IAvaPlaybackServer* GetPlaybackServer() const = 0;
 	virtual const IMediaIOCoreDeviceProvider* GetDeviceProvider(FName InProviderName, const FMediaIOOutputConfiguration* InMediaIOOutputConfiguration) const = 0;
 	virtual TArray<const IMediaIOCoreDeviceProvider*> GetDeviceProvidersForServer(const FString& InServerName) const = 0;
 	virtual FString GetServerNameForDevice(const FName& InDeviceProviderName, const FName& InDeviceName) const = 0;

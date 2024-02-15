@@ -5,6 +5,7 @@
 #include "Broadcast/AvaBroadcast.h"
 #include "Playback/IAvaPlaybackClient.h"
 #include "Rundown/AvaRundown.h"
+#include "Rundown/AvaRundownPagePlayer.h"
 
 FAvaRundownPlaybackClientWatcher::FAvaRundownPlaybackClientWatcher(UAvaRundown* InRundown)
 	: Rundown(InRundown)

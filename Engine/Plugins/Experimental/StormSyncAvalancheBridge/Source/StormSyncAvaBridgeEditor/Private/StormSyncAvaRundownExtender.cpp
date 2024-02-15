@@ -276,9 +276,9 @@ void FStormSyncAvaRundownExtender::HandleInitializeAction(const UAvaRundown* InR
 			RemoteServerNames.Append(ServerNames);
 		}
 
-		if (IAvaMediaModule::Get().IsMediaPlaybackClientStarted())
+		if (IAvaMediaModule::Get().IsPlaybackClientStarted())
 		{
-			const IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetMediaPlaybackClient();
+			const IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetPlaybackClient();
 			for (const FString& ServerName : RemoteServerNames)
 			{
 				// Get address id for storm sync client on playback host

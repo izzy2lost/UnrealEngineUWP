@@ -18,7 +18,7 @@ bool UAvaPlayableRemoteTransition::Start()
 {
 	IAvaMediaModule& AvaMediaModule = IAvaMediaModule::Get();
 	
-	if (!AvaMediaModule.IsMediaPlaybackClientStarted())
+	if (!AvaMediaModule.IsPlaybackClientStarted())
 	{
 		TransitionId.Invalidate();
 		return false;
@@ -42,7 +42,7 @@ bool UAvaPlayableRemoteTransition::Start()
 		EnterValues.Add(Values.IsValid() ? *Values : FAvaPlayableRemoteControlValues::GetDefaultEmpty());
 	}
 	
-	IAvaPlaybackClient& PlaybackClient = AvaMediaModule.GetMediaPlaybackClient();
+	IAvaPlaybackClient& PlaybackClient = AvaMediaModule.GetPlaybackClient();
 	PlaybackClient.RequestPlayableTransitionStart(TransitionId, MoveTemp(EnterInstanceIds), MoveTemp(PlayingInstanceIds), MoveTemp(ExitInstanceIds), MoveTemp(EnterValues), ChannelName, TransitionFlags);
 	RegisterToPlaybackClientDelegates();	// to get the transition events from the server side.
 
@@ -57,9 +57,9 @@ void UAvaPlayableRemoteTransition::Stop()
 	{
 		IAvaMediaModule& AvaMediaModule = IAvaMediaModule::Get();
 	
-		if (AvaMediaModule.IsMediaPlaybackClientStarted())
+		if (AvaMediaModule.IsPlaybackClientStarted())
 		{
-			AvaMediaModule.GetMediaPlaybackClient().RequestPlayableTransitionStop(TransitionId, ChannelName);
+			AvaMediaModule.GetPlaybackClient().RequestPlayableTransitionStop(TransitionId, ChannelName);
 		}
 	}
 

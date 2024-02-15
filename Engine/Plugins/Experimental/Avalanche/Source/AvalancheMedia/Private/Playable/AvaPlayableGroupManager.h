@@ -15,7 +15,7 @@ class UAvaPlayableGroupManager;
  * Manager for the shared playable groups per channel.
  */
 UCLASS()
-class AVALANCHEMEDIA_API UAvaPlayableGroupChannelManager : public UObject
+class UAvaPlayableGroupChannelManager : public UObject
 {
 	GENERATED_BODY()
 
@@ -59,7 +59,7 @@ protected:
  * or for a given playback manager.
  */
 UCLASS()
-class AVALANCHEMEDIA_API UAvaPlayableGroupManager : public UObject
+class UAvaPlayableGroupManager : public UObject
 {
 	GENERATED_BODY()
 	

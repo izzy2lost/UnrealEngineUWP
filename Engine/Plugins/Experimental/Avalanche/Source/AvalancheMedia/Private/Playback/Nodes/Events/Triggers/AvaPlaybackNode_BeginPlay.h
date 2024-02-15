@@ -8,7 +8,7 @@
 class FText;
 
 UCLASS()
-class AVALANCHEMEDIA_API UAvaPlaybackNode_BeginPlay : public UAvaPlaybackNodeTrigger
+class UAvaPlaybackNode_BeginPlay : public UAvaPlaybackNodeTrigger
 {
 	GENERATED_BODY()
 

@@ -14,7 +14,7 @@ class FText;
 struct FKeyEvent;
 
 UCLASS()
-class AVALANCHEMEDIA_API UAvaPlaybackNode_KeyInput : public UAvaPlaybackNodeTrigger
+class UAvaPlaybackNode_KeyInput : public UAvaPlaybackNodeTrigger
 {
 	GENERATED_BODY()
 	

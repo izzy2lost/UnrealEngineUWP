@@ -10,7 +10,7 @@ class UAvaPlayable;
 class UAvaPlayableTransition;
 
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvaPlayableTransitionScene : public FAvaTransitionScene
+struct FAvaPlayableTransitionScene : public FAvaTransitionScene
 {
 	GENERATED_BODY()
 

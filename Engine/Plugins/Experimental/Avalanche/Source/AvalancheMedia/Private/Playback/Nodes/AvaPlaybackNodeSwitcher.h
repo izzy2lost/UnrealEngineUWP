@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "AvaPlaybackNode.h"
+#include "Playback/Nodes/AvaPlaybackNode.h"
 #include "AvaPlaybackNodeSwitcher.generated.h"
 
 class FName;
@@ -10,7 +10,7 @@ class FText;
 struct FAvaPlaybackChannelParameters;
 
 UCLASS()
-class AVALANCHEMEDIA_API UAvaPlaybackNodeSwitcher : public UAvaPlaybackNode
+class UAvaPlaybackNodeSwitcher : public UAvaPlaybackNode
 {
 	GENERATED_BODY()
 	

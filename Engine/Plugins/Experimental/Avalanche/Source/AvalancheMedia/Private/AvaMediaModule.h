@@ -23,15 +23,16 @@ public:
 	//~ Begin IAvaMediaModule
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
-	virtual bool IsMediaPlaybackClientStarted() const override { return AvaPlaybackClient.IsValid();}
-	virtual void StartMediaPlaybackClient() override;
-	virtual void StopMediaPlaybackClient() override;
-	virtual bool IsMediaPlaybackServerStarted() const override { return AvaPlaybackServer.IsValid();}
-	virtual void StartMediaPlaybackServer(const FString& InPlaybackServerName) override;
-	virtual void StopMediaPlaybackServer() override;
+	virtual bool IsPlaybackClientStarted() const override { return AvaPlaybackClient.IsValid();}
+	virtual void StartPlaybackClient() override;
+	virtual void StopPlaybackClient() override;
+	virtual bool IsPlaybackServerStarted() const override { return AvaPlaybackServer.IsValid();}
+	virtual void StartPlaybackServer(const FString& InPlaybackServerName) override;
+	virtual void StopPlaybackServer() override;
 	
-	virtual IAvaPlaybackClient& GetMediaPlaybackClient() override;
-	virtual TSharedPtr<FAvaPlaybackServer> GetMediaPlaybackServer() const override { return AvaPlaybackServer; }
+	virtual IAvaPlaybackClient& GetPlaybackClient() override;
+	virtual TSharedPtr<FAvaPlaybackServer> GetPlaybackServerInternal() const override { return AvaPlaybackServer; }
+	virtual IAvaPlaybackServer* GetPlaybackServer() const override { return AvaPlaybackServer.Get(); }
 	virtual const IMediaIOCoreDeviceProvider* GetDeviceProvider(FName InProviderName, const FMediaIOOutputConfiguration* InMediaIOOutputConfiguration) const override;
 	virtual TArray<const IMediaIOCoreDeviceProvider*> GetDeviceProvidersForServer(const FString& InServerName) const override;
 	virtual FString GetServerNameForDevice(const FName& InDeviceProviderName, const FName& InDeviceName) const override;

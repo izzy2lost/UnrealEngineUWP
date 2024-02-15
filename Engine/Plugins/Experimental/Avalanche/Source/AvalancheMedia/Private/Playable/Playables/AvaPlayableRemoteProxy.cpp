@@ -20,7 +20,7 @@ bool UAvaPlayableRemoteProxy::LoadAsset(const FAvaSoftAssetPtr& InSourceAsset, b
 	
 	SourceAssetPath = InSourceAsset.ToSoftObjectPath();
 
-	IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetMediaPlaybackClient();
+	IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetPlaybackClient();
 	
 	if (PlaybackClient.HasAnyServerOnlineForChannel(PlayingChannelFName))
 	{
@@ -47,7 +47,7 @@ bool UAvaPlayableRemoteProxy::LoadAsset(const FAvaSoftAssetPtr& InSourceAsset, b
 
 bool UAvaPlayableRemoteProxy::UnloadAsset()
 {
-	IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetMediaPlaybackClient();
+	IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetPlaybackClient();
 	if (PlaybackClient.HasAnyServerOnlineForChannel(PlayingChannelFName))
 	{
 		PlaybackClient.RequestPlayback(InstanceId, SourceAssetPath, PlayingChannelName, EAvaPlaybackAction::Unload);
@@ -88,7 +88,7 @@ namespace UE::AvaMedIaRemoteProxyPlayable::Private
 
 EAvaPlayableStatus UAvaPlayableRemoteProxy::GetPlayableStatus() const
 {
-	IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetMediaPlaybackClient();
+	IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetPlaybackClient();
 	const TArray<FString> OnlineServers = GetOnlineServerForChannel(PlayingChannelFName);
 	
 	for (const FString& Server : OnlineServers)
@@ -115,7 +115,7 @@ IAvaSceneInterface* UAvaPlayableRemoteProxy::GetSceneInterface() const
 
 EAvaPlayableCommandResult UAvaPlayableRemoteProxy::ExecuteAnimationCommand(EAvaPlaybackAnimAction InAnimAction, const FAvaPlaybackAnimPlaySettings& InAnimPlaySettings)
 {
-	IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetMediaPlaybackClient();
+	IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetPlaybackClient();
 	
 	// If an animation event was locally scheduled on a remote playable,
 	// we need to propagate the event.
@@ -149,7 +149,7 @@ EAvaPlayableCommandResult UAvaPlayableRemoteProxy::ExecuteAnimationCommand(EAvaP
 
 EAvaPlayableCommandResult UAvaPlayableRemoteProxy::UpdateRemoteControlCommand(const TSharedRef<FAvaPlayableRemoteControlValues>& InRemoteControlValues)
 {
-	IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetMediaPlaybackClient();
+	IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetPlaybackClient();
 	if (PlaybackClient.HasAnyServerOnlineForChannel(PlayingChannelFName))
 	{
 		PlaybackClient.RequestRemoteControlUpdate(InstanceId, SourceAssetPath, PlayingChannelName, *InRemoteControlValues);
@@ -166,7 +166,7 @@ void UAvaPlayableRemoteProxy::SetUserData(const FString& InUserData)
 {
 	if (UserData != InUserData)
 	{
-		IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetMediaPlaybackClient();
+		IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetPlaybackClient();
 		if (PlaybackClient.HasAnyServerOnlineForChannel(PlayingChannelFName))
 		{
 			PlaybackClient.RequestPlayback(InstanceId, GetSourceAssetPath(), PlayingChannelName, EAvaPlaybackAction::SetUserData, InUserData);
@@ -206,12 +206,12 @@ bool UAvaPlayableRemoteProxy::InitPlayable(const FPlayableCreationInfo& InPlayab
 void UAvaPlayableRemoteProxy::OnPlay()
 {
 	IAvaMediaModule& AvaMediaModule = IAvaMediaModule::Get();
-	if (!AvaMediaModule.IsMediaPlaybackClientStarted())
+	if (!AvaMediaModule.IsPlaybackClientStarted())
 	{
 		return;
 	}
 	
-	IAvaPlaybackClient& Client = AvaMediaModule.GetMediaPlaybackClient();
+	IAvaPlaybackClient& Client = AvaMediaModule.GetPlaybackClient();
 	
 	if (Client.HasAnyServerOnlineForChannel(PlayingChannelFName))
 	{
@@ -231,7 +231,7 @@ void UAvaPlayableRemoteProxy::OnPlay()
 
 void UAvaPlayableRemoteProxy::OnEndPlay()
 {
-	IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetMediaPlaybackClient();
+	IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetPlaybackClient();
 	if (PlaybackClient.HasAnyServerOnlineForChannel(PlayingChannelFName))
 	{
 		PlaybackClient.RequestPlayback(InstanceId, SourceAssetPath, PlayingChannelName, EAvaPlaybackAction::Stop);

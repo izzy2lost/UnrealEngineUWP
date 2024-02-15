@@ -40,7 +40,7 @@ namespace UE::AvaBroadcast::Private
 		{
 			// When launching the server from the same project location, we want to avoid loading the same
 			// broadcast configuration as the client. The server needs a clean configuration.
-			const bool bIsServerRunning = (IAvaMediaModule::IsModuleLoaded() && IAvaMediaModule::Get().IsMediaPlaybackServerStarted());	
+			const bool bIsServerRunning = (IAvaMediaModule::IsModuleLoaded() && IAvaMediaModule::Get().IsPlaybackServerStarted());	
 			BroadcastConfigName = bIsServerRunning ? TEXT("MotionDesignServerBroadcastConfig.xml") : TEXT("MotionDesignBroadcastConfig.xml");
 		}
 		

@@ -14,6 +14,7 @@
 #include "Rundown/AvaRundown.h"
 #include "Rundown/AvaRundownManagedInstanceCache.h"
 #include "Rundown/AvaRundownPageAssetUtils.h"
+#include "Rundown/AvaRundownPagePlayer.h"
 
 #define LOCTEXT_NAMESPACE "AvaRundownPage"
 
@@ -298,7 +299,7 @@ int32 FAvaRundownPage::AppendPageProgramStatuses(const UAvaRundown* InParentRund
 	
 	const FAvaBroadcastOutputChannel& Channel = UAvaBroadcast::Get().GetCurrentProfile().GetChannel(GetChannelName());
 	const TArray<UMediaOutput*>& Outputs = Channel.GetMediaOutputs();
-	IAvaPlaybackClient& PlaybackClient = AvaMediaModule.GetMediaPlaybackClient();
+	IAvaPlaybackClient& PlaybackClient = AvaMediaModule.GetPlaybackClient();
 
 	TSet<FString> AddedServers;
 

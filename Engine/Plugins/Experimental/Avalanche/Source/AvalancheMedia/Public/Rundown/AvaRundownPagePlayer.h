@@ -5,6 +5,7 @@
 #include "AvaTagHandle.h"
 #include "Playable/AvaPlayable.h"
 #include "Playback/AvaPlaybackManager.h"
+#include "Rundown/AvaRundownDefines.h"
 #include "UObject/Object.h"
 #include "AvaRundownPagePlayer.generated.h"
 
@@ -13,14 +14,6 @@ class UAvaPlaybackGraph;
 class UAvaRundown;
 class UAvaRundownPagePlayer;
 struct FAvaRundownPage;
-
-UENUM(BlueprintType, DisplayName = "Motion Design Rundown Page Play Type")
-enum class EAvaRundownPagePlayType : uint8
-{
-	PlayFromStart,
-	PreviewFromStart,
-	PreviewFromFrame
-};
 
 /**
  *	To support combo templates, a page is now potentially composed of a number of
