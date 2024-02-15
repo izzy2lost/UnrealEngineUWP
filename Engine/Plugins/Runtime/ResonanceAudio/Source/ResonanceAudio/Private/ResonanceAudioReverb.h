@@ -121,7 +121,7 @@ namespace ResonanceAudio
 		void ProcessMixedAudio(const FSoundEffectSubmixInputData& InData, FSoundEffectSubmixOutputData& OutData);
 		
 		void SetGlobalReverbPluginPreset(UResonanceAudioReverbPluginPreset* InPreset);
-		UResonanceAudioReverbPluginPreset* GetGlobalReverbPluginPreset() { return GlobalReverbPluginPreset; };
+		UResonanceAudioReverbPluginPreset* GetGlobalReverbPluginPreset();
 
 		// Sets & updates Room Effect params from current |ReverbPluginPreset|.
 		void UpdateRoomEffects();
@@ -147,7 +147,6 @@ namespace ResonanceAudio
 		vraudio::ResonanceAudioApi* ResonanceAudioApi;
 		FResonanceAudioModule* ResonanceAudioModule;
 		UResonanceAudioReverbPluginPreset* ReverbPluginPreset;
-		UResonanceAudioReverbPluginPreset* GlobalReverbPluginPreset;
 		Audio::AlignedFloatBuffer TemporaryStereoBuffer;
 
 		FSoundEffectSubmixPtr SubmixEffect;
