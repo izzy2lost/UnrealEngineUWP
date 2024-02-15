@@ -150,7 +150,10 @@ export enum JobStepBatchError {
 	ExecutionError = "ExecutionError",
 
 	/** The change that the job is running against is invalid. */
-	UnknownShelf = "UnknownShelf"
+	UnknownShelf = "UnknownShelf", 
+
+	/** No longer needed */
+	NoLongerNeeded = "NoLongerNeeded"
 
 }
 
@@ -2541,9 +2544,8 @@ export enum TabType {
 
 }
 /** Style for rendering a tab */
-export enum TabStyle
-{
-	
+export enum TabStyle {
+
 	/// Regular job list	
 	Normal = "Normal",
 
@@ -3175,9 +3177,9 @@ export type MetricsQuery = {
 
 /// Metrics matching a particular query
 export type GetTelemetryMetricsResponse = {
-	
+
 	metricId: string;
-	
+
 	groupBy: string;
 
 	/// Metrics matching the search terms	
@@ -5026,6 +5028,68 @@ export type UpdateBisectTaskRequest = {
 
 	/// List of jobs to exclude from the search.	
 	excludeJobs?: string[];
+}
+
+// Accounts
+
+/// Message describing a claim for an account	
+export type AccountClaimMessage = {
+	type: string;
+	value: string;
+}
+
+/// Creates a new user account
+export type CreateAccountRequest = {
+
+	/// Name of the user
+	name: string;
+
+	/// Perforce login identifier
+	login: string;
+
+	/// Claims for the user
+	claims: AccountClaimMessage[];
+
+	/// Description for the account
+	description?: string;
+
+	/// User's email address
+	email?: string;
+
+	/// Optional secret token for API access
+	secretToken?: string;
+
+	/// Password for the user
+	password?: string;
+
+	/// Whether the account is enabled
+	enabled?: boolean;
+}
+
+/// Response from the request to create a new user account	
+export type CreateAccountResponse = { id: string }
+
+/// Update request for a user account	
+export type UpdateAccountRequest = {
+	name?: string;
+	login?: string;
+	claims?: AccountClaimMessage[];
+	description?: string;
+	email?: string;
+	secretToken?: string;
+	password?: string;
+	enabled?: boolean;
+};
+
+/// Gets an existing user 
+export type GetAccountResponse = {
+	id: string;
+	name: string;
+	login: string;
+	claims: AccountClaimMessage[];
+	description?: string;
+	email?: string;
+	enabled?: boolean;
 }
 
 

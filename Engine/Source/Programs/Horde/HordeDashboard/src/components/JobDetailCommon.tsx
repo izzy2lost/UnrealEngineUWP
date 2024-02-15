@@ -126,6 +126,10 @@ export const getBatchText = (item: StepItem): string | undefined => {
          statusText = `${item.agentId} : Lease terminated prematurely`;
       }
 
+      if (batch.error === JobStepBatchError.NoLongerNeeded) {
+         statusText = `${item.agentId} : No longer needed`;
+      }
+
       if (batch.error === JobStepBatchError.Cancelled) {
          if (item.agentId) {
             statusText = `${item.agentId} - Cancelled`;
@@ -145,7 +149,7 @@ export const getBatchText = (item: StepItem): string | undefined => {
 
 
       if (!statusText && batch.error !== undefined && batch.error !== JobStepBatchError.None) {
-         statusText = `Batch error: ${batch.error}`;
+         statusText = `${item.agentId} : ${batch.error}`;
       }
 
       if (!statusText) {
