@@ -294,8 +294,8 @@ public:
 	RENDERCORE_API FRealtimeGPUProfilerQuery PopEvent();
 
 	/** Push/pop stats which do additional draw call tracking on top of events. */
-	void PushStat(FRHICommandListImmediate& RHICmdList, const FName& Name, const TStatId& Stat, const TCHAR* Description);
-	void PopStat(FRHICommandListImmediate& RHICmdList);
+	RENDERCORE_API void PushStat(FRHICommandListImmediate& RHICmdList, const FName& Name, const TStatId& Stat, const TCHAR* Description);
+	RENDERCORE_API void PopStat(FRHICommandListImmediate& RHICmdList);
 
 #if GPUPROFILERTRACE_ENABLED
 	RENDERCORE_API void FetchPerfByDescription(TArray<FRealtimeGPUProfilerDescriptionResult> & OutResults) const;

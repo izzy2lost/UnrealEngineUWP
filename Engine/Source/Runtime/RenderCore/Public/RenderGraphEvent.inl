@@ -79,7 +79,7 @@ inline void FRDGScope_GPU::EndGPU(FRHIComputeCommandList& RHICmdList)
 	{
 		if (bEmitDuringExecute)
 		{
-			FRealtimeGPUProfiler::Get()->PopStat(static_cast<FRHICommandList&>(RHICmdList).GetAsImmediate());
+			FRealtimeGPUProfiler::Get()->PopStat(RHICmdList.GetAsImmediate());
 		}
 		else if (StopQuery)
 		{
