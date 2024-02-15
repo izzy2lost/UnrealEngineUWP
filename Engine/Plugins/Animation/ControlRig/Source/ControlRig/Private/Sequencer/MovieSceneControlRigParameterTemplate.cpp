@@ -645,7 +645,7 @@ void FControlRigBindingHelper::UnBindFromSequencerInstance(UControlRig* ControlR
 	check(ControlRig);
 
 	if (!ControlRig->IsValidLowLevel() ||
-	    ControlRig->HasAnyFlags(RF_BeginDestroyed) ||
+	    URigVMHost::IsGarbageOrDestroyed(ControlRig) ||
 		!IsValid(ControlRig))
 	{
 		return;
@@ -659,7 +659,7 @@ void FControlRigBindingHelper::UnBindFromSequencerInstance(UControlRig* ControlR
 	else if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(ControlRig->GetObjectBinding()->GetBoundObject()))
 	{
 		if (!SkeletalMeshComponent->IsValidLowLevel() ||
-			SkeletalMeshComponent->HasAnyFlags(RF_BeginDestroyed) ||
+			URigVMHost::IsGarbageOrDestroyed(SkeletalMeshComponent) ||
 			!IsValid(SkeletalMeshComponent))
 		{
 			return;
@@ -670,7 +670,7 @@ void FControlRigBindingHelper::UnBindFromSequencerInstance(UControlRig* ControlR
 		if (AnimInstance)
 		{
 			if (!AnimInstance->IsValidLowLevel() ||
-                AnimInstance->HasAnyFlags(RF_BeginDestroyed) ||
+                URigVMHost::IsGarbageOrDestroyed(AnimInstance) ||
                 !IsValid(AnimInstance))
 			{
 				return;

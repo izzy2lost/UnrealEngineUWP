@@ -101,7 +101,7 @@ FControlRigSchematicModel::~FControlRigSchematicModel()
 	{
 		if(UControlRig* ControlRigBeingDebugged = ControlRigBeingDebuggedPtr.Get())
 		{
-			if(!ControlRigBeingDebugged->HasAnyFlags(RF_BeginDestroyed))
+			if(!URigVMHost::IsGarbageOrDestroyed(ControlRigBeingDebugged))
 			{
 				ControlRigBeingDebugged->GetHierarchy()->OnModified().RemoveAll(this);
 				ControlRigBeingDebugged->OnPostConstruction_AnyThread().RemoveAll(this);
@@ -577,7 +577,7 @@ void FControlRigSchematicModel::OnSetObjectBeingDebugged(UObject* InObject)
 	{
 		if(UControlRig* ControlRigBeingDebugged = ControlRigBeingDebuggedPtr.Get())
 		{
-			if(!ControlRigBeingDebugged->HasAnyFlags(RF_BeginDestroyed))
+			if(!URigVMHost::IsGarbageOrDestroyed(ControlRigBeingDebugged))
 			{
 				ControlRigBeingDebugged->GetHierarchy()->OnModified().RemoveAll(this);
 				ControlRigBeingDebugged->OnPostConstruction_AnyThread().RemoveAll(this);

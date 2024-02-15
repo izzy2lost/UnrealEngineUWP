@@ -1055,7 +1055,7 @@ void FControlRigEditor::HandleSetObjectBeingDebugged(UObject* InObject)
 	UControlRig* DebuggedControlRig = Cast<UControlRig>(InObject);
 	if(UControlRig* PreviouslyDebuggedControlRig = Cast<UControlRig>(GetBlueprintObj()->GetObjectBeingDebugged()))
 	{
-		if(!PreviouslyDebuggedControlRig->HasAnyFlags(RF_BeginDestroyed))
+		if(!URigVMHost::IsGarbageOrDestroyed(PreviouslyDebuggedControlRig))
 		{
 			PreviouslyDebuggedControlRig->GetHierarchy()->OnModified().RemoveAll(this);
 			PreviouslyDebuggedControlRig->OnPreForwardsSolve_AnyThread().RemoveAll(this);

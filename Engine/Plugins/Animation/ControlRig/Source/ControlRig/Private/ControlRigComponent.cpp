@@ -160,12 +160,12 @@ void UControlRigComponent::OnUnregister()
 {
 	Super::OnUnregister();
 
-	bool bBeginDestroyed = HasAnyFlags(RF_BeginDestroyed);
+	bool bBeginDestroyed = URigVMHost::IsGarbageOrDestroyed(this);
 	if (!bBeginDestroyed)
 	{
 		if (AActor* Actor = GetOwner())
 		{
-			bBeginDestroyed = Actor->HasAnyFlags(RF_BeginDestroyed);
+			bBeginDestroyed = URigVMHost::IsGarbageOrDestroyed(Actor);
 		}
 	}
 
@@ -176,7 +176,7 @@ void UControlRigComponent::OnUnregister()
 			if (Pair.Key)
 			{
 				if (Pair.Key->IsValidLowLevel() &&
-					!Pair.Key->HasAnyFlags(RF_BeginDestroyed) &&
+					!URigVMHost::IsGarbageOrDestroyed(Pair.Key) &&
 					IsValid(Pair.Key) &&
 					!Pair.Key->IsUnreachable())
 				{

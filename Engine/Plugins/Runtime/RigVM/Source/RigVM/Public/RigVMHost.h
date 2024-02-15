@@ -30,6 +30,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = RigVM)
 	static TArray<URigVMHost*> FindRigVMHosts(UObject* Outer, TSubclassOf<URigVMHost> OptionalClass);
 
+	static bool IsGarbageOrDestroyed(const UObject* InObject);
+
 	/** UObject interface */
 	virtual UWorld* GetWorld() const override;
 	virtual void Serialize(FArchive& Ar) override;
