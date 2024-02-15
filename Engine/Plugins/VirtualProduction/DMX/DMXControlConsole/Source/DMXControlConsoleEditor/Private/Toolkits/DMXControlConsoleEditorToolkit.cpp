@@ -40,7 +40,11 @@ namespace UE::DMX::Private
 
 	FDMXControlConsoleEditorToolkit::FDMXControlConsoleEditorToolkit()
 		: ControlConsole(nullptr)
+	{}
+
+	FDMXControlConsoleEditorToolkit::~FDMXControlConsoleEditorToolkit()
 	{
+		StopPlayingDMX();
 	}
 
 	void FDMXControlConsoleEditorToolkit::InitControlConsoleEditor(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, UDMXControlConsole* InControlConsole)
@@ -577,13 +581,87 @@ namespace UE::DMX::Private
 
 	void FDMXControlConsoleEditorToolkit::SetupCommands()
 	{
-		GetToolkitCommands()->MapAction
-		(
-			FDMXControlConsoleEditorCommands::Get().ToggleSendDMX,
-			FExecuteAction::CreateSP(this, &FDMXControlConsoleEditorToolkit::ToggleSendDMX),
-			FCanExecuteAction(),
-			FIsActionChecked::CreateSP(this, &FDMXControlConsoleEditorToolkit::IsSendingDMX)
+		GetToolkitCommands()->MapAction(
+			FDMXControlConsoleEditorCommands::Get().PlayDMX,
+			FExecuteAction::CreateSP(this, &FDMXControlConsoleEditorToolkit::PlayDMX),
+			FCanExecuteAction::CreateLambda([this]
+				{
+					return !IsPlayingDMX() && !bPaused;
+				}),
+			FIsActionChecked(),
+			FIsActionButtonVisible::CreateLambda([this]
+				{
+					return !IsPlayingDMX() && !bPaused;
+				})
 		);
+
+		GetToolkitCommands()->MapAction(
+			FDMXControlConsoleEditorCommands::Get().PauseDMX,
+			FExecuteAction::CreateSP(this, &FDMXControlConsoleEditorToolkit::PauseDMX),
+			FCanExecuteAction::CreateLambda([this]
+				{
+					return IsPlayingDMX();
+				}),
+			FIsActionChecked(),
+			FIsActionButtonVisible::CreateLambda([this]
+				{
+					return IsPlayingDMX();
+				})
+		);
+
+		GetToolkitCommands()->MapAction(
+			FDMXControlConsoleEditorCommands::Get().ResumeDMX,
+			FExecuteAction::CreateSP(this, &FDMXControlConsoleEditorToolkit::PlayDMX),
+			FCanExecuteAction::CreateLambda([this]
+				{
+					return !IsPlayingDMX() && bPaused;
+				}),
+			FIsActionChecked(),
+			FIsActionButtonVisible::CreateLambda([this]
+				{
+					return !IsPlayingDMX() && bPaused;
+				})
+		);
+
+		GetToolkitCommands()->MapAction(
+			FDMXControlConsoleEditorCommands::Get().StopDMX,
+			FExecuteAction::CreateSP(this, &FDMXControlConsoleEditorToolkit::StopPlayingDMX),
+			FCanExecuteAction::CreateLambda([this]
+				{
+					return IsPlayingDMX() || bPaused;
+				})
+		);
+
+		GetToolkitCommands()->MapAction(
+			FDMXControlConsoleEditorCommands::Get().TogglePlayPauseDMX,
+			FExecuteAction::CreateSP(this, &FDMXControlConsoleEditorToolkit::TogglePlayPauseDMX)
+		);
+
+		GetToolkitCommands()->MapAction(
+			FDMXControlConsoleEditorCommands::Get().TogglePlayStopDMX,
+			FExecuteAction::CreateSP(this, &FDMXControlConsoleEditorToolkit::TogglePlayStopDMX)
+		);
+
+		GetToolkitCommands()->MapAction(
+			FDMXControlConsoleEditorCommands::Get().EditorStopKeepsLastValues,
+			FExecuteAction::CreateSP(this, &FDMXControlConsoleEditorToolkit::SetStopDMXMode, EDMXControlConsoleStopDMXMode::DoNotSendValues),
+			FCanExecuteAction(),
+			FIsActionChecked::CreateSP(this, &FDMXControlConsoleEditorToolkit::IsUsingStopDMXMode, EDMXControlConsoleStopDMXMode::DoNotSendValues)
+		);
+
+		GetToolkitCommands()->MapAction(
+			FDMXControlConsoleEditorCommands::Get().EditorStopSendsDefaultValues,
+			FExecuteAction::CreateSP(this, &FDMXControlConsoleEditorToolkit::SetStopDMXMode, EDMXControlConsoleStopDMXMode::SendDefaultValues),
+			FCanExecuteAction(),
+			FIsActionChecked::CreateSP(this, &FDMXControlConsoleEditorToolkit::IsUsingStopDMXMode, EDMXControlConsoleStopDMXMode::SendDefaultValues)
+		);
+
+		GetToolkitCommands()->MapAction(
+			FDMXControlConsoleEditorCommands::Get().EditorStopSendsZeroValues,
+			FExecuteAction::CreateSP(this, &FDMXControlConsoleEditorToolkit::SetStopDMXMode, EDMXControlConsoleStopDMXMode::SendZeroValues),
+			FCanExecuteAction(),
+			FIsActionChecked::CreateSP(this, &FDMXControlConsoleEditorToolkit::IsUsingStopDMXMode, EDMXControlConsoleStopDMXMode::SendZeroValues)
+		);		
 
 		GetToolkitCommands()->MapAction
 		(
@@ -628,6 +706,85 @@ namespace UE::DMX::Private
 		const TSharedRef<FExtender> ToolbarExtender = MakeShareable(new FExtender);
 		Toolbar->BuildToolbar(ToolbarExtender);
 		AddToolbarExtender(ToolbarExtender);
+	}
+
+	void FDMXControlConsoleEditorToolkit::PlayDMX()
+	{
+		if (UDMXControlConsoleData* ControlConsoleData = GetControlConsoleData())
+		{
+			ControlConsoleData->StartSendingDMX();
+		}
+	}
+
+	bool FDMXControlConsoleEditorToolkit::IsPlayingDMX() const
+	{
+		UDMXControlConsoleData* ControlConsoleData = GetControlConsoleData();
+		return ControlConsoleData && ControlConsoleData->IsSendingDMX();
+	}
+
+	void FDMXControlConsoleEditorToolkit::PauseDMX()
+	{
+		if (UDMXControlConsoleData* ControlConsoleData = GetControlConsoleData())
+		{
+			// When pausing, always use the stop mode that does not send DMX values
+			const EDMXControlConsoleStopDMXMode RestoreStopDMXMode = ControlConsoleData->GetStopDMXMode();
+			ControlConsoleData->SetStopDMXMode(EDMXControlConsoleStopDMXMode::DoNotSendValues);
+
+			ControlConsoleData->StopSendingDMX();
+
+			ControlConsoleData->SetStopDMXMode(RestoreStopDMXMode);
+		}
+	}
+
+	void FDMXControlConsoleEditorToolkit::StopPlayingDMX()
+	{
+		if (UDMXControlConsoleData* ControlConsoleData = GetControlConsoleData())
+		{
+			ControlConsoleData->StopSendingDMX();
+		}
+	}
+
+	void FDMXControlConsoleEditorToolkit::TogglePlayPauseDMX()
+	{
+		if (IsPlayingDMX())
+		{
+			PauseDMX();
+		}
+		else
+		{
+			PlayDMX();
+		}
+	}
+
+	void FDMXControlConsoleEditorToolkit::TogglePlayStopDMX()
+	{
+		if (IsPlayingDMX())
+		{
+			StopPlayingDMX();
+		}
+		else
+		{
+			PlayDMX();
+		}
+	}
+
+	void FDMXControlConsoleEditorToolkit::SetStopDMXMode(EDMXControlConsoleStopDMXMode StopDMXMode)
+	{
+		// Intentionally without transaction, changes should not follow undo/redo
+		if (UDMXControlConsoleData* ControlConsoleData = GetControlConsoleData())
+		{
+			ControlConsoleData->MarkPackageDirty();
+			ControlConsoleData->SetStopDMXMode(StopDMXMode);
+		}
+	}
+
+	bool FDMXControlConsoleEditorToolkit::IsUsingStopDMXMode(EDMXControlConsoleStopDMXMode TestStopDMXMode) const
+	{
+		if (UDMXControlConsoleData* ControlConsoleData = GetControlConsoleData())
+		{
+			return ControlConsoleData->GetStopDMXMode() == TestStopDMXMode;
+		}
+		return false;
 	}
 }
 

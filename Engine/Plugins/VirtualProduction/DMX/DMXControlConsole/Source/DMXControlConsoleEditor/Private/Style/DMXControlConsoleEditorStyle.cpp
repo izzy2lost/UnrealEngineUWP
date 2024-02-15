@@ -48,8 +48,6 @@ FDMXControlConsoleEditorStyle::FDMXControlConsoleEditorStyle()
 	{
 		Set("DMXControlConsole.TabIcon", new IMAGE_BRUSH_SVG("DMXControlConsole_16", Icon16x16));
 		Set("DMXControlConsole.DMXLibrary", new IMAGE_BRUSH_SVG("DMXLibrary_16", Icon16x16));
-		Set("DMXControlConsole.PlayDMX", new CORE_IMAGE_BRUSH_SVG("Starship/Common/play", Icon16x16, FStyleColors::AccentGreen));
-		Set("DMXControlConsole.StopPlayingDMX", new EDITOR_IMAGE_BRUSH("Icons/generic_stop_16x", Icon16x16, FStyleColors::AccentRed));
 		Set("DMXControlConsole.ResetToDefault", new EDITOR_IMAGE_BRUSH_SVG("Starship/Common/Reset", Icon16x16));
 		Set("DMXControlConsole.ResetToZero", new EDITOR_IMAGE_BRUSH("UMG/Slider", Icon16x16));
 		Set("DMXControlConsole.Clear", new EDITOR_IMAGE_BRUSH("Icons/GeneralTools/Erase_40x", Icon16x16));

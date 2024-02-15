@@ -328,7 +328,6 @@ void UDMXEntityFixturePatch::SendDMX(TMap<FDMXAttributeName, int32> AttributeMap
 	// Send to the library's output ports
 	if (UDMXLibrary* DMXLibrary = ParentLibrary.Get())
 	{
-		UE_DMX_SCOPED_TRACE_SENDDMX(DMXLibrary->GetFName());
 		UE_DMX_SCOPED_TRACE_SENDDMX(*GetDisplayName());
 		for (const FDMXOutputPortSharedRef& OutputPort : DMXLibrary->GetOutputPorts())
 		{

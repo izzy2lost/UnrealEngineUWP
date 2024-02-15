@@ -22,7 +22,17 @@ void FDMXControlConsoleEditorCommands::RegisterCommands()
 {
 	UI_COMMAND(OpenControlConsole, "Open Control Console", "Opens the DMX Control Console", EUserInterfaceActionType::Button, FInputChord());
 
-	UI_COMMAND(ToggleSendDMX, "Toggle Send DMX", "Starts/Stops sending DMX.", EUserInterfaceActionType::Button, FInputChord(EModifierKey::Alt, EKeys::N));
+	UI_COMMAND(PlayDMX, "Play DMX", "Plays DMX", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(PauseDMX, "Pause DMX", "Pauses playing DMX.", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(ResumeDMX, "Resume DMX", "Resumes playing DMX after being paused.", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(StopDMX, "Stop DMX", "Stops playing DMX.", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(TogglePlayPauseDMX, "Toggle Play/Pause DMX", "Toggles between playing and pausing DMX", EUserInterfaceActionType::Button, FInputChord(EModifierKey::Shift, EKeys::SpaceBar));
+	UI_COMMAND(TogglePlayStopDMX, "Toggle Play/Stop DMX", "Toggles between playing and stopping DMX", EUserInterfaceActionType::Button, FInputChord(EKeys::SpaceBar));
+
+	UI_COMMAND(EditorStopSendsZeroValues, "Stop Sends Zero Values", "When stop is clicked in the editor, zero values are sent to all patches and raw DMX channels", EUserInterfaceActionType::RadioButton, FInputChord());
+	UI_COMMAND(EditorStopSendsDefaultValues, "Stop Sends Default Values", "When stop is clicked in the editor, default values are sent to  all patches and raw DMX channels", EUserInterfaceActionType::RadioButton, FInputChord());
+	UI_COMMAND(EditorStopKeepsLastValues, "Stop Keeps Last Values", "When stop is clicked in the editor, the control console leaves the last sent values untouched", EUserInterfaceActionType::RadioButton, FInputChord());
+
 	UI_COMMAND(RemoveElements, "Remove Elements", "Removes the selected elements from the current Control Console", EUserInterfaceActionType::None, FInputChord(EKeys::Delete));
 	UI_COMMAND(SelectAll, "Select All", "Selects all the visible elements in the Control Console", EUserInterfaceActionType::Button, FInputChord(EModifierKey::Control, EKeys::A));
 	UI_COMMAND(ClearAll, "Clear All", "Clears the entire console", EUserInterfaceActionType::Button, FInputChord());

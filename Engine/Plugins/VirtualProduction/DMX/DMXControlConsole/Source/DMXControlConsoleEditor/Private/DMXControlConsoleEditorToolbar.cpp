@@ -6,6 +6,7 @@
 #include "DMXControlConsoleData.h"
 #include "DMXControlConsoleEditorData.h"
 #include "DMXControlConsoleEditorSelection.h"
+#include "DMXEditorStyle.h"
 #include "Filters/SCustomTextFilterDialog.h"
 #include "Filters/SFilterSearchBox.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
@@ -82,17 +83,60 @@ namespace UE::DMX::Private
 					];
 			};
 
-		ToolbarBuilder.BeginSection("SendDMX");
+		constexpr TCHAR NoExtender[] = TEXT("";)
+		ToolbarBuilder.BeginSection("PlaySection");
 		{
-			ToolbarBuilder.AddToolBarButton
-			(
-				FDMXControlConsoleEditorCommands::Get().ToggleSendDMX,
-				NAME_None,
-				TAttribute<FText>::CreateSP(this, &FDMXControlConsoleEditorToolbar::GetSendDMXButtonText),
+			// Play
+			ToolbarBuilder.BeginStyleOverride("Toolbar.BackplateLeftPlay");
+			ToolbarBuilder.AddToolBarButton(FDMXControlConsoleEditorCommands::Get().PlayDMX,
+				NoExtender,
 				TAttribute<FText>(),
-				TAttribute<FSlateIcon>(this, &FDMXControlConsoleEditorToolbar::GetSendDMXButtonIcon),
-				FName(TEXT("Send DMX"))
-			);
+				TAttribute<FText>(),
+				FSlateIcon(FDMXEditorStyle::Get().GetStyleSetName(), "Icons.PlayDMX"));
+			ToolbarBuilder.EndStyleOverride();
+
+			// Pause
+			ToolbarBuilder.BeginStyleOverride("Toolbar.BackplateLeft");
+			ToolbarBuilder.AddToolBarButton(FDMXControlConsoleEditorCommands::Get().PauseDMX,
+				NoExtender,
+				TAttribute<FText>(),
+				TAttribute<FText>(),
+				FSlateIcon(FDMXEditorStyle::Get().GetStyleSetName(), "Icons.PauseDMX"));
+			ToolbarBuilder.EndStyleOverride();
+
+			// Resume
+			ToolbarBuilder.BeginStyleOverride("Toolbar.BackplateLeftPlay");
+			ToolbarBuilder.AddToolBarButton(FDMXControlConsoleEditorCommands::Get().ResumeDMX,
+				NoExtender,
+				TAttribute<FText>(),
+				TAttribute<FText>(),
+				FSlateIcon(FDMXEditorStyle::Get().GetStyleSetName(), "Icons.ResumeDMX"));
+			ToolbarBuilder.EndStyleOverride();
+
+			// Stop
+			ToolbarBuilder.BeginStyleOverride("Toolbar.BackplateCenterStop");
+			ToolbarBuilder.AddToolBarButton(FDMXControlConsoleEditorCommands::Get().StopDMX,
+				NoExtender,
+				TAttribute<FText>(),
+				TAttribute<FText>(),
+				FSlateIcon(FDMXEditorStyle::Get().GetStyleSetName(), "Icons.StopDMX"));
+			ToolbarBuilder.EndStyleOverride();
+
+			ToolbarBuilder.BeginStyleOverride("Toolbar.BackplateRightCombo");
+			ToolbarBuilder.AddComboButton(
+				FUIAction(),
+				FOnGetContent::CreateSP(this, &FDMXControlConsoleEditorToolbar::GeneratePlayOptionsMenuWidget),
+				LOCTEXT("SettingsLabel", "Settings"),
+				LOCTEXT("SettingsToolTip", "Settings for the conflict monitor."),
+				TAttribute<FSlateIcon>(),
+				true);
+
+			ToolbarBuilder.EndSection();
+			ToolbarBuilder.EndStyleOverride();
+
+			ToolbarBuilder.BeginStyleOverride("Toolbar.BackplateRight");
+			ToolbarBuilder.AddSeparator();
+			ToolbarBuilder.EndStyleOverride();
 		}
 		ToolbarBuilder.EndSection();
 
@@ -398,6 +442,28 @@ namespace UE::DMX::Private
 				];
 
 			MenuBuilder.AddWidget(PortSelectorWidget, FText::GetEmpty());
+		}
+		MenuBuilder.EndSection();
+
+		return MenuBuilder.MakeWidget();
+	}
+
+	TSharedRef<SWidget> FDMXControlConsoleEditorToolbar::GeneratePlayOptionsMenuWidget()
+	{
+		const TSharedPtr<FDMXControlConsoleEditorToolkit> Toolkit = WeakToolkit.Pin();
+		if (!Toolkit.IsValid())
+		{
+			return SNullWidget::NullWidget;
+		}
+
+		constexpr bool bShouldCloseWindowAfterMenuSelection = true;
+		FMenuBuilder MenuBuilder(bShouldCloseWindowAfterMenuSelection, Toolkit->GetToolkitCommands());
+
+		MenuBuilder.BeginSection("StopDMXModeSection");
+		{
+			MenuBuilder.AddMenuEntry(FDMXControlConsoleEditorCommands::Get().EditorStopSendsDefaultValues);
+			MenuBuilder.AddMenuEntry(FDMXControlConsoleEditorCommands::Get().EditorStopSendsZeroValues);
+			MenuBuilder.AddMenuEntry(FDMXControlConsoleEditorCommands::Get().EditorStopKeepsLastValues);
 		}
 		MenuBuilder.EndSection();
 

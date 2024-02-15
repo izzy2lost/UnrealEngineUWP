@@ -45,6 +45,9 @@ public:
 
 	/** Gets Fader's Data Type */
 	virtual EDMXFixtureSignalFormat GetDataType() const { return DataType; }
+	
+	/** Returns the default value of the fader */
+	uint32 GetDefaultValue() const { return DefaultValue; }
 
 	/** Returns the current value of the fader */
 	uint32 GetValue() const { return Value; }
