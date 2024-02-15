@@ -105,7 +105,10 @@ FReply SMoviePipelineFormatTokenAutoCompleteBox::OnKeyDown(const FGeometry& MyGe
 
 void SMoviePipelineFormatTokenAutoCompleteBox::SetText(const FText& InText)
 {
+	// SetText always sets the cursor location to the end of the line, so we need to cache and restore the location
+	const FTextLocation OriginalCursorLocation = TextBox->GetCursorLocation();
 	TextBox->SetText(InText);
+	TextBox->GoTo(OriginalCursorLocation);
 }
 
 void SMoviePipelineFormatTokenAutoCompleteBox::OnItemClicked(TSharedPtr<FString> Item) const
