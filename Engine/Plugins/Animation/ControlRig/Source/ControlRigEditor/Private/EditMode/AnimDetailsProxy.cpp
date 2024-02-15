@@ -846,7 +846,10 @@ static FEulerTransform GetCurrentValue(UControlRig* ControlRig, FRigControlEleme
 			break;
 		}
 	};
-	EulerTransform.Rotation = ControlRig->GetHierarchy()->GetControlPreferredRotator(ControlElement);
+	if (ControlRig->GetHierarchy()->UsesPreferredEulerAngles())
+	{
+		EulerTransform.Rotation = ControlRig->GetHierarchy()->GetControlPreferredRotator(ControlElement);
+	}
 	return EulerTransform;
 }
 
@@ -1129,14 +1132,22 @@ void UAnimDetailControlsProxyTransform::SetControlRigElementValueFromCurrent(UCo
 		case ERigControlType::EulerTransform:
 		{
 			URigHierarchy* Hierarchy = ControlRig->GetHierarchy();
-			FVector EulerAngle(TRotation.Roll, TRotation.Pitch, TRotation.Yaw);
-			FQuat Quat = Hierarchy->GetControlQuaternion(ControlElement, EulerAngle);
-			Hierarchy->SetControlSpecifiedEulerAngle(ControlElement, EulerAngle);
-			FRotator UERotator(Quat);
-			FEulerTransform UETransform(UERotator, TLocation, TScale);
-			UETransform.Rotation = UERotator;
-			ControlRig->SetControlValue<FRigControlValue::FEulerTransform_Float>(ControlElement->GetKey().Name, UETransform, true, Context, false);
-			Hierarchy->SetControlSpecifiedEulerAngle(ControlElement, EulerAngle);
+
+			if (Hierarchy->UsesPreferredEulerAngles())
+			{
+				FVector EulerAngle(TRotation.Roll, TRotation.Pitch, TRotation.Yaw);
+				FQuat Quat = Hierarchy->GetControlQuaternion(ControlElement, EulerAngle);
+				Hierarchy->SetControlSpecifiedEulerAngle(ControlElement, EulerAngle);
+				FRotator UERotator(Quat);
+				FEulerTransform UETransform(UERotator, TLocation, TScale);
+				UETransform.Rotation = UERotator;
+				ControlRig->SetControlValue<FRigControlValue::FEulerTransform_Float>(ControlElement->GetKey().Name, UETransform, true, Context, false);
+				Hierarchy->SetControlSpecifiedEulerAngle(ControlElement, EulerAngle);
+			}
+			else
+			{
+				ControlRig->SetControlValue<FRigControlValue::FEulerTransform_Float>(ControlElement->GetKey().Name, FEulerTransform(RealTransform), true, Context, false);
+			}
 			break;
 		}
 		}

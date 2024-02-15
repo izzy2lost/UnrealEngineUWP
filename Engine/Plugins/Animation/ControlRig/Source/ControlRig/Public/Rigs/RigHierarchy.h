@@ -4727,6 +4727,9 @@ protected:
 	bool bUsePreferredEulerAngles;
 	mutable bool bAllowNameSpaceWhenSanitizingName;
 
+public:
+	bool UsesPreferredEulerAngles() const { return bUsePreferredEulerAngles; }
+
 private:
 	
 	void EnsureCacheValidityImpl();
