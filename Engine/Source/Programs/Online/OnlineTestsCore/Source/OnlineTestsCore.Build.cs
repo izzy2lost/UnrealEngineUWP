@@ -26,25 +26,19 @@ public class OnlineTestsCore : ModuleRules
 				"CoreUObject",
 				"Projects",
 				"EngineSettings",
+				"EOSSDK",
+				"EOSShared",
 				"OnlineSubsystem",
 				"OnlineServicesInterface",
 				"OnlineServicesCommon",
 				"OnlineServicesEOS",
 				"OnlineServicesNull",
 				"OnlineServicesOSSAdapter",
-				"EOSSDK",
-				"EOSShared",
 				"SSL",
 				"Json",
 				"JsonUtilities"
 			}
 		);
-
-		PublicDependencyModuleNames.AddRange(
-		new string[]
-		{
-			"OnlineSubsystem"
-		});
 
 		PublicDefinitions.Add(String.Format("ONLINETESTS_REQUIREAPPLICATIONTICK={0}", bRequireApplicationTick ? 1 : 0));
 		PublicDefinitions.Add(String.Format("ONLINETESTS_REQUIREPLATFORMINIT={0}", bRequirePlatformInit ? 1 : 0));

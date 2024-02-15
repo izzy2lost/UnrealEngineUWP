@@ -7,9 +7,9 @@
 
 #define SESSIONS_TAGS "[suite_sessions]"
 #define SESSIONS_UPDATESESSIONSETTINGS_TAG SESSIONS_TAGS "[updatesessionsettings]"
-#define SESSIONS_TEST_CASE(x, ...) ONLINE_TEST_CASE(x, SESSIONS_TAGS __VA_ARGS__)
+#define UPDATESESSIONS_TEST_CASE(x, ...) ONLINE_TEST_CASE(x, SESSIONS_TAGS __VA_ARGS__)
 
-SESSIONS_TEST_CASE("If I call UpdateSessionSettings with an invalid account id, I get an error", SESSIONS_UPDATESESSIONSETTINGS_TAG)
+UPDATESESSIONS_TEST_CASE("If I call UpdateSessionSettings with an invalid account id, I get an error", SESSIONS_UPDATESESSIONSETTINGS_TAG)
 {
 	FUpdateSessionSettings::Params OpUpdateParams;
 	FUpdateSessionSettingsHelper::FHelperParams UpdateSessionSettingsHelperParams;
@@ -23,7 +23,7 @@ SESSIONS_TEST_CASE("If I call UpdateSessionSettings with an invalid account id, 
 	RunToCompletion();
 }
 
-SESSIONS_TEST_CASE("If I call UpdateSessionSettings with an empty session name, I get an error", SESSIONS_UPDATESESSIONSETTINGS_TAG)
+UPDATESESSIONS_TEST_CASE("If I call UpdateSessionSettings with an empty session name, I get an error", SESSIONS_UPDATESESSIONSETTINGS_TAG)
 {
 	FAccountId AccountId;
 
@@ -43,7 +43,7 @@ SESSIONS_TEST_CASE("If I call UpdateSessionSettings with an empty session name, 
 	RunToCompletion();
 }
 
-SESSIONS_TEST_CASE("If I call UpdateSessionSettings with an empty schema name in settings, I get an error", SESSIONS_UPDATESESSIONSETTINGS_TAG)
+UPDATESESSIONS_TEST_CASE("If I call UpdateSessionSettings with an empty schema name in settings, I get an error", SESSIONS_UPDATESESSIONSETTINGS_TAG)
 {
 	FAccountId AccountId;
 
@@ -64,7 +64,7 @@ SESSIONS_TEST_CASE("If I call UpdateSessionSettings with an empty schema name in
 	RunToCompletion();
 }
 
-SESSIONS_TEST_CASE("If I call UpdateSessionSettings with an invalid max connections number in settings, I get an error", SESSIONS_UPDATESESSIONSETTINGS_TAG)
+UPDATESESSIONS_TEST_CASE("If I call UpdateSessionSettings with an invalid max connections number in settings, I get an error", SESSIONS_UPDATESESSIONSETTINGS_TAG)
 {
 	FAccountId AccountId;
 
@@ -85,7 +85,7 @@ SESSIONS_TEST_CASE("If I call UpdateSessionSettings with an invalid max connecti
 	RunToCompletion();
 }
 
-SESSIONS_TEST_CASE("If I call UpdateSessionSettings with an empty custom setting name in settings, I get an error", SESSIONS_UPDATESESSIONSETTINGS_TAG)
+UPDATESESSIONS_TEST_CASE("If I call UpdateSessionSettings with an empty custom setting name in settings, I get an error", SESSIONS_UPDATESESSIONSETTINGS_TAG)
 {
 	FAccountId AccountId;
 
@@ -106,7 +106,7 @@ SESSIONS_TEST_CASE("If I call UpdateSessionSettings with an empty custom setting
 	RunToCompletion();
 }
 
-SESSIONS_TEST_CASE("If I call UpdateSessionSettings with an unregistered session name, I get an error", SESSIONS_UPDATESESSIONSETTINGS_TAG)
+UPDATESESSIONS_TEST_CASE("If I call UpdateSessionSettings with an unregistered session name, I get an error", SESSIONS_UPDATESESSIONSETTINGS_TAG)
 {
 	FAccountId AccountId;
 
@@ -126,7 +126,7 @@ SESSIONS_TEST_CASE("If I call UpdateSessionSettings with an unregistered session
 	RunToCompletion();
 }
 
-SESSIONS_TEST_CASE("If I call UpdateSessionSettings with valid data, the operation completes successfully", SESSIONS_UPDATESESSIONSETTINGS_TAG)
+UPDATESESSIONS_TEST_CASE("If I call UpdateSessionSettings with valid data, the operation completes successfully", SESSIONS_UPDATESESSIONSETTINGS_TAG)
 {
 	DestroyCurrentServiceModule();
 	ResetAccountStatus();
