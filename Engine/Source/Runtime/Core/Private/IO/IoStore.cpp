@@ -368,7 +368,7 @@ public:
 		return FIoStatus::Ok;
 	}
 
-	TSharedPtr<IIoStoreWriter> CreateContainer(const TCHAR* InContainerPath, const FIoContainerSettings& InContainerSettings);
+	TSharedPtr<IIoStoreWriter> CreateContainer(const TCHAR* InContainerPathAndBaseFileName, const FIoContainerSettings& InContainerSettings);
 
 	void Flush();
 
@@ -724,8 +724,8 @@ class FIoStoreWriter
 	: public IIoStoreWriter
 {
 public:
-	FIoStoreWriter(const TCHAR* InContainerPath)
-		: ContainerPath(InContainerPath)
+	FIoStoreWriter(const TCHAR* InContainerPathAndBaseFileName)
+		: ContainerPathAndBaseFileName(InContainerPathAndBaseFileName)
 	{
 	}
 
@@ -773,7 +773,7 @@ public:
 		WriterContext = &InContext;
 		ContainerSettings = InContainerSettings;
 
-		TocFilePath = ContainerPath + TEXT(".utoc");
+		TocFilePath = ContainerPathAndBaseFileName + TEXT(".utoc");
 		
 		IPlatformFile& Ipf = IPlatformFile::GetPlatformPhysical();
 		Ipf.CreateDirectoryTree(*FPaths::GetPath(TocFilePath));
@@ -1471,7 +1471,7 @@ private:
 	FIoStatus CreatePartitionContainerFile(FPartition& Partition)
 	{
 		check(!Partition.ContainerFileHandle);
-		FString ContainerFilePath = ContainerPath;
+		FString ContainerFilePath = ContainerPathAndBaseFileName;
 		if (Partition.Index > 0)
 		{
 			ContainerFilePath += FString::Printf(TEXT("_s%d"), Partition.Index);
@@ -2009,7 +2009,7 @@ private:
 		WriterContext->SerializedChunksCount.IncrementExchange();
 	}
 
-	const FString				ContainerPath;
+	const FString				ContainerPathAndBaseFileName;
 	FIoStoreWriterContextImpl*	WriterContext = nullptr;
 	FIoContainerSettings		ContainerSettings;
 	FString						TocFilePath;
@@ -2042,9 +2042,11 @@ private:
 	friend class FIoStoreWriterContextImpl;
 };
 
-TSharedPtr<IIoStoreWriter> FIoStoreWriterContextImpl::CreateContainer(const TCHAR* InContainerPath, const FIoContainerSettings& InContainerSettings)
+// InContainerPathAndBaseFileName: the utoc file will just be this with .utoc appended.
+// The base filename ends up getting returned as the container name in the writer results.
+TSharedPtr<IIoStoreWriter> FIoStoreWriterContextImpl::CreateContainer(const TCHAR* InContainerPathAndBaseFileName, const FIoContainerSettings& InContainerSettings)
 {
-	TSharedPtr<FIoStoreWriter> IoStoreWriter = MakeShared<FIoStoreWriter>(InContainerPath);
+	TSharedPtr<FIoStoreWriter> IoStoreWriter = MakeShared<FIoStoreWriter>(InContainerPathAndBaseFileName);
 	FIoStatus IoStatus = IoStoreWriter->Initialize(*this, InContainerSettings);
 	check(IoStatus.IsOk());
 	IoStoreWriters.Add(IoStoreWriter);
