@@ -153,6 +153,22 @@ FPCGElementPtr UPCGAttributeNoiseSettings::CreateElement() const
 	return MakeShared<FPCGAttributeNoiseElement>();
 }
 
+TArray<FPCGPinProperties> UPCGAttributeNoiseSettings::InputPinProperties() const
+{
+	TArray<FPCGPinProperties> PinProperties;
+	PinProperties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Point | EPCGDataType::Param);
+
+	return PinProperties;
+}
+
+TArray<FPCGPinProperties> UPCGAttributeNoiseSettings::OutputPinProperties() const
+{
+	TArray<FPCGPinProperties> PinProperties;
+	PinProperties.Emplace(PCGPinConstants::DefaultOutputLabel, EPCGDataType::Point | EPCGDataType::Param);
+
+	return PinProperties;
+}
+
 FPCGContext* FPCGAttributeNoiseElement::CreateContext()
 {
 	return new FPCGAttributeNoiseContext();
@@ -168,7 +184,7 @@ bool FPCGAttributeNoiseElement::ExecuteInternal(FPCGContext* InContext) const
 	const UPCGAttributeNoiseSettings* Settings = Context->GetInputSettings<UPCGAttributeNoiseSettings>();
 	check(Settings);
 
-	TArray<FPCGTaggedData> Inputs = Context->InputData.GetInputs();
+	TArray<FPCGTaggedData> Inputs = Context->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel);
 	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
 
 	// Precompute a seed based on the settings one and the component one
@@ -180,40 +196,24 @@ bool FPCGAttributeNoiseElement::ExecuteInternal(FPCGContext* InContext) const
 		const FPCGTaggedData& Input = Inputs[CurrentInput];
 
 		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGAttributeNoiseElement::InputLoop);
-		
-		const TArray<FPCGPoint>* InputPoints = nullptr;
-		TArray<FPCGPoint>* OutputPoints = nullptr;
 
 		if (!Context->bDataPreparedForCurrentInput)
 		{
-			const UPCGSpatialData* SpatialData = Cast<UPCGSpatialData>(Input.Data);
-
-			if (!SpatialData)
+			const UPCGData* InputData = Input.Data;
+			if (!InputData || !InputData->ConstMetadata())
 			{
-				PCGE_LOG(Error, GraphAndLog, LOCTEXT("InputMissingSpatialData", "Unable to get Spatial data from input"));
+				PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("InputUnsuportedData", "Data {0} is neither spatial nor an attribute set, unsupported."), Context->CurrentInput));
 				Context->CurrentInput++;
 				continue;
 			}
 
-			const UPCGPointData* PointData = SpatialData->ToPointData(Context);
-
-			if (!PointData)
-			{
-				PCGE_LOG(Error, GraphAndLog, LOCTEXT("InputMissingPointData", "Unable to get Point data from input"));
-				Context->CurrentInput++;
-				continue;
-			}
-
-			InputPoints = &PointData->GetPoints();
-
-			Context->InputSource = Settings->InputSource.CopyAndFixLast(PointData);
+			Context->InputSource = Settings->InputSource.CopyAndFixLast(InputData);
 
 			// Create a dummy accessor on the input before allocating the output, to avoid doing useless allocation.
-			TUniquePtr<const IPCGAttributeAccessor> TempInputAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(PointData, Context->InputSource);
+			TUniquePtr<const IPCGAttributeAccessor> TempInputAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(InputData, Context->InputSource);
 			if (!TempInputAccessor)
 			{
-				Outputs.RemoveAt(Outputs.Num() - 1);
-				PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("CantCreateAccessor", "Could not find Attribute/Property {0}"), FText::FromName(Context->InputSource.GetName())));
+				PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("CantCreateAccessor", "Could not find Attribute/Property '{0}'"), Context->InputSource.GetDisplayText()));
 				Context->CurrentInput++;
 				continue;
 			}
@@ -221,8 +221,7 @@ bool FPCGAttributeNoiseElement::ExecuteInternal(FPCGContext* InContext) const
 			// Also need to make sure the accessor is a "noisable" type
 			if (!PCG::Private::IsOfTypes<int32, int64, float, double, FVector, FVector2D, FVector4, FRotator, FQuat>(TempInputAccessor->GetUnderlyingType()))
 			{
-				Outputs.RemoveAt(Outputs.Num() - 1);
-				PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("AttributeIsNotANumericalType", "Attribute/Property {0} is not a numerical type, we can't apply noise to it."), FText::FromName(Context->InputSource.GetName())));
+				PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("AttributeIsNotANumericalType", "Attribute/Property '{0}' is not a numerical type, we can't apply noise to it."), Context->InputSource.GetDisplayText()));
 				Context->CurrentInput++;
 				continue;
 			}
@@ -230,58 +229,48 @@ bool FPCGAttributeNoiseElement::ExecuteInternal(FPCGContext* InContext) const
 			TempInputAccessor.Reset();
 
 			FPCGTaggedData& Output = Outputs.Add_GetRef(Input);
-			UPCGPointData* OutputData = NewObject<UPCGPointData>();
-			OutputData->InitializeFromData(PointData);
-			OutputPoints = &OutputData->GetMutablePoints();
-			OutputPoints->SetNumUninitialized(InputPoints->Num());
+			UPCGData* OutputData = InputData->DuplicateData();
 			Output.Data = OutputData;
 
 			// Then create the accessor/keys
-			Context->InputAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(OutputData, Context->InputSource);
-			Context->Keys = PCGAttributeAccessorHelpers::CreateKeys(OutputData, Context->InputSource);
+			Context->InputAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(InputData, Context->InputSource);
+			Context->InputKeys = PCGAttributeAccessorHelpers::CreateConstKeys(InputData, Context->InputSource);
 
 			// It won't fail because we validated on the input data and output is initialized from input.
-			check(Context->InputAccessor && Context->Keys);
+			check(Context->InputAccessor && Context->InputKeys);
 
-			// Allocate temp buffer and create output accessor if needed
-			const bool bValid = PCGMetadataAttribute::CallbackWithRightType(Context->InputAccessor->GetUnderlyingType(), [this, Context, Settings, OutputData](auto&& Dummy) -> bool
+			Context->OutputTarget = Settings->OutputTarget.CopyAndFixSource(&Context->InputSource, Input.Data);
+
+			Context->OutputAccessor = PCGAttributeAccessorHelpers::CreateAccessor(OutputData, Context->OutputTarget);
+			if (!Context->OutputAccessor && Context->OutputTarget.IsBasicAttribute())
 			{
-				check(Context);
-
-				using AttributeType = std::decay_t<decltype(Dummy)>;
-				int32 NumPoints = Context->Keys->GetNum();
-				Context->TempValuesBuffer.SetNumUninitialized(sizeof(AttributeType) * NumPoints);
-
-				Context->OutputTarget = Settings->OutputTarget.CopyAndFixSource(&Context->InputSource);
-
-				Context->OutputAccessor = PCGAttributeAccessorHelpers::CreateAccessor(OutputData, Context->OutputTarget);
-				if (!Context->OutputAccessor && Context->OutputTarget.GetSelection() == EPCGAttributePropertySelection::Attribute)
+				PCGMetadataAttribute::CallbackWithRightType(Context->InputAccessor->GetUnderlyingType(), [Context, OutputData](auto&& Dummy)
 				{
-					OutputData->Metadata->CreateAttribute<AttributeType>(Context->OutputTarget.GetName(), AttributeType{}, /*bAllowsInterpolation=*/ true, /*bOverrideParent=*/false);
+					using AttributeType = std::decay_t<decltype(Dummy)>;
+
+					OutputData->MutableMetadata()->CreateAttribute<AttributeType>(Context->OutputTarget.GetName(), AttributeType{}, /*bAllowsInterpolation=*/ true, /*bOverrideParent=*/false);
 					Context->OutputAccessor = PCGAttributeAccessorHelpers::CreateAccessor(OutputData, Context->OutputTarget);
-				}
+				});
+			}
 
-				if (!Context->OutputAccessor)
-				{
-					PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("OutputTargetInvalid", "Failed to find/create Attribute/Property {0}."), FText::FromName(Context->OutputTarget.GetName())));
-					return false;
-				}
+			Context->OutputKeys = PCGAttributeAccessorHelpers::CreateKeys(OutputData, Context->OutputTarget);
 
-				if (!PCG::Private::IsBroadcastable(Context->InputAccessor->GetUnderlyingType(), Context->OutputAccessor->GetUnderlyingType()))
-				{
-					PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("CantBroadcast", "Cannot convert Attribute {0} ({1}) into Attribute {2} ({3})."),
-						FText::FromName(Context->InputSource.GetName()),
-						FText::FromString(PCG::Private::GetTypeName(Context->InputAccessor->GetUnderlyingType())),
-						FText::FromName(Context->OutputTarget.GetName()),
-						FText::FromString(PCG::Private::GetTypeName(Context->OutputAccessor->GetUnderlyingType()))));
-					return false;
-				}
-
-				return true;
-			});
-
-			if (!bValid)
+			if (!Context->OutputAccessor || !Context->OutputKeys)
 			{
+				PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("OutputTargetInvalid", "Failed to find/create Attribute/Property '{0}'."), Context->OutputTarget.GetDisplayText()));
+				Outputs.RemoveAt(Outputs.Num() - 1);
+				Context->CurrentInput++;
+				continue;
+			}
+
+			if (!PCG::Private::IsBroadcastableOrConstructible(Context->InputAccessor->GetUnderlyingType(), Context->OutputAccessor->GetUnderlyingType()))
+			{
+				PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("CantBroadcast", "Cannot convert Attribute '{0}' ({1}) into Attribute '{2}' ({3})."),
+					Context->InputSource.GetDisplayText(),
+					PCG::Private::GetTypeNameText(Context->InputAccessor->GetUnderlyingType()),
+					Context->OutputTarget.GetDisplayText(),
+					PCG::Private::GetTypeNameText(Context->OutputAccessor->GetUnderlyingType())));
+				
 				Outputs.RemoveAt(Outputs.Num() - 1);
 				Context->CurrentInput++;
 				continue;
@@ -289,55 +278,52 @@ bool FPCGAttributeNoiseElement::ExecuteInternal(FPCGContext* InContext) const
 
 			Context->bDataPreparedForCurrentInput = true;
 		}
-		else
-		{
-			OutputPoints = &(const_cast<UPCGPointData*>(CastChecked<UPCGPointData>(Outputs[CurrentInput].Data)))->GetMutablePoints();
-			// Note: for deprecation purposes, we consider that the input here is a spatial data (even though the pin is typed to be a Point Data)
-			// hence the need to call ToPointData, as otherwise a direct case to UPCGPointData would fail.
-			InputPoints = &(CastChecked<const UPCGSpatialData>(Inputs[CurrentInput].Data)->ToPointData(Context))->GetPoints();
-		}
 
-		check(InputPoints && OutputPoints);
+		// Input points are solely used to use the point seed for randomness. Otherwise, it will just use the index of the element as the seed (combined with component + settings seed of course)
+		const UPCGPointData* InputPointData = Cast<UPCGPointData>(Input.Data);
+		const TArray<FPCGPoint>* InputPoints = InputPointData ? &InputPointData->GetPoints() : nullptr;
 
 		// Force clamp on Density
 		const bool bClampResult = Settings->bClampResult || (Context->OutputTarget.GetSelection() == EPCGAttributePropertySelection::PointProperty && Context->OutputTarget.GetPointProperty() == EPCGPointProperties::Density);
 
-		// Dummy Initialize, we already initialized the output points before.
-		auto Initialize = []() {};
-
-		const bool bDone = FPCGAsync::AsyncProcessingOneToOneEx(&Context->AsyncState, OutputPoints->Num(), Initialize, [InputPoints, OutputPoints, Settings, Seed, bClampResult, Context](int32 StartReadIndex, int32 StartWriteIndex) -> int32
+		const bool bDone = PCGMetadataAttribute::CallbackWithRightType(Context->InputAccessor->GetUnderlyingType(), [Settings, Context, Seed, bClampResult, InputPoints](auto&& Dummy) -> bool
 		{
-			PCGMetadataAttribute::CallbackWithRightType(Context->InputAccessor->GetUnderlyingType(), [Settings, StartReadIndex, StartWriteIndex, InputPoints, OutputPoints, Context, Seed, bClampResult](auto&& Dummy)
+			using AttributeType = std::decay_t<decltype(Dummy)>;
+			constexpr int32 ChunkSize = 64;
+			const int32 NumIterations = Context->InputKeys->GetNum();
+
+			// No init
+			auto Initialize = []() {};
+			// It's a 1 for 1 operation, should never move
+			auto MoveDataRange = [](int32, int32, int32) { ensure(false); };
+			// It's finished if we processed all elements.
+			auto Finished = [NumIterations](int32 Count) { ensure(NumIterations == Count); };
+
+			return FPCGAsync::AsyncProcessingRangeEx(&Context->AsyncState, NumIterations, Initialize, [Settings, Seed, bClampResult, Context, ChunkSize, InputPoints, NumIterations](int32 StartReadIndex, int32 StartWriteIndex, int32 Count) -> int32
 			{
-				using AttributeType = std::decay_t<decltype(Dummy)>;
+				TArray<AttributeType, TInlineAllocator<ChunkSize>> Values;
+				Values.SetNumUninitialized(Count);
 
-				// Copying the point
-				FPCGPoint& OutPoint = (*OutputPoints)[StartWriteIndex];
-				OutPoint = (*InputPoints)[StartReadIndex];
-
-				// Reinterpret the buffer to store our temporary value.
-				AttributeType& Value = *(reinterpret_cast<AttributeType*>(Context->TempValuesBuffer.GetData()) + StartReadIndex);
-
-				if (Context->InputAccessor->Get<AttributeType>(Value, StartReadIndex, *Context->Keys))
+				if (Context->InputAccessor->GetRange<AttributeType>(Values, StartReadIndex, *Context->InputKeys))
 				{
-					FRandomStream RandomSource(PCGHelpers::ComputeSeed(Seed, OutPoint.Seed));
-					PCGAttributeNoiseSettings::ProcessNoise(Value, RandomSource, Settings, bClampResult);
-				}
-			});
+					for (int32 i = 0; i < Count; ++i)
+					{
+						// Use the point seed if we have points, otherwise the index. Don't start at 0 (that's why there is a +1)
+						// Warning: It makes it order independant for points, but order dependant for the rest.
+						const int32 ElementSeed = InputPoints ? (*InputPoints)[StartReadIndex + i].Seed : StartReadIndex + i + 1;
+						FRandomStream RandomSource(PCGHelpers::ComputeSeed(Seed, ElementSeed));
+						PCGAttributeNoiseSettings::ProcessNoise(Values[i], RandomSource, Settings, bClampResult);
+					}
 
-			return true;
-		}, /*bEnableTimeSlicing=*/true);
+					Context->OutputAccessor->SetRange<AttributeType>(Values, StartWriteIndex, *Context->OutputKeys, EPCGAttributeAccessorFlags::AllowBroadcast | EPCGAttributeAccessorFlags::AllowConstructible);
+				}
+
+				return Count;
+			}, MoveDataRange, Finished, /*bEnableTimeSlicing=*/true, ChunkSize);
+		});
 
 		if (bDone)
 		{
-			PCGMetadataAttribute::CallbackWithRightType(Context->InputAccessor->GetUnderlyingType(), [Context](auto&& Value)
-			{
-				using AttributeType = std::decay_t<decltype(Value)>;
-				int32 NumPoints = Context->Keys->GetNum();
-				TArrayView<AttributeType> Values(reinterpret_cast<AttributeType*>(Context->TempValuesBuffer.GetData()), NumPoints);
-				Context->OutputAccessor->SetRange<AttributeType>(Values, 0, *Context->Keys, EPCGAttributeAccessorFlags::AllowBroadcast);
-			});
-			
 			Context->CurrentInput++;
 			Context->bDataPreparedForCurrentInput = false;
 		}

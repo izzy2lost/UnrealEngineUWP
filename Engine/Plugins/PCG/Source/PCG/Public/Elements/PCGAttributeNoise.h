@@ -47,11 +47,12 @@ public:
 	virtual TArray<FText> GetNodeTitleAliases() const { return { NSLOCTEXT("PCGAttributeNoiseSettings", "DensityNoiseAlias", "Density Noise") }; }
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Metadata; }
 #endif
+	virtual bool HasDynamicPins() const override { return true; }
 	virtual bool IsInputPinRequiredByExecution(const UPCGPin* InPin) const override { return !InPin->Properties.bAdvancedPin; }
 
 protected:
-	virtual TArray<FPCGPinProperties> InputPinProperties() const override { return Super::DefaultPointInputPinProperties(); }
-	virtual TArray<FPCGPinProperties> OutputPinProperties() const override { return Super::DefaultPointOutputPinProperties(); }
+	virtual TArray<FPCGPinProperties> InputPinProperties() const override;
+	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
 	virtual FPCGElementPtr CreateElement() const override;
 	//~End UPCGSettings interface
 
@@ -107,9 +108,8 @@ struct FPCGAttributeNoiseContext : public FPCGContext
 	FPCGAttributePropertyOutputSelector OutputTarget;
 	TUniquePtr<const IPCGAttributeAccessor> InputAccessor;
 	TUniquePtr<IPCGAttributeAccessor> OutputAccessor;
-	TUniquePtr<IPCGAttributeAccessorKeys> Keys;
-
-	TArray<uint8> TempValuesBuffer;
+	TUniquePtr<const IPCGAttributeAccessorKeys> InputKeys;
+	TUniquePtr<IPCGAttributeAccessorKeys> OutputKeys;
 };
 
 class FPCGAttributeNoiseElement : public IPCGElement

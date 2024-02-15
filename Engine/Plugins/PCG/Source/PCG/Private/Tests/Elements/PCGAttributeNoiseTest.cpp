@@ -2,12 +2,12 @@
 
 #include "Tests/PCGTestsCommon.h"
 
-#include "Data/PCGSpatialData.h"
 #include "PCGComponent.h"
-
-#include "Data/PCGPointData.h"
-#include "Elements/PCGAttributeNoise.h"
 #include "PCGContext.h"
+#include "PCGParamData.h"
+#include "Elements/PCGAttributeNoise.h"
+#include "Data/PCGPointData.h"
+#include "Data/PCGSpatialData.h"
 
 IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeNoiseDensityTest, FPCGTestBaseClass, "Plugins.PCG.AttributeNoise.Density", PCGTestsCommon::TestFlags)
 
@@ -32,6 +32,7 @@ bool FPCGAttributeNoiseDensityTest::RunTest(const FString& Parameters)
 
 	FPCGTaggedData& TaggedData = TestData.InputData.TaggedData.Emplace_GetRef(FPCGTaggedData());
 	TaggedData.Data = PointData;
+	TaggedData.Pin = PCGPinConstants::DefaultInputLabel;
 
 	auto ValidateDensityNoise = [this, &TestData, NoiseElement, Settings](TArray<float> ExpectedOutput) -> bool
 	{
@@ -43,7 +44,7 @@ bool FPCGAttributeNoiseDensityTest::RunTest(const FString& Parameters)
 		const TArray<FPCGTaggedData>& Inputs = Context->InputData.GetInputs();
 		const TArray<FPCGTaggedData>& Outputs = Context->OutputData.GetInputs();
 
-		if (!TestEqual("Valid number of outputs", Inputs.Num(), Outputs.Num()))
+		if (!TestEqual("Valid number of outputs", Outputs.Num(), Inputs.Num()))
 		{
 			return false;
 		}
@@ -230,4 +231,166 @@ bool FPCGAttributeNoiseDensityTest::RunTest(const FString& Parameters)
 	}
 
 	return bTestPassed;
+}
+
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeNoiseNotExistingAttributeTest, FPCGTestBaseClass, "Plugins.PCG.AttributeNoise.NotExistingAttribute", PCGTestsCommon::TestFlags)
+
+bool FPCGAttributeNoiseNotExistingAttributeTest::RunTest(const FString& Parameters)
+{
+	PCGTestsCommon::FTestData TestData;
+	UPCGAttributeNoiseSettings* Settings = PCGTestsCommon::GenerateSettings<UPCGAttributeNoiseSettings>(TestData);
+	check(Settings);
+
+	Settings->InputSource.SetAttributeName(TEXT("Hi"));
+
+	UPCGPointData* PointData = PCGTestsCommon::CreateRandomPointData(/*PointCount*/5, /*Seed*/ 42, /*bRandomDensity=*/true);
+
+	FPCGTaggedData& TaggedData = TestData.InputData.TaggedData.Emplace_GetRef();
+	TaggedData.Data = PointData;
+	TaggedData.Pin = PCGPinConstants::DefaultInputLabel;
+
+	FPCGElementPtr NoiseElement = TestData.Settings->GetElement();
+	TUniquePtr<FPCGContext> Context = TestData.InitializeTestContext();
+
+	AddExpectedError(TEXT("Could not find Attribute/Property 'Hi'"));
+
+	while (!NoiseElement->Execute(Context.Get())) {}
+
+	UTEST_EQUAL("No output", Context->OutputData.TaggedData.Num(), 0);
+
+	return true;
+}
+
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeNoiseInvalidTypeTest, FPCGTestBaseClass, "Plugins.PCG.AttributeNoise.InvalidType", PCGTestsCommon::TestFlags)
+
+bool FPCGAttributeNoiseInvalidTypeTest::RunTest(const FString& Parameters)
+{
+	PCGTestsCommon::FTestData TestData;
+	UPCGAttributeNoiseSettings* Settings = PCGTestsCommon::GenerateSettings<UPCGAttributeNoiseSettings>(TestData);
+	check(Settings);
+
+	Settings->InputSource.SetAttributeName(TEXT("MyStr"));
+
+	UPCGPointData* PointData = PCGTestsCommon::CreateRandomPointData(/*PointCount*/5, /*Seed*/ 42, /*bRandomDensity=*/true);
+	FPCGMetadataAttribute<FString>* StrAttribute = PointData->Metadata->CreateAttribute<FString>(TEXT("MyStr"), FString{}, /*bAllowInterpolation=*/false, /*bOverrideParent=*/false);
+	for (FPCGPoint& Point : PointData->GetMutablePoints())
+	{
+		PointData->Metadata->InitializeOnSet(Point.MetadataEntry);
+		StrAttribute->SetValue(Point.MetadataEntry, TEXT("Hey"));
+	}
+
+	FPCGTaggedData& TaggedData = TestData.InputData.TaggedData.Emplace_GetRef();
+	TaggedData.Data = PointData;
+	TaggedData.Pin = PCGPinConstants::DefaultInputLabel;
+
+	FPCGElementPtr NoiseElement = TestData.Settings->GetElement();
+	TUniquePtr<FPCGContext> Context = TestData.InitializeTestContext();
+
+	AddExpectedError(TEXT("Attribute/Property 'MyStr' is not a numerical type, we can't apply noise to it."));
+
+	while (!NoiseElement->Execute(Context.Get())) {}
+
+	UTEST_EQUAL("No output", Context->OutputData.TaggedData.Num(), 0);
+
+	return true;
+}
+
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeNoiseAttributeSetTest, FPCGTestBaseClass, "Plugins.PCG.AttributeNoise.AttributeSet", PCGTestsCommon::TestFlags)
+
+bool FPCGAttributeNoiseAttributeSetTest::RunTest(const FString& Parameters)
+{
+	PCGTestsCommon::FTestData TestData(42);
+	UPCGAttributeNoiseSettings* Settings = PCGTestsCommon::GenerateSettings<UPCGAttributeNoiseSettings>(TestData);
+	check(Settings);
+
+	const FName InputAttrName = TEXT("Attr");
+	const FName OutputAttrName = TEXT("OutAttr");
+	constexpr int32 NbElements = 5;
+
+	Settings->InputSource.SetAttributeName(InputAttrName);
+	Settings->OutputTarget.SetAttributeName(OutputAttrName);
+
+	UPCGParamData* ParamData = NewObject<UPCGParamData>();
+	FPCGMetadataAttribute<float>* FloatAttribute = ParamData->Metadata->CreateAttribute<float>(InputAttrName, 0.f, /*bAllowInterpolation=*/true, /*bOverrideParent=*/false);
+	for (int32 i = 0; i < NbElements; ++i)
+	{
+		FloatAttribute->SetValue(ParamData->Metadata->AddEntry(), (float)i / NbElements);
+	}
+
+	FPCGTaggedData& TaggedData = TestData.InputData.TaggedData.Emplace_GetRef();
+	TaggedData.Data = ParamData;
+	TaggedData.Pin = PCGPinConstants::DefaultInputLabel;
+
+	FPCGElementPtr NoiseElement = TestData.Settings->GetElement();
+	TUniquePtr<FPCGContext> Context = TestData.InitializeTestContext();
+
+	while (!NoiseElement->Execute(Context.Get())) {}
+
+	UTEST_EQUAL("1 output", Context->OutputData.TaggedData.Num(), 1);
+
+	const UPCGParamData* OutParamData = Cast<const UPCGParamData>(Context->OutputData.TaggedData[0].Data);
+	UTEST_NOT_NULL("Output is param", OutParamData);
+
+	const FPCGMetadataAttribute<float>* OutAttribute = OutParamData->Metadata->GetConstTypedAttribute<float>(OutputAttrName);
+	UTEST_NOT_NULL("Output attrbiute exists", OutAttribute);
+
+	// Taken from execution
+	const float ExpectedValues[NbElements] = { 0.382462f, 0.193192f, 0.134616f, 0.782528f, 0.084569f };
+	for (int32 i = 0; i < NbElements; ++i)
+	{
+		float Value = OutAttribute->GetValueFromItemKey(PCGMetadataEntryKey(i));
+		UTEST_EQUAL(FString::Printf(TEXT("Value %d is noised as expected"), i), Value, ExpectedValues[i]);
+	}
+
+	return true;
+}
+
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeNoiseOutputAttributeExistingTest, FPCGTestBaseClass, "Plugins.PCG.AttributeNoise.OutputAttributeExisting", PCGTestsCommon::TestFlags)
+
+bool FPCGAttributeNoiseOutputAttributeExistingTest::RunTest(const FString& Parameters)
+{
+	PCGTestsCommon::FTestData TestData(42);
+	UPCGAttributeNoiseSettings* Settings = PCGTestsCommon::GenerateSettings<UPCGAttributeNoiseSettings>(TestData);
+	check(Settings);
+
+	const FName InputAttrName = TEXT("Attr");
+	constexpr int32 NbElements = 5;
+
+	Settings->InputSource.Update(TEXT("Attr.X"));
+	Settings->OutputTarget.Update(TEXT("Attr.Z"));
+
+	UPCGParamData* ParamData = NewObject<UPCGParamData>();
+	FPCGMetadataAttribute<FVector>* VectorAttribute = ParamData->Metadata->CreateAttribute<FVector>(InputAttrName, FVector::ZeroVector, /*bAllowInterpolation=*/true, /*bOverrideParent=*/false);
+	for (int32 i = 0; i < NbElements; ++i)
+	{
+		VectorAttribute->SetValue(ParamData->Metadata->AddEntry(), FVector((double)i / NbElements));
+	}
+
+	FPCGTaggedData& TaggedData = TestData.InputData.TaggedData.Emplace_GetRef();
+	TaggedData.Data = ParamData;
+	TaggedData.Pin = PCGPinConstants::DefaultInputLabel;
+
+	FPCGElementPtr NoiseElement = TestData.Settings->GetElement();
+	TUniquePtr<FPCGContext> Context = TestData.InitializeTestContext();
+
+	while (!NoiseElement->Execute(Context.Get())) {}
+
+	UTEST_EQUAL("1 output", Context->OutputData.TaggedData.Num(), 1);
+
+	const UPCGParamData* OutParamData = Cast<const UPCGParamData>(Context->OutputData.TaggedData[0].Data);
+	UTEST_NOT_NULL("Output is param", OutParamData);
+
+	const FPCGMetadataAttribute<FVector>* OutAttribute = OutParamData->Metadata->GetConstTypedAttribute<FVector>(InputAttrName);
+	UTEST_NOT_NULL("Output attrbiute exists", OutAttribute);
+
+	// Taken from execution
+	const double ExpectedValues[NbElements] = { 0.382462, 0.193192, 0.134616, 0.782528, 0.084569 };
+	for (int32 i = 0; i < NbElements; ++i)
+	{
+		FVector Value = OutAttribute->GetValueFromItemKey(PCGMetadataEntryKey(i));
+		UTEST_EQUAL(FString::Printf(TEXT("Value %d for X component is the same"), i), Value.X, (double)i / NbElements);
+		UTEST_EQUAL(FString::Printf(TEXT("Value %d for Z component is noised as expected"), i), Value.Z, ExpectedValues[i]);
+	}
+
+	return true;
 }
