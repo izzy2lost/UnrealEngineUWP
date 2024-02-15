@@ -909,6 +909,10 @@ TArray<UAvaRundown::FLoadedInstanceInfo> UAvaRundown::LoadPage(int32 InPageId,  
 		}
 
 		UAvaRundownPagePlayer::SetInstanceUserDataFromPage(*PlaybackInstance, Page);
+		if (bInPreview)
+		{
+			PlaybackInstance->GetPlayback()->SetPreviewChannelName(ChannelName);
+		}
 		PlaybackInstance->GetPlayback()->LoadInstances();
 		PlaybackInstance->UpdateStatus();
 		PlaybackInstance->Recycle();
