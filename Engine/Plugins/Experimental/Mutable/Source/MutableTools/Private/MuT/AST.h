@@ -222,6 +222,11 @@ namespace mu
 
 		int32 MinTextureResidentMipCount = 0;
 
+		/** This flag controls the splitting of image data into mips to store separately. It is usually necessary to
+		* be able to generate progressive textures (for texture streaming).
+		*/
+		bool bSeparateImageMips = true;
+
 		/** Structure used to speedup mesh constant comparison. */
 		struct FDeduplicationMeshFuncs : TDefaultMapHashableKeyFuncs<Ptr<const Mesh>, int32, false>
 		{
