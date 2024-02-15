@@ -130,7 +130,7 @@ protected:
 
 	/** If true, will include children too and update their sort priority */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetIncludeChildren", Getter="GetIncludeChildren", Category="TranslucentPriority", meta=(AllowPrivateAccess="true"))
-	bool bIncludeChildren = false;
+	bool bIncludeChildren = true;
 
 	/** The components this modifier is managing */
 	UPROPERTY()
