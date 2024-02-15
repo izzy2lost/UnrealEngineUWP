@@ -624,7 +624,6 @@ IAllocatedVirtualTexture* FVirtualTextureSystem::AllocateVirtualTexture(FRHIComm
 	uint32 WidthInBlocks = 0u;
 	uint32 HeightInBlocks = 0u;
 	uint32 DepthInTiles = 0u;
-	bool bSupport16BitPageTable = true;
 	FVirtualTextureProducer* ProducerForLayer[VIRTUALTEXTURE_SPACE_MAXLAYERS] = { nullptr };
 	bool bAnyLayerProducerWantsPersistentHighestMip = false;
 	for (uint32 LayerIndex = 0u; LayerIndex < Desc.NumTextureLayers; ++LayerIndex)
@@ -643,10 +642,6 @@ IAllocatedVirtualTexture* FVirtualTextureSystem::AllocateVirtualTexture(FRHIComm
 			uint32 ProducerLayerIndex = Desc.ProducerLayerIndex[LayerIndex];
 			uint32 ProducerPhysicalGroup = Producer->GetPhysicalGroupIndexForTextureLayer(ProducerLayerIndex);
 			FVirtualTexturePhysicalSpace* PhysicalSpace = Producer->GetPhysicalSpaceForPhysicalGroup(ProducerPhysicalGroup);
-			if (!PhysicalSpace->DoesSupport16BitPageTable())
-			{
-				bSupport16BitPageTable = false;
-			}
 			bAnyLayerProducerWantsPersistentHighestMip |= Producer->GetDescription().bPersistentHighestMip;
 		}
 	}

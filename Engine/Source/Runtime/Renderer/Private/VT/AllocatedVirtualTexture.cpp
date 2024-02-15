@@ -2,11 +2,21 @@
 
 #include "AllocatedVirtualTexture.h"
 
+#include "Misc/StringBuilder.h"
 #include "VT/VirtualTextureScalability.h"
 #include "VT/VirtualTextureSystem.h"
 #include "VT/VirtualTextureSpace.h"
 #include "VT/VirtualTexturePhysicalSpace.h"
-#include "Misc/StringBuilder.h"
+
+bool GSupport16BitPageTable = true;
+static FAutoConsoleVariableRef CVarVTSupport16BitPageTable(
+	TEXT("r.VT.Support16BitPageTable"),
+	GSupport16BitPageTable,
+	TEXT("Enable support for 16 bit page table entries.\n")
+	TEXT("This can reduce page table memory when only 16bit addressing is needed.\n")
+	TEXT("But this can increase the number of page table spaces required when a mixture of 16bit and 32bit addressing is needed.\n")
+	TEXT("Defaults on.\n"),
+	ECVF_ReadOnly);
 
 FAllocatedVirtualTexture::FAllocatedVirtualTexture(
 	FRHICommandListBase& RHICmdList,
@@ -74,7 +84,7 @@ FAllocatedVirtualTexture::FAllocatedVirtualTexture(
 	LockOrUnlockTiles(InSystem, true);
 
 	// Use 16bit page table entries if all physical spaces are small enough
-	bool bSupport16BitPageTable = true;
+	bool bSupport16BitPageTable = GSupport16BitPageTable;
 	for (int32 Index = 0; Index < UniquePageTableLayers.Num(); ++Index)
 	{
 		const FVirtualTexturePhysicalSpace* PhysicalSpace = UniquePageTableLayers[Index].PhysicalSpace;
