@@ -504,6 +504,7 @@ namespace mu
 			// Don't generate mips during linking here.
 			FLinkerOptions LinkerOptions(ImOp);
 			LinkerOptions.MinTextureResidentMipCount = 255;
+			LinkerOptions.bSeparateImageMips = false;
 
 			TSharedPtr<const Model> model = MakeShared<Model>();
 			ASTOp::FullLink(SourceCloned, model->GetPrivate()->m_program, &LinkerOptions);
