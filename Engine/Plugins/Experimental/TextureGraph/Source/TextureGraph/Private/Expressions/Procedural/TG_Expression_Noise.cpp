@@ -43,9 +43,14 @@ void UTG_Expression_Noise::Evaluate(FTG_EvaluationContext* InContext)
 
 	Desc.DefaultValue = FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);
 
-	if (Desc.Width <= 0 || Desc.Height <= 0)
+	if (Desc.Width <= 0)
 	{
-		Desc.Width = Desc.Height = DefaultSize;
+		Desc.Width = DefaultSize;
+	}
+	
+	if(Desc.Height <= 0)
+	{
+		Desc.Height = DefaultSize;
 	}
 
 	Output = RenderJob->InitResult(Name, &Desc);

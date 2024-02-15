@@ -61,12 +61,16 @@ TiledBlobPtr T_MaterialIDMask::Create(MixUpdateCyclePtr InCycle, TiledBlobPtr In
 
 	Desc.DefaultValue = FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);
 
-	if (Desc.Width <= 0 || Desc.Height <= 0)
+	if (Desc.Width <= 0) 
 	{
 		Desc.Width = InMaterialIDTexture->GetWidth();
-		Desc.Height = InMaterialIDTexture->GetHeight();
 	}
 
+	if(Desc.Height <= 0)
+	{
+		Desc.Height = InMaterialIDTexture->GetHeight();
+	}
+	
 	auto Result = JobPtr->InitResult(MaterialIDMaskMat->GetName(), &Desc);
 
 	InCycle->AddJob(InTargetId, std::move(JobPtr));

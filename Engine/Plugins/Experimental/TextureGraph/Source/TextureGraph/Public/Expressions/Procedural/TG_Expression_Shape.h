@@ -59,7 +59,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NoCategory, meta = (TGType = "TG_Setting", UIMin = "-180", ClampMin = "-180", UIMax = "180", ClampMax = "180", Delta = "1", Units = "Degrees", EditConditionHides))
 	float								Orientation = 0.0f;
 
-	// Rounding ts about the 2D footprint of the shape generated, 0 means the perfect shape, 1 means the most rounded version of the shape
+	// Rounding is about the 2D footprint of the shape generated, 0 means the perfect shape, 1 means the most rounded version of the shape
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NoCategory, meta = (TGType = "TG_Setting", ClampMin = 0, ClampMax = 1, EditConditionHides))
 	float								Rounding = 0.0f;
 
