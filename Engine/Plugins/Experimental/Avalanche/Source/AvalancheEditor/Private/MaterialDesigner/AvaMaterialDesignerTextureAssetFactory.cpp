@@ -187,6 +187,7 @@ AActor* UAvaMaterialDesignerTextureAssetFactory::SpawnActor(UObject* InAsset, UL
 
 	TextureValue->SetValue(Texture);
 	RectangleMesh->SetMaterial(UAvaShapeDynamicMeshBase::MESH_INDEX_PRIMARY, NewInstance);
+	RectangleMesh->SetMaterialUVMode(UAvaShapeDynamicMeshBase::MESH_INDEX_PRIMARY, EAvaShapeUVMode::Stretch);
 
 	return InNewActor;
 }

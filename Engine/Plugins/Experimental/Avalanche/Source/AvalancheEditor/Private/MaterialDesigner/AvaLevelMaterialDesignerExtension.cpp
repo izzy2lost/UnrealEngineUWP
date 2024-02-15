@@ -93,7 +93,7 @@ TSharedRef<FExtender> FAvaLevelMaterialDesignerExtension::OnExtendContentBrowser
 						LOCTEXT("AddTextureToScene", "Add Texture To Scene"),
 						LOCTEXT("AddTextureToSceneTooltip", "Creates a parametric shape in the scene the same size as the texture and creates a Material Designer asset on using this texture."),
 						FSlateIconFinder::FindIconForClass(UMaterial::StaticClass()),
-						FUIAction(FExecuteAction::CreateStatic(&FAvaLevelMaterialDesignerExtension::OpenHeaderViewForAsset, InSelectedAssets[0]))
+						FUIAction(FExecuteAction::CreateStatic(&FAvaLevelMaterialDesignerExtension::AddTextureToSene, InSelectedAssets[0]))
 					);
 				})
 			);
@@ -103,7 +103,7 @@ TSharedRef<FExtender> FAvaLevelMaterialDesignerExtension::OnExtendContentBrowser
 	return Extender;
 }
 
-void FAvaLevelMaterialDesignerExtension::OpenHeaderViewForAsset(FAssetData InAssetData)
+void FAvaLevelMaterialDesignerExtension::AddTextureToSene(FAssetData InAssetData)
 {
 	const TArray<TSharedPtr<IAvaViewportClient>> LevelViewportClients = FAvaLevelViewportExtension::GetLevelEditorViewportClients();
 
