@@ -21,6 +21,7 @@ namespace EpicGames.Core
 		public FilePatternException(string message)
 			: base(message)
 		{
+			Type = FilePatternExceptionType.Unknown;
 		}
 
 		/// <summary>
@@ -29,13 +30,31 @@ namespace EpicGames.Core
 		public FilePatternException(string format, params object[] args)
 			: base(String.Format(format, args))
 		{
+			Type = FilePatternExceptionType.Unknown;
 		}
 
+		public FilePatternException(FilePatternExceptionType InType, string format, params object[] args)
+			: base(String.Format(format, args))
+		{
+			Type = InType;
+		}
+
+		public FilePatternExceptionType GetFilePatternExceptionType() 
+		{ 
+			return Type; 
+		}
 		/// <inheritdoc/>
 		public override string ToString()
 		{
 			return Message;
 		}
+		public enum FilePatternExceptionType
+		{
+			Unknown,
+			SourceFileDoesNotExist,
+			SourceFileNotUnderBaseDir
+		};
+		FilePatternExceptionType Type;
 	}
 
 	/// <summary>
@@ -390,7 +409,7 @@ namespace EpicGames.Core
 				}
 				else
 				{
-					throw new FilePatternException("Source file '{0}' does not exist", sourceFile);
+					throw new FilePatternException(FilePatternException.FilePatternExceptionType.SourceFileDoesNotExist, "Source file '{0}' does not exist", sourceFile);
 				}
 			}
 
@@ -420,11 +439,11 @@ namespace EpicGames.Core
 			{
 				if(!inputFile.IsUnderDirectory(baseDirectory))
 				{
-					throw new FilePatternException("Source file '{0}' is not under '{1}'", inputFile, baseDirectory);
+					throw new FilePatternException(FilePatternException.FilePatternExceptionType.SourceFileNotUnderBaseDir, "Source file '{0}' is not under '{1}'", inputFile, baseDirectory);
 				}
 				else if(!FileReference.Exists(inputFile))
 				{
-					throw new FilePatternException("Source file '{0}' does not exist", inputFile);
+					throw new FilePatternException(FilePatternException.FilePatternExceptionType.SourceFileDoesNotExist, "Source file '{0}' does not exist", inputFile);
 				}
 				else
 				{
