@@ -557,8 +557,12 @@ void UEditUVIslandsTool::UpdateChangeFromROI(bool bFinal)
 	}
 
 	FDynamicMesh3* Mesh = DynamicMeshComponent->GetMesh();
-	//const TSet<int>& ModifiedVertices = LinearDeformer.GetModifiedVertices();
-	//ActiveVertexChange->SavePositions(Mesh, ModifiedVertices, !bFinal);
+	TArray<int32> ModifiedUVs;
+	for (FEditIsland& Island : ActiveIslands)
+	{
+		ModifiedUVs.Append(Island.UVs);
+	}
+	ActiveVertexChange->SaveOverlayUVs(Mesh, ModifiedUVs, !bFinal);
 }
 
 
@@ -566,7 +570,7 @@ void UEditUVIslandsTool::BeginChange()
 {
 	if (ActiveVertexChange == nullptr)
 	{
-		ActiveVertexChange = new FMeshVertexChangeBuilder();
+		ActiveVertexChange = new FMeshVertexChangeBuilder(EMeshVertexChangeComponents::OverylayUVs);
 		UpdateChangeFromROI(false);
 	}
 }
