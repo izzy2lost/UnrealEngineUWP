@@ -49,10 +49,14 @@ public:
 
 	// Any files with the same name will be overwritten instead of creating a new file with a numeric suffix.
 	// This is useful when iterating on a batch process.
+	bool bUseSourcePath = false;
+	
+	// Any files with the same name will be overwritten instead of creating a new file with a numeric suffix.
+	// This is useful when iterating on a batch process.
 	bool bOverwriteExistingFiles = false;
 
 	// Duplicates and retargets any animation assets referenced by the input assets. For example, sequences in an animation blueprint or blendspace.
-	bool bRetargetAndConnectReferencedAssets = true;
+	bool bIncludeReferencedAssets = true;
 
 	// Will not produce keys on bones that are not animated, reducing size on disk of the resulting files.
 	bool bExportOnlyAnimatedBones = true;
@@ -63,7 +67,7 @@ public:
 		SourceMesh = nullptr;
 		TargetMesh = nullptr;
 		IKRetargetAsset = nullptr;
-		bRetargetAndConnectReferencedAssets = true;
+		bIncludeReferencedAssets = true;
 		NameRule.Prefix = "";
 		NameRule.Suffix = "";
 		NameRule.ReplaceFrom = "";
@@ -111,7 +115,7 @@ public:
 		const FString& Replace = "",
 		const FString& Prefix = "",
 		const FString& Suffix = "",
-		const bool bRemapReferencedAssets=true);
+		const bool bIncludeReferencedAssets=true);
 	
 	// Actually run the process to duplicate and retarget the assets for the given context
 	void RunRetarget(FIKRetargetBatchOperationContext& Context);

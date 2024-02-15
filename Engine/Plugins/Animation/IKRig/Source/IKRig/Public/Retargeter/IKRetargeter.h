@@ -224,7 +224,7 @@ public:
 	UIKRigDefinition* GetIKRigWriteable(ERetargetSourceOrTarget SourceOrTarget) const;
 	#if WITH_EDITORONLY_DATA
 	// Get read-only access to preview meshes
-	const USkeletalMesh* GetPreviewMesh(ERetargetSourceOrTarget SourceOrTarget) const;
+	USkeletalMesh* GetPreviewMesh(ERetargetSourceOrTarget SourceOrTarget) const;
 	#endif
 
 	// Get read-only access to the chain mapping 

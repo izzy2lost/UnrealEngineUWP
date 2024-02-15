@@ -78,7 +78,7 @@ int32 UIKRetargetBatchOperation::GenerateAssetLists(const FIKRetargetBatchOperat
 		}
 	}
 
-	if (Context.bRetargetAndConnectReferencedAssets)
+	if (Context.bIncludeReferencedAssets)
 	{
 		// Grab assets from the blueprint.
 		// Do this first as it can add complex assets to the retarget array which will need to be processed next.
@@ -103,7 +103,7 @@ void UIKRetargetBatchOperation::DuplicateRetargetAssets(
 	FScopedSlowTask& Progress)
 {
 	Progress.EnterProgressFrame(1.f, FText(LOCTEXT("DuplicatingBatchRetarget", "Duplicating animation assets...")));
-
+	
 	UPackage* DestinationPackage = Context.TargetMesh->GetOutermost();
 
 	TArray<UAnimationAsset*> AnimationAssetsToDuplicate = AnimationAssetsToRetarget;
@@ -125,8 +125,15 @@ void UIKRetargetBatchOperation::DuplicateRetargetAssets(
 
 		FString AssetName = Asset->GetName();
 		Progress.EnterProgressFrame(1.f, FText::Format(LOCTEXT("DuplicatingAnimation", "Duplicating animation: {0}"), FText::FromString(AssetName)));
+
+		// if user wants to export files to the same location as the source, then replace the FolderPath in the duplication rule
+		FNameDuplicationRule NameRule = Context.NameRule;
+		if (Context.bUseSourcePath)
+		{
+			NameRule.FolderPath = FPackageName::GetLongPackagePath(Asset->GetPathName()) / TEXT("");
+		}
 		
-		TMap<UAnimationAsset*, UAnimationAsset*> DuplicateMap = DuplicateAssets<UAnimationAsset>({Asset}, DestinationPackage, &Context.NameRule);
+		TMap<UAnimationAsset*, UAnimationAsset*> DuplicateMap = DuplicateAssets<UAnimationAsset>({Asset}, DestinationPackage, &NameRule);
 		DuplicatedAnimAssets.Append(DuplicateMap);
 	}
 	for (UAnimBlueprint* Asset : AnimBlueprintsToDuplicate)
@@ -138,8 +145,15 @@ void UIKRetargetBatchOperation::DuplicateRetargetAssets(
 
 		FString AssetName = Asset->GetName();
 		Progress.EnterProgressFrame(1.f, FText::Format(LOCTEXT("DuplicatingBlueprint", "Duplicating blueprint: {0}"), FText::FromString(AssetName)));
+
+		// if user wants to export files to the same location as the source, then replace the FolderPath in the duplication rule
+		FNameDuplicationRule NameRule = Context.NameRule;
+		if (Context.bUseSourcePath)
+		{
+			NameRule.FolderPath = FPackageName::GetLongPackagePath(Asset->GetPathName()) / TEXT("");
+		}
 		
-		TMap<UAnimBlueprint*, UAnimBlueprint*> DuplicateMap = DuplicateAssets<UAnimBlueprint>({Asset}, DestinationPackage, &Context.NameRule);
+		TMap<UAnimBlueprint*, UAnimBlueprint*> DuplicateMap = DuplicateAssets<UAnimBlueprint>({Asset}, DestinationPackage, &NameRule);
 		DuplicatedBlueprints.Append(DuplicateMap);
 	}
 
@@ -601,30 +615,39 @@ void UIKRetargetBatchOperation::OverwriteExistingAssets(const FIKRetargetBatchOp
 		UAnimationAsset* NewAsset = Pair.Value;
 		
 		// get desired name
-		FString PathName = Context.NameRule.FolderPath;
 		FString DesiredObjectName = Context.NameRule.Rename(OldAsset);
 		if (NewAsset->GetName() == DesiredObjectName)
 		{
 			// asset was not renamed due to collision with existing asset, so there's nothing to replace
 			continue;
 		}
+
+		// destination path
+		FString PathName = FPackageName::GetLongPackagePath(NewAsset->GetPathName());
 		FString DesiredPackageName = PathName + "/" + DesiredObjectName;
 		FString DesiredObjectPath = DesiredPackageName + "." + DesiredObjectName;
 		FAssetData AssetDataToReplace = AssetRegistryModule.Get().GetAssetByObjectPath(FSoftObjectPath(DesiredObjectPath));
-		const bool bHasDuplicateToReplace = AssetDataToReplace.IsValid() && AssetDataToReplace.GetAsset() == OldAsset;
+		const bool bHasDuplicateToReplace = AssetDataToReplace.IsValid() && AssetDataToReplace.GetAsset()->GetClass() == OldAsset->GetClass();
 		if (!bHasDuplicateToReplace)
 		{
 			// this could happen if the desired name was already in use by a different asset type
 			continue;
 		}
 
-		// reroute all references from old asset to new asset
-		TArray<UObject*> AssetsToReplace = {OldAsset};
-		ObjectTools::ForceReplaceReferences(NewAsset, AssetsToReplace);
+		UObject* AssetToReplace = AssetDataToReplace.GetAsset();
+		if (AssetToReplace == OldAsset)
+		{
+			// we only replace previously retargeted animations, never the original
+			continue;
+		}
 
-		// delete the old asset
-		ObjectTools::ForceDeleteObjects({OldAsset}, false /*bShowConfirmation*/);
+		// reroute all references from old asset to new asset
+		TArray<UObject*> AssetsToReplace = {AssetToReplace};
+		ObjectTools::ForceReplaceReferences(NewAsset, AssetsToReplace);
 		
+		// delete the old asset
+		ObjectTools::ForceDeleteObjects({AssetToReplace}, false /*bShowConfirmation*/);
+			
 		// rename the new asset with the desired name
 		FString CurrentAssetPath = NewAsset->GetPathName();
 		TArray<FAssetRenameData> AssetsToRename = { FAssetRenameData(CurrentAssetPath, DesiredObjectPath) };
@@ -725,7 +748,7 @@ TArray<FAssetData> UIKRetargetBatchOperation::DuplicateAndRetarget(
 	const FString& Replace,
 	const FString& Prefix,
 	const FString& Suffix,
-	const bool bRemapReferencedAssets)
+	const bool bIncludeReferencedAssets)
 {
 	// fill the context with all the data needed to run a batch retarget
 	FIKRetargetBatchOperationContext Context;
@@ -743,7 +766,7 @@ TArray<FAssetData> UIKRetargetBatchOperation::DuplicateAndRetarget(
 	Context.NameRule.Suffix = Suffix;
 	Context.NameRule.ReplaceFrom = Search;
 	Context.NameRule.ReplaceTo = Replace;
-	Context.bRetargetAndConnectReferencedAssets = bRemapReferencedAssets;
+	Context.bIncludeReferencedAssets = bIncludeReferencedAssets;
 
 	// actually run the batch operation
 	UIKRetargetBatchOperation* BatchOperation = NewObject<UIKRetargetBatchOperation>();

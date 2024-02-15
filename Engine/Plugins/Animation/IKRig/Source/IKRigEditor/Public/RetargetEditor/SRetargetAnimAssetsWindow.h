@@ -39,23 +39,11 @@ public:
 
 private:
 	
-	void OnPathChange(const FString& NewPath);
 	FReply OnButtonClick(EAppReturnType::Type ButtonID);
 	
-	// modifying Rename Prefix
-	FText GetPrefixName() const;
-	void SetPrefixName(const FText &InText);
-	// modifying Rename Suffix
-	FText GetSuffixName() const;
-	void SetSuffixName(const FText &InText);
-	// modifying Search/Replace text
-	FText GetReplaceFrom() const;
-	void SetReplaceFrom(const FText &InText);
-	FText GetReplaceTo() const;
-	void SetReplaceTo(const FText &InText);
 	// example rename text
-	FText GetExampleText() const;
 	void UpdateExampleText();
+	
 	// modify folder output path
 	FText GetFolderPath() const;
 
@@ -86,7 +74,7 @@ public:
 
 	// Duplicates and retargets any animation assets referenced by the input assets. For example, sequences in an animation blueprint or blendspace.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "File")
-	bool bRetargetAndConnectReferencedAssets = true;
+	bool bIncludeReferencedAssets = true;
 
 	// Will not produce keys on bones that are not animated, reducing size on disk of the resulting files.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Animation")
@@ -295,8 +283,8 @@ public:
 
 private:
 
-	void SetRetargetAsset(UIKRetargeter* RetargeterToUse);
-	void SetSkeletalMesh(USkeletalMesh* Mesh, ERetargetSourceOrTarget SourceOrTarget);
+	void SetAssets(USkeletalMesh* SourceMesh, USkeletalMesh* TargetMesh, UIKRetargeter* Retargeter);
+	void ShowAssetWarnings();
 
 	void OnFinishedChangingSelectionProperties(const FPropertyChangedEvent& PropertyChangedEvent);
 
