@@ -682,7 +682,7 @@ void UCustomizableObjectPrivate::LoadCompiledData(FArchive& MemoryReader, const 
 		MemoryReader << GetPublic()->LODSettings.NumLODsToStream;
 		MemoryReader << GetPublic()->LODSettings.bLODStreamingEnabled;
 
-		bool bForceRecompilation = false;
+		bool bInvalidateModel = false;
 
 		// Editor Only data
 		{
@@ -706,16 +706,16 @@ void UCustomizableObjectPrivate::LoadCompiledData(FArchive& MemoryReader, const 
 							const FGuid PackageGuid = AssetPackageData.PackageGuid;
 						PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-							bForceRecompilation = PackageGuid != ParticipatingObject.Value;
+							bInvalidateModel = PackageGuid != ParticipatingObject.Value;
 					}
 					else
 					{
-						bForceRecompilation = true;
+						bInvalidateModel = true;
 					}
 
-					if (bForceRecompilation)
+					if (bInvalidateModel)
 					{
-						UE_LOG(LogMutable, Display, TEXT("Forcing recompilation due to changes in %s."), *ParticipatingObject.Key.ToString());
+						UE_LOG(LogMutable, Display, TEXT("Invalidating compiled data due to changes in %s."), *ParticipatingObject.Key.ToString());
 						break;
 					}
 				}
@@ -725,7 +725,7 @@ void UCustomizableObjectPrivate::LoadCompiledData(FArchive& MemoryReader, const 
 		bool bModelSerialized = false;
 		MemoryReader << bModelSerialized;
 
-		if (bModelSerialized && !bForceRecompilation)
+		if (bModelSerialized && !bInvalidateModel)
 		{
 			UnrealMutableInputStream stream(MemoryReader);
 			mu::InputArchive arch(&stream);
