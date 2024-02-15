@@ -16,6 +16,13 @@
 #include <mimalloc-override.h>
 #endif
 
+#if PLATFORM_WINDOWS && !defined(aligned_alloc)
+#define aligned_alloc(a, s) _aligned_malloc(s, a)
+#define aligned_free(p) _aligned_free(p)
+#else
+#define aligned_free(p) free(p)
+#endif
+
 namespace uba
 {
 	template<typename T>

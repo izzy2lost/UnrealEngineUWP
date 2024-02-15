@@ -7,6 +7,8 @@ public class UbaVisualizer : ModuleRules
 {
 	public UbaVisualizer(ReadOnlyTargetRules Target) : base(Target)
 	{
+		PrivatePCHHeaderFile = "../Core/Public/UbaCorePch.h";
+
 		UnsafeTypeCastWarningLevel = WarningLevel.Error;
 		StaticAnalyzerDisabledCheckers.Clear();
 

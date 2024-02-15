@@ -58,7 +58,7 @@ namespace uba
 	void* MemoryBlock::Allocate(u64 bytes, u64 alignment, const tchar* hint)
 	{
 		if (!memory)
-			return malloc(bytes); // TODO: alignment?
+			return aligned_alloc(alignment, bytes);
 
 		ScopedWriteLock l(lock);
 		return AllocateNoLock(bytes, alignment, hint);
@@ -91,7 +91,7 @@ namespace uba
 	void MemoryBlock::Free(void* p)
 	{
 		if (!memory)
-			free(p);
+			aligned_free(p);
 	}
 
 	tchar* MemoryBlock::Strdup(const tchar* str)
