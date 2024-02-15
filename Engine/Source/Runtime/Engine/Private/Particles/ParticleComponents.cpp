@@ -2787,7 +2787,7 @@ void UParticleSystem::Serialize(FArchive& Ar)
 			if (DeviceProfile->GetConsolidatedCVarValue(TEXT("fx.PruneEmittersOnCookByDetailMode"), CVarDoPrune) && CVarDoPrune == 1)
 			{
 				// get the detail mode from the device platform ini; if it's not there, we assume all detail modes
-				int32 CVarDetailMode = 3;
+				int32 CVarDetailMode = PDM_DefaultValue;
 				if (DeviceProfile->GetConsolidatedCVarValue(TEXT("r.DetailMode"), CVarDetailMode))
 				{
 					CookTargetPlatformDetailModeMask = (1 << CVarDetailMode);

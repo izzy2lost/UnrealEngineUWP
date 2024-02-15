@@ -4033,11 +4033,12 @@ static TAutoConsoleVariable<int32> CVarFreeSkeletalMeshBuffers(
 
 static TAutoConsoleVariable<int32> CVarDetailMode(
 	TEXT("r.DetailMode"),
-	2,
+	3,
 	TEXT("Current detail mode; determines whether components of actors should be updated/ ticked.\n"
-		 " 0: low, show only object with DetailMode low or higher\n"
-		 " 1: medium, show all object with DetailMode medium or higher\n"
-		 " 2: high, show all objects (default)"),
+		" 0: low, show objects with DetailMode low\n"
+		" 1: medium, show objects with DetailMode medium or below\n"
+		" 2: high, show objects with DetailMode high or below\n"
+		" 3: epic, show all objects (default)"),
 	ECVF_Scalability | ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarCookOutUnusedDetailModeComponents(

@@ -1622,9 +1622,10 @@ class UKismetSystemLibrary : public UBlueprintFunctionLibrary
 
 	/**
 	 * Get the clamped state of r.DetailMode, see console variable help (allows for scalability, cannot be used in construction scripts)
-	 * 0: low, show only object with DetailMode low or higher
-	 * 1: medium, show all object with DetailMode medium or higher
-	 * 2: high, show all objects
+	 * 0: low, show objects with DetailMode low
+	 * 1: medium, show objects with DetailMode medium or below
+	 * 2: high, show objects with DetailMode high or below
+	 * 3: epic, show all objects
 	 */
 	UFUNCTION(BlueprintPure, Category="Rendering", meta=(UnsafeDuringActorConstruction = "true"))
 	static ENGINE_API int32 GetRenderingDetailMode();
