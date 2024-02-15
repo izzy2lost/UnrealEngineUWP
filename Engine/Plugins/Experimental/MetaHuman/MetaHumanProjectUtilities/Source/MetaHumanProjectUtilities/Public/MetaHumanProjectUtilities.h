@@ -58,4 +58,6 @@ public:
 	static void METAHUMANPROJECTUTILITIES_API SetBulkImportHandler(IMetaHumanBulkImportHandler* Handler);
 	// Main entry-point used by Quixel Bridge
 	static void METAHUMANPROJECTUTILITIES_API ImportAsset(const FMetaHumanAssetImportDescription& AssetImportDescription);
+	// Provide the Url for the versioning service to use
+	static void METAHUMANPROJECTUTILITIES_API OverrideVersionServiceUrl(const FString& BaseUrl);
 };
