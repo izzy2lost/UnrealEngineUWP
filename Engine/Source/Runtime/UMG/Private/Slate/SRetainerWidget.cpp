@@ -565,6 +565,16 @@ SRetainerWidget::EPaintRetainedContentResult SRetainerWidget::PaintRetainedConte
 				WidgetRenderer->ViewOffset = -ViewOffset;
 				WidgetRenderer->SetIsPrepassNeeded(false);
 
+				FVector2f WindowSize(RenderSize);
+				SWindow* PaintWindow = Context.WindowElementList->GetPaintWindow();
+				if (PaintWindow)
+				{
+					const FVector2f ViewportSize = PaintWindow->GetViewportSize();
+					WindowSize.X = FMath::Max(WindowSize.X, ViewportSize.X);
+					WindowSize.Y = FMath::Max(WindowSize.Y, ViewportSize.Y);
+				}
+				VirtualWindow->Resize(WindowSize);
+
 				bool bRepaintedWidgets = WidgetRenderer->DrawInvalidationRoot(VirtualWindow, RenderTarget, *this, Context, GDeferRetainedRenderingRenderThread != 0);
 				bRenderRequested = false;
 				Shared_WaitingToRender.Remove(this);
