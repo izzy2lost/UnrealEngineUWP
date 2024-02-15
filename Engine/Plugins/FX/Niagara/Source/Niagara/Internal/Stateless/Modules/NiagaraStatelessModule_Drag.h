@@ -17,7 +17,7 @@ class UNiagaraStatelessModule_Drag : public UNiagaraStatelessModule
 	static constexpr float DefaultDrag = 1.0f;
 
 public:
-	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (DisplayName = "Drag"))
+	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (DisplayName = "Drag", DisableBindingDistribution))
 	FNiagaraDistributionRangeFloat DragDistribution = FNiagaraDistributionRangeFloat(DefaultDrag);
 
 	virtual void BuildEmitterData(FNiagaraStatelessEmitterDataBuildContext& BuildContext) const override

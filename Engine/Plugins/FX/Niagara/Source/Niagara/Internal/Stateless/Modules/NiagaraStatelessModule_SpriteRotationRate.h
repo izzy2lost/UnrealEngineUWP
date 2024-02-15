@@ -13,26 +13,29 @@ class UNiagaraStatelessModule_SpriteRotationRate : public UNiagaraStatelessModul
 {
 	GENERATED_BODY()
 
+	struct FModuleBuiltData
+	{
+		FNiagaraStatelessRangeFloat		RotationRange;
+	};
+
 public:
 	using FParameters = NiagaraStateless::FSpriteRotationRateModule_ShaderParameters;
 
 	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (DisplayName = "Rotation Rate"))
 	FNiagaraDistributionRangeFloat RotationRateDistribution = FNiagaraDistributionRangeFloat(FNiagaraStatelessGlobals::GetDefaultSpriteRotationValue());
 
+	virtual void BuildEmitterData(FNiagaraStatelessEmitterDataBuildContext& BuildContext) const override
+	{
+		FModuleBuiltData* BuiltData = BuildContext.AllocateBuiltData<FModuleBuiltData>();
+		BuiltData->RotationRange = BuildContext.ConvertDistributionToRange(RotationRateDistribution, 0.0f, IsModuleEnabled());
+	}
+
 	virtual void SetShaderParameters(const FNiagaraStatelessSetShaderParameterContext& SetShaderParameterContext) const override
 	{
 		FParameters* Parameters = SetShaderParameterContext.GetParameterNestedStruct<FParameters>();
-		if (IsModuleEnabled())
-		{
-			const FNiagaraStatelessRangeFloat RotationRateRange = RotationRateDistribution.CalculateRange(FNiagaraStatelessGlobals::GetDefaultSpriteRotationValue());
-			Parameters->SpriteRotationRate_Scale	= RotationRateRange.GetScale();
-			Parameters->SpriteRotationRate_Bias		= RotationRateRange.Min;
-		}
-		else
-		{
-			Parameters->SpriteRotationRate_Scale	= 0.0f;
-			Parameters->SpriteRotationRate_Bias		= 0.0f;
-		}
+		const FModuleBuiltData* ModuleBuiltData = SetShaderParameterContext.ReadBuiltData<FModuleBuiltData>();
+
+		SetShaderParameterContext.ConvertRangeToScaleBias(ModuleBuiltData->RotationRange, Parameters->SpriteRotationRate_Scale, Parameters->SpriteRotationRate_Bias);
 	}
 
 #if WITH_EDITOR
