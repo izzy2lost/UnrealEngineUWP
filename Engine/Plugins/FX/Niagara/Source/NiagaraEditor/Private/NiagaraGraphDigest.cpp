@@ -2110,6 +2110,7 @@ void FNiagaraCompilationNodeEmitter::BuildParameterMapHistory(FParameterMapHisto
 			TArray<FNiagaraVariable> LocalStaticVars;
 			FNiagaraParameterUtilities::FilterToRelevantStaticVariables(Builder.StaticVariables, LocalStaticVars, *EmitterUniqueName, TEXT("Emitter"), true);
 			ChildBuilder.RegisterExternalStaticVariables(LocalStaticVars);
+			ChildBuilder.AvailableCollections->EditCollections() = Builder.AvailableCollections->ReadCollections();
 
 			FString LocalEmitterName = TEXT("Emitter");
 			ChildBuilder.EnterEmitter(LocalEmitterName, CalledGraph.Get(), this);
