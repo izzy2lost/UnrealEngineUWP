@@ -332,9 +332,12 @@ public:
 
 	virtual FNiagaraCompilationGraphDigested* AsDigested() override { return this; }
 
+	using FDataInterfaceCDOMap = TMap<TObjectPtr<UClass>, TObjectPtr<UNiagaraDataInterface>>;
+	void CollectReferencedDataInterfaceCDO(FDataInterfaceCDOMap& Interfaces) const;
+
 	using FDataInterfaceDuplicateMap = TMap<TObjectKey<UNiagaraDataInterface>, TObjectPtr<UNiagaraDataInterface>>;
 	FDataInterfaceDuplicateMap CachedDataInterfaceDuplicates;
-	TMap<TObjectPtr<UClass>, TObjectPtr<UNiagaraDataInterface>> CachedDataInterfaceCDODuplicates;
+	FDataInterfaceCDOMap CachedDataInterfaceCDODuplicates;
 	TMap<FName, TObjectPtr<UObject>> CachedNamedObjectAssets;
 
 	TWeakObjectPtr<const UNiagaraGraph> SourceGraph;
@@ -345,6 +348,8 @@ protected:
 		const FNiagaraCompilationCopyData* CopyCompilationData,
 		const FNiagaraCompilationBranchMap& Branches,
 		TArray<FNiagaraCompilationNodeFunctionCall*>& PendingInstantiations) const;
+
+	TArray<const FNiagaraCompilationGraphDigested*> ChildGraphs;
 };
 
 // Instanced version of the compilation graph.  Created from a FNiagaraCompilationGraphDigested
@@ -353,7 +358,6 @@ protected:
 class FNiagaraCompilationGraphInstanced : public FNiagaraCompilationGraph
 {
 public:
-	void AggregateDataInterfaces(const FNiagaraCompilationGraphInstanced* ChildGraph);
 	void AggregateChildGraph(const FNiagaraCompilationGraphInstanced* ChildGraph);
 
 	void ResolveNumerics(FNiagaraCompilationGraphInstanceContext& Context);
@@ -362,10 +366,6 @@ public:
 	virtual FNiagaraCompilationGraphInstanced* AsInstanced() { return this; }
 
 	TSharedPtr<const FNiagaraCompilationGraph> InstantiationSourceGraph;
-
-	// the full collection of duplicated CDO data interfaces that are used by this graph (and all
-	// instanced graphs that it references).
-	TMap<TObjectPtr<UClass>, TObjectPtr<UNiagaraDataInterface>> AggregateDataInterfaceCDODuplicates;
 
 protected:
 	void ValidateRefinement() const;

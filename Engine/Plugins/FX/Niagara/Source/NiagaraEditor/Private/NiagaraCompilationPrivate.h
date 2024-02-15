@@ -195,7 +195,7 @@ public:
 
 	TArray<FSharedCompilationCopy> EmitterData;
 
-	TMap<UClass*, UNiagaraDataInterface*> AggregatedDataInterfaceCDODuplicates;
+	TMap<TObjectPtr<UClass>, TObjectPtr<UNiagaraDataInterface>> AggregatedDataInterfaceCDODuplicates;
 };
 
 //////////////////////////////////////////////////////////////////////////

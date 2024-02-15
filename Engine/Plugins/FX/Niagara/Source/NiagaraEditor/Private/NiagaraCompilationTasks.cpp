@@ -549,20 +549,6 @@ void FNiagaraSystemCompilationTask::FCompileGroupInfo::InstantiateCompileGraph(c
 	TArray<TSharedPtr<FNiagaraCompilationCopyData, ESPMode::ThreadSafe>> DependentRequests;
 	FCompileConstantResolver EmptyResolver;
 
-	TArray<UClass*> DataInterfaceClasses;
-
-	auto CollectDataInterfaceClasses = [&](TConstArrayView<FNiagaraVariable> Variables)
-	{
-		// Collect classes for external encounterable variables
-		for (const FNiagaraVariable& EncounterableVariable : Variables)
-		{
-			if (EncounterableVariable.IsDataInterface())
-			{
-				DataInterfaceClasses.AddUnique(EncounterableVariable.GetType().GetClass());
-			}
-		}
-	};
-
 	BasePtr.ValidUsages = ValidUsages;
 
 	// First deep copy all the emitter graphs referenced by the system so that we can later hook up emitter handles in the system traversal.
@@ -610,8 +596,6 @@ void FNiagaraSystemCompilationTask::FCompileGroupInfo::InstantiateCompileGraph(c
 				BasePtr.AggregatedDataInterfaceCDODuplicates.Append(EmitterData->AggregatedDataInterfaceCDODuplicates);
 			}
 		}
-
-		CollectDataInterfaceClasses(EncounterableSystemVariables);
 	}
 
 	// Now we can finish off the emitters.
