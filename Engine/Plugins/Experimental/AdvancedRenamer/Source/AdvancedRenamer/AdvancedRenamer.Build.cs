@@ -11,7 +11,7 @@ public class AdvancedRenamer : ModuleRules
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"CoreUObject",
+				"Core",
 			}
 		);
 
@@ -19,7 +19,7 @@ public class AdvancedRenamer : ModuleRules
 			new string[]
 			{
 				"ContentBrowser",
-				"Core",
+				"CoreUObject",
 				"Engine",
 				"InputCore",
 				"LevelEditor",

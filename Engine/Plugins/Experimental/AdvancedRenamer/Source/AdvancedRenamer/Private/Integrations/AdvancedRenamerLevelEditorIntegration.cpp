@@ -1,12 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Integrations/AdvancedRenamerLevelEditorIntegration.h"
-#include "AdvancedRenamerBlueprintLibrary.h"
 #include "AdvancedRenamerCommands.h"
 #include "Containers/Array.h"
 #include "Delegates/IDelegateInstance.h"
 #include "EditorModeManager.h"
 #include "GameFramework/Actor.h"
+#include "IAdvancedRenamerModule.h"
 #include "ILevelEditor.h"
 #include "LevelEditor.h"
 #include "Selection.h"
@@ -64,7 +64,7 @@ namespace UE::AdvancedRenamer::Private
 
 		TArray<AActor*> SelectedActors = GetSelectedActors(LevelEditor.ToSharedRef());
 
-		UAdvancedRenamerBlueprintLibrary::OpenAdvancedRenamerForActors(SelectedActors, StaticCastSharedPtr<IToolkitHost>(LevelEditor));
+		IAdvancedRenamerModule::Get().OpenAdvancedRenamerForActors(SelectedActors, StaticCastSharedPtr<IToolkitHost>(LevelEditor));
 	}
 
 	void RenameSharedClassActors(TWeakPtr<ILevelEditor> InLevelEditorWeak)
@@ -76,10 +76,12 @@ namespace UE::AdvancedRenamer::Private
 			return;
 		}
 
-		TArray<AActor*> SelectedActors = GetSelectedActors(LevelEditor.ToSharedRef());
-		SelectedActors = UAdvancedRenamerBlueprintLibrary::GetActorsSharingClassesInWorld(SelectedActors);
+		IAdvancedRenamerModule& AdvancedRenamerModule = IAdvancedRenamerModule::Get();
 
-		UAdvancedRenamerBlueprintLibrary::OpenAdvancedRenamerForActors(SelectedActors, StaticCastSharedPtr<IToolkitHost>(LevelEditor));
+		TArray<AActor*> SelectedActors = GetSelectedActors(LevelEditor.ToSharedRef());
+		SelectedActors = AdvancedRenamerModule.GetActorsSharingClassesInWorld(SelectedActors);
+
+		AdvancedRenamerModule.OpenAdvancedRenamerForActors(SelectedActors, StaticCastSharedPtr<IToolkitHost>(LevelEditor));
 	}
 
 	void OnLevelEditorCreated(TSharedPtr<ILevelEditor> InLevelEditor)

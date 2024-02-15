@@ -1,12 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaAdvancedRenamerExtension.h"
-#include "AdvancedRenamerBlueprintLibrary.h"
 #include "Algo/Transform.h"
 #include "AvaEditorCommands.h"
 #include "EditorModeManager.h"
 #include "EngineUtils.h"
-#include "Providers/AdvancedRenamerObjectProvider.h"
+#include "IAdvancedRenamerModule.h"
 #include "Selection.h"
 #include "Toolkits/IToolkitHost.h"
 #include "UObject/WeakObjectPtr.h"
@@ -66,7 +65,7 @@ bool FAvaAdvancedRenamerExtension::CanOpenAdvancedRenamerTool_ClassActors() cons
 void FAvaAdvancedRenamerExtension::OpenAdvancedRenamerTool_SharedClassActors() const
 {
 	TArray<AActor*> SelectedActors = GetSelectedActors();
-	SelectedActors = UAdvancedRenamerBlueprintLibrary::GetActorsSharingClassesInWorld(SelectedActors);
+	SelectedActors = IAdvancedRenamerModule::Get().GetActorsSharingClassesInWorld(SelectedActors);
 	
 	OpenAdvancedRenamerTool(SelectedActors);
 }
@@ -112,5 +111,5 @@ void FAvaAdvancedRenamerExtension::OpenAdvancedRenamerTool(const TArray<AActor*>
 		}
 	}
 
-	UAdvancedRenamerBlueprintLibrary::OpenAdvancedRenamerForActors(InActors, HostWindow);
+	IAdvancedRenamerModule::Get().OpenAdvancedRenamerForActors(InActors, HostWindow);
 }
