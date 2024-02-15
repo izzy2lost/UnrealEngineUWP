@@ -12,12 +12,12 @@ class USmartObjectSubsystem;
 /**
  * Hit proxy for Smart Object slots and annotations.
  */
-struct SMARTOBJECTSEDITORMODULE_API HSmartObjectItemProxy : public HComponentVisProxy
+struct SMARTOBJECTSEDITORMODULE_API HSmartObjectItemProxy : public HHitProxy
 {
 	DECLARE_HIT_PROXY();
 
-	HSmartObjectItemProxy(const UActorComponent* InComponent, const FGuid InID)
-		: HComponentVisProxy(InComponent, HPP_Foreground)
+	HSmartObjectItemProxy(const FGuid InID)
+		: HHitProxy(HPP_Foreground)
 		, ItemID(InID)
 	{}
 
