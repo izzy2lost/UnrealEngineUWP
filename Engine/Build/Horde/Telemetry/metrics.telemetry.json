@@ -1,0 +1,318 @@
+{
+	"metrics": [
+		{
+			"id": "core-loading-user-loadingtime",
+			"filter": "$[?(@.Payload.EventName == 'Core.Loading' && @.Payload.SchemaVersion>=2 && @.Payload.Config_IsBuildMachine==false && @.Payload.Config_IsRunningCommandlet==false && @.Payload.LoadingSeconds>5 && @.Payload.LoadingSeconds<3600)]",
+			"property": "$.Payload.LoadingSeconds",
+			"groupBy": "$.Payload.Build_BranchName,$.Payload.LoadingName",
+			"function": "Average",
+			"interval": "00:15:00"
+		},
+		{
+			"id": "core-loading-user-loadingcount",
+			"filter": "$[?(@.Payload.EventName == 'Core.Loading' && @.Payload.SchemaVersion>=2 &&@.Payload.Config_IsBuildMachine==false )]",
+			"groupBy": "$.Payload.Build_BranchName,$.Payload.LoadingName",
+			"function": "Count",
+			"interval": "00:15:00"
+		},
+		{
+			"id": "core-loading-user-editorstartuptime",
+			"filter": "$[?(@.Payload.EventName == 'Core.Loading' && @.Payload.SchemaVersion>=3 && @.Payload.LoadingName=='TotalEditorStartup' && @.Payload.Config_IsBuildMachine==false && @.Payload.Config_IsRunningCommandlet==false && @.Payload.LoadingSeconds>5 && @.Payload.LoadingSeconds<3600)]",
+			"property": "$.Payload.LoadingSeconds",
+			"groupBy": "$.Payload.Build_BranchName",
+			"function": "Average",
+			"interval": "00:15:00"
+		},
+		{
+			"id": "core-loading-user-loadmaptime",
+			"filter": "$[?(@.Payload.EventName == 'Core.Loading' && @.Payload.SchemaVersion>=2 && @.Payload.LoadingName=='LoadMap' && @.Payload.Config_IsBuildMachine==false && @.Payload.Config_IsRunningCommandlet==false && @.Payload.LoadingSeconds>5 && @.Payload.LoadingSeconds<3600)]",
+			"property": "$.Payload.LoadingSeconds",
+			"groupBy": "$.Payload.Build_BranchName,$.Payload.MapName",
+			"function": "Average",
+			"interval": "00:15:00"
+		},
+		{
+			"id": "core-loading-user-loadmap-count",
+			"filter": "$[?(@.Payload.EventName == 'Core.Loading' && @.Payload.SchemaVersion>=2 && @.Payload.LoadingName=='LoadMap' && @.Payload.Config_IsBuildMachine==false && @.Payload.Config_IsRunningCommandlet==false && @.Payload.LoadingSeconds>5 && @.Payload.LoadingSeconds<3600)]",
+			"groupBy": "$.Payload.Build_BranchName,$.Payload.MapName",
+			"function": "Count",
+			"interval": "00:15:00"
+		},
+		{
+			"id": "core-loading-user-pieloadmaptime",
+			"filter": "$[?(@.Payload.EventName == 'Core.Loading' && @.Payload.SchemaVersion>=2 && @.Payload.LoadingName=='PIE.LoadMapTime' && @.Payload.Config_IsBuildMachine==false && @.Payload.Config_IsRunningCommandlet==false && @.Payload.LoadingSeconds>5 && @.Payload.LoadingSeconds<3600)]",
+			"property": "$.Payload.LoadingSeconds",
+			"groupBy": "$.Payload.Build_BranchName,$.Payload.MapName",
+			"function": "Average",
+			"interval": "00:15:00"
+		},
+		{
+			"id": "core-loading-user-timetopie",
+			"filter": "$[?(@.Payload.EventName == 'Core.Loading' && @.Payload.SchemaVersion>=2 && @.Payload.LoadingName=='TimeToPIE' && @.Payload.Config_IsBuildMachine==false && @.Payload.Config_IsRunningCommandlet==false && @.Payload.LoadingSeconds>5 && @.Payload.LoadingSeconds<3600)]",
+			"property": "$.Payload.LoadingSeconds",
+			"groupBy": "$.Payload.Build_BranchName,$.Payload.MapName",
+			"function": "Average",
+			"interval": "00:15:00"
+		},
+		{
+			"id": "core-loading-user-piestartuptime",
+			"filter": "$[?(@.Payload.EventName == 'Core.Loading' && @.Payload.SchemaVersion>=2 && @.Payload.LoadingName=='PIE.TotalStartupTime' && @.Payload.Config_IsBuildMachine==false && @.Payload.Config_IsRunningCommandlet==false && @.Payload.LoadingSeconds>5 && @.Payload.LoadingSeconds<3600)]",
+			"property": "$.Payload.LoadingSeconds",
+			"groupBy": "$.Payload.Build_BranchName,$.Payload.MapName",
+			"function": "Average",
+			"interval": "00:15:00"
+		},
+		{
+			"id": "core-loading-user-editorstartuptime-kpi",
+			"filter": "$[?(@.Payload.EventName == 'Core.Loading' && @.Payload.SchemaVersion>=3 && @.Payload.LoadingName=='TotalEditorStartup' && @.Payload.Config_IsBuildMachine==false && @.Payload.Config_IsRunningCommandlet==false && @.Payload.LoadingSeconds>5 && @.Payload.LoadingSeconds<3600)]",
+			"property": "$.Payload.LoadingSeconds",
+			"groupBy": "$.Payload.Build_BranchName",
+			"function": "Average",
+			"interval": "01:00:00"
+		},
+		{
+			"id": "core-loading-user-loadmaptime-kpi",
+			"filter": "$[?(@.Payload.EventName == 'Core.Loading' && @.Payload.SchemaVersion>=2 && @.Payload.LoadingName=='LoadMap' && @.Payload.Config_IsBuildMachine==false && @.Payload.Config_IsRunningCommandlet==false && @.Payload.LoadingSeconds>5 && @.Payload.LoadingSeconds<3600)]",
+			"property": "$.Payload.LoadingSeconds",
+			"groupBy": "$.Payload.Build_BranchName",
+			"function": "Average",
+			"interval": "01:00:00"
+		},
+		{
+			"id": "core-loading-user-piestartuptime-kpi",
+			"filter": "$[?(@.Payload.EventName == 'Core.Loading' && @.Payload.SchemaVersion>=2 && @.Payload.LoadingName=='PIE.TotalStartupTime' && @.Payload.Config_IsBuildMachine==false && @.Payload.Config_IsRunningCommandlet==false && @.Payload.LoadingSeconds>5 && @.Payload.LoadingSeconds<3600)]",
+			"property": "$.Payload.LoadingSeconds",
+			"groupBy": "$.Payload.Build_BranchName",
+			"function": "Average",
+			"interval": "01:00:00"
+		},
+		{
+			"id": "core-loading-user-timetopie-kpi",
+			"filter": "$[?(@.Payload.EventName == 'Core.Loading' && @.Payload.SchemaVersion>=2 && @.Payload.LoadingName=='TimeToPIE' && @.Payload.Config_IsBuildMachine==false && @.Payload.Config_IsRunningCommandlet==false && @.Payload.LoadingSeconds>5 && @.Payload.LoadingSeconds<3600)]",
+			"property": "$.Payload.LoadingSeconds",
+			"groupBy": "$.Payload.Build_BranchName",
+			"function": "Average",
+			"interval": "01:00:00"
+		},
+		{
+			"id": "core-loading-user-cloudlocalddchitratio",
+			"filter": "$[?(@.Payload.EventName == 'Core.Loading' && @.Payload.SchemaVersion>=2 && @.Payload.Config_IsBuildMachine==false && @.Payload.DDC_Summary_CloudGetTotal>0 && @.Payload.LoadingSeconds>5 && @.Payload.LoadingSeconds<3600)]",
+			"property": "$.Payload.DDC_Summary_CloudGetHitPct",
+			"groupBy": "$.Payload.Build_BranchName",
+			"function": "Average",
+			"interval": "01:00:00"
+		},
+		{
+			"id": "core-loading-user-zenlocalddchitratio",
+			"filter": "$[?(@.Payload.EventName == 'Core.Loading' && @.Payload.SchemaVersion>=2 && @.Payload.Config_IsBuildMachine==false && @.Payload.Config_IsRunningCommandlet==false && @.Payload.DDC_Summary_ZenLocalGetTotal>0 && @.Payload.LoadingSeconds>5 && @.Payload.LoadingSeconds<3600)]",
+			"property": "$.Payload.DDC_Summary_ZenLocalGetHitPct",
+			"groupBy": "$.Payload.Build_BranchName",
+			"function": "Average",
+			"interval": "01:00:00"
+		},
+		{
+			"id": "core-loading-user-sharedddchitratio",
+			"filter": "$[?(@.Payload.EventName == 'Core.Loading' && @.Payload.SchemaVersion>=2 && @.Payload.Config_IsBuildMachine==false && @.Payload.Config_IsRunningCommandlet==false && @.Payload.DDC_Summary_SharedGetTotal>0 && @.Payload.LoadingSeconds>5 && @.Payload.LoadingSeconds<3600)]",
+			"property": "$.Payload.DDC_Summary_SharedGetHitPct",
+			"groupBy": "$.Payload.Build_BranchName",
+			"function": "Average",
+			"interval": "01:00:00"
+		},
+		{
+			"id": "core-loading-user-totalddchitratio",
+			"filter": "$[?(@.Payload.EventName == 'Core.Loading' && @.Payload.SchemaVersion>=2 && @.Payload.Config_IsBuildMachine==false && @.Payload.Config_IsRunningCommandlet==false && @.Payload.LoadingSeconds>5 && @.Payload.LoadingSeconds<3600)]",
+			"property": "$.Payload.DDC_Summary_TotalGetHitPct",
+			"groupBy": "$.Payload.Build_BranchName",
+			"function": "Average",
+			"interval": "01:00:00"
+		},
+		{
+			"id": "core-loading-user-ddc-asset-efficiency",
+			"filter": "$[?(@.Payload.EventName=='Core.DDC.Resource' && @.Payload.SchemaVersion>=3 && @.Payload.Config_IsBuildMachine==false && @.Payload.Config_IsEditor==true && @.Payload.AssetType!='Total')]",
+			"property": "$.Payload.Efficiency",
+			"groupBy": "$.Payload.Build_BranchName,$.Payload.AssetType",
+			"function": "Average",
+			"interval": "01:00:00"
+		},
+		{
+			"id": "core-loading-user-timetopie-percentile",
+			"filter": "$[?(@.Payload.EventName == 'Core.Loading' && @.Payload.SchemaVersion>=2 && @.Payload.LoadingName=='TimeToPIE' && @.Payload.Config_IsBuildMachine==false && @.Payload.Config_IsRunningCommandlet==false && @.Payload.LoadingSeconds>5 && @.Payload.LoadingSeconds<3600)]",
+			"groupBy": "$.Payload.Build_BranchName,$.Payload.MapName",
+			"property": "$.Payload.LoadingSeconds",
+			"function": "Percentile",
+			"percentile": 75,
+			"interval": "00:15:00"
+		},
+		{
+			"id": "core-loading-user-editorstartuptime-percentile",
+			"filter": "$[?(@.Payload.EventName == 'Core.Loading' && @.Payload.SchemaVersion>=2 && @.Payload.LoadingName=='TotalEditorStartup' && @.Payload.Config_IsBuildMachine==false && @.Payload.Config_IsRunningCommandlet==false && @.Payload.LoadingSeconds>5 && @.Payload.LoadingSeconds<3600 )]",
+			"groupBy": "$.Payload.Build_BranchName",
+			"property": "$.Payload.LoadingSeconds",
+			"function": "Percentile",
+			"percentile": 75,
+			"interval": "00:15:00"
+		},
+		{
+			"id": "core-loading-user-loadmaptime-percentile",
+			"filter": "$[?(@.Payload.EventName == 'Core.Loading' && @.Payload.SchemaVersion>=3 && @.Payload.LoadingName=='LoadMap' && @.Payload.Config_IsBuildMachine==false && @.Payload.LoadingSeconds>5 && @.Payload.LoadingSeconds<3600)]",
+			"groupBy": "$.Payload.Build_BranchName,$.Payload.MapName",
+			"property": "$.Payload.LoadingSeconds",
+			"function": "Percentile",
+			"percentile": 75,
+			"interval": "00:15:00"
+		},
+		{
+			"id": "core-loading-user-piestartuptime-percentile",
+			"filter": "$[?(@.Payload.EventName == 'Core.Loading' && @.Payload.SchemaVersion>=3 && @.Payload.LoadingName=='PIE.TotalStartupTime' && @.Payload.Config_IsBuildMachine==false && @.Payload.LoadingSeconds>5 && @.Payload.LoadingSeconds<3600)]",
+			"groupBy": "$.Payload.Build_BranchName,$.Payload.MapName",
+			"property": "$.Payload.LoadingSeconds",
+			"function": "Percentile",
+			"percentile": 75,
+			"interval": "00:15:00"
+		},
+		{
+			"id": "core-cooking-standard-cook-time",
+			"filter": "$[?(@.Payload.EventName == 'Core.Cooking' && @.Payload.SchemaVersion>=2 && search(@.Payload.Horde_TemplateName, \"Standard Build\") && search(@.Payload.Horde_StepName, \"Cook\"))]",
+			"groupBy": "$.Payload.Build_BranchName,$.Payload.Horde_StepName,$.Payload.Cook_Profile_TargetPlatforms",
+			"property": "$.Payload.Cook_Profile_CookWallTimeSec",
+			"function": "Average",
+			"interval": "01:00:00"
+		},
+		{
+			"id": "core-cooking-incremental-cook-time",
+			"filter": "$[?(@.Payload.EventName == 'Core.Cooking' && @.Payload.SchemaVersion>=3 && @.Payload.Horde_TemplateName=='Incremental CI')]",
+			"groupBy": "$.Payload.Build_BranchName,$.Payload.Horde_StepName",
+			"property": "$.Payload.Cook_Profile_CookWallTimeSec",
+			"function": "Average",
+			"interval": "00:30:00"
+		},
+		{
+			"id": "core-cooking-incremental-shaders-compiled",
+			"filter": "$[?(@.Payload.EventName == 'Core.Cooking' && @.Payload.SchemaVersion>=3 && @.Payload.Horde_TemplateName=='Incremental CI')]",
+			"groupBy": "$.Payload.Build_BranchName,$.Payload.Horde_StepName",
+			"property": "$.Payload.Shaders_ShadersCompiled",
+			"function": "Average",
+			"interval": "00:30:00"
+		},
+		{
+			"id": "core-cooking-nightly-cook-time",
+			"filter": "$[?(@.Payload.EventName == 'Core.Cooking' && @.Payload.SchemaVersion>=3 && search(@.Payload.Horde_TemplateName, \"Nightly Build\") && search(@.Payload.Horde_StepName, \"Cook\"))]",
+			"groupBy": "$.Payload.Build_BranchName,$.Payload.Horde_StepName,$.Payload.Cook_Profile_TargetPlatforms",
+			"property": "$.Payload.Cook_Profile_CookWallTimeSec",
+			"function": "Average",
+			"interval": "01:00:00"
+		},
+		{
+			"id": "core-cooking-nightly-cook-time-windows-kpi",
+			"filter": "$[?(@.Payload.EventName == 'Core.Cooking' && @.Payload.SchemaVersion>=3 && search(@.Payload.Horde_TemplateName, \"Nightly Build\") && @.Payload.Horde_StepName=='Cook Windows Client')]",
+			"groupBy": "$.Payload.Build_BranchName",
+			"property": "$.Payload.Cook_Profile_CookWallTimeSec",
+			"function": "Average",
+			"interval": "01:00:00"
+		},
+		{
+			"id": "core-cooking-nightly-cook-time-ps5-kpi",
+			"filter": "$[?(@.Payload.EventName == 'Core.Cooking' && @.Payload.SchemaVersion>=3 && search(@.Payload.Horde_TemplateName, \"Nightly Build\") && @.Payload.Horde_StepName=='Cook PS5 Client')]",
+			"groupBy": "$.Payload.Build_BranchName",
+			"property": "$.Payload.Cook_Profile_CookWallTimeSec",
+			"function": "Average",
+			"interval": "01:00:00"
+		},
+		{
+			"id": "core-cooking-autotest-cook-time-kpi",
+			"filter": "$[?(@.Payload.EventName == 'Core.Cooking' && @.Payload.SchemaVersion>=3 && @.Payload.Horde_StepName=='AutoTest Cook')]",
+			"groupBy": "$.Payload.Build_BranchName",
+			"property": "$.Payload.Cook_Profile_CookWallTimeSec",
+			"function": "Average",
+			"interval": "01:00:00"
+		},
+		{
+			"id": "core-cooking-autotest-fastcook-time-kpi",
+			"filter": "$[?(@.Payload.EventName == 'Core.Cooking' && @.Payload.SchemaVersion>=3 && @.Payload.Horde_StepName=='AutoTest FastCook')]",
+			"groupBy": "$.Payload.Build_BranchName",
+			"property": "$.Payload.Cook_Profile_CookWallTimeSec",
+			"function": "Average",
+			"interval": "01:00:00"
+		},
+		{
+			"id": "core-cooking-nightly-cook-shaders-compiled-windows-kpi",
+			"filter": "$[?(@.Payload.EventName == 'Core.Cooking' && @.Payload.SchemaVersion>=3 && search(@.Payload.Horde_TemplateName, \"Nightly Build\") && @.Payload.Horde_StepName=='Cook Windows Client')]",
+			"groupBy": "$.Payload.Build_BranchName",
+			"property": "$.Payload.Shaders_ShadersCompiled",
+			"function": "Average",
+			"interval": "01:00:00"
+		},
+		{
+			"id": "core-cooking-nightly-cook-shaders-compiled-ps5-kpi",
+			"filter": "$[?(@.Payload.EventName == 'Core.Cooking' && @.Payload.SchemaVersion>=3 && search(@.Payload.Horde_TemplateName, \"Nightly Build\") && @.Payload.Horde_StepName=='Cook PS5 Client')]",
+			"groupBy": "$.Payload.Build_BranchName",
+			"property": "$.Payload.Shaders_ShadersCompiled",
+			"function": "Average",
+			"interval": "01:00:00"
+		},
+		{
+			"id": "core-cooking-autotest-cook-shaders-compiled-kpi",
+			"filter": "$[?(@.Payload.EventName == 'Core.Cooking' && @.Payload.SchemaVersion>=3 && @.Payload.Horde_StepName=='AutoTest Cook')]",
+			"groupBy": "$.Payload.Build_BranchName",
+			"property": "$.Payload.Shaders_ShadersCompiled",
+			"function": "Average",
+			"interval": "01:00:00"
+		},
+		{
+			"id": "core-cooking-autotest-fastcook-shaders-compiled-kpi",
+			"filter": "$[?(@.Payload.EventName == 'Core.Cooking' && @.Payload.SchemaVersion>=3 && @.Payload.Horde_StepName=='AutoTest FastCook')]",
+			"groupBy": "$.Payload.Build_BranchName",
+			"property": "$.Payload.Shaders_ShadersCompiled",
+			"function": "Average",
+			"interval": "01:00:00"
+		},
+		{
+			"id": "core-cooking-standard-shaders-compiled",
+			"filter": "$[?(@.Payload.EventName == 'Core.Cooking' && @.Payload.SchemaVersion>=3 && search(@.Payload.Horde_TemplateName, \"Standard Build\"))]",
+			"groupBy": "$.Payload.Build_BranchName,$.Payload.Horde_StepName,$.Payload.Cook_Profile_TargetPlatforms",
+			"property": "$.Payload.Shaders_ShadersCompiled",
+			"function": "Average",
+			"interval": "01:00:00"
+		},
+		{
+			"id": "core-cooking-nightly-shaders-compiled",
+			"filter": "$[?(@.Payload.EventName == 'Core.Cooking' && @.Payload.SchemaVersion>=3 && search(@.Payload.Horde_TemplateName, \"Nightly Build\"))]",
+			"groupBy": "$.Payload.Build_BranchName,$.Payload.Horde_StepName,$.Payload.Cook_Profile_TargetPlatforms",
+			"property": "$.Payload.Shaders_ShadersCompiled",
+			"function": "Average",
+			"interval": "01:00:00"
+		},
+		{
+			"id": "core-cooking-autotest-cook-time",
+			"filter": "$[?(@.Payload.EventName == 'Core.Cooking' && @.Payload.SchemaVersion>=3 && @.Payload.Horde_StepName=='AutoTest Cook')]",
+			"groupBy": "$.Payload.Build_BranchName,$.Payload.Horde_StepName,$.Payload.Cook_Profile_TargetPlatforms",
+			"property": "$.Payload.Cook_Profile_CookWallTimeSec",
+			"function": "Average",
+			"interval": "00:30:00"
+		},
+		{
+			"id": "core-cooking-autotest-shaders-compiled",
+			"filter": "$[?(@.Payload.EventName == 'Core.Cooking' && @.Payload.SchemaVersion>=3 && @.Payload.Horde_StepName=='AutoTest Cook')]",
+			"groupBy": "$.Payload.Build_BranchName,$.Payload.Horde_StepName,$.Payload.Cook_Profile_TargetPlatforms",
+			"property": "$.Payload.Shaders_ShadersCompiled",
+			"function": "Average",
+			"interval": "00:30:00"
+		},
+		{
+			"id": "core-cooking-autotest-fastcook-time",
+			"filter": "$[?(@.Payload.EventName == 'Core.Cooking' && @.Payload.SchemaVersion>=3 && @.Payload.Horde_StepName=='AutoTest FastCook')]",
+			"groupBy": "$.Payload.Build_BranchName,$.Payload.Horde_StepName,$.Payload.Cook_Profile_TargetPlatforms",
+			"property": "$.Payload.Cook_Profile_CookWallTimeSec",
+			"function": "Average",
+			"interval": "01:00:00"
+		},
+		{
+			"id": "horde-jobstep-time",
+			"filter": "$[?(@.Payload.EventName == 'State.JobStepRef' && @.Payload.Duration>0 && @.Payload.State=='Completed')]",
+			"groupBy": "$.Payload.StreamId,$.Payload.JobName,$.Payload.StepName",
+			"property": "$.Payload.Duration",
+			"function": "Average",
+			"interval": "01:00:00"
+		}
+	]
+}

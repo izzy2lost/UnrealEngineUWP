@@ -1,0 +1,402 @@
+{
+    "analytics": [
+        {
+            "id": "core-loading-user",
+            "name": "Core Loading User",
+			"variables": [
+				{
+					"name": "Stream",
+					"group": "Build_BranchName",
+				},
+				{
+					"name": "LoadingName",
+					"group": "LoadingName",
+					"defaults": [
+						"TotalEditorStartup",
+						"LoadMap",
+						"TimeToPIE"
+					]
+				},
+				{
+					"name": "MapName",
+					"group": "MapName",
+					"defaults": [
+						"AncientWorld",
+						"Big_City_LVL",
+						"L_DefaultEditorOverview"
+					]
+				},
+				{
+					"name": "AssetType",
+					"group": "AssetType"
+				},
+				{
+					"name": "TargetPlatform",
+					"group": "Cook_Profile_TargetPlatforms"
+				},
+				{
+					"name": "Horde JobName",
+					"group": "Horde_JobName"
+				},
+				{
+					"name": "Horde StepName",
+					"group": "Horde_StepName"
+				},
+				{
+					"name": "StreamId",
+					"group": "StreamId"
+				},
+				{
+					"name": "JobName",
+					"group": "JobName"
+				},
+				{
+					"name": "StepName",
+					"group": "StepName"
+				}
+			],
+            "categories": [
+                {
+                    "name": "Editor Iteration",
+					"charts": [
+						{
+							"name": "User Load Time (75th Percentile)",
+							"metrics": [
+								{
+									"id": "core-loading-user-timetopie-percentile",
+									"alias": "Time To PIE",
+									"threshold": 360
+								},
+								{
+									"id": "core-loading-user-editorstartuptime-percentile",
+									"alias": "Editor Startup",
+									"threshold": 120
+								},
+								{
+									"id": "core-loading-user-loadmaptime-percentile",
+									"alias": "Load Map",
+									"threshold": 240
+								},
+								{
+									"id": "core-loading-user-piestartuptime-percentile",
+									"alias": "PIE Startup",
+									"threshold": 360
+								}
+							],
+							"graph": "indicator",
+							"max": 720
+						},
+						{
+							"name": "User Load Time (Average)",
+							"metrics": [
+								{
+									"id": "core-loading-user-timetopie",
+									"alias": "Time To PIE",
+									"threshold": 360
+								},
+								{
+									"id": "core-loading-user-editorstartuptime",
+									"alias": "Editor Startup",
+									"threshold": 120
+								},
+								{
+									"id": "core-loading-user-loadmaptime",
+									"alias": "Load Map",
+									"threshold": 240
+								},
+								{
+									"id": "core-loading-user-piestartuptime",
+									"alias": "PIE Startup",
+									"threshold": 360
+								}
+							],
+							"graph": "indicator",
+							"max": 900
+						},
+						{
+							"name": "User Loading Time (KPIs)",
+							"metrics": [
+								{
+									"id": "core-loading-user-editorstartuptime-kpi",
+									"alias": "TotalEditorStartup"
+								},
+								{
+									"id": "core-loading-user-loadmaptime-kpi",
+									"alias": "LoadMap"
+								},
+								{
+									"id": "core-loading-user-piestartuptime-kpi",
+									"alias": "PIE.TotalStartupTime"
+								},
+								{
+									"id": "core-loading-user-timetopie-kpi",
+									"alias": "TimeToPIE"
+								}
+							]
+						},
+						{
+							"name": "User Loading Count (Live)",
+							"display": "Value",
+							"max" : 100,
+							"metrics": [
+								{
+									"id": "core-loading-user-loadingcount"
+								}
+							]
+						},
+						{
+							"name": "User Editor Startup Time (Live)",
+							"metrics": [
+								{
+									"id": "core-loading-user-editorstartuptime"
+								}
+							]
+						},
+						{
+							"name": "User Editor LoadMap Time (Live)",
+							"metrics": [
+								{
+									"id": "core-loading-user-loadmaptime"
+								}
+							]
+						},
+						{
+							"name": "User Editor LoadMap Count (Live)",
+							"display": "Value",
+							"metrics": [
+								{
+									"id": "core-loading-user-loadmap-count"
+								}
+							]
+						},
+						{
+							"name": "User PIE Startup Time (Live)",
+							"metrics": [
+								{
+									"id": "core-loading-user-piestartuptime"
+								}
+							]
+						},
+						{
+							"name": "User PIE LoadMap Time (Live)",
+							"metrics": [
+								{
+									"id": "core-loading-user-pieloadmaptime"
+								}
+							]
+						},
+						{
+							"name": "User Boot To PIE Time (Live)",
+							"metrics": [
+								{
+									"id": "core-loading-user-timetopie"
+								}
+							]
+						}
+					]
+                },
+                {
+                    "name": "Cooking",
+					"charts": [
+						{
+							"name": "Cook Time (KPIs)",
+							"metrics": [
+								{
+									"id": "core-cooking-nightly-cook-time-windows-kpi",
+									"alias": "Nightly Cook Windows",
+									"threshold": 7200
+								},
+								{
+									"id": "core-cooking-nightly-cook-time-ps5-kpi",
+									"alias": "Nightly Cook PS5",
+									"threshold": 7200
+								},
+								{
+									"id": "core-cooking-autotest-cook-time-kpi",
+									"alias": "AutoTest Cook",
+									"threshold": 4500
+								},
+								{
+									"id": "core-cooking-autotest-fastcook-time-kpi",
+									"alias": "AutoTest FastCook",
+									"threshold": 1800
+								}
+							],
+							"graph": "indicator",
+							"max": 10800
+						},
+						{
+							"name": "Cook Shaders Compiled (KPIs)",
+							"display": "Value",
+							"metrics": [
+								{
+									"id": "core-cooking-nightly-cook-shaders-compiled-windows-kpi",
+									"alias": "Nightly Cook Windows",
+									"threshold": 1000
+								},
+								{
+									"id": "core-cooking-nightly-cook-shaders-compiled-ps5-kpi",
+									"alias": "Nightly Cook PS5",
+									"threshold": 1000
+								},
+								{
+									"id": "core-cooking-autotest-cook-shaders-compiled-kpi",
+									"alias": "AutoTest Cook",
+									"threshold": 1000
+								},
+								{
+									"id": "core-cooking-autotest-fastcook-shaders-compiled-kpi",
+									"alias": "AutoTest FastCook",
+									"threshold": 1000
+								}
+							],
+							"graph": "indicator",
+							"max": 2000
+						},
+						{
+							"name": "Cook Time (KPIs)",
+							"metrics": [
+								{
+									"id": "core-cooking-nightly-cook-time-windows-kpi",
+									"alias": "Nightly Cook Windows"
+								},
+								{
+									"id": "core-cooking-nightly-cook-time-ps5-kpi",
+									"alias": "Nightly Cook PS5"
+								},
+								{
+									"id": "core-cooking-autotest-cook-time-kpi",
+									"alias": "AutoTest Cook"
+								},
+								{
+									"id": "core-cooking-autotest-fastcook-time-kpi",
+									"alias": "AutoTest FastCook"
+								}
+							]
+						},
+						{
+							"name": "Cook Shaders Compiled (KPIs)",
+							"display": "Value",
+							"metrics": [
+								{
+									"id": "core-cooking-nightly-cook-shaders-compiled-windows-kpi",
+									"alias": "Nightly Cook Windows"
+								},
+								{
+									"id": "core-cooking-nightly-cook-shaders-compiled-ps5-kpi",
+									"alias": "Nightly Cook PS5"
+								},
+								{
+									"id": "core-cooking-autotest-cook-shaders-compiled-kpi",
+									"alias": "AutoTest Cook"
+								},
+								{
+									"id": "core-cooking-autotest-fastcook-shaders-compiled-kpi",
+									"alias": "AutoTest FastCook"
+								}
+							]
+						},
+						{
+							"name": "Nightly Cook Time",
+							"metrics": [
+								{
+									"id": "core-cooking-nightly-cook-time"
+								}
+							]
+						},
+						{
+							"name": "Nightly Cook Shaders Compiled",
+							"display": "Value",
+							"metrics": [
+								{
+									"id": "core-cooking-nightly-shaders-compiled"
+								}
+							]
+						},
+						{
+							"name": "Incremental Cook Time",
+							"metrics": [
+								{
+									"id": "core-cooking-incremental-cook-time"
+								}
+							]
+						},
+						{
+							"name": "Incremental Cook Shaders Compiled",
+							"metrics": [
+								{
+									"id": "core-cooking-incremental-shaders-compiled"
+								}
+							]
+						},
+						{
+							"name": "Standard Cook Time",
+							"metrics": [
+								{
+									"id": "core-cooking-standard-cook-time"
+								}
+							]
+						},
+						{
+							"name": "Standard Cook Shaders Compiled",
+							"metrics": [
+								{
+									"id": "core-cooking-standard-shaders-compiled"
+								}
+							]
+						}
+					]
+                },
+				{
+					"name": "DDC",
+					"charts": [
+						{
+							"name": "User DDC Backend Efficiency",
+							"display": "Ratio",
+							"metrics": [
+								{
+									"id": "core-loading-user-totalddchitratio",
+									"alias": "Root"
+								},
+								{
+									"id": "core-loading-user-cloudlocalddchitratio",
+									"alias": "Cloud"
+								},
+								{
+									"id": "core-loading-user-zenlocalddchitratio",
+									"alias": "Local"
+								},
+								{
+									"id": "core-loading-user-sharedddchitratio",
+									"alias": "Shared"
+								}
+							]
+						},
+						{
+							"name": "User DDC Asset Efficiency",
+							"display": "Ratio",
+							"metrics": [
+								{
+									"id": "core-loading-user-ddc-asset-efficiency"
+								}
+							]
+						}
+					]
+				},
+				{
+					"name": "Build",
+					"charts": [
+						{
+							"name": "Horde Job Step Time",
+							"metrics": [
+								{
+									"id": "horde-jobstep-time"
+								}	
+							]
+						}
+					]
+				}
+            ]
+        }
+    ]
+}
