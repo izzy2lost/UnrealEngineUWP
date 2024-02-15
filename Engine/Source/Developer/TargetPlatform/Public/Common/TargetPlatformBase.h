@@ -241,7 +241,8 @@ public:
 	virtual void GetShaderFormatModuleHints(TArray<FName>& OutModuleNames) const override
 	{
 	}
-
+	
+	// beware this is duplicated between TargetPlatformBase and TargetPlatformControlsBase
 	virtual void GetTextureFormatModuleHints(TArray<FName>& OutModuleNames) const override
 	{
 		// these are the default texture format modules, since many platforms 
@@ -257,6 +258,9 @@ public:
 		}
 	}
 	
+	// beware this is duplicated between TargetPlatformBase and TargetPlatformControlsBase
+	TARGETPLATFORM_API virtual void GetTextureSizeLimits(uint64 & OutMaximumSurfaceBytes, uint64 & OutMaximumPackageBytes) const override;
+
 	TARGETPLATFORM_API virtual FName GetWaveFormat(const class USoundWave* Wave) const override;
 	
 	TARGETPLATFORM_API virtual void GetAllWaveFormats(TArray<FName>& OutFormats) const override;
@@ -870,6 +874,11 @@ public:
 	virtual void GetAllTextureFormats(TArray<FName>& OutFormats) const override 
 	{
 		TargetPlatformControls->GetAllTextureFormats(OutFormats);
+	}
+	
+	virtual void GetTextureSizeLimits(uint64 & OutMaximumSurfaceBytes, uint64 & OutMaximumPackageBytes) const override
+	{
+		TargetPlatformControls->GetTextureSizeLimits(OutMaximumSurfaceBytes,OutMaximumPackageBytes);
 	}
 
 	virtual void GetTextureFormatModuleHints(TArray<FName>& OutModuleNames) const override 

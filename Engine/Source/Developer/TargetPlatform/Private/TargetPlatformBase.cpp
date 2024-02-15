@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Common/TargetPlatformBase.h"
+#include "Common/TargetPlatformControlsBase.h"
 #include "HAL/IConsoleManager.h"
 #include "DeviceBrowserDefaultPlatformWidgetCreator.h"
 #include "Interfaces/IProjectBuildMutatorFeature.h"
@@ -399,6 +400,11 @@ void FTargetPlatformBase::GetAllWaveFormats(TArray<FName>& OutFormats) const
 void FTargetPlatformBase::GetWaveFormatModuleHints(TArray<FName>& OutModuleNames) const
 {
 	GetAudioFormatSettings().GetWaveFormatModuleHints(OutModuleNames);
+}
+
+void FTargetPlatformBase::GetTextureSizeLimits(uint64 & OutMaximumSurfaceBytes, uint64 & OutMaximumPackageBytes) const
+{
+	FTargetPlatformControlsBase::GetTextureSizeLimitsDefault(GetConfigSystem(),OutMaximumSurfaceBytes,OutMaximumPackageBytes);
 }
 
 #endif // WITH_ENGINE

@@ -888,7 +888,7 @@ static void DDC1_BuildTexture(
 }
 
 
-static EPixelFormat GetOutputPixelFormat(const FTextureBuildSettings & BuildSettings, bool bHasAlpha)
+EPixelFormat GetOutputPixelFormat(const FTextureBuildSettings & BuildSettings)
 {
 	// get the TextureFormat so we can get the output pixel format :
 		
@@ -908,6 +908,9 @@ static EPixelFormat GetOutputPixelFormat(const FTextureBuildSettings & BuildSett
 			
 		return PF_Unknown; /* Unknown */
 	}
+	
+	// if alpha is unknown, assume yes to be conservative about pixel size
+	bool bHasAlpha = ( BuildSettings.bKnowAlphaTransparency ) ? BuildSettings.bHasTransparentAlpha : true;
 
 	EPixelFormat PixelFormat = TextureFormat->GetEncodedPixelFormat(BuildSettings,bHasAlpha);
 	check( PixelFormat != PF_Unknown );
@@ -915,7 +918,7 @@ static EPixelFormat GetOutputPixelFormat(const FTextureBuildSettings & BuildSett
 	return PixelFormat;
 }
 
-static int GetWithinSliceRDOMemoryUsePerPixel(const FName TextureFormatName, bool bHasAlpha)
+static int GetWithinSliceRDOMemoryUsePerPixel(EPixelFormat PixelFormat)
 {
 	// Memory use of RDO data structures, per pixel, within each slice
 	// not counting per-image memory use
@@ -926,39 +929,25 @@ static int GetWithinSliceRDOMemoryUsePerPixel(const FName TextureFormatName, boo
 	const int MemUse_BC7 = 30;
 	const int MemUse_BC3 = MemUse_BC4; // max of BC1,BC4
 	
-	if ( TextureFormatName == "DXT1" ||
-		(TextureFormatName == "AutoDXT" && ! bHasAlpha) )
+	switch(PixelFormat)
 	{
+	case PF_DXT1:
 		return MemUse_BC1;
-	}
-	else if ( TextureFormatName == "DXT3" || 
-		TextureFormatName == "DXT5" ||
-		TextureFormatName == "DXT5n" ||
-		TextureFormatName == "AutoDXT")
-	{
+	case PF_DXT3:
+	case PF_DXT5:
 		return MemUse_BC3;
-	}
-	else if ( TextureFormatName == "BC4" )
-	{
+	case PF_BC4:
 		return MemUse_BC4;
-	}
-	else if ( TextureFormatName == "BC5" )
-	{
+	case PF_BC5:
 		return MemUse_BC5;
-	}
-	else if ( TextureFormatName == "BC6H" )
-	{
+	case PF_BC6H:
 		return MemUse_BC6;
-	}
-	else if ( TextureFormatName == "BC7" )
-	{
+	case PF_BC7:
 		return MemUse_BC7;
-	}
-	else
-	{
+	default:
 		// is this possible?
 		UE_CALL_ONCE( [&](){
-			UE_LOG(LogTexture, Display, TEXT("Unexpected non-BC TextureFormatName: %s."), *TextureFormatName.ToString());
+			UE_LOG(LogTexture, Display, TEXT("Unexpected non-BC PixelFormat: %d."), (int)PixelFormat);
 		} );
 
 		return 100;
@@ -971,12 +960,7 @@ static int64 GetBuildRequiredMemoryEstimate(UTexture* InTexture,
 	const FTextureSource & Source = InTexture->Source;
 
 	const bool bIsVT = InSettingsPerLayerFetchFirst[0].bVirtualStreamable;
-
-	const bool bHasAlpha = true; 
-	// @todo Oodle : need bHasAlpha for AutoDXT ; we currently over-estimate, treat all AutoDXT as BC3
-	// BEWARE : you must use the larger mem use of the two to be conservative
-	// BC1 has twice as many pixels per slice as BC3 so it's not trivially true that the mem use for BC3 is higher
-
+	
 	const bool bRDO = true;
 	// @todo Oodle : be careful about using BuildSettings for this as there are two buildsettingses, just assume its on for now
 	//   <- FIX ME, allow lower mem estimates for non-RDO
@@ -1077,7 +1061,7 @@ static int64 GetBuildRequiredMemoryEstimate(UTexture* InTexture,
 			//  exception would be lots of udim blocks + lots of layers
 			//  because IntermediateFloatColorBytes is per block/layer but output is held for all
 			
-			EPixelFormat PixelFormat = GetOutputPixelFormat(BuildSettings,bHasAlpha);
+			EPixelFormat PixelFormat = GetOutputPixelFormat(BuildSettings);
 
 			if ( PixelFormat == PF_Unknown )
 			{
@@ -1096,9 +1080,7 @@ static int64 GetBuildRequiredMemoryEstimate(UTexture* InTexture,
 
 				if ( bRDO )
 				{
-					const FName TextureFormatName = UE::TextureBuildUtilities::TextureFormatRemovePrefixFromName(BuildSettings.TextureFormatName);
-				
-					int RDOMemUse = GetWithinSliceRDOMemoryUsePerPixel(TextureFormatName,bHasAlpha);
+					int RDOMemUse = GetWithinSliceRDOMemoryUsePerPixel(PixelFormat);
 					CurPerPixelEncoderMemUse += 4; // activity
 					CurPerPixelEncoderMemUse += RDOMemUse;
 					CurPerPixelEncoderMemUse += 1; // output again
@@ -1189,7 +1171,7 @@ static int64 GetBuildRequiredMemoryEstimate(UTexture* InTexture,
 		
 		int64 MemoryEstimate = TotalSourceBytes + IntermediateFloatColorBytes;
 	
-		EPixelFormat PixelFormat = GetOutputPixelFormat(BuildSettings,bHasAlpha);
+		EPixelFormat PixelFormat = GetOutputPixelFormat(BuildSettings);
 
 		if ( PixelFormat == PF_Unknown )
 		{
@@ -1218,18 +1200,16 @@ static int64 GetBuildRequiredMemoryEstimate(UTexture* InTexture,
 			//	this copy is done in TFO
 			//  Oodle then allocs another copy to swizzle into blocks before encoding
 
-			const FName TextureFormatName = UE::TextureBuildUtilities::TextureFormatRemovePrefixFromName(BuildSettings.TextureFormatName);
-				
 			int IntermediateBytesPerPixel;
 			bool bNeedsIntermediateCopy = true;
 
 			// this matches the logic in TextureFormatOodle :
-			if ( TextureFormatName == "BC6H" )
+			if ( PixelFormat == PF_BC6H )
 			{
 				IntermediateBytesPerPixel = 16; //RGBAF32
 				bNeedsIntermediateCopy = false; // no intermediate used in TFO (float source kept), 1 blocksurf
 			}
-			else if ( TextureFormatName == "BC4" || TextureFormatName == "BC5" )
+			else if ( PixelFormat == PF_BC4 || PixelFormat == PF_BC5 )
 			{
 				// changed: TFO uses 2_U16 now (4 byte intermediate)
 				IntermediateBytesPerPixel = 8; // RGBA16
@@ -1252,8 +1232,8 @@ static int64 GetBuildRequiredMemoryEstimate(UTexture* InTexture,
 				// Phase1 = computing activity map
 				int ActivityBytesPerPixel;
 
-				if ( TextureFormatName == "BC4" ) ActivityBytesPerPixel = 12;
-				else if ( TextureFormatName == "BC5" ) ActivityBytesPerPixel = 16;
+				if ( PixelFormat == PF_BC4 ) ActivityBytesPerPixel = 12;
+				else if ( PixelFormat == PF_BC5 ) ActivityBytesPerPixel = 16;
 				else ActivityBytesPerPixel = 24;
 
 				int64 RDOPhase1MemUse = ActivityBytesPerPixel * TotalNumPixels;
@@ -1271,7 +1251,7 @@ static int64 GetBuildRequiredMemoryEstimate(UTexture* InTexture,
 					PixelsPerSlice = TotalNumPixels / NumberofSlices;
 				}
 			
-				int64 MemoryUsePerWorker = PixelsPerSlice * GetWithinSliceRDOMemoryUsePerPixel(TextureFormatName,bHasAlpha);
+				int64 MemoryUsePerWorker = PixelsPerSlice * GetWithinSliceRDOMemoryUsePerPixel(PixelFormat);
 					// MemoryUsePerWorker is around 10 MB
 				int64 NumberOfWorkers = FMath::Min(NumberofSlices,MaxNumberOfWorkers);
 			

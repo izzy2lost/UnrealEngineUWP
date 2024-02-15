@@ -322,4 +322,6 @@ FTexturePlatformData::FStructuredDerivedDataKey CreateTextureDerivedDataKey(
 	ETextureCacheFlags CacheFlags,
 	const FTextureBuildSettings& Settings);
 
+EPixelFormat GetOutputPixelFormat(const FTextureBuildSettings & BuildSettings);
+
 #endif // WITH_EDITOR

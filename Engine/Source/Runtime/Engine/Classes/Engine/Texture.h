@@ -1648,8 +1648,19 @@ public:
 	 * Get the dimensions of the largest mip of the texture when built for the target platform
 	 *   accounting for LODBias and other constraints
 	 */
-	ENGINE_API void GetBuiltTextureSize( const ITargetPlatform* TargetPlatform , int32 & OutSizeX, int32 & OutSizeY ) const;
-	ENGINE_API void GetBuiltTextureSize( const class ITargetPlatformSettings* TargetPlatformSettings, const class ITargetPlatformControls* TargetPlatformControls, int32 & OutSizeX, int32 & OutSizeY ) const;
+	ENGINE_API void GetBuiltTextureSize( const ITargetPlatform* TargetPlatform , int32 & OutSizeX, int32 & OutSizeY, int32 & OutSizeZ ) const;
+	ENGINE_API void GetBuiltTextureSize( const class ITargetPlatformSettings* TargetPlatformSettings, const class ITargetPlatformControls* TargetPlatformControls, int32 & OutSizeX, int32 & OutSizeY, int32 & OutSizeZ ) const;
+	
+	ENGINE_API void GetBuiltTextureSize( const ITargetPlatform* TargetPlatform , int32 & OutSizeX, int32 & OutSizeY) const
+	{
+		int32 IgnoredSizeZ;
+		GetBuiltTextureSize(TargetPlatform,OutSizeX,OutSizeY,IgnoredSizeZ);
+	}
+	ENGINE_API void GetBuiltTextureSize( const class ITargetPlatformSettings* TargetPlatformSettings, const class ITargetPlatformControls* TargetPlatformControls, int32 & OutSizeX, int32 & OutSizeY) const
+	{
+		int32 IgnoredSizeZ;
+		GetBuiltTextureSize(TargetPlatformSettings,TargetPlatformControls,OutSizeX,OutSizeY,IgnoredSizeZ);
+	}
 
 	/**
 	 * Serializes cooked platform data.

@@ -346,6 +346,13 @@ public:
 	virtual void GetTextureFormats(const class UTexture* Texture, TArray< TArray<FName> >& OutFormats) const = 0;
 
 	/**
+	 * Get the limitations on texture size (bytes) on this platform
+	 * this limitation is in addition to any dimension limits (specified in device profiles)
+	 * all built textures must be <= this size
+	 */
+	virtual void GetTextureSizeLimits(uint64 & OutMaximumSurfaceBytes, uint64 & OutMaximumPackageBytes) const = 0;
+
+	/**
 	 * Gets the texture formats this platform can use
 	 *
 	 * @param OutFormats will contain all the texture formats which are possible for this platform

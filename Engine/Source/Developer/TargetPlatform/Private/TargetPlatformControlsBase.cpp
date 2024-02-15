@@ -1,4 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Common/TargetPlatformControlsBase.h"
 #include "Interfaces/IProjectBuildMutatorFeature.h"
@@ -292,6 +293,30 @@ void FTargetPlatformControlsBase::GetAllWaveFormats(TArray<FName>& OutFormats) c
 void FTargetPlatformControlsBase::GetWaveFormatModuleHints(TArray<FName>& OutModuleNames) const
 {
 	GetAudioFormatSettings().GetWaveFormatModuleHints(OutModuleNames);
+}
+
+/* static */ void FTargetPlatformControlsBase::GetTextureSizeLimitsDefault(FConfigCacheIni* ConfigSystem,uint64 & OutMaximumSurfaceBytes, uint64 & OutMaximumPackageBytes)
+{
+	OutMaximumSurfaceBytes = 1ULL << 31; // 2 GB
+	//OutMaximumPackageBytes = 1ULL << 32; // 4 GB  seems to work on some platforms
+	OutMaximumPackageBytes = 1ULL << 31; // 2 GB
+
+	#if 0
+	// for stress testing
+	OutMaximumSurfaceBytes = 32 * 1024 * 1024;
+	OutMaximumPackageBytes = OutMaximumSurfaceBytes * 2;
+	#endif
+
+	int64 MaxChunkSize = 0;
+	if ( ConfigSystem->GetInt64(TEXT("/Script/UnrealEd.ProjectPackagingSettings"), TEXT("MaxChunkSize"), MaxChunkSize, GGameIni) &&
+		MaxChunkSize != 0 )
+	{
+		check( MaxChunkSize > 0 );
+
+		OutMaximumPackageBytes = FMath::Min<uint64>(OutMaximumPackageBytes,MaxChunkSize);
+	}
+
+	OutMaximumSurfaceBytes = FMath::Min<uint64>(OutMaximumSurfaceBytes,OutMaximumPackageBytes);
 }
 
 #endif // WITH_ENGINE

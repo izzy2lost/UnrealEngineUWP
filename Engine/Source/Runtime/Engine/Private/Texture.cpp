@@ -3567,45 +3567,32 @@ static FName ConditionalGetPrefixedFormat(FName TextureFormatName, const ITarget
 	return ConditionalGetPrefixedFormat(TextureFormatName, TargetPlatform->GetTargetPlatformSettings(), bOodleTextureSdkVersionIsNone);
 }
 
-void UTexture::GetBuiltTextureSize(const ITargetPlatformSettings* TargetPlatformSettings, const ITargetPlatformControls* TargetPlatformControls, int32 & OutSizeX, int32 & OutSizeY ) const
+void UTexture::GetBuiltTextureSize(const ITargetPlatformSettings* TargetPlatformSettings, const ITargetPlatformControls* TargetPlatformControls, int32 & OutSizeX, int32 & OutSizeY, int32& OutSizeZ ) const
 {
-	// @todo Oodle : SizeZ
 	// @todo Oodle : verify against TextureCompressorModule
 	// @todo Oodle : with cinematic mips or not? maybe add a bool arg
 	
-	int32 SizeX,SizeY;
+	int32 SizeX,SizeY,SizeZ;
 
 #if WITH_EDITORONLY_DATA
 	FIntPoint SourceSize = Source.GetLogicalSize();
 	SizeX = SourceSize.X;
 	SizeY = SourceSize.Y;
-
-	if (PowerOfTwoMode == ETexturePowerOfTwoSetting::PadToPowerOfTwo || PowerOfTwoMode == ETexturePowerOfTwoSetting::PadToSquarePowerOfTwo ||
-		PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToPowerOfTwo || PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToSquarePowerOfTwo)
+	
+	SizeZ = Source.GetNumSlices();
+	if ( Source.IsLongLatCubemap() )
 	{
-		SizeX = FMath::RoundUpToPowerOfTwo(SizeX);
-		SizeY = FMath::RoundUpToPowerOfTwo(SizeY);
-
-		if (PowerOfTwoMode == ETexturePowerOfTwoSetting::PadToSquarePowerOfTwo || PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToSquarePowerOfTwo)
-		{
-			SizeX = SizeY = FMath::Max(SizeX, SizeY);
-		}
+		SizeZ *= 6;
 	}
-	else if (PowerOfTwoMode == ETexturePowerOfTwoSetting::ResizeToSpecificResolution)
-	{
-		if (ResizeDuringBuildX)
-		{
-			SizeX = ResizeDuringBuildX;
-		}
-		if (ResizeDuringBuildY)
-		{
-			SizeY = ResizeDuringBuildY;
-		}
-	}
-	else
-	{
-		checkf(PowerOfTwoMode == ETexturePowerOfTwoSetting::None, TEXT("Unknown entry in ETexturePowerOfTwoSetting::Type"));
-	}
+	
+	// Volumes mip down Z, other types don't
+	ETextureClass TextureClass = GetTextureClass();
+	bool bIsVolume = ( TextureClass == ETextureClass::Volume );
+	
+	UE::TextureBuildUtilities::GetPowerOfTwoTargetTextureSize(
+		SizeX, SizeY, SizeZ,
+		bIsVolume, PowerOfTwoMode, ResizeDuringBuildX, ResizeDuringBuildY,
+		SizeX, SizeY, SizeZ);
 
 	if (Source.IsLongLatCubemap())
 	{
@@ -3623,6 +3610,10 @@ void UTexture::GetBuiltTextureSize(const ITargetPlatformSettings* TargetPlatform
 		{
 			SizeX = FMath::Max(SizeX>>1,1);
 			SizeY = FMath::Max(SizeY>>1,1);
+			if ( bIsVolume )
+			{
+				SizeZ = FMath::Max(SizeZ>>1,1);
+			}
 		}
 	}
 
@@ -3633,8 +3624,10 @@ void UTexture::GetBuiltTextureSize(const ITargetPlatformSettings* TargetPlatform
  	const uint32 LODBiasNoCinematics = FMath::Max<int32>(LODSettings.CalculateLODBias(SizeX, SizeY, MaxTextureSize, LODGroup, LODBias, 0, MipGenSettings, bVirtualTextureStreaming), 0);
 	SizeX = FMath::Max<int32>(SizeX >> LODBiasNoCinematics, 1);
 	SizeY = FMath::Max<int32>(SizeY >> LODBiasNoCinematics, 1);
-
-	// @todo Oodle : check against GetCookedPlatformData ?
+	if ( bIsVolume )
+	{
+		SizeZ = FMath::Max<int32>(SizeZ >> LODBiasNoCinematics, 1);
+	}
 
 #else // WITH_EDITORONLY_DATA
 
@@ -3650,21 +3643,22 @@ void UTexture::GetBuiltTextureSize(const ITargetPlatformSettings* TargetPlatform
 	{
 		SizeX = (*PPlatformData)->SizeX;
 		SizeY = (*PPlatformData)->SizeY;
+		SizeZ = (*PPlatformData)->GetNumSlices();
 	}
 	else
 	{
-		SizeX = 0;
-		SizeY = 0;
+		SizeX = SizeY = SizeZ = 0;
 	}
 
 #endif // WITH_EDITORONLY_DATA
 
 	OutSizeX = SizeX;
 	OutSizeY = SizeY;
+	OutSizeZ = SizeZ;
 }
-void UTexture::GetBuiltTextureSize(const ITargetPlatform* TargetPlatform, int32& OutSizeX, int32& OutSizeY) const
+void UTexture::GetBuiltTextureSize(const ITargetPlatform* TargetPlatform, int32& OutSizeX, int32& OutSizeY, int32& OutSizeZ) const
 {
-	return GetBuiltTextureSize(TargetPlatform->GetTargetPlatformSettings(), TargetPlatform->GetTargetPlatformControls(), OutSizeX, OutSizeY);
+	return GetBuiltTextureSize(TargetPlatform->GetTargetPlatformSettings(), TargetPlatform->GetTargetPlatformControls(), OutSizeX, OutSizeY, OutSizeZ);
 }
 // this should not be called directly; it is called from TargetPlatform GetTextureFormats
 //	entry point API is GetPlatformTextureFormatNamesWithPrefix

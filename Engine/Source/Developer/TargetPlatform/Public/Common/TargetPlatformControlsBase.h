@@ -157,7 +157,8 @@ public:
 		static const FName NAME_MeshBuilder(TEXT("MeshBuilder"));
 		return NAME_MeshBuilder;
 	}
-
+	
+	// beware this is duplicated between TargetPlatformBase and TargetPlatformControlsBase
 	virtual void GetTextureFormatModuleHints(TArray<FName>& OutModuleNames) const override
 	{
 		// these are the default texture format modules, since many platforms 
@@ -178,6 +179,14 @@ public:
 	TARGETPLATFORM_API virtual void GetAllWaveFormats(TArray<FName>& OutFormats) const override;
 
 	TARGETPLATFORM_API virtual void GetWaveFormatModuleHints(TArray<FName>& OutModuleNames) const override;
+	
+	static TARGETPLATFORM_API void GetTextureSizeLimitsDefault(FConfigCacheIni* ConfigSystem,uint64 & OutMaximumSurfaceBytes, uint64 & OutMaximumPackageBytes);
+	
+	// beware this is duplicated between TargetPlatformBase and TargetPlatformControlsBase
+	TARGETPLATFORM_API virtual void GetTextureSizeLimits(uint64 & OutMaximumSurfaceBytes, uint64 & OutMaximumPackageBytes) const override
+	{
+		GetTextureSizeLimitsDefault(TargetPlatformSettings->GetConfigSystem(),OutMaximumSurfaceBytes,OutMaximumPackageBytes);
+	}
 
 #endif
 

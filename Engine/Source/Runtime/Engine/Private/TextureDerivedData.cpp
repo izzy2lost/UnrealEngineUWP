@@ -619,6 +619,177 @@ static void GetEncodeSpeedOptions(ETextureEncodeSpeed InEncodeSpeed, FTextureEnc
 	}
 }
 
+// this should be a strict over-estimate
+// SizeZ is 6 for cubes, can be slices for arrays, etc
+//	or it's volume depth and set IsVolume = true
+static void GetBuiltTextureSizeBytesEstimate(
+	const FTextureBuildSettings& BuildSettings,
+	const ITextureFormat* TextureFormat,
+	int64 TopMipSizeX,int64 TopMipSizeY,int64 TopMipSizeZ,
+	bool bIsVolume,EPixelFormat PixelFormat,
+	// fills :
+	uint64 & OutTopMipSizeBytes, uint64 & OutTotalImageSizeBytes)
+{
+	check( PixelFormat != PF_Unknown );
+	const FPixelFormatInfo & PFI = GPixelFormats[PixelFormat];
+
+	uint64 TopMipSizeBytes = 0;
+	uint64 TotalImageSizeBytes = 0;
+
+	int64 SizeX = TopMipSizeX;
+	int64 SizeY = TopMipSizeY;
+	int64 SizeZ = TopMipSizeZ;
+	
+	int64 NumMips = FImageCoreUtils::GetMipCountFromDimensions(TopMipSizeX,TopMipSizeY,TopMipSizeZ,bIsVolume);
+	check( NumMips > 0 );
+
+	// calculate bytes for linear unpadded/untiled layout :
+
+	for(int64 Mip=0;Mip<NumMips;Mip++)
+	{
+		int64 NumBlocksXY = 
+			FMath::DivideAndRoundUp<int64>( SizeX, PFI.BlockSizeX ) * 
+			FMath::DivideAndRoundUp<int64>( SizeY, PFI.BlockSizeY ); 
+		uint64 SizeBytes = NumBlocksXY * PFI.BlockBytes * SizeZ;
+
+		if ( Mip == 0 )
+		{
+			// save size of first mip
+			TopMipSizeBytes = SizeBytes;
+		}
+
+		TotalImageSizeBytes += SizeBytes;
+
+		SizeX = FMath::Max(1,SizeX>>1);
+		SizeY = FMath::Max(1,SizeY>>1);
+		if ( bIsVolume )
+		{
+			SizeZ = FMath::Max(1,SizeZ>>1);
+		}
+	}
+	
+	check( TotalImageSizeBytes > 0 );
+
+	OutTopMipSizeBytes = TopMipSizeBytes;
+	OutTotalImageSizeBytes = TotalImageSizeBytes;
+	
+	// if alpha is unknown, assume yes to be conservative about pixel size
+	bool bHasAlpha = ( BuildSettings.bKnowAlphaTransparency ) ? BuildSettings.bHasTransparentAlpha : true;
+
+	FEncodedTextureDescription TextureDescription;
+	BuildSettings.GetEncodedTextureDescription(&TextureDescription, TextureFormat, TopMipSizeX, TopMipSizeY, TopMipSizeZ, NumMips, bHasAlpha);
+	check( TextureDescription.PixelFormat == PixelFormat );
+
+	int32 LODBias = 0;
+	FEncodedTextureExtendedData ExtendedData = TextureFormat->GetExtendedDataForTexture(TextureDescription, LODBias);
+	if ( ExtendedData.MipSizesInBytes.Num() > 0 )
+	{
+		// ExtendedData is only valid for platform/tiled images
+
+		TopMipSizeBytes = ExtendedData.MipSizesInBytes[0];
+		
+		// tiled size should be bigger than linear
+		check( TopMipSizeBytes >= OutTopMipSizeBytes );
+
+		TotalImageSizeBytes = 0;
+		for(const uint64 & MipSize : ExtendedData.MipSizesInBytes )
+		{
+			TotalImageSizeBytes += MipSize;
+		}
+		
+		OutTopMipSizeBytes = TopMipSizeBytes;
+		OutTotalImageSizeBytes = TotalImageSizeBytes;
+	}
+
+}
+
+// may reduce OutSettings.MaxTextureResolution
+//	nop if called again
+//	does not change anything else in OutSettings
+//	OutSettings must be otherwise fully set up
+static void ModifyMaxTextureResolutionBuildSettingsForPlatformLimit(
+	const UTexture& Texture, 
+	const ITargetPlatform* TargetPlatform,
+	
+	const ITextureFormat* TextureFormat,
+
+	FTextureBuildSettings& OutSettings)
+{
+	check( ! OutSettings.bVirtualStreamable );
+	check( OutSettings.TextureFormatName != NAME_None );
+			
+	// GetBuiltTextureSize is the size after LODBias
+	int32 BuiltSizeX=0,BuiltSizeY=0,BuiltSizeZ=0;
+	Texture.GetBuiltTextureSize(TargetPlatform,BuiltSizeX,BuiltSizeY,BuiltSizeZ);
+		
+	uint64 MaxSurfaceBytes,MaxPackageBytes;
+	TargetPlatform->GetTextureSizeLimits(MaxSurfaceBytes,MaxPackageBytes);
+	
+	EPixelFormat PixelFormat = GetOutputPixelFormat(OutSettings);
+
+	if ( PixelFormat == PF_Unknown )
+	{
+		UE_LOG(LogTexture, Error, TEXT("Texture %s failed GetOutputPixelFormat (format=%s)"), 
+			*Texture.GetPathName(),
+			*OutSettings.TextureFormatName.ToString());
+			
+		PixelFormat = PF_FloatRGBA;
+	}
+
+	uint64 SurfaceBytes,TotalBytes;
+	GetBuiltTextureSizeBytesEstimate(OutSettings,TextureFormat, BuiltSizeX,BuiltSizeY,BuiltSizeZ,OutSettings.bVolume,PixelFormat,SurfaceBytes,TotalBytes);
+
+	if ( SurfaceBytes > MaxSurfaceBytes || TotalBytes > MaxPackageBytes )
+	{
+		UE_LOG(LogTexture, Warning, TEXT("Texture %s exceeds maximum size of surface or package: %d x %d x %d x %s = {%lld,%lld bytes} exceeds limit {%lld,%lld bytes} shrinking..."), *Texture.GetPathName(),
+			BuiltSizeX, BuiltSizeY, BuiltSizeZ, GetPixelFormatString(PixelFormat),
+			SurfaceBytes,TotalBytes,
+			MaxSurfaceBytes,MaxPackageBytes
+			);
+		
+		// OriginalMaxTextureResolution is uint32_max if Texture did not have a max size set
+		uint32 OriginalMaxTextureResolution = OutSettings.MaxTextureResolution;
+
+		do
+		{
+			// change MaxTextureResolution so that it causes us to do one mip step down
+			//	and adjust BuiltSize accordingly
+			
+			// BuiltSizeZ not affected by MaxTextureResolution
+			OutSettings.MaxTextureResolution = FMath::RoundUpToPowerOfTwo( FMath::Max(BuiltSizeX,BuiltSizeY) )/2;
+			check( (int64)OutSettings.MaxTextureResolution < (int64)BuiltSizeX || (int64)OutSettings.MaxTextureResolution < (int64)BuiltSizeY );
+				
+			BuiltSizeX = FMath::Max(1,BuiltSizeX>>1);
+			BuiltSizeY = FMath::Max(1,BuiltSizeY>>1);
+			if ( OutSettings.bVolume )
+			{
+				BuiltSizeZ = FMath::Max(1,BuiltSizeZ>>1);
+			}
+
+			check( (int64)BuiltSizeX <= (int64)OutSettings.MaxTextureResolution && (int64)BuiltSizeY <= (int64)OutSettings.MaxTextureResolution );
+
+			// recalc size in bytes :
+			GetBuiltTextureSizeBytesEstimate(OutSettings,TextureFormat, BuiltSizeX,BuiltSizeY,BuiltSizeZ,OutSettings.bVolume,PixelFormat,SurfaceBytes,TotalBytes);
+		}
+		while ( SurfaceBytes > MaxSurfaceBytes || TotalBytes > MaxPackageBytes );
+		
+		{
+			// compensate for LODBias that will be applied
+			// after scaling to MaxTextureResolution, LODBiasNoCinematics will be applied
+			
+			const UTextureLODSettings& LODSettings = TargetPlatform->GetTextureLODSettings();
+ 			const uint32 LODBiasNoCinematics = FMath::Max<int32>(LODSettings.CalculateLODBias(BuiltSizeX, BuiltSizeY, Texture.MaxTextureSize, Texture.LODGroup, Texture.LODBias, 0, Texture.MipGenSettings, OutSettings.bVirtualStreamable), 0);
+
+			int64 MaxTextureResolutionUp = ((int64)OutSettings.MaxTextureResolution)<<LODBiasNoCinematics;
+
+			OutSettings.MaxTextureResolution = (uint32) FMath::Min<int64>((int64)OriginalMaxTextureResolution,MaxTextureResolutionUp);
+		}
+
+		// ensure MaxTextureResolution never goes up :
+		OutSettings.MaxTextureResolution = FMath::Min(OriginalMaxTextureResolution,OutSettings.MaxTextureResolution);
+	}
+}
+
 
 // Convert the baseline build settings for all layers to one for the given layer.
 // Note this gets called twice for layer 0, so needs to be idempotent.
@@ -682,57 +853,57 @@ static void FinalizeBuildSettingsForLayer(
 	}
 
 	// Now that we know the texture format, we can make decisions based on it.
+	
+	ITargetPlatformManagerModule* TPM = GetTargetPlatformManager();
+	const ITextureFormat* TextureFormat = nullptr;
+	// this is called once first with NAME_None and then called again after Name is set up
+	if ( ! OutSettings.TextureFormatName.IsNone() )
+	{
+		TextureFormat = TPM->FindTextureFormat(OutSettings.TextureFormatName);
+	}
 
 	bool bSupportsEncodeSpeed = false;
+
+	// Can be null with first finalize (at the end of GetTextureBuildSettings)
+	if (TextureFormat)
 	{
-		ITargetPlatformManagerModule* TPM = GetTargetPlatformManager();
-		if (TPM)
+		bSupportsEncodeSpeed = TextureFormat->SupportsEncodeSpeed(OutSettings.TextureFormatName);
+		const FChildTextureFormat* ChildTextureFormat = TextureFormat->GetChildFormat();
+
+		if (ChildTextureFormat)
 		{
-			// Can be null with first finalize (at the end of GetTextureBuildSettings)
-			const ITextureFormat* TextureFormat = TPM->FindTextureFormat(OutSettings.TextureFormatName);
-			if (TextureFormat)
-			{
-				bSupportsEncodeSpeed = TextureFormat->SupportsEncodeSpeed(OutSettings.TextureFormatName);
-				const FChildTextureFormat* ChildTextureFormat = TextureFormat->GetChildFormat();
+			OutSettings.BaseTextureFormatName = ChildTextureFormat->GetBaseFormatName(OutSettings.TextureFormatName);
+		}
+		else
+		{
+			OutSettings.BaseTextureFormatName = OutSettings.TextureFormatName;
+		}
 
-				if (ChildTextureFormat)
-				{
-					OutSettings.BaseTextureFormatName = ChildTextureFormat->GetBaseFormatName(OutSettings.TextureFormatName);
-				}
-				else
-				{
-					OutSettings.BaseTextureFormatName = OutSettings.TextureFormatName;
-				}
-
-				if (OutBuildResultMetadata)
-				{
-					OutBuildResultMetadata->Encoder = TextureFormat->GetEncoderName(OutSettings.TextureFormatName);
-					OutBuildResultMetadata->bIsValid = true;
-					OutBuildResultMetadata->bSupportsEncodeSpeed = bSupportsEncodeSpeed;
-				}
+		if (OutBuildResultMetadata)
+		{
+			OutBuildResultMetadata->Encoder = TextureFormat->GetEncoderName(OutSettings.TextureFormatName);
+			OutBuildResultMetadata->bIsValid = true;
+			OutBuildResultMetadata->bSupportsEncodeSpeed = bSupportsEncodeSpeed;
+		}
 			
-				{
-					if (FResolvedTextureEncodingSettings::Get().Project.bSharedLinearTextureEncoding)
-					{
-						//
-						// We want to separate out textures involved in shared linear encoding in order to facilitate
-						// fixing bugs without invalidating the world (even though we expect the exact same data to
-						// get generated). However, virtual textures never tile, and so are exempt from this separation.
-						//
-						if (OutSettings.bVirtualStreamable == false)
-						{
-							OutSettings.bAffectedBySharedLinearEncoding = true;
-						}
+		if (FResolvedTextureEncodingSettings::Get().Project.bSharedLinearTextureEncoding)
+		{
+			//
+			// We want to separate out textures involved in shared linear encoding in order to facilitate
+			// fixing bugs without invalidating the world (even though we expect the exact same data to
+			// get generated). However, virtual textures never tile, and so are exempt from this separation.
+			//
+			if (OutSettings.bVirtualStreamable == false)
+			{
+				OutSettings.bAffectedBySharedLinearEncoding = true;
+			}
 
-						// Shared linear encoding can only work if the base texture format does not expect to
-						// do the tiling itself (SupportsTiling == false).
-						if (ChildTextureFormat && ChildTextureFormat->GetBaseFormatObject(OutSettings.TextureFormatName)->SupportsTiling() == false)
-						{
-							OutSettings.Tiler = ChildTextureFormat->GetTiler();
-						}
-					} // end if enabled
-				} // end if ddc2
-			} // end if texture format found.
+			// Shared linear encoding can only work if the base texture format does not expect to
+			// do the tiling itself (SupportsTiling == false).
+			if (ChildTextureFormat && ChildTextureFormat->GetBaseFormatObject(OutSettings.TextureFormatName)->SupportsTiling() == false)
+			{
+				OutSettings.Tiler = ChildTextureFormat->GetTiler();
+			}
 		}
 	}
 
@@ -782,6 +953,13 @@ static void FinalizeBuildSettingsForLayer(
 			OutBuildResultMetadata->OodleEncodeEffort = OutSettings.OodleEncodeEffort;
 			OutBuildResultMetadata->OodleUniversalTiling = OutSettings.OodleUniversalTiling;
 		}
+	}
+	
+	// this is called once first with NAME_None and then called again after Name is set up
+	if ( ! OutSettings.bVirtualStreamable && ! OutSettings.TextureFormatName.IsNone() )
+	{
+		check( LayerIndex == 0 );
+		ModifyMaxTextureResolutionBuildSettingsForPlatformLimit(Texture,TargetPlatform,TextureFormat,OutSettings);
 	}
 }
 
