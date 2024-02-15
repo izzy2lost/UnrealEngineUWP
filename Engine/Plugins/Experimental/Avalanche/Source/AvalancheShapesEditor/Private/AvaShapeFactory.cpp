@@ -2,11 +2,13 @@
 
 #include "AvaShapeFactory.h"
 #include "AvaShapeActor.h"
-#include "DynamicMeshes/AvaShapeDynMeshBase.h"
 #include "DynamicMeshes/AvaShape2DDynMeshBase.h"
 #include "DynamicMeshes/AvaShape3DDynMeshBase.h"
+#include "DynamicMeshes/AvaShapeDynMeshBase.h"
 #include "Engine/Level.h"
 #include "Engine/World.h"
+#include "EngineAnalytics.h"
+#include "Subsystems/PlacementSubsystem.h"
 #include "Tools/AvaShapesEditorShapeToolBase.h"
 
 UAvaShapeFactory::UAvaShapeFactory()
@@ -80,4 +82,19 @@ AActor* UAvaShapeFactory::SpawnActor(UObject* InAsset, ULevel* InLevel, const FT
 	ShapeActor->SetDynamicMesh(MeshBase);
 
 	return ShapeActor;
+}
+
+void UAvaShapeFactory::PostPlaceAsset(TArrayView<const FTypedElementHandle> InHandle, const FAssetPlacementInfo& InPlacementInfo, const FPlacementOptions& InPlacementOptions)
+{
+	Super::PostPlaceAsset(InHandle, InPlacementInfo, InPlacementOptions);
+
+	if (!InPlacementOptions.bIsCreatingPreviewElements && FEngineAnalytics::IsAvailable())
+	{
+		TArray<FAnalyticsEventAttribute> Attributes;
+		if (MeshClass)
+		{
+			Attributes.Emplace(TEXT("MeshClass"), MeshClass->GetName());	
+		}
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MotionDesign.PlaceShape"), Attributes);
+	}
 }

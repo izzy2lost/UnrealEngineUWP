@@ -3,6 +3,7 @@
 #include "Tool/AvaSVGActorTool.h"
 #include "AvaInteractiveToolsSettings.h"
 #include "Builders/AvaInteractiveToolsToolBuilder.h"
+#include "Factories/SVGActorFactory.h"
 #include "SVGActor.h"
 #include "SVGImporterEditorCommands.h"
 
@@ -32,6 +33,7 @@ FAvaInteractiveToolsToolParameters UAvaSVGActorTool::GetToolParameters() const
 			{
 				return UAvaInteractiveToolsToolBuilder::CreateToolBuilder<UAvaSVGActorTool>(InEdMode);
 			}),
-		ActorClass
+		ActorClass,
+		CreateActorFactory<USVGActorFactory>()
 	};
 }
