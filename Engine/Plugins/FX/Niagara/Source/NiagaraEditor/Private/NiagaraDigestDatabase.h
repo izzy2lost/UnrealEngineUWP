@@ -88,6 +88,7 @@ protected:
 class FNiagaraDigestedParameterCollections
 {
 public:
+	TConstArrayView<FNiagaraCompilationNPCHandle> ReadCollections() const { return Collections; }
 	TArray<FNiagaraCompilationNPCHandle>& EditCollections() { return Collections; };
 
 	FNiagaraCompilationNPCHandle FindMatchingCollection(FName VariableName, bool bAllowPartialMatch, FNiagaraVariable& OutVar) const;
