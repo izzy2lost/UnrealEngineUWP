@@ -4128,6 +4128,13 @@ namespace UE::NNE::RuntimeBasic
 		WriteFileDataAndReset(MakeArrayView(FileData), OutInputSize, OutOutputSize, Element);
 	}
 
+	TArrayView<float> FModelBuilder::MakeWeightsCopy(const TConstArrayView<float> Weights)
+	{
+		TArray<float>& Values = WeightsPool.AddDefaulted_GetRef();
+		Values = Weights;
+		return Values;
+	}
+
 	TArrayView<float> FModelBuilder::MakeWeightsZero(const uint32 Size)
 	{
 		TArray<float>& Values = WeightsPool.AddDefaulted_GetRef();
