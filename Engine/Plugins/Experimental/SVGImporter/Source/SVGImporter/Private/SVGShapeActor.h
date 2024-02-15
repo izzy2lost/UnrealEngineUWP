@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "ASVGDynamicMeshesContainerActor.h"
+#include "SVGDynamicMeshesContainerActor.h"
 #include "GameFramework/Actor.h"
 #include "SVGShapeActor.generated.h"
 

@@ -12,7 +12,7 @@ DECLARE_DELEGATE_OneParam(FSVGActorComponentsReady, ASVGActor*)
 DECLARE_DELEGATE_OneParam(FOnSVGActorSplit, ASVGShapesParentActor*)
 
 UCLASS()
-class SVGIMPORTER_API USVGEngineSubsystem : public UEngineSubsystem
+class USVGEngineSubsystem : public UEngineSubsystem
 {
 	GENERATED_BODY()
 
@@ -24,7 +24,7 @@ public:
 	static FOnSVGActorSplit& OnSVGActorSplit() { return OnSVGActorSplitDelegate; }
 
 protected:
-	static FOnSVGActorSplit OnSVGActorSplitDelegate;
+	SVGIMPORTER_API static FOnSVGActorSplit OnSVGActorSplitDelegate;
 
 	FSVGActorComponentsReady SVGActorComponentsReady;
 };

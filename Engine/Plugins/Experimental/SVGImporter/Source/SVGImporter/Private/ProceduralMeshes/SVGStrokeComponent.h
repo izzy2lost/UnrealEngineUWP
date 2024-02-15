@@ -42,13 +42,13 @@ public:
 	void SetJointStyle(EPolygonOffsetJoinType InJoinStyle);
 	void SetStrokeWidth(float InStrokesWidth);
 
+protected:
 	//~ Begin UObject
 #if WITH_EDITOR
 	virtual void PostTransacted(const FTransactionObjectEvent& TransactionEvent) override;
 #endif
 	//~ End UObject
 
-protected:
 	//~ Begin USVGDynamicMesh
 	virtual void RegisterDelegates() override;
 	virtual void RegenerateMesh() override;

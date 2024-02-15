@@ -90,17 +90,20 @@ public:
 /**
  * SVG Subpath
  */
-struct SVGIMPORTER_API FSVGSubPath
+struct FSVGSubPath
 {
 	/** Set the path closed flag*/
-	void SetIsClosed(bool bInIsClosed) { bIsClosed = bInIsClosed; }
+	void SetIsClosed(bool bInIsClosed)
+	{
+		bIsClosed = bInIsClosed;
+	}
 
 	/** Add an element to this path */
 	void AddPathElement(const FSVGPathElement& InElement)
 	{
 		Elements.Add(InElement);
 	}
-	
+
 	/** Elements of this Sub Path */
 	TArray<FSVGPathElement> Elements;
 
@@ -117,9 +120,9 @@ public:
 	FSVGPath();
 
 	FSVGPath(float InPathLength);
-	
+
 	FSVGPath(const TArray<TArray<FSVGPathCommand>>& InPaths, float InPathLength);
-	
+
 	/** Set the leave tangent of the previous point */
 	bool UpdatePreviousElementLeaveTangent(const FVector2D& InLeaveTangent);
 

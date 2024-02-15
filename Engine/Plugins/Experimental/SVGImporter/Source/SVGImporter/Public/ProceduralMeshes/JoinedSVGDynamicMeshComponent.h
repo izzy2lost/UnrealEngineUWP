@@ -65,7 +65,7 @@ enum class EJoinedSVGMeshColoring : uint8
 	SingleColor
 };
 
-UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
+UCLASS(MinimalAPI, ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class UJoinedSVGDynamicMeshComponent : public UDynamicMeshComponent
 {
 	friend class FJoinedSVGDynamicMeshComponentCustomization;

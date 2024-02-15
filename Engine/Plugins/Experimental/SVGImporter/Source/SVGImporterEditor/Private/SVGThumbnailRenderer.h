@@ -7,7 +7,7 @@
 #include "SVGThumbnailRenderer.generated.h"
 
 UCLASS()
-class SVGIMPORTEREDITOR_API USVGThumbnailRenderer : public UDefaultSizedThumbnailRenderer
+class USVGThumbnailRenderer : public UDefaultSizedThumbnailRenderer
 {
 	GENERATED_BODY()
 

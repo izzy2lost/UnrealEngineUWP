@@ -8,14 +8,14 @@
 struct FToolMenuContext;
 
 UCLASS()
-class SVGIMPORTEREDITOR_API UAssetDefinition_SVGData : public UAssetDefinitionDefault
+class UAssetDefinition_SVGData : public UAssetDefinitionDefault
 {
 	GENERATED_BODY()
 
 public:
 	/** Menu Extension statics */
 	static void ExecuteReimportSVG(const FToolMenuContext& InContext);
-	
+
 	//~ Begin UAssetDefinition
 	virtual FText GetAssetDisplayName() const override;
 	virtual TSoftClassPtr<UObject> GetAssetClass() const override;

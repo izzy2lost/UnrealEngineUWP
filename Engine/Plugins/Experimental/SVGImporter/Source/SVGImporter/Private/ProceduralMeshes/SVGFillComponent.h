@@ -70,6 +70,7 @@ public:
 	void GenerateFillMesh(const FSVGFillParameters& InFillParameters);
 	void SetSmoothFillShapes(bool bInSmoothFillShapes, float InSmoothingOffset);
 
+protected:
 	//~ Begin UObject
 #if WITH_EDITOR
 	virtual void PostTransacted(const FTransactionObjectEvent& TransactionEvent) override;
@@ -78,7 +79,6 @@ public:
 	virtual void PostLoad() override;
 	//~ End UObject
 
-protected:
 	//~ Begin USVGDynamicMesh
 	virtual void RegisterDelegates() override;
 	virtual void RegenerateMesh() override;
