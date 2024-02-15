@@ -9,6 +9,7 @@
 #include "DynamicMesh/NonManifoldMappingSupport.h"
 #include "Math/Vector.h"
 #include "Util/IndexUtil.h"
+#include "Algo/RemoveIf.h"
 
 namespace UE::Chaos::ClothAsset
 {
@@ -1128,6 +1129,13 @@ namespace UE::Chaos::ClothAsset
 		const FCollectionClothSeamConstFacade SeamFacade = ClothFacade.GetSeam(SeamIndex);
 		
 		TArray<FIntVector2> InputStitches(SeamFacade.GetSeamStitch2DEndIndices());
+
+		// filter out any stitches referencing deleted vertices
+		InputStitches.SetNum(Algo::RemoveIf(InputStitches, [](const FIntVector2& Stitch)
+		{
+			return Stitch[0] == INDEX_NONE || Stitch[1] == INDEX_NONE;
+		}));
+
 
 		while (InputStitches.Num() > 0)
 		{
