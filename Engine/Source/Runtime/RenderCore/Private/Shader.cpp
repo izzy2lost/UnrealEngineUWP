@@ -1961,6 +1961,13 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 	}
 
 	{
+		if (DoesProjectSupportLumenRayTracedTranslucentRefraction())
+		{
+			KeyString += TEXT("_LTRRT");
+		}
+	}
+
+	{
 		static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.LocalFogVolume.ApplyOnTranslucent"));
 		const bool bLocalFogVolumesApplyOnTranclucent = CVar && CVar->GetInt() > 0;
 		if (bSupportLocalFogVolumes && bLocalFogVolumesApplyOnTranclucent)

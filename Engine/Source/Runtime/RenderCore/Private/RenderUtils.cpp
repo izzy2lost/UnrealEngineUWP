@@ -2018,6 +2018,19 @@ bool DoesPlatformSupportLumenGI(EShaderPlatform Platform, bool bSkipProjectCheck
 		&& !IsForwardShadingEnabled(Platform);
 }
 
+static TAutoConsoleVariable<int32> CVarLumenReflectionsHardwareRayTracingTranslucentRefractionEnableForProject(
+	TEXT("r.Lumen.Reflections.HardwareRayTracing.Translucent.Refraction.EnableForProject"),
+	1,
+	TEXT("Whether to use Lumen refraction tracing from surfaces when using harware ray tracing and hit lighting. This will require shader recompilation to compile of translucent card capture Lumen shaders. Increases GPU cost when enabled."),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe
+);
+
+bool DoesProjectSupportLumenRayTracedTranslucentRefraction()
+{
+	int32 LumenTranslucentRefractionEnabled = CVarLumenReflectionsHardwareRayTracingTranslucentRefractionEnableForProject.GetValueOnAnyThread();
+	return LumenTranslucentRefractionEnabled > 0;
+}
+
 static TAutoConsoleVariable<int32> CVarForwardShadingForceSkyBoxBlending(
 	TEXT("r.ForwardShading.ForceSkyLightCubemapBlending"),
 	0,

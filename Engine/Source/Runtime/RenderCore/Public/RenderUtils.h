@@ -536,6 +536,8 @@ inline bool IsStaticLightingAllowed()
 
 extern RENDERCORE_API bool DoesPlatformSupportLumenGI(EShaderPlatform Platform, bool bSkipProjectCheck = false);
 
+extern RENDERCORE_API bool DoesProjectSupportLumenRayTracedTranslucentRefraction();
+
 /** Whether or not the platform supports the scene spline texture for spline meshes */
 RENDERCORE_API bool UseSplineMeshSceneResources(const FStaticShaderPlatform Platform);
 

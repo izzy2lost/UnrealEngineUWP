@@ -12,6 +12,7 @@
 #include "IndirectLightRendering.h"
 #include "LumenReflections.h"
 #include "HairStrands/HairStrandsData.h"
+#include "RenderUtils.h"
 
 #if RHI_RAYTRACING
 #include "RayTracing/RaytracingOptions.h"
@@ -83,9 +84,13 @@ bool LumenReflections::UseHitLighting(const FViewInfo& View, bool bLumenGIEnable
 bool LumenReflections::UseTranslucentRayTracing(const FViewInfo& View)
 {
 #if RHI_RAYTRACING
-	// >=2 because the first reflection is from the first reflection hit,
-	// while the second is the potential translucent object hit after, actually achieving translucency.
-	return LumenReflections::GetMaxRefractionBounces(View) >= 2;
+	if (DoesProjectSupportLumenRayTracedTranslucentRefraction())
+	{
+		// >=2 because the first reflection is from the first reflection hit,
+		// while the second is the potential translucent object hit after, actually achieving translucency.
+		return LumenReflections::GetMaxRefractionBounces(View) >= 2;
+	}
+	return false;
 #else
 	return false;
 #endif
