@@ -123,7 +123,7 @@ bool TAvaMaskMaterialHandle<HandleDataType>::SetMaskParameters(UTexture* InTextu
 {
 	if (UMaterialInstanceDynamic* MaterialInstance = GetMaterialInstance())
 	{
-		UE_LOG(LogAvaMask, Display, TEXT("SetParameters: Texture:%s, Channel:%s"), InTexture ? *InTexture->GetName() : TEXT("(None)"), *UE::AvaMask::Internal::MaskChannelEnumToVector[InChannel].ToString());
+		UE_LOG(LogAvaMask, VeryVerbose, TEXT("SetParameters: Texture:%s, Channel:%s"), InTexture ? *InTexture->GetName() : TEXT("(None)"), *UE::AvaMask::Internal::MaskChannelEnumToVector[InChannel].ToString());
 
 		UTexture* DefaultTexture = nullptr;
 		MaterialInstance->GetTextureParameterDefaultValue(UE::AvaMask::Internal::TextureParameterInfo, DefaultTexture);
@@ -158,6 +158,8 @@ bool TAvaMaskMaterialHandle<HandleDataType>::HasRequiredParameters(TArray<FStrin
 			}
 			, OutMissingParameterNames);
 	}
+
+	UE_LOG(LogAvaMask, Warning, TEXT("HasRequiredParameters: Material was invalid."));
 
 	return false;
 }

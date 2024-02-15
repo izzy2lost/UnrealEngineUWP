@@ -72,7 +72,7 @@ bool FAvaMaskParametricMaterialHandle::SetMaskParameters(
 		FLinearColor PaddingValueV = FLinearColor(FMath::Max(0, InPadding.X), FMath::Max(0, InPadding.Y), 0, 0);
 		FLinearColor FeatherValueV = FLinearColor(bInApplyFeathering ? 1.0f : 0.0f, FMath::Max(0, InOuterFeathering), FMath::Max(0, InInnerFeathering), FMath::Max(0, FMath::Max(InOuterFeathering, InInnerFeathering)));
 		
-		UE_LOG(LogAvaMask, Display, TEXT("SetParameters:\nTexture:%s\nChannel:%s\nFeather:%s\n"),
+		UE_LOG(LogAvaMask, VeryVerbose, TEXT("SetParameters:\nTexture:%s\nChannel:%s\nFeather:%s\n"),
 			InTexture ? *InTexture->GetName() : TEXT("(None)"),
 			*UE::AvaMask::Internal::MaskChannelEnumToVector[InChannel].ToString(),
 			*FeatherValueV.ToString());
