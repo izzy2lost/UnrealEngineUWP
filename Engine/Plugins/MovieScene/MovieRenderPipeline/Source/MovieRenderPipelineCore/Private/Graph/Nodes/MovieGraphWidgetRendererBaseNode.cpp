@@ -76,6 +76,7 @@ void UMovieGraphWidgetRendererBaseNode::FMovieGraphWidgetPass::Setup(TWeakObject
 	RenderPassNode = CastChecked<UMovieGraphWidgetRendererBaseNode>(InLayer.RenderPassNode);
 
 	RenderDataIdentifier.RootBranchName = LayerData.BranchName;
+	RenderDataIdentifier.LayerName = LayerData.LayerName;
 	RenderDataIdentifier.RendererName = RenderPassNode->GetRendererName();
 
 	// NOTE: Subclasses should specify the SubResourceName

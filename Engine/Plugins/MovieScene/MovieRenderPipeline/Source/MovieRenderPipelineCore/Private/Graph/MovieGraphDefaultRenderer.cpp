@@ -37,7 +37,7 @@ void UMovieGraphDefaultRenderer::SetupRenderingPipelineForShot(UMoviePipelineExe
 		TSubclassOf<UMovieGraphRenderPassNode> ClassType;
 
 		/** Maps a named branch to the specific render pass node that is assigned to render it. */
-		TMap<FName, TWeakObjectPtr<UMovieGraphRenderPassNode>> BranchRenderers;
+		TMap<FMovieGraphRenderDataIdentifier, TWeakObjectPtr<UMovieGraphRenderPassNode>> BranchRenderers;
 	};
 
 	TArray<FMovieGraphPass> OutputPasses;
@@ -51,7 +51,6 @@ void UMovieGraphDefaultRenderer::SetupRenderingPipelineForShot(UMoviePipelineExe
 	{
 		// We follow each branch looking for Render Layer nodes to figure out what render layer this should be. We assume a render layer is named
 		// after the branch it is on, unless they specifically add a UMovieGraphRenderLayerNode to rename it.
-		FString RenderLayerName = Branch.ToString();
 		const bool bIncludeCDOs = false;
 		UMovieGraphRenderLayerNode* RenderLayerNode = EvaluatedConfig->GetSettingForBranch<UMovieGraphRenderLayerNode>(Branch, bIncludeCDOs);
 			
@@ -66,7 +65,7 @@ void UMovieGraphDefaultRenderer::SetupRenderingPipelineForShot(UMoviePipelineExe
 		TArray<UMovieGraphRenderPassNode*> Renderers = EvaluatedConfig->GetSettingsForBranch<UMovieGraphRenderPassNode>(Branch, bIncludeCDOs, bExactMatch);
 		if (RenderLayerNode && Renderers.Num() == 0)
 		{
-			UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Found RenderLayer: \"%s\" but no Renderers defined."), *RenderLayerName);
+			UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Found RenderLayer: \"%s\" but no Renderers defined."), *Branch.ToString());
 		}
 
 		for (UMovieGraphRenderPassNode* RenderPassNode : Renderers)
@@ -80,8 +79,12 @@ void UMovieGraphDefaultRenderer::SetupRenderingPipelineForShot(UMoviePipelineExe
 				ExistingPass = &OutputPasses.AddDefaulted_GetRef();
 				ExistingPass->ClassType = RenderPassNode->GetClass();
 			}
+
+			FMovieGraphRenderDataIdentifier Identifier;
+			Identifier.RootBranchName = Branch;
+			Identifier.LayerName = RenderLayerNode->LayerName;
 			
-			ExistingPass->BranchRenderers.Add(Branch, RenderPassNode);
+			ExistingPass->BranchRenderers.Add(Identifier, RenderPassNode);
 		}
 	}
 
@@ -96,12 +99,12 @@ void UMovieGraphDefaultRenderer::SetupRenderingPipelineForShot(UMoviePipelineExe
 		FMovieGraphRenderPassSetupData SetupData;
 		SetupData.Renderer = this;
 		//UE_LOG(LogMovieRenderPipeline, Warning, TEXT("\tRenderer Class: %s"), *Pass.ClassType->GetName());
-		for (const TTuple<FName, TWeakObjectPtr<UMovieGraphRenderPassNode>>& BranchRenderer : Pass.BranchRenderers)
+		for (const TTuple<FMovieGraphRenderDataIdentifier, TWeakObjectPtr<UMovieGraphRenderPassNode>>& BranchRenderer : Pass.BranchRenderers)
 		{
 			FMovieGraphRenderPassLayerData& LayerData = SetupData.Layers.AddDefaulted_GetRef();
-			LayerData.BranchName = BranchRenderer.Key;
+			LayerData.BranchName = BranchRenderer.Key.RootBranchName;
+			LayerData.LayerName = BranchRenderer.Key.LayerName;
 			LayerData.RenderPassNode = BranchRenderer.Value;
-
 			// UE_LOG(LogMovieRenderPipeline, Warning, TEXT("\t\tBranch Name: %s"), *LayerBranchName.ToString());
 		}
 
@@ -460,25 +463,11 @@ TArray<FMovieGraphImagePreviewData> UMovieGraphDefaultRenderer::GetPreviewData()
 { 
 	TArray<FMovieGraphImagePreviewData> Results;
 
-	// The evaluated config may not be available when the preview data is first requested
-	FString LayerName;
-	const UMovieGraphTimeStepBase* TimeStepInstance = GetOwningGraph()->GetTimeStepInstance();
-	const UMovieGraphEvaluatedConfig* EvaluatedConfig = TimeStepInstance ? TimeStepInstance->GetCalculatedTimeData().EvaluatedConfig : nullptr;
-
 	for (const TPair<UE::MovieGraph::DefaultRenderer::FMovieGraphImagePreviewDataPoolParams, TObjectPtr<UTextureRenderTarget2D>>& RenderTarget : PooledViewRenderTargets)
 	{
-		// Try to determine the layer name
-		if (EvaluatedConfig)
-		{
-			constexpr bool bIncludeCDOs = false;
-			const UMovieGraphRenderLayerNode* RenderLayerNode = EvaluatedConfig->GetSettingForBranch<UMovieGraphRenderLayerNode>(RenderTarget.Key.Identifier.RootBranchName, bIncludeCDOs);
-			LayerName = RenderLayerNode ? RenderLayerNode->GetRenderLayerName() : TEXT("");
-		}
-		
 		FMovieGraphImagePreviewData& Data = Results.AddDefaulted_GetRef();
 		Data.Identifier = RenderTarget.Key.Identifier;
 		Data.Texture = RenderTarget.Value.Get();
-		Data.LayerName = LayerName;
 	}
 
 	return Results;

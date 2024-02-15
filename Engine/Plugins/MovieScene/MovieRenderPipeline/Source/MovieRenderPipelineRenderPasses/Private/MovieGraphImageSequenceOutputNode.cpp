@@ -287,14 +287,22 @@ FString UMovieGraphImageSequenceOutputNode::CreateFileName(
 	// Generate one string that puts the directory combined with the filename format.
 	FString FileNameFormatString = OutputSettingNode->OutputDirectory.Path / InParentNode->FileNameFormat;
 
+	// These two checks seem slightly backwards, but are the correct way to handle it. If there is
+	// multiple branches with data, we try to separate them by layer name (which is likely to be unique).
+	// Below we do the same check again in reverse - if there are multiple layers that share this name,
+	// then we need to insert the branch_name to differentiate them.
+	// ToDo: This is overly protective and could be relaxed later, for instance
+	// if different file write nodes have chosen a separate filepath entirely.
 	if (InRawFrameData->HasDataFromMultipleBranches())
 	{
-		// There should be one render layer per branch, so with multiple branches
-		// we test for {layer_name} presence.
-		// 
-		// ToDo: This is overly protective and could be relaxed later, for instance
-		// if different file write nodes have chosen a separate filepath entirely.
 		UE::MoviePipeline::ConformOutputFormatStringToken(FileNameFormatString, TEXT("{layer_name}"), InParentNode->GetFName(), InRenderData.Key.RootBranchName);
+	}
+	// We can run into the scenario where the users have given layers the same name, so layer_name token won't help differentiate.
+	// To resolve this, we do the reverse search now - look to see if there's multiple branches with the same layer name, and if so
+	// we force the branch name into the token too.
+	if (InRawFrameData->HasDataFromMultipleLayersWithName(InRenderData.Key.LayerName))
+	{
+		UE::MoviePipeline::ConformOutputFormatStringToken(FileNameFormatString, TEXT("{branch_name}"), InParentNode->GetFName(), InRenderData.Key.RootBranchName);
 	}
 
 	if (InRawFrameData->HasMultipleRendersPerBranch(InRenderData.Key.RootBranchName))

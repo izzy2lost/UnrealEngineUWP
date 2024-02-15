@@ -36,7 +36,7 @@
 *        unreal.log_warning("OnJobStart")
 *        for shot in inOutputData.graph_data:
 *            for layerIdentifier in shot.render_layer_data:
-*                unreal.log("render layer: " + unreal.StringLibrary.conv_name_to_string(layerIdentifier.root_branch_name))
+*                unreal.log("render layer: " + layerIdentifier.layer_name)
 *                for file in shot.render_layer_data[layerIdentifier].file_paths:
 *                    unreal.log("file: " + file)
 * 
