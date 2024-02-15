@@ -45,9 +45,9 @@ namespace HarmonixMetasound::Nodes::MidiCCTriggerNode
 		DEFINE_INPUT_METASOUND_PARAM(InputMidiControllerID, "Control Number", "MIDI Control Number");
 
 		// Removed in V1
-		DECLARE_METASOUND_PARAM_EXTERN(MidiTrackNumber);
+		DECLARE_METASOUND_PARAM_ALIAS(MidiTrackNumber);
 		DEFINE_METASOUND_PARAM_ALIAS(MidiTrackNumber, CommonPinNames::Inputs::MidiTrackNumber);
-		DECLARE_METASOUND_PARAM_EXTERN(MidiChannelNumber);
+		DECLARE_METASOUND_PARAM_ALIAS(MidiChannelNumber);
 		DEFINE_METASOUND_PARAM_ALIAS(MidiChannelNumber, CommonPinNames::Inputs::MidiChannelNumber);
 	}
 
