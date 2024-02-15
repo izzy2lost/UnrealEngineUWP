@@ -51,61 +51,73 @@ public:
 };
 
 UCLASS()
-class UMockWorldMetricA : public UMockWorldMetricBase
+class UMockWorldMetricFooBase: public UMockWorldMetricBase
 {
 	GENERATED_BODY()
 };
 
 UCLASS()
-class UMockWorldMetricB : public UMockWorldMetricBase
+class UMockWorldMetricBarBase : public UMockWorldMetricBase
 {
 	GENERATED_BODY()
 };
 
 UCLASS()
-class UMockWorldMetricC : public UMockWorldMetricBase
+class UMockWorldMetricA : public UMockWorldMetricFooBase
 {
 	GENERATED_BODY()
 };
 
 UCLASS()
-class UMockWorldMetricD : public UMockWorldMetricBase
+class UMockWorldMetricB : public UMockWorldMetricFooBase
 {
 	GENERATED_BODY()
 };
 
 UCLASS()
-class UMockWorldMetricE : public UMockWorldMetricBase
+class UMockWorldMetricC : public UMockWorldMetricFooBase
 {
 	GENERATED_BODY()
 };
 
 UCLASS()
-class UMockWorldMetricF : public UMockWorldMetricBase
+class UMockWorldMetricD : public UMockWorldMetricFooBase
 {
 	GENERATED_BODY()
 };
 
 UCLASS()
-class UMockWorldMetricG : public UMockWorldMetricBase
+class UMockWorldMetricE : public UMockWorldMetricFooBase
 {
 	GENERATED_BODY()
 };
 
 UCLASS()
-class UMockWorldMetricH : public UMockWorldMetricBase
+class UMockWorldMetricF : public UMockWorldMetricBarBase
 {
 	GENERATED_BODY()
 };
 
 UCLASS()
-class UMockWorldMetricI : public UMockWorldMetricBase
+class UMockWorldMetricG : public UMockWorldMetricBarBase
 {
 	GENERATED_BODY()
 };
 
 UCLASS()
-class UMockWorldMetricJ : public UMockWorldMetricBase
+class UMockWorldMetricH : public UMockWorldMetricBarBase
+{
+	GENERATED_BODY()
+};
+
+UCLASS()
+class UMockWorldMetricI : public UMockWorldMetricBarBase
+{
+	GENERATED_BODY()
+};
+
+UCLASS()
+class UMockWorldMetricJ : public UMockWorldMetricBarBase
 {
 	GENERATED_BODY()
 };
