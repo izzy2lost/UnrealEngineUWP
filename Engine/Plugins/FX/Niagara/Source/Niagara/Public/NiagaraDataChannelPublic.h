@@ -25,7 +25,7 @@ Blueprint and C++ code can also read from and write to data channels using its A
 EXPERIMENTAL:
 Data Channels are currently experimental and undergoing heavy development.
  */
-UCLASS(Experimental, DisplayName = "Niagara Data Channel", MinimalAPI)
+UCLASS(Experimental, BlueprintType, DisplayName = "Niagara Data Channel", MinimalAPI)
 class UNiagaraDataChannelAsset : public UObject
 {
 	GENERATED_BODY()
