@@ -10,7 +10,7 @@ UControlRigSettings::UControlRigSettings(const FObjectInitializer& ObjectInitial
 {
 #if WITH_EDITORONLY_DATA
 	DefaultShapeLibrary = LoadObject<UControlRigShapeLibrary>(nullptr, TEXT("/ControlRig/Controls/DefaultGizmoLibraryNormalized.DefaultGizmoLibraryNormalized"));
-	DefaultRootModule = TEXT("/ControlRig/Modules/CR_Root.CR_Root");
+	DefaultRootModule = TEXT("/ControlRig/Modules/Root.Root");
 #endif
 }
 
