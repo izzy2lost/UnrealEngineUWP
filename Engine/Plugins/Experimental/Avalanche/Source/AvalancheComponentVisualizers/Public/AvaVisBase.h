@@ -186,4 +186,7 @@ protected:
 	virtual void AddSnapDataBinding() {}
 
 	virtual void GenerateContextSensitiveSnapPoints() {}
+
+	virtual void TrackingStartedInternal(FEditorViewportClient* InViewportClient);
+	virtual void TrackingStoppedInternal(FEditorViewportClient* InViewportClient);
 };
