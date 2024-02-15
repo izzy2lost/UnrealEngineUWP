@@ -472,7 +472,7 @@ void FPCGDataFromActorElement::GatherWaitTasks(AActor* FoundActor, FPCGContext* 
 		{
 			OutWaitTasks.Add(Component->GetGenerationTaskId());
 		}
-		else if (!Component->bGenerated && (Component->GetSerializedEditingMode() == EPCGEditorDirtyMode::Preview) && Component->GetOwner())
+		else if (!Component->bGenerated && Component->bActivated && (Component->GetSerializedEditingMode() == EPCGEditorDirtyMode::Preview) && Component->GetOwner())
 		{
 #if WITH_EDITOR
 			// Signal that any change notifications from generating upstream component should not trigger re-executions of this component.
