@@ -250,6 +250,7 @@ FCounterAtomicInt		GIoRequestReadCount(TEXT("Ias/IoRequestReadCount"), TraceCoun
 FCounterAtomicInt		GIoRequestReadBytes(TEXT("Ias/IoRequestReadBytes"), TraceCounterDisplayHint_Memory);
 FCounterInt				GIoRequestCancelCount(TEXT("Ias/IoRequestCancelCount"), TraceCounterDisplayHint_None);
 FCounterAtomicInt		GIoRequestErrorCount(TEXT("Ias/IoRequestErrorCount"), TraceCounterDisplayHint_None);
+FCounterAtomicInt		GIoDecodeErrorCount(TEXT("Ias/IoDecodeErrorCount"), TraceCounterDisplayHint_None);
 // cache stats
 FCounterAtomicInt		GCacheErrorCount(TEXT("Ias/CacheErrorCount"), TraceCounterDisplayHint_None);
 FCounterAtomicInt		GCacheGetCount(TEXT("Ias/CacheGetCount"), TraceCounterDisplayHint_None);
@@ -263,6 +264,8 @@ FCounterAtomicInt		GCachePendingBytes(TEXT("Ias/CachePendingBytes"), TraceCounte
 FCounterAtomicInt		GCacheReadBytes(TEXT("Ias/CacheReadBytes"), TraceCounterDisplayHint_Memory);
 FCounterAtomicInt		GCacheRejectBytes(TEXT("Ias/CachePutRejectBytes"), TraceCounterDisplayHint_Memory);
 // http stats
+FCounterInt				GHttpConnectCount(TEXT("Ias/HttpConnectCount"), TraceCounterDisplayHint_None);
+FCounterInt				GHttpDisconnectCount(TEXT("Ias/HttpDisconnectCount"), TraceCounterDisplayHint_None);
 FCounterInt				GHttpGetCount(TEXT("Ias/HttpGetCount"), TraceCounterDisplayHint_None);
 FCounterInt				GHttpErrorCount(TEXT("Ias/HttpErrorCount"), TraceCounterDisplayHint_None);
 FCounterInt				GHttpRetryCount(TEXT("Ias/HttpRetryCount"), TraceCounterDisplayHint_None);
@@ -403,8 +406,10 @@ FOnDemandIoBackendStats::FOnDemandIoBackendStats()
 		{
 			if (GIasDisplayOnScreenStatistics)
 			{
+				const bool bIsConnected = GHttpConnectCount.Get() > GHttpDisconnectCount.Get();
 				FText Message = FText::Format(
-					LOCTEXT("IAS", "IAS: Cached:{0} KiB | Read:{1} KiB ({2}) | Downloaded:{3} KiB ({4}) {5} ms | Retries:{6} | Pending:{7}"),
+					LOCTEXT("IAS", "IAS - {0}: Cached:{1} KiB | Read:{2} KiB ({3}) | Downloaded:{4} KiB ({5}) {6} ms | Retries:{7} | Pending:{8}"),
+					bIsConnected ? LOCTEXT("IASConnect", "Connected") : LOCTEXT("IASDisconnect", "Disconnected"),
 					GCacheCachedBytes.Get() >> 10,
 					GCacheReadBytes.Get() >> 10,
 					GCacheGetCount.Get(),
@@ -416,8 +421,7 @@ FOnDemandIoBackendStats::FOnDemandIoBackendStats()
 				);
 				Out.Add(FCoreDelegates::EOnScreenMessageSeverity::Info, Message);
 			}
-		}
-	);
+		});
 #undef LOCTEXT_NAMESPACE
 }
 
@@ -433,7 +437,18 @@ FOnDemandIoBackendStats* FOnDemandIoBackendStats::Get()
 	return GStatistics;
 }
 
-void FOnDemandIoBackendStats::ReportAnalytics(TArray<FAnalyticsEventAttribute>& OutAnalyticsArray) const
+void FOnDemandIoBackendStats::ReportGeneralAnalytics(TArray<FAnalyticsEventAttribute>& OutAnalyticsArray) const
+{
+	// Note that this analytics section is not optional, if we are reporting analytics then we report this section
+	// first. This means we can use the values here to determine if an analytics payload contains ondemand data or
+	// not since with the current system we are unable to specify our own analytics payload.
+
+	AppendAnalyticsEventAttributeArray(OutAnalyticsArray
+		, TEXT("IasHttpHasEverConnected"), GHttpConnectCount.Get() > 0 // Report if the system has ever actually managed to make a connection
+	);
+}
+
+void FOnDemandIoBackendStats::ReportEndPointAnalytics(TArray<FAnalyticsEventAttribute>& OutAnalyticsArray) const
 {
 	// We use this macro with counters that are used elsewhere meaning we can't just reset them
 	// each time we send an analytics payload. The macro will track the running total and only
@@ -449,6 +464,8 @@ void FOnDemandIoBackendStats::ReportAnalytics(TArray<FAnalyticsEventAttribute>& 
 			,TRACK_DELTA("IasHttpDownloadedBytes", GHttpDownloadedBytes.Get())
 			,TEXT("IasHttpDurationMeanAvg"), GHttpAvgDuration.GetMean()
 			,TEXT("IasHttpDurationStdDev"), GHttpAvgDuration.GetDeviation()
+
+			,TRACK_DELTA("IasDecodeErrors", GIoDecodeErrorCount.Get())
 
 			,TEXT("IasHttpDuration0"), GHttpDurationBuckets[0]
 			,TEXT("IasHttpDuration1"), GHttpDurationBuckets[1]
@@ -513,6 +530,11 @@ void FOnDemandIoBackendStats::OnIoRequestError()
 	CSV_CUSTOM_STAT_DEFINED(FrameIoRequestErrorCount, int32(GIoRequestErrorCount.Get()), ECsvCustomStatOp::Set);
 }
 
+void FOnDemandIoBackendStats::OnIoDecodeError()
+{
+	GIoDecodeErrorCount.Add(1);
+}
+
 void FOnDemandIoBackendStats::OnCacheError()
 {
 	GCacheErrorCount.Add(1);
@@ -558,6 +580,16 @@ void FOnDemandIoBackendStats::OnCacheWriteBytes(uint64 WriteSize)
 void FOnDemandIoBackendStats::OnCacheSetMaxBytes(uint64 TotalSize)
 {
 	GCacheMaxBytes = TotalSize;
+}
+
+void FOnDemandIoBackendStats::OnHttpConnected()
+{
+	GHttpConnectCount.Add(1);
+}
+
+void FOnDemandIoBackendStats::OnHttpDisconnected()
+{
+	GHttpDisconnectCount.Add(1);
 }
 
 void FOnDemandIoBackendStats::OnHttpEnqueue()

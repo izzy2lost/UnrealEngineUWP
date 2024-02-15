@@ -1683,6 +1683,11 @@ void FOnDemandIoBackend::CompleteRequest(FChunkRequest* ChunkRequest)
 			Request->CreateBuffer(RawSize);
 			DecodingParams.RawOffset = Request->Options.GetOffset(); 
 			bDecoded = FIoChunkEncoding::Decode(DecodingParams, Chunk.GetView(), Request->GetBuffer().GetMutableView());
+
+			if (!bDecoded)
+			{
+				Stats.OnIoDecodeError();
+			}
 		}
 		
 		const uint64 DurationMs = Request->GetStartTime() > 0 ?
@@ -2062,6 +2067,8 @@ void FOnDemandIoBackend::InitializePrimaryEndpoint()
 		const FString TestPath = GetEndpointTestPath();
 		if (int32 Idx = LatencyTest(Urls.Left(MaxUrls), TestPath, bStopRequested); Idx != INDEX_NONE)
 		{
+			FOnDemandIoBackendStats::Get()->OnHttpConnected();
+
 			AvailableEps.Current = Idx;
 			UE_LOG(LogIas, Log, TEXT("Using endpoint '%s'"), *AvailableEps.GetCurrent());
 		}
@@ -2218,19 +2225,24 @@ void FOnDemandIoBackend::Mount(const FOnDemandEndpoint& Endpoint)
 			{
 				AvailableEps.Urls.Add(Url.Replace(TEXT("https"), TEXT("http")));
 			}
-			AvailableEps.Current = 0;
 		}
 	}
 
-	check(AvailableEps.HasCurrent());
-
 	if (GetTocMode() == ETocMode::LoadTocFromNetwork)
 	{
-		FIoStatus Result = DownloadoadOnDemandToc(AvailableEps.GetCurrent(), Endpoint.TocPath);
-		if (!Result.IsOk())
+		if (AvailableEps.HasCurrent())
 		{
-			UE_LOG(LogIas, Error, TEXT("Deferring TOC '%s/%s' due to '%s'"), *AvailableEps.GetCurrent(), *Endpoint.TocPath, *Result.ToString());
-			BackendStatus.SetHttpError(true);
+			FIoStatus Result = DownloadoadOnDemandToc(AvailableEps.GetCurrent(), Endpoint.TocPath);
+			if (!Result.IsOk())
+			{
+				UE_LOG(LogIas, Error, TEXT("Deferring TOC '%s/%s' due to '%s'"), *AvailableEps.GetCurrent(), *Endpoint.TocPath, *Result.ToString());
+				BackendStatus.SetHttpError(true);
+				FWriteScopeLock _(Lock);
+				DeferredTocs.Add(FTocParams{ Endpoint.TocPath, Endpoint.bForceTocDownload });
+			}
+		}
+		else
+		{
 			FWriteScopeLock _(Lock);
 			DeferredTocs.Add(FTocParams{ Endpoint.TocPath, Endpoint.bForceTocDownload });
 		}
@@ -2280,10 +2292,15 @@ void FOnDemandIoBackend::AbandonCache()
 
 void FOnDemandIoBackend::ReportAnalytics(TArray<FAnalyticsEventAttribute>& OutAnalyticsArray) const
 {
+	// If we got this far we know that IAS is enabled for the current process as it has a valid backend.
+	// However just because IAS is enabled does not mean we have managed to make a valid connection yet.
+
 	if (!GIasReportAnalyticsEnabled)
 	{
 		return;
 	}
+
+	Stats.ReportGeneralAnalytics(OutAnalyticsArray);
 
 	if (AvailableEps.HasCurrent())
 	{
@@ -2297,7 +2314,7 @@ void FOnDemandIoBackend::ReportAnalytics(TArray<FAnalyticsEventAttribute>& OutAn
 
 		AppendAnalyticsEventAttributeArray(OutAnalyticsArray, TEXT("IasCdnUrl"), MoveTemp(CdnUrl));
 
-		Stats.ReportAnalytics(OutAnalyticsArray);
+		Stats.ReportEndPointAnalytics(OutAnalyticsArray);
 	}
 }
 
@@ -2513,6 +2530,8 @@ uint32 FOnDemandIoBackend::Run()
 				WaitTime = GIasHttpHealthCheckWaitTime;
 				if (HttpClient->GetEndpoint() != INDEX_NONE)
 				{
+					FOnDemandIoBackendStats::Get()->OnHttpDisconnected();
+
 					AvailableEps.Current = INDEX_NONE;
 					HttpClient->SetEndpoint(INDEX_NONE);
 					HttpErrors.Reset(GIasHttpErrorSampleCount);
@@ -2522,6 +2541,8 @@ uint32 FOnDemandIoBackend::Run()
 				const FString TestPath = GetEndpointTestPath(); 
 				if (int32 Idx = LatencyTest(AvailableEps.Urls, TestPath, bStopRequested); Idx != INDEX_NONE)
 				{
+					FOnDemandIoBackendStats::Get()->OnHttpConnected();
+
 					AvailableEps.Current = Idx;
 					HttpClient->SetEndpoint(Idx);
 					BackendStatus.SetHttpError(false);
