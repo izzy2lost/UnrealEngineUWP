@@ -15,6 +15,11 @@
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/SNiagaraDistributionEditor.h"
 
+#include "NiagaraNodeParameterMapBase.h"
+#include "NiagaraParameterMapHistory.h"
+#include "NiagaraScriptSource.h"
+#include "NiagaraSystem.h"
+
 #define LOCTEXT_NAMESPACE "NiagaraDistributionPropertyCustomization"
 
 class FNiagaraDistributionAdapter : public INiagaraDistributionAdapter
@@ -28,11 +33,13 @@ public:
 	{
 		if (IsValid())
 		{
+			const FName DisableBindingDistributionName("DisableBindingDistribution");
 			const FName DisableCurveDistributionName("DisableCurveDistribution");
 			const FName DisableUniformDistributionName("DisableUniformDistribution");
 			const FName DisableNonUniformDistributionName("DisableNonUniformDistribution");
 			const FName DisableRangeDistributionName("DisableRangeDistribution");
 			const FName DisplayAsColorDistributionName("DisplayAsColorDistribution");
+			bAllowBinding = InDistribution->AllowBinding() && InDistribution->GetBindingTypeDef().IsValid() && (PropertyHandle ? PropertyHandle->HasMetaData(DisableBindingDistributionName) == false : false);
 			bAllowUniform = PropertyHandle ? PropertyHandle->HasMetaData(DisableUniformDistributionName) == false : false;
 			bAllowNonUniform = PropertyHandle ? PropertyHandle->HasMetaData(DisableNonUniformDistributionName) == false : false;
 			bAllowRange = PropertyHandle ? PropertyHandle->HasMetaData(DisableRangeDistributionName) == false : false;
@@ -102,6 +109,10 @@ public:
 
 	virtual void GetSupportedDistributionModes(TArray<ENiagaraDistributionEditorMode>& OutSupportedModes) const override
 	{
+		if (bAllowBinding)
+		{
+			OutSupportedModes.Add(ENiagaraDistributionEditorMode::Binding);
+		}
 		if (bDisplayAsColor)
 		{
 			OutSupportedModes.Add(ENiagaraDistributionEditorMode::ColorConstant);
@@ -176,6 +187,8 @@ public:
 		{
 			switch (InSourceMode)
 			{
+			case ENiagaraDistributionMode::Binding:
+				return ENiagaraDistributionEditorMode::Binding;
 			case ENiagaraDistributionMode::UniformConstant:
 				return ENiagaraDistributionEditorMode::Constant;
 			case ENiagaraDistributionMode::UniformRange:
@@ -190,6 +203,8 @@ public:
 		{
 			switch (InSourceMode)
 			{
+			case ENiagaraDistributionMode::Binding:
+				return ENiagaraDistributionEditorMode::Binding;
 			case ENiagaraDistributionMode::UniformConstant:
 				return ENiagaraDistributionEditorMode::UniformConstant;
 			case ENiagaraDistributionMode::NonUniformConstant:
@@ -212,6 +227,8 @@ public:
 	{
 		switch (InEditorMode)
 		{
+		case ENiagaraDistributionEditorMode::Binding:
+			return ENiagaraDistributionMode::Binding;
 		case ENiagaraDistributionEditorMode::Constant:
 		case ENiagaraDistributionEditorMode::UniformConstant:
 			return ENiagaraDistributionMode::UniformConstant;
@@ -393,6 +410,75 @@ public:
 			SourceDistribution->ChannelConstantsAndRanges[ValueIndex * EditorNumChannels + ChannelIndex] = InValues[ChannelIndex];
 		}
 		PropertyHandle->NotifyPostChange(bContinuousChangeActive ? EPropertyChangeType::Interactive : EPropertyChangeType::ValueSet);
+	}
+
+	virtual FNiagaraVariableBase GetBindingValue() const
+	{
+		UObject* OwnerObject = OwnerObjectWeak.Get();
+		if (OwnerObject == nullptr)
+		{
+			return FNiagaraVariableBase();
+		}
+		return SourceDistribution->ParameterBinding;
+	}
+
+	virtual void SetBindingValue(FNiagaraVariableBase Binding)
+	{
+		UObject* OwnerObject = OwnerObjectWeak.Get();
+		if (OwnerObject == nullptr)
+		{
+			return;
+		}
+
+		FText TransactionText = LOCTEXT("SetBinding", "Set binding value");
+
+		if (bContinuousTransactionPending)
+		{
+			bContinuousTransactionPending = false;
+			ContinuousTransactionIndex = GEditor->BeginTransaction(TransactionText);
+		}
+
+		const FScopedTransaction Transaction(TransactionText, ContinuousTransactionIndex.IsSet() == false);
+		OwnerObject->Modify();
+		PropertyHandle->NotifyPreChange();
+
+		SourceDistribution->ParameterBinding = Binding;
+
+		PropertyHandle->NotifyPostChange(bContinuousChangeActive ? EPropertyChangeType::Interactive : EPropertyChangeType::ValueSet);
+	}
+
+	virtual TArray<FNiagaraVariableBase> GetAvailableBindings() const
+	{
+		TArray<FNiagaraVariableBase> AvailableBindings;
+		UObject* OwnerObject = OwnerObjectWeak.Get();
+		UNiagaraSystem* OwnerSystem = OwnerObject ? OwnerObject->GetTypedOuter<UNiagaraSystem>() : nullptr;
+		const FNiagaraTypeDefinition AllowedTypeDef = SourceDistribution->GetBindingTypeDef();
+		if ( OwnerSystem && AllowedTypeDef.IsValid() )
+		{
+			if (UNiagaraScriptSource* Source = Cast<UNiagaraScriptSource>(OwnerSystem->GetSystemUpdateScript()->GetLatestSource()))
+			{
+				TArray<FNiagaraParameterMapHistory> Histories = UNiagaraNodeParameterMapBase::GetParameterMaps(Source->NodeGraph);
+				for (const FNiagaraParameterMapHistory& History : Histories)
+				{
+					for (const FNiagaraVariable& Variable : History.Variables)
+					{
+						if (Variable.GetType() == AllowedTypeDef && Variable.IsInNameSpace(FNiagaraConstants::SystemNamespaceString))
+						{
+							AvailableBindings.Add(Variable);
+						}
+					}
+				}
+			}
+
+			for (const FNiagaraVariableBase& Variable : OwnerSystem->GetExposedParameters().ReadParameterVariables())
+			{
+				if (Variable.GetType() == AllowedTypeDef)
+				{
+					AvailableBindings.Add(Variable);
+				}
+			}
+		}
+		return AvailableBindings;
 	}
 
 	virtual const FRichCurve* GetCurveValue(int32 ChannelIndex) const override
@@ -656,6 +742,7 @@ private:
 	TOptional<int32> ContinuousTransactionIndex;
 	bool bContinuousChangeActive = false;
 
+	bool bAllowBinding = true;
 	bool bAllowUniform = true;
 	bool bAllowNonUniform = true;
 	bool bAllowRange = true;

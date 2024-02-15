@@ -41,6 +41,18 @@ uint32 FNiagaraStatelessEmitterDataBuildContext::AddStaticData(TConstArrayView<F
 	return AddStaticData(MakeArrayView(reinterpret_cast<const float*>(FloatData.GetData()), FloatData.Num() * 4));
 }
 
+int32 FNiagaraStatelessEmitterDataBuildContext::AddRendererBinding(const FNiagaraVariableBase& Variable)
+{
+	int32 DataOffset = INDEX_NONE;
+	if (Variable.IsValid())
+	{
+		FNiagaraVariable Var(Variable);
+		RendererBindings.AddParameter(Var, false, false, &DataOffset);
+	}
+
+	return DataOffset;
+}
+
 int32 FNiagaraStatelessEmitterDataBuildContext::AddRendererBinding(const FNiagaraParameterBinding& Binding)
 {
 	int32 DataOffset = INDEX_NONE;

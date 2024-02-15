@@ -4,12 +4,14 @@
 
 #include "Curves/RichCurve.h"
 #include "NiagaraStatelessCommon.h"
+#include "NiagaraParameterBinding.h"
 
 #include "NiagaraStatelessDistribution.generated.h"
 
 UENUM()
 enum class ENiagaraDistributionMode
 {
+	Binding,
 	UniformConstant,
 	NonUniformConstant,
 	UniformRange,
@@ -28,6 +30,10 @@ struct FNiagaraDistributionBase
 	UPROPERTY(EditAnywhere, Category = "Parameters")
 	ENiagaraDistributionMode Mode = ENiagaraDistributionMode::UniformConstant;
 
+	UPROPERTY(EditAnywhere, Category = "Parameters")
+	FNiagaraVariableBase ParameterBinding;
+
+	bool IsBinding() const { return Mode == ENiagaraDistributionMode::Binding; }
 	bool IsConstant() const { return Mode == ENiagaraDistributionMode::UniformConstant || Mode == ENiagaraDistributionMode::NonUniformConstant; }
 	bool IsUniform() const { return Mode == ENiagaraDistributionMode::UniformConstant || Mode == ENiagaraDistributionMode::UniformRange; }
 	bool IsCurve() const { return Mode == ENiagaraDistributionMode::UniformCurve || Mode == ENiagaraDistributionMode::NonUniformCurve; }
@@ -42,9 +48,12 @@ struct FNiagaraDistributionBase
 	UPROPERTY(EditAnywhere, Category = "Parameters")
 	int32 MaxLutSampleCount = 64;
 
+	virtual bool AllowBinding() const { return true; }
 	virtual bool AllowCurves() const { return true; }
 	virtual bool DisplayAsColor() const { return false; }
 	virtual void UpdateValuesFromDistribution() { }
+
+	virtual FNiagaraTypeDefinition GetBindingTypeDef() { return FNiagaraTypeDefinition(); }
 
 	static void PostEditChangeProperty(UObject* OwnerObject, FPropertyChangedEvent& PropertyChangedEvent);
 #endif
@@ -156,6 +165,7 @@ struct FNiagaraDistributionFloat : public FNiagaraDistributionBase
 
 #if WITH_EDITORONLY_DATA
 	virtual void UpdateValuesFromDistribution() override;
+	virtual FNiagaraTypeDefinition GetBindingTypeDef() { return FNiagaraTypeDefinition::GetFloatDef(); }
 #endif
 };
 
@@ -177,6 +187,7 @@ struct FNiagaraDistributionVector2 : public FNiagaraDistributionBase
 
 #if WITH_EDITORONLY_DATA
 	virtual void UpdateValuesFromDistribution() override;
+	virtual FNiagaraTypeDefinition GetBindingTypeDef() { return FNiagaraTypeDefinition::GetVec2Def(); }
 #endif
 };
 
@@ -198,6 +209,7 @@ struct FNiagaraDistributionVector3 : public FNiagaraDistributionBase
 
 #if WITH_EDITORONLY_DATA
 	virtual void UpdateValuesFromDistribution() override;
+	virtual FNiagaraTypeDefinition GetBindingTypeDef() { return FNiagaraTypeDefinition::GetVec3Def(); }
 #endif
 };
 

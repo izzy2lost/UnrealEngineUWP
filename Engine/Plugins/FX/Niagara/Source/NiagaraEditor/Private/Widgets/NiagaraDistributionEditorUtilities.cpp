@@ -12,6 +12,8 @@ FText FNiagaraDistributionEditorUtilities::DistributionModeToDisplayName(ENiagar
 {
 	switch (InMode)
 	{
+	case ENiagaraDistributionEditorMode::Binding:
+		return LOCTEXT("BindingDisplayName", "Binding");
 	case ENiagaraDistributionEditorMode::Constant:
 		return LOCTEXT("ConstantDisplayName", "Constant");
 	case ENiagaraDistributionEditorMode::UniformConstant:
@@ -48,6 +50,8 @@ FText FNiagaraDistributionEditorUtilities::DistributionModeToToolTipText(ENiagar
 {
 	switch (InMode)
 	{
+	case ENiagaraDistributionEditorMode::Binding:
+		return LOCTEXT("BindingToolTip", "Value bound to an attribute.");
 	case ENiagaraDistributionEditorMode::Constant:
 		return LOCTEXT("ConstantToolTip", "A constant single value.");
 	case ENiagaraDistributionEditorMode::UniformConstant:
@@ -84,6 +88,8 @@ FName FNiagaraDistributionEditorUtilities::DistributionModeToIconBrushName(ENiag
 {
 	switch (InMode)
 	{
+	case ENiagaraDistributionEditorMode::Binding:
+		return "NiagaraEditor.DistributionEditor.Binding";
 	case ENiagaraDistributionEditorMode::Constant:
 	case ENiagaraDistributionEditorMode::UniformConstant:
 		return "NiagaraEditor.DistributionEditor.UniformConstant";
@@ -121,6 +127,12 @@ const FSlateBrush* FNiagaraDistributionEditorUtilities::DistributionModeToIconBr
 FSlateIcon FNiagaraDistributionEditorUtilities::DistributionModeToIcon(ENiagaraDistributionEditorMode InMode)
 {
 	return FSlateIcon(FNiagaraEditorStyle::Get().GetStyleSetName(), DistributionModeToIconBrushName(InMode));
+}
+
+bool FNiagaraDistributionEditorUtilities::IsBinding(ENiagaraDistributionEditorMode InMode)
+{
+	return
+		InMode == ENiagaraDistributionEditorMode::Binding;
 }
 
 bool FNiagaraDistributionEditorUtilities::IsUniform(ENiagaraDistributionEditorMode InMode)

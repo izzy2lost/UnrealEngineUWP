@@ -6,13 +6,15 @@
 #include "HAL/Platform.h"
 #include "Internationalization/Text.h"
 #include "Styling/SlateColor.h"
+#include "NiagaraCommon.h"
 
 struct FRichCurve;
 
 /** Defines different edit modes for a niagara distribution */
 enum class ENiagaraDistributionEditorMode
 {
-	/** A single constant value */
+	/* Bound to an script attribute. */
+	Binding,
 	Constant,
 	/** A multi-channel value edited with a single constant value. */
 	UniformConstant,
@@ -86,6 +88,13 @@ public:
 		@param InValues the values to set, one per channel.
 	*/
 	virtual void SetConstantOrRangeValues(int32 ValueIndex, const TArray<float>& InValues) = 0;
+
+	/** Get the name of the variable we are currently bound to. */
+	virtual FNiagaraVariableBase GetBindingValue() const = 0;
+	/** Set the name of the variable we want to bind to. */
+	virtual void SetBindingValue(FNiagaraVariableBase Binding) = 0;
+	/** Get a list of available variables we can bind to. */
+	virtual TArray<FNiagaraVariableBase> GetAvailableBindings() const = 0;
 
 	/** Gets a curve value for the specified channel */
 	virtual const FRichCurve* GetCurveValue(int32 ChannelIndex) const = 0;

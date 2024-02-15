@@ -11,6 +11,10 @@ struct FNiagaraParameterStore;
 
 class FNiagaraStatelessEmitterDataBuildContext
 {
+	static constexpr uint32 StatelessDistributionFlag_Random	= 0x00000001;
+	static constexpr uint32 StatelessDistributionFlag_Uniform	= 0x00000002;
+	static constexpr uint32 StatelessDistributionFlag_Binding	= 0x00000004;
+
 public:
 	UE_NONCOPYABLE(FNiagaraStatelessEmitterDataBuildContext);
 
@@ -49,6 +53,7 @@ public:
 		return *reinterpret_cast<T*>(TransientObj->GetObject());
 	}
 
+	int32 AddRendererBinding(const FNiagaraVariableBase& Variable);
 	int32 AddRendererBinding(const FNiagaraParameterBinding& Binding);
 	int32 AddRendererBinding(const FNiagaraParameterBindingWithValue& Binding);	
 
@@ -59,11 +64,9 @@ public:
 		FUintVector3 Parameters = FUintVector3::ZeroValue;
 		if (bEnabled && Values.Num() > 0)
 		{
-			constexpr uint32 StatelessDistributionFlag_Random = 0x00000001;
-			constexpr uint32 StatelessDistributionFlag_Uniform = 0x00000002;
-
 			switch (Mode)
 			{
+				case ENiagaraDistributionMode::Binding:				checkNoEntry(); break;
 				case ENiagaraDistributionMode::UniformConstant:		Parameters.X = StatelessDistributionFlag_Random | StatelessDistributionFlag_Uniform; break;
 				case ENiagaraDistributionMode::NonUniformConstant:	Parameters.X = StatelessDistributionFlag_Random; break;
 				case ENiagaraDistributionMode::UniformRange:		Parameters.X = StatelessDistributionFlag_Random | StatelessDistributionFlag_Uniform; break;
@@ -83,7 +86,25 @@ public:
 	template<typename TDistribution>
 	FUintVector3 AddDistribution(const TDistribution& Distribution, bool bEnabled)
 	{
-		return AddDistribution(Distribution.Mode, MakeArrayView(Distribution.Values), bEnabled);
+		FUintVector3 Parameters = FUintVector3::ZeroValue;
+		if ( bEnabled )
+		{
+			if (Distribution.Mode == ENiagaraDistributionMode::Binding)
+			{
+				const int32 ParameterOffset = AddRendererBinding(Distribution.ParameterBinding);
+				if (ParameterOffset >= 0)
+				{
+					Parameters.X = StatelessDistributionFlag_Binding;
+					Parameters.Y = ParameterOffset;
+					reinterpret_cast<float&>(Parameters.Z) = 1.0f;
+				}
+			}
+			else
+			{
+				Parameters = AddDistribution(Distribution.Mode, MakeArrayView(Distribution.Values), bEnabled);
+			}
+		}
+		return Parameters;
 	}
 
 private:
