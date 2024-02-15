@@ -320,7 +320,7 @@ void SControlRigDetails::UpdateProxies()
 					const TArray<UControlRigControlsProxy*>& Proxies = ControlProxy->GetAllSelectedProxies();
 					for (UControlRigControlsProxy* Proxy : Proxies)
 					{
-						if (Proxy == nullptr)
+						if (Proxy == nullptr || !IsValid(Proxy))
 						{
 							continue;
 						}

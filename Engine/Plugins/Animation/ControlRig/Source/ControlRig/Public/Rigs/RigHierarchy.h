@@ -2513,6 +2513,28 @@ public:
 		}
 	}
 
+	void SetControlPreferredEulerAngles(FRigControlElement* InControlElement, const FTransform& InTransform, bool bIsInitial = false)
+	{
+		FEulerTransform EulerTransform(InTransform);
+		if (InControlElement && InControlElement->Settings.ControlType == ERigControlType::Transform)
+		{
+			FVector EulerAngle(EulerTransform.Rotation.Roll, EulerTransform.Rotation.Pitch, EulerTransform.Rotation.Yaw);
+			SetControlSpecifiedEulerAngle(InControlElement, EulerAngle, bIsInitial);
+		}
+		else if (InControlElement && InControlElement->Settings.ControlType == ERigControlType::TransformNoScale)
+		{
+			const FTransformNoScale NoScale = EulerTransform.ToFTransform();
+			FVector EulerAngle(EulerTransform.Rotation.Roll, EulerTransform.Rotation.Pitch, EulerTransform.Rotation.Yaw);
+			SetControlSpecifiedEulerAngle(InControlElement, EulerAngle, bIsInitial);
+		}
+		else if (InControlElement && InControlElement->Settings.ControlType == ERigControlType::EulerTransform)
+		{
+			FVector EulerAngle(EulerTransform.Rotation.Roll, EulerTransform.Rotation.Pitch, EulerTransform.Rotation.Yaw);
+			FQuat Quat = GetControlQuaternion(InControlElement, EulerAngle);
+			SetControlSpecifiedEulerAngle(InControlElement, EulerAngle, bIsInitial);
+		}
+	}
+
 	FQuat GetControlQuaternion(const FRigControlElement* InControlElement, const FVector& InEulerAngle) const
 	{
 		if (InControlElement)
