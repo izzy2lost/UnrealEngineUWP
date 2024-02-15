@@ -77,8 +77,7 @@ protected:
 	/** The rename rule sample text */
 	FText ExampleText;
 	void UpdateExampleText();
-
-	void OnPathChange(const FString& NewPath);
+	
 	FReply OnButtonClick(EAppReturnType::Type ButtonID);
 
 	EAppReturnType::Type UserResponse;

@@ -176,7 +176,7 @@ FReply SIKRetargetAssetBrowser::OnExportButtonClicked()
 	BatchContext.SourceMesh = Controller->GetSkeletalMesh(ERetargetSourceOrTarget::Source);
 	BatchContext.TargetMesh = Controller->GetSkeletalMesh(ERetargetSourceOrTarget::Target);
 	BatchContext.IKRetargetAsset = Controller->AssetController->GetAsset();
-	BatchContext.bRetargetAndConnectReferencedAssets = false;
+	BatchContext.bIncludeReferencedAssets = false;
 
 	// add selected assets to dup/retarget
 	TArray<FAssetData> SelectedAssets = GetCurrentSelectionDelegate.Execute();
@@ -300,7 +300,7 @@ void SBatchExportDialog::Construct(const FArguments& InArgs)
 
 	FPathPickerConfig PathPickerConfig;
 	PathPickerConfig.DefaultPath = AssetPath.ToString();
-	PathPickerConfig.OnPathSelected = FOnPathSelected::CreateSP(this, &SBatchExportDialog::OnPathChange);
+	PathPickerConfig.OnPathSelected = FOnPathSelected::CreateLambda([this](const FString& NewPath){AssetPath = FText::FromString(NewPath);});
 	PathPickerConfig.bAddDefaultPath = true;
 
 	FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
@@ -548,11 +548,6 @@ void SBatchExportDialog::UpdateExampleText()
 	const FString ReplaceTo = FString::Printf(TEXT("New Name : %s###%s###%s"), *BatchContext.NameRule.Prefix, *BatchContext.NameRule.ReplaceTo, *BatchContext.NameRule.Suffix);
 
 	ExampleText = FText::FromString(FString::Printf(TEXT("%s\n%s"), *ReplaceFrom, *ReplaceTo));
-}
-
-void SBatchExportDialog::OnPathChange(const FString& NewPath)
-{
-	AssetPath = FText::FromString(NewPath);
 }
 
 FReply SBatchExportDialog::OnButtonClick(EAppReturnType::Type ButtonID)

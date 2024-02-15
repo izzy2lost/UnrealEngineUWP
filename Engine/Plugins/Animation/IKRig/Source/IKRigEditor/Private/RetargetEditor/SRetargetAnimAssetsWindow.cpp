@@ -51,7 +51,7 @@ void SBatchExportPathDialog::Construct(const FArguments& InArgs)
 	const FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
 	FPathPickerConfig PathPickerConfig;
 	PathPickerConfig.DefaultPath = BatchContext->NameRule.FolderPath;
-	PathPickerConfig.OnPathSelected = FOnPathSelected::CreateSP(this, &SBatchExportPathDialog::OnPathChange);
+	PathPickerConfig.OnPathSelected = FOnPathSelected::CreateLambda([this](const FString& NewPath){BatchContext->NameRule.FolderPath = NewPath;});
 	PathPickerConfig.bAddDefaultPath = true;
 
 	// adjust UI based on if we're exporting retarget assets or animation assets
@@ -67,19 +67,20 @@ void SBatchExportPathDialog::Construct(const FArguments& InArgs)
 	.ClientSize(FVector2D(300, WindowHeight))
 	[
 		SNew(SVerticalBox)
-
+		
 		+ SVerticalBox::Slot()
 		.Padding(2)
 		[
 			SNew(SVerticalBox)
-			
+			.IsEnabled_Lambda([this](){return !BatchContext->bUseSourcePath;})
+
 			+SVerticalBox::Slot()
 			.FillHeight(1)
 			.Padding(3)
 			[
 				ContentBrowserModule.Get().CreatePathPicker(PathPickerConfig)
 			]
-
+			
 			+SVerticalBox::Slot()
 			.AutoHeight()
 			.Padding(2, 3)
@@ -98,8 +99,45 @@ void SBatchExportPathDialog::Construct(const FArguments& InArgs)
 				.FillWidth(1)
 				.HAlign(HAlign_Right)
 				[
-					SNew(STextBlock).Text(this, &SBatchExportPathDialog::GetFolderPath)
+					SNew(STextBlock).Text_Lambda([this]()
+					{
+						return FText::FromString(BatchContext->NameRule.FolderPath);
+					})
 				]
+			]
+		]
+
+		+SVerticalBox::Slot()
+		.AutoHeight()
+		.HAlign(HAlign_Right)
+		.Padding(3)
+		[
+			SNew(SHorizontalBox)
+			.Visibility_Lambda([this]{ return bExportingRetargetAssets ? EVisibility::Collapsed : EVisibility::Visible;})
+
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.HAlign(HAlign_Right)
+			.Padding(0.0f, 0.0f, 12.f, 0.f)
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("UseSourcePath_Label", "Use Source Path: "))
+				.ToolTipText(LOCTEXT("UseSourcePathTooltip", "Places new animation assets in the same location as the source asset."))
+			]
+
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.HAlign(HAlign_Right)
+			[
+				SNew(SCheckBox)
+				.IsChecked_Lambda([this]()
+				{
+					return BatchContext->bUseSourcePath ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+				})
+				.OnCheckStateChanged_Lambda([this](ECheckBoxState InCheckBoxState)
+				{
+					BatchContext->bUseSourcePath = InCheckBoxState == ECheckBoxState::Checked;
+				})
 			]
 		]
 		
@@ -118,7 +156,7 @@ void SBatchExportPathDialog::Construct(const FArguments& InArgs)
 				[
 					SNew(STextBlock)
 					.Text(LOCTEXT("DuplicateAndRetarget_RenameLabel", "Rename New Assets"))
-					.Font(FCoreStyle::GetDefaultFontStyle("Regular", 14))
+					.Font(FAppStyle::Get().GetFontStyle("NormalFontBold"))
 				]
 
 				+SVerticalBox::Slot()
@@ -137,9 +175,16 @@ void SBatchExportPathDialog::Construct(const FArguments& InArgs)
 					+SHorizontalBox::Slot()
 					[
 						SNew(SEditableTextBox)
-							.Text(this, &SBatchExportPathDialog::GetPrefixName)
+							.Text_Lambda([this]()
+							{
+								return FText::FromString(BatchContext->NameRule.Prefix);
+							})
+							.OnTextChanged_Lambda([this](const FText& InText)
+							{
+								BatchContext->NameRule.Prefix = ConvertToCleanString(InText);
+								UpdateExampleText();	
+							})
 							.MinDesiredWidth(100)
-							.OnTextChanged(this, &SBatchExportPathDialog::SetPrefixName)
 							.IsReadOnly(false)
 							.RevertTextOnEscape(true)
 					]
@@ -161,9 +206,16 @@ void SBatchExportPathDialog::Construct(const FArguments& InArgs)
 					+SHorizontalBox::Slot()
 					[
 						SNew(SEditableTextBox)
-							.Text(this, &SBatchExportPathDialog::GetSuffixName)
+							.Text_Lambda([this]()
+							{
+								return FText::FromString(BatchContext->NameRule.Suffix);
+							})
+							.OnTextChanged_Lambda([this](const FText& InText)
+							{
+								BatchContext->NameRule.Suffix = ConvertToCleanString(InText);
+								UpdateExampleText();	
+							})
 							.MinDesiredWidth(100)
-							.OnTextChanged(this, &SBatchExportPathDialog::SetSuffixName)
 							.IsReadOnly(false)
 							.RevertTextOnEscape(true)
 					]
@@ -185,9 +237,16 @@ void SBatchExportPathDialog::Construct(const FArguments& InArgs)
 					+SHorizontalBox::Slot()
 					[
 						SNew(SEditableTextBox)
-							.Text(this, &SBatchExportPathDialog::GetReplaceFrom)
+							.Text_Lambda([this]()
+							{
+								return FText::FromString(BatchContext->NameRule.ReplaceFrom);
+							})
+							.OnTextChanged_Lambda([this](const FText& InText)
+							{
+								BatchContext->NameRule.ReplaceFrom = ConvertToCleanString(InText);
+								UpdateExampleText();	
+							})
 							.MinDesiredWidth(100)
-							.OnTextChanged(this, &SBatchExportPathDialog::SetReplaceFrom)
 							.IsReadOnly(false)
 							.RevertTextOnEscape(true)
 					]
@@ -209,9 +268,16 @@ void SBatchExportPathDialog::Construct(const FArguments& InArgs)
 					+SHorizontalBox::Slot()
 					[
 						SNew(SEditableTextBox)
-							.Text(this, &SBatchExportPathDialog::GetReplaceTo)
+							.Text_Lambda([this]()
+							{
+								return FText::FromString(BatchContext->NameRule.ReplaceTo);
+							})
+							.OnTextChanged_Lambda([this](const FText& InText)
+							{
+								BatchContext->NameRule.ReplaceTo = ConvertToCleanString(InText);
+								UpdateExampleText();	
+							})
 							.MinDesiredWidth(100)
-							.OnTextChanged(this, &SBatchExportPathDialog::SetReplaceTo)
 							.IsReadOnly(false)
 							.RevertTextOnEscape(true)
 					]
@@ -226,7 +292,7 @@ void SBatchExportPathDialog::Construct(const FArguments& InArgs)
 					.Padding(5, 5)
 					[
 						SNew(STextBlock)
-						.Text(this,  &SBatchExportPathDialog::GetExampleText)
+						.Text_Lambda([this](){return ExampleText; })
 						.Font(FAppStyle::GetFontStyle("Persona.RetargetManager.ItalicFont"))
 					]
 				]
@@ -267,11 +333,6 @@ void SBatchExportPathDialog::Construct(const FArguments& InArgs)
 	UpdateExampleText();
 }
 
-void SBatchExportPathDialog::OnPathChange(const FString& NewPath)
-{
-	BatchContext->NameRule.FolderPath = NewPath;
-}
-
 FReply SBatchExportPathDialog::OnButtonClick(EAppReturnType::Type ButtonID)
 {
 	UserResponse = ButtonID;
@@ -283,55 +344,6 @@ EAppReturnType::Type SBatchExportPathDialog::ShowModal()
 {
 	GEditor->EditorAddModalWindow(SharedThis(this));
 	return UserResponse;
-}
-
-FText SBatchExportPathDialog::GetPrefixName() const
-{
-	return FText::FromString(BatchContext->NameRule.Prefix);
-}
-
-void SBatchExportPathDialog::SetPrefixName(const FText &InText)
-{
-	BatchContext->NameRule.Prefix = ConvertToCleanString(InText);
-	UpdateExampleText();
-}
-
-FText SBatchExportPathDialog::GetSuffixName() const
-{
-	return FText::FromString(BatchContext->NameRule.Suffix);
-}
-
-void SBatchExportPathDialog::SetSuffixName(const FText &InText)
-{
-	BatchContext->NameRule.Suffix = ConvertToCleanString(InText);
-	UpdateExampleText();
-}
-
-FText SBatchExportPathDialog::GetReplaceFrom() const
-{
-	return FText::FromString(BatchContext->NameRule.ReplaceFrom);
-}
-
-void SBatchExportPathDialog::SetReplaceFrom(const FText &InText)
-{
-	BatchContext->NameRule.ReplaceFrom = ConvertToCleanString(InText);
-	UpdateExampleText();
-}
-
-FText SBatchExportPathDialog::GetReplaceTo() const
-{
-	return FText::FromString(BatchContext->NameRule.ReplaceTo);
-}
-
-void SBatchExportPathDialog::SetReplaceTo(const FText &InText)
-{
-	BatchContext->NameRule.ReplaceTo = ConvertToCleanString(InText);
-	UpdateExampleText();
-}
-
-FText SBatchExportPathDialog::GetExampleText() const
-{
-	return ExampleText;
 }
 
 void SBatchExportPathDialog::UpdateExampleText()
@@ -453,7 +465,7 @@ FReply SBatchExportOptionsDialog::OnButtonClick(EAppReturnType::Type ButtonID)
 {
 	// update batch context with the user specified options
 	const UBatchExportOptions* ExportOptions = UBatchExportOptions::GetInstance();
-	BatchContext->bRetargetAndConnectReferencedAssets = ExportOptions->bRetargetAndConnectReferencedAssets;
+	BatchContext->bIncludeReferencedAssets = ExportOptions->bIncludeReferencedAssets;
 	BatchContext->bOverwriteExistingFiles = ExportOptions->bOverwriteExistingFiles;
 	BatchContext->bExportOnlyAnimatedBones = ExportOptions->bExportOnlyAnimatedBones;
 	
@@ -945,25 +957,22 @@ void SRetargetAnimAssetsWindow::OnFinishedChangingSelectionProperties(const FPro
 		return;
 	}
 
-	LogView->ClearLog();
-	
-	if (PropertyChangedEvent.Property->GetName() == "SourceSkeletalMesh")
+	const bool ChangedMesh = PropertyChangedEvent.Property->GetName() == "SourceSkeletalMesh" || PropertyChangedEvent.Property->GetName() == "TargetSkeletalMesh";
+	if (ChangedMesh)
 	{
-		SetSkeletalMesh(Settings->TargetSkeletalMesh, ERetargetSourceOrTarget::Target);
-		SetSkeletalMesh(Settings->SourceSkeletalMesh, ERetargetSourceOrTarget::Source);
+		SetAssets(Settings->SourceSkeletalMesh, Settings->TargetSkeletalMesh, Settings->RetargetAsset);
 	}
 
-	if (PropertyChangedEvent.Property->GetName() == "TargetSkeletalMesh")
+	const bool ChangedRetargeter = PropertyChangedEvent.Property->GetName() == "RetargetAsset" || PropertyChangedEvent.Property->GetName() == "bAutoGenerateRetargeter";
+	if (ChangedRetargeter)
 	{
-		SetSkeletalMesh(Settings->SourceSkeletalMesh, ERetargetSourceOrTarget::Source);
-		SetSkeletalMesh(Settings->TargetSkeletalMesh, ERetargetSourceOrTarget::Target);
-	}
-
-	const bool bEditedAutoGenCheckbox = PropertyChangedEvent.Property->GetName() == "bAutoGenerateRetargeter";
-	const bool bEditedRetargeter = PropertyChangedEvent.Property->GetName() == "bAutoGenerateRetargeter";
-	if (bEditedAutoGenCheckbox || bEditedRetargeter)
-	{
-		SetRetargetAsset(Settings->RetargetAsset);
+		USkeletalMesh* TargetMesh = Settings->TargetSkeletalMesh;
+		if (Settings->RetargetAsset && !Settings->TargetSkeletalMesh)
+		{
+			TargetMesh = Settings->RetargetAsset->GetPreviewMesh(ERetargetSourceOrTarget::Target);
+		}
+		
+		SetAssets(Settings->SourceSkeletalMesh, TargetMesh, Settings->RetargetAsset);
 	}
 }
 
@@ -1040,12 +1049,6 @@ FReply SRetargetAnimAssetsWindow::OnExportRetargetAssets()
 		AssetToSave->Rename(*AssetName, Package);
 		FAssetRegistryModule::AssetCreated(AssetToSave);
 		Package->MarkPackageDirty();
-	
-		// save the asset
-		FSavePackageArgs SaveArgs;
-		SaveArgs.TopLevelFlags = RF_Standalone;
-		const FString FullPackagePath = FPackageName::LongPackageNameToFilename(UniquePackageName, FPackageName::GetAssetPackageExtension());
-		UPackage::Save(Package, AssetToSave, *FullPackagePath, SaveArgs);
 
 		return AssetToSave;
 	};
@@ -1195,85 +1198,103 @@ void SRetargetAnimAssetsWindow::ShowWindow(TArray<UObject*> InSelectedAssets)
             }
 			
 			DialogWidget->Settings->SourceSkeletalMesh = Mesh;
-			DialogWidget->SetSkeletalMesh(Mesh, ERetargetSourceOrTarget::Source);
-			DialogWidget->SetSkeletalMesh(nullptr, ERetargetSourceOrTarget::Target);
+			DialogWidget->SetAssets(Mesh, nullptr, nullptr);
 		}
 	}
 	
 	FSlateApplication::Get().AddWindow(Window.ToSharedRef());
 }
 
-void SRetargetAnimAssetsWindow::SetSkeletalMesh(USkeletalMesh* Mesh, ERetargetSourceOrTarget SourceOrTarget)
+void SRetargetAnimAssetsWindow::SetAssets(
+	USkeletalMesh* SourceMesh,
+	USkeletalMesh* TargetMesh,
+	UIKRetargeter* Retargeter)
 {
-	if (SourceOrTarget == ERetargetSourceOrTarget::Source)
+	LogView->ClearLog();
+	
+	const bool ReplacedSourceMesh = BatchContext.SourceMesh != SourceMesh;
+
+	Settings->SourceSkeletalMesh = SourceMesh;
+	Settings->TargetSkeletalMesh = TargetMesh;
+	Settings->RetargetAsset = Retargeter;
+	
+	BatchContext.SourceMesh = SourceMesh;
+	BatchContext.TargetMesh = TargetMesh;
+	BatchContext.IKRetargetAsset = Retargeter;
+
+	// auto generate procedural assets
+	if (Settings->bAutoGenerateRetargeter)
 	{
-		BatchContext.SourceMesh = Mesh;
-		Settings->SourceSkeletalMesh = Mesh;
+		// update procedurally generated IK Rig and retargeter (regenerates retarget pose with new mesh)
+		ProceduralAssets.AutoGenerateIKRigAsset(SourceMesh, ERetargetSourceOrTarget::Source);
+		ProceduralAssets.AutoGenerateIKRigAsset(TargetMesh, ERetargetSourceOrTarget::Target);
+		ProceduralAssets.AutoGenerateIKRetargetAsset();
+		BatchContext.IKRetargetAsset = ProceduralAssets.Retargeter;
+	}
+	
+	// update viewport world to show new meshes
+	Viewport->SetSkeletalMesh(SourceMesh, ERetargetSourceOrTarget::Source);
+	Viewport->SetSkeletalMesh(TargetMesh, ERetargetSourceOrTarget::Target);
+	Viewport->SetRetargetAsset(BatchContext.IKRetargetAsset);
+
+	ShowAssetWarnings();
+	
+	if (ReplacedSourceMesh)
+	{
 		AssetBrowser.Get()->RefreshView();
-	}
-	else
-	{
-		BatchContext.TargetMesh = Mesh;
-		Settings->TargetSkeletalMesh = Mesh;
-	}
-
-	// update procedurally generated IK Rig and retargeter (regenerates retarget pose with new mesh)
-	ProceduralAssets.AutoGenerateIKRigAsset(Mesh, SourceOrTarget);
-	ProceduralAssets.AutoGenerateIKRetargetAsset();
-	// update viewport world to show new mesh
-	Viewport->SetSkeletalMesh(Mesh, SourceOrTarget);
-
-	// report relevant results
-	const FText SourceOrTargetLabel = SourceOrTarget == ERetargetSourceOrTarget::Source ? FText::FromString("source") : FText::FromString("target");
-	if (Mesh)
-	{
-		const FAutoCharacterizeResults& Results = SourceOrTarget == ERetargetSourceOrTarget::Source ? ProceduralAssets.SourceCharacterizationResults : ProceduralAssets.TargetCharacterizationResults;
-		if (Results.bUsedTemplate)
-		{
-			const FText TemplateName = FText::FromString(Results.BestTemplateName.ToString());
-			Log.LogInfo(FText::Format(LOCTEXT( "FoundTemplateInfo", "Using '{0}' template for {1} mesh."), TemplateName, SourceOrTargetLabel));
-		}
-		else
-		{
-			Log.LogError(FText::Format(LOCTEXT( "MissingTemplateError", "No template found for {0} mesh."), SourceOrTargetLabel));
-		}
-	}
-	else
-	{
-		Log.LogError(FText::Format(LOCTEXT( "MissingMeshError", "No {0} mesh assigned."), SourceOrTargetLabel));
 	}
 }
 
-void SRetargetAnimAssetsWindow::SetRetargetAsset(UIKRetargeter* RetargeterToUse)
+void SRetargetAnimAssetsWindow::ShowAssetWarnings()
 {
+	// missing source mesh
+	if (!Settings->SourceSkeletalMesh)
+	{
+		Log.LogError(LOCTEXT( "MissingMeshError", "No source mesh assigned."));
+	}
+
+	// missing target mesh
+	if (!Settings->TargetSkeletalMesh)
+	{
+		Log.LogError(LOCTEXT( "MissingMeshError", "No target mesh assigned."));
+	}
+
+	// auto retarget results
 	if (Settings->bAutoGenerateRetargeter)
 	{
-		// if user did NOT supply a custom retarget asset, procedurally generate one
-		ProceduralAssets.AutoGenerateIKRetargetAsset();
-		RetargeterToUse = ProceduralAssets.Retargeter;
+		// source auto-characterize results
+		if (Settings->SourceSkeletalMesh)
+		{
+			if (ProceduralAssets.SourceCharacterizationResults.bUsedTemplate)
+			{
+				Log.LogInfo(FText::Format(LOCTEXT("UsingSourceTemplate", "Using {0} template for source skeleton."), FText::FromName(ProceduralAssets.SourceCharacterizationResults.BestTemplateName)));
+			}
+			else
+			{
+				Log.LogError(LOCTEXT("NoSourceTemplate", "Trying to auto-generate a retargeter but no template was compatible with the source mesh."));
+			}
+		}
+		
+		// target auto-characterize results
+		if (Settings->TargetSkeletalMesh)
+		{
+			if (ProceduralAssets.TargetCharacterizationResults.bUsedTemplate)
+			{
+				Log.LogInfo(FText::Format(LOCTEXT("UsingTargetTemplate", "Using {0} template for target skeleton."), FText::FromName(ProceduralAssets.TargetCharacterizationResults.BestTemplateName)));
+			}
+			else
+			{
+				Log.LogError(LOCTEXT("NoTargetTemplate", "Trying to auto-generate a retargeter but no template was compatible with the target mesh."));
+			}
+		}
 	}
-	else if (Settings->RetargetAsset)
+	else
 	{
-		// if user assigned a custom retarget asset, set the skeletal meshes based on that asset
-		// BUT, only do this if the user hasn't already specified their own skeletal mesh
-		const UIKRetargeterController* Controller = UIKRetargeterController::GetController(Settings->RetargetAsset);
-		if (!Settings->SourceSkeletalMesh)
+		if (!Settings->RetargetAsset && !Settings->bAutoGenerateRetargeter)
 		{
-			USkeletalMesh* SourceMesh = Controller->GetPreviewMesh(ERetargetSourceOrTarget::Source);
-			SetSkeletalMesh(SourceMesh, ERetargetSourceOrTarget::Source);
-		}
-		if (!Settings->TargetSkeletalMesh)
-		{
-			USkeletalMesh* TargetMesh = Controller->GetPreviewMesh(ERetargetSourceOrTarget::Target);
-			SetSkeletalMesh(TargetMesh, ERetargetSourceOrTarget::Target);
+			Log.LogError(LOCTEXT("NoRetargeter", "Not using auto-generated retargeter and no IK Retargeter asset was provided."));
 		}
 	}
-	
-	// store the asset to use in the context
-	BatchContext.IKRetargetAsset = RetargeterToUse;
-	
-	// update retargeter in viewport
-	Viewport->SetRetargetAsset(RetargeterToUse);
 }
 
 #undef LOCTEXT_NAMESPACE

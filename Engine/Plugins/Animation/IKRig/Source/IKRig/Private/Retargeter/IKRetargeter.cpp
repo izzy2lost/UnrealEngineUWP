@@ -65,7 +65,7 @@ UIKRigDefinition* UIKRetargeter::GetIKRigWriteable(ERetargetSourceOrTarget Sourc
 }
 
 #if WITH_EDITORONLY_DATA
-const USkeletalMesh* UIKRetargeter::GetPreviewMesh(ERetargetSourceOrTarget SourceOrTarget) const
+USkeletalMesh* UIKRetargeter::GetPreviewMesh(ERetargetSourceOrTarget SourceOrTarget) const
 {
 	if (!IsInGameThread())
 	{
