@@ -24,6 +24,8 @@
 #include "Serialization/MemoryWriter.h"
 
 
+#define LOCTEXT_NAMESPACE "HairCardPluginSettings"
+
 /* Json helper functions
  *****************************************************************************/
 namespace FJsonHelper
@@ -533,6 +535,8 @@ void UHairCardGeneratorPluginSettings::PostResetUpdates()
 	UpdateParentInfo();
 	UpdateHairWidths();
 	UpdateChannelLayout();
+
+	EnforceValidLODSettings();
 }
 
 void UHairCardGeneratorPluginSettings::UpdateOutputPaths()
@@ -617,6 +621,15 @@ void UHairCardGeneratorPluginSettings::UpdateHairWidths()
 		}
 	}
 }
+
+void UHairCardGeneratorPluginSettings::EnforceValidLODSettings()
+{
+	// Force these settings to be valid in case reloading settings changed something
+	// TODO: Rework all of this to use a more robust json settings/completion framework
+	bReduceCardsFromPreviousLOD &= CanReduceFromLOD();
+	bUseReservedSpaceFromPreviousLOD &= CanReduceFromLOD();
+}
+
 
 bool UHairCardGeneratorPluginSettings::FindDerivedTextureSettings()
 {
@@ -882,6 +895,10 @@ void UHairCardGeneratorPluginSettings::SerializeEditableSettings(FArchive& Ar)
 	Ar << ReserveTextureSpaceLOD;
 	Ar << bUseGroomAssetStrandWidth;
 	Ar << ChannelLayout;
+	// TODO: Accurate diff requires conditional for these settings
+	Ar << HairWidths;
+	Ar << RootScales;
+	Ar << TipScales;
 }
 
 void UHairCardGeneratorPluginSettings::ResetNumFilterGroups(int Count)
@@ -1097,6 +1114,83 @@ bool UHairCardGeneratorPluginSettings::IsCompatibleSettings(UHairCardGenerationS
 FString UHairCardGeneratorPluginSettings::GetGroomName() const
 {
 	return GroomAsset->GetName();
+}
+
+template <typename T>
+void SetIfValid(T* OutPtr, const T& Val)
+{
+	if (OutPtr)
+	{
+		*OutPtr = Val;
+	}
+}
+
+bool UHairCardGeneratorPluginSettings::CanReduceFromLOD(FText* OutInvalidInfo) const
+{
+    if ( GetLODIndex() < 1 )
+    {
+		SetIfValid(OutInvalidInfo, LOCTEXT("ReduceFromLOD.LOD0.ToolTip", "Cannot reduce LOD 0 (must run full generation)"));
+        return false;
+    }
+
+    if ( !ValidChannelLayouts() )
+    {
+        SetIfValid(OutInvalidInfo, LOCTEXT("ReduceFromLOD.InconsistentGroupLayouts.ToolTip", "Inconsistent texture layouts for groom groups at this LOD"));
+        return false;
+    }
+    
+    TSharedPtr<FJsonObject> ParentSettingsJson = GetFullParent();
+    if ( !ParentSettingsJson.IsValid() )
+    {
+        SetIfValid(OutInvalidInfo, LOCTEXT("ReduceFromLOD.InvalidParent.ToolTip", "All lower LODs must be generated using the hair card generator tool"));
+        return false;
+    }
+
+    if ( !ParentSettingsJson->HasTypedField<EJson::String>(TEXT("ChannelLayout")) )
+    {
+        SetIfValid(OutInvalidInfo, LOCTEXT("ReduceFromLOD.InvalidChannelLayout.ToolTip", "Invalid texture layout setting in previous LOD"));
+        return false;
+    }
+
+    UEnum* EnumClass = StaticEnum<EHairTextureLayout>();
+    if ( !EnumClass || ParentSettingsJson->GetStringField(TEXT("ChannelLayout")) != EnumClass->GetNameStringByValue((int64)GetChannelLayout()) )
+    {
+		SetIfValid(OutInvalidInfo, LOCTEXT("ReduceFromLOD.InconsistentParentLayout.ToolTip", "Parent texture layout setting differs from current LOD texture layout"));
+        return false;
+    }
+
+    return true;
+}
+
+bool UHairCardGeneratorPluginSettings::CanUseReservedTx(FText* OutInvalidInfo) const
+{
+    if ( bReduceCardsFromPreviousLOD )
+    {
+        SetIfValid(OutInvalidInfo, LOCTEXT("UseReservedTx.Reducing.ToolTip", "Reduced card geometry will use previous LOD texture UVs"));
+        return false;
+    }
+
+    if ( !HasDerivedTextureSettings() )
+    {
+        SetIfValid(OutInvalidInfo, LOCTEXT("UseReservedTx.InvalidParent.ToolTip", "Lower LODs must be generated using hair card generator tool with reserved space"));
+        return false;
+    }
+
+    // TODO: Handle limiting/reserving texture by using texture resolution to compute reserved space in pixels
+    if ( GetDerivedReservedTextureSize() < 5 )
+    {
+        SetIfValid(OutInvalidInfo, LOCTEXT("UseReservedTx.NoReservedSpace.ToolTip", "No space reserved in parent LOD chain"));
+        return false;
+    }
+
+    UEnum* EnumClass = StaticEnum<EHairTextureLayout>();
+    if ( !EnumClass || GetDerivedTextureChannelLayout() != EnumClass->GetNameStringByValue((int64)GetChannelLayout()) )
+    {
+        SetIfValid(OutInvalidInfo, LOCTEXT("UseReservedTx.InconsistentReservedLayout.ToolTip", "Parent reserved texture layout setting differs from current LOD texture layout"));
+        return false;
+    }
+    
+    return true;
 }
 
 /* UHairCardGeneratorGroupSettings
@@ -1315,3 +1409,5 @@ void UHairCardGeneratorGroupSettings::SetStrandStats()
 
 	StrandCount = CountFiltered;
 }
+
+#undef LOCTEXT_NAMESPACE

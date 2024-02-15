@@ -197,7 +197,6 @@ static bool HairCardGeneratorEditor_Impl::LoadGroomData(UGroomAsset* NewGroomAss
 {
 	if (HairCardGeneratorEditor_Impl::LastGroom == NewGroomAsset && !SaveCached)
 	{
-		UE_LOG(LogHairCardGenerator, Warning, TEXT("Groom already loaded."));
 		return true;
 	}
 	else
