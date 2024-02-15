@@ -21,6 +21,7 @@ class FMetalRHICommandContext;
 class FMetalPipelineStateCacheManager;
 class FMetalQueryBufferPool;
 class FMetalRHIBuffer;
+class FMetalBindlessDescriptorManager;
 
 class FMetalContext
 {
@@ -102,6 +103,11 @@ public:
 
 	void Dispatch(uint32 ThreadGroupCountX, uint32 ThreadGroupCountY, uint32 ThreadGroupCountZ);
 	void DispatchIndirect(FMetalRHIBuffer* ArgumentBuffer, uint32 ArgumentOffset);
+
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+    void DispatchMeshShader(uint32 PrimitiveType, uint32 ThreadGroupCountX, uint32 ThreadGroupCountY, uint32 ThreadGroupCountZ);
+    void DispatchIndirectMeshShader(uint32 PrimitiveType, FMetalRHIBuffer* ArgumentBuffer, uint32 ArgumentOffset);
+#endif
 
 	void StartTiming(class FMetalEventNode* EventNode);
 	void EndTiming(class FMetalEventNode* EventNode);
@@ -213,6 +219,13 @@ public:
         return FrameNumberRHIThread;
     }
 	
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+    FMetalBindlessDescriptorManager* GetBindlessDescriptorManager()
+    {
+        return BindlessDescriptorManager;
+    }
+#endif
+
 	void NewLock(FMetalRHIBuffer* Buffer, FMetalFrameAllocator::AllocationEntry& Allocation);
 	FMetalFrameAllocator::AllocationEntry FetchAndRemoveLock(FMetalRHIBuffer* Buffer);
 	
@@ -298,6 +311,11 @@ private:
 
     /** Thread index owned by the RHI Thread. Monotonically increases every call to EndFrame() */
     uint32 FrameNumberRHIThread;
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+    /** Bindless Descriptor Heaps manager. */
+    FMetalBindlessDescriptorManager* BindlessDescriptorManager;
+#endif
 
 #if METAL_RHI_RAYTRACING
 	FMetalRayTracingCompactionRequestHandler* RayTracingCompactionRequestHandler;

@@ -64,6 +64,13 @@ static FORCEINLINE EMetalShaderStages GetShaderStage(FRHIGraphicsShader* ShaderR
 	{
 	case SF_Vertex:		Stage = EMetalShaderStages::Vertex; break;
 	case SF_Pixel:		Stage = EMetalShaderStages::Pixel; break;
+#if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
+    case SF_Geometry:   Stage = EMetalShaderStages::Geometry; break;
+#endif
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+    case SF_Mesh:               Stage = EMetalShaderStages::Mesh; break;
+    case SF_Amplification:      Stage = EMetalShaderStages::Amplification; break;
+#endif
 	default:
 		checkf(0, TEXT("FRHIShader Type %d is invalid or unsupported!"), (int32)ShaderRHI->GetFrequency());
 		NOT_SUPPORTED("RHIShaderStage");
@@ -228,8 +235,22 @@ void FMetalRHICommandContext::RHISetGraphicsPipelineState(FRHIGraphicsPipelineSt
 
     if (bApplyAdditionalState)
     {
-        ApplyStaticUniformBuffers(PipelineState->VertexShader.GetReference());
-        ApplyStaticUniformBuffers(PipelineState->PixelShader.GetReference());
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+        if (IsValidRef(PipelineState->MeshShader))
+        {
+            ApplyStaticUniformBuffers(PipelineState->MeshShader.GetReference());
+            if (IsValidRef(PipelineState->AmplificationShader))
+            {
+                ApplyStaticUniformBuffers(PipelineState->AmplificationShader.GetReference());
+            }
+        }
+        else if (IsValidRef(PipelineState->VertexShader))
+#endif
+		{
+			ApplyStaticUniformBuffers(PipelineState->VertexShader.GetReference());
+		}
+		
+		ApplyStaticUniformBuffers(PipelineState->PixelShader.GetReference());
     }
 }
 
@@ -367,6 +388,7 @@ void FMetalRHICommandContext::RHISetShaderParameter(FRHIComputeShader* ComputeSh
 
 void FMetalRHICommandContext::RHISetShaderParameters(FRHIGraphicsShader* Shader, TConstArrayView<uint8> InParametersData, TConstArrayView<FRHIShaderParameter> InParameters, TConstArrayView<FRHIShaderParameterResource> InResourceParameters, TConstArrayView<FRHIShaderParameterResource> InBindlessParameters)
 {
+	// TODO: CL - Implement metal specific version of RHISetShaderParametersShared
 	UE::RHICore::RHISetShaderParametersShared(
 		*this
 		, Shader
@@ -375,6 +397,29 @@ void FMetalRHICommandContext::RHISetShaderParameters(FRHIGraphicsShader* Shader,
 		, InResourceParameters
 		, InBindlessParameters
 	);
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	if(IsMetalBindlessEnabled())
+	{
+		for (const FRHIShaderParameterResource& Parameter : InResourceParameters)
+		{
+			if(Parameter.Type == FRHIShaderParameterResource::EType::UniformBuffer)
+			{
+				continue;
+			}
+			const FRHIDescriptorHandle Handle = UE::RHICore::GetBindlessParameterHandle(Parameter);
+			if (Handle.IsValid())
+			{
+				const uint32 BindlessIndex = Handle.GetIndex();
+				RHISetShaderParameter(Shader, 0, Parameter.Index, 4, &BindlessIndex);
+			}
+		}
+		
+		EMetalShaderStages Stage = GetShaderStage(Shader);
+		Context->GetCurrentState().IRForwardBindlessParameters(Stage, InResourceParameters);
+		Context->GetCurrentState().IRForwardBindlessParameters(Stage, InBindlessParameters);
+	}
+#endif
 }
 
 void FMetalRHICommandContext::RHISetShaderParameters(FRHIComputeShader* Shader, TConstArrayView<uint8> InParametersData, TConstArrayView<FRHIShaderParameter> InParameters, TConstArrayView<FRHIShaderParameterResource> InResourceParameters, TConstArrayView<FRHIShaderParameterResource> InBindlessParameters)
@@ -387,6 +432,28 @@ void FMetalRHICommandContext::RHISetShaderParameters(FRHIComputeShader* Shader, 
 		, InResourceParameters
 		, InBindlessParameters
 	);
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	if(IsMetalBindlessEnabled())
+	{
+		for (const FRHIShaderParameterResource& Parameter : InResourceParameters)
+		{
+			if(Parameter.Type == FRHIShaderParameterResource::EType::UniformBuffer)
+			{
+				continue;
+			}
+			const FRHIDescriptorHandle Handle = UE::RHICore::GetBindlessParameterHandle(Parameter);
+			if (Handle.IsValid())
+			{
+				const uint32 BindlessIndex = Handle.GetIndex();
+				RHISetShaderParameter(Shader, 0, Parameter.Index, 4, &BindlessIndex);
+			}
+		}
+		
+		Context->GetCurrentState().IRForwardBindlessParameters(EMetalShaderStages::Compute, InResourceParameters);
+		Context->GetCurrentState().IRForwardBindlessParameters(EMetalShaderStages::Compute, InBindlessParameters);
+	}
+#endif
 }
 
 void FMetalRHICommandContext::RHISetStencilRef(uint32 StencilRef)
@@ -509,6 +576,34 @@ void FMetalRHICommandContext::RHIDrawPrimitiveIndirect(FRHIBuffer* ArgumentBuffe
         NOT_SUPPORTED("RHIDrawPrimitiveIndirect");
     }
 }
+
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+void FMetalRHICommandContext::RHIDispatchMeshShader(uint32 ThreadGroupCountX, uint32 ThreadGroupCountY, uint32 ThreadGroupCountZ)
+{
+    MTL_SCOPED_AUTORELEASE_POOL;
+
+#if METAL_USE_METAL_SHADER_CONVERTER
+	uint32 PrimitiveType = Context->GetCurrentState().GetPrimitiveType();
+	Context->DispatchMeshShader(PrimitiveType, ThreadGroupCountX, ThreadGroupCountY, ThreadGroupCountZ);
+#else
+	NOT_SUPPORTED("RHIDispatchMeshShader");
+#endif
+}
+
+void FMetalRHICommandContext::RHIDispatchIndirectMeshShader(FRHIBuffer* ArgumentBufferRHI, uint32 ArgumentOffset)
+{
+    MTL_SCOPED_AUTORELEASE_POOL;
+
+#if METAL_USE_METAL_SHADER_CONVERTER
+	uint32 PrimitiveType = Context->GetCurrentState().GetPrimitiveType();
+
+	FMetalRHIBuffer* ArgumentBuffer = ResourceCast(ArgumentBufferRHI);
+	Context->DispatchIndirectMeshShader(PrimitiveType, ArgumentBuffer, ArgumentOffset);
+#else
+	NOT_SUPPORTED("RHIDispatchIndirectMeshShader");
+#endif
+}
+#endif
 
 void FMetalRHICommandContext::RHIDrawIndexedPrimitive(FRHIBuffer* IndexBufferRHI, int32 BaseVertexIndex, uint32 FirstInstance,
 	uint32 NumVertices, uint32 StartIndex, uint32 NumPrimitives, uint32 NumInstances)

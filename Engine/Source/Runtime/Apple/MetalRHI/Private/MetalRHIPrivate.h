@@ -51,6 +51,20 @@ const uint32 MetalBufferBytesSize = BufferOffsetAlignment * 32;
 #endif
 
 #define METAL_RHI_RAYTRACING (0)
+#define METAL_USE_METAL_SHADER_CONVERTER (1)
+
+// Metal Shader Converter
+#if METAL_USE_METAL_SHADER_CONVERTER
+THIRD_PARTY_INCLUDES_START
+#include "metal_irconverter.h"
+#define IR_RUNTIME_METALCPP 1
+#define IR_PRIVATE_IMPLEMENTATION 1
+#include "metal_irconverter_runtime.h"
+THIRD_PARTY_INCLUDES_END
+
+constexpr uint64_t kIRStandardHeapBindPoint 			   = 0;
+
+#endif
 
 #include "MetalInclude.h"
 #include "MetalRHI.h"
@@ -61,7 +75,7 @@ const uint32 MetalBufferBytesSize = BufferOffsetAlignment * 32;
 
 #if PLATFORM_MAC
 #define BUFFER_MANAGED_MEM MTL::ResourceStorageModeManaged
-#define BUFFER_STORAGE_MODE MTL::StorageModeManaged
+#define BUFFER_STORAGE_MODE MTL::StorageModeShared
 #define BUFFER_RESOURCE_STORAGE_MANAGED MTL::ResourceStorageModeManaged
 #define BUFFER_DYNAMIC_REALLOC BUF_AnyDynamic
 // How many possible vertex streams are allowed
@@ -163,6 +177,11 @@ void SafeReleaseMetalRenderPassDescriptor(MTL::RenderPassDescriptor* Desc);
 
 void SafeReleaseFunction(TFunction<void()> ReleaseFunction);
 
+FORCEINLINE bool IsMetalBindlessEnabled()
+{
+	return GRHIBindlessSupport != ERHIBindlessSupport::Unsupported;
+}
+
 // Access the underlying surface object from any kind of texture
 FMetalSurface* GetMetalSurfaceFromRHITexture(FRHITexture* Texture);
 
@@ -243,6 +262,10 @@ enum EMetalShaderStages
 #if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
 	Geometry,
 #endif
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+	Mesh,
+	Amplification,
+#endif
 	Compute,
 	
 	Num,
@@ -259,6 +282,12 @@ FORCEINLINE EShaderFrequency GetRHIShaderFrequency(EMetalShaderStages Stage)
 #if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
 		case EMetalShaderStages::Geometry:
 			return SF_Geometry;
+#endif
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+		case EMetalShaderStages::Mesh:
+			return SF_Mesh;
+		case EMetalShaderStages::Amplification:
+			return SF_Amplification;
 #endif
 		case EMetalShaderStages::Compute:
 			return SF_Compute;
@@ -278,6 +307,12 @@ FORCEINLINE EMetalShaderStages GetMetalShaderFrequency(EShaderFrequency Stage)
 #if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
 		case SF_Geometry:
 			return EMetalShaderStages::Geometry;
+#endif
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+		case SF_Mesh:
+			return EMetalShaderStages::Mesh;
+		case SF_Amplification:
+			return EMetalShaderStages::Amplification;
 #endif
 		case SF_Compute:
 			return EMetalShaderStages::Compute;

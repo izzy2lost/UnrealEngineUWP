@@ -130,7 +130,12 @@ public:
 	NS::String* VertexSource = nullptr;
 	NS::String* FragmentSource = nullptr;
 	NS::String* ComputeSource = nullptr;
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+    NS::String* MeshSource = nullptr;
+    NS::String* ObjectSource = nullptr;
+#endif
     MTLRenderPipelineDescriptorPtr RenderDesc;
+	MTLMeshRenderPipelineDescriptorPtr MeshRenderDesc;
     MTLRenderPipelineDescriptorPtr StreamDesc;
     MTLComputePipelineDescriptorPtr ComputeDesc;
 #endif

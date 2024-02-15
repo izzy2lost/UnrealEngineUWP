@@ -17,6 +17,7 @@
 #include "MetalProfiler.h"
 #include "MetalCommandBuffer.h"
 
+#include "MetalBindlessDescriptors.h"
 #include "MetalFrameAllocator.h"
 
 int32 GMetalSupportsIntermediateBackBuffer = 0;
@@ -405,6 +406,9 @@ FMetalDeviceContext::FMetalDeviceContext(MTL::Device* MetalDevice, uint32 InDevi
 #if METAL_RHI_RAYTRACING
 	InitializeRayTracing();
 #endif
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+    BindlessDescriptorManager = new FMetalBindlessDescriptorManager();
+#endif
 
 	METAL_GPUPROFILE(FMetalProfiler::CreateProfiler(this));
 	
@@ -424,6 +428,9 @@ FMetalDeviceContext::~FMetalDeviceContext()
     
 #if METAL_RHI_RAYTRACING
 	CleanUpRayTracing();
+#endif
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+    delete BindlessDescriptorManager;
 #endif
 	
 #if PLATFORM_MAC
@@ -813,7 +820,14 @@ FMetalBufferPtr FMetalDeviceContext::CreatePooledBuffer(FMetalPooledBufferArgs c
 		RequestedBufferOffsetAlignment = BufferBackedLinearTextureOffsetAlignment;
 	}
 	
-    FMetalBufferPtr Buffer = Heap.CreateBuffer(Args.Size, RequestedBufferOffsetAlignment, Args.Flags, FMetalCommandQueue::GetCompatibleResourceOptions((MTL::ResourceOptions)(CpuResourceOption | MTL::ResourceHazardTrackingModeUntracked | ((NS::UInteger)Args.Storage << MTL::ResourceStorageModeShift))));
+	MTL::ResourceOptions HazardTrackingMode = MTL::ResourceHazardTrackingModeUntracked;
+	static bool bSupportsHeaps = GetMetalDeviceContext().SupportsFeature(EMetalFeaturesHeaps);
+	if(bSupportsHeaps)
+	{
+		HazardTrackingMode = MTL::ResourceHazardTrackingModeTracked;
+	}
+	
+    FMetalBufferPtr Buffer = Heap.CreateBuffer(Args.Size, RequestedBufferOffsetAlignment, Args.Flags, FMetalCommandQueue::GetCompatibleResourceOptions((MTL::ResourceOptions)(CpuResourceOption | HazardTrackingMode | ((NS::UInteger)Args.Storage << MTL::ResourceStorageModeShift))));
 	
     check(Buffer);
 #if METAL_DEBUG_OPTIONS
@@ -928,7 +942,7 @@ FMetalContext::FMetalContext(MTL::Device* InDevice, FMetalCommandQueue& Queue)
 	: Device(InDevice)
 	, CommandQueue(Queue)
 	, CommandList(Queue)
-	, StateCache(true)
+	, StateCache(InDevice, true)
 	, RenderPass(CommandList, StateCache)
 	, QueryBuffer(new FMetalQueryBufferPool(this))
 {
@@ -1436,6 +1450,30 @@ void FMetalContext::DispatchIndirect(FMetalRHIBuffer* ArgumentBuffer, uint32 Arg
 {
 	RenderPass.DispatchIndirect(ArgumentBuffer, ArgumentOffset);
 }
+
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+void FMetalContext::DispatchMeshShader(uint32 PrimitiveType, uint32 ThreadGroupCountX, uint32 ThreadGroupCountY, uint32 ThreadGroupCountZ)
+{
+    // finalize any pending state
+    if(!PrepareToDraw(PrimitiveType))
+    {
+        return;
+    }
+    
+    RenderPass.DispatchMeshShader(PrimitiveType, ThreadGroupCountX, ThreadGroupCountY, ThreadGroupCountZ);
+}
+
+void FMetalContext::DispatchIndirectMeshShader(uint32 PrimitiveType, FMetalRHIBuffer* ArgumentBuffer, uint32 ArgumentOffset)
+{
+    // finalize any pending state
+    if(!PrepareToDraw(PrimitiveType))
+    {
+        return;
+    }
+    
+    RenderPass.DispatchIndirectMeshShader(PrimitiveType, ArgumentBuffer, ArgumentOffset);
+}
+#endif
 
 void FMetalContext::StartTiming(class FMetalEventNode* EventNode)
 {

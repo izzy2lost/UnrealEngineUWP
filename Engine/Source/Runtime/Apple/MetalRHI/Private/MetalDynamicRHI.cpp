@@ -13,7 +13,10 @@
 #include "MetalGraphicsPipelineState.h"
 #include "MetalComputePipelineState.h"
 #include "MetalTransitionData.h"
-
+ 
+#if METAL_USE_METAL_SHADER_CONVERTER
+#include "metal_irconverter.h"
+#endif
 
 //------------------------------------------------------------------------------
 
@@ -49,6 +52,40 @@ FGraphicsPipelineStateRHIRef FMetalDynamicRHI::RHICreateGraphicsPipelineState(co
     
     FMetalGraphicsPipelineState* State = new FMetalGraphicsPipelineState(Initializer);
 
+#if METAL_USE_METAL_SHADER_CONVERTER
+	
+	if(IsMetalBindlessEnabled())
+	{
+		FMetalVertexShader* VertexShader = ResourceCast(Initializer.BoundShaderState.VertexShaderRHI);
+		
+		if (VertexShader != nullptr)
+		{
+			FMetalVertexDeclaration* VertexDeclaration = ResourceCast(Initializer.BoundShaderState.VertexDeclarationRHI);
+			
+			IRShaderReflection* VertexReflection = IRShaderReflectionCreate();
+			IRMetalLibBinary* StageInMetalLib = IRMetalLibBinaryCreate();
+			
+			const FString& SerializedJSON = VertexShader->Bindings.IRConverterReflectionJSON;
+			IRShaderReflectionDeserialize(TCHAR_TO_ANSI(*SerializedJSON), VertexReflection);
+			
+			bool bStageInCreationSuccessful = IRMetalLibSynthesizeStageInFunction(CompilerInstance,
+																				  VertexReflection,
+																				  &VertexDeclaration->InputDescriptor,
+																				  StageInMetalLib);
+			check(bStageInCreationSuccessful)
+			
+			// Store bytecode for lib/stagein function creation.
+			size_t MetallibSize = IRMetalLibGetBytecodeSize(StageInMetalLib);
+			State->StageInFunctionBytecode.SetNum(MetallibSize);
+			size_t WrittenBytes = IRMetalLibGetBytecode(StageInMetalLib, reinterpret_cast<uint8_t*>(State->StageInFunctionBytecode.GetData()));
+			check(MetallibSize == WrittenBytes);
+			
+			IRMetalLibBinaryDestroy(StageInMetalLib);
+			IRShaderReflectionDestroy(VertexReflection);
+		}
+	}
+#endif
+
     if(!State->Compile())
     {
         // Compilation failures are propagated up to the caller.
@@ -57,6 +94,10 @@ FGraphicsPipelineStateRHIRef FMetalDynamicRHI::RHICreateGraphicsPipelineState(co
     }
 
     State->VertexDeclaration = ResourceCast(Initializer.BoundShaderState.VertexDeclarationRHI);
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+    State->MeshShader = ResourceCast(Initializer.BoundShaderState.GetMeshShader());
+    State->AmplificationShader = ResourceCast(Initializer.BoundShaderState.GetAmplificationShader());
+#endif
     State->VertexShader = ResourceCast(Initializer.BoundShaderState.VertexShaderRHI);
     State->PixelShader = ResourceCast(Initializer.BoundShaderState.PixelShaderRHI);
 #if PLATFORM_SUPPORTS_GEOMETRY_SHADERS

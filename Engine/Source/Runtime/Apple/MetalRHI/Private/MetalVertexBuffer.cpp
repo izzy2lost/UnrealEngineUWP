@@ -99,12 +99,16 @@ FMetalRHIBuffer::FMetalRHIBuffer(FRHICommandListBase& RHICmdList, FRHIBufferDesc
 
 	const EMetalBufferUsage MetalUsage = GetMetalBufferUsage(InBufferDesc.Usage);
 	
-	const bool bIsStatic   = EnumHasAnyFlags(InBufferDesc.Usage, BUF_Static);
-	const bool bIsDynamic  = EnumHasAnyFlags(InBufferDesc.Usage, BUF_Dynamic);
-	const bool bIsVolatile = EnumHasAnyFlags(InBufferDesc.Usage, BUF_Volatile);
-	const bool bWantsView  = EnumHasAnyFlags(InBufferDesc.Usage, BUF_ShaderResource | BUF_UnorderedAccess);
+	const bool bIsStatic  	= EnumHasAnyFlags(InBufferDesc.Usage, BUF_Static);
+	const bool bIsDynamic 	= EnumHasAnyFlags(InBufferDesc.Usage, BUF_Dynamic);
+	const bool bIsVolatile	= EnumHasAnyFlags(InBufferDesc.Usage, BUF_Volatile);
+	const bool bIsNull		= EnumHasAnyFlags(InBufferDesc.Usage, BUF_NullResource);
+	const bool bWantsView 	= EnumHasAnyFlags(InBufferDesc.Usage, BUF_ShaderResource | BUF_UnorderedAccess);
 	
-	check(bIsStatic ^ bIsDynamic ^ bIsVolatile);
+	uint32_t ValidateTypeCount = (uint32_t)bIsStatic + (uint32_t)bIsDynamic +
+								(uint32_t)bIsVolatile + (uint32_t)bIsNull;
+	
+	check(ValidateTypeCount == 1);
 
 	Mode = UsePrivateMemory() ? MTL::StorageModePrivate : BUFFER_STORAGE_MODE;
 	Mode = CanUsePrivateMemory() ? MTL::StorageModePrivate : Mode;
@@ -256,7 +260,7 @@ FMetalRHIBuffer::FMetalRHIBuffer(FRHICommandListBase& RHICmdList, FRHIBufferDesc
 		}
 	}
 
-	if (CreateInfo.ResourceArray)
+	if (CreateInfo.ResourceArray && InBufferDesc.Size > 0)
 	{
 		check(InBufferDesc.Size == CreateInfo.ResourceArray->GetResourceDataSize());
 
@@ -430,7 +434,7 @@ void* FMetalRHIBuffer::Lock(bool bIsOnRHIThread, EResourceLockMode InLockMode, u
 	
 	
 	check(GetCurrentBuffer());
-	check(!GetCurrentBuffer()->GetMTLBuffer()->isAliasable());
+	check((!GetCurrentBuffer()->GetMTLBuffer()->heap() && !GetCurrentBuffer()->GetMTLBuffer()->isAliasable()) || GetCurrentBuffer()->GetMTLBuffer()->heap() != nullptr);
 	
 	check(ReturnPointer);
 	LockOffset = Offset;
@@ -591,7 +595,7 @@ FBufferRHIRef FMetalDynamicRHI::RHICreateBuffer(FRHICommandListBase& RHICmdList,
     MTL_SCOPED_AUTORELEASE_POOL;
 
     // No life-time usage information? Enforce Dynamic.
-    if (!EnumHasAnyFlags(Desc.Usage, BUF_Static | BUF_Dynamic | BUF_Volatile))
+    if (!EnumHasAnyFlags(Desc.Usage, BUF_Static | BUF_Dynamic | BUF_Volatile | BUF_NullResource))
     {
         FRHIBufferDesc Copy = Desc;
         Copy.Usage |= BUF_Dynamic;

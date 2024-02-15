@@ -96,7 +96,7 @@ public:
 	uint32 ConstantValueHash = 0;
 
 protected:
-	MTLFunctionPtr GetCompiledFunction(bool const bAsync = false);
+	MTLFunctionPtr GetCompiledFunction(bool const bAsync = false, const int32 FunctionIndex = -1);
 
 	// this is the compiler shader
 	MTLFunctionPtr Function;
@@ -117,6 +117,9 @@ private:
 	// Function constant states
 	bool bHasFunctionConstants = false;
 	bool bDeviceFunctionConstants = false;
+
+    /** Index of the function (in the library) pointing to the function requested by the user (when GetCompiledFunction() is called with an explicit index). */
+    uint32 LibraryFunctionIndex = -1;
 };
 
 
@@ -373,6 +376,10 @@ void TMetalBaseShader<BaseResourceType, ShaderType>::Init(TArrayView<const uint8
 	SideTableBinding = Header.SideTable;
 
 	UE::RHICore::InitStaticUniformBufferSlots(StaticSlots, Bindings.ShaderResourceTable);
+
+#if RHI_INCLUDE_SHADER_DEBUG_DATA
+    this->Debug.ShaderName = FString::Printf(TEXT("Main_%0.8x_%0.8x"), Header.SourceLen, Header.SourceCRC);
+#endif
 }
 
 template<typename BaseResourceType, int32 ShaderType>
@@ -420,22 +427,31 @@ uint32 TMetalBaseShader<BaseResourceType, ShaderType>::GetRefCount() const
 }
 
 template<typename BaseResourceType, int32 ShaderType>
-MTLFunctionPtr TMetalBaseShader<BaseResourceType, ShaderType>::GetCompiledFunction(bool const bAsync)
+MTLFunctionPtr TMetalBaseShader<BaseResourceType, ShaderType>::GetCompiledFunction(bool const bAsync, const int32 FunctionIndex)
 {
 	MTLFunctionPtr Func = Function;
 
-	if (!Func)
+	bool bNeedToRecreateFunction = (LibraryFunctionIndex != FunctionIndex);
+    if (!Func || bNeedToRecreateFunction)
 	{
 		// Find the existing compiled shader in the cache.
 		uint32 FunctionConstantHash = ConstantValueHash;
 		FMetalCompiledShaderKey Key(SourceLen, SourceCRC, FunctionConstantHash);
 		Func = Function = GetMetalCompiledShaderCache().FindRef(Key);
 
+        if (bNeedToRecreateFunction)
+        {
+            Function = MTLFunctionPtr();
+            Func = MTLFunctionPtr();
+            LibraryFunctionIndex = FunctionIndex;
+        }
+
 		if (!Func)
 		{
 			// Get the function from the library - the function name is "Main" followed by the CRC32 of the source MTLSL as 0-padded hex.
 			// This ensures that even if we move to a unified library that the function names will be unique - duplicates will only have one entry in the library.
-            NS::String* Name = FStringToNSString(FString::Printf(TEXT("Main_%0.8x_%0.8x"), SourceLen, SourceCRC));
+            NS::String* Name = (LibraryFunctionIndex != -1)
+            ? (NS::String*)Library->functionNames()->object(LibraryFunctionIndex) : FStringToNSString(FString::Printf(TEXT("Main_%0.8x_%0.8x"), SourceLen, SourceCRC));
 			MTL::FunctionConstantValues* ConstantValues = nullptr;
 			if (bHasFunctionConstants)
 			{
@@ -448,6 +464,19 @@ MTLFunctionPtr TMetalBaseShader<BaseResourceType, ShaderType>::GetCompiledFuncti
 					ConstantValues->setConstantValue((void*)&GRHIVendorId, MTL::DataTypeUInt, NS::String::string("GMetalDeviceManufacturer", NS::UTF8StringEncoding));
 				}
 			}
+
+#if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
+            // TODO: Make those constants optional?
+            static constexpr bool bEnableTessellation = false;
+            
+            ConstantValues = MTL::FunctionConstantValues::alloc()->init();
+            bHasFunctionConstants = true;
+            
+            ConstantValues->setConstantValue(&bEnableTessellation, MTL::DataTypeBool,
+											 NS::String::string("tessellationEnabled", NS::UTF8StringEncoding));
+			ConstantValues->setConstantValue(&Bindings.OutputSizeVS, MTL::DataTypeInt,
+											 NS::String::string("vertex_shader_output_size_fc", NS::UTF8StringEncoding));
+#endif
 
 			if (!bHasFunctionConstants || !bAsync)
 			{
@@ -483,7 +512,7 @@ MTLFunctionPtr TMetalBaseShader<BaseResourceType, ShaderType>::GetCompiledFuncti
 					UE_CLOG(NewFunction == nullptr, LogMetal, Error, TEXT("Failed to create function: %s"), *NSStringToFString(Error->description()));
 					UE_CLOG(NewFunction == nullptr, LogMetal, Fatal, TEXT("*********** Error\n%s"), *NSStringToFString(GetSourceCode()));
 
-					GetMetalCompiledShaderCache().Add(Key, Library, NS::TransferPtr(NewFunction));
+					GetMetalCompiledShaderCache().Add(Key, Library, NS::RetainPtr(NewFunction));
 #if ENABLE_METAL_GPUPROFILE
 					if (CompletionStat.Stats)
 					{

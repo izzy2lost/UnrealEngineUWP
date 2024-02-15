@@ -4193,7 +4193,7 @@ half3x3 AssembleTangentToWorld( half3 TangentToWorld0, half4 TangentToWorld2 )
 
 #if USE_CONSERVATIVE_DEPTH_WRITES
 
-#if COMPILER_HLSL
+#if COMPILER_HLSL || COMPILER_METAL_SHADER_CONVERTER
 	// Note: for some reason using SV_DepthLessEqual without these interpolation modifiers causes a compile error in d3d
 	#define INPUT_POSITION_QUALIFIERS linear noperspective centroid
 	// Use conservative depth output so we still get Z Cull.  Note, this is a reversed Z depth surface.

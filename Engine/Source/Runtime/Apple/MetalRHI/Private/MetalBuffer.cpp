@@ -1000,7 +1000,7 @@ FMetalBufferPtr FMetalSubBufferRing::NewBuffer(NS::UInteger Size, uint32 Alignme
 		{
 			//FMetalBuffer NewBuffer(MTLPP_VALIDATE(mtlpp::Buffer, Buffer->Buffer, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, NewBuffer(ns::Range(WriteHead, FullSize))), false);
 			
-            FMetalBufferPtr NewBuffer = FMetalBufferPtr(new FMetalBuffer(RingBufferRef->GetMTLBuffer(), NS::Range(0, FullSize), false));
+            FMetalBufferPtr NewBuffer = FMetalBufferPtr(new FMetalBuffer(RingBufferRef->GetMTLBuffer(), NS::Range(WriteHead, FullSize), false));
             
 			FMemory::Memset(((uint8*)NewBuffer->Contents()), 0x0, FullSize);
 			
@@ -1482,12 +1482,276 @@ MTLHeapPtr FMetalResourceHeap::GetTextureHeap(MTL::TextureDescriptor* Desc, MTL:
 	return Result;
 }
 
+TDoubleLinkedList<FMetalResourceHeap::MemoryBlock>::TIterator FMetalResourceHeap::SplitBlock(TDoubleLinkedList<FMetalResourceHeap::MemoryBlock>& List, TDoubleLinkedList<FMetalResourceHeap::MemoryBlock>::TIterator BlockIt, const uint64 Offset, const uint32 Size)
+{
+	MemoryBlock& Block = *BlockIt;
+	check(Size < Block.Size && Block.Resource == nil);
+	check(Offset >= Block.Offset);
+
+	if (Offset > Block.Offset)
+	{
+		uint64 PreBlockSize = Offset - Block.Offset;
+
+		MemoryBlock PreBlock;
+		PreBlock.Heap = Block.Heap;
+		PreBlock.Offset = Block.Offset;
+		PreBlock.Size = PreBlockSize;
+		PreBlock.Resource = nil;
+		PreBlock.Options = MTL::ResourceOptions(0);
+
+		// Move the block at the real offset
+		Block.Offset += PreBlockSize;
+		Block.Size   -= PreBlockSize;
+
+		List.InsertNode(PreBlock, BlockIt.GetNode());
+	}
+	check(Block.Size >= Size);
+
+	// If we have space left after the allocation split the leftover space into its own free block
+	TDoubleLinkedList<FMetalResourceHeap::MemoryBlock>::TIterator MidBlockIt = BlockIt;
+	if (Block.Size > Size)
+	{
+		MemoryBlock PostBlock;
+		PostBlock.Heap = Block.Heap;
+		PostBlock.Offset = Block.Offset + Size;
+		PostBlock.Size = Block.Size - Size;
+		PostBlock.Resource = nil;
+		PostBlock.Options = MTL::ResourceOptions(0);
+
+		// Shrink the current block to size
+		Block.Size = Size;
+
+		// Insert the new block *after* the existing one
+		List.InsertNode(PostBlock, BlockIt.GetNode());
+		BlockIt++;
+	}
+	check(Block.Size == Size);
+
+	// Return the block with the required size first
+	return MidBlockIt;
+}
+
+TDoubleLinkedList<FMetalResourceHeap::MemoryBlock>::TIterator FMetalResourceHeap::MergeBlocks(TDoubleLinkedList<FMetalResourceHeap::MemoryBlock>& List,
+																							  TDoubleLinkedList<FMetalResourceHeap::MemoryBlock>::TIterator BlockItA,
+																							  TDoubleLinkedList<FMetalResourceHeap::MemoryBlock>::TIterator BlockItB)
+{	
+	MemoryBlock& BlockA = *BlockItA;
+	MemoryBlock& BlockB = *BlockItB;
+
+	// Extend block A to cover the range of block B as well
+	BlockA.Size += BlockB.Size;
+
+	// Remove B from the list
+	List.RemoveNode(BlockItB.GetNode());
+
+	return BlockItA;
+}
+
+void FMetalResourceHeap::FreeBlock(const uint32 ResourceAllocationHandle)
+{
+	FScopeLock ScopeLock(&FreeListCS);
+
+	auto BlockIt = InUseResources[ResourceAllocationHandle];
+	MemoryBlock& AllocatedBlock = *BlockIt;
+	check(AllocatedBlock.Resource != nullptr);
+	// AllocatedBlock.Resource->release(); // Will be released once the resource dtor is called (otherwise we may end up double-releasing).
+	AllocatedBlock.Resource = nullptr;
+	{
+		FScopeLock InUseFreeListScopeLock(&InUseResourcesCS);
+		InUseResourcesFreeList.Enqueue(ResourceAllocationHandle);
+	}
+
+	auto& FreeList = FreeLists[AllocatedBlock.Options];
+	auto& UsedList = UsedLists[AllocatedBlock.Options];
+
+	// Find where this block should be placed in the list
+	TDoubleLinkedList<FMetalResourceHeap::MemoryBlock>::TIterator NextBlockIt(FreeList->GetHead());
+	while (NextBlockIt
+	   && ((*NextBlockIt).Heap != AllocatedBlock.Heap || (*NextBlockIt).Offset < AllocatedBlock.Offset + AllocatedBlock.Size))
+	{
+		NextBlockIt++;
+	}
+	
+	// Put the block into the free list
+	UsedList->RemoveNode(BlockIt.GetNode(), false);
+	FreeList->InsertNode(BlockIt.GetNode(), NextBlockIt ? NextBlockIt.GetNode() : nullptr);
+
+	// If we have a next block then attempt to merge blocks
+	if(NextBlockIt)
+	{
+		BlockIt = NextBlockIt;
+		if (BlockIt.GetNode() == nullptr)
+		{
+			BlockIt = TDoubleLinkedList<FMetalResourceHeap::MemoryBlock>::TIterator(FreeList->GetHead());
+		}
+		else
+		{
+			BlockIt--;
+		}
+		check((*BlockIt).Offset == AllocatedBlock.Offset); // Temp sanity check; to be removed.
+		
+		// Figure out the earliest block we can merge the newly freed block with
+		{
+			auto PrevBlockIt = BlockIt;
+			PrevBlockIt--;
+			while (BlockIt
+				   && PrevBlockIt
+				   && (*BlockIt).Heap == (*PrevBlockIt).Heap
+				   && (*BlockIt).Offset == (*PrevBlockIt).Offset + (*PrevBlockIt).Size)
+			{
+				BlockIt = PrevBlockIt;
+				PrevBlockIt--;
+			}
+		}
+		
+		// Merge all adjacent allocations to minimise fragmentation
+		{
+			auto NextIt = BlockIt;
+			NextIt++;
+			
+			while (NextIt)
+			{
+				MemoryBlock& BlockA = *BlockIt;
+				MemoryBlock& BlockB = *NextIt;
+				
+				if (BlockA.Heap == BlockB.Heap
+					&& (BlockA.Offset + BlockA.Size) == BlockB.Offset)
+				{
+					BlockIt = MergeBlocks(*FreeList, BlockIt, NextIt);
+					
+					// NOTE: We don't increment 'blockIt' the next block in the list might also be mergeable into the newly merged block
+					// We merged A and B, nextIt is invalidated so we need to re-initialise it from blockIt++
+					NextIt = BlockIt;
+					NextIt++;
+				}
+				else
+				{
+					break;
+				}
+			}
+		}
+	}
+}
+
+TDoubleLinkedList<FMetalResourceHeap::MemoryBlock>::TIterator FMetalResourceHeap::FindOrAllocateBlock(uint32 Size, uint32 Alignment, MTL::ResourceOptions Options)
+{
+	FScopeLock ScopeLock(&FreeListCS);
+
+	TDoubleLinkedList<FMetalResourceHeap::MemoryBlock>** FreeListIt = FreeLists.Find(Options);
+	if (!FreeListIt)
+	{
+		FreeLists.Add(Options, new TDoubleLinkedList<FMetalResourceHeap::MemoryBlock>());
+		UsedLists.Add(Options, new TDoubleLinkedList<FMetalResourceHeap::MemoryBlock>());
+	}
+
+	auto& FreeList = FreeLists[Options];
+	auto& UsedList = UsedLists[Options];
+
+	// Look for the first existing block with enough space
+	if (!FreeList->IsEmpty())
+	{
+		for (TDoubleLinkedList<FMetalResourceHeap::MemoryBlock>::TIterator It(FreeList->GetHead()); It; ++It)
+		{
+			FMetalResourceHeap::MemoryBlock& Block = *It;
+			check(Block.Resource == nil);
+
+			uint64 AlignedOffset = Align(Block.Offset, Alignment);
+			uint64 WastedSpace = AlignedOffset - Block.Offset;
+
+			if (Block.Size >= (Size + WastedSpace))
+			{
+				// If the block doesn't fit perfectly we need to split
+				if (Block.Size > Size)
+				{
+					auto MidIt = SplitBlock(*FreeList, It, AlignedOffset, Size);
+					It = MidIt;
+				}
+
+				// Transfert node from free to used list
+				FreeList->RemoveNode(It.GetNode(), false);
+				UsedList->AddHead(It.GetNode());
+
+				return It;
+			}
+		}
+	}
+
+	// Allocate a fresh block to use
+	static constexpr uint32 DefaultBlockSize = 1024 << 20; // 1GB
+	{
+		uint64 NewBlockSize = FMath::Max(Size, DefaultBlockSize);
+
+		MTL::StorageMode StorageMode = (MTL::StorageMode)(((NS::UInteger)Options & MTL::ResourceStorageModeMask) >> MTL::ResourceStorageModeShift);
+		MTL::CPUCacheMode CpuMode = (MTL::CPUCacheMode)(((NS::UInteger)Options & MTL::ResourceCpuCacheModeMask) >> MTL::ResourceCpuCacheModeShift);
+
+		MTL::HeapDescriptor* HeapDesc = MTL::HeapDescriptor::alloc()->init();
+		check(HeapDesc);
+		HeapDesc->setSize(NewBlockSize);
+		HeapDesc->setStorageMode(StorageMode);
+		HeapDesc->setCpuCacheMode(CpuMode);
+		HeapDesc->setType(MTL::HeapTypePlacement);
+		HeapDesc->setHazardTrackingMode(MTL::HazardTrackingModeTracked);
+
+		MTLHeapPtr BlockHeap = NS::TransferPtr(Queue->GetDevice()->newHeap(HeapDesc));
+		HeapDesc->release();
+
+		MemoryBlock NewBlock;
+		NewBlock.Heap = BlockHeap;
+		NewBlock.Offset = 0;
+		NewBlock.Size = NewBlockSize;
+		NewBlock.Resource = nullptr;
+		NewBlock.Options = Options;
+
+		GetMetalDeviceContext().GetCurrentState().RegisterMetalHeap(NewBlock.Heap.get());
+
+		FreeList->AddTail(NewBlock);
+
+		// Try again, but this time a fitting block will be immediately available at the front of the list
+		return FindOrAllocateBlock(Size, Alignment, Options);
+	}
+}
+
 FMetalBufferPtr FMetalResourceHeap::CreateBuffer(uint32 Size, uint32 Alignment, EBufferUsageFlags Flags, MTL::ResourceOptions Options, bool bForceUnique)
 {
 	LLM_SCOPE_METAL(ELLMTagMetal::Buffers);
 	LLM_PLATFORM_SCOPE_METAL(ELLMTagMetal::Buffers);
 	
 	static bool bSupportsHeaps = GetMetalDeviceContext().SupportsFeature(EMetalFeaturesHeaps);
+	if (bSupportsHeaps)
+	{
+		check(Alignment != 0);
+
+		uint32 BlockSize = Align(Size, Alignment);
+		auto BlockIt = FindOrAllocateBlock(BlockSize, Alignment, Options);
+		MemoryBlock& Block = *BlockIt;
+
+		check(Block.Resource == nil && Block.Size == BlockSize);
+		Block.Options = Options;
+
+		FScopeLock ScopeLock(&InUseResourcesCS);
+		
+		uint32 HeapAllocationHandle = UINT32_MAX;
+		{
+			if (!InUseResourcesFreeList.IsEmpty())
+			{
+				InUseResourcesFreeList.Dequeue(HeapAllocationHandle);
+				InUseResources[HeapAllocationHandle] = BlockIt;
+			}
+			else
+			{
+				HeapAllocationHandle = InUseResources.Add(BlockIt);
+			}
+		}
+
+		FMetalBufferPtr Buffer = FMetalBufferPtr(new FMetalBuffer(NS::TransferPtr(Block.Heap->newBuffer(Size, Options, Block.Offset)), NS::Range(0, Size), false));
+		check(Buffer->GetMTLBuffer() && Buffer->GetMTLBuffer().get());
+		AllocationHandlesLUT.Add(Buffer->GetMTLBuffer().get(), HeapAllocationHandle);
+
+		Block.Resource = Buffer->GetMTLBuffer().get();
+
+		return Buffer;
+	}
+	
 	static bool bSupportsBufferSubAllocation = FMetalCommandQueue::SupportsFeature(EMetalFeaturesBufferSubAllocation);
 	bForceUnique |= (!bSupportsBufferSubAllocation && !bSupportsHeaps);
 	
@@ -1657,17 +1921,26 @@ void FMetalResourceHeap::ReleaseBuffer(FMetalBufferPtr Buffer)
 {
     MTL::Buffer* MTLBuffer = Buffer->GetMTLBuffer().get();
 	MTL::StorageMode StorageMode = MTLBuffer->storageMode();
-	if (Buffer->IsPooled())
+	
+	FScopeLock ScopeLock(&InUseResourcesCS);
+	
+	auto It = AllocationHandlesLUT.Find(MTLBuffer);
+	if (It && *It != UINT32_MAX)
+	{
+		FreeBlock(*It);
+		AllocationHandlesLUT.Remove(MTLBuffer);
+	}
+	else if (Buffer->IsPooled())
 	{
 		FScopeLock Lock(&Mutex);
 		
 		INC_MEMORY_STAT_BY(STAT_MetalBufferUnusedMemory, Buffer->GetLength());
 		INC_MEMORY_STAT_BY(STAT_MetalPooledBufferUnusedMemory, Buffer->GetLength());
-        DEC_MEMORY_STAT_BY(STAT_MetalPooledBufferMemory, Buffer->GetLength());
+		DEC_MEMORY_STAT_BY(STAT_MetalPooledBufferMemory, Buffer->GetLength());
 		
 		if (GMetalResourcePurgeInPool)
 		{
-            MTLBuffer->setPurgeableState(MTL::PurgeableStateVolatile);
+			MTLBuffer->setPurgeableState(MTL::PurgeableStateVolatile);
 		}
         
 		switch (StorageMode)
@@ -1693,16 +1966,53 @@ void FMetalResourceHeap::ReleaseBuffer(FMetalBufferPtr Buffer)
 		}
 	}
     else
-    {
-        DEC_MEMORY_STAT_BY(STAT_MetalDeviceBufferMemory, Buffer->GetLength());
-    }
+	{
+		DEC_MEMORY_STAT_BY(STAT_MetalDeviceBufferMemory, Buffer->GetLength());
+	}
 }
 
 MTLTexturePtr FMetalResourceHeap::CreateTexture(MTL::TextureDescriptor* Desc, FMetalSurface* Surface)
 {
 	LLM_SCOPE_METAL(ELLMTagMetal::Textures);
 	LLM_PLATFORM_SCOPE_METAL(ELLMTagMetal::Textures);
+
+	static bool bSupportsHeaps = GetMetalDeviceContext().SupportsFeature(EMetalFeaturesHeaps);
+	if (bSupportsHeaps)
+	{
+		MTL::SizeAndAlign SizeAndAlign = Queue->GetDevice()->heapTextureSizeAndAlign(Desc);
+		uint32 Size = SizeAndAlign.size;
+		uint32 Alignment = SizeAndAlign.align;
+		uint32 BlockSize = Align(Size, Alignment);
+		auto BlockIt = FindOrAllocateBlock(BlockSize, Alignment, Desc->resourceOptions());
+			MemoryBlock& Block = *BlockIt;
 	
+		check(Block.Resource == nil && Block.Size == BlockSize);
+		Block.Options = Desc->resourceOptions();
+
+		FScopeLock ScopeLock(&InUseResourcesCS);
+		
+		uint32 HeapAllocationHandle = UINT32_MAX;
+		{
+			if (!InUseResourcesFreeList.IsEmpty())
+			{
+				InUseResourcesFreeList.Dequeue(HeapAllocationHandle);
+				InUseResources[HeapAllocationHandle] = BlockIt;
+			}
+			else
+			{
+				HeapAllocationHandle = InUseResources.Add(BlockIt);
+			}
+		}
+		check(HeapAllocationHandle != UINT32_MAX);
+
+		MTLTexturePtr Texture = NS::TransferPtr(Block.Heap->newTexture(Desc,Block.Offset));
+		AllocationHandlesLUT.Add(Texture.get(), HeapAllocationHandle);
+
+		Block.Resource = Texture.get();
+
+		return Texture;
+	}
+		
 	MTL::SizeAndAlign Res = Queue->GetDevice()->heapTextureSizeAndAlign(Desc);
     MTLHeapPtr Heap = GetTextureHeap(Desc, Res);
 	if (Heap)
@@ -1727,56 +2037,64 @@ MTLTexturePtr FMetalResourceHeap::CreateTexture(MTL::TextureDescriptor* Desc, FM
 
 void FMetalResourceHeap::ReleaseTexture(FMetalSurface* Surface, MTLTexturePtr Texture)
 {
+	FScopeLock ScopeLock(&InUseResourcesCS);
+	
 	if (Texture && !Texture->buffer() && !Texture->parentTexture() && !Texture->heap())
 	{
-        if (Texture->usage() & MTL::TextureUsageRenderTarget)
-        {
-           	TargetPool.ReleaseTexture(Texture);
-        }
-        else
-        {
-            TexturePool.ReleaseTexture(Texture);
-        }
+		auto It = AllocationHandlesLUT.Find(Texture.get());
+		if (It && *It != UINT32_MAX)
+		{
+			FreeBlock(*It);
+			AllocationHandlesLUT.Remove(Texture.get());
+		}
+		else if (Texture->usage() & MTL::TextureUsageRenderTarget)
+		{
+			TargetPool.ReleaseTexture(Texture);
+		}
+		else
+		{
+			TexturePool.ReleaseTexture(Texture);
+		}
 	}
 }
 
 void FMetalResourceHeap::Compact(FMetalRenderPass* Pass, bool const bForce)
 {
 	FScopeLock Lock(&Mutex);
-    for (uint32 u = 0; u < NumUsageTypes; u++)
-    {
-        for (uint32 t = 0; t < NumAllocTypes; t++)
-        {
-            for (uint32 i = 0; i < NumMagazineSizes; i++)
-            {
-                for (auto It = SmallBuffers[u][t][i].CreateIterator(); It; ++It)
-                {
-                    FMetalSubBufferMagazine* Data = *It;
-                    if (Data->NumCurrentAllocations() == 0 || bForce)
-                    {
-                        It.RemoveCurrent();
-                        delete Data;
-                    }
-                }
-            }
-            
-            uint32 BytesCompacted = 0;
-            uint32 const BytesToCompact = GMetalHeapBufferBytesToCompact;
-            
-            for (uint32 i = 0; i < NumHeapSizes; i++)
-            {
-                for (auto It = BufferHeaps[u][t][i].CreateIterator(); It; ++It)
-                {
-                    FMetalSubBufferHeap* Data = *It;
-                    if (Data->NumCurrentAllocations() == 0 || bForce)
-                    {
-                        It.RemoveCurrent();
-                        delete Data;
-                    }
-                }
-            }
-        }
-    }
+	for (uint32 u = 0; u < NumUsageTypes; u++)
+	{
+		for (uint32 t = 0; t < NumAllocTypes; t++)
+		{
+			for (uint32 i = 0; i < NumMagazineSizes; i++)
+			{
+				for (auto It = SmallBuffers[u][t][i].CreateIterator(); It; ++It)
+				{
+					FMetalSubBufferMagazine* Data = *It;
+					if (Data->NumCurrentAllocations() == 0 || bForce)
+					{
+						It.RemoveCurrent();
+						delete Data;
+					}
+				}
+			}
+
+			uint32 BytesCompacted = 0;
+			uint32 const BytesToCompact = GMetalHeapBufferBytesToCompact;
+
+			for (uint32 i = 0; i < NumHeapSizes; i++)
+			{
+				for (auto It = BufferHeaps[u][t][i].CreateIterator(); It; ++It)
+				{
+					FMetalSubBufferHeap* Data = *It;
+					if (Data->NumCurrentAllocations() == 0 || bForce)
+					{
+						It.RemoveCurrent();
+						delete Data;
+					}
+				}
+			}
+		}
+	}
 
 	for(uint32 AllocTypeIndex = 0;AllocTypeIndex < NumAllocTypes;++AllocTypeIndex)
 	{

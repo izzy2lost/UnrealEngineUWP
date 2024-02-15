@@ -8,6 +8,9 @@
 #include "MetalStateCache.h"
 #include "MetalProfiler.h"
 #include "MetalCommandBuffer.h"
+#include "MetalVertexDeclaration.h"
+#include "MetalBindlessDescriptors.h"
+#include "RHIShaderParametersShared.h"
 
 #if PLATFORM_MAC
 	#ifndef UINT128_MAX
@@ -164,7 +167,7 @@ void SafeReleaseMetalRenderPassDescriptor(MTL::RenderPassDescriptor* Desc)
 	}
 }
 
-FMetalStateCache::FMetalStateCache(bool const bInImmediate)
+FMetalStateCache::FMetalStateCache(MTL::Device* Device, bool const bInImmediate)
 : DepthStore(MTL::StoreActionUnknown)
 , StencilStore(MTL::StoreActionUnknown)
 , VisibilityResults(nullptr)
@@ -201,6 +204,29 @@ FMetalStateCache::FMetalStateCache(bool const bInImmediate)
 	
 	FMemory::Memzero(RenderPassInfo);
 	FMemory::Memzero(DirtyUniformBuffers);
+	
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	// Reset Vertex Buffer Offsets.
+	for (uint32 i = 0; i < UE_ARRAY_COUNT(VertexBufferVAs); i++)
+	{
+		VertexBufferVAs[i].GPUVA = 0;
+		VertexBufferVAs[i].Stride = 0;
+		VertexBufferVAs[i].Length = 0;
+	}
+	
+	// Clear CBV table
+	for (uint32 Frequency = 0; Frequency < EMetalShaderStages::Num; Frequency++)
+	{
+		for (uint32 i = 0; i < TopLevelABNumEntry; i++)
+		{
+			CBVTable[Frequency][i] = 0ull;
+		}
+	}
+	
+	// Allocate SideAlloc table (one time op)
+	MTLBufferPtr SideAllocBuffer = NS::TransferPtr(Device->newBuffer(SideAllocsBufferSize, 0));
+	SideAllocs.TableBuffer = FMetalBufferPtr(new FMetalBuffer(SideAllocBuffer));
+#endif
 }
 
 FMetalStateCache::~FMetalStateCache()
@@ -248,9 +274,10 @@ FMetalStateCache::~FMetalStateCache()
 	}
 	
 	VisibilityResults = nullptr;
+	ActiveHeaps.Empty();
 }
 
-void FMetalStateCache::Reset(void)
+void FMetalStateCache::Reset()
 {
 	SampleCount = 0;
 	
@@ -332,10 +359,38 @@ void FMetalStateCache::Reset(void)
 	BlendFactor = FLinearColor::Transparent;
 	FrameBufferSize = CGSizeMake(0.0, 0.0);
 	RenderTargetArraySize = 0;
-    bCanRestartRenderPass = false;
-    
-    RasterBits = EMetalRenderFlagMask;
-    PipelineBits = EMetalPipelineFlagMask;
+	bCanRestartRenderPass = false;
+	
+	RasterBits = EMetalRenderFlagMask;
+	PipelineBits = EMetalPipelineFlagMask;
+	
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	if(GIsMetalInitialized)
+	{
+		FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
+		
+		if(BindlessDescriptorManager->IsSupported())
+		{
+			BindlessDescriptorManager->Reset();
+			
+			for (uint32 i = 0; i < UE_ARRAY_COUNT(VertexBufferVAs); i++)
+			{
+				VertexBufferVAs[i].GPUVA = 0;
+				VertexBufferVAs[i].Stride = 0;
+				VertexBufferVAs[i].Length = 0;
+			}
+			
+			// Clear CBV table
+			for (uint32 Frequency = 0; Frequency < EMetalShaderStages::Num; Frequency++)
+			{
+				for (uint32 i = 0; i < TopLevelABNumEntry; i++)
+				{
+					CBVTable[Frequency][i] = 0ull;
+				}
+			}
+		}
+	}
+#endif
 }
 
 static bool MTLScissorRectEqual(MTL::ScissorRect const& Left, MTL::ScissorRect const& Right)
@@ -1121,8 +1176,41 @@ void FMetalStateCache::SetVertexStream(uint32 const Index, FMetalBufferPtr Buffe
 #if METAL_RHI_RAYTRACING
 	VertexBuffers[Index].AccelerationStructure = nullptr;
 #endif
+
+#if METAL_USE_METAL_SHADER_CONVERTER
+	FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
 	
-	SetShaderBuffer(EMetalShaderStages::Vertex, VertexBuffers[Index].Buffer, Bytes, Offset, Length, UNREAL_TO_METAL_BUFFER_INDEX(Index), MTL::ResourceUsageRead);
+	if(BindlessDescriptorManager->IsSupported())
+	{
+		// Update GPU VA (assuming the offset has changed since last time).
+		if (Buffer)
+		{
+			if (Bytes != nil)
+			{
+				uint8 const* BytesWithOffset = (((uint8 const*)VertexBuffers[Index].Bytes->Data) + Offset);
+				uint32 Len = VertexBuffers[Index].Bytes->Len - Offset;
+				
+				VertexBufferVAs[Index].GPUVA = IRSideUploadToBuffer(BytesWithOffset, Len);
+				VertexBufferVAs[Index].Length = Length;
+			}
+			else
+			{
+				// TODO: Should we be factoring the Vertex buffer offset here?
+				VertexBufferVAs[Index].GPUVA = VertexBuffers[Index].Buffer->GetGPUAddress() + Offset;
+				VertexBufferVAs[Index].Length = Length;
+			}
+		}
+		else
+		{
+			VertexBufferVAs[Index].GPUVA = 0;
+			VertexBufferVAs[Index].Length = 0;
+		}
+	}
+	else
+#endif
+	{
+		SetShaderBuffer(EMetalShaderStages::Vertex, VertexBuffers[Index].Buffer, Bytes, Offset, Length, UNREAL_TO_METAL_BUFFER_INDEX(Index), MTL::ResourceUsageRead);
+	}
 }
 
 uint32 FMetalStateCache::GetVertexBufferSize(uint32 const Index)
@@ -1143,7 +1231,11 @@ void FMetalStateCache::SetGraphicsPipelineState(FMetalGraphicsPipelineState* Sta
 #if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
 		DirtyUniformBuffers[EMetalShaderStages::Geometry] = 0xffffffff;
 #endif
-		
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+        DirtyUniformBuffers[EMetalShaderStages::Mesh] = 0xffffffff;
+        DirtyUniformBuffers[EMetalShaderStages::Amplification] = 0xffffffff;
+#endif
+
 		PipelineBits |= EMetalPipelineFlagPipelineState;
 		
         if (SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelResetOnBind)
@@ -1159,9 +1251,29 @@ void FMetalStateCache::SetGraphicsPipelineState(FMetalGraphicsPipelineState* Sta
 		SetDepthStencilState(State->DepthStencilState);
 		SetRasterizerState(State->RasterizerState);
 
-		for (const auto& PackedGlobalArray : State->VertexShader->Bindings.PackedGlobalArrays)
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+        if (State->MeshShader)
+        {
+            for (const auto& PackedGlobalArray : State->MeshShader->Bindings.PackedGlobalArrays)
+            {
+                ShaderParameters[EMetalShaderStages::Mesh].PrepareGlobalUniforms(CrossCompiler::PackedTypeNameToTypeIndex(PackedGlobalArray.TypeName), PackedGlobalArray.Size);
+            }
+            
+            if (State->AmplificationShader)
+            {
+                for (const auto& PackedGlobalArray : State->AmplificationShader->Bindings.PackedGlobalArrays)
+                {
+                    ShaderParameters[EMetalShaderStages::Amplification].PrepareGlobalUniforms(CrossCompiler::PackedTypeNameToTypeIndex(PackedGlobalArray.TypeName), PackedGlobalArray.Size);
+                }
+            }
+        }
+        else if (State->VertexShader)
+#endif
 		{
-			ShaderParameters[EMetalShaderStages::Vertex].PrepareGlobalUniforms(CrossCompiler::PackedTypeNameToTypeIndex(PackedGlobalArray.TypeName), PackedGlobalArray.Size);
+			for (const auto& PackedGlobalArray : State->VertexShader->Bindings.PackedGlobalArrays)
+			{
+				ShaderParameters[EMetalShaderStages::Vertex].PrepareGlobalUniforms(CrossCompiler::PackedTypeNameToTypeIndex(PackedGlobalArray.TypeName), PackedGlobalArray.Size);
+			}
 		}
 
 		if (State->PixelShader)
@@ -1427,6 +1539,209 @@ void FMetalStateCache::SetShaderBuffer(EMetalShaderStages const Frequency, MTL::
 }
 #endif // METAL_RHI_RAYTRACING
 
+#if METAL_USE_METAL_SHADER_CONVERTER
+void FMetalStateCache::IRMakeSRVResident(EMetalShaderStages const Frequency, FMetalShaderResourceView* SRV)
+{
+    FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
+
+	if(!BindlessDescriptorManager->IsSupported())
+	{
+		return;
+	}
+	
+    switch (SRV->GetMetalType())
+    {
+        case FMetalResourceViewBase::EMetalType::Null:
+            checkf(false, TEXT("Attempt to bind a null SRV."));
+            break;
+            
+        case FMetalResourceViewBase::EMetalType::TextureView:
+        {
+            auto const& View = SRV->GetTextureView();
+			
+			if (!View->heap())
+			{
+				BindlessDescriptorManager->MakeResident(SRV->GetBindlessHandle(), View.get(), MTL::ResourceUsage(MTL::ResourceUsageRead | MTL::ResourceUsageSample), Frequency);
+			}
+			
+			break;
+        }
+            
+            
+        case FMetalResourceViewBase::EMetalType::BufferView:
+        {
+            auto const& View = SRV->GetBufferView();
+			
+			if (!View.Buffer->GetMTLBuffer()->heap())
+			{
+				BindlessDescriptorManager->MakeResident(SRV->GetBindlessHandle(), View.Buffer->GetMTLBuffer().get(), MTL::ResourceUsageRead, Frequency);
+			}
+			break;
+        }
+            
+            
+#if 0
+        case FMetalResourceViewBase::EMetalType::AccelerationStructure:
+        {
+            MTL::AccelerationStructure* AccelerationStructure = SRV->GetAccelerationStructure();
+            AddUsedResource(AccelerationStructure, MTL::ResourceUsageRead, SRV->ReferencedResources);
+        }
+            break;
+#endif
+    };
+}
+
+void FMetalStateCache::IRMakeUAVResident(EMetalShaderStages const Frequency, FMetalUnorderedAccessView* UAV)
+{
+    FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
+	if(!BindlessDescriptorManager->IsSupported())
+	{
+		return;
+	}
+
+    switch (UAV->GetMetalType())
+    {
+        case FMetalResourceViewBase::EMetalType::Null:
+            checkf(false, TEXT("Attempt to bind a null UAV."));
+            break;
+            
+        case FMetalResourceViewBase::EMetalType::TextureView:
+        {
+            auto const& View = UAV->GetTextureView();
+            
+			if (!View->heap())
+			{
+				BindlessDescriptorManager->MakeResident(UAV->GetBindlessHandle(), View.get(), MTL::ResourceUsage(MTL::ResourceUsageRead | MTL::ResourceUsageWrite), Frequency);
+			}
+			break;
+        }
+            
+        case FMetalResourceViewBase::EMetalType::BufferView:
+        {
+            auto const& View = UAV->GetBufferView();
+            
+			if (!View.Buffer->GetMTLBuffer()->heap())
+			{
+				BindlessDescriptorManager->MakeResident(UAV->GetBindlessHandle(), View.Buffer->GetMTLBuffer().get(), MTL::ResourceUsage(MTL::ResourceUsageRead | MTL::ResourceUsageWrite), Frequency);
+			}
+			
+			break;
+        }
+            
+        case FMetalResourceViewBase::EMetalType::TextureBufferBacked:
+        {
+            auto const& View = UAV->GetTextureBufferBacked();
+            
+			if (!View.Buffer->GetMTLBuffer()->heap())
+			{
+				BindlessDescriptorManager->MakeResident(UAV->GetBindlessHandle(), View.Buffer->GetMTLBuffer().get(), MTL::ResourceUsage(MTL::ResourceUsageRead | MTL::ResourceUsageWrite), Frequency);
+			}
+			if (!View.Texture->heap())
+			{
+				BindlessDescriptorManager->MakeResident(UAV->GetBindlessHandle(), View.Texture.get(), MTL::ResourceUsage(MTL::ResourceUsageRead | MTL::ResourceUsageWrite), Frequency);
+			}
+			break;
+        }
+            
+#if METAL_RHI_RAYTRACING
+        case FMetalResourceViewBase::EMetalType::AccelerationStructure:
+            checkNoEntry(); // not implemented
+            break;
+#endif
+        default:
+            checkNoEntry();
+            break;
+    }
+}
+
+void FMetalStateCache::IRMakeTextureResident(EMetalShaderStages const Frequency, MTL::Texture* Texture)
+{
+    FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
+    
+	if (!Texture->heap())
+	{
+		BindlessDescriptorManager->MakeResident(FRHIDescriptorHandle(), Texture, MTL::ResourceUsage(MTL::ResourceUsageRead | MTL::ResourceUsageSample), Frequency);
+	}
+}
+
+void FMetalStateCache::RegisterMetalHeap(MTL::Heap* Heap)
+{
+	FScopeLock ScopeLock(&ActiveHeapsLock);
+	ActiveHeaps.Add(Heap);
+}
+
+void FMetalStateCache::IRForwardBindlessParameters(EMetalShaderStages const Frequency, TConstArrayView<FRHIShaderParameterResource> InBindlessParameters)
+{
+    FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
+
+    // Collect resources we need to map for this frame.
+    for (FRHIShaderParameterResource const& Parameter : InBindlessParameters)
+    {
+		if(Parameter.Type == FRHIShaderParameterResource::EType::UniformBuffer)
+		{
+			continue;
+		}
+		
+        const FRHIDescriptorHandle Handle = UE::RHICore::GetBindlessParameterHandle(Parameter);
+        if (Handle.IsValid())
+        {
+            if (Parameter.Type != FRHIShaderParameterResource::EType::Sampler)
+            {
+                switch (Parameter.Type)
+                {
+                    case FRHIShaderParameterResource::EType::Texture:
+                    {
+                        FRHITexture* Texture = static_cast<FRHITexture*>(Parameter.Resource);
+                        IRMakeTextureResident(Frequency, GetMetalSurfaceFromRHITexture(Texture)->Texture.get());
+                        break;
+                    }
+
+                    case FRHIShaderParameterResource::EType::ResourceView:
+                    {
+                        FMetalShaderResourceView* SRV = static_cast<FMetalShaderResourceView*>(Parameter.Resource);
+                        IRMakeSRVResident(Frequency, SRV);
+                        break;
+                    }
+
+                    case FRHIShaderParameterResource::EType::UnorderedAccessView:
+                    {
+                        FMetalUnorderedAccessView* UAV = static_cast<FMetalUnorderedAccessView*>(Parameter.Resource);
+                        IRMakeUAVResident(Frequency, UAV);
+                        break;
+                    }
+
+                    default:
+                        checkNoEntry();
+                        break;
+                }
+            }
+        }
+    }
+}
+
+void FMetalStateCache::IRBindPackedUniforms(EMetalShaderStages const Frequency, int32 Index, uint8 const* Bytes, const uint32 Size, FMetalBufferPtr& Buffer)
+{
+	uint64 PackedUniformsVA;
+	if(!Buffer)
+	{
+		PackedUniformsVA = IRSideUploadToBuffer(Bytes, Size);
+	}
+	else
+	{
+		PackedUniformsVA = Buffer->GetGPUAddress();
+	}
+	
+    CBVTable[Frequency][Index] = PackedUniformsVA;
+}
+
+void FMetalStateCache::IRBindUniformBuffer(EMetalShaderStages const Frequency, int32 Index, FMetalUniformBuffer* UB)
+{
+    uint8* ConstantSpace =  reinterpret_cast<uint8*>(UB->Backing->contents()) + UB->Offset;
+    uint64 UniformBufferVA = IRSideUploadToBuffer(ConstantSpace, UB->GetSize());
+    CBVTable[Frequency][Index] = UniformBufferVA;
+}
+#endif
+
 void FMetalStateCache::SetShaderTexture(EMetalShaderStages const Frequency, MTL::Texture* Texture, NS::UInteger const Index, MTL::ResourceUsage const Usage)
 {
 	check(Frequency < EMetalShaderStages::Num);
@@ -1485,6 +1800,13 @@ static EMetalShaderStages TranslateShaderStage(CrossCompiler::EShaderStage Shade
 	case CrossCompiler::SHADER_STAGE_PIXEL  : return EMetalShaderStages::Pixel;
 	case CrossCompiler::SHADER_STAGE_VERTEX : return EMetalShaderStages::Vertex;
 	case CrossCompiler::SHADER_STAGE_COMPUTE: return EMetalShaderStages::Compute;
+#if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
+    case CrossCompiler::SHADER_STAGE_GEOMETRY: return EMetalShaderStages::Geometry;
+#endif
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+    case CrossCompiler::SHADER_STAGE_MESH: return EMetalShaderStages::Mesh;
+    case CrossCompiler::SHADER_STAGE_AMPLIFICATION: return EMetalShaderStages::Amplification;
+#endif // PLATFORM_SUPPORTS_MESH_SHADERS
 	}
 }
 
@@ -1589,27 +1911,56 @@ void FMetalStateCache::SetResourcesFromTables(ShaderType Shader, CrossCompiler::
 
 			void SetUAV(FRHIUnorderedAccessView* UAV, uint8 Index)
 			{
-				StateCache.SetShaderUnorderedAccessView(Frequency, Index, static_cast<FMetalUnorderedAccessView*>(UAV));
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+				if(IsMetalBindlessEnabled())
+				{
+					StateCache.IRMakeUAVResident(Frequency, static_cast<FMetalUnorderedAccessView*>(UAV));
+				}
+				else
+#endif
+				{
+					StateCache.SetShaderUnorderedAccessView(Frequency, Index, static_cast<FMetalUnorderedAccessView*>(UAV));
+				}
 			}
 
 			void SetSRV(FRHIShaderResourceView* SRV, uint8 Index)
 			{
-				StateCache.SetShaderResourceView(Frequency, Index, static_cast<FMetalShaderResourceView*>(SRV));
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+				if(IsMetalBindlessEnabled())
+				{
+					StateCache.IRMakeSRVResident(Frequency, static_cast<FMetalShaderResourceView*>(SRV));
+				}
+				else
+#endif
+				{
+					StateCache.SetShaderResourceView(Frequency, Index, static_cast<FMetalShaderResourceView*>(SRV));
+				}
 			}
 
 			void SetTexture(FRHITexture* Texture, uint8 Index)
 			{
-				StateCache.SetShaderTexture(
-					  Frequency
-					, GetMetalSurfaceFromRHITexture(Texture)->Texture.get()
-					, Index
-					, MTL::ResourceUsage(MTL::ResourceUsageRead | MTL::ResourceUsageSample)
-				);
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+				if(IsMetalBindlessEnabled())
+				{
+					StateCache.IRMakeTextureResident(Frequency, GetMetalSurfaceFromRHITexture(Texture)->Texture.get());
+				}
+				else
+#endif
+				{
+					
+					StateCache.SetShaderTexture(Frequency,
+												GetMetalSurfaceFromRHITexture(Texture)->Texture.get(),
+												Index,
+												MTL::ResourceUsage(MTL::ResourceUsageRead | MTL::ResourceUsageSample));
+				}
 			}
 
 			void SetSampler(FRHISamplerState* Sampler, uint8 Index)
 			{
-				StateCache.SetShaderSamplerState(Frequency, static_cast<FMetalSamplerState*>(Sampler), Index);
+				if(!IsMetalBindlessEnabled())
+				{
+					StateCache.SetShaderSamplerState(Frequency, static_cast<FMetalSamplerState*>(Sampler), Index);
+				}
 			}
 		};
 
@@ -1630,17 +1981,147 @@ void FMetalStateCache::SetResourcesFromTables(ShaderType Shader, CrossCompiler::
 	}
 }
 
+#if METAL_USE_METAL_SHADER_CONVERTER
+static uint64_t UploadToBuffer(FMetalBufferPtr& Buffer, std::atomic_uint64_t& BufferOffset, const uint64 BufferSize, void const* Content, uint64 Size)
+{
+    check(Size < BufferSize);
+	
+	// If the buffer will overflow then wrap around
+    if ((BufferOffset + Size) >= BufferSize)
+    {
+        BufferOffset = 0;
+    }
+
+    uint8_t* BufferContents = (uint8*)Buffer->Contents();
+	check(BufferContents);
+	check(Content);
+	
+    memcpy(BufferContents + BufferOffset, Content, Size);	
+	
+    const uint64 AllocOffset = BufferOffset;
+    const uint64 AlignedSize = Align(Size, 8);
+
+    BufferOffset += AlignedSize;
+
+    return Buffer->GetGPUAddress() + AllocOffset;
+}
+
+uint64 FMetalStateCache::IRSideUploadToBuffer(void const* Content, uint64 Size)
+{
+    return UploadToBuffer(SideAllocs.TableBuffer, SideAllocs.TableOffset, SideAllocsBufferSize, Content, Size);
+}
+
+template<class ShaderType, EMetalShaderStages Frequency, MTL::FunctionType FunctionType>
+void FMetalStateCache::IRBindResourcesToEncoder(ShaderType Shader, FMetalCommandEncoder* Encoder)
+{
+	// Bind active heaps
+	{
+		FScopeLock ScopeLock(&ActiveHeapsLock);
+		Encoder->UseHeaps(ActiveHeaps, FunctionType);
+	}
+	
+    // Bind Standard/Sampler descriptor heaps.
+    FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
+    BindlessDescriptorManager->BindDescriptorHeapsToEncoder(Encoder, FunctionType, Frequency);
+
+    Encoder->UseResource(SideAllocs.TableBuffer->GetMTLBuffer().get(), MTL::ResourceUsageRead);
+
+    // Bind CBV Table
+    Encoder->SetShaderBytes(FunctionType, (const uint8*)CBVTable[Frequency], sizeof(uint64) * Shader->Bindings.RSNumCBVs, kIRArgumentBufferBindPoint);
+}
+
+void FMetalStateCache::IRMapVertexBuffers(MTL::RenderCommandEncoder* Encoder, bool bBindForMeshShaders)
+{
+    for (uint32 i = 0; i < MaxVertexElementCount; i++)
+    {
+        if (VertexBuffers[i].Buffer != nullptr)
+        {
+            Encoder->useResource(VertexBuffers[i].Buffer->GetMTLBuffer().get(), MTL::ResourceUsageRead);
+        } 
+    }
+
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+    if (bBindForMeshShaders)
+    {
+        Encoder->setMeshBytes(VertexBufferVAs, sizeof(VertexBufferVAs), kIRVertexBufferBindPoint);
+        Encoder->setObjectBytes(VertexBufferVAs, sizeof(VertexBufferVAs), kIRVertexBufferBindPoint);
+    }
+    else
+#endif
+    {
+        Encoder->setVertexBytes(VertexBufferVAs, sizeof(VertexBufferVAs), kIRVertexBufferBindPoint);
+    }
+}
+#endif
+
 void FMetalStateCache::CommitRenderResources(FMetalCommandEncoder* Raster)
 {
 	check(IsValidRef(GraphicsPSO));
     
-    SetResourcesFromTables(GraphicsPSO->VertexShader, CrossCompiler::SHADER_STAGE_VERTEX);
-    GetShaderParameters(EMetalShaderStages::Vertex).CommitPackedGlobals(this, Raster, EMetalShaderStages::Vertex, GraphicsPSO->VertexShader->Bindings);
-	
+#if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
+    bool bIsUsingGeometryEmulation = IsValidRef(GraphicsPSO->GeometryShader);
+#endif
+        
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+    if (IsValidRef(GraphicsPSO->MeshShader))
+    {
+        SetResourcesFromTables(GraphicsPSO->MeshShader, CrossCompiler::SHADER_STAGE_MESH);
+        GetShaderParameters(EMetalShaderStages::Mesh).CommitPackedGlobals(this, Raster, EMetalShaderStages::Mesh, GraphicsPSO->MeshShader->Bindings);
+        IRBindResourcesToEncoder<FMetalMeshShader*, EMetalShaderStages::Mesh, MTL::FunctionTypeMesh>(GraphicsPSO->MeshShader, Raster);
+        
+        if (IsValidRef(GraphicsPSO->AmplificationShader))
+        {
+            SetResourcesFromTables(GraphicsPSO->AmplificationShader, CrossCompiler::SHADER_STAGE_AMPLIFICATION);
+            GetShaderParameters(EMetalShaderStages::Amplification).CommitPackedGlobals(this, Raster, EMetalShaderStages::Amplification, GraphicsPSO->AmplificationShader->Bindings);
+            IRBindResourcesToEncoder<FMetalAmplificationShader*, EMetalShaderStages::Amplification, MTL::FunctionTypeObject>(GraphicsPSO->AmplificationShader, Raster);
+        }
+    }
+    else
+#endif
+    {
+        SetResourcesFromTables(GraphicsPSO->VertexShader, CrossCompiler::SHADER_STAGE_VERTEX);
+        GetShaderParameters(EMetalShaderStages::Vertex).CommitPackedGlobals(this, Raster, EMetalShaderStages::Vertex, GraphicsPSO->VertexShader->Bindings);
+#if METAL_USE_METAL_SHADER_CONVERTER
+		if(IsMetalBindlessEnabled())
+		{
+#if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
+			if (bIsUsingGeometryEmulation)
+			{
+				IRBindResourcesToEncoder<FMetalVertexShader*, EMetalShaderStages::Vertex, MTL::FunctionTypeObject>(GraphicsPSO->VertexShader, Raster);
+			}
+			else
+#endif
+			{
+				IRBindResourcesToEncoder<FMetalVertexShader*, EMetalShaderStages::Vertex, MTL::FunctionTypeVertex>(GraphicsPSO->VertexShader, Raster);
+			}
+#endif
+		}
+    }
+    
+#if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
+    if (IsValidRef(GraphicsPSO->GeometryShader))
+    {
+        SetResourcesFromTables(GraphicsPSO->GeometryShader, CrossCompiler::SHADER_STAGE_GEOMETRY);
+        GetShaderParameters(EMetalShaderStages::Geometry).CommitPackedGlobals(this, Raster, EMetalShaderStages::Geometry, GraphicsPSO->GeometryShader->Bindings);
+#if METAL_USE_METAL_SHADER_CONVERTER
+		if(IsMetalBindlessEnabled())
+		{
+			IRBindResourcesToEncoder<FMetalGeometryShader*, EMetalShaderStages::Geometry, MTL::FunctionTypeMesh>(GraphicsPSO->GeometryShader, Raster);
+		}
+#endif
+    }
+#endif
+        
     if (IsValidRef(GraphicsPSO->PixelShader))
     {
     	SetResourcesFromTables(GraphicsPSO->PixelShader, CrossCompiler::SHADER_STAGE_PIXEL);
         GetShaderParameters(EMetalShaderStages::Pixel).CommitPackedGlobals(this, Raster, EMetalShaderStages::Pixel, GraphicsPSO->PixelShader->Bindings);
+#if METAL_USE_METAL_SHADER_CONVERTER
+		if(IsMetalBindlessEnabled())
+		{
+			IRBindResourcesToEncoder<FMetalPixelShader*, EMetalShaderStages::Pixel, MTL::FunctionTypeFragment>(GraphicsPSO->PixelShader, Raster);
+		}
+#endif
     }
 }
 
@@ -1650,6 +2131,12 @@ void FMetalStateCache::CommitComputeResources(FMetalCommandEncoder* Compute)
 	SetResourcesFromTables(ComputeShader, CrossCompiler::SHADER_STAGE_COMPUTE);
 	
 	GetShaderParameters(EMetalShaderStages::Compute).CommitPackedGlobals(this, Compute, EMetalShaderStages::Compute, ComputeShader->Bindings);
+#if METAL_USE_METAL_SHADER_CONVERTER
+	if(IsMetalBindlessEnabled())
+	{
+		IRBindResourcesToEncoder<FMetalComputeShader*, EMetalShaderStages::Compute, MTL::FunctionTypeKernel>(ComputeShader, Compute);
+	}
+#endif
 }
 
 bool FMetalStateCache::PrepareToRestart(bool const bCurrentApplied)
@@ -2089,113 +2576,135 @@ void FMetalStateCache::SetRenderPipelineState(FMetalCommandEncoder& CommandEncod
 		check(Pipeline);
         CommandEncoder.SetRenderPipelineState(Pipeline);
         
+#if METAL_USE_METAL_SHADER_CONVERTER
+		FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
+		
+		if(BindlessDescriptorManager->IsSupported())
+		{
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+			if (GraphicsPSO->VertexDeclaration != nullptr)
+#endif // PLATFORM_SUPPORTS_MESH_SHADERS
+			{
+				// Update the stride table for Vertex input (done only once as this is constant/per pipeline).
+				for (const auto& VertexBuffer : GraphicsPSO->VertexDeclaration->InputDescriptorBufferStrides)
+				{
+					VertexBufferVAs[VertexBuffer.Key].Stride = VertexBuffer.Value;
+				}
+			}
+		}
+#endif
+
         PipelineBits &= EMetalPipelineFlagComputeMask;
     }
 	
+	
 #if METAL_DEBUG_OPTIONS
-    
-    Validate();
-    
-	if (SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelFastValidation)
+	FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
+	if(!BindlessDescriptorManager->IsSupported())
 	{
-		FMetalShaderPipeline* Pipeline = GetPipelineState();
-		EMetalShaderStages VertexStage = EMetalShaderStages::Vertex;
+		Validate();
 		
-        FMetalShaderResourceMask VertexMask = Pipeline->ResourceMask[EMetalShaderVertex];
-		TArray<uint32>& MinVertexBufferSizes = Pipeline->BufferDataSizes[EMetalShaderVertex];
-		const TMap<uint8, uint8>& VertexTexTypes = Pipeline->TextureTypes[EMetalShaderVertex];
-		while(VertexMask.BufferMask)
+		if (SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelFastValidation)
 		{
-			uint32 Index = __builtin_ctz(VertexMask.BufferMask);
-			VertexMask.BufferMask &= ~(1 << Index);
+			FMetalShaderPipeline* Pipeline = GetPipelineState();
+			EMetalShaderStages VertexStage = EMetalShaderStages::Vertex;
 			
-			if (VertexStage == EMetalShaderStages::Vertex)
+			FMetalShaderResourceMask VertexMask = Pipeline->ResourceMask[EMetalShaderVertex];
+			TArray<uint32>& MinVertexBufferSizes = Pipeline->BufferDataSizes[EMetalShaderVertex];
+			const TMap<uint8, uint8>& VertexTexTypes = Pipeline->TextureTypes[EMetalShaderVertex];
+			while(VertexMask.BufferMask)
 			{
-				FMetalBufferBinding const& Binding = ShaderBuffers[VertexStage].Buffers[Index];
-				ensure(Binding.Buffer || Binding.Bytes);
-				ensure(MinVertexBufferSizes.Num() > Index);
-				ensure(Binding.Length >= MinVertexBufferSizes[Index]);
+				uint32 Index = __builtin_ctz(VertexMask.BufferMask);
+				VertexMask.BufferMask &= ~(1 << Index);
+				
+				if (VertexStage == EMetalShaderStages::Vertex)
+				{
+					FMetalBufferBinding const& Binding = ShaderBuffers[VertexStage].Buffers[Index];
+					ensure(Binding.Buffer || Binding.Bytes);
+					ensure(MinVertexBufferSizes.Num() > Index);
+					ensure(Binding.Length >= MinVertexBufferSizes[Index]);
+				}
 			}
-		}
 #if PLATFORM_MAC
-		{
-			uint64 LoTextures = (uint64)VertexMask.TextureMask;
-			while(LoTextures)
 			{
-				uint32 Index = __builtin_ctzll(LoTextures);
-				LoTextures &= ~(uint64(1) << uint64(Index));
+				uint64 LoTextures = (uint64)VertexMask.TextureMask;
+				while(LoTextures)
+				{
+					uint32 Index = __builtin_ctzll(LoTextures);
+					LoTextures &= ~(uint64(1) << uint64(Index));
+					EnsureTextureAndType(VertexStage, Index, VertexTexTypes);
+				}
+				
+				uint64 HiTextures = (uint64)(VertexMask.TextureMask >> FMetalTextureMask(64));
+				while(HiTextures)
+				{
+					uint32 Index = __builtin_ctzll(HiTextures);
+					HiTextures &= ~(uint64(1) << uint64(Index));
+					EnsureTextureAndType(VertexStage, Index + 64, VertexTexTypes);
+				}
+			}
+#else
+			while(VertexMask.TextureMask)
+			{
+				uint32 Index = __builtin_ctz(VertexMask.TextureMask);
+				VertexMask.TextureMask &= ~(1 << Index);
+				
 				EnsureTextureAndType(VertexStage, Index, VertexTexTypes);
 			}
-			
-			uint64 HiTextures = (uint64)(VertexMask.TextureMask >> FMetalTextureMask(64));
-			while(HiTextures)
-			{
-				uint32 Index = __builtin_ctzll(HiTextures);
-				HiTextures &= ~(uint64(1) << uint64(Index));
-				EnsureTextureAndType(VertexStage, Index + 64, VertexTexTypes);
-			}
-		}
-#else
-		while(VertexMask.TextureMask)
-		{
-			uint32 Index = __builtin_ctz(VertexMask.TextureMask);
-			VertexMask.TextureMask &= ~(1 << Index);
-			
-			EnsureTextureAndType(VertexStage, Index, VertexTexTypes);
-		}
 #endif
-		while(VertexMask.SamplerMask)
-		{
-			uint32 Index = __builtin_ctz(VertexMask.SamplerMask);
-			VertexMask.SamplerMask &= ~(1 << Index);
-			ensure(ShaderSamplers[VertexStage].Samplers[Index]);
-		}
-		
-        FMetalShaderResourceMask FragmentMask = Pipeline->ResourceMask[EMetalShaderFragment];
-		TArray<uint32>& MinFragmentBufferSizes = Pipeline->BufferDataSizes[EMetalShaderFragment];
-		const TMap<uint8, uint8>& FragmentTexTypes = Pipeline->TextureTypes[EMetalShaderFragment];
-		while(FragmentMask.BufferMask)
-		{
-			uint32 Index = __builtin_ctz(FragmentMask.BufferMask);
-			FragmentMask.BufferMask &= ~(1 << Index);
-			
-			FMetalBufferBinding const& Binding = ShaderBuffers[EMetalShaderStages::Pixel].Buffers[Index];
-			ensure(Binding.Buffer || Binding.Bytes);
-			ensure(MinFragmentBufferSizes.Num() > Index);
-			ensure(Binding.Length >= MinFragmentBufferSizes[Index]);
-		}
-#if PLATFORM_MAC
-		{
-			uint64 LoTextures = (uint64)FragmentMask.TextureMask;
-			while(LoTextures)
+			while(VertexMask.SamplerMask)
 			{
-				uint32 Index = __builtin_ctzll(LoTextures);
-				LoTextures &= ~(uint64(1) << uint64(Index));
+				uint32 Index = __builtin_ctz(VertexMask.SamplerMask);
+				VertexMask.SamplerMask &= ~(1 << Index);
+				ensure(ShaderSamplers[VertexStage].Samplers[Index]);
+			}
+			
+			FMetalShaderResourceMask FragmentMask = Pipeline->ResourceMask[EMetalShaderFragment];
+			TArray<uint32>& MinFragmentBufferSizes = Pipeline->BufferDataSizes[EMetalShaderFragment];
+			const TMap<uint8, uint8>& FragmentTexTypes = Pipeline->TextureTypes[EMetalShaderFragment];
+			while(FragmentMask.BufferMask)
+			{
+				uint32 Index = __builtin_ctz(FragmentMask.BufferMask);
+				FragmentMask.BufferMask &= ~(1 << Index);
+				
+				FMetalBufferBinding const& Binding = ShaderBuffers[EMetalShaderStages::Pixel].Buffers[Index];
+				ensure(Binding.Buffer || Binding.Bytes);
+				ensure(MinFragmentBufferSizes.Num() > Index);
+				ensure(Binding.Length >= MinFragmentBufferSizes[Index]);
+			}
+#if PLATFORM_MAC
+			{
+				uint64 LoTextures = (uint64)FragmentMask.TextureMask;
+				while(LoTextures)
+				{
+					uint32 Index = __builtin_ctzll(LoTextures);
+					LoTextures &= ~(uint64(1) << uint64(Index));
+					EnsureTextureAndType(EMetalShaderStages::Pixel, Index, FragmentTexTypes);
+				}
+				
+				uint64 HiTextures = (uint64)(FragmentMask.TextureMask >> FMetalTextureMask(64));
+				while(HiTextures)
+				{
+					uint32 Index = __builtin_ctzll(HiTextures);
+					HiTextures &= ~(uint64(1) << uint64(Index));
+					EnsureTextureAndType(EMetalShaderStages::Pixel, Index + 64, FragmentTexTypes);
+				}
+			}
+#else
+			while(FragmentMask.TextureMask)
+			{
+				uint32 Index = __builtin_ctz(FragmentMask.TextureMask);
+				FragmentMask.TextureMask &= ~(1 << Index);
+				
 				EnsureTextureAndType(EMetalShaderStages::Pixel, Index, FragmentTexTypes);
 			}
-			
-			uint64 HiTextures = (uint64)(FragmentMask.TextureMask >> FMetalTextureMask(64));
-			while(HiTextures)
-			{
-				uint32 Index = __builtin_ctzll(HiTextures);
-				HiTextures &= ~(uint64(1) << uint64(Index));
-				EnsureTextureAndType(EMetalShaderStages::Pixel, Index + 64, FragmentTexTypes);
-			}
-		}
-#else
-		while(FragmentMask.TextureMask)
-		{
-			uint32 Index = __builtin_ctz(FragmentMask.TextureMask);
-			FragmentMask.TextureMask &= ~(1 << Index);
-			
-			EnsureTextureAndType(EMetalShaderStages::Pixel, Index, FragmentTexTypes);
-		}
 #endif
-		while(FragmentMask.SamplerMask)
-		{
-			uint32 Index = __builtin_ctz(FragmentMask.SamplerMask);
-			FragmentMask.SamplerMask &= ~(1 << Index);
-			ensure(ShaderSamplers[EMetalShaderStages::Pixel].Samplers[Index]);
+			while(FragmentMask.SamplerMask)
+			{
+				uint32 Index = __builtin_ctz(FragmentMask.SamplerMask);
+				FragmentMask.SamplerMask &= ~(1 << Index);
+				ensure(ShaderSamplers[EMetalShaderStages::Pixel].Samplers[Index]);
+			}
 		}
 	}
 #endif // METAL_DEBUG_OPTIONS

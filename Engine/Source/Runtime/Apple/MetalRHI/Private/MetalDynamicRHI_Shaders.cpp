@@ -35,11 +35,8 @@ FPixelShaderRHIRef FMetalDynamicRHI::RHICreatePixelShader(TArrayView<const uint8
 FGeometryShaderRHIRef FMetalDynamicRHI::RHICreateGeometryShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
 {
     MTL_SCOPED_AUTORELEASE_POOL;
-    
-	FMetalGeometryShader* Shader = new FMetalGeometryShader;
-	FMetalCodeHeader Header;
-	Shader->Init(Code, Header, MTLLibraryPtr());
-	return Shader;
+    FMetalGeometryShader* Shader = new FMetalGeometryShader(Code);
+    return Shader;
 }
 
 FComputeShaderRHIRef FMetalDynamicRHI::RHICreateComputeShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
@@ -47,6 +44,22 @@ FComputeShaderRHIRef FMetalDynamicRHI::RHICreateComputeShader(TArrayView<const u
     MTL_SCOPED_AUTORELEASE_POOL;
     return new FMetalComputeShader(Code, MTLLibraryPtr());
 }
+
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+FMeshShaderRHIRef FMetalDynamicRHI::RHICreateMeshShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
+{
+    MTL_SCOPED_AUTORELEASE_POOL;
+
+    return new FMetalMeshShader(Code);
+}
+
+FAmplificationShaderRHIRef FMetalDynamicRHI::RHICreateAmplificationShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
+{
+    MTL_SCOPED_AUTORELEASE_POOL;
+
+    return new FMetalAmplificationShader(Code);
+}
+#endif
 
 #if METAL_RHI_RAYTRACING
 FRayTracingShaderRHIRef FMetalDynamicRHI::RHICreateRayTracingShader(TArrayView<const uint8> Code, const FSHAHash& Hash, EShaderFrequency ShaderFrequency)

@@ -31,3 +31,10 @@ MTLFunctionPtr FMetalVertexShader::GetFunction()
 {
 	return GetCompiledFunction();
 }
+
+#if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
+MTLFunctionPtr FMetalVertexShader::GetObjectFunctionForGeometryEmulation()
+{
+    return GetCompiledFunction(false, 0);
+}
+#endif

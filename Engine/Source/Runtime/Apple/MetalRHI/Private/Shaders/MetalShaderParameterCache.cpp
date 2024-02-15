@@ -103,20 +103,35 @@ void FMetalShaderParameterCache::CommitPackedGlobals(FMetalStateCache* Cache, FM
 
 			//@todo-rco: Temp workaround
 			uint32 Size = FMath::Min(TotalSize, SizeToUpload);
-			if (Size > MetalBufferPageSize)
+#if METAL_USE_METAL_SHADER_CONVERTER
+			if(IsMetalBindlessEnabled())
 			{
-                uint8 const* Bytes = PackedGlobalUniforms[Index]->Data;
-				FMetalBufferPtr Buffer = Encoder->GetRingBuffer().NewBuffer(Size, 0);
-				FMemory::Memcpy((uint8*)Buffer->Contents(), Bytes, Size);
-				Cache->SetShaderBuffer((EMetalShaderStages)Frequency, Buffer, nullptr, 0, Size, UniformBufferIndex, MTL::ResourceUsageRead);
+				check(PackedGlobalUniforms[Index]);
+				uint8 const* Bytes = PackedGlobalUniforms[Index]->Data;
+				
+				FMetalBufferPtr Buffer;
+				PackedGlobalUniforms[Index]->Len = Size;
+				Cache->IRBindPackedUniforms((EMetalShaderStages)Frequency, UniformBufferIndex, Bytes, TotalSize, Buffer);
+				
+				SafeReleaseMetalBuffer(Buffer);
 			}
 			else
+#endif
 			{
-                PackedGlobalUniforms[Index]->Len = Size;
-				Cache->SetShaderBuffer((EMetalShaderStages)Frequency, nullptr, nullptr, 0, 0, UniformBufferIndex, MTL::ResourceUsage(0));
-				Cache->SetShaderBuffer((EMetalShaderStages)Frequency, nullptr, PackedGlobalUniforms[Index], 0, Size, UniformBufferIndex, MTL::ResourceUsageRead);
+				if (Size > MetalBufferPageSize)
+				{
+					uint8 const* Bytes = PackedGlobalUniforms[Index]->Data;
+					FMetalBufferPtr Buffer = Encoder->GetRingBuffer().NewBuffer(Size, 0);
+					FMemory::Memcpy((uint8*)Buffer->Contents(), Bytes, Size);
+					Cache->SetShaderBuffer((EMetalShaderStages)Frequency, Buffer, nullptr, 0, Size, UniformBufferIndex, MTL::ResourceUsageRead);
+				}
+				else
+				{
+					PackedGlobalUniforms[Index]->Len = Size;
+					Cache->SetShaderBuffer((EMetalShaderStages)Frequency, nullptr, nullptr, 0, 0, UniformBufferIndex, MTL::ResourceUsage(0));
+					Cache->SetShaderBuffer((EMetalShaderStages)Frequency, nullptr, PackedGlobalUniforms[Index], 0, Size, UniformBufferIndex, MTL::ResourceUsageRead);
+				}
 			}
-
 			// mark as clean
 			PackedGlobalUniformDirty[Index].HighVector = 0;
 		}

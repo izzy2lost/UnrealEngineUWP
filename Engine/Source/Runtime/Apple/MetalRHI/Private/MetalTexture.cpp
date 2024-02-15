@@ -13,6 +13,7 @@
 #include "MetalLLM.h"
 #include "RHILockTracker.h"
 #include "RHICoreStats.h"
+#include "MetalBindlessDescriptors.h"
 #include <CoreVideo/CVMetalTexture.h>
 
 volatile int64 FMetalSurface::ActiveUploads = 0;
@@ -72,6 +73,14 @@ static MTL::TextureUsage ConvertFlagsToUsage(ETextureCreateFlags Flags)
 	if (EnumHasAnyFlags(Flags, TexCreate_OfflineProcessed))
 	{
 		Usage |= MTL::TextureUsageShaderRead;
+	}
+
+	if(IsMetalBindlessEnabled())
+	{
+		if (EnumHasAllFlags(Flags, TexCreate_AtomicCompatible) || EnumHasAllFlags(Flags, ETextureCreateFlags::Atomic64Compatible))
+		{
+			Usage |= MTL::TextureUsageShaderAtomic;
+		}
 	}
 
 	//if the high level is doing manual resolves then the textures specifically markes as resolve targets
@@ -235,7 +244,14 @@ MTLTexturePtr FMetalSurface::Reallocate(MTLTexturePtr InTexture, MTL::TextureUsa
 	Desc->setSampleCount(InTexture->sampleCount());
 	Desc->setArrayLength(InTexture->arrayLength());
 	
-	static MTL::ResourceOptions GeneralResourceOption = (MTL::ResourceOptions)FMetalCommandQueue::GetCompatibleResourceOptions(MTL::ResourceHazardTrackingModeUntracked);
+	MTL::ResourceOptions HazardTrackingMode = MTL::ResourceHazardTrackingModeUntracked;
+	static bool bSupportsHeaps = GetMetalDeviceContext().SupportsFeature(EMetalFeaturesHeaps);
+	if(bSupportsHeaps)
+	{
+		HazardTrackingMode = MTL::ResourceHazardTrackingModeTracked;
+	}
+	
+	static MTL::ResourceOptions GeneralResourceOption = (MTL::ResourceOptions)FMetalCommandQueue::GetCompatibleResourceOptions(HazardTrackingMode);
 	
 	Desc->setResourceOptions(MTL::ResourceOptions(((NS::UInteger)InTexture->cpuCacheMode() << MTL::ResourceCpuCacheModeShift) | ((NS::UInteger)Texture->storageMode() << MTL::ResourceStorageModeShift) | GeneralResourceOption));
 	Desc->setCpuCacheMode(InTexture->cpuCacheMode());
@@ -371,6 +387,31 @@ FMetalTextureCreateDesc::FMetalTextureCreateDesc(FRHITextureCreateDesc const& In
 	}
 	Desc->setMipmapLevelCount(InDesc.NumMips);
 
+	if(IsMetalBindlessEnabled())
+	{
+		// All Texture2D and TextureCube texture types need to be converted to Array Types to match the generated AIR
+		if (!InDesc.IsTextureArray())
+		{
+			if (InDesc.IsTexture2D())
+			{
+				if (InDesc.NumSamples > 1)
+				{
+					Desc->setTextureType(MTL::TextureType2DMultisampleArray);
+				}
+				else
+				{
+					Desc->setTextureType(MTL::TextureType2DArray);
+				}
+				
+				Desc->setArrayLength(1);
+			}
+			else if (InDesc.IsTextureCube())
+			{
+				Desc->setTextureType(MTL::TextureTypeCubeArray);
+			}
+		}
+	}
+
 	{
 		Desc->setUsage(ConvertFlagsToUsage(InDesc.Flags));
 		
@@ -476,7 +517,14 @@ FMetalTextureCreateDesc::FMetalTextureCreateDesc(FRHITextureCreateDesc const& In
 		}
 #endif
 
-		static MTL::ResourceOptions GeneralResourceOption = FMetalCommandQueue::GetCompatibleResourceOptions(MTL::ResourceHazardTrackingModeUntracked);
+		MTL::ResourceOptions HazardTrackingMode = MTL::ResourceHazardTrackingModeUntracked;
+		static bool bSupportsHeaps = GetMetalDeviceContext().SupportsFeature(EMetalFeaturesHeaps);
+		if(bSupportsHeaps)
+		{
+			HazardTrackingMode = MTL::ResourceHazardTrackingModeTracked;
+		}
+		
+		static MTL::ResourceOptions GeneralResourceOption = FMetalCommandQueue::GetCompatibleResourceOptions(HazardTrackingMode);
 		Desc->setResourceOptions((MTL::ResourceOptions)(Desc->resourceOptions() | GeneralResourceOption));
 	}
 }
@@ -596,9 +644,23 @@ FMetalSurface::FMetalSurface(FRHICommandListBase* RHICmdList, FMetalTextureCreat
         }
 #endif
         const bool bAtomicCompatible = EnumHasAllFlags(CreateDesc.Flags, TexCreate_AtomicCompatible) || EnumHasAllFlags(CreateDesc.Flags, ETextureCreateFlags::Atomic64Compatible);
-        const bool bTextureArrayWithAtomics = NewCreateDesc.Desc->textureType() == MTL::TextureType2DArray && bAtomicCompatible;
+		
+		bool bIsBindless = IsMetalBindlessEnabled();
+		
+		bool bBufferBacked = EnumHasAllFlags(CreateDesc.Flags, TexCreate_UAV | TexCreate_NoTiling);
+		if (bIsBindless)
+		{
+			bBufferBacked = bBufferBacked && !bAtomicCompatible;
+		}
+		else
+		{
+			bBufferBacked = bBufferBacked || bAtomicCompatible;
+		}
+		bBufferBacked = bBufferCompatibleOption && bBufferBacked;
+		
+        const bool bTextureArrayWithAtomics = !bIsBindless && NewCreateDesc.Desc->textureType() == MTL::TextureType2DArray && bAtomicCompatible;
 
-		if(bBufferCompatibleOption && (EnumHasAllFlags(CreateDesc.Flags, TexCreate_UAV | TexCreate_NoTiling) || bAtomicCompatible))
+		if (bBufferBacked)
 		{
 			MTL::Device* Device = GetMetalDeviceContext().GetDevice();
 
@@ -631,9 +693,13 @@ FMetalSurface::FMetalSurface(FRHICommandListBase* RHICmdList, FMetalTextureCreat
         }
 		else
 		{
-			// If we are in here then either the texture description is not buffer compatable or these flags were not set
-			// assert that these flag combinations are not set as they require a buffer backed texture and the texture description is not compatible with that
-			checkf(!EnumHasAllFlags(CreateDesc.Flags, TexCreate_AtomicCompatible), TEXT("Requested buffer backed texture that breaks Metal linear texture limitations: %s"), *NSStringToFString(NewCreateDesc.Desc->description()));
+			if(!bIsBindless)
+			{
+				// If we are in here then either the texture description is not buffer compatable or these flags were not set
+				// assert that these flag combinations are not set as they require a buffer backed texture and the texture description is not compatible with that
+				checkf(!EnumHasAllFlags(CreateDesc.Flags, TexCreate_AtomicCompatible), TEXT("Requested buffer backed texture that breaks Metal linear texture limitations: %s"), *NSStringToFString(NewCreateDesc.Desc->description()));
+			}
+
 			Texture = GetMetalDeviceContext().CreateTexture(this, NewCreateDesc.Desc.get());
 		}
 		
@@ -758,6 +824,22 @@ FMetalSurface::FMetalSurface(FRHICommandListBase* RHICmdList, FMetalTextureCreat
 		// unless we definitely use this feature or we are throwing ~4% performance vs. Windows on the floor.
 		check(0);
 	}
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+    FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
+    check(BindlessDescriptorManager);
+	
+	if(BindlessDescriptorManager->IsSupported())
+	{
+		BindlessHandle = BindlessDescriptorManager->ReserveDescriptor(ERHIDescriptorHeapType::Standard);
+		
+		// NOTE: Might be updated later (using RHIUpdateTextureReference).
+		if (Texture)
+		{
+			BindlessDescriptorManager->BindTexture(BindlessHandle, Texture.get());
+		}
+	}
+#endif
 }
 
 class FMetalDeferredStats
@@ -822,6 +904,19 @@ FMetalSurface::~FMetalSurface()
 	}
 	
 	ImageSurfaceRef = nullptr;
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+    FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
+    check(BindlessDescriptorManager);
+
+	if(BindlessDescriptorManager->IsSupported())
+	{
+		if (!(GetDesc().Flags & TexCreate_Presentable))
+		{
+			BindlessDescriptorManager->FreeDescriptor(BindlessHandle);
+		}
+	}
+#endif
 }
 
 MTLBufferPtr FMetalSurface::AllocSurface(uint32 MipIndex, uint32 ArrayIndex, EResourceLockMode LockMode, uint32& DestStride, bool SingleLayer /*= false*/)
@@ -1961,3 +2056,74 @@ void FMetalRHICommandContext::RHICopyBufferRegion(FRHIBuffer* DstBufferRHI, uint
 
     GetInternalContext().CopyFromBufferToBuffer(SrcBuffer->GetCurrentBuffer(), SrcOffset, DstBuffer->GetCurrentBuffer(), DstOffset, NumBytes);
 }
+
+class FMetalTextureReference : public FRHITextureReference
+{
+public:
+	FMetalTextureReference(FRHITexture* InReferencedTexture)
+		: FRHITextureReference(InReferencedTexture)
+	{
+	}
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	FMetalTextureReference(FRHITexture* InReferencedTexture, FMetalShaderResourceView* InBindlessView)
+		: FRHITextureReference(InReferencedTexture, InBindlessView->GetBindlessHandle())
+		, BindlessView(InBindlessView)
+	{
+	}
+
+	TRefCountPtr<FMetalShaderResourceView> BindlessView;
+#endif
+};
+
+template<>
+struct TMetalResourceTraits<FRHITextureReference>
+{
+	using TConcreteType = FMetalTextureReference;
+};
+
+FTextureReferenceRHIRef FMetalDynamicRHI::RHICreateTextureReference(FRHICommandListBase& RHICmdList, FRHITexture* InReferencedTexture)
+{
+	FRHITexture* ReferencedTexture = InReferencedTexture ? InReferencedTexture : FRHITextureReference::GetDefaultTexture();
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
+	check(BindlessDescriptorManager);
+	
+	if(BindlessDescriptorManager->IsSupported())
+	{
+		// If the referenced texture is configured for bindless, make sure we also create an SRV to use for bindless.
+		if (ReferencedTexture && ReferencedTexture->GetDefaultBindlessHandle().IsValid())
+		{
+			FShaderResourceViewRHIRef BindlessView = RHICmdList.CreateShaderResourceView(ReferencedTexture, 0u);
+			return new FMetalTextureReference(ReferencedTexture, ResourceCast(BindlessView.GetReference()));
+		}
+	}
+#endif
+
+	return new FMetalTextureReference(ReferencedTexture);
+}
+
+void FMetalDynamicRHI::RHIUpdateTextureReference(FRHICommandListBase& RHICmdList, FRHITextureReference* TextureRef, FRHITexture* InNewTexture)
+{
+    FRHITexture* NewTexture = InNewTexture ? InNewTexture : FRHITextureReference::GetDefaultTexture();
+
+	// TODO: Need to handle these updates correctly, currently you can update an inflight handle
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	if (TextureRef && TextureRef->IsBindless())
+	{
+		FMetalTextureReference* MetalTextureReference = ResourceCast(TextureRef);
+		FMetalShaderResourceView* MetalTextureRefSRV = MetalTextureReference->BindlessView;
+		
+		FMetalSurface* NewSurface = GetMetalSurfaceFromRHITexture(NewTexture);
+		
+		FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
+		check(BindlessDescriptorManager);
+	
+		BindlessDescriptorManager->BindTexture(MetalTextureRefSRV->GetBindlessHandle(), NewSurface->Texture.get());
+	}
+#endif // PLATFORM_SUPPORTS_BINDLESS_RENDERING
+
+    FDynamicRHI::RHIUpdateTextureReference(RHICmdList, TextureRef, NewTexture);
+}
+

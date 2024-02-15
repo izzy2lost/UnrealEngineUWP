@@ -76,7 +76,7 @@ FMetalCommandEncoder::FMetalCommandEncoder(FMetalCommandList& CmdList, EMetalCom
 , CmdBufIndex(0)
 , Type(InType)
 {
-	for (uint32 Frequency = 0; Frequency < uint32(MTL::FunctionTypeKernel)+1; Frequency++)
+	for (uint32 Frequency = 0; Frequency < uint32(MTL::FunctionTypeObject)+1; Frequency++)
 	{
 		FMemory::Memzero(ShaderBuffers[Frequency].ReferencedResources);
 		FMemory::Memzero(ShaderBuffers[Frequency].Bytes);
@@ -122,7 +122,7 @@ FMetalCommandEncoder::~FMetalCommandEncoder(void)
     }
     DebugGroups.Empty();
     
-	for (uint32 Frequency = 0; Frequency < uint32(MTL::FunctionTypeKernel)+1; Frequency++)
+	for (uint32 Frequency = 0; Frequency < uint32(MTL::FunctionTypeObject)+1; Frequency++)
 	{
 		for (uint32 i = 0; i < ML_MaxBuffers; i++)
 		{
@@ -165,7 +165,7 @@ void FMetalCommandEncoder::Reset(void)
 		StencilStoreAction = MTL::StoreActionUnknown;
 	}
 	
-	for (uint32 Frequency = 0; Frequency < uint32(MTL::FunctionTypeKernel)+1; Frequency++)
+	for (uint32 Frequency = 0; Frequency < uint32(MTL::FunctionTypeObject)+1; Frequency++)
 	{
 		for (uint32 i = 0; i < ML_MaxBuffers; i++)
 		{
@@ -194,7 +194,7 @@ void FMetalCommandEncoder::Reset(void)
 
 void FMetalCommandEncoder::ResetLive(void)
 {
-	for (uint32 Frequency = 0; Frequency < uint32(MTL::FunctionTypeKernel)+1; Frequency++)
+	for (uint32 Frequency = 0; Frequency < uint32(MTL::FunctionTypeObject)+1; Frequency++)
 	{
 		for (uint32 i = 0; i < ML_MaxBuffers; i++)
 		{
@@ -443,7 +443,10 @@ void FMetalCommandEncoder::BeginRenderCommandEncoding(void)
 	}
 	
 	//RenderCommandEncoder = MTLPP_VALIDATE(mtlpp::CommandBuffer, CommandBuffer, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, RenderCommandEncoder(RenderPassDesc));
-    
+
+    // Clear Residency Cache (TODO: Move this to a separate function)
+    ResourceUsage.Empty();
+
     RenderCommandEncoder = NS::RetainPtr(CommandBuffer->GetMTLCmdBuffer()->renderCommandEncoder(RenderPassDesc));
 	EncoderNum++;
 
@@ -479,6 +482,9 @@ void FMetalCommandEncoder::BeginComputeCommandEncoding(MTL::DispatchType Dispatc
 		CommandEncoderFence.FenceResources = MoveTemp(TransitionedResources);
 	}
 	
+	// Clear Residency Cache (TODO: Move this to a separate function)
+    ResourceUsage.Empty();
+
 	if (DispatchType == MTL::DispatchTypeSerial)
 	{
 		//ComputeCommandEncoder = MTLPP_VALIDATE(mtlpp::CommandBuffer, CommandBuffer, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, ComputeCommandEncoder());
@@ -716,7 +722,7 @@ TRefCountPtr<FMetalFence> FMetalCommandEncoder::EndEncoding(void)
     }
 #endif // METAL_RHI_RAYTRACING
 	
-	for (uint32 Frequency = 0; Frequency < uint32(MTL::FunctionTypeKernel)+1; Frequency++)
+	for (uint32 Frequency = 0; Frequency < uint32(MTL::FunctionTypeObject)+1; Frequency++)
 	{
 		for (uint32 i = 0; i < ML_MaxBuffers; i++)
 		{
@@ -912,7 +918,7 @@ void FMetalCommandEncoder::SetRenderPassDescriptor(MTL::RenderPassDescriptor* Re
 	}
 	check(RenderPassDesc);
 	
-	for (uint32 Frequency = 0; Frequency < uint32(MTL::FunctionTypeKernel)+1; Frequency++)
+	for (uint32 Frequency = 0; Frequency < uint32(MTL::FunctionTypeObject)+1; Frequency++)
 	{
 		for (uint32 i = 0; i < ML_MaxBuffers; i++)
 		{
@@ -1168,6 +1174,16 @@ void FMetalCommandEncoder::SetShaderBytes(MTL::FunctionType const FunctionType, 
 					check(ComputeCommandEncoder);
 					ComputeCommandEncoder->setBytes(Bytes, Length, Index);
 					break;
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+				case MTL::FunctionTypeMesh:
+					check(RenderCommandEncoder);
+					RenderCommandEncoder->setMeshBytes(Bytes, Length, Index);
+					break;
+				case MTL::FunctionTypeObject:
+					check(RenderCommandEncoder);
+					RenderCommandEncoder->setObjectBytes(Bytes, Length, Index);
+                    break;
+#endif
 				default:
 					check(false);
 					break;
@@ -1229,6 +1245,16 @@ void FMetalCommandEncoder::SetShaderBufferOffset(MTL::FunctionType FunctionType,
 			check (ComputeCommandEncoder);
 			ComputeCommandEncoder->setBufferOffset(Offset + ShaderBuffers[uint32(FunctionType)].Buffers[index]->GetOffset(), index);
 			break;
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+        case MTL::FunctionTypeObject:
+			check(RenderCommandEncoder);
+			RenderCommandEncoder->setObjectBufferOffset(Offset + ShaderBuffers[uint32(FunctionType)].Buffers[index]->GetOffset(), index);
+            break;
+        case MTL::FunctionTypeMesh:
+			check(RenderCommandEncoder);
+			RenderCommandEncoder->setMeshBufferOffset(Offset + ShaderBuffers[uint32(FunctionType)].Buffers[index]->GetOffset(), index);
+			break;
+#endif
 		default:
 			check(false);
 			break;
@@ -1417,27 +1443,65 @@ void FMetalCommandEncoder::FenceResource(MTL::Buffer* Resource, const MTL::Funct
 	}
 }
 
+void FMetalCommandEncoder::UseHeaps(TArray<MTL::Heap*> const& Heaps, const MTL::FunctionType Function)
+{
+	if (RenderCommandEncoder)
+	{
+		MTL::RenderStages RenderStage = (MTL::RenderStages)0;
+		switch (Function)
+		{
+		case MTL::FunctionTypeVertex:
+			RenderStage |= MTLRenderStageVertex;
+			break;
+		case MTL::FunctionTypeFragment:
+			RenderStage |= MTLRenderStageFragment;
+			break;
+		#if PLATFORM_SUPPORTS_MESH_SHADERS
+		case MTL::FunctionTypeMesh:
+			RenderStage |= MTLRenderStageMesh;
+			break;
+		case MTL::FunctionTypeObject:
+			RenderStage |= MTLRenderStageObject;
+			break;
+		#endif
+		default:
+			checkNoEntry();
+			break;
+		}
+
+		RenderCommandEncoder->useHeaps(Heaps.GetData(), Heaps.Num(), RenderStage);
+	}
+	else if (ComputeCommandEncoder)
+	{
+		ComputeCommandEncoder->useHeaps(Heaps.GetData(), Heaps.Num());
+	}
+}
+
 void FMetalCommandEncoder::UseResource(MTL::Resource* Resource, MTL::ResourceUsage const Usage)
 {
-	static bool UseResourceAvailable = FMetalCommandQueue::SupportsFeature(EMetalFeaturesIABs);
-	if (UseResourceAvailable || SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation)
-	{
-		MTL::ResourceUsage Current = ResourceUsage.FindRef(Resource);
-		if (Current != Usage)
-		{
-			ResourceUsage.Add(Resource, Usage);
-			if (RenderCommandEncoder)
-			{
-				//MTLPP_VALIDATE(mtlpp::RenderCommandEncoder, RenderCommandEncoder, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, UseResource(Resource, Usage));
-                RenderCommandEncoder->useResource(Resource, Usage);
-			}
-			else if (ComputeCommandEncoder)
-			{
-				//MTLPP_VALIDATE(mtlpp::ComputeCommandEncoder, ComputeCommandEncoder, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, UseResource(Resource, Usage));
-                ComputeCommandEncoder->useResource(Resource, Usage);
-			}
-		}
-	}
+	// TODO: Rework residency caching (current one is broken)
+    auto IsAlreadyResident = ResourceUsage.Find(Resource);
+    if (!IsAlreadyResident)
+    {
+        ResourceUsage.Add(Resource, Usage);
+    }
+    else if (Usage != *IsAlreadyResident)
+    {
+        ResourceUsage[Resource] = Usage;
+    }
+    else
+    {
+        return;
+    }
+
+    if (RenderCommandEncoder)
+    {
+		RenderCommandEncoder->useResource(Resource, Usage);
+    }
+    else if (ComputeCommandEncoder)
+    {
+		ComputeCommandEncoder->useResource(Resource, Usage);
+    }
 }
 
 void FMetalCommandEncoder::SetShaderBufferInternal(MTL::FunctionType Function, uint32 Index)
@@ -1490,6 +1554,28 @@ void FMetalCommandEncoder::SetShaderBufferInternal(MTL::FunctionType Function, u
 			);
 		}
 		break;
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+    case MTL::FunctionTypeObject:
+        for (TTuple<MTL::Resource*, MTL::ResourceUsage>& ReferencedResource : ReferencedResources)
+		{
+			RenderCommandEncoder->useResource(
+				ReferencedResource.Key,
+				ReferencedResource.Value,
+				MTL::RenderStageObject
+			);
+		}
+        break;
+    case MTL::FunctionTypeMesh:
+       for (TTuple<MTL::Resource*, MTL::ResourceUsage>& ReferencedResource : ReferencedResources)
+		{
+			RenderCommandEncoder->useResource(
+				ReferencedResource.Key,
+				ReferencedResource.Value,
+				MTL::RenderStageMesh
+			);
+		}
+        break;
+#endif // PLATFORM_SUPPORTS_MESH_SHADERS
 	default:
 		checkNoEntry();
 		break;
@@ -1548,6 +1634,22 @@ void FMetalCommandEncoder::SetShaderBufferInternal(MTL::FunctionType Function, u
 				ComputeCommandEncoder->setBuffer(MTLBuffer, Offset + Buffer->GetOffset(), Index);
 				break;
 
+ #if PLATFORM_SUPPORTS_MESH_SHADERS
+            case MTL::FunctionTypeObject:
+				Binding.Bound |= (1 << Index);
+				check(RenderCommandEncoder);
+				// MTLPP_VALIDATE(mtlpp::RenderCommandEncoder, RenderCommandEncoder, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, UseResource(Buffer, MTL::ResourceUsage::Read));
+				RenderCommandEncoder->setObjectBuffer(MTLBuffer, Offset + Buffer->GetOffset(), Index);
+				break;
+
+            case MTL::FunctionTypeMesh:
+				Binding.Bound |= (1 << Index);
+				check(RenderCommandEncoder);
+				// MTLPP_VALIDATE(mtlpp::RenderCommandEncoder, RenderCommandEncoder, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, UseResource(Buffer, MTL::ResourceUsage::Read));
+				RenderCommandEncoder->setMeshBuffer(MTLBuffer, Offset + Buffer->GetOffset(), Index);
+				break;
+#endif // PLATFORM_SUPPORTS_MESH_SHADERS
+
 			default:
 				check(false);
 				break;
@@ -1585,6 +1687,20 @@ void FMetalCommandEncoder::SetShaderBufferInternal(MTL::FunctionType Function, u
 				check(ComputeCommandEncoder);
 				ComputeCommandEncoder->setBytes(Bytes, Len, Index);
 				break;
+
+#if PLATFORM_SUPPORTS_MESH_SHADERS
+            case MTL::FunctionTypeObject:
+                Binding.Bound |= (1 << Index);
+                check(RenderCommandEncoder);
+				RenderCommandEncoder->setObjectBytes(Bytes, Len, Index);
+				break;
+
+            case MTL::FunctionTypeMesh:
+                Binding.Bound |= (1 << Index);
+                check(RenderCommandEncoder);
+				RenderCommandEncoder->setMeshBytes(Bytes, Len, Index);
+				break;
+#endif // PLATFORM_SUPPORTS_MESH_SHADERS
 
 			default:
 				check(false);

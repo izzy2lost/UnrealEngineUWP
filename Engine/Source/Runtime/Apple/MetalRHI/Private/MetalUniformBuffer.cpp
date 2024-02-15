@@ -8,6 +8,7 @@
 #include "MetalFrameAllocator.h"
 #include "MetalUniformBuffer.h"
 #include "ShaderParameterStruct.h"
+#include "RHIUniformBufferDataShared.h"
 
 #pragma mark Suballocated Uniform Buffer Implementation
 
@@ -22,7 +23,7 @@ FMetalSuballocatedUniformBuffer::FMetalSuballocatedUniformBuffer(const void *Con
 {
 	if (Contents)
 	{
-		FMemory::Memcpy(Shadow, Contents, GetSize());
+        UE::RHICore::UpdateUniformBufferConstants(Shadow, Contents, GetLayout());
 		CopyResourceTable(Contents, ResourceTable);
 	}
 }
@@ -37,9 +38,9 @@ FMetalSuballocatedUniformBuffer::~FMetalSuballocatedUniformBuffer()
 
 void FMetalSuballocatedUniformBuffer::Update(const void* Contents)
 {
-	FMemory::Memcpy(Shadow, Contents, GetSize());
+    UE::RHICore::UpdateUniformBufferConstants(Shadow, Contents, GetLayout());
 	CopyResourceTable(Contents, ResourceTable);
-	PushToGPUBacking(Contents);
+	PushToGPUBacking(Shadow);
 }
 
 // Acquires a region in the current frame's uniform buffer and

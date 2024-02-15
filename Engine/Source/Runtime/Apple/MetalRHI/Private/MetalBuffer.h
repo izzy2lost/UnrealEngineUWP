@@ -380,7 +380,7 @@ class FMetalResourceHeap
 		Size1024,
 		Size2048,
 		Size4096,
-        Size8192,
+		Size8192,
 		NumMagazineSizes
 	};
 	
@@ -435,7 +435,7 @@ public:
 	
 	void Init(FMetalCommandQueue& Queue);
 	
-    FMetalBufferPtr CreateBuffer(uint32 Size, uint32 Alignment, EBufferUsageFlags Flags, MTL::ResourceOptions Options, bool bForceUnique = false);
+	FMetalBufferPtr CreateBuffer(uint32 Size, uint32 Alignment, EBufferUsageFlags Flags, MTL::ResourceOptions Options, bool bForceUnique = false);
 	MTLTexturePtr CreateTexture(MTL::TextureDescriptor* Desc, FMetalSurface* Surface);
 	
 	void ReleaseBuffer(FMetalBufferPtr Buffer);
@@ -480,4 +480,31 @@ private:
 	FMetalTexturePool TargetPool;
 	
 	TArray<MTLHeapPtr> TextureHeaps[EMetalHeapTextureUsageNum][NumTextureHeapSizes];
+	
+	struct MemoryBlock
+	{
+		MTLHeapPtr                      Heap;
+		uint64           		        Offset;
+		uint64           		        Size;
+		MTL::Resource*	                Resource;
+		MTL::ResourceOptions 	        Options;
+	};
+	
+	using FMetalListIterator = TDoubleLinkedList<FMetalResourceHeap::MemoryBlock>::TIterator;
+	
+	TMap<MTL::ResourceOptions, TDoubleLinkedList<MemoryBlock>*> FreeLists;
+	TMap<MTL::ResourceOptions, TDoubleLinkedList<MemoryBlock>*> UsedLists;
+	
+	FCriticalSection                FreeListCS;
+	
+	// TODO: AAPL: Figure out how to guarantee index uniqueness without using a set (as iterators cant be hashed)
+	FCriticalSection             InUseResourcesCS;
+	TArray<FMetalListIterator>   InUseResources;
+	TQueue<uint32>               InUseResourcesFreeList;
+	TMap<MTL::Resource*, uint32> AllocationHandlesLUT;
+	
+	FMetalListIterator MergeBlocks(TDoubleLinkedList<FMetalResourceHeap::MemoryBlock>& List, FMetalListIterator BlockItA, FMetalListIterator BlockItB);
+	void FreeBlock(const uint32 ResourceAllocationHandle);
+	FMetalListIterator FindOrAllocateBlock(uint32 Size, uint32 Alignment, MTL::ResourceOptions Options);
+	FMetalListIterator SplitBlock(TDoubleLinkedList<FMetalResourceHeap::MemoryBlock>& List, FMetalListIterator BlockIt, const uint64 Offset, const uint32 Size);
 };

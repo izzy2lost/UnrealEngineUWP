@@ -9,6 +9,8 @@
 #include "HlslccDefinitions.h"
 #include "MetalBackend.h"
 
+#include <string>
+
 struct FMetalShaderDebugInfoJob
 {
 	FName ShaderFormat;
@@ -89,3 +91,14 @@ struct FMetalShaderPreprocessed
 		return Ar;
 	}
 };
+
+struct FMetalShaderOutputMetaData
+{
+	uint32 InvariantBuffers = 0;
+	uint32 TypedBuffers = 0;
+	uint32 TypedUAVs = 0;
+	uint32 ConstantBuffers = 0;
+};
+
+// Replace the special texture "gl_LastFragData" to a native subpass fetch operation. Returns true if the input source has been modified.
+extern bool PatchSpecialTextureInHlslSource(std::string& SourceData, uint32* OutSubpassInputsDim, uint32 SubpassInputDimCount);
