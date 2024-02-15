@@ -510,11 +510,14 @@ bool UFractureEditorMode::GetPivotForOrbit(FVector& OutPivot) const
 void UFractureEditorMode::OnUndoRedo()
 {
 	RefreshOutlinerWithCurrentSelection(); // always refresh the outliner in case the geometry collection bones have changed
-	for (UGeometryCollectionComponent* SelectedComp : SelectedGeometryComponents)
+	for (TWeakObjectPtr<UGeometryCollectionComponent> SelectedCompWeakPtr : SelectedGeometryComponents)
 	{
-		// We need to update the bone colors to account for undoing/redoing selection
-		bool bForce = true;
-		FScopedColorEdit Edit(SelectedComp, bForce);
+		if (UGeometryCollectionComponent* SelectedComp = SelectedCompWeakPtr.Get())
+		{
+			// We need to update the bone colors to account for undoing/redoing selection
+			bool bForce = true;
+			FScopedColorEdit Edit(SelectedComp, bForce);
+		}
 	}
 }
 
@@ -566,8 +569,9 @@ void UFractureEditorMode::OnActorSelectionChanged(const TArray<UObject*>& NewSel
 	}
 
 	// reset state for components no longer selected
-	for (UGeometryCollectionComponent* ExistingSelection : SelectedGeometryComponents)
+	for (TWeakObjectPtr<UGeometryCollectionComponent> ExistingSelectionWeakPtr : SelectedGeometryComponents)
 	{
+		UGeometryCollectionComponent* ExistingSelection = ExistingSelectionWeakPtr.Get();
 		if (ExistingSelection && ExistingSelection->IsRegistered() && !ExistingSelection->IsBeingDestroyed() && !NewGeomSelection.Contains(ExistingSelection))
 		{
 			// This component is no longer selected, clear any modified state
@@ -591,7 +595,11 @@ void UFractureEditorMode::OnActorSelectionChanged(const TArray<UObject*>& NewSel
 		}
 	}
 
-	SelectedGeometryComponents = NewGeomSelection.Array();
+	SelectedGeometryComponents.Reset(NewGeomSelection.Num());
+	for (UGeometryCollectionComponent* Sel : NewGeomSelection)
+	{
+		SelectedGeometryComponents.Emplace(Sel);
+	}
 
 	RefreshOutlinerWithCurrentSelection();
 }
@@ -601,9 +609,21 @@ void UFractureEditorMode::RefreshOutlinerWithCurrentSelection()
 	if (Toolkit.IsValid())
 	{
 		FFractureEditorModeToolkit* FractureToolkit = (FFractureEditorModeToolkit*)Toolkit.Get();
-		FractureToolkit->SetOutlinerComponents(SelectedGeometryComponents);
+		FractureToolkit->SetOutlinerComponents(GetValidSelectedGeometryComponents());
 	}
 }
+
+TArray<UGeometryCollectionComponent*> UFractureEditorMode::GetValidSelectedGeometryComponents()
+{
+	TArray<UGeometryCollectionComponent*> Components;
+	Components.Reserve(SelectedGeometryComponents.Num());
+	for (TWeakObjectPtr<UGeometryCollectionComponent> ComponentWeakPtr : SelectedGeometryComponents)
+	{
+		Components.Add(ComponentWeakPtr.Get());
+	}
+	return Components;
+}
+
 
 void UFractureEditorMode::GetComponentGlobalBounds(UGeometryCollectionComponent* GeometryCollectionComponent, TArray<FBox>& BoundsPerBone) const
 {
@@ -655,9 +675,12 @@ void UFractureEditorMode::HandlePackageReloaded(const EPackageReloadPhase InPack
 	{
 		// assemble referenced RestCollections
 		TMap<const UGeometryCollection*, UGeometryCollectionComponent*> ReferencedRestCollections;
-		for (UGeometryCollectionComponent* ExistingSelection : SelectedGeometryComponents)
+		for (TWeakObjectPtr<UGeometryCollectionComponent> ExistingSelectionWeakPtr : SelectedGeometryComponents)
 		{
-			ReferencedRestCollections.Add(TPair<const UGeometryCollection*, UGeometryCollectionComponent*>(ExistingSelection->GetRestCollection(), ExistingSelection));
+			if (UGeometryCollectionComponent* ExistingSelection = ExistingSelectionWeakPtr.Get())
+			{
+				ReferencedRestCollections.Add(TPair<const UGeometryCollection*, UGeometryCollectionComponent*>(ExistingSelection->GetRestCollection(), ExistingSelection));
+			}
 		}
 
 		// refresh outliner if reloaded package contains a referenced RestCollection
@@ -671,7 +694,7 @@ void UFractureEditorMode::HandlePackageReloaded(const EPackageReloadPhase InPack
 					{
 						FFractureEditorModeToolkit* FractureToolkit = (FFractureEditorModeToolkit*)Toolkit.Get();
 						FFractureSelectionTools::ClearSelectedBones(ReferencedRestCollections[NewObject]);
-						FractureToolkit->SetOutlinerComponents(SelectedGeometryComponents);
+						FractureToolkit->SetOutlinerComponents(GetValidSelectedGeometryComponents());
 					}
 				}
 			}
