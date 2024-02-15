@@ -5285,6 +5285,7 @@ public:
 		GPUScene.BeginRender(GraphBuilder, GPUSceneDynamicContext);
 
 		GPUScene.FillSceneUniformBuffer(GraphBuilder, Renderer.GetSceneUniforms());
+		Renderer.GetSceneExtensionsRenderers().UpdateSceneUniformBuffer(GraphBuilder, Renderer.GetSceneUniforms());
 	}
 
 	virtual ~FScenePrimitiveRenderingContext()
