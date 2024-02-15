@@ -58,7 +58,7 @@ struct FMovieSceneUniversalLocatorInfo
 	FUniversalObjectLocator Locator;
 
 	// Flags for how to resolve the locator
-	UPROPERTY(EditAnywhere, Category = "Default")
+	UPROPERTY()
 	ELocatorResolveFlags ResolveFlags = ELocatorResolveFlags::None;
 };
 
