@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 using UnrealBuildTool;
 using System.IO;
+using EpicGames.Core;
 
 namespace UnrealBuildTool.Rules
 {
@@ -49,9 +50,8 @@ namespace UnrealBuildTool.Rules
 					});
 				}
 
-				PrivateDependencyModuleNames.Add("D3D11RHI");
-				PrivateDependencyModuleNames.Add("D3D12RHI");
-				AddEngineThirdPartyPrivateStaticDependencies(Target, "DX12");
+				PrivateDependencyModuleNames.AddAll("D3D11RHI", "D3D12RHI");
+				AddEngineThirdPartyPrivateStaticDependencies(Target, "DX11", "DX12");
 
 				PrivateDefinitions.Add("ELECTRA_SUPPORT_PREWIN8");
 				PrivateDefinitions.Add("ELECTRA_HAVE_DX11");

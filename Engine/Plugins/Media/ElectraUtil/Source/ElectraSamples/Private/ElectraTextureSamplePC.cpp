@@ -12,8 +12,7 @@
 #include "ID3D12DynamicRHI.h"
 
 #ifdef ELECTRA_HAVE_DX11
-#include "D3D11State.h"
-#include "D3D11Resources.h"
+#include "ID3D11DynamicRHI.h"
 #endif
 
 /*
