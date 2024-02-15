@@ -55,6 +55,16 @@ public class OnlineSubsystemUtils : ModuleRules
 			}
 		);
 
+		if (Target.bBuildEditor)
+		{
+			PrivateDependencyModuleNames.AddRange(
+				new string[]
+				{
+					"UnrealEd",
+				}
+			);
+		}
+
 		PublicDependencyModuleNames.Add("OnlineSubsystem");
 
 		bAllowAutoRTFMInstrumentation = true;

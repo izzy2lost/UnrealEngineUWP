@@ -51,7 +51,6 @@ public:
 private:
 	static void CheckInitialized()
 	{
-		static bool bInitialized = false;
 		if (!bInitialized)
 		{
 			for (int32 i = 0; i < UE_ARRAY_COUNT(Names); i++)
@@ -89,6 +88,7 @@ private:
 	
 	static constexpr int MaxNames = TNumericLimits<uint8>::Max() + 1;
 	static ENGINE_API const TCHAR* Names[MaxNames];
+	static ENGINE_API bool bInitialized;
 };
 
 #define DEFINE_CONTROL_CHANNEL_MESSAGE(Name, Index, ...) \
