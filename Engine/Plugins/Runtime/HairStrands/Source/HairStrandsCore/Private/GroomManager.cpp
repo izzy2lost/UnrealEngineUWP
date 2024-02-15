@@ -418,8 +418,11 @@ static void AddHairSkinCacheDebugPass(
 
 	bool bIsGPUSkinCacheEnable = false;
 	{
-		static FShaderPlatformCachedIniValue<int32> PerPlatformCVar(TEXT("r.SkinCache.Mode"));
-		bIsGPUSkinCacheEnable = (PerPlatformCVar.Get(View->GetShaderPlatform()) != 0);
+		static FShaderPlatformCachedIniValue<int32> CVarSkinCacheCompileShader(TEXT("r.SkinCache.CompileShaders"));
+		static FShaderPlatformCachedIniValue<int32> CVarSkinCacheMode(TEXT("r.SkinCache.Mode"));
+		bIsGPUSkinCacheEnable = 
+			CVarSkinCacheCompileShader.Get(View->GetShaderPlatform()) != 0 &&
+			CVarSkinCacheMode.Get(View->GetShaderPlatform()) != 0;
 	}
 
 	const uint32 InstanceCount = Instances.Num();
@@ -527,6 +530,9 @@ static void GetOrAllocateCachedGeometry(
 	FRDGBufferSRVRef DeformedPositionSRV = nullptr;
 	FRDGBufferSRVRef DeformedPreviousPositionSRV = nullptr;
 	OutHairGeometryCache.GetOrAdd(GraphBuilder, SkeletalMeshObject, &LODData, LODIndex, UniqueSections, DeformedPositionSRV, DeformedPreviousPositionSRV);
+
+	// Add reference to be sure the data are not streamed out while they are used
+	LODData.AddRef();
 
 	// Fill in result
 	for (uint32 SectionIndex : UniqueSections)
@@ -737,6 +743,15 @@ static void RunHairBindingSurfaceUpdate(
 	}
 
 	AddHairSkinCacheDebugPass(GraphBuilder, ShaderMap, View, ShaderPrintData, Instances, HairGeometryCache);
+
+	// Release reference on skel. mesh data (only for manual skin cache)
+	for (FHairGeometryCache::FData& Data : HairGeometryCache.Datas)
+	{
+		if (Data.LODData)
+		{
+			Data.LODData->Release();
+		}
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
