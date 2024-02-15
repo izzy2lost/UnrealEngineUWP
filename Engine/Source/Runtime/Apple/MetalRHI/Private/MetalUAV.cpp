@@ -694,3 +694,11 @@ bool FMetalGPUFence::Poll() const
 		return false;
 	}
 }
+
+void FMetalGPUFence::WaitCPU() const
+{
+	if (Fence)
+	{
+		Fence->Wait(MAX_uint32);
+	}
+}

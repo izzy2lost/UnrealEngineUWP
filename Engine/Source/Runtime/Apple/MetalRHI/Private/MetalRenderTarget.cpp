@@ -264,6 +264,11 @@ void FMetalDynamicRHI::RHIMapStagingSurface(FRHITexture* TextureRHI, FRHIGPUFenc
 {
     MTL_SCOPED_AUTORELEASE_POOL;
     
+	if (FenceRHI && !FenceRHI->Poll())
+	{
+		ResourceCast(FenceRHI)->WaitCPU();
+	}
+	
 	FMetalSurface* Surface = GetMetalSurfaceFromRHITexture(TextureRHI);
     
 	uint32 Stride = 0;
