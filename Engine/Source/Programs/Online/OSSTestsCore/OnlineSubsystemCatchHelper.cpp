@@ -1,0 +1,274 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "OnlineSubsystemCatchHelper.h"
+
+#include "Algo/AllOf.h"
+#include "Algo/Sort.h"
+#include "Algo/ForEach.h"
+#include "Interfaces/OnlineIdentityInterface.h"
+#include "Helpers/Identity/IdentityAutoLoginHelper.h"
+#include "Helpers/Identity/IdentityLoginHelper.h"
+#include "Helpers/Identity/IdentityLogoutHelper.h"
+#include "OnlineSubsystemNames.h"
+#include "Misc/CommandLine.h"
+#include "Misc/ConfigCacheIni.h"
+
+TArray<TFunction<void()>>* GetGlobalInitalizers()
+{
+	static TArray<TFunction<void()>> gInitalizersToCallInMain;
+	return &gInitalizersToCallInMain;
+}
+
+void OnlineSubsystemTestBase::ConstructInternal(FString SubsystemName)
+{
+	Subsystem = SubsystemName;
+}
+
+OnlineSubsystemTestBase::OnlineSubsystemTestBase()
+	: Driver()
+	, Pipeline(Driver.MakePipeline())
+{
+	// handle most cxn in ConstructInternal
+}
+
+OnlineSubsystemTestBase::~OnlineSubsystemTestBase()
+{
+
+}
+
+FString OnlineSubsystemTestBase::GetSubsystem() const
+{
+	return Subsystem;
+}
+
+FOnlineAccountCredentials OnlineSubsystemTestBase::GetCredentials(int LocalUserNum) const
+{
+	FString LoginCredentialCategory = FString::Printf(TEXT("LoginCredentials %s"), *Subsystem);
+	TArray<FString> CredentialsArr;
+	GConfig->GetArray(*LoginCredentialCategory, TEXT("Credentials"), CredentialsArr, GEngineIni);
+
+	if (LocalUserNum > CredentialsArr.Num())
+	{
+		UE_LOG(LogOSSTests, Error, TEXT("Attempted to GetCredentials for more than we have stored! Add more credentials to the DefaultEngine.ini for OssTests"));
+		return FOnlineAccountCredentials(FString(TEXT("")), FString(TEXT("")), FString(TEXT("")));
+	}
+	
+	FString LoginUsername, LoginType, LoginPassword;
+	FParse::Value(*CredentialsArr[LocalUserNum], TEXT("Type="), LoginType);
+	FParse::Value(*CredentialsArr[LocalUserNum], TEXT("Id="), LoginUsername);
+	FParse::Value(*CredentialsArr[LocalUserNum], TEXT("Password="), LoginPassword);
+
+	// Return an account, using the default first user if we only have one account for the subsystem.
+	return FOnlineAccountCredentials(LoginType, LoginUsername, LoginPassword);
+}
+
+FTestPipeline& OnlineSubsystemTestBase::GetLoginPipeline(uint32 NumUsersToLogin) const
+{
+	REQUIRE(NumLocalUsers == -1); // Don't call GetLoginPipeline more than once per test
+	NumLocalUsers = NumUsersToLogin;
+
+	bool bUseAutoLogin;
+	FString LoginCredentialCategory = FString::Printf(TEXT("LoginCredentials %s"), *Subsystem);
+	GConfig->GetBool(*LoginCredentialCategory, TEXT("UseAutoLogin"), bUseAutoLogin, GEngineIni);
+
+	if (bUseAutoLogin)
+	{
+		NumLocalUsers = 1;
+		Pipeline.EmplaceStep<FIdentityAutoLoginStep>(0);
+	}
+	else
+	{
+		for (uint32 i = 0; i < NumUsersToLogin; i++)
+		{
+			Pipeline.EmplaceStep<FIdentityLoginStep>(i, GetCredentials(i));
+		}
+	}
+
+	return Pipeline;
+}
+
+FTestPipeline& OnlineSubsystemTestBase::GetPipeline()
+{
+	return GetLoginPipeline(0);
+}
+
+void OnlineSubsystemTestBase::RunToCompletion() const
+{
+	for (uint32 i = 0; i < NumLocalUsers; i++)
+	{
+		Pipeline.EmplaceStep<FIdentityLogoutStep>(i);
+	}
+
+	FName SubsystemName = FName(GetSubsystem());
+	CAPTURE(*GetSubsystem());
+	FPipelineTestContext TestContext = FPipelineTestContext(SubsystemName);
+	CHECK(Driver.AddPipeline(MoveTemp(Pipeline), TestContext));
+	REQUIRE(IOnlineSubsystem::IsEnabled(SubsystemName));
+	Driver.RunToCompletion();
+}
+
+// TODO: This should poll some info from the tags and generate the list based on that
+TArray<FString> OnlineSubsystemAutoReg::GetApplicableSubsystems()
+{
+	TArray<FString> Subsystems;
+	GConfig->GetArray(TEXT("OnlineSubsystemTests"), TEXT("Subsystems"), Subsystems, GEngineIni);
+	return Subsystems;
+}
+
+bool OnlineSubsystemAutoReg::CheckAllTagsIsIn(const TArray<FString>& TestTags, const TArray<FString>& InputTags)
+{
+	if (InputTags.Num() == 0)
+	{
+		return false;
+	}
+
+	if (InputTags.Num() > TestTags.Num())
+	{
+		return false;
+	}
+
+	bool bAllInputTagsInTestTags = Algo::AllOf(InputTags, [&TestTags](const FString& CheckTag) -> bool
+		{
+			auto CheckStringCaseInsenstive = [&CheckTag](const FString& TestString) -> bool
+			{
+				return TestString.Equals(CheckTag, ESearchCase::IgnoreCase);
+			};
+
+			if (TestTags.ContainsByPredicate(CheckStringCaseInsenstive))
+			{
+				return true;
+			}
+
+			return false;
+		});
+
+	return bAllInputTagsInTestTags;
+}
+
+bool OnlineSubsystemAutoReg::CheckAllTagsIsIn(const TArray<FString>& TestTags, const FString& RawTagString)
+{
+	TArray<FString> InputTags;
+	RawTagString.ParseIntoArray(InputTags, TEXT(","));
+	Algo::ForEach(InputTags, [](FString& String)
+		{
+			String.TrimStartAndEndInline();
+			String.RemoveFromStart("[");
+			String.RemoveFromEnd("]");
+		});
+	return CheckAllTagsIsIn(TestTags, InputTags);
+}
+
+FString OnlineSubsystemAutoReg::GenerateTags(const FString& ServiceName, const FReportingSkippableTags& SkippableTags, const TCHAR* InTag)
+{
+	//Copy String here for ease-of-manipulation
+	FString RawInTag = InTag;
+
+	TArray<FString> TestTagsArray;
+	RawInTag.ParseIntoArray(TestTagsArray, TEXT("]"));
+	Algo::ForEach(TestTagsArray, [](FString& String)
+		{
+			String.TrimStartAndEndInline();
+			String.RemoveFromStart("[");
+		});
+	Algo::Sort(TestTagsArray);
+
+	// Search if we need to append [!mayfail] tag to indicate to 
+	// catch2 this test is in a in-development phase and failures 
+	// should be ignored.
+	for (const FString& FailableTags : SkippableTags.MayFailTags)
+	{
+		if (CheckAllTagsIsIn(TestTagsArray, FailableTags))
+		{
+			RawInTag.Append(TEXT("[!mayfail]"));
+			break;
+		}
+	}
+
+	// Search if we need to append [!shouldfail] tag to indicate to 
+	// catch2 this test should fail, and if it ever passes we should
+	// should fail.
+	for (const FString& FailableTags : SkippableTags.ShouldFailTags)
+	{
+		if (CheckAllTagsIsIn(TestTagsArray, FailableTags))
+		{
+			RawInTag.Append(TEXT("[!shouldfail]"));
+			break;
+		}
+	}
+
+	return FString::Printf(TEXT("[%s] %s"), *ServiceName, *RawInTag);
+}
+
+bool OnlineSubsystemAutoReg::ShouldDisableTest(const FString& ServiceName, const FReportingSkippableTags& SkippableTags, const TCHAR* InTag)
+{
+	//Copy String here for ease-of-manipulation
+	const FString RawInTag = InTag;
+
+	TArray<FString> TestTagsArray;
+	RawInTag.ParseIntoArray(TestTagsArray, TEXT("]"));
+	Algo::ForEach(TestTagsArray, [](FString& String)
+		{
+			String.TrimStartAndEndInline();
+			String.RemoveFromStart("[");
+		});
+	Algo::Sort(TestTagsArray);
+
+	// If we contain [!<service>] it means we shouldn't run this
+	// test against this service.
+	if (RawInTag.Contains("!" + ServiceName))
+	{
+		return true;
+	}
+
+	// If we contain tags from config it means 
+	// we shouldn't run this test
+	for (const FString& DisableTag : SkippableTags.DisableTestTags)
+	{
+		if (CheckAllTagsIsIn(TestTagsArray, DisableTag))
+		{
+			return true;
+		}
+	}
+
+	// We should run the test!
+	return false;
+}
+
+// This code is kept identical to Catch internals so that there is as little deviation from OSS_TESTS and Online_OSS_TESTS as possible
+OnlineSubsystemAutoReg::OnlineSubsystemAutoReg(OnlineSubsystemTestConstructor TestCtor, Catch::SourceLineInfo LineInfo, const char* Name, const char* Tags, const char* AddlOnlineInfo)
+{
+	auto GlobalInitalizersPtr = GetGlobalInitalizers();
+	ensure(GlobalInitalizersPtr);
+	GlobalInitalizersPtr->Add([=, this]() -> void
+		{
+			for (const FString& Subsystem : GetApplicableSubsystems())
+			{
+				FString ReportingCategory = FString::Printf(TEXT("TestReporting %s"), *Subsystem);
+				FReportingSkippableTags SkippableTags;
+				GConfig->GetArray(*ReportingCategory, TEXT("MayFailTestTags"), SkippableTags.MayFailTags, GEngineIni);
+				GConfig->GetArray(*ReportingCategory, TEXT("ShouldFailTestTags"), SkippableTags.ShouldFailTags, GEngineIni);
+				GConfig->GetArray(*ReportingCategory, TEXT("DisableTestTags"), SkippableTags.DisableTestTags, GEngineIni);
+
+				auto NewName = StringCast<ANSICHAR>(*FString::Printf(TEXT("[%s] %s"), *Subsystem, ANSI_TO_TCHAR(Name)));
+				auto NewTags = StringCast<ANSICHAR>(*GenerateTags(Subsystem, SkippableTags, ANSI_TO_TCHAR(Tags)));
+
+				// If we have tags present indicating we should not enable the test at all
+				if (ShouldDisableTest(Subsystem, SkippableTags, ANSI_TO_TCHAR(NewTags.Get())))
+				{
+					continue;
+				}
+
+				// TestCtor will create a new instance of the test we are calling- ConstructInternal is separate so that we can pass any arguments we want instead of baking them into the macro
+				OnlineSubsystemTestBase* NewTest = TestCtor();
+				NewTest->ConstructInternal(Subsystem);
+
+				// This code is lifted from Catch internals to register a test
+				Catch::getMutableRegistryHub().registerTest(Catch::makeTestCaseInfo(
+					std::string(Catch::StringRef()),  // Used for testing a static method instead of a function- not needed since we're passing an ITestInvoker macro
+					Catch::NameAndTags{ NewName.Get(), NewTags.Get() },
+					LineInfo),
+					Catch::Detail::unique_ptr(NewTest) // This is taking the ITestInvoker macro and will call invoke() to run the test
+				);
+			}
+		});
+}
