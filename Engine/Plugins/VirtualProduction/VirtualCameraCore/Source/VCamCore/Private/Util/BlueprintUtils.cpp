@@ -23,7 +23,7 @@ namespace UE::VCamCore
 		 *	- (User) code calls LoadPackage
 		 */
 		UWorld* OwnerWorld = Component->GetWorld();
-		const bool IsInValidWorld =
+		const bool bIsInValidWorld =
 			OwnerWorld // CDO's do not have an owner world
 			&& (!GWorld // Can be nullptr during initial load
 				|| GWorld == OwnerWorld
@@ -41,7 +41,7 @@ namespace UE::VCamCore
 		 */
 		return !Component->HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject | RF_Transient)
 			&& !GIsCookerLoadingPackage
-			&& IsInValidWorld
+			&& bIsInValidWorld
 			&& !IsRunningCommandlet();
 	}
 
