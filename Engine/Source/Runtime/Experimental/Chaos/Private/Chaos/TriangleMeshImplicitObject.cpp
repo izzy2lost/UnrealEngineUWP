@@ -2,6 +2,7 @@
 #include "Chaos/TriangleMeshImplicitObject.h"
 #include "Chaos/Collision/ContactPoint.h"
 #include "Chaos/Collision/ContactPointsMiscShapes.h"
+#include "Chaos/Collision/MeshContactGenerator.h"
 #include "Chaos/Collision/TriangleOverlap.h"
 #include "Chaos/Collision/PBDCollisionConstraint.h"
 #include "Chaos/CollisionOneShotManifolds.h"
@@ -849,6 +850,38 @@ bool FTriangleMeshImplicitObject::Raycast(const FVec3& StartPoint, const FVec3& 
 	{
 		return RaycastImp(MElements.GetSmallIndexBuffer(), StartPoint, Dir, Length, Thickness, OutTime, OutPosition, OutNormal, OutFaceIndex);
 	}
+}
+
+void FTriangleMeshImplicitObject::CollectTriangles(const FAABB3& MeshQueryBounds, const FRigidTransform3& MeshToObjectTransform, const FAABB3& ObjectBounds, Private::FMeshContactGenerator& Collector) const
+{
+	TArray<int32> OverlapIndices;
+	FindOverlappingTriangles(MeshQueryBounds, OverlapIndices);
+
+	const bool bStandardWinding = ((MeshToObjectTransform.GetScale3D().X * MeshToObjectTransform.GetScale3D().Y * MeshToObjectTransform.GetScale3D().Z) >= FReal(0));
+
+	Collector.BeginCollect(OverlapIndices.Num());
+
+	for (int32 OverlapIndex = 0; OverlapIndex < OverlapIndices.Num(); ++OverlapIndex)
+	{
+		const int32 TriangleIndex = OverlapIndices[OverlapIndex];
+		FTriangle Triangle;
+		int32 VertexIndex0, VertexIndex1, VertexIndex2;
+		GetTransformedTriangle(TriangleIndex, MeshToObjectTransform, Triangle, VertexIndex0, VertexIndex1, VertexIndex2);
+
+		if (!bStandardWinding)
+		{
+			Triangle.ReverseWinding();
+			Swap(VertexIndex1, VertexIndex2);
+		}
+
+		const FAABB3 TriBounds = FAABB3::FromPoints(Triangle.GetVertex(0), Triangle.GetVertex(1), Triangle.GetVertex(2));
+		if (TriBounds.Intersects(ObjectBounds))
+		{
+			Collector.AddTriangle(Triangle, TriangleIndex, VertexIndex0, VertexIndex1, VertexIndex2);
+		}
+	}
+
+	Collector.EndCollect();
 }
 
 template <typename QueryGeomType>
