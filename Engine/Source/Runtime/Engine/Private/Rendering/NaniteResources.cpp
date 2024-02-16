@@ -827,9 +827,6 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshS
 		bHasRayTracingInstances = true;
 
 		CoarseMeshStreamingHandle = (Nanite::CoarseMeshStreamingHandle)ProxyDesc.GetStaticMesh()->GetStreamingIndex();
-
-		// This will be filled later (on the render thread) and cached.
-		CachedRayTracingInstanceMaskAndFlags.Mask = 0;
 	}
 #endif
 
@@ -1869,21 +1866,14 @@ void FSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGatheringCont
 
 		SetupFallbackRayTracingMaterials(ValidLODIndex, CachedRayTracingMaterials);
 		CachedRayTracingMaterialsLODIndex = ValidLODIndex;
-
-		// Request rebuild
-		CachedRayTracingInstanceMaskAndFlags.Mask = 0;
+	}
+	else
+	{
+		// Skip computing the mask and flags in the renderer since material didn't change
+		RayTracingInstance.bInstanceMaskAndFlagsDirty = false;
 	}
 
 	RayTracingInstance.MaterialsView = CachedRayTracingMaterials;
-
-	if (CachedRayTracingInstanceMaskAndFlags.Mask == 0)
-	{
-		CachedRayTracingInstanceMaskAndFlags = Context.BuildInstanceMaskAndFlags(RayTracingInstance, *this);
-	}
-	
-	// Skip computing the mask and flags in the renderer since we are using cached values.
-	RayTracingInstance.bInstanceMaskAndFlagsDirty = false;
-	RayTracingInstance.MaskAndFlags = CachedRayTracingInstanceMaskAndFlags;
 
 	// Use the shared vertex buffer - needs to be updated every frame
 	FRWBuffer* VertexBuffer = nullptr;

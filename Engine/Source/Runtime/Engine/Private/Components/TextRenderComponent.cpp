@@ -658,7 +658,6 @@ private:
 	bool bSupportRayTracing;
 	bool bRayTracingWithWPO;
 	bool bNeedsToUpdateRayTracingCache;
-	FRayTracingMaskAndFlags CachedRayTracingInstanceMaskAndFlags;
 
 	void UpdateRayTracingGeometry_RenderingThread(FRHICommandListBase& RHICmdList);
 #endif
@@ -929,19 +928,17 @@ void FTextRenderSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGat
 			Mesh.MeshIdInPrimitive = 0;
 		}
 		RayTracingInstance.MaterialsView = MakeArrayView(CachedRayTracingMaterials);
-		CachedRayTracingInstanceMaskAndFlags = Context.BuildInstanceMaskAndFlags(RayTracingInstance, *this);
 		bNeedsToUpdateRayTracingCache = false;
 	}
 	else
 	{
 		RayTracingInstance.MaterialsView = MakeArrayView(CachedRayTracingMaterials);
+		RayTracingInstance.bInstanceMaskAndFlagsDirty = false;
 	}
 
 	RayTracingInstance.Geometry = &RayTracingGeometry;
 	const FMatrix& ThisLocalToWorld = GetLocalToWorld();
 	RayTracingInstance.InstanceTransformsView = MakeArrayView(&ThisLocalToWorld, 1);
-	RayTracingInstance.bInstanceMaskAndFlagsDirty = false;
-	RayTracingInstance.MaskAndFlags = CachedRayTracingInstanceMaskAndFlags;
 
 	if (bRayTracingWithWPO && VertexFactory.GetType()->SupportsRayTracingDynamicGeometry())
 	{

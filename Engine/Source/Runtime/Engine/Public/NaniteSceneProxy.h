@@ -494,7 +494,6 @@ protected:
 	TArray<FRayTracingGeometry, TInlineAllocator<MAX_MESH_LOD_COUNT>> DynamicRayTracingGeometries;
 	Nanite::CoarseMeshStreamingHandle CoarseMeshStreamingHandle = INDEX_NONE;
 	TArray<FMeshBatch> CachedRayTracingMaterials;
-	FRayTracingMaskAndFlags CachedRayTracingInstanceMaskAndFlags;
 	int16 CachedRayTracingMaterialsLODIndex = INDEX_NONE;
 
 	bool bHasRayTracingInstances : 1 = false;
