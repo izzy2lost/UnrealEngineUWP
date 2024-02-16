@@ -1150,12 +1150,14 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	CompilerInstance = IRCompilerCreate();
 #endif
 
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	if(GRHIBindlessSupport != ERHIBindlessSupport::Unsupported)
 	{
 		FMetalBindlessDescriptorManager* BindlessDescriptorManager = ImmediateContext.Context->GetBindlessDescriptorManager();
 		BindlessDescriptorManager->Init();
 	}
-
+#endif
+	
 #if ENABLE_METAL_GPUPROFILE
     if (ImmediateContext.Profiler)
 		ImmediateContext.Profiler->EndFrame();
