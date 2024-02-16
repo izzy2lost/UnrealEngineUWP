@@ -1758,13 +1758,13 @@ namespace EpicGames.Perforce.Managed
 					Stopwatch timer = Stopwatch.StartNew();
 
 					// Add any new files to the cache
-					List<KeyValuePair<FileReference, FileReference>> sourceAndTargetFiles = new List<KeyValuePair<FileReference, FileReference>>();
+					List<(FileContentId ContentId, FileReference Source, FileReference Target)> files = new List<(FileContentId, FileReference, FileReference)>();
 					foreach (KeyValuePair<FileContentId, WorkspaceFileInfo> fileToMove in filesToMove)
 					{
 						ulong cacheId = GetUniqueCacheId(fileToMove.Key);
 						CachedFileInfo newTrackingInfo = new CachedFileInfo(_cacheDir, fileToMove.Key, cacheId, fileToMove.Value._length, fileToMove.Value._lastModifiedTicks, fileToMove.Value._readOnly, _nextSequenceNumber);
 						_contentIdToTrackedFile.Add(fileToMove.Key, newTrackingInfo);
-						sourceAndTargetFiles.Add(new KeyValuePair<FileReference, FileReference>(fileToMove.Value.GetLocation(), newTrackingInfo.GetLocation()));
+						files.Add((fileToMove.Key, fileToMove.Value.GetLocation(), newTrackingInfo.GetLocation()));
 					}
 					_nextSequenceNumber++;
 
@@ -1773,11 +1773,7 @@ namespace EpicGames.Perforce.Managed
 
 					// Execute all the moves and deletes
 					ParallelOptions options = new() { MaxDegreeOfParallelism = _options.MaxFileConcurrency, CancellationToken = cancellationToken };
-					await Parallel.ForEachAsync(sourceAndTargetFiles, options, (sourceAndTargetFile, ct) =>
-					{
-						FileUtils.ForceMoveFile(sourceAndTargetFile.Key, sourceAndTargetFile.Value);
-						return ValueTask.CompletedTask;
-					});
+					await Parallel.ForEachAsync(files, options, (file, ctx) => MoveFileToCache(file.ContentId, file.Source, file.Target, _contentIdToTrackedFile, ctx));
 
 					scope.Progress = $"({timer.Elapsed.TotalSeconds:0.0}s)";
 				}
@@ -1824,6 +1820,24 @@ namespace EpicGames.Perforce.Managed
 			// Update the workspace and save the new state
 			_workspace = transaction._newWorkspaceRootDir;
 			await SaveAsync(TransactionState.Clean, cancellationToken);
+		}
+
+		ValueTask MoveFileToCache(FileContentId contentId, FileReference sourceFile, FileReference targetFile, Dictionary<FileContentId, CachedFileInfo> contentIdToTrackedFile, CancellationToken cancellationToken)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			try
+			{
+				FileUtils.ForceMoveFile(sourceFile, targetFile);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogWarning(KnownLogEvents.Systemic_ManagedWorkspace, ex, "Unable to move {SourceFile} to {TargetFile}: {Error}", sourceFile, targetFile, ex.Message);
+				lock (contentIdToTrackedFile)
+				{
+					contentIdToTrackedFile.Remove(contentId);
+				}
+			}
+			return default;
 		}
 
 		/// <summary>

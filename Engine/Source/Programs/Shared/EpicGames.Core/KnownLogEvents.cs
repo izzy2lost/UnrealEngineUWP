@@ -322,6 +322,11 @@ namespace EpicGames.Core
 		public static EventId Systemic_OutOfDiskSpace { get; } = new EventId(768);
 
 		/// <summary>
+		/// Error moving files to cache
+		/// </summary>
+		public static EventId Systemic_ManagedWorkspace { get; } = new EventId(769);
+
+		/// <summary>
 		/// Maximum code for systemic events. Add new events in the 700-799 range.
 		/// </summary>
 		public static EventId Systemic_Max { get; } = new EventId(799);
