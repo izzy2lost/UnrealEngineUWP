@@ -29,7 +29,9 @@
 #include "VCamComponent.h"
 
 #include "AssetToolsModule.h"
-#include "Interfaces/IPluginManager.h"
+#include "ConcertTransactionEvents.h"
+#include "IConcertSyncClient.h"
+#include "IConcertSyncClientModule.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
@@ -62,6 +64,8 @@ namespace UE::VCamCoreEditor::Private
 
 		CompilationExtensionManager = MakeShared<FCompilationExtensionManager>();
 		CompilationExtensionManager->Init();
+
+		FCoreDelegates::OnPostEngineInit.AddRaw(this, &FVCamCoreEditorModule::RegisterMultiUserFilters);
 	}
 	
 	void FVCamCoreEditorModule::ShutdownModule()
@@ -224,7 +228,29 @@ namespace UE::VCamCoreEditor::Private
 			PropertyModule->UnregisterCustomClassLayout(UVCamStateSwitcherWidget::StaticClass()->GetFName());
 		}	
 	}
+
+	void FVCamCoreEditorModule::RegisterMultiUserFilters()
+	{
+		// By default MU will not transact all subobjects - an exception must be added
+		if (const TSharedPtr<IConcertSyncClient> Client = IConcertSyncClientModule::Get().GetClient(TEXT("MultiUser")))
+		{
+			IConcertClientTransactionBridge* TransactionBridge = Client->GetTransactionBridge();
+			TransactionBridge->RegisterTransactionFilter(
+				TEXT("VCam"),
+				FTransactionFilterDelegate::CreateRaw(this, &FVCamCoreEditorModule::ShouldObjectBeTransacted)
+				);
+		}
+	}
+
+	ETransactionFilterResult FVCamCoreEditorModule::ShouldObjectBeTransacted(UObject* Object, UPackage* Package) const
+	{
+		// This will allow output providers, modifiers, and the UVCamBlueprintAssetUserData
+		const bool bIsInVCam = Object->IsInA(UVCamComponent::StaticClass());
+		return bIsInVCam ? ETransactionFilterResult::IncludeObject : ETransactionFilterResult::UseDefault;
+	}
 }
 
 IMPLEMENT_MODULE(UE::VCamCoreEditor::Private::FVCamCoreEditorModule, VCamCoreEditor);
+
+	
 #undef LOCTEXT_NAMESPACE
