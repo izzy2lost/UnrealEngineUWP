@@ -4,6 +4,7 @@
 
 #if WITH_EOS_SDK
 
+#include "Misc/CommandLine.h"
 #include "Misc/Guid.h"
 #include "Online/OnlineBase.h"
 #include "Online/OnlineSessionNames.h"
@@ -1515,8 +1516,7 @@ uint32 FOnlineSessionEOS::CreateEOSSession(int32 HostingPlayerNum, FNamedOnlineS
 	}
 	else
 	{
-		bool bUseLocalIPs = false;
-		GConfig->GetBool(TEXT("OnlineSubsystemEOS"), TEXT("bUseLocalIPs"), bUseLocalIPs, GEngineIni);
+		const bool bUseLocalIPs = FParse::Param(FCommandLine::Get(), TEXT("UseLocalIPs"));
 		if (bUseLocalIPs)
 		{
 			bool bCanBindAll;
