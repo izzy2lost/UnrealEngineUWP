@@ -850,6 +850,13 @@ void FVulkanCommandBufferPool::FreeUnusedCmdBuffers(FVulkanQueue* InQueue, bool 
 {
 #if VULKAN_DELETE_STALE_CMDBUFFERS
 	FScopeLock ScopeLock(&CS);
+	
+	if (bTrimMemory)
+	{
+		VulkanRHI::vkTrimCommandPool(Device->GetInstanceHandle(), Handle, 0);
+		return;
+	}
+
 	const double CurrentTime = FPlatformTime::Seconds();
 
 	// In case Queue stores pointer to a cmdbuffer, do not delete it
@@ -873,18 +880,6 @@ void FVulkanCommandBufferPool::FreeUnusedCmdBuffers(FVulkanQueue* InQueue, bool 
 			CmdBuffers.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 			FreeCmdBuffers.Add(CmdBuffer);
 		}
-	}
-
-	if (bTrimMemory)
-	{
-		VulkanRHI::vkTrimCommandPool(Device->GetInstanceHandle(), Handle, 0);
-		
-		for (int32 Index = 0; Index < FreeCmdBuffers.Num(); ++Index)
-		{
-			FVulkanCmdBuffer* CmdBuffer = FreeCmdBuffers[Index];
-			delete CmdBuffer;
-		}
-		FreeCmdBuffers.Empty(8);
 	}
 #endif
 }
