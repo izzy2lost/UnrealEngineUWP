@@ -115,8 +115,8 @@ private:
  * - Retrieve a Text3D Material with the specified FAvaTextMaterialSettings
  * - Retrieve FAvaTextMaterialSettings for a given material
  */
-UCLASS(Config=Editor)
-class AVALANCHETEXT_API UAvaTextMaterialHub : public UObject
+UCLASS(MinimalAPI, Config=Editor)
+class UAvaTextMaterialHub : public UObject
 {
 	GENERATED_BODY()
 	
@@ -128,7 +128,7 @@ public:
 	 *
 	 * @return A material matching the desired settings
 	 */
-	static UMaterialInterface* GetMaterial(FAvaTextMaterialSettings InMaterialSettings);
+	AVALANCHETEXT_API static UMaterialInterface* GetMaterial(FAvaTextMaterialSettings InMaterialSettings);
 
 	/**
 	 * Can be used to verify if the provided material has the same type as one of the materials handled by FAvaTextMaterials.

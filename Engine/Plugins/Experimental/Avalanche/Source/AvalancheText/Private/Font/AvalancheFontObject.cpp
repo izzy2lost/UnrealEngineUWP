@@ -29,11 +29,6 @@ static TMap<int32, FString> CharsetMap
 	{186, TEXT("Baltic")},        // BALTIC_CHARSET
 };
 
-void FAvaSystemFontMetrics::AddCharset(int32 InCharset)
-{
-	Charsets.AddUnique(InCharset);
-}
-
 void UAvaFontObject::InitProjectFont(UFont* InFont, const FString& InFontName)
 {
 	Font = InFont;

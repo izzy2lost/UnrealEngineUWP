@@ -976,7 +976,7 @@ void UAvaFontManagerSubsystem::GetMultipleSelectionInformation(const TSharedPtr<
 void UAvaFontManagerSubsystem::GetFontName(const UFont* InFont, FString& OutFontName)
 {
 	// this function used to be defined here, but it has been moved to the Runtime module for easier maintenance
-	UE::Ava::FontUtilities::Public::GetFontName(InFont, OutFontName);
+	UE::Ava::FontUtilities::GetFontName(InFont, OutFontName);
 }
 
 void UAvaFontManagerSubsystem::GetSanitizedFontName(const UFont* InFont, FString& OutFontName)

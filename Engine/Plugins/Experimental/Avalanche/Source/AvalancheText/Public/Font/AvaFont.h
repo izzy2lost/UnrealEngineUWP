@@ -9,7 +9,7 @@
 #include "AvaFont.generated.h"
 
 USTRUCT(BlueprintType, meta=(DisplayName="Motion Design Font"))
-struct AVALANCHETEXT_API FAvaFont
+struct FAvaFont
 {
 	friend class UAvaText3DComponent;
 
@@ -19,7 +19,7 @@ struct AVALANCHETEXT_API FAvaFont
 	 * Returns a default font (Roboto). The font will be loaded from asset if needed.
 	 * In the unlikely case in which Roboto is not available, the first available font will be returned
 	 */
-	static UFont* GetDefaultFont();
+	AVALANCHETEXT_API static UFont* GetDefaultFont();
 
 	/**
 	 * Returns a formatted string representing a FAvaFont for the specified FontObjectPathName and FontName
@@ -37,7 +37,7 @@ struct AVALANCHETEXT_API FAvaFont
 	 * @param OutFormattedString {will contain the formatted string}
 	 * @return {true if successful}
 	 */
-	static bool GenerateFontFormattedString(const UAvaFontObject* InFontObject, FString& OutFormattedString);
+	AVALANCHETEXT_API static bool GenerateFontFormattedString(const UAvaFontObject* InFontObject, FString& OutFormattedString);
 
 	/**
 	 * Checks if the specified Ava Fonts are the same
@@ -48,10 +48,10 @@ struct AVALANCHETEXT_API FAvaFont
 	static bool AreSameFont(const FAvaFont* InFontA, const FAvaFont* InFontB);
 
 	/** Default constructor: calling GetFont() right after the constructor will return the default font */
-	FAvaFont();
+	AVALANCHETEXT_API FAvaFont();
 
 	/** this FAvaFont will be initialized using the provided UAvaFontObject */
-	FAvaFont(UAvaFontObject* InFontObject);
+	AVALANCHETEXT_API FAvaFont(UAvaFontObject* InFontObject);
 
 	/** Returns the currently stored font, or default font if none available. Preferred getter to just get the UFont and use it */
 	UFont* GetFont();
@@ -60,13 +60,10 @@ struct AVALANCHETEXT_API FAvaFont
 	FName GetFontName() const;
 
 	/** Returns current font name as FString */
-	FString GetFontNameAsString() const;
-
-	/** Returns current font name as FText */
-	FText GetFontNameAsText() const;
+	AVALANCHETEXT_API FString GetFontNameAsString() const;
 
 	/** Returns true if this FAvaFont is marked as favorite by the user */
-	bool IsFavorite() const;
+	AVALANCHETEXT_API bool IsFavorite() const;
 
 	/**
 	 * Checks if this FAvaFont is referencing the default font. This will be happening also in fallback state.
@@ -81,7 +78,7 @@ struct AVALANCHETEXT_API FAvaFont
 	 * In fallback state, a FAvaFont will return the default font when GetFont() is called.
 	 * @return true if this FAvaFont is in fallback state
 	 */
-	bool IsFallbackFont() const;
+	AVALANCHETEXT_API bool IsFallbackFont() const;
 
 	/** Returns true if font is monospaced */
 	bool IsMonospaced() const;
@@ -96,7 +93,7 @@ struct AVALANCHETEXT_API FAvaFont
 	 * Mark/unmark this font as favorite
 	 * @param bFavorite {the flag to mark the font as favorite or not. True means favorite.}
 	 */
-	void SetFavorite(const bool bFavorite);
+	AVALANCHETEXT_API void SetFavorite(const bool bFavorite);
 
 	/**
 	 * Calling this function will null the now deprecated UFont CurrentFont reference, and use that UFont to initialize the currently used UAvaFontObject
@@ -133,25 +130,9 @@ struct AVALANCHETEXT_API FAvaFont
 	EAvaFontSource GetFontSource() const;
 
 	/** Fonts are considered equal if they share the same font and font name */
-	FORCEINLINE bool operator==(const FAvaFont& Other) const
-	{
-		if (CurrentFont_DEPRECATED)
-		{
-			return (CurrentFont_DEPRECATED == Other.CurrentFont_DEPRECATED) && (GetFontName() == Other.GetFontName());
-		}
+	AVALANCHETEXT_API bool operator==(const FAvaFont& Other) const;
 
-		const UAvaFontObject* MyFontObject = GetFontObject();
-		const UAvaFontObject* OtherFontObject = Other.GetFontObject();
-
-		if (MyFontObject && OtherFontObject && MyFontObject->GetFont() != OtherFontObject->GetFont())
-		{
-			return false;
-		}
-
-		return (GetFontName() == Other.GetFontName());
-	}
-
-	FORCEINLINE bool operator!=(const FAvaFont& Other) const
+	bool operator!=(const FAvaFont& Other) const
 	{
 		return !(*this == Other);
 	}
@@ -160,7 +141,7 @@ struct AVALANCHETEXT_API FAvaFont
 	 * Called after serialization of FAvaFont.
 	 * In case of missing font assets, the FAvaFont state will be marked as "FallbackFont"
 	 */
-	void PostSerialize(const FArchive& Ar);
+	AVALANCHETEXT_API void PostSerialize(const FArchive& Ar);
 
 private:
 	/** A struct to hold default values which we want to prevent from being GC'd */
@@ -238,7 +219,7 @@ template<> struct TStructOpsTypeTraits<FAvaFont> : public TStructOpsTypeTraitsBa
 	};
 };
 
-namespace UE::Ava::FontUtilities::Public
+namespace UE::Ava::FontUtilities
 {
 	AVALANCHETEXT_API void GetFontName(const UFont* InFont, FString& OutFontName);
 }
