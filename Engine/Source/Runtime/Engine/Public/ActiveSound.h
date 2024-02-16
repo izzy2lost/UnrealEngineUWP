@@ -371,6 +371,15 @@ public:
 	/** Whether or not the active sound is currently playing audible sound. */
 	bool IsPlayingAudio() const { return bIsPlayingAudio; }
 
+	/** Returns the max distance of the active sound */
+	float GetMaxDistance() const;
+
+	/** Returns both the max distance and focus factor of the active sound */
+	void GetMaxDistanceAndFocusFactor(float& OutMaxDistance, float& OutFocusFactor) const;
+
+	/** Returns the currently used attenuation settings of the active sound. Use this to account for override state, etc. Allows for dynamic updates. */
+	const FSoundAttenuationSettings* GetAttenuationSettings(const FSoundAttenuationSettings* SettingsAttenuationNode = nullptr) const;
+
 	/** Whether or not sound reference is valid and set to play when silent. */
 	ENGINE_API bool IsPlayWhenSilent() const;
 
