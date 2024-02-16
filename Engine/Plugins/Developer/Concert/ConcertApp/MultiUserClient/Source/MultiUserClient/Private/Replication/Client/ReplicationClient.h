@@ -4,6 +4,7 @@
 
 #include "Replication/Authority/AuthorityChangeTracker.h"
 #include "Replication/Authority/IClientAuthoritySynchronizer.h"
+#include "Replication/Editor/UnrealEditor/ModifyObjectInLevelHandler.h"
 #include "Replication/Frequency/FrequencyChangeTracker.h"
 #include "Replication/Stream/IClientStreamSynchronizer.h"
 #include "Replication/Stream/StreamChangeTracker.h"
@@ -101,6 +102,10 @@ namespace UE::MultiUserClient
 		 */
 		FOnModelExternallyChanged& OnModelChanged() { return OnModelChangedDelegate; }
 		
+		DECLARE_MULTICAST_DELEGATE(FOnHiearchyNeedsRefresh);
+		/** Broadcasts when the hierarchy may have changed. */
+		FOnHiearchyNeedsRefresh& OnHierarchyNeedsRefresh() { return OnHierarchyNeedsRefreshDelegate; }
+		
 	private:
 
 		/** This client's Concert Endpoint ID. */
@@ -144,6 +149,12 @@ namespace UE::MultiUserClient
 		FChangeRequestBuilder ChangeRequestBuilder;
 		/** Automatically submits changes as they are made by the user. */
 		FAutoSubmissionPolicy AutoSubmissionPolicy;
+		
+		/** Handles updating the local client's stream when the level is modified, e.g. when an actor is removed. */
+		ConcertClientSharedSlate::FModifyObjectInLevelHandler LevelModificationHandler;
+
+		/** Broadcasts when the hierarchy may have changed. */
+		FOnHiearchyNeedsRefresh OnHierarchyNeedsRefreshDelegate;
 
 		/**
 		 * Broadcast when the data underlying the model has changed for any reason:

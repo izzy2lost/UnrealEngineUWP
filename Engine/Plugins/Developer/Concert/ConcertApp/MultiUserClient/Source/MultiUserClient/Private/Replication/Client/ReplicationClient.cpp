@@ -53,6 +53,7 @@ namespace UE::MultiUserClient
 		, LocalFrequencyChangeTracker(*StreamSynchronizer)
 		, ChangeRequestBuilder(EndpointId, InAuthorityCache, *StreamSynchronizer, LocalClientStreamDiffer, LocalAuthorityDiffer, LocalFrequencyChangeTracker)
 		, AutoSubmissionPolicy(SubmissionQueue, ChangeRequestBuilder, LocalClientEditModel.Get(), LocalAuthorityDiffer, LocalFrequencyChangeTracker)
+		, LevelModificationHandler(GetClientEditModel().Get())
 	{
 		LocalClientEditModel->OnObjectsChanged().AddRaw(this, &FReplicationClient::OnObjectsChanged);
 		LocalClientEditModel->OnPropertiesChanged().AddRaw(this, &FReplicationClient::OnPropertiesChanged);
@@ -60,6 +61,11 @@ namespace UE::MultiUserClient
 
 		SubmissionWorkflow->OnAuthorityRequestCompleted_AnyThread().AddRaw(this, &FReplicationClient::OnAuthoritySubmissionCompleted);
 		StreamSynchronizer->OnServerStateChanged().AddRaw(this, &FReplicationClient::OnServerStateChanged);
+
+		LevelModificationHandler.OnHierarchyNeedsRefresh().AddLambda([this]()
+		{
+			OnHierarchyNeedsRefreshDelegate.Broadcast();
+		});
 	}
 
 	FReplicationClient::~FReplicationClient()

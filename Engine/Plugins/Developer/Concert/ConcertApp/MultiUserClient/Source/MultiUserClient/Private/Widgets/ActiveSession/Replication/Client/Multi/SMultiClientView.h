@@ -57,11 +57,12 @@ namespace UE::MultiUserClient
 
 		// SClientToolbar attributes
 		TSet<FGuid> GetDisplayClientIds() const;
-		void EnumerateObjectsInStreams(TFunctionRef<void(const FSoftObjectPath&)> Consumer);
+		void EnumerateObjectsInStreams(TFunctionRef<void(const FSoftObjectPath&)> Consumer) const;
 		
 		void RebuildClientSubscriptions();
-		void CleanClientSubscriptions();
-		void OnClientChanged(FGuid Guid);
+		void CleanClientSubscriptions() const;
+		void OnClientChanged() const;
+		void OnHierarchyNeedsRefresh() const;
 		
 		/** Adds additional entries to the context menu for the object tree view. */
 		void ExtendObjectContextMenu(FMenuBuilder& MenuBuilder, TConstArrayView<FSoftObjectPath> ContextObjects) const;
