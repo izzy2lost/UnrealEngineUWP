@@ -1643,8 +1643,55 @@ FText FFractureEditorModeToolkit::GetActiveToolMessage() const
 	return LOCTEXT("FractureNoToolMessage", "Select geometry and use “New+” to create a new Geometry Collection to begin fracturing.  Choose one of the fracture tools to break apart the selected Geometry Collection.");
 }
 
+namespace UE::PrivateOutlinerCacheHelper
+{
+	void AddGeometryStatsForComponent(const UGeometryCollectionComponent* Component, int64& BoneCount, int64& VertexCount)
+	{
+		if (Component)
+		{
+			if (const UGeometryCollection* GeometryObject = Component->GetRestCollection())
+			{
+				if (const FGeometryCollection* Collection = GeometryObject->GetGeometryCollection().Get())
+				{
+					BoneCount += Collection->Transform.Num();
+					VertexCount += Collection->Vertex.Num();
+				}
+			}
+		}
+	}
+
+	void ComputeGeometryStats(const TArray<UGeometryCollectionComponent*>& InNewComponents, int64& BoneCount, int64& VertexCount)
+	{
+		BoneCount = VertexCount = 0;
+		for (const UGeometryCollectionComponent* Component : InNewComponents)
+		{
+			AddGeometryStatsForComponent(Component, BoneCount, VertexCount);
+		}
+	}
+
+	void ComputeGeometryStats(const TArray<TWeakObjectPtr<UGeometryCollectionComponent>>& InNewComponents, int64& BoneCount, int64& VertexCount)
+	{
+		BoneCount = VertexCount = 0;
+		for (const TWeakObjectPtr<UGeometryCollectionComponent> Component : InNewComponents)
+		{
+			AddGeometryStatsForComponent(Component.Get(), BoneCount, VertexCount);
+		}
+	}
+}
+
+bool FFractureEditorModeToolkit::IsCachedOutlinerGeometryStale(const TArray<TWeakObjectPtr<UGeometryCollectionComponent>>& SelectedComponents) const
+{
+	// Note we currently use quick-to-compute high level stats, compared vs cached versions, since this is run per tick; we could change this to more thoroughly walk the outliner data potentially
+	int64 NewBoneCount, NewVertexCount;
+	UE::PrivateOutlinerCacheHelper::ComputeGeometryStats(SelectedComponents, NewBoneCount, NewVertexCount);
+	return NewBoneCount != OutlinerCachedBoneCount || NewVertexCount != OutlinerCachedVertexCount;
+}
+
 void FFractureEditorModeToolkit::SetOutlinerComponents(const TArray<UGeometryCollectionComponent*>& InNewComponents)
 {
+	// Update cached stats (bone and vertex count) of the components in the outliner
+	UE::PrivateOutlinerCacheHelper::ComputeGeometryStats(InNewComponents, OutlinerCachedBoneCount, OutlinerCachedVertexCount);
+
 	TArray<UGeometryCollectionComponent*> ComponentsToEdit;
 	ComponentsToEdit.Reserve(InNewComponents.Num());
 	for (UGeometryCollectionComponent* Component : InNewComponents)
