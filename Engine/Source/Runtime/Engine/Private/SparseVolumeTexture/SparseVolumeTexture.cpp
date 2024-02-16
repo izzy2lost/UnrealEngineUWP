@@ -112,7 +112,7 @@ static int32 ComputeNumMipLevels(const FIntVector3& InVirtualVolumeMin, const FI
 
 static const FString& GetDerivedDataVersion()
 {
-	static FString CachedVersionString = TEXT("6C460857-3C9C-4580-98F5-63811E5EA4D5");	// Bump this if you want to ignore all cached data so far.
+	static FString CachedVersionString = TEXT("2113A905-4C31-4EFD-B55C-82375C6A7B56");	// Bump this if you want to ignore all cached data so far.
 	return CachedVersionString;
 }
 
@@ -385,7 +385,7 @@ bool FResources::Build(USparseVolumeTextureFrame* Owner, UE::Serialization::FEdi
 		Topology.ParentIndices = MoveTemp(DerivedTextureData.PageTableParentIndices);
 
 		// Compress tile data
-		TArray<uint8> StreamableBulkData;
+		TArray64<uint8> StreamableBulkData;
 		StreamingMetaData = CompressTiles(Topology, DerivedTextureData, RootData, StreamableBulkData);
 
 		// Store StreamableMipLevels
@@ -608,7 +608,7 @@ void FResources::EndRebuildBulkDataFromCache()
 
 #endif // WITH_EDITORONLY_DATA
 
-FTileStreamingMetaData FResources::CompressTiles(const FPageTopology& Topology, const FDerivedTextureData& DerivedTextureData, TArray<uint8>& OutRootBulkData, TArray<uint8>& OutStreamingBulkData)
+FTileStreamingMetaData FResources::CompressTiles(const FPageTopology& Topology, const FDerivedTextureData& DerivedTextureData, TArray<uint8>& OutRootBulkData, TArray64<uint8>& OutStreamingBulkData)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(SVT::FResources::Build::CompressTiles);
 
@@ -670,6 +670,7 @@ FTileStreamingMetaData FResources::CompressTiles(const FPageTopology& Topology, 
 	uint32 CurrentOffset = 0;
 	for (uint32 TileIndex = 0; TileIndex < NumTiles; ++TileIndex)
 	{
+		uint32 PrevOffset = CurrentOffset;
 		TileDataOffsets[TileIndex] = CurrentOffset;
 		CurrentOffset += SVT::NumOccupancyWordsPerPaddedTile * sizeof(uint32) * NumTextures;
 		for (int32 AttributesIdx = 0; AttributesIdx < 2; ++AttributesIdx)
@@ -679,6 +680,7 @@ FTileStreamingMetaData FResources::CompressTiles(const FPageTopology& Topology, 
 				CurrentOffset += NumVoxels[AttributesIdx][TileIndex] * FormatSize[AttributesIdx];
 			}
 		}
+		checkf(PrevOffset < CurrentOffset, TEXT("SVT streaming data overflowed the uint32 range!"));
 	}
 
 	// Write final size at the end of the array so we can compute individual tile sizes as (Offsets[N+1] - Offsets[N])
@@ -831,7 +833,7 @@ FTileInfo FTileStreamingMetaData::GetTileInfo(uint32 TileIndex, uint32 FormatSiz
 	return Result;
 }
 
-void FTileStreamingMetaData::GetNumVoxelsInTileRange(uint32 TileOffset, uint32 TileCount, uint32 FormatSizeA, uint32 FormatSizeB, uint32& OutNumVoxelsA, uint32& OutNumVoxelsB) const
+void FTileStreamingMetaData::GetNumVoxelsInTileRange(uint32 TileOffset, uint32 TileCount, uint32 FormatSizeA, uint32 FormatSizeB, const TBitArray<>* OptionalValidTiles, uint32& OutNumVoxelsA, uint32& OutNumVoxelsB) const
 {
 	check(FormatSizeA > 0 || FormatSizeB > 0);
 	const uint32 NumTextures = (FormatSizeA > 0 && FormatSizeB > 0) ? 2 : 1;
@@ -840,6 +842,10 @@ void FTileStreamingMetaData::GetNumVoxelsInTileRange(uint32 TileOffset, uint32 T
 	OutNumVoxelsB = 0;
 	for (uint32 TileIndex = TileOffset; TileIndex < (TileOffset + TileCount); ++TileIndex)
 	{
+		if (OptionalValidTiles && !(*OptionalValidTiles)[TileIndex])
+		{
+			continue;
+		}
 		const uint32 NumVoxelsATmp = NumVoxelsA[TileIndex];
 		OutNumVoxelsA += NumVoxelsATmp;
 		// For NumVoxelsB, we need to reconstruct that value based on the total tile size and the sizes of the other memory sections in the tile

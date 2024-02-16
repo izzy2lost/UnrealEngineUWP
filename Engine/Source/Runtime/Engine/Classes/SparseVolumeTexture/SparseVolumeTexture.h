@@ -155,6 +155,11 @@ struct FTileStreamingMetaData
 		return GetNumTiles() - FirstStreamingTileIndex;
 	}
 
+	bool HasRootTile() const
+	{
+		return FirstStreamingTileIndex > 0;
+	}
+
 	uint32 GetRootTileSize() const
 	{
 		return TileDataOffsets[FirstStreamingTileIndex] - TileDataOffsets[0];
@@ -165,9 +170,18 @@ struct FTileStreamingMetaData
 		return TileDataOffsets[TileIndex + 1] - TileDataOffsets[TileIndex];
 	}
 
+	void GetTileRangeMemoryOffsetSize(uint32 TileOffset, uint32 TileCount, uint32& OutMemoryOffset, uint32& OutMemorySize) const
+	{
+		checkf(!(TileOffset < FirstStreamingTileIndex && (TileOffset + TileCount) > FirstStreamingTileIndex), TEXT("Tile range must not straddle the root tile and streaming tiles!"));
+		const uint32 RootTileSize = TileOffset < FirstStreamingTileIndex ? 0 : GetRootTileSize();
+		OutMemoryOffset = TileDataOffsets[TileOffset] - RootTileSize;
+		const uint32 ReadEnd = TileDataOffsets[TileOffset + TileCount] - RootTileSize;
+		OutMemorySize = ReadEnd - OutMemoryOffset;
+	}
+
 	FTileInfo GetTileInfo(uint32 TileIndex, uint32 FormatSizeA, uint32 FormatSizeB) const;
 
-	void GetNumVoxelsInTileRange(uint32 TileOffset, uint32 TileCount, uint32 FormatSizeA, uint32 FormatSizeB, uint32& OutNumVoxelsA, uint32& OutNumVoxelsB) const;
+	void GetNumVoxelsInTileRange(uint32 TileOffset, uint32 TileCount, uint32 FormatSizeA, uint32 FormatSizeB, const TBitArray<>* OptionalValidTiles, uint32& OutNumVoxelsA, uint32& OutNumVoxelsB) const;
 };
 
 enum EResourceFlag : uint32
@@ -230,7 +244,7 @@ private:
 	void EndRebuildBulkDataFromCache();
 #endif
 
-	static FTileStreamingMetaData CompressTiles(const FPageTopology& Topology, const struct FDerivedTextureData& DerivedTextureData, TArray<uint8>& OutRootBulkData, TArray<uint8>& OutStreamingBulkData);
+	static FTileStreamingMetaData CompressTiles(const FPageTopology& Topology, const struct FDerivedTextureData& DerivedTextureData, TArray<uint8>& OutRootBulkData, TArray64<uint8>& OutStreamingBulkData);
 };
 
 // Encapsulates RHI resources needed to render a SparseVolumeTexture.

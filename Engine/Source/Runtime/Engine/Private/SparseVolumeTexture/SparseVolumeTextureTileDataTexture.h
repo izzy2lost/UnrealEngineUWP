@@ -27,8 +27,6 @@ public:
 		Ready, Reserving, Reserved, Uploading
 	};
 
-	static constexpr uint32 PhysicalCoordMask = (1u << 24u) - 1u; // Lower 24 bits are used for storing XYZ in 8 bit each. Upper 8 bit can be used by the caller. 
-
 	static bool ShouldUseReservedResources();
 	static int64 GetMaxTileDataTextureResourceSize(int32 InVoxelMemSize);
 	static FIntVector3 GetVolumeResolutionInTiles(int32 InNumRequiredTiles);
@@ -37,33 +35,8 @@ public:
 	// Constructor. May change the requested ResolutionInTiles (and resulting PhysicalTilesCapacity) if it exceeds hardware limits.
 	explicit FTileDataTexture(const FIntVector3& ResolutionInTiles, EPixelFormat FormatA, EPixelFormat FormatB, const FVector4f& FallbackValueA, const FVector4f& FallbackValueB);
 
-	// Allocate a tile slot in the texture. The resulting value is a packed coordinate (8 bit per component) of the allocated slot or INDEX_NONE if the allocation failed.
-	// The upper 8 bit are free to be used by the caller.
-	uint32 Allocate()
-	{
-		check(PhysicalTilesCapacity == TileCoords.Num());
-		return TileCoords.IsValidIndex(NextFreeTileCoordIndex) ? TileCoords[NextFreeTileCoordIndex++] : INDEX_NONE;
-	}
-
-	// Frees a previously allocated tile slot. The upper 8 bit (user data) are automatically cleared by this function.
-	void Free(uint32 PackedPhysicalCoord)
-	{
-		check(PackedPhysicalCoord != INDEX_NONE)
-			PackedPhysicalCoord &= PhysicalCoordMask;
-		check(PhysicalTilesCapacity == TileCoords.Num());
-		check(NextFreeTileCoordIndex > 0);
-#if DO_GUARD_SLOW
-		for (int32 i = NextFreeTileCoordIndex; i < PhysicalTilesCapacity; ++i)
-		{
-			check(TileCoords[i] != PackedPhysicalCoord);
-		}
-#endif
-		TileCoords[--NextFreeTileCoordIndex] = PackedPhysicalCoord;
-	}
-
 	EUploaderState GetUploaderState() const { return UploaderState; }
 	int32 GetTileCapacity() const { return PhysicalTilesCapacity; }
-	int32 GetNumAvailableTiles() const { return PhysicalTilesCapacity - NextFreeTileCoordIndex; } // Number of tiles available for allocation.
 	FIntVector3 GetResolutionInTiles() const { return ResolutionInTiles; }
 	TRefCountPtr<IPooledRenderTarget> GetTileDataTextureA() { return TileDataTextureA; }
 	TRefCountPtr<IPooledRenderTarget> GetTileDataTextureB() { return TileDataTextureB; }
@@ -94,8 +67,6 @@ private:
 	FVector4f FallbackValueB;
 	TRefCountPtr<IPooledRenderTarget> TileDataTextureA;
 	TRefCountPtr<IPooledRenderTarget> TileDataTextureB;
-	TArray<uint32> TileCoords;
-	int32 NextFreeTileCoordIndex = 0;
 	EUploaderState UploaderState = EUploaderState::Ready;
 	int32 NumReservedUploadTiles = 0;
 	int32 NumReservedUploadVoxelsA = 0;
