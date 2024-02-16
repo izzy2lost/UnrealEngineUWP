@@ -738,9 +738,9 @@ namespace Horde.Server.Jobs
 		NoLongerNeeded = 12,
 
 		/// <summary>
-		/// Machine setup failed
+		/// Syncing the branch failed
 		/// </summary>
-		AgentSetupFailed = 13,
+		SyncingFailed = 13,
 	}
 
 	/// <summary>

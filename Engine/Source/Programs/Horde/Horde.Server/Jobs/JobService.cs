@@ -891,7 +891,7 @@ namespace Horde.Server.Jobs
 						}
 						else if (!batch.Steps.Any(x => x.StartTimeUtc != null))
 						{
-							newError = JobStepBatchError.AgentSetupFailed;
+							newError = JobStepBatchError.SyncingFailed;
 						}
 						else
 						{
