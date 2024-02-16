@@ -28,8 +28,6 @@ namespace UE::NearestNeighborModel
 		using FSection = UNearestNeighborModelSection;
 		using FMLDeformerSampler = UE::MLDeformer::FMLDeformerSampler;
 
-		virtual ~FNearestNeighborEditorModel();
-
 		// We need to implement this static MakeInstance method.
 		static FMLDeformerEditorModel* MakeInstance();
 
@@ -82,10 +80,10 @@ namespace UE::NearestNeighborModel
 		void ResetMorphTargets();
 		void UpdateNearestNeighborIds();
 
-		TUniquePtr<FNearestNeighborEditorModelActor> CreateNearestNeighborActor(UWorld* World) const;
+		FNearestNeighborEditorModelActor* CreateNearestNeighborActor(UWorld* World) const;
 		void UpdateNearestNeighborActor(FNearestNeighborEditorModelActor& Actor) const;
 	
-		TUniquePtr<FNearestNeighborEditorModelActor> NearestNeighborActor;	// This should be only set in CreateActors().
+		FNearestNeighborEditorModelActor* NearestNeighborActor = nullptr;	// This should be only set in CreateActors() and is automatically deleted by the base class.
 		TUniquePtr<FVertexMapSelector> VertexMapSelector;
 		TUniquePtr<FVertVizSelector> VertVizSelector;
 	};

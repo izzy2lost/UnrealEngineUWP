@@ -45,14 +45,6 @@ namespace UE::NearestNeighborModel
 		}
 	};
 
-	FNearestNeighborEditorModel::~FNearestNeighborEditorModel()
-	{
-		if (NearestNeighborActor.Get())
-		{
-			EditorActors.Remove(NearestNeighborActor.Get());
-		}
-	}
-
 	UE::MLDeformer::FMLDeformerEditorModel* FNearestNeighborEditorModel::MakeInstance()
 	{
 		return new FNearestNeighborEditorModel();
@@ -92,9 +84,9 @@ namespace UE::NearestNeighborModel
 			return;
 		}
 
-		if (NearestNeighborActor.Get())
+		if (NearestNeighborActor)
 		{
-			EditorActors.Remove(NearestNeighborActor.Get());
+			EditorActors.Remove(NearestNeighborActor);
 			if (NearestNeighborActor->GetActor())
 			{
 				World->DestroyActor(NearestNeighborActor->GetActor(), true);
@@ -102,13 +94,13 @@ namespace UE::NearestNeighborModel
 		}
 		NearestNeighborActor = CreateNearestNeighborActor(World);
 		UpdateNearestNeighborActor(*NearestNeighborActor);
-		EditorActors.Add(NearestNeighborActor.Get());
+		EditorActors.Add(NearestNeighborActor);
 	}
 
 	void FNearestNeighborEditorModel::Tick(FEditorViewportClient* ViewportClient, float DeltaTime)
 	{
 		FMLDeformerEditorModel::Tick(ViewportClient, DeltaTime);
-		if (NearestNeighborActor.Get())
+		if (NearestNeighborActor)
 		{
 			UpdateNearestNeighborActor(*NearestNeighborActor);
 			NearestNeighborActor->Tick();
@@ -405,7 +397,7 @@ namespace UE::NearestNeighborModel
 		return Cast<UNearestNeighborModel>(Model.Get());
 	}
 
-	TUniquePtr<FNearestNeighborEditorModelActor> FNearestNeighborEditorModel::CreateNearestNeighborActor(UWorld* World) const
+	FNearestNeighborEditorModelActor* FNearestNeighborEditorModel::CreateNearestNeighborActor(UWorld* World) const
 	{
 		static FLinearColor LabelColor = FNearestNeighborModelEditorStyle::Get().GetColor("NearestNeighborModel.NearestNeighborActors.LabelColor");
 		static FLinearColor WireframeColor = FNearestNeighborModelEditorStyle::Get().GetColor("NearestNeighborModel.NearestNeighborActors.WireframeColor");
@@ -435,7 +427,7 @@ namespace UE::NearestNeighborModel
 		Settings.LabelText = LabelText;
 		Settings.bIsTrainingActor = false;
 
-		TUniquePtr<FNearestNeighborEditorModelActor> NewActor = MakeUnique<FNearestNeighborEditorModelActor>(Settings);
+		FNearestNeighborEditorModelActor* NewActor = new FNearestNeighborEditorModelActor(Settings);
 		NewActor->SetGeometryCacheComponent(GeomCacheComponent);
 		return NewActor;
 	}
