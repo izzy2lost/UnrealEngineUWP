@@ -1514,6 +1514,16 @@ namespace Audio
 		}
 	}
 
+	int64 FMixerSource::GetNumFramesPlayed() const
+	{
+		if (InitializationState == EMixerSourceInitializationState::Initialized && MixerSourceVoice != nullptr)
+		{
+			return MixerSourceVoice->GetNumFramesPlayed();
+		}
+
+		return 0;
+	}
+
 	float FMixerSource::GetEnvelopeValue() const
 	{
 		if (MixerSourceVoice)

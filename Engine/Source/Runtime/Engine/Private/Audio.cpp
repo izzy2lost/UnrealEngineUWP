@@ -673,6 +673,31 @@ float FSoundSource::GetPlaybackPercent() const
 
 }
 
+float FSoundSource::GetSourceSampleRate() const
+{
+	if (WaveInstance == nullptr || WaveInstance->WaveData == nullptr || WaveInstance->WaveData->bIsSourceBus)
+	{
+		return AudioDevice->GetSampleRate();
+	}
+
+	return WaveInstance->WaveData->GetSampleRateForCurrentPlatform();
+}
+
+int64 FSoundSource::GetNumFramesPlayed() const
+{
+	return NumFramesPlayed;
+}
+
+int32 FSoundSource::GetNumTotalFrames() const
+{
+	return NumTotalFrames;
+}
+
+int32 FSoundSource::GetStartFrame() const
+{
+	return StartFrame;
+}
+
 void FSoundSource::GetChannelLocations(FVector& Left, FVector&Right) const
 {
 	Left = LeftChannelSourceLocation;
