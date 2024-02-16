@@ -471,10 +471,10 @@ public:
 	//Toolbar functions
 	void SetOnlySelectRigControls(bool val);
 	bool GetOnlySelectRigControls()const;
+	bool SetSequencer(TWeakPtr<ISequencer> InSequencer);
 
 private:
 	TSet<FName> GetActiveControlsFromSequencer(UControlRig* ControlRig);
-	bool SetSequencer(TWeakPtr<ISequencer> InSequencer);
 
 	/** Create/Delete for the specified ControlRig*/
 	void CreateShapeActors(UControlRig* InControlRig);

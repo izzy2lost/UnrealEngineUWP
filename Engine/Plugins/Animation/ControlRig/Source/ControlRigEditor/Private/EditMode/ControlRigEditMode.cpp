@@ -11,6 +11,8 @@
 #include "ControlRig.h"
 #include "HitProxies.h"
 #include "EditMode/ControlRigEditModeSettings.h"
+#include "EditMode/SControlRigDetails.h"
+#include "EditMode/SControlRigOutliner.h"
 #include "ISequencer.h"
 #include "SequencerSettings.h"
 #include "Sections/MovieSceneSpawnSection.h"
@@ -65,6 +67,7 @@
 #include "EdModeInteractiveToolsContext.h"
 #include "Constraints/MovieSceneConstraintChannelHelper.h"
 #include "Editor/EditorPerProjectUserSettings.h"
+#include "Widgets/Docking/SDockTab.h"
 #include "TransformConstraint.h"
 #include "Animation/DebugSkelMeshComponent.h"
 #include "Materials/Material.h"
@@ -211,7 +214,7 @@ FControlRigEditMode::~FControlRigEditMode()
 
 }
 
-bool FControlRigEditMode:: SetSequencer(TWeakPtr<ISequencer> InSequencer)
+bool FControlRigEditMode::SetSequencer(TWeakPtr<ISequencer> InSequencer)
 {
 	if (InSequencer != WeakSequencer)
 	{
@@ -248,6 +251,14 @@ bool FControlRigEditMode:: SetSequencer(TWeakPtr<ISequencer> InSequencer)
 			ControlProxy->SetSequencer(WeakSequencer);
 		}
 		SetObjects_Internal();
+		if (FControlRigEditModeToolkit::Details.IsValid())
+		{
+			FControlRigEditModeToolkit::Details->SetEditMode(*this);
+		}
+		if (FControlRigEditModeToolkit::Outliner)
+		{
+			FControlRigEditModeToolkit::Outliner->SetEditMode(*this);
+		}
 	}
 	return false;
 }
