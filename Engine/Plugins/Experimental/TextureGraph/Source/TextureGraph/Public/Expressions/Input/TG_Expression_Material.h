@@ -28,20 +28,27 @@ public:
 	
 	void SetMaterial(UMaterialInterface* InMaterial);
 
-	// The attribute identifier among all the attributes of the material that is rendered in the output
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NoCategory, meta = (TGType = "TG_Setting"))
-	EDrawMaterialAttributeTarget RenderedAttributeId = EDrawMaterialAttributeTarget::BaseColor;	
-	
+	// The Material attribute identifier among all the attributes of the material that is rendered in the output
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Category = NoCategory, meta = (TGType = "TG_Setting", GetOptions = "GetRenderAttributeOptions"))
+	FName RenderedAttribute;
+	void SetRenderedAttribute(FName InRenderedAttribute);
+
+	// THe list of Rendered attribute options available 
+	UFUNCTION(CallInEditor)
+	TArray<FName> GetRenderAttributeOptions() const;
+
+
 	virtual bool CanHandleAsset(UObject* Asset) override;
 	virtual void SetAsset(UObject* Asset) override;
 	virtual FText GetTooltipText() const override { return FText::FromString(TEXT("Renders a material into a quad and makes it available. It is automatically exposed as a graph input parameter.")); } 
 
 protected:
-	
 	virtual void SetMaterialInternal(UMaterialInterface* InMaterial) override;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "")
 	FName TitleName = TEXT("Material");
+
+	virtual void Initialize() override;
 
 public:
 	
@@ -52,6 +59,6 @@ public:
 	
 protected:
 	virtual TObjectPtr<UMaterialInterface> GetMaterial() const override { return Material;};
-	virtual EDrawMaterialAttributeTarget GetRenderedAttributeId()  override { return RenderedAttributeId;}
+	virtual EDrawMaterialAttributeTarget GetRenderedAttributeId()  override;
 };
 

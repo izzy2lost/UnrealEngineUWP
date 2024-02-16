@@ -6,10 +6,16 @@
 void UTG_Expression_Material::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	// First catch if Material changes
-	if (PropertyChangedEvent.GetPropertyName() == FName(TEXT("Material")))
+	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UTG_Expression_Material, Material))
 	{
 		UE_LOG(LogTextureGraph, Log, TEXT("Material Expression PostEditChangeProperty."));
 		SetMaterialInternal(Material);
+	}
+	// Second catch if AttributeName changes
+	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UTG_Expression_Material, RenderedAttribute))
+	{
+		UE_LOG(LogTextureGraph, Log, TEXT("Material Expression PostEditChangeProperty."));
+		SetRenderedAttribute(RenderedAttribute);
 	}
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
@@ -26,6 +32,12 @@ void UTG_Expression_Material::PostEditUndo()
 }
 
 #endif
+
+void UTG_Expression_Material::Initialize()
+{
+	Super::Initialize();
+	SetRenderedAttribute(RenderedAttribute); // reassign the RenderedAttribute to make sure it is the correct one
+}
 
 void UTG_Expression_Material::SetMaterialInternal(UMaterialInterface* InMaterial)
 {
@@ -44,6 +56,8 @@ void UTG_Expression_Material::SetMaterialInternal(UMaterialInterface* InMaterial
 	}
 
 	Super::SetMaterialInternal(InMaterial);
+
+	SetRenderedAttribute(RenderedAttribute);
 }
 
 
@@ -62,6 +76,27 @@ void UTG_Expression_Material::SetMaterial(UMaterialInterface* InMaterial)
 	}
 
 	SetMaterialInternal(InMaterial);
+}
+
+void UTG_Expression_Material::SetRenderedAttribute(FName InRenderedAttribute)
+{
+	if (GetAvailableMaterialAttributeNames().Num())
+	{
+		int32 RenderAttributeIndex = GetAvailableMaterialAttributeNames().Find(InRenderedAttribute);
+		if (RenderAttributeIndex == INDEX_NONE)
+		{
+			RenderedAttribute = GetAvailableMaterialAttributeNames()[0];
+		}
+		else
+		{
+			RenderedAttribute = InRenderedAttribute;
+		}
+	}
+	else
+	{
+		RenderedAttribute = TEXT("None");
+	}
+	
 }
 
 bool UTG_Expression_Material::CanHandleAsset(UObject* Asset)
@@ -101,5 +136,28 @@ FName UTG_Expression_Material::GetTitleName() const
 	return TitleName;
 }
 
+TArray<FName> UTG_Expression_Material::GetRenderAttributeOptions() const
+{
+	return GetAvailableMaterialAttributeNames();
+}
 
+EDrawMaterialAttributeTarget UTG_Expression_Material::GetRenderedAttributeId()
+{
+	if (GetAvailableMaterialAttributeNames().Num())
+	{
+		int32 RenderAttributeIndex = GetAvailableMaterialAttributeNames().Find(RenderedAttribute);
+		if (RenderAttributeIndex == INDEX_NONE)
+		{
+			return GetAvailableMaterialAttributeIds()[0];
+		}
+		else
+		{
+			return GetAvailableMaterialAttributeIds()[RenderAttributeIndex];
+		}
+	}
+	else
+	{
+		return EDrawMaterialAttributeTarget::Emissive;
+	}
+}
 
