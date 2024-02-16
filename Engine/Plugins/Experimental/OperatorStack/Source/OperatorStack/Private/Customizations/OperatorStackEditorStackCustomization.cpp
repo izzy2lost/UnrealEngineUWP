@@ -33,14 +33,14 @@ bool UOperatorStackEditorStackCustomization::IsCustomizationSupportedFor(const F
 	{
 		return false;
 	}
-	
+
 	if (const UStruct* ItemStruct = InItem->GetValueType().Get<UStruct>())
 	{
 		if (SupportedDefinitions.Contains(ItemStruct))
 		{
 			return true;
 		}
-	
+
 		for (const TObjectPtr<const UStruct>& SupportedDefinition : SupportedDefinitions)
 		{
 			if (ItemStruct->IsChildOf(SupportedDefinition.Get()))
@@ -56,7 +56,7 @@ bool UOperatorStackEditorStackCustomization::IsCustomizationSupportedFor(const F
 		{
 			return true;
 		}
-	
+
 		for (const FFieldClass* SupportedFieldClass : SupportedFieldClasses)
 		{
 			if (ItemClass->IsChildOf(SupportedFieldClass))
@@ -65,7 +65,7 @@ bool UOperatorStackEditorStackCustomization::IsCustomizationSupportedFor(const F
 			}
 		}
 	}
-	
+
 	return false;
 }
 

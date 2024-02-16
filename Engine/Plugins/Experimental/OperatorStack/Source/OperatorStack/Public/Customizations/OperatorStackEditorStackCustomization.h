@@ -22,8 +22,8 @@ class UOperatorStackEditorStackRowCustomization;
 	An item can contain multiple items (recursive),
 	Children class extending this class are automatically registered
 */
-UCLASS(Abstract, Transient)
-class OPERATORSTACKEDITOR_API UOperatorStackEditorStackCustomization : public UObject
+UCLASS(MinimalAPI, Abstract, Transient)
+class UOperatorStackEditorStackCustomization : public UObject
 {
 	GENERATED_BODY()
 
@@ -42,12 +42,12 @@ public:
 	{}
 
 	/** Registers items with this definition that can use this customization */
-	bool RegisterCustomizationFor(const UStruct* InItemDefinition);
-	bool RegisterCustomizationFor(const FFieldClass* InItemDefinition);
+	OPERATORSTACKEDITOR_API bool RegisterCustomizationFor(const UStruct* InItemDefinition);
+	OPERATORSTACKEDITOR_API bool RegisterCustomizationFor(const FFieldClass* InItemDefinition);
 
 	/** Unregisters item definition for this customization */
-	bool UnregisterCustomizationFor(const UStruct* InItemDefinition);
-	bool UnregisterCustomizationFor(const FFieldClass* InItemDefinition);
+	OPERATORSTACKEDITOR_API bool UnregisterCustomizationFor(const UStruct* InItemDefinition);
+	OPERATORSTACKEDITOR_API bool UnregisterCustomizationFor(const FFieldClass* InItemDefinition);
 
 	/** Checks if this customization is supported for this item */
 	bool IsCustomizationSupportedFor(const FOperatorStackEditorItemPtr& InItem) const;
@@ -107,7 +107,7 @@ public:
 	}
 
 	/** Get the displayed icon of this customization */
-	virtual const FSlateBrush* GetIcon() const;
+	OPERATORSTACKEDITOR_API virtual const FSlateBrush* GetIcon() const;
 
 private:
 	/** Unique identifier of this customization */

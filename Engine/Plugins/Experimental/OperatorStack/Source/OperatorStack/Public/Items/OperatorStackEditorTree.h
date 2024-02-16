@@ -8,12 +8,12 @@
 class UOperatorStackEditorStackCustomization;
 
 /** Customization tree used to find all supported items by a customization object */
-struct OPERATORSTACKEDITOR_API FOperatorStackEditorTree
+struct FOperatorStackEditorTree
 {
 	explicit FOperatorStackEditorTree(UOperatorStackEditorStackCustomization* InCustomization, FOperatorStackEditorContextPtr InContext);
 
 	/** Get all top items supported by this customization */
-	TArray<FOperatorStackEditorItemPtr> GetRootItems() const;
+	OPERATORSTACKEDITOR_API TArray<FOperatorStackEditorItemPtr> GetRootItems() const;
 
 	/** Get supported children items from a supported item */
 	TArray<FOperatorStackEditorItemPtr> GetChildrenItems(FOperatorStackEditorItemPtr InItem) const;
@@ -25,10 +25,10 @@ struct OPERATORSTACKEDITOR_API FOperatorStackEditorTree
 	TArray<FOperatorStackEditorItemPtr> GetLeafItems() const;
 
 	/** Get all supported items by this customization */
-	TConstArrayView<FOperatorStackEditorItemPtr> GetAllItems() const;
+	OPERATORSTACKEDITOR_API TConstArrayView<FOperatorStackEditorItemPtr> GetAllItems() const;
 
 	/** Get source context used to build this tree */
-	const FOperatorStackEditorContext& GetContext() const;
+	OPERATORSTACKEDITOR_API const FOperatorStackEditorContext& GetContext() const;
 
 	/** Get the customization used to build this tree */
 	UOperatorStackEditorStackCustomization* GetCustomization() const;
