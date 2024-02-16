@@ -36,7 +36,7 @@ struct FStormSyncEditorFileReport
  * Contains utility functions and callbacks for hooking into importing.
  */
 UCLASS()
-class STORMSYNCIMPORT_API UStormSyncImportSubsystem final : public UEngineSubsystem
+class UStormSyncImportSubsystem final : public UEngineSubsystem
 {
 	GENERATED_BODY()
 

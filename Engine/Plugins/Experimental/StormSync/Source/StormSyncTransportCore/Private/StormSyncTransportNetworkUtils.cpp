@@ -26,7 +26,7 @@ FString FStormSyncTransportNetworkUtils::GetTcpEndpointAddress()
 	FIPv4Endpoint Endpoint;
 	if (!FIPv4Endpoint::Parse(ServerEndpoint, Endpoint))
 	{
-		STORM_SYNC_CORE_LOG(Error, TEXT("UStormSyncTransportServerUtils::GetTcpEndpointAddress - Failed to parse endpoint '%s'"), *ServerEndpoint);
+		UE_LOG(LogStormSyncTransportCore, Error, TEXT("UStormSyncTransportServerUtils::GetTcpEndpointAddress - Failed to parse endpoint '%s'"), *ServerEndpoint);
 		return TEXT("");
 	}
 
@@ -45,7 +45,7 @@ TArray<FString> FStormSyncTransportNetworkUtils::GetLocalAdapterAddresses()
 	FIPv4Endpoint Endpoint;
 	if (!FIPv4Endpoint::Parse(ServerEndpoint, Endpoint))
 	{
-		STORM_SYNC_CORE_LOG(Error, TEXT("UStormSyncTransportServerUtils::GetLocalAdapterAddresses - Failed to parse endpoint '%s'"), *ServerEndpoint);
+		UE_LOG(LogStormSyncTransportCore, Error, TEXT("UStormSyncTransportServerUtils::GetLocalAdapterAddresses - Failed to parse endpoint '%s'"), *ServerEndpoint);
 		return AdapterAddresses;
 	}
 	

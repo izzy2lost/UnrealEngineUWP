@@ -8,7 +8,7 @@
 
 void FStormSyncImportFilesTask::Run()
 {
-	STORM_SYNC_IMPORT_LOG(Display, TEXT("FStormSyncImportFilesTask::Run for %s"), *Filename)
+	UE_LOG(LogStormSyncImport, Display, TEXT("FStormSyncImportFilesTask::Run for %s"), *Filename);
 	UStormSyncImportSubsystem::Get().PerformFileImport(Filename);
 	FStormSyncCoreDelegates::OnFileImported.Broadcast(Filename);
 }

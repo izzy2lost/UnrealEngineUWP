@@ -17,7 +17,7 @@
  */
 
 UCLASS()
-class STORMSYNCIMPORT_API UStormSyncImportWorldSubsystem : public UWorldSubsystem
+class UStormSyncImportWorldSubsystem : public UWorldSubsystem
 {
 	GENERATED_BODY()
 

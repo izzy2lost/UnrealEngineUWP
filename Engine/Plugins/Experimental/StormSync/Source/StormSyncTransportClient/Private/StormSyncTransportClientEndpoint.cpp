@@ -34,20 +34,20 @@ void FStormSyncTransportClientEndpoint::InitializeMessaging(const FString& InEnd
 	// Message endpoint already created
 	if (MessageEndpoint.IsValid())
 	{
-		STORM_SYNC_CLIENT_LOG(Warning, TEXT("FStormSyncTransportClientEndpoint::InitializeMessaging - Message endpoint already initialized"))
+		UE_LOG(LogStormSyncClient, Warning, TEXT("FStormSyncTransportClientEndpoint::InitializeMessaging - Message endpoint already initialized"));
 		return;
 	}
 
 	const IMessageBusPtr MessageBus = MessageBusPtr.Pin();
 	if (!MessageBus.IsValid())
 	{
-		STORM_SYNC_CLIENT_LOG(Error, TEXT("FStormSyncTransportClientEndpoint::InitializeMessaging - Default message bus is invalid"))
+		UE_LOG(LogStormSyncClient, Error, TEXT("FStormSyncTransportClientEndpoint::InitializeMessaging - Default message bus is invalid"));
 		return;
 	}
 
 	// Create endpoint builder
 	const FString MessageEndpointName = FString::Printf(TEXT("StormSync%sEndpoint"), *InEndpointFriendlyName);
-	STORM_SYNC_CLIENT_LOG(Verbose, TEXT("FStormSyncTransportClientEndpoint::InitializeMessaging - Setting up %s message endpoint"), *MessageEndpointName)
+	UE_LOG(LogStormSyncClient, Verbose, TEXT("FStormSyncTransportClientEndpoint::InitializeMessaging - Setting up %s message endpoint"), *MessageEndpointName);
 
 	FMessageEndpointBuilder EndpointBuilder = FMessageEndpoint::Builder(*MessageEndpointName, MessageBus.ToSharedRef())
 		.ReceivingOnThread(ENamedThreads::Type::GameThread);
@@ -69,7 +69,7 @@ void FStormSyncTransportClientEndpoint::InitializeMessaging(const FString& InEnd
 	check(MessageEndpoint.IsValid());
 
 	// Message subscribes
-	STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncTransportClientEndpoint::InitializeMessaging - Subscribe to messages"))
+	UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncTransportClientEndpoint::InitializeMessaging - Subscribe to messages"));
 	MessageEndpoint->Subscribe<FStormSyncTransportStatusPing>();
 }
 
@@ -105,7 +105,7 @@ void FStormSyncTransportClientEndpoint::RequestStatus(const FMessageAddress& InR
 {
 	if (!StatusService.IsValid())
 	{
-		STORM_SYNC_CLIENT_LOG(Error, TEXT("FStormSyncTransportClientEndpoint::RequestStatus - Status message service is invalid"))
+		UE_LOG(LogStormSyncClient, Error, TEXT("FStormSyncTransportClientEndpoint::RequestStatus - Status message service is invalid"));
 		return;
 	}
 
@@ -116,7 +116,7 @@ void FStormSyncTransportClientEndpoint::RequestPushPackages(const FMessageAddres
 {
 	if (!PushService.IsValid())
 	{
-		STORM_SYNC_CLIENT_LOG(Error, TEXT("FStormSyncTransportClientEndpoint::RequestPushPackages - Push message service is invalid"))
+		UE_LOG(LogStormSyncClient, Error, TEXT("FStormSyncTransportClientEndpoint::RequestPushPackages - Push message service is invalid"));
 		return;
 	}
 
@@ -127,7 +127,7 @@ void FStormSyncTransportClientEndpoint::RequestPullPackages(const FMessageAddres
 {
 	if (!PullService.IsValid())
 	{
-		STORM_SYNC_CLIENT_LOG(Error, TEXT("FStormSyncTransportClientEndpoint::RequestPullPackages - Pull message service is invalid"))
+		UE_LOG(LogStormSyncClient, Error, TEXT("FStormSyncTransportClientEndpoint::RequestPullPackages - Pull message service is invalid"));
 		return;
 	}
 
@@ -138,7 +138,7 @@ void FStormSyncTransportClientEndpoint::AbortStatusRequest(const FGuid& InStatus
 {
 	if (!StatusService.IsValid())
 	{
-		STORM_SYNC_CLIENT_LOG(Error, TEXT("FStormSyncTransportClientEndpoint::AbortStatusRequest - Status message service is invalid"))
+		UE_LOG(LogStormSyncClient, Error, TEXT("FStormSyncTransportClientEndpoint::AbortStatusRequest - Status message service is invalid"));
 		return;
 	}
 
@@ -149,7 +149,7 @@ void FStormSyncTransportClientEndpoint::AbortPushRequest(const FGuid& InPushRequ
 {
 	if (!PushService.IsValid())
 	{
-		STORM_SYNC_CLIENT_LOG(Error, TEXT("FStormSyncTransportClientEndpoint::AbortPushRequest - Status message service is invalid"))
+		UE_LOG(LogStormSyncClient, Error, TEXT("FStormSyncTransportClientEndpoint::AbortPushRequest - Status message service is invalid"));
 		return;
 	}
 
@@ -160,7 +160,7 @@ void FStormSyncTransportClientEndpoint::AbortPullRequest(const FGuid& InPullRequ
 {
 	if (!PullService.IsValid())
 	{
-		STORM_SYNC_CLIENT_LOG(Error, TEXT("FStormSyncTransportClientEndpoint::AbortPullRequest - Status message service is invalid"))
+		UE_LOG(LogStormSyncClient, Error, TEXT("FStormSyncTransportClientEndpoint::AbortPullRequest - Status message service is invalid"));
 		return;
 	}
 
@@ -169,7 +169,7 @@ void FStormSyncTransportClientEndpoint::AbortPullRequest(const FGuid& InPullRequ
 
 void FStormSyncTransportClientEndpoint::StartSendingBuffer(const FStormSyncTransportSyncResponse& InMessage, TSharedPtr<FStormSyncTransportClientSocket>& OutActiveConnection, const FOnStormSyncSendBufferCallback& InDoneDelegate)
 {
-	STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncTransportClientEndpoint::StartSendingBuffer - Message: %s"), *InMessage.ToString())
+	UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncTransportClientEndpoint::StartSendingBuffer - Message: %s"), *InMessage.ToString());
 	
 	if (InMessage.Modifiers.IsEmpty())
 	{
@@ -225,7 +225,7 @@ void FStormSyncTransportClientEndpoint::StartSendingBuffer(const FStormSyncTrans
 		TArray<uint8> PakBuffer;
 		if (!FStormSyncCoreUtils::CreatePakBuffer(PackageNames, PakBuffer, ErrorText))
 		{
-			STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncTransportClientEndpoint::StartSendingBuffer - CreatePakBuffer Error: %s"), *ErrorText.ToString())
+			UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncTransportClientEndpoint::StartSendingBuffer - CreatePakBuffer Error: %s"), *ErrorText.ToString());
 			InDoneDelegate.ExecuteIfBound(MakeShared<FStormSyncSendingBufferPayload>(ErrorText));
 			return;
 		}
@@ -237,7 +237,7 @@ void FStormSyncTransportClientEndpoint::StartSendingBuffer(const FStormSyncTrans
 			return;
 		}
 		
-		STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncTransportClientEndpoint::StartSendingBuffer - Try sending on %s"), *ServerAddress)
+		UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncTransportClientEndpoint::StartSendingBuffer - Try sending on %s"), *ServerAddress);
 		StrongThis->SendTcpBuffer(ServerAddress, PakBuffer);
 		
 		InDoneDelegate.ExecuteIfBound(MakeShared<FStormSyncSendingBufferPayload>());
@@ -249,7 +249,7 @@ TSharedPtr<FStormSyncTransportClientSocket> FStormSyncTransportClientEndpoint::G
 	FIPv4Endpoint Endpoint(FIPv4Address::Any, 0);
 	if (!FIPv4Endpoint::Parse(InAddress, Endpoint))
 	{
-		STORM_SYNC_CLIENT_LOG(Error, TEXT("FStormSyncTransportClientSocket::GetOrCreateClientSocket - Failed to parse endpoint '%s'."), *InAddress);
+		UE_LOG(LogStormSyncClient, Error, TEXT("FStormSyncTransportClientSocket::GetOrCreateClientSocket - Failed to parse endpoint '%s'."), *InAddress);
 		return nullptr;
 	}
 
@@ -273,7 +273,7 @@ TSharedPtr<FStormSyncTransportClientSocket> FStormSyncTransportClientEndpoint::G
 
 	if (!Connection->Connect())
 	{
-		STORM_SYNC_CLIENT_LOG(Error, TEXT("FStormSyncTransportClientSocket::GetOrCreateClientSocket - Connect failed on socket for %s"), *Endpoint.ToString());
+		UE_LOG(LogStormSyncClient, Error, TEXT("FStormSyncTransportClientSocket::GetOrCreateClientSocket - Connect failed on socket for %s"), *Endpoint.ToString());
 		return nullptr;
 	}
 
@@ -301,10 +301,10 @@ TSharedPtr<FStormSyncTransportClientSocket> FStormSyncTransportClientEndpoint::G
 	// Try establish connection on each, and stop on the first successful one
 	for (FString ServerAddress : ServerAddresses)
 	{
-		STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncTransportClientEndpoint::GetActiveConnection - Try connection on %s"), *ServerAddress)
+		UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncTransportClientEndpoint::GetActiveConnection - Try connection on %s"), *ServerAddress);
 		if (TSharedPtr<FStormSyncTransportClientSocket> Connection = GetOrCreateClientSocket(ServerAddress))
 		{
-			STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncTransportClientEndpoint::GetActiveConnection - Succesfful connection on %s"), *ServerAddress)
+			UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncTransportClientEndpoint::GetActiveConnection - Succesfful connection on %s"), *ServerAddress);
 			return Connection;
 		}
 	}
@@ -314,12 +314,12 @@ TSharedPtr<FStormSyncTransportClientSocket> FStormSyncTransportClientEndpoint::G
 
 void FStormSyncTransportClientEndpoint::HandlePongMessage(const FStormSyncTransportPongMessage& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InMessageContext)
 {
-	STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncTransportClientEndpoint::HandlePongMessage - Received pong Message %s from %s"), *InMessage.ToString(), *InMessageContext->GetSender().ToString())
+	UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncTransportClientEndpoint::HandlePongMessage - Received pong Message %s from %s"), *InMessage.ToString(), *InMessageContext->GetSender().ToString());
 }
 
 TArray<FName> FStormSyncTransportClientEndpoint::GetPackageNamesFromModifierInfos(const TArray<FStormSyncFileModifierInfo>& InModifierInfos)
 {
-	STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncTransportClientEndpoint::GetPackageNamesFromModifierInfos - ModifierInfos: %d"), InModifierInfos.Num())
+	UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncTransportClientEndpoint::GetPackageNamesFromModifierInfos - ModifierInfos: %d"), InModifierInfos.Num());
 
 	TArray<FName> PackageNames;
 	Algo::Transform(InModifierInfos, PackageNames, [](const FStormSyncFileModifierInfo& ModifierInfo)
@@ -335,20 +335,20 @@ void FStormSyncTransportClientEndpoint::SendTcpBuffer(const FString& InAddress, 
 	const TSharedPtr<FStormSyncTransportClientSocket> Connection = GetOrCreateClientSocket(InAddress);
 	if (!Connection)
 	{
-		STORM_SYNC_CLIENT_LOG(Error, TEXT("FStormSyncTransportClientEndpoint::SendTcpBuffer - Failed to GetOrCreateClientSocket client socket to '%s'. TCP Client sending buffer will be disabled!"), *InAddress);
+		UE_LOG(LogStormSyncClient, Error, TEXT("FStormSyncTransportClientEndpoint::SendTcpBuffer - Failed to GetOrCreateClientSocket client socket to '%s'. TCP Client sending buffer will be disabled!"), *InAddress);
 		return;
 	}
 
 	const FIPv4Endpoint Endpoint = Connection->GetRemoteEndpoint();
 	const FStormSyncTransportClientSocket::EConnectionState State = Connection->GetConnectionState();
 
-	STORM_SYNC_CLIENT_LOG(
+	UE_LOG(LogStormSyncClient, 
 		Display,
 		TEXT("FStormSyncTransportClientEndpoint::SendTcpBuffer for %s (State: %s, Sending: %s)"),
 		*Endpoint.ToString(),
 		*Connection->GetReadableConnectionState(State),
 		Connection->IsSending() ? TEXT("true") : TEXT("false")
-	)
+	);
 
 	// Only allowed to send if we are connected and not currently sending on this connection
 	if (!Connection->IsSending())
@@ -366,17 +366,17 @@ void FStormSyncTransportClientEndpoint::SendTcpBuffer(const FString& InAddress, 
 	}
 	else
 	{
-		STORM_SYNC_CLIENT_LOG(
+		UE_LOG(LogStormSyncClient, 
 			Error,
 			TEXT("FStormSyncTransportClientEndpoint::SendTcpBuffer - We are currently sending data to %s. Please wait for it to complete before trying to send new data again."),
 			*Endpoint.ToString()
-		)
+		);
 	}
 }
 
 void FStormSyncTransportClientEndpoint::OnConnectionClosedForSocket(const FIPv4Endpoint& InEndpoint)
 {
-	STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncTransportClientEndpoint::OnConnectionClosedForSocket - TCP socket closed for %s"), *InEndpoint.ToString())
+	UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncTransportClientEndpoint::OnConnectionClosedForSocket - TCP socket closed for %s"), *InEndpoint.ToString());
 }
 
 void FStormSyncTransportClientEndpoint::OnConnectionStateChanged(const TSharedPtr<FStormSyncTransportClientSocket> InConnection)
@@ -384,7 +384,7 @@ void FStormSyncTransportClientEndpoint::OnConnectionStateChanged(const TSharedPt
 	const FIPv4Endpoint Endpoint = InConnection->GetRemoteEndpoint();
 	const FStormSyncTransportClientSocket::EConnectionState State = InConnection->GetConnectionState();
 
-	STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncTransportClientEndpoint::OnConnectionStateChanged for %s (State: %s)"), *Endpoint.ToString(), *InConnection->GetReadableConnectionState(State))
+	UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncTransportClientEndpoint::OnConnectionStateChanged for %s (State: %s)"), *Endpoint.ToString(), *InConnection->GetReadableConnectionState(State));
 
 	const bool bHasConnectionRetryDelay = GetDefault<UStormSyncTransportSettings>()->HasConnectionRetryDelay();
 
@@ -392,7 +392,7 @@ void FStormSyncTransportClientEndpoint::OnConnectionStateChanged(const TSharedPt
 	if (!bHasConnectionRetryDelay && State == FStormSyncTransportClientSocket::State_Closed)
 	{
 		FScopeLock ScopeLock(&ConnectionsCriticalSection);
-		STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncTransportClientEndpoint::OnConnectionStateChanged - Closed, dispose of %s connection"), *InConnection->GetRemoteEndpoint().ToString());
+		UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncTransportClientEndpoint::OnConnectionStateChanged - Closed, dispose of %s connection"), *InConnection->GetRemoteEndpoint().ToString());
 		Connections.Remove(InConnection->GetRemoteEndpoint());
 	}
 }
@@ -404,7 +404,7 @@ void FStormSyncTransportClientEndpoint::OnConnectionReceivedBytes(const int32 In
 
 void FStormSyncTransportClientEndpoint::OnTransferComplete(const FString InConnectionAddress)
 {
-	STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncTransportClientEndpoint::OnTransferComplete - TCP socket done transfering for %s"), *InConnectionAddress)
+	UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncTransportClientEndpoint::OnTransferComplete - TCP socket done transfering for %s"), *InConnectionAddress);
 	FStormSyncCoreDelegates::OnTransferComplete.Broadcast(InConnectionAddress);
 }
 

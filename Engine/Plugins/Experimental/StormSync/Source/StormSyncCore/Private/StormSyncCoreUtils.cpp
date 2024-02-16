@@ -145,7 +145,7 @@ TFuture<TArray<FStormSyncFileDependency>> FStormSyncCoreUtils::GetAvaFileDepende
 
 		if (!GetAvaFileDependenciesForPackages(PackageNames, FileDependencies, ErrorText, bInShouldValidatePackages))
 		{
-			STORM_SYNC_LOG(Error, TEXT("FStormSyncCoreUtils::GetAvaFileDependenciesAsync - Error: %s"), *ErrorText.ToString())
+			UE_LOG(LogStormSyncCore, Error, TEXT("FStormSyncCoreUtils::GetAvaFileDependenciesAsync - Error: %s"), *ErrorText.ToString());
 			return FileDependencies;
 		}
 
@@ -241,12 +241,12 @@ bool FStormSyncCoreUtils::CreatePakBuffer(const TArray<FName>& InPackageNames, T
 	int32 FileCount = PackageNames.Num();
 	*MemoryArchive << FileCount;
 
-	STORM_SYNC_LOG(Display, TEXT("FStormSyncCoreUtils::CreatePakBuffer - Creating Pak file for %d files."), PackageNames.Num());
+	UE_LOG(LogStormSyncCore, Display, TEXT("FStormSyncCoreUtils::CreatePakBuffer - Creating Pak file for %d files."), PackageNames.Num());
 
 	for (const FName& PackageName : PackageNames)
 	{
 		const FString PackageNameStr = PackageName.ToString();
-		STORM_SYNC_LOG(Verbose, TEXT("FStormSyncCoreUtils::CreatePakBuffer - Handle `%s` file to add."), *PackageNameStr);
+		UE_LOG(LogStormSyncCore, Verbose, TEXT("FStormSyncCoreUtils::CreatePakBuffer - Handle `%s` file to add."), *PackageNameStr);
 
 		FString PackageFilepath;
 		if (!FPackageName::DoesPackageExist(PackageNameStr, &PackageFilepath))
@@ -293,7 +293,7 @@ bool FStormSyncCoreUtils::CreatePakBuffer(const TArray<FName>& InPackageNames, T
 		}
 	}
 
-	STORM_SYNC_LOG(Display, TEXT("Added %d files to %s, %lld bytes total, time %.2lfs."), FileCount, *MemoryArchive->GetArchiveName(), MemoryArchive->TotalSize(), FPlatformTime::Seconds() - StartTime);
+	UE_LOG(LogStormSyncCore, Display, TEXT("Added %d files to %s, %lld bytes total, time %.2lfs."), FileCount, *MemoryArchive->GetArchiveName(), MemoryArchive->TotalSize(), FPlatformTime::Seconds() - StartTime);
 
 	MemoryArchive->Close();
 	MemoryArchive.Reset();
@@ -303,7 +303,7 @@ bool FStormSyncCoreUtils::CreatePakBuffer(const TArray<FName>& InPackageNames, T
 
 bool FStormSyncCoreUtils::ExtractPakBuffer(const TArray<uint8>& InPakBuffer, const FStormSyncCoreExtractArgs& InExtractArgs, TMap<FString, FString>& OutSuccessfullyExtractedPackages, TArray<FText>& OutErrors)
 {
-	STORM_SYNC_LOG(Display, TEXT("FStormSyncCoreUtils:ExtractPakBuffer Extracting package from buffer of size: %d"), InPakBuffer.Num());
+	UE_LOG(LogStormSyncCore, Display, TEXT("FStormSyncCoreUtils:ExtractPakBuffer Extracting package from buffer of size: %d"), InPakBuffer.Num());
 
 	const TUniquePtr<FArchive> MemoryArchive = MakeUnique<FMemoryReader>(InPakBuffer);
 	if (!MemoryArchive.IsValid())
@@ -320,7 +320,7 @@ bool FStormSyncCoreUtils::ExtractPakBuffer(const TArray<uint8>& InPakBuffer, con
 	// Notify pack extraction process is starting
 	InExtractArgs.OnPakPreExtract.ExecuteIfBound(FileCount);
 
-	STORM_SYNC_LOG(Verbose, TEXT("FStormSyncCoreUtils:ExtractPakBuffer FileCount: %d"), FileCount);
+	UE_LOG(LogStormSyncCore, Verbose, TEXT("FStormSyncCoreUtils:ExtractPakBuffer FileCount: %d"), FileCount);
 
 	for (int32 Index = 0; Index < FileCount; ++Index)
 	{
@@ -407,7 +407,7 @@ FString FStormSyncCoreUtils::GetHumanReadableByteSize(uint64 InSize)
 
 TArray<FStormSyncFileModifierInfo> FStormSyncCoreUtils::GetSyncFileModifiers(const TArray<FName>& InPackageNames, const TArray<FStormSyncFileDependency>& InRemoteDependencies)
 {
-	STORM_SYNC_LOG(Verbose, TEXT("FStormSyncCoreUtils::GetSyncFileModifiers - InPackageNames: %d, InRemoteDependencies: %d"), InPackageNames.Num(), InRemoteDependencies.Num())
+	UE_LOG(LogStormSyncCore, Verbose, TEXT("FStormSyncCoreUtils::GetSyncFileModifiers - InPackageNames: %d, InRemoteDependencies: %d"), InPackageNames.Num(), InRemoteDependencies.Num());
 
 	// If provided package names is empty, early out
 	if (InPackageNames.IsEmpty())
@@ -439,7 +439,7 @@ TArray<FStormSyncFileModifierInfo> FStormSyncCoreUtils::GetSyncFileModifiers(con
 			FStormSyncFileModifierInfo Modifier;
 			Modifier.ModifierOperation = EStormSyncModifierOperation::Missing;
 			Modifier.FileDependency = LocalDependency;
-			STORM_SYNC_LOG(Verbose, TEXT("\tAdding Modifier: %s"), *Modifier.ToString())
+			UE_LOG(LogStormSyncCore, Verbose, TEXT("\tAdding Modifier: %s"), *Modifier.ToString());
 			Modifiers.Add(Modifier);
 		}
 	}
@@ -467,7 +467,7 @@ TArray<FStormSyncFileModifierInfo> FStormSyncCoreUtils::GetSyncFileModifiers(con
 			FStormSyncFileModifierInfo Modifier;
 			Modifier.ModifierOperation = EStormSyncModifierOperation::Addition;
 			Modifier.FileDependency = RemoteDependency;
-			STORM_SYNC_LOG(Verbose, TEXT("\tAdding Modifier: %s"), *Modifier.ToString())
+			UE_LOG(LogStormSyncCore, Verbose, TEXT("\tAdding Modifier: %s"), *Modifier.ToString());
 			Modifiers.Add(Modifier);
 
 			continue;
@@ -483,19 +483,19 @@ TArray<FStormSyncFileModifierInfo> FStormSyncCoreUtils::GetSyncFileModifiers(con
 		// Check against FileSize
 		if (MatchingDependency->FileSize != RemoteDependency.FileSize)
 		{
-			STORM_SYNC_LOG(Verbose, TEXT("FStormSyncCoreUtils::GetSyncFileModifiers - Handle %s"), *RemoteDependency.PackageName.ToString())
-			STORM_SYNC_LOG(Verbose, TEXT("\tLocal: %s"), *MatchingDependency->ToString())
-			STORM_SYNC_LOG(Verbose, TEXT("\tRemote: %s"), *RemoteDependency.ToString())
-			STORM_SYNC_LOG(Verbose, TEXT("\tDirty because of mismatch filesize %lld vs %lld"), MatchingDependency->FileSize, RemoteDependency.FileSize)
+			UE_LOG(LogStormSyncCore, Verbose, TEXT("FStormSyncCoreUtils::GetSyncFileModifiers - Handle %s"), *RemoteDependency.PackageName.ToString());
+			UE_LOG(LogStormSyncCore, Verbose, TEXT("\tLocal: %s"), *MatchingDependency->ToString());
+			UE_LOG(LogStormSyncCore, Verbose, TEXT("\tRemote: %s"), *RemoteDependency.ToString());
+			UE_LOG(LogStormSyncCore, Verbose, TEXT("\tDirty because of mismatch filesize %lld vs %lld"), MatchingDependency->FileSize, RemoteDependency.FileSize);
 			bIsDirty = true;
 		}
 		// Check against File Hash
 		else if (MatchingDependency->FileHash != RemoteDependency.FileHash)
 		{
-			STORM_SYNC_LOG(Verbose, TEXT("FStormSyncCoreUtils::GetSyncFileModifiers - Handle %s"), *RemoteDependency.PackageName.ToString())
-			STORM_SYNC_LOG(Verbose, TEXT("\tLocal: %s"), *MatchingDependency->ToString())
-			STORM_SYNC_LOG(Verbose, TEXT("\tRemote: %s"), *RemoteDependency.ToString())
-			STORM_SYNC_LOG(Verbose, TEXT("\tDirty because of mismatch file hash %s vs %s"), *MatchingDependency->FileHash, *RemoteDependency.FileHash)
+			UE_LOG(LogStormSyncCore, Verbose, TEXT("FStormSyncCoreUtils::GetSyncFileModifiers - Handle %s"), *RemoteDependency.PackageName.ToString());
+			UE_LOG(LogStormSyncCore, Verbose, TEXT("\tLocal: %s"), *MatchingDependency->ToString());
+			UE_LOG(LogStormSyncCore, Verbose, TEXT("\tRemote: %s"), *RemoteDependency.ToString());
+			UE_LOG(LogStormSyncCore, Verbose, TEXT("\tDirty because of mismatch file hash %s vs %s"), *MatchingDependency->FileHash, *RemoteDependency.FileHash);
 			bIsDirty = true;
 		}
 
@@ -505,7 +505,7 @@ TArray<FStormSyncFileModifierInfo> FStormSyncCoreUtils::GetSyncFileModifiers(con
 			FStormSyncFileModifierInfo Modifier;
 			Modifier.ModifierOperation = EStormSyncModifierOperation::Overwrite;
 			Modifier.FileDependency = *MatchingDependency;
-			STORM_SYNC_LOG(Verbose, TEXT("\tAdding Modifier: %s"), *Modifier.ToString())
+			UE_LOG(LogStormSyncCore, Verbose, TEXT("\tAdding Modifier: %s"), *Modifier.ToString());
 			Modifiers.Add(Modifier);
 		}
 	}
@@ -519,14 +519,14 @@ void FStormSyncCoreUtils::RecursiveGetDependencies(const FName& InPackageName, T
 	TArray<FAssetData> Assets;
 	if (!GetAssetData(InPackageName.ToString(), Assets, Dependencies))
 	{
-		STORM_SYNC_LOG(Warning, TEXT("FStormSyncCoreUtils::RecursiveGetDependencies - GetAssetData failed to load assets for %s"), *InPackageName.ToString());
+		UE_LOG(LogStormSyncCore, Warning, TEXT("FStormSyncCoreUtils::RecursiveGetDependencies - GetAssetData failed to load assets for %s"), *InPackageName.ToString());
 		return;
 	}
 
 	for (const FName& Dependency : Dependencies)
 	{
 		const FString DependencyName = Dependency.ToString();
-		STORM_SYNC_LOG(Verbose, TEXT("FStormSyncCoreUtils::RecursiveGetDependencies - Gather dependencies for %s"), *DependencyName);
+		UE_LOG(LogStormSyncCore, Verbose, TEXT("FStormSyncCoreUtils::RecursiveGetDependencies - Gather dependencies for %s"), *DependencyName);
 
 		if (IsValidDependency(DependencyName))
 		{
@@ -541,7 +541,7 @@ void FStormSyncCoreUtils::RecursiveGetDependencies(const FName& InPackageName, T
 
 bool FStormSyncCoreUtils::IsValidDependency(const FString& InDependencyName)
 {
-	STORM_SYNC_LOG(Verbose, TEXT("FStormSyncCoreUtils::IsValidDependency - Check dependency (%s)"), *InDependencyName);
+	UE_LOG(LogStormSyncCore, Verbose, TEXT("FStormSyncCoreUtils::IsValidDependency - Check dependency (%s)"), *InDependencyName);
 
 	const UStormSyncCoreSettings* Settings = GetDefault<UStormSyncCoreSettings>();
 	check(Settings);
@@ -549,7 +549,7 @@ bool FStormSyncCoreUtils::IsValidDependency(const FString& InDependencyName)
 	// Filter out any references outside of /Game if user opted to only export /Game content
 	if (Settings->bExportOnlyGameContent && !InDependencyName.StartsWith(TEXT("/Game")))
 	{
-		STORM_SYNC_LOG(Verbose, TEXT("FStormSyncCoreUtils::IsValidDependency - Filter out dependency \"%s\". Ignored by bExportOnlyGameContent setting"), *InDependencyName);
+		UE_LOG(LogStormSyncCore, Verbose, TEXT("FStormSyncCoreUtils::IsValidDependency - Filter out dependency \"%s\". Ignored by bExportOnlyGameContent setting"), *InDependencyName);
 		return false;
 	}
 
@@ -562,7 +562,7 @@ bool FStormSyncCoreUtils::IsValidDependency(const FString& InDependencyName)
 	{
 		if (InDependencyName.StartsWith(IgnoredPackageName.ToString()))
 		{
-			STORM_SYNC_LOG(Verbose, TEXT("FStormSyncCoreUtils::IsValidDependency - Filter out dependency \"%s\". Ignored by \"%s\" IgnoredPackages setting"), *InDependencyName, *IgnoredPackageName.ToString());
+			UE_LOG(LogStormSyncCore, Verbose, TEXT("FStormSyncCoreUtils::IsValidDependency - Filter out dependency \"%s\". Ignored by \"%s\" IgnoredPackages setting"), *InDependencyName, *IgnoredPackageName.ToString());
 			return false;
 		}
 	}

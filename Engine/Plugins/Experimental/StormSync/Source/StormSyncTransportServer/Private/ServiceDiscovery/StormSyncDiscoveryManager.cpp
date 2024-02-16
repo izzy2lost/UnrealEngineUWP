@@ -28,10 +28,10 @@ FStormSyncDiscoveryManager::FStormSyncDiscoveryManager(double InHeartbeatTimeout
 	bRunning = MessageEndpoint.IsValid();
 	if (bRunning)
 	{
-		STORM_SYNC_SERVER_LOG(Display, TEXT("FStormSyncDiscoveryManager::FStormSyncDiscoveryManager - Subscribe to messages"))
+		UE_LOG(LogStormSyncServer, Display, TEXT("FStormSyncDiscoveryManager::FStormSyncDiscoveryManager - Subscribe to messages"));
 		MessageEndpoint->Subscribe<FStormSyncTransportConnectMessage>();
 
-		STORM_SYNC_SERVER_LOG(Display, TEXT("FStormSyncDiscoveryManager::FStormSyncDiscoveryManager - Start Thread"))
+		UE_LOG(LogStormSyncServer, Display, TEXT("FStormSyncDiscoveryManager::FStormSyncDiscoveryManager - Start Thread"));
 		Thread = FRunnableThread::Create(this, TEXT("StormSyncDiscoveryManager"));
 	}
 }
@@ -108,7 +108,7 @@ uint32 FStormSyncDiscoveryManager::Run()
 			// Handle inactive addresses
 			for (FMessageAddress MessageAddress : DisconnectedAddresses)
 			{
-				STORM_SYNC_SERVER_LOG(Display, TEXT("FStormSyncDiscoveryManager::Run - %s became invalid"), *MessageAddress.ToString())
+				UE_LOG(LogStormSyncServer, Display, TEXT("FStormSyncDiscoveryManager::Run - %s became invalid"), *MessageAddress.ToString());
 
 				// Stop Heartbeat for this recipient
 				FStormSyncHeartbeatEmitter& HeartbeatEmitter = IStormSyncTransportServerModule::Get().GetHeartbeatEmitter();
@@ -150,11 +150,11 @@ void FStormSyncDiscoveryManager::PublishConnectMessage()
 {
 	if (!MessageEndpoint.IsValid())
 	{
-		STORM_SYNC_SERVER_LOG(Error, TEXT("FStormSyncDiscoveryManager::PublishConnectMessage - Unable to send Connect Message cause Message Endpoint is invalid"))
+		UE_LOG(LogStormSyncServer, Error, TEXT("FStormSyncDiscoveryManager::PublishConnectMessage - Unable to send Connect Message cause Message Endpoint is invalid"));
 		return;
 	}
 
-	STORM_SYNC_SERVER_LOG(VeryVerbose, TEXT("FStormSyncTransportClientModule::PublishConnectMessage - Publish Connect Message ..."))
+	UE_LOG(LogStormSyncServer, VeryVerbose, TEXT("FStormSyncTransportClientModule::PublishConnectMessage - Publish Connect Message ..."));
 	TUniquePtr<FStormSyncTransportConnectMessage> Message(FMessageEndpoint::MakeMessage<FStormSyncTransportConnectMessage>());
 	if (Message.IsValid())
 	{
@@ -191,11 +191,11 @@ void FStormSyncDiscoveryManager::BroadcastCoreDelegatesFromQueue(const TArray<FS
 void FStormSyncDiscoveryManager::HandleConnectMessage(const FStormSyncTransportConnectMessage& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& MessageContext)
 {
 	const FMessageAddress SenderMessageAddress = MessageContext->GetSender();
-	STORM_SYNC_SERVER_LOG(VeryVerbose, TEXT("FStormSyncDiscoveryManager::HandleConnectMessage - Received connect Message from %s: %s"), *SenderMessageAddress.ToString(), *InMessage.ToString())
+	UE_LOG(LogStormSyncServer, VeryVerbose, TEXT("FStormSyncDiscoveryManager::HandleConnectMessage - Received connect Message from %s: %s"), *SenderMessageAddress.ToString(), *InMessage.ToString());
 
 	const FMessageAddress MessageEndpointAddress = MessageEndpoint->GetAddress();
 
-	STORM_SYNC_SERVER_LOG(VeryVerbose, TEXT("FStormSyncDiscoveryManager::HandleConnectMessage - SenderMessageAddress: %s, MessageEndpointAddress: %s (Same: %s)"), *SenderMessageAddress.ToString(), *MessageEndpointAddress.ToString(), SenderMessageAddress == MessageEndpointAddress ? TEXT("true") : TEXT("false"))
+	UE_LOG(LogStormSyncServer, VeryVerbose, TEXT("FStormSyncDiscoveryManager::HandleConnectMessage - SenderMessageAddress: %s, MessageEndpointAddress: %s (Same: %s)"), *SenderMessageAddress.ToString(), *MessageEndpointAddress.ToString(), SenderMessageAddress == MessageEndpointAddress ? TEXT("true") : TEXT("false"));
 
 	if (SenderMessageAddress != MessageEndpointAddress && !ConnectedAddresses.Contains(SenderMessageAddress))
 	{
@@ -223,7 +223,7 @@ void FStormSyncDiscoveryManager::RegisterConnection(const FStormSyncTransportCon
 	HeartbeatEmitter.StartHeartbeat(InMessageAddress, MessageEndpoint);
 
 	// Send back connect message so that this recipient knows about this editor instance
-	STORM_SYNC_SERVER_LOG(Display, TEXT("FStormSyncDiscoveryManager::HandleConnectMessage - Send Connect Message to %s..."), *InMessageAddress.ToString())
+	UE_LOG(LogStormSyncServer, Display, TEXT("FStormSyncDiscoveryManager::HandleConnectMessage - Send Connect Message to %s..."), *InMessageAddress.ToString());
 	TUniquePtr<FStormSyncTransportConnectMessage> Message(FMessageEndpoint::MakeMessage<FStormSyncTransportConnectMessage>());
 	if (Message.IsValid())
 	{
@@ -251,7 +251,7 @@ void FStormSyncDiscoveryManager::HandleHeartbeatMessage(const FStormSyncTranspor
 {
 	const FMessageAddress MessageAddress = MessageContext->GetSender();
 
-	STORM_SYNC_SERVER_LOG(VeryVerbose, TEXT("FStormSyncDiscoveryManager::HandleHeartbeatMessage - Received Heartbeat Message from %s"), *MessageAddress.ToString())
+	UE_LOG(LogStormSyncServer, VeryVerbose, TEXT("FStormSyncDiscoveryManager::HandleHeartbeatMessage - Received Heartbeat Message from %s"), *MessageAddress.ToString());
 	
 	{
 		// Handle revive connection in case we receive heartbeats again, most likely meaning

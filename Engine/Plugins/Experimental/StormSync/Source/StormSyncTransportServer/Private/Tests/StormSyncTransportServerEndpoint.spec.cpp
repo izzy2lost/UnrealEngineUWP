@@ -12,14 +12,6 @@
 #include "StormSyncTransportServerEndpoint.h"
 #include "StormSyncTransportSettings.h"
 
-#define DEFINE_TEST_MESSAGE_HANDLER(DelegateType, MessageType) \
-	DECLARE_DELEGATE_OneParam(FOn##DelegateType, const MessageType&) \
-	FOn##DelegateType On##DelegateType; \
-	void Handle##DelegateType(const MessageType& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& MessageContext) \
-	{ \
-		On##DelegateType.ExecuteIfBound(InMessage); \
-	}
-
 BEGIN_DEFINE_SPEC(FStormSyncTransportServerEndpointSpec, "StormSync.StormSyncTransportServer.StormSyncTransportServerEndpoint", EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ApplicationContextMask)
 
 	static constexpr const TCHAR* EndpointFriendlyName = TEXT("Test Suite ServerEndpoint (Message System)");
@@ -36,8 +28,19 @@ BEGIN_DEFINE_SPEC(FStormSyncTransportServerEndpointSpec, "StormSync.StormSyncTra
 	/** Default to roughly 4 Mb. Socket Send / Receive Buffer Size */
 	const int32 SocketBufferSize = 4 * 1024 * 1024;
 
-	DEFINE_TEST_MESSAGE_HANDLER(PongMessage, FStormSyncTransportPongMessage);
-	DEFINE_TEST_MESSAGE_HANDLER(PushResponse, FStormSyncTransportPushResponse);
+	TDelegate<void(const FStormSyncTransportPongMessage&)> OnPongMessage;
+
+	TDelegate<void(const FStormSyncTransportPushResponse&)> OnPushResponse;
+
+	void HandlePongMessage(const FStormSyncTransportPongMessage& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>&)
+	{
+		OnPongMessage.ExecuteIfBound(InMessage);
+	}
+
+	void HandlePushResponse(const FStormSyncTransportPushResponse& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>&)
+	{
+		OnPushResponse.ExecuteIfBound(InMessage);
+	}
 
 	static uint64 GetMockFileSize(const FName& InPackageName)
 	{

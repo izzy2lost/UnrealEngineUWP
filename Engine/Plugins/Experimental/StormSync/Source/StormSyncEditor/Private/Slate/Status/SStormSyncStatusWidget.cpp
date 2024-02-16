@@ -19,14 +19,14 @@ BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 void SStormSyncStatusWidget::Construct(const FArguments& InArgs, const TSharedRef<FStormSyncTransportStatusResponse>& InStatusResponse)
 {
 	FStormSyncTransportStatusResponse& StatusResponse = InStatusResponse.Get();
-	STORM_SYNC_EDITOR_LOG(Display, TEXT("Construct StormSyncStatusWidget with %s"), *StatusResponse.ToString())
+	UE_LOG(LogStormSyncEditor, Display, TEXT("Construct StormSyncStatusWidget with %s"), *StatusResponse.ToString());
 
 	const FStormSyncConnectionInfo RemoteInfo = InStatusResponse->ConnectionInfo;
-	STORM_SYNC_EDITOR_LOG(Display, TEXT("\t Remote: %s"), *RemoteInfo.ToString())
+	UE_LOG(LogStormSyncEditor, Display, TEXT("\t Remote: %s"), *RemoteInfo.ToString());
 	
 	for (const FStormSyncFileModifierInfo& Modifier : StatusResponse.Modifiers)
 	{
-		STORM_SYNC_EDITOR_LOG(Display, TEXT("\t\t Modifier: %s"), *Modifier.ToString())
+		UE_LOG(LogStormSyncEditor, Display, TEXT("\t\t Modifier: %s"), *Modifier.ToString());
 
 		FStormSyncImportFileInfo Info;
 
@@ -290,7 +290,7 @@ FText SStormSyncStatusWidget::GetModifierOperationTooltip(EStormSyncModifierOper
 		case EStormSyncModifierOperation::Overwrite:
 			return LOCTEXT("Operation_Overwrite_Description", "This is an overwrite, meaning both remote and local have the file, but in a different state (mismatch filesize, hash, etc.)");
 		default: 
-			STORM_SYNC_EDITOR_LOG(Warning, TEXT("SStormSyncStatusWidget::GetModifierOperationTooltip: Invalid operation %d"), static_cast<int32>(InModifierOperation));
+			UE_LOG(LogStormSyncEditor, Warning, TEXT("SStormSyncStatusWidget::GetModifierOperationTooltip: Invalid operation %d"), static_cast<int32>(InModifierOperation));
 			return FText::GetEmpty();
 	}
 }

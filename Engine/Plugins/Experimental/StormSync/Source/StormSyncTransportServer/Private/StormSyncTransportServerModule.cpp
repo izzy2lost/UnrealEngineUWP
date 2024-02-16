@@ -153,7 +153,7 @@ void FStormSyncTransportServerModule::RegisterConsoleCommands()
 		FConsoleCommandWithArgsDelegate::CreateLambda([this](const TArray<FString>& Args)
 		{
 			const FString AddressId = GetServerEndpointMessageAddressId();
-			STORM_SYNC_SERVER_LOG(Display, TEXT("StormSync.Server.Debug - EndpointId: %s"), *AddressId)
+			UE_LOG(LogStormSyncServer, Display, TEXT("StormSync.Server.Debug - EndpointId: %s"), *AddressId);
 		}),
 		ECVF_Default
 	));
@@ -171,7 +171,7 @@ void FStormSyncTransportServerModule::UnregisterConsoleCommands()
 
 void FStormSyncTransportServerModule::OnEngineLoopInitComplete()
 {
-	STORM_SYNC_SERVER_LOG(Verbose, TEXT("FStormSyncTransportServerModule::OnEngineLoopInitComplete - Publish ping messages for discover manager and server endpoint ..."))
+	UE_LOG(LogStormSyncServer, Verbose, TEXT("FStormSyncTransportServerModule::OnEngineLoopInitComplete - Publish ping messages for discover manager and server endpoint ..."));
 	
 	// We broadcast a message to notify others about this editor instance (this is required so that further "direct" send are received on the other end)
 
@@ -194,7 +194,7 @@ void FStormSyncTransportServerModule::PublishConnectMessage() const
 {
 	if (!DiscoveryManager.IsValid())
 	{
-		STORM_SYNC_SERVER_LOG(Error, TEXT("FStormSyncTransportServerModule::PublishConnectMessage - Unable to send connect message cause DiscoveryManager is invalid"))
+		UE_LOG(LogStormSyncServer, Error, TEXT("FStormSyncTransportServerModule::PublishConnectMessage - Unable to send connect message cause DiscoveryManager is invalid"));
 		return;
 	}
 
@@ -211,7 +211,7 @@ void FStormSyncTransportServerModule::ExecuteStartServer(const TArray<FString>& 
 	check(ServerEndpoint.IsValid());
 	if (IsRunning())
 	{
-		STORM_SYNC_SERVER_LOG(Warning, TEXT("FStormSyncTransportServerModule::ExecuteStartServer - Server endpoint TCP listener already running"))
+		UE_LOG(LogStormSyncServer, Warning, TEXT("FStormSyncTransportServerModule::ExecuteStartServer - Server endpoint TCP listener already running"));
 		return;
 	}
 	
@@ -230,7 +230,7 @@ void FStormSyncTransportServerModule::ExecuteStopServer(const TArray<FString>& A
 	}
 	else
 	{
-		STORM_SYNC_SERVER_LOG(Warning, TEXT("FStormSyncTransportServerModule::ExecuteStopServer - Server endpoint already inactive"))
+		UE_LOG(LogStormSyncServer, Warning, TEXT("FStormSyncTransportServerModule::ExecuteStopServer - Server endpoint already inactive"));
 	}
 }
 
@@ -239,7 +239,7 @@ void FStormSyncTransportServerModule::ExecuteServerStatus(const TArray<FString>&
 	FText StatusText;
 	GetServerStatus(StatusText);
 
-	STORM_SYNC_SERVER_LOG(Display, TEXT("FStormSyncTransportServerModule::ExecuteServerStatus - %s"), *StatusText.ToString())
+	UE_LOG(LogStormSyncServer, Display, TEXT("FStormSyncTransportServerModule::ExecuteServerStatus - %s"), *StatusText.ToString());
 }
 
 IMPLEMENT_MODULE(FStormSyncTransportServerModule, StormSyncTransportServer)

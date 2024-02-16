@@ -24,7 +24,7 @@ FStormSyncTransportClientSocket::FStormSyncTransportClientSocket(const FIPv4Endp
 
 FStormSyncTransportClientSocket::~FStormSyncTransportClientSocket()
 {
-	STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncTransportClientSocket::~FStormSyncTransportClientSocket Destructor Closing socket and runnable to '%s'"), *RemoteEndpoint.ToString());
+	UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncTransportClientSocket::~FStormSyncTransportClientSocket Destructor Closing socket and runnable to '%s'"), *RemoteEndpoint.ToString());
 	
 	if (Thread != nullptr)
 	{
@@ -61,7 +61,7 @@ void FStormSyncTransportClientSocket::StartTransport()
 
 void FStormSyncTransportClientSocket::StopTransport()
 {
-	STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncTransportClientSocket::StopTransport Closing socket and runnable to '%s'"), *RemoteEndpoint.ToString());
+	UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncTransportClientSocket::StopTransport Closing socket and runnable to '%s'"), *RemoteEndpoint.ToString());
 	
 	// let the thread shutdown on its own
 	if (Thread != nullptr)
@@ -96,7 +96,7 @@ void FStormSyncTransportClientSocket::Stop()
 {
 	if (Socket)
 	{
-		STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncTransportClientSocket::Stop Closing socket to '%s'"), *RemoteEndpoint.ToString());
+		UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncTransportClientSocket::Stop Closing socket to '%s'"), *RemoteEndpoint.ToString());
 		Socket->Close();
 		ConnectionClosedDelegate.ExecuteIfBound(RemoteEndpoint);
 	}
@@ -104,7 +104,7 @@ void FStormSyncTransportClientSocket::Stop()
 
 uint32 FStormSyncTransportClientSocket::Run()
 {
-	STORM_SYNC_CLIENT_LOG(Log, TEXT("Started Connection to '%s'"), *RemoteEndpoint.ToString());
+	UE_LOG(LogStormSyncClient, Log, TEXT("Started Connection to '%s'"), *RemoteEndpoint.ToString());
 
 	double LastTime = FPlatformTime::Seconds();
 	constexpr float IdealFrameTime = 1.0f / 30.0f;
@@ -119,13 +119,13 @@ uint32 FStormSyncTransportClientSocket::Run()
 
 		if (DeltaTime > 1.2f)
 		{
-			STORM_SYNC_CLIENT_LOG(Warning, TEXT("Hitch detected; %.3f seconds since prior tick"), DeltaTime);
+			UE_LOG(LogStormSyncClient, Warning, TEXT("Hitch detected; %.3f seconds since prior tick"), DeltaTime);
 		}
 
 		FString StopReason;
 		bListenerIsRunning = Tick(StopReason);
 		
-		STORM_SYNC_CLIENT_LOG(
+		UE_LOG(LogStormSyncClient, 
 			Verbose,
 			TEXT("Running ... Connected: %s (%s), State: %s, bListenerIsRunning: %s %s"),
 			IsConnected() ? TEXT("true") : TEXT("false"),
@@ -142,7 +142,7 @@ uint32 FStormSyncTransportClientSocket::Run()
 
 		if (!bListenerIsRunning)
 		{
-			STORM_SYNC_CLIENT_LOG(Display, TEXT("Stopped. Reason: %s"), *StopReason);
+			UE_LOG(LogStormSyncClient, Display, TEXT("Stopped. Reason: %s"), *StopReason);
 		}
 
 		// Throttle main thread main fps by sleeping if we still have time
@@ -168,7 +168,7 @@ bool FStormSyncTransportClientSocket::Tick(FString& StopReason)
 		{
 			const FString ErrorCode = GetSocketReadableErrorCode();
 			StopReason = FString::Printf(TEXT("Dummy read failed with code %s. Socket has closed [%s]"), *ErrorCode, *RemoteEndpoint.ToString());
-			STORM_SYNC_CLIENT_LOG(Verbose, TEXT("%s"), *StopReason);
+			UE_LOG(LogStormSyncClient, Verbose, TEXT("%s"), *StopReason);
 
 			{
 				FScopeLock SendLock(&SendCriticalSection);
@@ -204,7 +204,7 @@ bool FStormSyncTransportClientSocket::Tick(FString& StopReason)
 		{
 			const FString ErrorCode = GetSocketReadableErrorCode();
 			StopReason = FString::Printf(TEXT("Read failed with code %s [%s]"), *ErrorCode, *RemoteEndpoint.ToString());
-			STORM_SYNC_CLIENT_LOG(Verbose, TEXT("%s"), *StopReason);
+			UE_LOG(LogStormSyncClient, Verbose, TEXT("%s"), *StopReason);
 			return false;
 		}
 
@@ -270,7 +270,7 @@ bool FStormSyncTransportClientSocket::TryReconnect()
 bool FStormSyncTransportClientSocket::Connect()
 {
 	bool bSuccess = false;
-	STORM_SYNC_CLIENT_LOG(Verbose, TEXT("Connection to '%s', trying..."), *RemoteEndpoint.ToString());
+	UE_LOG(LogStormSyncClient, Verbose, TEXT("Connection to '%s', trying..."), *RemoteEndpoint.ToString());
     
 	Socket = FTcpSocketBuilder(SocketDescription)
 		.WithSendBufferSize(SocketBufferSize)
@@ -292,7 +292,7 @@ bool FStormSyncTransportClientSocket::Connect()
 			}
 			ConnectionStateChangedDelegate.ExecuteIfBound();
 
-			STORM_SYNC_CLIENT_LOG(
+			UE_LOG(LogStormSyncClient, 
 				Display,
 				TEXT("Connection to %s successful. Connection State: %s"),
 				*RemoteEndpoint.ToString(),
@@ -304,15 +304,15 @@ bool FStormSyncTransportClientSocket::Connect()
 			bSuccess = false;
 			
 			const FString SocketErrorCode = GetSocketReadableErrorCode();
-			STORM_SYNC_CLIENT_LOG(
+			UE_LOG(LogStormSyncClient, 
 				Warning,
 				TEXT("Socket connected to %s with invalid state: %s (Last Error Code: %s)"),
 				*RemoteEndpoint.ToString(),
 				*GetSocketReadableConnectionState(SocketConnectionState),
 				*SocketErrorCode
 			);
-			STORM_SYNC_CLIENT_LOG(Warning, TEXT("\t- Ensure the connection is on the correct subnet."))
-			STORM_SYNC_CLIENT_LOG(Warning, TEXT("\t- Ensure the firewall settings are not blocking the connection."))
+			UE_LOG(LogStormSyncClient, Warning, TEXT("\t- Ensure the connection is on the correct subnet."));
+			UE_LOG(LogStormSyncClient, Warning, TEXT("\t- Ensure the firewall settings are not blocking the connection."));
 		}
 	}
 
@@ -332,7 +332,7 @@ bool FStormSyncTransportClientSocket::Connect()
 		// Block waiting for some data
 		if (!Socket->Wait(ESocketWaitConditions::WaitForRead, FTimespan::FromSeconds(SocketWaitForReadTimeSeconds)))
 		{
-			STORM_SYNC_CLIENT_LOG(
+			UE_LOG(LogStormSyncClient, 
 				Warning,
 				TEXT("Connect wait for state packet failed. We were able to connect to %s but server didn't respond (Last Error Code: %s)"),
 				*RemoteEndpoint.ToString(),
@@ -349,7 +349,7 @@ bool FStormSyncTransportClientSocket::Connect()
 			int32 BytesRead = 0;
 			if (!Socket->Recv(Buffer.GetData(), PendingDataSize, BytesRead, ESocketReceiveFlags::None))
 			{
-				STORM_SYNC_CLIENT_LOG(Error, TEXT("Error while receiving data via endpoint %s"), *RemoteEndpoint.ToString());
+				UE_LOG(LogStormSyncClient, Error, TEXT("Error while receiving data via endpoint %s"), *RemoteEndpoint.ToString());
 				return false;
 			}
 
@@ -374,7 +374,7 @@ void FStormSyncTransportClientSocket::CloseSocket(const bool bShouldTriggerEvent
 {
 	if (Socket)
 	{
-		STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncTransportClientSocket::CloseSocket Closing socket to '%s'"), *RemoteEndpoint.ToString());
+		UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncTransportClientSocket::CloseSocket Closing socket to '%s'"), *RemoteEndpoint.ToString());
 		Socket->Close();
 
 		if (bShouldTriggerEvent)
@@ -398,14 +398,14 @@ void FStormSyncTransportClientSocket::SendBuffer(const TArray<uint8>& InBuffer)
 
 	const EConnectionState State = GetConnectionState();
 
-	STORM_SYNC_CLIENT_LOG(
+	UE_LOG(LogStormSyncClient, 
 		Display,
 		TEXT("FStormSyncTransportClientSocket::SendBuffer - Sending buffer of size %d to %s:%d endpoint (State: %s)"),
 		BufferSize,
 		*RemoteEndpoint.Address.ToString(),
 		RemoteEndpoint.Port,
 		*GetReadableConnectionState(State)
-	)
+	);
 
 	// The first 4 bytes are going to be our expected buffer size on the server end
 	bSending = Send(InBuffer.GetData(), BufferSize);
@@ -432,13 +432,13 @@ bool FStormSyncTransportClientSocket::Send(const uint8* Data, uint32 Size, const
 {
 	if (!Socket)
 	{
-		STORM_SYNC_CLIENT_LOG(Error, TEXT("FStormSyncTransportClientSocket::Send - Socket is not active. Make sure to call Connect() prior to sending buffers."))
+		UE_LOG(LogStormSyncClient, Error, TEXT("FStormSyncTransportClientSocket::Send - Socket is not active. Make sure to call Connect() prior to sending buffers."));
 		return false;
 	}
 	
 	if (ConnectionState != State_Connected)
 	{
-		STORM_SYNC_CLIENT_LOG(
+		UE_LOG(LogStormSyncClient, 
 			Warning,
 			TEXT("FStormSyncTransportClientSocket::Send - Connection State seems to be invalid: %s (Socket State: %s, Last Socket Error: %s)"),
 			*GetReadableConnectionState(ConnectionState),
@@ -446,7 +446,7 @@ bool FStormSyncTransportClientSocket::Send(const uint8* Data, uint32 Size, const
 			*GetSocketReadableErrorCode()
 		);
 		
-		STORM_SYNC_CLIENT_LOG(Warning, TEXT("Attempted to send a socket message but no socket connected, ignoring..."));
+		UE_LOG(LogStormSyncClient, Warning, TEXT("Attempted to send a socket message but no socket connected, ignoring..."));
 		return false;
 	}
 	
@@ -468,11 +468,11 @@ bool FStormSyncTransportClientSocket::Send(const uint8* Data, uint32 Size, const
 
 	Buffer.Append(Data, Size);
 
-	STORM_SYNC_CLIENT_LOG(Display, TEXT("Client: Sending %d bytes (Size: %d) ..."), Buffer.Num(), Size);
+	UE_LOG(LogStormSyncClient, Display, TEXT("Client: Sending %d bytes (Size: %d) ..."), Buffer.Num(), Size);
 	if (!BlockingSend(Buffer.GetData(), Buffer.Num()))
 	{
 		const FString ErrorCode = GetSocketReadableErrorCode();
-		STORM_SYNC_CLIENT_LOG(Warning, TEXT("FStormSyncTransportClientSocket::BlockingSend failed with code %s"), *ErrorCode);
+		UE_LOG(LogStormSyncClient, Warning, TEXT("FStormSyncTransportClientSocket::BlockingSend failed with code %s"), *ErrorCode);
 		return false;
 	}
 
@@ -525,7 +525,7 @@ void FStormSyncTransportClientSocket::ParseIncomingBytes(const int32 InNumBytesR
 
 bool FStormSyncTransportClientSocket::ParseIncomingMessage(const FString& InMessage, const FIPv4Endpoint& InEndpoint)
 {
-	STORM_SYNC_CLIENT_LOG(VeryVerbose, TEXT("FStormSyncTransportClientSocket::ParseIncomingMessage from %s - Message: %s"), *InEndpoint.ToString(), *InMessage);
+	UE_LOG(LogStormSyncClient, VeryVerbose, TEXT("FStormSyncTransportClientSocket::ParseIncomingMessage from %s - Message: %s"), *InEndpoint.ToString(), *InMessage);
 
 	const TSharedRef<TJsonReader<TCHAR>> Reader = FJsonStringReader::Create(InMessage);
 	TSharedPtr<FJsonObject> JsonData;
@@ -550,7 +550,7 @@ bool FStormSyncTransportClientSocket::ParseIncomingMessage(const FString& InMess
 		double ReceivedBytes;
 		if (!JsonData->TryGetNumberField(FieldName, ReceivedBytes))
 		{
-			STORM_SYNC_CLIENT_LOG(
+			UE_LOG(LogStormSyncClient, 
 				Error,
 				TEXT("FStormSyncTransportClientSocket::ParseIncomingMessage \"size\" command missing required field \"%s\" or not able to convert to number"),
 				*FieldName

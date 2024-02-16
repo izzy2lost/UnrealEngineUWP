@@ -314,7 +314,7 @@ void SStormSyncExportWizard::OnDestinationPageEntered()
 	const TArray<FName> PackageNamesToExport = GetPackageNamesFromReportsData();
 	if (PackageNamesToExport.IsEmpty())
 	{
-		STORM_SYNC_EDITOR_LOG(Error, TEXT("FStormSyncEditorModule::OnDestinationPageEntered - Can't proceed with empty list of files to include"));
+		UE_LOG(LogStormSyncEditor, Error, TEXT("FStormSyncEditorModule::OnDestinationPageEntered - Can't proceed with empty list of files to include"));
 		if (FileDependenciesListView.IsValid())
 		{
 			FileDependenciesListView->RebuildList();
@@ -331,7 +331,7 @@ void SStormSyncExportWizard::OnDestinationPageEntered()
 	TArray<FStormSyncFileDependency> FileDependencies = FStormSyncCoreUtils::GetAvaFileDependenciesFromPackageNames(PackageNamesToExport);
 	for (const FStormSyncFileDependency& FileDependency : FileDependencies)
 	{
-		STORM_SYNC_EDITOR_LOG(Display, TEXT("\tFileDependency: %s"), *FileDependency.ToString());
+		UE_LOG(LogStormSyncEditor, Display, TEXT("\tFileDependency: %s"), *FileDependency.ToString());
 		FileDependencyList.Add(MakeShared<FStormSyncFileDependency>(FileDependency));
 	}
 	
@@ -361,7 +361,7 @@ TArray<FName> SStormSyncExportWizard::GetPackageNamesFromReportsData() const
 	const TArray<FStormSyncReportPackageData>* ReportsDataPtr = ReportPackages.Get();
 	if (!ReportsDataPtr)
 	{
-		STORM_SYNC_EDITOR_LOG(Error, TEXT("SStormSyncExportWizard::GetPackageNamesFromReportsData - Unable to get report data from dialog"));
+		UE_LOG(LogStormSyncEditor, Error, TEXT("SStormSyncExportWizard::GetPackageNamesFromReportsData - Unable to get report data from dialog"));
 		return PackageNames;
 	}
 

@@ -38,7 +38,7 @@ bool UStormSyncArchiveFactory::FactoryCanImport(const FString& Filename)
 
 UObject* UStormSyncArchiveFactory::ImportObject(UClass* InClass, UObject* InOuter, FName InName, EObjectFlags Flags, const FString& Filename, const TCHAR* Params, bool& OutCanceled)
 {
-	STORM_SYNC_EDITOR_LOG(Display, TEXT("UStormSyncArchiveFactory::ImportObject InClass: %s, InOuter: %s, Filename: %s"), *GetNameSafe(InClass), *GetNameSafe(InOuter), *InName.ToString(), *Filename);
+	UE_LOG(LogStormSyncEditor, Display, TEXT("UStormSyncArchiveFactory::ImportObject InClass: %s, InOuter: %s, Filename: %s"), *GetNameSafe(InClass), *GetNameSafe(InOuter), *InName.ToString(), *Filename);
 
 	// Import Object override to customize how import is done and account for this factory operating on a dummy imported object.
 
@@ -54,11 +54,11 @@ UObject* UStormSyncArchiveFactory::ImportObject(UClass* InClass, UObject* InOute
 	{
 		if (FileSize == INDEX_NONE)
 		{
-			STORM_SYNC_EDITOR_LOG(Error, TEXT("Can't find file '%s' for import"), *Filename);
+			UE_LOG(LogStormSyncEditor, Error, TEXT("Can't find file '%s' for import"), *Filename);
 		}
 		else
 		{
-			STORM_SYNC_EDITOR_LOG(Display, TEXT("FactoryCreateFile: %s with %s (%i %i %s)"), *InClass->GetName(), *GetClass()->GetName(), bCreateNew, bText, *Filename);
+			UE_LOG(LogStormSyncEditor, Display, TEXT("FactoryCreateFile: %s with %s (%i %i %s)"), *InClass->GetName(), *GetClass()->GetName(), bCreateNew, bText, *Filename);
 			Result = FactoryCreateFile(InClass, InOuter, InName, Flags, *Filename, Params, GWarn, OutCanceled);
 		}
 	}
@@ -83,7 +83,7 @@ UObject* UStormSyncArchiveFactory::ImportObject(UClass* InClass, UObject* InOute
 
 UObject* UStormSyncArchiveFactory::FactoryCreateFile(UClass* InClass, UObject* InParent, FName InName, EObjectFlags Flags, const FString& Filename, const TCHAR* Params, FFeedbackContext* Warn, bool& bOutOperationCanceled)
 {
-	STORM_SYNC_EDITOR_LOG(Display, TEXT("UStormSyncArchiveFactory::FactoryCreateFile InClass: %s, InOuter: %s, InName: %s, Filename: %s"), *GetNameSafe(InClass), *GetNameSafe(InParent), *InName.ToString(), *Filename);
+	UE_LOG(LogStormSyncEditor, Display, TEXT("UStormSyncArchiveFactory::FactoryCreateFile InClass: %s, InOuter: %s, InName: %s, Filename: %s"), *GetNameSafe(InClass), *GetNameSafe(InParent), *InName.ToString(), *Filename);
 
 	// We create the dummy imported object at the dropped location, otherwise UAssetToolsImpl::SyncBrowserToAssets will
 	// select a fallback root folder (i.e. Engine/Content) which is undesired.
@@ -95,7 +95,7 @@ UObject* UStormSyncArchiveFactory::FactoryCreateFile(UClass* InClass, UObject* I
 
 	PendingImports.Add(Filename, FSoftObjectPath(ArchiveData));
 
-	STORM_SYNC_EDITOR_LOG(Display, TEXT("UStormSyncArchiveFactory::FactoryCreateFile for %s"), *GetNameSafe(ArchiveData))
+	UE_LOG(LogStormSyncEditor, Display, TEXT("UStormSyncArchiveFactory::FactoryCreateFile for %s"), *GetNameSafe(ArchiveData));
 	
 	// Broadcast import event and delay import until next tick to avoid blocking the process that files were dragged from
 	// (delay handled internally by Import subsystem)

@@ -55,13 +55,13 @@ FMessageEndpointSharedPtr FStormSyncTransportClientModule::GetClientMessageEndpo
 {
 	if (!ClientEndpoint.IsValid())
 	{
-		STORM_SYNC_CLIENT_LOG(Warning, TEXT("FStormSyncTransportClientModule::GetClientMessageEndpoint - Client endpoint not valid"))
+		UE_LOG(LogStormSyncClient, Warning, TEXT("FStormSyncTransportClientModule::GetClientMessageEndpoint - Client endpoint not valid"));
 		return nullptr;
 	}
 
 	if (!ClientEndpoint->IsRunning())
 	{
-		STORM_SYNC_CLIENT_LOG(Warning, TEXT("FStormSyncTransportClientModule::GetClientMessageEndpoint - Client endpoint not running"))
+		UE_LOG(LogStormSyncClient, Warning, TEXT("FStormSyncTransportClientModule::GetClientMessageEndpoint - Client endpoint not running"));
 		return nullptr;
 	}
 
@@ -81,13 +81,13 @@ void FStormSyncTransportClientModule::SynchronizePackages(const FStormSyncPackag
 		const TArray<FStormSyncFileDependency> FileDependencies = Result.Get();
 		if (FileDependencies.IsEmpty())
 		{
-			STORM_SYNC_CLIENT_LOG(Error, TEXT("FStormSyncTransportClientModule::SynchronizePackages - Async FileDependencies is empty, something went wrong"))
+			UE_LOG(LogStormSyncClient, Error, TEXT("FStormSyncTransportClientModule::SynchronizePackages - Async FileDependencies is empty, something went wrong"));
 			return;
 		}
 
 		if (!MessageEndpoint.IsValid())
 		{
-			STORM_SYNC_CLIENT_LOG(Error, TEXT("FStormSyncTransportClientModule::SynchronizePackages - Unable to get client message endpoint"))
+			UE_LOG(LogStormSyncClient, Error, TEXT("FStormSyncTransportClientModule::SynchronizePackages - Unable to get client message endpoint"));
 			return;
 		}
 
@@ -95,27 +95,27 @@ void FStormSyncTransportClientModule::SynchronizePackages(const FStormSyncPackag
 		TUniquePtr<FStormSyncTransportSyncRequest> SyncRequestMessage(FMessageEndpoint::MakeMessage<FStormSyncTransportSyncRequest>(PackageNames, PackageDescriptor));
 		if (!SyncRequestMessage.IsValid())
 		{
-			STORM_SYNC_CLIENT_LOG(Error, TEXT("FStormSyncTransportClientModule::SynchronizePackages - Push request message is invalid"))
+			UE_LOG(LogStormSyncClient, Error, TEXT("FStormSyncTransportClientModule::SynchronizePackages - Push request message is invalid"));
 			return;
 		}
 
 		SyncRequestMessage->PackageDescriptor.Dependencies = FileDependencies;
 
-		STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncTransportClientModule::SynchronizePackages - FileDependencies: %d"), FileDependencies.Num())
-		STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncTransportClientModule::SynchronizePackages - Message: %s"), *SyncRequestMessage->ToString())
-		STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncTransportClientModule::SynchronizePackages - Syncing package descriptor %s"), *SyncRequestMessage->PackageDescriptor.ToString())
+		UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncTransportClientModule::SynchronizePackages - FileDependencies: %d"), FileDependencies.Num());
+		UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncTransportClientModule::SynchronizePackages - Message: %s"), *SyncRequestMessage->ToString());
+		UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncTransportClientModule::SynchronizePackages - Syncing package descriptor %s"), *SyncRequestMessage->PackageDescriptor.ToString());
 		MessageEndpoint->Publish(SyncRequestMessage.Release());
 	});
 }
 
 void FStormSyncTransportClientModule::PushPackages(const FStormSyncPackageDescriptor& InPackageDescriptor, const TArray<FName>& InPackageNames, const FMessageAddress& InMessageAddress, const FOnStormSyncPushComplete& InDoneDelegate) const
 {
-	STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncTransportClientModule::PushPackages - PackageDescriptor: %s, InPackageNames: %d, MessageAddressId: %s"), *InPackageDescriptor.ToString(), InPackageNames.Num(), *InMessageAddress.ToString())
+	UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncTransportClientModule::PushPackages - PackageDescriptor: %s, InPackageNames: %d, MessageAddressId: %s"), *InPackageDescriptor.ToString(), InPackageNames.Num(), *InMessageAddress.ToString());
 
 	const FMessageEndpointSharedPtr MessageEndpoint = GetClientMessageEndpoint();
 	if (!ClientEndpoint.IsValid())
 	{
-		STORM_SYNC_CLIENT_LOG(Error, TEXT("FStormSyncTransportClientModule::PushPackages - Unable to get client endpoint"))
+		UE_LOG(LogStormSyncClient, Error, TEXT("FStormSyncTransportClientModule::PushPackages - Unable to get client endpoint"));
 		return;
 	}
 
@@ -124,13 +124,13 @@ void FStormSyncTransportClientModule::PushPackages(const FStormSyncPackageDescri
 
 void FStormSyncTransportClientModule::PullPackages(const FStormSyncPackageDescriptor& InPackageDescriptor, const TArray<FName>& InPackageNames, const FMessageAddress& InMessageAddress, const FOnStormSyncPullComplete& InDoneDelegate) const
 {
-	STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncTransportClientModule::PullPackages - PackageDescriptor: %s, InPackageNames: %d, MessageAddressId: %s"), *InPackageDescriptor.ToString(), InPackageNames.Num(), *InMessageAddress.ToString())
+	UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncTransportClientModule::PullPackages - PackageDescriptor: %s, InPackageNames: %d, MessageAddressId: %s"), *InPackageDescriptor.ToString(), InPackageNames.Num(), *InMessageAddress.ToString());
 
 	const FMessageEndpointSharedPtr MessageEndpoint = GetClientMessageEndpoint();
 
 	if (!ClientEndpoint.IsValid())
 	{
-		STORM_SYNC_CLIENT_LOG(Error, TEXT("FStormSyncTransportClientModule::PullPackages - Unable to get client endpoint"))
+		UE_LOG(LogStormSyncClient, Error, TEXT("FStormSyncTransportClientModule::PullPackages - Unable to get client endpoint"));
 		return;
 	}
 
@@ -139,12 +139,12 @@ void FStormSyncTransportClientModule::PullPackages(const FStormSyncPackageDescri
 
 void FStormSyncTransportClientModule::RequestPackagesStatus(const FMessageAddress& InRemoteAddress, const TArray<FName>& InPackageNames, const FOnStormSyncRequestStatusComplete& InDoneDelegate) const
 {
-	STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncTransportClientModule::RequestPackagesStatus - InRemoteAddress: %s, InPackageNames: %d"), *InRemoteAddress.ToString(), InPackageNames.Num())
+	UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncTransportClientModule::RequestPackagesStatus - InRemoteAddress: %s, InPackageNames: %d"), *InRemoteAddress.ToString(), InPackageNames.Num());
 
 	const FMessageEndpointSharedPtr MessageEndpoint = GetClientMessageEndpoint();
 	if (!ClientEndpoint.IsValid())
 	{
-		STORM_SYNC_CLIENT_LOG(Error, TEXT("FStormSyncTransportClientModule::RequestPackagesStatus - Unable to get client endpoint"))
+		UE_LOG(LogStormSyncClient, Error, TEXT("FStormSyncTransportClientModule::RequestPackagesStatus - Unable to get client endpoint"));
 		return;
 	}
 
@@ -174,7 +174,7 @@ void FStormSyncTransportClientModule::RegisterConsoleCommands()
 		FConsoleCommandWithArgsDelegate::CreateLambda([this](const TArray<FString>& Args)
 		{
 			const FString AddressId = GetClientEndpointMessageAddressId();
-			STORM_SYNC_CLIENT_LOG(Display, TEXT("StormSync.Client.Debug - EndpointId: %s"), *AddressId)
+			UE_LOG(LogStormSyncClient, Display, TEXT("StormSync.Client.Debug - EndpointId: %s"), *AddressId);
 		}),
 		ECVF_Default
 	));
@@ -190,11 +190,11 @@ void FStormSyncTransportClientModule::RegisterConsoleCommands()
 				const TSharedPtr<FMessageEndpoint, ESPMode::ThreadSafe> MessageEndpoint = ClientEndpoint->GetMessageEndpoint();
 				if (!MessageEndpoint.IsValid())
 				{
-					STORM_SYNC_CLIENT_LOG(Error, TEXT("StormSync.Client.Debug.Ping - Unable to send Connect Message cause Message Endpoint is invalid"))
+					UE_LOG(LogStormSyncClient, Error, TEXT("StormSync.Client.Debug.Ping - Unable to send Connect Message cause Message Endpoint is invalid"));
 					return;
 				}
 
-				STORM_SYNC_CLIENT_LOG(Display, TEXT("StormSync.Client.Debug.Ping - Publish Client Connect Message ..."))
+				UE_LOG(LogStormSyncClient, Display, TEXT("StormSync.Client.Debug.Ping - Publish Client Connect Message ..."));
 				FStormSyncTransportStatusPing* Message = FMessageEndpoint::MakeMessage<FStormSyncTransportStatusPing>();
 				MessageEndpoint->Publish(Message);
 			}
@@ -208,7 +208,7 @@ void FStormSyncTransportClientModule::RegisterConsoleCommands()
 		FConsoleCommandWithArgsDelegate::CreateLambda([this](const TArray<FString>& Args)
 		{
 			const FString InstanceId = FApp::GetInstanceId().ToString();
-			STORM_SYNC_CLIENT_LOG(Display, TEXT("StormSync.Client.Debug - InstanceId: %s"), *InstanceId)
+			UE_LOG(LogStormSyncClient, Display, TEXT("StormSync.Client.Debug - InstanceId: %s"), *InstanceId);
 		}),
 		ECVF_Default
 	));
@@ -231,12 +231,12 @@ void FStormSyncTransportClientModule::OnEngineLoopInitComplete()
 		const TSharedPtr<FMessageEndpoint, ESPMode::ThreadSafe> MessageEndpoint = ClientEndpoint->GetMessageEndpoint();
 		if (!MessageEndpoint.IsValid())
 		{
-			STORM_SYNC_CLIENT_LOG(Error, TEXT("FStormSyncTransportClientModule::OnEngineLoopInitComplete - Unable to send Connect Message cause Message Endpoint is invalid"))
+			UE_LOG(LogStormSyncClient, Error, TEXT("FStormSyncTransportClientModule::OnEngineLoopInitComplete - Unable to send Connect Message cause Message Endpoint is invalid"));
 			return;
 		}
 
 		// We broadcast a message to notify others about this editor instance (this is required so that further "direct" send are received on the other end)
-		STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncTransportClientModule::OnEngineLoopInitComplete - Publish Client Connect Message ..."))
+		UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncTransportClientModule::OnEngineLoopInitComplete - Publish Client Connect Message ..."));
 		FStormSyncTransportStatusPing* Message = FMessageEndpoint::MakeMessage<FStormSyncTransportStatusPing>();
 		MessageEndpoint->Publish(Message);
 	}
@@ -245,12 +245,12 @@ void FStormSyncTransportClientModule::OnEngineLoopInitComplete()
 void FStormSyncTransportClientModule::ExecutePing(const TArray<FString>& Args)
 {
 	const FString Argv = FString::Join(Args, TEXT(""));
-	STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncTransportClientModule::ExecutePing - %s"), *Argv)
+	UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncTransportClientModule::ExecutePing - %s"), *Argv);
 
 	const FMessageEndpointSharedPtr MessageEndpoint = GetClientMessageEndpoint();
 	if (!MessageEndpoint.IsValid())
 	{
-		STORM_SYNC_CLIENT_LOG(Warning, TEXT("FStormSyncTransportClientModule::ExecutePing - Unable to get client message endpoint"))
+		UE_LOG(LogStormSyncClient, Warning, TEXT("FStormSyncTransportClientModule::ExecutePing - Unable to get client message endpoint"));
 		return;
 	}
 
@@ -263,7 +263,7 @@ FStormSyncPackageDescriptor FStormSyncTransportClientModule::CreatePackageDescri
 	if (!FParse::Value(*Argv, TEXT("-name="), PackageDescriptor.Name))
 	{
 		PackageDescriptor.Name = DefaultPakName;
-		STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncEditorModule::CreatePackageDescriptorFromCommandLine - Missing -name parameter, using default \"%s\""), *PackageDescriptor.Name);
+		UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncEditorModule::CreatePackageDescriptorFromCommandLine - Missing -name parameter, using default \"%s\""), *PackageDescriptor.Name);
 	}
 
 	FParse::Value(*Argv, TEXT("-version="), PackageDescriptor.Version);
@@ -276,7 +276,7 @@ FStormSyncPackageDescriptor FStormSyncTransportClientModule::CreatePackageDescri
 void FStormSyncTransportClientModule::ExecuteSyncPak(const TArray<FString>& Args)
 {
 	const FString Argv = FString::Join(Args, TEXT(" "));
-	STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncTransportClientModule::ExecuteSyncPak - Argv: %s"), *Argv)
+	UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncTransportClientModule::ExecuteSyncPak - Argv: %s"), *Argv);
 
 	// Parse command line.
 	TArray<FName> PackageNames;
@@ -284,7 +284,7 @@ void FStormSyncTransportClientModule::ExecuteSyncPak(const TArray<FString>& Args
 
 	if (PackageNames.IsEmpty())
 	{
-		STORM_SYNC_CLIENT_LOG(Error, TEXT("FStormSyncTransportClientModule::ExecuteSyncPak - Missing at least one package name to sync."))
+		UE_LOG(LogStormSyncClient, Error, TEXT("FStormSyncTransportClientModule::ExecuteSyncPak - Missing at least one package name to sync."));
 		return;
 	}
 
