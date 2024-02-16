@@ -96,7 +96,7 @@ TArray<FName> FAvaOutlinerImporter::ImportOutlinerData(const FString& InBuffer)
 		TArray<FName> ActorNames;
 	};
 
-	UPackage* const TempPackage = NewObject<UPackage>(nullptr, TEXT("/Temp/AvalancheOutliner/Import"), RF_Transient);
+	UPackage* const TempPackage = NewObject<UPackage>(nullptr, TEXT("/Temp/MotionDesignOutliner/Import"), RF_Transient);
 	TempPackage->AddToRoot();
 
 	// Turn the text buffer into objects
