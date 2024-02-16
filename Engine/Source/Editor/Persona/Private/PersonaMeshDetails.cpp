@@ -5031,6 +5031,8 @@ void FPersonaMeshDetails::OnDeleteMaterialSlot(int32 MaterialIndex)
 	{
 		FScopedSkeletalMeshPostEditChange ScopedPostEditChange(SkeletalMeshPtr.Get());
 		//When we delete a material slot we must invalidate the DDC because material index is not part of the DDC key by design
+		SkeletalMeshPtr->InvalidateDeriveDataCacheGUID();
+
 		SkeletalMeshPtr->GetMaterials().RemoveAt(MaterialIndex);
 		FSkeletalMeshModel* Model = SkeletalMeshPtr->GetImportedModel();
 
@@ -5039,10 +5041,11 @@ void FPersonaMeshDetails::OnDeleteMaterialSlot(int32 MaterialIndex)
 		//When we delete a material slot we need to fix all MaterialIndex after the deleted index
 		for (int32 LODInfoIdx = 0; LODInfoIdx < NumLODInfos; LODInfoIdx++)
 		{
+			TArray<FSkelMeshSection>& Sections = Model->LODModels[LODInfoIdx].Sections;
 			TArray<int32>& LODMaterialMap = SkeletalMeshPtr->GetLODInfo(LODInfoIdx)->LODMaterialMap;
-			for (int32 SectionIndex = 0; SectionIndex < Model->LODModels[LODInfoIdx].Sections.Num(); ++SectionIndex)
+			for (int32 SectionIndex = 0; SectionIndex < Sections.Num(); ++SectionIndex)
 			{
-				int32 SectionMaterialIndex = Model->LODModels[LODInfoIdx].Sections[SectionIndex].MaterialIndex;
+				int32 SectionMaterialIndex = Sections[SectionIndex].MaterialIndex;
 				if (LODMaterialMap.IsValidIndex(SectionIndex) && LODMaterialMap[SectionIndex] != INDEX_NONE)
 				{
 					SectionMaterialIndex = LODMaterialMap[SectionIndex];
@@ -5050,14 +5053,13 @@ void FPersonaMeshDetails::OnDeleteMaterialSlot(int32 MaterialIndex)
 				if (SectionMaterialIndex > MaterialIndex)
 				{
 					SectionMaterialIndex--;
-				}
-				if (SectionMaterialIndex != Model->LODModels[LODInfoIdx].Sections[SectionIndex].MaterialIndex)
-				{
-					while(!LODMaterialMap.IsValidIndex(SectionIndex))
+					//Patch the lod material map
+					while (!LODMaterialMap.IsValidIndex(SectionIndex))
 					{
 						LODMaterialMap.Add(INDEX_NONE);
 					}
 					LODMaterialMap[SectionIndex] = SectionMaterialIndex;
+					Sections[SectionIndex].MaterialIndex--;
 				}
 			}
 		}
