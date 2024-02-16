@@ -164,7 +164,7 @@ void FStormSyncEditorModule::RegisterConsoleCommands()
 void FStormSyncEditorModule::ExecuteDumpConnections(const TArray<FString>& Args)
 {
 	FScopeLock ConnectionsLock(&ConnectionsCriticalSection);
-	STORM_SYNC_EDITOR_LOG(Display, TEXT("FStormSyncEditorModule::ExecuteDumpConnections - Listing active connections (%d)"), RegisteredConnections.Num());
+	UE_LOG(LogStormSyncEditor, Display, TEXT("FStormSyncEditorModule::ExecuteDumpConnections - Listing active connections (%d)"), RegisteredConnections.Num());
 	
 	for (const TPair<FMessageAddress, FStormSyncConnectedDevice>& RegisteredConnection : RegisteredConnections)
 	{
@@ -174,7 +174,7 @@ void FStormSyncEditorModule::ExecuteDumpConnections(const TArray<FString>& Args)
 		FText Tooltip = GetEntryTooltipForRemote(MessageAddress, Connection);
 
 		FString ConnectionDescription = FString::Printf(TEXT("\n\n%s\n\n"), *Tooltip.ToString());
-		STORM_SYNC_EDITOR_LOG(Display, TEXT("%s (%s) %s"), *Connection.StormSyncServerAddressId, *Connection.HostName, *ConnectionDescription);
+		UE_LOG(LogStormSyncEditor, Display, TEXT("%s (%s) %s"), *Connection.StormSyncServerAddressId, *Connection.HostName, *ConnectionDescription);
 	}
 }
 
@@ -191,7 +191,7 @@ void FStormSyncEditorModule::UnregisterConsoleCommands()
 void FStormSyncEditorModule::ExecuteRequestStatusCommand(const TArray<FString>& Args) const
 {
 	const FString Argv = FString::Join(Args, TEXT(" "));
-	STORM_SYNC_EDITOR_LOG(Display, TEXT("FStormSyncEditorModule::ExecuteStatusCommand - Argv: %s"), *Argv)
+	UE_LOG(LogStormSyncEditor, Display, TEXT("FStormSyncEditorModule::ExecuteStatusCommand - Argv: %s"), *Argv);
 
 	// Parse command line.
 	TArray<FName> PackageNames;
@@ -199,7 +199,7 @@ void FStormSyncEditorModule::ExecuteRequestStatusCommand(const TArray<FString>& 
 
 	if (PackageNames.IsEmpty())
 	{
-		STORM_SYNC_EDITOR_LOG(Error, TEXT("FStormSyncEditorModule::ExecuteStatusCommand - Missing at least one package name to request status."))
+		UE_LOG(LogStormSyncEditor, Error, TEXT("FStormSyncEditorModule::ExecuteStatusCommand - Missing at least one package name to request status."));
 		return;
 	}
 
@@ -207,30 +207,30 @@ void FStormSyncEditorModule::ExecuteRequestStatusCommand(const TArray<FString>& 
 	FParse::Value(*Argv, TEXT("-remote="), RemoteAddressId);
 	if (RemoteAddressId.IsEmpty())
 	{
-		STORM_SYNC_EDITOR_LOG(Error, TEXT("FStormSyncEditorModule::ExecuteStatusCommand - Missing -remote parameter"))
+		UE_LOG(LogStormSyncEditor, Error, TEXT("FStormSyncEditorModule::ExecuteStatusCommand - Missing -remote parameter"));
 		return;
 	}
 
 	FMessageAddress RemoteAddress;
 	if (!FMessageAddress::Parse(RemoteAddressId, RemoteAddress))
 	{
-		STORM_SYNC_EDITOR_LOG(Error, TEXT("FStormSyncEditorModule::ExecuteStatusCommand - Unable to parse %s into a Message Address"), *RemoteAddressId);
+		UE_LOG(LogStormSyncEditor, Error, TEXT("FStormSyncEditorModule::ExecuteStatusCommand - Unable to parse %s into a Message Address"), *RemoteAddressId);
 		return;
 	}
 
 	const FOnStormSyncRequestStatusComplete DoneDelegate = FOnStormSyncRequestStatusComplete::CreateLambda([](const TSharedPtr<FStormSyncTransportStatusResponse>& Response)
 	{
-		STORM_SYNC_EDITOR_LOG(Display, TEXT("FStormSyncEditorModule::ExecuteStatusCommand - Received response! %s"), *Response->ToString());
+		UE_LOG(LogStormSyncEditor, Display, TEXT("FStormSyncEditorModule::ExecuteStatusCommand - Received response! %s"), *Response->ToString());
 		SStormSyncStatusWidget::OpenDialog(Response.ToSharedRef());
 	});
 	
-	STORM_SYNC_EDITOR_LOG(Display, TEXT("FStormSyncEditorModule::ExecuteStatusCommand - Send status request on %s"), *RemoteAddress.ToString())
+	UE_LOG(LogStormSyncEditor, Display, TEXT("FStormSyncEditorModule::ExecuteStatusCommand - Send status request on %s"), *RemoteAddress.ToString());
 	IStormSyncTransportClientModule::Get().RequestPackagesStatus(RemoteAddress, PackageNames, DoneDelegate);
 }
 
 void FStormSyncEditorModule::OnServiceDiscoveryConnection(const FString& MessageAddressUID, const FStormSyncConnectedDevice& ConnectedDevice)
 {
-	STORM_SYNC_EDITOR_LOG(Display, TEXT("FStormSyncEditorModule::OnServiceDiscoveryConnection - MessageAddressUID: %s, Hostname: %s, ProjectName: %s"), *MessageAddressUID, *ConnectedDevice.HostName, *ConnectedDevice.ProjectName);
+	UE_LOG(LogStormSyncEditor, Display, TEXT("FStormSyncEditorModule::OnServiceDiscoveryConnection - MessageAddressUID: %s, Hostname: %s, ProjectName: %s"), *MessageAddressUID, *ConnectedDevice.HostName, *ConnectedDevice.ProjectName);
 	
 	FScopeLock ConnectionsLock(&ConnectionsCriticalSection);
 
@@ -243,14 +243,14 @@ void FStormSyncEditorModule::OnServiceDiscoveryConnection(const FString& Message
 
 void FStormSyncEditorModule::OnServiceDiscoveryStateChange(const FString& MessageAddressUID, EStormSyncConnectedDeviceState State)
 {
-	STORM_SYNC_EDITOR_LOG(Display, TEXT("FStormSyncEditorModule::OnServiceDiscoveryStateChange - MessageAddressUID: %s"), *MessageAddressUID);
+	UE_LOG(LogStormSyncEditor, Display, TEXT("FStormSyncEditorModule::OnServiceDiscoveryStateChange - MessageAddressUID: %s"), *MessageAddressUID);
 	
 	FScopeLock ConnectionsLock(&ConnectionsCriticalSection);
 	
 	FMessageAddress RemoteMessageAddress;
 	if (FMessageAddress::Parse(MessageAddressUID, RemoteMessageAddress) && RegisteredConnections.Contains(RemoteMessageAddress))
 	{
-		STORM_SYNC_EDITOR_LOG(Display, TEXT("\tRemote State Changed to %s"), *UEnum::GetValueAsString(State));
+		UE_LOG(LogStormSyncEditor, Display, TEXT("\tRemote State Changed to %s"), *UEnum::GetValueAsString(State));
 		FStormSyncConnectedDevice& Connection = RegisteredConnections.FindChecked(RemoteMessageAddress);
 		Connection.State = State;
 	}
@@ -258,14 +258,14 @@ void FStormSyncEditorModule::OnServiceDiscoveryStateChange(const FString& Messag
 
 void FStormSyncEditorModule::OnServiceDiscoveryServerStatusChange(const FString& MessageAddressUID, bool bIsServerRunning)
 {
-	STORM_SYNC_EDITOR_LOG(Display, TEXT("FStormSyncEditorModule::OnServiceDiscoveryServerStatusChange - MessageAddressUID: %s"), *MessageAddressUID);
+	UE_LOG(LogStormSyncEditor, Display, TEXT("FStormSyncEditorModule::OnServiceDiscoveryServerStatusChange - MessageAddressUID: %s"), *MessageAddressUID);
 	
 	FScopeLock ConnectionsLock(&ConnectionsCriticalSection);
 	
 	FMessageAddress RemoteMessageAddress;
 	if (FMessageAddress::Parse(MessageAddressUID, RemoteMessageAddress) && RegisteredConnections.Contains(RemoteMessageAddress))
 	{
-		STORM_SYNC_EDITOR_LOG(Display, TEXT("\tRemote Server Endpoint State Changed to %s"), bIsServerRunning ? TEXT("running") : TEXT("stopped"));
+		UE_LOG(LogStormSyncEditor, Display, TEXT("\tRemote Server Endpoint State Changed to %s"), bIsServerRunning ? TEXT("running") : TEXT("stopped"));
 		FStormSyncConnectedDevice& Connection = RegisteredConnections.FindChecked(RemoteMessageAddress);
 		Connection.bIsServerRunning = bIsServerRunning;
 	}
@@ -273,7 +273,7 @@ void FStormSyncEditorModule::OnServiceDiscoveryServerStatusChange(const FString&
 
 void FStormSyncEditorModule::OnServiceDiscoveryDisconnection(const FString& MessageAddressUID)
 {
-	STORM_SYNC_EDITOR_LOG(Display, TEXT("FStormSyncEditorModule::OnServiceDiscoveryDisconnection - MessageAddressUID: %s"), *MessageAddressUID);
+	UE_LOG(LogStormSyncEditor, Display, TEXT("FStormSyncEditorModule::OnServiceDiscoveryDisconnection - MessageAddressUID: %s"), *MessageAddressUID);
 	
 	FScopeLock ConnectionsLock(&ConnectionsCriticalSection);
 	

@@ -16,7 +16,7 @@
 void UStormSyncNotificationSubsystem::Initialize(FSubsystemCollectionBase& InCollection)
 {
 	Super::Initialize(InCollection);
-	STORM_SYNC_EDITOR_LOG(Display, TEXT("UStormSyncNotificationSubsystem initialized"))
+	UE_LOG(LogStormSyncEditor, Display, TEXT("UStormSyncNotificationSubsystem initialized"));
 
 	// Create a message log for the notifications to use
 	FMessageLogModule& MessageLogModule = FModuleManager::LoadModuleChecked<FMessageLogModule>("MessageLog");
@@ -39,7 +39,7 @@ void UStormSyncNotificationSubsystem::Initialize(FSubsystemCollectionBase& InCol
 void UStormSyncNotificationSubsystem::Deinitialize()
 {
 	Super::Deinitialize();
-	STORM_SYNC_EDITOR_LOG(Display, TEXT("UStormSyncNotificationSubsystem shutdown"))
+	UE_LOG(LogStormSyncEditor, Display, TEXT("UStormSyncNotificationSubsystem shutdown"));
 
 	if (FModuleManager::Get().IsModuleLoaded("MessageLog"))
 	{
@@ -126,7 +126,7 @@ void UStormSyncNotificationSubsystem::Notify(const EMessageSeverity::Type InSeve
 void UStormSyncNotificationSubsystem::HandlePushResponse(const TSharedPtr<FStormSyncTransportPushResponse>& InResponse)
 {
 	check(InResponse.IsValid())
-	STORM_SYNC_EDITOR_LOG(Display, TEXT("UStormSyncNotificationSubsystem::HandlePushResponse - Response message: %s"), *InResponse->ToString());
+	UE_LOG(LogStormSyncEditor, Display, TEXT("UStormSyncNotificationSubsystem::HandlePushResponse - Response message: %s"), *InResponse->ToString());
 
 	HandleSyncResponse(
 		InResponse,
@@ -138,7 +138,7 @@ void UStormSyncNotificationSubsystem::HandlePushResponse(const TSharedPtr<FStorm
 void UStormSyncNotificationSubsystem::HandlePullResponse(const TSharedPtr<FStormSyncTransportPullResponse>& InResponse)
 {
 	check(InResponse.IsValid())
-	STORM_SYNC_EDITOR_LOG(Display, TEXT("UStormSyncNotificationSubsystem::HandlePullResponse - Response message: %s"), *InResponse->ToString());
+	UE_LOG(LogStormSyncEditor, Display, TEXT("UStormSyncNotificationSubsystem::HandlePullResponse - Response message: %s"), *InResponse->ToString());
 
 	HandleSyncResponse(
 		InResponse,
@@ -150,7 +150,7 @@ void UStormSyncNotificationSubsystem::HandlePullResponse(const TSharedPtr<FStorm
 void UStormSyncNotificationSubsystem::HandleSyncResponse(const TSharedPtr<FStormSyncTransportSyncResponse>& InResponse, const FText& InSuccessTextFormat, const FText& InErrorTextFormat)
 {
 	check(InResponse.IsValid())
-	STORM_SYNC_EDITOR_LOG(Display, TEXT("UStormSyncNotificationSubsystem::HandleSyncResponse - Response message: %s"), *InResponse->ToString());
+	UE_LOG(LogStormSyncEditor, Display, TEXT("UStormSyncNotificationSubsystem::HandleSyncResponse - Response message: %s"), *InResponse->ToString());
 
 	FText NotifyMessage;
 	EMessageSeverity::Type Severity = EMessageSeverity::Info;
@@ -192,19 +192,19 @@ void UStormSyncNotificationSubsystem::HandleSyncResponse(const TSharedPtr<FStorm
 
 void UStormSyncNotificationSubsystem::OnPreStartSendingBuffer(const FString& InRemoteAddress, const FString& InRemoteHostname, const int32 InFileCount)
 {
-	STORM_SYNC_EDITOR_LOG(Display, TEXT("UStormSyncNotificationSubsystem OnPreStartSendingBuffer InFileCount: %d"), InFileCount)
+	UE_LOG(LogStormSyncEditor, Display, TEXT("UStormSyncNotificationSubsystem OnPreStartSendingBuffer InFileCount: %d"), InFileCount);
 	AddProgressBarNotification(InRemoteAddress, InRemoteHostname);
 }
 
 void UStormSyncNotificationSubsystem::OnStartSendingBuffer(const FString& InRemoteAddress, const int32 InBufferSize)
 {
-	STORM_SYNC_EDITOR_LOG(Display, TEXT("UStormSyncNotificationSubsystem OnStartSendingBuffer InBufferSize: %d InRemoteAddress: %s"), InBufferSize, *InRemoteAddress)
+	UE_LOG(LogStormSyncEditor, Display, TEXT("UStormSyncNotificationSubsystem OnStartSendingBuffer InBufferSize: %d InRemoteAddress: %s"), InBufferSize, *InRemoteAddress);
 	UpdateProgressBarNotificationOnStart(InRemoteAddress, InBufferSize);
 }
 
 void UStormSyncNotificationSubsystem::OnReceivingBytes(const FString& InRemoteAddress, const int32 InBytesCount)
 {
-	STORM_SYNC_EDITOR_LOG(Verbose, TEXT("UStormSyncNotificationSubsystem OnReceivingBytes InBytesCount: %d InRemoteAddress: %s"), InBytesCount, *InRemoteAddress)
+	UE_LOG(LogStormSyncEditor, Verbose, TEXT("UStormSyncNotificationSubsystem OnReceivingBytes InBytesCount: %d InRemoteAddress: %s"), InBytesCount, *InRemoteAddress);
 	UpdateProgressBarNotificationOnIncomingBytes(InRemoteAddress, InBytesCount);
 }
 
@@ -212,7 +212,7 @@ void UStormSyncNotificationSubsystem::AddProgressBarNotification(const FString& 
 {
 	if (Notifications.Contains(InRemoteAddress))
 	{
-		STORM_SYNC_EDITOR_LOG(Warning, TEXT("Trying to add a notification currently active"))
+		UE_LOG(LogStormSyncEditor, Warning, TEXT("Trying to add a notification currently active"));
 		return;
 	}
 
@@ -243,7 +243,7 @@ void UStormSyncNotificationSubsystem::UpdateProgressBarNotificationOnStart(const
 {
 	if (!Notifications.Contains(InRemoteAddress))
 	{
-		STORM_SYNC_EDITOR_LOG(Warning, TEXT("Trying to update notification for %s, but it's not active"), *InRemoteAddress)
+		UE_LOG(LogStormSyncEditor, Warning, TEXT("Trying to update notification for %s, but it's not active"), *InRemoteAddress);
 		return;
 	}
 
@@ -260,7 +260,7 @@ void UStormSyncNotificationSubsystem::UpdateProgressBarNotificationOnIncomingByt
 {
 	if (!Notifications.Contains(InRemoteAddress))
 	{
-		STORM_SYNC_EDITOR_LOG(Warning, TEXT("Trying to update notification for %s, but it's not active"), *InRemoteAddress)
+		UE_LOG(LogStormSyncEditor, Warning, TEXT("Trying to update notification for %s, but it's not active"), *InRemoteAddress);
 		return;
 	}
 
@@ -274,7 +274,7 @@ void UStormSyncNotificationSubsystem::UpdateProgressBarNotificationOnIncomingByt
 
 		if (Percent >= 1.f && NotificationTask.Notification)
 		{
-			STORM_SYNC_EDITOR_LOG(Display, TEXT("Received 100%% bytes, expire and fadeout notif %f"), Percent);
+			UE_LOG(LogStormSyncEditor, Display, TEXT("Received 100%% bytes, expire and fadeout notif %f"), Percent);
 			NotificationTask.Notification->ExpireAndFadeout();
 			Notifications.Remove(InRemoteAddress);
 		}
@@ -285,13 +285,13 @@ void UStormSyncNotificationSubsystem::OnDismissButtonClicked(const FString InRem
 {
 	if (!Notifications.Contains(InRemoteAddress))
 	{
-		STORM_SYNC_EDITOR_LOG(Warning, TEXT("Trying to dismiss notification for %s, but it's not active"), *InRemoteAddress)
+		UE_LOG(LogStormSyncEditor, Warning, TEXT("Trying to dismiss notification for %s, but it's not active"), *InRemoteAddress);
 		return;
 	}
 
 	const FStormSyncNotificationTask NotificationTask = Notifications.FindChecked(InRemoteAddress);
 
-	STORM_SYNC_EDITOR_LOG(Verbose, TEXT("OnDismissButtonClicked"));
+	UE_LOG(LogStormSyncEditor, Verbose, TEXT("OnDismissButtonClicked"));
 	if (NotificationTask.Notification)
 	{
 		// Expire the notification immediately and ensure it fades quickly so that clicking the buttons feels responsive

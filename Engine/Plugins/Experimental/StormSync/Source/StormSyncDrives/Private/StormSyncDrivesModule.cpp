@@ -59,7 +59,7 @@ void FStormSyncDrivesModule::ShutdownModule()
 
 bool FStormSyncDrivesModule::RegisterMountPoint(const FStormSyncMountPointConfig& InMountPoint, FText& ErrorText)
 {
-	STORM_SYNC_DRIVES_LOG(Display, TEXT("FStormSyncDrivesModule::RegisterMountPoint ... MountPoint: %s, Path: %s"), *InMountPoint.MountPoint, *InMountPoint.MountDirectory.Path)
+	UE_LOG(LogStormSyncDrives, Display, TEXT("FStormSyncDrivesModule::RegisterMountPoint ... MountPoint: %s, Path: %s"), *InMountPoint.MountPoint, *InMountPoint.MountDirectory.Path);
 
 	// Validate first configuration of the mount point
 	FText ValidationError;
@@ -92,7 +92,7 @@ bool FStormSyncDrivesModule::RegisterMountPoint(const FStormSyncMountPointConfig
 		return false;
 	}
 
-	STORM_SYNC_DRIVES_LOG(Display, TEXT("FStormSyncDrivesModule::RegisterMountPoint ... Try register %s to %s"), *MountPoint, *InMountPoint.MountDirectory.Path)
+	UE_LOG(LogStormSyncDrives, Display, TEXT("FStormSyncDrivesModule::RegisterMountPoint ... Try register %s to %s"), *MountPoint, *InMountPoint.MountDirectory.Path);
 	FPackageName::RegisterMountPoint(MountPoint, InMountPoint.MountDirectory.Path);
 	return true;
 }
@@ -120,8 +120,8 @@ bool FStormSyncDrivesModule::UnregisterMountPoint(const FStormSyncMountPointConf
 
 void FStormSyncDrivesModule::OnEngineLoopInitComplete()
 {
-	STORM_SYNC_DRIVES_LOG(Display, TEXT("FStormSyncDrivesModule::OnEngineLoopInitComplete ..."))
-	STORM_SYNC_DRIVES_LOG(Display, TEXT("\t Mounting Drives based on config"))
+	UE_LOG(LogStormSyncDrives, Display, TEXT("FStormSyncDrivesModule::OnEngineLoopInitComplete ..."));
+	UE_LOG(LogStormSyncDrives, Display, TEXT("\t Mounting Drives based on config"));
 
 	ResetMountedDrivesFromSettings(GetDefault<UStormSyncDrivesSettings>());
 }
@@ -155,7 +155,7 @@ bool FStormSyncDrivesModule::ValidateMountPoint(const FStormSyncMountPointConfig
 			ErrorText
 		);
 		AddMessageError(ErrorLog);
-		STORM_SYNC_DRIVES_LOG(Error, TEXT("FStormSyncDrivesModule::ValidateMountPoint - %s"), *ErrorLog.ToString())
+		UE_LOG(LogStormSyncDrives, Error, TEXT("FStormSyncDrivesModule::ValidateMountPoint - %s"), *ErrorLog.ToString());
 		return false;
 	}
 
@@ -178,7 +178,7 @@ bool FStormSyncDrivesModule::ValidateMountPoints(const TArray<FStormSyncMountPoi
 	int32 Index = 0;
 	for (const FStormSyncMountPointConfig& Entry : InMountPoints)
 	{
-		STORM_SYNC_DRIVES_LOG(Display, TEXT("Try validate entry %s %s"), *Entry.MountPoint, *Entry.MountDirectory.Path)
+		UE_LOG(LogStormSyncDrives, Display, TEXT("Try validate entry %s %s"), *Entry.MountPoint, *Entry.MountDirectory.Path);
 
 		// First check for mount point validity individually
 		bResult &= ValidateMountPoint(Entry, Index);
@@ -195,7 +195,7 @@ bool FStormSyncDrivesModule::ValidateMountPoints(const TArray<FStormSyncMountPoi
 		for (const FText& ValidationError : ValidationErrors)
 		{
 			AddMessageError(ValidationError);
-			STORM_SYNC_DRIVES_LOG(Error, TEXT("FStormSyncDrivesModule::ValidateMountPoints - %s"), *ValidationError.ToString())
+			UE_LOG(LogStormSyncDrives, Error, TEXT("FStormSyncDrivesModule::ValidateMountPoints - %s"), *ValidationError.ToString());
 		}
 	}
 
@@ -212,7 +212,7 @@ bool FStormSyncDrivesModule::ValidateMountPoints(const TArray<FStormSyncMountPoi
 
 void FStormSyncDrivesModule::ResetMountedDrivesFromSettings(const UStormSyncDrivesSettings* InSettings)
 {
-	STORM_SYNC_DRIVES_LOG(Display, TEXT("FStormSyncDrivesModule::ResetMountedDrives ..."))
+	UE_LOG(LogStormSyncDrives, Display, TEXT("FStormSyncDrivesModule::ResetMountedDrives ..."));
 	check(InSettings);
 
 	if (ValidateMountPoints(InSettings->MountPoints))
@@ -225,7 +225,7 @@ void FStormSyncDrivesModule::ResetMountedDrivesFromSettings(const UStormSyncDriv
 
 void FStormSyncDrivesModule::UnregisterMountedDrives()
 {
-	STORM_SYNC_DRIVES_LOG(Display, TEXT("FStormSyncDrivesModule::UnregisterMountedDrives ..."))
+	UE_LOG(LogStormSyncDrives, Display, TEXT("FStormSyncDrivesModule::UnregisterMountedDrives ..."));
 	for (const TSharedPtr<FStormSyncMountPointConfig>& MountedDrive : MountedDrives)
 	{
 		if (!MountedDrive.IsValid())
@@ -236,14 +236,14 @@ void FStormSyncDrivesModule::UnregisterMountedDrives()
 		FText ErrorText;
 		if (!UnregisterMountPoint(*MountedDrive.Get(), ErrorText))
 		{
-			STORM_SYNC_DRIVES_LOG(Error, TEXT("FStormSyncDrivesModule::UnregisterMountedDrives failed with Error: %s"), *ErrorText.ToString())
+			UE_LOG(LogStormSyncDrives, Error, TEXT("FStormSyncDrivesModule::UnregisterMountedDrives failed with Error: %s"), *ErrorText.ToString());
 		}
 	}
 }
 
 void FStormSyncDrivesModule::CacheMountedDrives(const TArray<FStormSyncMountPointConfig>& InMountPoints)
 {
-	STORM_SYNC_DRIVES_LOG(Display, TEXT("FStormSyncDrivesModule::CacheMountedDrives ..."))
+	UE_LOG(LogStormSyncDrives, Display, TEXT("FStormSyncDrivesModule::CacheMountedDrives ..."));
 	MountedDrives.Reset();
 
 	for (const FStormSyncMountPointConfig& Entry : InMountPoints)
@@ -254,7 +254,7 @@ void FStormSyncDrivesModule::CacheMountedDrives(const TArray<FStormSyncMountPoin
 
 void FStormSyncDrivesModule::RegisterMountedDrives()
 {
-	STORM_SYNC_DRIVES_LOG(Display, TEXT("FStormSyncDrivesModule::RegisterMountedDrives ..."))
+	UE_LOG(LogStormSyncDrives, Display, TEXT("FStormSyncDrivesModule::RegisterMountedDrives ..."));
 	for (TSharedPtr<FStormSyncMountPointConfig> MountedDrive : MountedDrives)
 	{
 		if (!MountedDrive.IsValid())
@@ -265,7 +265,7 @@ void FStormSyncDrivesModule::RegisterMountedDrives()
 		FText ErrorText;
 		if (!RegisterMountPoint(*MountedDrive.Get(), ErrorText))
 		{
-			STORM_SYNC_DRIVES_LOG(Error, TEXT("FStormSyncDrivesModule::RegisterMountedDrives failed with Error: %s"), *ErrorText.ToString())
+			UE_LOG(LogStormSyncDrives, Error, TEXT("FStormSyncDrivesModule::RegisterMountedDrives failed with Error: %s"), *ErrorText.ToString());
 		}
 	}
 }

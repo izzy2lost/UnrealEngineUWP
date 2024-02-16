@@ -29,13 +29,13 @@
 
 void FStormSyncAssetFolderContextMenu::Initialize()
 {
-	STORM_SYNC_EDITOR_LOG(Verbose, TEXT("FStormSyncAssetFolderContextMenu::Initialize - ..."));
+	UE_LOG(LogStormSyncEditor, Verbose, TEXT("FStormSyncAssetFolderContextMenu::Initialize - ..."));
 	UToolMenus::RegisterStartupCallback(FSimpleMulticastDelegate::FDelegate::CreateSP(this, &FStormSyncAssetFolderContextMenu::RegisterMenus));
 }
 
 void FStormSyncAssetFolderContextMenu::Shutdown()
 {
-	STORM_SYNC_EDITOR_LOG(Verbose, TEXT("FStormSyncAssetFolderContextMenu::Shutdown - ..."));
+	UE_LOG(LogStormSyncEditor, Verbose, TEXT("FStormSyncAssetFolderContextMenu::Shutdown - ..."));
 }
 
 void FStormSyncAssetFolderContextMenu::BuildPushAssetsMenuSection(FMenuBuilder& InMenuBuilder, const TArray<FName> InPackageNames, const bool bInIsPushing)
@@ -108,7 +108,7 @@ TArray<FAssetData> FStormSyncAssetFolderContextMenu::GetDirtyAssets(const TArray
 
 		if (!AssetRegistry.GetAssetsByPackageName(PackageName, Assets))
 		{
-			STORM_SYNC_EDITOR_LOG(Warning, TEXT("FStormSyncAssetFolderContextMenu::HasDirtyAssets - GetAssetsByPackageName failed to load assets for %s"), *PackageName.ToString());
+			UE_LOG(LogStormSyncEditor, Warning, TEXT("FStormSyncAssetFolderContextMenu::HasDirtyAssets - GetAssetsByPackageName failed to load assets for %s"), *PackageName.ToString());
 			continue;
 		}
 
@@ -157,7 +157,7 @@ TArray<FAssetData> FStormSyncAssetFolderContextMenu::GetDirtyAssets(const TArray
 
 void FStormSyncAssetFolderContextMenu::RegisterMenus()
 {
-	STORM_SYNC_EDITOR_LOG(Verbose, TEXT("FStormSyncAssetFolderContextMenu::RegisterMenus"));
+	UE_LOG(LogStormSyncEditor, Verbose, TEXT("FStormSyncAssetFolderContextMenu::RegisterMenus"));
 
 	if (UToolMenu* Menu = UToolMenus::Get()->ExtendMenu("ContentBrowser.FolderContextMenu"))
 	{
@@ -186,7 +186,7 @@ void FStormSyncAssetFolderContextMenu::RegisterMenus()
 
 void FStormSyncAssetFolderContextMenu::PopulateAssetFolderContextMenu(UToolMenu* InMenu) const
 {
-	STORM_SYNC_EDITOR_LOG(Verbose, TEXT("FStormSyncAssetFolderContextMenu::PopulateAssetFolderContextMenu - InMenu: %s"), *GetNameSafe(InMenu));
+	UE_LOG(LogStormSyncEditor, Verbose, TEXT("FStormSyncAssetFolderContextMenu::PopulateAssetFolderContextMenu - InMenu: %s"), *GetNameSafe(InMenu));
 	check(InMenu);
 
 	const UContentBrowserDataMenuContext_FolderMenu* ContextObject = InMenu->FindContext<UContentBrowserDataMenuContext_FolderMenu>();
@@ -197,17 +197,17 @@ void FStormSyncAssetFolderContextMenu::PopulateAssetFolderContextMenu(UToolMenu*
 	TArray<FString> SelectedAssetPackages;
 	GetSelectedFilesAndFolders(InMenu, SelectedPackagePaths, SelectedAssetPackages);
 
-	STORM_SYNC_EDITOR_LOG(Verbose, TEXT("FStormSyncAssetFolderContextMenu::PopulateAssetFolderContextMenu - Result ..."));
-	STORM_SYNC_EDITOR_LOG(Verbose, TEXT("\tSelectedPackagePaths: %d"), SelectedPackagePaths.Num());
+	UE_LOG(LogStormSyncEditor, Verbose, TEXT("FStormSyncAssetFolderContextMenu::PopulateAssetFolderContextMenu - Result ..."));
+	UE_LOG(LogStormSyncEditor, Verbose, TEXT("\tSelectedPackagePaths: %d"), SelectedPackagePaths.Num());
 	for (const FString& SelectedPackagePath : SelectedPackagePaths)
 	{
-		STORM_SYNC_EDITOR_LOG(Verbose, TEXT("\t- %s"), *SelectedPackagePath);
+		UE_LOG(LogStormSyncEditor, Verbose, TEXT("\t- %s"), *SelectedPackagePath);
 	}
 
-	STORM_SYNC_EDITOR_LOG(Verbose, TEXT("\tSelectedAssetPackages: %d"), SelectedAssetPackages.Num());
+	UE_LOG(LogStormSyncEditor, Verbose, TEXT("\tSelectedAssetPackages: %d"), SelectedAssetPackages.Num());
 	for (const FString& SelectedAssetPackage : SelectedAssetPackages)
 	{
-		STORM_SYNC_EDITOR_LOG(Verbose, TEXT("\t- %s"), *SelectedAssetPackage);
+		UE_LOG(LogStormSyncEditor, Verbose, TEXT("\t- %s"), *SelectedAssetPackage);
 	}
 	
 	AddFolderMenuOptions(InMenu, SelectedPackagePaths, SelectedAssetPackages);
@@ -215,7 +215,7 @@ void FStormSyncAssetFolderContextMenu::PopulateAssetFolderContextMenu(UToolMenu*
 
 void FStormSyncAssetFolderContextMenu::PopulateAssetFileContextMenu(UToolMenu* InMenu)
 {
-	STORM_SYNC_EDITOR_LOG(Verbose, TEXT("FStormSyncAssetFolderContextMenu::PopulateAssetFileContextMenu - InMenu: %s"), *GetNameSafe(InMenu));
+	UE_LOG(LogStormSyncEditor, Verbose, TEXT("FStormSyncAssetFolderContextMenu::PopulateAssetFileContextMenu - InMenu: %s"), *GetNameSafe(InMenu));
 	check(InMenu);
 
 	const UContentBrowserDataMenuContext_FileMenu* ContextObject = InMenu->FindContext<UContentBrowserDataMenuContext_FileMenu>();
@@ -225,11 +225,11 @@ void FStormSyncAssetFolderContextMenu::PopulateAssetFileContextMenu(UToolMenu* I
 	TArray<FName> SelectedAssetPackages;
 	GetSelectedFiles(InMenu, SelectedAssetPackages);
 
-	STORM_SYNC_EDITOR_LOG(Verbose, TEXT("FStormSyncAssetFolderContextMenu::PopulateAssetFileContextMenu - Result ..."));
-	STORM_SYNC_EDITOR_LOG(Verbose, TEXT("\tSelectedAssetPackages: %d"), SelectedAssetPackages.Num());
+	UE_LOG(LogStormSyncEditor, Verbose, TEXT("FStormSyncAssetFolderContextMenu::PopulateAssetFileContextMenu - Result ..."));
+	UE_LOG(LogStormSyncEditor, Verbose, TEXT("\tSelectedAssetPackages: %d"), SelectedAssetPackages.Num());
 	for (const FName& SelectedPackageName : SelectedAssetPackages)
 	{
-		STORM_SYNC_EDITOR_LOG(Verbose, TEXT("\t- %s"), *SelectedPackageName.ToString());
+		UE_LOG(LogStormSyncEditor, Verbose, TEXT("\t- %s"), *SelectedPackageName.ToString());
 	}
 
 	AddFileMenuOptions(InMenu, SelectedAssetPackages);
@@ -440,7 +440,7 @@ void FStormSyncAssetFolderContextMenu::GetSelectedAssetsInPaths(const TArray<FSt
 
 void FStormSyncAssetFolderContextMenu::GetSelectedFilesAndFolders(const UToolMenu* InMenu, TArray<FString>& OutSelectedPackagePaths, TArray<FString>& OutSelectedAssetPackages) const
 {
-	STORM_SYNC_EDITOR_LOG(Verbose, TEXT("FStormSyncAssetFolderContextMenu::GetSelectedFilesAndFolders - InMenu: %s"), *GetNameSafe(InMenu));
+	UE_LOG(LogStormSyncEditor, Verbose, TEXT("FStormSyncAssetFolderContextMenu::GetSelectedFilesAndFolders - InMenu: %s"), *GetNameSafe(InMenu));
 	check(InMenu);
 
 	const UContentBrowserDataMenuContext_FolderMenu* ContextObject = InMenu->FindContext<UContentBrowserDataMenuContext_FolderMenu>();
@@ -477,7 +477,7 @@ void FStormSyncAssetFolderContextMenu::GetSelectedFilesAndFolders(const UToolMen
 
 void FStormSyncAssetFolderContextMenu::GetSelectedFiles(const UToolMenu* InMenu, TArray<FString>& OutSelectedAssetPackages) const
 {
-	STORM_SYNC_EDITOR_LOG(Verbose, TEXT("FStormSyncAssetFolderContextMenu::GetSelectedFiles - InMenu: %s"), *GetNameSafe(InMenu));
+	UE_LOG(LogStormSyncEditor, Verbose, TEXT("FStormSyncAssetFolderContextMenu::GetSelectedFiles - InMenu: %s"), *GetNameSafe(InMenu));
 	check(InMenu);
 
 	const UContentBrowserDataMenuContext_FileMenu* ContextObject = InMenu->FindContext<UContentBrowserDataMenuContext_FileMenu>();
@@ -554,7 +554,7 @@ void FStormSyncAssetFolderContextMenu::BuildPushAssetsMenuEntries(FMenuBuilder& 
 		FMessageAddress ClientAddress;
 		if (!FMessageAddress::Parse(ClientAddressId, ClientAddress))
 		{
-			STORM_SYNC_EDITOR_LOG(Error, TEXT("FStormSyncAssetFolderContextMenu::BuildPushAssetsMenuEntries - Error parsing message address for storm sync client with id \"%s\""), *ClientAddressId);
+			UE_LOG(LogStormSyncEditor, Error, TEXT("FStormSyncAssetFolderContextMenu::BuildPushAssetsMenuEntries - Error parsing message address for storm sync client with id \"%s\""), *ClientAddressId);
 			continue;
 		}
 
@@ -603,10 +603,10 @@ void FStormSyncAssetFolderContextMenu::BuildPushAssetsMenuEntries(FMenuBuilder& 
 
 void FStormSyncAssetFolderContextMenu::ExecuteSyncAssetsAction(TArray<FName> InPackageNames)
 {
-	STORM_SYNC_EDITOR_LOG(Display, TEXT("FStormSyncAssetFolderContextMenu::ExecuteSyncAssetsAction - Package names %d"), InPackageNames.Num());
+	UE_LOG(LogStormSyncEditor, Display, TEXT("FStormSyncAssetFolderContextMenu::ExecuteSyncAssetsAction - Package names %d"), InPackageNames.Num());
 	for (FName PackageName : InPackageNames)
 	{
-		STORM_SYNC_EDITOR_LOG(Display, TEXT("\t- Package name: %s"), *PackageName.ToString());
+		UE_LOG(LogStormSyncEditor, Display, TEXT("\t- Package name: %s"), *PackageName.ToString());
 	}
 
 	// Note: We sync with a dummy package descriptor, next iterations could add in there an additional UI step.
@@ -617,12 +617,12 @@ void FStormSyncAssetFolderContextMenu::ExecuteSyncAssetsAction(TArray<FName> InP
 
 void FStormSyncAssetFolderContextMenu::ExecutePushAssetsAction(TArray<FName> InPackageNames, FString InMessageAddressId)
 {
-	STORM_SYNC_EDITOR_LOG(Display, TEXT("FStormSyncAssetFolderContextMenu::ExecutePushAssetsAction to %s - Package names %d"), *InMessageAddressId, InPackageNames.Num());
+	UE_LOG(LogStormSyncEditor, Display, TEXT("FStormSyncAssetFolderContextMenu::ExecutePushAssetsAction to %s - Package names %d"), *InMessageAddressId, InPackageNames.Num());
 
 	FMessageAddress RemoteMessageAddress;
 	if (!FMessageAddress::Parse(InMessageAddressId, RemoteMessageAddress))
 	{
-		STORM_SYNC_EDITOR_LOG(Error, TEXT("FStormSyncAssetFolderContextMenu::ExecutePushAssetsAction to %s - Unable to parse into a Message Address"), *InMessageAddressId);
+		UE_LOG(LogStormSyncEditor, Error, TEXT("FStormSyncAssetFolderContextMenu::ExecutePushAssetsAction to %s - Unable to parse into a Message Address"), *InMessageAddressId);
 		return;
 	}
 
@@ -643,7 +643,7 @@ void FStormSyncAssetFolderContextMenu::ExecutePushAssetsAction(TArray<FName> InP
 	const FOnStormSyncPushComplete Delegate = FOnStormSyncPushComplete::CreateLambda([](const TSharedPtr<FStormSyncTransportPushResponse>& Response)
 	{
 		check(Response.IsValid())
-		STORM_SYNC_EDITOR_LOG(Display, TEXT("FStormSyncAssetFolderContextMenu::ExecutePushAssetsAction - Got a response: %s"), *Response->ToString());
+		UE_LOG(LogStormSyncEditor, Display, TEXT("FStormSyncAssetFolderContextMenu::ExecutePushAssetsAction - Got a response: %s"), *Response->ToString());
 		UStormSyncNotificationSubsystem::Get().HandlePushResponse(Response);
 	});
 	
@@ -653,12 +653,12 @@ void FStormSyncAssetFolderContextMenu::ExecutePushAssetsAction(TArray<FName> InP
 
 void FStormSyncAssetFolderContextMenu::ExecutePullAssetsAction(TArray<FName> InPackageNames, FString InMessageAddressId)
 {
-	STORM_SYNC_EDITOR_LOG(Display, TEXT("FStormSyncAssetFolderContextMenu::ExecutePullAssetsAction to %s - Package names %d"), *InMessageAddressId, InPackageNames.Num());
+	UE_LOG(LogStormSyncEditor, Display, TEXT("FStormSyncAssetFolderContextMenu::ExecutePullAssetsAction to %s - Package names %d"), *InMessageAddressId, InPackageNames.Num());
 
 	FMessageAddress RemoteMessageAddress;
 	if (!FMessageAddress::Parse(InMessageAddressId, RemoteMessageAddress))
 	{
-		STORM_SYNC_EDITOR_LOG(Error, TEXT("FStormSyncAssetFolderContextMenu::ExecutePullAssetsAction to %s - Unable to parse into a Message Address"), *InMessageAddressId);
+		UE_LOG(LogStormSyncEditor, Error, TEXT("FStormSyncAssetFolderContextMenu::ExecutePullAssetsAction to %s - Unable to parse into a Message Address"), *InMessageAddressId);
 		return;
 	}
 
@@ -679,7 +679,7 @@ void FStormSyncAssetFolderContextMenu::ExecutePullAssetsAction(TArray<FName> InP
 	const FOnStormSyncPullComplete Delegate = FOnStormSyncPullComplete::CreateLambda([](const TSharedPtr<FStormSyncTransportPullResponse>& Response)
 	{
 		check(Response.IsValid())
-		STORM_SYNC_EDITOR_LOG(Display, TEXT("FStormSyncAssetFolderContextMenu::ExecutePullAssetsAction - Got a response: %s"), *Response->ToString());
+		UE_LOG(LogStormSyncEditor, Display, TEXT("FStormSyncAssetFolderContextMenu::ExecutePullAssetsAction - Got a response: %s"), *Response->ToString());
 		UStormSyncNotificationSubsystem::Get().HandlePullResponse(Response);
 	});
 	
@@ -689,18 +689,18 @@ void FStormSyncAssetFolderContextMenu::ExecutePullAssetsAction(TArray<FName> InP
 
 void FStormSyncAssetFolderContextMenu::ExecuteCompareWithAction(const TArray<FName> InPackageNames, const FString InMessageAddressId)
 {
-	STORM_SYNC_EDITOR_LOG(Display, TEXT("FStormSyncAssetFolderContextMenu::ExecuteCompareWithAction to %s - Package names %d"), *InMessageAddressId, InPackageNames.Num());
+	UE_LOG(LogStormSyncEditor, Display, TEXT("FStormSyncAssetFolderContextMenu::ExecuteCompareWithAction to %s - Package names %d"), *InMessageAddressId, InPackageNames.Num());
 
 	FMessageAddress RemoteAddress;
 	if (!FMessageAddress::Parse(InMessageAddressId, RemoteAddress))
 	{
-		STORM_SYNC_EDITOR_LOG(Error, TEXT("FStormSyncAssetFolderContextMenu::ExecuteCompareWithAction to %s - Unable to parse into a Message Address"), *InMessageAddressId);
+		UE_LOG(LogStormSyncEditor, Error, TEXT("FStormSyncAssetFolderContextMenu::ExecuteCompareWithAction to %s - Unable to parse into a Message Address"), *InMessageAddressId);
 		return;
 	}
 
 	const FOnStormSyncRequestStatusComplete DoneDelegate = FOnStormSyncRequestStatusComplete::CreateLambda([](const TSharedPtr<FStormSyncTransportStatusResponse>& Response)
 	{
-		STORM_SYNC_EDITOR_LOG(Display, TEXT("FStormSyncAssetFolderContextMenu::ExecuteCompareWithAction - Received response! %s"), *Response->ToString());
+		UE_LOG(LogStormSyncEditor, Display, TEXT("FStormSyncAssetFolderContextMenu::ExecuteCompareWithAction - Received response! %s"), *Response->ToString());
 
 		// Prompt the user displaying all assets that are going to be migrated
 		SStormSyncStatusWidget::OpenDialog(Response.ToSharedRef());
@@ -711,7 +711,7 @@ void FStormSyncAssetFolderContextMenu::ExecuteCompareWithAction(const TArray<FNa
 
 void FStormSyncAssetFolderContextMenu::ExecuteExportAction(const TArray<FName> InPackageNames)
 {
-	STORM_SYNC_EDITOR_LOG(Display, TEXT("FStormSyncAssetFolderContextMenu::ExecuteExportAction - Package names %d"), InPackageNames.Num());
+	UE_LOG(LogStormSyncEditor, Display, TEXT("FStormSyncAssetFolderContextMenu::ExecuteExportAction - Package names %d"), InPackageNames.Num());
 
 	// Form a full list of packages to move by including the dependencies of the supplied packages
 	TArray<FName> AllPackageNamesToMove;
@@ -724,7 +724,7 @@ void FStormSyncAssetFolderContextMenu::ExecuteExportAction(const TArray<FName> I
 		FText ErrorText;
 		if (!FStormSyncCoreUtils::GetDependenciesForPackages(InPackageNames, AllPackageNamesToMove, ErrorText))
 		{
-			STORM_SYNC_EDITOR_LOG(Error, TEXT("FStormSyncAssetFolderContextMenu::ExecuteExportAction - Failed to gather dependencies: %s"), *ErrorText.ToString())
+			UE_LOG(LogStormSyncEditor, Error, TEXT("FStormSyncAssetFolderContextMenu::ExecuteExportAction - Failed to gather dependencies: %s"), *ErrorText.ToString());
 			WarnOnInvalidPackages(InPackageNames, LOCTEXT("Export_Warning_Notify_Heading", "Some files are invalid (not existing on disk)"));
 			return;
 		}
@@ -771,7 +771,7 @@ void FStormSyncAssetFolderContextMenu::OnExportWizardCompleted(const TArray<FNam
 	const FText ErrorHeadingText = LOCTEXT("Export_Error_Notify_Heading", "Error during export, some files were invalid (not existing on disk)");
 	if (!WarnOnInvalidPackages(InPackageNames, ErrorHeadingText, FAppStyle::GetBrush(TEXT("AssetEditor.CompileStatus.Overlay.Error"))))
 	{
-		STORM_SYNC_EDITOR_LOG(Error, TEXT("FStormSyncAssetFolderContextMenu::OnExportWizardCompleted - Some files are invalid, preventing export."))
+		UE_LOG(LogStormSyncEditor, Error, TEXT("FStormSyncAssetFolderContextMenu::OnExportWizardCompleted - Some files are invalid, preventing export."));
 		// Note: Opting to prevent operation by design when Settings' bFilterInvalidReferences is false (but use it to display warnings),
 		// this can arguably be changed to not prevent operations (pak buffer creation below) by filtering invalid refs no matter what (even if bFilterInvalidReferences
 		// is false)
@@ -795,7 +795,7 @@ void FStormSyncAssetFolderContextMenu::OnExportWizardCompleted(const TArray<FNam
 		TArray<FStormSyncFileDependency> PackedFiles;
 		if (!FStormSyncCoreUtils::CreatePakBuffer(InPackageNames, Buffer, ErrorText, Delegate))
 		{
-			STORM_SYNC_EDITOR_LOG(Error, TEXT("FStormSyncAssetFolderContextMenu::OnExportWizardCompleted - CreatePakBufferWithDependencies Error: %s"), *ErrorText.ToString())
+			UE_LOG(LogStormSyncEditor, Error, TEXT("FStormSyncAssetFolderContextMenu::OnExportWizardCompleted - CreatePakBufferWithDependencies Error: %s"), *ErrorText.ToString());
 			return;
 		}
 	}
@@ -805,7 +805,7 @@ void FStormSyncAssetFolderContextMenu::OnExportWizardCompleted(const TArray<FNam
 		const TUniquePtr<FArchive> FileWriter(IFileManager::Get().CreateFileWriter(*InFilepath));
 		if (!FileWriter.IsValid())
 		{
-			STORM_SYNC_EDITOR_LOG(Error, TEXT("FStormSyncAssetFolderContextMenu::OnExportWizardCompleted - Error creating file writer"))
+			UE_LOG(LogStormSyncEditor, Error, TEXT("FStormSyncAssetFolderContextMenu::OnExportWizardCompleted - Error creating file writer"));
 			return;
 		}
 
@@ -814,7 +814,7 @@ void FStormSyncAssetFolderContextMenu::OnExportWizardCompleted(const TArray<FNam
 	}
 
 	// Notify user
-	STORM_SYNC_EDITOR_LOG(Display, TEXT("FStormSyncAssetFolderContextMenu::OnExportWizardCompleted - Created file %s"), *InFilepath)
+	UE_LOG(LogStormSyncEditor, Display, TEXT("FStormSyncAssetFolderContextMenu::OnExportWizardCompleted - Created file %s"), *InFilepath);
 
 	const FString DirectoryPath = FPaths::GetPath(InFilepath);
 	const FString BaseFilename = FPaths::GetBaseFilename(InFilepath);
@@ -831,12 +831,12 @@ void FStormSyncAssetFolderContextMenu::OnExportWizardCompleted(const TArray<FNam
 	Info.Hyperlink = FSimpleDelegate::CreateLambda([AbsolutePath]()
 	{
 		const FString HyperlinkTarget = TEXT("file://") / AbsolutePath;
-		STORM_SYNC_EDITOR_LOG(
+		UE_LOG(LogStormSyncEditor, 
 			Verbose,
 			TEXT("FStormSyncAssetFolderContextMenu::OnExportWizardCompleted - Clicked on \"Open Folder\" link with Directory: %s (HyperlinkTarget: %s)"),
 			*AbsolutePath,
 			*HyperlinkTarget
-		)
+		);
 
 		FPlatformProcess::LaunchURL(*HyperlinkTarget, nullptr, nullptr);
 	});
@@ -869,7 +869,7 @@ bool FStormSyncAssetFolderContextMenu::WarnOnInvalidPackages(const TArray<FName>
 			FText::FromString(ErrorsFileList)
 		);
 			
-		STORM_SYNC_EDITOR_LOG(Warning, TEXT("FStormSyncAssetFolderContextMenu::WarnOnInvalidPackages - %s"), *NotificationText.ToString())
+		UE_LOG(LogStormSyncEditor, Warning, TEXT("FStormSyncAssetFolderContextMenu::WarnOnInvalidPackages - %s"), *NotificationText.ToString());
 
 		FNotificationInfo NotifyInfo(NotificationText);
 		NotifyInfo.WidthOverride = 480.f;

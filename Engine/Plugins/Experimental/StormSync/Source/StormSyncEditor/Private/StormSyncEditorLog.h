@@ -5,8 +5,3 @@
 #include "Logging/LogMacros.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogStormSyncEditor, Display, All);
-
-#define STORM_SYNC_EDITOR_LOG(Verbosity, Format, ...) \
-{ \
-	UE_LOG(LogStormSyncEditor, Verbosity, Format, ##__VA_ARGS__); \
-}

@@ -44,7 +44,7 @@
 
 void UStormSyncImportSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
-	STORM_SYNC_IMPORT_LOG(Verbose, TEXT("UStormSyncImportSubsystem::Initialize (World: %s)"), *GetNameSafe(GetWorld()))
+	UE_LOG(LogStormSyncImport, Verbose, TEXT("UStormSyncImportSubsystem::Initialize (World: %s)"), *GetNameSafe(GetWorld()));
 
 #if WITH_EDITOR
 	// Create a message log for the asset tools to use
@@ -57,7 +57,7 @@ void UStormSyncImportSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 void UStormSyncImportSubsystem::Deinitialize()
 {
-	STORM_SYNC_IMPORT_LOG(Verbose, TEXT("UStormSyncImportSubsystem::Deinitialize (World: %s)"), *GetNameSafe(GetWorld()))
+	UE_LOG(LogStormSyncImport, Verbose, TEXT("UStormSyncImportSubsystem::Deinitialize (World: %s)"), *GetNameSafe(GetWorld()));
 	
 #if WITH_EDITOR
 	if (FModuleManager::Get().IsModuleLoaded("MessageLog"))
@@ -82,7 +82,7 @@ bool UStormSyncImportSubsystem::EnqueueImportTask(const TSharedPtr<IStormSyncImp
 {
 	if (!InWorld)
 	{
-		STORM_SYNC_IMPORT_LOG(Error, TEXT("UStormSyncImportSubsystem::EnqueueImportTask failed because of invalid world (World: %s)"), *GetNameSafe(InWorld))
+		UE_LOG(LogStormSyncImport, Error, TEXT("UStormSyncImportSubsystem::EnqueueImportTask failed because of invalid world (World: %s)"), *GetNameSafe(InWorld));
 		return false;
 	}
 
@@ -97,7 +97,7 @@ bool UStormSyncImportSubsystem::EnqueueImportTask(const TSharedPtr<IStormSyncImp
 
 	if (!PendingTasks.IsEmpty())
 	{
-		STORM_SYNC_IMPORT_LOG(Error, TEXT("UStormSyncImportSubsystem::EnqueueImportTask failed because of existing pending tasks (World: %s)"), *GetNameSafe(InWorld))
+		UE_LOG(LogStormSyncImport, Error, TEXT("UStormSyncImportSubsystem::EnqueueImportTask failed because of existing pending tasks (World: %s)"), *GetNameSafe(InWorld));
 		return false;
 	}
 
@@ -113,13 +113,13 @@ bool UStormSyncImportSubsystem::EnqueueImportTask(const TSharedPtr<IStormSyncImp
 
 bool UStormSyncImportSubsystem::PerformFileImport(const FString& InFilename)
 {
-	STORM_SYNC_IMPORT_LOG(Display, TEXT("FStormSyncEditorUtils::PerformImport for %s"), *InFilename);
+	UE_LOG(LogStormSyncImport, Display, TEXT("FStormSyncEditorUtils::PerformImport for %s"), *InFilename);
 	TArray<uint8> Data;
 
 	const FStormSyncBufferPtr Buffer = MakeShareable(new TArray<uint8>);
 	if (!FFileHelper::LoadFileToArray(*Buffer.Get(), *InFilename))
 	{
-		STORM_SYNC_IMPORT_LOG(Error, TEXT("Failed to load file '%s' to array"), *InFilename);
+		UE_LOG(LogStormSyncImport, Error, TEXT("Failed to load file '%s' to array"), *InFilename);
 		return false;
 	}
 
@@ -135,7 +135,7 @@ bool UStormSyncImportSubsystem::PerformBufferImport(const FStormSyncPackageDescr
 {
 	if (!InBuffer.IsValid())
 	{
-		STORM_SYNC_IMPORT_LOG(Error, TEXT("UStormSyncImportSubsystem::PerformBufferImport failed to import from invalid buffer"))
+		UE_LOG(LogStormSyncImport, Error, TEXT("UStormSyncImportSubsystem::PerformBufferImport failed to import from invalid buffer"));
 		return false;
 	}
 
@@ -151,7 +151,7 @@ bool UStormSyncImportSubsystem::PerformImport(const FStormSyncPackageDescriptor&
 {
 	if (!InBuffer.IsValid())
 	{
-		STORM_SYNC_IMPORT_LOG(Error, TEXT("UStormSyncImportSubsystem::PerformBufferImport failed to import from invalid buffer"))
+		UE_LOG(LogStormSyncImport, Error, TEXT("UStormSyncImportSubsystem::PerformBufferImport failed to import from invalid buffer"));
 		return false;
 	}
 
@@ -173,7 +173,7 @@ bool UStormSyncImportSubsystem::PerformImport(const FStormSyncPackageDescriptor&
 	ExtractArgs.OnPakPreExtract.BindLambda([&SlowTask, PackageDescriptor, bDryRun](const int32 FileCount)
 	{
 		SlowTask.TotalAmountOfWork = FileCount;
-		STORM_SYNC_IMPORT_LOG(Display, TEXT("\tOnPakPreExtract - File Count: %d"), FileCount)
+		UE_LOG(LogStormSyncImport, Display, TEXT("\tOnPakPreExtract - File Count: %d"), FileCount);
 		
 		if (!bDryRun)
 		{
@@ -185,7 +185,7 @@ bool UStormSyncImportSubsystem::PerformImport(const FStormSyncPackageDescriptor&
 	{
 		if (bDryRun)
 		{
-			STORM_SYNC_IMPORT_LOG(Display, TEXT("\tOnPakPostExtract - File Count: %d"), FileCount)
+			UE_LOG(LogStormSyncImport, Display, TEXT("\tOnPakPostExtract - File Count: %d"), FileCount);
 			return;
 		}
 
@@ -241,14 +241,14 @@ bool UStormSyncImportSubsystem::PerformImport(const FStormSyncPackageDescriptor&
 		
 		if (bDryRun)
 		{
-			STORM_SYNC_IMPORT_LOG(Display, TEXT("\tOnFileExtract"))
-			STORM_SYNC_IMPORT_LOG(Display, TEXT("\t\tPackageName: %s"), *FileDependency.PackageName.ToString())
-			STORM_SYNC_IMPORT_LOG(Display, TEXT("\t\tDestFilepath: %s"), *DestFilepath)
-			STORM_SYNC_IMPORT_LOG(Display, TEXT("\t\tFileSize: %lld"), FileDependency.FileSize)
-			STORM_SYNC_IMPORT_LOG(Display, TEXT("\t\tFileBuffer valid: %s"), FileBuffer.IsValid() ? TEXT("valid") : TEXT("invalid"))
+			UE_LOG(LogStormSyncImport, Display, TEXT("\tOnFileExtract"));
+			UE_LOG(LogStormSyncImport, Display, TEXT("\t\tPackageName: %s"), *FileDependency.PackageName.ToString());
+			UE_LOG(LogStormSyncImport, Display, TEXT("\t\tDestFilepath: %s"), *DestFilepath);
+			UE_LOG(LogStormSyncImport, Display, TEXT("\t\tFileSize: %lld"), FileDependency.FileSize);
+			UE_LOG(LogStormSyncImport, Display, TEXT("\t\tFileBuffer valid: %s"), FileBuffer.IsValid() ? TEXT("valid") : TEXT("invalid"));
 			if (FileBuffer.IsValid())
 			{
-				STORM_SYNC_IMPORT_LOG(Display, TEXT("\t\tFileBuffer size: %d"), FileBuffer->Num())
+				UE_LOG(LogStormSyncImport, Display, TEXT("\t\tFileBuffer size: %d"), FileBuffer->Num());
 			}
 
 			return;
@@ -265,10 +265,10 @@ bool UStormSyncImportSubsystem::PerformImport(const FStormSyncPackageDescriptor&
 	TMap<FString, FString> ExtractedPackages;
 	if (!FStormSyncCoreUtils::ExtractPakBuffer(*InBuffer.Get(), ExtractArgs, ExtractedPackages, Errors))
 	{
-		STORM_SYNC_IMPORT_LOG(Warning, TEXT("FStormSyncEditorUtils::PerformImport - Error extracting package ..."))
+		UE_LOG(LogStormSyncImport, Warning, TEXT("FStormSyncEditorUtils::PerformImport - Error extracting package ..."));
 		for (const FText& Error : Errors)
 		{
-			STORM_SYNC_IMPORT_LOG(Warning, TEXT("\t %s"), *Error.ToString())
+			UE_LOG(LogStormSyncImport, Warning, TEXT("\t %s"), *Error.ToString());
 		}
 
 		return false;
@@ -305,7 +305,7 @@ bool UStormSyncImportSubsystem::FillFilesToImport(const FStormSyncImportFileInfo
 	// File not existing in local project, add it to files to import and early out
 	if (DestFileSize == INDEX_NONE)
 	{
-		STORM_SYNC_IMPORT_LOG(Verbose, TEXT("\t\tFile %s does not exist"), *InDestFilepath)
+		UE_LOG(LogStormSyncImport, Verbose, TEXT("\t\tFile %s does not exist"), *InDestFilepath);
 		FString ShortPath = InDestFilepath;
 		ShortPath.RemoveFromStart(FPaths::ProjectContentDir());
 		FileInfo.ImportReason = FText::Format(LOCTEXT("FileInfo_MissingFile", "Missing file in local project ({0})"), FText::FromString(ShortPath));
@@ -314,10 +314,10 @@ bool UStormSyncImportSubsystem::FillFilesToImport(const FStormSyncImportFileInfo
 		return true;
 	}
 
-	STORM_SYNC_IMPORT_LOG(Verbose, TEXT("\t\tFile %s exist"), *InDestFilepath)
+	UE_LOG(LogStormSyncImport, Verbose, TEXT("\t\tFile %s exist"), *InDestFilepath);
 
 	const bool bSameSize = FileDependency.FileSize == DestFileSize;
-	STORM_SYNC_IMPORT_LOG(Verbose, TEXT("\t\t\tSame Size: %s (%lld vs %lld)"), bSameSize ? TEXT("true") : TEXT("false"), FileDependency.FileSize, DestFileSize)
+	UE_LOG(LogStormSyncImport, Verbose, TEXT("\t\t\tSame Size: %s (%lld vs %lld)"), bSameSize ? TEXT("true") : TEXT("false"), FileDependency.FileSize, DestFileSize);
 
 	// Check file hash from buffer against local file
 	const FMD5Hash ExistingFileMD5 = FMD5Hash::HashFile(*InDestFilepath);
@@ -361,7 +361,7 @@ bool UStormSyncImportSubsystem::FillFilesToImport(const FStormSyncImportFileInfo
 
 void UStormSyncImportSubsystem::HandlePakPreExtract(const FStormSyncPackageDescriptor& InPackageDescriptor, const int32 FileCount)
 {
-	STORM_SYNC_IMPORT_LOG(Display, TEXT("UStormSyncImportSubsystem::HandlePakPreExtract - About to extract %d files for %s"), FileCount, *InPackageDescriptor.ToString());
+	UE_LOG(LogStormSyncImport, Display, TEXT("UStormSyncImportSubsystem::HandlePakPreExtract - About to extract %d files for %s"), FileCount, *InPackageDescriptor.ToString());
 
 	// Reset closed assets to reopen
 	ClosedPackageNames.Empty();
@@ -381,8 +381,8 @@ void UStormSyncImportSubsystem::HandlePakPreExtract(const FStormSyncPackageDescr
 
 void UStormSyncImportSubsystem::HandlePakPostExtract(const FStormSyncPackageDescriptor& InPackageDescriptor, const int32 FileCount) const
 {
-	STORM_SYNC_IMPORT_LOG(Display, TEXT("UStormSyncImportSubsystem::HandlePakPostExtract - Extracted %d files for %s"), FileCount, *InPackageDescriptor.ToString());
-	STORM_SYNC_IMPORT_LOG(Display, TEXT("UStormSyncImportSubsystem::HandlePakPostExtract - Should handle reopening of %d assets"), ClosedPackageNames.Num());
+	UE_LOG(LogStormSyncImport, Display, TEXT("UStormSyncImportSubsystem::HandlePakPostExtract - Extracted %d files for %s"), FileCount, *InPackageDescriptor.ToString());
+	UE_LOG(LogStormSyncImport, Display, TEXT("UStormSyncImportSubsystem::HandlePakPostExtract - Should handle reopening of %d assets"), ClosedPackageNames.Num());
 	
 	if (GetDefault<UStormSyncCoreSettings>()->bEnableHotReloadPackages)
 	{
@@ -426,7 +426,7 @@ void UStormSyncImportSubsystem::HandlePakPostExtract(const FStormSyncPackageDesc
 void UStormSyncImportSubsystem::HandleExistingAssets(TConstArrayView<const FStormSyncImportFileInfo*> InExistingFiles, bool bInShowPrompt)
 {
 #if WITH_EDITOR
-	STORM_SYNC_IMPORT_LOG(Display, TEXT("UStormSyncImportSubsystem::HandleExistingAssets - Package Count: %d"), InExistingFiles.Num());
+	UE_LOG(LogStormSyncImport, Display, TEXT("UStormSyncImportSubsystem::HandleExistingAssets - Package Count: %d"), InExistingFiles.Num());
 
 	TArray<UPackage*> ExistingPackages;
 
@@ -439,12 +439,12 @@ void UStormSyncImportSubsystem::HandleExistingAssets(TConstArrayView<const FStor
 
 		if (UPackage* const Package = LoadPackage(nullptr, *PackageName, LOAD_None))
 		{
-			STORM_SYNC_IMPORT_LOG(Verbose, TEXT("UStormSyncImportSubsystem::HandleExistingAssets - Existing Package found for: %s"), *PackageName);
+			UE_LOG(LogStormSyncImport, Verbose, TEXT("UStormSyncImportSubsystem::HandleExistingAssets - Existing Package found for: %s"), *PackageName);
 			ExistingPackages.Add(Package);
 		}
 		else
 		{
-			STORM_SYNC_IMPORT_LOG(Verbose, TEXT("UStormSyncImportSubsystem::HandleExistingAssets - Package not found for: %s. Not an Existing Asset"), *PackageName);
+			UE_LOG(LogStormSyncImport, Verbose, TEXT("UStormSyncImportSubsystem::HandleExistingAssets - Package not found for: %s. Not an Existing Asset"), *PackageName);
 		}
 	}
 
@@ -475,7 +475,7 @@ void UStormSyncImportSubsystem::HandleExistingAssets(TConstArrayView<const FStor
 
 		if (SourceControlProvider.IsEnabled())
 		{
-			STORM_SYNC_IMPORT_LOG(Log, TEXT("UStormSyncImportSubsystem::HandleExistingAssets - Checking out %d packages with %s")
+			UE_LOG(LogStormSyncImport, Log, TEXT("UStormSyncImportSubsystem::HandleExistingAssets - Checking out %d packages with %s")
 				, ExistingPackages.Num()
 				, *SourceControlProvider.GetName().ToString());
 
@@ -486,7 +486,7 @@ void UStormSyncImportSubsystem::HandleExistingAssets(TConstArrayView<const FStor
 		}
 		else
 		{
-			STORM_SYNC_IMPORT_LOG(Log, TEXT("UStormSyncImportSubsystem::HandleExistingAssets - No Source Control found. Making %d packages writeable")
+			UE_LOG(LogStormSyncImport, Log, TEXT("UStormSyncImportSubsystem::HandleExistingAssets - No Source Control found. Making %d packages writeable")
 				, ExistingPackages.Num());
 
 			bSucceeded = UStormSyncImportSubsystem::MakePackagesWriteable(ExistingPackages) > 0;
@@ -496,7 +496,7 @@ void UStormSyncImportSubsystem::HandleExistingAssets(TConstArrayView<const FStor
 	if (!bSucceeded)
 	{
 		// TODO: at this point in time, the whole import could be cancelled and failed
-		STORM_SYNC_IMPORT_LOG(Error, TEXT("UStormSyncImportSubsystem::HandleExistingAssets - CheckoutPackages failed"));
+		UE_LOG(LogStormSyncImport, Error, TEXT("UStormSyncImportSubsystem::HandleExistingAssets - CheckoutPackages failed"));
 	}
 #endif
 }
@@ -511,19 +511,19 @@ bool UStormSyncImportSubsystem::HandleNewAssets(TConstArrayView<const FStormSync
 
 	if (!ISourceControlModule::Get().IsEnabled())
 	{
-		STORM_SYNC_IMPORT_LOG(Log, TEXT("UStormSyncImportSubsystem::HandleNewAssets - No Source Control found"));
+		UE_LOG(LogStormSyncImport, Log, TEXT("UStormSyncImportSubsystem::HandleNewAssets - No Source Control found"));
 		return false;
 	}
 
 	if (!GetDefault<UEditorLoadingSavingSettings>()->bSCCAutoAddNewFiles)
 	{
-		STORM_SYNC_IMPORT_LOG(Log, TEXT("UStormSyncImportSubsystem::HandleNewAssets - Source Control Auto Add New Files is disabled."));
+		UE_LOG(LogStormSyncImport, Log, TEXT("UStormSyncImportSubsystem::HandleNewAssets - Source Control Auto Add New Files is disabled."));
 		return false;
 	}
 
 	if (!ISourceControlModule::Get().GetProvider().IsAvailable())
 	{
-		STORM_SYNC_IMPORT_LOG(Log, TEXT("UStormSyncImportSubsystem::HandleNewAssets - Source Control Provider is not available."));
+		UE_LOG(LogStormSyncImport, Log, TEXT("UStormSyncImportSubsystem::HandleNewAssets - Source Control Provider is not available."));
 		return false;
 	}
 
@@ -536,7 +536,7 @@ bool UStormSyncImportSubsystem::HandleNewAssets(TConstArrayView<const FStormSync
 			return InFileInfo->DestFilepath;
 		});
 
-	STORM_SYNC_IMPORT_LOG(Log, TEXT("UStormSyncImportSubsystem::HandleNewAssets - Found %d files to auto-add"), FilesToAutoAdd.Num());
+	UE_LOG(LogStormSyncImport, Log, TEXT("UStormSyncImportSubsystem::HandleNewAssets - Found %d files to auto-add"), FilesToAutoAdd.Num());
 
 	const bool bSilent = !bInShowPrompt;
 	return USourceControlHelpers::CheckOutOrAddFiles(FilesToAutoAdd, bSilent);
@@ -546,13 +546,13 @@ bool UStormSyncImportSubsystem::HandleNewAssets(TConstArrayView<const FStormSync
 
 void UStormSyncImportSubsystem::HandlePakAssetExtract(const FStormSyncFileDependency& FileDependency, const FString& DestFilepath, const FStormSyncBufferPtr& FileBuffer)
 {
-	STORM_SYNC_IMPORT_LOG(Display, TEXT("UStormSyncImportSubsystem::HandlePakAssetExtract - Handle extracted package: %s"), *FileDependency.ToString());
-	STORM_SYNC_IMPORT_LOG(Display, TEXT("\tshould extract to %s"), *DestFilepath);
-	STORM_SYNC_IMPORT_LOG(Display, TEXT("\tValid buffer ? %s"), FileBuffer.IsValid() && FileBuffer->Num() != 0 ? TEXT("true") : TEXT("false"));
+	UE_LOG(LogStormSyncImport, Display, TEXT("UStormSyncImportSubsystem::HandlePakAssetExtract - Handle extracted package: %s"), *FileDependency.ToString());
+	UE_LOG(LogStormSyncImport, Display, TEXT("\tshould extract to %s"), *DestFilepath);
+	UE_LOG(LogStormSyncImport, Display, TEXT("\tValid buffer ? %s"), FileBuffer.IsValid() && FileBuffer->Num() != 0 ? TEXT("true") : TEXT("false"));
 
 	if (!FileBuffer.IsValid())
 	{
-		STORM_SYNC_IMPORT_LOG(Error, TEXT("UStormSyncImportSubsystem::HandlePakAssetExtract - Invalid file buffer"));
+		UE_LOG(LogStormSyncImport, Error, TEXT("UStormSyncImportSubsystem::HandlePakAssetExtract - Invalid file buffer"));
 		return;
 	}
 
@@ -662,7 +662,7 @@ void UStormSyncImportSubsystem::CloseEditors(const TArray<FAssetData>& InAssets,
 	for (const FAssetData& AssetData : InAssets)
 	{
 		const UObject* Asset = AssetData.FastGetAsset();
-		STORM_SYNC_IMPORT_LOG(Verbose, TEXT("\tClosing asset: %s (UObject: %s)"), *AssetData.GetFullName(), *GetNameSafe(Asset));
+		UE_LOG(LogStormSyncImport, Verbose, TEXT("\tClosing asset: %s (UObject: %s)"), *AssetData.GetFullName(), *GetNameSafe(Asset));
 
 		if (!Asset)
 		{
@@ -683,14 +683,14 @@ void UStormSyncImportSubsystem::CloseEditors(const TArray<FAssetData>& InAssets,
 
 void UStormSyncImportSubsystem::OpenClosedEditors(const TArray<FString>& ClosedPackageNames)
 {
-	STORM_SYNC_IMPORT_LOG(Verbose, TEXT("UStormSyncImportSubsystem::OpenClosedEditors - ClosedPackageNames: %d"), ClosedPackageNames.Num())
+	UE_LOG(LogStormSyncImport, Verbose, TEXT("UStormSyncImportSubsystem::OpenClosedEditors - ClosedPackageNames: %d"), ClosedPackageNames.Num());
 #if WITH_EDITOR
 	if (!GEditor)
 	{
 		return;
 	}
 	
-	STORM_SYNC_IMPORT_LOG(Verbose, TEXT("UStormSyncImportSubsystem::OpenClosedEditors - ClosedPackageNames: %d (WITH_EDITOR)"), ClosedPackageNames.Num())
+	UE_LOG(LogStormSyncImport, Verbose, TEXT("UStormSyncImportSubsystem::OpenClosedEditors - ClosedPackageNames: %d (WITH_EDITOR)"), ClosedPackageNames.Num());
 	TArray<UObject*> ObjectsToReopen;
 	for (FString ClosedPackageName : ClosedPackageNames)
 	{
@@ -773,7 +773,7 @@ bool UStormSyncImportSubsystem::DeleteAssets(const TArray<FAssetData>& AssetsToD
 	const int32 TotalDeletedObjects = NumPackagesToDelete + NumObjectsToDelete;
 	if (TotalDeletedObjects != AssetsToDelete.Num())
 	{
-		STORM_SYNC_IMPORT_LOG(Warning, TEXT("Failed to delete assets (Deleted %d assets while we were expecting to delete %d assets)"), TotalDeletedObjects, AssetsToDelete.Num());
+		UE_LOG(LogStormSyncImport, Warning, TEXT("Failed to delete assets (Deleted %d assets while we were expecting to delete %d assets)"), TotalDeletedObjects, AssetsToDelete.Num());
 		return false;
 	}
 #endif
@@ -842,7 +842,7 @@ bool UStormSyncImportSubsystem::WriteFile(const FString& DestFilepath, const uin
 		return false;
 	}
 
-	STORM_SYNC_IMPORT_LOG(Verbose, TEXT("UStormSyncImportSubsystem::WriteFile - Creating file `%s`"), *DestFilepath);
+	UE_LOG(LogStormSyncImport, Verbose, TEXT("UStormSyncImportSubsystem::WriteFile - Creating file `%s`"), *DestFilepath);
 
 	// Write to asset
 	AssetHandle->Serialize(FileBuffer, FileSize);
@@ -895,7 +895,7 @@ void UStormSyncImportSubsystem::HotReloadPackages(const TArray<FStormSyncEditorF
 		return;
 	}
 
-	STORM_SYNC_IMPORT_LOG(Display, TEXT("UStormSyncImportSubsystem::HotReloadPackages - Reloading %d packages."), PackageNames.Num());
+	UE_LOG(LogStormSyncImport, Display, TEXT("UStormSyncImportSubsystem::HotReloadPackages - Reloading %d packages."), PackageNames.Num());
 	
 	// Flush loading and clean-up any temporary placeholder packages (due to a package previously being missing on disk)
 	FlushAsyncLoading();
@@ -907,7 +907,7 @@ void UStormSyncImportSubsystem::HotReloadPackages(const TArray<FStormSyncEditorF
 		}
 		if (bRunGC)
 		{
-			STORM_SYNC_IMPORT_LOG(Display, TEXT("UStormSyncImportSubsystem::HotReloadPackages - Garbage Collecting..."));
+			UE_LOG(LogStormSyncImport, Display, TEXT("UStormSyncImportSubsystem::HotReloadPackages - Garbage Collecting..."));
 			CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
 		}
 	}
@@ -943,7 +943,7 @@ void UStormSyncImportSubsystem::HotReloadPackages(const TArray<FStormSyncEditorF
 
 		if (!ErrorMessage.IsEmpty())
 		{
-			STORM_SYNC_IMPORT_LOG(Error, TEXT("UStormSyncImportSubsystem::HotReloadPackages: %s"), *ErrorMessage.ToString());
+			UE_LOG(LogStormSyncImport, Error, TEXT("UStormSyncImportSubsystem::HotReloadPackages: %s"), *ErrorMessage.ToString());
 		}
 	}
 }

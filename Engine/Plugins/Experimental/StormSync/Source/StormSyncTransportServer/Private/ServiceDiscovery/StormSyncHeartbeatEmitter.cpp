@@ -22,7 +22,7 @@ FStormSyncHeartbeatEmitter::FStormSyncHeartbeatEmitter()
 
 void FStormSyncHeartbeatEmitter::StartHeartbeat(const FMessageAddress& RecipientAddress, const TSharedPtr<FMessageEndpoint, ESPMode::ThreadSafe>& MessageEndpoint)
 {
-	STORM_SYNC_SERVER_LOG(Verbose, TEXT("Start Heartbeat for %s"), *RecipientAddress.ToString())
+	UE_LOG(LogStormSyncServer, Verbose, TEXT("Start Heartbeat for %s"), *RecipientAddress.ToString());
 
 	if (!bIsRunning)
 	{
@@ -58,7 +58,7 @@ uint32 FStormSyncHeartbeatEmitter::Run()
 			{
 				if (const TSharedPtr<FMessageEndpoint, ESPMode::ThreadSafe> MessageEndpoint = Recipient.MessageEndpoint.Pin())
 				{
-					STORM_SYNC_SERVER_LOG(VeryVerbose, TEXT("Sending Heartbeat Message to %s"), *Recipient.ConnectionAddress.ToString())
+					UE_LOG(LogStormSyncServer, VeryVerbose, TEXT("Sending Heartbeat Message to %s"), *Recipient.ConnectionAddress.ToString());
 					if (FStormSyncTransportHeartbeatMessage* Message = FMessageEndpoint::MakeMessage<FStormSyncTransportHeartbeatMessage>())
 					{
 						Message->bIsServerRunning = false;

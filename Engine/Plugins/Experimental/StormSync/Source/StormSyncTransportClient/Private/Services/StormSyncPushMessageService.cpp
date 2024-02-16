@@ -52,7 +52,7 @@ void FStormSyncPushMessageService::RequestPushPackages(const FMessageAddress& In
 			if (FileDependencies.IsEmpty())
 			{
 				const FText ErrorText = LOCTEXT("FileDependencies_Error", "Error before pushing: File dependencies array is empty, something went wrong");
-				STORM_SYNC_CLIENT_LOG(Error, TEXT("FStormSyncPushMessageService::RequestPushPackages - %s"), *ErrorText.ToString())
+				UE_LOG(LogStormSyncClient, Error, TEXT("FStormSyncPushMessageService::RequestPushPackages - %s"), *ErrorText.ToString());
 				
 				FStormSyncTransportPushResponse Payload = LocalThis->CreatePushResponsePayload(PackageNames, PackageDescriptor);
 				Payload.Status = EStormSyncResponseResult::Error;
@@ -66,7 +66,7 @@ void FStormSyncPushMessageService::RequestPushPackages(const FMessageAddress& In
 			if (!MessageEndpoint.IsValid())
 			{
 				const FText ErrorText = LOCTEXT("InvalidMessageEndpoint_Error", "Error before pushing: Unable to get message endpoint");
-				STORM_SYNC_CLIENT_LOG(Error, TEXT("FStormSyncPushMessageService::RequestPushPackages - %s"), *ErrorText.ToString())
+				UE_LOG(LogStormSyncClient, Error, TEXT("FStormSyncPushMessageService::RequestPushPackages - %s"), *ErrorText.ToString());
 
 				FStormSyncTransportPushResponse Payload = LocalThis->CreatePushResponsePayload(PackageNames, PackageDescriptor);
 				Payload.Status = EStormSyncResponseResult::Error;
@@ -80,7 +80,7 @@ void FStormSyncPushMessageService::RequestPushPackages(const FMessageAddress& In
 			if (!PushRequestMessage.IsValid())
 			{
 				const FText ErrorText = LOCTEXT("InvalidPullRequestMessage_Error", "Error before pushing: Push request message is invalid");
-				STORM_SYNC_CLIENT_LOG(Error, TEXT("FStormSyncPushMessageService::RequestPushPackages - %s"), *ErrorText.ToString())
+				UE_LOG(LogStormSyncClient, Error, TEXT("FStormSyncPushMessageService::RequestPushPackages - %s"), *ErrorText.ToString());
 
 				FStormSyncTransportPushResponse Payload = LocalThis->CreatePushResponsePayload(PackageNames, PackageDescriptor);
 				Payload.Status = EStormSyncResponseResult::Error;
@@ -94,9 +94,9 @@ void FStormSyncPushMessageService::RequestPushPackages(const FMessageAddress& In
 
 			PushRequestMessage->PackageDescriptor.Dependencies = FileDependencies;
 
-			STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncPushMessageService::RequestPushPackages - FileDependencies: %d"), FileDependencies.Num())
-			STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncPushMessageService::RequestPushPackages - Message: %s"), *PushRequestMessage->ToString())
-			STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncPushMessageService::RequestPushPackages - Syncing package descriptor %s"), *PushRequestMessage->PackageDescriptor.ToString())
+			UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncPushMessageService::RequestPushPackages - FileDependencies: %d"), FileDependencies.Num());
+			UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncPushMessageService::RequestPushPackages - Message: %s"), *PushRequestMessage->ToString());
+			UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncPushMessageService::RequestPushPackages - Syncing package descriptor %s"), *PushRequestMessage->PackageDescriptor.ToString());
 
 			MessageEndpoint->Send(PushRequestMessage.Release(), Recipient);
 		});
@@ -116,7 +116,7 @@ void FStormSyncPushMessageService::AddResponseHandler(const FGuid& InId, const F
 
 void FStormSyncPushMessageService::HandlePushRequestMessage(const FStormSyncTransportPushRequest& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InMessageContext)
 {
-	STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncPushMessageService::HandlePushRequestMessage - Received push request Message from %s (%s)"), *InMessageContext->GetSender().ToString(), *InMessage.ToString())
+	UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncPushMessageService::HandlePushRequestMessage - Received push request Message from %s (%s)"), *InMessageContext->GetSender().ToString(), *InMessage.ToString());
 
 	FGuid MessageId = InMessage.MessageId;
 	TArray<FName> LocalPackageNames = InMessage.PackageNames;
@@ -130,7 +130,7 @@ void FStormSyncPushMessageService::HandlePushRequestMessage(const FStormSyncTran
 	{
 		if (!MessageEndpointPtr.IsValid())
 		{
-			STORM_SYNC_CLIENT_LOG(Error, TEXT("FStormSyncPushMessageService::HandlePushRequestMessage - Invalid MessageEndpoint, can't sync response back"))
+			UE_LOG(LogStormSyncClient, Error, TEXT("FStormSyncPushMessageService::HandlePushRequestMessage - Invalid MessageEndpoint, can't sync response back"));
 			return;
 		}
 
@@ -138,7 +138,7 @@ void FStormSyncPushMessageService::HandlePushRequestMessage(const FStormSyncTran
 		TUniquePtr<FStormSyncTransportPushResponse> Message(FMessageEndpoint::MakeMessage<FStormSyncTransportPushResponse>(MessageId));
 		if (!Message.IsValid())
 		{
-			STORM_SYNC_CLIENT_LOG(Error, TEXT("FStormSyncStatusMessageService::RequestStatus - Sync response message is invalid"))
+			UE_LOG(LogStormSyncClient, Error, TEXT("FStormSyncStatusMessageService::RequestStatus - Sync response message is invalid"));
 			return;
 		}
 
@@ -153,10 +153,10 @@ void FStormSyncPushMessageService::HandlePushRequestMessage(const FStormSyncTran
 		Message->HostAddress = FStormSyncTransportNetworkUtils::GetTcpEndpointAddress();
 		Message->HostAdapterAddresses = FStormSyncTransportNetworkUtils::GetLocalAdapterAddresses();
 
-		STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncPushMessageService::HandlePushRequestMessage - Sending back to %s sync response: %s"), *RemoteAddress.ToString(), *Message->ToString())
+		UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncPushMessageService::HandlePushRequestMessage - Sending back to %s sync response: %s"), *RemoteAddress.ToString(), *Message->ToString());
 		if (FileModifiers.IsEmpty())
 		{
-			STORM_SYNC_CLIENT_LOG(Display, TEXT("\tSending back empty list of modifiers, meaning pak are synced."))
+			UE_LOG(LogStormSyncClient, Display, TEXT("\tSending back empty list of modifiers, meaning pak are synced."));
 		}
 
 		MessageEndpointPtr->Send(Message.Release(), RemoteAddress);
@@ -167,15 +167,15 @@ void FStormSyncPushMessageService::HandlePushResponseMessage(const FStormSyncTra
 {
 	const FMessageAddress Sender = InMessageContext->GetSender();
 
-	STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncPushMessageService::HandlePushResponseMessage - Received sync response from %s - Message: %s"), *Sender.ToString(), *InMessage.ToString())
+	UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncPushMessageService::HandlePushResponseMessage - Received sync response from %s - Message: %s"), *Sender.ToString(), *InMessage.ToString());
 
 	if (InMessage.Modifiers.IsEmpty())
 	{
 		// Remote sent back empty list of modifiers, meaning assets are synced. Do nothing.
-		STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncPushMessageService::HandlePushResponseMessage - Remote sent back empty list of modifiers, meaning pak are synced. Do nothing."))
+		UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncPushMessageService::HandlePushResponseMessage - Remote sent back empty list of modifiers, meaning pak are synced. Do nothing."));
 		
 		const FText ErrorText = LOCTEXT("State_In_Sync", "Detected empty list of modifiers, meaning assets are in the same state.");
-		STORM_SYNC_CLIENT_LOG(Display, TEXT("\t FStormSyncPushMessageService::HandlePushResponseMessage - %s"), *ErrorText.ToString())
+		UE_LOG(LogStormSyncClient, Display, TEXT("\t FStormSyncPushMessageService::HandlePushResponseMessage - %s"), *ErrorText.ToString());
 		
 		// But notify caller about completion
 		const TSharedPtr<FStormSyncTransportPushResponse> ErrorResponse = MakeShared<FStormSyncTransportPushResponse>(InMessage);
@@ -191,7 +191,7 @@ void FStormSyncPushMessageService::HandlePushResponseMessage(const FStormSyncTra
 	const TSharedPtr<FStormSyncTransportClientEndpoint> LocalEndpoint = GetLocalEndpoint();
 	if (!LocalEndpoint.IsValid())
 	{
-		STORM_SYNC_CLIENT_LOG(Error, TEXT("FStormSyncPushMessageService::HandlePushResponseMessage - Invalid local endpoint."))
+		UE_LOG(LogStormSyncClient, Error, TEXT("FStormSyncPushMessageService::HandlePushResponseMessage - Invalid local endpoint."));
 		return;	
 	}
 	
@@ -209,7 +209,7 @@ void FStormSyncPushMessageService::HandlePushResponseMessage(const FStormSyncTra
 		// If text is non empty, indicates an error happened
 		if (!Payload->bSuccess)
 		{
-			STORM_SYNC_CLIENT_LOG(Error, TEXT("FStormSyncPushMessageService::HandlePushResponseMessage - %s"), *Payload->ErrorText.ToString())
+			UE_LOG(LogStormSyncClient, Error, TEXT("FStormSyncPushMessageService::HandlePushResponseMessage - %s"), *Payload->ErrorText.ToString());
 			
 			const TSharedPtr<FStormSyncTransportPushResponse> ErrorResponse = MakeShared<FStormSyncTransportPushResponse>(IncomingMessage);
 
@@ -224,7 +224,7 @@ void FStormSyncPushMessageService::HandlePushResponseMessage(const FStormSyncTra
 	if (!Connection.IsValid())
 	{
 		const FText ErrorText = LOCTEXT("Error_Active_Connection", "Returned active connection is invalid from endpoint StartSendingBuffer()");
-		STORM_SYNC_CLIENT_LOG(Error, TEXT("FStormSyncPushMessageService::HandlePushResponseMessage - %s"), *ErrorText.ToString())
+		UE_LOG(LogStormSyncClient, Error, TEXT("FStormSyncPushMessageService::HandlePushResponseMessage - %s"), *ErrorText.ToString());
 
 		// Something went wrong with the tcp connection, send it back as an error to remote requester
 		const TSharedPtr<FStormSyncTransportPushResponse> ErrorResponse = MakeShared<FStormSyncTransportPushResponse>(InMessage);
@@ -241,7 +241,7 @@ void FStormSyncPushMessageService::HandlePushResponseMessage(const FStormSyncTra
 
 void FStormSyncPushMessageService::HandleTransferComplete(const FStormSyncTransportPushResponse InResponseMessage)
 {
-	STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncPushMessageService::HandleTransferComplete - TCP transfer done for message with ID: %s"), *InResponseMessage.MessageId.ToString())
+	UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncPushMessageService::HandleTransferComplete - TCP transfer done for message with ID: %s"), *InResponseMessage.MessageId.ToString());
 	
 	const TSharedPtr<FStormSyncTransportPushResponse> Response =  MakeShared<FStormSyncTransportPushResponse>(InResponseMessage);
 	check(Response.IsValid());
@@ -254,7 +254,7 @@ void FStormSyncPushMessageService::HandleTransferComplete(const FStormSyncTransp
 void FStormSyncPushMessageService::InvokePendingResponseHandler(const TSharedPtr<FStormSyncTransportPushResponse, ESPMode::ThreadSafe>& InResponseMessage)
 {
 	check(InResponseMessage.IsValid());
-	STORM_SYNC_CLIENT_LOG(Display, TEXT("FStormSyncPushMessageService::InvokePendingResponseHandler - Trying to invoke callback (if any) for message with ID: %s"), *InResponseMessage->ToString())
+	UE_LOG(LogStormSyncClient, Display, TEXT("FStormSyncPushMessageService::InvokePendingResponseHandler - Trying to invoke callback (if any) for message with ID: %s"), *InResponseMessage->ToString());
 	
 	FScopeLock ScopeLock(&HandlersCriticalSection);
 	const FOnStormSyncPushComplete* ResponseHandler = PendingResponseHandlers.Find(InResponseMessage->MessageId);

@@ -9,10 +9,10 @@ void FStormSyncImportBufferTask::Run()
 {
 	if (!Buffer.IsValid())
 	{
-		STORM_SYNC_IMPORT_LOG(Error, TEXT("FStormSyncImportBufferTask::Run failed on invalid buffer"))
+		UE_LOG(LogStormSyncImport, Error, TEXT("FStormSyncImportBufferTask::Run failed on invalid buffer"));
 		return;
 	}
 
-	STORM_SYNC_IMPORT_LOG(Display, TEXT("FStormSyncImportBufferTask::Run for buffer of size %d"), Buffer->Num())
+	UE_LOG(LogStormSyncImport, Display, TEXT("FStormSyncImportBufferTask::Run for buffer of size %d"), Buffer->Num());
 	UStormSyncImportSubsystem::Get().PerformBufferImport(PackageDescriptor, MoveTemp(Buffer));
 }

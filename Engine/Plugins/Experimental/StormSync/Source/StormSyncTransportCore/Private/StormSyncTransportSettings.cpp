@@ -54,7 +54,7 @@ FString UStormSyncTransportSettings::GetServerEndpoint() const
 		if (!GetUdpMessagingUnicastEndpoint(UnicastHostname, UnicastPort))
 		{
 			// Either unable to get the setting or malformed
-			STORM_SYNC_CORE_LOG(Display, TEXT("UStormSyncTransportSettings::GetServerEndpoint - Was unable to get UnicastEndpoint from UDPMessagingSettings"));
+			UE_LOG(LogStormSyncTransportCore, Display, TEXT("UStormSyncTransportSettings::GetServerEndpoint - Was unable to get UnicastEndpoint from UDPMessagingSettings"));
 			return ServerEndpoint;
 		}
 

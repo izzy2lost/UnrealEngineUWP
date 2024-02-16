@@ -35,7 +35,7 @@ bool FStormSyncTransportServerEndpoint::StartTcpListener(const FIPv4Endpoint& In
 {
 	const UStormSyncTransportSettings* Settings = GetDefault<UStormSyncTransportSettings>();
 	
-	STORM_SYNC_SERVER_LOG(Display, TEXT("FStormSyncTransportServerEndpoint::StartTcpListener - Starting TCP listener with endpoint: %s"), *InEndpoint.ToString())
+	UE_LOG(LogStormSyncServer, Display, TEXT("FStormSyncTransportServerEndpoint::StartTcpListener - Starting TCP listener with endpoint: %s"), *InEndpoint.ToString());
 
 	TcpServer = MakeUnique<FStormSyncTransportTcpServer>(InEndpoint.Address, InEndpoint.Port, Settings->GetInactiveTimeoutSeconds());
 	TcpServer->OnReceivedBuffer().AddRaw(this, &FStormSyncTransportServerEndpoint::HandleReceivedTcpBuffer);
@@ -68,7 +68,7 @@ bool FStormSyncTransportServerEndpoint::StartTcpListener(const FIPv4Endpoint& In
 		FSlateNotificationManager::Get().AddNotification(MoveTemp(Info));
 #endif
 		
-		STORM_SYNC_SERVER_LOG(Error, TEXT("FStormSyncTransportServerEndpoint::StartTcpListener - %s"), *ErrorMessage.ToString())
+		UE_LOG(LogStormSyncServer, Error, TEXT("FStormSyncTransportServerEndpoint::StartTcpListener - %s"), *ErrorMessage.ToString());
 		return false;
 	}
 	
@@ -89,7 +89,7 @@ bool FStormSyncTransportServerEndpoint::StartTcpListener()
 		return StartTcpListener(Endpoint);
 	}
 	
-	STORM_SYNC_SERVER_LOG(Error, TEXT("FStormSyncTransportServerEndpoint::StartTcpListener - Failed to parse endpoint '%s'. TCP Socket listener will be disabled!"), *ServerEndpoint);
+	UE_LOG(LogStormSyncServer, Error, TEXT("FStormSyncTransportServerEndpoint::StartTcpListener - Failed to parse endpoint '%s'. TCP Socket listener will be disabled!"), *ServerEndpoint);
 	return false;
 }
 
@@ -125,19 +125,19 @@ void FStormSyncTransportServerEndpoint::InitializeMessaging(const FString& InEnd
 	// Message endpoint already created
 	if (MessageEndpoint.IsValid())
 	{
-		STORM_SYNC_SERVER_LOG(Warning, TEXT("Message endpoint already initialized"))
+		UE_LOG(LogStormSyncServer, Warning, TEXT("Message endpoint already initialized"));
 		return;
 	}
 
 	const IMessageBusPtr MessageBus = MessageBusPtr.Pin();
 	if (!MessageBus.IsValid())
 	{
-		STORM_SYNC_SERVER_LOG(Warning, TEXT("Default message bus is invalid"))
+		UE_LOG(LogStormSyncServer, Warning, TEXT("Default message bus is invalid"));
 		return;
 	}
 
 	const FString MessageEndpointName = FString::Printf(TEXT("StormSync%sEndpoint"), *InEndpointFriendlyName);
-	STORM_SYNC_SERVER_LOG(Verbose, TEXT("FStormSyncTransportServerEndpoint::InitializeMessaging - Setting up %s message endpoint"), *MessageEndpointName)
+	UE_LOG(LogStormSyncServer, Verbose, TEXT("FStormSyncTransportServerEndpoint::InitializeMessaging - Setting up %s message endpoint"), *MessageEndpointName);
 	
 	FMessageEndpointBuilder EndpointBuilder = FMessageEndpoint::Builder(*MessageEndpointName, MessageBus.ToSharedRef())
 		.ReceivingOnThread(ENamedThreads::Type::GameThread)
@@ -150,7 +150,7 @@ void FStormSyncTransportServerEndpoint::InitializeMessaging(const FString& InEnd
 	check(MessageEndpoint.IsValid());
 
 	// Message subscribes
-	STORM_SYNC_SERVER_LOG(Display, TEXT("FStormSyncTransportServerEndpoint::InitializeMessaging - Subscribe to messages"))
+	UE_LOG(LogStormSyncServer, Display, TEXT("FStormSyncTransportServerEndpoint::InitializeMessaging - Subscribe to messages"));
 	MessageEndpoint->Subscribe<FStormSyncTransportPingMessage>();
 	MessageEndpoint->Subscribe<FStormSyncTransportSyncRequest>();
 }
@@ -176,10 +176,10 @@ void FStormSyncTransportServerEndpoint::ShutdownTcpListener()
 
 void FStormSyncTransportServerEndpoint::HandlePingMessage(const FStormSyncTransportPingMessage& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InMessageContext)
 {
-	STORM_SYNC_SERVER_LOG(Display, TEXT("FStormSyncTransportServerEndpoint::HandlePingMessage - Received ping Message %s"), *InMessage.ToString())
+	UE_LOG(LogStormSyncServer, Display, TEXT("FStormSyncTransportServerEndpoint::HandlePingMessage - Received ping Message %s"), *InMessage.ToString());
 	if (!MessageEndpoint.IsValid())
 	{
-		STORM_SYNC_SERVER_LOG(Display, TEXT("FStormSyncTransportServerEndpoint::HandlePingMessage - Invalid MessageEndpoint, can't pong back"))
+		UE_LOG(LogStormSyncServer, Display, TEXT("FStormSyncTransportServerEndpoint::HandlePingMessage - Invalid MessageEndpoint, can't pong back"));
 		return;
 	}
 
@@ -189,18 +189,18 @@ void FStormSyncTransportServerEndpoint::HandlePingMessage(const FStormSyncTransp
 
 void FStormSyncTransportServerEndpoint::HandlePongMessage(const FStormSyncTransportPongMessage& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InMessageContext)
 {
-	STORM_SYNC_SERVER_LOG(Display, TEXT("FStormSyncTransportServerEndpoint::HandlePongMessage - Received pong Message %s"), *InMessage.ToString())
+	UE_LOG(LogStormSyncServer, Display, TEXT("FStormSyncTransportServerEndpoint::HandlePongMessage - Received pong Message %s"), *InMessage.ToString());
 }
 
 void FStormSyncTransportServerEndpoint::HandleReceivedTcpBuffer(const FIPv4Endpoint& InEndpoint, const TSharedPtr<FSocket>& InSocket, const FStormSyncBufferPtr& InBuffer)
 {
 	if (!InBuffer.IsValid())
 	{
-		STORM_SYNC_SERVER_LOG(Error, TEXT("Error received tcp buffer via %s:%d (Buffer is invalid)"), *InEndpoint.Address.ToString(), InEndpoint.Port);
+		UE_LOG(LogStormSyncServer, Error, TEXT("Error received tcp buffer via %s:%d (Buffer is invalid)"), *InEndpoint.Address.ToString(), InEndpoint.Port);
 		return;
 	}
 
-	STORM_SYNC_SERVER_LOG(Display, TEXT("Handle received tcp buffer via %s:%d (Buffer Size: %d)"), *InEndpoint.Address.ToString(), InEndpoint.Port, InBuffer->Num());
+	UE_LOG(LogStormSyncServer, Display, TEXT("Handle received tcp buffer via %s:%d (Buffer Size: %d)"), *InEndpoint.Address.ToString(), InEndpoint.Port, InBuffer->Num());
 
 	// Local copy of the endpoint we're receiving a buffer from
 	FIPv4Endpoint Endpoint = InEndpoint;
@@ -220,7 +220,7 @@ void FStormSyncTransportServerEndpoint::HandleReceivedTcpBuffer(const FIPv4Endpo
 
 void FStormSyncTransportServerEndpoint::HandleSyncRequestMessage(const FStormSyncTransportSyncRequest& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InMessageContext)
 {
-	STORM_SYNC_SERVER_LOG(Display, TEXT("FStormSyncTransportServerEndpoint::HandleSyncRequestMessage - Received sync request Message %s (from %s)"), *InMessage.ToString(), *InMessageContext->GetSender().ToString())
+	UE_LOG(LogStormSyncServer, Display, TEXT("FStormSyncTransportServerEndpoint::HandleSyncRequestMessage - Received sync request Message %s (from %s)"), *InMessage.ToString(), *InMessageContext->GetSender().ToString());
 	SendSyncResponse(InMessage, InMessageContext);
 }
 
@@ -238,7 +238,7 @@ void FStormSyncTransportServerEndpoint::SendSyncResponse(const FStormSyncTranspo
 		TUniquePtr<FStormSyncTransportPushResponse> Message(FMessageEndpoint::MakeMessage<FStormSyncTransportPushResponse>(MessageId));
 		if (!Message.IsValid())
 		{
-			STORM_SYNC_SERVER_LOG(Error, TEXT("FStormSyncTransportServerEndpoint::SendSyncResponse - Sync response message is invalid"))
+			UE_LOG(LogStormSyncServer, Error, TEXT("FStormSyncTransportServerEndpoint::SendSyncResponse - Sync response message is invalid"));
 			return;
 		}
 
@@ -253,10 +253,10 @@ void FStormSyncTransportServerEndpoint::SendSyncResponse(const FStormSyncTranspo
 		Message->HostAddress = FStormSyncTransportNetworkUtils::GetTcpEndpointAddress();
 		Message->HostAdapterAddresses = FStormSyncTransportNetworkUtils::GetLocalAdapterAddresses();
 
-		STORM_SYNC_SERVER_LOG(Display, TEXT("FStormSyncTransportServerEndpoint::SendSyncResponse - Sending back to %s sync response: %s"), *RemoteAddress.ToString(), *Message->ToString())
+		UE_LOG(LogStormSyncServer, Display, TEXT("FStormSyncTransportServerEndpoint::SendSyncResponse - Sending back to %s sync response: %s"), *RemoteAddress.ToString(), *Message->ToString());
 		if (FileModifiers.IsEmpty())
 		{
-			STORM_SYNC_SERVER_LOG(Display, TEXT("\tSending back empty list of modifiers, meaning pak are synced."))
+			UE_LOG(LogStormSyncServer, Display, TEXT("\tSending back empty list of modifiers, meaning pak are synced."));
 		}
 
 		MessageEndpointPtr->Send(Message.Release(), RemoteAddress);

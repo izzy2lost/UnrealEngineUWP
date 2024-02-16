@@ -53,7 +53,7 @@ uint32 FStormSyncTransportTcpServer::Run()
 
 		if (DeltaTime > 0.1)
 		{
-			STORM_SYNC_SERVER_LOG(Warning, TEXT("Hitch detected; %.3f seconds since prior tick"), DeltaTime);
+			UE_LOG(LogStormSyncServer, Warning, TEXT("Hitch detected; %.3f seconds since prior tick"), DeltaTime);
 		}
 
 		bListenerIsRunning = Tick();
@@ -107,7 +107,7 @@ bool FStormSyncTransportTcpServer::Tick()
 			int32 BytesRead = 0;
 			if (!ClientSocket->Recv(Buffer.GetData(), PendingDataSize, BytesRead, ESocketReceiveFlags::None))
 			{
-				STORM_SYNC_SERVER_LOG(Error, TEXT("Error while receiving data via endpoint %s"), *ClientEndpoint.ToString());
+				UE_LOG(LogStormSyncServer, Error, TEXT("Error while receiving data via endpoint %s"), *ClientEndpoint.ToString());
 				continue;
 			}
 
@@ -125,7 +125,7 @@ bool FStormSyncTransportTcpServer::Tick()
 				{
 					const uint32 Size = *reinterpret_cast<const uint32*>(MessageBuffer.GetData());
 			
-					STORM_SYNC_SERVER_LOG(Verbose, TEXT("Received size: %d. Setting it for %s"), Size, *ClientEndpoint.ToString());
+					UE_LOG(LogStormSyncServer, Verbose, TEXT("Received size: %d. Setting it for %s"), Size, *ClientEndpoint.ToString());
 					Connection.Value->BufferExpectedSize = Size;
 					Connection.Value->BufferStartTime = FPlatformTime::Seconds();
 					bHasReceivedSize = true;
@@ -158,11 +158,11 @@ bool FStormSyncTransportTcpServer::StartListening()
 	if (SocketListener->IsActive())
 	{
 		SocketListener->OnConnectionAccepted().BindRaw(this, &FStormSyncTransportTcpServer::OnIncomingConnection);
-		STORM_SYNC_SERVER_LOG(Display, TEXT("Started listening on %s:%d"), *SocketListener->GetLocalEndpoint().Address.ToString(), SocketListener->GetLocalEndpoint().Port);
+		UE_LOG(LogStormSyncServer, Display, TEXT("Started listening on %s:%d"), *SocketListener->GetLocalEndpoint().Address.ToString(), SocketListener->GetLocalEndpoint().Port);
 		return true;
 	}
 
-	STORM_SYNC_SERVER_LOG(Error, TEXT("Could not create Tcp Listener!"));
+	UE_LOG(LogStormSyncServer, Error, TEXT("Could not create Tcp Listener!"));
 	return false;
 }
 
@@ -172,7 +172,7 @@ void FStormSyncTransportTcpServer::StopListening()
 
 	if (SocketListener.IsValid())
 	{
-		STORM_SYNC_SERVER_LOG(Display, TEXT("No longer listening on %s:%d"), *SocketListener->GetLocalEndpoint().Address.ToString(), SocketListener->GetLocalEndpoint().Port);
+		UE_LOG(LogStormSyncServer, Display, TEXT("No longer listening on %s:%d"), *SocketListener->GetLocalEndpoint().Address.ToString(), SocketListener->GetLocalEndpoint().Port);
 		SocketListener.Reset();
 	}
 
@@ -201,7 +201,7 @@ bool FStormSyncTransportTcpServer::IsActive() const
 
 bool FStormSyncTransportTcpServer::OnIncomingConnection(FSocket* InSocket, const FIPv4Endpoint& InEndpoint)
 {
-	STORM_SYNC_SERVER_LOG(Display, TEXT("Incoming connection via %s:%d"), *InEndpoint.Address.ToString(), InEndpoint.Port);
+	UE_LOG(LogStormSyncServer, Display, TEXT("Incoming connection via %s:%d"), *InEndpoint.Address.ToString(), InEndpoint.Port);
 
 	InSocket->SetNoDelay(true);
 	PendingConnections.Enqueue(TPair<FIPv4Endpoint, TSharedPtr<FSocket>>(InEndpoint, MakeShareable(InSocket)));
@@ -212,7 +212,7 @@ bool FStormSyncTransportTcpServer::OnIncomingConnection(FSocket* InSocket, const
 void FStormSyncTransportTcpServer::HandleIncomingBuffer(const FIPv4Endpoint& InEndpoint, const TSharedPtr<FSocket>& InClientSocket, const TArray<uint8>& InBytes)
 {
 	const int32 ReceivedBufferSize = InBytes.Num();
-	STORM_SYNC_SERVER_LOG(Verbose, TEXT("\tHandle Incoming buffer via %s:%d (Total Buffer Size: %d)"), *InEndpoint.Address.ToString(), InEndpoint.Port, ReceivedBufferSize);
+	UE_LOG(LogStormSyncServer, Verbose, TEXT("\tHandle Incoming buffer via %s:%d (Total Buffer Size: %d)"), *InEndpoint.Address.ToString(), InEndpoint.Port, ReceivedBufferSize);
 
 	// Send back to client the size buffer we received so far
 	SendMessage(CreateMessage(FStormSyncTransportTcpSizePacket(ReceivedBufferSize)), InEndpoint);
@@ -222,7 +222,7 @@ void FStormSyncTransportTcpServer::HandleIncomingBuffer(const FIPv4Endpoint& InE
 		const uint32 BufferExpectedSize = ClientConnections.FindChecked(InEndpoint)->BufferExpectedSize;
 		if (ReceivedBufferSize == BufferExpectedSize)
 		{
-			STORM_SYNC_SERVER_LOG(Display, TEXT("\tWe received full buffer!!"));
+			UE_LOG(LogStormSyncServer, Display, TEXT("\tWe received full buffer!!"));
 			
 			// Send back to client transfer complete packet, so that it knows we're done with the transfer
 			SendMessage(CreateMessage(FStormSyncTransportTcpTransferCompletePacket()), InEndpoint);
@@ -236,7 +236,7 @@ void FStormSyncTransportTcpServer::HandleIncomingBuffer(const FIPv4Endpoint& InE
 
 void FStormSyncTransportTcpServer::HandleReceivedBuffer(const FIPv4Endpoint& InEndpoint, const TSharedPtr<FSocket>& InClientSocket, const TArray<uint8>& InBytes)
 {
-	STORM_SYNC_SERVER_LOG(Display, TEXT("Handle received buffer via %s:%d (Buffer Size: %d)"), *InEndpoint.Address.ToString(), InEndpoint.Port, InBytes.Num());
+	UE_LOG(LogStormSyncServer, Display, TEXT("Handle received buffer via %s:%d (Buffer Size: %d)"), *InEndpoint.Address.ToString(), InEndpoint.Port, InBytes.Num());
 	ReceivedBufferEvent.Broadcast(InEndpoint, InClientSocket, MakeShared<TArray<uint8>>(InBytes));
 
 	// Fully received buffer, clean up connection and the state associated with it
@@ -255,7 +255,7 @@ void FStormSyncTransportTcpServer::CleanUpDisconnectedSockets()
 		const float ClientTimeout = Connection.Value->InactiveTimeout;
 		if (CurrentTime - Connection.Value->LastActivityTime > ClientTimeout)
 		{
-			STORM_SYNC_SERVER_LOG(Warning, TEXT("Client %s has been inactive for more than %.1fs -- closing connection"), *RemoteEndpoint.ToString(), ClientTimeout);
+			UE_LOG(LogStormSyncServer, Warning, TEXT("Client %s has been inactive for more than %.1fs -- closing connection"), *RemoteEndpoint.ToString(), ClientTimeout);
 			DisconnectedClients.Add(RemoteEndpoint);
 		}
 	}
@@ -277,7 +277,7 @@ void FStormSyncTransportTcpServer::CleanUpDisconnectedSockets()
 
 void FStormSyncTransportTcpServer::DisconnectClient(const FIPv4Endpoint& InClientEndpoint)
 {
-	STORM_SYNC_SERVER_LOG(Display, TEXT("Client %s disconnected"), *InClientEndpoint.ToString());
+	UE_LOG(LogStormSyncServer, Display, TEXT("Client %s disconnected"), *InClientEndpoint.ToString());
 
 	ClientConnections.Remove(InClientEndpoint);
 }
@@ -292,11 +292,11 @@ bool FStormSyncTransportTcpServer::SendMessage(const FString& InMessage, const F
 			return false;
 		}
 
-		STORM_SYNC_SERVER_LOG(Verbose, TEXT("Sending message to %s - Message: %s"), *InEndpoint.ToString(), *InMessage);
+		UE_LOG(LogStormSyncServer, Verbose, TEXT("Sending message to %s - Message: %s"), *InEndpoint.ToString(), *InMessage);
 		int32 BytesSent = 0;
 		return ClientSocket->Send(reinterpret_cast<uint8*>(TCHAR_TO_UTF8(*InMessage)), InMessage.Len() + 1, BytesSent);
 	}
 
-	STORM_SYNC_SERVER_LOG(Verbose, TEXT("Trying to send message to disconnected client %s - Message: %s"), *InEndpoint.ToString(), *InMessage);
+	UE_LOG(LogStormSyncServer, Verbose, TEXT("Trying to send message to disconnected client %s - Message: %s"), *InEndpoint.ToString(), *InMessage);
 	return false;
 }
