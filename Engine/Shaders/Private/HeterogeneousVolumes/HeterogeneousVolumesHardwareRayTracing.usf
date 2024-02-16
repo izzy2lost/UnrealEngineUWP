@@ -557,11 +557,13 @@ RAY_TRACING_ENTRY_RAYGEN(RenderSingleScatteringWithPreshadingRGS)
 		const FDeferredLightData LightData = InitDeferredLightFromUniforms(LightType, VolumetricScatteringIntensity);
 		uint StepCount = CalcStepCount(RayMarchingContext);
 
+		float ScatterHitT = Payload.HitT[1];
 		RayMarchSingleScattering(
 			RayMarchingContext,
 			LightData,
 			LightType,
 			StepCount,
+			ScatterHitT,
 			Radiance,
 			Transmittance
 		);

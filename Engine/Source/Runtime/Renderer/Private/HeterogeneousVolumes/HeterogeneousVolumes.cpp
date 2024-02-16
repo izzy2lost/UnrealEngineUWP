@@ -210,6 +210,13 @@ static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesApplyVolumetricFog(
 	ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesVelocity(
+	TEXT("r.HeterogeneousVolumes.Velocity"),
+	0,
+	TEXT("Writes Heterogeneous Volumes velocity to the feature buffer (Default = 0)"),
+	ECVF_RenderThreadSafe
+);
+
 DECLARE_GPU_STAT_NAMED(HeterogeneousVolumeShadowsStat, TEXT("HeterogeneousVolumeShadows"));
 DECLARE_GPU_STAT_NAMED(HeterogeneousVolumesStat, TEXT("HeterogeneousVolumes"));
 
@@ -411,6 +418,11 @@ namespace HeterogeneousVolumes
 	bool ShouldApplyVolumetricFog()
 	{
 		return CVarHeterogeneousVolumesApplyVolumetricFog.GetValueOnRenderThread() != 0;
+	}
+
+	bool ShouldWriteVelocity()
+	{
+		return CVarHeterogeneousVolumesVelocity.GetValueOnRenderThread() != 0;
 	}
 
 	// Convenience Utils

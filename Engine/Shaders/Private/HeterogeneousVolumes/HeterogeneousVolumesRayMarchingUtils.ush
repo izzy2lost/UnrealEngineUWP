@@ -307,12 +307,13 @@ void RayMarchSingleScattering(
 	FDeferredLightData LightData,
 	uint LightType,
 	uint StepCount,
+	inout float LocalScatterTMin,
 	inout float3 Radiance,
 	inout float3 Transmittance
 )
 {
+	LocalScatterTMin = RayMarchingContext.LocalRayTMax;
 #if APPLY_FOG_INSCATTERING
-	float LocalScatterTMin = RayMarchingContext.LocalRayTMax;
 	float3 PrevTransmittance = Transmittance;
 #endif // #if APPLY_FOG_INSCATTERING
 
@@ -370,9 +371,7 @@ void RayMarchSingleScattering(
 				Radiance += Inscattering * ScatteringCoefficient * IsotropicPhase * Transmittance * StepSize;
 			}
 
-#if APPLY_FOG_INSCATTERING
 			LocalScatterTMin = min(LocalHitT, LocalScatterTMin);
-#endif 
 		}
 
 		// Accumulate transmittance for the next evaluation

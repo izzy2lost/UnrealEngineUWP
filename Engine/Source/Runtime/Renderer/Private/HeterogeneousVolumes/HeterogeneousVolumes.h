@@ -80,6 +80,7 @@ namespace HeterogeneousVolumes
 	bool UseAdaptiveVolumetricShadowMapForSelfShadowing();
 	bool ShouldApplyHeightFog();
 	bool ShouldApplyVolumetricFog();
+	bool ShouldWriteVelocity();
 
 	bool EnableIndirectionGrid();
 	bool EnableLinearInterpolation();
