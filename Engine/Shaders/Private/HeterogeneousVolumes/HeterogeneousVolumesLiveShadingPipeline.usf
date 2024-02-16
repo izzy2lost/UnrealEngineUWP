@@ -74,6 +74,7 @@ int3 GroupCount;
 
 // Output
 RWTexture2D<float4> RWLightingTexture;
+RWTexture2D<float4> RWVelocityTexture;
 
 struct FDebugOutput
 {
@@ -314,6 +315,7 @@ void RenderSingleScatteringWithLiveShadingCS(
 
 	float3 Radiance = 0.0;
 	float3 Transmittance = 1.0 - RWLightingTexture[PixelCoord].a;
+	float PrevOpacity = Luminance(1.0 - Transmittance);
 
 	// Extract depth
 	float DeviceZ = SceneDepthTexture.Load(int3(PixelCoord, 0)).r;
@@ -371,21 +373,37 @@ void RenderSingleScatteringWithLiveShadingCS(
 		const FDeferredLightData LightData = InitDeferredLightFromUniforms(LightType, VolumetricScatteringIntensity);
 		uint StepCount = CalcStepCount(RayMarchingContext);
 
+		float ScatterHitT = HitT.y;
 		RayMarchSingleScattering(
 			RayMarchingContext,
 			LightData,
 			LightType,
 			StepCount,
+			ScatterHitT,
 			Radiance,
 			Transmittance
 		);
 
-		// Output..
+		// Radiance
 		RWLightingTexture[PixelCoord].rgb += Radiance * View.PreExposure;
 		if (bApplyEmissionAndTransmittance)
 		{
-			float3 Opacity = 1.0 - Transmittance;
-			RWLightingTexture[PixelCoord].a = Luminance(Opacity);
+			float Opacity = Luminance(1.0 - Transmittance);
+			RWLightingTexture[PixelCoord].a = Opacity;
+
+#if DIM_WRITE_VELOCITY
+			bool bWriteVelocity =
+				(ScatterHitT < HitT.y) &&
+				(PrevOpacity < 0.5) &&
+				(Opacity > 0.5);
+
+			if (bWriteVelocity)
+			{
+				float WorldScatterHitT = ScatterHitT * RayMarchingContext.LocalToWorldScale;
+				float3 Velocity = Calculate3DVelocityAtWorldPos(WorldRayOrigin, WorldRayDirection, WorldScatterHitT);
+				RWVelocityTexture[PixelCoord] = EncodeVelocityToTexture(Velocity);
+			}
+#endif // DIM_WRITE_VELOCITY
 		}
 
 		// Debug output
