@@ -4,7 +4,7 @@
 
 #include "IAvaMediaEditorModule.h"
 #include "Rundown/AvaRundown.h"
-#include "Rundown/AvaRundownDefines.h"
+#include "Rundown/AvaRundownEditorDefines.h"
 #include "Rundown/AvaRundownPage.h"
 #include "Rundown/Factories/Filters/IAvaRundownFilterExpressionFactory.h"
 

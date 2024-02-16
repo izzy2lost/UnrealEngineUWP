@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "AvaRundownDefines.h"
+#include "AvaRundownEditorDefines.h"
 #include "Rundown/AvaRundown.h"
 #include "TickableEditorObject.h"
 #include "WorkflowOrientedApp/WorkflowCentricApplication.h"

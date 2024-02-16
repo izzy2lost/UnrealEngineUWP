@@ -4,7 +4,6 @@
 
 #include "AvaMediaDefines.h"
 #include "Rundown/AvaRundown.h"
-#include "Rundown/AvaRundownDefines.h"
 #include "Rundown/AvaRundownEditorDefines.h"
 #include "Rundown/Pages/PageViews/IAvaRundownPageView.h"
 #include "Widgets/SCompoundWidget.h"

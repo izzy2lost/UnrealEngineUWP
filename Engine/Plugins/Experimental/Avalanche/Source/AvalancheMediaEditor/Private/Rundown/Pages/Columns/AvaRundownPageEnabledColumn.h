@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Rundown/AvaRundownDefines.h"
+#include "Rundown/AvaRundownEditorDefines.h"
 #include "Rundown/Pages/Columns/IAvaRundownPageViewColumn.h"
 
 class FAvaRundownPageEnabledColumn : public IAvaRundownPageViewColumn

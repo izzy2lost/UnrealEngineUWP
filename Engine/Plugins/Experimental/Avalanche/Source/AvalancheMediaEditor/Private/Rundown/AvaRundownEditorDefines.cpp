@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Rundown/AvaRundownDefines.h"
+#include "Rundown/AvaRundownEditorDefines.h"
 
 const FNumberFormattingOptions UE::AvaRundown::FEditorMetrics::PageIdFormattingOptions = FNumberFormattingOptions()
 	.SetMinimumIntegralDigits(4)

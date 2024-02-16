@@ -4,7 +4,7 @@
 
 #include "Containers/Array.h"
 #include "Input/DragAndDrop.h"
-#include "Rundown/AvaRundownDefines.h"
+#include "Rundown/AvaRundownEditorDefines.h"
 #include "Templates/SharedPointer.h"
 #include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableRow.h"

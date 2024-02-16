@@ -6,7 +6,7 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Input/Reply.h"
 #include "Rundown/AvaRundown.h"
-#include "Rundown/AvaRundownDefines.h"
+#include "Rundown/AvaRundownEditorDefines.h"
 #include "Rundown/AvaRundownPage.h"
 
 #define LOCTEXT_NAMESPACE "AvaRundownInstancedPageViewImpl"

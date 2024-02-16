@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Containers/Array.h"
-#include "Rundown/AvaRundownDefines.h"
+#include "Rundown/AvaRundownEditorDefines.h"
 #include "Templates/SharedPointer.h"
 #include "Types/SlateEnums.h"
 #include "Widgets/SCompoundWidget.h"

@@ -4,7 +4,7 @@
 
 #include "Containers/UnrealString.h"
 #include "Misc/TextFilterExpressionEvaluator.h"
-#include "Rundown/AvaRundownDefines.h"
+#include "Rundown/AvaRundownEditorDefines.h"
 #include "Rundown/Factories/Filters/AvaRundownFactoriesUtils.h"
 
 class FName;
