@@ -734,21 +734,26 @@ void FGameplayDebuggerCategory_Abilities::DrawGameplayAttributes(FGameplayDebugg
 		}
 		else
 		{
+			const bool bDisplayServerValue = (AttributeData.NetworkStatus != FRepData::ENetworkStatus::LocalOnly);
+			const bool bDisplayClientValue = (AttributeData.NetworkStatus != FRepData::ENetworkStatus::ServerOnly) && !bNetworkValueMatch;
+
 			// Append status that is happening on the Server
-			if (AttributeData.NetworkStatus != FRepData::ENetworkStatus::LocalOnly)
+			if (bDisplayServerValue)
 			{
+				// If we are going to also display a client value, color it in the ServerColor, otherwise white.
+				const TCHAR* ServerValueColor = bDisplayClientValue ? ServerColor : TEXT("{white}");
 				if (bServerValueMatch)
 				{
-					AttributeValueStr.Appendf(TEXT("{white}%.4g "), AttributeData.ServerCurrentValue);
+					AttributeValueStr.Appendf(TEXT("%s%.4g "), ServerValueColor, AttributeData.ServerCurrentValue);
 				}
 				else
 				{
-					AttributeValueStr.Appendf(TEXT("{white}%.4g [%.4g] "), AttributeData.ServerCurrentValue, AttributeData.ServerBaseValue);
+					AttributeValueStr.Appendf(TEXT("%s%.4g [%.4g] "), ServerValueColor, AttributeData.ServerCurrentValue, AttributeData.ServerBaseValue);
 				}
 			}
 
 			// Append status that is happening on the Client (locally)
-			if (AttributeData.NetworkStatus != FRepData::ENetworkStatus::ServerOnly)
+			if (bDisplayClientValue)
 			{
 				if (bLocalValueMatch)
 				{
