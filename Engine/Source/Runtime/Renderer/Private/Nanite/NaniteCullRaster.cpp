@@ -175,7 +175,7 @@ TAutoConsoleVariable<float> CVarNaniteDicingRate(
 
 static TAutoConsoleVariable<int32> CVarNaniteMaxPatchesPerGroup(
 	TEXT("r.Nanite.MaxPatchesPerGroup"),
-	10,
+	5,
 	TEXT("Maximum number of patches to process per patch rasterizer group."),
 	ECVF_RenderThreadSafe
 );
