@@ -182,6 +182,7 @@ void FRemeshMeshOp::CalculateResult(FProgressCancel* Progress)
 	}
 	Remesher->SetProjectionTarget(ProjTarget.Get());
 
+	Remesher->CustomEdgeLengthScaleF = CustomEdgeLengthScaleF;
 
 	Remesher->Progress = Progress;
 

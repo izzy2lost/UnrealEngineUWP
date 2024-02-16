@@ -90,6 +90,8 @@ public:
 	bool bUseWorldSpace = false;
 	bool bParallel = true;
 
+	TFunction<double(const FDynamicMesh3&, int VertexA, int VertexB)> CustomEdgeLengthScaleF;
+
 	// Normal flow only:
 
 	/// During each call to RemeshIteration, do this many passes of face-aligned projection
