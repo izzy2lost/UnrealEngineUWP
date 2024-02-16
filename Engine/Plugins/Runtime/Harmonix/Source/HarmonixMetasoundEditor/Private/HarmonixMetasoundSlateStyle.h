@@ -11,12 +11,12 @@ namespace HarmonixMetasoundEditor
 	public:
 		FSlateStyle();
 		static const FSlateStyle& Get();
-		const FSlateBrush* GetMidiStreamConnectedIcon() const;
-		const FSlateBrush* GetMidiStreamDisconnectedIcon() const;
-		const FSlateBrush* GetMidiClockConnectedIcon() const;
-		const FSlateBrush* GetMidiClockDisconnectedIcon() const;
-		const FSlateBrush* GetTransportConnectedIcon() const;
-		const FSlateBrush* GetTransportDisconnectedIcon() const;
+
+		void SetCustomPinStyle(const FName PinType, const FLinearColor& PinColor, FSlateBrush* ConnectedIcon, FSlateBrush* DisconnectedIcon);
+
+		const FLinearColor& GetPinColor(FName PinType) const;
+		const FSlateBrush* GetConnectedIcon(FName PinType) const;
+		const FSlateBrush* GetDisconnectedIcon(FName PinType) const;
 
 		~FSlateStyle();
 	};

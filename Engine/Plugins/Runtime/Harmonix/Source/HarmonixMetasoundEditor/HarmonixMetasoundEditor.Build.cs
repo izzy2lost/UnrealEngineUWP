@@ -31,7 +31,8 @@ public class HarmonixMetasoundEditor : ModuleRules
 				"HarmonixMetasound",
 				"MetasoundEditor",
 				"MetasoundFrontend",
-				"DetailCustomizations"
+				"DetailCustomizations",
+				"Projects"
 			}
 		);
 	}
