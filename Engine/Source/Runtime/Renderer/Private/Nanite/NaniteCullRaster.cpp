@@ -109,10 +109,10 @@ static TAutoConsoleVariable<int32> CVarNaniteMeshShaderRasterization(
 	ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int32> CVarNaniteVSMMeshShaderRasterization(
-	TEXT("r.Nanite.VSMMeshShaderRasterization"),
-	0,
-	TEXT("If available, use mesh shaders for VSM hardware rasterization."),
+static TAutoConsoleVariable<int32> CVarNanitePrimShaderRasterization(
+	TEXT("r.Nanite.PrimShaderRasterization"),
+	1,
+	TEXT("If available, use primitive shaders for hardware rasterization."),
 	ECVF_RenderThreadSafe
 );
 
@@ -121,13 +121,6 @@ static TAutoConsoleVariable<int32> CVarNaniteVSMInvalidateOnLODDelta(
 	0,
 	TEXT("Experimental: Clusters that are not streamed in to LOD matching the computed Nanite LOD estimate will trigger VSM invalidation such that they are re-rendered when streaming completes.\n")
 	TEXT("  NOTE: May cause a large increase in invalidations in cases where the streamer has difficulty keeping up (a future version will need to throttle the invalidations and/or add a threshold)."),
-	ECVF_RenderThreadSafe
-);
-
-static TAutoConsoleVariable<int32> CVarNanitePrimShaderRasterization(
-	TEXT("r.Nanite.PrimShaderRasterization"),
-	1,
-	TEXT("If available, use primitive shaders for hardware rasterization."),
 	ECVF_RenderThreadSafe
 );
 
@@ -349,7 +342,7 @@ static bool UseMeshShader(EShaderPlatform ShaderPlatform, Nanite::EPipeline Pipe
 
 	// We require tier1 support to utilize primitive attributes
 	const bool bSupported = CVarNaniteMeshShaderRasterization.GetValueOnAnyThread() != 0 && GRHISupportsMeshShadersTier1 && (!bAllowGlobalClipPlane || bMSSupportsClipDistance);
-	return bSupported && (CVarNaniteVSMMeshShaderRasterization.GetValueOnAnyThread() != 0 || Pipeline != Nanite::EPipeline::Shadows);
+	return bSupported;
 }
 
 static bool UsePrimitiveShader()
@@ -406,6 +399,7 @@ enum class ERasterHardwarePath : uint8
 	VertexShader,
 	PrimitiveShader,
 	MeshShaderWrapped,
+	MeshShaderNV,
 	MeshShader,
 };
 
@@ -415,7 +409,14 @@ static ERasterHardwarePath GetRasterHardwarePath(EShaderPlatform ShaderPlatform,
 	
 	if (UseMeshShader(ShaderPlatform, Pipeline))
 	{
-		if (FDataDrivenShaderPlatformInfo::GetRequiresUnwrappedMeshShaderArgs(ShaderPlatform))
+		// TODO: Cleaner detection later
+		const bool bNVExtension = FDataDrivenShaderPlatformInfo::GetMaxMeshShaderThreadGroupSize(ShaderPlatform) == 32u;
+
+		if (bNVExtension)
+		{
+			HardwarePath = ERasterHardwarePath::MeshShaderNV;
+		}
+		else if (FDataDrivenShaderPlatformInfo::GetRequiresUnwrappedMeshShaderArgs(ShaderPlatform))
 		{
 			HardwarePath = ERasterHardwarePath::MeshShader;
 		}
@@ -434,7 +435,12 @@ static ERasterHardwarePath GetRasterHardwarePath(EShaderPlatform ShaderPlatform,
 
 static bool IsMeshShaderRasterPath(const ERasterHardwarePath HardwarePath)
 {
-	return (HardwarePath == ERasterHardwarePath::MeshShader || HardwarePath == ERasterHardwarePath::MeshShaderWrapped);
+	return
+	(
+		HardwarePath == ERasterHardwarePath::MeshShader ||
+		HardwarePath == ERasterHardwarePath::MeshShaderNV ||
+		HardwarePath == ERasterHardwarePath::MeshShaderWrapped
+	);
 }
 
 static uint32 GetMaxPatchesPerGroup()
@@ -1101,6 +1107,14 @@ class FRasterBinBuild_CS : public FNaniteGlobalShader
 		
 		return FNaniteGlobalShader::ShouldCompilePermutation(Parameters);
 	}
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FNaniteGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+
+		const bool bForceBatching = FDataDrivenShaderPlatformInfo::GetMaxMeshShaderThreadGroupSize(Parameters.Platform) == 32u;
+		OutEnvironment.SetDefine(TEXT("FORCE_BATCHING"), bForceBatching ? 1 : 0);
+	}
 };
 IMPLEMENT_GLOBAL_SHADER(FRasterBinBuild_CS, "/Engine/Private/Nanite/NaniteRasterBinning.usf", "RasterBinBuild", SF_Compute);
 
@@ -1160,6 +1174,7 @@ class FRasterBinFinalize_CS : public FNaniteGlobalShader
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, OutRasterBinArgsSWHW)
 
 		SHADER_PARAMETER(uint32, RasterBinCount)
+		SHADER_PARAMETER(uint32, FinalizeMode)
 		SHADER_PARAMETER(uint32, RenderFlags)
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -1698,9 +1713,10 @@ class FHWRasterizeMS : public FNaniteMaterialShader
 		OutEnvironment.SetDefine(TEXT("NANITE_MULTI_VIEW"), 1);
 
 		const uint32 MSThreadGroupSize = FDataDrivenShaderPlatformInfo::GetMaxMeshShaderThreadGroupSize(Parameters.Platform);
-		check(MSThreadGroupSize == 128 || MSThreadGroupSize == 256);
+		check(MSThreadGroupSize == 32 || MSThreadGroupSize == 128 || MSThreadGroupSize == 256);
 
-		if (PermutationVector.Get<FVertexProgrammableDim>())
+		const bool bForceBatching = MSThreadGroupSize == 32u;
+		if (bForceBatching || PermutationVector.Get<FVertexProgrammableDim>())
 		{
 			OutEnvironment.SetDefine(TEXT("NANITE_VERT_REUSE_BATCH"), 1);
 			OutEnvironment.SetDefine(TEXT("NANITE_MESH_SHADER_TG_SIZE"), 32);
@@ -1834,7 +1850,8 @@ public:
 		OutEnvironment.SetDefine(TEXT("USE_ANALYTIC_DERIVATIVES"), 0);
 		OutEnvironment.SetDefine(TEXT("NANITE_MULTI_VIEW"), 1);
 
-		if (PermutationVector.Get<FVertexProgrammableDim>() && (PermutationVector.Get<FMeshShaderDim>() || PermutationVector.Get<FPrimShaderDim>()))
+		const bool bForceBatching = FDataDrivenShaderPlatformInfo::GetMaxMeshShaderThreadGroupSize(Parameters.Platform) == 32u;
+		if ((bForceBatching || PermutationVector.Get<FVertexProgrammableDim>()) && (PermutationVector.Get<FMeshShaderDim>() || PermutationVector.Get<FPrimShaderDim>()))
 		{
 			OutEnvironment.SetDefine(TEXT("NANITE_VERT_REUSE_BATCH"), 1);
 		}
@@ -3572,6 +3589,8 @@ FBinningData FRenderer::AddPass_Binning(
 	ERDGPassFlags PassFlags
 )
 {
+	const EShaderPlatform ShaderPlatform = Scene.GetShaderPlatform();
+
 	FBinningData BinningData = {};
 	BinningData.BinCount = DispatchContext.MetaBufferData.Num();
 
@@ -3741,11 +3760,15 @@ FBinningData FRenderer::AddPass_Binning(
 		}
 
 		// Finalize Bin Ranges
-		if ((RenderFlags & NANITE_RENDER_FLAG_MESH_SHADER) && HardwarePath == ERasterHardwarePath::MeshShaderWrapped) // Only run for wrapped mesh shader rasterization for now
+		if ((RenderFlags & NANITE_RENDER_FLAG_MESH_SHADER) && HardwarePath != ERasterHardwarePath::MeshShader) // Only run for VK NV or wrapped mesh shader rasterization for now
 		{
+			check(HardwarePath == ERasterHardwarePath::MeshShaderNV || HardwarePath == ERasterHardwarePath::MeshShaderWrapped);
+			const uint32 FinalizeMode = HardwarePath == ERasterHardwarePath::MeshShaderNV ? 1u : 0u;
+
 			FRasterBinFinalize_CS::FParameters* FinalizePassParameters = GraphBuilder.AllocParameters<FRasterBinFinalize_CS::FParameters>();
 			FinalizePassParameters->OutRasterBinArgsSWHW = GraphBuilder.CreateUAV(BinningData.IndirectArgs);
 			FinalizePassParameters->RasterBinCount = BinningData.BinCount;
+			FinalizePassParameters->FinalizeMode = FinalizeMode;
 			FinalizePassParameters->RenderFlags = RenderFlags;
 
 			auto ComputeShader = SharedContext.ShaderMap->GetShader<FRasterBinFinalize_CS>();
