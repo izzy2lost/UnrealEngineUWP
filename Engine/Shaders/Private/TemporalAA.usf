@@ -58,6 +58,7 @@
 	#define TAA_QUALITY_LOW 0
 	#define TAA_QUALITY_MEDIUM 1
 	#define TAA_QUALITY_HIGH 2
+	#define TAA_QUALITY_MEDIUM_HIGH 3
 
 //------------------------------------------------------- CONFIGS
 
@@ -88,6 +89,10 @@
 		#define AA_DYNAMIC_ANTIGHOST 0
 
 	#elif TAA_QUALITY == TAA_QUALITY_HIGH
+		#define AA_FILTERED 1
+		#define AA_DYNAMIC_ANTIGHOST 1
+
+	#elif TAA_QUALITY == TAA_QUALITY_MEDIUM_HIGH
 		#define AA_FILTERED 1
 		#define AA_DYNAMIC_ANTIGHOST 1
 
@@ -167,6 +172,15 @@
 		#define AA_DYNAMIC_ANTIGHOST 1
 		#define AA_SAMPLES 9
 
+	#elif TAA_QUALITY == TAA_QUALITY_MEDIUM_HIGH
+		#define AA_FILTERED 1
+		#if AA_MOBILE_CONFIG
+			#define AA_SAMPLES 5
+		#else
+			#define AA_SAMPLES 6
+		#endif
+		#define AA_DYNAMIC_ANTIGHOST 1
+
 	#else
 		#error Unknown TAA quality
 	#endif
@@ -215,6 +229,12 @@
 		#define AA_BICUBIC 1
 		#define AA_FILTERED 1
 		#define AA_YCOCG 1
+
+	#elif TAA_QUALITY == TAA_QUALITY_MEDIUM_HIGH
+		#if AA_UPSAMPLE
+			#define AA_BICUBIC 1
+			#define AA_FILTERED 1
+		#endif
 
 	#else
 		#error Unknown TAA quality

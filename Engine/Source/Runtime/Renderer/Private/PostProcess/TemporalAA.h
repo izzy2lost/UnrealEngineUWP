@@ -86,6 +86,7 @@ enum class ETAAQuality : uint8
 	Low,
 	Medium,
 	High,
+	MediumHigh,
 	MAX
 };
 

@@ -48,7 +48,8 @@ TAutoConsoleVariable<int32> CVarTemporalAAQuality(
 	TEXT("Quality of the main Temporal AA pass.\n")
 	TEXT(" 0: Disable input filtering;\n")
 	TEXT(" 1: Enable input filtering;\n")
-	TEXT(" 2: Enable input filtering, enable mobility based anti-ghosting (Default)"),
+	TEXT(" 2: Enable more input filtering, enable mobility based anti-ghosting (Default)\n")
+	TEXT(" 3: Quality 1 input filtering, enable anti-ghosting"),
 	ECVF_Scalability | ECVF_RenderThreadSafe);
 
 TAutoConsoleVariable<float> CVarTemporalAAHistorySP(
@@ -281,7 +282,7 @@ class FTemporalAACS : public FTemporalAA
 		}
 		else
 		{
-			// Only the Main and Main Upsampling have quality options 0, 1, 2.
+			// Only the Main and Main Upsampling have quality options 0, 1, 2, 3
 			PermutationVector.Set<FTemporalAA::FTAAQualityDim>(ETAAQuality::High);
 
 			// Only the Main and Main Upsampling can downsample the output.
@@ -462,6 +463,7 @@ const TCHAR* const kTAAQualityNames[] = {
 	TEXT("Low"),
 	TEXT("Medium"),
 	TEXT("High"),
+	TEXT("MediumHigh"),
 };
 
 static_assert(UE_ARRAY_COUNT(kTAAOutputNames) == int32(ETAAPassConfig::MAX), "Missing TAA output name.");
@@ -608,7 +610,9 @@ FTAAOutputs AddTemporalAAPass(
 
 	{
 		EPixelFormat HistoryPixelFormat = PF_FloatRGBA;
-		if (bIsMainPass && Inputs.Quality != ETAAQuality::High && !bSupportsAlpha && CVarTAAR11G11B10History.GetValueOnRenderThread())
+		if (bIsMainPass && 
+			(Inputs.Quality != ETAAQuality::High) && (Inputs.Quality != ETAAQuality::MediumHigh) && 
+			!bSupportsAlpha && CVarTAAR11G11B10History.GetValueOnRenderThread())
 		{
 			HistoryPixelFormat = PF_FloatR11G11B10;
 		}
@@ -997,7 +1001,7 @@ FDefaultTemporalUpscaler::FOutputs AddGen4MainTemporalAAPasses(
 
 	TAAParameters.SetupViewRect(View);
 
-	TAAParameters.Quality = ETAAQuality(FMath::Clamp(CVarTemporalAAQuality.GetValueOnRenderThread(), 0, 2));
+	TAAParameters.Quality = ETAAQuality(FMath::Clamp(CVarTemporalAAQuality.GetValueOnRenderThread(), 0, int32(ETAAQuality::MAX) - 1));
 
 	const FIntRect SecondaryViewRect = TAAParameters.OutputViewRect;
 
