@@ -197,5 +197,6 @@ namespace UE::MultiUserClient
 
 	FMultiUserReplicationManager::FConnectedState::FConnectedState(TSharedRef<IConcertSyncClient> InClient, FReplicationDiscoveryContainer& InDiscoveryContainer)
 		: ClientManager(InClient, InClient->GetConcertClient()->GetCurrentSession().ToSharedRef(), InDiscoveryContainer)
+		, ChangeLevelHandler(ClientManager.GetLocalClient().GetClientEditModel().Get())
 	{}
 }

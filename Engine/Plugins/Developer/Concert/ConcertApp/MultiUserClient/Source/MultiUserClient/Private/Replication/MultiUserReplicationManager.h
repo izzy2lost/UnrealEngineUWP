@@ -6,6 +6,7 @@
 #include "IConcertSession.h"
 #include "Replication/IMultiUserReplication.h"
 #include "Replication/Stream/Discovery/ReplicationDiscoveryContainer.h"
+#include "UnrealEditor/ChangeLevelHandler.h"
 
 #include "Misc/Optional.h"
 #include "Templates/SharedPointer.h"
@@ -101,6 +102,9 @@ namespace UE::MultiUserClient
 			 * Only valid when ConnectionState == EMultiUserReplicationConnectionState::Connected.
 			 */
 			FReplicationClientManager ClientManager;
+
+			/** Clears local client's registered objects when leaving map. */
+			FChangeLevelHandler ChangeLevelHandler;
 			
 			FConnectedState(TSharedRef<IConcertSyncClient> InClient, FReplicationDiscoveryContainer& InDiscoveryContainer);
 		};
