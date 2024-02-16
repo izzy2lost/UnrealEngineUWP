@@ -1388,7 +1388,28 @@ void FConfigFile::OverrideFromCommandline(FConfigFile* File, const FString& File
 				CommandlineOption.PropertyValue = Value;
 
 				// now put it into this into the cache
-				File->SetString(*CommandlineOption.Section, *CommandlineOption.PropertyKey, *CommandlineOption.PropertyValue);
+				if (CommandlineOption.PropertyKey.StartsWith(TEXT("-")))
+				{
+					CommandlineOption.PropertyKey.RemoveFromStart(TEXT("-"));
+
+					TArray<FString> ValueArray;
+					File->GetArray(*CommandlineOption.Section, *CommandlineOption.PropertyKey, ValueArray);
+					ValueArray.Remove(CommandlineOption.PropertyValue);
+					File->SetArray(*CommandlineOption.Section, *CommandlineOption.PropertyKey, ValueArray);
+				}
+				else if (CommandlineOption.PropertyKey.StartsWith(TEXT("+")))
+				{
+					CommandlineOption.PropertyKey.RemoveFromStart(TEXT("+"));
+
+					TArray<FString> ValueArray;
+					File->GetArray(*CommandlineOption.Section, *CommandlineOption.PropertyKey, ValueArray);
+					ValueArray.Add(CommandlineOption.PropertyValue);
+					File->SetArray(*CommandlineOption.Section, *CommandlineOption.PropertyKey, ValueArray);
+				}
+				else
+				{
+					File->SetString(*CommandlineOption.Section, *CommandlineOption.PropertyKey, *CommandlineOption.PropertyValue);
+				}	
 			}
 		}
 
