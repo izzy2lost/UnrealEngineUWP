@@ -405,7 +405,7 @@ protected:
 	UPROPERTY(Transient, EditAnywhere, Category = "Editing Settings", meta = (DisplayName = "Editing Mode", EditCondition = "!bIsComponentLocal && GenerationTrigger != EPCGComponentGenerationTrigger::GenerateAtRuntime", DisplayPriority = 300))
 	EPCGEditorDirtyMode CurrentEditingMode = EPCGEditorDirtyMode::Normal;
 
-	UPROPERTY(VisibleAnywhere, Category = Debug, meta = (NoResetToDefault))
+	UPROPERTY(VisibleAnywhere, Category = "Editing Settings", meta = (NoResetToDefault, DisplayPriority = 300))
 	EPCGEditorDirtyMode SerializedEditingMode = EPCGEditorDirtyMode::Normal;
 
 	/** Used to store the CurrentEditingMode when it is forcefully changed by another system, such as runtime generation. */
