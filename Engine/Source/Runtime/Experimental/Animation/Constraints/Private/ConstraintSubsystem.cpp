@@ -114,8 +114,7 @@ FConstraintsInWorld& UConstraintSubsystem::ConstraintsInWorldFindOrAdd(UWorld* I
 	}
 	FConstraintsInWorld NewCInW;
 	NewCInW.World = InWorld;
-	int32 Index = ConstraintsInWorld.Add(NewCInW);
-	return ConstraintsInWorld[Index];
+	return ConstraintsInWorld.Emplace_GetRef(MoveTemp(NewCInW));
 }
 
 TArray<TWeakObjectPtr<UTickableConstraint>> UConstraintSubsystem::GetConstraints(UWorld* InWorld) const
@@ -145,6 +144,7 @@ void UConstraintSubsystem::AddConstraint(UWorld* InWorld, UTickableConstraint* I
 	if (Constraints.Constraints.Contains(InConstraint) == false)
 	{
 		Constraints.Constraints.Emplace(InConstraint);
+		Constraints.InvalidateGraph();
 	}
 	OnConstraintAddedToSystem_BP.Broadcast(this, InConstraint);
 }
@@ -162,6 +162,7 @@ void UConstraintSubsystem::RemoveConstraint(UWorld* InWorld, UTickableConstraint
 	if (FConstraintsInWorld* Constraints = ConstraintsInWorldFind(InWorld))
 	{
 		Constraints->Constraints.Remove(InConstraint);
+		Constraints->InvalidateGraph();
 	}
 }
 
@@ -212,6 +213,11 @@ bool UConstraintSubsystem::HasConstraint(UWorld* InWorld, UTickableConstraint* I
 	return  Constraints.Contains(InConstraint);
 }
 
+FConstraintsEvaluationGraph& UConstraintSubsystem::GetEvaluationGraph(UWorld* InWorld)
+{
+	return ConstraintsInWorldFindOrAdd(InWorld).GetEvaluationGraph();
+}
+
 void UConstraintSubsystem::InvalidateConstraints()
 {
 	bNeedsCleanup = true;
@@ -223,9 +229,13 @@ void UConstraintSubsystem::PostEditUndo()
 {
 	Super::PostEditUndo();
 
+	for (FConstraintsInWorld& ConstsInWorld: ConstraintsInWorld)
+	{
+		ConstsInWorld.InvalidateGraph();
+	}
+	
 	const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(GetWorld());
 	Controller.Notify(EConstraintsManagerNotifyType::ManagerUpdated, this);
-
 }
 #endif
 
@@ -272,6 +282,7 @@ void UConstraintSubsystem::CleanupInvalidConstraints() const
 			{
 				return !InConstraint.IsValid() || InConstraint.IsStale();
 			});
+			WorldConstraints.InvalidateGraph();
 		}
 		bNeedsCleanup = false;
 	}
@@ -292,6 +303,7 @@ void FConstraintsInWorld::RemoveConstraints(UWorld* InWorld)
 		}
 	}
 	Constraints.SetNum(0);
+	InvalidateGraph();
 }
 
 
@@ -301,7 +313,23 @@ void FConstraintsInWorld::Init(UWorld* InWorld)
 	{
 		World = InWorld;
 	}
+	InvalidateGraph();
 }
 
+FConstraintsEvaluationGraph& FConstraintsInWorld::GetEvaluationGraph()
+{
+	if (!EvaluationGraph)
+	{
+		ensure(World);
+		EvaluationGraph = MakeShared<FConstraintsEvaluationGraph>(*this);
+	}
+	return *EvaluationGraph;
+}
 
-
+void FConstraintsInWorld::InvalidateGraph() const
+{
+	if (EvaluationGraph)
+	{
+		EvaluationGraph->InvalidateData();
+	}
+}

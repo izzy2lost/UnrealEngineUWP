@@ -105,7 +105,10 @@ public:
 	CONSTRAINTS_API virtual void InitConstraint(UWorld * InWorld)  PURE_VIRTUAL(UTickableConstraint::InitConstraint);
 	/** Teardown and unregister the constraint with that world*/
 	CONSTRAINTS_API virtual void TeardownConstraint(UWorld* InWorld)  PURE_VIRTUAL(UTickableConstraint::DeInitConstraint);
-	/** Get Tick funtion in that world*/
+	/** */
+	CONSTRAINTS_API virtual void AddedToWorld(UWorld* InWorld) PURE_VIRTUAL(UTickableConstraint::AddedToWorld);
+	
+	/** Get Tick function in that world*/
 	CONSTRAINTS_API FConstraintTickFunction& GetTickFunction(UWorld* InWorld);
 	CONSTRAINTS_API const FConstraintTickFunction& GetTickFunction(UWorld* InWorld) const;
 
@@ -335,4 +338,9 @@ public:
 
 	/** Notify from changes in the constraints manager. */
 	CONSTRAINTS_API void Notify(EConstraintsManagerNotifyType InNotifyType, UObject* InObject) const;
+
+	/** Evaluation graph API. */
+	CONSTRAINTS_API void MarkConstraintForEvaluation(UTickableConstraint* InConstraint) const;
+	CONSTRAINTS_API void InvalidateEvaluationGraph() const;
+	CONSTRAINTS_API void FlushEvaluationGraph() const;
 };

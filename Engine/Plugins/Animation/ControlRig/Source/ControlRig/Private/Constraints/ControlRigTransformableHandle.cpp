@@ -6,7 +6,6 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "ControlRig.h"
 #include "ControlRigComponent.h"
-#include "ControlRig.h"
 #include "IControlRigObjectBinding.h"
 #include "TransformableHandleUtils.h"
 #include "Rigs/RigHierarchyElements.h"
@@ -353,6 +352,12 @@ void UTransformableControlHandle::RegisterDelegates()
 		{
 			Hierarchy->OnModified().AddUObject(this, &UTransformableControlHandle::OnHierarchyModified);
 		}
+
+		// NOTE BINDER: this has to be done before binding UTransformableControlHandle::OnControlModified
+		if (!ControlRig->ControlModified().IsBoundToObject(&GetEvaluationBinding()))
+		{
+			ControlRig->ControlModified().AddRaw(&GetEvaluationBinding(), &FControlEvaluationGraphBinding::HandleControlModified);
+		}
 		
 		ControlRig->ControlModified().AddUObject(this, &UTransformableControlHandle::OnControlModified);
 		if (!ControlRig->ControlRigBound().IsBoundToObject(this))
@@ -428,6 +433,7 @@ void UTransformableControlHandle::OnControlModified(
 
 		if (InControl->GetFName() == ControlName)
 		{	// if that handle is wrapping InControl
+			GetEvaluationBinding().bPendingFlush = true;
 			Notify(Event);
 		}
 		else if (Event == EHandleEvent::GlobalTransformUpdated)
@@ -435,6 +441,7 @@ void UTransformableControlHandle::OnControlModified(
 			// the control being modified is not the one wrapped by this handle 
 			if (const FRigControlElement* Control = ControlRig->FindControl(ControlName))
 			{
+				GetEvaluationBinding().bPendingFlush = true;
 				static constexpr  bool bPreTick = true;
 				Notify(EHandleEvent::UpperDependencyUpdated, bPreTick);
 			}
@@ -623,3 +630,30 @@ void UTransformableControlHandle::OnObjectsReplaced(const TMap<UObject*, UObject
 }
 
 #endif
+
+FControlEvaluationGraphBinding& UTransformableControlHandle::GetEvaluationBinding()
+{
+	static FControlEvaluationGraphBinding EvaluationBinding;
+	return EvaluationBinding;
+}
+
+void FControlEvaluationGraphBinding::HandleControlModified(UControlRig* InControlRig, FRigControlElement* InControl, const FRigControlModifiedContext& InContext)
+{
+	if (!bPendingFlush || !InContext.bConstraintUpdate)
+	{
+		return;
+	}
+	
+	if (!InControlRig || !InControl)
+	{
+		return;
+	}
+
+	// flush all pending evaluations if any
+	if (UWorld* World = InControlRig->GetWorld())
+	{
+		const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(World);
+		Controller.FlushEvaluationGraph();
+	}
+	bPendingFlush = false;
+}

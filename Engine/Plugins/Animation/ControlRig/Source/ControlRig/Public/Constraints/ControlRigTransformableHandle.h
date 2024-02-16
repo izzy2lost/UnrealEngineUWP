@@ -16,6 +16,18 @@ class UControlRigComponent;
 class URigHierarchy;
 
 /**
+ * FControlEvaluationGraphBinding
+ */
+struct CONTROLRIG_API FControlEvaluationGraphBinding
+{
+	void HandleControlModified(
+		UControlRig* InControlRig,
+		FRigControlElement* InControl,
+		const FRigControlModifiedContext& InContext);
+	bool bPendingFlush = false;
+};
+
+/**
  * UTransformableControlHandle
  */
 
@@ -126,6 +138,8 @@ private:
 
 	void OnControlRigBound(UControlRig* InControlRig);
 	void OnObjectBoundToControlRig(UObject* InObject);
+	
+	static FControlEvaluationGraphBinding& GetEvaluationBinding();
 
 #if WITH_EDITOR
 	/** @todo document */
