@@ -364,6 +364,8 @@ public:
 
 	TSharedPtr<FName> SelectedTrackedTransformName;
 	TSharedPtr<FName> SelectedTrackedLocationName;
+	
+	virtual void PostEditUndo() override;
 
 protected:
 	FChaosVDSettingChaged VisibilitySettingsChangedDelegate;
