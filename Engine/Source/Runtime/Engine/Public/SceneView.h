@@ -660,13 +660,13 @@ public:
 		RecomputeDerivedMatrices();
 	}
 
-	FIntPoint GetOrthoViewRect() const
+	FVector2f GetOrthoDimensions() const
 	{
 		if (!IsPerspectiveProjection())
 		{
-			return  FIntPoint(static_cast<float>(InvProjectionMatrix.M[0][0]) * 2.0f, static_cast<float>(InvProjectionMatrix.M[1][1]) * 2.0f);
+			return  FVector2f(static_cast<float>(InvProjectionMatrix.M[0][0]) * 2.0f, static_cast<float>(InvProjectionMatrix.M[1][1]) * 2.0f);
 		}
-		return FIntPoint();
+		return FVector2f::ZeroVector;
 	}
 
 private:
