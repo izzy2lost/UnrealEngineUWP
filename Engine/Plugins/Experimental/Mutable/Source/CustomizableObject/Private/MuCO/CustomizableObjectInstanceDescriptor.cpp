@@ -872,6 +872,15 @@ void FCustomizableObjectInstanceDescriptor::ReloadParameters()
 						const int32 ParamValue = MutableParameters->GetIntValue(ParamIndex);
 						Param.ParameterValueName = CustomizableObject->FindIntParameterValueName(ParamIndex, ParamValue);
 					}
+
+					// Multilayer ints with one option are not multidimensional parameters. However, we need to preserve the layer 
+					// information in case that we add a new option to the parameter, and it is converted to multidimensional.
+					for (int32 RangeIndex = 0; RangeIndex < Result->ParameterRangeValueNames.Num(); ++RangeIndex)
+					{
+						const int32 Value = MutableParameters->GetIntValue(ParamIndex);
+						const FString AuxParameterValueName = CustomizableObject->FindIntParameterValueName(ParamIndex, Value);
+						Param.ParameterRangeValueNames.Add(AuxParameterValueName);
+					}
 				}
 			} 
 			else // Not found in Instance Parameters. Use Mutable Parameters.

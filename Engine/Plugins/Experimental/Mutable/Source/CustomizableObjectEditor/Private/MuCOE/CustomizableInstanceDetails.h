@@ -110,6 +110,7 @@ private:
 	FReply OnProjectorLayerAdded(const FString ParamName) const;
 	FReply OnProjectorLayerRemoved(const FString ParamName, const int32 RangeIndex) const;
 	void OnProjectorTextureParameterComboBoxChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo, const FString ParamName, int32 RangeIndex) const;
+	TSharedRef<SWidget> MakeTextureComboEntryWidget(TSharedPtr<FString> InItem) const;
 
 	// Parameter Functions
 	FReply OnCopyAllParameters();
@@ -151,6 +152,9 @@ private:
 
 	/** Maps param index to bool telling if it has parent, same use as previous line */
 	TMap<int32, bool> ParamHasParent;
+
+	/** Array with all the possible multilayer projector texture options */
+	TArray<TArray<TSharedPtr<FString>>> ProjectorTextureOptions;
 
 };
 
