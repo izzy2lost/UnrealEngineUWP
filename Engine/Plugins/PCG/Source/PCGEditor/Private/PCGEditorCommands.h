@@ -32,4 +32,8 @@ public:
 	TSharedPtr<FUICommandInfo> ToggleInspect;
 	TSharedPtr<FUICommandInfo> AddSourcePin;
 	TSharedPtr<FUICommandInfo> RenameNode;
+	TSharedPtr<FUICommandInfo> ConvertNamedRerouteToReroute;
+	TSharedPtr<FUICommandInfo> SelectNamedRerouteUsages;
+	TSharedPtr<FUICommandInfo> SelectNamedRerouteDeclaration;
+	TSharedPtr<FUICommandInfo> ConvertRerouteToNamedReroute;
 };

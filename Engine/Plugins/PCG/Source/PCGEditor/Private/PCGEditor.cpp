@@ -12,6 +12,7 @@
 #include "PCGInputOutputSettings.h"
 #include "PCGPin.h"
 #include "PCGSubsystem.h"
+#include "Elements/PCGReroute.h"
 #include "Helpers/PCGSubgraphHelpers.h"
 #include "Rendering/SlateRenderer.h"
 #include "Tests/Determinism/PCGDeterminismNativeTests.h"
@@ -384,23 +385,32 @@ void FPCGEditor::JumpToNode(const UEdGraphNode* InNode)
 	}
 }
 
-void FPCGEditor::JumpToNode(const UPCGNode* InNode)
+UPCGEditorGraphNodeBase* FPCGEditor::GetEditorNode(const UPCGNode* InNode)
 {
-	if (!ensure(PCGEditorGraph))
+	if (!ensure(PCGEditorGraph) || !InNode)
 	{
-		return;
+		return nullptr;
 	}
 
-	for (const UEdGraphNode* EdGraphNode : PCGEditorGraph->Nodes)
+	for (UEdGraphNode* EdGraphNode : PCGEditorGraph->Nodes)
 	{
-		if (const UPCGEditorGraphNodeBase* PCGEdGraphNode = Cast<UPCGEditorGraphNodeBase>(EdGraphNode))
+		if (UPCGEditorGraphNodeBase* PCGEdGraphNode = Cast<UPCGEditorGraphNodeBase>(EdGraphNode))
 		{
 			if (PCGEdGraphNode->GetPCGNode() == InNode)
 			{
-				JumpToNode(EdGraphNode);
-				break;
+				return PCGEdGraphNode;
 			}
 		}
+	}
+
+	return nullptr;
+}
+
+void FPCGEditor::JumpToNode(const UPCGNode* InNode)
+{
+	if (const UPCGEditorGraphNodeBase* EditorNode = GetEditorNode(InNode))
+	{
+		JumpToNode(EditorNode);
 	}
 }
 
@@ -726,6 +736,26 @@ void FPCGEditor::BindCommands()
 		PCGEditorCommands.RenameNode,
 		FExecuteAction::CreateSP(this, &FPCGEditor::OnRenameNode),
 		FCanExecuteAction::CreateSP(this, &FPCGEditor::CanRenameNode));
+
+	GraphEditorCommands->MapAction(
+		PCGEditorCommands.ConvertNamedRerouteToReroute,
+		FExecuteAction::CreateSP(this, &FPCGEditor::OnConvertNamedRerouteToReroute),
+		FCanExecuteAction::CreateSP(this, &FPCGEditor::CanConvertNamedRerouteToReroute));
+
+	GraphEditorCommands->MapAction(
+		PCGEditorCommands.SelectNamedRerouteUsages,
+		FExecuteAction::CreateSP(this, &FPCGEditor::OnSelectNamedRerouteUsages),
+		FCanExecuteAction::CreateSP(this, &FPCGEditor::CanSelectNamedRerouteUsages));
+
+	GraphEditorCommands->MapAction(
+		PCGEditorCommands.SelectNamedRerouteDeclaration,
+		FExecuteAction::CreateSP(this, &FPCGEditor::OnSelectNamedRerouteDeclaration),
+		FCanExecuteAction::CreateSP(this, &FPCGEditor::CanSelectNamedRerouteDeclaration));
+
+	GraphEditorCommands->MapAction(
+		PCGEditorCommands.ConvertRerouteToNamedReroute,
+		FExecuteAction::CreateSP(this, &FPCGEditor::OnConvertRerouteToNamedReroute),
+		FCanExecuteAction::CreateSP(this, &FPCGEditor::CanConvertRerouteToNamedReroute));
 }
 
 void FPCGEditor::OnFind()
@@ -1171,25 +1201,398 @@ bool FPCGEditor::CanRenameNode() const
 	}
 }
 
-void FPCGEditor::OnCollapseNodesInSubgraph()
+bool FPCGEditor::InternalValidationOnAction()
 {
 	if (!GraphEditorWidget.IsValid() || PCGEditorGraph == nullptr)
 	{
 		UE_LOG(LogPCGEditor, Error, TEXT("GraphEditorWidget or PCGEditorGraph is null, aborting"));
-		return;
+		return false;
 	}
 
 	UPCGGraph* PCGGraph = PCGEditorGraph->GetPCGGraph();
 	if (PCGGraph == nullptr)
 	{
 		UE_LOG(LogPCGEditor, Error, TEXT("PCGGraph is null, aborting"));
+		return false;
+	}
+
+	return true;
+}
+
+void FPCGEditor::OnConvertNamedRerouteToReroute()
+{
+	if (!InternalValidationOnAction())
+	{
 		return;
 	}
+
+	UPCGGraph* PCGGraph = PCGEditorGraph->GetPCGGraph();
+	check(PCGGraph);
+
+	TArray<UPCGNode*> DeclarationsToConvert;
+	for (UObject* Object : GraphEditorWidget->GetSelectedNodes())
+	{
+		if (!Object)
+		{
+			continue;
+		}
+
+		if (UPCGEditorGraphNodeNamedRerouteDeclaration* DeclarationNode = Cast<UPCGEditorGraphNodeNamedRerouteDeclaration>(Object))
+		{
+			check(DeclarationNode->GetPCGNode());
+			DeclarationsToConvert.Add(DeclarationNode->GetPCGNode());
+		}
+	}
+
+	if (DeclarationsToConvert.IsEmpty())
+	{
+		return;
+	}
+
+	// Disable graph notifications
+	PCGGraph->DisableNotificationsForEditor();
+
+	// For all found declarations, replace by a normal reroute node and forward the connection from the usages to this reroute instead.
+	TArray<UPCGNode*> NodesToDelete;
+
+	for (UPCGNode* Declaration : DeclarationsToConvert)
+	{
+		NodesToDelete.Add(Declaration);
+
+		// Create reroute node
+		UPCGSettings* RerouteNodeSettings = nullptr;
+		UPCGNode* RerouteNode = PCGGraph->AddNodeOfType(UPCGRerouteSettings::StaticClass(), RerouteNodeSettings);
+
+		// Copy any non-functional information
+		Declaration->TransferEditorProperties(RerouteNode);
+
+		// Force a graph refresh - needed for the other operations/editor callbacks to go through, a bit unfortunate.
+		// TODO: improve this
+		PCGEditorGraph->ReconstructGraph();
+
+		UPCGPin* RerouteInput = RerouteNode->GetInputPin(PCGPinConstants::DefaultInputLabel);
+		UPCGPin* RerouteOutput = RerouteNode->GetOutputPin(PCGPinConstants::DefaultOutputLabel);
+
+		// Copy input edge to the declaration to the new reroute node
+		check(Declaration->GetInputPin(PCGPinConstants::DefaultInputLabel));
+		
+		TArray<UPCGEdge*> InputEdges = Declaration->GetInputPin(PCGPinConstants::DefaultInputLabel)->Edges;
+		ensure(InputEdges.Num() <= 1);
+
+		if(InputEdges.Num() >= 1)
+		{
+			PCGGraph->AddEdge(InputEdges[0]->InputPin->Node, InputEdges[0]->InputPin->Properties.Label, RerouteNode, RerouteInput->Properties.Label);
+		}
+
+		// The reroute declaration has edges to all its usages, and potentially other edges through its out pin.
+		// Keep track of all usages to be deleted but also forward edges from the usages to the newly created reroute.
+		if (UPCGPin* OutputPin = Declaration->GetOutputPin(PCGPinConstants::DefaultOutputLabel))
+		{
+			TArray<UPCGEdge*> Edges = OutputPin->Edges;
+			for(UPCGEdge* Edge : Edges)
+			{
+				PCGGraph->AddEdge(RerouteNode, RerouteOutput->Properties.Label, Edge->OutputPin->Node, Edge->OutputPin->Properties.Label);
+			}
+		}
+
+		if (UPCGPin* InvisiblePin = Declaration->GetOutputPin(PCGNamedRerouteConstants::InvisiblePinLabel))
+		{
+			TArray<UPCGEdge*> Edges = InvisiblePin->Edges;
+			for(UPCGEdge* Edge : Edges)
+			{
+				check(Edge->OutputPin && Edge->OutputPin->Node);
+				UPCGNode* Usage = Edge->OutputPin->Node;
+				NodesToDelete.Add(Usage);
+
+				check(Usage->GetOutputPin(PCGPinConstants::DefaultOutputLabel));
+				TArray<UPCGEdge*> UsageEdges = Usage->GetOutputPin(PCGPinConstants::DefaultOutputLabel)->Edges;
+				for(UPCGEdge* UsageEdge : UsageEdges)
+				{
+					PCGGraph->AddEdge(RerouteNode, RerouteOutput->Properties.Label, UsageEdge->OutputPin->Node, UsageEdge->OutputPin->Properties.Label);
+				}
+			}
+		}
+	}
+
+	// Delete removed ndoes
+	PCGGraph->RemoveNodes(NodesToDelete);
+
+	// Re-enable graph notifications
+	PCGGraph->EnableNotificationsForEditor();
+
+	// Force a graph refresh
+	PCGEditorGraph->ReconstructGraph();
+
+	// Notify the widget
+	GraphEditorWidget->NotifyGraphChanged();	
+}
+
+bool FPCGEditor::CanConvertNamedRerouteToReroute() const
+{
+	if (!GraphEditorWidget)
+	{
+		return false;
+	}
+
+	for (UObject* Object : GraphEditorWidget->GetSelectedNodes())
+	{
+		if (UPCGEditorGraphNodeNamedRerouteDeclaration* DeclarationNode = Cast<UPCGEditorGraphNodeNamedRerouteDeclaration>(Object))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+void FPCGEditor::OnSelectNamedRerouteUsages()
+{
+	if (!InternalValidationOnAction())
+	{
+		return;
+	}
+
+	const FGraphPanelSelectionSet SelectedNodes = GraphEditorWidget->GetSelectedNodes();
+
+	if (SelectedNodes.Num() != 1)
+	{
+		return;
+	}
+
+	const UPCGEditorGraphNodeNamedRerouteDeclaration* DeclarationNode = nullptr;
+
+	for (const UObject* Object : SelectedNodes)
+	{
+		DeclarationNode = Cast<UPCGEditorGraphNodeNamedRerouteDeclaration>(Object);
+	}
+
+	if (!DeclarationNode || !DeclarationNode->GetPCGNode())
+	{
+		return;
+	}
+
+	GraphEditorWidget->ClearSelectionSet();
+
+	// Some assumptions below - that only usages are connected to the invisible pin.
+	if (const UPCGPin* InvisiblePin = DeclarationNode->GetPCGNode()->GetOutputPin(PCGNamedRerouteConstants::InvisiblePinLabel))
+	{
+		for (const UPCGEdge* Edge : InvisiblePin->Edges)
+		{
+			if (const UPCGNode* Usage = Edge->OutputPin->Node)
+			{
+				GraphEditorWidget->SetNodeSelection(GetEditorNode(Usage), true);
+			}
+		}
+	}
+
+	GraphEditorWidget->ZoomToFit(true);
+}
+
+bool FPCGEditor::CanSelectNamedRerouteUsages() const
+{
+	if (!GraphEditorWidget || GraphEditorWidget->GetSelectedNodes().Num() != 1)
+	{
+		return false;
+	}
+
+	for (const UObject* Object : GraphEditorWidget->GetSelectedNodes())
+	{
+		return Object && Object->IsA<UPCGEditorGraphNodeNamedRerouteDeclaration>();
+	}
+
+	return false;
+}
+
+void FPCGEditor::OnSelectNamedRerouteDeclaration()
+{
+	if (!InternalValidationOnAction())
+	{
+		return;
+	}
+
+	const FGraphPanelSelectionSet SelectedNodes = GraphEditorWidget->GetSelectedNodes();
+	
+	if (SelectedNodes.Num() != 1)
+	{
+		return;
+	}
+
+	for (const UObject* Object : SelectedNodes)
+	{
+		const UPCGEditorGraphNodeNamedRerouteUsage* UsageNode = Cast<UPCGEditorGraphNodeNamedRerouteUsage>(Object);
+
+		if (!UsageNode)
+		{
+			continue;
+		}
+
+		GraphEditorWidget->ClearSelectionSet();
+
+		if (!UsageNode->GetPCGNode())
+		{
+			continue;
+		}
+
+		// Find the declaration node that matches the settings in the Usage node.
+		if (UPCGNamedRerouteUsageSettings* UsageSettings = Cast<UPCGNamedRerouteUsageSettings>(UsageNode->GetPCGNode()->GetSettings()))
+		{
+			if (UsageSettings->Declaration && UsageSettings->Declaration->GetOuter() && UsageSettings->Declaration->GetOuter()->IsA<UPCGNode>())
+			{
+				JumpToNode(Cast<UPCGNode>(UsageSettings->Declaration->GetOuter()));
+				break;
+			}
+		}
+	}
+}
+
+bool FPCGEditor::CanSelectNamedRerouteDeclaration() const
+{
+	if (!GraphEditorWidget || GraphEditorWidget->GetSelectedNodes().Num() != 1)
+	{
+		return false;
+	}
+
+	for (const UObject* Object : GraphEditorWidget->GetSelectedNodes())
+	{
+		return Object && Object->IsA<UPCGEditorGraphNodeNamedRerouteUsage>();
+	}
+
+	return false;
+}
+
+void FPCGEditor::OnConvertRerouteToNamedReroute()
+{
+	if (!InternalValidationOnAction())
+	{
+		return;
+	}
+
+	UPCGGraph* PCGGraph = PCGEditorGraph->GetPCGGraph();
+	check(PCGGraph);
+
+	TArray<UPCGNode*> ReroutesToConvert;
+	for (UObject* Object : GraphEditorWidget->GetSelectedNodes())
+	{
+		if(UPCGEditorGraphNodeReroute* RerouteNode = Cast<UPCGEditorGraphNodeReroute>(Object))
+		{
+			// Skip named reroutes
+			if (RerouteNode->IsA<UPCGEditorGraphNodeNamedRerouteBase>())
+			{
+				continue;
+			}
+
+			check(RerouteNode->GetPCGNode());
+			ReroutesToConvert.Add(RerouteNode->GetPCGNode());
+		}
+	}
+
+	if (ReroutesToConvert.IsEmpty())
+	{
+		return;
+	}
+
+	// Disable graph notifications
+	PCGGraph->DisableNotificationsForEditor();
+
+	// For all found reroutes, replace by a named reroute pair and forward inputs to the declaration and outputs to the usage.
+	TArray<UPCGNode*> NodesToDelete;
+
+	for (UPCGNode* Reroute : ReroutesToConvert)
+	{
+		NodesToDelete.Add(Reroute);
+
+		// Create named reroute declaration
+		UPCGSettings* DeclarationSettings = nullptr;
+		UPCGNode* Declaration = PCGGraph->AddNodeOfType(UPCGNamedRerouteDeclarationSettings::StaticClass(), DeclarationSettings);
+
+		// Create named reroute usage
+		UPCGSettings* UsageSettings = nullptr;
+		UPCGNode* Usage = PCGGraph->AddNodeOfType(UPCGNamedRerouteUsageSettings::StaticClass(), UsageSettings);
+		Cast<UPCGNamedRerouteUsageSettings>(UsageSettings)->Declaration = Cast<UPCGNamedRerouteDeclarationSettings>(DeclarationSettings);
+
+		// Setup non-fonctional information
+		Reroute->TransferEditorProperties(Declaration);
+		Reroute->TransferEditorProperties(Usage);
+		constexpr float PositionOffsetIncrementY = 50.f;
+		Usage->PositionY += PositionOffsetIncrementY;
+
+		// Force a graph refresh - needed for the other operations to go through which a bit unfortunate
+		// TODO improve this
+		PCGEditorGraph->ReconstructGraph();
+
+		// Copy all inputs to the reroute to the declaration inputs
+		check(Reroute->GetInputPin(PCGPinConstants::DefaultInputLabel));
+		TArray<UPCGEdge*> RerouteInputEdges = Reroute->GetInputPin(PCGPinConstants::DefaultInputLabel)->Edges;
+		ensure(RerouteInputEdges.Num() <= 1);
+
+		if(RerouteInputEdges.Num() >= 1)
+		{
+			UPCGEdge* InputEdge = RerouteInputEdges[0];
+			PCGGraph->AddEdge(InputEdge->InputPin->Node, InputEdge->InputPin->Properties.Label, Declaration, PCGPinConstants::DefaultInputLabel);
+			CastChecked<UPCGEditorGraphNodeNamedRerouteDeclaration>(GetEditorNode(Declaration))->SetNodeName(InputEdge->InputPin->Node, InputEdge->InputPin->Properties.Label);
+		}
+
+		// Add invisible edge between declaration and usage
+		PCGGraph->AddEdge(Declaration, PCGNamedRerouteConstants::InvisiblePinLabel, Usage, PCGPinConstants::DefaultInputLabel);
+
+		// Copy all outputs from the reroute to the usage outputs
+		check(Reroute->GetOutputPin(PCGPinConstants::DefaultOutputLabel));
+		TArray<UPCGEdge*> OutputEdges = Reroute->GetOutputPin(PCGPinConstants::DefaultOutputLabel)->Edges;
+		for (UPCGEdge* OutputEdge : OutputEdges)
+		{
+			PCGGraph->AddEdge(Usage, PCGPinConstants::DefaultOutputLabel, OutputEdge->OutputPin->Node, OutputEdge->OutputPin->Properties.Label);
+		}
+	}
+
+	// Delete removed ndoes
+	PCGGraph->RemoveNodes(NodesToDelete);
+
+	// Re-enable graph notifications
+	PCGGraph->EnableNotificationsForEditor();
+
+	// Force a graph refresh
+	PCGEditorGraph->ReconstructGraph();
+
+	// Notify the widget
+	GraphEditorWidget->NotifyGraphChanged();
+}
+
+bool FPCGEditor::CanConvertRerouteToNamedReroute() const
+{
+	if (!GraphEditorWidget)
+	{
+		return false;
+	}
+
+	for (UObject* Object : GraphEditorWidget->GetSelectedNodes())
+	{
+		if (UPCGEditorGraphNodeReroute* RerouteNode = Cast<UPCGEditorGraphNodeReroute>(Object))
+		{
+			if (!RerouteNode->IsA<UPCGEditorGraphNodeNamedRerouteBase>())
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+void FPCGEditor::OnCollapseNodesInSubgraph()
+{
+	if (!InternalValidationOnAction())
+	{
+		return;
+	}
+
+	UPCGGraph* PCGGraph = PCGEditorGraph->GetPCGGraph();
+	check(PCGGraph);
 
 	// Gather all nodes that will be included in the subgraph, and the extra nodes
 	TArray<UPCGNode*> NodesToCollapse;
 	TArray<UObject*> ExtraNodesToCollapse;
 
+	check(GraphEditorWidget);
 	for (UObject* Object : GraphEditorWidget->GetSelectedNodes())
 	{
 		check(Object);

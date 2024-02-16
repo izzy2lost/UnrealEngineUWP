@@ -36,6 +36,10 @@ void FPCGEditorCommands::RegisterCommands()
 	UI_COMMAND(ToggleInspect, "Toggle Inspection", "Toggle node inspection for selected node", EUserInterfaceActionType::ToggleButton, FInputChord(EKeys::A));
 	UI_COMMAND(AddSourcePin, "Add Source Pin", "Add new source pin to the current node", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(RenameNode, "Rename Node", "Rename the selected node", EUserInterfaceActionType::Button, FInputChord(EKeys::F2));
+	UI_COMMAND(ConvertNamedRerouteToReroute, "Convert Named Reroute to Reroute", "Convers the selected named reroute declaration to a normal reroute node", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(SelectNamedRerouteUsages, "Select Named Reroute Usages", "Selects all usages of this Named Reroute Declaration", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(SelectNamedRerouteDeclaration, "Select Named Reroute Declaration", "Selects the associated Named Reroute Declaration matching this Named Reroute Usage", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(ConvertRerouteToNamedReroute, "Convert Reroute to Named Reroute", "Convers the selected reroute node to a Named reroute pair (declaration & usage)", EUserInterfaceActionType::Button, FInputChord());
 }
 
 #undef LOCTEXT_NAMESPACE

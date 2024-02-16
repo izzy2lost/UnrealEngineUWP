@@ -195,6 +195,24 @@ void UPCGEditorGraphNodeBase::GetNodeContextMenuActions(UToolMenu* Menu, class U
 		Section.AddMenuEntry(FPCGEditorCommands::Get().ExportNodes);
 		Section.AddMenuEntry(FPCGEditorCommands::Get().ConvertToStandaloneNodes);
 		Section.AddMenuEntry(FPCGEditorCommands::Get().RenameNode, LOCTEXT("RenameNode", "Rename"));
+
+		// Special nodes operations
+		if (PCGNode && PCGNode->GetSettings())
+		{
+			if (PCGNode->GetSettings()->IsA<UPCGNamedRerouteDeclarationSettings>())
+			{
+				Section.AddMenuEntry(FPCGEditorCommands::Get().ConvertNamedRerouteToReroute);
+				Section.AddMenuEntry(FPCGEditorCommands::Get().SelectNamedRerouteUsages);
+			}
+			else if (PCGNode->GetSettings()->IsA<UPCGNamedRerouteUsageSettings>())
+			{
+				Section.AddMenuEntry(FPCGEditorCommands::Get().SelectNamedRerouteDeclaration);
+			}
+			else if (PCGNode->GetSettings()->IsA<UPCGRerouteSettings>())
+			{
+				Section.AddMenuEntry(FPCGEditorCommands::Get().ConvertRerouteToNamedReroute);
+			}
+		}
 	}
 
 	{
@@ -204,7 +222,8 @@ void UPCGEditorGraphNodeBase::GetNodeContextMenuActions(UToolMenu* Menu, class U
 			LOCTEXT("PCGNode_SetColor", "Set Node Color"),
 			LOCTEXT("PCGNode_SetColorTooltip", "Sets a specific color on the given node. Note that white maps to the default value"),
 			FSlateIcon(FAppStyle::GetAppStyleSetName(), "ColorPicker.Mode"),
-			FUIAction(FExecuteAction::CreateUObject(const_cast<UPCGEditorGraphNodeBase*>(this), &UPCGEditorGraphNodeBase::OnPickColor)));
+			FUIAction(FExecuteAction::CreateUObject(const_cast<UPCGEditorGraphNodeBase*>(this), &UPCGEditorGraphNodeBase::OnPickColor),
+				FCanExecuteAction::CreateUObject(const_cast<UPCGEditorGraphNodeBase*>(this), &UPCGEditorGraphNodeBase::CanPickColor)));
 
 		Section.AddSubMenu("Alignment", LOCTEXT("AlignmentHeader", "Alignment"), FText(), FNewToolMenuDelegate::CreateLambda([](UToolMenu* AlignmentMenu)
 		{

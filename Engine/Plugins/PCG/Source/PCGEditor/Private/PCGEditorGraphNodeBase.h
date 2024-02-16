@@ -55,7 +55,7 @@ public:
 	const UPCGNode* GetPCGNode() const { return PCGNode; }
 	void PostCopy();
 	void RebuildAfterPaste();
-	void PostPaste();
+	virtual void PostPaste();
 
 	void SetInspected(bool InIsInspecting) { bIsInspected = InIsInspecting; }
 	bool GetInspected() const { return bIsInspected; }
@@ -125,7 +125,8 @@ protected:
 
 	void OnNodeChanged(UPCGNode* InNode, EPCGChangeType ChangeType);
 	void OnPickColor();
-	void OnColorPicked(FLinearColor NewColor);
+	virtual bool CanPickColor() const { return true; }
+	virtual void OnColorPicked(FLinearColor NewColor);
 	void UpdateCommentBubblePinned();
 	void UpdatePosition();
 

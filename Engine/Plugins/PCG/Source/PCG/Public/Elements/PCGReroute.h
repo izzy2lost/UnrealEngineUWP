@@ -73,6 +73,8 @@ protected:
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override;
 
 public:
+	/** Very counter-intuitive but reroute nodes are normally culled by other means, if they aren't we want to make sure they log errors. */
+	virtual bool CanCullTaskIfUnwired() const { return false; }
 	EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const override;
 
 public:

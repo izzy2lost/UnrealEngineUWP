@@ -979,7 +979,7 @@ void FPCGGraphCompiler::CompileTopGraph(UPCGGraph* InGraph, uint32 GenerationGri
 	if (PCGGraphCompiler::CVarEnableTaskStaticCulling.GetValueOnAnyThread())
 	{
 		// Remove reroute nodes before execution grid setup, as grid linkages need final nodes to connect from/to.
-		CullTasks(CompiledTasks, /*bAddPassthroughWires=*/true, [](const FPCGGraphTask& InTask) { return InTask.Node && Cast<UPCGRerouteSettings>(InTask.Node->GetSettings()); });
+		CullTasks(CompiledTasks, /*bAddPassthroughWires=*/true, [](const FPCGGraphTask& InTask) { return InTask.Node && Cast<UPCGRerouteSettings>(InTask.Node->GetSettings()) && InTask.Node->HasInboundEdges(); });
 
 		// Cull inactive branches downstream of branch nodes with static selection values.
 		CullTasksStaticInactive(CompiledTasks);

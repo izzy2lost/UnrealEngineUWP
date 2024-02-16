@@ -4,6 +4,8 @@
 
 #include "PCGEditorGraphNode.h"
 
+class UPCGNode;
+
 #include "PCGEditorGraphNodeReroute.generated.h"
 
 UCLASS()
@@ -45,6 +47,7 @@ class UPCGEditorGraphNodeNamedRerouteUsage : public UPCGEditorGraphNodeNamedRero
 
 protected:
 	virtual void RebuildEdgesFromPins_Internal();
+	virtual bool CanPickColor() const override { return false; }
 	virtual FText GetPinFriendlyName(const UPCGPin* InPin) const override;
 };
 
@@ -55,9 +58,15 @@ class UPCGEditorGraphNodeNamedRerouteDeclaration : public UPCGEditorGraphNodeNam
 
 public:
 	virtual void OnRenameNode(const FString& NewName) override;
+	virtual void PostPaste() override;
+
+	void SetNodeName(const UPCGNode* FromNode, FName FromPinName);
+	void FixNodeNameCollision();
+	FString GetCollisionFreeNodeName(const FString& BaseName) const;
 
 protected:
 	virtual FText GetPinFriendlyName(const UPCGPin* InPin) const override;
+	virtual void OnColorPicked(FLinearColor NewColor) override;
 	virtual void ReconstructNodeOnChange() override;
 
 	void ApplyToUsageNodes(TFunctionRef<void(UPCGEditorGraphNodeNamedRerouteUsage*)> Action);
