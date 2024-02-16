@@ -2,8 +2,8 @@
 
 #include "AvaTextVisualizer.h"
 #include "AvaField.h"
+#include "AvaShapeSprites.h"
 #include "AvaText3DComponent.h"
-#include "AvalancheShapesEditorModule.h"
 #include "EditorViewportClient.h"
 #include "Engine/Texture2D.h"
 #include "IAvalancheComponentVisualizersModule.h"
@@ -1059,7 +1059,7 @@ bool FAvaTextVisualizer::DrawGradientCenterHandle(const UText3DComponent* InText
 {
 	static constexpr float BaseSize = 1.f;
 
-	UTexture2D* UVSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(FAvalancheShapesEditorModule::SizeSprite);
+	UTexture2D* UVSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(UE::AvaShapes::SizeSprite);
 
 	if (!UVSprite || !UVSprite->GetResource())
 	{
@@ -1080,7 +1080,7 @@ bool FAvaTextVisualizer::DrawGradientSmoothnessHandle(const UText3DComponent* In
 {
 	static constexpr float BaseSize = 1.5f;
 		
-	const UTexture2D* const UVSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(FAvalancheShapesEditorModule::UVSprite);
+	const UTexture2D* const UVSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(UE::AvaShapes::UVSprite);
 
 	if (!UVSprite || !UVSprite->GetResource())
 	{
@@ -1185,7 +1185,7 @@ void FAvaTextVisualizer::DrawMaxTextWidthButton(const UText3DComponent* InTextCo
 		return;
 	}
 
-	UTexture2D* UVSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(FAvalancheShapesEditorModule::TextMaxWidthSprite);
+	UTexture2D* UVSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(UE::AvaShapes::TextMaxWidthSprite);
 
 	if (!UVSprite || !UVSprite->GetResource())
 	{
@@ -1210,7 +1210,7 @@ void FAvaTextVisualizer::DrawMaxTextHeightButton(const UText3DComponent* InTextC
 		return;
 	}
 
-	const UTexture2D* const UVSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(FAvalancheShapesEditorModule::TextMaxHeightSprite);
+	const UTexture2D* const UVSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(UE::AvaShapes::TextMaxHeightSprite);
 
 	if (!UVSprite || !UVSprite->GetResource())
 	{
@@ -1235,7 +1235,7 @@ void FAvaTextVisualizer::DrawScaleProportionallyButton(const UText3DComponent* I
 		return;
 	}
 
-	const UTexture2D* const UVSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(FAvalancheShapesEditorModule::TextScaleProportionallySprite);
+	const UTexture2D* const UVSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(UE::AvaShapes::TextScaleProportionallySprite);
 
 	if (!UVSprite || !UVSprite->GetResource())
 	{
@@ -1265,7 +1265,7 @@ void FAvaTextVisualizer::DrawEditGradientButton(
 	}
 
 	// todo: proper sprite
-	const UTexture2D* const UVSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(FAvalancheShapesEditorModule::LinearGradientSprite);
+	const UTexture2D* const UVSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(UE::AvaShapes::LinearGradientSprite);
 
 	if (!UVSprite || !UVSprite->GetResource())
 	{
@@ -1294,7 +1294,7 @@ void FAvaTextVisualizer::DrawMaxTextWidthHandle(
 		return;
 	}
 
-	const UTexture2D* const UVSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(FAvalancheShapesEditorModule::SizeSprite);
+	const UTexture2D* const UVSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(UE::AvaShapes::SizeSprite);
 
 	if (!UVSprite || !UVSprite->GetResource())
 	{
@@ -1320,7 +1320,7 @@ void FAvaTextVisualizer::DrawMaxTextHeightHandle(const UText3DComponent* InTextC
 		return;
 	}
 
-	const UTexture2D* const UVSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(FAvalancheShapesEditorModule::SizeSprite);
+	const UTexture2D* const UVSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(UE::AvaShapes::SizeSprite);
 
 	if (!UVSprite || !UVSprite->GetResource())
 	{
@@ -1346,7 +1346,7 @@ void FAvaTextVisualizer::DrawGradientLineStartHandle(const UAvaText3DComponent* 
 		return;
 	}
 
-	const UTexture2D* const UVSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(FAvalancheShapesEditorModule::ColorSelectionSprite);
+	const UTexture2D* const UVSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(UE::AvaShapes::ColorSelectionSprite);
 
 	if (!UVSprite || !UVSprite->GetResource())
 	{
@@ -1377,7 +1377,7 @@ void FAvaTextVisualizer::DrawGradientLineEndHandle(const UAvaText3DComponent* In
 		return;
 	}
 
-	const UTexture2D* const UVSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(FAvalancheShapesEditorModule::ColorSelectionSprite);
+	const UTexture2D* const UVSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(UE::AvaShapes::ColorSelectionSprite);
 
 	if (!UVSprite || !UVSprite->GetResource())
 	{

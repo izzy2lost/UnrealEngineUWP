@@ -8,6 +8,13 @@ public class AvalancheEffectorsEditor : ModuleRules
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 
+		PrivateIncludePathModuleNames.AddRange(
+			new string[]
+			{
+				"AvalancheShapesEditor",
+			}
+		);
+
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
@@ -16,7 +23,6 @@ public class AvalancheEffectorsEditor : ModuleRules
 				"AvalancheEffectors",
 				"AvalancheInteractiveTools",
 				"AvalancheShapes",
-				"AvalancheShapesEditor",
 				"ClonerEffector",
 				"ClonerEffectorEditor",
 				"ComponentVisualizers",

@@ -1,9 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Effector/AvaEffectorActorVis.h"
-
 #include "AvaField.h"
-#include "AvalancheShapesEditorModule.h"
+#include "AvaShapeSprites.h"
 #include "AvaVisBase.h"
 #include "EditorViewportClient.h"
 #include "Effector/CEEffectorComponent.h"
@@ -241,7 +240,7 @@ FVector FAvaEffectorActorVisualizer::GetHandleZoneLocation(const ACEEffectorActo
 
 void FAvaEffectorActorVisualizer::DrawZoneButton(const ACEEffectorActor* InEffectorActor, const FSceneView* InView, FPrimitiveDrawInterface* InPDI, int32 InIconIndex, bool bInInnerZone, FLinearColor InColor) const
 {
-	UTexture2D* ZoneSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(FAvalancheShapesEditorModule::BevelSprite);
+	UTexture2D* ZoneSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(UE::AvaShapes::BevelSprite);
 
 	if (!ZoneSprite || !ZoneSprite->GetResource())
 	{

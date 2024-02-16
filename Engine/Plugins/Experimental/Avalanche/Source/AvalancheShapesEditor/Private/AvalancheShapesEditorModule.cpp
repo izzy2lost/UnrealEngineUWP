@@ -3,6 +3,7 @@
 #include "AvalancheShapesEditorModule.h"
 #include "AvaInteractiveToolsDelegates.h"
 #include "AvaShapeActor.h"
+#include "AvaShapeSprites.h"
 #include "AvaShapesEditorCommands.h"
 #include "ComponentVisualizers.h"
 #include "Engine/Texture2D.h"
@@ -60,28 +61,6 @@
 
 #define LOCTEXT_NAMESPACE "AvalancheShapesEditor"
 
-const FName FAvalancheShapesEditorModule::BevelSprite = TEXT("Bevel");
-const FName FAvalancheShapesEditorModule::BreakSideSprite = TEXT("BreakSide");
-const FName FAvalancheShapesEditorModule::ColorSelectionSprite = TEXT("ColorSelection");
-const FName FAvalancheShapesEditorModule::CornerSprite = TEXT("Corner");
-const FName FAvalancheShapesEditorModule::DepthSprite = TEXT("Depth");
-const FName FAvalancheShapesEditorModule::InnerSizeSprite = TEXT("InnerSize");
-const FName FAvalancheShapesEditorModule::LinearGradientSprite = TEXT("LinearGradient");
-const FName FAvalancheShapesEditorModule::NumPointsSprite = TEXT("NumPoints");
-const FName FAvalancheShapesEditorModule::NumSidesSprite = TEXT("NumSides");
-const FName FAvalancheShapesEditorModule::TextMaxHeightSprite = TEXT("TextMaxHeight");
-const FName FAvalancheShapesEditorModule::TextMaxWidthSprite = TEXT("TextMaxWidth");
-const FName FAvalancheShapesEditorModule::TextScaleProportionallySprite = TEXT("TextScaleProportionally");
-const FName FAvalancheShapesEditorModule::SizeSprite = TEXT("Size");
-const FName FAvalancheShapesEditorModule::SlantSprite = TEXT("Slant");
-const FName FAvalancheShapesEditorModule::UVSprite = TEXT("UV");
-
-FAvalancheShapesEditorModule& FAvalancheShapesEditorModule::Get()
-{
-	static const FName ModuleName = TEXT("AvalancheShapesEditor");
-	return FModuleManager::LoadModuleChecked<FAvalancheShapesEditorModule>(ModuleName);
-}
-
 void FAvalancheShapesEditorModule::StartupModule()
 {
 	FAvaShapesEditorCommands::Register();
@@ -96,21 +75,21 @@ void FAvalancheShapesEditorModule::StartupModule()
 		AvaVisSettings->SetDefaultVisualizerSprite(InName, Sprite);
 	};
 
-	RegisterDefaultSprite(BevelSprite, TEXT("Texture2D'/Avalanche/EditorResources/NewBevelHandle.NewBevelHandle'"));
-	RegisterDefaultSprite(BreakSideSprite, TEXT("Texture2D'/Engine/EditorResources/S_Emitter.S_Emitter'"));
-	RegisterDefaultSprite(ColorSelectionSprite, TEXT("Texture2D'/Engine/EditorResources/S_ReflActorIcon.S_ReflActorIcon'"));
-	RegisterDefaultSprite(CornerSprite, TEXT("Texture2D'/Avalanche/EditorResources/Bevel.Bevel'"));
-	RegisterDefaultSprite(DepthSprite, TEXT("Texture2D'/Engine/EditorResources/S_Terrain.S_Terrain'"));
-	RegisterDefaultSprite(InnerSizeSprite, TEXT("Texture2D'/Engine/EditorResources/S_RadForce.S_RadForce'"));
-	RegisterDefaultSprite(LinearGradientSprite, TEXT("Texture2D'/Avalanche/EditorResources/LinearGradient.LinearGradient'"));
-	RegisterDefaultSprite(NumPointsSprite, TEXT("Texture2D'/Engine/EditorResources/S_Emitter.S_Emitter'"));
-	RegisterDefaultSprite(NumSidesSprite, TEXT("Texture2D'/Engine/EditorResources/S_Emitter.S_Emitter'"));
-	RegisterDefaultSprite(SizeSprite, TEXT("Texture2D'/Avalanche/EditorResources/NewSizeHandle.NewSizeHandle'"));
-	RegisterDefaultSprite(SlantSprite, TEXT("Texture2D'/Avalanche/EditorResources/Slant.Slant'"));
-	RegisterDefaultSprite(TextMaxHeightSprite, TEXT("Texture2D'/Engine/EngineResources/Cursors/SplitterVert.SplitterVert'"));
-	RegisterDefaultSprite(TextMaxWidthSprite, TEXT("Texture2D'/Engine/EngineResources/Cursors/SplitterHorz.SplitterHorz'"));
-	RegisterDefaultSprite(TextScaleProportionallySprite, TEXT("Texture2D'/Engine/EditorResources/S_TextRenderActorIcon.S_TextRenderActorIcon'"));
-	RegisterDefaultSprite(UVSprite, TEXT("Texture2D'/Engine/EditorResources/MatInstActSprite.MatInstActSprite'"));
+	RegisterDefaultSprite(UE::AvaShapes::BevelSprite, TEXT("Texture2D'/Avalanche/EditorResources/NewBevelHandle.NewBevelHandle'"));
+	RegisterDefaultSprite(UE::AvaShapes::BreakSideSprite, TEXT("Texture2D'/Engine/EditorResources/S_Emitter.S_Emitter'"));
+	RegisterDefaultSprite(UE::AvaShapes::ColorSelectionSprite, TEXT("Texture2D'/Engine/EditorResources/S_ReflActorIcon.S_ReflActorIcon'"));
+	RegisterDefaultSprite(UE::AvaShapes::CornerSprite, TEXT("Texture2D'/Avalanche/EditorResources/Bevel.Bevel'"));
+	RegisterDefaultSprite(UE::AvaShapes::DepthSprite, TEXT("Texture2D'/Engine/EditorResources/S_Terrain.S_Terrain'"));
+	RegisterDefaultSprite(UE::AvaShapes::InnerSizeSprite, TEXT("Texture2D'/Engine/EditorResources/S_RadForce.S_RadForce'"));
+	RegisterDefaultSprite(UE::AvaShapes::LinearGradientSprite, TEXT("Texture2D'/Avalanche/EditorResources/LinearGradient.LinearGradient'"));
+	RegisterDefaultSprite(UE::AvaShapes::NumPointsSprite, TEXT("Texture2D'/Engine/EditorResources/S_Emitter.S_Emitter'"));
+	RegisterDefaultSprite(UE::AvaShapes::NumSidesSprite, TEXT("Texture2D'/Engine/EditorResources/S_Emitter.S_Emitter'"));
+	RegisterDefaultSprite(UE::AvaShapes::SizeSprite, TEXT("Texture2D'/Avalanche/EditorResources/NewSizeHandle.NewSizeHandle'"));
+	RegisterDefaultSprite(UE::AvaShapes::SlantSprite, TEXT("Texture2D'/Avalanche/EditorResources/Slant.Slant'"));
+	RegisterDefaultSprite(UE::AvaShapes::TextMaxHeightSprite, TEXT("Texture2D'/Engine/EngineResources/Cursors/SplitterVert.SplitterVert'"));
+	RegisterDefaultSprite(UE::AvaShapes::TextMaxWidthSprite, TEXT("Texture2D'/Engine/EngineResources/Cursors/SplitterHorz.SplitterHorz'"));
+	RegisterDefaultSprite(UE::AvaShapes::TextScaleProportionallySprite, TEXT("Texture2D'/Engine/EditorResources/S_TextRenderActorIcon.S_TextRenderActorIcon'"));
+	RegisterDefaultSprite(UE::AvaShapes::UVSprite, TEXT("Texture2D'/Engine/EditorResources/MatInstActSprite.MatInstActSprite'"));
 
 	ISequencerModule& SequencerModule = FModuleManager::LoadModuleChecked<ISequencerModule>("Sequencer");
 	TrackEditorHandle = SequencerModule.RegisterTrackEditor(FOnCreateTrackEditor::CreateStatic(&FAvaShapeRectCornerTrackEditor::CreateTrackEditor));

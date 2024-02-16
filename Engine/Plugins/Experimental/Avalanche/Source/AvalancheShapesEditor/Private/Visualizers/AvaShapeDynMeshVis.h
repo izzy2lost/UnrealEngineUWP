@@ -82,7 +82,7 @@ struct HAvaShapeAngleDegreeHitProxy : HAvaHitProxy
 	AvaAlignment DragAnchor; // XYZ
 };
 
-class AVALANCHESHAPESEDITOR_API FAvaShapeDynamicMeshVisualizer : public FAvaVisualizerBase
+class FAvaShapeDynamicMeshVisualizer : public FAvaVisualizerBase
 {
 public:
 	using Super = FAvaVisualizerBase;

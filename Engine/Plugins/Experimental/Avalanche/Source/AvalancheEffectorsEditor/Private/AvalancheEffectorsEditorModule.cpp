@@ -4,7 +4,6 @@
 #include "AvaEffectorsEditorCommands.h"
 #include "AvaEffectorsEditorStyle.h"
 #include "AvaInteractiveToolsDelegates.h"
-#include "AvalancheShapesEditorModule.h"
 #include "Cloner/AvaClonerActorTool.h"
 #include "Cloner/AvaClonerActorVis.h"
 #include "Cloner/CEClonerComponent.h"

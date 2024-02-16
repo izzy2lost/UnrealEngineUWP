@@ -2,7 +2,6 @@
 
 #include "Tools/AvaShapesEditorShapeToolNGon.h"
 #include "AvaShapesEditorCommands.h"
-#include "AvalancheShapesEditorModule.h"
 #include "Builders/AvaInteractiveToolsToolBuilder.h"
 #include "DynamicMeshes/AvaShapeNGonDynMesh.h"
 #include "UObject/ConstructorHelpers.h"

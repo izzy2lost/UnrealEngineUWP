@@ -2,7 +2,7 @@
 
 #include "AvaShapeRoundedPolygonDynMeshVis.h"
 #include "AvaField.h"
-#include "AvalancheShapesEditorModule.h"
+#include "AvaShapeSprites.h"
 #include "DynamicMeshes/AvaShapeRoundedPolygonDynMesh.h"
 #include "EditorViewportClient.h"
 #include "Engine/Texture2D.h"
@@ -102,7 +102,7 @@ void FAvaShapeRoundedPolygonDynamicMeshVisualizer::DrawVisualizationEditing(cons
 void FAvaShapeRoundedPolygonDynamicMeshVisualizer::DrawBevelButton(const FMeshType* InDynMesh, const FSceneView* InView,
 	FPrimitiveDrawInterface* InPDI, int32 InIconIndex, const FLinearColor& InColor) const
 {
-	UTexture2D* UVSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(FAvalancheShapesEditorModule::CornerSprite);
+	UTexture2D* UVSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(UE::AvaShapes::CornerSprite);
 
 	if (!UVSprite || !UVSprite->GetResource())
 	{

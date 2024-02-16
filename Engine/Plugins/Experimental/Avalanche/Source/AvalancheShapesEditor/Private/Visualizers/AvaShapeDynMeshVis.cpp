@@ -4,7 +4,7 @@
 #include "AvaActorUtils.h"
 #include "AvaField.h"
 #include "AvaShapeActor.h"
-#include "AvalancheShapesEditorModule.h"
+#include "AvaShapeSprites.h"
 #include "Components/DynamicMeshComponent.h"
 #include "DynamicMeshes/AvaShapeDynMeshBase.h"
 #include "Engine/Texture2D.h"
@@ -135,7 +135,7 @@ void FAvaShapeDynamicMeshVisualizer::DrawSizeButton(const UAvaShapeDynamicMeshBa
 {
 	static const float BaseSize = 1.f;
 	
-	UTexture2D* SizeSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(FAvalancheShapesEditorModule::SizeSprite);
+	UTexture2D* SizeSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(UE::AvaShapes::SizeSprite);
 
 	if (!SizeSprite || !SizeSprite->GetResource())
 	{
@@ -161,7 +161,7 @@ void FAvaShapeDynamicMeshVisualizer::DrawSizeButton(const UAvaShapeDynamicMeshBa
 void FAvaShapeDynamicMeshVisualizer::DrawUVButton(const UAvaShapeDynamicMeshBase* InDynMesh, const FSceneView* InView,
 	FPrimitiveDrawInterface* InPDI, int32 InIconIndex, int32 InSectionIdx, const FLinearColor& InColor) const
 {
-	UTexture2D* UVSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(FAvalancheShapesEditorModule::UVSprite);
+	UTexture2D* UVSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(UE::AvaShapes::UVSprite);
 
 	if (!UVSprite || !UVSprite->GetResource())
 	{

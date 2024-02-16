@@ -2,8 +2,8 @@
 
 #include "AvaShapeLineDynMeshVis.h"
 #include "AvaField.h"
-#include "AvalancheShapesEditorModule.h"
 #include "AvaShapeActor.h"
+#include "AvaShapeSprites.h"
 #include "DynamicMeshes/AvaShapeLineDynMesh.h"
 #include "EditorViewportClient.h"
 #include "Engine/Texture2D.h"
@@ -163,7 +163,7 @@ void FAvaShapeLineDynamicMeshVisualizer::DrawStartButton(const FMeshType* InDynM
 {
 	static float BaseSize = 1.f;
 
-	UTexture2D* SizeSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(FAvalancheShapesEditorModule::SizeSprite);
+	UTexture2D* SizeSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(UE::AvaShapes::SizeSprite);
 
 	if (!SizeSprite || !SizeSprite->GetResource())
 	{
@@ -185,7 +185,7 @@ void FAvaShapeLineDynamicMeshVisualizer::DrawEndButton(const FMeshType* InDynMes
 {
 	static float BaseSize = 1.f;
 
-	UTexture2D* SizeSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(FAvalancheShapesEditorModule::SizeSprite);
+	UTexture2D* SizeSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(UE::AvaShapes::SizeSprite);
 
 	if (!SizeSprite || !SizeSprite->GetResource())
 	{
