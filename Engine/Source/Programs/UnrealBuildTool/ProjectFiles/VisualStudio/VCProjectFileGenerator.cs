@@ -261,7 +261,8 @@ namespace UnrealBuildTool
 		/// </summary>
 		public static UnrealArchitectures? GetPlatformArchitecturesToGenerate(UEBuildPlatform BuildPlatform)
 		{
-			return BuildPlatform.ArchitectureConfig.Mode == UnrealArchitectureMode.OneTargetPerArchitecture ?
+			return (BuildPlatform.ArchitectureConfig.Mode == UnrealArchitectureMode.OneTargetPerArchitecture ||
+				BuildPlatform.ArchitectureConfig.Mode == UnrealArchitectureMode.SingleTargetLinkSeparately) ?
 				BuildPlatform.ArchitectureConfig.AllSupportedArchitectures : null;
 		}
 
