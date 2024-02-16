@@ -29,7 +29,7 @@ namespace UE::DynamicMaterialEditor::Private
 
 	bool IsCustomMaterialProperty(EDMMaterialPropertyType InMaterialProperty);
 
-	void LogError(const FString& InMessage, bool bInToast = true);
+	void LogError(const FString& InMessage, bool bInToast = false);
 }
 
 struct FDMMaterialLayerReference
