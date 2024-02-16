@@ -202,6 +202,11 @@ private:
 	/** We call UVPFullScreenUserWidget::SetCustomPostProcessSettingsSource(this), which will cause these settings to be discovered. They are later passed down to FEditorViewportViewModifierDelegate. */
 	UPROPERTY(Transient)
 	FPostProcessSettings PostProcessSettingsForWidget;
+
+	/** Whether this object is currently being transacted */
+	UPROPERTY(Transient)
+	bool bIsUndoing = false;
+	
 	/** Handle to ModifyViewportPostProcessSettings */
 	FDelegateHandle ModifyViewportPostProcessSettingsDelegateHandle;
 #endif

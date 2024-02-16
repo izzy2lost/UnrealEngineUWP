@@ -174,9 +174,15 @@ void UVCamOutputProviderBase::CreateUMG()
 		return;
 	}
 
-	// Warn the user if the viewport is not available
+	// Warn the user if the viewport is not available ...
 	const TSharedPtr<FSceneViewport> Viewport = GetSceneViewport(TargetViewport);
-	if (!Viewport)
+	if (!Viewport
+#if WITH_EDITOR
+		// ... but only if not undoing because the user was already shown the message
+		// nor while replaying transactions via Multi User since old transactions in the chain should not trigger this message.
+		&& !bIsUndoing
+#endif
+		)
 	{
 		AActor* OwningActor = GetTypedOuter<AActor>();
 		check(OwningActor);
@@ -605,6 +611,7 @@ TSharedPtr<SLevelViewport> UVCamOutputProviderBase::GetTargetLevelViewport() con
 
 void UVCamOutputProviderBase::PreEditUndo()
 {
+	bIsUndoing = true;
 	Super::PreEditUndo();
 
 	if (UE::VCamCore::CanInitVCamOutputProvider(this))
@@ -619,6 +626,7 @@ void UVCamOutputProviderBase::PreEditUndo()
 
 void UVCamOutputProviderBase::PostEditUndo()
 {
+	ON_SCOPE_EXIT { bIsUndoing = false; };
 	Super::PostEditUndo();
 
 	if (UE::VCamCore::CanInitVCamOutputProvider(this) && IsActiveAndOuterComponentEnabled())
