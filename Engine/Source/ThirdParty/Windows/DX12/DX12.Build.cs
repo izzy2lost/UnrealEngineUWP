@@ -42,13 +42,9 @@ public class DX12 : ModuleRules
 				"$(TargetOutputDir)/D3D12/D3D12Core.dll",
 				Path.Combine(Target.WindowsPlatform.DirectXDllDir, "D3D12Core.dll"));
 
-			if (Target.Configuration != UnrealTargetConfiguration.Shipping &&
-				Target.Configuration != UnrealTargetConfiguration.Test)
-			{
-				RuntimeDependencies.Add(
-					"$(TargetOutputDir)/D3D12/d3d12SDKLayers.dll",
-					Path.Combine(Target.WindowsPlatform.DirectXDllDir, "d3d12SDKLayers.dll"));
-			}
+			RuntimeDependencies.Add(
+				"$(TargetOutputDir)/D3D12/d3d12SDKLayers.dll",
+				Path.Combine(Target.WindowsPlatform.DirectXDllDir, "d3d12SDKLayers.dll"));
 
 			// Always delay-load D3D12
 			PublicDelayLoadDLLs.Add("d3d12.dll");
