@@ -4813,6 +4813,9 @@ void UStaticMesh::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
 	int32 NumVertices = 0;
 	int32 NumUVChannels = 0;
 	int32 NumLODs = 0;
+#if WITH_EDITORONLY_DATA
+	uint64 PhysicsSize = 0;
+#endif
 
 	if (GetRenderData() && GetRenderData()->LODResources.Num() > 0)
 	{
@@ -4829,6 +4832,12 @@ void UStaticMesh::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
 	if (GetBodySetup() != nullptr)
 	{
 		NumCollisionPrims = GetBodySetup()->AggGeom.GetElementCount();
+
+#if WITH_EDITORONLY_DATA
+		FResourceSizeEx EstimatedSize(EResourceSizeMode::EstimatedTotal);
+		GetBodySetup()->GetResourceSizeEx(EstimatedSize);
+		PhysicsSize = EstimatedSize.GetTotalMemoryBytes();
+#endif
 	}
 
 	FBoxSphereBounds Bounds(ForceInit);
@@ -4894,6 +4903,7 @@ void UStaticMesh::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
 	
 #if WITH_EDITORONLY_DATA
 	Context.AddTag(FAssetRegistryTag("HasHiResMesh", IsHiResMeshDescriptionValid() ? TEXT("True") : TEXT("False"), FAssetRegistryTag::TT_Alphabetical));
+	Context.AddTag(FAssetRegistryTag("PhysicsSize", FString::Printf(TEXT("%llu"), PhysicsSize), FAssetRegistryTag::TT_Numerical, FAssetRegistryTag::TD_Memory));
 #endif
 
 	Super::GetAssetRegistryTags(Context);
