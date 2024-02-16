@@ -52,8 +52,6 @@ namespace UE::DMX::Private
 		EditorModel = InEditorModel;
 		WeakFaderGroupControllerModel = InFaderGroupControllerModel;
 
-		OnAddFaderGroupControllerDelegate = InArgs._OnAddFaderGroupController;
-		OnAddFaderGroupControllerOnNewRowDelegate = InArgs._OnAddFaderGroupControllerOnNewRow;
 		IsExpandedViewModeEnabledDelegate = InArgs._IsExpandedViewModeEnabled;
 
 		ChildSlot
@@ -135,48 +133,6 @@ namespace UE::DMX::Private
 						.OnTextChanged(this, &SDMXControlConsoleEditorFaderGroupControllerToolbar::OnSearchTextChanged)
 						.HintText(LOCTEXT("SearchBarHintText", "Search"))
 						.ToolTipText(LOCTEXT("SearchBarTooltip", "Searches for Fader Name, Attributes, Fixture ID, Universe or Patch. Examples:\n\n* FaderName\n* Dimmer\n* Pan, Tilt\n* 1\n* 1.\n* 1.1\n* Universe 1\n* Uni 1-3\n* Uni 1, 3\n* Uni 1, 4-5'."))
-					]
-				]
-
-				// Add New button
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.HAlign(HAlign_Left)
-				.VAlign(VAlign_Center)
-				.Padding(4.f, 8.f, 0.f, 8.f)
-				[
-					SNew(SComboButton)
-					.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("Button"))
-					.ForegroundColor(FSlateColor::UseStyle())
-					.HasDownArrow(true)
-					.HAlign(HAlign_Center)
-					.VAlign(VAlign_Center)
-					.OnGetMenuContent(this, &SDMXControlConsoleEditorFaderGroupControllerToolbar::GenerateAddNewFaderGroupControllerMenuWidget)
-					.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorFaderGroupControllerToolbar::GetExpandedViewModeVisibility))
-					.ButtonContent()
-					[
-						SNew(SHorizontalBox)
-						+ SHorizontalBox::Slot()
-						.AutoWidth()
-						.HAlign(HAlign_Center)
-						.VAlign(VAlign_Center)
-						[
-							SNew(SImage)
-							.ColorAndOpacity(FStyleColors::AccentGreen)
-							.Image(FAppStyle::Get().GetBrush("Icons.Plus"))
-						]
-
-						+ SHorizontalBox::Slot()
-						.AutoWidth()
-						.VAlign(VAlign_Center)
-						.Padding(3.f, 0.f, 0.f, 0.f)
-						[
-							SNew(STextBlock)
-							.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-							.Text(LOCTEXT("AddFaderGroupComboButton", "Add New"))
-							.ToolTipText(LOCTEXT("AddFaderGroupComboButton_ToolTip", "Add a new Fader Group to the Control Console."))
-							.TextStyle(FAppStyle::Get(), "SmallButtonText")
-						]
 					]
 				]
 
@@ -387,46 +343,6 @@ namespace UE::DMX::Private
 		return SNullWidget::NullWidget;
 	}
 
-	TSharedRef<SWidget> SDMXControlConsoleEditorFaderGroupControllerToolbar::GenerateAddNewFaderGroupControllerMenuWidget()
-	{
-		constexpr bool bShouldCloseWindowAfterClosing = false;
-		FMenuBuilder MenuBuilder(bShouldCloseWindowAfterClosing, nullptr);
-
-		MenuBuilder.BeginSection("Options", LOCTEXT("AddNewFaderGroupMenuCategory", "New Fader Group"));
-		{
-			MenuBuilder.AddMenuEntry
-			(
-				FText::FromString(TEXT("Next")), 
-				FText::FromString(TEXT("Add new Fader Group next")), 
-				FSlateIcon(), 
-				FUIAction
-				(
-					FExecuteAction::CreateSP(this, &SDMXControlConsoleEditorFaderGroupControllerToolbar::OnAddFaderGroupController),
-					FCanExecuteAction::CreateSP(this, &SDMXControlConsoleEditorFaderGroupControllerToolbar::CanAddFaderGroupController)
-				), 
-				NAME_None, 
-				EUserInterfaceActionType::Button
-			);
-
-			MenuBuilder.AddMenuEntry
-			(
-				FText::FromString(TEXT("Next Row")), 
-				FText::FromString(TEXT("Add new Fader Group to next row")),
-				FSlateIcon(), 
-				FUIAction
-				(
-					FExecuteAction::CreateSP(this, &SDMXControlConsoleEditorFaderGroupControllerToolbar::OnAddFaderGroupControllerOnNewRow),
-					FCanExecuteAction::CreateSP(this, &SDMXControlConsoleEditorFaderGroupControllerToolbar::CanAddFaderGroupControllerOnNewRow)
-				), 
-				NAME_None, 
-				EUserInterfaceActionType::Button
-			);
-		}
-		MenuBuilder.EndSection();
-
-		return MenuBuilder.MakeWidget();
-	}
-
 	void SDMXControlConsoleEditorFaderGroupControllerToolbar::RestoreFaderGroupControllerFilter()
 	{
 		const TSharedPtr<FDMXControlConsoleFaderGroupControllerModel> FaderGroupControllerModel = WeakFaderGroupControllerModel.Pin();
@@ -501,28 +417,6 @@ namespace UE::DMX::Private
 	{
 		const TSharedPtr<FDMXControlConsoleFaderGroupControllerModel> FaderGroupControllerModel = WeakFaderGroupControllerModel.Pin();
 		return FaderGroupControllerModel.IsValid() && FaderGroupControllerModel->HasSingleFaderGroup();
-	}
-
-	bool SDMXControlConsoleEditorFaderGroupControllerToolbar::CanAddFaderGroupController() const
-	{
-		const TSharedPtr<FDMXControlConsoleFaderGroupControllerModel> FaderGroupControllerModel = WeakFaderGroupControllerModel.Pin();
-		return FaderGroupControllerModel.IsValid() ? FaderGroupControllerModel->CanAddFaderGroupController() : false;
-	}
-
-	bool SDMXControlConsoleEditorFaderGroupControllerToolbar::CanAddFaderGroupControllerOnNewRow() const
-	{
-		const TSharedPtr<FDMXControlConsoleFaderGroupControllerModel> FaderGroupControllerModel = WeakFaderGroupControllerModel.Pin();
-		return FaderGroupControllerModel.IsValid() ? FaderGroupControllerModel->CanAddFaderGroupControllerOnNewRow() : false;
-	}
-
-	void SDMXControlConsoleEditorFaderGroupControllerToolbar::OnAddFaderGroupController() const
-	{
-		OnAddFaderGroupControllerDelegate.ExecuteIfBound();
-	}
-
-	void SDMXControlConsoleEditorFaderGroupControllerToolbar::OnAddFaderGroupControllerOnNewRow() const
-	{
-		OnAddFaderGroupControllerOnNewRowDelegate.ExecuteIfBound();
 	}
 
 	void SDMXControlConsoleEditorFaderGroupControllerToolbar::OnGetInfoPanel()
@@ -789,6 +683,7 @@ namespace UE::DMX::Private
 				{
 					ColumIndex++;
 					NewController->Modify();
+					NewController->SetIsExpanded(SelectedFaderGroupController->IsExpanded());
 					NewController->SetIsActive(true);
 
 					ActiveLayout->PreEditChange(nullptr);
@@ -928,14 +823,14 @@ namespace UE::DMX::Private
 	EVisibility SDMXControlConsoleEditorFaderGroupControllerToolbar::GetSearchBoxVisibility() const
 	{
 		// Visible only if the toolbar is expanded and the controller has more than the specified number of element controllers
-		constexpr int32 ElementControllersNumLimit = 4;
+		constexpr int32 ElementControllersNumLimit = 3;
 
-		const UDMXControlConsoleFaderGroupController* FaderGroupController = GetFaderGroupController();
+		const TSharedPtr<FDMXControlConsoleFaderGroupControllerModel> FaderGroupControllerModel = WeakFaderGroupControllerModel.Pin();
 		const bool bIsVisible =
-			FaderGroupController &&
-			FaderGroupController->GetElementControllers().Num() > ElementControllersNumLimit &&
+			FaderGroupControllerModel.IsValid() &&
+			FaderGroupControllerModel->GetMatchingFilterElementControllersOnly().Num() > ElementControllersNumLimit &&
 			IsExpandedViewModeEnabledDelegate.IsBound() &&
-			IsExpandedViewModeEnabledDelegate.Execute() ;
+			IsExpandedViewModeEnabledDelegate.Execute();
 
 		return bIsVisible ? EVisibility::Visible : EVisibility::Collapsed;
 	}

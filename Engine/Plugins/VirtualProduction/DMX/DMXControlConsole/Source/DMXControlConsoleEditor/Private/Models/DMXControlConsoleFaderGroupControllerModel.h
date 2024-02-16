@@ -6,6 +6,7 @@
 #include "Templates/SharedPointer.h"
 #include "UObject/WeakObjectPtr.h"
 
+class UDMXControlConsoleElementController;
 class UDMXControlConsoleFaderGroup;
 class UDMXControlConsoleFaderGroupController;
 class UDMXControlConsoleEditorModel;
@@ -26,6 +27,9 @@ namespace UE::DMX::Private
 
 		/** Gets the first available Fader Group in the Fader Group Controller, if valid */
 		UDMXControlConsoleFaderGroup* GetFirstAvailableFaderGroup() const;
+
+		/** Gets an array with only Element Controllers that match the current filter */
+		TArray<UDMXControlConsoleElementController*> GetMatchingFilterElementControllersOnly() const;
 
 		/** Gets the name of the Fader Group Controller, relative to the contained Fader Groups */
 		FString GetRelativeControllerName() const;

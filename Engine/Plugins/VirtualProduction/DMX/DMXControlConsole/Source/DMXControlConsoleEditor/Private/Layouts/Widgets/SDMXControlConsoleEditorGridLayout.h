@@ -5,7 +5,6 @@
 #include "Layouts/Widgets/SDMXControlConsoleEditorLayout.h"
 
 struct EVisibility;
-class FReply;
 class SScrollBox;
 class SVerticalBox;
 class UDMXControlConsoleEditorGlobalLayoutRow;
@@ -42,17 +41,11 @@ namespace UE::DMX::Private
 		/** Finds LayoutRowView by the given LayoutRow, if valid */
 		TSharedPtr<SDMXControlConsoleEditorLayoutRowView> FindLayoutRowView(const UDMXControlConsoleEditorGlobalLayoutRow* LayoutRow);
 
-		/** Called to add the first Fader Group Controller */
-		FReply OnAddFirstFaderGroupController();
-
 		/** Called when a LayoutRowView needs to be scrolled into view */
 		void OnScrollIntoView(const UDMXControlConsoleFaderGroupController* FaderGroupController);
 
 		/** Gets visibility for each LayoutRowView widget */
 		EVisibility GetLayoutRowViewVisibility(TWeakObjectPtr<UDMXControlConsoleEditorGlobalLayoutRow> LayoutRow) const;
-
-		/** Gets visibility for the add button */
-		EVisibility GetAddButtonVisibility() const;
 
 		/** Reference to the container widget of this DMX Control Console's Layout Rows slots */
 		TSharedPtr<SVerticalBox> LayoutRowsVerticalBox;

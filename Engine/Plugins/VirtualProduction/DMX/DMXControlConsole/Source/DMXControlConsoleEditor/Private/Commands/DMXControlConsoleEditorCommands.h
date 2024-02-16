@@ -45,4 +45,6 @@ public:
 	TSharedPtr<FUICommandInfo> AddPatchToSelection;
 	TSharedPtr<FUICommandInfo> GroupPatchRight;
 	TSharedPtr<FUICommandInfo> GroupPatchNextRow;
+	TSharedPtr<FUICommandInfo> AddEmptyGroupRight;
+	TSharedPtr<FUICommandInfo> AddEmptyGroupNextRow;
 };

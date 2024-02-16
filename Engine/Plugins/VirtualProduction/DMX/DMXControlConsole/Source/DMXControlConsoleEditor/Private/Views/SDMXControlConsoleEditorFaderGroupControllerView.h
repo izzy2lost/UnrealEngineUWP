@@ -78,23 +78,11 @@ namespace UE::DMX::Private
 		/** Called when the Expand Arrow button is clicked */
 		void OnExpandArrowClicked(bool bExpand);
 
-		/** Adds a new Fader Group Controller to the owner row */
-		void OnAddFaderGroupController() const;
-
-		/** Adds a new Fader Group Controller in a new row */
-		void OnAddFaderGroupControllerOnNewRow() const;
-
 		/** Called when the Fader Group Controller gets grouped */
 		void OnFaderGroupControllerGrouped();
 
 		/** Called when the Fixture Patch of a Fader Group in the Controller has changed */
 		void OnFaderGroupControllerFixturePatchChanged();
-
-		/** Notifies this Fader Group Controller's owner row to add a new Fader Group Controller */
-		FReply OnAddFaderGroupControllerClicked() const;
-
-		/** Notifies this Fader Group Controller's owner row to add a new Fader Group Controller in a new row */
-		FReply OnAddFaderGroupControllerOnNewRowClicked() const;
 
 		/** Notifies this Fader Group Controller to add a new Element Controller */
 		FReply OnAddElementControllerClicked();

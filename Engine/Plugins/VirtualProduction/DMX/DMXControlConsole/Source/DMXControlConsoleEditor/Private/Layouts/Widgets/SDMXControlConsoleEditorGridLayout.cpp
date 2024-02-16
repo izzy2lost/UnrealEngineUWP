@@ -4,9 +4,7 @@
 
 #include "Algo/AnyOf.h"
 #include "Algo/Find.h"
-#include "DMXControlConsoleData.h"
 #include "DMXControlConsoleFaderGroup.h"
-#include "DMXControlConsoleFaderGroupRow.h"
 #include "Editor.h"
 #include "Layouts/Controllers/DMXControlConsoleFaderGroupController.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
@@ -21,7 +19,6 @@
 #include "Widgets/Layout/SScrollBar.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/SBoxPanel.h"
-#include "Widgets/SDMXControlConsoleEditorAddButton.h"
 
 
 #define LOCTEXT_NAMESPACE "SDMXControlConsoleEditorGridLayout"
@@ -66,22 +63,6 @@ namespace UE::DMX::Private
 							.Orientation(Orient_Vertical)
 
 							+ SScrollBox::Slot()
-							.HAlign(HAlign_Left)
-							.VAlign(VAlign_Center)
-							[
-								SNew(SBox)
-								.WidthOverride(50.f)
-								.HeightOverride(50.f)
-								.HAlign(HAlign_Center)
-								.VAlign(VAlign_Center)
-								[
-									SNew(SDMXControlConsoleEditorAddButton)
-									.OnClicked(this, &SDMXControlConsoleEditorGridLayout::OnAddFirstFaderGroupController)
-									.Visibility(TAttribute<EVisibility>(this, &SDMXControlConsoleEditorGridLayout::GetAddButtonVisibility))
-								]
-							]
-
-							+ SScrollBox::Slot()
 							[
 								SAssignNew(LayoutRowsVerticalBox, SVerticalBox)
 							]
@@ -113,12 +94,7 @@ namespace UE::DMX::Private
 		}
 
 		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
-		if (!ControlConsoleLayouts)
-		{
-			return false;
-		}
-
-		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
+		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts ? ControlConsoleLayouts->GetActiveLayout() : nullptr;
 		if (!ActiveLayout)
 		{
 			return false;
@@ -140,13 +116,13 @@ namespace UE::DMX::Private
 		}
 
 		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
-		if (!ensureMsgf(ControlConsoleLayouts, TEXT("Invalid Control Console Layouts, can't add new element to layout correctly.")))
+		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts ? ControlConsoleLayouts->GetActiveLayout() : nullptr;
+		if (!ensureMsgf(ActiveLayout, TEXT("Invalid active layout, can't add new element to layout correctly.")))
 		{
 			return;
 		}
 
-		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
-		const TArray<UDMXControlConsoleEditorGlobalLayoutRow*> LayoutRows = ActiveLayout->GetLayoutRows();
+		const TArray<UDMXControlConsoleEditorGlobalLayoutRow*>& LayoutRows = ActiveLayout->GetLayoutRows();
 		for (UDMXControlConsoleEditorGlobalLayoutRow* LayoutRow : LayoutRows)
 		{
 			if (!LayoutRow)
@@ -194,13 +170,13 @@ namespace UE::DMX::Private
 	void SDMXControlConsoleEditorGridLayout::OnLayoutElementRemoved()
 	{
 		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel.IsValid() ? EditorModel->GetControlConsoleLayouts() : nullptr;
-		if (!ensureMsgf(ControlConsoleLayouts, TEXT("Invalid control console layouts, can't remove element from the layout correctly.")))
+		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts ? ControlConsoleLayouts->GetActiveLayout() : nullptr;
+		if (!ensureMsgf(ActiveLayout, TEXT("Invalid active layout, can't remove element from the layout correctly.")))
 		{
 			return;
 		}
 
-		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
-		const TArray<UDMXControlConsoleEditorGlobalLayoutRow*> LayoutRows = ActiveLayout->GetLayoutRows();
+		const TArray<UDMXControlConsoleEditorGlobalLayoutRow*>& LayoutRows = ActiveLayout->GetLayoutRows();
 
 		TArray<TWeakPtr<SDMXControlConsoleEditorLayoutRowView>> LayoutRowViewsToRemove;
 		for (TWeakPtr<SDMXControlConsoleEditorLayoutRowView>& LayoutRowView : LayoutRowViews)
@@ -218,7 +194,7 @@ namespace UE::DMX::Private
 			}
 		}
 
-		LayoutRowViews.RemoveAll([&LayoutRowViewsToRemove](const TWeakPtr<SDMXControlConsoleEditorLayoutRowView> LayoutRowView)
+		LayoutRowViews.RemoveAll([&LayoutRowViewsToRemove](const TWeakPtr<SDMXControlConsoleEditorLayoutRowView>& LayoutRowView)
 			{
 				return !LayoutRowView.IsValid() || LayoutRowViewsToRemove.Contains(LayoutRowView);
 			});
@@ -226,34 +202,35 @@ namespace UE::DMX::Private
 
 	bool SDMXControlConsoleEditorGridLayout::IsLayoutRowContained(UDMXControlConsoleEditorGlobalLayoutRow* LayoutRow)
 	{
-		const TWeakObjectPtr<UDMXControlConsoleEditorGlobalLayoutRow> LayoutRowWeakPtr = LayoutRow;
-
-		auto IsContainedLambda = [LayoutRowWeakPtr](const TWeakPtr<SDMXControlConsoleEditorLayoutRowView> LayoutRowView)
+		if (!LayoutRow)
 		{
-			if (!LayoutRowView.IsValid())
+			return false;
+		}
+
+		const bool bContainsLayoutRow = Algo::FindByPredicate(LayoutRowViews,
+			[LayoutRow](const TWeakPtr<SDMXControlConsoleEditorLayoutRowView>& LayoutRowViewWeakPtr)
 			{
+				if (const TSharedPtr<SDMXControlConsoleEditorLayoutRowView> LayoutRowView = LayoutRowViewWeakPtr.Pin())
+				{
+					const UDMXControlConsoleEditorGlobalLayoutRow* OtherLayoutRow = LayoutRowView->GetLayoutRow();
+					return LayoutRow == OtherLayoutRow;
+				}
+
 				return false;
-			}
+			}) != nullptr;
 
-			const TWeakObjectPtr<UDMXControlConsoleEditorGlobalLayoutRow> LayoutRow = LayoutRowView.Pin()->GetLayoutRow();
-			if (!LayoutRow.IsValid())
-			{
-				return false;
-			}
-
-			return LayoutRow == LayoutRowWeakPtr;
-		};
-
-		return LayoutRowViews.ContainsByPredicate(IsContainedLambda);
+		return bContainsLayoutRow;
 	}
 
 	TSharedPtr<SDMXControlConsoleEditorLayoutRowView> SDMXControlConsoleEditorGridLayout::FindLayoutRowView(const UDMXControlConsoleEditorGlobalLayoutRow* LayoutRow)
 	{
 		if (LayoutRow)
 		{
-			const TWeakPtr<SDMXControlConsoleEditorLayoutRowView>* LayoutRowViewPtr = Algo::FindByPredicate(LayoutRowViews, [LayoutRow](const TWeakPtr<SDMXControlConsoleEditorLayoutRowView>& WeakLayoutRowView)
+			const TWeakPtr<SDMXControlConsoleEditorLayoutRowView>* LayoutRowViewPtr = Algo::FindByPredicate(LayoutRowViews, 
+				[LayoutRow](const TWeakPtr<SDMXControlConsoleEditorLayoutRowView>& LayoutRowViewWeakPtr)
 				{
-					return WeakLayoutRowView.IsValid() && WeakLayoutRowView.Pin()->GetLayoutRow() == LayoutRow;
+					const TSharedPtr<SDMXControlConsoleEditorLayoutRowView> LayoutRowView = LayoutRowViewWeakPtr.Pin();
+					return LayoutRowView.IsValid() && LayoutRowView->GetLayoutRow() == LayoutRow;
 				});
 
 			if (LayoutRowViewPtr && LayoutRowViewPtr->IsValid())
@@ -265,74 +242,16 @@ namespace UE::DMX::Private
 		return nullptr;
 	}
 
-	FReply SDMXControlConsoleEditorGridLayout::OnAddFirstFaderGroupController()
-	{
-		UDMXControlConsoleData* ControlConsoleData = EditorModel.IsValid() ? EditorModel->GetControlConsoleData() : nullptr;
-		if (!ensureMsgf(ControlConsoleData, TEXT("Invalid control console data, can't add fader group controller correctly.")))
-		{
-			return FReply::Unhandled();
-		}
-
-		const FScopedTransaction AddFaderGroupTransaction(LOCTEXT("AddFaderGroupTransaction", "Add Fader Group"));
-		ControlConsoleData->PreEditChange(nullptr);
-		const UDMXControlConsoleFaderGroupRow* NewRow = ControlConsoleData->AddFaderGroupRow(0);
-		ControlConsoleData->PostEditChange();
-
-		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel.IsValid() ? EditorModel->GetControlConsoleLayouts() : nullptr;
-		if (!ensureMsgf(ControlConsoleLayouts, TEXT("Invalid control console layouts, can't add fader group controller correctly.")))
-		{
-			return FReply::Unhandled();
-		}
-
-		UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
-		if (!ActiveLayout)
-		{
-			return FReply::Unhandled();
-		}
-
-		ActiveLayout->PreEditChange(nullptr);
-		UDMXControlConsoleEditorGlobalLayoutRow* NewLayoutRow = ActiveLayout->AddNewRowToLayout(0);
-		ActiveLayout->PostEditChange();
-		if (!NewRow || !NewLayoutRow)
-		{
-			return FReply::Unhandled();
-		}
-
-		UDMXControlConsoleFaderGroup* NewFaderGroup = !NewRow->GetFaderGroups().IsEmpty() ? NewRow->GetFaderGroups()[0] : nullptr;
-		if (!NewFaderGroup)
-		{
-			return FReply::Unhandled();
-		}
-
-		// Create a new controller for the fader group
-		NewLayoutRow->PreEditChange(nullptr);
-		UDMXControlConsoleFaderGroupController* NewController = NewLayoutRow->CreateFaderGroupController(NewFaderGroup, NewFaderGroup->GetFaderGroupName());
-		NewLayoutRow->PostEditChange();
-		if (NewController)
-		{
-			NewController->Modify();
-			NewController->SetIsActive(true);
-			ActiveLayout->AddToActiveFaderGroupControllers(NewController);
-		}
-
-		return FReply::Handled();
-	}
-
 	void SDMXControlConsoleEditorGridLayout::OnScrollIntoView(const UDMXControlConsoleFaderGroupController* FaderGroupController)
 	{
-		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel.IsValid() ? EditorModel->GetControlConsoleLayouts() : nullptr;
-		if (!ControlConsoleLayouts || !FaderGroupController)
-		{
-			return;
-		}
-
 		if (!HorizontalScrollBox.IsValid() || !VerticalScrollBox.IsValid())
 		{
 			return;
 		}
 
-		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
-		if (!ActiveLayout)
+		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel.IsValid() ? EditorModel->GetControlConsoleLayouts() : nullptr;
+		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts ? ControlConsoleLayouts->GetActiveLayout() : nullptr;
+		if (!ActiveLayout || !FaderGroupController)
 		{
 			return;
 		}
@@ -367,29 +286,8 @@ namespace UE::DMX::Private
 			return FaderGroupController->IsActive() && FaderGroupController->IsMatchingFilter();
 		};
 
-		const TArray<UDMXControlConsoleFaderGroupController*> FaderGroupControllers = LayoutRow->GetFaderGroupControllers();
+		const TArray<UDMXControlConsoleFaderGroupController*>& FaderGroupControllers = LayoutRow->GetFaderGroupControllers();
 		const bool bIsVisible = Algo::AnyOf(FaderGroupControllers, IsAnyFaderGroupControllerVisibleLambda);
-		return bIsVisible ? EVisibility::Visible : EVisibility::Collapsed;
-	}
-
-	EVisibility SDMXControlConsoleEditorGridLayout::GetAddButtonVisibility() const
-	{
-		bool bIsVisible = false;
-
-		// Visible if there are no layout rows and there's no global filter
-		const UDMXControlConsoleData* ControlConsoleData = EditorModel.IsValid() ? EditorModel->GetControlConsoleData() : nullptr;
-		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel.IsValid() ? EditorModel->GetControlConsoleLayouts() : nullptr;
-		if (ControlConsoleData && ControlConsoleLayouts)
-		{
-			const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
-			bIsVisible =
-				IsValid(ActiveLayout) &&
-				ActiveLayout != &ControlConsoleLayouts->GetDefaultLayoutChecked() &&
-				ControlConsoleData->FilterString.IsEmpty() &&
-				(ActiveLayout->GetLayoutRows().IsEmpty() ||
-				ActiveLayout->GetAllActiveFaderGroupControllers().IsEmpty());
-		}
-
 		return bIsVisible ? EVisibility::Visible : EVisibility::Collapsed;
 	}
 }
