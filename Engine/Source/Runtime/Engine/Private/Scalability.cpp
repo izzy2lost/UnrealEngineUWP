@@ -35,7 +35,7 @@ static TAutoConsoleVariable<float> CVarResolutionQuality(
 	0.0f,
 	TEXT("Scalability quality state (internally used by scalability system, ini load/save or using SCALABILITY console command)\n")
 	TEXT(" 10..100, default: 100"),
-	ECVF_ScalabilityGroup | ECVF_Preview);
+	ECVF_Scalability);
 
 static TAutoConsoleVariable<int32> CVarViewDistanceQuality(
 	TEXT("sg.ViewDistanceQuality"),
