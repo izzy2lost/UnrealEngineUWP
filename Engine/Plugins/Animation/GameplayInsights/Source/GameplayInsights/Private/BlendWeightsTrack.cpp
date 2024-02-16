@@ -10,9 +10,13 @@
 
 #if WITH_EDITOR
 #include "Animation/AnimInstance.h"
+#include "AnimPreviewInstance.h"
 #include "Animation/AnimSequence.h"
 #include "Animation/BlendSpace.h"
+#include "Animation/DebugSkelMeshComponent.h"
 #include "Editor.h"
+#include "IAnimationEditor.h"
+#include "IPersonaToolkit.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #endif
 
@@ -341,8 +345,79 @@ bool FBlendWeightTrack::HandleDoubleClickInternal()
 		const FGameplayProvider* GameplayProvider = AnalysisSession->ReadProvider<FGameplayProvider>(FGameplayProvider::ProviderName);
 
 		const FObjectInfo& AssetInfo = GameplayProvider->GetObjectInfo(GetAssetId());
+		
+		UObject* Asset = nullptr;
+		bool bMessageFound = false;
+		float PlaybackTime = 0;
+		float BlendSpaceX = 0;
+		float BlendSpaceY = 0;
 
-		GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(AssetInfo.PathName);
+		float CurrentTraceTime = IRewindDebugger::Instance()->CurrentTraceTime();
+		
+		const FAnimationProvider* AnimationProvider = AnalysisSession->ReadProvider<FAnimationProvider>(FAnimationProvider::ProviderName);
+		const TraceServices::IFrameProvider& FrameProvider = TraceServices::ReadFrameProvider(*AnalysisSession);
+		TraceServices::FFrame Frame;
+		if (FrameProvider.GetFrameFromTime(ETraceFrameType::TraceFrameType_Game, CurrentTraceTime, Frame))
+		{
+			AnimationProvider->ReadTickRecordTimeline(ObjectId, [this, &bMessageFound, &PlaybackTime, &BlendSpaceX, &BlendSpaceY, &GameplayProvider, &Frame](const FAnimationProvider::TickRecordTimeline& InTimeline)
+			{
+				InTimeline.EnumerateEvents(Frame.StartTime, Frame.EndTime, [this, &bMessageFound, &PlaybackTime, &BlendSpaceX, &BlendSpaceY, &GameplayProvider, &Frame](double InStartTime, double InEndTime, uint32 InDepth, const FTickRecordMessage& InMessage)
+				{
+					if(InStartTime >= Frame.StartTime && InEndTime <= Frame.EndTime)
+					{
+						if (InMessage.NodeId == NodeId && InMessage.AssetId == AssetId)
+						{
+							bMessageFound = true;
+							PlaybackTime = InMessage.PlaybackTime;
+							BlendSpaceX = InMessage.BlendSpacePositionX;
+							BlendSpaceY = InMessage.BlendSpacePositionY;
+							return TraceServices::EEventEnumerate::Stop;
+						}
+					}
+					return TraceServices::EEventEnumerate::Continue;
+				});
+			});
+		}
+		
+		FString PackagePathString = FPackageName::ObjectPathToPackageName(FString(AssetInfo.PathName));
+
+		UPackage* Package = LoadPackage(NULL, ToCStr(PackagePathString), LOAD_NoRedirects);
+		if (Package)
+		{
+			Package->FullyLoad();
+                
+			FString AssetName = FPaths::GetBaseFilename(AssetInfo.PathName);
+			Asset = FindObject<UObject>(Package, *AssetName);
+		}
+		else
+		{
+			// fallback for unsaved assets
+			Asset = FindObject<UObject>(nullptr, AssetInfo.PathName);
+		}
+                    	
+		if (Asset != nullptr)
+		{
+			if (UAssetEditorSubsystem* AssetEditorSS = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>())
+			{
+				AssetEditorSS->OpenEditorForAsset(Asset);
+
+				if (bMessageFound)
+				{
+					// if the asset is playing on the current frame, scrub to the appropriate time
+					if (IAssetEditorInstance* Editor = AssetEditorSS->FindEditorForAsset(Asset, true))
+					{
+						if (Editor->GetEditorName()=="AnimationEditor")
+						{
+							IAnimationEditor* AnimationEditor = static_cast<IAnimationEditor*>(Editor);
+							UDebugSkelMeshComponent* PreviewComponent = AnimationEditor->GetPersonaToolkit()->GetPreviewMeshComponent();
+							PreviewComponent->PreviewInstance->SetPosition(PlaybackTime);
+							PreviewComponent->PreviewInstance->SetPlaying(false);
+							PreviewComponent->PreviewInstance->SetBlendSpacePosition(FVector(BlendSpaceX, BlendSpaceY, 0.0f));
+						}
+					}
+				}
+			}
+		}
 
 		return true;
 	}
