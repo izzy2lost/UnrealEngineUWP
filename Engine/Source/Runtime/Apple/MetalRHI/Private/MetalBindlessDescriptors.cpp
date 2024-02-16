@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 
 #include "MetalRHIPrivate.h"
-
 #include "MetalBindlessDescriptors.h"
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 
 int32 GBindlessResourceDescriptorHeapSize = 1000 * 1000;
 static FAutoConsoleVariableRef CVarBindlessResourceDescriptorHeapSize(

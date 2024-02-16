@@ -2,11 +2,11 @@
 
 #pragma once
 
-#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-
 #include <Metal/Metal.h>
 #include "MetalResources.h"
 #include "MetalShaderResources.h"
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 
 struct FMetalDescriptorHeap
 {
