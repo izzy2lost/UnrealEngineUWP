@@ -74,15 +74,15 @@ void UE::Interchange::FTaskCreateSceneObjects::DoTask(ENamedThreads::Type Curren
 		Factory->SetResultsContainer(AsyncHelper->AssetImportResult->GetResults());
 		AsyncHelper->AddCreatedFactory(FactoryNode->GetUniqueID(), Factory);
 
-		FString NodeDisplayName = FactoryNode->GetDisplayLabel();
-		SanitizeObjectName(NodeDisplayName);
+		FString SceneNodeName = FactoryNode->GetAssetName();
+		SanitizeObjectName(SceneNodeName);
 
 		UInterchangeFactoryBase::FImportSceneObjectsParams CreateSceneObjectsParams;
-		CreateSceneObjectsParams.ObjectName = NodeDisplayName;
+		CreateSceneObjectsParams.ObjectName = SceneNodeName;
 		CreateSceneObjectsParams.FactoryNode = FactoryNode;
 		CreateSceneObjectsParams.Level = ImportLevel;
-		CreateSceneObjectsParams.ReimportObject = FFactoryCommon::GetObjectToReimport(ReimportObject, *FactoryNode, WorldPath, WorldName, NodePrefix + NodeDisplayName);
-		CreateSceneObjectsParams.ReimportFactoryNode = FFactoryCommon::GetFactoryNode(ReimportObject, WorldPath, WorldName, NodePrefix + NodeDisplayName);
+		CreateSceneObjectsParams.ReimportObject = FFactoryCommon::GetObjectToReimport(ReimportObject, *FactoryNode, WorldPath, WorldName, NodePrefix + SceneNodeName);
+		CreateSceneObjectsParams.ReimportFactoryNode = FFactoryCommon::GetFactoryNode(ReimportObject, WorldPath, WorldName, NodePrefix + SceneNodeName);
 
 		if (AsyncHelper->BaseNodeContainers.IsValidIndex(SourceIndex))
 		{

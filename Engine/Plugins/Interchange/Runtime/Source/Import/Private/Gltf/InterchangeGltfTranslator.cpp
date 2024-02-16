@@ -223,6 +223,7 @@ void UInterchangeGLTFTranslator::HandleGltfNode( UInterchangeBaseNodeContainer& 
 
 	UInterchangeSceneNode* InterchangeSceneNode = NewObject< UInterchangeSceneNode >( &NodeContainer );
 	InterchangeSceneNode->InitializeNode( NodeUid, GltfNode.Name, EInterchangeNodeContainerType::TranslatedScene );
+	InterchangeSceneNode->SetAssetName(GltfNode.UniqueId);
 	NodeContainer.AddNode( InterchangeSceneNode );
 
 	NodeUidMap.Add( &GltfNode, NodeUid );
@@ -256,7 +257,7 @@ void UInterchangeGLTFTranslator::HandleGltfNode( UInterchangeBaseNodeContainer& 
 				}
 				else
 				{
-					UE_LOG(LogInterchangeImport, Warning, TEXT("GLTF Node [%d] Import Warning. Gltf Node's MorphTargetNames count is missmatched against MorphTargetWeights count."), *GltfNode.UniqueId);
+					UE_LOG(LogInterchangeImport, Warning, TEXT("glTF Node [%d] Import Warning: The glTF node's MorphTargetNames count does not match its MorphTargetWeights count."), *GltfNode.UniqueId);
 				}
 			}
 
@@ -305,7 +306,7 @@ void UInterchangeGLTFTranslator::HandleGltfNode( UInterchangeBaseNodeContainer& 
 					}
 					else
 					{
-						UE_LOG(LogInterchangeImport, Warning, TEXT("GLTF Node [%d] Import Warning. Gltf Node's MorphTargetNames count is missmatched against MorphTargetWeights count."), *GltfNode.UniqueId);
+						UE_LOG(LogInterchangeImport, Warning, TEXT("glTF Node [%d] Import Warning: The glTF node's MorphTargetNames count does not match its MorphTargetWeights count."), *GltfNode.UniqueId);
 					}
 				}
 
@@ -450,7 +451,7 @@ bool UInterchangeGLTFTranslator::Translate( UInterchangeBaseNodeContainer& NodeC
 		UInterchangeResultError_Generic* ErrorResult = AddMessage< UInterchangeResultError_Generic >();
 		ErrorResult->SourceAssetName = FileName;
 		ErrorResult->Text = FText::Format(
-			LOCTEXT("UnsupportedRequiredExtensions", "Not All Required Extensions are supported. (Unsupported extensions: {0})"),
+			LOCTEXT("UnsupportedRequiredExtensions", "Not all required extensions are supported. (Unsupported extensions: {0})"),
 			FText::FromString(NotSupportedRequiredExtensionsStringified));
 
 		SendAnalytics(TranslationResult::NOTSUPPORTED_EXTENSION_FOUND, GltfAsset);
@@ -788,7 +789,7 @@ bool UInterchangeGLTFTranslator::Translate( UInterchangeBaseNodeContainer& NodeC
 
 	if (UnusedGltfMeshIndices.Num() != 0)
 	{
-		UE_LOG(LogInterchangeImport, Warning, TEXT("GLTF Mesh Import Warning. Gltf Mesh Usage expectation is not met."));
+		UE_LOG(LogInterchangeImport, Warning, TEXT("glTF Mesh Import Warning: glTF mesh usage expectations are not met."));
 	}
 
 	SendAnalytics(TranslationResult::SUCCESSFULL, GltfAsset);
@@ -1153,7 +1154,7 @@ TFuture< TOptional< UE::Interchange::FMeshPayloadData > > UInterchangeGLTFTransl
 				{
 					UInterchangeResultError_Generic* ErrorResult = AddMessage<UInterchangeResultError_Generic>();
 					ErrorResult->SourceAssetName = SourceData ? SourceData->GetFilename() : FString();
-					ErrorResult->Text = NSLOCTEXT("UInterchangeGLTFTranslator", "GetMeshPayloadData_ValidateMeshDescriptionFail", "Invalid mesh data (NAN) was found and fix to zero. Mesh render can be bad.");
+					ErrorResult->Text = NSLOCTEXT("UInterchangeGLTFTranslator", "GetMeshPayloadData_ValidateMeshDescriptionFail", "Invalid mesh data (NAN) was found and changed to zero. This may affect the mesh rendering.");
 				}
 
 				Result.Emplace(MeshPayLoadData);
@@ -1363,7 +1364,7 @@ UInterchangeGLTFTranslator::UInterchangeGLTFTranslator()
 
 	if (!UE::Interchange::GLTFMaterials::AreRequiredPackagesLoaded())
 	{
-		UE_LOG(LogInterchangeImport, Warning, TEXT("UInterchangeGLTFPipeline: Some required packages are missing. Material import might be wrong"));
+		UE_LOG(LogInterchangeImport, Warning, TEXT("UInterchangeGLTFPipeline: Some required packages are missing. Material import might be wrong."));
 	}
 }
 
