@@ -593,8 +593,8 @@ bool FOptionalProperty::LoadTypeName(UE::FPropertyTypeName Type, const FProperty
 		return false;
 	}
 
-	const UE::FPropertyTypeName ValueType = Type.GetTypeParameter();
-	FField* Field = FField::TryConstruct(ValueType.GetTypeName(), this, GetFName(), RF_NoFlags);
+	const UE::FPropertyTypeName ValueType = Type.GetParameter();
+	FField* Field = FField::TryConstruct(ValueType.GetName(), this, GetFName(), RF_NoFlags);
 	if (FProperty* Property = CastField<FProperty>(Field); Property && Property->LoadTypeName(ValueType, Tag))
 	{
 		ValueProperty = Property;
@@ -610,9 +610,9 @@ void FOptionalProperty::SaveTypeName(UE::FPropertyTypeNameBuilder& Type) const
 
 	const FProperty* LocalValueProperty = ValueProperty;
 	check(LocalValueProperty);
-	Type.BeginTypeParameters();
+	Type.BeginParameters();
 	LocalValueProperty->SaveTypeName(Type);
-	Type.EndTypeParameters();
+	Type.EndParameters();
 }
 
 bool FOptionalProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
@@ -624,5 +624,5 @@ bool FOptionalProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) con
 
 	const FProperty* LocalValueProperty = ValueProperty;
 	check(LocalValueProperty);
-	return LocalValueProperty->CanSerializeFromTypeName(Type.GetTypeParameter());
+	return LocalValueProperty->CanSerializeFromTypeName(Type.GetParameter());
 }

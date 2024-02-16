@@ -46,80 +46,80 @@ namespace UE
 	static void BuildSegmentTypeFromProperty(const FProperty* Property, FPropertyTypeNameBuilder& OutType)
 	{
 #if false // TODO: @jordan.hoffmann when complete type info is finished use this branch instead
-		OutType.AddTypeName(Property->GetID());
+		OutType.AddName(Property->GetID());
 		if (const FObjectProperty* AsObjectProperty = CastField<FObjectProperty>(Property))
 		{
-			OutType.BeginTypeParameters();
-			OutType.AddTypeName(AsObjectProperty->GetID());
-			OutType.EndTypeParameters();
+			OutType.BeginParameters();
+			OutType.AddName(AsObjectProperty->GetID());
+			OutType.EndParameters();
 		}
 		else if (const FEnumProperty* AsEnumProperty = CastField<FEnumProperty>(Property))
 		{
-			OutType.BeginTypeParameters();
-			OutType.AddTypeName(AsEnumProperty->GetEnum()->GetFName());
-			OutType.EndTypeParameters();
+			OutType.BeginParameters();
+			OutType.AddPath(AsEnumProperty->GetEnum());
+			OutType.EndParameters();
 		}
 		else if (const FArrayProperty* AsArrayProperty = CastField<FArrayProperty>(Property))
 		{
-			OutType.BeginTypeParameters();
+			OutType.BeginParameters();
 			BuildSegmentTypeFromProperty(AsArrayProperty->Inner, OutType);
-			OutType.EndTypeParameters();
+			OutType.EndParameters();
 		}
 		else if (const FSetProperty* AsSetProperty = CastField<FSetProperty>(Property))
 		{
-			OutType.BeginTypeParameters();
+			OutType.BeginParameters();
 			BuildSegmentTypeFromProperty(AsSetProperty->ElementProp, OutType);
-			OutType.EndTypeParameters();
+			OutType.EndParameters();
 		}
 		else if (const FMapProperty* AsMapProperty = CastField<FMapProperty>(Property))
 		{
-			OutType.BeginTypeParameters();
+			OutType.BeginParameters();
 			BuildSegmentTypeFromProperty(AsMapProperty->KeyProp, OutType);
 			BuildSegmentTypeFromProperty(AsMapProperty->ValueProp, OutType);
-			OutType.EndTypeParameters();
+			OutType.EndParameters();
 		}
 #else
-		OutType.AddTypeName(Property->GetID());
+		OutType.AddName(Property->GetID());
 		if (const FStructProperty* AsStructProperty = CastField<FStructProperty>(Property))
 		{
-			OutType.BeginTypeParameters();
-			OutType.AddTypeName(AsStructProperty->Struct->GetFName());
-			OutType.EndTypeParameters();
+			OutType.BeginParameters();
+			OutType.AddName(AsStructProperty->Struct->GetFName());
+			OutType.EndParameters();
 		}
 		else if (const FEnumProperty* AsEnumProperty = CastField<FEnumProperty>(Property))
 		{
-			OutType.BeginTypeParameters();
-			OutType.AddTypeName(AsEnumProperty->GetEnum()->GetFName());
-			OutType.EndTypeParameters();
+			OutType.BeginParameters();
+			OutType.AddName(AsEnumProperty->GetEnum()->GetFName());
+			OutType.EndParameters();
 		}
 		else if (const FArrayProperty* AsArrayProperty = CastField<FArrayProperty>(Property))
 		{
-			OutType.BeginTypeParameters();
+			OutType.BeginParameters();
 			if (AsArrayProperty->Inner->IsA<FEnumProperty>())
 			{
 				// enum paths currently don't recurse when they're in containers
-				OutType.AddTypeName(AsArrayProperty->Inner->GetID());
+				OutType.AddName(AsArrayProperty->Inner->GetID());
 			}
 			else
 			{
 				BuildSegmentTypeFromProperty(AsArrayProperty->Inner, OutType);
 			}
-			OutType.EndTypeParameters();
+			OutType.EndParameters();
 		}
 		else if (const FSetProperty* AsSetProperty = CastField<FSetProperty>(Property))
 		{
 			// sets currently don't recurse their element property types
-			OutType.BeginTypeParameters();
-			OutType.AddTypeName(AsSetProperty->ElementProp->GetID());
-			OutType.EndTypeParameters();
+			OutType.BeginParameters();
+			OutType.AddName(AsSetProperty->ElementProp->GetID());
+			OutType.EndParameters();
 		}
 		else if (const FMapProperty* AsMapProperty = CastField<FMapProperty>(Property))
 		{
 			// maps currently don't recurse their key/value property types
-			OutType.BeginTypeParameters();
-			OutType.AddTypeName(AsMapProperty->KeyProp->GetID());
-			OutType.AddTypeName(AsMapProperty->ValueProp->GetID());
-			OutType.EndTypeParameters();
+			OutType.BeginParameters();
+			OutType.AddName(AsMapProperty->KeyProp->GetID());
+			OutType.AddName(AsMapProperty->ValueProp->GetID());
+			OutType.EndParameters();
 		}
 #endif
 	}

@@ -1577,29 +1577,29 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 				if (SerializeContext && SerializeContext->bTrackSerializedPropertyPath)
 				{
 					FPropertyTypeNameBuilder TypeBuilder;
-					TypeBuilder.AddTypeName(Tag.Type);
+					TypeBuilder.AddName(Tag.Type);
 
 					if (!Tag.StructName.IsNone())
 					{
-						TypeBuilder.BeginTypeParameters();
-						TypeBuilder.AddTypeName(Tag.StructName);
-						TypeBuilder.EndTypeParameters();
+						TypeBuilder.BeginParameters();
+						TypeBuilder.AddName(Tag.StructName);
+						TypeBuilder.EndParameters();
 					}
 					else if (!Tag.EnumName.IsNone())
 					{
-						TypeBuilder.BeginTypeParameters();
-						TypeBuilder.AddTypeName(Tag.EnumName);
-						TypeBuilder.EndTypeParameters();
+						TypeBuilder.BeginParameters();
+						TypeBuilder.AddName(Tag.EnumName);
+						TypeBuilder.EndParameters();
 					}
 					else if (!Tag.InnerType.IsNone())
 					{
-						TypeBuilder.BeginTypeParameters();
-						TypeBuilder.AddTypeName(Tag.InnerType);
+						TypeBuilder.BeginParameters();
+						TypeBuilder.AddName(Tag.InnerType);
 						if (!Tag.ValueType.IsNone())
 						{
-							TypeBuilder.AddTypeName(Tag.ValueType);
+							TypeBuilder.AddName(Tag.ValueType);
 						}
-						TypeBuilder.EndTypeParameters();
+						TypeBuilder.EndParameters();
 					}
 
 					const FName Name = Property ? Property->GetFName() : Tag.Name;

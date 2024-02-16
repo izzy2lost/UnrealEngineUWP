@@ -613,25 +613,27 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 	}
 
 	FUObjectSerializeContext* Context = FUObjectThreadContext::Get().GetSerializeContext();
-	if (Context && Context->bTrackSerializedPropertyPath && MaybeInnerTag)
+	if (Context && Context->bTrackSerializedPropertyPath)
 	{
-		if (const int32 SegmentCount = Context->SerializedPropertyPath.GetSegmentCount(); SegmentCount > 0)
+		// Update the path with types from the inner tag if the outer tag is incomplete.
+		if (const int32 SegmentIndex = Context->SerializedPropertyPath.GetSegmentCount() - 1; SegmentIndex >= 0)
 		{
-			const UE::FPropertyTypeName ExistingArrayType = Context->SerializedPropertyPath.GetSegment(SegmentCount - 1).Type;
-			if (ExistingArrayType.GetTypeName() == NAME_ArrayProperty && ExistingArrayType.GetTypeParameterCount() == 1)
+			UE::FPropertyPathNameSegment Segment = Context->SerializedPropertyPath.GetSegment(SegmentIndex);
+			if (Segment.Type.GetName() == NAME_ArrayProperty)
 			{
-				const UE::FPropertyTypeName ExistingStructType = ExistingArrayType.GetTypeParameter(0);
-				if (ExistingStructType.GetTypeName() == NAME_StructProperty && ExistingStructType.GetTypeParameterCount() == 0)
+				const UE::FPropertyTypeName InnerTypeName = Segment.Type.GetParameter();
+				if (InnerTypeName.GetName() == NAME_StructProperty && InnerTypeName.GetParameterCount() == 0)
 				{
 					UE::FPropertyTypeNameBuilder NewTypeBuilder;
-					NewTypeBuilder.AddTypeName(NAME_ArrayProperty);
-					NewTypeBuilder.BeginTypeParameters();
-					NewTypeBuilder.AddTypeName(NAME_StructProperty);
-					NewTypeBuilder.BeginTypeParameters();
-					NewTypeBuilder.AddTypeName(MaybeInnerTag->StructName);
-					NewTypeBuilder.EndTypeParameters();
-					NewTypeBuilder.EndTypeParameters();
-					Context->SerializedPropertyPath.SetType(NewTypeBuilder.Build());
+					NewTypeBuilder.AddName(NAME_ArrayProperty);
+					NewTypeBuilder.BeginParameters();
+					NewTypeBuilder.AddName(NAME_StructProperty);
+					NewTypeBuilder.BeginParameters();
+					NewTypeBuilder.AddName(MaybeInnerTag->StructName);
+					NewTypeBuilder.EndParameters();
+					NewTypeBuilder.EndParameters();
+					Segment.Type = NewTypeBuilder.Build();
+					Context->SerializedPropertyPath.SetSegment(SegmentIndex, Segment);
 				}
 			}
 		}
@@ -1311,8 +1313,8 @@ bool FArrayProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag
 		return false;
 	}
 
-	const UE::FPropertyTypeName InnerType = Type.GetTypeParameter();
-	FField* Field = FField::TryConstruct(InnerType.GetTypeName(), this, GetFName(), RF_NoFlags);
+	const UE::FPropertyTypeName InnerType = Type.GetParameter();
+	FField* Field = FField::TryConstruct(InnerType.GetName(), this, GetFName(), RF_NoFlags);
 	if (FProperty* Property = CastField<FProperty>(Field); Property && Property->LoadTypeName(InnerType, Tag))
 	{
 		Inner = Property;
@@ -1328,9 +1330,9 @@ void FArrayProperty::SaveTypeName(UE::FPropertyTypeNameBuilder& Type) const
 
 	const FProperty* LocalInner = Inner;
 	check(LocalInner);
-	Type.BeginTypeParameters();
+	Type.BeginParameters();
 	LocalInner->SaveTypeName(Type);
-	Type.EndTypeParameters();
+	Type.EndParameters();
 }
 
 bool FArrayProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
@@ -1342,5 +1344,5 @@ bool FArrayProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
 
 	const FProperty* LocalInner = Inner;
 	check(LocalInner);
-	return LocalInner->CanSerializeFromTypeName(Type.GetTypeParameter());
+	return LocalInner->CanSerializeFromTypeName(Type.GetParameter());
 }

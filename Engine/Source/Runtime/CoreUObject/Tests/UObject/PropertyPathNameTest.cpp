@@ -15,7 +15,7 @@ TEST_CASE_NAMED(FPropertyPathNameTest, "CoreUObject::PropertyPathName", "[Core][
 	const FName CountName(TEXTVIEW("Count"));
 
 	FPropertyTypeNameBuilder TypeBuilder;
-	TypeBuilder.AddTypeName(NAME_IntProperty);
+	TypeBuilder.AddName(NAME_IntProperty);
 	const FPropertyTypeName IntType = TypeBuilder.Build();
 
 	SECTION("Empty")
@@ -65,19 +65,19 @@ TEST_CASE_NAMED(FPropertyPathNameTest, "CoreUObject::PropertyPathName", "[Core][
 	SECTION("MultipleSegments")
 	{
 		FPropertyTypeNameBuilder ArrayTypeBuilder;
-		ArrayTypeBuilder.AddTypeName(NAME_ArrayProperty);
-		ArrayTypeBuilder.BeginTypeParameters();
-		ArrayTypeBuilder.AddTypeName(NAME_StructProperty);
-		ArrayTypeBuilder.BeginTypeParameters();
-		ArrayTypeBuilder.AddTypeName(TEXT("TestType"));
-		ArrayTypeBuilder.EndTypeParameters();
-		ArrayTypeBuilder.EndTypeParameters();
+		ArrayTypeBuilder.AddName(NAME_ArrayProperty);
+		ArrayTypeBuilder.BeginParameters();
+		ArrayTypeBuilder.AddName(NAME_StructProperty);
+		ArrayTypeBuilder.BeginParameters();
+		ArrayTypeBuilder.AddName(TEXT("TestType"));
+		ArrayTypeBuilder.EndParameters();
+		ArrayTypeBuilder.EndParameters();
 
 		FPropertyTypeNameBuilder VectorTypeBuilder;
-		VectorTypeBuilder.AddTypeName(NAME_StructProperty);
-		VectorTypeBuilder.BeginTypeParameters();
-		VectorTypeBuilder.AddTypeName(TEXT("IntVector"));
-		VectorTypeBuilder.EndTypeParameters();
+		VectorTypeBuilder.AddName(NAME_StructProperty);
+		VectorTypeBuilder.BeginParameters();
+		VectorTypeBuilder.AddName(TEXT("IntVector"));
+		VectorTypeBuilder.EndParameters();
 
 		FPropertyPathName PathName;
 		PathName.Push({TEXT("TestArray"), ArrayTypeBuilder.Build(), 7});
@@ -93,10 +93,6 @@ TEST_CASE_NAMED(FPropertyPathNameTest, "CoreUObject::PropertyPathName", "[Core][
 		FPropertyPathName PathName;
 		PathName.Push({CountName});
 		PathName.Push({CountName});
-
-		PathName.SetType(IntType);
-		CHECK(PathName.GetSegment(0).Type.IsEmpty());
-		CHECK(PathName.GetSegment(1).Type == IntType);
 
 		PathName.SetIndex(7);
 		CHECK(PathName.GetSegment(0).Index == INDEX_NONE);
@@ -145,7 +141,7 @@ TEST_CASE_NAMED(FPropertyPathNameTest, "CoreUObject::PropertyPathName", "[Core][
 		const FName DepthName(TEXTVIEW("Depth"));
 		
 		TypeBuilder.Reset();
-		TypeBuilder.AddTypeName(NAME_BoolProperty);
+		TypeBuilder.AddName(NAME_BoolProperty);
 		const FPropertyTypeName BoolType = TypeBuilder.Build();
 
 		FPropertyPathName CountBool;

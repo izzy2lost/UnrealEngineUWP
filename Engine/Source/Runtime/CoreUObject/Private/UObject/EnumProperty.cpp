@@ -582,15 +582,15 @@ bool FEnumProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag*
 		return false;
 	}
 
-	const FName EnumName = Type.GetTypeParameterName(0);
+	const FName EnumName = Type.GetParameterName(0);
 	UEnum* LocalEnum = FindFirstObject<UEnum>(*WriteToString<256>(EnumName), EFindFirstObjectOptions::NativeFirst);
 	if (!LocalEnum)
 	{
 		return false;
 	}
 
-	const UE::FPropertyTypeName UnderlyingType = Type.GetTypeParameter(1);
-	FField* Field = FField::TryConstruct(UnderlyingType.GetTypeName(), this, GetFName(), RF_NoFlags);
+	const UE::FPropertyTypeName UnderlyingType = Type.GetParameter(1);
+	FField* Field = FField::TryConstruct(UnderlyingType.GetName(), this, GetFName(), RF_NoFlags);
 	if (FNumericProperty* Property = CastField<FNumericProperty>(Field); Property && Property->LoadTypeName(UnderlyingType, Tag))
 	{
 		Enum = LocalEnum;
@@ -610,14 +610,11 @@ void FEnumProperty::SaveTypeName(UE::FPropertyTypeNameBuilder& Type) const
 
 	if (const UEnum* LocalEnum = Enum)
 	{
-		TStringBuilder<256> EnumName;
-		LocalEnum->GetPathName(nullptr, EnumName);
-
 		check(UnderlyingProp);
-		Type.BeginTypeParameters();
-		Type.AddTypeName(FName(EnumName));
+		Type.BeginParameters();
+		Type.AddPath(LocalEnum);
 		UnderlyingProp->SaveTypeName(Type);
-		Type.EndTypeParameters();
+		Type.EndParameters();
 	}
 }
 
@@ -634,7 +631,7 @@ bool FEnumProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
 		return false;
 	}
 
-	const FName EnumName = Type.GetTypeParameterName(0);
+	const FName EnumName = Type.GetParameterName(0);
 	if (EnumName == LocalEnum->GetFName())
 	{
 		return true;

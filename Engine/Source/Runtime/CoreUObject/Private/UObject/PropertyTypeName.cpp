@@ -8,7 +8,9 @@
 #include "HAL/CriticalSection.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "Misc/ScopeRWLock.h"
+#include "Misc/StringBuilder.h"
 #include "String/Find.h"
+#include "UObject/Class.h"
 
 namespace UE
 {
@@ -232,19 +234,19 @@ FPropertyTypeNameNode* FPropertyTypeNameTable::AllocateBlock(int32 BlockIndex)
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-FName FPropertyTypeName::GetTypeName() const
+FName FPropertyTypeName::GetName() const
 {
 	const FPropertyTypeNameNode* First = GPropertyTypeNameTable.ResolveByIndex(Index);
 	return First->Name;
 }
 
-int32 FPropertyTypeName::GetTypeParameterCount() const
+int32 FPropertyTypeName::GetParameterCount() const
 {
 	const FPropertyTypeNameNode* First = GPropertyTypeNameTable.ResolveByIndex(Index);
 	return First->InnerCount;
 }
 
-FPropertyTypeName FPropertyTypeName::GetTypeParameter(int32 ParamIndex) const
+FPropertyTypeName FPropertyTypeName::GetParameter(int32 ParamIndex) const
 {
 	const FPropertyTypeNameNode* First = GPropertyTypeNameTable.ResolveByIndex(Index);
 	if (UNLIKELY(ParamIndex < 0 || ParamIndex >= First->InnerCount))
@@ -392,18 +394,18 @@ FStringBuilderBase& operator<<(FStringBuilderBase& Builder, const FPropertyTypeN
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FPropertyTypeNameBuilder::BeginTypeParameters()
+void FPropertyTypeNameBuilder::BeginParameters()
 {
 	checkf(!Nodes.IsEmpty(), TEXT("A type name must be added prior to setting type parameters."));
 	ActiveIndex = Nodes.Num() - 1;
 }
 
-void FPropertyTypeNameBuilder::EndTypeParameters()
+void FPropertyTypeNameBuilder::EndParameters()
 {
 	ActiveIndex = OuterNodeIndex[ActiveIndex];
 }
 
-void FPropertyTypeNameBuilder::AddTypeName(FName Name)
+void FPropertyTypeNameBuilder::AddName(FName Name)
 {
 	checkf(ActiveIndex >= 0 || Nodes.IsEmpty(), TEXT("Only one type name may be added as the root node."));
 
@@ -418,17 +420,48 @@ void FPropertyTypeNameBuilder::AddTypeName(FName Name)
 	}
 }
 
-void FPropertyTypeNameBuilder::AddTypeName(FPropertyTypeName Name)
+void FPropertyTypeNameBuilder::AddGuid(const FGuid& Guid)
 {
-	AddTypeName(Name.GetTypeName());
-	if (const int32 Count = Name.GetTypeParameterCount())
+	AddName(FName(WriteToString<48>(Guid)));
+}
+
+void FPropertyTypeNameBuilder::AddPath(const UField* Field)
+{
+	if (!Field)
 	{
-		BeginTypeParameters();
+		AddName(NAME_None);
+		return;
+	}
+
+	AddName(Field->GetFName());
+
+	TArray<UObject*, TInlineAllocator<8>> OuterChain;
+	for (UObject* Outer = Field->GetOuter(); Outer; Outer = Outer->GetOuter())
+	{
+		OuterChain.Add(Outer);
+	}
+	if (!OuterChain.IsEmpty())
+	{
+		BeginParameters();
+		for (UObject* Outer : ReverseIterate(OuterChain))
+		{
+			AddName(Outer->GetFName());
+		}
+		EndParameters();
+	}
+}
+
+void FPropertyTypeNameBuilder::AddType(FPropertyTypeName Name)
+{
+	AddName(Name.GetName());
+	if (const int32 Count = Name.GetParameterCount())
+	{
+		BeginParameters();
 		for (int32 Index = 0; Index < Count; ++Index)
 		{
-			AddTypeName(Name.GetTypeParameter(Index));
+			AddType(Name.GetParameter(Index));
 		}
-		EndTypeParameters();
+		EndParameters();
 	}
 }
 
@@ -459,7 +492,7 @@ bool FPropertyTypeNameBuilder::TryParse(FStringView Name)
 					// Names must follow '<' or ',' or be at the root.
 					break;
 				}
-				AddTypeName(FName(Type));
+				AddName(FName(Type));
 				bAllowBegin = true;
 				bAllowName = false;
 			}
@@ -490,7 +523,7 @@ bool FPropertyTypeNameBuilder::TryParse(FStringView Name)
 				break;
 			}
 			++Depth;
-			BeginTypeParameters();
+			BeginParameters();
 			bAllowName = true;
 		}
 		else if (C == TEXT('>'))
@@ -500,7 +533,7 @@ bool FPropertyTypeNameBuilder::TryParse(FStringView Name)
 				// '>' must have a matching '<'.
 				break;
 			}
-			EndTypeParameters();
+			EndParameters();
 			--Depth;
 		}
 		else // if (C == TEXT(','))

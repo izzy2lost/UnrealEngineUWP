@@ -101,15 +101,6 @@ public:
 		Segments.Pop(EAllowShrinking::No);
 	}
 
-	/** Sets the type of the last segment of the path. Ignored if the path is empty. */
-	inline void SetType(FPropertyTypeName Type)
-	{
-		if (!Segments.IsEmpty())
-		{
-			Segments.Last().Type = Type;
-		}
-	}
-
 	/** Sets the index of the last segment of the path. Ignored if the path is empty. */
 	inline void SetIndex(int32 Index)
 	{
