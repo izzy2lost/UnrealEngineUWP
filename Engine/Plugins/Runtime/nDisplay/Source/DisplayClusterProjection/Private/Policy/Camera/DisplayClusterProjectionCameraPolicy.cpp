@@ -130,6 +130,16 @@ bool FDisplayClusterProjectionCameraPolicy::GetProjectionMatrix(IDisplayClusterV
 		OutPrjMatrix = ComposureSettings.GetProjectionMatrix(ClampedCameraFOVDegrees, CameraAspectRatio);
 	}
 
+	if (!CameraSettings.OffCenterProjectionOffset.IsZero())
+	{
+		const float Left = -1.0f + CameraSettings.OffCenterProjectionOffset.X;
+		const float Right = Left + 2.0f;
+		const float Bottom = -1.0f + CameraSettings.OffCenterProjectionOffset.Y;
+		const float Top = Bottom + 2.0f;
+		OutPrjMatrix.M[2][0] = (Left + Right) / (Left - Right);
+		OutPrjMatrix.M[2][1] = (Bottom + Top) / (Bottom - Top);
+	}
+
 	return true;
 }
 

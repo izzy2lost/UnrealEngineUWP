@@ -775,6 +775,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "In Camera VFX", meta = (DisplayName = "Inner Frustum Offset"))
 	FVector FrustumOffset = FVector::ZeroVector;
 
+	/** Off-axis / off-center projection offset as proportion of screen dimensions. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "In Camera VFX", meta = (DisplayName = "Inner Frustum Projection Offset"))
+	FVector2D OffCenterProjectionOffset = FVector2D::ZeroVector;
+
 	/**Border for the inner frustum. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "In Camera VFX", meta = (DisplayName = "Inner Frustum Border"))
 	FDisplayClusterConfigurationICVFX_CameraBorder Border;
