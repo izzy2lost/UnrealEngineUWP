@@ -736,6 +736,11 @@ namespace Horde.Server.Jobs
 		/// Step was no longer needed during a job update
 		/// </summary>
 		NoLongerNeeded = 12,
+
+		/// <summary>
+		/// Machine setup failed
+		/// </summary>
+		AgentSetupFailed = 13,
 	}
 
 	/// <summary>
