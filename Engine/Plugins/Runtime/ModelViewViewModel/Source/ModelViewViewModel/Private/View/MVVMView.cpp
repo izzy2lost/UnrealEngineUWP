@@ -173,23 +173,24 @@ void UMVVMView::InitializeSourceInternal(UObject* NewSource, FMVVMViewClass_Sour
 	if (NewSource)
 	{
 		ValidSources |= SourceKey.GetBit();
-		if (ClassSource.RequireSettingUserWidgetProperty())
-		{
-			UUserWidget* UserWidget = GetUserWidget();
-			FObjectPropertyBase* FoundObjectProperty = FindFProperty<FObjectPropertyBase>(UserWidget->GetClass(), ClassSource.GetUserWidgetPropertyName());
-			if (ensureAlwaysMsgf(FoundObjectProperty, TEXT("The compiler should have added the property")))
-			{
-				if (ensure(NewSource->GetClass()->IsChildOf(FoundObjectProperty->PropertyClass)))
-				{
-					FoundObjectProperty->SetObjectPropertyValue_InContainer(UserWidget, NewSource);
-					ViewSource.bAssignedToUserWidgetProperty = true;
-				}
-			}
-		}
 	}
 	else
 	{
 		ValidSources &= ~SourceKey.GetBit();
+	}
+
+	if (ClassSource.RequireSettingUserWidgetProperty())
+	{
+		UUserWidget* UserWidget = GetUserWidget();
+		FObjectPropertyBase* FoundObjectProperty = FindFProperty<FObjectPropertyBase>(UserWidget->GetClass(), ClassSource.GetUserWidgetPropertyName());
+		if (ensureAlwaysMsgf(FoundObjectProperty, TEXT("The compiler should have added the property")))
+		{
+			if (NewSource == nullptr || ensure(NewSource->GetClass()->IsChildOf(FoundObjectProperty->PropertyClass)))
+			{
+				FoundObjectProperty->SetObjectPropertyValue_InContainer(UserWidget, NewSource);
+				ViewSource.bAssignedToUserWidgetProperty = true;
+			}
+		}
 	}
 
 	ViewSource.Source = NewSource;
