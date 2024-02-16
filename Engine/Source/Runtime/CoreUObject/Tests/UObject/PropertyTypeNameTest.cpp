@@ -23,23 +23,23 @@ namespace PropertyTypeNameTest
 static FPropertyTypeName CreateInt()
 {
 	FPropertyTypeNameBuilder Builder;
-	Builder.AddTypeName(NAME_IntProperty);
+	Builder.AddName(NAME_IntProperty);
 	return Builder.Build();
 }
 
 static FPropertyTypeName CreateVectorArray()
 {
 	FPropertyTypeNameBuilder Builder;
-	Builder.AddTypeName(NAME_ArrayProperty);
+	Builder.AddName(NAME_ArrayProperty);
 	{
-		Builder.BeginTypeParameters();
-		Builder.AddTypeName(NAME_StructProperty);
+		Builder.BeginParameters();
+		Builder.AddName(NAME_StructProperty);
 		{
-			Builder.BeginTypeParameters();
-			Builder.AddTypeName(NAME_Vector);
-			Builder.EndTypeParameters();
+			Builder.BeginParameters();
+			Builder.AddName(NAME_Vector);
+			Builder.EndParameters();
 		}
-		Builder.EndTypeParameters();
+		Builder.EndParameters();
 	}
 	return Builder.Build();
 }
@@ -47,24 +47,24 @@ static FPropertyTypeName CreateVectorArray()
 static FPropertyTypeName CreateEnumMap()
 {
 	FPropertyTypeNameBuilder Builder;
-	Builder.AddTypeName(NAME_MapProperty);
+	Builder.AddName(NAME_MapProperty);
 	{
-		Builder.BeginTypeParameters();
-		Builder.AddTypeName(NAME_EnumProperty);
+		Builder.BeginParameters();
+		Builder.AddName(NAME_EnumProperty);
 		{
-			Builder.BeginTypeParameters();
-			Builder.AddTypeName(TEXT("Key"));
-			Builder.AddTypeName(NAME_ByteProperty);
-			Builder.EndTypeParameters();
+			Builder.BeginParameters();
+			Builder.AddName(TEXT("Key"));
+			Builder.AddName(NAME_ByteProperty);
+			Builder.EndParameters();
 		}
-		Builder.AddTypeName(NAME_EnumProperty);
+		Builder.AddName(NAME_EnumProperty);
 		{
-			Builder.BeginTypeParameters();
-			Builder.AddTypeName(TEXT("Value"));
-			Builder.AddTypeName(NAME_ByteProperty);
-			Builder.EndTypeParameters();
+			Builder.BeginParameters();
+			Builder.AddName(TEXT("Value"));
+			Builder.AddName(NAME_ByteProperty);
+			Builder.EndParameters();
 		}
-		Builder.EndTypeParameters();
+		Builder.EndParameters();
 	}
 	return Builder.Build();
 }
@@ -77,96 +77,96 @@ TEST_CASE_NAMED(FPropertyTypeNameSmokeTest, "CoreUObject::PropertyTypeName::Smok
 	{
 		FPropertyTypeName TypeName;
 		CHECK(TypeName.IsEmpty());
-		CHECK(TypeName.GetTypeName().IsNone());
-		CHECK(TypeName.GetTypeParameterCount() == 0);
-		CHECK(TypeName.GetTypeParameter(0).IsEmpty());
+		CHECK(TypeName.GetName().IsNone());
+		CHECK(TypeName.GetParameterCount() == 0);
+		CHECK(TypeName.GetParameter(0).IsEmpty());
 	}
 
 	SECTION("Numeric")
 	{
 		FPropertyTypeName TypeName = PropertyTypeNameTest::CreateInt();
 		CHECK(!TypeName.IsEmpty());
-		CHECK(TypeName.GetTypeName() == NAME_IntProperty);
-		CHECK(TypeName.GetTypeParameterCount() == 0);
-		CHECK(TypeName.GetTypeParameter(0).IsEmpty());
+		CHECK(TypeName.GetName() == NAME_IntProperty);
+		CHECK(TypeName.GetParameterCount() == 0);
+		CHECK(TypeName.GetParameter(0).IsEmpty());
 	}
 
 	SECTION("NumericArray")
 	{
 		FPropertyTypeNameBuilder Builder;
-		Builder.AddTypeName(NAME_ArrayProperty);
+		Builder.AddName(NAME_ArrayProperty);
 		{
-			Builder.BeginTypeParameters();
-			Builder.AddTypeName(NAME_IntProperty);
-			Builder.EndTypeParameters();
+			Builder.BeginParameters();
+			Builder.AddName(NAME_IntProperty);
+			Builder.EndParameters();
 		}
 
 		FPropertyTypeName TypeName = Builder.Build();
 		CHECK(!TypeName.IsEmpty());
-		CHECK(TypeName.GetTypeName() == NAME_ArrayProperty);
-		CHECK(TypeName.GetTypeParameterCount() == 1);
-		CHECK(TypeName.GetTypeParameter(0).GetTypeName() == NAME_IntProperty);
-		CHECK(TypeName.GetTypeParameter(0).GetTypeParameterCount() == 0);
-		CHECK(TypeName.GetTypeParameter(0).GetTypeParameter(0).IsEmpty());
-		CHECK(TypeName.GetTypeParameter(1).IsEmpty());
+		CHECK(TypeName.GetName() == NAME_ArrayProperty);
+		CHECK(TypeName.GetParameterCount() == 1);
+		CHECK(TypeName.GetParameter(0).GetName() == NAME_IntProperty);
+		CHECK(TypeName.GetParameter(0).GetParameterCount() == 0);
+		CHECK(TypeName.GetParameter(0).GetParameter(0).IsEmpty());
+		CHECK(TypeName.GetParameter(1).IsEmpty());
 	}
 
 	SECTION("StructArray")
 	{
 		FPropertyTypeName TypeName = PropertyTypeNameTest::CreateVectorArray();
 		CHECK(!TypeName.IsEmpty());
-		CHECK(TypeName.GetTypeName() == NAME_ArrayProperty);
-		CHECK(TypeName.GetTypeParameterCount() == 1);
-		CHECK(TypeName.GetTypeParameter(0).GetTypeName() == NAME_StructProperty);
-		CHECK(TypeName.GetTypeParameter(0).GetTypeParameterCount() == 1);
-		CHECK(TypeName.GetTypeParameter(0).GetTypeParameter(0).GetTypeName() == NAME_Vector);
-		CHECK(TypeName.GetTypeParameter(0).GetTypeParameter(0).GetTypeParameterCount() == 0);
-		CHECK(TypeName.GetTypeParameter(0).GetTypeParameter(0).GetTypeParameter(0).IsEmpty());
-		CHECK(TypeName.GetTypeParameter(0).GetTypeParameter(1).IsEmpty());
-		CHECK(TypeName.GetTypeParameter(1).IsEmpty());
+		CHECK(TypeName.GetName() == NAME_ArrayProperty);
+		CHECK(TypeName.GetParameterCount() == 1);
+		CHECK(TypeName.GetParameter(0).GetName() == NAME_StructProperty);
+		CHECK(TypeName.GetParameter(0).GetParameterCount() == 1);
+		CHECK(TypeName.GetParameter(0).GetParameter(0).GetName() == NAME_Vector);
+		CHECK(TypeName.GetParameter(0).GetParameter(0).GetParameterCount() == 0);
+		CHECK(TypeName.GetParameter(0).GetParameter(0).GetParameter(0).IsEmpty());
+		CHECK(TypeName.GetParameter(0).GetParameter(1).IsEmpty());
+		CHECK(TypeName.GetParameter(1).IsEmpty());
 	}
 
 	SECTION("NumericMap")
 	{
 		FPropertyTypeNameBuilder Builder;
-		Builder.AddTypeName(NAME_MapProperty);
+		Builder.AddName(NAME_MapProperty);
 		{
-			Builder.BeginTypeParameters();
-			Builder.AddTypeName(NAME_Int32Property);
-			Builder.AddTypeName(NAME_UInt32Property);
-			Builder.EndTypeParameters();
+			Builder.BeginParameters();
+			Builder.AddName(NAME_Int32Property);
+			Builder.AddName(NAME_UInt32Property);
+			Builder.EndParameters();
 		}
 
 		FPropertyTypeName TypeName = Builder.Build();
 		CHECK(!TypeName.IsEmpty());
-		CHECK(TypeName.GetTypeName() == NAME_MapProperty);
-		CHECK(TypeName.GetTypeParameterCount() == 2);
-		CHECK(TypeName.GetTypeParameter(0).GetTypeName() == NAME_Int32Property);
-		CHECK(TypeName.GetTypeParameter(0).GetTypeParameter(0).IsEmpty());
-		CHECK(TypeName.GetTypeParameter(1).GetTypeName() == NAME_UInt32Property);
-		CHECK(TypeName.GetTypeParameter(1).GetTypeParameter(0).IsEmpty());
-		CHECK(TypeName.GetTypeParameter(2).IsEmpty());
+		CHECK(TypeName.GetName() == NAME_MapProperty);
+		CHECK(TypeName.GetParameterCount() == 2);
+		CHECK(TypeName.GetParameter(0).GetName() == NAME_Int32Property);
+		CHECK(TypeName.GetParameter(0).GetParameter(0).IsEmpty());
+		CHECK(TypeName.GetParameter(1).GetName() == NAME_UInt32Property);
+		CHECK(TypeName.GetParameter(1).GetParameter(0).IsEmpty());
+		CHECK(TypeName.GetParameter(2).IsEmpty());
 	}
 
 	SECTION("EnumMap")
 	{
 		FPropertyTypeName TypeName = PropertyTypeNameTest::CreateEnumMap();
 		CHECK(!TypeName.IsEmpty());
-		CHECK(TypeName.GetTypeName() == NAME_MapProperty);
-		CHECK(TypeName.GetTypeParameterCount() == 2);
-		CHECK(TypeName.GetTypeParameter(0).GetTypeName() == NAME_EnumProperty);
-		CHECK(TypeName.GetTypeParameter(0).GetTypeParameterName(0) == TEXT("Key"));
-		CHECK(TypeName.GetTypeParameter(0).GetTypeParameterName(1) == NAME_ByteProperty);
-		CHECK(TypeName.GetTypeParameter(0).GetTypeParameter(0).GetTypeParameterCount() == 0);
-		CHECK(TypeName.GetTypeParameter(0).GetTypeParameter(1).GetTypeParameterCount() == 0);
-		CHECK(TypeName.GetTypeParameter(0).GetTypeParameter(2).IsEmpty());
-		CHECK(TypeName.GetTypeParameter(1).GetTypeName() == NAME_EnumProperty);
-		CHECK(TypeName.GetTypeParameter(1).GetTypeParameterName(0) == TEXT("Value"));
-		CHECK(TypeName.GetTypeParameter(1).GetTypeParameterName(1) == NAME_ByteProperty);
-		CHECK(TypeName.GetTypeParameter(1).GetTypeParameter(0).GetTypeParameterCount() == 0);
-		CHECK(TypeName.GetTypeParameter(1).GetTypeParameter(1).GetTypeParameterCount() == 0);
-		CHECK(TypeName.GetTypeParameter(1).GetTypeParameter(2).IsEmpty());
-		CHECK(TypeName.GetTypeParameter(2).IsEmpty());
+		CHECK(TypeName.GetName() == NAME_MapProperty);
+		CHECK(TypeName.GetParameterCount() == 2);
+		CHECK(TypeName.GetParameter(0).GetName() == NAME_EnumProperty);
+		CHECK(TypeName.GetParameter(0).GetParameterName(0) == TEXT("Key"));
+		CHECK(TypeName.GetParameter(0).GetParameterName(1) == NAME_ByteProperty);
+		CHECK(TypeName.GetParameter(0).GetParameter(0).GetParameterCount() == 0);
+		CHECK(TypeName.GetParameter(0).GetParameter(1).GetParameterCount() == 0);
+		CHECK(TypeName.GetParameter(0).GetParameter(2).IsEmpty());
+		CHECK(TypeName.GetParameter(1).GetName() == NAME_EnumProperty);
+		CHECK(TypeName.GetParameter(1).GetParameterName(0) == TEXT("Value"));
+		CHECK(TypeName.GetParameter(1).GetParameterName(1) == NAME_ByteProperty);
+		CHECK(TypeName.GetParameter(1).GetParameter(0).GetParameterCount() == 0);
+		CHECK(TypeName.GetParameter(1).GetParameter(1).GetParameterCount() == 0);
+		CHECK(TypeName.GetParameter(1).GetParameter(2).IsEmpty());
+		CHECK(TypeName.GetParameter(2).IsEmpty());
 	}
 
 	SECTION("Equals+Less+GetTypeHash")
@@ -175,33 +175,33 @@ TEST_CASE_NAMED(FPropertyTypeNameSmokeTest, "CoreUObject::PropertyTypeName::Smok
 		const FPropertyTypeName VectorArray = PropertyTypeNameTest::CreateVectorArray();
 
 		FPropertyTypeNameBuilder Builder;
-		Builder.AddTypeName(NAME_MapProperty);
-		Builder.BeginTypeParameters();
-		Builder.AddTypeName(NAME_IntProperty);
-		Builder.AddTypeName(NAME_IntProperty);
-		Builder.EndTypeParameters();
+		Builder.AddName(NAME_MapProperty);
+		Builder.BeginParameters();
+		Builder.AddName(NAME_IntProperty);
+		Builder.AddName(NAME_IntProperty);
+		Builder.EndParameters();
 		const FPropertyTypeName MapIntToInt = Builder.Build();
 
 		Builder.Reset();
-		Builder.AddTypeName(NAME_MapProperty);
-		Builder.BeginTypeParameters();
-		Builder.AddTypeName(NAME_IntProperty);
-		Builder.AddTypeName(NAME_MapProperty);
+		Builder.AddName(NAME_MapProperty);
+		Builder.BeginParameters();
+		Builder.AddName(NAME_IntProperty);
+		Builder.AddName(NAME_MapProperty);
 		{
-			Builder.BeginTypeParameters();
-			Builder.AddTypeName(NAME_IntProperty);
-			Builder.AddTypeName(NAME_IntProperty);
-			Builder.EndTypeParameters();
+			Builder.BeginParameters();
+			Builder.AddName(NAME_IntProperty);
+			Builder.AddName(NAME_IntProperty);
+			Builder.EndParameters();
 		}
-		Builder.EndTypeParameters();
+		Builder.EndParameters();
 		const FPropertyTypeName MapIntToIntToInt = Builder.Build();
 
 		Builder.Reset();
-		Builder.AddTypeName(NAME_MapProperty);
-		Builder.BeginTypeParameters();
-		Builder.AddTypeName(NAME_IntProperty);
-		Builder.AddTypeName(MapIntToInt);
-		Builder.EndTypeParameters();
+		Builder.AddName(NAME_MapProperty);
+		Builder.BeginParameters();
+		Builder.AddName(NAME_IntProperty);
+		Builder.AddType(MapIntToInt);
+		Builder.EndParameters();
 		const FPropertyTypeName MapIntToIntToIntAlternative = Builder.Build();
 
 		CHECK(FPropertyTypeName() == FPropertyTypeName());
@@ -219,7 +219,7 @@ TEST_CASE_NAMED(FPropertyTypeNameSmokeTest, "CoreUObject::PropertyTypeName::Smok
 		CHECK_FALSE(GetTypeHash(Int) == GetTypeHash(VectorArray));
 		CHECK_FALSE(GetTypeHash(Int) == GetTypeHash(FPropertyTypeName()));
 
-		CHECK(Int == MapIntToInt.GetTypeParameter(0));
+		CHECK(Int == MapIntToInt.GetParameter(0));
 		CHECK_FALSE(Int == MapIntToInt);
 		CHECK_FALSE(MapIntToInt == Int);
 		CHECK_FALSE(MapIntToInt < MapIntToInt);
@@ -227,18 +227,18 @@ TEST_CASE_NAMED(FPropertyTypeNameSmokeTest, "CoreUObject::PropertyTypeName::Smok
 		CHECK_FALSE(MapIntToInt < Int);
 		CHECK_FALSE(MapIntToInt < VectorArray);
 		CHECK(VectorArray < MapIntToInt);
-		CHECK(GetTypeHash(Int) == GetTypeHash(MapIntToInt.GetTypeParameter(0)));
+		CHECK(GetTypeHash(Int) == GetTypeHash(MapIntToInt.GetParameter(0)));
 		CHECK_FALSE(GetTypeHash(Int) == GetTypeHash(MapIntToInt));
 		CHECK_FALSE(GetTypeHash(MapIntToInt) == GetTypeHash(Int));
 
-		CHECK(MapIntToInt == MapIntToIntToInt.GetTypeParameter(1));
+		CHECK(MapIntToInt == MapIntToIntToInt.GetParameter(1));
 		CHECK_FALSE(MapIntToInt == MapIntToIntToInt);
 		CHECK_FALSE(MapIntToIntToInt < MapIntToIntToInt);
 		CHECK(MapIntToInt < MapIntToIntToInt);
 		CHECK_FALSE(MapIntToIntToInt < MapIntToInt);
 		CHECK_FALSE(MapIntToIntToInt < VectorArray);
 		CHECK(VectorArray < MapIntToIntToInt);
-		CHECK(GetTypeHash(MapIntToInt) == GetTypeHash(MapIntToIntToInt.GetTypeParameter(1)));
+		CHECK(GetTypeHash(MapIntToInt) == GetTypeHash(MapIntToIntToInt.GetParameter(1)));
 		CHECK_FALSE(GetTypeHash(MapIntToInt) == GetTypeHash(MapIntToIntToInt));
 
 		CHECK(MapIntToIntToInt == MapIntToIntToIntAlternative);
@@ -431,27 +431,27 @@ TEST_CASE_NAMED(FPropertyTypeNameConcurrencyTest, "CoreUObject::PropertyTypeName
 
 		if (Index % 8 == 0)
 		{
-			Builder.AddTypeName(NAME_OptionalProperty);
-			Builder.BeginTypeParameters();
+			Builder.AddName(NAME_OptionalProperty);
+			Builder.BeginParameters();
 		}
 		if (Index % 4 == 0)
 		{
-			Builder.AddTypeName(NAME_ArrayProperty);
-			Builder.BeginTypeParameters();
+			Builder.AddName(NAME_ArrayProperty);
+			Builder.BeginParameters();
 		}
 
-		Builder.AddTypeName(NAME_StructProperty);
-		Builder.BeginTypeParameters();
-		Builder.AddTypeName(FName(WriteToString<32>(TEXTVIEW("TestStruct"), Index)));
-		Builder.EndTypeParameters();
+		Builder.AddName(NAME_StructProperty);
+		Builder.BeginParameters();
+		Builder.AddName(FName(WriteToString<32>(TEXTVIEW("TestStruct"), Index)));
+		Builder.EndParameters();
 
 		if (Index % 4 == 0)
 		{
-			Builder.EndTypeParameters();
+			Builder.EndParameters();
 		}
 		if (Index % 8 == 0)
 		{
-			Builder.EndTypeParameters();
+			Builder.EndParameters();
 		}
 
 		Builder.Build();

@@ -1734,10 +1734,10 @@ bool FMapProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* 
 		return false;
 	}
 
-	const UE::FPropertyTypeName KeyType = Type.GetTypeParameter(0);
-	const UE::FPropertyTypeName ValueType = Type.GetTypeParameter(1);
-	FField* KeyField = FField::TryConstruct(KeyType.GetTypeName(), this, GetFName(), RF_NoFlags);
-	FField* ValueField = FField::TryConstruct(ValueType.GetTypeName(), this, GetFName(), RF_NoFlags);
+	const UE::FPropertyTypeName KeyType = Type.GetParameter(0);
+	const UE::FPropertyTypeName ValueType = Type.GetParameter(1);
+	FField* KeyField = FField::TryConstruct(KeyType.GetName(), this, GetFName(), RF_NoFlags);
+	FField* ValueField = FField::TryConstruct(ValueType.GetName(), this, GetFName(), RF_NoFlags);
 	FProperty* KeyProperty = CastField<FProperty>(KeyField);
 	FProperty* ValueProperty = CastField<FProperty>(ValueField);
 	if (KeyProperty && ValueProperty && KeyProperty->LoadTypeName(KeyType, Tag) && ValueProperty->LoadTypeName(ValueType, Tag))
@@ -1759,10 +1759,10 @@ void FMapProperty::SaveTypeName(UE::FPropertyTypeNameBuilder& Type) const
 	const FProperty* LocalValueProp = ValueProp;
 	check(LocalKeyProp);
 	check(LocalValueProp);
-	Type.BeginTypeParameters();
+	Type.BeginParameters();
 	LocalKeyProp->SaveTypeName(Type);
 	LocalValueProp->SaveTypeName(Type);
-	Type.EndTypeParameters();
+	Type.EndParameters();
 }
 
 bool FMapProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
@@ -1776,5 +1776,5 @@ bool FMapProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
 	const FProperty* LocalValueProp = ValueProp;
 	check(LocalKeyProp);
 	check(LocalValueProp);
-	return LocalKeyProp->CanSerializeFromTypeName(Type.GetTypeParameter(0)) && LocalValueProp->CanSerializeFromTypeName(Type.GetTypeParameter(1));
+	return LocalKeyProp->CanSerializeFromTypeName(Type.GetParameter(0)) && LocalValueProp->CanSerializeFromTypeName(Type.GetParameter(1));
 }

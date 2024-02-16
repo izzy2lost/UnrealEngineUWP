@@ -543,7 +543,7 @@ bool FStructProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTa
 		return false;
 	}
 
-	if (const FName Name = Type.GetTypeParameterName(0); !Name.IsNone())
+	if (const FName Name = Type.GetParameterName(0); !Name.IsNone())
 	{
 		TStringBuilder<256> NameString(InPlace, Name);
 		if (Struct = FindFirstObject<UScriptStruct>(*NameString, EFindFirstObjectOptions::NativeFirst); Struct)
@@ -565,13 +565,13 @@ void FStructProperty::SaveTypeName(UE::FPropertyTypeNameBuilder& Type) const
 	const UScriptStruct* LocalStruct = Struct;
 	check(LocalStruct);
 
-	Type.BeginTypeParameters();
-	Type.AddTypeName(OriginalType ? FName(**OriginalType) : LocalStruct->GetFName());
+	Type.BeginParameters();
+	Type.AddName(OriginalType ? FName(**OriginalType) : LocalStruct->GetFName());
 	if (const FGuid StructGuid = LocalStruct->GetCustomGuid(); StructGuid.IsValid())
 	{
-		Type.AddTypeName(FName(WriteToString<48>(StructGuid)));
+		Type.AddGuid(StructGuid);
 	}
-	Type.EndTypeParameters();
+	Type.EndParameters();
 }
 
 bool FStructProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
@@ -584,13 +584,13 @@ bool FStructProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
 	const UScriptStruct* LocalStruct = Struct;
 	check(LocalStruct);
 
-	const FName StructName = Type.GetTypeParameterName(0);
+	const FName StructName = Type.GetParameterName(0);
 	if (StructName == LocalStruct->GetFName())
 	{
 		return true;
 	}
 
-	const FName StructGuidName = Type.GetTypeParameterName(1);
+	const FName StructGuidName = Type.GetParameterName(1);
 	if (FGuid StructGuid; !StructGuidName.IsNone() && FGuid::Parse(StructGuidName.ToString(), StructGuid) && StructGuid.IsValid())
 	{
 		return StructGuid == LocalStruct->GetCustomGuid();

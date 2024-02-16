@@ -573,7 +573,7 @@ bool FByteProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag*
 		return false;
 	}
 
-	const FName EnumName = Type.GetTypeParameterName();
+	const FName EnumName = Type.GetParameterName();
 	if (EnumName.IsNone())
 	{
 		return true;
@@ -594,12 +594,9 @@ void FByteProperty::SaveTypeName(UE::FPropertyTypeNameBuilder& Type) const
 
 	if (const UEnum* LocalEnum = Enum)
 	{
-		TStringBuilder<256> EnumName;
-		LocalEnum->GetPathName(nullptr, EnumName);
-
-		Type.BeginTypeParameters();
-		Type.AddTypeName(FName(EnumName));
-		Type.EndTypeParameters();
+		Type.BeginParameters();
+		Type.AddPath(LocalEnum);
+		Type.EndParameters();
 	}
 }
 
@@ -610,7 +607,7 @@ bool FByteProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
 		return false;
 	}
 
-	const FName EnumName = Type.GetTypeParameterName();
+	const FName EnumName = Type.GetParameterName();
 	if (const UEnum* LocalEnum = Enum)
 	{
 		if (EnumName == LocalEnum->GetFName())

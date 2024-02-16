@@ -2125,19 +2125,19 @@ void FProperty::AssignToTag(FPropertyTag& Tag)
 
 bool FProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag)
 {
-	return ensureMsgf(GetID() == Type.GetTypeName(),
+	return ensureMsgf(GetID() == Type.GetName(),
 		TEXT("Failed to load property '%s' of type '%s' from tag of type '%s'"),
-		*WriteToString<64>(GetFName()), *WriteToString<64>(GetID()), *WriteToString<64>(Type.GetTypeName()));
+		*WriteToString<64>(GetFName()), *WriteToString<64>(GetID()), *WriteToString<64>(Type.GetName()));
 }
 
 void FProperty::SaveTypeName(UE::FPropertyTypeNameBuilder& Type) const
 {
-	Type.AddTypeName(GetID());
+	Type.AddName(GetID());
 }
 
 bool FProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
 {
-	return Type.GetTypeName() == GetID();
+	return Type.GetName() == GetID();
 }
 
 FProperty* UStruct::FindPropertyByName(FName InName) const
