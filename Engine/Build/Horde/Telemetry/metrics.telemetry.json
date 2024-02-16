@@ -371,9 +371,41 @@
 			"interval": "01:00:00"
 		},
 		{
-			"id": "horde-jobstep-time",
-			"filter": "$[?(@.Payload.EventName == 'State.JobStepRef' && @.Payload.Duration>0 && @.Payload.State=='Completed')]",
+			"id": "horde-incremental-build-jobs",
+			"filter": "$[?(@.Payload.EventName == 'State.JobStepRef' && @.Payload.JobName=='Incremental Build' && @.Payload.Duration>0 && @.Payload.State=='Completed')]",
+			"groupBy": "$.Payload.StreamId,$.Payload.StepName",
+			"property": "$.Payload.Duration",
+			"function": "Average",
+			"interval": "01:00:00"
+		},
+		{
+			"id": "horde-incremental-ci-jobs",
+			"filter": "$[?(@.Payload.EventName == 'State.JobStepRef' && @.Payload.JobName=='Incremental CI' && @.Payload.Duration>0 && @.Payload.State=='Completed')]",
+			"groupBy": "$.Payload.StreamId,$.Payload.StepName",
+			"property": "$.Payload.Duration",
+			"function": "Average",
+			"interval": "01:00:00"
+		},
+		{
+			"id": "horde-package-and-test-jobs",
+			"filter": "$[?(@.Payload.EventName == 'State.JobStepRef' && search(@.Payload.JobName, \"Package and Test\") && @.Payload.Duration>0 && @.Payload.State=='Completed')]",
 			"groupBy": "$.Payload.StreamId,$.Payload.JobName,$.Payload.StepName",
+			"property": "$.Payload.Duration",
+			"function": "Average",
+			"interval": "01:00:00"
+		},
+		{
+			"id": "horde-nightly-build-jobs",
+			"filter": "$[?(@.Payload.EventName == 'State.JobStepRef' && search(@.Payload.JobName, \"Nightly Build\") && @.Payload.Duration>0 && @.Payload.State=='Completed')]",
+			"groupBy": "$.Payload.StreamId,$.Payload.JobName,$.Payload.StepName",
+			"property": "$.Payload.Duration",
+			"function": "Average",
+			"interval": "01:00:00"
+		},
+		{
+			"id": "horde-compile-jobs",
+			"filter": "$[?(@.Payload.EventName == 'State.JobStepRef' && && @.Payload.JobName=='Editor, Tools & Monolithics' && search(@.Payload.JobName, \"Compile\") && @.Payload.Duration>0 && @.Payload.State=='Completed')]",
+			"groupBy": "$.Payload.StreamId,$.Payload.StepName",
 			"property": "$.Payload.Duration",
 			"function": "Average",
 			"interval": "01:00:00"

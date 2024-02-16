@@ -7,6 +7,10 @@
 				{
 					"name": "Stream",
 					"group": "Build_BranchName",
+					"defaults": [
+						"++fortnite+main",
+						"++ue5+main"
+					]
 				},
 				{
 					"name": "LoadingName",
@@ -44,7 +48,11 @@
 				},
 				{
 					"name": "StreamId",
-					"group": "StreamId"
+					"group": "StreamId",
+					"defaults": [
+						"fortnite-main",
+						"ue5-main"
+					]
 				},
 				{
 					"name": "JobName",
@@ -434,11 +442,38 @@
 					"name": "Build",
 					"charts": [
 						{
-							"name": "Horde Job Step Time",
+							"name": "Incremental Jobs",
 							"metrics": [
 								{
-									"id": "horde-jobstep-time"
-								}	
+									"id": "horde-incremental-build-jobs",
+								},
+								{
+									"id": "horde-incremental-ci-jobs"
+								}
+							]
+						},
+						{
+							"name": "Compilation Jobs",
+							"metrics": [
+								{
+									"id": "horde-compile-jobs"
+								}
+							]
+						},
+						{
+							"name": "Package And Test Jobs",
+							"metrics": [
+								{
+									"id": "horde-package-and-test-jobs"
+								}
+							]
+						},
+						{
+							"name": "Nighty Build Jobs",
+							"metrics": [
+								{
+									"id": "horde-nightly-build-jobs"
+								}
 							]
 						}
 					]
