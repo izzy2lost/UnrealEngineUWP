@@ -429,6 +429,11 @@ void UDMXControlConsoleFaderGroup::PostLoad()
 	Super::PostLoad();
 
 	CachedWeakFaderGroupController = Cast<UDMXControlConsoleControllerBase>(SoftControllerPtr.ToSoftObjectPath().TryLoad());
+	if (!CachedWeakFaderGroupController.IsValid())
+	{
+		Destroy();
+		return;
+	}
 
 	if (SoftFixturePatchPtr.IsNull())
 	{

@@ -110,9 +110,10 @@ void UDMXControlConsoleMatrixCellController::Group()
 		UDMXControlConsoleCellAttributeController* NewController = CreateCellAttributeController(AttributeNameToElements.Value, AttributeNameToElements.Key.ToString());
 		if (NewController)
 		{
-			NewController->SetValue(ControllerValue);
-			NewController->SetMinValue(ControllerMinValue);
-			NewController->SetMaxValue(ControllerMaxValue);
+			constexpr bool bSyncElements = false;
+			NewController->SetValue(ControllerValue, bSyncElements);
+			NewController->SetMinValue(ControllerMinValue, bSyncElements);
+			NewController->SetMaxValue(ControllerMaxValue, bSyncElements);
 		}
 	}
 
