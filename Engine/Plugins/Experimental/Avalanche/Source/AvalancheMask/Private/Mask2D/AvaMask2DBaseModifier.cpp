@@ -177,6 +177,8 @@ void UAvaMask2DBaseModifier::OnFeatherChanged()
 
 void UAvaMask2DBaseModifier::OnCanvasChanged()
 {
+	CanvasParamsToLocal();
+	
 	OnBlurChanged();
 	OnFeatherChanged();
 }
@@ -261,6 +263,10 @@ void UAvaMask2DBaseModifier::OnModifierAdded(EActorModifierCoreEnableReason InRe
 	if (InReason == EActorModifierCoreEnableReason::Load)
 	{
 		LocalParamsToCanvas();
+	}
+	else
+	{
+		CanvasParamsToLocal();
 	}
 }
 
