@@ -40,11 +40,14 @@ namespace UE::DMX::Private
 		/** Creates a menu for the Add Patch combo button */
 		TSharedRef<SWidget> CreateAddPatchMenu();
 
+		/** Creates a menu for the Add Empty combo button */
+		TSharedRef<SWidget> CreateAddEmptyMenu();
+
 		/** Called on Add All Patches button clicked to generate Fader Group Controllers form a Library */
 		FReply OnAddAllPatchesClicked();
 
-		/** Gets the enable state for the Add All Patches button when a DMX Library is selected */
-		bool IsAddAllPatchesButtonEnabled() const;
+		/** Gets the enable state for the Add Patches buttons when a DMX Library is selected */
+		bool IsAddPatchesButtonEnabled() const;
 
 		/** Gets the visibility for the FixturePatchList toolbar  */
 		EVisibility GetFixturePatchListToolbarVisibility() const;

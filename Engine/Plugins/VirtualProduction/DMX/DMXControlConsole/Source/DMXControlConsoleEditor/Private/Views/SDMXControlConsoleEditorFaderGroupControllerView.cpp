@@ -128,8 +128,6 @@ namespace UE::DMX::Private
 									.AutoHeight()
 									[
 										SAssignNew(FaderGroupControllerToolbar, SDMXControlConsoleEditorFaderGroupControllerToolbar, FaderGroupControllerModel, EditorModel.Get())
-										.OnAddFaderGroupController(this, &SDMXControlConsoleEditorFaderGroupControllerView::OnAddFaderGroupController)
-										.OnAddFaderGroupControllerOnNewRow(this, &SDMXControlConsoleEditorFaderGroupControllerView::OnAddFaderGroupControllerOnNewRow)
 										.OnExpanded(this, &SDMXControlConsoleEditorFaderGroupControllerView::OnExpandArrowClicked)
 										.IsExpandedViewModeEnabled(this, &SDMXControlConsoleEditorFaderGroupControllerView::IsCurrentViewMode, EDMXControlConsoleEditorViewMode::Expanded)
 									]
@@ -148,20 +146,6 @@ namespace UE::DMX::Private
 											.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorFaderGroupControllerView::GetViewModeVisibility, EDMXControlConsoleEditorViewMode::Collapsed))
 										]
 
-										// Add button section
-										+ SHorizontalBox::Slot()
-										.HAlign(HAlign_Left)
-										.VAlign(VAlign_Center)
-										.MaxWidth(16.f)
-										.AutoWidth()
-										.Padding(2.f, 0.f, 0.f, 0.f)
-										[
-											SNew(SDMXControlConsoleEditorAddButton)
-											.OnClicked(this, &SDMXControlConsoleEditorFaderGroupControllerView::OnAddFaderGroupControllerClicked)
-											.ToolTipText(LOCTEXT("AddFaderGroupButton_ToolTip", "Add a new Fader Group next."))
-											.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorFaderGroupControllerView::GetAddButtonVisibility))
-										]
-
 										// Faders widget section
 										+ SHorizontalBox::Slot()
 										.HAlign(HAlign_Left)
@@ -171,18 +155,6 @@ namespace UE::DMX::Private
 										[
 											GenerateElementControllersWidget()
 										]
-									]
-
-									// Add row button
-									+ SVerticalBox::Slot()
-									.HAlign(HAlign_Center)
-									.VAlign(VAlign_Bottom)
-									.AutoHeight()
-									[
-										SNew(SDMXControlConsoleEditorAddButton)
-										.OnClicked(this, &SDMXControlConsoleEditorFaderGroupControllerView::OnAddFaderGroupControllerOnNewRowClicked)
-										.ToolTipText(LOCTEXT("AddFaderGroupOnNewRowButton_ToolTip", "Add a new Fader Group on the next row."))
-										.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorFaderGroupControllerView::GetAddRowButtonVisibility))
 									]
 								]
 							]
@@ -302,7 +274,7 @@ namespace UE::DMX::Private
 			//Add Fader button
 			+ SHorizontalBox::Slot()
 			.HAlign(HAlign_Left)
-			.VAlign(VAlign_Top)
+			.VAlign(VAlign_Center)
 			.MaxWidth(20.f)
 			.Padding(2.f, 4.f)
 			.AutoWidth()
@@ -508,120 +480,6 @@ namespace UE::DMX::Private
 		}
 	}
 
-	void SDMXControlConsoleEditorFaderGroupControllerView::OnAddFaderGroupController() const
-	{
-		UDMXControlConsoleFaderGroup* FaderGroup = FaderGroupControllerModel.IsValid() ? FaderGroupControllerModel->GetFirstAvailableFaderGroup() : nullptr;
-		if (!FaderGroup)
-		{ 
-			return;
-		}
-
-		const FScopedTransaction FaderGroupClickedTransaction(LOCTEXT("FaderGroupClickedTransaction", "Add Fader Group"));
-
-		// Create the new fader group
-		UDMXControlConsoleFaderGroupRow& FaderGroupRow = FaderGroup->GetOwnerFaderGroupRowChecked();
-		FaderGroupRow.PreEditChange(nullptr);
-		UDMXControlConsoleFaderGroup* NewFaderGroup = FaderGroupRow.AddFaderGroup(FaderGroup->GetIndex() + 1);
-		FaderGroupRow.PostEditChange();
-
-		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel.IsValid() ? EditorModel->GetControlConsoleLayouts() : nullptr;
-		UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts ? ControlConsoleLayouts->GetActiveLayout() : nullptr;
-		if (!ActiveLayout || !NewFaderGroup)
-		{
-			return;
-		}
-
-		// Add the new controller to the active layout
-		UDMXControlConsoleFaderGroupController* FaderGroupController = FaderGroupControllerModel->GetFaderGroupController();;
-		UDMXControlConsoleEditorGlobalLayoutRow* LayoutRow = ActiveLayout->GetLayoutRow(FaderGroupController);
-		if (!FaderGroupController || !LayoutRow)
-		{
-			return;
-		}
-
-		LayoutRow->PreEditChange(nullptr);
-		const int32 Index = LayoutRow->GetIndex(FaderGroupController);
-		UDMXControlConsoleFaderGroupController* NewController = LayoutRow->CreateFaderGroupController(NewFaderGroup, NewFaderGroup->GetFaderGroupName(), Index + 1);
-		LayoutRow->PostEditChange();
-		if (NewController)
-		{
-			NewController->Modify();
-			NewController->SetIsActive(true);
-
-			ActiveLayout->PreEditChange(nullptr);
-			ActiveLayout->AddToActiveFaderGroupControllers(NewController);
-			ActiveLayout->PostEditChange();
-		}
-	}
-
-	void SDMXControlConsoleEditorFaderGroupControllerView::OnAddFaderGroupControllerOnNewRow() const
-	{
-		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel.IsValid() ? EditorModel->GetControlConsoleLayouts() : nullptr;
-		if (!ControlConsoleLayouts)
-		{
-			return;
-		}
-
-		// Add fader group controller next if vertical sorting
-		UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
-		if (ActiveLayout->GetLayoutMode() == EDMXControlConsoleLayoutMode::Vertical)
-		{
-			OnAddFaderGroupController();
-			return;
-		}
-
-		UDMXControlConsoleFaderGroup* FaderGroup = FaderGroupControllerModel.IsValid() ? FaderGroupControllerModel->GetFirstAvailableFaderGroup() : nullptr;
-		if (!FaderGroup)
-		{
-			return;
-		}
-
-		// Create a new fader group row
-		UDMXControlConsoleFaderGroupRow& FaderGroupRow = FaderGroup->GetOwnerFaderGroupRowChecked();
-		UDMXControlConsoleData& ControlConsoleData = FaderGroupRow.GetOwnerControlConsoleDataChecked();
-
-		const FScopedTransaction FaderGroupRowClickedTransaction(LOCTEXT("FaderGroupRowClickedTransaction", "Add Fader Group"));
-		const int32 RowIndex = FaderGroupRow.GetRowIndex();
-
-		ControlConsoleData.PreEditChange(nullptr);
-		const UDMXControlConsoleFaderGroupRow* NewRow = ControlConsoleData.AddFaderGroupRow(RowIndex + 1);
-		ControlConsoleData.PostEditChange();
-
-		UDMXControlConsoleFaderGroupController* FaderGroupController = FaderGroupControllerModel->GetFaderGroupController();
-		UDMXControlConsoleEditorGlobalLayoutRow* LayoutRow = ActiveLayout->GetLayoutRow(FaderGroupController);
-		if (!FaderGroupController || !LayoutRow)
-		{
-			return;
-		}
-
-		// Create a new layout row
-		const int32 LayoutRowIndex = LayoutRow->GetRowIndex();
-		ActiveLayout->PreEditChange(nullptr);
-		UDMXControlConsoleEditorGlobalLayoutRow* NewLayoutRow = ActiveLayout->AddNewRowToLayout(LayoutRowIndex + 1);
-		ActiveLayout->PostEditChange();
-		if (!NewLayoutRow)
-		{
-			return;
-		}
-
-		UDMXControlConsoleFaderGroup* NewFaderGroup = NewRow && !NewRow->GetFaderGroups().IsEmpty() ? NewRow->GetFaderGroups()[0] : nullptr;
-		const FString NewName = NewFaderGroup ? NewFaderGroup->GetFaderGroupName() : FString();
-
-		// Create the controller for the new fader group
-		NewLayoutRow->PreEditChange(nullptr);
-		UDMXControlConsoleFaderGroupController* NewController = NewLayoutRow->CreateFaderGroupController(NewFaderGroup, NewName);
-		NewLayoutRow->PostEditChange();
-		if (NewController)
-		{
-			NewController->Modify();
-			NewController->SetIsActive(true);
-
-			ActiveLayout->PreEditChange(nullptr);
-			ActiveLayout->AddToActiveFaderGroupControllers(NewController);
-			ActiveLayout->PostEditChange();
-		}
-	}
-
 	void SDMXControlConsoleEditorFaderGroupControllerView::OnFaderGroupControllerGrouped()
 	{
 		OnElementControllerAdded();
@@ -632,18 +490,6 @@ namespace UE::DMX::Private
 	{
 		OnElementControllerAdded();
 		OnElementControllerRemoved();
-	}
-
-	FReply SDMXControlConsoleEditorFaderGroupControllerView::OnAddFaderGroupControllerClicked() const
-	{
-		OnAddFaderGroupController();
-		return FReply::Handled();
-	}
-
-	FReply SDMXControlConsoleEditorFaderGroupControllerView::OnAddFaderGroupControllerOnNewRowClicked() const
-	{
-		OnAddFaderGroupControllerOnNewRow();
-		return FReply::Handled();
 	}
 
 	FReply SDMXControlConsoleEditorFaderGroupControllerView::OnAddElementControllerClicked()

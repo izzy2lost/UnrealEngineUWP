@@ -49,6 +49,8 @@ void FDMXControlConsoleEditorCommands::RegisterCommands()
 	UI_COMMAND(AddPatchToSelection, "Set Patch", "Uses the selected Fixture Patch in the selected Fader Group. Clears the previous patch.", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(GroupPatchRight, "Group Patches to the right", "Groups the selected Fixture Patches to the right on the same row.", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(GroupPatchNextRow, "Group Patches on new row", "Groups the selected Fixture Patches to the next row.", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(AddEmptyGroupRight, "Add Empty Fader Group to the right", "Adds a new Empty Fader Group to the right on the same row.", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(AddEmptyGroupNextRow, "Add Empty Fader Group on new row", "Adds a new Empty Fader Group to the next row.", EUserInterfaceActionType::Button, FInputChord());
 }
 
 #undef LOCTEXT_NAMESPACE 

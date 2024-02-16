@@ -38,17 +38,11 @@ namespace UE::DMX::Private
 		/** Return true if the Fader Group Controllers array contains a reference to the given Controller */
 		bool IsFaderGroupControllerContained(UDMXControlConsoleFaderGroupController* FaderGroupController);
 
-		/** Called when the first Fader Group Controller should be added */
-		FReply OnAddFirstFaderGroupController();
-
 		/** Called when a Fader Group Controller needs to be scrolled into view */
 		void OnScrollIntoView(const UDMXControlConsoleFaderGroupController* FaderGroupController);
 
 		/** Gets the visibility for each Fader Group Controller view in this layout */
 		EVisibility GetFaderGroupControllerViewVisibility(TWeakObjectPtr<UDMXControlConsoleFaderGroupController> FaderGroupController) const;
-
-		/** Gets the visibility for the add button */
-		EVisibility GetAddButtonVisibility() const;
 
 		/** The widget containing the Fader Group Controller views */
 		TSharedPtr<SHorizontalBox> FaderGroupControllersHorizontalBox;

@@ -24,12 +24,6 @@ namespace UE::DMX::Private
 
 		SLATE_BEGIN_ARGS(SDMXControlConsoleEditorFaderGroupControllerToolbar)
 			{}
-			/** Executed when a Fader Group Controller is added */
-			SLATE_EVENT(FSimpleDelegate, OnAddFaderGroupController)
-
-			/** Executed when a new Fader Group Controller is added to a new row */
-			SLATE_EVENT(FSimpleDelegate, OnAddFaderGroupControllerOnNewRow)
-
 			/** Executed when the Fader Group Controller View is expanded */
 			SLATE_EVENT(FDMXControleConsolEditorExpandArrowButtonDelegate, OnExpanded)
 
@@ -65,18 +59,6 @@ namespace UE::DMX::Private
 
 		/** True if the use of the Controller Combo Box widget should be enabled */
 		bool IsControllerComboBoxEnabled() const;
-
-		/** True if a new Fader Group Controller can be added next to this */
-		bool CanAddFaderGroupController() const;
-
-		/** True if a new Fader Group Controller can be added on the next row */
-		bool CanAddFaderGroupControllerOnNewRow() const;
-
-		/** Adds a new Fader Group Controller to the owner row */
-		void OnAddFaderGroupController() const;
-
-		/** Adds a new Fader Group Controller in a new row */
-		void OnAddFaderGroupControllerOnNewRow() const;
 
 		/** Called to generate the Fader Group Controller Info Panel */
 		void OnGetInfoPanel();
@@ -136,8 +118,6 @@ namespace UE::DMX::Private
 		TWeakObjectPtr<UDMXControlConsoleEditorModel> EditorModel;
 
 		// Slate Arguments
-		FSimpleDelegate OnAddFaderGroupControllerDelegate;
-		FSimpleDelegate OnAddFaderGroupControllerOnNewRowDelegate;
 		FDMXFaderGroupControllerToolbarRetValDelegate IsExpandedViewModeEnabledDelegate;
 	};
 }

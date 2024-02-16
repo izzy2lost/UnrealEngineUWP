@@ -19,6 +19,7 @@
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/SBoxPanel.h"
+#include "Widgets/SDMXControlConsoleAddEmptyFaderGroupMenu.h"
 #include "Widgets/SDMXControlConsoleAddFixturePatchMenu.h"
 #include "Widgets/SDMXControlConsoleFixturePatchList.h"
 #include "Widgets/Text/STextBlock.h"
@@ -104,7 +105,7 @@ namespace UE::DMX::Private
 			SNew(SHorizontalBox)
 			.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorFixturePatchVerticalBox::GetFixturePatchListToolbarVisibility))
 
-			// Add All Button
+			// Add All Patches Button
 			+ SHorizontalBox::Slot()
 			.AutoWidth()
 			.MaxWidth(160.f)
@@ -116,18 +117,18 @@ namespace UE::DMX::Private
 				.ForegroundColor(FSlateColor::UseStyle())
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Center)
-				.IsEnabled(this, &SDMXControlConsoleEditorFixturePatchVerticalBox::IsAddAllPatchesButtonEnabled)
+				.IsEnabled(this, &SDMXControlConsoleEditorFixturePatchVerticalBox::IsAddPatchesButtonEnabled)
 				.OnClicked(this, &SDMXControlConsoleEditorFixturePatchVerticalBox::OnAddAllPatchesClicked)
 				[
 					GenerateAddButtonContentLambda
 					(
-						LOCTEXT("AddAllFixturePatchFromList", "Add All Patches"),
-						LOCTEXT("AddAllFixturePatchFromList_ToolTip", "Add all Fixture Patches from the list.")
+						LOCTEXT("AddAllFixturePatchesFromList", "Add All Patches"),
+						LOCTEXT("AddAllFixturePatchesFromList_ToolTip", "Add all Fixture Patches from the list.")
 					)
 				]
 			]
 
-			// Add Combo Button
+			// Add Patch Button
 			+ SHorizontalBox::Slot()
 			.AutoWidth()
 			.MaxWidth(160.f)
@@ -140,6 +141,7 @@ namespace UE::DMX::Private
 				.HasDownArrow(true)
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Center)
+				.IsEnabled(this, &SDMXControlConsoleEditorFixturePatchVerticalBox::IsAddPatchesButtonEnabled)
 				.OnGetMenuContent(this, &SDMXControlConsoleEditorFixturePatchVerticalBox::CreateAddPatchMenu)
 				.ButtonContent()
 				[
@@ -147,6 +149,30 @@ namespace UE::DMX::Private
 					(
 						LOCTEXT("AddFixturePatchFromList", "Add Patch"),
 						LOCTEXT("AddFixturePatchFromList_ToolTip", "Add a Fixture Patch from the list.")
+					)
+				]
+			]
+
+			// Add Empty Button
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.MaxWidth(160.f)
+			.HAlign(HAlign_Left)
+			.Padding(4.f, 0.f, 8.f, 8.f)
+			[
+				SNew(SComboButton)
+				.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("Button"))
+				.ForegroundColor(FSlateColor::UseStyle())
+				.HasDownArrow(true)
+				.HAlign(HAlign_Center)
+				.VAlign(VAlign_Center)
+				.OnGetMenuContent(this, &SDMXControlConsoleEditorFixturePatchVerticalBox::CreateAddEmptyMenu)
+				.ButtonContent()
+				[
+					GenerateAddButtonContentLambda
+					(
+						LOCTEXT("AddEmptyFaderGroup", "Add Empty"),
+						LOCTEXT("AddEmptyFaderGroup_ToolTip", "Add an Empty fader group to the Control Console.")
 					)
 				]
 			];
@@ -182,6 +208,24 @@ namespace UE::DMX::Private
 		}
 
 		return SNullWidget::NullWidget;
+	}
+
+	TSharedRef<SWidget> SDMXControlConsoleEditorFixturePatchVerticalBox::CreateAddEmptyMenu()
+	{
+		if (!EditorModel.IsValid())
+		{
+			return SNullWidget::NullWidget;
+		}
+
+		// Show Add Empty buttons only if the current layout is the user layout
+		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
+		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts ? ControlConsoleLayouts->GetActiveLayout() : nullptr;
+		if (!ActiveLayout || ActiveLayout == &ControlConsoleLayouts->GetDefaultLayoutChecked())
+		{
+			return SNullWidget::NullWidget;
+		}
+
+		return SNew(SDMXControlConsoleAddEmptyFaderGroupMenu, EditorModel.Get());
 	}
 
 	FReply SDMXControlConsoleEditorFixturePatchVerticalBox::OnAddAllPatchesClicked()
@@ -246,7 +290,7 @@ namespace UE::DMX::Private
 		return FReply::Handled();
 	}
 
-	bool SDMXControlConsoleEditorFixturePatchVerticalBox::IsAddAllPatchesButtonEnabled() const
+	bool SDMXControlConsoleEditorFixturePatchVerticalBox::IsAddPatchesButtonEnabled() const
 	{
 		const UDMXControlConsoleData* ControlConsoleData = EditorModel.IsValid() ? EditorModel->GetControlConsoleData() : nullptr;
 		return ControlConsoleData && ControlConsoleData->GetDMXLibrary();

@@ -2,7 +2,9 @@
 
 #include "DMXControlConsoleFaderGroupControllerModel.h"
 
+#include "Algo/Transform.h"
 #include "DMXControlConsoleFaderGroup.h"
+#include "Layouts/Controllers/DMXControlConsoleElementController.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
 #include "Models/DMXControlConsoleEditorModel.h"
@@ -34,6 +36,26 @@ namespace UE::DMX::Private
 		}
 
 		return FaderGroups[0].Get();
+	}
+
+	TArray<UDMXControlConsoleElementController*> FDMXControlConsoleFaderGroupControllerModel::GetMatchingFilterElementControllersOnly() const
+	{
+		TArray<UDMXControlConsoleElementController*> MatchingFilterElementControllers;
+		if (WeakFaderGroupController.IsValid())
+		{
+			const TArray<UDMXControlConsoleElementController*>& ElementControllers = WeakFaderGroupController->GetElementControllers();
+			Algo::TransformIf(ElementControllers, MatchingFilterElementControllers,
+				[](const UDMXControlConsoleElementController* ElementController)
+				{
+					return ElementController && ElementController->IsMatchingFilter();
+				},
+				[](UDMXControlConsoleElementController* ElementController)
+				{
+					return ElementController;
+				});
+		}
+
+		return MatchingFilterElementControllers;
 	}
 
 	FString FDMXControlConsoleFaderGroupControllerModel::GetRelativeControllerName() const
