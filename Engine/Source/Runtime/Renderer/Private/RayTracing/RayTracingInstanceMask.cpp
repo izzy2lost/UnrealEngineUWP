@@ -26,11 +26,14 @@ uint8 ComputeRayTracingInstanceMask(ERayTracingInstanceMaskType MaskType, ERayTr
 		case ERayTracingInstanceMaskType::Translucent:
 			Mask = RAY_TRACING_MASK_TRANSLUCENT;
 			break;
+		case ERayTracingInstanceMaskType::OpaqueShadow:
+			Mask = RAY_TRACING_MASK_OPAQUE_SHADOW;
+			break;
+		case ERayTracingInstanceMaskType::TranslucentShadow:
+			Mask = RAY_TRACING_MASK_TRANSLUCENT_SHADOW;
+			break;
 		case ERayTracingInstanceMaskType::ThinShadow:
 			Mask = RAY_TRACING_MASK_THIN_SHADOW;
-			break;
-		case ERayTracingInstanceMaskType::Shadow:
-			Mask = RAY_TRACING_MASK_SHADOW;
 			break;
 		case ERayTracingInstanceMaskType::FarField:
 			Mask = RAY_TRACING_MASK_FAR_FIELD;
@@ -60,11 +63,14 @@ uint8 ComputeRayTracingInstanceMask(ERayTracingInstanceMaskType MaskType, ERayTr
 		case ERayTracingInstanceMaskType::Translucent:
 			Mask = PATHTRACER_MASK_CAMERA | PATHTRACER_MASK_INDIRECT;
 			break;
+		case ERayTracingInstanceMaskType::OpaqueShadow:
+			Mask = PATHTRACER_MASK_SHADOW;
+			break;
+		case ERayTracingInstanceMaskType::TranslucentShadow:
+			Mask = PATHTRACER_MASK_SHADOW;
+			break;
 		case ERayTracingInstanceMaskType::ThinShadow:
 			Mask = PATHTRACER_MASK_HAIR_SHADOW;
-			break;
-		case ERayTracingInstanceMaskType::Shadow:
-			Mask = PATHTRACER_MASK_SHADOW;
 			break;
 		case ERayTracingInstanceMaskType::FarField:
 			Mask = PATHTRACER_MASK_IGNORE;
@@ -87,16 +93,22 @@ uint8 ComputeRayTracingInstanceMask(ERayTracingInstanceMaskType MaskType, ERayTr
 	return Mask;
 }
 
-uint8 ComputeRayTracingInstanceShadowMask(ERayTracingViewMaskMode MaskMode)
+uint8 BlendModeToRayTracingInstanceMask(const EBlendMode BlendMode, bool bCastShadow, ERayTracingViewMaskMode MaskMode)
 {
-	return ComputeRayTracingInstanceMask(ERayTracingInstanceMaskType::Shadow, MaskMode);
-}
+	uint8 InstanceMask = 0;
 
+	if (IsOpaqueOrMaskedBlendMode(BlendMode))
+	{
+		InstanceMask |= ComputeRayTracingInstanceMask(ERayTracingInstanceMaskType::Opaque, MaskMode);
+		InstanceMask |= bCastShadow ? ComputeRayTracingInstanceMask(ERayTracingInstanceMaskType::OpaqueShadow, MaskMode) : 0;
+	}
+	else
+	{
+		InstanceMask |= ComputeRayTracingInstanceMask(ERayTracingInstanceMaskType::Translucent, MaskMode);
+		InstanceMask |= bCastShadow ? ComputeRayTracingInstanceMask(ERayTracingInstanceMaskType::TranslucentShadow, MaskMode) : 0;
+	}
 
-uint8 BlendModeToRayTracingInstanceMask(const EBlendMode BlendMode, ERayTracingViewMaskMode MaskMode)
-{
-	ERayTracingInstanceMaskType Type = IsOpaqueOrMaskedBlendMode(BlendMode) ? ERayTracingInstanceMaskType::Opaque : ERayTracingInstanceMaskType::Translucent;
-	return ComputeRayTracingInstanceMask(Type, MaskMode);
+	return InstanceMask;
 }
 
 FSceneProxyRayTracingMaskInfo GetSceneProxyRayTracingMaskInfo(const FPrimitiveSceneProxy& PrimitiveSceneProxy, const FSceneViewFamily* SceneViewFamily)
@@ -154,9 +166,10 @@ FRayTracingMaskAndFlags BuildRayTracingInstanceMaskAndFlags(TArrayView<const FMe
 		{
 			const FMaterial& Material = MeshBatch.MaterialRenderProxy->GetIncompleteMaterialWithFallback(FeatureLevel);
 			const EBlendMode BlendMode = Material.GetBlendMode();
-			Result.Mask |= BlendModeToRayTracingInstanceMask(BlendMode, MaskMode);
-			bAllSegmentsOpaque &= BlendMode == BLEND_Opaque;
 			const bool bSegmentCastsShadow = MeshBatch.CastRayTracedShadow && Material.CastsRayTracedShadows() && BlendMode != BLEND_Additive;
+
+			Result.Mask |= BlendModeToRayTracingInstanceMask(BlendMode, bSegmentCastsShadow, MaskMode);
+			bAllSegmentsOpaque &= BlendMode == BLEND_Opaque;
 			bAnySegmentsCastShadow |= bSegmentCastsShadow;
 			bAllSegmentsCastShadow &= bSegmentCastsShadow;
 			bAnySegmentsDecal |= Material.IsDeferredDecal();
@@ -170,15 +183,15 @@ FRayTracingMaskAndFlags BuildRayTracingInstanceMaskAndFlags(TArrayView<const FMe
 	Result.bAnySegmentsDecal = bAnySegmentsDecal;
 	Result.bAllSegmentsDecal = bAllSegmentsDecal;
 
-	Result.Mask |= bAnySegmentsCastShadow ? ComputeRayTracingInstanceMask(ERayTracingInstanceMaskType::Shadow, MaskMode) : 0;
-
 	const bool bIsHairStrands = Result.Mask & ComputeRayTracingInstanceMask(ERayTracingInstanceMaskType::HairStrands, MaskMode);
 	if (bIsHairStrands)
 	{
 		// For hair strands, opaque/translucent mask should be cleared to make sure geometry is only in the hair group. 
 		// If any segment receives shadow, it should receive only thin shadow instead of shadow.
 
-		Result.Mask &= ~(ComputeRayTracingInstanceMask(ERayTracingInstanceMaskType::Shadow, MaskMode) |
+		Result.Mask &= ~(
+			ComputeRayTracingInstanceMask(ERayTracingInstanceMaskType::OpaqueShadow, MaskMode) |
+			ComputeRayTracingInstanceMask(ERayTracingInstanceMaskType::TranslucentShadow, MaskMode) |
 			ComputeRayTracingInstanceMask(ERayTracingInstanceMaskType::ThinShadow, MaskMode) |
 			ComputeRayTracingInstanceMask(ERayTracingInstanceMaskType::Translucent, MaskMode) |
 			ComputeRayTracingInstanceMask(ERayTracingInstanceMaskType::Opaque, MaskMode));
@@ -247,9 +260,7 @@ void SetupRayTracingMeshCommandMaskAndStatus(FRayTracingMeshCommand& MeshCommand
 	MeshCommand.bTwoSided = MaterialResource.IsTwoSided();
 	MeshCommand.bIsTranslucent = MaterialResource.GetBlendMode() == EBlendMode::BLEND_Translucent;
 
-	MeshCommand.InstanceMask = BlendModeToRayTracingInstanceMask(MaterialResource.GetBlendMode(), MaskMode);
-
-	MeshCommand.InstanceMask |= MeshCommand.bCastRayTracedShadows ? ComputeRayTracingInstanceMask(ERayTracingInstanceMaskType::Shadow, MaskMode) : 0;
+	MeshCommand.InstanceMask = BlendModeToRayTracingInstanceMask(MaterialResource.GetBlendMode(), MeshCommand.bCastRayTracedShadows, MaskMode);
 
 	if (!PrimitiveSceneProxy)
 	{
