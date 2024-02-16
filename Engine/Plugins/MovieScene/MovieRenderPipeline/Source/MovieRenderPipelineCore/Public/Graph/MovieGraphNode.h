@@ -241,6 +241,9 @@ public:
 
 	/** Gets the first input pin on the node which has a connection, or nullptr if no pins are connected. */
 	UMovieGraphPin* GetFirstConnectedInputPin() const;
+	
+	/** Gets the first output pin on the node which has a connection, or nullptr if no pins are connected. */
+	UMovieGraphPin* GetFirstConnectedOutputPin() const;
 
 	/** Gets the GUID which uniquely identifies this node. */
 	const FGuid& GetGuid() const { return Guid; }
