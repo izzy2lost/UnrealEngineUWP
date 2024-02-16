@@ -12,6 +12,8 @@
 #include "EditMode/ControlRigEditMode.h"
 
 class SControlRigTweenWidget;
+class SControlRigDetails;
+class SControlRigOutliner;
 
 class FControlRigEditModeToolkit : public FModeToolkit
 {
@@ -67,6 +69,9 @@ public:
 	static const FName OutlinerTabName;
 	static const FName SpacePickerTabName;
 
+	static TSharedPtr<SControlRigDetails> Details;
+	static TSharedPtr<SControlRigOutliner> Outliner;
+
 protected:
 
 	void CreateAndShowTweenOverlay();
@@ -89,14 +94,11 @@ protected:
 	static bool bPoseTabOpen;
 	static bool bSnapperTabOpen;
 	static bool bTweenOpen;
-
-
 private:
 	/** The edit mode we are bound to */
 	FControlRigEditMode& EditMode;
 	TSharedPtr<SWidget> TweenWidgetParent;
 	TSharedPtr<SControlRigTweenWidget> TweenWidget;
-
 
 	FVector2D InViewportTweenWidgetLocation;
 	/** The tools widget */

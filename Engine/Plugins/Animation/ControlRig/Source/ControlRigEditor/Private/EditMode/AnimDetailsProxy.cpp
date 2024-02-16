@@ -648,6 +648,7 @@ static EPropertyKeyedStatus GetKeyedStatusInSection(const UMovieSceneSection* Se
 				SectionKeyedStatus = FMath::Max(SectionKeyedStatus, EPropertyKeyedStatus::PartiallyKeyed);
 			}
 		}
+		break; //just do it for one type
 	}
 
 	if (EmptyChannelCount == 0 && SectionKeyedStatus == EPropertyKeyedStatus::PartiallyKeyed)

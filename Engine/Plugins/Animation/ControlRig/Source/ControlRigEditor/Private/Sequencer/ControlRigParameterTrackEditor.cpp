@@ -2015,11 +2015,13 @@ void FControlRigParameterTrackEditor::OnActivateSequenceChanged(FMovieSceneSeque
 			{
 				GEditor->GetTimerManager()->SetTimerForNextTick([this, ControlRigEditMode]()
 				{
-					for(TWeakObjectPtr<UControlRig> &ControlRig: BoundControlRigs)
-					{ 
+					bool bSequencerSet = false;
+					for (TWeakObjectPtr<UControlRig>& ControlRig : BoundControlRigs)
+					{
 						if (ControlRig.IsValid())
 						{
 							ControlRigEditMode->AddControlRigObject(ControlRig.Get(), GetSequencer());
+							bSequencerSet = true;
 							for (int32 Index = 0; Index < PreviousSelectedControlRigs.Num(); ++Index)
 							{
 								if (ControlRig.Get()->GetClass() == PreviousSelectedControlRigs[Index].Key)
@@ -2031,8 +2033,12 @@ void FControlRigParameterTrackEditor::OnActivateSequenceChanged(FMovieSceneSeque
 									PreviousSelectedControlRigs.RemoveAt(Index);
 									break;
 								}
-							}	
+							}
 						}
+					}
+					if (bSequencerSet == false)
+					{
+						ControlRigEditMode->SetSequencer(GetSequencer());
 					}
 					PreviousSelectedControlRigs.Reset();
 				});
@@ -3144,7 +3150,7 @@ void FControlRigParameterTrackEditor::HandleControlSelected(UControlRig* Subject
 			//Force refresh later, not now
 			bSkipNextSelectionFromTimer = bSkipNextSelectionFromTimer ||
 				(bIsSelectingIndirectControl && ControlElement->Settings.AnimationType == ERigControlAnimationType::AnimationControl);
-			GetSequencer()->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::RefreshTree);
+
 		}
 	}
 }

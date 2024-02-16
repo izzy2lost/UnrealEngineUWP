@@ -94,7 +94,17 @@ void SControlRigDetails::Construct(const FArguments& InArgs, FControlRigEditMode
 		];
 
 	SetEditMode(InEditMode);
-	SequencerTracker.SetSequencerAndDetails(InEditMode.GetWeakSequencer(), this);
+
+}
+
+void SControlRigDetails::SetEditMode(FControlRigEditMode& InEditMode)
+{
+	FControlRigBaseDockableView::SetEditMode(InEditMode);
+	if (GetEditMode()->GetWeakSequencer().IsValid())
+	{
+		SequencerTracker.SetSequencerAndDetails(GetEditMode()->GetWeakSequencer(), this);
+		UpdateProxies();
+	}
 }
 
 SControlRigDetails::~SControlRigDetails()

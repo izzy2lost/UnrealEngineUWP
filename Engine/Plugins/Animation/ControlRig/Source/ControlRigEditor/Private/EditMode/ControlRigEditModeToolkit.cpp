@@ -46,6 +46,9 @@ const FName FControlRigEditModeToolkit::OutlinerTabName = FName(TEXT("ControlRig
 const FName FControlRigEditModeToolkit::DetailsTabName = FName(TEXT("ControlRigDetailsTab"));
 const FName FControlRigEditModeToolkit::SpacePickerTabName = FName(TEXT("ControlRigSpacePicker"));
 
+TSharedPtr<SControlRigDetails> FControlRigEditModeToolkit::Details = nullptr;
+TSharedPtr<SControlRigOutliner> FControlRigEditModeToolkit::Outliner = nullptr;
+
 void FControlRigEditModeToolkit::Init(const TSharedPtr<IToolkitHost>& InitToolkitHost)
 {
 	SAssignNew(ModeTools, SControlRigEditModeTools, SharedThis(this), EditMode);
@@ -190,7 +193,7 @@ TSharedRef<SDockTab> SpawnOutlinerTab(const FSpawnTabArgs& Args, FControlRigEdit
 {
 	return SNew(SDockTab)
 		[
-			SNew(SControlRigOutliner, *InEditorMode)
+			SAssignNew(FControlRigEditModeToolkit::Outliner, SControlRigOutliner, *InEditorMode)
 		];
 }
 
@@ -206,7 +209,7 @@ TSharedRef<SDockTab> SpawnDetailsTab(const FSpawnTabArgs& Args, FControlRigEditM
 {
 	return SNew(SDockTab)
 		[
-			SNew(SControlRigDetails, *InEditorMode)
+			SAssignNew(FControlRigEditModeToolkit::Details,SControlRigDetails, *InEditorMode)
 		];
 }
 
