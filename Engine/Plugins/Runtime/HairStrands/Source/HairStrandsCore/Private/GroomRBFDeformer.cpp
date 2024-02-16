@@ -664,7 +664,9 @@ void FGroomRBFDeformer::GetRBFDeformedGroomAsset(const UGroomAsset* InGroomAsset
 		// identical skel. mesh render data and ensure that the hair deformation is done correctly.
 		check(BindingAsset->GetGroomBindingType() == EGroomBindingMeshType::SkeletalMesh);
 		USkeletalMesh* TargetSkeletalMesh = BindingAsset->GetTargetSkeletalMesh();
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		FScopedSkeletalMeshRenderData TargetSkeletalMeshScopedData(TargetSkeletalMesh);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		{
 			ITargetPlatform* RunningPlatform = GetTargetPlatformManagerRef().GetRunningTargetPlatform();
 			FSkinnedAssetAsyncBuildScope AsyncBuildScope(TargetSkeletalMesh);
@@ -675,7 +677,9 @@ void FGroomRBFDeformer::GetRBFDeformedGroomAsset(const UGroomAsset* InGroomAsset
 		const int32 MeshLODIndex = 0;
 
 		// Get the target mesh vertices (source and target)
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		const FSkeletalMeshRenderData* SkeletalMeshData_Target = TargetSkeletalMeshScopedData.GetData();
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		TArray<FVector3f> MeshVertexPositionsBuffer_Target;
 		ExtractSkeletalVertexPosition(SkeletalMeshData_Target, MeshLODIndex, MeshVertexPositionsBuffer_Target);
 

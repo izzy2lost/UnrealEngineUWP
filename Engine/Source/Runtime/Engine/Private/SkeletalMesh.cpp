@@ -1574,6 +1574,9 @@ FScopedSkeletalMeshRenderData::~FScopedSkeletalMeshRenderData()
 	{
 		check(Mesh);
 		Lock->Trigger();
+		//After we trigger the event we must tick the FSkinnedAssetCompilingManager so it clear the skeletal mesh AsyncTask and call
+		//FinishAsyncTaskInternal to terminate the LockPropertiesUntil
+		FSkinnedAssetCompilingManager::Get().FinishCompilation({ Mesh });
 	}
 
 	Data = nullptr;
@@ -2058,6 +2061,8 @@ void USkeletalMesh::FinishBuildInternal(FSkinnedAssetBuildContext& Context)
 FEvent* USkeletalMesh::LockPropertiesUntil()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(USkeletalMesh::Import);
+	
+	check(IsInGameThread());
 	
 	FEvent* Event = FPlatformProcess::GetSynchEventFromPool();
 	check(Event);
@@ -3466,11 +3471,6 @@ void USkeletalMesh::FinishPostLoadInternal(FSkinnedAssetPostLoadContext& Context
 	// This scope allows us to use any locked properties without causing stalls
 	FSkinnedAssetAsyncBuildScope AsyncBuildScope(this);
 
-	if (Context.bHasCachedDerivedData)
-	{
-		PostMeshCached.Broadcast(this);
-	}
-
 	//Make sure unused cloth are unbind
 	if (GetMeshClothingAssets().Num() > 0)
 	{
@@ -3652,6 +3652,15 @@ void USkeletalMesh::FinishPostLoadInternal(FSkinnedAssetPostLoadContext& Context
 #endif
 
 	ReleaseAsyncProperty();
+#if WITH_EDITOR
+	if (Context.bHasCachedDerivedData)
+	{
+		//We must call PostMeshCached after:
+		// - The async properties are release
+		// - The init resource is done
+		PostMeshCached.Broadcast(this);
+	}
+#endif //WITH_EDITOR
 }
 
 #if WITH_EDITORONLY_DATA

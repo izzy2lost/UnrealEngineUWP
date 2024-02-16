@@ -417,8 +417,12 @@ namespace NSSkeletalMeshSourceFileLabels
 struct ENGINE_API FScopedSkeletalMeshRenderData
 {
 public:
+	UE_DEPRECATED(5.4, "This class is deprecated, there is no replacement because this is not a safe async design.")
 	FScopedSkeletalMeshRenderData(USkeletalMesh* Mesh);
+	
 	~FScopedSkeletalMeshRenderData();
+
+	UE_DEPRECATED(5.4, "This class is deprecated, there is no replacement because this is not a safe async design.")
 	const FSkeletalMeshRenderData* GetData() const;
 private:
 	FEvent* Lock = nullptr;
