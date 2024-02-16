@@ -32,7 +32,6 @@ void UDMXControlConsoleElementController::Possess(const TScriptInterface<IDMXCon
 	if (!Elements.Contains(InElement))
 	{
 		Elements.AddUnique(InElement);
-		SyncElements();
 	}
 }
 
@@ -61,7 +60,6 @@ void UDMXControlConsoleElementController::Possess(TArray<TScriptInterface<IDMXCo
 		}
 
 		Elements.Append(InElements);
-		SyncElements();
 	}
 }
 
@@ -173,62 +171,71 @@ void UDMXControlConsoleElementController::SetUserName(const FString& NewName)
 	UserName = NewName;
 }
 
-void UDMXControlConsoleElementController::SetValue(float NewValue)
+void UDMXControlConsoleElementController::SetValue(float NewValue, bool bSyncElements)
 {
 	Value = FMath::Clamp(NewValue, MinValue, MaxValue);
 
-	const TArray<UDMXControlConsoleFaderBase*> Faders = GetFaders();
-	for (TWeakObjectPtr<UDMXControlConsoleFaderBase> Fader : Faders)
+	if (bSyncElements)
 	{
-		if (!Fader.IsValid())
+		const TArray<UDMXControlConsoleFaderBase*> Faders = GetFaders();
+		for (TWeakObjectPtr<UDMXControlConsoleFaderBase> Fader : Faders)
 		{
-			continue;
-		}
+			if (!Fader.IsValid())
+			{
+				continue;
+			}
 
-		const uint8 NumChannels = static_cast<uint8>(Fader->GetDataType()) + 1;
-		const uint32 ValueRange = static_cast<uint32>(FMath::Pow(2.f, 8.f * NumChannels) - 1);
-		const uint32 NewFaderValue = static_cast<uint32>(FMath::RoundToInt(ValueRange * Value));
-		Fader->SetValue(NewFaderValue);
+			const uint8 NumChannels = static_cast<uint8>(Fader->GetDataType()) + 1;
+			const uint32 ValueRange = static_cast<uint32>(FMath::Pow(2.f, 8.f * NumChannels) - 1);
+			const uint32 NewFaderValue = static_cast<uint32>(FMath::RoundToInt(ValueRange * Value));
+			Fader->SetValue(NewFaderValue);
+		}
 	}
 }
 
-void UDMXControlConsoleElementController::SetMinValue(float NewMinValue)
+void UDMXControlConsoleElementController::SetMinValue(float NewMinValue, bool bSyncElements)
 {
 	MinValue = FMath::Clamp(NewMinValue, 0.f, MaxValue);
 	Value = FMath::Clamp(Value, MinValue, MaxValue);
 
-	const TArray<UDMXControlConsoleFaderBase*> Faders = GetFaders();
-	for (TWeakObjectPtr<UDMXControlConsoleFaderBase> Fader : Faders)
+	if (bSyncElements)
 	{
-		if (!Fader.IsValid())
+		const TArray<UDMXControlConsoleFaderBase*> Faders = GetFaders();
+		for (TWeakObjectPtr<UDMXControlConsoleFaderBase> Fader : Faders)
 		{
-			continue;
-		}
+			if (!Fader.IsValid())
+			{
+				continue;
+			}
 
-		const uint8 NumChannels = static_cast<uint8>(Fader->GetDataType()) + 1;
-		const uint32 ValueRange = static_cast<uint32>(FMath::Pow(2.f, 8.f * NumChannels) - 1);
-		const uint32 NewFaderMinValue = static_cast<uint32>(FMath::RoundToInt((ValueRange * MinValue)));
-		Fader->SetMinValue(NewFaderMinValue);
+			const uint8 NumChannels = static_cast<uint8>(Fader->GetDataType()) + 1;
+			const uint32 ValueRange = static_cast<uint32>(FMath::Pow(2.f, 8.f * NumChannels) - 1);
+			const uint32 NewFaderMinValue = static_cast<uint32>(FMath::RoundToInt((ValueRange * MinValue)));
+			Fader->SetMinValue(NewFaderMinValue);
+		}
 	}
 }
 
-void UDMXControlConsoleElementController::SetMaxValue(float NewMaxValue)
+void UDMXControlConsoleElementController::SetMaxValue(float NewMaxValue, bool bSyncElements)
 {
 	MaxValue = FMath::Clamp(NewMaxValue, MinValue, 1.f);
 	Value = FMath::Clamp(Value, MinValue, MaxValue);
 
-	const TArray<UDMXControlConsoleFaderBase*> Faders = GetFaders();
-	for (TWeakObjectPtr<UDMXControlConsoleFaderBase> Fader : Faders)
+	if (bSyncElements)
 	{
-		if (!Fader.IsValid())
+		const TArray<UDMXControlConsoleFaderBase*> Faders = GetFaders();
+		for (TWeakObjectPtr<UDMXControlConsoleFaderBase> Fader : Faders)
 		{
-			continue;
-		}
+			if (!Fader.IsValid())
+			{
+				continue;
+			}
 
-		const uint8 NumChannels = static_cast<uint8>(Fader->GetDataType()) + 1;
-		const uint32 ValueRange = static_cast<uint32>(FMath::Pow(2.f, 8.f * NumChannels) - 1);
-		const uint32 NewFaderMaxValue = static_cast<uint32>(FMath::RoundToInt(ValueRange * MaxValue));
-		Fader->SetMaxValue(NewFaderMaxValue);
+			const uint8 NumChannels = static_cast<uint8>(Fader->GetDataType()) + 1;
+			const uint32 ValueRange = static_cast<uint32>(FMath::Pow(2.f, 8.f * NumChannels) - 1);
+			const uint32 NewFaderMaxValue = static_cast<uint32>(FMath::RoundToInt(ValueRange * MaxValue));
+			Fader->SetMaxValue(NewFaderMaxValue);
+		}
 	}
 }
 
@@ -387,31 +394,6 @@ TStatId UDMXControlConsoleElementController::GetStatId() const
 ETickableTickType UDMXControlConsoleElementController::GetTickableTickType() const
 {
 	return ETickableTickType::Conditional;
-}
-
-void UDMXControlConsoleElementController::SyncElements() const
-{
-	const TArray<UDMXControlConsoleFaderBase*> Faders = GetFaders();
-	for (TWeakObjectPtr<UDMXControlConsoleFaderBase> Fader : Faders)
-	{
-		if (!Fader.IsValid())
-		{
-			continue;
-		}
-
-		const uint8 NumChannels = static_cast<uint8>(Fader->GetDataType()) + 1;
-		const uint32 ValueRange = static_cast<uint32>(FMath::Pow(2.f, 8.f * NumChannels) - 1);
-
-		const uint32 NewFaderValue = static_cast<uint32>(FMath::RoundToInt(ValueRange * Value));
-		const uint32 NewFaderMinValue = static_cast<uint32>(FMath::RoundToInt(ValueRange * MinValue));
-		const uint32 NewFaderMaxValue = static_cast<uint32>(FMath::RoundToInt(ValueRange * MaxValue));
-
-		Fader->Modify();
-		Fader->SetValue(NewFaderValue);
-		Fader->SetMinValue(NewFaderMinValue);
-		Fader->SetMaxValue(NewFaderMaxValue);
-		Fader->SetLocked(bIsLocked);
-	}
 }
 
 #undef LOCTEXT_NAMESPACE

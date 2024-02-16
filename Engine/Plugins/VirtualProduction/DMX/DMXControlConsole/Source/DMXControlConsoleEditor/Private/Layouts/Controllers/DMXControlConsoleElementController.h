@@ -66,19 +66,19 @@ public:
 	float GetValue() const { return Value; }
 
 	/** Sets the value of the Controller and all its Elements */
-	void SetValue(float NewValue);
+	void SetValue(float NewValue, bool bSyncElements = true);
 
 	/** Returns the min value of the Controller */
 	float GetMinValue() const { return MinValue; }
 
 	/** Sets the min value of the Controller and all its Elements */
-	virtual void SetMinValue(float NewMinValue);
+	virtual void SetMinValue(float NewMinValue, bool bSyncElements = true);
 
 	/** Returns the max value of the Controller */
 	float GetMaxValue() const { return MaxValue; }
 
 	/** Sets the max value of the Controller and all its Elements */
-	virtual void SetMaxValue(float NewMaxValue);
+	virtual void SetMaxValue(float NewMaxValue, bool bSyncElements = true);
 
 	/** Resets all the Elements in this Controller to their default attribute values */
 	void ResetToDefault();
@@ -130,9 +130,6 @@ protected:
 	TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>> Elements;
 
 private:
-	/** Synchronizes each Element of the Controller to its parameters */
-	void SyncElements() const;
-
 	/** The current value of the Controller */
 	UPROPERTY(EditAnywhere, meta = (HideEditConditionToggle, EditCondition = "!bIsLocked", UIMin = 0, UIMax = 1), Category = "DMX Element Controller")
 	float Value = 0.f;
