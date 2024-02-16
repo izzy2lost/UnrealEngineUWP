@@ -938,6 +938,10 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 
 		TArray<FGeneratedImageProperties> ImageProperties;
 		GenerationContext.ImageProperties.GenerateValueArray(ImageProperties);
+		
+		// Must sort image properties by ImagePropertiesIndex so that ImageNames point to the right properties.
+		ImageProperties.Sort([](const FGeneratedImageProperties& PropsA, const FGeneratedImageProperties& PropsB)
+			{ return PropsA.ImagePropertiesIndex < PropsB.ImagePropertiesIndex;	});
 
 		ModelResources.ImageProperties.Empty(ImageProperties.Num());
 

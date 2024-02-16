@@ -53,6 +53,9 @@ struct FGeneratedImageProperties
 	/** Name in the Material. */
 	FString TextureParameterName;
 
+	/** Name in the mu::Surface. */
+	int32 ImagePropertiesIndex;
+
 	TEnumAsByte<TextureCompressionSettings> CompressionSettings = TC_Default;
 
 	TEnumAsByte<TextureFilter> Filter = TF_Bilinear;
@@ -183,17 +186,6 @@ struct FGeneratedImagePropertiesKey
 
 	PTRINT MaterialReferenceId = 0;
 	uint32 ImageIndex = 0;
-};
-
-/** Structure used to store the results of the recursive GenerateMutableSourceSurface calls. */
-struct FMutableGraphSurfaceGenerationData
-{
-	/** Pointer to the NodeMaterial which a pin is connected (directly or indirectly). Used to find the real NodeMaterial on the NodeCopyMaterial case. 
-	 * The NodeMaterial may be behind a export/import nodes, or already generated
-	 */
-	const UCustomizableObjectNodeMaterial* NodeMaterial = nullptr;
-	
-	FGeneratedImageProperties ImageProperties;
 };
 
 // Structure storing results to propagate up when generating mutable mesh node expressions.
