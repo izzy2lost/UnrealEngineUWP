@@ -4040,12 +4040,6 @@ half GetFloatFacingSign(FIsFrontFace bIsFrontFace)
 	#define OPTIONAL_IsFrontFace , in FIsFrontFace bIsFrontFace : FrontFaceSemantic
 #endif
 
-// Return whether View has ortho or perspective projection
-bool IsOrthoProjection(ViewState InView)
-{
-	return InView.ViewToClip[3][3] >= 1.0f;
-}
-
 /** Initializes the subset of Parameters that was not set in GetMaterialPixelParameters. */
 void CalcMaterialParametersEx(
 	in out FMaterialPixelParameters Parameters,

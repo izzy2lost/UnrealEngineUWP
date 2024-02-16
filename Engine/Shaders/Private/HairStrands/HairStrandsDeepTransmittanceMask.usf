@@ -42,7 +42,7 @@ struct FTransmittanceSettings
 
 float3 GetViewVector(float3 InTranslatedWorldPosition)
 {
-	float3 CameraToPixel = normalize(InTranslatedWorldPosition - View.TranslatedWorldCameraOrigin);
+	float3 CameraToPixel = GetCameraVectorFromTranslatedWorldPosition(InTranslatedWorldPosition);
 	float3 V = -CameraToPixel;
 	return V;
 }
@@ -50,7 +50,7 @@ float3 GetViewVector(float3 InTranslatedWorldPosition)
 float3 GetTranslatedWorldPosition(float2 UV, float SceneDepth)
 {
 	const float2 ScreenPosition = (UV - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy;
-	return mul(float4(ScreenPosition * SceneDepth, SceneDepth, 1), View.ScreenToTranslatedWorld).xyz;
+	return mul(float4(GetScreenPositionForProjectionType(ScreenPosition, SceneDepth), SceneDepth, 1), View.ScreenToTranslatedWorld).xyz;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -365,7 +365,7 @@ void MainCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 	const float SceneDepth		= ConvertFromDeviceZ(Sample.Depth);
 	const uint2 PixelCoord		= HairStrands.HairSampleCoords[SampleIndex];
 	const float2 UV				= (PixelCoord.xy + float2(0.5f, 0.5f)) / float2(View.BufferSizeAndInvSize.xy);
-	const float PixelRadius		= SceneDepth * VirtualVoxel.HairCoveragePixelRadiusAtDepth1;
+	const float PixelRadius		= ConvertGivenDepthRadiusForProjectionType(VirtualVoxel.HairCoveragePixelRadiusAtDepth1, SceneDepth);
 	float3 TranslatedWorldPosition = GetTranslatedWorldPosition(UV, SceneDepth);
 	if (View.StereoPassIndex == 1)
 	{
@@ -485,7 +485,7 @@ void MainCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 		Settings.DeepShadowDepthBiasScale = 0;	// Use virtual voxel struct value
 		Settings.Random = GetHairVoxelJitter(PixelCoord.xy, View.StateFrameIndexMod8, VirtualVoxel.JitterMode);
 
-		const float PixelRadius = SceneDepth * VirtualVoxel.HairCoveragePixelRadiusAtDepth1;	
+		const float PixelRadius = ConvertGivenDepthRadiusForProjectionType(VirtualVoxel.HairCoveragePixelRadiusAtDepth1, SceneDepth);
 		const FHairTransmittanceMask Out = ComputeTransmittanceVoxel(PixelCoord, PixelRadius, TranslatedWorldPosition, MacroGroupIndex, Settings, bDebugEnabled);
 
 		#if VOXEL_TRAVERSAL_DEBUG

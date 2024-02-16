@@ -1197,6 +1197,13 @@ bool IsOrthoProjection(float4x4 ViewToClip)
 	return ViewToClip._44 >= 1.0f;
 }
 
+// Return whether View has ortho or perspective projection
+bool IsOrthoProjection(ViewState InView)
+{
+	return IsOrthoProjection(InView.ViewToClip);
+}
+
+
 // Returns whether or not the default view is orthographic
 bool IsOrthoProjection()
 {
@@ -1285,6 +1292,11 @@ float2 GetScreenPositionForProjectionType(float2 ScreenPosition, float SceneDept
 	// For perspective projection matrix, the scene depth is required as part of the clip to view calculations
 	// For orthogonal projection matrix, scene depth should not be used
 	return select(IsOrthoProjection(), ScreenPosition, ScreenPosition * SceneDepth);
+}
+
+float ConvertGivenDepthRadiusForProjectionType(float Radius, float SceneDepth)
+{
+	return select(IsOrthoProjection(), Radius, Radius * SceneDepth);
 }
 
 float GetDepthPixelRadiusForProjectionType(float SceneDepth)

@@ -94,7 +94,7 @@ FEvaluateOutput Evaluate(
 	const float SceneDepth = ConvertFromDeviceZ(SampleDepth);
 	const float2 UV = SamplePixelCoord / float2(View.BufferSizeAndInvSize.xy);
 	const float2 ScreenPosition = (UV - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy;
-	const float3 World_P = mul(float4(ScreenPosition * SceneDepth, SceneDepth, 1), View.ScreenToTranslatedWorld).xyz;
+	const float3 World_P = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, SceneDepth), SceneDepth, 1), View.ScreenToTranslatedWorld).xyz;
 
 	float3 Velocity_World_P;
 	float3 Velocity_World_P_Prev;
@@ -183,7 +183,7 @@ FEvaluateOutput Evaluate(
 
 		FHairRenderInfo HairRenderInfo = GetHairRenderInfo(ResolvedView.HairRenderInfo, ResolvedView.HairRenderInfoBits, bUseStableRasterization);
 		const float LocalSceneDepth = ConvertFromDeviceZ(SvPosition.z); // Linear depth in world unit
-		const float PixelRadius = HairRenderInfo.bIsOrthoView ? HairRenderInfo.RadiusAtDepth1Primary : LocalSceneDepth * HairRenderInfo.RadiusAtDepth1Primary; // Not correct but the coverage is not used (we count instead the number of sub-sample covered)
+		const float PixelRadius = ConvertGivenDepthRadiusForProjectionType(HairRenderInfo.RadiusAtDepth1Primary, LocalSceneDepth); // Not correct but the coverage is not used (we count instead the number of sub-sample covered)
 		Coverage = saturate(WorldStrandRadius / max(WorldStrandRadius, PixelRadius) * MaterialPass_HairCoverageScale);
 
 		SampleCoverage8bit = min(uint(Coverage * 0xFF), 0xFFu);

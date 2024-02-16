@@ -67,7 +67,7 @@ static void AddHairMacroGroupAABBPass(
 	// Compute the average pixel size at a distance of 1 units
 	const FIntPoint Resolution(View.ViewRect.Width(), View.ViewRect.Height());
 	const float vFOV = FMath::DegreesToRadians(View.FOV);
-	const float PixelSizeAtDepth1 = FMath::Tan(vFOV * 0.5f) / (0.5f * Resolution.Y);
+	const float PixelSizeAtDepth1 = (View.IsPerspectiveProjection() ? FMath::Tan(vFOV * 0.5f) / (0.5f * Resolution.Y) : FMath::Clamp(Resolution.X / View.ViewMatrices.GetOrthoDimensions().X, 0.0f, 1.0f));
 	const uint32 MacroGroupCount = MacroGroup.PrimitivesInfos.Num();
 	
 	uint32 VoxelPageResolution = 0;

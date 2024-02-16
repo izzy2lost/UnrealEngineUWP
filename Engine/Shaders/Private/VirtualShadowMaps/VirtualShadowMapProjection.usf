@@ -415,7 +415,7 @@ FVirtualShadowMapSampleResult ProjectLight(
 				TraversalSettings.bDebugEnabled		= false;
 				TraversalSettings.SteppingScale		= VirtualVoxel.SteppingScale_Shadow;
 				TraversalSettings.Random			= Random.xyz;
-				TraversalSettings.PixelRadius		= SceneDepth * VirtualVoxel.HairCoveragePixelRadiusAtDepth1;
+				TraversalSettings.PixelRadius		= ConvertGivenDepthRadiusForProjectionType(VirtualVoxel.HairCoveragePixelRadiusAtDepth1, SceneDepth);
 				TraversalSettings.bUseOpaqueVisibility = false;
 				TraversalSettings.bCastShadow		= true;
 
