@@ -3,7 +3,7 @@
 #pragma once
 
 #include "AudioMaterialEnvelopeSettings.h"
-#include "AudioMaterialSlateStyles.h"
+#include "AudioMaterialSlate/AudioMaterialSlateTypes.h"
 #include "Components/Widget.h"
 #include "Delegates/Delegate.h"
 #include "AudioMaterialEnvelope.generated.h"
@@ -22,6 +22,8 @@ class AUDIOWIDGETS_API UAudioMaterialEnvelope : public UWidget
 	GENERATED_BODY()
 
 public:
+
+	UAudioMaterialEnvelope();
 
 	/** The Envelope's style */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style", meta = (DisplayName = "Style", ShowOnlyInnerProperties))

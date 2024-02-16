@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "AudioMaterialSlateStyles.h"
+#include "AudioMaterialSlate/AudioMaterialSlateTypes.h"
 #include "Components/Widget.h"
 #include "Delegates/Delegate.h"
 #include "AudioMaterialSlider.generated.h"
@@ -23,6 +23,8 @@ class AUDIOWIDGETS_API UAudioMaterialSlider : public UWidget
 	GENERATED_BODY()
 
 public:
+
+	UAudioMaterialSlider();
 
 	/** The slider's style */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style", meta = (DisplayName = "Style", ShowOnlyInnerProperties))

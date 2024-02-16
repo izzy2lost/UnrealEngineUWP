@@ -2,12 +2,19 @@
 
 
 #include "AudioMaterialSlate/AudioMaterialMeter.h"
-#include "AudioMaterialSlate/AudioMaterialSlateStyles.h"
+#include "AudioMaterialSlate/AudioMaterialSlateTypes.h"
 #include "AudioMaterialSlate/SAudioMaterialMeter.h"
+#include "AudioWidgetsStyle.h"
 #include "Widgets/SWeakWidget.h"
 #include "Components/AudioComponent.h"
 
 #define LOCTEXT_NAMESPACE "AudioWidgets"
+
+UAudioMaterialMeter::UAudioMaterialMeter()
+{
+	//get default style
+	WidgetStyle = FAudioWidgetsStyle::Get().GetWidgetStyle<FAudioMaterialMeterStyle>("AudioMaterialMeter.Style");
+}
 
 #if WITH_EDITOR
 const FText UAudioMaterialMeter::GetPaletteCategory()

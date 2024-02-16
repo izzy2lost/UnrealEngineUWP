@@ -2,6 +2,7 @@
 
 #include "AudioWidgetsStyle.h"
 #include "AudioWidgetsSlateTypes.h"
+#include "AudioMaterialSlate/AudioMaterialSlateTypes.h"
 #include "Brushes/SlateNoResource.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "Misc/Paths.h"
@@ -125,6 +126,45 @@ FAudioWidgetsStyle::FAudioWidgetsStyle()
 	*/
 	Set("ValueGridOverlay.Style", FSampledSequenceValueGridOverlayStyle());
 
+	/**
+	**AudioMaterialKnob Style
+	*/
+	UMaterialInterface* KnobDefaultMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/AudioWidgets/AudioMaterialSlate/MI_AudioMaterialKnob.MI_AudioMaterialKnob"));
+
+	Set("AudioMaterialKnob.Style", FAudioMaterialKnobStyle()
+		.SetMaterial(KnobDefaultMaterial));
+
+	/**
+	**AudioMaterialMeter Style
+	*/
+	UMaterialInterface* MeterDefaultMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/AudioWidgets/AudioMaterialSlate/MI_AudioMaterialMeter.MI_AudioMaterialMeter"));
+
+	Set("AudioMaterialMeter.Style", FAudioMaterialMeterStyle()
+		.SetMaterial(MeterDefaultMaterial));
+
+	/**
+	**AudioMaterialEnvelope Style
+	*/
+	UMaterialInterface* EnvelopeDefaultMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/AudioWidgets/AudioMaterialSlate/MI_AudioMaterialEnvelope_ADSR.MI_AudioMaterialEnvelope_ADSR"));
+
+	Set("AudioMaterialEnvelope.Style", FAudioMaterialEnvelopeStyle()
+		.SetMaterial(EnvelopeDefaultMaterial));
+
+	/**
+	**AudioMaterialButton Style
+	*/
+	UMaterialInterface* ButtonDefaultMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/AudioWidgets/AudioMaterialSlate/MI_AudioMaterialButton.MI_AudioMaterialButton"));
+
+	Set("AudioMaterialButton.Style", FAudioMaterialButtonStyle()
+		.SetMaterial(ButtonDefaultMaterial));
+
+	/**
+	**AudioMaterialSlider Style
+	*/
+	UMaterialInterface* SliderDefaultMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/AudioWidgets/AudioMaterialSlate/MI_AudioMaterialSlider.MI_AudioMaterialSlider"));
+
+	Set("AudioMaterialSlider.Style", FAudioMaterialSliderStyle()
+		.SetMaterial(SliderDefaultMaterial));
 
 	FSlateStyleRegistry::RegisterSlateStyle(*this);
 }

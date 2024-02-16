@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "AudioMaterialSlate/AudioMaterialSlateStyles.h"
+#include "AudioMaterialSlate/AudioMaterialSlateTypes.h"
 #include "AudioMaterialEnvelopeSettings.h"
 #include "Framework/SlateDelegates.h"
 #include "Styling/ISlateStyle.h"

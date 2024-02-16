@@ -2,9 +2,17 @@
 
 
 #include "AudioMaterialSlate/AudioMaterialKnob.h"
+#include "AudioMaterialSlate/AudioMaterialSlateTypes.h"
 #include "AudioMaterialSlate/SAudioMaterialKnob.h"
+#include "AudioWidgetsStyle.h"
 
 #define LOCTEXT_NAMESPACE "AudioWidgets"
+UAudioMaterialKnob::UAudioMaterialKnob()
+{
+	//get default style
+	WidgetStyle = FAudioWidgetsStyle::Get().GetWidgetStyle<FAudioMaterialKnobStyle>("AudioMaterialKnob.Style");	
+}
+
 #if WITH_EDITOR
 const FText UAudioMaterialKnob::GetPaletteCategory()
 {
