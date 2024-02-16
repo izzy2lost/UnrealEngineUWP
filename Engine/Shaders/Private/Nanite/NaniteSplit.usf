@@ -236,22 +236,24 @@ uint FSplitTask::Run()
 	}
 	else 
 	{
-	#if WRITE_STATS
-		WaveInterlockedAddScalar(OutStatsBuffer[0].NumVisibleSplitPatches, 1u);
-	#endif
-
-		if( bNeedsSplitting )
-			TessFactors = min( GetSplitFactors( TessFactors ), 8 );
-
-		TessellatedPatch.Init( TessFactors, Encoded.yzw, false );
-
 		if( !bNeedsSplitting )
 		{
+			if( Cull.bNeedsClipping )
+				return 0;
+
+		#if WRITE_STATS
+			WaveInterlockedAddScalar(OutStatsBuffer[0].NumVisibleSplitPatches, 1u);
+		#endif
+	
 			uint WriteOffset;
 			WaveInterlockedAddScalar_( RWVisiblePatchesArgs[3], 1, WriteOffset );
 			if( WriteOffset < VisiblePatchesSize )
 			{
-			#if NANITE_TESSELLATION_PATCH_REFS
+			#if NANITE_TESSELLATION_PATCH_REFS || WRITE_STATS
+				TessellatedPatch.Init( TessFactors, Encoded.yzw, false );
+			#endif
+
+			#if NANITE_TESSELLATION_PATCH_REFS || WRITE_STATS
 				RWVisiblePatches.Store2( WriteOffset * 8, uint2( QueueOffset, TessellatedPatch.GetPattern() ) );
 				SplitWorkQueue.DataBuffer.Store4( QueueOffset * 16, Encoded );
 				QueueOffset = ~0u;
@@ -266,6 +268,8 @@ uint FSplitTask::Run()
 		}
 		else
 		{
+			float3 SplitFactors = min( GetSplitFactors( TessFactors ), 8 );
+			TessellatedPatch.Init( SplitFactors, Encoded.yzw, false );
 			return TessellatedPatch.GetNumTris();
 		}
 	}
