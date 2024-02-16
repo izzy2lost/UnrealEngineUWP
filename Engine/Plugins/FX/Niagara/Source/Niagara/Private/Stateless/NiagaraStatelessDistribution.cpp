@@ -217,6 +217,22 @@ FNiagaraStatelessRangeVector3 FNiagaraDistributionRangeVector3::CalculateRange(c
 	return Mode == ENiagaraDistributionMode::UniformConstant ? FNiagaraStatelessRangeVector3(Min, Min) : FNiagaraStatelessRangeVector3(Min, Max);
 }
 
+void FNiagaraDistributionRangeColor::InitConstant(const FLinearColor& Value)
+{
+	Mode = ENiagaraDistributionMode::NonUniformConstant;
+	Min = Value;
+	Max = Value;
+#if WITH_EDITORONLY_DATA
+	ChannelConstantsAndRanges = TArray<float>({ Value.R, Value.G, Value.B, Value.A });
+#endif
+}
+
+FNiagaraStatelessRangeColor FNiagaraDistributionRangeColor::CalculateRange(const FLinearColor& Default) const
+{
+	return Mode == ENiagaraDistributionMode::UniformConstant ? FNiagaraStatelessRangeColor(Min, Min) : FNiagaraStatelessRangeColor(Min, Max);
+}
+
+
 void FNiagaraDistributionFloat::InitConstant(float Value)
 {
 	Mode = ENiagaraDistributionMode::UniformConstant;
@@ -403,6 +419,19 @@ void FNiagaraDistributionRangeVector3::UpdateValuesFromDistribution()
 		3,
 		[this](int32 Num) {},
 		[this](int32 ValueIndex, int32 ChannelIndex) -> float& { return ValueIndex == 0 ? Min[ChannelIndex] : Max[ChannelIndex]; },
+		MaxLutSampleCount
+	);
+}
+
+void FNiagaraDistributionRangeColor::UpdateValuesFromDistribution()
+{
+	NiagaraStatelessDistributionPrivate::UpdateDistributionValues(
+		Mode,
+		ChannelConstantsAndRanges,
+		ChannelCurves,
+		4,
+		[this](int32 Num) {},
+		[this](int32 ValueIndex, int32 ChannelIndex) -> float& { return ValueIndex == 0 ? Min.Component(ChannelIndex) : Max.Component(ChannelIndex); },
 		MaxLutSampleCount
 	);
 }

@@ -205,16 +205,20 @@ void FNiagaraStatelessEmitterInstance::Tick(float DeltaSeconds)
 
 	if (NiagaraStateless::FEmitterInstance_RT* RenderThreadData = RenderThreadDataPtr.Get())
 	{
+		NiagaraStateless::FCommonShaderParameters* NewShaderParameters = nullptr;
 		TOptional<TArray<uint8>> NewBindingBufferData;
 		if ( EmitterData->bModulesHaveRendererBindings && RendererBindings.GetParametersDirty() )
 		{
 			RendererBindings.Tick();
 			NewBindingBufferData = RendererBindings.GetParameterDataArray();
 			check((NewBindingBufferData->Num() % sizeof(uint32)) == 0);
+
+			NewShaderParameters = WeakStatelessEmitter->AllocateShaderParameters(RendererBindings);
+			NewShaderParameters->Common_RandomSeed = RandomSeed;
 		}
 
 		ENQUEUE_RENDER_COMMAND(UpdateStatelessAge)(
-			[RenderThreadData, AgeForRT=Age, ExecutionStateForRT=ExecutionState, NewBindingBufferDataRT=MoveTemp(NewBindingBufferData)](FRHICommandListImmediate& RHICmdList)
+			[RenderThreadData, AgeForRT=Age, ExecutionStateForRT=ExecutionState, NewBindingBufferDataRT=MoveTemp(NewBindingBufferData), NewShaderParameters](FRHICommandListImmediate& RHICmdList)
 			{
 				RenderThreadData->Age = AgeForRT;
 				RenderThreadData->ExecutionState = ExecutionStateForRT;
@@ -222,7 +226,11 @@ void FNiagaraStatelessEmitterInstance::Tick(float DeltaSeconds)
 				{
 					RenderThreadData->BindingBufferData = NewBindingBufferDataRT;
 				}
-			}
+				if (NewShaderParameters)
+				{
+					RenderThreadData->ShaderParameters.Reset(NewShaderParameters);
+				}
+		}
 		);
 	}
 }

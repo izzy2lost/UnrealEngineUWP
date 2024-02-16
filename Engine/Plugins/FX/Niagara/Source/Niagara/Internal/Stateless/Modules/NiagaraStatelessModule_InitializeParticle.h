@@ -40,7 +40,7 @@ public:
 	FNiagaraDistributionRangeFloat LifetimeDistribution = FNiagaraDistributionRangeFloat(FNiagaraStatelessGlobals::GetDefaultLifetimeValue());
 
 	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (DisplayName = "Color", DisableCurveDistribution))
-	FNiagaraDistributionColor ColorDistribution = FNiagaraDistributionColor(FNiagaraStatelessGlobals::GetDefaultColorValue());
+	FNiagaraDistributionRangeColor ColorDistribution = FNiagaraDistributionRangeColor(FNiagaraStatelessGlobals::GetDefaultColorValue());
 
 	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (DisplayName = "Mass"))
 	FNiagaraDistributionRangeFloat MassDistribution = FNiagaraDistributionRangeFloat(FNiagaraStatelessGlobals::GetDefaultMassValue());
@@ -71,12 +71,12 @@ public:
 
 		BuiltData->InitialPosition			= BuildContext.AddDistribution(InitialPosition, true);
 		BuiltData->LifetimeRange			= LifetimeDistribution.CalculateRange(FNiagaraStatelessGlobals::GetDefaultLifetimeValue());
-		BuiltData->ColorRange				= ColorDistribution.CalculateRange(FNiagaraStatelessGlobals::GetDefaultColorValue());
-		BuiltData->MassRange				= MassDistribution.CalculateRange(FNiagaraStatelessGlobals::GetDefaultMassValue());
-		BuiltData->SpriteSizeRange			= SpriteSizeDistribution.CalculateRange(FNiagaraStatelessGlobals::GetDefaultSpriteSizeValue());
-		BuiltData->SpriteRotationRange		= SpriteRotationDistribution.CalculateRange(FNiagaraStatelessGlobals::GetDefaultSpriteRotationValue());
-		BuiltData->MeshScaleRange			= MeshScaleDistribution.CalculateRange(FNiagaraStatelessGlobals::GetDefaultScaleValue());
-		BuiltData->RibbonWidthRange			= RibbonWidthDistribution.CalculateRange(FNiagaraStatelessGlobals::GetDefaultRibbonWidthValue());
+		BuiltData->ColorRange				= BuildContext.ConvertDistributionToRange(ColorDistribution, FNiagaraStatelessGlobals::GetDefaultColorValue());
+		BuiltData->MassRange				= BuildContext.ConvertDistributionToRange(MassDistribution, FNiagaraStatelessGlobals::GetDefaultMassValue());
+		BuiltData->SpriteSizeRange			= BuildContext.ConvertDistributionToRange(SpriteSizeDistribution, FNiagaraStatelessGlobals::GetDefaultSpriteSizeValue());
+		BuiltData->SpriteRotationRange		= BuildContext.ConvertDistributionToRange(SpriteRotationDistribution, FNiagaraStatelessGlobals::GetDefaultSpriteRotationValue());
+		BuiltData->MeshScaleRange			= BuildContext.ConvertDistributionToRange(MeshScaleDistribution, FNiagaraStatelessGlobals::GetDefaultScaleValue());
+		BuiltData->RibbonWidthRange			= BuildContext.ConvertDistributionToRange(RibbonWidthDistribution, FNiagaraStatelessGlobals::GetDefaultRibbonWidthValue());
 
 		NiagaraStateless::FPhysicsBuildData& PhysicsBuildData = BuildContext.GetTransientBuildData<NiagaraStateless::FPhysicsBuildData>();
 		PhysicsBuildData.MassRange			= MassDistribution.CalculateRange(FNiagaraStatelessGlobals::GetDefaultMassValue());
@@ -89,16 +89,11 @@ public:
 
 		Parameters->InitializeParticle_ModuleFlags			= ModuleBuiltData->ModuleFlags;
 		Parameters->InitializeParticle_InitialPosition		= ModuleBuiltData->InitialPosition;
-		Parameters->InitializeParticle_ColorScale			= ModuleBuiltData->ColorRange.GetScale();
-		Parameters->InitializeParticle_ColorBias			= ModuleBuiltData->ColorRange.Min;
-		Parameters->InitializeParticle_SpriteSizeScale		= ModuleBuiltData->SpriteSizeRange.GetScale();
-		Parameters->InitializeParticle_SpriteSizeBias		= ModuleBuiltData->SpriteSizeRange.Min;
-		Parameters->InitializeParticle_SpriteRotationScale	= ModuleBuiltData->SpriteRotationRange.GetScale();
-		Parameters->InitializeParticle_SpriteRotationBias	= ModuleBuiltData->SpriteRotationRange.Min;
-		Parameters->InitializeParticle_MeshScaleScale		= ModuleBuiltData->MeshScaleRange.GetScale();
-		Parameters->InitializeParticle_MeshScaleBias		= ModuleBuiltData->MeshScaleRange.Min;
-		Parameters->InitializeParticle_RibbonWidthScale		= ModuleBuiltData->RibbonWidthRange.GetScale();
-		Parameters->InitializeParticle_RibbonWidthBias		= ModuleBuiltData->RibbonWidthRange.Min;
+		SetShaderParameterContext.ConvertRangeToScaleBias(ModuleBuiltData->ColorRange,			Parameters->InitializeParticle_ColorScale, Parameters->InitializeParticle_ColorBias);
+		SetShaderParameterContext.ConvertRangeToScaleBias(ModuleBuiltData->SpriteSizeRange,		Parameters->InitializeParticle_SpriteSizeScale, Parameters->InitializeParticle_SpriteSizeBias);
+		SetShaderParameterContext.ConvertRangeToScaleBias(ModuleBuiltData->SpriteRotationRange, Parameters->InitializeParticle_SpriteRotationScale, Parameters->InitializeParticle_SpriteRotationBias);
+		SetShaderParameterContext.ConvertRangeToScaleBias(ModuleBuiltData->MeshScaleRange,		Parameters->InitializeParticle_MeshScaleScale, Parameters->InitializeParticle_MeshScaleBias);
+		SetShaderParameterContext.ConvertRangeToScaleBias(ModuleBuiltData->RibbonWidthRange,	Parameters->InitializeParticle_RibbonWidthScale, Parameters->InitializeParticle_RibbonWidthBias);
 	}
 
 #if WITH_EDITORONLY_DATA

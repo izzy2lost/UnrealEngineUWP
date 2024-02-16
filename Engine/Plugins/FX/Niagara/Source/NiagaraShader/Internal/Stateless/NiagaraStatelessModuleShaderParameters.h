@@ -11,8 +11,8 @@ namespace NiagaraStateless
 		SHADER_PARAMETER(uint32,		InitializeParticle_ModuleFlags)
 		SHADER_PARAMETER(FUintVector3,	InitializeParticle_InitialPosition)
 
-		SHADER_PARAMETER(FVector4f,	InitializeParticle_ColorScale)				// Unset / Direct Set / Random Range(Link RGBA / Link RGB|Link A / Random Channels) / Random Hue|Saturation|Value
-		SHADER_PARAMETER(FVector4f,	InitializeParticle_ColorBias)
+		SHADER_PARAMETER(FLinearColor,	InitializeParticle_ColorScale)				// Unset / Direct Set / Random Range(Link RGBA / Link RGB|Link A / Random Channels) / Random Hue|Saturation|Value
+		SHADER_PARAMETER(FLinearColor,	InitializeParticle_ColorBias)
 
 		SHADER_PARAMETER(FVector2f, InitializeParticle_SpriteSizeScale)			// Unset / Uniform / Random Uniform / Non-Uniform / Random Non-Uniform
 		SHADER_PARAMETER(FVector2f, InitializeParticle_SpriteSizeBias)

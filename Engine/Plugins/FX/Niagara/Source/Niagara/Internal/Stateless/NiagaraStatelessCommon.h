@@ -15,8 +15,9 @@ struct FNiagaraStatelessRange
 
 	ValueType GetScale() const { return Max - Min; }
 
-	ValueType Min = {};
-	ValueType Max = {};
+	int32		ParameterOffset = INDEX_NONE;
+	ValueType	Min = {};
+	ValueType	Max = {};
 };
 
 using FNiagaraStatelessRangeInt		= FNiagaraStatelessRange<int32>;

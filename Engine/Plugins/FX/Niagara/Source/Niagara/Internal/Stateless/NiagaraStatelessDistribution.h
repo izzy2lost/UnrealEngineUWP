@@ -100,6 +100,7 @@ struct FNiagaraDistributionRangeFloat : public FNiagaraDistributionBase
 #if WITH_EDITORONLY_DATA
 	virtual bool AllowCurves() const override { return false; }
 	NIAGARA_API virtual void UpdateValuesFromDistribution() override;
+	virtual FNiagaraTypeDefinition GetBindingTypeDef() { return FNiagaraTypeDefinition::GetFloatDef(); }
 #endif
 };
 
@@ -123,6 +124,7 @@ struct FNiagaraDistributionRangeVector2 : public FNiagaraDistributionBase
 #if WITH_EDITORONLY_DATA
 	virtual bool AllowCurves() const override { return false; }
 	virtual void UpdateValuesFromDistribution() override;
+	virtual FNiagaraTypeDefinition GetBindingTypeDef() { return FNiagaraTypeDefinition::GetVec2Def(); }
 #endif
 };
 
@@ -146,6 +148,31 @@ struct FNiagaraDistributionRangeVector3 : public FNiagaraDistributionBase
 #if WITH_EDITORONLY_DATA
 	virtual bool AllowCurves() const override { return false; }
 	virtual void UpdateValuesFromDistribution() override;
+	virtual FNiagaraTypeDefinition GetBindingTypeDef() { return FNiagaraTypeDefinition::GetVec3Def(); }
+#endif
+};
+
+USTRUCT()
+struct FNiagaraDistributionRangeColor : public FNiagaraDistributionBase
+{
+	GENERATED_BODY()
+
+	FNiagaraDistributionRangeColor() = default;
+	explicit FNiagaraDistributionRangeColor(const FLinearColor& ConstantValue) { InitConstant(ConstantValue); }
+
+	UPROPERTY(EditAnywhere, Category = "Parameters")
+	FLinearColor Min = FLinearColor::White;
+
+	UPROPERTY(EditAnywhere, Category = "Parameters")
+	FLinearColor Max = FLinearColor::White;
+
+	NIAGARA_API void InitConstant(const FLinearColor& Value);
+	NIAGARA_API FNiagaraStatelessRangeColor CalculateRange(const FLinearColor& Default = FLinearColor::White) const;
+
+#if WITH_EDITORONLY_DATA
+	virtual bool AllowCurves() const override { return false; }
+	virtual void UpdateValuesFromDistribution() override;
+	virtual FNiagaraTypeDefinition GetBindingTypeDef() { return FNiagaraTypeDefinition::GetColorDef(); }
 #endif
 };
 
@@ -230,5 +257,6 @@ struct FNiagaraDistributionColor : public FNiagaraDistributionBase
 #if WITH_EDITORONLY_DATA
 	virtual bool DisplayAsColor() const override { return true; }
 	virtual void UpdateValuesFromDistribution() override;
+	virtual FNiagaraTypeDefinition GetBindingTypeDef() { return FNiagaraTypeDefinition::GetColorDef(); }
 #endif
 };
