@@ -182,20 +182,12 @@ namespace RayTracing
 			return Key ^ reinterpret_cast<uint64>(RayTracingGeometryRHI);
 		}
 
-		void UpdateMasks(const ERayTracingPrimitiveFlags Flags, ERayTracingViewMaskMode MaskMode)
+		void FinalizeInstanceMask(const ERayTracingPrimitiveFlags Flags, ERayTracingViewMaskMode MaskMode)
 		{
-			FRayTracingMeshCommand Command;
-			Command.InstanceMask = InstanceMask;
-			Command.bOpaque = bAllSegmentsOpaque;
-			Command.bCastRayTracedShadows = bAnySegmentsCastShadow;
-			Command.bDecal = bAnySegmentsDecal;
-			Command.bTwoSided = bTwoSided;
-			Command.bIsSky = bIsSky;
-			Command.bIsTranslucent = bAllSegmentsTranslucent;
-
-			UpdateRayTracingMeshCommandMasks(Command, Flags, MaskMode);
-
-			InstanceMask = Command.InstanceMask;
+			if (EnumHasAllFlags(Flags, ERayTracingPrimitiveFlags::FarField))
+			{
+				InstanceMask = ComputeRayTracingInstanceMask(ERayTracingInstanceMaskType::FarField, MaskMode);
+			}
 		}
 	};
 
@@ -568,6 +560,8 @@ namespace RayTracing
 								RelevantPrimitive->CachedRayTracingMeshCommandIndices = SceneInfo->CachedRayTracingMeshCommandIndicesPerLOD[LODIndex];
 								RelevantPrimitive->StateHash = SceneInfo->CachedRayTracingMeshCommandsHashPerLOD[LODIndex];
 
+								const ERayTracingViewMaskMode MaskMode = static_cast<ERayTracingViewMaskMode>(Scene.CachedRayTracingMeshCommandsMode);
+
 								// TODO: Cache these flags to avoid having to loop over the RayTracingMeshCommands
 								for (int32 CommandIndex : RelevantPrimitive->CachedRayTracingMeshCommandIndices)
 								{
@@ -592,9 +586,7 @@ namespace RayTracing
 									}
 								}
 
-								ERayTracingViewMaskMode MaskMode = static_cast<ERayTracingViewMaskMode>(Scene.CachedRayTracingMeshCommandsMode);
-
-								RelevantPrimitive->UpdateMasks(Flags, MaskMode);
+								RelevantPrimitive->FinalizeInstanceMask(Flags, MaskMode);
 							}
 						}
 					});
