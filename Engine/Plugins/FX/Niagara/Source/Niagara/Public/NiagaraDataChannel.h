@@ -183,7 +183,10 @@ void UNiagaraDataChannel::ForEachDataChannel(TAction Func)
 {
 	for(TObjectIterator<UNiagaraDataChannel> It; It; ++It)
 	{
-		if(*It)
+		UNiagaraDataChannel* NDC = *It;
+		if (NDC && 
+			NDC->HasAnyFlags(RF_ClassDefaultObject | RF_Transient) == false &&
+			Cast<UNiagaraDataChannelAsset>(NDC->GetOuter()) != nullptr)
 		{
 			Func(*It);
 		}
