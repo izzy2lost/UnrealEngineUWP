@@ -21,6 +21,8 @@
 #include "OnlineAuthInterfaceSteam.h"
 #include "OnlineAuthInterfaceUtilsSteam.h"
 #include "OnlineEncryptedAppTicketInterfaceSteam.h"
+#include "OnlinePurchaseInterfaceSteam.h"
+#include "OnlineStoreInterfaceSteam.h"
 #include "VoiceInterfaceSteam.h"
 
 #include "SteamSharedModule.h"
@@ -317,6 +319,16 @@ IOnlinePresencePtr FOnlineSubsystemSteam::GetPresenceInterface() const
 	return PresenceInterface;
 }
 
+IOnlinePurchasePtr FOnlineSubsystemSteam::GetPurchaseInterface() const
+{
+	return PurchaseInterface;
+}
+
+IOnlineStoreV2Ptr FOnlineSubsystemSteam::GetStoreV2Interface() const
+{
+	return StoreInterface;
+}
+
 IOnlineChatPtr FOnlineSubsystemSteam::GetChatInterface() const
 {
 	return nullptr;
@@ -442,6 +454,8 @@ bool FOnlineSubsystemSteam::Init()
 			ExternalUIInterface = MakeShareable(new FOnlineExternalUISteam(this));
 			AchievementsInterface = MakeShareable(new FOnlineAchievementsSteam(this));
 			EncryptedAppTicketInterface = MakeShareable(new FOnlineEncryptedAppTicketSteam(this));
+			PurchaseInterface = MakeShareable(new FOnlinePurchaseSteam(this));
+			StoreInterface = MakeShareable(new FOnlineStoreSteam(this));
 
 			// Kick off a download/cache of the current user's stats
 			LeaderboardsInterface->CacheCurrentUsersStats();
@@ -510,6 +524,8 @@ bool FOnlineSubsystemSteam::Shutdown()
 	DESTRUCT_INTERFACE(PingInterface);
 	DESTRUCT_INTERFACE(SessionInterface);
 	DESTRUCT_INTERFACE(PresenceInterface);
+	DESTRUCT_INTERFACE(StoreInterface);
+	DESTRUCT_INTERFACE(PurchaseInterface);
 
 #undef DESTRUCT_INTERFACE
 
