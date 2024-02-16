@@ -21,6 +21,9 @@ protected:
 
 
 	EOS_IntegratedPlatform_Steam_Options PlatformSteamOptions;
+
+public: 
+	virtual FString GetCacheDirBase() const override;
 };
 
 using FPlatformEOSSDKManager = FWindowsEOSSDKManager;
