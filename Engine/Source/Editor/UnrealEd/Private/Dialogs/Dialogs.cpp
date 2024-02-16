@@ -1111,4 +1111,33 @@ FReply SGenericDialogWidget::OnOK_Clicked(void)
 	return FReply::Handled();
 }
 
+TSharedRef<SWindow> UE::Private::CreateModalDialogWindow(
+	const FText& InTitle,
+	TSharedRef<SWidget> Contents,
+	ESizingRule Sizing,
+	FVector2D MinDimensions)
+{
+	return SNew(SWindow)
+		.Title(InTitle)
+		.SizingRule(Sizing)
+		.MinWidth(MinDimensions.X)
+		.MinHeight(MinDimensions.Y)
+		.SupportsMaximize(false)
+		.SupportsMinimize(false)
+		.HasCloseButton(false)
+		[
+			SNew(SBorder)
+			.Padding(4.f)
+			.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+			[
+				MoveTemp(Contents)
+			]
+		];
+}
+
+void UE::Private::ShowModalDialogWindow(TSharedRef<SWindow> Window)
+{
+	GEditor->EditorAddModalWindow(Window);
+}
+
 #undef LOCTEXT_NAMESPACE 
