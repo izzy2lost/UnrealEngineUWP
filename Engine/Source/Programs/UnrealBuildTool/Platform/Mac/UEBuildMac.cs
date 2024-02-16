@@ -471,10 +471,9 @@ namespace UnrealBuildTool
 				// because remote IOS building needs the new XcodeProject Settings to show up in the editor, we bring in the Mac bits that expose it
 				if (ModuleName == "Engine")
 				{
-					Rules.DynamicallyLoadedModuleNames.Add("MacTargetPlatformSettings");
 					if (bIsPlatformAvailableForTargetWithSDK)
 					{
-						Rules.DynamicallyLoadedModuleNames.AddAll("MacTargetPlatform", "MacTargetPlatformControls", "MacPlatformEditor");
+						Rules.DynamicallyLoadedModuleNames.AddAll("MacTargetPlatform", "MacTargetPlatformSettings", "MacTargetPlatformControls", "MacPlatformEditor");
 					}
 				}
 			}
