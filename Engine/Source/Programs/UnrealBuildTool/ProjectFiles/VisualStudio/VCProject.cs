@@ -2299,6 +2299,10 @@ namespace UnrealBuildTool
 					string UBTPlatformName = Platform.ToString();
 					string UBTConfigurationName = Configuration.ToString();
 					VSSettings VSSettings = new(Platform, Configuration, ProjectFileFormat, null);
+					if (Platform == UnrealTargetPlatform.Android && Combination.Architecture != null)
+					{
+						VSSettings.Architecture = Combination.Architecture;
+					}
 
 					// Setup output path
 					UEBuildPlatform BuildPlatform = UEBuildPlatform.GetBuildPlatform(Platform);
