@@ -4,6 +4,7 @@
 
 #include "IDetailTreeNode.h"
 #include "NiagaraEditorStyle.h"
+#include "NiagaraStackEditorData.h"
 #include "PropertyHandle.h"
 #include "ScopedTransaction.h"
 #include "Stateless/NiagaraDistributionPropertyCustomization.h"
@@ -15,13 +16,87 @@
 
 #define LOCTEXT_NAMESPACE "NiagaraEmitterStatelessSimulateGroup"
 
+class FNiagaraStatelessEmitterAddModuleAction : public INiagaraStackItemGroupAddAction
+{
+
+public:
+	FNiagaraStatelessEmitterAddModuleAction(UNiagaraStatelessModule* StatelessModule)
+	{
+		StatelessModuleWeak = StatelessModule;
+		DisplayName = StatelessModule->GetClass()->GetDisplayNameText();
+	}
+
+	UNiagaraStatelessModule* GetModule() const { return StatelessModuleWeak.Get(); }
+
+	virtual TArray<FString> GetCategories() const override { return Categories; }
+	virtual FText GetDisplayName() const override { return DisplayName; }
+	virtual FText GetDescription() const override { return FText(); }
+	virtual FText GetKeywords() const override { return FText(); }
+
+private:
+	TWeakObjectPtr<UNiagaraStatelessModule> StatelessModuleWeak;
+	TArray<FString> Categories;
+	FText DisplayName;
+};
+
+class FNiagaraStatelessEmitterSimulateGroupAddUtilities : public TNiagaraStackItemGroupAddUtilities<UNiagaraStatelessModule*>
+{
+public:
+	FNiagaraStatelessEmitterSimulateGroupAddUtilities(UNiagaraStatelessEmitter& StatelessEmitter, UNiagaraStackEditorData& StackEditorData, FOnItemAdded InOnItemAdded)
+		: TNiagaraStackItemGroupAddUtilities<UNiagaraStatelessModule*>(LOCTEXT("ModuleName", "Module"), EAddMode::AddFromAction, true, false, InOnItemAdded)
+	{
+		StatelessEmitterWeak = &StatelessEmitter;
+		StackEditorDataWeak = &StackEditorData;
+	}
+
+	virtual void AddItemDirectly() { unimplemented(); };
+
+	virtual void GenerateAddActions(TArray<TSharedRef<INiagaraStackItemGroupAddAction>>& OutAddActions, const FNiagaraStackItemGroupAddOptions& AddProperties = FNiagaraStackItemGroupAddOptions()) const override
+	{
+		UNiagaraStatelessEmitter* StatelessEmitter = StatelessEmitterWeak.Get();
+		UNiagaraStackEditorData* StackEditorData = StackEditorDataWeak.Get();
+		if (StatelessEmitter != nullptr && StackEditorData != nullptr)
+		{
+			for (UNiagaraStatelessModule* StatelessModule : StatelessEmitter->GetModules())
+			{
+				if (StatelessModule->IsModuleEnabled() == false && 
+					StackEditorData->GetStatelessModuleShowWhenDisabled(UNiagaraStackStatelessModuleItem::GenerateStackEditorDataKey(StatelessModule)) == false)
+				{
+					OutAddActions.Add(MakeShared<FNiagaraStatelessEmitterAddModuleAction>(StatelessModule));
+				}
+			}
+		}
+	}
+
+	virtual void ExecuteAddAction(TSharedRef<INiagaraStackItemGroupAddAction> AddAction, int32 TargetIndex) override
+	{
+		TSharedRef<FNiagaraStatelessEmitterAddModuleAction> AddModuleAction = StaticCastSharedRef<FNiagaraStatelessEmitterAddModuleAction>(AddAction);
+		UNiagaraStatelessModule* StatelessModule = AddModuleAction->GetModule();
+		UNiagaraStackEditorData* StackEditorData = StackEditorDataWeak.Get();
+		if (StatelessModule != nullptr && StackEditorData != nullptr)
+		{
+			FScopedTransaction ScopedTransaction(LOCTEXT("AddStatelessModuleTransaction", "Add module."));
+			StatelessModule->Modify();
+			StatelessModule->SetIsModuleEnabled(true);
+			StatelessModule->PostEditChange();
+			OnItemAdded.ExecuteIfBound(StatelessModule);
+		}
+	}
+
+protected:
+	TWeakObjectPtr<UNiagaraStatelessEmitter> StatelessEmitterWeak;
+	TWeakObjectPtr<UNiagaraStackEditorData> StackEditorDataWeak;
+};
+
 void UNiagaraStackStatelessEmitterSimulateGroup::Initialize(FRequiredEntryData InRequiredEntryData, UNiagaraStatelessEmitter* InStatelessEmitter)
 {
+	AddUtilities = MakeShared<FNiagaraStatelessEmitterSimulateGroupAddUtilities>(*InStatelessEmitter, *InRequiredEntryData.StackEditorData,
+		FNiagaraStatelessEmitterSimulateGroupAddUtilities::FOnItemAdded::CreateUObject(this, &UNiagaraStackStatelessEmitterSimulateGroup::ModuleAdded));
 	Super::Initialize(
 		InRequiredEntryData, 
 		LOCTEXT("EmitterStatelessSimulateGroupDisplayName", "Simulate"),
 		LOCTEXT("EmitterStatelessSimulateGroupToolTip", "Data related to the simulation of the particles"),
-		nullptr);
+		AddUtilities.Get());
 	StatelessEmitterWeak = InStatelessEmitter;
 }
 
@@ -39,23 +114,81 @@ void UNiagaraStackStatelessEmitterSimulateGroup::RefreshChildrenInternal(const T
 	{
 		for (UNiagaraStatelessModule* StatelessModule : StatelessEmitter->GetModules())
 		{
+			FString ModuleStackEditorDataKey = UNiagaraStackStatelessModuleItem::GenerateStackEditorDataKey(StatelessModule);
+			if (StatelessModule->CanDisableModule() && 
+				StatelessModule->IsModuleEnabled() == false &&
+				GetStackEditorData().GetStatelessModuleShowWhenDisabled(ModuleStackEditorDataKey) == false)
+			{
+				// If a module is disabled and doesn't have the show when disabled flag set, filter it from the UI.
+				continue;
+			}
+
 			UNiagaraStackStatelessModuleItem* ModuleItem = FindCurrentChildOfTypeByPredicate<UNiagaraStackStatelessModuleItem>(CurrentChildren,
 				[StatelessModule](const UNiagaraStackStatelessModuleItem* CurrentChild) { return CurrentChild->GetStatelessModule() == StatelessModule; });
 			if (ModuleItem == nullptr)
 			{
 				ModuleItem = NewObject<UNiagaraStackStatelessModuleItem>(this);
 				ModuleItem->Initialize(CreateDefaultChildRequiredData(), StatelessModule);
+				ModuleItem->OnModifiedGroupItems().AddUObject(this, &UNiagaraStackStatelessEmitterSimulateGroup::ModuleModifiedGroupItems);
 			}
 			NewChildren.Add(ModuleItem);
 		}
 	}
 }
 
+void UNiagaraStackStatelessEmitterSimulateGroup::ModuleAdded(UNiagaraStatelessModule* StatelessModule)
+{
+	RefreshChildren();
+}
+
+void UNiagaraStackStatelessEmitterSimulateGroup::ModuleModifiedGroupItems()
+{
+	RefreshChildren();
+}
+
+FString UNiagaraStackStatelessModuleItem::GenerateStackEditorDataKey(const UNiagaraStatelessModule* InStatelessModule)
+{
+	return FString::Printf(TEXT("StatelessModuleItem-%s"), *InStatelessModule->GetName());
+}
+
 void UNiagaraStackStatelessModuleItem::Initialize(FRequiredEntryData InRequiredEntryData, UNiagaraStatelessModule* InStatelessModule)
 {
-	Super::Initialize(InRequiredEntryData, FString::Printf(TEXT("StatelessModuleItem-%s"), *InStatelessModule->GetName()));
+	Super::Initialize(InRequiredEntryData, GenerateStackEditorDataKey(InStatelessModule));
 	StatelessModuleWeak = InStatelessModule;
 	DisplayName = InStatelessModule->GetClass()->GetDisplayNameText();
+}
+
+bool UNiagaraStackStatelessModuleItem::TestCanDeleteWithMessage(FText& OutCanDeleteMessage) const
+{
+	UNiagaraStatelessModule* StatelessModule = StatelessModuleWeak.Get();
+	if (StatelessModule != nullptr)
+	{
+		if (StatelessModule->CanDisableModule())
+		{
+			OutCanDeleteMessage = LOCTEXT("DeleteStatelessModule", "Delete this module.");
+			return true;
+		}
+	}
+	OutCanDeleteMessage = LOCTEXT("DeleteStatelessModuleUnsupported", "This module does not support being deleted.");
+	return false;
+}
+
+FText UNiagaraStackStatelessModuleItem::GetDeleteTransactionText() const
+{
+	return LOCTEXT("DeleteStatelessModule", "Delete module from stateless emitter.");
+}
+
+void UNiagaraStackStatelessModuleItem::Delete()
+{
+	UNiagaraStatelessModule* StatelessModule = StatelessModuleWeak.Get();
+	if (StatelessModule != nullptr && StatelessModule->CanDisableModule())
+	{
+		StatelessModule->Modify();
+		StatelessModule->SetIsModuleEnabled(false);
+		GetStackEditorData().Modify();
+		GetStackEditorData().SetStatelessModuleShowWhenDisabled(GetStackEditorDataKey(), false);
+		OnModifiedGroupItems().Broadcast();
+	}
 }
 
 bool UNiagaraStackStatelessModuleItem::SupportsChangeEnabled() const
@@ -145,6 +278,7 @@ void UNiagaraStackStatelessModuleItem::SetIsEnabledInternal(bool bInIsEnabled)
 		StatelessModule->Modify();
 		StatelessModule->SetIsModuleEnabled(bInIsEnabled);
 		StatelessModule->PostEditChange();
+		GetStackEditorData().SetStatelessModuleShowWhenDisabled(GetStackEditorDataKey(), true);
 		TArray<UObject*> ChangedObjects = { StatelessModule };
 		OnDataObjectModified().Broadcast(ChangedObjects, ENiagaraDataObjectChange::Changed);
 		RefreshChildren();

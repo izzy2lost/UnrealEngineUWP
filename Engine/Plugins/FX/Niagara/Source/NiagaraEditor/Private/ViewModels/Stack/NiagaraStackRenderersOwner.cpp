@@ -3,6 +3,7 @@
 #include "ViewModels/Stack/NiagaraStackRenderersOwner.h"
 
 #include "Framework/Notifications/NotificationManager.h"
+#include "NiagaraEditorModule.h"
 #include "NiagaraEditorStyle.h"
 #include "NiagaraEmitter.h"
 #include "NiagaraRendererProperties.h"
@@ -178,6 +179,11 @@ void FNiagaraStackRenderersOwnerStateless::GetRenderers(TArray<UNiagaraRendererP
 	{
 		OutRenderers.Append(StatelessEmitterWeak->GetRenderers());
 	}
+}
+
+bool FNiagaraStackRenderersOwnerStateless::IsRenderCreationInfoSupported(const FNiagaraRendererCreationInfo& RendererCreationInfo) const
+{
+	return RendererCreationInfo.bIsSupportedByStateless;
 }
 
 void FNiagaraStackRenderersOwnerStateless::AddRenderer(UNiagaraRendererProperties* RendererToAdd)

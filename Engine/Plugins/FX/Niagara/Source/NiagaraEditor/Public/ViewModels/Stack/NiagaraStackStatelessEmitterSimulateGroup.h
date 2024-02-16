@@ -9,6 +9,7 @@
 #include "NiagaraStackStatelessEmitterSimulateGroup.generated.h"
 
 class FNiagaraStackItemPropertyHeaderValue;
+class FNiagaraStatelessEmitterSimulateGroupAddUtilities;
 class UNiagaraStatelessEmitter;
 class UNiagaraStatelessModule;
 class UNiagaraStackObject;
@@ -24,7 +25,6 @@ public:
 	virtual EIconMode GetSupportedIconMode() const override { return EIconMode::Brush; }
 	virtual const FSlateBrush* GetIconBrush() const override;
 
-	virtual bool GetCanExpandInOverview() const override { return false; }
 	virtual bool GetShouldShowInStack() const override { return false; }
 
 	UNiagaraStatelessEmitter* GetStatelessEmitter() const { return StatelessEmitterWeak.Get(); }
@@ -33,7 +33,12 @@ protected:
 	virtual void RefreshChildrenInternal(const TArray<UNiagaraStackEntry*>& CurrentChildren, TArray<UNiagaraStackEntry*>& NewChildren, TArray<FStackIssue>& NewIssues) override;
 
 private:
+	void ModuleAdded(UNiagaraStatelessModule* StatelessModule);
+	void ModuleModifiedGroupItems();
+
+private:
 	TWeakObjectPtr<UNiagaraStatelessEmitter> StatelessEmitterWeak;
+	TSharedPtr<FNiagaraStatelessEmitterSimulateGroupAddUtilities> AddUtilities;
 };
 
 UCLASS(MinimalAPI)
@@ -42,10 +47,16 @@ class UNiagaraStackStatelessModuleItem : public UNiagaraStackItem
 	GENERATED_BODY()
 
 public:
+	static FString GenerateStackEditorDataKey(const UNiagaraStatelessModule* InStatelessModule);
+
 	void Initialize(FRequiredEntryData InRequiredEntryData, UNiagaraStatelessModule* InStatelessModule);
 
 	virtual FText GetDisplayName() const override { return DisplayName; }
-	virtual bool GetShouldShowInOverview() const override { return false; }
+
+	virtual bool SupportsDelete() const override { return true; }
+	virtual bool TestCanDeleteWithMessage(FText& OutCanDeleteMessage) const override;
+	virtual FText GetDeleteTransactionText() const override;
+	virtual void Delete() override;
 
 	virtual bool SupportsChangeEnabled() const override;
 	virtual bool GetIsEnabled() const override;
