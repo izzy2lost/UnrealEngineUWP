@@ -710,7 +710,7 @@ AsyncDeviceBufferRef Device::CombineFromTiles(const CombineSplitArgs& CombineArg
 	CHashPtr Hash = CHash::ConstructFromSources(Hashes);
 	
 	/// We've already calculated the Hash from all the child blobs
-	RawBufferPtr Raw = TextureHelper::CombineRaw_Tiles(rawTiles, Hash, true);
+	RawBufferPtr Raw = TextureHelper::CombineRaw_Tiles(rawTiles, Hash, Buffer->IsTransient());
 
 	Buffer->UpdateRaw(Raw);
 
