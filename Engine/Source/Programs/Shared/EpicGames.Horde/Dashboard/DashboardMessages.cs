@@ -49,10 +49,31 @@ namespace EpicGames.Horde.Dashboard
 		public List<GetDashboardAgentCategoryResponse> AgentCategories { get; set; } = new List<GetDashboardAgentCategoryResponse>();
 
 		/// <summary>
+		/// Categories to display on the pools page
+		/// </summary>
+		public List<GetDashboardPoolCategoryResponse> PoolCategories { get; set; } = new List<GetDashboardPoolCategoryResponse>();
+
+		/// <summary>
 		/// Telemetry to display on the telemetry page
 		/// </summary>
 		public List<GetTelemetryViewResponse> TelemetryViews { get; set; } = new List<GetTelemetryViewResponse>();
 
+	}
+
+	/// <summary>
+	/// Describes a category for the pools page
+	/// </summary>
+	public class GetDashboardPoolCategoryResponse
+	{
+		/// <summary>
+		/// Title for the tab
+		/// </summary>
+		public string Name { get; set; } = "Unnamed";
+
+		/// <summary>
+		/// Condition for pools to be included in this category
+		/// </summary>
+		public Condition? Condition { get; set; }
 	}
 
 	/// <summary>

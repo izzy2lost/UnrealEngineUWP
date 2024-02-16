@@ -1,10 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -150,6 +148,11 @@ namespace Horde.Server.Dashboard
 			foreach (DashboardAgentCategoryConfig category in _globalConfig.Value.Dashboard.AgentCategories)
 			{
 				dashboardConfigResponse.AgentCategories.Add(new GetDashboardAgentCategoryResponse { Name = category.Name, Condition = category.Condition });
+			}
+
+			foreach (DashboardPoolCategoryConfig category in _globalConfig.Value.Dashboard.PoolCategories)
+			{
+				dashboardConfigResponse.PoolCategories.Add(new GetDashboardPoolCategoryResponse { Name = category.Name, Condition = category.Condition });
 			}
 
 			foreach (TelemetryViewConfig telemetry in _globalConfig.Value.Dashboard.Analytics)
