@@ -7,7 +7,6 @@
 #include "Containers/Array.h"
 #include "HAL/Platform.h"
 #include "MeshAttributeArray.h"
-#include "MorphTargetAttributesRef.h"
 #include "SkinWeightsAttributesRef.h"
 #include "StaticMeshAttributes.h"
 #include "UObject/NameTypes.h"
@@ -127,9 +126,15 @@ public:
 	/// Returns the name of a morph target given the attribute name. If the given attribute name is invalid, \c NAME_None is returned.
 	static SKELETALMESHDESCRIPTION_API FName GetMorphTargetNameFromAttribute(const FName InAttributeName);
 
-	SKELETALMESHDESCRIPTION_API FMorphTargetVertexAttributesConstRef GetVertexMorphTarget(const FName InMorphTargetName = NAME_None) const;
-	
-	SKELETALMESHDESCRIPTION_API FMorphTargetVertexAttributesConstRef GetVertexMorphTargetFromAttributeName(const FName InAttributeName = NAME_None) const;
+	/// Returns a read-only vertex position delta attribute for the given morph target. The delta is the difference between the point position of the
+	/// mesh and the point position of the morphed mesh. Adding this value to the point position of the mesh will return the morph point position.
+	SKELETALMESHDESCRIPTION_API TVertexAttributesConstRef<FVector3f> GetVertexMorphPositionDelta(const FName InMorphTargetName) const;
+
+	/// Returns a read-only vertex instance normal delta attribute for the given morph target. The delta is the difference between the normal vector 
+	/// of the mesh and the normal vector of the desired morphed mesh. Adding this value to the normal vector of the mesh will return the morph's 
+	/// normal vector for this vertex instance.
+	/// If the morph was not registered to include normals, this will return an invalid attribute. 
+	SKELETALMESHDESCRIPTION_API TVertexInstanceAttributesConstRef<FVector3f> GetVertexInstanceMorphNormalDelta(const FName InMorphTargetName) const;
 	
 	//
 	// Bones Methods
@@ -153,7 +158,7 @@ public:
 		return BoneElementsShared != nullptr;
 	}
 
-	/**  @return the number of the bones. 0 if bone element does not exist in the MeshDescripion. */
+	/**  @return the number of the bones. 0 if bone element does not exist in the FMeshDescription. */
 	SKELETALMESHDESCRIPTION_API int32 GetNumBones() const;
 
 	/** @return true, if the passed bone ID is valid */
@@ -261,21 +266,27 @@ public:
 	/// Register a new morph target with the given name. The attribute name will encode the user-defined morph target name and
 	/// it will be listed in GetMorphTargetNames(). Returns \c true if the morph target was successfully registered.
 	/// Returns \c false if the attribute was already registered or if \c InMorphTargetName is empty.
-	SKELETALMESHDESCRIPTION_API bool RegisterMorphTargetAttribute(const FName InMorphTargetName);
+	/// The position delta is stored as a vertex attributes, and the optional normal is stored as a vertex instance attribute to
+	/// allow for hard edges on morph targets.
+	/// \param InMorphTargetName The name of the morph target to add. Cannot be empty.
+	/// \param bIncludeNormals Set to \c true if per-vertex instance normals (Z-tangent) should be included. Otherwise the normals
+	///		will be automatically computed and only the position delta vertex attribute registered.
+	SKELETALMESHDESCRIPTION_API bool RegisterMorphTargetAttribute(const FName InMorphTargetName, const bool bIncludeNormals);
 
 	/// Unregister an existing morph target with the given name (as returned by GetMorphTargetNames()). Returns \c true if the morph target
 	/// was successfully unregistered.
 	/// Returns \c false if the attribute wasn't registered or if \c InMorphTargetName is empty.
 	SKELETALMESHDESCRIPTION_API bool UnregisterMorphTargetAttribute(const FName InMorphTargetName);
-	
-	/// Returns a specialized morph target vertex attribute, given a morph target name, to allow setting morph target data
-	/// in a simple fashion. If the morph target doesn't exist, the returned  attribute will be invalid and cannot be read from or written to. 
-	SKELETALMESHDESCRIPTION_API FMorphTargetVertexAttributesRef GetVertexMorphTarget(const FName InMorphTargetName = NAME_None);
-	
-	/// Returns a specialized morph target vertex attribute, given an attribute name, to allow setting morph target data
-	/// in a simple fashion. If the attribute doesn't exist, or the attribute does not refer to a morph target, the returned attribute
-	/// will be invalid and cannot be read from or written to. 
-	SKELETALMESHDESCRIPTION_API FMorphTargetVertexAttributesRef GetVertexMorphTargetFromAttributeName(const FName InAttributeName = NAME_None);
+
+	/// Returns a writable vertex position delta attribute for the given morph target. The delta is the difference between the point position of the
+	/// mesh and the point position of the morphed mesh. Adding this value to the point position of the mesh will return the morph point position.
+	SKELETALMESHDESCRIPTION_API TVertexAttributesRef<FVector3f> GetVertexMorphPositionDelta(const FName InMorphTargetName);
+
+	/// Returns a writable vertex instance normal delta attribute for the given morph target. The delta is the difference between the normal vector 
+	/// of the mesh and the normal vector of the desired morphed mesh. Adding this value to the normal vector of the mesh will return the morph's 
+	/// normal vector for this vertex instance.
+	/// If the morph was not registered to include normals, this will return an invalid attribute. 
+	SKELETALMESHDESCRIPTION_API TVertexInstanceAttributesRef<FVector3f> GetVertexInstanceMorphNormalDelta(const FName InMorphTargetName);
 	
 	//
 	// Bones Methods

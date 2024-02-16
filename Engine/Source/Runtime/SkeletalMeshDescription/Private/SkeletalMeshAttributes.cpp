@@ -141,7 +141,10 @@ FSkinWeightsVertexAttributesRef FSkeletalMeshAttributes::GetVertexSkinWeightsFro
 }
 
 
-bool FSkeletalMeshAttributes::RegisterMorphTargetAttribute(const FName InMorphTargetName)
+bool FSkeletalMeshAttributes::RegisterMorphTargetAttribute(
+	const FName InMorphTargetName,
+	const bool bIncludeNormals
+	)
 {
 	if (InMorphTargetName.IsNone())
 	{
@@ -154,14 +157,20 @@ bool FSkeletalMeshAttributes::RegisterMorphTargetAttribute(const FName InMorphTa
 		return false;
 	}
 
-	// Already has this attribute?
-	if (MeshDescription.VertexAttributes().HasAttribute(AttributeName))
+	bool bSuccess = MeshDescription.VertexAttributes().RegisterAttribute<FVector3f>(AttributeName, 1, FVector3f::ZeroVector, EMeshAttributeFlags::None).IsValid();
+	if (bSuccess && bIncludeNormals)
 	{
-		return false;
+		// Register normal attribute, if requested, if it fails, then we have to unregister the vertex attribute too.
+		bSuccess = MeshDescription.VertexInstanceAttributes().RegisterAttribute<FVector3f>(AttributeName, 1, FVector3f::ZeroVector, EMeshAttributeFlags::None).IsValid();
+		if (!bSuccess)
+		{
+			MeshDescription.VertexAttributes().UnregisterAttribute(AttributeName);
+		}
 	}
 
-	return MeshDescription.VertexAttributes().RegisterAttribute<FVector3f[2]>(AttributeName, 1, FVector3f::ZeroVector, EMeshAttributeFlags::None).IsValid();
+	return bSuccess;
 }
+
 
 bool FSkeletalMeshAttributes::UnregisterMorphTargetAttribute(const FName InMorphTargetName)
 {
@@ -186,18 +195,16 @@ bool FSkeletalMeshAttributes::UnregisterMorphTargetAttribute(const FName InMorph
 	return true;
 }
 
-FMorphTargetVertexAttributesRef FSkeletalMeshAttributes::GetVertexMorphTarget(const FName InMorphTargetName)
+
+TVertexAttributesRef<FVector3f> FSkeletalMeshAttributes::GetVertexMorphPositionDelta(const FName InMorphTargetName)
 {
-	return MeshDescription.VertexAttributes().GetAttributesRef<TArrayView<FVector3f>>(CreateMorphTargetAttributeName(InMorphTargetName));
+	return MeshDescription.VertexAttributes().GetAttributesRef<FVector3f>(CreateMorphTargetAttributeName(InMorphTargetName));
 }
 
-FMorphTargetVertexAttributesRef FSkeletalMeshAttributes::GetVertexMorphTargetFromAttributeName(const FName InAttributeName)
+
+TVertexInstanceAttributesRef<FVector3f> FSkeletalMeshAttributes::GetVertexInstanceMorphNormalDelta(const FName InMorphTargetName)
 {
-	if (!IsMorphTargetAttribute(InAttributeName))
-	{
-		return {};
-	}
-	return MeshDescription.VertexAttributes().GetAttributesRef<TArrayView<FVector3f>>(InAttributeName);
+	return MeshDescription.VertexInstanceAttributes().GetAttributesRef<FVector3f>(CreateMorphTargetAttributeName(InMorphTargetName));
 }
 
 
@@ -461,18 +468,14 @@ FName FSkeletalMeshAttributesShared::GetMorphTargetNameFromAttribute(const FName
 	return NAME_None;
 }
 
-FMorphTargetVertexAttributesConstRef FSkeletalMeshAttributesShared::GetVertexMorphTarget(const FName InMorphTargetName) const
+TVertexAttributesConstRef<FVector3f> FSkeletalMeshAttributesShared::GetVertexMorphPositionDelta(const FName InMorphTargetName) const
 {
-	return MeshDescriptionShared.VertexAttributes().GetAttributesRef<TArrayView<FVector3f>>(CreateMorphTargetAttributeName(InMorphTargetName));
+	return MeshDescriptionShared.VertexAttributes().GetAttributesRef<FVector3f>(CreateMorphTargetAttributeName(InMorphTargetName));
 }
 
-FMorphTargetVertexAttributesConstRef FSkeletalMeshAttributesShared::GetVertexMorphTargetFromAttributeName(const FName InAttributeName) const
+TVertexInstanceAttributesConstRef<FVector3f> FSkeletalMeshAttributesShared::GetVertexInstanceMorphNormalDelta(const FName InMorphTargetName) const
 {
-	if (!IsMorphTargetAttribute(InAttributeName))
-	{
-		return {};
-	}
-	return MeshDescriptionShared.VertexAttributes().GetAttributesRef<TArrayView<FVector3f>>(InAttributeName);
+	return MeshDescriptionShared.VertexInstanceAttributes().GetAttributesRef<FVector3f>(CreateMorphTargetAttributeName(InMorphTargetName));
 }
 
 
