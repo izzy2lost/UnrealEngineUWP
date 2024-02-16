@@ -135,6 +135,7 @@ FUpdateContextPrivate::FUpdateContextPrivate(UCustomizableObjectInstance& InInst
 	CapturedDescriptorHash = FDescriptorHash(Descriptor);
 	Parameters = Descriptor.GetParameters();
 	NumComponents = InInstance.GetCustomizableObject()->GetComponentCount();
+	FirstLODAvailable = InInstance.GetCustomizableObject()->GetPrivate()->GetMinLODIndex();
 	
 	InInstance.GetCustomizableObject()->GetPrivate()->ApplyStateForcedValuesToParameters(CapturedDescriptor.GetState(), Parameters.get());
 
@@ -1607,7 +1608,7 @@ namespace impl
 	{
 		Operation->NumLODsAvailable = Operation->MutableInstance->GetLODCount();
 
-		int32 CurrentMinLOD = Operation->GetMinLOD();
+		int32 CurrentMinLOD = FMath::Max(Operation->GetMinLOD(), Operation->FirstLODAvailable);
 		int32 CurrentMaxLOD = Operation->GetMaxLOD();
 
 		if (CurrentMinLOD >= Operation->NumLODsAvailable)

@@ -544,6 +544,7 @@ public:
 
 	int32 NumComponents = 0;
 	int32 NumLODsAvailable = 0;
+	int32 FirstLODAvailable = 0;
 
 	TMap<uint32, FTexturePlatformData*> ImageToPlatformDataMap;
 

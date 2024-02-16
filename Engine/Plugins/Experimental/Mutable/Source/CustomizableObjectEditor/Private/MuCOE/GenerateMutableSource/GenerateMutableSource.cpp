@@ -798,7 +798,7 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 			{
 				FSupportedQualityLevelArray SupportedQualityLevels = LODSettings.MinQualityLevelLOD.GetSupportedQualityLevels(*GenerationContext.Options.TargetPlatform->GetPlatformInfo().IniPlatformName.ToString());
 				
-				int32 MinValue = MAX_int32;
+				int32 MinValue = GenerationContext.NumLODsInRoot - 1;
 				for (int32& QL : SupportedQualityLevels)
 				{
 					// check if have data for the supported quality level or set to default.
@@ -813,7 +813,7 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 					}
 				}
 
-				GenerationContext.FirstLODAvailable = LODSettings.MinQualityLevelLOD.GetValueForPlatform(GenerationContext.Options.TargetPlatform);
+				GenerationContext.FirstLODAvailable = FMath::Max(0, MinValue);
 			}
 			else
 			{
