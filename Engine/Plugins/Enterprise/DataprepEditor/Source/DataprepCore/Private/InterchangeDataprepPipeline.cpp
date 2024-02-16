@@ -33,34 +33,34 @@ void UInterchangeDataprepLevelPipeline::ExecutePipeline(UInterchangeBaseNodeCont
 		}
 		else if (UInterchangeTextureFactoryNode* TextureFactoryNode = Cast<UInterchangeTextureFactoryNode>(FactoryNode))
 		{
-			TextureFactoryNode->SetCustomSubPath(FPaths::Combine(PackageSubPath, "Textures"));
+			TextureFactoryNode->SetCustomSubPath(TEXT("Textures"));
 		}
 		else if (UInterchangeBaseMaterialFactoryNode* MaterialFactoryNode = Cast<UInterchangeBaseMaterialFactoryNode>(FactoryNode))
 		{
 			if (MaterialFactoryNode->IsA<UInterchangeMaterialFactoryNode>())
 			{
-				MaterialFactoryNode->SetCustomSubPath(FPaths::Combine(PackageSubPath, "Materials/References"));
+				MaterialFactoryNode->SetCustomSubPath(TEXT("Materials/References"));
 			}
 			else if (MaterialFactoryNode->IsA<UInterchangeMaterialFunctionFactoryNode>())
 			{
-				MaterialFactoryNode->SetCustomSubPath(FPaths::Combine(PackageSubPath, "Materials/References/Functions"));
+				MaterialFactoryNode->SetCustomSubPath(TEXT("Materials/References/Functions"));
 			}
 			else
 			{
-				MaterialFactoryNode->SetCustomSubPath(FPaths::Combine(PackageSubPath, "Materials"));
+				MaterialFactoryNode->SetCustomSubPath(TEXT("Materials"));
 			}
 		}
 		else if (UInterchangeStaticMeshFactoryNode* MeshFactoryNode = Cast<UInterchangeStaticMeshFactoryNode>(FactoryNode))
 		{
-			MeshFactoryNode->SetCustomSubPath(FPaths::Combine(PackageSubPath, "Geometries"));
+			MeshFactoryNode->SetCustomSubPath(TEXT("Geometries"));
 		}
 		else if (UInterchangeLevelSequenceFactoryNode* SequenceFactoryNode = Cast<UInterchangeLevelSequenceFactoryNode>(FactoryNode))
 		{
-			SequenceFactoryNode->SetCustomSubPath(FPaths::Combine(PackageSubPath, "Animations"));
+			SequenceFactoryNode->SetCustomSubPath(TEXT("Animations"));
 		}
 		else if (UInterchangeSceneVariantSetsFactoryNode* VariantFactoryNode = Cast<UInterchangeSceneVariantSetsFactoryNode>(FactoryNode))
 		{
-			VariantFactoryNode->SetCustomSubPath(FPaths::Combine(PackageSubPath, "Variants"));
+			VariantFactoryNode->SetCustomSubPath(TEXT("Variants"));
 		}
 		// Remove UInterchangeSceneImportAssetFactoryNode from the import
 		// #dataprep_todo : Revisit when consumer will have been updated.
@@ -83,6 +83,6 @@ void UInterchangeDataprepLevelPipeline::ExecutePostImportPipeline(const UInterch
 
 	Super::ExecutePostImportPipeline(NodeContainer, FactoryNodeKey, CreatedAsset, bIsAReimport);
 
-	CreatedAsset->ClearFlags(RF_Public/* | RF_Standalone*/);
-	CreatedAsset->SetFlags(RF_Transient);
+	CreatedAsset->ClearFlags(RF_Public);
+	CreatedAsset->SetFlags(RF_Transactional|RF_Standalone);
 }

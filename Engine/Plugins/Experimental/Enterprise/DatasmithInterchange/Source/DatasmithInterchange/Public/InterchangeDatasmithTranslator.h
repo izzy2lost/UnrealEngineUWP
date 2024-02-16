@@ -29,6 +29,7 @@ class IDatasmithLightActorElement;
 class IDatasmithDecalActorElement;
 class IDatasmithScene;
 class IDatasmithTransformAnimationElement;
+class UDatasmithOptionsBase;
 class UInterchangePhysicalCameraNode;
 class UInterchangeBaseLightNode;
 class UInterchangeDecalNode;
@@ -54,6 +55,16 @@ namespace UE::DatasmithInterchange::AnimUtils
 	extern bool GetAnimationPayloadData(const IDatasmithBaseAnimationElement& AnimationElement, float FrameRate, EInterchangeAnimationPayLoadType PayLoadType, UE::Interchange::FAnimationPayloadData& PayLoadData);
 }
 
+UCLASS(BlueprintType, editinlinenew, MinimalAPI)
+class UInterchangeDatasmithTranslatorSettings : public UInterchangeTranslatorSettings
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, Instanced, BlueprintReadWrite, Category = "Datasmith Interchange", meta = (ShowOnlyInnerProperties))
+	TObjectPtr<UDatasmithOptionsBase> ImportOptions;
+};
+
 UCLASS(BlueprintType, Experimental)
 class DATASMITHINTERCHANGE_API UInterchangeDatasmithTranslator : public UInterchangeTranslatorBase
 	, public IInterchangeTexturePayloadInterface
@@ -66,6 +77,7 @@ class DATASMITHINTERCHANGE_API UInterchangeDatasmithTranslator : public UInterch
 
 public:
 
+	/** Begin UInterchangeTranslatorBase API*/
 	virtual bool CanImportSourceData(const UInterchangeSourceData* InSourceData) const override;
 
 	virtual bool Translate(UInterchangeBaseNodeContainer& BaseNodeContainer) const override;
@@ -86,6 +98,10 @@ public:
 	}
 
 	virtual void ImportFinish() override;
+
+	virtual UInterchangeTranslatorSettings* GetSettings() const override;
+	virtual void SetSettings(const UInterchangeTranslatorSettings* InterchangeTranslatorSettings) override;
+	/** End UInterchangeTranslatorBase API*/
 
 	/* IInterchangeTexturePayloadInterface Begin */
 	virtual TOptional<UE::Interchange::FImportImage> GetTexturePayloadData(const FString& PayloadKey, TOptional<FString>& AlternateTexturePath) const override;
@@ -123,6 +139,7 @@ private:
 
 	mutable uint64 StartTime = 0;
 	mutable FString FileName;
+	mutable TObjectPtr<UInterchangeDatasmithTranslatorSettings> CachedSettings = nullptr;
 
 	mutable TMap<FString, UE::DatasmithInterchange::AnimUtils::FAnimationPayloadDesc> AnimationPayLoadMapping;
 };

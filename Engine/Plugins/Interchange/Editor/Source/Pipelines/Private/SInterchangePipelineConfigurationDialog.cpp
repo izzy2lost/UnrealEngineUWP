@@ -259,25 +259,22 @@ void SInterchangePipelineConfigurationDialog::OnFinishedChangingProperties(const
 	}
 	if (UClass* TranslatorSettingsClass = TranslatorSettings->GetClass())
 	{
-		if (TranslatorSettingsClass->HasProperty(PropertyChangedEvent.Property))
-		{
-			//Save the config locally before the translation.
-			TranslatorSettings->SaveSettings();
+		//Save the config locally before the translation.
+		TranslatorSettings->SaveSettings();
 
-			//Need to Translate the source data
- 			FScopedSlowTask Progress(2.f, NSLOCTEXT("SInterchangePipelineConfigurationDialog", "TranslatingSourceFile...", "Translating source file..."));
- 			Progress.MakeDialog();
- 			Progress.EnterProgressFrame(1.f);
-			//Reset the container
-			BaseNodeContainer->Reset();
+		//Need to Translate the source data
+		FScopedSlowTask Progress(2.f, NSLOCTEXT("SInterchangePipelineConfigurationDialog", "TranslatingSourceFile...", "Translating source file..."));
+		Progress.MakeDialog();
+		Progress.EnterProgressFrame(1.f);
+		//Reset the container
+		BaseNodeContainer->Reset();
 
-			Translator->Translate(*BaseNodeContainer.Get());
+		Translator->Translate(*BaseNodeContainer.Get());
 
-			//Refresh the dialog
-			RefreshStack(false);
+		//Refresh the dialog
+		RefreshStack(false);
 
-			Progress.EnterProgressFrame(1.f);
-		}
+		Progress.EnterProgressFrame(1.f);
 	}
 }
 
