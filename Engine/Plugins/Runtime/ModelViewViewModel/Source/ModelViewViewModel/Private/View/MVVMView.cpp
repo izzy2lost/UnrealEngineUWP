@@ -525,13 +525,8 @@ void UMVVMView::HandledLibraryBindingValueChanged(UObject* InSource, UE::FieldNo
 		if (!ViewSource.bBindingsInitialized || !ViewSource.bSourceInitialized)
 		{
 			// we do not want to run a binding while we are initializing the bindings.
-#if UE_WITH_MVVM_DEBUGGING
 			UE::MVVM::FMessageLog Log(GetUserWidget());
 			Log.Warning(FText::Format(LOCTEXT("ExecuteBindingFailWhileInitializing", "The Field '{0}' could not execute the bindings while initializing."), FText::FromName(InFieldId.GetName())));
-#else
-			UE::MVVM::FMessageLog Log(GetUserWidget());
-			Log.Warning(FText::Format(LOCTEXT("ExecuteBindingFailInvalidSource", "The Field '{0}'  could not execute the bindings while initializing."), FText::FromName(InFieldId.GetName())));
-#endif
 			return;
 		}
 
