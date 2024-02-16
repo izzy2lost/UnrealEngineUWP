@@ -157,7 +157,7 @@ bool UMusicClockComponent::ConnectToMetasound()
 		ClockDriver->Disconnect();
 		ClockDriver = nullptr;
 	}
-	TUniquePtr<FMetasoundMusicClockDriver> MetasoundClockDriver = MakeUnique<FMetasoundMusicClockDriver>(this);
+	TSharedPtr<FMetasoundMusicClockDriver> MetasoundClockDriver = MakeShared<FMetasoundMusicClockDriver>(this);
 	bool Connected = MetasoundClockDriver->ConnectToAudioComponentsMetasound(MetasoundsAudioComponent, MetasoundOutputName);
 	ClockDriver = MoveTemp(MetasoundClockDriver);
 	return Connected;
@@ -171,7 +171,7 @@ void UMusicClockComponent::ConnectToWallClock()
 	{
 		ClockDriver->Disconnect();
 	}
-	ClockDriver = MakeUnique<FWallClockMusicClockDriver>(this, TempoMap);
+	ClockDriver = MakeShared<FWallClockMusicClockDriver>(this, TempoMap);
 }
 
 FMidiSongPos UMusicClockComponent::CalculateSongPosWithOffset(float MsOffset, ECalibratedMusicTimebase Timebase) const

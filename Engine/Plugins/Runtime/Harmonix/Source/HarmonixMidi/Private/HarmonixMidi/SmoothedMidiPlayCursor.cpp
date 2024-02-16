@@ -88,7 +88,7 @@ void FSmoothedMidiPlayCursor::SyncSmoothingTimer(bool bEnableErrorCorrection)
 		SmoothingTimer.Start();
 	}
 
-	SetSpeed(Owner->GetCurrentAdvanceRate());
+	SetSpeed(Owner->GetCurrentAdvanceRate(Tracker->IsLowRes));
 
 	float RawMs = CurrentMs;
 	double SmoothMs = SmoothingTimer.Ms();
@@ -146,8 +146,8 @@ void FSmoothedMidiPlayCursor::SyncSmoothingTimer(bool bEnableErrorCorrection)
 	SmoothedMsDelta = float(SmoothMs - RawMs);
 
 	// we need to see if the smoothed position is a position that we have never played!
-	float LoopStartMs = Owner->GetLoopStartMs();
-	float LoopEndMs = Owner->GetLoopEndMs();
+	float LoopStartMs = Owner->GetLoopStartMs(Tracker->IsLowRes);
+	float LoopEndMs = Owner->GetLoopEndMs(Tracker->IsLowRes);
 	if (LoopStartMs < LoopEndMs)
 	{
 		// possible loop back...
@@ -178,5 +178,5 @@ void FSmoothedMidiPlayCursor::UpdateSongPosition()
 		return;
 	}
 
-	CurrentSongPos = Owner->CalculateLowResSongPosWithOffsetMs(SmoothedMsDelta);
+	CurrentSongPos = Owner->CalculateSongPosWithOffsetMs(SmoothedMsDelta, Tracker->IsLowRes);
 }

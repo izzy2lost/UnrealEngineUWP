@@ -326,7 +326,7 @@ private:
 	friend struct FWallClockMusicClockDriver;
 	friend class  UMidiClockUpdateSubsystem;
 
-	TUniquePtr<FMusicClockDriverBase> ClockDriver;
+	TSharedPtr<FMusicClockDriverBase> ClockDriver;
 
 	EMusicClockState State = EMusicClockState::Stopped;
 
@@ -363,7 +363,7 @@ private:
 	void EnsureClockIsValidForGameFrameFromSubsystem();
 };
 
-struct FMusicClockDriverBase
+struct FMusicClockDriverBase : public TSharedFromThis<FMusicClockDriverBase>
 {
 public:
 	FMusicClockDriverBase() = delete;
