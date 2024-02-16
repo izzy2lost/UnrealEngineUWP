@@ -532,7 +532,20 @@ void Blob::SyncWith(Blob* RHS)
 
 void Blob::FinaliseFrom(Blob* RHS)
 {
+	// We are only saving the buffer transient state when buffer is valid.
+	// This buffer will be empty in case of non single blob.
+	const bool HadValidBuffer = Buffer && Buffer->IsValid();
+	const bool bIsTransient = Buffer && Buffer->IsValid() && Buffer->IsTransient();
+
+	// We need to save the transient state before copying the RHS buffer.
 	Buffer = RHS->Buffer;
+
+	// Only try to update the buffer transient state when we found a valid buffer from RHS.
+	if(HadValidBuffer && Buffer && Buffer->IsValid())
+	{
+		Buffer->Desc.bIsTransient &= bIsTransient;		
+	}
+	
 	LODLevels = RHS->LODLevels;
 	MinMax = RHS->MinMax;
 	MinValue = RHS->MinValue;

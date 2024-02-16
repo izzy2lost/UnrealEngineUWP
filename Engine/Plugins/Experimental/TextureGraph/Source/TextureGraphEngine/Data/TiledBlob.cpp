@@ -1070,7 +1070,7 @@ void TiledBlob_Promise::AddLinkedBlob(BlobPtr LinkedBlob)
 	if (IsFinalised())
 	{
 		/// Copy the contents over
-		*TiledPromiseLinkedBlob = *this;
+		TiledPromiseLinkedBlob->FinaliseFrom(this);
 	}
 
 	TiledPromiseLinkedBlob->CachedBlob = std::static_pointer_cast<TiledBlob_Promise>(shared_from_this());

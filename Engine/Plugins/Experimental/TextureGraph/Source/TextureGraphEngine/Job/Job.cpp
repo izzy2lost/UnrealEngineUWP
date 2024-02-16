@@ -396,7 +396,10 @@ bool Job::CheckCached()
 			ResultOrg->FinaliseFrom(ExistingResult.get());
 		else
 		{
-			ResultOrg = std::make_shared<TiledBlob_Promise>(ExistingResult->GetDescriptor(), ExistingResult->Rows(), ExistingResult->Cols(), ExistingResult->Hash());
+			BufferDescriptor Desc = ExistingResult->GetDescriptor();
+			Desc.bIsTransient = IsDiscard();
+			
+			ResultOrg = std::make_shared<TiledBlob_Promise>(Desc, ExistingResult->Rows(), ExistingResult->Cols(), ExistingResult->Hash());
 			ResultOrg->FinaliseFrom(ExistingResult.get());
 		}
 
