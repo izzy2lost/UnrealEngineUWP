@@ -732,6 +732,12 @@ bool FOptimusEditor::CanConvertToFunction() const
 
 void FOptimusEditor::ConvertToSubGraph()
 {
+	FOptimusActionScope ActionScope(*GetActionStack(), TEXT("Convert to SubGraphs"));
+	UOptimusNodeGraph* ModelGraph = EditorGraph->GetModelGraph();
+	for (UOptimusNode* ModelNode: GetSelectedModelNodes())
+	{
+		ModelGraph->ConvertToSubGraph(ModelNode);
+	}
 }
 
 bool FOptimusEditor::CanConvertToSubGraph() const

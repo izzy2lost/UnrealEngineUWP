@@ -75,10 +75,12 @@ public:
 	static const FName SetupGraphName;
 	static const FName UpdateGraphName;
 	static const TCHAR* LibraryRoot;
+	static const FName DefaultSubGraphName;
+	static const FName DefaultSubGraphRefNodeName;
 	
 	// Function Graphs are addressed in a special way
 	static FString GetFunctionGraphPath(const FString& InFunctionName);
-	
+
 	
 	// Check if the duplication took place at the asset level
 	// if so, we have to recreate all constant/attribute nodes such that their class pointers
@@ -272,6 +274,11 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = OptimusNodeGraph)
 	bool ConvertToFunction(UOptimusNode* InSubGraphNode);
+
+	/** Take a function node convert it to a subgraph node in-place
+	 */
+	UFUNCTION(BlueprintCallable, Category = OptimusNodeGraph)
+	bool ConvertToSubGraph(UOptimusNode* InFunctionNode);
 	
 	/** Returns true if the node in question is a custom kernel node that can be converted to
 	  * a kernel function with ConvertCustomKernelToFunction.
@@ -545,6 +552,8 @@ private:
 		const UOptimusNodePin* InNodePin
 		) const;
 
+	FString ConstructSubGraphPath(const FString& InSubGraphName) const;
+	
 	UPROPERTY(NonTransactional)
 	TArray<TObjectPtr<UOptimusNode>> Nodes;
 
