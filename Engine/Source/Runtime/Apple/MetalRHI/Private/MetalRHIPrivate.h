@@ -51,7 +51,7 @@ const uint32 MetalBufferBytesSize = BufferOffsetAlignment * 32;
 #endif
 
 #define METAL_RHI_RAYTRACING (0)
-#define METAL_USE_METAL_SHADER_CONVERTER (1)
+#define METAL_USE_METAL_SHADER_CONVERTER PLATFORM_SUPPORTS_BINDLESS_RENDERING
 
 // Metal Shader Converter
 #if METAL_USE_METAL_SHADER_CONVERTER
