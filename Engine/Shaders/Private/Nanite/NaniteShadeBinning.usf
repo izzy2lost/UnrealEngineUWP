@@ -250,8 +250,10 @@ void AllocateElements(uint Bin, uint ThreadIndex, uint QuadFullTileCount, uint Q
 		if (WaveIsFirstLane())
 		{
 			OutShadingBinData.InterlockedAdd((Bin * NANITE_SHADING_BIN_META_BYTES) + NANITE_SHADING_BIN_META_WRITTEN_COUNT_OFFSET, WaveFullTileCount + WaveLooseCount);
+		#if SHADING_BIN_RESERVE || SHADING_BIN_SCATTER
 			InterlockedAdd(OutShadingBinScatterMeta[Bin].FullTileElementCount, WaveFullTileCount, WaveFullTileOffset);
 			InterlockedAdd(OutShadingBinScatterMeta[Bin].LooseElementCount, WaveLooseCount, WaveLooseOffset);
+		#endif
 		}
 		FullTileDataOffset += WaveReadLaneFirst(WaveFullTileOffset);
 		LooseDataOffset += WaveReadLaneFirst(WaveLooseOffset);
@@ -274,8 +276,10 @@ void AllocateElements(uint Bin, uint ThreadIndex, uint QuadFullTileCount, uint Q
 			const uint TotalLooseCount = GroupFullTileCount_LooseCount >> 16;
 
 			OutShadingBinData.InterlockedAdd((Bin * NANITE_SHADING_BIN_META_BYTES) + NANITE_SHADING_BIN_META_WRITTEN_COUNT_OFFSET, TotalFullTileCount + TotalLooseCount);
+		#if SHADING_BIN_RESERVE || SHADING_BIN_SCATTER
 			InterlockedAdd(OutShadingBinScatterMeta[Bin].FullTileElementCount, TotalFullTileCount, GroupFullTileOffset);
 			InterlockedAdd(OutShadingBinScatterMeta[Bin].LooseElementCount, TotalLooseCount, GroupLooseOffset);
+		#endif
 		}
 		GroupMemoryBarrierWithGroupSync();
 
