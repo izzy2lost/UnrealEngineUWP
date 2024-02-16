@@ -30,6 +30,7 @@ namespace UE::ConcertClientSharedSlate
 		{
 			GEngine->OnLevelActorDeleted().RemoveAll(this);
 		}
+		FCoreUObjectDelegates::OnObjectTransacted.RemoveAll(this);
 	}
 
 	void FModifyObjectInLevelHandler::OnActorDeleted(AActor* Actor) const
