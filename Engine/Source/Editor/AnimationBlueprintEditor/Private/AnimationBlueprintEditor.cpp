@@ -2311,7 +2311,10 @@ void FAnimationBlueprintEditor::HandleSetObjectBeingDebugged(UObject* InObject)
 			{
 				// Otherwise set us to display the debugged instance via copy-pose
 				GetPreviewScene()->GetPreviewMeshComponent()->EnablePreview(true, nullptr);
-				GetPreviewScene()->GetPreviewMeshComponent()->PreviewInstance->SetDebugSkeletalMeshComponent(SkeletalMeshComponent);
+				if (GetPreviewScene()->GetPreviewMeshComponent()->PreviewInstance)
+				{
+					GetPreviewScene()->GetPreviewMeshComponent()->PreviewInstance->SetDebugSkeletalMeshComponent(SkeletalMeshComponent);
+				}
 			}
 		}
 	}
