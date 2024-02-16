@@ -35,6 +35,8 @@
 #include "Pins/STG_GraphMaterialIdMaskInfos.h"
 #include "Transform/Expressions/T_ExtractMaterialIds.h"
 #include "Pins/STG_GraphPinOutputSettings.h"
+#include "Pins/STG_GraphPinString.h"
+
 #include "NumericPropertyParams.h"
 
 TSharedPtr<class SGraphPin> FTG_EditorGraphPanelPinFactory::CreatePin(class UEdGraphPin* InPin) const
@@ -141,6 +143,13 @@ TSharedPtr<class SGraphPin> FTG_EditorGraphPanelPinFactory::CreatePin(class UEdG
 		{
 			//const UClass* ObjectMetaClass = Cast<UClass>(InPin->PinType.PinSubCategoryObject.Get());
 			return SNew(SGraphPinObject, InPin);
+		}
+		else if (InPin->PinType.PinCategory == "PinCategory")
+		{
+			if (InPin->PinType.PinSubCategory == "FName")
+			{
+				return SNew(STG_GraphPinString, InPin);
+			}
 		}
 		return SNew(SGraphPin, InPin);
 	}

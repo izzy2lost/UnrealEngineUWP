@@ -10,6 +10,64 @@
 #include "TG_Texture.h"
 #include "TG_Var.h"
 #include "FxMat/MaterialManager.h"
+#include "Materials/MaterialAttributeDefinitionMap.h"
+
+
+EDrawMaterialAttributeTarget UTG_Expression_MaterialBase::ConvertEMaterialPropertyToEDrawMaterialAttributeTarget(EMaterialProperty InMaterialProperty)
+{
+	switch (InMaterialProperty)
+	{
+		case MP_EmissiveColor:
+			return EDrawMaterialAttributeTarget::Emissive;
+		case MP_Opacity:
+			return EDrawMaterialAttributeTarget::Opacity;
+		case MP_OpacityMask:
+			return EDrawMaterialAttributeTarget::OpacityMask;
+		case MP_BaseColor:
+			return EDrawMaterialAttributeTarget::BaseColor;
+		case MP_Metallic:
+			return EDrawMaterialAttributeTarget::Metallic;
+		case MP_Specular:
+			return EDrawMaterialAttributeTarget::Specular;
+		case MP_Roughness:
+			return EDrawMaterialAttributeTarget::Roughness;
+		case MP_Anisotropy:
+			return EDrawMaterialAttributeTarget::Anisotropy;
+		case MP_Normal:
+			return EDrawMaterialAttributeTarget::Normal;
+		case MP_Tangent:
+			return EDrawMaterialAttributeTarget::Tangent;
+
+		case MP_DiffuseColor:
+		case MP_SpecularColor:
+		case MP_WorldPositionOffset:
+		case MP_WorldDisplacement_DEPRECATED:
+		case MP_TessellationMultiplier_DEPRECATED:
+		case MP_SubsurfaceColor:
+		case MP_AmbientOcclusion:
+		case MP_Refraction:
+		case MP_CustomData0:
+		case MP_CustomData1:
+		case MP_CustomizedUVs0:
+		case MP_CustomizedUVs1:
+		case MP_CustomizedUVs2:
+		case MP_CustomizedUVs3:
+		case MP_CustomizedUVs4:
+		case MP_CustomizedUVs5:
+		case MP_CustomizedUVs6:
+		case MP_CustomizedUVs7:
+		case MP_PixelDepthOffset:
+		case MP_ShadingModel:
+		case MP_FrontMaterial:
+		case MP_SurfaceThickness:
+		case MP_Displacement:
+		case MP_MaterialAttributes:
+		case MP_CustomOutput:
+		default:
+			return EDrawMaterialAttributeTarget::Count; // Not supported yet in the shader
+	 }
+}
+
 
 bool UTG_Expression_MaterialBase::Validate(MixUpdateCyclePtr	Cycle)
 {
@@ -36,10 +94,41 @@ void UTG_Expression_MaterialBase::SetMaterialInternal(UMaterialInterface* InMate
 		}
 	}
 
+	// Detect the set of available material properties for rendering
+	GenerateMaterialAttributeOptions();
+	
 	// Signature is reset, notify the owning node / graph to update itself
 	NotifySignatureChanged();
 }
 
+
+void UTG_Expression_MaterialBase::GenerateMaterialAttributeOptions()
+{
+	// Detect the set of available material properties for rendering
+	AvailableMaterialAttributeIds.Empty();
+	AvailableMaterialAttributeNames.Empty();
+	if (MaterialInstance)
+	{
+		UMaterial* RefMaterial = MaterialInstance->GetMaterial();
+		for (int i = MP_EmissiveColor; i < MP_MAX; ++i)
+		{
+			if (RefMaterial->IsPropertyConnected(EMaterialProperty(i)))
+			{
+				EDrawMaterialAttributeTarget Attribute = ConvertEMaterialPropertyToEDrawMaterialAttributeTarget(EMaterialProperty(i));
+				if (Attribute != EDrawMaterialAttributeTarget::Count)
+				{
+					AvailableMaterialAttributeIds.Add(Attribute);
+
+
+					FName AttributeName = FName(UEnum::GetDisplayValueAsText(Attribute).ToString());
+					AttributeName = FName(FMaterialAttributeDefinitionMap::GetDisplayNameForMaterial(EMaterialProperty(i), RefMaterial).ToString());
+
+					AvailableMaterialAttributeNames.Add(AttributeName);
+				}
+			}
+		}
+	}
+}
 
 void UTG_Expression_MaterialBase::Evaluate(FTG_EvaluationContext* InContext)
 {
@@ -67,6 +156,7 @@ void UTG_Expression_MaterialBase::Initialize()
 	{
 		MaterialInstance = UMaterialInstanceDynamic::Create(GetMaterial(), this);
 	}
+	GenerateMaterialAttributeOptions(); // also populate the attributes availables
 }
 
 TiledBlobPtr UTG_Expression_MaterialBase::CreateRenderMaterialJob(FTG_EvaluationContext* InContext, const FString& InName, const FString& InMaterialPath, const BufferDescriptor& InDescriptor, EDrawMaterialAttributeTarget InDrawMaterialAttributeTarget)

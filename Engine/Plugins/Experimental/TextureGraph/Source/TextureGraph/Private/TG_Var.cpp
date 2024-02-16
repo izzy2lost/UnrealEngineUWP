@@ -36,6 +36,12 @@ template <> FString TG_Var_LogValue(float& Value)
 	return LogMessage;
 }
 
+template <> FString TG_Var_LogValue(FName& Value)
+{
+	FString LogMessage = Value.ToString();
+	return LogMessage;
+}
+
 template <> FString TG_Var_LogValue(FLinearColor& Value)
 {
 	FString LogMessage = Value.ToString();
@@ -86,6 +92,11 @@ template <> void TG_Var_SetValueFromString(uint8& Value, const FString& StrVal)
 {
 	Value = static_cast<uint8>(FCString::Atoi(*StrVal));
 }
+template <> void TG_Var_SetValueFromString(FName& Value, const FString& StrVal)
+{
+	Value = FName(StrVal);
+}
+
 template <> void TG_Var_SetValueFromString(FLinearColor& Value, const FString& StrVal)
 {
 	Value.InitFromString(StrVal);
@@ -207,6 +218,11 @@ void VarPropertySerializer_float(FTG_Var::VarPropertySerialInfo& Info)
 void VarPropertySerializer_bool(FTG_Var::VarPropertySerialInfo& Info)
 {
 	Generic_Simple_Serializer<FBoolProperty, bool>(Info);
+}
+
+void VarPropertySerializer_FName(FTG_Var::VarPropertySerialInfo& Info)
+{
+	Generic_Simple_Serializer<FNameProperty, FName>(Info);
 }
 
 void VarPropertySerializer_UObjectPtr(FTG_Var::VarPropertySerialInfo& Info)
@@ -344,6 +360,7 @@ FTG_Var::VarPropertySerializerMap FTG_Var::DefaultPropertySerializers
 		VAR_PROPERTY_SERIALIZER_DEF(int32),
 		VAR_PROPERTY_SERIALIZER_DEF(uint32),
 		VAR_PROPERTY_SERIALIZER_DEF(float),
+		VAR_PROPERTY_SERIALIZER_DEF(FName),
 		VAR_PROPERTY_SERIALIZER_DEF(FTG_Texture),
 		VAR_PROPERTY_SERIALIZER_DEF(FVector4f),
 		VAR_PROPERTY_SERIALIZER_DEF(FVector2f),

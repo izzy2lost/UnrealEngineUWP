@@ -25,6 +25,7 @@ enum class EDrawMaterialAttributeTarget : uint8
 	Opacity,
 	OpacityMask,
 	Normal,
+	Tangent,
 
 	/// Always has to be the last
 	Count UMETA(Hidden),
@@ -56,13 +57,21 @@ public:
 	// Validate internal checks, warnings and errors
 	virtual bool Validate(MixUpdateCyclePtr	Cycle) override;
 
+	// Access the list of attributes available for rendering from the current Material
+	const TArray<EDrawMaterialAttributeTarget>& GetAvailableMaterialAttributeIds() const { return AvailableMaterialAttributeIds; }
+	const TArray<FName>& GetAvailableMaterialAttributeNames() const { return AvailableMaterialAttributeNames; }
 
 protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> MaterialInstance; // A local Instance Material is recreated for the Material member
 
+	TArray<EDrawMaterialAttributeTarget>	AvailableMaterialAttributeIds; // The set of material properties available for rendering
+	TArray<FName>							AvailableMaterialAttributeNames; // same with the attribute names
+
 	virtual void Initialize() override;
-	
+
+	void GenerateMaterialAttributeOptions(); // Based on the current Material, list of material attributes available
+
 	TiledBlobPtr CreateRenderMaterialJob(FTG_EvaluationContext* InContext, const FString& InName, const FString& InMaterialPath, const BufferDescriptor& InDescriptor, EDrawMaterialAttributeTarget InDrawMaterialAttributeTarget);
 	TiledBlobPtr CreateRenderMaterialJob(FTG_EvaluationContext* InContext, const RenderMaterial_BPPtr& InRenderMaterial, const BufferDescriptor& InDescriptor, EDrawMaterialAttributeTarget InDrawMaterialAttributeTarget);
 	void LinkMaterialParameters(FTG_EvaluationContext* InContext, JobUPtr& InMaterialJob, const UMaterial* InMaterial, BufferDescriptor InDescriptor);
@@ -76,6 +85,7 @@ protected:
 private:
 	void AddSignatureParam(TArray<FMaterialParameterInfo> OutParameterInfoScalar, FName CPPTypeName, FTG_Signature::FInit& SignatureInit, bool IsScalar = false) const;
 
+	static EDrawMaterialAttributeTarget ConvertEMaterialPropertyToEDrawMaterialAttributeTarget(EMaterialProperty InMaterialProperty);
 };
 
  

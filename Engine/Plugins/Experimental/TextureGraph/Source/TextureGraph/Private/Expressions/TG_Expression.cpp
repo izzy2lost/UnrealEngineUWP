@@ -77,6 +77,8 @@ FTG_Signature::FInit UTG_Expression::GetSignatureInitArgsFromClass() const
 			bIsNotConnectable |= (ByteProperty != nullptr);
 			FEnumProperty* EnumProperty = CastField<FEnumProperty>(*Prop);
 			bIsNotConnectable |= (EnumProperty != nullptr);
+			FNameProperty* NameProperty = CastField<FNameProperty>(*Prop);
+			bIsNotConnectable |= (NameProperty != nullptr);
 		}
 		uint8 MaskNotConnectable = bIsNotConnectable ? static_cast<uint8>(ETG_Access::NotConnectableFlag) : 0;
 		
