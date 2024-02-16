@@ -84,8 +84,7 @@ namespace
 					{
 						continue;
 					}
-					FString PassName = FString::Printf(TEXT("PPMChainGraphPassOutput_%d"), PassId++);
-					FRDGTexture* PassRDGTexture = GraphBuilder.CreateTexture(OutputDesc, *PassName);
+					FRDGTexture* PassRDGTexture = GraphBuilder.CreateTexture(OutputDesc, *Pass->TemporaryRenderTargetId);
 					FScreenPassRenderTarget PassRenderTarget = FScreenPassRenderTarget(PassRDGTexture, SceneColorRenderTarget.ViewRect, ERenderTargetLoadAction::EClear);
 					PassOutputs.Add(Pass->TemporaryRenderTargetId, PassRenderTarget);
 
@@ -124,8 +123,19 @@ namespace
 							if (ExternalTexture.IsValid())
 							{
 								FRHITexture* ExternalTextureResourceRHI = ExternalTexture->GetResource() ? ExternalTexture->GetResource()->GetTexture2DRHI() : nullptr;
+								bool bIsShaderResource = false;
+
 								if (ExternalTextureResourceRHI)
 								{
+									const FRHITextureDesc& ExternalTexDesc = ExternalTextureResourceRHI->GetDesc();
+
+									// Virtual textures are not used as shader resources and users are notified about it.
+									bIsShaderResource = EnumHasAnyFlags(ExternalTexDesc.Flags, ETextureCreateFlags::ShaderResource);
+								}
+
+								if (ExternalTextureResourceRHI && bIsShaderResource)
+								{
+									ExternalTextureResourceRHI->GetDesc();
 									FRDGTextureRef ExternalTextureRDG = RegisterExternalTexture(GraphBuilder, ExternalTextureResourceRHI, *InputMappedToId);
 									FScreenPassTexture ExternalTextureInput(ExternalTextureRDG, FIntRect(0, 0, ExternalTexture->GetSizeX(), ExternalTexture->GetSizeY()));
 									PPMInputTextures[InputIndex] = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, ExternalTextureInput);
@@ -257,6 +267,13 @@ void FPPMChainGraphSceneViewExtension::GatherChainGraphProxies
 
 void FPPMChainGraphSceneViewExtension::SubscribeToPostProcessingPass(EPostProcessingPass PassId, FAfterPassCallbackDelegateArray& InOutPassCallbacks, bool bIsPassEnabled)
 {
+	{
+		FScopeLock ScopeLock(&WorldSubsystem->ActiveAccessCriticalSection);
+		if (!WorldSubsystem->ActivePasses.Contains((uint32)PassId + 1))
+		{
+			return;
+		}
+	}
 	InOutPassCallbacks.Add(FAfterPassCallbackDelegate::CreateLambda([this, InPassId = PassId](FRDGBuilder& GraphBuilder, const FSceneView& View, const FPostProcessMaterialInputs& InInputs)
 		{
 			FPostProcessMaterialInputs InOutInputs = InInputs;

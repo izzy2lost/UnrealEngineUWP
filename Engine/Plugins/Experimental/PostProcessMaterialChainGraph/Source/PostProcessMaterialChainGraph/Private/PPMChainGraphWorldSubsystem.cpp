@@ -66,6 +66,7 @@ void UPPMChainGraphWorldSubsystem::Deinitialize()
 void UPPMChainGraphWorldSubsystem::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+	GatherActivePasses();
 }
 
 void UPPMChainGraphWorldSubsystem::AddPPMChainGraphComponent(TWeakObjectPtr<UPPMChainGraphExecutorComponent> InComponent)
@@ -83,6 +84,29 @@ void UPPMChainGraphWorldSubsystem::RemovePPMChainGraphComponent(TWeakObjectPtr<U
 	{
 		FScopeLock ScopeLock(&ComponentAccessCriticalSection);
 		PPMChainGraphComponents.Remove(InComponent);
+	}
+}
+
+void UPPMChainGraphWorldSubsystem::GatherActivePasses()
+{
+	TSet<uint32> TempActivePasses;
+	for (const TWeakObjectPtr<UPPMChainGraphExecutorComponent>& PPMChainGraphComponent : PPMChainGraphComponents)
+	{
+		if (!PPMChainGraphComponent.IsValid())
+		{
+			continue;
+		}
+		for (uint32 PassId = 1; PassId <= (uint32)EPPMChainGraphExecutionLocation::AfterVisualizeDepthOfField; PassId++)
+		{
+			if (PPMChainGraphComponent->IsActiveDuringPass_GameThread((EPPMChainGraphExecutionLocation)(PassId)))
+			{
+				TempActivePasses.FindOrAdd(PassId);
+			}
+		}
+	}
+	{
+		FScopeLock ScopeLock(&ActiveAccessCriticalSection);
+		ActivePasses = MoveTemp(TempActivePasses);
 	}
 }
 

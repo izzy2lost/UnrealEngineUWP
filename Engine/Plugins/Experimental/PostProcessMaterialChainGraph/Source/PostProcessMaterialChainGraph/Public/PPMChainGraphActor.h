@@ -15,4 +15,13 @@ class PPMCHAINGRAPH_API APPMChainGraphActor : public AActor
 public:
 	UPROPERTY(Category = MediaPlate, VisibleAnywhere, BlueprintReadOnly)
 	TObjectPtr<UPPMChainGraphExecutorComponent> PPMChainGraphExecutorComponent;
+
+#if WITH_EDITORONLY_DATA
+
+	/** Billboard component for this actor. */
+	UPROPERTY(Transient)
+	TObjectPtr<class UBillboardComponent> SpriteComponent;
+
+#endif // WITH_EDITORONLY_DATA
+
 };

@@ -40,6 +40,9 @@ public:
 
 	/** Removes a PPM Chain Graph component. Typically this means that the component is removed from the world. */
 	void RemovePPMChainGraphComponent(TWeakObjectPtr<UPPMChainGraphExecutorComponent> InComponent);
+private:
+	/** Populates Active passes set to be used by SVE to subscribe to the active passes. */
+	void GatherActivePasses();
 
 private:
 	TSharedPtr<class FPPMChainGraphSceneViewExtension, ESPMode::ThreadSafe> SceneViewExtension;
@@ -50,6 +53,14 @@ private:
 	* All active chain graph components currently present in associated world.
 	*/
 	TSet<TWeakObjectPtr<UPPMChainGraphExecutorComponent>> PPMChainGraphComponents;
+
+	/**
+	* Aggregation of active passes, so that Scene View Extension knows to which passes to subscribe. uint32 value Reflects EPPMChainGraphExecutionLocation
+	*/
+	TSet<uint32> ActivePasses;
+
+	FCriticalSection ActiveAccessCriticalSection;
+
 public:
 	friend class FPPMChainGraphSceneViewExtension;
 };

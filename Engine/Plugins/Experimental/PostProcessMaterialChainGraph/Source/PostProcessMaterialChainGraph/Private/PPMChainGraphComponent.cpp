@@ -16,7 +16,7 @@
 DEFINE_LOG_CATEGORY(LogPPMChainGraph);
 
 #define CAMERA_INVALID_PARENT_WARNING "Post Process Material Chain Graph Executor Component requires to be parented to Camera Actor. This component {0} on Actor \"{1}\" will be disabled until it is parented to Camera Actor."
-#define IS_STREAMED_TEXTURE_WARNING "The following external texture is streamed. {0} . \nThis may cause unexpected results. It is suggested to set NeverStream in texture properties."
+#define IS_STREAMED_TEXTURE_WARNING "The following external texture is streamed. {0} . \nThis may cause unexpected results. It is suggested to set NeverStream in texture properties and making sure Virtual Texture streaming is disabled."
 #define INVALID_MATERIAL_DOMAIN "The following material's domain isn't set to Post Processing. {0} . \nPost Process Material Chain Graph only supports Post Process Materials."
 #define RENDER_TARGET_ID_IS_IN_USE "Render target name is already in use. {0} . \nThe pass will not be executed until a valid name is provided."
 #define INPUT_IS_USED_AS_RENDERTARGET "Input is used as a render target. {0} . \nUsing the same input as a render target in the same pass is not allowed. Pass will not be executed."
@@ -49,6 +49,28 @@ UPPMChainGraphExecutorComponent::UPPMChainGraphExecutorComponent(const FObjectIn
 void UPPMChainGraphExecutorComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	{
+		AActor* OwnerActor = GetOwner();
+		if (!IsValid(OwnerActor))
+		{
+			return;
+		}
+
+		bool bIsActiveLoc = IsValid(this)
+#if WITH_EDITOR
+			&& !GetOwner()->IsHiddenEd()
+#endif 
+			&& !GetOwner()->IsHidden();
+
+		if (!bIsActiveLoc)
+		{
+			FScopeLock ScopeLock(&StateTransferCriticalSection);
+			PPMChainGraphsRenderProxies.Empty();
+			return;
+		}
+	}
+
 	if (const UWorld* World = GetWorld())
 	{
 		if (!PPMChainGraphSubsystem.IsValid())
@@ -115,7 +137,7 @@ void UPPMChainGraphExecutorComponent::TransferState()
 			TextureIds.Add(KeyValue.Key);
 			GraphRenderProxy->ExternalTextures.Add(KeyValue);
 
-			if (!KeyValue.Value->IsFullyStreamedIn())
+			if (!KeyValue.Value->IsFullyStreamedIn() || KeyValue.Value->VirtualTextureStreaming)
 			{
 				FString TextureKey = FString::Format(TEXT("{0}, {1}"), { *KeyValue.Value.GetFullName(), *Graph->GetFullName()});
 				AggregatedWarningsCast->CurrentFrame.TextureRequiresStreamingWarningList.FindOrAdd(TextureKey);
@@ -192,11 +214,10 @@ void UPPMChainGraphExecutorComponent::TransferState()
 	}
 
 	// Transfer the state on render thread, which is where it is going to be consumed.
-	ENQUEUE_RENDER_COMMAND(CopyPPMChainGraphProxy)([this, PPMChainGraphStateToCopy = MoveTemp(TempChainGraphRenderProxies)](FRHICommandListImmediate& RHICmdList)
-		{
-			FScopeLock ScopeLock(&StateTransferCriticalSection);
-			PPMChainGraphsRenderProxies = PPMChainGraphStateToCopy;
-		});
+	{
+		FScopeLock ScopeLock(&StateTransferCriticalSection);
+		PPMChainGraphsRenderProxies = TempChainGraphRenderProxies;
+	};
 }
 
 void UPPMChainGraphExecutorComponent::ProcessWarnings()
@@ -276,6 +297,12 @@ TArray<TSharedPtr<FPPMChainGraphProxy>> UPPMChainGraphExecutorComponent::GetChai
 	{
 		return TArray<TSharedPtr<FPPMChainGraphProxy>>();
 	}
+}
+
+bool UPPMChainGraphExecutorComponent::IsActiveDuringPass_GameThread(EPPMChainGraphExecutionLocation InPointOfExecution)
+{
+	check(IsInGameThread());
+	return PPMChainGraphsRenderProxies.Contains(InPointOfExecution);
 }
 
 #undef LOCTEXT_NAMESPACE 
