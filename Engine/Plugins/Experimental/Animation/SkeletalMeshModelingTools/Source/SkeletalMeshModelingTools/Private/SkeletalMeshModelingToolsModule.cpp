@@ -19,6 +19,7 @@
 #include "SkeletalMeshToolMenuContext.h"
 #include "ToolMenus.h"
 #include "DetailCustomization/SkeletonEditingToolPropertyCustomizations.h"
+#include "Misc/ConfigCacheIni.h"
 #include "SkeletalMesh/SkeletonEditingTool.h"
 #include "Styling/SlateIconFinder.h"
 #include "WorkflowOrientedApp/ApplicationMode.h"
@@ -29,6 +30,9 @@
 DEFINE_LOG_CATEGORY(LogSkeletalMeshModelingTools);
 
 IMPLEMENT_MODULE(FSkeletalMeshModelingToolsModule, SkeletalMeshModelingTools);
+
+static const TCHAR* ConfigSection = TEXT("SkeletalMeshModelingTools");
+static const TCHAR* ConfigEditingModeActiveKey = TEXT("EditingModeActive");
 
 
 
@@ -47,7 +51,7 @@ void FSkeletalMeshModelingToolsModule::StartupModule()
 	SkelMeshEditorExtenderHandle = ToolbarExtenders.Last().GetHandle();
 	// register post-init callback with skeletal mesh editor
 	TArray<ISkeletalMeshEditorModule::FOnSkeletalMeshEditorInitialized>& PostInitDelegates = SkelMeshEditorModule.GetPostEditorInitDelegates();
-	PostInitDelegates.Add(ISkeletalMeshEditorModule::FOnSkeletalMeshEditorInitialized::CreateRaw(this, &FSkeletalMeshModelingToolsModule::OnToggleEditingToolsMode));
+	PostInitDelegates.Add(ISkeletalMeshEditorModule::FOnSkeletalMeshEditorInitialized::CreateRaw(this, &FSkeletalMeshModelingToolsModule::CheckEnableEditingToolModeOnOpen));
 	SkelMeshEditorPostInitHandle = PostInitDelegates.Last().GetHandle();
 
 	FCoreDelegates::OnPostEngineInit.AddRaw(this, &FSkeletalMeshModelingToolsModule::OnPostEngineInit);
@@ -170,12 +174,25 @@ void FSkeletalMeshModelingToolsModule::OnToggleEditingToolsMode(TWeakPtr<ISkelet
 			EditorModeManager.DeactivateMode(USkeletalMeshModelingToolsEditorMode::Id);
 		}
 
+		// Update the stored state of the editing tools active state.
+		GConfig->SetBool(ConfigSection, ConfigEditingModeActiveKey, IsEditingToolModeActive(InSkeletalMeshEditor), GEditorPerProjectIni);
+
 		// make sure SkeletonSelection is active when toggling the mode, as they are compatible.
 		// it will be deactivated later when entering a tool 
 		if (!EditorModeManager.IsModeActive(FPersonaEditModes::SkeletonSelection))
 		{
 			EditorModeManager.ActivateMode(FPersonaEditModes::SkeletonSelection);
 		}
+	}
+}
+
+void FSkeletalMeshModelingToolsModule::CheckEnableEditingToolModeOnOpen(TWeakPtr<ISkeletalMeshEditor> InSkeletalMeshEditor)
+{
+	bool bEditingModeActive = false;
+	GConfig->GetBool(ConfigSection, ConfigEditingModeActiveKey, bEditingModeActive, GEditorPerProjectIni);
+	if (bEditingModeActive && !IsEditingToolModeActive(InSkeletalMeshEditor))
+	{
+		OnToggleEditingToolsMode(InSkeletalMeshEditor);
 	}
 }
 
