@@ -188,7 +188,7 @@ void FSkeletalMeshModelingToolsModule::OnToggleEditingToolsMode(TWeakPtr<ISkelet
 
 void FSkeletalMeshModelingToolsModule::CheckEnableEditingToolModeOnOpen(TWeakPtr<ISkeletalMeshEditor> InSkeletalMeshEditor)
 {
-	bool bEditingModeActive = false;
+	bool bEditingModeActive = true;
 	GConfig->GetBool(ConfigSection, ConfigEditingModeActiveKey, bEditingModeActive, GEditorPerProjectIni);
 	if (bEditingModeActive && !IsEditingToolModeActive(InSkeletalMeshEditor))
 	{
