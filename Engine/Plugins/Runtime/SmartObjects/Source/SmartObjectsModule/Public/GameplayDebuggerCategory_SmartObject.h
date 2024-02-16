@@ -26,10 +26,17 @@ private:
 	void ToggleInstanceTags();
 	void ToggleSlotDetails();
 	void ToggleAnnotations();
-	
-	bool bDisplayInstanceTags = false;
-	bool bDisplaySlotDetails = false;
-	bool bDisplayAnnotations = false;
+
+	struct FReplicationData
+	{
+		void Serialize(FArchive& Ar);
+
+		bool bDisplayInstanceTags = false;
+		bool bDisplaySlotDetails = false;
+		bool bDisplayAnnotations = false;
+	};
+
+	FReplicationData DataPack;
 };
 
 #endif // WITH_GAMEPLAY_DEBUGGER && WITH_SMARTOBJECT_DEBUG
