@@ -173,6 +173,13 @@ FAutoConsoleVariableRef CVarLumenShouldUseStereoOptimizations(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarOrthoOverrideMeshDFTraceDistances(
+	TEXT("r.Lumen.Ortho.OverrideMeshDFTraceDistances"),
+	1,
+	TEXT("Use the full screen view rect size in Ortho views to determing the SDF trace distances instead of setting the value manually."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 bool LumenDiffuseIndirect::IsAllowed()
 {
 	return CVarLumenGlobalIllumination.GetValueOnAnyThread() != 0;
@@ -294,11 +301,22 @@ bool ShouldUseStereoLumenOptimizations()
 void SetupLumenDiffuseTracingParameters(const FViewInfo& View, FLumenIndirectTracingParameters& OutParameters)
 {
 	OutParameters.StepFactor = FMath::Clamp(GDiffuseTraceStepFactor, .1f, 10.0f);
-	OutParameters.CardTraceEndDistanceFromCamera = GDiffuseCardTraceEndDistanceFromCamera;
+	
 	OutParameters.MinSampleRadius = FMath::Clamp(GLumenDiffuseMinSampleRadius, .01f, 100.0f);
 	OutParameters.MinTraceDistance = FMath::Clamp(GLumenDiffuseMinTraceDistance, .01f, 1000.0f);
 	OutParameters.MaxTraceDistance = Lumen::GetMaxTraceDistance(View);
-	OutParameters.MaxMeshSDFTraceDistance = FMath::Clamp(GLumenGatherCvars.MeshSDFTraceDistance, OutParameters.MinTraceDistance, OutParameters.MaxTraceDistance);
+	if (!View.IsPerspectiveProjection() && CVarOrthoOverrideMeshDFTraceDistances.GetValueOnAnyThread())
+	{
+		float TraceSDFDistance = FMath::Clamp(View.ViewMatrices.GetOrthoViewRect().GetMax(), OutParameters.MinTraceDistance, OutParameters.MaxTraceDistance);
+		OutParameters.MaxMeshSDFTraceDistance = TraceSDFDistance;
+		OutParameters.CardTraceEndDistanceFromCamera = FMath::Max(GDiffuseCardTraceEndDistanceFromCamera, TraceSDFDistance);
+	}
+	else
+	{
+		OutParameters.MaxMeshSDFTraceDistance = FMath::Clamp(GLumenGatherCvars.MeshSDFTraceDistance, OutParameters.MinTraceDistance, OutParameters.MaxTraceDistance);
+		OutParameters.CardTraceEndDistanceFromCamera = GDiffuseCardTraceEndDistanceFromCamera;
+
+	}
 	OutParameters.SurfaceBias = FMath::Clamp(GLumenGatherCvars.SurfaceBias, .01f, 100.0f);
 	OutParameters.CardInterpolateInfluenceRadius = FMath::Clamp(GLumenDiffuseCardInterpolateInfluenceRadius, .01f, 1000.0f);
 	OutParameters.HeightfieldMaxTracingSteps = Lumen::GetHeightfieldMaxTracingSteps();

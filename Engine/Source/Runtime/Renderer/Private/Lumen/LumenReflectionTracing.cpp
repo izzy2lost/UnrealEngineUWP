@@ -727,7 +727,29 @@ void SetupIndirectTracingParametersForReflections(const FViewInfo& View, FLumenI
 	OutParameters.MinTraceDistance = 0.0f;
 	OutParameters.MaxTraceDistance = Lumen::GetMaxTraceDistance(View);
 	extern FLumenGatherCvarState GLumenGatherCvars;
-	OutParameters.MaxMeshSDFTraceDistance = FMath::Clamp(GLumenGatherCvars.MeshSDFTraceDistance, OutParameters.MinTraceDistance, OutParameters.MaxTraceDistance);
+
+	bool OrthoOverrideMeshDF = false;
+	if(!View.IsPerspectiveProjection())
+	{
+		const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Lumen.Ortho.OverrideMeshDFTraceDistances"));
+		if (CVar)
+		{
+			OrthoOverrideMeshDF = CVar->GetValueOnRenderThread() > 0;
+		}
+	}
+
+	if (OrthoOverrideMeshDF)
+	{
+		float TraceSDFDistance = FMath::Clamp(View.ViewMatrices.GetOrthoViewRect().GetMax(), OutParameters.MinTraceDistance, OutParameters.MaxTraceDistance);
+		OutParameters.MaxMeshSDFTraceDistance = TraceSDFDistance;
+		OutParameters.CardTraceEndDistanceFromCamera = FMath::Max(GDiffuseCardTraceEndDistanceFromCamera, TraceSDFDistance);
+	}
+	else
+	{
+		OutParameters.MaxMeshSDFTraceDistance = FMath::Clamp(GLumenGatherCvars.MeshSDFTraceDistance, OutParameters.MinTraceDistance, OutParameters.MaxTraceDistance);
+		OutParameters.CardTraceEndDistanceFromCamera = GDiffuseCardTraceEndDistanceFromCamera;
+	}
+
 	OutParameters.SurfaceBias = FMath::Clamp(GLumenGatherCvars.SurfaceBias, .01f, 100.0f);
 	OutParameters.CardInterpolateInfluenceRadius = 10.0f;
 	OutParameters.DiffuseConeHalfAngle = 0.0f;

@@ -145,7 +145,7 @@ void ScreenSpaceReflections(
 	float SceneDepth = ConvertFromDeviceZ(DeviceZ);
 
 	const float3 PositionTranslatedWorld = mul(float4(GetScreenPositionForProjectionType(ScreenPos, SceneDepth), SceneDepth, 1), View.ScreenToTranslatedWorld).xyz;
-	const float3 V = normalize(View.TranslatedWorldCameraOrigin - PositionTranslatedWorld);
+	const float3 V = -GetCameraVectorFromTranslatedWorldPosition(PositionTranslatedWorld);
 
 	// SUBSTRATE_TODO Handle anisotropy using ModifyGGXAnisotropicNormalRoughness or similar approach. 
 	// Although the pass will be more expenssive if reading the material data itself, so this will need to be carefully measured on console.
@@ -157,7 +157,7 @@ void ScreenSpaceReflections(
 	float3 N = GBuffer.WorldNormal;
 	const float SceneDepth = GBuffer.Depth;
 	const float3 PositionTranslatedWorld = mul(float4(GetScreenPositionForProjectionType(ScreenPos, SceneDepth), SceneDepth, 1), View.ScreenToTranslatedWorld).xyz;
-	const float3 V = normalize(View.TranslatedWorldCameraOrigin - PositionTranslatedWorld);
+	const float3 V = -GetCameraVectorFromTranslatedWorldPosition(PositionTranslatedWorld);
 
 #if SUPPORTS_ANISOTROPIC_MATERIALS
 	// We do not need to execute ModifyGGXAnisotropicNormalRoughness in order to handle anisotropy on clear coat material.

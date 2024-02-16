@@ -109,7 +109,16 @@ public:
 	//Function for retrieving the NearPlane from the existing projection matrix
 	static ENGINE_API float GetNearPlaneFromProjectionMatrix(const FMatrix& ProjectionMatrix)
 	{
-		return static_cast<float>((1.0f - ProjectionMatrix.M[3][2]) / (ProjectionMatrix.M[2][2] == 0.0f ? UE_DELTA : ProjectionMatrix.M[2][2]));
+		if (ProjectionMatrix.M[3][3] < 1.0f)
+		{
+			// Infinite projection with reversed Z.
+			return static_cast<float>(ProjectionMatrix.M[3][2]);
+		}
+		else
+		{
+			// Ortho projection with reversed Z.
+			return static_cast<float>((1.0f - ProjectionMatrix.M[3][2]) / (ProjectionMatrix.M[2][2] == 0.0f ? UE_DELTA : ProjectionMatrix.M[2][2]));
+		}
 	}
 
 	float GetNearPlaneFromProjectionMatrix() const
@@ -649,6 +658,15 @@ public:
 		ViewMatrix.SetOrigin(ViewMatrix.GetOrigin() + ViewMatrix.TransformVector(-InOffset));
 		InvViewMatrix.SetOrigin(ViewOrigin);
 		RecomputeDerivedMatrices();
+	}
+
+	FIntPoint GetOrthoViewRect() const
+	{
+		if (!IsPerspectiveProjection())
+		{
+			return  FIntPoint(static_cast<float>(InvProjectionMatrix.M[0][0]) * 2.0f, static_cast<float>(InvProjectionMatrix.M[1][1]) * 2.0f);
+		}
+		return FIntPoint();
 	}
 
 private:

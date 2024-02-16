@@ -316,7 +316,15 @@ static TAutoConsoleVariable<int32> CVarEnableTemporalUpsample(
 	TEXT(" 1: TemporalAA performs spatial and temporal upscale as screen percentage method (default)."),
 	ECVF_Default);
 
-float GOrthographicDepthThicknessScale = 0.01;
+static TAutoConsoleVariable<int32> CVarOrthoCalculateDepthThicknessScaling(
+	TEXT("r.Ortho.CalculateDepthThicknessScaling"),
+	1,
+	TEXT("Whether to automatically derive the depth thickness test scale from the Near/FarPlane difference.\n")
+	TEXT("0: Disabled (use scaling specified by r.Ortho.DepthTicknessScale)\n")
+	TEXT("1: Enabled (default)"),
+	ECVF_Scalability | ECVF_RenderThreadSafe);
+
+float GOrthographicDepthThicknessScale = 0.001;
 static FAutoConsoleVariableRef CVarOrthographicDepthThicknessScale(
 	TEXT("r.Ortho.DepthThicknessScale"),
 	GOrthographicDepthThicknessScale,
@@ -533,14 +541,14 @@ FVector4f CreateInvDeviceZToWorldZTransform(const FMatrix& ProjMatrix)
 
 bool FSceneViewProjectionData::UpdateOrthoNearPlane(FSceneViewProjectionData* InOutProjectionData, float& NearPlane, bool bUpdateOrthoProjectionMatrix)
 {
+	//Store the original ViewOrigin for LOD location resolving.
+	InOutProjectionData->LODViewOrigin = InOutProjectionData->ViewOrigin;
+
 	if (!InOutProjectionData || NearPlane >= 0.0f)
 	{
 		return false;
 	}
 	
-	//Store the original ViewOrigin for LOD location resolving.
-	InOutProjectionData->LODViewOrigin = InOutProjectionData->ViewOrigin;
-
 	//Get the ViewForward vector from the RotationMatrix + ensure it is normalized.
 	FVector ViewForward = InOutProjectionData->ViewRotationMatrix.GetColumn(2);
 	ViewForward.Normalize();
@@ -634,7 +642,17 @@ void FViewMatrices::Init(const FMinimalInitializer& Initializer)
 	{
 		//No FOV for ortho so do not scale
 		ProjectionScale = FVector2D(ScreenXScale, 1.0f);
-		PerProjectionDepthThicknessScale = GOrthographicDepthThicknessScale;
+
+		if (CVarOrthoCalculateDepthThicknessScaling.GetValueOnAnyThread())
+		{
+			int8 Exponent = -FMath::Clamp(FMath::LogX(10, FMath::Abs(InvProjectionMatrix.M[2][2])), 0, 9);
+			PerProjectionDepthThicknessScale = FMath::Pow(10, (float)Exponent);
+		}
+		else
+		{
+			PerProjectionDepthThicknessScale = GOrthographicDepthThicknessScale;
+		}
+
 		LODViewOrigin = Initializer.LODViewOrigin;
 	}
 	ScreenScale = FMath::Max(
@@ -716,16 +734,7 @@ static void SetupViewFrustum(FSceneView& View)
 	FPlane NearClippingPlane;
 	View.bHasNearClippingPlane = View.ViewMatrices.GetViewProjectionMatrix().GetFrustumNearPlane(NearClippingPlane);
 	View.NearClippingPlane = NearClippingPlane;
-	if (View.ViewMatrices.GetProjectionMatrix().M[2][3] > UE_DELTA)
-	{
-		// Infinite projection with reversed Z.
-		View.NearClippingDistance = View.ViewMatrices.GetProjectionMatrix().M[3][2];
-	}
-	else
-	{
-		// Ortho projection with reversed Z.
-		View.NearClippingDistance = (1.0f - View.ViewMatrices.GetProjectionMatrix().M[3][2]) / View.ViewMatrices.GetProjectionMatrix().M[2][2];
-	}
+	View.NearClippingDistance = View.ViewMatrices.ComputeNearPlane();
 }
 
 FSceneView::FSceneView(const FSceneViewInitOptions& InitOptions)
@@ -853,9 +862,18 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		bIsGameView = (Family && Family->Scene && Family->Scene->GetWorld() ) ? Family->Scene->GetWorld()->IsGameWorld() : false;
 	}
 
-	bUseFieldOfViewForLOD = InitOptions.bUseFieldOfViewForLOD;
-	FOV = InitOptions.FOV;
-	DesiredFOV = InitOptions.DesiredFOV;
+	if(ViewMatrices.IsPerspectiveProjection())
+	{
+		bUseFieldOfViewForLOD = InitOptions.bUseFieldOfViewForLOD;
+		FOV = InitOptions.FOV;
+		DesiredFOV = InitOptions.DesiredFOV;
+	}
+	else
+	{
+		bUseFieldOfViewForLOD = false;
+		FOV = 0.0f;
+		DesiredFOV = 0.0f;
+	}
 
 	DrawDynamicFlags = EDrawDynamicFlags::None;
 	bAllowTemporalJitter = true;
@@ -2361,8 +2379,15 @@ void FSceneView::SetupViewRectUniformBufferParameters(FViewUniformShaderParamete
 		InvBufferSizeY * (EffectiveViewRect.Max.Y - 0.5));
 
 	/* Texture Level-of-Detail Strategies for Real-Time Ray Tracing https://developer.nvidia.com/raytracinggems Equation 20 */
-	float RadFOV = (UE_PI / 180.0f) * FOV;
-	ViewUniformShaderParameters.EyeToPixelSpreadAngle = FPlatformMath::Atan((2.0f * FPlatformMath::Tan(RadFOV * 0.5f)) / BufferSize.Y);
+	if(FOV != 0)
+	{
+		float RadFOV = (UE_PI / 180.0f) * FOV;
+		ViewUniformShaderParameters.EyeToPixelSpreadAngle = FPlatformMath::Atan((2.0f * FPlatformMath::Tan(RadFOV * 0.5f)) / BufferSize.Y);
+	}
+	else
+	{
+		ViewUniformShaderParameters.EyeToPixelSpreadAngle = 0;
+	}
 
 	ViewUniformShaderParameters.MotionBlurNormalizedToPixel = FinalPostProcessSettings.MotionBlurMax * EffectiveViewRect.Width() / 100.0f;
 

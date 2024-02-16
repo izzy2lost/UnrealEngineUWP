@@ -350,7 +350,7 @@ void ReflectionGenerateRaysCS(
 				const float2 E = GenerateRandom(ReflectionTracingCoord.xy);
 
 				float3x3 TangentBasis = GetTangentBasis(Material);
-				float3 TangentV = mul(TangentBasis, -CameraVector);
+				float3 TangentV = mul(TangentBasis, V);
 
 				float2 Alpha = Pow2(Material.TopLayerRoughness).xx;
 
