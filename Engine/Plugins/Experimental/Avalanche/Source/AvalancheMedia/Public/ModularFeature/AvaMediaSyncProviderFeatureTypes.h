@@ -71,7 +71,7 @@ struct AVALANCHEMEDIA_API FAvaMediaSyncConnectionInfo
 
 /** Base sync response with Status and Error information */
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvaMediaSyncResponse
+struct FAvaMediaSyncResponse
 {
 	GENERATED_BODY()
 
@@ -117,7 +117,7 @@ struct AVALANCHEMEDIA_API FAvaMediaSyncResponse
 
 /** Payload for a comparison request */
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvaMediaSyncCompareResponse : public FAvaMediaSyncResponse
+struct FAvaMediaSyncCompareResponse : public FAvaMediaSyncResponse
 {
 	GENERATED_BODY()
 

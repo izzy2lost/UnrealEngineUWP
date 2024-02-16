@@ -6,7 +6,7 @@
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
 
-AVALANCHEMEDIA_API DECLARE_LOG_CATEGORY_EXTERN(LogAvaMedia, Log, All);
+DECLARE_LOG_CATEGORY_EXTERN(LogAvaMedia, Log, All);
 
 class FAvaPlaybackManager;
 class FAvaPlaybackServer;
@@ -33,7 +33,7 @@ enum class EAvaMediaMapChangeType : uint8
 	TearDownWorld
 };
 
-class AVALANCHEMEDIA_API IAvaMediaModule : public IModuleInterface
+class IAvaMediaModule : public IModuleInterface
 {
 public:
 	static bool IsModuleLoaded()

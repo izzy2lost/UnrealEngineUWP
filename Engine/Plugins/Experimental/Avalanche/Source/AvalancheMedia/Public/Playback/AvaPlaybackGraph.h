@@ -12,7 +12,7 @@
 #include "UObject/SoftObjectPtr.h"
 #include "AvaPlaybackGraph.generated.h"
 
-AVALANCHEMEDIA_API DECLARE_LOG_CATEGORY_EXTERN(LogAvaPlayback, Log, All);
+DECLARE_LOG_CATEGORY_EXTERN(LogAvaPlayback, Log, All);
 
 class FAvaPlaybackManager;
 class IAvaPlaybackGraphEditor;
@@ -73,7 +73,7 @@ ENUM_CLASS_FLAGS(EAvaPlaybackUnloadOptions);
  * Used to group playables per channels, but can be extended to any conceptual grouping.
  */
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvaPlaybackPlayableGroup
+struct FAvaPlaybackPlayableGroup
 {
 	GENERATED_BODY()
 
