@@ -185,6 +185,27 @@ void UFractureEditorMode::Tick(FEditorViewportClient* ViewportClient, float Delt
 
 	FFractureEditorModeToolkit* FractureToolkit = (FFractureEditorModeToolkit*)Toolkit.Get();
 
+	if (FractureToolkit->IsCachedOutlinerGeometryStale(SelectedGeometryComponents))
+	{
+		// Sanitize bone selections
+		for (TWeakObjectPtr<UGeometryCollectionComponent> SelectedCompWeakPtr : SelectedGeometryComponents)
+		{
+			if (UGeometryCollectionComponent* SelectedComp = SelectedCompWeakPtr.Get())
+			{
+				FScopedColorEdit Edit(SelectedComp);
+				Edit.Sanitize();
+			}
+		}
+		// refresh and also update the cache
+		RefreshOutlinerWithCurrentSelection();
+		// if we have an active tool, relaunch it to ensure any visualizations are reset
+		if (UFractureModalTool* ActiveTool = FractureToolkit->GetActiveTool())
+		{
+			FractureToolkit->ShutdownActiveTool();
+			FractureToolkit->SetActiveTool(ActiveTool);
+		}
+	}
+
 	if (UFractureModalTool* FractureTool = FractureToolkit->GetActiveTool())
 	{
 		FractureTool->OnTick(DeltaTime);
