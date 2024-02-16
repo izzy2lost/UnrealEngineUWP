@@ -5086,6 +5086,11 @@ void UsdUtils::HashGeomMeshPrim(const UE::FUsdStage& Stage, const FString& PrimP
 
 		HashArrayPrimvar<GfVec2f>(InOutHashState, PrimvarsByUVIndex[UVChannelIndex].Get(), TimeCode);
 	}
+
+	// The number of geomsubsets will give the upper limit of the number of sections in the mesh
+	std::vector<pxr::UsdGeomSubset> GeomSubsets = pxr::UsdShadeMaterialBindingAPI(UsdPrim).GetMaterialBindSubsets();
+	const int32 NumGeomSubsets = static_cast<int32>(GeomSubsets.size());
+	InOutHashState.Update((uint8*)&NumGeomSubsets, sizeof(NumGeomSubsets));
 }
 
 bool UsdUtils::GetPointInstancerTransforms(

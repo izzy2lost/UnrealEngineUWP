@@ -25,7 +25,7 @@ static int32 kUsdReadConcurrency = 10;
 // differences, etc.) replace the version GUID below with a new one.
 // In case of merge conflicts with DDC versions, you MUST generate a new GUID
 // and set this new GUID as the version.
-#define USDSTREAM_DERIVED_DATA_VERSION TEXT("BB2B7CC023C54AEBBCC5ABDC1B0BFFD2")
+#define USDSTREAM_DERIVED_DATA_VERSION TEXT("7F54F423DF3247B7B77B9E2B356FBE83")
 
 class FUsdStreamDDCUtils
 {
@@ -64,6 +64,7 @@ public:
 			// modify MeshConversionOptions directly as it's owned by the UsdTrack and we may be called from a thread)
 			MD5.Update((uint8*)&MeshConversionOptions.SubdivisionLevel, sizeof(MeshConversionOptions.SubdivisionLevel));
 			MD5.Update((uint8*)&MeshConversionOptions.PurposesToLoad, sizeof(MeshConversionOptions.PurposesToLoad));
+			MD5.Update((uint8*)&MeshConversionOptions.bMergeIdenticalMaterialSlots, sizeof(MeshConversionOptions.bMergeIdenticalMaterialSlots));
 
 			uint8 Digest[16];
 			MD5.Final(Digest);
