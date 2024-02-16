@@ -203,7 +203,11 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Source")
 	bool UseComplexCollisions = false;
 
-	/** If enabled the global search can be executed dependeing on GlobalSearchForced and GlobalSearchFallback_Unscripted */
+	/** If enabled, FindActors will use filtering based on ObjectType instead of Channel. */
+	UPROPERTY(EditAnywhere, Category = "Source")
+	bool bFilterByObjectType = false;
+
+	/** If enabled the global search can be executed depending on GlobalSearchForced and GlobalSearchFallback_Unscripted */
 	UE_DEPRECATED(5.2, "Global search will be deprecated in favor of using a spatial search through the FindActors function.")
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Source", meta = (DisplayName = "Global Search Allowed"))
 	bool GlobalSearchAllowed = false;
