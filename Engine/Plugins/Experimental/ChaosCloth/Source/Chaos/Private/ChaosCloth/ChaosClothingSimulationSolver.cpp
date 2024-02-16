@@ -1230,11 +1230,12 @@ void FClothingSimulationSolver::ParticleMassClampAndKinematicStateUpdate(int32 O
 	}
 }
 
-void FClothingSimulationSolver::SetProperties(int32 ParticleRangeId, const Softs::FCollectionPropertyConstFacade& InPropertyCollection)
+void FClothingSimulationSolver::SetProperties(int32 ParticleRangeId, const Softs::FCollectionPropertyConstFacade& InPropertyCollection,
+	const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps)
 {
 	if (Evolution)
 	{
-		Evolution->SetSoftBodyProperties(ParticleRangeId, InPropertyCollection);
+		Evolution->SetSoftBodyProperties(ParticleRangeId, InPropertyCollection, WeightMaps);
 
 		const uint32 GroupId = Evolution->GetSoftBodyGroupId(ParticleRangeId);
 		// Set properties to constraints that come from the solver (e.g., solver-level gravity, wind)

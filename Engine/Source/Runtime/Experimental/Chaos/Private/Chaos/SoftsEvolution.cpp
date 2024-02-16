@@ -2,6 +2,7 @@
 #include "Chaos/SoftsEvolution.h"
 #include "Chaos/PerParticleDampVelocity.h"
 #include "Chaos/SoftsEvolutionLinearSystem.h"
+#include "Chaos/PBDFlatWeightMap.h"
 
 namespace Chaos::Softs {
 
@@ -26,6 +27,7 @@ constexpr bool bUsePerParticleDamping = false;
 
 static void EulerStepVelocity(FSolverParticlesRange& Particles, const FSolverReal Dt)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FSoftsEvolution_EulerStepVelocity);
 	// TODO: ISPC and/or ParallelFor
 	FSolverVec3* const Velocity = Particles.GetV().GetData();
 	const FSolverVec3* const Acceleration = Particles.GetAcceleration().GetData();
@@ -41,6 +43,7 @@ static void EulerStepVelocity(FSolverParticlesRange& Particles, const FSolverRea
 
 static void DampLocalVelocity(FSolverParticlesRange& Particles, const FPerParticleDampVelocity& DampVelocityRule)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FSoftsEvolution_DampLocalVelocity);
 	// TODO: ISPC and/or ParallelFor
 	FSolverVec3* const Velocity = Particles.GetV().GetData();
 	const FSolverVec3* const X = Particles.XArray().GetData();
@@ -77,6 +80,7 @@ static void CalculateGlobalDamping(const FSolverReal DampingScale, const FSolver
 
 static void EulerStepPositionWithGlobalDamping(FSolverParticlesRange& Particles, const FSolverReal DampingScale, const FSolverReal SolverFrequency, const FSolverReal Dt)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FSoftsEvolution_EulerStepPositionWithGlobalDamping);
 	FSolverReal DampingPowDt;
 	FSolverReal DampingIntegrated;
 	CalculateGlobalDamping(DampingScale, SolverFrequency, Dt, DampingPowDt, DampingIntegrated);
@@ -226,11 +230,29 @@ int32 FEvolution::AddSoftBody(uint32 GroupId, int32 NumParticles, bool bEnable)
 	return SoftBodyId;
 }
 
-void FEvolution::SetSoftBodyProperties(int32 SoftBodyId, const FCollectionPropertyConstFacade& PropertyCollection)
+void FEvolution::SetSoftBodyProperties(int32 SoftBodyId, const FCollectionPropertyConstFacade& PropertyCollection,
+	const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps)
 {
-	SoftBodies.GlobalDampings[SoftBodyId] = PropertyCollection.GetValue<float>(TEXT("DampingCoefficient"), Private::EvolutionSoftBodyDefault::GlobalDamping);
-	SoftBodies.LocalDampings[SoftBodyId] = PropertyCollection.GetValue<float>(TEXT("LocalDampingCoefficient"), Private::EvolutionSoftBodyDefault::LocalDamping);
-	SoftBodies.UsePerParticleDamping[SoftBodyId] = PropertyCollection.GetValue<bool>(TEXT("UsePerParticleDamping"), Private::EvolutionSoftBodyDefault::bUsePerParticleDamping);
+	SoftBodies.LocalDampings[SoftBodyId] = GetLocalDampingCoefficient(PropertyCollection, Private::EvolutionSoftBodyDefault::LocalDamping);
+
+	const FSolverVec2 GlobalDamping = GetWeightedFloatDampingCoefficient(PropertyCollection, Private::EvolutionSoftBodyDefault::GlobalDamping);
+	TConstArrayView<FRealSingle> WeightMap = WeightMaps.FindRef(GetDampingCoefficientString(PropertyCollection, DampingCoefficientName.ToString()));
+	SoftBodies.UsePerParticleDamping[SoftBodyId] = WeightMap.Num() == GetSoftBodyParticleNum(SoftBodyId);
+	if (SoftBodies.UsePerParticleDamping[SoftBodyId])
+	{
+		const FSolverParticlesRange& SoftBodyParticles = GetSoftBodyParticles(SoftBodyId);
+		TArrayView<FSolverReal> PerParticleDamping = SoftBodyParticles.GetArrayView(ParticleDampings);
+		check(PerParticleDamping.Num() == WeightMap.Num());
+		const FPBDFlatWeightMapView GlobalDampingMap(GlobalDamping, WeightMap, PerParticleDamping.Num());
+		for (int32 Index = 0; Index < PerParticleDamping.Num(); ++Index)
+		{
+			PerParticleDamping[Index] = GlobalDampingMap.GetValue(Index);
+		}
+	}
+	else
+	{
+		SoftBodies.GlobalDampings[SoftBodyId] = GlobalDamping[0];
+	}
 }
 
 void FEvolution::ActivateSoftBody(int32 SoftBodyId, bool bActivate)

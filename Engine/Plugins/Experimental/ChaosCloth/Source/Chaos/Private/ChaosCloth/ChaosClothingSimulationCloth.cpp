@@ -1066,7 +1066,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			FictitiousAngularScale);
 		if (Solver->IsForceBasedSolver())
 		{
-			Solver->SetProperties(ParticleRangeId, ConfigProperties);
+			Solver->SetProperties(ParticleRangeId, ConfigProperties, LODData[LODIndex]->WeightMaps);
 		}
 		else
 		{
@@ -1090,10 +1090,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 			// Update general solver properties
 			PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
-				const Softs::FSolverReal MeshScale = Mesh->GetScale();
+			const Softs::FSolverReal MeshScale = Mesh->GetScale();
 			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-				const FRealSingle DampingCoefficient = ConfigProperties.GetValue<float>(TEXT("DampingCoefficient"), ClothingSimulationClothDefault::DampingCoefficient);
+			const FRealSingle DampingCoefficient = ConfigProperties.GetValue<float>(TEXT("DampingCoefficient"), ClothingSimulationClothDefault::DampingCoefficient);
 			const FRealSingle LocalDampingCoefficient = ConfigProperties.GetValue<float>(TEXT("LocalDampingCoefficient"));
 			const FRealSingle CollisionThickness = ConfigProperties.GetValue<float>(TEXT("CollisionThickness"), ClothingSimulationClothDefault::CollisionThickness);
 			const FRealSingle FrictionCoefficient = ConfigProperties.GetValue<float>(TEXT("FrictionCoefficient"), ClothingSimulationClothDefault::FrictionCoefficient);
