@@ -44,6 +44,9 @@ namespace HarmonixMetasound
 		//** OUTPUTS
 		FMidiStreamWriteRef MidiStreamOutPin;
 
+		//** DATA
+		TMap<uint32, FMidiVoiceGeneratorBase> GeneratorMap;
+		
 		bool bNeedsClockRefresh { true };
 	};
 
@@ -173,7 +176,17 @@ namespace HarmonixMetasound
 		}
 		
 		MidiStreamOutPin->PrepareBlock();
-		MidiStreamOutPin->Copy({ MidiStreamAInPin, MidiStreamBInPin });
+		TArray<FMidiStreamReadRef> SameClockStreams;
+		MidiStreamOutPin->FilterArrayToStreamsWithTheSameClock({MidiStreamAInPin, MidiStreamBInPin}, SameClockStreams);
+		MidiStreamOutPin->CopyTransportEvents(SameClockStreams);
+		MidiStreamOutPin->CopyMidiEvents(MidiStreamAInPin);
+		for (FMidiStreamEvent Event : MidiStreamBInPin->GetEventsInBlock())
+		{
+			uint32 GenId = Event.GetVoiceId().GetGeneratorId();
+			Event.ReassignOwner(&GeneratorMap.FindOrAdd(GenId));
+			MidiStreamOutPin->InsertMidiEvent(Event);
+		}
+		
 	}
 }
 
