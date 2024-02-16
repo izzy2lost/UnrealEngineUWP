@@ -2172,6 +2172,7 @@ struct FRayTracingMaterialGatheringContext
 
 	ENGINE_API virtual ~FRayTracingMaterialGatheringContext();
 
+	UE_DEPRECATED(5.4, "InstanceMaskAndFlags is automatically built and cached in RayTracing.cpp")
 	virtual FRayTracingMaskAndFlags BuildInstanceMaskAndFlags(const FRayTracingInstance& Instance, const FPrimitiveSceneProxy& ScenePrimitive) = 0;
 };
 #endif

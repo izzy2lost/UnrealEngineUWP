@@ -65,25 +65,6 @@ FRayTracingMaskAndFlags BuildRayTracingInstanceMaskAndFlags(TArrayView<const FMe
 // Build mask and flags without modification of RayTracingInstance
 FRayTracingMaskAndFlags BuildRayTracingInstanceMaskAndFlags(const FRayTracingInstance& Instance, const FPrimitiveSceneProxy& PrimitiveSceneProxy, const FSceneViewFamily* SceneViewFamily);
 
-// Inplace update of the raytracing instance mask and flags
-FORCEINLINE void UpdateRayTracingInstanceMaskAndFlagsIfNeeded(FRayTracingInstance& Instance, const FPrimitiveSceneProxy& PrimitiveSceneProxy, const FSceneViewFamily* SceneViewFamily, bool bForceUpdate = false)
-{
-	if (Instance.GetMaterials().IsEmpty()) 
-	{
-		// If the material list is empty, explicitly set the mask to 0 so it will not be added in the raytracing scene
-		Instance.MaskAndFlags.Mask = 0; 
-		return; 
-	}
-
-	if (Instance.bInstanceMaskAndFlagsDirty || bForceUpdate)
-	{
-		Instance.MaskAndFlags = BuildRayTracingInstanceMaskAndFlags(Instance, PrimitiveSceneProxy, SceneViewFamily);
-
-		// Clean the dirty bit
-		Instance.bInstanceMaskAndFlagsDirty = false;
-	}
-}
-
 //-------------------------------------------------------
 //	FRayTracingMeshCommand related mask setup and update
 //-------------------------------------------------------

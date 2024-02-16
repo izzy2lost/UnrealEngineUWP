@@ -870,23 +870,54 @@ namespace RayTracing
 						if (!ensureMsgf(Instance.GetMaterials().Num() == Geometry->Initializer.Segments.Num() ||
 							(Geometry->Initializer.Segments.Num() == 0 && Instance.GetMaterials().Num() == 1),
 							TEXT("Ray tracing material assignment validation failed for geometry '%s'. "
-								"Instance.GetMaterials().Num() = %d, Geometry->Initializer.Segments.Num() = %d, Instance.Mask = 0x%X."),
+								"Instance.GetMaterials().Num() = %d, Geometry->Initializer.Segments.Num() = %d."),
 							*Geometry->Initializer.DebugName.ToString(), Instance.GetMaterials().Num(),
-							Geometry->Initializer.Segments.Num(), Instance.MaskAndFlags.Mask))
+							Geometry->Initializer.Segments.Num()))
 						{
 							continue;
 						}
 
-						// Autobuild of InstanceMaskAndFlags if the mask and flags are not built
-						UpdateRayTracingInstanceMaskAndFlagsIfNeeded(Instance, *SceneProxy, View.Family);
+						if (Instance.bInstanceMaskAndFlagsDirty || SceneInfo->bCachedRayTracingInstanceMaskAndFlagsDirty)
+						{
+							// Build InstanceMaskAndFlags since the data in SceneInfo is not up to date
+
+							FRayTracingMaskAndFlags InstanceMaskAndFlags;
+
+							if (Instance.GetMaterials().IsEmpty())
+							{
+								// If the material list is empty, explicitly set the mask to 0 so it will not be added in the raytracing scene
+								InstanceMaskAndFlags.Mask = 0;
+							}
+							else
+							{
+								InstanceMaskAndFlags = BuildRayTracingInstanceMaskAndFlags(Instance, *SceneProxy, nullptr);
+							}
+
+							SceneInfo->CachedRayTracingInstance.Mask = InstanceMaskAndFlags.Mask; // When no cached command is found, InstanceMask == 0 and the instance is effectively filtered out
+
+							if (InstanceMaskAndFlags.bForceOpaque)
+							{
+								SceneInfo->CachedRayTracingInstance.Flags |= ERayTracingInstanceFlags::ForceOpaque;
+							}
+
+							if (InstanceMaskAndFlags.bDoubleSided)
+							{
+								SceneInfo->CachedRayTracingInstance.Flags |= ERayTracingInstanceFlags::TriangleCullDisable;
+							}
+
+							SceneInfo->bCachedRayTracingInstanceAnySegmentsDecal = InstanceMaskAndFlags.bAnySegmentsDecal;
+							SceneInfo->bCachedRayTracingInstanceAllSegmentsDecal = InstanceMaskAndFlags.bAllSegmentsDecal;
+
+							SceneInfo->bCachedRayTracingInstanceMaskAndFlagsDirty = false;
+						}
 
 						// if primitive has mixed decal and non-decal segments we need to have two ray tracing instances
 						// one containing non-decal segments and the other with decal segments
 						// masking of segments is done using "hidden" hitgroups
 						// TODO: Debug Visualization to highlight primitives using this?
-						const bool bNeedDecalInstance = Instance.MaskAndFlags.bAnySegmentsDecal && !ShouldExcludeDecals();
+						const bool bNeedDecalInstance = SceneInfo->bCachedRayTracingInstanceAnySegmentsDecal && !ShouldExcludeDecals();
 
-						if (ShouldExcludeDecals() && Instance.MaskAndFlags.bAllSegmentsDecal)
+						if (ShouldExcludeDecals() && SceneInfo->bCachedRayTracingInstanceAllSegmentsDecal)
 						{
 							continue;
 						}
@@ -897,16 +928,8 @@ namespace RayTracing
 						RayTracingInstance.DefaultUserData = PersistentPrimitiveIndex.Index;
 						RayTracingInstance.bApplyLocalBoundsTransform = Instance.bApplyLocalBoundsTransform;
 						RayTracingInstance.LayerIndex = (uint8)ERayTracingSceneLayer::Base;
-						RayTracingInstance.Mask = Instance.MaskAndFlags.Mask;
-
-						if (Instance.MaskAndFlags.bForceOpaque)
-						{
-							RayTracingInstance.Flags |= ERayTracingInstanceFlags::ForceOpaque;
-						}
-						if (Instance.MaskAndFlags.bDoubleSided)
-						{
-							RayTracingInstance.Flags |= ERayTracingInstanceFlags::TriangleCullDisable;
-						}
+						RayTracingInstance.Mask = SceneInfo->CachedRayTracingInstance.Mask;
+						RayTracingInstance.Flags = SceneInfo->CachedRayTracingInstance.Flags;
 						AddDebugRayTracingInstanceFlags(RayTracingInstance.Flags);
 
 						if (Instance.InstanceGPUTransformsSRV.IsValid())
@@ -937,7 +960,7 @@ namespace RayTracing
 						}
 
 						uint32 InstanceIndex = INDEX_NONE;
-						if (!Instance.MaskAndFlags.bAllSegmentsDecal)
+						if (!SceneInfo->bCachedRayTracingInstanceAllSegmentsDecal)
 						{
 							InstanceIndex = RayTracingScene.AddInstance(RayTracingInstance, SceneProxy, true);
 						}

@@ -75,7 +75,8 @@ struct FRayTracingInstance
 			return MaterialsView;
 		}
 	}
-
+	
+	UE_DEPRECATED(5.4, "MaskAndFlags is automatically built and cached in RayTracing.cpp")
 	FRayTracingMaskAndFlags MaskAndFlags;
 
 	/** Whether local bounds scale and center translation should be applied to the instance transform. */
@@ -126,6 +127,16 @@ struct FRayTracingInstance
 
 	/** When instance transforms are only available in GPU, this SRV holds them. */
 	FShaderResourceViewRHIRef InstanceGPUTransformsSRV;
+
+	//disable deprecation warnings for default constructors
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FRayTracingInstance() = default;
+	FRayTracingInstance(const FRayTracingInstance&) = default;
+	FRayTracingInstance& operator=(const FRayTracingInstance&) = default;
+	FRayTracingInstance(FRayTracingInstance&&) = default;
+	FRayTracingInstance& operator=(FRayTracingInstance&&) = default;
+	~FRayTracingInstance() = default;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 #endif

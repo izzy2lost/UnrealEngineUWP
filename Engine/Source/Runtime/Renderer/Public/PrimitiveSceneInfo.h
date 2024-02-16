@@ -684,6 +684,7 @@ public:
 	bool bIsRayTracingStaticRelevant : 1;
 	bool bIsVisibleInRayTracing : 1;
 	bool bCachedRaytracingDataDirty : 1;
+	bool bCachedRayTracingInstanceMaskAndFlagsDirty : 1;
 	bool bCachedRayTracingInstanceAnySegmentsDecal : 1;
 	bool bCachedRayTracingInstanceAllSegmentsDecal : 1;
 	Nanite::CoarseMeshStreamingHandle CoarseMeshStreamingHandle;

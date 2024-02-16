@@ -312,6 +312,7 @@ FPrimitiveSceneInfo::FPrimitiveSceneInfo(const FPrimitiveSceneInfoAdapter& InAda
 	bIsRayTracingStaticRelevant(InAdapter.SceneProxy->IsRayTracingStaticRelevant()),
 	bIsVisibleInRayTracing(InAdapter.SceneProxy->IsVisibleInRayTracing()),
 	bCachedRaytracingDataDirty(true),
+	bCachedRayTracingInstanceMaskAndFlagsDirty(true),
 	bCachedRayTracingInstanceAnySegmentsDecal(false),
 	bCachedRayTracingInstanceAllSegmentsDecal(false),
 	CoarseMeshStreamingHandle(InAdapter.SceneProxy->GetCoarseMeshStreamingHandle()),
@@ -950,7 +951,6 @@ void FPrimitiveSceneInfo::UpdateCachedRayTracingInstances(FScene* Scene, const T
 
 			// Write flags
 			Flags = SceneInfo->Proxy->GetCachedRayTracingInstance(CachedRayTracingInstance);
-			UpdateRayTracingInstanceMaskAndFlagsIfNeeded(CachedRayTracingInstance, *(SceneInfo->Proxy), nullptr);
 			UpdateCachedRayTracingInstance(SceneInfo, CachedRayTracingInstance, Flags);
 		}
 	}
@@ -1050,7 +1050,6 @@ void CacheRayTracingPrimitive(
 
 	// Write flags
 	OutFlags = SceneInfo->Proxy->GetCachedRayTracingInstance(OutCachedRayTracingInstance);
-	UpdateRayTracingInstanceMaskAndFlagsIfNeeded(OutCachedRayTracingInstance, *(SceneInfo->Proxy), nullptr);
 
 	// the following flags cause ray tracing mesh command caching to be disabled
 	static const ERayTracingPrimitiveFlags DisableCacheMeshCommandsFlags = ERayTracingPrimitiveFlags::Dynamic
@@ -1203,24 +1202,52 @@ void FPrimitiveSceneInfo::UpdateCachedRayTracingInstance(FPrimitiveSceneInfo* Sc
 		// At this point (in AddToScene()) PrimitiveIndex has been set
 		check(SceneInfo->GetPersistentIndex().IsValid());
 		SceneInfo->CachedRayTracingInstance.DefaultUserData = (uint32)SceneInfo->GetPersistentIndex().Index;
-		SceneInfo->CachedRayTracingInstance.Mask = CachedRayTracingInstance.MaskAndFlags.Mask; // When no cached command is found, InstanceMask == 0 and the instance is effectively filtered out
 
 		SceneInfo->CachedRayTracingInstance.bApplyLocalBoundsTransform = CachedRayTracingInstance.bApplyLocalBoundsTransform;
 
 		SceneInfo->CachedRayTracingInstance.Flags = ERayTracingInstanceFlags::None;
 
-		if (CachedRayTracingInstance.MaskAndFlags.bForceOpaque)
+		FRayTracingMaskAndFlags InstanceMaskAndFlags;
+
+		// TODO: Check CachedRayTracingInstance.bInstanceMaskAndFlagsDirty?
+
+		if (CachedRayTracingInstance.GetMaterials().IsEmpty())
+		{
+		 	// If the material list is empty, explicitly set the mask to 0 so it will not be added in the raytracing scene
+			InstanceMaskAndFlags.Mask = 0;
+		}
+		else
+		{
+			InstanceMaskAndFlags = BuildRayTracingInstanceMaskAndFlags(CachedRayTracingInstance, *SceneProxy, nullptr);
+		}
+
+		SceneInfo->CachedRayTracingInstance.Mask = InstanceMaskAndFlags.Mask; // When no cached command is found, InstanceMask == 0 and the instance is effectively filtered out
+
+		SceneInfo->CachedRayTracingInstance.Flags = ERayTracingInstanceFlags::None;
+
+		if (InstanceMaskAndFlags.bForceOpaque)
 		{
 			SceneInfo->CachedRayTracingInstance.Flags |= ERayTracingInstanceFlags::ForceOpaque;
 		}
 
-		if (CachedRayTracingInstance.MaskAndFlags.bDoubleSided)
+		if (InstanceMaskAndFlags.bDoubleSided)
 		{
 			SceneInfo->CachedRayTracingInstance.Flags |= ERayTracingInstanceFlags::TriangleCullDisable;
 		}
 
-		SceneInfo->bCachedRayTracingInstanceAnySegmentsDecal = CachedRayTracingInstance.MaskAndFlags.bAnySegmentsDecal;
-		SceneInfo->bCachedRayTracingInstanceAllSegmentsDecal = CachedRayTracingInstance.MaskAndFlags.bAllSegmentsDecal;
+		SceneInfo->bCachedRayTracingInstanceAnySegmentsDecal = InstanceMaskAndFlags.bAnySegmentsDecal;
+		SceneInfo->bCachedRayTracingInstanceAllSegmentsDecal = InstanceMaskAndFlags.bAllSegmentsDecal;
+
+		SceneInfo->bCachedRayTracingInstanceMaskAndFlagsDirty = false;
+	}
+	else
+	{
+		SceneInfo->CachedRayTracingInstance.Mask = 0xFF;
+		SceneInfo->CachedRayTracingInstance.Flags = ERayTracingInstanceFlags::None;
+		SceneInfo->bCachedRayTracingInstanceAnySegmentsDecal = false;
+		SceneInfo->bCachedRayTracingInstanceAllSegmentsDecal = false;
+
+		SceneInfo->bCachedRayTracingInstanceMaskAndFlagsDirty = true;
 	}
 }
 

@@ -543,12 +543,14 @@ public:
 
 
 			RayTracingInstance.MaterialsView = MakeArrayView(CachedRayTracingMaterials);
-			CachedRayTracingInstanceMaskAndFlags = Context.BuildInstanceMaskAndFlags(RayTracingInstance, *this);
 			bNeedsToUpdateRayTracingCache = false;
 		}
 		else
 		{
 			RayTracingInstance.MaterialsView = MakeArrayView(CachedRayTracingMaterials);
+
+			// Skip computing the mask and flags in the renderer since we are using cached values.
+			RayTracingInstance.bInstanceMaskAndFlagsDirty = false;
 		}
 
 		RayTracingInstance.Geometry = &Geometry;
@@ -576,10 +578,6 @@ public:
 				}
 			);
 		}
-
-		// Skip computing the mask and flags in the renderer since we are using cached values.
-		RayTracingInstance.bInstanceMaskAndFlagsDirty = false;
-		RayTracingInstance.MaskAndFlags = CachedRayTracingInstanceMaskAndFlags;
 
 		check(CachedRayTracingMaterials.Num() == RayTracingInstance.GetMaterials().Num());
 		checkf(RayTracingInstance.Geometry->Initializer.Segments.Num() == CachedRayTracingMaterials.Num(), TEXT("Segments/Materials mismatch. Number of segments: %d. Number of Materials: %d."),
@@ -647,7 +645,6 @@ private:
 		DynamicRayTracingGeometry.InitResource(RHICmdList);
 	}
 
-	FRayTracingMaskAndFlags CachedRayTracingInstanceMaskAndFlags;
 	bool bSupportRayTracing : 1;
 	bool bDynamicRayTracingGeometry : 1;
 	bool bNeedsDynamicRayTracingGeometries : 1;

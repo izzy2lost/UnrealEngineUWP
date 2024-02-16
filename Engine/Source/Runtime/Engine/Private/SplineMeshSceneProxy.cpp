@@ -207,13 +207,16 @@ void FSplineMeshSceneProxy::GetDynamicRayTracingInstances(struct FRayTracingMate
 
 		CachedRayTracingMaterialsLODIndex = LODIndex;
 	}
+	else
+	{
+		RayTracingInstance.bInstanceMaskAndFlagsDirty = false;
+	}
 
 	RayTracingInstance.Geometry = &Geometry;
 	// scene proxies live for the duration of Render(), making array views below safe
 	const FMatrix& ThisLocalToWorld = GetLocalToWorld();
 	RayTracingInstance.InstanceTransformsView = MakeArrayView(&ThisLocalToWorld, 1);
 	RayTracingInstance.MaterialsView = MakeArrayView(CachedRayTracingMaterials);
-	CachedRayTracingInstanceMaskAndFlags = Context.BuildInstanceMaskAndFlags(RayTracingInstance, *this);
 
 	if (RenderData->LODVertexFactories[LODIndex].VertexFactory.GetType()->SupportsRayTracingDynamicGeometry())
 	{
