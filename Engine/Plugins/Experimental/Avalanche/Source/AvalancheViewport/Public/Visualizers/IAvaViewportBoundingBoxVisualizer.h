@@ -18,17 +18,17 @@ enum class EAvaViewportBoundingBoxOptimizationState : uint8
 	RenderSelectionBounds
 };
 
-class IAvaViewportBoundingBoxVisualizerInterface : public IAvaTypeCastable
+class IAvaViewportBoundingBoxVisualizer : public IAvaTypeCastable
 {
 public:
-	UE_AVA_INHERITS(IAvaViewportBoundingBoxVisualizerInterface, IAvaTypeCastable)
+	UE_AVA_INHERITS(IAvaViewportBoundingBoxVisualizer, IAvaTypeCastable)
 
 	virtual void Draw(UAvaSelectionProviderSubsystem& InSelectionProvider, UAvaBoundsProviderSubsystem& InBoundsProvider, FPrimitiveDrawInterface& InPDI) = 0;
 	virtual EAvaViewportBoundingBoxOptimizationState GetOptimizationState() const = 0;
 	virtual void ResetOptimizationState() = 0;
 };
 
-struct AVALANCHEVIEWPORT_API FAvaViewportBoundingBoxVisualizerProvider
+struct FAvaViewportBoundingBoxVisualizerProvider
 {
-	static TSharedRef<IAvaViewportBoundingBoxVisualizerInterface> CreateVisualizer();
+	AVALANCHEVIEWPORT_API static TSharedRef<IAvaViewportBoundingBoxVisualizer> CreateVisualizer();
 };

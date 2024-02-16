@@ -7,6 +7,7 @@
 #include "Math/MathFwd.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/GCObject.h"
+#include "Visualizers/IAvaViewportPostProcessVisualizer.h"
 
 class FSceneView;
 class IAvaViewportClient;
@@ -16,12 +17,13 @@ struct FAvaViewportPostProcessInfo;
 struct FAvaVisibleArea;
 struct FPostProcessSettings;
 
-class AVALANCHEVIEWPORT_API FAvaViewportPostProcessVisualizer : public FGCObject, public FEditorUndoClient, public IAvaTypeCastable
+class FAvaViewportPostProcessVisualizer : public IAvaViewportPostProcessVisualizer, public FGCObject, public FEditorUndoClient
 {
 public:
-	UE_AVA_INHERITS(FAvaViewportPostProcessVisualizer, IAvaTypeCastable)
+	UE_AVA_INHERITS(FAvaViewportPostProcessVisualizer, IAvaViewportPostProcessVisualizer)
 
 	FAvaViewportPostProcessVisualizer(TSharedRef<IAvaViewportClient> InAvaViewportClient);
+
 	virtual ~FAvaViewportPostProcessVisualizer() override;
 
 	TSharedPtr<IAvaViewportClient> GetAvaViewportClient() const;
@@ -33,13 +35,18 @@ public:
 
 	void LoadPostProcessInfo();
 
-	virtual bool CanActivate(bool bInSilent) const;
-	virtual void OnActivate();
-	virtual void OnDeactivate() {}
+	//~ Begin IAvaViewportPostProcessVisualizer
+	virtual bool CanActivate(bool bInSilent) const override;
+	//~ End IAvaViewportPostProcessVisualizer
 
-	virtual void UpdateForViewport(const FAvaVisibleArea& InVisibleArea, const FVector2f& InWidgetSize, const FVector2f& InCameraOffset) {}
+	virtual void OnActivate();
+	virtual void OnDeactivate();
+
+	virtual void UpdateForViewport(const FAvaVisibleArea& InVisibleArea, const FVector2f& InWidgetSize, const FVector2f& InCameraOffset);
+
 	void ApplyToSceneView(FSceneView* InSceneView) const;
 
+protected:
 	//~ Begin FGCObject
 	virtual void AddReferencedObjects(FReferenceCollector& InCollector) override;
 	//~ End FGCObject
@@ -49,7 +56,6 @@ public:
 	virtual void PostRedo(bool bSuccess) override;
 	// ~FEditorUndoClient Interface
 
-protected:
 	TWeakPtr<IAvaViewportClient> AvaViewportClientWeak;
 
 	TObjectPtr<UMaterial> PostProcessBaseMaterial;

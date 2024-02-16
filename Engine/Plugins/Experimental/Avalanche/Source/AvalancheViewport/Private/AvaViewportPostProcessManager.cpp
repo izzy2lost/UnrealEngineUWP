@@ -2,6 +2,7 @@
 
 #include "AvaViewportPostProcessManager.h"
 
+#include "AvaTypeSharedPointer.h"
 #include "AvaViewportDataSubsystem.h"
 #include "AvaVisibleArea.h"
 #include "Interaction/AvaCameraZoomController.h"
@@ -17,7 +18,7 @@ FAvaViewportPostProcessManager::FAvaViewportPostProcessManager(TSharedRef<IAvaVi
 {
 	AvaViewportClientWeak = InAvaViewportClient;
 
-	Visualizers.Emplace(EAvaViewportPostProcessType::Background,    MakeShared<FAvaViewportBackgroundVisualizer>(InAvaViewportClient));
+	Visualizers.Emplace(EAvaViewportPostProcessType::Background,   MakeShared<FAvaViewportBackgroundVisualizer>(InAvaViewportClient));
 	Visualizers.Emplace(EAvaViewportPostProcessType::RedChannel,   MakeShared<FAvaViewportChannelVisualizer>(InAvaViewportClient, EAvaViewportPostProcessType::RedChannel));
 	Visualizers.Emplace(EAvaViewportPostProcessType::GreenChannel, MakeShared<FAvaViewportChannelVisualizer>(InAvaViewportClient, EAvaViewportPostProcessType::GreenChannel));
 	Visualizers.Emplace(EAvaViewportPostProcessType::BlueChannel,  MakeShared<FAvaViewportChannelVisualizer>(InAvaViewportClient, EAvaViewportPostProcessType::BlueChannel));
@@ -58,7 +59,7 @@ void FAvaViewportPostProcessManager::UpdateSceneView(FSceneView* InSceneView)
 		return;
 	}
 
-	TSharedPtr<FAvaViewportPostProcessVisualizer> Visualizer = GetActiveVisualizer();
+	TSharedPtr<FAvaViewportPostProcessVisualizer> Visualizer = UE::AvaCore::CastSharedPtr<FAvaViewportPostProcessVisualizer>(GetActiveVisualizer());
 
 	if (!Visualizer.IsValid())
 	{
@@ -83,7 +84,7 @@ void FAvaViewportPostProcessManager::UpdateSceneView(FSceneView* InSceneView)
 
 void FAvaViewportPostProcessManager::LoadPostProcessInfo()
 {
-	TSharedPtr<FAvaViewportPostProcessVisualizer> Visualizer = GetActiveVisualizer();
+	TSharedPtr<FAvaViewportPostProcessVisualizer> Visualizer = UE::AvaCore::CastSharedPtr<FAvaViewportPostProcessVisualizer>(GetActiveVisualizer());
 
 	if (!Visualizer.IsValid())
 	{
@@ -117,14 +118,14 @@ void FAvaViewportPostProcessManager::SetType(EAvaViewportPostProcessType InType)
 		return;
 	}
 
-	TSharedPtr<FAvaViewportPostProcessVisualizer> NewVisualizer = GetVisualizer(InType);
+	TSharedPtr<FAvaViewportPostProcessVisualizer> NewVisualizer = UE::AvaCore::CastSharedPtr<FAvaViewportPostProcessVisualizer>(GetVisualizer(InType));
 
 	if (NewVisualizer.IsValid() && !NewVisualizer->CanActivate(/* bInSilent */ false))
 	{
 		return;
 	}
 
-	if (TSharedPtr<FAvaViewportPostProcessVisualizer> CurrentVisualizer = GetActiveVisualizer())
+	if (TSharedPtr<FAvaViewportPostProcessVisualizer> CurrentVisualizer = UE::AvaCore::CastSharedPtr<FAvaViewportPostProcessVisualizer>(GetActiveVisualizer()))
 	{
 		CurrentVisualizer->OnDeactivate();
 	}
@@ -156,9 +157,9 @@ void FAvaViewportPostProcessManager::SetOpacity(float InOpacity)
 	}
 }
 
-TSharedPtr<FAvaViewportPostProcessVisualizer> FAvaViewportPostProcessManager::GetVisualizer(EAvaViewportPostProcessType InType) const
+TSharedPtr<IAvaViewportPostProcessVisualizer> FAvaViewportPostProcessManager::GetVisualizer(EAvaViewportPostProcessType InType) const
 {
-	if (const TSharedPtr<FAvaViewportPostProcessVisualizer>* VisualizerPtr = Visualizers.Find(InType))
+	if (const TSharedPtr<IAvaViewportPostProcessVisualizer>* VisualizerPtr = Visualizers.Find(InType))
 	{
 		return *VisualizerPtr;
 	}
@@ -166,7 +167,7 @@ TSharedPtr<FAvaViewportPostProcessVisualizer> FAvaViewportPostProcessManager::Ge
 	return nullptr;
 }
 
-TSharedPtr<FAvaViewportPostProcessVisualizer> FAvaViewportPostProcessManager::GetActiveVisualizer() const
+TSharedPtr<IAvaViewportPostProcessVisualizer> FAvaViewportPostProcessManager::GetActiveVisualizer() const
 {
 	if (FAvaViewportPostProcessInfo* PostProcessInfo = GetPostProcessInfo())
 	{

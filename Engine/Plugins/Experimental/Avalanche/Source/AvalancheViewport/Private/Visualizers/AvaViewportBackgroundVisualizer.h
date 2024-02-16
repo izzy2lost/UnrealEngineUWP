@@ -8,7 +8,7 @@
 class UTexture;
 struct FAvaViewportPostProcessInfo;
 
-class AVALANCHEVIEWPORT_API FAvaViewportBackgroundVisualizer : public FAvaViewportPostProcessVisualizer
+class FAvaViewportBackgroundVisualizer : public FAvaViewportPostProcessVisualizer
 {
 public:
 	UE_AVA_INHERITS_WITH_SUPER(FAvaViewportBackgroundVisualizer, FAvaViewportPostProcessVisualizer)

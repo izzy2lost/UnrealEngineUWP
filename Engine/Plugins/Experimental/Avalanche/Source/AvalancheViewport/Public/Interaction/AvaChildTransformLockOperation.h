@@ -18,14 +18,14 @@ class AActor;
  * transform of the grandchild. To be honest, I'm not sure how UE would handle
  * this by default anyway...
  */
-
-class AVALANCHEVIEWPORT_API FAvaChildTransformLockOperation
+class FAvaChildTransformLockOperation
 {
 public:
-	FAvaChildTransformLockOperation(TSharedRef<IAvaViewportClient> InAvaViewportClient);
+	AVALANCHEVIEWPORT_API FAvaChildTransformLockOperation(TSharedRef<IAvaViewportClient> InAvaViewportClient);
 
-	void Save();
-	void Restore();
+	AVALANCHEVIEWPORT_API void Save();
+
+	AVALANCHEVIEWPORT_API void Restore();
 
 protected:
 	TWeakPtr<IAvaViewportClient> AvaViewportClientWeak;

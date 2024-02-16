@@ -4,8 +4,8 @@
 #include "AvaViewportPostProcessManager.h"
 #include "AvaViewportSettings.h"
 #include "ViewportClient/AvaLevelViewportClient.h"
-#include "Visualizers/AvaViewportPostProcessVisualizer.h"
-#include "Visualizers/IAvaViewportBoundingBoxVisualizerInterface.h"
+#include "Visualizers/IAvaViewportBoundingBoxVisualizer.h"
+#include "Visualizers/IAvaViewportPostProcessVisualizer.h"
 
 void SAvaLevelViewport::ExecuteToggleChildActorLock()
 {
@@ -100,7 +100,7 @@ bool SAvaLevelViewport::CanTogglePostProcessBackground() const
 		return true;
 	}
 
-	if (TSharedPtr<FAvaViewportPostProcessVisualizer> BackgroundVisualizer = ViewportClient->GetPostProcessManager()->GetVisualizer(EAvaViewportPostProcessType::Background))
+	if (TSharedPtr<IAvaViewportPostProcessVisualizer> BackgroundVisualizer = ViewportClient->GetPostProcessManager()->GetVisualizer(EAvaViewportPostProcessType::Background))
 	{
 		return BackgroundVisualizer->CanActivate(/* bInSilent */ true);
 	}
@@ -167,7 +167,7 @@ bool SAvaLevelViewport::CanTogglePostProcessChannelRed() const
 		return true;
 	}
 
-	if (TSharedPtr<FAvaViewportPostProcessVisualizer> ChannelRedVisualizer = ViewportClient->GetPostProcessManager()->GetVisualizer(EAvaViewportPostProcessType::RedChannel))
+	if (TSharedPtr<IAvaViewportPostProcessVisualizer> ChannelRedVisualizer = ViewportClient->GetPostProcessManager()->GetVisualizer(EAvaViewportPostProcessType::RedChannel))
 	{
 		return ChannelRedVisualizer->CanActivate(/* bInSilent */ true);
 	}
@@ -234,7 +234,7 @@ bool SAvaLevelViewport::CanTogglePostProcessChannelGreen() const
 		return true;
 	}
 
-	if (TSharedPtr<FAvaViewportPostProcessVisualizer> ChannelGreenVisualizer = ViewportClient->GetPostProcessManager()->GetVisualizer(EAvaViewportPostProcessType::GreenChannel))
+	if (TSharedPtr<IAvaViewportPostProcessVisualizer> ChannelGreenVisualizer = ViewportClient->GetPostProcessManager()->GetVisualizer(EAvaViewportPostProcessType::GreenChannel))
 	{
 		return ChannelGreenVisualizer->CanActivate(/* bInSilent */ true);
 	}
@@ -301,7 +301,7 @@ bool SAvaLevelViewport::CanTogglePostProcessChannelBlue() const
 		return true;
 	}
 
-	if (TSharedPtr<FAvaViewportPostProcessVisualizer> ChannelBlueVisualizer = ViewportClient->GetPostProcessManager()->GetVisualizer(EAvaViewportPostProcessType::BlueChannel))
+	if (TSharedPtr<IAvaViewportPostProcessVisualizer> ChannelBlueVisualizer = ViewportClient->GetPostProcessManager()->GetVisualizer(EAvaViewportPostProcessType::BlueChannel))
 	{
 		return ChannelBlueVisualizer->CanActivate(/* bInSilent */ true);
 	}
@@ -368,7 +368,7 @@ bool SAvaLevelViewport::CanTogglePostProcessChannelAlpha() const
 		return true;
 	}
 
-	if (TSharedPtr<FAvaViewportPostProcessVisualizer> ChannelAlphaVisualizer = ViewportClient->GetPostProcessManager()->GetVisualizer(EAvaViewportPostProcessType::AlphaChannel))
+	if (TSharedPtr<IAvaViewportPostProcessVisualizer> ChannelAlphaVisualizer = ViewportClient->GetPostProcessManager()->GetVisualizer(EAvaViewportPostProcessType::AlphaChannel))
 	{
 		return ChannelAlphaVisualizer->CanActivate(/* bInSilent */ true);
 	}
@@ -425,7 +425,7 @@ bool SAvaLevelViewport::CanTogglePostProcessCheckerboard() const
 		return true;
 	}
 
-	if (const TSharedPtr<FAvaViewportPostProcessVisualizer> CheckerboardVisualizer = ViewportClient->GetPostProcessManager()->GetVisualizer(EAvaViewportPostProcessType::Checkerboard))
+	if (const TSharedPtr<IAvaViewportPostProcessVisualizer> CheckerboardVisualizer = ViewportClient->GetPostProcessManager()->GetVisualizer(EAvaViewportPostProcessType::Checkerboard))
 	{
 		return CheckerboardVisualizer->CanActivate(/* bInSilent */ true);
 	}

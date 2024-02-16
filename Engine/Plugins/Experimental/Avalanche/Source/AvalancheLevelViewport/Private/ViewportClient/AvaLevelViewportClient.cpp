@@ -26,7 +26,7 @@
 #include "UnrealEdGlobals.h"
 #include "Viewport/Interaction/IAvaViewportDataProvider.h"
 #include "Viewport/Interaction/IAvaViewportDataProxy.h"
-#include "Visualizers/IAvaViewportBoundingBoxVisualizerInterface.h"
+#include "Visualizers/IAvaViewportBoundingBoxVisualizer.h"
 
 #define LOCTEXT_NAMESPACE "AvaLevelViewportClient"
 

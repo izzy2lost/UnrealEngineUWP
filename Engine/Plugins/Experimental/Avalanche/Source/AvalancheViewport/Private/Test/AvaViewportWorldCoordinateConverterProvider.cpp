@@ -12,11 +12,6 @@ FAvaViewportWorldCoordinateConverterProvider::FAvaViewportWorldCoordinateConvert
 {
 }
 
-FVector2f FAvaViewportWorldCoordinateConverterProvider::GetViewportSize() const
-{
-	return ViewportSize;
-}
-
 FAvaViewportWorldCoordinateConverterProviderPerspective::FAvaViewportWorldCoordinateConverterProviderPerspective(FVector InLocation,
 	FRotator InRotation, FVector2f InViewportSize, float InFieldOfView)
 	: FAvaViewportWorldCoordinateConverterProvider(FTransform(InRotation, InLocation, FVector::OneVector), InViewportSize)
