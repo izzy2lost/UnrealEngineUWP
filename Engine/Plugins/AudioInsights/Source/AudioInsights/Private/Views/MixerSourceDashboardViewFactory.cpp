@@ -354,6 +354,7 @@ namespace UE::Audio::Insights
 		ResetPlots();
 	}
 
+#if AUDIO_INSIGHTS_SHOW_SOURCE_CONTEXT_MENU
 	TSharedPtr<SWidget> FMixerSourceDashboardViewFactory::OnConstructContextMenu()
 	{
 		const FDashboardAssetCommands& Commands = FDashboardAssetCommands::Get();
@@ -376,6 +377,7 @@ namespace UE::Audio::Insights
 
 		return MenuBuilder.MakeWidget();
 	}
+#endif // AUDIO_INSIGHTS_SHOW_SOURCE_CONTEXT_MENU 
 
 	FSlateColor FMixerSourceDashboardViewFactory::GetRowColor(const TSharedPtr<IDashboardDataViewEntry>& InRowDataPtr)
 	{
