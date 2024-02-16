@@ -3300,6 +3300,7 @@ void FLODUtilities::RegenerateDependentLODs(USkeletalMesh* SkeletalMesh, int32 L
 	}
 }
 
+
 //////////////////////////////////////////////////////////////////////////
 // Morph targets build code
 //
@@ -3339,14 +3340,31 @@ static void ConvertImportDataToMeshData(const FSkeletalMeshImportData& ImportDat
 class FAsyncImportMorphTargetWork : public FNonAbandonableTask
 {
 public:
-	FAsyncImportMorphTargetWork(FSkeletalMeshLODModel* InLODModel, const FReferenceSkeleton& InRefSkeleton, const FSkeletalMeshImportData& InBaseImportData, TArray<FVector3f>&& InMorphLODPoints,
-		TArray< FMorphTargetDelta >& InMorphDeltas, TArray<uint32>& InBaseIndexData, const TArray< uint32 >& InBaseWedgePointIndices,
-		TMap<uint32, uint32>& InWedgePointToVertexIndexMap, const FOverlappingCorners& InOverlappingCorners,
-		const TSet<uint32> InModifiedPoints, const TMultiMap< int32, int32 >& InWedgeToFaces, const FMeshDataBundle& InMeshDataBundle, const TArray<FVector3f>& InTangentZ,
-		bool InShouldImportNormals, bool InShouldImportTangents, bool InbUseMikkTSpace, const FOverlappingThresholds InThresholds)
+	FAsyncImportMorphTargetWork(
+		const FName InMorphName,
+		FSkeletalMeshLODModel* InLODModel, 
+		const FReferenceSkeleton& InRefSkeleton,
+		const FSkeletalMeshImportData& InBaseImportData,
+		const FMeshDescription* InSkeletalMeshModel,
+		TArray<FVector3f>&& InMorphLODPoints,
+		TArray< FMorphTargetDelta >& InMorphDeltas,
+		TArray<uint32>& InBaseIndexData,
+		const TArray< uint32 >& InBaseWedgePointIndices,
+		TMap<uint32, uint32>& InWedgePointToVertexIndexMap,
+		const FOverlappingCorners& InOverlappingCorners,
+		const TSet<uint32>& InModifiedPoints,
+		const TMultiMap< int32, int32 >& InWedgeToFaces,
+		const FMeshDataBundle& InMeshDataBundle,
+		const TArray<FVector3f>& InTangentZ,
+		bool InShouldImportNormals,
+		bool InShouldImportTangents, 
+		bool InbUseMikkTSpace, 
+		const FOverlappingThresholds InThresholds
+		)
 		: LODModel(InLODModel)
 		, RefSkeleton(InRefSkeleton)
 		, BaseImportData(InBaseImportData)
+		, SkeletalMeshModel(InSkeletalMeshModel)
 		, CompressMorphLODPoints(InMorphLODPoints)
 		, MorphTargetDeltas(InMorphDeltas)
 		, BaseIndexData(InBaseIndexData)
@@ -3364,6 +3382,15 @@ public:
 		, Thresholds(InThresholds)
 	{
 		MeshUtilities = &FModuleManager::Get().LoadModuleChecked<IMeshUtilities>("MeshUtilities");
+
+		if (SkeletalMeshModel)
+		{
+			FSkeletalMeshConstAttributes SkeletalMeshAttributes(*SkeletalMeshModel);
+
+			BaseNormalAttribute = SkeletalMeshAttributes.GetVertexInstanceNormals();
+			MorphNormalDeltaAttribute = SkeletalMeshAttributes.GetVertexInstanceMorphNormalDelta(InMorphName);
+			ShouldImportNormals = false;
+		}
 	}
 
 	//Decompress the shape points data
@@ -3472,59 +3499,76 @@ public:
 		WasProcessed.Empty(LODModel->NumVertices);
 		WasProcessed.AddZeroed(LODModel->NumVertices);
 
+		const bool bUseAttributeForNormal = MorphNormalDeltaAttribute.IsValid();
+
 		for (int32 Idx = 0; Idx < BaseIndexData.Num(); ++Idx)
 		{
 			uint32 BaseVertIdx = BaseIndexData[Idx];
 			// check for duplicate processing
-			if (!WasProcessed[BaseVertIdx])
+			if (WasProcessed[BaseVertIdx])
 			{
-				// mark this base vertex as already processed
-				WasProcessed[BaseVertIdx] = true;
+				continue;
+			}
+			
+			// mark this base vertex as already processed
+			WasProcessed[BaseVertIdx] = true;
 
-				// clothing can add extra verts, and we won't have source point, so we ignore those
-				if (BaseWedgePointIndices.IsValidIndex(BaseVertIdx))
+			// clothing can add extra verts, and we won't have source point, so we ignore those
+			if (!BaseWedgePointIndices.IsValidIndex(BaseVertIdx))
+			{
+				continue;
+			}
+			
+			// get the base mesh's original wedge point index
+			uint32 BasePointIdx = BaseWedgePointIndices[BaseVertIdx];
+			if (MeshDataBundle.Vertices.IsValidIndex(BasePointIdx) && MorphLODPoints.IsValidIndex(BasePointIdx))
+			{
+				const FVector3f& BasePosition = MeshDataBundle.Vertices[BasePointIdx];
+				const FVector3f& TargetPosition = MorphLODPoints[BasePointIdx];
+
+				const FVector3f PositionDelta = TargetPosition - BasePosition;
+
+				uint32* VertexIdx = WedgePointToVertexIndexMap.Find(BasePointIdx);
+
+				FVector3f NormalDeltaZ = FVector3f::ZeroVector;
+
+				if (VertexIdx != nullptr)
 				{
-					// get the base mesh's original wedge point index
-					uint32 BasePointIdx = BaseWedgePointIndices[BaseVertIdx];
-					if (MeshDataBundle.Vertices.IsValidIndex(BasePointIdx) && MorphLODPoints.IsValidIndex(BasePointIdx))
+					FVector3f BaseNormal = BaseTangentZ[*VertexIdx];
+
+					if (bUseAttributeForNormal)
 					{
-						FVector BasePosition = (FVector)MeshDataBundle.Vertices[BasePointIdx];
-						FVector TargetPosition = (FVector)MorphLODPoints[BasePointIdx];
-
-						FVector PositionDelta = TargetPosition - BasePosition;
-
-						uint32* VertexIdx = WedgePointToVertexIndexMap.Find(BasePointIdx);
-
-						FVector NormalDeltaZ = FVector::ZeroVector;
-
-						if (VertexIdx != nullptr)
-						{
-							FVector BaseNormal = (FVector)BaseTangentZ[*VertexIdx];
-							FVector TargetNormal = (FVector)TangentZ[*VertexIdx];
-
-							NormalDeltaZ = TargetNormal - BaseNormal;
-						}
-
-						// check if position actually changed much
-						if (PositionDelta.SizeSquared() > FMath::Square(Thresholds.MorphThresholdPosition) ||
-							// since we can't get imported morphtarget normal from FBX
-							// we can't compare normal unless it's calculated
-							// this is special flag to ignore normal diff
-							((ShouldImportNormals == false) && NormalDeltaZ.SizeSquared() > 0.01f))
-						{
-							// create a new entry
-							FMorphTargetDelta NewVertex;
-							// position delta
-							NewVertex.PositionDelta = (FVector3f)PositionDelta;
-							// normal delta
-							NewVertex.TangentZDelta = (FVector3f)NormalDeltaZ;
-							// index of base mesh vert this entry is to modify
-							NewVertex.SourceIdx = BaseVertIdx;
-
-							// add it to the list of changed verts
-							MorphTargetDeltas.Add(NewVertex);
-						}
+						// BasePointIdx is the index into the import data points. These map directly to the mesh description's vertex ids.
+						const FVertexID VertexID(BasePointIdx);
+						const FVertexInstanceID VertexInstanceID = SkeletalMeshModel->GetVertexVertexInstanceIDs(VertexID)[0];
+						// Use the first one. They all carry the same information for now due to the only place we get these normals are from
+						// rebuilding from a FSkeletalMeshLODModel + UMorphTargets.
+						NormalDeltaZ = MorphNormalDeltaAttribute.Get(VertexInstanceID);
 					}
+					else
+					{
+						NormalDeltaZ = TangentZ[*VertexIdx] - BaseNormal;
+					}
+				}
+
+				// check if position actually changed much
+				if (PositionDelta.SizeSquared() > FMath::Square(Thresholds.MorphThresholdPosition) ||
+					// since we can't get imported morph target normal from FBX
+					// we can't compare normal unless it's calculated
+					// this is special flag to ignore normal diff
+					((ShouldImportNormals == false) && NormalDeltaZ.SizeSquared() > 0.01f))
+				{
+					// create a new entry
+					FMorphTargetDelta NewVertex;
+					// position delta
+					NewVertex.PositionDelta = PositionDelta;
+					// normal delta
+					NewVertex.TangentZDelta = NormalDeltaZ;
+					// index of base mesh vert this entry is to modify
+					NewVertex.SourceIdx = BaseVertIdx;
+
+					// add it to the list of changed verts
+					MorphTargetDeltas.Add(NewVertex);
 				}
 			}
 		}
@@ -3533,8 +3577,11 @@ public:
 	void DoWork()
 	{
 		DecompressData();
-		PrepareTangents();
-		ComputeTangents();
+		if (!MorphNormalDeltaAttribute.IsValid())
+		{
+			PrepareTangents();
+			ComputeTangents();
+		}
 		ComputeMorphDeltas();
 	}
 
@@ -3564,6 +3611,9 @@ private:
 	// @todo not thread safe
 	const FReferenceSkeleton& RefSkeleton;
 	const FSkeletalMeshImportData& BaseImportData;
+	const FMeshDescription* SkeletalMeshModel;
+	TVertexInstanceAttributesConstRef<FVector3f> BaseNormalAttribute;
+	TVertexInstanceAttributesConstRef<FVector3f> MorphNormalDeltaAttribute;
 	const TArray<FVector3f> CompressMorphLODPoints;
 	TArray<FVector3f> MorphLODPoints;
 
@@ -3575,7 +3625,7 @@ private:
 	TMap<uint32, uint32>& WedgePointToVertexIndexMap;
 
 	const FOverlappingCorners& OverlappingCorners;
-	const TSet<uint32> ModifiedPoints;
+	const TSet<uint32>& ModifiedPoints;
 	const TMultiMap< int32, int32 >& WedgeToFaces;
 	const FMeshDataBundle& MeshDataBundle;
 
@@ -3587,7 +3637,17 @@ private:
 	const FOverlappingThresholds Thresholds;
 };
 
-void FLODUtilities::BuildMorphTargets(USkeletalMesh* BaseSkelMesh, FSkeletalMeshImportData &BaseImportData, int32 LODIndex, bool ShouldImportNormals, bool ShouldImportTangents, bool bUseMikkTSpace, const FOverlappingThresholds& Thresholds)
+
+static void BuildMorphTargetsInternal(
+	USkeletalMesh* BaseSkelMesh,
+	const FMeshDescription* SkeletalMeshModel,
+	FSkeletalMeshImportData &BaseImportData,
+	int32 LODIndex,
+	bool ShouldImportNormals,
+	bool ShouldImportTangents,
+	bool bUseMikkTSpace,
+	const FOverlappingThresholds& Thresholds
+	)
 {
 	bool bComputeNormals = !ShouldImportNormals || !BaseImportData.bHasNormals;
 	bool bComputeTangents = !ShouldImportTangents || !BaseImportData.bHasTangents;
@@ -3742,8 +3802,8 @@ void FLODUtilities::BuildMorphTargets(USkeletalMesh* BaseSkelMesh, FSkeletalMesh
 
 			TArray< FMorphTargetDelta >* Deltas = Results[NewMorphDeltasIdx];
 
-			FAsyncTask<FAsyncImportMorphTargetWork>* NewWork = new FAsyncTask<FAsyncImportMorphTargetWork>(&BaseLODModel, BaseSkelMesh->GetRefSkeleton(), BaseImportData,
-				MoveTemp(ShapeImportData.Points), *Deltas, BaseIndexData, BaseLODModel.GetRawPointIndices(), WedgePointToVertexIndexMap, OverlappingVertices, MoveTemp(ModifiedPoints), WedgeToFaces, MeshDataBundle, TangentZ,
+			FAsyncTask<FAsyncImportMorphTargetWork>* NewWork = new FAsyncTask<FAsyncImportMorphTargetWork>(MorphTarget->GetFName(), &BaseLODModel, BaseSkelMesh->GetRefSkeleton(), BaseImportData, SkeletalMeshModel,
+				MoveTemp(ShapeImportData.Points), *Deltas, BaseIndexData, BaseLODModel.GetRawPointIndices(), WedgePointToVertexIndexMap, OverlappingVertices, ModifiedPoints, WedgeToFaces, MeshDataBundle, TangentZ,
 				ShouldImportNormals, ShouldImportTangents, bUseMikkTSpace, Thresholds);
 			PendingWork.Add(NewWork);
 
@@ -3786,7 +3846,9 @@ void FLODUtilities::BuildMorphTargets(USkeletalMesh* BaseSkelMesh, FSkeletalMesh
 
 		UMorphTarget* MorphTarget = MorphTargets[Index];
 		check(IsValid(MorphTarget));
-		MorphTarget->PopulateDeltas(*Results[Index], LODIndex, BaseLODModel.Sections, ShouldImportNormals == false, false, Thresholds.MorphThresholdPosition);
+		constexpr bool bCompareNormals = true;		// Ensure we include morphs that only modify normals and not positions. 
+		constexpr bool bGeneratedByReduction = false;
+		MorphTarget->PopulateDeltas(*Results[Index], LODIndex, BaseLODModel.Sections, bCompareNormals, bGeneratedByReduction, Thresholds.MorphThresholdPosition);
 
 		// register does mark package as dirty
 		if (MorphTarget->HasValidData())
@@ -3807,6 +3869,18 @@ void FLODUtilities::BuildMorphTargets(USkeletalMesh* BaseSkelMesh, FSkeletalMesh
 		BaseSkelMesh->InitMorphTargetsAndRebuildRenderData();
 	}
 }
+
+void FLODUtilities::BuildMorphTargets(USkeletalMesh* SkeletalMesh, FSkeletalMeshImportData& ImportData, int32 LODIndex, bool ShouldImportNormals, bool ShouldImportTangents, bool bUseMikkTSpace, const FOverlappingThresholds& Thresholds)
+{
+	BuildMorphTargetsInternal(SkeletalMesh, nullptr, ImportData, LODIndex, ShouldImportNormals, ShouldImportTangents, bUseMikkTSpace, Thresholds);
+}
+
+void FLODUtilities::BuildMorphTargets(USkeletalMesh* SkeletalMesh, const FMeshDescription& SkeletalMeshModel, FSkeletalMeshImportData& ImportData, int32 LODIndex, bool ShouldImportNormals, bool ShouldImportTangents, bool bUseMikkTSpace, const FOverlappingThresholds& Thresholds)
+{
+	BuildMorphTargetsInternal(SkeletalMesh, &SkeletalMeshModel, ImportData, LODIndex, ShouldImportNormals, ShouldImportTangents, bUseMikkTSpace, Thresholds);
+}
+
+
 
 void FLODUtilities::UnbindClothingAndBackup(USkeletalMesh* SkeletalMesh, TArray<ClothingAssetUtils::FClothingAssetMeshBinding>& ClothingBindings)
 {

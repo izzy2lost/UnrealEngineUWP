@@ -132,6 +132,21 @@ public:
 	 */
 	static void BuildMorphTargets(USkeletalMesh* SkeletalMesh, class FSkeletalMeshImportData &ImportData, int32 LODIndex, bool ShouldImportNormals, bool ShouldImportTangents, bool bUseMikkTSpace, const FOverlappingThresholds& Thresholds);
 
+	/*
+	 * Same as above but use normals from the source mesh description to build up the morph targets. 
+	 */
+	static void BuildMorphTargets(
+		USkeletalMesh* SkeletalMesh,
+		const FMeshDescription& SkeletalMeshModel,
+		FSkeletalMeshImportData& ImportData,
+		int32 LODIndex,
+		bool ShouldImportNormals,
+		bool ShouldImportTangents,
+		bool bUseMikkTSpace,
+		const FOverlappingThresholds& Thresholds
+		);
+	
+	
 	/**
 	 *	This function apply the skinning weights from asource skeletal mesh to the destination skeletal mesh.
 	 *  The Destination will receive the weights has the alternate weights.

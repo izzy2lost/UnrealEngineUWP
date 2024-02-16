@@ -1996,8 +1996,10 @@ bool FSkeletalMeshImportData::GetMeshDescription(const USkeletalMesh* InSkeletal
 				UE_ASSET_LOG(LogSkeletalMeshLODImporterData, Warning, InSkeletalMesh, TEXT("Duplicate morph target '%s' found, renamed to '%s'."),
 					*MorphTargetNameBase, *MorphTargetNameUsed);  
 			}
-			
-			if (ensure(MeshAttributes.RegisterMorphTargetAttribute(*MorphTargetNameUsed)))
+
+			// Register a morph attribute but not with normals since the import data doesn't
+			// have any.
+			if (ensure(MeshAttributes.RegisterMorphTargetAttribute(*MorphTargetNameUsed, false)))
 			{
 				ValidMorphTargets.Add(MorphTargetIndex, MorphTargetNameUsed);
 				CheckDuplicateSet.Add(MorphTargetNameUsed);
@@ -2305,7 +2307,7 @@ bool FSkeletalMeshImportData::GetMeshDescription(const USkeletalMesh* InSkeletal
 		const TArray<FVector3f>& MorphPoints = MorphTargets[MorphTargetIndex].Points;
 		const TSet<uint32>& ModifiedPoints = MorphTargetModifiedPoints[MorphTargetIndex];
 
-		FMorphTargetVertexAttributesRef MorphTargetRef = MeshAttributes.GetVertexMorphTarget(*MorphTargetName);
+		TVertexAttributesRef<FVector3f> PositionDelta = MeshAttributes.GetVertexMorphPositionDelta(*MorphTargetName);
 
 		int32 ModifiedPointIndex = 0;
 		// This relies on the dubious assumptions that TSet values are retained in insertion order.
@@ -2313,7 +2315,7 @@ bool FSkeletalMeshImportData::GetMeshDescription(const USkeletalMesh* InSkeletal
 		{
 			const FVertexID VertexID = VertexIDMap[PointIndex];
 			
-			MorphTargetRef.SetPositionDelta(VertexID, MorphPoints[ModifiedPointIndex] - Points[PointIndex]);
+			PositionDelta.Set(VertexID, MorphPoints[ModifiedPointIndex] - Points[PointIndex]);
 			ModifiedPointIndex++;
 		}
 	}
@@ -2692,13 +2694,12 @@ FSkeletalMeshImportData FSkeletalMeshImportData::CreateFromMeshDescription(const
 	//Copy the vertex positions and the influences
 
 	//Reserve the point and influences
-	SkelMeshImportData.Points.SetNumUninitialized(InMeshDescription.Vertices().Num());
-	SkelMeshImportData.Influences.Reserve(InMeshDescription.Vertices().Num() * 4);
-	SkelMeshImportData.PointToRawMap.SetNumUninitialized(InMeshDescription.Vertices().Num());
+	SkelMeshImportData.Points.SetNumUninitialized(InMeshDescription.Vertices().GetArraySize());
+	SkelMeshImportData.Influences.Reserve(InMeshDescription.Vertices().GetArraySize() * 4);
+	SkelMeshImportData.PointToRawMap.SetNumUninitialized(InMeshDescription.Vertices().GetArraySize());
 
 	for (FVertexID VertexID : InMeshDescription.Vertices().GetElementIDs())
 	{
-		// We can use GetValue here because the mesh description was compacted before the copy
 		SkelMeshImportData.Points[VertexID.GetValue()] = VertexPositions[VertexID];
 		if (VertexSkinWeights.IsValid())
 		{
@@ -2744,14 +2745,35 @@ FSkeletalMeshImportData FSkeletalMeshImportData::CreateFromMeshDescription(const
 			break;
 		}
 	}
-	
+
 	//////////////////////////////////////////////////////////////////////////
-	//Copy the triangle and vertex instances
-	SkelMeshImportData.Faces.AddZeroed(InMeshDescription.Triangles().Num());
-	SkelMeshImportData.Wedges.Reserve(InMeshDescription.VertexInstances().Num());
+	// Copy vertex instances into wedges.
 	SkelMeshImportData.NumTexCoords = FMath::Min<int32>(VertexInstanceUVs.GetNumChannels(), (int32)MAX_TEXCOORDS);
 	SkelMeshImportData.bHasNormals = bHaveValidNormals;
 	SkelMeshImportData.bHasTangents = bHaveValidTangents;
+	
+	SkelMeshImportData.Wedges.SetNumZeroed(InMeshDescription.VertexInstances().GetArraySize());
+	for (FVertexInstanceID VertexInstanceID: InMeshDescription.VertexInstances().GetElementIDs())
+	{
+		SkeletalMeshImportData::FVertex& Wedge = SkelMeshImportData.Wedges[VertexInstanceID.GetValue()];
+		
+		Wedge.VertexIndex = static_cast<uint32>(InMeshDescription.GetVertexInstanceVertex(VertexInstanceID).GetValue());
+		Wedge.MatIndex = 0;			// We set this later -- not that this is actually used by any internal process.
+		constexpr bool bSRGB = false; //avoid linear to srgb conversion
+		Wedge.Color = FLinearColor(VertexInstanceColors[VertexInstanceID]).ToFColor(bSRGB);
+		if (Wedge.Color != FColor::White)
+		{
+			SkelMeshImportData.bHasVertexColors = true;
+		}
+		for (int32 UVChannelIndex = 0; UVChannelIndex < static_cast<int32>(SkelMeshImportData.NumTexCoords); ++UVChannelIndex)
+		{
+			Wedge.UVs[UVChannelIndex] = VertexInstanceUVs.Get(VertexInstanceID, UVChannelIndex);
+		}
+	}	
+	
+	//////////////////////////////////////////////////////////////////////////
+	// Copy the triangles
+	SkelMeshImportData.Faces.SetNumZeroed(InMeshDescription.Triangles().GetArraySize());
 	for (FTriangleID TriangleID : InMeshDescription.Triangles().GetElementIDs())
 	{
 		FPolygonGroupID PolygonGroupID = InMeshDescription.GetTrianglePolygonGroup(TriangleID);
@@ -2765,24 +2787,10 @@ FSkeletalMeshImportData FSkeletalMeshImportData::CreateFromMeshDescription(const
 		{
 			Face.SmoothingGroups = FaceSmoothingMasks[TriangleIndex];
 		}
-		//Create the wedges
 		for (int32 Corner = 0; Corner < 3; ++Corner)
 		{
 			FVertexInstanceID VertexInstanceID = VertexInstances[Corner];
-			SkeletalMeshImportData::FVertex Wedge;
-			Wedge.VertexIndex = (uint32)InMeshDescription.GetVertexInstanceVertex(VertexInstances[Corner]).GetValue();
-			Wedge.MatIndex = Face.MatIndex;
-			const bool bSRGB = false; //avoid linear to srgb conversion
-			Wedge.Color = FLinearColor(VertexInstanceColors[VertexInstanceID]).ToFColor(bSRGB);
-			if (Wedge.Color != FColor::White)
-			{
-				SkelMeshImportData.bHasVertexColors = true;
-			}
-			for (int32 UVChannelIndex = 0; UVChannelIndex < (int32)(SkelMeshImportData.NumTexCoords); ++UVChannelIndex)
-			{
-				Wedge.UVs[UVChannelIndex] = VertexInstanceUVs.Get(VertexInstanceID, UVChannelIndex);
-			}
-
+			
 			if (bHaveValidNormals)
 			{
 				Face.TangentZ[Corner] = VertexInstanceNormals[VertexInstanceID];
@@ -2802,7 +2810,9 @@ FSkeletalMeshImportData FSkeletalMeshImportData::CreateFromMeshDescription(const
 				Face.TangentX[Corner] = FVector3f::ZeroVector;
 			}
 
-			Face.WedgeIndex[Corner] = SkelMeshImportData.Wedges.Add(Wedge);
+			const int32 WedgeIndex = VertexInstanceID.GetValue();
+			Face.WedgeIndex[Corner] = WedgeIndex;
+			SkelMeshImportData.Wedges[WedgeIndex].MatIndex = Face.MatIndex;
 		}
 	}
 
@@ -2844,7 +2854,7 @@ FSkeletalMeshImportData FSkeletalMeshImportData::CreateFromMeshDescription(const
 	// Copy morph targets.
 	for (const FName MorphTargetName: MeshAttributes.GetMorphTargetNames())
 	{
-		FMorphTargetVertexAttributesConstRef MorphTargetAttribute = MeshAttributes.GetVertexMorphTarget(MorphTargetName);
+		TVertexAttributesConstRef<FVector3f> MorphTargetPosDeltaAttribute = MeshAttributes.GetVertexMorphPositionDelta(MorphTargetName);
 
 		SkelMeshImportData.MorphTargetNames.Add(MorphTargetName.ToString());
 		FSkeletalMeshImportData& MorphTarget = SkelMeshImportData.MorphTargets.AddDefaulted_GetRef();
@@ -2852,7 +2862,7 @@ FSkeletalMeshImportData FSkeletalMeshImportData::CreateFromMeshDescription(const
 
 		for (FVertexID VertexID : InMeshDescription.Vertices().GetElementIDs())
 		{
-			FVector3f PositionDelta = MorphTargetAttribute.GetPositionDelta(VertexID);
+			FVector3f PositionDelta = MorphTargetPosDeltaAttribute.Get(VertexID);
 			if (!PositionDelta.IsNearlyZero())
 			{
 				MorphTarget.Points.Add(PositionDelta + SkelMeshImportData.Points[VertexID.GetValue()]);

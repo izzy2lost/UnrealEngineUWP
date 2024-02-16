@@ -3334,6 +3334,10 @@ void USkeletalMesh::BeginPostLoadInternal(FSkinnedAssetPostLoadContext& Context)
 				LODModel.GetMeshDescription(this, LODIndex, MeshDescription);
 				CreateMeshDescription(LODIndex, MoveTemp(MeshDescription));
 				CommitMeshDescription(LODIndex);
+				
+				// Ensure normals aren't automatically computed when we rebuild.
+				FSkeletalMeshBuildSettings& BuildSettings = MeshLODInfo->BuildSettings;
+				BuildSettings.bRecomputeNormals = false;
 
 				// Reset the reduction settings so that we don't re-reduce the mesh and possibly lose morph targets
 				// in the process.
@@ -4084,7 +4088,7 @@ bool USkeletalMesh::RenameMorphTarget(FName InOldName, FName InNewName)
 
 	FScopedTransaction Transaction(LOCTEXT("RenameMorphTarget", "Rename Morph Target"));
 
-	// Unregister the morph target (but dont invalidate renderdata yet, we will recreate it below in RegisterMorphTarget)
+	// Unregister the morph target (but dont invalidate render data yet, we will recreate it below in RegisterMorphTarget)
 	UnregisterMorphTarget(MorphTarget, false);
 
 	Modify();
@@ -4099,12 +4103,23 @@ bool USkeletalMesh::RenameMorphTarget(FName InOldName, FName InNewName)
 		if (MeshAttributes.GetMorphTargetNames().Contains(InOldName))
 		{
 			ModifyMeshDescription(LODIndex);
-			if (MeshAttributes.RegisterMorphTargetAttribute(InNewName))
-			{
-				const FMorphTargetVertexAttributesConstRef SourceMorphRef{ MeshAttributes.GetVertexMorphTarget(InOldName) };
-				FMorphTargetVertexAttributesRef TargetMorphRef{ MeshAttributes.GetVertexMorphTarget(InNewName) };
 
-				TargetMorphRef.Copy(SourceMorphRef);
+			const bool bNeedNormals = MeshAttributes.GetVertexInstanceMorphNormalDelta(InOldName).IsValid();
+			
+			if (MeshAttributes.RegisterMorphTargetAttribute(InNewName, bNeedNormals))
+			{
+				const TVertexAttributesConstRef<FVector3f> SourcePositionDelta{ MeshAttributes.GetVertexMorphPositionDelta(InOldName) };
+				TVertexAttributesRef<FVector3f> TargetPositionDelta{ MeshAttributes.GetVertexMorphPositionDelta(InNewName) };
+
+				TargetPositionDelta.Copy(SourcePositionDelta);
+
+				if(bNeedNormals)
+				{
+					const TVertexInstanceAttributesConstRef<FVector3f> SourceNormalDelta{ MeshAttributes.GetVertexInstanceMorphNormalDelta(InOldName) };
+					TVertexInstanceAttributesRef<FVector3f> TargetNormalDelta{ MeshAttributes.GetVertexInstanceMorphNormalDelta(InNewName) };
+					TargetNormalDelta.Copy(SourceNormalDelta);
+				}
+				
 				MeshAttributes.UnregisterMorphTargetAttribute(InOldName);
 			}
 		}

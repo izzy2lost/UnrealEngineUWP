@@ -139,6 +139,12 @@ private:
 	bool LoadMeshDescriptionFromBulkData(FMeshDescription& OutMeshDescription) const;
 
 	/**
+	 * If necessary, convert morph targets from the old FVector3f[2] storage to the split representation
+	 * where we store position per vertex, and normal per vertex instance
+	 */
+	static void UpgradeMorphTargets(FMeshDescription& InOutMeshDescription);
+
+	/**
 	 * Convert already stored old raw import format to mesh description and commit to bulk data.
 	 * The new bulk data will default to using the mesh hash as the GUID, so that any future
 	 * commits on an unchanged mesh will not cause a DDC invalidation.

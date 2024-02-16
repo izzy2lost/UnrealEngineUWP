@@ -1363,6 +1363,10 @@ void FSkeletalMeshLODModel::GetMeshDescription(const USkeletalMesh *InSkeletalMe
 	FSkeletalMeshAttributes::FBoneParentIndexAttributesRef BoneParentIndices = MeshAttributes.GetBoneParentIndices();
 	FSkeletalMeshAttributes::FBonePoseAttributesRef BonePoses = MeshAttributes.GetBonePoses();
 
+	// If the RawPointIndices2 is a map from the IndexBuffer to the original import vertices,
+	// this most likely came from a USD/Alembic import where the normals are set explicitly.
+	const bool bMorphTargetIncludeNormals = (RawPointIndices2.Num() == IndexBuffer.Num() && MeshToImportVertexMap.IsEmpty());
+	
 	TArray<TPair<FName, const FMorphTargetLODModel*>> MorphTargets;
 	for (UMorphTarget* MorphTargetSource: InSkeletalMesh->GetMorphTargets())
 	{
@@ -1378,7 +1382,7 @@ void FSkeletalMeshLODModel::GetMeshDescription(const USkeletalMesh *InSkeletalMe
 		}
 		
 		MorphTargets.Emplace(Name, &MorphTargetSource->GetMorphLODModels()[InLODIndex]);
-		MeshAttributes.RegisterMorphTargetAttribute(Name);
+		MeshAttributes.RegisterMorphTargetAttribute(Name, bMorphTargetIncludeNormals);
 	}
 
 	for (const TPair<FName, FImportedSkinWeightProfileData>& SkinWeightProfileInfo: SkinWeightProfiles)
@@ -1401,22 +1405,20 @@ void FSkeletalMeshLODModel::GetMeshDescription(const USkeletalMesh *InSkeletalMe
 	// Map the section vertices back to the import vertices to remove seams, but only if there's
 	// mapping available.
 	TArray<int32> SourceToTargetVertexMap; 
-	TSet<int32> ProcessedTargetVertex;
 
 	int32 TargetVertexCount = 0;
+	
 	if (RawPointIndices2.Num() == NumVertices)
 	{
 		SourceToTargetVertexMap.Reserve(RawPointIndices2.Num());
-		for (const uint32 Index: RawPointIndices2)
+		
+		for (const uint32 VertexIndex: RawPointIndices2)
 		{
-			SourceToTargetVertexMap.Add(Index);
-			ProcessedTargetVertex.Add(Index);
-
-			TargetVertexCount = FMath::Max(TargetVertexCount, static_cast<int32>(Index));
+			SourceToTargetVertexMap.Add(VertexIndex);
+			TargetVertexCount = FMath::Max(TargetVertexCount, static_cast<int32>(VertexIndex));
 		}
 
 		TargetVertexCount += 1;
-		ProcessedTargetVertex.Reset();
 	}
 	else
 	{
@@ -1435,12 +1437,22 @@ void FSkeletalMeshLODModel::GetMeshDescription(const USkeletalMesh *InSkeletalMe
 		VertexIDs.Add(OutMeshDescription.CreateVertex());
 	}
 
+	// Mapping to go from morph target vertices to vertex instances.
+	TMultiMap<int32, FVertexInstanceID> SourceVertexToVertexInstanceMap;
+	if (bMorphTargetIncludeNormals)
+	{
+		SourceVertexToVertexInstanceMap.Reserve(IndexBuffer.Num());
+	}
+
 	// Ensure we have enough channels to store all the defined UV coordinates.
 	VertexInstanceUVs.SetNumChannels(static_cast<int32>(NumTexCoords));
 	
 	const TArray<FSkeletalMaterial>& Materials = InSkeletalMesh->GetMaterials();
 	const bool bHasVertexColors = EnumHasAllFlags(InSkeletalMesh->GetVertexBufferFlags(), ESkeletalMeshVertexFlags::HasVertexColors);
 
+	TSet<int32> ProcessedTargetVertex;
+	ProcessedTargetVertex.Reserve(TargetVertexCount);
+	
 	// Convert sections to polygon groups, each with their own material.
 	for (int32 SectionIndex = 0; SectionIndex < Sections.Num(); SectionIndex++)
 	{
@@ -1457,6 +1469,7 @@ void FSkeletalMeshLODModel::GetMeshDescription(const USkeletalMesh *InSkeletalMe
 			{
 				continue;
 			}
+			ProcessedTargetVertex.Add(TargetVertexIndex);
 			
 			const FVertexID VertexID = VertexIDs[TargetVertexIndex];
 
@@ -1503,6 +1516,11 @@ void FSkeletalMeshLODModel::GetMeshDescription(const USkeletalMesh *InSkeletalMe
 				const FVertexID VertexID = VertexIDs[TargetVertexIndex];
 				const FVertexInstanceID VertexInstanceID = OutMeshDescription.CreateVertexInstance(VertexID);
 
+				if (bMorphTargetIncludeNormals)
+				{
+					SourceVertexToVertexInstanceMap.Add(SourceVertexIndex, VertexInstanceID);
+				}
+
 				const FSoftSkinVertex& SourceVertex = SourceVertices[SourceVertexIndex - Section.BaseVertexIndex];
 
 				VertexInstanceNormals.Set(VertexInstanceID, SourceVertex.TangentZ);
@@ -1533,14 +1551,27 @@ void FSkeletalMeshLODModel::GetMeshDescription(const USkeletalMesh *InSkeletalMe
 	// Copy morph targets.
 	for (TPair<FName, const FMorphTargetLODModel*>& MorphSource: MorphTargets)
 	{
-		FMorphTargetVertexAttributesRef MorphTarget = MeshAttributes.GetVertexMorphTarget(MorphSource.Key);
+		TVertexAttributesRef<FVector3f> PositionDelta = MeshAttributes.GetVertexMorphPositionDelta(MorphSource.Key);
+		TVertexInstanceAttributesRef<FVector3f> NormalDelta = MeshAttributes.GetVertexInstanceMorphNormalDelta(MorphSource.Key);
+		TArray<FVertexInstanceID> VertexInstanceIDs;
 
 		for (const FMorphTargetDelta& Delta: MorphSource.Value->Vertices)
 		{
 			const int32 TargetVertexIndex = SourceToTargetVertexMap[Delta.SourceIdx];
 			const FVertexID VertexID = VertexIDs[TargetVertexIndex];
-			
-			MorphTarget.SetPositionAndTangentZDelta(VertexID, Delta.PositionDelta, Delta.TangentZDelta);
+
+			PositionDelta.Set(VertexID, Delta.PositionDelta);
+
+			if (bMorphTargetIncludeNormals)
+			{
+				VertexInstanceIDs.Reset();
+				SourceVertexToVertexInstanceMap.MultiFind(Delta.SourceIdx, VertexInstanceIDs);
+
+				for (FVertexInstanceID VertexInstanceID: VertexInstanceIDs)
+				{
+					NormalDelta.Set(VertexInstanceID, Delta.TangentZDelta); 
+				}
+			}
 		}
 	}
 

@@ -234,7 +234,9 @@ void FSkeletalMeshSourceModel::EnsureRawMeshBulkDataIsConvertedToNew()
 }
 
 
-bool FSkeletalMeshSourceModel::LoadMeshDescriptionFromBulkData(FMeshDescription& OutMeshDescription) const
+bool FSkeletalMeshSourceModel::LoadMeshDescriptionFromBulkData(
+	FMeshDescription& OutMeshDescription
+	) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FSkeletalMeshSourceData::LoadMeshDescriptionFromBulkData);
 	
@@ -255,10 +257,50 @@ bool FSkeletalMeshSourceModel::LoadMeshDescriptionFromBulkData(FMeshDescription&
 	}
 	
 	MeshDescriptionBulkData->GetBulkData().LoadMeshDescription(OutMeshDescription);
+	
+	// If this mesh is stored with the older representation, update it now.
+	UpgradeMorphTargets(OutMeshDescription);
+	
 	return true;
 }
 
+void FSkeletalMeshSourceModel::UpgradeMorphTargets(
+	FMeshDescription& InOutMeshDescription
+	)	
+{
+	TArray<FName> AttributeNames;
+	InOutMeshDescription.VertexAttributes().GetAttributeNames(AttributeNames);
 
+	TArray<FVector3f> SavedPointDelta;
+	for (const FName AttributeName: AttributeNames)
+	{
+		if (!FSkeletalMeshAttributes::IsMorphTargetAttribute(AttributeName))
+		{
+			continue;
+		}
+		
+		TVertexAttributesConstRef<TArrayView<FVector3f>> OldMorphTarget = InOutMeshDescription.VertexAttributes().GetAttributesRef<TArrayView<FVector3f>>(AttributeName);
+
+		if (!OldMorphTarget.IsValid())
+		{
+			continue;
+		}
+		// Grab all the points and store them away. We then re-register the attribute(s) with the correct details. We only
+		// need the point deltas, since that's all that was stored before the storage change.
+		SavedPointDelta.SetNumUninitialized(InOutMeshDescription.Vertices().GetArraySize());
+
+		for (FVertexID VertexID: InOutMeshDescription.Vertices().GetElementIDs())
+		{
+			SavedPointDelta[VertexID.GetValue()] = OldMorphTarget.Get(VertexID)[0];
+		}
+
+		TVertexAttributesRef<FVector3f> PointDelta = InOutMeshDescription.VertexAttributes().RegisterAttribute<FVector3f>(AttributeName, 1, FVector3f::ZeroVector, EMeshAttributeFlags::None);
+		for (FVertexID VertexID: InOutMeshDescription.Vertices().GetElementIDs())
+		{
+			PointDelta.Set(VertexID, SavedPointDelta[VertexID.GetValue()]);
+		}
+	}
+}
 
 
 void FSkeletalMeshSourceModel::ConvertRawMeshToMeshDescriptionBulkData()
