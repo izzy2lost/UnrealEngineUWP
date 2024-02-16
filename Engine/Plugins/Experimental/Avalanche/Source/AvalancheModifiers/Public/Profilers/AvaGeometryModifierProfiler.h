@@ -7,7 +7,6 @@
 /** Modifier profiler used by geometry modifiers */
 class FAvaGeometryModifierProfiler : public FActorModifierCoreProfiler
 {
-	
 public:
 	static inline const FName VertexInName = TEXT("VertexIn");
 	static inline const FName VertexOutName = TEXT("VertexOut");

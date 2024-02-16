@@ -123,7 +123,7 @@ TSet<AActor*> UAvaAlignBetweenModifier::GetActors(const bool bEnabledOnly) const
 	return OutActors;
 }
 
-void UAvaAlignBetweenModifier::SetReferenceActors(TSet<FAvaAlignBetweenWeightedActor> NewReferenceActors)
+void UAvaAlignBetweenModifier::SetReferenceActors(const TSet<FAvaAlignBetweenWeightedActor>& NewReferenceActors)
 {
 	ReferenceActors = NewReferenceActors;
 	OnReferenceActorsChanged();

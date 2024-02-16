@@ -22,7 +22,7 @@ enum class EAvaVisibilityActor : uint8
 ENUM_CLASS_FLAGS(EAvaVisibilityActor);
 
 USTRUCT()
-struct AVALANCHEMODIFIERS_API FAvaVisibilitySharedModifierState
+struct FAvaVisibilitySharedModifierState
 {
 	GENERATED_BODY()
 
@@ -36,7 +36,7 @@ struct AVALANCHEMODIFIERS_API FAvaVisibilitySharedModifierState
 
 	/** Restore this modifier state if valid */
 	void Restore(AActor* InActor) const;
-	
+
 	friend uint32 GetTypeHash(const FAvaVisibilitySharedModifierState& InItem)
 	{
 		return GetTypeHash(InItem.ModifierWeak);
@@ -62,7 +62,7 @@ struct AVALANCHEMODIFIERS_API FAvaVisibilitySharedModifierState
 };
 
 USTRUCT()
-struct AVALANCHEMODIFIERS_API FAvaVisibilitySharedActorState
+struct FAvaVisibilitySharedActorState
 {
 	GENERATED_BODY()
 
@@ -70,13 +70,13 @@ struct AVALANCHEMODIFIERS_API FAvaVisibilitySharedActorState
 	FAvaVisibilitySharedActorState(AActor* InActor)
 		: ActorWeak(InActor)
 	{}
-	
+
 	/** Save this actor state if valid */
 	void Save();
 
 	/** Restore this actor state if valid */
 	void Restore() const;
-	
+
 	friend uint32 GetTypeHash(const FAvaVisibilitySharedActorState& InItem)
 	{
 		return GetTypeHash(InItem.ActorWeak);
@@ -94,7 +94,7 @@ struct AVALANCHEMODIFIERS_API FAvaVisibilitySharedActorState
 	/** Actor that this state is describing */
 	UPROPERTY()
 	TWeakObjectPtr<AActor> ActorWeak;
-	
+
 #if WITH_EDITORONLY_DATA
 	/** Pre state editor visibility saved */
 	UPROPERTY()
@@ -113,10 +113,10 @@ struct AVALANCHEMODIFIERS_API FAvaVisibilitySharedActorState
  * and restore it when no other modifier is watching it
  */
 UCLASS()
-class AVALANCHEMODIFIERS_API UAvaVisibilityModifierShared : public UActorModifierCoreSharedObject
+class UAvaVisibilityModifierShared : public UActorModifierCoreSharedObject
 {
 	GENERATED_BODY()
-	
+
 public:
 	/** Watch actor state, adds it if it is not tracked */
 	void SaveActorState(UAvaBaseModifier* InModifierContext, AActor* InActor);
@@ -137,15 +137,18 @@ public:
 	void RestoreActorsState(UAvaBaseModifier* InModifierContext, const TSet<AActor*>* InActors = nullptr);
 
 	void RestoreActorsState(UAvaBaseModifier* InModifierContext, const TSet<TWeakObjectPtr<AActor>>& InActors);
-	
+
 	/** Returns true, if this modifier is tracking this actor */
 	bool IsActorStateSaved(UAvaBaseModifier* InModifierContext, AActor* InActor);
 
 	/** Returns true, if this modifier is tracking any actor */
 	bool IsActorsStateSaved(UAvaBaseModifier* InModifierContext);
+
 protected:
+	//~ Begin UObject
 	virtual void PostLoad() override;
-	
+	//~ End UObject
+
 	/** Actor state before any modifier applied to it */
 	UPROPERTY()
 	TSet<FAvaVisibilitySharedActorState> ActorStates;

@@ -26,7 +26,7 @@ public:
  * This extension tracks specific actors for transform updates,
  * when an update happens it will invoke the IAvaTransformUpdateExtension function
  */
-class AVALANCHEMODIFIERS_API FAvaTransformUpdateModifierExtension : public FActorModifierCoreExtension
+class FAvaTransformUpdateModifierExtension : public FActorModifierCoreExtension
 {
 
 public:

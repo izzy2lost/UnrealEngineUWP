@@ -42,7 +42,7 @@ struct FAvaDynamicMeshConverterModifierComponentState
 
 	explicit FAvaDynamicMeshConverterModifierComponentState() {}
 	explicit FAvaDynamicMeshConverterModifierComponentState(UPrimitiveComponent* InPrimitiveComponent);
-	
+
 	/** The component we are converting to dynamic mesh */
 	UPROPERTY()
 	TWeakObjectPtr<UPrimitiveComponent> Component = nullptr;
@@ -66,12 +66,49 @@ struct FAvaDynamicMeshConverterModifierComponentState
 	UE::Geometry::FDynamicMesh3 Mesh;
 };
 
-UCLASS(BlueprintType)
-class AVALANCHEMODIFIERS_API UAvaDynamicMeshConverterModifier : public UAvaGeometryBaseModifier
+UCLASS(MinimalAPI, BlueprintType)
+class UAvaDynamicMeshConverterModifier : public UAvaGeometryBaseModifier
 {
 	GENERATED_BODY()
 
 public:
+	AVALANCHEMODIFIERS_API void SetSourceActorWeak(const TWeakObjectPtr<AActor>& InActor);
+	TWeakObjectPtr<AActor> GetSourceActorWeak() const
+	{
+		return SourceActorWeak;
+	}
+
+	AVALANCHEMODIFIERS_API void SetComponentType(int32 InComponentType);
+	int32 GetComponentType() const
+	{
+		return ComponentType;
+	}
+
+	AVALANCHEMODIFIERS_API void SetFilterActorMode(EAvaDynamicMeshConverterModifierFilter InFilter);
+	EAvaDynamicMeshConverterModifierFilter GetFilterActorMode() const
+	{
+		return FilterActorMode;
+	}
+
+	AVALANCHEMODIFIERS_API void SetFilterActorClasses(const TSet<TSubclassOf<AActor>>& InClasses);
+	const TSet<TSubclassOf<AActor>>& GetFilterActorClasses() const
+	{
+		return FilterActorClasses;
+	}
+
+	AVALANCHEMODIFIERS_API void SetIncludeAttachedActors(bool bInInclude);
+	bool GetIncludeAttachedActors() const
+	{
+		return bIncludeAttachedActors;
+	}
+
+	AVALANCHEMODIFIERS_API void SetHideConvertedMesh(bool bInHide);
+	bool GetHideConvertedMesh() const
+	{
+		return bHideConvertedMesh;
+	}
+
+protected:
 	//~ Begin UObject
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
@@ -81,25 +118,6 @@ public:
 #endif
 	//~ End UObject
 
-	void SetSourceActorWeak(const TWeakObjectPtr<AActor>& InActor);
-	TWeakObjectPtr<AActor> GetSourceActorWeak() const { return SourceActorWeak; }
-
-	void SetComponentType(int32 InComponentType);
-	int32 GetComponentType() const { return ComponentType; }
-
-	void SetFilterActorMode(EAvaDynamicMeshConverterModifierFilter InFilter);
-	EAvaDynamicMeshConverterModifierFilter GetFilterActorMode() const { return FilterActorMode; }
-
-	void SetFilterActorClasses(const TSet<TSubclassOf<AActor>>& InClasses);
-	const TSet<TSubclassOf<AActor>>& GetFilterActorClasses() const { return FilterActorClasses; }
-
-	void SetIncludeAttachedActors(bool bInInclude);
-	bool GetIncludeAttachedActors() const { return bIncludeAttachedActors; }
-
-	void SetHideConvertedMesh(bool bInHide);
-	bool GetHideConvertedMesh() const { return bHideConvertedMesh; }
-	
-protected:
 	//~ Begin UActorModifierCoreBase
 	virtual void OnModifierCDOSetup(FActorModifierCoreMetadata& InMetadata) override;
 	virtual void OnModifierAdded(EActorModifierCoreEnableReason InReason) override;
@@ -108,17 +126,17 @@ protected:
 	virtual void Apply() override;
 	virtual void OnModifierRemoved(EActorModifierCoreDisableReason InReason) override;
 	//~ End UActorModifierCoreBase
-	
+
 	void OnSourceActorChanged();
 
 	void ConvertComponents(TArray<FAvaDynamicMeshConverterModifierComponentState>& OutResults) const;
 	bool HasFlag(EAvaDynamicMeshConverterModifierType InFlag) const;
-	
+
 	void AddDynamicMeshComponent();
 	void RemoveDynamicMeshComponent();
 
 	void GetFilteredActors(TArray<AActor*>& OutActors) const;
-	
+
 	void GetStaticMeshComponents(const TArray<AActor*>& InActors, TArray<UStaticMeshComponent*>& OutComponents) const;
 	void GetDynamicMeshComponents(const TArray<AActor*>& InActors, TArray<UDynamicMeshComponent*>& OutComponents) const;
 	void GetSkeletalMeshComponents(const TArray<AActor*>& InActors, TArray<USkeletalMeshComponent*>& OutComponents) const;
@@ -132,7 +150,7 @@ protected:
 	/** What actor should we copy from, by default is self */
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetSourceActorWeak", Getter="GetSourceActorWeak", Category="DynamicMeshConverter", meta=(DisplayName="SourceActor", AllowPrivateAccess="true"))
 	TWeakObjectPtr<AActor> SourceActorWeak = GetModifiedActor();
-	
+
 	/** Which components should we take into account for the conversion */
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetComponentType", Getter="GetComponentType", Category="DynamicMeshConverter", meta=(Bitmask, BitmaskEnum="/Script/AvalancheModifiers.EAvaDynamicMeshConverterModifierType", AllowPrivateAccess="true"))
 	int32 ComponentType = static_cast<int32>(
@@ -165,7 +183,7 @@ protected:
 	/** Components converted to dynamic mesh */
 	UPROPERTY()
 	TArray<FAvaDynamicMeshConverterModifierComponentState> ConvertedComponents;
-	
+
 	/** Cached mesh to set state without reconverting again */
 	TOptional<UE::Geometry::FDynamicMesh3> ConvertedMesh;
 

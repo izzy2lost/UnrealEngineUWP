@@ -21,14 +21,51 @@ enum class EAvaTranslucentPriorityModifierMode : uint8
 	Manual
 };
 
-UCLASS(BlueprintType)
-class AVALANCHEMODIFIERS_API UAvaTranslucentPriorityModifier : public UAvaArrangeBaseModifier
+UCLASS(MinimalAPI, BlueprintType)
+class UAvaTranslucentPriorityModifier : public UAvaArrangeBaseModifier
 {
 	GENERATED_BODY()
 
 	friend class UAvaTranslucentPriorityModifierShared;
 
 public:
+    AVALANCHEMODIFIERS_API void SetMode(EAvaTranslucentPriorityModifierMode InMode);
+    EAvaTranslucentPriorityModifierMode GetMode() const
+    {
+	    return Mode;
+    }
+
+    AVALANCHEMODIFIERS_API void SetCameraActorWeak(const TWeakObjectPtr<ACameraActor>& InCameraActor);
+	TWeakObjectPtr<ACameraActor> GetCameraActorWeak() const
+	{
+		return CameraActorWeak;
+	}
+
+    AVALANCHEMODIFIERS_API void SetSortPriority(int32 InSortPriority);
+    int32 GetSortPriority() const
+    {
+	    return SortPriority;
+    }
+
+	AVALANCHEMODIFIERS_API void SetSortPriorityOffset(int32 InOffset);
+	int32 GetSortPriorityOffset() const
+	{
+		return SortPriorityOffset;
+	}
+
+	AVALANCHEMODIFIERS_API void SetSortPriorityStep(int32 InStep);
+	int32 GetSortPriorityStep() const
+	{
+		return SortPriorityStep;
+	}
+
+	AVALANCHEMODIFIERS_API void SetIncludeChildren(bool bInIncludeChildren);
+	bool GetIncludeChildren() const
+	{
+		return bIncludeChildren;
+	}
+
+protected:
 	//~ Begin UObject
 	virtual void PostLoad() override;
 #if WITH_EDITOR
@@ -36,43 +73,6 @@ public:
 #endif
 	//~ End UObject
 
-    void SetMode(EAvaTranslucentPriorityModifierMode InMode);
-    EAvaTranslucentPriorityModifierMode GetMode() const
-    {
-	    return Mode;
-    }
-
-    void SetCameraActorWeak(const TWeakObjectPtr<ACameraActor>& InCameraActor);
-	TWeakObjectPtr<ACameraActor> GetCameraActorWeak() const
-	{
-		return CameraActorWeak;
-	}
-
-    void SetSortPriority(int32 InSortPriority);
-    int32 GetSortPriority() const
-    {
-	    return SortPriority;
-    }
-
-	void SetSortPriorityOffset(int32 InOffset);
-	int32 GetSortPriorityOffset() const
-	{
-		return SortPriorityOffset;
-	}
-
-	void SetSortPriorityStep(int32 InStep);
-	int32 GetSortPriorityStep() const
-	{
-		return SortPriorityStep;
-	}
-
-	void SetIncludeChildren(bool bInIncludeChildren);
-	bool GetIncludeChildren() const
-	{
-		return bIncludeChildren;
-	}
-
-protected:
 	//~ Begin UActorModifierCoreBase
 	virtual void OnModifierCDOSetup(FActorModifierCoreMetadata& InMetadata) override;
 	virtual void OnModifierAdded(EActorModifierCoreEnableReason InReason) override;

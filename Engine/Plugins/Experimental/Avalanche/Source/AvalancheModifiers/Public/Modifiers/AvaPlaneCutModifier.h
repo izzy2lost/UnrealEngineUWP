@@ -7,35 +7,43 @@
 #include "AvaPlaneCutModifier.generated.h"
 
 /** This modifier cuts a shape based on a 2D plane */
-UCLASS(BlueprintType)
-class AVALANCHEMODIFIERS_API UAvaPlaneCutModifier : public UAvaGeometryBaseModifier
+UCLASS(MinimalAPI, BlueprintType)
+class UAvaPlaneCutModifier : public UAvaGeometryBaseModifier
 {
 	GENERATED_BODY()
 
 public:
+	AVALANCHEMODIFIERS_API void SetPlaneOrigin(float InOrigin);
+	float GetPlaneOrigin() const
+	{
+		return PlaneOrigin;
+	}
+
+	AVALANCHEMODIFIERS_API void SetPlaneRotation(const FRotator& InRotation);
+	const FRotator& GetPlaneRotation() const
+	{
+		return PlaneRotation;
+	}
+
+	AVALANCHEMODIFIERS_API void SetInvertCut(bool bInInvertCut);
+	bool GetInvertCut() const
+	{
+		return bInvertCut;
+	}
+
+	AVALANCHEMODIFIERS_API void SetFillHoles(bool bInFillHoles);
+	bool GetFillHoles() const
+	{
+		return bFillHoles;
+	}
+
+protected:
 	//~ Begin UObject
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
 #endif
 	//~ End UObject
 
-	UFUNCTION()
-	void SetPlaneOrigin(float InOrigin);
-	float GetPlaneOrigin() const { return PlaneOrigin; }
-
-	UFUNCTION()
-	void SetPlaneRotation(const FRotator& InRotation);
-	const FRotator& GetPlaneRotation() const { return PlaneRotation; }
-
-	UFUNCTION()
-	void SetInvertCut(bool bInInvertCut);
-	bool GetInvertCut() const { return bInvertCut; }
-
-	UFUNCTION()
-	void SetFillHoles(bool bInFillHoles);
-	bool GetFillHoles() const { return bFillHoles; }
-
-protected:
 	//~ Begin UActorModifierCoreBase
 	virtual void OnModifierCDOSetup(FActorModifierCoreMetadata& InMetadata) override;
 	virtual void OnModifierAdded(EActorModifierCoreEnableReason InReason) override;
@@ -43,10 +51,10 @@ protected:
 	virtual void OnModifierDisabled(EActorModifierCoreDisableReason InReason) override;
 	virtual void OnModifierRemoved(EActorModifierCoreDisableReason InReason) override;
 	//~ End UActorModifierCoreBase
-	
+
 	/** Returns actual location of plane bounds restricted */
 	FVector GetPlaneLocation() const;
-	
+
 	void OnPlaneRotationChanged();
 	void OnFillHolesChanged();
 	void OnInvertCutChanged();
@@ -67,7 +75,7 @@ protected:
 
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetInvertCut", Getter="GetInvertCut", Category="PlaneCut", meta=(AllowPrivateAccess="true"))
 	bool bInvertCut = false;
-	
+
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetFillHoles", Getter="GetFillHoles", Category="PlaneCut", meta=(AllowPrivateAccess="true"))
 	bool bFillHoles = true;
 

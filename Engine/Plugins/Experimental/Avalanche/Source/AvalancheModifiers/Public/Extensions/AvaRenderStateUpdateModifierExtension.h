@@ -32,7 +32,7 @@ public:
  * This extension tracks specific actors for render state updates,
  * when an update happens it will invoke IAvaRenderStateUpdateExtension function
  */
-class AVALANCHEMODIFIERS_API FAvaRenderStateUpdateModifierExtension : public FActorModifierCoreExtension
+class FAvaRenderStateUpdateModifierExtension : public FActorModifierCoreExtension
 {
 
 public:

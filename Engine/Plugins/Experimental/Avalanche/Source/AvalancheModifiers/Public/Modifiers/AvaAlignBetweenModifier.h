@@ -10,23 +10,23 @@ class AActor;
 
 /** Represents an actor with a weight and an enabled state. */
 USTRUCT(BlueprintType)
-struct AVALANCHEMODIFIERS_API FAvaAlignBetweenWeightedActor
+struct FAvaAlignBetweenWeightedActor
 {
 	GENERATED_BODY()
 
 	FAvaAlignBetweenWeightedActor()
 	{}
-	
+
 	explicit FAvaAlignBetweenWeightedActor(AActor* InActor)
 		: ActorWeak(InActor)
 	{}
-	
+
 	explicit FAvaAlignBetweenWeightedActor(AActor* InActor, float InWeight, bool bInEnabled)
 		: ActorWeak(InActor)
 		, Weight(InWeight)
 		, bEnabled(bInEnabled)
 	{}
-	
+
 	/** Returns true if the actor is valid and the state is enabled. */
 	bool IsValid() const
 	{
@@ -42,7 +42,7 @@ struct AVALANCHEMODIFIERS_API FAvaAlignBetweenWeightedActor
 	{
 		return ActorWeak == Other.ActorWeak;
 	}
-	
+
 	/** An actor that will effect the placement location. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion Design")
 	TWeakObjectPtr<AActor> ActorWeak;
@@ -59,34 +59,30 @@ struct AVALANCHEMODIFIERS_API FAvaAlignBetweenWeightedActor
 /**
  * Moves the modifying actor to the averaged location between an array of specified actors.
  */
-UCLASS(BlueprintType)
-class AVALANCHEMODIFIERS_API UAvaAlignBetweenModifier : public UAvaBaseModifier
+UCLASS(MinimalAPI, BlueprintType)
+class UAvaAlignBetweenModifier : public UAvaBaseModifier
 	, public IAvaTransformUpdateHandler
 {
 	GENERATED_BODY()
-	
-public:
-	//~ Begin UObject
-#if WITH_EDITOR
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-	virtual void PostTransacted(const FTransactionObjectEvent& TransactionEvent) override;
-#endif
-	//~ End UObject
 
+public:
 	/** Gets all actors from their reference actor structs. */
 	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|AlignBetween")
 	TSet<AActor*> GetActors(const bool bEnabledOnly = false) const;
 
 	/** Returns all valid reference actors that enabled and have a weight greater than 0. */
 	TSet<FAvaAlignBetweenWeightedActor> GetEnabledReferenceActors() const;
-	
+
 	/** Gets all reference actors and their weights. */
 	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|AlignBetween")
-	TSet<FAvaAlignBetweenWeightedActor> GetReferenceActors() const { return ReferenceActors; }
+	TSet<FAvaAlignBetweenWeightedActor> GetReferenceActors() const
+	{
+		return ReferenceActors;
+	}
 
 	/** Sets all reference actors and their weights. */
 	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|AlignBetween")
-	void SetReferenceActors(TSet<FAvaAlignBetweenWeightedActor> NewReferenceActors);
+	AVALANCHEMODIFIERS_API void SetReferenceActors(const TSet<FAvaAlignBetweenWeightedActor>& NewReferenceActors);
 
 	/** Adds an actor to the reference list. */
 	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|AlignBetween")
@@ -101,6 +97,13 @@ public:
 	bool FindReferenceActor(AActor* InActor, FAvaAlignBetweenWeightedActor& OutReferenceActor) const;
 
 protected:
+	//~ Begin UObject
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual void PostTransacted(const FTransactionObjectEvent& TransactionEvent) override;
+#endif
+	//~ End UObject
+
 	//~ Begin UActorModifierCoreBase
 	virtual void OnModifierCDOSetup(FActorModifierCoreMetadata& InMetadata) override;
 	virtual void OnModifierAdded(EActorModifierCoreEnableReason InReason) override;
@@ -109,15 +112,15 @@ protected:
 	virtual void Apply() override;
 	virtual void OnModifiedActorTransformed() override;
 	//~ End UActorModifierCoreBase
-	
-	void OnReferenceActorsChanged();
+
 
 	//~ Begin IAvaTransformUpdatedExtension
 	virtual void OnTransformUpdated(AActor* InActor, bool bInParentMoved) override;
 	//~ End IAvaTransformUpdatedExtension
-	
+
+	void OnReferenceActorsChanged();
 	void SetTransformExtensionReferenceActors();
-	
+
 	/** Editable set of reference actors and weights used to calculate the average location for this actor */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetReferenceActors", Getter="GetReferenceActors", Category="AlignBetween", meta=(AllowPrivateAccess="true"))
 	TSet<FAvaAlignBetweenWeightedActor> ReferenceActors;

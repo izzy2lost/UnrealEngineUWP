@@ -20,53 +20,64 @@ enum class EAvaNormalModifierSplitMethod : uint8
 	Threshold
 };
 
-UCLASS(BlueprintType)
-class AVALANCHEMODIFIERS_API UAvaNormalModifier : public UAvaGeometryBaseModifier
+UCLASS(MinimalAPI, BlueprintType)
+class UAvaNormalModifier : public UAvaGeometryBaseModifier
 {
 	GENERATED_BODY()
 
 public:
+	AVALANCHEMODIFIERS_API void SetAngleWeighted(bool bInAngleWeighted);
+	bool GetAngleWeighted() const
+	{
+		return bAngleWeighted;
+	}
+
+	AVALANCHEMODIFIERS_API void SetAreaWeighted(bool bInAreaWeighted);
+	bool GetAreaWeighted() const
+	{
+		return bAreaWeighted;
+	}
+
+	AVALANCHEMODIFIERS_API void SetInvert(bool bInInvert);
+	bool GetInvert() const
+	{
+		return bInvert;
+	}
+
+	AVALANCHEMODIFIERS_API void SetSplitMethod(EAvaNormalModifierSplitMethod InSplitMethod);
+	EAvaNormalModifierSplitMethod GetSplitMethod() const
+	{
+		return SplitMethod;
+	}
+
+	AVALANCHEMODIFIERS_API void SetAngleThreshold(float InAngleThreshold);
+	float GetAngleThreshold() const
+	{
+		return AngleThreshold;
+	}
+
+	AVALANCHEMODIFIERS_API void SetPolyGroupLayerIdx(int32 InPolyGroupLayer);
+	AVALANCHEMODIFIERS_API int32 GetPolyGroupLayerIdx() const;
+
+	AVALANCHEMODIFIERS_API void SetPolyGroupLayer(FString& InString);
+	FString GetPolyGroupLayer() const
+	{
+		return PolyGroupLayer;
+	}
+
+protected:
 	//~ Begin UObject
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
 	//~ End UObject
 
-	UFUNCTION()
-	void SetAngleWeighted(bool bInAngleWeighted);
-	bool GetAngleWeighted() const { return bAngleWeighted; }
-	
-	UFUNCTION()
-	void SetAreaWeighted(bool bInAreaWeighted);
-	bool GetAreaWeighted() const { return bAreaWeighted; }
-	
-	UFUNCTION()
-	void SetInvert(bool bInInvert);
-	bool GetInvert() const { return bInvert; }
-	
-	UFUNCTION()
-	void SetSplitMethod(EAvaNormalModifierSplitMethod InSplitMethod);
-	EAvaNormalModifierSplitMethod GetSplitMethod() const { return SplitMethod; }
-	
-	UFUNCTION()
-	void SetAngleThreshold(float InAngleThreshold);
-	float GetAngleThreshold() const { return AngleThreshold; }
-
-	UFUNCTION()
-	void SetPolyGroupLayerIdx(int32 InPolyGroupLayer);
-	int32 GetPolyGroupLayerIdx() const;
-
-	UFUNCTION()
-	void SetPolyGroupLayer(FString& InString);
-	FString GetPolyGroupLayer() const { return PolyGroupLayer; }
-
-protected:
 	//~ Begin UActorModifierCoreBase
 	virtual void OnModifierCDOSetup(FActorModifierCoreMetadata& InMetadata) override;
 	virtual void OnModifierAdded(EActorModifierCoreEnableReason InReason) override;
 	virtual void Apply() override;
 	//~ End UActorModifierCoreBase
-	
+
 	void OnAngleWeightedChanged();
 	void OnAreaWeightedChanged();
 	void OnInvertChanged();

@@ -11,18 +11,18 @@ class AActor;
 /**
  * Abstract base class for all modifiers that deal with attachments
  */
-UCLASS(Abstract)
-class AVALANCHEMODIFIERS_API UAvaAttachmentBaseModifier : public UAvaBaseModifier
+UCLASS(MinimalAPI, Abstract)
+class UAvaAttachmentBaseModifier : public UAvaBaseModifier
 	, public IAvaSceneTreeUpdateHandler
 {
 	GENERATED_BODY()
 
 protected:
 	//~ Begin UActorModifierCoreBase
-	virtual void OnModifierCDOSetup(FActorModifierCoreMetadata& InMetadata) override;
+	AVALANCHEMODIFIERS_API virtual void OnModifierCDOSetup(FActorModifierCoreMetadata& InMetadata) override;
 	virtual void OnModifierAdded(EActorModifierCoreEnableReason InReason) override;
 	//~ End UActorModifierCoreBase
-	
+
 	//~ Begin IAvaSceneTreeUpdateModifierExtension
 	virtual void OnSceneTreeTrackedActorChanged(int32 InIdx, AActor* InPreviousActor, AActor* InNewActor) override {}
 	virtual void OnSceneTreeTrackedActorChildrenChanged(int32 InIdx, const TSet<TWeakObjectPtr<AActor>>& InPreviousChildrenActors, const TSet<TWeakObjectPtr<AActor>>& InNewChildrenActors) override {}

@@ -9,7 +9,6 @@ struct FAvaBooleanModifierSharedChannelInfo;
 /** Modifier profiler used by boolean modifiers */
 class FAvaBooleanModifierProfiler : public FAvaGeometryModifierProfiler
 {
-	
 public:
 	static inline const FName ChannelInfo = TEXT("ChannelInfo");
 
@@ -19,6 +18,6 @@ public:
 	virtual void EndProfiling() override;
 	virtual TSet<FName> GetMainProfilingStats() const override;
 	//~ End FActorModifierCoreProfiler
-	
+
 	AVALANCHEMODIFIERS_API FAvaBooleanModifierSharedChannelInfo GetChannelInfo() const;
 };

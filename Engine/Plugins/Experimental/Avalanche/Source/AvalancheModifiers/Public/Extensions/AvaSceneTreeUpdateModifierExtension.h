@@ -15,16 +15,16 @@ USTRUCT(BlueprintType)
 struct FAvaSceneTreeActor
 {
 	friend class FAvaSceneTreeUpdateModifierExtension;
-	
+
 	GENERATED_BODY()
 
 	FAvaSceneTreeActor() = default;
-	
+
 	explicit FAvaSceneTreeActor(AActor* InActor)
 		: ReferenceContainer(EAvaReferenceContainer::Other)
 		, ReferenceActorWeak(InActor)
 	{}
-	
+
 	/** The method for finding a reference actor based on it's position in the parent's hierarchy */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Outliner")
 	EAvaReferenceContainer ReferenceContainer = EAvaReferenceContainer::Other;
@@ -52,7 +52,7 @@ protected:
 	/** Direct children of reference actor where order counts */
 	UPROPERTY(Transient)
 	TArray<TWeakObjectPtr<AActor>> ReferenceActorDirectChildrenWeak;
-	
+
 	/** Tracked references actors, if we skip hidden actors, we still need to track those for visibility changes, can be rebuilt */
 	UPROPERTY(Transient)
 	TArray<TWeakObjectPtr<AActor>> ReferenceActorsWeak;
@@ -76,7 +76,7 @@ class UAvaSceneTreeUpdateHandler : public UInterface
 class IAvaSceneTreeUpdateHandler
 {
 	GENERATED_BODY()
-	
+
 public:
 	virtual void OnSceneTreeTrackedActorChanged(int32 InIdx, AActor* InPreviousActor, AActor* InNewActor) = 0;
 
@@ -93,9 +93,9 @@ public:
  * This extension tracks specific actors for render state updates,
  * when an update happens it will dirty the modifier it is attached on if filter passes
  */
-class AVALANCHEMODIFIERS_API FAvaSceneTreeUpdateModifierExtension : public FActorModifierCoreExtension
+class FAvaSceneTreeUpdateModifierExtension : public FActorModifierCoreExtension
 {
-	
+
 public:
 	explicit FAvaSceneTreeUpdateModifierExtension(IAvaSceneTreeUpdateHandler* InExtensionHandler);
 
@@ -106,11 +106,11 @@ public:
 
 	void CheckTrackedActorsUpdate() const;
 	void CheckTrackedActorUpdate(int32 InIdx) const;
-	
+
 	TSet<TWeakObjectPtr<AActor>> GetChildrenActorsRecursive(const AActor* InActor) const;
 	TArray<TWeakObjectPtr<AActor>> GetDirectChildrenActor(AActor* InActor) const;
 	TArray<TWeakObjectPtr<AActor>> GetParentActors(const AActor* InActor) const;
-	
+
 protected:
 	//~ Begin FActorModifierCoreExtension
 	virtual void OnExtensionEnabled(EActorModifierCoreEnableReason InReason) override;
@@ -122,17 +122,17 @@ private:
 	virtual void OnOutlinerLoaded();
 	virtual void OnActorHierarchyChanged(AActor* InActor, const AActor* InParentActor, EAvaOutlinerHierarchyChangeType InChangeType);
 #endif
-	
+
 	void OnRenderStateDirty(UActorComponent& InComponent);
 	void OnWorldActorDestroyed(AActor* InActor);
 
 	bool IsSameActorArray(const TArray<TWeakObjectPtr<AActor>>& InPreviousActorWeak, const TArray<TWeakObjectPtr<AActor>>& InNewActorWeak) const;
-	
+
 	TArray<TWeakObjectPtr<AActor>> GetReferenceActors(const FAvaSceneTreeActor* InTrackedActor) const;
-	
+
 	TWeakInterfacePtr<IAvaSceneTreeUpdateHandler> ExtensionHandlerWeak;
 
 	TMap<int32, FAvaSceneTreeActor*> TrackedActors;
-	
+
 	FDelegateHandle WorldActorDestroyedDelegate;
 };

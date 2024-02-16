@@ -34,27 +34,33 @@ struct FAvaMaterialParameterMap
 };
 
 /** This modifier sets specified dynamic materials parameters on an actor and its children */
-UCLASS(BlueprintType)
-class AVALANCHEMODIFIERS_API UAvaMaterialParameterModifier : public UAvaArrangeBaseModifier
+UCLASS(MinimalAPI, BlueprintType)
+class UAvaMaterialParameterModifier : public UAvaArrangeBaseModifier
 {
 	GENERATED_BODY()
-	
+
 public:
 	UAvaMaterialParameterModifier();
 
+	AVALANCHEMODIFIERS_API void SetMaterialParameters(const FAvaMaterialParameterMap& InParameterMap);
+	const FAvaMaterialParameterMap& GetMaterialParameters() const
+	{
+		return MaterialParameters;
+	}
+
+	AVALANCHEMODIFIERS_API void SetUpdateChildren(bool bInUpdateChildren);
+	bool GetUpdateChildren() const
+	{
+		return bUpdateChildren;
+	}
+
+protected:
 	//~ Begin UObject
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
 	//~ End UObject
 
-	void SetMaterialParameters(const FAvaMaterialParameterMap& InParameterMap);
-	const FAvaMaterialParameterMap& GetMaterialParameters() const { return MaterialParameters; }
-	
-	void SetUpdateChildren(bool bInUpdateChildren);
-	bool GetUpdateChildren() const { return bUpdateChildren; }
-
-protected:
 	//~ Begin UActorModifierCoreBase
 	virtual void OnModifierCDOSetup(FActorModifierCoreMetadata& InMetadata) override;
 	virtual void OnModifierEnabled(EActorModifierCoreEnableReason InReason) override;
@@ -63,7 +69,7 @@ protected:
 	virtual void RestorePreState() override;
 	virtual void Apply() override;
 	//~ End UActorModifierCoreBase
-	
+
 	//~ Begin IAvaSceneTreeUpdateModifierExtension
 	virtual void OnSceneTreeTrackedActorChildrenChanged(int32 InIdx, const TSet<TWeakObjectPtr<AActor>>& InPreviousChildrenActors, const TSet<TWeakObjectPtr<AActor>>& InNewChildrenActors) override;
 	virtual void OnSceneTreeTrackedActorDirectChildrenChanged(int32 InIdx, const TArray<TWeakObjectPtr<AActor>>& InPreviousChildrenActors, const TArray<TWeakObjectPtr<AActor>>& InNewChildrenActors) override;
@@ -78,7 +84,7 @@ protected:
 	/** Called when a property changes, used to detect material changes */
 	virtual void OnActorPropertyChanged(UObject* InObject, FPropertyChangedEvent& InChangeEvent);
 #endif
-	
+
 	void ScanActorMaterials();
 
 	void OnMaterialParametersChanged();
@@ -86,13 +92,13 @@ protected:
 
 	virtual void OnActorMaterialAdded(UMaterialInstanceDynamic* InAdded) {}
 	virtual void OnActorMaterialRemoved(UMaterialInstanceDynamic* InRemoved) {}
-	
+
 	/** Checks if this actor has a Material Designer Instance or that we already track one */
 	bool IsActorSupported(const AActor* InActor) const;
 
 	/** Retrieves all Material Designer Instance from a primitive component */
 	TSet<UMaterialInstanceDynamic*> GetComponentDynamicMaterials(const UPrimitiveComponent* InComponent) const;
-	
+
 	/** Which parameters should we set on the Material Designer Instance,
 	 * use EditCondition="bShowMaterialParameters && bShowMaterialParameters" otherwise edit inline boolean appear in details when it should not */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetMaterialParameters", Getter="GetMaterialParameters", Category="MaterialParameter", meta=(EditCondition="bShowMaterialParameters && bShowMaterialParameters", EditConditionHides, AllowPrivateAccess="true"))
@@ -105,7 +111,7 @@ protected:
 	/** Filter material type for child modifiers */
 	UPROPERTY(Transient)
 	TSubclassOf<UMaterialInstanceDynamic> MaterialClass;
-	
+
 	/** Will also look into attached children actors */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetUpdateChildren", Getter="GetUpdateChildren", Category="MaterialParameter", meta=(AllowPrivateAccess="true"))
 	bool bUpdateChildren = true;

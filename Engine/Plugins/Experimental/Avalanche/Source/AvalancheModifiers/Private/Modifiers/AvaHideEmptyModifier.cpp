@@ -34,7 +34,7 @@ void UAvaHideEmptyModifier::OnModifierAdded(EActorModifierCoreEnableReason InRea
 			ReferenceActor.ReferenceContainer = EAvaReferenceContainer::Other;
 			ReferenceActor.ReferenceActorWeak = ActorModified;
 			ReferenceActor.bSkipHiddenActors = false;
-			
+
 			TextComponent = ActorModified->FindComponentByClass<UText3DComponent>();
 		}
 	}
@@ -72,7 +72,7 @@ void UAvaHideEmptyModifier::Apply()
 	}
 
 	UAvaVisibilityModifierShared* VisibilityShared = GetShared<UAvaVisibilityModifierShared>(true);
-	
+
 	if (Text3DComponent->GetText().IsEmpty())
 	{
 		const bool bNewVisibility = bInvertVisibility;
@@ -93,14 +93,14 @@ void UAvaHideEmptyModifier::Apply()
 
 	VisibilityShared->RestoreActorsState(this, ChildrenActorsWeak.Difference(NewChildrenActorsWeak));
 	ChildrenActorsWeak = NewChildrenActorsWeak;
-	
+
 	Next();
 }
 
 void UAvaHideEmptyModifier::OnModifierDisabled(EActorModifierCoreDisableReason InReason)
 {
 	Super::OnModifierDisabled(InReason);
-	
+
 	if (UText3DComponent* Text3DComponent = TextComponent.Get())
 	{
 		Text3DComponent->OnTextGenerated().RemoveAll(this);
@@ -118,7 +118,7 @@ void UAvaHideEmptyModifier::PostEditChangeProperty(FPropertyChangedEvent& Proper
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
 	const FName MemberName = PropertyChangedEvent.GetMemberPropertyName();
-	
+
 	static const FName ContainerActorName = GET_MEMBER_NAME_CHECKED(UAvaHideEmptyModifier, ContainerActorWeak);
 	static const FName InvertVisibilityName = GET_MEMBER_NAME_CHECKED(UAvaHideEmptyModifier, bInvertVisibility);
 
@@ -132,6 +132,17 @@ void UAvaHideEmptyModifier::PostEditChangeProperty(FPropertyChangedEvent& Proper
 	}
 }
 #endif
+
+void UAvaHideEmptyModifier::SetContainerActorWeak(TWeakObjectPtr<AActor> InContainer)
+{
+	if (ContainerActorWeak == InContainer)
+	{
+		return;
+	}
+
+	ContainerActorWeak = InContainer;
+	OnContainerActorChanged();
+}
 
 void UAvaHideEmptyModifier::SetInvertVisibility(bool bInInvert)
 {
@@ -154,7 +165,7 @@ void UAvaHideEmptyModifier::OnContainerActorChanged()
 	ReferenceActor.ReferenceContainer = EAvaReferenceContainer::Other;
 	ReferenceActor.ReferenceActorWeak = ContainerActorWeak;
 	ReferenceActor.bSkipHiddenActors = false;
-	
+
 	if (const FAvaSceneTreeUpdateModifierExtension* SceneExtension = GetExtension<FAvaSceneTreeUpdateModifierExtension>())
 	{
 		SceneExtension->CheckTrackedActorUpdate(0);
@@ -169,7 +180,7 @@ void UAvaHideEmptyModifier::OnInvertVisibilityChanged()
 void UAvaHideEmptyModifier::OnSceneTreeTrackedActorChanged(int32 InIdx, AActor* InPreviousActor, AActor* InNewActor)
 {
 	Super::OnSceneTreeTrackedActorChanged(InIdx, InPreviousActor, InNewActor);
-	
+
 	if (UAvaVisibilityModifierShared* VisibilityShared = GetShared<UAvaVisibilityModifierShared>(false))
 	{
 		VisibilityShared->RestoreActorState(this, InPreviousActor);
