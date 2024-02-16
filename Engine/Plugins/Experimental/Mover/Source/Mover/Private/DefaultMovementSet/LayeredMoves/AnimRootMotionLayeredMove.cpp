@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Kinematic/LayeredMoves/AnimRootMotionLayeredMove.h"
+#include "DefaultMovementSet/LayeredMoves/AnimRootMotionLayeredMove.h"
 #include "MoverComponent.h"
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimMontage.h"

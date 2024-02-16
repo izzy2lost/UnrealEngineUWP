@@ -1,12 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Kinematic/LayeredMoves/BasicLayeredMoves.h"
+#include "DefaultMovementSet/LayeredMoves/BasicLayeredMoves.h"
 #include "MoverSimulationTypes.h"
 #include "MoverComponent.h"
 #include "Curves/CurveVector.h"
 #include "Curves/CurveFloat.h"
 #include "MoverLog.h"
-#include "Kinematic/Settings/CommonLegacyMovementSettings.h"
+#include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "MoveLibrary/MovementUtils.h"
 
 

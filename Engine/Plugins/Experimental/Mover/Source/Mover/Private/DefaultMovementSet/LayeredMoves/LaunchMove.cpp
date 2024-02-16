@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Kinematic/LayeredMoves/LaunchMove.h"
+#include "DefaultMovementSet/LayeredMoves/LaunchMove.h"
 #include "MoverComponent.h"
 #include "MoverTypes.h"
 #include "MoverLog.h"

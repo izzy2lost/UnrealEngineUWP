@@ -5,7 +5,7 @@
 #include "Chaos/Character/CharacterGroundConstraint.h"
 #include "GameFramework/PhysicsVolume.h"
 #include "MoverComponent.h"
-#include "Kinematic/Settings/CommonLegacyMovementSettings.h"
+#include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "Math/UnitConversion.h"
 #include "MoveLibrary/FloorQueryUtils.h"
 #include "MoveLibrary/WaterMovementUtils.h"
@@ -33,7 +33,7 @@ void UPhysicsDrivenFallingMode::OnSimulationTick(const FSimulationTickParams& Pa
 	UPrimitiveComponent* UpdatedPrimitive = Params.UpdatedPrimitive;
 	FProposedMove ProposedMove = Params.ProposedMove;
 
-	const FKinematicDefaultInputs* KinematicInputs = StartState.InputCmd.InputCollection.FindDataByType<FKinematicDefaultInputs>();
+	const FCharacterDefaultInputs* CharacterInputs = StartState.InputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>();
 	const FMoverDefaultSyncState* StartingSyncState = StartState.SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>();
 	check(StartingSyncState);
 
@@ -58,8 +58,8 @@ void UPhysicsDrivenFallingMode::OnSimulationTick(const FSimulationTickParams& Pa
 		return;
 	}
 
-	SimBlackboard->Invalidate(KinematicBlackboard::LastFloorResult);
-	SimBlackboard->Invalidate(KinematicBlackboard::LastWaterResult);
+	SimBlackboard->Invalidate(CommonBlackboard::LastFloorResult);
+	SimBlackboard->Invalidate(CommonBlackboard::LastWaterResult);
 
 	// Find floor
 
@@ -73,15 +73,15 @@ void UPhysicsDrivenFallingMode::OnSimulationTick(const FSimulationTickParams& Pa
 	UpdatedPrimitive, UpDir, PawnRadius, TargetHeight, CommonLegacySettings->MaxStepHeight,
 		CommonLegacySettings->MaxWalkSlopeCosine, FloorResult, WaterResult);
 
-	SimBlackboard->Set(KinematicBlackboard::LastFloorResult, FloorResult);
-	SimBlackboard->Set(KinematicBlackboard::LastWaterResult, WaterResult);
+	SimBlackboard->Set(CommonBlackboard::LastFloorResult, FloorResult);
+	SimBlackboard->Set(CommonBlackboard::LastWaterResult, WaterResult);
 
-	const bool bIsMovingUp = KinematicInputs->bIsJumpJustPressed || (UpDir.Dot(ProposedMove.LinearVelocity) > 0.0f);
+	const bool bIsMovingUp = CharacterInputs->bIsJumpJustPressed || (UpDir.Dot(ProposedMove.LinearVelocity) > 0.0f);
 	const bool bStartSwimming = WaterResult.WaterSplineData.ImmersionDepth > CommonLegacySettings->SwimmingStartImmersionDepth;
 
 	if (WaterResult.IsSwimmableVolume() && bStartSwimming && !bIsMovingUp)
 	{
-		OutputState.MovementEndState.NextModeName = KinematicModeNames::Swimming;
+		OutputState.MovementEndState.NextModeName = DefaultModeNames::Swimming;
 		OutputState.MovementEndState.RemainingMs = Params.TimeStep.StepMs;
 		return;
 	}
@@ -112,12 +112,12 @@ void UPhysicsDrivenFallingMode::OnSimulationTick(const FSimulationTickParams& Pa
 
 	if (FloorResult.IsWalkableFloor() && bIsFloorWithinReach && !bIsMovingUpRelativeToFloor)
 	{
-		OutputState.MovementEndState.NextModeName = KinematicModeNames::Walking;
+		OutputState.MovementEndState.NextModeName = DefaultModeNames::Walking;
 		TargetPos -= UpDir * (FloorResult.FloorDist - TargetHeight);
 	}
 	else
 	{
-		OutputState.MovementEndState.NextModeName = KinematicModeNames::Falling;
+		OutputState.MovementEndState.NextModeName = DefaultModeNames::Falling;
 	}
 
 	OutputState.MovementEndState.RemainingMs = 0.0f;

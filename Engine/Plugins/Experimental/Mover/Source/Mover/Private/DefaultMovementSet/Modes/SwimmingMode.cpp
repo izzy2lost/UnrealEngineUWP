@@ -1,12 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Kinematic/Modes/SwimmingMode.h"
+#include "DefaultMovementSet/Modes/SwimmingMode.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/Pawn.h"
 #include "MoveLibrary/WaterMovementUtils.h"
-#include "Kinematic/LayeredMoves/BasicLayeredMoves.h"
+#include "DefaultMovementSet/LayeredMoves/BasicLayeredMoves.h"
 #include "MoverComponent.h"
-#include "Kinematic/Settings/CommonLegacyMovementSettings.h"
+#include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "MoverLog.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SwimmingMode)
@@ -21,7 +21,7 @@ USwimmingMode::USwimmingMode(const FObjectInitializer& ObjectInitializer)
 void USwimmingMode::OnGenerateMove(const FMoverTickStartData& StartState, const FMoverTimeStep& TimeStep, FProposedMove& OutProposedMove) const
 {
 	const UMoverComponent* MoverComp = GetMoverComponent();
-	const FKinematicDefaultInputs* KinematicInputs = StartState.InputCmd.InputCollection.FindDataByType<FKinematicDefaultInputs>();
+	const FCharacterDefaultInputs* CharacterInputs = StartState.InputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>();
 	const FMoverDefaultSyncState* StartingSyncState = StartState.SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>();
 	check(StartingSyncState);
 	
@@ -32,7 +32,7 @@ void USwimmingMode::OnGenerateMove(const FMoverTickStartData& StartState, const 
 	
 	const float CapsuleHalfHeight = MoverComp->GetOwner()->GetSimpleCollisionHalfHeight();
 
-	if (SimBlackboard && SimBlackboard->TryGet(KinematicBlackboard::LastWaterResult, LastWaterResult) && LastWaterResult.IsSwimmableVolume())
+	if (SimBlackboard && SimBlackboard->TryGet(CommonBlackboard::LastWaterResult, LastWaterResult) && LastWaterResult.IsSwimmableVolume())
 	{
 		FUpdateWaterSplineDataParams Params;
 		Params.TargetImmersionDepth = CommonLegacySettings->SwimmingIdealImmersionDepth;
@@ -121,20 +121,20 @@ void USwimmingMode::OnGenerateMove(const FMoverTickStartData& StartState, const 
 	
 	    // Consider player input
 		FRotator IntendedOrientation_WorldSpace;
-		if (!KinematicInputs || KinematicInputs->OrientationIntent.IsNearlyZero())
+		if (!CharacterInputs || CharacterInputs->OrientationIntent.IsNearlyZero())
 		{
 			IntendedOrientation_WorldSpace = StartingSyncState->GetOrientation_WorldSpace();
 		}
 		else
 		{
-			IntendedOrientation_WorldSpace = KinematicInputs->GetOrientationIntentDir_WorldSpace().ToOrientationRotator();
+			IntendedOrientation_WorldSpace = CharacterInputs->GetOrientationIntentDir_WorldSpace().ToOrientationRotator();
 		}
 		
 		FWaterMoveParams Params;
-		if (KinematicInputs)
+		if (CharacterInputs)
 		{
-			Params.MoveInputType = KinematicInputs->GetMoveInputType();
-			Params.MoveInput = KinematicInputs->GetMoveInput_WorldSpace();
+			Params.MoveInputType = CharacterInputs->GetMoveInputType();
+			Params.MoveInput = CharacterInputs->GetMoveInput_WorldSpace();
 		}
 		else
 		{
@@ -189,7 +189,7 @@ bool USwimmingMode::AttemptJump(float UpwardsSpeed, FMoverTickEndData& OutputSta
 	TSharedPtr<FLayeredMove_JumpImpulse> JumpMove = MakeShared<FLayeredMove_JumpImpulse>();
 	JumpMove->UpwardsSpeed = UpwardsSpeed;
 	OutputSyncState.LayeredMoves.QueueLayeredMove(JumpMove);
-	OutputState.MovementEndState.NextModeName = KinematicModeNames::Falling;
+	OutputState.MovementEndState.NextModeName = DefaultModeNames::Falling;
 	return true;
 }
 
@@ -205,9 +205,9 @@ bool USwimmingMode::AttemptTeleport(USceneComponent* UpdatedComponent, const FVe
 												  nullptr ); // no movement base
 		
 		// TODO: instead of invalidating it, consider checking for a floor. Possibly a dynamic base?
-		GetBlackboard_Mutable()->Invalidate(KinematicBlackboard::LastFloorResult);
-		GetBlackboard_Mutable()->Invalidate(KinematicBlackboard::LastWaterResult);
-		GetBlackboard_Mutable()->Invalidate(KinematicBlackboard::LastMovementBase);
+		GetBlackboard_Mutable()->Invalidate(CommonBlackboard::LastFloorResult);
+		GetBlackboard_Mutable()->Invalidate(CommonBlackboard::LastWaterResult);
+		GetBlackboard_Mutable()->Invalidate(CommonBlackboard::LastMovementBase);
 
 		return true;
 	}

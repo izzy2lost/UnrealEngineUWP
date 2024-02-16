@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Kinematic/Modes/WalkingMode.h"
+#include "DefaultMovementSet/Modes/WalkingMode.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/Pawn.h"
 #include "MoveLibrary/MovementUtils.h"
@@ -8,9 +8,9 @@
 #include "MoveLibrary/ModularMovement.h"
 #include "MoveLibrary/FloorQueryUtils.h"
 #include "MoveLibrary/GroundMovementUtils.h"
-#include "Kinematic/LayeredMoves/BasicLayeredMoves.h"
+#include "DefaultMovementSet/LayeredMoves/BasicLayeredMoves.h"
 #include "MoverComponent.h"
-#include "Kinematic/Settings/CommonLegacyMovementSettings.h"
+#include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "MoverLog.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WalkingMode)
@@ -25,7 +25,7 @@ UWalkingMode::UWalkingMode(const FObjectInitializer& ObjectInitializer)
 void UWalkingMode::OnGenerateMove(const FMoverTickStartData& StartState, const FMoverTimeStep& TimeStep, FProposedMove& OutProposedMove) const
 {
 	const UMoverComponent* MoverComp = GetMoverComponent();
-	const FKinematicDefaultInputs* KinematicInputs = StartState.InputCmd.InputCollection.FindDataByType<FKinematicDefaultInputs>();
+	const FCharacterDefaultInputs* CharacterInputs = StartState.InputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>();
 	const FMoverDefaultSyncState* StartingSyncState = StartState.SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>();
 	check(StartingSyncState);
 
@@ -37,7 +37,7 @@ void UWalkingMode::OnGenerateMove(const FMoverTickStartData& StartState, const F
 	UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable();
 
 	// Try to use the floor as the basis for the intended move direction (i.e. try to walk along slopes, rather than into them)
-	if (SimBlackboard && SimBlackboard->TryGet(KinematicBlackboard::LastFloorResult, LastFloorResult) && LastFloorResult.IsWalkableFloor())
+	if (SimBlackboard && SimBlackboard->TryGet(CommonBlackboard::LastFloorResult, LastFloorResult) && LastFloorResult.IsWalkableFloor())
 	{
 		MovementNormal = LastFloorResult.HitResult.ImpactNormal;
 	}
@@ -50,21 +50,21 @@ void UWalkingMode::OnGenerateMove(const FMoverTickStartData& StartState, const F
 
 	FRotator IntendedOrientation_WorldSpace;
 	// If there's no intent from input to change orientation, use the current orientation
-	if (!KinematicInputs || KinematicInputs->OrientationIntent.IsNearlyZero())
+	if (!CharacterInputs || CharacterInputs->OrientationIntent.IsNearlyZero())
 	{
 		IntendedOrientation_WorldSpace = StartingSyncState->GetOrientation_WorldSpace();
 	}
 	else
 	{
-		IntendedOrientation_WorldSpace = KinematicInputs->GetOrientationIntentDir_WorldSpace().ToOrientationRotator();
+		IntendedOrientation_WorldSpace = CharacterInputs->GetOrientationIntentDir_WorldSpace().ToOrientationRotator();
 	}
 
 	FGroundMoveParams Params;
 
-	if (KinematicInputs)
+	if (CharacterInputs)
 	{
-		Params.MoveInputType = KinematicInputs->GetMoveInputType();
-		Params.MoveInput = KinematicInputs->GetMoveInput_WorldSpace();
+		Params.MoveInputType = CharacterInputs->GetMoveInputType();
+		Params.MoveInput = CharacterInputs->GetMoveInput_WorldSpace();
 	}
 	else
 	{
@@ -114,7 +114,7 @@ void UWalkingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 		return;
 	}
 
-	const FKinematicDefaultInputs* KinematicInputs = StartState.InputCmd.InputCollection.FindDataByType<FKinematicDefaultInputs>();
+	const FCharacterDefaultInputs* CharacterInputs = StartState.InputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>();
 	const FMoverDefaultSyncState* StartingSyncState = StartState.SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>();
 	check(StartingSyncState);
 
@@ -125,7 +125,7 @@ void UWalkingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 
 	// Instantaneous movement changes that are executed and we exit before consuming any time
 	if ( (ProposedMove.bHasTargetLocation && AttemptTeleport(UpdatedComponent, ProposedMove.TargetLocation, UpdatedComponent->GetComponentRotation(), StartingSyncState->GetVelocity_WorldSpace(), OutputState)) ||	// Teleport
-		 (KinematicInputs && KinematicInputs->bIsJumpJustPressed && AttemptJump(CommonLegacySettings->JumpUpwardsSpeed, OutputState)) )	// Jump
+		 (CharacterInputs && CharacterInputs->bIsJumpJustPressed && AttemptJump(CommonLegacySettings->JumpUpwardsSpeed, OutputState)) )	// Jump
 	{
 		UpdatedComponent->ComponentVelocity = StartingSyncState->GetVelocity_WorldSpace();
 		OutputState.MovementEndState.RemainingMs = Params.TimeStep.StepMs; 	// Give back all the time
@@ -147,14 +147,14 @@ void UWalkingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 	UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable();
 
 	// If we don't have cached floor information, we need to search for it again
-	if (!SimBlackboard->TryGet(KinematicBlackboard::LastFloorResult, CurrentFloor))
+	if (!SimBlackboard->TryGet(CommonBlackboard::LastFloorResult, CurrentFloor))
 	{
 		UFloorQueryUtils::FindFloor(UpdatedComponent, UpdatedPrimitive,
 			CommonLegacySettings->FloorSweepDistance, CommonLegacySettings->MaxWalkSlopeCosine,
 			UpdatedPrimitive->GetComponentLocation(), CurrentFloor);
 	}
 
-	if (!SimBlackboard->TryGet(KinematicBlackboard::LastMovementBase, OldRelativeBase))
+	if (!SimBlackboard->TryGet(CommonBlackboard::LastMovementBase, OldRelativeBase))
 	{
 		OldRelativeBase = UpdateFloorAndBaseInfo(CurrentFloor);
 	}
@@ -238,7 +238,7 @@ void UWalkingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 
 					if (!UGroundMovementUtils::TryMoveToStepUp(UpdatedComponent, UpdatedPrimitive, MoverComponent, DownwardDir, CommonLegacySettings->MaxStepHeight, CommonLegacySettings->MaxWalkSlopeCosine, CommonLegacySettings->FloorSweepDistance, OrigMoveDelta * (1.f - PercentTimeAppliedSoFar), MoveHitResult, CurrentFloor, false, &StepUpFloorResult, MoveRecord))
 					{
-						FMoverOnImpactParams ImpactParams(KinematicModeNames::Walking, MoveHitResult, OrigMoveDelta);
+						FMoverOnImpactParams ImpactParams(DefaultModeNames::Walking, MoveHitResult, OrigMoveDelta);
 						MoverComponent->HandleImpact(ImpactParams);
 						float PercentAvailableToSlide = 1.f - PercentTimeAppliedSoFar;
 						float SlideAmount = UGroundMovementUtils::TryWalkToSlideAlongSurface(UpdatedComponent, UpdatedPrimitive, MoverComponent, OrigMoveDelta, PercentAvailableToSlide, TargetOrientQuat, MoveHitResult.Normal, MoveHitResult, true, MoveRecord, CommonLegacySettings->MaxWalkSlopeCosine, CommonLegacySettings->MaxStepHeight);
@@ -247,7 +247,7 @@ void UWalkingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 				}
 				else if (MoveHitResult.Component.IsValid() && !MoveHitResult.Component.Get()->CanCharacterStepUp(Cast<APawn>(MoveHitResult.GetActor())))
 				{
-					FMoverOnImpactParams ImpactParams(KinematicModeNames::Walking, MoveHitResult, OrigMoveDelta);
+					FMoverOnImpactParams ImpactParams(DefaultModeNames::Walking, MoveHitResult, OrigMoveDelta);
 					MoverComponent->HandleImpact(ImpactParams);
 					float PercentAvailableToSlide = 1.f - PercentTimeAppliedSoFar;
 					float SlideAmount = UGroundMovementUtils::TryWalkToSlideAlongSurface(UpdatedComponent, UpdatedPrimitive, MoverComponent, OrigMoveDelta, 1.f - PercentTimeAppliedSoFar, TargetOrientQuat, MoveHitResult.Normal, MoveHitResult, true, MoveRecord, CommonLegacySettings->MaxWalkSlopeCosine, CommonLegacySettings->MaxStepHeight);
@@ -352,8 +352,8 @@ bool UWalkingMode::AttemptTeleport(USceneComponent* UpdatedComponent, const FVec
 												  nullptr ); // no movement base
 		
 		// TODO: instead of invalidating it, consider checking for a floor. Possibly a dynamic base?
-		GetBlackboard_Mutable()->Invalidate(KinematicBlackboard::LastFloorResult);
-		GetBlackboard_Mutable()->Invalidate(KinematicBlackboard::LastMovementBase);
+		GetBlackboard_Mutable()->Invalidate(CommonBlackboard::LastFloorResult);
+		GetBlackboard_Mutable()->Invalidate(CommonBlackboard::LastMovementBase);
 
 		return true;
 	}
@@ -393,18 +393,18 @@ FRelativeBaseInfo UWalkingMode::UpdateFloorAndBaseInfo(const FFloorCheckResult& 
 
 	UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable();
 
-	SimBlackboard->Set(KinematicBlackboard::LastFloorResult, FloorResult);
+	SimBlackboard->Set(CommonBlackboard::LastFloorResult, FloorResult);
 
 	if (FloorResult.IsWalkableFloor() && UBasedMovementUtils::IsADynamicBase(FloorResult.HitResult.GetComponent()))
 	{
 		ReturnBaseInfo.SetFromFloorResult(FloorResult);
 
-		SimBlackboard->Set(KinematicBlackboard::LastMovementBase, ReturnBaseInfo);
+		SimBlackboard->Set(CommonBlackboard::LastMovementBase, ReturnBaseInfo);
 	}
 	else
 	{
 
-		SimBlackboard->Invalidate(KinematicBlackboard::LastMovementBase);
+		SimBlackboard->Invalidate(CommonBlackboard::LastMovementBase);
 	}
 
 	return ReturnBaseInfo;

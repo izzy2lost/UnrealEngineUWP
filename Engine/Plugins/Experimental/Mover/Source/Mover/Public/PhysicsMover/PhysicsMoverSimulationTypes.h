@@ -109,7 +109,7 @@ public:
 
 	virtual ~FMovementSettingsInputs() {}
 
-	// @return newly allocated copy of this FKinematicDefaultInputs. Must be overridden by child classes
+	// @return newly allocated copy of this FMovementSettingsInputs. Must be overridden by child classes
 	virtual FMoverDataStructBase* Clone() const override;
 
 	virtual bool NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bOutSuccess) override;

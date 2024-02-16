@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Kinematic/Modes/SwimmingMode.h"
+#include "DefaultMovementSet/Modes/SwimmingMode.h"
 #include "PhysicsMover/PhysicsMoverSimulationTypes.h"
 
 #include "PhysicsDrivenSwimmingMode.generated.h"

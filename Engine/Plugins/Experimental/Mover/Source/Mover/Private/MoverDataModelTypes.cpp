@@ -8,9 +8,9 @@
 
 
 
-// FKinematicDefaultInputs //////////////////////////////////////////////////////////////
+// FCharacterDefaultInputs //////////////////////////////////////////////////////////////
 
-void FKinematicDefaultInputs::SetMoveInput(EMoveInputType InMoveInputType, const FVector& InMoveInput)
+void FCharacterDefaultInputs::SetMoveInput(EMoveInputType InMoveInputType, const FVector& InMoveInput)
 {
 	MoveInputType = InMoveInputType;
 
@@ -23,7 +23,7 @@ void FKinematicDefaultInputs::SetMoveInput(EMoveInputType InMoveInputType, const
 }
 
 
-FVector FKinematicDefaultInputs::GetMoveInput_WorldSpace() const
+FVector FCharacterDefaultInputs::GetMoveInput_WorldSpace() const
 {
 	if (bUsingMovementBase && MovementBase)
 	{
@@ -36,7 +36,7 @@ FVector FKinematicDefaultInputs::GetMoveInput_WorldSpace() const
 }
 
 
-FVector FKinematicDefaultInputs::GetOrientationIntentDir_WorldSpace() const
+FVector FCharacterDefaultInputs::GetOrientationIntentDir_WorldSpace() const
 {
 	if (bUsingMovementBase && MovementBase)
 	{
@@ -49,14 +49,14 @@ FVector FKinematicDefaultInputs::GetOrientationIntentDir_WorldSpace() const
 }
 
 
-FMoverDataStructBase* FKinematicDefaultInputs::Clone() const
+FMoverDataStructBase* FCharacterDefaultInputs::Clone() const
 {
 	// TODO: ensure that this memory allocation jives with deletion method
-	FKinematicDefaultInputs* CopyPtr = new FKinematicDefaultInputs(*this);
+	FCharacterDefaultInputs* CopyPtr = new FCharacterDefaultInputs(*this);
 	return CopyPtr;
 }
 
-bool FKinematicDefaultInputs::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bOutSuccess)
+bool FCharacterDefaultInputs::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bOutSuccess)
 {
 	Super::NetSerialize(Ar, Map, bOutSuccess);
 
@@ -90,7 +90,7 @@ bool FKinematicDefaultInputs::NetSerialize(FArchive& Ar, UPackageMap* Map, bool&
 }
 
 
-void FKinematicDefaultInputs::ToString(FAnsiStringBuilderBase& Out) const
+void FCharacterDefaultInputs::ToString(FAnsiStringBuilderBase& Out) const
 {
 	Super::ToString(Out);
 
@@ -387,12 +387,12 @@ FRotator FMoverDefaultSyncState::GetOrientation_BaseSpace() const
 
 // UMoverDataModelBlueprintLibrary ///////////////////////////////////////////////////
 
-void UMoverDataModelBlueprintLibrary::SetMoveIntent(FKinematicDefaultInputs& Inputs, const FVector& WorldDirectionIntent)
+void UMoverDataModelBlueprintLibrary::SetMoveIntent(FCharacterDefaultInputs& Inputs, const FVector& WorldDirectionIntent)
 {
 	Inputs.SetMoveInput(EMoveInputType::DirectionalIntent, WorldDirectionIntent);
 }
 
-FVector UMoverDataModelBlueprintLibrary::GetMoveDirectionIntentFromInputs(const FKinematicDefaultInputs& Inputs)
+FVector UMoverDataModelBlueprintLibrary::GetMoveDirectionIntentFromInputs(const FCharacterDefaultInputs& Inputs)
 {
 	return Inputs.GetMoveInput_WorldSpace();
 }

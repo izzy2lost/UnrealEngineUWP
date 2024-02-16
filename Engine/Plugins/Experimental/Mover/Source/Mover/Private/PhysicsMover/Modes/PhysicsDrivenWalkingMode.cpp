@@ -6,9 +6,9 @@
 #include "Chaos/PhysicsObject.h"
 #include "Chaos/PhysicsObjectInternalInterface.h"
 #include "GameFramework/PhysicsVolume.h"
-#include "Kinematic/LayeredMoves/BasicLayeredMoves.h"
+#include "DefaultMovementSet/LayeredMoves/BasicLayeredMoves.h"
 #include "MoverComponent.h"
-#include "Kinematic/Settings/CommonLegacyMovementSettings.h"
+#include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "Math/UnitConversion.h"
 #include "MoveLibrary/WaterMovementUtils.h"
 #include "PhysicsMover/PhysicsMovementUtils.h"
@@ -42,7 +42,6 @@ void UPhysicsDrivenWalkingMode::OnSimulationTick(const FSimulationTickParams& Pa
 
 	const FVector UpDir = GetMoverComponent()->GetUpDirection();
 
-	const FKinematicDefaultInputs* KinematicInputs = StartState.InputCmd.InputCollection.FindDataByType<FKinematicDefaultInputs>();
 	const FMoverDefaultSyncState* StartingSyncState = StartState.SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>();
 	check(StartingSyncState);
 
@@ -67,7 +66,7 @@ void UPhysicsDrivenWalkingMode::OnSimulationTick(const FSimulationTickParams& Pa
 	// Store the previous ground normal that was used to compute the proposed move
 	FFloorCheckResult PrevFloorResult;
 	FVector PrevGroundNormal = UpDir;
-	if (SimBlackboard->TryGet(KinematicBlackboard::LastFloorResult, PrevFloorResult))
+	if (SimBlackboard->TryGet(CommonBlackboard::LastFloorResult, PrevFloorResult))
 	{
 		PrevGroundNormal = PrevFloorResult.HitResult.ImpactNormal;
 	}
@@ -83,14 +82,14 @@ void UPhysicsDrivenWalkingMode::OnSimulationTick(const FSimulationTickParams& Pa
 		UpdatedPrimitive, UpDir, PawnRadius, TargetHeight, CommonLegacySettings->MaxStepHeight,
 		CommonLegacySettings->MaxWalkSlopeCosine, FloorResult, WaterResult);
 
-	SimBlackboard->Set(KinematicBlackboard::LastFloorResult, FloorResult);
-	SimBlackboard->Set(KinematicBlackboard::LastWaterResult, WaterResult);
+	SimBlackboard->Set(CommonBlackboard::LastFloorResult, FloorResult);
+	SimBlackboard->Set(CommonBlackboard::LastWaterResult, WaterResult);
 
 	const bool bStartSwimming = (WaterResult.WaterSplineData.ImmersionDepth+TargetHeight) > CommonLegacySettings->SwimmingIdealImmersionDepth;
 	
 	if (WaterResult.IsSwimmableVolume() && bStartSwimming)
 	{
-		SwitchToState(KinematicModeNames::Swimming, Params, OutputState);
+		SwitchToState(DefaultModeNames::Swimming, Params, OutputState);
 	}
 	else if (FloorResult.IsWalkableFloor())
 	{
@@ -145,15 +144,15 @@ void UPhysicsDrivenWalkingMode::OnSimulationTick(const FSimulationTickParams& Pa
 		// If the character is unsupported allow some grace period before falling
 		bool bIsSupported = bIsWithinReach && !bIsLiftingOffSurface;
 		float TimeSinceSupported = MaxUnsupportedTimeBeforeFalling;
-		SimBlackboard->TryGet(KinematicBlackboard::TimeSinceSupported, TimeSinceSupported);
+		SimBlackboard->TryGet(CommonBlackboard::TimeSinceSupported, TimeSinceSupported);
 		if (bIsSupported)
 		{
-			SimBlackboard->Set(KinematicBlackboard::TimeSinceSupported, 0.0f);
+			SimBlackboard->Set(CommonBlackboard::TimeSinceSupported, 0.0f);
 		}
 		else
 		{
 			TimeSinceSupported += DeltaSeconds;
-			SimBlackboard->Set(KinematicBlackboard::TimeSinceSupported, TimeSinceSupported);
+			SimBlackboard->Set(CommonBlackboard::TimeSinceSupported, TimeSinceSupported);
 			bIsSupported = TimeSinceSupported < MaxUnsupportedTimeBeforeFalling;
 		}
 
@@ -174,7 +173,7 @@ void UPhysicsDrivenWalkingMode::OnSimulationTick(const FSimulationTickParams& Pa
 
 		if (bIsSupported)
 		{
-			OutputState.MovementEndState.NextModeName = KinematicModeNames::Walking;
+			OutputState.MovementEndState.NextModeName = DefaultModeNames::Walking;
 			OutputState.MovementEndState.RemainingMs = 0.0f;
 
 			OutputSyncState.MoveDirectionIntent = ProposedMove.bHasDirIntent ? ProposedMove.DirectionIntent : FVector::ZeroVector;
@@ -187,13 +186,13 @@ void UPhysicsDrivenWalkingMode::OnSimulationTick(const FSimulationTickParams& Pa
 		else
 		{
 			// Blocking hit but not supported
-			SwitchToState(KinematicModeNames::Falling, Params, OutputState);
+			SwitchToState(DefaultModeNames::Falling, Params, OutputState);
 		}
 	}
 	else
 	{
 		// No water or floor not found
-		SwitchToState(KinematicModeNames::Falling, Params, OutputState);
+		SwitchToState(DefaultModeNames::Falling, Params, OutputState);
 	}
 }
 
@@ -207,8 +206,8 @@ bool UPhysicsDrivenWalkingMode::AttemptTeleport(USceneComponent* UpdatedComponen
 		nullptr); // no movement base
 
 	// TODO: instead of invalidating it, consider checking for a floor. Possibly a dynamic base?
-	GetBlackboard_Mutable()->Invalidate(KinematicBlackboard::LastFloorResult);
-	GetBlackboard_Mutable()->Invalidate(KinematicBlackboard::LastMovementBase);
+	GetBlackboard_Mutable()->Invalidate(CommonBlackboard::LastFloorResult);
+	GetBlackboard_Mutable()->Invalidate(CommonBlackboard::LastMovementBase);
 
 	return true;
 }

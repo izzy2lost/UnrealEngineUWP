@@ -4,7 +4,7 @@
 #include "Animation/AnimMontage.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "MoverComponent.h"
-#include "Kinematic/LayeredMoves/AnimRootMotionLayeredMove.h"
+#include "DefaultMovementSet/LayeredMoves/AnimRootMotionLayeredMove.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PlayMoverMontageCallbackProxy)
 

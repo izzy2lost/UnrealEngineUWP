@@ -6,7 +6,7 @@
 #include "CharacterVariants/Ziplining/ZiplineInterface.h"
 #include "CharacterVariants/Ziplining/ZipliningTransitions.h"
 #include "Kismet/KismetSystemLibrary.h"
-#include "Kinematic/Settings/CommonLegacyMovementSettings.h"
+#include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "MoverLog.h"
 
 
@@ -155,13 +155,13 @@ void UZipliningMode::OnSimulationTick(const FSimulationTickParams& Params, FMove
 		// If we were unable to find a valid target zipline, refund all the time and let the actor fall
 		if (!StartPoint || !EndPoint)
 		{
-			FName DefaultAirMode = KinematicModeNames::Falling;
+			FName DefaultAirMode = DefaultModeNames::Falling;
 			if (UCommonLegacyMovementSettings* LegacySettings = MoverComp->FindSharedSettings_Mutable<UCommonLegacyMovementSettings>())
 			{
 				DefaultAirMode = LegacySettings->AirMovementModeName;
 			}
 
-			OutputState.MovementEndState.NextModeName = KinematicModeNames::Falling;
+			OutputState.MovementEndState.NextModeName = DefaultModeNames::Falling;
 			OutputState.MovementEndState.RemainingMs = Params.TimeStep.StepMs;
 			return;
 		}
@@ -231,7 +231,7 @@ void UZipliningMode::OnSimulationTick(const FSimulationTickParams& Params, FMove
 
 	if (bWillReachEndPosition)
 	{
-		FName DefaultAirMode = KinematicModeNames::Falling;
+		FName DefaultAirMode = DefaultModeNames::Falling;
 		if (UCommonLegacyMovementSettings* LegacySettings = MoverComp->FindSharedSettings_Mutable<UCommonLegacyMovementSettings>())
 		{
 			DefaultAirMode = LegacySettings->AirMovementModeName;
