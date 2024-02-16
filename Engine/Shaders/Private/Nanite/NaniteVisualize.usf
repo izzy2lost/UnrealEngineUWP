@@ -264,8 +264,13 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		{
 			const uint SubPatch = BitFieldExtractU32(DebugValueMax, 8,  8);
 			const uint MicroTri = BitFieldExtractU32(DebugValueMax, 8, 16);
-			const uint TriValue = MicroTri ^ (SubPatch + 0x9e3779b9 + (SubPatch << 6) + (SubPatch >> 2));
-			Result = IntToColor(select(MicroTri != 0u, TriValue, TriIndex));
+			if( MicroTri != 0u )
+			{
+				TriIndex = MurmurAdd( TriIndex, SubPatch );
+				TriIndex = MurmurAdd( TriIndex, MicroTri );
+			}
+
+			Result = IntToColor( TriIndex );
 			Result = Result * 0.8 + 0.2;
 			bDarkOutline = true;
 		}
