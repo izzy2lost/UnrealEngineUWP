@@ -26,8 +26,7 @@ public:
 	virtual EIconMode GetSupportedIconMode() const override { return EIconMode::Brush; }
 	virtual const FSlateBrush* GetIconBrush() const override;
 
-	virtual bool GetCanExpandInOverview() const override { return false; }
-	virtual bool GetShouldShowInStack() const override { return true; }
+	virtual bool GetShouldShowInStack() const override { return false; }
 
 	UNiagaraStatelessEmitter* GetStatelessEmitter() const { return StatelessEmitterWeak.Get(); }
 
@@ -55,7 +54,6 @@ public:
 	void Initialize(FRequiredEntryData InRequiredEntryData, UNiagaraStatelessEmitter* InStatelessEmitter, int32 InIndex);
 
 	virtual FText GetDisplayName() const override;
-	virtual bool GetShouldShowInOverview() const override { return false; }
 
 	virtual bool SupportsDelete() const override { return true; }
 	virtual bool TestCanDeleteWithMessage(FText& OutCanDeleteMessage) const override;

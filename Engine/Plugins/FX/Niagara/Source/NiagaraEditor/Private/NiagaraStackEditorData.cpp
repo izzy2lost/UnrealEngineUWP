@@ -271,3 +271,15 @@ const TArray<FString>& UNiagaraStackEditorData::GetDismissedStackIssueIds()
 	return DismissedStackIssueIds;
 }
 
+bool UNiagaraStackEditorData::GetStatelessModuleShowWhenDisabled(const FString& StackEntryKey) const
+{
+	const FNiagaraStatelessModuleEditorData* StatelessModuleEditorData = StackEntryKeyToStatelessModuleEditorData.Find(StackEntryKey);
+	return StatelessModuleEditorData != nullptr && StatelessModuleEditorData->bShowWhenDisabled;
+}
+
+void UNiagaraStackEditorData::SetStatelessModuleShowWhenDisabled(const FString& StackEntryKey, bool bInShowWhenDisabled)
+{
+	FNiagaraStatelessModuleEditorData& StatelessModuleEditorData = StackEntryKeyToStatelessModuleEditorData.FindOrAdd(StackEntryKey);
+	StatelessModuleEditorData.bShowWhenDisabled = bInShowWhenDisabled;
+}
+

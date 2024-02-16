@@ -20,6 +20,16 @@ enum class ENiagaraStackEntryInlineDisplayMode
 	None
 };
 
+/* Defines stack options for stateless modules */
+USTRUCT()
+struct FNiagaraStatelessModuleEditorData
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	bool bShowWhenDisabled = false;
+};
+
 /** Editor only UI data for emitters. */
 UCLASS()
 class UNiagaraStackEditorData : public UNiagaraEditorDataBase
@@ -187,6 +197,19 @@ public:
 	/* Gets a reference to the dismissed stack issue array */
 	NIAGARAEDITOR_API const TArray<FString>& GetDismissedStackIssueIds();
 
+	/*
+	* Gets whether or not a stateless module item should be shown when it's disabled.
+	* @param StackEntryKey A unique key for the entry.
+	*/
+	bool GetStatelessModuleShowWhenDisabled(const FString& StackEntryKey) const;
+
+	/*
+	* Sets whether or not a stateless module item should be shown when it's disabled.
+	* @param StackEntryKey A unique key for the entry.
+	* @param bInShowWhenDisabled Whether or not the item should be shown when disabled.
+	*/
+	void SetStatelessModuleShowWhenDisabled(const FString& StackEntryKey, bool bInShowWhenDisabled);
+
 	UPROPERTY()
 	bool bHideDisabledModules = false;
 
@@ -210,6 +233,9 @@ private:
 
 	UPROPERTY()
 	TMap<FString, FNiagaraStackNoteData> StackNotes;
+
+	UPROPERTY()
+	TMap<FString, FNiagaraStatelessModuleEditorData> StackEntryKeyToStatelessModuleEditorData;
 
 	/* Marking those FTexts explicitly as editoronly_data will make localization not pick these up.
 	 * This is a workaround. EditorDataBase in system & emitter is already flagged as editor only, but it doesn't propagate properly */

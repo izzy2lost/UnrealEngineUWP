@@ -9,6 +9,7 @@
 
 class FNiagaraEmitterHandleViewModel;
 class FNiagaraEmitterViewModel;
+struct FNiagaraRendererCreationInfo;
 class UNiagaraEmitter;
 class UNiagaraRendererProperties;
 class UNiagaraStatelessEmitter;
@@ -21,6 +22,7 @@ public:
 	virtual bool IsValid() const = 0;
 	virtual UObject* GetOwnerObject() const = 0;
 	virtual void GetRenderers(TArray<UNiagaraRendererProperties*>& OutRenderers) const = 0;
+	virtual bool IsRenderCreationInfoSupported(const FNiagaraRendererCreationInfo& RendererCreationInfo) const = 0;
 
 	virtual void AddRenderer(UNiagaraRendererProperties* RendererToAdd) = 0;
 	virtual void RemoveRenderer(UNiagaraRendererProperties* Renderer) = 0;
@@ -41,6 +43,8 @@ public:
 class FNiagaraStackRenderersOwner : public INiagaraStackRenderersOwner
 {
 public:
+	virtual bool IsRenderCreationInfoSupported(const FNiagaraRendererCreationInfo& RendererCreationInfo) const override { return true; }
+
 	virtual bool HasBaseRenderer(UNiagaraRendererProperties* Renderer) const override { return false; }
 	virtual bool IsRendererDifferentFromBase(UNiagaraRendererProperties* Renderer) const override { return false; }
 	virtual void ResetRendererToBase(UNiagaraRendererProperties* Renderer) const override { }
@@ -92,10 +96,11 @@ public:
 	virtual bool IsValid() const override;
 	virtual UObject* GetOwnerObject() const override;
 	virtual void GetRenderers(TArray<UNiagaraRendererProperties*>& OutRenderers) const override;
+	virtual bool IsRenderCreationInfoSupported(const FNiagaraRendererCreationInfo& RendererCreationInfo) const override;
 	virtual void AddRenderer(UNiagaraRendererProperties* RendererToAdd) override;
 	virtual void RemoveRenderer(UNiagaraRendererProperties* Renderer) override;
 	virtual void MoveRenderer(UNiagaraRendererProperties* Renderer, int32 NewIndex) override;
-	virtual bool ShouldShowRendererItemsInOverview() const override { return false; }
+	virtual bool ShouldShowRendererItemsInOverview() const override { return true; }
 	virtual UNiagaraStackEntry::EIconMode GetSupportedIconMode() const override { return UNiagaraStackEntry::EIconMode::Brush; }
 	virtual const FSlateBrush* GetIconBrush() const override;
 
