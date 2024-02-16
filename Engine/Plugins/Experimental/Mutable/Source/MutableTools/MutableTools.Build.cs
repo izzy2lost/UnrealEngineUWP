@@ -12,11 +12,6 @@ namespace UnrealBuildTool.Rules
 
 			DefaultBuildSettings = BuildSettingsVersion.V2;
 			IWYUSupport = IWYUSupport.KeepAsIsForNow;
-			//bUseUnity = false;
-
-			PrivateIncludePaths.AddRange(new string[] {
-				System.IO.Path.Combine(GetModuleDirectory("MutableRuntime"), "Private"),
-			});
 
 			PublicDependencyModuleNames.AddRange(
                 new string[] {
