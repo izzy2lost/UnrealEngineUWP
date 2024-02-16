@@ -32,7 +32,8 @@ FText UPCGAttributeGetFromIndexSettings::GetNodeTooltipText() const
 TArray<FPCGPinProperties> UPCGAttributeGetFromIndexSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Param);
+	FPCGPinProperties& InputPinProperty = PinProperties.Emplace_GetRef(PCGPinConstants::DefaultInputLabel, EPCGDataType::Param);
+	InputPinProperty.SetRequiredPin();
 
 	return PinProperties;
 }

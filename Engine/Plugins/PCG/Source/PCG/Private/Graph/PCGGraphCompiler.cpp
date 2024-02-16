@@ -522,11 +522,14 @@ bool FPCGGraphCompiler::CalculateStaticallyActiveRecursive(FPCGTaskId InTaskId, 
 			continue;
 		}
 
-		bHasAnyNonAdvancedPins |= !InputPin->Properties.bAdvancedPin;
-
-		if (Node->IsInputPinRequiredByExecution(InputPin))
+		if (!InputPin->Properties.IsAdvancedPin())
 		{
-			PinsRequiringActiveConnection.AddUnique(InputPin->Properties.Label);
+			bHasAnyNonAdvancedPins = true;
+
+			if (Node->IsInputPinRequiredByExecution(InputPin))
+			{
+				PinsRequiringActiveConnection.AddUnique(InputPin->Properties.Label);
+			}
 		}
 	}
 	
@@ -538,7 +541,7 @@ bool FPCGGraphCompiler::CalculateStaticallyActiveRecursive(FPCGTaskId InTaskId, 
 		const UPCGPin* InputPin = Input.OutPin;
 
 		// Only non-advanced input pins play a part in determining active/inactive state.
-		if (InputPin && InputPin->Properties.bAdvancedPin)
+		if (InputPin && InputPin->Properties.IsAdvancedPin())
 		{
 			continue;
 		}
@@ -842,7 +845,7 @@ void FPCGGraphCompiler::CalculateDynamicActivePinDependencies(FPCGTaskId InTaskI
 		// is active. We build a disjunction that expresses this.
 		for (const FPCGGraphTaskInput& Input : InOutCompiledTasks[InTaskId].Inputs)
 		{
-			if (Input.OutPin && Input.OutPin->Properties.bAdvancedPin)
+			if (Input.OutPin && Input.OutPin->Properties.IsAdvancedPin())
 			{
 				// Advanced input pins never participate in keeping node active.
 				continue;

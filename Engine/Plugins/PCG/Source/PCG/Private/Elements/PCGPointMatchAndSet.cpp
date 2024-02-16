@@ -52,12 +52,8 @@ void UPCGPointMatchAndSetSettings::ApplyDeprecation(UPCGNode* InOutNode)
 
 TArray<FPCGPinProperties> UPCGPointMatchAndSetSettings::InputPinProperties() const
 {
-	TArray<FPCGPinProperties> PinProperties;
-
-	PinProperties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Point);
 	// TODO Add param support?
-
-	return PinProperties;
+	return Super::DefaultPointInputPinProperties();
 }
 
 TArray<FPCGPinProperties> UPCGPointMatchAndSetSettings::OutputPinProperties() const

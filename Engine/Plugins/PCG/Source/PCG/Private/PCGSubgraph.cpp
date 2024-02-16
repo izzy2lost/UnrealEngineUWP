@@ -30,9 +30,9 @@ namespace PCGSubgraphSettings
 			{
 				PinProperties.bInvisiblePin = false;
 
-				if (Pin->IsConnected())
+				if (Pin->IsConnected() && PinProperties.IsAdvancedPin())
 				{
-					PinProperties.bAdvancedPin = false;
+					PinProperties.SetNormalPin();
 				}
 			}
 		}

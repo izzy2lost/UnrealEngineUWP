@@ -26,14 +26,6 @@ FString UPCGMetadataRenameSettings::GetAdditionalTitleInformation() const
 	}
 }
 
-TArray<FPCGPinProperties> UPCGMetadataRenameSettings::InputPinProperties() const
-{
-	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Any);
-
-	return PinProperties;
-}
-
 TArray<FPCGPinProperties> UPCGMetadataRenameSettings::OutputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;

@@ -45,7 +45,7 @@ protected:
 		TArray<FPCGPinProperties> SelectElementPinProperties = TestSettings->AllInputPinProperties();
 		for (int i = 0; i < InputNum; ++i)
 		{
-			if (!SelectElementPinProperties[i].bAdvancedPin && SelectElementPinProperties[i].Label != DefaultPathPinLabel)
+			if (!SelectElementPinProperties[i].IsAdvancedPin() && SelectElementPinProperties[i].Label != DefaultPathPinLabel)
 			{
 				FPCGTaggedData& TaggedData = TestData.InputData.TaggedData.Emplace_GetRef();
 				TaggedData.Data = PCGTestsCommon::CreateEmptyPointData();

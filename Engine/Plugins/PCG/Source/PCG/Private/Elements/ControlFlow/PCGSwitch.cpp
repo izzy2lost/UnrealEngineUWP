@@ -140,11 +140,13 @@ EPCGChangeType UPCGSwitchSettings::GetChangeTypeForProperty(const FName& InPrope
 TArray<FPCGPinProperties> UPCGSwitchSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGPinConstants::DefaultInputLabel,
+	FPCGPinProperties& InputPinProperty = PinProperties.Emplace_GetRef(PCGPinConstants::DefaultInputLabel,
 		EPCGDataType::Any,
 		/*bInAllowMultipleConnections=*/true,
 		/*bAllowMultipleData=*/true,
 		LOCTEXT("OutputPinTooltip", "All input will be forwarded directly to the selected output pin."));
+
+	InputPinProperty.SetRequiredPin();
 
 	return PinProperties;
 }

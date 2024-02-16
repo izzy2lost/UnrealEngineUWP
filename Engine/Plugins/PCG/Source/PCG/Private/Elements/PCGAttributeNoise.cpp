@@ -156,8 +156,8 @@ FPCGElementPtr UPCGAttributeNoiseSettings::CreateElement() const
 TArray<FPCGPinProperties> UPCGAttributeNoiseSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Point | EPCGDataType::Param);
-
+	FPCGPinProperties& InputPinProperty = PinProperties.Emplace_GetRef(PCGPinConstants::DefaultInputLabel, EPCGDataType::Point | EPCGDataType::Param);
+	InputPinProperty.SetRequiredPin();
 	return PinProperties;
 }
 

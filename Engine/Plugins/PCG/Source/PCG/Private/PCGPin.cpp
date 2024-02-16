@@ -90,8 +90,23 @@ bool FPCGPinProperties::operator==(const FPCGPinProperties& Other) const
 		bAllowMultipleConnections == Other.bAllowMultipleConnections &&
 		bAllowMultipleData == Other.bAllowMultipleData &&
 		Usage == Other.Usage &&
-		bAdvancedPin == Other.bAdvancedPin &&
+		PinStatus == Other.PinStatus &&
 		bInvisiblePin == Other.bInvisiblePin;
+}
+
+void FPCGPinProperties::PostSerialize(const FArchive& Ar)
+{
+#if WITH_EDITOR
+	if (Ar.IsLoading() && Ar.IsPersistent() && !Ar.HasAnyPortFlags(PPF_Duplicate | PPF_DuplicateForPIE))
+	{
+		if (bAdvancedPin_DEPRECATED)
+		{
+			PinStatus = EPCGPinStatus::Advanced;
+		}
+
+		bAdvancedPin_DEPRECATED = false;
+	}
+#endif // WITH_EDITOR
 }
 
 UPCGPin::UPCGPin(const FObjectInitializer& ObjectInitializer)

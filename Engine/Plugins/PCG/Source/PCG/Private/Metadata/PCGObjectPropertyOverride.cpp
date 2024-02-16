@@ -17,7 +17,7 @@ namespace PCGObjectPropertyOverrideHelpers
 	FPCGPinProperties CreateObjectPropertiesOverridePin(FName Label, const FText& Tooltip)
 	{
 		FPCGPinProperties ObjectOverridePinProperties(Label, EPCGDataType::Param, /*bAllowMultipleConnections=*/false, /*bAllowMultipleData=*/false, Tooltip);
-		ObjectOverridePinProperties.bAdvancedPin = true;
+		ObjectOverridePinProperties.SetAdvancedPin();
 		return ObjectOverridePinProperties;
 	}
 

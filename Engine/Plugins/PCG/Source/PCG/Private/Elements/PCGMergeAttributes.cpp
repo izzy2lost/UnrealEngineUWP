@@ -24,7 +24,8 @@ FText UPCGMergeAttributesSettings::GetNodeTooltipText() const
 TArray<FPCGPinProperties> UPCGMergeAttributesSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Param, /*bAllowMultipleConnections=*/true);
+	FPCGPinProperties& InputPinProperty = PinProperties.Emplace_GetRef(PCGPinConstants::DefaultInputLabel, EPCGDataType::Param, /*bAllowMultipleConnections=*/true);
+	InputPinProperty.SetRequiredPin();
 
 	return PinProperties;
 }

@@ -20,7 +20,8 @@ bool UPCGCollapseSettings::GetCompactNodeIcon(FName& OutCompactNodeIcon) const
 TArray<FPCGPinProperties> UPCGCollapseSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Spatial);
+	FPCGPinProperties& InputPinProperty = PinProperties.Emplace_GetRef(PCGPinConstants::DefaultInputLabel, EPCGDataType::Spatial);
+	InputPinProperty.SetRequiredPin();
 
 	return PinProperties;
 }
@@ -33,7 +34,8 @@ FPCGElementPtr UPCGCollapseSettings::CreateElement() const
 TArray<FPCGPinProperties> UPCGConvertToPointDataSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Param);
+	FPCGPinProperties& InputPinProperty = PinProperties.Emplace_GetRef(PCGPinConstants::DefaultInputLabel, EPCGDataType::Param);
+	InputPinProperty.SetRequiredPin();
 
 	return PinProperties;
 }

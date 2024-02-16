@@ -22,14 +22,6 @@ void UPCGFilterDataBaseSettings::ApplyDeprecationBeforeUpdatePins(UPCGNode* InOu
 
 #endif // WITH_EDITOR
 
-TArray<FPCGPinProperties> UPCGFilterDataBaseSettings::InputPinProperties() const
-{
-	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Any);
-
-	return PinProperties;
-}
-
 TArray<FPCGPinProperties> UPCGFilterDataBaseSettings::OutputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;

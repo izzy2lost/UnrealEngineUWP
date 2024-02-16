@@ -25,7 +25,8 @@ FText UPCGGetBoundsSettings::GetNodeTooltipText() const
 TArray<FPCGPinProperties> UPCGGetBoundsSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Spatial);
+	FPCGPinProperties& InputPinProperty = PinProperties.Emplace_GetRef(PCGPinConstants::DefaultInputLabel, EPCGDataType::Spatial);
+	InputPinProperty.SetRequiredPin();
 
 	return PinProperties;
 }

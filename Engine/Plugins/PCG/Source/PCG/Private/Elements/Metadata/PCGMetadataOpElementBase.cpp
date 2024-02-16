@@ -197,7 +197,13 @@ TArray<FPCGPinProperties> UPCGMetadataSettingsBase::InputPinProperties() const
 		const FName PinLabel = GetInputPinLabel(InputPinIndex);
 		if (PinLabel != NAME_None)
 		{
-			PinProperties.Emplace(PinLabel, EPCGDataType::Any);
+			FPCGPinProperties& PinProperty = PinProperties.Emplace_GetRef(PinLabel, EPCGDataType::Any);
+
+			const bool bSupportDefaultValue = DoesInputSupportDefaultValue(InputPinIndex);
+			if (!bSupportDefaultValue)
+			{
+				PinProperty.SetRequiredPin();
+			}
 
 #if WITH_EDITOR
 			TArray<FText> AllTooltips;
@@ -222,14 +228,14 @@ TArray<FPCGPinProperties> UPCGMetadataSettingsBase::InputPinProperties() const
 				AllTooltips.Add(LOCTEXT("PinTooltipForwardInput", "This input will be forwarded to the output."));
 			}
 
-			if (DoesInputSupportDefaultValue(InputPinIndex))
+			if (bSupportDefaultValue)
 			{
 				AllTooltips.Add(FText::Format(LOCTEXT("PinTooltipDefaultValue", "Pin is optional, will use default value if not connected ({0})"), FText::FromString(GetDefaultValueString(InputPinIndex))));
 			}
 
 			if (!AllTooltips.IsEmpty())
 			{
-				PinProperties.Last().Tooltip = FText::Join(FText::FromString(TEXT("\n")), AllTooltips);
+				PinProperty.Tooltip = FText::Join(FText::FromString(TEXT("\n")), AllTooltips);
 			}
 #endif // WITH_EDITOR
 		}

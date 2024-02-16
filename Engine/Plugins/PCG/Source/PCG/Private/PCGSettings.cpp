@@ -345,7 +345,8 @@ UObject* UPCGSettings::GetJumpTargetForDoubleClick() const
 TArray<FPCGPinProperties> UPCGSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Any);
+	FPCGPinProperties& InputPinProperty = PinProperties.Emplace_GetRef(PCGPinConstants::DefaultInputLabel, EPCGDataType::Any);
+	InputPinProperty.SetRequiredPin();
 
 	return PinProperties;
 }
@@ -408,7 +409,7 @@ void UPCGSettings::FillOverridableParamsPins(TArray<FPCGPinProperties>& OutPins)
 	else
 	{
 		FPCGPinProperties& ParamPin = OutPins.Emplace_GetRef(PCGPinConstants::DefaultParamsLabel, EPCGDataType::Param, /*bInAllowMultipleConnections=*/ true, /*bAllowMultipleData=*/ true);
-		ParamPin.bAdvancedPin = true;
+		ParamPin.SetAdvancedPin();
 
 #if WITH_EDITOR
 		ParamPin.Tooltip = LOCTEXT("GlobalParamPinTooltip", "Atribute Set containing multiple parameters to override. Names must match perfectly.");
@@ -431,7 +432,7 @@ void UPCGSettings::FillOverridableParamsPins(TArray<FPCGPinProperties>& OutPins)
 		InputPinsLabelsAndTypes.Emplace(OverridableParam.Label, EPCGDataType::Param);
 
 		FPCGPinProperties& ParamPin = OutPins.Emplace_GetRef(OverridableParam.Label, EPCGDataType::Param, /*bInAllowMultipleConnections=*/ false, /*bAllowMultipleData=*/ false);
-		ParamPin.bAdvancedPin = true;
+		ParamPin.SetAdvancedPin();
 #if WITH_EDITOR
 
 		if (!OverridableParam.Properties.IsEmpty())
@@ -825,7 +826,8 @@ void UPCGSettings::CacheCrc()
 TArray<FPCGPinProperties> UPCGSettings::DefaultPointInputPinProperties() const
 {
 	TArray<FPCGPinProperties> Properties;
-	Properties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Point);
+	FPCGPinProperties& InputPinProperty = Properties.Emplace_GetRef(PCGPinConstants::DefaultInputLabel, EPCGDataType::Point);
+	InputPinProperty.SetRequiredPin();
 	return Properties;
 }
 

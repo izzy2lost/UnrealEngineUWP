@@ -117,7 +117,7 @@ void UPCGGraphInputOutputSettings::SetInput(bool bInIsInput)
 
 			Algo::Transform(StaticLabels, Pins, [DefaultPinDataType](const PCGInputOutputPrivate::FLabelAndTooltip& InLabelAndTooltip) {
 				FPCGPinProperties Res = FPCGPinProperties(InLabelAndTooltip.Label, DefaultPinDataType, /*bMultiConnections=*/true, /*bMultiData=*/true, InLabelAndTooltip.Tooltip);
-				Res.bAdvancedPin = true;
+				Res.SetAdvancedPin();
 				return Res;
 			});
 		}
@@ -167,7 +167,7 @@ TArray<FPCGPinProperties> UPCGGraphInputOutputSettings::DefaultInputPinPropertie
 
 	Algo::Transform(StaticLabels, PinProperties, [DefaultPinDataType](const PCGInputOutputPrivate::FLabelAndTooltip& InLabelAndTooltip) {
 		FPCGPinProperties Res = FPCGPinProperties(InLabelAndTooltip.Label, DefaultPinDataType, /*bMultiConnections=*/true, /*bMultiData=*/true, InLabelAndTooltip.Tooltip);
-		Res.bAdvancedPin = true;
+		Res.SetAdvancedPin();
 		return Res;
 	});
 

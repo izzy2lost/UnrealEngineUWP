@@ -99,14 +99,6 @@ FString UPCGDeleteAttributesSettings::GetAdditionalTitleInformation() const
 	}
 }
 
-TArray<FPCGPinProperties> UPCGDeleteAttributesSettings::InputPinProperties() const
-{
-	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Any);
-
-	return PinProperties;
-}
-
 TArray<FPCGPinProperties> UPCGDeleteAttributesSettings::OutputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;

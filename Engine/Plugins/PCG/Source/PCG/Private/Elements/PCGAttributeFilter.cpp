@@ -274,7 +274,8 @@ EPCGDataType UPCGAttributeFilteringSettings::GetCurrentPinTypes(const UPCGPin* I
 TArray<FPCGPinProperties> UPCGAttributeFilteringSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGAttributeFilterConstants::DataToFilterLabel, EPCGDataType::Any);
+	FPCGPinProperties& DataToFilterPinProperty = PinProperties.Emplace_GetRef(PCGAttributeFilterConstants::DataToFilterLabel, EPCGDataType::Any);
+	DataToFilterPinProperty.SetRequiredPin();
 
 #if WITH_EDITOR
 	PinProperties.Last().Tooltip = PCGAttributeFilterConstants::InputPinTooltip;
@@ -403,7 +404,8 @@ EPCGDataType UPCGAttributeFilteringRangeSettings::GetCurrentPinTypes(const UPCGP
 TArray<FPCGPinProperties> UPCGAttributeFilteringRangeSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGAttributeFilterConstants::DataToFilterLabel, EPCGDataType::Any);
+	FPCGPinProperties& DataToFilterPinProperty = PinProperties.Emplace_GetRef(PCGAttributeFilterConstants::DataToFilterLabel, EPCGDataType::Any);
+	DataToFilterPinProperty.SetRequiredPin();
 
 #if WITH_EDITOR
 	PinProperties.Last().Tooltip = PCGAttributeFilterConstants::InputPinTooltip;
