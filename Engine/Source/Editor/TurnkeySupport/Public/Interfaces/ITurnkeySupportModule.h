@@ -78,6 +78,11 @@ public:
 	virtual void MakeQuickLaunchItems(class UToolMenu* Menu, FOnQuickLaunchSelected ExternalOnClickDelegate) const = 0;
 
 	/**
+	 * Make menu items for the Simulator submenu items, so they can be added to the Play menu
+	 */
+	virtual void MakeSimulatorItems(class UToolMenu* Menu, FOnQuickLaunchSelected ExternalOnClickDelegate) const = 0;
+
+	/**
 	 * Runs Turnkey to get the Sdk information for all known platforms
 	 */
 	virtual void RepeatQuickLaunch(FString DeviceId) = 0;
