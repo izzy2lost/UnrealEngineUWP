@@ -22,12 +22,9 @@ public class OnlineSubsystemGoogle : ModuleRules
 			new string[] { 
 				"Core",
 				"CoreOnline",
-				"CoreUObject",
 				"ApplicationCore",
 				"HTTP",
-				"ImageCore",
 				"Json",
-				"Sockets",
 				"OnlineSubsystem", 
 			}
 			);

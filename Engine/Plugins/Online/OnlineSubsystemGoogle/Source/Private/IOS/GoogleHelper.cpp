@@ -42,24 +42,29 @@ bool GetAuthTokenFromSignInResult(GIDGoogleUser* User, NSString* ServerAuthCode,
 	else
 	{
 		UE_LOG_ONLINE_IDENTITY(Verbose, TEXT("GetAuthTokenFromGoogleUser: Access token missing"));
-	}
+	}		
 
 	return bSuccess;
 }
 
 @implementation FGoogleHelper
 
-- (id) init
+- (id)initWithServerClientID: (nullable NSString *)ServerClientId
 {
 	self = [super init];
 
-	[self PrintAuthStatus];
-
 	dispatch_async(dispatch_get_main_queue(), ^
 	{
+		if (ServerClientId != nil)
+		{
+			NSString* ClientId = GIDSignIn.sharedInstance.configuration.clientID;
+			GIDSignIn.sharedInstance.configuration = [[GIDConfiguration alloc] initWithClientID: ClientId serverClientID: ServerClientId];
+		}
+
 		[GIDSignIn.sharedInstance restorePreviousSignInWithCompletion:^(GIDGoogleUser* User, NSError* Error)
 		 {
 			UE_CLOG_ONLINE_IDENTITY(User != nil, Display, TEXT("Restored previous sign in"));
+			[self PrintAuthStatus];
 		 }];
 	});
 

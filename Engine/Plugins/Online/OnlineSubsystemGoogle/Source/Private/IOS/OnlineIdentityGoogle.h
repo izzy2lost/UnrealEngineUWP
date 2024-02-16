@@ -55,6 +55,9 @@ public:
 
 PACKAGE_SCOPE:
 
+	/** Checks config to know if we should request a server auth code */
+	static bool ShouldRequestServerAuthCode();
+	
 	/**
 	 * Login with an existing token
 	 *
