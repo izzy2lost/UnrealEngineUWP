@@ -30,8 +30,14 @@ namespace UE::DMX::Private
 		/** Generates a widget for selecting layouts */
 		TSharedRef<SWidget> GenerateLayoutCheckBoxWidget();
 
+		/** Generates a widget for Default Layout options */
+		TSharedRef<SWidget> GenerateDefaultLayoutPickerWidget();
+
+		/** Generates a widget for User Layout options */
+		TSharedRef<SWidget> GenerateUserLayoutPickerWidget();
+
 		/** Generates a widget for each element in the UserLayoutsComboBox */
-		TSharedRef<SWidget> GenerateLayoutComboBoxWidget(const TWeakObjectPtr<UDMXControlConsoleEditorGlobalLayoutBase> InLayout);
+		TSharedRef<SWidget> GenerateUserLayoutComboBoxWidget(const TWeakObjectPtr<UDMXControlConsoleEditorGlobalLayoutBase> InLayout);
 
 		/** True if the active layout is the default layout */
 		bool IsDefaultLayoutActive() const;
@@ -44,6 +50,12 @@ namespace UE::DMX::Private
 
 		/** Updates the ComboBoxSource array according to the current Control Console Layouts */
 		void UpdateComboBoxSource();
+
+		/** Gets the check box state of the auto-group check box */
+		ECheckBoxState IsAutoGroupCheckBoxChecked() const;
+
+		/** Called when the auto-group checkbox state has changed */
+		void OnAutoGroupCheckBoxStateChanged(ECheckBoxState CheckBoxState);
 
 		/** Called when a UserLayoutsComboBox element is selected */
 		void OnComboBoxSelectionChanged(const TWeakObjectPtr<UDMXControlConsoleEditorGlobalLayoutBase> InLayout, ESelectInfo::Type SelectInfo);
@@ -66,8 +78,11 @@ namespace UE::DMX::Private
 		/** Called when the delete layout button is clicked */
 		FReply OnDeleteLayoutClicked();
 
-		/** Gets the visibility for the layout ComboBox widget */
-		EVisibility GetComboBoxVisibility() const;
+		/** Gets the visibility for the Default Layout option widgets */
+		EVisibility GetDefaultLayoutVisibility() const;
+
+		/** Gets the visibility for the User Layout option widgets */
+		EVisibility GetUserLayoutVisibility() const;
 
 		/** Reference to the last selected item in the UserLayoutsComboBox */
 		TWeakObjectPtr<UDMXControlConsoleEditorGlobalLayoutBase> LastSelectedItem;

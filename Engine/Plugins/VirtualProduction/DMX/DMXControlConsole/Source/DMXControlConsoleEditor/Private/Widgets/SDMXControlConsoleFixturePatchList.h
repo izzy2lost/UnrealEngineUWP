@@ -65,6 +65,9 @@ namespace UE::DMX::Private
 		/** Called when a fader group was added or removed from the console */
 		void OnFaderGroupAddedOrRemoved(const UDMXControlConsoleFaderGroup* FaderGroup);
 
+		/** Called when the auto-group option state has changed */
+		void OnAutoGroupStateChanged();
+
 		/** Called when the current active layout has changed */
 		void OnActiveLayoutChanged(const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout);
 
@@ -74,11 +77,11 @@ namespace UE::DMX::Private
 		/** Called when selection in the list changed */
 		void OnSelectionChanged(const TSharedPtr<FDMXReadOnlyFixturePatchListItem> NewSelection, ESelectInfo::Type SelectInfo);
 
-		/** Handles selection change when a single fixture patch is selected */
-		void HandleSinglePatchSelection() const;
+		/** Handles selection change when auto-grouping and a single fixture patch is selected */
+		void HandleAutoGroupSinglePatchSelection() const;
 
-		/** Handles selection change when multiple fixture patches are selected */
-		void HandleMultiPatchSelection() const;
+		/** Handles selection change when auto-grouping and multiple fixture patches are selected */
+		void HandleAutoGroupMultiPatchSelection() const;
 
 		/** Called when a row was clicked */
 		void OnRowClicked(const TSharedPtr<FDMXReadOnlyFixturePatchListItem> ItemClicked);
