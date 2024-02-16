@@ -931,13 +931,37 @@ TArray<const TObjectPtr<UObject>*> FSoundCueParameterTransmitter::GetReferencedO
 
 bool FSoundCueParameterTransmitter::SetParameters(TArray<FAudioParameter>&& InParameters)
 {
-	TArray<FAudioParameter> TempParams = InParameters;
-	FAudioParameter::Merge(MoveTemp(TempParams), ParamsToSet);
-
-	InParameters.FilterByPredicate([](const FAudioParameter& Param)
+	auto RemoveTriggerParameters = [&]()
 	{
-		return Param.ParamType != EAudioParameterType::Trigger;
-	});
-		
-	return Audio::FParameterTransmitterBase::SetParameters(MoveTemp(InParameters));
+		for (int32 ParamIndex = InParameters.Num() - 1; ParamIndex >= 0; --ParamIndex)
+		{
+			// Triggers are transient and are not applied for virtualized sounds. 
+			// If a cached value is desired, use SetBoolParameter
+			// (see comment for IAudioParameterControllerInterface::SetTriggerParameter)
+			FAudioParameter& Param = InParameters[ParamIndex];
+			if (Param.ParamType == EAudioParameterType::Trigger)
+			{
+				InParameters.RemoveAtSwap(ParamIndex, 1, EAllowShrinking::No);
+			}
+		}
+	};
+
+	if (bIsVirtualized)
+	{
+		RemoveTriggerParameters();
+
+		TArray<FAudioParameter> TempParams = InParameters;
+		FAudioParameter::Merge(MoveTemp(TempParams), ParamsToSet);
+
+		return Audio::FParameterTransmitterBase::SetParameters(MoveTemp(InParameters));
+	}
+	else
+	{
+		TArray<FAudioParameter> TempParams = InParameters;
+		FAudioParameter::Merge(MoveTemp(TempParams), ParamsToSet);
+
+		RemoveTriggerParameters();
+
+		return Audio::FParameterTransmitterBase::SetParameters(MoveTemp(InParameters));
+	}
 }
