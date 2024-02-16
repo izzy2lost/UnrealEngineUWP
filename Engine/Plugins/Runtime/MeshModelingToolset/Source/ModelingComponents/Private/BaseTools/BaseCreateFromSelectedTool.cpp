@@ -297,7 +297,10 @@ void UBaseCreateFromSelectedTool::UpdateAsset(const FDynamicMeshOpResult& Result
 
 	FComponentMaterialSet MaterialSet;
 	MaterialSet.Materials = GetOutputMaterials();
+	// apply updated materials to both asset and component, to ensure that they appear in the result
+	// TODO: consider adding a method to the material provider interface that more-directly handles this use case
 	Cast<IMaterialProvider>(UpdateTarget)->CommitMaterialSetUpdate(MaterialSet, true);
+	Cast<IMaterialProvider>(UpdateTarget)->CommitMaterialSetUpdate(MaterialSet, false);
 }
 
 
