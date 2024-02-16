@@ -257,10 +257,18 @@ void UMoviePipelinePIEExecutor::OnPIEStartupFinished(bool)
 		if (PipelineAsLegacy)
 		{
 			PipelineAsLegacy->Initialize(Queue->GetJobs()[CurrentPipelineIndex]);
+			if (CustomInitializationTime.IsSet())
+			{
+				PipelineAsLegacy->SetInitializationTime(CustomInitializationTime.GetValue());
+			}
 		}
 		else if (UMovieGraphPipeline* PipelineAsGraph = Cast<UMovieGraphPipeline>(ActiveMoviePipeline))
 		{
 			PipelineAsGraph->Initialize(Queue->GetJobs()[CurrentPipelineIndex], FMovieGraphInitConfig());
+			if (CustomInitializationTime.IsSet())
+			{
+				PipelineAsGraph->SetInitializationTime(CustomInitializationTime.GetValue());
+			}
 		}
 		RemainingInitializationFrames = -1;
 	}
