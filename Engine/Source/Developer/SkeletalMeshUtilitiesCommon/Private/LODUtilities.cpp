@@ -3899,6 +3899,7 @@ void FLODUtilities::AdjustImportDataFaceMaterialIndex(const TArray<FSkeletalMate
 	MaterialRemap.Reserve(RawMeshMaterials.Num());
 	//Optimization to avoid doing the remap if no material have to change
 	bool bNeedRemapping = false;
+	bool bFoundMaterial = false;
 	for (int32 MaterialIndex = 0; MaterialIndex < RawMeshMaterials.Num(); ++MaterialIndex)
 	{
 		MaterialRemap.Add(MaterialIndex);
@@ -3910,8 +3911,14 @@ void FLODUtilities::AdjustImportDataFaceMaterialIndex(const TArray<FSkeletalMate
 			{
 				bNeedRemapping |= (MaterialRemap[MaterialIndex] != MeshMaterialIndex);
 				MaterialRemap[MaterialIndex] = MeshMaterialIndex;
+				bFoundMaterial = true;
 				break;
 			}
+		}
+		//A material slot was deleted by the user, we cannot remap anything in that case, the LODMaterialMap should be active for the LOD 0 and will match the sections
+		if (!bFoundMaterial)
+		{
+			return;
 		}
 	}
 	if (bNeedRemapping)
