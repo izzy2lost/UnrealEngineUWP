@@ -317,28 +317,6 @@ FAvaShapeParametricMaterial::FOnMaterialChanged& FAvaShapeParametricMaterial::On
 	return OnMaterialChangedDelegate;
 }
 
-UObject* FAvaShapeParametricMaterial::GetMaterialsOuter() const
-{
-	UObject* Outer = nullptr;
-
-	for (const TObjectPtr<UMaterialInstanceDynamic>& Material : InstanceMaterials)
-	{
-		if (!IsValid(Material))
-		{
-			continue;
-		}
-
-		if (Outer && Outer != Material->GetOuter())
-		{
-			return nullptr;
-		}
-
-		Outer = Material->GetOuter();
-	}
-
-	return Outer;
-}
-
 void FAvaShapeParametricMaterial::SetMaterial(UMaterialInstanceDynamic* InMaterial)
 {
 	if (!IsValid(InMaterial))

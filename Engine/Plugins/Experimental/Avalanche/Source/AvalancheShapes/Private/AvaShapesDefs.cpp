@@ -18,30 +18,6 @@ namespace UE::AvaShapes
 		return LineStart + T * LineVector;
 	}
 
-	float GetSmoothnessFromSubdivisions(float BevelSize, uint8 Subdivisions)
-	{
-		if (Subdivisions == 0)
-		{
-			return 0;
-		}
-
-		const float Smoothness = FMath::Log2(29 * static_cast<float>(Subdivisions) / 90.f + 1.f) / FMath::Log2(30.f);
-
-		return FMath::Clamp(Smoothness, 0, 1);
-	}
-
-	uint8 GetSubdivisionsFromSmoothness(float BevelSize, float Smoothness)
-	{
-		if (Smoothness == 0)
-		{
-			return 0;
-		}
-
-		const float Subdivisions = 90.f * (FMath::Pow(30.f, Smoothness) - 1.f) / 29.f;
-
-		return static_cast<uint8>(FMath::Clamp(Subdivisions, 0, 128));
-	}
-
 	bool TransformMeshUVs(UE::Geometry::FDynamicMesh3& InEditMesh, const TArray<int32>& UVIds
 		, const FAvaShapeMaterialUVParameters& InParams, const FVector2D& InShapeSize, const FVector2D& InUVOffset
 		, const float InUVFixRotation)

@@ -80,10 +80,9 @@ protected:
 
 /** Represents a mesh section with its material, uv data */
 USTRUCT(BlueprintType)
-struct AVALANCHESHAPES_API FAvaShapeMeshData
+struct FAvaShapeMeshData
 {
 	friend class UAvaShapeDynamicMeshBase;
-
 	friend class FAvaMeshesDetailCustomization;
 	friend class FAvaShapeDynamicMeshVisualizer;
 
