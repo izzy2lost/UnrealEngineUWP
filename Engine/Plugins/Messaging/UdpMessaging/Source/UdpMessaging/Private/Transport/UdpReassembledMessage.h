@@ -240,6 +240,18 @@ public:
 
 
 	/**
+	 * Indicates if the first segment of the data is ready.
+	 **/
+	bool HasFirstSegment() const
+	{
+		if (PendingSegments.Num() > 0)
+		{
+			return PendingSegments[0] == false;
+		}
+		return false;
+	}
+
+	/**
 	 * Reassembles a segment into the specified message.
 	 *
 	 * @param SegmentNumber The number of the message segment.
@@ -305,7 +317,18 @@ public:
 		return ReceivedBytes;
 	}
 
+	TWeakObjectPtr<UScriptStruct> GetMessageTypeInfo() const
+	{
+		return TypeInfo;
+	}
+
+	void SetMessageTypeInfo(TWeakObjectPtr<UScriptStruct> InTypeInfo)
+	{
+		TypeInfo = MoveTemp(InTypeInfo);
+	}
 private:
+	/** Holds the message's type information. */
+	TWeakObjectPtr<UScriptStruct> TypeInfo;
 
 	/** Holds the message protocol version. */
 	uint8 ProtocolVersion;
