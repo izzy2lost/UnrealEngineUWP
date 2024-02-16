@@ -3,6 +3,7 @@
 using Microsoft.Extensions.Logging;
 using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Bundles;
+using Microsoft.Extensions.Options;
 
 namespace EpicGames.Horde.Storage.Clients
 {
@@ -13,15 +14,17 @@ namespace EpicGames.Horde.Storage.Clients
 	{
 		readonly HttpStorageBackendFactory _backendFactory;
 		readonly BundleCache _bundleCache;
+		readonly IOptionsSnapshot<HordeOptions> _hordeOptions;
 		readonly ILogger<BundleStorageClient> _clientLogger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public HttpStorageClientFactory(HttpStorageBackendFactory backendFactory, BundleCache bundleCache, ILogger<BundleStorageClient> clientLogger)
+		public HttpStorageClientFactory(HttpStorageBackendFactory backendFactory, BundleCache bundleCache, IOptionsSnapshot<HordeOptions> hordeOptions, ILogger<BundleStorageClient> clientLogger)
 		{
 			_backendFactory = backendFactory;
 			_bundleCache = bundleCache;
+			_hordeOptions = hordeOptions;
 			_clientLogger = clientLogger;
 		}
 
@@ -34,7 +37,7 @@ namespace EpicGames.Horde.Storage.Clients
 		public IStorageClient CreateClientWithPath(string basePath, string? accessToken = null, bool withBackendCache = true)
 		{
 			IStorageBackend backend = _backendFactory.CreateBackend(basePath, accessToken, withBackendCache);
-			return new BundleStorageClient(backend, _bundleCache, _clientLogger);
+			return new BundleStorageClient(backend, _bundleCache, _hordeOptions.Value.Bundle, _clientLogger);
 		}
 
 		/// <summary>

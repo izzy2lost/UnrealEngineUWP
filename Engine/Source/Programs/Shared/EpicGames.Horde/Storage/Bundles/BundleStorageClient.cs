@@ -22,6 +22,7 @@ namespace EpicGames.Horde.Storage.Bundles
 	{
 		readonly IStorageBackend _backend;
 		readonly BundleCache _cache;
+		readonly BundleOptions _options;
 		readonly PacketReaderStats _packetReaderStats = new PacketReaderStats();
 		readonly Bundles.V1.BundleReader _bundleReader;
 		readonly IDisposable? _ownedResources;
@@ -51,10 +52,11 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public BundleStorageClient(IStorageBackend backend, BundleCache cache, ILogger logger, IDisposable? ownedResources = null)
+		public BundleStorageClient(IStorageBackend backend, BundleCache cache, BundleOptions? options, ILogger logger, IDisposable? ownedResources = null)
 		{
 			_backend = backend;
 			_cache = cache;
+			_options = options ?? BundleOptions.Default;
 			_bundleReader = new Bundles.V1.BundleReader(this, cache, logger);
 			_ownedResources = ownedResources;
 		}
@@ -69,19 +71,31 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// Creates a bundle storage client around a memory client backend
 		/// </summary>
 		public static BundleStorageClient CreateInMemory(ILogger logger)
+			=> CreateInMemory(null, logger);
+
+		/// <summary>
+		/// Creates a bundle storage client around a memory client backend
+		/// </summary>
+		public static BundleStorageClient CreateInMemory(BundleOptions? options, ILogger logger)
 		{
 			MemoryStorageBackend backend = new MemoryStorageBackend();
-			return new BundleStorageClient(backend, BundleCache.None, logger);
+			return new BundleStorageClient(backend, BundleCache.None, options, logger);
 		}
 
 		/// <summary>
 		/// Creates a bundle storage client around a directory on the filesystem
 		/// </summary>
 		public static BundleStorageClient CreateFromDirectory(DirectoryReference rootDir, BundleCache cache, ILogger logger)
+			=> CreateFromDirectory(rootDir, cache, null, logger);
+
+		/// <summary>
+		/// Creates a bundle storage client around a directory on the filesystem
+		/// </summary>
+		public static BundleStorageClient CreateFromDirectory(DirectoryReference rootDir, BundleCache cache, BundleOptions? options, ILogger logger)
 		{
 			MemoryMappedFileCache memoryMappedFileCache = new MemoryMappedFileCache();
 			FileStorageBackend backend = new FileStorageBackend(new FileObjectStore(rootDir, memoryMappedFileCache), logger);
-			return new BundleStorageClient(backend, cache, logger, memoryMappedFileCache);
+			return new BundleStorageClient(backend, cache, options, logger, memoryMappedFileCache);
 		}
 
 		/// <summary>
@@ -182,26 +196,22 @@ namespace EpicGames.Horde.Storage.Bundles
 		}
 
 		/// <inheritdoc/>
-		public IBlobWriter CreateBlobWriter(string? basePath = null, BundleOptions? bundleOptions = null, BlobSerializerOptions? serializerOptions = null)
+		public IBlobWriter CreateBlobWriter(string? basePath = null, BlobSerializerOptions? serializerOptions = null)
 		{
-			bundleOptions ??= BundleOptions.Default;
-
-			if (bundleOptions.MaxVersion == BundleVersion.LatestV1)
+			BundleVersion version = _options.MaxVersion;
+			if (version == BundleVersion.LatestV1)
 			{
-				return new Bundles.V1.BundleWriter(this, _bundleReader, basePath, bundleOptions);
+				return new Bundles.V1.BundleWriter(this, _bundleReader, basePath, _options);
 			}
-			else if(bundleOptions.MaxVersion == BundleVersion.LatestV2)
+			else if(version == BundleVersion.LatestV2)
 			{
-				return new Bundles.V2.BundleWriter(this, basePath, _cache, bundleOptions, serializerOptions);
+				return new Bundles.V2.BundleWriter(this, basePath, _cache, _options, serializerOptions);
 			}
 			else
 			{
-				throw new InvalidOperationException($"Unsupported bundle version: {(int)bundleOptions.MaxVersion}");
+				throw new InvalidOperationException($"Unsupported bundle version: {(int)version}");
 			}
 		}
-
-		/// <inheritdoc/>
-		IBlobWriter IStorageClient.CreateBlobWriter(string? basePath, BlobSerializerOptions? options) => CreateBlobWriter(basePath, serializerOptions: options);
 
 		#endregion
 

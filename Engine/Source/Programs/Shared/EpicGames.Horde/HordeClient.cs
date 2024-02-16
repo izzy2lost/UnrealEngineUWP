@@ -6,6 +6,7 @@ using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Bundles;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace EpicGames.Horde
 {
@@ -16,15 +17,17 @@ namespace EpicGames.Horde
 	{
 		readonly IHttpClientFactory _httpClientFactory;
 		readonly BundleCache _bundleCache;
+		readonly HordeOptions _hordeOptions;
 		readonly ILoggerFactory _loggerFactory;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public HordeClient(IHttpClientFactory httpClientFactory, BundleCache bundleCache, ILoggerFactory loggerFactory)
+		public HordeClient(IHttpClientFactory httpClientFactory, BundleCache bundleCache, IOptionsSnapshot<HordeOptions> hordeOptions, ILoggerFactory loggerFactory)
 		{
 			_httpClientFactory = httpClientFactory;
 			_bundleCache = bundleCache;
+			_hordeOptions = hordeOptions.Value;
 			_loggerFactory = loggerFactory;
 		}
 
@@ -38,7 +41,7 @@ namespace EpicGames.Horde
 			Func<HttpClient> createClient = () => _httpClientFactory.CreateClient(HordeHttpClient.HttpClientName);
 			Func<HttpClient> createUploadRedirectClient = () => _httpClientFactory.CreateClient(HordeHttpClient.UploadRedirectHttpClientName);
 			HttpStorageBackend httpStorageBackend = new HttpStorageBackend(basePath, createClient, createUploadRedirectClient, _loggerFactory.CreateLogger<HttpStorageBackend>());
-			return new BundleStorageClient(httpStorageBackend, _bundleCache, _loggerFactory.CreateLogger<BundleStorageClient>());
+			return new BundleStorageClient(httpStorageBackend, _bundleCache, _hordeOptions.Bundle, _loggerFactory.CreateLogger<BundleStorageClient>());
 		}
 	}
 }

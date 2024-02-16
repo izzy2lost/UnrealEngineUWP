@@ -61,8 +61,8 @@ namespace EpicGames.Horde.Tests
 		static async Task<byte[]> CreateBundleNormalAsync()
 		{
 			MemoryStorageBackend memoryStore = new MemoryStorageBackend();
-			using BundleStorageClient store = new BundleStorageClient(memoryStore, BundleCache.None, NullLogger.Instance);
-			await using IBlobWriter writer = store.CreateBlobWriter(bundleOptions: new BundleOptions { MaxVersion = BundleVersion.ImportHashes, CompressionFormat = BundleCompressionFormat.None });
+			using BundleStorageClient store = new BundleStorageClient(memoryStore, BundleCache.None, new BundleOptions { MaxVersion = BundleVersion.ImportHashes, CompressionFormat = BundleCompressionFormat.None }, NullLogger.Instance);
+			await using IBlobWriter writer = store.CreateBlobWriter();
 
 			TextNode node = new TextNode("Hello world");
 			IBlobRef<TextNode> handle = await writer.WriteBlobAsync(node);
@@ -99,9 +99,11 @@ namespace EpicGames.Horde.Tests
 		public async Task TestTreeAsync()
 		{
 			MemoryStorageBackend blobStore = new MemoryStorageBackend();
-			using BundleStorageClient bundleStore = new BundleStorageClient(blobStore, BundleCache.None, NullLogger.Instance);
 
-			await TestTreeAsync(bundleStore, new BundleOptions { MaxBlobSize = 1024 * 1024 });
+			BundleOptions bundleOptions = new BundleOptions { MaxBlobSize = 1024 * 1024 };
+			using BundleStorageClient bundleStore = new BundleStorageClient(blobStore, BundleCache.None, bundleOptions, NullLogger.Instance);
+
+			await TestTreeAsync(bundleStore);
 
 			Assert.AreEqual(1, blobStore.Blobs.Count);
 			Assert.AreEqual(1, blobStore.Refs.Count);
@@ -111,9 +113,11 @@ namespace EpicGames.Horde.Tests
 		public async Task TestTreeSeparateBlobsAsync()
 		{
 			MemoryStorageBackend blobStore = new MemoryStorageBackend();
-			using BundleStorageClient bundleStore = new BundleStorageClient(blobStore, BundleCache.None, NullLogger.Instance);
 
-			await TestTreeAsync(bundleStore, new BundleOptions { MaxBlobSize = 1 });
+			BundleOptions bundleOptions = new BundleOptions { MaxBlobSize = 1 };
+			using BundleStorageClient bundleStore = new BundleStorageClient(blobStore, BundleCache.None, bundleOptions, NullLogger.Instance);
+
+			await TestTreeAsync(bundleStore);
 
 			Assert.AreEqual(5, blobStore.Blobs.Count);
 			Assert.AreEqual(1, blobStore.Refs.Count);
@@ -151,11 +155,11 @@ namespace EpicGames.Horde.Tests
 			}
 		}
 
-		static async Task TestTreeAsync(BundleStorageClient store, BundleOptions options)
+		static async Task TestTreeAsync(BundleStorageClient store)
 		{
 			// Generate a tree
 			{
-				await using IBlobWriter writer = store.CreateBlobWriter("test", options);
+				await using IBlobWriter writer = store.CreateBlobWriter("test");
 
 				SimpleNode node1 = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 1 }), Array.Empty<IBlobRef<SimpleNode>>());
 				SimpleNode node2 = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 2 }), new[] { await writer.WriteBlobAsync(node1) });
@@ -329,7 +333,8 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task StreamTestAsync()
 		{
-			using BundleStorageClient store = BundleStorageClient.CreateInMemory(NullLogger.Instance);
+			BundleOptions bundleOptions = new BundleOptions { MaxBlobSize = 1024 };
+			using BundleStorageClient store = BundleStorageClient.CreateInMemory(bundleOptions, NullLogger.Instance);
 
 			const int Length = 4096;
 
@@ -339,7 +344,7 @@ namespace EpicGames.Horde.Tests
 			// Generate a tree
 			ChunkedDataNodeRef nodeRef;
 			{
-				await using IBlobWriter writer = store.CreateBlobWriter(bundleOptions: new BundleOptions { MaxBlobSize = 1024 });
+				await using IBlobWriter writer = store.CreateBlobWriter();
 
 				ChunkingOptions options = new ChunkingOptions();
 				options.LeafOptions = new LeafChunkedDataNodeOptions(128, 256, 64 * 1024);
@@ -368,7 +373,8 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task LargeFileTestAsync()
 		{
-			using BundleStorageClient store = BundleStorageClient.CreateInMemory(NullLogger.Instance);
+			BundleOptions bundleOptions = new BundleOptions { MaxBlobSize = 1024 };
+			using BundleStorageClient store = BundleStorageClient.CreateInMemory(bundleOptions, NullLogger.Instance);
 
 			const int Length = 1024;
 			const int Copies = 4096;
@@ -385,7 +391,7 @@ namespace EpicGames.Horde.Tests
 			// Generate a tree
 			DirectoryNode root;
 			{
-				await using DedupeBlobWriter writer = new DedupeBlobWriter(store.CreateBlobWriter(bundleOptions: new BundleOptions { MaxBlobSize = 1024 }));
+				await using DedupeBlobWriter writer = new DedupeBlobWriter(store.CreateBlobWriter());
 
 				ChunkingOptions options = new ChunkingOptions();
 				options.LeafOptions = new LeafChunkedDataNodeOptions(128, 256, 64 * 1024);

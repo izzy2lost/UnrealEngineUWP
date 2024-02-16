@@ -470,10 +470,14 @@ namespace Horde.Server.Storage
 
 		/// <inheritdoc/>
 		public IStorageClient? TryCreateClient(NamespaceId namespaceId)
-			=> TryCreateClient(_globalConfig.CurrentValue, namespaceId);
+			=> TryCreateClient(namespaceId, null);
 
 		/// <inheritdoc/>
-		public IStorageClient? TryCreateClient(GlobalConfig globalConfig, NamespaceId namespaceId)
+		public IStorageClient? TryCreateClient(NamespaceId namespaceId, BundleOptions? bundleOptions = null)
+			=> TryCreateClient(_globalConfig.CurrentValue, namespaceId, bundleOptions);
+
+		/// <inheritdoc/>
+		public IStorageClient? TryCreateClient(GlobalConfig globalConfig, NamespaceId namespaceId, BundleOptions? bundleOptions = null)
 		{
 #pragma warning disable CA2000 // Call dispose on backend; will be disposed by BundleStorageClient
 			IStorageBackend? backend = TryCreateBackend(globalConfig, namespaceId);
@@ -484,7 +488,7 @@ namespace Horde.Server.Storage
 			}
 			else
 			{
-				return new BundleStorageClient(backend, _bundleCache, _logger);
+				return new BundleStorageClient(backend, _bundleCache, bundleOptions, _logger);
 			}
 		}
 
@@ -594,7 +598,7 @@ namespace Horde.Server.Storage
 								BundleStorageClient? storageClient;
 								if (!cachedClients.TryGetValue(namespaceInfo.Id, out storageClient))
 								{
-									storageClient = new BundleStorageClient(namespaceInfo.Backend, _bundleCache, _logger);
+									storageClient = new BundleStorageClient(namespaceInfo.Backend, _bundleCache, null, _logger);
 									cachedClients.Add(namespaceInfo.Id, storageClient);
 								}
 
