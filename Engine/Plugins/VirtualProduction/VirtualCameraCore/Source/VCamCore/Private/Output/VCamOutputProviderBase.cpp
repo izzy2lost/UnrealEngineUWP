@@ -115,7 +115,7 @@ void UVCamOutputProviderBase::SetActive(const bool bInActive)
 	bIsActive = bInActive;
 
 	// E.g. when you drag-drop an actor into the level
-	if (HasAnyFlags(RF_Transient))
+	if (!UE::VCamCore::CanInitVCamOutputProvider(this))
 	{
 		return;
 	}
