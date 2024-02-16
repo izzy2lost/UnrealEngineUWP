@@ -17,19 +17,25 @@ bool FDisplayClusterConfigurationTile_Settings::IsEnabled(const FDisplayClusterC
 		return false;
 	}
 
-	return FDisplayClusterConfigurationTile_Settings::IsEnabled(FIntPoint{TileX, TileY}, InStageSettings);
+	if (!FDisplayClusterConfigurationTile_Settings::IsValid(Layout))
+	{
+		// Invalid layout settings
+		return false;
+	}
+
+	return true;
 }
 
-bool FDisplayClusterConfigurationTile_Settings::IsEnabled(const FIntPoint& InTileLoc, const struct FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings)
+bool FDisplayClusterConfigurationTile_Settings::IsValid(const FIntPoint& InTilesLayout)
 {
 	// Ignore wrong values
-	if (InTileLoc.X < 1 || InTileLoc.Y < 1)
+	if (InTilesLayout.X < 1 || InTilesLayout.Y < 1)
 	{
 		return false;
 	}
 
 	// Ignore 1x1 case
-	if (InTileLoc.X == 1 && InTileLoc.Y == 1)
+	if (InTilesLayout.X == 1 && InTilesLayout.Y == 1)
 	{
 		return false;
 	}

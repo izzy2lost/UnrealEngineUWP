@@ -21,21 +21,17 @@ public:
 	/** Return true if tile rendering can be used. */
 	bool IsEnabled(const struct FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const;
 
-	/** Static validation for custom implementations. */
-	static bool IsEnabled(const FIntPoint& InTileLoc, const struct FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings);
+	/** Layout validation. */
+	static bool IsValid(const FIntPoint& InTilesLayout);
 
 public:
 	/** Enable tile rendering. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tile Rendering")
 	bool bEnabled = false;
 
-	/** The viewport will be horizontally partitioned into the specified number of tiles.  */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tile Rendering", meta = (DisplayName = "Tile X", ClampMin = "1", UIMin = "1", ClampMax = "4", UIMax = "4"))
-	int32 TileX = 1;
-
-	/** The viewport will be vertically partitioned into the specified number of tiles.  */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tile Rendering", meta = (DisplayName = "Tile Y", ClampMin = "1", UIMin = "1", ClampMax = "4", UIMax = "4"))
-	int32 TileY = 1;
+	/** Tiling layout (X by Y tiles amount). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tile Rendering", meta = (ClampMin = "1", ClampMax = "4"))
+	FIntPoint Layout = { 1, 1 };
 };
 
 USTRUCT(Blueprintable)
