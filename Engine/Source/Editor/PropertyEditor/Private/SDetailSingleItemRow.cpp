@@ -250,14 +250,11 @@ TSharedPtr<FPropertyNode> SDetailSingleItemRow::GetPropertyNode() const
 TSharedPtr<IPropertyHandle> SDetailSingleItemRow::GetPropertyHandle() const
 {
 	TSharedPtr<IPropertyHandle> Handle;
-	const TSharedPtr<FPropertyNode> PropertyNode = GetPropertyNode();
-	if (PropertyNode.IsValid())
+	if (const TSharedPtr<FPropertyNode> PropertyNode = GetPropertyNode())
 	{
-		const TSharedPtr<FDetailTreeNode> OwnerTreeNodePtr = OwnerTreeNode.Pin();
-		if (OwnerTreeNodePtr.IsValid())
+		if (const TSharedPtr<FDetailTreeNode> OwnerTreeNodePtr = OwnerTreeNode.Pin())
 		{
-			IDetailsViewPrivate* DetailsView = OwnerTreeNodePtr->GetDetailsView();
-			if (DetailsView != nullptr)
+			if (IDetailsViewPrivate* DetailsView = OwnerTreeNodePtr->GetDetailsView())
 			{
 				Handle = PropertyEditorHelpers::GetPropertyHandle(PropertyNode.ToSharedRef(), DetailsView->GetNotifyHook(), DetailsView->GetPropertyUtilities());
 			}
@@ -1370,10 +1367,7 @@ bool SDetailSingleItemRow::CanCopyPropertyInternalName()
 bool SDetailSingleItemRow::CanPasteProperty() const
 {
 	FString ClipboardContent;
-	if (OwnerTreeNode.IsValid())
-	{
-		FPropertyEditorClipboard::ClipboardPaste(ClipboardContent);
-	}
+	FPropertyEditorClipboard::ClipboardPaste(ClipboardContent);
 
 	return CanPasteFromText(TEXT(""), ClipboardContent);
 }
@@ -1384,23 +1378,57 @@ bool SDetailSingleItemRow::CanPasteFromText(const FString& InTag, const FString&
 	{
 		return false;
 	}
-	
-	// Prevent paste from working if the property's edit condition is not met.
-	TSharedPtr<FDetailPropertyRow> PropertyRow = Customization->PropertyRow;
-	if (!PropertyRow.IsValid() && Customization->DetailGroup.IsValid())
+
+	const TSharedPtr<FPropertyNode> PropertyNode = GetPropertyNode();
+
+	// Prevent paste if we cannot find the property node to paste into.
+	if (!PropertyNode.IsValid())
 	{
-		PropertyRow = Customization->DetailGroup->GetHeaderPropertyRow();
+		return false;
 	}
 
-	if (PropertyRow.IsValid())
+	const TSharedPtr<IPropertyHandle> PropertyHandle = GetPropertyHandle();
+
+	// We won't be able to paste without a property handle.
+	if (!PropertyHandle.IsValid())
 	{
-		if (const FPropertyEditor* PropertyEditor = PropertyRow->GetPropertyEditor().Get())
+		return false;
+	}
+
+	if (const bool bIsTagged = !InTag.IsEmpty();
+		bIsTagged)
+	{
+		const FString PropertyPath = UE::PropertyEditor::Private::GetPropertyPath(
+			[&]() { return GetPropertyHandle(); },
+			[&]() { return PropertyNode; });
+		
+		// Ensure that if tag is specified, that it matches the subscriber.
+		if (!InTag.Equals(PropertyPath))
 		{
-			return !PropertyEditor->IsEditConst();
+			return false;
 		}
 	}
 
-	return false;
+	// Prevent paste from working if the property's edit condition is not met.
+	// Allow paste if no property row can be found.
+	{
+		TSharedPtr<FDetailPropertyRow> PropertyRow = Customization->PropertyRow;
+		
+		if (!PropertyRow.IsValid() && Customization->DetailGroup.IsValid())
+		{
+			PropertyRow = Customization->DetailGroup->GetHeaderPropertyRow();
+		}
+
+		if (PropertyRow.IsValid())
+		{
+			if (const FPropertyEditor* PropertyEditor = PropertyRow->GetPropertyEditor().Get())
+			{
+				return !PropertyEditor->IsEditConst();
+			}
+		}
+	}
+
+	return true;
 }
 
 void SDetailSingleItemRow::OnPasteProperty()
@@ -1448,37 +1476,9 @@ void SDetailSingleItemRow::OnPasteFromText(const FString& InTag, const FString& 
 
 bool SDetailSingleItemRow::PasteFromText(const FString& InTag, const FString& InText)
 {
-	if (InText.IsEmpty() || !OwnerTreeNode.IsValid())
+	if (!CanPasteFromText(InTag, InText))
 	{
 		return false;
-	}
-	
-	TSharedPtr<FPropertyNode> PropertyNode = GetPropertyNode();
-	if (!PropertyNode.IsValid() && Customization->DetailGroup.IsValid())
-	{
-		PropertyNode = Customization->DetailGroup->GetHeaderPropertyNode();
-	}
-
-	// If still invalid, there's nothing to paste to
-	if (!PropertyNode.IsValid())
-	{
-		return false;
-	}
-	
-	const TSharedPtr<IPropertyHandle> PropertyHandle = GetPropertyHandle();
-
-	const bool bIsTagged = !InTag.IsEmpty();
-	if (bIsTagged)
-	{
-		const FString PropertyPath = UE::PropertyEditor::Private::GetPropertyPath(
-			[&]() { return GetPropertyHandle(); },
-			[&]() { return PropertyNode; });
-		
-		// ensure that if tag is specified, that it matches the subscriber
-		if (!InTag.Equals(PropertyPath))
-		{
-			return false;
-		}
 	}
 
 	// The logic below is largely taken from SDisplayClusterColorGradingColorWheel::CommitColor,
@@ -1488,6 +1488,8 @@ bool SDetailSingleItemRow::PasteFromText(const FString& InTag, const FString& In
 	
 	EPropertyValueSetFlags::Type PropertyValueSetFlags = EPropertyValueSetFlags::InstanceObjects;
 
+	const bool bIsTagged = !InTag.IsEmpty();
+
 	// If tagged, add the InteractiveChange flag so as not to run PECP
 	// @todo: would be better to indicate that this is a batched paste rather than checking for a tag
 	if (bIsTagged)
@@ -1495,7 +1497,13 @@ bool SDetailSingleItemRow::PasteFromText(const FString& InTag, const FString& In
 		PropertyValueSetFlags |= EPropertyValueSetFlags::InteractiveChange;
 		PropertyValueSetFlags |= EPropertyValueSetFlags::NotTransactable;
 	}
-	
+
+	const TSharedPtr<IPropertyHandle> PropertyHandle = GetPropertyHandle();
+	if (!PropertyHandle.IsValid())
+	{
+		return false;
+	}
+
 	if (PropertyHandle->SetValueFromFormattedString(InText, PropertyValueSetFlags) != FPropertyAccess::Success)
 	{
 		return false;
