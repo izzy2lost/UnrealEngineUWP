@@ -14,7 +14,7 @@ class UEdGraph;
 class UEdGraphNode;
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaPlaybackAction_NewNode : public FEdGraphSchemaAction
+struct FAvaPlaybackAction_NewNode : public FEdGraphSchemaAction
 {
 	GENERATED_BODY()
 

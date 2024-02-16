@@ -6,7 +6,7 @@
 #include "AvaPlaybackAction_NewComment.generated.h"
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaPlaybackAction_NewComment : public FEdGraphSchemaAction
+struct FAvaPlaybackAction_NewComment : public FEdGraphSchemaAction
 {
 	GENERATED_BODY()
 

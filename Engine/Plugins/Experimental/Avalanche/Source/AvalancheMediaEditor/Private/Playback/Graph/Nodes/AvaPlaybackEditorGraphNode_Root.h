@@ -6,7 +6,7 @@
 #include "AvaPlaybackEditorGraphNode_Root.generated.h"
 
 UCLASS()
-class AVALANCHEMEDIAEDITOR_API UAvaPlaybackEditorGraphNode_Root : public UAvaPlaybackEditorGraphNode
+class UAvaPlaybackEditorGraphNode_Root : public UAvaPlaybackEditorGraphNode
 {
 	GENERATED_BODY()
 	

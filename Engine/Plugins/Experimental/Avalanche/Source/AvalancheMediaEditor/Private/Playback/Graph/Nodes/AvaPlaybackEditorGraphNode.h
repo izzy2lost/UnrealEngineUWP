@@ -22,7 +22,7 @@ class UObject;
 struct FLinearColor;
 
 UCLASS()
-class AVALANCHEMEDIAEDITOR_API UAvaPlaybackEditorGraphNode : public UEdGraphNode
+class UAvaPlaybackEditorGraphNode : public UEdGraphNode
 {
 	GENERATED_BODY()
 

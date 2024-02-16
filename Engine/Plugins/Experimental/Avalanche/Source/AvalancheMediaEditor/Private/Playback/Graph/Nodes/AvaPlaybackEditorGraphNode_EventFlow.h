@@ -3,10 +3,10 @@
 #pragma once
 
 #include "AvaPlaybackEditorGraphNode.h"
-#include "AvaPlaybackEditorGraphNode_EventAction.generated.h"
+#include "AvaPlaybackEditorGraphNode_EventFlow.generated.h"
 
 UCLASS()
-class AVALANCHEMEDIAEDITOR_API UAvaPlaybackEditorGraphNode_EventAction : public UAvaPlaybackEditorGraphNode
+class UAvaPlaybackEditorGraphNode_EventFlow : public UAvaPlaybackEditorGraphNode
 {
 	GENERATED_BODY()
 
@@ -16,8 +16,4 @@ public:
 
 	virtual FName GetInputPinCategory(int32 InputPinIndex) const override;
 	virtual FName GetOutputPinCategory() const override;
-
-	//UEdGraphNode interface
-	virtual FLinearColor GetNodeTitleColor() const override;
-	//~UEdGraphNode interface
 };

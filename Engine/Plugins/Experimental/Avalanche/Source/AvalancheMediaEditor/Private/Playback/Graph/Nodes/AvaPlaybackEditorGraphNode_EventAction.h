@@ -3,18 +3,21 @@
 #pragma once
 
 #include "AvaPlaybackEditorGraphNode.h"
-#include "AvaPlaybackEditorGraphNode_LevelPlayer.generated.h"
+#include "AvaPlaybackEditorGraphNode_EventAction.generated.h"
 
 UCLASS()
-class AVALANCHEMEDIAEDITOR_API UAvaPlaybackEditorGraphNode_LevelPlayer : public UAvaPlaybackEditorGraphNode
+class UAvaPlaybackEditorGraphNode_EventAction : public UAvaPlaybackEditorGraphNode
 {
 	GENERATED_BODY()
+
+public:
 	
 	virtual TSubclassOf<UAvaPlaybackNode> GetPlaybackNodeClass() const override;
+
 	virtual FName GetInputPinCategory(int32 InputPinIndex) const override;
-	
+	virtual FName GetOutputPinCategory() const override;
+
 	//UEdGraphNode interface
 	virtual FLinearColor GetNodeTitleColor() const override;
-	virtual TSharedPtr<SGraphNode> CreateVisualWidget() override;
 	//~UEdGraphNode interface
 };
