@@ -7,8 +7,6 @@
 		
 		<setBoolFromProperty result="bEnabled" ini="Engine" section="OnlineSubsystemGoogle" property="bEnabled" default="false"/>
 		<setStringFromProperty result="ClientId" ini="Engine" section="OnlineSubsystemGoogle" property="ClientId" default=""/>
-		<setStringFromProperty result="ServerClientId" ini="Engine" section="OnlineSubsystemGoogle" property="ServerClientId" default=""/>
-		<setBoolIsEqual result="EmptyServerClientId" arg1="$S(ServerClientId)" arg2=""/>
 		<setStringFromProperty result="ReversedClientId" ini="Engine" section="OnlineSubsystemGoogle.OnlineIdentityGoogle" property="ReversedClientId" default=""/>
 		<dumpvars/>
 	</init>
@@ -21,24 +19,14 @@
 				<setElement result="NewEntry" value="string" text="$S(ClientId)"/>
 				<addElement tag="dict" name="NewEntry" once="true"/> 
 
-				<if condition="EmptyServerClientId">
-					<false>
-						<addElements tag="dict" once="true">
-							<key>GIDServerClientID</key>
-						</addElements>
-						<setElement result="NewEntry" value="string" text="$S(ServerClientId)"/>
-						<addElement tag="dict" name="NewEntry" once="true"/>
-					</false>
-				</if>
-				
 				<!-- CFBundleURLTypes block -->
 				<addElements tag="dict" once="true"> 
 					<key>CFBundleURLTypes</key>
 				</addElements>
 
-				<setElement result="GoogleClientIdString" value="string" text="$S(ReversedClientId)"/>
+				<setElement result="Scheme" value="string" text="$S(ReversedClientId)"/>
 				<setElement result="ValueForKey" value="array"/>
-				<addElement tag="$ValueForKey" name="GoogleClientIdString"/>
+				<addElement tag="$ValueForKey" name="Scheme"/>
 
 				<setElement result="DictOnArray" value="dict"/>
 				<addElements tag="$DictOnArray">

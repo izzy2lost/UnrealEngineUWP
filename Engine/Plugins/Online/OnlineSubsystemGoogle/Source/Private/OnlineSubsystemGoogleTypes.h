@@ -193,7 +193,7 @@ public:
 		}
 		else
 		{
-			return !AccessToken.IsEmpty() && !RefreshToken.IsEmpty();
+			return !AccessToken.IsEmpty();
 		}
 	}
 

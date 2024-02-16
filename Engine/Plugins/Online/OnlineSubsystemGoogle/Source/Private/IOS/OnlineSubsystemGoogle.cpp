@@ -3,7 +3,6 @@
 #include "OnlineSubsystemGoogle.h"
 #include "OnlineSubsystemGooglePrivate.h"
 
-#include "Misc/CoreDelegates.h"
 #include "IOS/IOSAppDelegate.h"
 
 #include "OnlineIdentityGoogle.h"
@@ -19,16 +18,12 @@ static void OnGoogleOpenURL(UIApplication* application, NSURL* url, NSString* so
 	UE_LOG_ONLINE(Display, TEXT("OnGoogleOpenURL %s %d"), *FString(url.absoluteString), bResult);
 }
 
-static void OnGoogleAppDidBecomeActive()
-{
-	UE_LOG_ONLINE(Display, TEXT("OnGoogleAppDidBecomeActive"));
-
-}
-
 FOnlineSubsystemGoogle::FOnlineSubsystemGoogle(FName InInstanceName)
 	: FOnlineSubsystemGoogleCommon(InInstanceName)
 {
-	
+	bPlatformRequiresClientId = true;
+	bPlatformAllowsClientIdOverride = false;	
+	bPlatformRequiresServerClientId = FOnlineIdentityGoogle::ShouldRequestOfflineAccess();
 }
 
 FOnlineSubsystemGoogle::~FOnlineSubsystemGoogle()
@@ -38,7 +33,6 @@ FOnlineSubsystemGoogle::~FOnlineSubsystemGoogle()
 bool FOnlineSubsystemGoogle::Init()
 {
 	FIOSCoreDelegates::OnOpenURL.AddStatic(&OnGoogleOpenURL);
-	FCoreDelegates::ApplicationHasReactivatedDelegate.AddStatic(&OnGoogleAppDidBecomeActive);
 
 	if (FOnlineSubsystemGoogleCommon::Init())
 	{

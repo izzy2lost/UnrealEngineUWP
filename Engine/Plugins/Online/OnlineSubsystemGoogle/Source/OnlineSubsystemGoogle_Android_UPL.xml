@@ -4,13 +4,9 @@
 	<!-- init section is always evaluated once per architecture -->
 	<init>
 		<log text="Google SDK Android init"/>
-		<log text="Google requires minimum SDK of 15"/>
         
-		<!-- <trace enable="true"/> -->
-		<!-- get packaging for Google from ini and reset it if architecture not supported -->
 		<setBoolFromProperty result="bEnabled" ini="Engine" section="OnlineSubsystemGoogle" property="bEnabled" default="false"/>
-		<!-- <setStringFromProperty result="ClientId" ini="Engine" section="OnlineSubsystemGoogle" property="ClientId" default="0"/> -->
-		<!-- <setStringFromProperty result="ServerClientId" ini="Engine" section="OnlineSubsystemGoogle" property="ServerClientId" default="0"/> -->
+		<setIntFromProperty result="RequestCodeForGoogleLogin" ini="Engine" section="OnlineSubsystemGoogle.OnlineIdentityGoogle" property="RequestCodeForGoogleLogin" default="9001"/>
 		<dumpvars/>
 	</init>
 	
@@ -32,42 +28,13 @@
     <buildGradleAdditions>
         <insert>
 			dependencies {
-			implementation('com.google.android.gms:play-services-auth:18.1.0')
+			implementation('com.google.android.gms:play-services-auth:20.7.0')
 			}
 		</insert>
     </buildGradleAdditions>
 
 	<!-- optional updates applied to AndroidManifest.xml -->
 	<androidManifestUpdates>
-		<if condition="bEnabled">
-			<true>
-				<setStringFromAttribute result="PackageName" tag="manifest" name="package"/>
-				
-				<setElement result="SignInHubActivity" value="activity" />
-				<addAttribute tag="$SignInHubActivity" name="android:name" value="com.google.android.gms.auth.api.signin.internal.SignInHubActivity" />
-				<addAttribute tag="$SignInHubActivity" name="android:excludeFromRecents" value="true" />
-				<addAttribute tag="$SignInHubActivity" name="android:exported" value="false" />
-				<addAttribute tag="$SignInHubActivity" name="android:theme" value="@android:style/Theme.Translucent.NoTitleBar" />
-				<addElement tag="application" name="SignInHubActivity" />
-
-				<setElement result="RevokeService" value="service" />
-				<addAttribute tag="$RevokeService" name="android:name" value="com.google.android.gms.auth.api.signin.RevocationBoundService" />
-				<addAttribute tag="$RevokeService" name="android:exported" value="true" />
-				<addAttribute tag="$RevokeService" name="android:permission" value="com.google.android.gms.auth.api.signin.permission.REVOCATION_NOTIFICATION" />
-				<addElement tag="application" name="RevokeService" />
-
-				<setElement result="GoogleApiActivity" value="activity" />
-				<addAttribute tag="$GoogleApiActivity" name="android:name" value="com.google.android.gms.common.api.GoogleApiActivity" />
-				<addAttribute tag="$GoogleApiActivity" name="android:exported" value="false" />
-				<addAttribute tag="$GoogleApiActivity" name="android:theme" value="@android:style/Theme.Translucent.NoTitleBar" />
-				<addElement tag="application" name="GoogleApiActivity" />
-				
-				<!-- Add permissions -->
-				<addPermission android:name="android.permission.INTERNET" />
-				<addPermission android:name="android.permission.ACCESS_NETWORK_STATE" />
-				
-			</true>
-		</if>
 	</androidManifestUpdates>
 
 	<!-- optional additions to proguard -->
@@ -75,7 +42,7 @@
 		<if condition="bEnabled">
 			<true>
 				<insert>
- -keep class epicgames.ue4.GoogleLogin.** {
+ -keep class com.epicgames.unreal.GoogleLogin {
 	public *;
 }                   
 				</insert>
@@ -83,92 +50,27 @@
 		</if>
 	</proguardAdditions>
 
-	<!-- optional files or directories to copy or delete from Intermediate/Android/APK before ndk-build 
-	<prebuildCopies>
-	</prebuildCopies> -->
-
-	<!-- optional additions to the GameActivity imports in GameActivity.java -->
-	<gameActivityImportAdditions>
-		<if condition="bEnabled">
-			<true>
-				<insert>
-// Google imports
-				</insert>
-			</true>
-		</if>
-	</gameActivityImportAdditions>
-
 	<!-- optional additions to the GameActivity class in GameActivity.java -->
 	<gameActivityClassAdditions>
 		<if condition="bEnabled">
 			<true>
 				<insert>
-	// Begin Google gameActivityClassAdditions
+	// Start Google gameActivityClassAdditions
+				</insert>
+				<insertValue value="public static int REQUEST_CODE_OSSGOOGLE_LOGIN = $I(RequestCodeForGoogleLogin);"/>
+				<insertNewline/>
+				<insert>
 	private GoogleLogin googleLogin;
-	public GoogleLogin getGoogleLogin() { return googleLogin; }
-    
-    public int AndroidThunkJava_Google_Init(String clientId, String serverId)
-	{
-		Log.debug("[JAVA] - AndroidThunkJava_Google_Init begin:");
-        Log.debug("[JAVA] - clientId:" + clientId);
-        Log.debug("[JAVA] - serverId:" + serverId);
-        
-        int resultCode = -1;
-	    if ((googleLogin == null) || (!googleLogin.init(clientId, serverId)))
-	    {
-		    googleLogin = null;
-		    Log.error("[JAVA] - Google SDK failed to initialize!");
-	    }
-	    else
-	    {
-	    	Log.debug("[JAVA] - Google SDK success!");
-            resultCode = 0;
-	    }
-       
-		Log.debug("[JAVA] - AndroidThunkJava_Google_Init end: " + resultCode);
-        return resultCode;
+	
+	public GoogleLogin getGoogleLogin() 
+	{ 
+		return googleLogin; 
 	}
-
-	public int AndroidThunkJava_Google_Login(String[] ScopeFields)
-	{
-		Log.debug("[JAVA] - AndroidThunkJava_Google_Login begin");
-		int resultCode = -1;
-		if (googleLogin != null)
-		{
-			resultCode = googleLogin.login(ScopeFields);
-		}
-		Log.debug("[JAVA] - AndroidThunkJava_Google_Login result: " + resultCode);
-		return resultCode;
-	}
-
-	public int AndroidThunkJava_Google_Logout()
-	{
-		Log.debug("[JAVA] - AndroidThunkJava_Google_Logout begin");
-		int resultCode = -1;
-		if (googleLogin != null)
-		{
-			resultCode = googleLogin.logout();
-		}
-		Log.debug("[JAVA] - AndroidThunkJava_Google_Logout result: " + resultCode);
-		return resultCode;
-	}
-
 	// End Google gameActivityClassAdditions
 				</insert>
 			</true>
 		</if>
 	</gameActivityClassAdditions>
-	
-	<!-- optional additions to GameActivity onCreate metadata reading in GameActivity.java -->
-	<gameActivityReadMetadataAdditions>
-		<if condition="bEnabled">
-			<true>
-				<insert>
-					// Google gameActivityReadMetadataAdditions
-				</insert>
-			</true>
-		</if>
-	</gameActivityReadMetadataAdditions>
 	
 	<!-- optional additions to GameActivity onCreate in GameActivity.java -->
 	<gameActivityOnCreateAdditions>
@@ -177,87 +79,12 @@
 				<insert>	
 	// Begin Google onCreate
     Log.debug("[JAVA] - Google onCreate");
-    googleLogin = new GoogleLogin(this, Log, getPackageName(), BuildConfiguration);
+    googleLogin = new GoogleLogin(this);
 	// End Google onCreate
 				</insert>
 			</true>
 		</if>
 	</gameActivityOnCreateAdditions>
-
-	<!-- optional additions to GameActivity onDestroy in GameActivity.java-->
-	<gameActivityOnDestroyAdditions>
-		<if condition="bEnabled">
-			<true>
-				<insert>                    
-	// Begin Google onDestroy
-    Log.debug("[JAVA] - Google onDestroy");
-	if (googleLogin != null)
-	{
-		googleLogin.onDestroy();
-	}
-	// End Google onDestroy
-				</insert>
-			</true>
-		</if>
-	</gameActivityOnDestroyAdditions>
-	
-	<!-- optional additions to GameActivity onStart in GameActivity.java -->
-	<gameActivityOnStartAdditions>
-		<if condition="bEnabled">
-			<true>
-				<insert>
-	// Begin Google onStart
-    Log.debug("[JAVA] - Google onStart");
-	if (googleLogin != null)
-	{
-		googleLogin.onStart();
-	}
-	// End Google onStart
-				</insert>
-			</true>
-		</if>
-	</gameActivityOnStartAdditions>
-
-	<!-- optional additions to GameActivity onStop in GameActivity.java -->
-	<gameActivityOnStopAdditions>
-		<if condition="bEnabled">
-			<true>
-				<insert>
-	// Begin Google onStop
-    Log.debug("[JAVA] - Google onStop");
-	if (googleLogin != null)
-	{
-		googleLogin.onStop();
-	}
-	// End Google onStop
-				</insert>
-			</true>
-		</if>
-	</gameActivityOnStopAdditions>
-
-	<!-- optional additions to GameActivity onPause in GameActivity.java -->
-	<gameActivityOnPauseAdditions>
-		<if condition="bEnabled">
-			<true>
-				<insert>
-	// Begin Google onPause
-	// End Google onPause
-				</insert>
-			</true>
-		</if>
-	</gameActivityOnPauseAdditions>
-
-	<!-- optional additions to GameActivity onResume in GameActivity.java -->
-	<gameActivityOnResumeAdditions>
-		<if condition="bEnabled">
-			<true>
-				<insert>
-	// Begin Google onResume
-	// End Google onResume
-				</insert>
-			</true>
-		</if>
-	</gameActivityOnResumeAdditions>
 
 	<!-- optional additions to GameActivity onActivityResult in GameActivity.java -->
 	<gameActivityOnActivityResultAdditions>
@@ -266,13 +93,12 @@
 				<insert>
 	// Begin Google onActivityResult
     Log.debug("[JAVA] - Google onActivityResult");
-	if (googleLogin != null)
+	if (requestCode == REQUEST_CODE_OSSGOOGLE_LOGIN)
 	{
-		googleLogin.onActivityResult(requestCode, resultCode, data);
-		Log.debug("[JAVA] - Google after activity result");
+		googleLogin.onActivityResult(resultCode, data);
 	}
 	// End Google onActivityResult
-				</insert>
+ 				</insert>
 			</true>
 		</if>
 	</gameActivityOnActivityResultAdditions>

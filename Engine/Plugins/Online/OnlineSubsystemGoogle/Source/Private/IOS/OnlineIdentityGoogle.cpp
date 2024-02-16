@@ -25,7 +25,16 @@ FOnlineIdentityGoogle::~FOnlineIdentityGoogle()
 
 bool FOnlineIdentityGoogle::Init()
 {
-	GoogleHelper = [[FGoogleHelper alloc] init];
+	NSString* ServerClientId = nil;
+	
+	if (ShouldRequestOfflineAccess())
+	{
+		FString ClientId = GoogleSubsystem->GetServerClientId();
+		ServerClientId = ClientId.IsEmpty() ? nil : ClientId.GetNSString();
+		UE_CLOG_ONLINE_IDENTITY(ServerClientId == nil, Warning, TEXT("ServerClientId not found in config. Server Auth Code won't be requested"));
+	}
+
+	GoogleHelper = [[FGoogleHelper alloc] initWithServerClientID: ServerClientId];
 
 	FOnGoogleSignInCompleteDelegate OnSignInDelegate;
 	OnSignInDelegate.BindRaw(this, &FOnlineIdentityGoogle::OnSignInComplete);
@@ -42,11 +51,8 @@ void FOnlineIdentityGoogle::OnSignInComplete(const FGoogleSignInData& InSignInDa
 {
 	UE_LOG_ONLINE_IDENTITY(Verbose, TEXT("OnSignInComplete %s"), ToString(InSignInData.Response));
 
-	// @todo verify that SignInSilently is working right
-	//if (InSignInData.Response != EGoogleLoginResponse::RESPONSE_NOAUTH)
 	if (LoginCompletionDelegate.IsBound())
 	{
-		//ensure(LoginCompletionDelegate.IsBound());
 		LoginCompletionDelegate.ExecuteIfBound(InSignInData.Response, InSignInData.AuthToken);
 		LoginCompletionDelegate.Unbind();
 	}
