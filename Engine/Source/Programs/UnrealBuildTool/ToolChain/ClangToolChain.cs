@@ -444,12 +444,6 @@ namespace UnrealBuildTool
 			GetCppStandardCompileArgument(CompileEnvironment, Arguments);
 		}
 
-		protected virtual void GetCompileArguments_H(CppCompileEnvironment CompileEnvironment, List<string> Arguments)
-		{
-			Arguments.Add("-x c++-header");
-			GetCppStandardCompileArgument(CompileEnvironment, Arguments);
-		}
-
 		// Conditionally enable (default disabled) generation of information about every class with virtual functions for use by the C++ runtime type identification features
 		// (`dynamic_cast' and `typeid'). If you don't use those parts of the language, you can save some space by using -fno-rtti.
 		// Note that exception handling uses the same information, but it will generate it as needed.
@@ -898,10 +892,6 @@ namespace UnrealBuildTool
 				// Compile the file as Objective-C code.
 				GetCompileArguments_M(CompileEnvironment, Arguments);
 			}
-			else if (Extension == ".H")
-			{
-				GetCompileArguments_H(CompileEnvironment, Arguments);
-			}
 			else
 			{
 				// Compile the file as C++ code.
@@ -1092,7 +1082,7 @@ namespace UnrealBuildTool
 			Action.bCanExecuteRemotelyWithSNDBS = Action.bCanExecuteRemotely && !CompileEnvironment.bBuildLocallyWithSNDBS;
 			Action.Weight = CompileActionWeight;
 
-			Graph.AddAction(new ClangSpecificFileAction(SourceDir, OutputDir, Action, CompileEnvironment, GraphBuilder.ContentLines));
+			Graph.AddAction(new ClangSpecificFileAction(SourceDir, OutputDir, Action, GraphBuilder.ContentLines));
 		}
 
 		protected virtual Action CompileCPPFile(CppCompileEnvironment CompileEnvironment, FileItem SourceFile, DirectoryReference OutputDir, string ModuleName, IActionGraphBuilder Graph, IReadOnlyCollection<string> GlobalArguments, CPPOutput Result)
