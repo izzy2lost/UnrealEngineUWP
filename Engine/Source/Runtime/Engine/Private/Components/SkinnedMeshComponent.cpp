@@ -437,6 +437,7 @@ USkinnedMeshComponent::USkinnedMeshComponent(const FObjectInitializer& ObjectIni
 
 	PreviousBoneTransformRevisionNumber = 0;
 	CurrentBoneTransformRevisionNumber = 0;
+	CurrentBoneTransformFrame = 0;
 
 	ExternalInterpolationAlpha = 0.0f;
 	ExternalDeltaTime = 0.0f;
@@ -872,6 +873,13 @@ void USkinnedMeshComponent::RefreshExternalMorphTargetWeights(bool bZeroOldWeigh
 
 void USkinnedMeshComponent::UpdateBoneTransformRevisionNumber()
 {
+	if (CurrentBoneTransformFrame != GFrameCounter)
+	{
+		// We only want to update the previous revision number for the first call to UpdateBoneTransformRevisionNumber on a given frame
+		PreviousBoneTransformRevisionNumber = CurrentBoneTransformRevisionNumber;
+		CurrentBoneTransformFrame = GFrameCounter;
+	}
+
 	if (BoneTransformUpdateMethodQueue.Last() == EBoneTransformUpdateMethod::ClearMotionVector)
 	{
 		// Last entry is ClearMotionVector, increment revision number by 2 which allows current bone buffer to be bound to previous shader slot to cancel out velocity
@@ -1044,8 +1052,6 @@ void USkinnedMeshComponent::CreateRenderState_Concurrent(FRegisterComponentConte
 			}
 		}
 
-		PreviousBoneTransformRevisionNumber = CurrentBoneTransformRevisionNumber;
-
 		// scene proxy update of material usage based on active morphs
 		UpdateMorphMaterialUsageOnProxy();
 	}
@@ -1124,7 +1130,6 @@ void USkinnedMeshComponent::SendRenderDynamicData_Concurrent()
 	EPreviousBoneTransformUpdateMode PreviousBoneTransformUpdateMode = GetPreviousBoneTransformUpdateMode();
 	// CurrentBoneTransformRevisionNumber and PreviousBoneTransformUpdateMode are up-to-date at this point, it is safe to reset BoneTransformUpdateMethodQueue
 	BoneTransformUpdateMethodQueue.Reset();
-	PreviousBoneTransformRevisionNumber = CurrentBoneTransformRevisionNumber;
 
 	// if we have not updated the transforms then no need to send them to the rendering thread
 	// @todo GIsEditor used to be bUpdateSkelWhenNotRendered. Look into it further to find out why it doesn't update animations in the AnimSetViewer, when a level is loaded in UED (like POC_Cover.gear).

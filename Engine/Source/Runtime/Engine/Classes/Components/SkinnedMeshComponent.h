@@ -296,6 +296,12 @@ public:
 		return (LeaderPoseComponentPtr ? LeaderPoseComponentPtr->PreviousBoneTransformRevisionNumber : PreviousBoneTransformRevisionNumber);
 	}
 
+	uint32 GetCurrentBoneTransformFrame() const
+	{
+		const USkinnedMeshComponent* LeaderPoseComponentPtr = LeaderPoseComponent.Get();
+		return (LeaderPoseComponentPtr ? LeaderPoseComponentPtr->CurrentBoneTransformFrame : CurrentBoneTransformFrame);
+	}
+
 	/* this update renderer with new revision number twice so to clear bone velocity for motion blur or temporal AA */
 	ENGINE_API void ClearMotionVector();
 	
@@ -341,6 +347,9 @@ protected:
 
 	/** current bone transform revision number */
 	uint32 CurrentBoneTransformRevisionNumber;
+
+	/** Stores GFrameCounter when CurrentBoneTransformRevisionNumber was updated, to make sure it's updated once per frame */
+	uint32 CurrentBoneTransformFrame;
 
 	/** Incremented every time the leader bone map changes. Used to keep in sync with any duplicate data needed by other threads */
 	int32 LeaderBoneMapCacheCount;

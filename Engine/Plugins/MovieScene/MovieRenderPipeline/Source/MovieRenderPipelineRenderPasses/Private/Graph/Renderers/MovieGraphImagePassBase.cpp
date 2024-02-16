@@ -157,12 +157,6 @@ void FMovieGraphImagePassBase::ApplyMovieGraphOverridesToViewFamily(TSharedRef<F
 	// InOutFamily->ViewMode = ViewModeIndex;
 	InOutFamily->bOverrideVirtualTextureThrottle = true;
 	
-	// This is for a workaround involving GFrameCounter already being incremented by the time MRQ renders are submitted
-	// meaning that it's out of sync with some parts of the renderer's idea of the current frame.
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	InOutFamily->OverrideFrameCounter = UE::MovieRenderPipeline::GetRendererFrameCount();
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	
 	// We need to check if this is the first FSceneView being submitted to the renderer module, and set some flags on the ViewFamily for ensuring some
 	// parts of the renderer only get updated once per frame. Kept as an if/else statement to avoid the confusion with setting all of these values to 
 	// some permutation of !/!!bHasRenderedFirstViewThisFrame.

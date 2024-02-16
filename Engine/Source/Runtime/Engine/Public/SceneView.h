@@ -2110,8 +2110,7 @@ public:
 	uint64 FrameCounter = 0;
 
 	// When deleted, remove PRAGMA_DISABLE_DEPRECATION_WARNINGS / PRAGMA_ENABLE_DEPRECATION_WARNINGS from ~FSceneViewFamily()
-	/** If set, overrides FrameCounter value, useful for determistic Movie Render Queue behaviour. **/
-	UE_DEPRECATED(5.3, "Do not use, this is here as a temporary workaround for another issue.")
+	UE_DEPRECATED(5.3, "Do not use, has no effect, and will be removed in a future release.")
 	TOptional<uint64> OverrideFrameCounter;
 
 	/** Indicates this view family is an additional one. */
