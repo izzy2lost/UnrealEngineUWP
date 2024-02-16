@@ -225,6 +225,7 @@ bool UPCGWorldPartitionBuilder::PostRun(UWorld* World, FPackageSourceControlHelp
 
 	TArray<FString> FilesToSubmit;
 	FilesToSubmit.Append(SourceControlHelpers::PackageFilenames(DirtyPackages));
+	FilesToSubmit.Append(SourceControlHelpers::PackageFilenames(PackagesToDelete));
 
 	const FString ChangeDescription = FString::Printf(TEXT("Generated PCG components for world '%s'"), *World->GetName());
 	return OnFilesModified(FilesToSubmit, ChangeDescription);
