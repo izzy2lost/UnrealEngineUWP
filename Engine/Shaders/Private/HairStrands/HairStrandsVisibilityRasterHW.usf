@@ -22,7 +22,6 @@ uint				HairMaterialId;
 float3				CameraOrigin;
 float				RadiusAtDepth1;
 uint				PrimIDsBufferSize;
-uint				bIsOrthoView;
 
 
 struct VSInput
@@ -113,8 +112,8 @@ VSOutput VSMain(VSInput Input)
 	const float CPWorldRadius = Input.VertexID < 2 ? CP0.WorldRadius : CP1.WorldRadius;
 
 	// Minimal radius to snap the strand to a sample/pixel center (to avoid aliasing)
-	const float DistanceToCamera = length(CameraOrigin - CPWP);
-	const float MinStrandHairRadius = bIsOrthoView ? RadiusAtDepth1 : DistanceToCamera * RadiusAtDepth1;
+	const float DistanceToCamera = GetDistanceToCameraFromViewVector(CameraOrigin - CPWP);
+	const float MinStrandHairRadius = ConvertGivenDepthRadiusForProjectionType(RadiusAtDepth1, DistanceToCamera);
 
 	const float3 Tangent = normalize(CP1WP - CP0WP);
 	const float3 Right = normalize(cross(Tangent, ViewDir));

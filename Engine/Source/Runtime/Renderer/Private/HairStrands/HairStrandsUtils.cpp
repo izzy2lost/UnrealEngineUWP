@@ -124,15 +124,25 @@ FMinHairRadiusAtDepth1 ComputeMinStrandRadiusAtDepth1(
 	const FIntPoint& Resolution,
 	const float FOV,
 	const uint32 SampleCount,
-	const float OverrideStrandHairRasterizationScale)
+	const float OverrideStrandHairRasterizationScale,
+	const float OrthoWidth)
 {
-	auto InternalMinRadiusAtDepth1 = [Resolution, FOV, SampleCount](float RasterizationScale)
+	auto InternalMinRadiusAtDepth1 = [Resolution, FOV, SampleCount, OrthoWidth](float RasterizationScale)
 	{
 		const float DiameterToRadius = 0.5f;
-		const float SubPixelScale = SampleCountToSubPixelSize(SampleCount);
-		const float vFOV = FMath::DegreesToRadians(FOV);
-		const float StrandDiameterAtDepth1 = FMath::Tan(vFOV * 0.5f) / (0.5f * Resolution.Y) * SubPixelScale;
+		float StrandDiameterAtDepth1 = SampleCountToSubPixelSize(SampleCount); //SubPixelScale
+		if (OrthoWidth >= 1.0f)
+		{
+			StrandDiameterAtDepth1 *= FMath::Clamp(Resolution.X / OrthoWidth, 0.0f, 1.0f);
+		}
+		else
+		{
+			const float vFOV = FMath::DegreesToRadians(FOV);
+			StrandDiameterAtDepth1 *= FMath::Tan(vFOV * 0.5f) / (0.5f * Resolution.Y);
+		}
 		return DiameterToRadius * RasterizationScale * StrandDiameterAtDepth1;
+
+		
 	};
 
 	FMinHairRadiusAtDepth1 Out;
@@ -192,7 +202,7 @@ void ComputeTranslatedWorldToLightClip(
 		FReversedZPerspectiveMatrix ProjMatrix(HalfFov, 1, 1, MinZ, MaxZ);
 		FLookAtMatrix TranslatedWorldToLight((FVector)TranslatedLightPosition, TranslatedSphereBound.Center, FVector(0, 0, 1));
 		OutTranslatedWorldToClipTransform = TranslatedWorldToLight * ProjMatrix;
-		OutMinStrandRadiusAtDepth1 = ComputeMinStrandRadiusAtDepth1(ShadowResolution, 2 * HalfFov, 1, StrandHairRasterizationScale);
+		OutMinStrandRadiusAtDepth1 = ComputeMinStrandRadiusAtDepth1(ShadowResolution, 2 * HalfFov, 1, StrandHairRasterizationScale); //Light propagation so use perspective not ortho
 	}
 	else if (LightType == LightType_Rect)
 	{
@@ -203,7 +213,7 @@ void ComputeTranslatedWorldToLightClip(
 		FReversedZPerspectiveMatrix ProjMatrix(HalfFov, 1, 1, MinZ, MaxZ);
 		FLookAtMatrix TranslatedWorldToLight((FVector)TranslatedLightPosition, TranslatedSphereBound.Center, FVector(0, 0, 1));
 		OutTranslatedWorldToClipTransform = TranslatedWorldToLight * ProjMatrix;
-		OutMinStrandRadiusAtDepth1 = ComputeMinStrandRadiusAtDepth1(ShadowResolution, 2 * HalfFov, 1, StrandHairRasterizationScale);
+		OutMinStrandRadiusAtDepth1 = ComputeMinStrandRadiusAtDepth1(ShadowResolution, 2 * HalfFov, 1, StrandHairRasterizationScale); //Light propagation so use perspective not ortho
 	}
 }
 

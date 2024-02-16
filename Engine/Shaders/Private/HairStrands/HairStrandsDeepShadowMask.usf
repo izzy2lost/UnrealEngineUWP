@@ -35,7 +35,7 @@ float4 WriteShadowMaskOutput(const float InFadedShadow, uint InEncodingType)
 float3 GetTranslatedWorldPosition(float2 UV, float SceneDepth)
 {
 	const float2 ScreenPosition = (UV - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy;
-	return mul(float4(ScreenPosition * SceneDepth, SceneDepth, 1), View.ScreenToTranslatedWorld).xyz;
+	return mul(float4(GetScreenPositionForProjectionType(ScreenPosition, SceneDepth), SceneDepth, 1), View.ScreenToTranslatedWorld).xyz;
 }
 
 
@@ -523,7 +523,7 @@ void MainPS(
 					TraversalSettings.bDebugEnabled = bDebugEnabled;
 					TraversalSettings.SteppingScale = VirtualVoxel.SteppingScale_Shadow;
 					TraversalSettings.Random = Random;
-					TraversalSettings.PixelRadius = SceneDepth * VirtualVoxel.HairCoveragePixelRadiusAtDepth1;
+					TraversalSettings.PixelRadius = ConvertGivenDepthRadiusForProjectionType(VirtualVoxel.HairCoveragePixelRadiusAtDepth1, SceneDepth);
 					TraversalSettings.bCastShadow = true;
 
 					FHairTraversalResult Result = ComputeHairCountVirtualVoxel(

@@ -143,7 +143,7 @@ void MainPS(
 		const float DeviceZ = SampleDeviceZFromSceneTextures(BufferUV);
 		const float SceneDepth = ConvertFromDeviceZ(DeviceZ);
 		const float3 TranslatedWorldPosition = ReconstructTranslatedWorldPositionFromDepth(BufferUV, SceneDepth);
-		const float PixelRadius = SceneDepth * VirtualVoxel.HairCoveragePixelRadiusAtDepth1;
+		const float PixelRadius = ConvertGivenDepthRadiusForProjectionType(VirtualVoxel.HairCoveragePixelRadiusAtDepth1, SceneDepth);
 		OutAO = TraceAO(TranslatedWorldPosition, WorldNormal, SvPosition.xy, PixelRadius);
 	}
 	else

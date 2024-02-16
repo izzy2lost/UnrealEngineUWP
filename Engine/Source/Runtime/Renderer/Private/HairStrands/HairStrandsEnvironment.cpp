@@ -147,7 +147,7 @@ static void AddHairStrandsEnvironmentAOPass(
 
 	FHairEnvironmentAO::FParameters* PassParameters = GraphBuilder.AllocParameters<FHairEnvironmentAO::FParameters>();
 	PassParameters->Voxel_MacroGroupId = MacroGroupData.MacroGroupId;
-	PassParameters->Voxel_TanConeAngle = FMath::Tan(FMath::DegreesToRadians(GetHairStrandsSkyLightingConeAngle()));
+	PassParameters->Voxel_TanConeAngle = View.IsPerspectiveProjection() ? FMath::Tan(FMath::DegreesToRadians(GetHairStrandsSkyLightingConeAngle())) : 1.0f;
 	PassParameters->SceneTextures = SceneTextures;
 	PassParameters->VirtualVoxel = VoxelResources.UniformBuffer;
 

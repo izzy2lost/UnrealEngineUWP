@@ -1799,9 +1799,8 @@ void RasterCS(
 
 										// Compute coverage
 										// Minimal radius to snap the strand to a sample/pixel center (to avoid aliasing)
-										const bool bIsOrthoView = false;
 										const float SceneDistance = ConvertFromDeviceZ(Depth);
-										const float MinHairRadius = bIsOrthoView ? RadiusAtDepth1 : (SceneDistance * RadiusAtDepth1);
+										const float MinHairRadius = ConvertGivenDepthRadiusForProjectionType(RadiusAtDepth1, SceneDistance);
 										const float HairRadius = lerp(Rad0, Rad1, AlphaColor);
 										Sample.Coverage = saturate(HairRadius / MinHairRadius);
 
