@@ -23,6 +23,8 @@ FChaosVDPlaybackController::FChaosVDPlaybackController(const TWeakPtr<FChaosVDSc
 		Settings->OnPlaybackSettingsChanged().AddRaw(this, &FChaosVDPlaybackController::HandleFrameRateOverrideSettingsChanged);
 		HandleFrameRateOverrideSettingsChanged(Settings);
 	}
+
+	CurrentPlaybackInstigator = IChaosVDPlaybackControllerInstigator::InvalidGuid;
 }
 
 FChaosVDPlaybackController::~FChaosVDPlaybackController()
@@ -654,6 +656,39 @@ void FChaosVDPlaybackController::HandleDisconnectedFromSession()
 
 	// Queue a general update in the Game Thread
 	bHasPendingGTUpdateBroadcast = true;
+}
+
+void FChaosVDPlaybackController::RequestStop(const IChaosVDPlaybackControllerInstigator& InPlaybackInstigator)
+{
+	constexpr int32 FrameNumber = 0;
+	constexpr int32 StepNumber = 0;
+	GoToTrackFrame(InPlaybackInstigator.GetInstigatorID(), EChaosVDTrackType::Game, GameTrackID, FrameNumber, StepNumber);
+}
+
+bool FChaosVDPlaybackController::AcquireExclusivePlaybackControls(const IChaosVDPlaybackControllerInstigator& InPlaybackInstigator)
+{
+	const FGuid& InstigatorID = InPlaybackInstigator.GetInstigatorID();
+	if (InstigatorID == CurrentPlaybackInstigator || CurrentPlaybackInstigator == IChaosVDPlaybackControllerInstigator::InvalidGuid)
+	{
+		CurrentPlaybackInstigator = InPlaybackInstigator.GetInstigatorID();
+		bHasPendingGTUpdateBroadcast = true;
+		return true;
+	}
+
+	return false;
+}
+
+bool FChaosVDPlaybackController::ReleaseExclusivePlaybackControls(const IChaosVDPlaybackControllerInstigator& InPlaybackInstigator)
+{
+	const FGuid& InstigatorID = InPlaybackInstigator.GetInstigatorID();
+	if (InstigatorID == CurrentPlaybackInstigator || CurrentPlaybackInstigator == IChaosVDPlaybackControllerInstigator::InvalidGuid)
+	{
+		CurrentPlaybackInstigator = IChaosVDPlaybackControllerInstigator::InvalidGuid;
+		bHasPendingGTUpdateBroadcast = true;
+		return true;
+	}
+
+	return false;
 }
 
 float FChaosVDPlaybackController::GetFrameTimeOverride() const

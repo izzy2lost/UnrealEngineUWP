@@ -5,12 +5,14 @@
 #include "ChaosVDEditorMode.h"
 #include "ChaosVDEditorModeTools.h"
 #include "ChaosVDEditorSettings.h"
+#include "ChaosVDModule.h"
 #include "ChaosVDPlaybackController.h"
 #include "ChaosVDPlaybackViewportClient.h"
 #include "ChaosVDScene.h"
 #include "EditorModeManager.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Elements/Framework/TypedElementSelectionSet.h"
+#include "Widgets/ChaosVDPlaybackControlsHelper.h"
 #include "Widgets/SChaosVDTimelineWidget.h"
 #include "Widgets/SChaosVDViewportToolbar.h"
 #include "Widgets/Text/STextBlock.h"
@@ -172,8 +174,12 @@ void SChaosVDPlaybackViewport::HandlePlaybackControllerDataUpdated(TWeakPtr<FCha
 			}
 			else
 			{
-				uint16& CurrentEnabledFlags = GameFramesTimelineWidget->GetMutableElementEnabledFlagsRef();
-				CurrentEnabledFlags = CurrentEnabledFlags | PlaybackElementDisabledDuringLiveSession;
+				const FGuid CurrentPlaybackInstigatorID = ControllerSharedPtr->GetPlaybackInstigatorWithExclusiveControlsID();
+				const bool bUserCanControlPlayback = CurrentPlaybackInstigatorID == InvalidGuid || CurrentPlaybackInstigatorID == GetInstigatorID();
+
+				// When it is not a live session, the Game Frames timeline follows the same rule as other timelines. The controls are locked unless we are who started a Play action
+				GameFramesTimelineWidget->SetIsLocked(!bUserCanControlPlayback);
+
 				GameFramesTimelineWidget->SetAutoStopEnabled(true);
 			}
 		}
@@ -192,7 +198,7 @@ void SChaosVDPlaybackViewport::HandleControllerTrackFrameUpdated(TWeakPtr<FChaos
 	if (const TSharedPtr<FChaosVDPlaybackController> ControllerSharedPtr = InController.Pin())
 	{
 		// The frame number we receive could be from a Solver track, so make sure it is converted to the correct game track frame number
-		if (const FChaosVDTrackInfo* GameTrackInfo = ControllerSharedPtr->GetTrackInfo(EChaosVDTrackType::Game, FChaosVDPlaybackController::GameTrackID))
+		if (FChaosVDTrackInfo* GameTrackInfo = ControllerSharedPtr->GetMutableTrackInfo(EChaosVDTrackType::Game, FChaosVDPlaybackController::GameTrackID))
 		{
 			const int32 GameTrackFrame = ControllerSharedPtr->ConvertCurrentFrameToOtherTrackFrame(UpdatedTrackInfo, GameTrackInfo);
 
@@ -200,6 +206,7 @@ void SChaosVDPlaybackViewport::HandleControllerTrackFrameUpdated(TWeakPtr<FChaos
 			if (InstigatorGuid != GetInstigatorID())
 			{
 				GameFramesTimelineWidget->SetCurrentTimelineFrame(GameTrackFrame, EChaosVDSetTimelineFrameFlags::None);
+				GameTrackInfo->CurrentFrame = GameTrackFrame;
 			}
 
 			GameFramesTimelineWidget->SetTargetFrameTime(ControllerSharedPtr->GetFrameTimeForTrack(EChaosVDTrackType::Game, FChaosVDPlaybackController::GameTrackID, *GameTrackInfo));
@@ -262,24 +269,7 @@ void SChaosVDPlaybackViewport::OnFrameSelectionUpdated(int32 NewFrameIndex) cons
 
 void SChaosVDPlaybackViewport::HandlePlaybackButtonClicked(EChaosVDPlaybackButtonsID ButtonID)
 {
-	if (const TSharedPtr<FChaosVDPlaybackController> PlaybackControllerPtr = PlaybackController.Pin())
-	{
-		switch (ButtonID)
-		{
-		case EChaosVDPlaybackButtonsID::Play:
-			{
-				PlaybackControllerPtr->RequestUnpause();
-				break;
-			}
-		case EChaosVDPlaybackButtonsID::Pause:
-			{
-				PlaybackControllerPtr->RequestPause();
-				break;
-			}
-		default:
-			break;
-		}
-	}
+	Chaos::VisualDebugger::HandleUserPlaybackInputControl(ButtonID, *this, PlaybackController);
 }
 
 #undef LOCTEXT_NAMESPACE

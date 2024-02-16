@@ -132,7 +132,15 @@ void FChaosVDScene::AddReferencedObjects(FReferenceCollector& Collector)
 
 void FChaosVDScene::UpdateFromRecordedStepData(const int32 SolverID, const FChaosVDStepData& InRecordedStepData, const FChaosVDSolverFrameData& InFrameData)
 {
-	AChaosVDSolverInfoActor* SolverSceneData = SolverDataContainerBySolverID.FindChecked(SolverID);
+	AChaosVDSolverInfoActor* SolverSceneData = nullptr;
+	if (AChaosVDSolverInfoActor** SolverSceneDataPtrPtr = SolverDataContainerBySolverID.Find(SolverID))
+	{
+		SolverSceneData = *SolverSceneDataPtrPtr;
+	}
+	else
+	{
+		UE_LOG(LogChaosVDEditor, Warning, TEXT("[%s] Attempted to playback a solver frame from an invalid solver container"), ANSI_TO_TCHAR(__FUNCTION__));	
+	}
 
 	if (!SolverSceneData)
 	{
