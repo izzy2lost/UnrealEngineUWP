@@ -257,7 +257,7 @@ FReply FAvaMeshesDetailCustomization::OnConvertToStaticMeshClicked()
 	}
 
 	// generate name for asset
-	FString NewNameSuggestion = TEXT("SM_Avalanche") + DynMeshBase->GetMeshName();
+	FString NewNameSuggestion = TEXT("SM_MotionDesign") + DynMeshBase->GetMeshName();
 	FString PackageName = FString(TEXT("/Game/Meshes/")) + NewNameSuggestion;
 	FString AssetName;
 

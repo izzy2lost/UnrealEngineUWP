@@ -247,7 +247,7 @@ void UAvaDynamicMeshConverterModifier::ConvertToStaticMeshAsset()
 	}
 	
 	// generate name for asset
-	const FString NewNameSuggestion = TEXT("SM_Avalanche_") + OwningActor->GetActorNameOrLabel();
+	const FString NewNameSuggestion = TEXT("SM_MotionDesign_") + OwningActor->GetActorNameOrLabel();
 	FString PackageName = FString(TEXT("/Game/Meshes/")) + NewNameSuggestion;
 	FString AssetName;
 

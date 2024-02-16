@@ -9,8 +9,8 @@ UAvaViewportSettings::UAvaViewportSettings()
 
 	bEnableViewportOverlay = true;
 	bEnableBoundingBoxes = true;
-	ViewportBackgroundMaterial = TSoftObjectPtr<UMaterial>(FSoftObjectPath(TEXT("/Script/Engine.Material'/Avalanche/EditorResources/M_AvalancheBackground.M_AvalancheBackground'")));
-	ViewportCheckerboardMaterial = TSoftObjectPtr<UMaterial>(FSoftObjectPath(TEXT("/Script/Engine.Material'/Avalanche/EditorResources/M_AvalancheCheckerboard.M_AvalancheCheckerboard'")));
+	ViewportBackgroundMaterial = TSoftObjectPtr<UMaterial>(FSoftObjectPath(TEXT("/Script/Engine.Material'/Avalanche/EditorResources/M_Background.M_Background'")));
+	ViewportCheckerboardMaterial = TSoftObjectPtr<UMaterial>(FSoftObjectPath(TEXT("/Script/Engine.Material'/Avalanche/EditorResources/M_Checkerboard.M_Checkerboard'")));
 	ViewportCheckerboardColor0 = FLinearColor(FVector3f(0.048172f));
 	ViewportCheckerboardColor1 = FLinearColor(FVector3f(0.177888f));
 	ViewportCheckerboardSize = 8.0f;

@@ -192,7 +192,7 @@ private:
 	static FString GetImportFontPackageNameRoot() { return TEXT("/Game/SystemFonts"); }
 	static FString GetTempFontPackageNameRoot() { return TEXT("/Temp/SystemFonts"); }
 	static FString GetFontObjPackageNameRoot() { return TEXT("/Temp/SystemFonts/FontObjs"); }
-	static FString GetFontConfigPackageName() { return TEXT("/Temp/AvalancheEditor/AvalancheFontConfig"); }
+	static FString GetFontConfigPackageName() { return TEXT("/Temp/MotionDesignEditor/FontConfig"); }
 
 	static void InitFreeTypeLibrary();
 	static void CleanFreeTypeLibrary();
