@@ -25,6 +25,7 @@
 #include "SceneViewExtensionContext.h"
 #include "Slate/SceneViewport.h"
 #include "UObject/UObjectBaseUtility.h"
+#include "Util/BlueprintUtils.h"
 
 #if WITH_EDITOR
 #include "Editor.h"
@@ -606,20 +607,23 @@ void UVCamOutputProviderBase::PreEditUndo()
 {
 	Super::PreEditUndo();
 
-	// If bIsActive is about to be set to false, we need to deactivate here because either
-	// - UMGWidget will be null-ed, or
-	// - the UVPFullScreenWidget::CurrentDisplayType will be set to Inactive
-	// Both prevent us from removing the widget from the viewport correctly so we'll just ALWAYS disable and optionally restore in PostEditUndo.
-	OnDeactivate();
+	if (UE::VCamCore::CanInitVCamOutputProvider(this))
+	{
+		// If bIsActive is about to be set to false, we need to deactivate here because either
+		// - UMGWidget will be null-ed, or
+		// - the UVPFullScreenWidget::CurrentDisplayType will be set to Inactive
+		// Both prevent us from removing the widget from the viewport correctly so we'll just ALWAYS disable and optionally restore in PostEditUndo.
+		OnDeactivate();
+	}
 }
 
 void UVCamOutputProviderBase::PostEditUndo()
 {
 	Super::PostEditUndo();
 
-	// Need to restore because we killed the widget in PreEditUndo
-	if (IsActiveAndOuterComponentEnabled())
+	if (UE::VCamCore::CanInitVCamOutputProvider(this) && IsActiveAndOuterComponentEnabled())
 	{
+		// Need to restore because we killed the widget in PreEditUndo
 		// The transaction has overwritten our properties, e.g. UMGWidget, which would make OnActivate fail 
 		OnDeactivate();
 
@@ -637,7 +641,7 @@ void UVCamOutputProviderBase::PostEditUndo()
 void UVCamOutputProviderBase::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	const FProperty* Property = PropertyChangedEvent.MemberProperty;
-	if (!HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject)
+	if (UE::VCamCore::CanInitVCamOutputProvider(this)
 		&& Property
 		&& PropertyChangedEvent.ChangeType != EPropertyChangeType::Interactive)
 	{
