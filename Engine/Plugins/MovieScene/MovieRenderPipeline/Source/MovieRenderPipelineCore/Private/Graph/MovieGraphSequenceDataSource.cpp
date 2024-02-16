@@ -338,7 +338,9 @@ void UMovieGraphSequenceDataSource::JumpDataSource(const FFrameTime& InTimeToJum
 
 		// SetPlaybackPosition takes time in display rate and not tick resolution, so we convert
 		// it from tick resolution to display rate. JumpDataSource provides it in tick resolution
-		// to be consistent with other functions in this class.
+		// to be consistent with other functions in this class. This doesn't use the "Effective"
+		// framerate of the render because we never modified the Sequence, so we need to use original
+		// DisplayRate to jump to the correct frame.
 		FFrameRate TickResolution = LevelSequenceActor->GetSequence()->GetMovieScene()->GetTickResolution();
 		FFrameRate DisplayRate = LevelSequenceActor->GetSequence()->GetMovieScene()->GetDisplayRate();
 		FFrameTime RequestTime = FFrameRate::TransformTime(InTimeToJumpTo, TickResolution, DisplayRate);

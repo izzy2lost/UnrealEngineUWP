@@ -491,12 +491,10 @@ public:
 
 	bool IsInitialized() const { return State != EMovieRenderShotState::Uninitialized; }
 	void SetNextStateAfter(const EMovieRenderShotState InCurrentState);
-
-	/** The data source is required for calculating some metrics (graph only). */
-	void CalculateWorkMetrics(const UMovieGraphDataSourceBase* InDataSource = nullptr);
+	void CalculateWorkMetrics();
 
 private:
-	FFrameNumber GetOutputFrameCountEstimate(const UMovieGraphDataSourceBase* InDataSource) const;
+	FFrameNumber GetOutputFrameCountEstimate() const;
 
 public:
 	
