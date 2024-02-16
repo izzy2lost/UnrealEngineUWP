@@ -1374,6 +1374,9 @@ void FNiagaraSystemCompilationTask::DigestSystemInfo()
 				EmitterInfo.SourceEmitterIndex = SourceEmitterIndex;
 				EmitterInfo.DigestedEmitterIndex = DigestedEmitterIndex;
 				EmitterInfo.SourceGraph = DigestDatabase.CreateGraphDigest(EmitterGraph, ChangeIdBuilder);
+
+				// be sure to incorporate our constant resolver into the top level SystemInfo.ConstantResolver
+				SystemInfo.ConstantResolver.AddNamedChildResolver(*EmitterInfo.UniqueEmitterName, EmitterInfo.ConstantResolver);
 			}
 
 			{

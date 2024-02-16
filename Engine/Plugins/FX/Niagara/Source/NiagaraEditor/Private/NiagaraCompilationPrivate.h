@@ -46,6 +46,9 @@ public:
 
 	ENiagaraFunctionDebugState GetDebugState() const;
 
+	void AddNamedChildResolver(FName ScopeName, const FNiagaraFixedConstantResolver& ChildResolver);
+	const FNiagaraFixedConstantResolver* FindChildResolver(FName ScopeName) const;
+
 private:
 	void InitConstants();
 	void SetScriptUsage(ENiagaraScriptUsage ScriptUsage);
@@ -66,6 +69,9 @@ private:
 	};
 
 	TArray<FNiagaraVariable, TFixedAllocator<(uint8)EResolvedConstant::Count>> ResolvedConstants;
+
+	using FNamedResolverPair = TTuple<FName, FNiagaraFixedConstantResolver>;
+	TArray<FNamedResolverPair> ChildResolversByName;
 };
 
 struct FNiagaraSimulationStageInfo
@@ -178,8 +184,8 @@ public:
 	TArray<FParameterMapHistory>& GetPrecomputedHistories() { return PrecompiledHistories; }
 	const TArray<FParameterMapHistory>& GetPrecomputedHistories() const { return PrecompiledHistories; }
 
-	void InstantiateCompilationCopy(const FNiagaraCompilationGraphDigested& SourceGraph, const FNiagaraPrecompileData* PrecompileData, ENiagaraScriptUsage InUsage, FNiagaraFixedConstantResolver ConstantResolver);
-	void CreateParameterMapHistory(const FNiagaraSystemCompilationTask& CompilationTask, const TArray<FNiagaraVariable>& EncounterableVariables, const TArray<FNiagaraVariable>& InStaticVariables, FNiagaraFixedConstantResolver ConstantResolver, TConstArrayView<FNiagaraSimulationStageInfo> SimStages);
+	void InstantiateCompilationCopy(const FNiagaraCompilationGraphDigested& SourceGraph, const FNiagaraPrecompileData* PrecompileData, ENiagaraScriptUsage InUsage, const FNiagaraFixedConstantResolver& ConstantResolver);
+	void CreateParameterMapHistory(const FNiagaraSystemCompilationTask& CompilationTask, const TArray<FNiagaraVariable>& EncounterableVariables, const TArray<FNiagaraVariable>& InStaticVariables, const FNiagaraFixedConstantResolver& ConstantResolver, TConstArrayView<FNiagaraSimulationStageInfo> SimStages);
 
 	int32 GetDependentRequestCount() const { return EmitterData.Num(); }
 	FSharedCompilationCopy GetDependentRequest(int32 Index) { return EmitterData[Index]; }
