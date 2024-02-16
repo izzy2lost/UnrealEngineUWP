@@ -51,6 +51,7 @@ public class CustomizableObjectEditor : ModuleRules
 				"ClothingSystemRuntimeInterface",
 				"DeveloperToolSettings",
 				"ToolMenus",
+				"ToolWidgets",
 				"EditorFramework",
 				"UMG",
 				"Persona",

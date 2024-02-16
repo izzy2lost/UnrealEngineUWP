@@ -631,6 +631,8 @@ void FCustomizableObjectInstanceEditor::HideGizmo()
 
 void FCustomizableObjectInstanceEditor::ShowGizmoProjectorParameter(const FString& ParamName, int32 RangeIndex)
 {
+	HideGizmo();
+
 	ShowGizmoProjectorParameter(ParamName, RangeIndex, SharedThis(this), Viewport, CustomizableInstanceDetailsView, ProjectorParameter, CustomizableObjectInstance);
 }
 
@@ -776,9 +778,7 @@ void FCustomizableObjectInstanceEditor::ShowGizmoProjectorParameter(const FStrin
 	const TSharedPtr<ICustomizableObjectInstanceEditor>& Editor, const TSharedPtr<SCustomizableObjectEditorViewportTabBody>& Viewport,
 	const TSharedPtr<IDetailsView>& InstanceDetailsView, UProjectorParameter* ProjectorParameter,
 	UCustomizableObjectInstance* Instance)
-{
-	Editor->HideGizmo();
-	
+{	
 	ProjectorParameter->SelectProjector(ParamName, RangeIndex);
 	
 	ProjectorParameter->SetPosition(Instance->GetProjectorPosition(ParamName, RangeIndex));
