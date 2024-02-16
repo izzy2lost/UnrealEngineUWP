@@ -370,7 +370,7 @@ bool SceneComponentToDynamicMesh(USceneComponent* Component, const FToMeshOption
 	}
 	OutLocalToWorld = Component->GetComponentTransform();
 
-	auto GetPrimitiveComponentMaterials = [](UPrimitiveComponent* PrimComp, TArray<UMaterialInterface*> Materials)
+	auto GetPrimitiveComponentMaterials = [](UPrimitiveComponent* PrimComp, TArray<UMaterialInterface*>& Materials)
 	{
 		int32 NumMaterials = PrimComp->GetNumMaterials();
 		Materials.SetNum(NumMaterials);
