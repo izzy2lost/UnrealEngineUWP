@@ -28,15 +28,23 @@ class TFastArrayReplicationFragment : public Private::FFastArrayReplicationFragm
 {
 public:
 	typedef TArray<FastArrayItemType> ItemArrayType;
-	TFastArrayReplicationFragment(EReplicationFragmentTraits InTraits, UObject* InOwner, const FReplicationStateDescriptor* InDescriptor) : FFastArrayReplicationFragmentBase(InTraits, InOwner, InDescriptor) {}
+	TFastArrayReplicationFragment(EReplicationFragmentTraits InTraits, UObject* InOwner, const FReplicationStateDescriptor* InDescriptor, bool bValidateDescriptor = true);
 
 protected:
 	enum EAllowAdditionalPropertiesType { AllowAdditionalProperties };
-	TFastArrayReplicationFragment(EReplicationFragmentTraits InTraits, UObject* InOwner, const FReplicationStateDescriptor* InDescriptor, const EAllowAdditionalPropertiesType) : FFastArrayReplicationFragmentBase(InTraits, InOwner, InDescriptor, false) {}
+	TFastArrayReplicationFragment(EReplicationFragmentTraits InTraits, UObject* InOwner, const FReplicationStateDescriptor* InDescriptor, const EAllowAdditionalPropertiesType) : TFastArrayReplicationFragment(InTraits, InOwner, InDescriptor, false) {}
 
+	// For the select few cases where we allow additional properties, this is a helper to deal with applying them directly from quantized state
+	void ApplyReplicatedStateForExtraProperties(FReplicationStateApplyContext& Context) const;
+
+	// FReplicationFragment
 	virtual void ApplyReplicatedState(FReplicationStateApplyContext& Context) const override;
+	virtual void CallRepNotifies(FReplicationStateApplyContext& Context) override;
 	virtual bool PollReplicatedState(EReplicationFragmentPollFlags PollOption) override;
+	virtual void ReplicatedStateToString(FStringBuilderBase& StringBuilder, FReplicationStateApplyContext& Context, EReplicationStateToStringFlags Flags) const override;
 
+protected:
+	// Poll entire FastFrray
 	bool PollAllState(bool bForceFullCompare = false);
 
 	// Returns true if the FastArray is dirty
@@ -52,7 +60,10 @@ protected:
 	inline FastArrayType* GetFastArraySerializerFromReplicationState() const;
 
 	// Get FastArraySerialzier from received state
-	inline FastArrayType* GetFastArraySerializerFromApplyContext(FReplicationStateApplyContext& Context) const;	
+	inline FastArrayType* GetFastArraySerializerFromApplyContext(FReplicationStateApplyContext& Context) const;
+
+	// TODO: Can be removed when we have implemented explicit code to traverse quantized data directly
+	TUniquePtr<FastArrayType> AccumulatedReceivedState;
 };
 
 /**
@@ -76,9 +87,10 @@ protected:
 	// FReplicationFragment implementation
 	virtual void ApplyReplicatedState(FReplicationStateApplyContext& Context) const override;
 	virtual void CallRepNotifies(FReplicationStateApplyContext& Context) override;
-	virtual void ReplicatedStateToString(FStringBuilderBase& StringBuilder, FReplicationStateApplyContext& Context, EReplicationStateToStringFlags Flags) const override;
 	virtual bool PollReplicatedState(EReplicationFragmentPollFlags PollOption) override;
+	virtual void ReplicatedStateToString(FStringBuilderBase& StringBuilder, FReplicationStateApplyContext& Context, EReplicationStateToStringFlags Flags) const override;
 
+protected:
 	bool PollAllState();
 
 	bool IsDirty() const;
@@ -93,6 +105,16 @@ private:
 /**
  * TFastArrayReplicationFragment implementation
  */
+
+template <typename FastArrayItemType, typename FastArrayType>
+TFastArrayReplicationFragment<FastArrayItemType, FastArrayType>::TFastArrayReplicationFragment(EReplicationFragmentTraits InTraits, UObject* InOwner, const FReplicationStateDescriptor* InDescriptor, bool bValidateDescriptor) : FFastArrayReplicationFragmentBase(InTraits, InOwner, InDescriptor, bValidateDescriptor)
+{
+	if (EnumHasAnyFlags(InTraits, EReplicationFragmentTraits::CanReceive))
+	{
+		AccumulatedReceivedState = MakeUnique<FastArrayType>();
+	}
+}
+
 template <typename FastArrayItemType, typename FastArrayType>
 void TFastArrayReplicationFragment<FastArrayItemType, FastArrayType>::ApplyReplicatedState(FReplicationStateApplyContext& Context) const
 {
@@ -100,13 +122,23 @@ void TFastArrayReplicationFragment<FastArrayItemType, FastArrayType>::ApplyRepli
 	FastArrayType* DstArraySerializer = GetFastArraySerializerFromOwner();
 	ItemArrayType* DstWrappedArray = reinterpret_cast<ItemArrayType*>(reinterpret_cast<uint8*>(DstArraySerializer) + WrappedArrayOffsetRelativeFastArraySerializerProperty);
 
-	// Get received array data
-	// Intentionally not const as we allow the src state to be modified	
-	FastArrayType* SrcArraySerializer = GetFastArraySerializerFromApplyContext(Context);
-	const ItemArrayType* SrcWrappedArray = reinterpret_cast<ItemArrayType*>(reinterpret_cast<uint8*>(SrcArraySerializer) + WrappedArrayOffsetRelativeFastArraySerializerProperty);
+	// For now we maintain a dequantized representation of the array into which we accumulate new data.
+	// TODO: change to only maintain the map of indices
+	InternalPartialDequantizeFastArray(Context, reinterpret_cast<uint8*>(AccumulatedReceivedState.Get()), Context.StateBufferData.RawStateBuffer, GetFastArrayPropertyStructDescriptor());
 
-	// Apply state and issue callbacks etc
+	// Intentionally not const as we allow the src state to be modified
+	FastArrayType* SrcArraySerializer = AccumulatedReceivedState.Get();
+	const ItemArrayType* SrcWrappedArray = reinterpret_cast<const ItemArrayType*>(reinterpret_cast<uint8*>(SrcArraySerializer) + WrappedArrayOffsetRelativeFastArraySerializerProperty);	
+
+	// Apply state to target FastArray and issue callbacks
 	Private::FFastArrayReplicationFragmentHelper::ApplyReplicatedState(DstArraySerializer, DstWrappedArray, SrcArraySerializer, SrcWrappedArray, GetArrayElementDescriptor(), Context);
+}
+
+template <typename FastArrayItemType, typename FastArrayType>
+void TFastArrayReplicationFragment<FastArrayItemType, FastArrayType>::ApplyReplicatedStateForExtraProperties(FReplicationStateApplyContext& Context) const
+{
+	// Dequantize additional properties directly to DstArraySerialzier
+	InternalDequantizeExtraProperties(*Context.NetSerializationContext, reinterpret_cast<uint8*>(GetFastArraySerializerFromOwner()), Context.StateBufferData.RawStateBuffer, GetFastArrayPropertyStructDescriptor());
 }
 
 template <typename FastArrayItemType, typename FastArrayType>
@@ -239,6 +271,19 @@ bool TFastArrayReplicationFragment<FastArrayItemType, FastArrayType>::PollAllSta
 }
 
 template <typename FastArrayItemType, typename FastArrayType>
+void TFastArrayReplicationFragment<FastArrayItemType, FastArrayType>::ReplicatedStateToString(FStringBuilderBase& StringBuilder, FReplicationStateApplyContext& Context, EReplicationStateToStringFlags Flags) const
+{
+	// Temporary
+	FastArrayType ReceivedState;
+
+	// Dequantize into temporary array, using partial dequantize based on changemask
+	InternalDequantizeFastArray(*Context.NetSerializationContext, reinterpret_cast<uint8*>(&ReceivedState), Context.StateBufferData.RawStateBuffer, GetFastArrayPropertyStructDescriptor());
+
+	// Output state to string
+	ToString(StringBuilder, reinterpret_cast<uint8*>(&ReceivedState), GetFastArrayPropertyStructDescriptor());
+}
+
+template <typename FastArrayItemType, typename FastArrayType>
 bool TFastArrayReplicationFragment<FastArrayItemType, FastArrayType>::IsDirty() const
 {
 	FReplicationStateHeader& ReplicationStateHeader = Private::GetReplicationStateHeader(ReplicationState->GetStateBuffer(), ReplicationStateDescriptor);
@@ -254,6 +299,31 @@ void TFastArrayReplicationFragment<FastArrayItemType, FastArrayType>::MarkDirty(
 		FNetBitArrayView MemberChangeMask = UE::Net::Private::GetMemberChangeMask(ReplicationState->GetStateBuffer(), ReplicationStateDescriptor);
 		MemberChangeMask.SetBit(FIrisFastArraySerializer::IrisFastArrayPropertyBitIndex);
 		MarkNetObjectStateHeaderDirty(UE::Net::Private::GetReplicationStateHeader(ReplicationState->GetStateBuffer(), ReplicationStateDescriptor));
+	}
+}
+
+template <typename FastArrayItemType, typename FastArrayType>
+void TFastArrayReplicationFragment<FastArrayItemType, FastArrayType>::CallRepNotifies(FReplicationStateApplyContext& Context)
+{
+	const FReplicationStateDescriptor* Descriptor = ReplicationStateDescriptor;
+
+	// If we get here we are either the init state or dirty
+	if (const UFunction* RepNotifyFunction = Descriptor->MemberPropertyDescriptors[0].RepNotifyFunction)
+	{
+		// if this is the init state, we compare against default and early out if initial state does not differ from default (empty)
+		if (Context.bIsInit)
+		{
+			FastArrayType ReceivedState;
+			FastArrayType DefaultState;
+			InternalDequantizeFastArray(*Context.NetSerializationContext, reinterpret_cast<uint8*>(&ReceivedState), Context.StateBufferData.RawStateBuffer, GetFastArrayPropertyStructDescriptor());
+			InternalDequantizeExtraProperties(*Context.NetSerializationContext, reinterpret_cast<uint8*>(&ReceivedState), Context.StateBufferData.RawStateBuffer, GetFastArrayPropertyStructDescriptor());			
+			if (Descriptor->MemberProperties[0]->Identical(&ReceivedState, &DefaultState))
+			{
+				return;
+			}
+		}
+
+		Owner->ProcessEvent(const_cast<UFunction*>(RepNotifyFunction), nullptr);
 	}
 }
 

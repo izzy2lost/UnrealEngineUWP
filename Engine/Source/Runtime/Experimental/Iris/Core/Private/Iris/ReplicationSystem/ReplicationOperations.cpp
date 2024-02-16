@@ -164,8 +164,12 @@ void FReplicationStateOperations::DequantizeWithMask(FNetSerializationContext& C
 			Args.Target = reinterpret_cast<NetSerializerValuePointer>(DstExternalBuffer + MemberDescriptor.ExternalMemberOffset);
 			Args.Source = reinterpret_cast<NetSerializerValuePointer>(SrcInternalBuffer + MemberDescriptor.InternalMemberOffset);
 
-			Args.ChangeMaskInfo.BitCount = MemberChangeMaskDescriptor.BitCount;
-			Args.ChangeMaskInfo.BitOffset = MemberChangeMaskOffset;
+			// NOTE: Currently we only forward changemask info for fastarrays this is to avoid propagating it by accident where it does not belong
+			if (EnumHasAnyFlags(Descriptor->Traits, EReplicationStateTraits::IsFastArrayReplicationState))
+			{
+				Args.ChangeMaskInfo.BitCount = MemberChangeMaskDescriptor.BitCount;
+				Args.ChangeMaskInfo.BitOffset = MemberChangeMaskOffset;
+			}
 
 			MemberSerializerDescriptor.Serializer->Dequantize(Context, Args);
 		}

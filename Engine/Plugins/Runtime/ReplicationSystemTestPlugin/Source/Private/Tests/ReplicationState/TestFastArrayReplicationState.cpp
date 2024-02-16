@@ -58,17 +58,14 @@ public:
 
 	virtual void ApplyReplicatedState(UE::Net::FReplicationStateApplyContext& Context) const override
 	{
-		// Get the wrapped FastArraySerializer and array
-		FTestFastArrayReplicationState_FastArrayWithExtraProperty* DstArraySerializer = this->GetFastArraySerializerFromOwner();
-
-		// Intentionally not const as we allow the src state to be modified
-		FTestFastArrayReplicationState_FastArrayWithExtraProperty* SrcArraySerializer = this->GetFastArraySerializerFromApplyContext(Context);
-
-		// Apply additional state
-		DstArraySerializer->ExtraInt = SrcArraySerializer->ExtraInt;
-
+		using namespace UE::Net;
+		using namespace UE::Net::Private;
+		
 		// Forward to fast array serializer
 		SuperT::ApplyReplicatedState(Context);
+
+		// Must explicitly deal with extra properties here, but there is a utility function to do it for us!
+		SuperT::ApplyReplicatedStateForExtraProperties(Context);
 	}
 
 	virtual bool PollReplicatedState(UE::Net::EReplicationFragmentPollFlags PollOption) override

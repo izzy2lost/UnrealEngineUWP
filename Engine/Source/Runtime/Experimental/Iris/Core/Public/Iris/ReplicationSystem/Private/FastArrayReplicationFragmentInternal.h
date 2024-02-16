@@ -99,13 +99,34 @@ public:
 
 protected:
 	IRISCORE_API FFastArrayReplicationFragmentBase(EReplicationFragmentTraits InTraits, UObject* InOwner, const FReplicationStateDescriptor* InDescriptor, bool bValidateDescriptor = true);
-	IRISCORE_API const FReplicationStateDescriptor* GetFastArrayPropertyStructDescriptor() const;
-	IRISCORE_API const FReplicationStateDescriptor* GetArrayElementDescriptor() const;
+
+	// FReplicationFragment Implementation
 	IRISCORE_API virtual void CollectOwner(FReplicationStateOwnerCollector* Owners) const override;
-	IRISCORE_API virtual void CallRepNotifies(FReplicationStateApplyContext& Context) override;	
-	IRISCORE_API virtual void ReplicatedStateToString(FStringBuilderBase& StringBuilder, FReplicationStateApplyContext& Context, EReplicationStateToStringFlags Flags) const override;
+
+protected:
+	// Get the ReplicationStateDescriptor for the FastArraySerializer Struct
+	IRISCORE_API const FReplicationStateDescriptor* GetFastArrayPropertyStructDescriptor() const;
+
+	// Get the ReplicationStateDescriptor for the Array Element
+	IRISCORE_API const FReplicationStateDescriptor* GetArrayElementDescriptor() const;
+
+	// Copy array element using the descriptor to esure that we only copy replicated data
 	IRISCORE_API static void InternalCopyArrayElement(const FReplicationStateDescriptor* ArrayElementDescriptor, void* RESTRICT Dst, const void* RESTRICT Src);
+
+	// Compare an array element using the descriptor to ensure that we only compare replicated data
 	IRISCORE_API static bool InternalCompareArrayElement(const FReplicationStateDescriptor* ArrayElementDescriptor, void* RESTRICT Dst, const void* RESTRICT Src);
+
+	// Dequantize state into DstExternalBuffer, Note: it is expected to be initialized
+	IRISCORE_API static void InternalDequantizeFastArray(FNetSerializationContext& Context, uint8* RESTRICT DstExternalBuffer, const uint8* RESTRICT SrcInternalBuffer, const FReplicationStateDescriptor* FastArrayPropertyDescriptor);
+
+	// Partial dequantize state based on changemask into DstExternalBuffer, Note: it is expected to be initialized
+	IRISCORE_API static void InternalPartialDequantizeFastArray(FReplicationStateApplyContext& Context, uint8* RESTRICT DstExternalBuffer, const uint8* RESTRICT SrcInternalBuffer, const FReplicationStateDescriptor* FastArrayPropertyDescriptor);
+
+	// Dequantize additional properties to  DstExternalBuffer, Note: it is expected to be initialized
+	IRISCORE_API static void InternalDequantizeExtraProperties(FNetSerializationContext& Context, uint8* RESTRICT DstExternalBuffer, const uint8* RESTRICT SrcInternalBuffer, const FReplicationStateDescriptor* Descriptor);
+
+	// Dequantize and output state to string
+	IRISCORE_API static void ToString(FStringBuilderBase& StringBuilder, const uint8* ExternalStateBuffer, const FReplicationStateDescriptor* FastArrayPropertyDescriptor);
 
 protected:
 	// Replication descriptor built for the specific property
@@ -183,8 +204,7 @@ void FFastArrayReplicationFragmentHelper::ApplyReplicatedState(FastArrayType* Ds
 	ConditionalRebuildItemMap(*DstArraySerializer, *DstWrappedArray);
 	ConditionalRebuildItemMap(*SrcArraySerializer, *SrcWrappedArray);
 
-	const bool bIsNativeFastArraySerializer = EnumHasAnyFlags(Context.Descriptor->Traits, EReplicationStateTraits::IsNativeFastArrayReplicationState);
-	const uint32* ChangeMaskData = bIsNativeFastArraySerializer ?  Context.StateBufferData.ChangeMaskData : (const uint32*)(Context.StateBufferData.ExternalStateBuffer + Context.Descriptor->ChangeMasksExternalOffset);
+	const uint32* ChangeMaskData = Context.StateBufferData.ChangeMaskData;
 	FNetBitArrayView MemberChangeMask = MakeNetBitArrayView(ChangeMaskData, Context.Descriptor->ChangeMaskBitCount);
 
 	// We currently use a simple modulo scheme for bits in the changemask
@@ -218,13 +238,17 @@ void FFastArrayReplicationFragmentHelper::ApplyReplicatedState(FastArrayType* Ds
 		ModifiedIndices.Reserve(SrcWrappedArray->Num());
 		const ItemType* SrcItems = SrcWrappedArray->GetData();
 		for (int32 It=0, EndIt=SrcWrappedArray->Num(); It != EndIt; ++It)
-		{			
+		{
+			const bool bIsDirty = ChangeMaskBitCount == 0U || MemberChangeMask.GetBit((It % ChangeMaskBitCount) + ChangeMaskBitOffset);
+			if (!bIsDirty)
+			{
+				continue;
+			}
+
 			if (int32* ExistingIndex = DstArraySerializer->ItemMap.Find(SrcItems[It].ReplicationID))
 			{
-				const bool bIsDirty = ChangeMaskBitCount == 0U || MemberChangeMask.GetBit((It % ChangeMaskBitCount) + ChangeMaskBitOffset);
-
 				// Only compare if the changemask indicate that this might be a dirty entry, the compare is required since we do share entries in the changemask.
-				if (bIsDirty && !InternalCompareArrayElement(ArrayElementDescriptor, &(*DstWrappedArray)[*ExistingIndex], &SrcItems[It]))
+				if (!InternalCompareArrayElement(ArrayElementDescriptor, &(*DstWrappedArray)[*ExistingIndex], &SrcItems[It]))
 				{
 					UE_LOG(LogNetFastTArray, Log, TEXT("   Changed. ID: %d -> Idx: %d"), SrcItems[It].ReplicationID, *ExistingIndex);
 
@@ -236,15 +260,19 @@ void FFastArrayReplicationFragmentHelper::ApplyReplicatedState(FastArrayType* Ds
 			}
 			else
 			{
-				int32 AddedIndex = DstWrappedArray->Add(SrcItems[It]);
+				// Since we zero initialize our replicated properties we can end up with ReplicationID == 0 when receiving partial changes which should be ignored.
+				if (SrcItems[It].ReplicationID != 0)
+				{
+					int32 AddedIndex = DstWrappedArray->Add(SrcItems[It]);
 
-				UE_LOG(LogNetFastTArray, Log, TEXT("   New. ID: %d. New Element! local Idx: %d"), SrcItems[It].ReplicationID, AddedIndex);
+					UE_LOG(LogNetFastTArray, Log, TEXT("   New. ID: %d. New Element! local Idx: %d"), SrcItems[It].ReplicationID, AddedIndex);
 
-				// We need to propagate the ReplicationID in order to find our object
-				(*DstWrappedArray)[AddedIndex].ReplicationID = SrcItems[It].ReplicationID;
+					// We need to propagate the ReplicationID in order to find our object
+					(*DstWrappedArray)[AddedIndex].ReplicationID = SrcItems[It].ReplicationID;
 
-				// should we store ids or indices?
-				AddedIndices.Add(AddedIndex);
+					// should we store ids or indices?
+					AddedIndices.Add(AddedIndex);
+				}
 			}
 		}
 	}
