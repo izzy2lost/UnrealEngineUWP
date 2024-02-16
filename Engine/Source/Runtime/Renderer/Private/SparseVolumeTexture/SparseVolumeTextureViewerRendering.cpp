@@ -136,7 +136,7 @@ void AddSparseVolumeTextureViewerRenderPass(FRDGBuilder& GraphBuilder, FSceneRen
 			UnitSpaceMat.SetColumn(0, FVector(RcpVolumeRes.X * 2.0, 0.0, 0.0));
 			UnitSpaceMat.SetColumn(1, FVector(0.0, RcpVolumeRes.Y * 2.0, 0.0));
 			UnitSpaceMat.SetColumn(2, FVector(0.0, 0.0, RcpVolumeRes.Z * 2.0));
-			UnitSpaceMat.SetOrigin(FVector(SVTSceneProxy->bPivotAtCorner ? -1.0 : 0.0));
+			UnitSpaceMat.SetOrigin(FVector(SVTSceneProxy->bPivotAtCentroid ? 0.0  : -1.0));
 
 			const FMatrix44f WorldToLocal = FMatrix44f(InvTransformMat * UnitSpaceMat);
 			const FMatrix44f WorldToLocalRot = FMatrix44f(InvRotation.ToMatrix());

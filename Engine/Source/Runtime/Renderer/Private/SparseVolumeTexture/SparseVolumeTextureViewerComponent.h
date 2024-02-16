@@ -41,10 +41,19 @@ class USparseVolumeTextureViewerComponent : public UPrimitiveComponent
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category= "Asset Preview")
 	TObjectPtr<class USparseVolumeTexture> SparseVolumeTexturePreview;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Asset Preview")
-	uint32 bAnimate : 1;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Animation, meta = (EditCondition = "bPlaying == false"))
+	float Frame;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Asset Preview")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Animation)
+	float FrameRate = 24.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Animation)
+	uint32 bPlaying : 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Animation)
+	uint32 bLooping : 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Animation)
 	uint32 bReversePlayback : 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Asset Preview")
@@ -54,19 +63,10 @@ class USparseVolumeTextureViewerComponent : public UPrimitiveComponent
 	uint32 bApplyPerFrameTransforms : 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Asset Preview")
-	uint32 bLocalOriginAtCorner : 1;
+	uint32 bPivotAtCentroid : 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asset Preview")
 	float VoxelSize = 1.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asset Preview", meta = (UIMin = 0.0, UIMax = 1.0, ClampMin = 0.0, ClampMax = 1.0, EditCondition = "!bAnimate"))
-	float AnimationFrame;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asset Preview", meta = (UIMin = 0.0, UIMax = 120.0, ClampMin = 0.0, ClampMax = 120.0, EditCondition = "bAnimate"))
-	float FrameRate = 24.0f;
-
-	UPROPERTY(VisibleAnywhere, Category = "Asset Preview", meta = (UIMin = 0.0, UIMax = 60.0))
-	float AnimationTime;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asset Preview")
 	TEnumAsByte<ESparseVolumeTexturePreviewAttribute> PreviewAttribute;
@@ -113,9 +113,6 @@ public:
 	//~ End UActorComponent Interface.
 
 private:
-	
-	int32 FrameIndex = 0;
-
 	void SendRenderTransformCommand();
 
 	FSparseVolumeTextureViewerSceneProxy* SparseVolumeTextureViewerSceneProxy;

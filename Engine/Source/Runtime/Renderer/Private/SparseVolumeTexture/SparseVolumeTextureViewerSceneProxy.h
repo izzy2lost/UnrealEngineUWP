@@ -21,7 +21,7 @@ namespace UE
 class FSparseVolumeTextureViewerSceneProxy : public FPrimitiveSceneProxy
 {
 public:
-	FSparseVolumeTextureViewerSceneProxy(const USparseVolumeTextureViewerComponent* InComponent, int32 FrameIndex, FName ResourceName = NAME_None);
+	FSparseVolumeTextureViewerSceneProxy(const USparseVolumeTextureViewerComponent* InComponent, FName ResourceName = NAME_None);
 	virtual ~FSparseVolumeTextureViewerSceneProxy() = default;
 
 	const UE::SVT::FTextureRenderResources* TextureRenderResources;
@@ -32,7 +32,7 @@ public:
 	uint32 ComponentToVisualize;
 	float Extinction;
 	float VoxelSizeFactor;
-	bool bPivotAtCorner;
+	bool bPivotAtCentroid;
 
 protected:
 
