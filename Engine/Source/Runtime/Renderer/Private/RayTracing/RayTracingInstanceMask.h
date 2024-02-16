@@ -19,9 +19,6 @@ enum class ERayTracingInstanceMaskType : uint8
 	FarField,
 	HairStrands,
 
-	// ray tracing specific mask type
-	SceneCapture,
-
 	// path tracing specific mask type
 	VisibleInPrimaryRay,
 	VisibleInIndirectRay

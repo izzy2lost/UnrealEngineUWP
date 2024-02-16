@@ -38,9 +38,6 @@ uint8 ComputeRayTracingInstanceMask(ERayTracingInstanceMaskType MaskType, ERayTr
 		case ERayTracingInstanceMaskType::HairStrands:
 			Mask = RAY_TRACING_MASK_HAIR_STRANDS;
 			break;
-		case ERayTracingInstanceMaskType::SceneCapture:
-			Mask = RAY_TRACING_MASK_SCENE_CAPTURE;
-			break;
 		case ERayTracingInstanceMaskType::VisibleInPrimaryRay:
 			Mask = 0;
 			break;
@@ -74,9 +71,6 @@ uint8 ComputeRayTracingInstanceMask(ERayTracingInstanceMaskType MaskType, ERayTr
 			break;
 		case ERayTracingInstanceMaskType::HairStrands:
 			Mask = PATHTRACER_MASK_HAIR_CAMERA | PATHTRACER_MASK_HAIR_INDIRECT;
-			break;
-		case ERayTracingInstanceMaskType::SceneCapture:
-			Mask = PATHTRACER_MASK_IGNORE;
 			break;
 		case ERayTracingInstanceMaskType::VisibleInPrimaryRay:
 			Mask = PATHTRACER_MASK_CAMERA | PATHTRACER_MASK_HAIR_CAMERA;
