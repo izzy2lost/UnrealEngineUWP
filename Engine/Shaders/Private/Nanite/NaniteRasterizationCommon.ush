@@ -312,6 +312,8 @@ struct TNaniteWritePixel
 
 		Pixel.WriteOverdraw();
 
+	#if NANITE_PIXEL_PROGRAMMABLE && !NANITE_TESSELLATION
+
 	#if ENABLE_EARLY_Z_TEST
 		BRANCH
 		if( !Pixel.EarlyDepthTest() )
@@ -320,7 +322,6 @@ struct TNaniteWritePixel
 		}
 	#endif
 
-	#if NANITE_PIXEL_PROGRAMMABLE && !NANITE_TESSELLATION
 		FBarycentrics Barycentrics = CalculateBarycentrics( Tri, C );
 
 		float4 SvPosition = float4( Pixel.Position.xy + 0.5, Pixel.Depth, 1.0 );
