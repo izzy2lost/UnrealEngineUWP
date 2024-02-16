@@ -202,6 +202,7 @@ private:
 	float PreviousChaosImmPhysicsMinStepTime;
 	int32 PreviousSkipRedundantTransformUpdate;
 	int32 PreviousChaosClothUseTimeStepSmoothing;
+	int32 PreviousSkipWaterInfoTextureRenderWhenWorldRenderingDisabled;
 
 #if WITH_EDITOR
 	int32 PreviousGeoCacheStreamerShowNotification;
