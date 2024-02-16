@@ -72,7 +72,7 @@ namespace UE::MultiUserClient
 		   {
 			   return StreamEditor;
 		   });
-		const TAttribute<IObjectHierarchyModel*> ObjecHierarchyAttribute =
+		const TAttribute<IObjectHierarchyModel*> ObjectHierarchyAttribute =
 		   TAttribute<IObjectHierarchyModel*>::CreateLambda([this]()
 		   {
 			   return ObjectHierarchy.Get();
@@ -113,8 +113,8 @@ namespace UE::MultiUserClient
 			.OnExtendObjectsContextMenu = FExtendObjectMenu::CreateSP(this, &SMultiClientView::ExtendObjectContextMenu),
 			.ObjectColumns =
 			{
-				MultiStreamColumns::ReplicationToggle(InConcertClient, ObjecHierarchyAttribute, InClientManager),
-				MultiStreamColumns::ReassignOwnership(InConcertClient, MultiStreamEditorAttribute, ObjecHierarchyAttribute, InClientManager.GetReassignmentLogic(), InClientManager)
+				MultiStreamColumns::ReplicationToggle(InConcertClient, ObjectHierarchyAttribute, InClientManager),
+				MultiStreamColumns::ReassignOwnership(InConcertClient, MultiStreamEditorAttribute, ObjectHierarchyAttribute, InClientManager.GetReassignmentLogic(), InClientManager)
 			}
 		};
 		
@@ -134,7 +134,7 @@ namespace UE::MultiUserClient
 		return ClientIds;
 	}
 
-	void SMultiClientView::EnumerateObjectsInStreams(TFunctionRef<void(const FSoftObjectPath&)> Consumer)
+	void SMultiClientView::EnumerateObjectsInStreams(TFunctionRef<void(const FSoftObjectPath&)> Consumer) const
 	{
 		StreamModel->ForEachClient([&Consumer](const FReplicationClient* Client)
 		{
@@ -153,25 +153,37 @@ namespace UE::MultiUserClient
 
 		ClientManager->ForEachClient([this](FReplicationClient& Client)
 		{
-			Client.OnModelChanged().AddSP(this, &SMultiClientView::OnClientChanged, Client.GetEndpointId());
+			if (SelectionModel->ContainsClient(Client.GetEndpointId()))
+			{
+				Client.OnModelChanged().AddSP(this, &SMultiClientView::OnClientChanged);
+				Client.OnHierarchyNeedsRefresh().AddRaw(this, &SMultiClientView::OnHierarchyNeedsRefresh);
+			}
+			
 			return EBreakBehavior::Continue;
 		});
 	}
 
-	void SMultiClientView::CleanClientSubscriptions()
+	void SMultiClientView::CleanClientSubscriptions() const
 	{
 		ClientManager->ForEachClient([this](FReplicationClient& Client)
 		{
 			Client.OnModelChanged().RemoveAll(this);
+			Client.OnHierarchyNeedsRefresh().RemoveAll(this);
 			return EBreakBehavior::Continue;
 		});
 	}
 
-	void SMultiClientView::OnClientChanged(FGuid)
+	void SMultiClientView::OnClientChanged() const
 	{
 		// When reassignment operations complete, the content of the columns changes so a resort is required.
 		StreamEditor->GetEditorBase().RequestObjectColumnResort(MultiStreamColumns::ReassignOwnershipColumnId);
 		StreamEditor->GetEditorBase().RequestPropertyColumnResort(MultiStreamColumns::AssignPropertyColumnId);
+	}
+
+	void SMultiClientView::OnHierarchyNeedsRefresh() const
+	{
+		// It's a bit excessive to refresh all objects when the hierarchy might have changed but it's simple (and only happens once at end of tick)
+		StreamEditor->GetEditorBase().Refresh();
 	}
 
 	void SMultiClientView::ExtendObjectContextMenu(FMenuBuilder& MenuBuilder, TConstArrayView<FSoftObjectPath> ContextObjects) const

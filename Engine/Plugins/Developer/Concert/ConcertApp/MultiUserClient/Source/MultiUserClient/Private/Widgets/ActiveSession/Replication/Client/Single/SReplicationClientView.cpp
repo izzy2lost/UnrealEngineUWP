@@ -56,6 +56,8 @@ namespace UE::MultiUserClient
 		
 		// Refresh UI if streams change externally, e.g. a remote client changed what they sent
 		ReplicationClient->OnModelChanged().AddSP(this, &SReplicationClientView::OnModelChanged);
+		// It's a bit excessive to refresh all objects when the hierarchy might have changed but it's simple (and only happens once at end of tick)
+		ReplicationClient->OnHierarchyNeedsRefresh().AddLambda([this](){ EditorView->Refresh(); });
 	}
 
 	TSharedRef<SWidget> SReplicationClientView::CreateContent(FReplicationClient& InReplicationClient)
