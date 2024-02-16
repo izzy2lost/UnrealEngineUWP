@@ -38,75 +38,93 @@ enum class EAvaJustifyDepth : uint8
  * 
  * Aligns child actors, based on their bounding box, according to the specified justification
  */
-UCLASS(BlueprintType)
-class AVALANCHEMODIFIERS_API UAvaJustifyModifier : public UAvaArrangeBaseModifier
+UCLASS(MinimalAPI, BlueprintType)
+class UAvaJustifyModifier : public UAvaArrangeBaseModifier
 {
 	GENERATED_BODY()
 
 public:
+	UFUNCTION(BlueprintCallable, Category = "Justify")
+	AVALANCHEMODIFIERS_API void SetHorizontalAlignment(EAvaJustifyHorizontal InHorizontalAlignment);
+
+	UFUNCTION(BlueprintPure, Category = "Justify")
+	EAvaJustifyHorizontal GetHorizontalAlignment() const
+	{
+		return HorizontalAlignment;
+	}
+
+	UFUNCTION(BlueprintCallable, Category = "Justify")
+	AVALANCHEMODIFIERS_API void SetVerticalAlignment(EAvaJustifyVertical InVerticalAlignment);
+
+	UFUNCTION(BlueprintPure, Category = "Justify")
+	EAvaJustifyVertical GetVerticalAlignment() const
+	{
+		return VerticalAlignment;
+	}
+
+	UFUNCTION(BlueprintCallable, Category = "Justify")
+	AVALANCHEMODIFIERS_API void SetDepthAlignment(EAvaJustifyDepth InDepthAlignment);
+
+	UFUNCTION(BlueprintPure, Category = "Justify")
+	EAvaJustifyDepth GetDepthAlignment() const
+	{
+		return DepthAlignment;
+	}
+
+	UFUNCTION(BlueprintCallable, Category = "Justify")
+	AVALANCHEMODIFIERS_API void SetHorizontalAnchor(float InHorizontalAnchor);
+
+	UFUNCTION(BlueprintPure, Category = "Justify")
+	float GetHorizontalAnchor() const
+	{
+		return HorizontalAnchor;
+	}
+
+	UFUNCTION(BlueprintCallable, Category = "Justify")
+	AVALANCHEMODIFIERS_API void SetVerticalAnchor(float InVerticalAnchor);
+
+	UFUNCTION(BlueprintPure, Category = "Justify")
+	float GetVerticalAnchor() const
+	{
+		return VerticalAnchor;
+	}
+
+	UFUNCTION(BlueprintCallable, Category = "Justify")
+	AVALANCHEMODIFIERS_API void SetDepthAnchor(float InDepthAnchor);
+
+	UFUNCTION(BlueprintPure, Category = "Justify")
+	float GetDepthAnchor() const
+	{
+		return DepthAnchor;
+	}
+
+protected:
 	//~ Begin UObject
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
 #endif
 	//~ End UObject
 
-	UFUNCTION(BlueprintPure, Category = "Justify")
-	EAvaJustifyHorizontal GetHorizontalAlignment() const { return HorizontalAlignment; }
-	
-	UFUNCTION(BlueprintCallable, Category = "Justify")
-	void SetHorizontalAlignment(EAvaJustifyHorizontal InHorizontalAlignment);
-
-	UFUNCTION(BlueprintPure, Category = "Justify")
-	EAvaJustifyVertical GetVerticalAlignment() const { return VerticalAlignment; }
-	
-	UFUNCTION(BlueprintCallable, Category = "Justify")
-	void SetVerticalAlignment(EAvaJustifyVertical InVerticalAlignment);
-
-	UFUNCTION(BlueprintPure, Category = "Justify")
-	EAvaJustifyDepth GetDepthAlignment() const { return DepthAlignment; }
-	
-	UFUNCTION(BlueprintCallable, Category = "Justify")
-	void SetDepthAlignment(EAvaJustifyDepth InDepthAlignment);
-
-	UFUNCTION(BlueprintPure, Category = "Justify")
-	float GetHorizontalAnchor() const { return HorizontalAnchor; }
-	
-	UFUNCTION(BlueprintCallable, Category = "Justify")
-	void SetHorizontalAnchor(float InHorizontalAnchor);
-
-	UFUNCTION(BlueprintPure, Category = "Justify")
-	float GetVerticalAnchor() const { return VerticalAnchor; }
-	
-	UFUNCTION(BlueprintCallable, Category = "Justify")
-	void SetVerticalAnchor(float InVerticalAnchor);
-
-	UFUNCTION(BlueprintPure, Category = "Justify")
-	float GetDepthAnchor() const { return DepthAnchor; }
-	
-	UFUNCTION(BlueprintCallable, Category = "Justify")
-	void SetDepthAnchor(float InDepthAnchor);
-
-protected:
 	//~ Begin UActorModifierCoreBase
 	virtual void OnModifierCDOSetup(FActorModifierCoreMetadata& InMetadata) override;
 	virtual bool IsModifierDirtyable() const override;
 	virtual void OnModifiedActorTransformed() override;
 	virtual void Apply() override;
 	//~ End UActorModifierCoreBase
-	
+
 	//~ Begin IAvaSceneTreeUpdateModifierExtension
 	virtual void OnSceneTreeTrackedActorDirectChildrenChanged(int32 InIdx, const TArray<TWeakObjectPtr<AActor>>& InPreviousChildrenActors, const TArray<TWeakObjectPtr<AActor>>& InNewChildrenActors) override;
 	//~ End IAvaSceneTreeUpdateModifierExtension
-	
+
 	//~ Begin IAvaRenderStateUpdateExtension
 	virtual void OnRenderStateUpdated(AActor* InActor, UActorComponent* InComponent) override;
 	virtual void OnActorVisibilityChanged(AActor* InActor) override;
 	//~ End IAvaRenderStateUpdateExtension
-	
+
 	//~ Begin IAvaTransformUpdateExtension
 	virtual void OnTransformUpdated(AActor* InActor, bool bInParentMoved) override;
 	//~ End IAvaTransformUpdateExtension
-	
+
 	// Get tracked actors from children actors
 	void GetChildrenActors(TSet<TWeakObjectPtr<AActor>>& OutChildren) const;
 	void GetTrackedActors(const TSet<TWeakObjectPtr<AActor>>& InChildrenActors, TArray<TWeakObjectPtr<const AActor>>& OutTrackedActors) const;
@@ -119,13 +137,13 @@ protected:
 	FVector MakeConstrainedAxisVector() const;
 	FVector GetAnchorOffset() const;
 	FVector GetAlignmentOffset(const FVector& InExtent) const;
-	
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetHorizontalAlignment", Getter="GetHorizontalAlignment", Category="Justify", meta=(AllowPrivateAccess="true"))
 	EAvaJustifyHorizontal HorizontalAlignment;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetVerticalAlignment", Getter="GetVerticalAlignment", Category="Justify", meta=(AllowPrivateAccess="true"))
 	EAvaJustifyVertical VerticalAlignment;
-	
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetDepthAlignment", Getter="GetDepthAlignment", Category="Justify", meta=(AllowPrivateAccess="true"))
 	EAvaJustifyDepth DepthAlignment;
 

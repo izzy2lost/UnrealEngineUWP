@@ -25,7 +25,7 @@ enum class EAvaTransformSharedModifier : uint8
 };
 
 USTRUCT()
-struct AVALANCHEMODIFIERS_API FAvaTransformSharedModifierState
+struct FAvaTransformSharedModifierState
 {
 	GENERATED_BODY()
 
@@ -39,7 +39,7 @@ struct AVALANCHEMODIFIERS_API FAvaTransformSharedModifierState
 
 	/** Restore this modifier state if valid */
 	void Restore(AActor* InActor, EAvaTransformSharedModifier InRestoreState) const;
-	
+
 	friend uint32 GetTypeHash(const FAvaTransformSharedModifierState& InItem)
 	{
 		return GetTypeHash(InItem.ModifierWeak);
@@ -52,13 +52,13 @@ struct AVALANCHEMODIFIERS_API FAvaTransformSharedModifierState
 
 	UPROPERTY()
 	TWeakObjectPtr<UAvaBaseModifier> ModifierWeak;
-	
+
 	UPROPERTY()
 	FTransform ActorTransform;
 };
 
 USTRUCT()
-struct AVALANCHEMODIFIERS_API FAvaTransformSharedActorState
+struct FAvaTransformSharedActorState
 {
 	GENERATED_BODY()
 
@@ -103,10 +103,10 @@ struct AVALANCHEMODIFIERS_API FAvaTransformSharedActorState
  * and restore it when no other modifier is watching it
  */
 UCLASS()
-class AVALANCHEMODIFIERS_API UAvaTransformModifierShared : public UActorModifierCoreSharedObject
+class UAvaTransformModifierShared : public UActorModifierCoreSharedObject
 {
 	GENERATED_BODY()
-	
+
 public:
 	/** Save actor state, adds it if it is not tracked */
 	void SaveActorState(UAvaBaseModifier* InModifierContext, AActor* InActor);
@@ -131,10 +131,12 @@ public:
 
 	/** Returns true, if this modifier is tracking any actor */
 	bool IsActorsStateSaved(UAvaBaseModifier* InModifierContext);
-	
+
 protected:
+	//~ Begin UObject
 	virtual void PostLoad() override;
-	
+	//~ End UObject
+
 	/** Actor state before any modifier applied to it */
 	UPROPERTY()
 	TSet<FAvaTransformSharedActorState> ActorStates;

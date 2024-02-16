@@ -25,8 +25,8 @@ enum class EAvaAutoSizeFitMode : uint8
 /**
  * Adapts the modified actor geometry size/scale and position so that it acts as a background for a specified actor
  */
-UCLASS(BlueprintType)
-class AVALANCHEMODIFIERS_API UAvaAutoSizeModifier : public UAvaGeometryBaseModifier
+UCLASS(MinimalAPI, BlueprintType)
+class UAvaAutoSizeModifier : public UAvaGeometryBaseModifier
 	, public IAvaTransformUpdateHandler
 	, public IAvaRenderStateUpdateHandler
 	, public IAvaSceneTreeUpdateHandler
@@ -34,15 +34,8 @@ class AVALANCHEMODIFIERS_API UAvaAutoSizeModifier : public UAvaGeometryBaseModif
 	GENERATED_BODY()
 
 public:
-	//~ Begin UObject
-	virtual void PostLoad() override;
-#if WITH_EDITOR
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-#endif
-	//~ End UObject
-
 	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|AutoSize")
-	void SetReferenceActor(const FAvaSceneTreeActor& InReferenceActor);
+	AVALANCHEMODIFIERS_API void SetReferenceActor(const FAvaSceneTreeActor& InReferenceActor);
 
 	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|AutoSize")
 	const FAvaSceneTreeActor& GetReferenceActor() const
@@ -50,14 +43,18 @@ public:
 		return ReferenceActor;
 	}
 
+	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|AutoSize")
+	AVALANCHEMODIFIERS_API void SetFollowedAxis(int32 InFollowedAxis);
+
 	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|AutoSize")
 	int32 GetFollowedAxis() const
 	{
 		return FollowedAxis;
 	}
 
+	/** Sets the actor affecting the modifier. This is user selectable if the Reference Container is set to "Other". */
 	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|AutoSize")
-	void SetFollowedAxis(int32 InFollowedAxis);
+	AVALANCHEMODIFIERS_API void SetPadding(const FMargin& InPadding);
 
 	/** Gets the actor affecting the modifier. This is user selectable if the Reference Container is set to "Other". */
 	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|AutoSize")
@@ -66,9 +63,8 @@ public:
 		return Padding;
 	}
 
-	/** Sets the actor affecting the modifier. This is user selectable if the Reference Container is set to "Other". */
 	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|AutoSize")
-	void SetPadding(const FMargin& InPadding);
+	AVALANCHEMODIFIERS_API void SetFitMode(const EAvaAutoSizeFitMode InFitMode);
 
 	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|AutoSize")
 	EAvaAutoSizeFitMode GetFitMode() const
@@ -77,10 +73,7 @@ public:
 	}
 
 	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|AutoSize")
-	void SetFitMode(const EAvaAutoSizeFitMode InFitMode);
-
-	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|AutoSize")
-	void SetIncludeChildren(bool bInIncludeChildren);
+	AVALANCHEMODIFIERS_API void SetIncludeChildren(bool bInIncludeChildren);
 
 	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|AutoSize")
 	bool GetIncludeChildren() const
@@ -89,6 +82,13 @@ public:
 	}
 
 protected:
+	//~ Begin UObject
+	virtual void PostLoad() override;
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
+	//~ End UObject
+
 	//~ Begin UActorModifierCoreBase
 	virtual bool IsModifierDirtyable() const override;
 	virtual void OnModifierCDOSetup(FActorModifierCoreMetadata& InMetadata) override;

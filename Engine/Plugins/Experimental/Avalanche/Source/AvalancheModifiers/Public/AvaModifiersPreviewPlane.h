@@ -35,13 +35,13 @@ struct FAvaModifierPreviewPlane
 
 	UPROPERTY(Transient)
 	FAvaModifiersParametricMaterial PreviewDynMaterial;
-	
+
 protected:
 	UStaticMesh* LoadPreviewResource() const;
-	
+
 	UPROPERTY(Transient)
 	TObjectPtr<UStaticMesh> PreviewStaticMesh = nullptr;
-	
+
 	UPROPERTY(Transient)
 	TObjectPtr<UStaticMeshComponent> PreviewComponent = nullptr;
 };

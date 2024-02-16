@@ -6,8 +6,8 @@
 #include "AvaBaseModifier.generated.h"
 
 /** This is the base class for all Motion Design modifiers */
-UCLASS(Abstract)
-class AVALANCHEMODIFIERS_API UAvaBaseModifier : public UActorModifierCoreBase
+UCLASS(MinimalAPI, Abstract)
+class UAvaBaseModifier : public UActorModifierCoreBase
 {
 	GENERATED_BODY()
 };

@@ -62,7 +62,7 @@ struct FAvaTranslucentPriorityModifierComponentState
  * Singleton class for translucent priority modifiers to share data about component state
  */
 UCLASS()
-class AVALANCHEMODIFIERS_API UAvaTranslucentPriorityModifierShared : public UActorModifierCoreSharedObject
+class UAvaTranslucentPriorityModifierShared : public UActorModifierCoreSharedObject
 {
 	GENERATED_BODY()
 
@@ -91,19 +91,19 @@ public:
 	/** Get sorted components state based on modifier context */
 	TArray<const FAvaTranslucentPriorityModifierComponentState*> GetSortedComponentStates(UAvaTranslucentPriorityModifier* InModifierContext) const;
 
+	void SetSortPriorityOffset(int32 InOffset);
+
 	int32 GetSortPriorityOffset() const
 	{
 		return SortPriorityOffset;
 	}
 
-	void SetSortPriorityOffset(int32 InOffset);
+	void SetSortPriorityStep(int32 InStep);
 
 	int32 GetSortPriorityStep() const
 	{
 		return SortPriorityStep;
 	}
-
-	void SetSortPriorityStep(int32 InStep);
 
 private:
 	//~ Begin UObject

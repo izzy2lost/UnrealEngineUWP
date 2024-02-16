@@ -154,31 +154,43 @@ struct FAvaPatternModifierCircleLayoutOptions
 };
 
 /** This modifier clones a shape following various layouts and options */
-UCLASS(BlueprintType, AutoExpandCategories=(Pattern))
-class AVALANCHEMODIFIERS_API UAvaPatternModifier : public UAvaGeometryBaseModifier
+UCLASS(MinimalAPI, BlueprintType, AutoExpandCategories=(Pattern))
+class UAvaPatternModifier : public UAvaGeometryBaseModifier
 {
 	GENERATED_BODY()
 
 public:
+	AVALANCHEMODIFIERS_API void SetLayout(EAvaPatternModifierLayout InLayout);
+	EAvaPatternModifierLayout GetLayout() const
+	{
+		return Layout;
+	}
+
+	AVALANCHEMODIFIERS_API void SetLineLayoutOptions(const FAvaPatternModifierLineLayoutOptions& InOptions);
+	const FAvaPatternModifierLineLayoutOptions& GetLineLayoutOptions() const
+	{
+		return LineLayoutOptions;
+	}
+
+	AVALANCHEMODIFIERS_API void SetGridLayoutOptions(const FAvaPatternModifierGridLayoutOptions& InOptions);
+	const FAvaPatternModifierGridLayoutOptions& GetGridLayoutOptions() const
+	{
+		return GridLayoutOptions;
+	}
+
+	AVALANCHEMODIFIERS_API void SetCircleLayoutOptions(const FAvaPatternModifierCircleLayoutOptions& InOptions);
+	const FAvaPatternModifierCircleLayoutOptions& GetCircleLayoutOptions() const
+	{
+		return CircleLayoutOptions;
+	}
+
+protected:
 	//~ Begin UObject
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
 	//~ End UObject
 
-	void SetLayout(EAvaPatternModifierLayout InLayout);
-	EAvaPatternModifierLayout GetLayout() const { return Layout; }
-
-	void SetLineLayoutOptions(const FAvaPatternModifierLineLayoutOptions& InOptions);
-	const FAvaPatternModifierLineLayoutOptions& GetLineLayoutOptions() const { return LineLayoutOptions; }
-
-	void SetGridLayoutOptions(const FAvaPatternModifierGridLayoutOptions& InOptions);
-	const FAvaPatternModifierGridLayoutOptions& GetGridLayoutOptions() const { return GridLayoutOptions; }
-
-	void SetCircleLayoutOptions(const FAvaPatternModifierCircleLayoutOptions& InOptions);
-	const FAvaPatternModifierCircleLayoutOptions& GetCircleLayoutOptions() const { return CircleLayoutOptions; }
-
-protected:
 	//~ Begin UActorModifierCoreBase
 	virtual void OnModifierCDOSetup(FActorModifierCoreMetadata& InMetadata) override;
 	virtual void Apply() override;

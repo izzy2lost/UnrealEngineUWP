@@ -22,8 +22,8 @@ enum class EAvaBooleanMode : uint8
 };
 
 /** This modifier allows you to apply a mask on a certain shape, this will affect every shape it collides with that matches options */
-UCLASS(BlueprintType)
-class AVALANCHEMODIFIERS_API UAvaBooleanModifier : public UAvaGeometryBaseModifier
+UCLASS(MinimalAPI, BlueprintType)
+class UAvaBooleanModifier : public UAvaGeometryBaseModifier
 	, public IAvaTransformUpdateHandler
 {
 	GENERATED_BODY()
@@ -34,19 +34,17 @@ public:
 	/** This is the min depth threshold needed on the mask for it to work properly */
 	inline static constexpr float MinDepth = UE_KINDA_SMALL_NUMBER * 2;
 
-	//~ Begin UObject
-#if WITH_EDITOR
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
-#endif
-	//~ End UObject
+	AVALANCHEMODIFIERS_API void SetMode(EAvaBooleanMode InMode);
+	EAvaBooleanMode GetMode() const
+	{
+		return Mode;
+	}
 
-	UFUNCTION()
-	void SetMode(EAvaBooleanMode InMode);
-	EAvaBooleanMode GetMode() const { return Mode; }
-
-	UFUNCTION()
-	void SetChannel(uint8 InChannel);
-	uint8 GetChannel() const { return Channel; }
+	AVALANCHEMODIFIERS_API void SetChannel(uint8 InChannel);
+	uint8 GetChannel() const
+	{
+		return Channel;
+	}
 
 	const FAvaBooleanModifierSharedChannelInfo& GetChannelInfo() const
 	{
@@ -54,6 +52,12 @@ public:
 	}
 
 protected:
+	//~ Begin UObject
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
+#endif
+	//~ End UObject
+
 	//~ Begin UActorModifierCoreBase
 	virtual void OnModifierCDOSetup(FActorModifierCoreMetadata& InMetadata) override;
 	virtual void OnModifierAdded(EActorModifierCoreEnableReason InReason) override;

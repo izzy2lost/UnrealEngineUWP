@@ -17,7 +17,7 @@ class AAvaTestDynamicMeshActor;
 class AAvaTestStaticMeshActor;
 class UWorld;
 
-struct AVALANCHEMODIFIERS_API FAvaModifierTestUtils
+struct FAvaModifierTestUtils
 {
 public:
 	FAvaModifierTestUtils(TSharedPtr<FAvaTestUtils> InTestUtils);

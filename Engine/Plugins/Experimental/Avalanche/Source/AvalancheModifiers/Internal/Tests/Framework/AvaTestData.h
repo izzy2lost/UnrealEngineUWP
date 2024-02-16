@@ -5,7 +5,7 @@
 #include "Containers/Set.h"
 #include "UObject/NameTypes.h"
 
-class AVALANCHEMODIFIERS_API FAvaTestData
+class FAvaTestData
 {
 public:
 	FAvaTestData();

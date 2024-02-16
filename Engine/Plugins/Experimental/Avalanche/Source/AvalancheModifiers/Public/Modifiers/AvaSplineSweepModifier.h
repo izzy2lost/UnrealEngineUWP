@@ -18,8 +18,8 @@ enum class EAvaSplineSweepSampleMode : uint8
 	CustomDistance
 };
 
-UCLASS(BlueprintType)
-class AVALANCHEMODIFIERS_API UAvaSplineSweepModifier : public UAvaGeometryBaseModifier
+UCLASS(MinimalAPI, BlueprintType)
+class UAvaSplineSweepModifier : public UAvaGeometryBaseModifier
 	, public IAvaRenderStateUpdateHandler
 {
 	GENERATED_BODY()
@@ -27,20 +27,14 @@ class AVALANCHEMODIFIERS_API UAvaSplineSweepModifier : public UAvaGeometryBaseMo
 public:
 	static inline constexpr int32 MaxSampleCount = 100;
 
-	//~ Begin UObject
-#if WITH_EDITOR
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
-#endif
-	//~ End UObject
-
-	void SetSplineActorWeak(TWeakObjectPtr<AActor> InSplineActorWeak);
+	AVALANCHEMODIFIERS_API void SetSplineActorWeak(TWeakObjectPtr<AActor> InSplineActorWeak);
 	TWeakObjectPtr<AActor> GetSplineActorWeak() const
 	{
 		return SplineActorWeak;
 	}
 
 	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|SplineSweep")
-	void SetSampleMode(EAvaSplineSweepSampleMode InMode);
+	AVALANCHEMODIFIERS_API void SetSampleMode(EAvaSplineSweepSampleMode InMode);
 
 	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|SplineSweep")
 	EAvaSplineSweepSampleMode GetSampleMode() const
@@ -49,7 +43,7 @@ public:
 	}
 
 	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|SplineSweep")
-	void SetSampleDistance(float InDistance);
+	AVALANCHEMODIFIERS_API void SetSampleDistance(float InDistance);
 
 	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|SplineSweep")
 	float GetSampleDistance() const
@@ -58,7 +52,7 @@ public:
 	}
 
 	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|SplineSweep")
-	void SetSteps(int32 InSteps);
+	AVALANCHEMODIFIERS_API void SetSteps(int32 InSteps);
 
 	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|SplineSweep")
 	int32 GetSteps() const
@@ -67,7 +61,7 @@ public:
 	}
 
 	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|SplineSweep")
-	void SetProgressOffset(float InOffset);
+	AVALANCHEMODIFIERS_API void SetProgressOffset(float InOffset);
 
 	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|SplineSweep")
 	float GetProgressOffset() const
@@ -76,7 +70,7 @@ public:
 	}
 
 	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|SplineSweep")
-	void SetProgressStart(float InStart);
+	AVALANCHEMODIFIERS_API void SetProgressStart(float InStart);
 
 	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|SplineSweep")
 	float GetProgressStart() const
@@ -85,7 +79,7 @@ public:
 	}
 
 	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|SplineSweep")
-	void SetProgressEnd(float InEnd);
+	AVALANCHEMODIFIERS_API void SetProgressEnd(float InEnd);
 
 	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|SplineSweep")
 	float GetProgressEnd() const
@@ -94,7 +88,7 @@ public:
 	}
 
 	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|SplineSweep")
-	void SetScaleStart(float InScaleStart);
+	AVALANCHEMODIFIERS_API void SetScaleStart(float InScaleStart);
 
 	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|SplineSweep")
 	float GetScaleStart() const
@@ -103,7 +97,7 @@ public:
 	}
 
 	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|SplineSweep")
-	void SetScaleEnd(float InScaleEnd);
+	AVALANCHEMODIFIERS_API void SetScaleEnd(float InScaleEnd);
 
 	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|SplineSweep")
 	float GetScaleEnd() const
@@ -112,7 +106,7 @@ public:
 	}
 
 	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|SplineSweep")
-	void SetCapped(bool bInCapped);
+	AVALANCHEMODIFIERS_API void SetCapped(bool bInCapped);
 
 	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|SplineSweep")
 	bool GetCapped() const
@@ -121,7 +115,7 @@ public:
 	}
 
 	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|SplineSweep")
-	void SetLooped(bool bInLooped);
+	AVALANCHEMODIFIERS_API void SetLooped(bool bInLooped);
 
 	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|SplineSweep")
 	bool GetLooped() const
@@ -130,6 +124,12 @@ public:
 	}
 
 protected:
+	//~ Begin UObject
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
+#endif
+	//~ End UObject
+
 	//~ Begin IAvaRenderStateUpdateHandler
 	virtual void OnRenderStateUpdated(AActor* InActor, UActorComponent* InComponent) override;
 	virtual void OnActorVisibilityChanged(AActor* InActor) override {}

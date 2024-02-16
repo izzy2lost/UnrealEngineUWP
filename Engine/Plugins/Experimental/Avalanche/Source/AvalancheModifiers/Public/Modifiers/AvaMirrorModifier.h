@@ -8,39 +8,49 @@
 
 class UStaticMesh;
 
-UCLASS(BlueprintType)
-class AVALANCHEMODIFIERS_API UAvaMirrorModifier : public UAvaGeometryBaseModifier
+UCLASS(MinimalAPI, BlueprintType)
+class UAvaMirrorModifier : public UAvaGeometryBaseModifier
 {
 	GENERATED_BODY()
-	
+
 public:
+	AVALANCHEMODIFIERS_API void SetMirrorFramePosition(const FVector& InMirrorFramePosition);
+	const FVector& GetMirrorFramePosition() const
+	{
+		return MirrorFramePosition;
+	}
+
+	AVALANCHEMODIFIERS_API void SetMirrorFrameRotation(const FRotator& InMirrorFrameRotation);
+	const FRotator& GetMirrorFrameRotation() const
+	{
+		return MirrorFrameRotation;
+	}
+
+	AVALANCHEMODIFIERS_API void SetApplyPlaneCut(bool bInApplyPlaneCut);
+	bool GetApplyPlaneCut() const
+	{
+		return bApplyPlaneCut;
+	}
+
+	AVALANCHEMODIFIERS_API void SetFlipCutSide(bool bInFlipCutSide);
+	bool GetFlipCutSide() const
+	{
+		return bFlipCutSide;
+	}
+
+	AVALANCHEMODIFIERS_API void SetWeldAlongPlane(bool bInWeldAlongPlane);
+	bool GetWeldAlongPlane() const
+	{
+		return bWeldAlongPlane;
+	}
+
+protected:
 	//~ Begin UObject
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
 	//~ End UObject
-	
-	UFUNCTION()
-	void SetMirrorFramePosition(const FVector& InMirrorFramePosition);
-	const FVector& GetMirrorFramePosition() const { return MirrorFramePosition; }
 
-	UFUNCTION()
-	void SetMirrorFrameRotation(const FRotator& InMirrorFrameRotation);
-	const FRotator& GetMirrorFrameRotation() const { return MirrorFrameRotation; }
-	
-	UFUNCTION()
-	void SetApplyPlaneCut(bool bInApplyPlaneCut);
-	bool GetApplyPlaneCut() const { return bApplyPlaneCut; }
-
-	UFUNCTION()
-	void SetFlipCutSide(bool bInFlipCutSide);
-	bool GetFlipCutSide() const { return bFlipCutSide; }
-
-	UFUNCTION()
-	void SetWeldAlongPlane(bool bInWeldAlongPlane);
-	bool GetWeldAlongPlane() const { return bWeldAlongPlane; }
-	
-protected:
 	//~ Begin UActorModifierCoreBase
 	virtual void OnModifierCDOSetup(FActorModifierCoreMetadata& InMetadata) override;
 	virtual void OnModifierAdded(EActorModifierCoreEnableReason InReason) override;
@@ -48,7 +58,7 @@ protected:
 	virtual void OnModifierDisabled(EActorModifierCoreDisableReason InReason) override;
 	virtual void OnModifierRemoved(EActorModifierCoreDisableReason InReason) override;
 	//~ End UActorModifierCoreBase
-	
+
 	void OnMirrorFrameChanged();
 	void OnMirrorOptionChanged();
 
@@ -56,10 +66,10 @@ protected:
 	void CreatePreviewComponent();
 	void DestroyPreviewComponent();
 	void UpdatePreviewComponent();
-	
+
 	void OnShowMirrorFrameChanged();
 #endif
-	
+
     UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetMirrorFramePosition", Getter="GetMirrorFramePosition", Category="Mirror", meta=(AllowPrivateAccess="true"))
 	FVector MirrorFramePosition = FVector::ZeroVector;
 
