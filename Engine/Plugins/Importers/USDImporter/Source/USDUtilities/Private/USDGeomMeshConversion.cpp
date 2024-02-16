@@ -3944,12 +3944,15 @@ namespace UE::UsdGeometryCacheConversion::Private
 	{
 		FGeometryCacheExportContext(const UGeometryCache& GeometryCache)
 			: SlotNames(GeometryCache.MaterialSlotNames)
-			, FrameRate((GeometryCache.GetEndFrame() - GeometryCache.GetStartFrame()) / GeometryCache.CalculateDuration())
 		{
+			// The GeometryCache's EndFrame is exclusive since it's there to allow frame interpolation past the real last frame
+			InclusiveEndFrame = FMath::Max(GeometryCache.GetEndFrame() - 1, GeometryCache.GetStartFrame() + 1);
+			FrameRate = (InclusiveEndFrame - GeometryCache.GetStartFrame()) / GeometryCache.CalculateDuration();
 		}
 
 		const TArray<FName>& SlotNames;
-		const float FrameRate;
+		int32 InclusiveEndFrame;
+		float FrameRate;
 
 		// Cached values of the last written attribute values
 		// Since int cannot be interpolated, the missing timesampled attribute values will be the "held"
@@ -4293,11 +4296,11 @@ bool UnrealToUsd::ConvertGeometryCache(const UGeometryCache* GeometryCache, pxr:
 	pxr::UsdGeomMesh TargetMesh{UsdPrim};
 	pxr::UsdPrim MaterialPrim = MaterialStage->OverridePrim(UsdPrim.GetPath());
 
+	UsdGeometryCacheImpl::FGeometryCacheExportContext ExportContext(*GeometryCache);
 	const int32 StartFrame = GeometryCache->GetStartFrame();
-	const int32 EndFrame = GeometryCache->GetEndFrame();
+	const int32 EndFrame = ExportContext.InclusiveEndFrame;
 	int32 ActualStartFrame = -1;
 
-	UsdGeometryCacheImpl::FGeometryCacheExportContext ExportContext(*GeometryCache);
 	for (int32 FrameIndex = StartFrame; FrameIndex <= EndFrame; ++FrameIndex)
 	{
 		FGeometryCacheMeshData MeshData = UsdGeometryCacheImpl::GetFlattenedGeometryCacheMeshData(GeometryCache, FrameIndex - StartFrame);

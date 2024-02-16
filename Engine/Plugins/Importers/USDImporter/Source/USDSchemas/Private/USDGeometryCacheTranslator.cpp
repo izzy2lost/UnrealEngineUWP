@@ -448,13 +448,13 @@ namespace UsdGeometryCacheTranslatorImpl
 				Context->ObjectFlags | EObjectFlags::RF_Public | RF_Transient
 			);
 
-			TOptional<FReadMeshDataArgs> Args;
+			FReadMeshDataArgs Args(GetReadMeshDataArgs(Context, RootPrimPath));
 			if (!Context->bIsImporting)
 			{
-				Args = GetReadMeshDataArgs(Context, RootPrimPath);
 				// StartOffsetTime is the offset applied to the GeometryCache section on the sequencer track, so not relevant when importing
-				StartOffsetTime = static_cast<float>(Args->StartFrame) / Args->FramesPerSecond;
+				StartOffsetTime = static_cast<float>(Args.StartFrame) / Args.FramesPerSecond;
 			}
+			GeometryCache->SetFrameStartEnd(Args.StartFrame, Args.EndFrame);
 
 			// Create a track for each mesh to be processed and add it to the GeometryCache
 			for (int32 Index = 0; Index < MeshPaths.Num(); ++Index)
@@ -463,7 +463,7 @@ namespace UsdGeometryCacheTranslatorImpl
 				UGeometryCacheTrack* Track = nullptr;
 				if (!Context->bIsImporting)
 				{
-					Track = CreateUsdStreamTrack(GeometryCache, *Args, PrimPath, MaterialOffsets[Index]);
+					Track = CreateUsdStreamTrack(GeometryCache, Args, PrimPath, MaterialOffsets[Index]);
 				}
 				else
 				{
