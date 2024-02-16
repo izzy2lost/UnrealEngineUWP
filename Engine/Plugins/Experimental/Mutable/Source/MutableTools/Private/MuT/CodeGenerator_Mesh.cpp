@@ -6,6 +6,7 @@
 #include "Misc/AssertionMacros.h"
 #include "MuR/Layout.h"
 #include "MuR/Mesh.h"
+#include "MuR/MeshPrivate.h"
 #include "MuR/MeshBufferSet.h"
 #include "MuR/MutableMath.h"
 #include "MuR/Operations.h"

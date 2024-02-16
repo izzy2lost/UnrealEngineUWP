@@ -1,10 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "NodeImageFormatPrivate.h"
 #include "HAL/PlatformMath.h"
 #include "Misc/AssertionMacros.h"
 #include "MuR/Image.h"
-#include "MuR/ImagePrivate.h"
-#include "MuR/ImageRLE.h"
 #include "MuR/MutableMath.h"
 #include "MuR/MutableTrace.h"
 #include "MuR/Operations.h"

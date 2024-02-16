@@ -7,8 +7,6 @@
 #include "MuT/NodeMeshPrivate.h"
 #include "MuT/AST.h"
 
-#include "MuR/MeshPrivate.h"
-
 
 namespace mu
 {

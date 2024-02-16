@@ -3,8 +3,6 @@
 #pragma once
 
 #include "MuR/Operations.h"
-#include "MuR/ModelPrivate.h"
-#include "MuR/ImagePrivate.h"
 #include "MuR/CodeVisitor.h"
 #include "MuT/CompilerPrivate.h"
 #include "MuT/AST.h"
