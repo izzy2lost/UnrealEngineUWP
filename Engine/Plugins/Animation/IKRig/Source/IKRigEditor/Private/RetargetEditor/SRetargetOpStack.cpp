@@ -78,7 +78,7 @@ void SRetargetOpStackItem::Construct(
 						{
 							const bool bIsChecked = InCheckBoxState == ECheckBoxState::Checked;
 							InOpStackWidget->EditorController.Pin()->AssetController->SetRetargetOpEnabled(InStackElement->IndexInStack, bIsChecked);
-							InOpStackWidget->EditorController.Pin()->HandleRetargeterNeedsInitialized();
+							InOpStackWidget->EditorController.Pin()->ReinitializeRetargeterNoUIRefresh();
 						}
 					})
 				]
@@ -335,7 +335,7 @@ void SRetargetOpStack::OnSelectionChanged(
 {
 	if (SelectInfo != ESelectInfo::Direct && InItem.IsValid())
 	{
-		LastSelectedItemIndex = InItem->IndexInStack;
+		EditorController.Pin()->LastSelectedOpIndex = InItem->IndexInStack;
 	}
 }
 
@@ -369,10 +369,10 @@ void SRetargetOpStack::RefreshStackView()
 		ListViewItems.Add(StackElement);
 	}
 
-	if (NumOps && ListViewItems.IsValidIndex(LastSelectedItemIndex))
+	if (NumOps && ListViewItems.IsValidIndex(EditorController.Pin()->LastSelectedOpIndex))
 	{
 		// restore selection
-		ListView->SetSelection(ListViewItems[LastSelectedItemIndex]);
+		ListView->SetSelection(ListViewItems[EditorController.Pin()->LastSelectedOpIndex]);
 	}
 	else
 	{

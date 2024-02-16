@@ -102,7 +102,6 @@ private:
 	void DeleteRetargetOp(TSharedPtr<FRetargetOpStackElement> OpToDelete);
 	// when an op is selected on in the stack view
 	void OnSelectionChanged(TSharedPtr<FRetargetOpStackElement> InItem, ESelectInfo::Type SelectInfo);
-	int32 LastSelectedItemIndex = 0;
 
 	// list view generate row callback
 	TSharedRef<ITableRow> MakeListRowWidget(TSharedPtr<FRetargetOpStackElement> InElement, const TSharedRef<STableViewBase>& OwnerTable);

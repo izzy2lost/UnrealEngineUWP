@@ -1258,7 +1258,8 @@ void FRetargetChainSettingsCustomization::AddSettingsSection(
 				.OnCheckStateChanged_Lambda([this, IsEnabledProperty, Controller](ECheckBoxState State)
 				{
 					IsEnabledProperty->SetValue(State == ECheckBoxState::Checked);
-					Controller->HandleRetargeterNeedsInitialized();
+					// clear the output log and trigger a reinitialization
+					Controller->ReinitializeRetargeterNoUIRefresh();
 				})
 			];
 	}
@@ -1518,12 +1519,12 @@ void FRetargetOpStackCustomization::CustomizeDetails(IDetailLayoutBuilder& Detai
 			{
 				PropertyHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateLambda([this]()
 				{
-					Controller.Pin().Get()->HandleRetargeterNeedsInitialized();
+					Controller.Pin().Get()->ReinitializeRetargeterNoUIRefresh();
 				}));
 				
 				PropertyHandle->SetOnChildPropertyValueChanged(FSimpleDelegate::CreateLambda([this]()
 				{
-					Controller.Pin().Get()->HandleRetargeterNeedsInitialized();
+					Controller.Pin().Get()->ReinitializeRetargeterNoUIRefresh();
 				}));
 				
 				OpSettingCategory.AddProperty(PropertyHandle)

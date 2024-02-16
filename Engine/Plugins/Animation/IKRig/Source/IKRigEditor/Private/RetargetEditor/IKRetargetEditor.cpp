@@ -653,7 +653,10 @@ void FIKRetargetEditor::HandlePreviewSceneCreated(const TSharedRef<IPersonaPrevi
 	EditorController->FixZeroHeightRetargetRoot(ERetargetSourceOrTarget::Target);
 
 	// bind a callback to update the UI whenever the retarget processor in the target anim instance is initialized
-	EditorController->RetargeterInitializedDelegateHandle = EditorController->GetRetargetProcessor()->OnRetargeterInitialized().AddLambda([this](){ EditorController->RefreshAllViews(); });
+	EditorController->RetargeterInitializedDelegateHandle = EditorController->GetRetargetProcessor()->OnRetargeterInitialized().AddLambda([this]()
+	{
+		EditorController->RefreshHierarchyView();
+	});
 }
 
 void FIKRetargetEditor::SetupAnimInstance()
