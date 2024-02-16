@@ -898,19 +898,20 @@ void MainCS(uint2 DispatchThreadId : SV_DispatchThreadID, uint GroupThread1D : S
 
 #if SHADER_HAIRTRANSFER_PREV_POSITION
 
-uint ElementCount;
+uint PointCount;
+uint PointOffset;
+uint TotalPointCount;
 ByteAddressBuffer InBuffer;
 RWByteAddressBuffer OutBuffer;
 
 [numthreads(GROUP_SIZE, 1, 1)]
 void MainCS(uint DispatchThreadId : SV_DispatchThreadID)
 {
-	const uint Index = DispatchThreadId;
-	if (Index >= ElementCount)
+	const uint PointIndex = DispatchThreadId + PointOffset;
+	if (DispatchThreadId < PointCount && PointIndex < TotalPointCount)
 	{
-		return;
+		CopyPackedHairControlPoint(OutBuffer, InBuffer, PointIndex);
 	}
-	CopyPackedHairControlPoint(OutBuffer, InBuffer, Index);
 }
 
 #endif // SHADER_HAIRTRANSFER_PREV_POSITION

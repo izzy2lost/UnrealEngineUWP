@@ -177,9 +177,11 @@ class FTransferVelocityPassCS : public FGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(FTransferVelocityPassCS, FGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER(uint32, ElementCount)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, InBuffer)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, OutBuffer)
+		SHADER_PARAMETER(uint32, PointCount)
+		SHADER_PARAMETER(uint32, PointOffset)
+		SHADER_PARAMETER(uint32, TotalPointCount)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, InBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, OutBuffer)
 	END_SHADER_PARAMETER_STRUCT()
 
 public:
@@ -198,18 +200,22 @@ IMPLEMENT_GLOBAL_SHADER(FTransferVelocityPassCS, "/Engine/Private/HairStrands/Ha
 void AddTransferPositionPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
-	const uint32 ElementCount,
+	const uint32 PointOffset,
+	const uint32 PointCount,
+	const uint32 TotalPointCount,
 	FRDGBufferSRVRef InBuffer,
 	FRDGBufferUAVRef OutBuffer)
 {
-	if (ElementCount == 0) return;
+	if (PointCount == 0 || TotalPointCount == 0) return;
 
 	FTransferVelocityPassCS::FParameters* Parameters = GraphBuilder.AllocParameters<FTransferVelocityPassCS::FParameters>();
-	Parameters->ElementCount = ElementCount;
+	Parameters->PointCount = PointCount;
+	Parameters->PointOffset = PointOffset;
+	Parameters->TotalPointCount = TotalPointCount;
 	Parameters->InBuffer = InBuffer;
 	Parameters->OutBuffer = OutBuffer;
 
-	const FIntVector DispatchCount(FMath::DivideAndRoundUp(ElementCount, FTransferVelocityPassCS::GetGroupSize()), 1, 1);
+	const FIntVector DispatchCount(FMath::DivideAndRoundUp(PointCount, FTransferVelocityPassCS::GetGroupSize()), 1, 1);
 	TShaderMapRef<FTransferVelocityPassCS> ComputeShader(ShaderMap);
 	FComputeShaderUtils::AddPass(
 		GraphBuilder,

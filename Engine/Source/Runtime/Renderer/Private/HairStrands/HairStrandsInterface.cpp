@@ -331,14 +331,14 @@ bool IsHairVisibilityComputeRasterContinuousLODEnabled()
 	return IsHairStrandContinuousDecimationReorderingEnabled() && IsHairVisibilityComputeRasterEnabled() && (CVarHairStrandsVisibilityComputeRaster_ContinuousLOD.GetValueOnAnyThread() > 0);
 }
 
-uint32 FHairGroupPublicData::GetActiveStrandsPointCount() const
+uint32 FHairGroupPublicData::GetActiveStrandsPointCount(bool bPrevious) const
 {
-	return ContinuousLODPointCount;
+	return bPrevious ? ContinuousLODPreviousPointCount : ContinuousLODPointCount;
 }
 
-uint32 FHairGroupPublicData::GetActiveStrandsCurveCount() const
+uint32 FHairGroupPublicData::GetActiveStrandsCurveCount(bool bPrevious) const
 {
-	return ContinuousLODCurveCount;
+	return bPrevious ? ContinuousLODPreviousCurveCount : ContinuousLODCurveCount;
 }
 
 float FHairGroupPublicData::GetActiveStrandsCoverageScale() const
