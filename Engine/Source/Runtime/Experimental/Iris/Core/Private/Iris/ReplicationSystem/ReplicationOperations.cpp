@@ -1261,41 +1261,44 @@ namespace UE::Net::Private
 
 static bool AppendMemberChangeMasks(FNetBitStreamWriter* ChangeMaskWriter, FNetBitStreamWriter* ConditionalChangeMaskWriter, uint8* StateBuffer, const FReplicationStateDescriptor* Descriptor)
 {
-	FNetBitArrayView::StorageWordType* ChangeMaskStorage = reinterpret_cast<FNetBitArrayView::StorageWordType*>(StateBuffer + Descriptor->GetChangeMaskOffset());
 	const uint32 BitCount = Descriptor->ChangeMaskBitCount;
-
-	// Append change mask bits
-	if (BitCount <= 32u)
+	if (BitCount)
 	{
-		ChangeMaskWriter->WriteBits(*ChangeMaskStorage, BitCount);
-	}
-	else
-	{
-		ChangeMaskWriter->WriteBitStream(ChangeMaskStorage, 0, BitCount);
-	}
-
-	if (ConditionalChangeMaskWriter != nullptr)
-	{
-		if (EnumHasAnyFlags(Descriptor->Traits, EReplicationStateTraits::HasLifetimeConditionals))
+		// Append change mask bits
+		FNetBitArrayView::StorageWordType* ChangeMaskStorage = reinterpret_cast<FNetBitArrayView::StorageWordType*>(StateBuffer + Descriptor->GetChangeMaskOffset());
+		if (BitCount <= 32)
 		{
-			FNetBitArrayView::StorageWordType* ConditionalChangeMaskStorage = reinterpret_cast<FNetBitArrayView::StorageWordType*>(StateBuffer + Descriptor->GetConditionalChangeMaskOffset());
-
-			// Append conditional change mask bits.
-			// The conditionals are on or off rather than tracking dirtiness so we do not reset them.
-			if (BitCount <= 32u)
-			{
-				ConditionalChangeMaskWriter->WriteBits(*ConditionalChangeMaskStorage, BitCount);
-			}
-			else
-			{
-				constexpr uint32 BitOffset = 0;
-				ConditionalChangeMaskWriter->WriteBitStream(ConditionalChangeMaskStorage, BitOffset, BitCount);
-			}
+			ChangeMaskWriter->WriteBits(*ChangeMaskStorage, BitCount);
 		}
 		else
 		{
-			// Skip past our non-existing conditional mask.
-			ConditionalChangeMaskWriter->Seek(ConditionalChangeMaskWriter->GetPosBits() + BitCount);
+			constexpr uint32 SrcStreamBitOffset = 0U;
+			ChangeMaskWriter->WriteBitStream(ChangeMaskStorage, SrcStreamBitOffset, BitCount);
+		}
+
+		if (ConditionalChangeMaskWriter != nullptr)
+		{
+			if (EnumHasAnyFlags(Descriptor->Traits, EReplicationStateTraits::HasLifetimeConditionals))
+			{
+				FNetBitArrayView::StorageWordType* ConditionalChangeMaskStorage = reinterpret_cast<FNetBitArrayView::StorageWordType*>(StateBuffer + Descriptor->GetConditionalChangeMaskOffset());
+
+				// Append conditional change mask bits.
+				// The conditionals are on or off rather than tracking dirtiness so we do not reset them.
+				if (BitCount <= 32u)
+				{
+					ConditionalChangeMaskWriter->WriteBits(*ConditionalChangeMaskStorage, BitCount);
+				}
+				else
+				{
+					constexpr uint32 BitOffset = 0;
+					ConditionalChangeMaskWriter->WriteBitStream(ConditionalChangeMaskStorage, BitOffset, BitCount);
+				}
+			}
+			else
+			{
+				// Skip past our non-existing conditional mask.
+				ConditionalChangeMaskWriter->Seek(ConditionalChangeMaskWriter->GetPosBits() + BitCount);
+			}
 		}
 	}
 
