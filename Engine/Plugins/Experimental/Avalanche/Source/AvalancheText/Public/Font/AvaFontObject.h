@@ -18,7 +18,7 @@ enum class EAvaFontSource : uint8
 	Invalid = 2
 };
 
-struct AVALANCHETEXT_API FAvaSystemFontMetrics
+struct FAvaSystemFontMetrics
 {
 	TArray<int32> Charsets; // this will become proper enum
 
@@ -29,11 +29,6 @@ struct AVALANCHETEXT_API FAvaSystemFontMetrics
 	bool bIsItalic;
 
 	FString FamilyName;
-
-	// todo: add other metrics, also check what is already available in UFont
-
-	void AddCharset(int32 InCharset);
-	TArray<int32> GetCharsets() const {return Charsets;}
 };
 
 struct FSystemFontsRetrieveParams

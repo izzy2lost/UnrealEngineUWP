@@ -22,8 +22,8 @@ enum class EAvaTextRefreshReason : uint8
 };
 ENUM_CLASS_FLAGS(EAvaTextRefreshReason)
 
-UCLASS(ClassGroup="Text3D", PrioritizeCategories=("Text", "Layout", "Geometry", "Style", "Materials"), meta=(BlueprintSpawnableComponent))
-class AVALANCHETEXT_API UAvaText3DComponent : public UText3DComponent
+UCLASS(MinimalAPI, ClassGroup="Text3D", PrioritizeCategories=("Text", "Layout", "Geometry", "Style", "Materials"), meta=(BlueprintSpawnableComponent))
+class UAvaText3DComponent : public UText3DComponent
 {
 	friend class FAvaTextVisualizer;
 	friend class FAvaToolboxTextVisualizer;
@@ -35,80 +35,91 @@ public:
 	UAvaText3DComponent();
 
 	UFUNCTION(BlueprintSetter)
-	void SetEnforceUpperCase(bool bInEnforceUpperCase);
+	AVALANCHETEXT_API void SetEnforceUpperCase(bool bInEnforceUpperCase);
 	bool IsEnforcingUpperCase() const { return bEnforceUpperCase; }
-	
+
 	UFUNCTION(BlueprintSetter)
-	void SetMotionDesignFont(const FAvaFont& InFont);
+	AVALANCHETEXT_API void SetMotionDesignFont(const FAvaFont& InFont);
 	const FAvaFont& GetMotionDesignFont() const { return MotionDesignFont; }
 
 	UFUNCTION(BlueprintSetter)
-	void SetAlignment(FAvaTextAlignment InAlignment);
+	AVALANCHETEXT_API void SetAlignment(FAvaTextAlignment InAlignment);
 	const FAvaTextAlignment& GetAlignment() const { return Alignment; }
 
 	UFUNCTION(BlueprintSetter)
-	void SetColoringStyle(const EAvaTextColoringStyle& InColoringStyle);
+	AVALANCHETEXT_API void SetColoringStyle(const EAvaTextColoringStyle& InColoringStyle);
 	EAvaTextColoringStyle GetColoringStyle() const { return ColoringStyle; }
 
 	UFUNCTION(BlueprintSetter)
-	void SetColor(const FLinearColor& InColor);
+	AVALANCHETEXT_API void SetColor(const FLinearColor& InColor);
 	const FLinearColor& GetColor() const { return Color; }
 
 	UFUNCTION(BlueprintSetter)
-	void SetExtrudeColor(const FLinearColor& InColor);
+	AVALANCHETEXT_API void SetExtrudeColor(const FLinearColor& InColor);
 	const FLinearColor& GetExtrudeColor() const { return ExtrudeColor; }
 
 	UFUNCTION(BlueprintSetter)
-	void SetBevelColor(const FLinearColor& InColor);
+	AVALANCHETEXT_API void SetBevelColor(const FLinearColor& InColor);
 	const FLinearColor& GetBevelColor() const { return BevelColor; }
 
 	UFUNCTION(BlueprintSetter)
-	void SetGradientSettings(const FAvaLinearGradientSettings& InGradientSettings);
+	AVALANCHETEXT_API void SetGradientSettings(const FAvaLinearGradientSettings& InGradientSettings);
 	const FAvaLinearGradientSettings& GetGradientSettings() const { return GradientSettings; }
 
 	UFUNCTION(BlueprintSetter)
-	void SetGradientColors(const FLinearColor& InColorA, const FLinearColor& InColorB);
+	AVALANCHETEXT_API void SetGradientColors(const FLinearColor& InColorA, const FLinearColor& InColorB);
 
 	UFUNCTION(BlueprintSetter)
-	void SetMainTexture(UTexture2D* InMainTexture);
+	AVALANCHETEXT_API void SetMainTexture(UTexture2D* InMainTexture);
 	UTexture2D* GetMainTexture() const { return MainTexture; }
 
 	UFUNCTION(BlueprintSetter)
-	void SetTiling(const FVector2D InTiling);
+	AVALANCHETEXT_API void SetTiling(const FVector2D InTiling);
 	const FVector2D& GetTiling() const { return Tiling; }
 
 	UFUNCTION(BlueprintSetter)
-	void SetCustomMaterial(UMaterialInterface* InCustomMaterial);
+	AVALANCHETEXT_API void SetCustomMaterial(UMaterialInterface* InCustomMaterial);
 	UMaterialInterface* GetCustomMaterial() const { return CustomMaterial; }
 
 	UFUNCTION(BlueprintSetter)
-	void SetTranslucencyStyle(EAvaTextTranslucency InTranslucencyStyle);
+	AVALANCHETEXT_API void SetTranslucencyStyle(EAvaTextTranslucency InTranslucencyStyle);
 	EAvaTextTranslucency GetTranslucencyStyle() const { return TranslucencyStyle; }
 
 	UFUNCTION(BlueprintSetter)
-	void SetOpacity(float InOpacity);
+	AVALANCHETEXT_API void SetOpacity(float InOpacity);
 	float GetOpacity() const { return Opacity; }
-	
+
 	UFUNCTION(BlueprintSetter)
-	void SetMaskOrientation(EAvaMaterialMaskOrientation InMaskOrientation);
+	AVALANCHETEXT_API void SetMaskOrientation(EAvaMaterialMaskOrientation InMaskOrientation);
 	EAvaMaterialMaskOrientation GetMaskOrientation() const { return MaskOrientation; }
 
 	UFUNCTION(BlueprintSetter)
-	void SetMaskSmoothness(float InMaskSmoothness);
+	AVALANCHETEXT_API void SetMaskSmoothness(float InMaskSmoothness);
 	float GetMaskSmoothness() const { return MaskSmoothness; }
 
 	UFUNCTION(BlueprintSetter)
-	void SetMaskOffset(float InMaskOffset);
+	AVALANCHETEXT_API void SetMaskOffset(float InMaskOffset);
 	float GetMaskOffset() const { return MaskOffset; }
 
 	UFUNCTION(BlueprintSetter)
-	void SetMaskRotation(float InMaskRotation);
+	AVALANCHETEXT_API void SetMaskRotation(float InMaskRotation);
 	float GetMaskRotation() const { return MaskRotation; }
 
 	UFUNCTION(BlueprintSetter)
-	void SetIsUnlit(bool bInIsUnlit);
+	AVALANCHETEXT_API void SetIsUnlit(bool bInIsUnlit);
 	bool GetIsUnlit() const { return bIsUnlit; }
 
+	using FOnGetMaterialWithSettings = TDelegate<UMaterialInterface*(const UMaterialInterface* InPreviousMaterial, const FAvaTextMaterialSettings& InSettings)>;
+
+	AVALANCHETEXT_API FOnGetMaterialWithSettings& GetMaterialProviderDelegate();
+
+	AVALANCHETEXT_API void ForEachMID(TUniqueFunction<void(UMaterialInstanceDynamic* InMID)>&& InFunc) const;
+
+	AVALANCHETEXT_API FVector GetGradientDirection() const;
+
+	AVALANCHETEXT_API void RefreshMaterialInstances();
+
+private:
 #if WITH_EDITOR
 	static void RegisterOnPropertyChangeFunctions();
 #endif
@@ -125,11 +136,10 @@ public:
 	void RefreshVerticalAlignment();
 	void RefreshUnlit();
 	void RefreshMasked();
-	void RefreshMaterialInstances();
 	void RefreshGeometry();
 	void RefreshLayout();
 	void RefreshGradientValues();
-	void RefreshGradient();
+	AVALANCHETEXT_API void RefreshGradient();
 	void RefreshMaskValues();
 	void RefreshMask();
 	void RefreshMaterialGeometryParameterValues();
@@ -138,29 +148,26 @@ public:
 
 	void SetMaterialGeometryParameterValues(UMaterialInstanceDynamic* InMaterial, const FVector& TextScaleFactor) const;
 	void SetMaskedMaterialValues(UMaterialInstanceDynamic* InMaterial);
-	using FOnGetMaterialWithSettings = TDelegate<UMaterialInterface*(const UMaterialInterface* InPreviousMaterial, const FAvaTextMaterialSettings& InSettings)>;
-	FOnGetMaterialWithSettings& GetMaterialProviderDelegate();
-	void ForEachMID(TUniqueFunction<void(UMaterialInstanceDynamic* InMID)>&& InFunc) const;
 
-	FVector GetGradientDirection() const;
-
+	//~ Begin UObject
 #if WITH_EDITOR
-	DECLARE_MULTICAST_DELEGATE(FOnEditMoveDelegate);
-	FOnEditMoveDelegate& OnEditMove() { return OnEditMoveDelegate; } // used by visualizer
-
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-	virtual void PostEditComponentMove(bool bFinished) override;
+	//~ End UObject
 #endif
 
 	//~ Begin USceneComponent
+#if WITH_EDITOR
+	virtual void PostEditComponentMove(bool bFinished) override;
+#endif
 	virtual void OnUpdateTransform(EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport) override;
 	virtual void OnAttachmentChanged() override;
 	virtual void OnRegister() override;
 	//~ End USceneComponent
 
+	//~ Begin UText3DComponent
 	virtual void FormatText(FText& InOutText) const override;
+	//~ End UText3DComponent
 
-private:
 	UPROPERTY(EditAnywhere, Getter="IsEnforcingUpperCase", Setter="SetEnforceUpperCase", Category="Text", meta=(DisplayAfter="Text", AllowPrivateAccess="true"))
 	bool bEnforceUpperCase = false;
 	
@@ -330,10 +337,6 @@ protected:
 	void RetrieveSimpleTranslucentMaterialParameters(const UMaterialInstanceDynamic* InMaterialInstance);
 
 	EAvaTextMaterialFeatures GetMaterialFeaturesFromProperties() const;
-
-#if WITH_EDITOR
-	FOnEditMoveDelegate OnEditMoveDelegate;
-#endif
 
 	/** Used to filter which refreshes need be performed when calling RefreshText3D */
 	EAvaTextRefreshReason TextRefreshReason;

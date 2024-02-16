@@ -9,8 +9,8 @@
 /**
  * This Component is kept for compatibility with old AAvaTextActor assets
  */
-UCLASS(ClassGroup=(Text3D), HideCategories = (Collision, Tags, Activation, Cooking, Rendering, Physics, Mobility, LOD, AssetUserData, Navigation, Transform), meta = (BlueprintSpawnableComponent))
-class AVALANCHETEXT_API UAvaTextCharacterTransform : public UText3DCharacterTransform
+UCLASS(MinimalAPI, ClassGroup=(Text3D), HideCategories = (Collision, Tags, Activation, Cooking, Rendering, Physics, Mobility, LOD, AssetUserData, Navigation, Transform), meta = (BlueprintSpawnableComponent))
+class UAvaTextCharacterTransform : public UText3DCharacterTransform
 {
 	GENERATED_BODY()
 };

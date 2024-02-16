@@ -9,19 +9,22 @@
 class UAvaTextCharacterTransform;
 struct FAvaColorChangeData;
 
-UCLASS(ClassGroup = (Text3D), DisplayName = "Motion Design Text", meta = (ComponentWrapperClass))
-class AVALANCHETEXT_API AAvaTextActor : public AActor
+UCLASS(MinimalAPI, ClassGroup = (Text3D), DisplayName = "Motion Design Text", meta = (ComponentWrapperClass))
+class AAvaTextActor : public AActor
 {
 	GENERATED_BODY()
 
 public:
 	AAvaTextActor();
 
-	/** Returns Text3D SubObject **/
-	UText3DComponent* GetText3DComponent() const { return Text3DComponent; }
+	UText3DComponent* GetText3DComponent() const
+	{
+		return Text3DComponent;
+	}
 
-	FAvaColorChangeData GetColorData() const;
-	void SetColorData(const FAvaColorChangeData& InColorData);
+	AVALANCHETEXT_API FAvaColorChangeData GetColorData() const;
+
+	AVALANCHETEXT_API void SetColorData(const FAvaColorChangeData& InColorData);
 
 private:
 	UPROPERTY(Category = "Text", VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))

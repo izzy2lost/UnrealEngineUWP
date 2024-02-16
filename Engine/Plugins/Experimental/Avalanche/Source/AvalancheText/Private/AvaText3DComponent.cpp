@@ -149,9 +149,6 @@ void UAvaText3DComponent::PostEditChangeProperty(FPropertyChangedEvent& Property
 void UAvaText3DComponent::PostEditComponentMove(bool bFinished)
 {
 	Super::PostEditComponentMove(bFinished);
-
-	OnEditMoveDelegate.Broadcast();
-	
 	ScheduleTextRefreshOnTicker();
 }
 
