@@ -1216,12 +1216,11 @@ void FMVVMViewBlueprintCompiler::CreateWriteFieldContexts(const FWidgetBlueprint
 					});
 				if (Found)
 				{
-					// todo Temporary removing this message until the assets are fixed.
-					//AddMessageForBinding(Binding
-					//	, FText::Format(LOCTEXT("PropertyPathAlreadyUsed", "The property path '{0}' is already used by another binding."), PropertyPathToText(NewSkeletonClass, BlueprintView.Get(), DestinationPropertyPath))
-					//	, EMessageType::Warning
-					//	, FMVVMBlueprintPinId()
-					//);
+					AddMessageForBinding(Binding
+						, FText::Format(LOCTEXT("PropertyPathAlreadyUsed", "The property path '{0}' is already used by another binding."), PropertyPathToText(NewSkeletonClass, BlueprintView.Get(), DestinationPropertyPath))
+						, EMessageType::Warning
+						, FMVVMBlueprintPinId()
+					);
 					ValidBinding->WritePath = *Found;
 					continue;
 				}
