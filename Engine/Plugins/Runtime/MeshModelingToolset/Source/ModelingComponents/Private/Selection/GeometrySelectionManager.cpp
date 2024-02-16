@@ -1027,7 +1027,7 @@ void UGeometrySelectionManager::GetTargetWorldFrame(FFrame3d& SelectionFrame) co
 		// only handling one target for now
 		//if (ActiveTargetReferences.Num() == 1)
 		TSharedPtr<FGeometrySelectionTarget> Target = ActiveTargetReferences[0];
-		Target->Selector->GetTargetFrame(SelectionFrame);
+		Target->Selector->GetTargetFrame(Target->Selection, SelectionFrame);
 	}
 }
 
