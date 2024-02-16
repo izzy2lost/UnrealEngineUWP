@@ -11,7 +11,7 @@
 #include "Widgets/SAvaLevelViewportRuler.h"
 #include "Widgets/SAvaLevelViewportStatusBar.h"
 
-namespace UE::AvalancheLevelViewport::Private
+namespace UE::AvaLevelViewport::Private
 {
 	static constexpr float RulerSize = 20.f;
 	static constexpr float StatusBarSize = 26.f;
@@ -57,7 +57,7 @@ FAvaLevelViewportGuideFrameClientAndWidget::FAvaLevelViewportGuideFrameClientAnd
 void SAvaLevelViewportFrame::Construct(const FArguments& InArgs, const FAssetEditorViewportConstructionArgs& InViewportArgs,
 	TSharedPtr<ILevelEditor> InLevelEditor)
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	ViewportClient = MakeShared<FAvaLevelViewportClient>();
 	ViewportClient->Init();
@@ -177,7 +177,7 @@ void SAvaLevelViewportFrame::Tick(const FGeometry& AllottedGeometry, const doubl
 
 FMargin SAvaLevelViewportFrame::GetHorizontalRulerOffset() const
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	FMargin Offset = {RulerSize + 1, 0, 0, RulerSize};
 
@@ -195,7 +195,7 @@ FMargin SAvaLevelViewportFrame::GetHorizontalRulerOffset() const
 
 FMargin SAvaLevelViewportFrame::GetVerticalRulerOffset() const
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	FMargin Offset = {0, RulerSize + 1, RulerSize, StatusBarSize + 1};
 

@@ -116,7 +116,7 @@ void FAvalancheMaskEditorModule::RegisterMenus()
 
 	// Bottom center viewport overlay when mode is active
 	{
-		static FName ToolkitOverlayMenuName = UE::AvalancheMaskEditor::Internal::ToolkitOverlayMenuName;
+		static FName ToolkitOverlayMenuName = UE::AvaMaskEditor::Internal::ToolkitOverlayMenuName;
 
 		FToolMenuContext MenuContext(CommandList);
 		

@@ -6,7 +6,7 @@
 #include "ComponentVisualizers.h"
 #include "Modules/ModuleManager.h"
 
-namespace UE::AvalancheComponentVisualizers::Private
+namespace UE::AvaComponentVisualizers::Private
 {
 	TSet<TWeakPtr<FComponentVisualizer>> AvalancheVisualizers;
 	static FAvaComponentVisualizersViewportOverlay ViewportOverlay;
@@ -22,17 +22,17 @@ void FAvalancheComponentVisualizersModule::RegisterComponentVisualizer(FName InC
 {
 	FComponentVisualizersModule& VisualisersModule = FModuleManager::LoadModuleChecked<FComponentVisualizersModule>("ComponentVisualizers");
 	VisualisersModule.RegisterComponentVisualizer(InComponentClassName, InVisualizer);
-	UE::AvalancheComponentVisualizers::Private::AvalancheVisualizers.Add(InVisualizer);
+	UE::AvaComponentVisualizers::Private::AvalancheVisualizers.Add(InVisualizer);
 }
 
 bool FAvalancheComponentVisualizersModule::IsAvalancheVisualizer(TSharedRef<FComponentVisualizer> InVisualizer) const
 {
-	return UE::AvalancheComponentVisualizers::Private::AvalancheVisualizers.Contains(InVisualizer);
+	return UE::AvaComponentVisualizers::Private::AvalancheVisualizers.Contains(InVisualizer);
 }
 
 IAvaComponentVisualizersViewportOverlay& FAvalancheComponentVisualizersModule::GetViewportOverlay() const
 {
-	return UE::AvalancheComponentVisualizers::Private::ViewportOverlay;
+	return UE::AvaComponentVisualizers::Private::ViewportOverlay;
 }
 
 IMPLEMENT_MODULE(FAvalancheComponentVisualizersModule, AvalancheComponentVisualizers)

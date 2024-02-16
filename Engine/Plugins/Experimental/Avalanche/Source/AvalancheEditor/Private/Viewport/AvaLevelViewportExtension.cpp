@@ -23,7 +23,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaLevelViewportExtension"
 
-namespace UE::AvalancheEditor::Private
+namespace UE::AvaEditor::Private
 {
 	class SAvaLevelViewportExposeBinds : public SLevelViewport
 	{
@@ -65,20 +65,20 @@ namespace UE::AvalancheEditor::Private
 
 		TSharedPtr<FEditorViewportClient> ViewportClientToFocus = nullptr;
 
-		// Get the first valid Avalanche Viewport
+		// Get the first valid Motion Design viewport
 		for (const TSharedPtr<SLevelViewport>& Viewport : Viewports)
 		{
 			TSharedPtr<FEditorViewportClient> ViewportClient = Viewport->GetViewportClient();
 			TSharedPtr<IAvaViewportClient> AvaViewportClient = FAvaViewportUtils::GetAsAvaViewportClient(ViewportClient.Get());
 
-			if (AvaViewportClient && AvaViewportClient->IsAvalancheViewport())
+			if (AvaViewportClient && AvaViewportClient->IsMotionDesignViewport())
 			{
 				ViewportClientToFocus = ViewportClient;
 				break;
 			}
 		}
 
-		// if there isn't any ava viewport, use first viewport client
+		// if there isn't any Motion Design viewport, use first viewport client
 		if (!ViewportClientToFocus)
 		{
 			ViewportClientToFocus = Viewports[0]->GetViewportClient();
@@ -152,7 +152,7 @@ void FAvaLevelViewportExtension::Activate()
 		{
 			for (TSharedPtr<SLevelViewport> LevelViewport : LevelEditor->GetViewports())
 			{
-				StaticCastSharedPtr<UE::AvalancheEditor::Private::SAvaLevelViewportExposeBinds>(LevelViewport)->BindCommands();
+				StaticCastSharedPtr<UE::AvaEditor::Private::SAvaLevelViewportExposeBinds>(LevelViewport)->BindCommands();
 			}
 		}
 	}
@@ -167,7 +167,7 @@ void FAvaLevelViewportExtension::Deactivate()
 	FAvaViewportExtension::Deactivate();
 
 	// If the command is invalid, we're shutting down and this doesn't need to be run.
-	if (!FAvaEditorCommands::IsRegistered() || !FAvaEditorCommands::Get().SetAvalancheViewportType.IsValid())
+	if (!FAvaEditorCommands::IsRegistered() || !FAvaEditorCommands::Get().SetMotionDesignViewportType.IsValid())
 	{
 		return;
 	}
@@ -176,7 +176,7 @@ void FAvaLevelViewportExtension::Deactivate()
 	{
 		if (TSharedPtr<ILevelEditor> LevelEditor = LevelEditorModule->GetFirstLevelEditor())
 		{
-			TSharedPtr<FUICommandInfo> ToggleViewportCommandInfo = FAvaEditorCommands::Get().SetAvalancheViewportType;
+			TSharedPtr<FUICommandInfo> ToggleViewportCommandInfo = FAvaEditorCommands::Get().SetMotionDesignViewportType;
 
 			for (TSharedPtr<SLevelViewport> LevelViewport : LevelEditor->GetViewports())
 			{
@@ -290,21 +290,21 @@ void FAvaLevelViewportExtension::SetDefaultViewportType()
 	if (TSharedPtr<IAvaEditor> Editor = GetEditor())
 	{
 		Editor->GetCommandList()->ExecuteAction(FLevelViewportCommands::Get().SetDefaultViewportType.ToSharedRef());
-		UE::AvalancheEditor::Private::FixupInvalidFocusedLevelEditorViewport();
+		UE::AvaEditor::Private::FixupInvalidFocusedLevelEditorViewport();
 	} 
 }
 
-void FAvaLevelViewportExtension::SetAvalancheViewportType()
+void FAvaLevelViewportExtension::SetMotionDesignViewportType()
 {
 	if (TSharedPtr<IAvaEditor> Editor = GetEditor())
 	{
 		TSharedPtr<FUICommandList> CommandList = Editor->GetCommandList();
 		if (ensure(CommandList.IsValid()))
 		{
-			CommandList->ExecuteAction(FAvaEditorCommands::Get().SetAvalancheViewportType.ToSharedRef());
+			CommandList->ExecuteAction(FAvaEditorCommands::Get().SetMotionDesignViewportType.ToSharedRef());
 		}
 
-		UE::AvalancheEditor::Private::FixupInvalidFocusedLevelEditorViewport();
+		UE::AvaEditor::Private::FixupInvalidFocusedLevelEditorViewport();
 
 		if (AActor* LastCameraCutActor = LastCameraCutActorWeak.Get())
 		{
@@ -320,7 +320,7 @@ FViewportTypeDefinition FAvaLevelViewportExtension::MakeViewportTypeDefinition()
 		{
 			return MakeShared<FAvaLevelViewportLayoutEntity>(InArgs, InLevelEditor, ThisWeak.Pin());
 		}
-		, FAvaEditorCommands::Get().SetAvalancheViewportType);
+		, FAvaEditorCommands::Get().SetMotionDesignViewportType);
 }
 
 void FAvaLevelViewportExtension::OnSwitchViewports()
@@ -356,13 +356,13 @@ void FAvaLevelViewportExtension::OnSwitchViewports()
 	}
 
 	UObject* const SceneObject = GetSceneObject();
-	if (!SceneObject || AvaViewportClient->IsAvalancheViewport())
+	if (!SceneObject || AvaViewportClient->IsMotionDesignViewport())
 	{
 		SetDefaultViewportType();
 	}
 	else
 	{
-		SetAvalancheViewportType();
+		SetMotionDesignViewportType();
 	}
 }
 
@@ -407,14 +407,14 @@ void FAvaLevelViewportExtension::CheckValidViewportType()
 {
 	TSharedPtr<IAvaEditor> Editor = GetEditor();
 
-	// Set the active viewport to Avalanche if there is a valid scene object (not all the viewports)
+	// Set the active viewport to Motion Design if there is a valid scene object (not all the viewports)
 	if (Editor.IsValid() && Editor->IsActive() && GetSceneObject())
 	{
-		SetAvalancheViewportType();
+		SetMotionDesignViewportType();
 		return;
 	}
 
-	// Reset all avalanche viewports to default if there was an invalid scene object
+	// Reset all Motion Design viewports to default if there was an invalid scene object
 	FLevelEditorModule* LevelEditorModule = FAvaLevelEditorUtils::GetLevelEditorModule();
 	if (!LevelEditorModule)
 	{
@@ -427,17 +427,17 @@ void FAvaLevelViewportExtension::CheckValidViewportType()
 		return;
 	}
 
-	// Execute SetDefaultViewportType on all Avalanche Viewports, not only the Active one
+	// Execute SetDefaultViewportType on all Motion Design viewports, not only the Active one
 	for (TSharedPtr<SLevelViewport> LevelViewport : LevelEditor->GetViewports())
 	{
 		TSharedPtr<IAvaViewportClient> AvaViewportClient = FAvaViewportUtils::GetAsAvaViewportClient(LevelViewport->GetViewportClient().Get());
-		if (AvaViewportClient.IsValid() && AvaViewportClient->IsAvalancheViewport())
+		if (AvaViewportClient.IsValid() && AvaViewportClient->IsMotionDesignViewport())
 		{
 			LevelViewport->GetCommandList()->ExecuteAction(FLevelViewportCommands::Get().SetDefaultViewportType.ToSharedRef());
 		}
 	}
 
-	UE::AvalancheEditor::Private::FixupInvalidFocusedLevelEditorViewport();
+	UE::AvaEditor::Private::FixupInvalidFocusedLevelEditorViewport();
 }
 
 void FAvaLevelViewportExtension::BindCameraCutDelegate()
@@ -504,7 +504,7 @@ void FAvaLevelViewportExtension::SetActiveCamera(AActor* InActiveCameraActor, bo
 
 	for (TSharedPtr<IAvaViewportClient> ViewportClient : GetViewportClients())
 	{
-		if (ViewportClient->IsAvalancheViewport())
+		if (ViewportClient->IsMotionDesignViewport())
 		{
 			ViewportClient->OnCameraCut(InActiveCameraActor, bInJumpCut);
 		}

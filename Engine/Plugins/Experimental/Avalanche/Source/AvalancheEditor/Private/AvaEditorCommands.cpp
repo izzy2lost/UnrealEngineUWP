@@ -34,7 +34,7 @@ void FAvaEditorCommands::RegisterViewportCommands()
 		, EUserInterfaceActionType::ToggleButton
 		, FInputChord(EKeys::C));
 
-	UI_COMMAND(SetAvalancheViewportType
+	UI_COMMAND(SetMotionDesignViewportType
 		, "Motion Design Viewport"
 		, "Viewport layout to view a fixed camera in an Motion Design Scene"
 		, EUserInterfaceActionType::RadioButton

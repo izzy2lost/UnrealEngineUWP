@@ -11,7 +11,7 @@
 
 DEFINE_LOG_CATEGORY(AvaLevelViewportLog);
 
-namespace UE::AvalancheLevelViewport::Private
+namespace UE::AvaLevelViewport::Private
 {
 	TSharedPtr<IAvaViewportClient> GetAsAvaLevelViewportClient(FEditorViewportClient* InViewportClient)
 	{
@@ -33,7 +33,7 @@ void FAvaLevelViewportModule::StartupModule()
 	UToolMenus::RegisterStartupCallback(FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FAvaLevelViewportModule::RegisterMenus));
 
 	AvaLevelViewportClientCasterDelegateHandle = FAvaViewportUtils::RegisterViewportClientCaster(
-		&UE::AvalancheLevelViewport::Private::GetAsAvaLevelViewportClient
+		&UE::AvaLevelViewport::Private::GetAsAvaLevelViewportClient
 	);
 }
 

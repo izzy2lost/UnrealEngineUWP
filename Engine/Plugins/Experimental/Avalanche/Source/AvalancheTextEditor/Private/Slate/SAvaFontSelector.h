@@ -27,18 +27,18 @@ DECLARE_DELEGATE(FOnAvaComboBoxOpening)
 class SAvaFontSelector : public SComboButton
 {
 public:
-	typedef TListTypeTraits<TSharedPtr<FAvaFontView>> ListTypeTraits;
-	typedef TListTypeTraits<TSharedPtr<FAvaFontView>>::NullableType NullableOptionType;
+	using ListTypeTraits = TListTypeTraits<TSharedPtr<FAvaFontView>>;
+	using NullableOptionType = TListTypeTraits<TSharedPtr<FAvaFontView>>::NullableType;
 
 	/** Type of list used for showing menu options. */
-	typedef SListView<TSharedPtr<FAvaFontView>> SComboListType;
+	using SComboListType = SListView<TSharedPtr<FAvaFontView>>;
 
 	/** Type of text filter used for FAvaFontView */
-	typedef TTextFilter<TSharedPtr<FAvaFontView>> FontViewTextFilter;
+	using FontViewTextFilter = TTextFilter<TSharedPtr<FAvaFontView>>;
 
 	/** Delegate types used to generate widgets that represent Options */
-	typedef TSlateDelegates<const TSharedPtr<FAvaFontView>&>::FOnGenerateWidget FOnGenerateWidget;
-	typedef TSlateDelegates<NullableOptionType>::FOnSelectionChanged FOnSelectionChanged;
+	using FOnGenerateWidget = TSlateDelegates<const TSharedPtr<FAvaFontView>&>::FOnGenerateWidget;
+	using FOnSelectionChanged = TSlateDelegates<NullableOptionType>::FOnSelectionChanged;
 
 	SLATE_BEGIN_ARGS(SAvaFontSelector)
 		: _Content()
@@ -47,7 +47,7 @@ public:
 		, _ItemStyle(&FAppStyle::Get().GetWidgetStyle< FTableRowStyle >("ComboBox.Row"))
 		, _ContentPadding(_ComboBoxStyle->ContentPadding)
 		, _ForegroundColor(FSlateColor::UseStyle())
-		, _AvalancheFontPropertyHandle()
+		, _FontPropertyHandle()
 		, _OptionsSource()
 		, _OnSelectionChanged()
 		, _OnGenerateWidget()
@@ -76,7 +76,7 @@ public:
 		SLATE_ATTRIBUTE(FSlateColor, ForegroundColor)
 
 		/** The Property Handle for the font being customized */
-		SLATE_ATTRIBUTE(TSharedPtr<IPropertyHandle>, AvalancheFontPropertyHandle)
+		SLATE_ATTRIBUTE(TSharedPtr<IPropertyHandle>, FontPropertyHandle)
 
 		/** Options source for the fonts list available to this font selector widget */
 		SLATE_ARGUMENT(const TArray<TSharedPtr<FAvaFontView>>*, OptionsSource)
@@ -284,5 +284,5 @@ private:
 
 	TArray<TSharedPtr<FAvaFontView>> FilteredFonts;
 
-	TSharedPtr<IPropertyHandle> AvalancheFontPropertyHandlePtr;
+	TSharedPtr<IPropertyHandle> FontPropertyHandlePtr;
 };

@@ -19,7 +19,7 @@ class FWidgetStyle;
 struct FGeometry;
 struct FPointerEvent;
 
-namespace UE::AvalancheLevelViewport::Private
+namespace UE::AvaLevelViewport::Private
 {
 
 class SRuler : public SCompoundWidget

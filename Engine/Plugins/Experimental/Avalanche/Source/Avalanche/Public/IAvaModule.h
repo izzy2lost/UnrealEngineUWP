@@ -27,7 +27,7 @@ public:
 
 	/**
 	* Set a specific stat to either enabled or disabled (returns the number of remaining enabled stats)
-	* This applies to all the Avalanche instance viewports.
+	* This applies to all the Motion Design instance viewports.
 	*/
 	virtual int32 SetRuntimeStatEnabled(const TCHAR* InName, const bool bInEnabled) = 0;
 

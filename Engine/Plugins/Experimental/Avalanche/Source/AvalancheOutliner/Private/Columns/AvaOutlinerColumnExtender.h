@@ -20,7 +20,7 @@ class IAvaOutlinerColumn;
  */
 class FAvaOutlinerColumnExtender
 {
-	typedef TSharedPtr<IAvaOutlinerColumn> FAvaOutlinerColumnPtr;
+	using FAvaOutlinerColumnPtr = TSharedPtr<IAvaOutlinerColumn>;
 
 public:
 	template<typename InColumnType, EAvaOutlinerExtensionPosition InExtensionPosition, typename InRefColumnType

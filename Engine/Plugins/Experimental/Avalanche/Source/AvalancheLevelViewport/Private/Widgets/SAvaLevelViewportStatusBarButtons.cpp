@@ -37,12 +37,12 @@ namespace UE::Ava::LevelViewportStatusBarButtons::Private
 {
 	static const FName AvaLevelViewportStyleName = FAvaLevelViewportStyle::Get().GetStyleSetName();
 	static const FName AppStyleSetName = FAppStyle::Get().GetStyleSetName();
-	static const FSlateIcon RGBChannelIcon = FSlateIcon(AvaLevelViewportStyleName, "AvalancheIcons.PostProcess.RGB");
+	static const FSlateIcon RGBChannelIcon = FSlateIcon(AvaLevelViewportStyleName, "Icons.PostProcess.RGB");
 	static const FSlateIcon BackgroundIcon = FSlateIcon(AppStyleSetName, "Icons.Role");
-	static const FSlateIcon RedChannelIcon = FSlateIcon(AvaLevelViewportStyleName, "AvalancheIcons.PostProcess.Red");
-	static const FSlateIcon GreenChannelIcon = FSlateIcon(AvaLevelViewportStyleName, "AvalancheIcons.PostProcess.Green");
-	static const FSlateIcon BlueChannelIcon = FSlateIcon(AvaLevelViewportStyleName, "AvalancheIcons.PostProcess.Blue");
-	static const FSlateIcon AlphaChannelIcon = FSlateIcon(AvaLevelViewportStyleName, "AvalancheIcons.PostProcess.Alpha");
+	static const FSlateIcon RedChannelIcon = FSlateIcon(AvaLevelViewportStyleName, "Icons.PostProcess.Red");
+	static const FSlateIcon GreenChannelIcon = FSlateIcon(AvaLevelViewportStyleName, "Icons.PostProcess.Green");
+	static const FSlateIcon BlueChannelIcon = FSlateIcon(AvaLevelViewportStyleName, "Icons.PostProcess.Blue");
+	static const FSlateIcon AlphaChannelIcon = FSlateIcon(AvaLevelViewportStyleName, "Icons.PostProcess.Alpha");
 	static const FSlateIcon CheckerboardIcon = FSlateIcon(AppStyleSetName, "Checker");
 
 	static bool IsViewportPostProcessManagerEnabled(const TWeakPtr<SAvaLevelViewportFrame>& InViewportFrameWeak)
@@ -226,7 +226,7 @@ void SAvaLevelViewportStatusBarButtons::CreateContextMenuWigets()
 
 void SAvaLevelViewportStatusBarButtons::PopulateActorButtons(TSharedPtr<SHorizontalBox> InContainer)
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::Get();
 
@@ -264,7 +264,7 @@ void SAvaLevelViewportStatusBarButtons::PopulateActorButtons(TSharedPtr<SHorizon
 
 void SAvaLevelViewportStatusBarButtons::PopulateViewportButtons(TSharedPtr<SHorizontalBox> InContainer)
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::Get();
 	const FLevelViewportCommands& ViewportActionsRef = FLevelViewportCommands::Get();
@@ -456,7 +456,7 @@ void SAvaLevelViewportStatusBarButtons::PopulateViewportButtons(TSharedPtr<SHori
 
 FSlateColor SAvaLevelViewportStatusBarButtons::GetPostProcessColor() const
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	const FAvaLevelViewportGuideFrameAndClient FrameAndClient(ViewportFrameWeak);
 
@@ -822,7 +822,7 @@ TSharedRef<SWidget> SAvaLevelViewportStatusBarButtons::GetActorColorMenuContent(
 
 FSlateColor SAvaLevelViewportStatusBarButtons::GetToggleSnapColor() const
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	const FAvaLevelViewportGuideFrameAndWidget FrameAndWidget(ViewportFrameWeak);
 
@@ -918,7 +918,7 @@ TSharedRef<SWidget> SAvaLevelViewportStatusBarButtons::GetSnappingMenuContent() 
 
 FSlateColor SAvaLevelViewportStatusBarButtons::GetToggleShapeEditorOverlayColor() const
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	if (const UAvaViewportSettings* AvaViewportSettings = GetDefault<UAvaViewportSettings>())
 	{
@@ -940,7 +940,7 @@ bool SAvaLevelViewportStatusBarButtons::GetToggleShapeEditorOverlayEnabled() con
 
 FReply SAvaLevelViewportStatusBarButtons::ToggleShapeEditorOverlay()
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	if (UAvaViewportSettings* AvaViewportSettings = GetMutableDefault<UAvaViewportSettings>())
 	{
@@ -956,7 +956,7 @@ FReply SAvaLevelViewportStatusBarButtons::ToggleShapeEditorOverlay()
 
 FSlateColor SAvaLevelViewportStatusBarButtons::GetToggleGuidesColor() const
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	const FAvaLevelViewportGuideFrameAndWidget FrameAndWidget(ViewportFrameWeak);
 
@@ -998,7 +998,7 @@ FReply SAvaLevelViewportStatusBarButtons::ToggleGuides()
 
 FSlateColor SAvaLevelViewportStatusBarButtons::GetToggleGridColor() const
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	const FAvaLevelViewportGuideFrameAndWidget FrameAndWidget(ViewportFrameWeak);
 
@@ -1108,7 +1108,7 @@ void SAvaLevelViewportStatusBarButtons::OnGridSizeCommitted(int32 InNewValue, ET
 
 bool SAvaLevelViewportStatusBarButtons::GetViewportInfoEnabled() const
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	const FAvaLevelViewportGuideFrameAndClient FrameAndClient(ViewportFrameWeak);
 
@@ -1125,7 +1125,7 @@ bool SAvaLevelViewportStatusBarButtons::GetViewportInfoEnabled() const
 
 FSlateColor SAvaLevelViewportStatusBarButtons::GetViewportInfoColor() const
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	const FAvaLevelViewportGuideFrameAndClient FrameAndClient(ViewportFrameWeak);
 
@@ -1145,7 +1145,7 @@ FSlateColor SAvaLevelViewportStatusBarButtons::GetViewportInfoColor() const
 
 TSharedRef<SWidget> SAvaLevelViewportStatusBarButtons::GetViewportInfoWidget() const
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	const FAvaLevelViewportGuideFrameAndClient FrameAndClient(ViewportFrameWeak);
 
@@ -1177,7 +1177,7 @@ bool SAvaLevelViewportStatusBarButtons::CanChangeGridSize() const
 
 FSlateColor SAvaLevelViewportStatusBarButtons::GetToggleOverlayColor() const
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	const FAvaLevelViewportGuideFrameAndWidget FrameAndWidget(ViewportFrameWeak);
 
@@ -1219,7 +1219,7 @@ FReply SAvaLevelViewportStatusBarButtons::ToggleOverlay()
 
 FSlateColor SAvaLevelViewportStatusBarButtons::GetToggleBoundingBoxesColor() const
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	const FAvaLevelViewportGuideFrameAndWidget FrameAndWidget(ViewportFrameWeak);
 
@@ -1261,7 +1261,7 @@ FReply SAvaLevelViewportStatusBarButtons::ToggleBoundingBoxes()
 
 FSlateColor SAvaLevelViewportStatusBarButtons::GetToggleIsolateActorsColor() const
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	const FAvaLevelViewportGuideFrameAndClient FrameAndClient(ViewportFrameWeak);
 
@@ -1275,7 +1275,7 @@ FSlateColor SAvaLevelViewportStatusBarButtons::GetToggleIsolateActorsColor() con
 
 bool SAvaLevelViewportStatusBarButtons::GetToggleIsolateActorsEnabled() const
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	const FAvaLevelViewportGuideFrameAndClient FrameAndClient(ViewportFrameWeak);
 
@@ -1289,7 +1289,7 @@ bool SAvaLevelViewportStatusBarButtons::GetToggleIsolateActorsEnabled() const
 
 FReply SAvaLevelViewportStatusBarButtons::ToggleIsolateActors()
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	const FAvaLevelViewportGuideFrameAndClient FrameAndClient(ViewportFrameWeak);
 
@@ -1304,7 +1304,7 @@ FReply SAvaLevelViewportStatusBarButtons::ToggleIsolateActors()
 
 FSlateColor SAvaLevelViewportStatusBarButtons::GetToggleSafeFramesColor() const
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	const FAvaLevelViewportGuideFrameAndWidget FrameAndWidget(ViewportFrameWeak);
 
@@ -1351,7 +1351,7 @@ FReply SAvaLevelViewportStatusBarButtons::ToggleSafeFrames()
 
 FSlateColor SAvaLevelViewportStatusBarButtons::GetToggleGameViewColor() const
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	const FAvaLevelViewportGuideFrameAndClient FrameAndClient(ViewportFrameWeak);
 

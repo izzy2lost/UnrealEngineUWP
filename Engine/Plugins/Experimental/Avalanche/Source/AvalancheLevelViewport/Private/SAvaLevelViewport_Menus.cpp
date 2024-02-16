@@ -32,7 +32,7 @@
 
 #define LOCTEXT_NAMESPACE "SAvaLevelViewport"
 
-namespace UE::AvalancheLevelViewport::Private
+namespace UE::AvaLevelViewport::Private
 {
 	static constexpr uint32 MaxCameraEntries = 10;
 	static constexpr uint32 MaxViewportEntries = 4;
@@ -74,7 +74,7 @@ TSharedPtr<SWidget> SAvaLevelViewport::MakeViewportToolbar()
 	{
 		// Replace the Camera Menu with a custom one stripping off the View Entries (Perspective, Front, Left, etc...)
 		static const FName CameraMenuName = TEXT("EditorViewportToolBar.CameraMenu");
-		if (FSlotBase* const FoundSlot = UE::AvalancheLevelViewport::Private::FindChildSlotWithTag(CameraMenuName, ToolbarFrame.ToSharedRef()))
+		if (FSlotBase* const FoundSlot = UE::AvaLevelViewport::Private::FindChildSlotWithTag(CameraMenuName, ToolbarFrame.ToSharedRef()))
 		{
 			TSharedPtr<SViewportToolBar> ParentToolBar;
 			{
@@ -179,7 +179,7 @@ void SAvaLevelViewport::FillCameraMenu(UToolMenu* InMenu)
 
 	static const FText CamerasLabel = LOCTEXT("CameraActors", "Placed Cameras");
 
-	if (CameraActors.Num() > UE::AvalancheLevelViewport::Private::MaxCameraEntries)
+	if (CameraActors.Num() > UE::AvaLevelViewport::Private::MaxCameraEntries)
 	{
 		FToolMenuSection& Section = InMenu->AddSection("CameraActors");
 		Section.AddSubMenu("CameraActors"
@@ -244,7 +244,7 @@ void SAvaLevelViewport::FillCameraMenu(UToolMenu* InMenu)
 
 	static const FText ViewportTypesLabel = LOCTEXT("ViewportTypes", "Viewport Type");
 
-	if (ViewportTypeCount > UE::AvalancheLevelViewport::Private::MaxViewportEntries)
+	if (ViewportTypeCount > UE::AvaLevelViewport::Private::MaxViewportEntries)
 	{
 		FToolMenuSection& Section = InMenu->AddSection("ViewportTypes");
 		Section.AddSubMenu("ViewportTypes"
@@ -382,7 +382,7 @@ void SAvaLevelViewport::AddVirtualSizeDefaultEntries(FToolMenuSection& InSection
 
 void SAvaLevelViewport::AddVirtualSizeSizeSettings(FToolMenuSection& InSection)
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	const FAvaLevelViewportCommands& LevelViewportCommands = FAvaLevelViewportCommands::Get();
 
@@ -1039,7 +1039,7 @@ void SAvaLevelViewport::OnBackgroundOpacityCommitted(float InValue, ETextCommit:
 
 void SAvaLevelViewport::OnVirtualSizeComponentSliderCommitted(int32 InNewDimension, ETextCommit::Type InCommitType, EAxis::Type InAxis)
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	InNewDimension = FMath::Clamp(InNewDimension, VirtualSizeComponentMin, VirtualSizeComponentMax);
 
@@ -1115,7 +1115,7 @@ void SAvaLevelViewport::OnVirtualSizeAspectRatioCommitted(float InNewAspectRatio
 		return;
 	}
 
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	InNewAspectRatio = FMath::Clamp(InNewAspectRatio, VirtualSizeAspectRatioMin, VirtualSizeAspectRatioMax);
 

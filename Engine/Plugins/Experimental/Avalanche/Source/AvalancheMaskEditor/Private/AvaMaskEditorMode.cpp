@@ -31,7 +31,7 @@
 
 #define LOCTEXT_NAMESPACE "AvalancheMaskEditorMode"
 
-const FEditorModeID UAvaMaskEditorMode::EM_MotionDesignMaskEditorModeId(UE::AvalancheMaskEditor::MotionDesignMaskEditorModeName);
+const FEditorModeID UAvaMaskEditorMode::EM_MotionDesignMaskEditorModeId(UE::AvaMaskEditor::MotionDesignMaskEditorModeName);
 
 UAvaMaskEditorMode::UAvaMaskEditorMode()
 {
@@ -77,7 +77,7 @@ void UAvaMaskEditorMode::Enter()
     
     	TSharedPtr<SWidget> ToolWidget = nullptr;
     	{
-    		static FName ToolkitOverlayMenuName = UE::AvalancheMaskEditor::Internal::ToolkitOverlayMenuName;
+    		static FName ToolkitOverlayMenuName = UE::AvaMaskEditor::Internal::ToolkitOverlayMenuName;
     		UToolMenu* Menu = UToolMenus::Get()->ExtendMenu(ToolkitOverlayMenuName);
     		Menu->SetStyleSet(&FAvaMaskEditorStyle::Get());
     		Menu->StyleName = TEXT("AvaMaskEditor.ViewportOverlayToolbar");
@@ -422,11 +422,11 @@ UAvaMask2DBaseModifier* UAvaMaskEditorMode::FindOrAddMaskModifier(AActor* InActo
 		{
 			if (InsertOp.FailReason)
 			{
-				UE_LOG(LogAvalancheMaskEditor, Error, TEXT("Error inserting Mask modifier: %s"), *InsertOp.FailReason->ToString());
+				UE_LOG(LogAvaMaskEditor, Error, TEXT("Error inserting Mask modifier: %s"), *InsertOp.FailReason->ToString());
 			}
 			else
 			{
-				UE_LOG(LogAvalancheMaskEditor, Error, TEXT("Error inserting Mask modifier."));
+				UE_LOG(LogAvaMaskEditor, Error, TEXT("Error inserting Mask modifier."));
 			}
 		}
 		else

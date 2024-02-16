@@ -183,7 +183,7 @@ void FAvaEditor::InvokeTabs()
 
 	TArray<FTabId> TabsToInvoke;
 
-	// Gather all the Avalanche Tabs that are supposed to be opened, but were possibly not due to not having a valid Toolkit Host at the time
+	// Gather all the Motion Design Tabs that are supposed to be opened, but were possibly not due to not having a valid Toolkit Host at the time
 	TArray<TSharedRef<FTabManager::FSplitter>> Splitters(StaticCastSharedRef<FLayout>(Layout)->GetAreas());
 
 	while (!Splitters.IsEmpty())

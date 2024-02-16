@@ -8,7 +8,7 @@
 enum class EAvaVerticalAlignment : uint8;
 
 /**
- * Avalanche Vertical Axis Alignment
+ * Motion Design Vertical Axis Alignment
  * 
  * Widget that holds three buttons for either Top, Center, and Bottom.
  */

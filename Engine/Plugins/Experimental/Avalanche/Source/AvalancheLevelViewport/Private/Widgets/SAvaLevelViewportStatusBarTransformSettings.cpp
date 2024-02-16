@@ -16,7 +16,7 @@
 
 #define LOCTEXT_NAMESPACE "SAvaLevelViewportStatusBarTransformSettings"
 
-namespace UE::AvalancheLevelViewport::Private
+namespace UE::AvaLevelViewport::Private
 {
 	TSharedPtr<IDetailKeyframeHandler> GetKeyframeHandler()
 	{
@@ -49,7 +49,7 @@ void SAvaLevelViewportStatusBarTransformSettings::Construct(const FArguments& In
 	TransformDetails = MakeShared<FAvaLevelViewportComponentTransformDetails>(InViewportFrame.IsValid() ? InViewportFrame->GetViewportClient() : nullptr);
 	SetCanTick(true);
 
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	auto CreateKeyframeButton = [this](int32 InIndex)
 		{
@@ -136,7 +136,7 @@ void SAvaLevelViewportStatusBarTransformSettings::Construct(const FArguments& In
 
 TSharedRef<SHorizontalBox> SAvaLevelViewportStatusBarTransformSettings::CreateLocationWidgets()
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::Get();
 
@@ -176,7 +176,7 @@ TSharedRef<SHorizontalBox> SAvaLevelViewportStatusBarTransformSettings::CreateLo
 
 TSharedRef<SHorizontalBox> SAvaLevelViewportStatusBarTransformSettings::CreateRotationWidgets()
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::Get();
 
@@ -215,7 +215,7 @@ TSharedRef<SHorizontalBox> SAvaLevelViewportStatusBarTransformSettings::CreateRo
 
 TSharedRef<SHorizontalBox> SAvaLevelViewportStatusBarTransformSettings::CreateScaleWidgets()
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	const FAvaLevelViewportCommands& CommandsRef = FAvaLevelViewportCommands::Get();
 
@@ -263,7 +263,7 @@ void SAvaLevelViewportStatusBarTransformSettings::CreateKeyframeButtons()
 		return;
 	}
 
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	TConstArrayView<TSharedPtr<IPropertyHandle>> PropertyHandles = TransformDetails->GetPropertyHandles();
 
@@ -321,7 +321,7 @@ bool SAvaLevelViewportStatusBarTransformSettings::IsResetLocationEnabled() const
 
 FSlateColor SAvaLevelViewportStatusBarTransformSettings::GetResetLocationColor() const
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 	return IsResetLocationEnabled() ? ViewportStatusBarButton::EnabledColor : ViewportStatusBarButton::DisabledColor;
 }
 
@@ -343,7 +343,7 @@ bool SAvaLevelViewportStatusBarTransformSettings::IsResetRotationEnabled() const
 
 FSlateColor SAvaLevelViewportStatusBarTransformSettings::GetResetRotationColor() const
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 	return IsResetRotationEnabled() ? ViewportStatusBarButton::EnabledColor : ViewportStatusBarButton::DisabledColor;
 }
 
@@ -365,7 +365,7 @@ bool SAvaLevelViewportStatusBarTransformSettings::IsResetScaleEnabled() const
 
 FSlateColor SAvaLevelViewportStatusBarTransformSettings::GetResetScaleColor() const
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 	return IsResetScaleEnabled() ? ViewportStatusBarButton::EnabledColor : ViewportStatusBarButton::DisabledColor;
 }
 

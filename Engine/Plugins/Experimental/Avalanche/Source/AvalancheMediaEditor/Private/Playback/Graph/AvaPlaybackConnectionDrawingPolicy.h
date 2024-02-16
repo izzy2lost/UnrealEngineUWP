@@ -42,9 +42,9 @@ protected:
 	};
 
 	// Map of pairings
-	typedef TMap<UEdGraphNode*, FTimePair> FExecPairingMap;
+	using FExecPairingMap = TMap<UEdGraphNode*, FTimePair>;
 
-	// Map of nodes that preceeded before a given node in the execution sequence (one entry for each pairing)
+	// Map of nodes that preceded before a given node in the execution sequence (one entry for each pairing)
 	TMap<UEdGraphNode*, FExecPairingMap> PredecessorNodes;
 
 	UEdGraph* GraphObject;

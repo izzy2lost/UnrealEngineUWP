@@ -1495,7 +1495,7 @@ void UAvaRundown::NotifyPageRemoteControlValueChanged(int32 InPageId, EAvaPlayab
 	if (EnumHasAnyFlags(InRemoteControlChanges, EAvaPlayableRemoteControlChanges::EntityValues))
 	{
 		// For now, potentially pushing all values multiple time (per frame) is mitigated by the
-		// optimization in FAvalancheRemoteControlUtils::SetValueOfEntity that
+		// optimization in FAvaRemoteControlUtils::SetValueOfEntity that
 		// will only set the value of the entity if it changed.
 		PushRuntimeRemoteControlValues(InPageId, true);
 	}

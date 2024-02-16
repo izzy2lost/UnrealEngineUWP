@@ -5,19 +5,19 @@
 #include "LevelEditor.h"
 #include "Modules/ModuleManager.h"
 
-namespace UE::AvalancheEditorCore::Private
+namespace UE::AvaEditorCore::Private
 {
 	static constexpr const TCHAR* LevelEditorModuleName = TEXT("LevelEditor");
 }
 
 FLevelEditorModule* FAvaLevelEditorUtils::GetLevelEditorModule()
 {
-	return FModuleManager::Get().GetModulePtr<FLevelEditorModule>(UE::AvalancheEditorCore::Private::LevelEditorModuleName);
+	return FModuleManager::Get().GetModulePtr<FLevelEditorModule>(UE::AvaEditorCore::Private::LevelEditorModuleName);
 }
 
 FLevelEditorModule* FAvaLevelEditorUtils::LoadLevelEditorModule()
 {
-	return FModuleManager::Get().LoadModulePtr<FLevelEditorModule>(UE::AvalancheEditorCore::Private::LevelEditorModuleName);
+	return FModuleManager::Get().LoadModulePtr<FLevelEditorModule>(UE::AvaEditorCore::Private::LevelEditorModuleName);
 }
 
 TConstArrayView<FName> FAvaLevelEditorUtils::GetDetailsViewNames()

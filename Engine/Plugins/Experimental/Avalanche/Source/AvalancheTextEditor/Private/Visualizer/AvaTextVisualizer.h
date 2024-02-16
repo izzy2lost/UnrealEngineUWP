@@ -100,9 +100,8 @@ struct HAvaTextGradientSmoothnessHandleProxy : HAvaHitProxy
 
 class FAvaTextVisualizer : public FAvaVisualizerBase
 {
-
 public:
-	typedef FAvaVisualizerBase Super;
+	using Super = FAvaVisualizerBase;
 
 	void ResetEditingFlags();
 

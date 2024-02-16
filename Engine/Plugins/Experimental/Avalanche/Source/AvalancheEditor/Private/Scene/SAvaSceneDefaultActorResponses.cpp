@@ -14,7 +14,7 @@ const FName SAvaSceneDefaultActorResponses::ReplaceRowName = "Replace";
 const FName SAvaSceneDefaultActorResponses::UpdateRowName = "Update";
 const FName SAvaSceneDefaultActorResponses::EnabledRowName = "Enabled";
 
-namespace UE::AvalancheEditor::Private
+namespace UE::AvaEditor::Private
 {
 	struct FAvaSceneDefaultActorResponseColumnData
 	{
@@ -73,7 +73,7 @@ namespace UE::AvalancheEditor::Private
 
 void SAvaSceneDefaultActorResponses::Construct(const FArguments& InArgs, UWorld* InWorld, const TArray<TSharedRef<FAvaSceneDefaultActorResponse>>& InResponses)
 {
-	using namespace UE::AvalancheEditor::Private;
+	using namespace UE::AvaEditor::Private;
 
 	World = InWorld;
 	Responses = InResponses;

@@ -23,7 +23,7 @@ UAvaInteractiveToolsEdMode::UAvaInteractiveToolsEdMode()
 	LastActiveTool = "";
 }
 
-namespace UE::AvalancheInteractiveToolsEditorMode::Private
+namespace UE::AvaInteractiveToolsEditorMode::Private
 {
 	static TSet<FName> IncompatibleEdModes = {
 		FBuiltinEditorModes::EM_None,
@@ -39,7 +39,7 @@ namespace UE::AvalancheInteractiveToolsEditorMode::Private
 
 bool UAvaInteractiveToolsEdMode::IsCompatibleWith(FEditorModeID OtherModeID) const
 {
-	return !UE::AvalancheInteractiveToolsEditorMode::Private::IncompatibleEdModes.Contains(OtherModeID);
+	return !UE::AvaInteractiveToolsEditorMode::Private::IncompatibleEdModes.Contains(OtherModeID);
 }
 
 void UAvaInteractiveToolsEdMode::Enter()

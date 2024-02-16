@@ -10,7 +10,7 @@
 #include "Widgets/SAvaDraggableBox.h"
 #include "Widgets/SWindow.h"
 
-namespace UE::AvalancheEditor::Private
+namespace UE::AvaEditor::Private
 {
 	static const FAvaShapeEditorViewportControlPosition DefaultPosition = {
 		EHorizontalAlignment::HAlign_Left,
@@ -23,8 +23,8 @@ namespace UE::AvalancheEditor::Private
 
 void SAvaDraggableBoxOverlay::Construct(const FArguments& InArgs)
 {
-	HorizontalAlignment = UE::AvalancheEditor::Private::DefaultPosition.HorizontalAlignment;
-	VerticalAlignment = UE::AvalancheEditor::Private::DefaultPosition.VerticalAlignment;
+	HorizontalAlignment = UE::AvaEditor::Private::DefaultPosition.HorizontalAlignment;
+	VerticalAlignment = UE::AvaEditor::Private::DefaultPosition.VerticalAlignment;
 
 	ChildSlot
 	[
@@ -96,7 +96,7 @@ void SAvaDraggableBoxOverlay::SetBoxAlignmentOffset(const FVector2f& InOffset, b
 		return;
 	}
 
-	using namespace UE::AvalancheEditor::Private;
+	using namespace UE::AvaEditor::Private;
 
 	FVector2f ConstrainedOffset = {
 		FMath::Max(InOffset.X, DraggableBorder),

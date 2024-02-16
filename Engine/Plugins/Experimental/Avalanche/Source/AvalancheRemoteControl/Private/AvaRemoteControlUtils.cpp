@@ -43,7 +43,7 @@ bool FAvaRemoteControlUtils::RegisterRemoteControlPreset(URemoteControlPreset* I
 			}
 		
 			// Workaround to enable multiple instances of the same RCP to be registered.
-			// This is a normal occurence with Avalanche graphics that are meant to be templates that are used in
+			// This is a normal occurence with Motion Design graphics that are meant to be templates that are used in
 			// multiple pages. Because of page transitions, we must support having multiple instances of the same template
 			// running together at the same time.
 			// We need to assign a new unique ID otherwise all the RCP instances will have the
@@ -67,7 +67,7 @@ bool FAvaRemoteControlUtils::RegisterRemoteControlPreset(URemoteControlPreset* I
 		RemoteControlComponentsSubsystem->RegisterPreset(InRemoteControlPreset);
 	}
 
-	// Avalanche's RCPs, from an ava asset (e.g. level) are considered "embedded" because
+	// Motion Design's RCPs, from an ava asset (e.g. level) are considered "embedded" because
 	// they are not an asset.
 	constexpr bool bReplaceExisting = true;
 	return RemoteControlModule.RegisterEmbeddedPreset(InRemoteControlPreset, bReplaceExisting);

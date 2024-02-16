@@ -26,7 +26,7 @@ struct FSlateBrush;
 
 #define LOCTEXT_NAMESPACE "EngineSRuler"
 
-namespace UE::AvalancheLevelViewport::Private::ScrubConstants
+namespace UE::AvaLevelViewport::Private::ScrubConstants
 {
 	/** The minimum amount of pixels between each major ticks on the widget */
 	const int32 MinPixelsPerDisplayTick = 5;
@@ -36,7 +36,7 @@ namespace UE::AvalancheLevelViewport::Private::ScrubConstants
 }
 
 /** Utility struct for converting between scrub range space and local/absolute screen space */
-struct UE::AvalancheLevelViewport::Private::SRuler::FScrubRangeToScreen
+struct UE::AvaLevelViewport::Private::SRuler::FScrubRangeToScreen
 {
 	float RulerLengthSlateUnits;
 
@@ -71,7 +71,7 @@ struct UE::AvalancheLevelViewport::Private::SRuler::FScrubRangeToScreen
 	}
 };
 
-struct UE::AvalancheLevelViewport::Private::SRuler::FDrawTickArgs
+struct UE::AvaLevelViewport::Private::SRuler::FDrawTickArgs
 {
 	/** Geometry of the area */
 	FGeometry AllottedGeometry;
@@ -115,7 +115,7 @@ static float GetNextSpacing( uint32 CurrentStep )
 /////////////////////////////////////////////////////
 // SRuler
 
-void UE::AvalancheLevelViewport::Private::SRuler::Construct(const UE::AvalancheLevelViewport::Private::SRuler::FArguments& InArgs)
+void UE::AvaLevelViewport::Private::SRuler::Construct(const UE::AvaLevelViewport::Private::SRuler::FArguments& InArgs)
 {
 	Orientation = InArgs._Orientation;
 	AbsoluteOrigin = FVector2D(0, 0);
@@ -124,7 +124,7 @@ void UE::AvalancheLevelViewport::Private::SRuler::Construct(const UE::AvalancheL
 	MouseButtonDownHandler = InArgs._OnMouseButtonDown;
 }
 
-float UE::AvalancheLevelViewport::Private::SRuler::DetermineOptimalSpacing(float InPixelsPerInput, uint32 MinTick, float MinTickSpacing) const
+float UE::AvaLevelViewport::Private::SRuler::DetermineOptimalSpacing(float InPixelsPerInput, uint32 MinTick, float MinTickSpacing) const
 {
 	if (InPixelsPerInput == 0.0f)
 		return MinTickSpacing;
@@ -143,18 +143,18 @@ float UE::AvalancheLevelViewport::Private::SRuler::DetermineOptimalSpacing(float
 	return Spacing;
 }
 
-void UE::AvalancheLevelViewport::Private::SRuler::SetRuling(FVector2D InAbsoluteOrigin, float InSlateToUnitScale)
+void UE::AvaLevelViewport::Private::SRuler::SetRuling(FVector2D InAbsoluteOrigin, float InSlateToUnitScale)
 {
 	AbsoluteOrigin = InAbsoluteOrigin;
 	SlateToUnitScale = InSlateToUnitScale;
 }
 
-void UE::AvalancheLevelViewport::Private::SRuler::SetCursor(TOptional<FVector2D> InAbsoluteCursor)
+void UE::AvaLevelViewport::Private::SRuler::SetCursor(TOptional<FVector2D> InAbsoluteCursor)
 {
 	AbsoluteCursor = InAbsoluteCursor;
 }
 
-int32 UE::AvalancheLevelViewport::Private::SRuler::DrawTicks( FSlateWindowElementList& OutDrawElements, const struct FScrubRangeToScreen& RangeToScreen, FDrawTickArgs& InArgs ) const
+int32 UE::AvaLevelViewport::Private::SRuler::DrawTicks( FSlateWindowElementList& OutDrawElements, const struct FScrubRangeToScreen& RangeToScreen, FDrawTickArgs& InArgs ) const
 {
 	const float Spacing = DetermineOptimalSpacing( RangeToScreen.PixelsPerInput, ScrubConstants::MinPixelsPerDisplayTick, ScrubConstants::MinDisplayTickSpacing );
 
@@ -300,7 +300,7 @@ int32 UE::AvalancheLevelViewport::Private::SRuler::DrawTicks( FSlateWindowElemen
 	return InArgs.StartLayer;
 }
 
-int32 UE::AvalancheLevelViewport::Private::SRuler::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
+int32 UE::AvaLevelViewport::Private::SRuler::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
 {
 	const bool bEnabled = bParentEnabled;
 	const ESlateDrawEffect DrawEffects = bEnabled ? ESlateDrawEffect::None : ESlateDrawEffect::DisabledEffect;
@@ -347,7 +347,7 @@ int32 UE::AvalancheLevelViewport::Private::SRuler::OnPaint(const FPaintArgs& Arg
 	return LayerId;
 }
 
-FReply UE::AvalancheLevelViewport::Private::SRuler::OnMouseButtonDown( const FGeometry& MyGeometry, const FPointerEvent& MouseEvent )
+FReply UE::AvaLevelViewport::Private::SRuler::OnMouseButtonDown( const FGeometry& MyGeometry, const FPointerEvent& MouseEvent )
 {
 	if ( MouseButtonDownHandler.IsBound() )
 	{
@@ -361,22 +361,22 @@ FReply UE::AvalancheLevelViewport::Private::SRuler::OnMouseButtonDown( const FGe
 	}
 }
 
-FReply UE::AvalancheLevelViewport::Private::SRuler::OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+FReply UE::AvaLevelViewport::Private::SRuler::OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
 	return FReply::Unhandled();
 }
 
-FReply UE::AvalancheLevelViewport::Private::SRuler::OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+FReply UE::AvaLevelViewport::Private::SRuler::OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
 	return FReply::Unhandled();
 }
 
-FVector2D UE::AvalancheLevelViewport::Private::SRuler::ComputeDesiredSize( float ) const
+FVector2D UE::AvaLevelViewport::Private::SRuler::ComputeDesiredSize( float ) const
 {
 	return Orientation == Orient_Horizontal ? FVector2D(100, 18) : FVector2D(18, 100);
 }
 
-FReply UE::AvalancheLevelViewport::Private::SRuler::OnMouseWheel(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+FReply UE::AvaLevelViewport::Private::SRuler::OnMouseWheel(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
 	return FReply::Unhandled();
 }

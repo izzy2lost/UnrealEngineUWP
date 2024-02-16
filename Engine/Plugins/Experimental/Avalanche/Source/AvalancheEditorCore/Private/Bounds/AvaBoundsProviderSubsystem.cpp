@@ -9,7 +9,7 @@
 #include "Selection.h"
 #include "Selection/AvaSelectionProviderSubsystem.h"
 
-namespace UE::AvalancheEditorCore::Private
+namespace UE::AvaEditorCore::Private
 {
 	FBox InvalidBox = FBox(EForceInit::ForceInit);
 	FOrientedBox DefaultOrientedBox = FOrientedBox();
@@ -76,7 +76,7 @@ bool UAvaBoundsProviderSubsystem::CacheComponentWorldOrientedBounds(UPrimitiveCo
 		return true;
 	}
 
-	using namespace UE::AvalancheEditorCore::Private;
+	using namespace UE::AvaEditorCore::Private;
 
 	const FBox LocalBounds = GetComponentLocalBounds(InComponent);
 
@@ -110,7 +110,7 @@ bool UAvaBoundsProviderSubsystem::CacheComponentActorOrientedBounds(UPrimitiveCo
 		return true;
 	}
 
-	using namespace UE::AvalancheEditorCore::Private;
+	using namespace UE::AvaEditorCore::Private;
 
 	const FBox LocalBounds = GetComponentLocalBounds(InComponent);
 
@@ -200,7 +200,7 @@ bool UAvaBoundsProviderSubsystem::CacheActorOrientedBounds(AActor* InActor)
 		return true;
 	}
 
-	using namespace UE::AvalancheEditorCore::Private;
+	using namespace UE::AvaEditorCore::Private;
 
 	const FBox LocalBounds = GetActorLocalBounds(InActor);
 
@@ -249,7 +249,7 @@ bool UAvaBoundsProviderSubsystem::CacheActorAndChildrenLocalBounds(AActor* InAct
 	}
 	else
 	{
-		using namespace UE::AvalancheEditorCore::Private;
+		using namespace UE::AvaEditorCore::Private;
 
 		FTransform ActorTransform = InActor->GetActorTransform();
 		FTransform InverseActorTransformNoScale = FTransform(ActorTransform.GetRotation(), ActorTransform.GetLocation()).Inverse();
@@ -299,7 +299,7 @@ bool UAvaBoundsProviderSubsystem::CacheActorAndChildrenOrientedBounds(AActor* In
 		return true;
 	}
 
-	using namespace UE::AvalancheEditorCore::Private;
+	using namespace UE::AvaEditorCore::Private;
 
 	const FBox LocalBounds = GetActorAndChildrenLocalBounds(InActor);
 
@@ -369,7 +369,7 @@ FBox UAvaBoundsProviderSubsystem::GetComponentLocalBounds(UPrimitiveComponent* I
 		return CachedComponentLocalBounds[InComponent];
 	}
 
-	return UE::AvalancheEditorCore::Private::InvalidBox;
+	return UE::AvaEditorCore::Private::InvalidBox;
 }
 
 bool UAvaBoundsProviderSubsystem::GetComponentWorldOrientedBounds(UPrimitiveComponent* InComponent, FOrientedBox& OutOrientedBounds)
@@ -401,7 +401,7 @@ FBox UAvaBoundsProviderSubsystem::GetActorLocalBounds(AActor* InActor)
 		return CachedActorLocalBounds[InActor];
 	}
 
-	return UE::AvalancheEditorCore::Private::InvalidBox;
+	return UE::AvaEditorCore::Private::InvalidBox;
 }
 
 bool UAvaBoundsProviderSubsystem::GetActorOrientedBounds(AActor* InActor, FOrientedBox& OutOrientedBounds)
@@ -422,7 +422,7 @@ FBox UAvaBoundsProviderSubsystem::GetActorAndChildrenLocalBounds(AActor* InActor
 		return CachedActorAndChildrenLocalBounds[InActor];
 	}
 
-	return UE::AvalancheEditorCore::Private::InvalidBox;
+	return UE::AvaEditorCore::Private::InvalidBox;
 }
 
 bool UAvaBoundsProviderSubsystem::GetActorAndChildrenOrientedBounds(AActor* InActor, FOrientedBox& OutOrientedBounds)
@@ -619,7 +619,7 @@ bool UAvaBoundsProviderSubsystem::GetSelectionOrientedBounds(bool bInIncludeChil
 		return false;
 	}
 
-	OutOrientedBounds = UE::AvalancheEditorCore::Private::MakeOrientedBox(SelectionAxisBounds, FirstActorTransform);
+	OutOrientedBounds = UE::AvaEditorCore::Private::MakeOrientedBox(SelectionAxisBounds, FirstActorTransform);
 
 	return true;
 }

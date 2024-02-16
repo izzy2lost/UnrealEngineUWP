@@ -7,7 +7,7 @@
 #include "GameFramework/Actor.h"
 #include "Templates/SharedPointer.h"
 
-namespace UE::AvalancheLevelViewport::Private
+namespace UE::AvaLevelViewport::Private
 {
 	TMap<UClass*, TSharedRef<IAvaViewportColorPickerAdapter>> Adapters;
 
@@ -33,13 +33,13 @@ namespace UE::AvalancheLevelViewport::Private
 
 void FAvaViewportColorPickerActorClassRegistry::RegisterClassAdapter(UClass* InClass, const TSharedRef<IAvaViewportColorPickerAdapter>& InAdapter)
 {
-	using namespace UE::AvalancheLevelViewport;
+	using namespace UE::AvaLevelViewport;
 	Private::Adapters.Add(InClass, InAdapter);
 }
 
 bool FAvaViewportColorPickerActorClassRegistry::GetColorDataFromActor(const AActor* InActor, FAvaColorChangeData& OutColorData)
 {
-	using namespace UE::AvalancheLevelViewport;
+	using namespace UE::AvaLevelViewport;
 
 	if (TSharedPtr<IAvaViewportColorPickerAdapter> Adapter = Private::FindAdapterForClass(InActor))
 	{
@@ -51,7 +51,7 @@ bool FAvaViewportColorPickerActorClassRegistry::GetColorDataFromActor(const AAct
 
 bool FAvaViewportColorPickerActorClassRegistry::ApplyColorDataToActor(AActor* InActor, const FAvaColorChangeData& InColorData)
 {
-	using namespace UE::AvalancheLevelViewport;
+	using namespace UE::AvaLevelViewport;
 
 	if (TSharedPtr<IAvaViewportColorPickerAdapter> Adapter = Private::FindAdapterForClass(InActor))
 	{

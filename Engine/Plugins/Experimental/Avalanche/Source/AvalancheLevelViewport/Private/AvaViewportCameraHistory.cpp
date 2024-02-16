@@ -12,7 +12,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaViewportCameraHistory"
 
-namespace UE::AvalancheEditor::Private
+namespace UE::AvaEditor::Private
 {
 	static FText UndoRedoMessage = LOCTEXT("UndoRedoMessage", "Camera Movement");
 
@@ -93,7 +93,7 @@ void FAvaViewportCameraHistory::PostEngineInit()
 void FAvaViewportCameraHistory::Reset()
 {
 	CameraTransformHistory.Reset();
-	CameraTransformHistory.SetNumUninitialized(UE::AvalancheEditor::Internal::CameraUndoHistoryCapacity, EAllowShrinking::No);
+	CameraTransformHistory.SetNumUninitialized(UE::AvaEditor::Internal::CameraUndoHistoryCapacity, EAllowShrinking::No);
 	CameraTransformHistoryIndex = INDEX_NONE;
 	CameraTransformHistoryHeadIndex = 1;
 }
@@ -147,12 +147,12 @@ void FAvaViewportCameraHistory::OnEndCameraTransform(UObject& InCameraObject)
 	if (AActor* CameraActor = Cast<AActor>(&InCameraObject))
 	{
 		// New item replaces next
-		int32 CameraTransformIndexToAdd = UE::AvalancheEditor::Private::WrapIndex(CameraTransformHistoryIndex + 1, CameraTransformHistory.Max());
+		int32 CameraTransformIndexToAdd = UE::AvaEditor::Private::WrapIndex(CameraTransformHistoryIndex + 1, CameraTransformHistory.Max());
 
 		CameraTransformHistory[CameraTransformIndexToAdd] = { CameraActor, CameraActor->GetActorTransform() };
 		
 		CameraTransformHistoryIndex = CameraTransformIndexToAdd;
-		CameraTransformHistoryHeadIndex = UE::AvalancheEditor::Private::WrapIndex(CameraTransformHistoryIndex + 1, CameraTransformHistory.Max());
+		CameraTransformHistoryHeadIndex = UE::AvaEditor::Private::WrapIndex(CameraTransformHistoryIndex + 1, CameraTransformHistory.Max());
 
 		UE_LOG(LogAva, Verbose, TEXT("Saved camera transform at %i, head %i, %s"), CameraTransformHistoryIndex, CameraTransformHistoryHeadIndex, *CameraActor->GetActorTransform().Rotator().ToString());
 	}
@@ -160,7 +160,7 @@ void FAvaViewportCameraHistory::OnEndCameraTransform(UObject& InCameraObject)
 
 void FAvaViewportCameraHistory::ExecuteCameraTransformUndo()
 {
-	const int32 CameraTransformIndexToRestore = UE::AvalancheEditor::Private::WrapIndex(CameraTransformHistoryIndex - 1, CameraTransformHistory.Max());
+	const int32 CameraTransformIndexToRestore = UE::AvaEditor::Private::WrapIndex(CameraTransformHistoryIndex - 1, CameraTransformHistory.Max());
 	if (CameraTransformIndexToRestore == CameraTransformHistoryHeadIndex)
 	{
 		return;
@@ -179,7 +179,7 @@ void FAvaViewportCameraHistory::ExecuteCameraTransformUndo()
 
 void FAvaViewportCameraHistory::ExecuteCameraTransformRedo()
 {
-	const int32 CameraTransformIndexToRestore = UE::AvalancheEditor::Private::WrapIndex(CameraTransformHistoryIndex + 1, CameraTransformHistory.Max());
+	const int32 CameraTransformIndexToRestore = UE::AvaEditor::Private::WrapIndex(CameraTransformHistoryIndex + 1, CameraTransformHistory.Max());
 	if (CameraTransformIndexToRestore == CameraTransformHistoryHeadIndex)
 	{
 		return;
@@ -199,13 +199,13 @@ void FAvaViewportCameraHistory::ExecuteCameraTransformRedo()
 void FAvaViewportCameraHistory::NotifyUndo()
 {
 	const FText UndoMessage = NSLOCTEXT("UnrealEd", "UndoMessageFormat", "Undo: {0}");
-	Notify(FText::Format(UndoMessage, UE::AvalancheEditor::Private::UndoRedoMessage));
+	Notify(FText::Format(UndoMessage, UE::AvaEditor::Private::UndoRedoMessage));
 }
 
 void FAvaViewportCameraHistory::NotifyRedo()
 {
 	const FText RedoMessage = NSLOCTEXT("UnrealEd", "RedoMessageFormat", "Redo: {0}");
-	Notify(FText::Format(RedoMessage, UE::AvalancheEditor::Private::UndoRedoMessage));
+	Notify(FText::Format(RedoMessage, UE::AvaEditor::Private::UndoRedoMessage));
 }
 
 // @see: UEditorEngine::ShowUndoRedoNotification

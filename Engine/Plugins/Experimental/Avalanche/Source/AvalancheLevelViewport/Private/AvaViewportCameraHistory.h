@@ -9,7 +9,7 @@
 #include "Templates/SharedPointer.h"
 #include "UObject/WeakObjectPtr.h"
 
-namespace UE::AvalancheEditor::Internal
+namespace UE::AvaEditor::Internal
 {
 	static constexpr int32 CameraUndoHistoryCapacity = 64;
 }
@@ -56,7 +56,7 @@ private:
 	TSharedPtr<SNotificationItem> UndoRedoNotificationItem;
 
 	// Stores previous camera transforms (as camera, transform pair) for undo/redo, if any
-	TArray<TPair<TWeakObjectPtr<AActor>, FTransform>, TFixedAllocator<UE::AvalancheEditor::Internal::CameraUndoHistoryCapacity>> CameraTransformHistory;
+	TArray<TPair<TWeakObjectPtr<AActor>, FTransform>, TFixedAllocator<UE::AvaEditor::Internal::CameraUndoHistoryCapacity>> CameraTransformHistory;
 
 	// Stores current position in the camera transform history, to allow redo of actions ahead of this position
 	int32 CameraTransformHistoryIndex = INDEX_NONE;

@@ -23,7 +23,7 @@ public:
 	AAvaCineCameraActor(const FObjectInitializer& ObjectInitializer);
 
 	/**
-	 * Initialize the camera with Avalanche scene default values: field of view, camera position, focus distance.
+	 * Initialize the camera with Motion Design scene default values: field of view, camera position, focus distance.
 	 * @param InCameraDistance: camera distance value, used to initialize camera position and manual focus distance
 	 */
 	AVALANCHE_API void Configure(float InCameraDistance);

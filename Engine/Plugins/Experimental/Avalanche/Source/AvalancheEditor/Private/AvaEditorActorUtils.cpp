@@ -99,7 +99,7 @@ void FAvaEditorActorUtils::GetAllAttachedActors(const USceneComponent* InParent,
 	}
 }
 
-namespace UE::AvalancheEditor::Private
+namespace UE::AvaEditor::Private
 {
 	bool IsComponentChildOf(const USceneComponent* InSceneComponent, const USceneComponent* InPossibleParent)
 	{
@@ -152,7 +152,7 @@ void FAvaEditorActorUtils::GetAllAttachedActors(const TSet<USceneComponent*>& In
 				continue;
 			}
 
-			if (UE::AvalancheEditor::Private::IsComponentChildOf(Component, ComponentInner))
+			if (UE::AvaEditor::Private::IsComponentChildOf(Component, ComponentInner))
 			{
 				bIsChild = true;
 				break;

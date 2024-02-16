@@ -11,7 +11,7 @@ class SBorder;
 class SWidget;
 class UToolMenu;
 
-/** Responsible for manipulating the Level Editor toolbar for the Avalanche Editor */
+/** Responsible for manipulating the Level Editor toolbar for the Motion Design Editor */
 class FAvaLevelEditorToolbar : public TSharedFromThis<FAvaLevelEditorToolbar>
 {
 public:

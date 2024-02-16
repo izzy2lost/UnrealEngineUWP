@@ -9,7 +9,7 @@
 class SUniformGridPanel;
 
 /**
- * Avalanche Anchor Alignment
+ * Motion Design Anchor Alignment
  * 
  * Widget that holds holds axis alignment widgets for Left/Center/Right, Top/Center/Bottom, and Front/Center/Back.
  * One alignment button set per axis row (Horizontal, Vertical, Depth).

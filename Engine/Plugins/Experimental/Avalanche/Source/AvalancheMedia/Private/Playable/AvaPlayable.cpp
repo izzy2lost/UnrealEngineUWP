@@ -367,7 +367,7 @@ UAvaPlayable* UAvaPlayable::CreateLocalPlayable(UObject* InOuter, const FPlayabl
 {
 	switch (InPlayableInfo.SourceAsset.GetAssetType())
 	{
-	case EAvalancheAssetType::World:
+	case EMotionDesignAssetType::World:
 		return NewObject<UAvaPlayableLevelStreaming>(InOuter ? InOuter : GEngine);
 	default:
 		UE_LOG(LogAvaPlayable, Error, TEXT("Asset \"%s\" is an unsupported type."), *InPlayableInfo.SourceAsset.ToSoftObjectPath().ToString());

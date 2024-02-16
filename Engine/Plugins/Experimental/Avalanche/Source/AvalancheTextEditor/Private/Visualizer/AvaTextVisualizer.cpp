@@ -26,7 +26,7 @@ IMPLEMENT_HIT_PROXY(HAvaTextGradientLineEndHandleProxy, HAvaHitProxy)
 IMPLEMENT_HIT_PROXY(HAvaTextGradientCenterHandleProxy, HAvaHitProxy)
 IMPLEMENT_HIT_PROXY(HAvaTextGradientSmoothnessHandleProxy, HAvaHitProxy)
 
-namespace UE::Avalanche::Private
+namespace UE::Ava::Private
 {
 	struct FTextVisualizerStatics
 	{
@@ -287,7 +287,7 @@ bool FAvaTextVisualizer::VisProxyHandleClick(FEditorViewportClient* InViewportCl
 
 FVector FAvaTextVisualizer::GetGradientSmoothnessHandleLocation(const UAvaText3DComponent* InAvaTextComponent) const
 {
-	using namespace UE::Avalanche::Private;
+	using namespace UE::Ava::Private;
 	
 	return GetGradientCenterHandleLocation(InAvaTextComponent) + FVector(0, FTextVisualizerStatics::GradientSmoothnessHandleOffset, 0);
 }
@@ -422,7 +422,7 @@ bool FAvaTextVisualizer::GetWidgetAxisListDragOverride(const FEditorViewportClie
 bool FAvaTextVisualizer::HandleInputDeltaInternal(FEditorViewportClient* InViewportClient, FViewport* InViewport, const FVector& InAccumulatedTranslation,
 	const FRotator& InAccumulatedRotation, const FVector& InAccumulatedScale)
 {
-	using namespace UE::Avalanche::Private;
+	using namespace UE::Ava::Private;
 	
 	if (bEditingWidth)
 	{
@@ -843,7 +843,7 @@ FVector FAvaTextVisualizer::GetHeightHandleLocation(const UText3DComponent* InTe
 
 void FAvaTextVisualizer::GetTextActorGradientControlsLocations(const UAvaText3DComponent* InAvaTextComponent, FVector& OutGradientCenterLocation, FVector& OutGradientStartLocation, FVector& OutGradientEndLocation) const
 {
-	using namespace UE::Avalanche::Private;
+	using namespace UE::Ava::Private;
 	if (IsValid(InAvaTextComponent))
 	{
 		if (const AActor* const Text3DActor = InAvaTextComponent->GetOwner())
@@ -1099,7 +1099,7 @@ bool FAvaTextVisualizer::DrawGradientSmoothnessHandle(const UText3DComponent* In
 
 void FAvaTextVisualizer::DrawGradientHandles(const UAvaText3DComponent* InAvaTextComponent, const FSceneView* InView, FPrimitiveDrawInterface* InPDI) const
 {
-	using namespace UE::Avalanche::Private;
+	using namespace UE::Ava::Private;
 	if (!InAvaTextComponent)
 	{
 		return;

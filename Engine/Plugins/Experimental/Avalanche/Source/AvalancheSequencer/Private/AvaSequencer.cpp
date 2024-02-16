@@ -1703,8 +1703,8 @@ void FAvaSequencer::ExecuteSequencerDuplication(FExecuteAction InExecuteAction)
 		// HACK: Sequencer Duplicates Actors via UUnrealEdEngine::edactDuplicateSelected
 		// Sequencer then expects that after this function is called, the GSelectedActors are the newly duplicated actors.
 		// However, ULevelFactory::FactoryCreateText only changes selection when the World in question is the GWorld,
-		// which is not true for Avalanche.
-		// So for this we temporarily set GWorld to our Avalanche World so that selections happen correctly.
+		// which is not true for Motion Design.
+		// So for this we temporarily set GWorld to our Motion Design World so that selections happen correctly.
 		UWorld* const OldGWorld = GWorld;
 		GWorld = InWorld;
 		InExecuteAction.ExecuteIfBound();

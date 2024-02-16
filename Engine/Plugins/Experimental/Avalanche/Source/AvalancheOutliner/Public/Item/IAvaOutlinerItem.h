@@ -31,7 +31,7 @@ struct FSlateIcon;
 class IAvaOutlinerItem : public IAvaTypeCastable, public TSharedFromThis<IAvaOutlinerItem>
 {
 protected:
-	typedef TArray<IAvaOutlinerItem>::SizeType IndexType;
+	using IndexType = TArray<IAvaOutlinerItem>::SizeType;
 
 public:
 	UE_AVA_INHERITS(IAvaOutlinerItem, IAvaTypeCastable);
@@ -251,7 +251,7 @@ public:
 	 * const TSharedPtr<FAvaOutlinerView>& - The Outliner View where this Expansion happened
 	 * bool - Whether the Item is expanded
 	 */
-	typedef TMulticastDelegate<void(const TSharedPtr<FAvaOutlinerView>&, bool)> FOnExpansionChanged;
+	using FOnExpansionChanged = TMulticastDelegate<void(const TSharedPtr<FAvaOutlinerView>&, bool)>;
 	
 	/** Called when Expansion state (Expanded/Collapsed) has been changed */
 	virtual FOnExpansionChanged& OnExpansionChanged() = 0;
@@ -310,7 +310,7 @@ public:
 	 * EAvaOutlinerRenameAction the type of action being relayed (e.g. request a rename, or notify rename complete, etc)
 	 * const TSharedPtr<FAvaOutlinerView>& - The Outliner View where the rename action is taking place
 	 */
-	typedef TMulticastDelegate<void(EAvaOutlinerRenameAction, const TSharedPtr<FAvaOutlinerView>&)> FOnRenameAction;
+	using FOnRenameAction = TMulticastDelegate<void(EAvaOutlinerRenameAction, const TSharedPtr<FAvaOutlinerView>&)>;
 	
 	/** Broadcasts whenever a rename action takes place from a given view (e.g. when pressing "F2" to rename, or committing the rename text) */
 	virtual FOnRenameAction& OnRenameAction() = 0;

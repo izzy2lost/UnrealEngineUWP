@@ -17,7 +17,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaLevelViewportGuide"
 
-namespace UE::AvalancheViewport::Private
+namespace UE::AvaViewport::Private
 {
 	constexpr float Padding = 2.f;
 	const FTimespan DoubleClickMaxDelay = FTimespan::FromMilliseconds(850);
@@ -272,7 +272,7 @@ void SAvaLevelViewportGuide::Construct(const FArguments& InArgs, TSharedPtr<SAva
 	LastClickTime = FDateTime(0);
 	LastClickLocation = FVector2f::ZeroVector;
 
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	if (Info.Orientation == Orient_Horizontal)
 	{
@@ -368,7 +368,7 @@ FReply SAvaLevelViewportGuide::OnMouseButtonUp(const FGeometry& Geometry, const 
 
 	const FDateTime CurrentTime = FDateTime::Now();
 
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	if ((PointerEvent.GetScreenSpacePosition() - LastMouseDownLocation).Size() < ClickMaxDistance)
 	{
@@ -510,7 +510,7 @@ bool SAvaLevelViewportGuide::DragUpdate()
 		SnapOperation->SnapScreenLocation(MousePosition, Info.Orientation == EOrientation::Orient_Vertical, Info.Orientation == EOrientation::Orient_Horizontal);
 	}
 
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	switch (Info.Orientation)
 	{
@@ -607,7 +607,7 @@ bool SAvaLevelViewportGuide::SetOffset(float Offset)
 	const FVector2f ViewportSize = FrameAndClient.ViewportClient->GetCachedViewportSize();
 	float NewOffsetFraction;
 
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	switch (Info.Orientation)
 	{
@@ -657,7 +657,7 @@ FVector2D SAvaLevelViewportGuide::GetSize() const
 
 	const FVector2f ViewportSize = FrameAndClient.ViewportClient->GetCachedViewportSize();
 
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	switch (Info.Orientation)
 	{
@@ -686,7 +686,7 @@ FVector2D SAvaLevelViewportGuide::GetPosition() const
 	const FVector2f Offset = FrameAndClient.ViewportClient->GetCachedViewportOffset();
 	FVector2f GuidePosition;
 
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	if (Info.Orientation == Orient_Horizontal)
 	{
@@ -818,7 +818,7 @@ void SAvaLevelViewportGuide::UpdateGuideData() const
 
 void SAvaLevelViewportGuide::OpenRightClickMenu()
 {
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	RegisterGuideMenu();
 

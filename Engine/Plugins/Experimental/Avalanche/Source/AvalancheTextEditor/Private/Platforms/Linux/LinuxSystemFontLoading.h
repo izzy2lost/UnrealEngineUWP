@@ -8,7 +8,7 @@
 struct FSystemFontsRetrieveParams;
 
 //todo: yet to be implemented
-namespace UE::Avalanche::Private::Fonts
+namespace UE::Ava::Private::Fonts
 {
 	void GetSystemFontInfo(TMap<FString, FSystemFontsRetrieveParams>& OutFontsInfo);
 

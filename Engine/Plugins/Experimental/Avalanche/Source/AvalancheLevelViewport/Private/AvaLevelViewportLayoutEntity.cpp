@@ -24,7 +24,7 @@ FAvaLevelViewportLayoutEntity::FAvaLevelViewportLayoutEntity(const FAssetEditorV
 
 FName FAvaLevelViewportLayoutEntity::GetStaticType()
 {
-	static const FName AvaLevelViewportName(TEXT("Avalanche"));
+	static const FName AvaLevelViewportName(TEXT("MotionDesign"));
 	return AvaLevelViewportName;
 }
 

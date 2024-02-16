@@ -19,7 +19,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaViewportPostProcessVisualizer"
 
-namespace UE::AvalancheViewport::Private
+namespace UE::AvaViewport::Private
 {
 	const FName OpacityName = FName(TEXT("Opacity"));
 }
@@ -215,7 +215,7 @@ void FAvaViewportPostProcessVisualizer::UpdatePostProcessMaterial()
 		return;
 	}
 
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	PostProcessMaterial->SetScalarParameterValue(OpacityName, PostProcessOpacity);
 }

@@ -160,8 +160,8 @@ void FAvaSequenceDirectorCompilerContext::FinishCompilingClass(UClass* InClass)
 			const TSoftObjectPtr<UAvaSequence>* FoundSequence = SequencePropertyMap.FindKey(SequenceProperty);
 			if (!FoundSequence)
 			{
-				const FText RequiredSequenceNotBound = LOCTEXT("RequiredAvaSequenceNotBound"
-					, "A required Avalanche Sequence binding @@ was not found.");
+				const FText RequiredSequenceNotBound = LOCTEXT("RequiredSequenceNotBound"
+					, "A required Motion Design Sequence binding @@ was not found.");
 
 				if (Blueprint->bIsNewlyCreated)
 				{

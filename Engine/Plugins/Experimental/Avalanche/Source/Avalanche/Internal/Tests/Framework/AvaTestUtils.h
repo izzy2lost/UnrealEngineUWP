@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -6,7 +6,7 @@
 #include "Math/Transform.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
-// General Avalanche unit test log
+// General Motion Design unit test log
 DECLARE_LOG_CATEGORY_EXTERN(LogAvaTest, Log, All);
 
 class AActor;

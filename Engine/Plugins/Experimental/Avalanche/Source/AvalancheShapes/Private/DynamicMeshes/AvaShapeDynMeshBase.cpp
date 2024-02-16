@@ -33,7 +33,7 @@
 #include "PropertyEditorModule.h"
 #endif
 
-DEFINE_LOG_CATEGORY_STATIC(LogAvalancheDynamicMesh, Log, All);
+DEFINE_LOG_CATEGORY_STATIC(LogAvaDynamicMesh, Log, All);
 
 using namespace UE::Geometry;
 
@@ -1393,38 +1393,38 @@ FVector2D UAvaShapeDynamicMeshBase::GetNumericsFromAnchor(EAvaAnchors AnchorEnum
 {
 	FVector2D Anchor = FVector2D::ZeroVector;
 
-	switch (ToUnderlyingType<EAvaAnchors>(AnchorEnum) & UE::Avalanche::AnchorPoints::Horizontal)
+	switch (ToUnderlyingType<EAvaAnchors>(AnchorEnum) & UE::Ava::AnchorPoints::Horizontal)
 	{
 	default:
 		//falls through
 
-	case UE::Avalanche::AnchorPoints::Left:
+	case UE::Ava::AnchorPoints::Left:
 		// nothing to do
 		break;
 
-	case UE::Avalanche::AnchorPoints::HMiddle:
+	case UE::Ava::AnchorPoints::HMiddle:
 		Anchor.X = 0.5f;
 		break;
 
-	case UE::Avalanche::AnchorPoints::Right:
+	case UE::Ava::AnchorPoints::Right:
 		Anchor.X = 1.f;
 		break;
 	}
 
-	switch (ToUnderlyingType<EAvaAnchors>(AnchorEnum) & UE::Avalanche::AnchorPoints::Vertical)
+	switch (ToUnderlyingType<EAvaAnchors>(AnchorEnum) & UE::Ava::AnchorPoints::Vertical)
 	{
 	default:
 		//falls through
 
-	case UE::Avalanche::AnchorPoints::Top:
+	case UE::Ava::AnchorPoints::Top:
 		// nothing to do
 		break;
 
-	case UE::Avalanche::AnchorPoints::VMiddle:
+	case UE::Ava::AnchorPoints::VMiddle:
 		Anchor.Y = 0.5f;
 		break;
 
-	case UE::Avalanche::AnchorPoints::Bottom:
+	case UE::Ava::AnchorPoints::Bottom:
 		Anchor.Y = 1.f;
 		break;
 	}
@@ -1463,21 +1463,21 @@ bool UAvaShapeDynamicMeshBase::CreateDynamicMesh(FAvaShapeMesh& InMesh)
 	// vertices and triangles should not exists if we create them
 	if (InMesh.VerticeIds.Num() != 0 || InMesh.TriangleIds.Num() != 0)
 	{
-		UE_LOG(LogAvalancheDynamicMesh, Warning, TEXT("CreateDynamicMesh %s %i : VerticeIds %i, TriangleIds %i should be empty to create mesh"), *GetMeshName(), InMesh.GetMeshIndex(), InMesh.VerticeIds.Num(), InMesh.TriangleIds.Num());
+		UE_LOG(LogAvaDynamicMesh, Warning, TEXT("CreateDynamicMesh %s %i : VerticeIds %i, TriangleIds %i should be empty to create mesh"), *GetMeshName(), InMesh.GetMeshIndex(), InMesh.VerticeIds.Num(), InMesh.TriangleIds.Num());
 		return false;
 	}
 
 	// should have same number for vertices
 	if (!(InMesh.Vertices.Num() == InMesh.Normals.Num()))
 	{
-		UE_LOG(LogAvalancheDynamicMesh, Warning, TEXT("CreateDynamicMesh %s %i : Arrays Vertices %i, Normals %i should have same length, invalid array given"), *GetMeshName(), InMesh.GetMeshIndex(), InMesh.Vertices.Num(), InMesh.Normals.Num());
+		UE_LOG(LogAvaDynamicMesh, Warning, TEXT("CreateDynamicMesh %s %i : Arrays Vertices %i, Normals %i should have same length, invalid array given"), *GetMeshName(), InMesh.GetMeshIndex(), InMesh.Vertices.Num(), InMesh.Normals.Num());
 		return false;
 	}
 
 	// should be multiple of 3
 	if ((InMesh.Triangles.Num() % 3) != 0)
 	{
-		UE_LOG(LogAvalancheDynamicMesh, Warning, TEXT("CreateDynamicMesh %s %i : Triangles array should be multiple of 3, %i invalid array given"), *GetMeshName(), InMesh.GetMeshIndex(), InMesh.Triangles.Num());
+		UE_LOG(LogAvaDynamicMesh, Warning, TEXT("CreateDynamicMesh %s %i : Triangles array should be multiple of 3, %i invalid array given"), *GetMeshName(), InMesh.GetMeshIndex(), InMesh.Triangles.Num());
 		return false;
 	}
 
@@ -1514,7 +1514,7 @@ bool UAvaShapeDynamicMeshBase::CreateDynamicMesh(FAvaShapeMesh& InMesh)
 				!InMesh.VerticeIds.IsValidIndex(Idx2) ||
 				!InMesh.VerticeIds.IsValidIndex(Idx3))
 			{
-				UE_LOG(LogAvalancheDynamicMesh, Warning, TEXT("CreateDynamicMesh %s %i : Invalid Vertice idx for triangle %i %i %i"), *GetMeshName(), InMesh.GetMeshIndex(), Idx1, Idx2, Idx3);
+				UE_LOG(LogAvaDynamicMesh, Warning, TEXT("CreateDynamicMesh %s %i : Invalid Vertice idx for triangle %i %i %i"), *GetMeshName(), InMesh.GetMeshIndex(), Idx1, Idx2, Idx3);
 				continue;
 			}
 
@@ -1526,7 +1526,7 @@ bool UAvaShapeDynamicMeshBase::CreateDynamicMesh(FAvaShapeMesh& InMesh)
 			int32 TId = Mesh.AppendTriangle(VId1, VId2, VId3, InMesh.GetMeshIndex());
 			if (TId < 0)
 			{
-				UE_LOG(LogAvalancheDynamicMesh, Warning, TEXT("CreateDynamicMesh %s %i : Invalid Triangle ID for mesh"), *GetMeshName(), InMesh.GetMeshIndex());
+				UE_LOG(LogAvaDynamicMesh, Warning, TEXT("CreateDynamicMesh %s %i : Invalid Triangle ID for mesh"), *GetMeshName(), InMesh.GetMeshIndex());
 				continue;
 			}
 			InMesh.TriangleIds.Add(TId);
@@ -1569,7 +1569,7 @@ bool UAvaShapeDynamicMeshBase::UpdateDynamicMesh(FAvaShapeMesh& InMesh)
 	// should have same number for vertices to update
 	if (!(InMesh.Vertices.Num() == InMesh.Normals.Num()))
 	{
-		UE_LOG(LogAvalancheDynamicMesh, Warning, TEXT("UpdateDynamicMesh %s %i: Arrays Vertices %i, Normals %i should have same length, invalid array given"), *GetMeshName(), InMesh.GetMeshIndex(), InMesh.Vertices.Num(), InMesh.Normals.Num());
+		UE_LOG(LogAvaDynamicMesh, Warning, TEXT("UpdateDynamicMesh %s %i: Arrays Vertices %i, Normals %i should have same length, invalid array given"), *GetMeshName(), InMesh.GetMeshIndex(), InMesh.Vertices.Num(), InMesh.Normals.Num());
 		return false;
 	}
 
@@ -1878,7 +1878,7 @@ bool UAvaShapeDynamicMeshBase::ApplyUVsManually(FAvaShapeMesh& InMesh)
 				const int32* FoundElementID = BaseToOverlayVIDMap.Find(TriVtx[j]);
 				if (FoundElementID == nullptr)
 				{
-					UE_LOG(LogAvalancheDynamicMesh, Warning, TEXT("ApplyUVsManually %s %i: vertice id %i for uv is invalid, skipping triangle"), *GetMeshName(), InMesh.GetMeshIndex(), TriVtx[j]);
+					UE_LOG(LogAvaDynamicMesh, Warning, TEXT("ApplyUVsManually %s %i: vertice id %i for uv is invalid, skipping triangle"), *GetMeshName(), InMesh.GetMeshIndex(), TriVtx[j]);
 					break;
 				}
 				else
@@ -1975,7 +1975,7 @@ bool UAvaShapeDynamicMeshBase::ApplyUVsTransform(FAvaShapeMesh& InMesh, FAvaShap
 
 	bool bResult = true;
 	DynMesh->GetDynamicMesh()->EditMesh([InMesh, InParams, ShapeSize, UVOffset, UVFixRotation, &bResult](FDynamicMesh3& EditMesh) {
-		bResult = UE::AvalancheShapes::TransformMeshUVs(EditMesh, InMesh.UVIds, InParams, ShapeSize, UVOffset, UVFixRotation);
+		bResult = UE::AvaShapes::TransformMeshUVs(EditMesh, InMesh.UVIds, InParams, ShapeSize, UVOffset, UVFixRotation);
 	}, EDynamicMeshChangeType::AttributeEdit, EDynamicMeshAttributeChangeFlags::UVs);
 
 	return bResult;
@@ -2035,7 +2035,7 @@ bool UAvaShapeDynamicMeshBase::RegisterMesh(FAvaShapeMeshData& NewMeshData)
 {
 	if (MeshDatas.Contains(NewMeshData.GetMeshIndex()))
 	{
-		UE_LOG(LogAvalancheDynamicMesh, Warning, TEXT("RegisterMesh %s %i : Already contains mesh cannot add again"), *GetMeshName(), NewMeshData.GetMeshIndex());
+		UE_LOG(LogAvaDynamicMesh, Warning, TEXT("RegisterMesh %s %i : Already contains mesh cannot add again"), *GetMeshName(), NewMeshData.GetMeshIndex());
 		return false;
 	}
 

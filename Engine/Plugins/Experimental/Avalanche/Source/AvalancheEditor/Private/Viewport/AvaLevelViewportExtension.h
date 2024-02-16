@@ -25,7 +25,7 @@ public:
 	static TArray<TSharedPtr<IAvaViewportClient>> GetLevelEditorViewportClients();
 
 	void SetDefaultViewportType();
-	void SetAvalancheViewportType();
+	void SetMotionDesignViewportType();
 
 	virtual ~FAvaLevelViewportExtension() override;
 

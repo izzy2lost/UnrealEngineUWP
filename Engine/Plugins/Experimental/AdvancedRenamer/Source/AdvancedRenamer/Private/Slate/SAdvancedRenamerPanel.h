@@ -40,8 +40,8 @@ struct FAdvancedRenamerPreviewListItem
 	mutable FString NewName;
 };
 
-typedef TSharedPtr<FAdvancedRenamerPreviewListItem, ESPMode::ThreadSafe> FObjectRenamePreviewListItemPtr;
-typedef TWeakPtr<FAdvancedRenamerPreviewListItem, ESPMode::ThreadSafe> FObjectRenamePreviewListItemWeakPtr;
+using FObjectRenamePreviewListItemPtr = TSharedPtr<FAdvancedRenamerPreviewListItem, ESPMode::ThreadSafe>;
+using FObjectRenamePreviewListItemWeakPtr = TWeakPtr<FAdvancedRenamerPreviewListItem, ESPMode::ThreadSafe>;
 
 class SAdvancedRenamerPreviewListRow : public SMultiColumnTableRow<FObjectRenamePreviewListItemPtr>
 {

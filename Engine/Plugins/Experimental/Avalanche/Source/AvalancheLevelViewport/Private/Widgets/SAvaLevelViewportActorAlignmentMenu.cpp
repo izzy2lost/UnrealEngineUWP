@@ -26,7 +26,7 @@
 
 #define LOCTEXT_NAMESPACE "SAvaLevelViewportActorAlignmentMenu"
 
-namespace UE::AvalancheLevelViewport::Private
+namespace UE::AvaLevelViewport::Private
 {
 	// Transient setting. And that's fine.
 	EAvaAlignmentContext ActorAlignContextType = EAvaAlignmentContext::SelectedActors;
@@ -243,7 +243,7 @@ void SAvaLevelViewportActorAlignmentMenu::Construct(const FArguments& Args, cons
 	int32 Row = 0;
 
 	// Context
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	Grid->AddSlot(Button1, Row, ForegroundLayer)
 		.ColumnSpan(4)
@@ -290,7 +290,7 @@ void SAvaLevelViewportActorAlignmentMenu::Construct(const FArguments& Args, cons
 		[
 			CreateButtonCell(
 				GetLocationAlignmentButton(EAvaHorizontalAlignment::Left, static_cast<EAvaVerticalAlignment>(NO_VALUE), 
-					static_cast<EAvaDepthAlignment>(NO_VALUE), "AvalancheIcons.Alignment.Left", 
+					static_cast<EAvaDepthAlignment>(NO_VALUE), "Icons.Alignment.Left", 
 					LOCTEXT("AlignSelectedActorsLeft", "Align Selected Actors Left (to Screen or Actors)")),
 				ECellPosition::First
 			)
@@ -300,7 +300,7 @@ void SAvaLevelViewportActorAlignmentMenu::Construct(const FArguments& Args, cons
 		[
 			CreateButtonCell(
 				GetLocationAlignmentButton(EAvaHorizontalAlignment::Center, static_cast<EAvaVerticalAlignment>(NO_VALUE),
-					static_cast<EAvaDepthAlignment>(NO_VALUE), "AvalancheIcons.Alignment.Center_Y",
+					static_cast<EAvaDepthAlignment>(NO_VALUE), "Icons.Alignment.Center_Y",
 					LOCTEXT("AlignSelectedActorsHCenter", "Align Selected Actors Center (Horizontally) (to Screen or Actors)"))
 			)
 		];
@@ -309,7 +309,7 @@ void SAvaLevelViewportActorAlignmentMenu::Construct(const FArguments& Args, cons
 		[
 			CreateButtonCell(
 				GetLocationAlignmentButton(EAvaHorizontalAlignment::Right, static_cast<EAvaVerticalAlignment>(NO_VALUE),
-					static_cast<EAvaDepthAlignment>(NO_VALUE), "AvalancheIcons.Alignment.Right",
+					static_cast<EAvaDepthAlignment>(NO_VALUE), "Icons.Alignment.Right",
 					LOCTEXT("AlignSelectedActorsRight", "Align Selected Actors Right (to Screen or Actors)"))
 			)
 		];
@@ -319,7 +319,7 @@ void SAvaLevelViewportActorAlignmentMenu::Construct(const FArguments& Args, cons
 		[
 			CreateButtonCell(
 				GetLocationAlignmentButton(EAvaHorizontalAlignment::Center, EAvaVerticalAlignment::Center,
-					static_cast<EAvaDepthAlignment>(NO_VALUE), "AvalancheIcons.Alignment.Center_YZ",
+					static_cast<EAvaDepthAlignment>(NO_VALUE), "Icons.Alignment.Center_YZ",
 					LOCTEXT("AlignSelectedActorsHVCenter", "Align Selected Actors Center (Horizontally and Vertically) (to Screen or Actors)")),
 				ECellPosition::Last
 			)
@@ -332,7 +332,7 @@ void SAvaLevelViewportActorAlignmentMenu::Construct(const FArguments& Args, cons
 		[
 			CreateButtonCell(
 				GetLocationAlignmentButton(static_cast<EAvaHorizontalAlignment>(NO_VALUE), EAvaVerticalAlignment::Top, 
-					static_cast<EAvaDepthAlignment>(NO_VALUE), "AvalancheIcons.Alignment.Top", 
+					static_cast<EAvaDepthAlignment>(NO_VALUE), "Icons.Alignment.Top", 
 					LOCTEXT("AlignSelectedActorsTop", "Align Selected Actors Top (to Screen or Actors)")),
 				ECellPosition::First
 			)
@@ -342,7 +342,7 @@ void SAvaLevelViewportActorAlignmentMenu::Construct(const FArguments& Args, cons
 		[
 			CreateButtonCell(
 				GetLocationAlignmentButton(static_cast<EAvaHorizontalAlignment>(NO_VALUE), EAvaVerticalAlignment::Center,
-					static_cast<EAvaDepthAlignment>(NO_VALUE), "AvalancheIcons.Alignment.Center_Z",
+					static_cast<EAvaDepthAlignment>(NO_VALUE), "Icons.Alignment.Center_Z",
 					LOCTEXT("AlignSelectedActorsVCenter", "Align Selected Actors Center (Vertically) (to Screen or Actors)"))
 			)
 		];
@@ -351,7 +351,7 @@ void SAvaLevelViewportActorAlignmentMenu::Construct(const FArguments& Args, cons
 		[
 			CreateButtonCell(
 				GetLocationAlignmentButton(static_cast<EAvaHorizontalAlignment>(NO_VALUE), EAvaVerticalAlignment::Bottom,
-					static_cast<EAvaDepthAlignment>(NO_VALUE), "AvalancheIcons.Alignment.Bottom",
+					static_cast<EAvaDepthAlignment>(NO_VALUE), "Icons.Alignment.Bottom",
 					LOCTEXT("AlignSelectedActorsBottom", "Align Selected Actors Bottom (to Screen or Actors)"))
 			)
 		];
@@ -363,7 +363,7 @@ void SAvaLevelViewportActorAlignmentMenu::Construct(const FArguments& Args, cons
 		[
 			CreateButtonCell(
 				GetLocationAlignmentButton(static_cast<EAvaHorizontalAlignment>(NO_VALUE), static_cast<EAvaVerticalAlignment>(NO_VALUE), 
-					EAvaDepthAlignment::Front, "AvalancheIcons.Alignment.Translation.Front", 
+					EAvaDepthAlignment::Front, "Icons.Alignment.Translation.Front", 
 					LOCTEXT("AlignSelectedActorsFront", "Align Selected Actors Front (to Actors Only)")),
 				ECellPosition::First
 			)
@@ -373,7 +373,7 @@ void SAvaLevelViewportActorAlignmentMenu::Construct(const FArguments& Args, cons
 		[
 			CreateButtonCell(
 				GetLocationAlignmentButton(static_cast<EAvaHorizontalAlignment>(NO_VALUE), static_cast<EAvaVerticalAlignment>(NO_VALUE), 
-					EAvaDepthAlignment::Center, "AvalancheIcons.Alignment.Translation.Center_X", 
+					EAvaDepthAlignment::Center, "Icons.Alignment.Translation.Center_X", 
 					LOCTEXT("AlignSelectedActorsDCenter", "Align Selected Actors Center (Depth) (to Actors Only)"))
 			)
 		];
@@ -382,7 +382,7 @@ void SAvaLevelViewportActorAlignmentMenu::Construct(const FArguments& Args, cons
 		[
 			CreateButtonCell(
 				GetLocationAlignmentButton(static_cast<EAvaHorizontalAlignment>(NO_VALUE), static_cast<EAvaVerticalAlignment>(NO_VALUE),
-					EAvaDepthAlignment::Back, "AvalancheIcons.Alignment.Translation.Back",
+					EAvaDepthAlignment::Back, "Icons.Alignment.Translation.Back",
 					LOCTEXT("AlignSelectedActorsBack", "Align Selected Actors Back (to Actors Only)"))
 			)
 		];
@@ -393,7 +393,7 @@ void SAvaLevelViewportActorAlignmentMenu::Construct(const FArguments& Args, cons
 	Grid->AddSlot(Button1, Row, ForegroundLayer)
 		[
 			CreateButtonCell(
-				GetDistributionAlignmentButton(EAvaScreenAxis::Horizontal, "AvalancheIcons.Alignment.DistributeY",
+				GetDistributionAlignmentButton(EAvaScreenAxis::Horizontal, "Icons.Alignment.DistributeY",
 					LOCTEXT("AlignSelectedActorsDistributeY", "Distribute Selected Actors Left to Right (based on Screen or Actors)")),
 				ECellPosition::First
 			)
@@ -402,7 +402,7 @@ void SAvaLevelViewportActorAlignmentMenu::Construct(const FArguments& Args, cons
 	Grid->AddSlot(Button2, Row, ForegroundLayer)
 		[
 			CreateButtonCell(
-				GetDistributionAlignmentButton(EAvaScreenAxis::Vertical, "AvalancheIcons.Alignment.DistributeZ",
+				GetDistributionAlignmentButton(EAvaScreenAxis::Vertical, "Icons.Alignment.DistributeZ",
 					LOCTEXT("AlignSelectedActorsDistributeZ", "Distribute Selected Actors Top to Bottom (based on Screen or Actors)"))
 			)
 		];
@@ -410,7 +410,7 @@ void SAvaLevelViewportActorAlignmentMenu::Construct(const FArguments& Args, cons
 	Grid->AddSlot(Button3, Row, ForegroundLayer)
 		[
 			CreateButtonCell(
-				GetDistributionAlignmentButton(EAvaScreenAxis::Depth, "AvalancheIcons.Alignment.DistributeX",
+				GetDistributionAlignmentButton(EAvaScreenAxis::Depth, "Icons.Alignment.DistributeX",
 					LOCTEXT("AlignSelectedActorsDistributeX", "Distribute Selected Actors Front to Back (based on Screen or Actors)"))
 			)
 		];
@@ -421,7 +421,7 @@ void SAvaLevelViewportActorAlignmentMenu::Construct(const FArguments& Args, cons
 	Grid->AddSlot(Button1, Row, ForegroundLayer)
 		[
 			CreateButtonCell(
-				GetRotationAlignmentButton(EAvaRotationAxis::Roll, "AvalancheIcons.Alignment.Rotation.Actor.Roll",
+				GetRotationAlignmentButton(EAvaRotationAxis::Roll, "Icons.Alignment.Rotation.Actor.Roll",
 					LOCTEXT("AlignSelectedActorsToRoll", "Align Roll of Selected Actors")),
 				ECellPosition::First
 			)
@@ -430,7 +430,7 @@ void SAvaLevelViewportActorAlignmentMenu::Construct(const FArguments& Args, cons
 	Grid->AddSlot(Button2, Row, ForegroundLayer)
 		[
 			CreateButtonCell(
-				GetRotationAlignmentButton(EAvaRotationAxis::Pitch, "AvalancheIcons.Alignment.Rotation.Actor.Pitch",
+				GetRotationAlignmentButton(EAvaRotationAxis::Pitch, "Icons.Alignment.Rotation.Actor.Pitch",
 					LOCTEXT("AlignSelectedActorsToPitch", "Align Pitch of Selected Actors"))
 			)
 		];
@@ -438,7 +438,7 @@ void SAvaLevelViewportActorAlignmentMenu::Construct(const FArguments& Args, cons
 	Grid->AddSlot(Button3, Row, ForegroundLayer)
 		[
 			CreateButtonCell(
-				GetRotationAlignmentButton(EAvaRotationAxis::Yaw, "AvalancheIcons.Alignment.Rotation.Actor.Yaw",
+				GetRotationAlignmentButton(EAvaRotationAxis::Yaw, "Icons.Alignment.Rotation.Actor.Yaw",
 					LOCTEXT("AlignSelectedActorsToYaw", "Align Yaw of Selected Actors"))
 			)
 		];
@@ -446,7 +446,7 @@ void SAvaLevelViewportActorAlignmentMenu::Construct(const FArguments& Args, cons
 	Grid->AddSlot(Button4, Row, ForegroundLayer)
 		[
 			CreateButtonCell(
-				GetRotationAlignmentButton(EAvaRotationAxis::All, "AvalancheIcons.Alignment.Rotation.Actor.All",
+				GetRotationAlignmentButton(EAvaRotationAxis::All, "Icons.Alignment.Rotation.Actor.All",
 					LOCTEXT("AlignSelectedActorsToRollYawPitch", "Align Roll, Pitch and Yaw  of Selected Actors")),
 				ECellPosition::Last
 			)
@@ -458,7 +458,7 @@ void SAvaLevelViewportActorAlignmentMenu::Construct(const FArguments& Args, cons
 	Grid->AddSlot(Button1, Row, ForegroundLayer)
 		[
 			CreateButtonCell(
-				GetCameraRotationAlignmentButton(EAvaRotationAxis::Roll, "AvalancheIcons.Alignment.Rotation.Camera.Roll",
+				GetCameraRotationAlignmentButton(EAvaRotationAxis::Roll, "Icons.Alignment.Rotation.Camera.Roll",
 					LOCTEXT("AlignSelectedActorsToRollCamera", "Align Roll of Selected Actors to face the Camera")),
 				ECellPosition::First
 			)
@@ -467,7 +467,7 @@ void SAvaLevelViewportActorAlignmentMenu::Construct(const FArguments& Args, cons
 	Grid->AddSlot(Button2, Row, ForegroundLayer)
 		[
 			CreateButtonCell(
-				GetCameraRotationAlignmentButton(EAvaRotationAxis::Pitch, "AvalancheIcons.Alignment.Rotation.Camera.Pitch",
+				GetCameraRotationAlignmentButton(EAvaRotationAxis::Pitch, "Icons.Alignment.Rotation.Camera.Pitch",
 					LOCTEXT("AlignSelectedActorsToPitchCamera", "Align Pitch of Selected Actors to face the Camera"))
 			)
 		];
@@ -475,7 +475,7 @@ void SAvaLevelViewportActorAlignmentMenu::Construct(const FArguments& Args, cons
 	Grid->AddSlot(Button3, Row, ForegroundLayer)
 		[
 			CreateButtonCell(
-				GetCameraRotationAlignmentButton(EAvaRotationAxis::Yaw, "AvalancheIcons.Alignment.Rotation.Camera.Yaw",
+				GetCameraRotationAlignmentButton(EAvaRotationAxis::Yaw, "Icons.Alignment.Rotation.Camera.Yaw",
 					LOCTEXT("AlignSelectedActorsToYawCamera", "Align Yaw of Selected Actors to face the Camera"))
 			)
 		];
@@ -483,7 +483,7 @@ void SAvaLevelViewportActorAlignmentMenu::Construct(const FArguments& Args, cons
 	Grid->AddSlot(Button4, Row, ForegroundLayer)
 		[
 			CreateButtonCell(
-				GetCameraRotationAlignmentButton(EAvaRotationAxis::All, "AvalancheIcons.Alignment.Rotation.Camera.All",
+				GetCameraRotationAlignmentButton(EAvaRotationAxis::All, "Icons.Alignment.Rotation.Camera.All",
 					LOCTEXT("AlignSelectedActorsToRollYawPitchCamera", "Align Roll, Pitch and Yaw of Selected Actors to face the Camera")),
 				ECellPosition::Last
 			)
@@ -502,7 +502,7 @@ void SAvaLevelViewportActorAlignmentMenu::Construct(const FArguments& Args, cons
 				.ToolTipText(LOCTEXT("SizeToScreen", "Size the Currently Selected Actors to the Screen."))
 				[
 					SNew(SImage)
-					.Image(FAvaLevelViewportStyle::Get().GetBrush("AvalancheIcons.Screen.SizeToScreen"))
+					.Image(FAvaLevelViewportStyle::Get().GetBrush("Icons.Screen.SizeToScreen"))
 					.DesiredSizeOverride(FVector2D(16.f, 16.f))
 				],
 				ECellPosition::First
@@ -519,7 +519,7 @@ void SAvaLevelViewportActorAlignmentMenu::Construct(const FArguments& Args, cons
 				.ToolTipText(LOCTEXT("SizeToScreenStretch", "Stretch the Currently Selected Actors to the Screen."))
 				[
 					SNew(SImage)
-					.Image(FAvaLevelViewportStyle::Get().GetBrush("AvalancheIcons.Screen.SizeToScreenStretch"))
+					.Image(FAvaLevelViewportStyle::Get().GetBrush("Icons.Screen.SizeToScreenStretch"))
 					.DesiredSizeOverride(FVector2D(16.f, 16.f))
 				]
 			)
@@ -535,7 +535,7 @@ void SAvaLevelViewportActorAlignmentMenu::Construct(const FArguments& Args, cons
 				.ToolTipText(LOCTEXT("FitToScreen", "Stretches the Currently Selected Actors to the Screen and centers it.\n\n- Shift: If an object is rotated beyond 45 degrees with respect to the camera, align to nearest axis."))
 				[
 					SNew(SImage)
-					.Image(FAvaLevelViewportStyle::Get().GetBrush("AvalancheIcons.Screen.FitToScreen"))
+					.Image(FAvaLevelViewportStyle::Get().GetBrush("Icons.Screen.FitToScreen"))
 					.DesiredSizeOverride(FVector2D(16.f, 16.f))
 				]
 			)
@@ -607,7 +607,7 @@ TSharedRef<SButton> SAvaLevelViewportActorAlignmentMenu::GetCameraRotationAlignm
 
 FReply SAvaLevelViewportActorAlignmentMenu::OnSizeToScreenClicked(bool bInStretchToFit)
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	FDismissMenus DismissMenus;
 
@@ -659,7 +659,7 @@ FReply SAvaLevelViewportActorAlignmentMenu::OnSizeToScreenClicked(bool bInStretc
 
 FReply SAvaLevelViewportActorAlignmentMenu::OnFitToScreenClicked()
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	FDismissMenus DismissMenus;
 
@@ -714,7 +714,7 @@ FReply SAvaLevelViewportActorAlignmentMenu::OnFitToScreenClicked()
 
 FReply SAvaLevelViewportActorAlignmentMenu::OnRotationAlignmentButtonClicked(EAvaRotationAxis InAxisList)
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	FDismissMenus DismissMenus;
 
@@ -779,7 +779,7 @@ FReply SAvaLevelViewportActorAlignmentMenu::OnRotationAlignmentButtonClicked(EAv
 
 FReply SAvaLevelViewportActorAlignmentMenu::OnCameraRotationAlignmentButtonClicked(EAvaRotationAxis InAxisList)
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	FDismissMenus DismissMenus;
 
@@ -844,7 +844,7 @@ FReply SAvaLevelViewportActorAlignmentMenu::OnCameraRotationAlignmentButtonClick
 
 FReply SAvaLevelViewportActorAlignmentMenu::OnDistributeAlignmentButtonClicked(EAvaScreenAxis InScreenAxis)
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	FDismissMenus DismissMenus;
 
@@ -917,7 +917,7 @@ FReply SAvaLevelViewportActorAlignmentMenu::OnDistributeAlignmentButtonClicked(E
 FReply SAvaLevelViewportActorAlignmentMenu::OnLocationAlignmentButtonClicked(EAvaHorizontalAlignment InHoriz, EAvaVerticalAlignment InVert,
 	EAvaDepthAlignment InDepth)
 {
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	FDismissMenus DismissMenus;
 

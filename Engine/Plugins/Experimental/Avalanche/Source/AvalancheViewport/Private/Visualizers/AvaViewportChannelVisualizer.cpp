@@ -9,7 +9,7 @@
 #include "UObject/Package.h"
 #include "Viewport/Interaction/AvaViewportPostProcessInfo.h"
 
-namespace UE::AvalancheViewport::Private
+namespace UE::AvaViewport::Private
 {
 	const FString ChannelReferencerName = FString(TEXT("AvaViewportChannelVisualizer"));
 
@@ -26,7 +26,7 @@ FAvaViewportChannelVisualizer::FAvaViewportChannelVisualizer(TSharedRef<IAvaView
 {
 	bRequiresTonemapperSetting = (InChannel == EAvaViewportPostProcessType::AlphaChannel);
 
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	if (const TSoftObjectPtr<UMaterial>* BaseMaterialPtr = ChannelAssets.Find(InChannel))
 	{
@@ -40,5 +40,5 @@ FAvaViewportChannelVisualizer::FAvaViewportChannelVisualizer(TSharedRef<IAvaView
 
 FString FAvaViewportChannelVisualizer::GetReferencerName() const
 {
-	return UE::AvalancheViewport::Private::ChannelReferencerName;
+	return UE::AvaViewport::Private::ChannelReferencerName;
 }

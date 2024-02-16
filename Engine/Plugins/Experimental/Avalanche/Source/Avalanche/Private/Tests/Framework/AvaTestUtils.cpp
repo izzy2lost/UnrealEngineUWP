@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Tests/Framework/AvaTestUtils.h"
 
@@ -11,7 +11,7 @@
 #include "Tests/Framework/AvaTestStaticMeshActor.h"
 #include "UDynamicMesh.h"
 
-// General Avalanche unit test log
+// General Motion Design unit test log
 DEFINE_LOG_CATEGORY(LogAvaTest);
 
 void FAvaTestUtils::Init()

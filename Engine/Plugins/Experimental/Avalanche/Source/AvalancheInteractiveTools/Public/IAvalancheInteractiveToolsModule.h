@@ -31,7 +31,7 @@ struct FAvaInteractiveToolsToolParameters
 	TMap<FName, TSharedRef<FAvaInteractiveToolsToolPresetBase>> Presets;
 };
 
-namespace UE::AvalancheInteractiveTools
+namespace UE::AvaInteractiveTools
 {
 	using FAvaInteractiveToolsCategoryToolMap = TMap<FName, TArray<FAvaInteractiveToolsToolParameters>>;
 }

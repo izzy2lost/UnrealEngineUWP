@@ -13,7 +13,7 @@ struct FStormSyncTransportStatusResponse;
 struct FStormSyncTransportSyncResponse;
 
 /**
- * Avalanche synchronization provider feature implementation
+ * Motion Design synchronization provider feature implementation
  */
 class FStormSyncAvaSyncProvider : public IAvaMediaSyncProvider
 {

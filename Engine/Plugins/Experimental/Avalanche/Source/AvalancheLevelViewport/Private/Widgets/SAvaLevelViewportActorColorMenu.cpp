@@ -230,13 +230,13 @@ void SAvaLevelViewportActorColorMenu::Construct(const FArguments& InArgs, const 
 				+ SWidgetSwitcher::Slot()
 				[
 					SNew(SImage)
-					.Image(AvaLevelViewportStyle.GetBrush("AvalancheIcons.ColorPicker.SolidColors"))
+					.Image(AvaLevelViewportStyle.GetBrush("Icons.ColorPicker.SolidColors"))
 					.OnMouseButtonDown(this, &SAvaLevelViewportActorColorMenu::OnColorSwitchedMouseDown)
 				]
 				+ SWidgetSwitcher::Slot()
 				[
 					SNew(SImage)
-					.Image(AvaLevelViewportStyle.GetBrush("AvalancheIcons.ColorPicker.LinearGradient"))
+					.Image(AvaLevelViewportStyle.GetBrush("Icons.ColorPicker.LinearGradient"))
 					.OnMouseButtonDown(this, &SAvaLevelViewportActorColorMenu::OnColorSwitchedMouseDown)
 				]
 			]

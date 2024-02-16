@@ -13,7 +13,7 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogAvaSequenceController, Log, All);
 
-namespace UE::Avalanche::Private
+namespace UE::Ava::Private
 {
 	double GetFrameTimeAsDisplayDecimal(UMovieScene& InMovieScene, const FFrameTime& InTickTime)
 	{
@@ -22,7 +22,7 @@ namespace UE::Avalanche::Private
 
 #if !NO_LOGGING
 	bool bAvaLogMarkedFrames = false;
-	FAutoConsoleVariableRef CVarLogAvaSequenceController(TEXT("Log.Avalanche.SequenceController")
+	FAutoConsoleVariableRef CVarLogAvaSequenceController(TEXT("Log.MotionDesign.SequenceController")
 		, bAvaLogMarkedFrames
 		, TEXT("Log FAvaSequenceController"));
 #endif
@@ -49,7 +49,7 @@ public:
 	static bool IsLoggingEnabled()
 	{
 #if !NO_LOGGING
-		return UE::Avalanche::Private::bAvaLogMarkedFrames;
+		return UE::Ava::Private::bAvaLogMarkedFrames;
 #else
 		return false;
 #endif
@@ -135,8 +135,8 @@ void FAvaSequenceController::Tick(const FAvaSequencePlayerVariant& InPlayerVaria
 
 	UE_CLOG(FAvaSequenceControllerTickScope::IsLoggingEnabled(), LogAvaSequenceController, Log
 		, TEXT("Previous Frame: %f ---  Current Frame: %f")
-		, UE::Avalanche::Private::GetFrameTimeAsDisplayDecimal(MovieScene, PreviousFrame)
-		, UE::Avalanche::Private::GetFrameTimeAsDisplayDecimal(MovieScene, CurrentFrame));
+		, UE::Ava::Private::GetFrameTimeAsDisplayDecimal(MovieScene, PreviousFrame)
+		, UE::Ava::Private::GetFrameTimeAsDisplayDecimal(MovieScene, CurrentFrame));
 
 	SortMarks(MovieScene);
 
@@ -224,7 +224,7 @@ FString FAvaSequenceController::GetMarkRoleAsString(const UAvaSequence& InSequen
 
 FString FAvaSequenceController::GetMarkAsString(UMovieScene& InMovieScene, const FMovieSceneMarkedFrame& InMark) const
 {
-	const double DisplayFrame = UE::Avalanche::Private::GetFrameTimeAsDisplayDecimal(InMovieScene, InMark.FrameNumber);
+	const double DisplayFrame = UE::Ava::Private::GetFrameTimeAsDisplayDecimal(InMovieScene, InMark.FrameNumber);
 
 	return InMark.Label
 		+ TEXT(" @ ")
@@ -261,7 +261,7 @@ void FAvaSequenceController::UpdatePlaybackVariables()
 {
 	PlayDirection = PlaybackContext->IsPlayingForwards() ? EPlayDirection::Forwards : EPlayDirection::Backwards;
 
-	// NOTE: Marks in both Sequencer + Avalanche Player are processed prior to these Players processing Tick this frame
+	// NOTE: Marks in both Sequencer + Motion Design Player are processed prior to these Players processing Tick this frame
 	// So Global Time is currently the result of the Last Frame, rather than the result of this frame
 	const FFrameTime LastFrameTime = PlaybackContext->GetGlobalTime();
 
@@ -336,8 +336,8 @@ TArray<const FMovieSceneMarkedFrame*> FAvaSequenceController::FindIntersectedMar
 		if (IntersectedMarks.IsEmpty())
 		{
 			UE_LOG(LogAvaSequenceController, Log, TEXT("No Marks between %f and %f")
-				, UE::Avalanche::Private::GetFrameTimeAsDisplayDecimal(InMovieScene, LowerBound)
-				, UE::Avalanche::Private::GetFrameTimeAsDisplayDecimal(InMovieScene, UpperBound));	
+				, UE::Ava::Private::GetFrameTimeAsDisplayDecimal(InMovieScene, LowerBound)
+				, UE::Ava::Private::GetFrameTimeAsDisplayDecimal(InMovieScene, UpperBound));	
 		}
 		else
 		{
@@ -348,8 +348,8 @@ TArray<const FMovieSceneMarkedFrame*> FAvaSequenceController::FindIntersectedMar
 			}
 			UE_LOG(LogAvaSequenceController, Log, TEXT("%d Marks between %f and %f --- [ %s ]")
 				, IntersectedMarks.Num()
-				, UE::Avalanche::Private::GetFrameTimeAsDisplayDecimal(InMovieScene, LowerBound)
-				, UE::Avalanche::Private::GetFrameTimeAsDisplayDecimal(InMovieScene, UpperBound)
+				, UE::Ava::Private::GetFrameTimeAsDisplayDecimal(InMovieScene, LowerBound)
+				, UE::Ava::Private::GetFrameTimeAsDisplayDecimal(InMovieScene, UpperBound)
 				, *MarkList);	
 		}
 	}

@@ -2,4 +2,4 @@
 
 #include "AvaMaskEditorLog.h"
 
-DEFINE_LOG_CATEGORY(LogAvalancheMaskEditor);
+DEFINE_LOG_CATEGORY(LogAvaMaskEditor);

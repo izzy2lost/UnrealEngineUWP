@@ -10,7 +10,7 @@
 #include "Math/Transform.h"
 #include "Math/Vector.h"
 
-namespace UE::AvalancheEditor::Private
+namespace UE::AvaEditor::Private
 {
 	[[nodiscard]] FBox GetActorLocalBounds(AActor& InActor, EAvaAlignmentSizeMode InActorSizeMode)
 	{
@@ -111,7 +111,7 @@ FAvaScreenAlignmentActorInfo FAvaScreenAlignmentActorInfo::Create(const TSharedR
 		return CreateInfo();
 	}
 
-	const FBox ActorLocalBoundingBox = UE::AvalancheEditor::Private::GetActorLocalBounds(InActor, InActorSizeMode);
+	const FBox ActorLocalBoundingBox = UE::AvaEditor::Private::GetActorLocalBounds(InActor, InActorSizeMode);
 
 	if (!ActorLocalBoundingBox.IsValid)
 	{

@@ -34,10 +34,10 @@ struct FAvaViewportQualitySettingsFeature
 };
 
 /** 
- * Avalanche Viewport Quality Settings
+ * Motion Design Viewport Quality Settings
  * 
  * Advanced render and quality viewport settings to control performance for a given Viewport.
- * Human-readable and blueprintable structure that holds flags for the FShowEngineFlags structure.
+ * Human-readable and blueprint-able structure that holds flags for the FShowEngineFlags structure.
  * Can convert FShowEngineFlags to FAvaViewportQualitySettings and apply FAvaViewportQualitySettings to a FShowEngineFlags structure.
  */
 USTRUCT(BlueprintType)

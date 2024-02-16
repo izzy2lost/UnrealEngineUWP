@@ -17,19 +17,13 @@ DECLARE_DELEGATE_OneParam(FOnAvaFontFieldModified, const TSharedPtr<FAvaFontView
 class SAvaFontField : public SCompoundWidget
 {
 public:
-	SLATE_BEGIN_ARGS(SAvaFontField)
-		:_AvalancheFont(),
-		_OnAvaFontFieldModified()
-		{
-		}
-
-		SLATE_ATTRIBUTE(TSharedPtr<FAvaFontView>, AvalancheFont)
-		SLATE_EVENT(FOnAvaFontFieldModified, OnAvaFontFieldModified)
-
+	SLATE_BEGIN_ARGS(SAvaFontField) {}
+		SLATE_ATTRIBUTE(TSharedPtr<FAvaFontView>, FontView)
+		SLATE_EVENT(FOnAvaFontFieldModified, OnFontFieldModified)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
-	void UpdateFont(const TSharedPtr<FAvaFontView>& InAvaFont);
+	void UpdateFont(const TSharedPtr<FAvaFontView>& InFontView);
 	void Select() { bIsSelected = true; }
 	void Deselect() { bIsSelected = false; }
 
@@ -42,14 +36,14 @@ protected:
 
 	bool IsSelected() const { return bIsSelected; }
 
-	FOnAvaFontFieldModified OnAvaFontFieldModified;
+	FOnAvaFontFieldModified OnFontFieldModified;
 
 	FText FontName;
 
 	TSharedPtr<STextBlock> LeftFontNameText;
 	TSharedPtr<STextBlock> RightFontNameText;
 
-	TAttribute<TSharedPtr<FAvaFontView>> AvalancheFont;
+	TAttribute<TSharedPtr<FAvaFontView>> FontView;
 
 	TSharedPtr<FSlateBrush> CheckBoxBg;
 

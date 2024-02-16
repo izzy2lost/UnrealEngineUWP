@@ -9,7 +9,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaEdMode"
 
-const FEditorModeID UAvaEdMode::ModeID(TEXT("EM_Avalanche"));
+const FEditorModeID UAvaEdMode::ModeID(TEXT("EM_MotionDesign"));
 
 UAvaEdMode::UAvaEdMode()
 {

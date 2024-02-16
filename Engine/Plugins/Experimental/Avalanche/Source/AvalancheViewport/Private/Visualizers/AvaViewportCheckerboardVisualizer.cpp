@@ -9,7 +9,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaViewportBackgroundVisualizer"
 
-namespace UE::AvalancheViewport::Private
+namespace UE::AvaViewport::Private
 {
 	const FString CheckerboardReferencerName = FString(TEXT("AvaViewportCheckerboardVisualizer"));
 	const FName CheckerboardColor0Name = FName(TEXT("CheckerboardColor0"));
@@ -51,7 +51,7 @@ void FAvaViewportCheckerboardVisualizer::UpdatePostProcessMaterial()
 	
 	if (PostProcessMaterial)
 	{
-		using namespace UE::AvalancheViewport::Private;
+		using namespace UE::AvaViewport::Private;
 		PostProcessMaterial->SetVectorParameterValue(CheckerboardColor0Name, CheckerboardColor0);
 		PostProcessMaterial->SetVectorParameterValue(CheckerboardColor1Name, CheckerboardColor1);
 		PostProcessMaterial->SetVectorParameterValue(CheckerboardSizeName, CheckerboardSize);
@@ -60,7 +60,7 @@ void FAvaViewportCheckerboardVisualizer::UpdatePostProcessMaterial()
 
 FString FAvaViewportCheckerboardVisualizer::GetReferencerName() const
 {
-	return UE::AvalancheViewport::Private::CheckerboardReferencerName;
+	return UE::AvaViewport::Private::CheckerboardReferencerName;
 }
 
 void FAvaViewportCheckerboardVisualizer::OnSettingChanged(UObject* InSettings, FPropertyChangedEvent& InPropertyChangeEvent)

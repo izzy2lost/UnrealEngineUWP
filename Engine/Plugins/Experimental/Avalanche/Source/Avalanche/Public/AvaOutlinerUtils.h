@@ -15,13 +15,13 @@ class IAvaOutliner;
 /** Editor Only Outliner Access Functions */
 struct AVALANCHE_API FAvaOutlinerUtils
 {
-	/** Returns the Avalanche outliner from the outliner module at runtime in the editor. */
+	/** Returns the Motion Design outliner from the outliner module at runtime in the editor. */
 	static TSharedPtr<IAvaOutliner> EditorGetOutliner(const UWorld* const InWorld);
 
 	/** Returns an array of direct child actors attached to a parent actor or all root level actors if the parent actor is null. */
 	static TArray<AActor*> EditorOutlinerChildActors(TSharedPtr<IAvaOutliner> InOutliner, AActor* const InParentActor = nullptr);
 
-	/** Returns true if the Avalanche BP editor is isolating actors and the array of actors currently being isolated. */
+	/** Returns true if the Motion Design editor is isolating actors and the array of actors currently being isolated. */
 	static bool EditorActorIsolationInfo(TSharedPtr<IAvaOutliner> InOutliner, TArray<TWeakObjectPtr<const AActor>>& OutIsolatedActors);
 
 	/**

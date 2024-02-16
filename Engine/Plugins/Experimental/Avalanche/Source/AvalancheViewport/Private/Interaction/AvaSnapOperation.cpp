@@ -27,7 +27,7 @@
 #include "Viewport/Interaction/IAvaViewportDataProvider.h"
 #include "ViewportClient/IAvaViewportClient.h"
 
-namespace UE::AvalancheViewport::Private
+namespace UE::AvaViewport::Private
 {
 	EAvaViewportSnapState GetSnapState()
 	{
@@ -259,7 +259,7 @@ FAvaSnapOperation::~FAvaSnapOperation()
 
 void FAvaSnapOperation::GenerateLocalSnapPoints(AActor* InActor, TArray<FAvaSnapPoint>& InOutSnapPoints)
 {
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	if (!InActor || !IsActorEligibleForSnapping(InActor))
 	{
@@ -415,7 +415,7 @@ void FAvaSnapOperation::GenerateBoundsSnapPoints(const FVector& InOrigin, const 
 
 void FAvaSnapOperation::GenerateScreenSnapPoints()
 {
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	if (!EnumHasAnyFlags(GetSnapState(), EAvaViewportSnapState::Screen))
 	{
@@ -476,7 +476,7 @@ void FAvaSnapOperation::GenerateScreenSnapPoints()
 
 void FAvaSnapOperation::GenerateComponentSnapPoints(const UActorComponent* InComponent)
 {
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	if (!EnumHasAnyFlags(GetSnapState(), EAvaViewportSnapState::Actor))
 	{
@@ -513,7 +513,7 @@ void FAvaSnapOperation::GenerateComponentSnapPoints(const UActorComponent* InCom
 void FAvaSnapOperation::GenerateActorSnapPoints(const TConstArrayView<TWeakObjectPtr<AActor>>& InSelectedActors,
 	const TConstArrayView<TWeakObjectPtr<AActor>>& InExcludedActors)
 {
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	TSharedPtr<IAvaViewportClient> AvaViewportClient = FAvaViewportUtils::GetAsAvaViewportClient(EditorViewportClient);
 
@@ -719,7 +719,7 @@ bool FAvaSnapOperation::SnapY(float& InOutComponent, float InViewportSize, int32
 bool FAvaSnapOperation::SnapVectorComponent(float& InOutComponent, const TArray<FAvaSnapPointLink>& InSnapPointLinks,
 	float InViewportSize, int32 InScreenSnapPointCount, int32& OutClosestSnapPointIdx, float& OutDistanceFromSnap)
 {
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	OutDistanceFromSnap = -1;	
 
@@ -831,7 +831,7 @@ bool FAvaSnapOperation::SnapVectorComponent(float& InOutComponent, const TArray<
 
 void FAvaSnapOperation::SnapScreenLocation(FVector2f& InOutScreenLocation, bool bInSnapX, bool bInSnapY)
 {
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	bSnappedToLinkX = false;
 	bSnappedToLinkY = false;
@@ -895,7 +895,7 @@ void FAvaSnapOperation::SnapScreenLocationY(float& InOutScreenLocation)
 
 bool FAvaSnapOperation::SnapLocation(FVector& Location)
 {
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	bSnappedToLinkX = false;
 	bSnappedToLinkY = false;
@@ -995,7 +995,7 @@ bool FAvaSnapOperation::SnapDragLocation(const TArray<FAvaSnapPoint>& InDraggedA
 	 * - Move actor
 	 */
 
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	bSnappedToLinkX = false;
 	bSnappedToLinkY = false;

@@ -30,7 +30,7 @@ enum class EAvaEditorObjectQueryType : uint8
 	CreateIfNotFound,
 };
 
-/** Interface used to Extend an Editor (e.g. Level Editor) for the Avalanche Workflow that extends beyond the limits of Mode UI Layer*/
+/** Interface used to Extend an Editor (e.g. Level Editor) for the Motion Design Workflow that extends beyond the limits of Mode UI Layer*/
 class IAvaEditor : public IAvaTypeCastable, public TSharedFromThis<IAvaEditor>
 {
 public:

@@ -25,8 +25,8 @@ struct HAvaClonerActorSpacingHitProxy : HAvaHitProxy
 class FAvaClonerActorVisualizer : public FAvaVisualizerBase
 {
 public:
-	typedef FAvaVisualizerBase Super;
-	typedef UCEClonerComponent MeshType;
+	using Super = FAvaVisualizerBase;
+	using MeshType = UCEClonerComponent;
 
 	FAvaClonerActorVisualizer();
 

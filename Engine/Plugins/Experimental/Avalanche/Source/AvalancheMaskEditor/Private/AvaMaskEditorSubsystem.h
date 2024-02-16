@@ -9,7 +9,7 @@
 
 class FAvaMaskSceneViewExtension;
 
-namespace UE::AvalancheMaskEditor::Internal
+namespace UE::AvaMaskEditor::Internal
 {
 	static FName ToolkitOverlayMenuName = TEXT("AvalancheMask.Editor.ModeOverlayToolbar");
 }

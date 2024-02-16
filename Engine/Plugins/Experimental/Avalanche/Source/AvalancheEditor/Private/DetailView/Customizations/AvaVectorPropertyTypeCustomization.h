@@ -54,8 +54,8 @@ ENUM_CLASS_FLAGS(ERatioMode)
 class FAvaVectorPropertyTypeCustomization : public IPropertyTypeCustomization
 {
 public:
-	typedef SNumericVectorInputBox<double, UE::Math::TVector2<double>, 2> SNumericVectorInputBox2D;
-	typedef SNumericVectorInputBox<FVector::FReal, UE::Math::TVector<FVector::FReal>, 3> SNumericVectorInputBox3D;
+	using SNumericVectorInputBox2D = SNumericVectorInputBox<double, UE::Math::TVector2<double>, 2>;
+	using SNumericVectorInputBox3D = SNumericVectorInputBox<FVector::FReal, UE::Math::TVector<FVector::FReal>, 3>;
 
 	static constexpr uint8 MULTI_OBJECT_DEBOUNCE  = 3;
 	static constexpr uint8 SINGLE_OBJECT_DEBOUNCE = 2;

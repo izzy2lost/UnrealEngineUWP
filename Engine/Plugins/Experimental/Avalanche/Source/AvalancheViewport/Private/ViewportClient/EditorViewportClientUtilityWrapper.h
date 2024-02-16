@@ -26,7 +26,7 @@ public:
 	//~ End IAvaViewportWorldCoordinateConverter
 
 	//~ Begin IAvaViewportClient
-	virtual bool IsAvalancheViewport() const override { return false; }
+	virtual bool IsMotionDesignViewport() const override { return false; }
 	virtual const FEditorViewportClient* AsEditorViewportClient() const override;
 	virtual bool SupportsZoom() const override { return false; } // No support
 	virtual float GetUnZoomedFOV() const override;

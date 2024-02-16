@@ -30,14 +30,14 @@
 
 #define LOCTEXT_NAMESPACE "AvaLevelViewportClient"
 
-namespace UE::AvalancheLevelViewport::Private
+namespace UE::AvaLevelViewport::Private
 {
 	static TSet<FEditorViewportClient*> ViewportClientRegistry;
 }
 
 bool FAvaLevelViewportClient::IsAvaLevelViewportClient(const FEditorViewportClient* InViewportClient)
 {
-	return InViewportClient && UE::AvalancheLevelViewport::Private::ViewportClientRegistry.Contains(InViewportClient);
+	return InViewportClient && UE::AvaLevelViewport::Private::ViewportClientRegistry.Contains(InViewportClient);
 }
 
 FAvaLevelViewportClient::FAvaLevelViewportClient()
@@ -53,12 +53,12 @@ FAvaLevelViewportClient::FAvaLevelViewportClient()
 	BoundingBoxVisualizer = FAvaViewportBoundingBoxVisualizerProvider::CreateVisualizer();
 	bUseControllingActorViewInfo = true;
 
-	UE::AvalancheLevelViewport::Private::ViewportClientRegistry.Add(this);
+	UE::AvaLevelViewport::Private::ViewportClientRegistry.Add(this);
 }
 
 FAvaLevelViewportClient::~FAvaLevelViewportClient()
 {
-	UE::AvalancheLevelViewport::Private::ViewportClientRegistry.Remove(this);
+	UE::AvaLevelViewport::Private::ViewportClientRegistry.Remove(this);
 }
 
 void FAvaLevelViewportClient::Init()

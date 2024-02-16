@@ -48,7 +48,7 @@ FAvaViewportQualitySettings::FAvaViewportQualitySettings(const TArray<FAvaViewpo
 
 TArray<FAvaViewportQualitySettingsFeature> FAvaViewportQualitySettings::DefaultFeatures()
 {
-	// Add all the engine features we will support for editing by the designer and their Avalanche defaults.
+	// Add all the engine features we will support for editing by the designer and their Motion Design defaults.
 	TArray<FAvaViewportQualitySettingsFeature> AllDefaultFeatures =
 		{
 			{ "AntiAliasing", true },

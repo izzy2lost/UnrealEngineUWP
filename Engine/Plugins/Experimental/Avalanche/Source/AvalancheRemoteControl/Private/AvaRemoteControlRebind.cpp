@@ -53,7 +53,7 @@ namespace UE::AvaRemoteControl::Private
 }
 
 /**
- *	Since the runtime Avalanche Scene Object is not in the world where the
+ *	Since the runtime Motion Design Scene Object is not in the world where the
  *	remote control bindings were done, it needs to be rebound.
  *	
  *	The original FRemoteControlPresetRebindingManager::Rebind_NewAlgo
@@ -69,7 +69,7 @@ public:
 
 	/**
 	 * Version of the function returning only actors from the specified level.
-	 * This is required for support Avalanche graphics instancing as sub-levels.
+	 * This is required for support Motion Design graphics instancing as sub-levels.
 	 * There is one RCP per sub-level and must resolve only to that level.
 	 */
 	static bool GetActorsOfClass(const ULevel* InLevel, const UClass* InTargetClass, TArray<AActor*>& OutActors)
@@ -91,7 +91,7 @@ public:
 	/**
 	 *	The original function RCPresetRebindingManager::GetActorsOfClass
 	 *	prevents rebinding with transient actors. All the runtime RCP from embedded
-	 *	Avalanche graphics are transient. This is the reason this has to be rewritten.
+	 *	Motion Design graphics are transient. This is the reason this has to be rewritten.
 	 */
 	static bool GetActorsOfClass(UWorld* InPresetWorld, UClass* InTargetClass, TArray<AActor*>& OutActors)
 	{

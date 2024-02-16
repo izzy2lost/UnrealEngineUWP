@@ -153,13 +153,13 @@ void FAvaLevelViewportCommands::RegisterCameraCommands()
 
 	UI_COMMAND(CameraZoomReset
 		, "Reset Camera Zoom"
-		, "Resets the zoom and pan of the Avalanche Viewport camera."
+		, "Resets the zoom and pan of the Motion Design Viewport camera."
 		, EUserInterfaceActionType::Button
 		, FInputChord(EKeys::Home))
 
 	UI_COMMAND(CameraTransformReset
 		, "Reset Camera Transform"
-		, "Resets the location and rotation of the Avalanche Viewport camera."
+		, "Resets the location and rotation of the Motion Design Viewport camera."
 		, EUserInterfaceActionType::Button
 		, FInputChord(EKeys::Home, EModifierKey::Alt))
 

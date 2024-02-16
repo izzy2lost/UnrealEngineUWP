@@ -6,7 +6,7 @@
 
 namespace UE::Ava::AssetTags
 {
-	constexpr const TCHAR* AvalancheScene = TEXT("AvalancheScene");
+	constexpr const TCHAR* MotionDesignScene = TEXT("MotionDesignScene");
 
 	namespace Values
 	{

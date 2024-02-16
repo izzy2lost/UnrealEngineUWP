@@ -14,7 +14,7 @@
 #include "Serialization/JsonSerializable.h"
 #include "Serialization/JsonWriter.h"
 
-namespace UE::AvalancheViewport::Private
+namespace UE::AvaViewport::Private
 {
 	static const FString GuideListFieldName = TEXT("Guides");
 
@@ -162,7 +162,7 @@ namespace UE::AvalancheViewport::Private
 bool FAvaViewportGuidePresetProvider::SaveGuidePreset(const FString& InPresetName, const TArray<FAvaViewportGuideInfo>& InGuides,
 	const FVector2f InViewportSize)
 {
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	const FString Path = GetGuideConfigPath();
 
@@ -187,7 +187,7 @@ bool FAvaViewportGuidePresetProvider::SaveGuidePreset(const FString& InPresetNam
 bool FAvaViewportGuidePresetProvider::LoadGuidePreset(const FString& InPresetName, TArray<FAvaViewportGuideInfo>& OutGuides, 
 	const FVector2f InViewportSize)
 {
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	const FString Path = GetGuideConfigPath();
 
@@ -214,7 +214,7 @@ bool FAvaViewportGuidePresetProvider::LoadGuidePreset(const FString& InPresetNam
 
 bool FAvaViewportGuidePresetProvider::RemoveGuidePreset(const FString& InPresetName)
 {
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	const FString Path = GetGuideConfigPath(/* Allow Create */ false);
 
@@ -235,7 +235,7 @@ bool FAvaViewportGuidePresetProvider::RemoveGuidePreset(const FString& InPresetN
 
 TArray<FString> FAvaViewportGuidePresetProvider::GetGuidePresetNames()
 {
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	const FString Path = GetGuideConfigPath();
 

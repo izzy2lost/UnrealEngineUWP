@@ -25,7 +25,7 @@ public:
 
 private:
 	/**
-	 * Stats for all Avalanche runtime viewports is centralized here.
+	 * Stats for all Motion Design runtime viewports is centralized here.
 	 * The state (enabled) of the stats will persist across the lifetime of all
 	 * game instances so that an enabled stat remains even if playback is stopped.
 	 */

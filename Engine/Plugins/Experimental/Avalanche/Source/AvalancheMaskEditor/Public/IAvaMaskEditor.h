@@ -4,7 +4,7 @@
 
 #include "UObject/NameTypes.h"
 
-namespace UE::AvalancheMaskEditor
+namespace UE::AvaMaskEditor
 {
 	const static FName MotionDesignMaskEditorModeName("EditMode.MotionDesignMask");
 }

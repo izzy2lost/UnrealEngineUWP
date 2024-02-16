@@ -112,7 +112,7 @@ public:
 	template <typename MessageType, typename HandlerType>
 	struct TMessageHandler
 	{
-		typedef void (HandlerType::*FuncType)(const MessageType&, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>&);
+		typedef void (HandlerType::* FuncType)(const MessageType&, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>&);
 	};
 
 public:

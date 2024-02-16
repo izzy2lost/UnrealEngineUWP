@@ -12,7 +12,7 @@
 #include "Widgets/Layout/SScaleBox.h"
 #include "Widgets/Text/STextBlock.h"
 
-namespace UE::AvalancheTextEditor::Private
+namespace UE::AvaTextEditor::Private
 {
 	static constexpr float DefaultFontSize = 12.0f;
 }
@@ -23,8 +23,8 @@ BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 void SAvaFontField::Construct(const FArguments& InArgs)
 {
-	AvalancheFont = InArgs._AvalancheFont;
-	OnAvaFontFieldModified = InArgs._OnAvaFontFieldModified;
+	FontView = InArgs._FontView;
+	OnFontFieldModified = InArgs._OnFontFieldModified;
 
 	const FVector2D Icon16x16(16.0f, 16.0f);
 
@@ -93,20 +93,21 @@ void SAvaFontField::Construct(const FArguments& InArgs)
 		]
 	];
 
-	UpdateFont(AvalancheFont.Get());
+	UpdateFont(FontView.Get());
 }
+
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
-void SAvaFontField::UpdateFont(const TSharedPtr<FAvaFontView>& InAvaFont)
+void SAvaFontField::UpdateFont(const TSharedPtr<FAvaFontView>& InFontView)
 {
-	if (!InAvaFont.IsValid())
+	if (!InFontView.IsValid())
 	{
 		return;
 	}
 
-	AvalancheFont.Set(InAvaFont);
+	FontView.Set(InFontView);
 
-	if (const TSharedPtr<FAvaFontView>& FontViewPtr = AvalancheFont.Get())
+	if (const TSharedPtr<FAvaFontView>& FontViewPtr = FontView.Get())
 	{
 		const UAvaFontObject* const CurrFontObj = FontViewPtr->GetFontObject();
 		const UFont* const CurrFont = FontViewPtr->GetFont();
@@ -131,7 +132,7 @@ void SAvaFontField::UpdateFont(const TSharedPtr<FAvaFontView>& InAvaFont)
 			{
 				if (CurrFont->GetCompositeFont())
 				{
-					LeftFontNameText->SetFont(FSlateFontInfo(CurrFont, UE::AvalancheTextEditor::Private::DefaultFontSize));
+					LeftFontNameText->SetFont(FSlateFontInfo(CurrFont, UE::AvaTextEditor::Private::DefaultFontSize));
 				}
 			}
 		}
@@ -150,7 +151,7 @@ void SAvaFontField::UpdateFont(const TSharedPtr<FAvaFontView>& InAvaFont)
 
 					if (CurrFont->GetCompositeFont())
 					{
-						RightFontNameText->SetFont(FSlateFontInfo(CurrFont, UE::AvalancheTextEditor::Private::DefaultFontSize));
+						RightFontNameText->SetFont(FSlateFontInfo(CurrFont, UE::AvaTextEditor::Private::DefaultFontSize));
 					}
 				}
 			}
@@ -164,7 +165,7 @@ void SAvaFontField::UpdateFont(const TSharedPtr<FAvaFontView>& InAvaFont)
 
 ECheckBoxState SAvaFontField::GetFavoriteState() const
 {
-	if (const TSharedPtr<FAvaFontView>& FontViewPtr = AvalancheFont.Get())
+	if (const TSharedPtr<FAvaFontView>& FontViewPtr = FontView.Get())
 	{
 		if (FontViewPtr->IsFavorite())
 		{
@@ -177,7 +178,7 @@ ECheckBoxState SAvaFontField::GetFavoriteState() const
 
 FSlateColor SAvaFontField::GetToggleFavoriteColor() const
 {
-	if (const TSharedPtr<FAvaFontView>& FontViewPtr = AvalancheFont.Get())
+	if (const TSharedPtr<FAvaFontView>& FontViewPtr = FontView.Get())
 	{
 		if (FontViewPtr->IsFavorite())
 		{
@@ -196,7 +197,7 @@ FReply SAvaFontField::OnToggleFavoriteClicked()
 		FReply::Handled();
 	}
 
-	if (const TSharedPtr<FAvaFontView>& FontViewPtr = AvalancheFont.Get())
+	if (const TSharedPtr<FAvaFontView>& FontViewPtr = FontView.Get())
 	{
 		const bool bIsNowFavorite = !FontViewPtr->IsFavorite();
 
@@ -213,7 +214,7 @@ FReply SAvaFontField::OnToggleFavoriteClicked()
 			FontManagerSubsystem->RemoveFavorite(*FontViewPtr->GetFontNameAsString());
 		}
 
-		OnAvaFontFieldModified.ExecuteIfBound(FontViewPtr);
+		OnFontFieldModified.ExecuteIfBound(FontViewPtr);
 	}
 
 	return FReply::Handled();
@@ -229,7 +230,7 @@ EVisibility SAvaFontField::GetLocallyAvailableIconVisibility() const
 	bool bIsAvailable = false;
 	if (const UAvaFontManagerSubsystem* FontManagerSubsystem = UAvaFontManagerSubsystem::Get())
 	{
-		if (const TSharedPtr<FAvaFontView>& FontViewPtr = AvalancheFont.Get())
+		if (const TSharedPtr<FAvaFontView>& FontViewPtr = FontView.Get())
 		{
 			bIsAvailable = FontManagerSubsystem->IsFontAvailableOnLocalOS(FontViewPtr->GetFont());
 		}

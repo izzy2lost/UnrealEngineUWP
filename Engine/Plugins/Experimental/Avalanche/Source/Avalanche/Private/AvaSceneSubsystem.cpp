@@ -7,7 +7,7 @@
 #include "Engine/World.h"
 #include "IAvaSceneInterface.h"
 
-namespace UE::Avalanche::Private
+namespace UE::Ava::Private
 {
 	static const TSet<EWorldType::Type> GUnsupportedWorlds
 		{
@@ -72,6 +72,6 @@ void UAvaSceneSubsystem::PostInitialize()
 
 bool UAvaSceneSubsystem::DoesSupportWorldType(const EWorldType::Type InWorldType) const
 {
-	const bool bDisallowedWorld = UE::Avalanche::Private::GUnsupportedWorlds.Contains(InWorldType);
+	const bool bDisallowedWorld = UE::Ava::Private::GUnsupportedWorlds.Contains(InWorldType);
 	return !bDisallowedWorld;
 }

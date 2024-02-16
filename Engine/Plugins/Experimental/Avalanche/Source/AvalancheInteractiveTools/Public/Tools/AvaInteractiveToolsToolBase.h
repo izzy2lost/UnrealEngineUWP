@@ -184,7 +184,7 @@ protected:
 
 	void SetToolkitSettingsObject(UObject* InObject) const;
 
-	bool IsAvalancheViewport() const;
+	bool IsMotionDesignViewport() const;
 
 	bool ShouldForceDefaultAction() const;
 

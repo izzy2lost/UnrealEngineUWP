@@ -143,7 +143,7 @@ void AAvaScene::OnGetWorldTags(FAssetRegistryTagsContext Context) const
 	}
 
 	using namespace UE::Ava;
-	Context.AddTag(UObject::FAssetRegistryTag(AssetTags::AvalancheScene, AssetTags::Values::Enabled, UObject::FAssetRegistryTag::TT_Alphabetical));
+	Context.AddTag(UObject::FAssetRegistryTag(AssetTags::MotionDesignScene, AssetTags::Values::Enabled, UObject::FAssetRegistryTag::TT_Alphabetical));
 }
 #endif
 

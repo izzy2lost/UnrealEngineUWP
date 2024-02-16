@@ -82,7 +82,7 @@ public:
 	//~ End IAvaViewportWorldCoordinateConverter
 
 	//~ Begin IAvaViewportClient
-	virtual bool IsAvalancheViewport() const override { return true; }
+	virtual bool IsMotionDesignViewport() const override { return true; }
 	virtual const FEditorViewportClient* AsEditorViewportClient() const override { return this; }
 	virtual bool SupportsZoom() const override { return true; }
 	virtual float GetZoomedFOV() const override;

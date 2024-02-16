@@ -7,7 +7,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaEdModeToolkit"
 
-namespace UE::AvalancheEditorCore::Private
+namespace UE::AvaEditorCore::Private
 {
 	FName ToolkitName = "AvaEdModeToolkit";
 	FText ToolkitBaseName = LOCTEXT("ToolkitName", "Motion Design Editor Toolkit");
@@ -20,12 +20,12 @@ FAvaEdModeToolkit::FAvaEdModeToolkit(UAvaEdMode* InEdMode)
 
 FName FAvaEdModeToolkit::GetToolkitFName() const
 {
-	return UE::AvalancheEditorCore::Private::ToolkitName;
+	return UE::AvaEditorCore::Private::ToolkitName;
 }
 
 FText FAvaEdModeToolkit::GetBaseToolkitName() const
 {
-	return UE::AvalancheEditorCore::Private::ToolkitBaseName;
+	return UE::AvaEditorCore::Private::ToolkitBaseName;
 }
 
 void FAvaEdModeToolkit::ExtendSecondaryModeToolbar(UToolMenu* InToolbarMenu)

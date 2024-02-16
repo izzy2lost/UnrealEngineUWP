@@ -32,7 +32,7 @@ using FAvaSceneDefaultActorList = TMap<FName, TSharedRef<FAvaSceneDefaultActorRe
 
 DECLARE_DELEGATE_ThreeParams(FAvaSceneDefaultActorInitDelegate, TSharedRef<IAvaEditor>, const FAvaSceneDefaultActorList&, AActor*)
 
-namespace UE::AvalancheEditor::Private
+namespace UE::AvaEditor::Private
 {
 	static const FPreviewSceneProfile DefaultSceneProfile;
 
@@ -131,7 +131,7 @@ namespace UE::AvalancheEditor::Private
 			return;
 		}
 
-		using namespace UE::AvalancheEditor::Private;
+		using namespace UE::AvaEditor::Private;
 
 		ULightComponent* const LightComponent = DirectionalLight->GetLightComponent();
 
@@ -237,7 +237,7 @@ namespace UE::AvalancheEditor::Private
 
 		for (const TSharedPtr<IAvaViewportClient>& ViewportClient : ViewportExtension->GetViewportClients())
 		{
-			if (!ViewportClient->IsAvalancheViewport())
+			if (!ViewportClient->IsMotionDesignViewport())
 			{
 				continue;
 			}
@@ -431,7 +431,7 @@ void FAvaSceneDefaults::CreateDefaultScene(TSharedRef<IAvaEditor> InEditor, UWor
 		return;
 	}
 
-	using namespace UE::AvalancheEditor::Private;
+	using namespace UE::AvaEditor::Private;
 
 	TMap<FName, TSharedRef<FAvaSceneDefaultActorResponse>> ActorResponses = GeneratorInitialActorResponses(InWorld);
 

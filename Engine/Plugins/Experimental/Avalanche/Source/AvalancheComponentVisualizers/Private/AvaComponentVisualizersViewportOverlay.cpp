@@ -22,7 +22,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaComponentVisualizersViewportOverlay"
 
-namespace UE::AvalancheComponentVisualizers::Private
+namespace UE::AvaComponentVisualizers::Private
 {
 	TSharedRef<SWidget> CreateDraggableDetailsWidget(const FSlateBrush* InActorBrush, const FText& InActorName, const TSharedRef<SWidget>& InDetailsView)
 	{
@@ -85,7 +85,7 @@ namespace UE::AvalancheComponentVisualizers::Private
 			];
 	}
 
-	TSharedPtr<SWidget> CreateFullAvalancheDetailsWidget(const TArray<UObject*>& InSelectedObjects)
+	TSharedPtr<SWidget> CreateFullDetailsWidget(const TArray<UObject*>& InSelectedObjects)
 	{
 		FCustomDetailsViewArgs CustomDetailsViewArgs;
 		CustomDetailsViewArgs.bShowCategories = false;
@@ -320,7 +320,7 @@ void FAvaComponentVisualizersViewportOverlay::AddWidget(const TArray<TSharedPtr<
 		return;
 	}
 
-	using namespace UE::AvalancheComponentVisualizers::Private;
+	using namespace UE::AvaComponentVisualizers::Private;
 
 	switch (ViewportSettings->ShapeEditorOverlayType)
 	{
@@ -331,8 +331,8 @@ void FAvaComponentVisualizersViewportOverlay::AddWidget(const TArray<TSharedPtr<
 			OverlayWidget = CreateComponentVisualizerWidget(InSelectedObjects);
 			break;
 
-		case EAvaShapeEditorOverlayType::FullAvalancheDetails:
-			OverlayWidget = CreateFullAvalancheDetailsWidget(InSelectedObjects);
+		case EAvaShapeEditorOverlayType::FullDetails:
+			OverlayWidget = CreateFullDetailsWidget(InSelectedObjects);
 			break;
 	}
 

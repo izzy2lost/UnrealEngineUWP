@@ -4,7 +4,7 @@
 #include "DynamicMesh/DynamicMeshAttributeSet.h"
 #include "DynamicMeshes/AvaShapeDynMeshBase.h"
 
-namespace UE::AvalancheShapes
+namespace UE::AvaShapes
 {
 	FVector2D FindClosestPointOnLine(const FVector2D& LineStart, const FVector2D& LineEnd, const FVector2D& TestPoint)
 	{

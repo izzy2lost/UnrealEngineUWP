@@ -15,7 +15,7 @@
 
 DEFINE_LOG_CATEGORY(LogAvaInteractiveTools);
 
-namespace UE::AvalancheInteractiveTools::Private
+namespace UE::AvaInteractiveTools::Private
 {
 	bool bInitialRegistration = false;
 }
@@ -104,7 +104,7 @@ void FAvalancheInteractiveToolsModule::RegisterTool(FName InCategory, FAvaIntera
 
 	Tools[InCategory].Add(MoveTemp(InToolParams));
 
-	using namespace UE::AvalancheInteractiveTools::Private;
+	using namespace UE::AvaInteractiveTools::Private;
 
 	if (!bInitialRegistration)
 	{
@@ -144,7 +144,7 @@ void FAvalancheInteractiveToolsModule::OnToolDeactivated()
 
 void FAvalancheInteractiveToolsModule::OnPostEngineInit()
 {
-	using namespace UE::AvalancheInteractiveTools::Private;
+	using namespace UE::AvaInteractiveTools::Private;
 
 	IPlacementModeModule& PlacementMode = IPlacementModeModule::Get();
 

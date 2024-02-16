@@ -7,7 +7,7 @@
 class FLevelEditorModule;
 class FName;
 
-/** Utility class for the Level Editor and the Avalanche extension editor of it */
+/** Utility class for the Level Editor and the Motion Design extension editor of it */
 class FAvaLevelEditorUtils
 {
 public:
