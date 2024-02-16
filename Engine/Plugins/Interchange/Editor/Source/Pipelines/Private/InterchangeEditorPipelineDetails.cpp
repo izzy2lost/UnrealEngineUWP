@@ -112,8 +112,11 @@ TSharedRef<IDetailCustomization> FInterchangePipelineBaseDetailsCustomization::M
 static TArray<TArray<FInterchangeConflictInfo>> ConflicInfosStack;
 void FInterchangePipelineBaseDetailsCustomization::SetConflictsInfo(TArray<FInterchangeConflictInfo>& ConflictInfos)
 {
-	ensure(ConflicInfosStack.Num() == 0);
-	ConflicInfosStack.Push(ConflictInfos);
+	// Only add info when there are any
+	if (ConflicInfosStack.Num() > 0)
+	{
+		ConflicInfosStack.Push(ConflictInfos);
+	}
 }
 
 void FInterchangePipelineBaseDetailsCustomization::SetTextComboBoxWidget(IDetailPropertyRow& PropertyRow, const TSharedPtr<IPropertyHandle>& Handle, const TArray<FString>& PossibleValues)

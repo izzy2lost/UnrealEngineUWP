@@ -126,7 +126,7 @@ namespace GLTF
 		 *
 		 * @param Prefix - prefix to add to the entities name.
 		 */
-		void GenerateNames(const FString& Prefix);
+		void GenerateNames();
 
 		/**
 		 * Finds the indices for the nodes which are root nodes.

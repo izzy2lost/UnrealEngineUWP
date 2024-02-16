@@ -924,7 +924,7 @@ namespace GLTF
 				}
 			}
 		}
-		OutAsset.GenerateNames(OutAsset.Name);
+		OutAsset.GenerateNames();
 
 		if (OutAsset.ValidationCheck() != FAsset::Valid)
 		{

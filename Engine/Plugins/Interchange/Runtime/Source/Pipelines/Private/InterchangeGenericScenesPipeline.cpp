@@ -449,6 +449,9 @@ void UInterchangeGenericLevelPipeline::ExecuteSceneNodePreImport(const FTransfor
 	ActorFactoryNode->InitializeNode(FactoryNodeUid, SceneNode->GetDisplayLabel(), EInterchangeNodeContainerType::FactoryData);
 	const FString ActorFactoryNodeUid = BaseNodeContainer->AddNode(ActorFactoryNode);
 
+	// The translator is responsible to provide a unique name
+	ActorFactoryNode->SetAssetName(SceneNode->GetAssetName());
+
 	if (!SceneNode->GetParentUid().IsEmpty())
 	{
 		/* Find all scene node that are active joint. Non active joint should be convert to actor if they are in a static mesh hierarchy */
