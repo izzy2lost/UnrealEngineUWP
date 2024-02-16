@@ -169,7 +169,7 @@ void UMeshGroupPaintTool::Setup()
 	FilterProperties->WatchProperty(FilterProperties->SubToolType,
 		[this](EMeshGroupPaintInteractionType NewType) { UpdateSubToolType(NewType); });
 	FilterProperties->WatchProperty(FilterProperties->BrushSize,
-		[this](float NewSize) { UMeshSculptToolBase::BrushProperties->BrushSize.AdaptiveSize = NewSize; });
+		[this](float NewSize) { UMeshSculptToolBase::BrushProperties->BrushSize.AdaptiveSize = NewSize; CalculateBrushRadius(); });
 	FilterProperties->WatchProperty(FilterProperties->bHitBackFaces,
 		[this](bool bNewValue) { UMeshSculptToolBase::BrushProperties->bHitBackFaces = bNewValue; });
 	FilterProperties->RestoreProperties(this);
@@ -326,13 +326,6 @@ TUniquePtr<FMeshSculptBrushOp>& UMeshGroupPaintTool::GetActiveBrushOp()
 		return PrimaryBrushOp;
 	}
 }
-
-
-void UMeshGroupPaintTool::OnPropertyModified(UObject* PropertySet, FProperty* Property)
-{
-	CalculateBrushRadius();
-}
-
 
 void UMeshGroupPaintTool::IncreaseBrushRadiusAction()
 {
