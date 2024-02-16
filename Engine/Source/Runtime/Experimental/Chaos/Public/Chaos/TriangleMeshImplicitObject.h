@@ -21,6 +21,11 @@
 
 #include <type_traits>
 
+namespace Chaos::Private
+{
+	class FMeshContactGenerator;
+}
+
 namespace Chaos
 {
 	extern CHAOS_API bool TriMeshPerPolySupport;
@@ -785,6 +790,9 @@ namespace Chaos
 				Visitor(Triangle, TriangleIndex, VertexIndex0, VertexIndex1, VertexIndex2);
 			}
 		}
+
+		// Internal: do not use - this API will change as we optimize mesh collision
+		void CollectTriangles(const FAABB3& MeshQueryBounds, const FRigidTransform3& MeshToObjectTransform, const FAABB3& ObjectBounds, Private::FMeshContactGenerator& Collector) const;
 
 	private:
 		using BVHType = TAABBTree<int32, TAABBTreeLeafArray<int32, /*bComputeBounds=*/ false, FRealSingle>, /*bMutable=*/false, FRealSingle>;
