@@ -50,11 +50,7 @@ void UPropertyAnimatorTextResolver::ResolveProperties(const FPropertyAnimatorCor
 		return;
 	}
 
-	TArray<FProperty*> ChainProperties;
-	for (const TFieldPath<FProperty>& Property : InTemplateProperty.GetChainProperties())
-	{
-		ChainProperties.Add(Property.Get());
-	}
+	const TArray<FProperty*> ChainProperties = InTemplateProperty.GetChainProperties();
 
 	// Gather each character in the text
 	for (int32 ComponentIndex = 0; ComponentIndex < TextRootComponent->GetNumChildrenComponents(); ComponentIndex++)

@@ -105,6 +105,7 @@ void UPropertyAnimatorCoreContext::SetConverterClass(TSubclassOf<UPropertyAnimat
 		if (UScriptStruct* RuleStruct = Converter->GetConversionRuleStruct())
 		{
 			ConverterRule = FInstancedStruct(RuleStruct);
+			CheckEditConverterRule();
 		}
 	}
 }
@@ -130,7 +131,8 @@ void UPropertyAnimatorCoreContext::PostLoad()
 {
 	Super::PostLoad();
 
-	CheckModeEdit();
+	CheckEditMode();
+	CheckEditConverterRule();
 }
 
 #if WITH_EDITOR
@@ -201,16 +203,42 @@ void UPropertyAnimatorCoreContext::OnGroupNameChanged()
 void UPropertyAnimatorCoreContext::ConstructInternal(const FPropertyAnimatorCoreData& InProperty)
 {
 	AnimatedProperty = InProperty;
-	CheckModeEdit();
+	CheckEditMode();
+	CheckEditConverterRule();
+	SetMode(EPropertyAnimatorCoreMode::Additive);
 	OnAnimatedPropertyLinked();
 }
 
-void UPropertyAnimatorCoreContext::CheckModeEdit()
+void UPropertyAnimatorCoreContext::SetAnimatedPropertyOwner(UObject* InNewOwner)
+{
+	if (!IsValid(InNewOwner))
+	{
+		return;
+	}
+
+	if (!FindFProperty<FProperty>(InNewOwner->GetClass(), AnimatedProperty.GetMemberPropertyName()))
+	{
+		return;
+	}
+
+	constexpr bool bEvenIfPendingKill = true;
+	UObject* PreviousOwner = AnimatedProperty.GetOwnerWeak().Get(bEvenIfPendingKill);
+	AnimatedProperty = FPropertyAnimatorCoreData(InNewOwner, AnimatedProperty.GetChainProperties(), AnimatedProperty.GetPropertyResolverClass());
+
+	OnAnimatedPropertyOwnerUpdated(PreviousOwner, InNewOwner);
+}
+
+void UPropertyAnimatorCoreContext::CheckEditMode()
 {
 	if (const UPropertyAnimatorCoreHandlerBase* Handler = GetHandler())
 	{
-		bAllowModeEdit = Handler->IsAdditiveSupported();
+		bEditMode = Handler->IsAdditiveSupported();
 	}
+}
+
+void UPropertyAnimatorCoreContext::CheckEditConverterRule()
+{
+	bEditConverterRule = ConverterRule.IsValid();
 }
 
 void* UPropertyAnimatorCoreContext::GetConverterRulePtr(const UScriptStruct* InStruct)

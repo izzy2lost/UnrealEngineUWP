@@ -135,6 +135,22 @@ FName FPropertyAnimatorCoreData::GetLeafPropertyName() const
 	return LeafProperty ? LeafProperty->GetFName() : NAME_None;
 }
 
+TArray<FProperty*> FPropertyAnimatorCoreData::GetChainProperties() const
+{
+	TArray<FProperty*> Properties;
+
+	Algo::Transform(
+		ChainProperties
+		, Properties
+		, [](const TFieldPath<FProperty>& InProperty)
+		{
+			return InProperty.Get();
+		}
+	);
+
+	return Properties;
+}
+
 bool FPropertyAnimatorCoreData::HasSetter() const
 {
 	FPropertyAnimatorCoreData* This = const_cast<FPropertyAnimatorCoreData*>(this);
@@ -145,7 +161,7 @@ bool FPropertyAnimatorCoreData::IsParentOf(const FPropertyAnimatorCoreData& InOt
 {
 	if (FProperty* LeafProperty = GetLeafProperty())
 	{
-		const TArray<TFieldPath<FProperty>>& OtherChainProperties = InOtherProperty.GetChainProperties();
+		const TArray<FProperty*> OtherChainProperties = InOtherProperty.GetChainProperties();
 
 		const int32 LeafIdx = OtherChainProperties.Find(LeafProperty);
 
@@ -165,7 +181,7 @@ bool FPropertyAnimatorCoreData::IsOwning(const FPropertyAnimatorCoreData& InOthe
 {
 	if (FProperty* LeafProperty = GetLeafProperty())
 	{
-		const TArray<TFieldPath<FProperty>>& OtherChainProperties = InOtherProperty.GetChainProperties();
+		const TArray<FProperty*> OtherChainProperties = InOtherProperty.GetChainProperties();
 
 		const int32 LeafIdx = OtherChainProperties.Find(LeafProperty);
 
