@@ -45,7 +45,7 @@ namespace UE::ConcertSharedSlate
 		virtual void AddProperties(const FSoftObjectPath& Object, TConstArrayView<FConcertPropertyChain> Properties) = 0;
 		/** Removes these properties from the object's list of selected properties. */
 		virtual void RemoveProperties(const FSoftObjectPath& Object, TConstArrayView<FConcertPropertyChain> Properties) = 0;
-
+		
 		/** Called when the object list changes. AddedObjects and RemovedObjects are empty if and only if ChangeReason == EReplicatedObjectChangeReason::Transacted. */
 		DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnObjectsChanged, TConstArrayView<UObject*> AddedObjects, TConstArrayView<FSoftObjectPath> RemovedObjects, EReplicatedObjectChangeReason ChangeReason);
 		virtual FOnObjectsChanged& OnObjectsChanged() = 0;
@@ -53,5 +53,8 @@ namespace UE::ConcertSharedSlate
 		/** Called when the property list of some object changes. If the properties are removed because the object is removed outright, FOnObjectsChanged is called instead.  */
 		DECLARE_MULTICAST_DELEGATE(FOnPropertiesChanged);
 		virtual FOnPropertiesChanged& OnPropertiesChanged() = 0;
+
+		/** Clear all objects in the model */
+		void Clear() { RemoveObjects(GetReplicatedObjects().Array()); }
 	};
 }
