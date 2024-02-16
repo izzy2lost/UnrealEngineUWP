@@ -894,7 +894,177 @@ bool FPolygroupsGenerator::FindPolygroupsFromFurthestPointSampling(
 }
 
 
+bool FPolygroupsGenerator::FindPolygroupsFromAreaDensityPointSampling(
+	int32 NumPoints,
+	EWeightingType WeightingType,
+	FVector3d WeightingCoeffs,
+	FPolygroupSet* StartingGroups)
+{
+	NumPoints = FMath::Min(NumPoints, Mesh->VertexCount());
 
+	// cannot seem to use auto or TUniqueFunction here...
+	TFunction<bool(int32, int32)> TrisConnectedPredicate;
+	TrisConnectedPredicate = [](int, int) -> bool { return true; };
+	if (StartingGroups != nullptr)
+	{
+		TrisConnectedPredicate = [StartingGroups](int a, int b) -> bool { return StartingGroups->GetGroup(a) == StartingGroups->GetGroup(b) ? true : false; };
+	}
+
+	double MeshTotalArea = 0.0;
+	for (int32 tid : Mesh->TriangleIndicesItr())
+	{
+		MeshTotalArea += Mesh->GetTriArea(tid);
+	}
+	double ExpectedAreaPerSeed = MeshTotalArea / NumPoints;
+
+	FMeshFaceDualGraph FaceGraph;
+	FMeshFaceDualGraph::MakeFaceDualGraphForMesh(Mesh, FaceGraph, TrisConnectedPredicate);
+
+	TArray<int32> SeedIndices;
+
+	// need to add at least one seed point for each mesh connected component, so that all triangles are assigned a group
+	// TODO: two seed points for components that have no boundary?
+	FMeshConnectedComponents Components(Mesh);
+	Components.FindConnectedTriangles(TrisConnectedPredicate);
+	int32 NumConnected = Components.Num();
+
+	struct FComponentContext
+	{
+		TArray< int32 > Seeds;
+	};
+
+	TArray<FComponentContext> Contexts;
+	Contexts.SetNum(NumConnected);
+	TArrayView<FComponentContext> ContextView = TArrayView<FComponentContext>(Contexts);
+
+	ParallelForWithExistingTaskContext(ContextView, NumConnected, 1,
+		[this, ExpectedAreaPerSeed, &FaceGraph, &Components](FComponentContext &Context, int32 k) {
+
+			TArray<int32> ComponentSeeds;
+
+			double ComponentTotalArea = 0.0;
+			for (int32 tid : Components[k].Indices)
+			{
+				ComponentTotalArea += Mesh->GetTriArea(tid);
+			}
+			int32 DesiredSeeds = FMath::Max(1, FMath::CeilToInt32(ComponentTotalArea / ExpectedAreaPerSeed));
+			
+			ComponentSeeds.Add(Components[k].Indices[0]);
+
+			// We're going to bail early if we only need one seed for this component.
+			// No need to build the expensive Dijkstra weights if we're already done.
+			if (DesiredSeeds == 1)
+			{
+				Context.Seeds.Append(ComponentSeeds);
+				return;
+			}
+
+			TIncrementalMeshDijkstra<FMeshFaceDualGraph>::FSeedPoint InitialSeedPoint{ ComponentSeeds[0], ComponentSeeds[0], 0.0 };
+			TIncrementalMeshDijkstra<FMeshFaceDualGraph> FurthestPoints(&FaceGraph);
+			FurthestPoints.AddSeedPoints({ InitialSeedPoint });
+
+			while (ComponentSeeds.Num() < DesiredSeeds)
+			{
+				int32 NextPointID = FurthestPoints.FindMaxGraphDistancePointID();
+				if (NextPointID >= 0)
+				{
+					TIncrementalMeshDijkstra<FMeshFaceDualGraph>::FSeedPoint NextSeedPoint{ NextPointID, NextPointID, 0.0 };
+					FurthestPoints.AddSeedPoints({ NextSeedPoint });
+					ComponentSeeds.Add(NextPointID);
+				}
+				else
+				{
+					break;
+				}
+			}
+
+			Context.Seeds.Append(ComponentSeeds);
+		}
+	);
+
+	for (int32 k = 0; k < NumConnected; ++k)
+	{
+		SeedIndices.Append(Contexts[k].Seeds);
+	}
+
+	// Now that we have furthest point set, recompute a Dijkstra propagation with optional weighting
+	// (unweighted version should be the same as the FurthestPoints dijkstra though...could re-use?)
+
+	TMeshDijkstra<FMeshFaceDualGraph> SuperPixels(&FaceGraph);
+
+	if (WeightingType == EWeightingType::NormalDeviation)
+	{
+		SuperPixels.bEnableDistanceWeighting = true;
+		SuperPixels.GetWeightedDistanceFunc = [this, WeightingCoeffs, &FaceGraph](int32 FromVID, int32 ToVID, int32 SeedVID, double Distance)
+		{
+			FVector3d NA = FaceGraph.GetNormal(ToVID);
+			FVector3d NB = FaceGraph.GetNormal(SeedVID);
+			double Dot = NA.Dot(NB);
+			if (WeightingCoeffs.X > 0.001)
+			{
+				Dot = FMathd::Pow(Dot, WeightingCoeffs.X);
+			}
+			double W = FMathd::Clamp(1.0 - Dot * Dot, 0.0, 1.0);
+			W = W * W * W;
+			double Weight = FMathd::Clamp(W, 0.001, 1.0);
+			return Weight * Distance;
+		};
+	}
+
+	TArray<TMeshDijkstra<FMeshFaceDualGraph>::FSeedPoint> SuperPixelSeeds;
+	for (int32 k = 0; k < SeedIndices.Num(); ++k)
+	{
+		SuperPixelSeeds.Add(TMeshDijkstra<FMeshFaceDualGraph>::FSeedPoint{ k, SeedIndices[k], 0.0 });
+	}
+	SuperPixels.ComputeToMaxDistance(SuperPixelSeeds, TNumericLimits<double>::Max());
+
+	TArray<TArray<int32>> TriSets;
+	TriSets.SetNum(SeedIndices.Num());
+	TArray<int32> FailedSet;
+
+	for (int32 tid : Mesh->TriangleIndicesItr())
+	{
+		int32 SeedID = SuperPixels.GetSeedExternalIDForPointSetID(tid);
+		if (SeedID >= 0)
+		{
+			TriSets[SeedID].Add(tid);
+		}
+		else
+		{
+			FailedSet.Add(tid);
+		}
+	}
+
+
+	for (int32 k = 0; k < TriSets.Num(); ++k)
+	{
+		if (TriSets[k].Num() > 0)
+		{
+			FoundPolygroups.Add(MoveTemp(TriSets[k]));
+		}
+	}
+
+	if (FailedSet.Num() > 0)
+	{
+		FMeshConnectedComponents FailedComponents(Mesh);
+		FailedComponents.FindConnectedTriangles(FailedSet);
+		for (FMeshConnectedComponents::FComponent& Component : FailedComponents)
+		{
+			FoundPolygroups.Add(Component.Indices);
+		}
+	}
+
+	if (bApplyPostProcessing)
+	{
+		PostProcessPolygroups(true, TrisConnectedPredicate);
+	}
+	if (bCopyToMesh)
+	{
+		CopyPolygroupsToMesh();
+	}
+
+	return (FoundPolygroups.Num() > 0);
+}
 
 void FPolygroupsGenerator::PostProcessPolygroups(bool bApplyMerging, TFunctionRef<bool(int32, int32)> TrisConnectedPredicate)
 {
