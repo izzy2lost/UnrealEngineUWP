@@ -95,12 +95,15 @@ void FTetrahedralCollection::Init(
 
 		Super::Init(Collection, RawVertexArray, RawIndicesArray, bReverseVertexOrder);
 
-		Collection->TetrahedronStart[0] = Collection->Tetrahedron.Num();
-		Collection->TetrahedronCount[0] = Elements.Num();
-		Collection->AddElements(Elements.Num(), FTetrahedralCollection::TetrahedralGroup);
-		for (int i = 0; i < Elements.Num(); i++)
+		if (Collection->NumElements(FTetrahedralCollection::GeometryGroup))
 		{
-			Collection->Tetrahedron[i] = Elements[i];
+			Collection->TetrahedronStart[0] = Collection->Tetrahedron.Num();
+			Collection->TetrahedronCount[0] = Elements.Num();
+			Collection->AddElements(Elements.Num(), FTetrahedralCollection::TetrahedralGroup);
+			for (int i = 0; i < Elements.Num(); i++)
+			{
+				Collection->Tetrahedron[i] = Elements[i];
+			}
 		}
 
 		// Init aux structures that depend on topology.
