@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "ConstraintsEvaluationGraph.h"
 #include "UObject/Object.h"
 #include "Engine/EngineBaseTypes.h"
 #include "Subsystems/EngineSubsystem.h"
@@ -27,6 +28,12 @@ public:
 
 	CONSTRAINTS_API void Init(UWorld* World);
 	CONSTRAINTS_API void RemoveConstraints(UWorld* World);
+
+	FConstraintsEvaluationGraph& GetEvaluationGraph();
+	void InvalidateGraph() const;
+
+private:
+	TSharedPtr<FConstraintsEvaluationGraph> EvaluationGraph = nullptr;
 };
 
 
@@ -57,6 +64,8 @@ public:
 	CONSTRAINTS_API void AddConstraint(UWorld* InWorld, UTickableConstraint* InConstraint);
 	CONSTRAINTS_API void RemoveConstraint(UWorld* InWorld, UTickableConstraint* InConstraint, bool bDoNoCompensate);
 	CONSTRAINTS_API bool HasConstraint(UWorld* InWorld, UTickableConstraint* InConstraint);
+
+	FConstraintsEvaluationGraph& GetEvaluationGraph(UWorld* InWorld);
 	
 	void InvalidateConstraints();
 

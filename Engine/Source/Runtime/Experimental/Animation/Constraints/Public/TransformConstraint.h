@@ -158,6 +158,7 @@ public:
 	/** (Re-)Registers the constraint function and (re-)binds the required delegates*/
 	CONSTRAINTS_API virtual void InitConstraint(UWorld * InWorld) override;
 	CONSTRAINTS_API virtual void TeardownConstraint(UWorld * InWorld) override;
+	CONSTRAINTS_API virtual void AddedToWorld(UWorld* InWorld) override;
 
 #if WITH_EDITOR
 public:
@@ -502,4 +503,6 @@ struct FTransformConstraintUtils
 	/** Adjust the transform on a scene component so it's effected by the constraint*/
 	static CONSTRAINTS_API void UpdateTransformBasedOnConstraint(FTransform& CurrentTransform, USceneComponent* SceneComponent);
 
+	/** Ensure default dependencies between constraints. */
+	static CONSTRAINTS_API bool BuildDependencies(UWorld* InWorld, UTickableTransformConstraint* Constraint);
 };

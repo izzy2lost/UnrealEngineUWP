@@ -142,6 +142,12 @@ private:
  * UTransformableComponentHandle
  */
 
+struct FComponentEvaluationGraphBinding
+{
+	void OnActorMoving(AActor* InActor);
+	bool bPendingFlush = false;
+};
+
 UCLASS(Blueprintable, MinimalAPI)
 class UTransformableComponentHandle : public UTransformableHandle 
 {
@@ -224,4 +230,8 @@ public:
 	CONSTRAINTS_API void OnPostPropertyChanged(UObject* InObject, FPropertyChangedEvent& InPropertyChangedEvent);
 	CONSTRAINTS_API void OnObjectsReplaced(const TMap<UObject*, UObject*>& InOldToNewInstances);
 #endif
+
+protected:
+
+	static FComponentEvaluationGraphBinding& GetEvaluationBinding();
 };

@@ -463,6 +463,9 @@ bool FConstraintsManagerController::AddConstraint(UTickableConstraint* InConstra
 
 	Subsystem->AddConstraint(World,InConstraint);
 
+	// build dependencies
+	InConstraint->AddedToWorld(World);
+
 	// notify
 	Notify(EConstraintsManagerNotifyType::ConstraintAdded, InConstraint);
 
@@ -696,6 +699,8 @@ void FConstraintsManagerController::SetConstraintsDependencies(
 	FConstraintTickFunction& FunctionToTickAfter = Constraints[IndexAfter]->GetTickFunction(World);
 
 	Subsystem->SetConstraintDependencies(&FunctionToTickBefore, &FunctionToTickAfter);
+
+	InvalidateEvaluationGraph();
 }
 
 void FConstraintsManagerController::SetConstraintsDependencies(const struct FGuid& InGuidToTickBefore, const struct FGuid& InGuidToTickAfter) const
@@ -731,6 +736,8 @@ void FConstraintsManagerController::SetConstraintsDependencies(const struct FGui
 	FConstraintTickFunction& FunctionToTickAfter = Constraints[IndexAfter]->GetTickFunction(World);
 
 	Subsystem->SetConstraintDependencies(&FunctionToTickBefore, &FunctionToTickAfter);
+
+	InvalidateEvaluationGraph();
 }
 
 const TArray< TWeakObjectPtr<UTickableConstraint> >& FConstraintsManagerController::GetConstraintsArray() const
@@ -890,6 +897,40 @@ void FConstraintsManagerController::Notify(EConstraintsManagerNotifyType InNotif
 	}
 
 	NotifyDelegate.Broadcast(InNotifyType, InObject);
+}
+
+void FConstraintsManagerController::MarkConstraintForEvaluation(UTickableConstraint* InConstraint) const
+{
+	UConstraintSubsystem* SubSystem = UConstraintSubsystem::Get();
+	if (!SubSystem)
+	{
+		return;
+	}
+	SubSystem->GetEvaluationGraph(World).MarkForEvaluation(InConstraint);
+}
+
+void FConstraintsManagerController::InvalidateEvaluationGraph() const
+{
+	UConstraintSubsystem* SubSystem = UConstraintSubsystem::Get();
+	if (!SubSystem)
+	{
+		return;
+	}
+	SubSystem->GetEvaluationGraph(World).InvalidateData();
+}
+
+void FConstraintsManagerController::FlushEvaluationGraph() const
+{
+	if (!FConstraintsEvaluationGraph::UseEvaluationGraph())
+	{
+		return;
+	}
+	UConstraintSubsystem* SubSystem = UConstraintSubsystem::Get();
+	if (!SubSystem)
+	{
+		return;
+	}
+	SubSystem->GetEvaluationGraph(World).FlushPendingEvaluations();
 }
 
 bool FConstraintsManagerController::DoesExistInAnyWorld(UTickableConstraint* InConstraint)

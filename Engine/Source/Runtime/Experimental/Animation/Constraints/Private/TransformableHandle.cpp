@@ -292,6 +292,12 @@ void UTransformableComponentHandle::RegisterDelegates()
 #if WITH_EDITOR
 	if (GEngine)
 	{
+		// NOTE BINDER: this has to be done before binding UTransformableComponentHandle::OnActorMoving
+		if (!GEngine->OnActorMoving().IsBoundToObject(&GetEvaluationBinding()))
+		{
+			GEngine->OnActorMoving().AddRaw(&GetEvaluationBinding(), &FComponentEvaluationGraphBinding::OnActorMoving);
+		}
+		
 		GEngine->OnActorMoving().AddUObject(this, &UTransformableComponentHandle::OnActorMoving);
 	}
 	FCoreUObjectDelegates::OnObjectPropertyChanged.AddUObject(this, &UTransformableComponentHandle::OnPostPropertyChanged);
@@ -313,6 +319,8 @@ void UTransformableComponentHandle::OnActorMoving(AActor* InActor)
 		return;
 	}
 
+	GetEvaluationBinding().bPendingFlush = true;
+	
 	Notify(EHandleEvent::GlobalTransformUpdated);
 }
 
@@ -593,3 +601,25 @@ FString UTransformableComponentHandle::GetFullLabel() const
 };
 
 #endif
+
+FComponentEvaluationGraphBinding& UTransformableComponentHandle::GetEvaluationBinding()
+{
+	static FComponentEvaluationGraphBinding EvaluationBinding;
+	return EvaluationBinding;
+}
+
+void FComponentEvaluationGraphBinding::OnActorMoving(AActor* InActor)
+{
+	if (!bPendingFlush)
+	{
+		return;
+	}
+	
+	if (UWorld* World = InActor ? InActor->GetWorld() : nullptr)
+	{
+		// flush all pending evaluations if any
+		const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(World);
+		Controller.FlushEvaluationGraph();
+	}
+	bPendingFlush = false;
+}
