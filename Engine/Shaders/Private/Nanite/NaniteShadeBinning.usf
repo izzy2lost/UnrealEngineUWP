@@ -30,6 +30,14 @@ uint  SubTileMatch;
 
 #define GATHER4_OPTIMIZATION 0
 
+#if BINNING_TECHNIQUE == 1
+#define SHADING_BIN_TILE_SIZE 32
+#else
+#define SHADING_BIN_TILE_SIZE 8
+#endif
+
+#define SHADING_BIN_TILE_THREADS	(SHADING_BIN_TILE_SIZE * SHADING_BIN_TILE_SIZE)
+
 #if VARIABLE_SHADING_RATE
 uint ShadingRateTileSizeBits;
 Texture2D<uint> ShadingRateImage;
@@ -70,11 +78,12 @@ RWStructuredBuffer<FNaniteShadingBinScatterMeta> OutShadingBinScatterMeta;
 
 #if SHADING_BIN_COUNT || SHADING_BIN_SCATTER
 
-groupshared uint GroupVotedBinAndThread;
+groupshared uint GroupVotedBin;
 
 groupshared uint GroupFullTileCount_LooseCount;		// 16:16
 groupshared uint GroupFullTileOffset;
 groupshared uint GroupLooseOffset;
+groupshared uint GroupEarlyOut;
 
 uint CalculateBinCoverage(uint4 ShadingBins, uint ActiveMask, uint BinIndex)
 {
@@ -198,6 +207,84 @@ bool IsFullTile(uint WaveLaneIndex, uint ShadingTileFirstThread, uint PixelCount
 	return false;
 }
 
+void AllocateElements(uint Bin, uint ThreadIndex, uint QuadFullTileCount, uint QuadLooseCount, bool bQuadMode, bool bSingleWave, inout uint FullTileDataOffset, inout uint LooseDataOffset)
+{
+	uint WaveFullTileCount;
+	uint WaveLooseCount;
+	uint WaveFullTileCount_LooseCount;
+	uint PrefixFullTileCount_LooseCount;
+
+	BRANCH
+	if (bQuadMode)
+	{
+		WaveFullTileCount	= WaveActiveCountBits(QuadFullTileCount != 0);
+		WaveLooseCount		= WaveActiveCountBits(QuadLooseCount != 0);
+		
+		FullTileDataOffset	= WavePrefixCountBits(QuadFullTileCount != 0);
+		LooseDataOffset		= WavePrefixCountBits(QuadLooseCount != 0);
+
+		WaveFullTileCount_LooseCount	= (WaveLooseCount << 16) | WaveFullTileCount;
+		PrefixFullTileCount_LooseCount	= (LooseDataOffset << 16) | FullTileDataOffset;
+	}
+	else
+	{
+		const uint FullTileCount_LooseCount = (QuadLooseCount << 16) | QuadFullTileCount;
+
+		PrefixFullTileCount_LooseCount	= WavePrefixSum(FullTileCount_LooseCount);
+		WaveFullTileCount_LooseCount	= WaveReadLaneAt(PrefixFullTileCount_LooseCount + FullTileCount_LooseCount, WaveGetLaneCount() - 1u);
+		
+
+		WaveFullTileCount		= (WaveFullTileCount_LooseCount & 0xFFFFu);
+		WaveLooseCount			= (WaveFullTileCount_LooseCount >> 16);
+
+		FullTileDataOffset		= (PrefixFullTileCount_LooseCount & 0xFFFFu);
+		LooseDataOffset			= (PrefixFullTileCount_LooseCount >> 16);
+	}
+
+	BRANCH
+	if (bSingleWave)
+	{
+		uint WaveFullTileOffset = 0;
+		uint WaveLooseOffset = 0;
+		BRANCH
+		if (WaveIsFirstLane())
+		{
+			OutShadingBinData.InterlockedAdd((Bin * NANITE_SHADING_BIN_META_BYTES) + NANITE_SHADING_BIN_META_WRITTEN_COUNT_OFFSET, WaveFullTileCount + WaveLooseCount);
+			InterlockedAdd(OutShadingBinScatterMeta[Bin].FullTileElementCount, WaveFullTileCount, WaveFullTileOffset);
+			InterlockedAdd(OutShadingBinScatterMeta[Bin].LooseElementCount, WaveLooseCount, WaveLooseOffset);
+		}
+		FullTileDataOffset += WaveReadLaneFirst(WaveFullTileOffset);
+		LooseDataOffset += WaveReadLaneFirst(WaveLooseOffset);
+	}
+	else
+	{
+		uint WaveFullTileOffset_LooseOffset = 0;
+
+		BRANCH
+		if (WaveIsFirstLane())
+		{
+			InterlockedAdd(GroupFullTileCount_LooseCount, WaveFullTileCount_LooseCount, WaveFullTileOffset_LooseOffset);
+		}
+		GroupMemoryBarrierWithGroupSync();
+
+		BRANCH
+		if (ThreadIndex == 0)
+		{
+			const uint TotalFullTileCount = GroupFullTileCount_LooseCount & 0xFFFF;
+			const uint TotalLooseCount = GroupFullTileCount_LooseCount >> 16;
+
+			OutShadingBinData.InterlockedAdd((Bin * NANITE_SHADING_BIN_META_BYTES) + NANITE_SHADING_BIN_META_WRITTEN_COUNT_OFFSET, TotalFullTileCount + TotalLooseCount);
+			InterlockedAdd(OutShadingBinScatterMeta[Bin].FullTileElementCount, TotalFullTileCount, GroupFullTileOffset);
+			InterlockedAdd(OutShadingBinScatterMeta[Bin].LooseElementCount, TotalLooseCount, GroupLooseOffset);
+		}
+		GroupMemoryBarrierWithGroupSync();
+
+		FullTileDataOffset += GroupFullTileOffset + (WaveReadLaneFirst(WaveFullTileOffset_LooseOffset) & 0xFFFFu);
+		LooseDataOffset += GroupLooseOffset + (WaveReadLaneFirst(WaveFullTileOffset_LooseOffset) >> 16);
+		GroupMemoryBarrierWithGroupSync();
+	}
+}
+
 void BinShadingQuad(uint2 Coord, uint ThreadIndex)
 {
 	const uint2 QuadTLCoord = uint2(Coord << 1u) + DispatchOffsetTL;
@@ -233,10 +320,30 @@ void BinShadingQuad(uint2 Coord, uint ThreadIndex)
 
 	uint ActiveMask = PackQuadMask(ValidPixels);
 
-	if (!WaveActiveAnyTrue((ActiveMask | DummyZero) != 0))
+	const bool bSingleWave = WaveGetLaneCount() >= SHADING_BIN_TILE_THREADS;	// Constant at compile/optimization time
+
+	BRANCH
+	if (SHADING_BIN_SCATTER && !bSingleWave)
 	{
-		// Quad is entirely non-Nanite or out of bounds.
-		return;
+		if(ThreadIndex == 0) GroupEarlyOut = 0;
+		GroupMemoryBarrierWithGroupSync();
+
+		if (WaveActiveAnyTrue(ActiveMask)) GroupEarlyOut = 1;
+		GroupMemoryBarrierWithGroupSync();
+
+		if (GroupEarlyOut == 0)
+		{
+			// Quad is entirely non-Nanite or out of bounds.
+			return;
+		}
+	}
+	else
+	{
+		if (!WaveActiveAnyTrue((ActiveMask | DummyZero) != 0))
+		{
+			// Quad is entirely non-Nanite or out of bounds.
+			return;
+		}
 	}
 
 	uint4 ShadingBins = uint4(
@@ -370,21 +477,34 @@ void BinShadingQuad(uint2 Coord, uint ThreadIndex)
 
 	const uint ShadingTileFirstThread = WaveLaneIndex & ~(BINNING_THREADS_PER_SHADING_TILE - 1u) & 31u;
 
-	while (WaveActiveAnyTrue(ActiveMask != 0u))
+	while (true)
 	{
 		uint VotedBin = ActiveMask ? ShadingBins[firstbitlow(ActiveMask)] : 0xFFFFFFFF;
 
-		if (WaveIsFirstLane())
+		BRANCH
+		if (bSingleWave)
 		{
-			GroupVotedBinAndThread = 0xFFFFFFFFu;
-			GroupFullTileCount_LooseCount = 0u;
+			if (!WaveActiveAnyTrue(ActiveMask != 0u))
+			{
+				break;
+			}
+			VotedBin = WaveActiveMin(VotedBin);
 		}
-		GroupMemoryBarrierWithGroupSync();
-		const uint VotedBinAndThread = (VotedBin << 10) | ThreadIndex; // But a live thread that votes for the bin in the low bits
-		WaveInterlockedMin(GroupVotedBinAndThread, VotedBinAndThread);
-		GroupMemoryBarrierWithGroupSync();
-		VotedBin = GroupVotedBinAndThread >> 10;
-		const uint GroupUpdateThread = GroupVotedBinAndThread & 1023; // The thread from the low bits gets to do the group update
+		else
+		{
+			if (ThreadIndex == 0)
+			{
+				GroupVotedBin = 0xFFFFFFFFu;
+				GroupFullTileCount_LooseCount = 0u;
+			}
+			GroupMemoryBarrierWithGroupSync();
+			WaveInterlockedMin(GroupVotedBin, VotedBin);
+			GroupMemoryBarrierWithGroupSync();
+			VotedBin = GroupVotedBin;
+			
+			if (VotedBin == 0xFFFFFFFFu)
+				break;
+		}
 
 		uint BinCoverage = CalculateBinCoverage(ShadingBins, ActiveMask, VotedBin);
 		ActiveMask &= ~BinCoverage;
@@ -402,35 +522,12 @@ void BinShadingQuad(uint2 Coord, uint ThreadIndex)
 			const bool bWriteFullTile	= ( bFullTile && (PixelCount != 0u));
 			const bool bWriteLoose		= (!bFullTile && (PixelCount != 0u));
 
-			const uint QuadFullTileCount	= bWriteFullTile ? 4u : 0u;
-			const uint QuadLooseCount		= bWriteLoose ? PixelCount : 0u;
+			const uint FullTileCount = bWriteFullTile ? 4u : 0u;
+			const uint LooseCount = bWriteLoose ? PixelCount : 0u;
 
-			const uint QuadFullTileCount_LooseCount = (QuadLooseCount << 16) | QuadFullTileCount;
-			const uint WaveFullTileCount_LooseCount = WaveActiveSum(QuadFullTileCount_LooseCount);
-
-			uint WaveFullTileOffset_LooseOffset = 0;
-
-			BRANCH
-			if (WaveIsFirstLane())
-			{
-				InterlockedAdd(GroupFullTileCount_LooseCount, WaveFullTileCount_LooseCount,	WaveFullTileOffset_LooseOffset);
-			}
-			GroupMemoryBarrierWithGroupSync();
-
-			BRANCH
-			if (ThreadIndex == GroupUpdateThread)
-			{
-				const uint TotalFullTileCount = GroupFullTileCount_LooseCount & 0xFFFF;
-				const uint TotalLooseCount = GroupFullTileCount_LooseCount >> 16;
-				OutShadingBinData.InterlockedAdd((VotedBin * NANITE_SHADING_BIN_META_BYTES) + NANITE_SHADING_BIN_META_WRITTEN_COUNT_OFFSET, TotalFullTileCount + TotalLooseCount);
-				InterlockedAdd(OutShadingBinScatterMeta[VotedBin].FullTileElementCount, TotalFullTileCount,	GroupFullTileOffset);
-				InterlockedAdd(OutShadingBinScatterMeta[VotedBin].LooseElementCount,	TotalLooseCount,	GroupLooseOffset);
-			}
-			GroupMemoryBarrierWithGroupSync();
-
-			const uint WavePrefixFullTileCount_LooseCount = WavePrefixSum(QuadFullTileCount_LooseCount);
-			const uint FullTileDataOffset	= GroupFullTileOffset	+ (WaveReadLaneFirst(WaveFullTileOffset_LooseOffset) & 0xFFFFu)	+ (WavePrefixFullTileCount_LooseCount & 0xFFFFu);
-			const uint LooseDataOffset		= GroupLooseOffset		+ (WaveReadLaneFirst(WaveFullTileOffset_LooseOffset) >> 16)		+ (WavePrefixFullTileCount_LooseCount >> 16);
+			uint FullTileDataOffset;
+			uint LooseDataOffset;
+			AllocateElements(VotedBin, ThreadIndex, FullTileCount, LooseCount, false, bSingleWave, FullTileDataOffset, LooseDataOffset);
 
 			uint DataWriteOffset;
 			if (bFullTile)
@@ -442,8 +539,6 @@ void BinShadingQuad(uint2 Coord, uint ThreadIndex)
 				DataWriteOffset = ShadingBinDataByteOffset + (OutShadingBinScatterMeta[VotedBin].RangeEnd - LooseDataOffset - countbits(BinCoverage)) * 4u;
 			}
 			
-			GroupMemoryBarrierWithGroupSync();
-
 			uint TempMask = BinCoverage;
 			UNROLL
 			for (uint i = 0; i < 4; i++)
@@ -512,33 +607,11 @@ void BinShadingQuad(uint2 Coord, uint ThreadIndex)
 			const bool bWriteFullTile	= (bFullTile && bWriteQuad);
 			const bool bWriteLoose		= (!bFullTile && bWriteQuad);
 
-			const uint WaveFullTileCount_LooseCount = WaveActiveCountBits(bWriteFullTile) | (WaveActiveCountBits(bWriteLoose) << 16);
+			uint FullTileDataOffset;
+			uint LooseDataOffset;
 
-			uint WaveFullTileOffset_LooseOffset = 0;
-
-			BRANCH
-			if (WaveIsFirstLane())
-			{
-				InterlockedAdd(GroupFullTileCount_LooseCount, WaveFullTileCount_LooseCount, WaveFullTileOffset_LooseOffset);
-			}
-			GroupMemoryBarrierWithGroupSync();
-
-			BRANCH
-			if (ThreadIndex == GroupUpdateThread)
-			{
-				const uint TotalFullTileCount = GroupFullTileCount_LooseCount & 0xFFFF;
-				const uint TotalLooseCount = GroupFullTileCount_LooseCount >> 16;
-
-				OutShadingBinData.InterlockedAdd((VotedBin * NANITE_SHADING_BIN_META_BYTES) + NANITE_SHADING_BIN_META_WRITTEN_COUNT_OFFSET, TotalFullTileCount + TotalLooseCount);
-				InterlockedAdd(OutShadingBinScatterMeta[VotedBin].FullTileElementCount, TotalFullTileCount,	GroupFullTileOffset);
-				InterlockedAdd(OutShadingBinScatterMeta[VotedBin].LooseElementCount,	TotalLooseCount,	GroupLooseOffset);
-			}
-			GroupMemoryBarrierWithGroupSync();
-
-			const uint FullTileDataOffset	= GroupFullTileOffset	+ (WaveReadLaneFirst(WaveFullTileOffset_LooseOffset) & 0xFFFFu) + WavePrefixCountBits(bWriteFullTile);
-			const uint LooseDataOffset		= GroupLooseOffset		+ (WaveReadLaneFirst(WaveFullTileOffset_LooseOffset) >> 16)		+ WavePrefixCountBits(bWriteLoose);
-			GroupMemoryBarrierWithGroupSync();
-
+			AllocateElements(VotedBin, ThreadIndex, bWriteFullTile ? 1 : 0, bWriteLoose ? 1 : 0, true, bSingleWave, FullTileDataOffset, LooseDataOffset);
+			
 			if (bWriteQuad)
 			{
 				const uint RangeStart = GetShadingBinMeta(VotedBin).RangeStart;
@@ -651,56 +724,13 @@ void BinShadingQuad(uint2 Coord, uint ThreadIndex)
 #endif // OPTIMIZE_WRITE_MASK
 }
 
-uint2 LinearToSwizzled(uint LinearIndex)
-{
-	// Just like pixel shaders, compute 2x2 CS quads from thread index so we can leverage the 4 lane cross bar.
-	// [0 1][2 3] -> [0 1][4 5]
-	// [4 5][6 7] -> [2 3][6 7]
-	const uint SwizzleX = BitFieldInsertU32(BitFieldMaskU32(1u, 0u), LinearIndex, BitFieldExtractU32(LinearIndex, 3u, 2u));
-	const uint SwizzleY = BitFieldInsertU32(BitFieldMaskU32(2u, 0u), BitFieldExtractU32(LinearIndex, 2u, 1u), BitFieldExtractU32(LinearIndex, 3u, 3u));
-	return uint2(SwizzleX, SwizzleY);
-}
-
-#if BINNING_TECHNIQUE == 1
-
-// Binning at 32x32 macro tile granularity
-[numthreads(1024, 1, 1)]
+[numthreads(SHADING_BIN_TILE_THREADS, 1, 1)]
 void ShadingBinBuildCS(uint ThreadIndex : SV_GroupIndex, uint2 GroupId : SV_GroupID)
 {
-	const uint2 MacroTileDim = uint2(32u, 32u);
-
-	// Compute the starting 2x2 quad location of the 32x32 macro tile
-	const uint2 MacroTileStart = GroupId * MacroTileDim;
-
-#if 1
-	uint2 Coord = MacroTileStart + MortonDecode(ThreadIndex);
-#else
-	const uint2 MicroTileDim = uint2( 8u,  8u);
-
-	// Compute linear index of 8x8 micro tile
-	// 0...1023 -> 0...15
-	const uint MicroTileIndex = ThreadIndex >> 6u;
-
-	// Compute index within 8x8 micro tile
-	const uint TileQuad = ThreadIndex - (MicroTileIndex * MicroTileDim.x * MicroTileDim.y);
-
-	const uint2 MicroTileStart = LinearToSwizzled(MicroTileIndex) * MicroTileDim;
-	uint2 Coord = MacroTileStart + MicroTileStart + LinearToSwizzled(TileQuad);
-#endif
-	BinShadingQuad(Coord, ThreadIndex);
-}
-
-#else
-
-[numthreads(64, 1, 1)]
-void ShadingBinBuildCS(uint ThreadIndex : SV_GroupIndex, uint2 GroupId : SV_GroupID)
-{
-	uint2 Coord = GroupId.xy * 8u;
+	uint2 Coord = GroupId.xy * SHADING_BIN_TILE_SIZE;
 	Coord += MortonDecode(ThreadIndex);
 	BinShadingQuad(Coord, ThreadIndex);
 }
-
-#endif // BINNING_TECHNIQUE
 
 #elif SHADING_BIN_RESERVE
 
