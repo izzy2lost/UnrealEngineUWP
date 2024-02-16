@@ -6,6 +6,7 @@
 #include "Replication/Messages/ObjectReplication.h"
 #include "Util/ClientServerCommunicationTest.h"
 
+class IConcertClientReplicationBridge;
 class IConcertClientReplicationManager;
 class UTestReflectionObject;
 
@@ -21,6 +22,17 @@ namespace UE::ConcertSyncServer::Replication
 namespace UE::ConcertSyncTests::Replication
 {
 	class FConcertClientReplicationBridgeMock;
+
+	enum class ESendReceiveTestFlags : uint8
+	{
+		None = 0,
+		/**
+		 * Instead of mocking the bridge use the real implementation. The object will only be discovered if it exists when the stream is registered.
+		 * See IConcertClientReplicationBridge::PushTrackedObjects.
+		 */
+		UseRealReplicationBridge = 1 << 1
+	};
+	ENUM_CLASS_FLAGS(ESendReceiveTestFlags);
 	
 	/** Creates a server, connects a sender and receiver client, and completes a handshake for them. */
 	class FSendReceiveTestBase : public FConcertClientServerCommunicationTest
@@ -51,17 +63,23 @@ namespace UE::ConcertSyncTests::Replication
 		TSharedPtr<ConcertSyncServer::Replication::IConcertServerReplicationManager> ServerReplicationManager;
 		
 		FClientInfo* Client_Receiver = nullptr;
+		/** This is null if ESendReceiveTestFlags::UseRealReplicationBridge was specified. */
 		TSharedPtr<FConcertClientReplicationBridgeMock> BridgeMock_Receiver;
+		/** This is always valid. It is the bridge being used by the receiver. */
+		TSharedPtr<IConcertClientReplicationBridge> BridgeUsed_Receiver;
 		TSharedPtr<IConcertClientReplicationManager> ClientReplicationManager_Receiver;
 
 		FClientInfo* Client_Sender  = nullptr;
+		/** This is null if ESendReceiveTestFlags::UseRealReplicationBridge was specified. */
 		TSharedPtr<FConcertClientReplicationBridgeMock> BridgeMock_Sender;
+		/** This is always valid. It is the bridge being used by the receiver. */
+		TSharedPtr<IConcertClientReplicationBridge> BridgeUsed_Sender;
 		TSharedPtr<IConcertClientReplicationManager> ClientReplicationManager_Sender;
 
 		virtual ConcertSyncClient::Replication::FJoinReplicatedSessionArgs CreateSenderArgs() = 0;
 		virtual ConcertSyncClient::Replication::FJoinReplicatedSessionArgs CreateReceiverArgs() = 0;
 
-		virtual void SetUpClientAndServer();
+		virtual void SetUpClientAndServer(ESendReceiveTestFlags Flags = ESendReceiveTestFlags::None);
 		virtual void SimulateSenderToReceiver(
 			TFunctionRef<FReceiveReplicationEventSignature> OnServerReceive = [](auto&, auto&){},
 			TFunctionRef<FReceiveReplicationEventSignature> OnReceiverClientReceive = [](auto&, auto&){}
@@ -69,9 +87,9 @@ namespace UE::ConcertSyncTests::Replication
 		
 		void TickClient(FClientInfo* Client);
 		void TickServer();
-		
-	private:
-		
+
+		//~ Begin FConcertClientServerCommunicationTest Interface
 		virtual void CleanUpTest(FAutomationTestBase* AutomationTestBase) override;
+		//~ End FConcertClientServerCommunicationTest Interface
 	};
 }

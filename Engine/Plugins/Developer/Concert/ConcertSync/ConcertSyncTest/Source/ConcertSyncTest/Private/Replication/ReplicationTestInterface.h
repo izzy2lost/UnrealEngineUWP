@@ -18,6 +18,8 @@ namespace UE::ConcertSyncClient::TestInterface
 		TSharedRef<IConcertClientSession> InLiveSession,
 		IConcertClientReplicationBridge* InBridge
 		);
+
+	extern CONCERTSYNCCLIENT_API TSharedRef<IConcertClientReplicationBridge> CreateClientReplicationBridge();
 }
 
 namespace UE::ConcertSyncServer::TestInterface

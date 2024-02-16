@@ -65,7 +65,7 @@ public:
 	virtual bool IsObjectAvailable(const FSoftObjectPath& Path) = 0;
 
 	/**
-	 * Obtains the object if it is available. If the UObject is unloaded, it shall be loaded.
+	 * Obtains the object if it is available. This does not load the object. 
 	 * 
 	 * This function will not discover nor hide any UObject (that means broadcast OnObjectDiscovered or OnObjectHidden),
 	 * unless it is tracked, in which case it can.

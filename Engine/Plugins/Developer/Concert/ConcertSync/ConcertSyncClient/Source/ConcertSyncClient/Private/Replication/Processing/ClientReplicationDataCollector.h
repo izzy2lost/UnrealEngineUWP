@@ -99,8 +99,6 @@ namespace UE::ConcertSyncClient::Replication
 			FGuid StreamId;
 			/** The properties to replicate */
 			FConcertPropertySelection SelectedProperties;
-			/** Set when the bridge tells us the object is available for replication. Unset otherwise. */
-			TWeakObjectPtr<UObject> ObjectCache;
 		};
 		
 		/** The objects and their properties to replicate */

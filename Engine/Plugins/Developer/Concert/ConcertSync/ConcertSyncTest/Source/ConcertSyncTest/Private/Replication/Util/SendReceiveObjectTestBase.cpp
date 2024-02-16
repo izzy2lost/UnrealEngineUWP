@@ -28,12 +28,12 @@ namespace UE::ConcertSyncTests::Replication
 		return ReceiverJoinArgs;
 	}
 
-	void FSendReceiveObjectTestBase::SetUpClientAndServer()
+	void FSendReceiveObjectTestBase::SetUpClientAndServer(ESendReceiveTestFlags Flags)
 	{
 		// Fake replicated object must be created before call to Super
 		TestObject = NewObject<UTestReflectionObject>(GetTransientPackage());
 
-		FSendReceiveTestBase::SetUpClientAndServer();
+		FSendReceiveTestBase::SetUpClientAndServer(Flags);
 		
 		// Bridge is responsible for telling client-side replication system about existing objects
 		BridgeMock_Sender->InjectAvailableObject(*TestObject); 

@@ -161,10 +161,17 @@ namespace UE::ConcertSyncClient::Replication
 		{
 			for (const FObjectInfo& ObjectInfo : Pair.Value)
 			{
-				if (ObjectInfo.ObjectCache.IsValid())
+				// The bridge has the object cached. We do not cache the object ourselves!
+				// Funky Unreal flows can cause the object to be renamed out from under us and replaced by a different instance (just by using UObject::Rename()).
+				// The bridge is aware of these flows and FindObjectIfAvailable will catch them.
+				// If FindObjectIfAvailable fails to resolve, OnObjectHidden() is triggered if the object was previously visible.
+				const UObject* Object = Bridge->FindObjectIfAvailable(Pair.Key);
+				
+				const FSoftObjectPath ObjectPath = Object;
+				if (Object && ensureMsgf(ObjectPath == Object, TEXT("Sanity check: the bridge gave us an object with a different path!")))
 				{
 					ProcessItemFunc(FConcertReplicatedObjectId {
-						FConcertObjectInStreamID{ ObjectInfo.StreamId, ObjectInfo.ObjectCache.Get() },
+						FConcertObjectInStreamID{ ObjectInfo.StreamId, Object },
 						ClientId
 					});
 				}
@@ -185,23 +192,26 @@ namespace UE::ConcertSyncClient::Replication
 			return {};
 		}
 
-		const int32 Index = ObjectInfos->IndexOfByPredicate([&ObjectToProcess](const FObjectInfo& ObjectInfo){ return ObjectInfo.StreamId == ObjectToProcess.StreamId; });
-		// Same logic as above - either invalid call or ForEachPendingObject lied
-		if (!ensure(ObjectInfos->IsValidIndex(Index)))
+		// The properties to be replicated depend on the stream: search for it.
+		const int32 StreamIndex = ObjectInfos->IndexOfByPredicate([&ObjectToProcess](const FObjectInfo& ObjectInfo){ return ObjectInfo.StreamId == ObjectToProcess.StreamId; });
+		// Same logic as above: if the stream is not found, then either the call is invalid or ForEachPendingObject lied
+		if (!ensure(ObjectInfos->IsValidIndex(StreamIndex)))
 		{
 			return {};
 		}
 
-		const FObjectInfo& ObjectInfo = (*ObjectInfos)[Index];
-		// Finally... same logic as above - either invalid call or ForEachPendingObject lied
-		if (!ensure(ObjectInfo.ObjectCache.IsValid()))
+		UObject* Object = Bridge->FindObjectIfAvailable(ObjectToProcess.Object);
+		// Finally... ask the bridge to resolve the object for us. The bridge has the object cached and handles the object getting renamed, etc.
+		// This should resolve. If it does not: same logic as above - either this call is invalid or ForEachPendingObject lied.
+		if (!ensure(Object))
 		{
 			return false;
 		}
 
+		const FObjectInfo& ObjectInfo = (*ObjectInfos)[StreamIndex];
 		ConcertSyncCore::FReplicationPropertyFilter Filter(ObjectInfo.SelectedProperties);
 		TOptional<FConcertSessionSerializedPayload> Payload = ReplicationFormat->CreateReplicationEvent(
-			*ObjectInfo.ObjectCache,
+			*Object,
 			[&Filter](const FArchiveSerializedPropertyChain* Chain, const FProperty& Property)
 			{
 				return Filter.ShouldSerializeProperty(Chain, Property);
@@ -218,10 +228,6 @@ namespace UE::ConcertSyncClient::Replication
 	{
 		if (TArray<FObjectInfo>* ObjectInfos = ObjectsToReplicate.Find(&Object))
 		{
-			for (FObjectInfo& ObjectInfo : *ObjectInfos)
-			{
-				ObjectInfo.ObjectCache = &Object;
-			}
 			++NumTrackedObjects;
 		}
 	}
@@ -230,10 +236,6 @@ namespace UE::ConcertSyncClient::Replication
 	{
 		if (TArray<FObjectInfo>* ObjectInfos = ObjectsToReplicate.Find(ObjectPath))
 		{
-			for (FObjectInfo& ObjectInfo : *ObjectInfos)
-			{
-				ObjectInfo.ObjectCache = nullptr;
-			}
 			--NumTrackedObjects;
 		}
 	}
