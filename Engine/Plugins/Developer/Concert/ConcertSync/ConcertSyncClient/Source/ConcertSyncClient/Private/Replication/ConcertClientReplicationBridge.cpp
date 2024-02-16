@@ -96,9 +96,36 @@ namespace UE::ConcertSyncClient::Replication
 
 	UObject* FConcertClientReplicationBridge::FindObjectIfAvailable(const FSoftObjectPath& Path)
 	{
+		// Replicated UObject's may be renamed, e.g. by using UObject::Rename. If that happens, we need to re-resolve the Path.
+		// A legitimate case that could cause this: We're replicating a component that has EComponentCreationMethod::SimpleConstructionScript.
+		// Upon editing the object, the construction script is re-run thus replacing the component instance with a totally new object!
+		FTrackedObjectInfo* ObjectInfo = TrackedObjects.Find(Path);
+		const bool bObjectWasInCache = ObjectInfo && ObjectInfo->ResolvedObject.IsValid();
+		if (bObjectWasInCache)
+		{
+			if (Path == ObjectInfo->ResolvedObject.Get())
+			{
+				return ObjectInfo->ResolvedObject.Get();
+			}
+			UE_LOG(LogConcert, Verbose, TEXT("Replicated object %s was renamed to %s. Resolving new target object..."), *Path.ToString(), *ObjectInfo->ResolvedObject->GetPathName());
+		}
+		
 		// This should be an object in a UWorld. This will resolve if the world is opened.
 		UObject* Object = Path.ResolveObject();
 		UE_CLOG(Object && !Object->IsInA(UWorld::StaticClass()), LogConcert, Warning, TEXT("Object %s is not in any UWorld. The replication system was designed to work with objects in UWorlds."), *Path.ToString());
+
+		// Update the cache for faster look ups if we found anything
+		if (Object)
+		{
+			ObjectInfo = ObjectInfo ? ObjectInfo : &TrackedObjects.Add(Path);
+			ObjectInfo->ResolvedObject = Object;
+		}
+		else
+		{
+			// If the object was renamed but not replaced, issue a warning.
+			UE_CLOG(bObjectWasInCache, LogConcert, Warning, TEXT("Replicated object %s was renamed to %s. The target object was not replaced by any new object so it will stop being replicated."), *Path.ToString(), *ObjectInfo->ResolvedObject.Get()->GetPathName());
+		}
+		
 		return Object;
 	}
 

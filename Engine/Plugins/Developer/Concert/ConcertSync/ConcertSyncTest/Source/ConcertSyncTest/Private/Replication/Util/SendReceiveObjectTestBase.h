@@ -56,7 +56,7 @@ namespace UE::ConcertSyncTests::Replication
 		//~ Begin FSendReceiveTestBase Interface
 		virtual ConcertSyncClient::Replication::FJoinReplicatedSessionArgs CreateSenderArgs() override;
 		virtual ConcertSyncClient::Replication::FJoinReplicatedSessionArgs CreateReceiverArgs() override;
-		virtual void SetUpClientAndServer() override;
+		virtual void SetUpClientAndServer(ESendReceiveTestFlags Flags = ESendReceiveTestFlags::None) override;
 		//~ End FSendReceiveTestBase Interface
 		
 		/**
