@@ -216,9 +216,10 @@ public class EOSSDK : ModuleRules
 	}
 	
 	public virtual bool bIncludeKITT { get { return false; } }
+
 	public virtual string KittModuleName(string BaseName, string ConfigName)
 	{
-		throw new Exception("KITT is not supported on this platform: " + Target.Platform.ToString());
+		return String.Format("{0}-{1}-{2}", BaseName, EOSSDKPlatformName, KittTargetConfiguration);
 	}
 
 	public virtual string KittModuleExtension()
