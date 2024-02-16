@@ -82,11 +82,22 @@ void UExtractCollisionGeometryTool::Setup()
 	Settings = NewObject<UExtractCollisionToolProperties>(this);
 	Settings->RestoreProperties(this);
 	AddToolPropertySource(Settings);
+	// Update input mesh visibility w/ logic that toggles it off when the complex preview is shown
+	auto UpdateInputMeshVisibility = [this]()
+	{
+		bool bShowInput = Settings->bShowInputMesh && (Settings->CollisionType != EExtractCollisionOutputType::Complex || !Settings->bShowPreview);
+		UE::ToolTarget::SetSourceObjectVisible(Target, bShowInput);
+	};
+	Settings->WatchProperty(Settings->CollisionType, [this, UpdateInputMeshVisibility](EExtractCollisionOutputType NewValue) { UpdateInputMeshVisibility(); });
 	Settings->WatchProperty(Settings->bWeldEdges, [this](bool bNewValue) { bResultValid = false; });
-	Settings->WatchProperty(Settings->bShowPreview, [this](bool bNewValue) { PreviewMesh->SetVisible(bNewValue); });
+	Settings->WatchProperty(Settings->bShowPreview, [this, UpdateInputMeshVisibility](bool bNewValue)
+	{
+		PreviewMesh->SetVisible(bNewValue); 
+		UpdateInputMeshVisibility();
+	});
 	PreviewMesh->SetVisible(Settings->bShowPreview);
-	Settings->WatchProperty(Settings->bShowInputMesh, [this](bool bNewValue) { UE::ToolTarget::SetSourceObjectVisible(Target, bNewValue); });
-	UE::ToolTarget::SetSourceObjectVisible(Target, Settings->bShowInputMesh);
+	Settings->WatchProperty(Settings->bShowInputMesh, [this, UpdateInputMeshVisibility](bool bNewValue) { UpdateInputMeshVisibility(); });
+	UpdateInputMeshVisibility();
 
 	VizSettings = NewObject<UCollisionGeometryVisualizationProperties>(this);
 	VizSettings->bEnableShowSolid = false; // This solid visualization is redundant to the 'show preview' option in the general settings section of this tool
