@@ -1352,11 +1352,11 @@ UOptimusNode* UOptimusNodeGraph::CollapseNodesToSubGraph(
 
 
 TArray<UOptimusNode*> UOptimusNodeGraph::ExpandCollapsedNodes(
-	UOptimusNode* InFunctionNode
+	UOptimusNode* InGraphReferenceNode
 	)
 {
-	const bool bIsFunction = IsFunctionReference(InFunctionNode);
-	const bool bIsSubGraph = IsSubGraphReference(InFunctionNode);
+	const bool bIsFunction = IsFunctionReference(InGraphReferenceNode);
+	const bool bIsSubGraph = IsSubGraphReference(InGraphReferenceNode);
 	if (!bIsFunction && !bIsSubGraph)
 	{
 		return {};
@@ -1384,7 +1384,7 @@ TArray<UOptimusNode*> UOptimusNodeGraph::ExpandCollapsedNodes(
 	
 	TArray<UOptimusNodeLink*> ExternalLinks;	
 
-	for (const int32 LinkIndex : GetAllLinkIndexesToNode(InFunctionNode))
+	for (const int32 LinkIndex : GetAllLinkIndexesToNode(InGraphReferenceNode))
 	{
 		ExternalLinks.Add(Links[LinkIndex]);
 	}
@@ -1392,23 +1392,26 @@ TArray<UOptimusNode*> UOptimusNodeGraph::ExpandCollapsedNodes(
 	// Use to move all nodes in the outer graph away from the expansion location
 	// such that nodes currently in the subgraph would have enough space to spawn in the outer graph
 	
-	FVector2D ExpandLocation = InFunctionNode->GetGraphPosition();
+	FVector2D ExpandLocation = InGraphReferenceNode->GetGraphPosition();
 	
 	TArray<TPair<UOptimusNode*, FVector2D>> NodePositionInfos;
 	for (UOptimusNode* Node : Nodes)
 	{
-		if (Node == InFunctionNode)
+		if (Node == InGraphReferenceNode)
 		{
 			continue;
 		}
 
-		NodePositionInfos.Add({Node, Node->GetGraphPosition() - InFunctionNode->GetGraphPosition()});
+		NodePositionInfos.Add({Node, Node->GetGraphPosition() - InGraphReferenceNode->GetGraphPosition()});
 	}
 
 	
-	if (UOptimusNode_SubGraphReference* SubGraphReferenceNode = Cast<UOptimusNode_SubGraphReference>(InFunctionNode))
+	IOptimusNodeSubGraphReferencer* AsReferencerNode = Cast<IOptimusNodeSubGraphReferencer>(InGraphReferenceNode);
+	IOptimusNodePinRouter* AsRouterNode = Cast<IOptimusNodePinRouter>(InGraphReferenceNode);
+
+	if (AsReferencerNode && AsRouterNode)
 	{
-		UOptimusNodeSubGraph* SubGraph = SubGraphReferenceNode->SubGraph.Get();
+		UOptimusNodeSubGraph* SubGraph = AsReferencerNode->GetReferencedSubGraph();
 		
 		TArray<UOptimusNode*> NodesToDuplicate = SubGraph->Nodes;
 		TArray<UOptimusNodePair*> NodePairsToDuplicate = SubGraph->NodePairs;
@@ -1456,9 +1459,9 @@ TArray<UOptimusNode*> UOptimusNodeGraph::ExpandCollapsedNodes(
 		TArray<TPair<FString, FString>> LinksToAdd;
 
 		// Record all links linking terminal pins and nodes in the outer graph, saving to LinksToAdd array
-		auto AddLink = [&LinksToAdd, GraphPath, SubGraphReferenceNode, NewNodeNameMap](UOptimusNodePin* InReferenceNodePin)
+		auto AddLink = [&LinksToAdd, GraphPath, AsRouterNode, NewNodeNameMap](UOptimusNodePin* InReferenceNodePin)
 		{
-			const FOptimusRoutedNodePin PinCounterpart = SubGraphReferenceNode->GetPinCounterpart(InReferenceNodePin, {});
+			const FOptimusRoutedNodePin PinCounterpart = AsRouterNode->GetPinCounterpart(InReferenceNodePin, {});
 
 			for (const UOptimusNodePin* ExternalPin : InReferenceNodePin->GetConnectedPins())
 			{
@@ -1481,13 +1484,13 @@ TArray<UOptimusNode*> UOptimusNodeGraph::ExpandCollapsedNodes(
 			}	
 		};
 		
-		for (UOptimusNodePin* Pin : SubGraphReferenceNode->GetPins())
+		for (UOptimusNodePin* Pin : InGraphReferenceNode->GetPins())
 		{
 			AddLink(Pin);
 		}
 		
 		// Unconnected component pins should be linked to outer graph explicitly if the subgraph default component pin is connected externally
-		TArray<UOptimusNodePin*> ExternalComponentPins = SubGraphReferenceNode->DefaultComponentPin->GetConnectedPins();
+		TArray<UOptimusNodePin*> ExternalComponentPins = AsReferencerNode->GetDefaultComponentBindingPin()->GetConnectedPins();
 		if (ExternalComponentPins.Num() > 0)
 		{
 			UOptimusNodePin* ExternalComponentPin = ExternalComponentPins[0];
@@ -1576,7 +1579,8 @@ TArray<UOptimusNode*> UOptimusNodeGraph::ExpandCollapsedNodes(
 
 		RemoveNodesToAction(Action, SubGraph->GetAllNodes());
 
-		RemoveNodesToAction(Action, {SubGraphReferenceNode});
+		// This will remove the subgraph if it is a subgraph node
+		RemoveNodesToAction(Action, {InGraphReferenceNode});
 
 		if (!GetActionStack()->RunAction(Action))
 		{

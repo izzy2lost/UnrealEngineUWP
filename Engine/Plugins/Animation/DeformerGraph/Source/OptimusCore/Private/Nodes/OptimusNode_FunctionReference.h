@@ -41,7 +41,9 @@ public:
 	UOptimusNodeGraph* GetNodeGraphToShow() override;
 	
 	// IOptimusNodeSubGraphReferencer
+	UOptimusNodeSubGraph* GetReferencedSubGraph() const override;
 	UOptimusComponentSourceBinding* GetDefaultComponentBinding(const FOptimusPinTraversalContext& InTraversalContext) const override;
+	UOptimusNodePin* GetDefaultComponentBindingPin() const override;
 
 	FSoftObjectPath GetSerializedGraphPath() const;
 

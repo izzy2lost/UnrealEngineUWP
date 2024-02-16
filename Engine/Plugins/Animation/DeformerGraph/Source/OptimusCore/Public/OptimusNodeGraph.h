@@ -268,7 +268,7 @@ public:
 	 *  sub-graph was expanded, the sub-graph is deleted.
 	 */
 	UFUNCTION(BlueprintCallable, Category = OptimusNodeGraph)
-	TArray<UOptimusNode *> ExpandCollapsedNodes(UOptimusNode* InFunctionNode);
+	TArray<UOptimusNode *> ExpandCollapsedNodes(UOptimusNode* InGraphReferenceNode);
 	
 	/** Take a subgraph node convert it to a function in-place
 	 */
