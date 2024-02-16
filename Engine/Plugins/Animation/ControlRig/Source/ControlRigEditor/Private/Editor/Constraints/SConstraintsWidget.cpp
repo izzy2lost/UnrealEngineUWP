@@ -975,6 +975,10 @@ int32 FBaseConstraintListWidget::RefreshConstraintList()
 					}
 				}
 			}
+			else
+			{
+				Constraints.Empty();
+			}
 		}
 		else if (ShowConstraints == EShowConstraints::ShowValid)
 		{
