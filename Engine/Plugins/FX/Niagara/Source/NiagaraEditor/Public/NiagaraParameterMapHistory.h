@@ -40,6 +40,7 @@ public:
 	ENiagaraFunctionDebugState CalculateDebugState() const;
 	FCompileConstantResolver WithDebugState(ENiagaraFunctionDebugState InDebugState) const;
 	FCompileConstantResolver WithUsage(ENiagaraScriptUsage ScriptUsage) const;
+	FCompileConstantResolver AsEmitter(const FVersionedNiagaraEmitter& InEmitter) const;
 
 	// returns a hash of the data that is used when resolving constants using this resolver.  The specific
 	// Emitter/System/Translator shouldn't be included but the values that it might use from those objects

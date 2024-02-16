@@ -2027,6 +2027,7 @@ FNiagaraCompilationNodeEmitter::FNiagaraCompilationNodeEmitter(const UNiagaraNod
 	EmitterName = InNode->GetName();
 	EmitterPathName = InNode->GetPathName();
 	EmitterHandleIdString = InNode->GetEmitterHandleId().ToString(EGuidFormats::Digits);
+	EmitterUniqueFName = *EmitterUniqueName;
 }
 
 
@@ -2037,6 +2038,7 @@ FNiagaraCompilationNodeEmitter::FNiagaraCompilationNodeEmitter(const FNiagaraCom
 	, EmitterName(InNode.EmitterName)
 	, EmitterPathName(InNode.EmitterPathName)
 	, EmitterHandleIdString(InNode.EmitterHandleIdString)
+	, EmitterUniqueFName(InNode.EmitterUniqueFName)
 	, Usage(InNode.Usage)
 {
 	// we need to replace the CalledGraph here with the graph that has been instantiated already
@@ -2103,7 +2105,15 @@ void FNiagaraCompilationNodeEmitter::BuildParameterMapHistory(FParameterMapHisto
 
 			// Build up a new parameter map history with all the child graph nodes..
 			FParameterMapHistoryBuilder ChildBuilder;
-			*ChildBuilder.ConstantResolver = *Builder.ConstantResolver;
+			const FNiagaraFixedConstantResolver* ChildConstantResolver = Builder.ConstantResolver->FindChildResolver(EmitterUniqueFName);
+			if (ensure(ChildConstantResolver))
+			{
+				*ChildBuilder.ConstantResolver = *ChildConstantResolver;
+			}
+			else
+			{
+				*ChildBuilder.ConstantResolver = *Builder.ConstantResolver;
+			}
 			ChildBuilder.RegisterEncounterableVariables(Builder.GetEncounterableVariables());
 			ChildBuilder.EnableScriptAllowList(true, Usage);
 

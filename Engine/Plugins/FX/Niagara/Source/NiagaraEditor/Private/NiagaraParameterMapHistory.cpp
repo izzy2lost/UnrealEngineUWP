@@ -2571,6 +2571,15 @@ FCompileConstantResolver FCompileConstantResolver::WithUsage(ENiagaraScriptUsage
 	return Copy;
 }
 
+FCompileConstantResolver FCompileConstantResolver::AsEmitter(const FVersionedNiagaraEmitter& InEmitter) const
+{
+	FCompileConstantResolver Copy = *this;
+	Copy.Emitter = InEmitter;
+	Copy.System = nullptr;
+	return Copy;
+}
+
+
 uint32 FCompileConstantResolver::BuildTypeHash() const
 {
 	union

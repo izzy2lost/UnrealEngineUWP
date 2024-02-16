@@ -342,6 +342,15 @@ void UNiagaraNodeEmitter::BuildParameterMapHistory(FNiagaraParameterMapHistoryBu
 		}
 	}
 
+	const FNiagaraEmitterHandle* EmitterHandle = nullptr;
+	if (const UNiagaraSystem* System = OutHistory.ConstantResolver->GetSystem())
+	{
+		EmitterHandle = System->GetEmitterHandles().FindByPredicate([this](const FNiagaraEmitterHandle& Handle) -> bool
+		{
+			return Handle.GetId() == EmitterHandleId;
+		});
+	}
+
 	FString EmitterUniqueName = GetEmitterUniqueName();
 	UNiagaraGraph* Graph = GetCalledGraph();
 	if (Graph && ParamMapIdx != INDEX_NONE && OutHistory.bShouldBuildSubHistories)
@@ -366,7 +375,14 @@ void UNiagaraNodeEmitter::BuildParameterMapHistory(FNiagaraParameterMapHistoryBu
 
 			// Build up a new parameter map history with all the child graph nodes..
 			FNiagaraParameterMapHistoryBuilder ChildBuilder;
-			*ChildBuilder.ConstantResolver = *OutHistory.ConstantResolver;
+			if (ensure(EmitterHandle))
+			{
+				*ChildBuilder.ConstantResolver = OutHistory.ConstantResolver->AsEmitter(EmitterHandle->GetInstance()).WithUsage(OutputNodeUsage);
+			}
+			else
+			{
+				*ChildBuilder.ConstantResolver = *OutHistory.ConstantResolver;
+			}
 			ChildBuilder.RegisterEncounterableVariables(OutHistory.GetEncounterableVariables());
 			ChildBuilder.EnableScriptAllowList(true, GetUsage());
 
