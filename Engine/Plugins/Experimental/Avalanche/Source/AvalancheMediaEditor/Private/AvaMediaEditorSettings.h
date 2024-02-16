@@ -6,7 +6,7 @@
 #include "AvaMediaEditorSettings.generated.h"
 
 UCLASS(config=EditorPerProjectUserSettings, meta=(DisplayName="Playback & Broadcast"))
-class AVALANCHEMEDIAEDITOR_API UAvaMediaEditorSettings : public UDeveloperSettings
+class UAvaMediaEditorSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
 

@@ -28,7 +28,7 @@ namespace EAvaRundownApiVersion
 
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownMsgBase
+struct FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 public:
@@ -37,7 +37,7 @@ public:
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownServerMsg : public FAvaRundownMsgBase
+struct FAvaRundownServerMsg : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 public:
@@ -50,7 +50,7 @@ public:
 
 /** Request published by client to discover servers. */
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownPing : public FAvaRundownMsgBase
+struct FAvaRundownPing : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 public:
@@ -68,7 +68,7 @@ public:
 
 /** Response sent by server to client to be discovered. */
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownPong : public FAvaRundownMsgBase
+struct FAvaRundownPong : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 
@@ -102,7 +102,7 @@ public:
  *	Request list of rundown that can be opened on the current server.
  */
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownGetRundowns : public FAvaRundownMsgBase
+struct FAvaRundownGetRundowns : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 };
@@ -112,7 +112,7 @@ struct AVALANCHEMEDIAEDITOR_API FAvaRundownGetRundowns : public FAvaRundownMsgBa
  *	Expected Response from FAvaRundownGetRundowns.
  */
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownRundowns : public FAvaRundownMsgBase
+struct FAvaRundownRundowns : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 
@@ -129,7 +129,7 @@ public:
  *	a FAvaRundownLoadedRundown message indicating which rundown is currently loaded.
  */
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownLoadRundown : public FAvaRundownMsgBase
+struct FAvaRundownLoadRundown : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 
@@ -142,7 +142,7 @@ public:
  * Request the list of pages from the given rundown.
  */
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownGetPages : public FAvaRundownMsgBase
+struct FAvaRundownGetPages : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 public:
@@ -151,7 +151,7 @@ public:
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownCreatePage : public FAvaRundownMsgBase
+struct FAvaRundownCreatePage : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 
@@ -163,7 +163,7 @@ struct AVALANCHEMEDIAEDITOR_API FAvaRundownCreatePage : public FAvaRundownMsgBas
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownDeletePage : public FAvaRundownMsgBase
+struct FAvaRundownDeletePage : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 
@@ -175,7 +175,7 @@ struct AVALANCHEMEDIAEDITOR_API FAvaRundownDeletePage : public FAvaRundownMsgBas
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownCreateTemplate : public FAvaRundownMsgBase
+struct FAvaRundownCreateTemplate : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 
@@ -184,7 +184,7 @@ struct AVALANCHEMEDIAEDITOR_API FAvaRundownCreateTemplate : public FAvaRundownMs
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownDeleteTemplate : public FAvaRundownMsgBase
+struct FAvaRundownDeleteTemplate : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 
@@ -196,7 +196,7 @@ struct AVALANCHEMEDIAEDITOR_API FAvaRundownDeleteTemplate : public FAvaRundownMs
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownChangeTemplateBP : public FAvaRundownMsgBase
+struct FAvaRundownChangeTemplateBP : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 public:
@@ -211,7 +211,7 @@ public:
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownPageInfo
+struct FAvaRundownPageInfo
 {
 	GENERATED_BODY()
 public:
@@ -253,7 +253,7 @@ public:
  * List of pages from the current rundown.
  */
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownPages : public FAvaRundownMsgBase
+struct FAvaRundownPages : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 public:
@@ -265,7 +265,7 @@ public:
  * Request the page details from the given rundown.
  */
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownGetPageDetails : public FAvaRundownMsgBase
+struct FAvaRundownGetPageDetails : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 
@@ -286,7 +286,7 @@ public:
  *	Server response to FAvaRundownGetPageDetails request.
  */
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownPageDetails : public FAvaRundownMsgBase
+struct FAvaRundownPageDetails : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 
@@ -309,7 +309,7 @@ public:
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownPagesStatuses : public FAvaRundownMsgBase
+struct FAvaRundownPagesStatuses : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 
@@ -322,7 +322,7 @@ public:
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownPageListChanged : public FAvaRundownMsgBase
+struct FAvaRundownPageListChanged : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 
@@ -338,7 +338,7 @@ struct AVALANCHEMEDIAEDITOR_API FAvaRundownPageListChanged : public FAvaRundownM
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownPageBlueprintChanged : public FAvaRundownMsgBase
+struct FAvaRundownPageBlueprintChanged : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 
@@ -353,7 +353,7 @@ struct AVALANCHEMEDIAEDITOR_API FAvaRundownPageBlueprintChanged : public FAvaRun
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownPageChannelChanged : public FAvaRundownMsgBase
+struct FAvaRundownPageChannelChanged : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 
@@ -368,7 +368,7 @@ struct AVALANCHEMEDIAEDITOR_API FAvaRundownPageChannelChanged : public FAvaRundo
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownPageAnimSettingsChanged : public FAvaRundownMsgBase
+struct FAvaRundownPageAnimSettingsChanged : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 
@@ -380,7 +380,7 @@ struct AVALANCHEMEDIAEDITOR_API FAvaRundownPageAnimSettingsChanged : public FAva
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownPageChangeChannel : public FAvaRundownMsgBase
+struct FAvaRundownPageChangeChannel : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 
@@ -396,7 +396,7 @@ struct AVALANCHEMEDIAEDITOR_API FAvaRundownPageChangeChannel : public FAvaRundow
 
 /** This is a request to save the managed RCP back to the corresponding page. */
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownUpdatePageFromRCP : public FAvaRundownMsgBase
+struct FAvaRundownUpdatePageFromRCP : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 
@@ -423,7 +423,7 @@ enum class EAvaRundownPageActions
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownPageAction : public FAvaRundownMsgBase
+struct FAvaRundownPageAction : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 public:
@@ -435,7 +435,7 @@ public:
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownPagePreviewAction : public FAvaRundownPageAction
+struct FAvaRundownPagePreviewAction : public FAvaRundownPageAction
 {
 	GENERATED_BODY()
 public:
@@ -449,7 +449,7 @@ public:
  * This is necessary for pages to be part of the same transition.
  */
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownPageActions : public FAvaRundownMsgBase
+struct FAvaRundownPageActions : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 public:
@@ -461,7 +461,7 @@ public:
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownPagePreviewActions : public FAvaRundownPageActions
+struct FAvaRundownPagePreviewActions : public FAvaRundownPageActions
 {
 	GENERATED_BODY()
 public:
@@ -480,7 +480,7 @@ enum class EAvaRundownPageEvents
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownPageEvent : public FAvaRundownMsgBase
+struct FAvaRundownPageEvent : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 public:
@@ -492,7 +492,7 @@ public:
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownOutputDeviceItem
+struct FAvaRundownOutputDeviceItem
 {
 	GENERATED_BODY()
 public:
@@ -507,7 +507,7 @@ public:
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownOutputClassItem
+struct FAvaRundownOutputClassItem
 {
 	GENERATED_BODY()
 public:
@@ -519,7 +519,7 @@ public:
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownDevicesList : public FAvaRundownMsgBase
+struct FAvaRundownDevicesList : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 public:
@@ -528,7 +528,7 @@ public:
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownGetChannel : public FAvaRundownMsgBase
+struct FAvaRundownGetChannel : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 public:
@@ -537,13 +537,13 @@ public:
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownGetChannels : public FAvaRundownMsgBase
+struct FAvaRundownGetChannels : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownChannel
+struct FAvaRundownChannel
 {
 	GENERATED_BODY()
 public:
@@ -555,7 +555,7 @@ public:
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownChannelListChanged : public FAvaRundownMsgBase
+struct FAvaRundownChannelListChanged : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 
@@ -564,7 +564,7 @@ struct AVALANCHEMEDIAEDITOR_API FAvaRundownChannelListChanged : public FAvaRundo
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownChannelResponse : public FAvaRundownMsgBase
+struct FAvaRundownChannelResponse : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 public:
@@ -573,7 +573,7 @@ public:
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownChannels : public FAvaRundownMsgBase
+struct FAvaRundownChannels : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 public:
@@ -582,7 +582,7 @@ public:
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownAssetsChanged : public FAvaRundownMsgBase
+struct FAvaRundownAssetsChanged : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 
@@ -600,7 +600,7 @@ enum class EAvaRundownChannelActions
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownChannelAction : public FAvaRundownMsgBase
+struct FAvaRundownChannelAction : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 public:
@@ -612,13 +612,13 @@ public:
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownGetDevices : public FAvaRundownMsgBase
+struct FAvaRundownGetDevices : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownAddChannelDevice : public FAvaRundownMsgBase
+struct FAvaRundownAddChannelDevice : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 public:
@@ -630,7 +630,7 @@ public:
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownEditChannelDevice : public FAvaRundownMsgBase
+struct FAvaRundownEditChannelDevice : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 public:
@@ -645,7 +645,7 @@ public:
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownRemoveChannelDevice : public FAvaRundownMsgBase
+struct FAvaRundownRemoveChannelDevice : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 public:
@@ -658,7 +658,7 @@ public:
 
 /* No difference from FAvaRundownOutputDeviceItem except this is meant to return a single device response. */
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownOutputDeviceItemResponse : public FAvaRundownMsgBase
+struct FAvaRundownOutputDeviceItemResponse : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 public:
@@ -670,7 +670,7 @@ public:
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownGetChannelImage : public FAvaRundownMsgBase
+struct FAvaRundownGetChannelImage : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 public:
@@ -679,7 +679,7 @@ public:
 };
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaRundownChannelImage : public FAvaRundownMsgBase
+struct FAvaRundownChannelImage : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 public:

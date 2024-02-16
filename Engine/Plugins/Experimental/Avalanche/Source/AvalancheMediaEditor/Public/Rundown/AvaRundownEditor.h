@@ -15,7 +15,7 @@ class SAvaRundownPageList;
 class SAvaRundownReadPage;
 enum class EAvaRundownSearchListType : uint8;
 
-class AVALANCHEMEDIAEDITOR_API FAvaRundownEditor : public FWorkflowCentricApplication
+class FAvaRundownEditor : public FWorkflowCentricApplication
 {
 public:
 	FAvaRundownEditor();
@@ -41,7 +41,7 @@ public:
 	void FillPageToolBar(FToolBarBuilder& OutToolBarBuilder);
 
 	bool IsRundownValid() const { return AvaRundown.IsValid(); }
-	UAvaRundown* GetRundown() const;
+	AVALANCHEMEDIAEDITOR_API UAvaRundown* GetRundown() const;
 	void MarkAsModified();
 
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnPageEvent, const TArray<int32>&, UE::AvaRundown::EPageEvent);
@@ -61,9 +61,9 @@ public:
 	/** Returns the currently focused Page List, including templates, instances or views. */
 	TSharedPtr<SAvaRundownPageList> GetFocusedListWidget() const;
 
-	int32 GetFirstSelectedPageOnActiveSubListWidget() const;
-	TConstArrayView<int32> GetSelectedPagesOnActiveSubListWidget() const;
-	TConstArrayView<int32> GetSelectedPagesOnFocusedWidget() const;
+	AVALANCHEMEDIAEDITOR_API int32 GetFirstSelectedPageOnActiveSubListWidget() const;
+	AVALANCHEMEDIAEDITOR_API TConstArrayView<int32> GetSelectedPagesOnActiveSubListWidget() const;
+	AVALANCHEMEDIAEDITOR_API TConstArrayView<int32> GetSelectedPagesOnFocusedWidget() const;
 
 	bool CanAddTemplate() const;
 	void AddTemplate();

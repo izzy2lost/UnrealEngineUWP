@@ -45,7 +45,7 @@ protected:
 	TArray<int32> DraggedIds;
 };
 
-class AVALANCHEMEDIAEDITOR_API SAvaRundownPageViewRow : public SMultiColumnTableRow<FAvaRundownPageViewPtr>
+class SAvaRundownPageViewRow : public SMultiColumnTableRow<FAvaRundownPageViewPtr>
 {
 public:	
 	SLATE_BEGIN_ARGS(SAvaRundownPageViewRow){}
