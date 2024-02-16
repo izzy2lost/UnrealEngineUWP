@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Rundown/AvaRundownDefines.h"
+#include "Rundown/AvaRundownEditorDefines.h"
 #include "Widgets/SCompoundWidget.h"
 
 class FAvaRundownEditor;

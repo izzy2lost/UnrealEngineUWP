@@ -3,7 +3,7 @@
 #pragma once
 
 #include "HAL/Platform.h"
-#include "Rundown/AvaRundownDefines.h"
+#include "Rundown/AvaRundownEditorDefines.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/UnrealTypeTraits.h"
 

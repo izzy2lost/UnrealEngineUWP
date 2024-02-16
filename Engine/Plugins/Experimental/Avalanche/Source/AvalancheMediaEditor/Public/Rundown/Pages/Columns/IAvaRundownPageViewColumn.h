@@ -3,7 +3,7 @@
 #pragma once
 
 #include "AvaType.h"
-#include "Rundown/AvaRundownDefines.h"
+#include "Rundown/AvaRundownEditorDefines.h"
 #include "Templates/SharedPointer.h"
 #include "Widgets/Views/SHeaderRow.h"
 

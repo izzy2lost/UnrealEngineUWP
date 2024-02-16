@@ -5,7 +5,7 @@
 #include "AssetRegistry/AssetData.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Rundown/AvaRundown.h"
-#include "Rundown/AvaRundownDefines.h"
+#include "Rundown/AvaRundownEditorDefines.h"
 #include "Rundown/AvaRundownPage.h"
 #include "Rundown/Pages/Slate/SAvaRundownPageList.h"
 #include "ScopedTransaction.h"

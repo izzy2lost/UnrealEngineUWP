@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Rundown/AvaRundownDefines.h"
+#include "Rundown/AvaRundownEditorDefines.h"
 #include "Rundown/Pages/PageViews/IAvaRundownPageView.h"
 #include "Templates/SharedPointer.h"
 #include "Types/SlateEnums.h"

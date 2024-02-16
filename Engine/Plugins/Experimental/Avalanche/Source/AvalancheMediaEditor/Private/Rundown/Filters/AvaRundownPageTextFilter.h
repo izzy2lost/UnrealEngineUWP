@@ -4,7 +4,7 @@
 
 #include "Misc/IFilter.h"
 #include "Misc/TextFilterExpressionEvaluator.h"
-#include "Rundown/AvaRundownDefines.h"
+#include "Rundown/AvaRundownEditorDefines.h"
 #include "Templates/SharedPointer.h"
 
 class FAvaRundownPageFilterExpressionContext;

@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Rundown/AvaRundown.h"
-#include "Rundown/AvaRundownDefines.h"
+#include "Rundown/AvaRundownEditorDefines.h"
 #include "SAvaRundownPageList.h"
 
 class FAvaRundownEditor;
