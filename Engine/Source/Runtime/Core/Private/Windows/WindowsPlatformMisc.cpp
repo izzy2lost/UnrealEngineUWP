@@ -3352,15 +3352,15 @@ static void GetVideoDriverDetailsFromSetup(const FString& DeviceName, bool bVerb
 
 	if (!Out.ProviderName.IsEmpty())
 	{
-		if (Out.ProviderName.Find(TEXT("NVIDIA")) != INDEX_NONE)
+		if (Out.ProviderName.Contains(TEXT("NVIDIA")))
 		{
 			Out.SetNVIDIA();
 		}
-		else if (Out.ProviderName.Find(TEXT("Advanced Micro Devices")) != INDEX_NONE)
+		else if (Out.ProviderName.Contains(TEXT("Advanced Micro Devices")))
 		{
 			Out.SetAMD();
 		}
-		else if (Out.ProviderName.Find(TEXT("Intel")) != INDEX_NONE)	// usually TEXT("Intel Corporation")
+		else if (Out.ProviderName.Contains(TEXT("Intel")))	// usually TEXT("Intel Corporation")
 		{
 			Out.SetIntel();
 		}
@@ -3370,7 +3370,7 @@ static void GetVideoDriverDetailsFromSetup(const FString& DeviceName, bool bVerb
 
 	if(Out.IsNVIDIA())
 	{
-		Out.UserDriverVersion = Out.TrimNVIDIAInternalVersion(Out.InternalDriverVersion);
+		Out.UserDriverVersion = Out.GetNVIDIAUnifiedVersion(Out.InternalDriverVersion);
 	}
 	else if(Out.IsAMD() && !RegistryKey.IsEmpty())
 	{
@@ -3458,7 +3458,7 @@ static void GetVideoDriverDetails(const FString& Key, FGPUDriverInfo& Out)
 
 	if(Out.IsNVIDIA())
 	{
-		Out.UserDriverVersion = Out.TrimNVIDIAInternalVersion(Out.InternalDriverVersion);
+		Out.UserDriverVersion = Out.GetNVIDIAUnifiedVersion(Out.InternalDriverVersion);
 	}
 	else if(Out.IsAMD())
 	{
