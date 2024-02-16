@@ -86,6 +86,9 @@ public:
 	UPROPERTY(EditAnywhere, config, Category=General)
 	FString DefaultAuthor;
 
+	/** Maps Pin Category To Pin Color */
+	TMap<FName, FLinearColor> CustomPinTypeColors;
+	
 	/** Default pin type color */
 	UPROPERTY(EditAnywhere, config, Category=PinColors)
 	FLinearColor DefaultPinTypeColor;

@@ -51,6 +51,15 @@ namespace Metasound
 			Complete = 3
 		};
 
+		struct FGraphPinParams
+		{
+			FName PinCategory = {};
+			FName PinSubcategory = {};
+			const FLinearColor* PinColor = nullptr;
+			const FSlateBrush* PinConnectedIcon = nullptr;
+			const FSlateBrush* PinDisconnectedIcon = nullptr;
+		};
+
 		class METASOUNDEDITOR_API FMetasoundDefaultLiteralCustomizationBase
 		{
 		protected:
@@ -107,6 +116,8 @@ namespace Metasound
 			
 			virtual void RegisterPinType(FName InDataTypeName, FName InPinCategory = { }, FName InPinSubCategory = { },
 				const FSlateBrush* InPinConnectedIcon = nullptr, const FSlateBrush* InPinDisconnectedIcon = nullptr) = 0;
+			
+			virtual void RegisterCustomPinType(FName InDataTypeName, const FGraphPinParams& Params) = 0;
 		};
 	} // namespace Editor
 } // namespace Metasound
