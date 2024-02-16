@@ -202,6 +202,36 @@
 							"name": "Cook Time (KPIs)",
 							"metrics": [
 								{
+									"id": "core-cooking-lyra-time-windows-kpi",
+									"alias": "Lyra Cook Windows",
+									"threshold": 7200
+								},
+								{
+									"id": "core-cooking-ancientgame-time-windows-kpi",
+									"alias": "AncientGame Cook Windows",
+									"threshold": 7200
+								},
+								{
+									"id": "core-cooking-citysample-time-windows-kpi",
+									"alias": "CitySample Cook Windows",
+									"threshold": 7200
+								},
+								{
+									"id": "core-cooking-lyra-time-ps5-kpi",
+									"alias": "Lyra Cook Windows",
+									"threshold": 7200
+								},
+								{
+									"id": "core-cooking-ancientgame-time-ps5-kpi",
+									"alias": "AncientGame Cook Windows",
+									"threshold": 7200
+								},
+								{
+									"id": "core-cooking-citysample-time-ps5-kpi",
+									"alias": "CitySample Cook Windows",
+									"threshold": 7200
+								},
+								{
 									"id": "core-cooking-nightly-cook-time-windows-kpi",
 									"alias": "Nightly Cook Windows",
 									"threshold": 7200
@@ -297,6 +327,39 @@
 							]
 						},
 						{
+							"name": "Incremental Cook Time",
+							"metrics": [
+								{
+									"id": "core-cooking-incremental-cook-time"
+								}
+							]
+						},
+						{
+							"name": "Incremental Cook Shaders Compiled",
+							"metrics": [
+								{
+									"id": "core-cooking-incremental-shaders-compiled"
+								}
+							]
+						},
+						{
+							"name": "Package And Test Cook Time",
+							"metrics": [
+								{
+									"id": "core-cooking-package-and-test-cook-time"
+								}
+							]
+						},
+						{
+							"name": "Package And Test Shaders Compiled",
+							"display": "Value",
+							"metrics": [
+								{
+									"id": "core-cooking-package-and-test-shaders-compiled"
+								}
+							]
+						},
+						{
 							"name": "Nightly Cook Time",
 							"metrics": [
 								{
@@ -310,22 +373,6 @@
 							"metrics": [
 								{
 									"id": "core-cooking-nightly-shaders-compiled"
-								}
-							]
-						},
-						{
-							"name": "Incremental Cook Time",
-							"metrics": [
-								{
-									"id": "core-cooking-incremental-cook-time"
-								}
-							]
-						},
-						{
-							"name": "Incremental Cook Shaders Compiled",
-							"metrics": [
-								{
-									"id": "core-cooking-incremental-shaders-compiled"
 								}
 							]
 						},
