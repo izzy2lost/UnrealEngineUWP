@@ -149,7 +149,7 @@ void UDMXSubsystem::SendDMXRaw(FDMXProtocolName SelectedProtocol, int32 RemoteUn
 	OutResult = EDMXSendResult::Success;
 }
 
-void UDMXSubsystem::SendDMXToOutputPort(FDMXOutputPortReference OutputPortReference, TMap<int32, uint8> ChannelToValueMap, int32 LocalUniverse, const FName& SenderName)
+void UDMXSubsystem::SendDMXToOutputPort(FDMXOutputPortReference OutputPortReference, TMap<int32, uint8> ChannelToValueMap, int32 LocalUniverse)
 {
 	const FGuid& PortGuid = OutputPortReference.GetPortGuid();
 	const FDMXOutputPortSharedRef* OutputPortPtr = FDMXPortManager::Get().GetOutputPorts().FindByPredicate([PortGuid](const FDMXOutputPortSharedRef& OutputPort) {
