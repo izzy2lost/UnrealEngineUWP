@@ -2,6 +2,8 @@
 
 #pragma once
 
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+
 #include <Metal/Metal.h>
 #include "MetalResources.h"
 #include "MetalShaderResources.h"
@@ -69,3 +71,5 @@ private:
 
     TArray<TTuple<MTL::Resource*, MTL::ResourceUsage>> ResidentResources[EMetalShaderStages::Num];
 };
+
+#endif

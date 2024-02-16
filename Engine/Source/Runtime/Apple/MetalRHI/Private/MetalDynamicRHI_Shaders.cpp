@@ -32,12 +32,18 @@ FPixelShaderRHIRef FMetalDynamicRHI::RHICreatePixelShader(TArrayView<const uint8
 	return Shader;
 }
 
+
 FGeometryShaderRHIRef FMetalDynamicRHI::RHICreateGeometryShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
 {
     MTL_SCOPED_AUTORELEASE_POOL;
+#if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
     FMetalGeometryShader* Shader = new FMetalGeometryShader(Code);
     return Shader;
+#else
+	return nullptr;
+#endif
 }
+
 
 FComputeShaderRHIRef FMetalDynamicRHI::RHICreateComputeShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
 {

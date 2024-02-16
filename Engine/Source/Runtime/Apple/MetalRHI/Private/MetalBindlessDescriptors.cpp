@@ -1,4 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+
 #include "MetalRHIPrivate.h"
 
 #include "MetalBindlessDescriptors.h"
@@ -252,3 +254,5 @@ void FMetalBindlessDescriptorManager::MakeResident(FRHIDescriptorHandle Descript
 {
     ResidentResources[Frequency].AddUnique(TTuple<MTL::Resource*, MTL::ResourceUsage>(Resource, Usage));
 }
+
+#endif //PLATFORM_SUPPORTS_BINDLESS_RENDERING

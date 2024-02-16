@@ -1664,12 +1664,6 @@ void FMetalStateCache::IRMakeTextureResident(EMetalShaderStages const Frequency,
 	}
 }
 
-void FMetalStateCache::RegisterMetalHeap(MTL::Heap* Heap)
-{
-	FScopeLock ScopeLock(&ActiveHeapsLock);
-	ActiveHeaps.Add(Heap);
-}
-
 void FMetalStateCache::IRForwardBindlessParameters(EMetalShaderStages const Frequency, TConstArrayView<FRHIShaderParameterResource> InBindlessParameters)
 {
     FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
@@ -1741,6 +1735,12 @@ void FMetalStateCache::IRBindUniformBuffer(EMetalShaderStages const Frequency, i
     CBVTable[Frequency][Index] = UniformBufferVA;
 }
 #endif
+
+void FMetalStateCache::RegisterMetalHeap(MTL::Heap* Heap)
+{
+	FScopeLock ScopeLock(&ActiveHeapsLock);
+	ActiveHeaps.Add(Heap);
+}
 
 void FMetalStateCache::SetShaderTexture(EMetalShaderStages const Frequency, MTL::Texture* Texture, NS::UInteger const Index, MTL::ResourceUsage const Usage)
 {
@@ -2094,8 +2094,8 @@ void FMetalStateCache::CommitRenderResources(FMetalCommandEncoder* Raster)
 			{
 				IRBindResourcesToEncoder<FMetalVertexShader*, EMetalShaderStages::Vertex, MTL::FunctionTypeVertex>(GraphicsPSO->VertexShader, Raster);
 			}
-#endif
 		}
+#endif
     }
     
 #if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
@@ -2108,8 +2108,8 @@ void FMetalStateCache::CommitRenderResources(FMetalCommandEncoder* Raster)
 		{
 			IRBindResourcesToEncoder<FMetalGeometryShader*, EMetalShaderStages::Geometry, MTL::FunctionTypeMesh>(GraphicsPSO->GeometryShader, Raster);
 		}
+	}
 #endif
-    }
 #endif
         
     if (IsValidRef(GraphicsPSO->PixelShader))
@@ -2599,8 +2599,10 @@ void FMetalStateCache::SetRenderPipelineState(FMetalCommandEncoder& CommandEncod
 	
 	
 #if METAL_DEBUG_OPTIONS
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
 	if(!BindlessDescriptorManager->IsSupported())
+#endif
 	{
 		Validate();
 		

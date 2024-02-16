@@ -337,7 +337,6 @@ static void IRBindIndirectMeshDrawArguments(MTL::RenderCommandEncoder* Encoder, 
 }
 
 #endif
-#endif
 
 static IRRuntimeDrawInfo IRRuntimeCalculateDrawInfoForGSEmulation(IRRuntimePrimitiveType primitiveType, uint32 vertexSizeInBytes, uint32 maxInputPrimitivesPerMeshThreadgroup, uint32 instanceCount)
 {
@@ -369,6 +368,7 @@ static IRRuntimeDrawInfo IRRuntimeCalculateDrawInfoForGSEmulation(IRRuntimePrimi
     
     return Infos;
 }
+#endif
 
 void FMetalRenderPass::DrawPrimitive(uint32 PrimitiveType, uint32 BaseVertexIndex, uint32 NumPrimitives, uint32 NumInstances)
 {
