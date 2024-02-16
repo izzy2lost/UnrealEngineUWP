@@ -41,6 +41,18 @@ namespace HarmonixMetasound
 			VoiceId = FMidiVoiceId(OwnerId, MidiMessage);
 		}
 
+		// reassign owner with a new generator
+		void ReassignOwner(const FMidiVoiceGeneratorBase* Owner)
+		{
+			VoiceId.ReassignGenerator(Owner);
+		}
+
+		// reassign owner with a new generator id
+		void ReassignOwner(uint32 OwnerId)
+		{
+			VoiceId.ReassignGenerator(OwnerId);
+		}
+
 		FMidiVoiceId GetVoiceId() const { return VoiceId; }
 		void SetVoiceId(FMidiVoiceId InVoiceId) { VoiceId = InVoiceId; }
 

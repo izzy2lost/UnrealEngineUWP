@@ -50,6 +50,19 @@ public:
 		Other.Id = 0;
 	}
 
+	void ReassignGenerator(const FMidiVoiceGeneratorBase* Generator)
+	{
+		ReassignGenerator(Generator ? Generator->GetIdBits() : 0);
+	}
+
+	void ReassignGenerator(uint32 GeneratorId)
+	{
+		uint8 Ch;
+		uint8 Note;
+		GetChannelAndNote(Ch, Note);
+		Id = (GeneratorId | ((uint32)(Ch & 0xF) << 8) | (uint32)Note);
+	}
+
 	void GetGeneratorChannelAndNote(uint32& GeneratorOut, uint8& ChOut, uint8& NoteOut) const
 	{
 		GeneratorOut = Id & 0xFFFFFC00;
@@ -60,6 +73,11 @@ public:
 	{
 		ChOut = (Id >> 8) & 0xF;
 		NoteOut = Id & 0xFF;
+	}
+
+	uint32 GetGeneratorId() const
+	{
+		return Id & 0xFFFFFC00;
 	}
 
 	FMidiVoiceId& operator=(const FMidiVoiceId& Other)
