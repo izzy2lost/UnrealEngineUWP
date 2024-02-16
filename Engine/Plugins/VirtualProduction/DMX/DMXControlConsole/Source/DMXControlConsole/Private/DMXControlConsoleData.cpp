@@ -315,9 +315,6 @@ void UDMXControlConsoleData::Tick(float InDeltaTime)
 		UDMXEntityFixturePatch* FixturePatch = FaderGroup->GetFixturePatch();
 		if (FixturePatch)
 		{
-			UE_DMX_SCOPED_TRACE_SENDDMX(DMXLibraryName);
-			UE_DMX_SCOPED_TRACE_SENDDMX(*FixturePatch->GetDisplayName());
-
 			// Send Fixture Patch Function DMX data
 			const TMap<FDMXAttributeName, int32> AttributeMap = FaderGroup->GetAttributeMap();
 			FixturePatch->SendDMX(AttributeMap);
