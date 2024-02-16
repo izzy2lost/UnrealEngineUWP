@@ -63,6 +63,8 @@ namespace Chaos
 		FAutoConsoleVariableRef CVarChaos_Collision_MaxShapePairs(TEXT("p.Chaos.Collision.MaxShapePairs"), Chaos_Collision_MidPhase_MaxShapePairs, TEXT(""));
 
 		extern int32 ChaosOneWayInteractionPairCollisionMode;
+
+		extern bool bChaosUseMACD;
 	}
 
 	using namespace CVars;
@@ -77,11 +79,12 @@ namespace Chaos
 		const FImplicitObject* Implicit0,
 		const FImplicitObject* Implicit1,
 		const FRigidTransform3& ShapeTransform1To0,
+		const FVec3f& LocalRelativeMovement0,
 		const FReal CullDistance)
 	{
 		if (Implicit0->HasBoundingBox() && Implicit1->HasBoundingBox())
 		{
-			const FAABB3 Box1In0 = Implicit1->CalculateTransformedBounds(ShapeTransform1To0).Thicken(CullDistance);
+			const FAABB3 Box1In0 = Implicit1->CalculateTransformedBounds(ShapeTransform1To0).GrowByVector(LocalRelativeMovement0).Thicken(CullDistance);
 			const FAABB3 Box0 = Implicit0->BoundingBox();
 			return Box0.Intersects(Box1In0);
 		}
@@ -93,10 +96,12 @@ namespace Chaos
 		const FImplicitObject* Implicit1,
 		const FRigidTransform3& ShapeWorldTransform0,
 		const FRigidTransform3& ShapeWorldTransform1,
+		const FVec3f& RelativeMovement,
 		const FReal CullDistance)
 	{
 		const FRigidTransform3 ShapeTransform1To0 = ShapeWorldTransform1.GetRelativeTransform(ShapeWorldTransform0);
-		return ImplicitOverlapOBBToAABB(Implicit0, Implicit1, ShapeTransform1To0, CullDistance);
+		const FVec3 LocalRelativeMovement0 = ShapeWorldTransform0.InverseTransformVectorNoScale(FVec3(RelativeMovement));
+		return ImplicitOverlapOBBToAABB(Implicit0, Implicit1, ShapeTransform1To0, LocalRelativeMovement0, CullDistance);
 	}
 
 	// Get the number of leaf objects in the implicit hierarchy, and set a flag if this hierarchy is a tree
@@ -321,7 +326,10 @@ namespace Chaos
 	{
 	}
 
-	bool FSingleShapePairCollisionDetector::DoBoundsOverlap(const FReal CullDistance, const int32 CurrentEpoch)
+	bool FSingleShapePairCollisionDetector::DoBoundsOverlap(
+		const FRealSingle CullDistance, 
+		const FVec3f& RelativeMovement, 
+		const int32 CurrentEpoch)
 	{
 		PHYSICS_CSV_SCOPED_EXPENSIVE(PhysicsVerbose, NarrowPhase_ShapeBounds);
 
@@ -331,8 +339,7 @@ namespace Chaos
 		// World-space expanded bounds check
 		if (BoundsTestFlags.bEnableAABBCheck)
 		{
-			// @todo(chaos): ideally this is a swept bounds test with a smaller cull distance (see FParticlePairMidPhase::GenerateCollisions)
-			const FAABB3 ExpandedShapeWorldBounds0 = FAABB3(ShapeWorldBounds0).ThickenSymmetrically(FVec3(CullDistance));
+			const FAABB3 ExpandedShapeWorldBounds0 = FAABB3(ShapeWorldBounds0).GrowByVector(-RelativeMovement).Thicken(CullDistance);
 			if (!ExpandedShapeWorldBounds0.Intersects(ShapeWorldBounds1))
 			{
 				return false;
@@ -368,7 +375,7 @@ namespace Chaos
 
 			if (BoundsTestFlags.bEnableOBBCheck0)
 			{
-				if (!ImplicitOverlapOBBToAABB(Implicit0, Implicit1, ShapeWorldTransform0, ShapeWorldTransform1, CullDistance))
+				if (!ImplicitOverlapOBBToAABB(Implicit0, Implicit1, ShapeWorldTransform0, ShapeWorldTransform1, RelativeMovement, CullDistance))
 				{
 					return false;
 				}
@@ -376,7 +383,7 @@ namespace Chaos
 
 			if (BoundsTestFlags.bEnableOBBCheck1)
 			{
-				if (!ImplicitOverlapOBBToAABB(Implicit1, Implicit0, ShapeWorldTransform1, ShapeWorldTransform0, CullDistance))
+				if (!ImplicitOverlapOBBToAABB(Implicit1, Implicit0, ShapeWorldTransform1, ShapeWorldTransform0, -RelativeMovement, CullDistance))
 				{
 					return false;
 				}
@@ -387,29 +394,31 @@ namespace Chaos
 	}
 
 	int32 FSingleShapePairCollisionDetector::GenerateCollision(
-		const FReal CullDistance,
-		const FReal Dt,
+		const FRealSingle Dt,
+		const FRealSingle CullDistance,
+		const FVec3f& RelativeMovement,
 		const FCollisionContext& Context)
 	{
 		CHAOS_MIDPHASE_SCOPE_CYCLE_TIMER(FSingleShapePairCollisionDetector_GenerateCollision);
 
 		const int32 CurrentEpoch = Context.GetAllocator()->GetCurrentEpoch();
-		if (DoBoundsOverlap(CullDistance, CurrentEpoch))
+		if (DoBoundsOverlap(CullDistance, RelativeMovement, CurrentEpoch))
 		{
-			return GenerateCollisionImpl(CullDistance, Dt, Context);
+			return GenerateCollisionImpl(Dt, CullDistance, RelativeMovement, Context);
 		}
 		return 0;
 	}
 
 	int32 FSingleShapePairCollisionDetector::GenerateCollisionCCD(
+		const FRealSingle Dt,
+		const FRealSingle CullDistance,
+		const FVec3f& RelativeMovement,
 		const bool bEnableCCDSweep,
-		const FReal CullDistance,
-		const FReal Dt,
 		const FCollisionContext& Context)
 	{
 		CHAOS_MIDPHASE_SCOPE_CYCLE_TIMER(FSingleShapePairCollisionDetector_GenerateCollisionCCD);
 
-		return GenerateCollisionCCDImpl(bEnableCCDSweep, CullDistance, Dt, Context);
+		return GenerateCollisionCCDImpl(Dt, CullDistance, RelativeMovement, bEnableCCDSweep, Context);
 	}
 
 	void FSingleShapePairCollisionDetector::CreateConstraint(const FReal CullDistance, const FCollisionContext& Context)
@@ -430,15 +439,16 @@ namespace Chaos
 	}
 
 	int32 FSingleShapePairCollisionDetector::GenerateCollisionImpl(
-		const FReal CullDistance, 
-		const FReal Dt,
+		const FRealSingle Dt,
+		const FRealSingle CullDistance,
+		const FVec3f& RelativeMovement,
 		const FCollisionContext& Context)
 	{
 		CHAOS_MIDPHASE_SCOPE_CYCLE_TIMER(FSingleShapePairCollisionDetector_GenerateCollisionImpl);
 
 		if (BoundsTestFlags.bIsProbe)
 		{
-			return GenerateCollisionProbeImpl(CullDistance, Dt, Context);
+			return GenerateCollisionProbeImpl(Dt, CullDistance, RelativeMovement, Context);
 		}
 
 		if (!Constraint.IsValid())
@@ -465,6 +475,7 @@ namespace Chaos
 			Constraint->SetShapeWorldTransforms(ShapeWorldTransform0, ShapeWorldTransform1);
 
 			Constraint->SetCullDistance(CullDistance);
+			Constraint->SetRelativeMovement(RelativeMovement);
 
 			// Constraint may have been previously used with CCD enabled (e.g., a midphase modifier)
 			// so we need to make sure that the CCD flag is disabled
@@ -525,14 +536,15 @@ namespace Chaos
 	}
 
 	int32 FSingleShapePairCollisionDetector::GenerateCollisionCCDImpl(
+		const FRealSingle Dt,
+		const FRealSingle CullDistance,
+		const FVec3f& RelativeMovement,
 		const bool bEnableCCDSweep,
-		const FReal CullDistance, 
-		const FReal Dt,
 		const FCollisionContext& Context)
 	{
 		if (BoundsTestFlags.bIsProbe)
 		{
-			return GenerateCollisionProbeImpl(CullDistance, Dt, Context);
+			return GenerateCollisionProbeImpl(Dt, CullDistance, RelativeMovement, Context);
 		}
 
 		if (!Constraint.IsValid())
@@ -552,7 +564,7 @@ namespace Chaos
 
 		if (!bEnableCCDSweep)
 		{
-			return GenerateCollision(CullDistance, Dt, Context);
+			return GenerateCollision(Dt, CullDistance, RelativeMovement, Context);
 		}
 
 		// Swept collision detection
@@ -639,8 +651,9 @@ namespace Chaos
 	}
 
 	int32 FSingleShapePairCollisionDetector::GenerateCollisionProbeImpl(
-		const FReal CullDistance, 
-		const FReal Dt,
+		const FRealSingle Dt,
+		const FRealSingle CullDistance,
+		const FVec3f& RelativeMovement,
 		const FCollisionContext& Context)
 	{
 		// Same as regular constraint generation, but always defer narrow phase.
@@ -820,6 +833,7 @@ namespace Chaos
 		Flags.bIsActive = true;
 		Flags.bIsCCD = false;
 		Flags.bIsCCDActive = false;
+		Flags.bIsMACD = false;
 		Flags.bIsSleeping = false;
 		Flags.bIsModified = false;
 		Flags.bIsConvexOptimizationActive = true;
@@ -857,11 +871,15 @@ namespace Chaos
 		//
 		// bIsCCDActive is reset to bIsCCD each frame, but can be overridden
 		// by modifiers.
-		const bool bIsCCD = Context.GetSettings().bAllowCCD && (
-			FConstGenericParticleHandle(Particle0)->CCDEnabled() ||
-			FConstGenericParticleHandle(Particle1)->CCDEnabled());
+		const bool bIsCCD = Context.GetSettings().bAllowCCD && (FConstGenericParticleHandle(Particle0)->CCDEnabled() || FConstGenericParticleHandle(Particle1)->CCDEnabled());
 		Flags.bIsCCD = bIsCCD;
 		Flags.bIsCCDActive = bIsCCD;
+
+		// @todo(chaos): we should only enable relative movement mode if the particle asks for it
+		// (this also affects how the particle bounds is expanded in the broadphase)
+		//const bool bIsMACD = Context.GetSettings().bAllowMACD && (FConstGenericParticleHandle(Particle0)->MACDEnabled() || FConstGenericParticleHandle(Particle1)->MACDEnabled());
+		const bool bIsMACD = CVars::bChaosUseMACD;
+		Flags.bIsMACD = bIsMACD;
 
 		// Initially we allow for convex optimization where available
 		Flags.bIsConvexOptimizationActive = true;
@@ -918,7 +936,7 @@ namespace Chaos
 
 	void FParticlePairMidPhase::GenerateCollisions(
 		const FReal InCullDistance,
-		const FReal Dt,
+		const FReal InDt,
 		const FCollisionContext& Context)
 	{
 		if (!IsValid())
@@ -930,33 +948,16 @@ namespace Chaos
 
 		if (Flags.bIsActive)
 		{
+			FConstGenericParticleHandle P0 = GetParticle0();
+			FConstGenericParticleHandle P1 = GetParticle1();
+
+			FRealSingle Dt = FRealSingle(InDt);
+
 			// CullDistance is scaled by the size of the dynamic objects.
-			FReal CullDistance = InCullDistance * CullDistanceScale;
+			FRealSingle CullDistance = FRealSingle(InCullDistance) * CullDistanceScale;
 
 			// If CCD is enabled, did we move far enough to require a sweep?
 			Flags.bUseSweep = (Flags.bIsCCDActive != 0) && ShouldEnableCCDSweep(Dt);
-
-			// We increase CullDistance based on velocity (up to a limit for perf with large velocities).
-			// NOTE: This somewhat matches the bounds expansion in FPBDRigidsEvolutionGBF::Integrate
-			// NOTE: We use PreV here which is the velocity after collisions from the previous tick because we want the 
-			// velocity without gravity from this tick applied. This is mainly so that we get the same CullDistance from 
-			// one tick to the next, even if one of the particles goes to sleep, and therefore its velocity is now zero 
-			// because gravity is no longer applied. Also see FPBDIslandManager::PropagateIslandSleep for other issues 
-			// related to velocity and sleeping...
-			// NOTE: we used to extend the cull distance for CCD objects, but this is no longer required. The sweep and
-			// rewind phase does not use CullDistance, and once rewound we are using normal collision detection where
-			// an expanded CullDistance doesn't help and makes perf worse.
-			FConstGenericParticleHandle P0 = GetParticle0();
-			FConstGenericParticleHandle P1 = GetParticle1();
-			const FReal VMax0 = P0->PreV().GetAbsMax();
-			const FReal VMax1 = P1->PreV().GetAbsMax();
-			const FReal VMaxDt = FMath::Max(VMax0, VMax1) * Dt;
-			const FReal VelocityBoundsMultiplier = Context.GetSettings().BoundsVelocityInflation;
-			const FReal MaxVelocityBoundsExpansion = Context.GetSettings().MaxVelocityBoundsExpansion;
-			if ((VelocityBoundsMultiplier > 0) && (MaxVelocityBoundsExpansion > 0))
-			{
-				CullDistance += FMath::Min(VelocityBoundsMultiplier * VMaxDt, MaxVelocityBoundsExpansion);
-			}
 
 #if !UE_BUILD_TEST && !UE_BUILD_SHIPPING
 			// At least one body must be dynamic, and at least one must be awake (or moving if a kinematic)
@@ -966,8 +967,40 @@ namespace Chaos
 			ensureMsgf(bAnyMoving, TEXT("GenerateCollisions called on two stationary objects %s %s"), *P0->GetDebugName(), *P1->GetDebugName());
 #endif
 
+			FVec3f RelativeMovement = FVec3f(0);
+			if (!Flags.bIsMACD)
+			{
+				// We increase CullDistance based on velocity (up to a limit for perf with large velocities).
+				// NOTE: This somewhat matches the bounds expansion in FPBDRigidsEvolutionGBF::Integrate
+				// NOTE: We use PreV here which is the velocity after collisions from the previous tick because we want the 
+				// velocity without gravity from this tick applied. This is mainly so that we get the same CullDistance from 
+				// one tick to the next, even if one of the particles goes to sleep, and therefore its velocity is now zero 
+				// because gravity is no longer applied. Also see FPBDIslandManager::PropagateIslandSleep for other issues 
+				// related to velocity and sleeping...
+				// NOTE: we used to extend the cull distance for CCD objects, but this is no longer required. The sweep and
+				// rewind phase does not use CullDistance, and once rewound we are using normal collision detection where
+				// an expanded CullDistance doesn't help and makes perf worse.
+				const FRealSingle VMax0 = P0->GetPreVf().GetAbsMax();
+				const FRealSingle VMax1 = P1->GetPreVf().GetAbsMax();
+				const FRealSingle VMaxDt = FMath::Max(VMax0, VMax1) * Dt;
+				const FRealSingle VelocityBoundsMultiplier = FRealSingle(Context.GetSettings().BoundsVelocityInflation);
+				const FRealSingle MaxVelocityBoundsExpansion = FRealSingle(Context.GetSettings().MaxVelocityBoundsExpansion);
+				if ((VelocityBoundsMultiplier > 0) && (MaxVelocityBoundsExpansion > 0))
+				{
+					CullDistance += FMath::Min(VelocityBoundsMultiplier * VMaxDt, MaxVelocityBoundsExpansion);
+				}
+			}
+			else
+			{
+				// Movement-aware collision detection (MACD) takes the relative position change this tick as input
+				// We do not expand CullDistance. Depending on the shape pair types involved, the collision detection
+				// step will either pad the CullDistance itself, or ideally compare RelativeMovement with the contact 
+				// normal when determining what contacts to cull. Eventually all shape pairs should do the latter.
+				RelativeMovement = (P0->GetVf() - P1->GetVf()) * Dt;
+			}
+
 			// Run collision detection on all potentially colliding shape pairs
-			NumActiveConstraints = GenerateCollisionsImpl(CullDistance, Dt, Context);
+			NumActiveConstraints = GenerateCollisionsImpl(Dt, CullDistance, RelativeMovement, Context);
 		}
 
 		// Reset any modifications applied by the MidPhaseModifier.
@@ -1108,8 +1141,9 @@ namespace Chaos
 	}
 
 	int32 FShapePairParticlePairMidPhase::GenerateCollisionsImpl(
-		const FReal CullDistance,
-		const FReal Dt,
+		const FRealSingle Dt,
+		const FRealSingle CullDistance,
+		const FVec3f& RelativeMovement,
 		const FCollisionContext& Context)
 	{
 		CHAOS_MIDPHASE_SCOPE_CYCLE_TIMER(FShapePairParticlePairMidPhase_GenerateCollision);
@@ -1121,14 +1155,14 @@ namespace Chaos
 		{
 			for (FSingleShapePairCollisionDetector& ShapePair : ShapePairDetectors)
 			{
-				NumActive += ShapePair.GenerateCollisionCCD(Flags.bUseSweep, CullDistance, Dt, Context);
+				NumActive += ShapePair.GenerateCollisionCCD(Dt, CullDistance, RelativeMovement, Flags.bUseSweep, Context);
 			}
 		}
 		else
 		{
 			for (FSingleShapePairCollisionDetector& ShapePair : ShapePairDetectors)
 			{
-				NumActive += ShapePair.GenerateCollision(CullDistance, Dt, Context);
+				NumActive += ShapePair.GenerateCollision(Dt, CullDistance, RelativeMovement, Context);
 			}
 		}
 		return NumActive;
@@ -1187,8 +1221,9 @@ namespace Chaos
 	}
 
 	int32 FGenericParticlePairMidPhase::GenerateCollisionsImpl(
-		const FReal CullDistance,
-		const FReal Dt,
+		const FRealSingle Dt,
+		const FRealSingle CullDistance,
+		const FVec3f& RelativeMovement,
 		const FCollisionContext& Context)
 	{
 		CHAOS_MIDPHASE_SCOPE_CYCLE_TIMER(FGenericParticlePairMidPhase_GenerateCollisionImpl);
@@ -1378,7 +1413,7 @@ namespace Chaos
 				if (!FilterHasSimEnabled(ShapeInstanceA)) return;
 
 				const FAABB3 RelativeBoundsA = ImplicitA->CalculateTransformedBounds(RelativeTransformA);
-				const FAABB3 ShapeBoundsAInB = RelativeBoundsA.TransformedAABB(ParticleTransformAToB).ThickenSymmetrically(FVec3(CullDistance));
+				const FAABB3 ShapeBoundsAInB = RelativeBoundsA.TransformedAABB(ParticleTransformAToB).Thicken(CullDistance);
 
 				// Detect collisions between ImplicitA and Implicit Hierarchy of ParticleB
 				VisitOverlappingObjects(ConvexOptimizerB, RootImplicitB, ShapeBoundsAInB,
@@ -1418,7 +1453,7 @@ namespace Chaos
 		// ImplicitB transforms/bounds (expanded by cull distance)
 		const FRigidTransform3 ImplicitTransformB = RelativeTransformB * ParticleWorldTransformB;
 		const FRigidTransform3 ImplicitTransformBToA = ImplicitTransformB.GetRelativeTransform(ParticleWorldTransformA);
-		const FAABB3 ImplicitBoundsBInA = ImplicitB->CalculateTransformedBounds(ImplicitTransformBToA).ThickenSymmetrically(FVec3(CullDistance));
+		const FAABB3 ImplicitBoundsBInA = ImplicitB->CalculateTransformedBounds(ImplicitTransformBToA).Thicken(CullDistance);
 
 		// If ImplicitB has a built-in BVH (Heightfield or TriMesh) we handle the test against the BVH differently
 		const bool bHasInternalBVHB = ImplicitB->template IsA<FHeightField>();
@@ -1578,7 +1613,7 @@ namespace Chaos
 		const FRigidTransform3 ShapeWorldTransformB = ShapeRelativeTransformB * ParticleWorldTransformB;
 
 		// NOTE: only expand one bounds by cull distance
-		const FAABB3 ShapeWorldBoundsA = ImplicitA->CalculateTransformedBounds(ShapeWorldTransformA).ThickenSymmetrically(FVec3(CullDistance));
+		const FAABB3 ShapeWorldBoundsA = ImplicitA->CalculateTransformedBounds(ShapeWorldTransformA).Thicken(CullDistance);
 		const FAABB3 ShapeWorldBoundsB = ImplicitB->CalculateTransformedBounds(ShapeWorldTransformB);
 
 		// World-space expanded bounds check
@@ -1602,6 +1637,8 @@ namespace Chaos
 			}
 		}
 
+		FVec3f RelativeMovement = FVec3f(0);
+
 		if (BoundsTestFlags.bEnableOBBCheck0 || BoundsTestFlags.bEnableOBBCheck1)
 		{
 			// OBB-AABB test in both directions. This is beneficial for shapes which do not fit their AABBs very well,
@@ -1609,7 +1646,7 @@ namespace Chaos
 			// one shape is long and thin (i.e., it does not fit an AABB well when the shape is rotated).
 			if (BoundsTestFlags.bEnableOBBCheck0)
 			{
-				if (!ImplicitOverlapOBBToAABB(ImplicitA, ImplicitB, ShapeWorldTransformA, ShapeWorldTransformB, CullDistance))
+				if (!ImplicitOverlapOBBToAABB(ImplicitA, ImplicitB, ShapeWorldTransformA, ShapeWorldTransformB, RelativeMovement, CullDistance))
 				{
 					return false;
 				}
@@ -1617,7 +1654,7 @@ namespace Chaos
 
 			if (BoundsTestFlags.bEnableOBBCheck1)
 			{
-				if (!ImplicitOverlapOBBToAABB(ImplicitB, ImplicitA, ShapeWorldTransformB, ShapeWorldTransformA, CullDistance))
+				if (!ImplicitOverlapOBBToAABB(ImplicitB, ImplicitA, ShapeWorldTransformB, ShapeWorldTransformA, RelativeMovement, CullDistance))
 				{
 					return false;
 				}
@@ -2087,8 +2124,9 @@ namespace Chaos
 	}
 
 	int32 FSphereApproximationParticlePairMidPhase::GenerateCollisionsImpl(
-		const FReal CullDistance,
-		const FReal Dt,
+		const FRealSingle Dt,
+		const FRealSingle CullDistance,
+		const FVec3f& RelativeMovement,
 		const FCollisionContext& Context)
 	{
 		if (!bHasSpheres)

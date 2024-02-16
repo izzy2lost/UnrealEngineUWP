@@ -1191,7 +1191,7 @@ void FPBDRigidsEvolutionGBF::DestroyTransientConstraints(FGeometryParticleHandle
 
 void FPBDRigidsEvolutionGBF::DestroyTransientConstraints()
 {
-	for (auto& Particle : Particles.GetAllParticlesView())
+	for (FTransientGeometryParticleHandle& Particle : Particles.GetAllParticlesView())
 	{
 		DestroyTransientConstraints(Particle.Handle());
 	}

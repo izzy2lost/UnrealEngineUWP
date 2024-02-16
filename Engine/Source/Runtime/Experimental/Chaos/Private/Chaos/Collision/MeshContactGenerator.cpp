@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc.All Rights Reserved.
 #include "Chaos/Collision/MeshContactGenerator.h"
+#include "Chaos/Collision/ConvexFeature.h"
 #include "Chaos/DebugDrawQueue.h"
 
 namespace Chaos
@@ -12,6 +13,9 @@ namespace Chaos
 namespace Chaos::CVars
 {
 	extern int32 ChaosSolverDebugDrawMeshContacts;
+
+	bool bMeshContactGeneratorFixContactNormalFixEnabled = true;
+	FAutoConsoleVariableRef CVarChaosMeshContactGeneratorFixContactNormalFixEnabled(TEXT("p.Chaos.MeshContactGenerator.FixContactNormal.FixEnabled"), bMeshContactGeneratorFixContactNormalFixEnabled, TEXT("Until new code path is well tested"));
 }
 
 namespace Chaos::Private
@@ -24,6 +28,8 @@ namespace Chaos::Private
 		BarycentricTolerance = FReal(1.e-3);
 		MaxContactsBufferSize = 1000;
 		bCullBackFaces = true;
+		bFixNormals = true;
+		bSortForSolver = false;
 		bUseTwoPassLoop = true;
 	}
 
@@ -49,14 +55,8 @@ namespace Chaos::Private
 		VertexContactIndicesMap.Reset(InMaxContacts);
 	}
 
-	void FMeshContactGenerator::AddTriangleContacts(const FContactPointManifold& TriangleContactPoints, const int32 LocalTriangleIndex)
+	void FMeshContactGenerator::AddTriangleContacts(const int32 LocalTriangleIndex, const TArrayView<FContactPoint>& TriangleContactPoints)
 	{
-		// Clamp the number of contacts we can add per mesh
-		if (Contacts.Num() + TriangleContactPoints.Num() > Contacts.Max())
-		{
-			return;
-		}
-
 		FTriangleExt& Triangle = Triangles[LocalTriangleIndex];
 
 		// We need to know how many vertex and edge collisions a triangle has on it (from collision with other triangle 
@@ -64,6 +64,12 @@ namespace Chaos::Private
 		// contacts and assigne edge/vertex status as required. See GenerateMeshContacts()
 		for (const FContactPoint& ContactPoint : TriangleContactPoints)
 		{
+			// Clamp the number of contacts we can add per mesh
+			if (Contacts.Num() == Contacts.Max())
+			{
+				break;
+			}
+
 			// See if we have a vertex or edge contact
 			// @todo(chaos): we should be able to produce this as output from the manifold creator
 			int32 LocalVertexID0, LocalVertexID1;
@@ -145,8 +151,11 @@ namespace Chaos::Private
 
 	void FMeshContactGenerator::ProcessGeneratedContacts(const FRigidTransform3& ConvexTransform, const FRigidTransform3& MeshToConvexTransform)
 	{
-		// Contacts that get pruned or corrected will show as green
-		DebugDrawContacts(ConvexTransform, FColor::Green, 0.5);
+		if (!!Settings.bFixNormals)
+		{
+			// Contacts that get pruned or corrected will show as green
+			DebugDrawContacts(ConvexTransform, FColor::Green, 0.5);
+		}
 
 		PruneAndCorrectContacts();
 
@@ -155,6 +164,11 @@ namespace Chaos::Private
 
 		// Visited triangles are white, ignored triangles are gray
 		DebugDrawTriangles(ConvexTransform, FColor::White, FColor::Silver);
+
+		if (!!Settings.bSortForSolver)
+		{
+			SortContactsForSolver();
+		}
 
 		FinalizeContacts(MeshToConvexTransform);
 	}
@@ -173,7 +187,7 @@ namespace Chaos::Private
 			}
 
 			// Fix edge normals that aren't already close to a face normal
-			if (ContactPointData.GetContactNormalDotTriangleNormal() < Settings.FaceNormalDotThreshold)
+			if (!!Settings.bFixNormals && (ContactPointData.GetContactNormalDotTriangleNormal() < Settings.FaceNormalDotThreshold))
 			{
 				FixContactNormal(ContactIndex);
 			}
@@ -244,41 +258,92 @@ namespace Chaos::Private
 		{
 			// We have a vertex collision. Ensure that the contact normal is in a valid range for the vertex based on the
 			// triangles that share the vertex (there can be arbitarily many of these).
-			for (int32 TriangleIndex = 0; TriangleIndex < Triangles.Num(); ++TriangleIndex)
+
+			// NOTE: the code in the cvar fixes an issue which would leave invalid normals on spikey meshes,
+			// but we're very close to a release, so adding option to rollback if this version is flased
+			if (CVars::bMeshContactGeneratorFixContactNormalFixEnabled)
 			{
-				const FTriangleExt& OtherTriangle = Triangles[TriangleIndex];
-				if ((TriangleIndex != LocalTriangleIndex) && OtherTriangle.HasVertexIndex(ContactPointData.GetVertexID()))
+				const int32 VertexIndexA = ContactPointData.GetVertexID();
+				FVec3 VertexA;
+				if (!Triangle.GetVertexWithID(VertexIndexA, VertexA))
 				{
-					FVec3 VertexA, VertexB, VertexC;
-					if (OtherTriangle.GetVertexPosition(ContactPointData.GetVertexID(), VertexA) && OtherTriangle.GetOtherVertexPositions(ContactPointData.GetVertexID(), VertexB, VertexC))
+					// @todo(chaos): this is an error condition
+					return;
+				}
+
+				// @todo(chaos): the map of Vertex->TriangleIndices would help here but may not be a net win
+				for (int32 OtherLocalTriangleIndex = 0; OtherLocalTriangleIndex < Triangles.Num(); ++OtherLocalTriangleIndex)
+				{
+					const FTriangleExt& OtherTriangle = Triangles[OtherLocalTriangleIndex];
+					FVec3 OtherVertexB, OtherVertexC;
+					if (OtherTriangle.GetOtherVerticesFromID(VertexIndexA, OtherVertexB, OtherVertexC))
 					{
 						// Does the contact normal point into the infinite prism formed by extruding the triangle along the face normal?
-						// It does if the contact normal dotted with the edge plane normal is negative for both edge planes on the triangle that use the vertex.
-						const FVec3 EdgeDelta0 = VertexB - VertexA;
-						const FVec3 EdgeDelta1 = VertexC - VertexA;
 						const FVec3& OtherTriangleNormal = OtherTriangle.GetNormal();
-
-						const FReal EdgeSign0 = FVec3::DotProduct(FVec3::CrossProduct(ContactPoint.ShapeContactNormal, VertexB - VertexA), OtherTriangleNormal);
-						const FReal EdgeSign1 = FVec3::DotProduct(FVec3::CrossProduct(ContactPoint.ShapeContactNormal, VertexC - VertexA), OtherTriangleNormal);
-						if (FMath::Sign(EdgeSign0) == FMath::Sign(EdgeSign1))
+						const FVec3 OtherEdge0 = OtherVertexB - VertexA;
+						const FVec3 OtherEdge1 = VertexA - OtherVertexC;
+						const FVec3 OtherEdgeNormal0 = FVec3::CrossProduct(OtherTriangleNormal, OtherEdge0);	// Not normlized
+						const FVec3 OtherEdgeNormal1 = FVec3::CrossProduct(OtherTriangleNormal, OtherEdge1);	// Not normlized
+						const FReal OtherEdgeSign0 = FVec3::DotProduct(ContactPoint.ShapeContactNormal, OtherEdgeNormal0);
+						const FReal OtherEdgeSign1 = FVec3::DotProduct(ContactPoint.ShapeContactNormal, OtherEdgeNormal1);
+						const FReal OtherEdgeSign0Sq = OtherEdgeSign0 * FMath::Abs(OtherEdgeSign0);
+						const FReal OtherEdgeSign1Sq = OtherEdgeSign1 * FMath::Abs(OtherEdgeSign1);
+						const FReal NormalToleranceSq = FReal(1.e-8);
+						const FReal NormalTolerance0Sq = NormalToleranceSq * OtherEdge0.SizeSquared();
+						const FReal NormalTolerance1Sq = NormalToleranceSq * OtherEdge1.SizeSquared();
+						if ((OtherEdgeSign0Sq >= FReal(-NormalTolerance0Sq)) && (OtherEdgeSign1Sq >= FReal(-NormalTolerance1Sq)))
 						{
-							const FVec3 Centroid = OtherTriangle.GetCentroid();
-							const FReal NormalDotCentroid = FVec3::DotProduct(ContactPoint.ShapeContactNormal, Centroid - ContactPoint.ShapeContactPoints[1]);
-							if (NormalDotCentroid > 0)
+							ContactPoint.ShapeContactNormal = OtherTriangleNormal;
+							ContactPoint.ShapeContactPoints[0] = ContactPoint.ShapeContactPoints[1] + ContactPoint.Phi * OtherTriangleNormal;
+							ContactPointData.SetTriangleIndex(OtherLocalTriangleIndex);
+							break;
+						}
+					}
+				}
+			}
+			else
+			{
+				//
+				//
+				// @todo(chaos): remove this branch when above code is well tested
+				//
+				//
+				for (int32 TriangleIndex = 0; TriangleIndex < Triangles.Num(); ++TriangleIndex)
+				{
+					const FTriangleExt& OtherTriangle = Triangles[TriangleIndex];
+					if ((TriangleIndex != LocalTriangleIndex) && OtherTriangle.HasVertexID(ContactPointData.GetVertexID()))
+					{
+						FVec3 VertexA, VertexB, VertexC;
+						if (OtherTriangle.GetVertexWithID(ContactPointData.GetVertexID(), VertexA) && OtherTriangle.GetOtherVerticesFromID(ContactPointData.GetVertexID(), VertexB, VertexC))
+						{
+							// Does the contact normal point into the infinite prism formed by extruding the triangle along the face normal?
+							// It does if the contact normal dotted with the edge plane normal is negative for both edge planes on the triangle that use the vertex.
+							const FVec3 EdgeDelta0 = VertexB - VertexA;
+							const FVec3 EdgeDelta1 = VertexC - VertexA;
+							const FVec3& OtherTriangleNormal = OtherTriangle.GetNormal();
+
+							const FReal EdgeSign0 = FVec3::DotProduct(FVec3::CrossProduct(ContactPoint.ShapeContactNormal, VertexB - VertexA), OtherTriangleNormal);
+							const FReal EdgeSign1 = FVec3::DotProduct(FVec3::CrossProduct(ContactPoint.ShapeContactNormal, VertexC - VertexA), OtherTriangleNormal);
+							if (FMath::Sign(EdgeSign0) == FMath::Sign(EdgeSign1))
 							{
-								// If our normal was very far away from a valid normal, drop the contact
-								const FReal MinContactDotNormal = FRealSingle(FVec3::DotProduct(OtherTriangleNormal, TriangleNormal));
-								if (MinContactDotNormal - ContactDotNormal > Settings.EdgeNormalDotRejectTolerance)
+								const FVec3 Centroid = OtherTriangle.GetCentroid();
+								const FReal NormalDotCentroid = FVec3::DotProduct(ContactPoint.ShapeContactNormal, Centroid - ContactPoint.ShapeContactPoints[1]);
+								if (NormalDotCentroid > 0)
 								{
-									ContactPointData.SetDisabled();
-									return;
+									// If our normal was very far away from a valid normal, drop the contact
+									const FReal MinContactDotNormal = FRealSingle(FVec3::DotProduct(OtherTriangleNormal, TriangleNormal));
+									if (MinContactDotNormal - ContactDotNormal > Settings.EdgeNormalDotRejectTolerance)
+									{
+										ContactPointData.SetDisabled();
+										return;
+									}
+
+									const FReal OtherContactDotNormal = FVec3::DotProduct(ContactPoint.ShapeContactNormal, OtherTriangleNormal);
+									const FVec3 CorrectedContactNormal = OtherTriangleNormal;
+
+									ContactPoint.ShapeContactNormal = CorrectedContactNormal;
+									ContactPoint.ShapeContactPoints[0] = ContactPoint.ShapeContactPoints[1] + ContactPoint.Phi * CorrectedContactNormal;
 								}
-
-								const FReal OtherContactDotNormal = FVec3::DotProduct(ContactPoint.ShapeContactNormal, OtherTriangleNormal);
-								const FVec3 CorrectedContactNormal = OtherTriangleNormal;
-
-								ContactPoint.ShapeContactNormal = CorrectedContactNormal;
-								ContactPoint.ShapeContactPoints[0] = ContactPoint.ShapeContactPoints[1] + ContactPoint.Phi * CorrectedContactNormal;
 							}
 						}
 					}
@@ -287,8 +352,183 @@ namespace Chaos::Private
 		}
 	}
 
+	bool FMeshContactGenerator::FixFeature(const int32 LocalTriangleIndex, Private::EConvexFeatureType& InOutFeatureType, int32& InOutFeatureIndex, FVec3& InOutPlaneNormal, FVec3& InOutPlanePosition)
+	{
+		const FTriangleExt& Triangle = Triangles[LocalTriangleIndex];
+
+		// For convex edges, we ensure that the normal is between the normals of the adjacent faces
+		// For concave edges, we replace the normal with the triangle face normal
+		if (InOutFeatureType == Private::EConvexFeatureType::Edge)
+		{
+			check(InOutFeatureIndex != INDEX_NONE);
+
+			const int32 LocalVertexIndex0 = InOutFeatureIndex;
+			const int32 LocalVertexIndex1 = (InOutFeatureIndex == 2) ? 0 : InOutFeatureIndex + 1;
+			const int32 VertexIndex0 = Triangle.GetVertexIndex(LocalVertexIndex0);
+			const int32 VertexIndex1 = Triangle.GetVertexIndex(LocalVertexIndex1);
+			const FContactEdgeID EdgeID = FContactEdgeID(VertexIndex0, VertexIndex1);
+
+			const int32 OtherLocalTriangleIndex = GetOtherTriangleIndexForEdge(LocalTriangleIndex, EdgeID);
+			if (OtherLocalTriangleIndex == INDEX_NONE)
+			{
+				// We don't have the other triangle. Maybe we should use the face plane rather than leaving the edge?
+				return false;
+			}
+
+			const FTriangleExt& OtherTriangle = Triangles[OtherLocalTriangleIndex];
+
+			const FVec3& TriangleNormal = Triangle.GetNormal();
+			const FVec3& OtherTriangleNormal = OtherTriangle.GetNormal();
+
+			// Common case - both triangles have the same normal - treat as concave
+			const FReal NormalEpsilon = FReal(1.e-6);
+			const FReal TriangleNormalsDot = FVec3::DotProduct(TriangleNormal, OtherTriangleNormal);
+			if (FMath::IsNearlyEqual(TriangleNormalsDot, FReal(1), NormalEpsilon))
+			{
+				// Concave edge - use the face normal
+				InOutFeatureType = Private::EConvexFeatureType::Plane;
+				InOutFeatureIndex = 0;
+				InOutPlaneNormal = TriangleNormal;
+				return true;
+			}
+
+			// If normals are different do a full concavity check
+			const FVec3 EdgeDelta = Triangle.GetVertex(LocalVertexIndex1) - Triangle.GetVertex(LocalVertexIndex0);
+			const FVec3 TriangleEdgeNormalVector = FVec3::CrossProduct(EdgeDelta, TriangleNormal);	// Not normalized
+			const FReal OtherFaceNormalDotEdgeNormal = FVec3::DotProduct(OtherTriangleNormal, TriangleEdgeNormalVector);
+			if (OtherFaceNormalDotEdgeNormal < FReal(0))
+			{
+				// Concave edge - use the face normal
+				InOutFeatureType = Private::EConvexFeatureType::Plane;
+				InOutFeatureIndex = 0;
+				InOutPlaneNormal = TriangleNormal;
+				return true;
+			}
+
+			// We have a convex edge. Ensure the normal is in the valid region
+			const FReal NormalDotEdge = FVec3::DotProduct(InOutPlaneNormal, TriangleEdgeNormalVector);
+			if (NormalDotEdge < FReal(0))
+			{
+				InOutFeatureType = Private::EConvexFeatureType::Plane;
+				InOutFeatureIndex = 0;
+				InOutPlaneNormal = TriangleNormal;
+				return true;
+			}
+
+			FVec3 OtherVertex0, OtherVertex1;
+			if (OtherTriangle.GetVertexWithID(VertexIndex0, OtherVertex0) && OtherTriangle.GetVertexWithID(VertexIndex1, OtherVertex1))
+			{
+				const FVec3 OtherEdgeDelta = OtherVertex0 - OtherVertex1;
+				const FVec3 OtherTriangleEdgeNormalVector = FVec3::CrossProduct(OtherEdgeDelta, OtherTriangleNormal);	// Not normalized
+				const FReal OtherNormalDotEdge = FVec3::DotProduct(InOutPlaneNormal, OtherTriangleEdgeNormalVector);
+				if (OtherNormalDotEdge < FReal(0))
+				{
+					InOutFeatureType = Private::EConvexFeatureType::Plane;
+					InOutFeatureIndex = 0;
+					InOutPlaneNormal = OtherTriangleNormal;
+					return true;
+				}
+			}
+		}
+
+		// For vertices, ensure that the contact normal is in a valid range for the vertex based on the
+		// triangles that share the vertex (there can be arbitarily many of these).
+		if (InOutFeatureType == Private::EConvexFeatureType::Vertex)
+		{
+			check(InOutFeatureIndex != INDEX_NONE);
+
+			const int32 LocalVertexIndex0 = InOutFeatureIndex;
+			const int32 VertexIndexA = Triangle.GetVertexIndex(LocalVertexIndex0);
+			const FVec3& VertexA = Triangle.GetVertex(LocalVertexIndex0);
+
+			// @todo(chaos): the map of Vertex->TriangleIndices would help here but may not be a net win
+			for (int32 OtherLocalTriangleIndex = 0; OtherLocalTriangleIndex < Triangles.Num(); ++OtherLocalTriangleIndex)
+			{
+				const FTriangleExt& OtherTriangle = Triangles[OtherLocalTriangleIndex];
+				FVec3 OtherVertexB, OtherVertexC;
+				if (OtherTriangle.GetOtherVerticesFromID(VertexIndexA, OtherVertexB, OtherVertexC))
+				{
+					// Does the contact normal point into the infinite prism formed by extruding the triangle along the face normal?
+					const FVec3& OtherTriangleNormal = OtherTriangle.GetNormal();
+					const FVec3 OtherEdge0 = OtherVertexB - VertexA;
+					const FVec3 OtherEdge1 = VertexA - OtherVertexC;
+					const FVec3 OtherEdgeNormal0 = FVec3::CrossProduct(OtherTriangleNormal, OtherEdge0);	// Not normlized
+					const FVec3 OtherEdgeNormal1 = FVec3::CrossProduct(OtherTriangleNormal, OtherEdge1);	// Not normlized
+					const FReal OtherEdgeSign0 = FVec3::DotProduct(InOutPlaneNormal, OtherEdgeNormal0);
+					const FReal OtherEdgeSign1 = FVec3::DotProduct(InOutPlaneNormal, OtherEdgeNormal1);
+					const FReal OtherEdgeSign0Sq = OtherEdgeSign0 * FMath::Abs(OtherEdgeSign0);
+					const FReal OtherEdgeSign1Sq = OtherEdgeSign1 * FMath::Abs(OtherEdgeSign1);
+					const FReal NormalToleranceSq = FReal(1.e-8);
+					const FReal NormalTolerance0Sq = NormalToleranceSq * OtherEdge0.SizeSquared();
+					const FReal NormalTolerance1Sq = NormalToleranceSq * OtherEdge1.SizeSquared();
+					if ((OtherEdgeSign0Sq >= FReal(-NormalTolerance0Sq)) && (OtherEdgeSign1Sq >= FReal(-NormalTolerance1Sq)))
+					{
+						InOutFeatureType = Private::EConvexFeatureType::Plane;
+						InOutFeatureIndex = 0;
+						InOutPlaneNormal = OtherTriangleNormal;
+						return true;
+					}
+				}
+			}
+		}
+
+		// We have nothing to do for face contacts
+		return false;
+	}
+
+	// Sort contacts on a shape pair in the order we like to solve them.
+	// NOTE: This relies on the enum order of EContactPointType.
+	void FMeshContactGenerator::SortContactsForSolver()
+	{
+		// Sort TriangleContactPoints in solver preferred order, but ignore TriangleContactPointDatas
+		// NOTE: This should only be called at the end of the pruning proxess when we no longer care 
+		// about TriangleContactPointDatas.
+		if (Contacts.Num() > 1)
+		{
+			// Sort contact points by distance from the center of mass (RxN) so that points closer to the center of
+			// mass are solved first. This produces better solver results for low iterations because, if we were to 
+			// solve the distant points first, we would get extra rotation applied. 
+			//
+			// E.g., consider a box landing on an inclined plane with 5 contact points biassed toward one side. 
+			//
+			// -------------------
+			// |                 |
+			// |                 |
+			// *-*-*-*-*----------
+			//
+			// Solving this left to right would result in extra clockwise rotation after 1 iteration. A subsequent
+			// iteration would partially correct the problem.
+			//
+			TArray<TPair<FReal, int32>> SortKeyValues;
+			SortKeyValues.SetNumUninitialized(Contacts.Num());
+			for (int32 ContactIndex = 0; ContactIndex < Contacts.Num(); ++ContactIndex)
+			{
+				const FContactPoint& ContactPoint = Contacts[ContactIndex];
+				const FVec3 DeltaTangent = ContactPoint.ShapeContactPoints[0] - FVec3::DotProduct(ContactPoint.ShapeContactPoints[0], ContactPoint.ShapeContactNormal) * ContactPoint.ShapeContactNormal;
+				const FReal DeltaTangentLenSq = DeltaTangent.SizeSquared();
+				SortKeyValues[ContactIndex] = { DeltaTangentLenSq, ContactIndex };
+			}
+
+			Algo::Sort(SortKeyValues,
+				[](const TPair<FReal, int32>& L, const TPair<FReal, int32>& R)
+				{
+					return L.Key < R.Key;
+				});
+
+			TArray<FContactPoint> SortedContactPoints;
+			SortedContactPoints.SetNumUninitialized(Contacts.Num());
+			for (int32 ContactIndex = 0; ContactIndex < Contacts.Num(); ++ContactIndex)
+			{
+				SortedContactPoints[ContactIndex] = Contacts[SortKeyValues[ContactIndex].Value];
+			}
+			Swap(SortedContactPoints, Contacts);
+		}
+	}
+
 	void FMeshContactGenerator::RemoveDisabledContacts()
 	{
+		// @todo(chaos): don't do this if we have not disabled any contacts
+
 		// Re-pack the contact point array without re-ordering
 		const int32 NumContactPoints = Contacts.Num();
 		int32 DestContactIndex = 0;		// Index to where the next enabled item goes

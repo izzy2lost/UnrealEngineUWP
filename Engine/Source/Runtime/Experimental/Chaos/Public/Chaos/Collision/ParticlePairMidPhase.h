@@ -85,19 +85,27 @@ namespace Chaos
 		 * @brief Perform a bounds check and run the narrow phase if necessary
 		 * @return The number of collisions constraints that were activated
 		*/
+		UE_DEPRECATED(5.4, "Use single precision version")
+		CHAOS_API int32 GenerateCollision(const FReal CullDistance, const FReal Dt, const FCollisionContext& Context) { return GenerateCollision(FRealSingle(Dt), FRealSingle(CullDistance), FVec3f(0), Context); }
+
 		CHAOS_API int32 GenerateCollision(
-			const FReal CullDistance,
-			const FReal Dt,
+			const FRealSingle Dt,
+			const FRealSingle CullDistance,
+			const FVec3f& RelativeMovement,
 			const FCollisionContext& Context);
 
 		/**
 		 * @brief Generate a SweptConstraint as long as AABBs overlap
 		 * @return The number of collisions constraints that were activated
 		*/
+		UE_DEPRECATED(5.4, "Use single precision version")
+		CHAOS_API int32 GenerateCollisionCCD( const bool bEnableCCDSweep, const FReal CullDistance, const FReal Dt, const FCollisionContext& Context) { return GenerateCollisionCCD(FRealSingle(Dt), FRealSingle(CullDistance), FVec3f(0), bEnableCCDSweep, Context); }
+
 		CHAOS_API int32 GenerateCollisionCCD(
+			const FRealSingle Dt,
+			const FRealSingle CullDistance,
+			const FVec3f& RelativeMovement,
 			const bool bEnableCCDSweep,
-			const FReal CullDistance,
-			const FReal Dt,
 			const FCollisionContext& Context);
 
 		/**
@@ -105,41 +113,53 @@ namespace Chaos
 		 * @parame SleepEpoch The tick on which the particle went to sleep.
 		 * Only constraints that were active when the particle went to sleep should be reactivated.
 		*/
-		CHAOS_API void WakeCollision(const int32 SleepEpoch, const int32 CurrentEpoch);
+		CHAOS_API void WakeCollision(
+			const int32 SleepEpoch, 
+			const int32 CurrentEpoch);
 
 		/**
 		 * @brief Set the collision from the parameter and activate it
 		 * This is used by the Resim restore functionality
 		*/
-		CHAOS_API void SetCollision(const FPBDCollisionConstraint& Constraint, const FCollisionContext& Context);
+		CHAOS_API void SetCollision(
+			const FPBDCollisionConstraint& Constraint, 
+			const FCollisionContext& Context);
 
 	private:
 		CHAOS_API int32 GenerateCollisionImpl(
-			const FReal CullDistance, 
-			const FReal Dt,
+			const FRealSingle Dt,
+			const FRealSingle CullDistance,
+			const FVec3f& RelativeMovement,
 			const FCollisionContext& Context);
 			
 		CHAOS_API int32 GenerateCollisionCCDImpl(
+			const FRealSingle Dt,
+			const FRealSingle CullDistance,
+			const FVec3f& RelativeMovement,
 			const bool bEnableCCDSweep,
-			const FReal CullDistance,
-			const FReal Dt,
 			const FCollisionContext& Context);
 
 		CHAOS_API int32 GenerateCollisionProbeImpl(
-			const FReal CullDistance, 
-			const FReal Dt,
+			const FRealSingle Dt,
+			const FRealSingle CullDistance,
+			const FVec3f& RelativeMovement,
 			const FCollisionContext& Context);
 
 		/**
 		 * @brief Whether the two shapes are separated by less than CullDistance (i.e., we should run the narrow phase).
 		 * Also returns true if bounds checking is disabled (globally or for this pair)
 		*/
-		CHAOS_API bool DoBoundsOverlap(const FReal CullDistance, const int32 CurrentEpoch);
+		CHAOS_API bool DoBoundsOverlap(
+			const FRealSingle CullDistance, 
+			const FVec3f& RelativeMovement,
+			const int32 CurrentEpoch);
 
 		/**
 		 * @brief Create a constraint
 		*/
-		CHAOS_API void CreateConstraint(const FReal CullDistance, const FCollisionContext& Context);
+		CHAOS_API void CreateConstraint(
+			const FReal CullDistance, 
+			const FCollisionContext& Context);
 
 		FParticlePairMidPhase& MidPhase;
 		FPBDCollisionConstraintPtr Constraint;
@@ -366,8 +386,9 @@ namespace Chaos
 		virtual void BuildDetectorsImpl() = 0;
 
 		virtual int32 GenerateCollisionsImpl(
-			const FReal CullDistance,
-			const FReal Dt,
+			const FRealSingle Dt,
+			const FRealSingle CullDistance,
+			const FVec3f& RelativeMovement,
 			const FCollisionContext& Context) = 0;
 
 		virtual void WakeCollisionsImpl(const int32 CurrentEpoch) = 0;
@@ -393,6 +414,7 @@ namespace Chaos
 				uint16 bIsCCD : 1;       // True if CCD is supported by either particle
 				uint16 bIsCCDActive : 1; // True if CCD is active for this midphase on this frame. This can be changed by modifiers and resets to bIsCCD each frame.
 				uint16 bUseSweep : 1;    // True if CCD is active (this frame) and we are moving fast enough to require a sweep
+				uint16 bIsMACD : 1;      // True if MACD (movement-aware collision detection) is enabled for this pair
 				uint16 bIsConvexOptimizationActive : 1; // True if convex optimization is active for this midphase
 				uint16 bIsSleeping : 1;
 				uint16 bIsModified : 1;  // True if a modifier applied any changes to this midphase
@@ -440,8 +462,9 @@ namespace Chaos
 
 	protected:
 		CHAOS_API virtual int32 GenerateCollisionsImpl(
-			const FReal CullDistance,
-			const FReal Dt,
+			const FRealSingle Dt,
+			const FRealSingle CullDistance,
+			const FVec3f& RelativeMovement,
 			const FCollisionContext& Context) override final;
 
 		CHAOS_API virtual void WakeCollisionsImpl(const int32 CurrentEpoch) override final;
@@ -483,7 +506,11 @@ namespace Chaos
 		CHAOS_API virtual void BuildDetectorsImpl() override final;
 
 	protected:
-		CHAOS_API virtual int32 GenerateCollisionsImpl( const FReal CullDistance, const FReal Dt, const FCollisionContext& Context) override final;
+		CHAOS_API virtual int32 GenerateCollisionsImpl(
+			const FRealSingle Dt,
+			const FRealSingle CullDistance,
+			const FVec3f& RelativeMovement,
+			const FCollisionContext& Context) override final;
 
 		CHAOS_API virtual void WakeCollisionsImpl(const int32 CurrentEpoch) override final;
 
@@ -566,8 +593,9 @@ namespace Chaos
 
 	protected:
 		CHAOS_API virtual int32 GenerateCollisionsImpl(
-			const FReal CullDistance,
-			const FReal Dt,
+			const FRealSingle Dt,
+			const FRealSingle CullDistance,
+			const FVec3f& RelativeMovement,
 			const FCollisionContext& Context) override final;
 
 		CHAOS_API virtual void WakeCollisionsImpl(const int32 CurrentEpoch) override final;

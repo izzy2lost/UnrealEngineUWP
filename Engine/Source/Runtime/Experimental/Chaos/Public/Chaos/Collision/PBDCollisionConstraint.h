@@ -451,6 +451,9 @@ namespace Chaos
 		FReal GetCullDistance() const { return CullDistance; }
 		void SetCullDistance(FReal InCullDistance) { CullDistance = FRealSingle(InCullDistance); }
 
+		FVec3f GetRelativeMovement() const { return RelativeMovement; }
+		void SetRelativeMovement(const FVec3f& InDelta) { RelativeMovement = InDelta; }
+
 		// Whether we are using manifolds (either one-shot or incremental)
 		bool GetUseManifold() const { return Flags.bUseManifold; }
 
@@ -606,6 +609,10 @@ namespace Chaos
 			}
 
 		}
+
+		// Fix the contact points when we move the particle after collision detection so that
+		// the contact points on each body are aligned along the normal (required for static friction tracking)
+		CHAOS_API void CorrectManifoldPoints();
 
 		CHAOS_API void UpdateManifoldContacts();
 
@@ -914,6 +921,9 @@ namespace Chaos
 	private:
 		// The separation distance at which we don't track contacts
 		FRealSingle CullDistance;
+
+		// Relative movement on the last tick: (V0 - V1).Dt.
+		FVec3f RelativeMovement;
 
 		FPBDCollisionConstraintContainerCookie ContainerCookie;
 		Private::FCollisionSortKey CollisionSortKey;

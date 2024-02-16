@@ -11,6 +11,15 @@
 
 namespace Chaos
 {
+	namespace Private
+	{
+		template<typename T> class TConvexContactPoint;
+		using FConvexContactPoint = TConvexContactPoint<FReal>;
+		using FConvexContactPointf = TConvexContactPoint<FRealSingle>;
+
+		enum class EConvexFeatureType : int8;
+	}
+
 	// Float and Double versions of ContactPoint
 	template<typename T> class TContactPoint;
 	using FContactPoint = TContactPoint<FReal>;

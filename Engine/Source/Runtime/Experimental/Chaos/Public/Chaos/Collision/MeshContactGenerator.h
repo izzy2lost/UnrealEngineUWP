@@ -46,6 +46,12 @@ namespace Chaos::Private
 		// @todo(chaos): the non-culled option is not well tested and probably broken
 		uint32 bCullBackFaces : 1;
 
+		// Whether to auto-correct normals
+		uint32 bFixNormals : 1;
+
+		// Whether to sort the contacts to improve solver convergence
+		uint32 bSortForSolver : 1;
+
 		// Whether to use the optimized two-pass loop over triangles in GenerateMeshContacts which skips triangles
 		// that have contacts on all vertices in the second pass. This is only useful when this case occurs a lot
 		// which is does for large convexes against many triangles, but rarely for capsules and spheres.
@@ -129,24 +135,25 @@ namespace Chaos::Private
 			}
 
 			// Does this triangle contains the specified vertex? (VertexIndex is an index into the owning mesh's vertices)
-			inline bool HasVertexIndex(const int32 VertexIndex) const
+			inline bool HasVertexID(const int32 VertexIndex) const
 			{
 				return (VertexIndices[0] == VertexIndex) || (VertexIndices[1] == VertexIndex) || (VertexIndices[2] == VertexIndex);
 			}
 
-			inline bool GetVertexPosition(const int32 VertexIndex, FVec3& OutVertex) const
+			// Get the vertex position from the vertex ID (not the triangle-local vertex index)
+			inline bool GetVertexWithID(const int32 VertexID, FVec3& OutVertex) const
 			{
-				if (VertexIndex == VertexIndices[0])
+				if (VertexID == VertexIndices[0])
 				{
 					OutVertex = Triangle.GetVertex(0);
 					return true;
 				}
-				else if (VertexIndex == VertexIndices[1])
+				else if (VertexID == VertexIndices[1])
 				{
 					OutVertex = Triangle.GetVertex(1);
 					return true;
 				}
-				else if (VertexIndex == VertexIndices[2])
+				else if (VertexID == VertexIndices[2])
 				{
 					OutVertex = Triangle.GetVertex(2);
 					return true;
@@ -155,7 +162,7 @@ namespace Chaos::Private
 			}
 
 			// Get the positions of the other two vertices in the triangle. (VertexIndex is an index into the owning mesh's vertices)
-			inline bool GetOtherVertexPositions(const int32 VertexIndex, FVec3& OutVertex0, FVec3& OutVertex1) const
+			inline bool GetOtherVerticesFromID(const int32 VertexIndex, FVec3& OutVertex0, FVec3& OutVertex1) const
 			{
 				if (VertexIndex == VertexIndices[0])
 				{
@@ -178,11 +185,34 @@ namespace Chaos::Private
 				return false;
 			}
 
+			int32 GetLocalVertexIndexAt(const FVec3& InPos, const FReal InTolerance) const
+			{
+				for (int32 LocalVertexIndex = 0; LocalVertexIndex < 3; ++LocalVertexIndex)
+				{
+					if (FVec3::IsNearlyEqual(GetVertex(LocalVertexIndex), InPos, InTolerance))
+					{
+						return LocalVertexIndex;
+					}
+				}
+				return INDEX_NONE;
+			};
+
+			int32 GetVertexIDAt(const FVec3& InPos, const FReal InTolerance) const
+			{
+				const int32 LocalVertexIndex = GetLocalVertexIndexAt(InPos, InTolerance);
+				if (LocalVertexIndex != INDEX_NONE)
+				{
+					return VertexIndices[LocalVertexIndex];
+				}
+				return INDEX_NONE;
+			};
+
 			const FTriangle& GetTriangle() const
 			{
 				return Triangle;
 			}
 
+			// Get the vertex for the triangle-local vertex index [0,2]
 			const FVec3& GetVertex(const int32 LocalVertexIndex) const
 			{
 				return Triangle.GetVertex(LocalVertexIndex);
@@ -287,14 +317,9 @@ namespace Chaos::Private
 		template<typename TriangleContactGeneratorType>
 		void GenerateMeshContactsOnePass(const TriangleContactGeneratorType& TriangleContactGenerator)
 		{
-			FContactPointManifold TriangleContactPoints;
-
 			for (int32 LocalTriangleIndex = 0; LocalTriangleIndex < GetNumTriangles(); ++LocalTriangleIndex)
 			{
-				TriangleContactPoints.Reset();
-				TriangleContactGenerator(Triangles[LocalTriangleIndex].GetTriangle(), TriangleContactPoints);
-
-				AddTriangleContacts(TriangleContactPoints, LocalTriangleIndex);
+				TriangleContactGenerator(*this, LocalTriangleIndex);
 
 				SetTriangleVisited(LocalTriangleIndex, 0);
 			}
@@ -303,8 +328,6 @@ namespace Chaos::Private
 		template<typename TriangleContactGeneratorType>
 		void GenerateMeshContactsTwoPass(const TriangleContactGeneratorType& TriangleContactGenerator)
 		{
-			FContactPointManifold TriangleContactPoints;
-
 			// First loop: Visit triangles that do not have any collisions on any of their vertices or edges.
 			// This will skip all triangles whose neighbours have already been processed and generated a contact
 			// on a shared edge/vertex.
@@ -312,10 +335,7 @@ namespace Chaos::Private
 			{
 				if (GetNumTriangleFaceCollisions(LocalTriangleIndex) == 0)
 				{
-					TriangleContactPoints.Reset();
-					TriangleContactGenerator(Triangles[LocalTriangleIndex].GetTriangle(), TriangleContactPoints);
-
-					AddTriangleContacts(TriangleContactPoints, LocalTriangleIndex);
+					TriangleContactGenerator(*this, LocalTriangleIndex);
 
 					SetTriangleVisited(LocalTriangleIndex, 0);
 				}
@@ -327,10 +347,7 @@ namespace Chaos::Private
 			{
 				if (!IsTriangleVisited(LocalTriangleIndex) && (GetNumTriangleFaceCollisions(LocalTriangleIndex) < 3))
 				{
-					TriangleContactPoints.Reset();
-					TriangleContactGenerator(Triangles[LocalTriangleIndex].GetTriangle(), TriangleContactPoints);
-
-					AddTriangleContacts(TriangleContactPoints, LocalTriangleIndex);
+					TriangleContactGenerator(*this, LocalTriangleIndex);
 
 					SetTriangleVisited(LocalTriangleIndex, 1);
 				}
@@ -353,7 +370,7 @@ namespace Chaos::Private
 			}
 		}
 
-		int32 GetOtherTriangleIndexForEdge(const int32 LocalTriangleIndex, const FContactEdgeID EdgeID)
+		int32 GetOtherTriangleIndexForEdge(const int32 LocalTriangleIndex, const FContactEdgeID& EdgeID)
 		{
 			FEdgeTriangleIndices* EdgeTriangleIndices = EdgeTriangleIndicesMap.Find(EdgeID);
 			if (EdgeTriangleIndices != nullptr)
@@ -394,15 +411,26 @@ namespace Chaos::Private
 			Triangles[LocalTriangleIndex].SetVisitIndex(VisitIndex);
 		}
 
+	public:
 		int32 GetNumTriangles() const
 		{
 			return Triangles.Num();
 		}
 
-		void AddTriangleContacts(const FContactPointManifold& TriangleContactPoints, const int32 LocalTriangleIndex);
+		const FTriangle& GetTriangle(const int32 LocalTriangleIndex) const
+		{
+			return Triangles[LocalTriangleIndex].GetTriangle();
+		}
+
+		bool FixFeature(const int32 LocalTriangleIndex, Private::EConvexFeatureType& InOutFeatureType, int32& InOutFeatureIndex, FVec3& InOutPlaneNormal, FVec3& InOutPlanePosition);
+
+		void AddTriangleContacts(const int32 LocalTriangleIndex, const TArrayView<FContactPoint>& TriangleContactPoints);
+
+	private:
 		void PruneAndCorrectContacts();
 		void FixContactNormal(const int32 ContactIndex);
 		void RemoveDisabledContacts();
+		void SortContactsForSolver();
 		void FinalizeContacts(const FRigidTransform3& MeshToConvexTransform);
 
 		void DebugDrawContacts(const FRigidTransform3& ConvexTransform, const FColor& Color, const FReal LineScale);
