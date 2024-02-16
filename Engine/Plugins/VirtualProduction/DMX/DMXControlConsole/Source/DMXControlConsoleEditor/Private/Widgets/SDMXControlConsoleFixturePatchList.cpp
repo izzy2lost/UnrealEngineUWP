@@ -222,8 +222,9 @@ namespace UE::DMX::Private
 
 		// Listen to data changes
 		UDMXControlConsoleData* ControlConsoleData = EditorModel->GetControlConsoleData();
+		UDMXControlConsoleEditorData* ControlConsoleEditorData = EditorModel->GetControlConsoleEditorData();
 		UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
-		if (!ControlConsoleData || !ControlConsoleLayouts)
+		if (!ControlConsoleData || !ControlConsoleEditorData || !ControlConsoleLayouts)
 		{
 			return;
 		}
@@ -236,6 +237,11 @@ namespace UE::DMX::Private
 		if (!ControlConsoleData->GetOnFaderGroupRemoved().IsBoundToObject(this))
 		{
 			ControlConsoleData->GetOnFaderGroupRemoved().AddSP(this, &SDMXControlConsoleFixturePatchList::OnFaderGroupAddedOrRemoved);
+		}
+
+		if (!ControlConsoleEditorData->GetOnAutoGroupStateChanged().IsBoundToObject(this))
+		{
+			ControlConsoleEditorData->GetOnAutoGroupStateChanged().AddSP(this, &SDMXControlConsoleFixturePatchList::OnAutoGroupStateChanged);
 		}
 
 		if (!ControlConsoleLayouts->GetOnActiveLayoutChanged().IsBoundToObject(this))
@@ -420,6 +426,13 @@ namespace UE::DMX::Private
 		RequestRefresh();
 	}
 
+	void SDMXControlConsoleFixturePatchList::OnAutoGroupStateChanged()
+	{
+		const TArray<TSharedPtr<FDMXReadOnlyFixturePatchListItem>> SelectedFixturePatches = GetSelectedItems();
+		const TSharedPtr<FDMXReadOnlyFixturePatchListItem> NewSelection = !SelectedFixturePatches.IsEmpty() ? SelectedFixturePatches[0] : nullptr;
+		OnSelectionChanged(NewSelection, ESelectInfo::OnMouseClick);
+	}
+
 	void SDMXControlConsoleFixturePatchList::OnActiveLayoutChanged(const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout)
 	{
 		RequestRefresh();
@@ -503,21 +516,32 @@ namespace UE::DMX::Private
 		}
 
 		// Continue only if the current layout is the default layout
+		const UDMXControlConsoleEditorData* ControlConsoleEditorData = EditorModel->GetControlConsoleEditorData();
 		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
 		UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts ? ControlConsoleLayouts->GetActiveLayout() : nullptr;
-		if (!ActiveLayout || ActiveLayout != &ControlConsoleLayouts->GetDefaultLayoutChecked())
+		if (!ControlConsoleEditorData || !ActiveLayout || ActiveLayout != &ControlConsoleLayouts->GetDefaultLayoutChecked())
 		{
 			return;
 		}
 
 		const TArray<TSharedPtr<FDMXReadOnlyFixturePatchListItem>> SelectedFixturePatches = GetSelectedItems();
-		if (SelectedFixturePatches.Num() == 1 && NewSelection.IsValid())
+
+		// Handle auto-grouping options
+		const bool bAutoGroupActivePatches = ControlConsoleEditorData->GetAutoGroupActivePatches();
+		if (bAutoGroupActivePatches)
 		{
-			HandleSinglePatchSelection();
+			if (SelectedFixturePatches.Num() == 1 && NewSelection.IsValid())
+			{
+				HandleAutoGroupSinglePatchSelection();
+			}
+			else if (SelectedFixturePatches.Num() > 1)
+			{
+				HandleAutoGroupMultiPatchSelection();
+			}
 		}
-		else if (SelectedFixturePatches.Num() > 1)
+		else
 		{
-			HandleMultiPatchSelection();
+			HandleAutoGroupSinglePatchSelection();
 		}
 
 		TArray<UObject*> FaderGroupControllersToAddToSelection;
@@ -572,7 +596,7 @@ namespace UE::DMX::Private
 		SelectionHandler->RemoveInvalidObjectsFromSelection();
 	}
 
-	void SDMXControlConsoleFixturePatchList::HandleSinglePatchSelection() const
+	void SDMXControlConsoleFixturePatchList::HandleAutoGroupSinglePatchSelection() const
 	{
 		if (!EditorModel.IsValid())
 		{
@@ -585,6 +609,9 @@ namespace UE::DMX::Private
 		{
 			return;
 		}
+
+		TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
+		TArray<UObject*> FaderGroupControllersToSelect;
 
 		// Ungroup all the grouped controllers
 		const TArray<UDMXControlConsoleFaderGroupController*> FaderGroupControllers = ActiveLayout->GetAllFaderGroupControllers();
@@ -601,6 +628,8 @@ namespace UE::DMX::Private
 				continue;
 			}
 
+			const bool bIsControllerSelected = SelectionHandler->IsSelected(FaderGroupController);
+
 			const int32 RowIndex = ActiveLayout->GetFaderGroupControllerRowIndex(FaderGroupController);
 			int32 ColumIndex = ActiveLayout->GetFaderGroupControllerColumnIndex(FaderGroupController);
 			for (const TWeakObjectPtr<UDMXControlConsoleFaderGroup>& FaderGroup : FaderGroups)
@@ -614,8 +643,19 @@ namespace UE::DMX::Private
 				FaderGroupController->UnPossess(FaderGroup.Get());
 
 				ActiveLayout->PreEditChange(nullptr);
-				ActiveLayout->AddToLayout(FaderGroup.Get(), FaderGroup->GetFaderGroupName(), RowIndex, ColumIndex);
+				UDMXControlConsoleFaderGroupController* NewController = ActiveLayout->AddToLayout(FaderGroup.Get(), FaderGroup->GetFaderGroupName(), RowIndex, ColumIndex);
 				ActiveLayout->PostEditChange();
+				if (NewController)
+				{
+					NewController->Modify();
+					NewController->SetIsActive(FaderGroupController->IsActive());
+					NewController->SetIsExpanded(FaderGroupController->IsExpanded());
+				}
+
+				if (bIsControllerSelected)
+				{
+					FaderGroupControllersToSelect.Add(NewController);
+				}
 
 				ColumIndex++;
 			}
@@ -623,9 +663,11 @@ namespace UE::DMX::Private
 			FaderGroupController->Destroy();
 			FaderGroupController->PostEditChange();
 		}
+
+		SelectionHandler->AddToSelection(FaderGroupControllersToSelect);
 	}
 
-	void SDMXControlConsoleFixturePatchList::HandleMultiPatchSelection() const
+	void SDMXControlConsoleFixturePatchList::HandleAutoGroupMultiPatchSelection() const
 	{
 		if (!EditorModel.IsValid())
 		{

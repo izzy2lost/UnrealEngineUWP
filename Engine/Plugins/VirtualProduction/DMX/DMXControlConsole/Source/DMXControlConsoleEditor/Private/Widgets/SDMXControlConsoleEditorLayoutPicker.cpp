@@ -2,6 +2,7 @@
 
 #include "SDMXControlConsoleEditorLayoutPicker.h"
 
+#include "DMXControlConsoleEditorData.h"
 #include "DMXControlConsoleEditorSelection.h"
 #include "Models/DMXControlConsoleEditorModel.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
@@ -34,96 +35,29 @@ namespace UE::DMX::Private
 			[
 				SNew(SVerticalBox)
 
-				+SVerticalBox::Slot()
+				+ SVerticalBox::Slot()
 				.Padding(0.f, 8.f, 0.f, 4.f)
 				.AutoHeight()
 				[
 					GenerateLayoutCheckBoxWidget()
 				]
 
-				+SVerticalBox::Slot()
+				+ SVerticalBox::Slot()
 				.Padding(0.f, 4.f, 0.f, 8.f)
 				.AutoHeight()
 				[
 					SNew(SHorizontalBox)
-					.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorLayoutPicker::GetComboBoxVisibility))
 
-					// Layouts combobox section
 					+SHorizontalBox::Slot()
-					.HAlign(HAlign_Left)
 					.AutoWidth()
 					[
-						SAssignNew(UserLayoutsComboBox, SComboBox<TWeakObjectPtr<UDMXControlConsoleEditorGlobalLayoutBase>>)
-						.OptionsSource(&ComboBoxSource)
-						.OnGenerateWidget(this, &SDMXControlConsoleEditorLayoutPicker::GenerateLayoutComboBoxWidget)
-						.OnComboBoxOpening(this, &SDMXControlConsoleEditorLayoutPicker::UpdateComboBoxSource)
-						.OnSelectionChanged(this, &SDMXControlConsoleEditorLayoutPicker::OnComboBoxSelectionChanged)
-						.ComboBoxStyle(&FAppStyle::Get().GetWidgetStyle<FComboBoxStyle>(TEXT("ComboBox")))
-						.ItemStyle(&FAppStyle::Get().GetWidgetStyle<FTableRowStyle>(TEXT("TableView.Row")))
-						.Content()
-						[
-							SNew(SHorizontalBox)
-
-							+ SHorizontalBox::Slot()
-							.HAlign(HAlign_Left)
-							.VAlign(VAlign_Center)
-							.MaxWidth(80.f)
-							.Padding(4.f, 0.f)
-							.AutoWidth()
-							[
-								SAssignNew(LayoutNameEditableBox, SEditableTextBox)
-								.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-								.Text_Lambda([this](){ return LayoutNameText; })
-								.OverflowPolicy(ETextOverflowPolicy::Clip)
-								.OnTextChanged(this, &SDMXControlConsoleEditorLayoutPicker::OnLayoutNameTextChanged)
-								.OnTextCommitted(this, &SDMXControlConsoleEditorLayoutPicker::OnLayoutNameTextCommitted)
-							]
-						]
+						GenerateDefaultLayoutPickerWidget()
 					]
 
-					// Add Layout button
 					+ SHorizontalBox::Slot()
-					.HAlign(HAlign_Left)
 					.AutoWidth()
 					[
-						SNew(SButton)
-						.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>(TEXT("SimpleButton")))
-						.OnClicked(this, &SDMXControlConsoleEditorLayoutPicker::OnAddLayoutClicked)
-						[
-							SNew(SImage)
-							.Image(FAppStyle::GetBrush("Icons.Plus"))
-							.ColorAndOpacity(FStyleColors::AccentGreen)
-						]
-					]
-
-					// Rename Layout button
-					+ SHorizontalBox::Slot()
-					.HAlign(HAlign_Left)
-					.AutoWidth()
-					[
-						SNew(SButton)
-						.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>(TEXT("SimpleButton")))
-						.OnClicked(this, &SDMXControlConsoleEditorLayoutPicker::OnRenameLayoutClicked)
-						[
-							SNew(SImage)
-							.Image(FAppStyle::GetBrush("Icons.Edit"))
-							.ColorAndOpacity(FSlateColor::UseSubduedForeground())
-						]
-					]
-
-					// Delete Layout button
-					+ SHorizontalBox::Slot()
-					.HAlign(HAlign_Left)
-					.AutoWidth()
-					[
-						SNew(SButton)
-						.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>(TEXT("SimpleButton")))
-						.OnClicked(this, &SDMXControlConsoleEditorLayoutPicker::OnDeleteLayoutClicked)
-						[
-							SNew(SImage)
-							.Image(FAppStyle::GetBrush("Icons.Delete"))
-							.ColorAndOpacity(FSlateColor::UseSubduedForeground())
-						]
+						GenerateUserLayoutPickerWidget()
 					]
 				]
 			];
@@ -210,7 +144,125 @@ namespace UE::DMX::Private
 		return LayoutCheckBoxWidget;
 	}
 
-	TSharedRef<SWidget> SDMXControlConsoleEditorLayoutPicker::GenerateLayoutComboBoxWidget(const TWeakObjectPtr<UDMXControlConsoleEditorGlobalLayoutBase> InLayout)
+	TSharedRef<SWidget> SDMXControlConsoleEditorLayoutPicker::GenerateDefaultLayoutPickerWidget()
+	{
+		const TSharedRef<SWidget> DefaultLayoutPickerWidget =
+			SNew(SHorizontalBox)
+			.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorLayoutPicker::GetDefaultLayoutVisibility))
+
+			// Auto-Group Checkbox section
+			+ SHorizontalBox::Slot()
+			.HAlign(HAlign_Left)
+			.AutoWidth()
+			[
+				SNew(SCheckBox)
+				.IsChecked(this, &SDMXControlConsoleEditorLayoutPicker::IsAutoGroupCheckBoxChecked)
+				.OnCheckStateChanged(this, &SDMXControlConsoleEditorLayoutPicker::OnAutoGroupCheckBoxStateChanged)
+			]
+
+			// Auto-Group Label section
+			+ SHorizontalBox::Slot()
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Center)
+			.Padding(4.f, 0.f)
+			.AutoWidth()
+			[
+				SNew(STextBlock)
+				.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
+				.Text(LOCTEXT("DefaultLayoutAutoGroupCheckBoxLabel", "Auto-Group Patches"))
+			];
+
+		return DefaultLayoutPickerWidget;
+	}
+
+	TSharedRef<SWidget> SDMXControlConsoleEditorLayoutPicker::GenerateUserLayoutPickerWidget()
+	{
+		const TSharedRef<SWidget> UserLayoutPickerWidget =
+			SNew(SHorizontalBox)
+			.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorLayoutPicker::GetUserLayoutVisibility))
+
+			// Layouts ComboBox section
+			+ SHorizontalBox::Slot()
+			.HAlign(HAlign_Left)
+			.AutoWidth()
+			[
+				SAssignNew(UserLayoutsComboBox, SComboBox<TWeakObjectPtr<UDMXControlConsoleEditorGlobalLayoutBase>>)
+				.OptionsSource(&ComboBoxSource)
+				.OnGenerateWidget(this, &SDMXControlConsoleEditorLayoutPicker::GenerateUserLayoutComboBoxWidget)
+				.OnComboBoxOpening(this, &SDMXControlConsoleEditorLayoutPicker::UpdateComboBoxSource)
+				.OnSelectionChanged(this, &SDMXControlConsoleEditorLayoutPicker::OnComboBoxSelectionChanged)
+				.ComboBoxStyle(&FAppStyle::Get().GetWidgetStyle<FComboBoxStyle>(TEXT("ComboBox")))
+				.ItemStyle(&FAppStyle::Get().GetWidgetStyle<FTableRowStyle>(TEXT("TableView.Row")))
+				.Content()
+				[
+					SNew(SHorizontalBox)
+
+					+ SHorizontalBox::Slot()
+					.HAlign(HAlign_Left)
+					.VAlign(VAlign_Center)
+					.MaxWidth(80.f)
+					.Padding(4.f, 0.f)
+					.AutoWidth()
+					[
+						SAssignNew(LayoutNameEditableBox, SEditableTextBox)
+						.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
+						.Text_Lambda([this]() { return LayoutNameText; })
+						.OverflowPolicy(ETextOverflowPolicy::Clip)
+						.OnTextChanged(this, &SDMXControlConsoleEditorLayoutPicker::OnLayoutNameTextChanged)
+						.OnTextCommitted(this, &SDMXControlConsoleEditorLayoutPicker::OnLayoutNameTextCommitted)
+					]
+				]
+			]
+
+			// Add Layout button
+			+ SHorizontalBox::Slot()
+			.HAlign(HAlign_Left)
+			.AutoWidth()
+			[
+				SNew(SButton)
+				.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>(TEXT("SimpleButton")))
+				.OnClicked(this, &SDMXControlConsoleEditorLayoutPicker::OnAddLayoutClicked)
+				[
+					SNew(SImage)
+					.Image(FAppStyle::GetBrush("Icons.Plus"))
+					.ColorAndOpacity(FStyleColors::AccentGreen)
+				]
+			]
+
+			// Rename Layout button
+			+ SHorizontalBox::Slot()
+			.HAlign(HAlign_Left)
+			.AutoWidth()
+			[
+				SNew(SButton)
+				.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>(TEXT("SimpleButton")))
+				.OnClicked(this, &SDMXControlConsoleEditorLayoutPicker::OnRenameLayoutClicked)
+				[
+					SNew(SImage)
+					.Image(FAppStyle::GetBrush("Icons.Edit"))
+					.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+				]
+			]
+
+			// Delete Layout button
+			+ SHorizontalBox::Slot()
+			.HAlign(HAlign_Left)
+			.AutoWidth()
+			[
+				SNew(SButton)
+				.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>(TEXT("SimpleButton")))
+				.OnClicked(this, &SDMXControlConsoleEditorLayoutPicker::OnDeleteLayoutClicked)
+				[
+					SNew(SImage)
+					.Image(FAppStyle::GetBrush("Icons.Delete"))
+					.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+				]
+			];
+
+		return UserLayoutPickerWidget;
+	}
+
+	TSharedRef<SWidget> SDMXControlConsoleEditorLayoutPicker::GenerateUserLayoutComboBoxWidget(const TWeakObjectPtr<UDMXControlConsoleEditorGlobalLayoutBase> InLayout)
 	{
 		if (InLayout.IsValid())
 		{
@@ -238,13 +290,8 @@ namespace UE::DMX::Private
 	bool SDMXControlConsoleEditorLayoutPicker::IsDefaultLayoutActive() const
 	{
 		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel.IsValid() ? EditorModel->GetControlConsoleLayouts() : nullptr;
-		if (ControlConsoleLayouts)
-		{
-			const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
-			return ActiveLayout && ActiveLayout == &ControlConsoleLayouts->GetDefaultLayoutChecked();
-		}
-
-		return false;
+		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts ? ControlConsoleLayouts->GetActiveLayout() : nullptr;
+		return ActiveLayout && ActiveLayout == &ControlConsoleLayouts->GetDefaultLayoutChecked();
 	}
 
 	void SDMXControlConsoleEditorLayoutPicker::OnDefaultLayoutCheckBoxStateChanged(ECheckBoxState CheckBoxState)
@@ -291,7 +338,7 @@ namespace UE::DMX::Private
 		}
 		else
 		{
-			const TArray<UDMXControlConsoleEditorGlobalLayoutBase*> UserLayouts = ControlConsoleLayouts->GetUserLayouts();
+			const TArray<UDMXControlConsoleEditorGlobalLayoutBase*>& UserLayouts = ControlConsoleLayouts->GetUserLayouts();
 			UDMXControlConsoleEditorGlobalLayoutBase* NewSelectedLayout = nullptr;
 			if (UserLayouts.IsEmpty())
 			{
@@ -325,13 +372,30 @@ namespace UE::DMX::Private
 			return;
 		}
 		
-		const TArray<UDMXControlConsoleEditorGlobalLayoutBase*> UserLayouts = ControlConsoleLayouts->GetUserLayouts();
+		const TArray<UDMXControlConsoleEditorGlobalLayoutBase*>& UserLayouts = ControlConsoleLayouts->GetUserLayouts();
 		ComboBoxSource.Reset(UserLayouts.Num());
 		ComboBoxSource.Append(UserLayouts);
 
 		if (UserLayoutsComboBox.IsValid())
 		{
 			UserLayoutsComboBox->RefreshOptions();
+		}
+	}
+
+	ECheckBoxState SDMXControlConsoleEditorLayoutPicker::IsAutoGroupCheckBoxChecked() const
+	{
+		const UDMXControlConsoleEditorData* ControlConsoleEditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
+		const bool bAutoGroupActivePatches = ControlConsoleEditorData && ControlConsoleEditorData->GetAutoGroupActivePatches();
+		return bAutoGroupActivePatches ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+	}
+
+	void SDMXControlConsoleEditorLayoutPicker::OnAutoGroupCheckBoxStateChanged(ECheckBoxState CheckBoxState)
+	{
+		UDMXControlConsoleEditorData* ControlConsoleEditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
+		if (ControlConsoleEditorData)
+		{
+			ControlConsoleEditorData->Modify();
+			ControlConsoleEditorData->ToggleAutoGroupActivePatches();
 		}
 	}
 
@@ -484,18 +548,15 @@ namespace UE::DMX::Private
 		return FReply::Handled();
 	}
 
-	EVisibility SDMXControlConsoleEditorLayoutPicker::GetComboBoxVisibility() const
+	EVisibility SDMXControlConsoleEditorLayoutPicker::GetDefaultLayoutVisibility() const
 	{
-		bool bIsVisible = false;
+		return IsDefaultLayoutActive() ? EVisibility::Visible : EVisibility::Collapsed;
+	}
 
-		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel.IsValid() ? EditorModel->GetControlConsoleLayouts() : nullptr;
-		if (ControlConsoleLayouts)
-		{
-			const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
-			bIsVisible = IsValid(ActiveLayout) && ActiveLayout != &ControlConsoleLayouts->GetDefaultLayoutChecked();
-		}
-
-		return bIsVisible ? EVisibility::Visible : EVisibility::Collapsed;
+	EVisibility SDMXControlConsoleEditorLayoutPicker::GetUserLayoutVisibility() const
+	{
+		
+		return !IsDefaultLayoutActive() ? EVisibility::Visible : EVisibility::Collapsed;
 	}
 }
 

@@ -129,11 +129,17 @@ public:
 	/** Sets the current Value Type for Faders */
 	void SetValueType(EDMXControlConsoleEditorValueType NewValueType) { ValueType = NewValueType; }
 
+	/** Gets the current auto-grouping state for the activated Fader Groups */
+	bool GetAutoGroupActivePatches() const { return bAutoGroupActivePatches; }
+
 	/** Gets the current auto-selection state for the activated Fader Groups */
 	bool GetAutoSelectActivePatches() const { return bAutoSelectActivePatches; }
 
 	/** Gets the current auto-selection state for the filtered Elements */
 	bool GetAutoSelectFilteredElements() const { return bAutoSelectFilteredElements; }
+
+	/** Toggles the auto-grouping state for the activated Fader Groups */
+	void ToggleAutoGroupActivePatches();
 
 	/** Toggles the auto-selection state for the activated Fader Groups */
 	void ToggleAutoSelectActivePatches();
@@ -150,6 +156,9 @@ public:
 	/** Returns a delegate broadcast whenever the Faders view mode is changed */
 	FSimpleMulticastDelegate& GetOnFadersViewModeChanged() { return OnFadersViewModeChanged; }
 
+	/** Returns a delegate broadcast whenever the auto-group state is changed */
+	FSimpleMulticastDelegate& GetOnAutoGroupStateChanged() { return OnAutoGroupStateChanged; }
+
 	/** Fixture Patch List default descriptor */
 	UPROPERTY()
 	FDMXReadOnlyFixturePatchListDescriptor FixturePatchListDescriptor;
@@ -163,6 +172,9 @@ private:
 
 	/** Called when the Faders view mode is changed */
 	FSimpleMulticastDelegate OnFadersViewModeChanged;
+
+	/** Called when the auto-gorup state has changed */
+	FSimpleMulticastDelegate OnAutoGroupStateChanged;
 
 	/** Collection of filters based on the Control Console Data */
 	UPROPERTY()
@@ -183,6 +195,10 @@ private:
 	/** Current value type for Faders widgets */
 	UPROPERTY()
 	EDMXControlConsoleEditorValueType ValueType = EDMXControlConsoleEditorValueType::Byte;
+
+	UPROPERTY()
+	/** True if the Fader Groups from activated Fixture Patches must be grouped by default */
+	bool bAutoGroupActivePatches = false;
 
 	UPROPERTY()
 	/** True if the Fader Groups from activated Fixture Patches must be selected by default */

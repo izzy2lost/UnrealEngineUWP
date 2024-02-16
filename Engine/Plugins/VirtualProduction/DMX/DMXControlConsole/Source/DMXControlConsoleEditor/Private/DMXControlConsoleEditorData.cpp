@@ -124,6 +124,13 @@ void UDMXControlConsoleEditorData::SetFadersViewMode(EDMXControlConsoleEditorVie
 	OnFadersViewModeChanged.Broadcast();
 }
 
+void UDMXControlConsoleEditorData::ToggleAutoGroupActivePatches()
+{
+	bAutoGroupActivePatches = !bAutoGroupActivePatches;
+
+	OnAutoGroupStateChanged.Broadcast();
+}
+
 void UDMXControlConsoleEditorData::ToggleAutoSelectActivePatches()
 {
 	bAutoSelectActivePatches = !bAutoSelectActivePatches;
