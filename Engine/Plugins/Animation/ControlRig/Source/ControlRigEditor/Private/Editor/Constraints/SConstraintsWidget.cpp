@@ -1227,6 +1227,15 @@ void SConstraintsEditionWidget::InvalidateConstraintList()
 	UpdateSequencer();
 }
 
+void SConstraintsEditionWidget::SequencerChanged(const TWeakPtr<ISequencer>& InNewSequencer)
+{
+	if (WeakSequencer != InNewSequencer)
+	{
+		WeakSequencer = InNewSequencer;
+		InvalidateConstraintList();
+	}
+}
+
 void SConstraintsEditionWidget::UpdateSequencer()
 {
 	if (!WeakSequencer.IsValid())

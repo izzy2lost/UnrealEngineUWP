@@ -592,6 +592,10 @@ void SControlRigEditModeTools::SetVector2DDetailsObjects(const TArray<TWeakObjec
 void SControlRigEditModeTools::SetSequencer(TWeakPtr<ISequencer> InSequencer)
 {
 	WeakSequencer = InSequencer.Pin();
+	if (ConstraintsEditionWidget)
+	{
+		ConstraintsEditionWidget->SequencerChanged(InSequencer);
+	}
 }
 
 bool SControlRigEditModeTools::IsPropertyKeyable(const UClass* InObjectClass, const IPropertyHandle& InPropertyHandle) const
