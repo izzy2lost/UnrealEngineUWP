@@ -2025,6 +2025,7 @@ static FNamePool& GetNamePoolPostInit()
 	return (FNamePool&)NamePoolData;
 }
 
+template <ESearchCase::Type SearchCase>
 static int32 CompareDifferentIdsAlphabetically(FNameEntryId AId, FNameEntryId BId)
 {
 	checkSlow(AId != BId);
@@ -2050,18 +2051,32 @@ static int32 CompareDifferentIdsAlphabetically(FNameEntryId AId, FNameEntryId BI
 	}
 
 	int32 MinLen = FMath::Min(AView.Len, BView.Len);
-	if (int32 StrDiff = AView.bIsWide ?	FCStringWide::Strnicmp(AView.Wide, BView.Wide, MinLen) :
-										FCStringAnsi::Strnicmp(AView.Ansi, BView.Ansi, MinLen))
+	int32 StrDiff;
+	if (SearchCase == ESearchCase::IgnoreCase)
 	{
-		return StrDiff;
+		StrDiff = AView.bIsWide ?
+			FCStringWide::Strnicmp(AView.Wide, BView.Wide, MinLen) :
+			FCStringAnsi::Strnicmp(AView.Ansi, BView.Ansi, MinLen);
 	}
+	else
+	{
+		StrDiff = AView.bIsWide ?
+			FCStringWide::Strncmp(AView.Wide, BView.Wide, MinLen) :
+			FCStringAnsi::Strncmp(AView.Ansi, BView.Ansi, MinLen);
+	}
+	if (StrDiff) return StrDiff;
 
 	return AView.Len - BView.Len;
 }
 
 int32 FNameEntryId::CompareLexical(FNameEntryId Rhs) const
 {
-	return Value != Rhs.Value ? CompareDifferentIdsAlphabetically(*this, Rhs) : 0;
+	return Value != Rhs.Value ? CompareDifferentIdsAlphabetically<ESearchCase::IgnoreCase>(*this, Rhs) : 0;
+}
+
+int32 FNameEntryId::CompareLexicalSensitive(FNameEntryId Rhs) const
+{
+	return Value != Rhs.Value ? CompareDifferentIdsAlphabetically<ESearchCase::CaseSensitive>(*this, Rhs) : 0;
 }
 
 #if !UE_BUILD_SHIPPING && !UE_BUILD_TEST
@@ -3286,7 +3301,7 @@ int32 FName::Compare( const FName& Other ) const
 	}
 
 	// Names don't match. This means we don't even need to check numbers.
-	return CompareDifferentIdsAlphabetically(GetComparisonIndex(), Other.GetComparisonIndex());
+	return CompareDifferentIdsAlphabetically<ESearchCase::IgnoreCase>(GetComparisonIndex(), Other.GetComparisonIndex());
 #else	// UE_FNAME_OUTLINE_NUMBER
 	// Names match, check whether numbers match.
 	if (GetComparisonIndex() == Other.GetComparisonIndex())
@@ -3295,7 +3310,7 @@ int32 FName::Compare( const FName& Other ) const
 	}
 
 	// Names don't match. This means we don't even need to check numbers.
-	return CompareDifferentIdsAlphabetically(GetComparisonIndex(), Other.GetComparisonIndex());
+	return CompareDifferentIdsAlphabetically<ESearchCase::IgnoreCase>(GetComparisonIndex(), Other.GetComparisonIndex());
 #endif // UE_FNAME_OUTLINE_NUMBER
 }
 
