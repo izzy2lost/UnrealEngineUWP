@@ -257,9 +257,10 @@ public:
 	EShowConstraints GetShowConstraints() const { return ShowConstraints; }
 	void SetShowConstraints(EShowConstraints InShowConstraints)
 	{
-		if (InShowConstraints != ShowConstraints) {
+		if (InShowConstraints != ShowConstraints)
+		{
 			ShowConstraints = InShowConstraints;
-			bNeedsRefresh = true;
+			InvalidateConstraintList();
 		}
 	}
 	FText GetShowConstraintsText(EShowConstraints Index) const;
@@ -319,6 +320,9 @@ public:
 
 	// FBaseConstraintListWidget overrides
 	virtual void InvalidateConstraintList() override;
+
+	/** Notify from sequencer changed. */
+	void SequencerChanged(const TWeakPtr<ISequencer>& InNewSequencer);
 	
 private:
 
