@@ -19,6 +19,7 @@
 #include "GameFramework/PhysicsVolume.h"
 #include "Misc/AssertionMacros.h"
 #include "Misc/TransactionObjectEvent.h"
+#include "Blueprint/BlueprintExceptionInfo.h"
 
 #if WITH_EDITOR
 #include "Misc/DataValidation.h"
@@ -757,6 +758,83 @@ void UMoverComponent::QueueLayeredMove(TSharedPtr<FLayeredMoveBase> LayeredMove)
 	ModeFSM->QueueLayeredMove(LayeredMove);
 }
 
+void UMoverComponent::K2_FindActiveLayeredMove(bool& DidSucceed, int32& TargetAsRawBytes) const
+{
+	// This will never be called, the exec version below will be hit instead
+	checkNoEntry();
+}
+
+DEFINE_FUNCTION(UMoverComponent::execK2_FindActiveLayeredMove)
+{
+	P_GET_UBOOL_REF(DidSucceed);
+
+	Stack.MostRecentPropertyAddress = nullptr;
+	Stack.MostRecentPropertyContainer = nullptr;
+	Stack.StepCompiledIn<FStructProperty>(nullptr);
+	
+	void* MovePtr = Stack.MostRecentPropertyAddress;
+	FStructProperty* StructProp = CastField<FStructProperty>(Stack.MostRecentProperty);
+
+	P_FINISH;
+
+	DidSucceed = false;
+	
+	if (!MovePtr || !StructProp)
+	{
+		FBlueprintExceptionInfo ExceptionInfo(
+			EBlueprintExceptionType::AbortExecution,
+			LOCTEXT("MoverComponent_GetActiveLayeredMove_UnresolvedTarget", "Failed to resolve the TargetAsRawBytes for GetActiveLayeredMove")
+		);
+
+		FBlueprintCoreDelegates::ThrowScriptException(P_THIS, Stack, ExceptionInfo);
+	}
+	else if (!StructProp->Struct || !StructProp->Struct->IsChildOf(FLayeredMoveBase::StaticStruct()))
+	{
+		FBlueprintExceptionInfo ExceptionInfo(
+			EBlueprintExceptionType::AbortExecution,
+			LOCTEXT("MoverComponent_GetActiveLayeredMove_BadType", "TargetAsRawBytes is not a valid type. Must be a child of FLayeredMoveBase.")
+		);
+
+		FBlueprintCoreDelegates::ThrowScriptException(P_THIS, Stack, ExceptionInfo);
+	}
+	else
+	{
+		P_NATIVE_BEGIN;
+		
+		if (const FLayeredMoveBase* FoundActiveMove = P_THIS->FindActiveLayeredMoveByType(StructProp->Struct))
+		{
+			StructProp->Struct->CopyScriptStruct(MovePtr, FoundActiveMove);
+			DidSucceed = true;
+		}
+
+		P_NATIVE_END;
+	}
+}
+
+const FLayeredMoveBase* UMoverComponent::FindActiveLayeredMoveByType(const UScriptStruct* DataStructType) const
+{
+	if (bHasValidCachedState)
+	{
+		if (const FMoverDefaultSyncState* MoverState = CachedLastSyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>())
+		{
+			for (auto it = MoverState->LayeredMoves.GetActiveMovesIterator(); it; ++it)
+			{
+				UStruct* CandidateStruct = it->Get()->GetScriptStruct();
+				while (CandidateStruct)
+				{
+					if (DataStructType == CandidateStruct)
+					{
+						return it->Get();
+					}
+
+					CandidateStruct = CandidateStruct->GetSuperStruct();
+				}
+			}
+		}
+	}
+
+	return nullptr;
+}
 
 void UMoverComponent::QueueNextMode(FName DesiredModeName, bool bShouldReenter)
 {
