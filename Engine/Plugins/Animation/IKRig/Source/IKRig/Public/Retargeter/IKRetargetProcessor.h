@@ -546,6 +546,10 @@ public:
 	void SetNeedsInitialized();
 	
 #if WITH_EDITOR
+private:
+	DECLARE_MULTICAST_DELEGATE(FOnRetargeterInitialized);
+	FOnRetargeterInitialized RetargeterInitialized;
+public:
 	/** Returns true if the bone is part of a retarget chain or root bone, false otherwise. */
 	bool IsBoneRetargeted(const FName BoneName, const ERetargetSourceOrTarget SourceOrTarget) const;
 	/** Returns index of the bone with the given name in either Source or Target skeleton. */
@@ -564,6 +568,8 @@ public:
 	FName GetMappedChainName(const FName InChainName, const ERetargetSourceOrTarget SourceOrTarget);
 	/** store data for debug drawing */
 	FRetargetDebugData DebugData;
+	/** Attach a delegate to be notified whenever this processor is initialized. */
+	FOnRetargeterInitialized& OnRetargeterInitialized(){ return RetargeterInitialized; };
 #endif
 
 private:
