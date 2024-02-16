@@ -141,7 +141,7 @@ static void GetCVarsFromDPFragmentIncludes(const FString& CurrentSectionName, co
 static void ExpandScalabilityCVar(FConfigCacheIni* ConfigSystem, const FString& CVarKey, const FString CVarValue, TMap<FString, FString>& ExpandedCVars, bool bOverwriteExistingValue)
 {
 	// load scalability settings directly from ini instead of using scalability system, so as not to inadvertantly mess anything up
-	// if the DP had sg.ResolutionQuality=3, we would read [ResolutionQuality@3]
+	// if the DP had sg.ViewDistanceQuality=3, we would read [ViewDistanceQuality@3]
 	FString SectionName = FString::Printf(TEXT("%s@%s"), *CVarKey.Mid(3), *CVarValue);
 	// walk over the scalability section and add them in, unless already done
 	const FConfigSection* ScalabilitySection = ConfigSystem->GetSection(*SectionName, false, GScalabilityIni);
