@@ -42,6 +42,7 @@ struct FServiceAutoLaunchSettings
 	FString ExtraArgs;
 	uint16 DesiredPort = 8558;
 	bool bShowConsole = false;
+	bool bIsDefaultDataPath = false;
 	bool bLimitProcessLifetime = false;
 	bool bSendUnattendedBugReports = false;
 	bool bIsDefaultSharedRunContext = true;
