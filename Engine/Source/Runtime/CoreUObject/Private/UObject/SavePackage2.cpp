@@ -1065,17 +1065,14 @@ ESavePackageResult CreateLinker(FSaveContext& SaveContext)
 
 struct FNameEntryIdSortHelper
 {
-	/** Comparison function used by Sort */
-	FORCEINLINE bool operator()(const FName& A, const FName& B) const
+	/** Comparison function used when sorting Names in the package's name table. */
+	bool operator()(FNameEntryId A, FNameEntryId B) const
 	{
-		return A.Compare(B) < 0;
-	}
-
-	/** Comparison function used by Sort */
-	FORCEINLINE bool operator()(FNameEntryId A, FNameEntryId B) const
-	{
-		//@todo Could be implemented without constructing FName but need a would new FNameEntry comparison API
-		return A != B && operator()(FName::CreateFromDisplayId(A, 0), FName::CreateFromDisplayId(B, 0));
+		if (A == B) return false;
+		// Sort by ignore-case first, then by case-sensitive.
+		// So we will get { 'AAA', 'Aaa', 'aaa', 'BBB', 'Bbb', 'bbb' }
+		if (int32 Compare = A.CompareLexical(B)) return Compare < 0;
+		return A.CompareLexicalSensitive(B) < 0;
 	}
 };
 

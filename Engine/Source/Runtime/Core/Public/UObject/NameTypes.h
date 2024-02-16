@@ -59,9 +59,13 @@ struct FNameEntryId
 		return Value == 0;
 	}
 
-	/** Slow alphabetical order that is stable / deterministic over process runs */
+	/** Slow alphabetical order that is stable / deterministic over process runs, ignores case */
 	CORE_API int32 CompareLexical(FNameEntryId Rhs) const;
 	bool LexicalLess(FNameEntryId Rhs) const { return CompareLexical(Rhs) < 0; }
+
+	/** Slow alphabetical order that is stable / deterministic over process runs, case-sensitive */
+	CORE_API int32 CompareLexicalSensitive(FNameEntryId Rhs) const;
+	bool LexicalSensitiveLess(FNameEntryId Rhs) const { return CompareLexicalSensitive(Rhs) < 0; }
 
 	/** Fast non-alphabetical order that is only stable during this process' lifetime */
 	int32 CompareFast(FNameEntryId Rhs) const { return Value - Rhs.Value; };
