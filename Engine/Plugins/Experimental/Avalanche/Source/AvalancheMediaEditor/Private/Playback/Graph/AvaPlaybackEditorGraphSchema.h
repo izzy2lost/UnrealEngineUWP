@@ -35,8 +35,8 @@ public:
 	static const FLinearColor InactivePinColor;
 	
 	// Allowable PinType.PinCategory values
-	AVALANCHEMEDIAEDITOR_API static const FName PC_ChannelFeed;
-	AVALANCHEMEDIAEDITOR_API static const FName PC_Event;
+	static const FName PC_ChannelFeed;
+	static const FName PC_Event;
 
 	void CompilePlaybackNodesFromGraphNodes(UEdGraphNode& Node) const;
 	

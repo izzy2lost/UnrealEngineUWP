@@ -6,7 +6,7 @@
 #include "AvaPlaybackAction_PasteNode.generated.h"
 
 USTRUCT()
-struct AVALANCHEMEDIAEDITOR_API FAvaPlaybackAction_PasteNode : public FEdGraphSchemaAction
+struct FAvaPlaybackAction_PasteNode : public FEdGraphSchemaAction
 {
 	GENERATED_BODY()
 

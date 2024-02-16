@@ -13,7 +13,7 @@ class UAvaPlaybackEditorGraphNode;
 class UEdGraphPin;
 struct EVisibility;
 
-class AVALANCHEMEDIAEDITOR_API SAvaPlaybackEditorGraphNode : public SGraphNode
+class SAvaPlaybackEditorGraphNode : public SGraphNode
 {
 public:
 	SLATE_BEGIN_ARGS(SAvaPlaybackEditorGraphNode) {}
