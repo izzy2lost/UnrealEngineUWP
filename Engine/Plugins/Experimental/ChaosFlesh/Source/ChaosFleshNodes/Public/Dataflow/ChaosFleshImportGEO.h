@@ -53,7 +53,7 @@ public:
 
 	/** Output value. */
 	UPROPERTY(EditAnywhere, Category = "Dataflow", meta = (DataflowOutput))
-	int32 Value;
+	int32 Value = 0;
 
 	FExtractGEOInt(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
