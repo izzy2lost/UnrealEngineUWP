@@ -309,8 +309,6 @@ public:
 
 	virtual bool OnUpdateHover(const FInputDeviceRay& DevicePos) override;
 
-	virtual void OnPropertyModified(UObject* PropertySet, FProperty* Property) override;
-
 	bool IsInBrushSubMode() const;
 
 	virtual void CommitResult(UBaseDynamicMeshComponent* Component, bool bModifiedTopology) override;
