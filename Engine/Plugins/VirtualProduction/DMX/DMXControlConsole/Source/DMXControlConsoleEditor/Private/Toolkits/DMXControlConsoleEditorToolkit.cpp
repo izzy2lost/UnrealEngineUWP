@@ -40,6 +40,7 @@ namespace UE::DMX::Private
 
 	FDMXControlConsoleEditorToolkit::FDMXControlConsoleEditorToolkit()
 		: ControlConsole(nullptr)
+		, AnalyticsProvider("ControlConsoleEditor")
 	{}
 
 	FDMXControlConsoleEditorToolkit::~FDMXControlConsoleEditorToolkit()

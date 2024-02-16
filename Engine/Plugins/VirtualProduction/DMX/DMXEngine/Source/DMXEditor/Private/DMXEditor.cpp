@@ -43,6 +43,10 @@
 
 const FName FDMXEditor::ToolkitFName(TEXT("DMXEditor"));
 
+FDMXEditor::FDMXEditor()
+	: AnalyticsProvider("DMXLibraryEditor")
+{}
+
 FName FDMXEditor::GetToolkitFName() const
 {
 	return ToolkitFName;

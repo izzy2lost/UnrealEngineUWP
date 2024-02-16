@@ -31,6 +31,7 @@
 SDMXActivityMonitor::SDMXActivityMonitor()
 	: MinUniverseID(1)
 	, MaxUniverseID(100)
+	, AnalyticsProvider("ActivityMonitor")
 {}
 
 SDMXActivityMonitor::~SDMXActivityMonitor()

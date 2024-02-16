@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Analytics/DMXEditorToolAnalyticsProvider.h"
 #include "DMXProtocolConstants.h"
 #include "DMXProtocolCommon.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
@@ -109,4 +110,7 @@ private:
 
 	/** Text block to edit the Max Universe ID */
 	TSharedPtr<SEditableTextBox> MaxUniverseIDEditableTextBox;
+
+	/** The analytics provider for this tool */
+	UE::DMX::FDMXEditorToolAnalyticsProvider AnalyticsProvider;
 };

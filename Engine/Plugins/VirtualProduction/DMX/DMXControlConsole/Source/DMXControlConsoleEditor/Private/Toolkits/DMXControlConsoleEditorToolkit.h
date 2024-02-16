@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Analytics/DMXEditorToolAnalyticsProvider.h"
 #include "Toolkits/AssetEditorToolkit.h"
 #include "UObject/GCObject.h"
 
@@ -188,5 +189,8 @@ namespace UE::DMX::Private
 
 		/** The Control Console object this toolkit is based on */
 		TObjectPtr<UDMXControlConsole> ControlConsole;
+
+		/** The analytics provider for this tool */
+		UE::DMX::FDMXEditorToolAnalyticsProvider AnalyticsProvider;
 	};
 }

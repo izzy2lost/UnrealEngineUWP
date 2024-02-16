@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Analytics/DMXEditorToolAnalyticsProvider.h"
 #include "DMXPixelMappingComponentReference.h"
 #include "EditorUndoClient.h"
 #include "Settings/DMXPixelMappingEditorSettings.h"
@@ -304,6 +305,9 @@ public:
 
 	/** Name of the Details View Tab */
 	static const FName LayoutViewTabID;
+
+	/** The analytics provider for this tool */
+	UE::DMX::FDMXEditorToolAnalyticsProvider AnalyticsProvider;
 
 	/** Dumped editor settings for fast comparison */
 	TArray<uint8, TFixedAllocator<sizeof(UDMXPixelMappingEditorSettings)>> EditorSettingsDump;
