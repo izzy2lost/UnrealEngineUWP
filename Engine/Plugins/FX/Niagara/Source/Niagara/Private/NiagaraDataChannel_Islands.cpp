@@ -14,6 +14,15 @@
 
 //////////////////////////////////////////////////////////////////////////
 
+namespace NDCIslands_Local
+{
+	int32 AllowAsyncLoad = 1;
+	static FAutoConsoleVariableRef CVarAllowAsyncLoad(TEXT("fx.Niagara.DataChannels.AllowAsyncLoad"), AllowAsyncLoad, TEXT("True if we should attempt to load systems etc asynchronosly."), ECVF_Default);
+
+	int32 BlockAsyncLoadOnUse = 1;
+	static FAutoConsoleVariableRef CVarBlockAsyncLoadOnUse(TEXT("fx.Niagara.DataChannels.BlockAsyncLoadOnUse"), BlockAsyncLoadOnUse, TEXT("True if we should block on any pending async loads when those assets are used."), ECVF_Default);
+}
+
 void UNiagaraDataChannel_Islands::PostLoad()
 {
 	Super::PostLoad();
@@ -26,6 +35,12 @@ void UNiagaraDataChannel_Islands::PostLoad()
 TConstArrayView<TObjectPtr<UNiagaraSystem>> UNiagaraDataChannel_Islands::GetSystems()const
 {
 	check(IsInGameThread());
+	if(NDCIslands_Local::BlockAsyncLoadOnUse && AsyncLoadHandle && AsyncLoadHandle->IsActive())
+	{
+		AsyncLoadHandle->WaitUntilComplete();
+		PostLoadSystems();
+	}
+
 	return SystemsInternal;
 }
 
@@ -44,9 +59,9 @@ void UNiagaraDataChannel_Islands::AsyncLoadSystems()const
 
 		if (Requests.Num() > 0)
 		{
-			if (UAssetManager::IsInitialized())
+			if (NDCIslands_Local::AllowAsyncLoad && UAssetManager::IsInitialized())
 			{
-				UAssetManager::GetStreamableManager().RequestAsyncLoad(Requests
+				AsyncLoadHandle = UAssetManager::GetStreamableManager().RequestAsyncLoad(Requests
 					, FStreamableDelegate::CreateUObject(this, &UNiagaraDataChannel_Islands::PostLoadSystems)
 					, FStreamableManager::AsyncLoadHighPriority
 					, false
@@ -77,6 +92,8 @@ void UNiagaraDataChannel_Islands::PostLoadSystems()const
 	{
 		SystemsInternal.Add(SoftSys.Get());
 	}
+
+	AsyncLoadHandle.Reset();
 }
 
 //////////////////////////////////////////////////////////////////////////

@@ -6,6 +6,8 @@
 #include "NiagaraDataChannelHandler.h"
 #include "NiagaraDataChannel_Islands.generated.h"
 
+struct FStreamableHandle;
+
 UENUM()
 enum class ENiagraDataChannel_IslandMode : uint8
 {
@@ -183,6 +185,8 @@ protected:
 
 	UPROPERTY(Transient)
 	mutable TArray<TObjectPtr<UNiagaraSystem>> SystemsInternal;
+
+	mutable TSharedPtr<FStreamableHandle> AsyncLoadHandle;
 };
 
 UCLASS(Experimental, BlueprintType, MinimalAPI)
