@@ -34,7 +34,7 @@
 
 #define LOCTEXT_NAMESPACE "SAvaLevelViewport"
 
-namespace UE::AvalancheLevelViewport::Private
+namespace UE::AvaLevelViewport::Private
 {
 	static const FText GuideTransactionTitle = LOCTEXT("UpdateGuides", "Update Guides");
 }
@@ -540,7 +540,7 @@ void SAvaLevelViewport::SaveGuides()
 		return;
 	}
 
-	FScopedTransaction SaveTransaction(UE::AvalancheLevelViewport::Private::GuideTransactionTitle);
+	FScopedTransaction SaveTransaction(UE::AvaLevelViewport::Private::GuideTransactionTitle);
 	DataSubsystem->ModifyDataSource();
 
 	TArray<FAvaViewportGuideInfo> GuideInfos;
@@ -567,7 +567,7 @@ void SAvaLevelViewport::OnViewportDataProxyChanged()
 bool SAvaLevelViewport::MatchesContext(const FTransactionContext& InContext,
 	const TArray<TPair<UObject*, FTransactionObjectEvent>>& InTransactionObjectContexts) const
 {
-	return InContext.Title.EqualTo(UE::AvalancheLevelViewport::Private::GuideTransactionTitle);
+	return InContext.Title.EqualTo(UE::AvaLevelViewport::Private::GuideTransactionTitle);
 }
 
 void SAvaLevelViewport::PostUndo(bool bInSuccess)

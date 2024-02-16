@@ -19,7 +19,7 @@ public:
 
 	/** Switches between Camera "2D" viewport and 3D viewport. */
 	TSharedPtr<FUICommandInfo> SwitchViewports;
-	TSharedPtr<FUICommandInfo> SetAvalancheViewportType;
+	TSharedPtr<FUICommandInfo> SetMotionDesignViewportType;
 
 	/** Groups the Selected Actors via a Null Actor. */
 	TSharedPtr<FUICommandInfo> GroupActors;

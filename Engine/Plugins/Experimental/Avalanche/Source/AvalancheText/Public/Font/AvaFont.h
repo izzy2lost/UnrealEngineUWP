@@ -238,7 +238,7 @@ template<> struct TStructOpsTypeTraits<FAvaFont> : public TStructOpsTypeTraitsBa
 	};
 };
 
-namespace UE::Avalanche::FontUtilities::Public
+namespace UE::Ava::FontUtilities::Public
 {
 	AVALANCHETEXT_API void GetFontName(const UFont* InFont, FString& OutFontName);
 }

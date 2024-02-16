@@ -133,11 +133,9 @@ void FAvaLevelEditorToolbar::ExtendLevelEditorToolbar(const TSharedRef<IAvaEdito
 		const FAvaLevelEditorCommands& AvaLevelEditorCommands = FAvaLevelEditorCommands::Get();
 		FToolMenuSection& Section = LevelEditorToolbar->FindOrAddSection(Private::SceneSectionName);
 
-		const FText AvalancheLabel = LOCTEXT("MotionDesignScene", "Motion Design");
-
-		auto AddEntry = [this, &Section, AvalancheLabel](const TSharedPtr<FUICommandInfo>& InCommand)
+		auto AddEntry = [this, &Section](const TSharedPtr<FUICommandInfo>& InCommand)
 		{
-			FToolMenuEntry& Entry = Section.AddEntry(FToolMenuEntry::InitToolBarButton(InCommand, AvalancheLabel));
+			FToolMenuEntry& Entry = Section.AddEntry(FToolMenuEntry::InitToolBarButton(InCommand, LOCTEXT("MotionDesignScene", "Motion Design")));
 			Entry.SetCommandList(CommandList);
 			Entry.StyleNameOverride = "CalloutToolbar";
 		};

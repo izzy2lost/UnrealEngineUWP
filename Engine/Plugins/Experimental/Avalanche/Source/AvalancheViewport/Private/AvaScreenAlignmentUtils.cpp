@@ -13,7 +13,7 @@
 #include "GameFramework/Actor.h"
 #include "ViewportClient/IAvaViewportWorldCoordinateConverter.h"
 
-namespace UE::AvalancheViewport::Private
+namespace UE::AvaViewport::Private
 {
 	static constexpr float ValueTolerance = 0.01f;
 	static constexpr float ExactValueTolerance = 0.001f;
@@ -769,7 +769,7 @@ void FAvaScreenAlignmentUtils::SizeActorToScreen(const TSharedRef<IAvaViewportWo
 	const FAvaScreenAlignmentActorInfo ActorInfo = FAvaScreenAlignmentActorInfo::Create(InCoordinateConverter,
 		InActor, EAvaAlignmentSizeMode::Self);
 
-	UE::AvalancheViewport::Private::SizeActorToScreen(InCoordinateConverter, ActorInfo, bInStretchToFit);
+	UE::AvaViewport::Private::SizeActorToScreen(InCoordinateConverter, ActorInfo, bInStretchToFit);
 }
 
 void FAvaScreenAlignmentUtils::FitActorToScreen(const TSharedRef<IAvaViewportWorldCoordinateConverter>& InCoordinateConverter,
@@ -793,7 +793,7 @@ void FAvaScreenAlignmentUtils::FitActorToScreen(const TSharedRef<IAvaViewportWor
 			const FAvaScreenAlignmentActorInfo ActorInfo = FAvaScreenAlignmentActorInfo::Create(InCoordinateConverter,
 				InActor, EAvaAlignmentSizeMode::Self);
 
-			UE::AvalancheViewport::Private::SizeActorToScreen(InCoordinateConverter, ActorInfo, bInStretchToFit);
+			UE::AvaViewport::Private::SizeActorToScreen(InCoordinateConverter, ActorInfo, bInStretchToFit);
 
 			const FTransform ActorTransform = InActor.GetActorTransform();
 			const FBox ActorLocalBounds = BoundsSubsystem->GetActorLocalBounds(&InActor);
@@ -820,7 +820,7 @@ void FAvaScreenAlignmentUtils::AlignActorRotationAxis(const TSharedRef<IAvaViewp
 		);
 	}
 
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	bool bMadeChange = false;
 	UE::Math::TMatrix<double> ActorRotationMatrix = UE::Math::TRotationMatrix<double>(InActor.GetActorRotation());
@@ -918,7 +918,7 @@ void FAvaScreenAlignmentUtils::AlignActorsHorizontal(const TSharedRef<IAvaViewpo
 	const TArray<AActor*>& InActors, EAvaHorizontalAlignment InHorizontalAlignment, EAvaAlignmentSizeMode InActorSizeMode, 
 	EAvaAlignmentContext InContextType)
 {
-	UE::AvalancheViewport::Private::AlignActors<EAvaHorizontalAlignment>(
+	UE::AvaViewport::Private::AlignActors<EAvaHorizontalAlignment>(
 		InCoordinateConverter,
 		InActors,
 		InHorizontalAlignment,
@@ -931,7 +931,7 @@ void FAvaScreenAlignmentUtils::AlignActorsVertical(const TSharedRef<IAvaViewport
 	const TArray<AActor*>& InActors, EAvaVerticalAlignment InVerticalAlignment, EAvaAlignmentSizeMode InActorSizeMode, 
 	EAvaAlignmentContext InContextType)
 {
-	UE::AvalancheViewport::Private::AlignActors<EAvaVerticalAlignment>(
+	UE::AvaViewport::Private::AlignActors<EAvaVerticalAlignment>(
 		InCoordinateConverter,
 		InActors,
 		InVerticalAlignment,
@@ -943,7 +943,7 @@ void FAvaScreenAlignmentUtils::AlignActorsVertical(const TSharedRef<IAvaViewport
 void FAvaScreenAlignmentUtils::AlignActorsDepth(const TSharedRef<IAvaViewportWorldCoordinateConverter>& InCoordinateConverter, 
 	const TArray<AActor*>& InActors, EAvaDepthAlignment InDepthAlignment, EAvaAlignmentSizeMode InActorSizeMode)
 {
-	UE::AvalancheViewport::Private::AlignActors<EAvaDepthAlignment>(
+	UE::AvaViewport::Private::AlignActors<EAvaDepthAlignment>(
 		InCoordinateConverter,
 		InActors,
 		InDepthAlignment,
@@ -956,7 +956,7 @@ void FAvaScreenAlignmentUtils::DistributeActorsHorizontal(const TSharedRef<IAvaV
 	const TArray<AActor*>& InActors, EAvaAlignmentSizeMode InActorSizeMode, EAvaActorDistributionMode InDistributionMode, 
 	EAvaAlignmentContext InContextType)
 {
-	UE::AvalancheViewport::Private::DistributeActors<EAvaHorizontalAlignment>(
+	UE::AvaViewport::Private::DistributeActors<EAvaHorizontalAlignment>(
 		InCoordinateConverter,
 		InActors,
 		InActorSizeMode,
@@ -969,7 +969,7 @@ void FAvaScreenAlignmentUtils::DistributeActorsVertical(const TSharedRef<IAvaVie
 	const TArray<AActor*>& InActors, EAvaAlignmentSizeMode InActorSizeMode, EAvaActorDistributionMode InDistributionMode, 
 	EAvaAlignmentContext InContextType)
 {
-	UE::AvalancheViewport::Private::DistributeActors<EAvaVerticalAlignment>(
+	UE::AvaViewport::Private::DistributeActors<EAvaVerticalAlignment>(
 		InCoordinateConverter,
 		InActors,
 		InActorSizeMode,
@@ -981,7 +981,7 @@ void FAvaScreenAlignmentUtils::DistributeActorsVertical(const TSharedRef<IAvaVie
 void FAvaScreenAlignmentUtils::DistributeActorsDepth(const TSharedRef<IAvaViewportWorldCoordinateConverter>& InCoordinateConverter,
 	const TArray<AActor*>& InActors, EAvaAlignmentSizeMode InActorSizeMode, EAvaActorDistributionMode InDistributionMode)
 {
-	UE::AvalancheViewport::Private::DistributeActors<EAvaDepthAlignment>(
+	UE::AvaViewport::Private::DistributeActors<EAvaDepthAlignment>(
 		InCoordinateConverter,
 		InActors,
 		InActorSizeMode,

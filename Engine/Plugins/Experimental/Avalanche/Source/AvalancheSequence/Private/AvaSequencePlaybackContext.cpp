@@ -30,11 +30,11 @@ void FAvaSequencePlaybackContext::Resolve(const FAvaSequencePlayerVariant& InPla
 	LastJumpedFrame = JumpedFrame;
 	JumpedFrame.Reset();
 
-	// Find if the Player is an Avalanche Player 
-	if (UAvaSequencePlayer* const AvalanchePlayer = InPlayerVariant.TryGet<UAvaSequencePlayer>())
+	// Find if the Player is an Motion Design Player 
+	if (UAvaSequencePlayer* const MotionDesignPlayer = InPlayerVariant.TryGet<UAvaSequencePlayer>())
 	{
-		SequencePlayer   = AvalanchePlayer;
-		bPlayingForwards = !AvalanchePlayer->IsReversed();
+		SequencePlayer   = MotionDesignPlayer;
+		bPlayingForwards = !MotionDesignPlayer->IsReversed();
 	}
 #if WITH_EDITOR
 	// Else it could be the Sequencer Player

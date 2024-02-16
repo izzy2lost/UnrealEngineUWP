@@ -8,7 +8,7 @@
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
-// General Avalanche unit test log
+// General Motion Design unit test log
 DECLARE_LOG_CATEGORY_EXTERN(LogAvaModifiersTest, Log, All);
 
 class AAvaShapeActor;

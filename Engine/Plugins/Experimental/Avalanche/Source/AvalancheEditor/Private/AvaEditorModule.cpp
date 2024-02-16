@@ -74,7 +74,7 @@ struct FAvaViewportColorPickerLightAdapter : IAvaViewportColorPickerAdapter
 	//~ End IAvaViewportColorPickerActorAdapter
 };
 
-namespace UE::AvalancheEditor::Private
+namespace UE::AvaEditor::Private
 {
 	static FString LevelTemplatesPath = FString::Printf(TEXT("/%hs/%s"), UE_PLUGIN_NAME, TEXT("LevelTemplates"));
 	static FString DefaultLevelPath = FString::Printf(TEXT("/%hs/%s"), UE_PLUGIN_NAME, TEXT("DefaultMotionDesignLevel"));
@@ -93,7 +93,7 @@ void FAvaEditorModule::StartupModule()
 	RegisterCustomLayouts();
 
 	// Register Palettes
-	using namespace UE::AvalancheEditor::Private;
+	using namespace UE::AvaEditor::Private;
 
 	// Register Icon Customization
 	IAvaOutlinerModule::Get().RegisterOverriddenIcon<FAvaOutlinerActor, FAvaOutlinerObjectIconCustomization>(AAvaShapeActor::StaticClass())
@@ -304,22 +304,22 @@ void FAvaEditorModule::RegisterLevelTemplates()
 	{
 		// Register original template map,
 		// @todo: Deprecate post-beta 0.1.4
-		if (!GUnrealEd->IsTemplateMap(UE::AvalancheEditor::Private::DefaultLevelPath))
+		if (!GUnrealEd->IsTemplateMap(UE::AvaEditor::Private::DefaultLevelPath))
 		{
-			FTemplateMapInfo AvalancheMapTemplate;
-			AvalancheMapTemplate.Category = TEXT("Motion Design");
-			AvalancheMapTemplate.DisplayName = LOCTEXT("Map Template", "Motion Design");
-			AvalancheMapTemplate.ThumbnailTexture = UE::AvalancheEditor::Private::DefaultLevelThumbnailPath;			
-			AvalancheMapTemplate.Map = UE::AvalancheEditor::Private::DefaultLevelPath;
+			FTemplateMapInfo MapTemplate;
+			MapTemplate.Category = TEXT("Motion Design");
+			MapTemplate.DisplayName = LOCTEXT("Map Template", "Motion Design");
+			MapTemplate.ThumbnailTexture = UE::AvaEditor::Private::DefaultLevelThumbnailPath;
+			MapTemplate.Map = UE::AvaEditor::Private::DefaultLevelPath;
 				
-			GUnrealEd->AppendTemplateMaps({ AvalancheMapTemplate });	
+			GUnrealEd->AppendTemplateMaps({ MapTemplate });	
 		}
 
 		IAssetRegistry* AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).TryGet();
 		if (AssetRegistry)
 		{
 			TArray<FString> LevelTemplatePaths;
-			AssetRegistry->GetSubPaths(UE::AvalancheEditor::Private::LevelTemplatesPath, LevelTemplatePaths, false);
+			AssetRegistry->GetSubPaths(UE::AvaEditor::Private::LevelTemplatesPath, LevelTemplatePaths, false);
 
 			TArray<FTemplateMapInfo> TemplateMaps;
 			

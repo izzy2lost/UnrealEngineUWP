@@ -10,7 +10,7 @@
 #define LOCTEXT_NAMESPACE "MovieSceneAvaShapeRectCornerSection"
 
 #if WITH_EDITOR
-namespace UE::Avalanche::Private
+namespace UE::Ava::Private
 {
 	struct FShapeRectCornerChannelMetaData
 	{
@@ -54,7 +54,7 @@ UMovieSceneAvaShapeRectCornerSection::UMovieSceneAvaShapeRectCornerSection(const
 	FMovieSceneChannelProxyData Channels;
 
 #if WITH_EDITOR
-	using namespace UE::Avalanche::Private;
+	using namespace UE::Ava::Private;
 	static const FShapeRectCornerChannelMetaData MetaData;
 	Channels.Add(BevelSize,         MetaData.BevelSizeMetaData,          TMovieSceneExternalValue<float>());
 	Channels.Add(BevelSubdivisions, MetaData.BevelSubdivisionsMetaData,  TMovieSceneExternalValue<uint8>());

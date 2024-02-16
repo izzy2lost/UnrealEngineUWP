@@ -86,7 +86,7 @@ UE::AvaOutliner::Private::FAvaOutlinerProviderTest::FAvaOutlinerProviderTest()
 	, ModeTools(MakeShared<FAvaOutlinerEditorModeTools>())
 {
 	constexpr EWorldType::Type WorldType = EWorldType::Editor;
-	World = UWorld::CreateWorld(WorldType, false, FName(TEXT("AvalancheOutlinerTestWorld")));
+	World = UWorld::CreateWorld(WorldType, false, FName(TEXT("MotionDesignOutlinerTestWorld")));
 
 	UPackage* const Package = World->GetPackage();
 	Package->SetFlags(RF_Transient | RF_Public);

@@ -104,7 +104,7 @@ bool UAvaShapesEditorShapeToolBase::UseIdentityLocation() const
 		return false;
 	}
 
-	return !IsAvalancheViewport();
+	return !IsMotionDesignViewport();
 }
 
 bool UAvaShapesEditorShapeToolBase::UseIdentityRotation() const

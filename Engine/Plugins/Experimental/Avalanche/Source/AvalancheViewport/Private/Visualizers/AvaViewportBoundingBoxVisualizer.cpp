@@ -12,7 +12,7 @@
 #include "Selection.h"
 #include "Selection/AvaSelectionProviderSubsystem.h"
 
-namespace UE::AvalancheViewport::Private
+namespace UE::AvaViewport::Private
 {
 	constexpr float BoundingBoxLineThickness = 0.4f;
 }
@@ -22,7 +22,7 @@ TSharedRef<IAvaViewportBoundingBoxVisualizerInterface> FAvaViewportBoundingBoxVi
 	return MakeShared<FAvaLevelViewportBoundingBoxVisualizer>();
 }
 
-namespace UE::AvalancheLevelViewport::Private
+namespace UE::AvaLevelViewport::Private
 {
 	struct FAvaTaskTimer
 	{
@@ -78,7 +78,7 @@ namespace UE::AvalancheLevelViewport::Private
 			return;
 		}
 
-		using namespace UE::AvalancheViewport::Private;
+		using namespace UE::AvaViewport::Private;
 
 		FVector Vertices[8];
 		InOrientedBox.CalcVertices(Vertices);
@@ -140,7 +140,7 @@ void FAvaLevelViewportBoundingBoxVisualizer::Draw(UAvaSelectionProviderSubsystem
 		return;
 	}
 
-	using namespace UE::AvalancheLevelViewport::Private;
+	using namespace UE::AvaLevelViewport::Private;
 
 	constexpr double MaxTime = 0.003;
 	constexpr double HalfMaxTime = MaxTime * 0.5;

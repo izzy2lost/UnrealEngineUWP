@@ -148,7 +148,7 @@ void UAvaExtrudeModifier::Apply()
 				{
 					const FVector UVSize = GetMeshBounds().GetSize() / EditMesh.GetBounds().MaxDim();
 					FAvaShapeMaterialUVParameters& UVParams = *ShapeComponent->GetInUseMaterialUVParams(UAvaShapeDynamicMeshBase::MESH_INDEX_PRIMARY);
-					UE::AvalancheShapes::TransformMeshUVs(EditMesh, ExtrudeUVIds.Array(), UVParams, FVector2D(UVSize.Y, UVSize.Z), FVector2D(0.5, 0.5), 90.f);
+					UE::AvaShapes::TransformMeshUVs(EditMesh, ExtrudeUVIds.Array(), UVParams, FVector2D(UVSize.Y, UVSize.Z), FVector2D(0.5, 0.5), 90.f);
 				}
 			}
 		}

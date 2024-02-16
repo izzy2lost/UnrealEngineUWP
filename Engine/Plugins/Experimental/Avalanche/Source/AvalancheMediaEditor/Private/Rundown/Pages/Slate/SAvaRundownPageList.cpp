@@ -845,7 +845,7 @@ namespace UE::AvaPageList::Private
 {
 	static bool IsAvaAsset(const FAssetData& InAssetData, bool bInLogInfo)
 	{
-		static const FName& SceneAssetTag = UE::Ava::AssetTags::AvalancheScene;
+		static const FName& SceneAssetTagName = UE::Ava::AssetTags::MotionDesignScene;
 		static const FString& AssetTagValueEnabled = UE::Ava::AssetTags::Values::Enabled;
 
 		const UClass* AssetClass = InAssetData.GetClass(EResolveClass::Yes);
@@ -854,18 +854,18 @@ namespace UE::AvaPageList::Private
 			return false;
 		}
 		
-		const EAvalancheAssetType AssetType = FAvaSoftAssetPath::GetAssetTypeFromClass(AssetClass, true);
-		if (AssetType == EAvalancheAssetType::Unknown)
+		const EMotionDesignAssetType AssetType = FAvaSoftAssetPath::GetAssetTypeFromClass(AssetClass, true);
+		if (AssetType == EMotionDesignAssetType::Unknown)
 		{
 			return false;
 		}
 		
 		// If the asset is a level, we check if it has the Motion Design scene tag.
-		if (AssetType == EAvalancheAssetType::World)
+		if (AssetType == EMotionDesignAssetType::World)
 		{
-			const FAssetTagValueRef AvalancheSceneTag = InAssetData.TagsAndValues.FindTag(SceneAssetTag);
+			const FAssetTagValueRef SceneTag = InAssetData.TagsAndValues.FindTag(SceneAssetTagName);
 			
-			if (!AvalancheSceneTag.IsSet())
+			if (!SceneTag.IsSet())
 			{
 				if (bInLogInfo)
 				{
@@ -876,7 +876,7 @@ namespace UE::AvaPageList::Private
 				return false;
 			}
 			
-			if (!AvalancheSceneTag.Equals(AssetTagValueEnabled))
+			if (!SceneTag.Equals(AssetTagValueEnabled))
 			{
 				if (bInLogInfo)
 				{

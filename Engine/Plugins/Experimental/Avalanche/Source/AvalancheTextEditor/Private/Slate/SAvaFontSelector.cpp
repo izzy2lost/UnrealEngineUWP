@@ -133,7 +133,7 @@ void SAvaFontSelector::Construct(const FArguments& InArgs)
 	bShowBoldOnly = InArgs._ShowBoldFontsOnly;
 	bShowItalicOnly = InArgs._ShowItalicFontsOnly;
 
-	AvalancheFontPropertyHandlePtr = InArgs._AvalancheFontPropertyHandle.Get();
+	FontPropertyHandlePtr = InArgs._FontPropertyHandle.Get();
 
 	FontsOptionsSource = InArgs._OptionsSource;
 	CustomScrollbar = InArgs._CustomScrollbar;
@@ -739,7 +739,7 @@ void SAvaFontSelector::RefreshUIFacingFont()
 		return;
 	}
 
-	if (!AvalancheFontPropertyHandlePtr)
+	if (!FontPropertyHandlePtr)
 	{
 		return;
 	}
@@ -751,7 +751,7 @@ void SAvaFontSelector::RefreshUIFacingFont()
 	}
 
 	FPropertyAccess::Result AccessResult;
-	const TSharedPtr<FAvaFontView> ActualFontPtr = FontManagerSubsystem->GetFontViewFromPropertyHandle(AvalancheFontPropertyHandlePtr, AccessResult);
+	const TSharedPtr<FAvaFontView> ActualFontPtr = FontManagerSubsystem->GetFontViewFromPropertyHandle(FontPropertyHandlePtr, AccessResult);
 	if (!ActualFontPtr)
 	{
 		return;

@@ -28,7 +28,7 @@ class UWorld;
 struct FMovieSceneMarkedFrame;
 struct FMovieScenePossessable;
 
-UCLASS(BlueprintType, Config=Avalanche)
+UCLASS(BlueprintType, Config=MotionDesign)
 class AVALANCHESEQUENCE_API UAvaSequence : public ULevelSequence
 {
 	GENERATED_BODY()

@@ -5,7 +5,7 @@
 #include "AvaTransitionEditor.h"
 #include "WorkflowOrientedApp/WorkflowTabFactory.h"
 
-/** Base class for all Tab Factories in Avalanche Transition Editor */
+/** Base class for all Tab Factories in Motion Design Transition Editor */
 class FAvaTransitionTabFactory : public FWorkflowTabFactory
 {
 public:

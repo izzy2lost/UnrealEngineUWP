@@ -4,14 +4,14 @@
 
 #include "UObject/SoftObjectPtr.h"
 
-enum class EAvalancheAssetType
+enum class EMotionDesignAssetType
 {
 	Unknown,
 	World
 };
 
 /**
- * Avalanche Extension to FSoftObjectPath.
+ * Motion Design Extension to FSoftObjectPath.
  * Adding the class information along to resolve about a Motion Design Asset without loading anything.
  */
 struct FAvaSoftAssetPath
@@ -21,13 +21,13 @@ struct FAvaSoftAssetPath
 
 	bool IsNull() const { return AssetPath.IsNull(); }
 	const FSoftObjectPath& ToSoftObjectPath() const { return AssetPath; }
-	EAvalancheAssetType GetAssetType(bool bInLoadIfUnknown = true) const { return GetAssetTypeFromClass(AssetClassPath, bInLoadIfUnknown);}
+	EMotionDesignAssetType GetAssetType(bool bInLoadIfUnknown = true) const { return GetAssetTypeFromClass(AssetClassPath, bInLoadIfUnknown);}
 
-	AVALANCHE_API static EAvalancheAssetType GetAssetTypeFromClass(const FSoftClassPath& InAssetClassPath, bool bInLoadIfUnknown = true);
+	AVALANCHE_API static EMotionDesignAssetType GetAssetTypeFromClass(const FSoftClassPath& InAssetClassPath, bool bInLoadIfUnknown = true);
 };
 
 /**
- * Avalanche Extension to FSoftObjectPtr.
+ * Motion Design Extension to FSoftObjectPtr.
  * Adding the class information along to resolve a Motion Design Asset without loading anything.
  */
 
@@ -47,9 +47,9 @@ struct FAvaSoftAssetPtr
 	/**
 	 * @brief Determines the asset type from the given class path or by loading the object.
 	 * @param bInLoadIfUnknown If the type can't be determined by the class path, the object is loaded to check it's type.
-	 * @return One of the recognised asset type for Avalanche playables.
+	 * @return One of the recognized asset types for Motion Design playables.
 	 */
-	AVALANCHE_API EAvalancheAssetType GetAssetType(bool bInLoadIfUnknown = true) const;
+	AVALANCHE_API EMotionDesignAssetType GetAssetType(bool bInLoadIfUnknown = true) const;
 
 	FORCEINLINE bool operator==(const FAvaSoftAssetPtr& Rhs) const
 	{

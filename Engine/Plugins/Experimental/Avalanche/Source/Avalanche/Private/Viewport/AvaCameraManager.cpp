@@ -85,7 +85,7 @@ bool FAvaCameraManager::SetDefaultViewTarget(UWorld* InWorld, FName InDefaultVie
 {
 	if (!IsValid(InWorld))
 	{
-		UE_LOG(LogViewport, Error, TEXT("Error setting default view target for Avalanche BP: Null world."));
+		UE_LOG(LogViewport, Error, TEXT("Error setting default view target for Motion Design: Null world."));
 		return false;
 	}
 
@@ -103,7 +103,7 @@ bool FAvaCameraManager::SetDefaultViewTarget(UWorld* InWorld, FName InDefaultVie
 		}
 	}
 
-	UE_LOG(LogViewport, Error, TEXT("Error setting default view target for Avalanche BP: Startup camera was not found."));
+	UE_LOG(LogViewport, Error, TEXT("Error setting default view target for Motion Design: Startup camera was not found."));
 	return false;
 }
 #endif

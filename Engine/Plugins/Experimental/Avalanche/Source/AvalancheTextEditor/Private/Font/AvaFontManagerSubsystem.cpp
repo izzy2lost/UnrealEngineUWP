@@ -69,8 +69,8 @@ void UAvaFontManagerSubsystem::ClearFontsData()
 {
 	OSFontsMap.Empty();
 	ProjectFontsMap.Empty();
-	AvalancheFontsMap.Empty();
-	AvalancheFontsOptions.Empty();
+	FontsMap.Empty();
+	FontsOptions.Empty();
 	FontsToImportOnSave.Empty();
 }
 
@@ -95,8 +95,8 @@ void UAvaFontManagerSubsystem::Initialize()
 	// init OS fonts only, project fonts can be loaded lately with InitializeProjectFonts()
 	InitializeOSFonts();
 
-	RefreshAvalancheFontsMap();
-	RefreshAvalancheFontsOptions();
+	RefreshFontsMap();
+	RefreshFontsOptions();
 
 	RegisterAssetsCallbacks();
 
@@ -117,8 +117,8 @@ void UAvaFontManagerSubsystem::OnAssetsAdded(const FAssetData& InAssetData)
 	{
 		CreateProjectFont(CurrFont);
 
-		RefreshAvalancheFontsMap();
-		RefreshAvalancheFontsOptions();
+		RefreshFontsMap();
+		RefreshFontsOptions();
 
 		OnProjectFontCreatedDelegate.Broadcast(CurrFont);
 	}
@@ -144,20 +144,20 @@ void UAvaFontManagerSubsystem::OnAssetDeleted(UObject* InObject)
 		// this should allow the assets to still point to the same font, in case the deleted font is a system one
 		LoadOSFonts();
 
-		RefreshAvalancheFontsMap();
-		RefreshAvalancheFontsOptions();
+		RefreshFontsMap();
+		RefreshFontsOptions();
 	}
 }
 
 void UAvaFontManagerSubsystem::LoadFavorites()
 {
-	if (!IsValid(AvaFontManagerConfig))
+	if (!IsValid(FontManagerConfig))
 	{
 		static const FString PackageName = GetFontConfigPackageName();
 		UPackage* NewPackage = CreatePackage(*PackageName);
 		NewPackage->SetFlags(RF_Transient);
 		NewPackage->AddToRoot();
-		AvaFontManagerConfig = NewObject<UAvaFontConfig>(NewPackage, "AvalancheFontConfig", RF_Transient | RF_Transactional | RF_Standalone);
+		FontManagerConfig = NewObject<UAvaFontConfig>(NewPackage, "MotionDesignFontConfig", RF_Transient | RF_Transactional | RF_Standalone);
 	}
 }
 
@@ -246,8 +246,8 @@ bool UAvaFontManagerSubsystem::ImportAsAsset(UAvaFontObject* InFontToImport)
 					CreateProjectFont(NewFont);
 				}
 
-				RefreshAvalancheFontsMap();
-				RefreshAvalancheFontsOptions();
+				RefreshFontsMap();
+				RefreshFontsOptions();
 				OnSystemFontsUpdatedDelegate.Broadcast();
 
 				return true;
@@ -459,7 +459,7 @@ bool UAvaFontManagerSubsystem::Exec(class UWorld* InWorld, const TCHAR* InCmd, F
 	{
 		if (FParse::Command(&InCmd, TEXT("list")))
 		{
-			UE::Avalanche::Private::Fonts::ListAvailableFontFiles();
+			UE::Ava::Private::Fonts::ListAvailableFontFiles();
 			return true;
 		}
 		else if (FParse::Command(&InCmd, TEXT("refresh")))
@@ -477,9 +477,9 @@ bool UAvaFontManagerSubsystem::Exec(class UWorld* InWorld, const TCHAR* InCmd, F
 
 void UAvaFontManagerSubsystem::CombineAllFonts()
 {
-	AvalancheFontsMap.Empty();
-	AvalancheFontsMap.Append(ProjectFontsMap);
-	AvalancheFontsMap.Append(OSFontsMap);
+	FontsMap.Empty();
+	FontsMap.Append(ProjectFontsMap);
+	FontsMap.Append(OSFontsMap);
 }
 
 void UAvaFontManagerSubsystem::UnregisterAssetsCallbacks() const
@@ -557,9 +557,9 @@ void UAvaFontManagerSubsystem::LoadProjectFonts()
 
 		if (IsValid(CurrFont))
 		{
-			if (const UAvaFontObject* const NewAvalancheFontObj = CreateProjectFont(CurrFont, ProjectFontsPackage))
+			if (const UAvaFontObject* const NewAvaFontObj = CreateProjectFont(CurrFont, ProjectFontsPackage))
 			{
-				CurrFontAssetsNamesArray.Add(NewAvalancheFontObj->GetFontName());
+				CurrFontAssetsNamesArray.Add(NewAvaFontObj->GetFontName());
 				CurrFont->GetPackage()->FullyLoad();
 			}
 		}
@@ -664,15 +664,15 @@ UAvaFontObject* UAvaFontManagerSubsystem::CreateProjectFont(UFont* InSourceFont,
 					ProjectFontsPackage->AddToRoot();
 				}
 
-				UAvaFontObject* NewAvalancheFont = NewObject<UAvaFontObject>(ProjectFontsPackage, *SanitizedFontName, RF_Public | RF_Standalone | RF_Transient);
-				NewAvalancheFont->AddToRoot();
+				UAvaFontObject* NewAvaFont = NewObject<UAvaFontObject>(ProjectFontsPackage, *SanitizedFontName, RF_Public | RF_Standalone | RF_Transient);
+				NewAvaFont->AddToRoot();
 
-				NewAvalancheFont->InitProjectFont(InSourceFont, FontName);
-				UAvaFontManagerSubsystem::SetupMetrics(NewAvalancheFont);
+				NewAvaFont->InitProjectFont(InSourceFont, FontName);
+				UAvaFontManagerSubsystem::SetupMetrics(NewAvaFont);
 
-				ProjectFontsMap.Add(SanitizedFontName, NewAvalancheFont);
+				ProjectFontsMap.Add(SanitizedFontName, NewAvaFont);
 
-				return NewAvalancheFont;
+				return NewAvaFont;
 			}
 			else
 			{
@@ -686,7 +686,7 @@ UAvaFontObject* UAvaFontManagerSubsystem::CreateProjectFont(UFont* InSourceFont,
 
 void UAvaFontManagerSubsystem::LoadOSFonts()
 {
-	UE::Avalanche::Private::Fonts::GetSystemFontInfo(FontsInfoMap);
+	UE::Ava::Private::Fonts::GetSystemFontInfo(FontsInfoMap);
 
 	if (FontsInfoMap.IsEmpty())
 	{
@@ -720,8 +720,8 @@ void UAvaFontManagerSubsystem::RemoveProjectFontsFromOSFonts()
 		}
 	}
 
-	RefreshAvalancheFontsMap();
-	RefreshAvalancheFontsOptions();
+	RefreshFontsMap();
+	RefreshFontsOptions();
 	OnSystemFontsUpdatedDelegate.Broadcast();
 }
 
@@ -766,27 +766,27 @@ void UAvaFontManagerSubsystem::ImportSystemFontFamily(const FSystemFontsRetrieve
 	NewFont->FontCacheType = EFontCacheType::Runtime;
 
 	SetupFontFamilyTypefaces(NewFont, InFontParams);
-	UAvaFontObject* NewAvalancheFont = NewObject<UAvaFontObject>(ImportPackage,  *SanitizedFontFamilyName, TempFontAssetFlags);
-	NewAvalancheFont->AddToRoot();
+	UAvaFontObject* NewAvaFont = NewObject<UAvaFontObject>(ImportPackage,  *SanitizedFontFamilyName, TempFontAssetFlags);
+	NewAvaFont->AddToRoot();
 
 	FTypefaceEntry& FallbackTypefaceEntry = NewFont->CompositeFont.FallbackTypeface.Typeface.Fonts[NewFont->CompositeFont.FallbackTypeface.Typeface.Fonts.AddDefaulted()];
 	FallbackTypefaceEntry.Font = FFontData(GetFallbackFontFace());
 	FallbackTypefaceEntry.Name = FName("Regular");
 
-	NewAvalancheFont->InitSystemFont(InFontParams, NewFont);
-	UAvaFontManagerSubsystem::SetupMetrics(NewAvalancheFont);
-	OSFontsMap.Add(SanitizedFontFamilyName, NewAvalancheFont);
+	NewAvaFont->InitSystemFont(InFontParams, NewFont);
+	UAvaFontManagerSubsystem::SetupMetrics(NewAvaFont);
+	OSFontsMap.Add(SanitizedFontFamilyName, NewAvaFont);
 }
 
 void UAvaFontManagerSubsystem::SortFontsMap()
 {
-	AvalancheFontsMap.KeySort([](const FString& A, const FString& B)
+	FontsMap.KeySort([](const FString& A, const FString& B)
 	{
 		return A < B;
 	});
 }
 
-void UAvaFontManagerSubsystem::RefreshAvalancheFontsMap()
+void UAvaFontManagerSubsystem::RefreshFontsMap()
 {
 	CombineAllFonts();
 	SortFontsMap();
@@ -794,12 +794,12 @@ void UAvaFontManagerSubsystem::RefreshAvalancheFontsMap()
 
 TConstArrayView<const TSharedPtr<FAvaFontView>> UAvaFontManagerSubsystem::GetFontOptions()
 {
-	return AvalancheFontsOptions;
+	return FontsOptions;
 }
 
 TSharedPtr<FAvaFontView> UAvaFontManagerSubsystem::GetFontViewFromName(const FString& InName)
 {
-	TSharedPtr<FAvaFontView>* AvalancheFontView = AvalancheFontsOptions.FindByPredicate([&InName](const TSharedPtr<FAvaFontView>& AvaFontValue)
+	TSharedPtr<FAvaFontView>* FontView = FontsOptions.FindByPredicate([&InName](const TSharedPtr<FAvaFontView>& AvaFontValue)
 	{
 		if (AvaFontValue.IsValid() && AvaFontValue->HasValidFont())
 		{
@@ -809,9 +809,9 @@ TSharedPtr<FAvaFontView> UAvaFontManagerSubsystem::GetFontViewFromName(const FSt
 		return false;
 	});
 
-	if (AvalancheFontView)
+	if (FontView)
 	{
-		return *AvalancheFontView;
+		return *FontView;
 	}
 
 	return nullptr;
@@ -976,7 +976,7 @@ void UAvaFontManagerSubsystem::GetMultipleSelectionInformation(const TSharedPtr<
 void UAvaFontManagerSubsystem::GetFontName(const UFont* InFont, FString& OutFontName)
 {
 	// this function used to be defined here, but it has been moved to the Runtime module for easier maintenance
-	UE::Avalanche::FontUtilities::Public::GetFontName(InFont, OutFontName);
+	UE::Ava::FontUtilities::Public::GetFontName(InFont, OutFontName);
 }
 
 void UAvaFontManagerSubsystem::GetSanitizedFontName(const UFont* InFont, FString& OutFontName)
@@ -988,13 +988,13 @@ void UAvaFontManagerSubsystem::GetSanitizedFontName(const UFont* InFont, FString
 	}
 }
 
-void UAvaFontManagerSubsystem::RefreshAvalancheFontsOptions()
+void UAvaFontManagerSubsystem::RefreshFontsOptions()
 {
-	AvalancheFontsOptions.Empty();
+	FontsOptions.Empty();
 
 	int32 Count = 0;
 
-	for (const TPair<FString, TObjectPtr<UAvaFontObject>>& Elem : AvalancheFontsMap)
+	for (const TPair<FString, TObjectPtr<UAvaFontObject>>& Elem : FontsMap)
 	{
 		FString ElemFontName = Elem.Key;
 		const TObjectPtr<UAvaFontObject>& FontObject = Elem.Value;
@@ -1005,7 +1005,7 @@ void UAvaFontManagerSubsystem::RefreshAvalancheFontsOptions()
 			FAvaFont FontOption = FAvaFont(FontObject.Get());
 			const bool bFontIsFavorite = IsFavoriteFont(FontOption.GetFontNameAsString());
 			FontOption.SetFavorite(bFontIsFavorite);
-			AvalancheFontsOptions.Add(FAvaFontView::Make(FontOption));
+			FontsOptions.Add(FAvaFontView::Make(FontOption));
 
 			if (FontObject->GetFont() == FAvaFont::GetDefaultFont())
 			{
@@ -1022,9 +1022,9 @@ void UAvaFontManagerSubsystem::AddFavorite(const FString& InFontName)
 	// does something only if needed
 	LoadFavorites();
 
-	if (IsValid(AvaFontManagerConfig))
+	if (IsValid(FontManagerConfig))
 	{
-		AvaFontManagerConfig->AddFavoriteFont(InFontName);
+		FontManagerConfig->AddFavoriteFont(InFontName);
 	}
 }
 
@@ -1033,9 +1033,9 @@ void UAvaFontManagerSubsystem::RemoveFavorite(const FString& InFontName)
 	// does something only if needed
 	LoadFavorites();
 
-	if (IsValid(AvaFontManagerConfig))
+	if (IsValid(FontManagerConfig))
 	{
-		AvaFontManagerConfig->RemoveFavoriteFont(InFontName);
+		FontManagerConfig->RemoveFavoriteFont(InFontName);
 	}
 }
 
@@ -1044,9 +1044,9 @@ bool UAvaFontManagerSubsystem::IsFavoriteFont(const FString& InFontName)
 	// does something only if needed
 	LoadFavorites();
 
-	if (IsValid(AvaFontManagerConfig))
+	if (IsValid(FontManagerConfig))
 	{
-		return AvaFontManagerConfig->IsFavoriteFont(InFontName);
+		return FontManagerConfig->IsFavoriteFont(InFontName);
 	}
 
 	return false;
@@ -1127,7 +1127,7 @@ void UAvaFontManagerSubsystem::FontsAutoImportPreSave(UWorld* InWorld, FObjectPr
 
 UAvaFontConfig* UAvaFontManagerSubsystem::GetFontManagerConfig()
 {
-	return AvaFontManagerConfig;
+	return FontManagerConfig;
 }
 
 bool UAvaFontManagerSubsystem::IsFontMonospaced(const UFont* const InFont)
@@ -1224,7 +1224,7 @@ void UAvaFontManagerSubsystem::CleanFreeTypeLibrary()
 	}
 }
 
-//////// UAvalancheFontConfig ////////
+//////// UAvaFontConfig ////////
 
 bool UAvaFontConfig::IsFavoriteFont(const FString& InFontName) const
 {

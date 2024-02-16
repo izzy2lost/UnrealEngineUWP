@@ -6,7 +6,7 @@
 
 class SAvaLevelViewportFrame;
 
-class SAvaLevelViewportRuler : public UE::AvalancheLevelViewport::Private::SRuler
+class SAvaLevelViewportRuler : public UE::AvaLevelViewport::Private::SRuler
 {
 public:
 	SLATE_BEGIN_ARGS(SAvaLevelViewportRuler)

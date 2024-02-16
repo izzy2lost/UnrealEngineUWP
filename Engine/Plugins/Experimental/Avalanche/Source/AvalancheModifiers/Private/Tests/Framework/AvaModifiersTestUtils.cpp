@@ -18,7 +18,7 @@
 #include "Tests/Framework/AvaTestDynamicMeshActor.h"
 #include "Tests/Framework/AvaTestStaticMeshActor.h"
 
-// General Avalanche Modifiers unit test log
+// General Motion Design Modifiers unit test log
 DEFINE_LOG_CATEGORY(LogAvaModifiersTest);
 
 FAvaModifierTestUtils::FAvaModifierTestUtils(TSharedPtr<FAvaTestUtils> InTestUtils)

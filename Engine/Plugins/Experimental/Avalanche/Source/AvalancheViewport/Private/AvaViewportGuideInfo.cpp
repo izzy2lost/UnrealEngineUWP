@@ -4,7 +4,7 @@
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
 
-namespace UE::AvalancheViewport::Private
+namespace UE::AvaViewport::Private
 {
 	static const FString IsHorizontalFieldName = TEXT("IsHorizontal");
 	static const FString OffsetFieldName = TEXT("Offset");
@@ -14,7 +14,7 @@ namespace UE::AvalancheViewport::Private
 
 bool FAvaViewportGuideInfo::DeserializeJson(const TSharedRef<FJsonObject>& InJsonObject, FAvaViewportGuideInfo& OutGuideInfo, const FVector2f& InViewportSize)
 {
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	bool bValid = false;
 
@@ -58,7 +58,7 @@ bool FAvaViewportGuideInfo::DeserializeJson(const TSharedRef<FJsonObject>& InJso
 
 bool FAvaViewportGuideInfo::SerializeJson(const TSharedRef<FJsonObject>& InJsonObject, const FVector2f& InViewportSize) const
 {
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	const bool bIsHorziontal = Orientation == EOrientation::Orient_Horizontal;
 

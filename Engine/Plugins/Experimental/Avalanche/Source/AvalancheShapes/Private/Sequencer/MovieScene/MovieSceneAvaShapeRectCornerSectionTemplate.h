@@ -121,7 +121,7 @@ template<> FMovieSceneAnimTypeID GetBlendingDataType<FAvaShapeRectangleCornerSet
 
 template<> struct TBlendableTokenTraits<FAvaShapeRectangleCornerSettings>
 {
-	typedef UE::MovieScene::FBlendableShapeRectCorner WorkingDataType;
+	using WorkingDataType = UE::MovieScene::FBlendableShapeRectCorner;
 };
 
 USTRUCT()

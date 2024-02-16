@@ -11,7 +11,7 @@
 
 class IAvaComponentVisualizersViewportOverlay;
 
-namespace UE::AvalancheComponentVisualizers
+namespace UE::AvaComponentVisualizers
 {
 	const FName ModuleName = TEXT("AvalancheComponentVisualizers");
 }
@@ -21,12 +21,12 @@ class IAvalancheComponentVisualizersModule : public IModuleInterface
 public:
 	static IAvalancheComponentVisualizersModule& Get()
 	{
-		return FModuleManager::LoadModuleChecked<IAvalancheComponentVisualizersModule>(UE::AvalancheComponentVisualizers::ModuleName);
+		return FModuleManager::LoadModuleChecked<IAvalancheComponentVisualizersModule>(UE::AvaComponentVisualizers::ModuleName);
 	}
 
 	static IAvalancheComponentVisualizersModule* GetIfLoaded()
 	{
-		return FModuleManager::LoadModulePtr<IAvalancheComponentVisualizersModule>(UE::AvalancheComponentVisualizers::ModuleName);
+		return FModuleManager::LoadModulePtr<IAvalancheComponentVisualizersModule>(UE::AvaComponentVisualizers::ModuleName);
 	}
 
 	/** Could also use a TSet or custom storage class. */

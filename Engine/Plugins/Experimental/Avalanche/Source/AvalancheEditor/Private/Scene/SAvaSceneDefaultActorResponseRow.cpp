@@ -15,7 +15,7 @@
 
 #define LOCTEXT_NAMESPACE "SAvaSceneDefaultActorResponseRow"
 
-namespace UE::AvalancheEditor::Private
+namespace UE::AvaEditor::Private
 {
 	static const FMargin AvaSceneDefaultActorResponseRowPadding = FMargin(5.f, 5.f);
 }
@@ -71,7 +71,7 @@ TSharedRef<SWidget> SAvaSceneDefaultActorResponseRow::GenerateWidgetForColumn(co
 
 TSharedRef<SWidget> SAvaSceneDefaultActorResponseRow::GenerateRow_Description()
 {
-	using namespace UE::AvalancheEditor::Private;
+	using namespace UE::AvaEditor::Private;
 
 	FSlateIcon ActorIcon = FSlateIconFinder::FindIconForClass(AActor::StaticClass());
 
@@ -109,7 +109,7 @@ TSharedRef<SWidget> SAvaSceneDefaultActorResponseRow::GenerateRow_Description()
 
 TSharedRef<SWidget> SAvaSceneDefaultActorResponseRow::GenerateRow_Actor()
 {
-	using namespace UE::AvalancheEditor::Private;
+	using namespace UE::AvaEditor::Private;
 
 	TSharedPtr<SWidget> ActorContent;
 	TSharedPtr<SAvaSceneDefaultActorResponses> ActorResponses = ActorResponsesWeak.Pin();
@@ -166,7 +166,7 @@ TSharedRef<SWidget> SAvaSceneDefaultActorResponseRow::GenerateRow_Actor()
 
 TSharedRef<SWidget> SAvaSceneDefaultActorResponseRow::GenerateRow_CreateNew()
 {
-	using namespace UE::AvalancheEditor::Private;
+	using namespace UE::AvaEditor::Private;
 
 	return SNew(SBox)
 		.HAlign(HAlign_Center)
@@ -183,7 +183,7 @@ TSharedRef<SWidget> SAvaSceneDefaultActorResponseRow::GenerateRow_CreateNew()
 
 TSharedRef<SWidget> SAvaSceneDefaultActorResponseRow::GenerateRow_Replace()
 {
-	using namespace UE::AvalancheEditor::Private;
+	using namespace UE::AvaEditor::Private;
 
 	return SNew(SBox)
 		.HAlign(HAlign_Center)
@@ -200,7 +200,7 @@ TSharedRef<SWidget> SAvaSceneDefaultActorResponseRow::GenerateRow_Replace()
 
 TSharedRef<SWidget> SAvaSceneDefaultActorResponseRow::GenerateRow_Update()
 {
-	using namespace UE::AvalancheEditor::Private;
+	using namespace UE::AvaEditor::Private;
 
 	return SNew(SBox)
 		.HAlign(HAlign_Center)
@@ -217,7 +217,7 @@ TSharedRef<SWidget> SAvaSceneDefaultActorResponseRow::GenerateRow_Update()
 
 TSharedRef<SWidget> SAvaSceneDefaultActorResponseRow::GenerateRow_Enabled()
 {
-	using namespace UE::AvalancheEditor::Private;
+	using namespace UE::AvaEditor::Private;
 
 	return SNew(SBox)
 		.HAlign(HAlign_Center)

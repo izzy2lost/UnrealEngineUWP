@@ -12,7 +12,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaEditorWidgetUtils"
 
-namespace UE::AvalancheEditor::Private
+namespace UE::AvaEditor::Private
 {
 	void GetWidgetChildrenOfClass(const TSharedRef<SWidget>& Widget, const FName& WidgetClassName, TArray<TSharedRef<SWidget>>& Widgets)
 	{
@@ -37,7 +37,7 @@ TArray<TSharedRef<SWidget>> FAvaEditorWidgetUtils::GetWidgetChildrenOfClass(cons
 {
 	TArray<TSharedRef<SWidget>> Widgets;
 
-	UE::AvalancheEditor::Private::GetWidgetChildrenOfClass(InWidget.ToSharedRef(), InWidgetClass.GetWidgetType(), Widgets);
+	UE::AvaEditor::Private::GetWidgetChildrenOfClass(InWidget.ToSharedRef(), InWidgetClass.GetWidgetType(), Widgets);
 
 	return Widgets;
 }

@@ -33,7 +33,7 @@ void FAvaMaskSceneViewExtension::SetupView(
 	// Don't apply without this setting
 	if (GetDefault<URendererSettings>()->CustomDepthStencil != ECustomDepthStencil::EnabledWithStencil)
 	{
-		UE_LOG(LogAvalancheMaskEditor, Warning, TEXT("The Mask overlay requires CustomDepth to be \"EnabledWithStencil\" in Project Settings."))
+		UE_LOG(LogAvaMaskEditor, Warning, TEXT("The Mask overlay requires CustomDepth to be \"EnabledWithStencil\" in Project Settings."))
 	}
 	else
 	{

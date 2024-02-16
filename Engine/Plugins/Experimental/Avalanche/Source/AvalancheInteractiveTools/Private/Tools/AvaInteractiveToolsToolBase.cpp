@@ -27,7 +27,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaInteractiveToolsToolBase"
 
-namespace UE::AvalancheInteractiveTools::Private
+namespace UE::AvaInteractiveTools::Private
 {
 	static const FName AvaITFToolPresetMenuName = "AvaITFToolPresetMenu";
 }
@@ -186,7 +186,7 @@ bool UAvaInteractiveToolsToolBase::ConditionalIdentityRotation() const
 				return false;
 			}
 
-			return !IsAvalancheViewport();
+			return !IsMotionDesignViewport();
 
 		default:
 		case EAvaInteractiveToolsDefaultActionAlignment::Axis:
@@ -626,7 +626,7 @@ void UAvaInteractiveToolsToolBase::RequestShutdown(EToolShutdownType InShutdownT
 	FAvalancheInteractiveToolsModule::Get().OnToolDeactivated();
 }
 
-bool UAvaInteractiveToolsToolBase::IsAvalancheViewport() const
+bool UAvaInteractiveToolsToolBase::IsMotionDesignViewport() const
 {
 	if (IToolsContextQueriesAPI* ContextAPI = GetToolManager()->GetContextQueriesAPI())
 	{
@@ -634,7 +634,7 @@ bool UAvaInteractiveToolsToolBase::IsAvalancheViewport() const
 		{
 			if (TSharedPtr<IAvaViewportClient> AvaViewportClient = FAvaViewportUtils::GetAvaViewportClient(Viewport))
 			{
-				return AvaViewportClient->IsAvalancheViewport();
+				return AvaViewportClient->IsMotionDesignViewport();
 			}
 		}
 	}
@@ -661,7 +661,7 @@ bool UAvaInteractiveToolsToolBase::ShouldUsePresetMenu() const
 
 void UAvaInteractiveToolsToolBase::ShowPresetMenu()
 {
-	using namespace UE::AvalancheInteractiveTools::Private;
+	using namespace UE::AvaInteractiveTools::Private;
 
 	RegisterPresetMenu();
 
@@ -709,7 +709,7 @@ void UAvaInteractiveToolsToolBase::OnPresetSelected(TStrongObjectPtr<UAvaInterac
 
 void UAvaInteractiveToolsToolBase::RegisterPresetMenu()
 {
-	using namespace UE::AvalancheInteractiveTools::Private;
+	using namespace UE::AvaInteractiveTools::Private;
 
 	UToolMenus* ToolMenus = UToolMenus::Get();
 

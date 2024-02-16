@@ -23,7 +23,7 @@ struct HAvaEffectorActorZoneHitProxy : HAvaHitProxy
 class FAvaEffectorActorVisualizer : public FAvaVisualizerBase
 {
 public:
-	typedef FAvaVisualizerBase Super;
+	using Super = FAvaVisualizerBase;
 
 	FAvaEffectorActorVisualizer();
 

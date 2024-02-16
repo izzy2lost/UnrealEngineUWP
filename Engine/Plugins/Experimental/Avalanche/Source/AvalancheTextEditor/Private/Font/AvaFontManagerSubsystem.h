@@ -119,7 +119,7 @@ public:
 
 	int32 GetDefaultFontIndex() const { return DefaultFontIndex; }
 
-	/** Given a Property Handle, tries to retrieve and return a font view from AvalancheFontsOptions */
+	/** Given a Property Handle, tries to retrieve and return a font view from FontsOptions */
 	TSharedPtr<FAvaFontView> GetFontViewFromPropertyHandle(const TSharedPtr<IPropertyHandle>& InFontPropertyHandle, FPropertyAccess::Result& OutAccessResult);
 
 	FOnProjectFontsChange& OnProjectFontCreated() { return OnProjectFontCreatedDelegate; }
@@ -140,7 +140,7 @@ private:
 	static void SetupFontFamilyTypefaces(UFont* InFont, const FSystemFontsRetrieveParams& InFontParams);
 
 	/**
-	 * Initializes OS fonts and Avalanche fonts data structures
+	 * Initializes OS fonts and Motion Design fonts data structures
 	 * Since this is called before project assets are available, it will NOT initialize project fonts.
 	 * That is done later by InitializeProjectFonts function.
 	 */
@@ -159,10 +159,10 @@ private:
 
 	UAvaFontObject* CreateProjectFont(UFont* InSourceFont, UPackage* InProjectFontsPackage = nullptr);
 
-	/** Given a font name, tries to retrieve and return a font from AvalancheFontsOptions */
+	/** Given a font name, tries to retrieve and return a font from FontsOptions */
 	TSharedPtr<FAvaFontView> GetFontViewFromName(const FString& InName);
 
-	/** Given a Property Handle, tries to retrieve and return a font from AvalancheFontsOptions as a raw pointer */
+	/** Given a Property Handle, tries to retrieve and return a font from FontsOptions as a raw pointer */
 	TSharedPtr<FAvaFontView> GetFontViewFromPropertyHandle(const TSharedPtr<IPropertyHandle>& InFontPropertyHandle);
 
 	void ClearFontsData();
@@ -172,8 +172,8 @@ private:
 	void LoadOSFonts();
 	void LoadProjectFonts();
 	void RemoveProjectFontsFromOSFonts();
-	void RefreshAvalancheFontsMap();
-	void RefreshAvalancheFontsOptions();
+	void RefreshFontsMap();
+	void RefreshFontsOptions();
 	void SortFontsMap();
 	void ImportSystemFontFamily(const FSystemFontsRetrieveParams& InFontParams, UPackage* InImportPackage);
 	void UnmarkFontFromAutoImport(const TSharedPtr<IPropertyHandle>& InFontToUnregister);
@@ -220,7 +220,7 @@ private:
 
 	/** used for custom config - e.g. favorite fonts */
 	UPROPERTY(Transient)
-	TObjectPtr<UAvaFontConfig> AvaFontManagerConfig;
+	TObjectPtr<UAvaFontConfig> FontManagerConfig;
 
 	/** Fonts available from the OS */
 	UPROPERTY(Transient)
@@ -232,12 +232,12 @@ private:
 
 	/** OS + current project fonts combined */
 	UPROPERTY(Transient)
-	TMap<FString, TObjectPtr<UAvaFontObject>> AvalancheFontsMap;
+	TMap<FString, TObjectPtr<UAvaFontObject>> FontsMap;
 
 	/** Caching font options here, so that details panel can get them right away */
-	TArray<TSharedPtr<FAvaFontView>> AvalancheFontsOptions;
+	TArray<TSharedPtr<FAvaFontView>> FontsOptions;
 
-	/** Used to allow auto font import on ava bp and level editor save  */
+	/** Used to allow auto font import on Motion Design asset save */
 	TMap<TSharedPtr<FAvaFontView>, TSharedPtr<IPropertyHandle>> FontsToImportOnSave;
 
 	TMap<FString, FSystemFontsRetrieveParams> FontsInfoMap;

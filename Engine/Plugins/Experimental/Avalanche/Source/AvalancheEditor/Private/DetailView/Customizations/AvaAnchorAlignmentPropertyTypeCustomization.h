@@ -11,7 +11,7 @@ class IDetailChildrenBuilder;
 class IPropertyHandle;
 
 /**
- * Avalanche Anchor Alignment Customization
+ * Motion Design Anchor Alignment Customization
  * 
  * Shows a grid of buttons for setting anchor alignment in the following layout:
  * [HLeft ] [HCenter] [HRight ]

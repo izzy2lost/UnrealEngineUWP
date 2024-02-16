@@ -13,7 +13,7 @@ class UMaterialInstanceDynamic;
 class UMaterialInterface;
 struct FAvaShapeMaterialUVParameters;
 
-namespace UE::AvalancheShapes
+namespace UE::AvaShapes
 {
 	FVector2D AVALANCHESHAPES_API FindClosestPointOnLine(const FVector2D& LineStart, const FVector2D& LineEnd, const FVector2D& TestPoint);
 

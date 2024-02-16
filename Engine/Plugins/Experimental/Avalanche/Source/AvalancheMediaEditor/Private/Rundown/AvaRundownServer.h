@@ -176,7 +176,7 @@ private:
 
 		FDelegateHandle OnPlaybackInstanceStatusChangedDelegateHandle;
 		
-		typedef TFunctionRef<void(UAvaRundown*)> FRundownEventFunction;
+		using FRundownEventFunction = TFunctionRef<void(UAvaRundown*)>;
 		
 		/**
 		 * Returns requested rundown specified by InRundownPath. Will load it if necessary or returned the cached one if it is the same.

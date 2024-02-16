@@ -16,7 +16,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaViewportBackgroundVisualizer"
 
-namespace UE::AvalancheViewport::Private
+namespace UE::AvaViewport::Private
 {
 	const FString BackgroundReferencerName = FString(TEXT("AvaViewportBackgroundVisualizer"));
 	const FName TextureObjectName = FName(TEXT("TextureObject"));
@@ -80,7 +80,7 @@ void FAvaViewportBackgroundVisualizer::AddReferencedObjects(FReferenceCollector&
 
 FString FAvaViewportBackgroundVisualizer::GetReferencerName() const
 {
-	return UE::AvalancheViewport::Private::BackgroundReferencerName;
+	return UE::AvaViewport::Private::BackgroundReferencerName;
 }
 
 void FAvaViewportBackgroundVisualizer::UpdateForViewport(const FAvaVisibleArea& InVisibleArea, const FVector2f& InWidgetSize, 
@@ -108,7 +108,7 @@ void FAvaViewportBackgroundVisualizer::UpdateForViewport(const FAvaVisibleArea& 
 		return;
 	}
 
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	const float ImageAspectRatio = ImageSize.X / ImageSize.Y;
 	const float WidgetAspectRatio = InWidgetSize.X / InWidgetSize.Y;
@@ -176,7 +176,7 @@ void FAvaViewportBackgroundVisualizer::UpdatePostProcessMaterial()
 
 	Super::UpdatePostProcessMaterial();
 
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	PostProcessMaterial->SetTextureParameterValue(TextureObjectName, Texture);
 }

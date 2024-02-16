@@ -14,7 +14,7 @@ class IAvaEditor;
 DECLARE_LOG_CATEGORY_EXTERN(AvaLog, Log, All);
 
 /**
- * Main Avalanche Editor Module
+ * Main Motion Design Editor Module
  */
 class FAvaEditorModule : public IModuleInterface
 {
@@ -27,7 +27,7 @@ public:
 	static FSlateIcon GetOutlinerShapeActorIcon(TSharedPtr<const FAvaOutlinerItem> InItem);
 	
 private:
-	/** Avalanche for the Level Editor*/
+	/** Motion Design Level Editor */
 	TSharedPtr<IAvaEditor> AvaLevelEditor;
 
 	void CreateAvaLevelEditor();

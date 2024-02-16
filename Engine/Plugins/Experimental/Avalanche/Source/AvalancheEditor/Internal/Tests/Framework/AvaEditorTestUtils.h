@@ -6,8 +6,7 @@
 #include "Math/MathFwd.h"
 #include "Tests/Framework/AvaTestUtils.h"
 
-
-// General Avalanche Editor unit test log
+// General Motion Design Editor unit test log
 DECLARE_LOG_CATEGORY_EXTERN(LogAvaEditorTest, Log, All);
 
 class AActor;

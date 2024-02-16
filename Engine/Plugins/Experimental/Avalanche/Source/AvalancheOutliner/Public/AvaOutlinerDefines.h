@@ -11,10 +11,10 @@ class AActor;
 class IAvaOutlinerItem;
 class USceneComponent;
 
-typedef TPair<FName, FLinearColor>   FAvaOutlinerColorPair;
-typedef const IAvaOutlinerItem&      FAvaOutlinerFilterType;
-typedef TSharedPtr<IAvaOutlinerItem> FAvaOutlinerItemPtr;
-typedef TWeakPtr<IAvaOutlinerItem>   FAvaOutlinerItemWeakPtr;
+using FAvaOutlinerColorPair = TPair<FName, FLinearColor>;
+using FAvaOutlinerFilterType = const IAvaOutlinerItem&;
+using FAvaOutlinerItemPtr = TSharedPtr<IAvaOutlinerItem>;
+using FAvaOutlinerItemWeakPtr = TWeakPtr<IAvaOutlinerItem>;
 
 enum class EAvaOutlinerItemFlags : uint8
 {

@@ -4,7 +4,7 @@
 
 #include "Misc/Guid.h"
 
-/** Version used for serializing Avalanche Outliner Data */
+/** Version used for serializing Motion Design Outliner Data */
 struct FAvaOutlinerVersion
 {
 private:
@@ -25,7 +25,7 @@ public:
 		/** Outliner View: Serialization of Outliner Column Visibility */
 		ColumnVisibility,
 
-		/** Outliner: Moved Item Ordering Serialization to using Avalanche Scene Tree */
+		/** Outliner: Moved Item Ordering Serialization to using Motion Design Scene Tree */
 		SceneTree,
 
 		/** Outliner: Changed Item Id to be Full Object Path String rather than just the Sub String */

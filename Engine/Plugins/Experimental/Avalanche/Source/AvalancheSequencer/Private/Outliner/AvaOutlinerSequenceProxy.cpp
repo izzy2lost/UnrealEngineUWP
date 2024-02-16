@@ -100,13 +100,13 @@ void FAvaOutlinerSequenceProxy::GetProxiedItems(const TSharedRef<IAvaOutlinerIte
 {
 	if (const FAvaOutlinerActor* const ActorItem = InParent->CastTo<FAvaOutlinerActor>())
 	{
-		TSharedPtr<IAvaSequencer> AvalancheSequencer = AvaSequencerWeak.Pin();
+		TSharedPtr<IAvaSequencer> AvaSequencer = AvaSequencerWeak.Pin();
 
 		AActor* const Actor = ActorItem->GetActor();
 		
-		if (AvalancheSequencer.IsValid() && IsValid(Actor))
+		if (AvaSequencer.IsValid() && IsValid(Actor))
 		{
-			const TArray<UAvaSequence*> Sequences = AvalancheSequencer->GetSequencesForObject(Actor);
+			const TArray<UAvaSequence*> Sequences = AvaSequencer->GetSequencesForObject(Actor);
 			
 			for (UAvaSequence* const Sequence : Sequences)
 			{

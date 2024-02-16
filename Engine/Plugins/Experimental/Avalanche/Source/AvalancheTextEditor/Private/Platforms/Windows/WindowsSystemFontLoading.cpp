@@ -12,7 +12,7 @@ THIRD_PARTY_INCLUDES_START
 #include "Microsoft/HideMicrosoftPlatformTypes.h"
 THIRD_PARTY_INCLUDES_END
 
-namespace UE::Avalanche::Private::Fonts
+namespace UE::Ava::Private::Fonts
 {
 	struct FSystemFontRetrieveStruct
 	{

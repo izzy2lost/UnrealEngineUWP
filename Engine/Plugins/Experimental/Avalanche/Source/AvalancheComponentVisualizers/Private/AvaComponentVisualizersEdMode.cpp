@@ -9,7 +9,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaComponentVisualizersEdMode"
 
-namespace UE::AvalancheComponentVisualizers::Private
+namespace UE::AvaComponentVisualizers::Private
 {
 	struct FAvaViewportClientAndVisualizer
 	{
@@ -81,7 +81,7 @@ UAvaComponentVisualizersEdMode::UAvaComponentVisualizersEdMode()
 		false);
 }
 
-namespace UE::AvalancheComponentVisualizers::Private
+namespace UE::AvaComponentVisualizers::Private
 {
 	const TArray<UE::Widget::EWidgetMode> WidgetModes = {
 			UE::Widget::WM_Translate,
@@ -94,7 +94,7 @@ void UAvaComponentVisualizersEdMode::ModeTick(float DeltaTime)
 {
 	Super::ModeTick(DeltaTime);
 
-	UE::AvalancheComponentVisualizers::Private::FAvaViewportClientAndVisualizer VisualizerAndClient(this);
+	UE::AvaComponentVisualizers::Private::FAvaViewportClientAndVisualizer VisualizerAndClient(this);
 
 	if (VisualizerAndClient.ActiveVisualizer.IsValid())
 	{
@@ -116,7 +116,7 @@ void UAvaComponentVisualizersEdMode::ModeTick(float DeltaTime)
 			}
 		}
 			
-		for (UE::Widget::EWidgetMode WidgetMode : UE::AvalancheComponentVisualizers::Private::WidgetModes)
+		for (UE::Widget::EWidgetMode WidgetMode : UE::AvaComponentVisualizers::Private::WidgetModes)
 		{
 			if (WidgetMode == CurrentModeStart)
 			{
@@ -146,7 +146,7 @@ void UAvaComponentVisualizersEdMode::Exit()
 
 EAxisList::Type UAvaComponentVisualizersEdMode::GetWidgetAxisToDraw(UE::Widget::EWidgetMode InWidgetMode) const
 {
-	UE::AvalancheComponentVisualizers::Private::FAvaViewportClientAndVisualizer VCnV(this);
+	UE::AvaComponentVisualizers::Private::FAvaViewportClientAndVisualizer VCnV(this);
 
 	EAxisList::Type AxisList = EAxisList::XYZ;
 
@@ -160,7 +160,7 @@ EAxisList::Type UAvaComponentVisualizersEdMode::GetWidgetAxisToDraw(UE::Widget::
 
 FVector UAvaComponentVisualizersEdMode::GetWidgetLocation() const
 {
-	UE::AvalancheComponentVisualizers::Private::FAvaViewportClientAndVisualizer VCnV(this);
+	UE::AvaComponentVisualizers::Private::FAvaViewportClientAndVisualizer VCnV(this);
 
 	FVector WidgetLocation = FVector::ZeroVector;
 
@@ -174,7 +174,7 @@ FVector UAvaComponentVisualizersEdMode::GetWidgetLocation() const
 
 bool UAvaComponentVisualizersEdMode::UsesTransformWidget(UE::Widget::EWidgetMode CheckMode) const
 {
-	UE::AvalancheComponentVisualizers::Private::FAvaViewportClientAndVisualizer VCnV(this);
+	UE::AvaComponentVisualizers::Private::FAvaViewportClientAndVisualizer VCnV(this);
 
 	if (VCnV.ActiveVisualizer)
 	{
@@ -192,7 +192,7 @@ bool UAvaComponentVisualizersEdMode::UsesTransformWidget(UE::Widget::EWidgetMode
 
 FVector UAvaComponentVisualizersEdMode::GetWidgetNormalFromCurrentAxis(void* InData)
 {
-	UE::AvalancheComponentVisualizers::Private::FAvaViewportClientAndVisualizer VCnV(this);
+	UE::AvaComponentVisualizers::Private::FAvaViewportClientAndVisualizer VCnV(this);
 
 	FVector WidgetNormal = FVector::ZeroVector;
 	UE::Widget::EWidgetMode WidgetMode;
@@ -246,7 +246,7 @@ void UAvaComponentVisualizersEdMode::SetCurrentWidgetAxis(EAxisList::Type InAxis
 
 EAxisList::Type UAvaComponentVisualizersEdMode::GetCurrentWidgetAxis() const
 {
-	UE::AvalancheComponentVisualizers::Private::FAvaViewportClientAndVisualizer VCnV(this);
+	UE::AvaComponentVisualizers::Private::FAvaViewportClientAndVisualizer VCnV(this);
 
 	EAxisList::Type AxisList = EAxisList::XYZ;
 
@@ -280,14 +280,14 @@ bool UAvaComponentVisualizersEdMode::UsesPropertyWidgets() const
 
 bool UAvaComponentVisualizersEdMode::GetCustomDrawingCoordinateSystem(FMatrix& OutMatrix, void* InData)
 {
-	UE::AvalancheComponentVisualizers::Private::FAvaViewportClientAndVisualizer VCnV(this);
+	UE::AvaComponentVisualizers::Private::FAvaViewportClientAndVisualizer VCnV(this);
 
 	return VCnV.ActiveVisualizer && VCnV.ActiveVisualizer->GetCustomInputCoordinateSystem(VCnV.EditorViewportClient, OutMatrix);
 }
 
 bool UAvaComponentVisualizersEdMode::GetCustomInputCoordinateSystem(FMatrix& OutMatrix, void* InData)
 {
-	UE::AvalancheComponentVisualizers::Private::FAvaViewportClientAndVisualizer VCnV(this);
+	UE::AvaComponentVisualizers::Private::FAvaViewportClientAndVisualizer VCnV(this);
 
 	return VCnV.ActiveVisualizer && VCnV.ActiveVisualizer->GetCustomInputCoordinateSystem(VCnV.EditorViewportClient, OutMatrix);
 }

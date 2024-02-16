@@ -148,7 +148,7 @@ void UAvaOutlineModifier::Apply()
 			if (UAvaShapeDynamicMeshBase* ShapeGenerator = ShapeActor->GetDynamicMesh())
 			{
 				FAvaShapeMaterialUVParameters& UVParams = *ShapeGenerator->GetInUseMaterialUVParams(UAvaShapeDynamicMeshBase::MESH_INDEX_PRIMARY);
-				UE::AvalancheShapes::TransformMeshUVs(EditMesh, Result.NewUVElements, UVParams, FVector2D(Size3D.Y,Size3D.Z), FVector2D(0.5, 0.5), 0.f);
+				UE::AvaShapes::TransformMeshUVs(EditMesh, Result.NewUVElements, UVParams, FVector2D(Size3D.Y,Size3D.Z), FVector2D(0.5, 0.5), 0.f);
 			}
 		}
 	});

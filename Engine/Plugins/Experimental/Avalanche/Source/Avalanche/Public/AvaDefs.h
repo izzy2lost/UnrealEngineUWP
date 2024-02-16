@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -8,7 +8,7 @@
 #include "AvaDefs.generated.h"
 
 // Single-axis exclusive bitflag map
-namespace UE::Avalanche::AnchorPoints
+namespace UE::Ava::AnchorPoints
 {
 	constexpr int32 None       = 0;
 	constexpr int32 Left       = 1 << 0; // Y- = 1
@@ -28,17 +28,17 @@ namespace UE::Avalanche::AnchorPoints
 UENUM(BlueprintType)
 enum class EAvaAnchors : uint8
 {
-	None = UE::Avalanche::AnchorPoints::None UMETA(Hidden),
-	TopLeft = UE::Avalanche::AnchorPoints::Top + UE::Avalanche::AnchorPoints::Left,
-	Top = UE::Avalanche::AnchorPoints::Top + UE::Avalanche::AnchorPoints::HMiddle,
-	TopRight = UE::Avalanche::AnchorPoints::Top + UE::Avalanche::AnchorPoints::Right,
-	Left = UE::Avalanche::AnchorPoints::VMiddle + UE::Avalanche::AnchorPoints::Left,
-	Center = UE::Avalanche::AnchorPoints::VMiddle + UE::Avalanche::AnchorPoints::HMiddle,
-	Right = UE::Avalanche::AnchorPoints::VMiddle + UE::Avalanche::AnchorPoints::Right,
-	BottomLeft = UE::Avalanche::AnchorPoints::Bottom + UE::Avalanche::AnchorPoints::Left,
-	Bottom = UE::Avalanche::AnchorPoints::Bottom + UE::Avalanche::AnchorPoints::HMiddle,
-	BottomRight = UE::Avalanche::AnchorPoints::Bottom + UE::Avalanche::AnchorPoints::Right,
-	Custom = UE::Avalanche::AnchorPoints::Custom
+	None = UE::Ava::AnchorPoints::None UMETA(Hidden),
+	TopLeft = UE::Ava::AnchorPoints::Top + UE::Ava::AnchorPoints::Left,
+	Top = UE::Ava::AnchorPoints::Top + UE::Ava::AnchorPoints::HMiddle,
+	TopRight = UE::Ava::AnchorPoints::Top + UE::Ava::AnchorPoints::Right,
+	Left = UE::Ava::AnchorPoints::VMiddle + UE::Ava::AnchorPoints::Left,
+	Center = UE::Ava::AnchorPoints::VMiddle + UE::Ava::AnchorPoints::HMiddle,
+	Right = UE::Ava::AnchorPoints::VMiddle + UE::Ava::AnchorPoints::Right,
+	BottomLeft = UE::Ava::AnchorPoints::Bottom + UE::Ava::AnchorPoints::Left,
+	Bottom = UE::Ava::AnchorPoints::Bottom + UE::Ava::AnchorPoints::HMiddle,
+	BottomRight = UE::Ava::AnchorPoints::Bottom + UE::Ava::AnchorPoints::Right,
+	Custom = UE::Ava::AnchorPoints::Custom
 };
 
 UENUM(BlueprintType)
@@ -106,7 +106,7 @@ constexpr auto ToUnderlyingType(Enum Val)
 	return static_cast<std::underlying_type_t<Enum>>(Val);
 }
 
-typedef int32 AvaAlignment; // xyz
+using AvaAlignment = int32; // xyz
 
 // alignment for X (Depth)
 template<typename AvaAlignment>

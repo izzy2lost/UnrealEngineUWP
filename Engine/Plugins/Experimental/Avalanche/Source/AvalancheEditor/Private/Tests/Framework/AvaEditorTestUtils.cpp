@@ -9,7 +9,7 @@
 #include "Math/Rotator.h"
 #include "Misc/AutomationTest.h"
 
-// General Avalanche Editor unit test log
+// General Motion Design Editor unit test log
 DEFINE_LOG_CATEGORY(LogAvaEditorTest);
 
 TArray<FVector> FAvaEditorTestUtils::GetActorLocations(const TArray<AActor*>& InActors)

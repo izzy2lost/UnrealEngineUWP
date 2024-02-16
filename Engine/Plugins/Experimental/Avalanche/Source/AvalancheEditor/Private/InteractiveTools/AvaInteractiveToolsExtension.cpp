@@ -21,7 +21,7 @@
 #include "MediaPlate.h"
 #include "Viewport/AvaPostProcessVolume.h"
 
-namespace UE::AvalancheEditor::Private
+namespace UE::AvaEditor::Private
 {
 	const FName StaticMeshCategory = FName(TEXT("StaticMeshes"));
 	const FName CamerasCategory = FName(TEXT("Cameras"));
@@ -77,7 +77,7 @@ void FAvaInteractiveToolsExtension::UnregisterToolDelegates()
 
 void FAvaInteractiveToolsExtension::RegisterCategories(IAvalancheInteractiveToolsModule* InModule)
 {
-	using namespace UE::AvalancheEditor::Private;
+	using namespace UE::AvaEditor::Private;
 
 	const FAvaEditorCommands& EditorCommands = FAvaEditorCommands::Get();
 
@@ -88,7 +88,7 @@ void FAvaInteractiveToolsExtension::RegisterCategories(IAvalancheInteractiveTool
 
 void FAvaInteractiveToolsExtension::RegisterTools(IAvalancheInteractiveToolsModule* InModule)
 {
-	using namespace UE::AvalancheEditor::Private;
+	using namespace UE::AvaEditor::Private;
 
 	const FAvaEditorCommands& EditorCommands = FAvaEditorCommands::Get();
 

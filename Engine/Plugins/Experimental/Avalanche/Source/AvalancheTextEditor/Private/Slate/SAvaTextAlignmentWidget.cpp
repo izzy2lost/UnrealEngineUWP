@@ -51,15 +51,15 @@ void SAvaTextAlignmentWidget::Construct(const FArguments& InArgs)
 			]
 			+ SGridPanel::Slot(1, 0, ForegroundLayer)
 			[
-				GetHorizontalAlignmentButton(HorizontalLeftButton, EText3DHorizontalTextAlignment::Left, "AvalancheIcons.Alignment.Left", LOCTEXT("AlignSelectedTextLeft", "Align Text to the Left"))
+				GetHorizontalAlignmentButton(HorizontalLeftButton, EText3DHorizontalTextAlignment::Left, "Icons.Alignment.Left", LOCTEXT("AlignSelectedTextLeft", "Align Text to the Left"))
 			]
 			+ SGridPanel::Slot(2, 0, ForegroundLayer)
 			[
-				GetHorizontalAlignmentButton(HorizontalCenterButton, EText3DHorizontalTextAlignment::Center, "AvalancheIcons.Alignment.Center_Y", LOCTEXT("AlignSelectedTextCenter", "Align Text to Center"))
+				GetHorizontalAlignmentButton(HorizontalCenterButton, EText3DHorizontalTextAlignment::Center, "Icons.Alignment.Center_Y", LOCTEXT("AlignSelectedTextCenter", "Align Text to Center"))
 			]
 			+ SGridPanel::Slot(3, 0, ForegroundLayer)
 			[
-				GetHorizontalAlignmentButton(HorizontalRightButton, EText3DHorizontalTextAlignment::Right, "AvalancheIcons.Alignment.Right", LOCTEXT("AlignSelectedTextRight", "Align Text to the Right"))
+				GetHorizontalAlignmentButton(HorizontalRightButton, EText3DHorizontalTextAlignment::Right, "Icons.Alignment.Right", LOCTEXT("AlignSelectedTextRight", "Align Text to the Right"))
 			]
 			+ SGridPanel::Slot(0, 0, BackgroundLayer) // color 1st empty slot
 			[
@@ -68,19 +68,19 @@ void SAvaTextAlignmentWidget::Construct(const FArguments& InArgs)
 			]
 			+ SGridPanel::Slot(0, 1, ForegroundLayer)
 			[
-				GetVerticalAlignmentButton(VerticalFirstLineButton, EText3DVerticalTextAlignment::FirstLine, "AvalancheIcons.Alignment.Top", LOCTEXT("AlignSelectedTextFirstLine", "Align Text to First Line"))
+				GetVerticalAlignmentButton(VerticalFirstLineButton, EText3DVerticalTextAlignment::FirstLine, "Icons.Alignment.Top", LOCTEXT("AlignSelectedTextFirstLine", "Align Text to First Line"))
 			]
 			+ SGridPanel::Slot(1, 1, ForegroundLayer)
 			[
-				GetVerticalAlignmentButton(VerticalTopButton, EText3DVerticalTextAlignment::Top, "AvalancheIcons.Alignment.Top", LOCTEXT("AlignSelectedTextTop", "Align Text to Top"))
+				GetVerticalAlignmentButton(VerticalTopButton, EText3DVerticalTextAlignment::Top, "Icons.Alignment.Top", LOCTEXT("AlignSelectedTextTop", "Align Text to Top"))
 			]
 			+ SGridPanel::Slot(2, 1, ForegroundLayer)
 			[
-				GetVerticalAlignmentButton(VerticalCenterButton, EText3DVerticalTextAlignment::Center, "AvalancheIcons.Alignment.Center_Z", LOCTEXT("AlignSelectedTextCenter", "Align Text to Center"))
+				GetVerticalAlignmentButton(VerticalCenterButton, EText3DVerticalTextAlignment::Center, "Icons.Alignment.Center_Z", LOCTEXT("AlignSelectedTextCenter", "Align Text to Center"))
 			]
 			+ SGridPanel::Slot(3, 1, ForegroundLayer)
 			[
-				GetVerticalAlignmentButton(VerticalBottomButton, EText3DVerticalTextAlignment::Bottom, "AvalancheIcons.Alignment.Bottom", LOCTEXT("AlignSelectedTextBottom", "Align Text to Bottom"))
+				GetVerticalAlignmentButton(VerticalBottomButton, EText3DVerticalTextAlignment::Bottom, "Icons.Alignment.Bottom", LOCTEXT("AlignSelectedTextBottom", "Align Text to Bottom"))
 			]
 		]
 	];
@@ -92,7 +92,7 @@ END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 TSharedRef<SButton> SAvaTextAlignmentWidget::GetHorizontalAlignmentButton(TSharedPtr<SButton>& OutButton, EText3DHorizontalTextAlignment InHorizontalAlignment, FName Image, FText Tooltip)
 {
-	const ISlateStyle* AvalancheEditorStyle = FSlateStyleRegistry::FindSlateStyle("AvaEditor");
+	const ISlateStyle* MotionDesignEditorStyle = FSlateStyleRegistry::FindSlateStyle("AvaEditor");
 
 	OutButton = SNew(SButton)
 		.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("SimpleButton"))
@@ -101,7 +101,7 @@ TSharedRef<SButton> SAvaTextAlignmentWidget::GetHorizontalAlignmentButton(TShare
 		.ToolTipText(Tooltip)
 		[
 			SNew(SImage)
-			.Image(AvalancheEditorStyle ? AvalancheEditorStyle->GetBrush(Image) : nullptr)
+			.Image(MotionDesignEditorStyle ? MotionDesignEditorStyle->GetBrush(Image) : nullptr)
 			.DesiredSizeOverride(FVector2D(16.f, 16.f))
 			.ColorAndOpacity(this, &SAvaTextAlignmentWidget::ApplyHorizontalAlignmentButtonColorAndOpacity, InHorizontalAlignment)
 		];
@@ -111,7 +111,7 @@ TSharedRef<SButton> SAvaTextAlignmentWidget::GetHorizontalAlignmentButton(TShare
 
 TSharedRef<SButton> SAvaTextAlignmentWidget::GetVerticalAlignmentButton(TSharedPtr<SButton>& OutButton, EText3DVerticalTextAlignment InVerticalAlignment, FName Image, FText Tooltip)
 {
-	const ISlateStyle* AvalancheEditorStyle = FSlateStyleRegistry::FindSlateStyle("AvaEditor");
+	const ISlateStyle* MotionDesignEditorStyle = FSlateStyleRegistry::FindSlateStyle("AvaEditor");
 
 	OutButton = SNew(SButton)
 		.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("SimpleButton"))
@@ -120,7 +120,7 @@ TSharedRef<SButton> SAvaTextAlignmentWidget::GetVerticalAlignmentButton(TSharedP
 		.ToolTipText(Tooltip)
 		[
 			SNew(SImage)
-			.Image(AvalancheEditorStyle ? AvalancheEditorStyle->GetBrush(Image) : nullptr)
+			.Image(MotionDesignEditorStyle ? MotionDesignEditorStyle->GetBrush(Image) : nullptr)
 			.DesiredSizeOverride(FVector2D(16.f, 16.f))
 			.ColorAndOpacity(this, &SAvaTextAlignmentWidget::ApplyVerticalAlignmentButtonColorAndOpacity, InVerticalAlignment)
 		];

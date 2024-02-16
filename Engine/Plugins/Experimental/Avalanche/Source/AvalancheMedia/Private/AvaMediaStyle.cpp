@@ -18,7 +18,7 @@ FAvaMediaStyle::FAvaMediaStyle()
 	SetContentRoot(Plugin->GetBaseDir() / TEXT("Resources"));
 	
 	Set("AvaMedia.UnrealIcon", new IMAGE_BRUSH("Icons/MediaIcons/ue_logo", Icon200x200));
-	Set("ClassIcon.AvalancheBroadcast", new IMAGE_BRUSH("Icons/MediaIcons/MediaOutput", Icon16x16));
+	Set("ClassIcon.AvaBroadcast", new IMAGE_BRUSH("Icons/MediaIcons/MediaOutput", Icon16x16));
 
 	FSlateStyleRegistry::RegisterSlateStyle(*this);
 }

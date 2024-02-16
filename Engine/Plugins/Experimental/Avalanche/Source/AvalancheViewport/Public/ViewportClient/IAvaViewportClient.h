@@ -30,7 +30,7 @@ class IAvaViewportClient : public IAvaViewportWorldCoordinateConverter
 public:
 	UE_AVA_INHERITS(IAvaViewportClient, IAvaViewportWorldCoordinateConverter)
 
-	virtual bool IsAvalancheViewport() const = 0;
+	virtual bool IsMotionDesignViewport() const = 0;
 
 	virtual const FEditorViewportClient* AsEditorViewportClient() const = 0;
 

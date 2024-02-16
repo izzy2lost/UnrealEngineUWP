@@ -10,7 +10,7 @@
 #include "ViewportClient/EditorViewportClientUtilityWrapper.h"
 #include "ViewportClient/IAvaViewportClient.h"
 
-namespace UE::AvalancheViewport::Private
+namespace UE::AvaViewport::Private
 {
 	TArray<FAvaViewportClientCastDelegate> ViewportClientCasterRegistry;
 	TArray<FAvaViewportCastDelegate> ViewportCasterRegistry;
@@ -18,7 +18,7 @@ namespace UE::AvalancheViewport::Private
 
 FDelegateHandle FAvaViewportUtils::RegisterViewportClientCaster(FAvaViewportClientCastDelegate::TFuncType InFunction)
 {
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	FAvaViewportClientCastDelegate& NewDelegate = ViewportClientCasterRegistry.AddDefaulted_GetRef();
 	NewDelegate.BindStatic(InFunction);
@@ -28,7 +28,7 @@ FDelegateHandle FAvaViewportUtils::RegisterViewportClientCaster(FAvaViewportClie
 
 void FAvaViewportUtils::UnregisterViewportClientCaster(FDelegateHandle InDelegateHandle)
 {
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	ViewportClientCasterRegistry.RemoveAll(
 		[InDelegateHandle](const FAvaViewportClientCastDelegate& InElement)
@@ -39,7 +39,7 @@ void FAvaViewportUtils::UnregisterViewportClientCaster(FDelegateHandle InDelegat
 
 FDelegateHandle FAvaViewportUtils::RegisterViewportCaster(FAvaViewportCastDelegate::TFuncType InFunction)
 {
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	FAvaViewportCastDelegate& NewDelegate = ViewportCasterRegistry.AddDefaulted_GetRef();
 	NewDelegate.BindStatic(InFunction);
@@ -49,7 +49,7 @@ FDelegateHandle FAvaViewportUtils::RegisterViewportCaster(FAvaViewportCastDelega
 
 void FAvaViewportUtils::UnregisterViewportCaster(FDelegateHandle InDelegateHandle)
 {
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	ViewportCasterRegistry.RemoveAll(
 		[InDelegateHandle](const FAvaViewportCastDelegate& InElement)
@@ -65,7 +65,7 @@ TSharedPtr<IAvaViewportClient> FAvaViewportUtils::GetAsAvaViewportClient(FEditor
 		return nullptr;
 	}
 
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	for (const FAvaViewportClientCastDelegate& CastDelegate : ViewportClientCasterRegistry)
 	{
@@ -99,7 +99,7 @@ FEditorViewportClient* FAvaViewportUtils::GetAsEditorViewportClient(FViewport* I
 		return nullptr;
 	}
 
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	for (const FAvaViewportCastDelegate& CastDelegate : ViewportCasterRegistry)
 	{

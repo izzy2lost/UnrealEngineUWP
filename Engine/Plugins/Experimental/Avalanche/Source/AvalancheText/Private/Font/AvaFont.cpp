@@ -50,7 +50,7 @@ UFont* FAvaFont::GetDefaultFont()
 			}
 		}
 
-		if (ensureMsgf(DefaultFont, TEXT("AvalancheFont: cannot load any font to be used as default.")))
+		if (ensureMsgf(DefaultFont, TEXT("MotionDesignFont: cannot load any font to be used as default.")))
 		{
 			DefaultFontObjects.AvaDefaultFont = DefaultFont;
 		}
@@ -276,7 +276,7 @@ void FAvaFont::InitFromFont(UFont* InFont)
 	if (InFont)
 	{
 		FString Name;
-		UE::Avalanche::FontUtilities::Public::GetFontName(InFont, Name);
+		UE::Ava::FontUtilities::Public::GetFontName(InFont, Name);
 
 		MotionDesignFontObject = NewObject<UAvaFontObject>();
 		MotionDesignFontObject->InitProjectFont(InFont, Name);
@@ -397,7 +397,7 @@ UFont* FAvaFont::GetFontByName(const FString& InFontName)
 		if (UFont* const CurrFont = Cast<UFont>(AssetData.GetAsset()))
 		{
 			FString CurrFontName;
-			UE::Avalanche::FontUtilities::Public::GetFontName(CurrFont, CurrFontName);
+			UE::Ava::FontUtilities::Public::GetFontName(CurrFont, CurrFontName);
 
 			if (CurrFontName == InFontName)
 			{
@@ -410,7 +410,7 @@ UFont* FAvaFont::GetFontByName(const FString& InFontName)
 }
 
 // note: this function used to be in the AvalancheEditor module, since it was not needed at Runtime before 
-void UE::Avalanche::FontUtilities::Public::GetFontName(const UFont* InFont, FString& OutFontName)
+void UE::Ava::FontUtilities::Public::GetFontName(const UFont* InFont, FString& OutFontName)
 {
 	if (IsValid(InFont))
 	{

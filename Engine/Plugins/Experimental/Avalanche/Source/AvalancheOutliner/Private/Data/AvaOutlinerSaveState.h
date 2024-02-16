@@ -72,7 +72,7 @@ private:
 	void UpdateItemIdContexts(FStringView InOldContext, FStringView InNewContext);
 
 	/**
-	 * Deprecated in favor of using Avalanche Scene Tree
+	 * Deprecated in favor of using Motion Design Scene Tree
 	 * @see FAvaSceneTree
 	 */
 	TMap<FString, int32> ItemSorting_DEPRECATED;

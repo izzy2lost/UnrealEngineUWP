@@ -8,7 +8,7 @@
 enum class EAvaDepthAlignment : uint8;
 
 /**
- * Avalanche Depth Axis Alignment
+ * Motion Design Depth Axis Alignment
  * 
  * Widget that holds three buttons for either Front, Center, and Back.
  */

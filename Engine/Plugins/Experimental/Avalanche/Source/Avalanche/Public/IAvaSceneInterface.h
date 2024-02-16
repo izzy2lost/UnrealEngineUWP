@@ -14,7 +14,7 @@ class URemoteControlPreset;
 struct FAvaSceneTree;
 
 /**
- * Interface for the driver class of an Avalanche Scene
+ * Interface for the driver class of an Motion Design Scene
  * This interface's purpose is to provide access to scene data and to core interfaces in the Scene
  */
 UINTERFACE(MinimalAPI, meta = (CannotImplementInterfaceInBlueprint))

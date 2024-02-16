@@ -9,7 +9,7 @@
 #include "Framework/Application/SlateApplication.h"
 #include "ViewportClient/IAvaViewportClient.h"
 
-namespace UE::AvalancheLevelViewport::Private
+namespace UE::AvaLevelViewport::Private
 {
 	constexpr uint8 ZOOM_LEVEL_MIN = 0;
 	constexpr uint8 ZOOM_LEVEL_MAX = 9;
@@ -32,7 +32,7 @@ FAvaCameraZoomController::FAvaCameraZoomController(TSharedRef<IAvaViewportClient
 
 void FAvaCameraZoomController::SetZoomLevel(uint8 InZoomLevel)
 {
-	ZoomLevel = FMath::Clamp(InZoomLevel, UE::AvalancheLevelViewport::Private::ZOOM_LEVEL_MIN, UE::AvalancheLevelViewport::Private::ZOOM_LEVEL_MAX);
+	ZoomLevel = FMath::Clamp(InZoomLevel, UE::AvaLevelViewport::Private::ZOOM_LEVEL_MIN, UE::AvaLevelViewport::Private::ZOOM_LEVEL_MAX);
 
 	UpdateVisibleAreas();
 	InvalidateViewport();
@@ -40,12 +40,12 @@ void FAvaCameraZoomController::SetZoomLevel(uint8 InZoomLevel)
 
 bool FAvaCameraZoomController::IsZoomed() const
 {
-	return ZoomLevel > UE::AvalancheLevelViewport::Private::ZOOM_LEVEL_MIN;
+	return ZoomLevel > UE::AvaLevelViewport::Private::ZOOM_LEVEL_MIN;
 }
 
 float FAvaCameraZoomController::GetFOVPerStep() const
 {
-	return GetDefaultFOV() / static_cast<float>(UE::AvalancheLevelViewport::Private::ZOOM_LEVEL_MAX - UE::AvalancheLevelViewport::Private::ZOOM_LEVEL_MIN + 1);
+	return GetDefaultFOV() / static_cast<float>(UE::AvaLevelViewport::Private::ZOOM_LEVEL_MAX - UE::AvaLevelViewport::Private::ZOOM_LEVEL_MIN + 1);
 }
 
 void FAvaCameraZoomController::ZoomIn()
@@ -327,7 +327,7 @@ void FAvaCameraZoomController::EndPanning()
 
 void FAvaCameraZoomController::ZoomIn_Internal()
 {
-	if (ZoomLevel >= UE::AvalancheLevelViewport::Private::ZOOM_LEVEL_MAX)
+	if (ZoomLevel >= UE::AvaLevelViewport::Private::ZOOM_LEVEL_MAX)
 	{
 		return;
 	}
@@ -337,7 +337,7 @@ void FAvaCameraZoomController::ZoomIn_Internal()
 
 void FAvaCameraZoomController::ZoomOut_Internal()
 {
-	if (ZoomLevel <= UE::AvalancheLevelViewport::Private::ZOOM_LEVEL_MIN)
+	if (ZoomLevel <= UE::AvaLevelViewport::Private::ZOOM_LEVEL_MIN)
 	{
 		return;
 	}

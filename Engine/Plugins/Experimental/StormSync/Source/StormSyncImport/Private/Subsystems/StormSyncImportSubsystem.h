@@ -148,7 +148,7 @@ private:
 	/**
 	 * Our own custom version of ObjectTools::DeleteAssets
 	 *
-	 * We want to force delete the file, to allow assets with on disk references (for things like Textures in an Avalanche Blueprints) to be properly overwritten,
+	 * We want to force delete the file, to allow assets with on disk references (for things like Textures in a Motion Design asset) to be properly overwritten,
 	 * if referenced in memory, opened in editor etc.
 	 *
 	 * ObjectTools::DeleteAssets will only succeed if the AssetDeleteModel doesn't have on disk references (see CanDelete / CanForceDelete)

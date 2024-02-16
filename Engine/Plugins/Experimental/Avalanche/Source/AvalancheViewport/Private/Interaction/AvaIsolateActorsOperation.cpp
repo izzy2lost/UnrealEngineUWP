@@ -13,7 +13,7 @@
 #include "Selection/AvaSelectionProviderSubsystem.h"
 #include "ViewportClient/IAvaViewportClient.h"
 
-namespace UE::AvalancheViewport::Private
+namespace UE::AvaViewport::Private
 {
 	const TArray<UClass*> PersistentActorClasses = {
 		AInfo::StaticClass(),
@@ -135,7 +135,7 @@ void FAvaIsolateActorsOperation::IsolateActors()
 	IsolatedActors.Empty();
 	IsolatedActors.Reserve(SelectedActors.Num());
 
-	using namespace UE::AvalancheViewport::Private;
+	using namespace UE::AvaViewport::Private;
 
 	for (const TWeakObjectPtr<AActor>& ActorWeak : SelectedActors)
 	{

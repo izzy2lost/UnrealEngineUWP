@@ -320,15 +320,15 @@ const FSlateBrush* FAvaVectorPropertyTypeCustomization::GetComboButtonBrush(cons
 {
 	if (Mode == ERatioMode::None)
 	{
-		return FAvaEditorStyle::Get().GetBrush("AvalancheIcons.Unlock");
+		return FAvaEditorStyle::Get().GetBrush("Icons.Unlock");
 	}
 	else if (Mode == ERatioMode::PreserveXY || Mode == ERatioMode::PreserveXZ || Mode == ERatioMode::PreserveYZ)
 	{
-		return FAvaEditorStyle::Get().GetBrush("AvalancheIcons.Lock2d");
+		return FAvaEditorStyle::Get().GetBrush("Icons.Lock2d");
 	}
 	else
 	{
-		return FAvaEditorStyle::Get().GetBrush("AvalancheIcons.Lock3d");
+		return FAvaEditorStyle::Get().GetBrush("Icons.Lock3d");
 	}
 }
 

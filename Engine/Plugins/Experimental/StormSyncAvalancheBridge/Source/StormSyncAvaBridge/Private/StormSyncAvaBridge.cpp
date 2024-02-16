@@ -157,7 +157,7 @@ void FStormSyncAvaBridgeModule::OnStormSyncServerStopped()
 
 void FStormSyncAvaBridgeModule::RegisterUserDataForPlaybackServer()
 {
-	// Fail safe checks for both Avalanche and Storm Sync modules, since this method can be executed from delegates in either of these modules
+	// Fail safe checks for both Motion Design and Storm Sync modules, since this method can be executed from delegates in either of these modules
 	if (!ValidateModulesAreAvailable())
 	{
 		return;
@@ -181,7 +181,7 @@ void FStormSyncAvaBridgeModule::RegisterUserDataForPlaybackServer()
 
 void FStormSyncAvaBridgeModule::RegisterUserDataForPlaybackClient()
 {
-	// Fail safe checks for both Avalanche and Storm Sync modules, since this method can be executed from delegates in either of these modules
+	// Fail safe checks for both Motion Design and Storm Sync modules, since this method can be executed from delegates in either of these modules
 	if (!ValidateModulesAreAvailable())
 	{
 		return;

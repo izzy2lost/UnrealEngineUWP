@@ -14,7 +14,7 @@ struct FGeometry;
 struct FPointerEvent;
 struct FSlateBrush;
 
-typedef TSharedPtr<IAvaBroadcastOutputTreeItem> FAvaOutputTreeItemPtr;
+using FAvaOutputTreeItemPtr = TSharedPtr<IAvaBroadcastOutputTreeItem>;
 
 class IAvaBroadcastOutputTreeItem : public IAvaTypeCastable, public TSharedFromThis<IAvaBroadcastOutputTreeItem>
 {

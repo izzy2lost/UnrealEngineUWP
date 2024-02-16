@@ -22,8 +22,8 @@ private:
 	/** Holds the messaging endpoint. */
 	TSharedPtr<FMessageEndpoint, ESPMode::ThreadSafe> MessageEndpoint;
 
-	/** Name of the extension point we're providing extension next to*/
-	static constexpr const TCHAR* AvalancheExtensionHook = TEXT("PageListOperations");
+	/** Name of the extension point we're providing extension next to */
+	static constexpr const TCHAR* MenuExtensionHook = TEXT("PageListOperations");
 	
 	/** Menu extender for motion design rundown editor context menu */
 	FDelegateHandle MenuExtenderHandle;

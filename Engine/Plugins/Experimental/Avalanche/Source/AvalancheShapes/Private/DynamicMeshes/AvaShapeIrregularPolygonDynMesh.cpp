@@ -210,7 +210,7 @@ bool UAvaShapeIrregularPolygonDynamicMesh::IsPointTooCloseToALine(const FVector2
 			continue;
 		}
 
-		FVector2D ClosestPoint = UE::AvalancheShapes::FindClosestPointOnLine(
+		FVector2D ClosestPoint = UE::AvaShapes::FindClosestPointOnLine(
 			Points[PreviousPointIdx].Location,
 			Points[PointIdx].Location,
 			InPoint
@@ -234,7 +234,7 @@ bool UAvaShapeIrregularPolygonDynamicMesh::IsLineTooCloseToAPoint(const FVector2
 			continue;
 		}
 
-		FVector2D ClosestPoint = UE::AvalancheShapes::FindClosestPointOnLine(Start, End, Points[PointIdx].Location);
+		FVector2D ClosestPoint = UE::AvaShapes::FindClosestPointOnLine(Start, End, Points[PointIdx].Location);
 
 		if ((ClosestPoint - Points[PointIdx].Location).Size() < UAvaShapeIrregularPolygonDynamicMesh::MinPointDistance)
 		{

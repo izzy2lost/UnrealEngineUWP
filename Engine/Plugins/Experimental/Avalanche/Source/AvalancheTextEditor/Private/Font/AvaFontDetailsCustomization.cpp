@@ -70,7 +70,7 @@ void FAvaFontDetailsCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> F
 		.ShowItalicFontsOnly(bIsShowItalicActive)
 		.OptionsSource(&Options)
 		.InitiallySelectedItem(SelectedOption)
-		.AvalancheFontPropertyHandle(AvaFontPropertyHandle)
+		.FontPropertyHandle(AvaFontPropertyHandle)
 		.OnGenerateWidget(this, &FAvaFontDetailsCustomization::HandleGenerateWidget)
 		.OnSelectionChanged(this, &FAvaFontDetailsCustomization::HandleSelectionChanged)
 		[
@@ -277,8 +277,8 @@ FReply FAvaFontDetailsCustomization::ImportButtonClicked()
 TSharedRef<SWidget> FAvaFontDetailsCustomization::HandleGenerateWidget(const TSharedPtr<FAvaFontView>& InItem)
 {
 	return SNew(SAvaFontField)
-			.OnAvaFontFieldModified(this, &FAvaFontDetailsCustomization::OnFontFieldUpdated)
-			.AvalancheFont(InItem);
+			.OnFontFieldModified(this, &FAvaFontDetailsCustomization::OnFontFieldUpdated)
+			.FontView(InItem);
 }
 
 TSharedRef<SWidget> FAvaFontDetailsCustomization::GenerateMultipleSelectionField() const

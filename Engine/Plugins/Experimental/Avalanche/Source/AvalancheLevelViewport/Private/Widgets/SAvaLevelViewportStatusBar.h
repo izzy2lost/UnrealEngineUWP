@@ -18,7 +18,7 @@
 class FUICommandInfo;
 class SAvaLevelViewportFrame;
 
-namespace UE::AvalancheLevelViewport::Private
+namespace UE::AvaLevelViewport::Private
 {
 	namespace ViewportStatusBarButton
 	{

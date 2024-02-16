@@ -29,7 +29,7 @@ UENUM()
 enum class EAvaShapeEditorOverlayType : uint8
 {
 	ComponentVisualizerOnly,
-	FullAvalancheDetails
+	FullDetails
 };
 
 USTRUCT()

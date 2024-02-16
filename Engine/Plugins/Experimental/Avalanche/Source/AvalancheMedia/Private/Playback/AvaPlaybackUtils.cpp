@@ -164,15 +164,15 @@ bool FAvaPlaybackUtils::IsMapAsset(const FString& InPackageName)
 
 bool FAvaPlaybackUtils::IsPlayableAsset(const FAssetData& InAssetData)
 {
-	const EAvalancheAssetType AssetType = FAvaSoftAssetPath::GetAssetTypeFromClass(InAssetData.GetClass(), true);
-	if (AssetType == EAvalancheAssetType::Unknown)
+	const EMotionDesignAssetType AssetType = FAvaSoftAssetPath::GetAssetTypeFromClass(InAssetData.GetClass(), true);
+	if (AssetType == EMotionDesignAssetType::Unknown)
 	{
 		return false;
 	}
 	// For world type, we need to check the tags.
-	if (AssetType == EAvalancheAssetType::World)
+	if (AssetType == EMotionDesignAssetType::World)
 	{
-		const FAssetTagValueRef SceneTag = InAssetData.TagsAndValues.FindTag(UE::Ava::AssetTags::AvalancheScene);
+		const FAssetTagValueRef SceneTag = InAssetData.TagsAndValues.FindTag(UE::Ava::AssetTags::MotionDesignScene);
 		if (!SceneTag.IsSet() || !SceneTag.Equals(UE::Ava::AssetTags::Values::Enabled))
 		{
 			return false;

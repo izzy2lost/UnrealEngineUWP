@@ -208,7 +208,7 @@ bool UAvaPlayableLevelStreaming::LoadAsset(const FAvaSoftAssetPtr& InSourceAsset
 	const FAvaInstanceSettings& PlaybackInstanceSettings = IAvaMediaModule::Get().GetAvaInstanceSettings();
 	bLoadSubPlayables = PlaybackInstanceSettings.bEnableLoadSubPlayables;
 	
-	check(InSourceAsset.GetAssetType() == EAvalancheAssetType::World);
+	check(InSourceAsset.GetAssetType() == EMotionDesignAssetType::World);
 	const bool bAssetLoading = LoadLevel(TSoftObjectPtr<UWorld>(InSourceAsset.ToSoftObjectPath()), bInInitiallyVisible); 
 	if (bAssetLoading)
 	{

@@ -6,7 +6,8 @@
 #include "Templates/SharedPointer.h"
 
 class IAvaSequenceItem;
-typedef TSharedPtr<IAvaSequenceItem> FAvaSequenceItemPtr;
+
+using FAvaSequenceItemPtr = TSharedPtr<IAvaSequenceItem>;
 
 /*
  * Delegate Wrapper so that things other than IAvaSequenceItem can only Add or Remove Listeners but not call Broadcast

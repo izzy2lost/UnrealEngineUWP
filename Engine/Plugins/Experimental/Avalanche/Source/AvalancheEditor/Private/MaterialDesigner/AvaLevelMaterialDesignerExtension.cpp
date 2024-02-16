@@ -13,7 +13,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaMaterialDesignerExtension"
 
-namespace UE::AvalancheEditor::Private
+namespace UE::AvaEditor::Private
 {
 	int32 AvaLevelMaterialDesignerExtensionInstances = 0;
 	FDelegateHandle ContentBrowserExtenderDelegateHandle;
@@ -23,7 +23,7 @@ void FAvaLevelMaterialDesignerExtension::Activate()
 {
 	FAvaMaterialDesignerExtension::Activate();
 
-	using namespace UE::AvalancheEditor::Private;
+	using namespace UE::AvaEditor::Private;
 
 	++AvaLevelMaterialDesignerExtensionInstances;
 	bIsActive = true;
@@ -35,7 +35,7 @@ void FAvaLevelMaterialDesignerExtension::Deactivate()
 {
 	FAvaMaterialDesignerExtension::Deactivate();
 
-	using namespace UE::AvalancheEditor::Private;
+	using namespace UE::AvaEditor::Private;
 
 	if (bIsActive)
 	{
@@ -48,7 +48,7 @@ void FAvaLevelMaterialDesignerExtension::Deactivate()
 
 void FAvaLevelMaterialDesignerExtension::InitContentBrowserExtension()
 {
-	using namespace UE::AvalancheEditor::Private;
+	using namespace UE::AvaEditor::Private;
 
 	// Register only with the first instance.
 	if (AvaLevelMaterialDesignerExtensionInstances == 1)
@@ -62,7 +62,7 @@ void FAvaLevelMaterialDesignerExtension::InitContentBrowserExtension()
 
 void FAvaLevelMaterialDesignerExtension::DeinitContentBrowserExtension()
 {
-	using namespace UE::AvalancheEditor::Private;
+	using namespace UE::AvaEditor::Private;
 
 	// Unregister only with the last instance
 	if (AvaLevelMaterialDesignerExtensionInstances == 0 && ContentBrowserExtenderDelegateHandle.IsValid())

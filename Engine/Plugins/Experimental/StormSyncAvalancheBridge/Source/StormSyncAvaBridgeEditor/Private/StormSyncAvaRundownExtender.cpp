@@ -107,7 +107,7 @@ TSharedRef<FExtender> FStormSyncAvaRundownExtender::AddMenuExtender(const TShare
 
 	// Template panel extension
 	Extender->AddMenuExtension(
-		AvalancheExtensionHook,
+		MenuExtensionHook,
 		EExtensionHook::After,
 		InCommandList,
 		// Convert to weak ptr to prevent ownership to the rundown editor and potentially increasing its lifetime
@@ -375,11 +375,11 @@ TSharedRef<SWidget> FStormSyncAvaRundownExtender::GenerateToolbarMenu(TWeakPtr<F
 	{
 		const UAvaRundown* Rundown = RundownEditor->GetRundown(); 
 
-		// Gather the list of all package names from Avalanche Blueprints in this Rundown pages
-		const FAvaRundownPageCollection& AvalanchePageCollection = Rundown->GetTemplatePages();
-		for (const FAvaRundownPage& AvalanchePage : AvalanchePageCollection.Pages)
+		// Gather the list of all package names from Motion Design assets in this Rundown pages
+		const FAvaRundownPageCollection& PageCollection = Rundown->GetTemplatePages();
+		for (const FAvaRundownPage& Page : PageCollection.Pages)
 		{
-			if (FString PackageName = AvalanchePage.GetAssetPath(Rundown).GetLongPackageName(); !PackageName.IsEmpty())
+			if (FString PackageName = Page.GetAssetPath(Rundown).GetLongPackageName(); !PackageName.IsEmpty())
 			{
 				PackageNames.AddUnique(FName(*PackageName));
 			}
@@ -514,19 +514,19 @@ TArray<FAvaRundownPage> FStormSyncAvaRundownExtender::GetSelectedPages(const UAv
 	const TConstArrayView<int32> SelectedPageIds = RundownEditor->GetSelectedPagesOnFocusedWidget();
 	for (const int32 SelectedPageId : SelectedPageIds)
 	{
-		FAvaRundownPage AvalanchePage = InRundown->GetPage(SelectedPageId);
-		if (!AvalanchePage.IsValidPage())
+		FAvaRundownPage Page = InRundown->GetPage(SelectedPageId);
+		if (!Page.IsValidPage())
 		{
 			continue;
 		}
 
-		FSoftObjectPath SoftAvalancheAssetPath = AvalanchePage.GetAssetPath(InRundown);
-		FString LongPackageName = SoftAvalancheAssetPath.GetLongPackageName();
-		FString AssetName = SoftAvalancheAssetPath.GetAssetName();
+		FSoftObjectPath SoftAssetPath = Page.GetAssetPath(InRundown);
+		FString LongPackageName = SoftAssetPath.GetLongPackageName();
+		FString AssetName = SoftAssetPath.GetAssetName();
 
 		if (!LongPackageName.IsEmpty())
 		{
-			Result.Add(AvalanchePage);
+			Result.Add(Page);
 		}
 	}
 
@@ -540,7 +540,7 @@ TArray<FString> FStormSyncAvaRundownExtender::GetChannelNamesForTemplatePage(con
 	TArray<FString> ChannelNames;
 
 	// Here, we try to determine the list of channels to consider for a sync operation, from the selected template page,
-	// with instanced pages that are using the selected package name (Avalanche Blueprint)
+	// with instanced pages that are using the selected package name (Motion Design asset)
 	const FString PackageName = InTemplatePage.GetAssetPath(InRundown).GetLongPackageName();
 
 	// Build the list of instanced pages matching the asset name we want to sync
@@ -550,9 +550,9 @@ TArray<FString> FStormSyncAvaRundownExtender::GetChannelNamesForTemplatePage(con
 	});
 
 	// From there, build a unique list of channel outputs
-	for (const FAvaRundownPage& AvalanchePage : Pages)
+	for (const FAvaRundownPage& Page : Pages)
 	{
-		ChannelNames.AddUnique(AvalanchePage.GetChannelName().ToString());
+		ChannelNames.AddUnique(Page.GetChannelName().ToString());
 	}
 
 	return ChannelNames;
