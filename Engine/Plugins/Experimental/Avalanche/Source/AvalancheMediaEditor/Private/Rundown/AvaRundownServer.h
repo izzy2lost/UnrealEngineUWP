@@ -17,7 +17,7 @@ class UMediaOutput;
  * The intention is to run a web socket transport bridge so the messages can
  * come from external applications.
  */
-class AVALANCHEMEDIAEDITOR_API FAvaRundownServer : public TSharedFromThis<FAvaRundownServer>
+class FAvaRundownServer : public TSharedFromThis<FAvaRundownServer>
 {
 public:
 	FAvaRundownServer();

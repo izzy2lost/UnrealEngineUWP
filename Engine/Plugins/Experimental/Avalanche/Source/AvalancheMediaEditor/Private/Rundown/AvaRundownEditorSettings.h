@@ -9,7 +9,7 @@
 class UAvaRundownMacroCollection;
 
 UCLASS(config=EditorPerProjectUserSettings, meta=(DisplayName="Rundown"))
-class AVALANCHEMEDIAEDITOR_API UAvaRundownEditorSettings : public UDeveloperSettings
+class UAvaRundownEditorSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
 
