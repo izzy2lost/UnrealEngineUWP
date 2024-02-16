@@ -416,8 +416,8 @@ namespace HarmonixMetasound
 					{
 					case FMidiClockEvent::EType::Reset:
 					{
-						UpdateLoopOffsetTickFromTick(Event.StartTick);
-						int32 Tick = Event.StartTick - LoopOffsetTick;
+						UpdateLoopOffsetTickFromTick(Event.Tick2);
+						int32 Tick = Event.Tick2 - LoopOffsetTick;
 
 						float Ms = MidiClockOut->GetSongMaps().TickToMs(Tick);
 						FMusicSeekTarget SeekTarget;
@@ -433,8 +433,8 @@ namespace HarmonixMetasound
 					}
 					case FMidiClockEvent::EType::SeekTo:
 					{
-						UpdateLoopOffsetTickFromTick(Event.StartTick);
-						int32 Tick = Event.StartTick - LoopOffsetTick;
+						UpdateLoopOffsetTickFromTick(Event.Tick2);
+						int32 Tick = Event.Tick2 - LoopOffsetTick;
 
 						float Ms = MidiClockOut->GetSongMaps().TickToMs(Tick);
 						FMusicSeekTarget SeekTarget;
@@ -445,8 +445,8 @@ namespace HarmonixMetasound
 					}
 					case FMidiClockEvent::EType::SeekThru:
 					{
-						UpdateLoopOffsetTickFromTick(Event.StartTick);
-						int32 Tick = Event.StartTick - LoopOffsetTick;
+						UpdateLoopOffsetTickFromTick(Event.Tick2);
+						int32 Tick = Event.Tick2 - LoopOffsetTick;
 
 						float Ms = MidiClockOut->GetSongMaps().TickToMs(Tick + 1);
 						FMusicSeekTarget SeekTarget;
@@ -459,11 +459,11 @@ namespace HarmonixMetasound
 					{
 						
 						// The MidiClock handles looping on its own, so we can conveniently advance it
-						int32 Tick = Event.StartTick - LoopOffsetTick;
+						int32 Tick = Event.Tick2 - LoopOffsetTick;
 						float Ms = MidiClockOut->GetSongMaps().TickToMs(Tick);
 
 						float ClockInSpeed = MidiClockIn->GetSpeedAtBlockSampleFrame(StartFrameIndex);
-						float AdvanceRatio = MidiClockIn->GetSongMaps().GetTempoAtTick(Event.StartTick) / MidiClockOut->GetSongMaps().GetTempoAtTick(Tick);
+						float AdvanceRatio = MidiClockIn->GetSongMaps().GetTempoAtTick(Event.Tick2) / MidiClockOut->GetSongMaps().GetTempoAtTick(Tick);
 						// midi clock needs to know how fast its advancing based on their authority
 						MidiClockOut->InformOfCurrentAdvanceRate(ClockInSpeed * *SpeedMultInPin * AdvanceRatio);
 						MidiClockOut->AdvanceHiResToMs(Event.BlockFrameIndex, Ms, true);
@@ -477,7 +477,7 @@ namespace HarmonixMetasound
 							int32 NewTick = MidiClockOut->GetCurrentHiResTick();
 							if (NewTick < Tick)
 							{
-								UpdateLoopOffsetTickFromTick(Event.StartTick);
+								UpdateLoopOffsetTickFromTick(Event.Tick2);
 							}
 						}
 						break;
