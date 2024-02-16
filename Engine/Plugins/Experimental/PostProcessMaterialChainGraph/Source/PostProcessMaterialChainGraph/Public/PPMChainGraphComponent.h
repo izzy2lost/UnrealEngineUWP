@@ -41,6 +41,9 @@ public:
 	/** Get a copy of Render Proxies for rendering graphs. */
 	TArray<TSharedPtr<FPPMChainGraphProxy>> GetChainGraphRenderProxies(EPPMChainGraphExecutionLocation InPointOfExecution);
 
+	/** Identifies if this component needs to render during the specified pass. */
+	bool IsActiveDuringPass_GameThread(EPPMChainGraphExecutionLocation InPointOfExecution);
+
 public:
 	/** PPM Chain Graph Component can either exclude selected cameras from being rendered or render only in selected camera views. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Camera View Settings")

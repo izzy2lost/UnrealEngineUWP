@@ -52,7 +52,7 @@ enum class EPPMChainGraphExecutionLocation : uint8
 	//AfterSSRInput				UMETA(DisplayName = "After SSR Input"),
 	// 
 	// This is eventually mapped to equivalent execution location enum: ISceneViewExtension::EPostProcessingPass.
-	AfterMotionBlur				UMETA(DisplayName = "After Motion Blur"),
+	AfterMotionBlur = 2			UMETA(DisplayName = "After Motion Blur"),
 	AfterToneMap				UMETA(DisplayName = "After Tonemap"),
 	AfterFXAA					UMETA(DisplayName = "After FXAA"),
 	AfterVisualizeDepthOfField	UMETA(DisplayName = "After Visualize Depth of Field"),
