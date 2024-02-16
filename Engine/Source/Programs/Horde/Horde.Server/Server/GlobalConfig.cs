@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
@@ -8,6 +9,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Reflection;
 using System.Security.Claims;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
@@ -651,6 +653,50 @@ namespace Horde.Server.Server
 			cluster.Servers.Add(server);
 
 			return new List<PerforceCluster> { cluster };
+		}
+
+		IReadOnlyList<string>? _cachedGroupClaims;
+
+		/// <summary>
+		/// Gets all the valid <see cref="HordeClaimTypes.Group"/> claims referenced by ACL entries within the config object.
+		/// </summary>
+		public IReadOnlyList<string> GetValidAccountGroupClaims()
+		{
+			if (_cachedGroupClaims == null)
+			{
+				HashSet<string> groups = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+				FindGroupClaimsFromObject(this, groups, new HashSet<object>());
+				_cachedGroupClaims = groups.ToArray();
+			}
+			return _cachedGroupClaims;
+		}
+
+		static void FindGroupClaimsFromObject(object? obj, HashSet<string> groups, HashSet<object> visitedObjects)
+		{
+			if (obj != null && obj.GetType().IsClass && obj is not string)
+			{
+				if (obj is AclClaimConfig claim)
+				{
+					if (claim.Type.Equals(HordeClaimTypes.Group, StringComparison.OrdinalIgnoreCase))
+					{
+						groups.Add(claim.Value);
+					}
+				}
+				else if (obj is ICollection collection)
+				{
+					foreach (object? element in collection)
+					{
+						FindGroupClaimsFromObject(element, groups, visitedObjects);
+					}
+				}
+				else if (visitedObjects.Add(obj))
+				{
+					foreach (PropertyInfo propertyInfo in obj.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public))
+					{
+						FindGroupClaimsFromObject(propertyInfo.GetValue(obj), groups, visitedObjects);
+					}
+				}
+			}
 		}
 	}
 
