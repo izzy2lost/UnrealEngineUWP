@@ -817,6 +817,8 @@ void UAudioComponent::PlayInternal(const PlayInternalRequestData& InPlayRequestD
 	// Pass down any source buffer listener we have
 	NewActiveSound.SetSourceListener(SourceBufferListener, bShouldSourceBufferListenerZeroBuffer);
 
+	NewActiveSound.MaxDistance = MaxDistance;
+
 	// Setup the submix and bus sends that may have been set before playing
 	for (FSoundSubmixSendInfo& SubmixSendInfo : PendingSubmixSends)
 	{
@@ -865,9 +867,6 @@ void UAudioComponent::PlayInternal(const PlayInternalRequestData& InPlayRequestD
 
 	TArray<FAudioParameter> InstanceParamsCopy = InstanceParameters;
 	FAudioParameter::Merge(MoveTemp(InstanceParamsCopy), SoundParams);
-
-	// Make sure our new active sound has the correct audio device
-	NewActiveSound.SetAudioDevice(AudioDevice);
 
 	AudioDevice->AddNewActiveSound(NewActiveSound, MoveTemp(SoundParams));
 

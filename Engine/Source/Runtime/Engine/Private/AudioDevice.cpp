@@ -6397,6 +6397,8 @@ void FAudioDevice::PlaySoundAtLocation(USoundBase* Sound, UWorld* World, float V
 			NewActiveSound.FocusData.DistanceScale = AttenuationSettingsToApply->GetFocusDistanceScale(FocusSettings, FocusFactor);
 		}
 
+		NewActiveSound.MaxDistance = MaxDistance;
+
 		if (Concurrency)
 		{
 			NewActiveSound.ConcurrencySet.Add(Concurrency);
