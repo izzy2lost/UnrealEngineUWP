@@ -69,6 +69,9 @@ UEdGraphNode* FPCGEditorGraphSchemaAction_NewNativeElement::PerformAction(UEdGra
 	// Important - do not reconstruct the editor graph node/pins midway through this function as this will invalidate FromPin.
 	const FPCGDeferNodeReconstructScope DisableReconstruct(FromPin);
 
+	// Ensure compilation cache is populated before changing graph, so we can compare before/after compiled tasks later to detect change.
+	PCGGraph->PrimeGraphCompilationCache();
+
 	const FScopedTransaction Transaction(*FPCGEditorCommon::ContextIdentifier, LOCTEXT("PCGEditorNewNativeElement", "PCG Editor: New Native Element"), nullptr);
 	EditorGraph->Modify();
 
@@ -144,6 +147,9 @@ UEdGraphNode* FPCGEditorGraphSchemaAction_NewSettingsElement::PerformAction(UEdG
 
 	// Important - do not reconstruct the editor graph node/pins midway through this function as this will invalidate FromPin.
 	const FPCGDeferNodeReconstructScope DisableReconstruct(FromPin);
+
+	// Ensure compilation cache is populated before changing graph, so we can compare before/after compiled tasks later to detect change.
+	PCGGraph->PrimeGraphCompilationCache();
 
 	bool bCreateInstance = false;
 
@@ -320,6 +326,9 @@ UEdGraphNode* FPCGEditorGraphSchemaAction_NewLoadAssetElement::PerformAction(UEd
 	// Important - do not reconstruct the editor graph node/pins midway through this function as this will invalidate FromPin.
 	const FPCGDeferNodeReconstructScope DisableReconstruct(FromPin);
 
+	// Ensure compilation cache is populated before changing graph, so we can compare before/after compiled tasks later to detect change.
+	PCGGraph->PrimeGraphCompilationCache();
+
 	const FScopedTransaction Transaction(*FPCGEditorCommon::ContextIdentifier, LOCTEXT("PCGEditorNewBlueprintELement", "PCG Editor: New Blueprint Element"), nullptr);
 	EditorGraph->Modify();
 
@@ -362,6 +371,9 @@ UEdGraphNode* FPCGEditorGraphSchemaAction_NewBlueprintElement::PerformAction(UEd
 
 	// Important - do not reconstruct the editor graph node/pins midway through this function as this will invalidate FromPin.
 	const FPCGDeferNodeReconstructScope DisableReconstruct(FromPin);
+
+	// Ensure compilation cache is populated before changing graph, so we can compare before/after compiled tasks later to detect change.
+	PCGGraph->PrimeGraphCompilationCache();
 
 	const FScopedTransaction Transaction(*FPCGEditorCommon::ContextIdentifier, LOCTEXT("PCGEditorNewBlueprintELement", "PCG Editor: New Blueprint Element"), nullptr);
 	EditorGraph->Modify();
@@ -413,6 +425,9 @@ UEdGraphNode* FPCGEditorGraphSchemaAction_NewSubgraphElement::PerformAction(UEdG
 
 	// Important - do not reconstruct the editor graph node/pins midway through this function as this will invalidate FromPin.
 	const FPCGDeferNodeReconstructScope DisableReconstruct(FromPin);
+
+	// Ensure compilation cache is populated before changing graph, so we can compare before/after compiled tasks later to detect change.
+	PCGGraph->PrimeGraphCompilationCache();
 
 	UPCGGraphInterface* Subgraph = CastChecked<UPCGGraphInterface>(SubgraphObjectPath.TryLoad());
 
@@ -493,6 +508,9 @@ UEdGraphNode* FPCGEditorGraphSchemaAction_NewReroute::PerformAction(class UEdGra
 	// Important - do not reconstruct the editor graph node/pins midway through this function as this will invalidate FromPin.
 	const FPCGDeferNodeReconstructScope DisableReconstruct(FromPin);
 
+	// Ensure compilation cache is populated before changing graph, so we can compare before/after compiled tasks later to detect change.
+	PCGGraph->PrimeGraphCompilationCache();
+
 	const FScopedTransaction Transaction(*FPCGEditorCommon::ContextIdentifier, LOCTEXT("PCGEditorNewReroute", "PCG Editor: New Reroute Node"), nullptr);
 	EditorGraph->Modify();
 
@@ -537,6 +555,9 @@ UEdGraphNode* FPCGEditorGraphSchemaAction_NewNamedRerouteUsage::PerformAction(cl
 
 	const FScopedTransaction Transaction(*FPCGEditorCommon::ContextIdentifier, LOCTEXT("PCGEditorNewNamedRerouteUsage", "PCG Editor: New Named Reroute Node Usage"), nullptr);
 	EditorGraph->Modify();
+
+	// Ensure compilation cache is populated before changing graph, so we can compare before/after compiled tasks later to detect change.
+	PCGGraph->PrimeGraphCompilationCache();
 
 	PCGGraph->DisableNotificationsForEditor();
 
@@ -595,6 +616,9 @@ UEdGraphNode* FPCGEditorGraphSchemaAction_NewNamedRerouteDeclaration::PerformAct
 
 	// Important - do not reconstruct the editor graph node/pins midway through this function as this will invalidate FromPin.
 	const FPCGDeferNodeReconstructScope DisableReconstruct(FromPin);
+
+	// Ensure compilation cache is populated before changing graph, so we can compare before/after compiled tasks later to detect change.
+	PCGGraph->PrimeGraphCompilationCache();
 
 	const FScopedTransaction Transaction(*FPCGEditorCommon::ContextIdentifier, LOCTEXT("PCGEditorNewNamedRerouteDeclaration", "PCG Editor: New Named Reroute Node Declaration"), nullptr);
 	EditorGraph->Modify();

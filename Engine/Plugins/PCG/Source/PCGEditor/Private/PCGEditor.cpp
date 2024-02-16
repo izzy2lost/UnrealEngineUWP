@@ -110,11 +110,6 @@ void FPCGEditor::Initialize(const EToolkitMode::Type InMode, const TSharedPtr<cl
 {
 	PCGGraphBeingEdited = InPCGGraph;
 
-	if (PCGGraphBeingEdited)
-	{
-		PCGGraphBeingEdited->OnGraphStructureChangedDelegate.AddRaw(this, &FPCGEditor::OnGraphStructureChanged);
-	}
-
 	if (UPCGSubsystem* Subsystem = GetSubsystem())
 	{
 		Subsystem->OnComponentGenerationCompleteOrCancelled.AddRaw(this, &FPCGEditor::OnComponentGenerationCompleteOrCancelled);
@@ -272,7 +267,7 @@ void FPCGEditor::SetStackBeingInspected(const FPCGStack& FullStack)
 
 		if (PCGGraphBeingEdited)
 		{
-			PCGGraphBeingEdited->EnableInspection();
+			PCGGraphBeingEdited->EnableInspection(StackBeingInspected);
 		}
 	}
 
@@ -1891,6 +1886,9 @@ void FPCGEditor::DeleteSelectedNodes()
 		UPCGGraph* PCGGraph = PCGEditorGraph->GetPCGGraph();
 		check(PCGEditorGraph && PCGGraph);
 
+		// DeleteSelectedNodes is called directly from UI command 
+		PCGGraph->PrimeGraphCompilationCache();
+
 		bool bChanged = false;
 		TArray<UPCGNode*> NodesToRemove;
 		{
@@ -2375,8 +2373,6 @@ void FPCGEditor::OnClose()
 		{
 			PCGGraphBeingEdited->ToggleUserPausedNotificationsForEditor();
 		}
-
-		PCGGraphBeingEdited->OnGraphStructureChangedDelegate.RemoveAll(this);
 	}
 
 	if (UPCGSubsystem* Subsystem = GetSubsystem())
@@ -2528,13 +2524,6 @@ void FPCGEditor::JumpToDefinition(const UClass* Class) const
 			FSlateNotificationManager::Get().AddNotification(Info);
 		}
 	}
-}
-
-void FPCGEditor::OnGraphStructureChanged(UPCGGraphInterface* InGraph)
-{
-	check(PCGEditorGraph);
-
-	PCGEditorGraph->UpdateStructuralVisualization(GetPCGComponentBeingInspected(), GetStackBeingInspected());
 }
 
 void FPCGEditor::OnComponentGenerationCompleteOrCancelled()

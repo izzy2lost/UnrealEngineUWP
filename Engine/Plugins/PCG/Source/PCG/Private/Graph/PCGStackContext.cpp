@@ -286,3 +286,8 @@ void FPCGStackContext::PrependParentStack(const FPCGStack* InParentStack)
 		Stack.StackFrames.Insert(InParentStack->StackFrames, 0);
 	}
 }
+
+bool FPCGStackContext::operator==(const FPCGStackContext& Other) const
+{
+	return (CurrentStackIndex == Other.CurrentStackIndex) && (Stacks == Other.Stacks);
+}

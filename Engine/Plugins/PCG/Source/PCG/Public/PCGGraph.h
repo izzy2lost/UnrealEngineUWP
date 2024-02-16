@@ -114,9 +114,6 @@ public:
 #if WITH_EDITOR
 	FOnPCGGraphChanged OnGraphChangedDelegate;
 	FOnPCGGraphParametersChanged OnGraphParametersChangedDelegate;
-
-	/** A structural change has been made such as changing a static branch or a higen grid size node. */
-	FOnPCGGraphStructureChanged OnGraphStructureChangedDelegate;
 #endif // WITH_EDITOR
 
 	template <typename T>
@@ -312,10 +309,16 @@ public:
 	void SetExtraEditorNodes(const TArray<TObjectPtr<const UObject>>& InNodes);
 
 	bool IsInspecting() const { return bIsInspecting; }
-	void EnableInspection() { bIsInspecting = true; }
-	void DisableInspection() { bIsInspecting = false; }
+	void EnableInspection(const FPCGStack& InInspectedStack) { bIsInspecting = true; InspectedStack = InInspectedStack; }
+	void DisableInspection() { bIsInspecting = false; InspectedStack = FPCGStack(); }
 	bool DebugFlagAppliesToIndividualComponents() const { return bDebugFlagAppliesToIndividualComponents; }
 	void RemoveExtraEditorNode(const UObject* InNode);
+
+	/** Instruct the graph compiler to cache the relevant permutations of this graph. */
+	bool PrimeGraphCompilationCache();
+
+	/** Trigger a recompilation of the relevant permutations of this graph and check for change in the compiled tasks. */
+	bool Recompile();
 #endif
 
 #if WITH_EDITOR
@@ -414,7 +417,11 @@ protected:
 
 #if WITH_EDITOR
 private:
+	/** Sends a change notification. Demotes change if the compiled tasks are not significantly changed. */
+	void NotifyGraphStructureChanged(EPCGChangeType ChangeType, bool bForce = false);
+
 	void NotifyGraphChanged(EPCGChangeType ChangeType);
+
 	void OnNodeChanged(UPCGNode* InNode, EPCGChangeType ChangeType);
 
 	void NotifyGraphParametersChanged(EPCGGraphParameterEvent InChangeType, FName InChangedPropertyName);
@@ -431,6 +438,7 @@ private:
 	bool bIsNotifying = false;
 	bool bUserPausedNotificationsInGraphEditor = false;
 	bool bIsInspecting = false;
+	FPCGStack InspectedStack;
 #endif // WITH_EDITOR
 };
 
@@ -466,7 +474,6 @@ public:
 protected:
 #if WITH_EDITOR
 	void OnGraphChanged(UPCGGraphInterface* InGraph, EPCGChangeType ChangeType);
-	void OnGraphStructureChanged(UPCGGraphInterface* InGraph);
 	void NotifyGraphParametersChanged(EPCGGraphParameterEvent InChangeType, FName InChangedPropertyName);
 #endif
 	void OnGraphParametersChanged(UPCGGraphInterface* InGraph, EPCGGraphParameterEvent InChangeType, FName InChangedPropertyName);

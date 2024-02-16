@@ -237,7 +237,7 @@ public:
 	void DeleteSerializedPartitionActors(bool bOnlyDeleteUnused, bool bOnlyChildren = false);
 
 	/** Propagate to the graph compiler graph changes */
-	void NotifyGraphChanged(UPCGGraph* InGraph);
+	void NotifyGraphChanged(UPCGGraph* InGraph, EPCGChangeType ChangeType);
 
 	/** Update the tracking on a given component. */
 	void UpdateComponentTracking(UPCGComponent* InComponent, bool bShouldDirtyActors, const TArray<FPCGSelectionKey>* OptionalChangedKeys = nullptr) { ActorAndComponentMapping.UpdateTracking(InComponent, bShouldDirtyActors, OptionalChangedKeys); }

@@ -185,7 +185,13 @@ void UPCGBaseSubgraphSettings::OnSubgraphChanged(UPCGGraphInterface* InGraph, EP
 {
 	if (InGraph == GetSubgraphInterface())
 	{
-		OnSettingsChangedDelegate.Broadcast(this, (ChangeType | EPCGChangeType::Settings));
+		// Only add settings if not cosmetic - we don't want to promote a cosmetic change to something deeper.
+		if (ChangeType != EPCGChangeType::Cosmetic)
+		{
+			ChangeType |= EPCGChangeType::Settings;
+		}
+
+		OnSettingsChangedDelegate.Broadcast(this, ChangeType);
 
 		// Also rebuild the overrides
 		InitializeCachedOverridableParams(/*bReset=*/true);

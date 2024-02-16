@@ -197,6 +197,9 @@ bool UPCGEditorGraphSchema::TryCreateConnectionInternal(UEdGraphPin* InA, UEdGra
 	UPCGGraph* PCGGraph = PCGNodeA->GetGraph();
 	check(PCGGraph);
 
+	// UPCGEditorGraphSchema::TryCreateConnectionInternal is called directly by FDragConnection::DroppedOnPin
+	PCGGraph->PrimeGraphCompilationCache();
+
 	// Creates a connection via an intermediate conversion node.
 	auto ConnectViaIntermediate = [this, PCGGraph, NodeA, NodeB, A, B](UPCGNode* IntermediateNode)
 	{

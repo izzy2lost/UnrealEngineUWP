@@ -162,7 +162,7 @@ TArray<FPCGGraphTask> FPCGGraphCompiler::CompileGraph(UPCGGraph* InGraph, FPCGTa
 			PostTask.StackIndex = InOutStackContext.GetCurrentStackIndex();
 			// Implementation note: since we`ve already executed the node once, we normally don`t need to execute it a second time
 			// especially since we cannot distinguish between the pre and post during execution so any data filtering related to pins is bound to fail.
-			PostTask.Element = MakeShared<FPCGTrivialElement>();
+			PostTask.Element = GetSharedTrivialElement();
 
 			// Add execution-only dependency on pre-task, without this post task can be scheduled concurrently with pre-task, and concurrently
 			// with something that might become inactive and would then fail to dynamically cull this already-scheduled task.
@@ -402,11 +402,13 @@ void FPCGGraphCompiler::CreateGridLinkages(
 						DownstreamNode,
 						static_cast<FPCGGridLinkageContext*>(InContext));
 				};
+
 				FPCGGenericElement::FContextAllocator ContextAllocator = [](const FPCGDataCollection&, TWeakObjectPtr<UPCGComponent>, const UPCGNode*)
 				{
 					return new FPCGGridLinkageContext();
 				};
-				LinkTask.Element = MakeShared<FPCGGenericElement>(GridLinkageOperation, ContextAllocator);
+
+				LinkTask.Element = MakeShared<PCGGraphExecutor::FPCGGridLinkageElement>(GridLinkageOperation, ContextAllocator, FromGrid, ToGrid, ResourceKey);
 
 				// Now splice in the new task - redirect the downstream task to grab its input from the link task.
 				TaskInput.TaskId = LinkTask.NodeId;
@@ -962,6 +964,8 @@ void FPCGGraphCompiler::CompileTopGraph(UPCGGraph* InGraph, uint32 GenerationGri
 		return;
 	}
 
+	UE_LOG(LogPCG, Verbose, TEXT("FPCGGraphCompiler::CompileTopGraph '%s' grid: %u"), *InGraph->GetName(), GenerationGridSize);
+
 	// Build from non-top tasks
 	FPCGStackContext StackContext;
 	TArray<FPCGGraphTask> CompiledTasks = GetCompiledTasks(InGraph, GenerationGridSize, StackContext, /*bIsTopGraph=*/false);
@@ -1026,7 +1030,7 @@ void FPCGGraphCompiler::CompileTopGraph(UPCGGraph* InGraph, uint32 GenerationGri
 	const FPCGTaskId PostExecuteTaskId = PreExecuteTaskId + 1;
 
 	FPCGGraphTask& PreExecuteTask = CompiledTasks.Emplace_GetRef();
-	PreExecuteTask.Element = MakeShared<FPCGTrivialElement>();
+	PreExecuteTask.Element = GetSharedTrivialElement();
 	PreExecuteTask.NodeId = PreExecuteTaskId;
 
 	for (int TaskIndex = 0; TaskIndex < TaskNum; ++TaskIndex)
@@ -1041,7 +1045,7 @@ void FPCGGraphCompiler::CompileTopGraph(UPCGGraph* InGraph, uint32 GenerationGri
 	}
 
 	FPCGGraphTask& PostExecuteTask = CompiledTasks.Emplace_GetRef();
-	PostExecuteTask.Element = MakeShared<FPCGTrivialElement>();
+	PostExecuteTask.Element = GetSharedTrivialElement();
 	PostExecuteTask.NodeId = PostExecuteTaskId;
 
 	// Find end nodes, e.g. all nodes that have no successors.
@@ -1085,6 +1089,27 @@ void FPCGGraphCompiler::CompileTopGraph(UPCGGraph* InGraph, uint32 GenerationGri
 	GraphToTaskMapLock.WriteUnlock();
 }
 
+FPCGElementPtr FPCGGraphCompiler::GetSharedTrivialElement()
+{
+	{
+		FReadScopeLock Lock(SharedTrivialElementLock);
+
+		if (SharedTrivialElement)
+		{
+			return SharedTrivialElement;
+		}
+	}
+
+	FWriteScopeLock Lock(SharedTrivialElementLock);
+
+	if (!SharedTrivialElement)
+	{
+		SharedTrivialElement = MakeShared<FPCGTrivialElement>();
+	}
+
+	return SharedTrivialElement;
+}
+
 void FPCGGraphCompiler::ClearCache()
 {
 	FWriteScopeLock Lock(GraphToTaskMapLock);
@@ -1095,16 +1120,42 @@ void FPCGGraphCompiler::ClearCache()
 }
 
 #if WITH_EDITOR
-void FPCGGraphCompiler::NotifyGraphChanged(UPCGGraph* InGraph)
+void FPCGGraphCompiler::NotifyGraphChanged(UPCGGraph* InGraph, EPCGChangeType ChangeType)
 {
-	if (InGraph)
+	if (InGraph && (ChangeType != EPCGChangeType::Cosmetic))
 	{
 		RemoveFromCache(InGraph);
 	}
 }
 
+bool FPCGGraphCompiler::Recompile(UPCGGraph* InGraph, uint32 GenerationGridSize, bool bIsTopGraph)
+{
+	FPCGStackContext StackContextBefore;
+	const TArray<FPCGGraphTask> TasksBefore = GetPrecompiledTasks(InGraph, GenerationGridSize, StackContextBefore, bIsTopGraph);
+
+	// Need to manually purge as the graph compiler will not have gotten the change notification yet. Editor only.
+	RemoveFromCache(InGraph);
+
+	FPCGStackContext StackContextAfter;
+	const TArray<FPCGGraphTask> TasksAfter = GetCompiledTasks(InGraph, GenerationGridSize, StackContextAfter, bIsTopGraph);
+
+	bool bAllTasksEqual = TasksBefore.Num() == TasksAfter.Num();
+	if (bAllTasksEqual)
+	{
+		for (int I = 0; I < TasksBefore.Num(); ++I)
+		{
+			bAllTasksEqual = bAllTasksEqual && TasksAfter[I].IsApproximatelyEqual(TasksBefore[I]);
+		}
+	}
+
+	// Compiled result is compiled tasks + associated stacks. Compare both and return true if compiled result changes.
+	return !bAllTasksEqual || (StackContextBefore != StackContextAfter);
+}
+
 void FPCGGraphCompiler::RemoveFromCache(UPCGGraph* InGraph)
 {
+	UE_LOG(LogPCG, Verbose, TEXT("FPCGGraphCompiler::RemoveFromCache '%s'"), *InGraph->GetName());
+
 	check(InGraph);
 	RemoveFromCacheRecursive(InGraph);
 }

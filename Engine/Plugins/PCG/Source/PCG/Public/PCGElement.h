@@ -99,8 +99,11 @@ public:
 	/** Public function called when an element is cancelled, passing its current context if any. */
 	void Abort(FPCGContext* Context) const;
 
-	/** Note: the following methods must be called from the main thread */
 #if WITH_EDITOR
+	/** Is this element used for marshalling data across higen grids. Used as rudimentary RTTI for element object comparisons (editor only). */
+	virtual bool IsGridLinkage() const { return false; }
+
+	/** Note: must be called from the main thread. */
 	void DebugDisplay(FPCGContext* Context) const;
 #endif
 

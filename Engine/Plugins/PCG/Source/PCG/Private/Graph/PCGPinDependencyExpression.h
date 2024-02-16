@@ -32,6 +32,8 @@ struct FPCGPinDependencyExpression
 	/** Applies given node ID offset to all pin IDs in expression (pin ID is combination of node ID and pin index). */
 	void OffsetNodeIds(uint64 NodeIdOffset);
 
+	bool operator==(const FPCGPinDependencyExpression& Other) const { return (Expression == Other.Expression); }
+
 #if WITH_EDITOR
 	FString ToString() const;
 #endif
