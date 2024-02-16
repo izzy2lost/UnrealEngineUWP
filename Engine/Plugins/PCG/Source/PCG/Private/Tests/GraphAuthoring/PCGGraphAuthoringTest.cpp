@@ -92,6 +92,13 @@ bool FPCGGraphAuthoringTypeSystemTest::RunTest(const FString& Parameters)
 	bTestPassed &= ValidateConversion("Collapse: Concrete to Point", EPCGDataType::Concrete, EPCGDataType::Point, true, EPCGTypeConversion::CollapseToPoint);
 	bTestPassed &= ValidateConversion("Collapse: Spatial to Point", EPCGDataType::Spatial, EPCGDataType::Point, true, EPCGTypeConversion::CollapseToPoint);
 
+	// Collapse, with Point | Param
+	bTestPassed &= ValidateConversion("Collapse: Spline to Point", EPCGDataType::Spline, EPCGDataType::Point | EPCGDataType::Param, true, EPCGTypeConversion::CollapseToPoint);
+	bTestPassed &= ValidateConversion("Collapse: Landscape to Point", EPCGDataType::Landscape, EPCGDataType::Point | EPCGDataType::Param, true, EPCGTypeConversion::CollapseToPoint);
+	bTestPassed &= ValidateConversion("Collapse: Surface to Point", EPCGDataType::Surface, EPCGDataType::Point | EPCGDataType::Param, true, EPCGTypeConversion::CollapseToPoint);
+	bTestPassed &= ValidateConversion("Collapse: Concrete to Point", EPCGDataType::Concrete, EPCGDataType::Point | EPCGDataType::Param, true, EPCGTypeConversion::CollapseToPoint);
+	bTestPassed &= ValidateConversion("Collapse: Spatial to Point", EPCGDataType::Spatial, EPCGDataType::Point | EPCGDataType::Param, true, EPCGTypeConversion::CollapseToPoint);
+
 	// Filter
 	bTestPassed &= ValidateConversion("Filter: Any to Point", EPCGDataType::Any, EPCGDataType::Point, true, EPCGTypeConversion::Filter);
 	bTestPassed &= ValidateConversion("Filter: Any to Landscape", EPCGDataType::Any, EPCGDataType::Landscape, true, EPCGTypeConversion::Filter);

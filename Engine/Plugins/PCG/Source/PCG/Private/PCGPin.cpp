@@ -363,10 +363,10 @@ bool UPCGPin::IsCompatible(const UPCGPin* OtherPin) const
 		return true;
 	}
 
-	// Anything spatial can collapse to point
-	const bool bUpstreamInSpatial = !(UpstreamTypes & ~EPCGDataType::Spatial);
-	const bool bDownstreamIsPoint = (DownstreamTypes == EPCGDataType::Point);
-	if (bUpstreamInSpatial && bDownstreamIsPoint)
+	// Anything spatial can collapse to point as long as the downstream pin does not support any other spatial types. For example, Point | Param is collapsible, but Point | Surface is not
+	const bool bUpstreamIsSpatial = !(UpstreamTypes & ~EPCGDataType::Spatial);
+	const bool bDownstreamIsPoint = (DownstreamTypes & EPCGDataType::Spatial) == EPCGDataType::Point;
+	if (bUpstreamIsSpatial && bDownstreamIsPoint)
 	{
 		return true;
 	}
@@ -427,10 +427,13 @@ EPCGTypeConversion UPCGPin::GetRequiredTypeConversion(const UPCGPin* InOtherPin)
 	}
 
 	// Spatial -> Point - "To Point" conversion.
-	const bool bUpstreamInSpatial = !(UpstreamTypes & ~EPCGDataType::Spatial);
-	if (bUpstreamInSpatial && DownstreamTypes == EPCGDataType::Point)
+	// Anything spatial can collapse to point as long as the downstream pin does not support any other spatial types. For example, Point | Param is collapsible, but Point | Surface is not.
+	const bool bUpstreamIsSpatial = !(UpstreamTypes & ~EPCGDataType::Spatial);
+	const bool bUpstreamIsPoint = UpstreamTypes == EPCGDataType::Point;
+	const bool bDownstreamIsSpatialAndPointOnly = (DownstreamTypes & EPCGDataType::Spatial) == EPCGDataType::Point;
+	if (bUpstreamIsSpatial && bDownstreamIsSpatialAndPointOnly)
 	{
-		return EPCGTypeConversion::CollapseToPoint;
+		return bUpstreamIsPoint ? EPCGTypeConversion::NoConversionRequired : EPCGTypeConversion::CollapseToPoint;
 	}
 
 	// Spline -> Surface conversion
