@@ -21,6 +21,9 @@ public:
 	AVALANCHEATTRIBUTE_API virtual bool ContainsTag(const FAvaTagHandle& InTagHandle) const override;
 	//~ End UAvaTagAttributeBase
 
-	UPROPERTY(EditAnywhere, Category="Attributes")
+	UFUNCTION()
+	AVALANCHEATTRIBUTE_API void SetTagContainer(const FAvaTagHandleContainer& InTagContainer);
+
+	UPROPERTY(EditAnywhere, Setter, Category="Attributes")
 	FAvaTagHandleContainer TagContainer;
 };
