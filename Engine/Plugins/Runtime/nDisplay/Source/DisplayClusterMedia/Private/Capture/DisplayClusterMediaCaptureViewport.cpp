@@ -29,24 +29,20 @@ FDisplayClusterMediaCaptureViewport::FDisplayClusterMediaCaptureViewport(const F
 
 bool FDisplayClusterMediaCaptureViewport::StartCapture()
 {
-	// If capturing has started successfully, subscribe for the pipeline callbacks
-	if (FDisplayClusterMediaCaptureBase::StartCapture())
-	{
-		IDisplayCluster::Get().GetCallbacks().OnDisplayClusterPostRenderViewFamily_RenderThread().AddRaw(this, &FDisplayClusterMediaCaptureViewport::OnPostRenderViewFamily_RenderThread);
-		IDisplayCluster::Get().GetCallbacks().OnDisplayClusterUpdateViewportMediaState().AddRaw(this, &FDisplayClusterMediaCaptureViewport::OnUpdateViewportMediaState);
+	// Subscribe for events
+	IDisplayCluster::Get().GetCallbacks().OnDisplayClusterPostRenderViewFamily_RenderThread().AddRaw(this, &FDisplayClusterMediaCaptureViewport::OnPostRenderViewFamily_RenderThread);
+	IDisplayCluster::Get().GetCallbacks().OnDisplayClusterUpdateViewportMediaState().AddRaw(this, &FDisplayClusterMediaCaptureViewport::OnUpdateViewportMediaState);
 
-		return true;
-	}
+	// Start capture
+	const bool bStarted = FDisplayClusterMediaCaptureBase::StartCapture();
 
-	return false;
+	return bStarted;
 }
 
 void FDisplayClusterMediaCaptureViewport::StopCapture()
 {
-	// Stop rendering notifications
+	// Unsubscribe from events
 	IDisplayCluster::Get().GetCallbacks().OnDisplayClusterPostRenderViewFamily_RenderThread().RemoveAll(this);
-
-	// Stop raising media flags for the viewport.
 	IDisplayCluster::Get().GetCallbacks().OnDisplayClusterUpdateViewportMediaState().RemoveAll(this);
 
 	// Stop capturing
@@ -90,9 +86,7 @@ FIntPoint FDisplayClusterMediaCaptureViewport::GetCaptureSize() const
 		}
 	}
 
-	UE_LOG(LogDisplayClusterMedia, Warning, TEXT("'%s' couldn't get viewport size"), *GetMediaId());
-
-	return FIntPoint();
+	return FIntPoint::ZeroValue;
 }
 
 void FDisplayClusterMediaCaptureViewport::OnPostRenderViewFamily_RenderThread(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, const IDisplayClusterViewportProxy* ViewportProxy)
