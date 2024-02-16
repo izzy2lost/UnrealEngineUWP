@@ -40,14 +40,6 @@ struct FSlateBrush;
 
 #define LOCTEXT_NAMESPACE "ContentBrowser"
 
-static bool GUsePluginFolderIcon = 0;
-static FAutoConsoleVariableRef CVarUsePluginFolderIcon(
-	TEXT("ContentBrowser.UsePluginFolderIcon"),
-	GUsePluginFolderIcon,
-	TEXT("Temporary flag to control use of separate icon for plugin folders pending final icon"),
-	ECVF_Default
-);
-
 struct FAssetTreeItemBrushes
 {
 	/** Brushes for the different folder states */
@@ -56,11 +48,7 @@ struct FAssetTreeItemBrushes
 	const FSlateBrush* FolderOpenCodeBrush;
 	const FSlateBrush* FolderClosedCodeBrush;
 	const FSlateBrush* FolderOpenDeveloperBrush;
-	const FSlateBrush* FolderClosedDeveloperBrush;
-	const FSlateBrush* FolderOpenPluginRootBrush;
-	const FSlateBrush* FolderClosedPluginRootBrush;
-	const FSlateBrush* FolderOpenPluginBrush;
-	const FSlateBrush* FolderClosedPluginBrush;
+	const FSlateBrush *FolderClosedDeveloperBrush;
 
 	FAssetTreeItemBrushes()
 	{
@@ -70,10 +58,6 @@ struct FAssetTreeItemBrushes
 		FolderClosedCodeBrush = FAppStyle::GetBrush("ContentBrowser.AssetTreeFolderClosedCode");
 		FolderOpenDeveloperBrush = FAppStyle::GetBrush("ContentBrowser.AssetTreeFolderOpenDeveloper");
 		FolderClosedDeveloperBrush = FAppStyle::GetBrush("ContentBrowser.AssetTreeFolderClosedDeveloper");
-		FolderOpenPluginRootBrush = FAppStyle::GetBrush("ContentBrowser.AssetTreeFolderOpenPluginRoot");
-		FolderClosedPluginRootBrush = FAppStyle::GetBrush("ContentBrowser.AssetTreeFolderClosedPluginRoot");
-		FolderOpenPluginBrush = FAppStyle::GetBrush("ContentBrowser.AssetTreeFolderOpenPlugin");
-		FolderClosedPluginBrush = FAppStyle::GetBrush("ContentBrowser.AssetTreeFolderClosedPlugin");
 	}
 	
 	static FAssetTreeItemBrushes& Get()
@@ -107,18 +91,6 @@ void SAssetTreeItem::Construct( const FArguments& InArgs )
 	else if (EnumHasAnyFlags(InArgs._TreeItem->GetItem().GetItemCategory(), EContentBrowserItemFlags::Category_Class))
 	{
 		FolderType = EFolderType::Code;
-	}
-	else if (InArgs._TreeItem->GetItem().IsInPlugin())
-	{
-		TSharedPtr<FTreeItem> Parent = InArgs._TreeItem->Parent.Pin();
-		if (Parent.IsValid() && Parent->GetItem().IsInPlugin())
-		{
-			FolderType = EFolderType::PluginSubfolder;
-		}
-		else
-		{
-			FolderType = EFolderType::PluginRoot;
-		}
 	}
 
 	bool bIsRoot = !InArgs._TreeItem->Parent.IsValid();
@@ -315,19 +287,6 @@ const FSlateBrush* SAssetTreeItem::GetFolderIcon() const
 
 	case EFolderType::Developer:
 		return (IsItemExpanded.Get()) ? Brushes.FolderOpenDeveloperBrush : Brushes.FolderClosedDeveloperBrush;
-
-	case EFolderType::PluginRoot:
-		if (GUsePluginFolderIcon)
-		{
-			return (IsItemExpanded.Get()) ? Brushes.FolderOpenPluginRootBrush : Brushes.FolderClosedPluginRootBrush;
-		}
-		// Fall through to default 
-	case EFolderType::PluginSubfolder:
-		if (GUsePluginFolderIcon)
-		{
-			return (IsItemExpanded.Get()) ? Brushes.FolderOpenPluginBrush : Brushes.FolderClosedPluginBrush;
-		}
-		// Fall through to default 
 
 	default:
 		return ( IsItemExpanded.Get() ) ? Brushes.FolderOpenBrush : Brushes.FolderClosedBrush;
