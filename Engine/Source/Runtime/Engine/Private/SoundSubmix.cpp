@@ -30,6 +30,7 @@ FAutoConsoleVariableRef CVarFixUpBrokenSubmixAssets(
 USoundSubmixWithParentBase::USoundSubmixWithParentBase(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 	, ParentSubmix(nullptr)
+	, bIsDynamic(0)
 {}
 
 USoundSubmixBase::USoundSubmixBase(const FObjectInitializer& ObjectInitializer)
@@ -609,6 +610,13 @@ bool USoundSubmixWithParentBase::DynamicConnect(const UObject* WorldContextObjec
 
 bool USoundSubmixWithParentBase::DynamicConnect(FAudioDeviceHandle Handle, USoundSubmixBase* InParent)
 {
+	if (!IsDynamic(false /* bIncludeAncestors */))
+	{
+		const USoundSubmixBase* DynamicAncestor = FindDynamicAncestor();
+		UE_CLOG(DynamicAncestor, LogAudio, Warning, TEXT("Submix (DynamicConnect): Dynamic Flag not set for [%s], you need its ancestor [%s]. Call FindDynamicAncestor on this submix to find it. Ignoring..." ), *GetName(), *DynamicAncestor->GetName());
+		UE_CLOG(!DynamicAncestor, LogAudio, Warning, TEXT("Submix (DynamicConnect): Dynamic Flag not set for [%s] or any of its parents, ignoring... "), *GetName());
+		return false;
+	}
 	if (!Handle.IsValid())
 	{
 		UE_LOG(LogAudio, Warning, TEXT("Submix (DynamicConnect): No valid audio device in this world for [%s]"), *GetName());
@@ -651,11 +659,19 @@ bool USoundSubmixWithParentBase::DynamicConnect(FAudioDeviceHandle Handle, USoun
 			Handle->SetSubmixAutoDisable(Cast<USoundSubmix>(CurrentParent.Get()), false);
 		}
 
-		// Register us, and disable parents auto disable feature.
-		Handle->RegisterSoundSubmix(this, /*bInit*/ true);
+		// Register us and our children
+		SubmixUtils::ForEachStaticChildRecursive(
+			this,
+			[&Handle, Id](USoundSubmixBase* Iter)-> void
+			{
+				UE_LOG(LogAudio, Verbose, TEXT("Submix (DynamicConnect): Registering [%s] with AudioDevice [%u]"), *Iter->GetName(), Id);
+				Handle->RegisterSoundSubmix(Iter, /* bInit*/ true);
+			});
+			
+		// ... and disable parents auto disable feature.
 		Handle->SetSubmixAutoDisable(Cast<USoundSubmix>(this), CurrentParent == nullptr);
 
-		UE_LOG(LogAudio, Verbose, TEXT("Submix (DynamicConnect): Registering [%s] with AudioDevice [%u]"), *GetName(), Id);
+
 
 		return CurrentParent != nullptr;
 	}
@@ -692,6 +708,12 @@ bool USoundSubmixWithParentBase::DynamicDisconnect(FAudioDeviceHandle Handle)
 		return false;
 	}
 
+	if (!IsDynamic(false /* bIncludeAncestors */))
+	{
+		UE_LOG(LogAudio, Warning, TEXT("Submix (DynamicDisconnect): Dynamic Flag not set for [%s] ignoring."), *GetName());
+		return false;
+	}
+
 	const Audio::DeviceID Id = Handle.GetDeviceID();
 
 	TObjectPtr<USoundSubmixBase>& CurrentParent = DynamicParentSubmix.FindOrAdd(Id);
@@ -703,7 +725,12 @@ bool USoundSubmixWithParentBase::DynamicDisconnect(FAudioDeviceHandle Handle)
 		CurrentParent->DynamicChildSubmixes.FindOrAdd(Id).ChildSubmixes.Remove(this);
 		CurrentParent = nullptr;
 
-		Handle->UnregisterSoundSubmix(this, false);
+		 SubmixUtils::ForEachStaticChildRecursive(
+			this,
+			[&Handle](USoundSubmixBase* Iter)-> void
+			{
+				Handle->UnregisterSoundSubmix(Iter,  /* bReparentChildren*/ false);
+			});	
 				
 		// If we still have a valid parent static submix? Make sure that's still live and registered.
 		if (ParentSubmix)
@@ -718,6 +745,46 @@ bool USoundSubmixWithParentBase::DynamicDisconnect(FAudioDeviceHandle Handle)
 
 	UE_LOG(LogAudio, Warning, TEXT("Submix (DynamicDisconnect): Submix was not connected to any dynamic parent [%s]"), *GetName());
 	return false;
+}
+
+bool USoundSubmixWithParentBase::IsDynamic(const bool bIncludeAncestors) const
+{
+	// If we don't care about ancestors, just return if we're dynamic.
+	if (!bIncludeAncestors)
+	{
+		return bIsDynamic;
+	}
+
+	// Find the first dynamic ancestor.
+	const USoundSubmixBase* Found = FindDynamicAncestor();
+	return Found != nullptr;
+}
+
+USoundSubmixBase* USoundSubmixWithParentBase::FindDynamicAncestor()
+{
+	const USoundSubmixBase* Found = const_cast<const USoundSubmixWithParentBase*>(this)->FindDynamicAncestor();
+	return const_cast<USoundSubmixBase*>(Found);
+}
+
+const USoundSubmixBase* USoundSubmixWithParentBase::FindDynamicAncestor() const
+{
+	// Walk up parents from here checking for dynamic flag.
+	for (const USoundSubmixWithParentBase* Current = this; Current; /* Incremented below */)
+	{
+		if (Current->bIsDynamic)
+		{
+			return Current;
+		}
+		if (const USoundSubmixWithParentBase* Parent = Cast<USoundSubmixWithParentBase>(Current->ParentSubmix))
+		{
+			Current = Parent;
+		}
+		else
+		{
+			break;
+		}
+	}
+	return nullptr;
 }
 
 #if WITH_EDITOR
@@ -772,8 +839,6 @@ void USoundSubmixBase::PostEditChangeProperty(FPropertyChangedEvent& PropertyCha
 						SubmixWithParent->SetParentSubmix(this);
 					}
 					
-					// Make the children follow our auto register setting.
-					ChildSubmixes[ChildIndex]->bAutoRegister = bAutoRegister;
 					ChildSubmixes[ChildIndex]->PostEditChangeProperty(PropertyChangedEvent);
 
 					break;
@@ -790,30 +855,15 @@ void USoundSubmixBase::PostEditChangeProperty(FPropertyChangedEvent& PropertyCha
 					{
 						SubmixWithParent->ParentSubmix = nullptr;
 					}
-				}
-			}
 
-			// Force the properties to be initialized for this SoundSubmix on all active audio devices
-			if (FAudioDeviceManager* AudioDeviceManager = GEngine->GetAudioDeviceManager())
-			{
-				if (bAutoRegister)
-				{
-					AudioDeviceManager->RegisterSoundSubmix(this);
-				}
-			}
-		}
-
-		// Propagate auto register to children of this submix. 
-		// We don't want them to auto register 
-		if (PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(USoundSubmixBase, bAutoRegister))
-		{
-			// All children so should follow the 
-			for (int32 ChildIndex = 0; ChildIndex < ChildSubmixes.Num(); ChildIndex++)
-			{
-				if (USoundSubmixBase* Child = ChildSubmixes[ChildIndex] )
-				{
-					Child->bAutoRegister = bAutoRegister;
-					Child->PostEditChangeProperty(PropertyChangedEvent);
+					// Force the properties to be initialized for this SoundSubmix on all active audio devices
+					if (FAudioDeviceManager* AudioDeviceManager = GEngine->GetAudioDeviceManager())
+					{
+						if (!IsDynamic(true /* bIncludeAncestors */ )) // Exclude dynamic submixes from registration
+						{
+							AudioDeviceManager->RegisterSoundSubmix(this);
+						}
+					}
 				}
 			}
 		}
@@ -1366,6 +1416,15 @@ bool SubmixUtils::FindInGraph(
 	}
 	return false;
 
+}
+
+void SubmixUtils::ForEachStaticChildRecursive(USoundSubmixBase* StartingPoint, const TFunction<void(USoundSubmixBase*)>& Op)
+{
+	Op(StartingPoint);
+	for (TObjectPtr<USoundSubmixBase> i : StartingPoint->ChildSubmixes)
+	{
+		ForEachStaticChildRecursive(i,Op);
+	}
 }
 
 const USoundSubmixBase* SubmixUtils::FindRoot(const USoundSubmixBase* InStartingPoint, FAudioDeviceHandle InDevice)

@@ -325,6 +325,9 @@ public:
 	/** Whether or not this wave instance is stopping. */
 	uint32 bIsStopping:1;
 
+	/** Is this or any of the submixes above it dynamic */
+	uint32 bIsDynamic:1;
+
 	/** Which spatialization method to use to spatialize 3d sounds. */
 	ESoundSpatializationAlgorithm SpatializationMethod;
 
