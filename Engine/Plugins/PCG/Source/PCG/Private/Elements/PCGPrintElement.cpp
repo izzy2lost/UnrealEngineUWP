@@ -141,6 +141,9 @@ bool FPCGPrintElement::ExecuteInternal(FPCGContext* Context) const
 				HashKey32 = HashCombine(HashKey32, Component->GetUniqueID());
 			}
 
+			// Add the stack hash to include the loop indices
+			HashKey32 = HashCombine(HashKey32, GetTypeHash(Context->Stack));
+
 			check(Context->SourceComponent.IsValid());
 			UPCGManagedDebugStringMessageKey* ManagedMessageKey = NewObject<UPCGManagedDebugStringMessageKey>(Context->SourceComponent.Get());
 			ManagedMessageKey->HashKey = static_cast<uint64>(HashKey32);
