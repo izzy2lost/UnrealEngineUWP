@@ -415,7 +415,7 @@ void UStormSyncImportSubsystem::HandlePakPostExtract(const FStormSyncPackageDesc
 		LogMessage = FText::Format(LOCTEXT("PakPostExtract_Extract_Failed", "Extracted {0} files. Some content could not be extracted."), FText::AsNumber(FileCount));
 	}
 
-	const FText LogHeading = FText::Format(LOCTEXT("PakPostExtract_Heading", "Received avalanche pak \"{0}\"."), FText::FromString(InPackageDescriptor.Name));
+	const FText LogHeading = FText::Format(LOCTEXT("PakPostExtract_Heading", "Received content spak \"{0}\"."), FText::FromString(InPackageDescriptor.Name));
 	const FText NotifyMessage = FText::Format(LOCTEXT("PakPostExtract_Message_Notification", "{0}\n{1}"), LogHeading, LogMessage);
 	
 	FMessageLog MessageLog(LogName);

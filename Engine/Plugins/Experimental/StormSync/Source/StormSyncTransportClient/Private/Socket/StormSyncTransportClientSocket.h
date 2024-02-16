@@ -9,7 +9,7 @@
 /**
  * Implements a TCP message tunnel connection.
  *
- * Mainly used to send a raw buffer serialized from StormSyncCoreUtils methods to transfer an avalanche pak on a remote instance.
+ * Mainly used to send a raw buffer serialized from StormSyncCoreUtils methods to transfer a content spak on a remote instance.
  */
 class FStormSyncTransportClientSocket : public FRunnable, public TSharedFromThis<FStormSyncTransportClientSocket>
 {
