@@ -249,14 +249,19 @@ void FIKRetargetEditorController::HandleRetargeterNeedsInitialized() const
 	FixZeroHeightRetargetRoot(ERetargetSourceOrTarget::Source);
 	FixZeroHeightRetargetRoot(ERetargetSourceOrTarget::Target);
 	
+	ReinitializeRetargeterNoUIRefresh();
+	
+	// refresh all the UI views
+	RefreshAllViews();	
+}
+
+void FIKRetargetEditorController::ReinitializeRetargeterNoUIRefresh() const
+{
 	// clear the output log
 	ClearOutputLog();
 
 	// force running instances to reinitialize on next tick
 	AssetController->GetAsset()->IncrementVersion();
-	
-	// refresh all the UI views
-	RefreshAllViews();	
 }
 
 void FIKRetargetEditorController::HandleIKRigReplaced(ERetargetSourceOrTarget SourceOrTarget)

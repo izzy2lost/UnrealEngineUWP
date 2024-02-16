@@ -103,6 +103,8 @@ public:
 	void HandleRetargetChainRemoved(UIKRigDefinition* ModifiedIKRig, const FName InChainRemoved) const;
 	// callback when IK Retargeter asset requires reinitialization
 	void HandleRetargeterNeedsInitialized() const;
+	// reinitialize retargeter without refreshing UI
+	void ReinitializeRetargeterNoUIRefresh() const;
 	FDelegateHandle RetargeterReInitDelegateHandle;
 	// callback when IK Rig asset has been swapped out
 	void HandleIKRigReplaced(ERetargetSourceOrTarget SourceOrTarget);
@@ -249,6 +251,7 @@ public:
 
 	// op stack selection
 	URetargetOpBase* GetSelectedOp() const;
+	int32 LastSelectedOpIndex = 0;
 
 	// to frame selection when pressing "f" in viewport
 	bool GetCameraTargetForSelection(FSphere& OutTarget) const;
