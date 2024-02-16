@@ -7,22 +7,23 @@ namespace Audio
 	namespace GrainDelay
 	{
 		// TODO: consider making this a construction pin or cvar
-		static constexpr float MaxDelaySeconds = 2.0f;
 		static constexpr int32 GrainEnvelopeSampleCount = 1024;
 		static constexpr float MaxAbsPitchShiftInOctaves = 6.0f;
 
-		FGrainDelay::FGrainDelay(const float InSampleRate)
+		FGrainDelay::FGrainDelay(const float InSampleRate, const float InMaxDelaySeconds)
 			: SampleRate(InSampleRate)
+			, MaxDelaySeconds(FMath::Max(InMaxDelaySeconds, 0.0f))
 		{
 			// DelayLine must accommodate the delay of the grain and the pitch shifter.
 			// The pitch shifter has a maximum delay and requires an extra millisecond 
 			// for phase offsets. An additional sample is added to account for floating 
 			// point rounding.
+
 			const float RoundingErrorBufferInSeconds = 1.f / InSampleRate;
 			const float MaxTapDelayInSeconds = (FTapDelayPitchShifter::MaxDelayLength + 1.f) / 1000.f;
 			const float DelayLineSizeInSeconds = MaxDelaySeconds + MaxTapDelayInSeconds + RoundingErrorBufferInSeconds;
 			GrainDelayLine.Init(SampleRate, DelayLineSizeInSeconds);
-			
+
 			// Generate the grain data
 			GenerateEnvelopeData(GrainEnvelope, GrainEnvelopeSampleCount, GrainEnvelopeType);
 			
