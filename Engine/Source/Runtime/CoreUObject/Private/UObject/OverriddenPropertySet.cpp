@@ -680,6 +680,9 @@ void FOverriddenPropertySet::NotifyPropertyChange(FOverriddenPropertyNode* Paren
 
 					switch(PropertyEvent.ChangeType)
 					{
+					case EPropertyChangeType::ValueSet:
+						checkf(ArrayIndex != INDEX_NONE, TEXT("ValueSet change type should have associated indexes"));
+						// Intentional fall thru
 					case EPropertyChangeType::Unspecified:
 						{
 							if (ArrayIndex != INDEX_NONE)
@@ -926,6 +929,9 @@ void FOverriddenPropertySet::NotifyPropertyChange(FOverriddenPropertyNode* Paren
 
 			switch (PropertyEvent.ChangeType)
 			{
+			case EPropertyChangeType::ValueSet:
+				checkf(LogicalMapIndex != INDEX_NONE, TEXT("ValueSet change type should have associated indexes"));
+				// Intentional fall thru
 			case EPropertyChangeType::Unspecified:
 				{
 					if(LogicalMapIndex != INDEX_NONE)
