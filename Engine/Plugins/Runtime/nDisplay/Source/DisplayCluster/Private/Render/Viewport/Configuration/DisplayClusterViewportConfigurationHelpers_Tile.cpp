@@ -33,10 +33,9 @@ void FDisplayClusterViewportConfigurationHelpers_Tile::UpdateICVFXCameraViewport
 		return;
 	}
 
-	// Perform additional validations
-	const FDisplayClusterConfigurationICVFX_StageSettings* const StageSettings = InSourceViewport.Configuration->GetStageSettings();
-	const bool bIsTilingAllowed = (StageSettings && FDisplayClusterConfigurationTile_Settings::IsEnabled(InCameraMediaSettings.TiledSplitLayout, *StageSettings));
-	if (!bIsTilingAllowed)
+	// Validate the layout
+	const bool bIsLayoutValid = FDisplayClusterConfigurationTile_Settings::IsValid(InCameraMediaSettings.TiledSplitLayout);
+	if (!bIsLayoutValid)
 	{
 		InSourceViewport.GetRenderSettingsImpl().TileSettings = { };
 		return;
