@@ -366,8 +366,6 @@ FNaniteTransformedTri TransformNaniteTriangle(FPrimitiveSceneData PrimitiveData,
 		GetCustomInterpolators(VertexParameters, Tri.Verts[i].CustomizedUVs);
 	#endif
 
-		const float3 WorldPositionOffset = GetMaterialWorldPositionOffset(VertexParameters);
-
 		const float3 NormalWorld = mul(float4(InVerts[i].Normal, 0), Transforms.LocalToTranslatedWorld).xyz;
 
 		Tri.Verts[i].VertIndex				= InVerts[i].VertIndex;
@@ -389,6 +387,8 @@ FNaniteTransformedTri TransformNaniteTriangle(FPrimitiveSceneData PrimitiveData,
 		BRANCH
 		if (bEvaluateWPO)
 		{
+			const float3 WorldPositionOffset = GetMaterialWorldPositionOffset(VertexParameters);
+
 			FMaterialVertexParameters PrevVertexParameters = MakeInitializedMaterialVertexParameters();
 			SetVertexParameterInstanceData(PrevVertexParameters, InstanceData, PrimitiveData, true /* WPO */);
 			SetVertexParameterAttributeData(PrevVertexParameters, InVerts[i], Transforms.PrevLocalToTranslatedWorld, Transforms.PrevLocalToWorldNoScale);
