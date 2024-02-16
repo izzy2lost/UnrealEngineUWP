@@ -46,6 +46,10 @@ struct FPCGGraphTaskInput
 	{
 	}
 
+#if WITH_EDITOR
+	bool operator==(const FPCGGraphTaskInput& Other) const;
+#endif
+
 	FPCGTaskId TaskId;
 
 	/** The upstream output pin from which the input data comes. */
@@ -60,6 +64,11 @@ struct FPCGGraphTaskInput
 
 struct FPCGGraphTask
 {
+#if WITH_EDITOR
+	/** Approximate equivalence. Does not deeply check node settings, nor does it do a deep comparison of the element. */
+	bool IsApproximatelyEqual(const FPCGGraphTask& Other) const;
+#endif
+
 	TArray<FPCGGraphTaskInput> Inputs;
 	const UPCGNode* Node = nullptr;
 	TWeakObjectPtr<UPCGComponent> SourceComponent = nullptr;
@@ -172,7 +181,7 @@ public:
 	void AddToUnusedActors(const TSet<FWorldPartitionReference>& UnusedActors);
 
 	/** Notify compiler that graph has changed so it'll be removed from the cache */
-	void NotifyGraphChanged(UPCGGraph* InGraph);
+	void NotifyGraphChanged(UPCGGraph* InGraph, EPCGChangeType ChangeType);
 
 	/** Returns the number of entries currently in the cache for InElement. */
 	uint32 GetGraphCacheEntryCount(IPCGElement* InElement) const { return GraphCache.GetGraphCacheEntryCount(InElement); }
@@ -327,6 +336,34 @@ struct FPCGGridLinkageContext : public FPCGContext
 
 namespace PCGGraphExecutor
 {
+	/** Marshals data across grid sizes at execution time. */
+	class FPCGGridLinkageElement : public FPCGGenericElement
+	{
+	public:
+		FPCGGridLinkageElement(TFunction<bool(FPCGContext*)> InOperation, const FContextAllocator& InContextAllocator, EPCGHiGenGrid InFromGrid, EPCGHiGenGrid InToGrid, const FString& InResourceKey)
+			: FPCGGenericElement(InOperation, InContextAllocator)
+			, FromGrid(InFromGrid)
+			, ToGrid(InToGrid)
+			, ResourceKey(InResourceKey)
+		{
+		}
+
+#if WITH_EDITOR
+		//~Begin IPCGElement interface
+		virtual bool IsGridLinkage() const override { return true; }
+		//~End IPCGElement interface
+
+		/** Return true if the grid sizes & path match. */
+		bool operator==(const FPCGGridLinkageElement& Other) const;
+#endif
+
+	private:
+		// These values are stored here so that we can compare two grid linkage elements for equivalence.
+		EPCGHiGenGrid FromGrid = EPCGHiGenGrid::Uninitialized;
+		EPCGHiGenGrid ToGrid = EPCGHiGenGrid::Uninitialized;
+		FString ResourceKey;
+	};
+
 	/** Compares InFromGrid and InToGrid and performs data storage/retrieval as necessary to marshal data across execution grids. */
 	bool ExecuteGridLinkage(
 		EPCGHiGenGrid InGenerationGrid,

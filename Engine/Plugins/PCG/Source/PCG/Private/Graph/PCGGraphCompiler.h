@@ -5,8 +5,11 @@
 #include "PCGCommon.h"
 #include "Graph/PCGStackContext.h"
 
+class IPCGElement;
 class UPCGGraph;
 struct FPCGGraphTask;
+
+typedef TSharedPtr<IPCGElement, ESPMode::ThreadSafe> FPCGElementPtr;
 
 /** 
 * FPCGGraphCompiler
@@ -22,7 +25,14 @@ public:
 	static void OffsetNodeIds(TArray<FPCGGraphTask>& Tasks, FPCGTaskId Offset, FPCGTaskId ParentId);
 
 #if WITH_EDITOR
-	void NotifyGraphChanged(UPCGGraph* InGraph);
+	/** Checks whether the compiled result changes when recompiling InGraph. Note that this incurs the cost of a graph compilation each time it is called.
+	* The cache will be updated with the latest compiled result. Returns true if the compiled result changes;
+	*/
+	bool Recompile(UPCGGraph* InGraph, uint32 GenerationGridSize, bool bIsTopGraph = true);
+
+	void RemoveFromCache(UPCGGraph* InGraph);
+
+	void NotifyGraphChanged(UPCGGraph* InGraph, EPCGChangeType ChangeType);
 #endif
 
 	/** Flush all cached compiled graphs. */
@@ -33,6 +43,9 @@ private:
 
 	/** Compiles the top graph and applies culling optimizations if a non-unitialized grid size is provided. */
 	void CompileTopGraph(UPCGGraph* InGraph, uint32 GenerationGridSize);
+
+	/** Returns the trivial element object shared by all tasks that need it. */
+	FPCGElementPtr GetSharedTrivialElement();
 
 	/** Propagates grid sizes through a graph's compiled tasks. */
 	static void ResolveGridSizes(
@@ -80,8 +93,10 @@ private:
 	TMap<UPCGGraph*, TMap<uint32, TArray<FPCGGraphTask>>> TopGraphToTaskMap;
 	TMap<UPCGGraph*, TMap<uint32, FPCGStackContext>> TopGraphToStackContextMap;
 
+	FPCGElementPtr SharedTrivialElement;
+	mutable FRWLock SharedTrivialElementLock;
+
 #if WITH_EDITOR
-	void RemoveFromCache(UPCGGraph* InGraph);
 	void RemoveFromCacheRecursive(UPCGGraph* InGraph);
 
 	FCriticalSection GraphDependenciesLock;

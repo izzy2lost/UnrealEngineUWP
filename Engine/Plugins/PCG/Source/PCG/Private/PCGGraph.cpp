@@ -13,6 +13,8 @@
 #include "PCGSubgraph.h"
 #include "Elements/PCGHiGenGridSize.h"
 #include "Elements/PCGUserParameterGet.h"
+#include "Graph/PCGGraphCompiler.h"
+#include "Graph/PCGGraphExecutor.h"
 
 #if WITH_EDITOR
 #include "CoreGlobals.h"
@@ -522,7 +524,7 @@ void UPCGGraph::BeginDestroy()
 	{
 		if (UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetInstance(GEditor->GetEditorWorldContext().World()))
 		{
-			PCGSubsystem->NotifyGraphChanged(this);
+			PCGSubsystem->NotifyGraphChanged(this, EPCGChangeType::Structural | EPCGChangeType::GenerationGrid);
 		}
 	}
 
@@ -667,7 +669,7 @@ void UPCGGraph::OnNodesAdded(TArrayView<UPCGNode*> InNodes)
 		}
 	}
 
-	NotifyGraphChanged(ChangeType);
+	NotifyGraphStructureChanged(ChangeType);
 #endif
 }
 
@@ -691,7 +693,7 @@ void UPCGGraph::OnNodesRemoved(TArrayView<UPCGNode*> InNodes)
 		}
 	}
 
-	NotifyGraphChanged(bAnyGridSizeNodes ? (EPCGChangeType::Structural | EPCGChangeType::GenerationGrid) : EPCGChangeType::Structural);
+	NotifyGraphStructureChanged(bAnyGridSizeNodes ? (EPCGChangeType::Structural | EPCGChangeType::GenerationGrid) : EPCGChangeType::Structural);
 #endif
 }
 
@@ -748,7 +750,7 @@ bool UPCGGraph::AddLabeledEdge(UPCGNode* From, const FName& FromPinLabel, UPCGNo
 	// After all nodes are notified, re-enable graph notifications and send graph change notification.
 	EnableNotificationsForEditor();
 
-	NotifyGraphChanged(ChangeType);
+	NotifyGraphStructureChanged(ChangeType);
 #endif
 
 	return bToPinBrokeOtherEdges;
@@ -893,7 +895,7 @@ bool UPCGGraph::RemoveEdge(UPCGNode* From, const FName& FromLabel, UPCGNode* To,
 
 	if (TouchedNodes.Num() > 0)
 	{
-		NotifyGraphChanged(ChangeType);
+		NotifyGraphStructureChanged(ChangeType);
 	}
 #endif
 
@@ -976,7 +978,7 @@ bool UPCGGraph::RemoveInboundEdges(UPCGNode* InNode, const FName& InboundLabel)
 
 	if (TouchedNodes.Num() > 0)
 	{
-		NotifyGraphChanged(ChangeType);
+		NotifyGraphStructureChanged(ChangeType);
 	}
 #endif
 
@@ -1006,7 +1008,7 @@ bool UPCGGraph::RemoveOutboundEdges(UPCGNode* InNode, const FName& OutboundLabel
 
 	if (TouchedNodes.Num() > 0)
 	{
-		NotifyGraphChanged(ChangeType);
+		NotifyGraphStructureChanged(ChangeType);
 	}
 #endif
 
@@ -1140,6 +1142,41 @@ void UPCGGraph::RemoveExtraEditorNode(const UObject* InNode)
 	ExtraEditorNodes.Remove(const_cast<UObject*>(InNode));
 }
 
+bool UPCGGraph::PrimeGraphCompilationCache()
+{
+	UPCGSubsystem* Subsystem = UPCGSubsystem::GetActiveEditorInstance();
+	FPCGGraphCompiler* GraphCompiler = Subsystem ? Subsystem->GetGraphCompiler() : nullptr;
+	if (!Subsystem || !GraphCompiler)
+	{
+		return false;
+	}
+
+	const UPCGComponent* InspectedComponent = InspectedStack.GetRootComponent();
+
+	FPCGStackContext StackContext;
+	GraphCompiler->GetCompiledTasks(this, PCGHiGenGrid::UninitializedGridSize(), StackContext, /*bIsTopGraph=*/true);
+
+	UE_LOG(LogPCG, Verbose, TEXT("UPCGGraph::PrimeGraphCompilationCache '%s' %u"), *this->GetName(), PCGHiGenGrid::UninitializedGridSize());
+
+	return true;
+}
+
+bool UPCGGraph::Recompile()
+{
+	UPCGSubsystem* Subsystem = UPCGSubsystem::GetActiveEditorInstance();
+	FPCGGraphCompiler* GraphCompiler = Subsystem ? Subsystem->GetGraphCompiler() : nullptr;
+	if (!Subsystem || !GraphCompiler)
+	{
+		return true;
+	}
+
+	const bool bChanged = GraphCompiler->Recompile(this, PCGHiGenGrid::UninitializedGridSize(), /*bIsTopGraph=*/true);
+
+	UE_LOG(LogPCG, Verbose, TEXT("UPCGGraph::Recompile '%s' grid: %u changed: %d"), *this->GetName(), PCGHiGenGrid::UninitializedGridSize(), bChanged ? 1 : 0);
+
+	return bChanged;
+}
+
 FPCGSelectionKeyToSettingsMap UPCGGraph::GetTrackedActorKeysToSettings() const
 {
 	FPCGSelectionKeyToSettingsMap TagsToSettings;
@@ -1184,6 +1221,32 @@ void UPCGGraph::GetTrackedActorKeysToSettings(FPCGSelectionKeyToSettingsMap& Out
 	}
 }
 
+void UPCGGraph::NotifyGraphStructureChanged(EPCGChangeType ChangeType, bool bForce)
+{
+	bool bExecutionAffected = true;
+
+	// If settings were not changed, we can gate the change notification based on whether compiled graph output changed. This compilation check
+	// does not support settings changes.
+	if (!bForce && !(ChangeType & EPCGChangeType::Settings))
+	{
+		bExecutionAffected = Recompile();
+	}
+
+	if (!bExecutionAffected)
+	{
+		// If compiled tasks are unchanged and the settings have not changed, then we can demote the change to avoid unnecessary graph executions.
+		// * Structural and GenerationGrid are frequent change types that trigger generation
+		// * Node because edges can change pin types on nodes.
+		// * Settings because changing a subgraph currently changes settings on subgraph node.
+		ChangeType &= ~(EPCGChangeType::Structural | EPCGChangeType::GenerationGrid | EPCGChangeType::Node | EPCGChangeType::Settings);
+
+		// Positively flagging as cosmetic is required because downstream things specifically test for this currently.
+		ChangeType |= EPCGChangeType::Cosmetic;
+	}
+
+	NotifyGraphChanged(ChangeType);
+}
+
 void UPCGGraph::NotifyGraphChanged(EPCGChangeType ChangeType)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGGraph::NotifyGraphChanged);
@@ -1211,13 +1274,13 @@ void UPCGGraph::NotifyGraphChanged(EPCGChangeType ChangeType)
 		{
 			if (UPCGSubsystem* PCGPIESubsystem = UPCGSubsystem::GetInstance(GEditor->PlayWorld.Get()))
 			{
-				PCGPIESubsystem->NotifyGraphChanged(this);
+				PCGPIESubsystem->NotifyGraphChanged(this, ChangeType);
 			}
 		}
 
 		if (UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetInstance(GEditor->GetEditorWorldContext().World()))
 		{
-			PCGSubsystem->NotifyGraphChanged(this);
+			PCGSubsystem->NotifyGraphChanged(this, ChangeType);
 		}
 	}
 
@@ -1272,14 +1335,11 @@ void UPCGGraph::OnNodeChanged(UPCGNode* InNode, EPCGChangeType ChangeType)
 			FWriteScopeLock Lock(NodeToGridSizeLock);
 			NodeToGridSize.Reset();
 		}
-
-		// Broadcast so that grid size visualization can be updated editor-side.
-		OnGraphStructureChangedDelegate.Broadcast(this);
 	}
 
 	if ((ChangeType & ~EPCGChangeType::Cosmetic) != EPCGChangeType::None)
 	{
-		NotifyGraphChanged(ChangeType);
+		NotifyGraphStructureChanged(ChangeType);
 	}
 }
 
@@ -1727,24 +1787,19 @@ void UPCGGraphInstance::OnGraphChanged(UPCGGraphInterface* InGraph, EPCGChangeTy
 {
 	if (InGraph == Graph)
 	{
-		// Also notify other systems that this graph changed, only if the owner is not a PCG Component nor PCG Subgraph.
-		// They already have their own system to trigger a refresh.
-		const UObject* Outer = GetOuter();
-		if (!Outer || !(Outer->IsA<UPCGComponent>() || Outer->IsA<UPCGSubgraphSettings>()))
+		if (ChangeType != EPCGChangeType::Cosmetic)
 		{
-			FPropertyChangedEvent EmptyEvent{ nullptr };
-			FCoreUObjectDelegates::OnObjectPropertyChanged.Broadcast(this, EmptyEvent);
+			// Also notify other systems that this graph changed, only if the owner is not a PCG Component nor PCG Subgraph.
+			// They already have their own system to trigger a refresh.
+			const UObject* Outer = GetOuter();
+			if (!Outer || !(Outer->IsA<UPCGComponent>() || Outer->IsA<UPCGSubgraphSettings>()))
+			{
+				FPropertyChangedEvent EmptyEvent{ nullptr };
+				FCoreUObjectDelegates::OnObjectPropertyChanged.Broadcast(this, EmptyEvent);
+			}
 		}
 
 		OnGraphChangedDelegate.Broadcast(this, ChangeType);
-	}
-}
-
-void UPCGGraphInstance::OnGraphStructureChanged(UPCGGraphInterface* InGraph)
-{
-	if (InGraph == Graph)
-	{
-		OnGraphStructureChangedDelegate.Broadcast(this);
 	}
 }
 
@@ -1767,7 +1822,6 @@ void UPCGGraphInstance::TeardownCallbacks()
 	if (Graph)
 	{
 		Graph->OnGraphChangedDelegate.RemoveAll(this);
-		Graph->OnGraphStructureChangedDelegate.RemoveAll(this);
 		Graph->OnGraphParametersChangedDelegate.RemoveAll(this);
 	}
 }
@@ -1777,7 +1831,6 @@ void UPCGGraphInstance::SetupCallbacks()
 	if (Graph && !Graph->OnGraphChangedDelegate.IsBoundToObject(this))
 	{
 		Graph->OnGraphChangedDelegate.AddUObject(this, &UPCGGraphInstance::OnGraphChanged);
-		Graph->OnGraphStructureChangedDelegate.AddUObject(this, &UPCGGraphInstance::OnGraphStructureChanged);
 		Graph->OnGraphParametersChangedDelegate.AddUObject(this, &UPCGGraphInstance::OnGraphParametersChanged);
 	}
 }

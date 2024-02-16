@@ -136,6 +136,8 @@ public:
 
 	TArray<FPCGStack>& GetStacksMutable() { return Stacks; }
 
+	bool operator==(const FPCGStackContext& Other) const;
+
 private:
 	/** List of all stacks encountered top graph and all (nested) subgraphs. Order is simply order of encountering during compilation. */
 	TArray<FPCGStack> Stacks;

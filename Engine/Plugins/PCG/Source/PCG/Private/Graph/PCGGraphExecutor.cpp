@@ -68,6 +68,48 @@ namespace PCGGraphExecutor
 		TEXT("Controls whether tasks are culled at execution time, for example in response to an deactivated dynamic branch pin"));
 }
 
+#if WITH_EDITOR
+bool FPCGGraphTaskInput::operator==(const FPCGGraphTaskInput& Other) const
+{
+	return (TaskId == Other.TaskId)
+		&& (InPin == Other.InPin)
+		&& (OutPin == Other.OutPin)
+		&& (bProvideData == Other.bProvideData);
+}
+
+bool FPCGGraphTask::IsApproximatelyEqual(const FPCGGraphTask& Other) const
+{
+	// Do trivial pointer comparisons first, then run == operator to determine equivalence.
+	bool bElementsMatch = (Element == Other.Element);
+	if (!bElementsMatch && Element && Other.Element)
+	{
+		if (Element->IsGridLinkage() && Other.Element->IsGridLinkage())
+		{
+			const PCGGraphExecutor::FPCGGridLinkageElement& LinkageElement = static_cast<const PCGGraphExecutor::FPCGGridLinkageElement&>(*Element);
+			const PCGGraphExecutor::FPCGGridLinkageElement& OtherLinkageElement = static_cast<const PCGGraphExecutor::FPCGGridLinkageElement&>(*Other.Element);
+			bElementsMatch = (LinkageElement == OtherLinkageElement);
+		}
+		else
+		{
+			ensureMsgf(false, TEXT("Graph compilation emitted an element type that is not a trivial element or a grid linkage element. Element comparison will fail. ")
+				TEXT("Equivalence operator needs to be implemented for this new element."));
+		}
+	}
+
+	return (Inputs == Other.Inputs)
+		&& (Node == Other.Node)
+		&& (SourceComponent == Other.SourceComponent)
+		&& bElementsMatch
+		&& (Context == Other.Context)
+		&& (NodeId == Other.NodeId)
+		&& (CompiledTaskId == Other.CompiledTaskId)
+		&& (ParentId == Other.ParentId)
+		&& (PinDependency == Other.PinDependency)
+		&& (StackIndex == Other.StackIndex)
+		&& (StackContext == Other.StackContext);
+}
+#endif // WITH_EDITOR
+
 FPCGGraphExecutor::FPCGGraphExecutor()
 #if WITH_EDITOR
 	: GenerationProgressNotification(GetNotificationTextFormat())
@@ -1626,9 +1668,9 @@ void FPCGGraphExecutor::ReleaseUnusedActors()
 #endif
 }
 
-void FPCGGraphExecutor::NotifyGraphChanged(UPCGGraph* InGraph)
+void FPCGGraphExecutor::NotifyGraphChanged(UPCGGraph* InGraph, EPCGChangeType ChangeType)
 {
-	GraphCompiler.NotifyGraphChanged(InGraph);
+	GraphCompiler.NotifyGraphChanged(InGraph, ChangeType);
 }
 
 void FPCGGraphExecutor::UpdateGenerationNotification()
@@ -1781,6 +1823,13 @@ void FPCGGenericElement::AbortInternal(FPCGContext* Context) const
 
 namespace PCGGraphExecutor
 {
+#if WITH_EDITOR
+	bool FPCGGridLinkageElement::operator==(const FPCGGridLinkageElement& Other) const
+	{
+		return FromGrid == Other.FromGrid && ToGrid == Other.ToGrid && ResourceKey == Other.ResourceKey;
+	}
+#endif
+
 	bool ExecuteGridLinkage(
 		EPCGHiGenGrid InGenerationGrid,
 		EPCGHiGenGrid InFromGrid,

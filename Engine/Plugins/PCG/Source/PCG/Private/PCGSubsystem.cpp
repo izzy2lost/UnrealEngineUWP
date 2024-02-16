@@ -1277,11 +1277,11 @@ void UPCGSubsystem::DeleteSerializedPartitionActors(bool bOnlyDeleteUnused, bool
 	}
 }
 
-void UPCGSubsystem::NotifyGraphChanged(UPCGGraph* InGraph)
+void UPCGSubsystem::NotifyGraphChanged(UPCGGraph* InGraph, EPCGChangeType ChangeType)
 {
 	if (GraphExecutor)
 	{
-		GraphExecutor->NotifyGraphChanged(InGraph);
+		GraphExecutor->NotifyGraphChanged(InGraph, ChangeType);
 	}
 }
 
@@ -1345,7 +1345,16 @@ bool UPCGSubsystem::GetStackContext(const UPCGComponent* InComponent, FPCGStackC
 {
 	if (InComponent && InComponent->GetGraph())
 	{
-		GetGraphCompiler()->GetCompiledTasks(InComponent->GetGraph(), InComponent->GetGenerationGridSize(), OutStackContext);
+		uint32 GenerationGridSize = PCGHiGenGrid::UninitializedGridSize();
+		if (InComponent->GetGraph()->IsHierarchicalGenerationEnabled())
+		{
+			if (InComponent->IsLocalComponent() || InComponent->IsPartitioned())
+			{
+				GenerationGridSize = InComponent->GetGenerationGridSize();
+			}
+		}
+
+		GetGraphCompiler()->GetCompiledTasks(InComponent->GetGraph(), GenerationGridSize, OutStackContext);
 		return true;
 	}
 

@@ -412,8 +412,6 @@ void UPCGEditorGraphNodeBase::OnNodeChanged(UPCGNode* InNode, EPCGChangeType Cha
 			StackBeingDebugged = Editor ? Editor->GetStackBeingInspected() : nullptr;
 		}
 
-		ChangeType |= UpdateStructuralVisualization(ComponentBeingDebugged, StackBeingDebugged);
-
 		if (!!(ChangeType & (EPCGChangeType::Structural | EPCGChangeType::Node | EPCGChangeType::Edge | EPCGChangeType::Cosmetic)))
 		{
 			ReconstructNodeOnChange();
