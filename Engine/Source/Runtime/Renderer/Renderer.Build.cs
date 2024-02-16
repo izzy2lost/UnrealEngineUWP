@@ -13,13 +13,8 @@ public class Renderer : ModuleRules
 		);
 
 		PrivateIncludePathModuleNames.Add("Shaders");
-
-		PublicDependencyModuleNames.AddRange(
-			new string[] {
-				"Core",
-				"Engine",
-			}
-		);
+		PublicDependencyModuleNames.Add("Core");
+        PublicDependencyModuleNames.Add("Engine");
 
         if (Target.bBuildEditor == true)
         {
@@ -41,9 +36,7 @@ public class Renderer : ModuleRules
 				"ImageWriteQueue",
 				"RHI",
 				"MaterialShaderQualitySettings",
-				"TraceLog",
-				"GeometryCore",
-				"NaniteUtilities",
+				"TraceLog"
 			}
 		);
 
@@ -51,7 +44,5 @@ public class Renderer : ModuleRules
         DynamicallyLoadedModuleNames.AddRange(new string[] { "HeadMountedDisplay" });
 		PrivateIncludePathModuleNames.AddRange(new string[] { "EyeTracker" });
 		DynamicallyLoadedModuleNames.AddRange(new string[] { "EyeTracker" });
-
-		RuntimeDependencies.Add("$(EngineDir)/Content/Renderer/TessellationTable.bin");
 	}
 }
