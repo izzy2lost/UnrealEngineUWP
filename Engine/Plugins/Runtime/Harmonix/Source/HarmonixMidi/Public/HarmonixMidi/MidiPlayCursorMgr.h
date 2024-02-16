@@ -34,6 +34,18 @@ public:
 
 	FMidiSongPos CalculateSongPosWithOffsetMs(float Ms, bool IsLowRes) const;
 
+	FMidiSongPos CalculateLowResSongPosRelativeToCurrentMs(float AbsoluteMs) const
+	{
+		return CalculateSongPosRelativeToCurrentMs(AbsoluteMs, true);
+	}
+
+	FMidiSongPos CalculateHiResSongPosRelativeToCurrentMs(float AbsoluteMs) const
+	{
+		return CalculateSongPosRelativeToCurrentMs(AbsoluteMs, false);
+	}
+
+	FMidiSongPos CalculateSongPosRelativeToCurrentMs(float AbsoluteMs, bool IsLowRes) const;
+
 	//////////////////////////////////////////////////////////////////////////
 	// Play cursor management
 	//////////////////////////////////////////////////////////////////////////
@@ -71,8 +83,10 @@ public:
 	// sets a member to inform the manager and the manager's cursors how quickly the driver of
 	// this manager is advancing time as this might be useful information for some cursors
 	// (eg. smoothing cursors)
-	void  InformOfCurrentAdvanceRate(float Rate) { CurrentAdvanceRate = Rate; }
-	float GetCurrentAdvanceRate() const { return CurrentAdvanceRate; }
+	void  InformOfHiResAdvanceRate(float Rate) { GetHiResTracker().CurrentAdvanceRate = Rate; }
+	float GetCurrentAdvanceRate(bool IsLowRes) const { return Trackers[IsLowRes].CurrentAdvanceRate; }
+	float GetHiResAdvanceRate() const { return GetCurrentAdvanceRate(false); }
+	float GetLowResAdvanceRate() const { return GetCurrentAdvanceRate(true); }
 
 	//If broadcast is true, call callbacks for each midi event that we pass
 	//If broadcast is false, silently update the internals of each play cursor
@@ -87,11 +101,12 @@ public:
 
 	void ResetTrackers(); //reset to the beginning of the song
 
-	float GetLoopStartMs() const { return LoopStartMs; }
-	int32 GetLoopStartTick() const { return LoopStartTick; }
-	float GetLoopEndMs() const { return LoopEndMs; }
-	int32 GetLoopEndTick() const { return LoopEndTick; }
-	bool  DoesLoop() const { return Loop; }
+	float GetLoopStartMs(bool IsLowRes) const { return Trackers[IsLowRes].LoopStartMs; }
+	int32 GetLoopStartTick(bool IsLowRes) const { return Trackers[IsLowRes].LoopStartTick; }
+	float GetLoopEndMs(bool IsLowRes) const { return Trackers[IsLowRes].LoopEndMs; }
+	int32 GetLoopEndTick(bool IsLowRes) const { return Trackers[IsLowRes].LoopEndTick; }
+	bool  DoesLoop(bool IsLowRes) const { return Trackers[IsLowRes].Loop; }
+
 	bool  IsDirectMappedTimeFollower() const { return DirectMappedTimeFollower; }
 	int32 GetLengthTicks() const { return LengthTicks; }
 
@@ -105,12 +120,12 @@ public:
 	const FTempoMap& GetTempoMap() const;
 	const FBarMap& GetBarMap() const;
 
-	int32 GetCurrentHiResTick() const   { return HiResTracker.CurrentTick;  }
-	float GetCurrentHiResMs() const     { return HiResTracker.CurrentMs;    }
-	float GetElapsedHiResMs() const     { return HiResTracker.ElapsedMs;    }
-	int32 GetCurrentLowResTick() const  { return LowResTracker.CurrentTick; }
-	float GetCurrentLowResMs() const    { return LowResTracker.CurrentMs;   }
-	float GetElapsedLowResMs() const    { return LowResTracker.ElapsedMs;   }
+	int32 GetCurrentHiResTick() const   { return GetHiResTracker().CurrentTick;  }
+	float GetCurrentHiResMs() const     { return GetHiResTracker().CurrentMs;    }
+	float GetElapsedHiResMs() const     { return GetHiResTracker().ElapsedMs;    }
+	int32 GetCurrentLowResTick() const  { return GetLowResTracker().CurrentTick; }
+	float GetCurrentLowResMs() const    { return GetLowResTracker().CurrentMs;   }
+	float GetElapsedLowResMs() const    { return GetLowResTracker().ElapsedMs;   }
 
 	bool IsDone() const;
 
@@ -135,14 +150,22 @@ protected:
 
 	friend class FMidiPlayCursor;
 
-	// REFACTOR NEEDED... the are too many places that need to know if a
-	// given tracker is hires or lowres. So the tracker needs to know which it is!
-	FMidiPlayCursorTracker HiResTracker;
-	FMidiPlayCursorTracker LowResTracker;
+	FMidiPlayCursorTracker Trackers[2]{ FMidiPlayCursorTracker(false), FMidiPlayCursorTracker(true) };
+
+	FMidiPlayCursorTracker& GetHiResTracker() { return Trackers[0]; }
+	FMidiPlayCursorTracker& GetLowResTracker() { return Trackers[1]; }
+
+	const FMidiPlayCursorTracker& GetHiResTracker() const { return Trackers[0]; }
+	const FMidiPlayCursorTracker& GetLowResTracker() const { return Trackers[1]; }
 
 private:
 	bool AdvanceTrackerByDeltaMs(float Ms, FMidiPlayCursorTracker& Tracker, bool IsLowRes, bool Broadcast = true);
 	void AdvanceTrackerThruTick(int32 ToTick, FMidiPlayCursorTracker& Tracker, bool IsLowRes, bool Broadcast);
+
+	void SetLoopImpl(int32 StartTick, int32 EndTick, bool IgnoringLookAhead, bool IsLowRes);
+	void ClearLoopImpl(bool IgnoringLookAhead, bool IsLowRes);
+
+	bool CursorsAllInPhaseImpl(bool IsLowRes) const;
 
 	void DetermineLength();
 
@@ -161,15 +184,8 @@ private:
 	float LengthMs;
 	int32 LengthTicks;
 	bool  DirectMappedTimeFollower;
-	bool  Loop;
-	float LoopOffsetTick;
-	float LoopStartMs;
-	int32 LoopStartTick;
-	float LoopEndMs;
-	int32 LoopEndTick;
+
 	float MsSinceLowResUpdate;
 	bool  HiResLoopedSinceLastLoResUpdate;
 	bool  InMidiChangeLock;
-	float CurrentAdvanceRate;
 };
-

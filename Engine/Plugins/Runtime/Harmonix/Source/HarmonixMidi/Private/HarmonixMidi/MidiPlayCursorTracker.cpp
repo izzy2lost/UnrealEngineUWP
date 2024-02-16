@@ -2,7 +2,7 @@
 #include "HarmonixMidi/MidiPlayCursorTracker.h"
 #include "HarmonixMidi/MidiPlayCursor.h"
 
-FMidiPlayCursorTracker::FMidiPlayCursorTracker()
+FMidiPlayCursorTracker::FMidiPlayCursorTracker(bool InIsLowRes)
 	: CurrentTick(-1)
 	, CurrentMs(-FMidiPlayCursor::kSmallMs)
 	, ElapsedMs(0.0f)
@@ -11,8 +11,16 @@ FMidiPlayCursorTracker::FMidiPlayCursorTracker()
 	, LatestCursorTick(0)
 	, EarliestCursorMs(0.0f)
 	, LatestCursorMs(0.0f)
+	, CurrentAdvanceRate(1.f)
+	, LoopOffsetTick(0.f)
+	, LoopStartMs(0.f)
+	, LoopStartTick(0)
+	, LoopEndMs(0.f)
+	, LoopEndTick(0)
+	, Loop(false)
+	, LoopIgnoringLookAhead(false)
+	, IsLowRes(InIsLowRes)
 {
-
 }
 
 bool FMidiPlayCursorTracker::IsAtStart()

@@ -5,6 +5,7 @@
 
 bool FWallClockMusicClockDriver::CalculateSongPosWithOffset(float MsOffset, ECalibratedMusicTimebase Timebase, FMidiSongPos& OutResult) const
 {
+	check(IsInGameThread());
 	if (!TempoMap.IsValid())
 	{
 		return false;
@@ -35,6 +36,7 @@ void FWallClockMusicClockDriver::Disconnect()
 
 bool FWallClockMusicClockDriver::RefreshCurrentSongPos()
 {
+	check(IsInGameThread());
 	check(Clock);
 	check(Clock->GetWorld());
 
@@ -62,6 +64,7 @@ bool FWallClockMusicClockDriver::RefreshCurrentSongPos()
 
 void FWallClockMusicClockDriver::OnStart()
 {
+	check(IsInGameThread());
 	check(Clock);
 	StartTimeSecs = Clock->GetWorld()->GetTimeSeconds();
 	PauseTimeSecs = 0.0;
@@ -69,12 +72,14 @@ void FWallClockMusicClockDriver::OnStart()
 
 void FWallClockMusicClockDriver::OnPause()
 {
+	check(IsInGameThread());
 	check(Clock);
 	PauseTimeSecs = Clock->GetWorld()->GetTimeSeconds();
 }
 
 void FWallClockMusicClockDriver::OnContinue()
 {
+	check(IsInGameThread());
 	check(Clock);
 	double CurrentTime = Clock->GetWorld()->GetTimeSeconds();
 	StartTimeSecs += (CurrentTime - PauseTimeSecs);
@@ -88,6 +93,7 @@ const FSongMaps* FWallClockMusicClockDriver::GetCurrentSongMaps() const
 	{
 		return TempoMap->GetSongMaps();
 	}
+	check(IsInGameThread());
 	check(Clock);
 	return &Clock->DefaultMaps;
 }

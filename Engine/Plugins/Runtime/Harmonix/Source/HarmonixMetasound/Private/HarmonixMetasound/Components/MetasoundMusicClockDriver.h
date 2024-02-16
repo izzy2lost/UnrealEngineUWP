@@ -38,6 +38,7 @@ private:
 	TStrongObjectPtr<UMetasoundGeneratorHandle> CurrentGeneratorHandle;
 
 	FSmoothedMidiPlayCursor Cursor;
+	TSharedPtr<FMidiPlayCursorMgr> CursorOwner;
 	double FreeRunStartTimeSecs = 0.0;
 	bool WasEverConnected = false;
 	float SongPosOffsetMs = 0.0f;

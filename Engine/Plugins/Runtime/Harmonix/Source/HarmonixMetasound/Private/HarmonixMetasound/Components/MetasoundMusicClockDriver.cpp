@@ -6,25 +6,27 @@
 #include "MetasoundGeneratorHandle.h"
 #include "MetasoundGenerator.h"
 #include "Engine/World.h"
+#include "Async/Async.h"
 #include "Harmonix.h"
 
 bool FMetasoundMusicClockDriver::CalculateSongPosWithOffset(float MsOffset, ECalibratedMusicTimebase Timebase, FMidiSongPos& OutResult) const
 {
+	check(IsInGameThread());
+
 	// if we have an owner, ask them directly
-	if (const FMidiPlayCursorMgr* Owner = Cursor.GetOwner())
+	if (CursorOwner)
 	{
-		float RawMs = Owner->GetCurrentLowResMs();
 		switch (Timebase)
 		{
 		case ECalibratedMusicTimebase::AudioRenderTime:
-			OutResult = Owner->CalculateLowResSongPosWithOffsetMs((Clock->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f) + MsOffset - RawMs);
+			OutResult = CursorOwner->CalculateLowResSongPosRelativeToCurrentMs((Clock->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f) + MsOffset);
 			break;
 		case ECalibratedMusicTimebase::ExperiencedTime:
-			OutResult = Owner->CalculateLowResSongPosWithOffsetMs((Clock->CurrentPlayerExperiencedSongPos.SecondsIncludingCountIn * 1000.0f) + MsOffset - RawMs);
+			OutResult = CursorOwner->CalculateLowResSongPosRelativeToCurrentMs((Clock->CurrentPlayerExperiencedSongPos.SecondsIncludingCountIn * 1000.0f) + MsOffset);
 			break;
 		case ECalibratedMusicTimebase::VideoRenderTime:
 		default:
-			OutResult = Owner->CalculateLowResSongPosWithOffsetMs((Clock->CurrentVideoRenderSongPos.SecondsIncludingCountIn * 1000.0f) + MsOffset - RawMs);
+			OutResult = CursorOwner->CalculateLowResSongPosRelativeToCurrentMs((Clock->CurrentVideoRenderSongPos.SecondsIncludingCountIn * 1000.0f) + MsOffset);
 			break;
 		}
 		return true;
@@ -47,15 +49,12 @@ bool FMetasoundMusicClockDriver::RefreshCurrentSongPos()
 	{
 		if (!CurrentGeneratorHandle)
 		{
+			// cursor connection is not pending
 			AttemptToConnectToAudioComponentsMetasound();
-		}
-		else if (!Cursor.GetOwner())
-		{
-			TryToRegisterPlayCursor();
 		}
 	}
 
-	if (Cursor.GetOwner())
+	if (CursorOwner)
 	{
 		// cursor is attached and has the current info
 		RefreshCurrentSongPosFromCursor();
@@ -75,13 +74,15 @@ bool FMetasoundMusicClockDriver::RefreshCurrentSongPos()
 
 void FMetasoundMusicClockDriver::OnStart()
 {
+	check(IsInGameThread());
+
 	SongPosOffsetMs = 0.0f;
 	FreeRunStartTimeSecs = Clock ? Clock->GetWorld()->GetTimeSeconds() : 0.0;
 }
 
 void FMetasoundMusicClockDriver::OnContinue()
 {
-	if (!Cursor.GetOwner())
+	if (!CursorOwner)
 	{
 		RefreshCurrentSongPosFromWallClock();
 	}
@@ -89,9 +90,10 @@ void FMetasoundMusicClockDriver::OnContinue()
 
 void FMetasoundMusicClockDriver::Disconnect()
 {
-	if (FMidiPlayCursorMgr* OldOwner = Cursor.GetOwner())
+	if (CursorOwner)
 	{
-		OldOwner->UnregisterPlayCursor(&Cursor);
+		CursorOwner->UnregisterPlayCursor(&Cursor);
+		CursorOwner.Reset();
 	}
 	DetachAllCallbacks();
 	AudioComponentToWatch.Reset();
@@ -100,9 +102,10 @@ void FMetasoundMusicClockDriver::Disconnect()
 
 const FSongMaps* FMetasoundMusicClockDriver::GetCurrentSongMaps() const
 {
-	if (Cursor.GetOwner())
+	check(IsInGameThread());
+	if (CursorOwner)
 	{
-		return &Cursor.GetOwner()->GetSongMaps();
+		return &CursorOwner->GetSongMaps();
 	}
 	return &Clock->DefaultMaps;
 }
@@ -116,6 +119,7 @@ bool FMetasoundMusicClockDriver::ConnectToAudioComponentsMetasound(UAudioCompone
 
 bool FMetasoundMusicClockDriver::AttemptToConnectToAudioComponentsMetasound()
 {
+	check(IsInGameThread());
 	if (!AudioComponentToWatch.IsValid() || MetasoundOutputName.IsNone())
 	{
 		return false;
@@ -162,47 +166,75 @@ void FMetasoundMusicClockDriver::OnGraphSet()
 
 void FMetasoundMusicClockDriver::OnGeneratorDetached()
 {
+	check(IsInGameThread());
 	check(Clock);
 	check(IsInGameThread());
-	if (FMidiPlayCursorMgr* OldOwner = Cursor.GetOwner())
+	if (CursorOwner)
 	{
-		OldOwner->UnregisterPlayCursor(&Cursor);
+		CursorOwner->UnregisterPlayCursor(&Cursor);
 		if (Clock->GetState() != EMusicClockState::Stopped)
 		{
-			Clock->DefaultMaps.Copy(OldOwner->GetSongMaps(), 0, Cursor.GetCurrentTick());
+			Clock->DefaultMaps.Copy(CursorOwner->GetSongMaps(), 0, Cursor.GetCurrentTick());
 			SongPosOffsetMs = Clock->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f;
 			FreeRunStartTimeSecs = Clock->GetWorld()->GetTimeSeconds();
 		}
+		CursorOwner.Reset();
 		Clock->MusicClockDisconnectedEvent.Broadcast();
 	}
 }
 
 void FMetasoundMusicClockDriver::TryToRegisterPlayCursor()
 {
-	check(Clock);
 	check(IsInGameThread());
-	if (FMidiPlayCursorMgr* OldOwner = Cursor.GetOwner())
+	check(Clock);
+
+	if (!CurrentGeneratorHandle || MetasoundOutputName.IsNone())
 	{
-		OldOwner->UnregisterPlayCursor(&Cursor);
+		return;
 	}
-	if (CurrentGeneratorHandle && !MetasoundOutputName.IsNone())
+
+	if (TSharedPtr<Metasound::FMetasoundGenerator> LowLevelGenerator = CurrentGeneratorHandle->GetGenerator())
 	{
-		TSharedPtr<Metasound::FMetasoundGenerator> LowLevelGenerator = CurrentGeneratorHandle->GetGenerator();
-		if (LowLevelGenerator.IsValid())
-		{
-			const TOptional<Metasound::TDataReadReference<HarmonixMetasound::FMidiClock>> MidiClockRef = LowLevelGenerator->GetOutputReadReference<HarmonixMetasound::FMidiClock>(MetasoundOutputName);
-			const Metasound::TDataReadReference<HarmonixMetasound::FMidiClock>* MidiClock = MidiClockRef.GetPtrOrNull();
-			if (MidiClock)
+		// Send a command to the OnGenerateAudio thread, where it is safe to interact with the low level generator's output read references.
+		LowLevelGenerator->OnNextBuffer([MetasoundOutputName = MetasoundOutputName, ClockWeakPtr = TWeakObjectPtr<UMusicClockComponent>(Clock), ClockDriverWeakPtr = AsWeak()](Metasound::FMetasoundGenerator& LowLevelGenerator) mutable
 			{
-				(*MidiClock)->RegisterLowResPlayCursor(&Cursor);
-				WasEverConnected = true;
-				Clock->MusicClockConnectedEvent.Broadcast();
-			}
-			else
-			{
-				UE_LOG(LogMusicClock, Verbose, TEXT("Didn't find MIDI Clock output named \"%s\" in the Metasound!"), *MetasoundOutputName.ToString());
-			}
-		}
+				const TOptional<Metasound::TDataReadReference<HarmonixMetasound::FMidiClock>> MidiClockRef = LowLevelGenerator.GetOutputReadReference<HarmonixMetasound::FMidiClock>(MetasoundOutputName);
+				if (const Metasound::TDataReadReference<HarmonixMetasound::FMidiClock>* MidiClock = MidiClockRef.GetPtrOrNull())
+				{
+					if (const TSharedPtr<FMidiPlayCursorMgr>& MidiPlayCursorMgr = (*MidiClock)->GetDrivingMidiPlayCursorMgr())
+					{
+						// Send the midi clock's cursor manager to the game thread, where it is safe to modify clock component state.
+						AsyncTask(ENamedThreads::GameThread, [ClockWeakPtr = MoveTemp(ClockWeakPtr), ClockDriverWeakPtr = MoveTemp(ClockDriverWeakPtr), MidiPlayCursorMgrWeakPtr = TWeakPtr<FMidiPlayCursorMgr>(MidiPlayCursorMgr)]()
+							{
+								if (UMusicClockComponent* Clock = ClockWeakPtr.Get())
+								{
+									if (TSharedPtr<FMetasoundMusicClockDriver> ClockDriver = StaticCastSharedPtr<FMetasoundMusicClockDriver>(ClockDriverWeakPtr.Pin()))
+									{
+										// Verify that the music clock component still references the clock driver.
+										if (ClockDriver == Clock->ClockDriver)
+										{
+											if (TSharedPtr<FMidiPlayCursorMgr> MidiPlayCursorMgr = MidiPlayCursorMgrWeakPtr.Pin())
+											{
+												// Verify that the clock driver's cursor has not yet been registered with the cursor manager.
+												if (ClockDriver->CursorOwner != MidiPlayCursorMgr)
+												{
+													MidiPlayCursorMgr->RegisterLowResPlayCursor(&ClockDriver->Cursor);
+													ClockDriver->CursorOwner = MoveTemp(MidiPlayCursorMgr);
+													ClockDriver->WasEverConnected = true;
+													Clock->MusicClockConnectedEvent.Broadcast();
+												}
+											}
+										}
+									}
+								}
+							});
+					}
+				}
+				else
+				{
+					UE_LOG(LogMusicClock, Verbose, TEXT("Didn't find MIDI Clock output named \"%s\" in the Metasound!"), *MetasoundOutputName.ToString());
+				}
+			});
 	}
 }
 
@@ -232,17 +264,17 @@ void FMetasoundMusicClockDriver::RefreshCurrentSongPosFromWallClock()
 
 void FMetasoundMusicClockDriver::RefreshCurrentSongPosFromCursor()
 {
+	check(IsInGameThread());
 	check(Clock);
 	Clock->CurrentSmoothedAudioRenderSongPos = Cursor.GetCurrentSongPos();
 
 	float PrevClockAdvanceRate = Clock->CurrentClockAdvanceRate;
-	if (const FMidiPlayCursorMgr* Owner = Cursor.GetOwner())
+	if (CursorOwner)
 	{
-		Clock->CurrentClockAdvanceRate = Owner->GetCurrentAdvanceRate();
-		float RawMs = Owner->GetCurrentLowResMs();
-		Clock->CurrentPlayerExperiencedSongPos = Owner->CalculateLowResSongPosWithOffsetMs(Clock->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f - FHarmonixModule::GetMeasuredUserExperienceAndReactionToAudioRenderOffsetMs() - RawMs);
-		Clock->CurrentVideoRenderSongPos = Owner->CalculateLowResSongPosWithOffsetMs(Clock->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f - FHarmonixModule::GetMeasuredVideoToAudioRenderOffsetMs() - RawMs);
-		Clock->RawUnsmoothedAudioRenderPos = Owner->CalculateLowResSongPosWithOffsetMs(0.0f);
+		Clock->CurrentClockAdvanceRate = CursorOwner->GetLowResAdvanceRate();
+		Clock->CurrentPlayerExperiencedSongPos = CursorOwner->CalculateLowResSongPosRelativeToCurrentMs(Clock->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f - FHarmonixModule::GetMeasuredUserExperienceAndReactionToAudioRenderOffsetMs());
+		Clock->CurrentVideoRenderSongPos = CursorOwner->CalculateLowResSongPosRelativeToCurrentMs(Clock->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f - FHarmonixModule::GetMeasuredVideoToAudioRenderOffsetMs());
+		Clock->RawUnsmoothedAudioRenderPos = CursorOwner->CalculateLowResSongPosWithOffsetMs(0.0f);
 	}
 	else
 	{

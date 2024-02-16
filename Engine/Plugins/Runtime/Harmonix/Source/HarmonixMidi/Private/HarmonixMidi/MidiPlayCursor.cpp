@@ -274,10 +274,10 @@ void FMidiPlayCursor::AdvanceByTicks(bool ProcessLoops, bool Broadcast, bool IsP
 void FMidiPlayCursor::DoAdvanceForLaggingTickCursor(bool Broadcast, bool IsPreRoll)
 {
 	int32 NewTick = Tracker->CurrentTick + LookaheadTicks;
-	if (Owner->DoesLoop())
+	if (Owner->DoesLoop(Tracker->IsLowRes))
 	{
-		int32 LoopStartTick = Owner->GetLoopStartTick();
-		int32 LoopEndTick = Owner->GetLoopEndTick();
+		int32 LoopStartTick = Owner->GetLoopStartTick(Tracker->IsLowRes);
+		int32 LoopEndTick = Owner->GetLoopEndTick(Tracker->IsLowRes);
 		int32 TrackerTick = Tracker->CurrentTick;
 
 		// loop or jump?
@@ -402,10 +402,10 @@ void FMidiPlayCursor::DoAdvanceForLaggingTickCursor(bool Broadcast, bool IsPreRo
 void FMidiPlayCursor::DoAdvanceForLeadingTickCursor(bool Broadcast, bool ProcessLoops, bool IsPreRoll)
 {
 	int32 NewTick = Tracker->CurrentTick + LookaheadTicks;
-	if (Owner->DoesLoop() && ProcessLoops) 
+	if (Owner->DoesLoop(Tracker->IsLowRes) && ProcessLoops) 
 	{
-		int32 LoopStartTick = Owner->GetLoopStartTick();
-		int32 LoopEndTick = Owner->GetLoopEndTick();
+		int32 LoopStartTick = Owner->GetLoopStartTick(Tracker->IsLowRes);
+		int32 LoopEndTick = Owner->GetLoopEndTick(Tracker->IsLowRes);
 		int32 TrackerTick = Tracker->CurrentTick;
 
 		// loop or jump?
@@ -529,12 +529,12 @@ void FMidiPlayCursor::DoAdvanceForLaggingMsCursor(bool Broadcast, bool IsPreRoll
 {
 	float NewMs = Tracker->CurrentMs + LookaheadMs;
 	int32 NewTick = (int32)(Owner->GetTempoMap().MsToTick(NewMs) + 0.5f);
-	if (Owner->DoesLoop())
+	if (Owner->DoesLoop(Tracker->IsLowRes))
 	{
-		float LoopStartMs = Owner->GetLoopStartMs();
-		float LoopEndMs = Owner->GetLoopEndMs();
-		int32 LoopStartTick = Owner->GetLoopStartTick();
-		int32 LoopEndTick = Owner->GetLoopEndTick();
+		float LoopStartMs = Owner->GetLoopStartMs(Tracker->IsLowRes);
+		float LoopEndMs = Owner->GetLoopEndMs(Tracker->IsLowRes);
+		int32 LoopStartTick = Owner->GetLoopStartTick(Tracker->IsLowRes);
+		int32 LoopEndTick = Owner->GetLoopEndTick(Tracker->IsLowRes);
 		int32 TrackerTick = Tracker->CurrentTick;
 
 		// loop or jump?
@@ -663,12 +663,12 @@ void FMidiPlayCursor::DoAdvanceForLeadingMsCursor(bool Broadcast, bool ProcessLo
 {
 	float NewMs = Tracker->CurrentMs + LookaheadMs;
 	int32 NewTick = (int32)(Owner->GetTempoMap().MsToTick(NewMs) + 0.5f);
-	if (Owner->DoesLoop() && ProcessLoops) 
+	if (Owner->DoesLoop(Tracker->IsLowRes) && ProcessLoops) 
 	{
-		float LoopStartMs = Owner->GetLoopStartMs();
-		float LoopEndMs = Owner->GetLoopEndMs();
-		int32 LoopStartTick = Owner->GetLoopStartTick();
-		int32 LoopEndTick = Owner->GetLoopEndTick();
+		float LoopStartMs = Owner->GetLoopStartMs(Tracker->IsLowRes);
+		float LoopEndMs = Owner->GetLoopEndMs(Tracker->IsLowRes);
+		int32 LoopStartTick = Owner->GetLoopStartTick(Tracker->IsLowRes);
+		int32 LoopEndTick = Owner->GetLoopEndTick(Tracker->IsLowRes);
 		int32 TrackerTick = Tracker->CurrentTick;
 
 		// loop or jump?

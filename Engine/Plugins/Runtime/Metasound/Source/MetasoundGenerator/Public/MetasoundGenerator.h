@@ -234,6 +234,14 @@ namespace Metasound
 		FDelegateHandle AddGraphSetCallback(FOnSetGraph::FDelegate&& Delegate);
 		bool RemoveGraphSetCallback(const FDelegateHandle& Handle);
 
+		// Enqueues a command for this generator to execute when its next buffer is
+		// requested by the mixer.  Enqueued commands are executed before OnGenerateAudio,
+		// and on the same thread.  They can safely access generator state.
+		void OnNextBuffer(TUniqueFunction<void(FMetasoundGenerator&)> Command)
+		{
+			SynthCommand([this, Command = MoveTemp(Command)]() { Command(*this); });
+		}
+
 	protected:
 
 		void InitBase(const FMetasoundGeneratorInitParams& InInitParams);

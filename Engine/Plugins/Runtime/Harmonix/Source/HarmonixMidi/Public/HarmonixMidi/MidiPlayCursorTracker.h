@@ -17,9 +17,21 @@ struct HARMONIXMIDI_API FMidiPlayCursorTracker
 	float   EarliestCursorMs;
 	float   LatestCursorMs;
 
+	float   CurrentAdvanceRate;
+
+	float   LoopOffsetTick;
+	float   LoopStartMs;
+	int32   LoopStartTick;
+	float   LoopEndMs;
+	int32   LoopEndTick;
+	bool    Loop;
+	bool    LoopIgnoringLookAhead;
+
+	bool    IsLowRes;
+
 	TIntrusiveDoubleLinkedList<FMidiPlayCursor> Cursors;
 
-	FMidiPlayCursorTracker();
+	explicit FMidiPlayCursorTracker(bool InIsLowRes);
 
 	bool IsAtStart();
 	void AddCursor(FMidiPlayCursor* Cursor);

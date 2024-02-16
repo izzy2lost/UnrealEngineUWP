@@ -63,9 +63,8 @@ namespace HarmonixMetasound
 		static constexpr int32 kMidiGranularity = 128;
 		
 		explicit FMidiClock(const Metasound::FOperatorSettings& InSettings);
-		FMidiClock(const FMidiClock& Other);
-		FMidiClock(FMidiClock&& Other);
 
+		FMidiClock(const FMidiClock& Other);
 		FMidiClock& operator=(const FMidiClock& Other);
 
 		virtual ~FMidiClock();
@@ -147,7 +146,6 @@ namespace HarmonixMetasound
 		void AttachToMidiResource(TSharedPtr<FMidiFileData> MidiDataProxy, bool ResetCursorsToStart = true, int32 PreRollBars = 0) { DrivingMidiPlayCursorMgr->AttachToMidiResource(MidiDataProxy, ResetCursorsToStart, PreRollBars); }
 		void DetachFromMidiResource() { DrivingMidiPlayCursorMgr->DetachFromMidiResource(); }
 		void AttachToTimeAuthority(const FMidiClock& MidiClockRef);
-		void DetachFromTimeAuthority();
 		void InformOfCurrentAdvanceRate(float AdvanceRate);
 		
 		void LockForMidiDataChanges();
@@ -161,11 +159,11 @@ namespace HarmonixMetasound
 
 		void SetLoop(int32 StartTick, int32 EndTick) { DrivingMidiPlayCursorMgr->SetLoop(StartTick, EndTick, false, true); }
 		void ClearLoop() { DrivingMidiPlayCursorMgr->ClearLoop(true); }
-		bool DoesLoop() const { return DrivingMidiPlayCursorMgr->DoesLoop(); }
-		float GetLoopStartMs() const { return DrivingMidiPlayCursorMgr->GetLoopStartMs(); }
-		int32 GetLoopStartTick() const { return DrivingMidiPlayCursorMgr->GetLoopStartTick(); }
-		float GetLoopEndMs() const { return DrivingMidiPlayCursorMgr->GetLoopEndMs(); }
-		int32 GetLoopEndTick() const { return DrivingMidiPlayCursorMgr->GetLoopEndTick(); }
+		bool DoesLoop() const { return DrivingMidiPlayCursorMgr->DoesLoop(false); }
+		float GetLoopStartMs() const { return DrivingMidiPlayCursorMgr->GetLoopStartMs(false); }
+		int32 GetLoopStartTick() const { return DrivingMidiPlayCursorMgr->GetLoopStartTick(false); }
+		float GetLoopEndMs() const { return DrivingMidiPlayCursorMgr->GetLoopEndMs(false); }
+		int32 GetLoopEndTick() const { return DrivingMidiPlayCursorMgr->GetLoopEndTick(false); }
 
 		int32 GetCurrentHiResTick() const  { return DrivingMidiPlayCursorMgr->GetCurrentHiResTick();  }
 		float GetCurrentHiResMs() const    { return DrivingMidiPlayCursorMgr->GetCurrentHiResMs();    }
@@ -178,6 +176,8 @@ namespace HarmonixMetasound
 		void RegisterLowResPlayCursor(FMidiPlayCursor* PlayCursor, float PreRollMs = -1.0f) const { DrivingMidiPlayCursorMgr->RegisterLowResPlayCursor(PlayCursor, PreRollMs); }
 		void UnregisterPlayCursor(FMidiPlayCursor* PlayCursor, bool WarnOnFail = true) const      { DrivingMidiPlayCursorMgr->UnregisterPlayCursor(PlayCursor, WarnOnFail);    }
 		void UnregisterAllPlayCursors()                                                           { DrivingMidiPlayCursorMgr->UnregisterAllPlayCursors();                      }
+
+		const TSharedPtr<FMidiPlayCursorMgr>& GetDrivingMidiPlayCursorMgr() const { return DrivingMidiPlayCursorMgr; }
 		//*****************************************************************************************
 
 		void WriteAdvance(int32 StartFrameIndex, int32 EndFrameIndex, float InSpeed = 1.0f);
@@ -197,8 +197,6 @@ namespace HarmonixMetasound
 		class FTempoChangesCursor : public FMidiPlayCursor
 		{
 		public:
-			FTempoChangesCursor();
-
 			FTempoChangesCursor(FMidiClock* MidiClock);
 
 			//** BEGIN FMidiPlayCursor
@@ -234,8 +232,7 @@ namespace HarmonixMetasound
 		TArray<FMidiClockEvent> MidiClockEventsInBlock;
 
 		bool SmoothingEnabled = false;
-		mutable TSharedPtr<FMidiPlayCursorMgr> DrivingMidiPlayCursorMgr;
-		bool IOwnThePlayCursorMgr = false;
+		TSharedPtr<FMidiPlayCursorMgr> DrivingMidiPlayCursorMgr;
 	};
 
 	// Declare aliases IN the namespace...

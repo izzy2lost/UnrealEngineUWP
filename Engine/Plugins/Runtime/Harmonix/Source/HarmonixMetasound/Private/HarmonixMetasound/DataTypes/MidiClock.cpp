@@ -46,86 +46,73 @@ namespace HarmonixMetasound
 		, SampleRate(InSettings.GetSampleRate())
 		, HasSpeedChangeInBlock(false)
 		, HasTempoChangeInBlock(false)
+		, DrivingMidiPlayCursorMgr(MakeShared<FMidiPlayCursorMgr>())
 	{
-		DrivingMidiPlayCursorMgr = MakeShared<FMidiPlayCursorMgr>();
-		DrivingMidiPlayCursorMgr->RegisterHiResPlayCursor(&TempoChangesCursor);
-		IOwnThePlayCursorMgr = true;
 		SpeedChangesInBlock.Add({0, 0.0f, 1.0f});
 		TempoChangesInBlock.Add({0, 0.0f, 120.0f});
+
+		DrivingMidiPlayCursorMgr->RegisterHiResPlayCursor(&TempoChangesCursor);
 
 		RegisterForGameThreadUpdates();
 	}
 
 	FMidiClock::FMidiClock(const FMidiClock& Other)
+		: TempoChangesCursor(this)
+		, BlockSize(Other.BlockSize)
+		, CurrentBlockFrameIndex(Other.CurrentBlockFrameIndex)
+		, SampleRate(Other.SampleRate)
+		, SampleCount(Other.SampleCount)
+		, FramesUntilNextProcess(Other.FramesUntilNextProcess)
+		, CurrentTransportState(Other.CurrentTransportState)
+		, TransportChangesInBlock(Other.TransportChangesInBlock)
+		, HasSpeedChangeInBlock(Other.HasSpeedChangeInBlock)
+		, SpeedChangesInBlock(Other.SpeedChangesInBlock)
+		, HasTempoChangeInBlock(Other.HasTempoChangeInBlock)
+		, TempoChangesInBlock(Other.TempoChangesInBlock)
+		, MidiClockEventsInBlock(Other.MidiClockEventsInBlock)
+		, SmoothingEnabled(Other.SmoothingEnabled)
+		, DrivingMidiPlayCursorMgr(Other.DrivingMidiPlayCursorMgr)
 	{
-		*this = Other;
+		DrivingMidiPlayCursorMgr->RegisterHiResPlayCursor(&TempoChangesCursor);
+
+		RegisterForGameThreadUpdates();
 	}
 
 	FMidiClock& FMidiClock::operator=(const FMidiClock& Other)
 	{
-		if (&Other != this)
+		if (this != &Other)
 		{
-			bool NeedReRegister = false;
-			if (DrivingMidiPlayCursorMgr && DrivingMidiPlayCursorMgr != Other.DrivingMidiPlayCursorMgr)
+			UnregisterForGameThreadUpdates();
+
+			if (DrivingMidiPlayCursorMgr != Other.DrivingMidiPlayCursorMgr)
 			{
-				NeedReRegister = true;
 				DrivingMidiPlayCursorMgr->UnregisterPlayCursor(&TempoChangesCursor);
-				DrivingMidiPlayCursorMgr = nullptr;
 			}
 
 			BlockSize = Other.BlockSize;
 			CurrentBlockFrameIndex = Other.CurrentBlockFrameIndex;
 			SampleRate = Other.SampleRate;
+			SampleCount = Other.SampleCount;
+			FramesUntilNextProcess = Other.FramesUntilNextProcess;
 			CurrentTransportState = Other.CurrentTransportState;
-
 			TransportChangesInBlock = Other.TransportChangesInBlock;
 			HasSpeedChangeInBlock = Other.HasSpeedChangeInBlock;
 			SpeedChangesInBlock = Other.SpeedChangesInBlock;
 			HasTempoChangeInBlock = Other.HasTempoChangeInBlock;
 			TempoChangesInBlock = Other.TempoChangesInBlock;
+			MidiClockEventsInBlock = Other.MidiClockEventsInBlock;
 			SmoothingEnabled = Other.SmoothingEnabled;
 
-			if (NeedReRegister)
+			if (DrivingMidiPlayCursorMgr != Other.DrivingMidiPlayCursorMgr)
 			{
 				DrivingMidiPlayCursorMgr = Other.DrivingMidiPlayCursorMgr;
-				if (DrivingMidiPlayCursorMgr)
-				{
-					DrivingMidiPlayCursorMgr->RegisterHiResPlayCursor(&TempoChangesCursor);
-				}
+				DrivingMidiPlayCursorMgr->RegisterHiResPlayCursor(&TempoChangesCursor);
 			}
 
 			RegisterForGameThreadUpdates();
 		}
+
 		return *this;
-	}
-
-	FMidiClock::FMidiClock(FMidiClock&& Other)
-		: TempoChangesCursor(this)
-	{
-		BlockSize = Other.BlockSize;
-		CurrentBlockFrameIndex = Other.CurrentBlockFrameIndex;
-		SampleRate = Other.SampleRate;
-		CurrentTransportState = Other.CurrentTransportState;
-
-		TransportChangesInBlock = MoveTemp(Other.TransportChangesInBlock);
-		HasSpeedChangeInBlock = Other.HasSpeedChangeInBlock;
-		SpeedChangesInBlock = MoveTemp(Other.SpeedChangesInBlock);
-		HasTempoChangeInBlock = Other.HasTempoChangeInBlock;
-		TempoChangesInBlock = MoveTemp(Other.TempoChangesInBlock);
-		SmoothingEnabled = Other.SmoothingEnabled;
-		
-		if (Other.DrivingMidiPlayCursorMgr)
-		{
-			Other.DrivingMidiPlayCursorMgr->UnregisterPlayCursor(&Other.TempoChangesCursor);
-			DrivingMidiPlayCursorMgr = Other.DrivingMidiPlayCursorMgr;
-		}
-		else
-		{
-			DrivingMidiPlayCursorMgr = MakeShared<FMidiPlayCursorMgr>();
-		}
-		DrivingMidiPlayCursorMgr->RegisterHiResPlayCursor(&TempoChangesCursor);
-
-		RegisterForGameThreadUpdates();
 	}
 
 	FMidiClock::~FMidiClock()
@@ -133,11 +120,6 @@ namespace HarmonixMetasound
 		UnregisterForGameThreadUpdates();
 	
 		DrivingMidiPlayCursorMgr->UnregisterPlayCursor(&TempoChangesCursor, false);
-	}
-
-	FMidiClock::FTempoChangesCursor::FTempoChangesCursor()
-	{
-		SetMessageFilter(FMidiPlayCursor::EFilterPassFlags::Tempo);
 	}
 
 	FMidiClock::FTempoChangesCursor::FTempoChangesCursor(FMidiClock* MidiClock) : MyMidiClock(MidiClock)
@@ -247,7 +229,7 @@ namespace HarmonixMetasound
 			SpeedChangesInBlock.Add(NewSpeed);
 		}
 		HasSpeedChangeInBlock = true;
-		DrivingMidiPlayCursorMgr->InformOfCurrentAdvanceRate(NewSpeed.Speed);
+		DrivingMidiPlayCursorMgr->InformOfHiResAdvanceRate(NewSpeed.Speed);
 	}
 
 	const TArray<FMidiClockEvent>& FMidiClock::GetMidiClockEventsInBlock() const
@@ -404,7 +386,7 @@ namespace HarmonixMetasound
 
 	void FMidiClock::InformOfCurrentAdvanceRate(float AdvanceRate)
 	{
-		DrivingMidiPlayCursorMgr->InformOfCurrentAdvanceRate(AdvanceRate);
+		DrivingMidiPlayCursorMgr->InformOfHiResAdvanceRate(AdvanceRate);
 	}
 
 	void FMidiClock::CopySpeedAndTempoChanges(const FMidiClock* InClock, float InSpeedMult)
@@ -431,7 +413,7 @@ namespace HarmonixMetasound
 			FSampleCount AdvanceToFrame = SampleCount + (FSampleCount)((float)kMidiGranularity * InSpeed);
 			FramesUntilNextProcess = kMidiGranularity;
 			float AdvanceToMs = ((float)AdvanceToFrame * 1000.0f) / SampleRate;
-			DrivingMidiPlayCursorMgr->InformOfCurrentAdvanceRate(InSpeed);
+			DrivingMidiPlayCursorMgr->InformOfHiResAdvanceRate(InSpeed);
 			AdvanceHiResToMs(StartFrameIndex, AdvanceToMs, true);
 
 			
@@ -506,7 +488,6 @@ namespace HarmonixMetasound
 
 	FMidiClockEventCursor::~FMidiClockEventCursor()
 	{
-
 		MidiClock->UnregisterPlayCursor(this);
 	}
 

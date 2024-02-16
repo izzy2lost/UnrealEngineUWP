@@ -663,8 +663,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		// If the vertex interface changed, notify listeners
 		{
-			bool bExpected = true;
-			if (bVertexInterfaceHasChanged.compare_exchange_weak(bExpected, false))
+			if (bVertexInterfaceHasChanged.exchange(false))
 			{
 				OnVertexInterfaceDataUpdated.Broadcast(VertexInterfaceData);
 			}
