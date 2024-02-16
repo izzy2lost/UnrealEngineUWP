@@ -1189,6 +1189,14 @@ void FPBDRigidsEvolutionGBF::DestroyTransientConstraints(FGeometryParticleHandle
 	}
 }
 
+void FPBDRigidsEvolutionGBF::DestroyTransientConstraints()
+{
+	for (auto& Particle : Particles.GetAllParticlesView())
+	{
+		DestroyTransientConstraints(Particle.Handle());
+	}
+}
+
 CHAOS_API void FPBDRigidsEvolutionGBF::SetParticleTransform(FGeometryParticleHandle* InParticle, const FVec3& InPos, const FRotation3& InRot, const bool bIsTeleport)
 {
 	const FVec3 PrevX = InParticle->GetX();

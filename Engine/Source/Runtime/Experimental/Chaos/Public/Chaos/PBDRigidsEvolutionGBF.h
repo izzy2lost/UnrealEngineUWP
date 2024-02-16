@@ -189,7 +189,8 @@ namespace Chaos
 
 		void DestroyParticleCollisionsInAllocator(FGeometryParticleHandle* Particle);
 
-		virtual void DestroyTransientConstraints(FGeometryParticleHandle* Particle) override;
+		virtual void DestroyTransientConstraints(FGeometryParticleHandle* Particle) override final;
+		virtual void DestroyTransientConstraints() override final;
 
 		/** Reset the collisions warm starting when resimulate. Ideally we should store
 		  that in the RewindData history but probably too expensive for now */

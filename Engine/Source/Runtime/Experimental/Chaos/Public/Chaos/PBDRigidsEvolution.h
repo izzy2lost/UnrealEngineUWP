@@ -694,6 +694,7 @@ public:
 	* Destroy all transient constraints (collisions) involving the specified particle.
 	*/
 	virtual void DestroyTransientConstraints(FGeometryParticleHandle* Particle) {}
+	virtual void DestroyTransientConstraints() {}
 
 	const TParticleView<FPBDRigidClusteredParticles>& GetNonDisabledClusteredView() const { return Particles.GetNonDisabledClusteredView(); }
 
