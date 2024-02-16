@@ -2,10 +2,13 @@
 
 #include "D3D12RHIPrivate.h"
 #include "D3D12PoolAllocator.h"
+#include "HAL/LowLevelMemTracker.h"
 
 #ifndef NEEDS_D3D12_INDIRECT_ARGUMENT_HEAP_WORKAROUND
 #define NEEDS_D3D12_INDIRECT_ARGUMENT_HEAP_WORKAROUND 0
 #endif
+
+LLM_DECLARE_TAG(D3D12AllocatorUnused);
 
 //-----------------------------------------------------------------------------
 //	FD3D12MemoryPool
@@ -132,6 +135,7 @@ void FD3D12MemoryPool::Init()
 	}
 #endif // D3D12_RHI_RAYTRACING
 
+	LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT_BYTAG(D3D12AllocatorUnused, int64(PoolSize), ELLMTracker::Platform, ELLMAllocType::System);
 	FRHIMemoryPool::Init();
 }
 
@@ -365,6 +369,7 @@ void FD3D12PoolAllocator::AllocateResource(uint32 GPUIndex, D3D12_HEAP_TYPE InHe
 		// Try to allocate in one of the pools
 		FRHIPoolAllocationData& AllocationData = ResourceLocation.GetPoolAllocatorPrivateData().PoolData;
 		verify(TryAllocateInternal(InSize, AllocationAlignment, AllocationResourceType, AllocationData));
+		LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT_BYTAG(D3D12AllocatorUnused, 0 - int64(InSize), ELLMTracker::Platform, ELLMAllocType::System);
 
 		// Setup the resource location
 		ResourceLocation.SetType(FD3D12ResourceLocation::ResourceLocationType::eSubAllocation);
@@ -639,7 +644,7 @@ void FD3D12PoolAllocator::CleanUpAllocations(uint64 InFrameLag, bool bForceFree)
 				// Not pending anymore
 				check(PendingDeleteRequestSize >= Operation.AllocationData->GetSize());
 				PendingDeleteRequestSize -= Operation.AllocationData->GetSize();
-
+				LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT_BYTAG(D3D12AllocatorUnused, int64(Operation.AllocationData->GetSize()), ELLMTracker::Platform, ELLMAllocType::System);
 				// Deallocate the locked block (actually free now)
 				DeallocateInternal(*Operation.AllocationData);
 				Operation.AllocationData->Reset();
@@ -692,6 +697,7 @@ void FD3D12PoolAllocator::CleanUpAllocations(uint64 InFrameLag, bool bForceFree)
 		FD3D12MemoryPool* MemoryPool = (FD3D12MemoryPool*) Pools[PoolIndex];
 		if (MemoryPool != nullptr && MemoryPool->IsEmpty() && (bForceFree || (MemoryPool->GetLastUsedFrameFence() + InFrameLag <= CompletedFence)))
 		{
+			LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT_BYTAG(D3D12AllocatorUnused, 0 - int64(MemoryPool->GetPoolSize()), ELLMTracker::Platform, ELLMAllocType::System);
 			MemoryPool->Destroy();
 			delete(MemoryPool);
 			Pools[PoolIndex] = nullptr;

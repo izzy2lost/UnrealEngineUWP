@@ -9,6 +9,8 @@
 #include "D3D12Allocation.h"
 #include "Misc/BufferedOutputDevice.h"
 #include "HAL/PlatformStackWalk.h"
+#include "HAL/LowLevelMemTracker.h"
+#include "HAL/LowLevelMemStats.h"
 #include "ProfilingDebugging/MemoryTrace.h"
 
 // Fix for random GPU crashes on draw indirects on multiple IHVs. Force all indirect arg buffers as committed resources (see UE-115982)
@@ -183,6 +185,11 @@ static FAutoConsoleVariableRef CVarD3D12UploadAllocatorPendingDeleteSizeForceFlu
 	TEXT("If given threshold of GBs in the pending delete is queue is reached, then a force GPU flush is triggered to reduce memory load (1 by default, 0 to disable)"),
 	ECVF_Default);
 
+DECLARE_LLM_MEMORY_STAT(TEXT("D3D12AllocatorUnused"), STAT_D3D12AllocatorUnusedLLM, STATGROUP_LLMFULL);
+LLM_DEFINE_TAG(D3D12AllocatorUnused, NAME_None, NAME_None, GET_STATFNAME(STAT_D3D12AllocatorUnusedLLM), GET_STATFNAME(STAT_EngineSummaryLLM));
+DECLARE_LLM_MEMORY_STAT(TEXT("D3D12AllocatorWasted"), STAT_D3D12AllocatorWastedLLM, STATGROUP_LLMFULL);
+LLM_DEFINE_TAG(D3D12AllocatorWasted, NAME_None, NAME_None, GET_STATFNAME(STAT_D3D12AllocatorWastedLLM), GET_STATFNAME(STAT_EngineSummaryLLM));
+
 namespace ED3D12AllocatorID
 {
 	enum Type
@@ -208,7 +215,7 @@ FD3D12ResourceAllocator::FD3D12ResourceAllocator(FD3D12Device* ParentDevice,
 	, DebugName(Name)
 	, Initialized(false)
 	, MaximumAllocationSizeForPooling(MaxSizeForPooling)
-#if defined(D3D12RHI_TRACK_DETAILED_STATS)
+#if D3D12RHI_TRACK_DETAILED_STATS
 	, SpaceAlignedUsed(0)
 	, SpaceActualUsed(0)
 	, NumBlocksInDeferredDeletionQueue(0)
@@ -285,6 +292,7 @@ void FD3D12BuddyAllocator::Initialize()
 			// we are tracking allocations ourselves, so don't let XMemAlloc track these as well
 			LLM_SCOPED_PAUSE_TRACKING_FOR_TRACKER(ELLMTracker::Default, ELLMAllocType::System);
 			VERIFYD3D12RESULT(Adapter->GetD3DDevice()->CreateHeap(&Desc, IID_PPV_ARGS(&Heap)));
+			LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT_BYTAG(D3D12AllocatorUnused, MaxBlockSize, ELLMTracker::Platform, ELLMAllocType::System);
 		}
 
 		BackingHeap = new FD3D12Heap(GetParentDevice(), GetVisibilityMask(), TraceHeapId);
@@ -302,6 +310,7 @@ void FD3D12BuddyAllocator::Initialize()
 			LLM_SCOPED_PAUSE_TRACKING_FOR_TRACKER(ELLMTracker::Default, ELLMAllocType::System);
 			const D3D12_HEAP_PROPERTIES HeapProps = CD3DX12_HEAP_PROPERTIES(InitConfig.HeapType, GetGPUMask().GetNative(), GetVisibilityMask().GetNative());
 			VERIFYD3D12RESULT(Adapter->CreateBuffer(HeapProps, GetGPUMask(), InitConfig.InitialResourceState, ED3D12ResourceStateMode::SingleState, InitConfig.InitialResourceState, MaxBlockSize, BackingResource.GetInitReference(), TEXT("Resource Allocator Underlying Buffer"), InitConfig.ResourceFlags));
+			LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT_BYTAG(D3D12AllocatorUnused, MaxBlockSize, ELLMTracker::Platform, ELLMAllocType::System);
 #if UE_MEMORY_TRACE_ENABLED
 			MemoryTrace_MarkAllocAsHeap(BackingResource->GetGPUVirtualAddress(), TraceHeapId);
 #endif
@@ -325,7 +334,10 @@ uint32 FD3D12BuddyAllocator::AllocateBlock(uint32 order)
 
 	if (order > MaxOrder)
 	{
-		check(false); // Can't allocate a block that large  
+		// Can't allocate a block that large
+		check(false); 
+		// Crash to avoid infinite recursivity
+		UE_LOG(LogD3D12RHI, Fatal, TEXT("Buddy Allocator cant allocate a block that large (order %d)"), order);
 	}
 
 	if (FreeBlocks[order].Num() == 0)
@@ -415,9 +427,13 @@ void FD3D12BuddyAllocator::Allocate(uint32 SizeInBytes, uint32 Alignment, FD3D12
 	INCREASE_ALLOC_COUNTER(SpaceAlignedUsed, AllocSize);
 	INCREASE_ALLOC_COUNTER(SpaceActualUsed, SizeInBytes);
 	
+	// Decrease only texture size so wasted amount stays in D3D12AllocatorUnused
+	LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT_BYTAG(D3D12AllocatorUnused, 0 - int64(SizeInBytes), ELLMTracker::Platform, ELLMAllocType::System);
+	LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT_BYTAG(D3D12AllocatorWasted, int64(AllocSize - SizeInBytes), ELLMTracker::Platform, ELLMAllocType::System);
+
 	TotalSizeUsed += AllocSize;
 
-#if defined(D3D12RHI_TRACK_DETAILED_STATS)
+#if D3D12RHI_TRACK_DETAILED_STATS
 	if (SpaceActualUsed > PeakUsage)
 	{
 		PeakUsage = SpaceActualUsed;
@@ -497,13 +513,10 @@ void FD3D12BuddyAllocator::Deallocate(FD3D12ResourceLocation& ResourceLocation)
 	FD3D12BuddyAllocatorPrivateData& PrivateData = ResourceLocation.GetBuddyAllocatorPrivateData();
 	Block.Data.Order = PrivateData.Order;
 	Block.Data.Offset = PrivateData.Offset;
+	Block.AllocationSize = ResourceLocation.GetSize();
 
 	// update the last used framce fence used during garbage collection
 	LastUsedFrameFence = FMath::Max(LastUsedFrameFence, Block.FrameFence);
-
-#if defined(D3D12RHI_TRACK_DETAILED_STATS)
-	Block.AllocationSize = ResourceLocation.GetSize();
-#endif
 
 	if (ResourceLocation.GetResource()->IsPlacedResource())
 	{
@@ -534,6 +547,8 @@ void FD3D12BuddyAllocator::DeallocateInternal(RetiredBlock& Block)
 	const uint32 Size = uint32(OrderToUnitSize(Block.Data.Order) * MinBlockSize);
 	DECREASE_ALLOC_COUNTER(SpaceAlignedUsed, Size);
 	DECREASE_ALLOC_COUNTER(SpaceActualUsed, Block.AllocationSize);
+	LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT_BYTAG(D3D12AllocatorUnused, int64(Block.AllocationSize), ELLMTracker::Platform, ELLMAllocType::System);
+	LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT_BYTAG(D3D12AllocatorWasted, 0 - int64(Size - Block.AllocationSize), ELLMTracker::Platform, ELLMAllocType::System);
 
 	TotalSizeUsed -= Size;
 
@@ -580,6 +595,7 @@ void FD3D12BuddyAllocator::CleanUpAllocations()
 void FD3D12BuddyAllocator::ReleaseAllResources()
 {
 	LLM_SCOPED_PAUSE_TRACKING_FOR_TRACKER(ELLMTracker::Default, ELLMAllocType::System);
+	LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT_BYTAG(D3D12AllocatorUnused, 0 - int64(MaxBlockSize), ELLMTracker::Platform, ELLMAllocType::System);
 
 #if UE_MEMORY_TRACE_ENABLED
 	if (AllocationStrategy != EResourceAllocationStrategy::kPlacedResource)
@@ -641,7 +657,7 @@ void FD3D12BuddyAllocator::DumpAllocatorStats(class FOutputDevice& Ar)
 
 void FD3D12BuddyAllocator::UpdateMemoryStats(uint32& IOMemoryAllocated, uint32& IOMemoryUsed, uint32& IOMemoryFree, uint32& IOAlignmentWaste, uint32& IOAllocatedPageCount, uint32& IOFullPageCount)
 {
-#if defined(D3D12RHI_TRACK_DETAILED_STATS)
+#if D3D12RHI_TRACK_DETAILED_STATS
 	IOMemoryAllocated += MaxBlockSize;
 	IOMemoryUsed += SpaceActualUsed;
 	IOMemoryFree += (MaxBlockSize - SpaceAlignedUsed);
@@ -803,7 +819,7 @@ void FD3D12MultiBuddyAllocator::DumpAllocatorStats(class FOutputDevice& Ar)
 
 void FD3D12MultiBuddyAllocator::UpdateMemoryStats(uint32& IOMemoryAllocated, uint32& IOMemoryUsed, uint32& IOMemoryFree, uint32& IOAlignmentWaste, uint32& IOAllocatedPageCount, uint32& IOFullPageCount)
 {
-#if defined(D3D12RHI_TRACK_DETAILED_STATS)
+#if D3D12RHI_TRACK_DETAILED_STATS
 	FScopeLock Lock(&CS);
 
 	for (FD3D12BuddyAllocator* Allocator : Allocators)
@@ -1190,7 +1206,7 @@ void FD3D12UploadHeapAllocator::UpdateMemoryStats()
 	uint32 AllocatedPageCount = 0;
 	uint32 FullPageCount = 0;
 
-#if defined(D3D12RHI_TRACK_DETAILED_STATS)
+#if D3D12RHI_TRACK_DETAILED_STATS
 	SmallBlockAllocator.UpdateMemoryStats(MemoryAllocated, MemoryUsed, FreeMemory, AlignmentWaste, AllocatedPageCount, FullPageCount);
 	{
 		FD3D12ScopeLock Lock(&BigBlockCS);
@@ -1656,7 +1672,7 @@ void FD3D12DefaultBufferAllocator::UpdateMemoryStats()
 	uint32 AllocatedPageCount = 0;
 	uint32 FullPageCount = 0;
 
-#if defined(D3D12RHI_TRACK_DETAILED_STATS)
+#if D3D12RHI_TRACK_DETAILED_STATS
 	for (FD3D12BufferPool* DefaultBufferPool : DefaultBufferPools)
 	{
 		if (DefaultBufferPool)
