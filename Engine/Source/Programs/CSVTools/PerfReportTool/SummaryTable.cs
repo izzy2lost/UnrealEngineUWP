@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Data.Common;
 using System.Linq;
 using System.Xml.Linq;
 using PerfReportTool;
@@ -834,6 +835,12 @@ namespace PerfSummaries
 			if (tooltip != null)
 			{
 				attributes.Add($"title='{tooltip}'");
+			}
+			else if ( displayName != null )
+			{
+				string baseStatName = SummaryTable.GetBaseStatNameWithPrefixAndSuffix(name, out _, out _);
+
+				attributes.Add($"title='{baseStatName}'");
 			}
 			return attributes;
 		}
@@ -1756,7 +1763,7 @@ namespace PerfSummaries
 				// Add the special columns (up to Count) to the lower header row
 				for (int i = 0; i < firstStatColumnIndex; i++)
 				{
-					headerRow.AddCell(columns[i].GetDisplayName(hideStatPrefix, bAddStatNameSpacing, bGreyOutStatPrefixes));
+					headerRow.AddCell(columns[i].GetDisplayName(hideStatPrefix, bAddStatNameSpacing, bGreyOutStatPrefixes), String.Join(" ", columns[i].GetHeaderAttributes()));
 				}
 
 				if (bAddMinMaxColumns)
