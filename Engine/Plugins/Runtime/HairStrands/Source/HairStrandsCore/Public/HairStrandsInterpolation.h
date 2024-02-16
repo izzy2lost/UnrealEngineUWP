@@ -183,7 +183,9 @@ void AddPatchAttributePass(
 void AddTransferPositionPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
-	const uint32 ElementCount,
+	const uint32 PointOffset,
+	const uint32 PointCount,
+	const uint32 TotalPointCount,
 	FRDGBufferSRVRef InBuffer,
 	FRDGBufferUAVRef OutBuffer);
 

@@ -1099,6 +1099,8 @@ static void RunHairStrandsInterpolation_Strands(
 		int32 MeshLODIndex = -1;
 		uint32 ActivePointCount = 0;
 		uint32 ActiveCurveCount = 0;
+		uint32 PreviousActivePointCount = 0;
+		uint32 PreviousActiveCurveCount = 0;
 		EGroomCacheType ActiveGroomCacheType = EGroomCacheType::None;
 		EHairBindingType BindingType = EHairBindingType::NoneBinding;
 		bool bSimulationEnable = false;
@@ -1148,6 +1150,8 @@ static void RunHairStrandsInterpolation_Strands(
 		InstanceData.Instance 					= Instance;
 		InstanceData.ActivePointCount 			= Instance->HairGroupPublicData->GetActiveStrandsPointCount();
 		InstanceData.ActiveCurveCount 			= Instance->HairGroupPublicData->GetActiveStrandsCurveCount();
+		InstanceData.PreviousActivePointCount 	= Instance->HairGroupPublicData->GetActiveStrandsPointCount(true /*bPrevious*/);
+		InstanceData.PreviousActiveCurveCount 	= Instance->HairGroupPublicData->GetActiveStrandsCurveCount(true /*bPrevious*/);
 		InstanceData.ActiveGroomCacheType 		= GetHairInstanceCacheType(Instance);
 		InstanceData.BindingType 				= Instance->BindingType;
 		InstanceData.HairLODIndex 				= Instance->HairGroupPublicData->LODIndex;
@@ -1446,12 +1450,20 @@ static void RunHairStrandsInterpolation_Strands(
 	{
 		if (InstanceData.ActiveGroomCacheType != EGroomCacheType::Strands && InstanceData.bNeedDeformation)
 		{
-			const bool bTransferPrevPosition =
-				InstanceData.Instance->HairGroupPublicData->VFInput.bHasLODSwitch &&
-				IsHairStrandsTransferPositionOnLODChange();
-			if (bTransferPrevPosition)
+			const bool bLODChanged = (InstanceData.Instance->HairGroupPublicData->VFInput.bHasLODSwitch && IsHairStrandsTransferPositionOnLODChange());
+			const bool bNewCurves  = InstanceData.ActivePointCount > InstanceData.PreviousActivePointCount;
+			if (bLODChanged || bNewCurves)
 			{
-				AddTransferPositionPass(GraphBuilder, ShaderMap, InstanceData.ActivePointCount, InstanceData.RDGResources.DeformedPosition.SRV, InstanceData.RDGResources.DeformedPrevPosition.UAV);
+				const uint32 PointOffset = bLODChanged ? 0 : InstanceData.PreviousActivePointCount;
+				const uint32 PointCount  = bLODChanged ? InstanceData.ActivePointCount : InstanceData.ActivePointCount - InstanceData.PreviousActivePointCount;
+				AddTransferPositionPass(
+					GraphBuilder, 
+					ShaderMap, 
+					PointOffset,
+					PointCount,
+					InstanceData.ActivePointCount, 
+					InstanceData.RDGResources.DeformedPosition.SRV, 
+					InstanceData.RDGResources.DeformedPrevPosition.UAV);
 				GraphBuilder.SetBufferAccessFinal(InstanceData.RDGResources.DeformedPrevPosition.Buffer, ERHIAccess::SRVMask);
 			}
 		}
@@ -2541,6 +2553,8 @@ static void ApplyHairLOD(const FHairLOD& In, FHairGroupInstance* OutInstance)
 	// Feedback game thread with LOD selection 
 	OutInstance->Debug.LODPredictedIndex = In.LODPredictedIndex;
 	OutInstance->HairGroupPublicData->DebugScreenSize = In.DebugScreenSize;
+	OutInstance->HairGroupPublicData->ContinuousLODPreviousPointCount = OutInstance->HairGroupPublicData->ContinuousLODPointCount;
+	OutInstance->HairGroupPublicData->ContinuousLODPreviousCurveCount = OutInstance->HairGroupPublicData->ContinuousLODCurveCount;
 	OutInstance->HairGroupPublicData->ContinuousLODPointCount = In.ContinuousLODPointCount;
 	OutInstance->HairGroupPublicData->ContinuousLODCurveCount = In.ContinuousLODCurveCount;
 	OutInstance->HairGroupPublicData->ContinuousLODScreenSize = In.ContinuousLODScreenSize;

@@ -287,8 +287,8 @@ public:
 	bool GetLODVisibility() const { return bLODVisibility; }
 
 	// Return the number of active point/curve for strand geometry
-	RENDERER_API uint32 GetActiveStrandsPointCount() const;
-	RENDERER_API uint32 GetActiveStrandsCurveCount() const;
+	RENDERER_API uint32 GetActiveStrandsPointCount(bool bPrevious=false) const;
+	RENDERER_API uint32 GetActiveStrandsCurveCount(bool bPrevious=false) const;
 	RENDERER_API float  GetActiveStrandsCoverageScale() const;
 	RENDERER_API float  GetActiveStrandsRadiusScale() const;
 
@@ -398,6 +398,8 @@ public:
 	// Active/used point/curved based on select continuous LOD
 	uint32 ContinuousLODPointCount = 0;
 	uint32 ContinuousLODCurveCount = 0;
+	uint32 ContinuousLODPreviousPointCount = 0;
+	uint32 ContinuousLODPreviousCurveCount = 0;
 	float ContinuousLODScreenSize = 1.f;
 	float ContinuousLODCoverageScale = 1.f;
 	float ContinuousLODRadiusScale = 1.f;
