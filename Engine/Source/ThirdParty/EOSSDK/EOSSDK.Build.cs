@@ -77,7 +77,7 @@ public class EOSSDK : ModuleRules
 		string PlatformDir = Path.Combine(ParentDir, EOSSDKPlatformName);
 		if (bHasMultiplePlatformSDKBuilds)
 		{
-			string[] AvailableBuilds = Directory.GetDirectories(PlatformDir);
+			List<string> AvailableBuilds = new List<string>(Directory.GetDirectories(PlatformDir));
 			string IdealBuildDir = AvailableBuilds.FirstOrDefault(Elem => Elem.Split("\\").Last().StartsWith(EOSSDKIdealPlatformSDKVersion));
 			if (Directory.Exists(IdealBuildDir))
 			{
@@ -86,8 +86,12 @@ public class EOSSDK : ModuleRules
 			}
 			else
 			{
+				// Sort versions in ascendent order as the array returned by Directory.GetDirectories is not properly sorted
+				Comparison<string> AscendingOrder = (x, y) => int.Parse(x.Split("\\").Last().Split(".").First()).CompareTo(int.Parse(y.Split("\\").Last().Split(".").First()));
+				AvailableBuilds.Sort(AscendingOrder);
+
 				// Fall back to latest one available.
-				string LatestBuildDir = AvailableBuilds.Last(); // TODO UE-203806 this doesn't reliably get the latest on all platforms.
+				string LatestBuildDir = AvailableBuilds.Last();
 				string LatestBuildSDKVersion = LatestBuildDir.Split("\\").Last();
 				Log.TraceWarningOnce("Unable to find EOSSDK for platform SDK \"{0}\", falling back on EOSSDK for platform SDK \"{1}\".", EOSSDKIdealPlatformSDKVersion, LatestBuildSDKVersion);
 
