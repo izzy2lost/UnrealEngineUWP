@@ -9,10 +9,21 @@ FChaosClothAssetSimulationDampingConfigNode::FChaosClothAssetSimulationDampingCo
 	: FChaosClothAssetSimulationBaseConfigNode(InParam, InGuid)
 {
 	RegisterCollectionConnections();
+	RegisterInputConnection(&DampingCoefficientWeighted.WeightMap);
 }
 
 void FChaosClothAssetSimulationDampingConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
 {
-	PropertyHelper.SetProperty(this, &DampingCoefficient);
+	PropertyHelper.SetPropertyWeighted(TEXT("DampingCoefficient"), DampingCoefficientWeighted);
 	PropertyHelper.SetProperty(this, &LocalDampingCoefficient);
+}
+
+void FChaosClothAssetSimulationDampingConfigNode::Serialize(FArchive& Ar)
+{
+	Super::Serialize(Ar);
+	if (DampingCoefficient_DEPRECATED != DeprecatedDampingCoefficientValue)
+	{
+		DampingCoefficientWeighted.Low = DampingCoefficientWeighted.High = DampingCoefficient_DEPRECATED;
+		DampingCoefficient_DEPRECATED = DeprecatedDampingCoefficientValue;
+	}
 }

@@ -155,7 +155,8 @@ namespace Chaos
 			FRealSingle FrictionCoefficient);
 
 		/** Force based solver version */
-		CHAOSCLOTH_API void SetProperties(int32 ParticleRangeId, const Softs::FCollectionPropertyConstFacade& PropertyCollection);
+		CHAOSCLOTH_API void SetProperties(int32 ParticleRangeId, const Softs::FCollectionPropertyConstFacade& PropertyCollection,
+			const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps) ;
 
 		/** Begin PBD-solver only property methods (these properties are controlled directly via PropertyCollection in force-based solver) */
 		// Set whether to use continuous collision detection.
