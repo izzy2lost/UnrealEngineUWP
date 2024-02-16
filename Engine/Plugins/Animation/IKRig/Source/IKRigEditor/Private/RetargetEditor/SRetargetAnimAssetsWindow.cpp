@@ -1250,13 +1250,13 @@ void SRetargetAnimAssetsWindow::ShowAssetWarnings()
 	// missing source mesh
 	if (!Settings->SourceSkeletalMesh)
 	{
-		Log.LogError(LOCTEXT( "MissingMeshError", "No source mesh assigned."));
+		Log.LogError(LOCTEXT( "MissingSourceMeshError", "No source mesh assigned."));
 	}
 
 	// missing target mesh
 	if (!Settings->TargetSkeletalMesh)
 	{
-		Log.LogError(LOCTEXT( "MissingMeshError", "No target mesh assigned."));
+		Log.LogError(LOCTEXT( "MissinTargetMeshError", "No target mesh assigned."));
 	}
 
 	// auto retarget results
