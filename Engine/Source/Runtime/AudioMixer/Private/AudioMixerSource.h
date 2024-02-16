@@ -49,6 +49,7 @@ namespace Audio
 		virtual void Pause() override;
 		virtual bool IsFinished() override;
 		virtual float GetPlaybackPercent() const override;
+		virtual int64 GetNumFramesPlayed() const override;
 		virtual float GetEnvelopeValue() const override;
 		//~ End FSoundSource Interface
 

@@ -719,6 +719,18 @@ public:
 	/** Returns the source's playback percent. */
 	ENGINE_API virtual float GetPlaybackPercent() const;
 
+	/** Returns the sample (frame) rate of the audio played by the sound source. */
+	ENGINE_API virtual float GetSourceSampleRate() const;
+
+	/** Returns the number of frames (Samples / NumChannels) played by the sound source. */
+	ENGINE_API virtual int64 GetNumFramesPlayed() const;
+
+	/** Returns the total number of frames of audio for the sound wave. */
+	ENGINE_API virtual int32 GetNumTotalFrames() const;
+
+	/** Returns the frame index on which the sound source began playback. */
+	ENGINE_API virtual int32 GetStartFrame() const;
+
 	/** Returns the source's envelope at the callback block rate. Only implemented in audio mixer. */
 	virtual float GetEnvelopeValue() const { return 0.0f; };
 
