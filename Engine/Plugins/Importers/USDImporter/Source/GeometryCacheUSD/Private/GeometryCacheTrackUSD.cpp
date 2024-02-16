@@ -82,7 +82,7 @@ const bool UGeometryCacheTrackUsd::UpdateBoundsData(
 {
 	const int32 SampleIndex = FindSampleIndexFromTime(Time, bLooping);
 
-	const FGeometryCacheTrackSampleInfo& SampledInfo = GetSampleInfo(Time, bLooping);
+	const FGeometryCacheTrackSampleInfo& SampledInfo = GetSampleInfo(SampleIndex);
 	if (InOutBoundsSampleIndex != SampleIndex)
 	{
 		OutBounds = SampledInfo.BoundingBox;
@@ -131,6 +131,17 @@ void UGeometryCacheTrackUsd::GetFractionalFrameIndexFromTime(const float Time, c
 
 const FGeometryCacheTrackSampleInfo& UGeometryCacheTrackUsd::GetSampleInfo(float Time, bool bLooping)
 {
+	const int32 SampleIndex = FindSampleIndexFromTime(Time, bLooping);
+	return GetSampleInfo(SampleIndex);
+}
+
+const FGeometryCacheTrackSampleInfo& UGeometryCacheTrackUsd::GetSampleInfo(int32 SampleIndex)
+{
+	if (SampleIndex < 0)
+	{
+		return FGeometryCacheTrackSampleInfo::EmptySampleInfo;
+	}
+
 	if (SampleInfos.Num() == 0)
 	{
 		if (Duration > 0.f)
@@ -145,7 +156,6 @@ const FGeometryCacheTrackSampleInfo& UGeometryCacheTrackUsd::GetSampleInfo(float
 	}
 
 	// The sample info index must start from 0, while the sample index is between the range of the animation
-	const int32 SampleIndex = FindSampleIndexFromTime(Time, bLooping);
 	const int32 SampleInfoIndex = SampleIndex - StartFrameIndex;
 
 	FGeometryCacheTrackSampleInfo& CurrentSampleInfo = SampleInfos[SampleInfoIndex];
@@ -155,6 +165,7 @@ const FGeometryCacheTrackSampleInfo& UGeometryCacheTrackUsd::GetSampleInfo(float
 		FGeometryCacheMeshData TempMeshData;
 		if (GetMeshData(SampleIndex, TempMeshData))
 		{
+			float Time = GetTimeFromSampleIndex(SampleIndex);
 			CurrentSampleInfo = FGeometryCacheTrackSampleInfo(
 				Time,
 				(FBox)TempMeshData.BoundingBox,
