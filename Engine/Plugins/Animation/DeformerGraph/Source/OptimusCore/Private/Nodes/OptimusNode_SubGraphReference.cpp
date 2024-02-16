@@ -112,6 +112,11 @@ UOptimusNodeGraph* UOptimusNode_SubGraphReference::GetNodeGraphToShow()
 	return SubGraph.Get();
 }
 
+UOptimusNodeSubGraph* UOptimusNode_SubGraphReference::GetReferencedSubGraph() const
+{
+	return SubGraph.Get();
+}
+
 UOptimusComponentSourceBinding* UOptimusNode_SubGraphReference::GetDefaultComponentBinding(const FOptimusPinTraversalContext& InTraversalContext) const
 {
 	if (!ensure(DefaultComponentPin.IsValid()))
@@ -139,6 +144,11 @@ UOptimusComponentSourceBinding* UOptimusNode_SubGraphReference::GetDefaultCompon
 	}
 
 	return nullptr;	
+}
+
+UOptimusNodePin* UOptimusNode_SubGraphReference::GetDefaultComponentBindingPin() const
+{
+	return DefaultComponentPin.Get();
 }
 
 void UOptimusNode_SubGraphReference::SubscribeToSubGraph()

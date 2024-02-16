@@ -106,6 +106,11 @@ UOptimusNodeGraph* UOptimusNode_FunctionReference::GetNodeGraphToShow()
 	return FunctionGraph.Get();
 }
 
+UOptimusNodeSubGraph* UOptimusNode_FunctionReference::GetReferencedSubGraph() const
+{
+	return FunctionGraph.Get();
+}
+
 UOptimusComponentSourceBinding* UOptimusNode_FunctionReference::GetDefaultComponentBinding(const FOptimusPinTraversalContext& InTraversalContext) const
 {
 	if (!ensure(DefaultComponentPin.IsValid()))
@@ -133,6 +138,11 @@ UOptimusComponentSourceBinding* UOptimusNode_FunctionReference::GetDefaultCompon
 	}
 
 	return nullptr;		
+}
+
+UOptimusNodePin* UOptimusNode_FunctionReference::GetDefaultComponentBindingPin() const
+{
+	return DefaultComponentPin.Get();
 }
 
 FSoftObjectPath UOptimusNode_FunctionReference::GetSerializedGraphPath() const
