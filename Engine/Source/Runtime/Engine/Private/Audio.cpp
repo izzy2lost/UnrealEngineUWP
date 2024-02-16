@@ -875,6 +875,7 @@ FWaveInstance::FWaveInstance(const UPTRINT InWaveInstanceHash, FActiveSound& InA
 	, bReportedSpatializationWarning(false)
 	, bIsAmbisonics(false)
 	, bIsStopping(false)
+	, bIsDynamic(false)
 	, SpatializationMethod(ESoundSpatializationAlgorithm::SPATIALIZATION_Default)
 	, SpatializationPluginSettings(nullptr)
 	, OcclusionPluginSettings(nullptr)

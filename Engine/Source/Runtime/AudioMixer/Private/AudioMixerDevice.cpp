@@ -1175,7 +1175,7 @@ namespace Audio
 				USoundSubmixBase* SubmixToLoad = *It;
 				check(SubmixToLoad);
 
-				if (!IsRequiredSubmixType(SubmixToLoad) && SubmixToLoad->bAutoRegister )
+				if (!IsRequiredSubmixType(SubmixToLoad) && !SubmixToLoad->IsDynamic( true /* bIncludeAncestors */) ) // Do not load dynamic submixes until they've been connected.
 				{
 					LoadSoundSubmix(*SubmixToLoad);
 					InitSoundfieldAndEndpointDataForSubmix(*SubmixToLoad, GetSubmixInstance(SubmixToLoad).Pin(), false);
@@ -1240,7 +1240,7 @@ namespace Audio
 			{
 				ParentSubmixInstance = GetSubmixInstance(Parent).Pin();
 			}
-			else if (SubmixWithParent->bAutoRouteToMasterSubmixWhenOrphaned)
+			else if (!SubmixWithParent->IsDynamic( true /*bIncludeAncestors*/ )) // Dynamic submixes do not auto connect.
 			{
 				// If this submix is itself the broadcast submix, set its parent to the master submix
 				if (SubmixInstance == RequiredSubmixInstances[static_cast<int32>(ERequiredSubmixes::BaseDefault)])

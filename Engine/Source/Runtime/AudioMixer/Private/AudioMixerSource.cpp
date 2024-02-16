@@ -1834,7 +1834,7 @@ namespace Audio
 			{
 				SubmixPtr = MixerDevice->GetSubmixInstance(WaveInstance->SoundSubmix);
 			}
-			else if(WaveInstance->SoundSubmix && WaveInstance->SoundSubmix->bAutoRouteToMasterSubmixWhenOrphaned)
+			else if (!WaveInstance->bIsDynamic) // Dynamic submixes don't auto connect to master.
 			{
 				SubmixPtr = MixerDevice->GetMasterSubmix();
 			}

@@ -188,14 +188,6 @@ public:
 	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, Category = AutoDisablement, meta = (EditCondition = "bAutoDisable"))
 	float AutoDisableTime = 0.01f;
 
-	// Whether to automatically register this Submix with an AudioDevice. 
-	UPROPERTY(config, EditAnywhere, BlueprintReadOnly, Category = Automatic)
-	bool bAutoRegister = true;
-
-	// Whether to automatically route to the 'MasterSubmix' aka 'MainSubmix' when the parent is null
-	UPROPERTY(config, EditAnywhere, BlueprintReadOnly, Category = Automatic)
-	bool bAutoRouteToMasterSubmixWhenOrphaned = true;
-
 	// Child submixes to this sound mix
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = SoundSubmix)
 	TArray<TObjectPtr<USoundSubmixBase>> ChildSubmixes;
@@ -221,6 +213,23 @@ public:
 	**/
 	UFUNCTION(BlueprintCallable, Category = "Submix", meta = (WorldContext = "WorldContextObject", DisplayName = "Disconnect"))
 	ENGINE_API virtual bool DynamicDisconnect(const UObject* WorldContextObject) 
+	{ 
+		return false; 
+	}
+	
+	/** Searching upwards from this Submix to the root looking for the first Submix marked Dynamic
+	 *  If this Submix is Dynamic this will be returned.
+	**/
+	UFUNCTION(BlueprintCallable, Category = "Submix", meta = (WorldContext = "WorldContextObject"))
+	ENGINE_API virtual USoundSubmixBase* FindDynamicAncestor() 
+	{ 
+		return nullptr; 
+	}
+	
+	/** If this Submix is (or any of its parents are marked dynamic).
+	* @param	bIncludeAncestors	Whether to traverse upwards through the ancestors looking for anything with a dynamic flag.
+	**/
+	virtual bool IsDynamic(const bool bIncludeAncestors) const 
 	{ 
 		return false; 
 	}
@@ -268,7 +277,7 @@ class USoundSubmixWithParentBase : public USoundSubmixBase
 public:
 
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = SoundSubmix)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = SoundSubmix, meta = (EditCondition = "!bIsDynamic"))
 	TObjectPtr<USoundSubmixBase> ParentSubmix;
 
 	/**
@@ -292,9 +301,18 @@ public:
 	ENGINE_API bool DynamicConnect(FAudioDeviceHandle Handle, USoundSubmixBase* Parent);
 	ENGINE_API virtual bool DynamicDisconnect(const UObject* WorldContextObject) override;
 	ENGINE_API bool DynamicDisconnect(FAudioDeviceHandle Handle);
+	ENGINE_API virtual bool IsDynamic(const bool bIncludeAncestors) const override;
+	ENGINE_API virtual USoundSubmixBase* FindDynamicAncestor() override;
 
 protected:
 
+	/** Is Submix Dynamic. (i.e. allows connect/disconnect at runtime.)  **/
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = SoundSubmix, meta = (DisplayPriority=-1, EditCondition = "ParentSubmix == nullptr"))
+	uint8 bIsDynamic : 1;
+
+	// Const version. 
+	const USoundSubmixBase* FindDynamicAncestor() const;
+	
 #if WITH_EDITOR
 	ENGINE_API virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
 	ENGINE_API virtual void PostDuplicate(EDuplicateMode::Type DuplicateMode) override;
@@ -597,6 +615,8 @@ protected:
 
 namespace SubmixUtils
 {
+	ENGINE_API void ForEachStaticChildRecursive(USoundSubmixBase* StartingPoint, const TFunction<void(USoundSubmixBase*)>& Op);
+
 	ENGINE_API bool AreSubmixFormatsCompatible(const USoundSubmixBase* ChildSubmix, const USoundSubmixBase* ParentSubmix);
 
 	ENGINE_API bool FindInGraph(const USoundSubmixBase* InEntryPoint, const USoundSubmixBase* InToMatch, bool bShouldAcsend, FAudioDeviceHandle InDevice = {});

@@ -227,6 +227,12 @@ const FPinConnectionResponse USoundSubmixGraphSchema::CanCreateConnection(const 
 	USoundSubmixBase* InputSubmix = CastChecked<USoundSubmixGraphNode>(OutputPin->GetOwningNode())->SoundSubmix;
 	USoundSubmixBase* OutputSubmix = CastChecked<USoundSubmixGraphNode>(InputPin->GetOwningNode())->SoundSubmix;
 
+	// Forbid connecting dynamic submixes to other submixes.
+	if (InputSubmix->IsDynamic( false /*bIncludeAncestors*/ ))
+	{
+		return FPinConnectionResponse(CONNECT_RESPONSE_DISALLOW, LOCTEXT("SubmixIsDynamic", "Submix you are trying to connect from is dynamic and shouldn't have any static parents"));
+	}
+
 	// Check to see if this is an endpoint submix.
 	if (!InputSubmix->IsA<USoundSubmixWithParentBase>())
 	{
