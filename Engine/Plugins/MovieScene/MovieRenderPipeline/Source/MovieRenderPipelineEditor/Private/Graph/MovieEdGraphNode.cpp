@@ -10,7 +10,6 @@
 #include "Misc/TransactionObjectEvent.h"
 #include "MovieEdGraph.h"
 #include "MovieGraphSchema.h"
-#include "PropertyBag.h"
 #include "ToolMenu.h"
 #include "EdGraph/EdGraphSchema.h"
 #include "GraphEditorActions.h"
@@ -24,7 +23,6 @@ void UMoviePipelineEdGraphNodeBase::Construct(UMovieGraphNode* InRuntimeNode)
 	check(InRuntimeNode);
 	RuntimeNode = InRuntimeNode;
 	RuntimeNode->GraphNode = this;
-	RuntimeNode->OnNodeChangedDelegate.AddUObject(this, &UMoviePipelineEdGraphNodeBase::OnRuntimeNodeChanged);
 	
 	NodePosX = InRuntimeNode->GetNodePosX();
 	NodePosY = InRuntimeNode->GetNodePosY();
@@ -33,6 +31,7 @@ void UMoviePipelineEdGraphNodeBase::Construct(UMovieGraphNode* InRuntimeNode)
 	bCommentBubblePinned = InRuntimeNode->IsCommentBubblePinned();
 	bCommentBubbleVisible = InRuntimeNode->IsCommentBubbleVisible();
 	
+	RegisterDelegates();
 	SetEnabledState(InRuntimeNode->IsDisabled() ? ENodeEnabledState::Disabled : ENodeEnabledState::Enabled);
 }
 
@@ -215,6 +214,14 @@ void UMoviePipelineEdGraphNodeBase::UpdateEnableState() const
 	{
 		RuntimeNode->Modify();
 		RuntimeNode->SetDisabled(GetDesiredEnabledState() == ENodeEnabledState::Disabled);
+	}
+}
+
+void UMoviePipelineEdGraphNodeBase::RegisterDelegates()
+{
+	if (RuntimeNode)
+	{
+		RuntimeNode->OnNodeChangedDelegate.AddUObject(this, &UMoviePipelineEdGraphNodeBase::OnRuntimeNodeChanged);
 	}
 }
 
@@ -518,6 +525,13 @@ void UMoviePipelineEdGraphNodeBase::OnRuntimeNodeChanged(const UMovieGraphNode* 
 	{
 		ReconstructNode();
 	}
+}
+
+void UMoviePipelineEdGraphNodeBase::PostLoad()
+{
+	Super::PostLoad();
+
+	RegisterDelegates();	
 }
 
 void UMoviePipelineEdGraphNodeBase::ReconstructNode()

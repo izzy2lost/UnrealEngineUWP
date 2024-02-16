@@ -31,7 +31,7 @@ private:
 	virtual void RegisterDelegates() override;
 
 	/** Register delegates for the provided output member. */
-	void RegisterDelegates(UMovieGraphOutput* Output);
+	void RegisterOutputDelegates(UMovieGraphOutput* Output);
 
 	/** Update data (name, etc) on all existing input pins on this node to reflect the output members on the graph. */
 	void UpdateExistingPins(UMovieGraphMember* ChangedVariable) const;

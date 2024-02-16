@@ -109,7 +109,7 @@ FText UMovieGraphModifierNode::GetNodeTitle(const bool bGetDescriptive) const
 	static const FText ModifierNodeName = LOCTEXT("NodeName_Modifier", "Modifier");
 	static const FText ModifierNodeDescription = LOCTEXT("NodeDescription_Modifier", "Modifier\n{0}");
 	
-	const FString ModifierNameDisp = ModifierName.IsEmpty() ? TEXT("MISSING") : ModifierName;
+	const FString ModifierNameDisp = ModifierName.IsEmpty() ? LOCTEXT("NodeNoNameWarning_Modifier", "NO NAME").ToString() : ModifierName;
 
 	if (bGetDescriptive)
 	{

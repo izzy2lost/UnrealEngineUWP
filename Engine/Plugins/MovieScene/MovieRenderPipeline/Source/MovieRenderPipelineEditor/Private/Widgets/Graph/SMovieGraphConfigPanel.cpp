@@ -103,23 +103,34 @@ void SMoviePipelineGraphPanel::Construct(const FArguments& InArgs)
 
 	CurrentGraph = InArgs._Graph;
 	
-	UMoviePipelineEdGraph* GraphToEdit = Cast<UMoviePipelineEdGraph>(FBlueprintEditorUtils::CreateNewGraph(CurrentGraph, TEXT("MoviePipelineEdGraph"), UMoviePipelineEdGraph::StaticClass(), UMovieGraphSchema::StaticClass()));
+	UMoviePipelineEdGraph* EdGraph = Cast<UMoviePipelineEdGraph>(CurrentGraph->PipelineEdGraph);
 
-	// Probably not ideal.. USoundCue has a CreateGraph() node that does this (#if WITH_EDITOR) but then requires an interface
-	// for the editor half to avoid the circular dependency.
-	CurrentGraph->PipelineEdGraph = GraphToEdit;
-	GraphToEdit->InitFromRuntimeGraph(CurrentGraph);
+	// Create the EdGraph if it has not yet been created. It is saved as part of the runtime graph to prevent it from being re-created every time the
+	// graph is opened (and therefore dirtying the package).
+	if (!EdGraph)
+	{
+		EdGraph = Cast<UMoviePipelineEdGraph>(FBlueprintEditorUtils::CreateNewGraph(CurrentGraph, TEXT("MoviePipelineEdGraph"), UMoviePipelineEdGraph::StaticClass(), UMovieGraphSchema::StaticClass()));
 
+		// Probably not ideal.. USoundCue has a CreateGraph() node that does this (#if WITH_EDITOR) but then requires an interface
+		// for the editor half to avoid the circular dependency.
+		CurrentGraph->PipelineEdGraph = EdGraph;
+		EdGraph->InitFromRuntimeGraph(CurrentGraph);
 
-	const UEdGraphSchema* Schema = GraphToEdit->GetSchema();
-	Schema->CreateDefaultNodesForGraph(*GraphToEdit);
+		const UEdGraphSchema* Schema = EdGraph->GetSchema();
+		Schema->CreateDefaultNodesForGraph(*EdGraph);
+	}
+	else
+	{
+		EdGraph->RegisterDelegates(CurrentGraph);
+	}
+	
 	MakeEditorCommands();
 
 	ChildSlot
 	[
 		SAssignNew(GraphEditorWidget, SGraphEditor)
 		.IsEditable(true)
-		.GraphToEdit(GraphToEdit)
+		.GraphToEdit(EdGraph)
 		.AdditionalCommands(GraphEditorCommands)
 		.GraphEvents(InEvents)
 		.Appearance(AppearanceInfo)

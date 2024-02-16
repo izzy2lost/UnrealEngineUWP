@@ -7,16 +7,10 @@
 
 UMovieGraphOutputNode::UMovieGraphOutputNode()
 {
-#if WITH_EDITOR
 	if (!HasAnyFlags(RF_ClassDefaultObject))
 	{
-		if (UMovieGraphConfig* Graph = GetGraph())
-		{
-			// Register delegates for new outputs when they're added to the graph
-			Graph->OnGraphOutputAddedDelegate.AddUObject(this, &UMovieGraphOutputNode::RegisterDelegates);
-		}
+		RegisterDelegates();
 	}
-#endif
 }
 
 TArray<FMovieGraphPinProperties> UMovieGraphOutputNode::GetInputPinProperties() const
@@ -70,16 +64,23 @@ void UMovieGraphOutputNode::RegisterDelegates()
 {
 	Super::RegisterDelegates();
 	
-	if (const UMovieGraphConfig* Graph = GetGraph())
+	if (UMovieGraphConfig* Graph = GetGraph())
 	{
+#if WITH_EDITOR
+		// Register delegates for new outputs when they're added to the graph
+		Graph->OnGraphOutputAddedDelegate.RemoveAll(this);
+		Graph->OnGraphOutputAddedDelegate.AddUObject(this, &UMovieGraphOutputNode::RegisterOutputDelegates);
+#endif
+
+		// Register delegates for existing outputs
 		for (UMovieGraphOutput* OutputMember : Graph->GetOutputs())
 		{
-			RegisterDelegates(OutputMember);
+			RegisterOutputDelegates(OutputMember);
 		}
 	}
 }
 
-void UMovieGraphOutputNode::RegisterDelegates(UMovieGraphOutput* Output)
+void UMovieGraphOutputNode::RegisterOutputDelegates(UMovieGraphOutput* Output)
 {
 #if WITH_EDITOR
 	if (Output)
