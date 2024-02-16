@@ -58,6 +58,7 @@ private:
 		FRequestState* Request = nullptr;
 		FLinkerLoadState* Linker = nullptr;
 		TSet<FAsyncPackageState*> ImportedAsyncPackages;
+		TSet<FAsyncPackageState*> ImportedByAsyncPackages;
 	};
 
 	struct FLinkerLoadState
