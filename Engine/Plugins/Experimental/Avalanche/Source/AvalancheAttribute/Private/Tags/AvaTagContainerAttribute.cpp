@@ -14,4 +14,9 @@ bool UAvaTagContainerAttribute::ContainsTag(const FAvaTagHandle& InTagHandle) co
 	return TagContainer.ContainsTag(InTagHandle);
 }
 
+void UAvaTagContainerAttribute::SetTagContainer(const FAvaTagHandleContainer& InTagContainer)
+{
+	TagContainer = InTagContainer;
+}
+
 #undef LOCTEXT_NAMESPACE
