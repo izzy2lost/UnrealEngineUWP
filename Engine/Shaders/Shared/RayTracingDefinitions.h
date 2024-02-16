@@ -15,11 +15,14 @@
 
 #define RAY_TRACING_MASK_OPAQUE						0x01    // Opaque and alpha tested meshes and particles (e.g. used by reflection, shadow, AO and GI tracing passes)
 #define RAY_TRACING_MASK_TRANSLUCENT				0x02    // Opaque and alpha tested meshes and particles (e.g. used by translucency tracing pass)
-#define RAY_TRACING_MASK_THIN_SHADOW				0x04    // Whether the thin geometry (e.g. hair) is visible for shadow rays
-#define RAY_TRACING_MASK_SHADOW						0x08    // Whether the geometry is visible for shadow rays
+#define RAY_TRACING_MASK_OPAQUE_SHADOW				0x04    // Opaque and alpha tested geometry visible for shadow rays
+#define RAY_TRACING_MASK_TRANSLUCENT_SHADOW			0x08    // Translucent geometry visible for shadow rays
+#define RAY_TRACING_MASK_THIN_SHADOW				0x10    // Whether the thin geometry (e.g. hair) is visible for shadow rays
 #define RAY_TRACING_MASK_FAR_FIELD					0x20
 #define RAY_TRACING_MASK_HAIR_STRANDS               0x40    // For primary ray tracing against hair
 #define RAY_TRACING_MASK_ALL						0xFF
+
+#define RAY_TRACING_MASK_SHADOW						(RAY_TRACING_MASK_OPAQUE_SHADOW | RAY_TRACING_MASK_TRANSLUCENT_SHADOW)
 
 #define RAY_TRACING_SHADER_SLOT_MATERIAL	0
 #define RAY_TRACING_SHADER_SLOT_SHADOW		1

@@ -14,8 +14,9 @@ enum class ERayTracingInstanceMaskType : uint8
 	// General mask type
 	Opaque,
 	Translucent,
+	OpaqueShadow,
+	TranslucentShadow,
 	ThinShadow,
-	Shadow,
 	FarField,
 	HairStrands,
 
@@ -33,11 +34,9 @@ enum class ERayTracingViewMaskMode : uint8
 };
 
 uint8 ComputeRayTracingInstanceMask(ERayTracingInstanceMaskType MaskType, ERayTracingViewMaskMode MaskMode);
-RENDERER_API uint8 ComputeRayTracingInstanceShadowMask(ERayTracingViewMaskMode MaskMode);
-
 
 /** Compute the mask based on blend mode for different ray tracing mode*/
-RENDERER_API uint8 BlendModeToRayTracingInstanceMask(const EBlendMode BlendMode, ERayTracingViewMaskMode MaskMode);
+RENDERER_API uint8 BlendModeToRayTracingInstanceMask(const EBlendMode BlendMode, bool bCastShadow, ERayTracingViewMaskMode MaskMode);
 
 
 /** Util struct and function to derive mask related info from scene proxy*/

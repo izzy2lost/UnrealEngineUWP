@@ -36,8 +36,7 @@
 #include "PrimitiveUniformShaderParametersBuilder.h"
 #include "PrimitiveSceneShaderData.h"
 
-RENDERER_API uint8 BlendModeToRayTracingInstanceMask(const EBlendMode BlendMode, ERayTracingViewMaskMode MaskMode);
-RENDERER_API uint8 ComputeRayTracingInstanceShadowMask(ERayTracingViewMaskMode MaskMode);
+RENDERER_API uint8 BlendModeToRayTracingInstanceMask(const EBlendMode BlendMode, bool bCastShadow, ERayTracingViewMaskMode MaskMode);
 
 class FCopyConvergedLightmapTilesCS : public FGlobalShader
 {
@@ -628,20 +627,23 @@ struct FRayTracingMaskAndStatus
 
 	void UpdateInstanceMaskAndStatus(ERHIFeatureLevel::Type FeatureLevel, ERayTracingViewMaskMode MaskMode, TArray<FMeshBatch>& MeshBatches)
 	{
-
 		for (int32 SegmentIndex = 0; SegmentIndex < MeshBatches.Num(); SegmentIndex++)
 		{
-			const FMaterial& Material = MeshBatches[SegmentIndex].MaterialRenderProxy->GetIncompleteMaterialWithFallback(FeatureLevel);
+			const FMeshBatch& MeshBatch = MeshBatches[SegmentIndex];
 
-			bAllSegmentsUnlit &= Material.GetShadingModels().HasOnlyShadingModel(MSM_Unlit) || !MeshBatches[SegmentIndex].CastShadow;
+			const FMaterial& Material = MeshBatch.MaterialRenderProxy->GetIncompleteMaterialWithFallback(FeatureLevel);
+			const EBlendMode BlendMode = Material.GetBlendMode();
+
+			const bool bSegmentCastsShadow = MeshBatch.CastRayTracedShadow && Material.CastsRayTracedShadows(); // TODO: && BlendMode != BLEND_Additive;
+
+			bAllSegmentsUnlit &= Material.GetShadingModels().HasOnlyShadingModel(MSM_Unlit) || !MeshBatch.CastShadow;
 			bAllSegmentsOpaque &= Material.GetBlendMode() == EBlendMode::BLEND_Opaque;
-			bAnySegmentsCastShadow |= MeshBatches[SegmentIndex].CastRayTracedShadow && Material.CastsRayTracedShadows();
-			InstanceMask |= BlendModeToRayTracingInstanceMask(Material.GetBlendMode(), MaskMode);
+			bAnySegmentsCastShadow |= bSegmentCastsShadow;
+			InstanceMask |= BlendModeToRayTracingInstanceMask(Material.GetBlendMode(), bSegmentCastsShadow, MaskMode);
 		}
-
-		InstanceMask |= bAnySegmentsCastShadow ? ComputeRayTracingInstanceShadowMask(MaskMode) : 0;
 	}
 };
+
 void FCachedRayTracingSceneData::SetupFromSceneRenderState(FSceneRenderState& Scene)
 {
 #if RHI_RAYTRACING
