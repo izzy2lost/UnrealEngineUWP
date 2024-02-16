@@ -1755,11 +1755,20 @@ public:
 	auto& AuxilaryValue(Container& AuxContainer) { return MHandle->AuxilaryValue(AuxContainer); }
 
 	// Kinematic Particles
-	const FVec3 V() const { return (MHandle->CastToKinematicParticle()) ? MHandle->CastToKinematicParticle()->GetV() : ZeroVector; }
-	const FVec3 W() const { return (MHandle->CastToKinematicParticle()) ? MHandle->CastToKinematicParticle()->GetW() : ZeroVector; }
+	const FVec3 V() const { return GetV(); }
+	const FVec3 W() const { return GetW(); }
+
+	const FVec3 GetV() const { return (MHandle->CastToKinematicParticle()) ? MHandle->CastToKinematicParticle()->GetV() : ZeroVector; }
+	const FVec3 GetW() const { return (MHandle->CastToKinematicParticle()) ? MHandle->CastToKinematicParticle()->GetW() : ZeroVector; }
 
 	void SetV(const FVec3& InV) { if (MHandle->CastToKinematicParticle()) { MHandle->CastToKinematicParticle()->SetV(InV); } }
 	void SetW(const FVec3& InW) { if (MHandle->CastToKinematicParticle()) { MHandle->CastToKinematicParticle()->SetW(InW); } }
+
+	const FVec3f GetVf() const { return (MHandle->CastToKinematicParticle()) ? MHandle->CastToKinematicParticle()->GetVf() : ZeroVectorf; }
+	const FVec3f GetWf() const { return (MHandle->CastToKinematicParticle()) ? MHandle->CastToKinematicParticle()->GetWf() : ZeroVectorf; }
+
+	void SetVf(const FVec3f& InV) { if (MHandle->CastToKinematicParticle()) { MHandle->CastToKinematicParticle()->SetVf(InV); } }
+	void SetWf(const FVec3f& InW) { if (MHandle->CastToKinematicParticle()) { MHandle->CastToKinematicParticle()->SetWf(InW); } }
 
 	const FKinematicTarget& KinematicTarget() const { return (MHandle->CastToKinematicParticle())? MHandle->CastToKinematicParticle()->KinematicTarget() : EmptyKinematicTarget; }
 
@@ -1845,6 +1854,25 @@ public:
 			return MHandle->CastToRigidParticle()->GetPreW();
 		}
 		return ZeroVector;
+	}
+
+	const FVec3f GetPreVf() const
+	{
+		if (MHandle->CastToRigidParticle())
+		{
+			return MHandle->CastToRigidParticle()->GetPreVf();
+		}
+
+		return ZeroVectorf;
+	}
+
+	const FVec3f GetPreWf() const
+	{
+		if (MHandle->CastToRigidParticle())
+		{
+			return MHandle->CastToRigidParticle()->GetPreWf();
+		}
+		return ZeroVectorf;
 	}
 
 	int32 SolverBodyIndex() const
@@ -2415,7 +2443,9 @@ public:
 private:
 	FGeometryParticleHandle* MHandle;
 
+	// So we can return vectors by const ref in cases where there's no real value. E.g., Velocity of a Static.
 	static CHAOS_API const FVec3 ZeroVector;
+	static CHAOS_API const FVec3f ZeroVectorf;
 	static CHAOS_API const FRotation3 IdentityRotation;
 	static CHAOS_API const FMatrix33 ZeroMatrix;
 	static CHAOS_API const TUniquePtr<FBVHParticles> NullBVHParticles;
