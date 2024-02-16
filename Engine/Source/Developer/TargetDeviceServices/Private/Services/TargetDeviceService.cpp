@@ -426,7 +426,7 @@ void FTargetDeviceService::HandlePingMessage(const FTargetDeviceServicePing& InM
 		Message->HostName = FPlatformProcess::ComputerName();
 		Message->HostUser = FPlatformProcess::UserName(false);
 		Message->Connected = DefaultDevice->IsConnected();
-		Message->ConnectionType = (DefaultDevice->GetDeviceConnectionType() == ETargetDeviceConnectionTypes::Wifi) ? "Network" : "USB";
+		Message->ConnectionType = TargetDeviceConnectionTypes::ToString(DefaultDevice->GetDeviceConnectionType());
 		Message->Authorized = DefaultDevice->IsAuthorized();
 		Message->Make = TEXT("@todo");
 		Message->Model = DefaultDevice->GetModelId();

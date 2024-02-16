@@ -23,6 +23,7 @@ public:
 
 	virtual void MakeTurnkeyMenu(struct FToolMenuSection& MenuSection) const override;
 	virtual void MakeQuickLaunchItems(class UToolMenu* Menu, FOnQuickLaunchSelected ExternalOnClickDelegate) const override;
+	virtual void MakeSimulatorItems(class UToolMenu* Menu, FOnQuickLaunchSelected ExternalOnClickDelegate) const override;
 	virtual void RepeatQuickLaunch(FString DeviceId) override;
 
 
