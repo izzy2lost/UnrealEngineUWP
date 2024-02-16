@@ -1110,7 +1110,7 @@ namespace Audio
 			const FString Name = Sound->GetName();
 			const FTransform CurTransform = ActiveSound.Transform;
 			FColor TextColor = FColor::White;
-			const float CurMaxDistance = ActiveSound.MaxDistance;
+			const float CurMaxDistance = ActiveSound.GetMaxDistance();
 			float DisplayValue = 0.0f;
 			float FilterValue = 0.0f;
 			if (ActiveSoundVisualizeModeCVar == 1 || ActiveSoundVisualizeModeCVar == 2)
