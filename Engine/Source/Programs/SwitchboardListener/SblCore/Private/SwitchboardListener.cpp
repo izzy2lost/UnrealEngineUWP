@@ -998,6 +998,14 @@ bool FSwitchboardListener::Task_Authenticate(const FSwitchboardAuthenticateTask&
 		Connection->bAuthenticated = true;
 		// TODO: Issue JWT?
 		SendAuthResponse();
+
+		// Send current state upon authentication
+		{
+			FSwitchboardStatePacket StatePacket;
+			FillStatePacket(StatePacket);
+			SendMessage(CreateMessage(StatePacket), InAuthTask.Recipient);
+		}
+
 		return true;
 	}
 
@@ -1640,6 +1648,32 @@ bool FSwitchboardListener::Task_SendFileToClient(const FSwitchboardSendFileToCli
 }
 
 
+void FSwitchboardListener::FillStatePacket(FSwitchboardStatePacket& OutStatePacket)
+{
+	FPlatformMisc::GetOSVersions(OutStatePacket.OsVersionLabel, OutStatePacket.OsVersionLabelSub);
+	OutStatePacket.OsVersionNumber = FPlatformMisc::GetOSVersion();
+	OutStatePacket.bProcessorSMT = bProcessorSMT;
+	OutStatePacket.TotalPhysicalMemory = FPlatformMemory::GetConstants().TotalPhysical;
+	OutStatePacket.PlatformBinaryDirectory = FPlatformProcess::GetBinariesSubdirectory();
+
+	OutStatePacket.RunningProcesses.Empty(RunningProcesses.Num());
+	for (const TSharedPtr<FRunningProcess>& RunningProcess : RunningProcesses)
+	{
+		check(RunningProcess.IsValid());
+
+		FSwitchboardStateRunningProcess StateRunningProcess;
+
+		StateRunningProcess.Uuid = RunningProcess->UUID.ToString();
+		StateRunningProcess.Name = RunningProcess->Name;
+		StateRunningProcess.Path = RunningProcess->Path;
+		StateRunningProcess.Caller = RunningProcess->Caller;
+		StateRunningProcess.Pid = RunningProcess->PID;
+
+		OutStatePacket.RunningProcesses.Add(MoveTemp(StateRunningProcess));
+	}
+}
+
+
 //static
 _Function_class_(QUIC_LISTENER_CALLBACK)
 QUIC_STATUS QUIC_API FSwitchboardListener::QuicListenerThunk(HQUIC Listener, void* Context, QUIC_LISTENER_EVENT* Event)
@@ -1764,34 +1798,6 @@ QUIC_STATUS FSwitchboardListener::QuicConnectionCallback(HQUIC QuicConn, QUIC_CO
 			ConnectionsByQuicStream.Add(Connection->QuicStream, Connection);
 
 			QuicApi->SetCallbackHandler(Connection->QuicStream, reinterpret_cast<void*>(&QuicStreamThunk), this);
-
-			// Send current state upon connection
-			{
-				FSwitchboardStatePacket StatePacket;
-
-				FPlatformMisc::GetOSVersions(StatePacket.OsVersionLabel, StatePacket.OsVersionLabelSub);
-				StatePacket.OsVersionNumber = FPlatformMisc::GetOSVersion();
-				StatePacket.bProcessorSMT = bProcessorSMT;
-				StatePacket.TotalPhysicalMemory = FPlatformMemory::GetConstants().TotalPhysical;
-				StatePacket.PlatformBinaryDirectory = FPlatformProcess::GetBinariesSubdirectory();
-
-				for (const TSharedPtr<FRunningProcess>& RunningProcess : RunningProcesses)
-				{
-					check(RunningProcess.IsValid());
-
-					FSwitchboardStateRunningProcess StateRunningProcess;
-
-					StateRunningProcess.Uuid = RunningProcess->UUID.ToString();
-					StateRunningProcess.Name = RunningProcess->Name;
-					StateRunningProcess.Path = RunningProcess->Path;
-					StateRunningProcess.Caller = RunningProcess->Caller;
-					StateRunningProcess.Pid = RunningProcess->PID;
-
-					StatePacket.RunningProcesses.Add(MoveTemp(StateRunningProcess));
-				}
-
-				SendMessage(CreateMessage(StatePacket), RemoteEndpoint);
-			}
 
 			break;
 		}

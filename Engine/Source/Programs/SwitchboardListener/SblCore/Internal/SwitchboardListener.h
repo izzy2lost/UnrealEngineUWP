@@ -157,7 +157,6 @@ public:
 	FSimpleMulticastDelegate& OnTick() { return OnTickDelegate; }
 
 private:
-
 	bool ParseIncomingMessage(const FString& InMessage, const FIPv4Endpoint& InEndpoint, const FConnectionRef& Connection);
 
 	bool RunScheduledTask(const FSwitchboardTask& InTask);
@@ -187,6 +186,8 @@ private:
 	bool EquivalentTaskFutureExists(uint32 TaskEquivalenceHash) const;
 
 	void RollbackRedeploy();
+
+	void FillStatePacket(struct FSwitchboardStatePacket& OutStatePacket);
 
 	_Function_class_(QUIC_LISTENER_CALLBACK)
 	static QUIC_STATUS QUIC_API QuicListenerThunk(HQUIC Listener, void* Context, QUIC_LISTENER_EVENT* Event);

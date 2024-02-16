@@ -269,8 +269,9 @@ class nDisplayMonitor(QAbstractTableModel):
             # detect stale devices
             self.handle_stale_device(devicedata, deviceIdx)
 
-            # no point in continuing of not connected to listener
-            if not device.unreal_client.is_connected:
+            # no point in continuing if not connected to listener
+            if not (device.unreal_client.is_connected
+                    and device.unreal_client.is_authenticated):
                 continue
 
             # create message
