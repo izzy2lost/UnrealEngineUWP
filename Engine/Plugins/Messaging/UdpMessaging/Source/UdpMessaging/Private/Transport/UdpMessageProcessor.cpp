@@ -7,6 +7,7 @@
 #include "Serialization/ArrayReader.h"
 #include "Serialization/ArrayWriter.h"
 
+#include "Transport/UdpDeserializedMessage.h"
 #include "UdpCircularQueue.h"
 #include "UdpMessagingTracing.h"
 #include "Shared/UdpMessagingSettings.h"
@@ -908,10 +909,36 @@ void FUdpMessageProcessor::ProcessUnknownSegment(FInboundSegment& Segment, FNode
 	UE_LOG(LogUdpMessaging, Verbose, TEXT("Received unknown segment type '%i' from %s"), SegmentType, *Segment.Sender.ToText().ToString());
 }
 
+void FUdpMessageProcessor::LookupAndCacheMessageType(TSharedPtr<FUdpReassembledMessage, ESPMode::ThreadSafe>& ReassembledMessage)
+{
+	if (!ReassembledMessage->HasFirstSegment())
+	{
+		return;
+	}
+	if (ReassembledMessage->GetMessageTypeInfo() == nullptr)
+	{
+		FNameOrFTopLevel AssetPath = FUdpDeserializedMessage::PeekMessageTypeInfoName(*ReassembledMessage);
+		FString PathAsString = Visit([](auto&& Path) -> FString { return Path.ToString(); }, AssetPath);
+
+		if (TWeakObjectPtr<UScriptStruct>* TypeInfo = CachedTypeInfoMap.Find(PathAsString))
+		{
+			ReassembledMessage->SetMessageTypeInfo(*TypeInfo);
+		}
+		else if (!GIsSavingPackage && !IsGarbageCollecting())
+		{
+			// Otherwise we have to look up the object by calling FindObjectSafe.  This can fail in GC and package save.
+			// Thus we only do this in not saving / GC cases.
+			TWeakObjectPtr<UScriptStruct> Obj = FUdpDeserializedMessage::ResolvePath(AssetPath);
+			CachedTypeInfoMap.Add(PathAsString, Obj);
+			ReassembledMessage->SetMessageTypeInfo(MoveTemp(Obj));
+		}
+	}
+}
+
 void FUdpMessageProcessor::DeliverMessage(const TSharedPtr<FUdpReassembledMessage, ESPMode::ThreadSafe>& ReassembledMessage, FNodeInfo& NodeInfo)
 {
 	// Do not deliver message while saving or garbage collecting since those deliveries will fail anyway...
-	if (GIsSavingPackage || IsGarbageCollecting())
+	if (ReassembledMessage->GetMessageTypeInfo() == nullptr && (GIsSavingPackage || IsGarbageCollecting()))
 	{
 		UE_LOG(LogUdpMessaging, Verbose, TEXT("Skipping delivery of %s"), *ReassembledMessage->Describe());
 		return;
@@ -1349,6 +1376,8 @@ bool FUdpMessageProcessor::UpdateReassemblers(FNodeInfo& NodeInfo)
 				It.Key(),
 				*NodeInfo.NodeId.ToString());
 		}
+
+		LookupAndCacheMessageType(ReassembledMessage);
 
 		// Try to deliver completed message that couldn't be delivered the first time around
 		if (ReassembledMessage->IsComplete() && !ReassembledMessage->IsDelivered())
