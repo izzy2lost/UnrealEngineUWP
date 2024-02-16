@@ -145,10 +145,13 @@ FText UPCGVolumeSamplerSettings::GetNodeTooltipText() const
 TArray<FPCGPinProperties> UPCGVolumeSamplerSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
+
 	// Spatial is ok - volume sampling just needs bounds.
-	PinProperties.Emplace(PCGVolumeSamplerConstants::VolumeLabel, EPCGDataType::Spatial, /*bAllowMultipleConnections=*/true, /*bAllowMultipleData=*/true, LOCTEXT("VolumeSamplerVolumePinTooltip",
+	FPCGPinProperties& VolumePinProperty = PinProperties.Emplace_GetRef(PCGVolumeSamplerConstants::VolumeLabel, EPCGDataType::Spatial, /*bAllowMultipleConnections=*/true, /*bAllowMultipleData=*/true, LOCTEXT("VolumeSamplerVolumePinTooltip",
 		"The volume to sample with points. Can be any spatial data that can provide bounds."
 	));
+	VolumePinProperty.SetRequiredPin();
+
 	// Only one connection allowed, user can union multiple shapes.
 	PinProperties.Emplace(PCGVolumeSamplerConstants::BoundingShapeLabel, EPCGDataType::Spatial, /*bInAllowMultipleConnections=*/false, /*bAllowMultipleData=*/false, LOCTEXT("VolumeSamplerBoundingShapePinTooltip",
 		"Optional. All sampled points must be contained within this shape."

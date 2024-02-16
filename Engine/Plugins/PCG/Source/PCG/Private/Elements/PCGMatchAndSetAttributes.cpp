@@ -55,7 +55,9 @@ UPCGMatchAndSetAttributesSettings::UPCGMatchAndSetAttributesSettings()
 TArray<FPCGPinProperties> UPCGMatchAndSetAttributesSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Point | EPCGDataType::Param);
+	FPCGPinProperties& InputPinProperty = PinProperties.Emplace_GetRef(PCGPinConstants::DefaultInputLabel, EPCGDataType::Point | EPCGDataType::Param);
+	InputPinProperty.SetRequiredPin();
+
 	PinProperties.Emplace(PCGMatchAndSetAttributesConstants::MatchDataLabel, 
 		EPCGDataType::Param, 
 		/*bAllowMultipleConnection=*/false, 

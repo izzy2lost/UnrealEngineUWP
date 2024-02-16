@@ -179,7 +179,9 @@ void UPCGAddAttributeSettings::ApplyDeprecation(UPCGNode* InOutNode)
 TArray<FPCGPinProperties> UPCGAddAttributeSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Any);
+	FPCGPinProperties& InputPinProperty = PinProperties.Emplace_GetRef(PCGPinConstants::DefaultInputLabel, EPCGDataType::Any);
+	InputPinProperty.SetRequiredPin();
+
 	PinProperties.Emplace(PCGCreateAttributeConstants::AttributesLabel, EPCGDataType::Param, /*bInAllowMultipleConnections=*/true, /*bAllowMultipleData=*/true, PCGCreateAttributeConstants::AttributesTooltip);
 
 	return PinProperties;

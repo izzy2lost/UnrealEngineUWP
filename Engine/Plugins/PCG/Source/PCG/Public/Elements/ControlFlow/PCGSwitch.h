@@ -33,7 +33,7 @@ public:
 	virtual bool OutputPinsCanBeDeactivated() const override { return true; }
 	virtual bool IsPinStaticallyActive(const FName& PinLabel) const override;
 	virtual bool IsPinUsedByNodeExecution(const UPCGPin* InPin) const override;
-	virtual bool IsInputPinRequiredByExecution(const UPCGPin* InPin) const override { return !InPin->Properties.bAdvancedPin; }
+	
 	virtual FString GetAdditionalTitleInformation() const override;
 	virtual bool HasFlippedTitleLines() const override { return true; }
 

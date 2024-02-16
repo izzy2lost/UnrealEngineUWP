@@ -30,7 +30,6 @@ public:
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Spatial; }
 	virtual bool HasDynamicPins() const override { return true; }
 #endif // WITH_EDITOR
-	virtual bool IsInputPinRequiredByExecution(const UPCGPin* InPin) const override { return InPin->Properties.Label == PCGIntersectionConstants::PrimaryLabel; }
 	// If node disabled, don't intersect - pass through all primary edges
 	virtual bool OnlyPassThroughOneEdgeWhenDisabled() const override { return false; }
 

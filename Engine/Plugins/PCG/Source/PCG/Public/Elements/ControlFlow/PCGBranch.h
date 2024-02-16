@@ -24,7 +24,7 @@ public:
 	virtual bool HasDynamicPins() const override { return true; }
 	virtual bool OutputPinsCanBeDeactivated() const override { return true; }
 	virtual bool IsPinStaticallyActive(const FName& PinLabel) const override;
-	virtual bool IsInputPinRequiredByExecution(const UPCGPin* InPin) const override { return !InPin->Properties.bAdvancedPin; }
+	
 	virtual bool IsPinUsedByNodeExecution(const UPCGPin* InPin) const override;
 
 protected:

@@ -12,14 +12,6 @@
 
 #define LOCTEXT_NAMESPACE "PCGMetadataPartitionElement"
 
-TArray<FPCGPinProperties> UPCGMetadataPartitionSettings::InputPinProperties() const
-{
-	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Any);
-
-	return PinProperties;
-}
-
 TArray<FPCGPinProperties> UPCGMetadataPartitionSettings::OutputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;

@@ -103,7 +103,9 @@ FString UPCGAttributeTransferSettings::GetAdditionalTitleInformation() const
 TArray<FPCGPinProperties> UPCGAttributeTransferSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGAttributeTransferConstants::TargetLabel, EPCGDataType::Spatial, /*bInAllowMultipleConnections=*/ false);
+	FPCGPinProperties& TargetPinProperty = PinProperties.Emplace_GetRef(PCGAttributeTransferConstants::TargetLabel, EPCGDataType::Spatial, /*bInAllowMultipleConnections=*/ false);
+	TargetPinProperty.SetRequiredPin();
+
 	PinProperties.Emplace(PCGAttributeTransferConstants::SourceLabel, EPCGDataType::Spatial, /*bInAllowMultipleConnections=*/ false);
 
 	return PinProperties;

@@ -56,7 +56,7 @@ EPCGDataType UPCGMultiSelectSettings::GetCurrentPinTypes(const UPCGPin* Pin) con
 
 		for (int Index = 0; Index < InputPins.Num(); ++Index)
 		{
-			if (!InputPins[Index]->Properties.bAdvancedPin)
+			if (!InputPins[Index]->Properties.IsAdvancedPin())
 			{
 				InputTypeUnion |= GetTypeUnionOfIncidentEdges(InputPins[Index]->Properties.Label);
 			}

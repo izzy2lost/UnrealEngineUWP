@@ -20,6 +20,7 @@ TArray<FPCGPinProperties> UPCGInnerIntersectionSettings::InputPinProperties() co
 {
 	TArray<FPCGPinProperties> PinProperties;
 	FPCGPinProperties& SourcePinProperty = PinProperties.Emplace_GetRef(PCGPinConstants::DefaultInputLabel, EPCGDataType::Spatial);
+	SourcePinProperty.SetRequiredPin();
 
 #if WITH_EDITOR
 	SourcePinProperty.Tooltip = LOCTEXT("SourcePinTooltip", "Source spatial data from which to conduct the intersection. Empty spatial data will be ignored.");

@@ -13,6 +13,7 @@ TArray<FPCGPinProperties> UPCGOuterIntersectionSettings::StaticInputPinPropertie
 {
 	TArray<FPCGPinProperties> StaticPinProperties;
 	FPCGPinProperties& PrimaryPinProperties = StaticPinProperties.Emplace_GetRef(PCGIntersectionConstants::PrimaryLabel, EPCGDataType::Spatial);
+	PrimaryPinProperties.SetRequiredPin();
 	FPCGPinProperties& SecondaryPinProperties = StaticPinProperties.Emplace_GetRef(FName(PCGIntersectionConstants::SecondaryLabel.ToString() + FString(TEXT("1"))), EPCGDataType::Spatial);
 
 #if WITH_EDITOR

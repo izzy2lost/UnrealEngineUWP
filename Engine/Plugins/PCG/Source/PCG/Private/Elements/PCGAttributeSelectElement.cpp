@@ -247,7 +247,8 @@ FString UPCGAttributeSelectSettings::GetAdditionalTitleInformation() const
 TArray<FPCGPinProperties> UPCGAttributeSelectSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Spatial, /*bInAllowMultipleConnections=*/ false);
+	FPCGPinProperties& InputPinProperty = PinProperties.Emplace_GetRef(PCGPinConstants::DefaultInputLabel, EPCGDataType::Spatial, /*bInAllowMultipleConnections=*/ false);
+	InputPinProperty.SetRequiredPin();
 
 	return PinProperties;
 }

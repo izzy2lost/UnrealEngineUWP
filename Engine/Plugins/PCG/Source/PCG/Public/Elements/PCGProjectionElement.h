@@ -31,7 +31,7 @@ public:
 	virtual bool HasDynamicPins() const override { return true; }
 #endif
 	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const override;
-	virtual bool IsInputPinRequiredByExecution(const UPCGPin* InPin) const override { return !InPin->Properties.bAdvancedPin; }
+	
 
 protected:
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override;

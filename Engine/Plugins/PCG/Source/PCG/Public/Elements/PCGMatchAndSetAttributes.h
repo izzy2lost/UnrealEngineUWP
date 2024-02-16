@@ -55,7 +55,6 @@ public:
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Metadata; }
 	virtual bool HasDynamicPins() const { return true; }
 #endif // WITH_EDITOR
-	virtual bool IsInputPinRequiredByExecution(const UPCGPin* InPin) const override { return InPin->Properties.Label == PCGPinConstants::DefaultInputLabel; }
 
 protected:
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override;

@@ -8,14 +8,6 @@
 
 #define LOCTEXT_NAMESPACE "PCGAddTagElement"
 
-TArray<FPCGPinProperties> UPCGAddTagSettings::InputPinProperties() const
-{
-	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Any);
-
-	return PinProperties;
-}
-
 TArray<FPCGPinProperties> UPCGAddTagSettings::OutputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;

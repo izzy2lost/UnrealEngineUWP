@@ -56,6 +56,7 @@ TArray<FPCGPinProperties> UPCGDistanceSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
 	FPCGPinProperties& PinPropertySource = PinProperties.Emplace_GetRef(PCGDistance::SourceLabel, EPCGDataType::Point);
+	PinPropertySource.SetRequiredPin();
 	FPCGPinProperties& PinPropertyTarget = PinProperties.Emplace_GetRef(PCGDistance::TargetLabel, EPCGDataType::Point);
 
 #if WITH_EDITOR

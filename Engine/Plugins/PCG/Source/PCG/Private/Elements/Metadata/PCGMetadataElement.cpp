@@ -93,7 +93,9 @@ void UPCGMetadataOperationSettings::ApplyDeprecation(UPCGNode* InOutNode)
 TArray<FPCGPinProperties> UPCGMetadataOperationSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> Properties;
-	Properties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Point);
+	FPCGPinProperties& InputPinProperty = Properties.Emplace_GetRef(PCGPinConstants::DefaultInputLabel, EPCGDataType::Point);
+	InputPinProperty.SetRequiredPin();
+
 	Properties.Emplace(PCGMetadataOperationSettings::AttributeLabel, EPCGDataType::Param, /*bInAllowMultipleConnections=*/ false, /*bAllowMultipleData=*/ false, PCGMetadataOperationSettings::AttributeTooltip);
 	return Properties;
 }

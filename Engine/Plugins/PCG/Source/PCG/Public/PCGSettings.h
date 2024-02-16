@@ -342,9 +342,9 @@ public:
 	virtual FName AdditionalTaskName() const { return FName(GetAdditionalTitleInformation()); }
 
 	/** By default a node does not specify any pin requirements, and will execute if it has no non-advanced pins or if it has any active
-	* connection to any pin. Override this function to specify which pins *must* have active connections to avoid getting culled.
+	* connection to any pin. Set the Required status on pin properties to specify which pins *must* have active connections to avoid getting culled.
 	*/
-	virtual bool IsInputPinRequiredByExecution(const UPCGPin* InPin) const { return false; }
+	virtual bool IsInputPinRequiredByExecution(const UPCGPin* InPin) const { return InPin && InPin->Properties.IsRequiredPin(); }
 
 	/** Returns true if InPin is in use by node (assuming node enabled). Can be used to communicate when a pin is not in use to user. */
 	virtual bool IsPinUsedByNodeExecution(const UPCGPin* InPin) const { return true; }

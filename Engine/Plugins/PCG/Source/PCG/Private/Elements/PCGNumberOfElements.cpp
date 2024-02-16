@@ -29,10 +29,7 @@ TArray<FPCGPinProperties> UPCGNumberOfElementsBaseSettings::OutputPinProperties(
 
 TArray<FPCGPinProperties> UPCGNumberOfPointsSettings::InputPinProperties() const
 {
-	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Point, /*bInAllowMultipleConnections=*/true, /*bAllowMultipleData=*/true);
-
-	return PinProperties;
+	return Super::DefaultPointInputPinProperties();
 }
 
 FPCGElementPtr UPCGNumberOfPointsSettings::CreateElement() const
@@ -48,7 +45,8 @@ FPCGElementPtr UPCGNumberOfPointsSettings::CreateElement() const
 TArray<FPCGPinProperties> UPCGNumberOfEntriesSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Param, /*bInAllowMultipleConnections=*/true, /*bAllowMultipleData=*/true);
+	FPCGPinProperties& InputPinProperty = PinProperties.Emplace_GetRef(PCGPinConstants::DefaultInputLabel, EPCGDataType::Param, /*bInAllowMultipleConnections=*/true, /*bAllowMultipleData=*/true);
+	InputPinProperty.SetRequiredPin();
 
 	return PinProperties;
 }
