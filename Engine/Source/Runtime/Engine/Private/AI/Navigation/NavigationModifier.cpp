@@ -339,6 +339,12 @@ FAreaNavModifier::FAreaNavModifier(const TArray<FVector>& InPoints, ENavigationC
 	SetConvex(InPoints.GetData(), 0, InPoints.Num(), CoordType, LocalToWorld);
 }
 
+FAreaNavModifier::FAreaNavModifier(const TConstArrayView<FVector> InPoints, ENavigationCoordSystem::Type CoordType, const FTransform& LocalToWorld, const TSubclassOf<UNavAreaBase> InAreaClass)
+{
+	Init(InAreaClass);
+	SetConvex(InPoints.GetData(), 0, InPoints.Num(), CoordType, LocalToWorld);
+}
+
 FAreaNavModifier::FAreaNavModifier(const TArray<FVector>& InPoints, const int32 FirstIndex, const int32 LastIndex, ENavigationCoordSystem::Type CoordType, const FTransform& LocalToWorld, const TSubclassOf<UNavAreaBase> InAreaClass)
 {
 	check(InPoints.IsValidIndex(FirstIndex) && InPoints.IsValidIndex(LastIndex-1));

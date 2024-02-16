@@ -4,6 +4,7 @@
 
 #include "AI/NavigationSystemBase.h"
 #include "AI/Navigation/NavigationRelevantData.h"
+#include "BezierUtilities.h"
 #include "Components/SplineComponent.h"
 #include "VisualLogger/VisualLogger.h"
 
@@ -11,6 +12,7 @@
 
 namespace
 {
+	// Fetch the spline component from the actor
 	const USplineComponent* GetSpline(const AActor* Owner)
 	{
 		if (!Owner)
@@ -24,14 +26,50 @@ namespace
 
 		return Spline;
 	}
+
+	// Subdivide the spline into linear segments, adapting to its curvature (more curvy means more linear segments)
+	void SubdivideSpline(TArray<FVector>& OutSubdivisions, const USplineComponent& Spline, const float SubdivisionThreshold)
+	{
+		// Sample at least 2 points
+		const int32 NumSplinePoints = FMath::Max(Spline.GetNumberOfSplinePoints(), 2);
+
+		// The USplineComponent's Hermite spline tangents are 3 times larger than Bezier tangents and we need to convert before tessellation
+		constexpr double HermiteToBezierFactor = 3.0;
+
+		FSplinePoint PrevSplinePoint;
+		for (int32 PointIndex = 0; PointIndex < NumSplinePoints; PointIndex++)
+		{
+			FSplinePoint CurrSplinePoint = Spline.GetSplinePointAt(PointIndex, ESplineCoordinateSpace::World);
+
+			if (PointIndex > 0)
+			{
+				// The first point of the segment is appended before tessellation since UE::CubicBezier::Tessellate does not add it
+				OutSubdivisions.Add(PrevSplinePoint.Position);
+
+				// Convert this segment of the spline from Hermite to Bezier and subdivide it 
+				UE::CubicBezier::Tessellate(OutSubdivisions,
+					PrevSplinePoint.Position,
+					PrevSplinePoint.Position + PrevSplinePoint.LeaveTangent / HermiteToBezierFactor,
+					CurrSplinePoint.Position - CurrSplinePoint.ArriveTangent / HermiteToBezierFactor,
+					CurrSplinePoint.Position,
+					SubdivisionThreshold);
+			}
+
+			PrevSplinePoint = CurrSplinePoint;
+		}
+	}
 }
 
 void USplineNavModifierComponent::CalculateBounds() const
 {
-	if (const USplineComponent* Spline = GetSpline(GetOwner()))
+	const USplineComponent* Spline = GetSpline(GetOwner());
+	if (!Spline)
 	{
-		Bounds = Spline->CalcBounds(GetOwner()->GetTransform()).GetBox();
+		return;
 	}
+
+	const double Buffer = FMath::Max(StrokeWidth / 2.0, StrokeHeight / 2.0);
+	Bounds = Spline->CalcBounds(Spline->GetComponentTransform()).GetBox().ExpandBy(Buffer);
 }
 
 void USplineNavModifierComponent::GetNavigationData(FNavigationRelevantData& Data) const
@@ -42,45 +80,64 @@ void USplineNavModifierComponent::GetNavigationData(FNavigationRelevantData& Dat
 		return;
 	}
 
-	// Square in the YZ plane used to sample the spline at each cross section
-	constexpr int32 SampleVertices = 4;
-	TStaticArray<FVector, SampleVertices> SampleSquare;
-	SampleSquare[0] = FVector(0, -SplineExtent, -SplineExtent);
-	SampleSquare[1] = FVector(0,  SplineExtent, -SplineExtent);
-	SampleSquare[2] = FVector(0,  SplineExtent,  SplineExtent);
-	SampleSquare[3] = FVector(0, -SplineExtent,  SplineExtent);
+	// Build a rectangle in the YZ plane used to sample the spline at each cross section
+	constexpr int32 NumCrossSectionVertices = 4;
+	const double StrokeHalfWidth = StrokeWidth / 2.0;
+	const double StrokeHalfHeight = StrokeHeight / 2.0;
+	TStaticArray<FVector, NumCrossSectionVertices> CrossSectionRect;
+	CrossSectionRect[0] = FVector(0.0, -StrokeHalfWidth, -StrokeHalfHeight);
+	CrossSectionRect[1] = FVector(0.0,  StrokeHalfWidth, -StrokeHalfHeight);
+	CrossSectionRect[2] = FVector(0.0,  StrokeHalfWidth,  StrokeHalfHeight);
+	CrossSectionRect[3] = FVector(0.0, -StrokeHalfWidth,  StrokeHalfHeight);
 
-	// Vertices (in no particular order) of a prism which will enclose each segment of the spline
-	// @Note The only reason Tube isn't a TStaticArray is because FAreaNavModifier expects a TArray
-	TArray<FVector> Tube;
-	Tube.SetNum(SampleSquare.Num() * 2);
+	// Vertices (in an arbitrary order) of a prism which will enclose each segment of the spline
+	TStaticArray<FVector, NumCrossSectionVertices * 2> Tube;
 
-	// Always sample at least the start and end points
-	const int32 NumPoints = FMath::Max(NumSplineSamples, 2);
-	
-	const float SplineLength = Spline->GetSplineLength();
-	FTransform PreviousTransform;
+	// Subdivide the spline so that high curvature sections get smaller and more linear segments than straighter sections
+	TArray<FVector> Subdivisions;
+	SubdivideSpline(Subdivisions, *Spline, GetSudivisionThreshold());
+	const int32 NumSubdivisions = Subdivisions.Num();
 
-	for (int32 SampleIndex = 0; SampleIndex < NumPoints; SampleIndex++)
+	// Create volumes from the spline subdivisions and use them to mark the nav mesh with the given are
+	const FTransform ComponentTransform = Spline->GetComponentTransform();
+	int32 PrevIndex = Spline->IsClosedLoop() ? (NumSubdivisions - 1) : INDEX_NONE;
+	for (int32 SubdivisionIndex = 0; SubdivisionIndex < NumSubdivisions; SubdivisionIndex++)
 	{
-		// Sample a point on the spline at the current distance
-		const double Distance = SplineLength * SampleIndex / (NumPoints - 1);
-		const FTransform CurrentTransform = Spline->GetTransformAtDistanceAlongSpline(Distance, ESplineCoordinateSpace::World);
-
-		if (SampleIndex > 0)
+		if (SubdivisionIndex > 0)
 		{
-			// Compute the vertices of the current tube segment
-			for (int i = 0; i < SampleVertices; i++)
+			// Compute the rotation of this tube segment
+			const double TubeAngle = (Subdivisions[SubdivisionIndex] - Subdivisions[PrevIndex]).HeadingAngle();
+			const FQuat TubeRotation(FVector::UnitZ(), TubeAngle);
+			
+			// Compute the vertices of this tube segment
+			for (int i = 0; i < NumCrossSectionVertices; i++)
 			{
-				Tube[i] = PreviousTransform.TransformPosition(SampleSquare[i]);
-				Tube[i + SampleVertices] = CurrentTransform.TransformPosition(SampleSquare[i]);
+				// For each vertex of the tube segment, first rotate about the positive Z axis, then translate to the subdivision point
+				Tube[i] = (TubeRotation * CrossSectionRect[i]) + Subdivisions[PrevIndex];
+				Tube[i + NumCrossSectionVertices] = (TubeRotation * CrossSectionRect[i]) + Subdivisions[SubdivisionIndex];
 			}
 
 			// From the tube construct a convex hull whose volume will be used to mark the nav mesh with the selected AreaClass
-			const FAreaNavModifier NavModifier(Tube, ENavigationCoordSystem::Type::Unreal, FTransform::Identity, AreaClass);
+			const FAreaNavModifier NavModifier(Tube, ENavigationCoordSystem::Type::Unreal, ComponentTransform, AreaClass);
 			Data.Modifiers.Add(NavModifier);
+
+			PrevIndex = SubdivisionIndex;
 		}
-		
-		PreviousTransform = CurrentTransform;
+	}
+}
+
+float USplineNavModifierComponent::GetSudivisionThreshold() const
+{
+	switch (SubdivisionLOD)
+	{
+	case ESubdivisionLOD::Ultra:
+		return 10.0f;
+	case ESubdivisionLOD::High:
+		return 100.0f;
+	case ESubdivisionLOD::Medium:
+		return 250.0f;
+	case ESubdivisionLOD::Low:
+	default: // Fallthrough
+		return 500.0f;
 	}
 }
