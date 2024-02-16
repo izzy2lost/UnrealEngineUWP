@@ -334,6 +334,7 @@ public:
 	FLumenSurfaceCacheUpdatePrimitivesTask(
 		const TSparseSpanArray<FLumenPrimitiveGroup>& InPrimitiveGroups,
 		const TArray<FVector, TInlineAllocator<2>>& InViewOrigins,
+		bool bInOrthographicCamera,
 		float InLumenSceneDetail,
 		float InMaxDistanceFromCamera,
 		int32 InFirstPrimitiveGroupIndex,
@@ -341,12 +342,13 @@ public:
 		bool  InAddTranslucentToCache)
 		: PrimitiveGroups(InPrimitiveGroups)
 		, ViewOrigins(InViewOrigins)
+		, bOrthographicCamera(bInOrthographicCamera)
 		, FirstPrimitiveGroupIndex(InFirstPrimitiveGroupIndex)
 		, NumPrimitiveGroupsPerPacket(InNumPrimitiveGroupsPerPacket)
 		, LumenSceneDetail(InLumenSceneDetail)
 		, MaxDistanceFromCamera(InMaxDistanceFromCamera)
 		, TexelDensityScale(LumenScene::GetCardTexelDensity())
-		, MinCardResolution(FMath::Clamp(FMath::RoundToInt(LumenScene::GetCardMinResolution() / LumenSceneDetail), 1, 1024))
+		, MinCardResolution(FMath::Clamp(FMath::RoundToInt(LumenScene::GetCardMinResolution(bInOrthographicCamera) / LumenSceneDetail), 1, 1024))
 		, FarFieldCardMaxDistanceSq(LumenScene::GetFarFieldCardMaxDistance() * LumenScene::GetFarFieldCardMaxDistance())
 		, FarFieldCardTexelDensity(LumenScene::GetFarFieldCardTexelDensity())
 		, bAddTranslucentToCache(InAddTranslucentToCache)
@@ -408,6 +410,7 @@ public:
 
 	const TSparseSpanArray<FLumenPrimitiveGroup>& PrimitiveGroups;
 	TArray<FVector, TInlineAllocator<2>> ViewOrigins;
+	bool bOrthographicCamera;
 	int32 FirstPrimitiveGroupIndex;
 	int32 NumPrimitiveGroupsPerPacket;
 	float LumenSceneDetail;
@@ -435,6 +438,7 @@ public:
 		const TSparseSpanArray<FLumenMeshCards>& InLumenMeshCards,
 		const TSparseSpanArray<FLumenCard>& InLumenCards,
 		const TArray<FVector, TInlineAllocator<2>>& InViewOrigins,
+		bool bInOrthographicCamera,
 		float InSurfaceCacheResolution,
 		float InLumenSceneDetail,
 		float InMaxDistanceFromCamera,
@@ -443,13 +447,14 @@ public:
 		: LumenMeshCards(InLumenMeshCards)
 		, LumenCards(InLumenCards)
 		, ViewOrigins(InViewOrigins)
+		, bOrthographicCamera(bInOrthographicCamera)
 		, LumenSceneDetail(InLumenSceneDetail)
 		, FirstMeshCardsIndex(InFirstMeshCardsIndex)
 		, NumMeshCardsPerPacket(InNumMeshCardsPerPacket)
 		, MaxDistanceFromCamera(InMaxDistanceFromCamera)
 		, TexelDensityScale(LumenScene::GetCardTexelDensity() * InSurfaceCacheResolution)
 		, MaxTexelDensity(GLumenSceneCardMaxTexelDensity)
-		, MinCardResolution(FMath::Clamp(FMath::RoundToInt(LumenScene::GetCardMinResolution() / LumenSceneDetail), 1, 1024))
+		, MinCardResolution(FMath::Clamp(FMath::RoundToInt(LumenScene::GetCardMinResolution(bInOrthographicCamera) / LumenSceneDetail), 1, 1024))
 		, FarFieldCardMaxDistance(LumenScene::GetFarFieldCardMaxDistance())
 		, FarFieldCardTexelDensity(LumenScene::GetFarFieldCardTexelDensity())
 	{
@@ -540,6 +545,7 @@ public:
 	const TSparseSpanArray<FLumenMeshCards>& LumenMeshCards;
 	const TSparseSpanArray<FLumenCard>& LumenCards;
 	TArray<FVector, TInlineAllocator<2>> ViewOrigins;
+	bool bOrthographicCamera;
 	float LumenSceneDetail;
 	int32 FirstMeshCardsIndex;
 	int32 NumMeshCardsPerPacket;
@@ -1006,6 +1012,7 @@ void ProcessSceneAddOpsReadbackData(FLumenSceneData& LumenSceneData, const FLume
 void UpdateSurfaceCachePrimitives(
 	FLumenSceneData& LumenSceneData,
 	const TArray<FVector, TInlineAllocator<2>>& LumenSceneCameraOrigins,
+	bool bOrthographicCamera,
 	float LumenSceneDetail,
 	float MaxCardUpdateDistanceFromCamera,
 	FLumenCardRenderer& LumenCardRenderer,
@@ -1025,6 +1032,7 @@ void UpdateSurfaceCachePrimitives(
 			Tasks.Emplace(
 				LumenSceneData.PrimitiveGroups,
 				LumenSceneCameraOrigins,
+				bOrthographicCamera,
 				LumenSceneDetail,
 				MaxCardUpdateDistanceFromCamera,
 				TaskIndex * NumPrimitivesPerTask,
@@ -1103,6 +1111,7 @@ void UpdateSurfaceCacheMeshCards(
 	FLumenSceneData& LumenSceneData,
 	FLumenSceneData::FFeedbackData LumenFeedbackData,
 	const TArray<FVector, TInlineAllocator<2>>& LumenSceneCameraOrigins,
+	bool bOrthographicCamera,
 	float LumenSceneDetail,
 	float MaxCardUpdateDistanceFromCamera,
 	TArray<FSurfaceCacheRequest, SceneRenderingAllocator>& SurfaceCacheRequests,
@@ -1128,6 +1137,7 @@ void UpdateSurfaceCacheMeshCards(
 			LumenSceneData.MeshCards,
 			LumenSceneData.Cards,
 			LumenSceneCameraOrigins,
+			bOrthographicCamera,
 			LumenSceneData.SurfaceCacheResolution,
 			LumenSceneDetail,
 			MaxCardUpdateDistanceFromCamera,
@@ -1419,10 +1429,15 @@ void FDeferredShadingSceneRenderer::BeginUpdateLumenSceneTasks(FRDGBuilder& Grap
 	LLM_SCOPE_BYTAG(Lumen);
 
 	bool bAnyLumenActive = false;
+	bool bHasOrthographicView = false;
 
 	for (const FViewInfo& View : Views)
 	{
 		bAnyLumenActive = bAnyLumenActive || ShouldRenderLumenDiffuseGI(Scene, View);
+		if (!bHasOrthographicView && !View.IsPerspectiveProjection())
+		{
+			bHasOrthographicView = true;
+		}
 	}
 
 	LumenCardRenderer.Reset();
@@ -1484,7 +1499,7 @@ void FDeferredShadingSceneRenderer::BeginUpdateLumenSceneTasks(FRDGBuilder& Grap
 		}			
 	}
 
-	FrameTemporaries.UpdateSceneTask = GraphBuilder.AddSetupTask([this, GPUMask, &LumenSceneData, bReallocateAtlas = FrameTemporaries.bReallocateAtlas, SurfaceCacheFeedbackData, SceneAddOpsReadbackData, SceneRemoveOpsReadbackData]
+	FrameTemporaries.UpdateSceneTask = GraphBuilder.AddSetupTask([this, GPUMask, &LumenSceneData, bReallocateAtlas = FrameTemporaries.bReallocateAtlas, SurfaceCacheFeedbackData, SceneAddOpsReadbackData, SceneRemoveOpsReadbackData, bHasOrthographicView]
 	{
 		SCOPED_NAMED_EVENT(FDeferredShadingSceneRenderer_BeginUpdateLumenSceneTasks, FColor::Emerald);
 		QUICK_SCOPE_CYCLE_COUNTER(BeginUpdateLumenSceneTasks);
@@ -1545,6 +1560,7 @@ void FDeferredShadingSceneRenderer::BeginUpdateLumenSceneTasks(FRDGBuilder& Grap
 				UpdateSurfaceCachePrimitives(
 					LumenSceneData,
 					LumenSceneCameraOrigins,
+					bHasOrthographicView,
 					LumenSceneDetail,
 					MaxCardUpdateDistanceFromCamera,
 					LumenCardRenderer,
@@ -1555,6 +1571,7 @@ void FDeferredShadingSceneRenderer::BeginUpdateLumenSceneTasks(FRDGBuilder& Grap
 				LumenSceneData,
 				SurfaceCacheFeedbackData,
 				LumenSceneCameraOrigins,
+				bHasOrthographicView,
 				LumenSceneDetail,
 				MaxCardUpdateDistanceFromCamera,
 				SurfaceCacheRequests,

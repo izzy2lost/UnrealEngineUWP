@@ -19,21 +19,17 @@ float3 GetTranslatedWorldPositionFromScreenUV(float2 ScreenUV, float SceneDepth)
 	return mul(float4(GetScreenPositionForProjectionType(ScreenPosition, SceneDepth), SceneDepth, 1), PrimaryView.ScreenToTranslatedWorld).xyz;
 }
 
-float3 GetPrevTranslatedWorldPosition(float3 HistoryScreenPosition)
+float3 GetPrevTranslatedWorldPosition(float2 HistoryScreenPosition, float HistorySceneDepth)
 {
-	float HistorySceneDepth = ConvertFromDeviceZ(HistoryScreenPosition.z);
 	float3 PrevPositionTranslatedWorld = mul(float4(GetScreenPositionForProjectionType(HistoryScreenPosition.xy, HistorySceneDepth), HistorySceneDepth, 1), View.PrevScreenToTranslatedWorld).xyz;
 	float3 PreViewTranslationOffset = DFFastLocalSubtractDemote(PrimaryView.PreViewTranslation, PrimaryView.PrevPreViewTranslation);
 	float3 PrevTranslatedWorldPosition = PrevPositionTranslatedWorld + PreViewTranslationOffset;
 	return PrevTranslatedWorldPosition;
 }
 
-float3 GetPrevTranslatedWorldPosition(float2 HistoryScreenPosition, float HistorySceneDepth)
+float3 GetPrevTranslatedWorldPosition(float3 HistoryScreenPosition)
 {
-	float3 PrevPositionTranslatedWorld = mul(float4(HistoryScreenPosition.xy * HistorySceneDepth, HistorySceneDepth, 1), View.PrevScreenToTranslatedWorld).xyz;
-	float3 PreViewTranslationOffset = DFFastLocalSubtractDemote(PrimaryView.PreViewTranslation, PrimaryView.PrevPreViewTranslation);
-	float3 PrevTranslatedWorldPosition = PrevPositionTranslatedWorld + PreViewTranslationOffset;
-	return PrevTranslatedWorldPosition;
+	return GetPrevTranslatedWorldPosition(HistoryScreenPosition.xy, ConvertFromDeviceZ(HistoryScreenPosition.z));
 }
 
 // This version ignores TAA jitter, use when sampling a history texture

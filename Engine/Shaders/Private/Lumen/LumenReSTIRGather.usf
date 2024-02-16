@@ -1411,8 +1411,8 @@ void TemporalAccumulationCS(
 
 	#define EXPAND_HISTORY_DISTANCE_THRESHOLD_FOR_JITTER 1
 	#if EXPAND_HISTORY_DISTANCE_THRESHOLD_FOR_JITTER
-		const float3 TranslatedWorldPosition = mul(float4(ScreenPosition * SceneDepth, SceneDepth, 1), View.ScreenToTranslatedWorld).xyz;
-		const float3 V = normalize(-TranslatedWorldPosition);
+		const float3 TranslatedWorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, SceneDepth), SceneDepth, 1), View.ScreenToTranslatedWorld).xyz;
+		const float3 V = -GetCameraVectorFromTranslatedWorldPosition(TranslatedWorldPosition);
 		// Raise the threshold at grazing angles to compensate for TAA jitter causing a depth mismatch dependent on the angle
 		// This also introduces some ghosting around characters, needs a better solution
 		DisocclusionDistanceThreshold /= clamp(saturate(dot(V, WorldNormal)), .1f, 1.0f); 

@@ -145,7 +145,7 @@ float3 ReflectionEnvironment(FGBufferData GBuffer, float AmbientOcclusion, float
 #endif
 
 	float3 TranslatedWorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, GBuffer.Depth), GBuffer.Depth, 1), View.ScreenToTranslatedWorld).xyz;
-	float3 CameraToPixel = normalize(TranslatedWorldPosition - View.TranslatedWorldCameraOrigin);
+	float3 CameraToPixel = GetCameraVectorFromTranslatedWorldPosition(TranslatedWorldPosition);
 	float3 ReflectionVector = reflect(CameraToPixel, GBuffer.WorldNormal);
     float3 V = -CameraToPixel;
 	float3 N = GBuffer.WorldNormal;
@@ -391,7 +391,7 @@ void ReflectionEnvironmentSkyLighting(
 
 		float3 WorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, SceneDepth), SceneDepth, 1), DFHackToFloat(PrimaryView.ScreenToWorld)).xyz;
 		float3 TranslatedWorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, SceneDepth), SceneDepth, 1), View.ScreenToTranslatedWorld).xyz;
-		float3 CameraToPixel = normalize(WorldPosition - DFHackToFloat(PrimaryView.WorldCameraOrigin));
+		float3 CameraToPixel = GetCameraVectorFromWorldPosition(WorldPosition);
 		float3 V = -CameraToPixel;
 
 		// Sample the ambient occlusion that is dynamically generated every frame.

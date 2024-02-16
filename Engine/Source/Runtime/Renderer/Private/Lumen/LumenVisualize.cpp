@@ -622,6 +622,15 @@ void SetupVisualizeParameters(
 	FLumenVisualizeSceneSoftwareRayTracingParameters& VisualizeParameters)
 {
 	float MaxMeshSDFTraceDistance = GVisualizeLumenSceneMaxMeshSDFTraceDistance >= 0.0f ? GVisualizeLumenSceneMaxMeshSDFTraceDistance : FLT_MAX;
+	if (!View.IsPerspectiveProjection())
+	{
+		const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Lumen.Ortho.OverrideMeshDFTraceDistances"));
+		if (CVar && CVar->GetValueOnRenderThread() > 0)
+		{
+			MaxMeshSDFTraceDistance = View.ViewMatrices.GetOrthoViewRect().GetMax();
+		}		
+	}
+
 	float MaxTraceDistance = GVisualizeLumenSceneMaxTraceDistance;
 	uint32 MaxReflectionBounces = 1;
 	uint32 MaxRefractionBounces = LumenReflections::UseTranslucentRayTracing(View) ? 1 : 0;
