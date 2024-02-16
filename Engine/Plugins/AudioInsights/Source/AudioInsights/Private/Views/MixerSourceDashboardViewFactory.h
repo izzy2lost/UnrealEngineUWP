@@ -5,6 +5,10 @@
 #include "Views/TableDashboardViewFactory.h"
 #include "Widgets/Input/SCheckBox.h"
 
+
+// Removing temporarily due to redesign of solo and mute functionality
+#define AUDIO_INSIGHTS_SHOW_SOURCE_CONTEXT_MENU 0
+
 namespace UE::Audio::Insights
 {
 	class FMixerSourceDashboardViewFactory : public FTraceObjectTableDashboardViewFactory
@@ -53,7 +57,9 @@ namespace UE::Audio::Insights
 		const FNumberFormattingOptions* GetPlotColumnNumberFormat(const FName& ColumnName);
 		const FText GetPlotColumnDisplayName(const FName& ColumnName);
 
+#if AUDIO_INSIGHTS_SHOW_SOURCE_CONTEXT_MENU
 		virtual TSharedPtr<SWidget> OnConstructContextMenu() override;
+#endif
 		virtual FSlateColor GetRowColor(const TSharedPtr<IDashboardDataViewEntry>& InRowDataPtr) override;
 
 		TSharedRef<SWidget> MakeMuteSoloWidget();
