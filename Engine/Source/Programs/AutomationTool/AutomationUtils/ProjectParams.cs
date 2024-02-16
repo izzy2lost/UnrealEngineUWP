@@ -519,6 +519,8 @@ namespace AutomationTool
 			string CreateReleaseVersionBasePath = null,
 			string BasedOnReleaseVersionBasePath = null,
 			string ReferenceContainerGlobalFileName = null,
+			string ReferenceContainerAdditionalPath = null,
+			string ReferenceContainerChangesCSVFileName = null,
 			string ReferenceContainerCryptoKeys = null,
 			bool? GeneratePatch = null,
 			bool? AddPatchLevel = null,
@@ -702,6 +704,8 @@ namespace AutomationTool
 			this.CreateReleaseVersionBasePath = ParseParamValueIfNotSpecified(Command, CreateReleaseVersionBasePath, "createreleaseversionroot", String.Empty);
 			this.BasedOnReleaseVersionBasePath = ParseParamValueIfNotSpecified(Command, BasedOnReleaseVersionBasePath, "basedonreleaseversionroot", String.Empty);
 			this.ReferenceContainerGlobalFileName = ParseParamValueIfNotSpecified(Command, ReferenceContainerGlobalFileName, "ReferenceContainerGlobalFileName", String.Empty);
+			this.ReferenceContainerAdditionalPath = ParseParamValueIfNotSpecified(Command, ReferenceContainerAdditionalPath, "ReferenceContainerAdditionalPath", String.Empty);
+			this.ReferenceContainerChangesCSVFileName = ParseParamValueIfNotSpecified(Command, ReferenceContainerChangesCSVFileName, "ReferenceContainerChangesCSVFileName", String.Empty);
 			this.ReferenceContainerCryptoKeys = ParseParamValueIfNotSpecified(Command, ReferenceContainerCryptoKeys, "ReferenceContainerCryptoKeys", String.Empty); 
 			this.OriginalReleaseVersion = ParseParamValueIfNotSpecified(Command, OriginalReleaseVersion, "originalreleaseversion", String.Empty);
 			this.CreateReleaseVersion = ParseParamValueIfNotSpecified(Command, CreateReleaseVersion, "createreleaseversion", String.Empty);
@@ -1837,6 +1841,17 @@ namespace AutomationTool
 		/// chunks when writing new containers. See -ReferenceContainerGlobalFileName in IoStoreUtilities.cpp.
 		/// </summary>
 		public string ReferenceContainerGlobalFileName;
+
+		/// <summary>
+		/// Stage: A directory to look for additional IoStore containers to use during staging (e.g. optional segment containers)
+		/// </summary>
+		public string ReferenceContainerAdditionalPath;
+
+		/// <summary>
+		/// Stage: If ReferenceContainerChangesCSVFileName is specified, this provides a file name to write the list of changed
+		/// packages/chunks to.
+		/// </summary>
+		public string ReferenceContainerChangesCSVFileName;
 
 		/// <summary>
 		/// Stage: Path to the crypto.json file to use for decrypting ReferenceContainerFlobalFileName, if needed.

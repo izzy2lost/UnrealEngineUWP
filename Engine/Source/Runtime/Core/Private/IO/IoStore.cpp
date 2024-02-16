@@ -746,7 +746,7 @@ public:
 		ReferenceChunkDatabase = InReferenceChunkDatabase;
 		
 		// Add ourselves to the reference chunk db's list of possibles
-		ReferenceChunkDatabase->NotifyAddedToWriter(ContainerSettings.ContainerId);
+		ReferenceChunkDatabase->NotifyAddedToWriter(ContainerSettings.ContainerId, FPaths::GetBaseFilename(TocFilePath));
 	}
 	void SetHashDatabase(TSharedPtr<IIoStoreWriterHashDatabase> InHashDatabase, bool bInVerifyHashDatabase)
 	{
@@ -879,8 +879,7 @@ public:
 
 				if (ReferenceChunkDatabase.IsValid() && CompressionMethodForEntry(Entry) != NAME_None)
 				{
-					TPair<FIoContainerId, FIoChunkHash> ChunkKey(ContainerSettings.ContainerId, Entry->ChunkHash);
-					Entry->bLoadingFromReferenceDb = ReferenceChunkDatabase->ChunkExists(ChunkKey, Entry->ChunkId, Entry->NumChunkBlocksFromRefDb);
+					Entry->bLoadingFromReferenceDb = ReferenceChunkDatabase->ChunkExists(ContainerSettings.ContainerId, Entry->ChunkHash, Entry->ChunkId, Entry->NumChunkBlocksFromRefDb);
 					Entry->bCouldBeFromReferenceDb = true;
 				}
 				return;
@@ -915,8 +914,7 @@ public:
 
 			if (ReferenceChunkDatabase.IsValid() && CompressionMethodForEntry(Entry) != NAME_None)
 			{
-				TPair<FIoContainerId, FIoChunkHash> ChunkKey(ContainerSettings.ContainerId, Entry->ChunkHash);
-				Entry->bLoadingFromReferenceDb = ReferenceChunkDatabase->ChunkExists(ChunkKey, Entry->ChunkId, Entry->NumChunkBlocksFromRefDb);
+				Entry->bLoadingFromReferenceDb = ReferenceChunkDatabase->ChunkExists(ContainerSettings.ContainerId, Entry->ChunkHash, Entry->ChunkId, Entry->NumChunkBlocksFromRefDb);
 				Entry->bCouldBeFromReferenceDb = true;
 			}
 
@@ -1592,12 +1590,10 @@ private:
 				// Everything else in a block gets filled out from the refdb.
 			}
 
-			TPair<FIoContainerId, FIoChunkHash> ChunkKey(ContainerSettings.ContainerId, Entry->ChunkHash);
-
 			// Valid chunks must create the same decompressed bits, but can have different compressed bits.
 			// Since we are on a lightweight dispatch thread, the actual read is async, as is the processing
 			// of the results.
-			bool bChunkExists = ReferenceChunkDatabase->RetrieveChunk(ChunkKey, [this, Entry](TIoStatusOr<FIoStoreCompressedReadResult> InReadResult)
+			bool bChunkExists = ReferenceChunkDatabase->RetrieveChunk(ContainerSettings.ContainerId, Entry->ChunkHash, Entry->ChunkId, [this, Entry](TIoStatusOr<FIoStoreCompressedReadResult> InReadResult)
 			{
 
 				// If we fail here, in order to recover we effectively need to re-kick this chunk's
@@ -1835,6 +1831,16 @@ private:
 		const int32* FindExistingIndex = Toc.GetTocEntryIndex(Entry->ChunkId);
 		if (FindExistingIndex)
 		{
+			// afaict this should never happen so add a warning. If there's a legit reason for it
+			// we can pull this back out. If would violate some assumptions in the reference chunk
+			// database if we DO hit this, however...
+			UE_LOG(LogIoStore, Warning, TEXT("ChunkId was added twice in container %s, %s, file %s hash %s vs %s"), 
+				*FPaths::GetBaseFilename(TocFilePath),
+				*LexToString(Entry->ChunkId), *Entry->Options.FileName,
+				*Toc.GetTocResource().ChunkMetas[*FindExistingIndex].ChunkHash.ToString(),
+				*Entry->ChunkHash.ToString()
+				);
+
 			checkf(Toc.GetTocResource().ChunkMetas[*FindExistingIndex].ChunkHash == Entry->ChunkHash, TEXT("Chunk id has already been added with different content"));
 			for (FChunkBlock& ChunkBlock : Entry->ChunkBlocks)
 			{
@@ -2432,6 +2438,16 @@ public:
 	FGuid GetEncryptionKeyGuid() const
 	{
 		return Toc.GetTocResource().Header.EncryptionKeyGuid;
+	}
+
+	FString GetContainerName() const
+	{
+		return FPaths::GetBaseFilename(ContainerPath);
+	}
+
+	int32 GetChunkCount() const 
+	{
+		return Toc.GetTocResource().ChunkIds.Num();
 	}
 
 	void EnumerateChunks(TFunction<bool(FIoStoreTocChunkInfo&&)>&& Callback) const
@@ -3075,6 +3091,16 @@ EIoContainerFlags FIoStoreReader::GetContainerFlags() const
 FGuid FIoStoreReader::GetEncryptionKeyGuid() const
 {
 	return Impl->GetEncryptionKeyGuid();
+}
+
+int32 FIoStoreReader::GetChunkCount() const
+{
+	return Impl->GetChunkCount();
+}
+
+FString FIoStoreReader::GetContainerName() const
+{
+	return Impl->GetContainerName();
 }
 
 void FIoStoreReader::EnumerateChunks(TFunction<bool(FIoStoreTocChunkInfo&&)>&& Callback) const

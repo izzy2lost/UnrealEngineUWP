@@ -3728,9 +3728,17 @@ namespace AutomationScripts
 				if (Params.ReferenceContainerGlobalFileName.Length != 0)
 				{
 					AdditionalArgs += " -ReferenceContainerGlobalFileName=\"" + Params.ReferenceContainerGlobalFileName + "\"";
+					if (Params.ReferenceContainerAdditionalPath.Length != 0)
+					{
+						AdditionalArgs += " -ReferenceContainerAdditionalPath=\"" + Params.ReferenceContainerAdditionalPath + "\"";
+					}
 					if (Params.ReferenceContainerCryptoKeys.Length != 0)
 					{
 						AdditionalArgs += " -ReferenceContainerCryptoKeys=\"" + Params.ReferenceContainerCryptoKeys + "\"";
+					}
+					if (Params.ReferenceContainerChangesCSVFileName.Length != 0)
+					{
+						AdditionalArgs += " -ReferenceContainerChangesCSVFileName=\"" + Params.ReferenceContainerChangesCSVFileName + "\"";
 					}
 				}
 
@@ -4911,9 +4919,17 @@ namespace AutomationScripts
 			if (!string.IsNullOrEmpty(Params.ReferenceContainerGlobalFileName))
 			{
 				CommandLineBuilder.AppendFormat("-ReferenceContainerGlobalFileName={0}", Params.ReferenceContainerGlobalFileName);
+				if (!string.IsNullOrEmpty(Params.ReferenceContainerAdditionalPath))
+				{
+					CommandLineBuilder.AppendFormat("-ReferenceContainerAdditionalPath={0}", Params.ReferenceContainerAdditionalPath);
+				}
 				if (!string.IsNullOrEmpty(Params.ReferenceContainerCryptoKeys))
 				{
 					CommandLineBuilder.AppendFormat("-ReferenceContainerCryptoKeys={0}", Params.ReferenceContainerCryptoKeys);
+				}
+				if (!string.IsNullOrEmpty(Params.ReferenceContainerChangesCSVFileName))
+				{
+					CommandLineBuilder.AppendFormat("-ReferenceContainerChangesCSVFileName={0}", Params.ReferenceContainerChangesCSVFileName);
 				}
 			}
 

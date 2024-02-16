@@ -87,6 +87,18 @@ public class BuildCookRun : BuildCommand, IProjectParamsHelpers
 			Params.ReferenceContainerGlobalFileName = ReferenceContainerGlobalFileName;
 		}
 
+		var ReferenceContainerAdditionalPath = ParseParamValue("ReferenceContainerAdditionalPath");
+		if (!String.IsNullOrEmpty(ReferenceContainerAdditionalPath))
+		{
+			Params.ReferenceContainerAdditionalPath = ReferenceContainerAdditionalPath;
+		}
+
+		var ReferenceContainerChangesCSVFileName = ParseParamValue("ReferenceContainerChangesCSVFileName");
+		if (!String.IsNullOrEmpty(ReferenceContainerChangesCSVFileName))
+		{
+			Params.ReferenceContainerChangesCSVFileName = ReferenceContainerChangesCSVFileName;
+		}
+
 		var ReferenceContainerCryptoKeys = ParseParamValue("ReferenceContainerCryptoKeys");
 		if (!String.IsNullOrEmpty(ReferenceContainerCryptoKeys))
 		{
