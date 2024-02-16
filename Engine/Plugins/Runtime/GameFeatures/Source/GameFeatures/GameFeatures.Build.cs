@@ -40,6 +40,7 @@ namespace UnrealBuildTool.Rules
 					{
 						"UnrealEd",
 						"PluginUtils",
+						"DataValidation"
 					}
 				);
 			}
