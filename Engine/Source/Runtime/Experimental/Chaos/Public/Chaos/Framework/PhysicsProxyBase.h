@@ -131,7 +131,7 @@ public:
 	}
 	static float GetRenderInterpMaximumErrorCorrectionBeforeSnapping()
 	{
-		static float RenderInterpMaximumErrorCorrectionBeforeSnapping = 100.0f;
+		static float RenderInterpMaximumErrorCorrectionBeforeSnapping = 250.0f;
 		static FAutoConsoleVariableRef CVarRenderInterpErrorCorrectionMaximumError(TEXT("p.RenderInterp.MaximumErrorCorrectionBeforeSnapping"), RenderInterpMaximumErrorCorrectionBeforeSnapping, TEXT("Maximum error correction in cm before we stop interpolating and snap to target."));
 		return RenderInterpMaximumErrorCorrectionBeforeSnapping;
 	}
@@ -146,6 +146,12 @@ public:
 		static bool RenderInterpDebugDraw = false;
 		static FAutoConsoleVariableRef CVarRenderInterpDebugDraw(TEXT("p.RenderInterp.DebugDraw"), RenderInterpDebugDraw, TEXT("Draw debug lines for physics render interpolation, also needs p.Chaos.DebugDraw.Enabled set"));
 		return RenderInterpDebugDraw;
+	}
+	static float GetRenderInterpErrorDirectionalDecayMultiplier()
+	{
+		static float RenderInterpErrorDirectionalDecayMultiplier = 0.0f;
+		static FAutoConsoleVariableRef CVarRenderInterpErrorDirectionalDecayMultiplier(TEXT("p.RenderInterp.DirectionalDecayMultiplier"), RenderInterpErrorDirectionalDecayMultiplier, TEXT("Decay error offset in the direction that the physics object is moving, value is multiplier of projected offset direction, 0.25 means a 25% decay of the magnitude in the direction of physics travel. Deactivate by setting to 0."));
+		return RenderInterpErrorDirectionalDecayMultiplier;
 	}
 
 protected:
@@ -240,6 +246,21 @@ struct FProxyInterpolationError : FProxyInterpolationBase
 		return false;
 	}
 
+	virtual bool DirectionalDecay(Chaos::FVec3 Direction)
+	{
+		if (IsErrorSmoothing() && SimTicks > 0)
+		{
+			const Chaos::FVec3 DirectionNormal = Direction.GetSafeNormal();
+			Chaos::FRealDouble DotProd = Chaos::FVec3::DotProduct(DirectionNormal, ErrorX);
+			if (DotProd > 0.0f)
+			{
+				Chaos::FVec3 DirProjection = ErrorX.ProjectOnToNormal(DirectionNormal) * IPhysicsProxyBase::GetRenderInterpErrorDirectionalDecayMultiplier();
+				ErrorX -= DirProjection;
+				return true;
+			}
+		}
+		return false;
+	}
 
 protected:
 	void DecayError()

@@ -499,10 +499,16 @@ namespace Chaos
 			};
 
 			const bool bIsReplicationErrorSmoothing = InterpolationData.IsErrorSmoothing();
+			bool DirectionalDecayPerformed = false;
 			InterpolationData.UpdateError(SolverSyncTimestamp, AsyncFixedTimeStep);
 
 			if (const FVec3* Prev = LerpHelper(PullData.X, ProxyTimestamp->OverWriteX))
 			{
+				if (GetRenderInterpErrorDirectionalDecayMultiplier() > 0.0f)
+				{
+					DirectionalDecayPerformed = InterpolationData.DirectionalDecay(NextPullData->X - *Prev);
+				}
+
 				const FVec3 NewX = bIsReplicationErrorSmoothing ?
 					FMath::Lerp(*Prev, NextPullData->X, *Alpha) + InterpolationData.GetErrorX(*Alpha) :
 					FMath::Lerp(*Prev, NextPullData->X, *Alpha);
@@ -536,7 +542,7 @@ namespace Chaos
 			{
 				Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(NextPullData->X, FVector(2, 1, 1), NextPullData->R, FColor::Yellow, false, 5.f, 0, 0.5f);
 				Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(PullData.X, NextPullData->X, 0.5f, FColor::Yellow, false, 5.0f, 0, 0.5f);
-				Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(Particle_External->GetX(), FVector(2, 1, 1), Particle_External->R(), FColor::Green, false, 5.f, 0, 0.5f);
+				Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(Particle_External->GetX(), FVector(2, 1, 1), Particle_External->R(), DirectionalDecayPerformed ? FColor::Cyan : FColor::Green, false, 5.f, 0, 0.5f);
 
 				if (bIsReplicationErrorSmoothing)
 				{

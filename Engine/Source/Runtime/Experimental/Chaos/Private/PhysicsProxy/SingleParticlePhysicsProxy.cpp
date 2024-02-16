@@ -319,10 +319,10 @@ bool FSingleParticlePhysicsProxy::PullFromPhysicsState(const Chaos::FDirtyRigidP
 			if (bUpdatePositionFromSimulation)
 			{
 				const bool bIsReplicationErrorSmoothing = InterpolationData.IsErrorSmoothing();
+				bool DirectionalDecayPerformed = false;
 #if RENDERINTERP_ERRORVELOCITYSMOOTHING
 				const bool bIsErrorVelocitySmoothing = InterpolationData.IsErrorVelocitySmoothing();
 #endif
-
 				InterpolationData.UpdateError(SolverSyncTimestamp, AsyncFixedTimeStep);
 
 				if (const FVec3* Prev = LerpHelper(PullData.X, ProxyTimestamp->OverWriteX))
@@ -330,6 +330,11 @@ bool FSingleParticlePhysicsProxy::PullFromPhysicsState(const Chaos::FDirtyRigidP
 					FVec3 Target = FMath::Lerp(*Prev, NextPullData->X, *Alpha);
 					if (bIsReplicationErrorSmoothing)
 					{
+						if (GetRenderInterpErrorDirectionalDecayMultiplier() > 0.0f)
+						{
+							DirectionalDecayPerformed = InterpolationData.DirectionalDecay(NextPullData->X - *Prev);
+						}
+
 						Target += InterpolationData.GetErrorX(*Alpha);
 
 #if RENDERINTERP_ERRORVELOCITYSMOOTHING
@@ -366,7 +371,7 @@ bool FSingleParticlePhysicsProxy::PullFromPhysicsState(const Chaos::FDirtyRigidP
 				{
 					Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(NextPullData->X, FVector(2, 1, 1), NextPullData->R, FColor::Yellow, false, 5.f, 0, 0.5f);
 					Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(PullData.X, NextPullData->X, 0.5f, FColor::Yellow, false, 5.0f, 0, 0.5f);
-					Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(Rigid->X(), FVector(2, 1, 1), Rigid->R(), FColor::Green, false, 5.f, 0, 0.5f);
+					Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(Rigid->X(), FVector(2, 1, 1), Rigid->R(), DirectionalDecayPerformed ? FColor::Cyan : FColor::Green, false, 5.f, 0, 0.5f);
 
 					if (bIsReplicationErrorSmoothing)
 					{
