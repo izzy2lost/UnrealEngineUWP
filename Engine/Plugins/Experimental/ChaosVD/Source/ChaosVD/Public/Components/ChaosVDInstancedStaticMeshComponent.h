@@ -67,8 +67,11 @@ protected:
 
 	bool bIsMeshReady = false;
 
-	UPROPERTY()
+	UPROPERTY(Transient)
 	UMaterialInterface* CurrentMaterial = nullptr;
+
+	UPROPERTY(Transient)
+	TMap<EChaosVDMaterialType, TObjectPtr<UMaterialInstanceDynamic>> CachedMaterialInstancesByID;
 
 	FChaosVDMeshReadyDelegate MeshReadyDelegate;
 	FChaosVDMeshComponentEmptyDelegate ComponentEmptyDelegate;

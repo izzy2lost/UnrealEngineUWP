@@ -337,16 +337,16 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Geometry Visibility", meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDGeometryVisibilityFlags"))
 	uint8 GeometryVisibilityFlags = static_cast<uint8>(EChaosVDGeometryVisibilityFlags::Simulated | EChaosVDGeometryVisibilityFlags::Simple |  EChaosVDGeometryVisibilityFlags::ShowHeightfields);
 
-	UPROPERTY(Config)
+	UPROPERTY(Config, Transient)
 	TSoftObjectPtr<UMaterial> QueryOnlyMeshesMaterial;
 
-	UPROPERTY(Config)
+	UPROPERTY(Config, Transient)
 	TSoftObjectPtr<UMaterial> SimOnlyMeshesMaterial;
 
-	UPROPERTY(Config)
+	UPROPERTY(Config, Transient)
 	TSoftObjectPtr<UMaterial> InstancedMeshesMaterial;
 
-	UPROPERTY(Config)
+	UPROPERTY(Config, Transient)
 	TSoftObjectPtr<UMaterial> InstancedMeshesQueryOnlyMaterial;
 
 	UPROPERTY(Config)
@@ -368,6 +368,7 @@ public:
 	virtual void PostEditUndo() override;
 
 protected:
+	
 	FChaosVDSettingChaged VisibilitySettingsChangedDelegate;
 	FChaosVDSettingChaged ColorsSettingsChangedDelegate;
 	FChaosVDSettingChaged FarClippingOverrideChangedDelegate;

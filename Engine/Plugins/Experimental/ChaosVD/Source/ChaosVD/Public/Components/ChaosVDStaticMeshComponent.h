@@ -57,6 +57,9 @@ protected:
 
 	bool UpdateGeometryKey(uint32 NewHandleGeometryKey);
 
+	/** Returns an existing material instance used by this mesh instances, or creates a new one for the provided type */
+	UMaterialInstanceDynamic* GetCachedMaterialInstance(EChaosVDMaterialType Type);
+
 	uint8 MeshComponentAttributeFlags = 0;
 	uint8 CurrentGeometryKey = 0;
 	bool bIsMeshReady = false;
@@ -67,4 +70,7 @@ protected:
 	TSharedPtr<FChaosVDMeshDataInstanceHandle> CurrentMeshDataHandle = nullptr;
 
 	TSharedPtr<FChaosVDExtractedGeometryDataHandle> CurrentGeometryHandle = nullptr;
+
+	UPROPERTY(Transient)
+	TMap<EChaosVDMaterialType, TObjectPtr<UMaterialInstanceDynamic>> CachedMaterialInstancesByID;
 };

@@ -19,6 +19,7 @@
 
 #include "UDynamicMesh.h"
 #include "Components/ChaosVDInstancedStaticMeshComponent.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/WeakObjectPtr.h"
 #include "Tasks/Task.h"
 #include "Templates/SharedPointer.h"
@@ -156,6 +157,9 @@ private:
 	 */
 	template <class ComponentType>
     bool InitializeMeshComponent(AActor* Owner, ComponentType* MeshComponent);
+
+	template <class ComponentType>
+	void SetMeshComponentMaterial(EChaosVDMeshAttributesFlags MeshComponentAttributeFlags, ComponentType* MeshComponent);
 
 public:
 	/**
@@ -486,6 +490,19 @@ bool FChaosVDGeometryBuilder::InitializeMeshComponent(AActor* Owner, ComponentTy
 }
 
 template <typename ComponentType>
+void FChaosVDGeometryBuilder::SetMeshComponentMaterial(EChaosVDMeshAttributesFlags MeshComponentAttributeFlags, ComponentType* MeshComponent)
+{
+	UMaterialInstanceDynamic* Material = nullptr;
+
+	Material = FChaosVDGeometryComponentUtils::CreateMaterialInstance(FChaosVDGeometryComponentUtils::GetMaterialTypeForComponent<ComponentType>(MeshComponentAttributeFlags));
+
+	ensure(Material);
+
+	MeshComponent->SetMaterial(0, Material);
+}
+
+
+template <typename ComponentType>
 ComponentType* FChaosVDGeometryBuilder::GetAvailableInstancedStaticMeshComponent(const TSharedPtr<FChaosVDExtractedGeometryDataHandle>& InExtractedGeometryDataHandle, AActor* MeshComponentsContainerActor, EChaosVDMeshAttributesFlags MeshComponentAttributeFlags, bool& bOutIsNewComponent)
 {
 	// Get the correct Instanced Mesh Component from the existing cache
@@ -506,9 +523,11 @@ ComponentType* FChaosVDGeometryBuilder::GetAvailableInstancedStaticMeshComponent
 		}
 
 		// If this is a Instanced Static Mesh Component, make sure we set the reverse culling flag correctly
+		// And the material
 		if (UChaosVDInstancedStaticMeshComponent* AsInstancedMeshComponent = Component)
 		{
 			AsInstancedMeshComponent->bReverseCulling = EnumHasAnyFlags(MeshComponentAttributeFlags, EChaosVDMeshAttributesFlags::MirroredGeometry);
+			SetMeshComponentMaterial<ComponentType>(MeshComponentAttributeFlags, AsInstancedMeshComponent);
 		}
 
 		bOutIsNewComponent = true;
@@ -534,6 +553,8 @@ ComponentType* FChaosVDGeometryBuilder::GetAvailableMeshComponent(const TSharedP
 		{
 			return nullptr;
 		}
+
+		SetMeshComponentMaterial(MeshComponentAttributeFlags, MeshComponent);
 
 		bOutIsNewComponent = true;
 	}

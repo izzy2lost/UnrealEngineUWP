@@ -114,11 +114,6 @@ public:
 	/** Returns a copy of the current shape collision data to this mesh instance */
 	FChaosVDShapeCollisionData GetGeometryCollisionData() const { return CollisionData; }
 
-	// TODO: This is legacy from the old system and is used by the Static mesh Component implementation mainly where we can change the material instance on the fly
-	// We need to refactor in a way we can move it to the CVD Static Mesh component and let the Instanced Static Mesh Component have they material instances created on component creation time.
-	/** Returns an existing material instance used by this mesh instances, or creates a new one for the provided type */
-	UMaterialInstanceDynamic* GetCachedMaterialInstance(EChaosVDMaterialType Type);
-
 	/** Handles a mesh instance index update reported by the mesh component used to render this mesh instance */
 	void HandleInstanceIndexUpdated(TArrayView<const FInstancedStaticMeshDelegates::FInstanceIndexUpdateData> InIndexUpdates);
 
@@ -157,9 +152,6 @@ private:
 	bool bIsVisible = true;
 
 	bool bIsSelected = false;
-
-	//TODO: We should avoid using a StrongObjtPtr here as it will make difficult to track any leaks
-	TMap<EChaosVDMaterialType, TStrongObjectPtr<UMaterialInstanceDynamic>> MaterialInstancesByID;
 
 	TWeakPtr<FChaosVDGeometryBuilder> GeometryBuilderInstance = nullptr;
 
@@ -274,7 +266,36 @@ public:
 
 	/** Calculates the correct visibility state based on the particle state, and applies it to the mesh instance the provided handle represents */
 	static void UpdateMeshVisibility(const TSharedPtr<FChaosVDMeshDataInstanceHandle>& InInstanceHandle, const FChaosVDParticleDataWrapper& InParticleData, bool bIsActive);
+
+	/** Returns an the material to use as a base to create material instances for the provided type */
+	static UMaterialInterface* GetBaseMaterialForType(EChaosVDMaterialType Type);
+
+	/** Creates a material instance using the provided material as a base */
+	static UMaterialInstanceDynamic* CreateMaterialInstance(UMaterialInterface* BaseMaterial);
+
+	/** Creates a material instance for the provided CVD material type */
+	static UMaterialInstanceDynamic* CreateMaterialInstance(EChaosVDMaterialType Type);
+
+	/** Returns the correct material type to use based on the provided Component type and Mesh Attributes */
+	template<typename TComponent>
+	static EChaosVDMaterialType GetMaterialTypeForComponent(EChaosVDMeshAttributesFlags MeshAttributes);
+
 private:
 	/** Returns the color that needs to be used to present the provided particle data based on its state and current selected options */
 	static FLinearColor GetGeometryParticleColor(const TSharedPtr<FChaosVDExtractedGeometryDataHandle>& InGeometryHandle, const FChaosVDParticleDataWrapper& InParticleData, bool bIsServer);
 };
+
+
+template <typename TComponent>
+EChaosVDMaterialType FChaosVDGeometryComponentUtils::GetMaterialTypeForComponent(EChaosVDMeshAttributesFlags MeshAttributes)
+{
+	constexpr bool bIsInstancedMeshComponent = std::is_base_of_v<UInstancedStaticMeshComponent, TComponent>;
+	if (EnumHasAnyFlags(MeshAttributes, EChaosVDMeshAttributesFlags::TranslucentGeometry))
+	{
+		return bIsInstancedMeshComponent ? EChaosVDMaterialType::InstancedQueryOnly : EChaosVDMaterialType::QueryOnlyMaterial;
+	}
+	else
+	{
+		return bIsInstancedMeshComponent ? EChaosVDMaterialType::Instanced : EChaosVDMaterialType::SimOnlyMaterial;
+	}
+}

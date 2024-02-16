@@ -60,14 +60,25 @@ void UChaosVDInstancedStaticMeshComponent::UpdateInstanceColor(const TSharedPtr<
 	if (CurrentMaterial == nullptr)
 	{
 		CurrentMaterial = GetMaterial(0);
+	}
 
-		bool bIsSolidColor = FMath::IsNearlyEqual(NewColor.A, 1.0f);
-		UMaterialInterface* DesiredMaterial = InInstanceHandle->GetCachedMaterialInstance( bIsSolidColor ? EChaosVDMaterialType::Instanced : EChaosVDMaterialType::InstancedQueryOnly);
-
-		if (CurrentMaterial != DesiredMaterial)
+	// Check that this mesh component supports the intended visualization
+	// We can't change the material of Instanced mesh components because we might have other instances that are not intended to be translucent (or the other way around).
+	// The Mesh handle instance system should have detected we need to migrate the instance to another component before ever reaching this point
+	const bool bIsSolidColor = FMath::IsNearlyEqual(NewColor.A, 1.0f);
+	const bool bMeshComponentSupportsTranslucentInstances = EnumHasAnyFlags(static_cast<EChaosVDMeshAttributesFlags>(MeshComponentAttributeFlags), EChaosVDMeshAttributesFlags::TranslucentGeometry);
+	if (bIsSolidColor)
+	{
+		if (!ensure(!bMeshComponentSupportsTranslucentInstances))
 		{
-			SetMaterial(0, DesiredMaterial);
-			CurrentMaterial = DesiredMaterial;
+			UE_LOG(LogChaosVDEditor, Warning, TEXT("[%s] Desired Color is not supported in this mesh component [%s]..."), ANSI_TO_TCHAR(__FUNCTION__), *NewColor.ToString());
+		}
+	}
+	else
+	{
+		if (!ensure(bMeshComponentSupportsTranslucentInstances))
+		{
+			UE_LOG(LogChaosVDEditor, Warning, TEXT("[%s] Desired Color is not supported in this mesh component [%s]..."), ANSI_TO_TCHAR(__FUNCTION__), *NewColor.ToString());
 		}
 	}
 	
