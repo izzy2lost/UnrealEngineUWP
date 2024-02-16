@@ -6,34 +6,99 @@
 #include "Animation/Skeleton.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Dataflow/DataflowNodeParameters.h"
+#include "Dataflow/DataflowObject.h"
 #include "Engine/SkeletalMesh.h"
 #include "GameFramework/Actor.h"
 #include "PreviewScene.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DataflowContent)
 
+
+//
+// UDataflowBaseContent
+//
+
+void UDataflowBaseContent::SetIsDirty(bool InDirty) 
+{ 
+	bIsDirty = InDirty;
+}
+
+
 UDataflowBaseContent::UDataflowBaseContent()
 {
 }
 
-void UDataflowBaseContent::SetLastModifiedTimestamp(Dataflow::FTimestamp InTimestamp) 
+void UDataflowBaseContent::SetDataflowOwner(const TObjectPtr<UObject>& InOwner)
+{
+	DataflowOwner = InOwner;
+	if (DataflowContext)
+	{
+		DataflowContext->Owner = InOwner;  
+		SetIsDirty(true);
+	}
+}
+
+TObjectPtr<UObject> UDataflowBaseContent::GetDataflowOwner() const 
+{
+	if (DataflowContext)
+	{
+		ensure(DataflowContext->Owner == DataflowOwner);
+	}
+	return DataflowContext ? DataflowContext->Owner : DataflowOwner; 
+}
+
+
+void UDataflowBaseContent::SetLastModifiedTimestamp(Dataflow::FTimestamp InTimestamp, bool bMakeDirty) 
 { 
 	if (InTimestamp.IsInvalid() || LastModifiedTimestamp < InTimestamp)
 	{
 		LastModifiedTimestamp = InTimestamp; 
-		bIsDirty = true;
+		if (bMakeDirty)
+		{
+			SetIsDirty(true);
+			MarkPackageDirty(); 
+		}
 	}
 }
 
-void UDataflowBaseContent::BuildBaseContent(TObjectPtr<UObject> ContentOwner)
-{
-	DataflowContext = MakeShared<Dataflow::FEngineContext>(ContentOwner, DataflowAsset, FPlatformTime::Cycles64());
-	LastModifiedTimestamp = DataflowContext->GetTimestamp();
+void UDataflowBaseContent::SetDataflowContext(const TSharedPtr<Dataflow::FEngineContext>& InContext) 
+{ 
+	DataflowContext = InContext;  
+	SetIsDirty(true); 
+	MarkPackageDirty();
 }
+
+
+void UDataflowBaseContent::BuildBaseContent(TObjectPtr<UObject> InDataflowOwner)
+{
+	DataflowOwner = InDataflowOwner;
+	DataflowContext = MakeShared<Dataflow::FEngineContext>(InDataflowOwner, DataflowAsset, FPlatformTime::Cycles64());
+	LastModifiedTimestamp = DataflowContext->GetTimestamp();
+	SetIsDirty(true);
+	MarkPackageDirty();
+}
+
+void UDataflowBaseContent::Serialize(FArchive& Ar)
+{
+	Super::Serialize(Ar);
+	Ar << LastModifiedTimestamp;
+
+	if (!DataflowContext)
+	{
+		DataflowContext = MakeShared<Dataflow::FEngineContext>(DataflowOwner, DataflowAsset, LastModifiedTimestamp);
+	}
+	DataflowContext->Serialize(Ar);
+}
+
+//
+// UDataflowSkeletalContent
+//
+
 
 UDataflowSkeletalContent::UDataflowSkeletalContent() : Super()
 {
 }
+
 
 void UDataflowSkeletalContent::RegisterWorldContent(FPreviewScene* PreviewScene, AActor* RootActor)
 {
@@ -103,7 +168,7 @@ void UDataflowSkeletalContent::SetSkeletalMesh(const TObjectPtr<USkeletalMesh>& 
 
  		UpdateAnimationInstance();
 	}
-	bIsDirty = true;
+	SetIsDirty(true);
 }
 
 void UDataflowSkeletalContent::SetAnimationAsset(const TObjectPtr<UAnimationAsset>& SkeletalAnimationAsset)
@@ -113,7 +178,7 @@ void UDataflowSkeletalContent::SetAnimationAsset(const TObjectPtr<UAnimationAsse
 	{
  		UpdateAnimationInstance();
 	}
-	bIsDirty = true;
+	SetIsDirty(true);
 }
 
 void UDataflowSkeletalContent::SetSkeleton(const TObjectPtr<USkeleton>& SkeletonAsset)
@@ -126,7 +191,7 @@ void UDataflowSkeletalContent::SetSkeleton(const TObjectPtr<USkeleton>& Skeleton
 			SetSkeletalMesh(nullptr);
 		}
 	}
-	bIsDirty = true;
+	SetIsDirty(true);
 }
 
 #if WITH_EDITOR
@@ -168,5 +233,4 @@ FVector2f UDataflowSkeletalContent::GetSimulationRange() const
 	}
 	return FVector2f(0.0f, 0.0f);
 }
-
 

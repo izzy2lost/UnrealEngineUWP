@@ -118,7 +118,7 @@ void FDataflowConstructionScene::TickDataflowScene(const float DeltaSeconds)
 {
 	if (const TSharedPtr<Dataflow::FContext> DataflowContext = DataflowContent->GetDataflowContext())
 	{
-		if (const UDataflow* Dataflow = DataflowContent->DataflowAsset)
+		if (const UDataflow* Dataflow = DataflowContent->GetDataflowAsset())
 		{
 			const Dataflow::FTimestamp SystemTimestamp = LatestTimestamp(Dataflow, DataflowContext.Get());
 			if (SystemTimestamp >= DataflowContent->GetLastModifiedTimestamp() || DataflowContent->IsDirty())
@@ -226,9 +226,9 @@ TObjectPtr<UDynamicMeshComponent>& FDataflowConstructionScene::AddDynamicMeshCom
 	DynamicMeshComponent->SetMesh(MoveTemp(DynamicMesh));
 	
 	// @todo(Material) This is just to have a material, we should transfer the materials from the assets if they have them. 
-	if (DataflowContent && DataflowContent->DataflowAsset && DataflowContent->DataflowAsset->Material)
+	if (DataflowContent && DataflowContent->GetDataflowAsset() && DataflowContent->GetDataflowAsset()->Material)
 	{
-		DynamicMeshComponent->ConfigureMaterialSet({ DataflowContent->DataflowAsset->Material });
+		DynamicMeshComponent->ConfigureMaterialSet({ DataflowContent->GetDataflowAsset()->Material });
 	}
 	else
 	{

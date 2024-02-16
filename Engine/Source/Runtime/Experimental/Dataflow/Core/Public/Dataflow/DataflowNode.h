@@ -70,6 +70,7 @@ struct FDataflowNode
 	FName GetName() const { return Name; }
 	void SetName(FName InName) { Name = InName; }
 	Dataflow::FTimestamp GetTimestamp() const { return LastModifiedTimestamp;  }
+	DATAFLOWCORE_API uint32 GetValueHash();
 
 	static FName StaticType() { return FName("FDataflowNode"); }
 	virtual FName GetType() const { return StaticType(); }
@@ -122,8 +123,10 @@ struct FDataflowNode
 	DATAFLOWCORE_API void ClearOutputs();
 
 	DATAFLOWCORE_API FDataflowOutput* FindOutput(FName Name);
+	DATAFLOWCORE_API FDataflowOutput* FindOutput(uint32 GuidHash);
 	DATAFLOWCORE_API FDataflowOutput* FindOutput(void* Reference);
 	DATAFLOWCORE_API const FDataflowOutput* FindOutput(FName Name) const;
+	DATAFLOWCORE_API const FDataflowOutput* FindOutput(uint32 GuidHash) const;
 	DATAFLOWCORE_API const FDataflowOutput* FindOutput(const void* Reference) const;
 
 	/** Return a property's byte offset from the dataflow base node address using the full property name (must includes its parent struct property names). */

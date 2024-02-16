@@ -2,24 +2,27 @@
 
 #include "Dataflow/DataflowNodeParameters.h"
 
+#include "Dataflow/DataflowArchive.h"
+#include "Dataflow/DataflowContextCachingFactory.h"
 #include "Dataflow/DataflowInputOutput.h"
 #include "Dataflow/DataflowNode.h"
-
+#include "Serialization/Archive.h"
+#include "GeometryCollection/ManagedArrayCollection.h"
 
 namespace Dataflow
 {
 	uint64 FTimestamp::Invalid = 0;
-	uint64 FTimestamp::Current() { return FPlatformTime::Cycles64();  }
+	uint64 FTimestamp::Current() { return FPlatformTime::Cycles64(); }
 
-	void FContext::PushToCallstack(const FDataflowConnection* Connection) 
+	void FContext::PushToCallstack(const FDataflowConnection* Connection)
 	{
 #if DATAFLOW_EDITOR_EVALUATION
-		Callstack.Push(Connection); 
+		Callstack.Push(Connection);
 #endif
 	}
 
 	void FContext::PopFromCallstack(const FDataflowConnection* Connection)
-	{ 
+	{
 #if DATAFLOW_EDITOR_EVALUATION
 		ensure(Connection == Callstack.Top());
 		Callstack.Pop();
@@ -73,12 +76,12 @@ namespace Dataflow
 			}
 		}
 	}
-	
+
 	void FContextSingle::Evaluate(const FDataflowNode* Node, const FDataflowOutput* Output)
 	{
 		BeginContextEvaluation(*this, Node, Output);
 	}
-		
+
 	bool FContextSingle::Evaluate(const FDataflowOutput& Connection)
 	{
 		return Connection.EvaluateImpl(*this);
@@ -93,8 +96,83 @@ namespace Dataflow
 
 	bool FContextThreaded::Evaluate(const FDataflowOutput& Connection)
 	{
-		Connection.OutputLock->Lock(); ON_SCOPE_EXIT { Connection.OutputLock->Unlock(); };
+		Connection.OutputLock->Lock(); ON_SCOPE_EXIT{ Connection.OutputLock->Unlock(); };
 		return Connection.EvaluateImpl(*this);
 	}
-}
+
+
+	void FContextCache::Serialize(FArchive& Ar)
+	{
+
+		if (Ar.IsSaving())
+		{
+
+			const int64 NumElementsSavedPosition = Ar.Tell();
+			int64 NumElementsWritten = 0;
+			Ar << NumElementsWritten;
+
+			for (TPair<FContextCacheKey, TUniquePtr<FContextCacheElementBase>>& Elem : Pairs)
+			{
+				if (Elem.Value && Elem.Value->Property)
+				{
+					FProperty* Property = (FProperty*)Elem.Value->Property;
+					FName TypeName(Elem.Value->Property->GetCPPType());
+					FGuid NodeGuid = Elem.Value->NodeGuid;
+					uint32 NodeHash = Elem.Value->NodeHash;
+
+					if (FContextCachingFactory::GetInstance()->Contains(TypeName))
+					{
+						Ar << TypeName << Elem.Key << NodeGuid << NodeHash << Elem.Value->Timestamp;
+
+						DATAFLOW_OPTIONAL_BLOCK_WRITE_BEGIN()
+						{
+							FContextCachingFactory::GetInstance()->Serialize(Ar, {TypeName, NodeGuid, Elem.Value.Get(), NodeHash, Elem.Value->Timestamp});
+						}
+						DATAFLOW_OPTIONAL_BLOCK_WRITE_END();
+
+						NumElementsWritten++;
+					}
+				}
+			}
+
+
+			if (NumElementsWritten)
+			{
+				const int64 FinalPosition = Ar.Tell();
+				Ar.Seek(NumElementsSavedPosition);
+				Ar << NumElementsWritten;
+				Ar.Seek(FinalPosition);
+			}
+		}
+		else if (Ar.IsLoading())
+		{
+			int64 NumElementsWritten = 0;
+			Ar << NumElementsWritten;
+			for (int i = NumElementsWritten; i > 0; i--)
+			{
+				FName TypeName;
+				FGuid NodeGuid;
+				uint32 NodeHash;
+				FContextCacheKey InKey;
+				FTimestamp Timestamp = FTimestamp::Invalid;
+
+				Ar << TypeName << InKey << NodeGuid << NodeHash << Timestamp;
+
+				DATAFLOW_OPTIONAL_BLOCK_READ_BEGIN(FContextCachingFactory::GetInstance()->Contains(TypeName))
+				{
+					FContextCacheElementBase* NewElement = FContextCachingFactory::GetInstance()->Serialize(Ar, { TypeName, NodeGuid, nullptr, NodeHash, Timestamp });
+					check(NewElement);
+					NewElement->NodeGuid = NodeGuid;
+					NewElement->NodeHash = NodeHash;
+					NewElement->Timestamp = Timestamp;
+					this->Add(InKey, TUniquePtr<FContextCacheElementBase>(NewElement));
+				}
+				DATAFLOW_OPTIONAL_BLOCK_READ_ELSE()
+				{
+				}
+				DATAFLOW_OPTIONAL_BLOCK_READ_END();
+			}
+		}
+	}
+};
 

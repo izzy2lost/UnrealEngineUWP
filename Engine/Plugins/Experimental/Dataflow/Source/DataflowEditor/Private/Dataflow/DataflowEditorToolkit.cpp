@@ -393,7 +393,7 @@ void FDataflowEditorToolkit::GetSaveableObjects(TArray<UObject*>& OutObjects) co
 
 	if (ensure(GetDataflowContent()))
 	{
-		if (UDataflow* DataflowAsset = GetDataflowContent()->DataflowAsset)
+		if (UDataflow* DataflowAsset = GetDataflowContent()->GetDataflowAsset())
 		{
 			check(DataflowAsset->IsAsset());
 			OutObjects.Add(DataflowAsset);
@@ -589,7 +589,7 @@ void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewS
 	// Despite this function's name, we might not have actually changed which node is selected
 	bool bPrimarySelectionChanged = false;
 
-	if (TObjectPtr<UDataflowBaseContent> EditorContent = GetDataflowContent(); EditorContent->DataflowAsset)
+	if (TObjectPtr<UDataflowBaseContent> EditorContent = GetDataflowContent(); EditorContent->GetDataflowAsset())
 	{
 		// Only keep UDataflowEdNode from NewSelection
 		TSet<UObject*> NodeSelection = FindDataflowNodesInSet(InNewSelection);

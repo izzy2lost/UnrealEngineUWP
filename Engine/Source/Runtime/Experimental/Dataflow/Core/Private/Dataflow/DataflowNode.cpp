@@ -7,6 +7,7 @@
 #include "Dataflow/DataflowArchive.h"
 #include "Serialization/ObjectWriter.h"
 #include "Serialization/ObjectReader.h"
+#include "Templates/TypeHash.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DataflowNode)
 
@@ -129,6 +130,20 @@ void FDataflowNode::AddOutput(FDataflowOutput* InPtr)
 	}
 }
 
+FDataflowOutput* FDataflowNode::FindOutput(uint32 InGuidHash)
+{
+	for (TPair<uint32, FDataflowOutput*> Elem : Outputs)
+	{
+		FDataflowOutput* Con = Elem.Value;
+		if (GetTypeHash(Con->GetGuid()) == InGuidHash)
+		{
+			return (FDataflowOutput*)Con;
+		}
+	}
+	return nullptr;
+}
+
+
 FDataflowOutput* FDataflowNode::FindOutput(FName InName)
 {
 	for (TPair<uint32, FDataflowOutput*> Elem : Outputs)
@@ -148,6 +163,19 @@ const FDataflowOutput* FDataflowNode::FindOutput(FName InName) const
 	{
 		FDataflowOutput* Con = Elem.Value;
 		if (Con->GetName().IsEqual(InName))
+		{
+			return (FDataflowOutput*)Con;
+		}
+	}
+	return nullptr;
+}
+
+const FDataflowOutput* FDataflowNode::FindOutput(uint32 InGuidHash) const
+{
+	for (TPair<uint32, FDataflowOutput*> Elem : Outputs)
+	{
+		FDataflowOutput* Con = Elem.Value;
+		if (GetTypeHash(Con->GetGuid()) == InGuidHash)
 		{
 			return (FDataflowOutput*)Con;
 		}
@@ -446,6 +474,41 @@ void FDataflowNode::RegisterOutputConnection(const void* InProperty, const void*
 			}
 		}
 	}
+}
+
+
+uint32 FDataflowNode::GetValueHash()
+{
+	//UE_LOG(LogChaos, Warning, TEXT("%s"), *GetName().ToString())
+
+	uint32 Hash = 0;
+	if (const TUniquePtr<FStructOnScope> ScriptOnStruct = TUniquePtr<FStructOnScope>(NewStructOnScope()))
+	{
+		if (const UStruct* const Struct = ScriptOnStruct->GetStruct())
+		{
+			for (FPropertyValueIterator PropertyIt(FProperty::StaticClass(), Struct, this); PropertyIt; ++PropertyIt)
+			{
+				if (const FProperty* const Property = PropertyIt.Key())
+				{
+					if (Property->PropertyFlags & CPF_HasGetValueTypeHash)
+					{
+						// uint32 CrcHash = FCrc::MemCrc32(PropertyIt.Value(), Property->ElementSize);
+						// UE_LOG(LogChaos, Warning, TEXT("( %lu \t%s"), (unsigned long)CrcHash, *Property->GetName())
+
+						if ( Property->PropertyFlags & CPF_TObjectPtr )
+						{
+							// @todo(dataflow) : Do something about TObjectPtr<T>
+						}
+						else
+						{
+							Hash = HashCombine(Hash, Property->GetValueTypeHash(PropertyIt.Value()));
+						}
+					}
+				}
+			}
+		}
+	}
+	return Hash;
 }
 
 bool FDataflowNode::ValidateConnections()

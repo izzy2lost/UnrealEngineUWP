@@ -9,6 +9,7 @@
 
 class UDataflow;
 class UObject;
+class FArchive;
 
 namespace Dataflow
 {
@@ -28,6 +29,13 @@ namespace Dataflow
 		TObjectPtr<UDataflow> Graph = nullptr;
 
 		~TEngineContext(){}
+
+		int32 GetKeys(TSet<FContextCacheKey>& InKeys) { return Base::GetKeys(InKeys); }
+
+		TUniquePtr<FContextCacheElementBase>* GetBaseData(FContextCacheKey Key) { return Base::GetDataImpl(Key); }
+
+		virtual void Serialize(FArchive& Ar) { Base::Serialize(Ar); }
+
 	};
 
 	typedef TEngineContext<FContextSingle> FEngineContext;

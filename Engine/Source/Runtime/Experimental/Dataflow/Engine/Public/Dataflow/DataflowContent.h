@@ -85,33 +85,26 @@ class DATAFLOWENGINE_API UDataflowBaseContent : public UDataflowContextObject
 public:
 	UDataflowBaseContent();
 
-	/** Data flow asset that we will edit */
-	UPROPERTY(EditAnywhere, Category = "Dataflow")
-	TObjectPtr<UDataflow> DataflowAsset = nullptr;
-
-	/** Data flow terminal path for evaluation */
-	UPROPERTY(EditAnywhere, Category = "Dataflow")
-	FString DataflowTerminal = "";
-	
 	/** 
 	*	Dirty - State Invalidation
 	*   Check if non-graph specific data has been changed, this usually requires a re-render 
 	*/
 	bool IsDirty() const { return bIsDirty; }
-	void SetIsDirty(bool InDirty) { bIsDirty = InDirty; }
+	void SetIsDirty(bool InDirty);
 
 	/** 
 	*	LastModifiedTimestamp - State Invalidation 
 	*   Dataflow timestamp accessors can be used to see if the EvaluationContext has been invalidated. 
 	*/
-	void SetLastModifiedTimestamp(Dataflow::FTimestamp InTimestamp);
+	void SetLastModifiedTimestamp(Dataflow::FTimestamp InTimestamp, bool bMakeDirty =true);
 	const Dataflow::FTimestamp& GetLastModifiedTimestamp() const { return LastModifiedTimestamp; }
 
 	/**  
 	*	Context - Dataflow Evaluation State
 	*   Dataflow context stores the evaluated state of the graph. 
 	*/
-	void SetDataflowContext(const TSharedPtr<Dataflow::FEngineContext>& InContext) { DataflowContext = InContext; bIsDirty = true; }
+	void SetDataflowContext(const TSharedPtr<Dataflow::FEngineContext>& InContext);
+	TSharedPtr<Dataflow::FEngineContext>& GetDataflowContext() { return DataflowContext; }
 	const TSharedPtr<Dataflow::FEngineContext>& GetDataflowContext() const { return DataflowContext; }
 
 	/** Return the simulation time range to be used in the simulation viewport */
@@ -124,34 +117,48 @@ public:
 	virtual void UnregisterWorldContent(FPreviewScene* PreviewScene) {}
 
 	/** Build the content context, timestamp*/
-	void BuildBaseContent(TObjectPtr<UObject> ContentOwner);
+	void BuildBaseContent(TObjectPtr<UObject> InDataflowOwner);
 
 	/** Collect reference objects for GC */
 	virtual void AddContentObjects(FReferenceCollector& Collector) {}
 	
 	/** Data flow owner accessors */
-	void SetDataflowOwner(const TObjectPtr<UObject>& InOwner) { if(DataflowContext) { DataflowContext->Owner = InOwner;  bIsDirty = true; }}
-	TObjectPtr<UObject> GetDataflowOwner() const { return DataflowContext ? DataflowContext->Owner : nullptr; }
-
+	void SetDataflowOwner(const TObjectPtr<UObject>& InOwner);
+	TObjectPtr<UObject> GetDataflowOwner() const;
+	
 	/** Data flow asset accessors */
-	void SetDataflowAsset(const TObjectPtr<UDataflow>& InAsset) { DataflowAsset = InAsset;  bIsDirty = true;}
+	void SetDataflowAsset(const TObjectPtr<UDataflow>& InAsset) { DataflowAsset = InAsset;  SetIsDirty(true);}
 	const TObjectPtr<UDataflow>& GetDataflowAsset() const { return DataflowAsset; }
 
 	/** Data flow terminal accessors */
-	void SetDataflowTerminal(const FString& InPath) { DataflowTerminal = InPath;  bIsDirty = true;}
+	void SetDataflowTerminal(const FString& InPath) { DataflowTerminal = InPath;  SetIsDirty(true);}
 	const FString& GetDataflowTerminal() const { return DataflowTerminal; }
 
-	
-protected :
-	
+	virtual void Serialize(FArchive& Ar);
+
+protected:
+
+	/** Data flow asset that we will edit */
+	UPROPERTY(EditAnywhere, Category = "Dataflow")
+	TObjectPtr<UObject> DataflowOwner = nullptr;
+
+	/** Data flow asset that we will edit */
+	UPROPERTY(EditAnywhere, Category = "Dataflow")
+	TObjectPtr<UDataflow> DataflowAsset = nullptr;
+
+	/** Data flow terminal path for evaluation */
+	UPROPERTY(EditAnywhere, Category = "Dataflow")
+	FString DataflowTerminal = "";
+
 	/**  Engine context to be used for dataflow evaluation */
     TSharedPtr<Dataflow::FEngineContext> DataflowContext = nullptr;
 
     /** Last data flow evaluated node time stamp */
-    Dataflow::FTimestamp LastModifiedTimestamp = Dataflow::FTimestamp::Invalid;
+	Dataflow::FTimestamp LastModifiedTimestamp = Dataflow::FTimestamp::Invalid;
 
     /** Dirty flag to trigger rendering. Do we need that? since when accessing the member by non const ref we will not dirty it */
-    bool bIsDirty = true;
+	UPROPERTY()
+	bool bIsDirty = true;
 };
 
 /** 
@@ -165,18 +172,6 @@ class DATAFLOWENGINE_API UDataflowSkeletalContent : public UDataflowBaseContent
 public:
 	UDataflowSkeletalContent();
 	virtual ~UDataflowSkeletalContent() override{}
-
-	/** Data flow skeletal mesh*/
-	UPROPERTY(EditAnywhere, Category = "Preview")
-	TObjectPtr<USkeletalMesh> SkeletalMesh = nullptr;
-
-	/** Animation asset to be used to preview simulation */
-	UPROPERTY(EditAnywhere, Category = "Preview")
-	TObjectPtr<UAnimationAsset> AnimationAsset;
-
-	/** Data flow skeleton */
-	UPROPERTY(EditAnywhere, Category = "Skeleton")
-	TObjectPtr<USkeleton> Skeleton = nullptr;
 
 	/** Return the simulation time range to be used in the simulation viewport */
 	virtual FVector2f GetSimulationRange() const override; 
@@ -212,12 +207,26 @@ public:
 	/** Data flow animation asset accessors */
 	void SetAnimationAsset(const TObjectPtr<UAnimationAsset>& InAnimation);
 	const TObjectPtr<UAnimationAsset>& GetAnimationAsset() const { return AnimationAsset; }
-	
-protected :
-	
+
+protected:
+
+	/** Data flow skeletal mesh*/
+	UPROPERTY(EditAnywhere, Category = "Preview", Transient, SkipSerialization)
+	TObjectPtr<USkeletalMesh> SkeletalMesh = nullptr;
+
+	/** Animation asset to be used to preview simulation */
+	UPROPERTY(EditAnywhere, Category = "Preview", Transient, SkipSerialization)
+	TObjectPtr<UAnimationAsset> AnimationAsset;
+
+	/** Data flow skeleton */
+	UPROPERTY(EditAnywhere, Category = "Skeleton", Transient, SkipSerialization)
+	TObjectPtr<USkeleton> Skeleton = nullptr;
+
 	/** Skeletal mesh component used in the preview scene */
+	UPROPERTY(Transient, SkipSerialization)
 	TObjectPtr<USkeletalMeshComponent> SkeletalMeshComponent;
 
 	/** Anim node instance used with skelmesh component */
+	UPROPERTY(Transient, SkipSerialization)
 	TObjectPtr<UAnimSingleNodeInstance> AnimationNodeInstance;
 };

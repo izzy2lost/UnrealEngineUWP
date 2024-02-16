@@ -7,6 +7,7 @@
 #include "UObject/UnrealType.h"
 #include "Templates/UniquePtr.h"
 #include "GenericPlatform/GenericPlatformCriticalSection.h"
+#include "Serialization/Archive.h"
 
 class  UDataflow;
 struct FDataflowNode;
@@ -44,8 +45,10 @@ namespace Dataflow
 
 	struct FContextCacheElementBase 
 	{
-		FContextCacheElementBase(const FProperty* InProperty = nullptr, FTimestamp InTimestamp = FTimestamp::Invalid)
-			: Property(InProperty)
+		FContextCacheElementBase(FGuid InNodeGuid = FGuid(), const FProperty* InProperty = nullptr, uint32 InNodeHash = 0, FTimestamp InTimestamp = FTimestamp::Invalid)
+			: NodeGuid(InNodeGuid)
+			, Property(InProperty)
+			, NodeHash(InNodeHash)
 			, Timestamp(InTimestamp)
 		{}
 		virtual ~FContextCacheElementBase() {}
@@ -53,15 +56,17 @@ namespace Dataflow
 		template<typename T>
 		const T& GetTypedData(const FProperty* PropertyIn) const;
 		
+		FGuid NodeGuid;
 		const FProperty* Property = nullptr;
+		uint32 NodeHash = 0;
 		FTimestamp Timestamp = FTimestamp::Invalid;
 	};
 
 	template<class T>
 	struct FContextCacheElement : public FContextCacheElementBase 
 	{
-		FContextCacheElement(const FProperty* InProperty, T&& InData, FTimestamp Timestamp)
-			: FContextCacheElementBase(InProperty, Timestamp)
+		FContextCacheElement(FGuid InNodeGuid, const FProperty* InProperty, T&& InData, uint32 InNodeHash, FTimestamp Timestamp)
+			: FContextCacheElementBase(InNodeGuid, InProperty, InNodeHash, Timestamp)
 			, Data(Forward<T>(InData))
 		{}
 		
@@ -70,18 +75,38 @@ namespace Dataflow
 	};
 
 	template<class T>
-	const T& FContextCacheElementBase::GetTypedData(const FProperty* PropertyIn) const
+	const T& FContextCacheElementBase::GetTypedData(const FProperty* InProperty) const
 	{
-		check(PropertyIn);
-		// check(PropertyIn->IsA<T>()); // @todo(dataflow) compile error for non-class T; find alternatives
-		check(Property->SameType(PropertyIn));
+		check(InProperty);
+		check(Property->SameType(InProperty));
 		return static_cast<const FContextCacheElement<T>&>(*this).Data;
 	}
 
-	struct FContextCache : public TMap<int64, TUniquePtr<FContextCacheElementBase>>
+	typedef uint32 FContextCacheKey;
+	
+
+	struct FContextCache : public TMap<FContextCacheKey, TUniquePtr<FContextCacheElementBase>>
 	{
-		// @todo(dataflow) make an API for FContextCache
+		DATAFLOWCORE_API void Serialize(FArchive& Ar);
 	};
+};
+
+inline FArchive& operator<<(FArchive& Ar, Dataflow::FTimestamp& ValueIn)
+{
+	Ar << ValueIn.Value;
+	Ar << ValueIn.Invalid;
+	return Ar;
+}
+
+inline FArchive& operator<<(FArchive& Ar, Dataflow::FContextCache& ValueIn)
+{
+	ValueIn.Serialize(Ar);
+	return Ar;
+}
+
+
+namespace Dataflow
+{
 
 	class FContext
 	{
@@ -92,6 +117,7 @@ namespace Dataflow
 		FContext(const FContext&) = delete;
 		FContext& operator=(const FContext&) = delete;
 
+		FContextCache DataStore;
 
 	public:
 		FContext(FTimestamp InTimestamp)
@@ -108,6 +134,8 @@ namespace Dataflow
 
 		virtual FName GetType() const { return FContext::StaticType(); }
 
+		virtual int32 GetKeys(TSet<FContextCacheKey>& InKeys) { return DataStore.GetKeys(InKeys); }
+
 		template<class T>
 		const T* AsType() const
 		{
@@ -118,36 +146,35 @@ namespace Dataflow
 			return nullptr;
 		}
 
-		virtual void SetDataImpl(int64 Key, TUniquePtr<FContextCacheElementBase>&& DataStoreEntry) = 0;
+		virtual void SetDataImpl(FContextCacheKey Key, TUniquePtr<FContextCacheElementBase>&& DataStoreEntry) = 0;
 		
 		template<typename T>
-		void SetData(size_t Key, const FProperty* Property, T&& Value)
+		void SetData(FContextCacheKey Key, FContextCacheElementBase&& Data, T&& Value)
 		{
-			int64 IntKey = (int64)Key;
-			TUniquePtr<FContextCacheElement<T>> DataStoreEntry = MakeUnique<FContextCacheElement<T>>(Property, Forward<T>(Value), FTimestamp::Current());
+			FContextCacheKey IntKey = (FContextCacheKey)Key;
+			TUniquePtr<FContextCacheElement<T>> DataStoreEntry = MakeUnique<FContextCacheElement<T>>(Data.NodeGuid, Data.Property, Forward<T>(Value), Data.NodeHash, Data.Timestamp);
 
 			SetDataImpl(IntKey, MoveTemp(DataStoreEntry));
 		}
 
-		
-		virtual TUniquePtr<FContextCacheElementBase>* GetDataImpl(int64 Key) = 0;
+		virtual TUniquePtr<FContextCacheElementBase>* GetDataImpl(FContextCacheKey Key) = 0;
 
 		template<class T>
-		const T& GetData(size_t Key, const FProperty* Property, const T& Default = T())
+		const T& GetData(FContextCacheKey Key, const FProperty* InProperty, const T& Default = T())
 		{
 			if (TUniquePtr<FContextCacheElementBase>* Cache = GetDataImpl(Key))
 			{
-				return (*Cache)->GetTypedData<T>(Property);
+				return (*Cache)->GetTypedData<T>(InProperty);
 			}
 			return Default;
 		}
 
 		
-		virtual bool HasDataImpl(int64 Key, FTimestamp InTimestamp = FTimestamp::Invalid) = 0;
+		virtual bool HasDataImpl(FContextCacheKey Key, FTimestamp InTimestamp = FTimestamp::Invalid) = 0;
 		
-		bool HasData(size_t Key, FTimestamp InTimestamp = FTimestamp::Invalid)
+		bool HasData(FContextCacheKey Key, FTimestamp InTimestamp = FTimestamp::Invalid)
 		{
-			int64 IntKey = (int64)Key;
+			FContextCacheKey IntKey = (FContextCacheKey)Key;
 			return HasDataImpl(Key, InTimestamp);
 		}
 
@@ -158,6 +185,12 @@ namespace Dataflow
 			return IsEmptyImpl();
 		}
 
+		virtual void Serialize(FArchive& Ar)
+		{
+			Ar << Timestamp;
+			Ar << DataStore;
+		}
+
 
 		FTimestamp GetTimestamp() const { return Timestamp; }
 		virtual void Evaluate(const FDataflowNode* Node, const FDataflowOutput* Output) = 0;
@@ -166,6 +199,7 @@ namespace Dataflow
 		DATAFLOWCORE_API void PushToCallstack(const FDataflowConnection* Connection);
 		DATAFLOWCORE_API void PopFromCallstack(const FDataflowConnection* Connection);
 		DATAFLOWCORE_API bool IsInCallstack(const FDataflowConnection* Connection) const;
+
 
 	private:
 #if DATAFLOW_EDITOR_EVALUATION
@@ -195,7 +229,6 @@ namespace Dataflow
 
 	class FContextSingle : public FContext
 	{
-		FContextCache DataStore;
 
 	public:
 		DATAFLOW_CONTEXT_INTERNAL(FContext, FContextSingle);
@@ -204,17 +237,17 @@ namespace Dataflow
 			: FContext(InTime)
 		{}
 
-		virtual void SetDataImpl(int64 Key, TUniquePtr<FContextCacheElementBase>&& DataStoreEntry) override
+		virtual void SetDataImpl(FContextCacheKey Key, TUniquePtr<FContextCacheElementBase>&& DataStoreEntry) override
 		{
 			DataStore.Emplace(Key, MoveTemp(DataStoreEntry));
 		}
 
-		virtual TUniquePtr<FContextCacheElementBase>* GetDataImpl(int64 Key) override
+		virtual TUniquePtr<FContextCacheElementBase>* GetDataImpl(FContextCacheKey Key) override
 		{
 			return DataStore.Find(Key);
 		}
 
-		virtual bool HasDataImpl(int64 Key, FTimestamp InTimestamp = FTimestamp::Invalid) override
+		virtual bool HasDataImpl(FContextCacheKey Key, FTimestamp InTimestamp = FTimestamp::Invalid) override
 		{
 			return DataStore.Contains(Key) && DataStore[Key]->Timestamp >= InTimestamp;
 		}
@@ -226,11 +259,11 @@ namespace Dataflow
 
 		DATAFLOWCORE_API virtual void Evaluate(const FDataflowNode* Node, const FDataflowOutput* Output) override;
 		DATAFLOWCORE_API virtual bool Evaluate(const FDataflowOutput& Connection) override;
+
 	};
 	
 	class FContextThreaded : public FContext
 	{
-		FContextCache DataStore;
 		TSharedPtr<FCriticalSection> CacheLock;
 
 	public:
@@ -243,21 +276,21 @@ namespace Dataflow
 			CacheLock = MakeShared<FCriticalSection>();
 		}
 
-		virtual void SetDataImpl(int64 Key, TUniquePtr<FContextCacheElementBase>&& DataStoreEntry) override
+		virtual void SetDataImpl(FContextCacheKey Key, TUniquePtr<FContextCacheElementBase>&& DataStoreEntry) override
 		{
 			CacheLock->Lock(); ON_SCOPE_EXIT { CacheLock->Unlock(); };
 			
 			DataStore.Emplace(Key, MoveTemp(DataStoreEntry));
 		}
 
-		virtual TUniquePtr<FContextCacheElementBase>* GetDataImpl(int64 Key) override
+		virtual TUniquePtr<FContextCacheElementBase>* GetDataImpl(FContextCacheKey Key) override
 		{
 			CacheLock->Lock(); ON_SCOPE_EXIT { CacheLock->Unlock(); };
 			
 			return DataStore.Find(Key);
 		}
 
-		virtual bool HasDataImpl(int64 Key, FTimestamp InTimestamp = FTimestamp::Invalid) override
+		virtual bool HasDataImpl(FContextCacheKey Key, FTimestamp InTimestamp = FTimestamp::Invalid) override
 		{
 			CacheLock->Lock(); ON_SCOPE_EXIT { CacheLock->Unlock(); };
 			
@@ -271,6 +304,7 @@ namespace Dataflow
 
 		DATAFLOWCORE_API virtual void Evaluate(const FDataflowNode* Node, const FDataflowOutput* Output) override;
 		DATAFLOWCORE_API virtual bool Evaluate(const FDataflowOutput& Connection) override;
+
 	};
 
 }

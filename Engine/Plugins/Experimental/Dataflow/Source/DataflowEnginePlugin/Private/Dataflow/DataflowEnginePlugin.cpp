@@ -4,8 +4,9 @@
 
 #include "CoreMinimal.h"
 #include "Modules/ModuleManager.h"
-#include "Dataflow/DataflowRenderingFactory.h"
+#include "Dataflow/DataflowEngineContextCaching.h"
 #include "Dataflow/DataflowEngineRendering.h"
+#include "Dataflow/DataflowRenderingFactory.h"
 #include "GeometryCollection/GeometryCollectionUtility.h"
 #include "GeometryCollection/Facades/CollectionRenderingFacade.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
@@ -31,6 +32,7 @@ IMPLEMENT_MODULE( FDataflowEnginePlugin, DataflowEnginePlugin)
 void FDataflowEnginePlugin::StartupModule()
 {
 	Dataflow::RenderingCallbacks();
+	Dataflow::ContextCachingCallbacks();
 }
 
 

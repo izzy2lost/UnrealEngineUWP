@@ -3,6 +3,7 @@
 #include "Dataflow/DataflowEditor.h"
 
 #include "Animation/Skeleton.h"
+#include "Dataflow/AssetDefinition_DataflowContext.h"
 #include "Dataflow/DataflowContent.h"
 #include "Dataflow/DataflowEditorToolkit.h"
 #include "Dataflow/DataflowEditorUtil.h"
@@ -36,8 +37,8 @@ void UDataflowEditor::InitializeContent(TObjectPtr<UDataflowBaseContent> BaseCon
 	{
 		if(UDataflow* DataflowAsset = Cast<UDataflow>(ContentOwner))
 		{
-			DataflowContent = NewObject<UDataflowBaseContent>();
-			
+			DataflowContent = DataflowContextDefinitionHelpers::CreateNewDataflowContext<UDataflowBaseContent>(ContentOwner);
+
 			DataflowContent->SetDataflowAsset(DataflowAsset);
 			DataflowContent->SetDataflowTerminal(FString());
 		}
@@ -47,7 +48,7 @@ void UDataflowEditor::InitializeContent(TObjectPtr<UDataflowBaseContent> BaseCon
 			{
 				if(Private::HasSkeletalMesh(ContentOwner))
 				{
-					DataflowContent = NewObject<UDataflowSkeletalContent>();
+					DataflowContent = DataflowContextDefinitionHelpers::CreateNewDataflowContext<UDataflowSkeletalContent>(ContentOwner);
 					const TObjectPtr<UDataflowSkeletalContent> SkeletalContent = Cast<UDataflowSkeletalContent>(DataflowContent);
 					
 					SkeletalContent->SetSkeletalMesh(Private::GetSkeletalMeshFrom(ContentOwner));
@@ -56,7 +57,7 @@ void UDataflowEditor::InitializeContent(TObjectPtr<UDataflowBaseContent> BaseCon
 				}
 				else
 				{
-					DataflowContent = NewObject<UDataflowBaseContent>();
+					DataflowContent = DataflowContextDefinitionHelpers::CreateNewDataflowContext<UDataflowBaseContent>(ContentOwner);
 				}
 				DataflowContent->SetDataflowAsset(Private::GetDataflowAssetFrom(ContentOwner));
 				DataflowContent->SetDataflowTerminal(Private::GetDataflowTerminalFrom(ContentOwner));
@@ -89,10 +90,6 @@ void UDataflowEditor::InitializeContent(TObjectPtr<UDataflowBaseContent> BaseCon
 	if(DataflowContent && DataflowContent->GetDataflowAsset())
 	{
 		DataflowContent->GetDataflowAsset()->Schema = UDataflowSchema::StaticClass();
-		DataflowContent->BuildBaseContent(ContentOwner);
-		
-		// the owner is either a base content derived class or the dataflow itself
-		DataflowContent->SetDataflowOwner(ContentOwner);
 	}
 	
 	// Potentially we could add additional objects to edit here (fields, meshes....)

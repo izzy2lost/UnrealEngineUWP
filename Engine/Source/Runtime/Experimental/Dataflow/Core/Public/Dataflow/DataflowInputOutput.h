@@ -130,7 +130,7 @@ public:
 	{
 		if (Property)
 		{
-			Context.SetData(CacheKey(), Property, Forward<T>(InVal));
+			Context.SetData(CacheKey(), { OwningNode->GetGuid(), Property, OwningNode->GetValueHash(), Dataflow::FTimestamp::Current() }, Forward<T>(InVal));
 		}
 	}
 
@@ -138,7 +138,7 @@ public:
 	{
 		if (!this->Evaluate<T>(Context))
 		{
-			Context.SetData(CacheKey(), Property, Default);
+			Context.SetData(CacheKey(), { OwningNode->GetGuid(), Property, OwningNode->GetValueHash(), Dataflow::FTimestamp::Current() }, Default);
 		}
 
 		if (Context.HasData(CacheKey()))
@@ -171,7 +171,7 @@ const T& FDataflowInput::GetValue(Dataflow::FContext& Context, const T& Default)
 		{
 			if (!ConnectionOut->Evaluate<T>(Context))
 			{
-				Context.SetData(ConnectionOut->CacheKey(), Property, Default);
+				Context.SetData(ConnectionOut->CacheKey(), { OwningNode->GetGuid(), Property, OwningNode->GetValueHash(), Dataflow::FTimestamp::Current() }, Default);
 			}
 			if (Context.HasData(ConnectionOut->CacheKey()))
 			{
