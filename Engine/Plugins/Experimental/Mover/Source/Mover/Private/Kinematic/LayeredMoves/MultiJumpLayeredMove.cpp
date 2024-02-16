@@ -71,7 +71,7 @@ bool FLayeredMove_MultiJump::GenerateMove(const FMoverTickStartData& StartState,
 	}
 
 	// if we hit a valid floor and it's not the start of the move (since we could start this move on the ground) end this move
-	if (bValidBlackboard && FloorHitResult.IsWalkableFloor() && StartSimTimeMs < TimeStep.BaseSimTimeMs)
+	if ((bValidBlackboard && FloorHitResult.IsWalkableFloor() && StartSimTimeMs < TimeStep.BaseSimTimeMs) || JumpsInAirRemaining <= 0)
 	{
 		DurationMs = 0;
 	}

@@ -278,6 +278,30 @@ public:	// Queries
 	UFUNCTION(BlueprintPure, Category = Mover,  meta=(DeterminesOutputType="MovementMode"))
 	UBaseMovementMode* FindMovementMode(TSubclassOf<UBaseMovementMode> MovementMode) const;
 
+	/**
+	 * Retrieves an active layered move, by writing to a target instance if it is the matching type. Note: Writing to the struct returned will not modify the active struct.
+	 * @param DidSucceed			Flag indicating whether data was actually written to target struct instance
+	 * @param TargetAsRawBytes		The data struct instance to write to, which must be a FLayeredMoveBase sub-type
+	 */
+	UFUNCTION(BlueprintCallable, CustomThunk, Category = Mover, meta = (CustomStructureParam = "TargetAsRawBytes", AllowAbstract = "false", DisplayName = "Find Active Layered Move"))
+	void K2_FindActiveLayeredMove(bool& DidSucceed, UPARAM(DisplayName = "Out Layered Move") int32& TargetAsRawBytes) const;
+	DECLARE_FUNCTION(execK2_FindActiveLayeredMove);
+
+	// Find an active layered move by type. Returns null if one wasn't found 
+	const FLayeredMoveBase* FindActiveLayeredMoveByType(const UScriptStruct* DataStructType) const;
+
+	/** Find a layered move of a specific type in this components active layered moves. If not found, null will be returned. */
+	template <typename T>
+	const T* FindActiveLayeredMoveByType() const
+	{
+		if (const FLayeredMoveBase* FoundData = FindActiveLayeredMoveByType(T::StaticStruct()))
+		{
+			return static_cast<const T*>(FoundData);
+		}
+
+		return nullptr;
+	}
+	
 protected:
 
 	/** Makes this component and owner actor reflect the state of a particular frame snapshot. This occurs after simulation ticking, as well as during a rollback before we resimulate forward.

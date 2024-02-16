@@ -44,10 +44,10 @@ struct MOVER_API FLayeredMove_MultiJump : public FLayeredMoveBase
 	virtual void AddReferencedObjects(class FReferenceCollector& Collector) override;
 
 protected:
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Jumping")
 	int32 JumpsInAirRemaining;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Jumping")
 	float TimeOfLastJumpMS;
 
 	bool PerformJump(const FMoverDefaultSyncState* SyncState, const FMoverTimeStep& TimeStep, const UMoverComponent* MoverComp, FProposedMove& OutProposedMove);
