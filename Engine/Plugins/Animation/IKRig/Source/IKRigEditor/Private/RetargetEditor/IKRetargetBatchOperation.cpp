@@ -450,11 +450,6 @@ void UIKRetargetBatchOperation::ConvertAnimation(
 			// store key data for each bone
 			for (int32 TargetBoneIndex=0; TargetBoneIndex<NumTargetBones; ++TargetBoneIndex)
 			{
-				if (Context.bExportOnlyAnimatedBones && !Processor->IsBoneRetargeted(TargetBoneNames[TargetBoneIndex], ERetargetSourceOrTarget::Target))
-				{
-					continue;
-				}
-				
 				const FTransform& LocalPose = TargetLocalPose[TargetBoneIndex];
 				
 				FRawAnimSequenceTrack& BoneTrack = BoneTracks[TargetBoneIndex];
@@ -470,11 +465,6 @@ void UIKRetargetBatchOperation::ConvertAnimation(
 		for (int32 TargetBoneIndex=0; TargetBoneIndex<NumTargetBones; ++TargetBoneIndex)
 		{
 			const FName& TargetBoneName = TargetBoneNames[TargetBoneIndex];
-
-			if (Context.bExportOnlyAnimatedBones && !Processor->IsBoneRetargeted(TargetBoneName, ERetargetSourceOrTarget::Target))
-			{
-				continue;
-			}
 
 			const FRawAnimSequenceTrack& RawTrack = BoneTracks[TargetBoneIndex];
 			TargetSeqController.AddBoneCurve(TargetBoneName, bShouldTransact);

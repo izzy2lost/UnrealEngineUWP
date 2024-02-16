@@ -76,9 +76,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "File")
 	bool bIncludeReferencedAssets = true;
 
+	// TODO - Kiaran Feb 2024 - Naively leaving out non-retargeted keys results in flipped skeletons, needs work.
 	// Will not produce keys on bones that are not animated, reducing size on disk of the resulting files.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Animation")
-	bool bExportOnlyAnimatedBones = true;
+	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Animation")
+	//bool bExportOnlyAnimatedBones = true;
 
 	static UBatchExportOptions* GetInstance();
 
