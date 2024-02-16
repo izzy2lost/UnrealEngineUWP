@@ -17,7 +17,7 @@ namespace UE::AvaViewport::Private
 	constexpr float BoundingBoxLineThickness = 0.4f;
 }
 
-TSharedRef<IAvaViewportBoundingBoxVisualizerInterface> FAvaViewportBoundingBoxVisualizerProvider::CreateVisualizer()
+TSharedRef<IAvaViewportBoundingBoxVisualizer> FAvaViewportBoundingBoxVisualizerProvider::CreateVisualizer()
 {
 	return MakeShared<FAvaLevelViewportBoundingBoxVisualizer>();
 }

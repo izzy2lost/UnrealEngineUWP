@@ -8,9 +8,9 @@
 
 class FAvaViewportBackgroundVisualizer;
 class FAvaViewportChannelVisualizer;
-class FAvaViewportPostProcessVisualizer;
 class FSceneView;
 class IAvaViewportClient;
+class IAvaViewportPostProcessVisualizer;
 class UTexture;
 
 UENUM()
@@ -50,9 +50,9 @@ public:
 
 	TSharedPtr<IAvaViewportClient> GetAvaViewportClient() const { return AvaViewportClientWeak.Pin(); }
 
-	TSharedPtr<FAvaViewportPostProcessVisualizer> GetVisualizer(EAvaViewportPostProcessType InType) const;
+	TSharedPtr<IAvaViewportPostProcessVisualizer> GetVisualizer(EAvaViewportPostProcessType InType) const;
 
-	TSharedPtr<FAvaViewportPostProcessVisualizer> GetActiveVisualizer() const;
+	TSharedPtr<IAvaViewportPostProcessVisualizer> GetActiveVisualizer() const;
 
 	FAvaViewportPostProcessInfo* GetPostProcessInfo() const;
 
@@ -69,5 +69,5 @@ public:
 protected:
 	TWeakPtr<IAvaViewportClient> AvaViewportClientWeak;
 
-	TMap<EAvaViewportPostProcessType, TSharedPtr<FAvaViewportPostProcessVisualizer>> Visualizers;
+	TMap<EAvaViewportPostProcessType, TSharedPtr<IAvaViewportPostProcessVisualizer>> Visualizers;
 };

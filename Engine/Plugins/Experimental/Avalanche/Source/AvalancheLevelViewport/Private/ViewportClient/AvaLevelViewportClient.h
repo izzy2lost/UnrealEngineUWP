@@ -18,7 +18,7 @@ class FAvaSnapOperation;
 class FAvaViewportPostProcessManager;
 class FEditorViewportClient;
 class IAvaBoundsProviderInterface;
-class IAvaViewportBoundingBoxVisualizerInterface;
+class IAvaViewportBoundingBoxVisualizer;
 class IAvaViewportDataProvider;
 class IAvaViewportDataProxy;
 class SAvaLevelViewport;
@@ -57,7 +57,7 @@ public:
 	bool AreChildActorsLocked() const { return bLockChildActorsOnDrag; }
 	void SetChildActorsLocked(bool bInLockChildActors) { bLockChildActorsOnDrag = bInLockChildActors; }
 
-	TSharedRef<IAvaViewportBoundingBoxVisualizerInterface> GetBoundingBoxVisualizer() const { return BoundingBoxVisualizer.ToSharedRef(); }
+	TSharedRef<IAvaViewportBoundingBoxVisualizer> GetBoundingBoxVisualizer() const { return BoundingBoxVisualizer.ToSharedRef(); }
 
 	TSharedRef<FAvaIsolateActorsOperation> GetIsolateActorsOperation() const { return IsolateActorsOperation.ToSharedRef(); }
 
@@ -121,7 +121,7 @@ protected:
 
 	TSharedPtr<FAvaCameraZoomController> ZoomController;
 
-	TSharedPtr<IAvaViewportBoundingBoxVisualizerInterface> BoundingBoxVisualizer;
+	TSharedPtr<IAvaViewportBoundingBoxVisualizer> BoundingBoxVisualizer;
 
 	TWeakObjectPtr<UCameraComponent> ActiveCameraComponentWeak;
 

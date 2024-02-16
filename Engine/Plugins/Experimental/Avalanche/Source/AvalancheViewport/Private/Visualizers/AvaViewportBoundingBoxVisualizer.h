@@ -3,23 +3,23 @@
 #pragma once
 
 #include "AvaType.h"
-#include "Visualizers/IAvaViewportBoundingBoxVisualizerInterface.h"
+#include "Visualizers/IAvaViewportBoundingBoxVisualizer.h"
 
 class AActor;
 
-class FAvaLevelViewportBoundingBoxVisualizer : public IAvaViewportBoundingBoxVisualizerInterface
+class FAvaLevelViewportBoundingBoxVisualizer : public IAvaViewportBoundingBoxVisualizer
 {
 public:
-	UE_AVA_INHERITS(FAvaLevelViewportBoundingBoxVisualizer, IAvaViewportBoundingBoxVisualizerInterface)
+	UE_AVA_INHERITS(FAvaLevelViewportBoundingBoxVisualizer, IAvaViewportBoundingBoxVisualizer)
 
 	FAvaLevelViewportBoundingBoxVisualizer();
 	virtual ~FAvaLevelViewportBoundingBoxVisualizer() = default;
 
-	//~ Begin IAvaViewportBoundingBoxVisualizerInterface
+	//~ Begin IAvaViewportBoundingBoxVisualizer
 	virtual void Draw(UAvaSelectionProviderSubsystem& InSelectionProvider, UAvaBoundsProviderSubsystem& InBoundsProvider, FPrimitiveDrawInterface& InPDI) override;
 	virtual EAvaViewportBoundingBoxOptimizationState GetOptimizationState() const override { return OptimizationState; }
 	virtual void ResetOptimizationState() override;
-	//~ End IAvaViewportBoundingBoxVisualizerInterface
+	//~ End IAvaViewportBoundingBoxVisualizer
 
 protected:
 	EAvaViewportBoundingBoxOptimizationState OptimizationState;

@@ -7,7 +7,7 @@
 
 struct FAvaViewportPostProcessInfo;
 
-class AVALANCHEVIEWPORT_API FAvaViewportCheckerboardVisualizer : public FAvaViewportPostProcessVisualizer
+class FAvaViewportCheckerboardVisualizer : public FAvaViewportPostProcessVisualizer
 {
 public:
 	UE_AVA_INHERITS_WITH_SUPER(FAvaViewportCheckerboardVisualizer, FAvaViewportPostProcessVisualizer)

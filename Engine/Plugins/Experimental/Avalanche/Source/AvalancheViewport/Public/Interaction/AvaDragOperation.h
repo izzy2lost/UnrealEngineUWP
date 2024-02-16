@@ -12,19 +12,22 @@
 class FAvaSnapOperation;
 class IAvaViewportClient;
 
-class AVALANCHEVIEWPORT_API FAvaDragOperation
+class FAvaDragOperation
 {
 public:
-	FAvaDragOperation(TSharedRef<IAvaViewportClient> InAvaViewportClient, bool bInAllowSnapToChildren);
-	virtual ~FAvaDragOperation();
+	AVALANCHEVIEWPORT_API FAvaDragOperation(TSharedRef<IAvaViewportClient> InAvaViewportClient, bool bInAllowSnapToChildren);
+	AVALANCHEVIEWPORT_API virtual ~FAvaDragOperation();
 
 	/** Restore position of actors so they can be accurately dragged. */
-	void PreMouseUpdate();
+	AVALANCHEVIEWPORT_API void PreMouseUpdate();
 
 	/** Snap actors in their post-drag position. */
-	void PostMouseUpdate();
+	AVALANCHEVIEWPORT_API void PostMouseUpdate();
 
-	bool IsValid() const { return bValid; }
+	bool IsValid() const
+	{
+		return bValid;
+	}
 
 protected:
 	TWeakPtr<IAvaViewportClient> AvaViewportClientWeak;

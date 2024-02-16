@@ -9,23 +9,30 @@
 class IAvaViewportClient;
 struct FAvaVisibleArea;
 
-class AVALANCHEVIEWPORT_API FAvaCameraZoomController
+class FAvaCameraZoomController
 {
 public:
-	static bool IsCameraZoomPossible();
+	AVALANCHEVIEWPORT_API static bool IsCameraZoomPossible();
 
-	FAvaCameraZoomController(TSharedRef<IAvaViewportClient> InAvaViewportClient, float InFallbackFOV);
+	AVALANCHEVIEWPORT_API FAvaCameraZoomController(TSharedRef<IAvaViewportClient> InAvaViewportClient, float InFallbackFOV);
 
-	TSharedPtr<IAvaViewportClient> GetViewportClient() const { return AvaViewportClientWeak.Pin(); }
+	TSharedPtr<IAvaViewportClient> GetViewportClient() const
+	{
+		return AvaViewportClientWeak.Pin();
+	}
 
-	uint8 GetZoomLevel() const { return ZoomLevel; }
+	uint8 GetZoomLevel() const
+	{
+		return ZoomLevel;
+	}
+
 	void SetZoomLevel(uint8 InZoomLevel);
 	bool IsZoomed() const;
 
 	float GetFOVPerStep() const;
 
-	void ZoomIn();
-	void ZoomInCursor();
+	AVALANCHEVIEWPORT_API void ZoomIn();
+	AVALANCHEVIEWPORT_API void ZoomInCursor();
 
 	/* Zooms in maintaining the current PanOffsetFraction. Uses the absolute screen position. */
 	void ZoomInAroundPoint(const FVector2f& InScreenPosition);
@@ -33,8 +40,8 @@ public:
 	/* Zooms in maintaining the position of the given viewport position. Uses the absolute screen position. */
 	void ZoomInRelativePoint(const FVector2f& InViewportPosition);
 
-	void ZoomOut();
-	void ZoomOutCursor();
+	AVALANCHEVIEWPORT_API void ZoomOut();
+	AVALANCHEVIEWPORT_API void ZoomOutCursor();
 
 	/* Zooms out maintaining the current PanOffsetFraction. Uses the absolute screen position. */
 	void ZoomOutAroundPoint(const FVector2f& OutScreenPosition);
@@ -42,38 +49,50 @@ public:
 	/* Zooms out maintaining the position of the given viewport position. Uses the absolute screen position. */
 	void ZoomOutRelativePoint(const FVector2f& OutViewportPosition);
 
-	void PanLeft();
-	void PanRight();
-	void PanUp();
-	void PanDown();
+	AVALANCHEVIEWPORT_API void PanLeft();
+	AVALANCHEVIEWPORT_API void PanRight();
+	AVALANCHEVIEWPORT_API void PanUp();
+	AVALANCHEVIEWPORT_API void PanDown();
 
-	void FrameActor();
+	AVALANCHEVIEWPORT_API void FrameActor();
 
-	void Reset();
+	AVALANCHEVIEWPORT_API void Reset();
 
-	const FVector2f& GetPanOffsetFraction() const { return PanOffsetFraction; }
+	const FVector2f& GetPanOffsetFraction() const
+	{
+		return PanOffsetFraction;
+	}
+
 	void SetPanOffsetFraction(const FVector2f& InOffsetFraction);
 	void PanAdjust(const FVector2f& InDirection);
 
 	/** Adjusts zoom pan based on current zoom settings. */
-	void PanAdjustZoomed(const FVector2f& InZoomedDirection);
+	AVALANCHEVIEWPORT_API void PanAdjustZoomed(const FVector2f& InZoomedDirection);
 
 	void CenterOnPoint(const FVector2f& InPoint);
 	void CenterOnBox(const FBox& InBoundingBox, const FTransform& InBoxTransform);
 
-	bool IsPanning() const { return bIsPanning; }
-	void StartPanning();
-	void EndPanning();
+	bool IsPanning() const
+	{
+		return bIsPanning;
+	}
 
-	float GetFallbackFOV() const { return FallbackFOV; }
-	float GetDefaultFOV() const;
-	float GetFOV() const;
-	FVector2f GetCameraProjectionOffset() const;
+	AVALANCHEVIEWPORT_API void StartPanning();
+	AVALANCHEVIEWPORT_API void EndPanning();
 
-	const FAvaVisibleArea& GetCachedVisibleArea() const;
-	const FAvaVisibleArea& GetCachedZoomedVisibleArea() const;
+	float GetFallbackFOV() const
+	{
+		return FallbackFOV;
+	}
 
-	void UpdateVisibleAreas();
+	AVALANCHEVIEWPORT_API float GetDefaultFOV() const;
+	AVALANCHEVIEWPORT_API float GetFOV() const;
+	AVALANCHEVIEWPORT_API FVector2f GetCameraProjectionOffset() const;
+
+	AVALANCHEVIEWPORT_API const FAvaVisibleArea& GetCachedVisibleArea() const;
+	AVALANCHEVIEWPORT_API const FAvaVisibleArea& GetCachedZoomedVisibleArea() const;
+
+	AVALANCHEVIEWPORT_API void UpdateVisibleAreas();
 
 protected:
 	TWeakPtr<IAvaViewportClient> AvaViewportClientWeak;
@@ -89,6 +108,7 @@ protected:
 	FAvaVisibleArea CachedVisibleArea;
 	FAvaVisibleArea CachedZoomedVisibleArea;
 
+private:
 	void ZoomIn_Internal();
 	void ZoomOut_Internal();
 

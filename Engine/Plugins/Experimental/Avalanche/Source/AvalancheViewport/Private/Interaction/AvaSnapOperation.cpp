@@ -1407,28 +1407,6 @@ const FAvaSnapPoint* const FAvaSnapOperation::GetSnapPointByLink(int32 InSnapPoi
 	return GetActorSnapPoint(InSnapPointLinkIdx - ScreenSnapPoints.Num());
 }
 
-void FAvaSnapOperation::SetClosestSnapPointLinkIdxX(int32 InSnapPointLinkIdx)
-{
-	if (InSnapPointLinkIdx < INDEX_NONE
-		&& InSnapPointLinkIdx >= (ScreenSnapPoints.Num() + ActorSnapPoints.Num()))
-	{
-		return;
-	}
-
-	ClosestSnapPointLinkIdxX = InSnapPointLinkIdx;
-}
-
-void FAvaSnapOperation::SetClosestSnapPointLinkIdxY(int32 InSnapPointLinkIdx)
-{
-	if (InSnapPointLinkIdx < INDEX_NONE
-		&& InSnapPointLinkIdx >= (ScreenSnapPoints.Num() + ActorSnapPoints.Num()))
-	{
-		return;
-	}
-
-	ClosestSnapPointLinkIdxX = InSnapPointLinkIdx;
-}
-
 void FAvaSnapOperation::SetSnappedToX(bool bInSnappedTo)
 {
 	bSnappedToLinkX = bInSnappedTo;

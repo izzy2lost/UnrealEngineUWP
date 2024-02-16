@@ -17,16 +17,14 @@ class SBox;
  * Class that can be used to place a draggable box into a viewport or some other large widget as an
  * overlay. Just place the widget that you want to be draggable as the contents of SAvaDraggableBoxOverlay.
  */
-class AVALANCHEVIEWPORT_API SAvaDraggableBoxOverlay : public SCompoundWidget
+class SAvaDraggableBoxOverlay : public SCompoundWidget
 {
 public:
-
-	SLATE_BEGIN_ARGS(SAvaDraggableBoxOverlay) 
-		{}
+	SLATE_BEGIN_ARGS(SAvaDraggableBoxOverlay)  {}
 	SLATE_DEFAULT_SLOT(FArguments, Content)
 	SLATE_END_ARGS()
 
-	void Construct(const FArguments& InArgs);
+	AVALANCHEVIEWPORT_API void Construct(const FArguments& InArgs);
 
 	/* Returns the current position of the box on the viewport. */
 	FVector2f GetBoxAlignmentOffset() const;
@@ -47,8 +45,8 @@ public:
 protected:
 	TSharedPtr<SBox> Container;
 	TSharedPtr<SWidget> DraggableBox;
-	EHorizontalAlignment HorizontalAlignment;
-	EVerticalAlignment VerticalAlignment;
+	EHorizontalAlignment HorizontalAlignment = HAlign_Fill;
+	EVerticalAlignment VerticalAlignment = VAlign_Fill;
 	FMargin Padding;
 
 	FMargin GetPadding() const;

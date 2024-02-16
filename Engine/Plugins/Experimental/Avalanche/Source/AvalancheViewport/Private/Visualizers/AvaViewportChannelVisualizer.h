@@ -7,7 +7,7 @@
 
 enum class EAvaViewportPostProcessType : uint8;
 
-class AVALANCHEVIEWPORT_API FAvaViewportChannelVisualizer : public FAvaViewportPostProcessVisualizer
+class FAvaViewportChannelVisualizer : public FAvaViewportPostProcessVisualizer
 {
 public:
 	UE_AVA_INHERITS_WITH_SUPER(FAvaViewportChannelVisualizer, FAvaViewportPostProcessVisualizer)

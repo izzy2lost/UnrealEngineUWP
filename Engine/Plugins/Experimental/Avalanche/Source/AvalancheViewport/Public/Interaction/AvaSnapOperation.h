@@ -40,7 +40,7 @@ struct FAvaSnapPointLink
 	}
 };
 
-class AVALANCHEVIEWPORT_API FAvaSnapOperation : public TSharedFromThis<FAvaSnapOperation>
+class FAvaSnapOperation : public TSharedFromThis<FAvaSnapOperation>
 {
 public:
 	static inline const float MaximumSnapDistance = 10.f;
@@ -62,28 +62,39 @@ public:
 	// Generates snap points based on a box extent with no actor reference
 	static void GenerateBoundsSnapPoints(const FVector& InOrigin, const FVector& InBoxExtent, TArray<FAvaSnapPoint>& InOutSnapPoints);
 
-	FAvaSnapOperation(FEditorViewportClient* InEditorViewportClient);
-	virtual ~FAvaSnapOperation();
+	AVALANCHEVIEWPORT_API FAvaSnapOperation(FEditorViewportClient* InEditorViewportClient);
+	AVALANCHEVIEWPORT_API virtual ~FAvaSnapOperation();
 
-	const TArray<FAvaSnapPoint>& GetScreenSnapPoints() const { return ScreenSnapPoints; }
-	void SetScreenSnapPoints(const TArray<FAvaSnapPoint>& InSnapPoints) { ScreenSnapPoints = InSnapPoints; }
-	const TArray<FAvaSnapPoint>& GetActorSnapPoints() const { return ActorSnapPoints; }
+	const TArray<FAvaSnapPoint>& GetScreenSnapPoints() const
+	{
+		return ScreenSnapPoints;
+	}
+
+	void SetScreenSnapPoints(const TArray<FAvaSnapPoint>& InSnapPoints)
+	{
+		ScreenSnapPoints = InSnapPoints;
+	}
+
+	const TArray<FAvaSnapPoint>& GetActorSnapPoints() const
+	{
+		return ActorSnapPoints;
+	}
 
 	// Adds screen- and guide-based snap points
 	void GenerateScreenSnapPoints();
 
 	// Generates snap points, excluding the actor for the given Dynamic Mesh
-	void GenerateComponentSnapPoints(const UActorComponent* InComponent);
+	AVALANCHEVIEWPORT_API void GenerateComponentSnapPoints(const UActorComponent* InComponent);
 
 	// Generates snap points, excluding the list of actors
-	void GenerateActorSnapPoints(const TConstArrayView<TWeakObjectPtr<AActor>>& InSelectedActors,
+	AVALANCHEVIEWPORT_API void GenerateActorSnapPoints(const TConstArrayView<TWeakObjectPtr<AActor>>& InSelectedActors,
 		const TConstArrayView<TWeakObjectPtr<AActor>>& InExcludedActors);
 
 	// Adds a snap point for a shape to the list of shape snap points
-	void AddActorSnapPoint(const FAvaSnapPoint& InSnapPoint);
+	AVALANCHEVIEWPORT_API void AddActorSnapPoint(const FAvaSnapPoint& InSnapPoint);
 
 	// Sorts snap point links
-	void FinaliseSnapPoints();
+	AVALANCHEVIEWPORT_API void FinaliseSnapPoints();
 
 	FVector GetSelectionLocation() const;
 	FVector GetDragOffset() const;
@@ -101,27 +112,38 @@ public:
 
 	void SnapScreenLocationX(float& InOutScreenLocation);
 	void SnapScreenLocationY(float& InOutScreenLocation);
-	void SnapScreenLocation(FVector2f& InOutScreenLocation);
-	void SnapScreenLocation(FVector2f& InOutScreenLocation, bool bInSnapX, bool bInSnapY);
 	bool SnapDragLocation(const TArray<FAvaSnapPoint>& InDraggedActorSnapPoints, FVector& OutSnapOffset);
-	bool SnapLocation(FVector& Location);
 
-	int32 GetClosestSnapPointLinkIdxX() const { return ClosestSnapPointLinkIdxX; }
-	void SetClosestSnapPointLinkIdxX(int32 InSnapPointLinkIdx);
-	
-	int32 GetClosestSnapPointLinkIdxY() const { return ClosestSnapPointLinkIdxY; }
-	void SetClosestSnapPointLinkIdxY(int32 InSnapPointLinkIdx);
-	
-	bool WasSnappedToX() const { return bSnappedToLinkX; }
-	void SetSnappedToX(bool bInSnappedTo);
-	
-	bool WasSnappedToY() const { return bSnappedToLinkY; }
-	void SetSnappedToY(bool bInSnappedTo);
+	AVALANCHEVIEWPORT_API void SnapScreenLocation(FVector2f& InOutScreenLocation);
+	AVALANCHEVIEWPORT_API void SnapScreenLocation(FVector2f& InOutScreenLocation, bool bInSnapX, bool bInSnapY);
+	AVALANCHEVIEWPORT_API bool SnapLocation(FVector& Location);
 
-	bool WasSnappedTo() const { return bSnappedToLinkX || bSnappedToLinkY; }
-	const FVector2f& GetSnappedToLocation() const { return SnappedToLocation; }
+	bool WasSnappedToX() const
+	{
+		return bSnappedToLinkX;
+	}
+	AVALANCHEVIEWPORT_API void SetSnappedToX(bool bInSnappedTo);
 	
-	const FVector2f& GetSnapDistances() const { return SnapDistances; }
+	bool WasSnappedToY() const
+	{
+		return bSnappedToLinkY;
+	}
+	AVALANCHEVIEWPORT_API void SetSnappedToY(bool bInSnappedTo);
+
+	bool WasSnappedTo() const
+	{
+		return bSnappedToLinkX || bSnappedToLinkY;
+	}
+
+	const FVector2f& GetSnappedToLocation() const
+	{
+		return SnappedToLocation;
+	}
+
+	const FVector2f& GetSnapDistances() const
+	{
+		return SnapDistances;
+	}
 
 protected:
 	/**

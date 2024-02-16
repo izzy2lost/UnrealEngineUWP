@@ -108,6 +108,14 @@ void FAvaViewportPostProcessVisualizer::OnActivate()
 	LoadPostProcessInfo();
 }
 
+void FAvaViewportPostProcessVisualizer::OnDeactivate()
+{
+}
+
+void FAvaViewportPostProcessVisualizer::UpdateForViewport(const FAvaVisibleArea& InVisibleArea, const FVector2f& InWidgetSize, const FVector2f& InCameraOffset)
+{
+}
+
 void FAvaViewportPostProcessVisualizer::ApplyToSceneView(FSceneView* InSceneView) const
 {
 	if (!InSceneView || FMath::IsNearlyZero(PostProcessOpacity) || !PostProcessMaterial)
