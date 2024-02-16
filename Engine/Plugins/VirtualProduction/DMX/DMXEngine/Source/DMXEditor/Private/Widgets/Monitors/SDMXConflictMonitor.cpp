@@ -3,6 +3,7 @@
 #include "SDMXConflictMonitor.h"
 
 #include "Algo/Transform.h"
+#include "Analytics/DMXEditorToolAnalyticsProvider.h"
 #include "DMXConflictMonitorConflictModel.h"
 #include "DMXEditorLog.h"
 #include "Commands/DMXConflictMonitorCommands.h"
@@ -29,6 +30,7 @@ namespace UE::DMX
 
 	SDMXConflictMonitor::SDMXConflictMonitor()
 		: StatusInfo(EDMXConflictMonitorStatusInfo::Idle)
+		, AnalyticsProvider("ConflictMonitor")
 	{}
 
 	void SDMXConflictMonitor::Construct(const FArguments& InArgs)
@@ -49,7 +51,7 @@ namespace UE::DMX
 				.StatusInfo_Lambda([this]()
 					{
 						return StatusInfo;
-				})
+					})
 				.OnDepthChanged_Lambda([this]()
 					{
 						Refresh();

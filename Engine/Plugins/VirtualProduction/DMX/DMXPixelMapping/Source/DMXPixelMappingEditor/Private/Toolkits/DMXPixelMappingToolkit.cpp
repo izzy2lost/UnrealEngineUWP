@@ -47,6 +47,7 @@ const FName FDMXPixelMappingToolkit::DetailsViewTabID(TEXT("DMXPixelMappingEdito
 const FName FDMXPixelMappingToolkit::LayoutViewTabID(TEXT("DMXPixelMappingEditor_LayoutViewTabID"));
 
 FDMXPixelMappingToolkit::FDMXPixelMappingToolkit()
+	: AnalyticsProvider("PixelMappingEditor")
 {
 	EditorSettingsDump = TArray<uint8, TFixedAllocator<sizeof(UDMXPixelMappingEditorSettings)>>(reinterpret_cast<const uint8*>(GetDefault<UDMXPixelMappingEditorSettings>()), (int32)sizeof(UDMXPixelMappingEditorSettings));
 }

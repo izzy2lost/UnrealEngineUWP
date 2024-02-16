@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Analytics/DMXEditorToolAnalyticsProvider.h"
 #include "Widgets/SCompoundWidget.h"
 
 class FUICommandList;
@@ -96,6 +97,9 @@ namespace UE::DMX
 
 		/** Commandlist specific to this widget (only one can ever be displayed) */
 		TSharedPtr<FUICommandList> CommandList;
+
+		/** The analytics provider for this tool */
+		FDMXEditorToolAnalyticsProvider AnalyticsProvider;
 
 		// Slate args
 		TAttribute<double> UpdateInterval;
