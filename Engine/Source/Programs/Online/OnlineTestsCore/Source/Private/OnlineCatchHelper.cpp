@@ -81,9 +81,9 @@ bool OnlineTestBase::DeleteAccountsForCurrentTemplate() const
 {
 #if ONLINETESTS_USEEXTERNAUTH
 	return CustomDeleteAccounts();
-#else //ONLINETESTS_USEEXTERNAUTH
+#else // ONLINETESTS_USEEXTERNAUTH
 	return false;
-#endif ONLINETESTS_USEEXTERNAUTH
+#endif // ONLINETESTS_USEEXTERNAUTH
 }
 
 void OnlineTestBase::DestroyCurrentServiceModule() const
@@ -95,9 +95,9 @@ bool OnlineTestBase::ResetAccountStatus() const
 {
 #if ONLINETESTS_USEEXTERNAUTH
 	return CustomResetAccounts();
-#else //ONLINETESTS_USEEXTERNAUTH
+#else // ONLINETESTS_USEEXTERNAUTH
 	return false;
-#endif ONLINETESTS_USEEXTERNAUTH
+#endif // ONLINETESTS_USEEXTERNAUTH
 }
 
 TArray<FString> GetServiceModules()
@@ -172,9 +172,9 @@ FAuthLogin::Params OnlineTestBase::GetCredentials(int LocalUserNum) const
 {
 #if ONLINETESTS_USEEXTERNAUTH
 	return CustomCredentials(LocalUserNum);
-#else //ONLINETESTS_USEEXTERNAUTH
+#else // ONLINETESTS_USEEXTERNAUTH
 	return GetIniCredentials(LocalUserNum);
-#endif ONLINETESTS_USEEXTERNAUTH
+#endif // ONLINETESTS_USEEXTERNAUTH
 }
 
 FString OnlineTestBase::GetLoginCredentialCategory() const
