@@ -58,12 +58,22 @@ Name | Type | Description
 `showDeviceManager` | `boolean` | Show the device manager on the server menu
 `showTests` | `boolean` | Show automated tests on the server menu
 `agentCategories` | [`DashboardAgentCategoryConfig`](#dashboardagentcategoryconfig)`[]` | Configuration for different agent pages
+`poolCategories` | [`DashboardPoolCategoryConfig`](#dashboardpoolcategoryconfig)`[]` | Configuration for different pool pages
 `analytics` | [`TelemetryViewConfig`](#telemetryviewconfig)`[]` | Configuration for telemetry views
 `include` | [`ConfigInclude`](#configinclude)`[]` | Includes for other configuration files
 
 ## DashboardAgentCategoryConfig
 
 Configuration for a category of agents
+
+Name | Type | Description
+---- | ---- | -----------
+`name` | `string` | Name of the category
+`condition` | `string` | Condition string to be evaluated for this page
+
+## DashboardPoolCategoryConfig
+
+Configuration for a category of pools
 
 Name | Type | Description
 ---- | ---- | -----------
