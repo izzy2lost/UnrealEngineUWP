@@ -741,6 +741,12 @@ namespace Horde.Server.Jobs
 		/// Syncing the branch failed
 		/// </summary>
 		SyncingFailed = 13,
+
+		/// <summary>
+		/// Legacy alias for <see cref="SyncingFailed"/>
+		/// </summary>
+		[Obsolete("Use SyncingFailed instead")]
+		AgentSetupFailed = SyncingFailed,
 	}
 
 	/// <summary>
