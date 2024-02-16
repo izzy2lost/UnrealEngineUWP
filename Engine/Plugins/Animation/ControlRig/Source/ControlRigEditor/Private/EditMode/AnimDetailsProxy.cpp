@@ -2956,7 +2956,7 @@ UControlRigControlsProxy* UControlRigDetailPanelControlProxies::AddProxy(UContro
 		if (Proxy)
 		{
 			Proxy->Type = ControlElement->Settings.ControlType;;
-			Proxy->OwnerControlElement = ControlElement;
+			Proxy->OwnerControlElement.UpdateCache(ControlElement->GetKey(), ControlRig->GetHierarchy());
 			Proxy->OwnerControlRig = ControlRig;
 			Proxy->AddControlRigControl(ControlRig, ControlElement->GetKey().Name);
 			Proxy->bIsIndividual = bIsIndividual;

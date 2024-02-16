@@ -145,17 +145,31 @@ void SControlRigDetails::HandleControlSelected(UControlRig* Subject, FRigControl
 
 static UControlRigControlsProxy* GetParentProxy(UControlRigControlsProxy* ChildProxy, const TArray<UControlRigControlsProxy*>& Proxies)
 {
+	if (!ChildProxy->OwnerControlRig.IsValid())
+	{
+		return nullptr;
+	}
+	if (!ChildProxy->OwnerControlElement.UpdateCache(ChildProxy->OwnerControlRig->GetHierarchy()))
+	{
+		return nullptr;
+	}
 	FRigBaseElement* ChildParent = (ChildProxy && ChildProxy->OwnerControlRig.IsValid()) ?
-		ChildProxy->OwnerControlRig->GetHierarchy()->GetFirstParent(ChildProxy->OwnerControlElement) : nullptr;
+		ChildProxy->OwnerControlRig->GetHierarchy()->GetFirstParent(ChildProxy->OwnerControlElement.GetElement()) : nullptr;
 	if (ChildParent == nullptr)
 	{
 		return nullptr;
 	}
 	for (UControlRigControlsProxy* Proxy : Proxies)
 	{
-		if (Proxy && Proxy->OwnerControlRig.IsValid() && (ChildParent == Proxy->OwnerControlElement))
+		if (Proxy && Proxy->OwnerControlRig.IsValid())
 		{
-			return Proxy;
+			if (Proxy->OwnerControlElement.UpdateCache(Proxy->OwnerControlRig->GetHierarchy()))
+			{
+				if (ChildParent == Proxy->OwnerControlElement.GetElement())
+				{
+					return Proxy;
+				}
+			}
 		}
 	}
 	return nullptr;
@@ -342,7 +356,17 @@ void SControlRigDetails::UpdateProxies()
 						}
 						else
 						{
-							TObjectPtr<UEnum> EnumPtr = Proxy->OwnerControlElement ? Proxy->OwnerControlElement->Settings.ControlEnum : nullptr;
+							TObjectPtr<UEnum> EnumPtr = nullptr;
+							if (Proxy->OwnerControlRig.IsValid())
+							{
+								if (Proxy->OwnerControlElement.UpdateCache(Proxy->OwnerControlRig->GetHierarchy()))
+								{
+									if (const FRigControlElement* ControlElement = Cast<FRigControlElement>(Proxy->OwnerControlElement.GetElement()))
+									{
+										EnumPtr = ControlElement->Settings.ControlEnum;
+									}
+								}
+							}
 							if (UControlRigControlsProxy* ExistingProxy = GetProxyWithSameType(AllProxies, Proxy->Type, EnumPtr != nullptr))
 							{
 								ExistingProxy->AddItem(Proxy);
@@ -359,7 +383,17 @@ void SControlRigDetails::UpdateProxies()
 					{
 						if (UControlRigControlsProxy* ParentProxy = GetParentProxy(Proxy, Proxies))
 						{
-							TObjectPtr<UEnum> EnumPtr = ParentProxy->OwnerControlElement ? ParentProxy->OwnerControlElement->Settings.ControlEnum : nullptr;
+							TObjectPtr<UEnum> EnumPtr = nullptr;
+							if (ParentProxy->OwnerControlRig.IsValid())
+							{
+								if (ParentProxy->OwnerControlElement.UpdateCache(ParentProxy->OwnerControlRig->GetHierarchy()))
+								{
+									if (const FRigControlElement* ControlElement = Cast<FRigControlElement>(ParentProxy->OwnerControlElement.GetElement()))
+									{
+										EnumPtr = ControlElement->Settings.ControlEnum;
+									}
+								}
+							}
 							if (UControlRigControlsProxy* ExistingProxy = GetProxyWithSameType(AllProxies, ParentProxy->Type, EnumPtr != nullptr))
 							{
 								ParentProxy->AddChildProxy(Proxy);

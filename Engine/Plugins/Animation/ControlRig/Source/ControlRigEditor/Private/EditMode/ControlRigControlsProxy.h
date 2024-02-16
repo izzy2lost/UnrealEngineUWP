@@ -12,6 +12,7 @@
 #include "IPropertyTypeCustomization.h"
 #include "Rigs/RigHierarchyDefines.h"
 #include "MovieSceneCommonHelpers.h"
+#include "Rigs/RigHierarchyCache.h"
 
 #include "ControlRigControlsProxy.generated.h"
 
@@ -126,7 +127,7 @@ public:
 	//refactor
 	//We can set/get values form multiple control rig elements but only one owns this.
 	TWeakObjectPtr<UControlRig> OwnerControlRig;
-	FRigControlElement* OwnerControlElement = nullptr;
+	FCachedRigElement OwnerControlElement;
 	TMap<TWeakObjectPtr<UControlRig>, FControlRigProxyItem> ControlRigItems;
 	
 	TWeakObjectPtr<UObject> OwnerObject;
