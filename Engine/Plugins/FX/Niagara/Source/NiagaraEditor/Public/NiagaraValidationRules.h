@@ -35,6 +35,62 @@ public:
 	virtual void CheckValidity(const FNiagaraValidationContext& Context, TArray<FNiagaraValidationResult>& OutResults) const override;
 };
 
+USTRUCT()
+struct FNiagaraValidationRule_EmitterCountAndPlatformSet
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, Category = Validation)
+	FNiagaraPlatformSet Platforms;
+
+	UPROPERTY(EditAnywhere, Category = Validation)
+	int32 EmitterCountLimit = 8;
+};
+
+/** This validation rule can be used to apply budgets for emitter count. */
+UCLASS(Category = "Validation", DisplayName = "Emitter Count")
+class UNiagaraValidationRule_EmitterCount : public UNiagaraValidationRule
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, Category = Validation)
+	ENiagaraValidationSeverity Severity = ENiagaraValidationSeverity::Warning;
+
+	UPROPERTY(EditAnywhere, Category = Validation)
+	TArray<FNiagaraValidationRule_EmitterCountAndPlatformSet> EmitterCountLimits;
+
+	virtual void CheckValidity(const FNiagaraValidationContext& Context, TArray<FNiagaraValidationResult>& OutResults) const override;
+};
+
+USTRUCT()
+struct FNiagaraValidationRule_RendererCountAndPlatformSet
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, Category = Validation)
+	FNiagaraPlatformSet Platforms;
+
+	UPROPERTY(EditAnywhere, Category = Validation)
+	int32 RendererCountLimit = 8;
+};
+
+/** This validation rule can be used to apply budgets for renderer count. */
+UCLASS(Category = "Validation", DisplayName = "Renderer Count")
+class UNiagaraValidationRule_RendererCount : public UNiagaraValidationRule
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, Category = Validation)
+	ENiagaraValidationSeverity Severity = ENiagaraValidationSeverity::Warning;
+
+	UPROPERTY(EditAnywhere, Category = Validation)
+	TArray<FNiagaraValidationRule_RendererCountAndPlatformSet> RendererCountLimits;
+
+	virtual void CheckValidity(const FNiagaraValidationContext& Context, TArray<FNiagaraValidationResult>& OutResults) const override;
+};
+
 /** This validation rule can ban the use of certain renderers on all or a subset of platforms. */
 UCLASS(Category = "Validation", DisplayName = "Banned Renderers")
 class UNiagaraValidationRule_BannedRenderers : public UNiagaraValidationRule
