@@ -6,10 +6,15 @@
 
 #include "Algo/AnyOf.h"
 #include "Containers/Ticker.h"
-#include "Framework/Application/SlateApplication.h"
 #include "HAL/LowLevelMemTracker.h"
+
+#if WITH_ENGINE
+#include "Framework/Application/SlateApplication.h"
 #include "HAL/PlatformInput.h"
 #include "InputCoreTypes.h"
+#endif
+
+#include "Misc/ScopeRWLock.h"
 #include "Misc/App.h"
 #include "Misc/CoreMisc.h"
 #include "Misc/CoreDelegates.h"
@@ -744,10 +749,12 @@ void FEOSSDKManager::SetupTicker()
 	}
 }
 
+#if WITH_ENGINE
 void FEOSSDKManager::OnBackBufferReady_RenderThread(SWindow& SlateWindow, const FTexture2DRHIRef& InBackBuffer)
 {
 	UE_CALL_ONCE([]() {	UE_LOG(LogEOSSDK, VeryVerbose, TEXT("[%hs] The method is not implemented for this platform."), __FUNCTION__) });
 }
+#endif
 
 void FEOSSDKManager::CallUIPrePresent(const EOS_UI_PrePresentOptions& Options)
 {
@@ -776,6 +783,7 @@ void FEOSSDKManager::CallUIPrePresent(const EOS_UI_PrePresentOptions& Options)
 	}
 }
 
+#if WITH_ENGINE
 bool FEOSSDKManager::IsRenderReady()
 {
 	if (bEnablePlatformIntegration)
@@ -805,6 +813,7 @@ bool FEOSSDKManager::IsRenderReady()
 		return false;
 	}
 }
+#endif
 
 void FEOSSDKManager::SetInvokeOverlayButton(const EOS_HPlatform PlatformHandle)
 {
@@ -830,7 +839,9 @@ bool FEOSSDKManager::Tick(float)
 {
 	check(IsInGameThread());
 
+#if WITH_ENGINE
 	IsRenderReady();
+#endif
 
 	ReleaseReleasedPlatforms();
 
@@ -1042,6 +1053,7 @@ void FEOSSDKManager::Shutdown()
 
 		FCoreDelegates::OnNetworkConnectionStatusChanged.RemoveAll(this);
 
+#if WITH_ENGINE
 		// We can't check bRenderReady at this point as Slate might have shut down already
 		if (FSlateApplication::IsInitialized())
 		{
@@ -1051,6 +1063,7 @@ void FEOSSDKManager::Shutdown()
 				Renderer->OnBackBufferReadyToPresent().RemoveAll(this);
 			}
 		}
+#endif
 	}
 }
 

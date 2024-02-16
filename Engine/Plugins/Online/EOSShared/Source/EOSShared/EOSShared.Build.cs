@@ -29,9 +29,13 @@ public class EOSShared : ModuleRules
 			new string[]
 			{
 				"Core",
-				"EOSSDK",
-				"Slate"
+				"EOSSDK"
 			}
 		);
+
+		if (Target.bCompileAgainstEngine)
+		{
+			PrivateDependencyModuleNames.Add("Slate");
+		}
 	}
 }

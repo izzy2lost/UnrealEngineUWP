@@ -8,8 +8,11 @@
 #include "Containers/UnrealString.h"
 #include "IEOSSDKManager.h"
 #include "Misc/CoreMisc.h"
+
+#if WITH_ENGINE
 #include "Widgets/SWindow.h"
 #include "Rendering/SlateRenderer.h"
+#endif
 
 #if defined(EOS_PLATFORM_BASE_FILE_NAME)
 #include EOS_PLATFORM_BASE_FILE_NAME
@@ -77,6 +80,8 @@ protected:
 	virtual bool Tick(float);
 	virtual const void* GetIntegratedPlatformOptions();
 	virtual EOS_IntegratedPlatformType GetIntegratedPlatformType();
+
+#if WITH_ENGINE
 	/** Provided to `OnBackBufferReadyToPresent` to get access to the render thread. */
 	virtual void OnBackBufferReady_RenderThread(SWindow& SlateWindow, const FTexture2DRHIRef& BackBuffer);
 	/**
@@ -84,6 +89,8 @@ protected:
 	 * This will also add the Back Buffer Ready To Present handler.
 	 */
 	virtual bool IsRenderReady();
+#endif
+
 	void SetInvokeOverlayButton(const EOS_HPlatform PlatformHandle);
 	EOS_HIntegratedPlatformOptionsContainer CreateIntegratedPlatformOptionsContainer();
 	void ApplyIntegratedPlatformOptions(EOS_HIntegratedPlatformOptionsContainer& Container);
