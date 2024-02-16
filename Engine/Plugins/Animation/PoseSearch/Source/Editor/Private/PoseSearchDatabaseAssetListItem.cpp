@@ -318,13 +318,13 @@ namespace UE::PoseSearch
 						.IsChecked(this, &SDatabaseAssetListItem::GetDisableReselectionChecked)
 						.OnCheckStateChanged(const_cast<SDatabaseAssetListItem*>(this), &SDatabaseAssetListItem::OnDisableReselectionChanged)
 						.ToolTipText(this, &SDatabaseAssetListItem::GetDisableReselectionToolTip)
-						// @todo: customize icon!
-						.CheckedImage(FAppStyle::Get().GetBrush("Graph.PosePin.Connected"))
-						.CheckedHoveredImage(FAppStyle::Get().GetBrush("Graph.PosePin.ConnectedHovered"))
-						.CheckedPressedImage(FAppStyle::Get().GetBrush("Graph.PosePin.Connected"))
-						.UncheckedImage(FAppStyle::Get().GetBrush("Graph.PosePin.Disconnected"))
-						.UncheckedHoveredImage(FAppStyle::Get().GetBrush("Graph.PosePin.DisconnectedHovered"))
-						.UncheckedPressedImage(FAppStyle::Get().GetBrush("Graph.PosePin.Disconnected"))
+						.Padding(FMargin(0.0f, 2.0f, 0.0f, 0.0f))
+						.CheckedImage(FAppStyle::Get().GetBrush("MotionMatchingEditor.DisablePoseReselection"))
+						.CheckedHoveredImage(FAppStyle::Get().GetBrush("MotionMatchingEditor.DisablePoseReselection"))
+						.CheckedPressedImage(FAppStyle::Get().GetBrush("MotionMatchingEditor.DisablePoseReselection"))
+						.UncheckedImage(FAppStyle::Get().GetBrush("MotionMatchingEditor.EnablePoseReselection"))
+						.UncheckedHoveredImage(FAppStyle::Get().GetBrush("MotionMatchingEditor.EnablePoseReselection"))
+						.UncheckedPressedImage(FAppStyle::Get().GetBrush("MotionMatchingEditor.EnablePoseReselection"))
 					]
 				]
 			]
@@ -401,10 +401,10 @@ namespace UE::PoseSearch
 	{
 		if (GetDisableReselectionChecked() == ECheckBoxState::Checked)
 		{
-			return LOCTEXT("EnableReselectionToolTip", "Enable reselection of poses from the same asset.");
+			return LOCTEXT("EnableReselectionToolTip", "Reselection of poses from the same asset is disabled.");
 		}
 		
-		return LOCTEXT("DisableReselectionToolTip", "Disable reselection of poses from the same asset.");
+		return LOCTEXT("DisableReselectionToolTip", "Reselection of poses from the same asset is enabled.");
 	}
 
 	ECheckBoxState SDatabaseAssetListItem::GetDisableReselectionChecked() const
