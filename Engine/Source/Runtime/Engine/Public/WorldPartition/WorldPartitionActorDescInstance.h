@@ -105,7 +105,7 @@ public:
 	ENGINE_API virtual TWeakObjectPtr<AActor>* GetActorPtr(bool bEvenIfPendingKill = true, bool bEvenIfUnreachable = false) const;
 	ENGINE_API virtual bool IsValid() const;
 				
-	inline void SetForceNonSpatiallyLoadded(bool bForce) { bIsForcedNonSpatiallyLoaded = bForce; }
+	inline void SetForceNonSpatiallyLoaded(bool bForce) { bIsForcedNonSpatiallyLoaded = bForce; }
 	inline bool GetForceNonSpatiallyLoaded() const { return bIsForcedNonSpatiallyLoaded; }
 
 	inline void SetUnloadedReason(FText* InUnloadedReason) { UnloadedReason = InUnloadedReason; }
