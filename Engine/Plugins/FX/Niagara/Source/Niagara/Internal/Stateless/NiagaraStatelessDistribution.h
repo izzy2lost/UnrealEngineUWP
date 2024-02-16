@@ -171,6 +171,7 @@ struct FNiagaraDistributionRangeColor : public FNiagaraDistributionBase
 
 #if WITH_EDITORONLY_DATA
 	virtual bool AllowCurves() const override { return false; }
+	virtual bool DisplayAsColor() const { return true; }
 	virtual void UpdateValuesFromDistribution() override;
 	virtual FNiagaraTypeDefinition GetBindingTypeDef() { return FNiagaraTypeDefinition::GetColorDef(); }
 #endif

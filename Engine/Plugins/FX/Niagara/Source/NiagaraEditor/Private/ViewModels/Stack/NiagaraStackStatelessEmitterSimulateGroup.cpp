@@ -138,6 +138,7 @@ void UNiagaraStackStatelessEmitterSimulateGroup::RefreshChildrenInternal(const T
 
 void UNiagaraStackStatelessEmitterSimulateGroup::ModuleAdded(UNiagaraStatelessModule* StatelessModule)
 {
+	OnDataObjectModified().Broadcast({ StatelessModule }, ENiagaraDataObjectChange::Changed);
 	RefreshChildren();
 }
 
@@ -185,6 +186,8 @@ void UNiagaraStackStatelessModuleItem::Delete()
 	{
 		StatelessModule->Modify();
 		StatelessModule->SetIsModuleEnabled(false);
+		StatelessModule->PostEditChange();
+		OnDataObjectModified().Broadcast({ StatelessModule }, ENiagaraDataObjectChange::Changed);
 		GetStackEditorData().Modify();
 		GetStackEditorData().SetStatelessModuleShowWhenDisabled(GetStackEditorDataKey(), false);
 		OnModifiedGroupItems().Broadcast();
@@ -279,8 +282,7 @@ void UNiagaraStackStatelessModuleItem::SetIsEnabledInternal(bool bInIsEnabled)
 		StatelessModule->SetIsModuleEnabled(bInIsEnabled);
 		StatelessModule->PostEditChange();
 		GetStackEditorData().SetStatelessModuleShowWhenDisabled(GetStackEditorDataKey(), true);
-		TArray<UObject*> ChangedObjects = { StatelessModule };
-		OnDataObjectModified().Broadcast(ChangedObjects, ENiagaraDataObjectChange::Changed);
+		OnDataObjectModified().Broadcast({ StatelessModule }, ENiagaraDataObjectChange::Changed);
 		RefreshChildren();
 	}
 }
