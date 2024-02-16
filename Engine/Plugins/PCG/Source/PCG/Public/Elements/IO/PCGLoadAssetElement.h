@@ -5,6 +5,7 @@
 #include "PCGContext.h"
 #include "PCGDataAsset.h"
 #include "PCGSettings.h"
+#include "Async/PCGAsyncLoadingContext.h"
 
 struct FAssetData;
 
@@ -72,10 +73,17 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
 	bool bWarnIfNoAsset = true;
+
+	/** By default, data table loading is asynchronous, can force it synchronous if needed. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Debug")
+	bool bSynchronousLoad = false;
 };
 
-class PCG_API FPCGDataAssetElement : public IPCGElement
+struct FPCGLoadDataAssetContext : public FPCGContext, public IPCGAsyncLoadingContext {};
+
+class PCG_API FPCGLoadDataAssetElement : public IPCGElementWithCustomContext<FPCGLoadDataAssetContext>
 {
 protected:
+	virtual bool PrepareDataInternal(FPCGContext* Context) const override;
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 };
