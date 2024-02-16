@@ -445,10 +445,18 @@
 							"name": "Incremental Jobs",
 							"metrics": [
 								{
-									"id": "horde-incremental-build-jobs",
+									"id": "horde-incremental-build-jobs"
 								},
 								{
 									"id": "horde-incremental-ci-jobs"
+								}
+							]
+						},
+						{
+							"name": "AutoTest Jobs",
+							"metrics": [
+								{
+									"id": "horde-autotest-build-jobs"
 								}
 							]
 						},
