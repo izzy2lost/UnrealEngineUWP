@@ -38,7 +38,12 @@ TAutoConsoleVariable<float> CVarWaterFallbackDepth(
 	TEXT("Depth to use for all water when there are no ground actors defined."),
 	ECVF_Default);
 
-
+// HACK [jonathan.bard] : (details underneath)
+TAutoConsoleVariable<int32> CVarSkipWaterInfoTextureRenderWhenWorldRenderingDisabled(
+	TEXT("r.Water.SkipWaterInfoTextureRenderWhenWorldRenderingDisabled"),
+	1,
+	TEXT("Use this to prevent the water info from rendering when world rendering is disabled."),
+	ECVF_Default);
 
 AWaterZone::AWaterZone(const FObjectInitializer& Initializer)
 	: Super(Initializer)
@@ -580,7 +585,11 @@ bool AWaterZone::UpdateWaterInfoTexture()
 		// The render path for rendering the water info texture without scene captures is executed within the scene renderer.
 		// If world rendering is disabled like in a loading screen, the scene renderer is not called and the water info texture will not be drawn.
 		UGameViewportClient* GameViewport = World->GetGameViewport();
-		if (GameViewport && GameViewport->bDisableWorldRendering)
+		// HACK [jonathan.bard] : CVarSkipWaterInfoTextureRenderWhenWorldRenderingDisabled is a temporary hack for MRQ because bDisableWorldRendering is true when capturing for MRQ. 
+		//  The proper solution is to refactor the water info texture and make it per-view (also for split screen support) : FWaterViewExtension::SetupViewFamily/SetupView
+		//  are called on the game thread so they might be a good place for doing this. 
+		//  For now, we just use this CVar trick to let the water info texture be rendered when MRQ runs :
+		if ((CVarSkipWaterInfoTextureRenderWhenWorldRenderingDisabled.GetValueOnGameThread() != 0) && GameViewport && GameViewport->bDisableWorldRendering)
 		{
 			return false;
 		}
