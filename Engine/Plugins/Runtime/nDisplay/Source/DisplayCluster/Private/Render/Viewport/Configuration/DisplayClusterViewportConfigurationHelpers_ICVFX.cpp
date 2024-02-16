@@ -101,6 +101,7 @@ bool FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateCameraProjectionSe
 	// Lens correction
 	PolicyCameraSettings.FrustumRotation = InCameraSettings.FrustumRotation;
 	PolicyCameraSettings.FrustumOffset = InCameraSettings.FrustumOffset;
+	PolicyCameraSettings.OffCenterProjectionOffset = InCameraSettings.OffCenterProjectionOffset;
 
 	static IDisplayClusterProjection& DisplayClusterProjectionAPI = IDisplayClusterProjection::Get();
 
