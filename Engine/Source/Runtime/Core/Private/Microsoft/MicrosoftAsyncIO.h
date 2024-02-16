@@ -323,11 +323,6 @@ public:
 		}
 	}
 
-	virtual void EnsureCompletion() override
-	{
-		WaitCompletionImpl(0.0f);
-	}
-
 	virtual void CancelImpl() override
 	{
 		// no cancel support
@@ -361,11 +356,6 @@ public:
 		while (!*(volatile bool*)&bCompleteAndCallbackCalled);
 	}
 
-	virtual void EnsureCompletion() override
-	{
-		WaitCompletionImpl(0.0f);
-	}
-
 	virtual void CancelImpl() override
 	{
 	}
@@ -389,11 +379,6 @@ public:
 		// Even though SetComplete called in the constructor and sets bCompleteAndCallbackCalled=true, we still need to implement WaitComplete as
 		// the CompleteCallback can end up starting async tasks that can overtake the constructor execution and need to wait for the constructor to finish.
 		while (!*(volatile bool*)&bCompleteAndCallbackCalled);
-	}
-
-	virtual void EnsureCompletion() override
-	{
-		WaitCompletionImpl(0.0f);
 	}
 
 	virtual void CancelImpl() override

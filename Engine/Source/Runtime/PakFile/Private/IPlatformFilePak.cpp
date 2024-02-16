@@ -4150,11 +4150,6 @@ public:
 		}
 	}
 
-	virtual void EnsureCompletion() override
-	{
-		WaitCompletionImpl(0.0f);
-	}
-
 	virtual void CancelImpl() override
 	{
 		check(!WaitEvent); // you canceled from a different thread that you waited from
