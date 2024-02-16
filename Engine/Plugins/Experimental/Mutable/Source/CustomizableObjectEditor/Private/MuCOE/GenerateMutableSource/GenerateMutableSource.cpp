@@ -796,6 +796,23 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 			// Find the MinLOD available for the target platform
 			if (RefSkeletalMesh->IsMinLodQualityLevelEnable())
 			{
+				FSupportedQualityLevelArray SupportedQualityLevels = LODSettings.MinQualityLevelLOD.GetSupportedQualityLevels(*GenerationContext.Options.TargetPlatform->GetPlatformInfo().IniPlatformName.ToString());
+				
+				int32 MinValue = MAX_int32;
+				for (int32& QL : SupportedQualityLevels)
+				{
+					// check if have data for the supported quality level or set to default.
+					if (LODSettings.MinQualityLevelLOD.IsQualityLevelValid(QL))
+					{
+						MinValue = FMath::Min(LODSettings.MinQualityLevelLOD.GetValueForQualityLevel(QL), MinValue);
+					}
+					else 
+					{
+						MinValue = LODSettings.MinQualityLevelLOD.GetDefault();
+						break;
+					}
+				}
+
 				GenerationContext.FirstLODAvailable = LODSettings.MinQualityLevelLOD.GetValueForPlatform(GenerationContext.Options.TargetPlatform);
 			}
 			else
@@ -986,8 +1003,7 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 							continue;
 						}
 
-						FMutableGraphSurfaceGenerationData DummySurfaceData;
-						mu::NodeSurfacePtr SurfaceNode = GenerateMutableSourceSurface(ChildNodePin, GenerationContext, DummySurfaceData);
+						mu::NodeSurfacePtr SurfaceNode = GenerateMutableSourceSurface(ChildNodePin, GenerationContext);
 
 						mu::NodeComponentPtr& ComponentNode = ComponentNodes[MeshComponentIndex];
 
