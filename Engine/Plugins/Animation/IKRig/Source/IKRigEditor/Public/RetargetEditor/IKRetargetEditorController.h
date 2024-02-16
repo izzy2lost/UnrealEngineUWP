@@ -110,6 +110,7 @@ public:
 	// callback when Preview Mesh asset has been swapped out
 	void HandlePreviewMeshReplaced(ERetargetSourceOrTarget SourceOrTarget);
 	FDelegateHandle PreviewMeshReplacedDelegateHandle;
+	FDelegateHandle RetargeterInitializedDelegateHandle;
 	
 	// all modifications to the data model should go through this controller
 	TObjectPtr<UIKRetargeterController> AssetController;

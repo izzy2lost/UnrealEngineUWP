@@ -1572,6 +1572,9 @@ void UIKRetargetProcessor::Initialize(
 	
 	bIsInitialized = bRootsInitialized || bAtLeastOneValidBoneChainPair;
 	AssetVersionInitializedWith = RetargeterAsset->GetVersion();
+#if WITH_EDITOR
+	RetargeterInitialized.Broadcast();
+#endif
 }
 
 bool UIKRetargetProcessor::InitializeRoots()
