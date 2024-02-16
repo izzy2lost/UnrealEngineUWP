@@ -2730,7 +2730,7 @@ bool FRemoteControlModule::CanInterceptFunction(const FRCCall& RCCall) const
 #else
 				FString FunctionName = RCCall.CallRef.Function->GetName();
 #endif
-				REMOTE_CONTROL_LOG_ONCE(Warning, TEXT("Function \"%s\" on object \"%s\" could not be intercepted because it contains out parameters."), *FunctionName, *RCCall.CallRef.Object->GetName());
+				REMOTE_CONTROL_LOG_ONCE(Log, TEXT("Function \"%s\" on object \"%s\" could not be intercepted because it contains out parameters."), *FunctionName, *RCCall.CallRef.Object->GetName());
 				return false;
 			}
 		}
