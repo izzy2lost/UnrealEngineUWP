@@ -13,12 +13,23 @@ public class Renderer : ModuleRules
 		);
 
 		PrivateIncludePathModuleNames.Add("Shaders");
-		PublicDependencyModuleNames.Add("Core");
-        PublicDependencyModuleNames.Add("Engine");
+
+		PublicDependencyModuleNames.AddRange(
+			new string[] {
+				"Core",
+				"Engine",
+			}
+		);
 
         if (Target.bBuildEditor == true)
         {
-            PrivateDependencyModuleNames.Add("TargetPlatform");
+			PrivateDependencyModuleNames.AddRange(
+				new string[] {
+					"TargetPlatform",
+					"GeometryCore",
+					"NaniteUtilities",
+				}
+			);
         }
 
         // Renderer module builds faster without unity
@@ -36,7 +47,7 @@ public class Renderer : ModuleRules
 				"ImageWriteQueue",
 				"RHI",
 				"MaterialShaderQualitySettings",
-				"TraceLog"
+				"TraceLog",
 			}
 		);
 
@@ -44,5 +55,7 @@ public class Renderer : ModuleRules
         DynamicallyLoadedModuleNames.AddRange(new string[] { "HeadMountedDisplay" });
 		PrivateIncludePathModuleNames.AddRange(new string[] { "EyeTracker" });
 		DynamicallyLoadedModuleNames.AddRange(new string[] { "EyeTracker" });
+
+		RuntimeDependencies.Add("$(EngineDir)/Content/Renderer/TessellationTable.bin");
 	}
 }
