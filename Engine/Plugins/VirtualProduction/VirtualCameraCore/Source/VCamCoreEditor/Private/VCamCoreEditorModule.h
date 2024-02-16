@@ -3,11 +3,13 @@
 #pragma once
 
 #include "IVCamCoreEditorModule.h"
+
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
 class UClass;
 class UVCamWidget;
+enum class ETransactionFilterResult : uint8;
 
 namespace UE::VCamCoreEditor::Private
 {
@@ -47,5 +49,8 @@ namespace UE::VCamCoreEditor::Private
 		void RegisterDefaultConnectionRemappingCustomizations();
 		
 		void UnregisterCustomizations();
+		
+		void RegisterMultiUserFilters();
+		ETransactionFilterResult ShouldObjectBeTransacted(UObject* Object, UPackage* Package) const;
 	};
 }

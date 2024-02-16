@@ -19,8 +19,10 @@ public class VCamCoreEditor : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"CoreUObject",
 				"CinematicCamera",
+				"CoreUObject",
+				"ConcertSyncClient",
+				"ConcertSyncCore", 
 				"Engine",
 				"EditorFramework",
 				"EnhancedInput",
@@ -35,7 +37,7 @@ public class VCamCoreEditor : ModuleRules
 				"UMGEditor",
 				"UnrealEd",
 				"VCamCore",
-				"VPUtilities", 
+				"VPUtilities"
 			}
 		);
 	}
