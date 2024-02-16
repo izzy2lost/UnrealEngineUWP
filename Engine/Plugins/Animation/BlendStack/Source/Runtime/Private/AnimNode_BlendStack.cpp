@@ -995,7 +995,7 @@ void FAnimNode_BlendStack::UpdateAssetPlayer(const FAnimationUpdateContext& Cont
 	GetEvaluateGraphExposedInputs().Execute(Context);
 
 	bool bExecuteBlendTo = false;
-	if (AnimationAsset == nullptr)
+	if (AnimationAsset == nullptr && !bForceBlendNextUpdate)
 	{
 		bExecuteBlendTo = false;
 	}
