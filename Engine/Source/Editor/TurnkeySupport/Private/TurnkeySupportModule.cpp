@@ -1619,7 +1619,7 @@ static void LaunchOnDevice(const FString& DeviceId, const FString& DeviceName, b
 
 static void LaunchOnSimulator(const FString& DeviceId, const FString& DeviceName, bool bUseTurnkey)
 {								
-	// FTurnkeyEditorSupport::LaunchRunningMap(DeviceId, DeviceName, GetProjectPathForTurnkey(), false, true);
+	FTurnkeyEditorSupport::LaunchRunningMap(DeviceId, DeviceName, GetProjectPathForTurnkey(), false, true);
 }
 
 static void PrepareLaunchOn(FString DeviceId, FString DeviceName)

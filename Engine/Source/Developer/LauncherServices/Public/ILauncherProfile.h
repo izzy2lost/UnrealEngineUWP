@@ -1390,6 +1390,16 @@ public:
 	 */
 	virtual bool ShouldUpdateDeviceFlash() const = 0;
 
+	/**
+	 * Sets whether or not the Device is a Simulator
+	 */
+	virtual void SetDeviceIsASimulator(bool bInIsDeviceASimualtor) = 0;
+
+	/**
+	 * Whether or not the Device is a Simulator
+	 */
+	virtual bool IsDeviceASimulator() const = 0;
+
 public:
 	/**
 	 * Helper function to get all of the build targets available for this profile, based on its current project & cook platforms

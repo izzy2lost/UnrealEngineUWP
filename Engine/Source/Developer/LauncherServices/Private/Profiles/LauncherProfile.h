@@ -2101,6 +2101,7 @@ public:
 		bUseIoStore = false;
 		bUseZenStore = false;
 		bShouldUpdateFlash = false;
+		bIsDeviceASimulator = false;
 		bMakeBinaryConfig = false;
 
 		RefreshValidBuildTargets();
@@ -2630,6 +2631,19 @@ public:
 	virtual bool ShouldUpdateDeviceFlash() const override
 	{
 		return bShouldUpdateFlash;
+	}
+
+	virtual void SetDeviceIsASimulator(bool bInIsDeviceASimualtor) override
+	{
+		bIsDeviceASimulator = bInIsDeviceASimualtor;
+	}
+
+	/**
+	 * Is the Launch device actually a simulator?
+	 */
+	virtual bool IsDeviceASimulator() const override
+	{
+		return bIsDeviceASimulator;
 	}
 
 	virtual void SetMakeBinaryConfig(bool bInMakeBinaryConfig) override
@@ -3252,6 +3266,9 @@ private:
 
 	// Update flash on device before running
 	bool bShouldUpdateFlash;
+
+	// Is the launch device actually a Simulator
+	bool bIsDeviceASimulator;
 
 private:
 

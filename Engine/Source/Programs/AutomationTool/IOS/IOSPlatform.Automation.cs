@@ -1915,6 +1915,16 @@ public class IOSPlatform : ApplePlatform
 		string LibimobileDeviceArguments =  "-u " + Params.DeviceNames[0] + " -i " + "\"" +  Path.GetFullPath(AppToDeploy) + "\"";
 		LibimobileDeviceArguments = GetLibimobileDeviceNetworkedArgument(LibimobileDeviceArguments, Params.DeviceNames[0]);
 
+		// If we deploying to a Simulator, use "xcrun simctl" instead
+		{
+			TargetReceipt Targets = SC.StageTargets[0].Receipt;
+			if (Targets.Architectures.SingleArchitecture == UnrealArch.IOSSimulator)
+			{
+				DeviceInstaller = "xcrun";
+				LibimobileDeviceArguments = "simctl install " + Params.DeviceNames[0] + " \"" + Path.GetFullPath(AppToDeploy) + "\"";
+			}
+		}
+
 		// check for it in the stage directory
 		string CurrentDir = Directory.GetCurrentDirectory();
 		Directory.SetCurrentDirectory(CombinePaths(CmdEnv.LocalRoot, "Engine/Binaries/DotNET/IOS/"));
