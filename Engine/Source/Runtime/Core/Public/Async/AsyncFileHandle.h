@@ -102,7 +102,11 @@ public:
 	*/
 	virtual void EnsureCompletion()
 	{
-		unimplemented();
+		// Default implementation is the same as WaitCompletion(0.0f) except that it skips the testing of
+		// PollCompletion. This is potentially slower because we do not early exit if PollCompletion is true, but it
+		// provides a stronger guarantee of completion because PollCompletion can sometimes return true while
+		// completion steps are still in progress.
+		WaitCompletionImpl(0.0f);
 	}
 
 	/** Cancel the request. This is a non-blocking async call and so does not ensure completion! **/

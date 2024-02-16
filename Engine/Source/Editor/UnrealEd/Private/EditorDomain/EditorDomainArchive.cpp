@@ -715,11 +715,6 @@ protected:
 	{
 	}
 
-	virtual void EnsureCompletion() override
-	{
-		WaitCompletionImpl(0.0f);
-	}
-
 	virtual void CancelImpl() override
 	{
 	}
@@ -760,11 +755,6 @@ public:
 protected:
 	virtual void WaitCompletionImpl(float TimeLimitSeconds) override
 	{
-	}
-
-	virtual void EnsureCompletion() override
-	{
-		WaitCompletionImpl(0.0f);
 	}
 
 	virtual void CancelImpl() override
