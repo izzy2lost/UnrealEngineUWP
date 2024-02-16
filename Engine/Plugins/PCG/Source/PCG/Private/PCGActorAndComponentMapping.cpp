@@ -507,6 +507,19 @@ void FPCGActorAndComponentMapping::ForAllIntersectingPartitionedComponents(const
 	});
 }
 
+void FPCGActorAndComponentMapping::ForAllOriginalComponents(TFunctionRef<void(UPCGComponent*)> InFunc)
+{
+	for (UPCGComponent* Component : PartitionedOctree.GetAllComponents())
+	{
+		InFunc(Component);
+	}
+
+	for (UPCGComponent* Component : NonPartitionedOctree.GetAllComponents())
+	{
+		InFunc(Component);
+	}
+}
+
 TArray<UPCGComponent*> FPCGActorAndComponentMapping::GetAllIntersectingComponents(const FBoxCenterAndExtent& InBounds) const
 {
 	TArray<UPCGComponent*> Result;

@@ -1,10 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "PCGCommon.h"
+#include "PCGSubsystem.h"
 
 namespace PCGFeatureSwitches
 {
-
 	TAutoConsoleVariable<bool> CVarCheckSamplerMemory{
 		TEXT("pcg.CheckSamplerMemory"),
 		true,
@@ -125,5 +125,37 @@ namespace PCGPinIdHelpers
 	uint64 GetPinIndexFromPinId(FPCGPinId PinId)
 	{
 		return PinId % PCGPinIdHelpers::PinActiveBitmaskSize;
+	}
+}
+
+namespace PCGQualityHelpers
+{
+	FName GetQualityPinLabel()
+	{
+		const int32 QualityLevel = UPCGSubsystem::GetPCGQualityLevel();
+		FName SelectedPinLabel = NAME_None;
+
+		switch (QualityLevel)
+		{
+			case 0: // Low Quality
+				SelectedPinLabel = PinLabelLow;
+				break;
+			case 1: // Medium Quality
+				SelectedPinLabel = PinLabelMedium;
+				break;
+			case 2: // High Quality
+				SelectedPinLabel = PinLabelHigh;
+				break;
+			case 3: // Epic Quality
+				SelectedPinLabel = PinLabelEpic;
+				break;
+			case 4: // Cinematic Quality
+				SelectedPinLabel = PinLabelCinematic;
+				break;
+			default: // Default to Low Quality if we don't have a valid quality level
+				SelectedPinLabel = PinLabelDefault;
+		}
+
+		return SelectedPinLabel;
 	}
 }

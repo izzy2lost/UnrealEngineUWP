@@ -114,6 +114,9 @@ private:
 	/** Call the InFunc function to all partitioned components which bounds intersect 'InBounds'. */
 	void ForAllIntersectingPartitionedComponents(const FBoxCenterAndExtent& InBounds, TFunctionRef<void(UPCGComponent*)> InFunc) const;
 
+	/** Call the InFunc function for all original components (regardless of partitioned or not). */
+	void ForAllOriginalComponents(TFunctionRef<void(UPCGComponent*)> InFunc);
+
 	/** Gather all the PCG components within some bounds. */
 	TArray<UPCGComponent*> GetAllIntersectingComponents(const FBoxCenterAndExtent& InBounds) const;
 

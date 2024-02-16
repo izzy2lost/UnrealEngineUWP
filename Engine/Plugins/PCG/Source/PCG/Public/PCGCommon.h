@@ -324,3 +324,17 @@ enum class EPCGNodeTitleType : uint8
 	/** More concise, single line title. */
 	ListView,
 };
+
+namespace PCGQualityHelpers
+{
+	constexpr int32 NumPins = 6;
+	const FName PinLabelDefault = TEXT("Default");
+	const FName PinLabelLow = TEXT("Low");
+	const FName PinLabelMedium = TEXT("Medium");
+	const FName PinLabelHigh = TEXT("High");
+	const FName PinLabelEpic = TEXT("Epic");
+	const FName PinLabelCinematic = TEXT("Cinematic");
+
+	/** Get the pin label associated with the current 'pcg.Quality' value. If the quality level is invalid, it will return the default pin label. */
+	FName GetQualityPinLabel();
+}

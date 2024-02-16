@@ -43,6 +43,23 @@ namespace PCGSubsystemConsole
 				}
 			}));
 
+	TAutoConsoleVariable<int32> CVarPCGQuality(
+		TEXT("pcg.Quality"), 2,
+		TEXT("Selects the quality permutation of PCG which impacts Runtime Quality Branch/Select nodes.\n")
+		TEXT(" 0: Low\n")
+		TEXT(" 1: Medium\n")
+		TEXT(" 2: High\n")
+		TEXT(" 3: Epic\n")
+		TEXT(" 4: Cinematic\n"),
+		FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* CVar)
+		{
+			if (UPCGSubsystem* Subsystem = UPCGSubsystem::GetSubsystemForCurrentWorld())
+			{
+				Subsystem->OnPCGQualityLevelChanged();
+			}
+		}),
+		ECVF_Scalability);
+
 #if WITH_EDITOR
 	static FAutoConsoleCommand CommandBuildLandscapeCache(
 		TEXT("pcg.BuildLandscapeCache"),
@@ -257,6 +274,31 @@ APCGWorldActor* UPCGSubsystem::GetPCGWorldActor()
 APCGWorldActor* UPCGSubsystem::FindPCGWorldActor()
 {
 	return PCGWorldActor;
+}
+
+int32 UPCGSubsystem::GetPCGQualityLevel()
+{
+	return PCGSubsystemConsole::CVarPCGQuality.GetValueOnAnyThread();
+}
+
+void UPCGSubsystem::OnPCGQualityLevelChanged()
+{
+	// Trigger deep refresh of all runtime generated components.
+	ActorAndComponentMapping.ForAllOriginalComponents([this](UPCGComponent* InComponent)
+	{
+		if (InComponent && InComponent->IsManagedByRuntimeGenSystem())
+		{
+#if WITH_EDITOR
+			if (UPCGGraph* Graph = InComponent->GetGraph())
+			{
+				Graph->OnPCGQualityLevelChanged();
+			}
+#else
+			RefreshRuntimeGenComponent(InComponent, EPCGChangeType::GenerationGrid);
+#endif
+
+		}
+	});
 }
 
 #if WITH_EDITOR
