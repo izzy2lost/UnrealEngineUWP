@@ -58,10 +58,6 @@ namespace UE::DMX::Private
 		/** Returns the Control Console Editor Model, if valid */
 		UDMXControlConsoleEditorModel* GetControlConsoleEditorModel() const { return EditorModel; }
 
-		void ToggleSendDMX();
-
-		bool IsSendingDMX() const;
-
 		/** Removes all selected elements from DMX Control Console */
 		void RemoveAllSelectedElements();
 
