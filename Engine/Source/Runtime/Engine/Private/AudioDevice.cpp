@@ -6025,7 +6025,7 @@ bool FAudioDevice::SoundIsAudible(const FActiveSound& NewActiveSound)
 		return true;
 	}
 
-	const float ApparentMaxDistance = NewActiveSound.MaxDistance * NewActiveSound.FocusData.DistanceScale;
+	const float ApparentMaxDistance = NewActiveSound.GetMaxDistance() * NewActiveSound.FocusData.DistanceScale;
 	if (LocationIsAudible(NewActiveSound.Transform.GetLocation(), ApparentMaxDistance))
 	{
 		return true;
@@ -6378,6 +6378,7 @@ void FAudioDevice::PlaySoundAtLocation(USoundBase* Sound, UWorld* World, float V
 		const bool bIsInGameWorld = World->IsGameWorld();
 
 		FActiveSound NewActiveSound;
+		NewActiveSound.SetAudioDevice(this);
 		NewActiveSound.SetWorld(World);
 		NewActiveSound.SetSound(Sound);
 		NewActiveSound.SetVolume(VolumeMultiplier);
