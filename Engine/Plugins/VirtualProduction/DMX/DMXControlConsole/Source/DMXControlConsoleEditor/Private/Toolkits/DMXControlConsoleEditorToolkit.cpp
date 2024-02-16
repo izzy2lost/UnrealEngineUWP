@@ -81,34 +81,6 @@ namespace UE::DMX::Private
 		return ControlConsole ? Cast<UDMXControlConsoleEditorLayouts>(ControlConsole->ControlConsoleEditorLayouts) : nullptr;
 	}
 
-	void FDMXControlConsoleEditorToolkit::ToggleSendDMX()
-	{
-		UDMXControlConsoleData* ControlConsoleData = GetControlConsoleData();
-		if (!ensureMsgf(ControlConsoleData, TEXT("Invalid control console data, can't send dmx correctly.")))
-		{
-			return;
-		}
-
-		if (ControlConsoleData->IsSendingDMX())
-		{
-			ControlConsoleData->StopSendingDMX();
-		}
-		else
-		{
-			ControlConsoleData->StartSendingDMX();
-		}
-	}
-
-	bool FDMXControlConsoleEditorToolkit::IsSendingDMX() const
-	{
-		UDMXControlConsoleData* ControlConsoleData = GetControlConsoleData();
-		if (ensureMsgf(ControlConsoleData, TEXT("Invalid control console data, cannot deduce if it is sending DMX.")))
-		{
-			return ControlConsoleData->IsSendingDMX();
-		}
-		return false;
-	}
-
 	void FDMXControlConsoleEditorToolkit::RemoveAllSelectedElements()
 	{
 		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = GetControlConsoleLayouts();
