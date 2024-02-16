@@ -72,7 +72,4 @@ class FMaterial;
 void SetupRayTracingMeshCommandMaskAndStatus(FRayTracingMeshCommand& MeshCommand, const FMeshBatch& MeshBatch, const FPrimitiveSceneProxy* PrimitiveSceneProxy,
 	const FMaterial& MaterialResource, ERayTracingViewMaskMode MaskMode);
 
-void UpdateRayTracingMeshCommandMasks(FRayTracingMeshCommand& RayTracingMeshCommands, const ERayTracingPrimitiveFlags Flags, ERayTracingViewMaskMode MaskMode);
-
-
 #endif

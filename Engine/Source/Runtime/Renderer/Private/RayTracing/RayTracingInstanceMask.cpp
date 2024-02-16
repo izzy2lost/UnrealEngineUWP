@@ -249,6 +249,8 @@ void SetupRayTracingMeshCommandMaskAndStatus(FRayTracingMeshCommand& MeshCommand
 
 	MeshCommand.InstanceMask = BlendModeToRayTracingInstanceMask(MaterialResource.GetBlendMode(), MaskMode);
 
+	MeshCommand.InstanceMask |= MeshCommand.bCastRayTracedShadows ? ComputeRayTracingInstanceMask(ERayTracingInstanceMaskType::Shadow, MaskMode) : 0;
+
 	if (!PrimitiveSceneProxy)
 	{
 		return;
@@ -256,6 +258,7 @@ void SetupRayTracingMeshCommandMaskAndStatus(FRayTracingMeshCommand& MeshCommand
 
 	FSceneProxyRayTracingMaskInfo MaskInfo = GetSceneProxyRayTracingMaskInfo(*PrimitiveSceneProxy, nullptr);
 
+	// TODO: This should be done once all mesh commands for a mesh are combined (similar to BuildRayTracingInstanceMaskAndFlags(...) above)
 	if (MaskMode == ERayTracingViewMaskMode::PathTracing || MaskMode == ERayTracingViewMaskMode::LightMapTracing)
 	{
 		if (!MaskInfo.bAffectsDynamicIndirectLighting)
@@ -284,17 +287,5 @@ void SetupRayTracingMeshCommandMaskAndStatus(FRayTracingMeshCommand& MeshCommand
 
 	}
 }
-
-void UpdateRayTracingMeshCommandMasks(FRayTracingMeshCommand& RayTracingCommand, const ERayTracingPrimitiveFlags Flags, ERayTracingViewMaskMode MaskMode)
-{
-	RayTracingCommand.InstanceMask |= RayTracingCommand.bCastRayTracedShadows ? ComputeRayTracingInstanceMask(ERayTracingInstanceMaskType::Shadow, MaskMode) : 0;
-
-	if (EnumHasAllFlags(Flags, ERayTracingPrimitiveFlags::FarField))
-	{
-		RayTracingCommand.InstanceMask = ComputeRayTracingInstanceMask(ERayTracingInstanceMaskType::FarField, MaskMode);
-	}
-}
-
-
 
 #endif
