@@ -36,7 +36,7 @@ void FScene::RemoveSparseVolumeTextureViewer(FSparseVolumeTextureViewerSceneProx
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-FSparseVolumeTextureViewerSceneProxy::FSparseVolumeTextureViewerSceneProxy(const USparseVolumeTextureViewerComponent* InComponent, int32 FrameIndex, FName ResourceName)
+FSparseVolumeTextureViewerSceneProxy::FSparseVolumeTextureViewerSceneProxy(const USparseVolumeTextureViewerComponent* InComponent, FName ResourceName)
 	: FPrimitiveSceneProxy((UPrimitiveComponent*)InComponent, ResourceName)
 	, TextureRenderResources(nullptr)
 {

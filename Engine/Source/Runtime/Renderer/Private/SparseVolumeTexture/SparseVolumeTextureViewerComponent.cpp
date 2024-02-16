@@ -29,9 +29,18 @@ constexpr int32 SVTViewerDefaultVolumeResolution = 128;
 USparseVolumeTextureViewerComponent::USparseVolumeTextureViewerComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 	, SparseVolumeTexturePreview(nullptr)
-	, bAnimate(false)
-	, AnimationFrame(0.0f)
+	, Frame(0.0f)
+	, FrameRate(24.0f)
+	, bPlaying(false)
+	, bLooping(false)
+	, bReversePlayback(false)
+	, bBlockingStreamingRequests(false)
+	, bApplyPerFrameTransforms(true)
+	, bPivotAtCentroid(false)
+	, VoxelSize(1.0f)
 	, PreviewAttribute(ESVTPA_AttributesA_R)
+	, MipLevel(0)
+	, Extinction(0.025f)
 	, SparseVolumeTextureViewerSceneProxy(nullptr)
 {
 	PrimaryComponentTick.bCanEverTick = true;
@@ -53,13 +62,22 @@ void USparseVolumeTextureViewerComponent::PostEditChangeProperty(FPropertyChange
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
-	if (!bAnimate && SparseVolumeTexturePreview)
+	FName PropertyName;
+	if (PropertyChangedEvent.Property)
 	{
-		FrameIndex = int32(AnimationFrame * float(SparseVolumeTexturePreview->GetNumFrames()));
+		PropertyName = PropertyChangedEvent.Property->GetFName();
 	}
-	MarkRenderStateDirty();
 
-	SendRenderTransformCommand();
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(USparseVolumeTextureViewerComponent, Frame))
+	{
+		if (SparseVolumeTexturePreview)
+		{
+			const int32 FrameCount = SparseVolumeTexturePreview->GetNumFrames();
+			Frame = FMath::Clamp(Frame, 0, FrameCount - 1);
+		}
+	}
+
+	MarkRenderStateDirty();
 }
 
 #endif // WITH_EDITOR
@@ -78,19 +96,26 @@ FBoxSphereBounds USparseVolumeTextureViewerComponent::CalcBounds(const FTransfor
 	}
 	
 	FBoxSphereBounds NewBounds;
-	if (bLocalOriginAtCorner)
+	FVector HalfVolumeResolution = FVector(VolumeResolution) * 0.5;
+	if (bPivotAtCentroid)
 	{
-		NewBounds.Origin = -VolumeResolution * 0.5;
-		NewBounds.BoxExtent = VolumeResolution;
+		NewBounds.Origin = FVector::ZeroVector;
 	}
 	else
 	{
-		NewBounds.Origin = FVector::ZeroVector;
-		NewBounds.BoxExtent = VolumeResolution * 0.5;
+		NewBounds.Origin = HalfVolumeResolution;
 	}
+	NewBounds.BoxExtent = HalfVolumeResolution;
 	NewBounds.SphereRadius = NewBounds.BoxExtent.Length();
 
-	return NewBounds.TransformBy(LocalToWorld);
+	if (SparseVolumeTextureFrame)
+	{
+		return NewBounds.TransformBy(SparseVolumeTextureFrame->GetFrameTransform() * LocalToWorld);
+	}
+	else
+	{
+		return NewBounds.TransformBy(LocalToWorld);
+	}
 }
 
 void USparseVolumeTextureViewerComponent::CreateRenderState_Concurrent(FRegisterComponentContext* Context)
@@ -111,7 +136,7 @@ void USparseVolumeTextureViewerComponent::CreateRenderState_Concurrent(FRegister
 		ShouldComponentAddToScene() && ShouldRender() && IsRegistered() && (GetOuter() == NULL || !GetOuter()->HasAnyFlags(RF_ClassDefaultObject)))
 	{
 		// Create the scene proxy.
-		SparseVolumeTextureViewerSceneProxy = new FSparseVolumeTextureViewerSceneProxy(this, FrameIndex);
+		SparseVolumeTextureViewerSceneProxy = new FSparseVolumeTextureViewerSceneProxy(this);
 		GetWorld()->Scene->AddSparseVolumeTextureViewer(SparseVolumeTextureViewerSceneProxy);
 		SendRenderTransformCommand();
 	}
@@ -163,7 +188,7 @@ void USparseVolumeTextureViewerComponent::SendRenderTransformCommand()
 
 		FSparseVolumeTextureViewerSceneProxy* SVTSceneProxy = SparseVolumeTextureViewerSceneProxy;
 		ENQUEUE_RENDER_COMMAND(FUpdateSparseVolumeTextureViewerProxyTransformCommand)(
-		[SVTSceneProxy, GlobalTransform, FrameTransform, VolumeRes3f, CompIdx = (uint32)PreviewAttribute, Ext = Extinction, Mip = MipLevel, VoxelSizeFactor = VoxelSize, bPivotAtCorner = (bool)bLocalOriginAtCorner](FRHICommandList& RHICmdList)
+		[SVTSceneProxy, GlobalTransform, FrameTransform, VolumeRes3f, CompIdx = (uint32)PreviewAttribute, Ext = Extinction, Mip = MipLevel, VoxelSizeFactor = VoxelSize, bCentroidPivot = (bool)bPivotAtCentroid](FRHICommandList& RHICmdList)
 		{
 			SVTSceneProxy->GlobalTransform = GlobalTransform;
 			SVTSceneProxy->FrameTransform = FrameTransform;
@@ -172,7 +197,7 @@ void USparseVolumeTextureViewerComponent::SendRenderTransformCommand()
 			SVTSceneProxy->ComponentToVisualize = CompIdx;
 			SVTSceneProxy->Extinction = Ext;
 			SVTSceneProxy->VoxelSizeFactor = VoxelSizeFactor;
-			SVTSceneProxy->bPivotAtCorner = bPivotAtCorner;
+			SVTSceneProxy->bPivotAtCentroid = bCentroidPivot;
 		});
 	}
 }
@@ -182,20 +207,23 @@ void USparseVolumeTextureViewerComponent::TickComponent(float DeltaTime, enum EL
 	if (SparseVolumeTexturePreview)
 	{
 		const int32 NumFrames = SparseVolumeTexturePreview->GetNumFrames();
-		float FrameIndexF = 0.0f;
-		if (bAnimate)
+
+		if (bPlaying)
 		{
-			const float AnimationDuration = (NumFrames / (FrameRate + UE_SMALL_NUMBER)) + UE_SMALL_NUMBER;
-			AnimationTime = FMath::Fmod(AnimationTime + AnimationDuration + (bReversePlayback ? -DeltaTime : DeltaTime), AnimationDuration);
-			FrameIndexF = AnimationTime * FrameRate;
+			Frame += DeltaTime * FrameRate * (bReversePlayback ? -1.0f : 1.0f);
+		}
+
+		if (bLooping)
+		{
+			// Simple way of dealing with looping when playing back in reverse: add NumFrames to the X input of Fmod.
+			Frame = FMath::Fmod(Frame + NumFrames, (float)NumFrames);
 		}
 		else
 		{
-			FrameIndexF = AnimationFrame * float(NumFrames);
+			Frame = FMath::Clamp(Frame, 0.0f, (float)(NumFrames - 1));
 		}
-		FrameIndexF = FMath::Clamp(FrameIndexF, 0, static_cast<float>(NumFrames - 1));
-		FrameIndex = FrameIndexF;
-		SparseVolumeTextureFrame = USparseVolumeTextureFrame::GetFrameAndIssueStreamingRequest(SparseVolumeTexturePreview, FrameIndexF, MipLevel, bBlockingStreamingRequests);
+
+		SparseVolumeTextureFrame = USparseVolumeTextureFrame::GetFrameAndIssueStreamingRequest(SparseVolumeTexturePreview, Frame, MipLevel, bBlockingStreamingRequests);
 	}
 	else
 	{
