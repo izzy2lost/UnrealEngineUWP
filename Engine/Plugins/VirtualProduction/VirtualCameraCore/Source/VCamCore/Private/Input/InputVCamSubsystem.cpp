@@ -86,6 +86,7 @@ void UInputVCamSubsystem::Deinitialize()
 	if (FSlateApplication::IsInitialized())
 	{
 		FSlateApplication::Get().UnregisterInputPreProcessor(InputPreprocessor);
+		InputPreprocessor.Reset(); // UObject will still around until GC'ed. No point in keeping the InputProcessor around.
 		
 		PlayerInput = nullptr;
 
