@@ -72,9 +72,6 @@ public:
 			MainLabel = FText::FromString( FString::Printf(TEXT("%s (Duplicated)"), StringCast<TCHAR>(TypeName).Get()));
 		}
 
-		// TODO
-		const FSlateBrush* IconBrush = nullptr; 
-
 		this->ChildSlot
 		[
 			SNew(SHorizontalBox)
@@ -83,20 +80,7 @@ public:
 			.AutoWidth()
 			[
 				SNew(SExpanderArrow, SharedThis(this))
-			]
-
-			+ SHorizontalBox::Slot()
-			.VAlign(VAlign_Center)
-			.Padding(FMargin(5.f, 0.f, 5.f, 0.f))
-			.AutoWidth()
-			[
-				SNew(SOverlay)
-				+ SOverlay::Slot()
-				[
-					SNew(SImage)
-					.Image(IconBrush ? IconBrush : FCoreStyle::Get().GetDefaultBrush())
-					.ColorAndOpacity(IconBrush ? FLinearColor::White : FLinearColor::Transparent)
-				]
+				.ShouldDrawWires(true)
 			]
 
 			+ SHorizontalBox::Slot()
