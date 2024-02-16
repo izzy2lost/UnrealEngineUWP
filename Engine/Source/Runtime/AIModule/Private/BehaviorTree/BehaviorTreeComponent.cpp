@@ -3039,76 +3039,84 @@ void UBehaviorTreeComponent::AddCooldownTagDuration(FGameplayTag CooldownTag, fl
 	}
 }
 
-bool SetDynamicSubtreeHelper(const UBTCompositeNode* TestComposite,
-	const FBehaviorTreeInstance& InstanceInfo, const UBehaviorTreeComponent* OwnerComp,
-	const FGameplayTag& InjectTag, UBehaviorTree* BehaviorAsset)
+void UBehaviorTreeComponent::SetDynamicSubtree(FGameplayTag InjectTag, UBehaviorTree* BehaviorAsset)
+{
+	SetDynamicSubtree(InjectTag, BehaviorAsset, nullptr);
+}
+
+void UBehaviorTreeComponent::SetDynamicSubtree(FGameplayTag InjectTag, UBehaviorTree* BehaviorAsset, UBTCompositeNode* OptionalStartingNode)
 {
 	bool bInjected = false;
-
-	for (int32 Idx = 0; Idx < TestComposite->Children.Num(); Idx++)
-	{
-		const FBTCompositeChild& ChildInfo = TestComposite->Children[Idx];
-		if (ChildInfo.ChildComposite)
+	auto ReplaceInjectedBehaviorInTask = [InjectTag, BehaviorAsset, this, &bInjected](UBTTaskNode& TaskNode, const FBehaviorTreeInstance& InstanceInfo, int32 InstanceIndex)
 		{
-			bInjected = (SetDynamicSubtreeHelper(ChildInfo.ChildComposite, InstanceInfo, OwnerComp, InjectTag, BehaviorAsset) || bInjected);
-		}
-		else
-		{
-			UBTTask_RunBehaviorDynamic* SubtreeTask = Cast<UBTTask_RunBehaviorDynamic>(ChildInfo.ChildTask);
+			UBTTask_RunBehaviorDynamic* SubtreeTask = Cast<UBTTask_RunBehaviorDynamic>(&TaskNode);
 			if (SubtreeTask && SubtreeTask->HasMatchingTag(InjectTag))
 			{
 				const uint8* NodeMemory = SubtreeTask->GetNodeMemory<uint8>(InstanceInfo);
-				UBTTask_RunBehaviorDynamic* InstancedNode = Cast<UBTTask_RunBehaviorDynamic>(SubtreeTask->GetNodeInstance(*OwnerComp, (uint8*)NodeMemory));
-				if (InstancedNode)
+				if (UBTTask_RunBehaviorDynamic* InstancedNode = Cast<UBTTask_RunBehaviorDynamic>(SubtreeTask->GetNodeInstance(*this, (uint8*)NodeMemory)))
 				{
 					const bool bAssetChanged = InstancedNode->SetBehaviorAsset(BehaviorAsset);
 					if (bAssetChanged)
 					{
-						UE_VLOG(OwnerComp->GetOwner(), LogBehaviorTree, Log, TEXT("Replaced subtree in %s with %s (tag: %s)"),
+						UE_VLOG(GetOwner(), LogBehaviorTree, Log, TEXT("Replaced subtree in %s with %s (tag: %s)"),
 							*UBehaviorTreeTypes::DescribeNodeHelper(SubtreeTask), *GetNameSafe(BehaviorAsset), *InjectTag.ToString());
 						bInjected = true;
+						if (InstanceInfo.ActiveNodeType == EBTActiveNode::ActiveTask && SubtreeTask == InstanceInfo.ActiveNode)
+						{
+							UBTCompositeNode* RestartNode = SubtreeTask->GetParentNode();
+							int32 RestartChildIdx = RestartNode->GetChildIndex(*SubtreeTask);
+							RequestExecution(RestartNode, InstanceIndex, SubtreeTask, RestartChildIdx, EBTNodeResult::Aborted);
+						}
 					}
 				}
 			}
-		}
-	}
+		};
 
-	return bInjected;
-}
-
-void UBehaviorTreeComponent::SetDynamicSubtree(FGameplayTag InjectTag, UBehaviorTree* BehaviorAsset)
-{
-	bool bInjected = false;
-	// replace at matching injection points
-	for (int32 InstanceIndex = 0; InstanceIndex < InstanceStack.Num(); InstanceIndex++)
+	if (OptionalStartingNode)
 	{
-		const FBehaviorTreeInstance& InstanceInfo = InstanceStack[InstanceIndex];
-		bInjected = (SetDynamicSubtreeHelper(InstanceInfo.RootNode, InstanceInfo, this, InjectTag, BehaviorAsset) || bInjected);
-	}
-
-	// restart subtree if it was replaced
-	if (bInjected)
-	{
-		for (int32 InstanceIndex = 0; InstanceIndex < InstanceStack.Num(); InstanceIndex++)
-		{
-			const FBehaviorTreeInstance& InstanceInfo = InstanceStack[InstanceIndex];
-			if (InstanceInfo.ActiveNodeType == EBTActiveNode::ActiveTask)
-			{
-				const UBTTask_RunBehaviorDynamic* SubtreeTask = Cast<const UBTTask_RunBehaviorDynamic>(InstanceInfo.ActiveNode);
-				if (SubtreeTask && SubtreeTask->HasMatchingTag(InjectTag))
-				{
-					UBTCompositeNode* RestartNode = SubtreeTask->GetParentNode();
-					int32 RestartChildIdx = RestartNode->GetChildIndex(*SubtreeTask);
-
-					RequestExecution(RestartNode, InstanceIndex, SubtreeTask, RestartChildIdx, EBTNodeResult::Aborted);
-					break;
-				}
-			}
-		}
+		ForEachChildTask(*OptionalStartingNode, FindInstanceContainingNode(OptionalStartingNode), ReplaceInjectedBehaviorInTask);
 	}
 	else
 	{
+		ForEachChildTask(ReplaceInjectedBehaviorInTask);
+	}
+
+	if (!bInjected)
+	{
 		UE_VLOG(GetOwner(), LogBehaviorTree, Log, TEXT("Failed to inject subtree %s at tag %s"), *GetNameSafe(BehaviorAsset), *InjectTag.ToString());
+	}
+}
+
+void UBehaviorTreeComponent::ForEachChildTask(TFunctionRef<void(class UBTTaskNode&, const FBehaviorTreeInstance&, int32 InstanceIndex)> Functor)
+{
+	for (int32 InstanceIndex = 0; InstanceIndex < InstanceStack.Num(); InstanceIndex++)
+	{
+		const FBehaviorTreeInstance& InstanceInfo = InstanceStack[InstanceIndex];
+		ForEachChildTask(*InstanceInfo.RootNode, InstanceIndex, Functor);
+	}
+}
+
+void UBehaviorTreeComponent::ForEachChildTask(UBTCompositeNode& StartNode, int32 InstanceIndex, TFunctionRef<void(UBTTaskNode&, const FBehaviorTreeInstance&, int32 InstanceIndex)> Functor)
+{
+	if (!InstanceStack.IsValidIndex(InstanceIndex))
+	{
+		return;
+	}
+
+	for (int32 Idx = 0; Idx < StartNode.Children.Num(); Idx++)
+	{
+		const FBTCompositeChild& ChildInfo = StartNode.Children[Idx];
+		if (ChildInfo.ChildComposite)
+		{
+			ForEachChildTask(*ChildInfo.ChildComposite, InstanceIndex, Functor);
+		}
+		else
+		{
+			if (ChildInfo.ChildTask)
+			{
+				Functor(*ChildInfo.ChildTask, InstanceStack[InstanceIndex], InstanceIndex);
+			}
+		}
 	}
 }
 
