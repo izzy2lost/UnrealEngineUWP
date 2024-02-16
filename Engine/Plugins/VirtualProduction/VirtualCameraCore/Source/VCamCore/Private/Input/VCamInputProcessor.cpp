@@ -170,7 +170,8 @@ namespace UE::VCamCore::Private
 
 	bool FVCamInputProcessor::InputKeyToSubsystem(const FInputKeyParams& Params)
 	{
-		if (ensure(OwningSubsystem.IsValid()))
+		// Even after our owning subsystem is destroyed, the core input system may hold onto us for just a little bit longer due to how the input system is designed
+		if (OwningSubsystem.IsValid())
 		{
 			return OwningSubsystem->InputKey(Params);
 		}
