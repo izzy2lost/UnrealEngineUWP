@@ -35,6 +35,7 @@
 #include "Misc/PathViews.h"
 #include "Containers/Queue.h"
 #include "ShaderCodeLibrary.h"
+#include "Trace/Trace.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GameFeaturePluginStateMachine)
 
@@ -3335,6 +3336,10 @@ bool UGameFeaturePluginStateMachine::IsValidErrorState(EGameFeaturePluginState I
 	return AllStates[InDestinationState]->GetStateType() == EGameFeaturePluginStateType::Error;
 }
 
+UE_TRACE_EVENT_BEGIN(Cpu, GFP_UpdateStateMachine, NoSync)
+	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, PluginName)
+UE_TRACE_EVENT_END()
+
 void UGameFeaturePluginStateMachine::UpdateStateMachine()
 {
 	EGameFeaturePluginState CurrentState = GetCurrentState();
@@ -3344,7 +3349,8 @@ void UGameFeaturePluginStateMachine::UpdateStateMachine()
 		return;
 	}
 
-	TRACE_CPUPROFILER_EVENT_SCOPE(GFP_UpdateStateMachine);
+	UE_TRACE_LOG_SCOPED_T(Cpu, GFP_UpdateStateMachine, CpuChannel)
+		<< GFP_UpdateStateMachine.PluginName(*GetPluginName());
 
 	TOptional<TGuardValue<bool>> ScopeGuard(InPlace, bInUpdateStateMachine, true);
 	

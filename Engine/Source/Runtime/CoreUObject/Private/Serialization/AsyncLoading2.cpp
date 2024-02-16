@@ -81,6 +81,7 @@
 #include "IO/IoPriorityQueue.h"
 #include "UObject/CoreRedirects.h"
 #include "Serialization/ZenPackageHeader.h"
+#include "Trace/Trace.h"
 
 #include <atomic>
 
@@ -4312,6 +4313,11 @@ void FAsyncLoadingThread2::IncludePackageInSyncLoadContextRecursive(FAsyncLoadin
 	}
 }
 
+UE_TRACE_EVENT_BEGIN(CUSTOM_LOADTIMER_LOG, CreateAsyncPackage, NoSync)
+	UE_TRACE_EVENT_FIELD(uint64, PackageId)
+	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, PackageName)
+UE_TRACE_EVENT_END()
+
 bool FAsyncLoadingThread2::CreateAsyncPackagesFromQueue(FAsyncLoadingThreadState2& ThreadState)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(CreateAsyncPackagesFromQueue);
@@ -4331,6 +4337,9 @@ bool FAsyncLoadingThread2::CreateAsyncPackagesFromQueue(FAsyncLoadingThreadState
 			PendingPackage->Desc.UPackageName, PackageEntry);
 		if (PendingPackageStatus == EPackageStoreEntryStatus::Ok)
 		{
+			SCOPED_CUSTOM_LOADTIMER(CreateAsyncPackage)
+				ADD_CUSTOM_LOADTIMER_META(CreateAsyncPackage, PackageId, PendingPackage->Desc.UPackageId.ValueForDebugging())
+				ADD_CUSTOM_LOADTIMER_META(CreateAsyncPackage, PackageName, *WriteToString<256>(PendingPackage->Desc.UPackageName));
 			InitializeAsyncPackageFromPackageStore(ThreadState, &IoBatch, PendingPackage, PackageEntry);
 			PendingPackage->StartLoading(ThreadState, IoBatch);
 			It.RemoveCurrent();
@@ -4469,6 +4478,10 @@ bool FAsyncLoadingThread2::CreateAsyncPackagesFromQueue(FAsyncLoadingThreadState
 					}
 					else
 					{
+						SCOPED_CUSTOM_LOADTIMER(CreateAsyncPackage)
+							ADD_CUSTOM_LOADTIMER_META(CreateAsyncPackage, PackageId, PackageDesc.UPackageId.ValueForDebugging())
+							ADD_CUSTOM_LOADTIMER_META(CreateAsyncPackage, PackageName, NameBuffer);
+
 						check(PackageStatus == EPackageStoreEntryStatus::Ok);
 #if ALT2_ENABLE_LINKERLOAD_SUPPORT
 						if (!bIsZenPackage)
@@ -9119,6 +9132,10 @@ void FAsyncPackage2::AddProgressCallback(TUniquePtr<FLoadPackageAsyncProgressDel
 	ProgressCallbacks.Emplace(MoveTemp(Callback));
 }
 
+UE_TRACE_EVENT_BEGIN(CUSTOM_LOADTIMER_LOG, LoadAsyncPackageInternal, NoSync)
+	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, PackageName)
+UE_TRACE_EVENT_END()
+
 int32 FAsyncLoadingThread2::LoadPackageInternal(const FPackagePath& InPackagePath, FName InCustomName, TUniquePtr<FLoadPackageAsyncDelegate>&& InCompletionDelegate, TUniquePtr<FLoadPackageAsyncProgressDelegate>&& InProgressDelegate, EPackageFlags InPackageFlags, int32 InPIEInstanceID, int32 InPackagePriority, const FLinkerInstancingContext* InInstancingContext, uint32 InLoadFlags)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(LoadPackage);
@@ -9128,6 +9145,8 @@ int32 FAsyncLoadingThread2::LoadPackageInternal(const FPackagePath& InPackagePat
 	{
 		InCustomName = NAME_None;
 	}
+	SCOPED_CUSTOM_LOADTIMER(LoadAsyncPackageInternal)
+		ADD_CUSTOM_LOADTIMER_META(LoadAsyncPackageInternal, PackageName, *WriteToString<256>(PackageNameToLoad));
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if (FCoreDelegates::OnAsyncLoadPackage.IsBound())
