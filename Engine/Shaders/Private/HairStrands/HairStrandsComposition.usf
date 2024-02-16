@@ -214,7 +214,7 @@ void HoldoutPS(
 	}
 
 	OutColor.rgb = 0;
-	OutColor.a = 1;  //PixelCoverage;
+	OutColor.a = PixelCoverage;
 	OutDepth     = HairDeviceZ;
 	if (bComposeDofDepth)
 	{
