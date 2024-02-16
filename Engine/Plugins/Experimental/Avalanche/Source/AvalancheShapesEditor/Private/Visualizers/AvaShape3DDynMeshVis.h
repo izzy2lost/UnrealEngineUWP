@@ -6,7 +6,7 @@
 
 class UAvaShape3DDynMeshBase;
 
-class AVALANCHESHAPESEDITOR_API FAvaShape3DDynamicMeshVisualizer : public FAvaShapeDynamicMeshVisualizer
+class FAvaShape3DDynamicMeshVisualizer : public FAvaShapeDynamicMeshVisualizer
 {
 public:
 	using Super = FAvaShapeDynamicMeshVisualizer;

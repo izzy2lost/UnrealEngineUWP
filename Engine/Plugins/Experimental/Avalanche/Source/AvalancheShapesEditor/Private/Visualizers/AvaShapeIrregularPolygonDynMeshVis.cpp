@@ -2,8 +2,8 @@
 
 #include "AvaShapeIrregularPolygonDynMeshVis.h"
 #include "AvaField.h"
-#include "AvalancheShapesEditorModule.h"
 #include "AvaShapeActor.h"
+#include "AvaShapeSprites.h"
 #include "DynamicMeshes/AvaShapeIrregularPolygonDynMesh.h"
 #include "EditorViewportClient.h"
 #include "Engine/Texture2D.h"
@@ -269,7 +269,7 @@ void FAvaShapeIrregularPolygonDynamicMeshVisualizer::GenerateContextSensitiveSna
 void FAvaShapeIrregularPolygonDynamicMeshVisualizer::DrawGlobalBevelButton(const FMeshType* InDynMesh, const FSceneView* InView,
 	FPrimitiveDrawInterface* InPDI, int32 InIconIndex, const FLinearColor& InColor) const
 {
-	UTexture2D* UVSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(FAvalancheShapesEditorModule::CornerSprite);
+	UTexture2D* UVSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(UE::AvaShapes::CornerSprite);
 
 	if (!UVSprite || !UVSprite->GetResource())
 	{
@@ -296,7 +296,7 @@ void FAvaShapeIrregularPolygonDynamicMeshVisualizer::DrawPointButton(const FMesh
 
 	static float BaseSize = 1.f;
 
-	UTexture2D* SizeSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(FAvalancheShapesEditorModule::SizeSprite);
+	UTexture2D* SizeSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(UE::AvaShapes::SizeSprite);
 
 	if (!SizeSprite || !SizeSprite->GetResource())
 	{
@@ -324,7 +324,7 @@ void FAvaShapeIrregularPolygonDynamicMeshVisualizer::DrawBevelButton(const FMesh
 
 	static float BaseSize = 1.f;
 
-	UTexture2D* SizeSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(FAvalancheShapesEditorModule::BevelSprite);
+	UTexture2D* SizeSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(UE::AvaShapes::BevelSprite);
 
 	if (!SizeSprite || !SizeSprite->GetResource())
 	{
@@ -351,7 +351,7 @@ void FAvaShapeIrregularPolygonDynamicMeshVisualizer::DrawBreakButton(const FMesh
 
 	static float BaseSize = 1.f;
 
-	UTexture2D* BreakSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(FAvalancheShapesEditorModule::BreakSideSprite);
+	UTexture2D* BreakSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(UE::AvaShapes::BreakSideSprite);
 
 	if (!BreakSprite || !BreakSprite->GetResource())
 	{

@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Tools/AvaShapesEditorShapeToolLine.h"
-#include "AvalancheShapesEditorModule.h"
 #include "AvaShapeActor.h"
 #include "AvaShapesEditorCommands.h"
 #include "Builders/AvaInteractiveToolsToolBuilder.h"

@@ -9,6 +9,13 @@ public class AvalancheTextEditor : ModuleRules
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 
+		PrivateIncludePathModuleNames.AddRange(
+			new string[]
+			{
+				"AvalancheShapesEditor",
+			}
+		);
+
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
@@ -16,7 +23,6 @@ public class AvalancheTextEditor : ModuleRules
 				"AvalancheComponentVisualizers",
 				"AvalancheInteractiveTools",
 				"AvalancheLevelViewport",
-				"AvalancheShapesEditor",
 				"AvalancheText",
 				"ComponentVisualizers",
 				"Core",

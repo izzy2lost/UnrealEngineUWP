@@ -12,11 +12,6 @@ public class AvalancheShapesEditor : ModuleRules
 			new string[]
 			{
 				"Core",
-				"CoreUObject",
-				"DeveloperSettings",
-				"Engine",
-				"Slate",
-				"SlateCore"
 			}
 		);
 
@@ -31,7 +26,10 @@ public class AvalancheShapesEditor : ModuleRules
 				"AvalancheShapes",
 				"AvalancheViewport",
 				"ComponentVisualizers",
+				"CoreUObject",
+				"DeveloperSettings",
 				"EditorFramework",
+				"Engine",
 				"GeometryCore",
 				"GeometryFramework",
 				"InputCore",
@@ -42,6 +40,8 @@ public class AvalancheShapesEditor : ModuleRules
 				"MovieSceneTracks",
 				"Projects",
 				"Sequencer",
+				"Slate",
+				"SlateCore",
 				"UnrealEd",
 				"WidgetRegistration"
 			}

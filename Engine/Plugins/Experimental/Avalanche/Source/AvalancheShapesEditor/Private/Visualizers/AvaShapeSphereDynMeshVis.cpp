@@ -3,7 +3,7 @@
 #include "AvaShapeSphereDynMeshVis.h"
 #include "AvaField.h"
 #include "AvaShapeActor.h"
-#include "AvalancheShapesEditorModule.h"
+#include "AvaShapeSprites.h"
 #include "DynamicMeshes/AvaShapeSphereDynMesh.h"
 #include "EditorViewportClient.h"
 #include "Engine/Texture2D.h"
@@ -455,7 +455,7 @@ void FAvaShapeSphereDynamicMeshVisualizer::StoreInitialValues()
 void FAvaShapeSphereDynamicMeshVisualizer::DrawNumSidesButton(const FMeshType* InDynMesh, const FSceneView* InView, FPrimitiveDrawInterface* InPDI,
 		int32 InIconIndex, const FLinearColor& InColor) const
 {
-	UTexture2D* NumSidesSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(FAvalancheShapesEditorModule::NumSidesSprite);
+	UTexture2D* NumSidesSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(UE::AvaShapes::NumSidesSprite);
 
 	if (!NumSidesSprite || !NumSidesSprite->GetResource())
 	{
@@ -476,7 +476,7 @@ void FAvaShapeSphereDynamicMeshVisualizer::DrawNumSidesButton(const FMeshType* I
 void FAvaShapeSphereDynamicMeshVisualizer::DrawAngleDegreeButton(const FMeshType* InDynMesh, const FSceneView* InView, FPrimitiveDrawInterface* InPDI,
 		int32 InIconIndex, const FLinearColor& InColor, AvaAlignment InAngleAnchor) const
 {
-	UTexture2D* InnerSizeSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(FAvalancheShapesEditorModule::InnerSizeSprite);
+	UTexture2D* InnerSizeSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(UE::AvaShapes::InnerSizeSprite);
 
 	if (!InnerSizeSprite || !InnerSizeSprite->GetResource())
 	{

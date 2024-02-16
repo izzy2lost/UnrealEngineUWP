@@ -3,7 +3,7 @@
 #include "AvaShapeNGonDynMeshVis.h"
 #include "AvaField.h"
 #include "AvaShapeActor.h"
-#include "AvalancheShapesEditorModule.h"
+#include "AvaShapeSprites.h"
 #include "DynamicMeshes/AvaShapeNGonDynMesh.h"
 #include "EditorViewportClient.h"
 #include "Engine/Texture2D.h"
@@ -96,7 +96,7 @@ void FAvaShapeNGonDynamicMeshVisualizer::DrawVisualizationEditing(const UActorCo
 void FAvaShapeNGonDynamicMeshVisualizer::DrawNumSidesButton(const FMeshType* InDynMesh,
 	const FSceneView* InView, FPrimitiveDrawInterface* InPDI, int32 InIconIndex, const FLinearColor& InColor) const
 {
-	UTexture2D* NumSidesSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(FAvalancheShapesEditorModule::NumSidesSprite);
+	UTexture2D* NumSidesSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(UE::AvaShapes::NumSidesSprite);
 
 	if (!NumSidesSprite || !NumSidesSprite->GetResource())
 	{

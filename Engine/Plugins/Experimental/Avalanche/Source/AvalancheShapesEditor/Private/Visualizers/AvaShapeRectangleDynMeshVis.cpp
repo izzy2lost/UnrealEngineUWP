@@ -3,7 +3,7 @@
 #include "AvaShapeRectangleDynMeshVis.h"
 #include "AvaField.h"
 #include "AvaShapeActor.h"
-#include "AvalancheShapesEditorModule.h"
+#include "AvaShapeSprites.h"
 #include "DynamicMeshes/AvaShapeRectangleDynMesh.h"
 #include "EditorViewportClient.h"
 #include "Engine/Texture2D.h"
@@ -326,7 +326,7 @@ FVector FAvaShapeRectangleDynamicMeshVisualizer::GetCornerDragLocation(const FMe
 void FAvaShapeRectangleDynamicMeshVisualizer::DrawGlobalBevelButton(const FMeshType* InDynMesh, const FSceneView* InView,
 	FPrimitiveDrawInterface* InPDI, int32 InIconIndex, const FLinearColor& InColor) const
 {
-	UTexture2D* UVSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(FAvalancheShapesEditorModule::CornerSprite);
+	UTexture2D* UVSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(UE::AvaShapes::CornerSprite);
 
 	if (!UVSprite || !UVSprite->GetResource())
 	{
@@ -348,7 +348,7 @@ void FAvaShapeRectangleDynamicMeshVisualizer::DrawBevelButton(const FMeshType* I
 {
 	static const float BaseSize = 1.f;
 
-	UTexture2D* NumSidesSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(FAvalancheShapesEditorModule::BevelSprite);
+	UTexture2D* NumSidesSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(UE::AvaShapes::BevelSprite);
 
 	if (!NumSidesSprite || !NumSidesSprite->GetResource())
 	{
@@ -369,7 +369,7 @@ void FAvaShapeRectangleDynamicMeshVisualizer::DrawSlantButton(const FMeshType* I
 {
 	static const float BaseSize = 1.f;
 
-	UTexture2D* NumSidesSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(FAvalancheShapesEditorModule::SlantSprite);
+	UTexture2D* NumSidesSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(UE::AvaShapes::SlantSprite);
 
 	if (!NumSidesSprite || !NumSidesSprite->GetResource())
 	{

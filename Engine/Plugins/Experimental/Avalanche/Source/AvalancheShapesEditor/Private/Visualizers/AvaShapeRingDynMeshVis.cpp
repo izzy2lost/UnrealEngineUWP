@@ -3,7 +3,7 @@
 #include "AvaShapeRingDynMeshVis.h"
 #include "AvaField.h"
 #include "AvaShapeActor.h"
-#include "AvalancheShapesEditorModule.h"
+#include "AvaShapeSprites.h"
 #include "DynamicMeshes/AvaShapeRingDynMesh.h"
 #include "EditorViewportClient.h"
 #include "Engine/Texture2D.h"
@@ -114,7 +114,7 @@ void FAvaShapeRingDynamicMeshVisualizer::DrawVisualizationEditing(const UActorCo
 void FAvaShapeRingDynamicMeshVisualizer::DrawNumSidesButton(const FMeshType* InDynMesh, const FSceneView* InView,
 	FPrimitiveDrawInterface* InPDI, int32 InIconIndex, const FLinearColor& InColor) const
 {
-	UTexture2D* NumSidesSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(FAvalancheShapesEditorModule::NumSidesSprite);
+	UTexture2D* NumSidesSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(UE::AvaShapes::NumSidesSprite);
 
 	if (!NumSidesSprite || !NumSidesSprite->GetResource())
 	{
@@ -134,7 +134,7 @@ void FAvaShapeRingDynamicMeshVisualizer::DrawNumSidesButton(const FMeshType* InD
 void FAvaShapeRingDynamicMeshVisualizer::DrawInnerSizeButton(const FMeshType* InDynMesh, const FSceneView* InView,
 	FPrimitiveDrawInterface* InPDI, int32 InIconIndex, const FLinearColor& InColor) const
 {
-	UTexture2D* NumSidesSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(FAvalancheShapesEditorModule::InnerSizeSprite);
+	UTexture2D* NumSidesSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(UE::AvaShapes::InnerSizeSprite);
 
 	if (!NumSidesSprite || !NumSidesSprite->GetResource())
 	{
