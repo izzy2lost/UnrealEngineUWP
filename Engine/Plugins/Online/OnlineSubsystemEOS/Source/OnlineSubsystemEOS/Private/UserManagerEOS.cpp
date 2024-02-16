@@ -990,19 +990,18 @@ bool FUserManagerEOS::ConnectLoginEAS(int32 LocalUserNum, EOS_EpicAccountId Acco
 
 void FUserManagerEOS::RefreshConnectLogin(int32 LocalUserNum)
 {
-	const EOS_EpicAccountId AccountId = GetLocalEpicAccountId(LocalUserNum);
-	if (!AccountId)
-	{
-		UE_LOG_ONLINE(Error, TEXT("Can't refresh ConnectLogin(%d) since (%d) is not logged in"), LocalUserNum, LocalUserNum);
-		return;
-	}
-
 	const FEOSSettings Settings = UEOSSettings::GetSettings();
 	// In the case where bIsDefaultOSS is true, FUserManagerEOS::Login will default to using EOS_Auth_Login regardless of the value that bUseEAS is set to
 	// This behaviour will be fixed as part of a wider refactor of FUserManagerEOS::Login
 	const bool bShouldUseEOSAuthToken = EOSSubsystem->bIsDefaultOSS || Settings.bUseEAS;
 	if (bShouldUseEOSAuthToken)
 	{
+		const EOS_EpicAccountId AccountId = GetLocalEpicAccountId(LocalUserNum);
+		if (!AccountId)
+		{
+			UE_LOG_ONLINE(Error, TEXT("Can't refresh ConnectLogin(%d) since (%d) is not logged in"), LocalUserNum, LocalUserNum);
+			return;
+		}
 		const FString AccessToken = GetAuthToken(LocalUserNum);
 		if (!AccessToken.IsEmpty())
 		{
