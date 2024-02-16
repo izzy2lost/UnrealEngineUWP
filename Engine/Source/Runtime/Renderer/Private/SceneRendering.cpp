@@ -166,10 +166,12 @@ bool IsDynamicInstancingEnabled(ERHIFeatureLevel::Type FeatureLevel)
 		&& UseGPUScene(GMaxRHIShaderPlatform, FeatureLevel);
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 int32 GetMaxNumReflectionCaptures(EShaderPlatform ShaderPlatform)
 {
 	return IsMobilePlatform(ShaderPlatform) ? GMobileMaxNumReflectionCaptures : GMaxNumReflectionCaptures;
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 int32 GDumpInstancingStats = 0;
 FAutoConsoleVariableRef CVarDumpInstancingStats(
