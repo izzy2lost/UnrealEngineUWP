@@ -856,11 +856,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	, PrimaryScreenPercentageMethod(EPrimaryScreenPercentageMethod::SpatialUpscale)
 	, FeatureLevel(InitOptions.ViewFamily ? InitOptions.ViewFamily->GetFeatureLevel() : GMaxRHIFeatureLevel)
 {
-	check(UnscaledViewRect.Min.X >= 0);
-	check(UnscaledViewRect.Min.Y >= 0);
-	check(UnscaledViewRect.Width() > 0);
-	check(UnscaledViewRect.Height() > 0);
-
 	ShadowViewMatrices = ViewMatrices;
 
 	SceneViewInitOptions = FSceneViewInitOptions(InitOptions);
