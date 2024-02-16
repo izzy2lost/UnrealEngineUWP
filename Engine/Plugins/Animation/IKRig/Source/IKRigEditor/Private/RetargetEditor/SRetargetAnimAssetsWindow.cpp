@@ -467,7 +467,7 @@ FReply SBatchExportOptionsDialog::OnButtonClick(EAppReturnType::Type ButtonID)
 	const UBatchExportOptions* ExportOptions = UBatchExportOptions::GetInstance();
 	BatchContext->bIncludeReferencedAssets = ExportOptions->bIncludeReferencedAssets;
 	BatchContext->bOverwriteExistingFiles = ExportOptions->bOverwriteExistingFiles;
-	BatchContext->bExportOnlyAnimatedBones = ExportOptions->bExportOnlyAnimatedBones;
+	//BatchContext->bExportOnlyAnimatedBones = ExportOptions->bExportOnlyAnimatedBones;
 	
 	UserResponse = ButtonID;
 	RequestDestroyWindow();
