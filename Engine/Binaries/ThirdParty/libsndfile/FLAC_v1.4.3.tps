@@ -6,7 +6,7 @@
     Version: 1.4.3 -->
   <Location>Engine/Binaries/ThirdParty/libsndfile/<Location>
   <Function>It compresses audio losslessly so it can be smaller than the original. It both encodes and decodes the audio. </Function>
-  <Eula>https://github.com/numpy/numpy/blob/main/numpy/_core/src/multiarray/dragon4.c</Eula>
+  <Eula>https://xiph.org/flac/license.html</Eula>
   <RedistributeTo>
     <EndUserGroup>Licencees</EndUserGroup>
     <EndUserGroup>P4</EndUserGroup>
