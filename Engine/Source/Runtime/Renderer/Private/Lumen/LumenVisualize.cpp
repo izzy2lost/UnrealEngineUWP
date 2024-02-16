@@ -627,7 +627,7 @@ void SetupVisualizeParameters(
 		const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Lumen.Ortho.OverrideMeshDFTraceDistances"));
 		if (CVar && CVar->GetValueOnRenderThread() > 0)
 		{
-			MaxMeshSDFTraceDistance = View.ViewMatrices.GetOrthoViewRect().GetMax();
+			MaxMeshSDFTraceDistance = View.ViewMatrices.GetOrthoDimensions().GetMax();
 		}		
 	}
 

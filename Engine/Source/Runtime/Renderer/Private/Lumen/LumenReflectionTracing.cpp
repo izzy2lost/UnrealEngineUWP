@@ -740,7 +740,7 @@ void SetupIndirectTracingParametersForReflections(const FViewInfo& View, FLumenI
 
 	if (OrthoOverrideMeshDF)
 	{
-		float TraceSDFDistance = FMath::Clamp(View.ViewMatrices.GetOrthoViewRect().GetMax(), OutParameters.MinTraceDistance, OutParameters.MaxTraceDistance);
+		float TraceSDFDistance = FMath::Clamp(View.ViewMatrices.GetOrthoDimensions().GetMax(), OutParameters.MinTraceDistance, OutParameters.MaxTraceDistance);
 		OutParameters.MaxMeshSDFTraceDistance = TraceSDFDistance;
 		OutParameters.CardTraceEndDistanceFromCamera = FMath::Max(GDiffuseCardTraceEndDistanceFromCamera, TraceSDFDistance);
 	}
