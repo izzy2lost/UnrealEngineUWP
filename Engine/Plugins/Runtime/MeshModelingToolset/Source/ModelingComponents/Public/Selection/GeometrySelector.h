@@ -400,7 +400,7 @@ public:
 	/**
 	 * Compute a 3D frame for the Selector's target object
 	 */
-	virtual void GetTargetFrame(UE::Geometry::FFrame3d& SelectionFrameOut) = 0;
+	virtual void GetTargetFrame(const FGeometrySelection& Selection, UE::Geometry::FFrame3d& SelectionFrameOut) = 0;
 
 	/**
 	 * Accumulate the bounds of the provided Selection in the provided BoundsInOut. BoundsInOut is not cleared.

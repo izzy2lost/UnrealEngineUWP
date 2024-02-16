@@ -569,13 +569,20 @@ void FBaseDynamicMeshSelector::GetSelectionFrame(const FGeometrySelection& Selec
 
 	if (bTransformToWorld)
 	{
-		GetTargetFrame(SelectionFrame);
+		SelectionFrame.Transform(GetLocalToWorldTransform());
 	}
 }
 
-void FBaseDynamicMeshSelector::GetTargetFrame(FFrame3d& SelectionFrame)
+void FBaseDynamicMeshSelector::GetTargetFrame(const FGeometrySelection& Selection, FFrame3d& SelectionFrame)
 {
 	SelectionFrame.Transform(GetLocalToWorldTransform());
+	TQuaternion<double> TargetRotation = SelectionFrame.Rotation;
+
+	// Places gizmo at the selection's accumulated origin
+	GetSelectionFrame(Selection, SelectionFrame, true);
+
+	// Uses object rotation instead of accumulated normals from selection
+	SelectionFrame.Rotation = TargetRotation;
 }
 
 void FBaseDynamicMeshSelector::AccumulateSelectionBounds(const FGeometrySelection& Selection, FGeometrySelectionBounds& BoundsInOut, bool bTransformToWorld)
