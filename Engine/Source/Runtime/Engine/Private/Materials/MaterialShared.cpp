@@ -2830,6 +2830,9 @@ bool FMaterial::CacheShaders(const FMaterialShaderMapId& ShaderMapId, EShaderPla
 #endif
 	UE_CLOG(!ShaderMapId.IsValid(), LogMaterial, Warning, TEXT("Invalid shader map ID caching shaders for '%s', will use default material."), *GetFriendlyName());
 #if WITH_EDITOR
+
+	DebugGroupName = GetUniqueAssetName(Platform, ShaderMapId) / LexToString(GetQualityLevel());
+
 	FString DDCKeyHash;
 
 	// Just make sure that we don't already have a pending cache going on.
@@ -3236,8 +3239,6 @@ void FMaterial::CacheGivenTypes(EShaderPlatform Platform, const TArray<const FVe
 		checkf(PipelineTypes.Num() == ShaderTypes.Num(), TEXT("The size of the pipeline type array and shader type array must match.  Pass in null entries if pipelines are not used."));
 		checkf(GetGameThreadCompilingShaderMapId() != 0, TEXT("Material is not prepared to compile yet.  Please call CacheShaders first."));
 
-		const FString DebugGroupName = GetUniqueAssetName(Platform, GameThreadShaderMap->GetShaderMapId()) / LexToString(GetQualityLevel());
-
 		TArray<FShaderCommonCompileJobPtr> CompileJobs;
 		for (int i = 0; i < VFTypes.Num(); ++i)
 		{
@@ -3259,7 +3260,7 @@ void FMaterial::CacheGivenTypes(EShaderPlatform Platform, const TArray<const FVe
 					VFType,
 					PipelineType,
 					CompileJobs,
-					DebugGroupName,
+					GetDebugGroupName(),
 					nullptr,
 					nullptr);
 			}
@@ -3728,7 +3729,6 @@ bool FMaterial::TryGetShaders(const FMaterialShaderTypes& InTypes, const FVertex
 					{
 						if (!bShaderMapComplete)
 						{
-							const FString DebugGroupName = GetUniqueAssetName(ShaderPlatform, ShaderMap->GetShaderMapId()) / LexToString(GetQualityLevel());
 							if (InVertexFactoryType)
 							{
 								FMeshMaterialShaderType::BeginCompileShaderPipeline(
@@ -3743,7 +3743,7 @@ bool FMaterial::TryGetShaders(const FMaterialShaderTypes& InTypes, const FVertex
 									InVertexFactoryType, 
 									InTypes.PipelineType, 
 									CompileJobs,
-									DebugGroupName,
+									GetDebugGroupName(),
 									nullptr, 
 									nullptr);
 							}
@@ -3759,7 +3759,7 @@ bool FMaterial::TryGetShaders(const FMaterialShaderTypes& InTypes, const FVertex
 									RenderingThreadPendingCompilerEnvironment, 
 									InTypes.PipelineType, 
 									CompileJobs,
-									DebugGroupName,
+									GetDebugGroupName(),
 									nullptr, 
 									nullptr);
 							}
@@ -3817,7 +3817,6 @@ bool FMaterial::TryGetShaders(const FMaterialShaderTypes& InTypes, const FVertex
 						{
 							if (!bShaderMapComplete)
 							{
-								const FString DebugGroupName = GetUniqueAssetName(ShaderPlatform, ShaderMap->GetShaderMapId()) / LexToString(GetQualityLevel());
 								if (InVertexFactoryType)
 								{
 									ShaderType->AsMeshMaterialShaderType()->BeginCompileShader(
@@ -3831,7 +3830,7 @@ bool FMaterial::TryGetShaders(const FMaterialShaderTypes& InTypes, const FVertex
 										RenderingThreadPendingCompilerEnvironment,
 										InVertexFactoryType,
 										CompileJobs,
-										DebugGroupName,
+										GetDebugGroupName(),
 										nullptr,
 										nullptr);
 								}
@@ -3847,7 +3846,7 @@ bool FMaterial::TryGetShaders(const FMaterialShaderTypes& InTypes, const FVertex
 										ShaderPlatform,
 										PermutationFlags,
 										CompileJobs,
-										DebugGroupName,
+										GetDebugGroupName(),
 										nullptr,
 										nullptr);
 								}

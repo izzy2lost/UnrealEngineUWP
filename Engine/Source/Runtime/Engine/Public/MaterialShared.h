@@ -2129,6 +2129,7 @@ public:
 	void SetCompileErrors(const TArray<FString>& InCompileErrors) { CompileErrors = InCompileErrors; }
 	const TArray<UMaterialExpression*>& GetErrorExpressions() const { return ObjectPtrDecay(ErrorExpressions); }
 	const FGuid& GetLegacyId() const { return Id_DEPRECATED; }
+	const FString& GetDebugGroupName() const { return DebugGroupName; }
 #endif // WITH_EDITOR
 
 	inline const FStaticFeatureLevel GetFeatureLevel() const { checkSlow(FeatureLevel != ERHIFeatureLevel::Num); return FeatureLevel; }
@@ -2461,6 +2462,8 @@ private:
 
 	TRefCountPtr<FSharedShaderCompilerEnvironment> GameThreadPendingCompilerEnvironment;
 	TRefCountPtr<FSharedShaderCompilerEnvironment> RenderingThreadPendingCompilerEnvironment;
+
+	FString DebugGroupName;
 #endif // WITH_EDITOR
 
 	/** 

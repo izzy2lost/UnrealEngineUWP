@@ -1403,11 +1403,6 @@ void FMaterialShaderMap::LoadFromDerivedDataCache(const FMaterial* Material, con
 	InOutShaderMap = BeginLoadFromDerivedDataCache(Material, ShaderMapId, InPlatform, TargetPlatform, InOutShaderMap, OutDDCKeyDesc)->Get();
 }
 
-FString GetMaterialDebugGroupName(EShaderPlatform ShaderPlatform, const FMaterial* Material, const FMaterialShaderMapId& ShaderMapId)
-{
-	return Material->GetUniqueAssetName(ShaderPlatform, ShaderMapId) / LexToString(Material->GetQualityLevel());
-}
-
 TSharedRef<FMaterialShaderMap::FAsyncLoadContext> FMaterialShaderMap::BeginLoadFromDerivedDataCache(const FMaterial* Material, const FMaterialShaderMapId& ShaderMapId, EShaderPlatform InPlatform, const ITargetPlatform* TargetPlatform, TRefCountPtr<FMaterialShaderMap>& InShaderMap, FString& OutDDCKeyDesc)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FMaterialShaderMap::BeginLoadFromDerivedDataCache);
@@ -1509,7 +1504,7 @@ TSharedRef<FMaterialShaderMap::FAsyncLoadContext> FMaterialShaderMap::BeginLoadF
 
 			if (UNLIKELY(ShouldDumpShaderDDCKeys()) || (Material->IsDefaultMaterial() && Material->GetMaterialDomain() == EMaterialDomain::MD_Surface))
 			{	
-				DumpShaderDDCKeyToFile(InPlatform, ShaderMapId.LayoutParams.WithEditorOnly(), *GetMaterialDebugGroupName(InPlatform, Material, ShaderMapId), Result->DataKey);
+				DumpShaderDDCKeyToFile(InPlatform, ShaderMapId.LayoutParams.WithEditorOnly(), *Material->GetDebugGroupName(), Result->DataKey);
 			}
 
 			if (Material->IsDefaultMaterial() && Material->GetMaterialDomain() == EMaterialDomain::MD_Surface)
@@ -1880,8 +1875,6 @@ int32 FMaterialShaderMap::SubmitCompileJobs(uint32 CompilingShaderMapId,
 	const FMaterialShaderParameters MaterialParameters(Material);
 	const FMaterialShaderMapLayout& Layout = AcquireMaterialShaderMapLayout(ShaderPlatform, LocalPermutationFlags, MaterialParameters);
 
-	const FString DebugGroupName = GetMaterialDebugGroupName(ShaderPlatform, Material, GetShaderMapId());
-
 #if ALLOW_SHADERMAP_DEBUG_DATA
 	FString DebugExtensionStr(TEXT(""));
 	FString DebugDescriptionStr(TEXT(""));
@@ -1943,7 +1936,7 @@ int32 FMaterialShaderMap::SubmitCompileJobs(uint32 CompilingShaderMapId,
 					MaterialEnvironment,
 					MeshLayout.VertexFactoryType,
 					CompileJobs,
-					DebugGroupName,
+					Material->GetDebugGroupName(),
 					DebugDescription,
 					DebugExtension
 				);
@@ -1986,7 +1979,7 @@ int32 FMaterialShaderMap::SubmitCompileJobs(uint32 CompilingShaderMapId,
 					MeshLayout.VertexFactoryType,
 					Pipeline,
 					CompileJobs,
-					DebugGroupName,
+					Material->GetDebugGroupName(),
 					DebugDescription,
 					DebugExtension);
 			}
@@ -2046,7 +2039,7 @@ int32 FMaterialShaderMap::SubmitCompileJobs(uint32 CompilingShaderMapId,
 				ShaderPlatform,
 				LocalPermutationFlags,
 				CompileJobs,
-				DebugGroupName,
+				Material->GetDebugGroupName(),
 				DebugDescription,
 				DebugExtension
 			);
@@ -2080,7 +2073,7 @@ int32 FMaterialShaderMap::SubmitCompileJobs(uint32 CompilingShaderMapId,
 					MaterialEnvironment,
 					Pipeline,
 					CompileJobs,
-					DebugGroupName,
+					Material->GetDebugGroupName(),
 					DebugDescription,
 					DebugExtension);
 			}
