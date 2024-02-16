@@ -151,6 +151,7 @@ struct FRayTracedLightingContext
 
 	bool bAcceptFirstHitAndEndSearch;
 	bool bSkipClosestHitShader;
+	bool bIsShadowRay;
 	bool bCalculateHitVelocity;
 	bool bUseBookmark;
 };
@@ -180,6 +181,7 @@ FRayTracedLightingContext CreateRayTracedLightingContext(
 	Context.bHiResSurface = bHiResSurface;
 	Context.bAcceptFirstHitAndEndSearch = false;
 	Context.bSkipClosestHitShader = false;
+	Context.bIsShadowRay = false;
 	Context.bCalculateHitVelocity = false;
 	Context.bUseBookmark = false;
 	return Context;
@@ -331,10 +333,16 @@ bool FrontOrTwoSidedHit(in FRayDesc Ray, in FPackedMaterialClosestHitPayload Pay
  * Lumen minimal (surface cache) ray any hit shader logic shared between inline and RayGen traces.
  * See LumenHardwareRayTracingMaterials.usf.
  */
-bool LumenMinimalRayAnyHitShader(uint UserData, float HitT, bool bHitBackFace)
+bool LumenMinimalRayAnyHitShader(uint UserData, float HitT, bool bHitBackFace, bool bShadowRay)
 {
+	const bool bCastRayTracedShadows = (UserData >> 29) & 0x1;
 	const bool bIsTwoSided = (UserData >> 30) & 0x1;
 	const bool bIsTranslucent = (UserData >> 31) & 0x1;
+
+	if (!bCastRayTracedShadows && bShadowRay)
+	{
+		return false;
+	}
 
 	#if AVOID_SELF_INTERSECTIONS
 	{
@@ -365,6 +373,7 @@ bool LumenMinimalRayAnyHitShader(uint UserData, float HitT, bool bHitBackFace)
 struct FLumenTraceRayInlineCallback : FDefaultTraceRayInlineCallback
 {
 	StructuredBuffer<FHitGroupRootConstants> HitGroupData;
+	bool bShadowRay;
 
 	bool OnAnyHit(float3 ObjectRayOrigin, float3 ObjectRayDirection, FTraceRayInlineResult Hit)
 	{ 
@@ -374,7 +383,7 @@ struct FLumenTraceRayInlineCallback : FDefaultTraceRayInlineCallback
 		uint HitGroupIndex = Hit.GeometryIndex + InstanceContributionIndex;
 		FHitGroupRootConstants HitData = HitGroupData[HitGroupIndex];
 
-		return LumenMinimalRayAnyHitShader(HitData.UserData, Hit.HitT, /*bHitBackFace*/ !Hit.bIsFrontFace);
+		return LumenMinimalRayAnyHitShader(HitData.UserData, Hit.HitT, /*bHitBackFace*/ !Hit.bIsFrontFace, bShadowRay);
 	}
 };
 #endif
@@ -386,6 +395,8 @@ FLumenMinimalRayResult TraceLumenMinimalRay(
 {
 	FLumenMinimalPayload Payload = (FLumenMinimalPayload)0;
 	FLumenMinimalRayResult MinimalRayResult = InitLumenMinimalRayResult();
+
+	Payload.SetIsShadowRay(Context.bIsShadowRay);
 
 	uint RayFlags = 0;
 	RayFlags |= Context.CullingMode;
@@ -410,6 +421,7 @@ FLumenMinimalRayResult TraceLumenMinimalRay(
 
 		FLumenTraceRayInlineCallback LumenCallback;
 		LumenCallback.HitGroupData = Context.HitGroupData;
+		LumenCallback.bShadowRay = Context.bIsShadowRay;
 		FTraceRayInlineResult TraceResult = TraceRayInlineWithCallback(TLAS, RayFlags, Context.InstanceMask, Ray.GetNativeDesc(), TraceRayInlineContext, LumenCallback);
 
 		if (TraceResult.IsHit())
@@ -428,7 +440,7 @@ FLumenMinimalRayResult TraceLumenMinimalRay(
 			const uint GPUSceneInstanceIndex = GetGPUSceneInstanceIndex(Primitive, PrimitiveInstanceIndex);
 			Payload.SetGPUSceneInstanceIndex(GPUSceneInstanceIndex);
 
-			uint MaterialShaderIndex = HitData.UserData & 0x3FFFFFFF;
+			uint MaterialShaderIndex = HitData.UserData & LUMEN_MATERIAL_SHADER_INDEX_MASK;
 			Payload.SetMaterialShaderIndex(MaterialShaderIndex);
 
 			uint bIsTranslucent = (HitData.UserData >> 31) & 0x1;

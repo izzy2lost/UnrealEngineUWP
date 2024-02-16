@@ -84,7 +84,8 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 		LightingContext.RayTracingSceneMetadata = RayTracingSceneMetadata;
 #endif // LUMEN_HARDWARE_INLINE_RAYTRACING
 
-		LightingContext.InstanceMask = RAY_TRACING_MASK_OPAQUE;
+		LightingContext.InstanceMask = RAY_TRACING_MASK_OPAQUE_SHADOW;
+		LightingContext.bIsShadowRay = true;
 
 		FLumenMinimalRayResult TraceResult = TraceLumenMinimalRay(TLAS, Ray, LightingContext);
 
