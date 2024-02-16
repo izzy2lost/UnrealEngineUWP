@@ -195,7 +195,7 @@ TSharedPtr<IAnalyticsSpan> FAnalyticsTracer::StartSpan(const FName NewSpanName, 
 
 void FAnalyticsTracer::BeginRegion(TSharedPtr<IAnalyticsSpan> Span)
 {
-	// This function is a temporary work around as UnrealInsights does not handle overalapping region with the same name.
+	// This function is a temporary work around as UnrealInsights does not handle overlapping region with the same name.
 	FName RegionName = Span->GetName();
 
 	uint32 NameCounter = 0;
@@ -204,8 +204,7 @@ void FAnalyticsTracer::BeginRegion(TSharedPtr<IAnalyticsSpan> Span)
 	{
 		// Generate a unique region name for this span
 		FNameBuilder NameBuilder(Span->GetName());
-		NameBuilder.Append(TEXT("%d"), NameCounter++);
-		RegionName = FName(NameBuilder);
+		RegionName = FName(FName(*FString::Printf(TEXT("%s%d"), *Span->GetName().ToString(), ++NameCounter)));
 	}
 
 	// Add the region name to the list by span ID

@@ -663,9 +663,7 @@ void FStudioTelemetryEditor::Initialize()
 			else
 			{
 				// Append the PIE transition count to the PIE name
-				FNameBuilder NameBuilder(PIEStartupSpanName);
-				NameBuilder.Append(TEXT("%d"), PIETransitionCount);
-				PIEStartupSpan = FStudioTelemetry::Get().StartSpan(FName(NameBuilder), PIESpan);
+				PIEStartupSpan = FStudioTelemetry::Get().StartSpan(FName(*FString::Printf(TEXT("%s%d"), *PIEStartupSpanName.ToString(), PIETransitionCount)), PIESpan);
 			}
 
 			TArray<FAnalyticsEventAttribute> Attributes;
