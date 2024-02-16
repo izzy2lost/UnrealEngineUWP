@@ -96,17 +96,6 @@ private:
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault))
 	bool bShouldUseCachedChannelData = false;
 	
-	// blend time over which the yaw from the animation is distributed across the trajectory samples (negative values implies yaw from the animation is constant over the entire trajectory, so the trajectory will not try to recover towards the capsule orientation)
-	UPROPERTY(EditAnywhere, Category = "Root Motion (Experimental)", meta = (PinHiddenByDefault))
-	float YawFromAnimationTrajectoryBlendTime = 0.1f;
-
-	// rate at which the root bone orientation catches up to the capsule orientation after being controlled by animation
-	// (negative values mean the capsule is authoritative over the root bone orientation and the root bone is always synchronized with the capsule,
-	// 0 means the orientation will be fully controlled by animation, and potentially never converge over the capsule orientation,
-	// positive values represent the rate at which the orientation drifts towards the capsule orientation after being controlled by animation)
-	UPROPERTY(EditAnywhere, Category = "Root Motion (Experimental)", meta = (PinHiddenByDefault))
-	float YawFromAnimationBlendRate = -1.f;
-
 	// Encapsulated motion matching algorithm and internal state
 	FMotionMatchingState MotionMatchingState;
 
