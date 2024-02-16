@@ -2191,8 +2191,10 @@ static bool InternalBuildBinding_CPU(const FGroomBindingBuilder::FInput& In, uin
 		// * Then use an async build scope to allow accessing skeletal mesh property safely.
 		//   If skel.meshes are nullptr, this will act as a NOP
 		USkeletalMesh* InSourceSkeletalMesh = In.SourceSkeletalMesh == In.TargetSkeletalMesh ? nullptr : In.SourceSkeletalMesh;
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		FScopedSkeletalMeshRenderData SourceSkeletalMeshScopedData(InSourceSkeletalMesh);
 		FScopedSkeletalMeshRenderData TargetSkeletalMeshScopedData(In.TargetSkeletalMesh);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		TUniquePtr<GroomBinding_Mesh::IMeshData> SourceMeshData;
 		TUniquePtr<GroomBinding_Mesh::IMeshData> TargetMeshData;
@@ -2202,7 +2204,9 @@ static bool InternalBuildBinding_CPU(const FGroomBindingBuilder::FInput& In, uin
 			{
 				FSkinnedAssetAsyncBuildScope AsyncBuildScope(InSourceSkeletalMesh);
 				USkeletalMesh::GetPlatformSkeletalMeshRenderData(TargetPlatform, SourceSkeletalMeshScopedData);
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
 				SourceMeshData = TUniquePtr<GroomBinding_Mesh::FSkeletalMeshData, TDefaultDelete<GroomBinding_Mesh::IMeshData>>(new GroomBinding_Mesh::FSkeletalMeshData(InSourceSkeletalMesh, SourceSkeletalMeshScopedData.GetData()));
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			}
 			else
 			{
@@ -2213,7 +2217,9 @@ static bool InternalBuildBinding_CPU(const FGroomBindingBuilder::FInput& In, uin
 			{
 				FSkinnedAssetAsyncBuildScope AsyncBuildScope(In.TargetSkeletalMesh);
 				USkeletalMesh::GetPlatformSkeletalMeshRenderData(TargetPlatform, TargetSkeletalMeshScopedData);
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
 				TargetMeshData = TUniquePtr<GroomBinding_Mesh::FSkeletalMeshData, TDefaultDelete<GroomBinding_Mesh::IMeshData>>(new GroomBinding_Mesh::FSkeletalMeshData(In.TargetSkeletalMesh, TargetSkeletalMeshScopedData.GetData()));
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			}
 			else
 			{
