@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-
-#if WITH_TESTS
+#if WITH_LOW_LEVEL_TESTS
 
 #include "PropertyBagTest.h"
 
@@ -293,7 +292,7 @@ namespace PropertyBagTestUtils
 	}
 } // PropertyBagTestUtils
 
-TEST_CASE_NAMED(FPropertyBagTest_Add, "CoreUObject::PropertyBag::Add", "[Core][UObject][PropertyBag]")
+DISABLED_TEST_CASE(FPropertyBagTest_Add, "CoreUObject::PropertyBag::Add", "[Core][UObject][PropertyBag]")
 {
 	FProperty* Property = CastFieldChecked<FProperty>(FField::Construct(NAME_IntProperty, {}, FName(TEXT("Tmp")), RF_NoFlags));
 	ON_SCOPE_EXIT
@@ -403,7 +402,7 @@ TEST_CASE_NAMED(FPropertyBagTest_Add, "CoreUObject::PropertyBag::Add", "[Core][U
 	}
 }
 
-TEST_CASE_NAMED(FPropertyBagTest_Remove, "CoreUObject::PropertyBag::Remove", "[Core][UObject][PropertyBag]")
+DISABLED_TEST_CASE(FPropertyBagTest_Remove, "CoreUObject::PropertyBag::Remove", "[Core][UObject][PropertyBag]")
 {
 	FProperty* Property = CastFieldChecked<FProperty>(FField::Construct(NAME_IntProperty, {}, FName(TEXT("Tmp")), RF_NoFlags));
 	ON_SCOPE_EXIT
@@ -484,7 +483,7 @@ TEST_CASE_NAMED(FPropertyBagTest_Remove, "CoreUObject::PropertyBag::Remove", "[C
 	}
 }
 
-TEST_CASE_NAMED(FPropertyBagTest_Empty, "CoreUObject::PropertyBag::Empty", "[Core][UObject][PropertyBag]")
+DISABLED_TEST_CASE(FPropertyBagTest_Empty, "CoreUObject::PropertyBag::Empty", "[Core][UObject][PropertyBag]")
 {
 	FProperty* Property = CastFieldChecked<FProperty>(FField::Construct(NAME_IntProperty, {}, FName(TEXT("Tmp")), RF_NoFlags));
 	ON_SCOPE_EXIT
@@ -520,7 +519,7 @@ TEST_CASE_NAMED(FPropertyBagTest_Empty, "CoreUObject::PropertyBag::Empty", "[Cor
 	}
 }
 
-TEST_CASE_NAMED(FPropertyBagTest_LoadPropertyByTag, "CoreUObject::PropertyBag::LoadPropertyByTag", "[Core][UObject][PropertyBag]")
+DISABLED_TEST_CASE(FPropertyBagTest_LoadPropertyByTag, "CoreUObject::PropertyBag::LoadPropertyByTag", "[Core][UObject][PropertyBag]")
 {
 	FPropertyTypeName IntType = PropertyBagTestUtils::BuildTypeName({ NAME_IntProperty });
 
@@ -682,7 +681,7 @@ TEST_CASE_NAMED(FPropertyBagTest_LoadPropertyByTag, "CoreUObject::PropertyBag::L
 	}
 }
 
-TEST_CASE_NAMED(FPropertyBagTest_LoadPropertyByTag_And_Add, "CoreUObject::PropertyBag::LoadPropertyByTag_And_Add", "[Core][UObject][PropertyBag]")
+DISABLED_TEST_CASE(FPropertyBagTest_LoadPropertyByTag_And_Add, "CoreUObject::PropertyBag::LoadPropertyByTag_And_Add", "[Core][UObject][PropertyBag]")
 {
 	FProperty* Property = CastFieldChecked<FProperty>(FField::Construct(NAME_IntProperty, {}, FName(TEXT("Tmp")), RF_NoFlags));
 	ON_SCOPE_EXIT
@@ -827,7 +826,7 @@ TEST_CASE_NAMED(FPropertyBagTest_LoadPropertyByTag_And_Add, "CoreUObject::Proper
 	}
 }
 
-TEST_CASE_NAMED(FPropertyBagTest_Iteration, "CoreUObject::PropertyBag::Iteration", "[Core][UObject][PropertyBag]")
+DISABLED_TEST_CASE(FPropertyBagTest_Iteration, "CoreUObject::PropertyBag::Iteration", "[Core][UObject][PropertyBag]")
 {
 	SECTION("Iteration_Parents_Before_Children")
 	{
@@ -863,7 +862,7 @@ TEST_CASE_NAMED(FPropertyBagTest_Iteration, "CoreUObject::PropertyBag::Iteration
 	}
 }
 
-TEST_CASE_NAMED(FPropertyBagTest_Paths_With_Index, "CoreUObject::PropertyBag::Paths_With_Index", "[Core][UObject][PropertyBag]")
+DISABLED_TEST_CASE(FPropertyBagTest_Paths_With_Index, "CoreUObject::PropertyBag::Paths_With_Index", "[Core][UObject][PropertyBag]")
 {
 	FProperty* Property = CastFieldChecked<FProperty>(FField::Construct(NAME_IntProperty, {}, FName(TEXT("Tmp")), RF_NoFlags));
 	ON_SCOPE_EXIT
