@@ -29,7 +29,7 @@ namespace HarmonixMetasound::Nodes::Peak
 
 	namespace Inputs
 	{
-		DEFINE_INPUT_METASOUND_PARAM(Enable, "Enable", "Enable the peak node.")
+		DEFINE_METASOUND_PARAM_ALIAS(Enable, CommonPinNames::Inputs::Enable)
 		DEFINE_METASOUND_PARAM_ALIAS(AudioMono, CommonPinNames::Inputs::AudioMono);
 	}
 
