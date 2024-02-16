@@ -758,9 +758,6 @@ void FDerivedTextureData::Build(const FTextureData& MippedTextureData)
 
 	for (int32 MipLevel = NumMipLevels - 1; MipLevel >= 0; --MipLevel)
 	{
-		// For now we don't deduplicate across mip levels. This simplifies logic in the current mip level based streaming manager.
-		PhysicalTileDataRemap.Reset();
-
 		const uint8* SrcPhysicalTileDataA = MippedTextureData.MipMaps[MipLevel].PhysicalTileDataA.GetData();
 		const uint8* SrcPhysicalTileDataB = MippedTextureData.MipMaps[MipLevel].PhysicalTileDataB.GetData();
 

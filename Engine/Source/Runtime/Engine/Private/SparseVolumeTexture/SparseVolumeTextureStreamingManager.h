@@ -13,6 +13,7 @@
 #include "Containers/Map.h"
 #include "Containers/StaticArray.h"
 #include "Containers/Union.h"
+#include "Containers/BinaryHeap.h"
 #include "RenderGraphBuilder.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogSparseVolumeTextureStreamingManager, Log, All);
@@ -41,44 +42,48 @@ class FTileDataTexture;
 class FTileUploader;
 class FPageTableUpdater;
 
-// Uniquely identifies the mip level of a frame in a static or animated SparseVolumeTexture
-struct FMipLevelKey
+// Helper class for managing slots in the tile data texture (SVT streaming pool). It uses a priority queue to reuse older slots that haven't been referenced for some (render) frames.
+class FTileAllocator
 {
-	UStreamableSparseVolumeTexture* SVT = nullptr; // This struct is used on the rendering thread. Do not dereference!
-	uint16 FrameIndex = INDEX_NONE;
-	uint16 MipLevelIndex = INDEX_NONE;
+public:
+	static constexpr uint32 PhysicalCoordMask = (1u << 24u) - 1u; // Lower 24 bits are used for storing XYZ in 8 bit each. Upper 8 bit can be used by the caller. 
 
-	friend FORCEINLINE uint32 GetTypeHash(const FMipLevelKey& Key)
+	// Describes a slot in the tile data texture and the current tile that is mapped to it.
+	struct FAllocation
 	{
-		return HashCombine(GetTypeHash(Key.SVT), GetTypeHash(((uint32)Key.FrameIndex << 16u) | (uint32)Key.MipLevelIndex));
-	}
+		uint32 TileIndexInFrame;	// Index of the tile in the array of tiles of the SVT frame.
+		uint16 FrameIndex;			// Index of the SVT frame this tile belongs to.
+		uint16 bIsLocked : 1;		// Locked tiles are not in the priority queue and will never be streamed out/replaced unless manually freed.
+		uint16 bIsAllocated : 1;	// Whether this slot is currently occupied by a tile.
 
-	FORCEINLINE bool operator==(const FMipLevelKey& Other) const
-	{
-		return (SVT == Other.SVT) && (FrameIndex == Other.FrameIndex) && (MipLevelIndex == Other.MipLevelIndex);
-	}
+		FAllocation() : TileIndexInFrame(0), FrameIndex(0), bIsLocked(0), bIsAllocated(0) {}
+		FAllocation(uint16 InFrameIndex, uint32 InTileIndex, bool bInIsLocked, bool bInIsAllocated) 
+			: TileIndexInFrame(InTileIndex), FrameIndex(InFrameIndex), bIsLocked(bInIsLocked), bIsAllocated(bInIsAllocated) {}
+	};
 
-	FORCEINLINE bool operator!=(const FMipLevelKey& Other) const
-	{
-		return !(*this == Other);
-	}
+	void Init(const FIntVector3& InResolutionInTiles);
 
-	FORCEINLINE bool operator<(const FMipLevelKey& Other) const
-	{
-		return SVT != Other.SVT ? SVT < Other.SVT : FrameIndex != Other.FrameIndex ? FrameIndex < Other.FrameIndex : MipLevelIndex > Other.MipLevelIndex;
-	}
-};
+	// Allocate a tile. Returns a packed 8|8|8 coordinate into the tile data texture or INDEX_NONE if there is no more space.
+	// UpdateIndex is the index of the current tick/update.
+	// FreeThreshold is an additional buffer to how many updates must have passed until a tile may be reused.
+	// FrameIndex is the index of the SVT frame and TileIndexInFrame is the index of the tile for which we try to allocate a slot.
+	// TilePriority is used to sort tiles in the priority queue. Higher values make the tile stream out after other tiles with lower values.
+	// If bLocked is true, then the tile will never be automatically streamed out.
+	// OutPreviousAllocation is a description of the old tile that occupied the newly allocated slot.
+	uint32 Allocate(uint32 UpdateIndex, uint32 FreeThreshold, uint16 FrameIndex, uint32 TileIndexInFrame, uint32 TilePriority, bool bLocked, FAllocation& OutPreviousAllocation);
+	
+	// Marks a tile as still in use. See Allocate() for a description of the parameters.
+	void UpdateUsage(uint32 UpdateIndex, uint32 TileCoord, uint32 TilePriority);
+	
+	// Frees a given tile. Expects the output of Allocate(), i.e. a packed 8|8|8 coordinate. Freed tiles are placed at the front of the priority queue for tile reuse.
+	void Free(uint32 TileCoord);
 
-struct FStreamingRequest
-{
-	static constexpr uint32 BlockingPriority = 0xFFFFFFFFu;
-	FMipLevelKey Key;
-	uint32 Priority; // A higher value means a higher priority, 0xFFFFFF means blocking
-
-	FORCEINLINE bool operator<(const FStreamingRequest& Other) const
-	{
-		return Key != Other.Key ? Key < Other.Key : Priority > Other.Priority;
-	}
+private:
+	FBinaryHeap<uint64, uint32> FreeHeap;
+	TArray<FAllocation> Allocations; // One entry for every slot in the tile data texture. Maps to the current SVT frame occupying that tile
+	FIntVector3 ResolutionInTiles = FIntVector3::ZeroValue;
+	uint32 TileCapacity = 0;
+	uint32 NumAllocated = 0;
 };
 
 class FStreamingManager : public FRenderResource, public IStreamingManager
@@ -124,50 +129,39 @@ private:
 		const FResources* Resources;						// Initialized on the game thread
 		FTextureRenderResources* TextureRenderResources;	// Initialized on the game thread
 
-		int32 NumMipLevels; // Number of actual mip levels of this frame. Depending on virtual volume extents, frames can have different numbers of levels.
-		int32 LowestRequestedMipLevel; // Lowest mip level that should be resident. Can be lower than LowestResidentMipLevel when streaming in new mips. Stream-out is instant, so it should never be higher.
-		int32 LowestResidentMipLevel; // Actually resident on the GPU
+		int32 NumMipLevels = 0; // Number of actual mip levels of this frame. Depending on virtual volume extents, frames can have different numbers of levels.
 		TArray<uint32> TileAllocations; // TileAllocations[PhysicalTileIndex]
 		TBitArray<> ResidentPages; //  One bit for every (non-zero) page (in the sparse page octree) for all mip levels, starting at the highest mip
-		TBitArray<> ResidentPagesNew; // Reflects changes made during an update of the streaming system
-		TBitArray<> InvalidatedPages; // All pages that need updated page table entries
+		TBitArray<> InvalidatedPages; // Temporarly needed when patching the page table. Marks all pages that require an update
+		TBitArray<> ResidentTiles; // Tiles that are actually resident in GPU memory
+		TBitArray<> StreamingTiles; // Tiles that have logically been streamed in but may not actually be resident in GPU memory yet because the IO request hasn't finished
+		TMap<uint32, uint32> TileIndexToPendingRequestIndex;
 		TRefCountPtr<IPooledRenderTarget> PageTableTexture;
-	};
-
-	// Used to keep track of the least-recently-used order of mip levels. This is done per mip level and not per frame, so that lower resolution mip levels are kept in memory for longer.
-	struct FLRUNode : public TIntrusiveDoubleLinkedListNode<FLRUNode>
-	{
-		FLRUNode* NextHigherMipLevel = nullptr;
-		uint32 LastRequested = INDEX_NONE;
-		uint32 RefCount = 0; // Keep track of how many lower mip levels have a dependency on this one
-		uint32 PendingRequestIndex = INDEX_NONE;
-		int16 FrameIndex = INDEX_NONE;
-		int16 MipLevelIndex = INDEX_NONE;
 	};
 
 	// Streaming manager internal data for each SVT
 	struct FStreamingInfo
 	{
-		EPixelFormat FormatA;
-		EPixelFormat FormatB;
-		FVector4f FallbackValueA;
-		FVector4f FallbackValueB;
-		int32 NumMipLevelsGlobal; // Maximum number of mip levels in the sequence
-		uint32 LastRequested; // Last update index when some frame in this SVT was requested
+		uint16 SVTHandle = INDEX_NONE;
+		FName SVTName = FName();
+		EPixelFormat FormatA = PF_Unknown;
+		EPixelFormat FormatB = PF_Unknown;
+		FVector4f FallbackValueA = FVector4f();
+		FVector4f FallbackValueB = FVector4f();
 		TArray<FFrameInfo> PerFrameInfo;
-		TArray<FLRUNode> LRUNodes;
-		TArray<TIntrusiveDoubleLinkedList<FLRUNode>> PerMipLRULists; // PerMipLRULists[MipLevel]
 		TArray<FStreamingWindow> StreamingWindows;
 
+		FTileAllocator TileAllocator;
 		TUniquePtr<FTileDataTexture> TileDataTexture;
 	};
 
-	// Represents an IO request for a mip level
+	// Represents an IO request for tile(s)
 	struct FPendingRequest
 	{
-		UStreamableSparseVolumeTexture* SparseVolumeTexture = nullptr; // Do not dereference!
-		int32 FrameIndex = INDEX_NONE;
-		int32 MipLevelIndex = INDEX_NONE;
+		uint16 SVTHandle = INDEX_NONE;
+		uint16 FrameIndex = INDEX_NONE;
+		uint32 TileOffset = INDEX_NONE;
+		uint32 TileCount = 0;
 #if WITH_EDITORONLY_DATA
 		FSharedBuffer SharedBuffer;
 		enum class EState
@@ -187,11 +181,14 @@ private:
 		uint32 IssuedInFrame = 0;
 		bool bBlocking = false;
 
+		bool IsValid() const { return SVTHandle != uint16(INDEX_NONE); }
+
 		void Reset()
 		{
-			SparseVolumeTexture = nullptr;
+			SVTHandle = INDEX_NONE;
 			FrameIndex = INDEX_NONE;
-			MipLevelIndex = INDEX_NONE;
+			TileOffset = INDEX_NONE;
+			TileCount = INDEX_NONE;
 #if WITH_EDITORONLY_DATA
 			SharedBuffer.Reset();
 			State = EState::None;
@@ -231,25 +228,53 @@ private:
 	struct FNewSparseVolumeTextureInfo
 	{
 		UStreamableSparseVolumeTexture* SVT = nullptr; // Do not dereference!
+		FName SVTName = FName();
 		EPixelFormat FormatA = PF_Unknown;
 		EPixelFormat FormatB = PF_Unknown;
 		FVector4f FallbackValueA = FVector4f(0.0f, 0.0f, 0.0f, 0.0f);
 		FVector4f FallbackValueB = FVector4f(0.0f, 0.0f, 0.0f, 0.0f);
-		int32 NumMipLevelsGlobal = 0;
 		TArray<FFrameInfo> FrameInfo; // Only Resources and TextureRenderResources are initialized
 	};
 
-	// Helper struct representing a range of tiles within the cooked data corresponding to a given mip level
-	struct FMipTileReadInfo
+	// Uniquely identifies the mip level of a frame in a static or animated SparseVolumeTexture
+	struct FFrameKey
 	{
-		uint32 TileOffset;
-		uint32 TileCount;
-		uint32 ReadOffset;
-		uint32 ReadSize;
+		uint16 SVTHandle = INDEX_NONE;
+		uint16 FrameIndex = INDEX_NONE;
+
+		friend FORCEINLINE uint32 GetTypeHash(const FFrameKey& Key) { return HashCombine(GetTypeHash(Key.SVTHandle), GetTypeHash(Key.FrameIndex)); }
+		FORCEINLINE bool operator==(const FFrameKey& Other) const { return (SVTHandle == Other.SVTHandle) && (FrameIndex == Other.FrameIndex); }
+		FORCEINLINE bool operator!=(const FFrameKey& Other) const { return !(*this == Other); }
+		FORCEINLINE bool operator<(const FFrameKey& Other) const { return SVTHandle != Other.SVTHandle ? SVTHandle < Other.SVTHandle : FrameIndex < Other.FrameIndex; }
 	};
 
-	TMap<UStreamableSparseVolumeTexture*, TUniquePtr<FStreamingInfo>> StreamingInfo; // Do not dereference the key! We just read the pointer itself.
-	TMap<FMipLevelKey, uint32> RequestsHashTable;
+	// The payload associated with a request for a given frame of a SVT
+	struct FRequestPayload
+	{
+		uint16 MipLevelMask = 0; // Bitmask of requested mip levels
+		float LowestMipFraction = 0.0f; // Setting this to a value between 0 and less than 1 signifies that only a certain percentage of pages in this mip level should be streamed
+		TStaticArray<uint8, 16> Priorities = TStaticArray<uint8, 16>(InPlace, 0); // Priority for each mip level with a set bit in MipLevelMask
+	};
+
+	struct FStreamingRequest
+	{
+		FFrameKey Key;
+		FRequestPayload Payload;
+	};
+
+	// Represents a contiguous range of tiles in a given frame of a SVT. This is the output of filtering FStreamingRequest and is used to generate FPendingRequests.
+	struct FTileRange
+	{
+		uint16 SVTHandle = INDEX_NONE;
+		uint16 FrameIndex = INDEX_NONE;
+		uint32 TileOffset = INDEX_NONE;
+		uint32 TileCount = 0;
+		uint8 Priority = 0; // Higher value means higher priority
+	};
+
+	TMap<UStreamableSparseVolumeTexture*, uint16> SparseVolumeTextureToHandle; // Do not dereference the key! We just read the pointer itself.
+	TSparseArray<TUniquePtr<FStreamingInfo>> StreamingInfo; 
+	TMap<FFrameKey, FRequestPayload> RequestsHashTable;
 	TArray<FPendingRequest> PendingRequests;
 #if WITH_EDITORONLY_DATA
 	TUniquePtr<UE::DerivedData::FRequestOwner> RequestOwner;
@@ -265,30 +290,28 @@ private:
 	uint32 NextUpdateIndex = 1;
 
 	// Transient lifetime
-	TArray<FStreamingRequest> ParentRequestsToAdd;
 	TSet<FTileDataTexture*> TileDataTexturesToUpdate;
-	TSet<FFrameInfo*> InvalidatedSVTFrames; // Set of SVT frames where pages have been streamed in or out. Used in PatchPageTable().
-	TArray<FStreamingRequest> PrioritizedRequestsHeap;
-	TArray<FStreamingRequest> SelectedRequests;
-	TArray<FTileDataTask> UploadTasks; // accessed on the async thread
-	TArray<FPendingRequest*> UploadCleanupTasks; // accessed on the async thread
+	TSet<FFrameInfo*> InvalidatedSVTFrames; // Set of SVT frames where tiles have been streamed in or out. Used in PatchPageTable().
+	TArray<FTileRange> TileRangesToStream; // Output of FilterRequests(), consumed in IssueRequests().
+	TArray<FTileDataTask> UploadTasks; // Accessed on the async thread
+	TArray<int32> RequestsToCleanUp; // Accessed on the async thread. Stores indices into PendingRequests.
+	TBitArray<> ResidentPagesNew; // Used as temporary memory in PatchPageTable()
+	TBitArray<> ResidentPagesDiff; // Used as temporary memory in PatchPageTable()
 
 	void AddInternal(FRDGBuilder& GraphBuilder, FNewSparseVolumeTextureInfo&& NewSVTInfo);
 	void RemoveInternal(UStreamableSparseVolumeTexture* SparseVolumeTexture);
-	bool AddRequest(const FStreamingRequest& Request); // Returns true when the request is new or it has been updated with a higher priority
+	void AddRequest(const FStreamingRequest& Request);
 	void AsyncUpdate();
-	void AddParentRequests(); // Add requests for all parent mip levels
-	void SelectHighestPriorityRequestsAndUpdateLRU(int32 MaxSelectedRequests);
-	void IssueRequests(int32 MaxSelectedRequests);
-	void StreamOutMipLevel(FStreamingInfo* SVTInfo, FLRUNode* LRUNode);
+	void FilterRequests();
+	void IssueRequests();
 	int32 DetermineReadyRequests();
 	void InstallReadyRequests();
 	void PatchPageTable(FRDGBuilder& GraphBuilder); // Patches the page table to reflect streamed in/out pages and to ensure non-resident mip levels fall back to coarser mip level tile data
-	FStreamingInfo* FindStreamingInfo(UStreamableSparseVolumeTexture* Key); // Returns nullptr if the key can't be found
-	static FMipTileReadInfo GetMipTileReadInfo(const FFrameInfo& FrameInfo, int32 MipLevel);
+	FStreamingInfo* FindStreamingInfo(uint16 SparseVolumeTextureHandle); // Returns nullptr if the key can't be found
+	FStreamingInfo* FindStreamingInfo(UStreamableSparseVolumeTexture* SparseVolumeTexture); // Returns nullptr if the key can't be found
 
 #if WITH_EDITORONLY_DATA
-	UE::DerivedData::FCacheGetChunkRequest BuildDDCRequest(const FResources& Resources, uint64 ReadOffset, uint64 ReadSize, uint32 PendingRequestIndex);
+	UE::DerivedData::FCacheGetChunkRequest BuildDDCRequest(const FResources& Resources, uint64 ReadOffset, uint64 ReadSize, uint32 PendingMipLevelIndex);
 	void RequestDDCData(TConstArrayView<UE::DerivedData::FCacheGetChunkRequest> DDCRequests, bool bBlocking);
 #endif
 };

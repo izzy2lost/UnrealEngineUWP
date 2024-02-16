@@ -147,25 +147,6 @@ FTileDataTexture::FTileDataTexture(const FIntVector3& InResolutionInTiles, EPixe
 	const int64 MaxTileDataTextureResourceSize = GetMaxTileDataTextureResourceSize(MaxFormatSize);
 	check(((int64)Resolution.X * (int64)Resolution.Y * (int64)Resolution.Z * (int64)GPixelFormats[FormatA].BlockBytes) <= MaxTileDataTextureResourceSize);
 	check(((int64)Resolution.X * (int64)Resolution.Y * (int64)Resolution.Z * (int64)GPixelFormats[FormatB].BlockBytes) <= MaxTileDataTextureResourceSize);
-
-	TileCoords.SetNum(PhysicalTilesCapacity);
-
-	int32 TileCoordsIndex = 0;
-	for (int32 Z = 0; Z < ResolutionInTiles.Z; ++Z)
-	{
-		for (int32 Y = 0; Y < ResolutionInTiles.Y; ++Y)
-		{
-			for (int32 X = 0; X < ResolutionInTiles.X; ++X)
-			{
-				uint32 PackedCoord = 0;
-				PackedCoord |= (X & 0xFFu);
-				PackedCoord |= (Y & 0xFFu) << 8u;
-				PackedCoord |= (Z & 0xFFu) << 16u;
-				TileCoords[TileCoordsIndex++] = PackedCoord;
-			}
-		}
-	}
-	check(TileCoordsIndex == PhysicalTilesCapacity);
 }
 
 void FTileDataTexture::BeginReserveUpload()
