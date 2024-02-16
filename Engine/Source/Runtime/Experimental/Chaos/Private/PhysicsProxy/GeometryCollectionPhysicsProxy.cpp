@@ -4321,10 +4321,14 @@ bool FGeometryCollectionPhysicsProxy::PullFromPhysicsState(const Chaos::FDirtyGe
 		// second : interpolate-able ones
 		if (bNeedInterpolation)
 		{
-			InterpolationData.UpdateError(SolverSyncTimestamp, AsyncFixedTimeStep);
-
 			const FGeometryCollectionResults& PrevResults = PullData.Results();
 			const FGeometryCollectionResults& NextResults = NextPullData->Results();
+
+			InterpolationData.UpdateError(SolverSyncTimestamp, AsyncFixedTimeStep);
+			if (IPhysicsProxyBase::GetRenderInterpErrorDirectionalDecayMultiplier() > 0.0f && PrevResults.GetNumEntries() && NextResults.GetNumEntries())
+			{
+				InterpolationData.DirectionalDecay(NextResults.GetPositions(0).ParticleX - PrevResults.GetPositions(0).ParticleX);
+			}
 
 			TManagedArray<FVector3f>* LinearVelocities = GameThreadCollection.GetLinearVelocitiesAttribute();
 			TManagedArray<FVector3f>* AngularVelocities = GameThreadCollection.GetAngularVelocitiesAttribute();
