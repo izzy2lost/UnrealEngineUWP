@@ -1095,6 +1095,7 @@ bool USmartObjectSubsystem::ActivateObjectPreconditions(const FWorldConditionCon
 	if (SmartObjectRuntime.PreconditionState.GetNumConditions() == 0)
 	{
 		// Nothing to activate is considered a success
+		SmartObjectRuntime.PreconditionState.SetConditionsActivated(true);
 		return true;
 	}
 
@@ -1114,6 +1115,7 @@ bool USmartObjectSubsystem::ActivateSlotPreconditions(FWorldConditionContextData
 	if (Slot.PreconditionState.GetNumConditions() == 0)
 	{
 		// Nothing to activate is considered a success
+		Slot.PreconditionState.SetConditionsActivated(true);
 		return true;
 	}
 

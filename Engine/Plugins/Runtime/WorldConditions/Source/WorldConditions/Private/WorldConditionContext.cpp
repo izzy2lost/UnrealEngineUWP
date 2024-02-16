@@ -10,6 +10,12 @@ bool FWorldConditionContext::Activate() const
 		return false;
 	}
 
+	if (QueryState.AreConditionsActivated())
+	{
+		UE_VLOG_ALWAYS_UELOG(QueryState.GetOwner(), LogWorldCondition, Warning, TEXT("Conditions already actived. Validate the call site to avoid redundant activation."));
+		return true;
+	}
+
 	const FWorldConditionQuerySharedDefinition* SharedDefinition = QueryState.GetSharedDefinition();
 	if (SharedDefinition == nullptr)
 	{
