@@ -77,6 +77,11 @@ const FSlateBrush* FAvaOutlinerItemTypeFilterData::GetIcon() const
 	return nullptr;
 }
 
+EAvaOutlinerTypeFilterMode FAvaOutlinerItemTypeFilterData::GetFilterMode() const
+{
+	return FilterMode;
+}
+
 void FAvaOutlinerItemTypeFilterData::SetOverrideIconColor(FSlateColor InNewIconColor)
 {
 	OverrideIcon.TintColor = InNewIconColor;

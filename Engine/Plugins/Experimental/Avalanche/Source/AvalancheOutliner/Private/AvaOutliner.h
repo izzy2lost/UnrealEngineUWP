@@ -91,7 +91,7 @@ public:
 	virtual void UnregisterItem(const FAvaOutlinerItemId& InItemId) override;
 	virtual void RequestRefresh() override;
 	virtual void Refresh() override;
-	virtual TSharedRef<FAvaOutlinerTreeRoot> GetTreeRoot() const override { return RootItem; }
+	virtual TSharedRef<FAvaOutlinerItem> GetTreeRoot() const override;
 	virtual FAvaOutlinerItemPtr FindItem(const FAvaOutlinerItemId& InItemId) const override;
 	virtual void SetIgnoreNotify(EAvaOutlinerIgnoreNotifyFlags InFlag, bool bIgnore) override;
 	virtual void OnActorsCopied(FString& InOutCopiedData, TConstArrayView<AActor*> InCopiedActors) override;

@@ -15,6 +15,16 @@ FAvaOutlinerObjectIconCustomization::FAvaOutlinerObjectIconCustomization(const U
 	}
 }
 
+void FAvaOutlinerObjectIconCustomization::SetOverriddenIcon(const FOnGetOverriddenObjectIcon& InOverriddenIcon)
+{
+	OnGetOverriddenIcon = InOverriddenIcon;
+}
+
+FName FAvaOutlinerObjectIconCustomization::GetOutlinerItemIdentifier() const
+{
+	return SupportedClassName;
+}
+
 bool FAvaOutlinerObjectIconCustomization::HasOverrideIcon(TSharedPtr<const FAvaOutlinerItem> InOutlinerItem) const
 {
 	if (const FAvaOutlinerObject* ObjectItem = InOutlinerItem->CastTo<FAvaOutlinerObject>())
@@ -39,9 +49,4 @@ FSlateIcon FAvaOutlinerObjectIconCustomization::GetOverrideIcon(TSharedPtr<const
 	}
 
 	return FSlateIcon();
-}
-
-void FAvaOutlinerObjectIconCustomization::SetOverriddenIcon(const FOnGetOverriddenObjectIcon& InOverriddenIcon)
-{
-	OnGetOverriddenIcon = InOverriddenIcon;
 }

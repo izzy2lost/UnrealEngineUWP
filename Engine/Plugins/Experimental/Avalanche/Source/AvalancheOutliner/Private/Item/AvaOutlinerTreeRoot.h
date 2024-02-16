@@ -2,13 +2,13 @@
 
 #pragma once
 
-#include "AvaOutlinerItem.h"
+#include "Item/AvaOutlinerItem.h"
 
 /*
  * The Item that ensures that every item (except self) has a parent in the hierarchy to make it easier
  * to handle. This is not really a visual item, so it can't appear in the Outliner View
  */
-class AVALANCHEOUTLINER_API FAvaOutlinerTreeRoot final : public FAvaOutlinerItem
+class FAvaOutlinerTreeRoot final : public FAvaOutlinerItem
 {
 public:
 	UE_AVA_INHERITS_WITH_SUPER(FAvaOutlinerTreeRoot, FAvaOutlinerItem)

@@ -12,7 +12,7 @@ class FAvaOutlinerItemDropHandler;
 enum class EItemDropZone;
 
 /** Drag Drop Operation for Ava Outliner Items. Customized behavior can be added in via the AddDropHandler function */
-class AVALANCHEOUTLINER_API FAvaOutlinerItemDragDropOp : public FDecoratedDragDropOp
+class FAvaOutlinerItemDragDropOp : public FDecoratedDragDropOp
 {
 public:
 	DRAG_DROP_OPERATOR_TYPE(FAvaOutlinerItemDragDropOp, FDecoratedDragDropOp)
@@ -41,7 +41,7 @@ public:
 
 	/** Called when the FAvaOutlinerItemDragDropOp has been created and Initialized in FAvaOutlinerItemDragDropOp::Init */
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnItemDragDropOpInitialized, FAvaOutlinerItemDragDropOp&)
-	static FOnItemDragDropOpInitialized& OnItemDragDropOpInitialized();
+	AVALANCHEOUTLINER_API static FOnItemDragDropOpInitialized& OnItemDragDropOpInitialized();
 
 	template<typename InDropHandlerType
 		, typename = typename TEnableIf<TIsDerivedFrom<InDropHandlerType, FAvaOutlinerItemDropHandler>::Value>::Type

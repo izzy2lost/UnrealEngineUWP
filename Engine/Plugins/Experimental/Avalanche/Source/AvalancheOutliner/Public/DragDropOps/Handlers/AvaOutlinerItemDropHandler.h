@@ -17,20 +17,25 @@ template<typename OptionalType> struct TOptional;
  * Base Class to Handle Dropping Outliner Items into a Target Outliner Item
  * @see built-in example FAvaOutlinerActorDropHandler
  */
-class AVALANCHEOUTLINER_API FAvaOutlinerItemDropHandler : public IAvaTypeCastable, public TSharedFromThis<FAvaOutlinerItemDropHandler>
+class FAvaOutlinerItemDropHandler : public IAvaTypeCastable, public TSharedFromThis<FAvaOutlinerItemDropHandler>
 {
 	friend FAvaOutlinerItemDragDropOp;
 
-	void Initialize(const FAvaOutlinerItemDragDropOp& InDragDropOp);
+	AVALANCHEOUTLINER_API void Initialize(const FAvaOutlinerItemDragDropOp& InDragDropOp);
 
 public:
 	UE_AVA_INHERITS(FAvaOutlinerItemDropHandler, IAvaTypeCastable);
 
-	TConstArrayView<FAvaOutlinerItemPtr> GetItems() const { return Items; }	
+	TConstArrayView<FAvaOutlinerItemPtr> GetItems() const
+	{
+		return Items;
+	}	
 
 protected:
 	virtual bool IsDraggedItemSupported(const FAvaOutlinerItemPtr& InDraggedItem) const = 0;
+
 	virtual TOptional<EItemDropZone> CanDrop(EItemDropZone InDropZone, FAvaOutlinerItemPtr InTargetItem) const = 0;
+
 	virtual bool Drop(EItemDropZone InDropZone, FAvaOutlinerItemPtr InTargetItem) = 0;
 
 	enum class EIterationResult

@@ -20,7 +20,6 @@
 #include "AvaOutlinerSubsystem.h"
 #include "AvaOutlinerUtils.h"
 #include "IAvaOutliner.h"
-#include "Item/AvaOutlinerTreeRoot.h"
 #endif
 
 FOrientedBox FAvaActorUtils::MakeOrientedBox(const FBox& InLocalBox, const FTransform& InWorldTransform)

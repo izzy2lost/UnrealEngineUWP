@@ -25,13 +25,13 @@ enum class EAvaOutlinerTypeFilterMode : uint8
 ENUM_CLASS_FLAGS(EAvaOutlinerTypeFilterMode);
 
 USTRUCT()
-struct AVALANCHEOUTLINER_API FAvaOutlinerItemTypeFilterData
+struct FAvaOutlinerItemTypeFilterData
 {
 	GENERATED_BODY()
 
 	FAvaOutlinerItemTypeFilterData() = default;
 
-	FAvaOutlinerItemTypeFilterData(const TArray<TSubclassOf<UObject>>& InFilterClasses
+	AVALANCHEOUTLINER_API FAvaOutlinerItemTypeFilterData(const TArray<TSubclassOf<UObject>>& InFilterClasses
 		, EAvaOutlinerTypeFilterMode InMode  = EAvaOutlinerTypeFilterMode::MatchesType
 		, const FSlateBrush* InIconBrush     = nullptr
 		, const FText& InTooltipText         = FText::GetEmpty()
@@ -44,10 +44,7 @@ struct AVALANCHEOUTLINER_API FAvaOutlinerItemTypeFilterData
 
 	const FSlateBrush* GetIcon() const;
 
-	EAvaOutlinerTypeFilterMode GetFilterMode() const
-	{
-		return FilterMode;
-	}
+	EAvaOutlinerTypeFilterMode GetFilterMode() const;
 
 	void SetOverrideIconColor(FSlateColor InNewIconColor);
 
@@ -86,7 +83,7 @@ private:
 class AVALANCHEOUTLINER_API FAvaOutlinerItemTypeFilter : public IAvaOutlinerItemFilter
 {
 public:
-	FAvaOutlinerItemTypeFilter(FName InFilterId
+	explicit FAvaOutlinerItemTypeFilter(FName InFilterId
 			, const TArray<TSubclassOf<UObject>>& InFilterClasses
 			, EAvaOutlinerTypeFilterMode InMode  = EAvaOutlinerTypeFilterMode::MatchesType
 			, const FSlateBrush* InIconBrush     = nullptr
@@ -98,7 +95,7 @@ public:
 	{
 	}
 
-	FAvaOutlinerItemTypeFilter(FName InFilterId, const FAvaOutlinerItemTypeFilterData& InFilterData)
+	explicit FAvaOutlinerItemTypeFilter(FName InFilterId, const FAvaOutlinerItemTypeFilterData& InFilterData)
 		: FilterId(InFilterId)
 		, FilterData(InFilterData)
 	{

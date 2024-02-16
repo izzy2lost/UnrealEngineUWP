@@ -9,7 +9,6 @@
 #include "GameFramework/Actor.h"
 #include "IAvaOutliner.h"
 #include "Item/AvaOutlinerActor.h"
-#include "Item/AvaOutlinerTreeRoot.h"
 
 TSharedPtr<IAvaOutliner> FAvaOutlinerUtils::EditorGetOutliner(const UWorld* const InWorld)
 {
