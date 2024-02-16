@@ -26,6 +26,13 @@ UPropertyAnimatorCoreBase::UPropertyAnimatorCoreBase()
 		const TArray<FName> TimeSources = AnimatorSubsystem->GetTimeSourceNames();
 		SetTimeSourceName(!TimeSources.IsEmpty() ? TimeSources[0] : NAME_None);
 	}
+
+#if WITH_EDITOR
+	if (!IsTemplate())
+	{
+		FCoreUObjectDelegates::OnObjectsReplaced.AddUObject(this, &UPropertyAnimatorCoreBase::OnObjectReplaced);
+	}
+#endif
 }
 
 UPropertyAnimatorCoreComponent* UPropertyAnimatorCoreBase::GetAnimatorComponent() const
@@ -101,6 +108,15 @@ UPropertyAnimatorCoreContext* UPropertyAnimatorCoreBase::GetLinkedPropertyContex
 	return PropertyOptions ? *PropertyOptions : nullptr;
 }
 
+void UPropertyAnimatorCoreBase::BeginDestroy()
+{
+	Super::BeginDestroy();
+
+#if WITH_EDITOR
+	FCoreUObjectDelegates::OnObjectsReplaced.RemoveAll(this);
+#endif
+}
+
 void UPropertyAnimatorCoreBase::PostLoad()
 {
 	CleanTimeSources();
@@ -112,6 +128,14 @@ void UPropertyAnimatorCoreBase::PostLoad()
 	CleanLinkedProperties();
 
 	OnAnimatorEnabledChanged();
+}
+
+void UPropertyAnimatorCoreBase::PreDuplicate(FObjectDuplicationParameters& InDupParams)
+{
+	Super::PreDuplicate(InDupParams);
+
+	constexpr bool bForceReset = true;
+	RestoreProperties(bForceReset);
 }
 
 #if WITH_EDITOR
@@ -133,7 +157,7 @@ void UPropertyAnimatorCoreBase::PostEditUndo()
 
 void UPropertyAnimatorCoreBase::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
-	UObject::PostEditChangeProperty(PropertyChangedEvent);
+	Super::PostEditChangeProperty(PropertyChangedEvent);
 
 	const FName MemberName = PropertyChangedEvent.GetMemberPropertyName();
 
@@ -250,12 +274,7 @@ bool UPropertyAnimatorCoreBase::GetPropertiesSupported(const FPropertyAnimatorCo
 		return !OutSupportedProperties.IsEmpty();
 	};
 
-	TArray<FProperty*> ChainProperties;
-	ChainProperties.Reserve(InPropertyData.GetChainProperties().Num());
-	for (const TFieldPath<FProperty>& ChainProperty : InPropertyData.GetChainProperties())
-	{
-		ChainProperties.Add(ChainProperty.Get());
-	}
+	TArray<FProperty*> ChainProperties = InPropertyData.GetChainProperties();
 
 	return FindSupportedPropertiesRecursively(ChainProperties, Owner, OutProperties);
 }
@@ -381,6 +400,25 @@ void UPropertyAnimatorCoreBase::EvaluateAnimator()
 	bEvaluatingProperties = true;
 	EvaluateProperties(Parameters);
 	bEvaluatingProperties = false;
+}
+
+void UPropertyAnimatorCoreBase::OnObjectReplaced(const TMap<UObject*, UObject*>& InReplacementMap)
+{
+	constexpr bool bResolve = false;
+	ForEachLinkedProperty<UPropertyAnimatorCoreContext>([&InReplacementMap](UPropertyAnimatorCoreContext* InContext, const FPropertyAnimatorCoreData& InProperty)->bool
+	{
+		const TWeakObjectPtr<UObject> OwnerWeak = InProperty.GetOwnerWeak();
+
+		constexpr bool bEvenIfPendingKill = true;
+		const UObject* Owner = OwnerWeak.Get(bEvenIfPendingKill);
+
+		if (UObject* const* NewOwner = InReplacementMap.Find(Owner))
+		{
+			InContext->SetAnimatedPropertyOwner(*NewOwner);
+		}
+
+		return true;
+	}, bResolve);
 }
 
 void UPropertyAnimatorCoreBase::OnPropertyGroupsChanged()
@@ -638,7 +676,7 @@ TSet<FPropertyAnimatorCoreData> UPropertyAnimatorCoreBase::GetInnerPropertiesLin
 		return OutProperties;
 	}
 
-	const TFieldPath<FProperty> LeafProperty = InPropertyData.GetLeafProperty();
+	FProperty* LeafProperty = InPropertyData.GetLeafProperty();
 
 	for (const FPropertyAnimatorCoreData& ControllerProperty : GetLinkedProperties())
 	{

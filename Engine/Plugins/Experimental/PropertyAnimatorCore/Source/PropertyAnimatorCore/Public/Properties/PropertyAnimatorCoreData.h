@@ -72,6 +72,11 @@ struct FPropertyAnimatorCoreData
 		return OwnerWeak.Get();
 	}
 
+	TWeakObjectPtr<UObject> GetOwnerWeak() const
+	{
+		return OwnerWeak;
+	}
+
 	/** The member property of the owner, top property inside the owner itself */
 	FProperty* GetMemberProperty() const
 	{
@@ -103,10 +108,7 @@ struct FPropertyAnimatorCoreData
 	PROPERTYANIMATORCORE_API FName GetLeafPropertyName() const;
 
 	/** The chain properties from member to inner property */
-	const TArray<TFieldPath<FProperty>>& GetChainProperties() const
-	{
-		return ChainProperties;
-	}
+	PROPERTYANIMATORCORE_API TArray<FProperty*> GetChainProperties() const;
 
 	/** Checks if the property is settable via setter */
 	PROPERTYANIMATORCORE_API bool HasSetter() const;

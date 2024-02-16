@@ -147,7 +147,9 @@ public:
 
 protected:
 	//~ Begin UObject
+	PROPERTYANIMATORCORE_API virtual void BeginDestroy() override;
 	PROPERTYANIMATORCORE_API virtual void PostLoad() override;
+	PROPERTYANIMATORCORE_API virtual void PreDuplicate(FObjectDuplicationParameters& InDupParams) override;
 #if WITH_EDITOR
 	PROPERTYANIMATORCORE_API virtual void PreEditUndo() override;
 	PROPERTYANIMATORCORE_API virtual void PostEditUndo() override;
@@ -258,6 +260,8 @@ private:
 
 	/** Called by the component to evaluate this animator */
 	void EvaluateAnimator();
+
+	void OnObjectReplaced(const TMap<UObject*, UObject*>& InReplacementMap);
 
 	void OnPropertyGroupsChanged();
 

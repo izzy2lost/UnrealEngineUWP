@@ -91,12 +91,18 @@ protected:
 	/** Called once, when the property is linked to this context */
 	virtual void OnAnimatedPropertyLinked() {}
 
+	/** Called when the animated property owner is updated */
+	virtual void OnAnimatedPropertyOwnerUpdated(UObject* InPreviousOwner, UObject* InNewOwner) {}
+
 private:
 	void ConstructInternal(const FPropertyAnimatorCoreData& InProperty);
+	void SetAnimatedPropertyOwner(UObject* InNewOwner);
 
 	PROPERTYANIMATORCORE_API void* GetConverterRulePtr(const UScriptStruct* InStruct);
 
-	void CheckModeEdit();
+	void CheckEditMode();
+	void CheckEditConverterRule();
+
 	void OnAnimatedChanged();
 	void OnModeChanged();
 	void OnGroupNameChanged();
@@ -126,16 +132,20 @@ private:
 	UPROPERTY(EditInstanceOnly, Setter="SetAnimated", Getter="IsAnimated", Category="Animator", meta=(AllowPrivateAccess="true"))
 	bool bAnimated = true;
 
-	/** Edit condition for modes (Force hide otherwise appears inline for mode) */
-	UPROPERTY(Transient, VisibleInstanceOnly, Category="Animator", meta=(EditCondition="false", EditConditionHides))
-	bool bAllowModeEdit = true;
+	/** Edit condition for modes */
+	UPROPERTY(Transient)
+	bool bEditMode = true;
 
 	/** Current mode used for this property */
-	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(EditCondition="bAllowModeEdit", EditConditionHides, AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(HideEditConditionToggle, EditCondition="bEditMode", EditConditionHides, AllowPrivateAccess="true"))
 	EPropertyAnimatorCoreMode Mode = EPropertyAnimatorCoreMode::Absolute;
 
+	/** Edit condition for converter rule */
+	UPROPERTY(Transient)
+	bool bEditConverterRule = false;
+
 	/** If a converter is used, rules may be used to convert the property */
-	UPROPERTY(EditInstanceOnly, Category="Animator", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Category="Animator", meta=(HideEditConditionToggle, EditCondition="bEditConverterRule", EditConditionHides, AllowPrivateAccess="true"))
 	FInstancedStruct ConverterRule;
 
 	/** The unique group name that manages this property */
@@ -147,11 +157,11 @@ private:
 	TObjectPtr<UPropertyAnimatorCoreGroupBase> Group;
 
 	/** Store original property values for resolved properties */
-	UPROPERTY(DuplicateTransient, NonTransactional)
+	UPROPERTY(NonTransactional)
 	FInstancedPropertyBag OriginalPropertyValues;
 
 	/** Store delta property values for resolved properties */
-	UPROPERTY(DuplicateTransient, NonTransactional)
+	UPROPERTY(NonTransactional)
 	FInstancedPropertyBag DeltaPropertyValues;
 
 	/** Converter class used for this property */
