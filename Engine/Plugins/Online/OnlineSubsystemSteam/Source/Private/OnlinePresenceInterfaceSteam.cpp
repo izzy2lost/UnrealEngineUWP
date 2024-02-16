@@ -141,11 +141,18 @@ void FOnlinePresenceSteam::SetPresence(const FUniqueNetId& User, const FOnlineUs
 	}
 
 	// Push presence string
-	if (!SteamFriendsPtr->SetRichPresence(TCHAR_TO_UTF8(*DefaultSteamPresenceKey), TCHAR_TO_UTF8(*Status.StatusStr)))
+	// Steam status keys must begin with #, so insert it if not present
+	FString StatusString = Status.StatusStr;
+	if(!StatusString.StartsWith(TEXT("#")))
+	{
+		StatusString = FString::Printf(TEXT("#%s"), *StatusString);
+	}
+
+	if (!SteamFriendsPtr->SetRichPresence(TCHAR_TO_UTF8(*DefaultSteamPresenceKey), TCHAR_TO_UTF8(*StatusString)))
 	{
 		if (Status.StatusStr.Len() >= k_cchMaxRichPresenceValueLength)
 		{
-			UE_LOG_ONLINE_PRESENCE(Warning, TEXT("Cannot push rich presence status to steam, string is too long (%d)"), Status.StatusStr.Len());
+			UE_LOG_ONLINE_PRESENCE(Warning, TEXT("Cannot push rich presence status to steam, string is too long (%d)"), StatusString.Len());
 		}
 		else
 		{
