@@ -29,6 +29,7 @@ namespace UnrealBuildTool.Rules
 					"PakFile",
 					"Projects",
 					"RenderCore", // required for FDeferredCleanupInterface
+					"TraceLog",
 				}
 			);
 

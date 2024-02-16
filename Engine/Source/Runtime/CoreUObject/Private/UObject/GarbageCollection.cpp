@@ -5384,6 +5384,7 @@ void PreCollectGarbageImpl(EObjectFlags KeepFlags)
 
 	DECLARE_SCOPE_CYCLE_COUNTER( TEXT( "CollectGarbageInternal" ), STAT_CollectGarbageInternal, STATGROUP_GC );
 	STAT_ADD_CUSTOMMESSAGE_NAME( STAT_NamedMarker, TEXT( "GarbageCollection - Begin" ) );
+	TRACE_BEGIN_REGION(TEXT("GarbageCollection"));
 
 	// We can't collect garbage while there's a load in progress. E.g. one potential issue is Import.XObject
 	check(!IsLoading());
@@ -5602,6 +5603,7 @@ void PostCollectGarbageImpl(EObjectFlags KeepFlags)
 	GTimingInfo.LastGCTime = PostCollectEndTime;
 	GGCStats.TotalTime += PostCollectEndTime - PostCollectStartTime;
 	STAT_ADD_CUSTOMMESSAGE_NAME(STAT_NamedMarker, TEXT("GarbageCollection - End"));
+	TRACE_END_REGION(TEXT("GarbageCollection"));
 
 	if (bPerformFullPurge)
 	{
