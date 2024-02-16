@@ -263,6 +263,8 @@ int TextureComputeVirtualMipLevel(
 	const float GlobalMipBias = GetGlobalVirtualTextureMipBias();
 #if VIRTUAL_TEXTURE_MANUAL_TRILINEAR_FILTERING
 	const float Noise = 0.f;
+#elif VIRTUAL_TEXTURE_FORCE_BILINEAR_FILTERING
+	const float Noise = 0.5f;
 #else
 	const float Noise = GetStochasticMipNoise(SvPositionXY);
 #endif

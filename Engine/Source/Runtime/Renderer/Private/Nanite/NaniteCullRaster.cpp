@@ -1484,6 +1484,11 @@ class FMicropolyRasterizeCS : public FNaniteMaterialShader
 			OutEnvironment.CompilerFlags.Add(CFLAG_Wave32);
 		}
 
+		if (PermutationVector.Get<FTessellationDim>())
+		{
+			OutEnvironment.SetDefine(TEXT("VIRTUAL_TEXTURE_FORCE_BILINEAR_FILTERING"), 1);
+		}
+
 		FVirtualShadowMapArray::SetShaderDefines(OutEnvironment);
 	}
 
