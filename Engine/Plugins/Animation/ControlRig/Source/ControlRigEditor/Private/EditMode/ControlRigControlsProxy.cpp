@@ -102,7 +102,10 @@ void UControlRigControlsProxy::ResetControlRigItems()
 	ControlRigItems.Reset();
 	if (OwnerControlRig.IsValid())
 	{
-		AddControlRigControl(OwnerControlRig.Get(), OwnerControlElement->GetFName());
+		if (OwnerControlElement.IsValid())
+		{
+			AddControlRigControl(OwnerControlRig.Get(), OwnerControlElement.GetKey().Name);
+		}
 	}
 }
 
@@ -114,9 +117,9 @@ void UControlRigControlsProxy::ResetItems()
 
 void UControlRigControlsProxy::AddItem(UControlRigControlsProxy* ControlProxy)
 {
-	if (ControlProxy->OwnerControlRig.IsValid())
+	if (ControlProxy->OwnerControlRig.IsValid() && ControlProxy->OwnerControlElement.IsValid())
 	{
-		AddControlRigControl(ControlProxy->OwnerControlRig.Get(), ControlProxy->OwnerControlElement->GetFName());
+		AddControlRigControl(ControlProxy->OwnerControlRig.Get(), ControlProxy->OwnerControlElement.GetKey().Name);
 	}
 	else if(ControlProxy->OwnerObject.IsValid())
 	{
@@ -208,12 +211,15 @@ void UControlRigControlsProxy::AddChildProxy(UControlRigControlsProxy* ControlPr
 
 void UControlRigControlsProxy::SelectionChanged(bool bInSelected)
 {
-	if (OwnerControlElement)
+	if (OwnerControlRig.IsValid())
 	{
-		Modify();
-		const FName PropertyName("bSelected");
-		FTrackInstancePropertyBindings Binding(PropertyName, PropertyName.ToString());
-		Binding.CallFunction<bool>(*this, bInSelected);
+		if (OwnerControlElement.UpdateCache(OwnerControlRig->GetHierarchy()))
+		{
+			Modify();
+			const FName PropertyName("bSelected");
+			FTrackInstancePropertyBindings Binding(PropertyName, PropertyName.ToString());
+			Binding.CallFunction<bool>(*this, bInSelected);
+		}
 	}
 }
 
@@ -226,10 +232,10 @@ void UControlRigControlsProxy::PostEditChangeChainProperty(struct FPropertyChang
 	}
 	if (PropertyChangedEvent.Property && PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(UControlRigControlsProxy, bSelected))
 	{
-		if (OwnerControlElement && OwnerControlRig.IsValid())
+		if (OwnerControlElement.IsValid() && OwnerControlRig.IsValid())
 		{
-			FControlRigInteractionScope InteractionScope(OwnerControlRig.Get(), OwnerControlElement->GetKey());
-			OwnerControlRig.Get()->SelectControl(OwnerControlElement->GetKey().Name, bSelected);
+			FControlRigInteractionScope InteractionScope(OwnerControlRig.Get(), OwnerControlElement.GetKey());
+			OwnerControlRig.Get()->SelectControl(OwnerControlElement.GetKey().Name, bSelected);
 			OwnerControlRig.Get()->Evaluate_AnyThread();
 		}
 	}

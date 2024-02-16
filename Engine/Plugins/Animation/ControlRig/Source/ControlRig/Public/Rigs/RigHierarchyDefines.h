@@ -1493,7 +1493,7 @@ public:
 
 	bool IsValid() const
 	{
-		return Name != NAME_None && Type != ERigElementType::None;
+		return Name.IsValid() && Name != NAME_None && Type != ERigElementType::None;
 	}
 
 	explicit operator bool() const
