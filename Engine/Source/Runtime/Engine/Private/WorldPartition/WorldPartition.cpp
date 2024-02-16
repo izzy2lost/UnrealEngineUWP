@@ -1264,7 +1264,7 @@ void UWorldPartition::OnActorDescInstanceAdded(FWorldPartitionActorDescInstance*
 		ResolvingDataLayerManager->ResolveActorDescInstanceDataLayers(NewActorDescInstance);
 	}
 
-	NewActorDescInstance->SetForceNonSpatiallyLoadded(!IsStreamingEnabledInEditor());
+	NewActorDescInstance->SetForceNonSpatiallyLoaded(!IsStreamingEnabledInEditor());
 
 	HashActorDescInstance(NewActorDescInstance);
 
@@ -1347,7 +1347,7 @@ void UWorldPartition::InitializeActorDescContainerEditorStreaming(UActorDescCont
 	TArray<FGuid> ForceLoadedActorGuids;
 	for (UActorDescContainerInstance::TIterator<> It(InActorDescContainerInstance); It; ++It)
 	{
-		It->SetForceNonSpatiallyLoadded(!bIsStreamingEnabled);
+		It->SetForceNonSpatiallyLoaded(!bIsStreamingEnabled);
 
 		if (ForceLoadedActors)
 		{
@@ -1392,7 +1392,7 @@ void UWorldPartition::OnEnableStreamingChanged()
 	for (FActorDescContainerInstanceCollection::TIterator<> Iterator(this); Iterator; ++Iterator)
 	{
 		UnhashActorDescInstance(*Iterator);
-		Iterator->SetForceNonSpatiallyLoadded(!IsStreamingEnabledInEditor());
+		Iterator->SetForceNonSpatiallyLoaded(!IsStreamingEnabledInEditor());
 		HashActorDescInstance(*Iterator);
 	}
 
