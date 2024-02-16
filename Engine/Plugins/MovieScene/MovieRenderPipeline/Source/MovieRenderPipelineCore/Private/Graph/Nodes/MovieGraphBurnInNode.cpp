@@ -12,6 +12,12 @@
 #include "TextureResource.h"
 
 const FString UMovieGraphBurnInNode::RendererName = FString("BurnIn");
+const FString UMovieGraphBurnInNode::DefaultBurnInWidgetAsset = TEXT("/MovieRenderPipeline/Blueprints/Graph/DefaultGraphBurnIn.DefaultGraphBurnIn_C");
+
+UMovieGraphBurnInNode::UMovieGraphBurnInNode()
+	: BurnInClass(DefaultBurnInWidgetAsset)
+{
+}
 
 #if WITH_EDITOR
 FText UMovieGraphBurnInNode::GetNodeTitle(const bool bGetDescriptive) const
@@ -36,6 +42,18 @@ FSlateIcon UMovieGraphBurnInNode::GetIconAndTint(FLinearColor& OutColor) const
 TUniquePtr<UMovieGraphWidgetRendererBaseNode::FMovieGraphWidgetPass> UMovieGraphBurnInNode::GeneratePass()
 {
 	return MakeUnique<FMovieGraphBurnInPass>();
+}
+
+void UMovieGraphBurnInNode::GatherOutputPassesImpl(UMovieGraphEvaluatedConfig* InConfig, TArray<FMovieGraphRenderDataIdentifier>& OutExpectedPasses) const
+{
+	for (const TUniquePtr<FMovieGraphWidgetPass>& Instance : CurrentInstances)
+	{
+		// Only generate passes if there's a valid burn-in class
+		if (StaticCast<FMovieGraphBurnInPass*>(Instance.Get())->GetBurnInClass())
+		{
+			Instance->GatherOutputPasses(OutExpectedPasses);
+		}
+	}
 }
 
 void UMovieGraphBurnInNode::TeardownImpl()
@@ -82,8 +100,7 @@ TObjectPtr<UMovieGraphBurnInWidget> UMovieGraphBurnInNode::FMovieGraphBurnInPass
 {
 	const UMovieGraphPipeline* Pipeline = Renderer->GetOwningGraph();
 
-	const UMovieGraphBurnInNode* BurnInNode = CastChecked<UMovieGraphBurnInNode>(RenderPassNode);
-	UClass* LoadedBurnInClass = BurnInNode->BurnInClass.TryLoadClass<UMovieGraphBurnInWidget>();
+	UClass* LoadedBurnInClass = GetBurnInClass();
 	if (!LoadedBurnInClass)
 	{
 		UE_LOG(LogMovieRenderPipeline, Error, TEXT("The burn-in widget provided in layer '%s' for renderer '%s' is not valid."), *LayerData.BranchName.ToString(), *Renderer->GetClass()->GetName());
@@ -95,6 +112,7 @@ TObjectPtr<UMovieGraphBurnInWidget> UMovieGraphBurnInNode::FMovieGraphBurnInPass
 	const TObjectPtr<UMovieGraphBurnInWidget> BurnInWidget = BurnInCDO->GetOrCreateBurnInWidget(LoadedBurnInClass, Pipeline->GetWorld());
 	if (!BurnInWidget)
 	{
+		const UMovieGraphBurnInNode* BurnInNode = CastChecked<UMovieGraphBurnInNode>(RenderPassNode);
 		UE_LOG(LogMovieRenderPipeline, Error, TEXT("Unable to load burn-in widget at path: %s"), *BurnInNode->BurnInClass.GetAssetPath().ToString());
 		return nullptr;
 	}
@@ -118,4 +136,10 @@ int32 UMovieGraphBurnInNode::FMovieGraphBurnInPass::GetCompositingSortOrder() co
 {
 	// Burn-ins should always appear over all other passes
 	return 0;
+}
+
+UClass* UMovieGraphBurnInNode::FMovieGraphBurnInPass::GetBurnInClass() const
+{
+	const UMovieGraphBurnInNode* BurnInNode = CastChecked<UMovieGraphBurnInNode>(RenderPassNode);
+	return BurnInNode->BurnInClass.TryLoadClass<UMovieGraphBurnInWidget>();
 }

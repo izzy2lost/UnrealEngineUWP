@@ -19,6 +19,8 @@ class MOVIERENDERPIPELINECORE_API UMovieGraphBurnInNode : public UMovieGraphWidg
 	GENERATED_BODY()
 
 public:
+	UMovieGraphBurnInNode();
+
 #if WITH_EDITOR
 	virtual FText GetNodeTitle(const bool bGetDescriptive = false) const override;
 	virtual FLinearColor GetNodeTitleColor() const override;
@@ -33,6 +35,9 @@ public:
 
 public:
 	static const FString RendererName;
+
+	/** The path to the default widget class that will be used for the burn-in. */
+	static const FString DefaultBurnInWidgetAsset;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
 	uint8 bOverride_BurnInClass : 1;
@@ -50,6 +55,9 @@ protected:
 		virtual void Render(const FMovieGraphTraversalContext& InFrameTraversalContext, const FMovieGraphTimeStepData& InTimeData) override;
 		virtual int32 GetCompositingSortOrder() const override;
 
+		/** Gets the burn-in class that this pass will be using. */
+		UClass* GetBurnInClass() const;
+
 	private:
 		TObjectPtr<UMovieGraphBurnInWidget> GetBurnInWidget() const;
 	};
@@ -65,6 +73,7 @@ protected:
 	// ~UMovieGraphWidgetRendererBaseNode Interface
 	
 	// UMovieGraphRenderPassNode Interface
+	virtual void GatherOutputPassesImpl(UMovieGraphEvaluatedConfig* InConfig, TArray<FMovieGraphRenderDataIdentifier>& OutExpectedPasses) const override;
 	virtual FString GetRendererNameImpl() const override { return RendererName; }
 	virtual void TeardownImpl() override;
 	// ~UMovieGraphRenderPassNode Interface
