@@ -18,6 +18,7 @@
 #include "DatasmithVariantElements.h"
 #include "IDatasmithSceneElements.h"
 
+#include "CADOptions.h"
 #include "ExternalSourceModule.h"
 #include "SourceUri.h"
 #include "InterchangeCameraNode.h"
@@ -168,53 +169,33 @@ bool UInterchangeDatasmithTranslator::Translate(UInterchangeBaseNodeContainer& B
 		return false;
 	}
 
-	// Temporary: Update the extra options of the associated translator
-#if WITH_EDITOR
-	{
-		const TSharedPtr<IDatasmithTranslator>& DatasmithTranslator = LoadedExternalSource->GetAssetTranslator();
-		if (!DatasmithTranslator)
-		{
-			return false;
-		}
-
-		bool bShouldImport = true;
-		if (!IsInGameThread())
-		{
-			TSharedRef<TPromise<bool>, ESPMode::ThreadSafe> Promise = MakeShareable(new TPromise<bool>());
-			TFunction<void()> PromiseKeeper = [&DatasmithTranslator, &Promise]() -> void
-			{
-				bool bShouldImport = UE::DatasmithInterchange::DisplayOptionsDialog(*DatasmithTranslator);
-				Promise->SetValue(bShouldImport);
-			};
-
-			AsyncTask(ENamedThreads::GameThread, MoveTemp(PromiseKeeper));
-
-			TFuture<bool> Future = Promise->GetFuture();
-			
-			Future.Wait();
-			
-			bShouldImport = Future.Get();
-		}
-		else
-		{
-			bShouldImport = UE::DatasmithInterchange::DisplayOptionsDialog(*DatasmithTranslator);
-		}
-
-		if (!bShouldImport)
-		{
-			return false;
-		}
-	}
-#endif
-
 	StartTime = FPlatformTime::Cycles64();
 	FPaths::NormalizeFilename(FilePath);
 
-	// Should it be mutable instead? If Translate is const should we really be doing this?.
-	TSharedPtr<IDatasmithScene> DatasmithScene = LoadedExternalSource->TryLoad();
-	if (!DatasmithScene.IsValid())
+	TSharedPtr<IDatasmithScene> DatasmithScene;
 	{
-		return false;
+		TGuardValue<bool> EnableCADCache(CADLibrary::FImportParameters::bGEnableCADCache, true);
+
+		if (GetSettings())
+		{
+			CADLibrary::FImportParameters::bGEnableCADCache = true;
+
+			const TSharedPtr<IDatasmithTranslator>& DatasmithTranslator = LoadedExternalSource->GetAssetTranslator();
+			if (DatasmithTranslator)
+			{
+				TArray<TObjectPtr<UDatasmithOptionsBase>> OptionArray;
+				OptionArray.Add(CachedSettings->ImportOptions);
+				DatasmithTranslator->SetSceneImportOptions(OptionArray);
+			}
+		}
+
+		// Should it be mutable instead? If Translate is const should we really be doing this?.
+		DatasmithScene = LoadedExternalSource->TryLoad();
+
+		if (!DatasmithScene.IsValid())
+		{
+			return false;
+		}
 	}
 
 	// Texture Nodes
@@ -438,6 +419,7 @@ void UInterchangeDatasmithTranslator::HandleDatasmithActor(UInterchangeBaseNodeC
 
 	UInterchangeSceneNode* InterchangeSceneNode = NewObject<UInterchangeSceneNode>(&BaseNodeContainer);
 	InterchangeSceneNode->InitializeNode(NodeUid, ActorElement->GetLabel(), EInterchangeNodeContainerType::TranslatedScene);
+	InterchangeSceneNode->SetAssetName(NodeName);
 	BaseNodeContainer.AddNode(InterchangeSceneNode);
 	BaseNodeContainer.SetNodeParentUid(NodeUid, ParentNodeUid);
 
@@ -941,5 +923,62 @@ void UInterchangeDatasmithTranslator::ImportFinish()
 	UE_LOG(LogInterchangeDatasmith, Log, TEXT("Imported %s in [%d min %.3f s]"), *FileName, ElapsedMin, ElapsedSeconds);
 }
 
+
+UInterchangeTranslatorSettings* UInterchangeDatasmithTranslator::GetSettings() const
+{
+	using namespace UE::DatasmithImporter;
+	using namespace UE::DatasmithInterchange;
+
+	if (!CachedSettings)
+	{
+		if (!LoadedExternalSource.IsValid())
+		{
+			FString FilePath = FPaths::ConvertRelativePathToFull(SourceData->GetFilename());
+			FileName = FPaths::GetCleanFilename(FilePath);
+			const FSourceUri FileNameUri = FSourceUri::FromFilePath(FilePath);
+			LoadedExternalSource = IExternalSourceModule::GetOrCreateExternalSource(FileNameUri);
+		}
+
+		if (!LoadedExternalSource.IsValid() || !LoadedExternalSource->IsAvailable())
+		{
+			return nullptr;
+		}
+
+		const TSharedPtr<IDatasmithTranslator>& DatasmithTranslator = LoadedExternalSource->GetAssetTranslator();
+		if (!DatasmithTranslator)
+		{
+			return nullptr;
+		}
+
+		TArray<TObjectPtr<UDatasmithOptionsBase>> OptionArray;
+		DatasmithTranslator->GetSceneImportOptions(OptionArray);
+		if (OptionArray.Num() == 0)
+		{
+			return nullptr;
+		}
+
+		CachedSettings = DuplicateObject<UInterchangeDatasmithTranslatorSettings>(UInterchangeDatasmithTranslatorSettings::StaticClass()->GetDefaultObject<UInterchangeDatasmithTranslatorSettings>(), GetTransientPackage());
+		CachedSettings->SetFlags(RF_Standalone);
+		CachedSettings->ClearInternalFlags(EInternalObjectFlags::Async);
+		CachedSettings->ImportOptions = OptionArray[0];
+	}
+	return CachedSettings;
+}
+
+void UInterchangeDatasmithTranslator::SetSettings(const UInterchangeTranslatorSettings* InterchangeTranslatorSettings)
+{
+	if (CachedSettings)
+	{
+		CachedSettings->ClearFlags(RF_Standalone);
+		CachedSettings->ClearInternalFlags(EInternalObjectFlags::Async);
+		CachedSettings = nullptr;
+	}
+	if (InterchangeTranslatorSettings)
+	{
+		CachedSettings = DuplicateObject<UInterchangeDatasmithTranslatorSettings>(Cast<UInterchangeDatasmithTranslatorSettings>(InterchangeTranslatorSettings), GetTransientPackage());
+		CachedSettings->ClearInternalFlags(EInternalObjectFlags::Async);
+		CachedSettings->SetFlags(RF_Standalone);
+	}
+}
 
 #undef LOCTEXT_NAMESPACE
