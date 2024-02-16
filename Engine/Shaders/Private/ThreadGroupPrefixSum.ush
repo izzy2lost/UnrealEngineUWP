@@ -52,7 +52,14 @@ groupshared uint ThreadGroupPrefixSumWorkspace[2][NUM_THREADS_PER_GROUP];
 			GroupMemoryBarrierWithGroupSync(); \
 		} \
 		GroupSum = CastFromUint(ThreadGroupPrefixSumWorkspace[Curr][NUM_THREADS_PER_GROUP - 1]); \
-		return (GroupThreadIndex == 0U) ? CastFromUint(0) : CastFromUint(ThreadGroupPrefixSumWorkspace[Curr][GroupThreadIndex - 1]); \
+		if (GroupThreadIndex == 0U) \
+		{ \
+			return CastFromUint(0); \
+		} \
+		else \
+		{ \
+			return CastFromUint(ThreadGroupPrefixSumWorkspace[Curr][GroupThreadIndex - 1]); \
+		} \
 	} \
 	ValType ThreadGroupPrefixSum(ValType Value, uint GroupThreadIndex) \
 	{ \
