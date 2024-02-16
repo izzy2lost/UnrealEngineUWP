@@ -55,9 +55,9 @@ void UChaosVDStaticMeshComponent::UpdateInstanceColor(const TSharedPtr<FChaosVDM
 		return;
 	}
 
-	bool bIsSolidColor = FMath::IsNearlyEqual(NewColor.A, 1.0f);
+	const bool bIsSolidColor = FMath::IsNearlyEqual(NewColor.A, 1.0f);
 
-	if (UMaterialInstanceDynamic* MaterialToApply = bIsSolidColor ? InInstanceHandle->GetCachedMaterialInstance(EChaosVDMaterialType::SimOnlyMaterial) : InInstanceHandle->GetCachedMaterialInstance(EChaosVDMaterialType::QueryOnlyMaterial))
+	if (UMaterialInstanceDynamic* MaterialToApply = GetCachedMaterialInstance(bIsSolidColor ? EChaosVDMaterialType::SimOnlyMaterial : EChaosVDMaterialType::QueryOnlyMaterial))
 	{
 		MaterialToApply->SetVectorParameterValue(TEXT("BaseColor"), NewColor);
 		InInstanceHandle->GetMeshComponent()->SetMaterial(0, MaterialToApply);
@@ -168,4 +168,24 @@ TSharedPtr<FChaosVDMeshDataInstanceHandle> UChaosVDStaticMeshComponent::GetMeshD
 TArrayView<TSharedPtr<FChaosVDMeshDataInstanceHandle>> UChaosVDStaticMeshComponent::GetMeshDataInstanceHandles()
 {
 	return TArrayView<TSharedPtr<FChaosVDMeshDataInstanceHandle>>(&CurrentMeshDataHandle, 1);
+}
+
+UMaterialInstanceDynamic* UChaosVDStaticMeshComponent::GetCachedMaterialInstance(EChaosVDMaterialType Type)
+{
+	if (const TObjectPtr<UMaterialInstanceDynamic>* MaterialInstance = CachedMaterialInstancesByID.Find(Type))
+	{
+		return MaterialInstance->Get();
+	}
+	else
+	{
+		if (UMaterialInterface* MaterialToCreate = FChaosVDGeometryComponentUtils::GetBaseMaterialForType(Type))
+		{
+			UMaterialInstanceDynamic* DynamicMaterial = UMaterialInstanceDynamic::Create(MaterialToCreate, nullptr);
+			CachedMaterialInstancesByID.Add(Type, TObjectPtr<UMaterialInstanceDynamic>(DynamicMaterial));
+
+			return DynamicMaterial;
+		}
+	}
+
+	return nullptr;
 }

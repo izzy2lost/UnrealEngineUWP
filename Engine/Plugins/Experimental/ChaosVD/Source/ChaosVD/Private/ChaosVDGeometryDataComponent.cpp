@@ -107,11 +107,9 @@ void FChaosVDMeshDataInstanceHandle::UpdateMeshComponentForCollisionData(const F
 			{
 				if (IChaosVDGeometryComponent* CVDNewGeometryComponent = Cast<IChaosVDGeometryComponent>(GetMeshComponent()))
 				{
-					if (CurrentGeometryColor != FLinearColor(ForceInitToZero))
-					{
-						CVDNewGeometryComponent->UpdateInstanceColor(AsShared(), CurrentGeometryColor);
-					}
-						
+					// Reset the color so it is updated in the next Update color calls (which always happens after updating the shape instance data)
+					CurrentGeometryColor = FLinearColor(ForceInitToZero);
+		
 					CVDNewGeometryComponent->UpdateInstanceVisibility(AsShared(), bIsVisible);
 					CVDNewGeometryComponent->SetIsSelected(AsShared(), bIsSelected);
 				}
@@ -150,57 +148,6 @@ void FChaosVDMeshDataInstanceHandle::SetVisibility(bool bInIsVisible)
 	}
 
 	bIsVisible = bInIsVisible;
-}
-
-UMaterialInstanceDynamic* FChaosVDMeshDataInstanceHandle::GetCachedMaterialInstance(EChaosVDMaterialType Type)
-{
-	const UChaosVDEditorSettings* EditorSettings = GetDefault<UChaosVDEditorSettings>();
-	if (!EditorSettings)
-	{
-		return nullptr;
-	}
-
-	if (const TStrongObjectPtr<UMaterialInstanceDynamic>* MaterialInstance = MaterialInstancesByID.Find(Type))
-	{
-		return MaterialInstance->Get();
-	}
-	else
-	{
-		UMaterialInterface* MaterialToCreate = nullptr;
-		switch(Type)
-		{
-		case EChaosVDMaterialType::QueryOnlyMaterial:
-			{
-				MaterialToCreate = EditorSettings->QueryOnlyMeshesMaterial.Get();
-				break;
-			}
-		case EChaosVDMaterialType::SimOnlyMaterial:
-			{
-				MaterialToCreate = EditorSettings->SimOnlyMeshesMaterial.Get();
-				break;
-			}
-		case EChaosVDMaterialType::Instanced:
-			{
-				MaterialToCreate = EditorSettings->InstancedMeshesMaterial.Get();
-				break;
-			}
-		case EChaosVDMaterialType::InstancedQueryOnly:
-			{
-				MaterialToCreate = EditorSettings->InstancedMeshesQueryOnlyMaterial.Get();
-				break;
-			}
-		}
-		
-		if (MaterialToCreate)
-		{
-			UMaterialInstanceDynamic* DynamicMaterial = UMaterialInstanceDynamic::Create(MaterialToCreate, nullptr);
-			MaterialInstancesByID.Add(Type, TStrongObjectPtr<UMaterialInstanceDynamic>(DynamicMaterial));
-
-			return DynamicMaterial;
-		}
-	}
-
-	return nullptr;
 }
 
 void FChaosVDMeshDataInstanceHandle::HandleInstanceIndexUpdated(TArrayView<const FInstancedStaticMeshDelegates::FInstanceIndexUpdateData> InIndexUpdates)
@@ -397,4 +344,45 @@ FLinearColor FChaosVDGeometryComponentUtils::GetGeometryParticleColor(const TSha
 	}
 
 	return ColorToApply;
+}
+
+UMaterialInterface* FChaosVDGeometryComponentUtils::GetBaseMaterialForType(EChaosVDMaterialType Type)
+{
+	const UChaosVDEditorSettings* EditorSettings = GetDefault<UChaosVDEditorSettings>();
+	if (!EditorSettings)
+	{
+		return nullptr;
+	}
+
+	switch(Type)
+	{
+		case EChaosVDMaterialType::QueryOnlyMaterial:
+				return EditorSettings->QueryOnlyMeshesMaterial.Get();
+		case EChaosVDMaterialType::SimOnlyMaterial:
+				return EditorSettings->SimOnlyMeshesMaterial.Get();
+		case EChaosVDMaterialType::Instanced:
+				return EditorSettings->InstancedMeshesMaterial.Get();
+		case EChaosVDMaterialType::InstancedQueryOnly:
+				return EditorSettings->InstancedMeshesQueryOnlyMaterial.Get();
+		default:
+			return nullptr;
+	}	
+}
+
+UMaterialInstanceDynamic* FChaosVDGeometryComponentUtils::CreateMaterialInstance(UMaterialInterface* BaseMaterial)
+{
+	if (!BaseMaterial)
+	{
+		return nullptr;
+	}
+
+	UMaterialInstanceDynamic* DynamicMaterial = UMaterialInstanceDynamic::Create(BaseMaterial, nullptr);
+	DynamicMaterial->SetFlags(RF_Transient);
+	
+	return DynamicMaterial;
+}
+
+UMaterialInstanceDynamic* FChaosVDGeometryComponentUtils::CreateMaterialInstance(EChaosVDMaterialType Type)
+{
+	return CreateMaterialInstance(GetBaseMaterialForType(Type));
 }
