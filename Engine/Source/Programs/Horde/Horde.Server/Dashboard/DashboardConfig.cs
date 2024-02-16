@@ -15,6 +15,7 @@ namespace Horde.Server.Dashboard
 	[JsonSchema("https://unrealengine.com/horde/dashboard")]
 	[JsonSchemaCatalog("Horde Dashboard", "Horde dashboard configuration file", new[] { "*.dashboard.json", "Dashboard/*.json" })]
 	[ConfigIncludeRoot]
+	[ConfigMacroScope]
 	public class DashboardConfig
 	{
 		/// <summary>
@@ -66,6 +67,12 @@ namespace Horde.Server.Dashboard
 		/// Includes for other configuration files
 		/// </summary>
 		public List<ConfigInclude> Include { get; set; } = new List<ConfigInclude>();
+
+		/// <summary>
+		/// Macros within this configuration
+		/// </summary>
+		public List<ConfigMacro> Macros { get; set; } = new List<ConfigMacro>();
+
 	}
 
 	/// <summary>
