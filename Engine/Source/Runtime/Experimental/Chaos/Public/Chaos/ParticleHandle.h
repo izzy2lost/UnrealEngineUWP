@@ -126,6 +126,7 @@ void PBDRigidParticleDefaultConstruct(FConcrete& Concrete, const FPBDRigidPartic
 	Concrete.SetAngularEtherDrag(0.f);
 	Concrete.SetGravityEnabled(Params.bGravityEnabled);
 	Concrete.SetCCDEnabled(Params.bCCDEnabled);
+	Concrete.SetMACDEnabled(false);
 	Concrete.SetDisabled(Params.bDisabled);
 	Concrete.SetSleepType(ESleepType::MaterialSleep);
 }
@@ -1290,6 +1291,16 @@ public:
 	inline void SetCCDEnabled(bool bEnabled)
 	{
 		PBDRigidParticles->ControlFlags(ParticleIdx).SetCCDEnabled(bEnabled);
+	}
+
+	inline bool MACDEnabled() const
+	{
+		return ControlFlags().GetMACDEnabled();
+	}
+
+	inline void SetMACDEnabled(bool bEnabled)
+	{
+		PBDRigidParticles->ControlFlags(ParticleIdx).SetMACDEnabled(bEnabled);
 	}
 
 	inline bool OneWayInteraction() const
@@ -3356,6 +3367,12 @@ public:
 	void SetCCDEnabled(bool bInEnabled)
 	{
 		MMiscData.Modify(true, MDirtyFlags, Proxy, [bInEnabled](auto& Data) { Data.SetCCDEnabled(bInEnabled); });
+	}
+
+	bool MACDEnabled() const { return MMiscData.Read().MACDEnabled(); }
+	void SetMACDEnabled(bool bInEnabled)
+	{
+		MMiscData.Modify(true, MDirtyFlags, Proxy, [bInEnabled](auto& Data) { Data.SetMACDEnabled(bInEnabled); });
 	}
 
 	bool InertiaConditioningEnabled() const { return MMiscData.Read().InertiaConditioningEnabled(); }

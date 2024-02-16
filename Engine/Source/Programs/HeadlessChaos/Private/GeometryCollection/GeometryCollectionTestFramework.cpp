@@ -176,6 +176,7 @@ namespace GeometryCollectionTest
 			SimulationParams.LinearDamping = 0;
 			SimulationParams.AngularDamping = 0;
 			SimulationParams.UseCCD = false;
+			SimulationParams.UseMACD = false;
 
 			Chaos::FErrorReporter ErrorReporter;
 			BuildSimulationData(ErrorReporter, *RestCollection.Get(), SimulationParams.Shared);

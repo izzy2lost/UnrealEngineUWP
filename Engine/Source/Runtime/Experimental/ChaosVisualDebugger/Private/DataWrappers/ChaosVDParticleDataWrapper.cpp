@@ -13,6 +13,7 @@ bool FChaosVDFRigidParticleControlFlags::Serialize(FArchive& Ar)
 	Ar << bOneWayInteractionEnabled;
 	Ar << bInertiaConditioningEnabled;
 	Ar << GravityGroupIndex;
+	Ar << bMACDEnabled;
 
 	return !Ar.IsError();
 }

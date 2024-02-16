@@ -539,6 +539,11 @@ void FChaosEngineInterface::SetCcdEnabled_AssumesLocked(const FPhysicsActorHandl
 	InActorReference->GetGameThreadAPI().SetCCDEnabled(bIsCcdEnabled);
 }
 
+void FChaosEngineInterface::SetMACDEnabled_AssumesLocked(const FPhysicsActorHandle& InActorReference, bool bIsMACDEnabled)
+{
+	InActorReference->GetGameThreadAPI().SetMACDEnabled(bIsMACDEnabled);
+}
+
 void FChaosEngineInterface::SetIgnoreAnalyticCollisions_AssumesLocked(const FPhysicsActorHandle& InActorReference,bool bIgnoreAnalyticCollisions)
 {
 	InActorReference->GetGameThreadAPI().SetIgnoreAnalyticCollisions(bIgnoreAnalyticCollisions);

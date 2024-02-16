@@ -66,7 +66,8 @@ struct FChaosVDFRigidParticleControlFlags : public FChaosVDWrapperDataBase
 		  bCCDEnabled(false),
 		  bOneWayInteractionEnabled(false),
 		  bInertiaConditioningEnabled(false), 
-		  GravityGroupIndex(0)
+		  GravityGroupIndex(0),
+		  bMACDEnabled(false)
 	{
 	}
 
@@ -80,6 +81,7 @@ struct FChaosVDFRigidParticleControlFlags : public FChaosVDWrapperDataBase
 		bOneWayInteractionEnabled = Other.GetOneWayInteractionEnabled();
 		bInertiaConditioningEnabled = Other.GetInertiaConditioningEnabled();
 		GravityGroupIndex = Other.GetGravityGroupIndex();
+		bMACDEnabled = Other.GetMACDEnabled();
 
 		bHasValidData = true;
 	}
@@ -94,6 +96,8 @@ struct FChaosVDFRigidParticleControlFlags : public FChaosVDWrapperDataBase
 	bool bInertiaConditioningEnabled;
 	UPROPERTY(EditAnywhere, Category= "Particle Control Flags")
 	int32 GravityGroupIndex;
+	UPROPERTY(EditAnywhere, Category = "Particle Control Flags")
+	bool bMACDEnabled;
 };
 
 inline FArchive& operator<<(FArchive& Ar, FChaosVDFRigidParticleControlFlags& Data)
