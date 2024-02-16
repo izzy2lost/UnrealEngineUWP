@@ -548,7 +548,17 @@ void UMovieGraphCoreTimeStep::UpdateFrameMetrics()
 	// We inherit a tick resolution from the level sequence so that we can represent the same
 	// range of time that the level sequence does.
 	FrameData.TickResolution = GetOwningGraph()->GetDataSourceInstance()->GetTickResolution();
-	FrameData.FrameRate = GetOwningGraph()->GetDataSourceInstance()->GetDisplayRate(); // ToDo, needs to come from config (config can override)
+	FrameData.FrameRate = GetOwningGraph()->GetDataSourceInstance()->GetDisplayRate();
+
+	// We don't always have a config set up when this function is called.
+	if (CurrentFrameData.EvaluatedConfig)
+	{
+		if (UMovieGraphGlobalOutputSettingNode* OutputSetting = CurrentFrameData.EvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(UMovieGraphNode::GlobalsPinName))
+		{
+			FrameData.FrameRate = UMovieGraphBlueprintLibrary::GetEffectiveFrameRate(OutputSetting, FrameData.FrameRate);
+		}
+	}
+
 	FrameData.FrameTimePerOutputFrame = FFrameRate::TransformTime(FFrameTime(FFrameNumber(1)), FrameData.FrameRate, FrameData.TickResolution);
 
 	// Manually perform blending of the Post Process Volumes/Camera/Camera Modifiers to match what the renderer will do.
@@ -579,9 +589,9 @@ void UMovieGraphCoreTimeStep::UpdateFrameMetrics()
 	EMoviePipelineShutterTiming ShutterTiming = EMoviePipelineShutterTiming::FrameCenter;
 	
 	// We don't always have a config set up when this function is called.
-	if (CurrentTimeStepData.EvaluatedConfig)
+	if (CurrentFrameData.EvaluatedConfig)
 	{
-		if (UMovieGraphCameraSettingNode* CameraSetting = CurrentTimeStepData.EvaluatedConfig->GetSettingForBranch< UMovieGraphCameraSettingNode>(UMovieGraphNode::GlobalsPinName))
+		if (UMovieGraphCameraSettingNode* CameraSetting = CurrentFrameData.EvaluatedConfig->GetSettingForBranch<UMovieGraphCameraSettingNode>(UMovieGraphNode::GlobalsPinName))
 		{
 			ShutterTiming = CameraSetting->ShutterTiming;
 		}

@@ -9,11 +9,10 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieRenderPipelineDataTypes)
 
-FFrameNumber FMoviePipelineCameraCutInfo::GetOutputFrameCountEstimate(const UMovieGraphDataSourceBase* InDataSource) const
+FFrameNumber FMoviePipelineCameraCutInfo::GetOutputFrameCountEstimate() const
 {
-	// The graph uses the data source; the old version uses members in this struct
-	const FFrameRate SourceRate = InDataSource ? InDataSource->GetDisplayRate() : CachedFrameRate;
-	const FFrameRate DestinationRate = InDataSource ? InDataSource->GetTickResolution() : CachedTickResolution;
+	const FFrameRate SourceRate = CachedFrameRate;
+	const FFrameRate DestinationRate = CachedTickResolution;
 	
 	// TotalRange is stored in Tick Resolution, so we convert 1 frame of Frame Rate to the number of ticks.
 	FFrameNumber OneFrameInTicks = FFrameRate::TransformTime(FFrameTime(FFrameNumber(1)), SourceRate, DestinationRate).FloorToFrame();
@@ -25,10 +24,10 @@ FFrameNumber FMoviePipelineCameraCutInfo::GetOutputFrameCountEstimate(const UMov
 	return FFrameNumber(NumFrames);
 }
 
-void FMoviePipelineCameraCutInfo::CalculateWorkMetrics(const UMovieGraphDataSourceBase* InDataSource)
+void FMoviePipelineCameraCutInfo::CalculateWorkMetrics()
 {
 	// Initial Range + Handle Frames
-	FFrameNumber OutputFrameCount = GetOutputFrameCountEstimate(InDataSource);
+	FFrameNumber OutputFrameCount = GetOutputFrameCountEstimate();
 	WorkMetrics.TotalOutputFrameCount = OutputFrameCount.Value;
 	WorkMetrics.TotalSubSampleCount = NumSpatialSamples * NumTemporalSamples * NumTiles.X * NumTiles.Y; // Samples to generate an output frame.
 	WorkMetrics.TotalEngineWarmUpFrameCount = NumEngineWarmUpFramesRemaining;
