@@ -336,6 +336,7 @@ FBodyInstance::FBodyInstance()
 	, SleepFamily(ESleepFamily::Normal)
 	, DOFMode(0)
 	, bUseCCD(false)
+	, bUseMACD(false)
 	, bIgnoreAnalyticCollisions(false)
 	, bNotifyRigidBodyCollision(false)
 	, bContactModification(false)
@@ -1246,6 +1247,7 @@ void FInitBodiesHelperBase::CreateActor_AssumesLocked(FBodyInstance* Instance, c
 	{
 		FPhysicsInterface::CreateActor(ActorParams, Instance->ActorHandle);
 		FPhysicsInterface::SetCcdEnabled_AssumesLocked(Instance->ActorHandle, Instance->bUseCCD);
+		FPhysicsInterface::SetMACDEnabled_AssumesLocked(Instance->ActorHandle, Instance->bUseMACD);
 		FPhysicsInterface::SetIsKinematic_AssumesLocked(Instance->ActorHandle, !Instance->ShouldInstanceSimulatingPhysics());
 
 		FPhysicsInterface::SetMaxLinearVelocity_AssumesLocked(Instance->ActorHandle, TNumericLimits<float>::Max());
@@ -2394,6 +2396,7 @@ void FBodyInstance::UpdateInstanceSimulatePhysics()
 		bInitialized = true;
 		FPhysicsInterface::SetIsKinematic_AssumesLocked(Actor, !bUseSimulate);
 		FPhysicsInterface::SetCcdEnabled_AssumesLocked(Actor, bUseCCD);
+		FPhysicsInterface::SetMACDEnabled_AssumesLocked(Actor, bUseMACD);
 
 		if(bSimulatePhysics)
 		{
@@ -3699,7 +3702,6 @@ void FBodyInstance::SetSmoothEdgeCollisionsEnabled(bool bNewSmoothEdgeCollisions
 	}
 }
 
-
 void FBodyInstance::SetUseCCD(bool bInUseCCD)
 {
 	if (bUseCCD != bInUseCCD)
@@ -3715,6 +3717,22 @@ void FBodyInstance::SetUseCCD(bool bInUseCCD)
 		});
 		// And update collision filter data
 		UpdatePhysicsFilterData();
+	}
+}
+
+void FBodyInstance::SetUseMACD(bool bInUseMACD)
+{
+	if (bUseMACD != bInUseMACD)
+	{
+		bUseMACD = bInUseMACD;
+
+		FPhysicsCommand::ExecuteWrite(ActorHandle, [this, bInUseMACD](const FPhysicsActorHandle& Actor)
+			{
+				if (FPhysicsInterface::IsValid(Actor) && FPhysicsInterface::IsRigidBody(Actor))
+				{
+					FPhysicsInterface::SetCcdEnabled_AssumesLocked(Actor, bInUseMACD);
+				}
+			});
 	}
 }
 

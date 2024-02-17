@@ -445,6 +445,30 @@ public:
 			});
 	}
 
+	bool MACDEnabled() const
+	{
+		return Read([](auto* Particle)
+			{
+				if (auto Rigid = Particle->CastToRigidParticle())
+				{
+					return Rigid->MACDEnabled();
+				}
+
+				return false;
+			});
+	}
+
+	void SetMACDEnabled(const bool InCCDEnabled)
+	{
+		Write([InCCDEnabled](auto* Particle)
+			{
+				if (auto Rigid = Particle->CastToRigidParticle())
+				{
+					return Rigid->SetMACDEnabled(InCCDEnabled);
+				}
+			});
+	}
+
 	bool OneWayInteraction() const
 	{
 		return Read([](auto* Particle)
@@ -1242,6 +1266,26 @@ public:
 		if (const TPBDRigidParticle<FReal, 3>* Rigid = GetParticle_LowLevel()->CastToRigidParticle())
 		{
 			return Rigid->CCDEnabled();
+		}
+
+		return false;
+	}
+
+	void SetMACDEnabled(bool bEnabled)
+	{
+		VerifyContext();
+		if (TPBDRigidParticle<FReal, 3>*Rigid = GetParticle_LowLevel()->CastToRigidParticle())
+		{
+			Rigid->SetMACDEnabled(bEnabled);
+		}
+	}
+
+	bool MACDEnabled() const
+	{
+		VerifyContext();
+		if (const TPBDRigidParticle<FReal, 3>*Rigid = GetParticle_LowLevel()->CastToRigidParticle())
+		{
+			return Rigid->MACDEnabled();
 		}
 
 		return false;

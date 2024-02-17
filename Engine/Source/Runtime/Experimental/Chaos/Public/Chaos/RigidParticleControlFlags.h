@@ -44,6 +44,9 @@ namespace Chaos
 		bool GetCCDEnabled() const { return Flags.bCCDEnabled; }
 		FRigidParticleControlFlags& SetCCDEnabled(const bool bEnabled) { Flags.bCCDEnabled = bEnabled; return *this; }
 
+		bool GetMACDEnabled() const { return Flags.bMACDEnabled; }
+		FRigidParticleControlFlags& SetMACDEnabled(const bool bEnabled) { Flags.bMACDEnabled = bEnabled; return *this; }
+
 		bool GetOneWayInteractionEnabled() const { return Flags.bOneWayInteractionEnabled; }
 		FRigidParticleControlFlags& SetOneWayInteractionEnabled(const bool bEnabled) { Flags.bOneWayInteractionEnabled = bEnabled; return *this; }
 
@@ -77,6 +80,7 @@ namespace Chaos
 			FStorage bInertiaConditioningEnabled : 1;
 			FStorage GravityGroupIndex : 3;
 			FStorage bUpdateKinematicFromSimulation : 1;
+			FStorage bMACDEnabled : 1;
 			// Add new properties above this line
 			// Change FStorage typedef if we exceed the max bits
 		};

@@ -214,6 +214,7 @@ struct FSimulationParameters
 		, OneWayInteractionLevel(INDEX_NONE)
 		, UseInertiaConditioning(true)
 		, UseCCD(false)
+		, UseMACD(false)
 		, LinearDamping(0.01f)
 		, AngularDamping(0)
 		, InitialOverlapDepenetrationVelocity(-1.0f)
@@ -277,6 +278,7 @@ struct FSimulationParameters
 		, OneWayInteractionLevel(Other.OneWayInteractionLevel)
 		, UseInertiaConditioning(Other.UseInertiaConditioning)
 		, UseCCD(Other.UseCCD)
+		, UseMACD(Other.UseMACD)
 		, LinearDamping(Other.LinearDamping)
 		, AngularDamping(Other.AngularDamping)
 		, InitialOverlapDepenetrationVelocity(Other.InitialOverlapDepenetrationVelocity)
@@ -370,6 +372,7 @@ struct FSimulationParameters
 	int32 OneWayInteractionLevel;
 	bool UseInertiaConditioning;
 	bool UseCCD;
+	bool UseMACD;
 	float LinearDamping;
 	float AngularDamping;
 	float InitialOverlapDepenetrationVelocity;

@@ -340,12 +340,16 @@ public:
 	UPROPERTY(EditAnywhere, Category = Physics, meta = (DisplayName = "Mode"))
 	TEnumAsByte<EDOFMode::Type> DOFMode;
 
-public:
-
 	/** If true Continuous Collision Detection (CCD) will be used for this component */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = Collision)
 	uint8 bUseCCD : 1;
 
+private:
+	/** [EXPERIMENTAL] If true Motion-Aware Collision Detection (MACD) will be used for this component */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = Collision)
+	uint8 bUseMACD : 1;
+
+public:
 	/** If true ignore analytic collisions and treat objects as a general implicit surface */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = Collision)
 	uint8 bIgnoreAnalyticCollisions : 1;
@@ -925,8 +929,18 @@ public:
 	/** Enables/disabled smoothed edge collisions */
 	ENGINE_API void SetSmoothEdgeCollisionsEnabled(bool bNewSmoothEdgeCollisions);
 
-	/** Enable/disable Continuous Collidion Detection feature */
+	/** Enable/disable Continuous Collision Detection feature */
 	ENGINE_API void SetUseCCD(bool bInUseCCD);
+
+	/** 
+	 * [EXPERIMENTAL] Enable/disable Motion-Aware Collision Detection feature. MACD attempts to take the movement of the
+	 * body into account during collisions detection to reduce the chance of objects passing through each other at moderate
+	 * speeds without the need for CCD. CCD is still required reliable collision between high-speed objects.
+	 */
+	ENGINE_API void SetUseMACD(bool bInUseMACD);
+
+	/** [EXPERIMENTAL] Whether Motion-Aware Collision Detection is enabled */
+	bool GetUseMACD() const { return bUseMACD != 0; }
 
 	/** Disable/Re-Enable this body in the solver,  when disable, the body won't be part of the simulation ( regardless if it's dynamic or kinematic ) and no collision will occur 
 	* this can be used for performance control situation for example
