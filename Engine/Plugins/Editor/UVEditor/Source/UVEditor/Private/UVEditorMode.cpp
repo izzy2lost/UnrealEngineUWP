@@ -1074,6 +1074,8 @@ void UUVEditorMode::InitializeTargets()
 		AppliedPreviews.Add(AppliedPreview);
 	}
 
+	UMaterialInterface* Material = LoadObject<UMaterial>(nullptr, TEXT("/UVEditor/Materials/UVEditor_UnwrapMaterial"));
+
 	// When creating UV unwraps, these functions will determine the mapping between UV values and the
 	// resulting unwrap mesh vertex positions. 
 	// If we're looking down on the unwrapped mesh, with the Z axis towards us, we want U's to be right, and
@@ -1104,12 +1106,15 @@ void UUVEditorMode::InitializeTargets()
 			ToolInputObject->AppliedPreview->PreviewMesh->SetTransform(Transforms[AssetID]);
 		}
 
+		UMaterialInstanceDynamic* MatInstance = UMaterialInstanceDynamic::Create(Material, GetToolManager());
+		MatInstance->SetVectorParameterValue(TEXT("Color"), FUVEditorUXSettings::GetTriangleColorByTargetIndex(AssetID));
+		MatInstance->SetScalarParameterValue(TEXT("DepthBias"), FUVEditorUXSettings::UnwrapTriangleDepthOffset);
+		MatInstance->SetScalarParameterValue(TEXT("Opacity"), FUVEditorUXSettings::UnwrapTriangleOpacity);
+		MatInstance->SetScalarParameterValue(TEXT("UseVertexColors"), false);
+
+		ToolInputObject->bEnableTriangleVertexColors = false;
 		ToolInputObject->UnwrapPreview->PreviewMesh->SetMaterial(
-			0, ToolSetupUtil::GetCustomTwoSidedDepthOffsetMaterial(
-				GetToolManager(),
-				FUVEditorUXSettings::GetTriangleColorByTargetIndex(AssetID),
-				FUVEditorUXSettings::UnwrapTriangleDepthOffset,
-				FUVEditorUXSettings::UnwrapTriangleOpacity));
+			0, MatInstance);
 
 		// Set up the wireframe display of the unwrapped mesh.
 		UMeshElementsVisualizer* WireframeDisplay = NewObject<UMeshElementsVisualizer>(this);
@@ -1125,7 +1130,8 @@ void UUVEditorMode::InitializeTargets()
 		WireframeDisplay->Settings->bShowNormalSeams = false;
 		// These are not exposed at the visualizer level yet
 		// TODO: Should they be?
-		WireframeDisplay->WireframeComponent->BoundaryEdgeThickness = 2;
+		WireframeDisplay->WireframeComponent->WireframeThickness = FUVEditorUXSettings::WireframeThickness;
+		WireframeDisplay->WireframeComponent->BoundaryEdgeThickness = FUVEditorUXSettings::BoundaryEdgeThickness;
 
 		// The wireframe will track the unwrap preview mesh
 		WireframeDisplay->SetMeshAccessFunction([ToolInputObject](UMeshElementsVisualizer::ProcessDynamicMeshFunc ProcessFunc) {
@@ -1322,7 +1328,7 @@ void UUVEditorMode::UpdateTriangleMaterialBasedOnDisplaySettings()
 		for (int32 AssetID = 0; AssetID < ToolInputObjects.Num(); ++AssetID) {
 			UMaterialInstanceDynamic* MatInstance = UMaterialInstanceDynamic::Create(Material, GetToolManager());
 			MatInstance->SetVectorParameterValue(TEXT("Color"), FUVEditorUXSettings::GetTriangleColorByTargetIndex(AssetID));
-			MatInstance->SetScalarParameterValue(TEXT("PercentDepthOffset"), FUVEditorUXSettings::UnwrapTriangleDepthOffset);
+			MatInstance->SetScalarParameterValue(TEXT("DepthBias"), FUVEditorUXSettings::UnwrapTriangleDepthOffset);
 			MatInstance->SetScalarParameterValue(TEXT("Opacity"), TriangleOpacity);
 			MatInstance->SetScalarParameterValue(TEXT("UseVertexColors"), bUseVertexColors);
 
