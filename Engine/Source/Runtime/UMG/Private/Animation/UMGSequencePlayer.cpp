@@ -434,6 +434,10 @@ void UUMGSequencePlayer::HandleLatentStop()
 
 	PlayerStatus = EMovieScenePlayerStatus::Stopped;
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	RootTemplateInstance.ResetDirectorInstances();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	if (bRestoreState)
 	{
 		RestorePreAnimatedState();
