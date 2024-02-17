@@ -13,6 +13,8 @@
 #include "PCGSubgraph.h"
 #include "Elements/PCGHiGenGridSize.h"
 #include "Elements/PCGUserParameterGet.h"
+#include "Elements/ControlFlow/PCGQualityBranch.h"
+#include "Elements/ControlFlow/PCGQualitySelect.h"
 #include "Graph/PCGGraphCompiler.h"
 #include "Graph/PCGGraphExecutor.h"
 
@@ -1175,6 +1177,32 @@ bool UPCGGraph::Recompile()
 	UE_LOG(LogPCG, Verbose, TEXT("UPCGGraph::Recompile '%s' grid: %u changed: %d"), *this->GetName(), PCGHiGenGrid::UninitializedGridSize(), bChanged ? 1 : 0);
 
 	return bChanged;
+}
+
+void UPCGGraph::OnPCGQualityLevelChanged()
+{
+	bool bContainsQualityControlFlowNode = false;
+
+	for (UPCGNode* Node : Nodes)
+	{
+		if (!Node)
+		{
+			continue;
+		}
+
+		const UPCGSettings* Settings = Node->GetSettings();
+
+		if (Settings && (Settings->IsA<UPCGQualityBranchSettings>() || Settings->IsA<UPCGQualitySelectSettings>()))
+		{
+			Node->OnNodeChangedDelegate.Broadcast(Node, EPCGChangeType::Cosmetic);
+			bContainsQualityControlFlowNode = true;
+		}
+	}
+
+	if (bContainsQualityControlFlowNode)
+	{
+		OnGraphChangedDelegate.Broadcast(this, EPCGChangeType::Structural | EPCGChangeType::GenerationGrid);
+	}
 }
 
 FPCGSelectionKeyToSettingsMap UPCGGraph::GetTrackedActorKeysToSettings() const

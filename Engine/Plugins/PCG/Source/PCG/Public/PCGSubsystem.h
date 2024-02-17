@@ -81,6 +81,11 @@ public:
 
 	APCGWorldActor* GetPCGWorldActor();
 	APCGWorldActor* FindPCGWorldActor();
+
+	/** Returns current quality level between Low (0) and Cinematic (4). */
+	static int32 GetPCGQualityLevel();
+	void OnPCGQualityLevelChanged();
+
 #if WITH_EDITOR
 	void DestroyAllPCGWorldActors();
 	void DestroyCurrentPCGWorldActor();

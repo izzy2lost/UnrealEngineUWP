@@ -320,6 +320,8 @@ public:
 
 	/** Trigger a recompilation of the relevant permutations of this graph and check for change in the compiled tasks. */
 	bool Recompile();
+
+	void OnPCGQualityLevelChanged();
 #endif
 
 #if WITH_EDITOR
