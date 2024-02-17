@@ -190,7 +190,7 @@ bool FAndroidOpenGLFramePacer::SupportsFramePaceInternal(int32 QueryFramePace, i
 		{
 			RefreshRatesString += FString::Printf(TEXT(" %d"), Rate);
 		}
-		UE_LOG(LogRHI, Log, TEXT("Supported Refresh Rates:%s"), *RefreshRatesString);
+		UE_LOG(LogRHI, Log, TEXT("FAndroidOpenGLFramePacer -> Supported Refresh Rates:%s"), *RefreshRatesString);
 
 		for (int32 Rate : RefreshRates)
 		{

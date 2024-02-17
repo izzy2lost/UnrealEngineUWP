@@ -1333,7 +1333,7 @@ void BlockRendering()
 #endif
 	check(GIsRHIInitialized);
 
-	UE_LOG(LogAndroid, Log, TEXT("Blocking renderer on invalid window."));
+	UE_LOG(LogAndroid, Log, TEXT("Blocking renderer on suspended window."));
 	
 	TSharedPtr<FEvent, ESPMode::ThreadSafe> BlockedTrigger = MakeShareable(FPlatformProcess::GetSynchEventFromPool(), [](FEvent* EventToDelete)
 	{
