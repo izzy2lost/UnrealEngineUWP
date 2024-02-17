@@ -1241,7 +1241,7 @@ void FAvaOutlinerView::OnDragEnter(const FDragDropEvent& InDragDropEvent, FAvaOu
 {
 	if (!InTargetItem.IsValid() && OutlinerWeak.IsValid())
 	{
-		TSharedRef<FAvaOutlinerTreeRoot> TreeRoot = OutlinerWeak.Pin()->GetTreeRoot();
+		TSharedRef<FAvaOutlinerItem> TreeRoot = OutlinerWeak.Pin()->GetTreeRoot();
 		const bool bCanAcceptDrop = TreeRoot->CanAcceptDrop(InDragDropEvent, EItemDropZone::OntoItem).IsSet();
 		SetDragIntoTreeRoot(bCanAcceptDrop);
 	}
@@ -1302,7 +1302,7 @@ FReply FAvaOutlinerView::OnDrop(const FDragDropEvent& InDragDropEvent, EItemDrop
 		return InTargetItem->AcceptDrop(InDragDropEvent, InDropZone);
 	}
 
-	TSharedPtr<FAvaOutlinerTreeRoot> TreeRoot;
+	TSharedPtr<FAvaOutlinerItem> TreeRoot;
 
 	if (OutlinerWeak.IsValid())
 	{

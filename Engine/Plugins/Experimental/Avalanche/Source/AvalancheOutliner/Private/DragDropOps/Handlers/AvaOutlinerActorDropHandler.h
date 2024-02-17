@@ -2,15 +2,15 @@
 
 #pragma once
 
-#include "AvaOutlinerItemDropHandler.h"
+#include "DragDropOps/Handlers/AvaOutlinerItemDropHandler.h"
 
 /** Class that handles Dropping Actor Items into a Target Item */
-class AVALANCHEOUTLINER_API FAvaOutlinerActorDropHandler : public FAvaOutlinerItemDropHandler
+class FAvaOutlinerActorDropHandler : public FAvaOutlinerItemDropHandler
 {
 public:
 	UE_AVA_INHERITS(FAvaOutlinerActorDropHandler, FAvaOutlinerItemDropHandler);
 
-protected:
+private:
 	//~ Begin FAvaOutlinerItemDropHandler
 	virtual bool IsDraggedItemSupported(const FAvaOutlinerItemPtr& InDraggedItem) const override;
 	virtual TOptional<EItemDropZone> CanDrop(EItemDropZone InDropZone, FAvaOutlinerItemPtr InTargetItem) const override;

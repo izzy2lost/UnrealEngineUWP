@@ -141,7 +141,7 @@ public:
 	virtual void Refresh() = 0;
 
 	/** Gets the Tree Root Item of the Outliner */
-	virtual TSharedRef<FAvaOutlinerTreeRoot> GetTreeRoot() const = 0;
+	virtual TSharedRef<FAvaOutlinerItem> GetTreeRoot() const = 0;
 
 	/**
 	 * Finds the Registered Item that has the given Id

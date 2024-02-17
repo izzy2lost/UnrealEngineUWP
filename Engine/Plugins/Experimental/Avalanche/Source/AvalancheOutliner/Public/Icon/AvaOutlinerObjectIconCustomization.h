@@ -11,21 +11,20 @@ class UClass;
 
 DECLARE_DELEGATE_RetVal_OneParam(FSlateIcon /** OutIconForItem */, FOnGetOverriddenObjectIcon, TSharedPtr<const FAvaOutlinerItem> /** InItemToCustomize */)
 
-class AVALANCHEOUTLINER_API FAvaOutlinerObjectIconCustomization : public IAvaOutlinerIconCustomization
+class FAvaOutlinerObjectIconCustomization : public IAvaOutlinerIconCustomization
 {
 public:
-	FAvaOutlinerObjectIconCustomization(const UClass* InSupportedClass);
+	AVALANCHEOUTLINER_API FAvaOutlinerObjectIconCustomization(const UClass* InSupportedClass);
 
-	void SetOverriddenIcon(const FOnGetOverriddenObjectIcon& InOverriddenIcon);
+	AVALANCHEOUTLINER_API void SetOverriddenIcon(const FOnGetOverriddenObjectIcon& InOverriddenIcon);
 
-protected:
+private:
 	//~ Begin IAvaOutlinerIconCustomization
-	virtual FName GetOutlinerItemIdentifier() const override { return SupportedClassName; }
+	virtual FName GetOutlinerItemIdentifier() const override;
 	virtual bool HasOverrideIcon(TSharedPtr<const FAvaOutlinerItem> InOutlinerItem) const override;
 	virtual FSlateIcon GetOverrideIcon(TSharedPtr<const FAvaOutlinerItem> InOutlinerItem) const override;
 	//~ End IAvaOutlinerIconCustomization
 
-private:
 	FName SupportedClassName;
 
 	FOnGetOverriddenObjectIcon OnGetOverriddenIcon;

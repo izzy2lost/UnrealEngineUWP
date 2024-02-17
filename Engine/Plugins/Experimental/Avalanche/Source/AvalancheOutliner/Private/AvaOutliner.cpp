@@ -391,6 +391,11 @@ void FAvaOutliner::Refresh()
 	SaveState->SaveSceneTree(*this, /*bInResetTree*/true);
 }
 
+TSharedRef<FAvaOutlinerItem> FAvaOutliner::GetTreeRoot() const
+{
+	return RootItem;
+}
+
 FAvaOutlinerItemPtr FAvaOutliner::FindItem(const FAvaOutlinerItemId& InItemId) const
 {
 	if (bIteratingItemMap)

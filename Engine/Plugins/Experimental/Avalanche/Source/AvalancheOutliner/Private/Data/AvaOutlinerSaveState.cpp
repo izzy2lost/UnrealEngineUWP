@@ -177,7 +177,7 @@ void FAvaOutlinerSaveState::SaveOutlinerViewItems(const FAvaOutliner& InOutliner
 	, const FAvaOutlinerView& InOutlinerView
 	, FAvaOutlinerViewSaveState& OutSaveState)
 {
-	const TSharedRef<FAvaOutlinerTreeRoot> TreeRoot = InOutliner.GetTreeRoot();
+	const TSharedRef<FAvaOutlinerItem> TreeRoot = InOutliner.GetTreeRoot();
 
 	TArray<FAvaOutlinerItemPtr> ItemsToSave = TreeRoot->GetChildren();
 
@@ -213,7 +213,7 @@ void FAvaOutlinerSaveState::LoadOutlinerViewItems(const FAvaOutliner& InOutliner
 	, FAvaOutlinerView& InOutOutlinerView
 	, const FAvaOutlinerViewSaveState& InSaveState)
 {
-	const TSharedRef<FAvaOutlinerTreeRoot> TreeRoot = InOutliner.GetTreeRoot();
+	const TSharedRef<FAvaOutlinerItem> TreeRoot = InOutliner.GetTreeRoot();
 
 	TArray<FAvaOutlinerItemPtr> ItemsToLoad = TreeRoot->GetChildren();
 
