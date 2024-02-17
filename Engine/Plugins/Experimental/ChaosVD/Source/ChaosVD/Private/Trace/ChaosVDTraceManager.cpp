@@ -33,9 +33,11 @@ FString FChaosVDTraceManager::LoadTraceFile(const FString& InTraceFilename)
 	ITraceServicesModule& TraceServicesModule = FModuleManager::LoadModuleChecked<ITraceServicesModule>("TraceServices");
 	if (const TSharedPtr<TraceServices::IAnalysisService> TraceAnalysisService = TraceServicesModule.GetAnalysisService())
 	{
-		const TSharedPtr<const TraceServices::IAnalysisSession> NewSession = TraceAnalysisService->StartAnalysis(*InTraceFilename);
-		AnalysisSessionByName.Add(InTraceFilename, NewSession);
-		return NewSession->GetName();
+		if (const TSharedPtr<const TraceServices::IAnalysisSession> NewSession = TraceAnalysisService->StartAnalysis(*InTraceFilename))
+		{
+			AnalysisSessionByName.Add(InTraceFilename, NewSession);
+			return NewSession->GetName();
+		}
 	}
 
 	return FString();
