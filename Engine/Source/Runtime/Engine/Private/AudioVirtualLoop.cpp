@@ -150,7 +150,7 @@ void FAudioVirtualLoop::CalculateUpdateInterval()
 	check(AudioDevice);
 
 	const float DistanceToListener = AudioDevice->GetDistanceToNearestListener(ActiveSound->Transform.GetLocation());
-	const float DistanceRatio = (DistanceToListener - ActiveSound->GetMaxDistance()) / FMath::Max(VirtualLoopsPerfDistanceCVar, 1.0f);
+	const float DistanceRatio = (DistanceToListener - ActiveSound->MaxDistance) / FMath::Max(VirtualLoopsPerfDistanceCVar, 1.0f);
 	const float DistanceRatioClamped = FMath::Clamp(DistanceRatio, 0.0f, 1.0f);
 	UpdateInterval = FMath::Lerp(VirtualLoopsUpdateRateMinCVar, VirtualLoopsUpdateRateMaxCVar, DistanceRatioClamped);
 }
@@ -215,7 +215,7 @@ bool FAudioVirtualLoop::IsInAudibleRange(const FActiveSound& InActiveSound, cons
 
 	DistanceScale = FMath::Max(DistanceScale, UE_KINDA_SMALL_NUMBER);
 	const FVector Location = InActiveSound.Transform.GetLocation();
-	return AudioDevice->LocationIsAudible(Location, InActiveSound.GetMaxDistance() / DistanceScale);
+	return AudioDevice->LocationIsAudible(Location, InActiveSound.MaxDistance / DistanceScale);
 }
 
 void FAudioVirtualLoop::UpdateFocusData(float DeltaTime)
