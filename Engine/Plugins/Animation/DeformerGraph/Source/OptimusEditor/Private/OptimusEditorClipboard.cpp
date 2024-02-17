@@ -4,6 +4,7 @@
 
 #include "OptimusNode.h"
 #include "OptimusNodeGraph.h"
+#include "OptimusNodeSubGraph.h"
 #include "OptimusNodePair.h"
 #include "OptimusNodeLink.h"
 #include "OptimusNodePin.h"
@@ -25,10 +26,11 @@ void FOptimusEditorClipboard::SetClipboardFromNodes(const TArray<UOptimusNode*>&
 
 	TArray<UOptimusNode*> NodesToConsider;
 	TArray<UOptimusNodePair*> NodePairsToConsider;
+	TArray<UOptimusNodeSubGraph*> SubGraphsToConsider;
 	
 	UOptimusNodeGraph* Graph = InNodes[0]->GetOwningGraph();
 
-	Graph->AddPairNodesToArray(InNodes, NodesToConsider, NodePairsToConsider);
+	Graph->GatherRelatedObjects(InNodes, NodesToConsider, NodePairsToConsider, SubGraphsToConsider);
 
 	// Export the clipboard to text.
 	const FExportObjectInnerContext Context;

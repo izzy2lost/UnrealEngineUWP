@@ -45,6 +45,21 @@ namespace Optimus
 	    If the name is already unique, it will be returned unchanged. */
 	FName GetUniqueNameForScope(UObject *InScopeObj, FName InName);
 
+	/** Given an object scope, generate names that is not only unique within the scope,
+	 * but also unique among all names generated before.
+	 * Note: It uses GetUniqueNameForScope so using the same scope object and
+	 * the same input name does not guarantee the same output name
+	 */
+	struct FUniqueNameGenerator
+	{
+		explicit FUniqueNameGenerator(UObject* InScopeObject);
+		
+		UObject* ScopeObject = nullptr;
+		TArray<FName> GeneratedName;
+
+		FName GetUniqueName(FName InName);
+	};
+	
 	/** A small helper class to enable binary reads on an archive, since the 
 		FObjectReader::Serialize(TArray<uint8>& InBytes) constructor is protected */
 	class FBinaryObjectReader : public FObjectReader
