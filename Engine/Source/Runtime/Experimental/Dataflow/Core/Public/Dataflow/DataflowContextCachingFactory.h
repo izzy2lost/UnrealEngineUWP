@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "ChaosLog.h"
 #include "CoreMinimal.h"
 #include "Dataflow/DataflowNodeParameters.h"
 
@@ -46,19 +45,7 @@ namespace Dataflow
 			return Instance;
 		}
 
-		void RegisterSerializeFunction(const FName& Type, FSerializeFunction InSerializeFunc)
-		{
-			if (CachingMap.Contains(Type))
-			{
-				UE_LOG(LogChaos, Warning,
-					TEXT("Warning : Dataflow output caching registration conflicts with "
-						"existing type(%s)"), *Type.ToString());
-			}
-			else
-			{
-				CachingMap.Add(Type, InSerializeFunc);
-			}
-		}
+		void RegisterSerializeFunction(const FName& Type, FSerializeFunction InSerializeFunc);
 
 		template<class T>
 		static T& GetTypedElement(FContextCacheElementBase* InElement)

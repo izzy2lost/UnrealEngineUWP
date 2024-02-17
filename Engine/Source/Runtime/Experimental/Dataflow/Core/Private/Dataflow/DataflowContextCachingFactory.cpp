@@ -2,13 +2,31 @@
 
 #include "Dataflow/DataflowContextCachingFactory.h"
 
-#include "ChaosLog.h"
 #include "Dataflow/DataflowNodeParameters.h"
+#include "Logging/LogMacros.h"
 #include "Misc/MessageDialog.h"
+
+DEFINE_LOG_CATEGORY_STATIC(LogDataflowContextCachingFactory, Warning, All);
+
 
 namespace Dataflow
 {
 	FContextCachingFactory* FContextCachingFactory::Instance = nullptr;
+
+	void FContextCachingFactory::RegisterSerializeFunction(const FName& Type, FSerializeFunction InSerializeFunc)
+	{
+		if (CachingMap.Contains(Type))
+		{
+			UE_LOG(LogDataflowContextCachingFactory, Warning,
+				TEXT("Warning : Dataflow output caching registration conflicts with "
+					"existing type(%s)"), *Type.ToString());
+		}
+		else
+		{
+			CachingMap.Add(Type, InSerializeFunc);
+		}
+	}
+
 
 	FContextCacheElementBase* FContextCachingFactory::Serialize(FArchive& Ar, FContextCacheData&& Element)
 	{
@@ -27,7 +45,7 @@ namespace Dataflow
 		}
 		else
 		{
-			UE_LOG(LogChaos, Warning,
+			UE_LOG(LogDataflowContextCachingFactory, Warning,
 				TEXT("Warning : Dataflow missing context chaching callback type(%s)"), *Element.Type.ToString());
 		}
 		return RetVal;
