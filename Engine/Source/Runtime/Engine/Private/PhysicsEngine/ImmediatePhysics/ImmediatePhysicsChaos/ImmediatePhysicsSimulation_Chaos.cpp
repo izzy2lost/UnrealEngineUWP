@@ -368,7 +368,8 @@ namespace ImmediatePhysics_Chaos
 		DetectorSettings.bAllowManifoldReuse = false;
 		DetectorSettings.bDeferNarrowPhase = (ChaosImmediate_Collision_DeferNarrowPhase != 0);
 		DetectorSettings.bAllowManifolds = (ChaosImmediate_Collision_UseManifolds != 0);
-		DetectorSettings.bAllowCCD = false; 
+		DetectorSettings.bAllowCCD = false;
+		DetectorSettings.bAllowMACD = false;
 		Implementation->Collisions.SetDetectorSettings(DetectorSettings);
 	}
 

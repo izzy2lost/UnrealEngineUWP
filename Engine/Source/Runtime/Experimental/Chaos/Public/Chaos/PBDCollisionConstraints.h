@@ -305,6 +305,12 @@ public:
 		DetectorSettings.MaxVelocityBoundsExpansion = MaxVelocityBoundsExpansion;
 	}
 
+	void SetVelocityBoundsExpansionMACD(const FReal BoundsVelocityMultiplier, const FReal MaxVelocityBoundsExpansion)
+	{
+		DetectorSettings.BoundsVelocityInflationMACD = BoundsVelocityMultiplier;
+		DetectorSettings.MaxVelocityBoundsExpansionMACD = MaxVelocityBoundsExpansion;
+	}
+
 protected:
 	CHAOS_API FPBDCollisionConstraint& GetConstraint(int32 Index);
 

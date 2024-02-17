@@ -655,6 +655,9 @@ namespace Chaos
 		// Cluster has one-way interaction only if all children are also one-way
 		bool bIsOneWayInteraction = (bIsNewCluster) || Cluster->InternalCluster->OneWayInteraction();
 
+		// Cluster uses MACD is any children require MACD
+		bool bIsMACD = false;
+
 		// Use the minimum sleep multiplier of all member particles
 		FRealSingle MinSleepThresholdMultiplier = TNumericLimits<FRealSingle>::Max();
 
@@ -676,6 +679,7 @@ namespace Chaos
 			}
 
 			bIsOneWayInteraction &= Particle->OneWayInteraction();
+			bIsMACD |= Particle->MACDEnabled();
 			MinSleepThresholdMultiplier = FMath::Min(MinSleepThresholdMultiplier, Particle->SleepThresholdMultiplier());
 
 			if (!Cluster->ChildProperties.Contains(Particle))
@@ -748,6 +752,7 @@ namespace Chaos
 		}
 
 		Cluster->InternalCluster->SetOneWayInteraction(bIsOneWayInteraction);
+		Cluster->InternalCluster->SetMACDEnabled(bIsMACD);
 
 		if (MinSleepThresholdMultiplier != TNumericLimits<FRealSingle>::Max())
 		{

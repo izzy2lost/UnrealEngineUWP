@@ -729,6 +729,8 @@ void FPBDRigidsEvolutionGBF::Integrate(FReal Dt)
 	const FReal BoundsThickness = GetCollisionConstraints().GetDetectorSettings().BoundsExpansion;
 	const FReal VelocityBoundsMultiplier = GetCollisionConstraints().GetDetectorSettings().BoundsVelocityInflation;
 	const FReal MaxVelocityBoundsExpansion = GetCollisionConstraints().GetDetectorSettings().MaxVelocityBoundsExpansion;
+	const FReal VelocityBoundsMultiplierMACD = GetCollisionConstraints().GetDetectorSettings().BoundsVelocityInflationMACD;
+	const FReal MaxVelocityBoundsExpansionMACD = GetCollisionConstraints().GetDetectorSettings().MaxVelocityBoundsExpansionMACD;
 	const FReal HackMaxAngularSpeedSq = CVars::HackMaxAngularVelocity * CVars::HackMaxAngularVelocity;
 	const FReal HackMaxLinearSpeedSq = CVars::HackMaxVelocity * CVars::HackMaxVelocity;
 
@@ -820,13 +822,23 @@ void FPBDRigidsEvolutionGBF::Integrate(FReal Dt)
 				// We need to expand the bounds back along velocity otherwise we can miss collisions when a box
 				// lands on another box, imparting velocity to the lower box and causing the boxes to be
 				// separated by more than Cull Distance at collision detection time.
+				// NOTE: We use a different (larger) max bounds expansion when MACD is enabled.
 				FVec3 VelocityBoundsDelta = FVec3(0);
-				if ((VelocityBoundsMultiplier > 0) && (MaxVelocityBoundsExpansion > 0))
+				if (!Particle.MACDEnabled())
 				{
-					VelocityBoundsDelta = (-VelocityBoundsMultiplier * Dt) * V;
-
-					// Box clamp to avoid sqrt
-					VelocityBoundsDelta.BoundToCube(MaxVelocityBoundsExpansion);
+					if ((VelocityBoundsMultiplier > 0) && (MaxVelocityBoundsExpansion > 0))
+					{
+						VelocityBoundsDelta = (-VelocityBoundsMultiplier * Dt) * V;
+						VelocityBoundsDelta = VelocityBoundsDelta.BoundToCube(MaxVelocityBoundsExpansion);
+					}
+				}
+				else
+				{
+					if ((VelocityBoundsMultiplierMACD > 0) && (MaxVelocityBoundsExpansionMACD > 0))
+					{
+						VelocityBoundsDelta = (-VelocityBoundsMultiplierMACD * Dt) * V;
+						VelocityBoundsDelta = VelocityBoundsDelta.BoundToCube(MaxVelocityBoundsExpansionMACD);
+					}
 				}
 
 				if (!Particle.CCDEnabled())

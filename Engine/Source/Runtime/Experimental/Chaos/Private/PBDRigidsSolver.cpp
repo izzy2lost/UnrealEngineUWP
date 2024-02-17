@@ -339,9 +339,11 @@ namespace Chaos
 		// @todo(chaos): move to physics project settings and set these to -1 when we are settled on values...
 		FRealSingle ChaosSolverVelocityBoundsMultiplier = 1.0f;
 		FRealSingle ChaosSolverMaxVelocityBoundsExpansion = 3.0f;			// This should probably be a fraction of object size (see FParticlePairMidPhase::GenerateCollisions)
+		FRealSingle ChaosSolverVelocityBoundsMultiplierMACD = 1.0f;
 		FRealSingle ChaosSolverMaxVelocityBoundsExpansionMACD = 1000.0f;	// For use when Movement-Aware Collision Detection (MACD) is enabled
 		FAutoConsoleVariableRef CVarChaosSolverVelocityBoundsMultiplier(TEXT("p.Chaos.Solver.Collision.VelocityBoundsMultiplier"), ChaosSolverVelocityBoundsMultiplier, TEXT("Override velocity bounds multiplier (if >= 0)"));
 		FAutoConsoleVariableRef CVarChaosSolverMaxVelocityBoundsExpansion(TEXT("p.Chaos.Solver.Collision.MaxVelocityBoundsExpansion"), ChaosSolverMaxVelocityBoundsExpansion, TEXT("Override max velocity bounds expansion (if >= 0)"));
+		FAutoConsoleVariableRef CVarChaosSolverVelocityBoundsMultiplierMACD(TEXT("p.Chaos.Solver.Collision.VelocityBoundsMultiplierMACD"), ChaosSolverVelocityBoundsMultiplierMACD, TEXT("Override velocity bounds multiplier for MACD (if >= 0)"));
 		FAutoConsoleVariableRef CVarChaosSolverMaxVelocityBoundsExpansionMACD(TEXT("p.Chaos.Solver.Collision.MaxVelocityBoundsExpansionMACD"), ChaosSolverMaxVelocityBoundsExpansionMACD, TEXT("Override max velocity bounds expansion for MACD (if >= 0)"));
 
 		FRealSingle ChaosSolverMaxPushOutVelocity = -1.0f;
@@ -364,12 +366,13 @@ namespace Chaos
 		int32 ChaosSolverCollisionAllowManifoldUpdate = 1;
 		FAutoConsoleVariableRef CVarChaosSolverCollisionAllowManifoldUpdate(TEXT("p.Chaos.Solver.Collision.AllowManifoldUpdate"), ChaosSolverCollisionAllowManifoldUpdate, TEXT("Enable/Disable reuse of manifolds between ticks (for small movement)."));
 
-		// Enable/Disable CCD
+		// Enable/Disable CCD. Set to false to disable the system, regardless of particle settings
 		bool bChaosUseCCD = true;
-		FAutoConsoleVariableRef  CVarChaosUseCCD(TEXT("p.Chaos.Solver.UseCCD"), bChaosUseCCD, TEXT("Global flag to turn CCD on or off. Default is true"));
+		FAutoConsoleVariableRef  CVarChaosUseCCD(TEXT("p.Chaos.Solver.UseCCD"), bChaosUseCCD, TEXT("Global flag to turn CCD on or off. Default is true (on)"));
 
-		bool bChaosUseMACD = false;
-		FAutoConsoleVariableRef CVarChaos_Collision_UseMACD(TEXT("p.Chaos.Solver.UseMACD"), bChaosUseMACD, TEXT("Whether to enable support for Movement-Aware Collision Detection."));
+		// Enable/Disable MACD (Motion-Aware Collision Detection). Set to false to disable the system, regardless of particle settings
+		bool bChaosUseMACD = true;
+		FAutoConsoleVariableRef CVarChaos_Collision_UseMACD(TEXT("p.Chaos.Solver.UseMACD"), bChaosUseMACD, TEXT("Global flag to turn Movement-Aware Collision Detection (MACD) on or off. Default is true (on)"));
 
 		// Joint cvars
 		float ChaosSolverJointMinSolverStiffness = 1.0f;
@@ -1248,6 +1251,28 @@ namespace Chaos
 		}
 	}
 
+	void FPBDRigidsSolver::SetVelocityBoundsExpansion(const FReal BoundsVelocityMultiplier, const FReal MaxBoundsVelocityExpansion)
+	{ 
+		FPBDCollisionConstraints& CollisionContainer = GetEvolution()->GetCollisionConstraints();
+		if ((CollisionContainer.GetDetectorSettings().BoundsVelocityInflation != BoundsVelocityMultiplier) || (CollisionContainer.GetDetectorSettings().MaxVelocityBoundsExpansion != MaxBoundsVelocityExpansion))
+		{
+			// If the settings change we must recreate collisions
+			GetEvolution()->DestroyTransientConstraints();
+		}
+		CollisionContainer.SetVelocityBoundsExpansion(BoundsVelocityMultiplier, MaxBoundsVelocityExpansion);
+	}
+
+	void FPBDRigidsSolver::SetVelocityBoundsExpansionMACD(const FReal BoundsVelocityMultiplier, const FReal MaxBoundsVelocityExpansion)
+	{
+		FPBDCollisionConstraints& CollisionContainer = GetEvolution()->GetCollisionConstraints();
+		if ((CollisionContainer.GetDetectorSettings().BoundsVelocityInflationMACD != BoundsVelocityMultiplier) || (CollisionContainer.GetDetectorSettings().MaxVelocityBoundsExpansionMACD != MaxBoundsVelocityExpansion))
+		{
+			// If the settings change we must recreate collisions
+			GetEvolution()->DestroyTransientConstraints();
+		}
+		CollisionContainer.SetVelocityBoundsExpansionMACD(BoundsVelocityMultiplier, MaxBoundsVelocityExpansion);
+	}
+
 	void FPBDRigidsSolver::PrepareAdvanceBy(const FReal DeltaTime)
 	{
 		MEvolution->GetCollisionConstraints().SetCollisionsEnabled(bChaosSolverCollisionEnabled);
@@ -1257,6 +1282,7 @@ namespace Chaos
 		CollisionDetectorSettings.bDeferNarrowPhase = (ChaosSolverCollisionDeferNarrowPhase != 0);
 		CollisionDetectorSettings.bAllowManifolds = (ChaosSolverCollisionUseManifolds != 0);
 		CollisionDetectorSettings.bAllowCCD = bChaosUseCCD;
+		CollisionDetectorSettings.bAllowMACD = bChaosUseMACD;
 		MEvolution->GetCollisionConstraints().SetDetectorSettings(CollisionDetectorSettings);
 		
 		FPBDJointSolverSettings JointsSettings = MEvolution->GetJointConstraints().GetSettings();
@@ -1304,23 +1330,14 @@ namespace Chaos
 			{
 				SetCollisionCullDistance(ChaosSolverCullDistance);
 			}
-			if (!CVars::bChaosUseMACD && (ChaosSolverVelocityBoundsMultiplier > 0.0f) && (ChaosSolverMaxVelocityBoundsExpansion > 0.0f))
+			SetVelocityBoundsExpansion(FMath::Max(0.0f, ChaosSolverVelocityBoundsMultiplier), FMath::Max(0.0f, ChaosSolverMaxVelocityBoundsExpansion));
+			if (bChaosUseMACD)
 			{
-				// TEMP
-				if ((GetEvolution()->GetCollisionConstraints().GetDetectorSettings().BoundsVelocityInflation != ChaosSolverVelocityBoundsMultiplier) || (GetEvolution()->GetCollisionConstraints().GetDetectorSettings().MaxVelocityBoundsExpansion != ChaosSolverMaxVelocityBoundsExpansion))
-				{
-					GetEvolution()->DestroyTransientConstraints();
-				}
-				SetVelocityBoundsExpansion(ChaosSolverVelocityBoundsMultiplier, ChaosSolverMaxVelocityBoundsExpansion);
+				SetVelocityBoundsExpansionMACD(FMath::Max(0.0f, ChaosSolverVelocityBoundsMultiplierMACD), FMath::Max(0.0f, ChaosSolverMaxVelocityBoundsExpansionMACD));
 			}
-			if (CVars::bChaosUseMACD)
+			else
 			{
-				// TEMP
-				if ((GetEvolution()->GetCollisionConstraints().GetDetectorSettings().BoundsVelocityInflation != ChaosSolverVelocityBoundsMultiplier) || (GetEvolution()->GetCollisionConstraints().GetDetectorSettings().MaxVelocityBoundsExpansion != ChaosSolverMaxVelocityBoundsExpansionMACD))
-				{
-					GetEvolution()->DestroyTransientConstraints();
-				}
-				SetVelocityBoundsExpansion(ChaosSolverVelocityBoundsMultiplier, ChaosSolverMaxVelocityBoundsExpansionMACD);
+				SetVelocityBoundsExpansionMACD(FMath::Max(0.0f, ChaosSolverVelocityBoundsMultiplier), FMath::Max(0.0f, ChaosSolverMaxVelocityBoundsExpansion));
 			}
 			if (ChaosSolverMaxPushOutVelocity >= 0.0f)
 			{
