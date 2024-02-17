@@ -859,6 +859,8 @@ namespace Chaos
 		const FCollisionContext& Context)
 	{
 		PHYSICS_CSV_SCOPED_EXPENSIVE(PhysicsVerbose, NarrowPhase_Filter);
+		check(InParticle0 != nullptr);
+		check(InParticle1 != nullptr);
 
 		Particle0 = InParticle0;
 		Particle1 = InParticle1;
@@ -866,19 +868,21 @@ namespace Chaos
 
 		Flags.bIsActive = true;
 
+		FConstGenericParticleHandle P0 = Particle0;
+		FConstGenericParticleHandle P1 = Particle1;
+
 		// If CCD is allowed in the current context and for at least one of
 		// the particles involved, enable it for this midphase.
 		//
 		// bIsCCDActive is reset to bIsCCD each frame, but can be overridden
 		// by modifiers.
-		const bool bIsCCD = Context.GetSettings().bAllowCCD && (FConstGenericParticleHandle(Particle0)->CCDEnabled() || FConstGenericParticleHandle(Particle1)->CCDEnabled());
+		const bool bIsCCD = Context.GetSettings().bAllowCCD && (P0->CCDEnabled() || P1->CCDEnabled());
 		Flags.bIsCCD = bIsCCD;
 		Flags.bIsCCDActive = bIsCCD;
 
-		// @todo(chaos): we should only enable relative movement mode if the particle asks for it
-		// (this also affects how the particle bounds is expanded in the broadphase)
-		//const bool bIsMACD = Context.GetSettings().bAllowMACD && (FConstGenericParticleHandle(Particle0)->MACDEnabled() || FConstGenericParticleHandle(Particle1)->MACDEnabled());
-		const bool bIsMACD = CVars::bChaosUseMACD;
+		// Enable Motion-Aware Collision Detection if either particle requests it
+		// (NOTE: MACD also affects how the particle world-space bounds is expanded in the broadphase)
+		const bool bIsMACD = Context.GetSettings().bAllowMACD && (P0->MACDEnabled() || P1->MACDEnabled());
 		Flags.bIsMACD = bIsMACD;
 
 		// Initially we allow for convex optimization where available

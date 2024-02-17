@@ -1817,10 +1817,20 @@ public:
 	}
 
 	bool CCDEnabled() const
-	{ 
+	{
 		if (MHandle->CastToRigidParticle())
 		{
 			return MHandle->CastToRigidParticle()->CCDEnabled();
+		}
+
+		return false;
+	}
+
+	bool MACDEnabled() const
+	{
+		if (MHandle->CastToRigidParticle())
+		{
+			return MHandle->CastToRigidParticle()->MACDEnabled();
 		}
 
 		return false;
