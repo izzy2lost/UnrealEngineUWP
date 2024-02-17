@@ -760,7 +760,7 @@ bool FAndroidVulkanFramePacer::SupportsFramePaceInternal(int32 QueryFramePace, i
 	TArray<int32> RefreshRates = FAndroidMisc::GetSupportedNativeDisplayRefreshRates();
 	RefreshRates.Sort();
 
-	FString DebugString = TEXT("Supported Refresh Rates:");
+	FString DebugString = TEXT("FAndroidVulkanFramePacer -> Supported Refresh Rates:");
 	for (int32 RefreshRate : RefreshRates)
 	{
 		DebugString += FString::Printf(TEXT(" %d"), RefreshRate);

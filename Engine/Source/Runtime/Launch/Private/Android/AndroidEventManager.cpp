@@ -262,9 +262,7 @@ void FAppEventManager::HandleWindowCreated_EventThread(void* InWindow)
 	}
 	EnqueueAppEvent(APP_EVENT_STATE_WINDOW_CREATED, FAppEventData((ANativeWindow*)InWindow));
 
-#if USE_ANDROID_STANDALONE
 	FApp::SetHasFocusFunction(&IsAppPausedOrSuspended);
-#endif
 }
 
 void FAppEventManager::HandleWindowClosed_EventThread()
@@ -281,9 +279,7 @@ void FAppEventManager::HandleWindowClosed_EventThread()
 
 	EnqueueAppEvent(APP_EVENT_STATE_WINDOW_DESTROYED);
 
-#if USE_ANDROID_STANDALONE
 	FApp::SetHasFocusFunction(nullptr);
-#endif
 }
 
 
@@ -409,11 +405,7 @@ bool FAppEventManager::IsGamePaused()
 
 bool FAppEventManager::IsGameInFocus()
 {
-#if USE_ANDROID_STANDALONE
 	return (bWindowInFocus && bHaveWindow && bHaveGame);
-#else
-	return (bWindowInFocus && bHaveWindow);
-#endif
 }
 
 

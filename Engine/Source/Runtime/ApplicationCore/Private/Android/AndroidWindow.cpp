@@ -645,14 +645,6 @@ FPlatformRect FAndroidWindow::GetScreenRect(bool bUseEventThreadWindow)
 		bool bIsPortrait = GDeviceScreenOrientation == EDeviceScreenOrientation::Portrait || GDeviceScreenOrientation == EDeviceScreenOrientation::PortraitUpsideDown;
 		UE_LOG(LogAndroid, Log, TEXT("FAndroidWindow::GetScreenRect bIsPortrait=%d"), bIsPortrait);
 
-		if (bIsPortrait)
-		{
-			UE_LOG(LogAndroid, Log, TEXT("FAndroidWindow::GetScreenRect(swap WH) bIsPortrait=%d"), bIsPortrait);
-			int temp = ScreenWidth;
-			ScreenWidth = ScreenHeight;
-			ScreenHeight = temp;
-		}
-
 		// save for future calls
 		CurrentParams.WindowWidth = ScreenWidth;
 		CurrentParams.WindowHeight = ScreenHeight;
