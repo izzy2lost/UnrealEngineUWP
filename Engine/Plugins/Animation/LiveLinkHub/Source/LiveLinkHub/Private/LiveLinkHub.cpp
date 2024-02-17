@@ -60,8 +60,8 @@ void FLiveLinkHub::Initialize()
 
 	LiveLinkHubClient->OnStaticDataReceived_AnyThread().AddSP(this, &FLiveLinkHub::OnStaticDataReceived_AnyThread);
 	LiveLinkHubClient->OnFrameDataReceived_AnyThread().AddSP(this, &FLiveLinkHub::OnFrameDataReceived_AnyThread);
+	LiveLinkHubClient->OnSubjectMarkedPendingKill_AnyThread().AddSP(this, &FLiveLinkHub::OnSubjectMarkedPendingKill_AnyThread);
 	LiveLinkHubClient->OnLiveLinkSubjectAdded().AddSP(this, &FLiveLinkHub::OnSubjectAdded);
-	LiveLinkHubClient->OnLiveLinkSubjectRemoved().AddSP(this, &FLiveLinkHub::OnSubjectRemoved);
 
 	PlaybackController->Start();
 
@@ -73,8 +73,8 @@ FLiveLinkHub::~FLiveLinkHub()
 	RecordingController.Reset();
 	PlaybackController.Reset();
 
-	LiveLinkHubClient->OnLiveLinkSubjectRemoved().RemoveAll(this);
 	LiveLinkHubClient->OnLiveLinkSubjectAdded().RemoveAll(this);
+	LiveLinkHubClient->OnSubjectMarkedPendingKill_AnyThread().RemoveAll(this);
 	LiveLinkHubClient->OnFrameDataReceived_AnyThread().RemoveAll(this);
 	LiveLinkHubClient->OnStaticDataReceived_AnyThread().RemoveAll(this);
 
@@ -140,6 +140,8 @@ void FLiveLinkHub::OnStaticDataReceived_AnyThread(const FLiveLinkSubjectKey& InS
 	FLiveLinkStaticDataStruct StaticDataCopy;
 	StaticDataCopy.InitializeWith(InStaticDataStruct);
 
+	UE_LOG(LogLiveLinkHub, Verbose, TEXT("Pushing static data for %s"), *InSubjectKey.SubjectName.ToString());
+
 	const FName OverridenName = GetSubjectNameOverride(InSubjectKey);
 	LiveLinkProvider->UpdateSubjectStaticData(OverridenName, InRole, MoveTemp(StaticDataCopy));
 }
@@ -156,7 +158,7 @@ void FLiveLinkHub::OnFrameDataReceived_AnyThread(const FLiveLinkSubjectKey& InSu
 	FrameDataCopy.InitializeWith(InFrameDataStruct);
 
 	const FName OverridenName = GetSubjectNameOverride(InSubjectKey);
-	if (LiveLinkHubClient->IsSubjectEnabled(OverridenName))
+	if (LiveLinkHubClient->IsSubjectEnabled(InSubjectKey.SubjectName))
 	{
 		LiveLinkProvider->UpdateSubjectFrameData(OverridenName, MoveTemp(FrameDataCopy));
 	}
@@ -173,14 +175,25 @@ void FLiveLinkHub::OnSubjectAdded(FLiveLinkSubjectKey InSubjectKey) const
 		StaticDataCopy.InitializeWith(*StaticData);
 
 		const FName OverridenName = GetSubjectNameOverride(InSubjectKey);
+
+		UE_LOG(LogLiveLinkHub, Verbose, TEXT("Pushed static subject %s"), *InSubjectKey.SubjectName.ToString());
 		LiveLinkProvider->UpdateSubjectStaticData(OverridenName, SubjectSettings->Role, MoveTemp(StaticDataCopy));
+	}
+	else
+	{
+		UE_LOG(LogLiveLinkHub, Verbose, TEXT("Failed to push static subject %s, static data doesn't exist"), *InSubjectKey.SubjectName.ToString());
 	}
 }
 
-void FLiveLinkHub::OnSubjectRemoved(FLiveLinkSubjectKey InSubjectKey) const
+void FLiveLinkHub::OnSubjectMarkedPendingKill_AnyThread(const FLiveLinkSubjectKey& InSubjectKey) const
 {
+	UE_LOG(LogLiveLinkHub, Verbose, TEXT("Removed subject %s"), *InSubjectKey.SubjectName.ToString());
+
 	// Send an update to connected clients as well.
 	const FName OverridenName = GetSubjectNameOverride(InSubjectKey);
+
+	// Note: We send a RemoveSubject message to connected clients when the subject is marked pending kill in order to process this message in the right order.
+	// If we were to send a RemoveSubject message after the OnSubjectRemoved delegate, it could cause our RemoveSubject message to be sent out of order.
 	LiveLinkProvider->RemoveSubject(OverridenName);
 }
 

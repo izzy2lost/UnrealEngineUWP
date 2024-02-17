@@ -281,18 +281,21 @@ void FLiveLinkHubClient::PushSubjectStaticData_AnyThread(const FLiveLinkSubjectK
 		FScopeLock Lock(&CollectionAccessCriticalSection);
 		if (FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(SubjectKey))
 		{
-			LiveLinkSubject = SubjectItem->GetLiveSubject();
-
-			if (LiveLinkSubject->GetRole() != Role)
+			if (!SubjectItem->bPendingKill)
 			{
-				UE_LOG(LogLiveLinkHub, Warning, TEXT("Subject '%s' of role '%s' is changing its role to '%s'. Current subject will be removed and a new one will be created"), *SubjectKey.SubjectName.ToString(), *LiveLinkSubject->GetRole().GetDefaultObject()->GetDisplayName().ToString(), *Role.GetDefaultObject()->GetDisplayName().ToString());
+				LiveLinkSubject = SubjectItem->GetLiveSubject();
 
-				Collection->RemoveSubject(SubjectKey);
-				LiveLinkSubject = nullptr;
-			}
-			else
-			{
-				LiveLinkSubject->ClearFrames();
+				if (LiveLinkSubject->GetRole() != Role)
+				{
+					UE_LOG(LogLiveLinkHub, Warning, TEXT("Subject '%s' of role '%s' is changing its role to '%s'. Current subject will be removed and a new one will be created"), *SubjectKey.SubjectName.ToString(), *LiveLinkSubject->GetRole().GetDefaultObject()->GetDisplayName().ToString(), *Role.GetDefaultObject()->GetDisplayName().ToString());
+
+					Collection->RemoveSubject(SubjectKey);
+					LiveLinkSubject = nullptr;
+				}
+				else
+				{
+					LiveLinkSubject->ClearFrames();
+				}
 			}
 		}
 
@@ -424,6 +427,12 @@ bool FLiveLinkHubClient::IsSubjectValid(const FLiveLinkSubjectKey& InSubjectKey)
 		return true;
 	}
 	return false;
+}
+
+void FLiveLinkHubClient::RemoveSubject_AnyThread(const FLiveLinkSubjectKey& InSubjectKey)
+{
+	OnSubjectMarkedPendingKill_AnyThread().Broadcast(InSubjectKey);
+	FLiveLinkClient::RemoveSubject_AnyThread(InSubjectKey);
 }
 
 #undef LOCTEXT_NAMESPACE

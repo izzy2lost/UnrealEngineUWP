@@ -630,18 +630,21 @@ void FLiveLinkClient::PushSubjectStaticData_Internal(FPendingSubjectStatic&& Sub
 	FLiveLinkSubject* LiveLinkSubject = nullptr;
 	if (FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(SubjectStaticData.SubjectKey))
 	{
-		LiveLinkSubject = SubjectItem->GetLiveSubject();
-
-		if (LiveLinkSubject->GetRole() != SubjectStaticData.Role)
+		if (!SubjectItem->bPendingKill)
 		{
-			FLiveLinkLog::Warning(TEXT("Subject '%s' of role '%s' is changing its role to '%s'. Current subject will be removed and a new one will be created"), *SubjectStaticData.SubjectKey.SubjectName.ToString(), *LiveLinkSubject->GetRole().GetDefaultObject()->GetDisplayName().ToString(), *SubjectStaticData.Role.GetDefaultObject()->GetDisplayName().ToString());
+			LiveLinkSubject = SubjectItem->GetLiveSubject();
 
-			Collection->RemoveSubject(SubjectStaticData.SubjectKey);
-			LiveLinkSubject = nullptr;
-		}
-		else
-		{
-			LiveLinkSubject->ClearFrames();
+			if (LiveLinkSubject->GetRole() != SubjectStaticData.Role)
+			{
+				FLiveLinkLog::Warning(TEXT("Subject '%s' of role '%s' is changing its role to '%s'. Current subject will be removed and a new one will be created"), *SubjectStaticData.SubjectKey.SubjectName.ToString(), *LiveLinkSubject->GetRole().GetDefaultObject()->GetDisplayName().ToString(), *SubjectStaticData.Role.GetDefaultObject()->GetDisplayName().ToString());
+
+				Collection->RemoveSubject(SubjectStaticData.SubjectKey);
+				LiveLinkSubject = nullptr;
+			}
+			else
+			{
+				LiveLinkSubject->ClearFrames();
+			}
 		}
 	}
 
