@@ -14,6 +14,9 @@ static TAutoConsoleVariable<bool> CVarMoviePipelineFlushRenderingPerLayerHack(
 	TEXT(" 1 - Flush (but negatively impacts performance)"),
 	ECVF_Default);
 
+FString UMovieGraphImagePassBaseNode::DefaultDepthAsset = TEXT("/MovieRenderPipeline/Materials/MovieRenderQueue_WorldDepth.MovieRenderQueue_WorldDepth");
+FString UMovieGraphImagePassBaseNode::DefaultMotionVectorsAsset = TEXT("/MovieRenderPipeline/Materials/MovieRenderQueue_MotionVectors.MovieRenderQueue_MotionVectors");
+
 UMovieGraphImagePassBaseNode::UMovieGraphImagePassBaseNode()
 {
 	ShowFlags = CreateDefaultSubobject<UMovieGraphShowFlags>(TEXT("ShowFlags"));

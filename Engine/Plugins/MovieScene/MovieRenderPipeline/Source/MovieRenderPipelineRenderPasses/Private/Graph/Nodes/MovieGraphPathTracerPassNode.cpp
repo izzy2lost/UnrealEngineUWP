@@ -19,6 +19,18 @@ UMovieGraphPathTracerRenderPassNode::UMovieGraphPathTracerRenderPassNode()
 {
 	ShowFlags->ApplyDefaultShowFlagValue(VMI_PathTracing, true);
 	// TODO: Showflag for SetMotionBlur()?
+
+	// To help user knowledge we pre-seed the additional post processing materials with an array of potentially common passes.
+	TArray<FString> DefaultPostProcessMaterials;
+	DefaultPostProcessMaterials.Add(DefaultDepthAsset);
+	DefaultPostProcessMaterials.Add(DefaultMotionVectorsAsset);
+
+	for (FString& MaterialPath : DefaultPostProcessMaterials)
+	{
+		FMoviePipelinePostProcessPass& NewPass = AdditionalPostProcessMaterials.AddDefaulted_GetRef();
+		NewPass.Material = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(MaterialPath));
+		NewPass.bEnabled = false;
+	}
 }
 
 #if WITH_EDITOR
