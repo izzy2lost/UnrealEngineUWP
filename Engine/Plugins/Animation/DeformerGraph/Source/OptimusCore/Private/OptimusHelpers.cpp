@@ -20,6 +20,30 @@ FName Optimus::GetUniqueNameForScope(UObject* InScopeObj, FName InName)
 	return InName;
 }
 
+Optimus::FUniqueNameGenerator::FUniqueNameGenerator(UObject* InScopeObject)
+{
+	ScopeObject = InScopeObject;
+}
+
+FName Optimus::FUniqueNameGenerator::GetUniqueName(FName InName)
+{
+	FName Result = Optimus::GetUniqueNameForScope(ScopeObject, InName);
+	GenerateUniqueNameFromExistingNames(Result, GeneratedName);
+
+	// Result be usable at this point since the name number strictly increases.
+	// Only take the slow route if there is still a name collision for mysterious reasons
+	if (!ensure(StaticFindObjectFast(UObject::StaticClass(), ScopeObject, Result) == nullptr))
+	{
+		do
+		{
+			Result.SetNumber( Result.GetNumber() + 1);
+		} while (StaticFindObjectFast(UObject::StaticClass(), ScopeObject, Result) != nullptr || GeneratedName.Contains(Result));
+	}
+
+	GeneratedName.Add(Result);
+	return Result;
+}
+
 FName Optimus::GetSanitizedNameForHlsl(FName InName)
 {
 	// Sanitize the name

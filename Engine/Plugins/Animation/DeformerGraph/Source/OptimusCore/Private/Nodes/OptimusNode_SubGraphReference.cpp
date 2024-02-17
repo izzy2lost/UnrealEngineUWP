@@ -151,6 +151,23 @@ UOptimusNodePin* UOptimusNode_SubGraphReference::GetDefaultComponentBindingPin()
 	return DefaultComponentPin.Get();
 }
 
+void UOptimusNode_SubGraphReference::SetSerializedSubGraphName(FName InSubGraphName)
+{
+	SubGraphName = InSubGraphName;
+	FString SubGraphPath = GetOwningGraph()->ConstructSubGraphPath(SubGraphName.ToString());
+	SubGraph = Cast<UOptimusNodeSubGraph>(GetOwningGraph()->GetPathResolver()->ResolveGraphPath(SubGraphPath));
+}
+
+void UOptimusNode_SubGraphReference::RefreshSerializedSubGraphName()
+{
+	SubGraphName = SubGraph->GetFName();
+}
+
+FName UOptimusNode_SubGraphReference::GetSerializedSubGraphName() const
+{
+	return SubGraphName;
+}
+
 void UOptimusNode_SubGraphReference::SubscribeToSubGraph()
 {
 	if (ensure(!SubGraph->GetOnBindingArrayPasted().IsBoundToObject(this)))

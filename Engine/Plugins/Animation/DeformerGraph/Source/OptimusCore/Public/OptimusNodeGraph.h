@@ -442,6 +442,7 @@ protected:
 	friend class UOptimusNode;
 	friend class UOptimusNodePin;
 	friend class UOptimusNode_ConstantValue;
+	friend class UOptimusNode_SubGraphReference;
 	friend class FOptimusEditorClipboard;
 	friend struct FOptimusNodeGraphAction_AddNode;
 	friend struct FOptimusNodeGraphAction_DuplicateNode;
@@ -524,7 +525,14 @@ private:
 		TFunction<void(UOptimusNode*)> InSecondNodeConfigFunc
 	);
 
-	static void AddPairNodesToArray(const TArray<UOptimusNode*>& InNodes, TArray<UOptimusNode*>& OutNodes, TArray<UOptimusNodePair*>& OutNodePairs);
+	static void GatherRelatedObjects(
+		const TArray<UOptimusNode*>& InNodes,
+		TArray<UOptimusNode*>& OutNodes,
+		TArray<UOptimusNodePair*>& OutNodePairs,
+		TArray<UOptimusNodeSubGraph*>& OutSubGraphs
+		);
+
+	bool DuplicateSubGraph(UOptimusNodeSubGraph* InSourceSubGraph, FName InNewGraphName);
 
 	void RemoveNodePairByIndex(int32 NodePairIndex);
 	

@@ -110,10 +110,8 @@ bool UOptimusNode::SetGraphPositionDirect(
 
 	GraphPosition = InPosition;
 
-	if (bSendNotifications)
-	{
-		Notify(EOptimusGraphNotifyType::NodePositionChanged);
-	}
+
+	Notify(EOptimusGraphNotifyType::NodePositionChanged);
 
 	return true;
 }

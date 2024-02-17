@@ -48,10 +48,12 @@ public:
 	UOptimusComponentSourceBinding* GetDefaultComponentBinding(const FOptimusPinTraversalContext& InTraversalContext) const override;
 	UOptimusNodePin* GetDefaultComponentBindingPin() const override;
 
+	// Only used during node creation, cannot be used to reference a different graph once node is constructed
+	void SetSerializedSubGraphName(FName InSubGraphName);
+	void RefreshSerializedSubGraphName();
+	FName GetSerializedSubGraphName() const;
+	
 protected:
-	friend class UOptimusNodeGraph;
-	friend class UOptimusDeformer;
-
 	void SubscribeToSubGraph();
 	void UnsubscribeFromSubGraph() const;
 
@@ -62,14 +64,18 @@ protected:
 	void SyncPinsToBindings(FName InBindingArrayPropertyName);
 
 	TArray<UOptimusNodePin*> GetBindingPinsByDirection(EOptimusNodePinDirection InDirection);
+
+
+	UPROPERTY()
+	FName SubGraphName;
+	
+	UPROPERTY()
+	TWeakObjectPtr<UOptimusNodePin> DefaultComponentPin;
+
+private:
 	/** The graph that owns us. This contains all the necessary pin information to add on
 	 * the terminal node.
 	 */
 	UPROPERTY()
-	TWeakObjectPtr<UOptimusNodeSubGraph> SubGraph;
-
-	UPROPERTY()
-	TWeakObjectPtr<UOptimusNodePin> DefaultComponentPin;
-
-	
+	TWeakObjectPtr<UOptimusNodeSubGraph> SubGraph;	
 };

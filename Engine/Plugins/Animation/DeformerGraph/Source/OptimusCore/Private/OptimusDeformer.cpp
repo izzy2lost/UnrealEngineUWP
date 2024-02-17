@@ -175,7 +175,7 @@ UOptimusNode* UOptimusDeformer::GetSubGraphReferenceNode(const UOptimusNodeSubGr
 	for (UOptimusNode* Node: AllSubGraphNodes)
 	{
 		const UOptimusNode_SubGraphReference* SubGraphReference = Cast<UOptimusNode_SubGraphReference>(Node);
-		if (SubGraphReference->SubGraph == InSubGraph)
+		if (SubGraphReference->GetReferencedSubGraph() == InSubGraph)
 		{
 			UsedNode = Node;
 			break;
