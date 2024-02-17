@@ -345,80 +345,70 @@ FNaniteTransformedTri TransformNaniteTriangle(FPrimitiveSceneData PrimitiveData,
 	#else
 		bEvaluateWPO &= (PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_EVALUATE_WORLD_POSITION_OFFSET) != 0u;
 	#endif
-	BRANCH
-	if (bEvaluateWPO)
-	{
-		UNROLL_N(3)
-		for (int i = 0; i < 3; ++i)
-		{
-			FMaterialVertexParameters VertexParameters = MakeInitializedMaterialVertexParameters();
-			SetVertexParameterInstanceData(VertexParameters, InstanceData, PrimitiveData, true /* WPO */);
-			SetVertexParameterAttributeData(VertexParameters, InVerts[i], Transforms.LocalToTranslatedWorld, Transforms.LocalToWorldNoScale);
+#else
+	bEvaluateWPO = false;
+#endif
 
+	for (int i = 0; i < 3; ++i)
+	{
+#if NUM_TEX_COORD_INTERPOLATORS || USES_WORLD_POSITION_OFFSET
+		FMaterialVertexParameters VertexParameters = MakeInitializedMaterialVertexParameters();
+		SetVertexParameterInstanceData(VertexParameters, InstanceData, PrimitiveData, bEvaluateWPO /* WPO */);
+		SetVertexParameterAttributeData(VertexParameters, InVerts[i], Transforms.LocalToTranslatedWorld, Transforms.LocalToWorldNoScale);
+
+	#if ENABLE_NEW_HLSL_GENERATOR
+		EvaluateVertexMaterialAttributes(VertexParameters);
+	#endif
+#endif
+
+	#if NUM_TEX_COORD_INTERPOLATORS
+		GetMaterialCustomizedUVs(VertexParameters, Tri.Verts[i].CustomizedUVs);
+		GetCustomInterpolators(VertexParameters, Tri.Verts[i].CustomizedUVs);
+	#endif
+
+		const float3 WorldPositionOffset = GetMaterialWorldPositionOffset(VertexParameters);
+
+		const float3 NormalWorld = mul(float4(InVerts[i].Normal, 0), Transforms.LocalToTranslatedWorld).xyz;
+
+		Tri.Verts[i].VertIndex				= InVerts[i].VertIndex;
+		Tri.Verts[i].RawAttributeData		= InVerts[i].RawAttributeData;
+		Tri.Verts[i].SplineDist				= InVerts[i].SplineDist;
+		Tri.Verts[i].NormalPostDeform		= InVerts[i].Normal;
+		Tri.Verts[i].NormalClip				= mul(float4(NormalWorld, 0), Transforms.TranslatedWorldToClip);
+		Tri.Verts[i].PointLocal				= InVerts[i].PointLocal;
+		Tri.Verts[i].PointPostDeform		= InVerts[i].Position;
+		Tri.Verts[i].PrevPointPostDeform	= InVerts[i].Position;
+	#if NUM_TEX_COORD_INTERPOLATORS || USES_WORLD_POSITION_OFFSET
+		Tri.Verts[i].PointWorld				= VertexParameters.WorldPosition;
+	#else
+		Tri.Verts[i].PointWorld				= mul(float4(Tri.Verts[i].PointPostDeform, 1), Transforms.LocalToTranslatedWorld).xyz;
+	#endif
+		Tri.Verts[i].PointWorld_NoOffset	= Tri.Verts[i].PointWorld;
+
+	#if USES_WORLD_POSITION_OFFSET
+		BRANCH
+		if (bEvaluateWPO)
+		{
 			FMaterialVertexParameters PrevVertexParameters = MakeInitializedMaterialVertexParameters();
 			SetVertexParameterInstanceData(PrevVertexParameters, InstanceData, PrimitiveData, true /* WPO */);
 			SetVertexParameterAttributeData(PrevVertexParameters, InVerts[i], Transforms.PrevLocalToTranslatedWorld, Transforms.PrevLocalToWorldNoScale);
 
 		#if ENABLE_NEW_HLSL_GENERATOR
-			EvaluateVertexMaterialAttributes(VertexParameters);
 			EvaluateVertexMaterialAttributes(PrevVertexParameters);
 		#endif
-			const float3 WorldPositionOffset = GetMaterialWorldPositionOffset(VertexParameters);
+
 			const float3 PrevWorldPositionOffset = GetMaterialPreviousWorldPositionOffset(PrevVertexParameters);
 			const float3 LocalOffset = mul(WorldPositionOffset, Transforms.WorldToLocalVector);
 			const float3 PrevLocalOffset = mul(PrevWorldPositionOffset, Transforms.PrevWorldToLocalVector);
-			const float3 NormalWorld = mul(float4(InVerts[i].Normal, 0), Transforms.LocalToTranslatedWorld).xyz;
 
-			Tri.Verts[i].VertIndex				= InVerts[i].VertIndex;
-			Tri.Verts[i].RawAttributeData		= InVerts[i].RawAttributeData;
-			Tri.Verts[i].SplineDist				= InVerts[i].SplineDist;
-			Tri.Verts[i].NormalPostDeform		= InVerts[i].Normal;
-			Tri.Verts[i].NormalClip				= mul(float4(NormalWorld, 0), Transforms.TranslatedWorldToClip);
-			Tri.Verts[i].PointLocal				= InVerts[i].PointLocal;
-			Tri.Verts[i].PointPostDeform		= InVerts[i].Position + LocalOffset;
-			Tri.Verts[i].PrevPointPostDeform	= InVerts[i].Position + PrevLocalOffset;
-			Tri.Verts[i].PointWorld				= VertexParameters.WorldPosition + WorldPositionOffset;
-			Tri.Verts[i].PointWorld_NoOffset	= VertexParameters.WorldPosition;
-			Tri.Verts[i].PointClip				= mul(float4(Tri.Verts[i].PointWorld, 1), Transforms.TranslatedWorldToClip);
 
-		#if NUM_TEX_COORD_INTERPOLATORS
-			GetMaterialCustomizedUVs(VertexParameters, Tri.Verts[i].CustomizedUVs);
-			GetCustomInterpolators(VertexParameters, Tri.Verts[i].CustomizedUVs);
-		#endif
+			Tri.Verts[i].PointPostDeform		+= LocalOffset;
+			Tri.Verts[i].PrevPointPostDeform	+= PrevLocalOffset;
+			Tri.Verts[i].PointWorld				+= WorldPositionOffset;
 		}
-	}
-	else
-#endif // USES WORLD_POSITION_OFFSET
-	{
-		UNROLL_N(3)
-		for (int i = 0; i < 3; ++i)
-		{
-			const float3 NormalWorld			= mul(float4(InVerts[i].Normal, 0), Transforms.LocalToTranslatedWorld).xyz;
+	#endif
 
-			Tri.Verts[i].VertIndex				= InVerts[i].VertIndex;
-			Tri.Verts[i].RawAttributeData		= InVerts[i].RawAttributeData;
-			Tri.Verts[i].SplineDist				= InVerts[i].SplineDist;
-			Tri.Verts[i].NormalPostDeform		= InVerts[i].Normal;
-			Tri.Verts[i].NormalClip				= mul(float4(NormalWorld, 0), Transforms.TranslatedWorldToClip);
-			Tri.Verts[i].PointLocal				= InVerts[i].PointLocal;
-			Tri.Verts[i].PointPostDeform		= InVerts[i].Position;
-			Tri.Verts[i].PrevPointPostDeform	= InVerts[i].Position;
-			Tri.Verts[i].PointWorld				= mul(float4(Tri.Verts[i].PointPostDeform, 1), Transforms.LocalToTranslatedWorld).xyz;
-			Tri.Verts[i].PointWorld_NoOffset	= Tri.Verts[i].PointWorld;
-			Tri.Verts[i].PointClip				= mul(float4(Tri.Verts[i].PointWorld, 1), Transforms.TranslatedWorldToClip);
-
-		#if NUM_TEX_COORD_INTERPOLATORS
-			FMaterialVertexParameters VertexParameters = MakeInitializedMaterialVertexParameters();
-			SetVertexParameterInstanceData(VertexParameters, InstanceData, PrimitiveData, false /* WPO */);
-			SetVertexParameterAttributeData(VertexParameters, InVerts[i], Transforms.LocalToTranslatedWorld, Transforms.LocalToWorldNoScale);
-
-		#if ENABLE_NEW_HLSL_GENERATOR
-			EvaluateVertexMaterialAttributes(VertexParameters);
-		#endif
-			GetMaterialCustomizedUVs(VertexParameters, Tri.Verts[i].CustomizedUVs);
-			GetCustomInterpolators(VertexParameters, Tri.Verts[i].CustomizedUVs);
-		#endif
-		}
+		Tri.Verts[i].PointClip = mul(float4(Tri.Verts[i].PointWorld, 1), Transforms.TranslatedWorldToClip);
 	}
 
 	return Tri;
