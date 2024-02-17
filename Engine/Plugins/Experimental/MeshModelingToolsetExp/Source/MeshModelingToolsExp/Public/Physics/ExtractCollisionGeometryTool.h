@@ -53,7 +53,7 @@ public:
 	bool bShowPreview = false;
 
 	/** Show/Hide input mesh */
-	UPROPERTY(EditAnywhere, Category = Options)
+	UPROPERTY(EditAnywhere, Category = Options, meta = (EditCondition = "CollisionType != EExtractCollisionOutputType::Complex || !bShowPreview"))
 	bool bShowInputMesh = true;
 
 	/** Whether or not to weld coincident border edges of the Complex Collision Mesh (if possible) */
