@@ -29,10 +29,20 @@ void FHarmonixMetasoundEditorModule::StartupModule()
 	MetasoundEditorModule.RegisterPinType("Enum:Distortion:FilterPasses", "Int32");
 	MetasoundEditorModule.RegisterPinType("Enum:StdMIDIControllerID", "Int32");
 
-	MetasoundEditorModule.RegisterPinType("MIDIStream", {}, {}, Style.GetMidiStreamConnectedIcon(), Style.GetMidiStreamDisconnectedIcon());
-	MetasoundEditorModule.RegisterPinType("MIDIClock", {}, {}, Style.GetMidiClockConnectedIcon(), Style.GetMidiClockDisconnectedIcon());
-	MetasoundEditorModule.RegisterPinType("MusicTransport", {}, {}, Style.GetTransportConnectedIcon(), Style.GetTransportDisconnectedIcon());
+	auto RegisterCustomPinType = [&Style, &MetasoundEditorModule](FName PinType)
+	{
+		Metasound::Editor::FGraphPinParams MidiStreamParams;
+		MidiStreamParams.PinCategory = PinType;
+		MidiStreamParams.PinColor = &Style.GetPinColor(PinType);
+		MidiStreamParams.PinConnectedIcon = Style.GetConnectedIcon(PinType);
+		MidiStreamParams.PinDisconnectedIcon = Style.GetDisconnectedIcon(PinType);
+		MetasoundEditorModule.RegisterCustomPinType(PinType, MidiStreamParams);
+	};
 
+	RegisterCustomPinType("MIDIStream");
+	RegisterCustomPinType("MIDIClock");
+	RegisterCustomPinType("MusicTransport");
+	
 	FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 	PropertyModule.RegisterCustomClassLayout(
 		UMidiStepSequence::StaticClass()->GetFName(),
