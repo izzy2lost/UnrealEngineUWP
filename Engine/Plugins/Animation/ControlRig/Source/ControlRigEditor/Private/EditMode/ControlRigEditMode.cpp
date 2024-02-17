@@ -698,6 +698,7 @@ void FControlRigEditMode::Tick(FEditorViewportClient* ViewportClient, float Delt
 			}
 		}
 	}
+	DetailKeyFrameCache->UpdateIfDirty();
 }
 
 //Hit proxy for FK Rigs and bones.
@@ -5721,15 +5722,23 @@ void FDetailKeyFrameCacheAndHandler::OnChannelChanged(const FMovieSceneChannelMe
 void FDetailKeyFrameCacheAndHandler::ResetCachedData()
 {
 	CachedPropertyKeyedStatusMap.Reset();
-	if (FMovieSceneConstraintChannelHelper::bDoNotCompensate == false) //if compensating don't reset this.
+	bValuesDirty = true;
+}
+
+void FDetailKeyFrameCacheAndHandler::UpdateIfDirty()
+{
+	if (bValuesDirty == true)
 	{
-		if (EditMode && EditMode->GetControlProxy())
+		if (FMovieSceneConstraintChannelHelper::bDoNotCompensate == false) //if compensating don't reset this.
 		{
-			EditMode->GetControlProxy()->ValuesChanged();
+			if (EditMode && EditMode->GetControlProxy())
+			{
+				EditMode->GetControlProxy()->ValuesChanged();
+			}
+			bValuesDirty = false;
 		}
 	}
 }
-
 
 
 #undef LOCTEXT_NAMESPACE
