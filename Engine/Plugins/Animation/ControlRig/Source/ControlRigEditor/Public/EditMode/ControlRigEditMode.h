@@ -106,12 +106,13 @@ struct FDetailKeyFrameCacheAndHandler: public IDetailKeyframeHandler
 
 	void SetDelegates(TWeakPtr<ISequencer>& InWeakSequencer, FControlRigEditMode* InEditMode);
 	void UnsetDelegates();
-
+	void ResetCachedData();
+	void UpdateIfDirty();
 	/** Map to the last calculated property keyed status. Resets when Scrubbing, changing Movie Scene Data, etc */
 	mutable TMap<const IPropertyHandle*, EPropertyKeyedStatus> CachedPropertyKeyedStatusMap;
 
-	void ResetCachedData();
-
+	/* flag to specify that we need to update values, will poll this on edit mode tick for performance */
+	bool bValuesDirty = false;
 private:
 	TWeakPtr<ISequencer> WeakSequencer;
 	FControlRigEditMode* EditMode = nullptr;
