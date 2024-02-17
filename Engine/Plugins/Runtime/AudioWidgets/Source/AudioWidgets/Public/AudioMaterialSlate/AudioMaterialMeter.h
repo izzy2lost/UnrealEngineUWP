@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "AudioMaterialSlate/AudioMaterialSlateTypes.h"
+#include "AudioMaterialSlateStyles.h"
 #include "Components/Widget.h"
 #include "Delegates/Delegate.h"
 #include "AudioMaterialMeter.generated.h"
@@ -22,8 +22,6 @@ class AUDIOWIDGETS_API UAudioMaterialMeter : public UWidget
 	GENERATED_BODY()
 
 public:
-
-	UAudioMaterialMeter();
 
 	/** The meter's style */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style", meta = (DisplayName = "Style", ShowOnlyInnerProperties))

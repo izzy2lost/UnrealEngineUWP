@@ -2,12 +2,13 @@
 
 #pragma once
 
-#include "AudioMaterialSlate/AudioMaterialSlateTypes.h"
+#include "AudioMaterialSlateStyles.h"
 #include "Components/Widget.h"
 #include "Delegates/Delegate.h"
 #include "AudioMaterialKnob.generated.h"
 
 class SAudioMaterialKnob;
+struct FAudioMaterialKnobStyle;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnKnobValueChangedEvent, float, Value);
 
@@ -24,8 +25,6 @@ class AUDIOWIDGETS_API UAudioMaterialKnob : public UWidget
 	GENERATED_BODY()
 
 public:
-
-	UAudioMaterialKnob();
 
 	/** The button's style */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style", meta = (DisplayName = "Style", ShowOnlyInnerProperties))
