@@ -271,6 +271,7 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 			SampleState.OverscanFraction = OverscanFraction;
 			SampleState.bAllowOCIO = ParentNodeThisFrame->GetAllowOCIO();
 			SampleState.SceneCaptureSource = SceneCaptureSource;
+			SampleState.CompositingSortOrder = 10;
 		}
 
 		if (UMovieGraphImagePassBaseNode* ParentNode = GetParentNode(InFrameTraversalContext.Time.EvaluatedConfig))
@@ -297,6 +298,8 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 				UE::MovieGraph::FMovieGraphSampleState PassSampleState = SampleState;
 				PassSampleState.TraversalContext.RenderDataIdentifier = Identifier;
 				
+				// Give a lower priority to materials so they show up after the main pass in multi-layer exrs.
+				PassSampleState.CompositingSortOrder = SampleState.CompositingSortOrder + 1;
 				BufferPipe->AddEndpoint(MakeForwardingEndpoint(PassSampleState, InTimeData));
 
 				NewView->FinalPostProcessSettings.BufferVisualizationPipes.Add(VisMaterial->GetFName(), BufferPipe);

@@ -390,6 +390,17 @@ namespace UE::MovieGraph
 	};
 
 	/**
+	* A collection of validation information extracted from the FMovieGraphOutputMergerFrame 
+	*/
+	struct FMovieGraphRenderDataValidationInfo
+	{
+		int32 LayerCount = 0;
+		int32 BranchCount = 0;
+		int32 ActiveBranchRendererCount = 0;
+		int32 ActiveRendererSubresourceCount = 0;
+	};
+
+	/**
 	* A collection of all of the data needed to produce the one output frame on disk. This holds
 	* all of the pixel data associated with the output frame at once, so we can pass it to our 
 	* image writing/video encoders in one go, to ensure we can do things like Multilayer EXRs which
@@ -422,72 +433,8 @@ namespace UE::MovieGraph
 		/** Additional metadata to be added to the output (if supported by the output container). */
 		TMap<FString, FString> FileMetadata;
 
-		/** Check if the (expected) render passes come from different branches. */
-		bool HasDataFromMultipleBranches() const
-		{
-			TSet<FName> BranchUseCounts;
-			BranchUseCounts.Reserve(ExpectedRenderPasses.Num());
-
-			for (const FMovieGraphRenderDataIdentifier& PassIdentifier : ExpectedRenderPasses)
-			{
-				BranchUseCounts.Add(PassIdentifier.RootBranchName);
-			}
-
-			return BranchUseCounts.Num() > 1;
-		}
-
-		bool HasDataFromMultipleLayersWithName(const FString& InLayerName) const
-		{
-			TMap<FString, int32> Layers;
-			Layers.Reserve(ExpectedRenderPasses.Num());
-
-			for (const FMovieGraphRenderDataIdentifier& PassIdentifier : ExpectedRenderPasses)
-			{
-				int32& Count = Layers.FindOrAdd(PassIdentifier.LayerName);
-				Count++;
-			}
-
-			// For the given branch, check to see if there's more than one branch with that name.
-			if (int32* CountPtr = Layers.Find(InLayerName))
-			{
-				return *CountPtr > 1;
-			}
-
-			return false;
-		}
-
-		/** Check if the (expected) render passes come from different renderers, excluding composited ones. */
-		bool HasMultipleRendersPerBranch(const FName& InBranchName)
-		{
-			TSet<uint32> BranchRendererUseCounts;
-			BranchRendererUseCounts.Reserve(ExpectedRenderPasses.Num());
-
-			for (const FMovieGraphRenderDataIdentifier& PassIdentifier : ExpectedRenderPasses)
-			{
-				if (PassIdentifier.RootBranchName == InBranchName)
-				{
-					BranchRendererUseCounts.Add(GetTypeHash(PassIdentifier.RendererName));
-				}
-			}
-
-			// Remove any renderers that will be composited on later
-			for (const TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>& RenderData : ImageOutputData)
-			{
-				if (RenderData.Key.RootBranchName != InBranchName)
-				{
-					continue;
-				}
-
-				UE::MovieGraph::FMovieGraphSampleState* Payload = RenderData.Value->GetPayload<UE::MovieGraph::FMovieGraphSampleState>();
-				check(Payload);
-				if (Payload->bCompositeOnOtherRenders)
-				{
-					BranchRendererUseCounts.Remove(GetTypeHash(RenderData.Key.RendererName));
-				}
-			}
-
-			return BranchRendererUseCounts.Num() > 1;
-		}
+		/** Get filename token validation info from the (expected) render passes. */
+		MOVIERENDERPIPELINECORE_API FMovieGraphRenderDataValidationInfo GetValidationInfo(const FMovieGraphRenderDataIdentifier& InRenderID, bool bInDiscardCompositedRenders = true) const;
 	};
 
 	/**
