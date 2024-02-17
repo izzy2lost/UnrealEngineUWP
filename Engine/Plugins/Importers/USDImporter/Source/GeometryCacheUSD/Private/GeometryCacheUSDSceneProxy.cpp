@@ -50,12 +50,8 @@ bool FGeomCacheTrackUsdProxy::IsTopologyCompatible(int32 SampleIndexA, int32 Sam
 
 	if (UGeometryCacheTrackUsd* UsdTrack = Cast<UGeometryCacheTrackUsd>(Track))
 	{
-		// The boolean argument is not actually used
-		const float TimeA = UsdTrack->GetTimeFromSampleIndex(SampleIndexA);
-		const int32 NumVerticesA = UsdTrack->GetSampleInfo(TimeA, false).NumVertices;
-
-		const float TimeB = UsdTrack->GetTimeFromSampleIndex(SampleIndexB);
-		const int32 NumVerticesB = UsdTrack->GetSampleInfo(TimeB, false).NumVertices;
+		const int32 NumVerticesA = UsdTrack->GetSampleInfo(SampleIndexA).NumVertices;
+		const int32 NumVerticesB = UsdTrack->GetSampleInfo(SampleIndexB).NumVertices;
 
 		return NumVerticesA == NumVerticesB;
 	}

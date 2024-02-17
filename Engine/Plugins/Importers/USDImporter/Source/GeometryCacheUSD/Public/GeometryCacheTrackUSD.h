@@ -67,6 +67,8 @@ public:
 	const int32 FindSampleIndexFromTime(const float Time, const bool bLooping) const;
 	float GetTimeFromSampleIndex(int32 SampleIndex) const;
 	void GetFractionalFrameIndexFromTime(const float Time, const bool bLooping, int& OutFrameIndex, float& OutFraction) const;
+	// GetSampleInfo version that avoids converting time to index. Prefer this version when the index is already available
+	const FGeometryCacheTrackSampleInfo& GetSampleInfo(int32 SampleIndex);
 
 	bool GetMeshData(int32 SampleIndex, FGeometryCacheMeshData& OutMeshData);
 
