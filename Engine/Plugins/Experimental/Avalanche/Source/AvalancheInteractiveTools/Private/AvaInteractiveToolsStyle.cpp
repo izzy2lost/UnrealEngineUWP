@@ -21,6 +21,8 @@ FAvaInteractiveToolsStyle::FAvaInteractiveToolsStyle()
 	SetContentRoot(Plugin->GetBaseDir() / TEXT("Resources"));
 	SetCoreContentRoot(FPaths::EngineContentDir() / TEXT("Editor/Slate"));
 
+	Set("Icons.Toolbox", new IMAGE_BRUSH(TEXT("Icons/ToolboxIcons/toolbox"), Icon16x16));
+
 	// Categories
 	Set("AvaInteractiveTools.Category_2D",     new IMAGE_BRUSH("Icons/ToolboxIcons/rectangle", Icon20x20));
 	Set("AvaInteractiveTools.Category_3D",     new IMAGE_BRUSH("Icons/ToolboxIcons/cube", Icon20x20));
