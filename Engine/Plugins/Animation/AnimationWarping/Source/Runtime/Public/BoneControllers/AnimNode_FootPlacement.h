@@ -52,10 +52,12 @@ namespace UE::Anim::FootPlacement
 
 		FName SpeedCurveName = NAME_None;
 		FName DisableLockCurveName = NAME_None;
+		FName DisableLegCurveName = NAME_None;
 
 		// Helper struct to store values coming directly, or trivial to calculate from just the input pose.
 		struct FInputPoseData
 		{
+			FTransform FootFKTransformCS = FTransform::Identity;
 			FTransform FootTransformCS = FTransform::Identity;
 			FTransform BallTransformCS = FTransform::Identity;
 			FTransform HipTransformCS = FTransform::Identity;
@@ -68,6 +70,7 @@ namespace UE::Anim::FootPlacement
 			FTransform BallToGround = FTransform::Identity;
 #endif
 			float Speed = 0.0f;
+			float DisableLeg = 0.0f;
 			float LockAlpha = 0.0f;
 			float DistanceToPlant = 0.0f;
 			// Calculated from a range of toe speeds to define when to blend in/out ground rotational alignment
