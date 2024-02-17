@@ -81,7 +81,7 @@ FNiagaraEmitterInstance* FNiagaraDataInterfaceEmitterBinding::Resolve(const FNia
 			if (const UNiagaraEmitter* CachedEmitter = EmitterInstance->GetEmitter())
 			{
 				//-TODO: UniqueEmitterName should probably be a FName?
-				if (EmitterNameStringView.Equals(CachedEmitter->GetUniqueEmitterName()) )
+				if (EmitterNameStringView.Equals(CachedEmitter->GetUniqueEmitterName(), ESearchCase::IgnoreCase) )
 				{
 					return &EmitterInstance.Get();
 				}
@@ -161,7 +161,7 @@ const FNiagaraEmitterHandle* FNiagaraDataInterfaceEmitterBinding::ResolveHandle(
 				if (UNiagaraEmitter* NiagaraEmitter = EmitterHandle.GetInstance().Emitter)
 				{
 					//-TODO: UniqueEmitterName should probably be a FName?
-					if (EmitterNameStringView.Equals(NiagaraEmitter->GetUniqueEmitterName()))
+					if (EmitterNameStringView.Equals(NiagaraEmitter->GetUniqueEmitterName(), ESearchCase::IgnoreCase))
 					{
 						return &EmitterHandle;
 					}
