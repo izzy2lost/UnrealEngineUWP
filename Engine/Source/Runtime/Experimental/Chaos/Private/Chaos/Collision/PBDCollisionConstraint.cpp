@@ -205,6 +205,7 @@ namespace Chaos
 		, Simplicial{ nullptr, nullptr }
 		, AccumulatedImpulse(0)
 		, CullDistance(TNumericLimits<FRealSingle>::Max())
+		, RelativeMovement(0)
 		, ContainerCookie()
 		, CollisionTolerance(0)
 		, ClosestManifoldPointIndex(INDEX_NONE)
@@ -245,6 +246,7 @@ namespace Chaos
 		, Simplicial{ Simplicial0, Simplicial1 }
 		, AccumulatedImpulse(0)
 		, CullDistance(TNumericLimits<FRealSingle>::Max())
+		, RelativeMovement(0)
 		, ContainerCookie()
 		, CollisionTolerance(0)
 		, ClosestManifoldPointIndex(INDEX_NONE)
@@ -302,6 +304,7 @@ namespace Chaos
 		ImplicitTransform[1] = InImplicitLocalTransform1;
 
 		CullDistance = FRealSingle(InCullDistance);
+		RelativeMovement = FVec3(0);
 
 		FRealSingle DistanceCheckSize = 0;
 		BoundsTestFlags = Private::CalculateImplicitBoundsTestFlags(
@@ -651,6 +654,36 @@ namespace Chaos
 		const FVec3 WorldContact1 = GetShapeWorldTransform1().TransformPositionNoScale(FVec3(ManifoldPoint.ContactPoint.ShapeContactPoints[1]));
 		const FVec3 WorldContactNormal = GetShapeWorldTransform1().TransformVectorNoScale(FVec3(ManifoldPoint.ContactPoint.ShapeContactNormal));
 		ManifoldPoint.ContactPoint.Phi = FRealSingle(FVec3::DotProduct(WorldContact0 - WorldContact1, WorldContactNormal));
+	}
+
+	void FPBDCollisionConstraint::CorrectManifoldPoints()
+	{
+		const FConstGenericParticleHandle P0 = Particle[0];
+		const FConstGenericParticleHandle P1 = Particle[1];
+		const FReal InvM0 = P0->InvM();
+		const FReal InvM1 = P1->InvM();
+		const FReal Alpha0 = ((InvM0 + InvM1) > FReal(0)) ? InvM1 / (InvM0 + InvM1) : FReal(0);
+		const FReal Alpha1 = FReal(1) - Alpha0;
+
+		for (int32 ManifoldPointIndex = 0; ManifoldPointIndex < ManifoldPoints.Num(); ManifoldPointIndex++)
+		{
+			FManifoldPoint& ManifoldPoint = ManifoldPoints[ManifoldPointIndex];
+			const FVec3 WorldContact0 = GetShapeWorldTransform0().TransformPositionNoScale(FVec3(ManifoldPoint.ContactPoint.ShapeContactPoints[0]));
+			const FVec3 WorldContact1 = GetShapeWorldTransform1().TransformPositionNoScale(FVec3(ManifoldPoint.ContactPoint.ShapeContactPoints[1]));
+			const FVec3 WorldContactNormal = GetShapeWorldTransform1().TransformVectorNoScale(FVec3(ManifoldPoint.ContactPoint.ShapeContactNormal));
+			const FVec3 WorldContactDelta = WorldContact1 - WorldContact0;
+			const FReal WorldContactDeltaNormal = FVec3::DotProduct(WorldContactDelta, WorldContactNormal);
+			const FVec3 WorldContactDeltaTangent = WorldContactDelta - WorldContactDeltaNormal * WorldContactNormal;
+
+			const FVec3 CorrectedWorldContact0 = WorldContact0 + Alpha0 * WorldContactDeltaTangent;
+			const FVec3 CorrectedWorldContact1 = WorldContact1 - Alpha1 * WorldContactDeltaTangent;
+			FContactPoint CorrectedContactPoint = ManifoldPoint.ContactPoint;
+			CorrectedContactPoint.ShapeContactPoints[0] = GetShapeWorldTransform0().InverseTransformPositionNoScale(CorrectedWorldContact0);
+			CorrectedContactPoint.ShapeContactPoints[1] = GetShapeWorldTransform1().InverseTransformPositionNoScale(CorrectedWorldContact1);
+			CorrectedContactPoint.Phi = -WorldContactDeltaNormal;
+
+			InitManifoldPoint(ManifoldPointIndex, CorrectedContactPoint);
+		}
 	}
 
 	void FPBDCollisionConstraint::UpdateManifoldContacts()

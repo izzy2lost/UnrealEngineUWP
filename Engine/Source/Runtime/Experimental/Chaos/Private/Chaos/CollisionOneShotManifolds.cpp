@@ -102,7 +102,9 @@ namespace Chaos
 
 	// @todo(chaos): Temp while we test the new convex-mesh collision optimizations
 	bool bChaos_Collision_EnableMeshManifoldOptimizedLoop = true;
+	bool bChaos_Collision_EnableMeshManifoldOptimizedLoop_TriMesh = true;
 	FAutoConsoleVariableRef CVarChaos_Collision_EnableMeshManifoldOptimizedLoop(TEXT("p.Chaos.Collision.EnableMeshManifoldOptimizedLoop"), bChaos_Collision_EnableMeshManifoldOptimizedLoop, TEXT(""));
+	FAutoConsoleVariableRef CVarChaos_Collision_EnableMeshManifoldOptimizedLoop_TriMesh(TEXT("p.Chaos.Collision.EnableMeshManifoldOptimizedLoopTriMesh"), bChaos_Collision_EnableMeshManifoldOptimizedLoop_TriMesh, TEXT(""));
 
 	// Whether to use the new index-less GJK. 
 	// @todo(chaos): This should be removed once soaked for a bit (enabled 7 June 2022)

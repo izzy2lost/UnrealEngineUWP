@@ -1,16 +1,20 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "Chaos/CollisionOneShotManifoldsMeshShapes.h"
 
+#include "Chaos/ChaosDebugDraw.h"
 #include "Chaos/CollisionOneShotManifolds.h"
 #include "Chaos/CollisionResolution.h"
 #include "Chaos/Collision/CapsuleTriangleContactPoint.h"
 #include "Chaos/Collision/ContactPointsMiscShapes.h"
 #include "Chaos/Collision/ContactTriangles.h"
+#include "Chaos/Collision/ConvexContactPointUtilities.h"
+#include "Chaos/Collision/ConvexFeature.h"
 #include "Chaos/Collision/ConvexTriangleContactPoint.h"
 #include "Chaos/Collision/MeshContactGenerator.h"
 #include "Chaos/Collision/PBDCollisionConstraint.h"
 #include "Chaos/Collision/SphereTriangleContactPoint.h"
 #include "Chaos/Convex.h"
+#include "Chaos/DebugDrawQueue.h"
 #include "Chaos/Defines.h"
 #include "Chaos/Framework/UncheckedArray.h"
 #include "Chaos/GJK.h"
@@ -31,9 +35,18 @@ namespace Chaos
 	extern FRealSingle Chaos_Collision_TriMeshPhiToleranceScale;
 	extern int32 Chaos_Collision_MeshManifoldHashSize;
 	extern bool bChaos_Collision_EnableMeshManifoldOptimizedLoop;
+	extern bool bChaos_Collision_EnableMeshManifoldOptimizedLoop_TriMesh;
 
 	extern bool bChaos_Collision_UseCapsuleTriMesh2;
 	extern bool bChaos_Collision_UseConvexTriMesh2;
+	
+	namespace CVars
+	{
+#if CHAOS_DEBUG_DRAW
+		extern DebugDraw::FChaosDebugDrawSettings ChaosSolverDebugDebugDrawSettings;
+		extern int32 ChaosSolverDebugDrawMeshContacts;
+#endif
+	}
 
 	namespace Collisions
 	{
@@ -123,12 +136,17 @@ namespace Chaos
 
 			// Generate the contact manifold between Convex and a Triangle
 			const auto& GenerateConvexTriangleContacts =
-				[&Convex, &MeshToConvexTransform, CullDistance](const FTriangle& Triangle, FContactPointManifold& OutContactPoints)
-				{
-					GenerateConvexTriangleOneShotManifold(Convex, Triangle, CullDistance, OutContactPoints);
-				};
+				[&Convex, CullDistance](Private::FMeshContactGenerator& ContactGenerator, const int32 TriangleIndex)
+			{
+				const FTriangle& Triangle = ContactGenerator.GetTriangle(TriangleIndex);
 
-			// Collect all the triangles that overlap our convex, transformed into Convex space
+				FContactPointManifold Contacts;
+				GenerateConvexTriangleOneShotManifold(Convex, Triangle, CullDistance, Contacts);
+
+				ContactGenerator.AddTriangleContacts(TriangleIndex, MakeArrayView(Contacts));
+			};
+
+			// Collect all the triangles that overlap our convex. Triangles will be in Convex space
 			Mesh.CollectTriangles(MeshQueryBounds, MeshToConvexTransform, ConvexBounds, ContactGenerator);
 
 			// Generate a set of contact points for all triangles
@@ -136,6 +154,129 @@ namespace Chaos
 
 			// Process the contacts to minimize manifold etc
 			ContactGenerator.ProcessGeneratedContacts(ConvexTransform, MeshToConvexTransform);
+		}
+
+		// MACD: Motion-Aware Collision Detection
+		template<typename ConvexType>
+		void GenerateConvexTriangleOneShotManifoldMACD(const ConvexType& Convex, const FRigidTransform3& ConvexTransform, const FVec3& ConvexRelativeMovement, Private::FMeshContactGenerator& ContactGenerator, const int32 TriangleIndex, const FReal CullDistance, FContactPointLargeManifold& OutContactPoints)
+		{
+			const FTriangle& Triangle = ContactGenerator.GetTriangle(TriangleIndex);
+
+			// Find the closest feature pair on the triangle and convex
+			Private::FConvexContactPoint ClosestContact;
+			if (Private::FindClosestFeatures(Convex, ConvexTransform, Triangle, ConvexRelativeMovement, CullDistance, ClosestContact))
+			{
+				ClosestContact.Features[0].ObjectIndex = 0;
+				ClosestContact.Features[1].ObjectIndex = TriangleIndex;
+
+				// Generate a manifold based on the closest features
+				// NOTE: normal points from triangle to convex
+				const FReal ConvexMotionAlongNormal = FVec3::DotProduct(ConvexRelativeMovement, ClosestContact.ShapeContactNormal);
+				const FReal CullDistancePadding = FMath::Max(0, -ConvexMotionAlongNormal);
+				const FReal NetCullDistance = CullDistance + CullDistancePadding;
+				Private::ConvexTriangleManifoldFromContact(Convex, Triangle, ClosestContact, NetCullDistance, OutContactPoints);
+
+				if (OutContactPoints.Num() > 0)
+				{
+#if CHAOS_DEBUG_DRAW
+					if (CVars::ChaosSolverDebugDrawMeshContacts && FDebugDrawQueue::GetInstance().IsDebugDrawingEnabled())
+					{
+						for (int32 ContactIndex = 0; ContactIndex < OutContactPoints.Num(); ++ContactIndex)
+						{
+							FContactPoint& ContactPoint = OutContactPoints[ContactIndex];
+							const FVec3 P = ConvexTransform.TransformPositionNoScale(ContactPoint.ShapeContactPoints[1]);
+							const FVec3 N = ConvexTransform.TransformVectorNoScale(ContactPoint.ShapeContactNormal);
+							FColor Color = FColor::Black;
+							switch (ClosestContact.Features[1].FeatureType)
+							{
+							case Private::EConvexFeatureType::Plane:
+								Color = FColor::White;
+								break;
+							case Private::EConvexFeatureType::Edge:
+								Color = FColor::Cyan;
+								break;
+							case Private::EConvexFeatureType::Vertex:
+								Color = FColor::Magenta;
+								break;
+							}
+							FDebugDrawQueue::GetInstance().DrawDebugLine(P, P + 10.0f * N, Color, false, CVars::ChaosSolverDebugDebugDrawSettings.DrawDuration, (uint8)CVars::ChaosSolverDebugDebugDrawSettings.DrawPriority, 1.25f * CVars::ChaosSolverDebugDebugDrawSettings.LineThickness);
+						}
+					}
+#endif
+
+					// Adjust the feature if it is invalid. E.g., if we collide with a triangle edge and the normal is outside the range allowed by
+					// the triangles sharing the edge we will project the normal into the valid range
+					const bool bFeatureChanged = ContactGenerator.FixFeature(TriangleIndex, ClosestContact.Features[1].FeatureType, ClosestContact.Features[1].PlaneFeatureIndex, ClosestContact.ShapeContactNormal, ClosestContact.ShapeContactPoints[1]);
+					if (bFeatureChanged)
+					{
+						for (int32 ContactIndex = 0; ContactIndex < OutContactPoints.Num(); ++ContactIndex)
+						{
+							FContactPoint& ContactPoint = OutContactPoints[ContactIndex];
+
+							// Update the normal and recalculate the separation
+							ContactPoint.ShapeContactNormal = ClosestContact.ShapeContactNormal;
+							ContactPoint.Phi = FVec3::DotProduct(ContactPoint.ShapeContactPoints[0] - ContactPoint.ShapeContactPoints[1], ContactPoint.ShapeContactNormal);
+
+							// Remap the triangle contact onto the new plane, keeping the contact point on the convex shape where it is.
+							// NOTE: This means that the triangle contact point may be outside the triangle, but for contact separation
+							// we really only care about the contact plane. Howeber, the contact positions are used for static friction, 
+							// which assumes the contacts have zero separation perpendicular to the normal on the frame they are generated.
+							ContactPoint.ShapeContactPoints[1] = ContactPoint.ShapeContactPoints[0] - (ContactPoint.Phi * ContactPoint.ShapeContactNormal);
+						}
+					}
+
+					// Correct the contact points based on convex movement
+					for (int32 ContactIndex = 0; ContactIndex < OutContactPoints.Num(); ++ContactIndex)
+					{
+						FContactPoint& ContactPoint = OutContactPoints[ContactIndex];
+						Private::ApplyContactPointShift(ContactPoint, ConvexRelativeMovement);
+					}
+				}
+			}
+		}
+
+		// MACD: Motion-Aware Collision Detection
+		template<typename ConvexType, typename MeshType>
+		void ConstructConvexMeshOneShotManifoldMACD(const ConvexType& Convex, const FRigidTransform3& ConvexTransform, const MeshType& Mesh, const FRigidTransform3& MeshTransform, const FVec3& MeshScale, const FVec3& RelativeMovement, const FReal InCullDistance, Private::FMeshContactGenerator& ContactGenerator)
+		{
+			if (RelativeMovement.IsZero())
+			{
+				ConstructConvexMeshOneShotManifold2(Convex, ConvexTransform, Mesh, MeshTransform, MeshScale, InCullDistance, ContactGenerator);
+			}
+			else
+			{
+				// We detect collisions as if both shapes were in the pre-movement locations
+				// GenerateConvexTriangleOneShotManifoldWithMotion will correct the contacts to the actual locations
+				const FRigidTransform3 ShiftedConvexTransform = FRigidTransform3(ConvexTransform.GetTranslation() - RelativeMovement, ConvexTransform.GetRotation());
+				FRigidTransform3 ShiftedMeshToConvexTransform = MeshTransform.GetRelativeTransformNoScale(ShiftedConvexTransform);
+				ShiftedMeshToConvexTransform.SetScale3D(MeshScale);
+
+				// @todo(chaos): add Convex.CalculateInverseTransformed bounds with scale support (to optimize sphere and capsule)
+				const FVec3 ConvexRelativeMovement = ConvexTransform.InverseTransformVectorNoScale(RelativeMovement);
+				const FAABB3 ConvexBounds = FAABB3(Convex.BoundingBox()).GrowByVector(ConvexRelativeMovement).Thicken(InCullDistance);
+				const FAABB3 MeshQueryBounds = ConvexBounds.InverseTransformedAABB(ShiftedMeshToConvexTransform);
+				const FReal CullDistance = InCullDistance;
+
+				// Collect all the triangles that overlap our convex. Triangles will be in Convex space
+				Mesh.CollectTriangles(MeshQueryBounds, ShiftedMeshToConvexTransform, ConvexBounds, ContactGenerator);
+
+				FContactPointLargeManifold Contacts;
+				Contacts.Reserve(6);
+
+				const auto& GenerateConvexTriangleContacts =
+					[&Convex, &ShiftedConvexTransform, &ConvexRelativeMovement, CullDistance, &Contacts](Private::FMeshContactGenerator& ContactGenerator, const int32 TriangleIndex)
+				{
+					Contacts.Reset();
+					GenerateConvexTriangleOneShotManifoldMACD(Convex, ShiftedConvexTransform, ConvexRelativeMovement, ContactGenerator, TriangleIndex, CullDistance, Contacts);
+
+					ContactGenerator.AddTriangleContacts(TriangleIndex, MakeArrayView(Contacts));
+				};
+
+				ContactGenerator.GenerateMeshContacts(GenerateConvexTriangleContacts);
+
+				// Process the contacts to minimize manifold etc
+				ContactGenerator.ProcessGeneratedContacts(ShiftedConvexTransform, ShiftedMeshToConvexTransform);
+			}
 		}
 
 		/**
@@ -233,7 +374,7 @@ namespace Chaos
 			const FReal CullDistance = Constraint.GetCullDistance();
 			const FReal PhiTolerance = CalculateTriMeshPhiTolerance(CullDistance);
 			const FReal DistanceTolerance = Chaos_Collision_TriMeshDistanceTolerance;
-			
+
 			if (bChaos_Collision_EnableMeshManifoldOptimizedLoop)
 			{
 				// New version uses a two-pass loop over triangles to avoid visiting triangles whose vertices are all colliding as a result of checking adjacent triangles
@@ -298,30 +439,64 @@ namespace Chaos
 			const FReal CullDistance = Constraint.GetCullDistance();
 			const FReal PhiTolerance = CalculateTriMeshPhiTolerance(CullDistance);
 			const FReal DistanceTolerance = Chaos_Collision_TriMeshDistanceTolerance;
-			FContactTriangleCollector MeshContacts(bChaos_Collision_OneSidedTriangleMesh, PhiTolerance, DistanceTolerance, ConvexTransform);
 
-			if (const FImplicitBox3* RawBox = Convex.template GetObject<FImplicitBox3>())
+			if (bChaos_Collision_EnableMeshManifoldOptimizedLoop_TriMesh)
 			{
-				ConstructConvexMeshOneShotManifold(*RawBox, ConvexTransform, *Mesh, MeshTransform, MeshScale, CullDistance, MeshContacts);
-			}
-			else if (const TImplicitObjectScaled<FImplicitConvex3>* ScaledConvex = Convex.template GetObject<TImplicitObjectScaled<FImplicitConvex3>>())
-			{
-				ConstructConvexMeshOneShotManifold(*ScaledConvex, ConvexTransform, *Mesh, MeshTransform, MeshScale, CullDistance, MeshContacts);
-			}
-			else if (const TImplicitObjectInstanced<FImplicitConvex3>* InstancedConvex = Convex.template GetObject<TImplicitObjectInstanced<FImplicitConvex3>>())
-			{
-				ConstructConvexMeshOneShotManifold(*InstancedConvex, ConvexTransform, *Mesh, MeshTransform, MeshScale, CullDistance, MeshContacts);
-			}
-			else if (const FImplicitConvex3* RawConvex = Convex.template GetObject<FImplicitConvex3>())
-			{
-				ConstructConvexMeshOneShotManifold(*RawConvex, ConvexTransform, *Mesh, MeshTransform, MeshScale, CullDistance, MeshContacts);
+				const FVec3 RelativeMovement = FVec3(Constraint.GetRelativeMovement());
+				Private::FMeshContactGeneratorSettings ContactGeneratorSettings;
+				ContactGeneratorSettings.bFixNormals = RelativeMovement.IsNearlyZero();
+				Private::FMeshContactGenerator ContactGenerator(ContactGeneratorSettings);
+
+				if (const FImplicitBox3* RawBox = Convex.template GetObject<FImplicitBox3>())
+				{
+					ConstructConvexMeshOneShotManifoldMACD(*RawBox, ConvexTransform, *Mesh, MeshTransform, MeshScale, RelativeMovement, CullDistance, ContactGenerator);
+				}
+				else if (const TImplicitObjectScaled<FImplicitConvex3>* ScaledConvex = Convex.template GetObject<TImplicitObjectScaled<FImplicitConvex3>>())
+				{
+					ConstructConvexMeshOneShotManifoldMACD(*ScaledConvex, ConvexTransform, *Mesh, MeshTransform, MeshScale, RelativeMovement, CullDistance, ContactGenerator);
+				}
+				else if (const TImplicitObjectInstanced<FImplicitConvex3>* InstancedConvex = Convex.template GetObject<TImplicitObjectInstanced<FImplicitConvex3>>())
+				{
+					ConstructConvexMeshOneShotManifoldMACD(*InstancedConvex, ConvexTransform, *Mesh, MeshTransform, MeshScale, RelativeMovement, CullDistance, ContactGenerator);
+				}
+				else if (const FImplicitConvex3* RawConvex = Convex.template GetObject<FImplicitConvex3>())
+				{
+					ConstructConvexMeshOneShotManifoldMACD(*RawConvex, ConvexTransform, *Mesh, MeshTransform, MeshScale, RelativeMovement, CullDistance, ContactGenerator);
+				}
+				else
+				{
+					check(false);
+				}
+
+				Constraint.SetOneShotManifoldContacts(ContactGenerator.GetContactPoints());
 			}
 			else
 			{
-				check(false);
-			}
+				FContactTriangleCollector MeshContacts(bChaos_Collision_OneSidedTriangleMesh, PhiTolerance, DistanceTolerance, ConvexTransform);
 
-			Constraint.SetOneShotManifoldContacts(MeshContacts.GetContactPoints());
+				if (const FImplicitBox3* RawBox = Convex.template GetObject<FImplicitBox3>())
+				{
+					ConstructConvexMeshOneShotManifold(*RawBox, ConvexTransform, *Mesh, MeshTransform, MeshScale, CullDistance, MeshContacts);
+				}
+				else if (const TImplicitObjectScaled<FImplicitConvex3>* ScaledConvex = Convex.template GetObject<TImplicitObjectScaled<FImplicitConvex3>>())
+				{
+					ConstructConvexMeshOneShotManifold(*ScaledConvex, ConvexTransform, *Mesh, MeshTransform, MeshScale, CullDistance, MeshContacts);
+				}
+				else if (const TImplicitObjectInstanced<FImplicitConvex3>* InstancedConvex = Convex.template GetObject<TImplicitObjectInstanced<FImplicitConvex3>>())
+				{
+					ConstructConvexMeshOneShotManifold(*InstancedConvex, ConvexTransform, *Mesh, MeshTransform, MeshScale, CullDistance, MeshContacts);
+				}
+				else if (const FImplicitConvex3* RawConvex = Convex.template GetObject<FImplicitConvex3>())
+				{
+					ConstructConvexMeshOneShotManifold(*RawConvex, ConvexTransform, *Mesh, MeshTransform, MeshScale, CullDistance, MeshContacts);
+				}
+				else
+				{
+					check(false);
+				}
+
+				Constraint.SetOneShotManifoldContacts(MeshContacts.GetContactPoints());
+			}
 		}
 
 		/**
@@ -344,22 +519,23 @@ namespace Chaos
 				// New version uses a two-pass loop over triangles to avoid visiting triangles whose vertices are all colliding as a result of checking adjacent triangles
 				Private::FMeshContactGeneratorSettings ContactGeneratorSettings;
 				Private::FMeshContactGenerator ContactGenerator(ContactGeneratorSettings);
+				const FVec3 RelativeMovement = FVec3(Constraint.GetRelativeMovement());
 
 				if (const FImplicitBox3* RawBox = Convex.template GetObject<FImplicitBox3>())
 				{
-					ConstructConvexMeshOneShotManifold2(*RawBox, ConvexTransform, Mesh, MeshTransform, MeshScale, CullDistance, ContactGenerator);
+					ConstructConvexMeshOneShotManifoldMACD(*RawBox, ConvexTransform, Mesh, MeshTransform, MeshScale, RelativeMovement, CullDistance, ContactGenerator);
 				}
 				else if (const TImplicitObjectScaled<FImplicitConvex3>* ScaledConvex = Convex.template GetObject<TImplicitObjectScaled<FImplicitConvex3>>())
 				{
-					ConstructConvexMeshOneShotManifold2(*ScaledConvex, ConvexTransform, Mesh, MeshTransform, MeshScale, CullDistance, ContactGenerator);
+					ConstructConvexMeshOneShotManifoldMACD(*ScaledConvex, ConvexTransform, Mesh, MeshTransform, MeshScale, RelativeMovement, CullDistance, ContactGenerator);
 				}
 				else if (const TImplicitObjectInstanced<FImplicitConvex3>* InstancedConvex = Convex.template GetObject<TImplicitObjectInstanced<FImplicitConvex3>>())
 				{
-					ConstructConvexMeshOneShotManifold2(*InstancedConvex, ConvexTransform, Mesh, MeshTransform, MeshScale, CullDistance, ContactGenerator);
+					ConstructConvexMeshOneShotManifoldMACD(*InstancedConvex, ConvexTransform, Mesh, MeshTransform, MeshScale, RelativeMovement, CullDistance, ContactGenerator);
 				}
 				else if (const FImplicitConvex3* RawConvex = Convex.template GetObject<FImplicitConvex3>())
 				{
-					ConstructConvexMeshOneShotManifold2(*RawConvex, ConvexTransform, Mesh, MeshTransform, MeshScale, CullDistance, ContactGenerator);
+					ConstructConvexMeshOneShotManifoldMACD(*RawConvex, ConvexTransform, Mesh, MeshTransform, MeshScale, RelativeMovement, CullDistance, ContactGenerator);
 				}
 				else
 				{
