@@ -836,11 +836,11 @@ namespace PerfSummaries
 			{
 				attributes.Add($"title='{tooltip}'");
 			}
-			else if ( displayName != null )
+			else 
 			{
-				string baseStatName = SummaryTable.GetBaseStatNameWithPrefixAndSuffix(name, out _, out _);
-
-				attributes.Add($"title='{baseStatName}'");
+				string tooltipStr = SummaryTable.GetBaseStatNameWithPrefixAndSuffix(name, out _, out _);
+				tooltipStr += " (" + this.elementType.ToString() + ")";
+				attributes.Add($"title='{tooltipStr}'");
 			}
 			return attributes;
 		}
