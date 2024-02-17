@@ -36,5 +36,5 @@ public:
 
 	// Mode to enter when exiting the zipline
 	UPROPERTY(EditAnywhere, Category = "Ziplining")
-	FName AutoExitToMode = KinematicModeNames::Falling;
+	FName AutoExitToMode = DefaultModeNames::Falling;
 };

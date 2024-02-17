@@ -6,9 +6,9 @@
 #include "Math/UnitConversion.h"
 #include "MoveLibrary/FloorQueryUtils.h"
 #include "MoveLibrary/WaterMovementUtils.h"
-#include "Kinematic/LayeredMoves/BasicLayeredMoves.h"
+#include "DefaultMovementSet/LayeredMoves/BasicLayeredMoves.h"
 #include "MoverComponent.h"
-#include "Kinematic/Settings/CommonLegacyMovementSettings.h"
+#include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "GameFramework/PhysicsVolume.h"
 #include "PhysicsMover/PhysicsMovementUtils.h"
 
@@ -38,7 +38,7 @@ void UPhysicsDrivenSwimmingMode::OnSimulationTick(const FSimulationTickParams& P
 	
 	const FVector UpDir = GetMoverComponent()->GetUpDirection();
 	
-	const FKinematicDefaultInputs* KinematicInputs = StartState.InputCmd.InputCollection.FindDataByType<FKinematicDefaultInputs>();
+	const FCharacterDefaultInputs* CharacterInputs = StartState.InputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>();
 
 	const FMoverDefaultSyncState* StartingSyncState = StartState.SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>();
 	check(StartingSyncState);
@@ -48,7 +48,7 @@ void UPhysicsDrivenSwimmingMode::OnSimulationTick(const FSimulationTickParams& P
 	const float DeltaSeconds = Params.TimeStep.StepMs * 0.001f;
 
 	if ((ProposedMove.bHasTargetLocation && AttemptTeleport(UpdatedComponent, ProposedMove.TargetLocation, UpdatedComponent->GetComponentRotation(), StartingSyncState->GetVelocity_WorldSpace(), OutputState)) ||	// Teleport
-		(KinematicInputs->bIsJumpJustPressed && AttemptJump(SurfaceSwimmingWaterControlSettings.JumpMultiplier*CommonLegacySettings->JumpUpwardsSpeed, OutputState)))
+		(CharacterInputs->bIsJumpJustPressed && AttemptJump(SurfaceSwimmingWaterControlSettings.JumpMultiplier*CommonLegacySettings->JumpUpwardsSpeed, OutputState)))
 	{
 		OutputState.MovementEndState.RemainingMs = Params.TimeStep.StepMs;
 		return;
@@ -60,8 +60,8 @@ void UPhysicsDrivenSwimmingMode::OnSimulationTick(const FSimulationTickParams& P
 		OutputSyncState = *StartingSyncState;
 		return;
 	}
-	SimBlackboard->Invalidate(KinematicBlackboard::LastFloorResult);
-	SimBlackboard->Invalidate(KinematicBlackboard::LastWaterResult);
+	SimBlackboard->Invalidate(CommonBlackboard::LastFloorResult);
+	SimBlackboard->Invalidate(CommonBlackboard::LastWaterResult);
 	
 	OutputSyncState.MoveDirectionIntent = ProposedMove.bHasDirIntent ? ProposedMove.DirectionIntent : FVector::ZeroVector;
 
@@ -77,8 +77,8 @@ void UPhysicsDrivenSwimmingMode::OnSimulationTick(const FSimulationTickParams& P
 		UpdatedPrimitive, UpDir, PawnRadius, TargetHeight, CommonLegacySettings->MaxStepHeight,
 		CommonLegacySettings->MaxWalkSlopeCosine, FloorResult, WaterResult);
 	
-	SimBlackboard->Set(KinematicBlackboard::LastFloorResult, FloorResult);
-	SimBlackboard->Set(KinematicBlackboard::LastWaterResult, WaterResult);
+	SimBlackboard->Set(CommonBlackboard::LastFloorResult, FloorResult);
+	SimBlackboard->Set(CommonBlackboard::LastWaterResult, WaterResult);
 	
 	if (WaterResult.IsSwimmableVolume())
 	{
@@ -109,20 +109,20 @@ void UPhysicsDrivenSwimmingMode::OnSimulationTick(const FSimulationTickParams& P
 	
 		if (bWalkTrigger && bIsWithinReach)
 		{
-			OutputState.MovementEndState.NextModeName = KinematicModeNames::Walking;
+			OutputState.MovementEndState.NextModeName = DefaultModeNames::Walking;
 		}
 		else if (bFallTrigger)
 		{
-			OutputState.MovementEndState.NextModeName = KinematicModeNames::Falling;
+			OutputState.MovementEndState.NextModeName = DefaultModeNames::Falling;
 		}
 		else
 		{
-			OutputState.MovementEndState.NextModeName = KinematicModeNames::Swimming;
+			OutputState.MovementEndState.NextModeName = DefaultModeNames::Swimming;
 		}
 	}
 	else
 	{
-		OutputState.MovementEndState.NextModeName = KinematicModeNames::Falling;
+		OutputState.MovementEndState.NextModeName = DefaultModeNames::Falling;
 	}
 	
 	OutputState.MovementEndState.RemainingMs = 0.0f;
@@ -136,7 +136,7 @@ bool UPhysicsDrivenSwimmingMode::AttemptJump(float UpwardsSpeed, FMoverTickEndDa
  	TSharedPtr<FLayeredMove_JumpImpulse> JumpMove = MakeShared<FLayeredMove_JumpImpulse>();
 	JumpMove->UpwardsSpeed = UpwardsSpeed;
 	OutputSyncState.LayeredMoves.QueueLayeredMove(JumpMove);
-	OutputState.MovementEndState.NextModeName = KinematicModeNames::Falling;
+	OutputState.MovementEndState.NextModeName = DefaultModeNames::Falling;
 	return true;
 }
 
@@ -150,8 +150,8 @@ bool UPhysicsDrivenSwimmingMode::AttemptTeleport(USceneComponent* UpdatedCompone
 		nullptr); // no movement base
 
 	// TODO: instead of invalidating it, consider checking for a floor. Possibly a dynamic base?
-	GetBlackboard_Mutable()->Invalidate(KinematicBlackboard::LastFloorResult);
-	GetBlackboard_Mutable()->Invalidate(KinematicBlackboard::LastMovementBase);
+	GetBlackboard_Mutable()->Invalidate(CommonBlackboard::LastFloorResult);
+	GetBlackboard_Mutable()->Invalidate(CommonBlackboard::LastMovementBase);
 
 	return true;
 }

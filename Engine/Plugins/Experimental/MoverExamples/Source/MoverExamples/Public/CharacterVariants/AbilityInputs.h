@@ -25,7 +25,7 @@ struct MOVEREXAMPLES_API FMoverExampleAbilityInputs : public FMoverDataStructBas
 	bool bWantsToStartZiplining = false;
 
 
-	// @return newly allocated copy of this FKinematicDefaultInputs. Must be overridden by child classes
+	// @return newly allocated copy of this FMoverExampleAbilityInputs. Must be overridden by child classes
 	virtual FMoverDataStructBase* Clone() const override
 	{
 		// TODO: ensure that this memory allocation jives with deletion method

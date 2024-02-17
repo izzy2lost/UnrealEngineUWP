@@ -1,12 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Kinematic/Modes/FallingMode.h"
+#include "DefaultMovementSet/Modes/FallingMode.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "MoverComponent.h"
 #include "MoveLibrary/MovementUtils.h"
 #include "MoveLibrary/BasedMovementUtils.h"
 #include "MoveLibrary/FloorQueryUtils.h"
-#include "Kinematic/Settings/CommonLegacyMovementSettings.h"
+#include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "MoveLibrary/AirMovementUtils.h"
 
 
@@ -29,7 +29,7 @@ constexpr float VERTICAL_SLOPE_NORMAL_Z = 0.001f; // Slope is vertical if Abs(No
 
 void UFallingMode::OnGenerateMove(const FMoverTickStartData& StartState, const FMoverTimeStep& TimeStep, FProposedMove& OutProposedMove) const
 {
-	const FKinematicDefaultInputs* KinematicInputs = StartState.InputCmd.InputCollection.FindDataByType<FKinematicDefaultInputs>();
+	const FCharacterDefaultInputs* CharacterInputs = StartState.InputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>();
 	const FMoverDefaultSyncState* StartingSyncState = StartState.SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>();
 	check(StartingSyncState);
 
@@ -41,10 +41,10 @@ void UFallingMode::OnGenerateMove(const FMoverTickStartData& StartState, const F
 	const FVector StartHorizontalVelocity = FVector(StartVelocity.X, StartVelocity.Y, 0.f);
 
 	FFreeMoveParams Params;
-	if (KinematicInputs)
+	if (CharacterInputs)
 	{
-		Params.MoveInputType = KinematicInputs->GetMoveInputType();
-		Params.MoveInput = KinematicInputs->GetMoveInput();
+		Params.MoveInputType = CharacterInputs->GetMoveInputType();
+		Params.MoveInput = CharacterInputs->GetMoveInput();
 	}
 	else
 	{
@@ -54,13 +54,13 @@ void UFallingMode::OnGenerateMove(const FMoverTickStartData& StartState, const F
 
 	FRotator IntendedOrientation_WorldSpace;
 	// If there's no intent from input to change orientation, use the current orientation
-	if (!KinematicInputs || KinematicInputs->OrientationIntent.IsNearlyZero())
+	if (!CharacterInputs || CharacterInputs->OrientationIntent.IsNearlyZero())
 	{
 		IntendedOrientation_WorldSpace = StartingSyncState->GetOrientation_WorldSpace();
 	}
 	else
 	{
-		IntendedOrientation_WorldSpace = KinematicInputs->GetOrientationIntentDir_WorldSpace().ToOrientationRotator();
+		IntendedOrientation_WorldSpace = CharacterInputs->GetOrientationIntentDir_WorldSpace().ToOrientationRotator();
 	}
 
 	Params.OrientationIntent = IntendedOrientation_WorldSpace;
@@ -89,7 +89,7 @@ void UFallingMode::OnGenerateMove(const FMoverTickStartData& StartState, const F
 	UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable();
 	FFloorCheckResult LastFloorResult;
 	// limit our moveinput based on the floor we're on
-	if (SimBlackboard && SimBlackboard->TryGet(KinematicBlackboard::LastFloorResult, LastFloorResult))
+	if (SimBlackboard && SimBlackboard->TryGet(CommonBlackboard::LastFloorResult, LastFloorResult))
 	{
 		if (LastFloorResult.HitResult.IsValidBlockingHit() && LastFloorResult.HitResult.Normal.Z > VERTICAL_SLOPE_NORMAL_Z && !LastFloorResult.IsWalkableFloor())
 		{
@@ -136,7 +136,7 @@ void UFallingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 	UPrimitiveComponent* UpdatedPrimitive = Params.UpdatedPrimitive;
 	FProposedMove ProposedMove = Params.ProposedMove;
 
-	const FKinematicDefaultInputs* KinematicInputs = StartState.InputCmd.InputCollection.FindDataByType<FKinematicDefaultInputs>();
+	const FCharacterDefaultInputs* CharacterInputs = StartState.InputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>();
 	const FMoverDefaultSyncState* StartingSyncState = StartState.SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>();
 	check(StartingSyncState);
 
@@ -158,8 +158,8 @@ void UFallingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 	
 	UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable();
 
-	SimBlackboard->Invalidate(KinematicBlackboard::LastFloorResult);	// falling = no valid floor
-	SimBlackboard->Invalidate(KinematicBlackboard::LastMovementBase);
+	SimBlackboard->Invalidate(CommonBlackboard::LastFloorResult);	// falling = no valid floor
+	SimBlackboard->Invalidate(CommonBlackboard::LastMovementBase);
 
 	OutputSyncState.MoveDirectionIntent = (ProposedMove.bHasDirIntent ? ProposedMove.DirectionIntent : FVector::ZeroVector);
 
@@ -207,10 +207,10 @@ void UFallingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 		}
 		
 		LandingFloor.HitResult = Hit;
-		SimBlackboard->Set(KinematicBlackboard::LastFloorResult, LandingFloor);
+		SimBlackboard->Set(CommonBlackboard::LastFloorResult, LandingFloor);
 
 		UMoverComponent* MoverComponent = GetMoverComponent();
-		FMoverOnImpactParams ImpactParams(KinematicModeNames::Falling, Hit, MoveDelta);
+		FMoverOnImpactParams ImpactParams(DefaultModeNames::Falling, Hit, MoveDelta);
 		MoverComponent->HandleImpact(ImpactParams);
 
 		// We didn't land on a walkable surface, so let's try to slide along it
@@ -281,7 +281,7 @@ void UFallingMode::ProcessLanded(const FFloorCheckResult& FloorResult, FVector& 
 		Velocity.Z = 0.0;
 		NextMovementMode = CommonLegacySettings->GroundMovementModeName;
 
-		SimBlackboard->Set(KinematicBlackboard::LastFloorResult, FloorResult);
+		SimBlackboard->Set(CommonBlackboard::LastFloorResult, FloorResult);
 
 		if (UBasedMovementUtils::IsADynamicBase(FloorResult.HitResult.GetComponent()))
 		{
@@ -329,7 +329,7 @@ void UFallingMode::CaptureFinalState(USceneComponent* UpdatedComponent, const FM
 
 	if (MovementBaseInfo.HasRelativeInfo())
 	{
-		SimBlackboard->Set(KinematicBlackboard::LastMovementBase, MovementBaseInfo);
+		SimBlackboard->Set(CommonBlackboard::LastMovementBase, MovementBaseInfo);
 
 		OutputSyncState.SetTransforms_WorldSpace( FinalLocation,
 												  UpdatedComponent->GetComponentRotation(),

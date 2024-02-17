@@ -1,9 +1,9 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Kinematic/LayeredMoves/MultiJumpLayeredMove.h"
+#include "DefaultMovementSet/LayeredMoves/MultiJumpLayeredMove.h"
 #include "MoverComponent.h"
 #include "MoverSimulationTypes.h"
-#include "Kinematic/Settings/CommonLegacyMovementSettings.h"
+#include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "MoveLibrary/FloorQueryUtils.h"
 
 FLayeredMove_MultiJump::FLayeredMove_MultiJump()
@@ -18,9 +18,9 @@ FLayeredMove_MultiJump::FLayeredMove_MultiJump()
 
 bool FLayeredMove_MultiJump::WantsToJump(const FMoverInputCmdContext& InputCmd)
 {
-	if (const FKinematicDefaultInputs* KinematicInputs = InputCmd.InputCollection.FindDataByType<FKinematicDefaultInputs>())
+	if (const FCharacterDefaultInputs* CharacterInputs = InputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>())
 	{
-		return KinematicInputs->bIsJumpJustPressed;
+		return CharacterInputs->bIsJumpJustPressed;
 	}
 	
 	return false;
@@ -28,14 +28,14 @@ bool FLayeredMove_MultiJump::WantsToJump(const FMoverInputCmdContext& InputCmd)
 
 bool FLayeredMove_MultiJump::GenerateMove(const FMoverTickStartData& StartState, const FMoverTimeStep& TimeStep, const UMoverComponent* MoverComp, UMoverBlackboard* SimBlackboard, FProposedMove& OutProposedMove)
 {
-	const FKinematicDefaultInputs* KinematicInputs = StartState.InputCmd.InputCollection.FindDataByType<FKinematicDefaultInputs>();
+	const FCharacterDefaultInputs* CharacterInputs = StartState.InputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>();
 	const FMoverDefaultSyncState* SyncState = StartState.SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>();
 	check(SyncState);
 
 	OutProposedMove.MixMode = MixMode;
 
 	FFloorCheckResult FloorHitResult;
-	bool bValidBlackboard = SimBlackboard->TryGet(KinematicBlackboard::LastFloorResult, OUT FloorHitResult);
+	bool bValidBlackboard = SimBlackboard->TryGet(CommonBlackboard::LastFloorResult, OUT FloorHitResult);
 
 	if (StartSimTimeMs == TimeStep.BaseSimTimeMs)
 	{
@@ -43,7 +43,7 @@ bool FLayeredMove_MultiJump::GenerateMove(const FMoverTickStartData& StartState,
 	}
 	
 	bool bPerformedJump = false;
-	if (KinematicInputs && KinematicInputs->bIsJumpJustPressed)
+	if (CharacterInputs && CharacterInputs->bIsJumpJustPressed)
 	{
 		if (StartSimTimeMs == TimeStep.BaseSimTimeMs)
 		{

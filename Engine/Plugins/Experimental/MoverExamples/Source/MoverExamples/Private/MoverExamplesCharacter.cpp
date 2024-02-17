@@ -110,15 +110,15 @@ void AMoverExamplesCharacter::OnProduceInput(float DeltaMs, FMoverInputCmdContex
 	// answers and will depend on the game and its specific needs. In general, at this time, I'd recommend aim assist and lock on 
 	// targeting systems to happen /outside/ of the system, i.e, here. But I can think of scenarios where that may not be ideal too.
 
-	FKinematicDefaultInputs& DefaultKinematicInputs = OutInputCmd.InputCollection.FindOrAddMutableDataByType<FKinematicDefaultInputs>();
+	FCharacterDefaultInputs& CharacterInputs = OutInputCmd.InputCollection.FindOrAddMutableDataByType<FCharacterDefaultInputs>();
 
 	if (Controller == nullptr)
 	{
 		if (GetLocalRole() == ENetRole::ROLE_Authority && GetRemoteRole() == ENetRole::ROLE_SimulatedProxy)
 		{
-			static const FKinematicDefaultInputs DoNothingInput;
+			static const FCharacterDefaultInputs DoNothingInput;
 			// If we get here, that means this pawn is not currently possessed and we're choosing to provide default do-nothing input
-			DefaultKinematicInputs = DoNothingInput;
+			CharacterInputs = DoNothingInput;
 		}
 
 		// We don't have a local controller so we can't run the code below. This is ok. Simulated proxies will just use previous input when extrapolating
@@ -131,12 +131,12 @@ void AMoverExamplesCharacter::OnProduceInput(float DeltaMs, FMoverInputCmdContex
 		SpringComp->bUsePawnControlRotation = true;
 	}
 
-	DefaultKinematicInputs.ControlRotation = FRotator::ZeroRotator;
+	CharacterInputs.ControlRotation = FRotator::ZeroRotator;
 
 	APlayerController* PC = Cast<APlayerController>(Controller);
 	if (PC)
 	{
-		DefaultKinematicInputs.ControlRotation = PC->GetControlRotation();
+		CharacterInputs.ControlRotation = PC->GetControlRotation();
 	}
 
 	// Favor velocity input 
@@ -144,7 +144,7 @@ void AMoverExamplesCharacter::OnProduceInput(float DeltaMs, FMoverInputCmdContex
 
 	if (bUsingInputIntentForMove)
 	{
-		FRotator Rotator = DefaultKinematicInputs.ControlRotation;
+		FRotator Rotator = CharacterInputs.ControlRotation;
 		FVector FinalDirectionalIntent;
 		if (const UMoverComponent* MoverComponent = GetMoverComponent())
 		{
@@ -157,19 +157,19 @@ void AMoverExamplesCharacter::OnProduceInput(float DeltaMs, FMoverInputCmdContex
 			FinalDirectionalIntent = Rotator.RotateVector(CachedMoveInputIntent);
 		}
 		
-		DefaultKinematicInputs.SetMoveInput(EMoveInputType::DirectionalIntent, FinalDirectionalIntent);
+		CharacterInputs.SetMoveInput(EMoveInputType::DirectionalIntent, FinalDirectionalIntent);
 	}
 	else
 	{
-		DefaultKinematicInputs.SetMoveInput(EMoveInputType::Velocity, CachedMoveInputVelocity);
+		CharacterInputs.SetMoveInput(EMoveInputType::Velocity, CachedMoveInputVelocity);
 	}
 
 	static float RotationMagMin(1e-3);
 
-	const bool bHasAffirmativeMoveInput = (DefaultKinematicInputs.GetMoveInput().Size() >= RotationMagMin);
+	const bool bHasAffirmativeMoveInput = (CharacterInputs.GetMoveInput().Size() >= RotationMagMin);
 	
 	// Figure out intended orientation
-	DefaultKinematicInputs.OrientationIntent = FVector::ZeroVector;
+	CharacterInputs.OrientationIntent = FVector::ZeroVector;
 
 
 	if (bUsingInputIntentForMove && bHasAffirmativeMoveInput)
@@ -177,52 +177,52 @@ void AMoverExamplesCharacter::OnProduceInput(float DeltaMs, FMoverInputCmdContex
 		if (bOrientRotationToMovement)
 		{
 			// set the intent to the actors movement direction
-			DefaultKinematicInputs.OrientationIntent = DefaultKinematicInputs.GetMoveInput();
+			CharacterInputs.OrientationIntent = CharacterInputs.GetMoveInput();
 		}
 		else
 		{
 			// set intent to the the control rotation - often a player's camera rotation
-			DefaultKinematicInputs.OrientationIntent = DefaultKinematicInputs.ControlRotation.Vector();
+			CharacterInputs.OrientationIntent = CharacterInputs.ControlRotation.Vector();
 		}
 
-		LastAffirmativeMoveInput = DefaultKinematicInputs.GetMoveInput();
+		LastAffirmativeMoveInput = CharacterInputs.GetMoveInput();
 
 	}
 	else if (bMaintainLastInputOrientation)
 	{
 		// There is no movement intent, so use the last-known affirmative move input
-		DefaultKinematicInputs.OrientationIntent = LastAffirmativeMoveInput;
+		CharacterInputs.OrientationIntent = LastAffirmativeMoveInput;
 	}
 	
 	if (bShouldRemainVertical)
 	{
 		// canceling out any z intent if the actor is supposed to remain vertical
-		DefaultKinematicInputs.OrientationIntent = DefaultKinematicInputs.OrientationIntent.GetSafeNormal2D();
+		CharacterInputs.OrientationIntent = CharacterInputs.OrientationIntent.GetSafeNormal2D();
 	}
 
-	DefaultKinematicInputs.bIsJumpPressed = bIsJumpPressed;
-	DefaultKinematicInputs.bIsJumpJustPressed = bIsJumpJustPressed;
+	CharacterInputs.bIsJumpPressed = bIsJumpPressed;
+	CharacterInputs.bIsJumpJustPressed = bIsJumpJustPressed;
 
 	if (bShouldToggleFlying)
 	{
 		if (!bIsFlyingActive)
 		{
-			DefaultKinematicInputs.SuggestedMovementMode = KinematicModeNames::Flying;
+			CharacterInputs.SuggestedMovementMode = DefaultModeNames::Flying;
 		}
 		else
 		{
-			DefaultKinematicInputs.SuggestedMovementMode = KinematicModeNames::Falling;
+			CharacterInputs.SuggestedMovementMode = DefaultModeNames::Falling;
 		}
 
 		bIsFlyingActive = !bIsFlyingActive;
 	}
 	else
 	{
-		DefaultKinematicInputs.SuggestedMovementMode = NAME_None;
+		CharacterInputs.SuggestedMovementMode = NAME_None;
 	}
 
 	// Convert inputs to be relative to the current movement base (depending on options and state)
-	DefaultKinematicInputs.bUsingMovementBase = false;
+	CharacterInputs.bUsingMovementBase = false;
 
 	if (bUseBaseRelativeMovement)
 	{
@@ -234,15 +234,15 @@ void AMoverExamplesCharacter::OnProduceInput(float DeltaMs, FMoverInputCmdContex
 
 				FVector RelativeMoveInput, RelativeOrientDir;
 
-				UBasedMovementUtils::TransformWorldDirectionToBased(MovementBase, MovementBaseBoneName, DefaultKinematicInputs.GetMoveInput(), RelativeMoveInput);
-				UBasedMovementUtils::TransformWorldDirectionToBased(MovementBase, MovementBaseBoneName, DefaultKinematicInputs.OrientationIntent, RelativeOrientDir);
+				UBasedMovementUtils::TransformWorldDirectionToBased(MovementBase, MovementBaseBoneName, CharacterInputs.GetMoveInput(), RelativeMoveInput);
+				UBasedMovementUtils::TransformWorldDirectionToBased(MovementBase, MovementBaseBoneName, CharacterInputs.OrientationIntent, RelativeOrientDir);
 
-				DefaultKinematicInputs.SetMoveInput(DefaultKinematicInputs.GetMoveInputType(), RelativeMoveInput);
-				DefaultKinematicInputs.OrientationIntent = RelativeOrientDir;
+				CharacterInputs.SetMoveInput(CharacterInputs.GetMoveInputType(), RelativeMoveInput);
+				CharacterInputs.OrientationIntent = RelativeOrientDir;
 
-				DefaultKinematicInputs.bUsingMovementBase = true;
-				DefaultKinematicInputs.MovementBase = MovementBase;
-				DefaultKinematicInputs.MovementBaseBoneName = MovementBaseBoneName;
+				CharacterInputs.bUsingMovementBase = true;
+				CharacterInputs.MovementBase = MovementBase;
+				CharacterInputs.MovementBaseBoneName = MovementBaseBoneName;
 			}
 		}
 	}

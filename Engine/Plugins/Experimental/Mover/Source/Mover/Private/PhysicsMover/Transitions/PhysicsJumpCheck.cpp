@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "PhysicsMover/Transitions/PhysicsJumpCheck.h"
-#include "Kinematic/LayeredMoves/BasicLayeredMoves.h"
+#include "DefaultMovementSet/LayeredMoves/BasicLayeredMoves.h"
 #include "MoverComponent.h"
 
 #if WITH_EDITOR
@@ -11,7 +11,7 @@
 UPhysicsJumpCheck::UPhysicsJumpCheck(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	TransitionToMode = KinematicModeNames::Falling;
+	TransitionToMode = DefaultModeNames::Falling;
 }
 
 FTransitionEvalResult UPhysicsJumpCheck::OnEvaluate(const FSimulationTickParams& Params) const
@@ -19,10 +19,10 @@ FTransitionEvalResult UPhysicsJumpCheck::OnEvaluate(const FSimulationTickParams&
 	FTransitionEvalResult EvalResult; 
 
 	const FMoverTickStartData& StartState = Params.StartState;
-	const FKinematicDefaultInputs* KinematicInputs = StartState.InputCmd.InputCollection.FindDataByType<FKinematicDefaultInputs>();
-	check(KinematicInputs);
+	const FCharacterDefaultInputs* CharacterInputs = StartState.InputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>();
+	check(CharacterInputs);
 
-	if (KinematicInputs->bIsJumpJustPressed)
+	if (CharacterInputs->bIsJumpJustPressed)
 	{
 		EvalResult.NextMode = TransitionToMode;
 	}

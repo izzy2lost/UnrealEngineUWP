@@ -19,11 +19,11 @@ class MOVER_API UCommonLegacyMovementSettings : public UObject, public IMovement
 public:
 	// What movement mode to use when on the ground.
 	UPROPERTY(Category="General", EditAnywhere, BlueprintReadWrite)
-	FName GroundMovementModeName = KinematicModeNames::Walking;
+	FName GroundMovementModeName = DefaultModeNames::Walking;
 
 	// What movement mode to use when airborne.
 	UPROPERTY(Category="General", EditAnywhere, BlueprintReadWrite)
-	FName AirMovementModeName = KinematicModeNames::Falling;
+	FName AirMovementModeName = DefaultModeNames::Falling;
 
 	/** Walkable slope angle, represented as cosine(max slope angle) for performance reasons. Ex: for max slope angle of 30 degrees, value is cosine(30 deg) = 0.866 */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Ground Movement")

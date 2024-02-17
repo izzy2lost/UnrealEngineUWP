@@ -12,8 +12,8 @@
 #include "UObject/Interface.h"
 #include "MoverSimulationTypes.generated.h"
 
-
-namespace KinematicModeNames
+// Names for our default modes
+namespace DefaultModeNames
 {
 	const FName Walking = TEXT("Walking");
 	const FName Falling = TEXT("Falling");
@@ -22,7 +22,7 @@ namespace KinematicModeNames
 }
 
 // Commonly-used blackboard object keys
-namespace KinematicBlackboard
+namespace CommonBlackboard
 {
 	const FName LastFloorResult = TEXT("LastFloor");
 	const FName LastWaterResult = TEXT("LastWater");
@@ -77,7 +77,7 @@ public:
 	FMoverInputCmdContext()
 	{
 		// TODO: Consider eliminating this default input, considering non-character / non-controlled Mover actors (like platforms)
-		InputCollection.FindOrAddDataByType<FKinematicDefaultInputs>();
+		InputCollection.FindOrAddDataByType<FCharacterDefaultInputs>();
 	}
 
 	UScriptStruct* GetStruct() const { return StaticStruct(); }

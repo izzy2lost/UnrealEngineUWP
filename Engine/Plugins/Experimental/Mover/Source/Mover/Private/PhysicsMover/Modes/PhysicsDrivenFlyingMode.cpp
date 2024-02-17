@@ -5,7 +5,7 @@
 #include "Chaos/Character/CharacterGroundConstraint.h"
 #include "GameFramework/PhysicsVolume.h"
 #include "MoverComponent.h"
-#include "Kinematic/Settings/CommonLegacyMovementSettings.h"
+#include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "Math/UnitConversion.h"
 #include "MoveLibrary/MovementUtils.h"
 #include "PhysicsMover/PhysicsMovementUtils.h"
@@ -32,7 +32,6 @@ void UPhysicsDrivenFlyingMode::OnSimulationTick(const FSimulationTickParams& Par
 	UPrimitiveComponent* UpdatedPrimitive = Params.UpdatedPrimitive;
 	FProposedMove ProposedMove = Params.ProposedMove;
 
-	const FKinematicDefaultInputs* KinematicInputs = StartState.InputCmd.InputCollection.FindDataByType<FKinematicDefaultInputs>();
 	const FMoverDefaultSyncState* StartingSyncState = StartState.SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>();
 	check(StartingSyncState);
 
@@ -52,8 +51,8 @@ void UPhysicsDrivenFlyingMode::OnSimulationTick(const FSimulationTickParams& Par
 
 	if (UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable())
 	{
-		SimBlackboard->Invalidate(KinematicBlackboard::LastFloorResult);
-		SimBlackboard->Invalidate(KinematicBlackboard::LastWaterResult);
+		SimBlackboard->Invalidate(CommonBlackboard::LastFloorResult);
+		SimBlackboard->Invalidate(CommonBlackboard::LastWaterResult);
 	}
 
 	// In air steering
@@ -73,7 +72,7 @@ void UPhysicsDrivenFlyingMode::OnSimulationTick(const FSimulationTickParams& Par
 
 	FVector TargetPos = StartingSyncState->GetLocation_WorldSpace() + TargetVel * DeltaSeconds;
 
-	OutputState.MovementEndState.NextModeName = KinematicModeNames::Flying;
+	OutputState.MovementEndState.NextModeName = DefaultModeNames::Flying;
 
 	OutputState.MovementEndState.RemainingMs = 0.0f;
 	OutputSyncState.MoveDirectionIntent = ProposedMove.bHasDirIntent ? ProposedMove.DirectionIntent : FVector::ZeroVector;

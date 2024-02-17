@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Kinematic/Modes/FallingMode.h"
+#include "DefaultMovementSet/Modes/FallingMode.h"
 #include "PhysicsMover/PhysicsMoverSimulationTypes.h"
 
 #include "PhysicsDrivenFallingMode.generated.h"

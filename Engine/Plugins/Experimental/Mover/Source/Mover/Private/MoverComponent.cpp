@@ -4,9 +4,9 @@
 #include "MoverComponent.h"
 #include "MoverSimulationTypes.h"
 #include "MovementModeStateMachine.h"
-#include "Kinematic/Modes/WalkingMode.h"
-#include "Kinematic/Modes/FallingMode.h"
-#include "Kinematic/Modes/FlyingMode.h"
+#include "DefaultMovementSet/Modes/WalkingMode.h"
+#include "DefaultMovementSet/Modes/FallingMode.h"
+#include "DefaultMovementSet/Modes/FlyingMode.h"
 #include "MoveLibrary/MovementMixer.h"
 #include "MoveLibrary/MovementUtils.h"
 #include "MoveLibrary/FloorQueryUtils.h"
@@ -49,11 +49,11 @@ UMoverComponent::UMoverComponent()
 	bAutoActivate = true;
 
 	// Default movement modes
-	MovementModes.Add(KinematicModeNames::Walking, CreateDefaultSubobject<UWalkingMode>(TEXT("DefaultWalkingMode")));
-	MovementModes.Add(KinematicModeNames::Falling, CreateDefaultSubobject<UFallingMode>(TEXT("DefaultFallingMode")));
-	MovementModes.Add(KinematicModeNames::Flying,  CreateDefaultSubobject<UFlyingMode>(TEXT("DefaultFlyingMode")));
+	MovementModes.Add(DefaultModeNames::Walking, CreateDefaultSubobject<UWalkingMode>(TEXT("DefaultWalkingMode")));
+	MovementModes.Add(DefaultModeNames::Falling, CreateDefaultSubobject<UFallingMode>(TEXT("DefaultFallingMode")));
+	MovementModes.Add(DefaultModeNames::Flying,  CreateDefaultSubobject<UFlyingMode>(TEXT("DefaultFlyingMode")));
 
-	StartingMovementMode = KinematicModeNames::Falling;
+	StartingMovementMode = DefaultModeNames::Falling;
 
 	PersistentSyncStateDataTypes.Add(FMoverDataPersistence(FMoverDefaultSyncState::StaticStruct(), true));
 
@@ -328,7 +328,7 @@ void UMoverComponent::SimulationTick(const FMoverTimeStep& InTimeStep, const FMo
 
 	SimOutput.AuxState = SimInput.AuxState;
 
-	FKinematicDefaultInputs* Input = SimInput.InputCmd.InputCollection.FindMutableDataByType<FKinematicDefaultInputs>();
+	FCharacterDefaultInputs* Input = SimInput.InputCmd.InputCollection.FindMutableDataByType<FCharacterDefaultInputs>();
 
 
 	if (Input && !Input->SuggestedMovementMode.IsNone())
@@ -956,7 +956,7 @@ FRotator UMoverComponent::GetTargetOrientation() const
 	if (bHasValidCachedUsedInput)
 	{
 		const FMoverInputCmdContext& LastInputCmd = GetLastInputCmd();
-		const FKinematicDefaultInputs* MoverInputs = LastInputCmd.InputCollection.FindDataByType<FKinematicDefaultInputs>();
+		const FCharacterDefaultInputs* MoverInputs = LastInputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>();
 
 		const FVector TargetOrientationDir = MoverInputs->GetOrientationIntentDir_WorldSpace();
 
@@ -1024,7 +1024,7 @@ bool UMoverComponent::IsFalling() const
 	{
 		if (const FMoverDefaultSyncState* SyncState = CachedLastSyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>())
 		{
-			return SyncState->MovementMode == KinematicModeNames::Falling;
+			return SyncState->MovementMode == DefaultModeNames::Falling;
 		}
 	}
 
@@ -1037,7 +1037,7 @@ bool UMoverComponent::IsAirborne() const
 	{
 		if (const FMoverDefaultSyncState* SyncState = CachedLastSyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>())
 		{
-			return SyncState->MovementMode == KinematicModeNames::Flying || SyncState->MovementMode == KinematicModeNames::Falling;
+			return SyncState->MovementMode == DefaultModeNames::Flying || SyncState->MovementMode == DefaultModeNames::Falling;
 		}
 	}
 
@@ -1050,7 +1050,7 @@ bool UMoverComponent::IsOnGround() const
 	{
 		if (const FMoverDefaultSyncState* SyncState = CachedLastSyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>())
 		{
-			return SyncState->MovementMode == KinematicModeNames::Walking;
+			return SyncState->MovementMode == DefaultModeNames::Walking;
 		}
 	}
 
@@ -1062,7 +1062,7 @@ bool UMoverComponent::IsSlopeSliding() const
 	if (IsAirborne())
 	{
 		FFloorCheckResult HitResult;
-		if (SimBlackboard->TryGet(KinematicBlackboard::LastFloorResult, HitResult))
+		if (SimBlackboard->TryGet(CommonBlackboard::LastFloorResult, HitResult))
 		{
 			return HitResult.bBlockingHit && !HitResult.bWalkableFloor;
 		}
@@ -1200,7 +1200,7 @@ const FMoverSyncState& UMoverComponent::GetSyncState() const
 bool UMoverComponent::TryGetFloorCheckHitResult(FHitResult& OutHitResult) const
 {
 	FFloorCheckResult FloorCheck;
-	if (SimBlackboard->TryGet(KinematicBlackboard::LastFloorResult, FloorCheck))
+	if (SimBlackboard->TryGet(CommonBlackboard::LastFloorResult, FloorCheck))
 	{
 		OutHitResult = FloorCheck.HitResult;
 		return true;

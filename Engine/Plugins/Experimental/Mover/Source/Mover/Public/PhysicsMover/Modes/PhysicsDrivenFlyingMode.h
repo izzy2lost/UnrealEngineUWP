@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Kinematic/Modes/FlyingMode.h"
+#include "DefaultMovementSet/Modes/FlyingMode.h"
 #include "PhysicsMover/PhysicsMoverSimulationTypes.h"
 
 #include "PhysicsDrivenFlyingMode.generated.h"

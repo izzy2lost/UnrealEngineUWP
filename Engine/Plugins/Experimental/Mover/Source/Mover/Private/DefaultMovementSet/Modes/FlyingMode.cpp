@@ -1,10 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Kinematic/Modes/FlyingMode.h"
+#include "DefaultMovementSet/Modes/FlyingMode.h"
 #include "MoveLibrary/AirMovementUtils.h"
 #include "MoveLibrary/MovementUtils.h"
 #include "MoverComponent.h"
-#include "Kinematic/Settings/CommonLegacyMovementSettings.h"
+#include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(FlyingMode)
 
@@ -16,17 +16,17 @@ UFlyingMode::UFlyingMode(const FObjectInitializer& ObjectInitializer)
 
 void UFlyingMode::OnGenerateMove(const FMoverTickStartData& StartState, const FMoverTimeStep& TimeStep, FProposedMove& OutProposedMove) const
 {
-	const FKinematicDefaultInputs* KinematicInputs = StartState.InputCmd.InputCollection.FindDataByType<FKinematicDefaultInputs>();
+	const FCharacterDefaultInputs* CharacterInputs = StartState.InputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>();
 	const FMoverDefaultSyncState* StartingSyncState = StartState.SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>();
 	check(StartingSyncState);
 
 	const float DeltaSeconds = TimeStep.StepMs * 0.001f;
 
 	FFreeMoveParams Params;
-	if (KinematicInputs)
+	if (CharacterInputs)
 	{
-		Params.MoveInputType = KinematicInputs->GetMoveInputType();
-		Params.MoveInput = KinematicInputs->GetMoveInput();
+		Params.MoveInputType = CharacterInputs->GetMoveInputType();
+		Params.MoveInput = CharacterInputs->GetMoveInput();
 	}
 	else
 	{
@@ -36,13 +36,13 @@ void UFlyingMode::OnGenerateMove(const FMoverTickStartData& StartState, const FM
 
 	FRotator IntendedOrientation_WorldSpace;
 	// If there's no intent from input to change orientation, use the current orientation
-	if (!KinematicInputs || KinematicInputs->OrientationIntent.IsNearlyZero())
+	if (!CharacterInputs || CharacterInputs->OrientationIntent.IsNearlyZero())
 	{
 		IntendedOrientation_WorldSpace = StartingSyncState->GetOrientation_WorldSpace();
 	}
 	else
 	{
-		IntendedOrientation_WorldSpace = KinematicInputs->GetOrientationIntentDir_WorldSpace().ToOrientationRotator();
+		IntendedOrientation_WorldSpace = CharacterInputs->GetOrientationIntentDir_WorldSpace().ToOrientationRotator();
 	}
 	
 	Params.OrientationIntent = IntendedOrientation_WorldSpace;
@@ -65,7 +65,7 @@ void UFlyingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverTi
 	UPrimitiveComponent* UpdatedPrimitive = Params.UpdatedPrimitive;
 	FProposedMove ProposedMove = Params.ProposedMove;
 
-	const FKinematicDefaultInputs* KinematicInputs = StartState.InputCmd.InputCollection.FindDataByType<FKinematicDefaultInputs>();
+	const FCharacterDefaultInputs* CharacterInputs = StartState.InputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>();
 	const FMoverDefaultSyncState* StartingSyncState = StartState.SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>();
 	check(StartingSyncState);
 
@@ -85,8 +85,8 @@ void UFlyingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverTi
 
 	UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable();
 
-	SimBlackboard->Invalidate(KinematicBlackboard::LastFloorResult);	// flying = no valid floor
-	SimBlackboard->Invalidate(KinematicBlackboard::LastMovementBase);
+	SimBlackboard->Invalidate(CommonBlackboard::LastFloorResult);	// flying = no valid floor
+	SimBlackboard->Invalidate(CommonBlackboard::LastMovementBase);
 
 	OutputSyncState.MoveDirectionIntent = (ProposedMove.bHasDirIntent ? ProposedMove.DirectionIntent : FVector::ZeroVector);
 
@@ -115,7 +115,7 @@ void UFlyingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverTi
 	if (Hit.IsValidBlockingHit())
 	{
 		UMoverComponent* MoverComponent = GetMoverComponent();
-		FMoverOnImpactParams ImpactParams(KinematicModeNames::Flying, Hit, MoveDelta);
+		FMoverOnImpactParams ImpactParams(DefaultModeNames::Flying, Hit, MoveDelta);
 		MoverComponent->HandleImpact(ImpactParams);
 		// Try to slide the remaining distance along the surface.
 		UMovementUtils::TryMoveToSlideAlongSurface(UpdatedComponent, UpdatedPrimitive, MoverComponent, MoveDelta, 1.f - Hit.Time, OrientQuat, Hit.Normal, Hit, true, MoveRecord);
@@ -138,7 +138,7 @@ bool UFlyingMode::AttemptTeleport(USceneComponent* UpdatedComponent, const FVect
 
 		UpdatedComponent->ComponentVelocity = StartingSyncState.GetVelocity_WorldSpace();
 
-		GetBlackboard_Mutable()->Invalidate(KinematicBlackboard::LastFloorResult);
+		GetBlackboard_Mutable()->Invalidate(CommonBlackboard::LastFloorResult);
 
 		return true;
 	}

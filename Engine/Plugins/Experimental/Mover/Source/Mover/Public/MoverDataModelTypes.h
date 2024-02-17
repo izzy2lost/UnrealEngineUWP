@@ -24,9 +24,9 @@ enum class EMoveInputType : uint8
 };
 
 
-// Data block containing all inputs that need to be authored and consumed for the kinematic Mover simulation
+// Data block containing all inputs that need to be authored and consumed for the default Mover character simulation
 USTRUCT(BlueprintType)
-struct MOVER_API FKinematicDefaultInputs : public FMoverDataStructBase
+struct MOVER_API FCharacterDefaultInputs : public FMoverDataStructBase
 {
 	GENERATED_USTRUCT_BODY()
 
@@ -78,7 +78,7 @@ public:
 	FVector GetOrientationIntentDir_WorldSpace() const;
 
 
-	FKinematicDefaultInputs()
+	FCharacterDefaultInputs()
 		: MoveInputType(EMoveInputType::Invalid)
 		, MoveInput(ForceInitToZero)
 		, OrientationIntent(ForceInitToZero)
@@ -92,9 +92,9 @@ public:
 	{
 	}
 
-	virtual ~FKinematicDefaultInputs() {}
+	virtual ~FCharacterDefaultInputs() {}
 
-	// @return newly allocated copy of this FKinematicDefaultInputs. Must be overridden by child classes
+	// @return newly allocated copy of this FCharacterDefaultInputs. Must be overridden by child classes
 	virtual FMoverDataStructBase* Clone() const override;
 
 	virtual bool NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bOutSuccess) override;
@@ -109,7 +109,7 @@ public:
 };
 
 template<>
-struct TStructOpsTypeTraits< FKinematicDefaultInputs > : public TStructOpsTypeTraitsBase2< FKinematicDefaultInputs >
+struct TStructOpsTypeTraits< FCharacterDefaultInputs > : public TStructOpsTypeTraitsBase2< FCharacterDefaultInputs >
 {
 	enum
 	{
@@ -245,15 +245,15 @@ class MOVER_API UMoverDataModelBlueprintLibrary : public UBlueprintFunctionLibra
 {
 	GENERATED_BODY()
 
-public:	// FKinematicDefaultInputs
+public:	// FCharacterDefaultInputs
 
 	/** Sets move inputs from worldspace intent, as a per-axis magnitude in the range [-1,1] Zero vector indicates intent to stop. */
 	UFUNCTION(BlueprintCallable, Category = Mover)
-	static void SetMoveIntent(UPARAM(Ref) FKinematicDefaultInputs& Inputs, const FVector& WorldDirectionIntent);
+	static void SetMoveIntent(UPARAM(Ref) FCharacterDefaultInputs& Inputs, const FVector& WorldDirectionIntent);
 
 	/** Returns the move direction intent, if any, in world space */
 	UFUNCTION(BlueprintCallable, Category = Mover)
-	static FVector GetMoveDirectionIntentFromInputs(const FKinematicDefaultInputs& Inputs);
+	static FVector GetMoveDirectionIntentFromInputs(const FCharacterDefaultInputs& Inputs);
 
 
 public:	// FMoverDefaultSyncState

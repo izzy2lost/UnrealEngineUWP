@@ -63,7 +63,7 @@ FTransitionEvalResult UZiplineEndTransition::OnEvaluate(const FSimulationTickPar
 {
 	FTransitionEvalResult EvalResult = FTransitionEvalResult::NoTransition;
 
-	if (const FKinematicDefaultInputs* DefaultInputs = Params.StartState.InputCmd.InputCollection.FindDataByType<FKinematicDefaultInputs>())
+	if (const FCharacterDefaultInputs* DefaultInputs = Params.StartState.InputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>())
 	{
 		if (DefaultInputs->bIsJumpJustPressed)
 		{

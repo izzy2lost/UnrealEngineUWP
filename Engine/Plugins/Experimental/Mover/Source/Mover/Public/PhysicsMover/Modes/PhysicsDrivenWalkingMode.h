@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Kinematic/Modes/WalkingMode.h"
+#include "DefaultMovementSet/Modes/WalkingMode.h"
 #include "PhysicsMover/PhysicsMoverSimulationTypes.h"
 
 #include "PhysicsDrivenWalkingMode.generated.h"

@@ -10,7 +10,7 @@
 #include "GameFramework/Actor.h"
 #include "GameFramework/Pawn.h"
 #include "MovementModeStateMachine.h"
-#include "Kinematic/Settings/CommonLegacyMovementSettings.h"
+#include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "PBDRigidsSolver.h"
 #include "Physics/Experimental/PhysScene_Chaos.h"
 #include "PhysicsMover/Modes/PhysicsDrivenFallingMode.h"
@@ -72,15 +72,15 @@ void FNetworkPhysicsMoverInputs::InterpolateData(const FNetworkPhysicsData& MinD
 
 	const float LerpFactor = (LocalFrame - MinDataInput.LocalFrame) / (MaxDataInput.LocalFrame - MinDataInput.LocalFrame);
 
-	const FKinematicDefaultInputs* MinInput = MinDataInput.InputCmdContext.InputCollection.FindDataByType<FKinematicDefaultInputs>();
-	const FKinematicDefaultInputs* MaxInput = MaxDataInput.InputCmdContext.InputCollection.FindDataByType<FKinematicDefaultInputs>();
+	const FCharacterDefaultInputs* MinInput = MinDataInput.InputCmdContext.InputCollection.FindDataByType<FCharacterDefaultInputs>();
+	const FCharacterDefaultInputs* MaxInput = MaxDataInput.InputCmdContext.InputCollection.FindDataByType<FCharacterDefaultInputs>();
 
-	FKinematicDefaultInputs& LocalInput = InputCmdContext.InputCollection.FindOrAddMutableDataByType<FKinematicDefaultInputs>();
+	FCharacterDefaultInputs& LocalInput = InputCmdContext.InputCollection.FindOrAddMutableDataByType<FCharacterDefaultInputs>();
 
 	if (MinInput && MaxInput)
 	{
 		// Note, this ignores movement base as this is not used by the physics mover
-		const FKinematicDefaultInputs* ClosestInputs = LerpFactor < 0.5f ? MinInput : MaxInput;
+		const FCharacterDefaultInputs* ClosestInputs = LerpFactor < 0.5f ? MinInput : MaxInput;
 		LocalInput.bIsJumpJustPressed = ClosestInputs->bIsJumpJustPressed;
 		LocalInput.bIsJumpPressed = ClosestInputs->bIsJumpPressed;
 		LocalInput.SuggestedMovementMode = ClosestInputs->SuggestedMovementMode;
@@ -104,9 +104,9 @@ void FNetworkPhysicsMoverInputs::MergeData(const FNetworkPhysicsData& FromData)
 {
 	const FNetworkPhysicsMoverInputs& FromDataInput = static_cast<const FNetworkPhysicsMoverInputs&>(FromData);
 
-	if (const FKinematicDefaultInputs* FromInput = FromDataInput.InputCmdContext.InputCollection.FindDataByType<FKinematicDefaultInputs>())
+	if (const FCharacterDefaultInputs* FromInput = FromDataInput.InputCmdContext.InputCollection.FindDataByType<FCharacterDefaultInputs>())
 	{
-		FKinematicDefaultInputs& LocalInputs = InputCmdContext.InputCollection.FindOrAddMutableDataByType<FKinematicDefaultInputs>();
+		FCharacterDefaultInputs& LocalInputs = InputCmdContext.InputCollection.FindOrAddMutableDataByType<FCharacterDefaultInputs>();
 
 		LocalInputs.bIsJumpJustPressed |= FromInput->bIsJumpJustPressed;
 		LocalInputs.bIsJumpPressed |= FromInput->bIsJumpPressed;
@@ -633,7 +633,7 @@ void UMoverNetworkPhysicsLiaisonComponent::ProduceInput_External(float DeltaSeco
 				// We only want to consume one input per physics frame
 				// so if there is already a valid cached input we use that.
 				// Input is set invalid when the async output is consumed
-				bCachedInputIsValid = MoverComp->CachedLastProducedInputCmd.InputCollection.FindDataByType<FKinematicDefaultInputs>() != nullptr;
+				bCachedInputIsValid = MoverComp->CachedLastProducedInputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>() != nullptr;
 			}
 			else
 			{
@@ -708,7 +708,7 @@ void UMoverNetworkPhysicsLiaisonComponent::ConsumeOutput_External(const FPhysics
 						{
 							if (const FMoverDefaultSyncState* InterpolatedState = InterpolatedSyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>())
 							{
-								if ((CachedSyncState->MovementMode == KinematicModeNames::Falling) && (InterpolatedState->MovementMode == KinematicModeNames::Walking))
+								if ((CachedSyncState->MovementMode == DefaultModeNames::Falling) && (InterpolatedState->MovementMode == DefaultModeNames::Walking))
 								{
 									if (UFallingMode* FallingMode = MoverComp->FindMode_Mutable<UFallingMode>())
 									{
@@ -805,7 +805,7 @@ void UMoverNetworkPhysicsLiaisonComponent::OnPreSimulate_Internal(const FPhysics
 	// Sync state should carry over to the next sim frame by default unless something modifies it
 	Output.SyncState = Input.SyncState;
 
-	if (!HasValidState() || !Input.InputCmd.InputCollection.FindDataByType<FKinematicDefaultInputs>())
+	if (!HasValidState() || !Input.InputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>())
 	{
 		return;
 	}
@@ -841,12 +841,12 @@ void UMoverNetworkPhysicsLiaisonComponent::OnPreSimulate_Internal(const FPhysics
 
 	// Make the sync state velocity relative to the ground if walking
 	FVector LocalGroundVelocity = FVector::ZeroVector;
-	if (SyncState.MovementMode == KinematicModeNames::Walking)
+	if (SyncState.MovementMode == DefaultModeNames::Walking)
 	{
 		if (const UMoverBlackboard* Blackboard = MoverComp->GetSimBlackboard())
 		{
 			FFloorCheckResult LastFloorResult;
-			if (Blackboard->TryGet(KinematicBlackboard::LastFloorResult, LastFloorResult))
+			if (Blackboard->TryGet(CommonBlackboard::LastFloorResult, LastFloorResult))
 			{
 				LocalGroundVelocity = UPhysicsMovementUtils::ComputeGroundVelocityFromHitResult(CharacterParticle->GetX(), LastFloorResult.HitResult, TickParams.DeltaTimeSeconds);
 				LocalGroundVelocity -= LocalGroundVelocity.ProjectOnToNormal(LastFloorResult.HitResult.ImpactNormal);
@@ -867,7 +867,7 @@ void UMoverNetworkPhysicsLiaisonComponent::OnPreSimulate_Internal(const FPhysics
 	const FMoverDefaultSyncState* StartingSyncState = TickStartData.SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>();
 	check(StartingSyncState);
 
-	FKinematicDefaultInputs* InputCmd = TickStartData.InputCmd.InputCollection.FindMutableDataByType<FKinematicDefaultInputs>();
+	FCharacterDefaultInputs* InputCmd = TickStartData.InputCmd.InputCollection.FindMutableDataByType<FCharacterDefaultInputs>();
 	check(InputCmd);
 
 	FMoverTimeStep TimeStep = GetCurrentMoverTimeStep_Internal();
@@ -894,7 +894,7 @@ void UMoverNetworkPhysicsLiaisonComponent::OnPreSimulate_Internal(const FPhysics
 	const FName MovementModeAfterTick = MoverComp->ModeFSM->GetCurrentModeName();
 	OutputSyncState.MovementMode = MovementModeAfterTick;
 
-	MoverComp->SimBlackboard->TryGet(KinematicBlackboard::LastFloorResult, Output.FloorResult);
+	MoverComp->SimBlackboard->TryGet(CommonBlackboard::LastFloorResult, Output.FloorResult);
 
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Update physics constraint from output sync state
@@ -910,7 +910,7 @@ void UMoverNetworkPhysicsLiaisonComponent::OnPreSimulate_Internal(const FPhysics
 	FVector TargetVelocity = OutputSyncState.GetVelocity_WorldSpace() + LocalGroundVelocity;
 
 	// Landed so add the new ground velocity
-	if ((OutputSyncState.MovementMode == KinematicModeNames::Walking) && (SyncState.MovementMode != KinematicModeNames::Walking))
+	if ((OutputSyncState.MovementMode == DefaultModeNames::Walking) && (SyncState.MovementMode != DefaultModeNames::Walking))
 	{
 		if (const UPhysicsDrivenWalkingMode* WalkingMode = Cast<UPhysicsDrivenWalkingMode>(MoverComp->FindMovementMode(UPhysicsDrivenWalkingMode::StaticClass())))
 		{
@@ -1077,7 +1077,7 @@ void UMoverNetworkPhysicsLiaisonComponent::OnContactModification_Internal(const 
 		const float CosThetaMax = 0.707f;
 
 		float MinContactHeightStepUps = CharacterHeight - 1.0e10f;
-		if (SyncState->MovementMode == KinematicModeNames::Walking)
+		if (SyncState->MovementMode == DefaultModeNames::Walking)
 		{
 			if (const UPhysicsDrivenWalkingMode* WalkingMode = Cast<UPhysicsDrivenWalkingMode>(MoverComp->FindMode_Mutable<UPhysicsDrivenWalkingMode>()))
 			{
