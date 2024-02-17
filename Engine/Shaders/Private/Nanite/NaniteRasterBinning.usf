@@ -50,6 +50,10 @@
 #define VIRTUAL_TEXTURE_TARGET 0
 #endif
 
+#ifndef FORCE_BATCHING
+#define FORCE_BATCHING 0
+#endif
+
 uint MeshPassIndex;
 
 RWStructuredBuffer<FNaniteRasterBinMeta> OutRasterBinMeta;
@@ -165,6 +169,7 @@ void RasterBinReserve(uint RasterBinIndex : SV_DispatchThreadID)
 #elif RASTER_BIN_FINALIZE
 
 uint RasterBinCount;
+uint FinalizeMode;
 
 RWBuffer<uint> OutRasterBinArgsSWHW;
 
@@ -175,25 +180,35 @@ void RasterBinFinalize(uint RasterBinIndex : SV_DispatchThreadID)
 	{
 		uint Offset = (RasterBinIndex * NANITE_RASTERIZER_ARG_COUNT);
 
-	#if !PLATFORM_REQUIRES_UNWRAPPED_MESH_SHADER_ARGS
 		BRANCH
 		if (RenderFlags & NANITE_RENDER_FLAG_MESH_SHADER)
 		{
 			const uint ClusterCount = OutRasterBinArgsSWHW[Offset + 4u]; // HW: ThreadGroupCountX
 
-			// Need to span the launch size across X,Y,Z so any single dimension does not exceed the 64k
-			// limit as per https://microsoft.github.io/DirectX-Specs/d3d/MeshShader.html#dispatchmesh-api
-			// The product of X*Y*Z can be 2^22, so we convert 1D->3D->1D to work around this limitation.
-			const uint DimensionLimit = (1u << 16u) - 1u;
+			BRANCH
+			if (FinalizeMode == 0) // Wrapping
+			{
+			#if !PLATFORM_REQUIRES_UNWRAPPED_MESH_SHADER_ARGS
+				// Need to span the launch size across X,Y,Z so any single dimension does not exceed the 64k
+				// limit as per https://microsoft.github.io/DirectX-Specs/d3d/MeshShader.html#dispatchmesh-api
+				// The product of X*Y*Z can be 2^22, so we convert 1D->3D->1D to work around this limitation.
+				const uint DimensionLimit = (1u << 16u) - 1u;
 
-			const uint3 GroupCount = GetGroupCountWrapped(ClusterCount, DimensionLimit.xx);
+				const uint3 GroupCount = GetGroupCountWrapped(ClusterCount, DimensionLimit.xx);
 
-			// HW: ThreadGroupCountXYZ
-			OutRasterBinArgsSWHW[Offset + 4u] = GroupCount.x;
-			OutRasterBinArgsSWHW[Offset + 5u] = GroupCount.y;
-			OutRasterBinArgsSWHW[Offset + 6u] = GroupCount.z;
+				// HW: ThreadGroupCountXYZ
+				OutRasterBinArgsSWHW[Offset + 4u] = GroupCount.x;
+				OutRasterBinArgsSWHW[Offset + 5u] = GroupCount.y;
+				OutRasterBinArgsSWHW[Offset + 6u] = GroupCount.z;
+			#endif
+			}
+			else if (FinalizeMode == 1) // VK_NV_mesh_shader
+			{
+				// VK_NV_mesh_shader draw indirect command (count, first, <unused>)
+				// https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkDrawMeshTasksIndirectCommandNV.html
+				OutRasterBinArgsSWHW[Offset + 5u] = 0u;
+			}
 		}
-	#endif
 	}
 }
 
@@ -313,7 +328,12 @@ uint AllocateRasterBinCluster(uint BinIndex, bool bSoftware, uint BatchCount)
 void ExportRasterBin(uint RasterBin, uint ClusterIndex, uint RangeStart, uint RangeEnd, uint BatchCount, uint BatchInfoOffset, FCluster Cluster, bool bBatchInfoInlined, bool bSoftware)
 {
 	const FNaniteMaterialFlags BinMaterialFlags = GetRasterBinMaterialFlags(RasterBin);
-	bool bUseBatch = !bSoftware && bUsePrimOrMeshShader && BinMaterialFlags.bVertexProgrammable;
+#if FORCE_BATCHING
+	const bool bForceBatching = true;
+#else
+	const bool bForceBatching = false;
+#endif
+	bool bUseBatch = !bSoftware && bUsePrimOrMeshShader && (bForceBatching || BinMaterialFlags.bVertexProgrammable);
 	if (BinMaterialFlags.bDisplacement)
 	{
 		// Displacement forces 100% software, and also the vert reuse batching
