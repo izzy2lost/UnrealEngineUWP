@@ -666,6 +666,7 @@ namespace Horde.Server.Jobs
 		Complete = 5
 	}
 
+#pragma warning disable CA1027
 	/// <summary>
 	/// Error code for a batch not being executed
 	/// </summary>
@@ -748,6 +749,7 @@ namespace Horde.Server.Jobs
 		[Obsolete("Use SyncingFailed instead")]
 		AgentSetupFailed = SyncingFailed,
 	}
+#pragma warning restore CA1027
 
 	/// <summary>
 	/// Request to update a jobstep batch
