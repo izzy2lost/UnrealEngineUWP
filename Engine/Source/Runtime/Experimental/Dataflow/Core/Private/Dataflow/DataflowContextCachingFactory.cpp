@@ -2,8 +2,8 @@
 
 #include "Dataflow/DataflowContextCachingFactory.h"
 
+#include "ChaosLog.h"
 #include "Dataflow/DataflowNodeParameters.h"
-
 #include "Misc/MessageDialog.h"
 
 namespace Dataflow
