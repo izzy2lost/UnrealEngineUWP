@@ -801,6 +801,7 @@ private:
 	FScene& Scene;
 	FViewInfo& View;
 	FViewCommands& ViewCommands;
+	FSceneBitArray InstancedPrimitiveAddedMap;
 	int32 ViewIndex;
 	const FFilterStaticMeshesForViewData ViewData;
 	const uint32 NumMeshes;
@@ -810,7 +811,6 @@ private:
 	const bool bLaunchOnAddPrimitive;
 	bool bFinished = false;
 	bool bFinalized = false;
-	FSceneBitArray InstancedPrimitiveAddedMap;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
