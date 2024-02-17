@@ -119,7 +119,8 @@ private:
 	TSharedPtr<SWidget> OnContextMenuOpening();
 	
 	TSharedPtr<SSearchBox> TrackFilterBox;
-	
+
+	bool bInExpansionChanged = false;
 	bool bInSelectionChanged = false;
 	bool bDisplayEmptyTracks = false;
 
