@@ -365,6 +365,19 @@ UMovieGraphPin* UMovieGraphNode::GetFirstConnectedInputPin() const
 	return nullptr;
 }
 
+UMovieGraphPin* UMovieGraphNode::GetFirstConnectedOutputPin() const
+{
+	for (const TObjectPtr<UMovieGraphPin>& OutputPin : OutputPins)
+	{
+		if (OutputPin->IsConnected())
+		{
+			return OutputPin.Get();
+		}
+	}
+
+	return nullptr;
+}
+
 bool UMovieGraphNode::CanBeDisabled() const
 {
 	// By default, all nodes can be disabled
