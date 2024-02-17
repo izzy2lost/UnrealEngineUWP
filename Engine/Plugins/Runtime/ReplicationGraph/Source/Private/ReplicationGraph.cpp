@@ -144,6 +144,11 @@ static FAutoConsoleVariableRef CVarRepGraphGridSpatialization2DDestroyDormantDyn
 int32 CVar_RepGraph_ConnectionHeavyComputationAmortization = 0;
 static FAutoConsoleVariableRef CVarRepGraphConnectionHeavyComputationAmortization(TEXT("Net.RepGraph.ConnectionHeavyComputationAmortization"), CVar_RepGraph_ConnectionHeavyComputationAmortization, TEXT("Non zero values enable heavy computation cost amortization by updating one connection per frame."), ECVF_Default);
 
+int32 CVar_RepGraph_LogDebugInfoPeriod = 60 * 5;
+static FAutoConsoleVariableRef CVarRepGraphLogDebugInfoPeriod(TEXT("Net.RepGraph.LogDebugInfoPeriod"), CVar_RepGraph_LogDebugInfoPeriod,
+	TEXT("How long to wait between logging debug info on invalid actors."), ECVF_Default);
+
+
 REPGRAPH_DEVCVAR_SHIPCONST(int32, "Net.RepGraph.LogNetDormancyDetails", CVar_RepGraph_LogNetDormancyDetails, 0, "Logs actors that are removed from the replication graph/nodes.");
 REPGRAPH_DEVCVAR_SHIPCONST(int32, "Net.RepGraph.LogActorRemove", CVar_RepGraph_LogActorRemove, 0, "Logs actors that are removed from the replication graph/nodes.");
 REPGRAPH_DEVCVAR_SHIPCONST(int32, "Net.RepGraph.LogActorAdd", CVar_RepGraph_LogActorAdd, 0, "Logs actors that are added to replication graph/nodes.");
@@ -236,6 +241,61 @@ void UpdateActorConnectionCounter(AActor* InActor, UNetConnection* InConnection,
 #endif
 }
 #endif // WITH_SERVER_CODE
+
+/** Called by IsActorValidForReplication_LogMoreInfo to print more info on a failure */
+void LogMoreInfoOnIsActorValidFailure(const FActorRepListType& In)
+{
+#if WITH_SERVER_CODE
+	// Always log information about the actor (it's not much)
+	if (!DoesActorPointerLookValid(In))
+	{
+#if UE_ACTOR_REPLIST_TYPE_EXTRA_SAFETY
+		UE_LOG(LogReplicationGraph, Error, TEXT("Invalid actor pointer detected during replication: Ptr = %p, Name='%s', Owner='%s', OuterPackage='%s'"),
+			In.ActorRaw, *In.ActorName.ToString(), *In.OwnerName.ToString(), *In.OuterPackageName.ToString()
+			);
+#else
+		UE_LOG(LogReplicationGraph, Error, TEXT("Invalid actor detected during replication: Ptr = %p"), static_cast<AActor*>(In));
+#endif
+	}
+	else
+	{
+		// Actor pointer is valid, but some of its properties may be not 
+		AActor* Actor = In;
+		UE_LOG(LogReplicationGraph, Error, TEXT("Actor not valid for replication (BeingDestroyed:%d) (IsValid:%d) (Unreachable:%d) (TearOff:%d)! Actor = %s"),
+			Actor->IsActorBeingDestroyed(), IsValid(Actor), Actor->IsUnreachable(), Actor->GetTearOff(),
+			*Actor->GetFullName());
+#if UE_ACTOR_REPLIST_TYPE_EXTRA_SAFETY
+		UE_LOG(LogReplicationGraph, Error, TEXT("More info about invalid actor '%s': Owner='%s', OuterPackage='%s'"),
+			*In.ActorName.ToString(), *In.OwnerName.ToString(), *In.OuterPackageName.ToString());
+#endif
+	}
+
+
+	static std::atomic<double> LastTimeLogged = 0;
+	double CurrentTime = FPlatformTime::Seconds();
+	if (CVar_RepGraph_LogDebugInfoPeriod > 0 && ((CurrentTime - LastTimeLogged) > double(CVar_RepGraph_LogDebugInfoPeriod)))
+	{
+		LastTimeLogged = CurrentTime;
+
+		if (DoesActorPointerLookValid(In))
+		{
+			AActor* Actor = In;
+			UE_LOG(LogReplicationGraph, Log, TEXT("Invalid actor found at the last moment, executing Net.RepGraph.PrintAll:"));
+			GEngine->Exec(Actor->GetWorld(), TEXT("Net.RepGraph.PrintAll"));
+		}
+		else
+		{
+			UE_LOG(LogReplicationGraph, Warning, TEXT("Invalid actor found at the last moment, not executing Net.RepGraph.PrintAll due to invalid actor pointer."));
+		}
+
+		UE_LOG(LogReplicationGraph, Log, TEXT("Invalid actor found at the last moment, printing (game-specific) current routing:"));
+		for (TObjectIterator<UReplicationGraph> It; It; ++It)
+		{
+			It->PrintGraphDebugInfo_OnInvalidActor();
+		}
+	}
+#endif // WITH_SERVER_CODE
+}
 
 // --------------------------------------------------------------------------------------------------------------------------------------------
 // --------------------------------------------------------------------------------------------------------------------------------------------
@@ -1326,9 +1386,14 @@ void UReplicationGraph::ReplicateActorListsForConnections_Default(UNetReplicatio
 		{
 			// Add actors from gathered list
 			NumGatheredActorsOnConnection += List.Num();
-			for (AActor* Actor : List)
+			for (const FActorRepListType& Actor : List)
 			{
 				RG_QUICK_SCOPE_CYCLE_COUNTER(Prioritize_InnerLoop);
+
+				if (!ensureMsgf(IsActorValidForReplication_LogMoreInfo(Actor), TEXT("Actor not valid for replication")))
+				{
+					continue;
+				}
 
 				// -----------------------------------------------------------------------------------------------------------------
 				//	Prioritize Actor for Connection: this is the main block of code for calculating a final score for this actor
@@ -1866,7 +1931,7 @@ int64 UReplicationGraph::ReplicateSingleActor_FastShared(AActor* Actor, FConnect
 #endif // WITH_SERVER_CODE
 }
 
-int64 UReplicationGraph::ReplicateSingleActor(AActor* Actor, FConnectionReplicationActorInfo& ActorInfo, FGlobalActorReplicationInfo& GlobalActorInfo, FPerConnectionActorInfoMap& ConnectionActorInfoMap, UNetReplicationGraphConnection& ConnectionManager, const uint32 FrameNum)
+int64 UReplicationGraph::ReplicateSingleActor(const FActorRepListType& Actor, FConnectionReplicationActorInfo& ActorInfo, FGlobalActorReplicationInfo& GlobalActorInfo, FPerConnectionActorInfoMap& ConnectionActorInfoMap, UNetReplicationGraphConnection& ConnectionManager, const uint32 FrameNum)
 {
 #if WITH_SERVER_CODE
 	RG_QUICK_SCOPE_CYCLE_COUNTER(NET_ReplicateActors_ReplicateSingleActor);
@@ -1886,9 +1951,7 @@ int64 UReplicationGraph::ReplicateSingleActor(AActor* Actor, FConnectionReplicat
 		UE_LOG(LogReplicationGraph, Display, TEXT("UReplicationGraph::ReplicateSingleActor: %s. NetConnection: %s"), *Actor->GetName(), *NetConnection->Describe());
 	}
 
-	if (!ensureMsgf(IsActorValidForReplication(Actor), TEXT("Actor not valid for replication (BeingDestroyed:%d) (IsValid:%d) (Unreachable:%d) (TearOff:%d)! Actor = %s, Channel = %s"),
-					Actor->IsActorBeingDestroyed(), IsValid(Actor), Actor->IsUnreachable(), Actor->GetTearOff(),
-					*Actor->GetFullName(), *DescribeSafe(ActorInfo.Channel)))
+	if (!ensureMsgf(IsActorValidForReplication_LogMoreInfo(Actor), TEXT("Actor not valid for replication")))
 	{
 		return 0;
 	}
@@ -4483,6 +4546,10 @@ void UReplicationGraphNode_ConnectionDormancyNode::ConditionalGatherDormantActor
 	for (int32 idx = ConnectionList.Num()-1; idx >= 0; --idx)
 	{
 		FActorRepListType Actor = ConnectionList[idx];
+		if (!ensureMsgf(IsActorValidForReplication_LogMoreInfo(Actor), TEXT("Actor not valid for replication")))
+		{
+			continue;
+		}
 		FConnectionReplicationActorInfo& ConnectionActorInfo = ConnectionActorInfoMap.FindOrAdd(Actor);
 		if (ConnectionActorInfo.bDormantOnConnection)
 		{
@@ -5244,7 +5311,7 @@ void UReplicationGraphNode_GridSpatialization2D::RemoveActorInternal_Static(cons
 	if (CVar_RepGraph_Verify)
 	{
 		// Verify this actor is in no nodes. This is pretty slow!
-		TArray<AActor*> AllActors;
+		TArray<FActorRepListType> AllActors;
 		for (auto& InnerArray : Grid)
 		{
 			for (UReplicationGraphNode_GridCell* N : InnerArray)
