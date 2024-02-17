@@ -2,10 +2,11 @@
 
 #include "AvaInteractiveToolsEdMode.h"
 #include "AvaInteractiveToolsEdModeToolkit.h"
+#include "AvaInteractiveToolsStyle.h"
 #include "ContextObjectStore.h"
+#include "EdModeInteractiveToolsContext.h"
 #include "EditorModeManager.h"
 #include "EditorModes.h"
-#include "EdModeInteractiveToolsContext.h"
 #include "GameFramework/InputSettings.h"
 #include "IAvalancheInteractiveToolsModule.h"
 #include "Selection.h"
@@ -17,7 +18,7 @@ UAvaInteractiveToolsEdMode::UAvaInteractiveToolsEdMode()
 {
 	Info = FEditorModeInfo(IAvalancheInteractiveToolsModule::EM_AvaInteractiveToolsEdModeId,
 		LOCTEXT("AvaInteractiveToolsEdModeName", "Motion Design"),
-		FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("LevelEditor.Tabs.EditorModes")),
+		FSlateIcon(FAvaInteractiveToolsStyle::Get().GetStyleSetName(), TEXT("Icons.Toolbox")),
 		true);
 
 	LastActiveTool = "";
