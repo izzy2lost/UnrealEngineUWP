@@ -13,6 +13,7 @@ import threading
 import time
 from typing import Any, Callable, Optional, Tuple, Type, Union
 from enum import Enum
+from pathlib import Path
 
 from PySide2 import QtCore
 from PySide2 import QtGui
@@ -2864,15 +2865,14 @@ class Config(object):
                 if not fnmatch.fnmatch(umap.name, maps_filter):
                     continue
 
-                map_name, _ = os.path.splitext(umap.name)
-                file_path_to_map = os.path.join(umap.path, map_name)
+                mapgamepath = Path(self.resolve_content_path(
+                    umap.path,
+                    unreal_content_plugin=unreal_content_plugin))
 
-                content_path_to_map = self.resolve_content_path(
-                    file_path_to_map,
-                    unreal_content_plugin=unreal_content_plugin)
+                mapgamepath = (mapgamepath.parent / mapgamepath.stem).as_posix()
 
-                if content_path_to_map not in levels:
-                    levels.append(content_path_to_map)
+                if mapgamepath not in levels:
+                    levels.append(mapgamepath)
 
         levels.sort()
 
