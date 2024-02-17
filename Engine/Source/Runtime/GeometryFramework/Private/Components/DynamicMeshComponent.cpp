@@ -331,11 +331,10 @@ void UDynamicMeshComponent::UpdateAutoCalculatedTangents()
 					AutoCalculatedTangents.SetMesh(&Mesh);
 					AutoCalculatedTangents.ComputeTriVertexTangents(NormalOverlay, UVOverlay, FComputeTangentsOptions());
 					AutoCalculatedTangents.SetMesh(nullptr);
+					bAutoCalculatedTangentsValid = true;
 				}
 			}
 		});
-
-		bAutoCalculatedTangentsValid = true;
 	}
 }
 
