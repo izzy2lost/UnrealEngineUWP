@@ -84,6 +84,8 @@ Audio::EResult USoundHandleSubsystem::Play(const Audio::FSoundHandleID ID)
 				Handle->ActiveSound.AttenuationSettings = *AttenuationSettings;
 				Handle->ActiveSound.FocusData.PriorityScale = AttenuationSettings->GetFocusPriorityScale(GetAudioDeviceHandle().GetAudioDevice()->GetGlobalFocusSettings(), FocusFactor);
 			}
+
+			Handle->ActiveSound.MaxDistance = MaxDistance;
 		}
 		
 		AudioDevice->AddNewActiveSound(Handle->ActiveSound);		
