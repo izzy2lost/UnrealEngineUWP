@@ -667,7 +667,15 @@ void FActiveSound::UpdateInterfaceParameters(const TArray<FListener>& InListener
 	
 	if (bImplementsAttenuation)
 	{
-		const float Distance = SourceDirection.Size();
+		float Distance;
+		if (Listener.bUseAttenuationOverride)
+		{
+			Distance = (Transform.GetLocation() - Listener.AttenuationOverride).Size();
+		}
+		else
+		{
+			Distance = SourceDirection.Size();
+		}
 		ParamsToUpdate.Add({ AttenuationInterface::Inputs::Distance, Distance });
 	}
 
