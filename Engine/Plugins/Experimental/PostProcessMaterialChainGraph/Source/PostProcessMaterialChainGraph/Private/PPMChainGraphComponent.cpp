@@ -189,9 +189,9 @@ void UPPMChainGraphExecutorComponent::TransferState()
 			bool bInputReferencesOutput = false;
 
 			// Validate inputs.
-			for (TTuple<EPPMChainGraphPPMInputId, FString> KeyValue : Pass.Inputs)
+			for (TTuple<EPPMChainGraphPPMInputId, FPPMChainGraphInput> KeyValue : Pass.Inputs)
 			{
-				if (KeyValue.Value == Pass.TemporaryRenderTargetId)
+				if (KeyValue.Value.InputId == Pass.TemporaryRenderTargetId)
 				{
 					bInputReferencesOutput = true;
 

@@ -2,10 +2,14 @@
 
 #include "PPMChainGraphEditorModule.h"
 #include "Modules/ModuleManager.h"
-
+#include "Customizations/PPMChainGraphCustomization.h"
+#include "PropertyEditorModule.h"
+#include "PPMChainGraph.h"
 
 void FPPMChainGraphEditorModule::StartupModule()
 {
+	FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
+	PropertyModule.RegisterCustomClassLayout(UPPMChainGraph::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FPPMChainGraphCustomization::MakeInstance));
 }
 
 void FPPMChainGraphEditorModule::ShutdownModule()

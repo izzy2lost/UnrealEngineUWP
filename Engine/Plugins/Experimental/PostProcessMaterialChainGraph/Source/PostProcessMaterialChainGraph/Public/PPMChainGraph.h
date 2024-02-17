@@ -59,6 +59,19 @@ enum class EPPMChainGraphExecutionLocation : uint8
 };
 
 
+/**
+* This struct is used for customizing Input and External Texture input selection.
+*/
+USTRUCT(BlueprintType)
+struct FPPMChainGraphInput
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Input)
+	FString InputId;
+};
+
+
 USTRUCT(Blueprintable)
 struct FPPMChainGraphPostProcessPass
 {
@@ -70,8 +83,14 @@ struct FPPMChainGraphPostProcessPass
 
 	/** Inputs from previous passes. Map this to Scene Texture node in Post Process Material. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Post Process Pass Inputs")
-	TMap<EPPMChainGraphPPMInputId, FString> Inputs;
-	
+	TMap<EPPMChainGraphPPMInputId, FPPMChainGraphInput> Inputs;
+
+	/**
+	* Which material should be executed during this pass.
+	*/
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Post Process Pass Material")
+	TObjectPtr<UMaterial> PostProcessMaterial;
+
 	/** 
 	* Where should this pass write to. By selecting Temporary Render Target as an option, 
 	* Users can avoid writing directly into Scene Color. For example this pass can operate
@@ -84,12 +103,6 @@ struct FPPMChainGraphPostProcessPass
 	/** Use this to identify the Output of the current pass to be used later. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Post Process Pass Output", meta = (EditCondition = "Output == EPPMChainGraphOutput::PPMOutput_RenderTarget", EditConditionHides))
 	FString TemporaryRenderTargetId;
-
-	/**
-	* Which material should be executed during this pass.
-	*/
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Post Process Pass Material")
-	TObjectPtr<UMaterial> PostProcessMaterial;
 };
 
 
@@ -125,6 +138,6 @@ public:
 	* Post Process Material Passes. Each pass can write into the Scene Color or into a temporary render target that can
 	* be referenced in subsequent passes. At the end of all passes the result is always written into Scene Color.
 	*/
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Post Process Passes")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Post Process Passes", meta = (TitleProperty = "TemporaryRenderTargetId"))
 	TArray<FPPMChainGraphPostProcessPass> Passes;
 };
