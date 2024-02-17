@@ -134,7 +134,7 @@ FFrameNumber FSequencerOutlinerViewModel::GetNextKeyInternal(const TArray<TShare
 
 		KeyCollection->Update(FSequencerKeyCollectionSignature::FromNodesRecursive(InNodes, ThresholdFrames));
 
-		TOptional<FFrameNumber> NextKey = KeyCollection->GetNextKey(FrameNumber, Direction, Range);
+		TOptional<FFrameNumber> NextKey = KeyCollection->GetNextKey(FrameNumber, Direction, Range, EFindKeyType::FKT_All);
 		if (NextKey.IsSet())
 		{
 			if (TimeUnit == EMovieSceneTimeUnit::DisplayRate)
