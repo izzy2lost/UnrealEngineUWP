@@ -156,7 +156,9 @@ public:
 		TMap<EControllerHand, FOpenXRController> Controllers;
 		TMap<FName, EControllerHand> MotionSourceToControllerHandMap;
 
-		TSet<TStrongObjectPtr<UInputMappingContext>> InputMappingContexts;
+		// Holds Enhanced Input Mapping Contexts pulled from the Enhanced Input Settings and mapped to their priority
+		// These will be converted into OpenXR action sets
+		TMap<TStrongObjectPtr<const UInputMappingContext>, uint32> InputMappingContextToPriorityMap;
 
 		XrAction GetActionForMotionSource(FName MotionSource) const;
 		int32 GetDeviceIDForMotionSource(FName MotionSource) const;

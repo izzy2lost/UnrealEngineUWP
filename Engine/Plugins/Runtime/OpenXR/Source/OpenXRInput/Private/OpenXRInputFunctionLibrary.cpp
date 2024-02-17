@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "OpenXRInputFunctionLibrary.h"
-#include "OpenXRInputSettings.h"
 
 #include "Engine/Engine.h"
 #include "Features/IModularFeatures.h"

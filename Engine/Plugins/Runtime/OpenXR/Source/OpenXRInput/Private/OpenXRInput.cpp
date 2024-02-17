@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "OpenXRInput.h"
-#include "OpenXRInputSettings.h"
+#include "EnhancedInputDeveloperSettings.h"
 #include "IOpenXRHMD.h"
 #include "IXRTrackingSystem.h"
 #include "OpenXRCore.h"
@@ -263,7 +263,7 @@ FOpenXRInputPlugin::FOpenXRInput::FOpenXRInput(IXRTrackingSystem* InTrackingSyst
 	, EnhancedActions()
 	, Controllers()
 	, MotionSourceToControllerHandMap()
-	, InputMappingContexts()
+	, InputMappingContextToPriorityMap()
 	, bActionsAttached(false)
 	, bDirectionalBindingSupported(false)
 	, bPalmPoseSupported(false)
@@ -403,17 +403,17 @@ bool FOpenXRInputPlugin::FOpenXRInput::BuildActions(XrSession Session)
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	// Attempt to load the default input config from the OpenXR input settings.
-	UOpenXRInputSettings* InputSettings = GetMutableDefault<UOpenXRInputSettings>();
+	const UEnhancedInputDeveloperSettings* InputSettings = GetDefault<UEnhancedInputDeveloperSettings>();
 	if (InputSettings)
 	{
-		for (const auto& Context : InputSettings->InputMappingContexts)
+		for (const auto& Context : InputSettings->DefaultMappingContexts)
 		{
-			TStrongObjectPtr<UInputMappingContext> Obj(Context.LoadSynchronous());
-			InputMappingContexts.Add(Obj);
+			TStrongObjectPtr<const UInputMappingContext> Obj(Context.InputMappingContext.LoadSynchronous());
+			InputMappingContextToPriorityMap.Add(Obj, Context.Priority);
 		}
 	}
 
-	if (!InputMappingContexts.IsEmpty())
+	if (!InputMappingContextToPriorityMap.IsEmpty())
 	{
 		BuildEnhancedActions(Profiles);
 	}
@@ -607,12 +607,12 @@ void FOpenXRInputPlugin::FOpenXRInput::BuildEnhancedActions(TMap<FString, FInter
 	}
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	for (const auto& MappingContext : InputMappingContexts)
+	for (const auto& MappingContext : InputMappingContextToPriorityMap)
 	{
-		FOpenXRActionSet ActionSet(Instance, MappingContext->GetFName(), MappingContext->ContextDescription.ToString(), 0, MappingContext.Get());
+		FOpenXRActionSet ActionSet(Instance, MappingContext.Key->GetFName(), MappingContext.Key->ContextDescription.ToString(), MappingContext.Value, MappingContext.Key.Get());
 		TMap<FName, int32> ActionMap;
 
-		for (const FEnhancedActionKeyMapping& Mapping : MappingContext->GetMappings())
+		for (const FEnhancedActionKeyMapping& Mapping : MappingContext.Key->GetMappings())
 		{
 			if (!Mapping.Action)
 			{
@@ -796,7 +796,7 @@ void FOpenXRInputPlugin::FOpenXRInput::OnDestroySession()
 	{
 		// If the session shut down, clean up.
 		bActionsAttached = false;
-		InputMappingContexts.Reset();
+		InputMappingContextToPriorityMap.Reset();
 	}
 }
 
@@ -1482,7 +1482,7 @@ bool FOpenXRInputPlugin::FOpenXRInput::AttachInputMappingContexts(const TSet<TOb
 
 	for (const auto& Context : MappingContexts)
 	{
-		InputMappingContexts.Add(TStrongObjectPtr<UInputMappingContext>(Context));
+		InputMappingContextToPriorityMap.Add(TStrongObjectPtr<UInputMappingContext>(Context), 0);
 	}
 	return true;
 }
