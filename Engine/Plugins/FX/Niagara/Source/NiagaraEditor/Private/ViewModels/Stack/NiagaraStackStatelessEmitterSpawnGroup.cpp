@@ -10,6 +10,8 @@
 #include "Stateless/NiagaraDistributionIntPropertyCustomization.h"
 #include "Stateless/NiagaraStatelessEmitter.h"
 #include "Styling/AppStyle.h"
+#include "ViewModels/NiagaraSystemSelectionViewModel.h"
+#include "ViewModels/NiagaraSystemViewModel.h"
 #include "ViewModels/Stack/NiagaraStackItemPropertyHeaderValueShared.h"
 #include "ViewModels/Stack/NiagaraStackObject.h"
 
@@ -98,6 +100,13 @@ void UNiagaraStackStatelessEmitterSpawnGroup::RefreshChildrenInternal(const TArr
 
 void UNiagaraStackStatelessEmitterSpawnGroup::OnSpawnInfoAdded(FGuid AddedItemId)
 {
+	GetSystemViewModel()->GetSelectionViewModel()->EmptySelection();
+	GetSystemViewModel()->GetSelectionViewModel()->AddEntryToSelectionBySelectionIdDeferred(AddedItemId);
+	UNiagaraStatelessEmitter* StatelessEmitter = StatelessEmitterWeak.Get();
+	if (StatelessEmitter != nullptr)
+	{
+		OnDataObjectModified().Broadcast({ StatelessEmitter }, ENiagaraDataObjectChange::Changed);
+	}
 	RefreshChildren();
 }
 
@@ -128,6 +137,11 @@ void UNiagaraStackStatelessEmitterSpawnItem::Initialize(FRequiredEntryData InReq
 FText UNiagaraStackStatelessEmitterSpawnItem::GetDisplayName() const
 {
 	return LOCTEXT("EmitterSpawnDisplayName", "Spawn Info");
+}
+
+FGuid UNiagaraStackStatelessEmitterSpawnItem::GetSelectionId() const
+{
+	return SourceId;
 }
 
 bool UNiagaraStackStatelessEmitterSpawnItem::TestCanDeleteWithMessage(FText& OutCanDeleteMessage) const
