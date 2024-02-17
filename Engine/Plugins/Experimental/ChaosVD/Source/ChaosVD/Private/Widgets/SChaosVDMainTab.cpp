@@ -434,9 +434,14 @@ void SChaosVDMainTab::BrowseAndOpenChaosVDRecording()
 	EChaosVDBrowseFileModalResponse Response = SessionBrowserModal->ShowModal();
 	switch(Response)
 	{
-		case EChaosVDBrowseFileModalResponse::OpenFolder:
+		case EChaosVDBrowseFileModalResponse::OpenLastFolder:
 			{
 				BrowseChaosVDRecordingFromFolder();
+				break;
+			}
+		case EChaosVDBrowseFileModalResponse::OpenProfilingFolder:
+			{
+				BrowseChaosVDRecordingFromFolder(*FPaths::ProfilingDir());
 				break;
 			}
 		case EChaosVDBrowseFileModalResponse::OpenTraceStore:
@@ -474,7 +479,7 @@ void SChaosVDMainTab::BrowseChaosVDRecordingFromFolder(FStringView FolderPath)
 			FSlateApplication::Get().FindBestParentWindowHandleForDialogs(AsShared()),
 			LOCTEXT("OpenDialogTitle", "Open Chaos Visual Debug File").ToString(),
 			FolderPath.GetData(),
-			*FPaths::ProfilingDir(),
+			TEXT(""),
 			*ExtensionStr,
 			EFileDialogFlags::None,
 			OutOpenFilenames
