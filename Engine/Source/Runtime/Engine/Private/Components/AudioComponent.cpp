@@ -723,7 +723,6 @@ void UAudioComponent::PlayInternal(const PlayInternalRequestData& InPlayRequestD
 
 	FActiveSound NewActiveSound;
 	NewActiveSound.SetAudioComponent(*this);
-	NewActiveSound.SetAudioDevice(AudioDevice);
 	NewActiveSound.SetWorld(World);
 	NewActiveSound.SetSound(SoundToPlay);
 	NewActiveSound.SetSourceEffectChain(SourceEffectChain);
@@ -817,6 +816,8 @@ void UAudioComponent::PlayInternal(const PlayInternalRequestData& InPlayRequestD
 
 	// Pass down any source buffer listener we have
 	NewActiveSound.SetSourceListener(SourceBufferListener, bShouldSourceBufferListenerZeroBuffer);
+
+	NewActiveSound.MaxDistance = MaxDistance;
 
 	// Setup the submix and bus sends that may have been set before playing
 	for (FSoundSubmixSendInfo& SubmixSendInfo : PendingSubmixSends)

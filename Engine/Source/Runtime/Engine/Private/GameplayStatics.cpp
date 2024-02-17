@@ -1603,7 +1603,6 @@ void UGameplayStatics::PlaySound2D(const UObject* WorldContextObject, USoundBase
 	if (FAudioDeviceHandle AudioDevice = ThisWorld->GetAudioDevice())
 	{
 		FActiveSound NewActiveSound;
-		NewActiveSound.SetAudioDevice(AudioDevice.GetAudioDevice());
 		NewActiveSound.SetSound(Sound);
 		NewActiveSound.SetWorld(ThisWorld);
 
