@@ -185,6 +185,7 @@ private:
 	void ClearHover(bool bClearHoverInfo = true);
 
 	void ApplyClick();
+	void UpdateToolMessage();
 
 	// Used to remember click info to apply on tick
 	int32 ClickedTid = IndexConstants::InvalidID;

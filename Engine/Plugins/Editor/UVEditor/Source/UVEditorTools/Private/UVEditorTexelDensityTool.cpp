@@ -303,9 +303,7 @@ void UUVEditorTexelDensityTool::Setup()
 
 
 	SetToolDisplayName(LOCTEXT("ToolNameLocal", "Texel Density"));
-	GetToolManager()->DisplayMessage(
-		LOCTEXT("OnStartTool_TexelDensity", "Read and rescale UVs based on texel density values."),
-		EToolMessageLevel::UserNotification);
+	UpdateToolMessage();
 
 	// Analytics
 	InputTargetAnalytics = UVEditorAnalytics::CollectTargetAnalytics(Targets);
@@ -615,6 +613,8 @@ void UUVEditorTexelDensityTool::OnTick(float DeltaTime)
 	{
 		Target->AppliedPreview->Tick(DeltaTime);
 	}
+
+	UpdateToolMessage();
 }
 
 void UUVEditorTexelDensityTool::Render(IToolsContextRenderAPI* RenderAPI)
@@ -652,6 +652,7 @@ void UUVEditorTexelDensityTool::OnPropertyModified(UObject* PropertySet, FProper
 	if (PendingAction == ETexelDensityToolAction::Sampling)
 	{
 		PendingAction = ETexelDensityToolAction::NoAction;
+		UpdateToolMessage();
 	}
 
 	if (PendingAction == ETexelDensityToolAction::NoAction || PendingAction == ETexelDensityToolAction::Processing)
@@ -669,6 +670,8 @@ void UUVEditorTexelDensityTool::RequestAction(ETexelDensityToolAction ActionType
 	{
 		PendingAction = ActionType;
 	}
+
+	UpdateToolMessage();
 }
 
 ETexelDensityToolAction UUVEditorTexelDensityTool::ActiveAction() const
@@ -679,6 +682,7 @@ ETexelDensityToolAction UUVEditorTexelDensityTool::ActiveAction() const
 void UUVEditorTexelDensityTool::PerformBackgroundScalingTask()
 {
 	PendingAction = ETexelDensityToolAction::Processing;
+	UpdateToolMessage();
 
 	RemainingTargetsToProcess = 0;
 	if (UVToolSelectionAPI->HaveSelections())
@@ -697,7 +701,30 @@ void UUVEditorTexelDensityTool::PerformBackgroundScalingTask()
 			Targets[TargetIndex]->AppliedPreview->InvalidateResult();
 		}
 	}
+}
 
+void UUVEditorTexelDensityTool::UpdateToolMessage()
+{
+	switch (PendingAction)
+	{
+	case ETexelDensityToolAction::NoAction:
+		GetToolManager()->DisplayMessage(LOCTEXT("OnStartTool_TexelDensity", "Read and rescale UVs based on texel density values."),
+			EToolMessageLevel::UserNotification);
+		break;
+	case ETexelDensityToolAction::Processing:
+		GetToolManager()->DisplayMessage(LOCTEXT("OnProcessing_TexelDensity", "Applying texel density scaling. Please wait..."),
+			EToolMessageLevel::UserNotification);
+		break;
+	case ETexelDensityToolAction::BeginSamping:
+	case ETexelDensityToolAction::Sampling:
+		GetToolManager()->DisplayMessage(LOCTEXT("OnSampling_TexelDensity", "Click on a triangle in the UV or 3D preview viewport to set the tool's current texel density ratio to be equal to that triangle."),
+			EToolMessageLevel::UserNotification);
+		break;
+	default:
+		ensure(false);
+		GetToolManager()->DisplayMessage(FText(), EToolMessageLevel::UserNotification);
+		break;
+	}
 }
 
 void UUVEditorTexelDensityTool::RecordAnalytics()
