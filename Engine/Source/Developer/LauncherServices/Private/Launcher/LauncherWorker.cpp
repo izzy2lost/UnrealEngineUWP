@@ -493,6 +493,15 @@ FString FLauncherWorker::CreateUATCommand( const ILauncherProfileRef& InProfile,
 		UATCommand += TEXT(" -target=") + InProfile->GetBuildTarget();
 	}
 
+	if (InProfile->IsDeviceASimulator())
+	{
+		if (Platforms.Contains(TEXT("IOS")))
+		{
+			UATCommand += TEXT(" -clientarchitecture=iossimulator");
+		}
+		// TODO: add tvOS and VisionOS simulators below
+	}
+
 	// device list
 	FString DeviceNames = TEXT("");
 	FString DeviceCommand = TEXT("");

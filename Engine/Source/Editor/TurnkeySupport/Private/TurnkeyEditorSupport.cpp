@@ -90,7 +90,7 @@ void FTurnkeyEditorSupport::PrepareToLaunchRunningMap(const FString& DeviceId, c
 #endif
 }
 
-void FTurnkeyEditorSupport::LaunchRunningMap(const FString& DeviceId, const FString& DeviceName, const FString& ProjectPath, bool bUseTurnkey)
+void FTurnkeyEditorSupport::LaunchRunningMap(const FString& DeviceId, const FString& DeviceName, const FString& ProjectPath, bool bUseTurnkey, bool bOnSimulator)
 {
 #if WITH_EDITOR
 	FTargetDeviceId TargetDeviceId;
@@ -130,6 +130,7 @@ void FTurnkeyEditorSupport::LaunchRunningMap(const FString& DeviceId, const FStr
 			// @todo turnkey: we set this to false because we will kick off a Turnkey run before cooking, etc, to get an early warning. however, if it's too difficult
 			// to get an error back from CreateUatTask, then we should set this to bUseTurnkey and remove the block below, and let the code in FLauncherWorker::CreateAndExecuteTasks handle it
 			DeviceInfo.bUpdateDeviceFlash = false;
+			DeviceInfo.bIsSimulator = bOnSimulator;
 
 			FRequestPlaySessionParams SessionParams;
 			SessionParams.SessionDestination = EPlaySessionDestinationType::Launcher;
