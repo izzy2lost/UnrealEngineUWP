@@ -677,8 +677,19 @@ void FLevelBasedActorList::AppendAllLists(FGatheredReplicationActorLists& OutGat
 
 void FLevelBasedActorList::GetAllActors(TArray<AActor*>& OutAllActors) const
 {
+#if !UE_ACTOR_REPLIST_TYPE_EXTRA_SAFETY
 	PermanentLevelActors.AppendToTArray(OutAllActors);
 	StreamingLevelActors.GetAll_Debug(OutAllActors);
+#else
+	TArray<FActorRepListType> AllActors;
+	PermanentLevelActors.AppendToTArray(AllActors);
+	StreamingLevelActors.GetAll_Debug(AllActors);
+
+	for (const FActorRepListType& RepListActor : AllActors)
+	{
+		OutAllActors.Add(RepListActor);
+	}
+#endif
 }
 
 void FLevelBasedActorList::CountBytes(FArchive& Ar) const

@@ -67,7 +67,119 @@ LLM_DECLARE_TAG_API(NetRepGraph, REPLICATIONGRAPH_API);
 // fast into arrays etc. (Currently we are using TMaps for associative data, static arrays would be faster but introduce constraints and headaches)
 // So for now, using a typedef and some helper functions to call out the interface/usage of FActorRepListType.
 
+// This define embeds an extra FObjectKey for a validity check
+#ifndef UE_ENABLE_ACTOR_REPLIST_TRACKING
+	#define UE_ENABLE_ACTOR_REPLIST_TRACKING 0
+#endif
+
+#define UE_ACTOR_REPLIST_TYPE_EXTRA_SAFETY			(UE_SERVER && UE_ENABLE_ACTOR_REPLIST_TRACKING)
+
+#if !UE_ACTOR_REPLIST_TYPE_EXTRA_SAFETY
 typedef AActor* FActorRepListType;
+FORCEINLINE bool DoesActorPointerLookValid(const AActor* In)
+{
+	return ((uint64)(In) & 0x0F) == 0;
+}
+#else
+struct FActorRepListType
+{
+	/** Actual load-bearing payload */
+	AActor* ActorRaw;
+	/** Validity test */
+	FObjectKey ActorKey;
+
+	/** More info for debugging - ActorRaw's name */
+	FName ActorName;
+	/** More info for debugging - ActorRaw's Owner name */
+	FName OwnerName;
+	/** More info for debugging - ActorRaw's Outer's package name */
+	FName OuterPackageName;
+
+	inline void SetDebugInfo()
+	{
+		ActorName = OwnerName = OuterPackageName = NAME_None;
+		if (LIKELY(ActorRaw))
+		{
+			ActorName = ActorRaw->GetFName();
+			OwnerName = ActorRaw->GetOwner() ? ActorRaw->GetOwner()->GetFName() : NAME_None;
+			if (LIKELY(ActorRaw->GetOuter()))
+			{
+				// judging by the implementation GetPackage() cannot return nullptr, but play it safe
+				UPackage* Pkg = ActorRaw->GetOuter()->GetPackage();
+				if (LIKELY(Pkg))
+				{
+					OuterPackageName = Pkg->GetFName();
+				}
+			}
+		}
+	}
+
+	FActorRepListType() = default;
+
+	FActorRepListType(AActor* InActor)
+		: ActorRaw(InActor)
+		, ActorKey(InActor)
+	{
+		SetDebugInfo();
+	}
+
+	// to support conversion from TObjectPtr<ASubclassOfActor>
+	template <
+		typename T,
+		decltype(ImplicitConv<AActor*>(std::declval<const T&>())) = nullptr
+	>
+	FActorRepListType(const T& InActor)
+		: ActorRaw(InActor)
+		, ActorKey(InActor)
+	{
+		SetDebugInfo();
+	}
+
+	operator AActor*() { return ActorRaw; }
+	operator AActor*() const { return ActorRaw; }
+	AActor* operator->() { return ActorRaw; }
+	AActor* operator->() const { return ActorRaw; }
+	operator uint64() const { return reinterpret_cast<uint64>(ActorRaw); }
+	FActorRepListType& operator=(FActorRepListType const& InActor) = default;
+	FActorRepListType& operator=(AActor* InActor)
+	{
+		ActorRaw = InActor;
+		ActorKey = InActor;
+		SetDebugInfo();
+		return *this;
+	}
+	FActorRepListType& operator=(TObjectPtr<AActor> InActor)
+	{
+		ActorRaw = InActor;
+		ActorKey = InActor;
+		SetDebugInfo();
+		return *this;
+	}
+	bool operator==(FActorRepListType const& Other) const
+	{
+		return ActorRaw == Other.ActorRaw;
+	}
+	bool operator==(AActor* Other) const
+	{
+		return ActorRaw == Other;
+	}
+	bool IsValid() const
+	{
+		UObject const* Object = ActorKey.ResolveObjectPtr();
+		return Object && Object == static_cast<UObject const*>(ActorRaw);
+	}
+};
+template< class T > FORCEINLINE T* Cast(const FActorRepListType& Src) { return Cast<T>(Src.ActorRaw); }
+template< class T > FORCEINLINE T* ExactCast(const FActorRepListType& Src) { return ExactCast<T>(Src.ActorRaw); }
+template< class T > FORCEINLINE T* CastChecked(const FActorRepListType& Src, ECastCheckedType::Type CheckType = ECastCheckedType::NullChecked) { return CastChecked<T>(Src.ActorRaw, CheckType); }
+
+
+FORCEINLINE bool DoesActorPointerLookValid(const FActorRepListType& In)
+{
+	return In.IsValid();
+}
+#endif
+
 FORCEINLINE FString GetActorRepListTypeDebugString(const FActorRepListType& In) { return GetNameSafe(In); }
 FORCEINLINE UClass* GetActorRepListTypeClass(const FActorRepListType& In) { return In->GetClass(); }
 
@@ -80,7 +192,21 @@ enum class EActorRepListTypeFlags : uint8
 };
 
 // Tests if an actor is valid for replication: not pending kill, etc. Says nothing about wanting to replicate or should replicate, etc.
-FORCEINLINE bool IsActorValidForReplication(const FActorRepListType& In) { return !In->IsActorBeingDestroyed() && IsValidChecked(In) && !In->IsUnreachable(); }
+FORCEINLINE bool IsActorValidForReplication(const FActorRepListType& In)
+{ 
+	return DoesActorPointerLookValid(In) && !In->IsActorBeingDestroyed() && IsValidChecked(In) && !In->IsUnreachable(); 
+}
+REPLICATIONGRAPH_API void LogMoreInfoOnIsActorValidFailure(const FActorRepListType& In);
+FORCEINLINE bool IsActorValidForReplication_LogMoreInfo(const FActorRepListType& In)
+{ 
+	if (LIKELY(IsActorValidForReplication(In)))
+	{
+		return true;
+	}
+
+	LogMoreInfoOnIsActorValidFailure(In);
+	return false;
+}
 
 // Tests if an actor is valid for replication gathering. Meaning, it can be gathered from the replication graph and considered for replication.
 FORCEINLINE bool IsActorValidForReplicationGather(const FActorRepListType& In)
@@ -921,7 +1047,7 @@ struct FGlobalActorReplicationInfoMap
 			return *Ptr->Get();
 		}
 
-		ensureMsgf(IsActorValidForReplication(Actor), TEXT("This obj %s is pending to kill, storing this data will generate stale data in the map."), *GetPathNameSafe(Actor));
+		ensureMsgf(IsActorValidForReplication_LogMoreInfo(Actor), TEXT("An invalid actor pointer is passed to FGlobalActorReplicationInfo::Get(), storing this data will generate stale data in the map."));
 
 		// We need to add data for this actor
 		FClassReplicationInfo& ClassInfo = GetClassInfo( GetActorRepListTypeClass(Actor) );
@@ -941,7 +1067,7 @@ struct FGlobalActorReplicationInfoMap
 			return *Ptr->Get();
 		}
 
-		ensureMsgf(IsActorValidForReplication(Actor), TEXT("This obj %s is pending to kill, storing this data will generate stale data in the map."), *GetPathNameSafe(Actor));
+		ensureMsgf(IsActorValidForReplication_LogMoreInfo(Actor), TEXT("An invalid actor pointer is passed to FGlobalActorReplicationInfo::Get(), storing this data will generate stale data in the map."));
 
 		bWasCreated = true;
 
