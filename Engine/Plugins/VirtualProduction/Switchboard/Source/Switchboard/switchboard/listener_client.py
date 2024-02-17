@@ -61,11 +61,14 @@ class SwitchboardClientProtocol(QuicConnectionProtocol):
             cred: Optional[CredentialStore.Credential],
             unsaved: bool
         ):
+            def auth_exception():
+                auth_response.set_exception(RuntimeError)
+                self.close()
+
             if not cred:
                 self._quic._logger.error(
                     'No credential for %s', host)
-                auth_response.set_exception(RuntimeError)
-                self.close()
+                self._loop.call_soon_threadsafe(auth_exception)
                 return
 
             nonlocal closure_credential, closure_cred_unsaved
@@ -81,8 +84,7 @@ class SwitchboardClientProtocol(QuicConnectionProtocol):
                     '%s (expected)\n'
                     '%s (actual)',
                     host, cred.username, fingerprint_str)
-                auth_response.set_exception(RuntimeError)
-                self.close()
+                self._loop.call_soon_threadsafe(auth_exception)
                 return
 
             if self.client:
@@ -92,7 +94,7 @@ class SwitchboardClientProtocol(QuicConnectionProtocol):
                 self.client.get_message_response(msgid, msg,
                                                  future=auth_response)
             else:
-                auth_response.set_exception(RuntimeError)
+                self._loop.call_soon_threadsafe(auth_exception)
 
         CREDENTIAL_STORE.get(
             key=host,
@@ -145,6 +147,7 @@ class ListenerClient:
     EXTRA_HITCH_TOLERANCE_SEC = 0.4
     HITCH_THRESHOLD_SEC = (KEEPALIVE_INTERVAL_SEC + SELECT_TIMEOUT_SEC
                            + EXTRA_HITCH_TOLERANCE_SEC)
+    IDLE_TIMEOUT_SEC = 5.0
 
     def __init__(self, address, port, buffer_size=1024):
         self.address = address
@@ -158,6 +161,7 @@ class ListenerClient:
         self.loop: Optional[asyncio.AbstractEventLoop] = None
         self.loop_thread: Optional[threading.Thread] = None
         self.close_connection = False
+        self.is_authenticated = False
 
         # TODO: Consider converting these delegates to Signals and sending dict
 
@@ -216,6 +220,7 @@ class ListenerClient:
             return False
 
         self.close_connection = False
+        self.is_authenticated = False
         self.last_activity = datetime.now()
 
         self.listener_qt_handler.listener_connecting.emit(self)
@@ -226,7 +231,7 @@ class ListenerClient:
         return True
 
     def disconnect(self, unexpected=False, exception=None):
-        if self.protocol:
+        if self.protocol and self.loop:
             _, msg = message_protocol.create_disconnect_message()
             self.send_message(msg)
             self.loop.call_soon_threadsafe(self.protocol.close)
@@ -248,12 +253,17 @@ class ListenerClient:
 
     def _loop_threadproc(self, **kwargs):
         try:
-            _ = asyncio.run(self._async_main(**kwargs), debug=True)
-        except ConnectionError as exc:
+            _ = asyncio.run(self._async_main(**kwargs))
+        except Exception as exc:
+            self.listener_qt_handler.listener_connection_failed.emit(self)
             if self.disconnect_delegate:
                 self.disconnect_delegate(unexpected=True, exception=exc)
 
+        self.reader = None
+        self.writer = None
+        self.protocol = None
         self.loop = None
+        self.is_authenticated = False
 
     async def _async_main(self, timeout: Optional[float]):
         LOGGER.info(f"Connecting to {self.address}:{self.port}")
@@ -264,7 +274,7 @@ class ListenerClient:
             alpn_protocols=[SWITCHBOARD_ALPN],
             is_client=True)
 
-        configuration.idle_timeout = timeout or 10.0
+        configuration.idle_timeout = timeout or self.IDLE_TIMEOUT_SEC
 
         # We deal exclusively with self-signed certificates in practice,
         # and depend trust-on-first-use and validating the fingerprint.
@@ -283,17 +293,13 @@ class ListenerClient:
             self.reader._limit = 2 ** 20  # 1 MiB max message (default 64 KiB)
             message_recv_task = asyncio.create_task(self._message_recv_loop())
 
-            is_authenticated = await self.protocol.authenticate()
-            if is_authenticated:
+            self.is_authenticated = await self.protocol.authenticate()
+            if self.is_authenticated:
                 self.listener_qt_handler.listener_connected.emit(self)
                 await asyncio.wait_for(message_recv_task, timeout=None)
             else:
                 LOGGER.error('Authentication failed!')
                 self.listener_qt_handler.listener_connection_failed.emit(self)
-
-        self.reader = None
-        self.writer = None
-        self.protocol = None
 
         if self.disconnect_delegate:
             self.disconnect_delegate(
@@ -427,7 +433,7 @@ class ListenerClient:
         message_id: uuid.UUID,
         message_bytes: bytes,
         *,
-        max_wait=5.0,
+        max_wait=IDLE_TIMEOUT_SEC,
         future: Optional[asyncio.Future[dict[str, str]]] = None
     ) -> asyncio.Future[dict[str, str]]:
         if self.loop and self.protocol and self.writer:
