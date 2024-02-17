@@ -20,6 +20,7 @@ namespace UnrealBuildTool.Rules
 					"AssetTools",
 					"AssetRegistry",
 					"DataLayerEditor",
+					"DataValidation",
 					"DeveloperSettings",
 					"Engine",
 					"ModularGameplay",
