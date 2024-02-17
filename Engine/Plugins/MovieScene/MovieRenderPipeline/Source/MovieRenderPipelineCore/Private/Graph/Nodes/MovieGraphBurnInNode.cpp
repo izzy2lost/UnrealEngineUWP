@@ -135,7 +135,7 @@ void UMovieGraphBurnInNode::FMovieGraphBurnInPass::Render(const FMovieGraphTrave
 int32 UMovieGraphBurnInNode::FMovieGraphBurnInPass::GetCompositingSortOrder() const
 {
 	// Burn-ins should always appear over all other passes
-	return 0;
+	return 100;
 }
 
 UClass* UMovieGraphBurnInNode::FMovieGraphBurnInPass::GetBurnInClass() const

@@ -70,23 +70,6 @@ namespace UE::MovieGraph::Private
 
 		return Params;
 	}
-
-	/** Determine whether this token should be added based on the number of unique SubResourceNames in ExpectedRenderPasses. */
-	bool ShouldIncludeSubRendererName(const TArray<FMovieGraphRenderDataIdentifier>& ExpectedRenderPasses)
-	{
-		TSet<FString> PassNames;
-		for (const FMovieGraphRenderDataIdentifier& Pass : ExpectedRenderPasses)
-		{
-			PassNames.Add(Pass.SubResourceName);
-
-			if (PassNames.Num() > 1)
-			{
-				return true;
-			}
-		}
-
-		return false;
-	}
 	
 #if WITH_OCIO
 	struct FOpenColorIOPixelPreProcessor
@@ -244,8 +227,8 @@ TArray<TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>> UMov
 		CompositedPasses.Add(MoveTemp(CompositePass));
 	}
 
-	// Sort composited passes if multiple were found. Passes with a smaller sort order go to the end of the array so they
-	// get composited on top of passes with a higher sort order.
+	// Sort composited passes if multiple were found. Passes with a higher sort order go to the end of the array so they
+	// get composited on top of passes with a lower sort order.
 	CompositedPasses.Sort([](
 		const TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>& PassA,
 		const TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>& PassB)
@@ -255,7 +238,7 @@ TArray<TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>> UMov
 		check(PayloadA);
 		check(PayloadB);
 
-		return PayloadA->CompositingSortOrder > PayloadB->CompositingSortOrder;
+		return PayloadA->CompositingSortOrder < PayloadB->CompositingSortOrder;
 	});
 
 	return CompositedPasses;
@@ -287,27 +270,36 @@ FString UMovieGraphImageSequenceOutputNode::CreateFileName(
 	// Generate one string that puts the directory combined with the filename format.
 	FString FileNameFormatString = OutputSettingNode->OutputDirectory.Path / InParentNode->FileNameFormat;
 
-	// These two checks seem slightly backwards, but are the correct way to handle it. If there is
-	// multiple branches with data, we try to separate them by layer name (which is likely to be unique).
-	// Below we do the same check again in reverse - if there are multiple layers that share this name,
-	// then we need to insert the branch_name to differentiate them.
 	// ToDo: This is overly protective and could be relaxed later, for instance
 	// if different file write nodes have chosen a separate filepath entirely.
-	if (InRawFrameData->HasDataFromMultipleBranches())
+	UE::MovieGraph::FMovieGraphRenderDataValidationInfo ValidationInfo = InRawFrameData->GetValidationInfo(InRenderData.Key);
+
+	// Since there can only be one layer per branch, we restrain layer/branch validation to multi-branch graphs.
+	if (ValidationInfo.BranchCount > 1)
 	{
-		UE::MoviePipeline::ConformOutputFormatStringToken(FileNameFormatString, TEXT("{layer_name}"), InParentNode->GetFName(), InRenderData.Key.RootBranchName);
-	}
-	// We can run into the scenario where the users have given layers the same name, so layer_name token won't help differentiate.
-	// To resolve this, we do the reverse search now - look to see if there's multiple branches with the same layer name, and if so
-	// we force the branch name into the token too.
-	if (InRawFrameData->HasDataFromMultipleLayersWithName(InRenderData.Key.LayerName))
-	{
-		UE::MoviePipeline::ConformOutputFormatStringToken(FileNameFormatString, TEXT("{branch_name}"), InParentNode->GetFName(), InRenderData.Key.RootBranchName);
+		// We can run into the scenario where the users have given layers the same name, so layer_name token won't help differentiate.
+		// To resolve this, we look to see if there's multiple branches with the same layer name, and if so we force the branch name into the token too.
+		if (ValidationInfo.LayerCount < ValidationInfo.BranchCount)
+		{
+			UE::MoviePipeline::ConformOutputFormatStringToken(FileNameFormatString, TEXT("{branch_name}"), InParentNode->GetFName(), InRenderData.Key.RootBranchName);
+		}
+		else
+		{
+			// Otherwise, we separate each branch by its unique layer name.
+			UE::MoviePipeline::ConformOutputFormatStringToken(FileNameFormatString, TEXT("{layer_name}"), InParentNode->GetFName(), InRenderData.Key.RootBranchName);
+		}
 	}
 
-	if (InRawFrameData->HasMultipleRendersPerBranch(InRenderData.Key.RootBranchName))
+	// We only add the renderer name token if multiple (non-composited) renderers are present on the active branch (eg, in the case of optional PPMs).
+	if (ValidationInfo.ActiveBranchRendererCount > 1)
 	{
 		UE::MoviePipeline::ConformOutputFormatStringToken(FileNameFormatString, TEXT("{renderer_name}"), InParentNode->GetFName(), InRenderData.Key.RootBranchName);
+	}
+
+	// We only add the subresource token if a (non-composited) renderer on the active branch is producing more than one subresource (eg, in the case of optional PPMs).
+	if (ValidationInfo.ActiveRendererSubresourceCount > 1)
+	{
+		UE::MoviePipeline::ConformOutputFormatStringToken(FileNameFormatString, TEXT("{renderer_sub_name}"), InParentNode->GetFName(), InRenderData.Key.RootBranchName);
 	}
 
 	// ToDo: Add {camera_name} validation once relevant
@@ -316,8 +308,7 @@ FString UMovieGraphImageSequenceOutputNode::CreateFileName(
 	constexpr bool bIncludeRenderPass = false;
 	constexpr bool bTestFrameNumber = true;
 	constexpr bool bIncludeCameraName = false;
-	const bool bIncludeSubRendererName = UE::MovieGraph::Private::ShouldIncludeSubRendererName(InRawFrameData->ExpectedRenderPasses);
-	UE::MoviePipeline::ValidateOutputFormatString(FileNameFormatString, bIncludeRenderPass, bTestFrameNumber,bIncludeCameraName, bIncludeSubRendererName);
+	UE::MoviePipeline::ValidateOutputFormatString(FileNameFormatString, bIncludeRenderPass, bTestFrameNumber, bIncludeCameraName);
 	
 	// Map the .ext to be specific to our output data.
 	TMap<FString, FString> AdditionalFormatArgs;
@@ -725,10 +716,44 @@ void UMovieGraphImageSequenceOutputNode_MultiLayerEXR::OnReceiveImageDataImpl(UM
 				UMoviePipelineExecutorShot* CurrentShot = InPipeline->GetActiveShotList()[ShotIndex];
 				int32 NumCameras = CurrentShot->SidecarCameras.Num();
 
-				LayerName = FString::Printf(TEXT("%s_%s"), *RenderID.RootBranchName.ToString(), *RenderID.RendererName);
+				UE::MovieGraph::FMovieGraphRenderDataValidationInfo ValidationInfo = InRawFrameData->GetValidationInfo(RenderID, /*bInDiscardCompositedRenders*/ false);
+				TArray<FString> Tokens;
+
+				if (ValidationInfo.BranchCount > 1)
+				{
+					if (ValidationInfo.LayerCount < ValidationInfo.BranchCount)
+					{
+						Tokens.Add(RenderID.RootBranchName.ToString());
+					}
+					else
+					{
+						Tokens.Add(RenderID.LayerName);
+					}
+				}
+
+				if (ValidationInfo.ActiveBranchRendererCount > 1)
+				{
+					Tokens.Add(RenderID.RendererName);
+				}
+
+				if (ValidationInfo.ActiveRendererSubresourceCount > 1)
+				{
+					Tokens.Add(RenderID.SubResourceName);
+				}
+
 				if (NumCameras > 1)
 				{
-					LayerName = FString::Printf(TEXT("%s_%s"), *LayerName, *RenderID.CameraName);
+					Tokens.Add(RenderID.CameraName);
+				}
+
+				if (ensureMsgf(!Tokens.IsEmpty(), TEXT("Missing expected EXR layer token.")))
+				{
+					LayerName = Tokens[0];
+					
+					for (int32 Index = 1; Index < Tokens.Num(); ++Index)
+					{
+						LayerName = FString::Printf(TEXT("%s_%s"), *LayerName, *Tokens[Index]);
+					}
 				}
 			}
 
@@ -851,16 +876,13 @@ FString UMovieGraphImageSequenceOutputNode_MultiLayerEXR::ResolveOutputFilename(
 	
 	// If we have more than one resolution we'll store it as "_Add" / "_Add(1)" etc via {ExtraTag}.
 	FString FileNameFormatString = InParentNode->FileNameFormat + "{ExtraTag}";
-
-	const FString FilePathFormatString = OutputSettings->OutputDirectory.Path / FileNameFormatString;
 	
 	// If we're writing more than one render pass out, we need to ensure the file name has the format string in it so we don't
 	// overwrite the same file multiple times. Burn In overlays don't count because they get composited on top of an existing file.
 	constexpr bool bIncludeRenderPass = false;
 	constexpr bool bTestFrameNumber = true;
 	constexpr bool bIncludeCameraName = false;
-	const bool bIncludeSubRendererName = UE::MovieGraph::Private::ShouldIncludeSubRendererName(InRawFrameData->ExpectedRenderPasses);
-	UE::MoviePipeline::ValidateOutputFormatString(FileNameFormatString, bIncludeRenderPass, bTestFrameNumber, bIncludeCameraName, bIncludeSubRendererName);
+	UE::MoviePipeline::ValidateOutputFormatString(FileNameFormatString, bIncludeRenderPass, bTestFrameNumber, bIncludeCameraName);
 	
 	// Create specific data that needs to override 
 	TMap<FString, FString> FormatOverrides;
@@ -891,6 +913,8 @@ FString UMovieGraphImageSequenceOutputNode_MultiLayerEXR::ResolveOutputFilename(
 	FMovieGraphFilenameResolveParams Params = UE::MovieGraph::Private::MakeResolveParams(
 		TempRenderDataIdentifier, InPipeline, InRawFrameData->EvaluatedConfig.Get(), InRawFrameData->TraversalContext, FormatOverrides);
 	
+	const FString FilePathFormatString = OutputSettings->OutputDirectory.Path / FileNameFormatString;
+
 	FString FinalFilePath = UMovieGraphBlueprintLibrary::ResolveFilenameFormatArguments(FilePathFormatString, Params, OutResolveArgs);
 
 	if (FPaths::IsRelative(FinalFilePath))

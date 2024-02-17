@@ -94,8 +94,16 @@ namespace UE::MovieGraph
 		
 		if (FinishedPasses == TotalPasses)
 		{
-			// ToDo: We potentialy want to sort the output using a stable-sort for EXRs so they can choose which is the primary rgba layer.
-			
+			// Sort the output frames. This is only really important for multi-channel formats like EXR, but it lets passes
+			// specify which one should be the thumbnail/default rgba channels instead of a first-come-first-serve.
+			OutputFrame->ImageOutputData.ValueStableSort([](const TUniquePtr<FImagePixelData>& First, const TUniquePtr<FImagePixelData>& Second) -> bool
+				{
+					FMovieGraphSampleState* FirstPayload = First->GetPayload<FMovieGraphSampleState>();
+					FMovieGraphSampleState* SecondPayload = Second->GetPayload<FMovieGraphSampleState>();
+
+					return FirstPayload->CompositingSortOrder < SecondPayload->CompositingSortOrder;
+				}
+			);
 			// Move this frame into our FinishedFrames array so the Game Thread can read it at its leisure
 			FMovieGraphOutputMergerFrame FinalFrame;
 			ensureMsgf(PendingData.RemoveAndCopyValue(RenderedFrameNumber, FinalFrame), TEXT("Could not find frame in pending data, output will be skipped!"));

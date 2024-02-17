@@ -51,7 +51,8 @@ TSharedPtr<SWidget> UMovieGraphUIRendererNode::FMovieGraphUIPass::GetWidget()
 
 int32 UMovieGraphUIRendererNode::FMovieGraphUIPass::GetCompositingSortOrder() const
 {
-	return 100;
+	// We want UI Widgets to be underneath the burn-in.
+	return 80;
 }
 
 TUniquePtr<UMovieGraphWidgetRendererBaseNode::FMovieGraphWidgetPass> UMovieGraphUIRendererNode::GeneratePass()
