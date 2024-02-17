@@ -3750,6 +3750,25 @@ void USkeletalMesh::GetAssetRegistryTags(FAssetRegistryTagsContext Context) cons
 		NumTriangles = LODData.GetTotalFaces();
 		NumVertices = LODData.GetNumVertices();
 	}
+
+#if WITH_EDITORONLY_DATA
+	uint64 PhysicsSize = 0;
+
+	if (UBodySetup* MeshBodySetup = GetBodySetup())
+	{
+		FResourceSizeEx EstimatedSize(EResourceSizeMode::EstimatedTotal);
+		MeshBodySetup->GetResourceSizeEx(EstimatedSize);
+		PhysicsSize = EstimatedSize.GetTotalMemoryBytes();
+	}
+
+	if (UPhysicsAsset* PhysAssetSetup = GetPhysicsAsset())
+	{
+		FResourceSizeEx EstimatedSize(EResourceSizeMode::EstimatedTotal);
+		PhysAssetSetup->GetResourceSizeEx(EstimatedSize);
+		PhysicsSize += EstimatedSize.GetTotalMemoryBytes();
+	}
+	Context.AddTag(FAssetRegistryTag("PhysicsSize", FString::Printf(TEXT("%llu"), PhysicsSize), FAssetRegistryTag::TT_Numerical, FAssetRegistryTag::TD_Memory));
+#endif
 	
 	int32 NumLODs = GetLODInfoArray().Num();
 
