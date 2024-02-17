@@ -16,7 +16,7 @@ class UObject;
 struct FAvaShapeParametricMaterial;
 
 USTRUCT(BlueprintType)
-struct AVALANCHESHAPES_API FAvaShapeParametricMaterial
+struct FAvaShapeParametricMaterial
 {
 	GENERATED_BODY()
 
@@ -28,33 +28,30 @@ struct AVALANCHESHAPES_API FAvaShapeParametricMaterial
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnMaterialChanged, FAvaShapeParametricMaterial&)
 	DECLARE_MULTICAST_DELEGATE(FOnMaterialParameterChanged)
 
-	FAvaShapeParametricMaterial();
+	AVALANCHESHAPES_API FAvaShapeParametricMaterial();
 
-	FAvaShapeParametricMaterial(const FAvaShapeParametricMaterial& Other);
-	FAvaShapeParametricMaterial& operator=(const FAvaShapeParametricMaterial& Other);
+	AVALANCHESHAPES_API FAvaShapeParametricMaterial(const FAvaShapeParametricMaterial& Other);
+	AVALANCHESHAPES_API FAvaShapeParametricMaterial& operator=(const FAvaShapeParametricMaterial& Other);
 
 	/** Called when active material parameters are updated */
-	FOnMaterialParameterChanged& OnMaterialParameterChanged();
+	AVALANCHESHAPES_API FOnMaterialParameterChanged& OnMaterialParameterChanged();
 
 	/** Called when active material index changed */
 	static FOnMaterialChanged& OnMaterialChanged();
 
-	bool CopyFromMaterialParameters(UMaterialInstance* InMaterial);
+	AVALANCHESHAPES_API bool CopyFromMaterialParameters(UMaterialInstance* InMaterial);
 
 	/** Check if input material is a parametric material */
 	bool IsParametricMaterial(UMaterialInterface* InMaterial, const bool bCheckIfDefault = false) const;
 
 	/** Get default parent material currently active */
-	UMaterialInterface* GetDefaultMaterial() const;
-
-	/** Get outer from all instanced materials or null if they differ */
-	UObject* GetMaterialsOuter() const;
+	AVALANCHESHAPES_API UMaterialInterface* GetDefaultMaterial() const;
 
 	/** Get active up to date material instance */
-	UMaterialInstanceDynamic* GetMaterial() const;
+	AVALANCHESHAPES_API UMaterialInstanceDynamic* GetMaterial() const;
 
 	/** Get active up to date material instance or creates it */
-	UMaterialInstanceDynamic* GetOrCreateMaterial(UObject* InOuter);
+	AVALANCHESHAPES_API UMaterialInstanceDynamic* GetOrCreateMaterial(UObject* InOuter);
 
 	/** Set instanced material currently active */
 	void SetMaterial(UMaterialInstanceDynamic* InMaterial);
@@ -64,52 +61,52 @@ struct AVALANCHESHAPES_API FAvaShapeParametricMaterial
 		return bUseTranslucentMaterial;
 	}
 
-	void SetUseTranslucentMaterial(bool bInUse);
+	AVALANCHESHAPES_API void SetUseTranslucentMaterial(bool bInUse);
 
 	bool GetUseAutoTranslucency() const
 	{
 		return bUseAutoTranslucency;
 	}
 
-	void SetUseAutoTranslucency(bool bInUse);
+	AVALANCHESHAPES_API void SetUseAutoTranslucency(bool bInUse);
 
 	EAvaShapeParametricMaterialStyle GetStyle() const
 	{
 		return Style;
 	}
 
-	void SetStyle(EAvaShapeParametricMaterialStyle InStyle);
+	AVALANCHESHAPES_API void SetStyle(EAvaShapeParametricMaterialStyle InStyle);
 
 	const FLinearColor& GetPrimaryColor() const
 	{
 		return ColorA;
 	}
 
-	void SetPrimaryColor(const FLinearColor& InColor);
+	AVALANCHESHAPES_API void SetPrimaryColor(const FLinearColor& InColor);
 
 	const FLinearColor& GetSecondaryColor() const
 	{
 		return ColorB;
 	}
 
-	void SetSecondaryColor(const FLinearColor& InColor);
+	AVALANCHESHAPES_API void SetSecondaryColor(const FLinearColor& InColor);
 
 	float GetGradientOffset() const
 	{
 		return GradientOffset;
 	}
 
-	void SetGradientOffset(float InOffset);
+	AVALANCHESHAPES_API void SetGradientOffset(float InOffset);
 
 	bool GetUseUnlitMaterial() const
 	{
 		return bUseUnlitMaterial;
 	}
 
-	void SetUseUnlitMaterial(bool bInUse);
+	AVALANCHESHAPES_API void SetUseUnlitMaterial(bool bInUse);
 
 	/** Set parameter values on a material instance */
-	void SetMaterialParameterValues(UMaterialInstanceDynamic* InMaterialInstance, bool bInNotifyUpdate = false) const;
+	AVALANCHESHAPES_API void SetMaterialParameterValues(UMaterialInstanceDynamic* InMaterialInstance, bool bInNotifyUpdate = false) const;
 
 protected:
 	/** Parent material
@@ -159,6 +156,13 @@ protected:
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Material", meta=(DisplayName="Use Unlit Material", AllowPrivateAccess = "true"))
 	bool bUseUnlitMaterial;
 
+private:
+	static FOnMaterialChanged OnMaterialChangedDelegate;
+
+	FOnMaterialParameterChanged OnMaterialParameterChangedDelegate;
+
+	int32 ActiveInstanceIndex = INDEX_NONE;
+
 	/** Load parents materials to create instance materials */
 	void LoadDefaultMaterials();
 
@@ -170,11 +174,4 @@ protected:
 
 	/** Get the active material index */
 	int32 GetActiveInstanceIndex() const;
-
-private:
-	static FOnMaterialChanged OnMaterialChangedDelegate;
-
-	FOnMaterialParameterChanged OnMaterialParameterChangedDelegate;
-
-	int32 ActiveInstanceIndex = INDEX_NONE;
 };

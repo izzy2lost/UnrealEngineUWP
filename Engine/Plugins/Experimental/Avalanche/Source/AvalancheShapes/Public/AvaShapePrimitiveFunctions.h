@@ -10,17 +10,15 @@
 class AAvaShapeActor;
 
 /** FunctionLibrary to Create Ava Shape Meshes and apply them to a Shape Actor. */
-UCLASS()
-class AVALANCHESHAPES_API UAvaShapeMeshFunctions
-	: public UBlueprintFunctionLibrary
+UCLASS(MinimalAPI)
+class UAvaShapeMeshFunctions : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
 
 public:
 	/** Sets the Shape Actor mesh to Rectangle. */
 	UFUNCTION(BlueprintCallable, Category = "Shapes", meta = (ScriptMethod))
-	static UPARAM(DisplayName = "Mesh") UAvaShapeRectangleDynamicMesh*
-	SetRectangle(AAvaShapeActor* ShapeActor
+	static AVALANCHESHAPES_API UPARAM(DisplayName = "Mesh") UAvaShapeRectangleDynamicMesh* SetRectangle(AAvaShapeActor* ShapeActor
 		, const FVector2D& Size
 		, const FTransform& Transform);
 

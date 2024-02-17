@@ -15,11 +15,7 @@ struct FAvaShapeMaterialUVParameters;
 
 namespace UE::AvaShapes
 {
-	FVector2D AVALANCHESHAPES_API FindClosestPointOnLine(const FVector2D& LineStart, const FVector2D& LineEnd, const FVector2D& TestPoint);
-
-	float AVALANCHESHAPES_API GetSmoothnessFromSubdivisions(float BevelSize, uint8 Subdivisions);
-
-	uint8 AVALANCHESHAPES_API GetSubdivisionsFromSmoothness(float BevelSize, float Smoothness);
+	FVector2D FindClosestPointOnLine(const FVector2D& LineStart, const FVector2D& LineEnd, const FVector2D& TestPoint);
 
 	bool AVALANCHESHAPES_API TransformMeshUVs(UE::Geometry::FDynamicMesh3& InEditMesh
 		, const TArray<int32>& UVIds
