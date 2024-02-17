@@ -26,6 +26,7 @@ class UOptimusActionStack;
 class UOptimusNode;
 class UOptimusNodePair;
 class UOptimusNodeGraph;
+class UOptimusNodeSubGraph;
 class UOptimusNodeLink;
 class UOptimusNodePin;
 enum class EOptimusNodePinDirection : uint8;
