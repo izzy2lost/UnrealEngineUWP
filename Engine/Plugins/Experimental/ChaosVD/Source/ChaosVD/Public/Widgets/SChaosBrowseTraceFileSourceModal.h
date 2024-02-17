@@ -5,11 +5,13 @@
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/SWindow.h"
 
+class SChaosVDNameListPicker;
 class FReply;
 
 enum class EChaosVDBrowseFileModalResponse
 {
-	OpenFolder,
+	OpenLastFolder,
+	OpenProfilingFolder,
 	OpenTraceStore,
 	Cancel
 };
@@ -34,7 +36,21 @@ public:
 
 protected:
 
-	FReply OnButtonClick(EChaosVDBrowseFileModalResponse Response);
+	void PopulateLocationNamesList();
+
+	void RegisterAvailableLocationOptions();
+
+	void HandleSessionNameSelected(TSharedPtr<FName> SelectedName);
+	
+	FReply OnButtonClick();
+
+	TSharedPtr<SChaosVDNameListPicker> NamePickerWidget;
+	
+	TMap<FName, EChaosVDBrowseFileModalResponse> LocationNameToResponseID;
+
+	FName CurrentSelectedLocationName;
 
 	EChaosVDBrowseFileModalResponse UserResponse = EChaosVDBrowseFileModalResponse::Cancel;
+
+	FText CVDFilesLocationNames[3];
 };
