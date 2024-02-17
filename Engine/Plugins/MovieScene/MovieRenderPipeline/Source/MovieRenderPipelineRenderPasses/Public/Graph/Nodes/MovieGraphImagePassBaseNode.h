@@ -73,6 +73,10 @@ protected:
 	TObjectPtr<UMovieGraphShowFlags> ShowFlags;
 
 	TArray<TUniquePtr<UE::MovieGraph::Rendering::FMovieGraphImagePassBase>> CurrentInstances;
+
+	static FString DefaultDepthAsset;
+	static FString DefaultMotionVectorsAsset;
+
 protected:
 	// UMovieGraphRenderPassNode Interface
 	virtual FString GetRendererNameImpl() const { return TEXT("UnnamedImageRenderPass"); }
