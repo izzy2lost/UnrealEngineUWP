@@ -14,8 +14,10 @@ namespace UnrealBuildTool.Rules
 					"EditorFramework",
 					"PPMChainGraph",
 					"UnrealEd",
+					"Slate",
+					"SlateCore",
 				});
-			
+
 			PrivateIncludePathModuleNames.AddRange(
 				new string[] {
 					

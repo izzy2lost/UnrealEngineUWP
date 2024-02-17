@@ -109,7 +109,7 @@ namespace
 					EPPMChainGraphPPMInputId InputId = (EPPMChainGraphPPMInputId)(InputIndex + 1);
 					if (Pass->Inputs.Contains(InputId))
 					{
-						FString InputMappedToId = Pass->Inputs[InputId];
+						FString InputMappedToId = Pass->Inputs[InputId].InputId;
 						// Need to exclude current pass.
 						if (PassOutputs.Contains(InputMappedToId))
 						{
