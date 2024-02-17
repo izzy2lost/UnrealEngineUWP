@@ -1248,6 +1248,7 @@ TSharedRef<SWidget> FModelingToolsEditorModeToolkit::GetPresetCreateButtonConten
 					.AssetThumbnailLabel(EThumbnailLabel::AssetName)
 					.bForceShowPluginContent(true)
 					.bForceShowEngineContent(true)
+					.AssetViewType(EAssetViewType::List)
 				]
 				+ SHorizontalBox::Slot()
 				[
