@@ -447,24 +447,8 @@ namespace Horde.Agent.Execution
 
 		IStorageClient CreateStorageClient(NamespaceId namespaceId, string? token)
 		{
-			bool withBackendCache = JobOptions.BundleVersion <= (int)BundleVersion.LatestV1;
-			return StorageFactory.CreateClient(namespaceId, token, withBackendCache);
+			return StorageFactory.CreateClient(namespaceId, token);
 		}
-
-		IBlobWriter CreateStorageWriter(IStorageClient client, string? basePath, ILogger logger)
-		{
-			if (JobOptions.BundleVersion != 0 && client is BundleStorageClient bundleClient)
-			{
-				logger.LogInformation("Using bundle version {Version}", JobOptions.BundleVersion);
-				return bundleClient.CreateBlobWriter(basePath, new BundleOptions { MaxVersion = (BundleVersion)JobOptions.BundleVersion });
-			}
-			else
-			{
-				return client.CreateBlobWriter(basePath);
-			}
-		}
-
-		IBlobWriter CreateStorageWriter(IStorageClient client, RefName refName, ILogger logger) => CreateStorageWriter(client, refName.Text.ToString(), logger);
 
 		protected virtual async Task<bool> SetupAsync(JobStepInfo step, DirectoryReference workspaceDir, DirectoryReference? sharedStorageDir, bool? useP4, ILogger logger, CancellationToken cancellationToken)
 		{
@@ -541,16 +525,16 @@ namespace Horde.Agent.Execution
 					Stopwatch timer = Stopwatch.StartNew();
 
 					IBlobRef<DirectoryNode> rootNodeRef;
-					await using (IBlobWriter treeWriter = CreateStorageWriter(storage, artifact.RefName, logger))
+					await using (IBlobWriter blobWriter = storage.CreateBlobWriter(artifact.RefName))
 					{
 						DirectoryNode buildGraphNode = new DirectoryNode();
-						await buildGraphNode.AddFilesAsync(workspaceDir, buildGraphFiles, treeWriter, cancellationToken: cancellationToken);
-						IBlobRef<DirectoryNode> outputNodeRef = await treeWriter.WriteBlobAsync(buildGraphNode, cancellationToken);
+						await buildGraphNode.AddFilesAsync(workspaceDir, buildGraphFiles, blobWriter, cancellationToken: cancellationToken);
+						IBlobRef<DirectoryNode> outputNodeRef = await blobWriter.WriteBlobAsync(buildGraphNode, cancellationToken);
 
 						DirectoryNode rootNode = new DirectoryNode();
 						rootNode.AddDirectory(new DirectoryEntry(BuildGraphTempStorageDir, buildGraphNode.Length, outputNodeRef));
 
-						rootNodeRef = await treeWriter.WriteBlobAsync(rootNode, cancellationToken);
+						rootNodeRef = await blobWriter.WriteBlobAsync(rootNode, cancellationToken);
 					}
 					await storage.WriteRefAsync(artifact.RefName, rootNodeRef, new RefOptions(), cancellationToken);
 
@@ -871,13 +855,13 @@ namespace Horde.Agent.Execution
 				using IStorageClient storage = CreateStorageClient(new NamespaceId(artifact.NamespaceId), artifact.Token);
 
 				IBlobRef<DirectoryNode> rootRef;
-				await using (IBlobWriter writer = CreateStorageWriter(storage, new RefName(artifact.RefName), logger))
+				await using (IBlobWriter blobWriter = storage.CreateBlobWriter(new RefName(artifact.RefName)))
 				{
 					try
 					{
 						DirectoryNode dir = new DirectoryNode();
-						await dir.AddFilesAsync(baseDir, files, writer, progress: new CopyStatsLogger(logger), cancellationToken: cancellationToken);
-						rootRef = await writer.WriteBlobAsync(dir, cancellationToken: cancellationToken);
+						await dir.AddFilesAsync(baseDir, files, blobWriter, progress: new CopyStatsLogger(logger), cancellationToken: cancellationToken);
+						rootRef = await blobWriter.WriteBlobAsync(dir, cancellationToken: cancellationToken);
 					}
 					catch (Exception ex)
 					{
@@ -1074,7 +1058,7 @@ namespace Horde.Agent.Execution
 				Stopwatch timer = Stopwatch.StartNew();
 
 				IBlobRef<DirectoryNode> outputNodeRef;
-				await using (IBlobWriter treeWriter = CreateStorageWriter(storage, artifact.RefName, logger))
+				await using (IBlobWriter blobWriter = storage.CreateBlobWriter(artifact.RefName))
 				{
 					DirectoryNode outputNode = new DirectoryNode();
 
@@ -1088,7 +1072,7 @@ namespace Horde.Agent.Execution
 						}
 						if (pair.Value.Any(x => referencedOutputFiles.Contains(x)))
 						{
-							outputNode.AddDirectory(await TempStorage.ArchiveBlockAsync(manifestDir, step.Name, pair.Key, workspaceDir, pair.Value.ToArray(), treeWriter, logger, cancellationToken));
+							outputNode.AddDirectory(await TempStorage.ArchiveBlockAsync(manifestDir, step.Name, pair.Key, workspaceDir, pair.Value.ToArray(), blobWriter, logger, cancellationToken));
 						}
 					}
 
@@ -1107,10 +1091,10 @@ namespace Horde.Agent.Execution
 							}
 						}
 
-						outputNode.AddFile(await TempStorage.ArchiveTagAsync(manifestDir, step.Name, outputName, workspaceDir, files, storageBlocks.ToArray(), treeWriter, logger, cancellationToken));
+						outputNode.AddFile(await TempStorage.ArchiveTagAsync(manifestDir, step.Name, outputName, workspaceDir, files, storageBlocks.ToArray(), blobWriter, logger, cancellationToken));
 					}
 
-					outputNodeRef = await treeWriter.WriteBlobAsync(outputNode, cancellationToken: cancellationToken);
+					outputNodeRef = await blobWriter.WriteBlobAsync(outputNode, cancellationToken: cancellationToken);
 				}
 
 				// Write the final node

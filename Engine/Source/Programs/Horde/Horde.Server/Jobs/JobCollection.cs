@@ -1632,7 +1632,11 @@ namespace Horde.Server.Jobs
 			// Cancel any batches which are still running but are no longer required
 			foreach (JobStepBatchDocument batch in job.Batches)
 			{
-				if (batch.State == JobStepBatchState.Starting || batch.State == JobStepBatchState.Running)
+				if (batch.State == JobStepBatchState.Starting && batch.Steps.Count == 0)
+				{
+					// This batch is still starting but hasn't executed anything yet. Don't cancel it; we can still append to it.
+				}
+				else if (batch.State == JobStepBatchState.Starting || batch.State == JobStepBatchState.Running)
 				{
 					INodeGroup group = graph.Groups[batch.GroupIdx];
 					if (!batch.Steps.Any(x => newNodesToExecute.Contains(group.Nodes[x.NodeIdx])))
@@ -1701,10 +1705,9 @@ namespace Horde.Server.Jobs
 			JobStepBatchDocument?[] appendToBatches = new JobStepBatchDocument?[graph.Groups.Count];
 			foreach (JobStepBatchDocument batch in job.Batches)
 			{
-				if (batch.CanBeAppendedTo() && batch.Steps.Count > 0)
+				if (batch.CanBeAppendedTo())
 				{
 					INodeGroup group = graph.Groups[batch.GroupIdx];
-					INode firstNode = group.Nodes[batch.Steps[0].NodeIdx];
 					appendToBatches[batch.GroupIdx] = batch;
 				}
 			}
@@ -1719,7 +1722,7 @@ namespace Horde.Server.Jobs
 					if (newNodesToExecute.Contains(node) && !existingNodesToExecute.Contains(node))
 					{
 						IJobStepBatch? batch = appendToBatches[groupIdx];
-						if (batch != null)
+						if (batch != null && batch.Steps.Count > 0)
 						{
 							IJobStep lastStep = batch.Steps[batch.Steps.Count - 1];
 							if (nodeIdx <= lastStep.NodeIdx)

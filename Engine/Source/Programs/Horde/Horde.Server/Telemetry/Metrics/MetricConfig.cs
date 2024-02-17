@@ -128,6 +128,7 @@ namespace Horde.Server.Telemetry.Metrics
 	[JsonSchema("https://unrealengine.com/horde/telemetry")]
 	[JsonSchemaCatalog("Horde Telemetry", "Horde telemetry configuration file", new[] { "*.telemetry.json", "*.metrics.json", "Metrics/*.json" })]
  	[ConfigIncludeRoot]
+	[ConfigMacroScope]
 	public class TelemetryStoreConfig
 	{
 		/// <summary>
@@ -151,6 +152,11 @@ namespace Horde.Server.Telemetry.Metrics
 		public List<ConfigInclude> Include { get; set; } = new List<ConfigInclude>();
 
 		readonly Dictionary<MetricId, MetricConfig> _metricLookup = new Dictionary<MetricId, MetricConfig>();
+
+		/// <summary>
+		/// Macros within this configuration
+		/// </summary>
+		public List<ConfigMacro> Macros { get; set; } = new List<ConfigMacro>();
 
 		/// <summary>
 		/// Called after the store has been deserialized to compute cached values

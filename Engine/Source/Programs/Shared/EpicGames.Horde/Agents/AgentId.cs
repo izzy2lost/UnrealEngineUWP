@@ -16,7 +16,7 @@ namespace EpicGames.Horde.Agents
 	[LogValueType]
 	[TypeConverter(typeof(AgentIdTypeConverter))]
 	[JsonConverter(typeof(AgentIdJsonConverter))]
-	public readonly struct AgentId : IEquatable<AgentId>
+	public readonly struct AgentId : IEquatable<AgentId>, IComparable<AgentId>
 	{
 		/// <summary>
 		/// The text representing this id
@@ -86,6 +86,10 @@ namespace EpicGames.Horde.Agents
 		}
 
 		/// <inheritdoc/>
+		public int CompareTo(AgentId other)
+			=> String.Compare(_name, other._name, StringComparison.Ordinal);
+
+		/// <inheritdoc/>
 		public bool Equals(AgentId other)
 		{
 			return String.Equals(_name, other._name, StringComparison.Ordinal);
@@ -97,27 +101,25 @@ namespace EpicGames.Horde.Agents
 			return _name ?? String.Empty;
 		}
 
-		/// <summary>
-		/// Compares two string ids for equality
-		/// </summary>
-		/// <param name="left">The first string id</param>
-		/// <param name="right">Second string id</param>
-		/// <returns>True if the two string ids are equal</returns>
+#pragma warning disable CS1591
 		public static bool operator ==(AgentId left, AgentId right)
-		{
-			return left.Equals(right);
-		}
+			=> left.Equals(right);
 
-		/// <summary>
-		/// Compares two string ids for inequality
-		/// </summary>
-		/// <param name="left">The first string id</param>
-		/// <param name="right">Second string id</param>
-		/// <returns>True if the two string ids are not equal</returns>
 		public static bool operator !=(AgentId left, AgentId right)
-		{
-			return !left.Equals(right);
-		}
+			=> !left.Equals(right);
+
+		public static bool operator <(AgentId left, AgentId right)
+			=> left.CompareTo(right) < 0;
+
+		public static bool operator <=(AgentId left, AgentId right)
+			=> left.CompareTo(right) <= 0;
+
+		public static bool operator >(AgentId left, AgentId right)
+			=> left.CompareTo(right) > 0;
+
+		public static bool operator >=(AgentId left, AgentId right)
+			=> left.CompareTo(right) >= 0;
+#pragma warning restore CS1591
 	}
 
 	/// <summary>

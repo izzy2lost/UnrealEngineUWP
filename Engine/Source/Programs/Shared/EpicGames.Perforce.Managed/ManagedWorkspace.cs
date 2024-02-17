@@ -13,6 +13,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EpicGames.Perforce.Managed
 {
@@ -64,77 +65,30 @@ namespace EpicGames.Perforce.Managed
 			View = view;
 		}
 	}
-	
+
 	/// <summary>
 	/// Extra options for configuring ManagedWorkspace
 	/// </summary>
-	public class ManagedWorkspaceOptions
-	{
-		/// <summary>
-		/// Maximum number of threads to sync in parallel
-		/// </summary>
-		public int NumParallelSyncThreads { get; set; } = 4;
-
-		/// <summary>
-		/// Maximum number of concurrent file system operations (copying, moving, deleting etc)
-		/// </summary>
-		public int MaxFileConcurrency { get; set; } = 4;
-		
-		/// <summary>
-		/// Minimum amount of space that must be on a drive after a branch is synced
-		/// </summary>
-		public long MinScratchSpace { get; set; } = 50L * 1024 * 1024 * 1024;
-		
-		/// <summary>
-		/// Use the client's have table when syncing.
-		/// 
-		/// When set to false, updates to the have table will be prevented through use of "sync -p".
-		/// Actual files to sync will be gathered through "fstat".
-		/// This puts less strain on the Perforce server and can improve sync performance.
-		/// </summary>
-		public bool UseHaveTable { get; set; } = true;
-
-		/// <summary>
-		/// Whether to allow using partitioned workspaces
-		/// </summary>
-		public bool Partitioned { get; set; }
-
-		/// <inheritdoc/>
-		protected bool Equals(ManagedWorkspaceOptions other)
-		{
-			return NumParallelSyncThreads == other.NumParallelSyncThreads && MaxFileConcurrency == other.MaxFileConcurrency && MinScratchSpace == other.MinScratchSpace && UseHaveTable == other.UseHaveTable;
-		}
-
-		/// <inheritdoc/>
-		public override bool Equals(object? obj)
-		{
-			if (ReferenceEquals(null, obj))
-			{ 
-				return false; 
-			}
-			if (ReferenceEquals(this, obj))
-			{ 
-				return true;
-			}
-			if (obj.GetType() != GetType())
-			{
-				return false;
-			}
-			return Equals((ManagedWorkspaceOptions)obj);
-		}
-
-		/// <inheritdoc/>
-		public override int GetHashCode()
-		{
-			return HashCode.Combine(NumParallelSyncThreads, MaxFileConcurrency, MinScratchSpace, UseHaveTable);
-		}
-
-		/// <inheritdoc/>
-		public override string ToString()
-		{
-			return $"{nameof(NumParallelSyncThreads)}={NumParallelSyncThreads} {nameof(MaxFileConcurrency)}={MaxFileConcurrency} {nameof(MinScratchSpace)}={MinScratchSpace} {nameof(UseHaveTable)}={UseHaveTable}";
-		}
-	}
+	/// <param name="NumParallelSyncThreads">Maximum number of threads to sync in parallel</param>
+	/// <param name="MaxFileConcurrency">Maximum number of concurrent file system operations (copying, moving, deleting etc)</param>
+	/// <param name="MinScratchSpace">Minimum amount of space that must be on a drive after a branch is synced</param>
+	/// <param name="UseHaveTable">
+	///		Use the client's have table when syncing.
+	///		
+	///		When set to false, updates to the have table will be prevented through use of "sync -p".
+	///		Actual files to sync will be gathered through "fstat". This puts less strain on the Perforce server and can improve sync performance.
+	///	</param>
+	/// <param name="Partitioned">Whether to allow using partitioned workspaces</param>
+	/// <param name="PreferNativeClient">Whether to prefer the native p4 client</param>
+	public record class ManagedWorkspaceOptions
+	(
+		int NumParallelSyncThreads = 4,
+		int MaxFileConcurrency = 4,
+		long MinScratchSpace = 50L * 1024 * 1024 * 1024,
+		bool UseHaveTable = true,
+		bool Partitioned = false,
+		bool PreferNativeClient = false
+	);
 
 	/// <summary>
 	/// Version number for managed workspace cache files
@@ -616,14 +570,22 @@ namespace EpicGames.Perforce.Managed
 				// Make sure all the folders exist in the cache
 				CreateCacheHierarchy();
 
-				// Check that all the files in the cache appear as we expect them to
 				List<CachedFileInfo> trackedFiles = _contentIdToTrackedFile.Values.ToList();
+
+				// Check that all the files in the cache appear as we expect them to
+				const int MaxLoggedMissingFiles = 250;
+				int numMissingFiles = 0;
 				foreach (CachedFileInfo trackedFile in trackedFiles)
 				{
-					if (!trackedFile.CheckIntegrity(_logger))
+					if (!trackedFile.CheckIntegrity((numMissingFiles < MaxLoggedMissingFiles)? _logger : NullLogger.Instance))
 					{
 						RemoveTrackedFile(trackedFile);
+						numMissingFiles++;
 					}
+				}
+				if (numMissingFiles > MaxLoggedMissingFiles)
+				{
+					_logger.LogWarning("+ {Count} more", numMissingFiles - MaxLoggedMissingFiles);
 				}
 
 				// Clear the repair flag
@@ -1796,13 +1758,13 @@ namespace EpicGames.Perforce.Managed
 					Stopwatch timer = Stopwatch.StartNew();
 
 					// Add any new files to the cache
-					List<KeyValuePair<FileReference, FileReference>> sourceAndTargetFiles = new List<KeyValuePair<FileReference, FileReference>>();
+					List<(FileContentId ContentId, FileReference Source, FileReference Target)> files = new List<(FileContentId, FileReference, FileReference)>();
 					foreach (KeyValuePair<FileContentId, WorkspaceFileInfo> fileToMove in filesToMove)
 					{
 						ulong cacheId = GetUniqueCacheId(fileToMove.Key);
 						CachedFileInfo newTrackingInfo = new CachedFileInfo(_cacheDir, fileToMove.Key, cacheId, fileToMove.Value._length, fileToMove.Value._lastModifiedTicks, fileToMove.Value._readOnly, _nextSequenceNumber);
 						_contentIdToTrackedFile.Add(fileToMove.Key, newTrackingInfo);
-						sourceAndTargetFiles.Add(new KeyValuePair<FileReference, FileReference>(fileToMove.Value.GetLocation(), newTrackingInfo.GetLocation()));
+						files.Add((fileToMove.Key, fileToMove.Value.GetLocation(), newTrackingInfo.GetLocation()));
 					}
 					_nextSequenceNumber++;
 
@@ -1811,11 +1773,7 @@ namespace EpicGames.Perforce.Managed
 
 					// Execute all the moves and deletes
 					ParallelOptions options = new() { MaxDegreeOfParallelism = _options.MaxFileConcurrency, CancellationToken = cancellationToken };
-					await Parallel.ForEachAsync(sourceAndTargetFiles, options, (sourceAndTargetFile, ct) =>
-					{
-						FileUtils.ForceMoveFile(sourceAndTargetFile.Key, sourceAndTargetFile.Value);
-						return ValueTask.CompletedTask;
-					});
+					await Parallel.ForEachAsync(files, options, (file, ctx) => MoveFileToCache(file.ContentId, file.Source, file.Target, _contentIdToTrackedFile, ctx));
 
 					scope.Progress = $"({timer.Elapsed.TotalSeconds:0.0}s)";
 				}
@@ -1862,6 +1820,26 @@ namespace EpicGames.Perforce.Managed
 			// Update the workspace and save the new state
 			_workspace = transaction._newWorkspaceRootDir;
 			await SaveAsync(TransactionState.Clean, cancellationToken);
+		}
+
+		ValueTask MoveFileToCache(FileContentId contentId, FileReference sourceFile, FileReference targetFile, Dictionary<FileContentId, CachedFileInfo> contentIdToTrackedFile, CancellationToken cancellationToken)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			try
+			{
+				FileUtils.ForceMoveFile(sourceFile, targetFile);
+			}
+			catch (Exception ex)
+			{
+				Exception innerException = (ex as WrappedFileOrDirectoryException)?.InnerException ?? ex;
+				_logger.LogWarning(KnownLogEvents.Systemic_ManagedWorkspace, innerException, "Unable to move {SourceFile} to {TargetFile}: {Error}", sourceFile, targetFile, innerException.Message);
+
+				lock (contentIdToTrackedFile)
+				{
+					contentIdToTrackedFile.Remove(contentId);
+				}
+			}
+			return default;
 		}
 
 		/// <summary>
@@ -2096,6 +2074,24 @@ namespace EpicGames.Perforce.Managed
 					await FileReference.WriteAllBytesAsync(localFile, Array.Empty<byte>(), cancellationToken);
 				}
 			}
+			else if (client is NativePerforceConnection)
+			{
+				List<string> files = new List<string>();
+				for (int idx = beginIdx; idx < endIdx; idx++)
+				{
+					files.Add($"{filesToSync[idx]._streamFile.Path}#{filesToSync[idx]._streamFile.Revision}");
+				}
+
+				using IPerforceConnection threadedClient = await PerforceConnection.CreateAsync(client.Settings, client.Logger);
+				if (_options.UseHaveTable)
+				{
+					await threadedClient.SyncAsync(SyncOptions.Force | SyncOptions.FullDepotSyntax, -1, files, cancellationToken).ToListAsync(cancellationToken);
+				}
+				else
+				{
+					await threadedClient.SyncAsync(SyncOptions.DoNotUpdateHaveList | SyncOptions.FullDepotSyntax, -1, files, cancellationToken).ToListAsync(cancellationToken);
+				}
+			}
 			else
 			{
 				FileReference syncFileName = FileReference.Combine(_baseDir, $"SyncList-{beginIdx}.txt");
@@ -2109,14 +2105,14 @@ namespace EpicGames.Perforce.Managed
 
 				if (_options.UseHaveTable)
 				{
-					using PerforceConnection clientWithFileList = new (client.Settings, client.Logger);
+					using PerforceConnection clientWithFileList = new(client.Settings, client.Logger);
 					clientWithFileList.GlobalOptions.Add($"-x\"{syncFileName}\"");
 					await clientWithFileList.SyncAsync(SyncOptions.Force | SyncOptions.FullDepotSyntax, -1, Array.Empty<string>(), cancellationToken).ToListAsync(cancellationToken);
 				}
 				else
 				{
 					// Ensure a client with an empty have table is used to not interfere with the DoNotUpdateHaveList option.
-					using PerforceConnection clientWithFileList = new (client.Settings, client.Logger);
+					using PerforceConnection clientWithFileList = new(client.Settings, client.Logger);
 					clientWithFileList.ClientName = client.Settings.ClientName!;
 					clientWithFileList.GlobalOptions.Add($"-x\"{syncFileName}\"");
 					await clientWithFileList.SyncAsync(SyncOptions.DoNotUpdateHaveList | SyncOptions.FullDepotSyntax, -1, Array.Empty<string>(), cancellationToken).ToListAsync(cancellationToken);

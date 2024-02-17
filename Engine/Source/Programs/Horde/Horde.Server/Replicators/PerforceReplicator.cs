@@ -540,8 +540,7 @@ namespace Horde.Server.Replicators
 			_logger.LogInformation("Total sync size: {Size:n1}mb", totalSize / (1024.0 * 1024.0));
 
 			// Create the tree writer
-			BundleStorageClient? bundleStore = store as BundleStorageClient;
-			Func<IBlobWriter> createWriter = () => (bundleStore != null) ? bundleStore.CreateBlobWriter(refName.ToString(), new BundleOptions { MaxVersion = BundleVersion.LatestV2 }) : store.CreateBlobWriter(refName);
+			Func<IBlobWriter> createWriter = () => store.CreateBlobWriter(refName);
 
 			await using IBlobWriter directoryWriter = createWriter();
 			await using IBlobWriter interiorChunkWriter = createWriter();

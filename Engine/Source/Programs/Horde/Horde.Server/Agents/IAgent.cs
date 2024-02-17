@@ -469,7 +469,7 @@ namespace Horde.Server.Agents
 	public interface IAgent
 	{
 		/// <summary>
-		/// Randomly generated unique id for this agent.
+		/// Identifier for this agent.
 		/// </summary>
 		public AgentId Id { get; }
 

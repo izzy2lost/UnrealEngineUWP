@@ -19,25 +19,8 @@ using System.Threading.Tasks;
 namespace EpicGames.Horde.Tests
 {
 	[TestClass]
-	public sealed class BundleTests : IDisposable
+	public sealed class BundleTests
 	{
-		readonly IMemoryCache _cache;
-		readonly MemoryStorageBackend _memoryStore;
-		readonly BundleStorageClient _storage;
-
-		public BundleTests()
-		{
-			_cache = new MemoryCache(new MemoryCacheOptions());
-			_memoryStore = new MemoryStorageBackend();
-			_storage = new BundleStorageClient(_memoryStore, BundleCache.None, NullLogger.Instance);
-		}
-
-		public void Dispose()
-		{
-			_storage.Dispose();
-			_cache.Dispose();
-		}
-
 		[TestMethod]
 		public void BuzHashTests()
 		{
@@ -70,8 +53,10 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task BasicChunkingTestsAsync()
 		{
+			using BundleStorageClient storage = BundleStorageClient.CreateInMemory(NullLogger.Instance);
+
 			RefName refName = new RefName("test");
-			await using IBlobWriter writer = _storage.CreateBlobWriter(refName);
+			await using IBlobWriter writer = storage.CreateBlobWriter(refName);
 
 			ChunkingOptions options = new ChunkingOptions();
 			options.LeafOptions = new LeafChunkedDataNodeOptions(8, 8, 8);
@@ -191,7 +176,7 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task BasicTestDirectoryAsync()
 		{
-			IStorageClient store = _storage;
+			using BundleStorageClient store = BundleStorageClient.CreateInMemory(NullLogger.Instance);
 
 			IBlobRef<DirectoryNode> rootRef;
 			await using (IBlobWriter writer = store.CreateBlobWriter())
@@ -214,8 +199,9 @@ namespace EpicGames.Horde.Tests
 			await store.WriteRefAsync(refName, rootRef);
 
 			// Should be stored inline
-			Assert.AreEqual(1, _memoryStore.Refs.Count);
-			Assert.AreEqual(1, _memoryStore.Blobs.Count);
+			MemoryStorageBackend memoryStore = (MemoryStorageBackend)store.Backend;
+			Assert.AreEqual(1, memoryStore.Refs.Count);
+			Assert.AreEqual(1, memoryStore.Blobs.Count);
 
 			// Check the ref
 //			IBlobHandle refTarget =  await store.ReadRefTargetAsync(refName);
@@ -247,13 +233,12 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task DedupTestsAsync()
 		{
-			Assert.AreEqual(0, _memoryStore.Refs.Count);
-			Assert.AreEqual(0, _memoryStore.Blobs.Count);
-
 			BundleOptions bundleOptions = new BundleOptions();
 			bundleOptions.MaxBlobSize = 1;
 
-			await using (IBlobWriter writer = new DedupeBlobWriter(_storage.CreateBlobWriter(bundleOptions: bundleOptions)))
+			using BundleStorageClient storage = BundleStorageClient.CreateInMemory(bundleOptions, NullLogger.Instance);
+
+			await using (IBlobWriter writer = new DedupeBlobWriter(storage.CreateBlobWriter()))
 			{
 				DirectoryNode root = new DirectoryNode();
 				for (int idx = 1; idx <= 3; idx++)
@@ -265,11 +250,12 @@ namespace EpicGames.Horde.Tests
 
 				RefName refName = new RefName("ref");
 				IBlobRef<DirectoryNode> rootRef = await writer.WriteBlobAsync(root);
-				await _storage.WriteRefAsync(refName, rootRef);
+				await storage.WriteRefAsync(refName, rootRef);
 			}
 
-			Assert.AreEqual(1, _memoryStore.Refs.Count);
-			Assert.AreEqual(2, _memoryStore.Blobs.Count);
+			MemoryStorageBackend memoryStore = (MemoryStorageBackend)storage.Backend;
+			Assert.AreEqual(1, memoryStore.Refs.Count);
+			Assert.AreEqual(2, memoryStore.Blobs.Count);
 		}
 
 		[TestMethod]
@@ -278,10 +264,12 @@ namespace EpicGames.Horde.Tests
 			BundleOptions bundleOptions = new BundleOptions();
 			bundleOptions.MaxBlobSize = 1;
 
+			using BundleStorageClient storage = BundleStorageClient.CreateInMemory(bundleOptions, NullLogger.Instance);
+
 			RefName refName = new RefName("ref");
 
 			{
-				await using (IBlobWriter writer = _storage.CreateBlobWriter(bundleOptions: bundleOptions))
+				await using (IBlobWriter writer = storage.CreateBlobWriter())
 				{
 					IBlobRef<DirectoryNode> rootRef = await writer.WriteBlobAsync(new DirectoryNode());
 					for (int idx = 4; idx >= 1; idx--)
@@ -290,15 +278,16 @@ namespace EpicGames.Horde.Tests
 						next.AddDirectory(new DirectoryEntry($"node{idx}", 0, rootRef));
 						rootRef = await writer.WriteBlobAsync(next);
 					}
-					await _storage.WriteRefAsync(refName, rootRef);
+					await storage.WriteRefAsync(refName, rootRef);
 				}
 
-				Assert.AreEqual(1, _memoryStore.Refs.Count);
-				Assert.AreEqual(5, _memoryStore.Blobs.Count);
+				MemoryStorageBackend memoryStore = (MemoryStorageBackend)storage.Backend;
+				Assert.AreEqual(1, memoryStore.Refs.Count);
+				Assert.AreEqual(5, memoryStore.Blobs.Count);
 			}
 
 			{
-				DirectoryNode root = await _storage.ReadRefTargetAsync<DirectoryNode>(refName);
+				DirectoryNode root = await storage.ReadRefTargetAsync<DirectoryNode>(refName);
 
 				DirectoryNode? newNode1 = await root.TryOpenDirectoryAsync("node1");
 				Assert.IsNotNull(newNode1);

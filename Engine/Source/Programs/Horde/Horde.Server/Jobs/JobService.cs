@@ -863,11 +863,10 @@ namespace Horde.Server.Jobs
 					if (batch.Steps.Any(x => x.State == JobStepState.Waiting || x.State == JobStepState.Ready || x.State == JobStepState.Running))
 					{
 						// Check if the job is valid. If not, we will fail with a specific error code for it.
-						error ??= await CheckJobAsync(job, streamConfig, cancellationToken) ?? JobStepBatchError.Incomplete;
-						newError = error.Value;
+						error ??= await CheckJobAsync(job, streamConfig, cancellationToken);
 
 						// Find the agent and set the conform flag
-						if (newError == JobStepBatchError.Incomplete && checkForBadAgent)
+						if (error == null && checkForBadAgent)
 						{
 							for (; ; )
 							{
@@ -883,6 +882,20 @@ namespace Horde.Server.Jobs
 								}
 							}
 							checkForBadAgent = false;
+						}
+
+						// If it failed during setup, use a dedicated error code.
+						if (error != null)
+						{
+							newError = error.Value;
+						}
+						else if (!batch.Steps.Any(x => x.StartTimeUtc != null))
+						{
+							newError = JobStepBatchError.SyncingFailed;
+						}
+						else
+						{
+							newError = JobStepBatchError.Incomplete;
 						}
 					}
 				}

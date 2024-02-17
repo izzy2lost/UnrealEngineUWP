@@ -250,10 +250,7 @@ namespace EpicGames.Horde.Compute
 		public static async ValueTask<AgentMessage> ReceiveAsync(this AgentMessageChannel channel, AgentMessageType type, CancellationToken cancellationToken = default)
 		{
 			AgentMessage message = await channel.ReceiveAsync(cancellationToken);
-			if (message.Type != type)
-			{
-				throw new InvalidAgentMessageException(message);
-			}
+			message.ThrowIfUnexpectedType(type);
 			return message;
 		}
 

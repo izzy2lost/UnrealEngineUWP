@@ -192,8 +192,8 @@ namespace EpicGames.Horde.Compute
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public InvalidAgentMessageException(AgentMessage message)
-			: base($"Unexpected message {message.Type}")
+		public InvalidAgentMessageException(AgentMessage actualMessage, AgentMessageType? expectedType, ComputeRemoteException? remoteException)
+			: base($"Unexpected message {actualMessage.Type}" + (expectedType != null ? $". Wanted {expectedType}" : ""), remoteException)
 		{
 		}
 	}
@@ -351,10 +351,26 @@ namespace EpicGames.Horde.Compute
 		public static async ValueTask WaitForAttachAsync(this AgentMessageChannel channel, CancellationToken cancellationToken = default)
 		{
 			using AgentMessage message = await channel.ReceiveAsync(cancellationToken);
-			if (message.Type != AgentMessageType.Attach)
+			message.ThrowIfUnexpectedType(AgentMessageType.Attach);
+		}
+
+		/// <summary>
+		/// Throw an exception if message is not of expected type
+		/// </summary>
+		/// <param name="message">Agent message to extend</param>
+		/// <param name="expectedType">Optional type to expect. If not specified, assume type was unwanted no matter what</param>
+		public static void ThrowIfUnexpectedType(this AgentMessage message, AgentMessageType? expectedType = null)
+		{
+			if (message.Type == expectedType)
 			{
-				throw new InvalidAgentMessageException(message);
+				return;
 			}
+
+			ComputeRemoteException? cre = message.Type == AgentMessageType.Exception
+				? new ComputeRemoteException(message.ParseExceptionMessage())
+				: null;
+
+			throw new InvalidAgentMessageException(message, expectedType, cre);
 		}
 
 		#region Process
@@ -394,10 +410,7 @@ namespace EpicGames.Horde.Compute
 			}
 
 			using AgentMessage response = await RunStorageServerAsync(channel, storage, cancellationToken);
-			if (response.Type != AgentMessageType.WriteFilesResponse)
-			{
-				throw new InvalidAgentMessageException(response);
-			}
+			response.ThrowIfUnexpectedType(AgentMessageType.WriteFilesResponse);
 		}
 
 		/// <summary>
@@ -650,10 +663,7 @@ namespace EpicGames.Horde.Compute
 				try
 				{
 					response = await channel.ReceiveAsync(cancellationToken);
-					if (response.Type != AgentMessageType.ReadBlobResponse)
-					{
-						throw new InvalidAgentMessageException(response);
-					}
+					response.ThrowIfUnexpectedType(AgentMessageType.ReadBlobResponse);
 
 					int chunkOffset = BinaryPrimitives.ReadInt32LittleEndian(response.Data.Span.Slice(0, 4));
 					int chunkLength = response.Data.Length - 8;

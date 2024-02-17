@@ -15,6 +15,7 @@ namespace Horde.Server.Dashboard
 	[JsonSchema("https://unrealengine.com/horde/dashboard")]
 	[JsonSchemaCatalog("Horde Dashboard", "Horde dashboard configuration file", new[] { "*.dashboard.json", "Dashboard/*.json" })]
 	[ConfigIncludeRoot]
+	[ConfigMacroScope]
 	public class DashboardConfig
 	{
 		/// <summary>
@@ -53,6 +54,11 @@ namespace Horde.Server.Dashboard
 		public List<DashboardAgentCategoryConfig> AgentCategories { get; set; } = new List<DashboardAgentCategoryConfig>();
 
 		/// <summary>
+		/// Configuration for different pool pages
+		/// </summary>
+		public List<DashboardPoolCategoryConfig> PoolCategories { get; set; } = new List<DashboardPoolCategoryConfig>();
+
+		/// <summary>
 		/// Configuration for telemetry views
 		/// </summary>
 		public List<TelemetryViewConfig> Analytics { get; set; } = new List<TelemetryViewConfig>();
@@ -62,12 +68,33 @@ namespace Horde.Server.Dashboard
 		/// </summary>
 		public List<ConfigInclude> Include { get; set; } = new List<ConfigInclude>();
 
+		/// <summary>
+		/// Macros within this configuration
+		/// </summary>
+		public List<ConfigMacro> Macros { get; set; } = new List<ConfigMacro>();
+
 	}
 
 	/// <summary>
 	/// Configuration for a category of agents
 	/// </summary>
 	public class DashboardAgentCategoryConfig
+	{
+		/// <summary>
+		/// Name of the category
+		/// </summary>
+		public string Name { get; set; } = "Unnamed";
+
+		/// <summary>
+		/// Condition string to be evaluated for this page
+		/// </summary>
+		public Condition? Condition { get; set; }
+	}
+
+	/// <summary>
+	/// Configuration for a category of pools
+	/// </summary>
+	public class DashboardPoolCategoryConfig
 	{
 		/// <summary>
 		/// Name of the category

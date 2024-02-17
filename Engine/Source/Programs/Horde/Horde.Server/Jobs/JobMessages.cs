@@ -736,6 +736,17 @@ namespace Horde.Server.Jobs
 		/// Step was no longer needed during a job update
 		/// </summary>
 		NoLongerNeeded = 12,
+
+		/// <summary>
+		/// Syncing the branch failed
+		/// </summary>
+		SyncingFailed = 13,
+
+		/// <summary>
+		/// Legacy alias for <see cref="SyncingFailed"/>
+		/// </summary>
+		[Obsolete("Use SyncingFailed instead")]
+		AgentSetupFailed = SyncingFailed,
 	}
 
 	/// <summary>

@@ -84,9 +84,9 @@ namespace EpicGames.Horde.Compute
 		async Task RunAsync(ComputeSocket socket, int channelId, int bufferSize, Action<Exception> postException, CancellationToken cancellationToken)
 		{
 			List<Task> childTasks = new List<Task>();
+			using AgentMessageChannel channel = socket.CreateAgentMessageChannel(channelId, bufferSize);
 			try
 			{
-				using AgentMessageChannel channel = socket.CreateAgentMessageChannel(channelId, bufferSize);
 				await channel.AttachAsync(cancellationToken);
 
 				for (; ; )
@@ -144,7 +144,8 @@ namespace EpicGames.Horde.Compute
 							}
 							break;
 						default:
-							throw new InvalidAgentMessageException(message);
+							message.ThrowIfUnexpectedType();
+							return;
 					}
 				}
 			}
@@ -156,6 +157,7 @@ namespace EpicGames.Horde.Compute
 			catch (Exception ex)
 			{
 				_logger.LogInformation(ex, "Compute Channel {ChannelId}: Exception: {Message}", channelId, ex.Message);
+				await channel.SendExceptionAsync(ex, cancellationToken);
 				postException(ex);
 			}
 			finally
@@ -183,7 +185,9 @@ namespace EpicGames.Horde.Compute
 		{
 			using AgentStorageBackend innerStore = new AgentStorageBackend(channel);
 			await using BundleCache cache = new BundleCache(new BundleCacheOptions { HeaderCacheSize = 10 * 1024 * 1024, PacketCacheSize = 128 * 1024 * 1024 });
-			using BundleStorageClient store = new BundleStorageClient(innerStore, cache, _logger);
+
+			BundleOptions bundleOptions = ComputeProtocolUtilities.GetBundleOptions(channel.Protocol);
+			using BundleStorageClient store = new BundleStorageClient(innerStore, cache, bundleOptions, _logger);
 
 			IBlobHandle handle = store.CreateBlobHandle(locator);
 			DirectoryNode directoryNode = await handle.ReadBlobAsync<DirectoryNode>(options, cancellationToken);
@@ -217,11 +221,9 @@ namespace EpicGames.Horde.Compute
 				}
 				else
 				{
-					IoHash hash;
-					using (FileStream stream = FileReference.Open(file, FileMode.Open))
-					{
-						hash = await IoHash.ComputeAsync(stream, cancellationToken);
-					}
+					await using FileStream stream = FileReference.Open(file, FileMode.Open, FileAccess.Read);
+					IoHash hash = await IoHash.ComputeAsync(stream, cancellationToken);
+					
 					if (hash == fileEntry.StreamHash)
 					{
 						_logger.LogInformation("Hash of {File} is correct ({Hash})", file, hash);

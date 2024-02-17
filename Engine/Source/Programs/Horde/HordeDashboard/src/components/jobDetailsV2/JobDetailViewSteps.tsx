@@ -168,7 +168,7 @@ export const StepsPanelInner: React.FC<{ jobDetails: JobDetailsV2, depStepId?: s
 
    dataView.subscribe();
 
-   const hordeTheme = getHordeTheme();   
+   const hordeTheme = getHordeTheme();
 
    const jobFilter = jobDetails.filter;
 
@@ -242,12 +242,14 @@ export const StepsPanelInner: React.FC<{ jobDetails: JobDetailsV2, depStepId?: s
          if (item.batch?.state) {
             batchText += " - ";
             batchText += item.batch.state;
-         }         
+         }
       }
 
+      const failure = error && item.batch?.error !== JobStepBatchError.NoLongerNeeded;
+
       const statusColors = dashboard.getStatusColors();
-      const errorColor = error ? (dashboard.darktheme ? "#F88070" : statusColors.get(StatusColor.Failure)) : undefined;
-      const errorWeight = error ? "600" : undefined;
+      const errorColor = failure ? (dashboard.darktheme ? "#F88070" : statusColors.get(StatusColor.Failure)) : undefined;
+      const errorWeight = failure ? "600" : undefined;
 
       switch (column!.key) {
 
@@ -255,16 +257,16 @@ export const StepsPanelInner: React.FC<{ jobDetails: JobDetailsV2, depStepId?: s
             if (!item.agentId) {
                if (item.agentPool && (item.batch?.state === JobStepBatchState.Ready || item.batch?.error === JobStepBatchError.NoAgentsOnline || item.batch?.error === JobStepBatchError.NoAgentsInPool)) {
                   return <Stack horizontal disableShrink={true} horizontalAlign="start">
-                     {(error || warning) && <Icon styles={{ root: { paddingTop: 3, paddingRight: 8, color: errorColor, fontWeight: errorWeight } }} iconName="Error" />}
+                     {(error || warning) && <Icon styles={{ root: { paddingTop: 3, paddingRight: 8, color: statusColors.get(StatusColor.Failure), fontWeight: errorWeight } }} iconName="Error" />}
                      <Link to={`/pools?pool=${encodeURI(item.agentPool)}`} ><Text styles={{ root: { color: errorColor, fontWeight: errorWeight } }} nowrap={true}>{batchText}</Text></Link>
                   </Stack>
                }
                return <Stack horizontal disableShrink={true} horizontalAlign="start">
-                  {(error || warning) && <Icon styles={{ root: { paddingTop: 3, paddingRight: 8, color: errorColor, fontWeight: errorWeight } }} iconName="Error" />}
+                  {(error || warning) && <Icon styles={{ root: { paddingTop: 3, paddingRight: 8, color: statusColors.get(StatusColor.Failure), fontWeight: errorWeight } }} iconName="Error" />}
                   <Text styles={{ root: { color: errorColor } }} nowrap={true}>{batchText}</Text>
                </Stack>;
             } else {
-               return <Stack horizontal disableShrink={true}>{(error || warning) && <Icon styles={{ root: { paddingTop: 3, paddingRight: 8, color: errorColor, fontWeight: errorWeight } }} iconName="Error" />}
+               return <Stack horizontal disableShrink={true}>{(error || warning) && <Icon styles={{ root: { paddingTop: 3, paddingRight: 8, color: statusColors.get(StatusColor.Failure), fontWeight: errorWeight } }} iconName="Error" />}
                   <Stack>
                      <Link to={url} onClick={(ev) => { ev.stopPropagation(); ev.preventDefault(); setLastSelectedAgent(item.agentId); }}><Text styles={{ root: { cursor: 'pointer', color: errorColor, fontWeight: errorWeight } }} >{batchText}</Text></Link>
                   </Stack>
@@ -347,7 +349,7 @@ export const StepsPanelInner: React.FC<{ jobDetails: JobDetailsV2, depStepId?: s
       if (props) {
          const item = props.item as StepItem;
          if (item.agentRow) {
-            props.styles = { ...props.styles, root: { background: `${hordeTheme.horde.dividerColor} !important` , selectors: { ".ms-DetailsRow-cell": { "overflow": "visible" } } } };
+            props.styles = { ...props.styles, root: { background: `${hordeTheme.horde.dividerColor} !important`, selectors: { ".ms-DetailsRow-cell": { "overflow": "visible" } } } };
          } else {
             props.styles = { ...props.styles, root: { selectors: { ".ms-DetailsRow-cell": { "overflow": "visible" }, "div[data-automation-key=\"Name\"],div[data-automation-key=\"ViewLogColumn\"]": { padding: 0 } } } };
          }
@@ -625,7 +627,7 @@ export const StepsPanelV2: React.FC<{ jobDetails: JobDetailsV2, depStepId?: stri
 
    if (!jobDetails.jobData) {
       return null;
-   }   
+   }
 
    const sideRail = depStepId ? depSideRail : stepsSideRail;
 

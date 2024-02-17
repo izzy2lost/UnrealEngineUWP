@@ -298,7 +298,7 @@ namespace Jupiter
 						}
 					};
 				});
-
+				builder.SetSampler(new AlwaysOnSampler());
 				builder.AddOtlpExporter();
 				if (useConsoleExporter)
 				{
@@ -311,7 +311,8 @@ namespace Jupiter
 					.AddMeter("UnrealCloudDDC", "ScyllaDB")
 					.AddOtlpExporter()
 					.AddAspNetCoreInstrumentation()
-					.AddHttpClientInstrumentation();
+					.AddHttpClientInstrumentation()
+					.AddRuntimeInstrumentation();
 
 				if (useConsoleExporter)
 				{

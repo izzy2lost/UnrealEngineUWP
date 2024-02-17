@@ -560,15 +560,21 @@ namespace Horde.Server.Agents.Pools
 	/// </summary>
 	/// <param name="Id">Identifier for the pool</param>
 	/// <param name="Name">Name of the pool</param>
-	/// <param name="Condition">Condition for machines in the pool</param>
 	/// <param name="ColorValue">Color to render the pool label</param>
+	/// <param name="Autoscaled">Whether autoscaling is enabled for this pool</param>
+	/// <param name="Stats">Counts for agents in differrent states</param>
+	/// <param name="Agents">Truncated list of agents</param>
+	/// <param name="Utilization">Utilization samples for the pool, from zero to one, with one sample for each hour</param>
+	public record class GetPoolSummaryResponse(PoolId Id, string Name, string ColorValue, bool Autoscaled, GetPoolStatsResponse? Stats, List<GetPoolAgentSummaryResponse>? Agents, List<double>? Utilization);
+
+	/// <summary>
+	/// Numbers of agents matching various criteria
+	/// </summary>
 	/// <param name="NumAgents">Number of agents in the pool</param>
 	/// <param name="NumIdle">Number of agents that are ready</param>
 	/// <param name="NumOffline">Number of agents offline</param>
 	/// <param name="NumDisabled">Number of agents that are disabled</param>
-	/// <param name="Autoscaled">Whether autoscaling is enabled for this pool</param>
-	/// <param name="Agents">Truncated list of agents</param>
-	public record class GetPoolSummaryResponse(PoolId Id, string Name, Condition? Condition, string ColorValue, int NumAgents, int NumIdle, int NumOffline, int NumDisabled, bool Autoscaled, List<GetPoolAgentSummaryResponse> Agents);
+	public record class GetPoolStatsResponse(int NumAgents, int NumIdle, int NumOffline, int NumDisabled);
 
 	/// <summary>
 	/// Response describing an agent in a pool

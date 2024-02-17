@@ -152,10 +152,7 @@ const StepDetailViewInner: React.FC<{ jobDetails: JobDetailsV2, stepId: string }
          <HealthPanel jobDetails={jobDetails} />
       </Stack>
       <Stack>
-         <StepErrorPanel jobDetails={jobDetails} stepId={stepId} showErrors={true} />
-      </Stack>
-      <Stack>
-         <StepErrorPanel jobDetails={jobDetails} stepId={stepId} showErrors={false} />
+         <StepErrorPanel jobDetails={jobDetails} stepId={stepId} />
       </Stack>
       <Stack>
          <StepsPanelV2 jobDetails={jobDetails} depStepId={stepId} />

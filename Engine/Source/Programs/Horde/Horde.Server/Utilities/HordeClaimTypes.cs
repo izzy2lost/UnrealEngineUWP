@@ -28,9 +28,14 @@ namespace Horde.Server.Utilities
 		public const string Version = Prefix + "version";
 
 		/// <summary>
-		/// Claim for a particular role.
+		/// Claim for a particular role. This is reserved for well-known roles defined by Horde itself.
 		/// </summary>
 		public const string Role = Prefix + "role";
+
+		/// <summary>
+		/// Claim type reserved for a particular group within the Horde account system. Values are user defined.
+		/// </summary>
+		public const string Group = Prefix + "group";
 
 		/// <summary>
 		/// Claim for a particular agent

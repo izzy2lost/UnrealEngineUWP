@@ -1,19 +1,21 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde.Dashboard;
+using Horde.Server.Accounts;
+using Horde.Server.Acls;
+using Horde.Server.Server;
+using Horde.Server.Utilities;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-using Horde.Server.Server;
-using System.Collections.Generic;
-using System.Linq;
-using Horde.Server.Acls;
-using EpicGames.Horde.Dashboard;
-using System.Threading;
 
 namespace Horde.Server.Dashboard
 {
@@ -148,6 +150,11 @@ namespace Horde.Server.Dashboard
 				dashboardConfigResponse.AgentCategories.Add(new GetDashboardAgentCategoryResponse { Name = category.Name, Condition = category.Condition });
 			}
 
+			foreach (DashboardPoolCategoryConfig category in _globalConfig.Value.Dashboard.PoolCategories)
+			{
+				dashboardConfigResponse.PoolCategories.Add(new GetDashboardPoolCategoryResponse { Name = category.Name, Condition = category.Condition });
+			}
+
 			foreach (TelemetryViewConfig telemetry in _globalConfig.Value.Dashboard.Analytics)
 			{
 				GetTelemetryViewResponse rview = new GetTelemetryViewResponse();
@@ -167,7 +174,7 @@ namespace Horde.Server.Dashboard
 					{
 						GetTelemetryChartResponse rchart = new GetTelemetryChartResponse { Name = chart.Name, Display = chart.Display.ToString(), Graph = chart.Graph.ToString(), Min = chart.Min, Max = chart.Max, Metrics = new List<GetTelemetryChartMetricResponse>() };
 
-						foreach (TelemetryChartMetricConfig metric  in chart.Metrics)
+						foreach (TelemetryChartMetricConfig metric in chart.Metrics)
 						{
 							rchart.Metrics.Add(new GetTelemetryChartMetricResponse { MetricId = metric.Id.ToString(), Threshold = metric.Threshold, Alias = metric.Alias });
 						}
@@ -203,7 +210,7 @@ namespace Horde.Server.Dashboard
 			if (!String.IsNullOrEmpty(request.ExampleLink) || !String.IsNullOrEmpty(request.DiscussionLink) || !String.IsNullOrEmpty(request.TrackingLink))
 			{
 				IDashboardPreview? updated = await _previewCollection.UpdatePreviewAsync(preview.Id, null, null, null, request.ExampleLink, request.DiscussionLink, request.TrackingLink, cancellationToken);
-				if (updated == null) 
+				if (updated == null)
 				{
 					return NotFound(preview.Id);
 				}
@@ -229,11 +236,11 @@ namespace Horde.Server.Dashboard
 			}
 
 			IDashboardPreview? preview = await _previewCollection.UpdatePreviewAsync(request.Id, request.Summary, request.DeployedCL, request.Open, request.ExampleLink, request.DiscussionLink, request.TrackingLink, cancellationToken);
-			
+
 			if (preview == null)
 			{
 				return NotFound(request.Id);
-			}			
+			}
 
 			return CreatePreviewResponse(preview);
 		}
@@ -246,8 +253,8 @@ namespace Horde.Server.Dashboard
 		[Authorize]
 		[Route("/api/v1/dashboard/previews")]
 		public async Task<ActionResult<List<GetDashboardPreviewResponse>>> GetDashbordPreviewsAsync([FromQuery] bool open = true, CancellationToken cancellationToken = default)
-		{			
-			List <IDashboardPreview> previews = await _previewCollection.FindPreviewsAsync(open, cancellationToken);			
+		{
+			List<IDashboardPreview> previews = await _previewCollection.FindPreviewsAsync(open, cancellationToken);
 			return previews.Select(CreatePreviewResponse).ToList();
 		}
 
@@ -263,6 +270,22 @@ namespace Horde.Server.Dashboard
 			response.DiscussionLink = preview.DiscussionLink;
 			response.TrackingLink = preview.TrackingLink;
 			return response;
+		}
+
+		/// <summary>
+		/// Returns a list of valid user-defined groups from the current server config. These are any claims with
+		/// the <see cref="HordeClaimTypes.Group"/> type.
+		/// </summary>
+		[HttpGet]
+		[Route("/api/v1/dashboard/account-groups")]
+		public ActionResult<IReadOnlyList<string>> GetAccountGroupClaims()
+		{
+			if (!_globalConfig.Value.Authorize(AccountAclAction.CreateAccount, User) && !_globalConfig.Value.Authorize(AccountAclAction.UpdateAccount, User))
+			{
+				return Forbid();
+			}
+
+			return Ok(_globalConfig.Value.GetValidAccountGroupClaims());
 		}
 	}
 }

@@ -295,7 +295,7 @@ namespace EpicGames.Horde.Common
 		/// Constructor
 		/// </summary>
 		/// <param name="error"></param>
-		internal ConditionException(string error)
+		public ConditionException(string error)
 			: base(error)
 		{
 		}
