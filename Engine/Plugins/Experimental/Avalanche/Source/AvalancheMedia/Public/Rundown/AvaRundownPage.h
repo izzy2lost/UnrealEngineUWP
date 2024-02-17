@@ -37,11 +37,10 @@ enum class EAvaRundownPageStatus : uint8
 };
 
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvaRundownChannelPageStatus
+struct FAvaRundownChannelPageStatus
 {
 	GENERATED_BODY()
-	
-public:
+
 	UPROPERTY()
 	EAvaBroadcastChannelType Type = EAvaBroadcastChannelType::Program;
 	
@@ -59,7 +58,6 @@ struct AVALANCHEMEDIA_API FAvaRundownPage
 	GENERATED_BODY()
 
 public:
-	
 	static FAvaRundownPage NullPage;
 	static const int32 InvalidPageId;
 
