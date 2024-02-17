@@ -44,17 +44,21 @@ void SPCGEditorGraphVarNode::UpdateGraphNode()
 
 	SetupErrorReporting();
 
-	bool bNeedsTitle = (Cast<UPCGEditorGraphNodeNamedRerouteBase>(GraphNode) != nullptr);
+	const bool bNeedsTitle = (Cast<UPCGEditorGraphNodeNamedRerouteBase>(GraphNode) != nullptr);
 
 	TSharedPtr<SWidget> TitleArea = SNullWidget::NullWidget.ToSharedPtr();
 
 	if (bNeedsTitle)
 	{
+		const bool bNeedsPadding = (Cast<UPCGEditorGraphNodeNamedRerouteUsage>(GraphNode) != nullptr);
+		FMargin CustomPadding = FMargin(Settings->PaddingLeftOfOutput, Settings->PaddingAbovePin, 0, Settings->PaddingBelowPin);
+
 		TSharedPtr<SNodeTitle> NodeTitle = SNew(SNodeTitle, GraphNode);
 		SAssignNew(TitleArea, SVerticalBox)
 			+ SVerticalBox::Slot()
 			.AutoHeight()
 			.VAlign(VAlign_Center)
+			.Padding(bNeedsPadding ? CustomPadding : FMargin())
 			[
 				CreateTitleWidget(NodeTitle)
 			]

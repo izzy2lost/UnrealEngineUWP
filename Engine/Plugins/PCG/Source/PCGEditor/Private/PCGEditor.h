@@ -241,6 +241,32 @@ private:
 	/** Whether the user can rename the selected node */
 	bool CanRenameNode() const;
 
+	/** Converts a named reroute to reroute, rewiring its edges to a newly created reroute */
+	void OnConvertNamedRerouteToReroute();
+	/** Whether the user can convert the selection to a reroute */
+	bool CanConvertNamedRerouteToReroute() const;
+
+	/** Selects the associated usages of a given reroute declaration */
+	void OnSelectNamedRerouteUsages();
+	/** Whether the user can find the usages from the selection */
+	bool CanSelectNamedRerouteUsages() const;
+
+	/** Selects the associated declaration of a given reroute usage */
+	void OnSelectNamedRerouteDeclaration();
+	/** Whether the user can find the declaration from the selection */
+	bool CanSelectNamedRerouteDeclaration() const;
+
+	/** Converts a selected reroute to a named reroute pair; the inputs will go to the declaration and the outputs will go to the usage */
+	void OnConvertRerouteToNamedReroute();
+	/** Whether the user can convert to a named reroute from the selection */
+	bool CanConvertRerouteToNamedReroute() const;
+
+	/** Internal method that validates a few things (& logs errors) prior to executing actions. */
+	bool InternalValidationOnAction();
+
+	/** Finds editor graph node that matches the provided PCG node */
+	UPCGEditorGraphNodeBase* GetEditorNode(const UPCGNode* InNode);
+
 	void OnAlignTop();
 	void OnAlignMiddle();
 	void OnAlignBottom();

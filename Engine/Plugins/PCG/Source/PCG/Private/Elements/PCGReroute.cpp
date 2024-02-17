@@ -4,6 +4,7 @@
 
 #include "PCGContext.h"
 #include "PCGEdge.h"
+#include "PCGModule.h"
 #include "PCGNode.h"
 #include "PCGPin.h"
 
@@ -83,7 +84,11 @@ EPCGDataType UPCGNamedRerouteUsageSettings::GetCurrentPinTypes(const UPCGPin* In
 
 bool FPCGRerouteElement::ExecuteInternal(FPCGContext* Context) const
 {
-	ensureMsgf(false, TEXT("Reroute elements are not supposed to execute - reroutes should be culled during graph compilation."));
+	check(Context);
+
+	// Reroute elements are culled during graph compilation unless they have no inbound edge.
+	// In such as case, this is a good place to log an error for user to deal with.
+	PCGE_LOG(Error, GraphAndLog, NSLOCTEXT("PCGRerouteSettings", "DetachedReroute", "Reroute is not linked to anything. Reconnect to recreate to fix the error."));
 	
 	Context->OutputData = Context->InputData;
 	for (FPCGTaggedData& Output : Context->OutputData.TaggedData)

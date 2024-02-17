@@ -173,6 +173,28 @@ void UPCGEditorGraphNodeNamedRerouteDeclaration::ReconstructNodeOnChange()
 	});
 }
 
+void UPCGEditorGraphNodeNamedRerouteDeclaration::SetNodeName(const UPCGNode* FromNode, FName FromPinName)
+{
+	FString NewName;
+
+	if (FromNode)
+	{
+		NewName = FromNode->GetNodeTitle(EPCGNodeTitleType::ListView).ToString() + " " + FromPinName.ToString();
+	}
+	else if (FromPinName != NAME_None)
+	{
+		NewName = FromPinName.ToString();
+	}
+	else
+	{
+		NewName = TEXT("Reroute");
+	}
+
+	bCanRenameNode = true;
+	OnRenameNode(GetCollisionFreeNodeName(NewName));
+	bCanRenameNode = false;
+}
+
 void UPCGEditorGraphNodeNamedRerouteDeclaration::OnRenameNode(const FString& NewName)
 {
 	Super::OnRenameNode(NewName);
@@ -186,4 +208,67 @@ void UPCGEditorGraphNodeNamedRerouteDeclaration::OnRenameNode(const FString& New
 	});
 
 	ReconstructNodeOnChange();
+}
+
+void UPCGEditorGraphNodeNamedRerouteDeclaration::OnColorPicked(FLinearColor NewColor)
+{
+	Super::OnColorPicked(NewColor);
+
+	// Propagate change to downstream usage nodes
+	ApplyToUsageNodes([&NewColor](UPCGEditorGraphNodeNamedRerouteUsage* RerouteNode)
+	{
+		RerouteNode->OnColorPicked(NewColor);
+	});
+}
+
+void UPCGEditorGraphNodeNamedRerouteDeclaration::PostPaste()
+{
+	Super::PostPaste();
+	FixNodeNameCollision();
+}
+
+void UPCGEditorGraphNodeNamedRerouteDeclaration::FixNodeNameCollision()
+{
+	const FString BaseName = GetNodeTitle(ENodeTitleType::ListView).ToString();
+
+	bCanRenameNode = true;
+	OnRenameNode(GetCollisionFreeNodeName(BaseName));
+	bCanRenameNode = false;
+}
+
+FString UPCGEditorGraphNodeNamedRerouteDeclaration::GetCollisionFreeNodeName(const FString& BaseName) const
+{
+	// If there is another declaration in the graph with the same name, append a _N to the name here.
+	UPCGEditorGraph* EditorGraph = Cast<UPCGEditorGraph>(GetGraph());
+
+	if (!EditorGraph)
+	{
+		return BaseName;
+	}
+
+	FString TentativeName = BaseName;
+	bool bHasNameCollision = true;
+	int32 NameSuffix = 1;
+
+	while (bHasNameCollision)
+	{
+		bHasNameCollision = false;
+
+		for (const TObjectPtr<UEdGraphNode>& EdGraphNode : EditorGraph->Nodes)
+		{
+			if (EdGraphNode && EdGraphNode != this && EdGraphNode->GetNodeTitle(ENodeTitleType::ListView).ToString() == TentativeName)
+			{
+				bHasNameCollision = true;
+				break;
+			}
+		}
+
+		if (bHasNameCollision)
+		{
+			// Implementation note: since the node title is a display string, we need to craft the tentative name to be "stable" against it, otherwise the comparisons will fail.
+			TentativeName = FString::Printf(TEXT("%s %d"), *BaseName, NameSuffix++);
+		}
+	}
+
+	return TentativeName;
 }

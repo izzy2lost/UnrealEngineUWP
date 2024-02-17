@@ -581,6 +581,7 @@ UEdGraphNode* FPCGEditorGraphSchemaAction_NewNamedRerouteUsage::PerformAction(cl
 
 	CastChecked<UPCGNamedRerouteUsageSettings>(DefaultNodeSettings)->Declaration = Declaration;
 	NewPCGNode->NodeTitle = DeclarationNode->NodeTitle;
+	NewPCGNode->NodeTitleColor = DeclarationNode->NodeTitleColor;
 
 	// Create edge from the declaration to the new node
 	PCGGraph->AddEdge(const_cast<UPCGNode*>(DeclarationNode.Get()), PCGNamedRerouteConstants::InvisiblePinLabel, NewPCGNode, PCGPinConstants::DefaultInputLabel);
@@ -644,26 +645,15 @@ UEdGraphNode* FPCGEditorGraphSchemaAction_NewNamedRerouteDeclaration::PerformAct
 	NewPCGNode->PositionX = Location.X;
 	NewPCGNode->PositionY = Location.Y;
 
-	NewPCGNode->NodeTitle = TEXT("Reroute");
+	UPCGNode* FromNode = nullptr;
 
 	if (FromPin)
 	{
-		if (UPCGNamedRerouteDeclarationSettings* Declaration = Cast<UPCGNamedRerouteDeclarationSettings>(DefaultNodeSettings))
-		{
-			UPCGNode* FromNode = CastChecked<UPCGEditorGraphNodeBase>(FromPin->GetOwningNode())->GetPCGNode();
-
-			if (FromNode)
-			{
-				NewPCGNode->NodeTitle = FName(FromNode->GetNodeTitle(EPCGNodeTitleType::ListView).ToString() + " " + FromPin->PinName.ToString());
-			}
-			else
-			{
-				NewPCGNode->NodeTitle = FromPin->PinName;
-			}
-		}
-
+		FromNode = CastChecked<UPCGEditorGraphNodeBase>(FromPin->GetOwningNode())->GetPCGNode();
 		NewNode->AutowireNewNode(FromPin);
 	}
+
+	NewNode->SetNodeName(FromNode, FromPin ? FromPin->PinName : NAME_None);
 
 	return NewNode;
 }
