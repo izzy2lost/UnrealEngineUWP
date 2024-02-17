@@ -718,6 +718,12 @@ namespace Metasound
 				return Settings->WaveTablePinTypeColor;
 			}
 
+			// custom colors
+			if (const FLinearColor* Color = Settings->CustomPinTypeColors.Find(PinType.PinCategory))
+			{
+				return *Color;
+			}
+
 			return Settings->DefaultPinTypeColor;
 		}
 

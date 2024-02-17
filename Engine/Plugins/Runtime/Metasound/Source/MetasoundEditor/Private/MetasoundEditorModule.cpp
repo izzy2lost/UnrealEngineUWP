@@ -529,7 +529,7 @@ namespace Metasound
 
 						// Types like triggers & AudioBuffer are specialized, so ignore their preferred
 						// literal types to classify the category.
-						if (!FGraphBuilder::IsPinCategoryMetaSoundCustomDataType(PinCategory))
+						if (!FGraphBuilder::IsPinCategoryMetaSoundCustomDataType(PinCategory) && !CustomPinCategories.Contains(PinCategory))
 						{
 							// Primitives
 							switch (RegistryInfo.PreferredLiteralType)
@@ -629,6 +629,26 @@ namespace Metasound
 				PinConfiguration.PinConnectedIcon = InPinConnectedIcon;
 				PinConfiguration.PinDisconnectedIcon = InPinDisconnectedIcon;
 				PinTypes.Emplace(InDataTypeName, MoveTemp(PinConfiguration));
+			}
+
+			virtual void RegisterCustomPinType(FName InDataTypeName, const FGraphPinParams& Params) override
+			{
+				RegisterPinType(InDataTypeName, Params.PinCategory, Params.PinSubcategory, Params.PinConnectedIcon, Params.PinDisconnectedIcon);
+				if (Params.PinCategory.IsNone())
+				{
+					return;
+				}
+				
+				if (FGraphBuilder::IsPinCategoryMetaSoundCustomDataType(InDataTypeName))
+				{
+					UE_LOG(LogMetasoundEditor, Warning, TEXT("Attempted to register a \"Custom Pin Type\": \"%s\", but this is already a Metasound Custom Data Type"), *InDataTypeName.ToString());
+					return;
+				}
+				
+				CustomPinCategories.Add(Params.PinCategory);
+				UMetasoundEditorSettings* Settings = GetMutableDefault<UMetasoundEditorSettings>();
+				Settings->CustomPinTypeColors.Add(Params.PinCategory, Params.PinColor ? *Params.PinColor : Settings->DefaultPinTypeColor);
+
 			}
 
 			void ShutdownAssetClassRegistry()
@@ -968,6 +988,7 @@ namespace Metasound
 			TArray<TSharedPtr<FAssetTypeActions_Base>> AssetActions;
 			TMap<EMetasoundFrontendLiteralType, const TSubclassOf<UMetasoundEditorGraphMemberDefaultLiteral>> InputDefaultLiteralClassRegistry;
 			TMap<FName, FGraphPinConfiguration> PinTypes;
+			TSet<FName> CustomPinCategories;
 
 			TMap<UClass*, TUniquePtr<IMemberDefaultLiteralCustomizationFactory>> LiteralCustomizationFactories;
 
