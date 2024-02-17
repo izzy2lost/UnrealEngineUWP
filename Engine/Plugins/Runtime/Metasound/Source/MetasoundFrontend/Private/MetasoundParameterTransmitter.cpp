@@ -268,8 +268,41 @@ namespace Metasound
 		AvailableParameterNames.Remove(InName);
 	}
 
+	bool FMetaSoundParameterTransmitter::SetVirtualizedParameters(TArray<FAudioParameter>&& InParameters)
+	{
+		bool bSuccess = true;
+
+		// Remove triggers
+		for (int32 ParamIndex = InParameters.Num() - 1; ParamIndex >= 0; --ParamIndex)
+		{
+			// Triggers are transient and are not applied for virtualized sounds. 
+			// If a cached value is desired, use SetBoolParameter
+			// (see comment for IAudioParameterControllerInterface::SetTriggerParameter)
+			FAudioParameter& Param = InParameters[ParamIndex];
+			if (Param.ParamType == EAudioParameterType::Trigger)
+			{
+				InParameters.RemoveAtSwap(ParamIndex, 1, EAllowShrinking::No);
+			}
+		}
+
+		if (!InParameters.IsEmpty())
+		{
+			bSuccess &= FParameterTransmitterBase::SetParameters(MoveTemp(InParameters));
+		}
+
+		InParameters.Reset();
+		return bSuccess;
+	}
+
 	bool FMetaSoundParameterTransmitter::SetParameters(TArray<FAudioParameter>&& InParameters)
 	{
+		// Don't set parameters directly if the active sound 
+		// is currently virtualized (to prevent accumulation of unneeded updates) 
+		if (bIsVirtualized)
+		{
+			return SetVirtualizedParameters(MoveTemp(InParameters));
+		}
+
 		bool bSuccess = true;
 
 		for (int32 ParamIndex = InParameters.Num() - 1; ParamIndex >= 0; --ParamIndex)

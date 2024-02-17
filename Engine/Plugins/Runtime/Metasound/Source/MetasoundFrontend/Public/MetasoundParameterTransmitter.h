@@ -142,6 +142,13 @@ namespace Metasound
 		bool SetParameterWithLiteral(FName InParameterName, const FLiteral& InValue);
 
 	private:
+		/** Set parameters when virtualized
+		 * 
+		 *  @return true if all non trigger parameters are set on the parameter base
+		 *	(trigger parameters are removed on virtualized sounds 
+		 *	and parameters are not actually set on the MetaSound until realization)
+		 */
+		bool SetVirtualizedParameters(TArray<FAudioParameter>&& InParameters);
 
 		uint64 InstanceID;
 		FName DebugMetaSoundName;
