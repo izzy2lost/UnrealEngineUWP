@@ -10,6 +10,7 @@
 #include "Delegates/Delegate.h"
 #include "HAL/ThreadSafeBool.h"
 
+class IChaosVDPlaybackControllerInstigator;
 class UChaosVDEditorSettings;
 struct FChaosVDTraceSessionDescriptor;
 struct FChaosVDTrackInfo;
@@ -226,6 +227,13 @@ public:
 	void RequestPause() { bPauseRequested = true; }
 	void RequestUnpause() { bPauseRequested = false; }
 	bool HasPauseRequest() const { return bPauseRequested; }
+	void RequestStop(const IChaosVDPlaybackControllerInstigator& InPlaybackInstigator);
+
+	/** Returns the ID of the current playback instigator that is controlling the playback */
+	const FGuid& GetPlaybackInstigatorWithExclusiveControlsID() const { return CurrentPlaybackInstigator; }
+
+	bool AcquireExclusivePlaybackControls(const IChaosVDPlaybackControllerInstigator& InPlaybackInstigator);
+	bool ReleaseExclusivePlaybackControls(const IChaosVDPlaybackControllerInstigator& InPlaybackInstigator);
 
 	float GetFrameTimeOverride() const;
 	float GetFrameTimeForTrack(EChaosVDTrackType TrackType, int32 TrackID, const FChaosVDTrackInfo& TrackInfo) const;
@@ -289,4 +297,6 @@ protected:
 	bool bPauseRequested = false;
 
 	FDelegateHandle RecordingStoppedHandle;
+
+	FGuid CurrentPlaybackInstigator;
 };

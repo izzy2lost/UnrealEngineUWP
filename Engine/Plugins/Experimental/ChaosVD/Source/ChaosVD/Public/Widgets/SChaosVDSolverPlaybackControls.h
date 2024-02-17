@@ -7,6 +7,7 @@
 #include "Templates/SharedPointer.h"
 #include "Widgets/SCompoundWidget.h"
 
+enum class EChaosVDPlaybackButtonsID : uint8;
 struct FChaosVDTrackInfo;
 class FChaosVDPlaybackController;
 class SChaosVDTimelineWidget;
@@ -34,6 +35,8 @@ public:
 
 	void Construct(const FArguments& InArgs, int32 InSolverID, const TWeakPtr<FChaosVDPlaybackController>& InPlaybackController);
 
+	~SChaosVDSolverPlaybackControls();
+
 private:
 
 	void OnFrameSelectionUpdated(int32 NewFrameIndex);
@@ -44,6 +47,9 @@ private:
 	virtual void HandleControllerTrackFrameUpdated(TWeakPtr<FChaosVDPlaybackController> InController, const FChaosVDTrackInfo* UpdatedTrackInfo, FGuid InstigatorGuid) override;
 
 	void HandleLockStateChanged(bool NewIsLocked);
+	void HandlePlaybackButtonClicked(EChaosVDPlaybackButtonsID ButtonID);
+
+	void ConditionallyLockPlaybackControl(const TSharedRef<FChaosVDPlaybackController>& InControllerSharedRef);
 
 	const FSlateBrush* GetFrameTypeBadgeBrush() const;
 

@@ -3,7 +3,9 @@
 #include "Widgets/SChaosVDSolverPlaybackControls.h"
 
 #include "ChaosVDEditorSettings.h"
+#include "ChaosVDModule.h"
 #include "ChaosVDPlaybackController.h"
+#include "Widgets/ChaosVDPlaybackControlsHelper.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SChaosVDPlaybackViewport.h"
 #include "Widgets/SChaosVDTimelineWidget.h"
@@ -46,6 +48,7 @@ void SChaosVDSolverPlaybackControls::Construct(const FArguments& InArgs, int32 I
 						SAssignNew(FramesTimelineWidget, SChaosVDTimelineWidget)
 						.ButtonVisibilityFlags(static_cast<uint16>(EChaosVDTimelineElementIDFlags::AllPlayback))
 						.OnFrameChanged_Raw(this, &SChaosVDSolverPlaybackControls::OnFrameSelectionUpdated)
+						.OnButtonClicked_Raw(this, &SChaosVDSolverPlaybackControls::HandlePlaybackButtonClicked)
 						.MaxFrames(0)
 					]
 					+SHorizontalBox::Slot()
@@ -102,6 +105,24 @@ void SChaosVDSolverPlaybackControls::Construct(const FArguments& InArgs, int32 I
 	}
 }
 
+SChaosVDSolverPlaybackControls::~SChaosVDSolverPlaybackControls()
+{
+	if (const TSharedPtr<FChaosVDPlaybackController> PlaybackControllerPtr = PlaybackController.Pin())
+	{
+		PlaybackControllerPtr->ReleaseExclusivePlaybackControls(*this);
+	}
+}
+
+void SChaosVDSolverPlaybackControls::ConditionallyLockPlaybackControl(const TSharedRef<FChaosVDPlaybackController>& InControllerSharedRef)
+{
+	const FGuid CurrentPlaybackInstigatorID = InControllerSharedRef->GetPlaybackInstigatorWithExclusiveControlsID();
+	const bool bUserCanControlPlayback = CurrentPlaybackInstigatorID == InvalidGuid || CurrentPlaybackInstigatorID == GetInstigatorID();
+
+	// On Live Sessions, only the Game Frames timeline controls are allowed for now
+	FramesTimelineWidget->SetIsLocked(InControllerSharedRef->IsPlayingLiveSession() || !bUserCanControlPlayback);
+	StepsTimelineWidget->SetIsLocked(InControllerSharedRef->IsPlayingLiveSession() || !bUserCanControlPlayback);
+}
+
 void SChaosVDSolverPlaybackControls::HandlePlaybackControllerDataUpdated(TWeakPtr<FChaosVDPlaybackController> InController)
 {
 	if (PlaybackController != InController)
@@ -128,9 +149,7 @@ void SChaosVDSolverPlaybackControls::HandlePlaybackControllerDataUpdated(TWeakPt
 		// or just set the slider to start from 1 and handle the offset later 
 		StepsTimelineWidget->UpdateMinMaxValue(0,AvailableSteps != INDEX_NONE ? AvailableSteps -1 : 0);
 
-		// On Live Sessions, only the Game Frames timeline controls are allowed for now
-		FramesTimelineWidget->SetIsLocked(ControllerSharedPtr->IsPlayingLiveSession());
-		StepsTimelineWidget->SetIsLocked(ControllerSharedPtr->IsPlayingLiveSession());
+		ConditionallyLockPlaybackControl(ControllerSharedPtr.ToSharedRef());
 	}
 	else
 	{
@@ -206,6 +225,11 @@ void SChaosVDSolverPlaybackControls::HandleLockStateChanged(bool NewIsLocked)
 			CurrentPlaybackControllerPtr->UnlockTrackStep(EChaosVDTrackType::Solver, SolverID);
 		}
 	}
+}
+
+void SChaosVDSolverPlaybackControls::HandlePlaybackButtonClicked(EChaosVDPlaybackButtonsID ButtonID)
+{
+	Chaos::VisualDebugger::HandleUserPlaybackInputControl(ButtonID, *this, PlaybackController);
 }
 
 const FSlateBrush* SChaosVDSolverPlaybackControls::GetFrameTypeBadgeBrush() const
