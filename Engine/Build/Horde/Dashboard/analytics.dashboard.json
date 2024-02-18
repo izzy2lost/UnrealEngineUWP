@@ -456,7 +456,7 @@
 							"name": "AutoTest Jobs",
 							"metrics": [
 								{
-									"id": "horde-autotest-build-jobs"
+									"id": "horde-autotest-ci-jobs"
 								}
 							]
 						},
@@ -464,7 +464,10 @@
 							"name": "Compilation Jobs",
 							"metrics": [
 								{
-									"id": "horde-compile-jobs"
+									"id": "horde-incremental-compile-jobs"
+								},
+								{
+									"id": "horde-monolithic-compile-jobs"
 								}
 							]
 						},
