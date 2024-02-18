@@ -18,7 +18,7 @@ seamlessly with Horde's CI functionality.
 To configure UnrealGameSync to source data from Horde, add the following lines in the `UnrealGameSync.ini` config file:
 
     [Default]
-    ApiUrl=https://{{ horde_server_url }}/ugs
+    ApiUrl=https://{{ HORDE_SERVER_URL }}/ugs
 
 This config file can be in a project-specific location (eg. `{{ PROJECT_DIR }}/Build/UnrealGameSync.ini`) or in a
 location that applies to all projects in a stream (eg. `{{ ENGINE_DIR }}/Programs/UnrealGameSync/UnrealGameSync.ini`).

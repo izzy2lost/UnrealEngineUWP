@@ -5,6 +5,14 @@
 * **[Set up remote C++ compilation](Tutorials/RemoteCompilation.md)**
 * **[Set up build automation](Tutorials/BuildAutomation.md)**
 
+## Status
+
+Horde is under heavy development, and large parts of it are still in flux. While we use aspects of it
+(particularly the CI system) heavily at Epic, we consider it experimental for Unreal Engine licensees
+and offer limited support for it.
+
+See also: [Feature Status](Features.md)
+
 ## Reference
 
 Horde documentation is divided into sections focusing of aspects of Horde of interest to different groups.

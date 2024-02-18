@@ -4,8 +4,8 @@
 
 ## Why are all these use cases being muddled together?
 
-Most of our target use cases are traditionally handled as distinct components, but bringing them all together
-gives us many opportunities for optimization:
+Most of our target use cases are traditionally handled as distinct components, but bringing them all together lets us
+take a lot of shortcuts and optimize for common use cases. For example:
 
 * Storage is a key component of any data pipeline for caching.
 * Remote execution needs data close to compute nodes where it can be retrieved quickly.
@@ -13,14 +13,13 @@ gives us many opportunities for optimization:
   functionality as a remote execution platform, and require a storage backend for intermediate and final
   artifacts.
 
-We want Unreal Engine to allow developers to focus on making awesome products, and fast, reliable iteration is a
-key component of the golden path that lets that happen. Sharing battle-tested infrastructure that works well with
-the Engine and has proved valuable at Epic reduces the barrier to entry for other teams.
+By sharing the infrastructure that supports up our internal dev teams, we hope to remove more of the busywork that is
+needed for teams to collaborate successfully.
 
 ## Will I need to deploy Horde to use Unreal Engine?
 
-No, Horde is not intended to be hard requirement to use Unreal Engine, but it has been valuable for Epic and
-we believe it can be valuable for other teams too.
+No. Horde is not intended to be hard requirement to use Unreal Engine, but it has been valuable for Epic and
+we hope it can be valuable for other teams too.
 
 ## Do I have to deploy Horde to the cloud?
 
@@ -31,11 +30,12 @@ cloud storage even if you don't host any other infrastructure in the cloud.
 
 No. Each feature is optional, and any disabled features do not incur any costs.
 
-## Why would I use Horde for build automation, rather than an established build automation system like Jenkins or TeamCity?
+## Why would I use Horde for build automation rather than Jenkins or TeamCity?
 
-Most build automation systems are purposefully generic, allowing you to run any sort of workfload on them. That leaves
-a lot of plumbing for build ops teams to do; writing build scripts, managing artifact transfers between agents to
-implement parallelism, setting up stores for final artifacts, implementing a way to manage the allocation of
+Most build automation systems are purposefully generic, allowing you to run any sort of workfload on them.
+
+That leaves a lot of plumbing for build ops teams to do; writing build scripts, managing artifact transfers between
+agents to implement parallelism, setting up stores for final artifacts, implementing a way to manage the allocation of
 network-connected devkits and mobile devices for build agents and so on.
 
 What's more, the resulting system is not very smart. You may have notifications for build failures, but it requires
@@ -51,8 +51,12 @@ needs to be stored somewhere, and want to go spelunking through that data to fin
 certain threshold in a certain map, or when the size of a particular level exceeded a certain point.
 
 A lot of these problems are orthogonal to the problems that build automation systems typically concern themselves
-with solving. By thinking about them together, we can make much smarter implementation decisions that understand
+with solving, but by thinking about them together we can make much smarter implementation decisions that understand
 the context that they're operating in.
 
 That said, Horde's CI functionality is not enabled by default. Other functionality in Horde can still be used without
 having to migrate to a new build automation system.
+
+## Does Epic get telemetry about our project if we use Horde?
+
+No. Horde does not send any data to Epic.
