@@ -939,7 +939,6 @@ bool FConfigContext::LoadIniFileHierarchy()
 
 		if (ChangeTracker != nullptr && ChangeTracker->bTrackLoadedFiles)
 		{
-			UE_LOG(LogConfig, Display, TEXT("Tracking ini %s"), *IniFileName);
 			ChangeTracker->LoadedFiles.Add(IniFileName);
 		}
 	}
