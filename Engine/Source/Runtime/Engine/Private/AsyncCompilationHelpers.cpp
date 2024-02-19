@@ -171,19 +171,6 @@ namespace AsyncCompilationHelpers
 
 						continue;
 					}
-					
-					// Avoid spamming task progress while waiting
-					if (!LoggedSlowTask[JobIndex])
-					{
-						LoggedSlowTask[JobIndex] = true;
-						FText Progress = FormatProgress(NumDone, Num, Job.GetName());
-						UE_LOG_REF(LogCategory, Display, TEXT("%s"), *Progress.ToString());
-
-						if (SlowTask.IsSet())
-						{
-							SlowTask->EnterProgressFrame(0.0f, Progress);
-						}
-					}
 				}
 				It.SetWord(WordJobState);
 			}
@@ -201,6 +188,24 @@ namespace AsyncCompilationHelpers
 			if(NumDone >= Num)
 			{
 				break;
+			}
+
+			if (SlowTask.IsSet())
+			{
+				int IncompleteJobIndex = JobsToFinish.Find(true);
+				check(IncompleteJobIndex != INDEX_NONE);
+
+				ICompilable& IncompleteJob = Getter(IncompleteJobIndex);
+				FText Progress = FormatProgress(NumDone, Num, IncompleteJob.GetName());
+
+				// Avoid spamming task progress while waiting
+				if (!LoggedSlowTask[IncompleteJobIndex])
+				{
+					UE_LOG_REF(LogCategory, Display, TEXT("%s"), *Progress.ToString());
+					LoggedSlowTask[IncompleteJobIndex] = true;
+				}
+
+				SlowTask->EnterProgressFrame(0.0f, Progress);
 			}
 
 			// Jobs are still in flight so give them some time to complete
