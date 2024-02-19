@@ -27,6 +27,7 @@
 #include "DetailCategoryBuilder.h"
 #include "Interfaces/ITargetPlatform.h"
 #include "Interfaces/ITargetPlatformModule.h"
+#include "Interfaces/ITargetPlatformSettingsModule.h"
 #include "SExternalImageReference.h"
 #include "RHIDefinitions.h"
 #include "RHIShaderFormatDefinitions.inl"
@@ -129,11 +130,9 @@ static FString GetLinuxSplashFilename(ELinuxImageScope::Type Scope, bool bIsEdit
 /* Helper function used to generate filenames for icons */
 static FString GetLinuxIconFilename(ELinuxImageScope::Type Scope)
 {
-	const FString& PlatformName = FModuleManager::GetModuleChecked<ITargetPlatformModule>("LinuxTargetPlatform").GetTargetPlatforms()[0]->PlatformName();
-
 	if (Scope == ELinuxImageScope::Engine)
 	{
-		FString Filename = FPaths::EngineDir() / FString(TEXT("Source/Runtime/Launch/Resources")) / PlatformName / FString("UnrealEngine.png");
+		FString Filename = FPaths::EngineDir() / FString(TEXT("Source/Runtime/Launch/Resources/Linux/UnrealEngine.png"));
 		return FPaths::ConvertRelativePathToFull(Filename);
 	}
 	else
@@ -141,7 +140,7 @@ static FString GetLinuxIconFilename(ELinuxImageScope::Type Scope)
 		FString Filename = FPaths::ProjectDir() / TEXT("Build/Linux/Application.png");
 		if(!FPaths::FileExists(Filename))
 		{
-			FString LegacyFilename = FPaths::GameSourceDir() / FString(FApp::GetProjectName()) / FString(TEXT("Resources")) / PlatformName / FString(FApp::GetProjectName()) + TEXT(".icns");
+			FString LegacyFilename = FPaths::GameSourceDir() / FString(FApp::GetProjectName()) / FString(TEXT("Resources/Linux")) / FString(FApp::GetProjectName()) + TEXT(".icns");
 			if(FPaths::FileExists(LegacyFilename))
 			{
 				Filename = LegacyFilename;
@@ -154,9 +153,9 @@ static FString GetLinuxIconFilename(ELinuxImageScope::Type Scope)
 void FLinuxTargetSettingsDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBuilder )
 {
 	// Setup the supported/targeted RHI property view
-	ITargetPlatform* TargetPlatform = FModuleManager::GetModuleChecked<ITargetPlatformModule>("LinuxTargetPlatform").GetTargetPlatforms()[0];
+	ITargetPlatformSettings* TargetPlatformSettings = FModuleManager::GetModuleChecked<ITargetPlatformSettingsModule>("LinuxTargetPlatformSettings").GetTargetPlatformSettings()[0];
 	TargetShaderFormatsDetails = MakeShareable(new FShaderFormatsPropertyDetails(&DetailBuilder));
-	TargetShaderFormatsDetails->CreateTargetShaderFormatsPropertyView(TargetPlatform, &GetFriendlyNameFromLinuxShaderFormat);
+	TargetShaderFormatsDetails->CreateTargetShaderFormatsPropertyView(TargetPlatformSettings, &GetFriendlyNameFromLinuxShaderFormat);
 
 	// Next add the splash image customization
 	const FText EditorSplashDesc(LOCTEXT("EditorSplashLabel", "Editor Splash"));
