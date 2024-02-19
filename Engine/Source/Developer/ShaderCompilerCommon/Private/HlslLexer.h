@@ -282,6 +282,7 @@ namespace CrossCompiler
 		Literal,
 		BoolConstant,
 		StringConstant,	// C-style "string"
+		StaticAssert, // _Static_assert (HLSL), static_assert (C++11)
 	};
 
 	enum class ELiteralType

@@ -440,6 +440,8 @@ namespace CrossCompiler
 				InsertToken(TEXT("typedef"), EHlslToken::Typedef);
 				InsertToken(TEXT("packoffset"), EHlslToken::PackOffset);
 				InsertToken(TEXT("operator"), EHlslToken::Operator);
+				InsertToken(TEXT("_Static_assert"), EHlslToken::StaticAssert); // HLSL2021 adopted C11 '_Static_assert'-statements
+				InsertToken(TEXT("static_assert"), EHlslToken::StaticAssert); // Some shader compilers support C++11 'static_assert'-statements
 			}
 		} GStaticInitializer;
 	}
