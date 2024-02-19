@@ -575,3 +575,12 @@ void UE::UObjectArrayPrivate::FailMaxUObjectCountExceeded(const int32 MaxUObject
 	}
 	UE_LOG(LogUObjectArray, Fatal, TEXT("Maximum number of UObjects (%d) exceeded when trying to add %d object(s), make sure you update MaxObjectsInGame/MaxObjectsInEditor/MaxObjectsInProgram in project settings."), MaxUObjects, NewUObjectCount);
 }
+
+bool verse::CanAllocateUObjects()
+{
+	// NOTE: This is an arbitrary limit. If we have less than ~10k `UObject`s available for allocation left
+	// we're probably in a bad spot anyway. This just makes sure that there is some slack available before the
+	// limit gets hit.
+	static constexpr int32 MinAvailableObjectCount = 10 * 1024;
+	return GUObjectArray.GetObjectArrayEstimatedAvailable() >= MinAvailableObjectCount;
+}

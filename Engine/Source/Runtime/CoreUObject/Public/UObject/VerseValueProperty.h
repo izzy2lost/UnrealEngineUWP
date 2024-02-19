@@ -81,7 +81,7 @@ public:
 //
 class FVValueProperty : public TProperty_Verse<Verse::TWriteBarrier<Verse::VValue>>
 {
-	DECLARE_FIELD(FVValueProperty, TProperty_Verse<Verse::TWriteBarrier<Verse::VValue>>, CASTCLASS_FVValueProperty)
+	DECLARE_FIELD_API(FVValueProperty, TProperty_Verse<Verse::TWriteBarrier<Verse::VValue>>, CASTCLASS_FVValueProperty, COREUOBJECT_API)
 
 public:
 	COREUOBJECT_API FVValueProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
@@ -105,7 +105,7 @@ public:
 //
 class FVRestValueProperty : public TProperty_Verse<Verse::VRestValue>
 {
-	DECLARE_FIELD(FVRestValueProperty, TProperty_Verse<Verse::VRestValue>, CASTCLASS_FVRestValueProperty)
+	DECLARE_FIELD_API(FVRestValueProperty, TProperty_Verse<Verse::VRestValue>, CASTCLASS_FVRestValueProperty, COREUOBJECT_API)
 
 public:
 	COREUOBJECT_API FVRestValueProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)

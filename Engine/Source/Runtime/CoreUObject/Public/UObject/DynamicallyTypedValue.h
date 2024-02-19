@@ -221,3 +221,5 @@ namespace UE
 		}
 	};
 }
+
+Expose_TNameOf(UE::FDynamicallyTypedValue)
