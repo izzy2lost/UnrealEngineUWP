@@ -444,13 +444,21 @@ public:
 	CORE_API void InsertAt(int32 Index, const UE_STRING_CLASS& Characters);
 
 	/**
+	 * Removes a character from the string.
+	 *
+	 * @param Index          The index of the character to remove.
+	 * @param AllowShrinking Whether or not to reallocate to shrink the storage after removal.
+	 */
+	CORE_API void RemoveAt(int32 Index, EAllowShrinking AllowShrinking = EAllowShrinking::Yes);
+
+	/**
 	 * Removes characters within the string.
 	 *
 	 * @param Index          The index of the first character to remove.
 	 * @param Count          The number of characters to remove.
 	 * @param AllowShrinking Whether or not to reallocate to shrink the storage after removal.
 	 */
-	CORE_API void RemoveAt(int32 Index, int32 Count = 1, EAllowShrinking AllowShrinking = EAllowShrinking::Yes);
+	CORE_API void RemoveAt(int32 Index, int32 Count, EAllowShrinking AllowShrinking = EAllowShrinking::Yes);
 	UE_ALLOWSHRINKING_BOOL_DEPRECATED("RemoveAt")
 	FORCEINLINE void RemoveAt(int32 Index, int32 Count, bool bAllowShrinking)
 	{

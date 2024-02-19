@@ -645,6 +645,15 @@ void UE_STRING_CLASS::InsertAt(int32 Index, const UE_STRING_CLASS& Characters)
 	}
 }
 
+void UE_STRING_CLASS::RemoveAt(int32 Index, EAllowShrinking AllowShrinking)
+{
+	// The clamping behavior below that we are inheriting from the (Index, Count, AllowShrinking) overload is unfortunate, as it pessimizes this call.
+	if (FMath::Clamp(1, 0, Len()-Index) == 1)
+	{
+		Data.RemoveAt(Index, AllowShrinking);
+	}
+}
+
 void UE_STRING_CLASS::RemoveAt(int32 Index, int32 Count, EAllowShrinking AllowShrinking)
 {
 	Data.RemoveAt(Index, FMath::Clamp(Count, 0, Len()-Index), AllowShrinking);
