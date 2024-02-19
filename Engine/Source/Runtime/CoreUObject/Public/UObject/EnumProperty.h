@@ -31,8 +31,6 @@ class FEnumProperty : public FProperty
 
 public:
 	COREUOBJECT_API FEnumProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags);
-	COREUOBJECT_API FEnumProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags, UEnum* InEnum);
-	COREUOBJECT_API FEnumProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags, int32 InOffset, EPropertyFlags InFlags, UEnum* InEnum);
 
 	/**
 	 * Constructor used for constructing compiled in properties

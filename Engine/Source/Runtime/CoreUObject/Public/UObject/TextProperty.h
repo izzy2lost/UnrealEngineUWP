@@ -34,14 +34,6 @@ public:
 	{
 	}
 
-	UE_DEPRECATED(5.1, "Compiled-in property constructor is deprecated, use other constructors instead.")
-	COREUOBJECT_API FTextProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags, int32 InOffset, EPropertyFlags InFlags)
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		: FTextProperty_Super(InOwner, InName, InObjectFlags, InOffset, InFlags)
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	{
-	}
-
 	/**
 	 * Constructor used for constructing compiled in properties
 	 * @param InOwner Owner of the property

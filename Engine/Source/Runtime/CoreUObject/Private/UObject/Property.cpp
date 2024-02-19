@@ -741,22 +741,6 @@ FProperty::FProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags In
 {
 }
 
-FProperty::FProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags, int32 InOffset, EPropertyFlags InFlags)
-	: FField(InOwner, InName, InObjectFlags)
-	, ArrayDim(1)
-	, ElementSize(0)
-	, PropertyFlags(InFlags)
-	, RepIndex(0)
-	, BlueprintReplicationCondition(COND_None)
-	, Offset_Internal(InOffset)
-	, PropertyLinkNext(nullptr)
-	, NextRef(nullptr)
-	, DestructorLinkNext(nullptr)
-	, PostConstructLinkNext(nullptr)
-{
-	Init();
-}
-
 FProperty::FProperty(FFieldVariant InOwner, const UECodeGen_Private::FPropertyParamsBaseWithOffset& Prop, EPropertyFlags AdditionalPropertyFlags /*= CPF_None*/)
 	: FField(InOwner, UTF8_TO_TCHAR(Prop.NameUTF8), Prop.ObjectFlags)
 	, ArrayDim(1)

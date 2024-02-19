@@ -25,18 +25,6 @@ FBoolProperty::FBoolProperty(FFieldVariant InOwner, const FName& InName, EObject
 	SetBoolSize(1, false, 1);
 }
 
-FBoolProperty::FBoolProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags, int32 InOffset, EPropertyFlags InFlags, uint32 InBitMask, uint32 InElementSize, bool bIsNativeBool)
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	: FProperty(InOwner, InName, InObjectFlags, InOffset, InFlags | CPF_HasGetValueTypeHash)
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	, FieldSize(0)
-	, ByteOffset(0)
-	, ByteMask(1)
-	, FieldMask(1)
-{
-	SetBoolSize(InElementSize, bIsNativeBool, InBitMask);
-}
-
 FBoolProperty::FBoolProperty(FFieldVariant InOwner, const UECodeGen_Private::FBoolPropertyParams& Prop)
 	: FProperty(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithoutOffset&)Prop, CPF_HasGetValueTypeHash)
 	, FieldSize(0)
