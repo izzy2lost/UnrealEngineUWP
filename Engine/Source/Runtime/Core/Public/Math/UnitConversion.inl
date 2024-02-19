@@ -272,6 +272,7 @@ FNumericUnit<NumericType>& FNumericUnit<NumericType>::operator=(const FNumericUn
 /** Templated Copy construction/assignment from differing numeric types. Relies on implicit conversion of the two numeric types. */
 template<typename NumericType> template<typename OtherType>
 FNumericUnit<NumericType>::FNumericUnit(const FNumericUnit<OtherType>& Other)
+	: Units(EUnit::Unspecified)
 {
 	(*this) = Other;
 }
