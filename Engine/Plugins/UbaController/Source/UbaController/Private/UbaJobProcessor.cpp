@@ -293,8 +293,8 @@ void FUbaJobProcessor::StartUba()
 	FString TraceOutputFile;
 	if (!ControllerModule.GetDebugInfoPath().IsEmpty())
 	{
-		static uint32 UbaLaunchCounter;
-		TraceOutputFile = ControllerModule.GetDebugInfoPath() / FString::Printf(TEXT("UbaController.run-%u.pid-%u.uba"), ++UbaLaunchCounter, UE::GetMultiprocessId());
+		static uint32 UbaSessionCounter;
+		TraceOutputFile = ControllerModule.GetDebugInfoPath() / FString::Printf(TEXT("UbaController.CookWorker-%u.Session-%u.uba"), UE::GetMultiprocessId(), UbaSessionCounter++);
 	}
 	info.traceOutputFile = *TraceOutputFile;
 	info.detailedTrace = UbaJobProcessorOptions::bDetailedTrace;
