@@ -107,7 +107,7 @@ namespace Horde.Server.Accounts
 		[Route("/api/v1/accounts/current")]
 		[ProducesResponseType(200)]
 		[ProducesResponseType(404)]
-		public async Task<ActionResult> UpdateCurrentAccountAsync(UpdateCurrentAccountRequest request, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
+		public async Task<ActionResult> UpdateCurrentAccountAsync(UpdateCurrentAccountRequest request, CancellationToken cancellationToken = default)
 		{
 			AccountId? accountId = User.GetAccountId();
 			if (accountId == null)
@@ -115,7 +115,7 @@ namespace Horde.Server.Accounts
 				return BadRequest("User is not logged in through a Horde account");
 			}
 
-			await _accountCollection.UpdateAsync(accountId.Value, password: request.Password);
+			await _accountCollection.UpdateAsync(accountId.Value, password: request.Password, cancellationToken: cancellationToken);
 			return Ok();
 		}
 
