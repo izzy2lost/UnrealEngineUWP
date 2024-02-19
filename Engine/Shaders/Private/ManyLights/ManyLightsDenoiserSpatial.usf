@@ -20,7 +20,7 @@ void DenoiserSpatialCS(
 	uint3 GroupThreadId : SV_GroupThreadID,
 	uint3 DispatchThreadId : SV_DispatchThreadID)
 {
-	uint2 ScreenCoord = DispatchThreadId.xy;
+	uint2 ScreenCoord = DispatchThreadId.xy + View.ViewRectMinAndSize.xy;
 
 #if DEBUG_MODE
 	int2 DebugScreenCoord = View.CursorPosition.x >= 0 ? View.CursorPosition * View.ViewResolutionFraction : -1;
@@ -28,7 +28,7 @@ void DenoiserSpatialCS(
 	FShaderPrintContext Context = InitShaderPrintContext(true, float2(0.55, 0.7));
 #endif
 
-	if (all(ScreenCoord < View.ViewRectMinAndSize.zw))
+	if (all(ScreenCoord < View.ViewRectMinAndSize.xy + View.ViewRectMinAndSize.zw))
 	{
 		float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
 		FGBufferData GBuffer = GetGBufferData(ScreenUV);
@@ -37,7 +37,7 @@ void DenoiserSpatialCS(
 		GBuffer.Depth = ConvertFromDeviceZ(DeviceZ);
 
 		if (GBuffer.Depth > 0.0f && GBuffer.ShadingModelID != SHADINGMODELID_UNLIT)
-		{
+		{ 
 			float4 CenterDiffuseLightingAndSecondMoment = DiffuseLightingAndSecondMomentTexture[ScreenCoord];
 			float4 CenterSpecularLightingAndSecondMoment = SpecularLightingAndSecondMomentTexture[ScreenCoord];
 

@@ -18,7 +18,9 @@ BEGIN_SHADER_PARAMETER_STRUCT(FManyLightsParameters, )
 	SHADER_PARAMETER_STRUCT_REF(FBlueNoise, BlueNoise)
 	SHADER_PARAMETER_TEXTURE(Texture2D, PreIntegratedGF)
 	SHADER_PARAMETER_SAMPLER(SamplerState, PreIntegratedGFSampler)
+	SHADER_PARAMETER(FIntPoint, SampleViewMin)
 	SHADER_PARAMETER(FIntPoint, SampleViewSize)
+	SHADER_PARAMETER(FIntPoint, DownsampledViewMin)
 	SHADER_PARAMETER(FIntPoint, DownsampledViewSize)
 	SHADER_PARAMETER(FIntPoint, NumSamplesPerPixel)
 	SHADER_PARAMETER(FIntPoint, NumSamplesPerPixelDivideShift)
@@ -45,6 +47,7 @@ END_SHADER_PARAMETER_STRUCT()
 namespace ManyLights
 {
 	void RayTraceLightSamples(
+		const FSceneViewFamily& ViewFamily,
 		const FViewInfo& View,
 		FRDGBuilder& GraphBuilder,
 		const FSceneTextures& SceneTextures,

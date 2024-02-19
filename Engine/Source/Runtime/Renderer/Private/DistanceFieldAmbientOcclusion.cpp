@@ -776,10 +776,10 @@ bool FSceneRenderer::ShouldPrepareGlobalDistanceField() const
 			|| ShouldPrepareForDistanceFieldAO()
 			|| ((FXSystem != nullptr) && FXSystem->UsesGlobalDistanceField()));
 
-	const bool bShouldPrepareForLumen = IsLumenEnabled(Views[0]) && Lumen::UseGlobalSDFObjectGrid(*Views[0].Family);
+	const bool bShouldPrepareForLumen = IsLumenEnabled(Views[0]) && Lumen::UseGlobalSDFObjectGrid(ViewFamily);
 
 	// TODO: Should check any light actually uses Many Lights
-	const bool bShouldPrepareForManyLights = ManyLights::IsUsingGlobalSDF();
+	const bool bShouldPrepareForManyLights = ManyLights::IsUsingGlobalSDF(ViewFamily);
 
 	const bool bShouldPrepareForVisualization = ViewFamily.EngineShowFlags.VisualizeGlobalDistanceField;
 

@@ -4,6 +4,8 @@
 
 #include "CoreMinimal.h"
 
+class FSceneViewFamily;
+
 namespace ECastRayTracedShadow
 {
 	enum Type : int;
@@ -15,10 +17,10 @@ namespace ManyLights
 	bool IsEnabled();
 
 	bool IsUsingClosestHZB();
-	bool IsUsingGlobalSDF();
+	bool IsUsingGlobalSDF(const FSceneViewFamily& ViewFamily);
 	bool IsUsingLightFunctions();
 
 	bool IsLightSupported(uint8 LightType, ECastRayTracedShadow::Type CastRayTracedShadow);
-	bool UseHardwareRayTracing();
-	bool UseInlineHardwareRayTracing();
+	bool UseHardwareRayTracing(const FSceneViewFamily& ViewFamily);
+	bool UseInlineHardwareRayTracing(const FSceneViewFamily& ViewFamily);
 };

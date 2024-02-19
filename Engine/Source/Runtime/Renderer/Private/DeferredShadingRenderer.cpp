@@ -955,7 +955,7 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 	for (const FViewInfo& View : Views)
 	{
 		if (Lumen::AnyLumenHardwareInlineRayTracingPassEnabled(Scene, View) 
-			|| ManyLights::UseInlineHardwareRayTracing())
+			|| ManyLights::UseInlineHardwareRayTracing(ViewFamily))
 		{
 			bAnyLumenHardwareInlineRayTracingPassEnabled = true;
 		}
@@ -967,7 +967,7 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 	}
 
 	if (Lumen::UseHardwareRayTracing(ViewFamily) 
-		|| ManyLights::UseHardwareRayTracing())
+		|| ManyLights::UseHardwareRayTracing(ViewFamily))
 	{
 		SetupLumenHardwareRayTracingUniformBuffer(GraphBuilder, ReferenceView);
 	}
@@ -3383,7 +3383,7 @@ bool AnyRayTracingPassEnabled(const FScene* Scene, const FViewInfo& View)
 		|| Scene->bHasRayTracedLights
 		|| ShouldRenderPluginRayTracingGlobalIllumination(View)
         || Lumen::AnyLumenHardwareRayTracingPassEnabled(Scene, View)
-		|| ManyLights::UseHardwareRayTracing()
+		|| ManyLights::UseHardwareRayTracing(*View.Family)
 		|| HasRayTracedOverlay(*View.Family);
 }
 

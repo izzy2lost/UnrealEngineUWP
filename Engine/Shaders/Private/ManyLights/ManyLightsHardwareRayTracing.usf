@@ -15,7 +15,6 @@
 
 float RayTracingBias;
 float RayTracingNormalBias;
-uint2 SampleViewSize;
 uint DebugMode;
 uint MaxTraversalIterations;
 RaytracingAccelerationStructure TLAS;

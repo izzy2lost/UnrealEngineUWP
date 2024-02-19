@@ -18,6 +18,7 @@ float PrevSceneColorPreExposureCorrection;
 float TemporalMaxFramesAccumulated;
 float TemporalNeighborhoodClampScale;
 uint TemporalAdvanceFrame;
+uint2 DownsampledViewMin;
 uint2 DownsampledViewSize;
 
 RWTexture2D<float4> RWDiffuseLightingAndSecondMoment;
@@ -49,7 +50,7 @@ FNeighborhood GetNeighborhood(
 		{
 			if (!(NeigborOffsetX == 0 && NeigborOffsetY == 0))
 			{
-				uint2 NeigborScreenCoord = clamp(ScreenCoord + int2(NeigborOffsetX, NeigborOffsetY), 0u, View.ViewRectMinAndSize.zw - 1);
+				uint2 NeigborScreenCoord = clamp(ScreenCoord + int2(NeigborOffsetX, NeigborOffsetY), View.ViewRectMinAndSize.xy, View.ViewRectMinAndSize.xy + View.ViewRectMinAndSize.zw - 1);
 				float3 NeigborSample = SampleTexture[NeigborScreenCoord].xyz;
 	
 				SampleSum += NeigborSample;
@@ -73,7 +74,7 @@ FNeighborhood GetNeighborhood(
 
 void AccumulateSampleLuminanceSum(uint2 DownsampledScreenCoord, float UpsampleWeight, inout float2 SampleLuminanceSum)
 {
-	if (all(DownsampledScreenCoord < DownsampledViewSize))
+	if (all(DownsampledScreenCoord < DownsampledViewMin + DownsampledViewSize))
 	{
 		SampleLuminanceSum += SampleLuminanceSumTexture[DownsampledScreenCoord] * UpsampleWeight;
 	}
@@ -95,7 +96,7 @@ void DenoiserTemporalCS(
 	uint3 GroupThreadId : SV_GroupThreadID,
 	uint3 DispatchThreadId : SV_DispatchThreadID)
 {
-	uint2 ScreenCoord = DispatchThreadId.xy;
+	uint2 ScreenCoord = DispatchThreadId.xy + View.ViewRectMinAndSize.xy;
 
 #if DEBUG_MODE
 	int2 DebugScreenCoord = View.CursorPosition.x >= 0 ? View.CursorPosition * View.ViewResolutionFraction : -1;
@@ -103,7 +104,7 @@ void DenoiserTemporalCS(
 	FShaderPrintContext Context = InitShaderPrintContext(true, float2(0.55, 0.4));
 #endif
 
-	if (all(ScreenCoord < View.ViewRectMinAndSize.zw))
+	if (all(ScreenCoord < View.ViewRectMinAndSize.xy + View.ViewRectMinAndSize.zw))
 	{
 		float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
 		FGBufferData GBuffer = GetGBufferData(ScreenUV);

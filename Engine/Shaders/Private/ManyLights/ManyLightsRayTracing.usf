@@ -38,6 +38,7 @@ void InitCompactedTraceTexelIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchT
 	}
 }
 
+uint2 SampleViewMin;
 uint2 SampleViewSize;
 uint DebugMode;
 float4 HZBUvFactorAndInvFactor;
@@ -89,12 +90,12 @@ void CompactLightSampleTracesCS(
 
 	GroupMemoryBarrierWithGroupSync();
 
-	uint2 SampleCoord = DispatchThreadId.xy;
+	uint2 SampleCoord = DispatchThreadId.xy + SampleViewMin;
 	bool bTraceValid = false;
 	uint TraceTexelForThisThread = 0;
 
 	uint2 LocalTileMaskCoord = SampleCoordToDownsampledScreenCoord(SampleCoord - GroupId.xy * THREADGROUP_SIZE) / TILE_SIZE;
-	if (all(SampleCoord < SampleViewSize))
+	if (all(SampleCoord < SampleViewMin + SampleViewSize))
 	{
 		// #ml_todo: try to preserve z-order here for improved tracing coherency
 		FLightSample LightSample = UnpackLightSample(LightSamples[SampleCoord]);

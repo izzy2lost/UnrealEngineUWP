@@ -9,6 +9,7 @@ RWStructuredBuffer<uint> RWTileAllocator;
 RWStructuredBuffer<uint> RWTileData;
 uint TileDataStride;
 uint DownsampledTileDataStride;
+uint2 DownsampledViewMin;
 uint2 DownsampledViewSize;
 
 /**
@@ -26,12 +27,12 @@ void TileClassificationCS(
 	
 	GroupMemoryBarrierWithGroupSync();
 
-	uint2 ScreenCoord = DispatchThreadId.xy;
-
 #if DOWNSAMPLED_CLASSIFICATION
-	if (all(ScreenCoord < DownsampledViewSize))
+	uint2 ScreenCoord = DispatchThreadId.xy + DownsampledViewMin;
+	if (all(ScreenCoord < DownsampledViewMin + DownsampledViewSize))
 #else
-	if (all(ScreenCoord < View.ViewRectMinAndSize.zw))
+	uint2 ScreenCoord = DispatchThreadId.xy + View.ViewRectMinAndSize.xy;
+	if (all(ScreenCoord < View.ViewRectMinAndSize.xy + View.ViewRectMinAndSize.zw))
 #endif
 	{
 #if DOWNSAMPLED_CLASSIFICATION
@@ -174,9 +175,9 @@ void InitCompositeUpsampleWeightsCS(
 	uint3 GroupThreadId : SV_GroupThreadID,
 	uint3 DispatchThreadId : SV_DispatchThreadID)
 {
-	uint2 ScreenCoord = DispatchThreadId.xy;
+	uint2 ScreenCoord = DispatchThreadId.xy + View.ViewRectMinAndSize.xy;
 
-	if (all(ScreenCoord < View.ViewRectMinAndSize.zw))
+	if (all(ScreenCoord < View.ViewRectMinAndSize.xy + View.ViewRectMinAndSize.zw))
 	{
 		float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
 		FGBufferData GBuffer = GetGBufferData(ScreenUV);

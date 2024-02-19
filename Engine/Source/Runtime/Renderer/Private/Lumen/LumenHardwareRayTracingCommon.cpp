@@ -98,7 +98,7 @@ bool Lumen::UseHardwareRayTracing(const FSceneViewFamily& ViewFamily)
 	return IsRayTracingEnabled(ViewFamily.GetShaderPlatform())
 		&& (LumenHardwareRayTracing::IsInlineSupported() || LumenHardwareRayTracing::IsRayGenSupported())
 		&& CVarLumenUseHardwareRayTracing.GetValueOnAnyThread() != 0
-		// Lumen HWRT does not support split screen yet, but stereo views can be allowed
+		// HWRT does not support multiple views yet due to TLAS, but stereo views can be allowed as they reuse TLAS for View[0]
 		&& (ViewFamily.Views.Num() == 1 || (ViewFamily.Views.Num() == 2 && IStereoRendering::IsStereoEyeView(*ViewFamily.Views[0])));
 #else
 	return false;

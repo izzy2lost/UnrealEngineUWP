@@ -96,43 +96,51 @@ static TAutoConsoleVariable<int32> CVarManyLightsHairVoxelTraces(
 
 namespace ManyLights
 {
-	bool UseHardwareRayTracing()
+	bool UseHardwareRayTracing(const FSceneViewFamily& ViewFamily)
 	{
 		#if RHI_RAYTRACING
 		{
-			return IsRayTracingEnabled() 
-				&& CVarManyLightsHardwareRayTracing.GetValueOnRenderThread() != 0;
-		}
-		#else
-		{
-			return false;
+			if (ManyLights::IsEnabled()
+				&& IsRayTracingEnabled()
+				&& CVarManyLightsHardwareRayTracing.GetValueOnRenderThread() != 0
+				// HWRT does not support multiple views yet due to TLAS, but stereo views can be allowed as they reuse TLAS for View[0]
+				&& (ViewFamily.Views.Num() == 1 || (ViewFamily.Views.Num() == 2 && IStereoRendering::IsStereoEyeView(*ViewFamily.Views[0]))))
+			{
+				return true;
+			}
 		}
 		#endif
+
+		return false;
 	}
 
-	bool UseInlineHardwareRayTracing()
+	bool UseInlineHardwareRayTracing(const FSceneViewFamily& ViewFamily)
 	{
 		#if RHI_RAYTRACING
 		{
-			return UseHardwareRayTracing()
+			if (UseHardwareRayTracing(ViewFamily)
 				&& GRHISupportsInlineRayTracing
-				&& CVarManyLightsHardwareRayTracingInline.GetValueOnRenderThread() != 0;
-		}
-		#else
-		{
-			return false;
+				&& CVarManyLightsHardwareRayTracingInline.GetValueOnRenderThread() != 0)
+			{
+				return true;
+			}
 		}
 		#endif
+
+		return false;
 	}
 
 	bool IsUsingClosestHZB()
 	{
-		return IsEnabled() && CVarManyLightsScreenTraces.GetValueOnRenderThread() != 0;
+		return IsEnabled() 
+			&& CVarManyLightsScreenTraces.GetValueOnRenderThread() != 0;
 	}
 
-	bool IsUsingGlobalSDF()
+	bool IsUsingGlobalSDF(const FSceneViewFamily& ViewFamily)
 	{
-		return IsEnabled() && CVarManyLightsWorldSpaceTraces.GetValueOnRenderThread() != 0 && !UseHardwareRayTracing();
+		return IsEnabled() 
+			&& CVarManyLightsWorldSpaceTraces.GetValueOnRenderThread() != 0 
+			&& !UseHardwareRayTracing(ViewFamily);
 	}
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FHairVoxelTraceParameters, )
@@ -370,9 +378,7 @@ IMPLEMENT_GLOBAL_SHADER(FScreenSpaceRayTraceLightSamplesCS, "/Engine/Private/Man
 #if RHI_RAYTRACING
 void FDeferredShadingSceneRenderer::PrepareManyLightsLumenMaterial(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders)
 {
-	using namespace ManyLights;
-
-	if (ManyLights::IsEnabled() && ManyLights::UseHardwareRayTracing())
+	if (ManyLights::UseHardwareRayTracing(*View.Family))
 	{
 		for (int32 HairVoxelTraces = 0; HairVoxelTraces < 2; ++HairVoxelTraces)
 		{
@@ -502,6 +508,7 @@ ManyLights::FCompactedTraceParameters ManyLights::CompactManyLightsTraces(
  * Ray trace light samples using a variety of tracing methods depending on the feature configuration.
  */
 void ManyLights::RayTraceLightSamples(
+	const FSceneViewFamily& ViewFamily,
 	const FViewInfo& View,
 	FRDGBuilder& GraphBuilder,
 	const FSceneTextures& SceneTextures,
@@ -569,7 +576,7 @@ void ManyLights::RayTraceLightSamples(
 			LightSamples,
 			ManyLightsParameters);
 
-		if (ManyLights::UseHardwareRayTracing())
+		if (ManyLights::UseHardwareRayTracing(ViewFamily))
 		{
 #if RHI_RAYTRACING
 			FHardwareRayTraceLightSamples::FParameters* PassParameters = GraphBuilder.AllocParameters<FHardwareRayTraceLightSamples::FParameters>();
@@ -587,7 +594,7 @@ void ManyLights::RayTraceLightSamples(
 			PermutationVector.Set<FHardwareRayTraceLightSamples::FAvoidSelfIntersections>(CVarManyLightsHardwareRayTracingAvoidSelfIntersections.GetValueOnRenderThread());
 			PermutationVector.Set<FHardwareRayTraceLightSamples::FHairVoxelTraces>(bHairVoxelTraces);
 			PermutationVector.Set<FHardwareRayTraceLightSamples::FDebugMode>(bDebug);
-			if (ManyLights::UseInlineHardwareRayTracing())
+			if (ManyLights::UseInlineHardwareRayTracing(ViewFamily))
 			{
 				FHardwareRayTraceLightSamplesCS::AddLumenRayTracingDispatchIndirect(
 					GraphBuilder,
@@ -615,7 +622,7 @@ void ManyLights::RayTraceLightSamples(
 		}
 		else
 		{
-			ensure(ManyLights::IsUsingGlobalSDF());
+			ensure(ManyLights::IsUsingGlobalSDF(ViewFamily));
 
 			FSoftwareRayTraceLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSoftwareRayTraceLightSamplesCS::FParameters>();
 			PassParameters->CompactedTraceParameters = CompactedTraceParameters;

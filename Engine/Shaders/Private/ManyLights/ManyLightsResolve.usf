@@ -15,7 +15,8 @@ Texture2D<UNORM float3> DownsampledSceneWorldNormal;
 Texture2D<float4> CompositeUpsampleWeights;
 
 uint2 NumSamplesPerPixel;
-int2 DownsampledViewSize;
+uint2 DownsampledViewMin;
+uint2 DownsampledViewSize;
 uint MaxShadingTiles;
 uint DebugLightId;
 
@@ -64,7 +65,7 @@ void ResolveLightSamplesCS(
 		for (uint SharedCoordX = GroupThreadId.x; SharedCoordX < SHARED_TILE_SIZE; SharedCoordX += THREADGROUP_SIZE)
 		{
 			const uint2 SharedCoord = uint2(SharedCoordX, SharedCoordY);
-			const uint2 DownsampledScreenCoord = clamp(int2(BaseDownsampledScreenCoord + SharedCoord) - SHARED_TILE_BORDER, 0, DownsampledViewSize - 1);
+			const uint2 DownsampledScreenCoord = clamp(int2(BaseDownsampledScreenCoord + SharedCoord) - SHARED_TILE_BORDER, int2(DownsampledViewMin), int2(DownsampledViewMin + DownsampledViewSize - 1));
 			
 			float WeightSum = 0.0f;
 
@@ -159,7 +160,7 @@ void ResolveLightSamplesCS(
 				uint2 ScreenCoord = ShadingTileCoord * TILE_SIZE + CoordInShadingTile;
 				float4 DownsampledScreenWeights = CompositeUpsampleWeights[ScreenCoord];
 
-				const uint2 SharedTileCoord00 = (uint2(ShadingTileOffsetX, ShadingTileOffsetY) * TILE_SIZE + CoordInShadingTile + 1) / DOWNSAMPLE_FACTOR + (SHARED_TILE_BORDER - 1);
+				const uint2 SharedTileCoord00 = (int2(ShadingTileOffsetX, ShadingTileOffsetY) * TILE_SIZE + CoordInShadingTile + 1) / DOWNSAMPLE_FACTOR + (SHARED_TILE_BORDER - 1);
 
 				float SampleWeightSum = 0.0f;
 				AccumulateLightSample(SharedTileCoord00 + uint2(0, 0), DownsampledScreenWeights.x, SampleWeightSum);

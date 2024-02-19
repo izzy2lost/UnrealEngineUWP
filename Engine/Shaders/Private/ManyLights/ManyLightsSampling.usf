@@ -71,6 +71,7 @@ FLightTargetPDF GetLocalLightTargetPDF(FDeferredLightData LightData, float3 Tran
 	return LightTargetPDF;
 }
 
+uint2 DownsampledViewMin;
 uint2 DownsampledViewSize;
 uint MaxCompositeTiles;
 float SamplingMinWeight;
@@ -136,7 +137,7 @@ void GenerateLightSamplesCS(
 		uint2 DownsampledTileCoord = UnpackTile(DownsampledTileData[DownsampledTileIndex + TILE_TYPE * DownsampledTileDataStride]);
 		uint2 DownsampledScreenCoord = DownsampledTileCoord * TILE_SIZE + GroupThreadId.xy;
 
-		if (all(DownsampledScreenCoord < DownsampledViewSize))
+		if (all(DownsampledScreenCoord < DownsampledViewMin + DownsampledViewSize))
 		{
 			uint2 ScreenCoord = DownsampledScreenCoordToScreenCoord(DownsampledScreenCoord);	
 			const float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
@@ -175,7 +176,7 @@ void GenerateLightSamplesCS(
 	
 		GroupMemoryBarrierWithGroupSync();
 
-		if (all(DownsampledScreenCoord < DownsampledViewSize))
+		if (all(DownsampledScreenCoord < DownsampledViewMin + DownsampledViewSize))
 		{
 			uint2 ScreenCoord = DownsampledScreenCoordToScreenCoord(DownsampledScreenCoord);
 
@@ -437,7 +438,7 @@ void ClearLightSamplesCS(
 		uint2 DownsampledTileCoord = UnpackTile(DownsampledTileData[DownsampledTileIndex + TILE_MODE_EMPTY * DownsampledTileDataStride]);
 		uint2 DownsampledScreenCoord = DownsampledTileCoord * TILE_SIZE + GroupThreadId.xy;
 
-		if (all(DownsampledScreenCoord < DownsampledViewSize))
+		if (all(DownsampledScreenCoord < DownsampledViewMin + DownsampledViewSize))
 		{
 			for (uint LightSampleY = 0; LightSampleY < NumSamplesPerPixel.y; ++LightSampleY)
 			{

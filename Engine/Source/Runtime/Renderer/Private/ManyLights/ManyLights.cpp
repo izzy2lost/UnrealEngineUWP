@@ -615,7 +615,7 @@ class FDenoiserSpatialCS : public FGlobalShader
 IMPLEMENT_GLOBAL_SHADER(FDenoiserSpatialCS, "/Engine/Private/ManyLights/ManyLightsDenoiserSpatial.usf", "DenoiserSpatialCS", SF_Compute);
 
 /**
- * Single pass batched light rendering using ray tracing (distance field or triangle) for shadowing.
+ * Single pass batched light rendering using ray tracing (distance field or triangle) for stochastic light (BRDF and visibility) sampling.
  */
 void FDeferredShadingSceneRenderer::RenderManyLights(FRDGBuilder& GraphBuilder, const FSceneTextures& SceneTextures)
 {
@@ -625,573 +625,578 @@ void FDeferredShadingSceneRenderer::RenderManyLights(FRDGBuilder& GraphBuilder, 
 	}
 
 	check(AreLightsInLightGrid());
-
 	RDG_EVENT_SCOPE(GraphBuilder, "ManyLights");
 
-	const uint32 ViewIndex = 0;
-	const FViewInfo& View = Views[ViewIndex];
 	FBlueNoise BlueNoise = GetBlueNoiseGlobalParameters();
 	TUniformBufferRef<FBlueNoise> BlueNoiseUniformBuffer = CreateUniformBufferImmediate(BlueNoise, EUniformBufferUsage::UniformBuffer_SingleDraw);
 
-	const bool bDebug = ManyLights::GetDebugMode() != 0;
-	const bool bWaveOps = ManyLights::UseWaveOps(View.GetShaderPlatform())
-		&& GRHIMinimumWaveSize <= 32
-		&& GRHIMaximumWaveSize >= 32;
-
-	// History reset for debugging purposes
-	bool bResetHistory = false;
-
-	if (GManyLightsResetEveryNthFrame > 0 && (ViewFamily.FrameNumber % (uint32)GManyLightsResetEveryNthFrame) == 0)
+	for (int32 ViewIndex = 0; ViewIndex < AllViews.Num(); ++ViewIndex)
 	{
-		bResetHistory = true;
-	}
+		const FViewInfo& View = Views[ViewIndex];
 
-	if (GManyLightsReset != 0)
-	{
-		GManyLightsReset = 0;
-		bResetHistory = true;
-	}
+		// History reset for debugging purposes
+		bool bResetHistory = false;
 
-	const FIntPoint NumSamplesPerPixel2d = ManyLights::GetNumSamplesPerPixel2d();
-
-	const uint32 DownsampleFactor = 2;
-	const FIntPoint DownsampledViewSize = FIntPoint::DivideAndRoundUp(View.ViewRect.Size(), DownsampleFactor);
-	const FIntPoint SampleViewSize = DownsampledViewSize * NumSamplesPerPixel2d;
-	const FIntPoint DownsampledBufferSize = FIntPoint::DivideAndRoundUp(SceneTextures.Config.Extent, DownsampleFactor);
-	const FIntPoint SampleBufferSize = DownsampledBufferSize * NumSamplesPerPixel2d;
-	const FIntPoint DonwnsampledSampleBufferSize = DownsampledBufferSize * NumSamplesPerPixel2d;
-
-	// #ml_todo: make atlas size based on the resolution
-	const FIntPoint ShadingTileGridSize = FIntPoint::DivideAndRoundUp(SceneTextures.Config.Extent, ManyLights::TileSize);
-	const FIntPoint ShadingTileAtlasSize = ManyLights::TileSize * ManyLights::ShadingAtlasSizeInTiles;
-	const int32 MaxShadingTiles = ManyLights::ShadingAtlasSizeInTiles * ManyLights::ShadingAtlasSizeInTiles;
-	check(MaxShadingTiles == (ShadingTileAtlasSize.X * ShadingTileAtlasSize.Y) / (ManyLights::TileSize * ManyLights::TileSize));
-	check(MaxShadingTiles < ManyLights::ShadingTileIndexUnshadowed);
-	const int32 MaxCompositeTiles = MaxShadingTiles;
-
-	const int32 MaxShadingTilesPerGridCell = FMath::Max(CVarManyLightsMaxShadingTilesPerGridCell.GetValueOnRenderThread(), 0);
-
-	FRDGTextureRef DownsampledSceneDepth = GraphBuilder.CreateTexture(
-		FRDGTextureDesc::Create2D(DownsampledBufferSize, PF_R32_FLOAT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-		TEXT("ManyLights.DownsampledSceneDepth"));
-
-	FRDGTextureRef DownsampledSceneWorldNormal = GraphBuilder.CreateTexture(
-		FRDGTextureDesc::Create2D(DownsampledBufferSize, PF_A2B10G10R10, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-		TEXT("ManyLights.DownsampledSceneWorldNormal"));
-
-	FRDGTextureRef LightSamples = GraphBuilder.CreateTexture(
-		FRDGTextureDesc::Create2D(DonwnsampledSampleBufferSize, PF_R32_UINT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-		TEXT("ManyLights.LightSamples"));
-
-	FRDGTextureRef LightSampleRayDistance = GraphBuilder.CreateTexture(
-		FRDGTextureDesc::Create2D(DonwnsampledSampleBufferSize, PF_R16F, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-		TEXT("ManyLights.LightSampleRayDistance"));
-	
-	bool bTemporal = CVarManyLightsTemporal.GetValueOnRenderThread() != 0;
-	FVector4f HistoryScreenPositionScaleBias = FVector4f(0.0f, 0.0f, 0.0f, 0.0f);
-	FVector4f HistoryUVMinMax = FVector4f(0.0f, 0.0f, 0.0f, 0.0f);
-	FRDGTextureRef DiffuseLightingAndSecondMomentHistory = nullptr;
-	FRDGTextureRef SpecularLightingAndSecondMomentHistory = nullptr;
-	FRDGTextureRef SceneDepthHistory = nullptr;
-	FRDGTextureRef NumFramesAccumulatedHistory = nullptr;
-
-	if (View.ViewState)
-	{
-		const FManyLightsViewState& LightingViewState = View.ViewState->ManyLights;
-
-		if (!View.bCameraCut && !bResetHistory && bTemporal)
+		if (GManyLightsResetEveryNthFrame > 0 && (ViewFamily.FrameNumber % (uint32)GManyLightsResetEveryNthFrame) == 0)
 		{
-			HistoryScreenPositionScaleBias = LightingViewState.HistoryScreenPositionScaleBias;
-			HistoryUVMinMax = LightingViewState.HistoryUVMinMax;
+			bResetHistory = true;
+		}
 
-			if (LightingViewState.DiffuseLightingAndSecondMomentHistory
-				&& LightingViewState.SpecularLightingAndSecondMomentHistory
-				&& LightingViewState.SceneDepthHistory
-				&& LightingViewState.NumFramesAccumulatedHistory
-				&& LightingViewState.DiffuseLightingAndSecondMomentHistory->GetDesc().Extent == View.GetSceneTexturesConfig().Extent
-				&& LightingViewState.SpecularLightingAndSecondMomentHistory->GetDesc().Extent == View.GetSceneTexturesConfig().Extent
-				&& LightingViewState.SceneDepthHistory->GetDesc().Extent == SceneTextures.Depth.Resolve->Desc.Extent)
+		if (GManyLightsReset != 0)
+		{
+			GManyLightsReset = 0;
+			bResetHistory = true;
+		}
+
+		const bool bDebug = ManyLights::GetDebugMode() != 0;
+		const bool bWaveOps = ManyLights::UseWaveOps(View.GetShaderPlatform())
+			&& GRHIMinimumWaveSize <= 32
+			&& GRHIMaximumWaveSize >= 32;
+
+		const FIntPoint NumSamplesPerPixel2d = ManyLights::GetNumSamplesPerPixel2d();
+
+		const uint32 DownsampleFactor = 2;
+		const FIntPoint DownsampledViewSize = FIntPoint::DivideAndRoundUp(View.ViewRect.Size(), DownsampleFactor);
+		const FIntPoint SampleViewSize = DownsampledViewSize * NumSamplesPerPixel2d;
+		const FIntPoint DownsampledBufferSize = FIntPoint::DivideAndRoundUp(SceneTextures.Config.Extent, DownsampleFactor);
+		const FIntPoint SampleBufferSize = DownsampledBufferSize * NumSamplesPerPixel2d;
+		const FIntPoint DonwnsampledSampleBufferSize = DownsampledBufferSize * NumSamplesPerPixel2d;
+
+		// #ml_todo: make atlas size based on the resolution
+		const FIntPoint ShadingTileGridSize = FIntPoint::DivideAndRoundUp(SceneTextures.Config.Extent, ManyLights::TileSize);
+		const FIntPoint ShadingTileAtlasSize = ManyLights::TileSize * ManyLights::ShadingAtlasSizeInTiles;
+		const int32 MaxShadingTiles = ManyLights::ShadingAtlasSizeInTiles * ManyLights::ShadingAtlasSizeInTiles;
+		check(MaxShadingTiles == (ShadingTileAtlasSize.X * ShadingTileAtlasSize.Y) / (ManyLights::TileSize * ManyLights::TileSize));
+		check(MaxShadingTiles < ManyLights::ShadingTileIndexUnshadowed);
+		const int32 MaxCompositeTiles = MaxShadingTiles;
+
+		const int32 MaxShadingTilesPerGridCell = FMath::Max(CVarManyLightsMaxShadingTilesPerGridCell.GetValueOnRenderThread(), 0);
+
+		FRDGTextureRef DownsampledSceneDepth = GraphBuilder.CreateTexture(
+			FRDGTextureDesc::Create2D(DownsampledBufferSize, PF_R32_FLOAT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
+			TEXT("ManyLights.DownsampledSceneDepth"));
+
+		FRDGTextureRef DownsampledSceneWorldNormal = GraphBuilder.CreateTexture(
+			FRDGTextureDesc::Create2D(DownsampledBufferSize, PF_A2B10G10R10, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
+			TEXT("ManyLights.DownsampledSceneWorldNormal"));
+
+		FRDGTextureRef LightSamples = GraphBuilder.CreateTexture(
+			FRDGTextureDesc::Create2D(DonwnsampledSampleBufferSize, PF_R32_UINT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
+			TEXT("ManyLights.LightSamples"));
+
+		FRDGTextureRef LightSampleRayDistance = GraphBuilder.CreateTexture(
+			FRDGTextureDesc::Create2D(DonwnsampledSampleBufferSize, PF_R16F, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
+			TEXT("ManyLights.LightSampleRayDistance"));
+
+		bool bTemporal = CVarManyLightsTemporal.GetValueOnRenderThread() != 0;
+		FVector4f HistoryScreenPositionScaleBias = FVector4f(0.0f, 0.0f, 0.0f, 0.0f);
+		FVector4f HistoryUVMinMax = FVector4f(0.0f, 0.0f, 0.0f, 0.0f);
+		FRDGTextureRef DiffuseLightingAndSecondMomentHistory = nullptr;
+		FRDGTextureRef SpecularLightingAndSecondMomentHistory = nullptr;
+		FRDGTextureRef SceneDepthHistory = nullptr;
+		FRDGTextureRef NumFramesAccumulatedHistory = nullptr;
+
+		if (View.ViewState)
+		{
+			const FManyLightsViewState& LightingViewState = View.ViewState->ManyLights;
+
+			if (!View.bCameraCut && !bResetHistory && bTemporal)
 			{
-				DiffuseLightingAndSecondMomentHistory = GraphBuilder.RegisterExternalTexture(LightingViewState.DiffuseLightingAndSecondMomentHistory);
-				SpecularLightingAndSecondMomentHistory = GraphBuilder.RegisterExternalTexture(LightingViewState.SpecularLightingAndSecondMomentHistory);
-				SceneDepthHistory = GraphBuilder.RegisterExternalTexture(LightingViewState.SceneDepthHistory);
-				NumFramesAccumulatedHistory = GraphBuilder.RegisterExternalTexture(LightingViewState.NumFramesAccumulatedHistory);
+				HistoryScreenPositionScaleBias = LightingViewState.HistoryScreenPositionScaleBias;
+				HistoryUVMinMax = LightingViewState.HistoryUVMinMax;
+
+				if (LightingViewState.DiffuseLightingAndSecondMomentHistory
+					&& LightingViewState.SpecularLightingAndSecondMomentHistory
+					&& LightingViewState.SceneDepthHistory
+					&& LightingViewState.NumFramesAccumulatedHistory
+					&& LightingViewState.DiffuseLightingAndSecondMomentHistory->GetDesc().Extent == View.GetSceneTexturesConfig().Extent
+					&& LightingViewState.SpecularLightingAndSecondMomentHistory->GetDesc().Extent == View.GetSceneTexturesConfig().Extent
+					&& LightingViewState.SceneDepthHistory->GetDesc().Extent == SceneTextures.Depth.Resolve->Desc.Extent)
+				{
+					DiffuseLightingAndSecondMomentHistory = GraphBuilder.RegisterExternalTexture(LightingViewState.DiffuseLightingAndSecondMomentHistory);
+					SpecularLightingAndSecondMomentHistory = GraphBuilder.RegisterExternalTexture(LightingViewState.SpecularLightingAndSecondMomentHistory);
+					SceneDepthHistory = GraphBuilder.RegisterExternalTexture(LightingViewState.SceneDepthHistory);
+					NumFramesAccumulatedHistory = GraphBuilder.RegisterExternalTexture(LightingViewState.NumFramesAccumulatedHistory);
+				}
 			}
 		}
-	}
 
-	// Setup the light function atlas
-	const bool bUseLightFunctionAtlas = LightFunctionAtlas::IsEnabled(View, LightFunctionAtlas::ELightFunctionAtlasSystem::ManyLights);
+		// Setup the light function atlas
+		const bool bUseLightFunctionAtlas = LightFunctionAtlas::IsEnabled(View, LightFunctionAtlas::ELightFunctionAtlasSystem::ManyLights);
 
-	const FIntPoint ViewSizeInTiles = FIntPoint::DivideAndRoundUp(View.ViewRect.Size(), ManyLights::TileSize);
-	const int32 TileDataStride = ViewSizeInTiles.X * ViewSizeInTiles.Y;
+		const FIntPoint ViewSizeInTiles = FIntPoint::DivideAndRoundUp(View.ViewRect.Size(), ManyLights::TileSize);
+		const int32 TileDataStride = ViewSizeInTiles.X * ViewSizeInTiles.Y;
 
-	const FIntPoint DownsampledViewSizeInTiles = FIntPoint::DivideAndRoundUp(DownsampledViewSize, ManyLights::TileSize);
-	const int32 DownsampledTileDataStride = DownsampledViewSizeInTiles.X * DownsampledViewSizeInTiles.Y;
+		const FIntPoint DownsampledViewSizeInTiles = FIntPoint::DivideAndRoundUp(DownsampledViewSize, ManyLights::TileSize);
+		const int32 DownsampledTileDataStride = DownsampledViewSizeInTiles.X * DownsampledViewSizeInTiles.Y;
 
-	FRDGTextureRef DownsampledTileMask = GraphBuilder.CreateTexture(
-		FRDGTextureDesc::Create2D(FMath::DivideAndRoundUp<FIntPoint>(DownsampledBufferSize, ManyLights::TileSize), PF_R8_UINT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-		TEXT("ManyLights.DownsampledTileMask"));
+		FRDGTextureRef DownsampledTileMask = GraphBuilder.CreateTexture(
+			FRDGTextureDesc::Create2D(FMath::DivideAndRoundUp<FIntPoint>(DownsampledBufferSize, ManyLights::TileSize), PF_R8_UINT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
+			TEXT("ManyLights.DownsampledTileMask"));
 
-	FManyLightsParameters ManyLightsParameters;
-	{
-		ManyLightsParameters.ViewUniformBuffer = View.ViewUniformBuffer;
-		ManyLightsParameters.Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
-		ManyLightsParameters.SceneTextures = GetSceneTextureParameters(GraphBuilder, SceneTextures.UniformBuffer);
-		ManyLightsParameters.SceneTexturesStruct = SceneTextures.UniformBuffer;
-		ManyLightsParameters.Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
-		ManyLightsParameters.ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
-		ManyLightsParameters.LightFunctionAtlas = LightFunctionAtlas::BindGlobalParameters(GraphBuilder, View);
-		ManyLightsParameters.BlueNoise = BlueNoiseUniformBuffer;
-		ManyLightsParameters.PreIntegratedGF = GSystemTextures.PreintegratedGF->GetRHI();
-		ManyLightsParameters.PreIntegratedGFSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
-		ManyLightsParameters.DownsampledViewSize = DownsampledViewSize;
-		ManyLightsParameters.SampleViewSize = SampleViewSize;
-		ManyLightsParameters.NumSamplesPerPixel = NumSamplesPerPixel2d;
-		ManyLightsParameters.NumSamplesPerPixelDivideShift.X = FMath::FloorLog2(NumSamplesPerPixel2d.X);
-		ManyLightsParameters.NumSamplesPerPixelDivideShift.Y = FMath::FloorLog2(NumSamplesPerPixel2d.Y);
-		ManyLightsParameters.ManyLightsStateFrameIndex = ManyLights::GetStateFrameIndex(View.ViewState);
-		ManyLightsParameters.DownsampledTileMask = DownsampledTileMask;
-		ManyLightsParameters.DownsampledSceneDepth = DownsampledSceneDepth;
-		ManyLightsParameters.DownsampledSceneWorldNormal = DownsampledSceneWorldNormal;
-		ManyLightsParameters.MaxCompositeTiles = MaxCompositeTiles;
-		ManyLightsParameters.MaxShadingTiles = MaxShadingTiles;
-		ManyLightsParameters.MaxShadingTilesPerGridCell = MaxShadingTilesPerGridCell;
-		ManyLightsParameters.ShadingTileGridSize = ShadingTileGridSize;
-		ManyLightsParameters.DownsampledBufferInvSize = FVector2f(1.0f) / DownsampledBufferSize;
-		ManyLightsParameters.SamplingMinWeight = FMath::Max(CVarManyLightsSamplingMinWeight.GetValueOnRenderThread(), 0.0f);
-		ManyLightsParameters.TileDataStride = TileDataStride;
-		ManyLightsParameters.DownsampledTileDataStride = DownsampledTileDataStride;
-		ManyLightsParameters.TemporalMaxFramesAccumulated = FMath::Max(CVarManyLightsTemporalMaxFramesAccumulated.GetValueOnRenderThread(), 0.0f);
-		ManyLightsParameters.TemporalNeighborhoodClampScale = CVarManyLightsTemporalNeighborhoodClampScale.GetValueOnRenderThread();
-		ManyLightsParameters.TemporalAdvanceFrame = View.ViewState && !View.bStatePrevViewInfoIsReadOnly ? 1 : 0;
-		ManyLightsParameters.DebugMode = ManyLights::GetDebugMode();
-		ManyLightsParameters.DebugLightId = INDEX_NONE;
-
-		if (bDebug)
+		FManyLightsParameters ManyLightsParameters;
 		{
-			ShaderPrint::SetEnabled(true);
-			ShaderPrint::RequestSpaceForLines(1024);
-			ShaderPrint::SetParameters(GraphBuilder, View.ShaderPrintData, ManyLightsParameters.ShaderPrintUniformBuffer);
+			ManyLightsParameters.ViewUniformBuffer = View.ViewUniformBuffer;
+			ManyLightsParameters.Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
+			ManyLightsParameters.SceneTextures = GetSceneTextureParameters(GraphBuilder, SceneTextures.UniformBuffer);
+			ManyLightsParameters.SceneTexturesStruct = SceneTextures.UniformBuffer;
+			ManyLightsParameters.Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
+			ManyLightsParameters.ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
+			ManyLightsParameters.LightFunctionAtlas = LightFunctionAtlas::BindGlobalParameters(GraphBuilder, View);
+			ManyLightsParameters.BlueNoise = BlueNoiseUniformBuffer;
+			ManyLightsParameters.PreIntegratedGF = GSystemTextures.PreintegratedGF->GetRHI();
+			ManyLightsParameters.PreIntegratedGFSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+			ManyLightsParameters.DownsampledViewMin = FIntPoint::DivideAndRoundUp(View.ViewRect.Min, DownsampleFactor);
+			ManyLightsParameters.DownsampledViewSize = DownsampledViewSize;
+			ManyLightsParameters.SampleViewMin = FIntPoint::DivideAndRoundUp(View.ViewRect.Min, DownsampleFactor) * NumSamplesPerPixel2d;
+			ManyLightsParameters.SampleViewSize = SampleViewSize;
+			ManyLightsParameters.NumSamplesPerPixel = NumSamplesPerPixel2d;
+			ManyLightsParameters.NumSamplesPerPixelDivideShift.X = FMath::FloorLog2(NumSamplesPerPixel2d.X);
+			ManyLightsParameters.NumSamplesPerPixelDivideShift.Y = FMath::FloorLog2(NumSamplesPerPixel2d.Y);
+			ManyLightsParameters.ManyLightsStateFrameIndex = ManyLights::GetStateFrameIndex(View.ViewState);
+			ManyLightsParameters.DownsampledTileMask = DownsampledTileMask;
+			ManyLightsParameters.DownsampledSceneDepth = DownsampledSceneDepth;
+			ManyLightsParameters.DownsampledSceneWorldNormal = DownsampledSceneWorldNormal;
+			ManyLightsParameters.MaxCompositeTiles = MaxCompositeTiles;
+			ManyLightsParameters.MaxShadingTiles = MaxShadingTiles;
+			ManyLightsParameters.MaxShadingTilesPerGridCell = MaxShadingTilesPerGridCell;
+			ManyLightsParameters.ShadingTileGridSize = ShadingTileGridSize;
+			ManyLightsParameters.DownsampledBufferInvSize = FVector2f(1.0f) / DownsampledBufferSize;
+			ManyLightsParameters.SamplingMinWeight = FMath::Max(CVarManyLightsSamplingMinWeight.GetValueOnRenderThread(), 0.0f);
+			ManyLightsParameters.TileDataStride = TileDataStride;
+			ManyLightsParameters.DownsampledTileDataStride = DownsampledTileDataStride;
+			ManyLightsParameters.TemporalMaxFramesAccumulated = FMath::Max(CVarManyLightsTemporalMaxFramesAccumulated.GetValueOnRenderThread(), 0.0f);
+			ManyLightsParameters.TemporalNeighborhoodClampScale = CVarManyLightsTemporalNeighborhoodClampScale.GetValueOnRenderThread();
+			ManyLightsParameters.TemporalAdvanceFrame = View.ViewState && !View.bStatePrevViewInfoIsReadOnly ? 1 : 0;
+			ManyLightsParameters.DebugMode = ManyLights::GetDebugMode();
+			ManyLightsParameters.DebugLightId = INDEX_NONE;
 
-			ManyLightsParameters.DebugLightId = CVarManyLightsDebugLightId.GetValueOnRenderThread();
-
-			if (ManyLightsParameters.DebugLightId < 0)
+			if (bDebug)
 			{
-				for (auto LightIt = Scene->Lights.CreateConstIterator(); LightIt; ++LightIt)
-				{
-					const FLightSceneInfoCompact& LightSceneInfoCompact = *LightIt;
-					const FLightSceneInfo* const LightSceneInfo = LightSceneInfoCompact.LightSceneInfo;
+				ShaderPrint::SetEnabled(true);
+				ShaderPrint::RequestSpaceForLines(1024);
+				ShaderPrint::SetParameters(GraphBuilder, View.ShaderPrintData, ManyLightsParameters.ShaderPrintUniformBuffer);
 
-					if (LightSceneInfo->Proxy->IsSelected())
+				ManyLightsParameters.DebugLightId = CVarManyLightsDebugLightId.GetValueOnRenderThread();
+
+				if (ManyLightsParameters.DebugLightId < 0)
+				{
+					for (auto LightIt = Scene->Lights.CreateConstIterator(); LightIt; ++LightIt)
 					{
-						ManyLightsParameters.DebugLightId = LightSceneInfo->Id;
-						break;
+						const FLightSceneInfoCompact& LightSceneInfoCompact = *LightIt;
+						const FLightSceneInfo* const LightSceneInfo = LightSceneInfoCompact.LightSceneInfo;
+
+						if (LightSceneInfo->Proxy->IsSelected())
+						{
+							ManyLightsParameters.DebugLightId = LightSceneInfo->Id;
+							break;
+						}
 					}
 				}
 			}
 		}
-	}
 
-	FRDGBufferRef TileAllocator = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), (int32)ManyLights::ETileType::MAX), TEXT("ManyLights.TileAllocator"));
-	FRDGBufferRef TileData = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), TileDataStride * (int32)ManyLights::ETileType::MAX), TEXT("ManyLights.TileData"));
-	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(TileAllocator), 0);
+		FRDGBufferRef TileAllocator = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), (int32)ManyLights::ETileType::MAX), TEXT("ManyLights.TileAllocator"));
+		FRDGBufferRef TileData = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), TileDataStride * (int32)ManyLights::ETileType::MAX), TEXT("ManyLights.TileData"));
+		AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(TileAllocator), 0);
 
-	FRDGBufferRef DownsampledTileAllocator = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), (int32)ManyLights::ETileType::MAX), TEXT("ManyLights.DownsampledTileAllocator"));
-	FRDGBufferRef DownsampledTileData = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), DownsampledTileDataStride * (int32)ManyLights::ETileType::MAX), TEXT("ManyLights.DownsampledTileData"));
-	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(DownsampledTileAllocator), 0);
+		FRDGBufferRef DownsampledTileAllocator = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), (int32)ManyLights::ETileType::MAX), TEXT("ManyLights.DownsampledTileAllocator"));
+		FRDGBufferRef DownsampledTileData = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), DownsampledTileDataStride * (int32)ManyLights::ETileType::MAX), TEXT("ManyLights.DownsampledTileData"));
+		AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(DownsampledTileAllocator), 0);
 
-	// #ml_todo: merge classification passes or reuse downsampled one to create full res tiles
-	// Run tile classification to generate tiles for the subsequent passes
-	{
+		// #ml_todo: merge classification passes or reuse downsampled one to create full res tiles
+		// Run tile classification to generate tiles for the subsequent passes
 		{
-			FTileClassificationCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FTileClassificationCS::FParameters>();
+			{
+				FTileClassificationCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FTileClassificationCS::FParameters>();
+				PassParameters->ManyLightsParameters = ManyLightsParameters;
+				PassParameters->RWTileAllocator = GraphBuilder.CreateUAV(TileAllocator);
+				PassParameters->RWTileData = GraphBuilder.CreateUAV(TileData);
+
+				FTileClassificationCS::FPermutationDomain PermutationVector;
+				PermutationVector.Set<FTileClassificationCS::FDownsampledClassification>(false);
+				auto ComputeShader = View.ShaderMap->GetShader<FTileClassificationCS>(PermutationVector);
+
+				const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), FTileClassificationCS::GetGroupSize());
+
+				FComputeShaderUtils::AddPass(
+					GraphBuilder,
+					RDG_EVENT_NAME("TileClassification %dx%d", View.ViewRect.Size().X, View.ViewRect.Size().Y),
+					ComputeShader,
+					PassParameters,
+					GroupCount);
+			}
+
+			{
+				FTileClassificationCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FTileClassificationCS::FParameters>();
+				PassParameters->ManyLightsParameters = ManyLightsParameters;
+				PassParameters->RWTileAllocator = GraphBuilder.CreateUAV(DownsampledTileAllocator);
+				PassParameters->RWTileData = GraphBuilder.CreateUAV(DownsampledTileData);
+
+				FTileClassificationCS::FPermutationDomain PermutationVector;
+				PermutationVector.Set<FTileClassificationCS::FDownsampledClassification>(true);
+				auto ComputeShader = View.ShaderMap->GetShader<FTileClassificationCS>(PermutationVector);
+
+				const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), FTileClassificationCS::GetGroupSize());
+
+				FComputeShaderUtils::AddPass(
+					GraphBuilder,
+					RDG_EVENT_NAME("DownsampledTileClassification %dx%d", DownsampledViewSize.X, DownsampledViewSize.Y),
+					ComputeShader,
+					PassParameters,
+					GroupCount);
+			}
+		}
+
+		FRDGBufferRef TileIndirectArgs = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>((int32)ManyLights::ETileType::MAX), TEXT("ManyLights.TileIndirectArgs"));
+		FRDGBufferRef DownsampledTileIndirectArgs = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>((int32)ManyLights::ETileType::MAX), TEXT("ManyLights.DownsampledTileIndirectArgs"));
+
+		// Setup indirect args for classified tiles
+		{
+			FInitTileIndirectArgsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FInitTileIndirectArgsCS::FParameters>();
 			PassParameters->ManyLightsParameters = ManyLightsParameters;
-			PassParameters->RWTileAllocator = GraphBuilder.CreateUAV(TileAllocator);
-			PassParameters->RWTileData = GraphBuilder.CreateUAV(TileData);
+			PassParameters->RWTileIndirectArgs = GraphBuilder.CreateUAV(TileIndirectArgs);
+			PassParameters->RWDownsampledTileIndirectArgs = GraphBuilder.CreateUAV(DownsampledTileIndirectArgs);
+			PassParameters->TileAllocator = GraphBuilder.CreateSRV(TileAllocator);
+			PassParameters->DownsampledTileAllocator = GraphBuilder.CreateSRV(DownsampledTileAllocator);
 
-			FTileClassificationCS::FPermutationDomain PermutationVector;
-			PermutationVector.Set<FTileClassificationCS::FDownsampledClassification>(false);
-			auto ComputeShader = View.ShaderMap->GetShader<FTileClassificationCS>(PermutationVector);
-
-			const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), FTileClassificationCS::GetGroupSize());
+			auto ComputeShader = View.ShaderMap->GetShader<FInitTileIndirectArgsCS>();
 
 			FComputeShaderUtils::AddPass(
 				GraphBuilder,
-				RDG_EVENT_NAME("TileClassification %dx%d", View.ViewRect.Size().X, View.ViewRect.Size().Y),
+				RDG_EVENT_NAME("InitTileIndirectArgs"),
 				ComputeShader,
 				PassParameters,
-				GroupCount);
+				FIntVector(1, 1, 1));
 		}
 
+		FRDGBufferRef CompositeTileAllocator = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), 1), TEXT("ManyLights.CompositeTileAllocator"));
+		FRDGBufferRef CompositeTileData = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(2 * sizeof(uint32), MaxCompositeTiles), TEXT("ManyLights.CompositeTileData"));
+		AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(CompositeTileAllocator), 0);
+
+
+		FRDGTextureRef SampleLuminanceSum = GraphBuilder.CreateTexture(
+			FRDGTextureDesc::Create2D(DownsampledBufferSize, PF_G16R16F, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
+			TEXT("ManyLights.SampleLuminanceSum"));
+
+		// Generate new candidate light samples
 		{
-			FTileClassificationCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FTileClassificationCS::FParameters>();
+			FRDGTextureUAVRef SampleLuminanceSumUAV = GraphBuilder.CreateUAV(SampleLuminanceSum, ERDGUnorderedAccessViewFlags::SkipBarrier);
+			FRDGTextureUAVRef DownsampledSceneDepthUAV = GraphBuilder.CreateUAV(DownsampledSceneDepth, ERDGUnorderedAccessViewFlags::SkipBarrier);
+			FRDGTextureUAVRef DownsampledSceneWorldNormalUAV = GraphBuilder.CreateUAV(DownsampledSceneWorldNormal, ERDGUnorderedAccessViewFlags::SkipBarrier);
+			FRDGBufferUAVRef CompositeTileAllocatorUAV = GraphBuilder.CreateUAV(CompositeTileAllocator, ERDGUnorderedAccessViewFlags::SkipBarrier);
+			FRDGBufferUAVRef CompositeTileDataUAV = GraphBuilder.CreateUAV(CompositeTileData, ERDGUnorderedAccessViewFlags::SkipBarrier);
+			FRDGTextureUAVRef LightSamplesUAV = GraphBuilder.CreateUAV(LightSamples, ERDGUnorderedAccessViewFlags::SkipBarrier);
+
+			// Clear tiles which don't contain any lights or geometry
+			{
+				FClearLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FClearLightSamplesCS::FParameters>();
+				PassParameters->IndirectArgs = DownsampledTileIndirectArgs;
+				PassParameters->ManyLightsParameters = ManyLightsParameters;
+				PassParameters->RWDownsampledSceneDepth = DownsampledSceneDepthUAV;
+				PassParameters->RWDownsampledSceneWorldNormal = DownsampledSceneWorldNormalUAV;
+				PassParameters->RWLightSamples = LightSamplesUAV;
+				PassParameters->DownsampledTileAllocator = GraphBuilder.CreateSRV(DownsampledTileAllocator);
+				PassParameters->DownsampledTileData = GraphBuilder.CreateSRV(DownsampledTileData);
+
+				FClearLightSamplesCS::FPermutationDomain PermutationVector;
+				PermutationVector.Set<FClearLightSamplesCS::FDebugMode>(bDebug);
+				auto ComputeShader = View.ShaderMap->GetShader<FClearLightSamplesCS>(PermutationVector);
+
+				FComputeShaderUtils::AddPass(
+					GraphBuilder,
+					RDG_EVENT_NAME("ClearLightSamples"),
+					ComputeShader,
+					PassParameters,
+					DownsampledTileIndirectArgs,
+					(int32)ManyLights::ETileType::Empty * sizeof(FRHIDispatchIndirectParameters));
+			}
+
+			for (int32 TileType = 0; TileType < (int32)ManyLights::ETileType::SHADING_MAX; ++TileType)
+			{
+				FGenerateLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FGenerateLightSamplesCS::FParameters>();
+				PassParameters->IndirectArgs = DownsampledTileIndirectArgs;
+				PassParameters->ManyLightsParameters = ManyLightsParameters;
+				PassParameters->RWSampleLuminanceSum = SampleLuminanceSumUAV;
+				PassParameters->RWDownsampledSceneDepth = DownsampledSceneDepthUAV;
+				PassParameters->RWDownsampledSceneWorldNormal = DownsampledSceneWorldNormalUAV;
+				PassParameters->RWLightSamples = LightSamplesUAV;
+				PassParameters->RWCompositeTileAllocator = CompositeTileAllocatorUAV;
+				PassParameters->RWCompositeTileData = CompositeTileDataUAV;
+				PassParameters->DownsampledTileAllocator = GraphBuilder.CreateSRV(DownsampledTileAllocator);
+				PassParameters->DownsampledTileData = GraphBuilder.CreateSRV(DownsampledTileData);
+				PassParameters->HistoryScreenPositionScaleBias = HistoryScreenPositionScaleBias;
+				PassParameters->HistoryUVMinMax = HistoryUVMinMax;
+
+				FGenerateLightSamplesCS::FPermutationDomain PermutationVector;
+				PermutationVector.Set<FGenerateLightSamplesCS::FTileType>(TileType);
+				PermutationVector.Set<FGenerateLightSamplesCS::FIESProfile>(CVarManyLightsIESProfiles.GetValueOnRenderThread() != 0);
+				PermutationVector.Set<FGenerateLightSamplesCS::FLightFunctionAtlas>(bUseLightFunctionAtlas);
+				PermutationVector.Set<FGenerateLightSamplesCS::FTexturedRectLights>(CVarManyLightsTexturedRectLights.GetValueOnRenderThread() != 0);
+				PermutationVector.Set<FGenerateLightSamplesCS::FNumSamplesPerPixel1d>(NumSamplesPerPixel2d.X * NumSamplesPerPixel2d.Y);
+				PermutationVector.Set<FGenerateLightSamplesCS::FDebugMode>(bDebug);
+				auto ComputeShader = View.ShaderMap->GetShader<FGenerateLightSamplesCS>(PermutationVector);
+
+				FComputeShaderUtils::AddPass(
+					GraphBuilder,
+					RDG_EVENT_NAME("GenerateSamples SamplesPerPixel:%dx%d TileType:%d", NumSamplesPerPixel2d.X, NumSamplesPerPixel2d.Y, TileType),
+					ComputeShader,
+					PassParameters,
+					DownsampledTileIndirectArgs,
+					TileType * sizeof(FRHIDispatchIndirectParameters));
+			}
+		}
+
+		FRDGBufferRef CompositeTileIndirectArgs = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(1), TEXT("ManyLights.CompositeTileIndirectArgs"));
+
+		// Setup indirect args for shadow mask tile updates
+		{
+			FInitCompositeIndirectArgsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FInitCompositeIndirectArgsCS::FParameters>();
 			PassParameters->ManyLightsParameters = ManyLightsParameters;
-			PassParameters->RWTileAllocator = GraphBuilder.CreateUAV(DownsampledTileAllocator);
-			PassParameters->RWTileData = GraphBuilder.CreateUAV(DownsampledTileData);
+			PassParameters->RWIndirectArgs = GraphBuilder.CreateUAV(CompositeTileIndirectArgs);
+			PassParameters->CompositeTileAllocator = GraphBuilder.CreateSRV(CompositeTileAllocator);
 
-			FTileClassificationCS::FPermutationDomain PermutationVector;
-			PermutationVector.Set<FTileClassificationCS::FDownsampledClassification>(true);
-			auto ComputeShader = View.ShaderMap->GetShader<FTileClassificationCS>(PermutationVector);
-
-			const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), FTileClassificationCS::GetGroupSize());
+			auto ComputeShader = View.ShaderMap->GetShader<FInitCompositeIndirectArgsCS>();
 
 			FComputeShaderUtils::AddPass(
 				GraphBuilder,
-				RDG_EVENT_NAME("DownsampledTileClassification %dx%d", DownsampledViewSize.X, DownsampledViewSize.Y),
+				RDG_EVENT_NAME("InitCompositeIndirectArgs"),
 				ComputeShader,
 				PassParameters,
-				GroupCount);
+				FIntVector(1, 1, 1));
 		}
-	}
 
-	FRDGBufferRef TileIndirectArgs = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>((int32)ManyLights::ETileType::MAX), TEXT("ManyLights.TileIndirectArgs"));
-	FRDGBufferRef DownsampledTileIndirectArgs = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>((int32)ManyLights::ETileType::MAX), TEXT("ManyLights.DownsampledTileIndirectArgs"));
-
-	// Setup indirect args for classified tiles
-	{
-		FInitTileIndirectArgsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FInitTileIndirectArgsCS::FParameters>();
-		PassParameters->ManyLightsParameters = ManyLightsParameters;
-		PassParameters->RWTileIndirectArgs = GraphBuilder.CreateUAV(TileIndirectArgs);
-		PassParameters->RWDownsampledTileIndirectArgs = GraphBuilder.CreateUAV(DownsampledTileIndirectArgs);
-		PassParameters->TileAllocator = GraphBuilder.CreateSRV(TileAllocator);
-		PassParameters->DownsampledTileAllocator = GraphBuilder.CreateSRV(DownsampledTileAllocator);
-
-		auto ComputeShader = View.ShaderMap->GetShader<FInitTileIndirectArgsCS>();
-
-		FComputeShaderUtils::AddPass(
+		ManyLights::RayTraceLightSamples(
+			ViewFamily,
+			View,
 			GraphBuilder,
-			RDG_EVENT_NAME("InitTileIndirectArgs"),
-			ComputeShader,
-			PassParameters,
-			FIntVector(1, 1, 1));
-	}
+			SceneTextures,
+			SampleBufferSize,
+			LightSamples,
+			LightSampleRayDistance,
+			ManyLightsParameters
+		);
 
-	FRDGBufferRef CompositeTileAllocator = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), 1), TEXT("ManyLights.CompositeTileAllocator"));
-	FRDGBufferRef CompositeTileData = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(2 * sizeof(uint32), MaxCompositeTiles), TEXT("ManyLights.CompositeTileData"));
-	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(CompositeTileAllocator), 0);
+		FRDGTextureRef CompositeUpsampleWeights = GraphBuilder.CreateTexture(
+			FRDGTextureDesc::Create2D(SceneTextures.Config.Extent, PF_FloatRGBA, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
+			TEXT("ManyLights.CompositeUpsampleWeights"));
 
-
-	FRDGTextureRef SampleLuminanceSum = GraphBuilder.CreateTexture(
-		FRDGTextureDesc::Create2D(DownsampledBufferSize, PF_G16R16F, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-		TEXT("ManyLights.SampleLuminanceSum"));
-	
-	// Generate new candidate light samples
-	{
-		FRDGTextureUAVRef SampleLuminanceSumUAV = GraphBuilder.CreateUAV(SampleLuminanceSum, ERDGUnorderedAccessViewFlags::SkipBarrier);
-		FRDGTextureUAVRef DownsampledSceneDepthUAV = GraphBuilder.CreateUAV(DownsampledSceneDepth, ERDGUnorderedAccessViewFlags::SkipBarrier);
-		FRDGTextureUAVRef DownsampledSceneWorldNormalUAV = GraphBuilder.CreateUAV(DownsampledSceneWorldNormal, ERDGUnorderedAccessViewFlags::SkipBarrier);
-		FRDGBufferUAVRef CompositeTileAllocatorUAV = GraphBuilder.CreateUAV(CompositeTileAllocator, ERDGUnorderedAccessViewFlags::SkipBarrier);
-		FRDGBufferUAVRef CompositeTileDataUAV = GraphBuilder.CreateUAV(CompositeTileData, ERDGUnorderedAccessViewFlags::SkipBarrier);
-		FRDGTextureUAVRef LightSamplesUAV = GraphBuilder.CreateUAV(LightSamples, ERDGUnorderedAccessViewFlags::SkipBarrier);
-
-		// Clear tiles which don't contain any lights or geometry
+		// Init composite upsample weights
 		{
-			FClearLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FClearLightSamplesCS::FParameters>();
-			PassParameters->IndirectArgs = DownsampledTileIndirectArgs;
+			FInitCompositeUpsampleWeightsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FInitCompositeUpsampleWeightsCS::FParameters>();
 			PassParameters->ManyLightsParameters = ManyLightsParameters;
-			PassParameters->RWDownsampledSceneDepth = DownsampledSceneDepthUAV;
-			PassParameters->RWDownsampledSceneWorldNormal = DownsampledSceneWorldNormalUAV;
-			PassParameters->RWLightSamples = LightSamplesUAV;
-			PassParameters->DownsampledTileAllocator = GraphBuilder.CreateSRV(DownsampledTileAllocator);
-			PassParameters->DownsampledTileData = GraphBuilder.CreateSRV(DownsampledTileData);
+			PassParameters->RWCompositeUpsampleWeights = GraphBuilder.CreateUAV(CompositeUpsampleWeights);
 
-			FClearLightSamplesCS::FPermutationDomain PermutationVector;
-			PermutationVector.Set<FClearLightSamplesCS::FDebugMode>(bDebug);
-			auto ComputeShader = View.ShaderMap->GetShader<FClearLightSamplesCS>(PermutationVector);
+			auto ComputeShader = View.ShaderMap->GetShader<FInitCompositeUpsampleWeightsCS>();
+
+			const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), FInitCompositeUpsampleWeightsCS::GetGroupSize());
 
 			FComputeShaderUtils::AddPass(
 				GraphBuilder,
-				RDG_EVENT_NAME("ClearLightSamples"),
+				RDG_EVENT_NAME("InitCompositeUpsampleWeights"),
 				ComputeShader,
 				PassParameters,
-				DownsampledTileIndirectArgs,
-				(int32)ManyLights::ETileType::Empty * sizeof(FRHIDispatchIndirectParameters));
+				GroupCount);
 		}
 
-		for (int32 TileType = 0; TileType < (int32)ManyLights::ETileType::SHADING_MAX; ++TileType)
+		FRDGBufferRef ShadingTileAllocator = GraphBuilder.CreateBuffer(
+			FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), 1),
+			TEXT("ManyLightsParameters.ShadingTileAllocator"));
+
+		FRDGTextureRef ShadingTileGridAllocator = GraphBuilder.CreateTexture(
+			FRDGTextureDesc::Create2D(ShadingTileGridSize, PF_R32_UINT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
+			TEXT("ManyLights.ShadingTileGridAllocator"));
+
+		FRDGBufferRef ShadingTileGrid = GraphBuilder.CreateBuffer(
+			FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), ShadingTileGridSize.X * ShadingTileGridSize.Y * MaxShadingTilesPerGridCell),
+			TEXT("ManyLightsParameters.ShadingTileGrid"));
+
+		FRDGTextureRef ShadingTileAtlas = GraphBuilder.CreateTexture(
+			FRDGTextureDesc::Create2D(ShadingTileAtlasSize, PF_R16F, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
+			TEXT("ManyLights	.ShadingTileAtlas"));
+
+		AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(ShadingTileAllocator), 0u);
+		AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(ShadingTileGridAllocator), 0u);
+
+		// Composite shadow masks traces
 		{
-			FGenerateLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FGenerateLightSamplesCS::FParameters>();
-			PassParameters->IndirectArgs = DownsampledTileIndirectArgs;
+			FResolveLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FResolveLightSamplesCS::FParameters>();
 			PassParameters->ManyLightsParameters = ManyLightsParameters;
-			PassParameters->RWSampleLuminanceSum = SampleLuminanceSumUAV;
-			PassParameters->RWDownsampledSceneDepth = DownsampledSceneDepthUAV;
-			PassParameters->RWDownsampledSceneWorldNormal = DownsampledSceneWorldNormalUAV;
-			PassParameters->RWLightSamples = LightSamplesUAV;
-			PassParameters->RWCompositeTileAllocator = CompositeTileAllocatorUAV;
-			PassParameters->RWCompositeTileData = CompositeTileDataUAV;
-			PassParameters->DownsampledTileAllocator = GraphBuilder.CreateSRV(DownsampledTileAllocator);
-			PassParameters->DownsampledTileData = GraphBuilder.CreateSRV(DownsampledTileData);
+			PassParameters->IndirectArgs = CompositeTileIndirectArgs;
+			PassParameters->RWShadingTileAllocator = GraphBuilder.CreateUAV(ShadingTileAllocator);
+			PassParameters->RWShadingTileGridAllocator = GraphBuilder.CreateUAV(ShadingTileGridAllocator);
+			PassParameters->RWShadingTileGrid = GraphBuilder.CreateUAV(ShadingTileGrid);
+			PassParameters->RWShadingTileAtlas = GraphBuilder.CreateUAV(ShadingTileAtlas);
+			PassParameters->CompositeTileData = GraphBuilder.CreateSRV(CompositeTileData);
+			PassParameters->CompositeUpsampleWeights = CompositeUpsampleWeights;
+			PassParameters->LightSamples = LightSamples;
+
+			FResolveLightSamplesCS::FPermutationDomain PermutationVector;
+			PermutationVector.Set<FResolveLightSamplesCS::FDebugMode>(bDebug);
+			auto ComputeShader = View.ShaderMap->GetShader<FResolveLightSamplesCS>(PermutationVector);
+
+			FComputeShaderUtils::AddPass(
+				GraphBuilder,
+				RDG_EVENT_NAME("CompositeLightSamples"),
+				ComputeShader,
+				PassParameters,
+				CompositeTileIndirectArgs,
+				0);
+		}
+
+		FRDGTextureRef ResolvedDiffuseLighting = GraphBuilder.CreateTexture(
+			FRDGTextureDesc::Create2D(View.GetSceneTexturesConfig().Extent, PF_FloatRGB, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
+			TEXT("ManyLights.ResolvedDiffuseLighting"));
+
+		FRDGTextureRef ResolvedSpecularLighting = GraphBuilder.CreateTexture(
+			FRDGTextureDesc::Create2D(View.GetSceneTexturesConfig().Extent, PF_FloatRGB, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
+			TEXT("ManyLights.ResolvedSpecularLighting"));
+
+		// Shade light samples
+		{
+			FRDGTextureUAVRef ResolvedDiffuseLightingUAV = GraphBuilder.CreateUAV(ResolvedDiffuseLighting, ERDGUnorderedAccessViewFlags::SkipBarrier);
+			FRDGTextureUAVRef ResolvedSpecularLightingUAV = GraphBuilder.CreateUAV(ResolvedSpecularLighting, ERDGUnorderedAccessViewFlags::SkipBarrier);
+
+			for (int32 TileType = 0; TileType < (int32)ManyLights::ETileType::SHADING_MAX; ++TileType)
+			{
+				FShadeLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FShadeLightSamplesCS::FParameters>();
+				PassParameters->RWResolvedDiffuseLighting = ResolvedDiffuseLightingUAV;
+				PassParameters->RWResolvedSpecularLighting = ResolvedSpecularLightingUAV;
+				PassParameters->IndirectArgs = TileIndirectArgs;
+				PassParameters->ManyLightsParameters = ManyLightsParameters;
+				PassParameters->CompositeTileAllocator = GraphBuilder.CreateSRV(CompositeTileAllocator);
+				PassParameters->TileAllocator = GraphBuilder.CreateSRV(TileAllocator);
+				PassParameters->TileData = GraphBuilder.CreateSRV(TileData);
+				PassParameters->ShadingTileAllocator = GraphBuilder.CreateSRV(ShadingTileAllocator);
+				PassParameters->ShadingTileGridAllocator = ShadingTileGridAllocator;
+				PassParameters->ShadingTileGrid = GraphBuilder.CreateSRV(ShadingTileGrid);
+				PassParameters->ShadingTileAtlas = ShadingTileAtlas;
+
+				FShadeLightSamplesCS::FPermutationDomain PermutationVector;
+				PermutationVector.Set<FShadeLightSamplesCS::FTileType>(TileType);
+				PermutationVector.Set<FShadeLightSamplesCS::FIESProfile>(CVarManyLightsIESProfiles.GetValueOnRenderThread() != 0);
+				PermutationVector.Set<FShadeLightSamplesCS::FLightFunctionAtlas>(bUseLightFunctionAtlas);
+				PermutationVector.Set<FShadeLightSamplesCS::FTexturedRectLights>(CVarManyLightsTexturedRectLights.GetValueOnRenderThread() != 0);
+				PermutationVector.Set<FShadeLightSamplesCS::FDebugMode>(bDebug);
+				auto ComputeShader = View.ShaderMap->GetShader<FShadeLightSamplesCS>(PermutationVector);
+
+				FComputeShaderUtils::AddPass(
+					GraphBuilder,
+					RDG_EVENT_NAME("ShadeLightSamples TileType:%d", TileType),
+					ComputeShader,
+					PassParameters,
+					TileIndirectArgs,
+					TileType * sizeof(FRHIDispatchIndirectParameters));
+			}
+		}
+
+		// Demodulated lighting components with second luminance moments stored in alpha channel for temporal variance tracking
+		// This will be passed to the next frame
+		FRDGTextureRef DiffuseLightingAndSecondMoment = GraphBuilder.CreateTexture(
+			FRDGTextureDesc::Create2D(View.GetSceneTexturesConfig().Extent, PF_FloatRGBA, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
+			TEXT("ManyLights.DiffuseLightingAndSecondMoment"));
+
+		FRDGTextureRef SpecularLightingAndSecondMoment = GraphBuilder.CreateTexture(
+			FRDGTextureDesc::Create2D(View.GetSceneTexturesConfig().Extent, PF_FloatRGBA, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
+			TEXT("ManyLights.SpecularLightingAndSecondMoment"));
+
+		FRDGTextureRef SceneDepthCopy = GraphBuilder.CreateTexture(
+			FRDGTextureDesc::Create2D(SceneTextures.Depth.Resolve->Desc.Extent, PF_R32_FLOAT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
+			TEXT("ManyLights.DepthHistory"));
+
+		FRDGTextureRef NumFramesAccumulated = GraphBuilder.CreateTexture(
+			FRDGTextureDesc::Create2D(View.GetSceneTexturesConfig().Extent, PF_G8, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
+			TEXT("ManyLights.NumFramesAccumulated"));
+
+		// Temporal accumulation
+		{
+			FDenoiserTemporalCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FDenoiserTemporalCS::FParameters>();
+			PassParameters->ManyLightsParameters = ManyLightsParameters;
+			PassParameters->CompositeUpsampleWeights = CompositeUpsampleWeights;
+			PassParameters->SampleLuminanceSumTexture = SampleLuminanceSum;
+			PassParameters->ResolvedDiffuseLighting = ResolvedDiffuseLighting;
+			PassParameters->ResolvedSpecularLighting = ResolvedSpecularLighting;
+			PassParameters->DiffuseLightingAndSecondMomentHistoryTexture = DiffuseLightingAndSecondMomentHistory;
+			PassParameters->SpecularLightingAndSecondMomentHistoryTexture = SpecularLightingAndSecondMomentHistory;
+			PassParameters->NumFramesAccumulatedHistoryTexture = NumFramesAccumulatedHistory;
+			PassParameters->ManyLightsDepthHistory = SceneDepthHistory;
+			PassParameters->PrevSceneColorPreExposureCorrection = View.PreExposure / View.PrevViewInfo.SceneColorPreExposure;
 			PassParameters->HistoryScreenPositionScaleBias = HistoryScreenPositionScaleBias;
 			PassParameters->HistoryUVMinMax = HistoryUVMinMax;
+			PassParameters->RWDiffuseLightingAndSecondMoment = GraphBuilder.CreateUAV(DiffuseLightingAndSecondMoment);
+			PassParameters->RWSpecularLightingAndSecondMoment = GraphBuilder.CreateUAV(SpecularLightingAndSecondMoment);
+			PassParameters->RWNumFramesAccumulated = GraphBuilder.CreateUAV(NumFramesAccumulated);
+			PassParameters->RWSceneDepth = GraphBuilder.CreateUAV(SceneDepthCopy);
+			PassParameters->RWSceneColor = GraphBuilder.CreateUAV(SceneTextures.Color.Target);
 
-			FGenerateLightSamplesCS::FPermutationDomain PermutationVector;
-			PermutationVector.Set<FGenerateLightSamplesCS::FTileType>(TileType);
-			PermutationVector.Set<FGenerateLightSamplesCS::FIESProfile>(CVarManyLightsIESProfiles.GetValueOnRenderThread() != 0);
-			PermutationVector.Set<FGenerateLightSamplesCS::FLightFunctionAtlas>(bUseLightFunctionAtlas);
-			PermutationVector.Set<FGenerateLightSamplesCS::FTexturedRectLights>(CVarManyLightsTexturedRectLights.GetValueOnRenderThread() != 0);
-			PermutationVector.Set<FGenerateLightSamplesCS::FNumSamplesPerPixel1d>(NumSamplesPerPixel2d.X * NumSamplesPerPixel2d.Y);
-			PermutationVector.Set<FGenerateLightSamplesCS::FDebugMode>(bDebug);
-			auto ComputeShader = View.ShaderMap->GetShader<FGenerateLightSamplesCS>(PermutationVector);
+			FDenoiserTemporalCS::FPermutationDomain PermutationVector;
+			PermutationVector.Set<FDenoiserTemporalCS::FValidHistory>(DiffuseLightingAndSecondMomentHistory != nullptr && bTemporal);
+			PermutationVector.Set<FDenoiserTemporalCS::FDebugMode>(bDebug);
+			auto ComputeShader = View.ShaderMap->GetShader<FDenoiserTemporalCS>(PermutationVector);
+
+			const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), FDenoiserTemporalCS::GetGroupSize());
 
 			FComputeShaderUtils::AddPass(
 				GraphBuilder,
-				RDG_EVENT_NAME("GenerateSamples SamplesPerPixel:%dx%d TileType:%d", NumSamplesPerPixel2d.X, NumSamplesPerPixel2d.Y, TileType),
+				RDG_EVENT_NAME("TemporalAccumulation"),
 				ComputeShader,
 				PassParameters,
-				DownsampledTileIndirectArgs,
-				TileType * sizeof(FRHIDispatchIndirectParameters));
+				GroupCount);
 		}
-	}
 
-	FRDGBufferRef CompositeTileIndirectArgs = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(1), TEXT("ManyLights.CompositeTileIndirectArgs"));
-
-	// Setup indirect args for shadow mask tile updates
-	{
-		FInitCompositeIndirectArgsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FInitCompositeIndirectArgsCS::FParameters>();
-		PassParameters->ManyLightsParameters = ManyLightsParameters;
-		PassParameters->RWIndirectArgs = GraphBuilder.CreateUAV(CompositeTileIndirectArgs);
-		PassParameters->CompositeTileAllocator = GraphBuilder.CreateSRV(CompositeTileAllocator);
-
-		auto ComputeShader = View.ShaderMap->GetShader<FInitCompositeIndirectArgsCS>();
-
-		FComputeShaderUtils::AddPass(
-			GraphBuilder,
-			RDG_EVENT_NAME("InitCompositeIndirectArgs"),
-			ComputeShader,
-			PassParameters,
-			FIntVector(1, 1, 1));
-	}
-
-	ManyLights::RayTraceLightSamples(
-		View,
-		GraphBuilder, 
-		SceneTextures,
-		SampleBufferSize,
-		LightSamples,
-		LightSampleRayDistance,
-		ManyLightsParameters
-	);
-
-	FRDGTextureRef CompositeUpsampleWeights = GraphBuilder.CreateTexture(
-		FRDGTextureDesc::Create2D(SceneTextures.Config.Extent, PF_FloatRGBA, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-		TEXT("ManyLights.CompositeUpsampleWeights"));
-
-	// Init composite upsample weights
-	{
-		FInitCompositeUpsampleWeightsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FInitCompositeUpsampleWeightsCS::FParameters>();
-		PassParameters->ManyLightsParameters = ManyLightsParameters;
-		PassParameters->RWCompositeUpsampleWeights = GraphBuilder.CreateUAV(CompositeUpsampleWeights);
-
-		auto ComputeShader = View.ShaderMap->GetShader<FInitCompositeUpsampleWeightsCS>();
-
-		const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), FInitCompositeUpsampleWeightsCS::GetGroupSize());
-
-		FComputeShaderUtils::AddPass(
-			GraphBuilder,
-			RDG_EVENT_NAME("InitCompositeUpsampleWeights"),
-			ComputeShader,
-			PassParameters,
-			GroupCount);
-	}
-
-	FRDGBufferRef ShadingTileAllocator = GraphBuilder.CreateBuffer(
-		FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), 1),
-		TEXT("ManyLightsParameters.ShadingTileAllocator"));
-
-	FRDGTextureRef ShadingTileGridAllocator = GraphBuilder.CreateTexture(
-		FRDGTextureDesc::Create2D(ShadingTileGridSize, PF_R32_UINT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-		TEXT("ManyLights.ShadingTileGridAllocator"));
-
-	FRDGBufferRef ShadingTileGrid = GraphBuilder.CreateBuffer(
-		FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), ShadingTileGridSize.X * ShadingTileGridSize.Y * MaxShadingTilesPerGridCell),
-		TEXT("ManyLightsParameters.ShadingTileGrid"));
-
-	FRDGTextureRef ShadingTileAtlas = GraphBuilder.CreateTexture(
-		FRDGTextureDesc::Create2D(ShadingTileAtlasSize, PF_R16F, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-		TEXT("ManyLights	.ShadingTileAtlas"));
-
-	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(ShadingTileAllocator), 0u);
-	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(ShadingTileGridAllocator), 0u);
-
-	// Composite shadow masks traces
-	{
-		FResolveLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FResolveLightSamplesCS::FParameters>();
-		PassParameters->ManyLightsParameters = ManyLightsParameters;
-		PassParameters->IndirectArgs = CompositeTileIndirectArgs;
-		PassParameters->RWShadingTileAllocator = GraphBuilder.CreateUAV(ShadingTileAllocator);
-		PassParameters->RWShadingTileGridAllocator = GraphBuilder.CreateUAV(ShadingTileGridAllocator);
-		PassParameters->RWShadingTileGrid = GraphBuilder.CreateUAV(ShadingTileGrid);
-		PassParameters->RWShadingTileAtlas = GraphBuilder.CreateUAV(ShadingTileAtlas);
-		PassParameters->CompositeTileData = GraphBuilder.CreateSRV(CompositeTileData);
-		PassParameters->CompositeUpsampleWeights = CompositeUpsampleWeights;
-		PassParameters->LightSamples = LightSamples;
-
-		FResolveLightSamplesCS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FResolveLightSamplesCS::FDebugMode>(bDebug);
-		auto ComputeShader = View.ShaderMap->GetShader<FResolveLightSamplesCS>(PermutationVector);
-
-		FComputeShaderUtils::AddPass(
-			GraphBuilder,
-			RDG_EVENT_NAME("CompositeLightSamples"),
-			ComputeShader,
-			PassParameters,
-			CompositeTileIndirectArgs,
-			0);
-	}
-
-	FRDGTextureRef ResolvedDiffuseLighting = GraphBuilder.CreateTexture(
-		FRDGTextureDesc::Create2D(View.GetSceneTexturesConfig().Extent, PF_FloatRGB, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-		TEXT("ManyLights.ResolvedDiffuseLighting"));
-
-	FRDGTextureRef ResolvedSpecularLighting = GraphBuilder.CreateTexture(
-		FRDGTextureDesc::Create2D(View.GetSceneTexturesConfig().Extent, PF_FloatRGB, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-		TEXT("ManyLights.ResolvedSpecularLighting"));
-
-	// Shade light samples
-	{
-		FRDGTextureUAVRef ResolvedDiffuseLightingUAV = GraphBuilder.CreateUAV(ResolvedDiffuseLighting, ERDGUnorderedAccessViewFlags::SkipBarrier);
-		FRDGTextureUAVRef ResolvedSpecularLightingUAV = GraphBuilder.CreateUAV(ResolvedSpecularLighting, ERDGUnorderedAccessViewFlags::SkipBarrier);
-
-		for (int32 TileType = 0; TileType < (int32)ManyLights::ETileType::SHADING_MAX; ++TileType)
+		// Spatial filter
 		{
-			FShadeLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FShadeLightSamplesCS::FParameters>();
-			PassParameters->RWResolvedDiffuseLighting = ResolvedDiffuseLightingUAV;
-			PassParameters->RWResolvedSpecularLighting = ResolvedSpecularLightingUAV;
-			PassParameters->IndirectArgs = TileIndirectArgs;
+			FDenoiserSpatialCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FDenoiserSpatialCS::FParameters>();
 			PassParameters->ManyLightsParameters = ManyLightsParameters;
-			PassParameters->CompositeTileAllocator = GraphBuilder.CreateSRV(CompositeTileAllocator);
-			PassParameters->TileAllocator = GraphBuilder.CreateSRV(TileAllocator);
-			PassParameters->TileData = GraphBuilder.CreateSRV(TileData);
-			PassParameters->ShadingTileAllocator = GraphBuilder.CreateSRV(ShadingTileAllocator);
-			PassParameters->ShadingTileGridAllocator = ShadingTileGridAllocator;
-			PassParameters->ShadingTileGrid = GraphBuilder.CreateSRV(ShadingTileGrid);
-			PassParameters->ShadingTileAtlas = ShadingTileAtlas;
+			PassParameters->RWSceneColor = GraphBuilder.CreateUAV(SceneTextures.Color.Target);
+			PassParameters->DiffuseLightingAndSecondMomentTexture = DiffuseLightingAndSecondMoment;
+			PassParameters->SpecularLightingAndSecondMomentTexture = SpecularLightingAndSecondMoment;
+			PassParameters->NumFramesAccumulatedTexture = NumFramesAccumulated;
+			PassParameters->SpatialFilterDepthWeightScale = CVarManyLightsSpatialDepthWeightScale.GetValueOnRenderThread();
 
-			FShadeLightSamplesCS::FPermutationDomain PermutationVector;
-			PermutationVector.Set<FShadeLightSamplesCS::FTileType>(TileType);
-			PermutationVector.Set<FShadeLightSamplesCS::FIESProfile>(CVarManyLightsIESProfiles.GetValueOnRenderThread() != 0);
-			PermutationVector.Set<FShadeLightSamplesCS::FLightFunctionAtlas>(bUseLightFunctionAtlas);
-			PermutationVector.Set<FShadeLightSamplesCS::FTexturedRectLights>(CVarManyLightsTexturedRectLights.GetValueOnRenderThread() != 0);
-			PermutationVector.Set<FShadeLightSamplesCS::FDebugMode>(bDebug);
-			auto ComputeShader = View.ShaderMap->GetShader<FShadeLightSamplesCS>(PermutationVector);
+			FDenoiserSpatialCS::FPermutationDomain PermutationVector;
+			PermutationVector.Set<FDenoiserSpatialCS::FSpatialFilter>(CVarManyLightsSpatial.GetValueOnRenderThread() != 0);
+			PermutationVector.Set<FDenoiserSpatialCS::FDebugMode>(bDebug);
+			auto ComputeShader = View.ShaderMap->GetShader<FDenoiserSpatialCS>(PermutationVector);
+
+			const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), FDenoiserSpatialCS::GetGroupSize());
 
 			FComputeShaderUtils::AddPass(
 				GraphBuilder,
-				RDG_EVENT_NAME("ShadeLightSamples TileType:%d", TileType),
+				RDG_EVENT_NAME("Spatial"),
 				ComputeShader,
 				PassParameters,
-				TileIndirectArgs,
-				TileType * sizeof(FRHIDispatchIndirectParameters));
+				GroupCount);
 		}
-	}
 
-	// Demodulated lighting components with second luminance moments stored in alpha channel for temporal variance tracking
-	// This will be passed to the next frame
-	FRDGTextureRef DiffuseLightingAndSecondMoment = GraphBuilder.CreateTexture(
-		FRDGTextureDesc::Create2D(View.GetSceneTexturesConfig().Extent, PF_FloatRGBA, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-		TEXT("ManyLights.DiffuseLightingAndSecondMoment"));
-
-	FRDGTextureRef SpecularLightingAndSecondMoment = GraphBuilder.CreateTexture(
-		FRDGTextureDesc::Create2D(View.GetSceneTexturesConfig().Extent, PF_FloatRGBA, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-		TEXT("ManyLights.SpecularLightingAndSecondMoment"));
-
-	FRDGTextureRef SceneDepthCopy = GraphBuilder.CreateTexture(
-		FRDGTextureDesc::Create2D(SceneTextures.Depth.Resolve->Desc.Extent, PF_R32_FLOAT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-		TEXT("ManyLights.DepthHistory"));
-
-	FRDGTextureRef NumFramesAccumulated = GraphBuilder.CreateTexture(
-		FRDGTextureDesc::Create2D(View.GetSceneTexturesConfig().Extent, PF_G8, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-		TEXT("ManyLights.NumFramesAccumulated"));
-
-	// Temporal accumulation
-	{
-		FDenoiserTemporalCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FDenoiserTemporalCS::FParameters>();
-		PassParameters->ManyLightsParameters = ManyLightsParameters;
-		PassParameters->CompositeUpsampleWeights = CompositeUpsampleWeights;
-		PassParameters->SampleLuminanceSumTexture = SampleLuminanceSum;
-		PassParameters->ResolvedDiffuseLighting = ResolvedDiffuseLighting;
-		PassParameters->ResolvedSpecularLighting = ResolvedSpecularLighting;
-		PassParameters->DiffuseLightingAndSecondMomentHistoryTexture = DiffuseLightingAndSecondMomentHistory;
-		PassParameters->SpecularLightingAndSecondMomentHistoryTexture = SpecularLightingAndSecondMomentHistory;
-		PassParameters->NumFramesAccumulatedHistoryTexture = NumFramesAccumulatedHistory;
-		PassParameters->ManyLightsDepthHistory = SceneDepthHistory;
-		PassParameters->PrevSceneColorPreExposureCorrection = View.PreExposure / View.PrevViewInfo.SceneColorPreExposure;
-		PassParameters->HistoryScreenPositionScaleBias = HistoryScreenPositionScaleBias;
-		PassParameters->HistoryUVMinMax = HistoryUVMinMax;
-		PassParameters->RWDiffuseLightingAndSecondMoment = GraphBuilder.CreateUAV(DiffuseLightingAndSecondMoment);
-		PassParameters->RWSpecularLightingAndSecondMoment = GraphBuilder.CreateUAV(SpecularLightingAndSecondMoment);
-		PassParameters->RWNumFramesAccumulated = GraphBuilder.CreateUAV(NumFramesAccumulated);
-		PassParameters->RWSceneDepth = GraphBuilder.CreateUAV(SceneDepthCopy);
-		PassParameters->RWSceneColor = GraphBuilder.CreateUAV(SceneTextures.Color.Target);
-
-		FDenoiserTemporalCS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FDenoiserTemporalCS::FValidHistory>(DiffuseLightingAndSecondMomentHistory != nullptr && bTemporal);
-		PermutationVector.Set<FDenoiserTemporalCS::FDebugMode>(bDebug);
-		auto ComputeShader = View.ShaderMap->GetShader<FDenoiserTemporalCS>(PermutationVector);
-
-		const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), FDenoiserTemporalCS::GetGroupSize());
-
-		FComputeShaderUtils::AddPass(
-			GraphBuilder,
-			RDG_EVENT_NAME("TemporalAccumulation"),
-			ComputeShader,
-			PassParameters,
-			GroupCount);
-	}
-
-	// Spatial filter
-	{
-		FDenoiserSpatialCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FDenoiserSpatialCS::FParameters>();
-		PassParameters->ManyLightsParameters = ManyLightsParameters;
-		PassParameters->RWSceneColor = GraphBuilder.CreateUAV(SceneTextures.Color.Target);
-		PassParameters->DiffuseLightingAndSecondMomentTexture = DiffuseLightingAndSecondMoment;
-		PassParameters->SpecularLightingAndSecondMomentTexture = SpecularLightingAndSecondMoment;
-		PassParameters->NumFramesAccumulatedTexture = NumFramesAccumulated;
-		PassParameters->SpatialFilterDepthWeightScale = CVarManyLightsSpatialDepthWeightScale.GetValueOnRenderThread();
-
-		FDenoiserSpatialCS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FDenoiserSpatialCS::FSpatialFilter>(CVarManyLightsSpatial.GetValueOnRenderThread() != 0);
-		PermutationVector.Set<FDenoiserSpatialCS::FDebugMode>(bDebug);
-		auto ComputeShader = View.ShaderMap->GetShader<FDenoiserSpatialCS>(PermutationVector);
-
-		const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), FDenoiserSpatialCS::GetGroupSize());
-
-		FComputeShaderUtils::AddPass(
-			GraphBuilder,
-			RDG_EVENT_NAME("Spatial"),
-			ComputeShader,
-			PassParameters,
-			GroupCount);
-	}
-
-	if (View.ViewState && !View.bStatePrevViewInfoIsReadOnly)
-	{
-		FManyLightsViewState& LightingViewState = View.ViewState->ManyLights;
-
-		LightingViewState.HistoryScreenPositionScaleBias = View.GetScreenPositionScaleBias(View.GetSceneTexturesConfig().Extent, View.ViewRect);
-
-		// Pull in the max UV to exclude the region which will read outside the viewport due to bilinear filtering
-		const FVector2D InvBufferSize(1.0f / SceneTextures.Config.Extent.X, 1.0f / SceneTextures.Config.Extent.Y);
-		LightingViewState.HistoryUVMinMax = FVector4f(
-			(View.ViewRect.Min.X + 0.5f) * InvBufferSize.X,
-			(View.ViewRect.Min.Y + 0.5f) * InvBufferSize.Y,
-			(View.ViewRect.Max.X - 1.0f) * InvBufferSize.X,
-			(View.ViewRect.Max.Y - 1.0f) * InvBufferSize.Y);
-
-		if (DiffuseLightingAndSecondMoment && SpecularLightingAndSecondMoment && SceneDepthCopy && NumFramesAccumulated && bTemporal)
+		if (View.ViewState && !View.bStatePrevViewInfoIsReadOnly)
 		{
-			GraphBuilder.QueueTextureExtraction(DiffuseLightingAndSecondMoment, &LightingViewState.DiffuseLightingAndSecondMomentHistory);
-			GraphBuilder.QueueTextureExtraction(SpecularLightingAndSecondMoment, &LightingViewState.SpecularLightingAndSecondMomentHistory);
-			GraphBuilder.QueueTextureExtraction(SceneDepthCopy, &LightingViewState.SceneDepthHistory);
-			GraphBuilder.QueueTextureExtraction(NumFramesAccumulated, &LightingViewState.NumFramesAccumulatedHistory);
-		}
-		else
-		{
-			LightingViewState.DiffuseLightingAndSecondMomentHistory = nullptr;
-			LightingViewState.SpecularLightingAndSecondMomentHistory = nullptr;
-			LightingViewState.SceneDepthHistory = nullptr;
-			LightingViewState.NumFramesAccumulatedHistory = nullptr;
+			FManyLightsViewState& LightingViewState = View.ViewState->ManyLights;
+
+			LightingViewState.HistoryScreenPositionScaleBias = View.GetScreenPositionScaleBias(View.GetSceneTexturesConfig().Extent, View.ViewRect);
+
+			// Pull in the max UV to exclude the region which will read outside the viewport due to bilinear filtering
+			const FVector2D InvBufferSize(1.0f / SceneTextures.Config.Extent.X, 1.0f / SceneTextures.Config.Extent.Y);
+			LightingViewState.HistoryUVMinMax = FVector4f(
+				(View.ViewRect.Min.X + 0.5f) * InvBufferSize.X,
+				(View.ViewRect.Min.Y + 0.5f) * InvBufferSize.Y,
+				(View.ViewRect.Max.X - 1.0f) * InvBufferSize.X,
+				(View.ViewRect.Max.Y - 1.0f) * InvBufferSize.Y);
+
+			if (DiffuseLightingAndSecondMoment && SpecularLightingAndSecondMoment && SceneDepthCopy && NumFramesAccumulated && bTemporal)
+			{
+				GraphBuilder.QueueTextureExtraction(DiffuseLightingAndSecondMoment, &LightingViewState.DiffuseLightingAndSecondMomentHistory);
+				GraphBuilder.QueueTextureExtraction(SpecularLightingAndSecondMoment, &LightingViewState.SpecularLightingAndSecondMomentHistory);
+				GraphBuilder.QueueTextureExtraction(SceneDepthCopy, &LightingViewState.SceneDepthHistory);
+				GraphBuilder.QueueTextureExtraction(NumFramesAccumulated, &LightingViewState.NumFramesAccumulatedHistory);
+			}
+			else
+			{
+				LightingViewState.DiffuseLightingAndSecondMomentHistory = nullptr;
+				LightingViewState.SpecularLightingAndSecondMomentHistory = nullptr;
+				LightingViewState.SceneDepthHistory = nullptr;
+				LightingViewState.NumFramesAccumulatedHistory = nullptr;
+			}
 		}
 	}
 }

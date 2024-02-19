@@ -34,7 +34,7 @@ void ShadeLightSamplesCS(
 		uint2 TileCoord = UnpackTile(TileData[TileIndex + TILE_TYPE * TileDataStride]);
 		uint2 ScreenCoord = TileCoord * TILE_SIZE + GroupThreadId.xy;
 
-		if (all(ScreenCoord < View.ViewRectMinAndSize.zw))
+		if (all(ScreenCoord < View.ViewRectMinAndSize.xy + View.ViewRectMinAndSize.zw))
 		{
 	#if DEBUG_MODE
 			int2 DebugScreenCoord = View.CursorPosition.x >= 0 ? View.CursorPosition * View.ViewResolutionFraction : -1;
