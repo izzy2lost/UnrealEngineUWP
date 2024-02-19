@@ -117,7 +117,7 @@ namespace AutomationTool.Tasks
 				Scope.Span.SetTag("platform", Parameters.Platform);
 				string[] Maps = (Parameters.Maps == null)? null : Parameters.Maps.Split(new char[]{ '+' });
 				string Arguments = (Parameters.Versioned ? "" : "-Unversioned ") + "-LogCmds=\"LogSavePackage Warning\" " + Parameters.Arguments;
-				string EditorExe = (string.IsNullOrWhiteSpace(Parameters.EditorExe) ? "UnrealEditor-Cmd.exe" : Parameters.EditorExe);
+				string EditorExe = (string.IsNullOrWhiteSpace(Parameters.EditorExe) ? ProjectUtils.GetEditorForProject(ProjectFile).FullName : Parameters.EditorExe);
 				CommandUtils.CookCommandlet(ProjectFile, EditorExe, Maps, null, null, null, Parameters.Platform, Arguments);
 			}
 

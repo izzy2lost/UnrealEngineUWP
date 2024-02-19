@@ -687,6 +687,24 @@ namespace AutomationTool
 			
 			return TargetReceipt.Launch;
 		}
+
+		// Helper function to get the editor executable to run for cooking, etc the given project
+		public static FileSystemReference GetEditorForProject(FileReference ProjectFile)
+		{
+			FileSystemReference EditorExe = null;
+			if (ProjectFile != null)
+			{
+				EditorExe = ProjectUtils.GetProjectTarget(ProjectFile, UnrealBuildTool.TargetType.Editor, BuildHostPlatform.Current.Platform, UnrealTargetConfiguration.Development, true);
+			}
+
+			// if we haven't gotten an editor yet, use the engine shared binary
+			if (EditorExe == null)
+			{
+				EditorExe = new FileReference(HostPlatform.Current.GetUnrealExePath("UnrealEditor-Cmd.exe"));
+			}
+
+			return EditorExe;
+		}
 	}
 
     public class BranchInfo

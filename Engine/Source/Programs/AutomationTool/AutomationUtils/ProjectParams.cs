@@ -1599,17 +1599,7 @@ namespace AutomationTool
 			{
 				if (SpecifiedUnrealExe == null)
 				{
-					SpecifiedUnrealExe = "UnrealEditor-Cmd.exe";
-					if (CodeBasedUprojectPath != null)
-					{
-						FileReference ReceiptLocation = TargetReceipt.GetDefaultPath(CodeBasedUprojectPath.Directory, EditorTargets[0], HostPlatform.Platform, UnrealTargetConfiguration.Development, null);
-						TargetReceipt Receipt;
-						if (!TargetReceipt.TryRead(ReceiptLocation, out Receipt))
-						{
-							throw new AutomationException($"Missing {ReceiptLocation} receipt. Editor needs to be built first.");
-						}
-						SpecifiedUnrealExe = Receipt.LaunchCmd.FullName;
-					}
+					SpecifiedUnrealExe = ProjectUtils.GetEditorForProject(RawProjectPath).FullName;
 				}
 
 				return SpecifiedUnrealExe;

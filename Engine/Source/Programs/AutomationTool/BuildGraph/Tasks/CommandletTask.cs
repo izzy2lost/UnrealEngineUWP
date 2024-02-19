@@ -98,18 +98,10 @@ namespace AutomationTool.Tasks
 			}
 
 			// Get the path to the editor, and check it exists
-			FileSystemReference EditorExe;
-			if(Parameters.EditorExe == null)
+			FileSystemReference EditorExe = Parameters.EditorExe;
+			if (EditorExe == null)
 			{
-				EditorExe = ProjectUtils.GetProjectTarget(ProjectFile, UnrealBuildTool.TargetType.Editor, BuildHostPlatform.Current.Platform, UnrealTargetConfiguration.Development, true);
-				if (EditorExe == null)
-				{
-					EditorExe = new FileReference(HostPlatform.Current.GetUnrealExePath("UnrealEditor-Cmd.exe"));
-				}
-			}
-			else
-			{
-				EditorExe = Parameters.EditorExe;
+				EditorExe = ProjectUtils.GetEditorForProject(ProjectFile);
 			}
 
 			// Run the commandlet
