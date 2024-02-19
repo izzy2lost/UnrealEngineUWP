@@ -18,15 +18,29 @@ struct OSC_API FOSCMessage
 	GENERATED_USTRUCT_BODY()
 
 	FOSCMessage();
-	FOSCMessage(const TSharedPtr<IOSCPacket>& InPacket);
-	~FOSCMessage();
+	FOSCMessage(const TSharedRef<UE::OSC::IPacket>& InPacket);
 
-	void SetPacket(TSharedPtr<IOSCPacket>& InPacket);
-	const TSharedPtr<IOSCPacket>& GetPacket() const;
+	UE_DEPRECATED(5.4, "Use shared ref ctor instead")
+	FOSCMessage(const TSharedPtr<UE::OSC::IPacket>& InPacket);
+
+	~FOSCMessage() = default;
+
+	// Returns arguments, asserting if the message's packet is unset.
+	const TArray<UE::OSC::FOSCData>& GetArgumentsChecked() const;
+
+	UE_DEPRECATED(5.4, "Use shared ref setter instead")
+	void SetPacket(TSharedPtr<UE::OSC::IPacket>& InPacket);
+
+	void SetPacket(TSharedRef<UE::OSC::IPacket>& InPacket);
+
+	UE_DEPRECATED(5.4, "Use shared ref getter instead")
+	const TSharedPtr<UE::OSC::IPacket>& GetPacket() const;
+
+	const TSharedRef<UE::OSC::IPacket>& GetPacketRef() const;
 
 	bool SetAddress(const FOSCAddress& InAddress);
 	const FOSCAddress& GetAddress() const;
 
 private:
-	TSharedPtr<IOSCPacket> Packet;
+	TSharedRef<UE::OSC::IPacket> Packet;
 };

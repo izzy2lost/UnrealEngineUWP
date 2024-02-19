@@ -11,12 +11,23 @@ struct OSC_API FOSCBundle
 	GENERATED_USTRUCT_BODY()
 
 	FOSCBundle();
-	FOSCBundle(const TSharedPtr<IOSCPacket>& InPacket);
-	~FOSCBundle();
+	explicit FOSCBundle(const TSharedRef<UE::OSC::IPacket>& InPacket);
 
-	void SetPacket(const TSharedPtr<IOSCPacket>& InPacket);
-	const TSharedPtr<IOSCPacket>& GetPacket() const;
+	UE_DEPRECATED(5.5, "Use explicit shared ref constructor instead")
+	FOSCBundle(const TSharedPtr<UE::OSC::IPacket>& InPacket);
+
+	~FOSCBundle() = default;
+
+	UE_DEPRECATED(5.5, "Use shared ref setter instead")
+	void SetPacket(TSharedPtr<UE::OSC::IPacket>& InPacket);
+
+	void SetPacket(const TSharedRef<UE::OSC::IPacket>& InPacket);
+
+	UE_DEPRECATED(5.5, "Use shared ref getter instead")
+	const TSharedPtr<UE::OSC::IPacket>& GetPacket() const;
+
+	const TSharedRef<UE::OSC::IPacket>& GetPacketRef() const;
 
 private:
-	TSharedPtr<IOSCPacket> Packet;
+	TSharedRef<UE::OSC::IPacket> Packet;
 };

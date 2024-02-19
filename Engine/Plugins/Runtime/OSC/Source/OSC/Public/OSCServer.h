@@ -159,7 +159,7 @@ public:
 	void ClearPackets();
 
 	/** Enqueues packet to be processed */
-	void EnqueuePacket(TSharedPtr<IOSCPacket> InPacket);
+	void EnqueuePacket(TSharedPtr<UE::OSC::IPacket> InPacket);
 
 	/** Callback for when packet is received by server */
 	void PumpPacketQueue(const TSet<uint32>* InAllowlistedClients);
@@ -178,7 +178,7 @@ private:
 	TUniquePtr<IOSCServerProxy> ServerProxy;
 
 	/** Queue stores incoming OSC packet requests to process on the game thread. */
-	TQueue<TSharedPtr<IOSCPacket>> OSCPackets;
+	TQueue<TSharedPtr<UE::OSC::IPacket>> OSCPackets;
 
 	/** Address pattern hash to check against when dispatching incoming messages */
 	TMap<FOSCAddress, FOSCDispatchMessageEvent> AddressPatterns;

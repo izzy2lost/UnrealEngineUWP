@@ -28,14 +28,16 @@ FOSCServerProxy::~FOSCServerProxy()
 
 void FOSCServerProxy::OnPacketReceived(const FArrayReaderPtr& InData, const FIPv4Endpoint& InEndpoint)
 {
-	TSharedPtr<IOSCPacket> Packet = IOSCPacket::CreatePacket(InData->GetData(), InEndpoint.Address.ToString(), InEndpoint.Port);
+	using namespace UE::OSC;
+
+	TSharedPtr<IPacket> Packet = IPacket::CreatePacket(InData->GetData(), InEndpoint);
 	if (!Packet.IsValid())
 	{
 		UE_LOG(LogOSC, Verbose, TEXT("Message received from endpoint '%s' invalid OSC packet."), *InEndpoint.ToString());
 		return;
 	}
 
-	FOSCStream Stream = FOSCStream(InData->GetData(), InData->Num());
+	FStream Stream = FStream(InData->GetData(), InData->Num());
 	Packet->ReadData(Stream);
 	Server->EnqueuePacket(Packet);
 }

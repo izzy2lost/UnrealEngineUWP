@@ -6,37 +6,28 @@
 #include "OSCLog.h"
 
 
-TSharedPtr<IOSCPacket> IOSCPacket::CreatePacket(const uint8* InPacketType, const FString& InIPAddress, uint16 InPort)
+namespace UE::OSC
 {
-	const FString PacketIdentifier(ANSI_TO_TCHAR((const ANSICHAR*)&InPacketType[0]));
+	TSharedPtr<IPacket> IPacket::CreatePacket(const uint8* InPacketType, const FIPv4Endpoint& InIPEndpoint)
+	{
+		const FString PacketIdentifier(ANSI_TO_TCHAR((const ANSICHAR*)&InPacketType[0]));
 	
-	TSharedPtr<IOSCPacket> Packet;
-	if (PacketIdentifier.StartsWith(OSC::PathSeparator))
-	{
-		Packet = MakeShared<FOSCMessagePacket>();
-	}
-	else if (PacketIdentifier == OSC::BundleTag)
-	{
-		Packet = MakeShared<FOSCBundlePacket>();
-	}
-	else
-	{
-		UE_LOG(LogOSC, Warning, TEXT("Failed to parse lead character of OSC packet. "
-			"Lead identifier of '%c' not valid bundle tag ('%s') or message ('%s') identifier."), PacketIdentifier[0], *OSC::BundleTag, *OSC::PathSeparator);
-		return nullptr;
-	}
+		TSharedPtr<FPacketBase> Packet;
+		if (PacketIdentifier.StartsWith(OSC::PathSeparator))
+		{
+			Packet = MakeShared<FMessagePacket>(InIPEndpoint);
+		}
+		else if (PacketIdentifier == UE::OSC::BundleTag)
+		{
+			Packet = MakeShared<OSC::FBundlePacket>(InIPEndpoint);
+		}
+		else
+		{
+			UE_LOG(LogOSC, Warning, TEXT("Failed to parse lead character of OSC packet. "
+				"Lead identifier of '%c' not valid bundle tag ('%s') or message ('%s') identifier."), PacketIdentifier[0], *OSC::BundleTag, *OSC::PathSeparator);
+			return nullptr;
+		}
 
-	Packet->IPAddress = InIPAddress;
-	Packet->Port = InPort;
-	return Packet;
-}
-
-const FString& IOSCPacket::GetIPAddress() const
-{
-	return IPAddress;
-}
-
-uint16 IOSCPacket::GetPort() const
-{
-	return Port;
-}
+		return Packet;
+	}
+} // namespace UE::OSC

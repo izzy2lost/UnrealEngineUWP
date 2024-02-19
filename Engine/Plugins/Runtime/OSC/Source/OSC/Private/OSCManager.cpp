@@ -18,334 +18,360 @@
 #include "UObject/UObjectIterator.h"
 
 
-#define OSC_LOG_INVALID_TYPE_AT_INDEX(TypeStr, Index, Msg) UE_LOG(LogOSC, Warning, TEXT("OSC Message Parse Failed: OSCType not %s: index '%i', OSCAddress '%s'"), TypeStr, Index, *Msg.GetAddress().GetFullPath())
-
-namespace OSC
+namespace UE::OSC
 {
-	static const int32 DefaultClientPort = 8094;
-	static const int32 DefaultServerPort = 8095;
-
-	// Returns true if provided address was null and was able to
-	// override with local host address, false if not.
-	bool GetLocalHostAddress(FString& InAddress)
+	namespace ManagerPrivate
 	{
-		if (!InAddress.IsEmpty() && InAddress != TEXT("0"))
+		static const int32 DefaultClientPort = 8094;
+		static const int32 DefaultServerPort = 8095;
+
+		// Returns true if provided address was null and was able to
+		// override with local host address, false if not.
+		bool GetLocalHostAddress(FString& InAddress)
 		{
+			if (!InAddress.IsEmpty() && InAddress != TEXT("0"))
+			{
+				return false;
+			}
+
+			bool bCanBind = false;
+			bool bAppendPort = false;
+			if (ISocketSubsystem* SocketSys = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM))
+			{
+				const TSharedPtr<FInternetAddr> Addr = SocketSys->GetLocalHostAddr(*GLog, bCanBind);
+				if (Addr.IsValid())
+				{
+					InAddress = Addr->ToString(bAppendPort);
+					return true;
+				}
+			}
+
 			return false;
 		}
 
-		bool bCanBind = false;
-		bool bAppendPort = false;
-		if (ISocketSubsystem* SocketSys = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM))
+		const FOSCData* GetDataAtIndex(const FOSCMessage& InMessage, const int32 InIndex)
 		{
-			const TSharedPtr<FInternetAddr> Addr = SocketSys->GetLocalHostAddr(*GLog, bCanBind);
-			if (Addr.IsValid())
+			const TSharedRef<FMessagePacket>& Packet = StaticCastSharedRef<FMessagePacket>(InMessage.GetPacketRef());
+			const TArray<FOSCData>& Args = Packet->GetArguments();
+			if (Args.IsValidIndex(InIndex))
 			{
-				InAddress = Addr->ToString(bAppendPort);
-				return true;
+				return &Args[InIndex];
+			}
+
+			UE_LOG(LogOSC, Warning, TEXT("Index '%d' out-of-bounds.  Message argument size = '%d'"), InIndex, Args.Num());
+			return nullptr;
+		}
+
+		void IterateMessageArgs(const FOSCMessage& InMessage, TFunctionRef<void(const FOSCData&)> InFunc)
+		{
+			const TSharedRef<FMessagePacket>& MessagePacket = StaticCastSharedRef<FMessagePacket>(InMessage.GetPacketRef());
+			const TArray<FOSCData>& Args = MessagePacket->GetArguments();
+			for (int32 i = 0; i < Args.Num(); i++)
+			{
+				const FOSCData& OSCData = Args[i];
+				InFunc(OSCData);
 			}
 		}
 
-		return false;
-	}
+		void LogInvalidTypeAtIndex(EDataType DataType, int32 Index, const FOSCMessage& Msg)
+		{
+			UE_LOG(LogOSC, Warning, TEXT("OSC Message Parse Failed: OSCData not %s: index '%i', OSCAddress '%s'"),
+				LexToString(DataType),
+				Index,
+				*Msg.GetAddress().GetFullPath());
+		}
 
-	const FOSCType* GetOSCTypeAtIndex(const FOSCMessage& InMessage, const int32 InIndex)
+		static FAutoConsoleCommand GOSCPrintServers(
+			TEXT("osc.servers"),
+			TEXT("Prints diagnostic information pertaining to the currently initialized OSC servers objects to the output log."),
+			FConsoleCommandDelegate::CreateStatic(
+				[]()
+				{
+					FString LocalAddr;
+					ManagerPrivate::GetLocalHostAddress(LocalAddr);
+					UE_LOG(LogOSC, Display, TEXT("Local IP: %s"), *LocalAddr);
+
+					UE_LOG(LogOSC, Display, TEXT("OSC Servers:"));
+					for (TObjectIterator<UOSCServer> Itr; Itr; ++Itr)
+					{
+						if (UOSCServer* Server = *Itr)
+						{
+							FString ToPrint = TEXT("    ") + Server->GetName();
+							ToPrint.Appendf(TEXT(" (Id: %u"), Server->GetUniqueID());
+							if (UWorld* World = Server->GetWorld())
+							{
+								ToPrint.Appendf(TEXT(", World: %s"), *World->GetName());
+							}
+
+							ToPrint.Appendf(TEXT(", IP: %s)"), *Server->GetIpAddress(true /* bIncludePort */));
+							ToPrint += Server->IsActive() ? TEXT(" [Active]") : TEXT(" [Inactive]");
+
+							UE_LOG(LogOSC, Display, TEXT("%s"), *ToPrint);
+
+							const TArray<FOSCAddress> BoundPatterns = Server->GetBoundOSCAddressPatterns();
+							if (BoundPatterns.Num() > 0)
+							{
+								UE_LOG(LogOSC, Display, TEXT("    Bound Address Patterns:"));
+								for (const FOSCAddress& Pattern : BoundPatterns)
+								{
+									UE_LOG(LogOSC, Display, TEXT("         %s"), *Pattern.GetFullPath());
+								}
+								UE_LOG(LogOSC, Display, TEXT(""));
+							}
+						}
+					}
+				}
+			)
+		);
+
+		static FAutoConsoleCommand GOSCServerConnect(
+			TEXT("osc.server.connect"),
+			TEXT("Connects or reconnects the osc mix server with the provided name\n"
+				"(see \"osc.servers\" for a list of available servers and their respective names). Args:\n"
+				"Name - Object name of server to (re)connect\n"
+				"Address - IP Address to connect to (default: LocalHost)\n"
+				"Port - Port to connect to (default: 8095)"),
+			FConsoleCommandWithArgsDelegate::CreateStatic(
+				[](const TArray<FString>& Args)
+				{
+					FString SrvName;
+					if (Args.Num() > 0)
+					{
+						SrvName = Args[0];
+					}
+
+					FString IPAddr;
+					GetLocalHostAddress(IPAddr);
+					if (Args.Num() > 1)
+					{
+						IPAddr = Args[1];
+					}
+
+					int32 Port = DefaultServerPort;
+					if (Args.Num() > 2)
+					{
+						Port = FCString::Atoi(*Args[2]);
+					}
+
+					for (TObjectIterator<UOSCServer> Itr; Itr; ++Itr)
+					{
+						if (UOSCServer* Server = *Itr)
+						{
+							if (Server->GetName() == SrvName)
+							{
+								Server->Stop();
+								if (Server->SetAddress(IPAddr, Port))
+								{
+									Server->Listen();
+								}
+								return;
+							}
+						}
+					}
+
+					UE_LOG(LogOSC, Warning, TEXT("Server object with name '%s' not found, (re)connect not performed."), *SrvName);
+				}
+			)
+		);
+
+		static FAutoConsoleCommand GOSCServerConnectById(
+			TEXT("osc.server.connectById"),
+			TEXT("Connects or reconnects the osc mix server with the provided object id\n"
+				"(see \"osc.servers\" for a list of available servers and their respective ids). Args:\n"
+				"Id - Object Id of client to (re)connect\n"
+				"Address - IP Address to (re)connect to (default: LocalHost)\n"
+				"Port - Port to (re)connect to (default: 8095)"),
+			FConsoleCommandWithArgsDelegate::CreateStatic(
+				[](const TArray<FString>& Args)
+				{
+					if (Args.Num() == 0)
+					{
+						return;
+					}
+
+					const int32 SrvId = FCString::Atoi(*Args[0]);
+
+					FString IPAddr;
+					GetLocalHostAddress(IPAddr);
+					if (Args.Num() > 1)
+					{
+						IPAddr = Args[1];
+					}
+
+					int32 Port = DefaultServerPort;
+					if (Args.Num() > 2)
+					{
+						Port = FCString::Atoi(*Args[2]);
+					}
+
+					for (TObjectIterator<UOSCServer> Itr; Itr; ++Itr)
+					{
+						if (UOSCServer* Server = *Itr)
+						{
+							if (Server->GetUniqueID() == SrvId)
+							{
+								Server->Stop();
+								if (Server->SetAddress(IPAddr, Port))
+								{
+									Server->Listen();
+								}
+								return;
+							}
+						}
+					}
+
+					UE_LOG(LogOSC, Warning, TEXT("Server object with id '%u' not found, (re)connect not performed."), SrvId);
+				}
+			)
+		);
+
+		static FAutoConsoleCommand GOSCPrintClients(
+			TEXT("osc.clients"),
+			TEXT("Prints diagnostic information pertaining to the currently initialized OSC client objects to the output log."),
+			FConsoleCommandDelegate::CreateStatic(
+				[]()
+				{
+					FString LocalAddr;
+					GetLocalHostAddress(LocalAddr);
+					UE_LOG(LogOSC, Display, TEXT("Local IP: %s"), *LocalAddr);
+
+					UE_LOG(LogOSC, Display, TEXT("OSC Clients:"));
+					for (TObjectIterator<UOSCClient> Itr; Itr; ++Itr)
+					{
+						if (UOSCClient* Client = *Itr)
+						{
+							FString ToPrint = TEXT("    ") + Client->GetName();
+							ToPrint.Appendf(TEXT(" (Id: %u"), Client->GetUniqueID());
+							if (UWorld* World = Client->GetWorld())
+							{
+								ToPrint.Appendf(TEXT(", World: %s"), *World->GetName());
+							}
+
+							FString IPAddrStr;
+							int32 Port;
+							Client->GetSendIPAddress(IPAddrStr, Port);
+							ToPrint += TEXT(", Send IP: ") + IPAddrStr + TEXT(":");
+							ToPrint.AppendInt(Port);
+							ToPrint += Client->IsActive() ? TEXT(") [Active]") : TEXT(") [Inactive]");
+
+							UE_LOG(LogOSC, Display, TEXT("%s"), *ToPrint);
+						}
+					}
+				}
+			)
+		);
+
+		static FAutoConsoleCommand GOSCClientConnect(
+			TEXT("osc.client.connect"),
+			TEXT("Connects (or reconnects) the osc mix client with the provided name\n"
+				"(see \"osc.clients\" for a list of available clients and their respective ids). Args:\n"
+				"Name - Object name of client to (re)connect\n"
+				"Address - IP Address to (re)connect to (default: LocalHost)\n"
+				"Port - Port to (re)connect to (default: 8094)"),
+			FConsoleCommandWithArgsDelegate::CreateStatic(
+				[](const TArray< FString >& Args)
+				{
+					if (Args.Num() == 0)
+					{
+						return;
+					}
+					const FString CliName = Args[0];
+
+					FString IPAddr;
+					GetLocalHostAddress(IPAddr);
+					if (Args.Num() > 1)
+					{
+						IPAddr = Args[1];
+					}
+
+					int32 Port = DefaultClientPort;
+					if (Args.Num() > 2)
+					{
+						Port = FCString::Atoi(*Args[2]);
+					}
+
+					for (TObjectIterator<UOSCClient> Itr; Itr; ++Itr)
+					{
+						if (UOSCClient* Client = *Itr)
+						{
+							if (Client->GetName() == CliName)
+							{
+								Client->Connect();
+								Client->SetSendIPAddress(IPAddr, Port);
+								return;
+							}
+						}
+					}
+
+					UE_LOG(LogOSC, Warning, TEXT("Client object with name '%s' not found, (re)connect not performed."), *CliName);
+				}
+			)
+		);
+
+		static FAutoConsoleCommand GOSCClientConnectById(
+			TEXT("osc.client.connectById"),
+			TEXT("Connects (or reconnects) the osc mix client with the provided object id\n"
+				"(see \"osc.clients\" for a list of available clients and their respective ids). Args:\n"
+				"Id - Object Id of client to (re)connect\n"
+				"Address - IP Address to (re)connect to (default: LocalHost)\n"
+				"Port - Port to (re)connect to (default: 8094)"),
+			FConsoleCommandWithArgsDelegate::CreateStatic(
+				[](const TArray< FString >& Args)
+				{
+					int32 CliId = INDEX_NONE;
+					if (Args.Num() > 0)
+					{
+						CliId = FCString::Atoi(*Args[0]);
+					}
+
+					FString IPAddr;
+					GetLocalHostAddress(IPAddr);
+					if (Args.Num() > 1)
+					{
+						IPAddr = Args[1];
+					}
+
+					int32 Port = DefaultClientPort;
+					if (Args.Num() > 2)
+					{
+						Port = FCString::Atoi(*Args[2]);
+					}
+
+					for (TObjectIterator<UOSCClient> Itr; Itr; ++Itr)
+					{
+						if (UOSCClient* Client = *Itr)
+						{
+							if (Client->GetUniqueID() == CliId)
+							{
+								Client->Connect();
+								Client->SetSendIPAddress(IPAddr, Port);
+								return;
+							}
+						}
+					}
+
+					UE_LOG(LogOSC, Warning, TEXT("Client object with id '%u' not found, (re)connect not performed."), CliId);
+				}
+			)
+		);
+	} // namespace ManagerPrivate
+
+	int32 GetDefaultClientPort()
 	{
-		const TSharedPtr<FOSCMessagePacket>& Packet = StaticCastSharedPtr<FOSCMessagePacket>(InMessage.GetPacket());
-		if (Packet.IsValid())
-		{
-			TArray<FOSCType>& Args = Packet->GetArguments();
-			if (InIndex >= Args.Num())
-			{
-				UE_LOG(LogOSC, Warning, TEXT("Index '%d' out-of-bounds.  Message argument size = '%d'"), InIndex, Args.Num());
-				return nullptr;
-			}
-
-			return &Args[InIndex];
-		}
-
-		return nullptr;
+		return ManagerPrivate::DefaultClientPort;
 	}
-} // namespace OSC
 
-
-static FAutoConsoleCommand GOSCPrintServers(
-	TEXT("osc.servers"),
-	TEXT("Prints diagnostic information pertaining to the currently initialized OSC servers objects to the output log."),
-	FConsoleCommandDelegate::CreateStatic(
-		[]()
-		{
-			FString LocalAddr;
-			OSC::GetLocalHostAddress(LocalAddr);
-			UE_LOG(LogOSC, Display, TEXT("Local IP: %s"), *LocalAddr);
-
-			UE_LOG(LogOSC, Display, TEXT("OSC Servers:"));
-			for (TObjectIterator<UOSCServer> Itr; Itr; ++Itr)
-			{
-				if (UOSCServer* Server = *Itr)
-				{
-					FString ToPrint = TEXT("    ") + Server->GetName();
-					ToPrint.Appendf(TEXT(" (Id: %u"), Server->GetUniqueID());
-					if (UWorld* World = Server->GetWorld())
-					{
-						ToPrint.Appendf(TEXT(", World: %s"), *World->GetName());
-					}
-
-					ToPrint.Appendf(TEXT(", IP: %s)"), *Server->GetIpAddress(true /* bIncludePort */));
-					ToPrint += Server->IsActive() ? TEXT(" [Active]") : TEXT(" [Inactive]");
-
-					UE_LOG(LogOSC, Display, TEXT("%s"), *ToPrint);
-
-					const TArray<FOSCAddress> BoundPatterns = Server->GetBoundOSCAddressPatterns();
-					if (BoundPatterns.Num() > 0)
-					{
-						UE_LOG(LogOSC, Display, TEXT("    Bound Address Patterns:"));
-						for (const FOSCAddress& Pattern : BoundPatterns)
-						{
-							UE_LOG(LogOSC, Display, TEXT("         %s"), *Pattern.GetFullPath());
-						}
-						UE_LOG(LogOSC, Display, TEXT(""));
-					}
-				}
-			}
-		}
-	)
-);
-
-static FAutoConsoleCommand GOSCServerConnect(
-	TEXT("osc.server.connect"),
-	TEXT("Connects or reconnects the osc mix server with the provided name\n"
-		"(see \"osc.servers\" for a list of available servers and their respective names). Args:\n"
-		"Name - Object name of server to (re)connect\n"
-		"Address - IP Address to connect to (default: LocalHost)\n"
-		"Port - Port to connect to (default: 8095)"),
-	FConsoleCommandWithArgsDelegate::CreateStatic(
-		[](const TArray<FString>& Args)
-		{
-			FString SrvName;
-			if (Args.Num() > 0)
-			{
-				SrvName = Args[0];
-			}
-
-			FString IPAddr;
-			OSC::GetLocalHostAddress(IPAddr);
-			if (Args.Num() > 1)
-			{
-				IPAddr = Args[1];
-			}
-
-			int32 Port = OSC::DefaultServerPort;
-			if (Args.Num() > 2)
-			{
-				Port = FCString::Atoi(*Args[2]);
-			}
-
-			for (TObjectIterator<UOSCServer> Itr; Itr; ++Itr)
-			{
-				if (UOSCServer* Server = *Itr)
-				{
-					if (Server->GetName() == SrvName)
-					{
-						Server->Stop();
-						if (Server->SetAddress(IPAddr, Port))
-						{
-							Server->Listen();
-						}
-						return;
-					}
-				}
-			}
-
-			UE_LOG(LogOSC, Warning, TEXT("Server object with name '%s' not found, (re)connect not performed."), *SrvName);
-		}
-	)
-);
-
-static FAutoConsoleCommand GOSCServerConnectById(
-	TEXT("osc.server.connectById"),
-	TEXT("Connects or reconnects the osc mix server with the provided object id\n"
-		"(see \"osc.servers\" for a list of available servers and their respective ids). Args:\n"
-		"Id - Object Id of client to (re)connect\n"
-		"Address - IP Address to (re)connect to (default: LocalHost)\n"
-		"Port - Port to (re)connect to (default: 8095)"),
-	FConsoleCommandWithArgsDelegate::CreateStatic(
-		[](const TArray<FString>& Args)
-		{
-			if (Args.Num() == 0)
-			{
-				return;
-			}
-
-			const int32 SrvId = FCString::Atoi(*Args[0]);
-
-			FString IPAddr;
-			OSC::GetLocalHostAddress(IPAddr);
-			if (Args.Num() > 1)
-			{
-				IPAddr = Args[1];
-			}
-
-			int32 Port = OSC::DefaultServerPort;
-			if (Args.Num() > 2)
-			{
-				Port = FCString::Atoi(*Args[2]);
-			}
-
-			for (TObjectIterator<UOSCServer> Itr; Itr; ++Itr)
-			{
-				if (UOSCServer* Server = *Itr)
-				{
-					if (Server->GetUniqueID() == SrvId)
-					{
-						Server->Stop();
-						if (Server->SetAddress(IPAddr, Port))
-						{
-							Server->Listen();
-						}
-						return;
-					}
-				}
-			}
-
-			UE_LOG(LogOSC, Warning, TEXT("Server object with id '%u' not found, (re)connect not performed."), SrvId);
-		}
-	)
-);
-
-static FAutoConsoleCommand GOSCPrintClients(
-	TEXT("osc.clients"),
-	TEXT("Prints diagnostic information pertaining to the currently initialized OSC client objects to the output log."),
-	FConsoleCommandDelegate::CreateStatic(
-		[]()
-		{
-			FString LocalAddr;
-			OSC::GetLocalHostAddress(LocalAddr);
-			UE_LOG(LogOSC, Display, TEXT("Local IP: %s"), *LocalAddr);
-
-			UE_LOG(LogOSC, Display, TEXT("OSC Clients:"));
-			for (TObjectIterator<UOSCClient> Itr; Itr; ++Itr)
-			{
-				if (UOSCClient* Client = *Itr)
-				{
-					FString ToPrint = TEXT("    ") + Client->GetName();
-					ToPrint.Appendf(TEXT(" (Id: %u"), Client->GetUniqueID());
-					if (UWorld* World = Client->GetWorld())
-					{
-						ToPrint.Appendf(TEXT(", World: %s"), *World->GetName());
-					}
-
-					FString IPAddrStr;
-					int32 Port;
-					Client->GetSendIPAddress(IPAddrStr, Port);
-					ToPrint += TEXT(", Send IP: ") + IPAddrStr + TEXT(":");
-					ToPrint.AppendInt(Port);
-					ToPrint += Client->IsActive() ? TEXT(") [Active]") : TEXT(") [Inactive]");
-
-					UE_LOG(LogOSC, Display, TEXT("%s"), *ToPrint);
-				}
-			}
-		}
-	)
-);
-
-static FAutoConsoleCommand GOSCClientConnect(
-	TEXT("osc.client.connect"),
-	TEXT("Connects (or reconnects) the osc mix client with the provided name\n"
-		"(see \"osc.clients\" for a list of available clients and their respective ids). Args:\n"
-		"Name - Object name of client to (re)connect\n"
-		"Address - IP Address to (re)connect to (default: LocalHost)\n"
-		"Port - Port to (re)connect to (default: 8094)"),
-	FConsoleCommandWithArgsDelegate::CreateStatic(
-		[](const TArray< FString >& Args)
-		{
-			if (Args.Num() == 0)
-			{
-				return;
-			}
-			const FString CliName = Args[0];
-
-			FString IPAddr;
-			OSC::GetLocalHostAddress(IPAddr);
-			if (Args.Num() > 1)
-			{
-				IPAddr = Args[1];
-			}
-
-			int32 Port = OSC::DefaultClientPort;
-			if (Args.Num() > 2)
-			{
-				Port = FCString::Atoi(*Args[2]);
-			}
-
-			for (TObjectIterator<UOSCClient> Itr; Itr; ++Itr)
-			{
-				if (UOSCClient* Client = *Itr)
-				{
-					if (Client->GetName() == CliName)
-					{
-						Client->Connect();
-						Client->SetSendIPAddress(IPAddr, Port);
-						return;
-					}
-				}
-			}
-
-			UE_LOG(LogOSC, Warning, TEXT("Client object with name '%s' not found, (re)connect not performed."), *CliName);
-		}
-	)
-);
-
-static FAutoConsoleCommand GOSCClientConnectById(
-	TEXT("osc.client.connectById"),
-	TEXT("Connects (or reconnects) the osc mix client with the provided object id\n"
-		"(see \"osc.clients\" for a list of available clients and their respective ids). Args:\n"
-		"Id - Object Id of client to (re)connect\n"
-		"Address - IP Address to (re)connect to (default: LocalHost)\n"
-		"Port - Port to (re)connect to (default: 8094)"),
-	FConsoleCommandWithArgsDelegate::CreateStatic(
-		[](const TArray< FString >& Args)
-		{
-			int32 CliId = INDEX_NONE;
-			if (Args.Num() > 0)
-			{
-				CliId = FCString::Atoi(*Args[0]);
-			}
-
-			FString IPAddr;
-			OSC::GetLocalHostAddress(IPAddr);
-			if (Args.Num() > 1)
-			{
-				IPAddr = Args[1];
-			}
-
-			int32 Port = OSC::DefaultClientPort;
-			if (Args.Num() > 2)
-			{
-				Port = FCString::Atoi(*Args[2]);
-			}
-
-			for (TObjectIterator<UOSCClient> Itr; Itr; ++Itr)
-			{
-				if (UOSCClient* Client = *Itr)
-				{
-					if (Client->GetUniqueID() == CliId)
-					{
-						Client->Connect();
-						Client->SetSendIPAddress(IPAddr, Port);
-						return;
-					}
-				}
-			}
-
-			UE_LOG(LogOSC, Warning, TEXT("Client object with id '%u' not found, (re)connect not performed."), CliId);
-		}
-	)
-);
+	int32 GetDefaultServerPort()
+	{
+		return ManagerPrivate::DefaultServerPort;
+	}
+} // namespace UE::OSC
 
 UOSCServer* UOSCManager::CreateOSCServer(FString InReceiveIPAddress, int32 InPort, bool bInMulticastLoopback, bool bInStartListening, FString ServerName, UObject* Outer)
 {
-	if (OSC::GetLocalHostAddress(InReceiveIPAddress))
+	using namespace UE::OSC;
+
+	if (ManagerPrivate::GetLocalHostAddress(InReceiveIPAddress))
 	{
 		UE_LOG(LogOSC, Display, TEXT("OSCServer ReceiveAddress not specified. Using LocalHost IP: '%s'"), *InReceiveIPAddress);
 	}
@@ -389,7 +415,9 @@ UOSCServer* UOSCManager::CreateOSCServer(FString InReceiveIPAddress, int32 InPor
 
 UOSCClient* UOSCManager::CreateOSCClient(FString InSendIPAddress, int32 InPort, FString ClientName, UObject* Outer)
 {
-	if (OSC::GetLocalHostAddress(InSendIPAddress))
+	using namespace UE::OSC;
+
+	if (ManagerPrivate::GetLocalHostAddress(InSendIPAddress))
 	{
 		UE_LOG(LogOSC, Display, TEXT("OSCClient SendAddress not specified. Using LocalHost IP: '%s'"), *InSendIPAddress);
 	}
@@ -426,114 +454,123 @@ UOSCClient* UOSCManager::CreateOSCClient(FString InSendIPAddress, int32 InPort, 
 
 FOSCMessage& UOSCManager::ClearMessage(FOSCMessage& OutMessage)
 {
-	const TSharedPtr<FOSCMessagePacket>& Packet = StaticCastSharedPtr<FOSCMessagePacket>(OutMessage.GetPacket());
-	if (Packet.IsValid())
-	{
-		Packet->GetArguments().Reset();
-	}
+	using namespace UE::OSC;
+
+	const TSharedRef<FMessagePacket>& Packet = StaticCastSharedRef<FMessagePacket>(OutMessage.GetPacketRef());
+	Packet->EmptyArguments();
 
 	return OutMessage;
 }
 
 FOSCBundle& UOSCManager::ClearBundle(FOSCBundle& OutBundle)
 {
-	const TSharedPtr<FOSCBundlePacket>& Packet = StaticCastSharedPtr<FOSCBundlePacket>(OutBundle.GetPacket());
-	if (Packet.IsValid())
-	{
-		Packet->GetPackets().Reset();
-	}
+	using namespace UE::OSC;
+
+	const TSharedRef<FBundlePacket>& Packet = StaticCastSharedRef<FBundlePacket>(OutBundle.GetPacketRef());
+	Packet->GetPackets().Reset();
 
 	return OutBundle;
 }
 
 FOSCBundle& UOSCManager::AddMessageToBundle(const FOSCMessage& InMessage, FOSCBundle& Bundle)
 {
-	const TSharedPtr<FOSCBundlePacket>& BundlePacket = StaticCastSharedPtr<FOSCBundlePacket>(Bundle.GetPacket());
-	const TSharedPtr<FOSCMessagePacket>& MessagePacket = StaticCastSharedPtr<FOSCMessagePacket>(InMessage.GetPacket());
+	using namespace UE::OSC;
 
-	if (MessagePacket.IsValid() && BundlePacket.IsValid())
-	{
-		BundlePacket->GetPackets().Add(MessagePacket);
-	}
+	const TSharedRef<FBundlePacket>& BundlePacket = StaticCastSharedRef<FBundlePacket>(Bundle.GetPacketRef());
+	const TSharedRef<FMessagePacket>& MessagePacket = StaticCastSharedRef<FMessagePacket>(InMessage.GetPacketRef());
+
+	BundlePacket->GetPackets().Add(MessagePacket);
 
 	return Bundle;
 }
 
 FOSCBundle& UOSCManager::AddBundleToBundle(const FOSCBundle& InBundle, FOSCBundle& OutBundle)
 {
-	const TSharedPtr<FOSCBundlePacket>& InBundlePacket = StaticCastSharedPtr<FOSCBundlePacket>(InBundle.GetPacket());
-	const TSharedPtr<FOSCBundlePacket>& OutBundlePacket = StaticCastSharedPtr<FOSCBundlePacket>(OutBundle.GetPacket());
+	using namespace UE::OSC;
 
-	if (InBundlePacket.IsValid() && OutBundlePacket.IsValid())
-	{
-		InBundlePacket->GetPackets().Add(OutBundlePacket);
-	}
+	const TSharedRef<FBundlePacket>& InBundlePacket = StaticCastSharedRef<FBundlePacket>(InBundle.GetPacketRef());
+	const TSharedRef<FBundlePacket>& OutBundlePacket = StaticCastSharedRef<FBundlePacket>(OutBundle.GetPacketRef());
+
+	InBundlePacket->GetPackets().Add(OutBundlePacket);
 
 	return OutBundle;
 }
 
 FOSCMessage& UOSCManager::AddFloat(FOSCMessage& OutMessage, float InValue)
 {
-	const TSharedPtr<FOSCMessagePacket>& MessagePacket = StaticCastSharedPtr<FOSCMessagePacket>(OutMessage.GetPacket());
-	MessagePacket->GetArguments().Add(FOSCType(InValue));
+	using namespace UE::OSC;
+
+	const TSharedRef<FMessagePacket>& MessagePacket = StaticCastSharedRef<FMessagePacket>(OutMessage.GetPacketRef());
+	MessagePacket->AddArgument(FOSCData(InValue));
 	return OutMessage;
 }
 
 FOSCMessage& UOSCManager::AddInt32(FOSCMessage& OutMessage, int32 InValue)
 {
-	const TSharedPtr<FOSCMessagePacket>& MessagePacket = StaticCastSharedPtr<FOSCMessagePacket>(OutMessage.GetPacket());
-	MessagePacket->GetArguments().Add(FOSCType(InValue));
+	using namespace UE::OSC;
+
+	const TSharedRef<FMessagePacket>& MessagePacket = StaticCastSharedRef<FMessagePacket>(OutMessage.GetPacketRef());
+	MessagePacket->AddArgument(FOSCData(InValue));
 	return OutMessage;
 }
 
 FOSCMessage& UOSCManager::AddInt64(FOSCMessage& OutMessage, int64 InValue)
 {
-	const TSharedPtr<FOSCMessagePacket>& MessagePacket = StaticCastSharedPtr<FOSCMessagePacket>(OutMessage.GetPacket());
-	MessagePacket->GetArguments().Add(FOSCType(InValue));
+	using namespace UE::OSC;
+
+	const TSharedRef<FMessagePacket>& MessagePacket = StaticCastSharedRef<FMessagePacket>(OutMessage.GetPacketRef());
+	MessagePacket->AddArgument(FOSCData(InValue));
 	return OutMessage;
 }
 
 FOSCMessage& UOSCManager::AddAddress(FOSCMessage& OutMessage, const FOSCAddress& InValue)
 {
-	const TSharedPtr<FOSCMessagePacket>& MessagePacket = StaticCastSharedPtr<FOSCMessagePacket>(OutMessage.GetPacket());
-	MessagePacket->GetArguments().Add(FOSCType(InValue.GetFullPath()));
+	using namespace UE::OSC;
+
+	const TSharedRef<FMessagePacket>& MessagePacket = StaticCastSharedRef<FMessagePacket>(OutMessage.GetPacketRef());
+	MessagePacket->AddArgument(FOSCData(InValue.GetFullPath()));
 	return OutMessage;
 }
 
 FOSCMessage& UOSCManager::AddString(FOSCMessage& OutMessage, FString InValue)
 {
-	const TSharedPtr<FOSCMessagePacket>& MessagePacket = StaticCastSharedPtr<FOSCMessagePacket>(OutMessage.GetPacket());
-	MessagePacket->GetArguments().Add(FOSCType(InValue));
+	using namespace UE::OSC;
+
+	const TSharedRef<FMessagePacket>& MessagePacket = StaticCastSharedRef<FMessagePacket>(OutMessage.GetPacketRef());
+	MessagePacket->AddArgument(FOSCData(InValue));
 	return OutMessage;
 }
 
 FOSCMessage& UOSCManager::AddBlob(FOSCMessage& OutMessage, const TArray<uint8>& OutValue)
 {
-	const TSharedPtr<FOSCMessagePacket>& MessagePacket = StaticCastSharedPtr<FOSCMessagePacket>(OutMessage.GetPacket());
-	MessagePacket->GetArguments().Add(FOSCType(OutValue));
+	using namespace UE::OSC;
+
+	const TSharedRef<FMessagePacket>& MessagePacket = StaticCastSharedRef<FMessagePacket>(OutMessage.GetPacketRef());
+	MessagePacket->AddArgument(FOSCData(OutValue));
 	return OutMessage;
 }
 
 FOSCMessage& UOSCManager::AddBool(FOSCMessage& OutMessage, bool InValue)
 {
-	const TSharedPtr<FOSCMessagePacket>& MessagePacket = StaticCastSharedPtr<FOSCMessagePacket>(OutMessage.GetPacket());
-	MessagePacket->GetArguments().Add(FOSCType(InValue));
+	using namespace UE::OSC;
+
+	const TSharedRef<FMessagePacket>& MessagePacket = StaticCastSharedRef<FMessagePacket>(OutMessage.GetPacketRef());
+	MessagePacket->AddArgument(FOSCData(InValue));
 	return OutMessage;
 }
 
 TArray<FOSCBundle> UOSCManager::GetBundlesFromBundle(const FOSCBundle& InBundle)
 {
+	using namespace UE::OSC;
+
 	TArray<FOSCBundle> Bundles;
-	if (InBundle.GetPacket().IsValid())
+	const TSharedRef<FBundlePacket>& BundlePacket = StaticCastSharedRef<FBundlePacket>(InBundle.GetPacketRef());
+	for (int32 i = 0; i < BundlePacket->GetPackets().Num(); i++)
 	{
-		const TSharedPtr<FOSCBundlePacket>& BundlePacket = StaticCastSharedPtr<FOSCBundlePacket>(InBundle.GetPacket());
-		for (int32 i = 0; i < BundlePacket->GetPackets().Num(); i++)
+		const TSharedRef<UE::OSC::IPacket>& Packet = BundlePacket->GetPackets()[i];
+		if (Packet->IsBundle())
 		{
-			const TSharedPtr<IOSCPacket>& Packet = BundlePacket->GetPackets()[i];
-			if (Packet->IsBundle())
-			{
-				Bundles.Emplace(StaticCastSharedPtr<FOSCMessagePacket>(Packet));
-			}
+			Bundles.Add(FOSCBundle(Packet));
 		}
 	}
 
@@ -542,21 +579,20 @@ TArray<FOSCBundle> UOSCManager::GetBundlesFromBundle(const FOSCBundle& InBundle)
 
 FOSCMessage UOSCManager::GetMessageFromBundle(const FOSCBundle& InBundle, int32 InIndex, bool& bOutSucceeded)
 {
-	if (InBundle.GetPacket().IsValid())
+	using namespace UE::OSC;
+
+	const TSharedRef<FBundlePacket>& BundlePacket = StaticCastSharedRef<FBundlePacket>(InBundle.GetPacketRef());
+	int32 Count = 0;
+	for (const TSharedRef<UE::OSC::IPacket>& Packet : BundlePacket->GetPackets())
 	{
-		const TSharedPtr<FOSCBundlePacket>& BundlePacket = StaticCastSharedPtr<FOSCBundlePacket>(InBundle.GetPacket());
-		int32 Count = 0;
-		for (const TSharedPtr<IOSCPacket>& Packet : BundlePacket->GetPackets())
+		if (Packet->IsMessage())
 		{
-			if (Packet->IsMessage())
+			if (InIndex == Count)
 			{
-				if (InIndex == Count)
-				{
-					bOutSucceeded = true;
-					return FOSCMessage(StaticCastSharedPtr<FOSCMessagePacket>(Packet));
-				}
-				Count++;
+				bOutSucceeded = true;
+				return FOSCMessage(Packet);
 			}
+			Count++;
 		}
 	}
 
@@ -564,19 +600,18 @@ FOSCMessage UOSCManager::GetMessageFromBundle(const FOSCBundle& InBundle, int32 
 	return FOSCMessage();
 }
 
-TArray<FOSCMessage> UOSCManager::GetMessagesFromBundle(const FOSCBundle& OutBundle)
+TArray<FOSCMessage> UOSCManager::GetMessagesFromBundle(const FOSCBundle& InBundle)
 {
+	using namespace UE::OSC;
+
 	TArray<FOSCMessage> Messages;
-	if (OutBundle.GetPacket().IsValid())
+	const TSharedRef<FBundlePacket>& BundlePacket = StaticCastSharedRef<FBundlePacket>(InBundle.GetPacketRef());
+	for (int32 i = 0; i < BundlePacket->GetPackets().Num(); i++)
 	{
-		const TSharedPtr<FOSCBundlePacket>& BundlePacket = StaticCastSharedPtr<FOSCBundlePacket>(OutBundle.GetPacket());
-		for (int32 i = 0; i < BundlePacket->GetPackets().Num(); i++)
+		const TSharedRef<UE::OSC::IPacket>& Packet = BundlePacket->GetPackets()[i];
+		if (Packet->IsMessage())
 		{
-			const TSharedPtr<IOSCPacket>& Packet = BundlePacket->GetPackets()[i];
-			if (Packet->IsMessage())
-			{
-				Messages.Emplace(StaticCastSharedPtr<FOSCMessagePacket>(Packet));
-			}
+			Messages.Add(FOSCMessage(Packet));
 		}
 	}
 	
@@ -585,14 +620,16 @@ TArray<FOSCMessage> UOSCManager::GetMessagesFromBundle(const FOSCBundle& OutBund
 
 bool UOSCManager::GetAddress(const FOSCMessage& InMessage, const int32 InIndex, FOSCAddress& OutValue)
 {
-	if (const FOSCType* OSCType = OSC::GetOSCTypeAtIndex(InMessage, InIndex))
+	using namespace UE::OSC;
+
+	if (const FOSCData* OSCData = ManagerPrivate::GetDataAtIndex(InMessage, InIndex))
 	{
-		if (OSCType->IsString())
+		if (OSCData->IsString())
 		{
-			OutValue = FOSCAddress(OSCType->GetString());
+			OutValue = FOSCAddress(OSCData->GetString());
 			return OutValue.IsValidPath();
 		}
-		OSC_LOG_INVALID_TYPE_AT_INDEX(TEXT("String (OSCAddress)"), InIndex, InMessage);
+		ManagerPrivate::LogInvalidTypeAtIndex(EDataType::String, InIndex, InMessage);
 	}
 
 	OutValue = FOSCAddress();
@@ -601,36 +638,34 @@ bool UOSCManager::GetAddress(const FOSCMessage& InMessage, const int32 InIndex, 
 
 void UOSCManager::GetAllAddresses(const FOSCMessage& InMessage, TArray<FOSCAddress>& OutValues)
 {
-	if (InMessage.GetPacket().IsValid())
+	using namespace UE::OSC;
+
+	ManagerPrivate::IterateMessageArgs(InMessage, [&](const FOSCData& OSCData)
 	{
-		const TSharedPtr<FOSCMessagePacket>& MessagePacket = StaticCastSharedPtr<FOSCMessagePacket>(InMessage.GetPacket());
-		const TArray<FOSCType>& Args = MessagePacket->GetArguments();
-		for (int32 i = 0; i < Args.Num(); i++)
+		if (OSCData.IsString())
 		{
-			const FOSCType& OSCType = Args[i];
-			if (OSCType.IsString())
+			FOSCAddress AddressToAdd = FOSCAddress(OSCData.GetString());
+			if (AddressToAdd.IsValidPath())
 			{
-				FOSCAddress AddressToAdd = FOSCAddress(OSCType.GetString());
-				if (AddressToAdd.IsValidPath())
-				{
-					OutValues.Add(MoveTemp(AddressToAdd));
-				}
+				OutValues.Add(MoveTemp(AddressToAdd));
 			}
 		}
-	}
+	});
 }
 
 bool UOSCManager::GetFloat(const FOSCMessage& InMessage, const int32 InIndex, float& OutValue)
 {
+	using namespace UE::OSC;
+
 	OutValue = 0.0f;
-	if (const FOSCType* OSCType = OSC::GetOSCTypeAtIndex(InMessage, InIndex))
+	if (const FOSCData* OSCData = ManagerPrivate::GetDataAtIndex(InMessage, InIndex))
 	{
-		if (OSCType->IsFloat())
+		if (OSCData->IsFloat())
 		{
-			OutValue = OSCType->GetFloat();
+			OutValue = OSCData->GetFloat();
 			return true;
 		}
-		OSC_LOG_INVALID_TYPE_AT_INDEX(TEXT("Float"), InIndex, InMessage);
+		ManagerPrivate::LogInvalidTypeAtIndex(EDataType::Float, InIndex, InMessage);
 	}
 
 	return false;
@@ -638,32 +673,30 @@ bool UOSCManager::GetFloat(const FOSCMessage& InMessage, const int32 InIndex, fl
 
 void UOSCManager::GetAllFloats(const FOSCMessage& InMessage, TArray<float>& OutValues)
 {
-	if (InMessage.GetPacket().IsValid())
+	using namespace UE::OSC;
+
+	ManagerPrivate::IterateMessageArgs(InMessage, [&](const FOSCData& OSCData)
 	{
-		const TSharedPtr<FOSCMessagePacket>& MessagePacket = StaticCastSharedPtr<FOSCMessagePacket>(InMessage.GetPacket());
-		const TArray<FOSCType>& Args = MessagePacket->GetArguments();
-		for (int32 i = 0; i < Args.Num(); i++)
+		if (OSCData.IsFloat())
 		{
-			const FOSCType& OSCType = Args[i];
-			if (OSCType.IsFloat())
-			{
-				OutValues.Add(OSCType.GetFloat());
-			}
+			OutValues.Add(OSCData.GetFloat());
 		}
-	}
+	});
 }
 
 bool UOSCManager::GetInt32(const FOSCMessage& InMessage, const int32 InIndex, int32& OutValue)
 {
+	using namespace UE::OSC;
+
 	OutValue = 0;
-	if (const FOSCType* OSCType = OSC::GetOSCTypeAtIndex(InMessage, InIndex))
+	if (const FOSCData* OSCData = ManagerPrivate::GetDataAtIndex(InMessage, InIndex))
 	{
-		if (OSCType->IsInt32())
+		if (OSCData->IsInt32())
 		{
-			OutValue = OSCType->GetInt32();
+			OutValue = OSCData->GetInt32();
 			return true;
 		}
-		OSC_LOG_INVALID_TYPE_AT_INDEX(TEXT("Int32"), InIndex, InMessage);
+		ManagerPrivate::LogInvalidTypeAtIndex(EDataType::Int32, InIndex, InMessage);
 	}
 
 	return false;
@@ -671,32 +704,30 @@ bool UOSCManager::GetInt32(const FOSCMessage& InMessage, const int32 InIndex, in
 
 void UOSCManager::GetAllInt32s(const FOSCMessage& InMessage, TArray<int32>& OutValues)
 {
-	if (InMessage.GetPacket().IsValid())
+	using namespace UE::OSC;
+
+	ManagerPrivate::IterateMessageArgs(InMessage, [&](const FOSCData& OSCData)
 	{
-		const TSharedPtr<FOSCMessagePacket>& MessagePacket = StaticCastSharedPtr<FOSCMessagePacket>(InMessage.GetPacket());
-		const TArray<FOSCType>& Args = MessagePacket->GetArguments();
-		for (int32 i = 0; i < Args.Num(); i++)
+		if (OSCData.IsInt32())
 		{
-			const FOSCType& OSCType = Args[i];
-			if (OSCType.IsInt32())
-			{
-				OutValues.Add(OSCType.GetInt32());
-			}
+			OutValues.Add(OSCData.GetInt32());
 		}
-	}
+	});
 }
 
 bool UOSCManager::GetInt64(const FOSCMessage& InMessage, const int32 InIndex, int64& OutValue)
 {
+	using namespace UE::OSC;
+
 	OutValue = 0l;
-	if (const FOSCType* OSCType = OSC::GetOSCTypeAtIndex(InMessage, InIndex))
+	if (const FOSCData* OSCData = ManagerPrivate::GetDataAtIndex(InMessage, InIndex))
 	{
-		if (OSCType->IsInt64())
+		if (OSCData->IsInt64())
 		{
-			OutValue = OSCType->GetInt64();
+			OutValue = OSCData->GetInt64();
 			return true;
 		}
-		OSC_LOG_INVALID_TYPE_AT_INDEX(TEXT("Int64"), InIndex, InMessage);
+		ManagerPrivate::LogInvalidTypeAtIndex(EDataType::Int64, InIndex, InMessage);
 	}
 
 	return false;
@@ -704,31 +735,29 @@ bool UOSCManager::GetInt64(const FOSCMessage& InMessage, const int32 InIndex, in
 
 void UOSCManager::GetAllInt64s(const FOSCMessage& InMessage, TArray<int64>& OutValues)
 {
-	const TSharedPtr<FOSCMessagePacket>& MessagePacket = StaticCastSharedPtr<FOSCMessagePacket>(InMessage.GetPacket());
-	if (MessagePacket.IsValid())
+	using namespace UE::OSC;
+
+	ManagerPrivate::IterateMessageArgs(InMessage, [&](const FOSCData& OSCData)
 	{
-		const TArray<FOSCType>& Args = MessagePacket->GetArguments();
-		for (int32 i = 0; i < Args.Num(); i++)
+		if (OSCData.IsInt64())
 		{
-			const FOSCType& OSCType = Args[i];
-			if (OSCType.IsInt64())
-			{
-				OutValues.Add(OSCType.GetInt64());
-			}
+			OutValues.Add(OSCData.GetInt64());
 		}
-	}
+	});
 }
 
 bool UOSCManager::GetString(const FOSCMessage& InMessage, const int32 InIndex, FString& OutValue)
 {
-	if (const FOSCType* OSCType = OSC::GetOSCTypeAtIndex(InMessage, InIndex))
+	using namespace UE::OSC;
+
+	if (const FOSCData* OSCData = ManagerPrivate::GetDataAtIndex(InMessage, InIndex))
 	{
-		if (OSCType->IsString())
+		if (OSCData->IsString())
 		{
-			OutValue = OSCType->GetString();
+			OutValue = OSCData->GetString();
 			return true;
 		}
-		OSC_LOG_INVALID_TYPE_AT_INDEX(TEXT("String"), InIndex, InMessage);
+		ManagerPrivate::LogInvalidTypeAtIndex(EDataType::String, InIndex, InMessage);
 	}
 
 	OutValue.Reset();
@@ -737,32 +766,30 @@ bool UOSCManager::GetString(const FOSCMessage& InMessage, const int32 InIndex, F
 
 void UOSCManager::GetAllStrings(const FOSCMessage& InMessage, TArray<FString>& OutValues)
 {
-	const TSharedPtr<FOSCMessagePacket>& MessagePacket = StaticCastSharedPtr<FOSCMessagePacket>(InMessage.GetPacket());
-	if (MessagePacket.IsValid())
+	using namespace UE::OSC;
+
+	ManagerPrivate::IterateMessageArgs(InMessage, [&](const FOSCData& OSCData)
 	{
-		const TArray<FOSCType>& Args = MessagePacket->GetArguments();
-		for (int32 i = 0; i < Args.Num(); i++)
+		if (OSCData.IsString())
 		{
-			const FOSCType& OSCType = Args[i];
-			if (OSCType.IsString())
-			{
-				OutValues.Add(OSCType.GetString());
-			}
+			OutValues.Add(OSCData.GetString());
 		}
-	}
+	});
 }
 
 bool UOSCManager::GetBool(const FOSCMessage& InMessage, const int32 InIndex, bool& OutValue)
 {
+	using namespace UE::OSC;
+
 	OutValue = false;
-	if (const FOSCType* OSCType = OSC::GetOSCTypeAtIndex(InMessage, InIndex))
+	if (const FOSCData* OSCData = ManagerPrivate::GetDataAtIndex(InMessage, InIndex))
 	{
-		if (OSCType->IsBool())
+		if (OSCData->IsBool())
 		{
-			OutValue = OSCType->GetBool();
+			OutValue = OSCData->GetBool();
 			return true;
 		}
-		OSC_LOG_INVALID_TYPE_AT_INDEX(TEXT("Bool"), InIndex, InMessage);
+		ManagerPrivate::LogInvalidTypeAtIndex(EDataType::True, InIndex, InMessage);
 	}
 
 	return false;
@@ -770,32 +797,30 @@ bool UOSCManager::GetBool(const FOSCMessage& InMessage, const int32 InIndex, boo
 
 void UOSCManager::GetAllBools(const FOSCMessage& InMessage, TArray<bool>& OutValues)
 {
-	const TSharedPtr<FOSCMessagePacket>& MessagePacket = StaticCastSharedPtr<FOSCMessagePacket>(InMessage.GetPacket());
-	if (MessagePacket.IsValid())
+	using namespace UE::OSC;
+
+	ManagerPrivate::IterateMessageArgs(InMessage, [&](const FOSCData& OSCData)
 	{
-		const TArray<FOSCType>& Args = MessagePacket->GetArguments();
-		for (int32 i = 0; i < Args.Num(); i++)
+		if (OSCData.IsBool())
 		{
-			const FOSCType& OSCType = Args[i];
-			if (OSCType.IsBool())
-			{
-				OutValues.Add(OSCType.GetBool());
-			}
+			OutValues.Add(OSCData.GetBool());
 		}
-	}
+	});
 }
 
 bool UOSCManager::GetBlob(const FOSCMessage& InMessage, const int32 InIndex, TArray<uint8>& OutValue)
 {
+	using namespace UE::OSC;
+
 	OutValue.Reset();
-	if (const FOSCType* OSCType = OSC::GetOSCTypeAtIndex(InMessage, InIndex))
+	if (const FOSCData* OSCData = ManagerPrivate::GetDataAtIndex(InMessage, InIndex))
 	{
-		if (OSCType->IsBlob())
+		if (OSCData->IsBlob())
 		{
-			OutValue = OSCType->GetBlob();
+			OutValue = OSCData->GetBlob();
 			return true;
 		}
-		OSC_LOG_INVALID_TYPE_AT_INDEX(TEXT("Blob"), InIndex, InMessage);
+		ManagerPrivate::LogInvalidTypeAtIndex(EDataType::Blob, InIndex, InMessage);
 	}
 
 	return false;

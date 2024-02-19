@@ -170,19 +170,21 @@ void UOSCServer::ClearPackets()
 	OSCPackets.Empty();
 }
 
-void UOSCServer::EnqueuePacket(TSharedPtr<IOSCPacket> InPacket)
+void UOSCServer::EnqueuePacket(TSharedPtr<UE::OSC::IPacket> InPacket)
 {
 	OSCPackets.Enqueue(InPacket);
 }
 
 void UOSCServer::DispatchBundle(const FString& InIPAddress, uint16 InPort, const FOSCBundle& InBundle)
 {
+	using namespace UE::OSC;
+
 	OnOscBundleReceived.Broadcast(InBundle, InIPAddress, InPort);
 	OnOscBundleReceivedNative.Broadcast(InBundle, InIPAddress, InPort);
 
-	TSharedPtr<FOSCBundlePacket> BundlePacket = StaticCastSharedPtr<FOSCBundlePacket>(InBundle.GetPacket());
-	FOSCBundlePacket::FPacketBundle Packets = BundlePacket->GetPackets();
-	for (TSharedPtr<IOSCPacket>& Packet : Packets)
+	TSharedPtr<FBundlePacket> BundlePacket = StaticCastSharedRef<FBundlePacket>(InBundle.GetPacketRef());
+	TArray<TSharedRef<IPacket>>& Packets = BundlePacket->GetPackets();
+	for (TSharedRef<IPacket>& Packet : Packets)
 	{
 		if (Packet->IsMessage())
 		{
@@ -222,21 +224,23 @@ void UOSCServer::DispatchMessage(const FString& InIPAddress, uint16 InPort, cons
 
 void UOSCServer::PumpPacketQueue(const TSet<uint32>* AllowlistedClients)
 {
-	TSharedPtr<IOSCPacket> Packet;
+	using namespace UE::OSC;
+
+	TSharedPtr<UE::OSC::IPacket> Packet;
 	while (OSCPackets.Dequeue(Packet))
 	{
 		FIPv4Address IPAddr;
-		const FString& Address = Packet->GetIPAddress();
-		if (!AllowlistedClients || (FIPv4Address::Parse(Address, IPAddr) && AllowlistedClients->Contains(IPAddr.Value)))
+		const FIPv4Endpoint& Endpoint = Packet->GetIPEndpoint();
+		if (!AllowlistedClients || AllowlistedClients->Contains(Endpoint.Address.Value))
 		{
-			uint16 Port = Packet->GetPort();
+			const FString StringAdr = Endpoint.Address.ToString();
 			if (Packet->IsMessage())
 			{
-				DispatchMessage(Address, Port, FOSCMessage(Packet));
+				DispatchMessage(StringAdr, Endpoint.Port, FOSCMessage(Packet.ToSharedRef()));
 			}
 			else if (Packet->IsBundle())
 			{
-				DispatchBundle(Address, Port, FOSCBundle(Packet));
+				DispatchBundle(StringAdr, Endpoint.Port, FOSCBundle(Packet.ToSharedRef()));
 			}
 			else
 			{
