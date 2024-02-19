@@ -485,7 +485,7 @@
 							"name": "Full",
 							"metrics": [
 								{
-									"id": "horde-incremental-compile-jobs"
+									"id": "horde-monolithic-compile-jobs"
 								}
 							]
 						},
