@@ -134,7 +134,7 @@ namespace Dataflow
 
 		virtual FName GetType() const { return FContext::StaticType(); }
 
-		virtual int32 GetKeys(TSet<FContextCacheKey>& InKeys) { return DataStore.GetKeys(InKeys); }
+		virtual int32 GetKeys(TSet<FContextCacheKey>& InKeys) const { return DataStore.GetKeys(InKeys); }
 
 		template<class T>
 		const T* AsType() const

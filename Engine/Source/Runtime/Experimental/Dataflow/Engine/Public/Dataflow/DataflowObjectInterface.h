@@ -30,7 +30,7 @@ namespace Dataflow
 
 		~TEngineContext(){}
 
-		int32 GetKeys(TSet<FContextCacheKey>& InKeys) { return Base::GetKeys(InKeys); }
+		int32 GetKeys(TSet<FContextCacheKey>& InKeys) const { return Base::GetKeys(InKeys); }
 
 		TUniquePtr<FContextCacheElementBase>* GetBaseData(FContextCacheKey Key) { return Base::GetDataImpl(Key); }
 
