@@ -782,26 +782,6 @@ public:
 		checkNoEntry();
 	}
 
-	virtual void RHIBuildAccelerationStructures(TConstArrayView<FRayTracingGeometryBuildParams> Params, const FRHIBufferRange& ScratchBufferRange)
-	{
-		checkNoEntry();
-	}
-
-	void RHIBuildAccelerationStructures(TConstArrayView<FRayTracingGeometryBuildParams> Params)
-	{
-		checkNoEntry();
-	}
-
-	void RHIBuildAccelerationStructure(FRHIRayTracingGeometry* Geometry)
-	{
-		checkNoEntry();
-	}
-
-	virtual void RHIBuildAccelerationStructure(const FRayTracingSceneBuildParams& SceneBuildParams)
-	{
-		checkNoEntry();
-	}
-
 	virtual void RHIRayTraceDispatch(FRHIRayTracingPipelineState* RayTracingPipelineState, FRHIRayTracingShader* RayGenShader,
 		FRHIRayTracingScene* Scene,
 		const FRayTracingShaderBindings& GlobalResourceBindings,
