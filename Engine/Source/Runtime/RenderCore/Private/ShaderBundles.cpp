@@ -22,45 +22,9 @@ void FDispatchShaderBundleCS::ModifyCompilationEnvironment(const FGlobalShaderPe
 		OutEnvironment.CompilerFlags.Add(CFLAG_ForceBindful);
 	}
 
+	OutEnvironment.CompilerFlags.Add(CFLAG_RootConstants);
+
 	OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZEX"), ThreadGroupSizeX);
 	OutEnvironment.SetDefine(TEXT("USE_SHADER_ROOT_CONSTANTS"), RHISupportsShaderRootConstants(Parameters.Platform) ? 1 : 0);
 	FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-}
-
-void FDispatchShaderBundle::Dispatch(
-	FRHIShaderBundle* ShaderBundle,
-	uint32 RecordCount,
-	FRHIComputeCommandList& RHICmdList,
-	FRHIShaderResourceView* RecordArgBufferSRV,
-	FRHIShaderResourceView* RecordDataBufferSRV,
-	FRHIUnorderedAccessView* ExecutionBufferUAV
-)
-{
-	check(RHISupportsShaderBundleDispatch(GMaxRHIShaderPlatform) && GRHISupportsShaderBundleDispatch);
-	check(ShaderBundle && ShaderBundle->NumRecords > 0 && RecordCount <= ShaderBundle->NumRecords);
-
-	RHICmdList.ClearUAVUint(ExecutionBufferUAV, FUintVector4(0, 0, 0, 0));
-
-	auto ComputeShader = GetGlobalShaderMap(GMaxRHIFeatureLevel)->GetShader<FDispatchShaderBundleCS>();
-
-	FRHIBatchedShaderParameters& Parameters = RHICmdList.GetScratchShaderParameters();
-
-	SetShaderValue(Parameters, ComputeShader->RecordCountParam, RecordCount);
-	SetShaderValue(Parameters, ComputeShader->PlatformDataParam, ShaderBundle->GetPlatformData());
-	SetSRVParameter(Parameters, ComputeShader->RecordArgBufferParam, RecordArgBufferSRV);
-	SetSRVParameter(Parameters, ComputeShader->RecordDataBufferParam, RecordDataBufferSRV);
-	SetUAVParameter(Parameters, ComputeShader->RWExecutionBufferParam, ExecutionBufferUAV);
-
-	FRHIComputeShader* ComputeShaderRHI = ComputeShader.GetComputeShader();
-	SetComputePipelineState(RHICmdList, ComputeShaderRHI);
-
-	RHICmdList.SetBatchedShaderParameters(ComputeShaderRHI, Parameters);
-
-	const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(RecordCount, FDispatchShaderBundleCS::ThreadGroupSizeX);
-	DispatchComputeShader(RHICmdList, ComputeShader, GroupCount.X, GroupCount.Y, GroupCount.Z);
-
-	FRHIBatchedShaderUnbinds& Unbinds = RHICmdList.GetScratchShaderUnbinds();
-
-	UnsetUAVParameter(Unbinds, ComputeShader->RWExecutionBufferParam);
-	RHICmdList.SetBatchedShaderUnbinds(ComputeShaderRHI, Unbinds);
 }

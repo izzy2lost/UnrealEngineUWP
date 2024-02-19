@@ -66,9 +66,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FNaniteMaterialPassParameters, )
 	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutTarget7)
 	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray, OutTargets)
 
-	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, RecordDataBuffer)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, RecordArgBuffer)
-	SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, ExecutionBuffer)
 END_SHADER_PARAMETER_STRUCT()
 
 BEGIN_SHADER_PARAMETER_STRUCT(FNaniteEmitGBufferParameters, )
@@ -217,8 +215,6 @@ FNaniteMaterialPassParameters CreateNaniteMaterialPassParams(
 	Result.MaterialIndirectArgs = MaterialIndirectArgs;
 
 	Result.RecordArgBuffer = nullptr;
-	Result.RecordDataBuffer = nullptr;
-	Result.ExecutionBuffer = nullptr;
 
 	{
 		const FIntPoint ScaledSize = TileGridSize * 64;

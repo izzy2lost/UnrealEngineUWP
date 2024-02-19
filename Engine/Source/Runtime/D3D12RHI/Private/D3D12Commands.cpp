@@ -1549,8 +1549,6 @@ void FD3D12CommandContext::RHISetShaderRootConstants(const FUint32Vector4& Const
 void FD3D12CommandContext::RHIDispatchShaderBundle(
 	FRHIShaderBundle* ShaderBundle,
 	FRHIShaderResourceView* RecordArgBufferSRV,
-	FRHIShaderResourceView* RecordDataBufferSRV,
-	FRHIUnorderedAccessView* ExecutionBufferUAV,
 	TConstArrayView<FRHIShaderBundleDispatch> Dispatches,
 	bool bEmulated
 )

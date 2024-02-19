@@ -191,8 +191,6 @@ public:
 	virtual void RHIDispatchShaderBundle(
 		FRHIShaderBundle* ShaderBundleRHI,
 		FRHIShaderResourceView* RecordArgBufferSRV,
-		FRHIShaderResourceView* RecordDataBufferSRV,
-		FRHIUnorderedAccessView* ExecutionBufferUAV,
 		TConstArrayView<FRHIShaderBundleDispatch> Dispatches,
 		bool bEmulated) final override
 	{
@@ -221,11 +219,9 @@ public:
 		else
 		{
 			Tracker->Assert(RecordArgBufferSRV->GetViewIdentity(),  ERHIAccess::SRVCompute);
-			Tracker->Assert(RecordDataBufferSRV->GetViewIdentity(), ERHIAccess::SRVCompute);
-			Tracker->Assert(ExecutionBufferUAV->GetViewIdentity(),  ERHIAccess::UAVCompute);
 		}
 
-		RHIContext->RHIDispatchShaderBundle(ShaderBundleRHI, RecordArgBufferSRV, RecordDataBufferSRV, ExecutionBufferUAV, Dispatches, bEmulated);
+		RHIContext->RHIDispatchShaderBundle(ShaderBundleRHI, RecordArgBufferSRV, Dispatches, bEmulated);
 	}
 
 	virtual void RHIBeginUAVOverlap() final override
@@ -474,8 +470,6 @@ public:
 	virtual void RHIDispatchShaderBundle(
 		FRHIShaderBundle* ShaderBundleRHI,
 		FRHIShaderResourceView* RecordArgBufferSRV,
-		FRHIShaderResourceView* RecordDataBufferSRV,
-		FRHIUnorderedAccessView* ExecutionBufferUAV,
 		TConstArrayView<FRHIShaderBundleDispatch> Dispatches,
 		bool bEmulated) final override
 	{
@@ -504,11 +498,9 @@ public:
 		else
 		{
 			Tracker->Assert(RecordArgBufferSRV->GetViewIdentity(),  ERHIAccess::SRVCompute);
-			Tracker->Assert(RecordDataBufferSRV->GetViewIdentity(), ERHIAccess::SRVCompute);
-			Tracker->Assert(ExecutionBufferUAV->GetViewIdentity(),  ERHIAccess::UAVCompute);
 		}
 
-		RHIContext->RHIDispatchShaderBundle(ShaderBundleRHI, RecordArgBufferSRV, RecordDataBufferSRV, ExecutionBufferUAV, Dispatches, bEmulated);
+		RHIContext->RHIDispatchShaderBundle(ShaderBundleRHI, RecordArgBufferSRV, Dispatches, bEmulated);
 	}
 
 	virtual void RHIBeginUAVOverlap() final override
