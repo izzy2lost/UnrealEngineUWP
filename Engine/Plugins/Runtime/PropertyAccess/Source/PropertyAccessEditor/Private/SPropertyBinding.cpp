@@ -199,7 +199,7 @@ void SPropertyBinding::ForEachBindableFunction(UClass* FromClass, Predicate Pred
 }
 
 template <typename Predicate>
-void SPropertyBinding::ForEachBindableProperty(UStruct* InStruct, TConstArrayView<TSharedPtr<FBindingChainElement>> BindingChain, Predicate Pred) const
+void SPropertyBinding::ForEachBindableProperty(UStruct* InStruct, const TArray<TSharedPtr<FBindingChainElement>>& BindingChain, Predicate Pred) const
 {
 	if(InStruct && Args.OnCanBindProperty.IsBound())
 	{
