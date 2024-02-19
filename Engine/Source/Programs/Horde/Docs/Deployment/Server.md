@@ -80,7 +80,7 @@ The MongoDB connection string can be specified via the `DatabaseConnectionString
 connection string should be in standard 
 [MongoDB syntax](https://www.mongodb.com/docs/manual/reference/connection-string/), eg:
 
-    mongodb://username:password@url:27017?replicaSet=rs0&readPreference=primary
+    mongodb://username:password@host:27017?replicaSet=rs0&readPreference=primary
 
 Horde implements a lot of operations as compare-and-swap operations, so it is important that all reads are configured
 to use the primary database instance using the `readPreference=primary` argument when using a replica set. Using a
@@ -98,24 +98,25 @@ The Redis server is configured through the RedisConnectionConfig property in the
 file, or via the `Horde__DatabaseConnectionString` environment variable. This string is formatted as a plain server
 and port, eg:
 
-    redis:6379
+    127.0.0.1:6379
 
 ### Ports
 
 By default, Horde is configured to serve data over unencrypted HTTP using port 5000. Agents communicate with the Horde
-server using gRPC over unencrypted HTTP2 on port 5002 by default. 
+server using gRPC over unencrypted HTTP/2 on port 5002 by default. 
 
 These settings are echoed to the console during server startup.
 
-A separate port is used for gRPC since Kestrel (the .NET web server) does not support unencrypted HTTP2 traffic over
-the same port as HTTP1 traffic. If a HTTPS port is configured, all traffic can use that port.
+A separate port is used for gRPC since Kestrel (the .NET web server) does not support unencrypted HTTP/2 traffic over
+the same port as HTTP/1 traffic. Using this separate port for non-TLS HTTP/2 traffic can be useful when putting
+Horde behind a reverse proxy. If an HTTPS port is configured, all traffic can use that port.
 
 Settings for port usage are defined in [Server.json](ServerSettings.md):
 
 * To disable serving data over HTTP, set the `HttpPort` property to zero.
-* To configure the secondary HTTP2 port used, set the `Http2Port2` property (or set it to zero to disable it).
+* To configure the secondary HTTP/2 port used, set the `Http2Port` property (or set it to zero to disable it).
 * To serve data over HTTPS, set the `HttpsPort` property. This setting can be used independently of the `HttpPort`
-  and `Http2Port2` setting.
+  and `Http2Port` setting.
 
 ### Monitoring
 
@@ -137,6 +138,8 @@ run in different _RunModes_. These are configured via the [RunMode](ServerSettin
 Horde supports [OpenID Connect (OIDC)](https://openid.net/developers/how-connect-works/) for authentication using
 an external identity provider. _OIDC_ is a widely used auth standard, and Okta, Aws, Azure, Google, Facebook, and
 many others implement identity providers compatible with it.
+
+See [permissions](../Config/Permissions.md) in config for other authentication options.
 
 The following settings in [Server.json](ServerSettings.md) are required to configure an OIDC provider:
 

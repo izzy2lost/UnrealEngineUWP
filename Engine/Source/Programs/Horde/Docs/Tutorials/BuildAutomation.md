@@ -16,6 +16,7 @@ regularly. The terms are used interchangably in this documentation.
 
 * Horde Server installation
 * One or more machines to function as build workers
+* A Perforce server with a UE project
 
 ## Steps
 
