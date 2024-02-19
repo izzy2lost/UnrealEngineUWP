@@ -378,11 +378,11 @@ void FHttpRequestCommon::OnTotalTimeoutTimerTaskTrigger()
 {
 	const FScopeLock CacheLock(&HttpTaskTimerHandleCriticalSection);
 	bTimedOut = true;
-	UE_LOG(LogHttp, Warning, TEXT("HTTP request timed out after %0.2f seconds URL=%s"), GetTimeoutOrDefault(), *GetURL());
 
 	if (!EHttpRequestStatus::IsFinished(GetStatus())) 
 	{
 		QUICK_SCOPE_CYCLE_COUNTER(STAT_FHttpRequestCommon_AbortRequest);
+		UE_LOG(LogHttp, Warning, TEXT("HTTP request timed out after %0.2f seconds URL=%s"), GetTimeoutOrDefault(), *GetURL());
 		AbortRequest();
 	}
 }
