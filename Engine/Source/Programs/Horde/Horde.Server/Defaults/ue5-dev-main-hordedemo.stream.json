@@ -23,6 +23,11 @@
 			"outcomes": [ "Success", "Warnings" ]
 		}
 	},
+	"jobOptions":
+	{
+		"useNewTempStorage": true,
+		"executor": "Workspace"
+	},
 	"tabs":
 	[
 		{
