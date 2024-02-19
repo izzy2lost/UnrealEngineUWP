@@ -155,13 +155,14 @@ IVideoDecoderInputBitstreamProcessor::EProcessResult FVideoDecoderInputBitstream
 
 		uint8 nut = *(const uint8 *)(NALU + 1);
 		nut >>= 1;
-		// IDR frame?
-		if (nut == 19 /*IDR_W_RADL*/ || nut == 20 /*IDR_N_LP*/ || nut == 21 /*CRA_NUT*/)
+
+		// IDR, CRA or BLA frame?
+		if (nut >= 16 && nut <= 21)
 		{
 			OutBSI.bIsSyncFrame = true;
 		}
 		// One of TRAIL_N, TSA_N, STSA_N, RADL_N, RASL_N, RSV_VCL_N10, RSV_VCL_N12 or RSV_VCL_N14 ?
-		else if (nut == 0 || nut == 2 || nut == 4 || nut == 6 || nut == 8 || nut == 10 || nut == 12 || nut == 14)
+		else if (nut <= 14 && (nut & 1) == 0)
 		{
 			OutBSI.bIsDiscardable = true;
 		}

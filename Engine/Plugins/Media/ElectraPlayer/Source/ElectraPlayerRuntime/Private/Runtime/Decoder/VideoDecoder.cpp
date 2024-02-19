@@ -857,8 +857,7 @@ IElectraDecoder::EOutputStatus FVideoDecoderImpl::HandleOutput()
 			}
 
 			// Check if the output can actually be output or if the decoder says this is not to be output (incorrectly decoded)
-			//bool bUseOutput = CurrentDecoderOutput->GetOutputType() == IElectraDecoderVideoOutput::EOutputType::Output;
-			bool bUseOutput = true;
+			bool bUseOutput = CurrentDecoderOutput->GetOutputType() == IElectraDecoderVideoOutput::EOutputType::Output;
 			if (bUseOutput)
 			{
 				NotifyReadyBufferListener(true);

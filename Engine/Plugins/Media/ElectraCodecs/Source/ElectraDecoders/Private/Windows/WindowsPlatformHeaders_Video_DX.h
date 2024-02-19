@@ -5,8 +5,8 @@
 
 #include "CoreMinimal.h"
 
-#include "Windows/AllowWindowsPlatformTypes.h"
 THIRD_PARTY_INCLUDES_START
+#include "Microsoft/AllowMicrosoftPlatformTypes.h"
 
 #include <d3d11.h>
 #include <d3d11_1.h>
@@ -25,8 +25,8 @@ THIRD_PARTY_INCLUDES_START
 #define ALLOW_MFSAMPLE_WITH_DX12	0
 #endif
 
+#include "Microsoft/HideMicrosoftPlatformTypes.h"
 THIRD_PARTY_INCLUDES_END
-#include "Windows/HideWindowsPlatformTypes.h"
 
 struct FElectraVideoDecoderDXDeviceContext
 {

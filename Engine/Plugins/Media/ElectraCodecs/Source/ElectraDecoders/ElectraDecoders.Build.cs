@@ -22,7 +22,6 @@ namespace UnrealBuildTool.Rules
 			//
 			// Common setup...
 			//
-
 			bLegalToDistributeObjectCode = true;
 
 			PrivateDependencyModuleNames.AddRange(

@@ -61,6 +61,23 @@ public:
 		return EType::Video;
 	}
 
+	enum class EOutputType
+	{
+		// Output this output.
+		Output,
+
+		// Do not output this. Either the decoder did not produce an actual output for the given
+		// input, or the output has decoding errors that makes it unusable.
+		DoNotOutput
+	};
+
+	/**
+	 * Returns the state of this output.
+	 * Depending on the input bitstream the decoder might not have been able to produce
+	 * a valid output or it may be partially corrupted.
+	 * If the output should not be used for display `DoNotOutput` is returned.
+	 */
+	virtual EOutputType GetOutputType() const = 0;
 
 	/**
 	 * Returns the active number of horizontal pixels.
@@ -75,7 +92,7 @@ public:
 	 * pitch requirements.
 	 */
 	virtual int32 GetHeight() const = 0;
-	
+
 	/**
 	 * Returns the number of decoded horizontal pixels.
 	 * This value may be different from GetWidth() since it does not take any
@@ -95,7 +112,7 @@ public:
 	 * (e.g. if the data is returned as RGBA pixels, but represents a YUYV 4:2:2 format)
 	 */
 	virtual int32 GetDecodedHeight() const = 0;
-	
+
 	/**
 	 * Returns the cropping values.
 	 * This is useful in combination with GetDecodedWidth() and GetDecodedHeight()
@@ -129,7 +146,7 @@ public:
 	 * Returns the number of bits. Usually 8, 10, or 12.
 	 */
 	virtual int32 GetNumberOfBits() const = 0;
-	
+
 	/**
 	 * Returns additional values specific to the decoder and format that are used
 	 * in handling this output in a platform specific way.
@@ -162,7 +179,7 @@ public:
 	 * This is a value particular to the target hardware.
 	 * It is usually a resource handle of sorts and is owned by the
 	 * platform's resource manager.
-	 * 
+	 *
 	 * USAGE TBD
 	 */
 	virtual IElectraDecoderVideoOutputTransferHandle* GetTransferHandle() const = 0;
