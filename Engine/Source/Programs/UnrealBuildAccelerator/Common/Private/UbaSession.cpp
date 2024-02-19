@@ -2093,7 +2093,13 @@ namespace uba
 
 	void Session::GetSystemInfo(StringBufferBase& out)
 	{
-		u32 numCPU = GetLogicalProcessorCount();
+		u32 cpuCount = GetLogicalProcessorCount();
+		u32 cpuGroupCount = GetProcessorGroupCount();
+
+		StringBuffer<128> cpuCountStr;
+		if (cpuGroupCount != 1)
+			cpuCountStr.AppendValue(cpuGroupCount).Append('x');
+		cpuCountStr.AppendValue(cpuCount/cpuGroupCount);
 
 		u64 totalMemoryInKilobytes = 0;
 		StringBuffer<128> hzStr;
@@ -2102,8 +2108,8 @@ namespace uba
 		GetPhysicallyInstalledSystemMemory(&totalMemoryInKilobytes);
 
 		Vector<PROCESSOR_POWER_INFORMATION> procInfos;
-		procInfos.resize(numCPU);
-		if (CallNtPowerInformation(ProcessorInformation, NULL, 0, procInfos.data(), numCPU*sizeof(PROCESSOR_POWER_INFORMATION)) == STATUS_SUCCESS)
+		procInfos.resize(cpuCount);
+		if (CallNtPowerInformation(ProcessorInformation, NULL, 0, procInfos.data(), cpuCount*sizeof(PROCESSOR_POWER_INFORMATION)) == STATUS_SUCCESS)
 			hzStr.Appendf(TC(" @ %.1fGHz"), float(procInfos[0].MaxMhz) / 1000.0f);
 		#else
 		u64 throwAway;
@@ -2118,7 +2124,7 @@ namespace uba
 		BytesToText temp(capacity);
 		if (capacity)
 			capacityStr = temp.str;
-		out.Appendf(TC("CPU:%u%s Mem:%ugb Cas:%s"), numCPU, hzStr.data, u32(totalMemoryInKilobytes/(1024*1024)), capacityStr);
+		out.Appendf(TC("CPU:%s%s Mem:%ugb Cas:%s"), cpuCountStr.data, hzStr.data, u32(totalMemoryInKilobytes/(1024*1024)), capacityStr);
 
 		StringBuffer<128> zone;
 		if (m_storage.GetZone(zone))

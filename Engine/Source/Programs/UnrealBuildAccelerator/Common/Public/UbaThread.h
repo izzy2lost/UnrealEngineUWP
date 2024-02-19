@@ -8,6 +8,8 @@
 namespace uba
 {
 	class Event;
+	struct GroupAffinity;
+
 
 	class Thread
 	{
@@ -17,6 +19,8 @@ namespace uba
 		~Thread();
 		void Start(Function<u32()>&& func);
 		bool Wait(u32 milliseconds = ~0u, Event* wakeupEvent = nullptr);
+		bool GetGroupAffinity(GroupAffinity& out);
+
 	private:
 		Function<u32()>	m_func;
 		void* m_handle = nullptr;
@@ -30,5 +34,11 @@ namespace uba
 	};
 
 
+	struct GroupAffinity
+	{
+		u64 mask = 0;
+		u16 group = 0;
+	};
+	bool SetThreadGroupAffinity(void* nativeThreadHandle, const GroupAffinity& affinity);
 	bool AlternateThreadGroupAffinity(void* nativeThreadHandle);
 }
