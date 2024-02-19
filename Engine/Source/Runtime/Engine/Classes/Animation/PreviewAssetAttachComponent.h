@@ -139,7 +139,8 @@ public:
 	/** 
 	 * RemoveAtSwap passthrough
 	 */
-	ENGINE_API void RemoveAtSwap( int32 Index, int32 Count = 1, EAllowShrinking AllowShrinking = EAllowShrinking::Yes);
+	ENGINE_API void RemoveAtSwap( int32 Index, EAllowShrinking AllowShrinking = EAllowShrinking::Yes);
+	ENGINE_API void RemoveAtSwap( int32 Index, int32 Count, EAllowShrinking AllowShrinking = EAllowShrinking::Yes);
 	UE_ALLOWSHRINKING_BOOL_DEPRECATED("RemoveAtSwap")
 	FORCEINLINE void RemoveAtSwap(int32 Index, int32 Count, bool bAllowShrinking)
 	{

@@ -243,15 +243,32 @@ public:
 	}
 
 	/**
-	 * Removes an element (or elements) at given location optionally shrinking
+	 * Removes an element at given location optionally shrinking
 	 * the array.
 	 *
 	 * @param Index Location in array of the element to remove.
-	 * @param Count (Optional) Number of elements to remove. Default is 1.
 	 * @param AllowShrinking (Optional) Tells if this call can shrink array if
 	 *                        suitable after remove. Default is yes.
 	 */
-	void RemoveAt(int32 Index, int32 Count = 1, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
+	void RemoveAt(int32 Index, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
+	{
+		check(Index >= 0);
+		check(Index < Array.Num());
+		T** Element = GetData() + Index;
+		delete *Element;
+		Array.RemoveAt(Index, AllowShrinking);
+	}
+
+	/**
+	 * Removes elements at given location optionally shrinking
+	 * the array.
+	 *
+	 * @param Index Location in array of the first element to remove.
+	 * @param Count Number of elements to remove.
+	 * @param AllowShrinking (Optional) Tells if this call can shrink array if
+	 *                        suitable after remove. Default is yes.
+	 */
+	void RemoveAt(int32 Index, int32 Count, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
 		check(Index >= 0);
 		check(Index <= Array.Num());
@@ -271,18 +288,38 @@ public:
 	}
 
 	/**
-	 * Removes an element (or elements) at given location optionally shrinking
+	 * Removes an element at given location optionally shrinking
 	 * the array.
 	 *
 	 * This version is much more efficient than RemoveAt (O(Count) instead of
 	 * O(ArrayNum)), but does not preserve the order.
 	 *
 	 * @param Index Location in array of the element to remove.
-	 * @param Count (Optional) Number of elements to remove. Default is 1.
 	 * @param AllowShrinking (Optional) Tells if this call can shrink array if
 	 *                        suitable after remove. Default is yes.
 	 */
-	void RemoveAtSwap(int32 Index, int32 Count = 1, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
+	void RemoveAtSwap(int32 Index, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
+	{
+		check(Index >= 0);
+		check(Index < Array.Num());
+		T** Element = GetData() + Index;
+		delete *Element;
+		Array.RemoveAtSwap(Index, AllowShrinking);
+	}
+
+	/**
+	 * Removes elements at given location optionally shrinking
+	 * the array.
+	 *
+	 * This version is much more efficient than RemoveAt (O(Count) instead of
+	 * O(ArrayNum)), but does not preserve the order.
+	 *
+	 * @param Index Location in array of the rirst element to remove.
+	 * @param Count Number of elements to remove.
+	 * @param AllowShrinking (Optional) Tells if this call can shrink array if
+	 *                        suitable after remove. Default is yes.
+	 */
+	void RemoveAtSwap(int32 Index, int32 Count, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
 		check(Index >= 0);
 		check(Index <= Array.Num());
