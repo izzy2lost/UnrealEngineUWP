@@ -193,6 +193,8 @@ public:
 
 	void Init();
 
+	bool HandleSessionExec(UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar);
+
 private:
 	// EOS Lobbies
 

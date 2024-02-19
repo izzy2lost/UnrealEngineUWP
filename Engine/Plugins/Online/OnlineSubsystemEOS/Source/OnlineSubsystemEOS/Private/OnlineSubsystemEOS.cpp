@@ -510,6 +510,10 @@ bool FOnlineSubsystemEOS::Exec(UWorld* InWorld, const TCHAR* Cmd, FOutputDevice&
 	{
 		bWasHandled = LeaderboardsInterfacePtr->HandleLeaderboardsExec(InWorld, Cmd, Ar);
 	}
+	else if (SessionInterfacePtr != nullptr && FParse::Command(&Cmd, TEXT("SESSION"))) /* ONLINE (EOS if using EOSPlus) SESSION ... */
+	{
+		bWasHandled = SessionInterfacePtr->HandleSessionExec(InWorld, Cmd, Ar);
+	}
 	else if (TitleFileInterfacePtr != nullptr && FParse::Command(&Cmd, TEXT("TITLEFILE"))) /* ONLINE (EOS if using EOSPlus) TITLEFILE ... */
 	{
 		bWasHandled = TitleFileInterfacePtr->HandleTitleFileExec(InWorld, Cmd, Ar);
