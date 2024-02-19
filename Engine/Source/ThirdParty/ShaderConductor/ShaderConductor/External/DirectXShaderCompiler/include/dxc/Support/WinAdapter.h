@@ -364,7 +364,7 @@ typedef BYTE BOOLEAN;
 typedef BOOLEAN *PBOOLEAN;
 
 // UE Change Begin: Bool is already defined on Apple platforms
-#if !defined(BOOL) && !defined(__APPLE__)
+#ifndef OBJC_BOOL_DEFINED
 typedef bool BOOL;
 #endif
 // UE Change End: Bool is already defined on Apple platforms
