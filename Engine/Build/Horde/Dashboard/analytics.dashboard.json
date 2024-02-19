@@ -482,7 +482,7 @@
 					"name": "Compile",
 					"charts": [
 						{
-							"name": "Full Comile",
+							"name": "Full Compile",
 							"metrics": [
 								{
 									"id": "horde-monolithic-compile-jobs"
