@@ -3,9 +3,9 @@
 #pragma once
 
 #include "NetworkPredictionComponent.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "Engine/HitResult.h"
-#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "BaseMovementComponent.generated.h"
 
 struct FHitResult;
