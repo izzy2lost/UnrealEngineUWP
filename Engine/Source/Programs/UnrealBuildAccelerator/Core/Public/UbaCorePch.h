@@ -3,7 +3,8 @@
 #pragma once
 
 #if UBA_USE_MIMALLOC
-#include <mimalloc-override.h>
+#include <mimalloc.h>
+//#include <mimalloc-override.h>
 #endif
 
 #include "UbaPlatform.h"
