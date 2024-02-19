@@ -204,7 +204,7 @@
 					]
                 },
                 {
-                    "name": "Cooking",
+                    "name": "Cook",
 					"charts": [
 						{
 							"name": "Cook Time (KPIs)",
@@ -403,7 +403,7 @@
 					]
                 },
 				{
-					"name": "DDC",
+					"name": "Cache",
 					"charts": [
 						{
 							"name": "User DDC Backend Efficiency",
@@ -442,7 +442,7 @@
 					"name": "Build",
 					"charts": [
 						{
-							"name": "Incremental Jobs",
+							"name": "Incremental",
 							"metrics": [
 								{
 									"id": "horde-incremental-build-jobs"
@@ -453,7 +453,7 @@
 							]
 						},
 						{
-							"name": "AutoTest Jobs",
+							"name": "AutoTest",
 							"metrics": [
 								{
 									"id": "horde-autotest-ci-jobs"
@@ -461,18 +461,7 @@
 							]
 						},
 						{
-							"name": "Compilation Jobs",
-							"metrics": [
-								{
-									"id": "horde-incremental-compile-jobs"
-								},
-								{
-									"id": "horde-monolithic-compile-jobs"
-								}
-							]
-						},
-						{
-							"name": "Package And Test Jobs",
+							"name": "Package And Test",
 							"metrics": [
 								{
 									"id": "horde-package-and-test-jobs"
@@ -480,10 +469,31 @@
 							]
 						},
 						{
-							"name": "Nighty Build Jobs",
+							"name": "Nighty Build",
 							"metrics": [
 								{
 									"id": "horde-nightly-build-jobs"
+								}
+							]
+						}
+					]
+				},
+				{
+					"name": "Compile",
+					"charts": [
+						{
+							"name": "Full",
+							"metrics": [
+								{
+									"id": "horde-incremental-compile-jobs"
+								}
+							]
+						},
+						{
+							"name": "Incremental",
+							"metrics": [
+								{
+									"id": "horde-incremental-compile-jobs"
 								}
 							]
 						}
