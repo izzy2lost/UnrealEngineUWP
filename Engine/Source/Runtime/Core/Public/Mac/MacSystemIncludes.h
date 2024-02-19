@@ -51,9 +51,6 @@
 #include <sys/sysctl.h>
 #include <malloc/malloc.h>
 
-// we don't want this in UE, but objc.h defines it to nullptr
-#undef Nil
-
 struct tagRECT
 {
 	int32 left;
