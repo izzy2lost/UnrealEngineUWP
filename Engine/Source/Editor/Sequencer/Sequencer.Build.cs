@@ -44,6 +44,7 @@ public class Sequencer : ModuleRules
 				"PropertyEditor",
 				"ViewportInteraction",
 				"SerializedRecorderInterface",
+				"SubobjectDataInterface",
 				"ToolMenus",
 				"ToolWidgets",
 				"TypedElementFramework",
