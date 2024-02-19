@@ -20,10 +20,10 @@ namespace UE::OSC
 		/** Get endpoint IP address and port responsible for creation/forwarding of packet */
 		virtual const FIPv4Endpoint& GetIPEndpoint() const override;
 
-		UE_DEPRECATED(5.4, "Packets now have address and port set using endpoints.")
+		UE_DEPRECATED(5.5, "Packets now have address and port set using endpoints.")
 		virtual const FString& GetIPAddress() const override { static const FString None; return None; }
 
-		UE_DEPRECATED(5.4, "Packets now have port and port set using endpoints.")
+		UE_DEPRECATED(5.5, "Packets now have port and port set using endpoints.")
 		virtual uint16 GetPort() const override { return 0; };
 
 	protected:

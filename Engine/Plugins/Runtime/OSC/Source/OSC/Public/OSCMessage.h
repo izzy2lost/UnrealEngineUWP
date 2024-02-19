@@ -20,7 +20,7 @@ struct OSC_API FOSCMessage
 	FOSCMessage();
 	FOSCMessage(const TSharedRef<UE::OSC::IPacket>& InPacket);
 
-	UE_DEPRECATED(5.4, "Use shared ref ctor instead")
+	UE_DEPRECATED(5.5, "Use shared ref ctor instead")
 	FOSCMessage(const TSharedPtr<UE::OSC::IPacket>& InPacket);
 
 	~FOSCMessage() = default;
@@ -28,12 +28,12 @@ struct OSC_API FOSCMessage
 	// Returns arguments, asserting if the message's packet is unset.
 	const TArray<UE::OSC::FOSCData>& GetArgumentsChecked() const;
 
-	UE_DEPRECATED(5.4, "Use shared ref setter instead")
+	UE_DEPRECATED(5.5, "Use shared ref setter instead")
 	void SetPacket(TSharedPtr<UE::OSC::IPacket>& InPacket);
 
 	void SetPacket(TSharedRef<UE::OSC::IPacket>& InPacket);
 
-	UE_DEPRECATED(5.4, "Use shared ref getter instead")
+	UE_DEPRECATED(5.5, "Use shared ref getter instead")
 	const TSharedPtr<UE::OSC::IPacket>& GetPacket() const;
 
 	const TSharedRef<UE::OSC::IPacket>& GetPacketRef() const;
