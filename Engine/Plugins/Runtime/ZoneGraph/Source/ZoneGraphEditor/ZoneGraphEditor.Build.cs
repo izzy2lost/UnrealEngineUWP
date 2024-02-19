@@ -33,7 +33,6 @@ namespace UnrealBuildTool.Rules
 
 			PrivateDependencyModuleNames.AddRange(
 			new string[] {
-				"AIModule",
 				"RenderCore",
 				"GraphEditor",
 				"KismetWidgets",

@@ -21,8 +21,6 @@ namespace UnrealBuildTool.Rules
 				}
 			);
 
-			PrivateDependencyModuleNames.Add("AIModule");
-
 			if (Target.bBuildEditor == true)
 			{
 				PrivateDependencyModuleNames.Add("EditorFramework");

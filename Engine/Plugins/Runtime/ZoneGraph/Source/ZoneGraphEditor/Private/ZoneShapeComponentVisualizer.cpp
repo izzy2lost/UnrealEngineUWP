@@ -25,7 +25,7 @@
 #include "ZoneShapeComponent.h"
 #include "ZoneShapeUtilities.h"
 #include "ZoneGraphRenderingUtilities.h"
-#include "BezierUtilities.h"
+#include "Curves/BezierUtilities.h"
 #include "CanvasTypes.h"
 #include "SceneManagement.h"
 

@@ -15,7 +15,7 @@
 #include "MassZoneGraphNavigationFragments.h"
 #include "ZoneGraphSubsystem.h"
 #include "ZoneGraphQuery.h"
-#include "BezierUtilities.h"
+#include "Curves/BezierUtilities.h"
 #include "Algo/RandomShuffle.h"
 #include "Engine/World.h"
 #include "MassLODFragments.h"

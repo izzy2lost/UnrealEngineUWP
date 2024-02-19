@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "BezierUtilities.h"
+#include "Curves/BezierUtilities.h"
 
 namespace UE
 {
@@ -58,7 +58,7 @@ FBox CalcBounds(const FVector& P0, const FVector& P1, const FVector& P2, const F
 		{
 			// Solve quadratic roots.
 			float Disc = B[Axis] * B[Axis] - 4.0f * C[Axis] * A[Axis];
-			if (Disc > KINDA_SMALL_NUMBER)
+			if (Disc > UE_KINDA_SMALL_NUMBER)
 			{
 				Disc = FMath::Sqrt(Disc);
 				const float Denom = 1.0f / (2.0f * A[Axis]);
@@ -71,7 +71,7 @@ FBox CalcBounds(const FVector& P0, const FVector& P1, const FVector& P2, const F
 		{
 			// Accept only roots which are inside the bounds of the curve (also excluding enpoints which are already added above).
 			const float t = Roots[i];
-			if (t > KINDA_SMALL_NUMBER && t < (1.0f - KINDA_SMALL_NUMBER))
+			if (t > UE_KINDA_SMALL_NUMBER && t < (1.0f - UE_KINDA_SMALL_NUMBER))
 			{
 				Result += Eval(P0, P1, P2, P3, t);
 			}
@@ -106,7 +106,7 @@ void ClosestPointApproximate(const FVector& FromPoint, const FVector& P0, const 
 			ClosestPoint = Closest;
 			// The SegT is calculate by the closest point calculation above, but it does not return in!
 			const float SegLengthSqr = FVector::DistSquared(PrevPoint, CurrPoint);
-			const float SegT = SegLengthSqr > KINDA_SMALL_NUMBER ? FVector::DistSquared(PrevPoint, Closest) / SegLengthSqr : 0.0f;
+			const float SegT = SegLengthSqr > UE_KINDA_SMALL_NUMBER ? FVector::DistSquared(PrevPoint, Closest) / SegLengthSqr : 0.0f;
 			ClosestT = (t - Step) + SegT * Step;
 		}
 
@@ -144,7 +144,7 @@ void SegmentClosestPointApproximate(const FVector& SegStart, const FVector& SegE
 			ClosestPoint = Closest;
 			// The SegT is calculate by the closest point calculation above, but it does not return in!
 			const float SegLengthSqr = FVector::DistSquared(PrevPoint, CurrPoint);
-			const float SegT = SegLengthSqr > KINDA_SMALL_NUMBER ? FVector::DistSquared(PrevPoint, Closest) / SegLengthSqr : 0.0f;
+			const float SegT = SegLengthSqr > UE_KINDA_SMALL_NUMBER ? FVector::DistSquared(PrevPoint, Closest) / SegLengthSqr : 0.0f;
 			ClosestT = (t - Step) + SegT * Step;
 		}
 

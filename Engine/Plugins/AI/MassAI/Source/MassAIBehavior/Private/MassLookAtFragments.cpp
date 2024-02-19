@@ -3,7 +3,7 @@
 #include "MassLookAtFragments.h"
 #include "ZoneGraphSubsystem.h"
 #include "ZoneGraphTypes.h"
-#include "BezierUtilities.h"
+#include "Curves/BezierUtilities.h"
 
 FVector FMassLookAtTrajectoryFragment::GetPointAtDistanceExtrapolated(const float DistanceAlongPath) const
 {
