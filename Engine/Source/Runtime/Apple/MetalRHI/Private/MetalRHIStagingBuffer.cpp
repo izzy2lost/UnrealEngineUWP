@@ -5,8 +5,9 @@
 =============================================================================*/
 
 
-#include "MetalRHIPrivate.h"
 #include "MetalRHIStagingBuffer.h"
+#include "MetalResources.h"
+#include "MetalRHIPrivate.h"
 
 
 //------------------------------------------------------------------------------

@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include "MetalRHIPrivate.h"
+#include "RHIResources.h"
 
 //------------------------------------------------------------------------------
 
@@ -16,7 +18,8 @@ class FMetalContext;
 class FMetalQueryBufferPool;
 class FMetalQueryResult;
 class FMetalCommandBufferFence;
-
+class FMetalBuffer;
+typedef TSharedPtr<FMetalBuffer> FMetalBufferPtr;
 
 //------------------------------------------------------------------------------
 

@@ -4,6 +4,9 @@
 	MetalRHI.cpp: Metal device RHI implementation.
 =============================================================================*/
 
+#include "MetalRHI.h"
+#include "MetalContext.h"
+#include "MetalDynamicRHI.h"
 #include "MetalRHIPrivate.h"
 #include "Misc/MessageDialog.h"
 #include "Modules/ModuleManager.h"

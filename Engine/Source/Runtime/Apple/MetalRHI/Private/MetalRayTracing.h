@@ -5,13 +5,10 @@
 ==============================================================================*/
 
 #pragma once
+
 #include "MetalRHIPrivate.h"
 
 #if METAL_RHI_RAYTRACING
-
-THIRD_PARTY_INCLUDES_START
-#include "MetalInclude.h"
-THIRD_PARTY_INCLUDES_END
 
 struct FMetalRayTracingGeometryParameters
 {

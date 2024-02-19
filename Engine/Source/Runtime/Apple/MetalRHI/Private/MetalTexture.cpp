@@ -5,6 +5,8 @@
  =============================================================================*/
 
 #include "MetalRHIPrivate.h"
+#include "MetalContext.h"
+#include "MetalDynamicRHI.h"
 #include "MetalProfiler.h" // for STAT_MetalTexturePageOffTime
 #include "MetalCommandBuffer.h"
 #include "RenderUtils.h"

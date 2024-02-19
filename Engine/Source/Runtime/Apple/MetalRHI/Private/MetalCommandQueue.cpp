@@ -4,16 +4,16 @@
 	MetalCommandQueue.cpp: Metal command queue wrapper..
 =============================================================================*/
 
-#include "MetalRHIPrivate.h"
-
 #include "MetalCommandQueue.h"
 #include "MetalCommandBuffer.h"
 #include "MetalCommandList.h"
+#include "MetalFence.h"
 #include "MetalProfiler.h"
+#include "MetalRHIPrivate.h"
 #include "Misc/ConfigCacheIni.h"
 
 #if !UE_BUILD_SHIPPING
-#import <Metal/Metal.h>
+#import "MetalThirdParty.h"
 #endif
 
 #pragma mark - Private C++ Statics -

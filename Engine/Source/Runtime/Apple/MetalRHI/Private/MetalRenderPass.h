@@ -10,6 +10,7 @@
 
 class FMetalCommandList;
 class FMetalCommandQueue;
+class FMetalStateCache;
 
 class FMetalRenderPass
 {

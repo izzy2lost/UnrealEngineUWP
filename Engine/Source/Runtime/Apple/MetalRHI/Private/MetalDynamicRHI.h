@@ -9,10 +9,8 @@
 #include "CoreMinimal.h"
 #include "RHI.h"
 
-DECLARE_LOG_CATEGORY_EXTERN(LogMetal, Display, All);
-
 // Metal RHI public headers.
-#include <Metal/Metal.h>
+#include "MetalThirdParty.h"
 #include "MetalState.h"
 #include "MetalResources.h"
 #include "MetalRHIContext.h"

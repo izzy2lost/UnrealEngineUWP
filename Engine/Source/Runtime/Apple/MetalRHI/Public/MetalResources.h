@@ -6,10 +6,11 @@
 
 #pragma once
 
+#include "MetalRHIPrivate.h"
 #include "BoundShaderStateCache.h"
 #include "MetalShaderResources.h"
 #include "ShaderCodeArchive.h"
-#include "MetalRHIPrivate.h"
+#include "Templates/TypeHash.h"
 
 #define UE_METAL_RHI_SUPPORT_CLEAR_UAV_WITH_BLIT_ENCODER 1
 
@@ -40,6 +41,11 @@ struct FMetalRenderPipelineHash
 class FMetalSubBufferHeap;
 class FMetalSubBufferLinear;
 class FMetalSubBufferMagazine;
+
+inline uint32 GetTypeHash(const MTLBufferPtr& BufferPtr)
+{
+    return GetTypeHash(BufferPtr.get());
+}
 
 class FMetalBuffer
 {
@@ -114,6 +120,9 @@ private:
 
 typedef TSharedPtr<FMetalBuffer> FMetalBufferPtr;
 
+// Safely release a metal buffer, correctly handling the case where the RHI has been destructed first
+void SafeReleaseMetalBuffer(FMetalBufferPtr Buffer);
+
 struct FMetalTextureCreateDesc : public FRHITextureCreateDesc
 {
 	FMetalTextureCreateDesc(FRHITextureCreateDesc const& CreateDesc);
@@ -150,6 +159,11 @@ private:
 	friend FMetalUnorderedAccessView;
 	FMetalResourceViewBase* LinkedViews = nullptr;
 };
+
+inline uint32 GetTypeHash(const MTLTexturePtr& TexturePtr)
+{
+    return GetTypeHash(TexturePtr.get());
+}
 
 // Metal RHI texture resource
 class METALRHI_API FMetalSurface : public FRHITexture, public FMetalViewableResource
@@ -589,10 +603,7 @@ class FMetalMeshShader;
 class FMetalAmplificationShader;
 #endif
 
-template<class T>
-struct TMetalResourceTraits
-{
-};
+
 template<>
 struct TMetalResourceTraits<FRHIShaderLibrary>
 {
@@ -661,26 +672,6 @@ struct TMetalResourceTraits<FRHIUnorderedAccessView>
 	typedef FMetalUnorderedAccessView TConcreteType;
 };
 
-template<>
-struct TMetalResourceTraits<FRHISamplerState>
-{
-	typedef FMetalSamplerState TConcreteType;
-};
-template<>
-struct TMetalResourceTraits<FRHIRasterizerState>
-{
-	typedef FMetalRasterizerState TConcreteType;
-};
-template<>
-struct TMetalResourceTraits<FRHIDepthStencilState>
-{
-	typedef FMetalDepthStencilState TConcreteType;
-};
-template<>
-struct TMetalResourceTraits<FRHIBlendState>
-{
-	typedef FMetalBlendState TConcreteType;
-};
 template<>
 struct TMetalResourceTraits<FRHIGraphicsPipelineState>
 {

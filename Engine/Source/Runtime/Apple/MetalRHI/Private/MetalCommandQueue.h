@@ -2,10 +2,15 @@
 
 #pragma once
 
-#include <Metal/Metal.h>
+#include "MetalRHIPrivate.h"
+#include "RHI.h"
+#include "RHIFeatureLevel.h"
 #include "Containers/LockFreeList.h"
 
+class FMetalCommandBuffer;
+class FMetalCommandBufferFence;
 class FMetalCommandList;
+class FMetalFence;
 
 /**
  * Enumeration of features which are present only on some OS/device combinations.

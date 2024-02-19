@@ -4,13 +4,12 @@
 	MetalShaderLibrary.cpp: Metal RHI Shader Library Class Implementation.
 =============================================================================*/
 
-
+#include "MetalShaderLibrary.h"
 #include "MetalRHIPrivate.h"
 #if !UE_BUILD_SHIPPING
 #include "Debugging/MetalShaderDebugCache.h"
 #include "Debugging/MetalShaderDebugZipFile.h"
 #endif // !UE_BUILD_SHIPPING
-#include "MetalShaderLibrary.h"
 #include "MetalShaderTypes.h"
 
 

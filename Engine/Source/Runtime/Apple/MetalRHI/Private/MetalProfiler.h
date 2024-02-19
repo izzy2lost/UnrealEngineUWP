@@ -3,8 +3,11 @@
 #pragma once
 
 #include "MetalRHIPrivate.h"
-#include "MetalCommandQueue.h"
 #include "GPUProfiler.h"
+
+DECLARE_DELEGATE_OneParam(FMetalCommandBufferCompletionHandler, MTL::CommandBuffer*);
+
+class FMetalContext;
 
 // Stats
 DECLARE_CYCLE_STAT_EXTERN(TEXT("MakeDrawable time"),STAT_MetalMakeDrawableTime,STATGROUP_MetalRHI, );

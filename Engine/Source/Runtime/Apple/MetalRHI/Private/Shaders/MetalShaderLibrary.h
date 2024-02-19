@@ -6,6 +6,11 @@
 
 #pragma once
 
+#include "MetalRHIPrivate.h"
+#include "MetalShaderResources.h"
+#include "RHIShaderLibrary.h"
+#include "ShaderCodeArchive.h"
+
 class FMetalShaderLibrary final : public FRHIShaderLibrary
 {
 public:

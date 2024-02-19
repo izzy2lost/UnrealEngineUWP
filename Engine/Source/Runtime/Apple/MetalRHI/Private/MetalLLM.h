@@ -6,6 +6,9 @@
 #include "HAL/LowLevelMemTracker.h"
 #include "Apple/AppleLLM.h"
 
+class FMetalBuffer;
+typedef TSharedPtr<FMetalBuffer> FMetalBufferPtr;
+
 @interface FMetalDeallocHandler : FApplePlatformObject<NSObject>
 {
 	dispatch_block_t Block;

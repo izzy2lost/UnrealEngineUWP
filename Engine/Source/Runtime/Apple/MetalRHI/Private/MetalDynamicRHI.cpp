@@ -4,7 +4,7 @@
 	MetalDynamicRHI.cpp: Metal Dynamic RHI Class Implementation.
 =============================================================================*/
 
-
+#include "MetalDynamicRHI.h"
 #include "MetalRHIPrivate.h"
 #include "MetalRHIRenderQuery.h"
 #include "MetalRHIStagingBuffer.h"

@@ -2,9 +2,10 @@
 
 #pragma once
 
-#include <Metal/Metal.h>
+#include "MetalThirdParty.h"
 #include "MetalProfiler.h"
 
+class FMetalCommandBuffer;
 class FMetalCommandQueue;
 
 /**

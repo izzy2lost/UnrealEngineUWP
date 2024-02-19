@@ -3,11 +3,15 @@
 #pragma once
 
 #include "MetalRHIPrivate.h"
+#include "MetalRHIPrivate.h"
+#include "MetalPipeline.h"
+#include "MetalResources.h"
+#include "MetalState.h"
 #include "MetalUniformBuffer.h"
 #include "Shaders/MetalShaderParameterCache.h"
-#include "MetalPipeline.h"
 
 class FMetalGraphicsPipelineState;
+class FMetalComputeShader;
 class FMetalQueryBuffer;
 
 enum EMetalPipelineFlags

@@ -6,7 +6,7 @@
 //  Implements handles to linearly allocated per-frame constant buffers for shared memory systems.
 //
 
-#import <Metal/Metal.h>
+#import "MetalThirdParty.h"
 
 #include "RHIResources.h"
 

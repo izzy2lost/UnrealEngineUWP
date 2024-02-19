@@ -4,10 +4,10 @@
 	MetalVertexDeclaration.cpp: Metal vertex declaration RHI implementation.
 =============================================================================*/
 
+#include "MetalVertexDeclaration.h"
 
 #include "MetalRHIPrivate.h"
 #include "MetalHashedVertexDescriptor.h"
-#include "MetalVertexDeclaration.h"
 #include "MetalProfiler.h"
 
 #if METAL_USE_METAL_SHADER_CONVERTER

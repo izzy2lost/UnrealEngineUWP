@@ -6,6 +6,11 @@
 
 #pragma once
 
+#include "RHIResources.h"
+
+class FMetalBuffer;
+typedef TSharedPtr<FMetalBuffer> FMetalBufferPtr;
+
 class FMetalRHIStagingBuffer final : public FRHIStagingBuffer
 {
 	friend class FMetalRHICommandContext;

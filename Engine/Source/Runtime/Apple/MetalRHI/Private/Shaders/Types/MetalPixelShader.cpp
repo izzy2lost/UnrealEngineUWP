@@ -4,11 +4,7 @@
 	MetalPixelShader.cpp: Metal RHI Pixel Shader Class Implementation.
 =============================================================================*/
 
-
-#include "MetalRHIPrivate.h"
-#include "Templates/MetalBaseShader.h"
 #include "MetalPixelShader.h"
-
 
 //------------------------------------------------------------------------------
 

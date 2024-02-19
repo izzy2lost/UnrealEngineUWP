@@ -3,7 +3,7 @@
 #pragma once
 
 // Metal RHI public headers.
-#include <Metal/Metal.h>
+#include "MetalThirdParty.h"
 #include "MetalState.h"
 #include "MetalResources.h"
 #include "MetalViewport.h"

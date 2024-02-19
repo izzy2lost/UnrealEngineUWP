@@ -4,9 +4,10 @@
 	MetalTransitionData.cpp: Metal RHI Resource Transition Implementation.
 ==============================================================================*/
 
-#include "MetalRHIPrivate.h"
 #include "MetalTransitionData.h"
-
+#include "MetalContext.h"
+#include "MetalRHIContext.h"
+#include "MetalRHIPrivate.h"
 
 //------------------------------------------------------------------------------
 

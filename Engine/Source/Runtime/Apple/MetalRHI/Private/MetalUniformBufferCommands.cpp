@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MetalRHIPrivate.h"
+#include "MetalDynamicRHI.h"
 #include "MetalShaderTypes.h"
 #include "MetalFrameAllocator.h"
 

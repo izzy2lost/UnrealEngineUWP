@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MetalLLM.h"
+#include "MetalCommandQueue.h"
 #include "MetalProfiler.h"
+#include "MetalResources.h"
 #include "RenderUtils.h"
 #include "HAL/LowLevelMemStats.h"
 

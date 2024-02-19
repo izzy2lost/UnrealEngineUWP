@@ -8,6 +8,7 @@
 #include "MetalShaderTypes.h"
 #include "MetalGraphicsPipelineState.h"
 #include "MetalComputePipelineState.h"
+#include "MetalRHIContext.h"
 #include "GlobalShader.h"
 #include "OneColorShader.h"
 #include "RHICommandList.h"

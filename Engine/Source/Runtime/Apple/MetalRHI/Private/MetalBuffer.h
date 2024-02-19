@@ -4,8 +4,14 @@
 #pragma once
 
 #include "MetalRHIPrivate.h"
+#include "MetalResources.h"
 #include "Containers/LockFreeList.h"
 #include "ResourcePool.h"
+
+class FMetalCommandQueue;
+
+class FMetalBuffer;
+typedef TSharedPtr<FMetalBuffer> FMetalBufferPtr;
 
 struct FMetalPooledBufferArgs
 {

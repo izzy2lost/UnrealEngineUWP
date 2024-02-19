@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include <Metal/Metal.h>
+#include "MetalThirdParty.h"
 #include "MetalResources.h"
 #include "MetalShaderResources.h"
 

@@ -4,11 +4,13 @@
 	MetalCommandEncoder.cpp: Metal command encoder wrapper.
 =============================================================================*/
 
+#include "MetalCommandEncoder.h"
+#include "MetalCommandBuffer.h"
+#include "MetalCommandList.h"
+#include "MetalContext.h"
 #include "MetalRHIPrivate.h"
 #include "MetalShaderTypes.h"
 #include "MetalGraphicsPipelineState.h"
-#include "MetalCommandEncoder.h"
-#include "MetalCommandBuffer.h"
 #include "MetalProfiler.h"
 #include "MetalShaderResources.h"
 

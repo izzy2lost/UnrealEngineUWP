@@ -4,10 +4,9 @@
 	MetalHashedVertexDescriptor.cpp: Metal RHI Hashed Vertex Descriptor.
 =============================================================================*/
 
-
-#include "MetalRHIPrivate.h"
 #include "MetalHashedVertexDescriptor.h"
 
+#include "MetalRHIPrivate.h"
 
 //------------------------------------------------------------------------------
 

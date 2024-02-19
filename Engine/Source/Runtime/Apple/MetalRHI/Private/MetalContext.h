@@ -10,6 +10,7 @@
 #include "MetalBuffer.h"
 #include "MetalCaptureManager.h"
 #include "MetalFrameAllocator.h"
+#include "MetalStateCache.h"
 #if PLATFORM_IOS
 #include "IOS/IOSView.h"
 #endif

@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "MetalCompiledShaderKey.h"
 #include "Misc/ScopeRWLock.h"
 #include "MetalRHIPrivate.h"
 

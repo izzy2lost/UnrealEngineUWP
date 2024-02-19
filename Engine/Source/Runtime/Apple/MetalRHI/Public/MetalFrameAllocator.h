@@ -2,10 +2,12 @@
 
 #pragma once
 
-#import <Metal/Metal.h>
+#include "MetalRHI.h"
+#import "MetalThirdParty.h"
+#include "Stats/Stats.h"
 #import <os/lock.h>
 
-#include "MetalRHI.h"
+class FMetalCommandBuffer;
 
 #define METAL_FRAME_ALLOCATOR_VALIDATION !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 

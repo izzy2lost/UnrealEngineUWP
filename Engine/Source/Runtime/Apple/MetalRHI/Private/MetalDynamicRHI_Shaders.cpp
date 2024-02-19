@@ -4,7 +4,7 @@
 	MetalDynamicRHI_Shaders.cpp: Metal Dynamic RHI Class Shader Methods.
 =============================================================================*/
 
-
+#include "MetalDynamicRHI.h"
 #include "MetalRHIPrivate.h"
 #include "MetalShaderTypes.h"
 #include "Shaders/MetalShaderLibrary.h"

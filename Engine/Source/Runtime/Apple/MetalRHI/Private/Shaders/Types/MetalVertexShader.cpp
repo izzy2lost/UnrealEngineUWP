@@ -4,11 +4,7 @@
 	MetalVertexShader.cpp: Metal RHI Vertex Shader Class Implementation.
 =============================================================================*/
 
-
-#include "MetalRHIPrivate.h"
-#include "Templates/MetalBaseShader.h"
 #include "MetalVertexShader.h"
-
 
 //------------------------------------------------------------------------------
 

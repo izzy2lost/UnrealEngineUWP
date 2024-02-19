@@ -1,13 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "MetalRHIPrivate.h"
 #include "MetalBuffer.h"
-#include "Templates/AlignmentTemplates.h"
-#include "MetalLLM.h"
-#include <objc/runtime.h>
 #include "MetalCommandBuffer.h"
+#include "MetalCommandQueue.h"
+#include "MetalContext.h"
+#include "MetalLLM.h"
 #include "MetalProfiler.h"
 #include "MetalRenderPass.h"
+#include "MetalRHIPrivate.h"
+#include "Templates/AlignmentTemplates.h"
+#include <objc/runtime.h>
 
 DECLARE_MEMORY_STAT(TEXT("Used Device Buffer Memory"), STAT_MetalDeviceBufferMemory, STATGROUP_MetalRHI);
 DECLARE_MEMORY_STAT(TEXT("Used Pooled Buffer Memory"), STAT_MetalPooledBufferMemory, STATGROUP_MetalRHI);

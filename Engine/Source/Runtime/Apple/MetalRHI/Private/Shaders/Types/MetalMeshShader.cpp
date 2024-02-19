@@ -4,11 +4,7 @@
 	MetalMeshShader.cpp: Metal RHI Mesh Shader Class Implementation.
 =============================================================================*/
 
-
-#include "MetalRHIPrivate.h"
-#include "Templates/MetalBaseShader.h"
 #include "MetalMeshShader.h"
-
 
 //------------------------------------------------------------------------------
 

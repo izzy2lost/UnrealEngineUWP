@@ -4,10 +4,10 @@
 	MetalCommandList.cpp: Metal command buffer list wrapper.
 =============================================================================*/
 
+#include "MetalCommandList.h"
 #include "MetalRHIPrivate.h"
 #include "MetalShaderTypes.h"
 #include "MetalGraphicsPipelineState.h"
-#include "MetalCommandList.h"
 #include "MetalCommandQueue.h"
 #include "MetalProfiler.h"
 #include "MetalCommandBuffer.h"

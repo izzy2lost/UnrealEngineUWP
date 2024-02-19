@@ -4,9 +4,6 @@
 	MetalComputeShader.cpp: Metal RHI Compute Shader Class Implementation.
 =============================================================================*/
 
-
-#include "MetalRHIPrivate.h"
-#include "Templates/MetalBaseShader.h"
 #include "MetalComputeShader.h"
 #include "MetalCommandBuffer.h"
 

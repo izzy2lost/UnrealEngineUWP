@@ -6,19 +6,22 @@
 
 #pragma once
 
+#include "MetalRHIPrivate.h"
+#include "PixelFormat.h"
+#include "RHIResources.h"
+
 #if PLATFORM_MAC
 #include "Mac/CocoaTextView.h"
 @interface FMetalView : FCocoaTextView
 @end
 #endif
 #include "HAL/PlatformFramePacer.h"
-THIRD_PARTY_INCLUDES_START
-#include "MetalInclude.h"
-THIRD_PARTY_INCLUDES_END
 
 #if PLATFORM_VISIONOS
 #import <CompositorServices/CompositorServices.h>
 #endif
+
+class FMetalSurface;
 
 enum EMetalViewportAccessFlag
 {

@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "MetalContext.h"
+#include "MetalRHIContext.h"
 #include "MetalRHIPrivate.h"
 #include "MetalRHIRenderQuery.h"
 #include "MetalVertexDeclaration.h"
@@ -13,7 +15,6 @@
 #include "HAL/PlatformFramePacer.h"
 #include "Runtime/HeadMountedDisplay/Public/IHeadMountedDisplayModule.h"
 
-#include "MetalContext.h"
 #include "MetalProfiler.h"
 #include "MetalCommandBuffer.h"
 

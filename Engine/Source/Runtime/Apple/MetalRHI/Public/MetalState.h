@@ -6,11 +6,9 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "MetalRHIPrivate.h"
 #include "RHI.h"
-THIRD_PARTY_INCLUDES_START
-#include "MetalInclude.h"
-THIRD_PARTY_INCLUDES_END
+#include "RHIResources.h"
 
 class FMetalSamplerState : public FRHISamplerState
 {
@@ -93,4 +91,25 @@ private:
 	static TMap<uint32, uint8> BlendSettingsToUniqueKeyMap;
 	static uint8 NextKey;
 	static FCriticalSection Mutex;
+};
+
+template<>
+struct TMetalResourceTraits<FRHISamplerState>
+{
+    typedef FMetalSamplerState TConcreteType;
+};
+template<>
+struct TMetalResourceTraits<FRHIRasterizerState>
+{
+    typedef FMetalRasterizerState TConcreteType;
+};
+template<>
+struct TMetalResourceTraits<FRHIDepthStencilState>
+{
+    typedef FMetalDepthStencilState TConcreteType;
+};
+template<>
+struct TMetalResourceTraits<FRHIBlendState>
+{
+    typedef FMetalBlendState TConcreteType;
 };

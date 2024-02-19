@@ -5,8 +5,11 @@
 =============================================================================*/
 
 
-#include "MetalRHIPrivate.h"
 #include "MetalShaderParameterCache.h"
+#include "MetalCommandEncoder.h"
+#include "MetalResources.h"
+#include "MetalRHIPrivate.h"
+#include "MetalStateCache.h"
 
 
 //------------------------------------------------------------------------------

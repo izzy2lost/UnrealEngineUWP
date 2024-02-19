@@ -6,6 +6,9 @@
 
 #pragma once
 
+#include "MetalRHIPrivate.h"
+#include "Shaders/Types/Templates/MetalBaseShader.h"
+
 
 //------------------------------------------------------------------------------
 

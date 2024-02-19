@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include "RHITransition.h"
+#include "MetalFence.h"
 
 //------------------------------------------------------------------------------
 

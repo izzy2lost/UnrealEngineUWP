@@ -1,8 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "MetalRHIPrivate.h"
-
 #include "MetalFence.h"
+#include "MetalRHIPrivate.h"
 #include "MetalCommandBuffer.h"
 #include "MetalCommandQueue.h"
 #include "MetalContext.h"

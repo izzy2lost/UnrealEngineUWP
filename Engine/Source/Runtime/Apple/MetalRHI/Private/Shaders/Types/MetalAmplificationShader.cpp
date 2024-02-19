@@ -5,8 +5,6 @@
 =============================================================================*/
 
 
-#include "MetalRHIPrivate.h"
-#include "Templates/MetalBaseShader.h"
 #include "MetalAmplificationShader.h"
 
 

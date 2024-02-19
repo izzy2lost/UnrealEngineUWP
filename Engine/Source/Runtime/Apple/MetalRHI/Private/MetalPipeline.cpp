@@ -4,6 +4,7 @@
 	MetalPipeline.cpp: Metal shader pipeline RHI implementation.
 =============================================================================*/
 
+#include "MetalPipeline.h"
 #include "MetalRHIPrivate.h"
 #include "MetalVertexDeclaration.h"
 #include "MetalShaderTypes.h"

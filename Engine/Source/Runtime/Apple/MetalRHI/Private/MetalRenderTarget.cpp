@@ -6,8 +6,11 @@
 
 #include "MetalRHIPrivate.h"
 #include "ScreenRendering.h"
-#include "MetalProfiler.h"
 #include "MetalCommandBuffer.h"
+#include "MetalCommandQueue.h"
+#include "MetalContext.h"
+#include "MetalDynamicRHI.h"
+#include "MetalProfiler.h"
 #include "ResolveShader.h"
 #include "PipelineStateCache.h"
 #include "Math/PackedVector.h"

@@ -6,6 +6,14 @@
 
 #pragma once
 
+#include "RHIResources.h"
+#include "MetalState.h"
+#include "Shaders/Types/MetalAmplificationShader.h"
+#include "Shaders/Types/MetalGeometryShader.h"
+#include "Shaders/Types/MetalMeshShader.h"
+#include "Shaders/Types/MetalPixelShader.h"
+#include "Shaders/Types/MetalVertexShader.h"
+
 class FMetalGraphicsPipelineState : public FRHIGraphicsPipelineState
 {
 	friend class FMetalDynamicRHI;

@@ -4,8 +4,9 @@
 	MetalRHIRenderQuery.cpp: Metal RHI Render Query Implementation.
 =============================================================================*/
 
-#include "MetalRHIPrivate.h"
 #include "MetalRHIRenderQuery.h"
+#include "MetalContext.h"
+#include "MetalRHIPrivate.h"
 #include "MetalProfiler.h"
 #include "MetalLLM.h"
 #include "MetalCommandBuffer.h"

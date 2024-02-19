@@ -8,6 +8,8 @@
 #include "MetalProfiler.h"
 #include "MetalCommandBuffer.h"
 #include "MetalCommandQueue.h"
+#include "MetalContext.h"
+#include "MetalDynamicRHI.h"
 #include "Containers/ResourceArray.h"
 #include "RenderUtils.h"
 #include "MetalLLM.h"

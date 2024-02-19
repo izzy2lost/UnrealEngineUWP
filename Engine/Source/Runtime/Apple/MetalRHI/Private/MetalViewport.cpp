@@ -4,7 +4,13 @@
 	MetalViewport.cpp: Metal viewport RHI implementation.
 =============================================================================*/
 
+#include "MetalViewport.h"
+#include "MetalContext.h"
+#include "MetalDynamicRHI.h"
 #include "MetalRHIPrivate.h"
+#include "MetalCommandBuffer.h"
+#include "MetalProfiler.h"
+#include "MetalRHIVisionOSBridge.h"
 
 #import <QuartzCore/CAMetalLayer.h>
 
@@ -16,10 +22,7 @@
 #endif
 #include "RenderCommandFence.h"
 #include "Containers/Set.h"
-#include "MetalCommandBuffer.h"
-#include "MetalProfiler.h"
 #include "RenderUtils.h"
-#include "MetalRHIVisionOSBridge.h"
 
 extern int32 GMetalSupportsIntermediateBackBuffer;
 extern int32 GMetalSeparatePresentThread;

@@ -2,11 +2,13 @@
 
 #pragma once
 
-#include <Metal/Metal.h>
+#include "MetalRHIPrivate.h"
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 #include "MetalResources.h"
 #include "MetalShaderResources.h"
 
-#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+class FMetalCommandEncoder;
 
 struct FMetalDescriptorHeap
 {

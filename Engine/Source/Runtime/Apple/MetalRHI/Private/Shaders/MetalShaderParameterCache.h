@@ -6,6 +6,12 @@
 
 #pragma once
 
+#include "CrossCompilerCommon.h"
+#include "MetalRHIPrivate.h"
+
+class FMetalBufferData;
+struct FMetalShaderBindings;
+
 class FMetalShaderParameterCache
 {
 public:

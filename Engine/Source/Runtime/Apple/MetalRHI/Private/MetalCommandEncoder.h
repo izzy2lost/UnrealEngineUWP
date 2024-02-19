@@ -2,15 +2,20 @@
 
 #pragma once
 
-#include <Metal/Metal.h>
+#include "MetalRHIPrivate.h"
 #include "MetalBuffer.h"
 #include "MetalFence.h"
+#include "MetalPipeline.h"
 #include "MetalProfiler.h"
 
 class FMetalCommandList;
 class FMetalCommandQueue;
 class FMetalGraphicsPipelineState;
 class FMetalCommandBufferFence;
+struct FMetalCommandBufferStats;
+
+class FMetalShaderPipeline;
+typedef TSharedPtr<FMetalShaderPipeline, ESPMode::ThreadSafe> FMetalShaderPipelinePtr;
 
 /**
  * Enumeration for submission hints to avoid unclear bool values.

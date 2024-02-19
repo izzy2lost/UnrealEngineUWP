@@ -1,7 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "MetalRHIPrivate.h"
 #include "MetalProfiler.h"
+#include "MetalContext.h"
+#include "MetalRHIPrivate.h"
 #include "EngineGlobals.h"
 #include "StaticBoundShaderState.h"
 #include "MetalCommandBuffer.h"

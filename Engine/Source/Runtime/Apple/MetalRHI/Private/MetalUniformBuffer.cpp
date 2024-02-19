@@ -4,9 +4,10 @@
 	MetalConstantBuffer.cpp: Metal Constant buffer implementation.
 =============================================================================*/
 
-#include "MetalRHIPrivate.h"
-#include "MetalFrameAllocator.h"
 #include "MetalUniformBuffer.h"
+#include "MetalRHIPrivate.h"
+#include "MetalContext.h"
+#include "MetalFrameAllocator.h"
 #include "ShaderParameterStruct.h"
 #include "RHIUniformBufferDataShared.h"
 

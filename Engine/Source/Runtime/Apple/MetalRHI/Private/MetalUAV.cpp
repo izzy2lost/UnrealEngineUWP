@@ -2,6 +2,9 @@
 
 
 #include "MetalRHIPrivate.h"
+#include "MetalContext.h"
+#include "MetalDynamicRHI.h"
+#include "MetalRHIContext.h"
 #include "MetalRHIStagingBuffer.h"
 #include "MetalCommandBuffer.h"
 #include "RenderUtils.h"

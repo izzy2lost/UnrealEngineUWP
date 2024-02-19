@@ -4,6 +4,9 @@
 	MetalState.cpp: Metal state implementation.
 =============================================================================*/
 
+#include "MetalState.h"
+#include "MetalContext.h"
+#include "MetalDynamicRHI.h"
 #include "MetalRHIPrivate.h"
 #include "MetalProfiler.h"
 #include "RHIUtilities.h"

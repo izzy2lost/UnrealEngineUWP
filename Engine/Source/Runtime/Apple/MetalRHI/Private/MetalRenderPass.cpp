@@ -4,12 +4,13 @@
 	MetalRenderPass.cpp: Metal command pass wrapper.
 =============================================================================*/
 
+#include "MetalRenderPass.h"
 
+#include "MetalContext.h"
 #include "MetalRHIPrivate.h"
 #include "MetalShaderTypes.h"
 #include "MetalGraphicsPipelineState.h"
 #include "MetalVertexDeclaration.h"
-#include "MetalRenderPass.h"
 #include "MetalCommandBuffer.h"
 #include "MetalProfiler.h"
 #include "MetalFrameAllocator.h"

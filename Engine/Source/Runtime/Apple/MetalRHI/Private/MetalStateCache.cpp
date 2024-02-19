@@ -1,11 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "MetalStateCache.h"
 
 #include "MetalRHIPrivate.h"
 #include "MetalRHIRenderQuery.h"
 #include "MetalShaderTypes.h"
 #include "MetalGraphicsPipelineState.h"
-#include "MetalStateCache.h"
 #include "MetalProfiler.h"
 #include "MetalCommandBuffer.h"
 #include "MetalVertexDeclaration.h"

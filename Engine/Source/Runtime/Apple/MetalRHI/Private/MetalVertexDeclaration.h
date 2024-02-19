@@ -6,9 +6,10 @@
 
 #pragma once
 
-
 #include "MetalHashedVertexDescriptor.h"
-
+#include "MetalRHIPrivate.h"
+#include "RHI.h"
+#include "RHIResources.h"
 
 //------------------------------------------------------------------------------
 
