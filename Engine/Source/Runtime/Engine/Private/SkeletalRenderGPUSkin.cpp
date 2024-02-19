@@ -856,7 +856,7 @@ void FSkeletalMeshObjectGPUSkin::UpdateRayTracingGeometry(FRHICommandListBase& R
 			Initializer.SourceGeometry = LODModel.SourceRayTracingGeometry.RayTracingGeometryRHI;
 
 			// Get the scratch sizes used for build & update
-			RayTracingGeometryStructureSize = RHICmdList.CalcRayTracingGeometrySize(Initializer);
+			RayTracingGeometryStructureSize = RHICalcRayTracingGeometrySize(Initializer);
 
 			RayTracingGeometry.LODIndex = LODIndex;
 

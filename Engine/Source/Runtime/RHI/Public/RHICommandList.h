@@ -893,9 +893,10 @@ public:
 		return GDynamicRHI->RHICreateRayTracingGeometry(*this, Initializer);
 	}
 
+	UE_DEPRECATED(5.5, "Use the global scope RHICalcRayTracingGeometrySize function instead.")
 	FORCEINLINE FRayTracingAccelerationStructureSize CalcRayTracingGeometrySize(const FRayTracingGeometryInitializer& Initializer)
 	{
-		return GDynamicRHI->RHICalcRayTracingGeometrySize(*this, Initializer);
+		return GDynamicRHI->RHICalcRayTracingGeometrySize(Initializer);
 	}
 #endif
 
@@ -5397,7 +5398,7 @@ FORCEINLINE FRayTracingGeometryRHIRef RHICreateRayTracingGeometry(const FRayTrac
 
 FORCEINLINE FRayTracingAccelerationStructureSize RHICalcRayTracingGeometrySize(const FRayTracingGeometryInitializer& Initializer)
 {
-	return FRHICommandListExecutor::GetImmediateCommandList().CalcRayTracingGeometrySize(Initializer);
+	return GDynamicRHI->RHICalcRayTracingGeometrySize(Initializer);
 }
 #endif
 

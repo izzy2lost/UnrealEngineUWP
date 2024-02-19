@@ -307,7 +307,7 @@ static FRayTracingAccelerationStructureSize CalcRayTracingGeometrySize(MTL::Acce
 	return SizeInfo;
 }
 
-FRayTracingAccelerationStructureSize FMetalDynamicRHI::RHICalcRayTracingGeometrySize(FRHICommandListBase& RHICmdList, const FRayTracingGeometryInitializer& Initializer)
+FRayTracingAccelerationStructureSize FMetalDynamicRHI::RHICalcRayTracingGeometrySize(const FRayTracingGeometryInitializer& Initializer)
 {
     MTL_SCOPED_AUTORELEASE_POOL;
 	

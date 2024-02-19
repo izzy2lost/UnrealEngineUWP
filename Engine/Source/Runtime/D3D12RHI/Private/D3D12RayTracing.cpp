@@ -2616,7 +2616,7 @@ void TranslateRayTracingGeometryDescs(const FRayTracingGeometryInitializer& Init
 	check(ComputedPrimitiveCountForValidation == Initializer.TotalPrimitiveCount);
 }
 
-FRayTracingAccelerationStructureSize FD3D12DynamicRHI::RHICalcRayTracingGeometrySize(FRHICommandListBase& RHICmdList, const FRayTracingGeometryInitializer& Initializer)
+FRayTracingAccelerationStructureSize FD3D12DynamicRHI::RHICalcRayTracingGeometrySize(const FRayTracingGeometryInitializer& Initializer)
 {
 	FRayTracingAccelerationStructureSize SizeInfo = {};
 	
@@ -2857,7 +2857,7 @@ FD3D12RayTracingGeometry::FD3D12RayTracingGeometry(FRHICommandListBase& RHICmdLi
 	else
 	{
 		// Get maximum buffer sizes for all GPUs in the system
-		SizeInfo = RHICmdList.CalcRayTracingGeometrySize(Initializer);
+		SizeInfo = RHICalcRayTracingGeometrySize(Initializer);
 	}
 
 	checkf(SizeInfo.ResultSize != 0,
