@@ -15,9 +15,6 @@ namespace Horde.Server.Secrets
 	/// </summary>
 	public class SecretConfig
 	{
-		[JsonIgnore]
-		internal GlobalConfig GlobalConfig { get; private set; } = null!;
-
 		/// <summary>
 		/// Identifier for this secret
 		/// </summary>
@@ -44,7 +41,6 @@ namespace Horde.Server.Secrets
 		/// <param name="globalConfig">Parent GlobalConfig object</param>
 		public void PostLoad(GlobalConfig globalConfig)
 		{
-			GlobalConfig = globalConfig;
 			Acl.PostLoad(globalConfig.Acl, $"secret:{Id}");
 		}
 
@@ -54,9 +50,7 @@ namespace Horde.Server.Secrets
 		/// <param name="action">The action being performed</param>
 		/// <param name="user">The principal to validate</param>
 		public bool Authorize(AclAction action, ClaimsPrincipal user)
-		{
-			return Acl?.Authorize(action, user) ?? GlobalConfig.Authorize(action, user);
-		}
+			=> Acl.Authorize(action, user);
 	}
 
 	/// <summary>

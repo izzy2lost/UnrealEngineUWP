@@ -30,13 +30,9 @@ using EpicGames.Serialization;
 using Horde.Server.Acls;
 using Horde.Server.Agents;
 using Horde.Server.Agents.Pools;
-using Horde.Server.Agents.Sessions;
-using Horde.Server.Agents.Software;
 using Horde.Server.Configuration;
 using Horde.Server.Dashboard;
 using Horde.Server.Devices;
-using Horde.Server.Jobs;
-using Horde.Server.Logs;
 using Horde.Server.Projects;
 using Horde.Server.Secrets;
 using Horde.Server.Storage;
@@ -188,7 +184,7 @@ namespace Horde.Server.Server
 		/// List of costs of a particular agent type
 		/// </summary>
 		public List<AgentRateConfig> Rates { get; set; } = new List<AgentRateConfig>();
-		
+
 		/// <summary>
 		/// List of networks
 		/// </summary>
@@ -218,7 +214,7 @@ namespace Horde.Server.Server
 		/// Maximum number of conforms to run at once
 		/// </summary>
 		public int MaxConformCount { get; set; }
-		
+
 		/// <summary>
 		/// Time to wait before shutting down an agent that has been disabled
 		/// Used if no value is set on the actual pool.
@@ -272,15 +268,8 @@ namespace Horde.Server.Server
 		{
 			ServerSettings = serverSettings;
 
-			AclConfig defaultAcl = new AclConfig();
-			defaultAcl.Entries.Add(new AclEntryConfig(new AclClaimConfig(ClaimTypes.Role, "internal:AgentRegistration"), new[] { AgentAclAction.CreateAgent, SessionAclAction.CreateSession }));
-			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.AgentRegistrationClaim, new[] { AgentAclAction.CreateAgent, SessionAclAction.CreateSession, AgentAclAction.UpdateAgent, AgentSoftwareAclAction.DownloadSoftware, PoolAclAction.CreatePool, PoolAclAction.UpdatePool, PoolAclAction.ViewPool, PoolAclAction.DeletePool, PoolAclAction.ListPools, StreamAclAction.ViewStream, ProjectAclAction.ViewProject, JobAclAction.ViewJob, ServerAclAction.ViewCosts }));
-			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.AgentRoleClaim, new[] { ProjectAclAction.ViewProject, StreamAclAction.ViewStream, LogAclAction.CreateEvent, AgentSoftwareAclAction.DownloadSoftware }));
-			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.DownloadSoftwareClaim, new[] { AgentSoftwareAclAction.DownloadSoftware }));
-			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.UploadToolsClaim, new[] { AgentSoftwareAclAction.UploadSoftware, ToolAclAction.UploadTool }));
-			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.ConfigureProjectsClaim, new[] { ProjectAclAction.CreateProject, ProjectAclAction.UpdateProject, ProjectAclAction.ViewProject, StreamAclAction.CreateStream, StreamAclAction.UpdateStream, StreamAclAction.ViewStream }));
-			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.StartChainedJobClaim, new[] { JobAclAction.CreateJob, JobAclAction.ExecuteJob, JobAclAction.UpdateJob, JobAclAction.ViewJob, StreamAclAction.ViewTemplate, StreamAclAction.ViewStream }));
-			Acl.PostLoad(defaultAcl, AclScopeName.Root);
+			AclConfig defaultAcl = AclConfig.CreateRoot();
+			Acl.PostLoad(defaultAcl, defaultAcl.ScopeName);
 
 			Streams = Projects.SelectMany(x => x.Streams).ToList();
 
@@ -542,7 +531,7 @@ namespace Horde.Server.Server
 			networkConfig = null;
 			return false;
 		}
-		
+
 		private static bool IsIpInBlock(IPAddress ip, string? cidrBlock)
 		{
 			if (cidrBlock == null)
@@ -554,13 +543,13 @@ namespace Horde.Server.Server
 			{
 				return true;
 			}
-			
+
 			string[] parts = cidrBlock.Split('/');
 			if (parts.Length != 2 || !IPAddress.TryParse(parts[0], out IPAddress? address) || !Int32.TryParse(parts[1], out int maskBits))
 			{
 				return false;
 			}
-			
+
 			byte[] networkPrefixBytes = address.GetAddressBytes();
 			Array.Reverse(networkPrefixBytes);
 
@@ -909,7 +898,7 @@ namespace Horde.Server.Server
 		[CbField("r")]
 		public double Rate { get; set; }
 	}
-	
+
 	/// <summary>
 	/// Describes a network
 	/// The ID describes any logical grouping, such as region, availability zone, rack or office location. 
@@ -921,19 +910,19 @@ namespace Horde.Server.Server
 		/// </summary>
 		[CbField("id")]
 		public string? Id { get; set; }
-		
+
 		/// <summary>
 		/// CIDR block
 		/// </summary>
 		[CbField("cb")]
 		public string? CidrBlock { get; set; }
-		
+
 		/// <summary>
 		/// Human-readable description
 		/// </summary>
 		[CbField("d")]
 		public string? Description { get; set; }
-		
+
 		/// <summary>
 		/// Compute ID for this network (used when allocating compute resources)
 		/// </summary>
