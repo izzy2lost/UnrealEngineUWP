@@ -291,12 +291,18 @@ class UMaterialEditorInstanceConstant : public UObject
 
 	/** Regenerates the parameter arrays. */
 	UNREALED_API void RegenerateArrays();
+
 #if WITH_EDITOR
 	/** Sets back to zero the overrides for any parameters copied out of the layer stack */
 	UNREALED_API void CleanParameterStack(int32 Index, EMaterialParameterAssociation MaterialType);
+
 	/** Copies the overrides for any parameters copied out of the layer stack from the layer or blend */
 	UNREALED_API void ResetOverrides(int32 Index, EMaterialParameterAssociation MaterialType);
+
+	/** Arrays and clears parameters no longer valid (e.g. curve atlases). It has the potential effect of regenerating parameter arrays. */
+	UNREALED_API void ClearInvalidParameterOverrides();
 #endif
+
 	/** Copies the parameter array values back to the source instance. */
 	UNREALED_API void CopyToSourceInstance(const bool bForceStaticPermutationUpdate = false);
 

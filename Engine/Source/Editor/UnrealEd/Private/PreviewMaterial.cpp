@@ -17,6 +17,7 @@
 #include "MaterialEditor/MaterialEditorPreviewParameters.h"
 #include "MaterialEditor/MaterialEditorMeshComponent.h"
 #include "MaterialEditorModule.h"
+#include "MaterialCachedData.h"
 #include "Materials/MaterialInstance.h"
 #include "Materials/MaterialInstanceConstant.h"
 #include "Materials/MaterialFunctionInstance.h"
@@ -501,6 +502,8 @@ void UMaterialEditorInstanceConstant::PostEditChangeProperty(FPropertyChangedEve
 
 				// Fully update static parameters before recreating render state for all components
 				SetSourceInstance(SourceInstance);
+				
+				ClearInvalidParameterOverrides();
 			}
 		}
 		else if (!bIsFunctionPreviewMaterial)
@@ -719,6 +722,7 @@ void UMaterialEditorInstanceConstant::CleanParameterStack(int32 Index, EMaterial
 	ParameterGroups = CleanedGroups;
 	CopyToSourceInstance(true);
 }
+
 void UMaterialEditorInstanceConstant::ResetOverrides(int32 Index, EMaterialParameterAssociation MaterialType)
 {
 	check(GIsEditor);
@@ -747,6 +751,43 @@ void UMaterialEditorInstanceConstant::ResetOverrides(int32 Index, EMaterialParam
 	CopyToSourceInstance(true);
 
 }
+
+void UMaterialEditorInstanceConstant::ClearInvalidParameterOverrides()
+{
+	const FMaterialCachedExpressionData& CachedExpressionData = Parent->GetCachedExpressionData();
+
+	// Look for all Atlas Scalar parameters in each parameter group, then if a parameter has
+	// an override, disable it unless the atlas texture matches that originally set in the parent Material. 
+	for (int32 GroupIdx = 0; GroupIdx < ParameterGroups.Num(); GroupIdx++)
+	{
+		FEditorParameterGroup& Group = ParameterGroups[GroupIdx];
+		for (int32 ParameterIdx = 0; ParameterIdx < Group.Parameters.Num(); ParameterIdx++)
+		{
+			UDEditorParameterValue* Parameter = Group.Parameters[ParameterIdx];
+			if (UDEditorScalarParameterValue* ScalarParameter = Cast<UDEditorScalarParameterValue>(Parameter))
+			{
+				// Ignore parameters without override.
+				if (!Parameter->bOverride)
+				{
+					continue;
+				}
+
+				// Get parent's parameter atlas texture. If identical to the one the editor parameter is using,
+				// we can keep the override on (as the selected atlas curve will still make sense).
+				FMaterialParameterMetadata Value;
+				if (CachedExpressionData.GetParameterValue(EMaterialParameterType::Scalar, ScalarParameter->ParameterInfo, Value)
+					&& Value.ScalarAtlas == ScalarParameter->AtlasData.Atlas)
+				{
+					continue;
+				}
+
+				// The atlas texture of the newly bound material are different. Disable the override.
+				Parameter->bOverride = false;
+			}
+		}
+	}
+}
+
 #endif
 
 void UMaterialEditorInstanceConstant::CopyToSourceInstance(const bool bForceStaticPermutationUpdate)
