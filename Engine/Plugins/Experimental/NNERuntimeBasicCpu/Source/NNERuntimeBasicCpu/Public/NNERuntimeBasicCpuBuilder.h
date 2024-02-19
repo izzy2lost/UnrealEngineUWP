@@ -72,6 +72,24 @@ namespace UE::NNE::RuntimeBasic
 			const TConstArrayView<float> Biases);
 
 		/**
+		 * Makes a new compressed linear layer.
+		 *
+		 * @param InputSize		Input Vector Size (Number of Rows)
+		 * @param OutputSize	Output Vector Size (Number of Columns)
+		 * @param Weights		Compressed Linear layer weights.
+		 * @param WeightOffsets	Compressed Linear layer weight offsets.
+		 * @param WeightScales	Compressed Linear layer weight biases.
+		 * @param Biases		Compressed Linear layer biases.
+		 */
+		FModelBuilderElement MakeCompressedLinear(
+			const uint32 InputSize,
+			const uint32 OutputSize,
+			const TConstArrayView<uint16> Weights,
+			const TConstArrayView<float> WeightOffsets,
+			const TConstArrayView<float> WeightScales,
+			const TConstArrayView<float> Biases);
+
+		/**
 		 * Makes a new linear layer with randomly initialized weights using the Kaiming method.
 		 *
 		 * @param InputSize		Input Vector Size (Number of Rows)
@@ -79,6 +97,18 @@ namespace UE::NNE::RuntimeBasic
 		 * @param WeightScale	Scaling factor for the weight creation.
 		 */
 		FModelBuilderElement MakeLinearWithRandomKaimingWeights(
+			const uint32 InputSize,
+			const uint32 OutputSize,
+			const float WeightScale = 1.0f);
+
+		/**
+		 * Makes a new compressed linear layer with randomly initialized weights using the Kaiming method.
+		 *
+		 * @param InputSize		Input Vector Size (Number of Rows)
+		 * @param OutputSize	Output Vector Size (Number of Columns)
+		 * @param WeightScale	Scaling factor for the weight creation.
+		 */
+		FModelBuilderElement MakeCompressedLinearWithRandomKaimingWeights(
 			const uint32 InputSize,
 			const uint32 OutputSize,
 			const float WeightScale = 1.0f);
@@ -164,6 +194,24 @@ namespace UE::NNE::RuntimeBasic
 		FModelBuilderElement MakeMLPWithRandomKaimingWeights(
 			const uint32 InputSize,
 			const uint32 OutputSize, 
+			const uint32 HiddenSize,
+			const uint32 LayerNum,
+			const EActivationFunction ActivationFunction,
+			const bool bActivationOnFinalLayer = false);
+
+		/**
+		 * Makes a Compressed Multi-Layer Perceptron network with randomly initialized weights using the Kaiming method.
+		 *
+		 * @param InputSize					Input Vector Size
+		 * @param OutputSize				Output Vector Size
+		 * @param HiddenSize				Number of hidden units to use on internal layers.
+		 * @param LayerNum					Number of layers. Includes input and output layers.
+		 * @param ActivationFunction		Activation function to use.
+		 * @param bActivationOnFinalLayer	If the activation function should be used on the final output layer.
+		 */
+		FModelBuilderElement MakeCompressedMLPWithRandomKaimingWeights(
+			const uint32 InputSize,
+			const uint32 OutputSize,
 			const uint32 HiddenSize,
 			const uint32 LayerNum,
 			const EActivationFunction ActivationFunction,
@@ -266,6 +314,20 @@ namespace UE::NNE::RuntimeBasic
 			const TConstArrayView<FModelBuilderElement> KeyLayers,
 			const TConstArrayView<FModelBuilderElement> ValueLayers);
 
+		/**
+		 * Make a new Top-Two Sparse Mixture of Experts Layer.
+		 *
+		 * @param InputNum					Number of normal inputs to the model.
+		 * @param OutputNum					Number of normal outputs from the model.
+		 * @param GatingLayer				Layer used to choose the experts. Input should be of size InputNum, output should be of size SubLayerNum.
+		 * @param SubLayers					Expert layers. All Layers here should have input of size InputNum, output of size OutputNum.
+		 */
+		FModelBuilderElement MakeSparseMixtureOfExperts(
+			const uint32 InputNum,
+			const uint32 OutputNum,
+			const FModelBuilderElement& GatingLayer,
+			const TConstArrayView<FModelBuilderElement> SubLayers);
+
 	public:
 
 		/** Creates a array of weights from a copy of the given array view */
@@ -279,6 +341,15 @@ namespace UE::NNE::RuntimeBasic
 
 		/** Creates a array of weights randomly initialized using the Kaiming method */
 		TArrayView<float> MakeWeightsRandomKaiming(const uint32 InputSize, const uint32 OutputSize, const float Scale = 1.0f);
+
+		/** Creates a array of weights randomly initialized using the Kaiming method */
+		void MakeCompressedWeightsRandomKaiming(
+			TArrayView<uint16>& OutWeightsView,
+			TArrayView<float>& OutWeightOffsetsView,
+			TArrayView<float>& OutWeightScalesView,
+			const uint32 InputSize,
+			const uint32 OutputSize,
+			const float Scale = 1.0f);
 
 		/** Creates an array of sizes, initialized to zero. */
 		TArrayView<uint32> MakeSizesZero(const uint32 Size);
@@ -348,6 +419,9 @@ namespace UE::NNE::RuntimeBasic
 
 		/** Pool of all weights data used by the `MakeWeights` functions. */
 		TArray<TArray<float>> WeightsPool;
+
+		/** Pool of all compressed weights data used by the `MakeCompressedWeights` functions. */
+		TArray<TArray<uint16>> CompressedWeightsPool;
 
 		/** Pool of all sizes data used by the `MakeSizes` functions. */
 		TArray<TArray<uint32>> SizesPool;
