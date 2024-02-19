@@ -36,7 +36,7 @@ namespace Horde.Server.Secrets
 		/// <summary>
 		/// Defines access to this particular secret
 		/// </summary>
-		public AclConfig? Acl { get; set; }
+		public AclConfig Acl { get; set; } = new AclConfig();
 
 		/// <summary>
 		/// Called after the config has been read
@@ -45,6 +45,7 @@ namespace Horde.Server.Secrets
 		public void PostLoad(GlobalConfig globalConfig)
 		{
 			GlobalConfig = globalConfig;
+			Acl.PostLoad(globalConfig.Acl, $"secret:{Id}");
 		}
 
 		/// <summary>

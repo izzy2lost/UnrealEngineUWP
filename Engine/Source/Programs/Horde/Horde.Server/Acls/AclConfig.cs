@@ -3,15 +3,36 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Diagnostics;
 using System.Security.Claims;
+using System.Text.Json.Serialization;
 
 namespace Horde.Server.Acls
 {
 	/// <summary>
 	/// Parameters to update an ACL
 	/// </summary>
+	[DebuggerDisplay("{ScopeName}")]
 	public class AclConfig
 	{
+		/// <summary>
+		/// The parent scope object
+		/// </summary>
+		[JsonIgnore]
+		public AclConfig? Parent { get; set; }
+
+		/// <summary>
+		/// Name of this scope
+		/// </summary>
+		[JsonIgnore]
+		public AclScopeName ScopeName { get; set; }
+
+		/// <summary>
+		/// ACLs which are parented to this
+		/// </summary>
+		[JsonIgnore]
+		public List<AclConfig>? Children { get; set; }
+
 		/// <summary>
 		/// Entries to replace the existing ACL
 		/// </summary>
@@ -33,7 +54,26 @@ namespace Horde.Server.Acls
 		/// <param name="action">Action that is being performed. This should be a single flag.</param>
 		/// <param name="user">The principal to authorize</param>
 		/// <returns>True/false if the action is allowed or denied, null if there is no specific setting for this user</returns>
-		public bool? Authorize(AclAction action, ClaimsPrincipal user)
+		public bool Authorize(AclAction action, ClaimsPrincipal user)
+		{
+			if (user.HasAdminClaim())
+			{
+				return true;
+			}
+
+			for (AclConfig? next = this; next != null; next = next.Parent)
+			{
+				bool? result = next.AuthorizeSingleScope(action, user);
+				if (result.HasValue)
+				{
+					return result.Value;
+				}
+			}
+
+			return false;
+		}
+
+		bool? AuthorizeSingleScope(AclAction action, ClaimsPrincipal user)
 		{
 			// Check if there's a specific entry for this action
 			foreach (AclEntryConfig entry in Entries)
@@ -62,6 +102,27 @@ namespace Horde.Server.Acls
 
 			// Otherwise allow to propagate up the hierarchy
 			return null;
+		}
+
+		/// <summary>
+		/// Called after the config file has been read
+		/// </summary>
+		public void PostLoad(AclConfig parentScope, string scopeNameSuffix)
+		{
+			PostLoad(parentScope, parentScope.ScopeName.Append(scopeNameSuffix));
+		}
+
+		/// <summary>
+		/// Called after the config file has been read
+		/// </summary>
+		public void PostLoad(AclConfig parentScope, AclScopeName scopeName)
+		{
+			Parent = parentScope;
+			ScopeName = scopeName;
+			Children = null;
+
+			parentScope.Children ??= new List<AclConfig>();
+			parentScope.Children.Add(this);
 		}
 	}
 

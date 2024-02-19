@@ -396,20 +396,12 @@ namespace Horde.Server
 	/// <summary>
 	/// Global settings for the application
 	/// </summary>
-	public class ServerSettings : IAclScope
+	public class ServerSettings
 	{
 		/// <summary>
 		/// Name of the section containing these settings
 		/// </summary>
 		public const string SectionName = "Horde";
-
-		/// <inheritdoc/>
-		[JsonIgnore]
-		public IAclScope? ParentScope => null;
-
-		/// <inheritdoc/>
-		[JsonIgnore]
-		public AclScopeName ScopeName => AclScopeName.Root;
 
 		/// <summary>
 		/// Modes that the server should run in. Runmodes can be used in a multi-server deployment to limit the operations that a particular instance will try to perform.
@@ -881,39 +873,6 @@ namespace Horde.Server
 		/// Options for OpenTelemetry
 		/// </summary>
 		public OpenTelemetrySettings OpenTelemetry { get; set; } = new OpenTelemetrySettings();
-
-		/// <summary>
-		/// Default pre-baked ACL for authentication of well-known roles
-		/// </summary>
-		[JsonIgnore]
-		public AclConfig? Acl
-		{
-			get
-			{
-				_defaultAcl ??= GetDefaultAcl();
-				return _defaultAcl;
-			}
-		}
-		
-		[JsonIgnore]
-		AclConfig? _defaultAcl;
-
-		/// <summary>
-		/// Create the default ACL for the server, including all predefined roles.
-		/// </summary>
-		/// <returns></returns>
-		static AclConfig GetDefaultAcl()
-		{
-			AclConfig defaultAcl = new AclConfig();
-			defaultAcl.Entries.Add(new AclEntryConfig(new AclClaimConfig(ClaimTypes.Role, "internal:AgentRegistration"), new[] { AgentAclAction.CreateAgent, SessionAclAction.CreateSession }));
-			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.AgentRegistrationClaim, new[] { AgentAclAction.CreateAgent, SessionAclAction.CreateSession, AgentAclAction.UpdateAgent, AgentSoftwareAclAction.DownloadSoftware, PoolAclAction.CreatePool, PoolAclAction.UpdatePool, PoolAclAction.ViewPool, PoolAclAction.DeletePool, PoolAclAction.ListPools, StreamAclAction.ViewStream, ProjectAclAction.ViewProject, JobAclAction.ViewJob, ServerAclAction.ViewCosts }));
-			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.AgentRoleClaim, new[] { ProjectAclAction.ViewProject, StreamAclAction.ViewStream, LogAclAction.CreateEvent, AgentSoftwareAclAction.DownloadSoftware }));
-			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.DownloadSoftwareClaim, new[] { AgentSoftwareAclAction.DownloadSoftware }));
-			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.UploadToolsClaim, new[] { AgentSoftwareAclAction.UploadSoftware, ToolAclAction.UploadTool }));
-			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.ConfigureProjectsClaim, new[] { ProjectAclAction.CreateProject, ProjectAclAction.UpdateProject, ProjectAclAction.ViewProject, StreamAclAction.CreateStream, StreamAclAction.UpdateStream, StreamAclAction.ViewStream }));
-			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.StartChainedJobClaim, new[] { JobAclAction.CreateJob, JobAclAction.ExecuteJob, JobAclAction.UpdateJob, JobAclAction.ViewJob, StreamAclAction.ViewTemplate, StreamAclAction.ViewStream }));
-			return defaultAcl;
-		}
 
 		/// <summary>
 		/// Helper method to check if this process has activated the given mode

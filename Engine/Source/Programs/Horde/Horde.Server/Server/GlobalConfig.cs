@@ -30,9 +30,13 @@ using EpicGames.Serialization;
 using Horde.Server.Acls;
 using Horde.Server.Agents;
 using Horde.Server.Agents.Pools;
+using Horde.Server.Agents.Sessions;
+using Horde.Server.Agents.Software;
 using Horde.Server.Configuration;
 using Horde.Server.Dashboard;
 using Horde.Server.Devices;
+using Horde.Server.Jobs;
+using Horde.Server.Logs;
 using Horde.Server.Projects;
 using Horde.Server.Secrets;
 using Horde.Server.Storage;
@@ -115,21 +119,13 @@ namespace Horde.Server.Server
 	[JsonSchemaCatalog("Horde Globals", "Horde global configuration file", new[] { "globals.json", "*.global.json" })]
 	[ConfigIncludeRoot]
 	[ConfigMacroScope]
-	public class GlobalConfig : IAclScope
+	public class GlobalConfig
 	{
 		/// <summary>
 		/// Global server settings object
 		/// </summary>
 		[JsonIgnore]
 		public ServerSettings ServerSettings { get; private set; } = null!;
-
-		/// <inheritdoc/>
-		[JsonIgnore]
-		public IAclScope ParentScope => ServerSettings;
-
-		/// <inheritdoc/>
-		[JsonIgnore]
-		public AclScopeName ScopeName => ServerSettings.ScopeName;
 
 		/// <summary>
 		/// Unique identifier for this config revision. Useful to detect changes.
@@ -259,11 +255,15 @@ namespace Horde.Server.Server
 		private readonly Dictionary<StreamId, StreamConfig> _streamLookup = new Dictionary<StreamId, StreamConfig>();
 		private readonly Dictionary<ToolId, ToolConfig> _toolLookup = new Dictionary<ToolId, ToolConfig>();
 		private readonly Dictionary<ClusterId, ComputeClusterConfig> _computeClusterLookup = new Dictionary<ClusterId, ComputeClusterConfig>();
-		private readonly Dictionary<AclScopeName, IAclScope> _aclScopeLookup = new Dictionary<AclScopeName, IAclScope>();
+		private readonly Dictionary<AclScopeName, AclConfig> _aclLookup = new Dictionary<AclScopeName, AclConfig>();
 		private readonly Dictionary<ArtifactType, ArtifactTypeConfig> _artifactTypeLookup = new Dictionary<ArtifactType, ArtifactTypeConfig>();
 		private readonly Dictionary<SecretId, SecretConfig> _secretLookup = new Dictionary<SecretId, SecretConfig>();
 		private readonly Dictionary<PoolId, PoolConfig> _poolLookup = new Dictionary<PoolId, PoolConfig>();
 		private readonly Dictionary<TelemetryStoreId, TelemetryStoreConfig> _telemetryStoreLookup = new Dictionary<TelemetryStoreId, TelemetryStoreConfig>();
+
+		/// <inheritdoc cref="AclConfig.Authorize(AclAction, ClaimsPrincipal)"/>
+		public bool Authorize(AclAction action, ClaimsPrincipal user)
+			=> Acl.Authorize(action, user);
 
 		/// <summary>
 		/// Called after the config file has been read
@@ -271,6 +271,16 @@ namespace Horde.Server.Server
 		public void PostLoad(ServerSettings serverSettings)
 		{
 			ServerSettings = serverSettings;
+
+			AclConfig defaultAcl = new AclConfig();
+			defaultAcl.Entries.Add(new AclEntryConfig(new AclClaimConfig(ClaimTypes.Role, "internal:AgentRegistration"), new[] { AgentAclAction.CreateAgent, SessionAclAction.CreateSession }));
+			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.AgentRegistrationClaim, new[] { AgentAclAction.CreateAgent, SessionAclAction.CreateSession, AgentAclAction.UpdateAgent, AgentSoftwareAclAction.DownloadSoftware, PoolAclAction.CreatePool, PoolAclAction.UpdatePool, PoolAclAction.ViewPool, PoolAclAction.DeletePool, PoolAclAction.ListPools, StreamAclAction.ViewStream, ProjectAclAction.ViewProject, JobAclAction.ViewJob, ServerAclAction.ViewCosts }));
+			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.AgentRoleClaim, new[] { ProjectAclAction.ViewProject, StreamAclAction.ViewStream, LogAclAction.CreateEvent, AgentSoftwareAclAction.DownloadSoftware }));
+			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.DownloadSoftwareClaim, new[] { AgentSoftwareAclAction.DownloadSoftware }));
+			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.UploadToolsClaim, new[] { AgentSoftwareAclAction.UploadSoftware, ToolAclAction.UploadTool }));
+			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.ConfigureProjectsClaim, new[] { ProjectAclAction.CreateProject, ProjectAclAction.UpdateProject, ProjectAclAction.ViewProject, StreamAclAction.CreateStream, StreamAclAction.UpdateStream, StreamAclAction.ViewStream }));
+			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.StartChainedJobClaim, new[] { JobAclAction.CreateJob, JobAclAction.ExecuteJob, JobAclAction.UpdateJob, JobAclAction.ViewJob, StreamAclAction.ViewTemplate, StreamAclAction.ViewStream }));
+			Acl.PostLoad(defaultAcl, AclScopeName.Root);
 
 			Streams = Projects.SelectMany(x => x.Streams).ToList();
 
@@ -322,21 +332,6 @@ namespace Horde.Server.Server
 				computeCluster.PostLoad(this);
 			}
 
-			_aclScopeLookup.Clear();
-			_aclScopeLookup.Add(ScopeName, this);
-			foreach (ProjectConfig project in Projects)
-			{
-				_aclScopeLookup.Add(project.ScopeName, project);
-				foreach (StreamConfig stream in project.Streams)
-				{
-					_aclScopeLookup.Add(stream.ScopeName, stream);
-					foreach (TemplateRefConfig template in stream.Templates)
-					{
-						_aclScopeLookup.Add(template.ScopeName, template);
-					}
-				}
-			}
-
 			_artifactTypeLookup.Clear();
 			foreach (ArtifactTypeConfig artifactType in ArtifactTypes)
 			{
@@ -362,10 +357,43 @@ namespace Horde.Server.Server
 			foreach (TelemetryStoreConfig telemetryStore in TelemetryStores)
 			{
 				_telemetryStoreLookup.Add(telemetryStore.Id, telemetryStore);
-				telemetryStore.PostLoad();
+				telemetryStore.PostLoad(this);
 			}
 
 			Storage.PostLoad(this);
+
+			_aclLookup.Clear();
+			BuildAclScopeLookup(Acl, _aclLookup);
+
+			foreach (ProjectConfig project in Projects)
+			{
+				AclScopeName legacyProjectScopeName = Acl.ScopeName.Append($"p:{project.Id}");
+				_aclLookup.Add(legacyProjectScopeName, project.Acl);
+
+				foreach (StreamConfig stream in project.Streams)
+				{
+					AclScopeName legacyStreamScopeName = Acl.ScopeName.Append($"s:{stream.Id}");
+					_aclLookup.Add(legacyStreamScopeName, stream.Acl);
+
+					foreach (TemplateRefConfig template in stream.Templates)
+					{
+						AclScopeName legacyTemplateScopeName = legacyStreamScopeName.Append($"t:{template.Id}");
+						_aclLookup.Add(legacyTemplateScopeName, template.Acl);
+					}
+				}
+			}
+		}
+
+		static void BuildAclScopeLookup(AclConfig acl, Dictionary<AclScopeName, AclConfig> aclLookup)
+		{
+			aclLookup.Add(acl.ScopeName, acl);
+			if (acl.Children != null)
+			{
+				foreach (AclConfig childAcl in acl.Children)
+				{
+					BuildAclScopeLookup(childAcl, aclLookup);
+				}
+			}
 		}
 
 		void UpdateWorkspacesForPools()
@@ -572,7 +600,7 @@ namespace Horde.Server.Server
 		/// <param name="user">The principal to validate</param>
 		public bool Authorize(AclScopeName scopeName, AclAction action, ClaimsPrincipal user)
 		{
-			return _aclScopeLookup.TryGetValue(scopeName, out IAclScope? scope) && scope.Authorize(action, user);
+			return _aclLookup.TryGetValue(scopeName, out AclConfig? scopeConfig) && scopeConfig.Authorize(action, user);
 		}
 
 		/// <summary>
@@ -740,7 +768,7 @@ namespace Horde.Server.Server
 		/// <summary>
 		/// Access control list
 		/// </summary>
-		public AclConfig? Acl { get; set; }
+		public AclConfig Acl { get; set; } = new AclConfig();
 
 		/// <summary>
 		/// Callback post loading this config file
@@ -749,6 +777,7 @@ namespace Horde.Server.Server
 		public void PostLoad(GlobalConfig globalConfig)
 		{
 			GlobalConfig = globalConfig;
+			Acl.PostLoad(globalConfig.Acl, $"compute:{Id}");
 		}
 
 		/// <summary>

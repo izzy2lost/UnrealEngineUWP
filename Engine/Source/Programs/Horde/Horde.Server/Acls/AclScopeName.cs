@@ -26,14 +26,6 @@ namespace Horde.Server.Acls
 		/// <returns>New scope name</returns>
 		public AclScopeName Append(string name) => new AclScopeName($"{Text}/{name}");
 
-		/// <summary>
-		/// Append another name to this scope
-		/// </summary>
-		/// <param name="type">Type of the scope</param>
-		/// <param name="name">Name to append</param>
-		/// <returns>New scope name</returns>
-		public AclScopeName Append(string type, string name) => new AclScopeName($"{Text}/{type}:{name}");
-
 		/// <inheritdoc/>
 		public bool Equals(AclScopeName other) => Text.Equals(other.Text, StringComparison.Ordinal);
 

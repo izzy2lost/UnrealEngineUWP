@@ -13,6 +13,7 @@ using Horde.Server.Server;
 using Horde.Server.Streams;
 using HordeCommon.Rpc.Tasks;
 using EpicGames.Horde.Projects;
+using System.Security.Claims;
 
 namespace Horde.Server.Projects
 {
@@ -24,21 +25,13 @@ namespace Horde.Server.Projects
 	[ConfigIncludeRoot]
 	[ConfigMacroScope]
 	[DebuggerDisplay("{Id}")]
-	public class ProjectConfig : IAclScope
+	public class ProjectConfig
 	{
 		/// <summary>
 		/// Accessor for the global config owning this project
 		/// </summary>
 		[JsonIgnore]
 		public GlobalConfig GlobalConfig { get; private set; } = null!;
-
-		/// <inheritdoc/>
-		[JsonIgnore]
-		public IAclScope? ParentScope => GlobalConfig;
-
-		/// <inheritdoc/>
-		[JsonIgnore]
-		public AclScopeName ScopeName { get; private set; }
 
 		/// <summary>
 		/// The project id
@@ -99,7 +92,11 @@ namespace Horde.Server.Projects
 		/// <summary>
 		/// Acl entries
 		/// </summary>
-		public AclConfig? Acl { get; set; }
+		public AclConfig Acl { get; set; } = new AclConfig();
+
+		/// <inheritdoc cref="AclConfig.Authorize(AclAction, ClaimsPrincipal)"/>
+		public bool Authorize(AclAction action, ClaimsPrincipal user)
+			=> Acl.Authorize(action, user);
 
 		/// <summary>
 		/// Callback after this configuration has been read
@@ -110,7 +107,8 @@ namespace Horde.Server.Projects
 		{
 			Id = id;
 			GlobalConfig = globalConfig;
-			ScopeName = globalConfig.ScopeName.Append("p", Id.ToString());
+
+			Acl.PostLoad(globalConfig.Acl, $"project:{Id}");
 
 			foreach (StreamConfig stream in Streams)
 			{

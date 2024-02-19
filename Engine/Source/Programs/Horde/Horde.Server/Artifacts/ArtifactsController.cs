@@ -124,7 +124,7 @@ namespace Horde.Server.Artifacts
 				AclScopeName scopeName = AclScopeName.Root;
 				if (_globalConfig.TryGetTemplate(streamId, job.TemplateId, out TemplateRefConfig? templateRefConfig))
 				{
-					scopeName = templateRefConfig.ScopeName;
+					scopeName = templateRefConfig.Acl.ScopeName;
 				}
 
 				return await CreateArtifactInternalAsync(request.Name, request.Type, streamId, request.Change ?? job.Change, keys, scopeName, cancellationToken);
