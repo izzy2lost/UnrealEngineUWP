@@ -1121,6 +1121,7 @@ APCGPartitionActor* UPCGSubsystem::FindOrCreatePCGPartitionActor(const FGuid& Gu
 #if WITH_EDITOR
 	NewActor->SetLockLocation(true);
 	NewActor->SetActorLabel(SpawnParams.Name.ToString());
+	NewActor->SetGridSize(GridSize);
 #endif
 
 	// Empty GUID if runtime generated, since transient PAs don't need one.

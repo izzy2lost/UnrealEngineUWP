@@ -57,6 +57,11 @@ void APCGPartitionActor::PostLoad()
 
 		LocalToOriginalMap_DEPRECATED.Reset();
 	}
+
+	if (GetGridSize() != PCGGridSize)
+	{
+		SetGridSize(PCGGridSize);
+	}
 #endif
 
 	// Safe guard if we ever load a local that was deleted but not removed (like if the user deleted themselves the component)
