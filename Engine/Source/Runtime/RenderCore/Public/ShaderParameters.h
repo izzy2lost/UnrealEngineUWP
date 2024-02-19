@@ -105,64 +105,6 @@ private:
 	LAYOUT_FIELD_INITIALIZED(EShaderParameterType, Type, {});
 };
 
-/** A class that binds either a UAV or SRV of a resource. */
-class UE_DEPRECATED(5.3, "Individual shader parameters should be used instead of FRWShaderParameter.") FRWShaderParameter
-{
-	DECLARE_EXPORTED_TYPE_LAYOUT(FRWShaderParameter, RENDERCORE_API, NonVirtual);
-public:
-
-	void Bind(const FShaderParameterMap& ParameterMap,const TCHAR* BaseName)
-	{
-		SRVParameter.Bind(ParameterMap,BaseName);
-
-		// If the shader wants to bind the parameter as a UAV, the parameter name must start with "RW"
-		FString UAVName = FString(TEXT("RW")) + BaseName;
-		UAVParameter.Bind(ParameterMap,*UAVName);
-
-		// Verify that only one of the UAV or SRV parameters is accessed by the shader.
-		checkf(!(SRVParameter.GetNumResources() && UAVParameter.GetNumResources()),TEXT("Shader binds SRV and UAV of the same resource: %s"),BaseName);
-	}
-
-	FORCEINLINE bool IsBound() const
-	{
-		return SRVParameter.IsBound() || UAVParameter.IsBound();
-	}
-
-	FORCEINLINE bool IsUAVBound() const
-	{
-		return UAVParameter.IsBound();
-	}
-
-	uint32 GetUAVIndex() const
-	{
-		return UAVParameter.GetBaseIndex();
-	}
-
-	friend FArchive& operator<<(FArchive& Ar,FRWShaderParameter& Parameter)
-	{
-		return Ar << Parameter.SRVParameter << Parameter.UAVParameter;
-	}
-
-	template<typename TShaderRHIRef, typename TRHICmdList>
-	inline void SetBuffer(TRHICmdList& RHICmdList, const TShaderRHIRef& Shader, const FRWBuffer& RWBuffer) const;
-
-	template<typename TShaderRHIRef, typename TRHICmdList>
-	inline void SetBuffer(TRHICmdList& RHICmdList, const TShaderRHIRef& Shader, const FRWBufferStructured& RWBuffer) const;
-
-	template<typename TShaderRHIRef, typename TRHICmdList>
-	inline void SetTexture(TRHICmdList& RHICmdList, const TShaderRHIRef& Shader, FRHITexture* Texture, FRHIUnorderedAccessView* UAV) const;
-
-	template<typename TRHICmdList>
-	inline void SetUAV(TRHICmdList& RHICmdList, FRHIComputeShader* ComputeShader, FRHIUnorderedAccessView* UAV) const;
-
-	template<typename TRHICmdList>
-	inline void UnsetUAV(TRHICmdList& RHICmdList, FRHIComputeShader* ComputeShader) const;
-
-private:
-	LAYOUT_FIELD(FShaderResourceParameter, SRVParameter);
-	LAYOUT_FIELD(FShaderResourceParameter, UAVParameter);
-};
-
 class FShaderUniformBufferParameter
 {
 	DECLARE_EXPORTED_TYPE_LAYOUT(FShaderUniformBufferParameter, RENDERCORE_API, NonVirtual);

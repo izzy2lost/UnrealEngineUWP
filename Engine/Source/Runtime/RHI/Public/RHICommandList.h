@@ -2330,12 +2330,6 @@ protected:
 	{}
 
 public:
-	UE_DEPRECATED(5.3, "FlushAllPendingComputeParameters isn't needed with automatic batching removed.")
-	void FlushAllPendingComputeParameters()
-	{
-	}
-
-public:
 	static inline FRHIComputeCommandList& Get(FRHICommandListBase& RHICmdList)
 	{
 		return static_cast<FRHIComputeCommandList&>(RHICmdList);
@@ -2398,22 +2392,6 @@ public:
 			return;
 		}
 		ALLOC_COMMAND(FRHICommandSetUniformBufferDynamicOffset)(Slot, Offset);
-	}
-
-	UE_DEPRECATED(5.3, "FRHIBatchedShaderParameters and SetBatchedShaderParameters should be used instead of setting individual parameters.")
-	FORCEINLINE_DEBUGGABLE void SetShaderUniformBuffer(FRHIComputeShader* Shader, uint32 BaseIndex, FRHIUniformBuffer* UniformBuffer)
-	{
-		FRHIBatchedShaderParameters& BatchedParameters = GetScratchShaderParameters();
-		BatchedParameters.SetShaderUniformBuffer(BaseIndex, UniformBuffer);
-		SetBatchedShaderParameters(Shader, BatchedParameters);
-	}
-
-	UE_DEPRECATED(5.3, "FRHIBatchedShaderParameters and SetBatchedShaderParameters should be used instead of setting individual parameters.")
-	FORCEINLINE void SetShaderUniformBuffer(const FComputeShaderRHIRef& Shader, uint32 BaseIndex, FRHIUniformBuffer* UniformBuffer)
-	{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		SetShaderUniformBuffer(Shader.GetReference(), BaseIndex, UniformBuffer);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	FORCEINLINE_DEBUGGABLE void SetShaderParameters(
@@ -2481,110 +2459,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 			InBatchedUnbinds.Reset();
 		}
-	}
-
-	UE_DEPRECATED(5.3, "FRHIBatchedShaderParameters and SetBatchedShaderParameters should be used instead of setting individual parameters.")
-	FORCEINLINE_DEBUGGABLE void SetShaderParameter(FRHIComputeShader* Shader, uint32 BufferIndex, uint32 BaseIndex, uint32 NumBytes, const void* NewValue)
-	{
-		FRHIBatchedShaderParameters& BatchedParameters = GetScratchShaderParameters();
-		BatchedParameters.SetShaderParameter(BufferIndex, BaseIndex, NumBytes, NewValue);
-		SetBatchedShaderParameters(Shader, BatchedParameters);
-	}
-
-	UE_DEPRECATED(5.3, "FRHIBatchedShaderParameters and SetBatchedShaderParameters should be used instead of setting individual parameters.")
-	FORCEINLINE void SetShaderParameter(FComputeShaderRHIRef& Shader, uint32 BufferIndex, uint32 BaseIndex, uint32 NumBytes, const void* NewValue)
-	{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		SetShaderParameter(Shader.GetReference(), BufferIndex, BaseIndex, NumBytes, NewValue);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	}
-
-	UE_DEPRECATED(5.3, "FRHIBatchedShaderParameters and SetBatchedShaderParameters should be used instead of setting individual parameters.")
-	FORCEINLINE_DEBUGGABLE void SetShaderTexture(FRHIComputeShader* Shader, uint32 TextureIndex, FRHITexture* Texture)
-	{
-		FRHIBatchedShaderParameters& BatchedParameters = GetScratchShaderParameters();
-		BatchedParameters.SetShaderTexture(TextureIndex, Texture);
-		SetBatchedShaderParameters(Shader, BatchedParameters);
-	}
-
-	UE_DEPRECATED(5.3, "FRHIBatchedShaderParameters and SetBatchedShaderParameters should be used instead of setting individual parameters.")
-	FORCEINLINE_DEBUGGABLE void SetShaderResourceViewParameter(FRHIComputeShader* Shader, uint32 SamplerIndex, FRHIShaderResourceView* SRV)
-	{
-		FRHIBatchedShaderParameters& BatchedParameters = GetScratchShaderParameters();
-		BatchedParameters.SetShaderResourceViewParameter(SamplerIndex, SRV);
-		SetBatchedShaderParameters(Shader, BatchedParameters);
-	}
-
-	UE_DEPRECATED(5.3, "FRHIBatchedShaderParameters and SetBatchedShaderParameters should be used instead of setting individual parameters.")
-	FORCEINLINE_DEBUGGABLE void SetShaderSampler(FRHIComputeShader* Shader, uint32 SamplerIndex, FRHISamplerState* State)
-	{
-		// Immutable samplers can't be set dynamically
-		check(!State->IsImmutable());
-		if (State->IsImmutable())
-		{
-			return;
-		}
-
-		FRHIBatchedShaderParameters& BatchedParameters = GetScratchShaderParameters();
-		BatchedParameters.SetShaderSampler(SamplerIndex, State);
-		SetBatchedShaderParameters(Shader, BatchedParameters);
-	}
-
-	UE_DEPRECATED(5.3, "FRHIBatchedShaderParameters and SetBatchedShaderParameters should be used instead of setting individual parameters.")
-	FORCEINLINE_DEBUGGABLE void SetUAVParameter(FRHIComputeShader* Shader, uint32 UAVIndex, FRHIUnorderedAccessView* UAV)
-	{
-		FRHIBatchedShaderParameters& BatchedParameters = GetScratchShaderParameters();
-		BatchedParameters.SetUAVParameter(UAVIndex, UAV);
-		SetBatchedShaderParameters(Shader, BatchedParameters);
-	}
-
-	UE_DEPRECATED(5.3, "FRHIBatchedShaderParameters and SetBatchedShaderParameters should be used instead of setting individual parameters.")
-	FORCEINLINE_DEBUGGABLE void SetUAVParameter(FRHIComputeShader* Shader, uint32 UAVIndex, FRHIUnorderedAccessView* UAV, uint32 InitialCount)
-	{
-		checkNoEntry(); // @todo: support append/consume buffers
-
-		FRHIBatchedShaderParameters& BatchedParameters = GetScratchShaderParameters();
-		BatchedParameters.SetUAVParameter(UAVIndex, UAV);
-		SetBatchedShaderParameters(Shader, BatchedParameters);
-	}
-
-	UE_DEPRECATED(5.3, "FRHIBatchedShaderParameters and SetBatchedShaderParameters should be used instead of setting individual parameters.")
-	FORCEINLINE_DEBUGGABLE void SetBindlessTexture(FRHIComputeShader* Shader, uint32 Index, FRHITexture* Texture)
-	{
-		FRHIBatchedShaderParameters& BatchedParameters = GetScratchShaderParameters();
-		BatchedParameters.SetBindlessTexture(Index, Texture);
-		SetBatchedShaderParameters(Shader, BatchedParameters);
-	}
-
-	UE_DEPRECATED(5.3, "FRHIBatchedShaderParameters and SetBatchedShaderParameters should be used instead of setting individual parameters.")
-	FORCEINLINE_DEBUGGABLE void SetBindlessResourceView(FRHIComputeShader* Shader, uint32 Index, FRHIShaderResourceView* SRV)
-	{
-		FRHIBatchedShaderParameters& BatchedParameters = GetScratchShaderParameters();
-		BatchedParameters.SetBindlessResourceView(Index, SRV);
-		SetBatchedShaderParameters(Shader, BatchedParameters);
-	}
-
-	UE_DEPRECATED(5.3, "FRHIBatchedShaderParameters and SetBatchedShaderParameters should be used instead of setting individual parameters.")
-	FORCEINLINE_DEBUGGABLE void SetBindlessSampler(FRHIComputeShader* Shader, uint32 Index, FRHISamplerState* State)
-	{
-		// Immutable samplers can't be set dynamically
-		check(!State->IsImmutable());
-		if (State->IsImmutable())
-		{
-			return;
-		}
-
-		FRHIBatchedShaderParameters& BatchedParameters = GetScratchShaderParameters();
-		BatchedParameters.SetBindlessSampler(Index, State);
-		SetBatchedShaderParameters(Shader, BatchedParameters);
-	}
-
-	UE_DEPRECATED(5.3, "FRHIBatchedShaderParameters and SetBatchedShaderParameters should be used instead of setting individual parameters.")
-	FORCEINLINE_DEBUGGABLE void SetBindlessUAV(FRHIComputeShader* Shader, uint32 Index, FRHIUnorderedAccessView* UAV)
-	{
-		FRHIBatchedShaderParameters& BatchedParameters = GetScratchShaderParameters();
-		BatchedParameters.SetBindlessUAV(Index, UAV);
-		SetBatchedShaderParameters(Shader, BatchedParameters);
 	}
 
 	FORCEINLINE_DEBUGGABLE void SetComputePipelineState(FComputePipelineState* ComputePipelineState, FRHIComputeShader* ComputeShader)
@@ -3245,25 +3119,6 @@ public:
 		FRHICommandList::EnqueueLambda(TEXT("TRHILambdaCommand"), Forward<LAMBDA>(Lambda));
 	}
 
-	using FRHIComputeCommandList::SetShaderUniformBuffer;
-
-	UE_DEPRECATED(5.3, "FRHIBatchedShaderParameters and SetBatchedShaderParameters should be used instead of setting individual parameters.")
-	FORCEINLINE_DEBUGGABLE void SetShaderUniformBuffer(FRHIGraphicsShader* Shader, uint32 BaseIndex, FRHIUniformBuffer* UniformBuffer)
-	{
-		FRHIBatchedShaderParameters& BatchedParameters = GetScratchShaderParameters();
-		BatchedParameters.SetShaderUniformBuffer(BaseIndex, UniformBuffer);
-		SetBatchedShaderParameters(Shader, BatchedParameters);
-	}
-
-	template <typename TShaderRHI>
-	UE_DEPRECATED(5.3, "FRHIBatchedShaderParameters and SetBatchedShaderParameters should be used instead of setting individual parameters.")
-	FORCEINLINE void SetShaderUniformBuffer(const TRefCountPtr<TShaderRHI>& Shader, uint32 BaseIndex, FRHIUniformBuffer* UniformBuffer)
-	{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		SetShaderUniformBuffer(Shader.GetReference(), BaseIndex, UniformBuffer);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	}
-
 	using FRHIComputeCommandList::SetShaderParameters;
 
 	FORCEINLINE_DEBUGGABLE void SetShaderParameters(
@@ -3337,154 +3192,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 			InBatchedUnbinds.Reset();
 		}
-	}
-
-	using FRHIComputeCommandList::SetShaderParameter;
-
-	UE_DEPRECATED(5.3, "FRHIBatchedShaderParameters and SetBatchedShaderParameters should be used instead of setting individual parameters.")
-	FORCEINLINE_DEBUGGABLE void SetShaderParameter(FRHIGraphicsShader* Shader, uint32 BufferIndex, uint32 BaseIndex, uint32 NumBytes, const void* NewValue)
-	{
-		FRHIBatchedShaderParameters& BatchedParameters = GetScratchShaderParameters();
-		BatchedParameters.SetShaderParameter(BufferIndex, BaseIndex, NumBytes, NewValue);
-		SetBatchedShaderParameters(Shader, BatchedParameters);
-	}
-
-	template <typename TShaderRHI>
-	UE_DEPRECATED(5.3, "FRHIBatchedShaderParameters and SetBatchedShaderParameters should be used instead of setting individual parameters.")
-	FORCEINLINE void SetShaderParameter(const TRefCountPtr<TShaderRHI>& Shader, uint32 BufferIndex, uint32 BaseIndex, uint32 NumBytes, const void* NewValue)
-	{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		SetShaderParameter(Shader.GetReference(), BufferIndex, BaseIndex, NumBytes, NewValue);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	}
-
-	using FRHIComputeCommandList::SetShaderTexture;
-
-	UE_DEPRECATED(5.3, "FRHIBatchedShaderParameters and SetBatchedShaderParameters should be used instead of setting individual parameters.")
-	FORCEINLINE_DEBUGGABLE void SetShaderTexture(FRHIGraphicsShader* Shader, uint32 TextureIndex, FRHITexture* Texture)
-	{
-		FRHIBatchedShaderParameters& BatchedParameters = GetScratchShaderParameters();
-		BatchedParameters.SetShaderTexture(TextureIndex, Texture);
-		SetBatchedShaderParameters(Shader, BatchedParameters);
-	}
-
-	template <typename TShaderRHI>
-	UE_DEPRECATED(5.3, "FRHIBatchedShaderParameters and SetBatchedShaderParameters should be used instead of setting individual parameters.")
-	FORCEINLINE_DEBUGGABLE void SetShaderTexture(const TRefCountPtr<TShaderRHI>& Shader, uint32 TextureIndex, FRHITexture* Texture)
-	{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		SetShaderTexture(Shader.GetReference(), TextureIndex, Texture);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	}
-
-	using FRHIComputeCommandList::SetShaderResourceViewParameter;
-
-	UE_DEPRECATED(5.3, "FRHIBatchedShaderParameters and SetBatchedShaderParameters should be used instead of setting individual parameters.")
-	FORCEINLINE_DEBUGGABLE void SetShaderResourceViewParameter(FRHIGraphicsShader* Shader, uint32 SamplerIndex, FRHIShaderResourceView* SRV)
-	{
-		FRHIBatchedShaderParameters& BatchedParameters = GetScratchShaderParameters();
-		BatchedParameters.SetShaderResourceViewParameter(SamplerIndex, SRV);
-		SetBatchedShaderParameters(Shader, BatchedParameters);
-	}
-
-	template <typename TShaderRHI>
-	UE_DEPRECATED(5.3, "FRHIBatchedShaderParameters and SetBatchedShaderParameters should be used instead of setting individual parameters.")
-	FORCEINLINE_DEBUGGABLE void SetShaderResourceViewParameter(const TRefCountPtr<TShaderRHI>& Shader, uint32 SamplerIndex, FRHIShaderResourceView* SRV)
-	{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		SetShaderResourceViewParameter(Shader.GetReference(), SamplerIndex, SRV);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	}
-
-	using FRHIComputeCommandList::SetShaderSampler;
-
-	UE_DEPRECATED(5.3, "FRHIBatchedShaderParameters and SetBatchedShaderParameters should be used instead of setting individual parameters.")
-	FORCEINLINE_DEBUGGABLE void SetShaderSampler(FRHIGraphicsShader* Shader, uint32 SamplerIndex, FRHISamplerState* State)
-	{
-		// Immutable samplers can't be set dynamically
-		check(!State->IsImmutable());
-		if (State->IsImmutable())
-		{
-			return;
-		}
-
-		FRHIBatchedShaderParameters& BatchedParameters = GetScratchShaderParameters();
-		BatchedParameters.SetShaderSampler(SamplerIndex, State);
-		SetBatchedShaderParameters(Shader, BatchedParameters);
-	}
-
-	template <typename TShaderRHI>
-	UE_DEPRECATED(5.3, "FRHIBatchedShaderParameters and SetBatchedShaderParameters should be used instead of setting individual parameters.")
-	FORCEINLINE_DEBUGGABLE void SetShaderSampler(const TRefCountPtr<TShaderRHI>& Shader, uint32 SamplerIndex, FRHISamplerState* State)
-	{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		SetShaderSampler(Shader.GetReference(), SamplerIndex, State);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	}
-
-	using FRHIComputeCommandList::SetUAVParameter;
-
-	UE_DEPRECATED(5.3, "FRHIBatchedShaderParameters and SetBatchedShaderParameters should be used instead of setting individual parameters.")
-	FORCEINLINE_DEBUGGABLE void SetUAVParameter(FRHIPixelShader* Shader, uint32 UAVIndex, FRHIUnorderedAccessView* UAV)
-	{
-		FRHIBatchedShaderParameters& BatchedParameters = GetScratchShaderParameters();
-		BatchedParameters.SetUAVParameter(UAVIndex, UAV);
-		SetBatchedShaderParameters(Shader, BatchedParameters);
-	}
-
-	UE_DEPRECATED(5.3, "FRHIBatchedShaderParameters and SetBatchedShaderParameters should be used instead of setting individual parameters.")
-	FORCEINLINE_DEBUGGABLE void SetUAVParameter(const TRefCountPtr<FRHIPixelShader>& Shader, uint32 UAVIndex, FRHIUnorderedAccessView* UAV)
-	{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		SetUAVParameter(Shader.GetReference(), UAVIndex, UAV);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	}
-
-	using FRHIComputeCommandList::SetBindlessTexture;
-
-	UE_DEPRECATED(5.3, "FRHIBatchedShaderParameters and SetBatchedShaderParameters should be used instead of setting individual parameters.")
-	FORCEINLINE_DEBUGGABLE void SetBindlessTexture(FRHIGraphicsShader* Shader, uint32 Index, FRHITexture* Texture)
-	{
-		FRHIBatchedShaderParameters& BatchedParameters = GetScratchShaderParameters();
-		BatchedParameters.SetBindlessTexture(Index, Texture);
-		SetBatchedShaderParameters(Shader, BatchedParameters);
-	}
-
-	using FRHIComputeCommandList::SetBindlessResourceView;
-
-	UE_DEPRECATED(5.3, "FRHIBatchedShaderParameters and SetBatchedShaderParameters should be used instead of setting individual parameters.")
-	FORCEINLINE_DEBUGGABLE void SetBindlessResourceView(FRHIGraphicsShader* Shader, uint32 Index, FRHIShaderResourceView* SRV)
-	{
-		FRHIBatchedShaderParameters& BatchedParameters = GetScratchShaderParameters();
-		BatchedParameters.SetBindlessResourceView(Index, SRV);
-		SetBatchedShaderParameters(Shader, BatchedParameters);
-	}
-
-	using FRHIComputeCommandList::SetBindlessSampler;
-
-	UE_DEPRECATED(5.3, "FRHIBatchedShaderParameters and SetBatchedShaderParameters should be used instead of setting individual parameters.")
-	FORCEINLINE_DEBUGGABLE void SetBindlessSampler(FRHIGraphicsShader* Shader, uint32 Index, FRHISamplerState* State)
-	{
-		// Immutable samplers can't be set dynamically
-		check(!State->IsImmutable());
-		if (State->IsImmutable())
-		{
-			return;
-		}
-
-		FRHIBatchedShaderParameters& BatchedParameters = GetScratchShaderParameters();
-		BatchedParameters.SetBindlessSampler(Index, State);
-		SetBatchedShaderParameters(Shader, BatchedParameters);
-	}
-
-	using FRHIComputeCommandList::SetBindlessUAV;
-
-	UE_DEPRECATED(5.3, "FRHIBatchedShaderParameters and SetBatchedShaderParameters should be used instead of setting individual parameters.")
-	FORCEINLINE_DEBUGGABLE void SetBindlessUAV(FRHIPixelShader* Shader, uint32 Index, FRHIUnorderedAccessView* UAV)
-	{
-		FRHIBatchedShaderParameters& BatchedParameters = GetScratchShaderParameters();
-		BatchedParameters.SetBindlessUAV(Index, UAV);
-		SetBatchedShaderParameters(Shader, BatchedParameters);
 	}
 
 	FORCEINLINE_DEBUGGABLE void SetBlendFactor(const FLinearColor& BlendFactor = FLinearColor::White)
