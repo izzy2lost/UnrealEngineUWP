@@ -307,7 +307,7 @@ void USignificanceManager::UnregisterObject(UObject* Object)
 			}
 		}
 
-		ObjArray.RemoveSwap(ObjectInfo, EAllowShrinking::No);
+		ObjArray.RemoveSingleSwap(ObjectInfo, EAllowShrinking::No);
 
 		TArray<FManagedObjectInfo*>& ObjectsWithTag = ManagedObjectsByTag.FindChecked(ObjectInfo->GetTag());
 		if (ObjectsWithTag.Num() == 1)
@@ -344,7 +344,7 @@ void USignificanceManager::UnregisterAll(FName Tag)
 				}
 			}
 
-			ObjArray.RemoveSwap(ManagedObj, EAllowShrinking::No);
+			ObjArray.RemoveSingleSwap(ManagedObj, EAllowShrinking::No);
 			ManagedObjects.Remove(ManagedObj->GetObject());
 			if (ManagedObj->PostSignificanceFunction != nullptr)
 			{
