@@ -64,25 +64,6 @@ void FRayTracingGeometry::ReleaseRHIForStreaming(FRHIResourceReplaceBatcher& Bat
 	}
 }
 
-void FRayTracingGeometry::CreateRayTracingGeometryFromCPUData(TResourceArray<uint8>& OfflineData)
-{
-	check(OfflineData.Num() == 0 || Initializer.OfflineData == nullptr);
-	if (OfflineData.Num())
-	{
-		Initializer.OfflineData = &OfflineData;
-	}
-
-	if (CVarDebugForceRuntimeBLAS.GetValueOnAnyThread() && Initializer.OfflineData != nullptr)
-	{
-		Initializer.OfflineData->Discard();
-		Initializer.OfflineData = nullptr;
-	}
-	
-	FRHICommandList& RHICmdList = FRHICommandListImmediate::Get();
-	RayTracingGeometryRHI = RHICmdList.CreateRayTracingGeometry(Initializer);
-	SetRequiresBuild(Initializer.OfflineData == nullptr || RayTracingGeometryRHI->IsCompressed());
-}
-
 void FRayTracingGeometry::RequestBuildIfNeeded(ERTAccelerationStructureBuildPriority InBuildPriority)
 {
 	RayTracingGeometryRHI->SetInitializer(Initializer);
@@ -134,13 +115,6 @@ void FRayTracingGeometry::MakeResident(FRHICommandList& RHICmdList)
 	{
 		InitRHI(RHICmdList);
 	}
-}
-
-void FRayTracingGeometry::InitRHIForDynamicRayTracing()
-{
-	check(GetRayTracingMode() == ERayTracingMode::Dynamic);
-
-	MakeResident(FRHICommandListImmediate::Get());
 }
 
 void FRayTracingGeometry::Evict()
@@ -226,11 +200,6 @@ void FRayTracingGeometry::CreateRayTracingGeometry(FRHICommandListBase& RHICmdLi
 			Initializer.OfflineData = nullptr;
 		}
 	}
-}
-
-void FRayTracingGeometry::CreateRayTracingGeometry(ERTAccelerationStructureBuildPriority InBuildPriority)
-{
-	CreateRayTracingGeometry(FRHICommandListImmediate::Get(), InBuildPriority);
 }
 
 bool FRayTracingGeometry::IsValid() const
