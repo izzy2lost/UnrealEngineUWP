@@ -87,8 +87,9 @@ namespace uba
 		void SetWorkListener(const WorkBeginFunction& start, const WorkEndFunction& end);
 		void ResetWorkListener();
 
-	private:
 		class Worker;
+	private:
+		struct WorkerContext;
 		class Connection;
 		friend ConnectionInfo;
 
@@ -116,7 +117,7 @@ namespace uba
 		struct OnDisconnectEntry { u8 id; OnDisconnectFunction function; };
 		List<OnDisconnectEntry> m_onDisconnectFunctions;
 
-		u32 m_workerCount = 0;
+		u32 m_maxWorkerCount = 0;
 
 		ReaderWriterLock m_additionalWorkLock;
 		struct AdditionalWork { Function<void()> func; TString desc; };
@@ -129,6 +130,7 @@ namespace uba
 		u32 m_sendSize = 0;
 		u32 m_receiveTimeoutMs = 0;
 		u32 m_createdWorkerCount = 0;
+		bool m_workersEnabled = true;
 
 		ReaderWriterLock m_addConnectionsLock;
 		List<Thread> m_addConnections;
