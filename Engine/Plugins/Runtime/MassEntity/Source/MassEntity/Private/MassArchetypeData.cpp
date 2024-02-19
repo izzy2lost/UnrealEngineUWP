@@ -293,7 +293,7 @@ void FMassArchetypeData::RemoveEntityInternal(const int32 AbsoluteIndex)
 	// Note: This is only possible for trailing chunks, to avoid messing up the absolute indices in the entities map
 	while ((Chunks.Num() > 0) && (Chunks.Last().GetNumInstances() == 0))
 	{
-		Chunks.RemoveAt(Chunks.Num() - 1, 1, EAllowShrinking::No);
+		Chunks.RemoveAt(Chunks.Num() - 1, EAllowShrinking::No);
 	}
 }
 
@@ -336,7 +336,7 @@ void FMassArchetypeData::BatchDestroyEntityChunks(FMassArchetypeEntityCollection
 	// Note: This is only possible for trailing chunks, to avoid messing up the absolute indices in the entities map
 	while ((Chunks.Num() > 0) && (Chunks.Last().GetNumInstances() == 0))
 	{
-		Chunks.RemoveAt(Chunks.Num() - 1, 1, EAllowShrinking::No);
+		Chunks.RemoveAt(Chunks.Num() - 1, EAllowShrinking::No);
 	}
 }
 
@@ -1179,7 +1179,7 @@ void FMassArchetypeData::BatchRemoveEntitiesInternal(const int32 ChunkIndex, con
 	// Note: This is only possible for trailing chunks, to avoid messing up the absolute indices in the entities map
 	while ((Chunks.Num() > 0) && (Chunks.Last().GetNumInstances() == 0))
 	{
-		Chunks.RemoveAt(Chunks.Num() - 1, 1, EAllowShrinking::No);
+		Chunks.RemoveAt(Chunks.Num() - 1, EAllowShrinking::No);
 	}
 }
 

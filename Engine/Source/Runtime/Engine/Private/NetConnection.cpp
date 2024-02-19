@@ -4558,7 +4558,7 @@ void UNetConnection::Tick(float DeltaSeconds)
 				// Remove the actor channel from the array
 				if ( bRemoveChannel )
 				{
-					ActorChannelArray.RemoveAt( ActorChannelIdx, 1, EAllowShrinking::No);
+					ActorChannelArray.RemoveAt( ActorChannelIdx, EAllowShrinking::No);
 					--ActorChannelIdx;
 				}
 			}

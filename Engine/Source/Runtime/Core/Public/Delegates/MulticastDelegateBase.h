@@ -163,7 +163,7 @@ public:
 					|| DelegateInstance->HasSameObject(InUserObject)
 					|| DelegateInstance->IsCompactable())
 				{
-					InvocationList.RemoveAtSwap(InvocationListIndex, 1, EAllowShrinking::No);
+					InvocationList.RemoveAtSwap(InvocationListIndex, EAllowShrinking::No);
 					++Result;
 				}
 				else

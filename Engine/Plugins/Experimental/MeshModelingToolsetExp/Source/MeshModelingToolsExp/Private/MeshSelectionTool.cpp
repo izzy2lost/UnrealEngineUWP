@@ -1486,7 +1486,7 @@ void UMeshSelectionTool::OptimizeSelection()
 		int32 TID = Selection->Faces[FaceSelIdx];
 		if (!FaceSelection.IsSelected(TID))
 		{
-			Selection->Faces.RemoveAtSwap(FaceSelIdx, 1, EAllowShrinking::No);
+			Selection->Faces.RemoveAtSwap(FaceSelIdx, EAllowShrinking::No);
 			ActiveSelectionChange->Add(TID);
 		}
 	}

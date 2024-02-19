@@ -372,7 +372,7 @@ void FCsvProfilerAnalyzer::HandleMarker(const FOnEventContext& Context, FThreadS
 				if (ThreadState.MarkerStack[j].StatId == Marker.StatId) // Note: only works with scopes!
 				{
 					StartMarker = ThreadState.MarkerStack[j];
-					ThreadState.MarkerStack.RemoveAt(j, 1, EAllowShrinking::No);
+					ThreadState.MarkerStack.RemoveAt(j, EAllowShrinking::No);
 					bFoundStart = true;
 					break;
 				}

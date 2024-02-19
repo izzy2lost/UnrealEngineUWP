@@ -448,7 +448,7 @@ private:
 		uint32 ReaderNum = --GetReadersTls()[ReaderIndex].Num;
 		if (ReaderNum == 0)
 		{
-			GetReadersTls().RemoveAtSwap(ReaderIndex, 1, EAllowShrinking::No);
+			GetReadersTls().RemoveAtSwap(ReaderIndex, EAllowShrinking::No);
 		}
 	}
 	///////////////////////////////////////////////

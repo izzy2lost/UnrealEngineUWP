@@ -777,7 +777,7 @@ void SkeletalMeshImportUtils::RestoreExistingSkelMeshData(const TSharedPtr<const
 						}
 						else
 						{
-							LODModelCopy->ActiveBoneIndices.RemoveAt(j, 1, EAllowShrinking::No);
+							LODModelCopy->ActiveBoneIndices.RemoveAt(j, EAllowShrinking::No);
 							--j;
 						}
 					}
@@ -804,7 +804,7 @@ void SkeletalMeshImportUtils::RestoreExistingSkelMeshData(const TSharedPtr<const
 						else
 						{
 							//Bone didn't exist in our required bones, clean up. 
-							LODModelCopy->RequiredBones.RemoveAt(j, 1, EAllowShrinking::No);
+							LODModelCopy->RequiredBones.RemoveAt(j, EAllowShrinking::No);
 							--j;
 						}
 					}

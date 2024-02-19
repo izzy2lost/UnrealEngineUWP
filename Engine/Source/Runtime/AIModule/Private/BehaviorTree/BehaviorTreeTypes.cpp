@@ -423,7 +423,7 @@ void FBehaviorTreeInstance::DeactivateNodes(FBehaviorTreeSearchData& SearchData,
 				*UBehaviorTreeTypes::DescribeNodeUpdateMode(EBTNodeUpdateMode::Remove),
 				*UBehaviorTreeTypes::DescribeNodeHelper(UpdateInfo.AuxNode ? (UBTNode*)UpdateInfo.AuxNode : (UBTNode*)UpdateInfo.TaskNode));
 
-			SearchData.PendingUpdates.RemoveAt(Idx, 1, EAllowShrinking::No);
+			SearchData.PendingUpdates.RemoveAt(Idx, EAllowShrinking::No);
 		}
 	}
 
@@ -492,7 +492,7 @@ void FBehaviorTreeSearchData::AddUniqueUpdate(const FBehaviorTreeSearchUpdate& U
 			bSkipAdding = (Info.Mode == EBTNodeUpdateMode::Remove) || (UpdateInfo.Mode == EBTNodeUpdateMode::Remove);
 			UE_CVLOG(bSkipAdding, OwnerComp.GetOwner(), LogBehaviorTree, Verbose, TEXT(">> skipped: paired add/remove"));
 
-			PendingUpdates.RemoveAt(UpdateIndex, 1, EAllowShrinking::No);
+			PendingUpdates.RemoveAt(UpdateIndex, EAllowShrinking::No);
 		}
 	}
 	

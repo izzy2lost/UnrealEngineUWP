@@ -586,14 +586,14 @@ void FMovieSceneEntitySystemRunner::DiscardQueuedUpdates(FInstanceHandle Instanc
 	{
 		if (UpdateQueue[Index].Params.InstanceHandle == Instance)
 		{
-			UpdateQueue.RemoveAt(Index, 1, EAllowShrinking::No);
+			UpdateQueue.RemoveAt(Index, EAllowShrinking::No);
 		}
 	}
 	for (int32 Index = DissectedUpdates.Num()-1; Index >= 0; --Index)
 	{
 		if (DissectedUpdates[Index].InstanceHandle == Instance)
 		{
-			DissectedUpdates.RemoveAt(Index, 1, EAllowShrinking::No);
+			DissectedUpdates.RemoveAt(Index, EAllowShrinking::No);
 		}
 	}
 
@@ -601,7 +601,7 @@ void FMovieSceneEntitySystemRunner::DiscardQueuedUpdates(FInstanceHandle Instanc
 	{
 		if (CurrentInstances[Index].InstanceHandle == Instance)
 		{
-			CurrentInstances.RemoveAt(Index, 1, EAllowShrinking::No);
+			CurrentInstances.RemoveAt(Index, EAllowShrinking::No);
 		}
 	}
 }

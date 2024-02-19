@@ -30,7 +30,7 @@ FMovieSceneEntityComponentFieldBuilder::~FMovieSceneEntityComponentFieldBuilder(
 	{
 		if (ensureMsgf(Field->SharedMetaData.Num() == SharedMetaDataIndex+1, TEXT("Additional shared meta-data has been added since this builder was constructed, recursive builders are not supported")))
 		{
-			Field->SharedMetaData.RemoveAt(SharedMetaDataIndex, 1, EAllowShrinking::No);
+			Field->SharedMetaData.RemoveAt(SharedMetaDataIndex, EAllowShrinking::No);
 		}
 	}
 }

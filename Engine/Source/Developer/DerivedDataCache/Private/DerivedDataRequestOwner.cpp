@@ -104,7 +104,7 @@ TRefCountPtr<IRequest> FRequestOwnerShared::End(IRequest* Request)
 	TRefCountPtr<IRequest>* RequestPtr = Requests.FindByKey(Request);
 	check(RequestPtr);
 	TRefCountPtr<IRequest> RequestRef = MoveTemp(*RequestPtr);
-	Requests.RemoveAtSwap(UE_PTRDIFF_TO_INT32(RequestPtr - Requests.GetData()), 1, EAllowShrinking::No);
+	Requests.RemoveAtSwap(UE_PTRDIFF_TO_INT32(RequestPtr - Requests.GetData()), EAllowShrinking::No);
 	return RequestRef;
 }
 

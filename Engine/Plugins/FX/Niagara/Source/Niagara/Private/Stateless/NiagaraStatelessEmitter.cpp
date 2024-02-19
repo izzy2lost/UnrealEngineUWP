@@ -193,7 +193,7 @@ void UNiagaraStatelessEmitter::OnEmitterTemplateChanged()
 		else
 		{
 			NewModules.Add(Modules[ExistingIndex]);
-			Modules.RemoveAtSwap(ExistingIndex, 1, EAllowShrinking::No);
+			Modules.RemoveAtSwap(ExistingIndex, EAllowShrinking::No);
 		}
 	}
 	Modules = MoveTemp(NewModules);
@@ -333,7 +333,7 @@ void UNiagaraStatelessEmitter::BuildCompiledDataSet()
 					const int32 Index = AvailableVariables.IndexOfByKey(BoundAttribute);
 					if (Index != INDEX_NONE)
 					{
-						AvailableVariables.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+						AvailableVariables.RemoveAtSwap(Index, EAllowShrinking::No);
 						ParticleDataSetCompiledData.Variables.Emplace(BoundAttribute);
 						if (AvailableVariables.Num() == 0)
 						{

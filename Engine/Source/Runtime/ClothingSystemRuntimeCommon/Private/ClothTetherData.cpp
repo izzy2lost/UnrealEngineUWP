@@ -280,7 +280,7 @@ void FClothTetherDataPrivate::ComputeKinematicNodeIslands()
 		const int32 NumIslandKinematicNodes = KinematicNodeIslands[IslandIndex].Num();
 		if (!NumIslandKinematicNodes)
 		{
-			KinematicNodeIslands.RemoveAtSwap(IslandIndex, 1, EAllowShrinking::No);
+			KinematicNodeIslands.RemoveAtSwap(IslandIndex, EAllowShrinking::No);
 			// RemoveAtSwap takes the last elements to replace the current one, do not increment the index in this case
 		}
 		else

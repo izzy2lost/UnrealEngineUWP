@@ -2499,13 +2499,13 @@ namespace NameReuse
 				int32 Index = Names.IndexOfByPredicate([&](const TTuple<UPTRINT, FName>& Pair) { return Pair.Get<1>() == Name; });
 				if (Index != INDEX_NONE)
 				{
-					Names.RemoveAt(Index, 1, EAllowShrinking::No);
+					Names.RemoveAt(Index, EAllowShrinking::No);
 				}
 				else
 				{
 					if (Names.Num() >= MaxNamesPerEntry)
 					{
-						Names.RemoveAt(0, 1, EAllowShrinking::No);
+						Names.RemoveAt(0, EAllowShrinking::No);
 					}
 				}
 
@@ -2567,7 +2567,7 @@ namespace NameReuse
 			if (Index != Entries.Num() - 1)
 			{
 				FEntry Removed = MoveTemp(*Entry);
-				Entries.RemoveAt(Index, 1, EAllowShrinking::No);
+				Entries.RemoveAt(Index, EAllowShrinking::No);
 				Entries.Add(MoveTemp(Removed));
 			}
 		}

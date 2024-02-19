@@ -197,7 +197,7 @@ int32 UBasicReplicationGraph::ServerReplicateActors(float DeltaSeconds)
 
 		if (bRemove)
 		{
-			ActorsWithoutNetConnection.RemoveAtSwap(idx, 1, EAllowShrinking::No);
+			ActorsWithoutNetConnection.RemoveAtSwap(idx, EAllowShrinking::No);
 		}
 	}
 

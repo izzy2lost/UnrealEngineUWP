@@ -68,7 +68,7 @@ struct FInstanceGroups
 			if (Count == GroupRanges[GroupId].Count)
 			{
 				TotalFreeInstanceCount -= Count;
-				FreeList.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+				FreeList.RemoveAtSwap(Index, EAllowShrinking::No);
 				return GroupId;
 			}
 		}

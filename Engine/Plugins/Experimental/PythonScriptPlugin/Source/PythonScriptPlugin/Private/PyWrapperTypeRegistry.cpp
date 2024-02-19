@@ -1287,7 +1287,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 		GeneratedWrappedDynamicMethod.MethodName = PyGenUtil::TCHARToUTF8Buffer(*PythonStructMethodName);
 
 		// We remove the first function parameter, as that's the 'self' argument and we'll infer that when we call
-		GeneratedWrappedDynamicMethod.MethodFunc.InputParams.RemoveAt(0, 1, EAllowShrinking::No);
+		GeneratedWrappedDynamicMethod.MethodFunc.InputParams.RemoveAt(0, EAllowShrinking::No);
 
 		// Reference parameters may lead to a 'self' parameter that is also an output parameter
 		// In this case we need to remove the output too, and set it as our 'self' return (which will apply the result back onto 'self')
@@ -1335,7 +1335,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 			else
 			{
 				GeneratedWrappedDynamicMethod.SelfReturn = MoveTemp(GeneratedWrappedDynamicMethod.MethodFunc.OutputParams[0]);
-				GeneratedWrappedDynamicMethod.MethodFunc.OutputParams.RemoveAt(0, 1, EAllowShrinking::No);
+				GeneratedWrappedDynamicMethod.MethodFunc.OutputParams.RemoveAt(0, EAllowShrinking::No);
 			}
 		}
 

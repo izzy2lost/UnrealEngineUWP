@@ -1800,7 +1800,7 @@ void UIpNetDriver::RemoveFromNewIPTracking(const FInternetAddr& InAddr)
 
 			if (AggIdx != INDEX_NONE)
 			{
-				AggregatedIPsToLog.RemoveAtSwap(AggIdx, 1, EAllowShrinking::No);
+				AggregatedIPsToLog.RemoveAtSwap(AggIdx, EAllowShrinking::No);
 			}
 		}
 
@@ -1811,8 +1811,8 @@ void UIpNetDriver::RemoveFromNewIPTracking(const FInternetAddr& InAddr)
 		}
 		else if (HashIdx == NewIPHashes.Num()-1)
 		{
-			NewIPHashes.RemoveAt(HashIdx, 1, EAllowShrinking::No);
-			NewIPHitCount.RemoveAt(HashIdx, 1, EAllowShrinking::No);
+			NewIPHashes.RemoveAt(HashIdx, EAllowShrinking::No);
+			NewIPHitCount.RemoveAt(HashIdx, EAllowShrinking::No);
 		}
 		else
 		{

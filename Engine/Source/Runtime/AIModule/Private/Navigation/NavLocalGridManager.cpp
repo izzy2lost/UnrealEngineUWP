@@ -43,7 +43,7 @@ void UNavLocalGridManager::RemoveGridData(int32 GridId, bool bUpdate)
 	{
 		if (SourceGrids[Idx].GetGridId() == GridId)
 		{
-			SourceGrids.RemoveAt(Idx, 1, EAllowShrinking::No);
+			SourceGrids.RemoveAt(Idx, EAllowShrinking::No);
 
 			bNeedsRebuilds = true;
 			if (bUpdate)
@@ -263,7 +263,7 @@ bool UNavLocalGridManager::UpdateSourceGrids()
 			}
 		}
 
-		SourceGrids.RemoveAt(BestIdx, 1, EAllowShrinking::No);
+		SourceGrids.RemoveAt(BestIdx, EAllowShrinking::No);
 	}
 
 	return true;

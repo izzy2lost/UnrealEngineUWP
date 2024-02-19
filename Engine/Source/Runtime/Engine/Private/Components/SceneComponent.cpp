@@ -3419,7 +3419,7 @@ void USceneComponent::OnRep_AttachChildren()
 			{
 				if (PossibleDuplicate == AttachChildren[DuplicateCheckIndex])
 				{
-					AttachChildren.RemoveAt(SearchIndex, 1, EAllowShrinking::No);
+					AttachChildren.RemoveAt(SearchIndex, EAllowShrinking::No);
 					break;
 				}
 			}

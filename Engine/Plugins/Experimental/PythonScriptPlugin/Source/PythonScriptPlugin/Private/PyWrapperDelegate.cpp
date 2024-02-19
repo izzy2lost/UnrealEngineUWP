@@ -193,7 +193,7 @@ bool PythonCallableToDelegate(PyObject* InPyCallable, const PyGenUtil::FGenerate
 		const bool bHasSelf = PyMethod_Check(InPyCallable) && PyMethod_GET_SELF(InPyCallable);
 		if (bHasSelf && CallableArgNames.Num() > 0)
 		{
-			CallableArgNames.RemoveAt(0, 1, EAllowShrinking::No);
+			CallableArgNames.RemoveAt(0, EAllowShrinking::No);
 		}
 
 		if (InDelegateSignature.InputParams.Num() != CallableArgNames.Num())

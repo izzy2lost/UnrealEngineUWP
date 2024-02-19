@@ -1421,7 +1421,7 @@ void FGeometryCollectionDynamicDataPool::Release(FGeometryCollectionDynamicData*
 	int32 UsedIndex = UsedList.Find(DynamicData);
 	if (ensure(UsedIndex != INDEX_NONE))
 	{
-		UsedList.RemoveAt(UsedIndex, 1, EAllowShrinking::No);
+		UsedList.RemoveAt(UsedIndex, EAllowShrinking::No);
 		FreeList.Push(DynamicData);
 	}
 }

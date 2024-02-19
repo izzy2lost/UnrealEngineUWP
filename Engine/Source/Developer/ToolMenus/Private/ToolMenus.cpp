@@ -633,7 +633,7 @@ void UToolMenus::AssembleMenuSection(UToolMenu* GeneratedMenu, const UToolMenu* 
 					ConstructedSection.Context = ConstructedEntries->Context;
 					GeneratedEntry.Construct.Execute(ConstructedSection);
 				}
-				GeneratedEntries.RemoveAt(0, 1, EAllowShrinking::No);
+				GeneratedEntries.RemoveAt(0, EAllowShrinking::No);
 
 				// Combine all user's choice of selections here into the current section target
 				// If the user wants to add items to different sections they will need to create dynamic section instead (for now)
@@ -661,7 +661,7 @@ void UToolMenus::AssembleMenuSection(UToolMenu* GeneratedMenu, const UToolMenu* 
 				{
 					BlocksToAddLast.Add(GeneratedEntry);
 				}
-				GeneratedEntries.RemoveAt(0, 1, EAllowShrinking::No);
+				GeneratedEntries.RemoveAt(0, EAllowShrinking::No);
 			}
 		}
 	}
@@ -764,13 +764,13 @@ void UToolMenus::AssembleMenu(UToolMenu* GeneratedMenu, const UToolMenu* Other)
 					}
 				}
 				
-				GeneratedSections.RemoveAt(0, 1, EAllowShrinking::No);
+				GeneratedSections.RemoveAt(0, EAllowShrinking::No);
 				GeneratedSections.Insert(ConstructedSections->Sections, 0);
 			}
 			else
 			{
 				RemainingSections.Add(GeneratedSections[0]);
-				GeneratedSections.RemoveAt(0, 1, EAllowShrinking::No);
+				GeneratedSections.RemoveAt(0, EAllowShrinking::No);
 			}
 		}
 	}
@@ -862,7 +862,7 @@ void UToolMenus::RemoveCustomization(const FName InName)
 	int32 FoundIndex = FindMenuCustomizationIndex(InName);
 	if (FoundIndex != INDEX_NONE)
 	{
-		CustomizedMenus.RemoveAt(FoundIndex, 1, EAllowShrinking::No);
+		CustomizedMenus.RemoveAt(FoundIndex, EAllowShrinking::No);
 	}
 }
 
@@ -2532,7 +2532,7 @@ void UToolMenus::UnregisterOwnerInternal(FToolMenuOwner InOwner)
 
 				if (Section.Blocks.Num() == 0)
 				{
-					Menu->Sections.RemoveAt(SectionIndex, 1, EAllowShrinking::No);
+					Menu->Sections.RemoveAt(SectionIndex, EAllowShrinking::No);
 					bNeedsRefresh = true;
 				}
 			}

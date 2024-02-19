@@ -648,7 +648,7 @@ void FMassDebugger::UnregisterEntityManager(FMassEntityManager& EntityManager)
 		});
 		if (Index != INDEX_NONE)
 		{
-			ActiveEnvironments.RemoveAt(Index, 1, EAllowShrinking::No);
+			ActiveEnvironments.RemoveAt(Index, EAllowShrinking::No);
 		}
 	}
 	else

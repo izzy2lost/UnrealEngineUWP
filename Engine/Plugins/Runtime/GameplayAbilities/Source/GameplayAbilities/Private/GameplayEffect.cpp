@@ -6045,7 +6045,7 @@ void FActiveGameplayEffectsContainer::DecrementLock()
 			if (Effect.IsPendingRemove)
 			{
 				UE_LOG(LogGameplayEffects, Verbose, TEXT("%s: Finish PendingRemove: %s. Auth: %d"), *GetNameSafe(Owner->GetOwnerActor()), *Effect.GetDebugString(), IsNetAuthority());
-				GameplayEffects_Internal.RemoveAtSwap(idx, 1, EAllowShrinking::No);
+				GameplayEffects_Internal.RemoveAtSwap(idx, EAllowShrinking::No);
 				ModifiedArray = true;
 				PendingRemoves--;
 			}

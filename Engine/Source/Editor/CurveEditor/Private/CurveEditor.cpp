@@ -1790,16 +1790,16 @@ void FCurveEditor::FlattenSelection()
 					}
 					else
 					{
-						KeyAttributesWeighted.RemoveAtSwap(Index, 1, EAllowShrinking::No);
-						KeyHandlesWeighted.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+						KeyAttributesWeighted.RemoveAtSwap(Index, EAllowShrinking::No);
+						KeyHandlesWeighted.RemoveAtSwap(Index, EAllowShrinking::No);
 					}
 				}
 				else
 				{
-					AllKeyPositions.RemoveAtSwap(Index, 1, EAllowShrinking::No);
-					KeyHandles.RemoveAtSwap(Index, 1, EAllowShrinking::No);
-					KeyAttributesWeighted.RemoveAtSwap(Index, 1, EAllowShrinking::No);
-					KeyHandlesWeighted.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+					AllKeyPositions.RemoveAtSwap(Index, EAllowShrinking::No);
+					KeyHandles.RemoveAtSwap(Index, EAllowShrinking::No);
+					KeyAttributesWeighted.RemoveAtSwap(Index, EAllowShrinking::No);
+					KeyHandlesWeighted.RemoveAtSwap(Index, EAllowShrinking::No);
 				}
 			}
 
@@ -1855,8 +1855,8 @@ void FCurveEditor::StraightenSelection()
 				}
 				else
 				{
-					AllKeyPositions.RemoveAtSwap(Index, 1, EAllowShrinking::No);
-					KeyHandles.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+					AllKeyPositions.RemoveAtSwap(Index, EAllowShrinking::No);
+					KeyHandles.RemoveAtSwap(Index, EAllowShrinking::No);
 				}
 			}
 

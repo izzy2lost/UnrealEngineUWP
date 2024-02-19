@@ -677,7 +677,7 @@ bool FSlateInvalidationRoot::PaintFastPath_UpdateNextWidget(const FSlateInvalida
 					}
 
 					// It's already been processed by the previous draw
-					FinalUpdateList.RemoveAt(LastIndex, 1, EAllowShrinking::No);
+					FinalUpdateList.RemoveAt(LastIndex, EAllowShrinking::No);
 				}
 			}
 

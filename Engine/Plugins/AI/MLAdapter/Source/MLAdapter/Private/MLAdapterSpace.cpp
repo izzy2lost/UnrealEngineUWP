@@ -55,7 +55,7 @@ namespace FMLAdapter
 			ShapeString += FString::Printf(TEXT("%d,"), Option);
 		}
 		// python-side json parsing doesn't like dangling commas
-		ShapeString.RemoveAt(ShapeString.Len() - 1, 1, EAllowShrinking::No);
+		ShapeString.RemoveAt(ShapeString.Len() - 1, EAllowShrinking::No);
 
 		return FString::Printf(TEXT("{\"%s\":[%s]}"), *EnumToString(Type), *ShapeString);
 	}
@@ -93,7 +93,7 @@ namespace FMLAdapter
 			ShapeString += FString::Printf(TEXT("%d,"), Size);
 		}
 		// python-side json parsing doesn't like dangling commas
-		ShapeString.RemoveAt(ShapeString.Len() - 1, 1, EAllowShrinking::No);
+		ShapeString.RemoveAt(ShapeString.Len() - 1, EAllowShrinking::No);
 		return FString::Printf(TEXT("{\"%s\":[%f,%f,%s]}"), *EnumToString(Type), Low, High, *ShapeString);
 	}
 
@@ -135,7 +135,7 @@ namespace FMLAdapter
 			Contents += Space->ToJson();
 			Contents += TEXT(",");
 		}
-		Contents.RemoveAt(Contents.Len() - 1, 1, EAllowShrinking::No);
+		Contents.RemoveAt(Contents.Len() - 1, EAllowShrinking::No);
 		return FString::Printf(TEXT("{\"%s\":[%s]}"), *EnumToString(Type), *Contents);
 	}
 
@@ -205,7 +205,7 @@ FString FMLAdapterDescription::ToJson() const
 			RetString += TEXT(",");
 		}
 		// pop the last ,
-		RetString.RemoveAt(RetString.Len() - 1, 1, EAllowShrinking::No);
+		RetString.RemoveAt(RetString.Len() - 1, EAllowShrinking::No);
 		if (PrepData.Num() > 1)
 		{
 			RetString += TEXT("]");

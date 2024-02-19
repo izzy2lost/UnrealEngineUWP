@@ -289,7 +289,7 @@ struct FActorTakeRecorderDropHandler : ITakeRecorderDropHandler
 				}
 				else if (Dragged == Predicate)
 				{
-					DraggedActors.RemoveAt(DragIndex, 1, EAllowShrinking::No);
+					DraggedActors.RemoveAt(DragIndex, EAllowShrinking::No);
 				}
 				else // (Dragged > Predicate)
 				{

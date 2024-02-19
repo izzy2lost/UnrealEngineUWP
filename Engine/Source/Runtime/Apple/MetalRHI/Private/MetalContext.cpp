@@ -528,7 +528,7 @@ void FMetalDeviceContext::ClearFreeList()
                 Function();
             }
 			delete Pair;
-			DelayedFreeLists.RemoveAt(Index, 1, EAllowShrinking::No);
+			DelayedFreeLists.RemoveAt(Index, EAllowShrinking::No);
 		}
 		else
 		{

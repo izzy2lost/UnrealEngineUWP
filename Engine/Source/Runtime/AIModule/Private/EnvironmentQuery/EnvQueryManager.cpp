@@ -590,14 +590,14 @@ void UEnvQueryManager::Tick(float DeltaTime)
 					TSharedPtr<FEnvQueryInstance>& QueryInstance = RunningQueries[Index];
 					if (!QueryInstance.IsValid())
 					{
-						RunningQueries.RemoveAt(Index, 1, EAllowShrinking::No);
+						RunningQueries.RemoveAt(Index, EAllowShrinking::No);
 						continue;
 					}
 
 					if (QueryInstance->IsFinished())
 					{
 						FinishedQueriesTotalTime += (FPlatformTime::Seconds() - QueryInstance->StartTime);
-						RunningQueries.RemoveAt(Index, 1, EAllowShrinking::No);
+						RunningQueries.RemoveAt(Index, EAllowShrinking::No);
 						--FinishedQueriesCounter;
 					}
 				}
@@ -836,7 +836,7 @@ TSharedPtr<FEnvQueryInstance> UEnvQueryManager::CreateQueryInstance(const UEnvQu
 						*GetNameSafe(LocalTemplate), OptionIndex);
 				}
 
-				LocalTemplate->Options.RemoveAt(OptionIndex, 1, EAllowShrinking::No);
+				LocalTemplate->Options.RemoveAt(OptionIndex, EAllowShrinking::No);
 				--OptionIndex; // See note at top of for loop.  We cannot iterate backwards here.
 				continue;
 			}
@@ -880,7 +880,7 @@ TSharedPtr<FEnvQueryInstance> UEnvQueryManager::CreateQueryInstance(const UEnvQu
 					UE_VLOG_ALWAYS_UELOG(this, LogEQS, Warning, TEXT("Query [%s] can't use test [%s] in option %d [%s], removing it"),
 						*GetNameSafe(LocalTemplate), *GetNameSafe(TestOb), OptionIndex, *MyOption->Generator->OptionName);
 
-					SortedTests.RemoveAt(TestIndex, 1, EAllowShrinking::No);
+					SortedTests.RemoveAt(TestIndex, EAllowShrinking::No);
 				}
 				else if (bOptionSingleResultSearch
 					&& TestOb->TestPurpose == EEnvTestPurpose::Filter

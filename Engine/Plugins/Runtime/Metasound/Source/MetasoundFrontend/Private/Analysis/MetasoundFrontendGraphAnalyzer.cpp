@@ -52,7 +52,7 @@ namespace Metasound
 						ReceiverAddresses.Remove(AnalyzerAddress);
 					}
 
-					Analyzers.RemoveAtSwap(i, 1, EAllowShrinking::No);
+					Analyzers.RemoveAtSwap(i, EAllowShrinking::No);
 				}
 			}
 

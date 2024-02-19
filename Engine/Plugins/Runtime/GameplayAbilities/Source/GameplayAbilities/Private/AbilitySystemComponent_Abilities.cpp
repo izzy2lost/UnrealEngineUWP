@@ -480,7 +480,7 @@ void UAbilitySystemComponent::ClearAbility(const FGameplayAbilitySpecHandle& Han
 	{
 		if (AbilityPendingAdds[Idx].Handle == Handle)
 		{
-			AbilityPendingAdds.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
+			AbilityPendingAdds.RemoveAtSwap(Idx, EAllowShrinking::No);
 			return;
 		}
 	}
@@ -3965,7 +3965,7 @@ void UAbilitySystemComponent::EndServerAbilityRPCBatch(FGameplayAbilitySpecHandl
 			ServerAbilityRPCBatch(ThisBatch);
 		}
 
-		LocalServerAbilityRPCBatchData.RemoveAt(idx, 1, EAllowShrinking::No);
+		LocalServerAbilityRPCBatchData.RemoveAt(idx, EAllowShrinking::No);
 	}
 	else
 	{

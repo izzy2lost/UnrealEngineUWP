@@ -409,7 +409,7 @@ namespace SkelDataConversionImpl
 			{
 				if (DeltasToDelete.Contains(DeltaIndex))
 				{
-					MorphTargetDeltas.RemoveAt(DeltaIndex, 1, EAllowShrinking::No);
+					MorphTargetDeltas.RemoveAt(DeltaIndex, EAllowShrinking::No);
 				}
 			}
 		}

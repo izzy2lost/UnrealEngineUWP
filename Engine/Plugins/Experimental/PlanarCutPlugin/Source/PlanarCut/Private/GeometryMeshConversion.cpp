@@ -3235,8 +3235,8 @@ bool FDynamicMeshCollection::SplitIslands(FDynamicMesh3& Source, TArray<FDynamic
 		{
 			if (!KeepMeshes[Idx])
 			{
-				SeparatedMeshes.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
-				KeepMeshes.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
+				SeparatedMeshes.RemoveAtSwap(Idx, EAllowShrinking::No);
+				KeepMeshes.RemoveAtSwap(Idx, EAllowShrinking::No);
 				Idx--;
 			}
 		}

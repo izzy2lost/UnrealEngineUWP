@@ -149,7 +149,7 @@ int32 FSlateWindowElementList::PaintDeferred(int32 LayerId, const FSlateRect& My
 
 	for ( int32 i = DeferredPaintList.Num() - 1; i >= ResolveIndex; --i )
 	{
-		DeferredPaintList.RemoveAt(i, 1, EAllowShrinking::No);
+		DeferredPaintList.RemoveAt(i, EAllowShrinking::No);
 	}
 
 	return LayerId;

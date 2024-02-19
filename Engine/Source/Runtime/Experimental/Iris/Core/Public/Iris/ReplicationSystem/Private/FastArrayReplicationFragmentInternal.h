@@ -328,7 +328,7 @@ void FFastArrayReplicationFragmentHelper::ApplyReplicatedState(FastArrayType* Ds
 			int32 DeleteIndex = RemovedIndices[i];
 			if (DstWrappedArray->IsValidIndex(DeleteIndex))
 			{
-				DstWrappedArray->RemoveAtSwap(DeleteIndex, 1, EAllowShrinking::No);
+				DstWrappedArray->RemoveAtSwap(DeleteIndex, EAllowShrinking::No);
 			}
 		}
 

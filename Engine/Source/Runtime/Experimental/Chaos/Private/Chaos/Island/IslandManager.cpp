@@ -1165,7 +1165,7 @@ namespace Chaos::Private
 				check(Node->Edges[ArrayIndex] == Edge);
 
 				// Remove the edge from the node
-				Node->Edges.RemoveAtSwap(ArrayIndex, 1, EAllowShrinking::No);
+				Node->Edges.RemoveAtSwap(ArrayIndex, EAllowShrinking::No);
 				Edge->Nodes[NodeIndex] = nullptr;
 				Edge->NodeArrayIndices[NodeIndex] = INDEX_NONE;
 
@@ -1365,7 +1365,7 @@ namespace Chaos::Private
 			const int32 ArrayIndex = Node->IslandArrayIndex;
 			check(Island->Nodes[ArrayIndex] == Node);
 
-			Island->Nodes.RemoveAtSwap(ArrayIndex, 1, EAllowShrinking::No);
+			Island->Nodes.RemoveAtSwap(ArrayIndex, EAllowShrinking::No);
 			if (ArrayIndex < Island->Nodes.Num())
 			{
 				Island->Nodes[ArrayIndex]->IslandArrayIndex = ArrayIndex;
@@ -1427,7 +1427,7 @@ namespace Chaos::Private
 			const int32 EdgeIndex = Edge->IslandArrayIndex;
 			check(Island->ContainerEdges[ContainerIndex][EdgeIndex] == Edge);
 
-			Island->ContainerEdges[ContainerIndex].RemoveAtSwap(EdgeIndex, 1, EAllowShrinking::No);
+			Island->ContainerEdges[ContainerIndex].RemoveAtSwap(EdgeIndex, EAllowShrinking::No);
 			if (EdgeIndex < Island->ContainerEdges[ContainerIndex].Num())
 			{
 				Island->ContainerEdges[ContainerIndex][EdgeIndex]->IslandArrayIndex = EdgeIndex;
@@ -1593,7 +1593,7 @@ namespace Chaos::Private
 
 			// Remove from the list of islands to merge
 			const int32 IslandIndex = Island->MergeSetIslandIndex;
-			MergeSet->Islands.RemoveAtSwap(IslandIndex, 1, EAllowShrinking::No);
+			MergeSet->Islands.RemoveAtSwap(IslandIndex, EAllowShrinking::No);
 			if (IslandIndex < MergeSet->Islands.Num())
 			{
 				MergeSet->Islands[IslandIndex]->MergeSetIslandIndex = IslandIndex;

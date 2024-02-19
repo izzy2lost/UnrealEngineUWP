@@ -455,7 +455,7 @@ void FMotoSynthEngine::GenerateGranularEngine(float* OutAudio, int32 NumSamples)
 
 				if (Grain.IsDone())
 				{
-					ActiveGrains.RemoveAtSwap(ActiveGrainIndex, 1, EAllowShrinking::No);
+					ActiveGrains.RemoveAtSwap(ActiveGrainIndex, EAllowShrinking::No);
 					FreeGrains.Push(GrainIndex);
 				}
 			}

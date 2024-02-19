@@ -228,7 +228,7 @@ struct FHullConnectivity
 					int32 PointIdx = Indices[SubIdx];
 					if (PointIdx == SourcePointIdx)
 					{
-						Indices.RemoveAtSwap(SubIdx, 1, EAllowShrinking::No);
+						Indices.RemoveAtSwap(SubIdx, EAllowShrinking::No);
 						SubIdx--;
 					}
 					else
@@ -701,7 +701,7 @@ struct FHullConnectivity
 				int32 UnclaimedIdx = NewlyUnclaimed[Idx];
 				if (PointMemberships[UnclaimedIdx] == MembershipNumber)
 				{
-					NewlyUnclaimed.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
+					NewlyUnclaimed.RemoveAtSwap(Idx, EAllowShrinking::No);
 				}
 				else
 				{
@@ -734,7 +734,7 @@ struct FHullConnectivity
 					if (PlaneDist > VisibleDistanceThreshold && IsVisible(TriPts, UnPt))
 					{
 						Visible.AddPtByValue(UnPtIdx, PlaneDist);
-						NewlyUnclaimed.RemoveAtSwap(UnclaimedIdx, 1, EAllowShrinking::No);
+						NewlyUnclaimed.RemoveAtSwap(UnclaimedIdx, EAllowShrinking::No);
 						UnclaimedIdx--;
 						continue;
 					}
@@ -749,7 +749,7 @@ struct FHullConnectivity
 					if (IsVisible(TriPts, UnPt))
 					{
 						Visible.AddPt(UnPtIdx, UnPt);
-						NewlyUnclaimed.RemoveAtSwap(UnclaimedIdx, 1, EAllowShrinking::No);
+						NewlyUnclaimed.RemoveAtSwap(UnclaimedIdx, EAllowShrinking::No);
 						UnclaimedIdx--;
 						continue;
 					}
@@ -1354,14 +1354,14 @@ void TConvexHull3<RealType>::GetSimplifiedFaces(TArray<FPolygonFace>& OutPolygon
 				}
 				else
 				{
-					OutPolygons.RemoveAtSwap(PolyIdx, 1, EAllowShrinking::No);
+					OutPolygons.RemoveAtSwap(PolyIdx, EAllowShrinking::No);
 					if (OutPolygonNormals)
 					{
-						OutPolygonNormals->RemoveAtSwap(PolyIdx, 1, EAllowShrinking::No);
+						OutPolygonNormals->RemoveAtSwap(PolyIdx, EAllowShrinking::No);
 					}
 					else
 					{
-						PolygonToGroup.RemoveAtSwap(PolyIdx, 1, EAllowShrinking::No);
+						PolygonToGroup.RemoveAtSwap(PolyIdx, EAllowShrinking::No);
 					}
 					bHasDeletedFaces = true;
 					PolyIdx--;

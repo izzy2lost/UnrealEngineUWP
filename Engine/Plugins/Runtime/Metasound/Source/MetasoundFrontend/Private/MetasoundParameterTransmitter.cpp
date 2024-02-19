@@ -311,7 +311,7 @@ namespace Metasound
 			const FName ParamName = Param.ParamName;
 			if (!SetParameterWithLiteral(ParamName, Frontend::ConvertParameterToLiteral(Param)))
 			{
-				InParameters.RemoveAtSwap(ParamIndex, 1, EAllowShrinking::No);
+				InParameters.RemoveAtSwap(ParamIndex, EAllowShrinking::No);
 				bSuccess = false;
 			}
 		}

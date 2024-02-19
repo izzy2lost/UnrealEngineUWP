@@ -313,7 +313,7 @@ void FVisualLogEntryRenderer::RenderLogEntry(class UWorld* World, const FVisualL
 			const FHeaderData HeaderData(ElementToDraw->Points[0]);
 		
 			TArray<FVector> AreaMeshPoints = ElementToDraw->Points;
-			AreaMeshPoints.RemoveAt(0, 1, EAllowShrinking::No);
+			AreaMeshPoints.RemoveAt(0, EAllowShrinking::No);
 			AreaMeshPoints.Add(ElementToDraw->Points[1]);
 			TNavStatArray<FVector> Faces;
 			int32 CurrentIndex = 0;

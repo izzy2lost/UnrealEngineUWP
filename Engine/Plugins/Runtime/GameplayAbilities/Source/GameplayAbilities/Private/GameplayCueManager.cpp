@@ -1639,7 +1639,7 @@ void UGameplayCueManager::OnPostWorldCleanup(UWorld* World, bool bSessionEnded, 
 		DumpPreallocationStats(PreallocationInfo, bWarnOnActiveActors);
 
 		// Actually remove the entry which can contain hard references
-		PreallocationInfoList_Internal.RemoveAtSwap(idx, 1, EAllowShrinking::No);
+		PreallocationInfoList_Internal.RemoveAtSwap(idx, EAllowShrinking::No);
 		idx--;
 	}
 

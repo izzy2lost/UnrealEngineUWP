@@ -643,7 +643,7 @@ void FSpatialHashStreamingGrid::RemoveExternalStreamingObjectGrid(const FSpatial
 							if (LayerCell.GridCells.IsEmpty())
 							{
 								int32 RemovedIndex = LayerCellIndex;
-								LayerCells.RemoveAtSwap(RemovedIndex, 1, EAllowShrinking::No);
+								LayerCells.RemoveAtSwap(RemovedIndex, EAllowShrinking::No);
 								int64 RemovedCellKey = InverseLayerCellsMapping[RemovedIndex];
 								LayerCellsMapping.Remove(RemovedCellKey);
 								InverseLayerCellsMapping.Remove(RemovedIndex);

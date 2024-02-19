@@ -3556,7 +3556,7 @@ void UPrimitiveComponent::EndComponentOverlap(const FOverlapInfo& OtherOverlap, 
 	const int32 OtherOverlapIdx = IndexOfOverlapFast(OtherComp->OverlappingComponents, FOverlapInfo(this, INDEX_NONE));
 	if (OtherOverlapIdx != INDEX_NONE)
 	{
-		OtherComp->OverlappingComponents.RemoveAtSwap(OtherOverlapIdx, 1, EAllowShrinking::No);
+		OtherComp->OverlappingComponents.RemoveAtSwap(OtherOverlapIdx, EAllowShrinking::No);
 	}
 
 	const int32 OverlapIdx = IndexOfOverlapFast(OverlappingComponents, OtherOverlap);
@@ -3564,7 +3564,7 @@ void UPrimitiveComponent::EndComponentOverlap(const FOverlapInfo& OtherOverlap, 
 	{
 		//UE_LOG(LogActor, Log, TEXT("END OVERLAP! Self=%s SelfComp=%s, Other=%s, OtherComp=%s"), *GetNameSafe(this), *GetNameSafe(MyComp), *GetNameSafe(OtherActor), *GetNameSafe(OtherComp));
 		GlobalOverlapEventsCounter++;
-		OverlappingComponents.RemoveAtSwap(OverlapIdx, 1, EAllowShrinking::No);
+		OverlappingComponents.RemoveAtSwap(OverlapIdx, EAllowShrinking::No);
 
 		AActor* const MyActor = GetOwner();
 		const UWorld* World = GetWorld();
@@ -3790,7 +3790,7 @@ TArray<AActor*> UPrimitiveComponent::CopyArrayOfMoveIgnoreActors()
 		const AActor* const MoveIgnoreActor = MoveIgnoreActors[Index];
 		if (!IsValid(MoveIgnoreActor))
 		{
-			MoveIgnoreActors.RemoveAtSwap(Index,1,EAllowShrinking::No);
+			MoveIgnoreActors.RemoveAtSwap(Index,EAllowShrinking::No);
 		}
 	}
 	return MoveIgnoreActors;
@@ -3827,7 +3827,7 @@ TArray<UPrimitiveComponent*> UPrimitiveComponent::CopyArrayOfMoveIgnoreComponent
 		const UPrimitiveComponent* const MoveIgnoreComponent = MoveIgnoreComponents[Index];
 		if (!IsValid(MoveIgnoreComponent))
 		{
-			MoveIgnoreComponents.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+			MoveIgnoreComponents.RemoveAtSwap(Index, EAllowShrinking::No);
 		}
 	}
 	return MoveIgnoreComponents;
@@ -3950,8 +3950,8 @@ bool UPrimitiveComponent::UpdateOverlapsImpl(const TOverlapArrayView* NewPending
 					const int32 NewElementIdx = IndexOfOverlapFast(NewOverlappingComponentPtrs, SearchItem);
 					if (NewElementIdx != INDEX_NONE)
 					{
-						NewOverlappingComponentPtrs.RemoveAtSwap(NewElementIdx, 1, EAllowShrinking::No);
-						OldOverlappingComponentPtrs.RemoveAtSwap(CompIdx, 1, EAllowShrinking::No);
+						NewOverlappingComponentPtrs.RemoveAtSwap(NewElementIdx, EAllowShrinking::No);
+						OldOverlappingComponentPtrs.RemoveAtSwap(CompIdx, EAllowShrinking::No);
 						--CompIdx;
 					}
 				}

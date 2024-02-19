@@ -381,7 +381,7 @@ public:
 				{
 					if(!ElementPassesFilter(InFilter.FilterMode, ECurveFilterFlags::None))
 					{
-						InOutCurve.Elements.RemoveAt(ElementIndex0, 1, EAllowShrinking::No);
+						InOutCurve.Elements.RemoveAt(ElementIndex0, EAllowShrinking::No);
 						NumElements0 = InOutCurve.Num();
 					}
 					else
@@ -405,7 +405,7 @@ public:
 				// Elements match so check filter flags to see if it should be removed from curve
 				if(!ElementPassesFilter(InFilter.FilterMode, Element1->Flags))
 				{
-					InOutCurve.Elements.RemoveAt(ElementIndex0, 1, EAllowShrinking::No);
+					InOutCurve.Elements.RemoveAt(ElementIndex0, EAllowShrinking::No);
 					NumElements0 = InOutCurve.Num();
 					++ElementIndex1;
 				}
@@ -420,7 +420,7 @@ public:
 				// Element exists only in curve, check filter
 				if(!ElementPassesFilter(InFilter.FilterMode, ECurveFilterFlags::None))
 				{
-					InOutCurve.Elements.RemoveAt(ElementIndex0, 1, EAllowShrinking::No);
+					InOutCurve.Elements.RemoveAt(ElementIndex0, EAllowShrinking::No);
 					NumElements0 = InOutCurve.Num();
 				}
 				else

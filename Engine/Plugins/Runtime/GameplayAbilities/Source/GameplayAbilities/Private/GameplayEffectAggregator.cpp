@@ -540,7 +540,7 @@ void FAggregator::OnActiveEffectDependenciesSwapped(const TMap<FActiveGameplayEf
 
 		if (!bStillValidDependent)
 		{
-			Dependents.RemoveAtSwap(DependentIdx, 1, EAllowShrinking::No);
+			Dependents.RemoveAtSwap(DependentIdx, EAllowShrinking::No);
 		}
 
 		ModChannels.OnActiveEffectDependenciesSwapped(SwappedDependencies);

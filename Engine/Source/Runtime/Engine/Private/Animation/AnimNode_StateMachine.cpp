@@ -389,7 +389,7 @@ void FAnimNode_StateMachine::Update_AnyThread(const FAnimationUpdateContext& Con
 		if (QueuedTransitionEvents[RequestIndex].HasExpired())
 		{
 			UE_LOG(LogAnimTransitionRequests, Verbose, TEXT("'%s' expired (Machine: %s)"), *QueuedTransitionEvents[RequestIndex].EventName.ToString(), *GetMachineDescription()->MachineName.ToString());
-			QueuedTransitionEvents.RemoveAt(RequestIndex, 1, EAllowShrinking::No);
+			QueuedTransitionEvents.RemoveAt(RequestIndex, EAllowShrinking::No);
 		}
 	}
 	QueuedTransitionEvents.Shrink();
@@ -1417,7 +1417,7 @@ void FAnimNode_StateMachine::ClearTransitionEvents(const FName& EventName)
 		if (QueuedTransitionEvents[RequestIndex].EventName.IsEqual(EventName))
 		{
 			UE_LOG(LogAnimTransitionRequests, Verbose, TEXT("Clearing '%s' request (Machine %s)"), *EventName.ToString(), *GetMachineDescription()->MachineName.ToString());
-			QueuedTransitionEvents.RemoveAt(RequestIndex, 1, EAllowShrinking::No);
+			QueuedTransitionEvents.RemoveAt(RequestIndex, EAllowShrinking::No);
 		}
 	}
 	QueuedTransitionEvents.Shrink();
@@ -1468,7 +1468,7 @@ void FAnimNode_StateMachine::ConsumeMarkedTransitionEvents()
 #if WITH_EDITORONLY_DATA
 			HandledTransitionEvents.Add(QueuedTransitionEvents[RequestIndex]);
 #endif
-			QueuedTransitionEvents.RemoveAt(RequestIndex, 1, EAllowShrinking::No);
+			QueuedTransitionEvents.RemoveAt(RequestIndex, EAllowShrinking::No);
 		}
 	}
 	QueuedTransitionEvents.Shrink();

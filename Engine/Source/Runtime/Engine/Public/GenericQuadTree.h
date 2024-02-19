@@ -309,7 +309,7 @@ bool TQuadTree<ElementType, NodeCapacity>::RemoveNodeForElement(const ElementTyp
 
 	if (ElementIdx != INDEX_NONE)
 	{
-		Nodes.RemoveAtSwap(ElementIdx, 1, EAllowShrinking::No);
+		Nodes.RemoveAtSwap(ElementIdx, EAllowShrinking::No);
 		return true;
 	}
 

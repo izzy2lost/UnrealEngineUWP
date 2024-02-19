@@ -672,7 +672,7 @@ void FNiagaraRendererComponents::PostSystemTick_GameThread(const UNiagaraRendere
 				}
 
 				// destroy the component pool slot
-				ComponentPool.RemoveAtSwap(PoolIndex, 1, EAllowShrinking::No);
+				ComponentPool.RemoveAtSwap(PoolIndex, EAllowShrinking::No);
 				--PoolIndex;
 				continue;
 			}

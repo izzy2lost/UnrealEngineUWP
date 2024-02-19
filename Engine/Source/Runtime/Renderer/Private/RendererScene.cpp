@@ -2881,7 +2881,7 @@ void FScene::AddOrRemoveDecal_RenderThread(FDeferredDecalProxy* Proxy, bool bAdd
 			if (Decals[Index] == Proxy)
 			{
 				InvalidatePathTracedOutput();
-				Decals.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+				Decals.RemoveAtSwap(Index, EAllowShrinking::No);
 				delete Proxy;
 				break;
 			}

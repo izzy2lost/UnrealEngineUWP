@@ -981,7 +981,7 @@ namespace Metasound
 				}
 				else
 				{
-					OutInterfaceUpdates.AddedInputs.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+					OutInterfaceUpdates.AddedInputs.RemoveAtSwap(Index, EAllowShrinking::No);
 				}
 			}
 
@@ -1000,7 +1000,7 @@ namespace Metasound
 				}
 				else
 				{
-					OutInterfaceUpdates.AddedOutputs.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+					OutInterfaceUpdates.AddedOutputs.RemoveAtSwap(Index, EAllowShrinking::No);
 				}
 			}
 

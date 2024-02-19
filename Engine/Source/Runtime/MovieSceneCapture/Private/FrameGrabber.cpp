@@ -378,7 +378,7 @@ void FFrameGrabber::OnBackBufferReadyToPresentCallback(SWindow& SlateWindow, con
 		}
 
 		Payload = RenderThread_PendingFramePayloads[0];
-		RenderThread_PendingFramePayloads.RemoveAt(0, 1, EAllowShrinking::No);
+		RenderThread_PendingFramePayloads.RemoveAt(0, EAllowShrinking::No);
 	}
 
 	if (FrameGrabLatency != GFrameGrabberFrameLatency)

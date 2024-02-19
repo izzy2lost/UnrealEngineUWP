@@ -457,7 +457,7 @@ void FGameplayCueTranslationManager::BuildTagTranslationTable_Forward_r(const FN
 
 					// Possible match!
 					// Done - full match found
-					SwappedNames.RemoveAt(TagIdx, 1, EAllowShrinking::No);
+					SwappedNames.RemoveAt(TagIdx, EAllowShrinking::No);
 					for (int32 ToIdx=0; ToIdx < SwapRule.ToNames.Num(); ++ToIdx)
 					{
 						SwappedNames.Insert(SwapRule.ToNames[ToIdx], TagIdx + ToIdx);

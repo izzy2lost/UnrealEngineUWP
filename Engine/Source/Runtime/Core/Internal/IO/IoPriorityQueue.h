@@ -302,7 +302,7 @@ private:
 	void RemoveQueueAtIndex(int32 Index)
 	{
 		FreeInternalQueue(InternalQueues[Index]);
-		InternalQueues.RemoveAt(Index, 1, EAllowShrinking::No);
+		InternalQueues.RemoveAt(Index, EAllowShrinking::No);
 	}
 
 	TInternalQueue* AllocInternalQueue(int32 Priority)

@@ -230,7 +230,7 @@ public:
 			NodeCost = SmallestCost;
 			NodeIndex = Candidates[ SmallestIndex ].Value;
 
-			Candidates.RemoveAtSwap( SmallestIndex, 1, EAllowShrinking::No);
+			Candidates.RemoveAtSwap( SmallestIndex, EAllowShrinking::No);
 		}
 
 		return true;

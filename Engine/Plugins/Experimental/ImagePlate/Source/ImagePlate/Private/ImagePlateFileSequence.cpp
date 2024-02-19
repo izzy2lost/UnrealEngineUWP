@@ -614,7 +614,7 @@ namespace ImagePlateFrameCache
 						Cache->SetFrameData(Requests[Index].FrameNumber, Requests[Index].Future.Get());
 					}
 
-					Requests.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+					Requests.RemoveAtSwap(Index, EAllowShrinking::No);
 				}
 			}
 		}
@@ -627,7 +627,7 @@ namespace ImagePlateFrameCache
 			{
 				if (!ActiveCaches[Index].Pin().IsValid())
 				{
-					ActiveCaches.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+					ActiveCaches.RemoveAtSwap(Index, EAllowShrinking::No);
 				}
 			}
 		}

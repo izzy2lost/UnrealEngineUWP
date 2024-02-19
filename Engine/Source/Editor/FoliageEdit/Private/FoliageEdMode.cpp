@@ -1676,7 +1676,7 @@ void FEdModeFoliage::RemoveInstancesForBrush(UWorld* InWorld, const UFoliageType
 			const int32 LocalRemoveIndex = RemoveIndex - StartIndex;
 			if (InstancesToRemove.IsValidIndex(LocalRemoveIndex))
 			{
-				InstancesToRemove.RemoveAtSwap(LocalRemoveIndex, 1, EAllowShrinking::No);
+				InstancesToRemove.RemoveAtSwap(LocalRemoveIndex, EAllowShrinking::No);
 				break;
 			}
 			StartIndex += InstancesToRemove.Num();
@@ -1701,7 +1701,7 @@ void FEdModeFoliage::RemoveInstancesForBrush(UWorld* InWorld, const UFoliageType
 			if (Base && !GeometryFilterFunc(Base))
 			{
 				// Instance should not be removed, so remove it from the removal list.
-				InstancesToRemove.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
+				InstancesToRemove.RemoveAtSwap(Idx, EAllowShrinking::No);
 				Idx--;
 			}
 		}

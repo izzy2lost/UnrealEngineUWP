@@ -185,7 +185,7 @@ void FPSCPool::KillUnusedComponents(float KillTime, UParticleSystem* Template)
 				PSC->DestroyComponent();
 			}
 
-			FreeElements.RemoveAtSwap(i, 1, EAllowShrinking::No);
+			FreeElements.RemoveAtSwap(i, EAllowShrinking::No);
 		}
 		else
 		{

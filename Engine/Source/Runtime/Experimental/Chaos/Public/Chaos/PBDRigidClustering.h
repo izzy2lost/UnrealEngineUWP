@@ -438,7 +438,7 @@ public:
 					continue;
 				}
 
-				Edges.RemoveAtSwap(EdgeIndex, 1, EAllowShrinking::No);
+				Edges.RemoveAtSwap(EdgeIndex, EAllowShrinking::No);
 			}
 
 			check(Sibling != nullptr);

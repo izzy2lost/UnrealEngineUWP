@@ -188,7 +188,7 @@ void BuildPoseFromRawDataInternal(const TArray<FRawAnimSequenceTrack>& InAnimati
 					if (PoseBoneIndex == VB.VBIndex)
 					{
 						// Remove this bone as we have written data for it
-						VBCompactPoseData.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
+						VBCompactPoseData.RemoveAtSwap(Idx, EAllowShrinking::No);
 						break; //Modified TArray so must break here
 					}
 				}

@@ -826,7 +826,7 @@ public:
 		checkSlow(ElementId.IsValidId());
 
 		// Remove the element from the node's element list.
-		TreeElements[ElementId.NodeIndex].RemoveAtSwap(ElementId.ElementIndex, 1, EAllowShrinking::No);
+		TreeElements[ElementId.NodeIndex].RemoveAtSwap(ElementId.ElementIndex, EAllowShrinking::No);
 
 		if (ElementId.ElementIndex < TreeElements[ElementId.NodeIndex].Num())
 		{

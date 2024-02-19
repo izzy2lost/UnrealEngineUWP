@@ -1032,7 +1032,7 @@ public:
 			if (Uncompleted[i].Value->IsComplete())
 			{
 				Uncompleted[i].Value->WaitCompletion();
-				Uncompleted.RemoveAtSwap(i, 1, EAllowShrinking::No);
+				Uncompleted.RemoveAtSwap(i, EAllowShrinking::No);
 			}
 		}
 	}

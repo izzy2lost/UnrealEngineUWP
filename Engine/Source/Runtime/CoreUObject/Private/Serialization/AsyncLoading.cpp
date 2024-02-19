@@ -1717,7 +1717,7 @@ void FImportOrImportIndexArray::HeapPop(int32& OutItem, EAllowShrinking AllowShr
 	{
 		int32 Index = FMath::Clamp<int32>(GetRandomSerialNumber(Num() - 1), 0, Num() - 1);
 		OutItem = (*this)[Index];
-		RemoveAt(Index, 1, EAllowShrinking::No);
+		RemoveAt(Index, EAllowShrinking::No);
 		return;
 	}
 	TArray<int32>::HeapPop(OutItem, AllowShrinking);
@@ -4442,7 +4442,7 @@ EAsyncPackageState::Type FAsyncLoadingThread::ProcessAsyncLoading(int32& OutPack
 						AsyncPackageNameLookup.Remove(Package->GetPackageName());
 						int32 PackageIndex = AsyncPackages.Find(Package);
 						AsyncPackages.RemoveAt(PackageIndex);
-						AsyncPackagesReadyForTick.RemoveAt(0, 1, EAllowShrinking::No); //@todoio this should maybe be a heap or something to avoid the removal cost
+						AsyncPackagesReadyForTick.RemoveAt(0, EAllowShrinking::No); //@todoio this should maybe be a heap or something to avoid the removal cost
 					}
 
 					// We're done, at least on this thread, so we can remove the package now.

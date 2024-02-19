@@ -1954,7 +1954,7 @@ void USkeleton::RemoveVirtualBones(const TArray<FName>& BonesToRemove)
 					VB.SourceBoneName = Parent;
 				}
 			}
-			VirtualBones.RemoveAt(Idx,1,EAllowShrinking::No);
+			VirtualBones.RemoveAt(Idx,EAllowShrinking::No);
 
 			// @todo: This might be a slow operation if there's a large amount of blend profiles and entries
 			int32 BoneIdx = GetReferenceSkeleton().FindBoneIndex(BoneName);

@@ -93,7 +93,7 @@ namespace UE::Private::InterchangeMeshPipeline
 			{
 				if (LodChildUids[ChildLodIndex].IsEmpty())
 				{
-					LodChildUids.RemoveAt(ChildLodIndex, 1, EAllowShrinking::No);
+					LodChildUids.RemoveAt(ChildLodIndex, EAllowShrinking::No);
 				}
 			}
 			//Shrink the array to the correct size

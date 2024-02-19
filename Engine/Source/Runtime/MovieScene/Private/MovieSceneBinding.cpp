@@ -77,7 +77,7 @@ void FMovieSceneBinding::SetTracks(TArray<UMovieSceneTrack*>&& InTracks, UMovieS
 		UMovieSceneTrack* Track = Tracks[Index];
 		if (!NewTracks.Contains(Track))
 		{
-			Tracks.RemoveAt(Index, 1, EAllowShrinking::No);
+			Tracks.RemoveAt(Index, EAllowShrinking::No);
 			if (Owner)
 			{
 				Owner->EventHandlers.Trigger(&UE::MovieScene::ISequenceDataEventHandler::OnTrackRemovedFromBinding, Track, ObjectGuid);

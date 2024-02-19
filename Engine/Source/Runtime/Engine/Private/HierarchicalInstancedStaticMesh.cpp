@@ -2189,7 +2189,7 @@ void UHierarchicalInstancedStaticMeshComponent::RemoveInstancesInternal(TConstAr
 		{
 			// Due to scalability it's possible that we try to remove an instance that is not valid in the reorder table as it was removed already from render
 			int32 RenderIndex = InstanceReorderTable[InstanceIndex];
-			InstanceReorderTable.RemoveAtSwap(InstanceIndex, 1, EAllowShrinking::No);
+			InstanceReorderTable.RemoveAtSwap(InstanceIndex, EAllowShrinking::No);
 		}
 	}
 

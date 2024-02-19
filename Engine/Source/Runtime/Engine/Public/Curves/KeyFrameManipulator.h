@@ -148,7 +148,7 @@ public:
 		int32 RemoveAtIndex = GetIndex(KeyHandle);
 		if (RemoveAtIndex != INDEX_NONE)
 		{
-			KeyTimes->RemoveAtSwap(RemoveAtIndex, 1, EAllowShrinking::No);
+			KeyTimes->RemoveAtSwap(RemoveAtIndex, EAllowShrinking::No);
 			KeyHandleLUT->DeallocateHandle(RemoveAtIndex);
 
 			OnKeyRemoved(RemoveAtIndex);
@@ -266,7 +266,7 @@ protected:
 
 		TimeType Time = (*KeyTimes)[OldIndex];
 
-		KeyTimes->RemoveAtSwap(OldIndex, 1, EAllowShrinking::No);
+		KeyTimes->RemoveAtSwap(OldIndex, EAllowShrinking::No);
 		KeyTimes->Insert(Time, NewIndex);
 
 		KeyHandleLUT->MoveHandle(OldIndex, NewIndex);

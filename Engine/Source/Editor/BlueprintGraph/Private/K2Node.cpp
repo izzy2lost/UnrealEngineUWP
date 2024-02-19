@@ -1422,7 +1422,7 @@ void UK2Node::RewireOldPinsToNewPins(TArray<UEdGraphPin*>& InOldPins, TArray<UEd
 							UEdGraphPin* SubPin = OldPin->SubPins[SubPinIndex];
 							if (!SubPin->bOrphanedPin)
 							{
-								OldPin->SubPins.RemoveAt(SubPinIndex, 1, EAllowShrinking::No);
+								OldPin->SubPins.RemoveAt(SubPinIndex, EAllowShrinking::No);
 								SubPin->MarkAsGarbage();
 							}
 						}
@@ -1440,7 +1440,7 @@ void UK2Node::RewireOldPinsToNewPins(TArray<UEdGraphPin*>& InOldPins, TArray<UEd
 					OldPin->bOrphanedPin = true;
 					OldPin->bNotConnectable = true;
 					OrphanedOldPins.Add(OldPin);
-					InOldPins.RemoveAt(OldPinIndex, 1, EAllowShrinking::No);
+					InOldPins.RemoveAt(OldPinIndex, EAllowShrinking::No);
 				}
 			}
 		}

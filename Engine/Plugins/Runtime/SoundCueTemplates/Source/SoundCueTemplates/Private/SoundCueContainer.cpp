@@ -95,7 +95,7 @@ void USoundCueContainer::OnRebuildGraph(USoundCue& SoundCue) const
 	{
 		if (!VariationArray[i])
 		{
-			VariationArray.RemoveAtSwap(i, 1, EAllowShrinking::No);
+			VariationArray.RemoveAtSwap(i, EAllowShrinking::No);
 		}
 	}
 

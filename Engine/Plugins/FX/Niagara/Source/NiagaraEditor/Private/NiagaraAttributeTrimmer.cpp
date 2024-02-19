@@ -817,7 +817,7 @@ void FNiagaraAttributeTrimmerHelper<GraphBridge>::TrimAttributes_Aggressive(cons
 		{
 			// when we have something to do with this information, we can re-enable the compile tag
 			//TranslateResults.CompileTags.Emplace(Attribute, TEXT("Trimmed"));
-			Attributes.RemoveAt(AttributeIt, 1, EAllowShrinking::No);
+			Attributes.RemoveAt(AttributeIt, EAllowShrinking::No);
 		}
 		else
 		{

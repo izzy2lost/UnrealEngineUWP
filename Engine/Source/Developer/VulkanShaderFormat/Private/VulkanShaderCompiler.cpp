@@ -1052,7 +1052,7 @@ static void BuildShaderOutput(
 		NumParams = FMath::Max((uint16)(OutIndex + 1), NumParams);
 		if (OriginalParameters.Contains(NewParameters[Index]))
 		{
-			NewParameters.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+			NewParameters.RemoveAtSwap(Index, EAllowShrinking::No);
 		}
 	}
 

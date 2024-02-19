@@ -885,7 +885,7 @@ void FAnimationBudgetAllocator::RemoveHelper(int32 Index, USkeletalMeshComponent
 				CurrentComponent->SetAnimationBudgetHandle(INDEX_NONE);
 			}
 
-			AllComponentData.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+			AllComponentData.RemoveAtSwap(Index, EAllowShrinking::No);
 
 			// Update handle of swapped component
 			if (AllComponentData.IsValidIndex(Index))

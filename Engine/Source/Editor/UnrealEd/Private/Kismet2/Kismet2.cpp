@@ -1756,7 +1756,7 @@ void CreateBlueprintFromActors_Internal(UBlueprint* Blueprint, const TArray<AAct
 			// Remove attached actors that are also in the set of actors being converted to blueprint
 			if (Actors.Contains(AttachedActors[Index]))
 			{
-				AttachedActors.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+				AttachedActors.RemoveAtSwap(Index, EAllowShrinking::No);
 			}
 		}
 

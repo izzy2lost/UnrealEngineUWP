@@ -740,7 +740,7 @@ void FVirtualTextureSystem::DestroyPendingVirtualTextures(bool bForceDestroyAll)
 				if (bForceDelete || (bCanDeleteForAge && bCanDeleteForBudget))
 				{
 					AllocatedVTsToDelete.Add(AllocatedVT);
-					PendingDeleteAllocatedVTs.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+					PendingDeleteAllocatedVTs.RemoveAtSwap(Index, EAllowShrinking::No);
 				}
 				else
 				{
@@ -2406,7 +2406,7 @@ void FVirtualTextureSystem::SubmitRequests(FRHICommandList& RHICmdList, ERHIFeat
 			const IAllocatedVirtualTexture* AllocatedVT = AllocatedVTsToMap[Index];
 			if (AllocatedVT->TryMapLockedTiles(this))
 			{
-				AllocatedVTsToMap.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+				AllocatedVTsToMap.RemoveAtSwap(Index, EAllowShrinking::No);
 			}
 			else
 			{

@@ -718,7 +718,7 @@ void FAdaptiveTessellator::RemoveSplitRequest( uint32 TriIndex )
 	if( RequestIndex >= 0 )
 	{
 		Triangles[ SplitRequests.Last() ].RequestIndex = RequestIndex;
-		SplitRequests.RemoveAtSwap( RequestIndex, 1, EAllowShrinking::No );
+		SplitRequests.RemoveAtSwap( RequestIndex, EAllowShrinking::No );
 		RequestIndex = -1;
 	}
 }

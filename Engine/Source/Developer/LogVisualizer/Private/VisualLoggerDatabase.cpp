@@ -262,7 +262,7 @@ void FVisualLoggerDatabase::RemoveRow(FName RowName)
 	if (RowNameToIndex.Contains(RowName))
 	{
 		const int32 RemovedIndex = RowNameToIndex.FindAndRemoveChecked(RowName);
-		Rows.RemoveAtSwap(RemovedIndex, 1, EAllowShrinking::No);
+		Rows.RemoveAtSwap(RemovedIndex, EAllowShrinking::No);
 		if (Rows.IsValidIndex(RemovedIndex))
 		{
 			RowNameToIndex[Rows[RemovedIndex].GetOwnerName()] = RemovedIndex;

@@ -577,7 +577,7 @@ bool AMassSpawner::DespawnEntity(const FMassEntityHandle Entity)
 		if (Index != INDEX_NONE)
 		{
 			SpawnerSystem->DestroyEntities(MakeArrayView(&Entity, 1));
-			SpawnedEntities.Entities.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+			SpawnedEntities.Entities.RemoveAtSwap(Index, EAllowShrinking::No);
 			return true;
 		}
 	}

@@ -503,7 +503,7 @@ void UTypedElementDatabaseUi::CreateWidgetConstructors_LongestMatch(const TArray
 						return;
 					}
 				}
-				Columns.RemoveAt(ColumnIndex, 1, EAllowShrinking::No);
+				Columns.RemoveAt(ColumnIndex, EAllowShrinking::No);
 				--ColumnsEnd;
 			}
 			

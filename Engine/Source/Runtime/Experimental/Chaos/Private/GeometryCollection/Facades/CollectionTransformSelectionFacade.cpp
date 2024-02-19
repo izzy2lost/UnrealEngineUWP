@@ -251,7 +251,7 @@ namespace GeometryCollection::Facades
 				}
 				else // embedded should always have a parent, but if it somehow does not, just remove from selection
 				{
-					InOutSelection.RemoveAtSwap(SelBoneIdx, 1, EAllowShrinking::No);
+					InOutSelection.RemoveAtSwap(SelBoneIdx, EAllowShrinking::No);
 					--SelBoneIdx; // reconsider swapped-in-element at this idx next iter
 				}
 			}

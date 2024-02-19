@@ -995,7 +995,7 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponent2D* CaptureCompone
 				}
 				else
 				{
-					CaptureComponent->SceneViewExtensions.RemoveAt(Index, 1, EAllowShrinking::No);
+					CaptureComponent->SceneViewExtensions.RemoveAt(Index, EAllowShrinking::No);
 					--Index;
 				}
 			}

@@ -1307,7 +1307,7 @@ bool UBlendSpace::GetSamplesFromBlendInput(
 					}
 
 					// as for time or previous time will be the master one(Index1)
-					OutSampleDataList.RemoveAtSwap(Index2, 1, EAllowShrinking::No);
+					OutSampleDataList.RemoveAtSwap(Index2, EAllowShrinking::No);
 					--Index2;
 				}
 			}

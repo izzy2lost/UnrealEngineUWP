@@ -55,7 +55,7 @@ void FForceFeedbackManager::OnWorldCleanup(UWorld* World, bool bSessionEnded, bo
 		if (ForceFeedbackManager->World == World)
 		{
 			delete ForceFeedbackManager;
-			PerWorldForceFeedbackManagers.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+			PerWorldForceFeedbackManagers.RemoveAtSwap(Index, EAllowShrinking::No);
 			break;
 		}
 	}
@@ -96,13 +96,13 @@ void FForceFeedbackManager::Tick(float DeltaTime)
 		{
 			if (!FFC->Advance(DeltaTime))
 			{
-				ActiveForceFeedbackComponents.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+				ActiveForceFeedbackComponents.RemoveAtSwap(Index, EAllowShrinking::No);
 				FFC->StopInternal(false);
 			}
 		}
 		else
 		{
-			ActiveForceFeedbackComponents.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+			ActiveForceFeedbackComponents.RemoveAtSwap(Index, EAllowShrinking::No);
 		}
 	}
 

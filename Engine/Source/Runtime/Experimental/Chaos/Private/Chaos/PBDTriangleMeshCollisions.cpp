@@ -394,7 +394,7 @@ namespace GIA
 							check(FaceSection->CrossingEdgeLocalIndex[0] != INDEX_NONE);
 							FirstFaceSection.CrossingEdgeLocalIndex[0] = FaceSection->CrossingEdgeLocalIndex[0];
 							check(FaceSection == &FaceContour->Contour.Last());
-							FaceContour->Contour.RemoveAt(FaceContour->Contour.Num() - 1, 1, EAllowShrinking::No);
+							FaceContour->Contour.RemoveAt(FaceContour->Contour.Num() - 1, EAllowShrinking::No);
 						}
 
 						ContourPair.ClosedStatus = FIntersectionContourPair::EClosedStatus::SimpleClosed;
@@ -424,7 +424,7 @@ namespace GIA
 						FirstFaceSection.CrossingEdgeLocalIndex[0] = EdgeFaceSection->CrossingEdgeLocalIndex[0];
 
 						check(EdgeFaceSection == &EdgeContour->Contour.Last());
-						EdgeContour->Contour.RemoveAt(EdgeContour->Contour.Num() - 1, 1, EAllowShrinking::No);
+						EdgeContour->Contour.RemoveAt(EdgeContour->Contour.Num() - 1, EAllowShrinking::No);
 
 						ContourPair.ClosedStatus = FIntersectionContourPair::EClosedStatus::SimpleClosed;
 

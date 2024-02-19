@@ -903,7 +903,7 @@ FCompositeNavModifier FCompositeNavModifier::GetInstantiatedMetaModifier(const F
 					NavLink.SetAreaClass(UNavAreaBase::PickAreaClassForAgent(NavLink.GetAreaClass(), *ActorOwner, *NavAgent));
 				}
 
-				Result.CustomLinks.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+				Result.CustomLinks.RemoveAtSwap(Index, EAllowShrinking::No);
 			}
 		}
 	}

@@ -758,9 +758,9 @@ void FPlanarCells::DiscardCells(TFunctionRef<bool(int32)> KeepFunc, bool bKeepNe
 		Cells.Value = Cells.Value > -1 ? OldToNew[Cells.Value] : -1;
 		if (Cells.Key == Cells.Value && Cells.Key == -1)
 		{
-			PlaneCells.RemoveAtSwap(PlaneIdx, 1, EAllowShrinking::No);
-			Planes.RemoveAtSwap(PlaneIdx, 1, EAllowShrinking::No);
-			PlaneBoundaries.RemoveAtSwap(PlaneIdx, 1, EAllowShrinking::No);
+			PlaneCells.RemoveAtSwap(PlaneIdx, EAllowShrinking::No);
+			Planes.RemoveAtSwap(PlaneIdx, EAllowShrinking::No);
+			PlaneBoundaries.RemoveAtSwap(PlaneIdx, EAllowShrinking::No);
 			PlaneIdx--; // consider the swapped-in value in the next iteration
 		}
 		else

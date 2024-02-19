@@ -204,7 +204,7 @@ public:
 			if (CacheItem.Hash == Hash)
 			{
 				TransientResourceType* Resource = CacheItem.Resource;
-				Cache.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+				Cache.RemoveAtSwap(Index, EAllowShrinking::No);
 				Allocated.Emplace(Resource);
 				HitCount++;
 				return Resource;

@@ -1408,7 +1408,7 @@ void FAnimationRecorderManager::StopRecordingAnimation(USkeletalMeshComponent* C
 			Inst.FinishRecording(bShowMessage);
 
 			// remove instance, which will clean itself up
-			RecorderInstances.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
+			RecorderInstances.RemoveAtSwap(Idx, EAllowShrinking::No);
 
 			// all done
 			break;

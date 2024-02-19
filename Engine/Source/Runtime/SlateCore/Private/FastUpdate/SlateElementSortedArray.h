@@ -128,7 +128,7 @@ public:
 		SizeType Index = Find(Item);
 		if (Index != INDEX_NONE)
 		{
-			Data.RemoveAt(Index, 1, EAllowShrinking::No);
+			Data.RemoveAt(Index, EAllowShrinking::No);
 			return 1;
 		}
 		return 0;

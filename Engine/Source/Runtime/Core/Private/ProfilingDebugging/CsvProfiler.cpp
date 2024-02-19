@@ -2723,7 +2723,7 @@ void FCsvProfilerThreadDataProcessor::Process(FCsvProcessThreadDataStats& OutSta
 						if (MarkerStack[j].RawStatID == Marker.RawStatID) // Note: only works with scopes!
 						{
 							StartMarker = MarkerStack[j];
-							MarkerStack.RemoveAt(j, 1, EAllowShrinking::No);
+							MarkerStack.RemoveAt(j, EAllowShrinking::No);
 							bFoundStart = true;
 							break;
 						}

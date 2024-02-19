@@ -709,7 +709,7 @@ void SBlueprintHeaderView::SortPropertiesForPadding(TArray<const FProperty*>& In
 		}
 
 		SortedProperties.Add(InOutProperties[BestIndex]);
-		InOutProperties.RemoveAt(BestIndex, 1, EAllowShrinking::No);
+		InOutProperties.RemoveAt(BestIndex, EAllowShrinking::No);
 		CurrentOffset += BestPadding + SortedProperties.Last()->GetSize();
 	}
 

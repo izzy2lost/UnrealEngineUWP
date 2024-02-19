@@ -316,7 +316,7 @@ struct FLockTracker
 			if (OutstandingLocks[Index].RHIBuffer == RHIBuffer)
 			{
 				FLockParams Result = OutstandingLocks[Index];
-				OutstandingLocks.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+				OutstandingLocks.RemoveAtSwap(Index, EAllowShrinking::No);
 				return Result;
 			}
 		}

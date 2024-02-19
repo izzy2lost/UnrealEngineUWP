@@ -471,12 +471,12 @@ float UAISense_Sight::Update()
 			if (Operation.bInRange)
 			{
 				// In range queries are always sorted at the beginning of the update
-				SightQueriesInRange.RemoveAtSwap(Operation.Index, 1, EAllowShrinking::No);
+				SightQueriesInRange.RemoveAtSwap(Operation.Index, EAllowShrinking::No);
 			}
 			else
 			{
 				// Preserve the list ordered
-				SightQueriesOutOfRange.RemoveAt(Operation.Index, 1, EAllowShrinking::No);
+				SightQueriesOutOfRange.RemoveAt(Operation.Index, EAllowShrinking::No);
 				if (Operation.Index < NextOutOfRangeIndex)
 				{
 					NextOutOfRangeIndex--;
@@ -667,7 +667,7 @@ void UAISense_Sight::OnPendingTraceQueryProcessed(const FTraceHandle& TraceHandl
 void UAISense_Sight::OnPendingQueryProcessed(const int32 SightQueryIndex, const bool bIsVisible, const float StimulusStrength, const FVector& SeenLocation, const TOptional<int32>& UserData, const TOptional<AActor*> InTargetActor)
 {
 	FAISightQuery SightQuery = SightQueriesPending[SightQueryIndex];
-	SightQueriesPending.RemoveAtSwap(SightQueryIndex, 1, EAllowShrinking::No);
+	SightQueriesPending.RemoveAtSwap(SightQueryIndex, EAllowShrinking::No);
 
 	AIPerception::FListenerMap& ListenersMap = *GetListeners();
 	FPerceptionListener* Listener = ListenersMap.Find(SightQuery.ObserverId);
@@ -766,7 +766,7 @@ void UAISense_Sight::UnregisterSource(AActor& SourceActor)
 						Listener.RegisterStimulus(TargetActor, FAIStimulus(*this, 0.f, SightQuery->LastSeenLocation, Listener.CachedLocation, FAIStimulus::SensingFailed));
 					}
 
-					SightQueries.RemoveAtSwap(QueryIndex, 1, EAllowShrinking::No);
+					SightQueries.RemoveAtSwap(QueryIndex, EAllowShrinking::No);
 					return EReverseForEachResult::Modified;
 				}
 				return EReverseForEachResult::UnTouched;
@@ -1024,7 +1024,7 @@ void UAISense_Sight::RemoveAllQueriesByListener(const FPerceptionListener& Liste
 			{
 				OnRemoveFunc(SightQuery);
 			}
-			SightQueries.RemoveAtSwap(QueryIndex, 1, EAllowShrinking::No);
+			SightQueries.RemoveAtSwap(QueryIndex, EAllowShrinking::No);
 			return EReverseForEachResult::Modified;
 		}
 		return EReverseForEachResult::UnTouched;
@@ -1057,7 +1057,7 @@ void UAISense_Sight::RemoveAllQueriesToTarget_Internal(const FAISightTarget::FTa
 			{
 				OnRemoveFunc(SightQuery);
 			}
-			SightQueries.RemoveAtSwap(QueryIndex, 1, EAllowShrinking::No);
+			SightQueries.RemoveAtSwap(QueryIndex, EAllowShrinking::No);
 			return EReverseForEachResult::Modified;
 		}
 		return EReverseForEachResult::UnTouched;

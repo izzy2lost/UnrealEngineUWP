@@ -202,7 +202,7 @@ void ADebugCameraController::SetupBufferVisualizationOverviewInput()
 					const FInputAxisBinding& Binding = InputComponent->AxisBindings[CurrentAxisBindingIndex];
 					if (Binding.AxisName == "DebugCamera_DisableAxisMotion")
 					{
-						InputComponent->AxisBindings.RemoveAt(CurrentAxisBindingIndex, 1, EAllowShrinking::No);
+						InputComponent->AxisBindings.RemoveAt(CurrentAxisBindingIndex, EAllowShrinking::No);
 						--CurrentAxisBindingIndex;
 					}
 				}

@@ -147,7 +147,7 @@ bool FPathTree::PathExists(FName Path) const
 		FString PathStr = Path.ToString();
 		if (PathStr[PathStr.Len() - 1] == '/')
 		{
-			PathStr.RemoveAt(PathStr.Len() - 1, 1, EAllowShrinking::No);
+			PathStr.RemoveAt(PathStr.Len() - 1, EAllowShrinking::No);
 			Path = *PathStr;
 
 			ChildPathsPtr = ParentPathToChildPaths.Find(Path);

@@ -149,7 +149,7 @@ void FMidiTrack::ClearEventsAfter(int32 Tick, bool IncludeTick)
 		FMidiEvent& Event = Events[i];
 		if (Event.GetTick() > Tick || (Event.GetTick() == Tick && IncludeTick))
 		{
-			Events.RemoveAt(i, 1, EAllowShrinking::No);
+			Events.RemoveAt(i, EAllowShrinking::No);
 		}
 	}
 	Events.Shrink();
@@ -160,7 +160,7 @@ void FMidiTrack::ClearEventsBefore(int32 Tick, bool IncludeTick)
 	// assumes sorted!
 	while (Events.Num() > 0 && (Events[0].GetTick() < Tick || (Events[0].GetTick() == Tick && IncludeTick)))
 	{
-		Events.RemoveAt(0, 1, EAllowShrinking::No);
+		Events.RemoveAt(0, EAllowShrinking::No);
 	}
 	Events.Shrink();
 }

@@ -637,7 +637,7 @@ void UPlayerInput::InvertAxis(const FName AxisName)
 			{
 				if (InvertedAxis[InvertIndex] == AxisName)
 				{
-					InvertedAxis.RemoveAtSwap(InvertIndex, 1, EAllowShrinking::No);
+					InvertedAxis.RemoveAtSwap(InvertIndex, EAllowShrinking::No);
 				}
 			}
 		}
@@ -650,7 +650,7 @@ void UPlayerInput::InvertAxis(const FName AxisName)
 			if (InvertedAxis[InvertIndex] == AxisName)
 			{
 				bFound = true;
-				InvertedAxis.RemoveAtSwap(InvertIndex, 1, EAllowShrinking::No);
+				InvertedAxis.RemoveAtSwap(InvertIndex, EAllowShrinking::No);
 			}
 		}
 		if (!bFound)
@@ -714,7 +714,7 @@ void UPlayerInput::RemoveActionMapping(const FInputActionKeyMapping& KeyMapping)
 	{
 		if (ActionMappings[ActionIndex] == KeyMapping)
 		{
-			ActionMappings.RemoveAtSwap(ActionIndex, 1, EAllowShrinking::No);
+			ActionMappings.RemoveAtSwap(ActionIndex, EAllowShrinking::No);
 			ActionKeyMap.Reset();
 			bKeyMapsBuilt = false;
 			// we don't break because the mapping may have been in the array twice
@@ -737,7 +737,7 @@ void UPlayerInput::RemoveAxisMapping(const FInputAxisKeyMapping& InKeyMapping)
 		if (KeyMapping.AxisName == InKeyMapping.AxisName
 			&& KeyMapping.Key == InKeyMapping.Key)
 		{
-			AxisMappings.RemoveAtSwap(AxisIndex, 1, EAllowShrinking::No);
+			AxisMappings.RemoveAtSwap(AxisIndex, EAllowShrinking::No);
 			AxisKeyMap.Reset();
 			bKeyMapsBuilt = false;
 			// we don't break because the mapping may have been in the array twice
@@ -898,7 +898,7 @@ void UPlayerInput::GetChordsForKeyMapping(const FInputActionKeyMapping& KeyMappi
 			if (ChordRelationship == FInputChord::ERelationshipType::Masks)
 			{
 				// If we mask the found one, then remove it from the list
-				FoundChords.RemoveAtSwap(ChordIndex, 1, EAllowShrinking::No);
+				FoundChords.RemoveAtSwap(ChordIndex, EAllowShrinking::No);
 			}
 			else if (ChordRelationship == FInputChord::ERelationshipType::Masked)
 			{
@@ -1017,7 +1017,7 @@ void UPlayerInput::GetChordForKey(const FInputKeyBinding& KeyBinding, const bool
 					if (ChordRelationship == FInputChord::ERelationshipType::Masks)
 					{
 						// If we mask the found one, then remove it from the list
-						FoundChords.RemoveAtSwap(ChordIndex, 1, EAllowShrinking::No);
+						FoundChords.RemoveAtSwap(ChordIndex, EAllowShrinking::No);
 					}
 					else if (ChordRelationship == FInputChord::ERelationshipType::Masked)
 					{

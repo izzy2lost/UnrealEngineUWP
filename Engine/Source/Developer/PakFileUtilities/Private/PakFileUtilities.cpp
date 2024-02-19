@@ -5664,7 +5664,7 @@ bool ExecuteUnrealPak(const TCHAR* CmdLine)
 					UE_LOG(LogPakFile, Display, TEXT("Source PakFile '%s' is missing in target folder"),
 						*SourcePakFiles[I]);
 				}
-				SourcePakFiles.RemoveAtSwap(I, 1, EAllowShrinking::No);
+				SourcePakFiles.RemoveAtSwap(I, EAllowShrinking::No);
 			}
 		}
 		if (bLogUniques2)

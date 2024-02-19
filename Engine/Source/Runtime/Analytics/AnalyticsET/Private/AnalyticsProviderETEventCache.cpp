@@ -339,7 +339,7 @@ TArray<uint8> FAnalyticsProviderETEventCache::FlushCacheUTF8()
 	{
 		// pull out the first element without copying the array or shrinking the queue size
 		TArray<uint8> Payload = MoveTemp(FlushQueue[0]);
-		FlushQueue.RemoveAt(0, 1, EAllowShrinking::No);
+		FlushQueue.RemoveAt(0, EAllowShrinking::No);
 		return Payload;
 	}
 

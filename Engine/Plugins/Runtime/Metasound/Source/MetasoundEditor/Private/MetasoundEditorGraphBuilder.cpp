@@ -2332,13 +2332,13 @@ namespace Metasound
 
 						bEditorGraphModified |= SynchronizeNodeLocation(Node, *EditorNode);
 						AssociatedNodeData.EditorNodes.Add(EditorNode);
-						EditorNodes.RemoveAtSwap(j, 1, EAllowShrinking::No);
+						EditorNodes.RemoveAtSwap(j, EAllowShrinking::No);
 					}
 				}
 
 				if (bFoundEditorNode)
 				{
-					FrontendNodes.RemoveAtSwap(i, 1, EAllowShrinking::No);
+					FrontendNodes.RemoveAtSwap(i, EAllowShrinking::No);
 				}
 			}
 

@@ -1218,7 +1218,7 @@ namespace Chaos
 
 				ensure(Info.Proxy->GetHandle_LowLevel() == nullptr);	//should have already cleared this out
 				delete Info.Proxy;
-				PendingDestroyPhysicsProxy.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
+				PendingDestroyPhysicsProxy.RemoveAtSwap(Idx, EAllowShrinking::No);
 			}
 		}
 
@@ -1835,7 +1835,7 @@ namespace Chaos
 		{
 			if (SimCallbackObjects[Idx]->bPendingDelete)
 			{
-				SimCallbackObjects.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
+				SimCallbackObjects.RemoveAtSwap(Idx, EAllowShrinking::No);
 			}
 		}
 
@@ -1844,7 +1844,7 @@ namespace Chaos
 			if (MidPhaseModifiers[Idx]->bPendingDelete)
 			{
 				//will also be in SimCallbackObjects so we'll delete it in that loop
-				MidPhaseModifiers.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
+				MidPhaseModifiers.RemoveAtSwap(Idx, EAllowShrinking::No);
 			}
 		}
 
@@ -1853,7 +1853,7 @@ namespace Chaos
 			if (CCDModifiers[Idx]->bPendingDelete)
 			{
 				//will also be in SimCallbackObjects so we'll delete it in that loop
-				CCDModifiers.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
+				CCDModifiers.RemoveAtSwap(Idx, EAllowShrinking::No);
 			}
 		}
 
@@ -1862,7 +1862,7 @@ namespace Chaos
 			if (StrainModifiers[Idx]->bPendingDelete)
 			{
 				//will also be in SimCallbackObjects so we'll delete it in that loop
-				StrainModifiers.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
+				StrainModifiers.RemoveAtSwap(Idx, EAllowShrinking::No);
 			}
 		}
 
@@ -1871,7 +1871,7 @@ namespace Chaos
 			if (ContactModifiers[Idx]->bPendingDelete)
 			{
 				//will also be in SimCallbackObjects so we'll delete it in that loop
-				ContactModifiers.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
+				ContactModifiers.RemoveAtSwap(Idx, EAllowShrinking::No);
 			}
 		}
 
@@ -1880,7 +1880,7 @@ namespace Chaos
 			if (RegistrationWatchers[Idx]->bPendingDelete)
 			{
 				//will also be in SimCallbackObjects so we'll delete it in that loop
-				RegistrationWatchers.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
+				RegistrationWatchers.RemoveAtSwap(Idx, EAllowShrinking::No);
 			}
 		}
 
@@ -1889,7 +1889,7 @@ namespace Chaos
 			if (UnregistrationWatchers[Idx]->bPendingDelete)
 			{
 				//will also be in SimCallbackObjects so we'll delete it in that loop
-				UnregistrationWatchers.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
+				UnregistrationWatchers.RemoveAtSwap(Idx, EAllowShrinking::No);
 			}
 		}
 
@@ -1898,7 +1898,7 @@ namespace Chaos
 			if (PhysicsObjectUnregistrationWatchers[Idx]->bPendingDelete)
 			{
 				//will also be in SimCallbackObjects so we'll delete it in that loop
-				PhysicsObjectUnregistrationWatchers.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
+				PhysicsObjectUnregistrationWatchers.RemoveAtSwap(Idx, EAllowShrinking::No);
 			}
 		}
 

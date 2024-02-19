@@ -225,7 +225,7 @@ void FEntityLedger::CleanupLinkerEntities(const TSet<FMovieSceneEntityID>& Linke
 	{
 		if (LinkerEntities.Contains(OneShotEntities[Index]))
 		{
-			OneShotEntities.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+			OneShotEntities.RemoveAtSwap(Index, EAllowShrinking::No);
 		}
 	}
 	for (auto It = ImportedEntities.CreateIterator(); It; ++It)

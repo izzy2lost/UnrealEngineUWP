@@ -2754,7 +2754,7 @@ public:
 			if (::Invoke(Predicate, (*this)[ItemIndex]))
 			{
 				bRemoved = true;
-				RemoveAtSwap(ItemIndex, 1, EAllowShrinking::No);
+				RemoveAtSwap(ItemIndex, EAllowShrinking::No);
 			}
 			else
 			{
@@ -2829,7 +2829,7 @@ public:
 			if ((*this)[Index] == Item)
 			{
 				bRemoved = true;
-				RemoveAtSwap(Index--, 1, EAllowShrinking::No);
+				RemoveAtSwap(Index--, EAllowShrinking::No);
 			}
 		}
 

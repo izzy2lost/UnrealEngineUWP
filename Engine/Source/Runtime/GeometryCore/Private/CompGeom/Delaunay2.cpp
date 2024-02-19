@@ -287,7 +287,7 @@ struct FDelaunay2Connectivity
 			//  and depth-first traversal would be more sensitive to starting triangle in that case
 			PickIdx = (PickIdx + 1) % ToWalk.Num();
 			const FWalk Walk = ToWalk[PickIdx];
-			ToWalk.RemoveAtSwap(PickIdx, 1, EAllowShrinking::No);
+			ToWalk.RemoveAtSwap(PickIdx, EAllowShrinking::No);
 			int32 Vert = EdgeToVert[Walk.Edge];
 			FIndex3i UniqueTri = AsUniqueTriangle(Walk.Edge, Vert);
 			if (UniqueTri.A < 0) // it's a ghost
@@ -374,8 +374,8 @@ struct FDelaunay2Connectivity
 		{
 			if (!FillTri[TriIdx])
 			{
-				FillTri.RemoveAtSwap(TriIdx, 1, EAllowShrinking::No);
-				TrianglesOut.RemoveAtSwap(TriIdx, 1, EAllowShrinking::No);
+				FillTri.RemoveAtSwap(TriIdx, EAllowShrinking::No);
+				TrianglesOut.RemoveAtSwap(TriIdx, EAllowShrinking::No);
 				TriIdx--; // re-consider the index w/ the newly swapped element
 			}
 		}

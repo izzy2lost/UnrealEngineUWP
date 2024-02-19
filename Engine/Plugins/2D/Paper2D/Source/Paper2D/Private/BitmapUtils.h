@@ -195,7 +195,7 @@ struct FBitmap : public FAlphaBitmap
 								{
 									NewRect = FIntRect(FMath::Min(NewRect.Min.X, ExistingRect.Min.X), FMath::Min(NewRect.Min.Y, ExistingRect.Min.Y),
 													   FMath::Max(NewRect.Max.X, ExistingRect.Max.X), FMath::Max(NewRect.Max.Y, ExistingRect.Max.Y));
-									OutRects.RemoveAtSwap(OutRectIndex, 1, EAllowShrinking::No);
+									OutRects.RemoveAtSwap(OutRectIndex, EAllowShrinking::No);
 									break;
 								}
 							}

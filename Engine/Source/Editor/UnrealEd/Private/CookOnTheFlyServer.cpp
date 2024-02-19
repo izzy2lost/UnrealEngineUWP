@@ -4863,7 +4863,7 @@ void UCookOnTheFlyServer::TickPrecacheObjectsForPlatforms(const float TimeSlice,
 	while (CachedMaterialsToCacheArray.Num() > 0)
 	{
 		UMaterial* Material = (UMaterial*)(CachedMaterialsToCacheArray[0].Get());
-		CachedMaterialsToCacheArray.RemoveAtSwap(0, 1, EAllowShrinking::No);
+		CachedMaterialsToCacheArray.RemoveAtSwap(0, EAllowShrinking::No);
 
 		if (Material == nullptr)
 		{
@@ -4904,7 +4904,7 @@ void UCookOnTheFlyServer::TickPrecacheObjectsForPlatforms(const float TimeSlice,
 	while (CachedTexturesToCacheArray.Num() > 0)
 	{
 		UTexture* Texture = (UTexture*)(CachedTexturesToCacheArray[0].Get());
-		CachedTexturesToCacheArray.RemoveAtSwap(0, 1, EAllowShrinking::No);
+		CachedTexturesToCacheArray.RemoveAtSwap(0, EAllowShrinking::No);
 
 		if (Texture == nullptr)
 		{

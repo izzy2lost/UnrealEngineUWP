@@ -6450,7 +6450,7 @@ TArray<FNavTileRef> FRecastNavMeshGenerator::ProcessTileTasksAsyncAndGetUpdatedT
 			}
 
 			// Remove submitted element from pending list
-			PendingDirtyTiles.RemoveAt(ElementIdx, 1, EAllowShrinking::No);
+			PendingDirtyTiles.RemoveAt(ElementIdx, EAllowShrinking::No);
 			NumProcessedTasks++;
 		}
 	}
@@ -6495,7 +6495,7 @@ TArray<FNavTileRef> FRecastNavMeshGenerator::ProcessTileTasksAsyncAndGetUpdatedT
 				delete Element.AsyncTask;
 				Element.AsyncTask = nullptr;
 				// Remove completed tile element from a list of running tasks
-				RunningDirtyTiles.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
+				RunningDirtyTiles.RemoveAtSwap(Idx, EAllowShrinking::No);
 			}
 		}
 	}
@@ -6518,7 +6518,7 @@ TSharedRef<FRecastTileGenerator> FRecastNavMeshGenerator::CreateTileGeneratorFro
 
 	TSharedRef<FRecastTileGenerator> TileGenerator = CreateTileGenerator(PendingElement.Coord, PendingElement.DirtyAreas, PendingElement.CreationTime);
 
-	PendingDirtyTiles.RemoveAt(PendingItemIdx, 1, EAllowShrinking::No);
+	PendingDirtyTiles.RemoveAt(PendingItemIdx, EAllowShrinking::No);
 
 	return TileGenerator;
 }

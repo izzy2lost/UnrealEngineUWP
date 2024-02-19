@@ -68,7 +68,7 @@ void FNiagaraMessageManager::ClearAssetMessagesForTopic(const FGuid& AssetKey, c
 			if (TopicBitflag & AssetMessageInfo->Messages[i]->GetMessageTopicBitflag())
 			{
 				AssetMessageInfo->DirtyTopicBitfield |= AssetMessageInfo->Messages[i]->GetMessageTopicBitflag();
-				AssetMessageInfo->Messages.RemoveAt(i, 1, EAllowShrinking::No);
+				AssetMessageInfo->Messages.RemoveAt(i, EAllowShrinking::No);
 				AssetMessageInfo->bDirty = true;
 				bNeedFlushMessages = true;
 			}
@@ -87,7 +87,7 @@ void FNiagaraMessageManager::ClearAssetMessagesForObject(const FGuid& AssetKey, 
 			if (MessageObjectKeys.Contains(ObjectKeys))
 			{
 				AssetMessageInfo->DirtyTopicBitfield |= AssetMessageInfo->Messages[i]->GetMessageTopicBitflag();
-				AssetMessageInfo->Messages.RemoveAt(i, 1, EAllowShrinking::No);
+				AssetMessageInfo->Messages.RemoveAt(i, EAllowShrinking::No);
 				AssetMessageInfo->bDirty = true;
 				bNeedFlushMessages = true;
 			}

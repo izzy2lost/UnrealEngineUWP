@@ -327,8 +327,8 @@ void FDatasmithMesh::AddUVChannel()
 void FDatasmithMesh::RemoveUVChannel()
 {
 	const int32 Index = Impl->UVs.Num() - 1;
-	Impl->UVs.RemoveAt( Index, 1, EAllowShrinking::No);
-	Impl->UVIndices.RemoveAt( Index, 1, EAllowShrinking::No);
+	Impl->UVs.RemoveAt( Index, EAllowShrinking::No);
+	Impl->UVIndices.RemoveAt( Index, EAllowShrinking::No);
 
 }
 

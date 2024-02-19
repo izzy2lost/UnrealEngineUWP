@@ -90,7 +90,7 @@ namespace UE4Paths_Private
 			{
 				if (!FCString::Strchr(VALID_SAVEDDIRSUFFIX_CHARACTERS, NonDefaultSavedDirSuffix[CharIdx]))
 				{
-					NonDefaultSavedDirSuffix.RemoveAt(CharIdx, 1, EAllowShrinking::No);
+					NonDefaultSavedDirSuffix.RemoveAt(CharIdx, EAllowShrinking::No);
 					--CharIdx;
 				}
 			}

@@ -303,7 +303,7 @@ void USignificanceManager::UnregisterObject(UObject* Object)
 			const int32 Index = ObjWithSequentialPostWork.IndexOfByPredicate([ObjectInfo](const FSequentialPostWorkPair& WorkPair) { return WorkPair.ObjectInfo == ObjectInfo; });
 			if (Index != -1)
 			{
-				ObjWithSequentialPostWork.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+				ObjWithSequentialPostWork.RemoveAtSwap(Index, EAllowShrinking::No);
 			}
 		}
 
@@ -340,7 +340,7 @@ void USignificanceManager::UnregisterAll(FName Tag)
 				const int32 Index = ObjWithSequentialPostWork.IndexOfByPredicate([ManagedObj](const FSequentialPostWorkPair& WorkPair) { return WorkPair.ObjectInfo == ManagedObj; });
 				if (Index != -1)
 				{
-					ObjWithSequentialPostWork.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+					ObjWithSequentialPostWork.RemoveAtSwap(Index, EAllowShrinking::No);
 				}
 			}
 

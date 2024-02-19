@@ -1580,7 +1580,7 @@ FFrameTime UMovieSceneSequencePlayer::UpdateServerTimeSamples()
 			const double ThisSample = ServerTimeSamples[SampleIndex].ServerTime + (CurrentWallClock - ServerTimeSamples[SampleIndex].ReceivedTime) * PlaybackMultiplier * LastEffectiveTimeDilation;
 			if (FMath::Abs(ThisSample - MeanTime) > StandardDeviation)
 			{
-				ServerTimeSamples.RemoveAt(SampleIndex, 1, EAllowShrinking::No);
+				ServerTimeSamples.RemoveAt(SampleIndex, EAllowShrinking::No);
 			}
 			else
 			{

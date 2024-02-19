@@ -903,7 +903,7 @@ namespace Chaos
 			const int32 Index = Children->Find(Child);
 			if (Index != INDEX_NONE)
 			{
-				Children->RemoveAtSwap(Index, 1, EAllowShrinking::No);
+				Children->RemoveAtSwap(Index, EAllowShrinking::No);
 			}
 		}
 
@@ -1200,7 +1200,7 @@ namespace Chaos
 					// Remove from the children array without freeing memory yet. 
 					// We're looping over Children and it'd be silly to free the array
 					// 1 entry at a time.
-					Children.RemoveAtSwap(ChildIdx, 1, EAllowShrinking::No);
+					Children.RemoveAtSwap(ChildIdx, EAllowShrinking::No);
 				}
 				ActivatedChildren.Add(Child);
 				SendBreakingEvent(Child, bParentCrumbled);
@@ -1460,7 +1460,7 @@ namespace Chaos
 
 				for (int32 RemoveIndex = IslandIndicesToRemove.Num() - 1; RemoveIndex >= 0; --RemoveIndex)
 				{
-					Islands.RemoveAtSwap(IslandIndicesToRemove[RemoveIndex], 1, EAllowShrinking::No);
+					Islands.RemoveAtSwap(IslandIndicesToRemove[RemoveIndex], EAllowShrinking::No);
 				}
 
 				if (bCreateNewClusters)

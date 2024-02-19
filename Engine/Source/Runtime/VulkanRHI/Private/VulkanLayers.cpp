@@ -265,7 +265,7 @@ static TArray<const ANSICHAR*> SetupLayers(SetupHelperType& VulkanSetupHelper, T
 
 				if (bFound)
 				{
-					Array.RemoveAtSwap(OuterIndex, 1, EAllowShrinking::No);
+					Array.RemoveAtSwap(OuterIndex, EAllowShrinking::No);
 				}
 			}
 		};

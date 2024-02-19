@@ -11641,7 +11641,7 @@ void UCharacterMovementComponent::ConvertRootMotionServerIDsToLocalIDs(const FRo
 
 		if (!bFoundLocalSource)
 		{
-			RootMotionIDMappings.RemoveAt(MappingIndex, 1, EAllowShrinking::No);
+			RootMotionIDMappings.RemoveAt(MappingIndex, EAllowShrinking::No);
 		}
 	}
 

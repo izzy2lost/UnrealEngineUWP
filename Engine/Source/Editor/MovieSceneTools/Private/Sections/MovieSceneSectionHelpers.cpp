@@ -63,7 +63,7 @@ void MovieSceneSectionHelpers::ConsolidateColorCurves( TArray< TTuple<float, FLi
 		{
 			if (ChannelTimes[Index].Num() == 0)
 			{
-				ChannelTimes.RemoveAt(Index, 1, EAllowShrinking::No);
+				ChannelTimes.RemoveAt(Index, EAllowShrinking::No);
 			}
 		}
 

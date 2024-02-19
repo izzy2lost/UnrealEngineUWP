@@ -199,7 +199,7 @@ bool UDMMaterialEffectStack::MoveEffect(int32 InIndex, int32 InNewIndex)
 
 	UDMMaterialEffect* MovedEffect = Effects[InIndex];
 
-	Effects.RemoveAt(InIndex, 1, EAllowShrinking::No); // Don't allow shrinking.
+	Effects.RemoveAt(InIndex, EAllowShrinking::No); // Don't allow shrinking.
 	Effects.Insert(MovedEffect, InNewIndex);
 
 	const int MinIndex = FMath::Min(InIndex, InNewIndex);

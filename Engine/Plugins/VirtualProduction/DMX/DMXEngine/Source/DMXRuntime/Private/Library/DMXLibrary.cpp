@@ -270,7 +270,7 @@ void UDMXLibrary::SetEntityIndex(UDMXEntity* InEntity, const int32 NewIndex)
 	{
 		if (NewIndex >= Entities.Num())
 		{
-			Entities.RemoveAt(OldIndex, 1, EAllowShrinking::No);
+			Entities.RemoveAt(OldIndex, EAllowShrinking::No);
 			Entities.Add(InEntity);
 			return;
 		}

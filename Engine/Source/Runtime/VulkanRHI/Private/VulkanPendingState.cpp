@@ -299,7 +299,7 @@ void FVulkanDescriptorPoolsManager::GC()
 		auto* PoolSet = PoolSets[Index];
 		if (PoolSet->IsUnused() && GFrameNumberRenderThread - PoolSet->GetLastFrameUsed() > VulkanRHI::NUM_FRAMES_TO_WAIT_BEFORE_RELEASING_TO_OS)
 		{
-			PoolSets.RemoveAtSwap(Index, 1, EAllowShrinking::Yes);
+			PoolSets.RemoveAtSwap(Index, EAllowShrinking::Yes);
 
 			if (AsyncDeletionTask)
 			{
@@ -756,7 +756,7 @@ void FVulkanDescriptorSetCache::GC()
 			UE_LOG(LogVulkanRHI, Warning, TEXT("FVulkanDescriptorSetCache::GC() Free Pool is not empty! Too small r.Vulkan.DSetCacheTargetSetsPerPool?"));
 		}
 		FreePool = MoveTemp(CachedPools[RemoveIndex]);
-		CachedPools.RemoveAt(RemoveIndex, 1, EAllowShrinking::No);
+		CachedPools.RemoveAt(RemoveIndex, EAllowShrinking::No);
 	}
 }
 

@@ -648,7 +648,7 @@ void UOnlineHotfixManager::FilterHotfixFiles()
 	{
 		if (!WantsHotfixProcessing(HotfixFileList[Idx]))
 		{
-			HotfixFileList.RemoveAt(Idx, 1, EAllowShrinking::No);
+			HotfixFileList.RemoveAt(Idx, EAllowShrinking::No);
 			Idx--;
 		}
 	}

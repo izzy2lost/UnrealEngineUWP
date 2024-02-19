@@ -63,7 +63,7 @@ void FCurveEditorTreeItem::DestroyUnpinnedCurves(FCurveEditor* CurveEditor)
 		if (!CurveEditor->IsCurvePinned(Curves[Index]))
 		{
 			CurveEditor->RemoveCurve(Curves[Index]);
-			Curves.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+			Curves.RemoveAtSwap(Index, EAllowShrinking::No);
 		}
 	}
 }
@@ -327,7 +327,7 @@ void FCurveEditorTree::RunFilters()
 			if (!Filter)
 			{
 				// Remove invalid filters
-				WeakFilters.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+				WeakFilters.RemoveAtSwap(Index, EAllowShrinking::No);
 			}
 			else
 			{

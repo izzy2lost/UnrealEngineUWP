@@ -135,7 +135,7 @@ void FRHITransientResourceOverlapTracker::Track(FRHITransientResource* Transient
 		// Complete overlap.
 		if (ResourceRangeOld.PageOffsetMin >= ResourceRangeNew.PageOffsetMin && ResourceRangeOld.PageOffsetMax <= ResourceRangeNew.PageOffsetMax)
 		{
-			ResourceRanges.RemoveAt(Index, 1, EAllowShrinking::No);
+			ResourceRanges.RemoveAt(Index, EAllowShrinking::No);
 			Index--;
 		}
 		// Partial overlap, can manifest as three cases:

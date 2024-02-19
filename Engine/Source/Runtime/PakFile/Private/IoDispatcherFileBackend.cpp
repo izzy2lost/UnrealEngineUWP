@@ -319,7 +319,7 @@ TArray<FFileIoStoreReadRequest*> FFileIoStoreOffsetSortedRequestQueue::RemoveMis
 		{
 			RequestsToReturn.Add(Requests[i]);
 			RequestsBySequence.Remove(Requests[i]);
-			Requests.RemoveAt(i, 1, EAllowShrinking::No);
+			Requests.RemoveAt(i, EAllowShrinking::No);
 		}
 	}
 

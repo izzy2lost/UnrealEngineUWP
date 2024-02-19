@@ -58,7 +58,7 @@ bool FTrackEditorThumbnailPool::DrawThumbnails()
 		if (ThumbnailsBeingDrawn[ThumbnailIndex]->bHasFinishedDrawing)
 		{
 			ThumbnailsBeingDrawn[ThumbnailIndex]->PlayFade();
-			ThumbnailsBeingDrawn.RemoveAt(ThumbnailIndex, 1, EAllowShrinking::No);
+			ThumbnailsBeingDrawn.RemoveAt(ThumbnailIndex, EAllowShrinking::No);
 			TimeOfLastDraw = CurrentTime;
 		}
 		else

@@ -1702,7 +1702,7 @@ FGenericPlatformProcess::EWaitAndForkResult FUnixPlatformProcess::WaitAndFork()
 						UE_LOG(LogHAL, Log, TEXT("[Parent] WaitAndFork child %d missing. Removing from children list..."), ChildPidAndSignal.Pid);
 					}
 
-					AllChildren.RemoveAt(ChildIdx, 1, EAllowShrinking::No);
+					AllChildren.RemoveAt(ChildIdx, EAllowShrinking::No);
 				}
 			}
 		}

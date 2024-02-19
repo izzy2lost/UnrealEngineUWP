@@ -1125,7 +1125,7 @@ void RemoveActiveHandle(FStreamable& Streamable, FStreamableHandle& Handle)
 	{
 		if (ActiveHandles[Idx] == &Handle)
 		{
-			ActiveHandles.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
+			ActiveHandles.RemoveAtSwap(Idx, EAllowShrinking::No);
 		}
 	}
 }

@@ -51,7 +51,7 @@ void TPreAnimatedCaptureSources<KeyType>::StopTrackingCaptureSource(const KeyTyp
 			if (MetaData.Entry.ValueHandle.TypeID == InStorageID)
 			{
 				Owner->RemoveMetaData(MetaData);
-				Array->RemoveAt(Index, 1, EAllowShrinking::No);
+				Array->RemoveAt(Index, EAllowShrinking::No);
 			}
 		}
 

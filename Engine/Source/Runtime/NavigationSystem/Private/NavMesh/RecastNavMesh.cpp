@@ -1611,7 +1611,7 @@ bool ARecastNavMesh::GetRandomPointInNavigableRadius(const FVector& Origin, floa
 				break;
 			}
 
-			Polys.RemoveAtSwap(RandomIndex, 1, EAllowShrinking::No);
+			Polys.RemoveAtSwap(RandomIndex, EAllowShrinking::No);
 		}
 	}
 
@@ -2549,7 +2549,7 @@ void ARecastNavMesh::InvalidateAffectedPaths(const TArray<FNavTileRef>& ChangedT
 			FNavPathSharedPtr SharedPath = WeakPathPtr->Pin();
 			if (WeakPathPtr->IsValid() == false)
 			{
-				ActivePaths.RemoveAtSwap(PathIndex, 1, EAllowShrinking::No);
+				ActivePaths.RemoveAtSwap(PathIndex, EAllowShrinking::No);
 			}
 			else
 			{
@@ -2572,7 +2572,7 @@ void ARecastNavMesh::InvalidateAffectedPaths(const TArray<FNavTileRef>& ChangedT
 					if (ChangedTiles.Contains(NavTileRef))
 					{
 						SharedPath->Invalidate();
-						ActivePaths.RemoveAtSwap(PathIndex, 1, EAllowShrinking::No);
+						ActivePaths.RemoveAtSwap(PathIndex, EAllowShrinking::No);
 						break;
 					}
 				}

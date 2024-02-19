@@ -4209,7 +4209,7 @@ void UCustomizableInstancePrivate::BuildOrCopyClothingData(const TSharedRef<FUpd
 
 						if (!DstTetherCluster.Num())
 						{
-							Dst.Tethers.RemoveAt( Dst.Tethers.Num() - 1, 1, EAllowShrinking::No );
+							Dst.Tethers.RemoveAt( Dst.Tethers.Num() - 1, EAllowShrinking::No );
 						}
 					}
 				};

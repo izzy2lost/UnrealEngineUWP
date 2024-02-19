@@ -1803,7 +1803,7 @@ void FPrimitiveSceneInfo::RemoveFromScene(bool bUpdateStaticDrawLists)
 		if (LevelNotifyPrimitives != nullptr)
 		{
 			checkSlow(LevelUpdateNotificationIndex != INDEX_NONE);
-			LevelNotifyPrimitives->RemoveAtSwap(LevelUpdateNotificationIndex, 1, EAllowShrinking::No);
+			LevelNotifyPrimitives->RemoveAtSwap(LevelUpdateNotificationIndex, EAllowShrinking::No);
 			if (LevelNotifyPrimitives->Num() == 0)
 			{
 				Scene->PrimitivesNeedingLevelUpdateNotification.Remove(Proxy->GetLevelName());

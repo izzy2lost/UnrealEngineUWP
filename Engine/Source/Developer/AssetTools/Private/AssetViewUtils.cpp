@@ -1665,8 +1665,8 @@ void GetOutOfDatePackageDependencies(const TArray<FString>& InPackagesThatWillBe
 			// Dependency data may contain files that no longer exist on disk; strip those from the list now
 			if (!FPaths::FileExists(DependencyFilenames[DependencyIndex]))
 			{
-				AllDependencies.RemoveAt(DependencyIndex, 1, EAllowShrinking::No);
-				DependencyFilenames.RemoveAt(DependencyIndex, 1, EAllowShrinking::No);
+				AllDependencies.RemoveAt(DependencyIndex, EAllowShrinking::No);
+				DependencyFilenames.RemoveAt(DependencyIndex, EAllowShrinking::No);
 				--DependencyIndex;
 			}
 		}

@@ -758,7 +758,7 @@ void FLegacyAudioStreamingManager::RemoveStreamingSoundWave(const FSoundWaveProx
 				{
 					delete LoadResult;
 					
-					AsyncAudioStreamChunkResults.RemoveAtSwap(i, 1, EAllowShrinking::No);
+					AsyncAudioStreamChunkResults.RemoveAtSwap(i, EAllowShrinking::No);
 				}
 			}
 		}

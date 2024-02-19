@@ -62,7 +62,7 @@ bool UDMMaterialSlot::MoveLayer(UDMMaterialLayerObject* InLayer, int32 InNewInde
 	const int MinIndex = FMath::Min(CurrentIndex, InNewIndex);
 	const int MaxIndex = FMath::Max(CurrentIndex, InNewIndex);
 
-	LayerObjects.RemoveAt(CurrentIndex, 1, EAllowShrinking::No); // Don't allow shrinking.
+	LayerObjects.RemoveAt(CurrentIndex, EAllowShrinking::No); // Don't allow shrinking.
 	LayerObjects.Insert(InLayer, InNewIndex);
 
 	for (int32 LayerIndex = MinIndex; LayerIndex <= MaxIndex; ++LayerIndex)

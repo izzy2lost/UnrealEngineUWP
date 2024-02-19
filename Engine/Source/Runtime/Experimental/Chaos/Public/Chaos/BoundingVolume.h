@@ -1298,7 +1298,7 @@ private:
 		{
 			if (Intersections[i] == Intersections[i - 1])
 			{
-				Intersections.RemoveAtSwap(i, 1, EAllowShrinking::No);
+				Intersections.RemoveAtSwap(i, EAllowShrinking::No);
 			}
 		}
 

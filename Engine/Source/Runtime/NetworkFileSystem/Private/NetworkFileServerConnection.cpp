@@ -42,7 +42,7 @@ static FString MakeAbsoluteNormalizedDir(const FString& InPath)
 	FString Out = FPaths::ConvertRelativePathToFull(InPath);
 	if (Out.EndsWith(TEXT("/")))
 	{
-		Out.RemoveAt(Out.Len() - 1, 1, EAllowShrinking::No);
+		Out.RemoveAt(Out.Len() - 1, EAllowShrinking::No);
 	}
 	return Out;
 }

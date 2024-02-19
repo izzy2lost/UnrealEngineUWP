@@ -161,7 +161,7 @@ void AGameplayDebuggerPlayerManager::UpdateAuthReplicators()
 				TestData.Controller->Cleanup();
 			}
 
-			PlayerData.RemoveAt(Idx, 1, EAllowShrinking::No);
+			PlayerData.RemoveAt(Idx, EAllowShrinking::No);
 		}
 	}
 
@@ -352,7 +352,7 @@ void AGameplayDebuggerPlayerManager::OnGameModeLogout(AGameModeBase* GameMode, A
 					TestData.Controller->Cleanup();
 				}
 
-				PlayerData.RemoveAt(Idx, 1, EAllowShrinking::No);
+				PlayerData.RemoveAt(Idx, EAllowShrinking::No);
 				break;
 			}
 		}

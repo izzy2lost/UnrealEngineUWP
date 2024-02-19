@@ -908,14 +908,14 @@ public:
 				if(Index == BackIndex)
 				{
 					// If we're already the back element, there's nothing to re-add
-					Elements.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+					Elements.RemoveAtSwap(Index, EAllowShrinking::No);
 				}
 				else
 				{
 					PairType& BackPair = Elements[NumElems - 1];
 					const uint32 BackHash = MurmurFinalize32(GetUniqueIdx(BackPair.Key).Idx);
 					HashTable.Remove(BackHash, NumElems - 1);
-					Elements.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+					Elements.RemoveAtSwap(Index, EAllowShrinking::No);
 					HashTable.Add(BackHash, Index);
 				}
 			}

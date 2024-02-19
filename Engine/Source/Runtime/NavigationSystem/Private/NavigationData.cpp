@@ -270,7 +270,7 @@ void ANavigationData::TickActor(float DeltaTime, enum ELevelTick TickType, FActo
 					switch (Result)
 					{
 					case EPathObservationResult::NoLongerObserving:
-						ObservedPaths.RemoveAtSwap(PathIndex, 1, EAllowShrinking::No);
+						ObservedPaths.RemoveAtSwap(PathIndex, EAllowShrinking::No);
 						break;
 
 					case EPathObservationResult::NoChange:
@@ -288,7 +288,7 @@ void ANavigationData::TickActor(float DeltaTime, enum ELevelTick TickType, FActo
 				}
 				else
 				{
-					ObservedPaths.RemoveAtSwap(PathIndex, 1, EAllowShrinking::No);
+					ObservedPaths.RemoveAtSwap(PathIndex, EAllowShrinking::No);
 				}
 			}
 
@@ -431,7 +431,7 @@ void ANavigationData::PurgeUnusedPaths()
 		FNavPathWeakPtr* WeakPathPtr = &ActivePaths[PathIndex];
 		if (WeakPathPtr->IsValid() == false)
 		{
-			ActivePaths.RemoveAtSwap(PathIndex, 1, EAllowShrinking::No);
+			ActivePaths.RemoveAtSwap(PathIndex, EAllowShrinking::No);
 		}
 	}
 }

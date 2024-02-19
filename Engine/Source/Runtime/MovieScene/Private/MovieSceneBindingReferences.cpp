@@ -202,7 +202,7 @@ void FMovieSceneBindingReferences::RemoveInvalidBindings(const TSet<FGuid>& Vali
 	{
 		if (!ValidBindingIDs.Contains(SortedReferences[Index].ID))
 		{
-			SortedReferences.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+			SortedReferences.RemoveAtSwap(Index, EAllowShrinking::No);
 		}
 	}
 

@@ -690,7 +690,7 @@ struct FTransitionDependenciesGameFeaturePluginState : public FGameFeaturePlugin
 			}
 			else
 			{
-				RemainingDependencies.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+				RemainingDependencies.RemoveAtSwap(Index, EAllowShrinking::No);
 			}
 
 			UpdateStateMachineImmediate();

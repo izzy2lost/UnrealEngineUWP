@@ -252,13 +252,13 @@ bool AGameModeBase::ClearPause()
 			const bool bResult = CanUnpauseCriteriaMet.Execute();
 			if (bResult)
 			{
-				Pausers.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+				Pausers.RemoveAtSwap(Index, EAllowShrinking::No);
 				bPauseCleared = true;
 			}
 		}
 		else
 		{
-			Pausers.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+			Pausers.RemoveAtSwap(Index, EAllowShrinking::No);
 			bPauseCleared = true;
 		}
 	}

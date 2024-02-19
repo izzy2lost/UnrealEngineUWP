@@ -1322,8 +1322,8 @@ void FMeshDescription::FindPolygonPerimeter(const FPolygonID PolygonID, TArrayVi
 			if (EdgeIndex != INDEX_NONE)
 			{
 				// If adding an edge which already exists, it must be an internal edge, so remove it again.
-				PerimeterEdges.RemoveAtSwap(EdgeIndex, 1, EAllowShrinking::No);
-				TriIndices.RemoveAtSwap(EdgeIndex, 1, EAllowShrinking::No);
+				PerimeterEdges.RemoveAtSwap(EdgeIndex, EAllowShrinking::No);
+				TriIndices.RemoveAtSwap(EdgeIndex, EAllowShrinking::No);
 			}
 			else
 			{
@@ -1419,8 +1419,8 @@ void FMeshDescription::FindPolygonPerimeter(TArrayView<const FTriangleID> Triang
 			if (PerimeterIndex != INDEX_NONE)
 			{
 				// If adding an edge which already exists, it must be an internal edge, so remove it again.
-				PerimeterEdges.RemoveAtSwap(PerimeterIndex, 1, EAllowShrinking::No);
-				Indices.RemoveAtSwap(PerimeterIndex, 1, EAllowShrinking::No);
+				PerimeterEdges.RemoveAtSwap(PerimeterIndex, EAllowShrinking::No);
+				Indices.RemoveAtSwap(PerimeterIndex, EAllowShrinking::No);
 			}
 			else
 			{

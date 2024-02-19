@@ -497,7 +497,7 @@ void FRHIMemoryPool::RemoveFromFreeBlocks(FRHIPoolAllocationData* InFreeBlock)
 	{
 		if (FreeBlocks[FreeBlockIndex] == InFreeBlock)
 		{
-			FreeBlocks.RemoveAt(FreeBlockIndex, 1, EAllowShrinking::No);
+			FreeBlocks.RemoveAt(FreeBlockIndex, EAllowShrinking::No);
 			break;
 		}
 	}	

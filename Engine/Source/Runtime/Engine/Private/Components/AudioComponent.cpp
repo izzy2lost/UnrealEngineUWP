@@ -621,7 +621,7 @@ void UAudioComponent::PlayQueuedQuantizedInternal(const UObject* WorldContextObj
 
 			// remove the pending quartz command data from the audio component
 			bFoundQuantizedCommand = true;
-			PendingQuartzCommandData.RemoveAtSwap(i, 1, EAllowShrinking::No);
+			PendingQuartzCommandData.RemoveAtSwap(i, EAllowShrinking::No);
 			break;
 		}
 	}

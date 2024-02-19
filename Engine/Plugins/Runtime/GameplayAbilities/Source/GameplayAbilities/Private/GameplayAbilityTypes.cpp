@@ -379,7 +379,7 @@ TSharedRef<FAbilityReplicatedDataCache> FGameplayAbilityReplicatedDataContainer:
 			// Reset it first (don't do this during remove or you will clear invocation lists of delegates that are being invoked!)
 			SharedPtr->ResetAll();
 
-			FreeData.RemoveAtSwap(i, 1, EAllowShrinking::No);
+			FreeData.RemoveAtSwap(i, EAllowShrinking::No);
 			break;
 		}
 	}
@@ -407,7 +407,7 @@ void FGameplayAbilityReplicatedDataContainer::Remove(const FGameplayAbilitySpecH
 			// Add it to the free list
 			FreeData.Add(RemovedElement);
 
-			InUseData.RemoveAtSwap(i, 1, EAllowShrinking::No);
+			InUseData.RemoveAtSwap(i, EAllowShrinking::No);
 			break;
 		}
 	}

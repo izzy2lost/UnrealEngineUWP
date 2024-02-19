@@ -16381,7 +16381,7 @@ void UEngine::CheckAndHandleStaleWorldObjectReferences(FWorldContext* WorldConte
 
 						if (LeakedObjects.Contains(World->PersistentLevel->OwningWorld))
 						{
-							LeakedObjects.RemoveAt(i, 1, EAllowShrinking::No);
+							LeakedObjects.RemoveAt(i, EAllowShrinking::No);
 						}
 					}
 				}

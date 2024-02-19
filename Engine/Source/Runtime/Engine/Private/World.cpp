@@ -4067,7 +4067,7 @@ void FStreamingLevelsToConsider::RemoveAt(const int32 Index)
 	}
 	else
 	{
-		StreamingLevels.RemoveAt(Index, 1, EAllowShrinking::No);
+		StreamingLevels.RemoveAt(Index, EAllowShrinking::No);
 	}
 }
 

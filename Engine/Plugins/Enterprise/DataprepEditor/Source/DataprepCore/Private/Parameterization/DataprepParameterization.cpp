@@ -595,7 +595,7 @@ void UDataprepParameterizationBindings::Add(const TSharedRef<FDataprepParameteri
 			TArray<FDataprepPropertyLink> PropertyChain = PossibleSubBinding->PropertyChain;
 			while ( PropertyChain.Num() > Binding->PropertyChain.Num() )
 			{
-				PropertyChain.RemoveAt( PropertyChain.Num() - 1, 1, EAllowShrinking::No );
+				PropertyChain.RemoveAt( PropertyChain.Num() - 1, EAllowShrinking::No );
 			}
 
 			if ( PropertyChain == Binding->PropertyChain )

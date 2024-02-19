@@ -1164,7 +1164,7 @@ void FFastArraySerializer::TFastArraySerializeHelper<Type, SerializerType>::Post
 			int32 DeleteIndex = Header.DeletedIndices[i];
 			if (Items.IsValidIndex(DeleteIndex))
 			{
-				Items.RemoveAtSwap(DeleteIndex, 1, EAllowShrinking::No);
+				Items.RemoveAtSwap(DeleteIndex, EAllowShrinking::No);
 
 				UE_LOG(LogNetFastTArray, Log, TEXT("   Deleting: %d"), DeleteIndex);
 			}

@@ -878,7 +878,7 @@ void FVulkanCommandBufferPool::FreeUnusedCmdBuffers(FVulkanQueue* InQueue, bool 
 			DeferredDeletionQueue.OnCmdBufferDeleted(CmdBuffer);
 
 			CmdBuffer->FreeMemory();
-			CmdBuffers.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+			CmdBuffers.RemoveAtSwap(Index, EAllowShrinking::No);
 			FreeCmdBuffers.Add(CmdBuffer);
 		}
 	}

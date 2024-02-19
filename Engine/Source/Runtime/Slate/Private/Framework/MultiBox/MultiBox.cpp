@@ -388,7 +388,7 @@ void FMultiBox::InsertCustomMultiBlock( TSharedRef<const FMultiBlock> InBlock, i
 					// Menus do not start with separators, remove separator if one exists
 					if (Blocks.Num() > 0 && Blocks[0]->IsSeparator())
 					{
-						Blocks.RemoveAt(0, 1, EAllowShrinking::No);
+						Blocks.RemoveAt(0, EAllowShrinking::No);
 					}
 
 					if (UToolMenuBase* ToolMenu = GetToolMenu())
