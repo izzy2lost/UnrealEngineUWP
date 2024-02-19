@@ -9,6 +9,10 @@
 		{
 			"name": "ProjectPath",
 			"value": "Samples/Games/Lyra/Lyra.uproject"
+		},
+		{
+			"name": "EditorTarget",
+			"value": "LyraEditor"
 		}
 	],
 	"defaultPreflight": {
@@ -168,7 +172,8 @@
             [
                 "-Script=Engine/Build/Graph/Examples/BuildEditorAndTools.xml",
 				"-Target=Submit To Horde For UGS",
-				"-set:UProjectPath=$(ProjectPath)"
+				"-set:UProjectPath=$(ProjectPath)",
+				"-set:EditorTarget=$(EditorTarget)"
             ]
 		},
 		{
@@ -179,7 +184,8 @@
 				"-Script=Engine/Build/Graph/Tasks/BuildAndTestProject.xml",
 				"-Target=BuildAndTest $(Project)",
 				"-set:ProjectName=$(Project)",
-				"-set:ProjectPath=$(ProjectPath)"
+				"-set:ProjectPath=$(ProjectPath)",
+				"-set:EditorTargetName=$(EditorTarget)"
 			],
 			"parameters": [
 				{
@@ -410,7 +416,9 @@
 			"initialAgentType": "Utility",
 			"arguments": [
 				"-Target=Presubmit Tests",
-				"-Script=Engine/Build/Graph/Examples/Presubmit.xml"
+				"-Script=Engine/Build/Graph/Examples/PresubmitTests.xml",
+				"-set:ProjectPath=$(ProjectPath)",
+				"-set:EditorTarget=$(EditorTarget)"
 			]
 		},
 		{
