@@ -2,21 +2,19 @@
 
 using System.Linq;
 using System.Security.Claims;
+using System.Threading;
 using System.Threading.Tasks;
-using Horde.Server.Acls;
+using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Jobs.Bisect;
+using EpicGames.Horde.Users;
 using Horde.Server.Agents;
 using Horde.Server.Agents.Pools;
-using Horde.Server.Jobs;
 using Horde.Server.Server;
 using Horde.Server.Server.Notices;
 using Horde.Server.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-using EpicGames.Horde.Users;
-using EpicGames.Horde.Jobs;
-using EpicGames.Horde.Jobs.Bisect;
-using System.Threading;
 
 namespace Horde.Server.Users
 {
@@ -57,7 +55,7 @@ namespace Horde.Server.Users
 				return NotFound();
 			}
 
-			IAvatar? avatar = (_avatarService == null)? (IAvatar?)null : await _avatarService.GetAvatarAsync(internalUser, cancellationToken);
+			IAvatar? avatar = (_avatarService == null) ? (IAvatar?)null : await _avatarService.GetAvatarAsync(internalUser, cancellationToken);
 			IUserClaims claims = await _userCollection.GetClaimsAsync(internalUser.Id, cancellationToken);
 			IUserSettings settings = await _userCollection.GetSettingsAsync(internalUser.Id, cancellationToken);
 
@@ -91,7 +89,7 @@ namespace Horde.Server.Users
 		public async Task<ActionResult> UpdateUserAsync(UpdateUserRequest request)
 		{
 			UserId? userId = User.GetUserId();
-			if(userId == null)
+			if (userId == null)
 			{
 				return BadRequest("Current user does not have a registered profile");
 			}

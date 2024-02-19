@@ -3,13 +3,12 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Horde.Server.Acls;
+using EpicGames.Horde.Users;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-using EpicGames.Horde.Users;
 
 namespace Horde.Server.Notifications
 {
@@ -118,7 +117,7 @@ namespace Horde.Server.Notifications
 			HashSet<UserId> authorizedUsers = new HashSet<UserId>();
 
 			UserId? currentUserId = User.GetUserId();
-			if(currentUserId != null)
+			if (currentUserId != null)
 			{
 				authorizedUsers.Add(currentUserId.Value);
 			}

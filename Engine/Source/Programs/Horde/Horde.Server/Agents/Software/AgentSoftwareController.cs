@@ -4,7 +4,6 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Horde.Server.Acls;
 using Horde.Server.Server;
 using Horde.Server.Tools;
 using HordeCommon;

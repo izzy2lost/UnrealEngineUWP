@@ -5,7 +5,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Horde.Server.Acls;
+using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Jobs.Bisect;
+using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Streams;
+using EpicGames.Horde.Users;
 using Horde.Server.Jobs.Graphs;
 using Horde.Server.Perforce;
 using Horde.Server.Server;
@@ -15,14 +19,9 @@ using Horde.Server.Utilities;
 using HordeCommon;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
-using EpicGames.Horde.Jobs.Templates;
-using EpicGames.Horde.Streams;
-using EpicGames.Horde.Users;
-using OpenTelemetry.Trace;
 using Microsoft.Extensions.Logging;
-using EpicGames.Horde.Jobs;
-using EpicGames.Horde.Jobs.Bisect;
+using Microsoft.Extensions.Options;
+using OpenTelemetry.Trace;
 
 namespace Horde.Server.Jobs.Bisect
 {
@@ -155,7 +154,7 @@ namespace Horde.Server.Jobs.Bisect
 			Owner = owner;
 			Steps = steps.Select(s => new GetJobStepRefResponse(s)).ToList();
 			NextJobId = nextJob?.Id;
-			NextJobChange = nextJob?.Change; 
+			NextJobChange = nextJob?.Change;
 		}
 	}
 
@@ -401,7 +400,7 @@ namespace Horde.Server.Jobs.Bisect
 			if (task.MinJobStep != null)
 			{
 				stepIds.Add(task.MinJobStep.Value);
-			}			
+			}
 			stepIds.Add(task.CurrentJobStep);
 			stepIds.AddRange(task.Steps);
 			stepIds.Add(task.InitialJobStep);

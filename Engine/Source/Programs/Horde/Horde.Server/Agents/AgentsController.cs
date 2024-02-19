@@ -3,8 +3,14 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
-using Horde.Server.Acls;
+using EpicGames.Core;
+using EpicGames.Horde.Agents;
+using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Agents.Pools;
+using EpicGames.Horde.Agents.Sessions;
+using EpicGames.Horde.Common;
 using Horde.Server.Agents.Leases;
 using Horde.Server.Agents.Sessions;
 using Horde.Server.Auditing;
@@ -14,13 +20,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using EpicGames.Core;
-using EpicGames.Horde.Agents;
-using EpicGames.Horde.Agents.Leases;
-using EpicGames.Horde.Common;
-using EpicGames.Horde.Agents.Pools;
-using EpicGames.Horde.Agents.Sessions;
-using System.Threading;
 
 namespace Horde.Server.Agents
 {
@@ -349,7 +348,7 @@ namespace Horde.Server.Agents
 			}
 
 			ISession? session = await _agentService.GetSessionAsync(sessionId);
-			if(session == null || session.AgentId != agentId)
+			if (session == null || session.AgentId != agentId)
 			{
 				return NotFound();
 			}
@@ -394,7 +393,7 @@ namespace Horde.Server.Agents
 			}
 
 			List<object> responses = new List<object>();
-			foreach(ILease lease in leases)
+			foreach (ILease lease in leases)
 			{
 				Dictionary<string, string>? details = await _agentService.GetPayloadDetailsAsync(lease.Payload, cancellationToken);
 				responses.Add(PropertyFilter.Apply(CreateGetAgentLeaseResponse(lease, details, agentRate), filter));
@@ -420,7 +419,7 @@ namespace Horde.Server.Agents
 			}
 
 			IAgent? agent = await _agentService.GetAgentAsync(agentId);
-			if(agent == null)
+			if (agent == null)
 			{
 				return NotFound(agentId);
 			}

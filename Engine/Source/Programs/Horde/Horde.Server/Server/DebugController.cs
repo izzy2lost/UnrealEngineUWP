@@ -20,7 +20,6 @@ using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using Google.Protobuf;
 using Horde.Common.Rpc;
-using Horde.Server.Acls;
 using Horde.Server.Agents.Relay;
 using Horde.Server.Configuration;
 using Horde.Server.Jobs;
@@ -254,7 +253,7 @@ namespace Horde.Server.Server
 	[Authorize]
 	public class SecureDebugController : HordeControllerBase
 	{
-		private static readonly Random s_random = new ();
+		private static readonly Random s_random = new();
 
 		private readonly MongoService _mongoService;
 		private readonly ConfigService _configService;
@@ -369,7 +368,7 @@ namespace Horde.Server.Server
 
 			return config;
 		}
-		
+
 		/// <summary>
 		/// Get the network ID for a given IP address
 		/// </summary>
@@ -390,7 +389,7 @@ namespace Horde.Server.Server
 			_globalConfig.Value.TryGetNetworkConfig(ip, out NetworkConfig? networkConfig);
 			return networkConfig == null ? StatusCode(StatusCodes.Status500InternalServerError, "Unable to find a network config for the IP") : Ok(networkConfig);
 		}
-		
+
 		/// <summary>
 		/// Add a port mapping for agent relay
 		/// </summary>
@@ -407,12 +406,12 @@ namespace Horde.Server.Server
 			{
 				return BadRequest("Unable to read or convert query parameter 'clientIp'");
 			}
-			
+
 			if (agentIpStr == null || !IPAddress.TryParse(agentIpStr, out IPAddress? agentIp))
 			{
 				return BadRequest("Unable to read or convert query parameter 'agentIp'");
 			}
-			
+
 			if (agentPort == null)
 			{
 				return BadRequest("Bad query parameter 'agentPort'");
@@ -423,7 +422,7 @@ namespace Horde.Server.Server
 			{
 				new Port { RelayPort = -1, AgentPort = agentPort.Value, Protocol = PortProtocol.Tcp }
 			};
-			
+
 			PortMapping portMapping = await _agentRelayService.AddPortMappingAsync(new ClusterId("default"), LeaseId.Parse(bogusLeaseId), clientIp, agentIp, ports);
 			return JsonFormatter.Default.Format(portMapping);
 		}
@@ -451,7 +450,7 @@ namespace Horde.Server.Server
 				const string Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 				return new string(Enumerable.Repeat(Chars, length).Select(s => s[s_random.Next(s.Length)]).ToArray());
 			}
-			
+
 			if (!Enum.TryParse(logLevel, out LogLevel logLevelInternal))
 			{
 				logLevelInternal = LogLevel.Information;
@@ -466,7 +465,7 @@ namespace Horde.Server.Server
 				exception = new Exception("Exception from /api/v1/debug/generate-log-msg " + RandomString(exceptionMessageLen));
 			}
 
-			Dictionary<string, object> args = new ();
+			Dictionary<string, object> args = new();
 			if (argCount > 0)
 			{
 				for (int i = 0; i < argCount; i++)
@@ -476,12 +475,12 @@ namespace Horde.Server.Server
 			}
 
 			using IDisposable? logScope = _logger.BeginScope(args);
-			
+
 			// Ignore warning as we explicitly want to build this message manually
 #pragma warning disable CA2254 // Template should be a static expression
 			_logger.Log(logLevelInternal, exception, message);
 #pragma warning restore CA2254
-			
+
 			return Ok($"Log message generated logLevel={logLevelInternal} messageLen={messageLen} exceptionMessageLen={exceptionMessageLen} argCount={argCount} argLen={argLen}");
 		}
 
@@ -544,7 +543,7 @@ namespace Horde.Server.Server
 
 			return logFile.ApplyFilter(filter);
 		}
-		
+
 		/// <summary>
 		/// Display a table listing each template with what job options are enabled
 		/// </summary>
@@ -559,12 +558,12 @@ namespace Horde.Server.Server
 			}
 
 			List<PropertyInfo> joProps = typeof(JobOptions).GetProperties(BindingFlags.Public | BindingFlags.Instance).OrderBy(x => x.Name).ToList();
-			
+
 			if (format == "csv")
 			{
 				return GetJobOptionsAsCsv(joProps);
 			}
-			
+
 			StringBuilder sb = new();
 
 			sb.AppendLine("<style>");
@@ -573,7 +572,7 @@ namespace Horde.Server.Server
 			sb.AppendLine("th, td { border: 1px solid black; text-align: left; padding: 8px; }");
 			sb.AppendLine("th { background-color: #f2f2f2; }");
 			sb.AppendLine("</style>");
-			
+
 			sb.AppendLine("<h1>Job options enabled by stream + template</h1>");
 			sb.AppendLine("<table>");
 			sb.AppendLine("<thead><tr>");
@@ -584,7 +583,7 @@ namespace Horde.Server.Server
 				sb.Append($"<th>{prop.Name}</th>");
 			}
 			sb.AppendLine("</tr></thead>");
-			
+
 			foreach (StreamConfig sc in _globalConfig.Value.Streams)
 			{
 				foreach (TemplateRefConfig tpl in sc.Templates)
@@ -599,11 +598,11 @@ namespace Horde.Server.Server
 					sb.AppendLine("</tr>");
 				}
 			}
-			
+
 			sb.AppendLine("</table>");
 			return new ContentResult { ContentType = "text/html", StatusCode = (int)HttpStatusCode.OK, Content = sb.ToString() };
 		}
-		
+
 		private ActionResult GetJobOptionsAsCsv(List<PropertyInfo> jobOptionsProps)
 		{
 			StringBuilder sb = new();
@@ -611,7 +610,7 @@ namespace Horde.Server.Server
 			List<string> headers = new() { "Stream", "Template" };
 			headers.AddRange(jobOptionsProps.Select(prop => prop.Name));
 			sb.AppendLine(String.Join('\t', headers));
-			
+
 			foreach (StreamConfig sc in _globalConfig.Value.Streams)
 			{
 				foreach (TemplateRefConfig tpl in sc.Templates)
@@ -664,14 +663,14 @@ namespace Horde.Server.Server
 				Directory.CreateDirectory(snapshotDir);
 			}
 
-			DotTrace.Config config = new ();
+			DotTrace.Config config = new();
 			config.SaveToDir(snapshotDir);
 			DotTrace.Attach(config);
 			DotTrace.StartCollectingData();
-			
+
 			return new ContentResult { ContentType = "text/plain", StatusCode = (int)HttpStatusCode.OK, Content = "Profiling session started. Using dir " + snapshotDir };
 		}
-		
+
 		/// <summary>
 		/// Stops the profiler session
 		/// </summary>
@@ -689,7 +688,7 @@ namespace Horde.Server.Server
 			DotTrace.Detach();
 			return new ContentResult { ContentType = "text/plain", StatusCode = (int)HttpStatusCode.OK, Content = "Profiling session stopped" };
 		}
-		
+
 		/// <summary>
 		/// Downloads the captured profiling snapshots
 		/// </summary>
@@ -708,7 +707,7 @@ namespace Horde.Server.Server
 			{
 				return NotFound("The generated snapshot .zip file was not found");
 			}
-			
+
 			return PhysicalFile(snapshotZipFile, "application/zip", Path.GetFileName(snapshotZipFile));
 		}
 
@@ -745,7 +744,7 @@ namespace Horde.Server.Server
 
 			IJob? job = await _jobService.GetJobAsync(JobId.Parse(jobId));
 
-			if (job == null) 
+			if (job == null)
 			{
 				return NotFound();
 			}
