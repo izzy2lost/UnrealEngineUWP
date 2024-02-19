@@ -123,7 +123,7 @@ namespace UE::OSC
 				break;
 			case EDataType::True:
 			case EDataType::False:
-			case EDataType::Nil:
+			case EDataType::NilValue:
 			case EDataType::Infinitum:
 				// No values are written for these types
 				break;
@@ -177,8 +177,8 @@ namespace UE::OSC
 			case EDataType::False:
 				Arguments.Add(FOSCData(false));
 				break;
-			case EDataType::Nil:
-				Arguments.Add(FOSCData::Nil());
+			case EDataType::NilValue:
+				Arguments.Add(FOSCData::NilData());
 				break;
 			case EDataType::Infinitum:
 				Arguments.Add(FOSCData::Infinitum());

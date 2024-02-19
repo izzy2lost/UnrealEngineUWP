@@ -21,7 +21,7 @@ namespace UE::OSC
 		Infinitum = 'I',
 		Int32 = 'i',
 		Int64 = 'h',
-		Nil = 'N',
+		NilValue = 'N',
 		String = 's',
 		Terminate = '\0',
 		Time = 't',
@@ -50,7 +50,7 @@ namespace UE::OSC
 		UE_DEPRECATED(5.5, "Use applicable explicitly typed constructor or static construction function")
 		explicit FOSCData(EDataType DataType);
 
-		static const FOSCData& Nil();
+		static const FOSCData& NilData();
 		static const FOSCData& Infinitum();
 		static const FOSCData& Terminate();
 		static bool IsNil(const FOSCData& InType);
@@ -66,7 +66,7 @@ namespace UE::OSC
 		FORCEINLINE bool IsInfinitum() const { return DataType == EDataType::Infinitum; }
 		FORCEINLINE bool IsInt32() const { return DataType == EDataType::Int32; }
 		FORCEINLINE bool IsInt64() const { return DataType == EDataType::Int64; }
-		FORCEINLINE bool IsNil() const { return DataType == EDataType::Nil; }
+		FORCEINLINE bool IsNil() const { return DataType == EDataType::NilValue; }
 		FORCEINLINE bool IsString() const { return DataType == EDataType::String; }
 		FORCEINLINE bool IsTimeTag() const { return DataType == EDataType::Time; }
 		FORCEINLINE bool IsTerminate() const { return DataType == EDataType::Terminate; }
@@ -100,7 +100,7 @@ namespace UE::OSC
 		>;
 
 	protected:
-		EDataType DataType = EDataType::Nil;
+		EDataType DataType = EDataType::NilValue;
 		FVariant Data;
 	};
 } // namespace UE::OSC
@@ -201,5 +201,5 @@ public:
 	}
 
 	UE_DEPRECATED(5.5, "Use UE::OSC::FOSCData::GetDataType() instead")
-	int32 GetTypeTag() const { return static_cast<int32>(UE::OSC::EDataType::Nil); }
+	int32 GetTypeTag() const { return static_cast<int32>(UE::OSC::EDataType::NilValue); }
 };

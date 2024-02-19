@@ -39,7 +39,7 @@ namespace UE::OSC
 				return TEXT("Int32");
 			case EDataType::Int64:
 				return TEXT("Int64");
-			case EDataType::Nil:
+			case EDataType::NilValue:
 				return TEXT("Nil");
 			case EDataType::String:
 				return TEXT("String");
@@ -133,12 +133,12 @@ namespace UE::OSC
 		Data.Set<int32>(0);
 	}
 
-	const FOSCData& FOSCData::Nil()
+	const FOSCData& FOSCData::NilData()
 	{
 		auto MakeInf = []()
 			{
 				FOSCData NilType;
-				NilType.DataType = EDataType::Nil;
+				NilType.DataType = EDataType::NilValue;
 				return NilType;
 			};
 		static const FOSCData StaticNil = MakeInf();
@@ -171,7 +171,7 @@ namespace UE::OSC
 
 	bool FOSCData::IsNil(const FOSCData& InType)
 	{
-		return InType.GetDataType() == EDataType::Nil;
+		return InType.GetDataType() == EDataType::NilValue;
 	}
 
 	EDataType FOSCData::GetDataType() const
