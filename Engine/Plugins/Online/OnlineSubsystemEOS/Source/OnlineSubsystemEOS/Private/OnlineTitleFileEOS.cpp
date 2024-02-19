@@ -109,7 +109,7 @@ void FOnlineTitleFileEOS::DeleteCachedFiles(bool bSkipEnumerated)
 		}
 		else
 		{
-			UE_LOG_ONLINE_TITLEFILE(Error, TEXT("EOS_TitleStorage_DeleteCache() failed with error code (%s)"), ANSI_TO_TCHAR(EOS_EResult_ToString(Data->ResultCode)));
+			UE_LOG_ONLINE_TITLEFILE(Error, TEXT("EOS_TitleStorage_DeleteCache() failed with error code (%s)"), *LexToString(Data->ResultCode));
 		}
 	};
 
@@ -205,14 +205,14 @@ bool FOnlineTitleFileEOS::EnumerateFiles(const FPagedQuery& Page)
 				}
 				else
 				{
-					ErrorStr = ANSI_TO_TCHAR(EOS_EResult_ToString(Result));
+					ErrorStr = LexToString(Result);
 					UE_LOG_ONLINE_TITLEFILE(Error, TEXT("EOS_TitleStorage_CopyFileMetadataAtIndex() failed with error code (%s)"), *ErrorStr);
 				}
 			}
 		}
 		else
 		{
-			ErrorStr = ANSI_TO_TCHAR(EOS_EResult_ToString(Data->ResultCode));
+			ErrorStr = LexToString(Data->ResultCode);
 			UE_LOG_ONLINE_TITLEFILE(Error, TEXT("EOS_TitleStorage_QueryFileList() failed with error code (%s)"), *ErrorStr);
 		}
 
@@ -319,7 +319,7 @@ bool FOnlineTitleFileEOS::ReadFile(const FString& FileName)
 				// If we fail to complete reading the file, discard it from the known files
 				FileSet.Remove(FString(ANSI_TO_TCHAR(Data->Filename)));
 
-				UE_LOG_ONLINE_TITLEFILE(Error, TEXT("EOS_TitleStorage_ReadFile() failed with error code (%s)"), ANSI_TO_TCHAR(EOS_EResult_ToString(Data->ResultCode)));
+				UE_LOG_ONLINE_TITLEFILE(Error, TEXT("EOS_TitleStorage_ReadFile() failed with error code (%s)"), *LexToString(Data->ResultCode));
 			}
 		}
 		else

@@ -233,13 +233,13 @@ void FOnlineUserCloudEOS::EnumerateUserFiles(const FUniqueNetId& UserId)
 					}
 					else
 					{
-						UE_LOG_ONLINE_CLOUD(Warning, TEXT("[FOnlineUserCloudEOS::EnumerateUserFiles] EOS_PlayerDataStorage_CopyFileMetadataAtIndex was not successful. Finished with error %s on file with index %d"), ANSI_TO_TCHAR(EOS_EResult_ToString(Result)), Index);
+						UE_LOG_ONLINE_CLOUD(Warning, TEXT("[FOnlineUserCloudEOS::EnumerateUserFiles] EOS_PlayerDataStorage_CopyFileMetadataAtIndex was not successful. Finished with error %s on file with index %d"), *LexToString(Result), Index);
 					}
 				}
 			}
 			else
 			{
-				UE_LOG_ONLINE_CLOUD(Warning, TEXT("[FOnlineUserCloudEOS::EnumerateUserFiles] EOS_PlayerDataStorage_QueryFileList was not successful. Finished with error %s"), ANSI_TO_TCHAR(EOS_EResult_ToString(Data->ResultCode)));
+				UE_LOG_ONLINE_CLOUD(Warning, TEXT("[FOnlineUserCloudEOS::EnumerateUserFiles] EOS_PlayerDataStorage_QueryFileList was not successful. Finished with error %s"), *LexToString(Data->ResultCode));
 			}
 		}
 		else
@@ -404,7 +404,7 @@ bool FOnlineUserCloudEOS::ReadUserFile(const FUniqueNetId& UserId, const FString
 					// If we fail to complete reading the file, discard it from the known files
 					FileSetsPerUser.Find(SharedUserId)->Remove(FileName);
 
-					UE_LOG_ONLINE_CLOUD(Warning, TEXT("[FOnlineUserCloudEOS::ReadUserFile] EOS_PlayerDataStorage_ReadFile was not successful for file %s. Finished with error %s"), *FileName, ANSI_TO_TCHAR(EOS_EResult_ToString(Data->ResultCode)));
+					UE_LOG_ONLINE_CLOUD(Warning, TEXT("[FOnlineUserCloudEOS::ReadUserFile] EOS_PlayerDataStorage_ReadFile was not successful for file %s. Finished with error %s"), *FileName, *LexToString(Data->ResultCode));
 				}
 			}
 			else
@@ -586,7 +586,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 					// If we fail to complete writing the file, discard it from the known files
 					FileSetsPerUser.Find(SharedUserId)->Remove(FileName);
 
-					UE_LOG_ONLINE_CLOUD(Warning, TEXT("[FOnlineUserCloudEOS::WriteUserFile] EOS_PlayerDataStorage_WriteFile was not successful. Finished with error %s"), ANSI_TO_TCHAR(EOS_EResult_ToString(Data->ResultCode)));
+					UE_LOG_ONLINE_CLOUD(Warning, TEXT("[FOnlineUserCloudEOS::WriteUserFile] EOS_PlayerDataStorage_WriteFile was not successful. Finished with error %s"), *LexToString(Data->ResultCode));
 				}
 			}
 			else
@@ -671,7 +671,7 @@ void FOnlineUserCloudEOS::CancelWriteUserFile(const FUniqueNetId& UserId, const 
 				else
 				{
 					// Result code will be EOS_NoChange if request had already completed (can't be canceled), and EOS_AlreadyPending if it's already been canceled before (this is a final state for a canceled request and won't change over time)
-					UE_LOG_ONLINE_CLOUD(Warning, TEXT("[FOnlineUserCloudEOS::CancelWriteUserFile] EOS_PlayerDataStorageFileTransferRequest_CancelRequest was not successful. Finished with error %s"), ANSI_TO_TCHAR(EOS_EResult_ToString(Result)));
+					UE_LOG_ONLINE_CLOUD(Warning, TEXT("[FOnlineUserCloudEOS::CancelWriteUserFile] EOS_PlayerDataStorageFileTransferRequest_CancelRequest was not successful. Finished with error %s"), *LexToString(Result));
 				}
 			}
 			else
@@ -777,7 +777,7 @@ bool FOnlineUserCloudEOS::DeleteUserFile(const FUniqueNetId& UserId, const FStri
 			else
 			{
 				// File deletion operations can fail if the user does not own the file
-				UE_LOG_ONLINE_CLOUD(Warning, TEXT("[FOnlineUserCloudEOS::DeleteUserFile] EOS_PlayerDataStorage_DeleteFile was not successful for file %s. Finished with error %s"), *FileName, ANSI_TO_TCHAR(EOS_EResult_ToString(Data->ResultCode)));
+				UE_LOG_ONLINE_CLOUD(Warning, TEXT("[FOnlineUserCloudEOS::DeleteUserFile] EOS_PlayerDataStorage_DeleteFile was not successful for file %s. Finished with error %s"), *FileName, *LexToString(Data->ResultCode));
 			}
 
 			TriggerOnDeleteUserFileCompleteDelegates(bWasSuccessful, *UserIdRef, FileName);
