@@ -801,7 +801,7 @@ void FAdaptiveStreamingPlayer::GetLoopState(FLoopState& OutLoopState) const
 
 	// Check if there is a pending seek. A seek resets the loop count, but the seek itself may not be executing
 	// and the count not being reset yet.
-	
+
 	/* Not needed since we are only accessing a bool
 	FScopeLock lock(&SeekVars.Lock);
 	*/
@@ -1799,6 +1799,13 @@ void FAdaptiveStreamingPlayer::HandleSeeking()
 			SeekVars.Lock.Lock();
 
 			SeekVars.bForScrubbing = bIsForScrubbing;
+
+			// When seeking (other than the initial playstart seek) any default end time that
+			// was set via the URL #t,e parameter no longer applies.
+			if (Manifest.IsValid())
+			{
+				Manifest->ClearDefaultEndTime();
+			}
 		}
 		SeekVars.ActiveRequest = SeekParam;
 		lock.Unlock();
@@ -2058,7 +2065,7 @@ double FAdaptiveStreamingPlayer::GetMinBufferTimeBeforePlayback()
 										LastBufferingState == EPlayerState::eState_Rebuffering ? PlayerConfig.RebufferMinTimeAvailBeforePlayback : PlayerConfig.InitialBufferMinTimeAvailBeforePlayback;
 
 	FTimeValue mbtAbr = StreamSelector.IsValid() ? StreamSelector->GetMinBufferTimeForPlayback(LastBufferingState == EPlayerState::eState_Seeking ? IAdaptiveStreamSelector::EMinBufferType::Seeking
-																							 : LastBufferingState == EPlayerState::eState_Rebuffering ? IAdaptiveStreamSelector::EMinBufferType::Rebuffering 
+																							 : LastBufferingState == EPlayerState::eState_Rebuffering ? IAdaptiveStreamSelector::EMinBufferType::Rebuffering
 																							 :	IAdaptiveStreamSelector::EMinBufferType::Initial, Manifest->GetMinBufferTime()) : FTimeValue();
 	kMinBufferBeforePlayback = mbtAbr.IsValid() ? mbtAbr.GetAsSeconds() : kMinBufferBeforePlayback;
 	return kMinBufferBeforePlayback;
@@ -2858,7 +2865,7 @@ void FAdaptiveStreamingPlayer::InternalHandlePendingStartRequest(const FTimeValu
 								case IManifest::FResult::EType::PastEOS:
 								{
 									PostLog(Facility::EFacility::Player, IInfoLog::ELevel::Info, FString::Printf(TEXT("miss(%d,a=%d,l=%d) for %lld/%d in range %lld/%d - %lld/%d"), (int32)Result.GetType(), StartAt.Options.bFrameAccuracy, PendingStartRequest->StartType == FPendingStartRequest::EStartType::LoopPoint,
-											(long long int) StartAt.Time.GetAsHNS(), StartAt.Time.IsValid(), 
+											(long long int) StartAt.Time.GetAsHNS(), StartAt.Time.IsValid(),
 											(long long int) StartAt.Options.PlaybackRange.Start.GetAsHNS(),
 											StartAt.Options.PlaybackRange.Start.IsValid(),
 											(long long int) StartAt.Options.PlaybackRange.End.GetAsHNS(),
@@ -4031,6 +4038,15 @@ void FAdaptiveStreamingPlayer::CheckForStreamEnd()
 		{
 			// First check if there is an end time set at which we need to stop.
 			FTimeValue EndAtTime = PlaybackState.GetPlaybackEndAtTime();
+			FTimeValue InitialEndTime = Manifest.IsValid() ? Manifest->GetDefaultEndTime() : FTimeValue();
+			if (EndAtTime.IsValid() && InitialEndTime.IsValid())
+			{
+				EndAtTime = EndAtTime < InitialEndTime ? EndAtTime : InitialEndTime;
+			}
+			else if (InitialEndTime.IsValid())
+			{
+				EndAtTime = InitialEndTime;
+			}
 			if (EndAtTime.IsValid())
 			{
 				if (PlaybackState.GetPlayPosition() >= EndAtTime)
@@ -4301,6 +4317,14 @@ void FAdaptiveStreamingPlayer::InternalSetPlaybackEnded()
 	{
 		TimelineRange.End = RangeEnd;
 	}
+	if (Manifest.IsValid() && Manifest->GetDefaultEndTime().IsValid())
+	{
+		if (Manifest->GetDefaultEndTime() < TimelineRange.End)
+		{
+			TimelineRange.End = Manifest->GetDefaultEndTime();
+		}
+	}
+
 	PlaybackState.SetPlayPosition(TimelineRange.End);
 
 	if (LastBufferingState == EPlayerState::eState_Seeking)

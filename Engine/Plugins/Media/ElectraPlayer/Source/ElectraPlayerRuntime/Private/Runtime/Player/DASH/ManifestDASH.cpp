@@ -227,7 +227,7 @@ private:
 		FManifestDASHInternal::FSegmentInformation InitSegmentInfo;
 		bool bRequested = false;
 		TSharedPtrTS<FMPDLoadRequestDASH> LoadRequest;
-		
+
 		class FAcceptBoxes : public IParserISO14496_12::IBoxCallback
 		{
 		public:
@@ -344,7 +344,7 @@ IManifest::EType FManifestDASH::GetPresentationType() const
 }
 
 TSharedPtrTS<const FLowLatencyDescriptor> FManifestDASH::GetLowLatencyDescriptor() const
-{ 
+{
 	TSharedPtrTS<FManifestDASHInternal> Manifest(CurrentManifest);
 	return Manifest.IsValid() ? Manifest->GetLowLatencyDescriptor() : nullptr;
 }
@@ -400,6 +400,21 @@ void FManifestDASH::ClearDefaultStartTime()
 	if (Manifest.IsValid())
 	{
 		Manifest->ClearDefaultStartTime();
+	}
+}
+
+FTimeValue FManifestDASH::GetDefaultEndTime() const
+{
+	TSharedPtrTS<FManifestDASHInternal> Manifest(CurrentManifest);
+	return Manifest.IsValid() ? Manifest->GetDefaultEndTime() : FTimeValue();
+}
+
+void FManifestDASH::ClearDefaultEndTime()
+{
+	TSharedPtrTS<FManifestDASHInternal> Manifest(CurrentManifest);
+	if (Manifest.IsValid())
+	{
+		Manifest->ClearDefaultEndTime();
 	}
 }
 
@@ -1748,7 +1763,7 @@ IManifest::FResult FDASHPlayPeriod::GetRetrySegment(TSharedPtrTS<IStreamSegment>
 		OutSegment = NewRequest;
 		return IManifest::FResult(IManifest::FResult::EType::Found);
 	}
-	
+
 	// Pass the download stats bWaitingForRemoteRetryElement to convey if the retry segment needs to wait for a remote element,
 	// which is either some xlink or an index segment.
 	FStreamSegmentRequestDASH* CurrentRequest = const_cast<FStreamSegmentRequestDASH*>(static_cast<const FStreamSegmentRequestDASH*>(InCurrentSegment.Get()));

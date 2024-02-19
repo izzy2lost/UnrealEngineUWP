@@ -97,7 +97,7 @@ namespace
 
 	const TCHAR* const DASHRole = TEXT("urn:mpeg:dash:role:2011");
 
-	const TCHAR* const SupportedEssentialProperties[] = 
+	const TCHAR* const SupportedEssentialProperties[] =
 	{
 		TEXT("urn:mpeg:dash:urlparam:2014"),
 		TEXT("urn:mpeg:dash:urlparam:2016"),
@@ -733,7 +733,7 @@ class FManifestBuilderDASH : public IManifestBuilderDASH
 public:
 	FManifestBuilderDASH(IPlayerSessionServices* InPlayerSessionServices);
 	virtual ~FManifestBuilderDASH() = default;
-	
+
 	virtual FErrorDetail BuildFromMPD(TSharedPtrTS<FManifestDASHInternal>& OutMPD, TCHAR* InOutMPDXML, const FString& EffectiveURL, const FString& ETag) override;
 
 private:
@@ -1039,7 +1039,7 @@ FErrorDetail FManifestDASHInternal::Build(IPlayerSessionServices* InPlayerSessio
 	FErrorDetail Error;
 
 	MPDRoot = InMPDRoot;
-	
+
 	// What type of presentation is this?
 	// We do not validate the MPD@type here. Anything not 'static' is handled as 'dynamic'.
 	PresentationType = MPDRoot->GetType().Equals(TEXT("static")) ? EPresentationType::Static : EPresentationType::Dynamic;
@@ -1203,7 +1203,7 @@ FErrorDetail FManifestDASHInternal::BuildAfterInitialRemoteElementDownload()
 					return CreateErrorAndLog(PlayerSessionServices, FString::Printf(TEXT("Dynamic presentations with the last Period@duration missing and no MPD@minimumUpdateTime need to have MPD@mediaPresentationDuration set!")), ERRCODE_DASH_MPD_BUILDER_MEDIAPRESENTATIONDURATION_NEEDED);
 				}
 			}
-			
+
 			// Check for potential period overlap or gaps.
 			if (Periods.Num())
 			{
@@ -1653,7 +1653,7 @@ void FManifestDASHInternal::PreparePeriodAdaptationSets(TSharedPtrTS<FPeriod> Pe
 					{
 						Representation->CodecInfo.SetSamplingRate((int32) MPDAdaptationSet->GetAudioSamplingRate()[0]);
 					}
-					
+
 					// Get the audio channel configurations from both Representation and AdaptationSet.
 					TArray<TSharedPtrTS<FDashMPD_DescriptorType>> AudioChannelConfigurations(MPDRepresentation->GetAudioChannelConfigurations());
 					AudioChannelConfigurations.Append(MPDAdaptationSet->GetAudioChannelConfigurations());
@@ -1689,7 +1689,7 @@ void FManifestDASHInternal::PreparePeriodAdaptationSets(TSharedPtrTS<FPeriod> Pe
 								   tag:dolby.com,2014:dash:DolbyDigitalPlusExtensionType:2014
 								   tag:dolby.com,2014:dash:complexityIndexTypeA:2014"
 								and more.
-							
+
 								There is also information in the Accessibility descriptors like
 								   urn:tva:metadata:cs:AudioPurposeCS:2007
 							*/
@@ -2133,7 +2133,7 @@ void FManifestDASHInternal::SendEventsFromAllPeriodEventStreams(TSharedPtrTS<FPe
 			const TSharedPtrTS<FDashMPD_EventStreamType>& EvS = MPDEventStreams[nEvS];
 			uint32 Timescale = EvS->GetTimescale().GetWithDefault(1);
 			int64 PTO = (int64) EvS->GetPresentationTimeOffset().GetWithDefault(0);
-			
+
 			const TArray<TSharedPtrTS<FDashMPD_EventType>>& Events = EvS->GetEvents();
 			for(int32 i=0; i<Events.Num(); ++i)
 			{
@@ -2192,9 +2192,9 @@ FErrorDetail FManifestDASHInternal::ResolveInitialRemoteElementRequest(TSharedPt
 	PendingRemoteElementLoadRequests.Remove(RequestResponse);
 	// Likewise for the pending element list.
 	RemoteElementsToResolve.Remove(RequestResponse->XLinkElement);
-	
+
 	TSharedPtrTS<IDashMPDElement> XLinkElement = RequestResponse->XLinkElement.Pin();
-	if (XLinkElement.IsValid())	
+	if (XLinkElement.IsValid())
 	{
 		int64 LastResolveID = XLinkElement->GetXLink().LastResolveID;
 		int64 NewResolveID = LastResolveID;
@@ -2579,7 +2579,7 @@ FTimeRange FManifestDASHInternal::GetSeekableTimeRange() const
 			}
 			/*
 				The start must be covered by a Period. See: https://dashif-documents.azurewebsites.net/Guidelines-TimingModel/master/Guidelines-TimingModel.html#timing-timeshift
-					"Clients SHALL NOT allow seeking into regions of the time shift buffer that are not covered by periods, 
+					"Clients SHALL NOT allow seeking into regions of the time shift buffer that are not covered by periods,
 					regardless of whether such regions are before or after the periods described by the MPD."
 			*/
 			FTimeValue PST = ast + GetPeriods()[0]->GetStart();
@@ -2688,13 +2688,14 @@ void FManifestDASHInternal::PrepareDefaultStartTime()
 {
 	FTimeRange PlaybackRange = GetPlayTimesFromURI();
 	DefaultStartTime = PlaybackRange.Start;
+	DefaultEndTime = PlaybackRange.End;
 }
 
 
 FTimeRange FManifestDASHInternal::GetPlayTimesFromURI() const
 {
 	FTimeRange FromTo;
-	
+
 	// We are interested in the 't' and 'period' fragment values here.
 	FString Time, PeriodID;
 	for(int32 i=0,iMax=URLFragmentComponents.Num(); i<iMax; ++i)
@@ -2844,6 +2845,15 @@ void FManifestDASHInternal::ClearDefaultStartTime()
 	DefaultStartTime.SetToInvalid();
 }
 
+FTimeValue FManifestDASHInternal::GetDefaultEndTime() const
+{
+	return DefaultEndTime;
+}
+
+void FManifestDASHInternal::ClearDefaultEndTime()
+{
+	DefaultEndTime.SetToInvalid();
+}
 
 
 } // namespace Electra

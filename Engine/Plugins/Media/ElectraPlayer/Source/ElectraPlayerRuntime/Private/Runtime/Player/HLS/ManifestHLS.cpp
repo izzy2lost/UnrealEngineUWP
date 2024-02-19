@@ -196,6 +196,13 @@ FTimeValue FManifestHLS::GetDefaultStartTime() const
 void FManifestHLS::ClearDefaultStartTime()
 {
 }
+FTimeValue FManifestHLS::GetDefaultEndTime() const
+{
+	return FTimeValue::GetInvalid();
+}
+void FManifestHLS::ClearDefaultEndTime()
+{
+}
 
 
 

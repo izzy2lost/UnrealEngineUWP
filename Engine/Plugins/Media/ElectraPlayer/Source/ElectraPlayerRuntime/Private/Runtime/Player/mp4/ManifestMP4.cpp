@@ -67,6 +67,7 @@ FErrorDetail FManifestMP4Internal::Build(TSharedPtrTS<IParserISO14496_12> MP4Par
 	FErrorDetail Result = MediaAsset->Build(PlayerSessionServices, MP4Parser, URL);
 	FTimeRange PlaybackRange = GetPlaybackRange();
 	DefaultStartTime = PlaybackRange.Start;
+	DefaultEndTime = PlaybackRange.End;
 	return Result;
 }
 
