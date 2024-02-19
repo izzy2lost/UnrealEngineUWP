@@ -1007,10 +1007,17 @@ UObject* ULevelFactory::FactoryCreateText
 									bGrouped = true;
 									FParse::Value(Str, TEXT("GroupFolder="), GroupFolder);
 								}
-								FString ActorFolderPath;
-								if (FParse::Value(Str, TEXT("ActorFolderPath="), ActorFolderPath))
+
+								// Don't overwrite if its already been set during actor creation
+								// (i.e. by UActorEditorContextSubsystem::ApplyContext).
+								// It mirrors the behavior of the task "Importing Actors" below.
+								if (NewActor->GetFolder().IsNone())
 								{
-									NewActor->SetFolderPath(*ActorFolderPath);
+									FString ActorFolderPath;
+									if (FParse::Value(Str, TEXT("ActorFolderPath="), ActorFolderPath))
+									{
+										NewActor->SetFolderPath(*ActorFolderPath);
+									}
 								}
 
 								uint32 CopyPasteId;
