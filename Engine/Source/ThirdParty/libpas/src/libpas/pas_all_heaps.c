@@ -528,7 +528,7 @@ pas_heap_summary pas_all_heaps_compute_total_non_utility_large_summary(void)
 
 pas_heap_summary pas_all_heaps_compute_total_non_utility_summary(void)
 {
-    return pas_heap_summary_add(
+    return pas_heap_summary_add(
         pas_heap_summary_add(
             pas_all_heaps_compute_total_non_utility_segregated_summary(),
             pas_all_heaps_compute_total_non_utility_bitfit_summary()),
