@@ -418,8 +418,8 @@
 			"name": "Installed Engine Build",
 			"initialAgentType": "Win64",
 			"arguments": [
-				"-Target=UE5 Binary Release",
-				"-Script=Engine/Build/InternalEngineBuild.xml"
+				"-Target=Installed Engine Build",
+				"-Script=Engine/Build/InstalledEngineBuild.xml"
 			],
 			"parameters": [
 				{
