@@ -76,11 +76,55 @@ namespace Horde.Server.Accounts
 		}
 
 		/// <summary>
+		/// Gets information about the current account
+		/// </summary>
+		[HttpGet]
+		[Route("/api/v1/accounts/current")]
+		[ProducesResponseType(typeof(GetAccountResponse), 200)]
+		[ProducesResponseType(404)]
+		public async Task<ActionResult<object>> GetCurrentAccountAsync([FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
+		{
+			AccountId? accountId = User.GetAccountId();
+			if (accountId == null)
+			{
+				return BadRequest("User is not logged in through a Horde account");
+			}
+
+			IHordeAccount? account = await _accountCollection.GetAsync(accountId.Value, cancellationToken);
+			if (account == null)
+			{
+				return NotFound(accountId.Value);
+			}
+
+			GetAccountResponse response = CreateGetAccountResponse(account);
+			return PropertyFilter.Apply(response, filter);
+		}
+
+		/// <summary>
+		/// Gets information about the current account
+		/// </summary>
+		[HttpPut]
+		[Route("/api/v1/accounts/current")]
+		[ProducesResponseType(200)]
+		[ProducesResponseType(404)]
+		public async Task<ActionResult> UpdateCurrentAccountAsync(UpdateCurrentAccountRequest request, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
+		{
+			AccountId? accountId = User.GetAccountId();
+			if (accountId == null)
+			{
+				return BadRequest("User is not logged in through a Horde account");
+			}
+
+			await _accountCollection.UpdateAsync(accountId.Value, password: request.Password);
+			return Ok();
+		}
+
+		/// <summary>
 		/// Gets information about an account by id
 		/// </summary>
 		[HttpGet]
 		[Route("/api/v1/accounts/{id}")]
-		[ProducesResponseType(typeof(List<GetAccountResponse>), 200)]
+		[ProducesResponseType(typeof(GetAccountResponse), 200)]
 		[ProducesResponseType(404)]
 		public async Task<ActionResult<object>> GetAccountAsync(AccountId id, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{

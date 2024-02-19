@@ -200,6 +200,7 @@ namespace Horde.Server.Server
 			List<Claim> claims = new()
 			{
 				new Claim(HordeClaimTypes.Version, HordeClaimTypes.CurrentVersion),
+				new Claim(HordeClaimTypes.AccountId, account.Id.ToString()),
 				new Claim(ClaimTypes.Name, account.Name),
 				new Claim(ClaimTypes.Email, account.Email),
 				new Claim(HordeClaimTypes.User, account.Login),
