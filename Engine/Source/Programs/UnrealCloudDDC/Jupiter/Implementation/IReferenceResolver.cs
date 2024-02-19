@@ -73,8 +73,9 @@ namespace Jupiter.Implementation
 		/// </summary>
 		/// <param name="ns">The namespace to check</param>
 		/// <param name="cb">The compact binary object to resolve references for</param>
+		/// <param name="ignoreMissingBlobs">Set to true to always returned the blobs found, ignoring anything that is missing rather then throwing</param>
 		/// <returns></returns>
-		IAsyncEnumerable<BlobId> GetReferencedBlobs(NamespaceId ns, CbObject cb);
+		IAsyncEnumerable<BlobId> GetReferencedBlobs(NamespaceId ns, CbObject cb, bool ignoreMissingBlobs = false);
 
 		/// <summary>
 		/// Returns which attachments exist in the cb object or any children
@@ -233,7 +234,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public async IAsyncEnumerable<BlobId> GetReferencedBlobs(NamespaceId ns, CbObject cb)
+		public async IAsyncEnumerable<BlobId> GetReferencedBlobs(NamespaceId ns, CbObject cb, bool ignoreMissingBlobs = false)
 		{
 			List<Task<(BlobId, bool)>> pendingBlobExistsChecks = new();
 			List<Task<(ContentIdAttachment, bool)>> pendingContentIdChecks = new();
@@ -294,12 +295,12 @@ namespace Jupiter.Implementation
 			}
 
 			// if there were any content ids we did not recognize we throw a partial reference exception
-			if (unresolvedContentIdReferences.Count != 0)
+			if (!ignoreMissingBlobs && unresolvedContentIdReferences.Count != 0)
 			{
 				throw new PartialReferenceResolveException(unresolvedContentIdReferences);
 			}
 			// if there were any blobs missing we throw a partial reference exception
-			if (unresolvedBlobReferences.Count != 0)
+			if (!ignoreMissingBlobs && unresolvedBlobReferences.Count != 0)
 			{
 				throw new ReferenceIsMissingBlobsException(unresolvedBlobReferences);
 			}

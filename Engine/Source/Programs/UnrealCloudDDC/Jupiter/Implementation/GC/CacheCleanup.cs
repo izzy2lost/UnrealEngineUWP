@@ -170,7 +170,7 @@ namespace Jupiter.Implementation
 			{
 				if (_cloudDDCSettings.CurrentValue.EnableBucketStatsTracking)
 				{
-					List<BlobId> blobs = await _objectService.GetReferencedBlobsAsync(ns, bucket, name);
+					List<BlobId> blobs = await _objectService.GetReferencedBlobsAsync(ns, bucket, name, ignoreMissingBlobs: true);
 					await _blobIndex.RemoveBlobFromBucketListAsync(ns, bucket, name, blobs);
 				}
 

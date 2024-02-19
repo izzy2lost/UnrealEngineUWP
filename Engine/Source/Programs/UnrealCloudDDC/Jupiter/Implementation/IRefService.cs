@@ -21,7 +21,7 @@ namespace Jupiter.Implementation
 		Task<long> DeleteBucketAsync(NamespaceId ns, BucketId bucket);
 
 		Task<bool> ExistsAsync(NamespaceId ns, BucketId bucket, RefId key);
-		Task<List<BlobId>> GetReferencedBlobsAsync(NamespaceId ns, BucketId bucket, RefId key);
+		Task<List<BlobId>> GetReferencedBlobsAsync(NamespaceId ns, BucketId bucket, RefId key, bool ignoreMissingBlobs);
 	}
 
 	public class ObjectHashMismatchException : Exception
