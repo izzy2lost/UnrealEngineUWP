@@ -40,6 +40,7 @@ ShaderCodeLibrary.cpp: Bound shader state cache implementation.
 #include "String/ParseTokens.h"
 #include "IO/IoChunkId.h"
 #include "IO/IoDispatcher.h"
+#include "IO/IoDispatcherInternal.h"
 
 #if WITH_EDITORONLY_DATA
 #include "Interfaces/IShaderFormat.h"
@@ -124,8 +125,7 @@ namespace UE
 			bool IsRunningWithIoStore()
 			{
 				static const bool bRunningWithIoStore =
-					FIoDispatcher::IsInitialized()
-					&& FIoDispatcher::Get().DoesChunkExist(CreateIoChunkId(0, 0, EIoChunkType::ScriptObjects));
+					FIoDispatcher::IsInitialized() && FIoDispatcherInternal::HasPackageData();
 				return bRunningWithIoStore;
 			}
 			bool IsRunningWithZenStore()

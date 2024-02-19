@@ -18,6 +18,7 @@
 #include "Interfaces/IPluginManager.h"
 #include "Internationalization/PackageLocalizationManager.h"
 #include "IO/IoDispatcher.h"
+#include "IO/IoDispatcherInternal.h"
 #include "Misc/App.h"
 #include "Misc/AssetRegistryInterface.h"
 #include "Misc/AutomationTest.h"
@@ -1845,13 +1846,13 @@ FPackageName::EPackageLocationFilter FPackageName::DoesPackageExistEx(const FPac
 		return EPackageLocationFilter::None;
 	}
 
-#if 0 // WITH_EDITOR - Temporarily disabled until UE-206417 is resolved
+
+#if WITH_EDITOR
 	IAssetRegistryInterface* AssetRegistry = IAssetRegistryInterface::GetPtr();
 
 	// Todo: The AssetRegistry currently cannot determine if a package comes from the Filesystem 
 	// or cooked content so we avoid registry lookups since we can't provide a reliable Location
-	if (AssetRegistry && ((uint8)Filter & (uint8)EPackageLocationFilter::FileSystem) &&
-		(!FIoDispatcher::IsInitialized() || FIoDispatcher::Get().GetTotalLoaded() == 0))
+	if (AssetRegistry && ((uint8)Filter & (uint8)EPackageLocationFilter::FileSystem) && (!FIoDispatcher::IsInitialized() || !FIoDispatcherInternal::HasPackageData()))
 	{
 		FName PackageName = PackagePath.GetPackageFName();
 		FName CorrectCasePackageName;

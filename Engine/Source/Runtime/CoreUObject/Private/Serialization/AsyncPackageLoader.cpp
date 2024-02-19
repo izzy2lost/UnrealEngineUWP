@@ -12,6 +12,7 @@
 #include "Misc/PackageName.h"
 #include "Misc/PathViews.h"
 #include "IO/IoDispatcher.h"
+#include "IO/IoDispatcherInternal.h"
 #include "HAL/IConsoleManager.h"
 
 #define DO_TRACK_ASYNC_LOAD_REQUESTS (!UE_BUILD_SHIPPING && !UE_BUILD_TEST)
@@ -199,7 +200,7 @@ void InitAsyncThread()
 		bHasUseIoStoreParamInEditor = UE_FORCE_USE_IOSTORE || FParse::Param(FCommandLine::Get(), TEXT("UseIoStore"));
 #endif
 		FIoDispatcher& IoDispatcher = FIoDispatcher::Get();
-		bool bHasScriptObjectsChunk = IoDispatcher.DoesChunkExist(CreateIoChunkId(0, 0, EIoChunkType::ScriptObjects));
+		const bool bHasScriptObjectsChunk = FIoDispatcherInternal::HasPackageData();
 		if (!bCommandLineDisabled && (bSettingsEnabled || bCommandLineEnabled))
 		{
 			GPackageLoader.Reset(MakeAsyncPackageLoader2(IoDispatcher));

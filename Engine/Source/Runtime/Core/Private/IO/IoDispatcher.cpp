@@ -959,13 +959,6 @@ FIoDispatcher::OnSignatureError()
 	return Impl->OnSignatureError();
 }
 
-static bool
-HasScriptObjectsChunk(FIoDispatcher& Dispatcher)
-{
-	static bool bHasScriptObjectsChunk = Dispatcher.DoesChunkExist(CreateIoChunkId(0, 0, EIoChunkType::ScriptObjects));
-	return bHasScriptObjectsChunk;
-}
-
 bool
 FIoDispatcher::IsInitialized()
 {
