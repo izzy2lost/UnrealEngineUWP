@@ -806,7 +806,7 @@ public:
 
 		if (CurrentNode != nullptr && CurrentNode->AsCategoryNode() != nullptr)
 		{
-			TSharedRef< FPropertyPath > NewPath = MakeShareable(new FPropertyPath());
+			TSharedRef< FPropertyPath > NewPath = MakeShared<FPropertyPath>();
 			return NewPath;
 		}
 
@@ -818,7 +818,7 @@ public:
 				NewPropInfo.Property = CurrentNode->GetProperty();
 				if (!NewPropInfo.Property.IsValid())
 				{
-					return MakeShareable(new FPropertyPath());
+					return MakeShared<FPropertyPath>();
 				}
 				NewPropInfo.ArrayIndex = CurrentNode->GetArrayIndex();
 
@@ -828,7 +828,7 @@ public:
 			CurrentNode = CurrentNode->GetParentNode();
 		}
 
-		TSharedRef< FPropertyPath > NewPath = MakeShareable(new FPropertyPath());
+		TSharedRef< FPropertyPath > NewPath = MakeShared<FPropertyPath>();
 
 		for (int PropertyIndex = Properties.Num() - 1; PropertyIndex >= 0; --PropertyIndex)
 		{

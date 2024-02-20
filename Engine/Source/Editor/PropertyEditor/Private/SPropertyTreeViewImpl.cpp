@@ -33,7 +33,7 @@ public:
 	FPropertyUtilitiesTreeView( SPropertyTreeViewImpl& InView )
 		: View( InView )
 	{
-		EditConditionParser = MakeShareable(new FEditConditionParser());
+		EditConditionParser = MakeShared<FEditConditionParser>();
 	}
 
 	virtual class FNotifyHook* GetNotifyHook() const override
@@ -160,9 +160,9 @@ void SPropertyTreeViewImpl::Construct(const FArguments& InArgs)
 	bFavoritesEnabled = bFavoritesEnabled && bFavoritesAllowed;
 
 	// Create the root property now
-	RootPropertyNode = MakeShareable( new FObjectPropertyNode );
+	RootPropertyNode = MakeShared<FObjectPropertyNode>();
 
-	PropertySettings = MakeShareable( new FPropertyUtilitiesTreeView(*this) );
+	PropertySettings = MakeShared<FPropertyUtilitiesTreeView>(*this);
 
 	ConstructPropertyTree();
 	

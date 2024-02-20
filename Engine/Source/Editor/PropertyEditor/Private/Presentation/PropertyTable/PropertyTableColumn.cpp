@@ -375,7 +375,7 @@ FORCEINLINE int32 FCompareRowByColumnAscending<FStructProperty>::CompareProperty
 
 FPropertyTableColumn::FPropertyTableColumn( const TSharedRef< IPropertyTable >& InTable, const TWeakObjectPtr< UObject >& InObject )
 	: Cells()
-	, DataSource( MakeShareable( new UObjectDataSource( InObject.Get() ) ) )
+	, DataSource( MakeShared<UObjectDataSource>(InObject.Get() ) )
 	, Table( InTable )
 	, Id( NAME_None )
 	, DisplayName()
