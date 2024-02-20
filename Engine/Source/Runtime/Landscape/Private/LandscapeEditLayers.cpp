@@ -9028,7 +9028,7 @@ TArray<FName> ALandscapeProxy::SynchronizeUnmarkedSharedProperties(ALandscapePro
 	USceneComponent* OwnRootComponent = GetRootComponent();
 	USceneComponent* ProxyRootComponent = InLandscape->GetRootComponent();
 
-	if ((OwnRootComponent != nullptr) && (ProxyRootComponent != nullptr))
+	if ((OwnRootComponent != nullptr) && (ProxyRootComponent != nullptr) && ProxyRootComponent->HasBeenInitialized())
 	{
 		FVector ProxyScale3D = ProxyRootComponent->GetComponentToWorld().GetScale3D();
 
