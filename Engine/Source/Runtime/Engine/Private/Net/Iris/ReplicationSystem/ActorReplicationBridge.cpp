@@ -46,16 +46,6 @@
 
 extern bool GDefaultUseSubObjectReplicationList;
 
-namespace UE::Net
-{
-
-bool ShouldUseIrisReplication(const UObject* Object)
-{
-	return ShouldUseIrisReplication();
-}
-
-}
-
 namespace UE::Net::Private
 {
 
@@ -165,11 +155,6 @@ UActorReplicationBridge::~UActorReplicationBridge()
 UE::Net::FNetRefHandle UActorReplicationBridge::BeginReplication(AActor* Actor, const FActorBeginReplicationParams& Params)
 {
 	using namespace UE::Net;
-
-	if (!ShouldUseIrisReplication(Actor))
-	{
-		return FNetRefHandle::GetInvalid();
-	}
 
 	if (!ensureMsgf(Actor == nullptr || !(Actor->HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject)), TEXT("Actor %s is a CDO or Archetype and should not be replicated."), ToCStr(GetFullNameSafe(Actor))))
 	{
@@ -354,7 +339,7 @@ UE::Net::FNetRefHandle UActorReplicationBridge::BeginReplication(FNetRefHandle O
 {
 	using namespace UE::Net;
 
-	if (!OwnerHandle.IsValid() || !ShouldUseIrisReplication(SubObject))
+	if (!OwnerHandle.IsValid())
 	{
 		return FNetRefHandle::GetInvalid();
 	}
