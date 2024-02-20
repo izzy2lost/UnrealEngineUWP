@@ -119,7 +119,7 @@ namespace HarmonixMetasound::Nodes::BarBeatToSeekTarget
 
 		void Execute()
 		{
-			SeekTargetOutPin->Type = ESeekPointType::Millisecond;
+			SeekTargetOutPin->Type = ESeekPointType::BarBeat;
 			SeekTargetOutPin->BarBeat.Bar = *Bar;
 			SeekTargetOutPin->BarBeat.Beat = *FloatBeat;
 		}
