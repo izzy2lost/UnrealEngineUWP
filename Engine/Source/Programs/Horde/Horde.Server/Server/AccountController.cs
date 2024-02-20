@@ -170,6 +170,11 @@ namespace Horde.Server.Server
 		[Route("/account/login/horde")]
 		public async Task<IActionResult> UserPassLoginAsync(string? returnUrl = null)
 		{
+			if (_globalConfig.Value.ServerSettings.AuthMethod != AuthMethod.Horde)
+			{
+				return Forbid("Horde built-in authentication is disabled");
+			}
+
 			const string ErrorMsg = "Invalid username or password";
 			string? username = Request.Form["username"];
 			string? password = Request.Form["password"];
