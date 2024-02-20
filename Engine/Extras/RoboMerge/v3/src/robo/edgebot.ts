@@ -929,9 +929,6 @@ class EdgeBotImpl extends PerforceStatefulBot {
 
 		status.last_cl = this.lastCl
 		
-		// if (this.isForceFlow)
-		status.num_changes_remaining = this.gate.numChangesRemaining
-
 		status.is_active = this.isActive
 		status.is_available = this.isAvailable
 		status.is_blocked = this.isBlocked

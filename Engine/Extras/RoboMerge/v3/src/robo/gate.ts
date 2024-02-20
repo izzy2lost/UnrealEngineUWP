@@ -406,6 +406,8 @@ export class Gate {
 		// for now, just equivalent of what was there before
 		// @todo info about intermediate gate
 
+		outStatus.num_changes_remaining = this.numChangesRemaining
+
 		const mostRecentGate = this.getMostRecentGate()
 		if (mostRecentGate) {
 			outStatus.lastGoodCL = mostRecentGate.cl
