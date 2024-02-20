@@ -397,7 +397,7 @@ namespace Horde.Server.Jobs
 			Reports = job.Reports?.ConvertAll(x => new GetReportResponse(x));
 			Arguments = job.Arguments.ToList();
 			UpdateTime = new DateTimeOffset(job.UpdateTimeUtc);
-			UseArtifactsV2 = job.JobOptions?.UseNewTempStorage ?? false;
+			UseArtifactsV2 = job.JobOptions?.UseNewTempStorage ?? true;
 			UpdateIssues = job.UpdateIssues;
 		}
 	}
