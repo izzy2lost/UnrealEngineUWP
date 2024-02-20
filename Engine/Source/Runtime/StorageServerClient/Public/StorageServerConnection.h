@@ -195,6 +195,7 @@ private:
 	friend FStorageServerResponse;
 	friend FStorageServerChunkBatchRequest;
 
+	void SortHostAddressesByLocalSubnet(TArrayView<const TSharedPtr<FInternetAddr>> HostAddresses, TArray<TSharedPtr<FInternetAddr>>& SortedHostAddresses);
 	int32 HandshakeRequest(TArrayView<const TSharedPtr<FInternetAddr>> HostAddresses);
 	FSocket* AcquireSocketFromPool();
 	FSocket* AcquireNewSocket(float TimeoutSeconds = -1.0f);

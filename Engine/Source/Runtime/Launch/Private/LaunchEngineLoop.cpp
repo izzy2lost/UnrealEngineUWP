@@ -2564,9 +2564,13 @@ int32 FEngineLoop::PreInitPreStartupScreen(const TCHAR* CmdLine)
 
 	// Initialize platform file with knowledge of the project file path before fixing the casing
 	IPlatformFile* CurrentPlatformFile = &FPlatformFileManager::Get().GetPlatformFile();
-	for (IPlatformFile* PlatformFileChainElement = CurrentPlatformFile; PlatformFileChainElement; PlatformFileChainElement = PlatformFileChainElement->GetLowerLevel())
+
 	{
-		PlatformFileChainElement->InitializeAfterProjectFilePath();
+		SCOPED_BOOT_TIMING("PlatformFileChainElement->InitializeAfterProjectFilePath");
+		for (IPlatformFile* PlatformFileChainElement = CurrentPlatformFile; PlatformFileChainElement; PlatformFileChainElement = PlatformFileChainElement->GetLowerLevel())
+		{
+			PlatformFileChainElement->InitializeAfterProjectFilePath();
+		}
 	}
 
 #if !IS_PROGRAM
