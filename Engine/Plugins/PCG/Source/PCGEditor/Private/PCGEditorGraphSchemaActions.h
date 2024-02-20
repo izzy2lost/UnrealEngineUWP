@@ -4,6 +4,7 @@
 
 #include "EdGraph/EdGraphSchema.h"
 
+#include "PCGGraph.h"
 #include "PCGSettings.h"
 #include "Templates/SubclassOf.h"
 
@@ -21,6 +22,14 @@ enum class EPCGEditorNewSettingsBehavior : uint8
 	Normal = 0,
 	ForceCopy,
 	ForceInstance
+};
+
+UENUM()
+enum class EPCGEditorNewPCGGraphBehavior : uint8
+{
+	Normal = 0,
+	SubgraphNode,
+	LoopNode
 };
 
 USTRUCT()
@@ -156,6 +165,7 @@ struct FPCGEditorGraphSchemaAction_NewLoadAssetElement : public FEdGraphSchemaAc
 	//~ End FEdGraphSchemaAction Interface
 };
 
+/** Creates a new subgraph element and allows choosing whether it can be a subgraph node or a loop node. */
 USTRUCT()
 struct FPCGEditorGraphSchemaAction_NewSubgraphElement : public FEdGraphSchemaAction
 {
@@ -174,10 +184,17 @@ struct FPCGEditorGraphSchemaAction_NewSubgraphElement : public FEdGraphSchemaAct
 	UPROPERTY()
 	FSoftObjectPath SubgraphObjectPath;
 
+	UPROPERTY()
+	EPCGEditorNewPCGGraphBehavior Behavior = EPCGEditorNewPCGGraphBehavior::Normal;
+
 	//~ Begin FEdGraphSchemaAction Interface
 	virtual FName GetTypeId() const override { return StaticGetTypeId(); }
 	virtual UEdGraphNode* PerformAction(UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode = true) override;
 	//~ End FEdGraphSchemaAction Interface
+
+	static void MakeGraphNodesOrContextualMenu(const TSharedRef<class SWidget>& InPanel, const FVector2D& InScreenPosition, UEdGraph* InGraph, const TArray<FSoftObjectPath>& InGraphPaths, const TArray<FVector2D>& InLocations, bool bInSelectNewNodes);
+	static void MakeGraphNodes(UPCGEditorGraph* InEditorGraph, TArray<UPCGGraphInterface*> InGraph, TArray<FVector2D> InGraphLocations, bool bInSelectNewNodes, bool bInCreateLoop);
+	static UEdGraphNode* MakeGraphNode(UPCGEditorGraph* InEditorGraph, UEdGraphPin* InFromPin, UPCGGraphInterface* InGraph, const FVector2D& InLocation, bool bInSelectNewNode, bool bInCreateLoop);
 };
 
 /** Action to add a 'comment' node to the graph */
