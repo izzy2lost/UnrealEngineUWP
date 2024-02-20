@@ -103,7 +103,8 @@ registerIcons({
       "FastForward": IconContents.FAST_FORWARD,
       "Play": IconContents.PLAY,
       "Maximize" : IconContents.MAXIMIZE,
-      "Star": IconContents.STAR
+      "Star": IconContents.STAR,
+      "Clean" : IconContents.CLEAN
    }
 });
 

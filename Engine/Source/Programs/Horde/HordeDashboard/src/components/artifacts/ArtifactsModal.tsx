@@ -81,22 +81,7 @@ class ArtifactsHandler {
 
       this.artifacts = artifacts;
 
-      this.contexts = [];
-
-      let a = artifacts.find(a => a.type === "step-saved");
-      if (a) {
-         this.contexts.push("step-saved");
-      }
-
-      a = artifacts.find(a => a.type === "step-output");
-      if (a) {
-         this.contexts.push("step-output");
-      }
-
-      a = artifacts.find(a => a.type === "step-trace");
-      if (a) {
-         this.contexts.push("step-trace");
-      }
+      this.contexts = Array.from(new Set(artifacts.map(a => a.type)));
 
       if (!this.context) {
          console.error("Artifact browser has no context");
@@ -104,7 +89,7 @@ class ArtifactsHandler {
          return;
       }
 
-      a = artifacts.find(a => a.type === this.context)!;
+      let a = artifacts.find(a => a.type === this.context)!;
 
       if (!a) {
          console.error("Unable to find artifact for context", this.context, artifacts);
@@ -157,7 +142,7 @@ class ArtifactsHandler {
          case "step-trace":
             return "Trace";
          default:
-            return "Unknown";
+            return this.context;
       }
    }
 
@@ -362,7 +347,12 @@ const BrowseBreadCrumbs: React.FC<{ handler: ArtifactsHandler }> = observer(({ h
 
    const fontSize = 13;
 
-   let rootName = "Step";
+   let rootName = handler.context;
+
+   if (handler.context === "step-saved") {
+      rootName = "Saved";
+   }
+
    if (handler.context === "step-output") {
       rootName = "Output";
    }

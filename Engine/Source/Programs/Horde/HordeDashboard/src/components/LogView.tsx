@@ -742,7 +742,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
                         <div className={styles.logLineOuter}> <Stack styles={{ root: { paddingLeft: 8, paddingRight: 8, position: "relative", verticalAlign: "center" } }}> {renderLine(navigate, item.line, item.lineNumber, handler.lineRenderStyle, searchState.search)}
                            <Stack id={`callout_target_${item?.lineNumber}`} style={{ position: "absolute", cursor: "pointer", userSelect: "none", left: "-12px", top: "0px" }} onClick={() => {
                               handler.infoLine = item.lineNumber;
-                              handler.externalUpdate();                              
+                              handler.externalUpdate();
                            }}><FontIcon id="infoview" style={{ fontSize: 14, color: eyeColor }} iconName="Eye" /></Stack>
                            {handler.infoLine === item.lineNumber && <Callout
                               styles={{ root: { padding: "32px 24px", maxWidth: 1300 } }}
@@ -758,12 +758,12 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
                               directionalHint={DirectionalHint.rightCenter}
                               setInitialFocus>
                               <Stack style={{ maxWidth: 1140 }}>
-                                 <Stack style={{paddingBottom: 24}}>
+                                 <Stack style={{ paddingBottom: 24 }}>
                                     <Text style={{ fontSize: 14, fontFamily: "Horde Open Sans SemiBold" }}>Structured Log Line</Text>
                                  </Stack>
-                                 <Stack style={{paddingLeft: 12}}>
+                                 <Stack style={{ paddingLeft: 12 }}>
                                     <Text style={{ fontSize: 11, whiteSpace: "pre-wrap", fontFamily: "Horde Cousine Regular" }}>{JSON.stringify(item.line, undefined, 2).replaceAll("\\r", "").replaceAll("\\n", "\n")}</Text></Stack>
-                                 </Stack>
+                              </Stack>
                            </Callout>}
 
                         </Stack>
@@ -930,6 +930,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
          const stepArtifacts = (logSource as JobLogSource).artifactsV2;
 
          const atypes = new Map<ArtifactContextType, number>();
+         const knownTypes = new Set<string>(["step-saved", "step-output", "step-trace"]);
 
          stepArtifacts?.forEach(a => {
             let c = atypes.get(a.type) ?? 0;
@@ -975,6 +976,17 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
                navigateToArtifacts("step-trace");
             }
          });
+
+         const custom = stepArtifacts?.filter(a => !knownTypes.has(a.type)).sort((a, b) => a.type.localeCompare(b.type));
+         custom?.forEach(c => {
+            opsList.push({
+               key: `stepops_artifacts_${c.type}`,
+               text: c.type,
+               iconProps: { iconName: "Clean" },
+               onClick: () => { navigateToArtifacts(c.type) }
+            });
+         })
+
 
          menuProps.items.push({
             key: 'jobstep_artifacts',

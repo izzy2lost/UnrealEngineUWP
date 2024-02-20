@@ -236,6 +236,7 @@ const StepArtifactsOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: stri
    }
 
    const atypes = new Map<ArtifactContextType, number>();
+   const knownTypes = new Set<string>(["step-saved", "step-output", "step-trace"]);
 
    stepArtifacts?.forEach(a => {
       let c = atypes.get(a.type) ?? 0;
@@ -246,6 +247,7 @@ const StepArtifactsOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: stri
    const opsList: IContextualMenuItem[] = [];
 
    const baseUrl = window.location.pathname + window.location.search;
+   
 
    opsList.push({
       key: 'stepops_artifacts_step',
@@ -270,6 +272,16 @@ const StepArtifactsOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: stri
       disabled: !atypes.get("step-trace"),
       onClick: () => { navigate(`${baseUrl}&artifactContext=step-trace`, { replace: true }) }
    });
+
+   const custom = stepArtifacts?.filter(a => !knownTypes.has(a.type)).sort((a, b) => a.type.localeCompare(b.type));
+   custom?.forEach(c => {
+      opsList.push({
+         key: `stepops_artifacts_${c.type}`,
+         text: c.type,
+         iconProps: { iconName: "Clean" },
+         onClick: () => { navigate(`${baseUrl}&artifactContext=${c.type}`, { replace: true }) }
+      });   
+   })
 
    const opsItems: ICommandBarItemProps[] = [
       {
