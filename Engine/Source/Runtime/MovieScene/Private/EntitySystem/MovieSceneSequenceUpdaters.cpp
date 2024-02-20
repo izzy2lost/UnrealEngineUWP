@@ -752,8 +752,7 @@ void FSequenceUpdater_Hierarchical::Update(TSharedRef<const FSharedPlaybackState
 		}
 	}
 
-	FMovieSceneEntitySystemRunner* Runner = Linker->GetActiveRunner();
-	check(Runner);
+	TSharedRef<FMovieSceneEntitySystemRunner> Runner = Linker->GetRunner();
 
 	for (auto InstanceIt = SequenceInstances.CreateIterator(); InstanceIt; ++InstanceIt)
 	{

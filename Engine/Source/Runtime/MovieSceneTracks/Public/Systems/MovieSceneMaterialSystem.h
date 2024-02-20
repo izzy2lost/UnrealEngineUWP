@@ -340,13 +340,9 @@ void TMovieSceneMaterialSystem<AccessorType, RequiredComponents...>::OnRun(UMovi
 	FBuiltInComponentTypes*          BuiltInComponents = FBuiltInComponentTypes::Get();
 	FMovieSceneTracksComponentTypes* TracksComponents  = FMovieSceneTracksComponentTypes::Get();
 
-	FMovieSceneEntitySystemRunner* ActiveRunner = Linker->GetActiveRunner();
-	if (!ensure(ActiveRunner))
-	{
-		return;
-	}
+	TSharedRef<FMovieSceneEntitySystemRunner> Runner = Linker->GetRunner();
 
-	ESystemPhase CurrentPhase = ActiveRunner->GetCurrentPhase();
+	ESystemPhase CurrentPhase = Runner->GetCurrentPhase();
 	if (CurrentPhase == ESystemPhase::Instantiation)
 	{
 		// --------------------------------------------------------------------------------------

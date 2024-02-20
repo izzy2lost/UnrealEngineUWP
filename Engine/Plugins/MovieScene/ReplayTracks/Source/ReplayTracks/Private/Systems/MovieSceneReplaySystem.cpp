@@ -84,8 +84,8 @@ void UMovieSceneReplaySystem::OnRun(FSystemTaskPrerequisites& InPrerequisites, F
 
 	using namespace UE::MovieScene;
 
-	FMovieSceneEntitySystemRunner* ActiveRunner = Linker->GetActiveRunner();
-	ESystemPhase CurrentPhase = ActiveRunner->GetCurrentPhase();
+	TSharedRef<FMovieSceneEntitySystemRunner> Runner = Linker->GetRunner();
+	ESystemPhase CurrentPhase = Runner->GetCurrentPhase();
 
 	if (CurrentPhase == ESystemPhase::Instantiation)
 	{

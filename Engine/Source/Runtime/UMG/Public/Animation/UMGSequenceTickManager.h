@@ -37,6 +37,8 @@ public:
 
 	UMG_API UUMGSequenceTickManager(const FObjectInitializer& Init);
 
+	UMG_API void Initialize(UObject* Owner);
+
 	UMovieSceneEntitySystemLinker* GetLinker() { return Linker; }
 	TSharedPtr<FMovieSceneEntitySystemRunner> GetRunner() { return Runner; }
 

@@ -975,15 +975,7 @@ void UMovieSceneSequencePlayer::Initialize(UMovieSceneSequence* InSequence)
 
 	RegisteredTickInterval = TickInterval;
 
-	TSharedPtr<FMovieSceneEntitySystemRunner> RunnerToUse = TickManager->GetRunner(RegisteredTickInterval.GetValue());
-	if (EnumHasAnyFlags(Sequence->GetFlags(), EMovieSceneSequenceFlags::BlockingEvaluation))
-	{
-		SynchronousRunner = MakeShared<FMovieSceneEntitySystemRunner>();
-		RunnerToUse = SynchronousRunner;
-	}
-
-	check(RunnerToUse);
-	RootTemplateInstance.Initialize(*Sequence, *this, nullptr, RunnerToUse);
+	RootTemplateInstance.Initialize(*Sequence, *this, nullptr);
 
 	if (!PlaybackSettings.bDynamicWeighting)
 	{

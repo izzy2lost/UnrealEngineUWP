@@ -13,6 +13,7 @@
 #include "Algo/Reverse.h"
 #include "Algo/Sort.h"
 #include "ProfilingDebugging/CountersTrace.h"
+#include "UObject/ObjectMacros.h"
 
 DECLARE_CYCLE_STAT(TEXT("Runner Flush"), 				MovieSceneEval_RunnerFlush, 				STATGROUP_MovieSceneEval);
 
@@ -50,21 +51,21 @@ struct FMovieSceneEntitySystemEvaluationReentrancyWindow
 {
 	FMovieSceneEntitySystemRunner* Runner;
 	UMovieSceneEntitySystemLinker* Linker;
-	int32 RunnerIndex;
+	int32 ReentrancyLevel;
 	UE::MovieScene::ERunnerFlushState CachedFlushState;
 	UE::MovieScene::ERunnerFlushState CachedCurrentFlushState;
 
 	FMovieSceneEntitySystemEvaluationReentrancyWindow(FMovieSceneEntitySystemRunner* InRunner, UMovieSceneEntitySystemLinker* InLinker)
 		: Runner(InRunner)
 		, Linker(InLinker)
-		, RunnerIndex(Linker->ActiveRunners.Num() - 1)
+		, ReentrancyLevel(Linker->RunnerReentrancyFlags.Num() - 1)
 		, CachedFlushState(Runner->FlushState)
 		, CachedCurrentFlushState(Runner->CurrentFlushState)
 	{
-		check(RunnerIndex >= 0);
-		checkf(Linker->ActiveRunnerReentrancyFlags[RunnerIndex] == false, TEXT("Nested FMovieSceneEntitySystemEvaluationReentrancyWindows are not supported for the same active runner"));
+		check(ReentrancyLevel >= 0);
+		checkf(Linker->RunnerReentrancyFlags[ReentrancyLevel] == false, TEXT("Nested FMovieSceneEntitySystemEvaluationReentrancyWindows are not supported for the same active runner"));
 
-		Linker->ActiveRunnerReentrancyFlags[RunnerIndex] = true;
+		Linker->RunnerReentrancyFlags[ReentrancyLevel] = true;
 
 		// Clear the current flush state to prevent inner scopes from flushing
 		//      our pending states and set the flag that allows us to be re-entrant
@@ -82,13 +83,12 @@ struct FMovieSceneEntitySystemEvaluationReentrancyWindow
 
 		Runner->FlushState = CachedFlushState;
 		Runner->CurrentFlushState = CachedCurrentFlushState;
-		if (ensure(Linker->ActiveRunnerReentrancyFlags.IsValidIndex(RunnerIndex)))
+		if (ensure(Linker->RunnerReentrancyFlags.IsValidIndex(ReentrancyLevel)))
 		{
-			Linker->ActiveRunnerReentrancyFlags[RunnerIndex] = false;
+			Linker->RunnerReentrancyFlags[ReentrancyLevel] = false;
 		}
 	}
 };
-
 
 FMovieSceneEntitySystemRunner::FMovieSceneEntitySystemRunner()
 	: GameThread(ENamedThreads::GameThread_Local)
@@ -100,57 +100,25 @@ FMovieSceneEntitySystemRunner::FMovieSceneEntitySystemRunner()
 {
 }
 
-FMovieSceneEntitySystemRunner::~FMovieSceneEntitySystemRunner()
+FMovieSceneEntitySystemRunner::FMovieSceneEntitySystemRunner(UMovieSceneEntitySystemLinker* InLinker)
+	: WeakLinker(InLinker)
+	, GameThread(ENamedThreads::GameThread_Local)
+	, CurrentPhase(UE::MovieScene::ESystemPhase::None)
+	, FlushState(UE::MovieScene::ERunnerFlushState::None)
+	, CurrentFlushState(UE::MovieScene::ERunnerFlushState::None)
+	, bRequireFullFlush(false)
+	, bIsUpdatingSequence(false)
 {
-	if (IsAttachedToLinker())
-	{
-		DetachFromLinker();
-	}
-}
-
-void FMovieSceneEntitySystemRunner::AttachToLinker(UMovieSceneEntitySystemLinker* InLinker)
-{
-	if (!ensureMsgf(InLinker, TEXT("Can't attach to a null linker!")))
-	{
-		return;
-	}
-	if (!ensureMsgf(WeakLinker.IsExplicitlyNull(), TEXT("This runner is already attached to a linker")))
-	{
-		if (ensureMsgf(WeakLinker.IsValid(), TEXT("Our previous linker isn't valid anymore! We will permit attaching to a new one.")))
-		{
-			return;
-		}
-	}
-
-	WeakLinker = InLinker;
+	// We need to handle the case of our linker being GC'ed, in case someone else is holding
+	// our ref-count up in addition to the linker.
 	InLinker->Events.AbandonLinker.AddRaw(this, &FMovieSceneEntitySystemRunner::OnLinkerAbandon);
 }
 
-bool FMovieSceneEntitySystemRunner::IsAttachedToLinker() const
+FMovieSceneEntitySystemRunner::~FMovieSceneEntitySystemRunner()
 {
-	return !WeakLinker.IsExplicitlyNull();
-}
-
-void FMovieSceneEntitySystemRunner::DetachFromLinker()
-{
-	if (ensureMsgf(!WeakLinker.IsExplicitlyNull(), TEXT("This runner is not attached to any linker")))
-	{
-		// Abandon our previous linker. We need to do so even for a linker that is pending kill, otherwise
-		// we will later get a OnLinkerAbandon call, which _could_ come _after_ we've been re-attached to a
-		// new valid linker. This would in turn trip the ensure in OnLinkerAbandon that checks that we are
-		// abandoning the linker we have, instead of an unrelated linker.
-		if (UMovieSceneEntitySystemLinker* Linker = WeakLinker.Get(true))
-		{
-			OnLinkerAbandon(Linker);
-		}
-	}
-
-	WeakLinker.Reset();
-}
-
-UMovieSceneEntitySystemLinker* FMovieSceneEntitySystemRunner::GetLinker() const
-{
-	return WeakLinker.Get();
+	// We don't need to unregister AbandonLinker here since we are either being destroyed along with
+	// our linker, or someone kept us alive longer than the linker and we already unregistered the
+	// event inisde OnLinkerAbandon.
 }
 
 UE::MovieScene::FEntityManager* FMovieSceneEntitySystemRunner::GetEntityManager() const
@@ -321,7 +289,7 @@ UE::MovieScene::ERunnerFlushResult FMovieSceneEntitySystemRunner::StartEvaluatio
 		return ERunnerFlushResult::Break;
 	}
 
-	if (!Linker->StartEvaluation(*this))
+	if (!Linker->StartEvaluation())
 	{
 		return ERunnerFlushResult::Break;
 	}
@@ -342,7 +310,7 @@ UE::MovieScene::ERunnerFlushResult FMovieSceneEntitySystemRunner::StartEvaluatio
 void FMovieSceneEntitySystemRunner::EndEvaluation(UMovieSceneEntitySystemLinker* Linker)
 {
 	using namespace UE::MovieScene;
-	Linker->EndEvaluation(*this);
+	Linker->EndEvaluation();
 }
 
 UE::MovieScene::ERunnerFlushResult FMovieSceneEntitySystemRunner::FlushNext(UMovieSceneEntitySystemLinker* Linker)
@@ -486,10 +454,9 @@ void FMovieSceneEntitySystemRunner::FlushOutstanding(double BudgetMs, UE::MovieS
 		return;
 	}
 
-	UMovieSceneEntitySystemLinker* Linker = GetLinker();
-
-	// Check that we are attached to a linker that allows starting a new evaluation.
-	if (!ensureMsgf(Linker, TEXT("Runner isn't attached to a valid linker")))
+	// If this runner's linker has been destroyed, early return
+	UMovieSceneEntitySystemLinker* Linker = WeakLinker.Get();
+	if (!Linker)
 	{
 		return;
 	}
@@ -739,9 +706,9 @@ UE::MovieScene::ERunnerFlushResult FMovieSceneEntitySystemRunner::GameThread_Upd
 			FSequenceInstance& Instance = InstanceRegistry->MutateInstance(Request.Params.InstanceHandle);
 			if (!Instance.IsRootSequence())
 			{
-				FMovieSceneRootEvaluationTemplateInstance& Template = Instance.GetPlayer()->GetEvaluationTemplate();
-				UMovieSceneSequence* RootSequence = Template.GetRootSequence();
-				UMovieSceneSequence* SubSequence  = Template.GetSequence(Instance.GetSequenceID());
+				TSharedRef<const FSharedPlaybackState> SharedPlaybackState = Instance.GetSharedPlaybackState();
+				UMovieSceneSequence* RootSequence = SharedPlaybackState->GetRootSequence();
+				UMovieSceneSequence* SubSequence  = SharedPlaybackState->GetSequence(Instance.GetSequenceID());
 
 				ensureMsgf(Instance.IsRootSequence(), TEXT("Update request received for a non-root sequence ID 0x%08X (%s) in root-sequence %s. This is not supported."),
 					Instance.GetSequenceID().GetInternalValue(),
@@ -923,7 +890,7 @@ UE::MovieScene::ERunnerFlushResult FMovieSceneEntitySystemRunner::GameThread_Rei
 
 	TGuardValue<bool> IsUpdatingSequenceGuard(bIsUpdatingSequence, true);
 
-	FInstanceRegistry* InstanceRegistry = WeakLinker.Get()->GetInstanceRegistry();
+	FInstanceRegistry* InstanceRegistry = Linker->GetInstanceRegistry();
 
 	// NOTE: IncrementSystemSerial must be called before any instance updates are made
 	//       to ensure that up-to-date versions are used inside FEntityManager::OnStructureChanged
@@ -1067,7 +1034,7 @@ UE::MovieScene::ERunnerFlushResult FMovieSceneEntitySystemRunner::GameThread_Pos
 
 	check(GameThread == ENamedThreads::GameThread || GameThread == ENamedThreads::GameThread_Local);
 
-	Linker->PostInstantation(*this);
+	Linker->PostInstantation();
 
 	FEntityManager& EntityManager = Linker->EntityManager;
 	FBuiltInComponentTypes* BuiltInComponentTypes = FBuiltInComponentTypes::Get();
@@ -1358,8 +1325,8 @@ bool FMovieSceneEntitySystemRunner::FlushSingleEvaluationPhase()
 		return false;
 	}
 
-	UMovieSceneEntitySystemLinker* Linker = GetLinker();
-	if (!ensureMsgf(Linker, TEXT("Runner isn't attached to a valid linker")))
+	UMovieSceneEntitySystemLinker* Linker = WeakLinker.Get();
+	if (!ensureMsgf(Linker, TEXT("Runner doesn't have a valid linker")))
 	{
 		return false;
 	}

@@ -431,13 +431,9 @@ void UMovieSceneCustomPrimitiveDataSystem::OnRun(FSystemTaskPrerequisites& InPre
 {
 	using namespace UE::MovieScene;
 
-	FMovieSceneEntitySystemRunner* ActiveRunner = Linker->GetActiveRunner();
-	if (!ensure(ActiveRunner))
-	{
-		return;
-	}
+	TSharedRef<FMovieSceneEntitySystemRunner> Runner = Linker->GetRunner();
 
-	ESystemPhase CurrentPhase = ActiveRunner->GetCurrentPhase();
+	ESystemPhase CurrentPhase = Runner->GetCurrentPhase();
 	if (CurrentPhase == ESystemPhase::Instantiation)
 	{
 		OnInstantiation();

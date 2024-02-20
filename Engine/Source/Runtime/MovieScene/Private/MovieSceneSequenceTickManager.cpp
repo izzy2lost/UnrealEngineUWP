@@ -172,8 +172,7 @@ void UMovieSceneSequenceTickManager::RegisterTickClient(const FMovieSceneSequenc
 
 		FLinkerGroup& NewGroup = LinkerGroups[LinkerIndex];
 		NewGroup.Linker = Linker;
-		NewGroup.Runner = MakeShared<FMovieSceneEntitySystemRunner>();
-		NewGroup.Runner->AttachToLinker(Linker);
+		NewGroup.Runner = Linker->GetRunner();
 		NewGroup.RoundedTickIntervalMs = DesiredTickIntervalMs;
 		NewGroup.FrameBudgetMs = DesiredBudgetMs;
 		NewGroup.NumClients = 1;
