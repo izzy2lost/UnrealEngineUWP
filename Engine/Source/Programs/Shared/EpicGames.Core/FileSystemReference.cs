@@ -131,6 +131,14 @@ namespace EpicGames.Core
 		public bool IsUnderDirectory(DirectoryReference other) => FullName.StartsWith(other.FullName, Comparison) && (FullName.Length == other.FullName.Length || FullName[other.FullName.Length] == Path.DirectorySeparatorChar || other.IsRootDirectory());
 
 		/// <summary>
+		/// Checks to see if this exists as either a file or directory
+		/// This is helpful for Mac, because a binary may be a .app which is a directory
+		/// </summary>
+		/// <param name="location">FileSsytem object to check</param>
+		/// <returns>True if a file or a directory exists</returns>
+		public static bool Exists(FileSystemReference location) => File.Exists(location.FullName) || Directory.Exists(location.FullName);
+
+		/// <summary>
 		/// Searches the path fragments for the given name. Only complete fragments are considered a match.
 		/// </summary>
 		/// <param name="name">Name to check for</param>
