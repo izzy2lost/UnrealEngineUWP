@@ -660,6 +660,8 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 						PrepareLumenHardwareRayTracingReSTIR(View, RayGenShaders);
 						PrepareLumenHardwareRayTracingVisualize(View, RayGenShaders);
 					}
+
+					PrepareManyLightsHardwareRayTracing(View, RayGenShaders);
 				}
 			}
 			DeduplicateRayGenerationShaders(RayGenShaders);
@@ -694,7 +696,7 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 
 		for (const FViewInfo& View : Views)
 		{
-			PrepareManyLightsLumenMaterial(View, LumenHardwareRayTracingRayGenShaders);
+			PrepareManyLightsHardwareRayTracingLumenMaterial(View, LumenHardwareRayTracingRayGenShaders);
 		}
 
 		DeduplicateRayGenerationShaders(LumenHardwareRayTracingRayGenShaders);

@@ -54,9 +54,20 @@ struct FLumenMinimalPayload : FMinimalPayload
 		return bIsShadowRay;
 	}
 
+	void SetIsAlphaMasked(uint bIsAlphaMasked)
+	{
+		PackedData[MATERIAL_INDEX] = (PackedData[MATERIAL_INDEX] & 0xEFFFFFFF) | ((bIsAlphaMasked & 0x01) << 28);
+	}
+
+	uint IsAlphaMasked()
+	{
+		uint bIsAlphaMasked = (PackedData[MATERIAL_INDEX] >> 28) & 0x1;
+		return bIsAlphaMasked;
+	}
+
 	void SetMaterialShaderIndex(uint MaterialShaderIndex)
 	{
-		PackedData[MATERIAL_INDEX] = (PackedData[MATERIAL_INDEX] & 0xE0000000) | (MaterialShaderIndex & LUMEN_MATERIAL_SHADER_INDEX_MASK);
+		PackedData[MATERIAL_INDEX] = (PackedData[MATERIAL_INDEX] & 0xF0000000) | (MaterialShaderIndex & LUMEN_MATERIAL_SHADER_INDEX_MASK);
 	}
 
 	uint GetMaterialShaderIndex()

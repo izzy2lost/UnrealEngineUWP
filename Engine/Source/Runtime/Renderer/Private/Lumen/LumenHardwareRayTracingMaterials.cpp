@@ -125,6 +125,7 @@ void FDeferredShadingSceneRenderer::SetupLumenHardwareRayTracingUniformBuffer(FR
 uint32 CalculateLumenHardwareRayTracingUserData(const FRayTracingMeshCommand& MeshCommand)
 {
 	return (MeshCommand.MaterialShaderIndex & LUMEN_MATERIAL_SHADER_INDEX_MASK)
+		| (((MeshCommand.bAlphaMasked != 0) & 0x01) << 28)
 		| (((MeshCommand.bCastRayTracedShadows != 0) & 0x01) << 29)
 		| (((MeshCommand.bTwoSided != 0) & 0x01) << 30)
 		| (((MeshCommand.bIsTranslucent != 0) & 0x01) << 31);

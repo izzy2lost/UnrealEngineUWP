@@ -2335,6 +2335,7 @@ public:
 
 	bool bCastRayTracedShadows = true;
 	bool bOpaque = true;
+	bool bAlphaMasked = false;
 	bool bDecal = false;
 	bool bIsSky = false;
 	bool bIsTranslucent = false;

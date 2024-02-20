@@ -205,6 +205,7 @@ struct FLumenMinimalRayResult
 	bool bCompleted;
 	bool bTranslucent;
 	bool bTwoSided;
+	bool bAlphaMasked;
 
 	uint MaterialShaderIndex;
 	uint SceneInstanceIndex;
@@ -335,6 +336,7 @@ bool FrontOrTwoSidedHit(in FRayDesc Ray, in FPackedMaterialClosestHitPayload Pay
  */
 bool LumenMinimalRayAnyHitShader(uint UserData, float HitT, bool bHitBackFace, bool bShadowRay)
 {
+	const bool bIsAlphaMasked = (UserData >> 28) & 0x1;
 	const bool bCastRayTracedShadows = (UserData >> 29) & 0x1;
 	const bool bIsTwoSided = (UserData >> 30) & 0x1;
 	const bool bIsTranslucent = (UserData >> 31) & 0x1;
@@ -449,6 +451,9 @@ FLumenMinimalRayResult TraceLumenMinimalRay(
 			uint bIsTwoSided = (HitData.UserData >> 30) & 0x1;
 			Payload.SetIsTwoSided(bIsTwoSided);
 
+			uint bIsAlphaMasked = (HitData.UserData >> 28) & 0x1;
+			Payload.SetIsAlphaMasked(bIsAlphaMasked);
+
 #if PLATFORM_SUPPORTS_INLINE_RAY_TRACING_TRIANGLE_ATTRIBUTES
 			FTriangleBaseAttributes Attributes = LoadInlineRayTracingTriangleAttributes(
 				Context.RayTracingSceneMetadata,
@@ -486,6 +491,7 @@ FLumenMinimalRayResult TraceLumenMinimalRay(
 	{
 		MinimalRayResult.bTranslucent = Payload.IsTranslucent();
 		MinimalRayResult.bTwoSided = Payload.IsTwoSided();
+		MinimalRayResult.bAlphaMasked = Payload.IsAlphaMasked();
 		MinimalRayResult.HitNormal = Payload.GetWorldNormal();
 		MinimalRayResult.HitT = Payload.HitT;
 		MinimalRayResult.SceneInstanceIndex = Payload.GetGPUSceneInstanceIndex();

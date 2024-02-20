@@ -28,6 +28,9 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(LumenHardwareRayTracingMaterialCHS,
 	uint bIsTwoSided = (GetHitGroupUserData() >> 30) & 0x1;
 	Payload.SetIsTwoSided(bIsTwoSided);
 
+	uint bIsAlphaMasked = (GetHitGroupUserData() >> 28) & 0x1;
+	Payload.SetIsAlphaMasked(bIsAlphaMasked);
+
 	float3 WorldNormal = ComputeWorldNormal(PrimitiveIndex());
 	Payload.SetWorldNormal(WorldNormal);
 }

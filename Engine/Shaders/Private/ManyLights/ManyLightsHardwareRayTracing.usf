@@ -86,7 +86,30 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 		LightingContext.InstanceMask = RAY_TRACING_MASK_OPAQUE_SHADOW;
 		LightingContext.bIsShadowRay = true;
 
+#if MANY_LIGHTS_EVALUATE_MATERIALS
+		FLumenMinimalRayResult TraceResult = (FLumenMinimalRayResult)0;
+		{
+			FPackedMaterialClosestHitPayload Payload = (FPackedMaterialClosestHitPayload)0;
+			Payload.SetLumenPayload();
+			Payload.SetIgnoreTranslucentMaterials();
+			Payload.SetMinimalPayloadMode();
+
+			uint RayFlags = 0;
+			RayFlags |= LightingContext.CullingMode;
+			RayFlags |= LightingContext.bAcceptFirstHitAndEndSearch ? RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH : 0;
+			RayFlags |= LightingContext.bSkipClosestHitShader ? RAY_FLAG_SKIP_CLOSEST_HIT_SHADER : 0;
+
+			TraceLumenShadingRay(TLAS, RayFlags, LightingContext.InstanceMask, RAY_TRACING_SHADER_SLOT_SHADOW, RAY_TRACING_NUM_SHADER_SLOTS, 0, Ray.GetNativeDesc(), Payload);
+
+			TraceResult.bHit = Payload.IsHit();
+			if (TraceResult.bHit)
+			{
+				TraceResult.HitT = Payload.HitT;
+			}
+		}
+#else
 		FLumenMinimalRayResult TraceResult = TraceLumenMinimalRay(TLAS, Ray, LightingContext);
+#endif
 
 		#if HAIR_VOXEL_TRACES
 		{
@@ -108,15 +131,37 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 			float3 RayEnd = Ray.Origin + Ray.Direction * (TraceResult.bHit ? TraceResult.HitT : Ray.TMax);
 			float4 RayColor = float4(LightData.Color.xyz / Luminance(LightData.Color.xyz), 1.0f);
 
+#if MANY_LIGHTS_EVALUATE_MATERIALS
+			RayColor = ColorRed;
+#endif
+
 			AddLineTWS(Context, RayStart, RayEnd, RayColor);	
+			AddCrossTWS(Context, RayEnd, 2.0f, RayColor);
 		}
 		#endif
 
-		if (TraceResult.bHit)
+#if SUPPORT_CONTINUATION
+		if (TraceResult.bAlphaMasked)
+		{
+			// do nothing so sample gets retraced with material evaluation
+			// can't shorten the retrace ray since this trace was done with bAcceptFirstHitAndEndSearch
+		}
+		else
+		{
+			LightSample.bCompleted = true; // mark sample as complete to skip continuation
+			if (TraceResult.bHit)
+			{
+				LightSample.bVisible = false;
+			}
+			RWLightSamples[SampleCoord] = PackLightSample(LightSample);
+		}
+#else
+		if (TraceResult.bHit) // if not using continuation, only need to write to RWLightSamples on hits
 		{
 			LightSample.bCompleted = true;
 			LightSample.bVisible = false;
 			RWLightSamples[SampleCoord] = PackLightSample(LightSample);
 		}
+#endif
 	}
 }

@@ -55,6 +55,15 @@ static TAutoConsoleVariable<int32> CVarManyLightsHardwareRayTracingInline(
 	ECVF_RenderThreadSafe | ECVF_Scalability
 );
 
+static TAutoConsoleVariable<int32> CVarManyLightsHardwareRayTracingEvaluateMaterialMode(
+	TEXT("r.ManyLights.HardwareRayTracing.EvaluateMaterialMode"),
+	0,
+	TEXT("Which mode to use for material evaluation to support alpha masked materials.\n")
+	TEXT("0 - Don't evaluate materials (default)")
+	TEXT("1 - Retrace to evaluate materials"),
+	ECVF_RenderThreadSafe | ECVF_Scalability
+);
+
 static TAutoConsoleVariable<float> CVarManyLightsHardwareRayTracingBias(
 	TEXT("r.ManyLights.HardwareRayTracing.Bias"),
 	1.0f,
@@ -263,13 +272,22 @@ class FHardwareRayTraceLightSamples : public FLumenHardwareRayTracingShaderBase
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FLumenHardwareRayTracingUniformBufferParameters, LumenHardwareRayTracingUniformBuffer)
 	END_SHADER_PARAMETER_STRUCT()
 
+	class FEvaluateMaterials : SHADER_PERMUTATION_BOOL("MANY_LIGHTS_EVALUATE_MATERIALS");
+	class FSupportContinuation : SHADER_PERMUTATION_BOOL("SUPPORT_CONTINUATION");
 	class FAvoidSelfIntersections : SHADER_PERMUTATION_BOOL("AVOID_SELF_INTERSECTIONS");
 	class FHairVoxelTraces : SHADER_PERMUTATION_BOOL("HAIR_VOXEL_TRACES");
 	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
-	using FPermutationDomain = TShaderPermutationDomain<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain, FAvoidSelfIntersections, FHairVoxelTraces, FDebugMode>;
+	using FPermutationDomain = TShaderPermutationDomain<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain, FEvaluateMaterials, FSupportContinuation, FAvoidSelfIntersections, FHairVoxelTraces, FDebugMode>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters, Lumen::ERayTracingShaderDispatchType ShaderDispatchType)
 	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+
+		if (ShaderDispatchType == Lumen::ERayTracingShaderDispatchType::Inline && PermutationVector.Get<FEvaluateMaterials>())
+		{
+			return false;
+		}
+
 		return ManyLights::ShouldCompileShaders(Parameters)  
 			&& FLumenHardwareRayTracingShaderBase::ShouldCompilePermutation(Parameters, ShaderDispatchType);
 	}
@@ -282,7 +300,15 @@ class FHardwareRayTraceLightSamples : public FLumenHardwareRayTracingShaderBase
 
 	static ERayTracingPayloadType GetRayTracingPayloadType(const int32 PermutationId)
 	{
-		return ERayTracingPayloadType::LumenMinimal;
+		FPermutationDomain PermutationVector(PermutationId);
+		if (PermutationVector.Get<FEvaluateMaterials>())
+		{
+			return ERayTracingPayloadType::RayTracingMaterial;
+		}
+		else
+		{
+			return ERayTracingPayloadType::LumenMinimal;
+		}
 	}
 };
 
@@ -376,13 +402,41 @@ class FScreenSpaceRayTraceLightSamplesCS : public FGlobalShader
 IMPLEMENT_GLOBAL_SHADER(FScreenSpaceRayTraceLightSamplesCS, "/Engine/Private/ManyLights/ManyLightsRayTracing.usf", "ScreenSpaceRayTraceLightSamplesCS", SF_Compute);
 
 #if RHI_RAYTRACING
-void FDeferredShadingSceneRenderer::PrepareManyLightsLumenMaterial(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders)
+void FDeferredShadingSceneRenderer::PrepareManyLightsHardwareRayTracing(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders)
 {
+	using namespace ManyLights;
+
+	const bool bEvaluateMaterials = CVarManyLightsHardwareRayTracingEvaluateMaterialMode.GetValueOnRenderThread() > 0;
+
+	if (ManyLights::UseHardwareRayTracing(*View.Family) && bEvaluateMaterials)
+	{
+		for (int32 HairVoxelTraces = 0; HairVoxelTraces < 2; ++HairVoxelTraces)
+		{
+			FHardwareRayTraceLightSamplesRGS::FPermutationDomain PermutationVector;
+			PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FEvaluateMaterials>(true);
+			PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FSupportContinuation>(false);
+			PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FAvoidSelfIntersections>(CVarManyLightsHardwareRayTracingAvoidSelfIntersections.GetValueOnRenderThread());
+			PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FHairVoxelTraces>(HairVoxelTraces != 0);
+			PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FDebugMode>(ManyLights::GetDebugMode() != 0);
+			TShaderRef<FHardwareRayTraceLightSamplesRGS> RayGenerationShader = View.ShaderMap->GetShader<FHardwareRayTraceLightSamplesRGS>(PermutationVector);
+			OutRayGenShaders.Add(RayGenerationShader.GetRayTracingShader());
+		}
+	}
+}
+
+void FDeferredShadingSceneRenderer::PrepareManyLightsHardwareRayTracingLumenMaterial(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders)
+{
+	using namespace ManyLights;
+
+	const bool bEvaluateMaterials = CVarManyLightsHardwareRayTracingEvaluateMaterialMode.GetValueOnRenderThread() > 0;
+
 	if (ManyLights::UseHardwareRayTracing(*View.Family))
 	{
 		for (int32 HairVoxelTraces = 0; HairVoxelTraces < 2; ++HairVoxelTraces)
 		{
 			FHardwareRayTraceLightSamplesRGS::FPermutationDomain PermutationVector;
+			PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FEvaluateMaterials>(false);
+			PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FSupportContinuation>(bEvaluateMaterials);
 			PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FAvoidSelfIntersections>(CVarManyLightsHardwareRayTracingAvoidSelfIntersections.GetValueOnRenderThread());
 			PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FHairVoxelTraces>(HairVoxelTraces != 0);
 			PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FDebugMode>(ManyLights::GetDebugMode() != 0);
@@ -579,44 +633,91 @@ void ManyLights::RayTraceLightSamples(
 		if (ManyLights::UseHardwareRayTracing(ViewFamily))
 		{
 #if RHI_RAYTRACING
-			FHardwareRayTraceLightSamples::FParameters* PassParameters = GraphBuilder.AllocParameters<FHardwareRayTraceLightSamples::FParameters>();
-			ManyLights::SetHardwareRayTracingPassParameters(
-				View,
-				GraphBuilder,
-				CompactedTraceParameters,
-				ManyLightsParameters,
-				HairVoxelTraceParameters,
-				LightSamples,
-				LightSampleRayDistance,
-				PassParameters);
+			const bool bEvaluateMaterials = CVarManyLightsHardwareRayTracingEvaluateMaterialMode.GetValueOnRenderThread() > 0;
 
-			FHardwareRayTraceLightSamples::FPermutationDomain PermutationVector;
-			PermutationVector.Set<FHardwareRayTraceLightSamples::FAvoidSelfIntersections>(CVarManyLightsHardwareRayTracingAvoidSelfIntersections.GetValueOnRenderThread());
-			PermutationVector.Set<FHardwareRayTraceLightSamples::FHairVoxelTraces>(bHairVoxelTraces);
-			PermutationVector.Set<FHardwareRayTraceLightSamples::FDebugMode>(bDebug);
-			if (ManyLights::UseInlineHardwareRayTracing(ViewFamily))
 			{
-				FHardwareRayTraceLightSamplesCS::AddLumenRayTracingDispatchIndirect(
-					GraphBuilder,
-					RDG_EVENT_NAME("HardwareRayTraceLightSamples Inline"),
+				const bool bSupportContinuation = bEvaluateMaterials;
+
+				FHardwareRayTraceLightSamples::FParameters* PassParameters = GraphBuilder.AllocParameters<FHardwareRayTraceLightSamples::FParameters>();
+				ManyLights::SetHardwareRayTracingPassParameters(
 					View,
-					PermutationVector,
-					PassParameters,
-					CompactedTraceParameters.IndirectArgs,
-					(int32)ManyLights::ECompactedTraceIndirectArgs::NumTracesDiv32,
-					ERDGPassFlags::Compute);
+					GraphBuilder,
+					CompactedTraceParameters,
+					ManyLightsParameters,
+					HairVoxelTraceParameters,
+					LightSamples,
+					LightSampleRayDistance,
+					PassParameters);
+
+				FHardwareRayTraceLightSamples::FPermutationDomain PermutationVector;
+				PermutationVector.Set<FHardwareRayTraceLightSamples::FEvaluateMaterials>(false);
+				PermutationVector.Set<FHardwareRayTraceLightSamples::FSupportContinuation>(bSupportContinuation);
+				PermutationVector.Set<FHardwareRayTraceLightSamples::FAvoidSelfIntersections>(CVarManyLightsHardwareRayTracingAvoidSelfIntersections.GetValueOnRenderThread());
+				PermutationVector.Set<FHardwareRayTraceLightSamples::FHairVoxelTraces>(bHairVoxelTraces);
+				PermutationVector.Set<FHardwareRayTraceLightSamples::FDebugMode>(bDebug);
+
+				if (ManyLights::UseInlineHardwareRayTracing(ViewFamily))
+				{
+					FHardwareRayTraceLightSamplesCS::AddLumenRayTracingDispatchIndirect(
+						GraphBuilder,
+						RDG_EVENT_NAME("HardwareRayTraceLightSamples Inline"),
+						View,
+						PermutationVector,
+						PassParameters,
+						CompactedTraceParameters.IndirectArgs,
+						(int32)ManyLights::ECompactedTraceIndirectArgs::NumTracesDiv32,
+						ERDGPassFlags::Compute);
+				}
+				else
+				{
+					FHardwareRayTraceLightSamplesRGS::AddLumenRayTracingDispatchIndirect(
+						GraphBuilder,
+						RDG_EVENT_NAME("HardwareRayTraceLightSamples RayGen"),
+						View,
+						PermutationVector,
+						PassParameters,
+						PassParameters->CompactedTraceParameters.IndirectArgs,
+						(int32)ManyLights::ECompactedTraceIndirectArgs::NumTraces,
+						/*bUseMinimalPayload*/ true);
+				}
 			}
-			else
+
+			if(bEvaluateMaterials)
 			{
+				FCompactedTraceParameters RetraceCompactedTraceParameters = ManyLights::CompactManyLightsTraces(
+					View,
+					GraphBuilder,
+					SampleBufferSize,
+					LightSamples,
+					ManyLightsParameters);
+
+				FHardwareRayTraceLightSamples::FParameters* PassParameters = GraphBuilder.AllocParameters<FHardwareRayTraceLightSamples::FParameters>();
+				ManyLights::SetHardwareRayTracingPassParameters(
+					View,
+					GraphBuilder,
+					RetraceCompactedTraceParameters,
+					ManyLightsParameters,
+					HairVoxelTraceParameters,
+					LightSamples,
+					LightSampleRayDistance,
+					PassParameters);
+
+				FHardwareRayTraceLightSamples::FPermutationDomain PermutationVector;
+				PermutationVector.Set<FHardwareRayTraceLightSamples::FEvaluateMaterials>(true);
+				PermutationVector.Set<FHardwareRayTraceLightSamples::FSupportContinuation>(false);
+				PermutationVector.Set<FHardwareRayTraceLightSamples::FAvoidSelfIntersections>(false);
+				PermutationVector.Set<FHardwareRayTraceLightSamples::FHairVoxelTraces>(bHairVoxelTraces);
+				PermutationVector.Set<FHardwareRayTraceLightSamples::FDebugMode>(bDebug);
+
 				FHardwareRayTraceLightSamplesRGS::AddLumenRayTracingDispatchIndirect(
 					GraphBuilder,
-					RDG_EVENT_NAME("HardwareRayTraceLightSamples RayGen"),
+					RDG_EVENT_NAME("HardwareRayTraceLightSamples RayGen (material retrace)"),
 					View,
 					PermutationVector,
 					PassParameters,
 					PassParameters->CompactedTraceParameters.IndirectArgs,
 					(int32)ManyLights::ECompactedTraceIndirectArgs::NumTraces,
-					/*bUseMinimalPayload*/ true);
+					/*bUseMinimalPayload*/ false);
 			}
 			#endif
 		}
