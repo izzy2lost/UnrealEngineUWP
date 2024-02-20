@@ -99,6 +99,9 @@ namespace CrossCompiler
 		bool bPreserveStorageInput = false;
         bool bForceStorageImageFormat = false;
 
+		/** Treat warnigns as errors. This adds '-WX' to the DXC arguments. See CFLAG_WarningsAsErrors. */
+		bool bWarningsAsErrors = false;
+
 		enum class ETargetEnvironment
 		{
 			Vulkan_1_0,

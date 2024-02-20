@@ -2883,6 +2883,7 @@ static bool CompileToGlslWithShaderConductor(
 	Options.bRemapAttributeLocations = true;
 	Options.bPreserveStorageInput = true;
     Options.bForceStorageImageFormat = true;
+	Options.bWarningsAsErrors = Input.Environment.CompilerFlags.Contains(CFLAG_WarningsAsErrors);
 	
 	// Enable HLSL 2021 if specified
 	if (Input.Environment.CompilerFlags.Contains(CFLAG_HLSL2021))

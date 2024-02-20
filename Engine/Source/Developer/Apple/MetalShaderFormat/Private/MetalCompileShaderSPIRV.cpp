@@ -171,6 +171,7 @@ void FMetalCompileShaderSPIRV::DoCompileMetalShader(
 		CrossCompiler::FShaderConductorOptions Options;
 
 		Options.TargetEnvironment = CrossCompiler::FShaderConductorOptions::ETargetEnvironment::Vulkan_1_1;
+		Options.bWarningsAsErrors = Input.Environment.CompilerFlags.Contains(CFLAG_WarningsAsErrors);
 
 		// Enable HLSL 2021 if specified
 		if (Input.Environment.CompilerFlags.Contains(CFLAG_HLSL2021))

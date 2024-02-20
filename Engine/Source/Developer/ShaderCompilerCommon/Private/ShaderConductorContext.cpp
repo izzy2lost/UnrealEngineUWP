@@ -108,6 +108,7 @@ namespace CrossCompiler
 	{
 		FShaderConductorIntermediates()
 			: Stage(ShaderConductor::ShaderStage::NumShaderStages)
+			, bIsIntermediateCode(false)
 		{
 		}
 
@@ -123,6 +124,7 @@ namespace CrossCompiler
 		TArray<FAnsiString> CustomDxcArgs;
 		TArray<ANSICHAR const*> CustomDxcArgRefs;
 		TArray<ANSICHAR const*> DxcArgRefs;
+		bool bIsIntermediateCode; // Is the current shader source the result of intermediate compilation such as the DXC rewriter?
 	};
 
 	static void ConvertScSourceDesc(const FShaderConductorContext::FShaderConductorIntermediates& Intermediates, ShaderConductor::Compiler::SourceDesc& OutSourceDesc)
@@ -368,7 +370,7 @@ namespace CrossCompiler
 		}
 	}
 
-	static void AppendDxcArguments(const FShaderConductorOptions& InOptions, TArray<const ANSICHAR*>& DxcArguments, bool bGenerateSpirv = true)
+	static void AppendDxcArguments(const FShaderConductorOptions& InOptions, TArray<const ANSICHAR*>& DxcArguments, bool bIsIntermediateCode = false, bool bGenerateSpirv = true)
 	{
 		if(bGenerateSpirv)
 		{
@@ -402,6 +404,12 @@ namespace CrossCompiler
 		default:
 			checkf(false, TEXT("Invalid HLSL version: expected 2015, 2016, 2017, 2018, or 2021 but %u was specified"), InOptions.HlslVersion);
 			break;
+		}
+
+		// We only treat warnings as errors for input source code, not intermediate source since DXC rewriter might produce new warnings the shader authors don't have control over.
+		if (InOptions.bWarningsAsErrors && !bIsIntermediateCode)
+		{
+			DxcArguments.Add("-WX");
 		}
 
 		// Add additional DXC arguments that are not exposed by ShaderConductor API directly
@@ -456,7 +464,7 @@ namespace CrossCompiler
 		}
 	}
 
-static void ConvertScOptions(FShaderConductorContext::FShaderConductorIntermediates& Intermediates, const FShaderConductorOptions& InOptions, ShaderConductor::Compiler::Options& OutOptions, bool bIgnoreCustomDxcArgs = false, bool bGenerateSpirv = true)
+	static void ConvertScOptions(FShaderConductorContext::FShaderConductorIntermediates& Intermediates, const FShaderConductorOptions& InOptions, ShaderConductor::Compiler::Options& OutOptions, bool bIgnoreCustomDxcArgs = false, bool bGenerateSpirv = true)
 	{
 		// Validate input shader model with respect to certain language features.
 		checkf(
@@ -483,8 +491,8 @@ static void ConvertScOptions(FShaderConductorContext::FShaderConductorIntermedia
 
 		DxcArgRefs.Empty();
 
-		AppendDxcArguments(InOptions, DxcArgRefs, bGenerateSpirv);
-		
+		AppendDxcArguments(InOptions, DxcArgRefs, Intermediates.bIsIntermediateCode, bGenerateSpirv);
+
 		if (!InOptions.SpirvCustomOptimizationPasses.IsEmpty())
 		{
 			Intermediates.InternalDxcArgs = FAnsiString::Printf("-Oconfig=%ls", SelectSpirvCustomOptimizationPasses(InOptions.SpirvCustomOptimizationPasses));
@@ -691,6 +699,9 @@ static void ConvertScOptions(FShaderConductorContext::FShaderConductorIntermedia
 
 			// Copy rewritten HLSL code into intermediate source code.
 			Intermediates->ShaderSource.CopyAnsi(ResultView);
+
+			// Mark the internal shader source as intermediate code
+			Intermediates->bIsIntermediateCode = true;
 
 			// If output source is specified, also convert to TCHAR string
 			if (OutSource != nullptr)
