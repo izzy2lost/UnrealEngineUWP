@@ -76,6 +76,11 @@ IDetailPropertyRow* FCustomChildrenBuilder::AddExternalStructureProperty(TShared
 
 	FDetailPropertyRow::MakeExternalPropertyRowCustomization(ChildStructure, PropertyName, ParentCategoryRef, NewCustomization, Params);
 
+	if (Params.ShouldHideRootObjectNode() && NewCustomization.HasPropertyNode() && NewCustomization.GetPropertyNode()->AsComplexNode())
+	{
+		NewCustomization.PropertyRow->SetForceShowOnlyChildren(true);
+	}
+
 	TSharedPtr<FDetailPropertyRow> NewRow = NewCustomization.PropertyRow;
 
 	if (NewRow.IsValid())

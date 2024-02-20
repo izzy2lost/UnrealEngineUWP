@@ -489,6 +489,11 @@ IDetailPropertyRow* FDetailCategoryImpl::AddExternalStructureProperty(TSharedPtr
 
 	FDetailPropertyRow::MakeExternalPropertyRowCustomization(StructData, PropertyName, AsShared(), NewCustomization, Params);
 
+	if (Params.ShouldHideRootObjectNode() && NewCustomization.HasPropertyNode() && NewCustomization.GetPropertyNode()->AsComplexNode())
+	{
+		NewCustomization.PropertyRow->SetForceShowOnlyChildren(true);
+	}
+
 	TSharedPtr<FDetailPropertyRow> NewRow = NewCustomization.PropertyRow;
 
 	if (NewRow.IsValid())
@@ -509,6 +514,11 @@ IDetailPropertyRow* FDetailCategoryImpl::AddExternalStructureProperty(TSharedPtr
 	NewCustomization.bAdvanced = Location == EPropertyLocation::Advanced;
 
 	FDetailPropertyRow::MakeExternalPropertyRowCustomization(StructDataProvider, PropertyName, AsShared(), NewCustomization, Params);
+
+	if (Params.ShouldHideRootObjectNode() && NewCustomization.HasPropertyNode() && NewCustomization.GetPropertyNode()->AsComplexNode())
+	{
+		NewCustomization.PropertyRow->SetForceShowOnlyChildren(true);
+	}
 
 	TSharedPtr<FDetailPropertyRow> NewRow = NewCustomization.PropertyRow;
 

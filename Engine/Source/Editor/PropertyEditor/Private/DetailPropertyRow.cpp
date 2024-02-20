@@ -563,7 +563,38 @@ TSharedPtr<IPropertyTypeCustomization> FDetailPropertyRow::GetPropertyCustomizat
 		static FName NAME_PropertyEditor("PropertyEditor");
 		FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>(NAME_PropertyEditor);
 
-		FPropertyTypeLayoutCallback LayoutCallback = PropertyEditorModule.GetPropertyTypeCustomization(Property, *PropHandle, InParentCategory->GetCustomPropertyTypeLayoutMap() );
+		FPropertyTypeLayoutCallback LayoutCallback;
+		if (Property != nullptr)
+		{
+			LayoutCallback = PropertyEditorModule.GetPropertyTypeCustomization(Property, *PropHandle, InParentCategory->GetCustomPropertyTypeLayoutMap());
+		}
+		else
+		{
+			// This add support to objects and structs added to the category with AddExternalObjectProperty / AddExternalStructureProperty
+			if (FComplexPropertyNode* ComplexNode = InPropertyNode->AsComplexNode())
+			{
+				if (FObjectPropertyNode* ObjectNode = ComplexNode->AsObjectNode())
+				{
+					UClass* PropertyClass = ObjectNode->GetObjectBaseClass();
+					while (PropertyClass)
+					{
+						LayoutCallback = PropertyEditorModule.FindPropertyTypeLayoutCallback(PropertyClass->GetFName(), *PropHandle, InParentCategory->GetCustomPropertyTypeLayoutMap());
+						if (LayoutCallback.IsValid())
+						{
+							break;
+						}
+
+						PropertyClass = PropertyClass->GetSuperClass();
+					}
+				}
+				else if (FStructurePropertyNode* StructureNode = ComplexNode->AsStructureNode())
+				{
+					const FName PropertyTypeName = StructureNode->GetBaseStructure()->GetFName();
+					LayoutCallback = PropertyEditorModule.FindPropertyTypeLayoutCallback(PropertyTypeName, *PropHandle, InParentCategory->GetCustomPropertyTypeLayoutMap());
+				}
+			}
+		}
+
 		if (LayoutCallback.IsValid())
 		{
 			if (PropHandle->IsValidHandle())
