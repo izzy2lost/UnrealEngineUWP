@@ -49,7 +49,7 @@ namespace UE::Chaos::ClothAsset
 		FAnisotropicData GetXPBDAnisoBucklingStiffness() const;
 
 		/** Return the anisotropic stretch stiffness */
-		FAnisotropicData GetXPBDAnisoStretchStiffness() const;
+		FAnisotropicData GetXPBDAnisoSpringStiffness() const;
 
 		/** Return the cloth density */
 		float GetDensityWeighted() const;
