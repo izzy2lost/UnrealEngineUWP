@@ -2,7 +2,6 @@
 
 #include "CoreMinimal.h"
 #include "Modules/ModuleManager.h"
-#include "MeshUtilities.h"
 #include "MeshBuild.h"
 #include "MeshSimplify.h"
 #include "LerpVert.h"
