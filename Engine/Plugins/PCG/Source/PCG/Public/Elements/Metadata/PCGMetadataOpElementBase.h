@@ -126,6 +126,9 @@ public:
 	/* Return the current input pin to forward to the output. */
 	uint32 GetInputPinToForward() const;
 
+	/** If the primary input is needed and empty, it will pass through data. */
+	virtual bool IsPrimaryInputPinRequired() const { return true; }
+
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Output", meta = (PCG_Overridable))
 	FPCGAttributePropertyOutputSelector OutputTarget;
 

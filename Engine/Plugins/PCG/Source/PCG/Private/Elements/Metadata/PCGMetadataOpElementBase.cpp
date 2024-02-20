@@ -383,8 +383,8 @@ bool FPCGMetadataElementBase::PrepareDataInternal(FPCGContext* Context) const
 	const FName PrimaryPinLabel = Settings->GetInputPinLabel(Settings->GetInputPinToForward());
 	const TArray<FPCGTaggedData> PrimaryInputs = Context->InputData.GetInputsByPin(PrimaryPinLabel);
 
-	// There are no inputs on the primary pin, so passthrough inputs
-	if (PrimaryInputs.IsEmpty())
+	// There are no inputs on the primary pin, so pass-through inputs if the primary pin is required
+	if (Settings->IsPrimaryInputPinRequired() && PrimaryInputs.IsEmpty())
 	{
 		return true;
 	}
