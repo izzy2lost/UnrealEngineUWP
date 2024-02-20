@@ -143,8 +143,10 @@ bool USkeleton::IsCompatibleForEditor(const FAssetData& AssetData, const TCHAR* 
 bool USkeleton::IsCompatibleForEditor(const FString& SkeletonAssetString) const
 {
 	// First check against itself.
-	const FString SkeletonString = FAssetData(this, FAssetData::ECreationFlags::SkipAssetRegistryTagsGathering).GetExportTextName();
-	if (SkeletonString == SkeletonAssetString)
+	TStringBuilder<128> SkeletonStringBuilder;
+	FAssetData(this, FAssetData::ECreationFlags::SkipAssetRegistryTagsGathering).GetExportTextName(SkeletonStringBuilder);
+	const TCHAR* SkeletonString = SkeletonStringBuilder.ToString();
+	if (SkeletonAssetString == SkeletonString)
 	{
 		return true;
 	}
@@ -156,18 +158,22 @@ bool USkeleton::IsCompatibleForEditor(const FString& SkeletonAssetString) const
 	}
 
 	// Now check against the list of compatible skeletons and see if we're dealing with the same asset.
-	const FSoftObjectPath InPath(SkeletonAssetString);
-	for (const TSoftObjectPtr<USkeleton>& CompatibleSkeleton : CompatibleSkeletons)
+	if(CompatibleSkeletons.Num() > 0)
 	{
-		if (CompatibleSkeleton.ToSoftObjectPath() == InPath)
+		const FSoftObjectPath InPath(SkeletonAssetString);
+		for (const TSoftObjectPtr<USkeleton>& CompatibleSkeleton : CompatibleSkeletons)
 		{
-			return true;
+			if (CompatibleSkeleton.ToSoftObjectPath() == InPath)
+			{
+				return true;
+			}
 		}
 	}
 
 	// Check if the other skeleton is compatible with this via the asset registry
 	const IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
-	const FAssetData SkeletonAssetData = AssetRegistry.GetAssetByObjectPath(FSoftObjectPath(*SkeletonAssetString));	
+	constexpr bool bIncludeOnlyOnDiskAssets = true;
+	const FAssetData SkeletonAssetData = AssetRegistry.GetAssetByObjectPath(FSoftObjectPath(*SkeletonAssetString), bIncludeOnlyOnDiskAssets);
 	const FString TagValue = SkeletonAssetData.GetTagValueRef<FString>(USkeleton::CompatibleSkeletonsNameTag);
 	if (!TagValue.IsEmpty())
 	{
@@ -176,7 +182,7 @@ bool USkeleton::IsCompatibleForEditor(const FString& SkeletonAssetString) const
 		{
 			for (const FString& OtherCompatibleSkeleton : OtherCompatibleSkeletons)
 			{
-				if (SkeletonString == OtherCompatibleSkeleton)
+				if (OtherCompatibleSkeleton == SkeletonString)
 				{
 					return true;
 				}

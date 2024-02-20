@@ -291,6 +291,9 @@ private:
 	/** Whether we notifies and sync markers from assets compatible with the current skeleton */
 	bool bShowCompatibleSkeletonAssets = false;
 
+	/** Whether to suspend refreshing the UI when filtering */
+	bool bAllowRefreshFilter = true;
+
 	/** All filters that can be applied to the widget's display */
 	TArray<TSharedRef<FFilterBase<EAnimNotifyFilterFlags>>> Filters;
 
