@@ -827,187 +827,6 @@ namespace UE::Learning::Action
 			}
 		}
 
-		NNE::RuntimeBasic::FModelBuilderElement MakeDecoderNetworkFromSchema(
-			NNE::RuntimeBasic::FModelBuilder& Builder,
-			const FSchema& Schema,
-			const FSchemaElement SchemaElement)
-		{
-			const EType SchemaElementType = Schema.GetType(SchemaElement);
-
-			NNE::RuntimeBasic::FModelBuilderElement ReturnElement;
-
-			switch (SchemaElementType)
-			{
-
-			case EType::Null:
-			{
-				ReturnElement = Builder.MakeCopy(0);
-				break;
-			}
-
-			case EType::Continuous:
-			{
-				const int32 ValueNum = Schema.GetContinuous(SchemaElement).Num * 2;
-
-				ReturnElement = Builder.MakeDenormalize(
-					ValueNum,
-					Builder.MakeWeightsZero(ValueNum),
-					Builder.MakeWeightsConstant(ValueNum, 1.0f));
-				break;
-			}
-
-			case EType::DiscreteExclusive:
-			{
-				const FSchemaDiscreteExclusiveParameters Parameters = Schema.GetDiscreteExclusive(SchemaElement);
-
-				TArray<float, TInlineAllocator<16>> LogPriorProbabilities;
-				LogPriorProbabilities.Append(Parameters.PriorProbabilities);
-				for (int32 Idx = 0; Idx < Parameters.Num; Idx++)
-				{
-					// Clamp zero probabilities to the smallest (positive) float. This is approximately equal to a probability of 1:1e38
-					LogPriorProbabilities[Idx] = FMath::Loge(FMath::Max(LogPriorProbabilities[Idx], FLT_MIN));
-				}
-
-				ReturnElement = Builder.MakeDenormalize(
-					Parameters.Num,
-					Builder.MakeWeightsCopy(LogPriorProbabilities),
-					Builder.MakeWeightsConstant(Parameters.Num, 1.0f));
-
-				break;
-			}
-
-			case EType::DiscreteInclusive:
-			{
-				const FSchemaDiscreteInclusiveParameters Parameters = Schema.GetDiscreteInclusive(SchemaElement);
-
-				TArray<float, TInlineAllocator<16>> LogPriorProbabilities;
-				LogPriorProbabilities.Append(Parameters.PriorProbabilities);
-				for (int32 Idx = 0; Idx < Parameters.Num; Idx++)
-				{
-					LogPriorProbabilities[Idx] = Private::Logit(LogPriorProbabilities[Idx]);
-				}
-
-				ReturnElement = Builder.MakeDenormalize(Parameters.Num,
-					Builder.MakeWeightsCopy(LogPriorProbabilities),
-					Builder.MakeWeightsConstant(Parameters.Num, 1.0f));
-				break;
-			}
-					
-			case EType::And:
-			{
-				const FSchemaAndParameters Parameters = Schema.GetAnd(SchemaElement);
-
-				TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderLayers;
-				BuilderLayers.Reserve(Parameters.Elements.Num());
-				for (const FSchemaElement SubElement : Parameters.Elements)
-				{
-					BuilderLayers.Emplace(MakeDecoderNetworkFromSchema(Builder, Schema, SubElement));
-				}
-
-				ReturnElement = Builder.MakeConcat(BuilderLayers);
-				break;
-			}
-
-			case EType::OrExclusive:
-			{
-				const FSchemaOrExclusiveParameters Parameters = Schema.GetOrExclusive(SchemaElement);
-
-				TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderLayers;
-				BuilderLayers.Reserve(Parameters.Elements.Num() + 1);
-				for (const FSchemaElement SubElement : Parameters.Elements)
-				{
-					BuilderLayers.Emplace(MakeDecoderNetworkFromSchema(Builder, Schema, SubElement));
-				}
-
-				TArray<float, TInlineAllocator<16>> LogPriorProbabilities;
-				LogPriorProbabilities.Append(Parameters.PriorProbabilities);
-				for (int32 Idx = 0; Idx < Parameters.PriorProbabilities.Num(); Idx++)
-				{
-					// Clamp zero probabilities to the smallest (positive) float. This is approximately equal to a probability of 1:1e38
-					LogPriorProbabilities[Idx] = FMath::Loge(FMath::Max(LogPriorProbabilities[Idx], FLT_MIN));
-				}
-
-				BuilderLayers.Emplace(Builder.MakeDenormalize(
-					LogPriorProbabilities.Num(),
-					Builder.MakeWeightsCopy(LogPriorProbabilities),
-					Builder.MakeWeightsConstant(LogPriorProbabilities.Num(), 1.0f)));
-
-				ReturnElement = Builder.MakeConcat(BuilderLayers);
-				break;
-			}
-
-			case EType::OrInclusive:
-			{
-				const FSchemaOrInclusiveParameters Parameters = Schema.GetOrInclusive(SchemaElement);
-
-				TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderLayers;
-				BuilderLayers.Reserve(Parameters.Elements.Num() + 1);
-				for (const FSchemaElement SubElement : Parameters.Elements)
-				{
-					BuilderLayers.Emplace(MakeDecoderNetworkFromSchema(Builder, Schema, SubElement));
-				}
-
-				TArray<float, TInlineAllocator<16>> LogPriorProbabilities;
-				LogPriorProbabilities.Append(Parameters.PriorProbabilities);
-				for (int32 Idx = 0; Idx < Parameters.PriorProbabilities.Num(); Idx++)
-				{
-					LogPriorProbabilities[Idx] = Private::Logit(LogPriorProbabilities[Idx]);
-				}
-
-				BuilderLayers.Emplace(Builder.MakeDenormalize(
-					LogPriorProbabilities.Num(),
-					Builder.MakeWeightsCopy(LogPriorProbabilities),
-					Builder.MakeWeightsConstant(LogPriorProbabilities.Num(), 1.0f)));
-
-				ReturnElement = Builder.MakeConcat(BuilderLayers);
-				break;
-			}
-
-			case EType::Array:
-			{
-				const FSchemaArrayParameters Parameters = Schema.GetArray(SchemaElement);
-
-				ReturnElement = Builder.MakeArray(Parameters.Num, MakeDecoderNetworkFromSchema(Builder, Schema, Parameters.Element));
-				break;
-			}
-
-			case EType::Encoding:
-			{
-				const FSchemaEncodingParameters Parameters = Schema.GetEncoding(SchemaElement);
-
-				const int32 SubElementEncodedSize = Schema.GetEncodedVectorSize(Parameters.Element);
-
-				ReturnElement = Builder.MakeSequence({
-					Builder.MakeActivation(Parameters.EncodingSize, GetNNEActivationFunction(Parameters.ActivationFunction)),
-					Builder.MakeMLPWithRandomKaimingWeights(
-						Parameters.EncodingSize, 
-						SubElementEncodedSize, 
-						Parameters.EncodingSize, 
-						Parameters.LayerNum + 1,  // Add 1 to account for input layer 
-						GetNNEActivationFunction(Parameters.ActivationFunction),
-						false),
-					MakeDecoderNetworkFromSchema(Builder, Schema, Parameters.Element),
-				});
-				break;
-			}
-
-			default:
-			{
-				UE_LEARNING_NOT_IMPLEMENTED();
-			}
-			}
-
-			UE_LEARNING_CHECKF(ReturnElement.GetInputSize() == Schema.GetEncodedVectorSize(SchemaElement),
-				TEXT("Decoder Network Input unexpected size. Got %i, expected %i according to Schema."),
-				ReturnElement.GetInputSize(), Schema.GetEncodedVectorSize(SchemaElement));
-
-			UE_LEARNING_CHECKF(ReturnElement.GetOutputSize() == Schema.GetActionDistributionVectorSize(SchemaElement),
-				TEXT("Decoder Network Output unexpected size. Got %i, expected %i according to Schema."),
-				ReturnElement.GetOutputSize(), Schema.GetActionDistributionVectorSize(SchemaElement));
-
-			return ReturnElement;
-		}
-
 		static inline int32 HashFNameStable(const FName Name)
 		{
 			const FString NameString = Name.ToString().ToLower();
@@ -1213,7 +1032,196 @@ namespace UE::Learning::Action
 		}
 	}
 
-	LEARNING_API void GenerateDecoderNetworkFileDataFromSchema(
+	void MakeDecoderNetworkModelBuilderElementFromSchema(
+		NNE::RuntimeBasic::FModelBuilderElement& OutElement,
+		NNE::RuntimeBasic::FModelBuilder& Builder,
+		const FSchema& Schema,
+		const FSchemaElement SchemaElement)
+	{
+		const EType SchemaElementType = Schema.GetType(SchemaElement);
+
+		switch (SchemaElementType)
+		{
+
+		case EType::Null:
+		{
+			OutElement = Builder.MakeCopy(0);
+			break;
+		}
+
+		case EType::Continuous:
+		{
+			const int32 ValueNum = Schema.GetContinuous(SchemaElement).Num * 2;
+
+			OutElement = Builder.MakeDenormalize(
+				ValueNum,
+				Builder.MakeWeightsZero(ValueNum),
+				Builder.MakeWeightsConstant(ValueNum, 1.0f));
+			break;
+		}
+
+		case EType::DiscreteExclusive:
+		{
+			const FSchemaDiscreteExclusiveParameters Parameters = Schema.GetDiscreteExclusive(SchemaElement);
+
+			TArray<float, TInlineAllocator<16>> LogPriorProbabilities;
+			LogPriorProbabilities.Append(Parameters.PriorProbabilities);
+			for (int32 Idx = 0; Idx < Parameters.Num; Idx++)
+			{
+				// Clamp zero probabilities to the smallest (positive) float. This is approximately equal to a probability of 1:1e38
+				LogPriorProbabilities[Idx] = FMath::Loge(FMath::Max(LogPriorProbabilities[Idx], FLT_MIN));
+			}
+
+			OutElement = Builder.MakeDenormalize(
+				Parameters.Num,
+				Builder.MakeWeightsCopy(LogPriorProbabilities),
+				Builder.MakeWeightsConstant(Parameters.Num, 1.0f));
+
+			break;
+		}
+
+		case EType::DiscreteInclusive:
+		{
+			const FSchemaDiscreteInclusiveParameters Parameters = Schema.GetDiscreteInclusive(SchemaElement);
+
+			TArray<float, TInlineAllocator<16>> LogPriorProbabilities;
+			LogPriorProbabilities.Append(Parameters.PriorProbabilities);
+			for (int32 Idx = 0; Idx < Parameters.Num; Idx++)
+			{
+				LogPriorProbabilities[Idx] = Private::Logit(LogPriorProbabilities[Idx]);
+			}
+
+			OutElement = Builder.MakeDenormalize(Parameters.Num,
+				Builder.MakeWeightsCopy(LogPriorProbabilities),
+				Builder.MakeWeightsConstant(Parameters.Num, 1.0f));
+			break;
+		}
+
+		case EType::And:
+		{
+			const FSchemaAndParameters Parameters = Schema.GetAnd(SchemaElement);
+
+			TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderLayers;
+			BuilderLayers.Reserve(Parameters.Elements.Num());
+			for (const FSchemaElement SubElement : Parameters.Elements)
+			{
+				NNE::RuntimeBasic::FModelBuilderElement BuilderSubElement;
+				MakeDecoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, SubElement);
+				BuilderLayers.Emplace(BuilderSubElement);
+			}
+
+			OutElement = Builder.MakeConcat(BuilderLayers);
+			break;
+		}
+
+		case EType::OrExclusive:
+		{
+			const FSchemaOrExclusiveParameters Parameters = Schema.GetOrExclusive(SchemaElement);
+
+			TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderLayers;
+			BuilderLayers.Reserve(Parameters.Elements.Num() + 1);
+			for (const FSchemaElement SubElement : Parameters.Elements)
+			{
+				NNE::RuntimeBasic::FModelBuilderElement BuilderSubElement;
+				MakeDecoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, SubElement);
+				BuilderLayers.Emplace(BuilderSubElement);
+			}
+
+			TArray<float, TInlineAllocator<16>> LogPriorProbabilities;
+			LogPriorProbabilities.Append(Parameters.PriorProbabilities);
+			for (int32 Idx = 0; Idx < Parameters.PriorProbabilities.Num(); Idx++)
+			{
+				// Clamp zero probabilities to the smallest (positive) float. This is approximately equal to a probability of 1:1e38
+				LogPriorProbabilities[Idx] = FMath::Loge(FMath::Max(LogPriorProbabilities[Idx], FLT_MIN));
+			}
+
+			BuilderLayers.Emplace(Builder.MakeDenormalize(
+				LogPriorProbabilities.Num(),
+				Builder.MakeWeightsCopy(LogPriorProbabilities),
+				Builder.MakeWeightsConstant(LogPriorProbabilities.Num(), 1.0f)));
+
+			OutElement = Builder.MakeConcat(BuilderLayers);
+			break;
+		}
+
+		case EType::OrInclusive:
+		{
+			const FSchemaOrInclusiveParameters Parameters = Schema.GetOrInclusive(SchemaElement);
+
+			TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderLayers;
+			BuilderLayers.Reserve(Parameters.Elements.Num() + 1);
+			for (const FSchemaElement SubElement : Parameters.Elements)
+			{
+				NNE::RuntimeBasic::FModelBuilderElement BuilderSubElement;
+				MakeDecoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, SubElement);
+				BuilderLayers.Emplace(BuilderSubElement);
+			}
+
+			TArray<float, TInlineAllocator<16>> LogPriorProbabilities;
+			LogPriorProbabilities.Append(Parameters.PriorProbabilities);
+			for (int32 Idx = 0; Idx < Parameters.PriorProbabilities.Num(); Idx++)
+			{
+				LogPriorProbabilities[Idx] = Private::Logit(LogPriorProbabilities[Idx]);
+			}
+
+			BuilderLayers.Emplace(Builder.MakeDenormalize(
+				LogPriorProbabilities.Num(),
+				Builder.MakeWeightsCopy(LogPriorProbabilities),
+				Builder.MakeWeightsConstant(LogPriorProbabilities.Num(), 1.0f)));
+
+			OutElement = Builder.MakeConcat(BuilderLayers);
+			break;
+		}
+
+		case EType::Array:
+		{
+			const FSchemaArrayParameters Parameters = Schema.GetArray(SchemaElement);
+
+			NNE::RuntimeBasic::FModelBuilderElement BuilderSubElement;
+			MakeDecoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, Parameters.Element);
+			OutElement = Builder.MakeArray(Parameters.Num, BuilderSubElement);
+			break;
+		}
+
+		case EType::Encoding:
+		{
+			const FSchemaEncodingParameters Parameters = Schema.GetEncoding(SchemaElement);
+
+			const int32 SubElementEncodedSize = Schema.GetEncodedVectorSize(Parameters.Element);
+
+			NNE::RuntimeBasic::FModelBuilderElement BuilderSubElement;
+			MakeDecoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, Parameters.Element);
+
+			OutElement = Builder.MakeSequence({
+				Builder.MakeActivation(Parameters.EncodingSize, Private::GetNNEActivationFunction(Parameters.ActivationFunction)),
+				Builder.MakeMLPWithRandomKaimingWeights(
+					Parameters.EncodingSize,
+					SubElementEncodedSize,
+					Parameters.EncodingSize,
+					Parameters.LayerNum + 1,  // Add 1 to account for input layer 
+					Private::GetNNEActivationFunction(Parameters.ActivationFunction),
+					false),
+				BuilderSubElement,
+				});
+			break;
+		}
+
+		default:
+		{
+			UE_LEARNING_NOT_IMPLEMENTED();
+		}
+		}
+
+		UE_LEARNING_CHECKF(OutElement.GetInputSize() == Schema.GetEncodedVectorSize(SchemaElement),
+			TEXT("Decoder Network Input unexpected size. Got %i, expected %i according to Schema."),
+			OutElement.GetInputSize(), Schema.GetEncodedVectorSize(SchemaElement));
+
+		UE_LEARNING_CHECKF(OutElement.GetOutputSize() == Schema.GetActionDistributionVectorSize(SchemaElement),
+			TEXT("Decoder Network Output unexpected size. Got %i, expected %i according to Schema."),
+			OutElement.GetOutputSize(), Schema.GetActionDistributionVectorSize(SchemaElement));
+	}
+
+	void GenerateDecoderNetworkFileDataFromSchema(
 		TArray<uint8>& OutFileData,
 		uint32& OutInputSize,
 		uint32& OutOutputSize,
@@ -1224,7 +1232,9 @@ namespace UE::Learning::Action
 		UE_LEARNING_CHECK(Schema.IsValid(SchemaElement));
 
 		NNE::RuntimeBasic::FModelBuilder Builder(Seed);
-		Builder.WriteFileDataAndReset(OutFileData, OutInputSize, OutOutputSize, Private::MakeDecoderNetworkFromSchema(Builder, Schema, SchemaElement));
+		NNE::RuntimeBasic::FModelBuilderElement Element;
+		MakeDecoderNetworkModelBuilderElementFromSchema(Element, Builder, Schema, SchemaElement);
+		Builder.WriteFileDataAndReset(OutFileData, OutInputSize, OutOutputSize, Element);
 	}
 
 	void SampleVectorFromDistributionVector(

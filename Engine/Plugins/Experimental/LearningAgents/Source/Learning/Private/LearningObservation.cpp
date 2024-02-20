@@ -680,162 +680,6 @@ namespace UE::Learning::Observation
 			}
 		}
 
-		NNE::RuntimeBasic::FModelBuilderElement MakeEncoderNetworkFromSchema(
-			NNE::RuntimeBasic::FModelBuilder& Builder,
-			const FSchema& Schema,
-			const FSchemaElement SchemaElement)
-		{
-			const EType SchemaElementType = Schema.GetType(SchemaElement);
-
-			NNE::RuntimeBasic::FModelBuilderElement ReturnElement;
-
-			switch (SchemaElementType)
-			{
-			case EType::Null:
-			{
-				ReturnElement = Builder.MakeCopy(0);
-				break;
-			}
-
-			case EType::Continuous:
-			{
-				const int32 ValueNum = Schema.GetContinuous(SchemaElement).Num;
-
-				ReturnElement = Builder.MakeDenormalize(
-					ValueNum,
-					Builder.MakeWeightsZero(ValueNum),
-					Builder.MakeWeightsConstant(ValueNum, 1.0f));
-				break;
-			}
-
-			case EType::And:
-			{
-				const FSchemaAndParameters Parameters = Schema.GetAnd(SchemaElement);
-
-				TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderLayers;
-				BuilderLayers.Reserve(Parameters.Elements.Num());
-				for (const FSchemaElement SubElement : Parameters.Elements)
-				{
-					BuilderLayers.Emplace(MakeEncoderNetworkFromSchema(Builder, Schema, SubElement));
-				}
-
-				ReturnElement = Builder.MakeConcat(BuilderLayers);
-				break;
-			}
-
-			case EType::OrExclusive:
-			{
-				const FSchemaOrExclusiveParameters Parameters = Schema.GetOrExclusive(SchemaElement);
-
-				TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderSubLayers;
-				TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderEncoders;
-				BuilderSubLayers.Reserve(Parameters.Elements.Num());
-				BuilderEncoders.Reserve(Parameters.Elements.Num());
-				for (const FSchemaElement SubElement : Parameters.Elements)
-				{
-					const int32 SubElementEncodedSize = Schema.GetEncodedVectorSize(SubElement);
-					BuilderSubLayers.Emplace(MakeEncoderNetworkFromSchema(Builder, Schema, SubElement));
-					BuilderEncoders.Emplace(Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.EncodingSize));
-				}
-
-				ReturnElement = Builder.MakeAggregateOrExclusive(Parameters.EncodingSize, BuilderSubLayers, BuilderEncoders);
-				break;
-			}
-
-			case EType::OrInclusive:
-			{
-				const FSchemaOrInclusiveParameters Parameters = Schema.GetOrInclusive(SchemaElement);
-
-				TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderSubLayers;
-				TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderQueryLayers;
-				TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderKeyLayers;
-				TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderValueLayers;
-				BuilderSubLayers.Reserve(Parameters.Elements.Num());
-				BuilderQueryLayers.Reserve(Parameters.Elements.Num());
-				BuilderValueLayers.Reserve(Parameters.Elements.Num());
-				for (const FSchemaElement SubElement : Parameters.Elements)
-				{
-					const int32 SubElementEncodedSize = Schema.GetEncodedVectorSize(SubElement);
-					BuilderSubLayers.Emplace(MakeEncoderNetworkFromSchema(Builder, Schema, SubElement));
-					BuilderQueryLayers.Emplace(Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.AttentionEncodingSize));
-					BuilderKeyLayers.Emplace(Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.AttentionEncodingSize));
-					BuilderValueLayers.Emplace(Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.ValueEncodingSize));
-				}
-
-				ReturnElement = Builder.MakeAggregateOrInclusive(
-					Parameters.ValueEncodingSize,
-					Parameters.AttentionEncodingSize,
-					Parameters.AttentionHeadNum,
-					BuilderSubLayers,
-					BuilderQueryLayers,
-					BuilderKeyLayers,
-					BuilderValueLayers);
-
-				break;
-			}
-
-			case EType::Array:
-			{
-				const FSchemaArrayParameters Parameters = Schema.GetArray(SchemaElement);
-
-				ReturnElement = Builder.MakeArray(Parameters.Num, MakeEncoderNetworkFromSchema(Builder, Schema, Parameters.Element));
-				break;
-			}
-
-			case EType::Set:
-			{
-				const FSchemaSetParameters Parameters = Schema.GetSet(SchemaElement);
-
-				const int32 SubElementEncodedSize = Schema.GetEncodedVectorSize(Parameters.Element);
-
-				ReturnElement = Builder.MakeAggregateSet(
-					Parameters.MaxNum,
-					Parameters.ValueEncodingSize,
-					Parameters.AttentionEncodingSize,
-					Parameters.AttentionHeadNum,
-					MakeEncoderNetworkFromSchema(Builder, Schema, Parameters.Element),
-					Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.AttentionEncodingSize),
-					Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.AttentionEncodingSize),
-					Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.ValueEncodingSize));
-				break;
-			}
-
-			case EType::Encoding:
-			{
-				const FSchemaEncodingParameters Parameters = Schema.GetEncoding(SchemaElement);
-
-				const int32 SubElementEncodedSize = Schema.GetEncodedVectorSize(Parameters.Element);
-
-				ReturnElement = Builder.MakeSequence({
-					MakeEncoderNetworkFromSchema(Builder, Schema, Parameters.Element),
-					Builder.MakeMLPWithRandomKaimingWeights(
-						SubElementEncodedSize,
-						Parameters.EncodingSize,
-						Parameters.EncodingSize,
-						Parameters.LayerNum + 1, // Add 1 to account for input layer
-						GetNNEActivationFunction(Parameters.ActivationFunction),
-						true)
-					});
-				break;
-			}
-
-			default:
-			{
-				UE_LEARNING_NOT_IMPLEMENTED();
-			}
-			}
-
-			UE_LEARNING_CHECKF(ReturnElement.GetInputSize() == Schema.GetObservationVectorSize(SchemaElement),
-				TEXT("Encoder Network Input unexpected size for %s. Got %i, expected %i according to Schema."),
-				*Schema.GetTag(SchemaElement).ToString(), ReturnElement.GetInputSize(), Schema.GetObservationVectorSize(SchemaElement));
-
-			UE_LEARNING_CHECKF(ReturnElement.GetOutputSize() == Schema.GetEncodedVectorSize(SchemaElement),
-				TEXT("Encoder Network Output unexpected size for %s. Got %i, expected %i according to Schema."),
-				*Schema.GetTag(SchemaElement).ToString(), ReturnElement.GetOutputSize(), Schema.GetEncodedVectorSize(SchemaElement));
-
-			return ReturnElement;
-		}
-
 		static inline int32 HashFNameStable(const FName Name)
 		{
 			const FString NameString = Name.ToString().ToLower();
@@ -1047,6 +891,173 @@ namespace UE::Learning::Observation
 		}
 	}
 
+	void MakeEncoderNetworkModelBuilderElementFromSchema(
+		NNE::RuntimeBasic::FModelBuilderElement& OutElement,
+		NNE::RuntimeBasic::FModelBuilder& Builder,
+		const FSchema& Schema,
+		const FSchemaElement SchemaElement)
+	{
+		const EType SchemaElementType = Schema.GetType(SchemaElement);
+
+		switch (SchemaElementType)
+		{
+		case EType::Null:
+		{
+			OutElement = Builder.MakeCopy(0);
+			break;
+		}
+
+		case EType::Continuous:
+		{
+			const int32 ValueNum = Schema.GetContinuous(SchemaElement).Num;
+
+			OutElement = Builder.MakeDenormalize(
+				ValueNum,
+				Builder.MakeWeightsZero(ValueNum),
+				Builder.MakeWeightsConstant(ValueNum, 1.0f));
+			break;
+		}
+
+		case EType::And:
+		{
+			const FSchemaAndParameters Parameters = Schema.GetAnd(SchemaElement);
+
+			TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderLayers;
+			BuilderLayers.Reserve(Parameters.Elements.Num());
+			for (const FSchemaElement SubElement : Parameters.Elements)
+			{
+				NNE::RuntimeBasic::FModelBuilderElement BuilderSubElement;
+				MakeEncoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, SubElement);
+				BuilderLayers.Emplace(BuilderSubElement);
+			}
+
+			OutElement = Builder.MakeConcat(BuilderLayers);
+			break;
+		}
+
+		case EType::OrExclusive:
+		{
+			const FSchemaOrExclusiveParameters Parameters = Schema.GetOrExclusive(SchemaElement);
+
+			TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderSubLayers;
+			TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderEncoders;
+			BuilderSubLayers.Reserve(Parameters.Elements.Num());
+			BuilderEncoders.Reserve(Parameters.Elements.Num());
+			for (const FSchemaElement SubElement : Parameters.Elements)
+			{
+				const int32 SubElementEncodedSize = Schema.GetEncodedVectorSize(SubElement);
+				NNE::RuntimeBasic::FModelBuilderElement BuilderSubElement;
+				MakeEncoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, SubElement);
+				BuilderSubLayers.Emplace(BuilderSubElement);
+				BuilderEncoders.Emplace(Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.EncodingSize));
+			}
+
+			OutElement = Builder.MakeAggregateOrExclusive(Parameters.EncodingSize, BuilderSubLayers, BuilderEncoders);
+			break;
+		}
+
+		case EType::OrInclusive:
+		{
+			const FSchemaOrInclusiveParameters Parameters = Schema.GetOrInclusive(SchemaElement);
+
+			TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderSubLayers;
+			TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderQueryLayers;
+			TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderKeyLayers;
+			TArray<NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<8>> BuilderValueLayers;
+			BuilderSubLayers.Reserve(Parameters.Elements.Num());
+			BuilderQueryLayers.Reserve(Parameters.Elements.Num());
+			BuilderValueLayers.Reserve(Parameters.Elements.Num());
+			for (const FSchemaElement SubElement : Parameters.Elements)
+			{
+				const int32 SubElementEncodedSize = Schema.GetEncodedVectorSize(SubElement);
+				NNE::RuntimeBasic::FModelBuilderElement BuilderSubElement;
+				MakeEncoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, SubElement);
+				BuilderSubLayers.Emplace(BuilderSubElement);
+				BuilderQueryLayers.Emplace(Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.AttentionEncodingSize));
+				BuilderKeyLayers.Emplace(Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.AttentionEncodingSize));
+				BuilderValueLayers.Emplace(Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.ValueEncodingSize));
+			}
+
+			OutElement = Builder.MakeAggregateOrInclusive(
+				Parameters.ValueEncodingSize,
+				Parameters.AttentionEncodingSize,
+				Parameters.AttentionHeadNum,
+				BuilderSubLayers,
+				BuilderQueryLayers,
+				BuilderKeyLayers,
+				BuilderValueLayers);
+
+			break;
+		}
+
+		case EType::Array:
+		{
+			const FSchemaArrayParameters Parameters = Schema.GetArray(SchemaElement);
+
+			NNE::RuntimeBasic::FModelBuilderElement BuilderSubElement;
+			MakeEncoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, Parameters.Element);
+			OutElement = Builder.MakeArray(Parameters.Num, BuilderSubElement);
+			break;
+		}
+
+		case EType::Set:
+		{
+			const FSchemaSetParameters Parameters = Schema.GetSet(SchemaElement);
+
+			const int32 SubElementEncodedSize = Schema.GetEncodedVectorSize(Parameters.Element);
+
+			NNE::RuntimeBasic::FModelBuilderElement BuilderSubElement;
+			MakeEncoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, Parameters.Element);
+
+			OutElement = Builder.MakeAggregateSet(
+				Parameters.MaxNum,
+				Parameters.ValueEncodingSize,
+				Parameters.AttentionEncodingSize,
+				Parameters.AttentionHeadNum,
+				BuilderSubElement,
+				Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.AttentionEncodingSize),
+				Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.AttentionEncodingSize),
+				Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.AttentionHeadNum * Parameters.ValueEncodingSize));
+			break;
+		}
+
+		case EType::Encoding:
+		{
+			const FSchemaEncodingParameters Parameters = Schema.GetEncoding(SchemaElement);
+
+			const int32 SubElementEncodedSize = Schema.GetEncodedVectorSize(Parameters.Element);
+
+			NNE::RuntimeBasic::FModelBuilderElement BuilderSubElement;
+			MakeEncoderNetworkModelBuilderElementFromSchema(BuilderSubElement, Builder, Schema, Parameters.Element);
+
+			OutElement = Builder.MakeSequence({
+				BuilderSubElement,
+				Builder.MakeMLPWithRandomKaimingWeights(
+					SubElementEncodedSize,
+					Parameters.EncodingSize,
+					Parameters.EncodingSize,
+					Parameters.LayerNum + 1, // Add 1 to account for input layer
+					Private::GetNNEActivationFunction(Parameters.ActivationFunction),
+					true)
+				});
+			break;
+		}
+
+		default:
+		{
+			UE_LEARNING_NOT_IMPLEMENTED();
+		}
+		}
+
+		UE_LEARNING_CHECKF(OutElement.GetInputSize() == Schema.GetObservationVectorSize(SchemaElement),
+			TEXT("Encoder Network Input unexpected size for %s. Got %i, expected %i according to Schema."),
+			*Schema.GetTag(SchemaElement).ToString(), OutElement.GetInputSize(), Schema.GetObservationVectorSize(SchemaElement));
+
+		UE_LEARNING_CHECKF(OutElement.GetOutputSize() == Schema.GetEncodedVectorSize(SchemaElement),
+			TEXT("Encoder Network Output unexpected size for %s. Got %i, expected %i according to Schema."),
+			*Schema.GetTag(SchemaElement).ToString(), OutElement.GetOutputSize(), Schema.GetEncodedVectorSize(SchemaElement));
+	}
+
 	void GenerateEncoderNetworkFileDataFromSchema(
 		TArray<uint8>& OutFileData,
 		uint32& OutInputSize,
@@ -1058,7 +1069,9 @@ namespace UE::Learning::Observation
 		UE_LEARNING_CHECK(Schema.IsValid(SchemaElement));
 
 		NNE::RuntimeBasic::FModelBuilder Builder(Seed);
-		Builder.WriteFileDataAndReset(OutFileData, OutInputSize, OutOutputSize, Private::MakeEncoderNetworkFromSchema(Builder, Schema, SchemaElement));
+		NNE::RuntimeBasic::FModelBuilderElement Element;
+		MakeEncoderNetworkModelBuilderElementFromSchema(Element, Builder, Schema, SchemaElement);
+		Builder.WriteFileDataAndReset(OutFileData, OutInputSize, OutOutputSize, Element);
 	}
 
 	void SetVectorFromObject(
