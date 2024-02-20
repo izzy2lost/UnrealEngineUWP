@@ -11,6 +11,10 @@
 			"value": "Samples/Games/Lyra/Lyra.uproject"
 		},
 		{
+			"name": "GameTarget",
+			"value": "LyraGame"
+		},
+		{
 			"name": "EditorTarget",
 			"value": "LyraEditor"
 		}
@@ -190,6 +194,7 @@
 				"-Target=BuildAndTest $(Project)",
 				"-set:ProjectName=$(Project)",
 				"-set:ProjectPath=$(ProjectPath)",
+				"-set:TargetName=$(GameTarget)",
 				"-set:EditorTargetName=$(EditorTarget)"
 			],
 			"parameters": [
