@@ -1170,7 +1170,7 @@ UMapBuildDataRegistry* UMapBuildDataRegistry::Get(const UActorComponent* Compone
 UMapBuildDataRegistry* UMapBuildDataRegistry::Get(const AActor* Actor)
 {
 	ULevel* OwnerLevel = Actor->GetLevel();
-	UWorld* World = OwnerLevel->GetWorld();
+	UWorld* World = OwnerLevel ? OwnerLevel->GetWorld() : nullptr;
 	UMapBuildDataRegistry* MapBuildData = nullptr;
 	
 	if (OwnerLevel && World)
