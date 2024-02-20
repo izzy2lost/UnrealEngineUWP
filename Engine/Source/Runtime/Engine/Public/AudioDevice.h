@@ -2008,6 +2008,7 @@ public:
 		int32 MaxChannelsSupportedBySpatializationPlugin = 1;
 		uint8 bSpatializationIsExternalSend:1;
 		uint8 bIsInitialized:1;
+		uint8 bReturnsToSubmixGraph:1;
 	};
 
 	UE_DEPRECATED(5.1, "Do not access this member directly, it is not used. Call GetSpatializationPluginInterface() instead.")

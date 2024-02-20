@@ -7357,6 +7357,7 @@ FAudioDevice::FAudioSpatializationInterfaceInfo::FAudioSpatializationInterfaceIn
 	// cache metadata from the incoming plugin interface 
 	bSpatializationIsExternalSend = InAudioSpatializationFactoryPtr->IsExternalSend();
 	MaxChannelsSupportedBySpatializationPlugin = InAudioSpatializationFactoryPtr->GetMaxSupportedChannels();
+	bReturnsToSubmixGraph = InAudioSpatializationFactoryPtr->ReturnsToSubmixGraph();
 }
 
 bool FAudioDevice::FAudioSpatializationInterfaceInfo::IsValid() const

@@ -227,6 +227,14 @@ public:
 	{
 		return false;
 	}
+
+	/*
+	*  @return true if the plugin returns from its external submix to a submix in the plugin.
+	*/
+	virtual bool ReturnsToSubmixGraph() const
+	{
+		return false;
+	}
 };
 
 /************************************************************************/
