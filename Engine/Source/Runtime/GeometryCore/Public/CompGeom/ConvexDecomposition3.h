@@ -65,6 +65,7 @@ struct FNegativeSpaceSampleSettings
 		MaxVoxelsPerDim = 1024;
 		MinSpacing = 0.0;
 		TargetNumSamples = 0;
+		VoxelExpandBoundsFactor = UE_DOUBLE_KINDA_SMALL_NUMBER;
 	}
 
 	// Method used to place samples
@@ -101,6 +102,9 @@ struct FNegativeSpaceSampleSettings
 
 	// Whether to allow samples to be added inside the mesh, based on winding number. Can enabled for non-solid meshes; note the convex decomposition should then set bTreatAsSolid to false as well.
 	bool bAllowSamplesInsideMesh = false;
+
+	// How much to expand the bounding box used for voxel search algorithms
+	double VoxelExpandBoundsFactor = 1.0;
 
 	// Optional function to define an obstacle SDF which the negative space should also stay out of. Can be used for example to ignore anything below a ground plane.
 	// Note: Assumed to be in world space

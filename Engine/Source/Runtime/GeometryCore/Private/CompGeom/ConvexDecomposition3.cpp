@@ -298,7 +298,7 @@ bool FSphereCovering::AddNegativeSpace(const TFastWindingTree<FDynamicMesh3>& Sp
 
 		// Compute the empty space inside the convex hull as (Convex Hull - Original Mesh)
 		FAxisAlignedBox3d HullBox = HullAABB.GetBoundingBox();
-		HullBox.Expand(UE_DOUBLE_KINDA_SMALL_NUMBER);
+		HullBox.Expand(SampleSettings.VoxelExpandBoundsFactor * SampleSettings.GetAppliedScaleFactor());
 		FMarchingCubes MarchingCubes;
 		const double TargetCubeSize = SampleSettings.ReduceRadiusMargin * SampleSettings.MarchingCubesGridScale;
 		MarchingCubes.CubeSize = FMath::Clamp(TargetCubeSize, HullBox.MaxDim() / (double)SampleSettings.MaxVoxelsPerDim, HullBox.MinDim() * .5);
