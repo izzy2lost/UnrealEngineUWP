@@ -1430,6 +1430,20 @@ export class PerforceContext {
 		return result;
 	}
 
+	async dirs(path: string) {
+		if (path.endsWith("/...")) {
+			path = path.substring(0,path.length-3) + "*"
+		}
+		return (await this._execP4Ztag(null, ['dirs', path], { multiline:true })).map((dir: any) => dir.dir)
+	}
+
+	async files(path: string, maxFiles?: number) {
+		const args = ['files',
+			...(maxFiles ? ['-m', maxFiles.toString()] : []),
+			path]
+		return await this._execP4Ztag(null, args, { multiline:true });
+	}
+
 	// update the fields on an existing CL using p4 change
 	// output format is just error or not
 	async editChange(roboWorkspace: RoboWorkspace, changelist: number, opts?: EditChangeOpts) {

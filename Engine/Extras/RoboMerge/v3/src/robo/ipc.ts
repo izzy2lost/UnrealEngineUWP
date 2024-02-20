@@ -349,9 +349,17 @@ export class IPC {
 							(RobomergeMethodStrings as readonly string[]).includes(mergeMethod)) {
 					// If we only have 1 entry and we didn't get integration info off of it
 					// and the graph suggests we are expecting there could be other changes
-					// get more of the describe results. We'll limit ourselves somewhat to avoid
-					// overflowing the buffer
-					changeToConsider.desc = await this.robo.p4.describe(clToConsider, 1000)
+					// get more of the files. If the path is a root directory try and get a sampling 
+					// of files, otherwise just get an additional block to evaluate
+					if (changeToConsider.desc.path.endsWith("/...")) {
+						const dirs = await this.robo.p4.dirs(changeToConsider.desc.path)
+						for (const dir of dirs) {
+							changeToConsider.desc.entries.push(...(await this.robo.p4.files(`${dir}/...@=${clToConsider}`, 1)))
+						}
+					}
+					else {
+						changeToConsider.desc = await this.robo.p4.describe(clToConsider, 100)
+					}
 				}
 			}
 			clsToConsider = clsToConsider.concat(changeToConsider.destCLs)
