@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using Horde.Server.Accounts;
 using Horde.Server.Authentication;
 using Horde.Server.Users;
 using Microsoft.AspNetCore.Authentication;
@@ -25,15 +26,15 @@ namespace Horde.Server.Tests.Authentication
 			base.ConfigureServices(services);
 
 			services.AddSingleton<ILoggerFactory, LoggerFactory>();
-			services.AddSingleton<HordeAccountCollection>();
-			services.AddSingleton<IHordeAccountCollection>(sp => sp.GetRequiredService<HordeAccountCollection>());
+			services.AddSingleton<AccountCollection>();
+			services.AddSingleton<IAccountCollection>(sp => sp.GetRequiredService<AccountCollection>());
 		}
 
 		private async Task<HordeAccountAuthHandler> GetAuthHandlerAsync(string? headerValue)
 		{
 			HordeAccountAuthOptions options = new HordeAccountAuthOptions();
 
-			IHordeAccountCollection hordeAccounts = ServiceProvider.GetRequiredService<HordeAccountCollection>();
+			IAccountCollection hordeAccounts = ServiceProvider.GetRequiredService<AccountCollection>();
 			await hordeAccounts.AddAsync("myName", "myLogin",
 				secretToken: "myToken",
 				claims: new List<IUserClaim> { new UserClaim("myClaim", "myValue"), new UserClaim("foo", "bar") },

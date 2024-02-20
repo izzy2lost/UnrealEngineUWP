@@ -30,6 +30,7 @@ using EpicGames.Horde.Storage;
 using EpicGames.Horde.Users;
 using Grpc.Core;
 using Grpc.Core.Interceptors;
+using Horde.Server.Accounts;
 using Horde.Server.Acls;
 using Horde.Server.Authentication;
 using Horde.Server.Agents;
@@ -451,6 +452,7 @@ namespace Horde.Server
 			services.AddHttpClient<JobRpcCommon>().AddPolicyHandler(GetDefaultHttpRetryPolicy());
 			services.AddScoped<JobRpcCommon>();
 
+			services.AddSingleton<IAccountCollection, AccountCollection>();
 			services.AddSingleton<IAgentCollection, AgentCollection>();
 			services.AddSingleton<IArtifactCollection, ArtifactCollection>();
 			services.AddSingleton<IArtifactCollectionV1, ArtifactCollectionV1>();
@@ -467,7 +469,6 @@ namespace Horde.Server
 			services.AddSingleton<IBisectTaskCollection, BisectTaskCollection>();
 			services.AddSingleton<IReplicatorCollection, ReplicatorCollection>();
 			services.AddSingleton<ISessionCollection, SessionCollection>();
-			services.AddSingleton<IHordeAccountCollection, HordeAccountCollection>();
 			services.AddSingleton<ISubscriptionCollection, SubscriptionCollection>();
 			services.AddSingleton<IStreamCollection, StreamCollection>();
 			services.AddSingleton<ITemplateCollection, TemplateCollection>();

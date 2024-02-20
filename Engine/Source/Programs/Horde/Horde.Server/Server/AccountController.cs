@@ -8,6 +8,7 @@ using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
 using EpicGames.Horde.Server;
+using Horde.Server.Accounts;
 using Horde.Server.Authentication;
 using Horde.Server.Users;
 using Horde.Server.Utilities;
@@ -55,14 +56,14 @@ namespace Horde.Server.Server
 			"td { margin:5px; font-size:13px; }";
 
 		readonly IUserCollection _users;
-		readonly IHordeAccountCollection _hordeAccounts;
+		readonly IAccountCollection _hordeAccounts;
 		readonly string _authenticationScheme;
 		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public AccountController(IUserCollection users, IHordeAccountCollection hordeAccounts, IOptionsMonitor<ServerSettings> serverSettings, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public AccountController(IUserCollection users, IAccountCollection hordeAccounts, IOptionsMonitor<ServerSettings> serverSettings, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
 			_users = users;
 			_hordeAccounts = hordeAccounts;
@@ -178,7 +179,7 @@ namespace Horde.Server.Server
 				return LoginFormError(ErrorMsg, returnUrl);
 			}
 
-			IHordeAccount? account = await _hordeAccounts.GetByLoginAsync(username);
+			IAccount? account = await _hordeAccounts.GetByLoginAsync(username);
 			if (account == null)
 			{
 				return LoginFormError(ErrorMsg, returnUrl);
@@ -206,7 +207,7 @@ namespace Horde.Server.Server
 				new Claim(HordeClaimTypes.User, account.Login),
 				new Claim(HordeClaimTypes.UserId, user.Id.ToString()),
 			};
-			foreach (IUserClaim claim in account.GetClaims())
+			foreach (IUserClaim claim in account.Claims)
 			{
 				claims.Add(new Claim(claim.Type, claim.Value));
 			}
