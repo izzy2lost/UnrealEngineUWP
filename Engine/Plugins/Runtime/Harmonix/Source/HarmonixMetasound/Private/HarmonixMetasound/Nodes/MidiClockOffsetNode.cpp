@@ -107,7 +107,6 @@ namespace HarmonixMetasound::Nodes::MidiClockOffset
 			, OffsetBeatsInPin(InOffsetBeats)
 			, OffsetMsInPin(InOffsetMs)
 			, MidiClockOut(FMidiClockWriteRef::CreateNew(InSettings))
-			, MidiClockEventCursor(MidiClockOut)
 			, BlockSize(InSettings.GetNumFramesPerBlock())
 		{
 			TSharedPtr<FMidiFileData> ConductorMidiData = FMidiClock::MakeClockConductorMidiData(120.0f, 4, 4);
@@ -241,7 +240,6 @@ namespace HarmonixMetasound::Nodes::MidiClockOffset
 		FMidiClockWriteRef MidiClockOut;
 
 		//** DATA
-		FMidiClockEventCursor MidiClockEventCursor;
 		FSampleCount BlockSize      = 0;
 		int32 CurrentBlockSpanStart = 0;
 
