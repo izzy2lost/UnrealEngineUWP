@@ -1931,11 +1931,6 @@ SIZE_T CalculateImageBytes(uint32 SizeX,uint32 SizeY,uint32 SizeZ,uint8 Format)
 	}
 }
 
-FRHIShaderResourceView* FRHITextureViewCache::GetOrCreateSRV(FRHITexture* Texture, const FRHITextureSRVCreateInfo& SRVCreateInfo)
-{
-	return GetOrCreateSRV(FRHICommandListImmediate::Get(), Texture, SRVCreateInfo);
-}
-
 FRHIShaderResourceView* FRHITextureViewCache::GetOrCreateSRV(FRHICommandListBase& RHICmdList, FRHITexture* Texture, const FRHITextureSRVCreateInfo& SRVCreateInfo)
 {
 	for (const auto& KeyValue : SRVs)
@@ -1966,11 +1961,6 @@ FRHIShaderResourceView* FRHITextureViewCache::GetOrCreateSRV(FRHICommandListBase
 	FRHIShaderResourceView* View = RHIShaderResourceView.GetReference();
 	SRVs.Emplace(SRVCreateInfo, MoveTemp(RHIShaderResourceView));
 	return View;
-}
-
-FRHIUnorderedAccessView* FRHITextureViewCache::GetOrCreateUAV(FRHITexture* Texture, const FRHITextureUAVCreateInfo& UAVCreateInfo)
-{
-	return GetOrCreateUAV(FRHICommandListImmediate::Get(), Texture, UAVCreateInfo);
 }
 
 FRHIUnorderedAccessView* FRHITextureViewCache::GetOrCreateUAV(FRHICommandListBase& RHICmdList, FRHITexture* Texture, const FRHITextureUAVCreateInfo& UAVCreateInfo)

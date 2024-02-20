@@ -297,15 +297,6 @@ public:
 		SetUniformBufferParameter(BatchedParameters, ViewUniformBufferParameter, ViewUniformBuffer);
 	}
 
-	template<typename TViewUniformShaderParameters, typename ShaderRHIParamRef, typename TRHICmdList>
-	UE_DEPRECATED(5.3, "SetParameters with FRHIBatchedShaderParameters should be used.")
-	inline void SetParameters(TRHICmdList& RHICmdList, const ShaderRHIParamRef ShaderRHI, FRHIUniformBuffer* ViewUniformBuffer)
-	{
-		FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-		SetParameters<TViewUniformShaderParameters>(BatchedParameters, ViewUniformBuffer);
-		RHICmdList.SetBatchedShaderParameters(ShaderRHI, BatchedParameters);
-	}
-
 	static inline bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
 		return FShader::ShouldCompilePermutation(Parameters);

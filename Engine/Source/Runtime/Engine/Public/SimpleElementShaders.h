@@ -30,11 +30,6 @@ public:
 	ENGINE_API void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, const FMatrix& WorldToClipMatrix);
 	ENGINE_API void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, const FDFRelativeViewMatrices& Matrices);
 
-	UE_DEPRECATED(5.3, "SetParameters with FRHIBatchedShaderParameters should be used.")
-	ENGINE_API void SetParameters(FRHICommandList& RHICmdList, const FMatrix& WorldToClipMatrix);
-	UE_DEPRECATED(5.3, "SetParameters with FRHIBatchedShaderParameters should be used.")
-	ENGINE_API void SetParameters(FRHICommandList& RHICmdList, const FDFRelativeViewMatrices& Matrices);
-
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment);
 
 private:
@@ -58,12 +53,6 @@ public:
 	void SetEditorCompositingParameters(FRHIBatchedShaderParameters& BatchedParameters, const FSceneView* View);
 
 	void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, const FSceneView* View, const FTexture* TextureValue);
-
-	UE_DEPRECATED(5.3, "SetParameters with FRHIBatchedShaderParameters should be used.")
-	void SetEditorCompositingParameters(FRHICommandList& RHICmdList, const FSceneView* View);
-
-	UE_DEPRECATED(5.3, "SetParameters with FRHIBatchedShaderParameters should be used.")
-	void SetParameters(FRHICommandList& RHICmdList, const FTexture* TextureValue);
 
 private:
 	LAYOUT_FIELD(FShaderResourceParameter, InTexture)
@@ -99,9 +88,6 @@ public:
 
 	void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, const FTexture* Texture, float GammaValue, ESimpleElementBlendMode BlendMode);
 	void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, const FSceneView* View, const FTexture* Texture, float GammaValue, ESimpleElementBlendMode BlendMode);
-
-	UE_DEPRECATED(5.3, "SetParameters with FRHIBatchedShaderParameters should be used.")
-	void SetParameters(FRHICommandList& RHICmdList, const FTexture* Texture,float GammaValue,ESimpleElementBlendMode BlendMode);
 
 private:
 	LAYOUT_FIELD(FShaderParameter, Gamma)
@@ -146,9 +132,6 @@ public:
 
 	void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, const FTexture* Texture,float Gamma,float ClipRefValue,ESimpleElementBlendMode BlendMode);
 	void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, const FSceneView* View, const FTexture* Texture,float Gamma,float ClipRefValue,ESimpleElementBlendMode BlendMode);
-
-	UE_DEPRECATED(5.3, "SetParameters with FRHIBatchedShaderParameters should be used.")
-	void SetParameters(FRHICommandList& RHICmdList, const FTexture* Texture,float Gamma,float ClipRefValue,ESimpleElementBlendMode BlendMode);
 
 private:
 	LAYOUT_FIELD(FShaderParameter, ClipRef)
@@ -205,21 +188,6 @@ public:
 		ESimpleElementBlendMode BlendMode
 		);
 
-	UE_DEPRECATED(5.3, "SetParameters with FRHIBatchedShaderParameters should be used.")
-	void SetParameters(
-		FRHICommandList& RHICmdList, 
-		const FTexture* Texture,
-		float Gamma,
-		float ClipRef,
-		float SmoothWidthValue,
-		bool EnableShadowValue,
-		const FVector2D& ShadowDirectionValue,
-		const FLinearColor& ShadowColorValue,
-		float ShadowSmoothWidthValue,
-		const FDepthFieldGlowInfo& GlowInfo,
-		ESimpleElementBlendMode BlendMode
-		);
-	
 private:
 	/** The width to smooth the edge the texture */
 	LAYOUT_FIELD(FShaderParameter, SmoothWidth)
@@ -255,9 +223,6 @@ public:
 
 	void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, const FTexture* TextureValue);
 
-	UE_DEPRECATED(5.3, "SetParameters with FRHIBatchedShaderParameters should be used.")
-	void SetParameters(FRHICommandList& RHICmdList, const FTexture* TextureValue);
-
 private:
 	LAYOUT_FIELD(FShaderResourceParameter, InTexture)
 	LAYOUT_FIELD(FShaderResourceParameter, InTextureSampler)
@@ -285,9 +250,6 @@ public:
 	* @param Gamma - if gamma != 1.0 then a pow(color,Gamma) is applied
 	*/
 	void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, const FTexture* TextureValue, const FMatrix& ColorWeightsValue, float GammaValue);
-
-	UE_DEPRECATED(5.3, "SetParameters with FRHIBatchedShaderParameters should be used.")
-	void SetParameters(FRHICommandList& RHICmdList, const FTexture* TextureValue, const FMatrix& ColorWeightsValue, float GammaValue);
 
 private:
 	LAYOUT_FIELD(FShaderResourceParameter, InTexture)

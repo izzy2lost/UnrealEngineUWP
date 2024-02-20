@@ -94,10 +94,6 @@ namespace UE::RHICore
 		OutStats.StreamingMemorySize    = GRHIGlobals.StreamingTextureMemorySizeInKB * 1024;
 		OutStats.NonStreamingMemorySize = GRHIGlobals.NonStreamingTextureMemorySizeInKB * 1024;
 		OutStats.TexturePoolSize        = GRHIGlobals.TexturePoolSize;
-
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		OutStats.AllocatedMemorySize = OutStats.StreamingMemorySize;
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	inline void UpdateGlobalBufferStats(const FRHIBufferDesc& BufferDesc, int64 BufferSizeDelta)

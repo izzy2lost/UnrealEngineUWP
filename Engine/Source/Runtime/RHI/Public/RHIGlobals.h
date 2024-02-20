@@ -373,14 +373,6 @@ struct FRHIGlobals
 	/** True if the RHI supports texture streaming */
 	bool SupportsTextureStreaming = false;
 
-	/** Amount of memory allocated by textures. In kilobytes. */
-	UE_DEPRECATED(5.3, "CurrentTextureMemorySize was too vague, use StreamingTextureMemorySizeInKB in its place")
-	volatile int32 CurrentTextureMemorySize = 0;
-
-	/** Amount of memory allocated by rendertargets. In kilobytes. */
-	UE_DEPRECATED(5.3, "CurrentRendertargetMemorySize was too vague, use NonStreamingTextureMemorySizeInKB in its place")
-	volatile int32 CurrentRendertargetMemorySize = 0;
-
 	/** Amount of memory allocated by streaming textures. In kilobytes. */
 	volatile uint64 StreamingTextureMemorySizeInKB = 0;
 
@@ -758,8 +750,6 @@ extern RHI_API FRHIGlobals GRHIGlobals;
 #define GTriggerGPUCrash                                       GRHIGlobals.TriggerGPUCrash
 #define GGPUTraceFileName                                      GRHIGlobals.GPUTraceFileName
 #define GRHISupportsTextureStreaming                           GRHIGlobals.SupportsTextureStreaming
-#define GCurrentTextureMemorySize                              GRHIGlobals.CurrentTextureMemorySize
-#define GCurrentRendertargetMemorySize                         GRHIGlobals.CurrentRendertargetMemorySize
 #define GTexturePoolSize                                       GRHIGlobals.TexturePoolSize
 #define GPoolSizeVRAMPercentage                                GRHIGlobals.PoolSizeVRAMPercentage
 #define GDemotedLocalMemorySize                                GRHIGlobals.DemotedLocalMemorySize

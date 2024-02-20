@@ -223,45 +223,6 @@ struct FVertexElement
 
 typedef TArray<FVertexElement,TFixedAllocator<MaxVertexElementCount> > FVertexDeclarationElementList;
 
-/** RHI representation of a single stream out element. */
-//#todo-RemoveStreamOut
-struct UE_DEPRECATED(5.3, "StreamOut is not supported") FStreamOutElement
-{
-	/** Index of the output stream from the geometry shader. */
-	uint32 Stream;
-
-	/** Semantic name of the output element as defined in the geometry shader.  This should not contain the semantic number. */
-	const ANSICHAR* SemanticName;
-
-	/** Semantic index of the output element as defined in the geometry shader.  For example "TEXCOORD5" in the shader would give a SemanticIndex of 5. */
-	uint32 SemanticIndex;
-
-	/** Start component index of the shader output element to stream out. */
-	uint8 StartComponent;
-
-	/** Number of components of the shader output element to stream out. */
-	uint8 ComponentCount;
-
-	/** Stream output target slot, corresponding to the streams set by RHISetStreamOutTargets. */
-	uint8 OutputSlot;
-
-	FStreamOutElement() {}
-	FStreamOutElement(uint32 InStream, const ANSICHAR* InSemanticName, uint32 InSemanticIndex, uint8 InComponentCount, uint8 InOutputSlot) :
-		Stream(InStream),
-		SemanticName(InSemanticName),
-		SemanticIndex(InSemanticIndex),
-		StartComponent(0),
-		ComponentCount(InComponentCount),
-		OutputSlot(InOutputSlot)
-	{}
-};
-
-//#todo-RemoveStreamOut
-UE_DEPRECATED(5.3, "StreamOut is not supported")
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-typedef TArray<FStreamOutElement,TFixedAllocator<MaxVertexElementCount> > FStreamOutElementList;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 struct FSamplerStateInitializerRHI
 {
 	FSamplerStateInitializerRHI() {}

@@ -237,20 +237,6 @@ struct FRWBuffer
 		Initialize(RHICmdList, InDebugName, BytesPerElement, NumElements, Format, ERHIAccess::UAVCompute, AdditionalUsage, InResourceArray);
 	}
 
-	UE_DEPRECATED(5.3, "Initialize now requires a command list.")
-	void Initialize(const TCHAR* InDebugName, uint32 BytesPerElement, uint32 NumElements, EPixelFormat Format, EBufferUsageFlags AdditionalUsage = BUF_None, FResourceArrayInterface* InResourceArray = nullptr)
-	{
-		check(IsInRenderingThread());
-		Initialize(FRHICommandListExecutor::GetImmediateCommandList(), InDebugName, BytesPerElement, NumElements, Format, ERHIAccess::UAVCompute, AdditionalUsage, InResourceArray);
-	}
-
-	UE_DEPRECATED(5.3, "Initialize now requires a command list.")
-	void Initialize(const TCHAR* InDebugName, uint32 BytesPerElement, uint32 NumElements, EPixelFormat Format, ERHIAccess InResourceState, EBufferUsageFlags AdditionalUsage = BUF_None, FResourceArrayInterface* InResourceArray = nullptr)
-	{
-		check(IsInRenderingThread());
-		Initialize(FRHICommandListExecutor::GetImmediateCommandList(), InDebugName, BytesPerElement, NumElements, Format, InResourceState, AdditionalUsage, InResourceArray);
-	}
-
 	void Release()
 	{
 		NumBytes = 0;
@@ -319,12 +305,6 @@ struct FReadBuffer
 		SRV = RHICmdList.CreateShaderResourceView(Buffer, BytesPerElement, UE_PIXELFORMAT_TO_UINT8(Format));
 	}
 
-	UE_DEPRECATED(5.3, "Initialize now requires a command list.")
-	void Initialize(const TCHAR* InDebugName, uint32 BytesPerElement, uint32 NumElements, EPixelFormat Format, EBufferUsageFlags AdditionalUsage = BUF_None, FResourceArrayInterface* InResourceArray = nullptr)
-	{
-		Initialize(FRHICommandListImmediate::Get(), InDebugName, BytesPerElement, NumElements, Format, AdditionalUsage, InResourceArray);
-	}
-
 	void Release()
 	{
 		NumBytes = 0;
@@ -360,12 +340,6 @@ struct FRWBufferStructured
 		SRV = RHICmdList.CreateShaderResourceView(Buffer);
 	}
 
-	UE_DEPRECATED(5.3, "Initialize now requires a command list.")
-	void Initialize(const TCHAR* InDebugName, uint32 BytesPerElement, uint32 NumElements, EBufferUsageFlags AdditionalUsage = BUF_None, bool bUseUavCounter = false, bool bAppendBuffer = false, ERHIAccess InitialState = ERHIAccess::UAVMask)
-	{
-		Initialize(FRHICommandListImmediate::Get(), InDebugName, BytesPerElement, NumElements, AdditionalUsage, bUseUavCounter, bAppendBuffer, InitialState);
-	}
-
 	void Release()
 	{
 		NumBytes = 0;
@@ -392,12 +366,6 @@ struct FByteAddressBuffer
 		SRV = RHICmdList.CreateShaderResourceView(Buffer);
 	}
 
-	UE_DEPRECATED(5.3, "Initialize now requires a command list.")
-	void Initialize(const TCHAR* InDebugName, uint32 InNumBytes, EBufferUsageFlags AdditionalUsage = BUF_None)
-	{
-		Initialize(FRHICommandListImmediate::Get(), InDebugName, InNumBytes, AdditionalUsage);
-	}
-
 	void Release()
 	{
 		NumBytes = 0;
@@ -415,12 +383,6 @@ struct FRWByteAddressBuffer : public FByteAddressBuffer
 	{
 		FByteAddressBuffer::Initialize(RHICmdList, DebugName, InNumBytes, BUF_UnorderedAccess | AdditionalUsage);
 		UAV = RHICmdList.CreateUnorderedAccessView(Buffer, false, false);
-	}
-
-	UE_DEPRECATED(5.3, "Initialize now requires a command list.")
-	void Initialize(const TCHAR* DebugName, uint32 InNumBytes, EBufferUsageFlags AdditionalUsage = BUF_None)
-	{
-		Initialize(FRHICommandListImmediate::Get(), DebugName, InNumBytes, AdditionalUsage);
 	}
 
 	void Release()
@@ -456,12 +418,6 @@ struct FDynamicReadBuffer : public FReadBuffer
 		FReadBuffer::Initialize(RHICmdList, DebugName, BytesPerElement, NumElements, Format, AdditionalUsage);
 	}
 
-	UE_DEPRECATED(5.3, "Initialize now requires a command list.")
-	void Initialize(const TCHAR* DebugName, uint32 BytesPerElement, uint32 NumElements, EPixelFormat Format, EBufferUsageFlags AdditionalUsage = BUF_None)
-	{
-		Initialize(FRHICommandListImmediate::Get(), DebugName, BytesPerElement, NumElements, Format, AdditionalUsage);
-	}
-
 	/**
 	* Locks the vertex buffer so it may be written to.
 	*/
@@ -470,12 +426,6 @@ struct FDynamicReadBuffer : public FReadBuffer
 		check(MappedBuffer == nullptr);
 		check(IsValidRef(Buffer));
 		MappedBuffer = (uint8*)RHICmdList.LockBuffer(Buffer, 0, NumBytes, RLM_WriteOnly);
-	}
-
-	UE_DEPRECATED(5.3, "Lock now requires a command list.")
-	void Lock()
-	{
-		Lock(FRHICommandListImmediate::Get());
 	}
 
 	/**
@@ -487,12 +437,6 @@ struct FDynamicReadBuffer : public FReadBuffer
 		check(IsValidRef(Buffer));
 		RHICmdList.UnlockBuffer(Buffer);
 		MappedBuffer = nullptr;
-	}
-
-	UE_DEPRECATED(5.3, "Unlock now requires a command list.")
-	void Unlock()
-	{
-		Unlock(FRHICommandListImmediate::Get());
 	}
 };
 

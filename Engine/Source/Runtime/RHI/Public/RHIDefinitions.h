@@ -793,8 +793,7 @@ enum class EBufferUsageFlags : uint32
 	/** Buffer that the GPU will use as a source for a copy. */
 	SourceCopy              = 1 << 5,
 
-	/** Create a buffer that can be bound as a stream output target. */
-	StreamOutput            UE_DEPRECATED(5.3, "StreamOut is not supported") = 1 << 6,
+	UNUSED_BIT_6            = 1 << 6,
 
 	/** Create a buffer which contains the arguments used by DispatchIndirect or DrawIndirect. */
 	DrawIndirect            = 1 << 7,

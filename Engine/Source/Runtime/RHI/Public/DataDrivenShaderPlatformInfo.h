@@ -686,13 +686,6 @@ public:
 		return Infos[Platform].bOverrideFMaterial_NeedsGBufferEnabled;
 	}
 
-	UE_DEPRECATED(5.3, "This function is no longer in use and will be removed. Please use GetSupportsDistanceFields instead")
-	static FORCEINLINE_DEBUGGABLE const bool GetSupportsMobileDistanceField(const FStaticShaderPlatform Platform)
-	{
-		check(IsValid(Platform));
-		return false;
-	}
-
 	static FORCEINLINE_DEBUGGABLE const bool GetSupportsFFTBloom(const FStaticShaderPlatform Platform)
 	{
 		check(IsValid(Platform));
@@ -887,13 +880,6 @@ inline bool IsAndroidPlatform(const FStaticShaderPlatform Platform)
 inline bool IsVulkanPlatform(const FStaticShaderPlatform Platform)
 {
 	return FDataDrivenShaderPlatformInfo::GetIsLanguageVulkan(Platform);
-}
-
-UE_DEPRECATED(5.3, "Use a combination of IsVulkanPlatform and IsFeatureLevelSupported (or GetMaxFeatureLevel) instead.")
-inline bool IsVulkanSM5Platform(const FStaticShaderPlatform Platform)
-{
-	return FDataDrivenShaderPlatformInfo::GetIsLanguageVulkan(Platform)
-		&& FDataDrivenShaderPlatformInfo::GetMaxFeatureLevel(Platform) == ERHIFeatureLevel::SM5;
 }
 
 // @todo: data drive uses of this function

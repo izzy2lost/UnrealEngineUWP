@@ -41,10 +41,6 @@ void FResolveDepthPS::SetParameters(FRHIBatchedShaderParameters& BatchedParamete
 {
 }
 
-void FResolveDepthPS::SetParameters(FRHICommandList& RHICmdList, FParameter)
-{
-}
-
 // FResolveDepth2XPS
 
 FResolveDepth2XPS::FResolveDepth2XPS() = default;
@@ -198,13 +194,6 @@ void FResolveSingleSamplePS::SetParameters(FRHIBatchedShaderParameters& BatchedP
 	SetShaderValue(BatchedParameters, SingleSampleIndex, SingleSampleIndexValue);
 }
 
-void FResolveSingleSamplePS::SetParameters(FRHICommandList& RHICmdList, uint32 SingleSampleIndexValue)
-{
-	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-	SetParameters(BatchedParameters, SingleSampleIndexValue);
-	RHICmdList.SetBatchedShaderParameters(RHICmdList.GetBoundPixelShader(), BatchedParameters);
-}
-
 // FResolveVS
 
 FResolveVS::FResolveVS() = default;
@@ -234,13 +223,6 @@ void FResolveVS::SetParameters(FRHIBatchedShaderParameters& BatchedParameters, c
 
 	SetShaderValue(BatchedParameters, PositionMinMax, FVector4f(MinX, MinY, MaxX, MaxY));
 	SetShaderValue(BatchedParameters, UVMinMax, FVector4f(MinU, MinV, MaxU, MaxV));
-}
-
-void FResolveVS::SetParameters(FRHICommandList& RHICmdList, const FResolveRect& SrcBounds, const FResolveRect& DstBounds, uint32 DstSurfaceWidth, uint32 DstSurfaceHeight)
-{
-	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-	SetParameters(BatchedParameters, SrcBounds, DstBounds, DstSurfaceWidth, DstSurfaceHeight);
-	RHICmdList.SetBatchedShaderParameters(RHICmdList.GetBoundVertexShader(), BatchedParameters);
 }
 
 // FResolveArrayVS

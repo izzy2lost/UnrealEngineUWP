@@ -85,9 +85,6 @@ public:
 		return uint32(CurrentValue);
 	}
 
-	UE_DEPRECATED(5.3, "FlushPendingDeletes is deprecated, please use FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources)")
-	static inline int32 FlushPendingDeletes(FRHICommandListImmediate& RHICmdList) { return 0; }
-
 	UE_DEPRECATED(5.5, "Don't call Bypass() on an FRHIResource. Use the Bypass() function on an FRHICommandList instance, or the FRHICommmandListExecutor.")
 	RHI_API static bool Bypass();
 
@@ -4735,11 +4732,6 @@ public:
 
 	// Finds a SRV matching the descriptor in the cache or creates a new one and updates the cache.
 	RHI_API FRHIShaderResourceView* GetOrCreateSRV(FRHICommandListBase& RHICmdList, FRHITexture* Texture, const FRHITextureSRVCreateInfo& CreateInfo);
-
-	UE_DEPRECATED(5.3, "GetOrCreateUAV now requires a command list.")
-	RHI_API FRHIUnorderedAccessView* GetOrCreateUAV(FRHITexture* Texture, const FRHITextureUAVCreateInfo& CreateInfo);
-	UE_DEPRECATED(5.3, "GetOrCreateSRV now requires a command list.")
-	RHI_API FRHIShaderResourceView* GetOrCreateSRV(FRHITexture* Texture, const FRHITextureSRVCreateInfo& CreateInfo);
 
 	// Sets the debug name of the RHI view resources.
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)

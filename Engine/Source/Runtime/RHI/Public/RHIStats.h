@@ -23,10 +23,6 @@ struct FTextureMemoryStats
 	// Total amount of "graphics memory" that we think we can use for all our graphics resources, in bytes. -1 if unknown.
 	int64 TotalGraphicsMemory = -1;
 
-	// Size of allocated memory, in bytes
-	UE_DEPRECATED(5.3, "AllocatedMemorySize was too vague, use StreamingMemorySize in its place")
-	int64 AllocatedMemorySize = 0;
-
 	// Size of memory allocated to streaming textures, in bytes
 	uint64 StreamingMemorySize = 0;
 
@@ -38,10 +34,6 @@ struct FTextureMemoryStats
 	
 	// 0 if streaming pool size limitation is disabled, in bytes
 	int64 TexturePoolSize = 0;
-
-	// Upcoming adjustments to allocated memory, in bytes (async reallocations)
-	UE_DEPRECATED(5.3, "PendingMemoryAdjustment is unused")
-	int32 PendingMemoryAdjustment = 0;
 
 	bool AreHardwareStatsValid() const
 	{
