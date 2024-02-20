@@ -47,7 +47,7 @@ void VirtualShadowMapCompositeFromMaskBitsPS(
 {
 	const uint2 PixelPos = uint2(SvPosition.xy);
 
-	const float DeviceZ = SceneTexturesStruct.SceneDepthTexture.Load(int3(PixelPos, 0)).r;
+	const float DeviceZ = InputDepthTexture.Load(int3(PixelPos, 0)).r;
 	const float SceneDepth = ConvertFromDeviceZ(DeviceZ);
 
 	// Possibly needed to do fallback single sample VSM lookup
