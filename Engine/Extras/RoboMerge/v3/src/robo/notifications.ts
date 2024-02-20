@@ -551,22 +551,30 @@ export class BotNotifications implements BotEventHandler {
 				const exclusiveLockUsers = (blockage.failure.additionalInfo as ExclusiveLockInfo).exclusiveLockUsers
 				let text = ''
 
+				let unknownLockUsers = false
 				for (const exclusiveLockUser of exclusiveLockUsers) {
-					let exclusiveLockSlackUser
-					const exclusiveLockUserEmail = await exclusiveLockUser.userEmail
-					if (exclusiveLockUserEmail) {
-						exclusiveLockSlackUser = await this.slackMessages.getSlackUser(exclusiveLockUserEmail)
-						if (exclusiveLockSlackUser) {
-							exclusiveLockSlackUser = `<@${exclusiveLockSlackUser}> `
+					if (exclusiveLockUser.user.length > 0) {
+						let exclusiveLockSlackUser
+						const exclusiveLockUserEmail = await exclusiveLockUser.userEmail
+						if (exclusiveLockUserEmail) {
+							exclusiveLockSlackUser = await this.slackMessages.getSlackUser(exclusiveLockUserEmail)
+							if (exclusiveLockSlackUser) {
+								exclusiveLockSlackUser = `<@${exclusiveLockSlackUser}> `
+							}
+							usersToInvite.add(exclusiveLockUserEmail)
 						}
-						usersToInvite.add(exclusiveLockUserEmail)
+						if (!exclusiveLockSlackUser) {
+							exclusiveLockSlackUser = `@${exclusiveLockUser.user} `
+						}
+						text += exclusiveLockSlackUser
+					} else {
+						unknownLockUsers = true
 					}
-					if (!exclusiveLockSlackUser) {
-						exclusiveLockSlackUser = `@${exclusiveLockUser.user} `
-					}
-					text += exclusiveLockSlackUser
 				}
 				text += `\n\nPlease unlock the files blocking robomerge or work with ${blockage.owner} to resolve the conflict`
+				if (unknownLockUsers) {
+					text += "\n\nNote that some locked files did not have their owner determined and as such those owners may not have been tagged"
+				}
 				
 				const exclusiveCheckoutMessage: SlackMessage = {
 					text,

@@ -24,6 +24,7 @@ import { getIntegrationOwner } from "./targets";
 
 const FAILED_CHANGELIST_PAUSE_TIMEOUT_SECONDS = 15 * 60
 const MAX_INTEGRATION_ERRORS_TO_ANALYZE = 5
+const MAX_OPENED_COMMANDS_TO_ISSUE = 100
 const DEPOT_FILE_REGEX = /^(.*[\\\/])(.*)/
 const JIRA_REGEX = /^\s*#jira\s+(.*)/i
 
@@ -261,26 +262,29 @@ class EdgeBotImpl extends PerforceStatefulBot {
 
 	private async analyzeIntegrationError(errors: string[]) {
 		
-		const openedRequests: [RegExpMatchArray, Promise<OpenedFileRecord[]>, Promise<OpenedFileRecord[]>][] = []
+		const results: ExclusiveFile[] = []
+		const openedRequests: [RegExpMatchArray, Promise<OpenedFileRecord[]>, boolean][] = []
 		for (const err of errors) {
 			const match = err.match(EXCLUSIVE_CHECKOUT_REGEX)
 			if (match) {
-				openedRequests.push([match, this.p4.opened(null, match[1] + match[2], true), this.p4.opened(null, match[1] + match[2])])
+				if (openedRequests.length < MAX_OPENED_COMMANDS_TO_ISSUE) {
+					openedRequests.push([match, this.p4.opened(null, match[1] + match[2], true), true])
+				} else {
+					results.push({depotPath: match[1] + match[2], name: match[2], user: "", client: ""})
+				}
 			}
 		}
 
-		const results: ExclusiveFile[] = []
-		for (const [match, exclusiveReq, addReq] of openedRequests) {
-			const recs = await exclusiveReq
+		for (const [match, request, exclusive] of openedRequests) {
+			const recs = await request
 			if (recs.length > 0) {
 				// should only be one, since we're looking for exclusive check-out errors
 				results.push({depotPath: match[1] + match[2], name: match[2], user: recs[0].user, client: recs[0].client})
-			} else {
-				const recs = await addReq
-				if (recs.length > 0) {
-					// should only be one, since we're looking for exclusive check-out errors
-					results.push({depotPath: match[1] + match[2], name: match[2], user: recs[0].user, client: recs[0].client})
-				}
+			} else if (exclusive && openedRequests.length < MAX_OPENED_COMMANDS_TO_ISSUE) {
+				// if we failed to find it as an exclusive check-out, try as non-exclusive which will find adds
+				openedRequests.push([match, this.p4.opened(null, match[1] + match[2]), false])
+			} else  {
+				results.push({depotPath: match[1] + match[2], name: match[2], user: "", client: ""})
 			}
 		}
 

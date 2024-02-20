@@ -92,7 +92,6 @@ function unlockVerify() {
             verifyOperation.done(function(success) {
                 // Unlock returns a JSON payload on success
                 const unlockJson = JSON.parse(success)
-                console.log(`Unlock Verification message: ${unlockJson.message}`)
 
                 // Visualize the json
                 visualizeUnlockVerification(requestedBranchCl, unlockJson)
@@ -200,7 +199,9 @@ function transitionDisplayUnlockResults() {
 // Create visualization of the file, with links to swarm
 function visualizeAuthor(author, files) {
     const authorDiv = $(`<div id="${author}" class="unlock-visual">`)
-    if (robomergeUser && author.toLowerCase() === robomergeUser.userName.toLowerCase()) {
+    if (author.length == 0) {
+        authorDiv.append($('<h3>').html(`Unable to determine locked by user (likely due to too many locked files)`))
+    } else if (robomergeUser && author.toLowerCase() === robomergeUser.userName.toLowerCase()) {
         authorDiv.append($('<h3>').html("Locked by <strong>you</strong>"))
     } else {
         authorDiv.append($('<h3>').html(`Locked by ${author}`))
@@ -219,7 +220,6 @@ function visualizeAuthor(author, files) {
 function visualizeUnlockVerification(requestedBranchCl, unlockJson) {
     // Debug
     const prettyJson = JSON.stringify(unlockJson, null, 2)
-    console.log(`Unlock Verification Debug JSON:\n${prettyJson}`)
     let linkToSwarm = makeClLink(requestedBranchCl, `CL ${requestedBranchCl}`)
 
     let authorDict = {}
