@@ -35,7 +35,6 @@ public:
 
 	void Apply(FSolverParticlesRange& Particles, const FSolverReal Dt) const
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(FExternalForcesBase_Apply);
 		FSolverVec3* const Acceleration = Particles.GetAcceleration().GetData();
 		const FSolverReal* const InvM = Particles.GetInvM().GetData();
 		const FSolverVec3* const X = Particles.XArray().GetData();
