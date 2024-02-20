@@ -930,7 +930,12 @@ void FConstraintsManagerController::FlushEvaluationGraph() const
 	{
 		return;
 	}
-	SubSystem->GetEvaluationGraph(World).FlushPendingEvaluations();
+
+	FConstraintsEvaluationGraph& EvaluationGraph = SubSystem->GetEvaluationGraph(World);
+	if (EvaluationGraph.IsPendingEvaluation())
+	{
+		EvaluationGraph.FlushPendingEvaluations();
+	}
 }
 
 bool FConstraintsManagerController::DoesExistInAnyWorld(UTickableConstraint* InConstraint)

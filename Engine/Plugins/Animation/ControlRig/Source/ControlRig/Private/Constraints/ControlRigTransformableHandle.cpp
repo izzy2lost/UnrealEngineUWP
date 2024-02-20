@@ -433,7 +433,10 @@ void UTransformableControlHandle::OnControlModified(
 
 		if (InControl->GetFName() == ControlName)
 		{	// if that handle is wrapping InControl
-			GetEvaluationBinding().bPendingFlush = true;
+			if (InContext.bConstraintUpdate)
+			{
+				GetEvaluationBinding().bPendingFlush = true;
+			}
 			Notify(Event);
 		}
 		else if (Event == EHandleEvent::GlobalTransformUpdated)
@@ -441,7 +444,10 @@ void UTransformableControlHandle::OnControlModified(
 			// the control being modified is not the one wrapped by this handle 
 			if (const FRigControlElement* Control = ControlRig->FindControl(ControlName))
 			{
-				GetEvaluationBinding().bPendingFlush = true;
+				if (InContext.bConstraintUpdate)
+				{
+					GetEvaluationBinding().bPendingFlush = true;
+				}
 				static constexpr  bool bPreTick = true;
 				Notify(EHandleEvent::UpperDependencyUpdated, bPreTick);
 			}
