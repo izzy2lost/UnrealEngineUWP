@@ -33,6 +33,8 @@ MapBuildData.cpp
 #endif
 #include "Engine/TextureCube.h"
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
+#include "UnrealEngine.h"
+
 
 DECLARE_MEMORY_STAT(TEXT("Stationary Light Static Shadowmap"),STAT_StationaryLightBuildData,STATGROUP_MapBuildData);
 DECLARE_MEMORY_STAT(TEXT("Reflection Captures"),STAT_ReflectionCaptureBuildData,STATGROUP_MapBuildData);
@@ -1151,6 +1153,41 @@ void UMapBuildDataRegistry::CleanupTransientOverrideMapBuildData()
 			LOD.OverrideMapBuildData.Reset();
 		}
 	}
+}
+
+UMapBuildDataRegistry* UMapBuildDataRegistry::Get(const UActorComponent* Component)
+{
+	AActor* Owner = Component->GetOwner();
+
+	if (Owner)
+	{
+		return Get(Owner);
+	}
+
+	return nullptr;
+}
+
+UMapBuildDataRegistry* UMapBuildDataRegistry::Get(const AActor* Actor)
+{
+	ULevel* OwnerLevel = Actor->GetLevel();
+	UWorld* World = OwnerLevel->GetWorld();
+	UMapBuildDataRegistry* MapBuildData = nullptr;
+	
+	if (OwnerLevel && World)
+	{
+		ULevel* ActiveLightingScenario = World->GetActiveLightingScenario();
+		
+		if (ActiveLightingScenario && ActiveLightingScenario->MapBuildData)
+		{
+			MapBuildData = ActiveLightingScenario->MapBuildData;
+		}
+		else if (OwnerLevel->MapBuildData)
+		{
+			MapBuildData = OwnerLevel->MapBuildData;
+		}
+	}
+
+	return MapBuildData;
 }
 
 FUObjectAnnotationSparse<FMeshMapBuildLegacyData, true> GComponentsWithLegacyLightmaps;

@@ -1058,8 +1058,7 @@ void FLightmassProcessor::ImportVolumetricLightmap()
 		}
 	}
 
-	ULevel* StorageLevel = System.LightingScenario ? System.LightingScenario : ToRawPtr(System.GetWorld()->PersistentLevel);
-	UMapBuildDataRegistry* Registry = StorageLevel->GetOrCreateMapBuildData();
+	UMapBuildDataRegistry* Registry = System.LightingContext.GetOrCreateGlobalRegistry();
 	FPrecomputedVolumetricLightmapData CurrentLevelData;
 
 	{
@@ -1330,9 +1329,8 @@ void FLightmassProcessor::ImportVolumetricLightmap()
 			SubLevelBrickLayoutDimension.Z = FMath::Min(SubLevelBrickTextureLinearAllocator, MaxBricksInLayoutOneDim);
 
 			{
-				ULevel* SubLevelStorageLevel = System.LightingScenario ? System.LightingScenario : FindLevel(Pair.Key);
-				UMapBuildDataRegistry* SubLevelRegistry = SubLevelStorageLevel->GetOrCreateMapBuildData();
-				FPrecomputedVolumetricLightmapData& SubLevelData = SubLevelRegistry->AllocateLevelPrecomputedVolumetricLightmapBuildData(FindLevel(Pair.Key)->LevelBuildDataId);
+				UMapBuildDataRegistry* SubLevelRegistry = System.LightingContext.GetOrCreateRegistryForLevelGuid(Pair.Key);
+				FPrecomputedVolumetricLightmapData& SubLevelData = SubLevelRegistry->AllocateLevelPrecomputedVolumetricLightmapBuildData(System.LightingContext.GetLevelBuildDataID(Pair.Key));
 
 				SubLevelData.InitializeOnImport(FBox(VolumetricLightmapSettings.VolumeMin, VolumetricLightmapSettings.VolumeMin + VolumetricLightmapSettings.VolumeSize), BrickSize);
 				{
@@ -1390,9 +1388,8 @@ void FLightmassProcessor::ImportVolumetricLightmap()
 					LevelGuid = PersistentLevelGuid;
 				}
 
-				ULevel* SubLevelStorageLevel = System.LightingScenario ? System.LightingScenario : FindLevel(LevelGuid);
-				UMapBuildDataRegistry* SubLevelRegistry = SubLevelStorageLevel->GetOrCreateMapBuildData();
-				FPrecomputedVolumetricLightmapData& SubLevelData = *SubLevelRegistry->GetLevelPrecomputedVolumetricLightmapBuildData(FindLevel(LevelGuid)->LevelBuildDataId);
+				UMapBuildDataRegistry* SubLevelRegistry = System.LightingContext.GetOrCreateRegistryForLevelGuid(LevelGuid);
+				FPrecomputedVolumetricLightmapData& SubLevelData = *SubLevelRegistry->GetLevelPrecomputedVolumetricLightmapBuildData(System.LightingContext.GetLevelBuildDataID(LevelGuid));
 
 				const FIntVector BrickLayoutPosition = ComputeBrickLayoutPosition(BrickStartAllocation + BrickIndex, BrickLayoutDimensions) * PaddedBrickSize;
 				const FIntVector SubLevelBrickLayoutPosition = ComputeBrickLayoutPosition(SubLevelBrickAllocator[LevelGuid], SubLevelBrickLayoutDimensions[LevelGuid]) * PaddedBrickSize;
@@ -1460,9 +1457,8 @@ void FLightmassProcessor::ImportVolumetricLightmap()
 			CurrentLevelData.IndirectionTexture.Resize(TotalIndirectionTextureSize * IndirectionTextureDataStride);
 			BuildIndirectionTexture(BricksByDepth, VolumetricLightmapSettings, MaxBricksInLayoutOneDim, SubLevelBrickLayoutDimensions[FGuid()], IndirectionTextureDataStride, CurrentLevelData, true);
 
-			ULevel* SubLevelStorageLevel = System.LightingScenario ? System.LightingScenario : FindLevel(PersistentLevelGuid);
-			UMapBuildDataRegistry* SubLevelRegistry = SubLevelStorageLevel->GetOrCreateMapBuildData();
-			FPrecomputedVolumetricLightmapData& PersistentLevelData = *SubLevelRegistry->GetLevelPrecomputedVolumetricLightmapBuildData(FindLevel(PersistentLevelGuid)->LevelBuildDataId);
+			UMapBuildDataRegistry* SubLevelRegistry = System.LightingContext.GetOrCreateRegistryForLevelGuid(PersistentLevelGuid);
+			FPrecomputedVolumetricLightmapData& PersistentLevelData = *SubLevelRegistry->GetLevelPrecomputedVolumetricLightmapBuildData(System.LightingContext.GetLevelBuildDataID(PersistentLevelGuid));
 
 			PersistentLevelData.InitializeOnImport(FBox(VolumetricLightmapSettings.VolumeMin, VolumetricLightmapSettings.VolumeMin + VolumetricLightmapSettings.VolumeSize), BrickSize);
 			PersistentLevelData.IndirectionTexture = CurrentLevelData.IndirectionTexture;
@@ -1492,9 +1488,8 @@ void FLightmassProcessor::ImportVolumetricLightmap()
 
 					if (LevelGuid != PersistentLevelGuid)
 					{
-						ULevel* SubLevelStorageLevel = System.LightingScenario ? System.LightingScenario : FindLevel(LevelGuid);
-						UMapBuildDataRegistry* SubLevelRegistry = SubLevelStorageLevel->GetOrCreateMapBuildData();
-						FPrecomputedVolumetricLightmapData& SubLevelData = *SubLevelRegistry->GetLevelPrecomputedVolumetricLightmapBuildData(FindLevel(LevelGuid)->LevelBuildDataId);
+						UMapBuildDataRegistry* SubLevelRegistry = System.LightingContext.GetOrCreateRegistryForLevelGuid(LevelGuid);
+						FPrecomputedVolumetricLightmapData& SubLevelData = *SubLevelRegistry->GetLevelPrecomputedVolumetricLightmapBuildData(System.LightingContext.GetLevelBuildDataID(LevelGuid));
 
 						FIntVector IndirectionBrickOffset;
 						int32 IndirectionBrickSize;
@@ -1513,9 +1508,8 @@ void FLightmassProcessor::ImportVolumetricLightmap()
 			{
 				FGuid LevelGuid = Pair.Key;
 
-				ULevel* SubLevelStorageLevel = System.LightingScenario ? System.LightingScenario : FindLevel(LevelGuid);
-				UMapBuildDataRegistry* SubLevelRegistry = SubLevelStorageLevel->GetOrCreateMapBuildData();
-				FPrecomputedVolumetricLightmapData& SubLevelData = *SubLevelRegistry->GetLevelPrecomputedVolumetricLightmapBuildData(FindLevel(LevelGuid)->LevelBuildDataId);
+				UMapBuildDataRegistry* SubLevelRegistry = System.LightingContext.GetOrCreateRegistryForLevelGuid(LevelGuid);
+				FPrecomputedVolumetricLightmapData& SubLevelData = *SubLevelRegistry->GetLevelPrecomputedVolumetricLightmapBuildData(System.LightingContext.GetLevelBuildDataID(LevelGuid));
 
 				ConvertBGRA8ToRGBA8ForLayer(SubLevelData.BrickData.SkyBentNormal);
 
@@ -1544,9 +1538,8 @@ void FLightmassProcessor::ImportVolumetricLightmap()
 
 		for (auto Pair : SubLevelTotalBricks)
 		{
-			ULevel* SubLevelStorageLevel = System.LightingScenario ? System.LightingScenario : FindLevel(Pair.Key);
-			UMapBuildDataRegistry* SubLevelRegistry = SubLevelStorageLevel->GetOrCreateMapBuildData();
-			FPrecomputedVolumetricLightmapData& SubLevelData = *SubLevelRegistry->GetLevelPrecomputedVolumetricLightmapBuildData(FindLevel(Pair.Key)->LevelBuildDataId);
+			UMapBuildDataRegistry* SubLevelRegistry = System.LightingContext.GetOrCreateRegistryForLevelGuid(Pair.Key);
+			FPrecomputedVolumetricLightmapData& SubLevelData = *SubLevelRegistry->GetLevelPrecomputedVolumetricLightmapBuildData(System.LightingContext.GetLevelBuildDataID(Pair.Key));
 
 			SubLevelData.FinalizeImport();
 

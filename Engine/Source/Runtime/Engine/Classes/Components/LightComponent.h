@@ -13,6 +13,7 @@
 #include "LightComponent.generated.h"
 
 class FLightComponentMapBuildData;
+class FStaticLightingBuildContext;
 class FStaticShadowDepthMapData;
 class ULevel;
 class UMaterialInterface;
@@ -486,11 +487,13 @@ public:
 	/** Get the color temperature in the working color space. */
 	ENGINE_API FLinearColor GetColorTemperature() const;
 
+#if WITH_EDITOR	
 	/** 
 	 * Iterates over ALL stationary light components in the target world and assigns their preview shadowmap channel, and updates light icons accordingly.
 	 * Also handles assignment after a lighting build, so that the same algorithm is used for previewing and static lighting.
 	 */
-	static ENGINE_API void ReassignStationaryLightChannels(UWorld* TargetWorld, bool bAssignForLightingBuild, ULevel* LightingScenario);
+	static ENGINE_API void ReassignStationaryLightChannels(UWorld* TargetWorld, bool bAssignForLightingBuild, FStaticLightingBuildContext* LightingContext);
+#endif
 
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnUpdateColorAndBrightness, ULightComponent&);
 

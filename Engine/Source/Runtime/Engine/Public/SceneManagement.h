@@ -50,6 +50,7 @@ class FPrimitiveSceneProxy;
 class FScene;
 class FSceneViewState;
 class FShadowMap;
+class FStaticLightingBuildContext;
 class FStaticMeshRenderData;
 class FTexture;
 class UDecalComponent;
@@ -914,26 +915,26 @@ class FAsyncEncode : public IQueuedWork
 private:
 	TPendingTextureType* PendingTexture;
 	FThreadSafeCounter& Counter;
-	ULevel* LightingScenario;
+	const FStaticLightingBuildContext* LightingContext;
 	class ITextureCompressorModule* Compressor;
 
 public:
 
-	FAsyncEncode(TPendingTextureType* InPendingTexture, ULevel* InLightingScenario, FThreadSafeCounter& InCounter, ITextureCompressorModule* InCompressor) : PendingTexture(nullptr), Counter(InCounter), Compressor(InCompressor)
+	FAsyncEncode(TPendingTextureType* InPendingTexture, const FStaticLightingBuildContext* InLightingContext, FThreadSafeCounter& InCounter, ITextureCompressorModule* InCompressor) : PendingTexture(nullptr), Counter(InCounter), Compressor(InCompressor)
 	{
-		LightingScenario = InLightingScenario;
+		LightingContext = InLightingContext;
 		PendingTexture = InPendingTexture;
 	}
 
 	void Abandon()
 	{
-		PendingTexture->StartEncoding(LightingScenario, Compressor);
+		PendingTexture->StartEncoding(LightingContext, Compressor);
 		Counter.Decrement();
 	}
 
 	void DoThreadedWork()
 	{
-		PendingTexture->StartEncoding(LightingScenario, Compressor);
+		PendingTexture->StartEncoding(LightingContext, Compressor);
 		Counter.Decrement();
 	}
 };

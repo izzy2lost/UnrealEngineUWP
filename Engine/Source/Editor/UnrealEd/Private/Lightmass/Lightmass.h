@@ -62,7 +62,7 @@ class FLightmassExporter
 {
 public:
 
-	FLightmassExporter( UWorld* InWorld );
+	FLightmassExporter(const FStaticLightingBuildContext& LightingContext);
 	virtual ~FLightmassExporter();
 
 	void SetLevelSettings(FLightmassWorldInfoSettings& InLevelSettings)
@@ -232,8 +232,6 @@ private:
 
 	FString LevelName;
 
-	TMap<FGuid, const TWeakObjectPtr<ULevel>> LevelGuids;
-
 	// lights objects
 	TArray<const class UDirectionalLightComponent*> DirectionalLights;
 	TArray<const class UPointLightComponent*> PointLights;
@@ -271,6 +269,9 @@ private:
 
 	/** The world we are exporting from */
 	UWorld* World;
+
+	/** The ligthing context we are exporting for, used to acquire some mappings & GUIDs that are contextual  */
+	const FStaticLightingBuildContext&	LightingContext;
 
 	/** Friends */
 	friend class FBSPSurfaceStaticLighting;

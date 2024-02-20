@@ -10,6 +10,7 @@
 #include "Engine/OverlapResult.h"
 #include "AI/NavigationSystemBase.h"
 #include "Engine/MapBuildDataRegistry.h"
+#include "StaticLightingBuildContext.h"
 #include "Components/LightComponent.h"
 #include "EngineLogs.h"
 #include "Logging/MessageLog.h"
@@ -2802,7 +2803,7 @@ void UInstancedStaticMeshComponent::GetStaticLightingInfo(FStaticLightingPrimiti
 	}
 }
 
-void UInstancedStaticMeshComponent::ApplyLightMapping(FStaticLightingTextureMapping_InstancedStaticMesh* InMapping, ULevel* LightingScenario)
+void UInstancedStaticMeshComponent::ApplyLightMapping(FStaticLightingTextureMapping_InstancedStaticMesh* InMapping, const FStaticLightingBuildContext* LightingContext)
 {
 	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTexturedLightmaps"));
 	const bool bUseVirtualTextures = (CVar->GetValueOnAnyThread() != 0) && UseVirtualTexturing(GMaxRHIShaderPlatform);
@@ -2847,8 +2848,7 @@ void UInstancedStaticMeshComponent::ApplyLightMapping(FStaticLightingTextureMapp
 			MarkPackageDirty();
 		}
 
-		ULevel* StorageLevel = LightingScenario ? LightingScenario : GetOwner()->GetLevel();
-		UMapBuildDataRegistry* Registry = StorageLevel->GetOrCreateMapBuildData();
+		UMapBuildDataRegistry* Registry = LightingContext->GetOrCreateRegistryForActor(GetOwner());
 		FMeshMapBuildData& MeshBuildData = Registry->AllocateMeshBuildData(LODInfo.MapBuildDataId, true);
 
 		MeshBuildData.PerInstanceLightmapData.Empty(AllQuantizedData.Num());

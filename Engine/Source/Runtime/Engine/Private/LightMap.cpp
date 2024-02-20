@@ -21,6 +21,7 @@
 #include "Misc/FeedbackContext.h"
 #include "GameFramework/WorldSettings.h"
 #include "Engine/MapBuildDataRegistry.h"
+#include "StaticLightingBuildContext.h"
 #include "VT/LightmapVirtualTexture.h"
 #include "VT/VirtualTexture.h"
 #include "EngineModule.h"
@@ -443,7 +444,7 @@ struct FLightMapPendingTexture : public FTextureLayout
 	/**
 	 * Processes the textures and starts asynchronous compression tasks for all mip-levels.
 	 */
-	void StartEncoding(ULevel* Unused, ITextureCompressorModule* UnusedCompressor);
+	void StartEncoding(const FStaticLightingBuildContext* LightingContext, ITextureCompressorModule* UnusedCompressor);
 
 	void EncodeCoefficientTexture(int32 CoefficientIndex, UTexture* Texture, uint32 LayerIndex, const FColor& TextureColor, bool bEncodeVirtualTexture);
 	void EncodeSkyOcclusionTexture(UTexture* Texture, uint32 LayerIndex, const FColor& TextureColor);
@@ -1741,7 +1742,7 @@ void FLightMapPendingTexture::EncodeCoefficientTexture(int32 CoefficientIndex, U
 	}
 }
 
-void FLightMapPendingTexture::StartEncoding(ULevel* LightingScenario, ITextureCompressorModule* UnusedCompressor)
+void FLightMapPendingTexture::StartEncoding(const FStaticLightingBuildContext* LightingContext, ITextureCompressorModule* UnusedCompressor)
 {
 	if (!bUObjectsCreated)
 	{
@@ -1754,7 +1755,7 @@ void FLightMapPendingTexture::StartEncoding(ULevel* LightingScenario, ITextureCo
 	int32 NumShadowChannelsUsed = 0;
 	if (NeedsStaticShadowTexture())
 	{
-		NumShadowChannelsUsed = FLightMap2D::EncodeShadowTexture(LightingScenario, *this, ShadowMipData);
+		NumShadowChannelsUsed = FLightMap2D::EncodeShadowTexture(LightingContext, *this, ShadowMipData);
 	}
 
 	FColor TextureColor;
@@ -2383,7 +2384,7 @@ TRefCountPtr<FLightMap2D> FLightMap2D::AllocateInstancedLightMap(UObject* LightM
  * @param	bLightingSuccessful	Whether the lighting build was successful or not.
  * @param	bMultithreadedEncode encode textures on different threads ;)
  */
-void FLightMap2D::EncodeTextures( UWorld* InWorld, ULevel* LightingScenario, bool bLightingSuccessful, bool bMultithreadedEncode)
+void FLightMap2D::EncodeTextures(const FStaticLightingBuildContext* LightingContext, bool bLightingSuccessful, bool bMultithreadedEncode)
 {
 #if WITH_EDITOR
 	if (bLightingSuccessful)
@@ -2392,7 +2393,7 @@ void FLightMap2D::EncodeTextures( UWorld* InWorld, ULevel* LightingScenario, boo
 		const bool bIncludeNonVirtualTextures = !bUseVirtualTextures || (CVarIncludeNonVirtualTexturedLightMaps.GetValueOnAnyThread() != 0);
 
 		GWarn->BeginSlowTask( NSLOCTEXT("LightMap2D", "BeginEncodingLightMapsTask", "Encoding light-maps"), false );
-		int32 PackedLightAndShadowMapTextureSizeX = InWorld->GetWorldSettings()->PackedLightAndShadowMapTextureSize;
+		int32 PackedLightAndShadowMapTextureSizeX = LightingContext->World->GetWorldSettings()->PackedLightAndShadowMapTextureSize;
 		int32 PackedLightAndShadowMapTextureSizeY = PackedLightAndShadowMapTextureSizeX / 2;
 
 		if (!bIncludeNonVirtualTextures)
@@ -2499,7 +2500,7 @@ void FLightMap2D::EncodeTextures( UWorld* InWorld, ULevel* LightingScenario, boo
 				// If there is no existing appropriate texture, create a new one.
 				// If we have non-VT, need 2to1 aspect ratio to handle packing lightmap into top/bottom texture region
 				// With only VT, better to use square lightmaps (better page table usage)
-				Texture = new FLightMapPendingTexture(InWorld, NewTextureSizeX, NewTextureSizeY, bIncludeNonVirtualTextures ? ETextureLayoutAspectRatio::Force2To1 : ETextureLayoutAspectRatio::ForceSquare);
+				Texture = new FLightMapPendingTexture(LightingContext->World, NewTextureSizeX, NewTextureSizeY, bIncludeNonVirtualTextures ? ETextureLayoutAspectRatio::Force2To1 : ETextureLayoutAspectRatio::ForceSquare);
 				PendingTextures.Add(Texture);
 				Texture->Outer = PendingGroup.Outer;
 				Texture->Bounds = PendingGroup.Bounds;
@@ -2525,7 +2526,7 @@ void FLightMap2D::EncodeTextures( UWorld* InWorld, ULevel* LightingScenario, boo
 				// precreate the UObjects then give them to some threads to process
 				// need to precreate Uobjects 
 				Texture->CreateUObjects();
-				auto AsyncEncodeTask = new (AsyncEncodeTasks)FAsyncEncode<FLightMapPendingTexture>(Texture, LightingScenario, Counter, nullptr);
+				auto AsyncEncodeTask = new (AsyncEncodeTasks)FAsyncEncode<FLightMapPendingTexture>(Texture, LightingContext, Counter, nullptr);
 				GLargeThreadPool->AddQueuedWork(AsyncEncodeTask);
 			}
 
@@ -2545,7 +2546,7 @@ void FLightMap2D::EncodeTextures( UWorld* InWorld, ULevel* LightingScenario, boo
 					GWarn->UpdateProgress(TextureIndex, PendingTextures.Num());
 				}
 				FLightMapPendingTexture* PendingTexture = PendingTextures[TextureIndex];
-				PendingTexture->StartEncoding(nullptr,nullptr);
+				PendingTexture->StartEncoding(LightingContext,nullptr);
 			}
 		}
 
@@ -2591,7 +2592,7 @@ void FLightMap2D::EncodeTextures( UWorld* InWorld, ULevel* LightingScenario, boo
 }
 
 #if WITH_EDITOR
-int32 FLightMap2D::EncodeShadowTexture(ULevel* LightingScenario, struct FLightMapPendingTexture& PendingTexture, TArray< TArray<FFourDistanceFieldSamples>>& MipData)
+int32 FLightMap2D::EncodeShadowTexture(const FStaticLightingBuildContext* LightingContext, struct FLightMapPendingTexture& PendingTexture, TArray< TArray<FFourDistanceFieldSamples>>& MipData)
 {
 	TArray<FFourDistanceFieldSamples>* TopMipData = new(MipData) TArray<FFourDistanceFieldSamples>();
 	TopMipData->Empty(PendingTexture.GetSizeX() * PendingTexture.GetSizeY());
@@ -2611,9 +2612,7 @@ int32 FLightMap2D::EncodeShadowTexture(ULevel* LightingScenario, struct FLightMa
 			for (const auto& ShadowMapPair : Allocation.ShadowMapData)
 			{
 				ULightComponent* CurrentLight = ShadowMapPair.Key;
-				ULevel* StorageLevel = LightingScenario ? LightingScenario : CurrentLight->GetOwner()->GetLevel();
-				UMapBuildDataRegistry* Registry = StorageLevel->MapBuildData;
-				const FLightComponentMapBuildData* LightBuildData = Registry->GetLightBuildData(CurrentLight->LightGuid);
+				const FLightComponentMapBuildData* LightBuildData = LightingContext->GetRegistryForActor(CurrentLight->GetOwner())->GetLightBuildData(CurrentLight->LightGuid);
 
 				// Should have been setup by ReassignStationaryLightChannels
 				check(LightBuildData);

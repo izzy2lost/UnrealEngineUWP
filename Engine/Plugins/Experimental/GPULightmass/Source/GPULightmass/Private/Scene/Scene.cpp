@@ -31,6 +31,7 @@
 #include "ReflectionEnvironment.h"
 #include "RHIStaticStates.h"
 #include "InstancedStaticMeshSceneProxyDesc.h"
+#include "StaticLightingBuildContext.h"
 
 #define LOCTEXT_NAMESPACE "StaticLightingSystem"
 
@@ -2991,8 +2992,11 @@ void FScene::ApplyFinishedLightmapsToWorld()
 
 		GCompressLightmaps = Settings->bCompressLightmaps;
 
-		FLightMap2D::EncodeTextures(World, LightingScenario, true, true);
-		FShadowMap2D::EncodeTextures(World, LightingScenario, true, true);
+		// Would be better to acquire this from the IStaticLightingSystem interface
+		FStaticLightingBuildContext LightingContext (World, LightingScenario);
+
+		FLightMap2D::EncodeTextures(&LightingContext, true, true);
+		FShadowMap2D::EncodeTextures(&LightingContext, true, true);
 
 		SlowTask.EnterProgressFrame(1, LOCTEXT("ApplyingNewLighting", "Applying new lighting"));
 

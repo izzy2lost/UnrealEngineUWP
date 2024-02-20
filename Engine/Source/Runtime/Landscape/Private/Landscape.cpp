@@ -1913,18 +1913,8 @@ const FMeshMapBuildData* ULandscapeComponent::GetMeshMapBuildData() const
 
 		if (OwnerLevel && OwnerLevel->OwningWorld)
 		{
-			ULevel* ActiveLightingScenario = OwnerLevel->OwningWorld->GetActiveLightingScenario();
-			UMapBuildDataRegistry* MapBuildData = NULL;
-
-			if (ActiveLightingScenario && ActiveLightingScenario->MapBuildData)
-			{
-				MapBuildData = ActiveLightingScenario->MapBuildData;
-			}
-			else if (OwnerLevel->MapBuildData)
-			{
-				MapBuildData = OwnerLevel->MapBuildData;
-			}
-
+			UMapBuildDataRegistry* MapBuildData = UMapBuildDataRegistry::Get(this);
+			
 			if (MapBuildData)
 			{
 				return MapBuildData->GetMeshBuildData(MapBuildDataId);

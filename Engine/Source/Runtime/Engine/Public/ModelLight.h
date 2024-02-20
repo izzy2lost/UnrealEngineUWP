@@ -54,7 +54,7 @@ public:
 	}
 
 #if WITH_EDITOR
-	virtual void Apply(FQuantizedLightmapData* QuantizedData, const TMap<ULightComponent*,FShadowMapData2D*>& ShadowMapData, ULevel* LightingScenario) override;
+	virtual void Apply(FQuantizedLightmapData* QuantizedData, const TMap<ULightComponent*,FShadowMapData2D*>& ShadowMapData, const FStaticLightingBuildContext* LightingContext) override;
 	virtual bool DebugThisMapping() const override;
 
 	/** 

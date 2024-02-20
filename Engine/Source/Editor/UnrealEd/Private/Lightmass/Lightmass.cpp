@@ -54,6 +54,7 @@
 #include "Modules/ModuleManager.h"
 #include "ImageCoreUtils.h"
 #include "Misc/FileHelper.h"
+#include "StaticLightingBuildContext.h"
 
 extern FSwarmDebugOptions GSwarmDebugOptions;
 
@@ -487,13 +488,14 @@ void FLightmassProcessor::SwarmCallback( NSwarm::FMessage* CallbackMessage, void
 /*-----------------------------------------------------------------------------
 	FLightmassExporter
 -----------------------------------------------------------------------------*/
-FLightmassExporter::FLightmassExporter( UWorld* InWorld )
+FLightmassExporter::FLightmassExporter(const FStaticLightingBuildContext& Context)
 	: Swarm( NSwarm::FSwarmInterface::Get() ) 
 	, SkyAtmosphereComponent(nullptr)
 	, ExportStage(NotRunning)
 	, CurrentAmortizationIndex(0)
 	, OpenedMaterialExportChannels()
-	, World( InWorld )
+	, World( Context.World )
+	, LightingContext(Context)
 {
 	// We must have a valid world
 	check( World );
@@ -1518,14 +1520,13 @@ void FLightmassExporter::WriteBaseMeshInstanceData( int32 Channel, int32 MeshInd
 	MeshInstanceData.NumVertices = Mesh->NumVertices;
 	MeshInstanceData.NumShadingVertices = Mesh->NumShadingVertices;
 	MeshInstanceData.MeshIndex = MeshIndex;
-	MeshInstanceData.LevelGuid = *LevelGuids.FindKey(World->PersistentLevel);
+	MeshInstanceData.LevelGuid = LightingContext.GetPersistentLevelGuid();
 	check(Mesh->Component);
 	bool bFoundLevel = false;
 	AActor* ComponentOwner = Mesh->Component->GetOwner();
 	if (ComponentOwner && ComponentOwner->GetLevel())
 	{
-		ULevel* MeshLevel = Mesh->Component->GetOwner()->GetLevel();
-		MeshInstanceData.LevelGuid = *LevelGuids.FindKey(MeshLevel);
+		MeshInstanceData.LevelGuid = LightingContext.GetLevelGuidForActor(ComponentOwner);
 		bFoundLevel = true;
 	}
 	else if (Mesh->Component->IsA(UModelComponent::StaticClass()))
@@ -1535,7 +1536,7 @@ void FLightmassExporter::WriteBaseMeshInstanceData( int32 Channel, int32 MeshInd
 		{
 			if (ModelComponent->GetModel() == World->GetLevel(LevelIndex)->Model)
 			{
-				MeshInstanceData.LevelGuid = *LevelGuids.FindKey(World->GetLevel(LevelIndex));
+				MeshInstanceData.LevelGuid = LightingContext.GetLevelGuidForLevel(World->GetLevel(LevelIndex));
 				bFoundLevel = true;
 				break;
 			}
@@ -2660,7 +2661,7 @@ FLightmassProcessor::FLightmassProcessor(const FStaticLightingSystem& InSystem, 
 	OptionsFolder = IFileManager::Get().ConvertToAbsolutePathForExternalAppForRead(*OptionsFolder);
 	int32 ConnectionHandle = Swarm.OpenConnection( SwarmCallback, this,  LogFlags, *OptionsFolder );
 	bSwarmConnectionIsValid = (ConnectionHandle >= 0);
-	Exporter = new FLightmassExporter( System.GetWorld() );
+	Exporter = new FLightmassExporter( System.GetLightingContext() );
 	check(Exporter);
 	Exporter->bSwarmConnectionIsValid = bSwarmConnectionIsValid;
 
@@ -2768,15 +2769,6 @@ void FLightmassProcessor::InitiateExport()
 	int32 NumCellDistributionBuckets;
 	VERIFYLIGHTMASSINI(GConfig->GetInt(TEXT("DevOptions.PrecomputedVisibility"), TEXT("NumCellDistributionBuckets"), NumCellDistributionBuckets, GLightmassIni));
 	
-	for ( int32 LevelIndex=0; LevelIndex < System.GetWorld()->GetNumLevels(); LevelIndex++ )
-	{
-		ULevel* Level = System.GetWorld()->GetLevel(LevelIndex);
-		FGuid LevelGuid = FGuid(0,0,0,LevelIndex);
-		Exporter->LevelGuids.Add(LevelGuid, Level);
-	}
-	auto FirstGuid = FGuid(0,0,0,0);
-	check(FindLevel(FirstGuid) == System.GetWorld()->PersistentLevel);
-
 	if (System.GetWorld()->GetWorldSettings()->bPrecomputeVisibility)
 	{
 		for (int32 DistributionBucketIndex = 0; DistributionBucketIndex < NumCellDistributionBuckets; DistributionBucketIndex++)
@@ -3491,13 +3483,12 @@ void FLightmassProcessor::ImportVolumeSamples()
 				Swarm.ReadChannel(Channel, &LevelGuid, sizeof(LevelGuid));
 				TArray<Lightmass::FVolumeLightingSampleData> VolumeSamples;
 				ReadArray(Channel, VolumeSamples);
-				ULevel* CurrentLevel = FindLevel(LevelGuid);
+				ULevel* CurrentLevel = System.LightingContext.GetLevelForGuid(LevelGuid).Get();
 
 				// Only build precomputed light for visible streamed levels
 				if (CurrentLevel && CurrentLevel->bIsVisible)
 				{
-					ULevel* CurrentStorageLevel = System.LightingScenario ? System.LightingScenario : CurrentLevel;
-					UMapBuildDataRegistry* CurrentRegistry = CurrentStorageLevel->GetOrCreateMapBuildData();
+					UMapBuildDataRegistry* CurrentRegistry = System.LightingContext.GetOrCreateRegistryForLevel(CurrentLevel);
 					FPrecomputedLightVolumeData& CurrentLevelData = CurrentRegistry->AllocateLevelPrecomputedLightVolumeBuildData(CurrentLevel->LevelBuildDataId);
 
 					FBox3f LevelVolumeBounds(ForceInit);
@@ -3934,7 +3925,7 @@ void FLightmassProcessor::ImportMeshAreaLightData()
 			{
 				Lightmass::FMeshAreaLightData LMCurrentLightData;
 				Swarm.ReadChannel(Channel, &LMCurrentLightData, sizeof(LMCurrentLightData));
-				const ULevel* CurrentLevel = FindLevel(LMCurrentLightData.LevelGuid);
+				const ULevel* CurrentLevel = System.LightingContext.GetLevelForGuid(LMCurrentLightData.LevelGuid).Get();
 				if (CurrentLevel && CurrentLevel->Actors.Num() > 0)
 				{
 					// Find the level that the mesh area light was in
@@ -4180,8 +4171,7 @@ void FLightmassProcessor::ImportStaticShadowDepthMap(ULightComponent* Light)
 	const int32 Channel = Swarm.OpenChannel( *ChannelName, LM_DOMINANTSHADOW_CHANNEL_FLAGS );
 	if (Channel >= 0)
 	{
-		ULevel* CurrentStorageLevel = System.LightingScenario ? System.LightingScenario : Light->GetOwner()->GetLevel();
-		UMapBuildDataRegistry* CurrentRegistry = CurrentStorageLevel->GetOrCreateMapBuildData();
+		UMapBuildDataRegistry* CurrentRegistry = System.LightingContext.GetOrCreateRegistryForActor(Light->GetOwner());
 		FLightComponentMapBuildData& CurrentLightData = CurrentRegistry->FindOrAllocateLightBuildData(Light->LightGuid, true);
 
 		Lightmass::FStaticShadowDepthMapData ShadowMapData;
@@ -4462,8 +4452,8 @@ ULevel* FLightmassProcessor::FindLevel(const FGuid& Guid)
 {
 	if (Exporter)
 	{
-		const TWeakObjectPtr<ULevel>* Level = Exporter->LevelGuids.Find(Guid);
-		return Level && Level->IsValid() ? Level->Get() : NULL;
+		const TWeakObjectPtr<ULevel> Level = Exporter->LightingContext.GetLevelForGuid(Guid);
+		return Level.IsValid() ? Level.Get() : NULL;
 	}
 	return NULL;
 }

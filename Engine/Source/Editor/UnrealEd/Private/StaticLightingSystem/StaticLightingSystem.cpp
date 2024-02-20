@@ -49,6 +49,7 @@
 #include "EditorModeManager.h"
 #include "EditorModes.h"
 #include "Dialogs/Dialogs.h"
+#include "WorldPartition/WorldPartition.h"
 
 FSwarmDebugOptions GSwarmDebugOptions;
 
@@ -252,9 +253,9 @@ void FStaticLightingManager::SendBuildDoneNotification( bool AutoApplyFailed )
 {
 	FText CompletedText = LOCTEXT("LightBuildDoneMessage", "Lighting build completed");
 
-	if (ActiveStaticLightingSystem != StaticLightingSystems.Last().Get() && ActiveStaticLightingSystem->LightingScenario)
+	if (ActiveStaticLightingSystem != StaticLightingSystems.Last().Get() && ActiveStaticLightingSystem->LightingContext.LightingScenario)
 	{
-		FString PackageName = FPackageName::GetShortName(ActiveStaticLightingSystem->LightingScenario->GetOutermost()->GetName());
+		FString PackageName = FPackageName::GetShortName(ActiveStaticLightingSystem->LightingContext.LightingScenario->GetOutermost()->GetName());
 		CompletedText = FText::Format(LOCTEXT("LightScenarioBuildDoneMessage", "{0} Lighting Scenario completed"), FText::FromString(PackageName));
 	}
 
@@ -300,13 +301,13 @@ void FStaticLightingManager::CreateStaticLightingSystem(const FLightingBuildOpti
 		{
 			if (Level->bIsLightingScenario && Level->bIsVisible)
 			{
-				StaticLightingSystems.Emplace(new FStaticLightingSystem(Options, World, Level));
+				StaticLightingSystems.Emplace(new FStaticLightingSystem(Options, FStaticLightingBuildContext(World, Level)));
 			}
 		}
 
 		if (StaticLightingSystems.Num() == 0)
 		{
-			StaticLightingSystems.Emplace(new FStaticLightingSystem(Options, World, nullptr));
+			StaticLightingSystems.Emplace(new FStaticLightingSystem(Options, FStaticLightingBuildContext(World, nullptr)));
 		}
 
 		ActiveStaticLightingSystem = StaticLightingSystems[0].Get();
@@ -473,14 +474,13 @@ bool FStaticLightingManager::IsLightingBuildCurrentlyExporting() const
 	return ActiveStaticLightingSystem != NULL && ActiveStaticLightingSystem->IsAmortizedExporting();
 }
 
-FStaticLightingSystem::FStaticLightingSystem(const FLightingBuildOptions& InOptions, UWorld* InWorld, ULevel* InLightingScenario)
+FStaticLightingSystem::FStaticLightingSystem(const FLightingBuildOptions& InOptions, const FStaticLightingBuildContext& context)
 	: Options(InOptions)
 	, bBuildCanceled(false)
 	, DeterministicIndex(0)
 	, NextVisibilityId(0)
 	, CurrentBuildStage(FStaticLightingSystem::NotRunning)
-	, World(InWorld)
-	, LightingScenario(InLightingScenario)
+	, LightingContext(context)
 	, LightmassProcessor(NULL)
 {
 }
@@ -560,9 +560,9 @@ bool FStaticLightingSystem::BeginLightmassProcess()
 		{
 			TMap<FGuid, ULevel*> LevelGuids;
 
-			for (int32 LevelIndex = 0; LevelIndex < World->GetNumLevels(); LevelIndex++)
+			for (int32 LevelIndex = 0; LevelIndex < LightingContext.World->GetNumLevels(); LevelIndex++)
 			{
-				ULevel* Level = World->GetLevel(LevelIndex);
+				ULevel* Level = LightingContext.World->GetLevel(LevelIndex);
 
 				if (ShouldOperateOnLevel(Level) && Options.ShouldBuildLightingForLevel(Level))
 				{
@@ -590,16 +590,16 @@ bool FStaticLightingSystem::BeginLightmassProcess()
 		}
 
 		FString SkippedLevels;
-		for ( int32 LevelIndex=0; LevelIndex < World->GetNumLevels(); LevelIndex++ )
+		for ( int32 LevelIndex=0; LevelIndex < LightingContext.World->GetNumLevels(); LevelIndex++ )
 		{
-			ULevel* Level = World->GetLevel(LevelIndex);
+			ULevel* Level = LightingContext.World->GetLevel(LevelIndex);
 
 			if (ShouldOperateOnLevel(Level))
 			{
 				Level->LightmapTotalSize = 0.0f;
 				Level->ShadowmapTotalSize = 0.0f;
 				ULevelStreaming* LevelStreaming = NULL;
-				if ( World->PersistentLevel != Level )
+				if ( LightingContext.World->PersistentLevel != Level )
 				{
 					LevelStreaming = FLevelUtils::FindStreamingLevel( Level );
 				}
@@ -619,7 +619,7 @@ bool FStaticLightingSystem::BeginLightmassProcess()
 			}
 		}
 
-		for (ULevelStreaming* CurStreamingLevel : World->GetStreamingLevels())
+		for (ULevelStreaming* CurStreamingLevel : LightingContext.World->GetStreamingLevels())
 		{
 			if (CurStreamingLevel && CurStreamingLevel->GetLoadedLevel() && !CurStreamingLevel->GetShouldBeVisibleInEditor())
 			{
@@ -647,7 +647,7 @@ bool FStaticLightingSystem::BeginLightmassProcess()
 		}
 
 		const bool bAllowStaticLighting = IsStaticLightingAllowed();
-		bForceNoPrecomputedLighting = World->GetWorldSettings()->bForceNoPrecomputedLighting || !bAllowStaticLighting;
+		bForceNoPrecomputedLighting = LightingContext.World->GetWorldSettings()->bForceNoPrecomputedLighting || !bAllowStaticLighting;
 		GConfig->GetFloat( TEXT("TextureStreaming"), TEXT("MaxLightmapRadius"), GMaxLightmapRadius, GEngineIni );
 		GConfig->GetBool( TEXT("TextureStreaming"), TEXT("AllowStreamingLightmaps"), GAllowStreamingLightmaps, GEngineIni );
 		
@@ -668,7 +668,7 @@ bool FStaticLightingSystem::BeginLightmassProcess()
 		verify(GConfig->GetBool(TEXT("DevOptions.StaticLighting"), TEXT("bRebuildDirtyGeometryForLighting"), bRebuildDirtyGeometryForLighting, GLightmassIni));
 		verify(GConfig->GetBool(TEXT("DevOptions.StaticLighting"), TEXT("bCompressLightmaps"), GCompressLightmaps, GLightmassIni));
 
-		GCompressLightmaps = GCompressLightmaps && World->GetWorldSettings()->LightmassSettings.bCompressLightmaps;
+		GCompressLightmaps = GCompressLightmaps && LightingContext.World->GetWorldSettings()->LightmassSettings.bCompressLightmaps;
 
 		GAllowLightmapPadding = true;
 		FMemory::Memzero(&LightingMeshBounds, sizeof(FBox));
@@ -705,7 +705,7 @@ bool FStaticLightingSystem::BeginLightmassProcess()
 				{
 					ULightComponentBase* const Light = *LightIt;
 					const bool bLightIsInWorld = IsValid(Light->GetOwner()) 
-						&& World->ContainsActor(Light->GetOwner());
+						&& LightingContext.World->ContainsActor(Light->GetOwner());
 
 					if (bLightIsInWorld && ShouldOperateOnLevel(Light->GetOwner()->GetLevel()))
 					{
@@ -835,10 +835,10 @@ void FStaticLightingSystem::InvalidateStaticLighting()
 	FLightmassStatistics::FScopedGather InvalidationScopeStat(LightmassStatistics.InvalidationTime);
 	FGlobalComponentRecreateRenderStateContext Context;
 
-	for( int32 LevelIndex=0; LevelIndex<World->GetNumLevels(); LevelIndex++ )
+	for( int32 LevelIndex=0; LevelIndex < LightingContext.World->GetNumLevels(); LevelIndex++ )
 	{
 		bool bMarkLevelDirty = false;
-		ULevel* Level = World->GetLevel(LevelIndex);
+		ULevel* Level = LightingContext.World->GetLevel(LevelIndex);
 		
 		if (!ShouldOperateOnLevel(Level))
 		{
@@ -855,13 +855,13 @@ void FStaticLightingSystem::InvalidateStaticLighting()
 
 				if (Level->MapBuildData)
 				{
-					Level->MapBuildData->InvalidateStaticLighting(World, false, &BuildDataResourcesToKeep);
+					Level->MapBuildData->InvalidateStaticLighting(LightingContext.World, false, &BuildDataResourcesToKeep);
 				}
 			}
-			if (Level == World->PersistentLevel)
+			if (Level == LightingContext.World->PersistentLevel)
 			{
-				Level->PrecomputedVisibilityHandler.Invalidate(World->Scene);
-				Level->PrecomputedVolumeDistanceField.Invalidate(World->Scene);
+				Level->PrecomputedVisibilityHandler.Invalidate(LightingContext.World->Scene);
+				Level->PrecomputedVolumeDistanceField.Invalidate(LightingContext.World->Scene);
 			}
 
 			// Mark any existing cached lightmap data as transient. This allows the derived data cache to purge it more aggressively.
@@ -938,9 +938,9 @@ void FStaticLightingSystem::GatherStaticLightingInfo(bool bRebuildDirtyGeometryF
 {
 	uint32 ActorsInvalidated = 0;
 	uint32 ActorsToInvalidate = 0;
-	for( int32 LevelIndex=0; LevelIndex<World->GetNumLevels(); LevelIndex++ )
+	for( int32 LevelIndex=0; LevelIndex< LightingContext.World->GetNumLevels(); LevelIndex++ )
 	{
-		ActorsToInvalidate += World->GetLevel(LevelIndex)->Actors.Num();
+		ActorsToInvalidate += LightingContext.World->GetLevel(LevelIndex)->Actors.Num();
 	}
 	const int32 ProgressUpdateFrequency = FMath::Max<int32>(ActorsToInvalidate / 20, 1);
 
@@ -948,11 +948,10 @@ void FStaticLightingSystem::GatherStaticLightingInfo(bool bRebuildDirtyGeometryF
 	
 	bool bObjectsToBuildLightingForFound = false;
 	// Gather static lighting info from actor components.
-	for (int32 LevelIndex = 0; LevelIndex < World->GetNumLevels(); LevelIndex++)
+	for (int32 LevelIndex = 0; LevelIndex < LightingContext.World->GetNumLevels(); LevelIndex++)
 	{
 		TSet<UPackage*> PackagesToDirty;
-
-		ULevel* Level = World->GetLevel(LevelIndex);
+		ULevel* Level = LightingContext.World->GetLevel(LevelIndex);
 
 		if (!ShouldOperateOnLevel(Level))
 		{
@@ -967,7 +966,7 @@ void FStaticLightingSystem::GatherStaticLightingInfo(bool bRebuildDirtyGeometryF
 			{
 				// This will go ahead and clean up lighting on all dirty levels (not just this one)
 				UE_LOG(LogStaticLightingSystem, Warning, TEXT("WARNING: Lighting build automatically rebuilding geometry.") );
-				GEditor->Exec(World, TEXT("MAP REBUILD ALLDIRTYFORLIGHTING"));
+				GEditor->Exec(LightingContext.World, TEXT("MAP REBUILD ALLDIRTYFORLIGHTING"));
 			}
 		}
 
@@ -1203,7 +1202,7 @@ void FStaticLightingSystem::GatherStaticLightingInfo(bool bRebuildDirtyGeometryF
 						Primitive->GetStaticLightingInfo(PrimitiveInfo, PrimitiveRelevantLights, Options);
 						if (PrimitiveInfo.Meshes.Num() > 0 && (Primitive->Mobility == EComponentMobility::Static))
 						{
-							if (World->GetWorldSettings()->bPrecomputeVisibility)
+							if (LightingContext.World->GetWorldSettings()->bPrecomputeVisibility)
 							{
 								// Make sure packages gets dirtied since we are changing the visibility Id of a component in them
 								PackagesToDirty.Add(Primitive->GetPackage());
@@ -1282,13 +1281,13 @@ void FStaticLightingSystem::EncodeTextures(bool bLightingSuccessful)
 		FLightmassStatistics::FScopedGather EncodeStatScope2(LightmassStatistics.EncodingLightmapsTime);
 		// Flush pending shadow-map and light-map encoding.
 		SlowTask.EnterProgressFrame(1, LOCTEXT("EncodingImportedStaticLightMapsStatusMessage", "Encoding imported static light maps."));
-		FLightMap2D::EncodeTextures(World, LightingScenario, bLightingSuccessful, GMultithreadedLightmapEncode ? true : false);
+		FLightMap2D::EncodeTextures(&LightingContext, bLightingSuccessful, GMultithreadedLightmapEncode ? true : false);
 	}
 
 	{
 		FLightmassStatistics::FScopedGather EncodeStatScope2(LightmassStatistics.EncodingShadowMapsTime);
 		SlowTask.EnterProgressFrame(1, LOCTEXT("EncodingImportedStaticShadowMapsStatusMessage", "Encoding imported static shadow maps."));
-		FShadowMap2D::EncodeTextures(World, LightingScenario, bLightingSuccessful, GMultithreadedShadowmapEncode ? true : false);
+		FShadowMap2D::EncodeTextures(&LightingContext, bLightingSuccessful, GMultithreadedShadowmapEncode ? true : false);
 	}
 }
 
@@ -1305,25 +1304,22 @@ void FStaticLightingSystem::ApplyNewLightingData(bool bLightingSuccessful)
 		FLightmassStatistics::FScopedGather FinishStatScope(LightmassStatistics.FinishingTime);
 
 		// Mark lights of the computed level to have valid precomputed lighting.
-		for (int32 LevelIndex = 0; LevelIndex < World->GetNumLevels(); LevelIndex++)
+		for (int32 LevelIndex = 0; LevelIndex < LightingContext.World->GetNumLevels(); LevelIndex++)
 		{
-			ULevel* Level = World->GetLevel(LevelIndex);
+			ULevel* Level = LightingContext.World->GetLevel(LevelIndex);
 
 			if (!ShouldOperateOnLevel(Level))
 			{
 				continue;
 			}
 
-			ULevel* StorageLevel = LightingScenario ? LightingScenario : Level;
-			UMapBuildDataRegistry* Registry = StorageLevel->GetOrCreateMapBuildData();
-			
 			// Notify level about new lighting data
 			Level->OnApplyNewLightingData(bLightingSuccessful);
 
-			if (World->PersistentLevel == Level)
+			if (LightingContext.World->PersistentLevel == Level)
 			{
-				Level->PrecomputedVisibilityHandler.UpdateScene(World->Scene);
-				Level->PrecomputedVolumeDistanceField.UpdateScene(World->Scene);
+				Level->PrecomputedVisibilityHandler.UpdateScene(LightingContext.World->Scene);
+				Level->PrecomputedVolumeDistanceField.UpdateScene(LightingContext.World->Scene);
 			}
 
 			uint32 ActorCount = Level->Actors.Num();
@@ -1334,6 +1330,8 @@ void FStaticLightingSystem::ApplyNewLightingData(bool bLightingSuccessful)
 
 				if (Actor && bLightingSuccessful && !Options.bOnlyBuildSelected)
 				{
+					UMapBuildDataRegistry* Registry = LightingContext.GetOrCreateRegistryForActor(Actor);
+
 					TInlineComponentArray<ULightComponent*> LightComponents;
 					Actor->GetComponents(LightComponents);
 
@@ -1368,6 +1366,8 @@ void FStaticLightingSystem::ApplyNewLightingData(bool bLightingSuccessful)
 			}
 
 			const bool bBuildLightingForLevel = Options.ShouldBuildLightingForLevel( Level );
+
+			UMapBuildDataRegistry* Registry = LightingContext.GetRegistryForLevel(Level);
 
 			// Store off the quality of the lighting for the level if lighting was successful and we build lighting for this level.
 			if( bLightingSuccessful && bBuildLightingForLevel )
@@ -1409,7 +1409,7 @@ void FStaticLightingSystem::ApplyNewLightingData(bool bLightingSuccessful)
 		CollectGarbage( GARBAGE_COLLECTION_KEEPFLAGS );
 
 		// Commit the changes to the world's BSP surfaces.
-		World->CommitModelSurfaces();
+		LightingContext.World->CommitModelSurfaces();
 	}
 
 	// Report failed lighting build (don't count cancelled builds as failure).
@@ -1561,9 +1561,9 @@ void FStaticLightingSystem::ReportStatistics()
 			, 100.0f * float(GNumShadowmapTotalTexels - GNumShadowmapMappedTexels - GNumShadowmapUnmappedTexels) / NumShadowmapTotalTexels
 			);
 
-		for ( int32 LevelIndex=0; LevelIndex < World->GetNumLevels(); LevelIndex++ )
+		for ( int32 LevelIndex=0; LevelIndex < LightingContext.World->GetNumLevels(); LevelIndex++ )
 		{
-			ULevel* Level = World->GetLevel(LevelIndex);
+			ULevel* Level = LightingContext.World->GetLevel(LevelIndex);
 			UE_LOG(LogStaticLightingSystem, Log,  TEXT("Level %2d - Lightmaps: %.1f MB. Shadowmaps: %.1f MB."), LevelIndex, Level->LightmapTotalSize/1024.0f, Level->ShadowmapTotalSize/1024.0f );
 		}
 	}
@@ -1741,7 +1741,7 @@ void FStaticLightingSystem::AddBSPStaticLightingInfo(ULevel* Level, bool bBuildL
 				UModelComponent* Component = Level->ModelComponents[Node.ComponentIndex];
 				if (Component->VisibilityId == INDEX_NONE)
 				{
-					if (World->GetWorldSettings()->bPrecomputeVisibility)
+					if (LightingContext.World->GetWorldSettings()->bPrecomputeVisibility)
 					{
 						// Make sure packages gets dirtied since we are changing the visibility Id of a component in them
 						PackagesToDirty.Add(Component->GetPackage());
@@ -2006,7 +2006,7 @@ bool FStaticLightingSystem::CreateLightmassProcessor()
 	
 	GWarn->StatusForceUpdate( -1, -1, LOCTEXT("StartingSwarmConnectionStatus", "Starting up Swarm Connection...") );
 	
-	if (Options.bOnlyBuildVisibility && !World->GetWorldSettings()->bPrecomputeVisibility)
+	if (Options.bOnlyBuildVisibility && !LightingContext.World->GetWorldSettings()->bPrecomputeVisibility)
 	{
 		FMessageDialog::Open( EAppMsgType::Ok, NSLOCTEXT("UnrealEd", "BuildFailed_VisibilityOnlyButVisibilityDisabled", "'Build Only Visibility' option was enabled but precomputed visibility is disabled!  Aborting build."));
 		return false;
@@ -2062,7 +2062,7 @@ void FStaticLightingSystem::GatherScene()
 	check(LightmassExporter);
 
 	// The Level settings...
-	AWorldSettings* WorldSettings = World->GetWorldSettings();
+	AWorldSettings* WorldSettings = LightingContext.World->GetWorldSettings();
 	if (WorldSettings)
 	{
 		LightmassExporter->SetLevelSettings(WorldSettings->LightmassSettings);
@@ -2075,16 +2075,16 @@ void FStaticLightingSystem::GatherScene()
 	LightmassExporter->SetNumUnusedLocalCores(Options.NumUnusedLocalCores);
 	LightmassExporter->SetQualityLevel(Options.QualityLevel);
 
-	if (World->PersistentLevel && Options.ShouldBuildLightingForLevel( World->PersistentLevel ))
+	if (LightingContext.World->PersistentLevel && Options.ShouldBuildLightingForLevel(LightingContext.World->PersistentLevel ))
 	{
-		LightmassExporter->SetLevelName(World->PersistentLevel->GetPathName());
+		LightmassExporter->SetLevelName(LightingContext.World->PersistentLevel->GetPathName());
 	}
 
 	LightmassExporter->ClearImportanceVolumes();
 	for( TObjectIterator<ALightmassImportanceVolume> It ; It ; ++It )
 	{
 		ALightmassImportanceVolume* LMIVolume = *It;
-		if (World->ContainsActor(LMIVolume) && IsValid(LMIVolume) && ShouldOperateOnLevel(LMIVolume->GetLevel()))
+		if (LightingContext.World->ContainsActor(LMIVolume) && IsValid(LMIVolume) && ShouldOperateOnLevel(LMIVolume->GetLevel()))
 		{
 			LightmassExporter->AddImportanceVolume(LMIVolume);
 		}
@@ -2093,7 +2093,7 @@ void FStaticLightingSystem::GatherScene()
 	for( TObjectIterator<ALightmassCharacterIndirectDetailVolume> It ; It ; ++It )
 	{
 		ALightmassCharacterIndirectDetailVolume* LMDetailVolume = *It;
-		if (World->ContainsActor(LMDetailVolume) && IsValid(LMDetailVolume) && ShouldOperateOnLevel(LMDetailVolume->GetLevel()))
+		if (LightingContext.World->ContainsActor(LMDetailVolume) && IsValid(LMDetailVolume) && ShouldOperateOnLevel(LMDetailVolume->GetLevel()))
 		{
 			LightmassExporter->AddCharacterIndirectDetailVolume(LMDetailVolume);
 		}
@@ -2102,7 +2102,7 @@ void FStaticLightingSystem::GatherScene()
 	for (TObjectIterator<AVolumetricLightmapDensityVolume> It; It; ++It)
 	{
 		AVolumetricLightmapDensityVolume* DetailVolume = *It;
-		if (World->ContainsActor(DetailVolume) && IsValid(DetailVolume) && ShouldOperateOnLevel(DetailVolume->GetLevel()))
+		if (LightingContext.World->ContainsActor(DetailVolume) && IsValid(DetailVolume) && ShouldOperateOnLevel(DetailVolume->GetLevel()))
 		{
 			LightmassExporter->VolumetricLightmapDensityVolumes.Add(DetailVolume);
 		}
@@ -2111,7 +2111,7 @@ void FStaticLightingSystem::GatherScene()
 	for( TObjectIterator<ULightmassPortalComponent> It ; It ; ++It )
 	{
 		ULightmassPortalComponent* LMPortal = *It;
-		if (LMPortal->GetOwner() && World->ContainsActor(LMPortal->GetOwner()) && IsValid(LMPortal) && ShouldOperateOnLevel(LMPortal->GetOwner()->GetLevel()))
+		if (LMPortal->GetOwner() && LightingContext.World->ContainsActor(LMPortal->GetOwner()) && IsValid(LMPortal) && ShouldOperateOnLevel(LMPortal->GetOwner()->GetLevel()))
 		{
 			LightmassExporter->AddPortal(LMPortal);
 		}
@@ -2120,7 +2120,7 @@ void FStaticLightingSystem::GatherScene()
 	for (TObjectIterator<USkyAtmosphereComponent> It; It; ++It)
 	{
 		USkyAtmosphereComponent* SkyAtmosphere = *It;
-		if (SkyAtmosphere->GetOwner() && World->ContainsActor(SkyAtmosphere->GetOwner()) && IsValid(SkyAtmosphere) && ShouldOperateOnLevel(SkyAtmosphere->GetOwner()->GetLevel()))
+		if (SkyAtmosphere->GetOwner() && LightingContext.World->ContainsActor(SkyAtmosphere->GetOwner()) && IsValid(SkyAtmosphere) && ShouldOperateOnLevel(SkyAtmosphere->GetOwner()->GetLevel()))
 		{
 			LightmassExporter->SetSkyAtmosphereComponent(SkyAtmosphere);
 			break;	// We only register the first we find
@@ -2268,7 +2268,7 @@ bool FStaticLightingSystem::FinishLightmassProcess()
 			if (!Options.bOnlyBuildVisibility)
 			{
 				FLightmassStatistics::FScopedGather FinishStatScope(LightmassStatistics.FinishingTime);
-				ULightComponent::ReassignStationaryLightChannels(GWorld, true, LightingScenario);
+				ULightComponent::ReassignStationaryLightChannels(GWorld, true, &LightingContext);
 			}
 		}
 	
@@ -2353,9 +2353,9 @@ void FStaticLightingSystem::UpdateLightingBuild()
 		
 		FString ScenarioString;
 
-		if (LightingScenario)
+		if (LightingContext.LightingScenario)
 		{
-			FString PackageName = FPackageName::GetShortName(LightingScenario->GetOutermost()->GetName());
+			FString PackageName = FPackageName::GetShortName(LightingContext.LightingScenario->GetOutermost()->GetName());
 			ScenarioString = FString(TEXT(" for ")) + PackageName;
 		}
 
@@ -2414,8 +2414,8 @@ void FStaticLightingSystem::UpdateAutomaticImportanceVolumeBounds( const FBox& M
 
 void FStaticLightingSystem::GatherBuildDataResourcesToKeep(const ULevel* InLevel)
 {
-	// This is only required is using a lighting scenario, otherwise the build data is saved within the level itself and follows it's inclusion in the lighting build.
-	if (InLevel && LightingScenario)
+	// This is only required is using a lighting scenario, otherwise the build data is saved within the level itself and follows it's inclusion in the lighting build.	
+	if (InLevel && LightingContext.LightingScenario)
 	{
 		BuildDataResourcesToKeep.Add(InLevel->LevelBuildDataId);
 
@@ -2494,12 +2494,17 @@ void FStaticLightingSystem::ApplyMapping(
 	FQuantizedLightmapData* QuantizedData,
 	const TMap<ULightComponent*,FShadowMapData2D*>& ShadowMapData) const
 {
-	TextureMapping->Apply(QuantizedData, ShadowMapData, LightingScenario);
+	TextureMapping->Apply(QuantizedData, ShadowMapData, &LightingContext);
 }
 
 UWorld* FStaticLightingSystem::GetWorld() const
 {
-	return World;
+	return LightingContext.World;
+}
+
+const FStaticLightingBuildContext& FStaticLightingSystem::GetLightingContext() const
+{
+	return LightingContext;
 }
 
 bool FStaticLightingSystem::IsAsyncBuilding() const

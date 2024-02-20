@@ -611,7 +611,7 @@ public:
 	}
 
 	// FStaticLightingTextureMapping interface
-	virtual void Apply(FQuantizedLightmapData* InQuantizedData, const TMap<ULightComponent*, FShadowMapData2D*>& InShadowMapData, ULevel* LightingScenario) override
+	virtual void Apply(FQuantizedLightmapData* InQuantizedData, const TMap<ULightComponent*, FShadowMapData2D*>& InShadowMapData, const FStaticLightingBuildContext* LightingContext) override
 	{
 		check(bComplete == false);
 
@@ -627,7 +627,7 @@ public:
 				ShadowMapData.Add(ShadowDataPair.Key, TUniquePtr<FShadowMapData2D>(ShadowDataPair.Value));
 			}
 
-			InstancedComponent->ApplyLightMapping(this, LightingScenario);
+			InstancedComponent->ApplyLightMapping(this, LightingContext);
 		}
 
 		bComplete = true;

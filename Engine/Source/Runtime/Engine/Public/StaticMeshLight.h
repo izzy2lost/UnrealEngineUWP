@@ -108,10 +108,10 @@ public:
 	/** Initialization constructor. */
 	FStaticMeshStaticLightingTextureMapping(UStaticMeshComponent* InPrimitive,int32 InLODIndex,FStaticLightingMesh* InMesh,int32 InSizeX,int32 InSizeY,int32 InTextureCoordinateIndex,bool bPerformFullQualityRebuild);
 
+#if WITH_EDITOR		
 	// FStaticLightingTextureMapping interface
-	virtual void Apply(FQuantizedLightmapData* QuantizedData, const TMap<ULightComponent*,FShadowMapData2D*>& ShadowMapData, ULevel* LightingScenario) override;
+	ENGINE_API virtual void Apply(FQuantizedLightmapData* QuantizedData, const TMap<ULightComponent*,FShadowMapData2D*>& ShadowMapData, const FStaticLightingBuildContext* LightingContext) override;
 
-#if WITH_EDITOR
 	/** 
 	 * Export static lighting mapping instance data to an exporter 
 	 * @param Exporter - export interface to process static lighting data

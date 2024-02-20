@@ -377,6 +377,18 @@ public:
 		or called by PostLoad for legacy BuildData with old EncodedData
 	*/
 	ENGINE_API void HandleLegacyEncodedCubemapData();
+
+	/** 
+	    Various helpers to access the UUMapBuildDataRegistry, necessary since the access patterns
+		are different in WorldPartition maps than in map. 
+	*/
+
+	/** Returns the associated UUMapBuildDataRegistry for an Actor Component */
+	ENGINE_API static UMapBuildDataRegistry* Get(const UActorComponent* Component);
+
+	/** Returns the associated UUMapBuildDataRegistry for an Actor */
+	ENGINE_API static UMapBuildDataRegistry* Get(const AActor* Actor);
+	
 private:
 #if WITH_EDITOR
 	void HandleAssetPostCompileEvent(const TArray<FAssetCompileData>& CompiledAssets);

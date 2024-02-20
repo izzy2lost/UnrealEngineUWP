@@ -12,6 +12,7 @@ LandscapeLight.cpp: Static lighting for LandscapeComponents
 #include "LightMap.h"
 #include "Engine/Level.h"
 #include "Engine/MapBuildDataRegistry.h"
+#include "StaticLightingBuildContext.h"
 #include "Components/LightComponent.h"
 #include "ShadowMap.h"
 #include "LandscapeComponent.h"
@@ -44,7 +45,7 @@ FStaticLightingTextureMapping(
 {
 }
 
-void FLandscapeStaticLightingTextureMapping::Apply(FQuantizedLightmapData* QuantizedData, const TMap<ULightComponent*,FShadowMapData2D*>& ShadowMapData, ULevel* LightingScenario)
+void FLandscapeStaticLightingTextureMapping::Apply(FQuantizedLightmapData* QuantizedData, const TMap<ULightComponent*,FShadowMapData2D*>& ShadowMapData, const FStaticLightingBuildContext* LightingContext)
 {
 	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTexturedLightmaps"));
 	const bool bUseVirtualTextures = (CVar->GetValueOnAnyThread() != 0) && UseVirtualTexturing(GMaxRHIShaderPlatform);
@@ -52,8 +53,7 @@ void FLandscapeStaticLightingTextureMapping::Apply(FQuantizedLightmapData* Quant
 	//ELightMapPaddingType PaddingType = GAllowLightmapPadding ? LMPT_NormalPadding : LMPT_NoPadding;
 	ELightMapPaddingType PaddingType = LMPT_NoPadding;
 
-	ULevel* StorageLevel = LightingScenario ? LightingScenario : LandscapeComponent->GetOwner()->GetLevel();
-	UMapBuildDataRegistry* Registry = StorageLevel->GetOrCreateMapBuildData();
+	UMapBuildDataRegistry* Registry = LightingContext->GetOrCreateRegistryForActor(LandscapeComponent->GetOwner());
 	FMeshMapBuildData& MeshBuildData = Registry->AllocateMeshBuildData(LandscapeComponent->MapBuildDataId, true);
 
 	const bool bHasNonZeroData = QuantizedData != NULL && QuantizedData->HasNonZeroData();

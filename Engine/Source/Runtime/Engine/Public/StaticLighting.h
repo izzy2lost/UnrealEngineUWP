@@ -12,6 +12,7 @@
 #include "Components.h"
 
 class FStaticLightingMapping;
+class FStaticLightingBuildContext;
 class FStaticLightingTextureMapping;
 class ULevel;
 class ULightComponent;
@@ -395,7 +396,7 @@ public:
 	 * This function is responsible for deleting ShadowMapData and QuantizedData.
 	 * @param LightMapData - The light-map data which has been computed for the mapping.
 	 */
-	virtual void Apply(struct FQuantizedLightmapData* QuantizedData, const TMap<ULightComponent*,class FShadowMapData2D*>& ShadowMapData, ULevel* LightingScenario) = 0;
+	ENGINE_API virtual void Apply(struct FQuantizedLightmapData* QuantizedData, const TMap<ULightComponent*,class FShadowMapData2D*>& ShadowMapData, const FStaticLightingBuildContext* LightingContext) = 0;
 
 	// FStaticLightingMapping interface.
 	virtual FStaticLightingTextureMapping* GetTextureMapping()
@@ -438,7 +439,7 @@ public:
 	/** Initialization constructor. */
 	ENGINE_API FStaticLightingGlobalVolumeMapping(FStaticLightingMesh* InMesh, UObject* InOwner, int32 InSizeX, int32 InSizeY, int32 InLightmapTextureCoordinateIndex);
 
-	virtual void Apply(struct FQuantizedLightmapData* QuantizedData, const TMap<ULightComponent*,class FShadowMapData2D*>& ShadowMapData, ULevel* LightingScenario) override
+	virtual void Apply(struct FQuantizedLightmapData* QuantizedData, const TMap<ULightComponent*,class FShadowMapData2D*>& ShadowMapData, const FStaticLightingBuildContext* LightingContext) override
 	{
 		// Should never be processed
 		check(false);

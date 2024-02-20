@@ -645,31 +645,9 @@ const FMeshMapBuildData* UStaticMeshComponent::GetMeshMapBuildData(const FStatic
 		return LODInfo.OverrideMapBuildData.Get();
 	}
 
-	AActor* Owner = GetOwner();
-
-	if (Owner)
+	if (UMapBuildDataRegistry* MapBuildData = UMapBuildDataRegistry::Get(this))
 	{
-		ULevel* OwnerLevel = Owner->GetLevel();
-
-		if (OwnerLevel && OwnerLevel->OwningWorld)
-		{
-			ULevel* ActiveLightingScenario = OwnerLevel->OwningWorld->GetActiveLightingScenario();
-			UMapBuildDataRegistry* MapBuildData = NULL;
-
-			if (ActiveLightingScenario && ActiveLightingScenario->MapBuildData)
-			{
-				MapBuildData = ActiveLightingScenario->MapBuildData;
-			}
-			else if (OwnerLevel->MapBuildData)
-			{
-				MapBuildData = OwnerLevel->MapBuildData;
-			}
-
-			if (MapBuildData)
-			{
-				return bCheckForResourceCluster ? MapBuildData->GetMeshBuildData(LODInfo.MapBuildDataId) : MapBuildData->GetMeshBuildDataDuringBuild(LODInfo.MapBuildDataId);
-			}
-		}
+		return bCheckForResourceCluster ? MapBuildData->GetMeshBuildData(LODInfo.MapBuildDataId) : MapBuildData->GetMeshBuildDataDuringBuild(LODInfo.MapBuildDataId);
 	}
 	
 	return NULL;

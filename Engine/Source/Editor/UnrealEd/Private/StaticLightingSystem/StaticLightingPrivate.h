@@ -14,6 +14,8 @@
 #include "StaticLighting.h"
 #include "LightingBuildOptions.h"
 #include "Templates/UniquePtr.h"
+#include "Engine/MapBuildDataRegistry.h"
+#include "StaticLightingBuildContext.h"
 
 class FCanvas;
 class FLightmassProcessor;
@@ -265,9 +267,9 @@ public:
 	/**
 	 * Initializes this static lighting system, and builds static lighting based on the provided options.
 	 * @param InOptions - The static lighting build options.
-	 * @param InWorld -   The world we wish to build the lighting for
+	 * @param InContext - The context (world, lighting scenario, world subsection, data layers)  we wish to build the lighting for
 	 */
-	FStaticLightingSystem(const FLightingBuildOptions& InOptions, UWorld* InWorld, ULevel* InLightingScenario);
+	FStaticLightingSystem(const FLightingBuildOptions& InOptions, const FStaticLightingBuildContext& InContext);
 	~FStaticLightingSystem();
 
 	bool CheckLightmassExecutableVersion();
@@ -293,6 +295,9 @@ public:
 	/** Get the UWorld this light system was created with */
 	UWorld*	 GetWorld() const;
 
+	/** Get the Lighting Context this light system was created with */
+	const FStaticLightingBuildContext& GetLightingContext() const;
+
 	/** True if the current stage of building is asynchronous (lightmass in flight) */
 	bool IsAsyncBuilding() const;
 
@@ -300,7 +305,7 @@ public:
 
 	bool ShouldOperateOnLevel(ULevel* InLevel) const
 	{
-		return InLevel && (!InLevel->bIsLightingScenario || InLevel == LightingScenario) && InLevel->bIsVisible;
+		return InLevel && LightingContext.ShouldIncludeLevel(InLevel) && InLevel->bIsVisible;
 	}
 
 private:
@@ -428,16 +433,13 @@ private:
 	double ProcessingStartTime;
 	double WaitForUserAcceptStartTime;
 	
-	/** The world this light system was created with */
-	UWorld*	 World;
-
-	/** The lighting scenario that's currently being built, if any.  When valid, any outputs of the lighting build should go into this level's MapBuildData. */
-	ULevel* LightingScenario;
+	/** The lighting context (world, scenario, cells, datalayer) that's currently being built, if any.  */
+	FStaticLightingBuildContext	LightingContext;
 
 	/** The resource guid for all hidden/excluded levels. Used to keep those level data valid. */
 	TSet<FGuid> BuildDataResourcesToKeep;
 
-	/** A handle on the processor that actually interfacets with Lightmass */
+	/** A handle on the processor that actually interfaces with Lightmass */
 	class FLightmassProcessor* LightmassProcessor;
 
 	friend FStaticLightingManager;

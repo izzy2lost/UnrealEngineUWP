@@ -18,6 +18,7 @@
 
 class FLightingBuildOptions;
 class FPrimitiveSceneProxy;
+class FStaticLightingBuildContext;
 class FStaticLightingTextureMapping_InstancedStaticMesh;
 class ULightComponent;
 struct FNavigableGeometryExport;
@@ -683,7 +684,7 @@ protected:
 	UPROPERTY(Transient, DuplicateTransient, TextExportTransient)
 	TArray<FInstancedStaticMeshMappingInfo> CachedMappings;
 
-	ENGINE_API void ApplyLightMapping(FStaticLightingTextureMapping_InstancedStaticMesh* InMapping, ULevel* LightingScenario);
+	ENGINE_API void ApplyLightMapping(FStaticLightingTextureMapping_InstancedStaticMesh* InMapping, const FStaticLightingBuildContext* LightingContext);
 	
 	ENGINE_API void CreateHitProxyData(TArray<TRefCountPtr<HHitProxy>>& HitProxies);
 

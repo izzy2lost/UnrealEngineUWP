@@ -12,6 +12,7 @@
 #include "StaticMeshResources.h"
 #include "LightMap.h"
 #include "Engine/MapBuildDataRegistry.h"
+#include "StaticLightingBuildContext.h"
 #include "Components/LightComponent.h"
 #include "ShadowMap.h"
 #include "Engine/StaticMesh.h"
@@ -208,8 +209,9 @@ FStaticMeshStaticLightingTextureMapping::FStaticMeshStaticLightingTextureMapping
 	LODIndex(InLODIndex)
 {}
 
+#if WITH_EDITOR
 // FStaticLightingTextureMapping interface
-void FStaticMeshStaticLightingTextureMapping::Apply(FQuantizedLightmapData* QuantizedData, const TMap<ULightComponent*,FShadowMapData2D*>& ShadowMapData, ULevel* LightingScenario)
+void FStaticMeshStaticLightingTextureMapping::Apply(FQuantizedLightmapData* QuantizedData, const TMap<ULightComponent*,FShadowMapData2D*>& ShadowMapData, const FStaticLightingBuildContext* LightingContext)
 {
 	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTexturedLightmaps"));
 	const bool bUseVirtualTextures = (CVar->GetValueOnAnyThread() != 0) && UseVirtualTexturing(GMaxRHIShaderPlatform);
@@ -243,8 +245,7 @@ void FStaticMeshStaticLightingTextureMapping::Apply(FQuantizedLightmapData* Quan
 		ELightMapPaddingType PaddingType = GAllowLightmapPadding ? LMPT_NormalPadding : LMPT_NoPadding;
 		const bool bHasNonZeroData = (QuantizedData != NULL && QuantizedData->HasNonZeroData());
 
-		ULevel* StorageLevel = LightingScenario ? LightingScenario : StaticMeshComponent->GetOwner()->GetLevel();
-		UMapBuildDataRegistry* Registry = StorageLevel->GetOrCreateMapBuildData();
+		UMapBuildDataRegistry* Registry = LightingContext->GetOrCreateRegistryForActor(StaticMeshComponent->GetOwner());
 		FMeshMapBuildData& MeshBuildData = Registry->AllocateMeshBuildData(ComponentLODInfo.MapBuildDataId, true);
 
 		// We always create a light map if the surface either has any non-zero lighting data, or if the surface has a shadow map.  The runtime
@@ -306,7 +307,6 @@ void FStaticMeshStaticLightingTextureMapping::Apply(FQuantizedLightmapData* Quan
 	}
 }
 
-#if WITH_EDITOR
 void UStaticMeshComponent::GetStaticLightingInfo(FStaticLightingPrimitiveInfo& OutPrimitiveInfo,const TArray<ULightComponent*>& InRelevantLights,const FLightingBuildOptions& Options)
 {
 	if( HasValidSettingsForStaticLighting(false) )

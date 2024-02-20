@@ -7,6 +7,7 @@
 #include "ModelLight.h"
 #include "Engine/Level.h"
 #include "Engine/MapBuildDataRegistry.h"
+#include "StaticLightingBuildContext.h"
 #include "Components/LightComponent.h"
 #include "Misc/ScopedSlowTask.h"
 #include "ComponentReregisterContext.h"
@@ -155,7 +156,7 @@ FLightRayIntersection FBSPSurfaceStaticLighting::IntersectLightRay(const FVector
 }
 
 #if WITH_EDITOR
-void FBSPSurfaceStaticLighting::Apply(FQuantizedLightmapData* InQuantizedData, const TMap<ULightComponent*,FShadowMapData2D*>& InShadowMapData, ULevel* LightingScenario)
+void FBSPSurfaceStaticLighting::Apply(FQuantizedLightmapData* InQuantizedData, const TMap<ULightComponent*,FShadowMapData2D*>& InShadowMapData, const FStaticLightingBuildContext* LightingContext)
 {
 	if(!bComplete)
 	{
@@ -171,7 +172,7 @@ void FBSPSurfaceStaticLighting::Apply(FQuantizedLightmapData* InQuantizedData, c
 	// If all the surfaces have complete static lighting, apply the component's static lighting.
 	if(Model->NumIncompleteNodeGroups == 0)
 	{
-		Model->ApplyStaticLighting(LightingScenario);
+		Model->ApplyStaticLighting(LightingContext);
 	}
 }
 
@@ -994,7 +995,7 @@ void UModel::GroupAllNodes(ULevel* Level, const TArray<ULightComponentBase*>& Li
 /**
  * Applies all of the finished lighting cached in the NodeGroups 
  */
-void UModel::ApplyStaticLighting(ULevel* LightingScenario)
+void UModel::ApplyStaticLighting(const FStaticLightingBuildContext* LightingContext)
 {
 #if WITH_EDITOR
 	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTexturedLightmaps"));
@@ -1216,8 +1217,7 @@ void UModel::ApplyStaticLighting(ULevel* LightingScenario)
 		const bool bHasRelevantLights = SurfaceGroup.Surfaces.ContainsByPredicate([](const FSurfaceStaticLightingGroup::FSurfaceInfo& SurfaceInfo) { return SurfaceInfo.SurfaceStaticLighting->RelevantLights.Num() > 0; });
 		const bool bNeedsLightMap = bHasNonZeroData || SurfaceGroup.ShadowMappedLights.Num() > 0 || bHasRelevantLights || GroupQuantizedData->bHasSkyShadowing;
 
-		ULevel* StorageLevel = LightingScenario ? LightingScenario : LightingLevel;
-		UMapBuildDataRegistry* Registry = StorageLevel->GetOrCreateMapBuildData();
+		UMapBuildDataRegistry* Registry = LightingContext->GetOrCreateRegistryForLevel(LightingLevel);
 
 		// Allocate merged shadow-map data.
 		TMap<ULightComponent*,FShadowMapData2D*> GroupShadowMapData;

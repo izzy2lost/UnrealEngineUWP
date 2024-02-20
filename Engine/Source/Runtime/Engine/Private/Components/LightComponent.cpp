@@ -9,6 +9,7 @@
 #include "ColorSpace.h"
 #include "Engine/Level.h"
 #include "Engine/MapBuildDataRegistry.h"
+#include "StaticLightingBuildContext.h"
 #include "Engine/World.h"
 #include "Materials/Material.h"
 #include "MaterialDomain.h"
@@ -1264,6 +1265,7 @@ void ULightComponent::InvalidateLightingCacheDetailed(bool bInvalidateBuildEnque
 		// Create new guids for light.
 		UpdateLightGUIDs();
 
+#if WITH_EDITOR
 		if (GIsEditor)
 		{
 			UWorld* World = GetWorld();
@@ -1273,6 +1275,7 @@ void ULightComponent::InvalidateLightingCacheDetailed(bool bInvalidateBuildEnque
 				ReassignStationaryLightChannels(World, false, NULL);
 			}
 		}
+#endif
 
 		MarkRenderStateDirty();
 
@@ -1349,17 +1352,7 @@ const FLightComponentMapBuildData* ULightComponent::GetLightComponentMapBuildDat
 			}
 #endif
 
-			ULevel* ActiveLightingScenario = OwnerLevel->OwningWorld->GetActiveLightingScenario();
-			UMapBuildDataRegistry* MapBuildData = NULL;
-
-			if (ActiveLightingScenario && ActiveLightingScenario->MapBuildData)
-			{
-				MapBuildData = ActiveLightingScenario->MapBuildData;
-			}
-			else if (OwnerLevel->MapBuildData)
-			{
-				MapBuildData = OwnerLevel->MapBuildData;
-			}
+			UMapBuildDataRegistry* MapBuildData = UMapBuildDataRegistry::Get(this);
 
 			if (MapBuildData)
 			{
@@ -1480,7 +1473,9 @@ struct FCompareLightsByArrayCount
  * - finishing a lighting build
  * If you're adding more call sites to this function, make sure not to break GPULightmass as it is based on the above assumption
  */
-void ULightComponent::ReassignStationaryLightChannels(UWorld* TargetWorld, bool bAssignForLightingBuild, ULevel* LightingScenario)
+
+#if WITH_EDITOR
+void ULightComponent::ReassignStationaryLightChannels(UWorld* TargetWorld, bool bAssignForLightingBuild, FStaticLightingBuildContext* LightingContext)
 {
 	TMap<FLightAndChannel*, TArray<FLightAndChannel*> > LightToOverlapMap;
 
@@ -1497,9 +1492,7 @@ void ULightComponent::ReassignStationaryLightChannels(UWorld* TargetWorld, bool 
 			&& LightComponent->HasStaticShadowing()
 			&& !LightComponent->HasStaticLighting())
 		{
-			ULevel* LightLevel = LightOwner->GetLevel();
-
-			if (!LightingScenario || !LightLevel->bIsLightingScenario || LightLevel == LightingScenario)
+			if (!LightingContext || LightingContext->ShouldIncludeActor(LightOwner))
 			{				
 				if (LightComponent->bAffectsWorld
 					&& (LightComponent->CastShadows || LightComponent->LightFunctionMaterial)
@@ -1529,8 +1522,7 @@ void ULightComponent::ReassignStationaryLightChannels(UWorld* TargetWorld, bool 
 
 		if (bAssignForLightingBuild)
 		{
-			ULevel* StorageLevel = LightingScenario ? LightingScenario : CurrentLight->GetOwner()->GetLevel();
-			UMapBuildDataRegistry* Registry = StorageLevel->GetOrCreateMapBuildData();
+			UMapBuildDataRegistry* Registry = LightingContext->GetOrCreateRegistryForActor(CurrentLight->GetOwner());
 			FLightComponentMapBuildData& LightBuildData = Registry->FindOrAllocateLightBuildData(CurrentLight->LightGuid, true);
 			LightBuildData.ShadowMapChannel = INDEX_NONE;
 		}
@@ -1627,8 +1619,7 @@ void ULightComponent::ReassignStationaryLightChannels(UWorld* TargetWorld, bool 
 
 		if (bAssignForLightingBuild)
 		{
-			ULevel* StorageLevel = LightingScenario ? LightingScenario : CurrentLight->Light->GetOwner()->GetLevel();
-			UMapBuildDataRegistry* Registry = StorageLevel->GetOrCreateMapBuildData();
+			UMapBuildDataRegistry* Registry = LightingContext->GetOrCreateRegistryForActor(CurrentLight->Light->GetOwner());
 			FLightComponentMapBuildData& LightBuildData = Registry->FindOrAllocateLightBuildData(CurrentLight->Light->LightGuid, true);
 			LightBuildData.ShadowMapChannel = CurrentLight->Channel;
 
@@ -1643,6 +1634,7 @@ void ULightComponent::ReassignStationaryLightChannels(UWorld* TargetWorld, bool 
 		delete CurrentLight;
 	}
 }
+#endif
 
 static void ToggleLight(const TArray<FString>& Args)
 {
