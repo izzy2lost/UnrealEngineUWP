@@ -5,72 +5,11 @@
 =============================================================================*/
 #pragma once
 
-#include "CoreMinimal.h"
-#include "Misc/ConfigCacheIni.h"
-#include "RenderingThread.h"
-#include "RHI.h"
-
-#if PLATFORM_ANDROID
+#include "OpenGLThirdParty.h"
+#include "AndroidOpenGLPlatform.h"
 
 #include "AndroidEGL.h"
-
-#include <EGL/eglext.h>
-#include <EGL/eglplatform.h>
-#include <GLES2/gl2ext.h>
-	
-typedef GLsync			UGLsync;
-#define GLdouble		GLfloat
-typedef khronos_int64_t GLint64;
-typedef khronos_uint64_t GLuint64;
-#define GL_CLAMP		GL_CLAMP_TO_EDGE
-
 #include "OpenGLES.h"
-
-typedef khronos_stime_nanoseconds_t EGLnsecsANDROID;
-
-typedef GLboolean(GL_APIENTRYP PFNeglPresentationTimeANDROID) (EGLDisplay dpy, EGLSurface surface, EGLnsecsANDROID time);
-typedef GLboolean(GL_APIENTRYP PFNeglGetNextFrameIdANDROID) (EGLDisplay dpy, EGLSurface surface, EGLuint64KHR *frameId);
-typedef GLboolean(GL_APIENTRYP PFNeglGetCompositorTimingANDROID) (EGLDisplay dpy, EGLSurface surface, EGLint numTimestamps, const EGLint *names, EGLnsecsANDROID *values);
-typedef GLboolean(GL_APIENTRYP PFNeglGetFrameTimestampsANDROID) (EGLDisplay dpy, EGLSurface surface, EGLuint64KHR frameId, EGLint numTimestamps, const EGLint *timestamps, EGLnsecsANDROID *values);
-typedef GLboolean(GL_APIENTRYP PFNeglQueryTimestampSupportedANDROID) (EGLDisplay dpy, EGLSurface surface, EGLint timestamp);
-
-#define EGL_TIMESTAMPS_ANDROID 0x3430
-#define EGL_COMPOSITE_DEADLINE_ANDROID 0x3431
-#define EGL_COMPOSITE_INTERVAL_ANDROID 0x3432
-#define EGL_COMPOSITE_TO_PRESENT_LATENCY_ANDROID 0x3433
-#define EGL_REQUESTED_PRESENT_TIME_ANDROID 0x3434
-#define EGL_RENDERING_COMPLETE_TIME_ANDROID 0x3435
-#define EGL_COMPOSITION_LATCH_TIME_ANDROID 0x3436
-#define EGL_FIRST_COMPOSITION_START_TIME_ANDROID 0x3437
-#define EGL_LAST_COMPOSITION_START_TIME_ANDROID 0x3438
-#define EGL_FIRST_COMPOSITION_GPU_FINISHED_TIME_ANDROID 0x3439
-#define EGL_DISPLAY_PRESENT_TIME_ANDROID 0x343A
-#define EGL_DEQUEUE_READY_TIME_ANDROID 0x343B
-#define EGL_READS_DONE_TIME_ANDROID 0x343C
-
-
-extern "C"
-{
-	extern PFNEGLGETSYSTEMTIMENVPROC eglGetSystemTimeNV_p;
-	extern PFNEGLCREATESYNCKHRPROC eglCreateSyncKHR_p;
-	extern PFNEGLDESTROYSYNCKHRPROC eglDestroySyncKHR_p;
-	extern PFNEGLCLIENTWAITSYNCKHRPROC eglClientWaitSyncKHR_p;
-	extern PFNEGLGETSYNCATTRIBKHRPROC eglGetSyncAttribKHR_p;
-
-	extern PFNeglPresentationTimeANDROID eglPresentationTimeANDROID_p;
-	extern PFNeglGetNextFrameIdANDROID eglGetNextFrameIdANDROID_p;
-	extern PFNeglGetCompositorTimingANDROID eglGetCompositorTimingANDROID_p;
-	extern PFNeglGetFrameTimestampsANDROID eglGetFrameTimestampsANDROID_p;
-	extern PFNeglQueryTimestampSupportedANDROID eglQueryTimestampSupportedANDROID_p;
-	extern PFNeglQueryTimestampSupportedANDROID eglGetCompositorTimingSupportedANDROID_p;
-	extern PFNeglQueryTimestampSupportedANDROID eglGetFrameTimestampsSupportedANDROID_p;
-}
-
-namespace GLFuncPointers
-{
-	// GL_QCOM_shader_framebuffer_fetch_noncoherent
-	extern PFNGLFRAMEBUFFERFETCHBARRIERQCOMPROC	glFramebufferFetchBarrierQCOM;
-}
 
 struct FAndroidOpenGL : public FOpenGLES
 {
@@ -203,13 +142,4 @@ struct FAndroidOpenGL : public FOpenGLES
 	static void StopRemoteCompileServices();
 };
 
-typedef FAndroidOpenGL FOpenGL;
-
-
-/** Unreal tokens that maps to different OpenGL tokens by platform. */
-#undef UGL_DRAW_FRAMEBUFFER
-#define UGL_DRAW_FRAMEBUFFER	GL_DRAW_FRAMEBUFFER_NV
-#undef UGL_READ_FRAMEBUFFER
-#define UGL_READ_FRAMEBUFFER	GL_READ_FRAMEBUFFER_NV
-
-#endif // PLATFORM_ANDROID
+using FOpenGL = FAndroidOpenGL;

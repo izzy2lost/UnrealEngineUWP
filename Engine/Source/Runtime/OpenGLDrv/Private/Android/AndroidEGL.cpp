@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Android/AndroidPlatform.h"
+#include "AndroidEGL.h"
 
 #if USE_ANDROID_OPENGL
 

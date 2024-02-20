@@ -6,7 +6,9 @@
 
 #pragma once
 
-#define OPENGL_GL4		1
+#include "OpenGLPlatform.h"
+
+#if UGL_PLATFORM_SUPPORTS_GL4
 
 #include "UObject/UObjectHierarchyFwd.h"
 #include "Misc/AssertionMacros.h"
@@ -121,3 +123,5 @@ protected:
 
 	static bool bSupportsGPUMemoryInfo;
 };
+
+#endif // UGL_PLATFORM_SUPPORTS_GL4

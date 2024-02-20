@@ -6,28 +6,15 @@
 
 #pragma once
 
-#include "UObject/UObjectHierarchyFwd.h"
-#include "Misc/AssertionMacros.h"
-#include "HAL/UnrealMemory.h"
-#include "Containers/Array.h"
-#include "Containers/UnrealString.h"
-#include "Misc/Parse.h"
-#include "Containers/StringConv.h"
-#include "CoreGlobals.h"
+#include "OpenGLPlatform.h"
+
+#if UGL_PLATFORM_SUPPORTS_GL3
+
 #include "Containers/Map.h"
-#include "CoreMinimal.h"
-#include "Misc/CommandLine.h"
+#include "OpenGLBase.h"
 
 struct FPlatformOpenGLContext;
 struct FPlatformOpenGLDevice;
-
-template<typename KeyType,typename ValueType,typename SetAllocator ,typename KeyFuncs > class TMap;
-
-typedef GLsync UGLsync;
-
-#define OPENGL_GL3		1
-
-#include "OpenGL.h"
 
 #define USE_OPENGL_NAME_CACHE 1
 #define OPENGL_NAME_CACHE_SIZE 1024
@@ -652,3 +639,5 @@ protected:
 	static bool bDebugContext;
 	static bool bAndroidGLESCompatibilityMode;
 };
+
+#endif // UGL_PLATFORM_SUPPORTS_GL3

@@ -18,27 +18,15 @@
 #include "Templates/EnableIf.h"
 #include "BoundShaderStateHistory.h"
 
-// @todo platplug: Replace all of these includes with a call to COMPILED_PLATFORM_HEADER(OpenGLDrvPrivate.h)
-//TODO: Move these to OpenGLDrvPrivate.h
-#if PLATFORM_WINDOWS
-	#include "Windows/OpenGLWindows.h"
-#elif PLATFORM_LINUX
-	#include "Linux/OpenGLLinux.h"
-#elif PLATFORM_ANDROID
-	#include "Android/AndroidOpenGL.h"
-#else
-#include COMPILED_PLATFORM_HEADER(OpenGLDrvPrivate.h)
-#endif
+#include "OpenGLState.h"
+#include "OpenGLPlatform.h"
+#include "OpenGLUtil.h"
+#include "RenderUtils.h"
 
 // Define here so don't have to do platform filtering
 #ifndef GL_TEXTURE_EXTERNAL_OES
 #define GL_TEXTURE_EXTERNAL_OES 0x8D65
 #endif
-
-// OpenGL RHI public headers.
-#include "OpenGLUtil.h"
-#include "OpenGLState.h"
-#include "RenderUtils.h"
 
 #define FOpenGLCachedUniformBuffer_Invalid 0xFFFFFFFF
 

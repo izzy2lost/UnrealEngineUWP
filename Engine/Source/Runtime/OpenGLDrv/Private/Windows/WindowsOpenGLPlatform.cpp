@@ -1,23 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-/*=============================================================================
-	OpenGLWindowsLoader.cpp: Manual loading of OpenGL functions from DLL.
-=============================================================================*/
+#include "WindowsOpenGLPlatform.h"
 
-#include "OpenGLDrvPrivate.h"
 #include "Misc/ScopeLock.h"
+#include "OpenGLDrvPrivate.h"
+#include "OpenGLUtil.h"
+#include "RHI.h"
 #include "RHIUtilities.h"
-
-/*------------------------------------------------------------------------------
-	OpenGL function pointers.
-------------------------------------------------------------------------------*/
-
-#define DEFINE_GL_ENTRYPOINTS(Type,Func) Type Func = NULL;
-ENUM_GL_ENTRYPOINTS_ALL(DEFINE_GL_ENTRYPOINTS);
-#undef DEFINE_GL_ENTRYPOINTS
-PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB = NULL;
-
-extern PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT_ProcAddress;	// set in OpenGLDevice.cpp
 
 bool GRunningUnderRenderDoc = false;
 
@@ -25,12 +14,12 @@ bool GRunningUnderRenderDoc = false;
 	OpenGL context management.
 ------------------------------------------------------------------------------*/
 
-static void ContextMakeCurrent( HDC DC, HGLRC RC )
+static void ContextMakeCurrent(HDC DC, HGLRC RC)
 {
-	BOOL Result = wglMakeCurrent( DC, RC );
+	BOOL Result = wglMakeCurrent(DC, RC);
 	if (!Result)
 	{
-		Result = wglMakeCurrent( nullptr, nullptr );
+		Result = wglMakeCurrent(nullptr, nullptr);
 	}
 	check(Result);
 }
@@ -58,7 +47,7 @@ struct FPlatformOpenGLContext
 class FScopeContext
 {
 public:
-	FScopeContext( FPlatformOpenGLContext* Context )
+	FScopeContext(FPlatformOpenGLContext* Context)
 	{
 		check(Context);
 		PrevDC = wglGetCurrentDC();
@@ -67,27 +56,27 @@ public:
 		bSameDCAndContext = (PrevContext == Context->OpenGLContext) && bSameDC;
 		if (!bSameDCAndContext)
 		{
-//			if (PrevContext)
-//			{
-//				glFlush();
-//			}
-			// no need to glFlush() on Windows, it does flush by itself before switching contexts
-			ContextMakeCurrent(Context->DeviceContext,Context->OpenGLContext);
+			//			if (PrevContext)
+			//			{
+			//				glFlush();
+			//			}
+						// no need to glFlush() on Windows, it does flush by itself before switching contexts
+			ContextMakeCurrent(Context->DeviceContext, Context->OpenGLContext);
 		}
 	}
 
-	~FScopeContext( void )
+	~FScopeContext(void)
 	{
 		if (!bSameDCAndContext)
 		{
-//			glFlush();	// not needed on Windows, it does flush by itself before switching contexts
+			//			glFlush();	// not needed on Windows, it does flush by itself before switching contexts
 			if (PrevContext)
 			{
-				ContextMakeCurrent(PrevDC,PrevContext);
+				ContextMakeCurrent(PrevDC, PrevContext);
 			}
 			else
 			{
-				ContextMakeCurrent(NULL,NULL);
+				ContextMakeCurrent(NULL, NULL);
 			}
 		}
 	}
@@ -109,7 +98,7 @@ private:
 	bool				bSameDC;
 };
 
-void DeleteQueriesForCurrentContext( HGLRC Context );
+void DeleteQueriesForCurrentContext(HGLRC Context);
 
 /**
  * A dummy wndproc.
@@ -127,14 +116,14 @@ static void PlatformInitPixelFormatForDevice(HDC DeviceContext, bool bTryIsDummy
 	// Pixel format descriptor for the context.
 	PIXELFORMATDESCRIPTOR PixelFormatDesc;
 	FMemory::Memzero(PixelFormatDesc);
-	PixelFormatDesc.nSize		= sizeof(PIXELFORMATDESCRIPTOR);
-	PixelFormatDesc.nVersion	= 1;
-	PixelFormatDesc.dwFlags		= PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
-	PixelFormatDesc.iPixelType	= PFD_TYPE_RGBA;
-	PixelFormatDesc.cColorBits	= 32;
-	PixelFormatDesc.cDepthBits	= 0;
-	PixelFormatDesc.cStencilBits	= 0;
-	PixelFormatDesc.iLayerType	= PFD_MAIN_PLANE;
+	PixelFormatDesc.nSize = sizeof(PIXELFORMATDESCRIPTOR);
+	PixelFormatDesc.nVersion = 1;
+	PixelFormatDesc.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
+	PixelFormatDesc.iPixelType = PFD_TYPE_RGBA;
+	PixelFormatDesc.cColorBits = 32;
+	PixelFormatDesc.cDepthBits = 0;
+	PixelFormatDesc.cStencilBits = 0;
+	PixelFormatDesc.iLayerType = PFD_MAIN_PLANE;
 
 	static bool bRequestedQuadBufferStereo = FParse::Param(FCommandLine::Get(), TEXT("quad_buffer_stereo"));
 	if (bRequestedQuadBufferStereo)
@@ -146,7 +135,7 @@ static void PlatformInitPixelFormatForDevice(HDC DeviceContext, bool bTryIsDummy
 	int32 PixelFormat = ChoosePixelFormat(DeviceContext, &PixelFormatDesc);
 	if (!PixelFormat || !SetPixelFormat(DeviceContext, PixelFormat, &PixelFormatDesc))
 	{
-		UE_LOG(LogRHI, Fatal,TEXT("Failed to set pixel format for device context."));
+		UE_LOG(LogRHI, Fatal, TEXT("Failed to set pixel format for device context."));
 	}
 }
 
@@ -235,7 +224,7 @@ static void PlatformCreateOpenGLContextCore(FPlatformOpenGLContext* OutContext, 
 
 	int DebugFlag = 0;
 
-	if ( PlatformOpenGLDebugCtx())
+	if (PlatformOpenGLDebugCtx())
 	{
 		DebugFlag = WGL_CONTEXT_DEBUG_BIT_ARB;
 	}
@@ -265,7 +254,7 @@ static void PlatformCreateOpenGLContextCore(FPlatformOpenGLContext* OutContext, 
 
 void PlatformReleaseOpenGLContext(FPlatformOpenGLDevice* Device, FPlatformOpenGLContext* Context);
 
-extern void OnQueryInvalidation( void );
+extern void OnQueryInvalidation(void);
 
 /** Platform specific OpenGL device. */
 struct FPlatformOpenGLDevice
@@ -276,7 +265,7 @@ struct FPlatformOpenGLDevice
 	bool					TargetDirty;
 
 	/** Guards against operating on viewport contexts from more than one thread at the same time. */
-	FCriticalSection*		ContextUsageGuard;
+	FCriticalSection* ContextUsageGuard;
 
 	FPlatformOpenGLDevice()
 		: TargetDirty(true)
@@ -287,7 +276,7 @@ struct FPlatformOpenGLDevice
 		int MajorVersion = 0;
 		int MinorVersion = 0;
 		GetOpenGLVersionForCoreProfile(MajorVersion, MinorVersion);
-	
+
 		// Need to call this before we set the debug callback, otherwise if we're not running under RD, the debug extension will assert (invalid enum)
 		GRunningUnderRenderDoc = glIsEnabled(GL_DEBUG_TOOL_EXT) != GL_FALSE;
 
@@ -297,7 +286,7 @@ struct FPlatformOpenGLDevice
 		{
 			FScopeContext ScopeContext(&SharedContext);
 			InitDebugContext();
-			glGenVertexArrays(1,&SharedContext.VertexArrayObject);
+			glGenVertexArrays(1, &SharedContext.VertexArrayObject);
 			glBindVertexArray(SharedContext.VertexArrayObject);
 			InitDefaultGLContextState();
 			glGenFramebuffers(1, &SharedContext.ViewportFramebuffer);
@@ -309,7 +298,7 @@ struct FPlatformOpenGLDevice
 		{
 			FScopeContext ScopeContext(&RenderingContext);
 			InitDebugContext();
-			glGenVertexArrays(1,&RenderingContext.VertexArrayObject);
+			glGenVertexArrays(1, &RenderingContext.VertexArrayObject);
 			glBindVertexArray(RenderingContext.VertexArrayObject);
 			InitDefaultGLContextState();
 			glGenFramebuffers(1, &RenderingContext.ViewportFramebuffer);
@@ -320,13 +309,13 @@ struct FPlatformOpenGLDevice
 
 	~FPlatformOpenGLDevice()
 	{
-		check(ViewportContexts.Num()==0);
+		check(ViewportContexts.Num() == 0);
 
-		ContextMakeCurrent(NULL,NULL);
+		ContextMakeCurrent(NULL, NULL);
 
 		OnQueryInvalidation();
-		PlatformReleaseOpenGLContext(this,&RenderingContext);
-		PlatformReleaseOpenGLContext(this,&SharedContext);
+		PlatformReleaseOpenGLContext(this, &RenderingContext);
+		PlatformReleaseOpenGLContext(this, &SharedContext);
 
 		delete ContextUsageGuard;
 	}
@@ -367,7 +356,7 @@ FPlatformOpenGLContext* PlatformCreateOpenGLContext(FPlatformOpenGLDevice* Devic
 	int MinorVersion = 0;
 	GetOpenGLVersionForCoreProfile(MajorVersion, MinorVersion);
 
-	PlatformCreateOpenGLContextCore(Context, MajorVersion, MinorVersion, Device->SharedContext.OpenGLContext);	
+	PlatformCreateOpenGLContextCore(Context, MajorVersion, MinorVersion, Device->SharedContext.OpenGLContext);
 	check(Context->OpenGLContext);
 	{
 		FScopeContext Scope(Context);
@@ -406,7 +395,7 @@ void PlatformReleaseOpenGLContext(FPlatformOpenGLDevice* Device, FPlatformOpenGL
 
 			if (Context->ViewportFramebuffer)
 			{
-				glDeleteFramebuffers(1,&Context->ViewportFramebuffer);	// this can be done from any context shared with ours, as long as it's not nil.
+				glDeleteFramebuffers(1, &Context->ViewportFramebuffer);	// this can be done from any context shared with ours, as long as it's not nil.
 				Context->ViewportFramebuffer = 0;
 			}
 		}
@@ -419,7 +408,7 @@ void PlatformReleaseOpenGLContext(FPlatformOpenGLDevice* Device, FPlatformOpenGL
 
 	if (bActiveContextWillBeReleased)
 	{
-		wglMakeCurrent( NULL, NULL );
+		wglMakeCurrent(NULL, NULL);
 	}
 	ReleaseDC(Context->WindowHandle, Context->DeviceContext);
 	Context->DeviceContext = NULL;
@@ -453,7 +442,7 @@ void PlatformDestroyOpenGLContext(FPlatformOpenGLDevice* Device, FPlatformOpenGL
  * Main function for transferring data to on-screen buffers.
  * On Windows it temporarily switches OpenGL context, on Mac only context's output view.
  */
-bool PlatformBlitToViewport( FPlatformOpenGLDevice* Device, const FOpenGLViewport& Viewport, uint32 BackbufferSizeX, uint32 BackbufferSizeY, bool bPresent,bool bLockToVsync)
+bool PlatformBlitToViewport(FPlatformOpenGLDevice* Device, const FOpenGLViewport& Viewport, uint32 BackbufferSizeX, uint32 BackbufferSizeY, bool bPresent, bool bLockToVsync)
 {
 	int32 SyncInterval = RHIGetSyncInterval();
 
@@ -596,48 +585,48 @@ void PlatformNULLContextSetup()
 /**
  * Resize the GL context.
  */
-void PlatformResizeGLContext( FPlatformOpenGLDevice* Device, FPlatformOpenGLContext* Context, uint32 SizeX, uint32 SizeY, bool bFullscreen, bool bWasFullscreen, GLenum BackBufferTarget, GLuint BackBufferResource)
+void PlatformResizeGLContext(FPlatformOpenGLDevice* Device, FPlatformOpenGLContext* Context, uint32 SizeX, uint32 SizeY, bool bFullscreen, bool bWasFullscreen, GLenum BackBufferTarget, GLuint BackBufferResource)
 {
 	FScopeLock ScopeLock(Device->ContextUsageGuard);
-{
-	uint32 WindowStyle = WS_CAPTION | WS_SYSMENU;
-	uint32 WindowStyleEx = 0;
-	HWND InsertAfter = HWND_NOTOPMOST;
-
-	if (bFullscreen)
 	{
-		// Get the monitor info from the window handle.
-		HMONITOR hMonitor = MonitorFromWindow(Context->WindowHandle, MONITOR_DEFAULTTOPRIMARY);
-		MONITORINFOEX MonitorInfo;
-		memset(&MonitorInfo, 0, sizeof(MONITORINFOEX));
-		MonitorInfo.cbSize = sizeof(MONITORINFOEX);
-		GetMonitorInfo(hMonitor, &MonitorInfo);
+		uint32 WindowStyle = WS_CAPTION | WS_SYSMENU;
+		uint32 WindowStyleEx = 0;
+		HWND InsertAfter = HWND_NOTOPMOST;
 
-		DEVMODE Mode;
-		Mode.dmSize = sizeof(DEVMODE);
-		Mode.dmBitsPerPel = 32;
-		Mode.dmPelsWidth = SizeX;
-		Mode.dmPelsHeight = SizeY;
-		Mode.dmFields = DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT;
+		if (bFullscreen)
+		{
+			// Get the monitor info from the window handle.
+			HMONITOR hMonitor = MonitorFromWindow(Context->WindowHandle, MONITOR_DEFAULTTOPRIMARY);
+			MONITORINFOEX MonitorInfo;
+			memset(&MonitorInfo, 0, sizeof(MONITORINFOEX));
+			MonitorInfo.cbSize = sizeof(MONITORINFOEX);
+			GetMonitorInfo(hMonitor, &MonitorInfo);
 
-		// Turn on fullscreen mode for the current monitor
-		ChangeDisplaySettingsEx(MonitorInfo.szDevice, &Mode, NULL, CDS_FULLSCREEN, NULL);
+			DEVMODE Mode;
+			Mode.dmSize = sizeof(DEVMODE);
+			Mode.dmBitsPerPel = 32;
+			Mode.dmPelsWidth = SizeX;
+			Mode.dmPelsHeight = SizeY;
+			Mode.dmFields = DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT;
 
-		WindowStyle = WS_POPUP;
-		WindowStyleEx = WS_EX_APPWINDOW | WS_EX_TOPMOST;
-		InsertAfter = HWND_TOPMOST;
-	}
-	else if (bWasFullscreen)
-	{
-		ChangeDisplaySettings(NULL, 0);
-	}
+			// Turn on fullscreen mode for the current monitor
+			ChangeDisplaySettingsEx(MonitorInfo.szDevice, &Mode, NULL, CDS_FULLSCREEN, NULL);
 
-	Device->TargetDirty = true;
-	Context->BackBufferResource = BackBufferResource;
-	Context->BackBufferTarget = BackBufferTarget;
+			WindowStyle = WS_POPUP;
+			WindowStyleEx = WS_EX_APPWINDOW | WS_EX_TOPMOST;
+			InsertAfter = HWND_TOPMOST;
+		}
+		else if (bWasFullscreen)
+		{
+			ChangeDisplaySettings(NULL, 0);
+		}
 
-	//SetWindowLong(Context->WindowHandle, GWL_STYLE, WindowStyle);
-	//SetWindowLong(Context->WindowHandle, GWL_EXSTYLE, WindowStyleEx);
+		Device->TargetDirty = true;
+		Context->BackBufferResource = BackBufferResource;
+		Context->BackBufferTarget = BackBufferTarget;
+
+		//SetWindowLong(Context->WindowHandle, GWL_STYLE, WindowStyle);
+		//SetWindowLong(Context->WindowHandle, GWL_EXSTYLE, WindowStyleEx);
 
 		if (!FOpenGL::IsAndroidGLESCompatibilityModeEnabled())
 		{
@@ -653,12 +642,12 @@ void PlatformResizeGLContext( FPlatformOpenGLDevice* Device, FPlatformOpenGLCont
 
 			glViewport(0, 0, SizeX, SizeY);
 			static GLfloat ZeroColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-			glClearBufferfv(GL_COLOR, 0, ZeroColor );
+			glClearBufferfv(GL_COLOR, 0, ZeroColor);
 		}
 	}
 }
 
-void PlatformGetSupportedResolution(uint32 &Width, uint32 &Height)
+void PlatformGetSupportedResolution(uint32& Width, uint32& Height)
 {
 	uint32 InitializedMode = false;
 	uint32 BestWidth = 0;
@@ -667,11 +656,11 @@ void PlatformGetSupportedResolution(uint32 &Width, uint32 &Height)
 	DEVMODE DisplayMode;
 	FMemory::Memzero(&DisplayMode, sizeof(DEVMODE));
 
-	while(EnumDisplaySettings(NULL, ModeIndex++, &DisplayMode))
+	while (EnumDisplaySettings(NULL, ModeIndex++, &DisplayMode))
 	{
 		bool IsEqualOrBetterWidth = FMath::Abs((int32)DisplayMode.dmPelsWidth - (int32)Width) <= FMath::Abs((int32)BestWidth - (int32)Width);
 		bool IsEqualOrBetterHeight = FMath::Abs((int32)DisplayMode.dmPelsHeight - (int32)Height) <= FMath::Abs((int32)BestHeight - (int32)Height);
-		if(!InitializedMode || (IsEqualOrBetterWidth && IsEqualOrBetterHeight))
+		if (!InitializedMode || (IsEqualOrBetterWidth && IsEqualOrBetterHeight))
 		{
 			BestWidth = DisplayMode.dmPelsWidth;
 			BestHeight = DisplayMode.dmPelsHeight;
@@ -709,7 +698,7 @@ bool PlatformGetAvailableResolutions(FScreenResolutionArray& Resolutions, bool b
 	DEVMODE DisplayMode;
 	FMemory::Memzero(&DisplayMode, sizeof(DEVMODE));
 
-	while(EnumDisplaySettings(NULL, ModeIndex++, &DisplayMode))
+	while (EnumDisplaySettings(NULL, ModeIndex++, &DisplayMode))
 	{
 		if (((int32)DisplayMode.dmPelsWidth >= MinAllowableResolutionX) &&
 			((int32)DisplayMode.dmPelsWidth <= MaxAllowableResolutionX) &&
@@ -771,10 +760,10 @@ bool PlatformInitOpenGL()
 	if (!bInitialized)
 	{
 		// Disable warning C4191: 'type cast' : unsafe conversion from 'PROC' to 'XXX' while getting GL entry points.
-		#pragma warning(push)
-		#pragma warning(disable:4191)
+#pragma warning(push)
+#pragma warning(disable:4191)
 
-		// Create a dummy context so that wglCreateContextAttribsARB can be initialized.
+// Create a dummy context so that wglCreateContextAttribsARB can be initialized.
 		FPlatformOpenGLContext DummyContext;
 		PlatformCreateDummyGLWindow(&DummyContext);
 		DummyContext.OpenGLContext = wglCreateContext(DummyContext.DeviceContext);
@@ -786,10 +775,10 @@ bool PlatformInitOpenGL()
 			int MajorVersion = 0;
 			int MinorVersion = 0;
 
-			ContextMakeCurrent(NULL,NULL);
+			ContextMakeCurrent(NULL, NULL);
 			wglDeleteContext(DummyContext.OpenGLContext);
 			GetOpenGLVersionForCoreProfile(MajorVersion, MinorVersion);
-			PlatformCreateOpenGLContextCore(&DummyContext, MajorVersion, MinorVersion, NULL);	
+			PlatformCreateOpenGLContextCore(&DummyContext, MajorVersion, MinorVersion, NULL);
 			if (DummyContext.OpenGLContext)
 			{
 				bOpenGLSupported = true;
@@ -797,7 +786,7 @@ bool PlatformInitOpenGL()
 			}
 			else
 			{
-				UE_LOG(LogRHI,Error,TEXT("OpenGL %d.%d not supported by driver"),MajorVersion,MinorVersion);
+				UE_LOG(LogRHI, Error, TEXT("OpenGL %d.%d not supported by driver"), MajorVersion, MinorVersion);
 			}
 		}
 
@@ -807,39 +796,39 @@ bool PlatformInitOpenGL()
 			void* OpenGLDLL = FPlatformProcess::GetDllHandle(TEXT("opengl32.dll"));
 			if (!OpenGLDLL)
 			{
-				UE_LOG(LogRHI,Fatal,TEXT("Couldn't load opengl32.dll"));
+				UE_LOG(LogRHI, Fatal, TEXT("Couldn't load opengl32.dll"));
 			}
 
 			// Initialize entry points required by Unreal from opengl32.dll
-			#define GET_GL_ENTRYPOINTS_DLL(Type,Func) Func = (Type)FPlatformProcess::GetDllExport(OpenGLDLL,TEXT(#Func));
+#define GET_GL_ENTRYPOINTS_DLL(Type,Func) Func = (Type)FPlatformProcess::GetDllExport(OpenGLDLL,TEXT(#Func));
 			ENUM_GL_ENTRYPOINTS_DLL(GET_GL_ENTRYPOINTS_DLL);
-			#undef GET_GL_ENTRYPOINTS_DLL
+#undef GET_GL_ENTRYPOINTS_DLL
 
 			// Release the OpenGL DLL.
 			FPlatformProcess::FreeDllHandle(OpenGLDLL);
 
 			// Initialize all entry points required by Unreal.
-			#define GET_GL_ENTRYPOINTS(Type,Func) Func = (Type)wglGetProcAddress(#Func);
+#define GET_GL_ENTRYPOINTS(Type,Func) Func = (Type)wglGetProcAddress(#Func);
 			ENUM_GL_ENTRYPOINTS(GET_GL_ENTRYPOINTS);
 			ENUM_GL_ENTRYPOINTS_OPTIONAL(GET_GL_ENTRYPOINTS);
-			#undef GET_GL_ENTRYPOINTS
+#undef GET_GL_ENTRYPOINTS
 
 			// Restore warning C4191.
-			#pragma warning(pop)
+#pragma warning(pop)
 
-			// Check that all of the entry points have been initialized.
+// Check that all of the entry points have been initialized.
 			bool bFoundAllEntryPoints = true;
-			#define CHECK_GL_ENTRYPOINTS(Type,Func) if (Func == NULL) { bFoundAllEntryPoints = false; UE_LOG(LogRHI, Warning, TEXT("Failed to find entry point for %s"), TEXT(#Func)); }
+#define CHECK_GL_ENTRYPOINTS(Type,Func) if (Func == NULL) { bFoundAllEntryPoints = false; UE_LOG(LogRHI, Warning, TEXT("Failed to find entry point for %s"), TEXT(#Func)); }
 			ENUM_GL_ENTRYPOINTS_DLL(CHECK_GL_ENTRYPOINTS);
 			ENUM_GL_ENTRYPOINTS(CHECK_GL_ENTRYPOINTS);
-			#undef CHECK_GL_ENTRYPOINTS
+#undef CHECK_GL_ENTRYPOINTS
 			checkf(bFoundAllEntryPoints, TEXT("Failed to find all OpenGL entry points."));
 		}
 
 		// The dummy context can now be released.
 		if (DummyContext.OpenGLContext)
 		{
-			ContextMakeCurrent(NULL,NULL);
+			ContextMakeCurrent(NULL, NULL);
 			wglDeleteContext(DummyContext.OpenGLContext);
 		}
 		ReleaseDC(DummyContext.WindowHandle, DummyContext.DeviceContext);
@@ -852,7 +841,7 @@ bool PlatformInitOpenGL()
 
 bool PlatformOpenGLContextValid()
 {
-	return( GetCurrentContext() != NULL );
+	return(GetCurrentContext() != NULL);
 }
 
 int32 PlatformGlGetError()
@@ -887,14 +876,14 @@ void* PlatformOpenGLCurrentContextHandle(FPlatformOpenGLDevice* Device)
 	return GetCurrentContext();
 }
 
-void PlatformGetBackbufferDimensions( uint32& OutWidth, uint32& OutHeight )
+void PlatformGetBackbufferDimensions(uint32& OutWidth, uint32& OutHeight)
 {
 	OutWidth = OutHeight = 0;
 	HDC DeviceContext = wglGetCurrentDC();
-	if( DeviceContext )
+	if (DeviceContext)
 	{
-		OutWidth = GetDeviceCaps( DeviceContext, HORZRES );
-		OutHeight = GetDeviceCaps( DeviceContext, VERTRES );
+		OutWidth = GetDeviceCaps(DeviceContext, HORZRES);
+		OutHeight = GetDeviceCaps(DeviceContext, VERTRES);
 	}
 }
 
@@ -907,11 +896,11 @@ struct FOpenGLReleasedQuery
 };
 
 static TArray<FOpenGLReleasedQuery>	ReleasedQueries;
-static FCriticalSection*			ReleasedQueriesGuard;
+static FCriticalSection* ReleasedQueriesGuard;
 
-void PlatformGetNewRenderQuery( GLuint* OutQuery, uint64* OutQueryContext )
+void PlatformGetNewRenderQuery(GLuint* OutQuery, uint64* OutQueryContext)
 {
-	if( !ReleasedQueriesGuard )
+	if (!ReleasedQueriesGuard)
 	{
 		ReleasedQueriesGuard = new FCriticalSection;
 	}
@@ -920,19 +909,19 @@ void PlatformGetNewRenderQuery( GLuint* OutQuery, uint64* OutQueryContext )
 		FScopeLock Lock(ReleasedQueriesGuard);
 
 #ifdef UE_BUILD_DEBUG
-		check( OutQuery && OutQueryContext );
+		check(OutQuery && OutQueryContext);
 #endif
 
 		HGLRC Context = GetCurrentContext();
-		check( Context );
+		check(Context);
 
 		GLuint NewQuery = 0;
 
 		// Check for possible query reuse
 		const int32 ArraySize = ReleasedQueries.Num();
-		for( int32 Index = 0; Index < ArraySize; ++Index )
+		for (int32 Index = 0; Index < ArraySize; ++Index)
 		{
-			if( ReleasedQueries[Index].Context == Context )
+			if (ReleasedQueries[Index].Context == Context)
 			{
 				NewQuery = ReleasedQueries[Index].Query;
 				ReleasedQueries.RemoveAtSwap(Index);
@@ -940,9 +929,9 @@ void PlatformGetNewRenderQuery( GLuint* OutQuery, uint64* OutQueryContext )
 			}
 		}
 
-		if( !NewQuery )
+		if (!NewQuery)
 		{
-			FOpenGL::GenQueries( 1, &NewQuery );
+			FOpenGL::GenQueries(1, &NewQuery);
 		}
 
 		*OutQuery = NewQuery;
@@ -950,18 +939,18 @@ void PlatformGetNewRenderQuery( GLuint* OutQuery, uint64* OutQueryContext )
 	}
 }
 
-void PlatformReleaseRenderQuery( GLuint Query, uint64 QueryContext )
+void PlatformReleaseRenderQuery(GLuint Query, uint64 QueryContext)
 {
 	HGLRC Context = GetCurrentContext();
-	if( (uint64)Context == QueryContext )
+	if ((uint64)Context == QueryContext)
 	{
-		FOpenGL::DeleteQueries(1, &Query );
+		FOpenGL::DeleteQueries(1, &Query);
 	}
 	else
 	{
 		FScopeLock Lock(ReleasedQueriesGuard);
 #ifdef UE_BUILD_DEBUG
-		check( Query && QueryContext && ReleasedQueriesGuard );
+		check(Query && QueryContext && ReleasedQueriesGuard);
 #endif
 		FOpenGLReleasedQuery ReleasedQuery;
 		ReleasedQuery.Context = (HGLRC)QueryContext;
@@ -970,20 +959,20 @@ void PlatformReleaseRenderQuery( GLuint Query, uint64 QueryContext )
 	}
 }
 
-void DeleteQueriesForCurrentContext( HGLRC Context )
+void DeleteQueriesForCurrentContext(HGLRC Context)
 {
-	if( !ReleasedQueriesGuard )
+	if (!ReleasedQueriesGuard)
 	{
 		ReleasedQueriesGuard = new FCriticalSection;
 	}
 
 	{
 		FScopeLock Lock(ReleasedQueriesGuard);
-		for( int32 Index = 0; Index < ReleasedQueries.Num(); ++Index )
+		for (int32 Index = 0; Index < ReleasedQueries.Num(); ++Index)
 		{
-			if( ReleasedQueries[Index].Context == Context )
+			if (ReleasedQueries[Index].Context == Context)
 			{
-				FOpenGL::DeleteQueries(1,&ReleasedQueries[Index].Query);
+				FOpenGL::DeleteQueries(1, &ReleasedQueries[Index].Query);
 				ReleasedQueries.RemoveAtSwap(Index);
 				--Index;
 			}
@@ -991,7 +980,7 @@ void DeleteQueriesForCurrentContext( HGLRC Context )
 	}
 }
 
-bool PlatformContextIsCurrent( uint64 QueryContext )
+bool PlatformContextIsCurrent(uint64 QueryContext)
 {
 	return (uint64)GetCurrentContext() == QueryContext;
 }
@@ -1018,4 +1007,3 @@ void* PlatformGetWindow(FPlatformOpenGLContext* Context, void** AddParam)
 
 	return (void*)&Context->WindowHandle;
 }
-

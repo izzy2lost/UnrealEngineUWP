@@ -1,10 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-/*=============================================================================
-	OpenGLLinux.cpp: OpenGL context management on Linux
-=============================================================================*/
+#include "LinuxOpenGLPlatform.h"
 
-#include "Linux/OpenGLLinux.h"
 #include "Misc/ScopeLock.h"
 #include "OpenGLDrv.h"
 #include "SDL.h"
@@ -14,31 +11,21 @@
 #include "GenericPlatform/GenericPlatformFramePacer.h"
 #include "RHIUtilities.h"
 
-/*------------------------------------------------------------------------------
-	OpenGL function pointers.
-------------------------------------------------------------------------------*/
-#define DEFINE_GL_ENTRYPOINTS(Type,Func) Type Func = NULL;
-namespace GLFuncPointers	// see explanation in OpenGLLinux.h why we need the namespace
-{
-	ENUM_GL_ENTRYPOINTS_ALL(DEFINE_GL_ENTRYPOINTS);
-};
-#undef DEFINE_GL_ENTRYPOINTS
-
-typedef SDL_Window*		SDL_HWindow;
+typedef SDL_Window* SDL_HWindow;
 typedef SDL_GLContext	SDL_HGLContext;
 
 /*------------------------------------------------------------------------------
 	OpenGL context management.
 ------------------------------------------------------------------------------*/
-void Linux_ContextMakeCurrent( SDL_HWindow hWnd, SDL_HGLContext hGLDC )
+void Linux_ContextMakeCurrent(SDL_HWindow hWnd, SDL_HGLContext hGLDC)
 {
-	GLint Result = SDL_GL_MakeCurrent( hWnd, hGLDC );
+	GLint Result = SDL_GL_MakeCurrent(hWnd, hGLDC);
 	if (Result != 0)
 	{
 		// this is a warning and not error, since Slate sometimes destroys windows before
 		// releasing RHI resources associated with them. This code can result in leaks - proper resolution is tracked as UE-7388
 		FString SdlError(UTF8_TO_TCHAR(SDL_GetError()));
-		UE_LOG(LogLinux, Warning, TEXT("SDL_GL_MakeCurrent() failed, SDL error: '%s'"), *SdlError );
+		UE_LOG(LogLinux, Warning, TEXT("SDL_GL_MakeCurrent() failed, SDL error: '%s'"), *SdlError);
 	}
 }
 
@@ -63,15 +50,15 @@ struct FPlatformOpenGLContext
 class FScopeContext
 {
 public:
-	FScopeContext( FPlatformOpenGLContext* Context )
+	FScopeContext(FPlatformOpenGLContext* Context)
 	{
 		check(Context);
 		hPreWnd = SDL_GL_GetCurrentWindow();
 		hPreGLContext = SDL_GL_GetCurrentContext();
 
-		bSameDCAndContext = ( hPreGLContext == Context->hGLContext );
+		bSameDCAndContext = (hPreGLContext == Context->hGLContext);
 
-		if	( !bSameDCAndContext )
+		if (!bSameDCAndContext)
 		{
 			if (hPreGLContext)
 			{
@@ -79,22 +66,22 @@ public:
 			}
 			// no need to glFlush() on Windows, it does flush by itself before switching contexts
 
-			Linux_ContextMakeCurrent( Context->hWnd, Context->hGLContext );
+			Linux_ContextMakeCurrent(Context->hWnd, Context->hGLContext);
 		}
 	}
 
-   ~FScopeContext( void )
+	~FScopeContext(void)
 	{
 		if (!bSameDCAndContext)
 		{
 			glFlush();	// not needed on Windows, it does flush by itself before switching contexts
 			if (hPreGLContext)
 			{
-				Linux_ContextMakeCurrent( hPreWnd, hPreGLContext );
+				Linux_ContextMakeCurrent(hPreWnd, hPreGLContext);
 			}
 			else
 			{
-				Linux_ContextMakeCurrent( NULL, NULL );
+				Linux_ContextMakeCurrent(NULL, NULL);
 			}
 		}
 
@@ -108,19 +95,19 @@ private:
 
 
 
-void Linux_DeleteQueriesForCurrentContext( SDL_HGLContext hGLContext );
+void Linux_DeleteQueriesForCurrentContext(SDL_HGLContext hGLContext);
 
 /**
  * Create a dummy window used to construct OpenGL contexts.
  */
-void Linux_PlatformCreateDummyGLWindow( FPlatformOpenGLContext *OutContext )
+void Linux_PlatformCreateDummyGLWindow(FPlatformOpenGLContext* OutContext)
 {
 	static bool bInitializedWindowClass = false;
 
 	// Create a dummy window.
-	SDL_HWindow DummyWindow = SDL_CreateWindow(	NULL,
-											0, 0, 1, 1,
-											SDL_WINDOW_OPENGL | SDL_WINDOW_BORDERLESS | SDL_WINDOW_HIDDEN | SDL_WINDOW_SKIP_TASKBAR );
+	SDL_HWindow DummyWindow = SDL_CreateWindow(NULL,
+		0, 0, 1, 1,
+		SDL_WINDOW_OPENGL | SDL_WINDOW_BORDERLESS | SDL_WINDOW_HIDDEN | SDL_WINDOW_SKIP_TASKBAR);
 	if (DummyWindow == nullptr)
 	{
 		FString SdlError(UTF8_TO_TCHAR(SDL_GetError()));
@@ -138,8 +125,8 @@ void Linux_PlatformCreateDummyGLWindow( FPlatformOpenGLContext *OutContext )
 		SDL_SetWindowTitle(DummyWindow, "UnrealEditor Dummy GL window");
 	}
 
-	OutContext->hWnd					= DummyWindow;
-	OutContext->bReleaseWindowOnDestroy	= true;
+	OutContext->hWnd = DummyWindow;
+	OutContext->bReleaseWindowOnDestroy = true;
 }
 
 /**
@@ -155,7 +142,7 @@ bool Linux_PlatformOpenGLDebugCtx()
  */
 void Linux_PlatformCreateOpenGLContextCore(FPlatformOpenGLContext* OutContext)
 {
-	check( OutContext );
+	check(OutContext);
 
 	SDL_HWindow prevWindow = SDL_GL_GetCurrentWindow();
 	SDL_HGLContext prevContext = SDL_GL_GetCurrentContext();
@@ -163,52 +150,52 @@ void Linux_PlatformCreateOpenGLContextCore(FPlatformOpenGLContext* OutContext)
 	OutContext->SyncInterval = -1;	// invalid value to enforce setup on first buffer swap
 	OutContext->ViewportFramebuffer = 0;
 
-	OutContext->hGLContext = SDL_GL_CreateContext( OutContext->hWnd );
+	OutContext->hGLContext = SDL_GL_CreateContext(OutContext->hWnd);
 	if (OutContext->hGLContext == nullptr)
 	{
 		FString SdlError(UTF8_TO_TCHAR(SDL_GetError()));
-		
+
 		// ignore errors getting version, it will be clear from the logs
 		int OpenGLMajorVersion = -1;
 		int OpenGLMinorVersion = -1;
-		SDL_GL_GetAttribute( SDL_GL_CONTEXT_MAJOR_VERSION, &OpenGLMajorVersion );
-		SDL_GL_GetAttribute( SDL_GL_CONTEXT_MINOR_VERSION, &OpenGLMinorVersion );
-		
+		SDL_GL_GetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, &OpenGLMajorVersion);
+		SDL_GL_GetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, &OpenGLMinorVersion);
+
 		UE_LOG(LogInit, Error, TEXT("Linux_PlatformCreateOpenGLContextCore - Could not create OpenGL %d.%d context, SDL error: '%s'"),
-				OpenGLMajorVersion, OpenGLMinorVersion,
-				*SdlError
-			);
+			OpenGLMajorVersion, OpenGLMinorVersion,
+			*SdlError
+		);
 		// unreachable
 		return;
 	}
 
-	SDL_GL_MakeCurrent( prevWindow, prevContext );
+	SDL_GL_MakeCurrent(prevWindow, prevContext);
 }
 
 void PlatformReleaseOpenGLContext(FPlatformOpenGLDevice* Device, FPlatformOpenGLContext* Context);
 
-extern void OnQueryInvalidation( void );
+extern void OnQueryInvalidation(void);
 
 /** Platform specific OpenGL device. */
 struct FPlatformOpenGLDevice
 {
-    FPlatformOpenGLContext	SharedContext;
-    FPlatformOpenGLContext	RenderingContext;
-    int32					NumUsedContexts;
+	FPlatformOpenGLContext	SharedContext;
+	FPlatformOpenGLContext	RenderingContext;
+	int32					NumUsedContexts;
 
-    /** Guards against operating on viewport contexts from more than one thread at the same time. */
-    FCriticalSection*		ContextUsageGuard;
+	/** Guards against operating on viewport contexts from more than one thread at the same time. */
+	FCriticalSection* ContextUsageGuard;
 
-	FPlatformOpenGLDevice() : NumUsedContexts( 0 )
+	FPlatformOpenGLDevice() : NumUsedContexts(0)
 	{
 		extern void InitDebugContext();
 
-        ContextUsageGuard = new FCriticalSection;
+		ContextUsageGuard = new FCriticalSection;
 
 		verifyf(SDL_GL_SetAttribute(SDL_GL_SHARE_WITH_CURRENT_CONTEXT, 0) == 0, TEXT("SDL_GL_SetAttribute(SDL_GL_SHARE_WITH_CURRENT_CONTEXT, 0) failed: %s\n."), UTF8_TO_TCHAR(SDL_GetError()));
 
-		Linux_PlatformCreateDummyGLWindow( &SharedContext );
-		Linux_PlatformCreateOpenGLContextCore( &SharedContext );
+		Linux_PlatformCreateDummyGLWindow(&SharedContext);
+		Linux_PlatformCreateOpenGLContextCore(&SharedContext);
 
 		if (SharedContext.hGLContext == nullptr)
 		{
@@ -221,40 +208,40 @@ struct FPlatformOpenGLDevice
 		}
 
 		{
-			FScopeContext ScopeContext( &SharedContext );
+			FScopeContext ScopeContext(&SharedContext);
 			InitDebugContext();
-			glGenVertexArrays(1,&SharedContext.VertexArrayObject);
+			glGenVertexArrays(1, &SharedContext.VertexArrayObject);
 			glBindVertexArray(SharedContext.VertexArrayObject);
 			InitDefaultGLContextState();
 		}
 
 		verifyf(SDL_GL_SetAttribute(SDL_GL_SHARE_WITH_CURRENT_CONTEXT, 1) == 0, TEXT("SDL_GL_SetAttribute(SDL_GL_SHARE_WITH_CURRENT_CONTEXT, 1) failed: %s\n."), UTF8_TO_TCHAR(SDL_GetError()));
 
-		Linux_ContextMakeCurrent( SharedContext.hWnd, SharedContext.hGLContext );
+		Linux_ContextMakeCurrent(SharedContext.hWnd, SharedContext.hGLContext);
 
-		Linux_PlatformCreateDummyGLWindow( &RenderingContext );
-		Linux_PlatformCreateOpenGLContextCore( &RenderingContext );
+		Linux_PlatformCreateDummyGLWindow(&RenderingContext);
+		Linux_PlatformCreateOpenGLContextCore(&RenderingContext);
 
-		check( RenderingContext.hGLContext );
+		check(RenderingContext.hGLContext);
 
 		{
-			FScopeContext ScopeContext( &RenderingContext );
+			FScopeContext ScopeContext(&RenderingContext);
 			InitDebugContext();
-			glGenVertexArrays(1,&RenderingContext.VertexArrayObject);
+			glGenVertexArrays(1, &RenderingContext.VertexArrayObject);
 			glBindVertexArray(RenderingContext.VertexArrayObject);
 			InitDefaultGLContextState();
 		}
 	}
 
-   ~FPlatformOpenGLDevice()
+	~FPlatformOpenGLDevice()
 	{
-		check( NumUsedContexts==0 );
+		check(NumUsedContexts == 0);
 
-		Linux_ContextMakeCurrent( NULL, NULL );
+		Linux_ContextMakeCurrent(NULL, NULL);
 
 		OnQueryInvalidation();
-		PlatformReleaseOpenGLContext( this,&RenderingContext );
-        PlatformReleaseOpenGLContext( this,&SharedContext );
+		PlatformReleaseOpenGLContext(this, &RenderingContext);
+		PlatformReleaseOpenGLContext(this, &SharedContext);
 
 		delete ContextUsageGuard;
 	}
@@ -270,7 +257,7 @@ bool PlatformCanEnableGPUCapture()
 	return false;
 }
 
-void PlatformDestroyOpenGLDevice( FPlatformOpenGLDevice* Device )
+void PlatformDestroyOpenGLDevice(FPlatformOpenGLDevice* Device)
 {
 	delete Device;
 }
@@ -286,59 +273,59 @@ FPlatformOpenGLContext* PlatformGetOpenGLRenderingContext(FPlatformOpenGLDevice*
 FPlatformOpenGLContext* PlatformCreateOpenGLContext(FPlatformOpenGLDevice* Device, void* InWindowHandle)
 {
 	check(InWindowHandle);
-    FPlatformOpenGLContext* Context = new FPlatformOpenGLContext;
+	FPlatformOpenGLContext* Context = new FPlatformOpenGLContext;
 
 	Context->hWnd = (SDL_HWindow)InWindowHandle;
 	Context->bReleaseWindowOnDestroy = false;
 
-	check( Device->SharedContext.hGLContext )
+	check(Device->SharedContext.hGLContext)
 	{
 		FScopeContext Scope(&(Device->SharedContext));
 		verifyf(SDL_GL_SetAttribute(SDL_GL_SHARE_WITH_CURRENT_CONTEXT, 1) == 0, TEXT("SDL_GL_SetAttribute(SDL_GL_SHARE_WITH_CURRENT_CONTEXT, 1) failed: %s\n."), UTF8_TO_TCHAR(SDL_GetError()));
-		Linux_PlatformCreateOpenGLContextCore( Context );
+		Linux_PlatformCreateOpenGLContextCore(Context);
 	}
 
-	check( Context->hGLContext );
+	check(Context->hGLContext);
 	{
 		FScopeContext Scope(Context);
 		InitDefaultGLContextState();
 	}
 
-    return Context;
+	return Context;
 }
 
 /**
  * Release an OpenGL context.
  */
-void PlatformReleaseOpenGLContext( FPlatformOpenGLDevice* Device, FPlatformOpenGLContext* Context )
+void PlatformReleaseOpenGLContext(FPlatformOpenGLDevice* Device, FPlatformOpenGLContext* Context)
 {
-	check( Context && Context->hGLContext );
+	check(Context && Context->hGLContext);
 
 	{
-		FScopeLock ScopeLock( Device->ContextUsageGuard );
+		FScopeLock ScopeLock(Device->ContextUsageGuard);
 		{
-			FScopeContext ScopeContext( Context );
+			FScopeContext ScopeContext(Context);
 
-			Linux_DeleteQueriesForCurrentContext( Context->hGLContext );
+			Linux_DeleteQueriesForCurrentContext(Context->hGLContext);
 			glBindVertexArray(0);
 			glDeleteVertexArrays(1, &Context->VertexArrayObject);
 
-			if	( Context->ViewportFramebuffer )
+			if (Context->ViewportFramebuffer)
 			{
-				glDeleteFramebuffers( 1,&Context->ViewportFramebuffer );	// this can be done from any context shared with ours, as long as it's not nil.
+				glDeleteFramebuffers(1, &Context->ViewportFramebuffer);	// this can be done from any context shared with ours, as long as it's not nil.
 				Context->ViewportFramebuffer = 0;
 			}
 		}
 
-		SDL_GL_DeleteContext( Context->hGLContext );
+		SDL_GL_DeleteContext(Context->hGLContext);
 		Context->hGLContext = NULL;
 	}
 
-	check( Context->hWnd );
+	check(Context->hWnd);
 
-	if	( Context->bReleaseWindowOnDestroy )
+	if (Context->bReleaseWindowOnDestroy)
 	{
-		SDL_DestroyWindow( Context->hWnd );
+		SDL_DestroyWindow(Context->hWnd);
 	}
 
 	Context->hWnd = NULL;
@@ -349,7 +336,7 @@ void PlatformReleaseOpenGLContext( FPlatformOpenGLDevice* Device, FPlatformOpenG
  */
 void PlatformDestroyOpenGLContext(FPlatformOpenGLDevice* Device, FPlatformOpenGLContext* Context)
 {
-	PlatformReleaseOpenGLContext( Device, Context );
+	PlatformReleaseOpenGLContext(Device, Context);
 	delete Context;
 }
 
@@ -369,13 +356,13 @@ const TCHAR* PlatformDescribeSyncInterval(int32 SyncInterval)
 {
 	switch (SyncInterval)
 	{
-		case -1:
-			return TEXT("Late swap");
-		case 0:
-			return TEXT("Immediate");
-		case 1: 
-			return TEXT("Synchronized with retrace");
-		default: break;
+	case -1:
+		return TEXT("Late swap");
+	case 0:
+		return TEXT("Immediate");
+	case 1:
+		return TEXT("Synchronized with retrace");
+	default: break;
 	}
 	return TEXT("Unknown");
 }
@@ -385,22 +372,22 @@ const TCHAR* PlatformDescribeSyncInterval(int32 SyncInterval)
  * On Windows it temporarily switches OpenGL context, on Mac only context's output view.
  */
 bool PlatformBlitToViewport(FPlatformOpenGLDevice* Device,
-							const FOpenGLViewport& Viewport,
-							uint32 BackbufferSizeX,
-							uint32 BackbufferSizeY,
-							bool bPresent,
-							bool bLockToVsync)
+	const FOpenGLViewport& Viewport,
+	uint32 BackbufferSizeX,
+	uint32 BackbufferSizeY,
+	bool bPresent,
+	bool bLockToVsync)
 {
 	FPlatformOpenGLContext* const Context = Viewport.GetGLContext();
 
-	check( Context && Context->hWnd );
+	check(Context && Context->hWnd);
 
-	FScopeLock ScopeLock( Device->ContextUsageGuard );
+	FScopeLock ScopeLock(Device->ContextUsageGuard);
 
 	int32 SyncInterval = (int32)RHIGetSyncInterval();
 
 	{
-		FScopeContext ScopeContext( Context );
+		FScopeContext ScopeContext(Context);
 
 		if (Viewport.GetCustomPresent())
 		{
@@ -413,10 +400,10 @@ bool PlatformBlitToViewport(FPlatformOpenGLDevice* Device,
 			}
 		}
 
-		glBindFramebuffer( GL_DRAW_FRAMEBUFFER, 0 );
-		glDrawBuffer( GL_BACK );
-		glBindFramebuffer( GL_READ_FRAMEBUFFER, Context->ViewportFramebuffer );
-		glReadBuffer( GL_COLOR_ATTACHMENT0 );
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+		glDrawBuffer(GL_BACK);
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, Context->ViewportFramebuffer);
+		glReadBuffer(GL_COLOR_ATTACHMENT0);
 		glDisable(GL_FRAMEBUFFER_SRGB);
 
 		int WinW = 0;
@@ -425,13 +412,13 @@ bool PlatformBlitToViewport(FPlatformOpenGLDevice* Device,
 		GLenum BlitFilter;
 		GLint DestX0, DestY0, DestX1, DestY1;
 
-		if ( WinH == 0 || WinW == 0 )
+		if (WinH == 0 || WinW == 0)
 		{
 			// Nothing to blit
 			return false;
 		}
 
-		if ( ( WinW == BackbufferSizeX ) && ( WinH == BackbufferSizeY ) )
+		if ((WinW == BackbufferSizeX) && (WinH == BackbufferSizeY))
 		{
 			// We match up. We're probably in windowed mode, or an exact
 			//  match for FULLSCREEN_DESKTOP mode. Use a NEAREST blit and
@@ -450,11 +437,11 @@ bool PlatformBlitToViewport(FPlatformOpenGLDevice* Device,
 
 			const uint32 w = BackbufferSizeX;
 			const uint32 h = BackbufferSizeY;
-			const float WantedAspect = (w > h) ? (((float) w) / ((float) h)) : (((float) h) / ((float) w));
-			const float PhysicalAspect = (((float) WinW) / ((float) WinH));
+			const float WantedAspect = (w > h) ? (((float)w) / ((float)h)) : (((float)h) / ((float)w));
+			const float PhysicalAspect = (((float)WinW) / ((float)WinH));
 
 			bool bMustClear;  // have to clear the window framebuffer if letterboxing.
-			if ( PhysicalAspect == WantedAspect )  // Perfect aspect ratio; no letterboxing needed?
+			if (PhysicalAspect == WantedAspect)  // Perfect aspect ratio; no letterboxing needed?
 			{
 				bMustClear = false;
 				DestX0 = 0;
@@ -462,8 +449,8 @@ bool PlatformBlitToViewport(FPlatformOpenGLDevice* Device,
 				DestX1 = WinW;
 				DestY1 = 0;
 			}
-			else if ( PhysicalAspect > WantedAspect )  // view is wider than wanted aspect?
-			{  
+			else if (PhysicalAspect > WantedAspect)  // view is wider than wanted aspect?
+			{
 				bMustClear = true;
 				const float ScaledW = WinH * WantedAspect;
 				const float ScaledX = (((float)WinW) - ScaledW) / 2.0f;
@@ -485,20 +472,20 @@ bool PlatformBlitToViewport(FPlatformOpenGLDevice* Device,
 
 			// if the Steam Overlay is running, it might write garbage into our
 			//  letterbox area, so if we have a letterbox, clear the framebuffer.
-			if ( bMustClear )
+			if (bMustClear)
 			{
-				glClearColor( 0.0f, 0.0f, 0.0f, 1.0f );
-				glClear( GL_COLOR_BUFFER_BIT );
+				glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+				glClear(GL_COLOR_BUFFER_BIT);
 			}
 		}
 
 		// Get it to the window system's framebuffer.
-		glBlitFramebuffer(	0, 0, BackbufferSizeX, BackbufferSizeY,
-							DestX0, DestY0, DestX1, DestY1,
-							GL_COLOR_BUFFER_BIT,
-							BlitFilter	);
+		glBlitFramebuffer(0, 0, BackbufferSizeX, BackbufferSizeY,
+			DestX0, DestY0, DestX1, DestY1,
+			GL_COLOR_BUFFER_BIT,
+			BlitFilter);
 
-		if ( bPresent )
+		if (bPresent)
 		{
 			int32 RealSyncInterval = bLockToVsync ? SyncInterval : 0;
 
@@ -531,7 +518,7 @@ bool PlatformBlitToViewport(FPlatformOpenGLDevice* Device,
 				Context->SyncInterval = RealSyncInterval;
 			}
 
-			SDL_GL_SwapWindow( Context->hWnd );
+			SDL_GL_SwapWindow(Context->hWnd);
 
 			glEnable(GL_FRAMEBUFFER_SRGB);
 		}
@@ -551,38 +538,38 @@ void PlatformRebindResources(FPlatformOpenGLDevice* Device)
 
 void PlatformRenderingContextSetup(FPlatformOpenGLDevice* Device)
 {
-	check( Device && Device->RenderingContext.hWnd && Device->RenderingContext.hGLContext );
+	check(Device && Device->RenderingContext.hWnd && Device->RenderingContext.hGLContext);
 
-	if ( Linux_GetCurrentContext() )
+	if (Linux_GetCurrentContext())
 	{
 		glFlush();
 	}
 
-	Linux_ContextMakeCurrent( Device->RenderingContext.hWnd, Device->RenderingContext.hGLContext );
+	Linux_ContextMakeCurrent(Device->RenderingContext.hWnd, Device->RenderingContext.hGLContext);
 }
 
 void PlatformSharedContextSetup(FPlatformOpenGLDevice* Device)
 {
-	check( Device && Device->SharedContext.hWnd && Device->SharedContext.hGLContext );
+	check(Device && Device->SharedContext.hWnd && Device->SharedContext.hGLContext);
 
 	// no need to glFlush() on Windows, it does flush by itself before switching contexts
-	if ( Linux_GetCurrentContext() )
+	if (Linux_GetCurrentContext())
 	{
 		glFlush();
 	}
 
-	Linux_ContextMakeCurrent( Device->SharedContext.hWnd, Device->SharedContext.hGLContext );
+	Linux_ContextMakeCurrent(Device->SharedContext.hWnd, Device->SharedContext.hGLContext);
 }
 
 
 void PlatformNULLContextSetup()
 {
-	if ( Linux_GetCurrentContext() )
+	if (Linux_GetCurrentContext())
 	{
 		glFlush();
 	}
 
-	Linux_ContextMakeCurrent( NULL, NULL );
+	Linux_ContextMakeCurrent(NULL, NULL);
 }
 
 
@@ -590,13 +577,13 @@ void PlatformNULLContextSetup()
 /**
  * Resize the GL context.
  */
-void PlatformResizeGLContext(	FPlatformOpenGLDevice* Device,
-								FPlatformOpenGLContext* Context,
-								uint32 SizeX, uint32 SizeY,
-								bool bFullscreen, 
-								bool bWasFullscreen,
-								GLenum BackBufferTarget,
-								GLuint BackBufferResource)
+void PlatformResizeGLContext(FPlatformOpenGLDevice* Device,
+	FPlatformOpenGLContext* Context,
+	uint32 SizeX, uint32 SizeY,
+	bool bFullscreen,
+	bool bWasFullscreen,
+	GLenum BackBufferTarget,
+	GLuint BackBufferResource)
 {
 	FScopeLock ScopeLock(Device->ContextUsageGuard);
 	{
@@ -610,10 +597,10 @@ void PlatformResizeGLContext(	FPlatformOpenGLDevice* Device,
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, BackBufferTarget, BackBufferResource, 0);
 		FOpenGL::CheckFrameBuffer();
 
-		glViewport( 0, 0, SizeX, SizeY );			
+		glViewport(0, 0, SizeX, SizeY);
 
 		static GLfloat ZeroColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-		glClearBufferfv(GL_COLOR, 0, ZeroColor );
+		glClearBufferfv(GL_COLOR, 0, ZeroColor);
 	}
 
 
@@ -624,13 +611,13 @@ void PlatformResizeGLContext(	FPlatformOpenGLDevice* Device,
 		//	it detach all the components and re attach all the components
 		FGlobalComponentReregisterContext RecreateComponents;
 	}
-	else if	(bWasFullscreen)
+	else if (bWasFullscreen)
 	{
 		FGlobalComponentReregisterContext RecreateComponents;
 	}
 }
 
-void PlatformGetSupportedResolution(uint32 &Width, uint32 &Height)
+void PlatformGetSupportedResolution(uint32& Width, uint32& Height)
 {
 	uint32 InitializedMode = false;
 	uint32 BestWidth = 0;
@@ -638,13 +625,13 @@ void PlatformGetSupportedResolution(uint32 &Width, uint32 &Height)
 	uint32 ModeIndex = 0;
 
 	SDL_DisplayMode DisplayMode;
-	FMemory::Memzero( &DisplayMode, sizeof(DisplayMode) );
+	FMemory::Memzero(&DisplayMode, sizeof(DisplayMode));
 
-	while ( !SDL_GetDisplayMode( 0, ModeIndex++, &DisplayMode ) )
+	while (!SDL_GetDisplayMode(0, ModeIndex++, &DisplayMode))
 	{
 		bool IsEqualOrBetterWidth = FMath::Abs((int32)DisplayMode.w - (int32)Width) <= FMath::Abs((int32)BestWidth - (int32)Width);
 		bool IsEqualOrBetterHeight = FMath::Abs((int32)DisplayMode.h - (int32)Height) <= FMath::Abs((int32)BestHeight - (int32)Height);
-		if	(!InitializedMode || (IsEqualOrBetterWidth && IsEqualOrBetterHeight))
+		if (!InitializedMode || (IsEqualOrBetterWidth && IsEqualOrBetterHeight))
 		{
 			BestWidth = DisplayMode.w;
 			BestHeight = DisplayMode.h;
@@ -657,7 +644,7 @@ void PlatformGetSupportedResolution(uint32 &Width, uint32 &Height)
 }
 
 
-bool PlatformGetAvailableResolutions( FScreenResolutionArray& Resolutions, bool bIgnoreRefreshRate )
+bool PlatformGetAvailableResolutions(FScreenResolutionArray& Resolutions, bool bIgnoreRefreshRate)
 {
 	int32 MinAllowableResolutionX = 0;
 	int32 MinAllowableResolutionY = 0;
@@ -683,7 +670,7 @@ bool PlatformGetAvailableResolutions( FScreenResolutionArray& Resolutions, bool 
 	SDL_DisplayMode DisplayMode;
 	FMemory::Memzero(&DisplayMode, sizeof(SDL_DisplayMode));
 
-	while (!SDL_GetDisplayMode( 0, ModeIndex++, &DisplayMode ))
+	while (!SDL_GetDisplayMode(0, ModeIndex++, &DisplayMode))
 	{
 		if (((int32)DisplayMode.w >= MinAllowableResolutionX) &&
 			((int32)DisplayMode.w <= MaxAllowableResolutionX) &&
@@ -775,8 +762,8 @@ bool PlatformInitOpenGL()
 		{
 			DebugFlag = SDL_GL_CONTEXT_DEBUG_FLAG;
 		}
-	
-		if (SDL_GL_SetAttribute( SDL_GL_CONTEXT_MAJOR_VERSION, MajorVersion) != 0)
+
+		if (SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, MajorVersion) != 0)
 		{
 			UE_LOG(LogLinux, Fatal, TEXT("SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, %d) failed: %s"), MajorVersion, UTF8_TO_TCHAR(SDL_GetError()));
 		}
@@ -807,7 +794,7 @@ bool PlatformInitOpenGL()
 		// Create a dummy context to verify opengl support.
 		FPlatformOpenGLContext DummyContext;
 		Linux_PlatformCreateDummyGLWindow(&DummyContext);
-		Linux_PlatformCreateOpenGLContextCore(&DummyContext );	
+		Linux_PlatformCreateOpenGLContextCore(&DummyContext);
 
 		if (DummyContext.hGLContext)
 		{
@@ -816,29 +803,29 @@ bool PlatformInitOpenGL()
 		}
 		else
 		{
-			UE_LOG(LogRHI,Error,TEXT("OpenGL %d.%d not supported by driver"),MajorVersion,MinorVersion);
+			UE_LOG(LogRHI, Error, TEXT("OpenGL %d.%d not supported by driver"), MajorVersion, MinorVersion);
 		}
 
 		if (bOpenGLSupported)
 		{
 			// Initialize all entry points required by Unreal.
-			#define GET_GL_ENTRYPOINTS(Type,Func) GLFuncPointers::Func = reinterpret_cast<Type>(SDL_GL_GetProcAddress(#Func));
+#define GET_GL_ENTRYPOINTS(Type,Func) GLFuncPointers::Func = reinterpret_cast<Type>(SDL_GL_GetProcAddress(#Func));
 			ENUM_GL_ENTRYPOINTS(GET_GL_ENTRYPOINTS);
 			ENUM_GL_ENTRYPOINTS_OPTIONAL(GET_GL_ENTRYPOINTS);
-			#undef GET_GL_ENTRYPOINTS
+#undef GET_GL_ENTRYPOINTS
 
 			// Check that all of the entry points have been initialized.
 			bool bFoundAllEntryPoints = true;
-			#define CHECK_GL_ENTRYPOINTS(Type,Func) if (Func == NULL) { bFoundAllEntryPoints = false; UE_LOG(LogRHI, Fatal, TEXT("Failed to find entry point for %s"), TEXT(#Func)); }
+#define CHECK_GL_ENTRYPOINTS(Type,Func) if (Func == NULL) { bFoundAllEntryPoints = false; UE_LOG(LogRHI, Fatal, TEXT("Failed to find entry point for %s"), TEXT(#Func)); }
 			ENUM_GL_ENTRYPOINTS(CHECK_GL_ENTRYPOINTS);
-			#undef CHECK_GL_ENTRYPOINTS
+#undef CHECK_GL_ENTRYPOINTS
 			checkf(bFoundAllEntryPoints, TEXT("Failed to find all OpenGL entry points."));
 		}
 
 		// The dummy context can now be released.
 		if (DummyContext.hGLContext)
 		{
-			Linux_ContextMakeCurrent(NULL,NULL);
+			Linux_ContextMakeCurrent(NULL, NULL);
 			SDL_GL_DeleteContext(DummyContext.hGLContext);
 		}
 		check(DummyContext.bReleaseWindowOnDestroy);
@@ -852,7 +839,7 @@ bool PlatformInitOpenGL()
 
 bool PlatformOpenGLContextValid()
 {
-	return ( Linux_GetCurrentContext() != NULL );
+	return (Linux_GetCurrentContext() != NULL);
 }
 
 int32 PlatformGlGetError()
@@ -860,7 +847,7 @@ int32 PlatformGlGetError()
 	return glGetError();
 }
 
-EOpenGLCurrentContext PlatformOpenGLCurrentContext( FPlatformOpenGLDevice* Device )
+EOpenGLCurrentContext PlatformOpenGLCurrentContext(FPlatformOpenGLDevice* Device)
 {
 	SDL_HGLContext hGLContext = Linux_GetCurrentContext();
 
@@ -868,11 +855,11 @@ EOpenGLCurrentContext PlatformOpenGLCurrentContext( FPlatformOpenGLDevice* Devic
 	{
 		return CONTEXT_Rendering;
 	}
-	else if	(hGLContext == Device->SharedContext.hGLContext)
+	else if (hGLContext == Device->SharedContext.hGLContext)
 	{
 		return CONTEXT_Shared;
 	}
-	else if	(hGLContext)
+	else if (hGLContext)
 	{
 		return CONTEXT_Other;
 	}
@@ -884,7 +871,7 @@ void* PlatformOpenGLCurrentContextHandle(FPlatformOpenGLDevice* Device)
 	return Linux_GetCurrentContext();
 }
 
-void PlatformGetBackbufferDimensions( uint32& OutWidth, uint32& OutHeight )
+void PlatformGetBackbufferDimensions(uint32& OutWidth, uint32& OutHeight)
 {
 	SDL_HWindow CurrentWindow = SDL_GL_GetCurrentWindow();
 
@@ -909,11 +896,11 @@ struct FOpenGLReleasedQuery
 };
 
 static TArray<FOpenGLReleasedQuery>	ReleasedQueries;
-static FCriticalSection*			ReleasedQueriesGuard;
+static FCriticalSection* ReleasedQueriesGuard;
 
-void PlatformGetNewRenderQuery( GLuint* OutQuery, uint64* OutQueryContext )
+void PlatformGetNewRenderQuery(GLuint* OutQuery, uint64* OutQueryContext)
 {
-	if( !ReleasedQueriesGuard )
+	if (!ReleasedQueriesGuard)
 	{
 		ReleasedQueriesGuard = new FCriticalSection;
 	}
@@ -922,19 +909,19 @@ void PlatformGetNewRenderQuery( GLuint* OutQuery, uint64* OutQueryContext )
 		FScopeLock Lock(ReleasedQueriesGuard);
 
 #ifdef UE_BUILD_DEBUG
-		check( OutQuery && OutQueryContext );
+		check(OutQuery && OutQueryContext);
 #endif
 
 		SDL_HGLContext hGLContext = Linux_GetCurrentContext();
-		check( hGLContext );
+		check(hGLContext);
 
 		GLuint NewQuery = 0;
 
 		// Check for possible query reuse
 		const int32 ArraySize = ReleasedQueries.Num();
-		for( int32 Index = 0; Index < ArraySize; ++Index )
+		for (int32 Index = 0; Index < ArraySize; ++Index)
 		{
-			if( ReleasedQueries[Index].hGLContext == hGLContext )
+			if (ReleasedQueries[Index].hGLContext == hGLContext)
 			{
 				NewQuery = ReleasedQueries[Index].Query;
 				ReleasedQueries.RemoveAtSwap(Index);
@@ -942,9 +929,9 @@ void PlatformGetNewRenderQuery( GLuint* OutQuery, uint64* OutQueryContext )
 			}
 		}
 
-		if( !NewQuery )
+		if (!NewQuery)
 		{
-			FOpenGL::GenQueries( 1, &NewQuery );
+			FOpenGL::GenQueries(1, &NewQuery);
 		}
 
 		*OutQuery = NewQuery;
@@ -956,18 +943,18 @@ void PlatformGetNewRenderQuery( GLuint* OutQuery, uint64* OutQueryContext )
 
 
 
-void PlatformReleaseRenderQuery( GLuint Query, uint64 QueryContext )
+void PlatformReleaseRenderQuery(GLuint Query, uint64 QueryContext)
 {
 	SDL_HGLContext hGLContext = Linux_GetCurrentContext();
-	if( (uint64)hGLContext == QueryContext )
+	if ((uint64)hGLContext == QueryContext)
 	{
-		FOpenGL::DeleteQueries(1, &Query );
+		FOpenGL::DeleteQueries(1, &Query);
 	}
 	else
 	{
 		FScopeLock Lock(ReleasedQueriesGuard);
 #ifdef UE_BUILD_DEBUG
-		check( Query && QueryContext && ReleasedQueriesGuard );
+		check(Query && QueryContext && ReleasedQueriesGuard);
 #endif
 		FOpenGLReleasedQuery ReleasedQuery;
 		ReleasedQuery.hGLContext = (SDL_HGLContext)QueryContext;
@@ -977,47 +964,31 @@ void PlatformReleaseRenderQuery( GLuint Query, uint64 QueryContext )
 
 }
 
-bool PlatformContextIsCurrent( uint64 QueryContext )
+bool PlatformContextIsCurrent(uint64 QueryContext)
 {
 	return (uint64)Linux_GetCurrentContext() == QueryContext;
 }
 
-FOpenGLTexture* PlatformCreateBuiltinBackBuffer( FOpenGLDynamicRHI* OpenGLRHI, uint32 SizeX, uint32 SizeY )
+FOpenGLTexture* PlatformCreateBuiltinBackBuffer(FOpenGLDynamicRHI* OpenGLRHI, uint32 SizeX, uint32 SizeY)
 {
 	return nullptr;
 }
 
-void Linux_DeleteQueriesForCurrentContext( SDL_HGLContext hGLContext )
+void Linux_DeleteQueriesForCurrentContext(SDL_HGLContext hGLContext)
 {
-	if( !ReleasedQueriesGuard )
+	if (!ReleasedQueriesGuard)
 	{
 		ReleasedQueriesGuard = new FCriticalSection;
 	}
 
 	FScopeLock Lock(ReleasedQueriesGuard);
-	for( int32 Index = 0; Index < ReleasedQueries.Num(); ++Index )
+	for (int32 Index = 0; Index < ReleasedQueries.Num(); ++Index)
 	{
-		if( ReleasedQueries[Index].hGLContext == hGLContext )
+		if (ReleasedQueries[Index].hGLContext == hGLContext)
 		{
-			FOpenGL::DeleteQueries(1,&ReleasedQueries[Index].Query);
+			FOpenGL::DeleteQueries(1, &ReleasedQueries[Index].Query);
 			ReleasedQueries.RemoveAtSwap(Index);
 			--Index;
 		}
-	}
-}
-
-void FLinuxOpenGL::ProcessExtensions( const FString& ExtensionsString )
-{
-	FOpenGL4::ProcessExtensions(ExtensionsString);
-
-	FString VendorName( ANSI_TO_TCHAR((const ANSICHAR*)glGetString(GL_VENDOR) ) );
-
-	if ( VendorName.Contains(TEXT("ATI ")) )
-	{
-		// Workaround for AMD driver not handling GL_SRGB8_ALPHA8 in glTexStorage2D() properly (gets treated as non-sRGB)
-		// FIXME: obsolete ? this was the case in <= 2014
-		glTexStorage1D = nullptr;
-		glTexStorage2D = nullptr;
-		glTexStorage3D = nullptr;
 	}
 }

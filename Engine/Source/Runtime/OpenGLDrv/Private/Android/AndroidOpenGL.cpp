@@ -1,12 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "CoreMinimal.h"
-#include "Android/AndroidPlatform.h"
+#include "AndroidOpenGL.h"
 
 #if USE_ANDROID_OPENGL
 
-#include "OpenGLDrvPrivate.h"
-#include "AndroidOpenGL.h"
 #include "OpenGLDrvPrivate.h"
 #include "OpenGLES.h"
 #include "Android/AndroidWindow.h"
@@ -15,19 +12,7 @@
 #include "Android/AndroidPlatformFramePacer.h"
 #include "Android/AndroidJNI.h"
 #include "GenericPlatform/GenericPlatformCrashContext.h"
-
-PFNeglPresentationTimeANDROID eglPresentationTimeANDROID_p = NULL;
-PFNeglGetNextFrameIdANDROID eglGetNextFrameIdANDROID_p = NULL;
-PFNeglGetCompositorTimingANDROID eglGetCompositorTimingANDROID_p = NULL;
-PFNeglGetFrameTimestampsANDROID eglGetFrameTimestampsANDROID_p = NULL;
-PFNeglQueryTimestampSupportedANDROID eglQueryTimestampSupportedANDROID_p = NULL;
-PFNeglQueryTimestampSupportedANDROID eglGetCompositorTimingSupportedANDROID_p = NULL;
-PFNeglQueryTimestampSupportedANDROID eglGetFrameTimestampsSupportedANDROID_p = NULL;
-
-namespace GLFuncPointers
-{
-	PFNGLFRAMEBUFFERFETCHBARRIERQCOMPROC glFramebufferFetchBarrierQCOM = NULL;
-}
+#include "Misc/ConfigCacheIni.h"
 
 int32 FAndroidOpenGL::GLMajorVerion = 0;
 int32 FAndroidOpenGL::GLMinorVersion = 0;
@@ -1071,53 +1056,8 @@ void FAndroidOpenGL::ProcessExtensions(const FString& ExtensionsString)
 	}
 }
 
-FString FAndroidMisc::GetGPUFamily()
-{
-	return FAndroidGPUInfo::Get().GetGPUFamily();
-}
-
-FString FAndroidMisc::GetGLVersion()
-{
-	return FAndroidGPUInfo::Get().GLVersion;
-}
-
-bool FAndroidMisc::SupportsFloatingPointRenderTargets()
-{
-	return FAndroidGPUInfo::Get().bSupportsFloatingPointRenderTargets;
-}
-
-bool FAndroidMisc::SupportsShaderFramebufferFetch()
-{
-	return FAndroidGPUInfo::Get().bSupportsFrameBufferFetch;
-}
-
-bool FAndroidMisc::SupportsES30()
-{
-	return true;
-}
-
-void FAndroidMisc::GetValidTargetPlatforms(TArray<FString>& TargetPlatformNames)
-{
-	TargetPlatformNames = FAndroidGPUInfo::Get().TargetPlatformNames;
-}
-
-void FAndroidAppEntry::PlatformInit()
-{
-	// Try to create an ES3.2 EGL here for gpu queries and don't have to recreate the GL context.
-	AndroidEGL::GetInstance()->Init(AndroidEGL::AV_OpenGLES, 3, 2);
-}
-
-void FAndroidAppEntry::ReleaseEGL()
-{
-	AndroidEGL* EGL = AndroidEGL::GetInstance();
-	if (EGL->IsInitialized())
-	{
-		EGL->DestroyBackBuffer();
-		EGL->Terminate();
-	}
-}
-
 static bool GRemoteCompileServicesActive = false;
+extern bool AreAndroidOpenGLRemoteCompileServicesAvailable();
 
 bool AreAndroidOpenGLRemoteCompileServicesActive()
 {

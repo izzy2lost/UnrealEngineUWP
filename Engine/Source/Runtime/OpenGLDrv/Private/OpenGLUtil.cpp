@@ -4,7 +4,7 @@
 	OpenGLUtil.h: OpenGL RHI utility implementation.
 =============================================================================*/
 
-#include "CoreMinimal.h"
+#include "OpenGLUtil.h"
 #include "Stats/Stats.h"
 #include "OpenGLDrv.h"
 #include "OpenGLDrvPrivate.h"

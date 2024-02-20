@@ -4,7 +4,7 @@
 	OpenGLState.cpp: OpenGL state implementation.
 =============================================================================*/
 
-#include "CoreMinimal.h"
+#include "OpenGLState.h"
 #include "Serialization/MemoryWriter.h"
 #include "RHI.h"
 #include "RHIUtilities.h"

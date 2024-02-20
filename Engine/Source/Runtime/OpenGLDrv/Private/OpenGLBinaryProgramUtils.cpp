@@ -4,8 +4,8 @@
 	OpenGLBinaryProgramUtils.cpp
 =============================================================================*/
 
-#include "Misc/Compression.h"
 #include "OpenGLBinaryProgramUtils.h"
+#include "Misc/Compression.h"
 
 namespace UE
 {

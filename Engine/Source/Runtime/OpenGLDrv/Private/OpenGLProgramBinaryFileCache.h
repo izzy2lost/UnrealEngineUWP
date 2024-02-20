@@ -6,18 +6,7 @@
 
 #pragma once
 
-#include "HAL/UnrealMemory.h"
-#include "Templates/UnrealTemplate.h"
-#include "Containers/Array.h"
-#include "Misc/Crc.h"
-#include "Containers/UnrealString.h"
-#include "Containers/Map.h"
-#include "Misc/SecureHash.h"
-#include "HAL/IConsoleManager.h"
-#include "RHI.h"
-#include "ShaderCore.h"
-#include "CrossCompilerCommon.h"
-#include "ShaderCodeLibrary.h"
+#include "OpenGLShaderResources.h"
 #include "ShaderPipelineCache.h"
 
 class FOpenGLLinkedProgram;

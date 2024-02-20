@@ -5,6 +5,7 @@
 =============================================================================*/
 #pragma once
 
+#include "AndroidEGL.h"
 #include "Android/AndroidApplication.h"
 #include "libgpuinfo.hpp"
 #include "Internationalization/Regex.h"

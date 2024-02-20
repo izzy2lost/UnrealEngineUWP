@@ -6,8 +6,6 @@
 
 #pragma once
 
-// HEADER_UNIT_SKIP - Not included directly
-
 #include "Containers/Array.h"
 #include "CrossCompilerCommon.h"
 #include "OpenGLThirdParty.h"

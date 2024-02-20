@@ -4,62 +4,11 @@
 	OpenGLES.cpp: OpenGL ES implementation.
 =============================================================================*/
 
-#include "CoreMinimal.h"
-#include "HAL/IConsoleManager.h"
-#include "OpenGLDrv.h"
+#include "OpenGLES.h"
+
+#if UGL_PLATFORM_SUPPORTS_GLES
+
 #include "OpenGLDrvPrivate.h"
-
-#if !PLATFORM_DESKTOP
-
-#if OPENGL_ES
-
-PFNEGLGETSYSTEMTIMENVPROC eglGetSystemTimeNV_p = NULL;
-PFNEGLCREATESYNCKHRPROC eglCreateSyncKHR_p = NULL;
-PFNEGLDESTROYSYNCKHRPROC eglDestroySyncKHR_p = NULL;
-PFNEGLCLIENTWAITSYNCKHRPROC eglClientWaitSyncKHR_p = NULL;
-PFNEGLGETSYNCATTRIBKHRPROC eglGetSyncAttribKHR_p = NULL;
-
-namespace GLFuncPointers
-{
-	// Offscreen MSAA rendering
-	PFNGLFRAMEBUFFERTEXTURE2DMULTISAMPLEEXTPROC	glFramebufferTexture2DMultisampleEXT = NULL;
-	PFNGLRENDERBUFFERSTORAGEMULTISAMPLEEXTPROC	glRenderbufferStorageMultisampleEXT = NULL;
-
-	PFNGLPUSHGROUPMARKEREXTPROC				glPushGroupMarkerEXT = NULL;
-	PFNGLPOPGROUPMARKEREXTPROC				glPopGroupMarkerEXT = NULL;
-	PFNGLLABELOBJECTEXTPROC					glLabelObjectEXT = NULL;
-	PFNGLGETOBJECTLABELEXTPROC				glGetObjectLabelEXT = NULL;
-
-	PFNGLBUFFERSTORAGEEXTPROC				glBufferStorageEXT = NULL;
-	// KHR_debug
-	PFNGLDEBUGMESSAGECONTROLKHRPROC			glDebugMessageControlKHR = NULL;
-	PFNGLDEBUGMESSAGEINSERTKHRPROC			glDebugMessageInsertKHR = NULL;
-	PFNGLDEBUGMESSAGECALLBACKKHRPROC		glDebugMessageCallbackKHR = NULL;
-	PFNGLGETDEBUGMESSAGELOGKHRPROC			glDebugMessageLogKHR = NULL;
-	PFNGLGETPOINTERVKHRPROC					glGetPointervKHR = NULL;
-	PFNGLPUSHDEBUGGROUPKHRPROC				glPushDebugGroupKHR = NULL;
-	PFNGLPOPDEBUGGROUPKHRPROC				glPopDebugGroupKHR = NULL;
-	PFNGLOBJECTLABELKHRPROC					glObjectLabelKHR = NULL;
-	PFNGLGETOBJECTLABELKHRPROC				glGetObjectLabelKHR = NULL;
-	PFNGLOBJECTPTRLABELKHRPROC				glObjectPtrLabelKHR = NULL;
-	PFNGLGETOBJECTPTRLABELKHRPROC			glGetObjectPtrLabelKHR = NULL;
-
-	// ES 3.2
-	PFNGLTEXBUFFEREXTPROC					glTexBufferEXT = nullptr;
-	PFNGLTEXBUFFERRANGEEXTPROC				glTexBufferRangeEXT = nullptr;
-	PFNGLCOPYIMAGESUBDATAEXTPROC			glCopyImageSubData = nullptr;
-	PFNGLENABLEIEXTPROC						glEnableiEXT = nullptr;
-	PFNGLDISABLEIEXTPROC					glDisableiEXT = nullptr;
-	PFNGLBLENDEQUATIONIEXTPROC				glBlendEquationiEXT = nullptr;
-	PFNGLBLENDEQUATIONSEPARATEIEXTPROC		glBlendEquationSeparateiEXT = nullptr;
-	PFNGLBLENDFUNCIEXTPROC					glBlendFunciEXT = nullptr;
-	PFNGLBLENDFUNCSEPARATEIEXTPROC			glBlendFuncSeparateiEXT = nullptr;
-	PFNGLCOLORMASKIEXTPROC					glColorMaskiEXT = nullptr;
-	PFNGLFRAMEBUFFERTEXTUREPROC				glFramebufferTexture = nullptr;
-
-	PFNGLFRAMEBUFFERTEXTUREMULTIVIEWOVRPROC				glFramebufferTextureMultiviewOVR = NULL;
-	PFNGLFRAMEBUFFERTEXTUREMULTISAMPLEMULTIVIEWOVRPROC	glFramebufferTextureMultisampleMultiviewOVR = NULL;
-};
 
 /** GL_EXT_disjoint_timer_query */
 bool FOpenGLES::bSupportsDisjointTimeQueries = false;
@@ -338,6 +287,4 @@ void FOpenGLES::ProcessExtensions(const FString& ExtensionsString)
 	}
 }
 
-#endif
-
-#endif //desktop
+#endif //UGL_PLATFORM_SUPPORTS_GLES

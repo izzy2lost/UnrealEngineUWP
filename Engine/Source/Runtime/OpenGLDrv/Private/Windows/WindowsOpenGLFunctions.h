@@ -1,26 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-/*=============================================================================
-	OpenGLWindows.h: Manual loading of OpenGL functions from DLL.
-=============================================================================*/
-
 #pragma once
 
-#include "CoreMinimal.h"
-#include "Misc/CommandLine.h"
-#include "RHI.h"
+#include "OpenGLPlatform.h"
 
-#if !PLATFORM_LINUX
-	#error "OpenGLLinux.h included for a platform other than Linux."
-#endif
+#define UGL_PLATFORM_SUPPORTS_GLES 0
+#define UGL_PLATFORM_SUPPORTS_GL3  1
+#define UGL_PLATFORM_SUPPORTS_GL4  1
 
-THIRD_PARTY_INCLUDES_START
-	#include <GL/glcorearb.h>
-	#include <GL/glext.h>
-THIRD_PARTY_INCLUDES_END
-
-/** List all OpenGL entry points used by Unreal. */
-#define ENUM_GL_ENTRYPOINTS(EnumMacro) \
+/** List all OpenGL entry points used by Unreal that must be loaded from opengl32.dll */
+#define ENUM_GL_ENTRYPOINTS_DLL(EnumMacro) \
 	EnumMacro(PFNGLBINDTEXTUREPROC,glBindTexture) \
 	EnumMacro(PFNGLBLENDFUNCPROC,glBlendFunc) \
 	EnumMacro(PFNGLCOLORMASKPROC,glColorMask) \
@@ -82,7 +71,10 @@ THIRD_PARTY_INCLUDES_END
 	EnumMacro(PFNGLTEXPARAMETERIVPROC,glTexParameteriv) \
 	EnumMacro(PFNGLTEXSUBIMAGE1DPROC,glTexSubImage1D) \
 	EnumMacro(PFNGLTEXSUBIMAGE2DPROC,glTexSubImage2D) \
-	EnumMacro(PFNGLVIEWPORTPROC,glViewport) \
+	EnumMacro(PFNGLVIEWPORTPROC,glViewport)
+
+/** List all OpenGL entry points used by Unreal. */
+#define ENUM_GL_ENTRYPOINTS(EnumMacro) \
 	EnumMacro(PFNGLBINDSAMPLERPROC,glBindSampler) \
 	EnumMacro(PFNGLDELETESAMPLERSPROC,glDeleteSamplers) \
 	EnumMacro(PFNGLGENSAMPLERSPROC,glGenSamplers) \
@@ -97,10 +89,6 @@ THIRD_PARTY_INCLUDES_END
 	EnumMacro(PFNGLGETBOOLEANI_VPROC,glGetBooleani_v) \
 	EnumMacro(PFNGLGETINTEGERI_VPROC,glGetIntegeri_v) \
 	EnumMacro(PFNGLISENABLEDIPROC,glIsEnabledi) \
-	EnumMacro(PFNGLBLENDEQUATIONSEPARATEIARBPROC,glBlendEquationSeparateiARB) \
-	EnumMacro(PFNGLBLENDEQUATIONIARBPROC,glBlendEquationiARB) \
-	EnumMacro(PFNGLBLENDFUNCSEPARATEIARBPROC,glBlendFuncSeparateiARB) \
-	EnumMacro(PFNGLBLENDFUNCIARBPROC,glBlendFunciARB) \
 	EnumMacro(PFNGLBLENDCOLORPROC,glBlendColor) \
 	EnumMacro(PFNGLBLENDEQUATIONPROC,glBlendEquation) \
 	EnumMacro(PFNGLDRAWRANGEELEMENTSPROC,glDrawRangeElements) \
@@ -298,7 +286,7 @@ THIRD_PARTY_INCLUDES_END
 	EnumMacro(PFNGLGETSYNCIVPROC, glGetSynciv)\
 	EnumMacro(PFNGLCLIENTWAITSYNCPROC, glClientWaitSync)\
 	EnumMacro(PFNGLBINDBUFFERRANGEPROC, glBindBufferRange) \
-	EnumMacro(PFNGLGETPROGRAMRESOURCEINDEXPROC, glGetProgramResourceIndex)
+	EnumMacro(PFNGLGETPROGRAMRESOURCEINDEXPROC, glGetProgramResourceIndex) \
 
 #define ENUM_GL_ENTRYPOINTS_OPTIONAL(EnumMacro) \
 	EnumMacro(PFNGLCLIPCONTROLPROC,glClipControl) \
@@ -323,6 +311,10 @@ THIRD_PARTY_INCLUDES_END
 	EnumMacro(PFNGLBLENDEQUATIONSEPARATEIPROC, glBlendEquationSeparatei) \
 	EnumMacro(PFNGLBLENDFUNCIPROC, glBlendFunci) \
 	EnumMacro(PFNGLBLENDFUNCSEPARATEIPROC, glBlendFuncSeparatei)\
+	EnumMacro(PFNGLBLENDEQUATIONSEPARATEIARBPROC,glBlendEquationSeparateiARB)\
+	EnumMacro(PFNGLBLENDEQUATIONIARBPROC,glBlendEquationiARB)\
+	EnumMacro(PFNGLBLENDFUNCSEPARATEIARBPROC,glBlendFuncSeparateiARB)\
+	EnumMacro(PFNGLBLENDFUNCIARBPROC,glBlendFunciARB)\
 	EnumMacro(PFNGLCLEARBUFFERDATAPROC, glClearBufferData)\
 	EnumMacro(PFNGLCLEARBUFFERSUBDATAPROC, glClearBufferSubData)\
 	EnumMacro(PFNGLPUSHDEBUGGROUPPROC, glPushDebugGroup)\
@@ -345,122 +337,61 @@ THIRD_PARTY_INCLUDES_END
 	EnumMacro(PFNGLDRAWELEMENTSINDIRECTPROC, glDrawElementsIndirect)\
 	EnumMacro(PFNGLDRAWARRAYSINDIRECTPROC, glDrawArraysIndirect)\
 	EnumMacro(PFNGLDEPTHBOUNDSEXTPROC, glDepthBoundsEXT)\
-	EnumMacro(PFNGLPROGRAMPARAMETERIPROC, glProgramParameteri)\
-	EnumMacro(PFNGLUSEPROGRAMSTAGESPROC, glUseProgramStages)\
-	EnumMacro(PFNGLBINDPROGRAMPIPELINEPROC, glBindProgramPipeline)\
-	EnumMacro(PFNGLDELETEPROGRAMPIPELINESPROC, glDeleteProgramPipelines)\
-	EnumMacro(PFNGLGENPROGRAMPIPELINESPROC, glGenProgramPipelines)\
-	EnumMacro(PFNGLPROGRAMUNIFORM1IPROC, glProgramUniform1i)\
-	EnumMacro(PFNGLPROGRAMUNIFORM4IVPROC, glProgramUniform4iv)\
-	EnumMacro(PFNGLPROGRAMUNIFORM4FVPROC, glProgramUniform4fv)\
-	EnumMacro(PFNGLPROGRAMUNIFORM4UIVPROC, glProgramUniform4uiv)\
-	EnumMacro(PFNGLGETPROGRAMPIPELINEIVPROC, glGetProgramPipelineiv)\
-	EnumMacro(PFNGLVALIDATEPROGRAMPIPELINEPROC, glValidateProgramPipeline)\
-	EnumMacro(PFNGLGETPROGRAMPIPELINEINFOLOGPROC, glGetProgramPipelineInfoLog)\
-	EnumMacro(PFNGLISPROGRAMPIPELINEPROC, glIsProgramPipeline)
+	EnumMacro(PFNGLGETTEXTUREHANDLENVPROC, glGetTextureHandleARB)\
+	EnumMacro(PFNGLGETTEXTURESAMPLERHANDLENVPROC, glGetTextureSamplerHandleARB)\
+	EnumMacro(PFNGLMAKETEXTUREHANDLERESIDENTNVPROC, glMakeTextureHandleResidentARB)\
+	EnumMacro(PFNGLUNIFORMHANDLEUI64NVPROC, glUniformHandleui64ARB)\
+	EnumMacro(PFNGLMAKETEXTUREHANDLENONRESIDENTNVPROC, glMakeTextureHandleNonResidentARB)\
+	EnumMacro(PFNGLPUSHDEBUGGROUPPROC, glPushDebugGroupKHR)\
+	EnumMacro(PFNGLPOPDEBUGGROUPPROC, glPopDebugGroupKHR)\
+	EnumMacro(PFNGLOBJECTLABELPROC, glObjectLabelKHR)\
+	EnumMacro(PFNGLOBJECTPTRLABELPROC, glObjectPtrLabelKHR)\
+	EnumMacro(PFNGLDEBUGMESSAGECALLBACKARBPROC,glDebugMessageCallbackKHR) \
+	EnumMacro(PFNGLDEBUGMESSAGECONTROLARBPROC,glDebugMessageControlKHR) \
+	EnumMacro(PFNGLPATCHPARAMETERIPROC, glPatchParameteriEXT)\
+	EnumMacro(PFNGLTEXTUREVIEWPROC, glTextureViewEXT)\
+	EnumMacro(PFNGLBLENDEQUATIONIPROC, glBlendEquationiEXT) \
+	EnumMacro(PFNGLBLENDEQUATIONSEPARATEIPROC, glBlendEquationSeparateiEXT) \
+	EnumMacro(PFNGLBLENDFUNCIPROC, glBlendFunciEXT) \
+	EnumMacro(PFNGLBLENDFUNCSEPARATEIPROC, glBlendFuncSeparateiEXT)\
+	EnumMacro(PFNGLCOLORMASKIPROC,glColorMaskiEXT) \
+	EnumMacro(PFNGLDISABLEIPROC,glDisableiEXT) \
+	EnumMacro(PFNGLENABLEIPROC,glEnableiEXT) \
+	EnumMacro(PFNGLFRAMEBUFFERTEXTUREPROC,glFramebufferTextureEXT) \
+	EnumMacro(PFNGLTEXBUFFERPROC,glTexBufferEXT) \
+	EnumMacro(PFNGLTEXBUFFERRANGEPROC,glTexBufferRangeEXT) \
+	EnumMacro(PFNGLDEPTHRANGEFPROC,glDepthRangef) \
+	EnumMacro(PFNGLCLEARDEPTHFPROC,glClearDepthf) \
+	EnumMacro(PFNGLGETSHADERPRECISIONFORMATPROC, glGetShaderPrecisionFormat) \
+	EnumMacro(PFNGLPROGRAMPARAMETERIPROC, glProgramParameteri) \
+	EnumMacro(PFNGLUSEPROGRAMSTAGESPROC, glUseProgramStages) \
+	EnumMacro(PFNGLBINDPROGRAMPIPELINEPROC, glBindProgramPipeline) \
+	EnumMacro(PFNGLDELETEPROGRAMPIPELINESPROC, glDeleteProgramPipelines) \
+	EnumMacro(PFNGLGENPROGRAMPIPELINESPROC, glGenProgramPipelines) \
+	EnumMacro(PFNGLPROGRAMUNIFORM1IPROC, glProgramUniform1i) \
+	EnumMacro(PFNGLPROGRAMUNIFORM4IVPROC, glProgramUniform4iv) \
+	EnumMacro(PFNGLPROGRAMUNIFORM4FVPROC, glProgramUniform4fv) \
+	EnumMacro(PFNGLPROGRAMUNIFORM4UIVPROC, glProgramUniform4uiv) \
+	EnumMacro(PFNGLGETPROGRAMPIPELINEIVPROC, glGetProgramPipelineiv) \
+	EnumMacro(PFNGLVALIDATEPROGRAMPIPELINEPROC, glValidateProgramPipeline) \
+	EnumMacro(PFNGLGETPROGRAMPIPELINEINFOLOGPROC, glGetProgramPipelineInfoLog) \
+	EnumMacro(PFNGLISPROGRAMPIPELINEPROC, glIsProgramPipeline) \
+	EnumMacro(PFNGLGETPROGRAMBINARYPROC, glGetProgramBinary) \
+	EnumMacro(PFNGLPROGRAMBINARYPROC, glProgramBinary)
 
 /** List of all OpenGL entry points. */
 #define ENUM_GL_ENTRYPOINTS_ALL(EnumMacro) \
+	ENUM_GL_ENTRYPOINTS_DLL(EnumMacro) \
 	ENUM_GL_ENTRYPOINTS(EnumMacro) \
 	ENUM_GL_ENTRYPOINTS_OPTIONAL(EnumMacro)
 
 /** Declare all GL functions. */
 #define DECLARE_GL_ENTRYPOINTS(Type,Func) extern Type OPENGLDRV_API Func;
-
-// We need to make pointer names different from GL functions otherwise we may end up getting
-// addresses of those symbols when looking for extensions.
-namespace GLFuncPointers
-{
-	ENUM_GL_ENTRYPOINTS_ALL(DECLARE_GL_ENTRYPOINTS);
-};
-
+ENUM_GL_ENTRYPOINTS_ALL(DECLARE_GL_ENTRYPOINTS);
 #undef DECLARE_GL_ENTRYPOINTS
 
-// this using is needed since the rest of code uses plain GL names
-using namespace GLFuncPointers;
+/** This function is handled separately because it is used to get a real context. */
+extern PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB;
 
-//========================================================================
-
-#include "OpenGL4.h"
-
-struct FLinuxOpenGL : public FOpenGL4
-{
-	static FORCEINLINE void InitDebugContext()
-	{
-		bDebugContext = glIsEnabled( GL_DEBUG_OUTPUT) != GL_FALSE;
-    }
-
-	static FORCEINLINE void LabelObject( GLenum Type, GLuint Object, const ANSICHAR* Name )
-	{
-		if (glObjectLabel && bDebugContext)
-		{
-			glObjectLabel(Type, Object, FCStringAnsi::Strlen(Name), Name);
-		}
-    }
-
-	static FORCEINLINE void PushGroupMarker( const ANSICHAR* Name )
-	{
-		if (glPushDebugGroup && bDebugContext)
-		{
-			glPushDebugGroup( GL_DEBUG_SOURCE_APPLICATION, 1, FCStringAnsi::Strlen(Name), Name );
-		}
-    }
-
-	static FORCEINLINE void PopGroupMarker()
-	{
-		if (glPopDebugGroup && bDebugContext)
-		{
-			glPopDebugGroup();
-		}
-    }
-
-	static FORCEINLINE bool TexStorage2D(GLenum Target, GLint Levels, GLint InternalFormat, GLsizei Width, GLsizei Height, GLenum Format, GLenum Type, ETextureCreateFlags Flags )
-	{
-		if( glTexStorage2D != NULL )
-		{
-			glTexStorage2D(Target, Levels, InternalFormat, Width, Height);
-			return true;
-		}
-		else
-		{
-			return false;
-		}
-    }
-
-	static FORCEINLINE void TexStorage3D( GLenum Target, GLint Levels, GLint InternalFormat, GLsizei Width, GLsizei Height, GLsizei Depth, GLenum Format, GLenum Type )
-	{
-		if (glTexStorage3D)
-		{
-			glTexStorage3D( Target, Levels, InternalFormat, Width, Height, Depth);
-		}
-		else
-		{
-			const bool bArrayTexture = Target == GL_TEXTURE_2D_ARRAY || Target == GL_TEXTURE_CUBE_MAP_ARRAY;
-
-			for(uint32 MipIndex = 0; MipIndex < uint32(Levels); MipIndex++)
-			{
-				glTexImage3D(
-					Target,
-					MipIndex,
-					InternalFormat,
-					FMath::Max<uint32>(1,(Width >> MipIndex)),
-					FMath::Max<uint32>(1,(Height >> MipIndex)),
-					(bArrayTexture) ? Depth : FMath::Max<uint32>(1,(Depth >> MipIndex)),
-					0,
-					Format,
-					Type,
-					NULL
-					);
-			}
-		}
-	}
-
-	static FORCEINLINE void CopyImageSubData( GLuint SrcName, GLenum SrcTarget, GLint SrcLevel, GLint SrcX, GLint SrcY, GLint SrcZ, GLuint DstName, GLenum DstTarget, GLint DstLevel, GLint DstX, GLint DstY, GLint DstZ, GLsizei Width, GLsizei Height, GLsizei Depth)
-	{
-		glCopyImageSubData( SrcName, SrcTarget, SrcLevel, SrcX, SrcY, SrcZ, DstName, DstTarget, DstLevel, DstX, DstY, DstZ, Width, Height, Depth);
-    }
-
-	static void ProcessExtensions( const FString& ExtensionsString );
-};
-
-typedef FLinuxOpenGL FOpenGL;
+// set in OpenGLDevice.cpp
+extern PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT_ProcAddress;

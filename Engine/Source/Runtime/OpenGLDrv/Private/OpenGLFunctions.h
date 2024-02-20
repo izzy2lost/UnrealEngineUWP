@@ -4,4 +4,4 @@
 
 #include "HAL/PreprocessorHelpers.h"
 
-#include COMPILED_PLATFORM_HEADER(OpenGLThirdParty.h)
+#include COMPILED_PLATFORM_HEADER(OpenGLFunctions.h)
