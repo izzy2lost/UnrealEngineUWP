@@ -54,7 +54,10 @@ export function makeTargetName(bot: BotName, nodeName: string) {
 
 function makeBranchId(arg: string | Branch) {
 	let depotPath: string
-	if ((arg as Branch).rootPath) {
+	if ((arg as Branch).uniqueBranch) {
+		return (arg as Branch).name as Stream
+	}
+	else if ((arg as Branch).rootPath) {
 		depotPath = (arg as Branch).rootPath.replace('/...', '')
 	}
 	else {
@@ -369,7 +372,6 @@ export function addBranchGraph(graph: Graph, branchGraph: BranchGraphInterface) 
 	const botname = branchGraph.botname as BotName
 	const branchNodes = new Map<Branch, Node>()
 
-	// excluding subpath bots for now
 	for (const branch of branchGraph.branches) {
 		if (!branch.bot) {
 			throw new Error(`branch ${branch.name} not running!`) // fine, but try again later

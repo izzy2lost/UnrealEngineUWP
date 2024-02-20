@@ -228,6 +228,7 @@ if (botname === '__TEST__') {
 			config: options,
 			depot: "", // will compute
 			rootPath: options.rootPath || "",
+			uniqueBranch: options.uniqueBranch || false,
 			badgeProject: options.badgeProject || null,
 			isDefaultBot: BranchGraph._getBoolConfig(options.isDefaultBot, this.config.isDefaultBot),
 			emailOnBlockage: BranchGraph._getBoolConfig(options.emailOnBlockage, this.config.emailOnBlockage),

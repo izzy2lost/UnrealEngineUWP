@@ -41,6 +41,7 @@ const branchBasePrototype = {
 	name: '',
 
 	rootPath: '',
+	uniqueBranch: false,
 	isDefaultBot: false,
 	emailOnBlockage: false, // if present, completely overrides BotConfig
 
@@ -122,6 +123,7 @@ const nodeOptionFieldsPrototype = {
 	streamDepot: '',
 	streamName: '',
 	streamSubpath: '',
+	uniqueBranch: false,
 	workspace: '',
 
 	graphNodeColor: '',
