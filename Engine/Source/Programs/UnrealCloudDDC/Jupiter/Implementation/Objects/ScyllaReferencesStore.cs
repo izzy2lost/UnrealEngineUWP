@@ -280,6 +280,81 @@ namespace Jupiter.Implementation
 			}
 		}
 
+		
+		public async IAsyncEnumerable<(NamespaceId, BucketId, RefId)> GetRecordsWithoutAccessTimeAsync()
+		{
+			using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.get_records_no_access_time");
+
+			if (_settings.CurrentValue.UsePerShardScanning)
+			{
+				IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> enumerable = GetRecordsPerShardAsync(false);
+
+				await foreach ((NamespaceId, BucketId, RefId, DateTime) record in enumerable)
+				{
+					yield return (record.Item1, record.Item2, record.Item3);
+				}
+			}
+			else
+			{
+				// use the object table for listing here as its used by the consistency check
+				PreparedStatement getObjectStatement = _getObjectsStatement;
+				const int MaxRetryAttempts = 3;
+				RowSet rowSet = await _session.ExecuteAsync(getObjectStatement.Bind());
+
+				do
+				{
+					int countOfRows = rowSet.GetAvailableWithoutFetching();
+					IEnumerable<Row> localRows = rowSet.Take(countOfRows);
+					Task prefetchTask = rowSet.FetchMoreResultsAsync();
+
+					foreach (Row row in localRows)
+					{
+						string ns = row.GetValue<string>("namespace");
+						string bucket = row.GetValue<string>("bucket");
+						string name = row.GetValue<string>("name");
+
+						// skip any names that are not conformant to io hash
+						if (name.Length != 40)
+						{
+							continue;
+						}
+
+						yield return (new NamespaceId(ns), new BucketId(bucket), new RefId(name));
+					}
+
+					int retryAttempts = 0;
+					Exception? timeoutException = null;
+					while (retryAttempts < MaxRetryAttempts)
+					{
+						try
+						{
+							await prefetchTask;
+							timeoutException = null;
+							break;
+						}
+						catch (ReadTimeoutException e)
+						{
+							retryAttempts += 1;
+							_logger.LogWarning(
+								"Cassandra read timeouts, waiting a while and then retrying. Attempt {Attempts} .",
+								retryAttempts);
+							// wait 10 seconds and try again as the Db is under heavy load right now
+							await Task.Delay(TimeSpan.FromSeconds(10));
+							timeoutException = e;
+						}
+					}
+
+					if (timeoutException != null)
+					{
+						_logger.LogWarning("Cassandra read timeouts, attempted {Attempts} attempts now we give up.",
+							retryAttempts);
+						// we have failed to many times, rethrow the exception and abort to avoid stalling here for ever
+						throw timeoutException;
+					}
+				} while (!rowSet.IsFullyFetched);
+			}
+		}
+
 		public async IAsyncEnumerable<(RefId, BlobId)> GetRecordsInBucketAsync(NamespaceId ns, BucketId bucket)
 		{
 			using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.get_records_in_bucket_per_shard");
@@ -311,12 +386,16 @@ namespace Jupiter.Implementation
 		/// See https://www.scylladb.com/2017/03/28/parallel-efficient-full-table-scan-scylla/
 		/// </summary>
 		/// <returns></returns>
-		private async IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> GetRecordsPerShardAsync()
+		private async IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> GetRecordsPerShardAsync(bool? forceUseLastAccessTable = null)
 		{
 			using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.get_records_per_shard");
-			PreparedStatement getObjectStatement = _settings.CurrentValue.ListObjectsFromLastAccessTable
+			
+			bool useLastAccessTable = forceUseLastAccessTable ?? _settings.CurrentValue.ListObjectsFromLastAccessTable;
+			PreparedStatement getObjectStatement = useLastAccessTable
 				? _getObjectsLastAccessForPartitionRangeStatement
 				: _getObjectsForPartitionRangeStatement;
+
+			scope.SetAttribute("TableUsed", useLastAccessTable ? "LastAccess" : "Objects");
 
 			// generate a list of all the primary key ranges that exist on the cluster
 			List<(long, long)> tableRanges = ScyllaUtils.GetTableRanges(_settings.CurrentValue.CountOfNodes, _settings.CurrentValue.CountOfCoresPerNode, 3).ToList();

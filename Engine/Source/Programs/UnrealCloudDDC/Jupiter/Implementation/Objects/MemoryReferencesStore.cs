@@ -76,6 +76,15 @@ namespace Jupiter.Implementation
 			return Task.CompletedTask;
 		}
 
+		public async IAsyncEnumerable<(NamespaceId, BucketId, RefId)> GetRecordsWithoutAccessTimeAsync()
+		{
+			await foreach ((NamespaceId namespaceId, BucketId bucketId, RefId refId, DateTime _) in GetRecordsAsync())
+			{
+				await Task.CompletedTask;
+				yield return (namespaceId, bucketId, refId);
+			}
+		}
+
 		public async IAsyncEnumerable<(NamespaceId, BucketId, RefId, DateTime)> GetRecordsAsync()
 		{
 			foreach (MemoryStoreObject o in _objects.Values.OrderBy(o => o.LastAccessTime))
