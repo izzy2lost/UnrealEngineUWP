@@ -100,28 +100,8 @@ namespace UE::OSC
 
 	void FStream::WriteDouble(uint64 Value)
 	{
-		uint8 Temp[8];
+		WriteNumeric<double>(Value);
 
-	#ifdef PLATFORM_LITTLE_ENDIAN
-		union {
-			double i;
-			uint8 c[8];
-		} u;
-
-		u.i = Value;
-
-		Temp[7] = u.c[0];
-		Temp[6] = u.c[1];
-		Temp[5] = u.c[2];
-		Temp[4] = u.c[3];
-		Temp[3] = u.c[4];
-		Temp[2] = u.c[5];
-		Temp[1] = u.c[6];
-		Temp[0] = u.c[7];
-	#else // PLATFORM_LITTLE_ENDIAN
-		*(double*)(Temp) = Value;
-	#endif // !PLATFORM_LITTLE_ENDIAN
-		Write(Temp, 8);
 	}
 
 	int64 FStream::ReadInt64()
@@ -131,28 +111,7 @@ namespace UE::OSC
 
 	void FStream::WriteInt64(int64 Value)
 	{
-		uint8 Temp[8];
-
-	#ifdef PLATFORM_LITTLE_ENDIAN
-		union {
-			int64 i;
-			uint8 c[8];
-		} u;
-
-		u.i = Value;
-
-		Temp[7] = u.c[0];
-		Temp[6] = u.c[1];
-		Temp[5] = u.c[2];
-		Temp[4] = u.c[3];
-		Temp[3] = u.c[4];
-		Temp[2] = u.c[5];
-		Temp[1] = u.c[6];
-		Temp[0] = u.c[7];
-	#else // PLATFORM_LITTLE_ENDIAN
-		*(int64*)(Temp) = Value;
-	#endif // !PLATFORM_LITTLE_ENDIAN
-		Write(Temp, 8);
+		WriteNumeric<int64>(Value);
 	}
 
 	uint64 FStream::ReadUInt64()

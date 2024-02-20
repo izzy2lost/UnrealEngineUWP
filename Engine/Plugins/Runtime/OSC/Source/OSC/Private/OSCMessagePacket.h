@@ -12,8 +12,7 @@ namespace UE::OSC
 	class FPacketBase : public IPacket
 	{
 	public:
-		FPacketBase() = default;
-		FPacketBase(const FIPv4Endpoint& InEndpoint);
+		FPacketBase(FIPv4Endpoint InEndpoint = FIPv4Endpoint::Any);
 
 		virtual ~FPacketBase() = default;
 

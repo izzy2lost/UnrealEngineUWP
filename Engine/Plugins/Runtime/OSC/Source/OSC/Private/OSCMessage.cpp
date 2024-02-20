@@ -60,7 +60,7 @@ bool FOSCMessage::SetAddress(const FOSCAddress& InAddress)
 		return false;
 	}
 
-	StaticCastSharedRef<UE::OSC::FMessagePacket>(Packet)->SetAddress(InAddress);
+	StaticCastSharedRef<FMessagePacket>(Packet)->SetAddress(InAddress);
 	return true;
 }
 

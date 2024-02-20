@@ -8,7 +8,7 @@
 
 namespace UE::OSC
 {
-	FPacketBase::FPacketBase(const FIPv4Endpoint& InEndpoint)
+	FPacketBase::FPacketBase(FIPv4Endpoint InEndpoint)
 		: IPEndpoint(InEndpoint)
 	{
 	}

@@ -8,12 +8,7 @@
 
 namespace UE::OSC
 {
-	FBundlePacket::FBundlePacket()
-		: TimeTag(0)
-	{
-	}
-
-	FBundlePacket::FBundlePacket(const FIPv4Endpoint& InEndpoint)
+	FBundlePacket::FBundlePacket(FIPv4Endpoint InEndpoint)
 		: FPacketBase(InEndpoint)
 		, TimeTag(0)
 	{

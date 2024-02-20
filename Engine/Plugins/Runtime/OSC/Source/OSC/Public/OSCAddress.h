@@ -50,22 +50,22 @@ public:
 	bool Matches(const FOSCAddress& InAddress) const;
 
 	/** Pushes container onto end of address' ordered array of containers */
-	bool PushContainer(const FString& InContainer);
-
-	/** Pushes container onto end of address' ordered array of containers */
-	bool PushContainer(FString&& InContainer);
+	bool PushContainer(FString Container);
 
 	/** Pushes containers onto end of address' ordered array of containers */
-	bool PushContainers(const TArray<FString>& InContainers);
-
-	/** Pushes containers onto end of address' ordered array of containers */
-	bool PushContainers(TArray<FString>&& InContainers);
+	bool PushContainers(TArray<FString> NewContainers);
 
 	/** Pops container from ordered array of containers */
-	FString PopContainer(bool* bDidPop = nullptr);
+	FString PopContainer();
+
+	/** Pops container from ordered array of containers */
+	bool PopContainer(FString& OutContainer);
 
 	/** Pops containers off end of address' ordered array of containers */
-	TArray<FString> PopContainers(int32 InNumContainers, bool* bDidPop = nullptr);
+	TArray<FString> PopContainers(int32 NumToPop);
+
+	/** Pops containers off end of address' ordered array of containers */
+	bool PopContainers(int32 NumToPop, TArray<FString>& OutContainers);
 
 	/** Removes containers from container array at index until count */
 	bool RemoveContainers(int32 InIndex, int32 InCount);
@@ -77,22 +77,16 @@ public:
 	const FString& GetMethod() const;
 
 	/** Returns numeric prefix of OSC method if is numeric */
-	int32 GetNumericPrefix(bool* bIsNumeric = nullptr) const;
+	bool GetNumericPrefix(int32& OutPrefix) const;
 
 	/** Returns numeric suffix of OSC method if is numeric */
-	int32 GetNumericSuffix(bool* bIsNumeric = nullptr) const;
+	bool GetNumericSuffix(int32& OutSuffix) const;
 
 	/** Sets the address to the given array of containers and provided method */
-	bool Set(TArray<FString>&& InContainers, FString&& InMethod);
-
-	/** Sets the address to the given array of containers and provided method */
-	bool Set(const TArray<FString>& InContainers, const FString& InMethod);
+	bool Set(TArray<FString> NewContainers, FString NewMethod);
 
 	/** Sets the method name of address */
-	bool SetMethod(const FString& InMethod);
-
-	/** Sets the method name of address */
-	bool SetMethod(FString&& InMethod);
+	bool SetMethod(FString NewMethod);
 
 	/** Returns container path of OSC address in the form '/Container1/Container2' */
 	FString GetContainerPath() const;

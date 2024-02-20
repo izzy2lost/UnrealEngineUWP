@@ -5,7 +5,7 @@
 
 
 FOSCBundle::FOSCBundle()
-	: Packet(MakeShareable(new UE::OSC::FBundlePacket()))
+	: Packet(MakeShared<UE::OSC::FBundlePacket>())
 {
 }
 

@@ -11,8 +11,7 @@ namespace UE::OSC
 	class FBundlePacket : public FPacketBase
 	{
 	public:
-		FBundlePacket();
-		FBundlePacket(const FIPv4Endpoint& InEndpoint);
+		FBundlePacket(FIPv4Endpoint InEndpoint = FIPv4Endpoint::Any);
 
 		virtual ~FBundlePacket() = default;
 
