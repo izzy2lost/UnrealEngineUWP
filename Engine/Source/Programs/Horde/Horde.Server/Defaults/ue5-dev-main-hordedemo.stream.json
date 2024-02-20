@@ -168,7 +168,10 @@
 		"Full":
 		{
 			// Set a unique identifier to prevent overlap with other streams; will cause workspace to be synced to a different folder
-			"identifier": "Demo"
+			"identifier": "Demo",
+
+			// Use the native Perforce library to avoid p4.exe dependency
+			"method": "preferNativeClient=true"
 		}
 	},
 	"templates":
