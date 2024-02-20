@@ -321,7 +321,6 @@ void ANavigationTestingActor::UpdatePathfinding()
 	bPathIsPartial = false;
 	bPathExist = false;
 	LastPath.Reset();
-	ShowStepIndex = -1;
 	PathfindingSteps = 0;
 #if WITH_RECAST && WITH_EDITORONLY_DATA
 	DebugSteps.Reset();

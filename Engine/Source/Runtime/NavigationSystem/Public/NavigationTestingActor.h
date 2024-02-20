@@ -173,7 +173,8 @@ public:
 	UPROPERTY(EditAnywhere, Category=Pathfinding)
 	TSubclassOf<class UNavigationQueryFilter> FilterClass;
 
-	UPROPERTY(transient, EditInstanceOnly, Category=Debug, meta=(ClampMin="-1", UIMin="-1"))
+	/** Show debug steps up to this index. Use -1 to disable. */
+	UPROPERTY(EditInstanceOnly, Category=Debug, meta=(ClampMin="-1", UIMin="-1"))
 	int32 ShowStepIndex;
 
 	UPROPERTY(EditAnywhere, Category=Pathfinding)
