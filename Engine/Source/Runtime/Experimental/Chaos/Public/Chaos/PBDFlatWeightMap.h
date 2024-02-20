@@ -159,6 +159,8 @@ public:
 	/** Return the table of stiffnesses as a read only array. */
 	TConstArrayView<FSolverReal> GetMapValues() const { return MapView.GetMapValues(); }
 
+	FSolverReal GetValue(int32 Index) const { return MapView.GetValue(Index); }
+
 	/** Reorder Indices based on Constraint reordering. */
 	inline void ReorderIndices(const TArray<int32>& OrigToReorderedIndices);
 
