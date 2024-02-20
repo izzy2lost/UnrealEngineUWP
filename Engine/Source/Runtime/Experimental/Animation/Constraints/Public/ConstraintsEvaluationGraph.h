@@ -59,10 +59,21 @@ public:
 	/* Rebuilds the full graph taking constraints tick dependencies into account. */
 	void Rebuild();
 
+	/* Should the graph be evaluated ? */
+	bool IsPendingEvaluation() const;
+	
 	static bool UseEvaluationGraph();
 	
 private:
 
+	enum EGraphState
+	{
+		InvalidData = 0,	// Invalid data
+		ReadyForEvaluation,	// Internal data has been built and is ready for evaluation
+		PendingEvaluation,	// Some constraints has been marked for evaluation
+		Flushing			// The graph is currently being evaluated
+	};
+	
 	FConstraintsEvaluationGraph(FConstraintsEvaluationGraph&& InOther) = default;
 	FConstraintsEvaluationGraph(const FConstraintsEvaluationGraph& InOther) = delete;
 	FConstraintsEvaluationGraph& operator=(const FConstraintsEvaluationGraph& InOther) = delete;
@@ -88,5 +99,6 @@ private:
 	/* References to the actual stored data. */
 	FConstraintsInWorld& ConstraintsInWorld;
 	
-	bool bDataInvalid = true;
+	/* Current graph state. */
+	EGraphState	State = InvalidData;
 };

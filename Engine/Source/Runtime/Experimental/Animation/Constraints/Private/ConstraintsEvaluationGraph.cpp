@@ -60,30 +60,38 @@ FConstraintNode* FConstraintsEvaluationGraph::FindNode(const TWeakObjectPtr<UTic
 
 void FConstraintsEvaluationGraph::FlushPendingEvaluations()
 {
-	if (!Nodes.IsEmpty())
+	if (State == InvalidData || State == Flushing)
 	{
-		if (ensure(!bDataInvalid))
-		{
-			if (ConstraintsEvaluationGraph::bDebugGraph)
-			{
-				UE_LOG(LogTemp, Warning, TEXT("Flush Constraints Evaluation Graph"));
-			}
-			
-			for (FConstraintNode& Node: Nodes)
-			{
-				if (Node.bMarkedForEvaluation)
-				{
-					Evaluate(&Node);
-				}
-			}
+		return;
+	}
+	
+	if (Nodes.IsEmpty())
+	{
+		return;
+	}
+	
+	if (ConstraintsEvaluationGraph::bDebugGraph)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Flush Constraints Evaluation Graph"));
+	}
 
-			const bool bHasNodesToEvaluate = Nodes.ContainsByPredicate([](const FConstraintNode& Node)
-			{
-				return Node.bMarkedForEvaluation;
-			});
-			ensure(!bHasNodesToEvaluate);
+	State = Flushing;
+	
+	for (FConstraintNode& Node: Nodes)
+	{
+		if (Node.bMarkedForEvaluation)
+		{
+			Evaluate(&Node);
 		}
 	}
+
+	const bool bHasNodesToEvaluate = Nodes.ContainsByPredicate([](const FConstraintNode& Node)
+	{
+		return Node.bMarkedForEvaluation;
+	});
+	ensure(!bHasNodesToEvaluate);
+
+	State = ReadyForEvaluation;
 }
 
 void FConstraintsEvaluationGraph::Rebuild()
@@ -176,14 +184,19 @@ void FConstraintsEvaluationGraph::Rebuild()
 		}
 	}
 	
-	bDataInvalid = false;
+	State = ReadyForEvaluation;
 
 	Dump();
 }
 
+bool FConstraintsEvaluationGraph::IsPendingEvaluation() const
+{
+	return State == PendingEvaluation;
+}
+
 void FConstraintsEvaluationGraph::Evaluate(const TWeakObjectPtr<UTickableConstraint>& InConstraint)
 {
-	if (bDataInvalid)
+	if (State == InvalidData)
 	{
 		Rebuild();
 	}
@@ -232,13 +245,13 @@ void FConstraintsEvaluationGraph::Evaluate(FConstraintNode* InNode)
 
 void FConstraintsEvaluationGraph::InvalidateData()
 {
-	bDataInvalid = true;
+	State = InvalidData;
 	Nodes.Empty();
 }
 
 void FConstraintsEvaluationGraph::MarkForEvaluation(const TWeakObjectPtr<UTickableConstraint>& InConstraint)
 {
-	if (bDataInvalid)
+	if (State == InvalidData)
 	{
 		Rebuild();
 	}
@@ -260,6 +273,11 @@ void FConstraintsEvaluationGraph::MarkForEvaluation(const TWeakObjectPtr<UTickab
 		}
 		
 		Node->bMarkedForEvaluation = true;
+		
+		if (State == ReadyForEvaluation)
+		{
+			State = PendingEvaluation;
+		}
 	}
 }
 
