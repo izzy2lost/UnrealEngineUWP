@@ -1060,9 +1060,9 @@ public:
 	{
 	}
 
-	virtual FUint32Vector4 GetPlatformData() const override
+	virtual FUint32Vector3 GetPlatformData() const override
 	{
-		return FUint32Vector4(0u, 0u, 0u, 0u);
+		return FUint32Vector3(0u, 0u, 0u);
 	}
 
 	virtual void CalcDispatchBufferSizes(uint32& OutDataBufferSize, uint32& OutExecutionBufferSize) const override

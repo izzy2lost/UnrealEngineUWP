@@ -1630,30 +1630,22 @@ FRHICOMMAND_MACRO(FRHICommandDispatchShaderBundle)
 {
 	FRHIShaderBundle* ShaderBundle;
 	FRHIShaderResourceView* RecordArgBufferSRV;
-	FRHIShaderResourceView* RecordDataBufferSRV;
-	FRHIUnorderedAccessView* ExecutionBufferUAV;
 	TArray<FRHIShaderBundleDispatch> Dispatches;
 	bool bEmulated;
 	FORCEINLINE_DEBUGGABLE FRHICommandDispatchShaderBundle()
 		: ShaderBundle(nullptr)
 		, RecordArgBufferSRV(nullptr)
-		, RecordDataBufferSRV(nullptr)
-		, ExecutionBufferUAV(nullptr)
 		, bEmulated(true)
 	{
 	}
 	FORCEINLINE_DEBUGGABLE FRHICommandDispatchShaderBundle(
 		FRHIShaderBundle* InShaderBundle,
 		FRHIShaderResourceView* InRecordArgBufferSRV,
-		FRHIShaderResourceView* InRecordDataBufferSRV,
-		FRHIUnorderedAccessView* InExecutionBufferUAV,
 		TConstArrayView<FRHIShaderBundleDispatch> InDispatches,
 		bool bInEmulated
 	)
 		: ShaderBundle(InShaderBundle)
 		, RecordArgBufferSRV(InRecordArgBufferSRV)
-		, RecordDataBufferSRV(InRecordDataBufferSRV)
-		, ExecutionBufferUAV(InExecutionBufferUAV)
 		, Dispatches(InDispatches)
 		, bEmulated(bInEmulated)
 	{
@@ -2633,8 +2625,6 @@ public:
 	FORCEINLINE_DEBUGGABLE void DispatchShaderBundle(
 		FRHIShaderBundle* ShaderBundle,
 		FRHIShaderResourceView* RecordArgBufferSRV,
-		FRHIShaderResourceView* RecordDataBufferSRV,
-		FRHIUnorderedAccessView* ExecutionBufferUAV,
 		TConstArrayView<FRHIShaderBundleDispatch> Dispatches,
 		bool bEmulated
 	)
@@ -2643,10 +2633,10 @@ public:
 
 		if (Bypass())
 		{
-			GetContext().RHIDispatchShaderBundle(ShaderBundle, RecordArgBufferSRV, RecordDataBufferSRV, ExecutionBufferUAV, Dispatches, bEmulated);
+			GetContext().RHIDispatchShaderBundle(ShaderBundle, RecordArgBufferSRV, Dispatches, bEmulated);
 			return;
 		}
-		ALLOC_COMMAND(FRHICommandDispatchShaderBundle)(ShaderBundle, RecordArgBufferSRV, RecordDataBufferSRV, ExecutionBufferUAV, Dispatches, bEmulated);
+		ALLOC_COMMAND(FRHICommandDispatchShaderBundle)(ShaderBundle, RecordArgBufferSRV, Dispatches, bEmulated);
 	}
 
 	FORCEINLINE_DEBUGGABLE void DispatchShaderBundle(

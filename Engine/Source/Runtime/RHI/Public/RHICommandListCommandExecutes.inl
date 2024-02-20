@@ -252,7 +252,7 @@ void FRHICommandDispatchShaderBundle::Execute(FRHICommandListBase& CmdList)
 			Dispatch.RHIPipeline = ExecuteSetComputePipelineState(Dispatch.PipelineState);
 		}
 	}
-	INTERNAL_DECORATOR_COMPUTE(RHIDispatchShaderBundle)(ShaderBundle, RecordArgBufferSRV, RecordDataBufferSRV, ExecutionBufferUAV, Dispatches, bEmulated);
+	INTERNAL_DECORATOR_COMPUTE(RHIDispatchShaderBundle)(ShaderBundle, RecordArgBufferSRV, Dispatches, bEmulated);
 }
 
 void FRHICommandSetShaderRootConstants::Execute(FRHICommandListBase& CmdList)

@@ -299,8 +299,6 @@ public:
 	virtual void RHIDispatchShaderBundle(
 		FRHIShaderBundle* ShaderBundle,
 		FRHIShaderResourceView* RecordArgBufferSRV,
-		FRHIShaderResourceView* RecordDataBufferSRV,
-		FRHIUnorderedAccessView* ExecutionBufferUAV,
 		TConstArrayView<FRHIShaderBundleDispatch> Dispatches,
 		bool bEmulated) {}
 

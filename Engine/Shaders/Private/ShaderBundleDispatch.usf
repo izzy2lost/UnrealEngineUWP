@@ -6,8 +6,24 @@
 #ifdef OVERRIDE_SHADERBUNDLE_USH
 #include "/Platform/Private/ShaderBundle.ush"
 
-uint RecordCount;
-uint4 PlatformData;
+struct FUERootConstants
+{
+	uint  RecordCount;
+	uint3 PlatformData;
+};
+
+#if PLATFORM_SUPPORTS_SHADER_ROOT_CONSTANTS
+
+#include "/Engine/Shared/HLSLReservedSpaces.h"
+
+ConstantBuffer<FUERootConstants> UERootConstants : UE_HLSL_REGISTER(b, 0, UE_HLSL_SPACE_SHADER_ROOT_CONSTANTS);
+
+#else
+
+FUERootConstants UERootConstants;
+
+#endif
+
 ByteAddressBuffer RecordArgBuffer;
 ByteAddressBuffer RecordDataBuffer;
 RWByteAddressBuffer RWExecutionBuffer;
@@ -18,15 +34,13 @@ RWByteAddressBuffer RWExecutionBuffer;
 void DispatchShaderBundleEntry(uint RecordIndex : SV_DispatchThreadID) 
 {
 #ifdef OVERRIDE_SHADERBUNDLE_USH
-	if (RecordIndex < RecordCount)
-	{
-		ProcessShaderBundleRecord(
-			PlatformData,
-			RecordIndex,
-			RecordCount,
-			RecordArgBuffer,
-			RecordDataBuffer,
-			RWExecutionBuffer);
-	}
+	// Note: Make sure the process record call is not under flow control
+	ProcessShaderBundleRecord(
+		UERootConstants.PlatformData,
+		RecordIndex,
+		UERootConstants.RecordCount,
+		RecordArgBuffer,
+		RecordDataBuffer,
+		RWExecutionBuffer);
 #endif
 }

@@ -394,9 +394,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FNaniteShadingPassParameters, )
 	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutTarget7)
 	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray, OutTargets)
 
-	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, RecordDataBuffer)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, RecordArgBuffer)
-	SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, ExecutionBuffer)
 END_SHADER_PARAMETER_STRUCT()
 
 namespace Nanite
@@ -862,8 +860,6 @@ FNaniteShadingPassParameters CreateNaniteShadingPassParams(
 	Result.MaterialIndirectArgs = ShadeBinning.ShadingBinArgs;
 
 	Result.RecordArgBuffer = nullptr;
-	Result.RecordDataBuffer = nullptr;
-	Result.ExecutionBuffer = nullptr;
 
 	{
 		FNaniteUniformParameters* UniformParameters = GraphBuilder.AllocParameters<FNaniteUniformParameters>();
@@ -1225,8 +1221,6 @@ void DispatchBasePass(
 					Command.ShaderBundle		= ShaderBundle;
 					Command.bEmulated			= bBundleEmulation;
 					Command.RecordArgBufferSRV	= ShadingPassParameters->RecordArgBuffer->GetRHI();
-					Command.RecordDataBufferSRV	= ShadingPassParameters->RecordDataBuffer->GetRHI();
-					Command.ExecutionBufferUAV	= ShadingPassParameters->ExecutionBuffer->GetRHI();
 
 					check(!bBundleEmulation || Command.RecordArgBufferSRV->GetBuffer() == IndirectArgsBuffer);
 
@@ -1381,18 +1375,7 @@ void DispatchBasePass(
 	{
 		if (bBundleShading)
 		{
-			uint32 RecordDataBufferSize = 0u;
-			uint32 ExecutionBufferSize = 0u;
-			ShaderBundle->CalcDispatchBufferSizes(RecordDataBufferSize, ExecutionBufferSize);
-
-			FRDGBufferRef RecordDataBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateByteAddressDesc(RecordDataBufferSize), TEXT("Nanite.RecordDataBuffer"));
-			FRDGBufferRef ExecutionBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateRawIndirectDesc(ExecutionBufferSize), TEXT("Nanite.ExecutionBuffer"));
-
-			AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(RecordDataBuffer), 0x80000000 /* NOP */); // TODO: Temp, need to populate via RHI backend
-
 			ShadingPassParameters->RecordArgBuffer = GraphBuilder.CreateSRV(Binning.ShadingBinArgs);
-			ShadingPassParameters->RecordDataBuffer = GraphBuilder.CreateSRV(RecordDataBuffer);
-			ShadingPassParameters->ExecutionBuffer = GraphBuilder.CreateUAV(ExecutionBuffer);
 			check(ShadingPassParameters->RecordArgBuffer != nullptr);
 		}
 
@@ -1406,8 +1389,6 @@ void DispatchBasePass(
 				if (bBundleShading)
 				{
 					ShadingPassParameters->RecordArgBuffer->MarkResourceAsUsed();
-					ShadingPassParameters->RecordDataBuffer->MarkResourceAsUsed();
-					ShadingPassParameters->ExecutionBuffer->MarkResourceAsUsed();
 				}
 
 				ShadePassWork(
