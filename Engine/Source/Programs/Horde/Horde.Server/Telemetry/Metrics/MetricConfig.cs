@@ -139,7 +139,7 @@ namespace Horde.Server.Telemetry.Metrics
 		/// <summary>
 		/// Permissions for this store
 		/// </summary>
-		public AclConfig? Acl { get; set; }
+		public AclConfig Acl { get; set; } = new AclConfig();
 
 		/// <summary>
 		/// Metrics to aggregate on the Horde server
@@ -161,8 +161,10 @@ namespace Horde.Server.Telemetry.Metrics
 		/// <summary>
 		/// Called after the store has been deserialized to compute cached values
 		/// </summary>
-		public void PostLoad()
+		public void PostLoad(GlobalConfig globalConfig)
 		{
+			Acl.PostLoad(globalConfig.Acl, $"telemetry-store:{Id}");
+
 			_metricLookup.Clear();
 			foreach (MetricConfig metric in Metrics)
 			{

@@ -958,7 +958,7 @@ class AutomationGraph {
       }
 
       // top axis
-      svg.append("g").call(xAxis, xScale)
+      svg.append("g").call(xAxis)
 
 
       const closestData = (x: number, y: number): GetTestDataRefResponse | undefined => {

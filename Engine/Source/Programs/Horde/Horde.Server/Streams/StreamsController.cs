@@ -9,7 +9,6 @@ using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
-using Horde.Server.Acls;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Templates;
 using Horde.Server.Perforce;
@@ -91,7 +90,7 @@ namespace Horde.Server.Streams
 			IReadOnlyList<IStream> streams = await _streamCollection.GetAsync(streamConfigs, cancellationToken);
 
 			List<GetStreamResponse> responses = new List<GetStreamResponse>();
-			foreach(IStream stream in streams)
+			foreach (IStream stream in streams)
 			{
 				GetStreamResponse response = await CreateGetStreamResponseAsync(stream, cancellationToken);
 				responses.Add(response);
@@ -307,7 +306,7 @@ namespace Horde.Server.Streams
 			}
 
 			ICommit? changeDetails = await _commitService.GetCollection(streamConfig).GetAsync(changeNumber, cancellationToken);
-			if(changeDetails == null)
+			if (changeDetails == null)
 			{
 				return NotFound("CL {Change} not found in stream {StreamId}", changeNumber, streamId);
 			}

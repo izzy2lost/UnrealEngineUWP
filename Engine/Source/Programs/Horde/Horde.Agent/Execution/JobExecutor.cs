@@ -12,7 +12,6 @@ using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
 using Grpc.Core;
@@ -315,7 +314,7 @@ namespace Horde.Agent.Execution
 
 			try
 			{
-				using(WindowsIdentity identity = WindowsIdentity.GetCurrent())
+				using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
 				{
 					WindowsPrincipal principal = new WindowsPrincipal(identity);
 					return principal.IsInRole(WindowsBuiltInRole.Administrator);
@@ -489,7 +488,7 @@ namespace Horde.Agent.Execution
 				return false;
 			}
 
-			if (JobOptions.UseNewTempStorage ?? false)
+			if (JobOptions.UseNewTempStorage ?? true)
 			{
 				List<FileReference> buildGraphFiles = new List<FileReference>();
 				buildGraphFiles.Add(definitionFile);
@@ -753,7 +752,7 @@ namespace Horde.Agent.Execution
 				FileReference localPreprocessedSchema = FileReference.Combine(workspaceDir, PreprocessedSchema);
 				arguments.AppendArgument("-ImportSchema=", localPreprocessedSchema.FullName);
 
-				if (JobOptions.UseNewTempStorage ?? false)
+				if (JobOptions.UseNewTempStorage ?? true)
 				{
 					ArtifactName artifactName = TempStorage.GetArtifactNameForNode(SetupStepName);
 
@@ -798,7 +797,7 @@ namespace Horde.Agent.Execution
 				arguments.AppendArgument(ScriptArgumentPrefix, _scriptFileName);
 			}
 			arguments.AppendArgument("-SingleNode=", step.Name);
-//			Arguments.AppendArgument("-TokenSignature=", JobId.ToString());
+			//			Arguments.AppendArgument("-TokenSignature=", JobId.ToString());
 
 			foreach (string additionalArgument in _additionalArguments)
 			{
@@ -807,8 +806,8 @@ namespace Horde.Agent.Execution
 					arguments.AppendArgument(additionalArgument);
 				}
 			}
-			
-			if (JobOptions.UseNewTempStorage ?? false)
+
+			if (JobOptions.UseNewTempStorage ?? true)
 			{
 				bool result = await ExecuteWithTempStorageAsync(step, workspaceDir, arguments.ToString(), useP4, logger, cancellationToken);
 				return result;
@@ -819,7 +818,7 @@ namespace Horde.Agent.Execution
 				{
 					arguments.AppendArgument("-SharedStorageDir=", sharedStorageDir.FullName);
 				}
-				
+
 				bool result = await ExecuteAutomationToolAsync(step, workspaceDir, sharedStorageDir, arguments.ToString(), useP4, logger, cancellationToken) == 0;
 				return result;
 			}
@@ -827,7 +826,7 @@ namespace Horde.Agent.Execution
 
 		protected async Task CreateArtifactsAsync(JobStepId stepId, ArtifactName name, ArtifactType type, DirectoryReference baseDir, IEnumerable<(string, FileReference)> files, ILogger logger, CancellationToken cancellationToken)
 		{
-			if (JobOptions.UseNewTempStorage ?? false)
+			if (JobOptions.UseNewTempStorage ?? true)
 			{
 				await CreateArtifactAsync(stepId, name, type, baseDir, files.Select(x => x.Item2), logger, cancellationToken);
 			}
@@ -1109,12 +1108,12 @@ namespace Horde.Agent.Execution
 		{
 			int result;
 			using IScope scope = GlobalTracer.Instance.BuildSpan("BuildGraph").StartActive();
-			
+
 			if (!_compileAutomationTool)
 			{
 				arguments += " -NoCompile";
 			}
-			
+
 			if (useP4 is false)
 			{
 				arguments += " -NoP4";
@@ -1127,12 +1126,12 @@ namespace Horde.Agent.Execution
 			else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
 			{
 				string args = $"\"{workspaceDir}/Engine/Build/BatchFiles/RunUAT.sh\" {arguments}";
-				
+
 				if (JobOptions.UseWine is true)
 				{
 					args = $"\"{workspaceDir}/Engine/Build/BatchFiles/RunWineUAT.sh\" {arguments}";
 				}
-				
+
 				result = await ExecuteCommandAsync(step, workspaceDir, sharedStorageDir, "/bin/bash", args, logger, cancellationToken);
 			}
 			else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
@@ -1154,7 +1153,7 @@ namespace Horde.Agent.Execution
 			for (int idx = 0; idx < numDirs; idx++)
 			{
 				DirectoryReference subDir = DirectoryReference.Combine(directories[idx], subFolder);
-				if(DirectoryReference.Exists(subDir))
+				if (DirectoryReference.Exists(subDir))
 				{
 					directories.AddRange(DirectoryReference.EnumerateDirectories(subDir));
 				}
@@ -1310,7 +1309,7 @@ namespace Horde.Agent.Execution
 				}
 			}
 		}
-		
+
 		/// <summary>
 		/// Execute a process inside a Linux container
 		/// </summary>
@@ -1339,7 +1338,7 @@ namespace Horde.Agent.Execution
 
 			uint linuxUid = LinuxInterop.getuid();
 			uint linuxGid = LinuxInterop.getgid();
-			
+
 			List<string> containerArgs = new()
 				{
 					"run",
@@ -1370,13 +1369,13 @@ namespace Horde.Agent.Execution
 			{
 				containerArgs.Add(JobOptions.Container.ExtraArguments);
 			}
-			
+
 			containerArgs.Add(JobOptions.Container.ImageUrl);
 			string containerArgStr = String.Join(' ', containerArgs);
 			arguments = containerArgStr + " " + arguments;
-			
+
 			logger.LogInformation("Executing {File} {Arguments} in container", executable.QuoteArgument(), arguments);
-			
+
 			// Skip forwarding of env vars as they are explicitly set above as arguments to container run
 			return await ExecuteProcessAsync(executable, arguments, new Dictionary<string, string>(), filter, logger, cancellationToken);
 		}
@@ -1401,7 +1400,7 @@ namespace Horde.Agent.Execution
 			if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 			{
 				// Non-windows platforms don't allow dashes in variable names. The engine platform layer substitutes underscores for them.
-				return name.Replace('-','_');
+				return name.Replace('-', '_');
 			}
 			return name;
 		}
@@ -1521,7 +1520,7 @@ namespace Horde.Agent.Execution
 					}
 					else
 					{
-						exitCode = await ExecuteProcessAsync(fileName, arguments, newEnvVars, filter, jobLogger, cancellationToken);	
+						exitCode = await ExecuteProcessAsync(fileName, arguments, newEnvVars, filter, jobLogger, cancellationToken);
 					}
 				}
 				finally
@@ -1591,7 +1590,7 @@ namespace Horde.Agent.Execution
 			if (DirectoryReference.Exists(logDir))
 			{
 				List<FileReference> artifactFiles = DirectoryReference.EnumerateFiles(logDir, "*", SearchOption.AllDirectories).ToList();
-				if (JobOptions.UseNewTempStorage ?? false)
+				if (JobOptions.UseNewTempStorage ?? true)
 				{
 					await CreateArtifactAsync(step.StepId, TempStorage.GetArtifactNameForNode(step.Name), ArtifactType.StepSaved, workspaceDir, artifactFiles, jobLogger, cancellationToken);
 				}

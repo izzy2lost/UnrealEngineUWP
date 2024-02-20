@@ -144,7 +144,7 @@ namespace EpicGames.Horde
 					}
 					else
 					{
-						throw new ArgumentException($"'{text}' is not a valid string id (character '{character}' is not allowed)", paramName);
+						throw new ArgumentException($"'{text}' is not a valid string id (character '{(char)character}' is not allowed)", paramName);
 					}
 				}
 			}

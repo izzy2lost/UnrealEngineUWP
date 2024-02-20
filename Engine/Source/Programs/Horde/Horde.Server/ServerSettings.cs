@@ -4,31 +4,19 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Security.Claims;
-using System.Text.Json.Serialization;
 using EpicGames.Core;
 using EpicGames.Horde;
+using EpicGames.Horde.Server;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
+using EpicGames.Horde.Tools;
 using EpicGames.Perforce;
-using EpicGames.Horde.Server;
-using Horde.Server.Acls;
-using Horde.Server.Agents;
 using Horde.Server.Agents.Fleet;
-using Horde.Server.Agents.Pools;
-using Horde.Server.Agents.Sessions;
-using Horde.Server.Agents.Software;
-using Horde.Server.Jobs;
-using Horde.Server.Logs;
-using Horde.Server.Projects;
 using Horde.Server.Server;
 using Horde.Server.Storage.ObjectStores;
-using Horde.Server.Streams;
-using Horde.Server.Tools;
-using Horde.Server.Utilities;
 using Horde.Server.Telemetry.Sinks;
-using EpicGames.Horde.Tools;
+using Horde.Server.Tools;
 
 namespace Horde.Server
 {
@@ -156,14 +144,14 @@ namespace Horde.Server
 		/// Default no-op value (ASP.NET config will default to this for enums that cannot be parsed)
 		/// </summary> 
 		None,
-		
+
 		/// <summary>
 		/// Handle and respond to incoming external requests, such as HTTP REST and gRPC calls.
 		/// These requests are time-sensitive and short-lived, typically less than 5 secs.
 		/// If processes handling requests are unavailable, it will be very visible for users.
 		/// </summary>
 		Server,
-		
+
 		/// <summary>
 		/// Run non-request facing workloads. Such as background services, processing queues, running work
 		/// based on timers etc. Short periods of downtime or high CPU usage due to bursts are fine for this mode.
@@ -187,7 +175,7 @@ namespace Horde.Server
 		/// Use the Epic telemetry sink
 		/// </summary>
 		Epic,
-		
+
 		/// <summary>
 		/// Use the ClickHouse telemetry sink
 		/// </summary>
@@ -208,7 +196,7 @@ namespace Horde.Server
 		/// Unique ID for this sink config (any arbitrary string)
 		/// </summary>
 		public string? Id { get; set; }
-		
+
 		/// <summary>
 		/// Type of telemetry sink
 		/// </summary>
@@ -236,7 +224,7 @@ namespace Horde.Server
 			return $"{nameof(Url)}={Url} {nameof(AppId)}={AppId}";
 		}
 	}
-	
+
 	/// <summary>
 	/// Configuration for the telemetry sink
 	/// </summary>
@@ -246,7 +234,7 @@ namespace Horde.Server
 		/// Base URL for ClickHouse server
 		/// </summary>
 		public Uri? Url { get; set; }
-		
+
 		/// <inheritdoc />
 		public override string ToString()
 		{
@@ -340,17 +328,17 @@ namespace Horde.Server
 		/// Whether OpenTelemetry exporting is enabled
 		/// </summary>
 		public bool Enabled { get; set; } = false;
-		
+
 		/// <summary>
 		/// Service name
 		/// </summary>
 		public string ServiceName { get; set; } = "HordeServer";
-		
+
 		/// <summary>
 		/// Service namespace
 		/// </summary>
 		public string ServiceNamespace { get; set; } = "Horde";
-		
+
 		/// <summary>
 		/// Service version
 		/// </summary>
@@ -360,7 +348,7 @@ namespace Horde.Server
 		/// Whether to enrich and format telemetry to fit presentation in Datadog
 		/// </summary>
 		public bool EnableDatadogCompatibility { get; set; } = false;
-		
+
 		/// <summary>
 		/// Extra attributes to set
 		/// </summary>
@@ -370,7 +358,7 @@ namespace Horde.Server
 		/// Whether to enable the console exporter (for debugging purposes)
 		/// </summary>
 		public bool EnableConsoleExporter { get; set; } = false;
-		
+
 		/// <summary>
 		/// Protocol exporters (key is a unique and arbitrary name) 
 		/// </summary>
@@ -396,20 +384,12 @@ namespace Horde.Server
 	/// <summary>
 	/// Global settings for the application
 	/// </summary>
-	public class ServerSettings : IAclScope
+	public class ServerSettings
 	{
 		/// <summary>
 		/// Name of the section containing these settings
 		/// </summary>
 		public const string SectionName = "Horde";
-
-		/// <inheritdoc/>
-		[JsonIgnore]
-		public IAclScope? ParentScope => null;
-
-		/// <inheritdoc/>
-		[JsonIgnore]
-		public AclScopeName ScopeName => AclScopeName.Root;
 
 		/// <summary>
 		/// Modes that the server should run in. Runmodes can be used in a multi-server deployment to limit the operations that a particular instance will try to perform.
@@ -453,7 +433,7 @@ namespace Horde.Server
 		/// Port may differ from <see cref="ComputeTunnelPort" /> if Horde server is behind a reverse proxy/firewall
 		/// </summary>
 		public string? ComputeTunnelAddress { get; set; }
-		
+
 		/// <summary>
 		/// MongoDB connection string
 		/// </summary>
@@ -489,7 +469,7 @@ namespace Horde.Server
 		/// Audience for OIDC validation
 		/// </summary>
 		public string? OidcAudience { get; set; }
-		
+
 		/// <summary>
 		/// Issuer for tokens from the auth provider
 		/// </summary>
@@ -642,7 +622,7 @@ namespace Horde.Server
 		/// Whether to log requests to the UpdateSession and QueryServerState RPC endpoints
 		/// </summary>
 		public bool LogSessionRequests { get; set; } = false;
-		
+
 		/// <summary>
 		/// Whether to enable the hosted LogService running background jobs
 		/// </summary>
@@ -657,7 +637,7 @@ namespace Horde.Server
 		/// Config for the fleet manager (serialized JSON)
 		/// </summary>
 		public string? FleetManagerV2Config { get; set; }
-		
+
 		/// <summary>
 		/// AWS SQS queue URLs where lifecycle events from EC2 auto-scaling are received
 		/// <see cref="AwsAutoScalingLifecycleService" />
@@ -860,7 +840,7 @@ namespace Horde.Server
 		/// <summary>
 		/// Experimental features to enable on the server.
 		/// </summary>
-		public FeatureFlagSettings FeatureFlags { get; set; } = new ();
+		public FeatureFlagSettings FeatureFlags { get; set; } = new();
 
 		/// <summary>
 		/// Options for the commit service
@@ -870,50 +850,17 @@ namespace Horde.Server
 		/// <summary>
 		/// Settings for sending telemetry events to external services (for example Snowflake, ClickHouse etc)
 		/// </summary>
-		public List<BaseTelemetryConfig> Telemetry { get; set; } = new ();
+		public List<BaseTelemetryConfig> Telemetry { get; set; } = new();
 
 		/// <summary>
 		/// Tools bundled along with the server. Data for each tool can be produced using the 'bundle create' command, and should be stored in the Tools directory.
 		/// </summary>
 		public List<BundledToolConfig> BundledTools { get; set; } = new List<BundledToolConfig>();
-		
+
 		/// <summary>
 		/// Options for OpenTelemetry
 		/// </summary>
 		public OpenTelemetrySettings OpenTelemetry { get; set; } = new OpenTelemetrySettings();
-
-		/// <summary>
-		/// Default pre-baked ACL for authentication of well-known roles
-		/// </summary>
-		[JsonIgnore]
-		public AclConfig? Acl
-		{
-			get
-			{
-				_defaultAcl ??= GetDefaultAcl();
-				return _defaultAcl;
-			}
-		}
-		
-		[JsonIgnore]
-		AclConfig? _defaultAcl;
-
-		/// <summary>
-		/// Create the default ACL for the server, including all predefined roles.
-		/// </summary>
-		/// <returns></returns>
-		static AclConfig GetDefaultAcl()
-		{
-			AclConfig defaultAcl = new AclConfig();
-			defaultAcl.Entries.Add(new AclEntryConfig(new AclClaimConfig(ClaimTypes.Role, "internal:AgentRegistration"), new[] { AgentAclAction.CreateAgent, SessionAclAction.CreateSession }));
-			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.AgentRegistrationClaim, new[] { AgentAclAction.CreateAgent, SessionAclAction.CreateSession, AgentAclAction.UpdateAgent, AgentSoftwareAclAction.DownloadSoftware, PoolAclAction.CreatePool, PoolAclAction.UpdatePool, PoolAclAction.ViewPool, PoolAclAction.DeletePool, PoolAclAction.ListPools, StreamAclAction.ViewStream, ProjectAclAction.ViewProject, JobAclAction.ViewJob, ServerAclAction.ViewCosts }));
-			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.AgentRoleClaim, new[] { ProjectAclAction.ViewProject, StreamAclAction.ViewStream, LogAclAction.CreateEvent, AgentSoftwareAclAction.DownloadSoftware }));
-			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.DownloadSoftwareClaim, new[] { AgentSoftwareAclAction.DownloadSoftware }));
-			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.UploadToolsClaim, new[] { AgentSoftwareAclAction.UploadSoftware, ToolAclAction.UploadTool }));
-			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.ConfigureProjectsClaim, new[] { ProjectAclAction.CreateProject, ProjectAclAction.UpdateProject, ProjectAclAction.ViewProject, StreamAclAction.CreateStream, StreamAclAction.UpdateStream, StreamAclAction.ViewStream }));
-			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.StartChainedJobClaim, new[] { JobAclAction.CreateJob, JobAclAction.ExecuteJob, JobAclAction.UpdateJob, JobAclAction.ViewJob, StreamAclAction.ViewTemplate, StreamAclAction.ViewStream }));
-			return defaultAcl;
-		}
 
 		/// <summary>
 		/// Helper method to check if this process has activated the given mode
@@ -1032,7 +979,7 @@ namespace Horde.Server
 
 				if (!String.IsNullOrEmpty(Credentials.Ticket))
 				{
-					settings.Password = Credentials.Ticket;	
+					settings.Password = Credentials.Ticket;
 				}
 				else if (!String.IsNullOrEmpty(Credentials.Password))
 				{

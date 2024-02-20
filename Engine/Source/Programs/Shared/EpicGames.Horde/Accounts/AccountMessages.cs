@@ -37,6 +37,12 @@ namespace EpicGames.Horde.Accounts
 	public record class UpdateAccountRequest(string? Name, string? Login, List<AccountClaimMessage>? Claims, string? Description, string? Email, string? SecretToken, string? Password, bool? Enabled);
 
 	/// <summary>
+	/// Update request for the current user account
+	/// </summary>
+	/// <param name="Password">Password for the user</param>
+	public record class UpdateCurrentAccountRequest(string? Password);
+
+	/// <summary>
 	/// Creates a new user account
 	/// </summary>
 	/// <param name="Name">Name of the user</param>

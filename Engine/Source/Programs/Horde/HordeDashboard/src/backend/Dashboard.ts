@@ -2,7 +2,7 @@
 
 import { action, makeObservable, observable } from 'mobx';
 import backend from '.';
-import { DashboardPreference, GetDashboardAgentCategoryResponse, GetDashboardConfigResponse, GetJobTemplateSettingsResponse, GetTelemetryViewResponse, GetUserResponse, UserClaim } from './Api';
+import { DashboardPreference, GetDashboardAgentCategoryResponse, GetDashboardConfigResponse, GetDashboardPoolCategoryResponse, GetJobTemplateSettingsResponse, GetTelemetryViewResponse, GetUserResponse, UserClaim } from './Api';
 
 export enum StatusColor {
     Success,
@@ -191,6 +191,10 @@ export class Dashboard {
 
     get agentCategories(): GetDashboardAgentCategoryResponse[] {
         return this.config?.agentCategories ?? [];
+    }
+
+    get poolCategories(): GetDashboardPoolCategoryResponse[] {
+        return this.config?.poolCategories ?? [];        
     }
 
     get deviceProblemCooldownMinutes(): number {
@@ -537,7 +541,7 @@ export class Dashboard {
                     this.config = await backend.getDashboardConfig();
                 } catch (reason) {
                     console.error("Error getting dashboard config, defaults used: " + reason);
-                    this.config = { agentCategories: [], telemetryViews: []};
+                    this.config = { agentCategories: [], poolCategories: [],telemetryViews: []};
                 }
             }
 

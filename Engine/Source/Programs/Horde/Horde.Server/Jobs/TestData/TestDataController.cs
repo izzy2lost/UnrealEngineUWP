@@ -3,19 +3,18 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
-using Horde.Server.Acls;
+using EpicGames.Core;
+using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Streams;
+using Horde.Server.Server;
 using Horde.Server.Streams;
 using Horde.Server.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using MongoDB.Bson;
-using EpicGames.Core;
 using Microsoft.Extensions.Options;
-using Horde.Server.Server;
-using EpicGames.Horde.Streams;
-using EpicGames.Horde.Jobs;
-using System.Threading;
+using MongoDB.Bson;
 
 namespace Horde.Server.Jobs.TestData
 {
@@ -38,7 +37,7 @@ namespace Horde.Server.Jobs.TestData
 		private readonly ITestDataCollection _testDataCollection;
 
 		readonly TestDataService _testDataService;
-	
+
 		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 
 		/// <summary>
@@ -100,7 +99,7 @@ namespace Horde.Server.Jobs.TestData
 		{
 			HashSet<string> testIds = new HashSet<string>(request.TestIds);
 
-			IReadOnlyList<ITest> testValues = await _testDataService.FindTestsAsync(testIds.Select(x => TestId.Parse(x)).ToArray());			
+			IReadOnlyList<ITest> testValues = await _testDataService.FindTestsAsync(testIds.Select(x => TestId.Parse(x)).ToArray());
 
 			return testValues.Select(x => new GetTestResponse(x)).ToList();
 		}
@@ -143,15 +142,15 @@ namespace Horde.Server.Jobs.TestData
 			HashSet<TestSuiteId> suiteIds = new HashSet<TestSuiteId>();
 			for (int i = 0; i < streams.Count; i++)
 			{
-				foreach(TestId testId in streams[i].Tests)
+				foreach (TestId testId in streams[i].Tests)
 				{
 					testIds.Add(testId);
 				}
 
-				foreach(TestSuiteId suiteId in streams[i].TestSuites)
+				foreach (TestSuiteId suiteId in streams[i].TestSuites)
 				{
 					suiteIds.Add(suiteId);
-				}				
+				}
 			}
 
 			IReadOnlyList<ITestSuite> suites = new List<ITestSuite>();
@@ -190,7 +189,7 @@ namespace Horde.Server.Jobs.TestData
 			}
 
 			// generate individual stream responses
-			foreach(ITestStream s in streams)
+			foreach (ITestStream s in streams)
 			{
 				List<ITest> streamTests = tests.Where(x => s.Tests.Contains(x.Id)).ToList();
 
@@ -210,7 +209,7 @@ namespace Horde.Server.Jobs.TestData
 					foreach (TestMetaId id in test.Metadata)
 					{
 						streamMetaIds.Add(id);
-					}						
+					}
 				}
 
 				foreach (ITestSuite suite in streamSuites)
@@ -223,7 +222,7 @@ namespace Horde.Server.Jobs.TestData
 
 				List<ITestMeta> streamMetaData = metaData.Where(x => streamMetaIds.Contains(x.Id)).ToList();
 
-				responses.Add(new GetTestStreamResponse(s.StreamId, streamTests, streamSuites, streamMetaData));				
+				responses.Add(new GetTestStreamResponse(s.StreamId, streamTests, streamSuites, streamMetaData));
 			}
 
 			return responses;
@@ -248,10 +247,10 @@ namespace Horde.Server.Jobs.TestData
 			[FromQuery(Name = "Id")] string[] streamIds,
 			[FromQuery(Name = "Mid")] string[] metaIds,
 			[FromQuery(Name = "Tid")] string[]? testIds = null,
-			[FromQuery(Name = "Sid")] string[]? suiteIds = null,			
+			[FromQuery(Name = "Sid")] string[]? suiteIds = null,
 			[FromQuery] DateTimeOffset? minCreateTime = null,
 			[FromQuery] DateTimeOffset? maxCreateTime = null,
-			[FromQuery] int? minChange = null, 
+			[FromQuery] int? minChange = null,
 			[FromQuery] int? maxChange = null)
 		{
 			StreamId[] streamIdValues = Array.ConvertAll(streamIds, x => new StreamId(x));
@@ -305,8 +304,8 @@ namespace Horde.Server.Jobs.TestData
 			{
 				return NotFound();
 			}
-			
-			IReadOnlyList<ITestData> testData = await _testDataCollection.AddAsync(job, jobStep, new (string key, BsonDocument value)[] { (request.Key, new BsonDocument(request.Data))});
+
+			IReadOnlyList<ITestData> testData = await _testDataCollection.AddAsync(job, jobStep, new (string key, BsonDocument value)[] { (request.Key, new BsonDocument(request.Data)) });
 			return new CreateTestDataResponse(testData[0].Id.ToString());
 		}
 
@@ -330,7 +329,7 @@ namespace Horde.Server.Jobs.TestData
 		public async Task<ActionResult<List<object>>> FindTestDataAsync([FromQuery] string? streamId = null, [FromQuery] int? minChange = null, [FromQuery] int? maxChange = null, JobId? jobId = null, JobStepId? jobStepId = null, string? key = null, int index = 0, int count = 10, PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
 			StreamId? streamIdValue = null;
-			if(streamId != null)
+			if (streamId != null)
 			{
 				streamIdValue = new StreamId(streamId);
 			}

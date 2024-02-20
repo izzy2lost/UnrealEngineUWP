@@ -28,6 +28,7 @@ using Horde.Server.Replicators;
 using EpicGames.Horde.Replicators;
 using System.Text.Json;
 using Horde.Server.Utilities;
+using System.Security.Claims;
 
 namespace Horde.Server.Streams
 {
@@ -77,21 +78,13 @@ namespace Horde.Server.Streams
 	[JsonSchemaCatalog("Horde Stream", "Horde stream configuration file", new[] { "*.stream.json", "Streams/*.json" })]
 	[ConfigIncludeRoot]
 	[ConfigMacroScope]
-	public class StreamConfig : IAclScope
+	public class StreamConfig
 	{
 		/// <summary>
 		/// Accessor for the project containing this stream
 		/// </summary>
 		[JsonIgnore]
 		public ProjectConfig ProjectConfig { get; private set; } = null!;
-
-		/// <inheritdoc/>
-		[JsonIgnore]
-		public IAclScope? ParentScope => ProjectConfig;
-
-		/// <inheritdoc/>
-		[JsonIgnore]
-		public AclScopeName ScopeName { get; private set; }
 
 		/// <summary>
 		/// Identifier for the stream
@@ -213,7 +206,7 @@ namespace Horde.Server.Streams
 		/// <summary>
 		/// Custom permissions for this object
 		/// </summary>
-		public AclConfig? Acl { get; set; }
+		public AclConfig Acl { get; set; } = new AclConfig();
 
 		/// <summary>
 		/// Pause stream builds until specified date
@@ -239,7 +232,11 @@ namespace Horde.Server.Streams
 		/// Tokens to create for each job step
 		/// </summary>
 		public List<TokenConfig> Tokens { get; set; } = new List<TokenConfig>();
-		
+
+		/// <inheritdoc cref="AclConfig.Authorize(AclAction, ClaimsPrincipal)"/>
+		public bool Authorize(AclAction action, ClaimsPrincipal user)
+			=> Acl.Authorize(action, user);
+
 		/// <summary>
 		/// Callback after reading this stream configuration
 		/// </summary>
@@ -249,7 +246,8 @@ namespace Horde.Server.Streams
 		{
 			Id = id;
 			ProjectConfig = projectConfig;
-			ScopeName = projectConfig.ScopeName.Append("s", Id.ToString());
+
+			Acl.PostLoad(projectConfig.Acl, $"stream:{Id}");
 
 			JobOptions.MergeDefaults(projectConfig.JobOptions);
 
@@ -779,21 +777,13 @@ namespace Horde.Server.Streams
 	/// Parameters to create a template within a stream
 	/// </summary>
 	[DebuggerDisplay("{Id}")]
-	public class TemplateRefConfig : TemplateConfig, IAclScope
+	public class TemplateRefConfig : TemplateConfig
 	{
 		/// <summary>
 		/// The owning stream config
 		/// </summary>
 		[JsonIgnore]
 		public StreamConfig StreamConfig { get; private set; } = null!;
-
-		/// <inheritdoc/>
-		[JsonIgnore]
-		public IAclScope? ParentScope => StreamConfig;
-
-		/// <inheritdoc/>
-		[JsonIgnore]
-		public AclScopeName ScopeName { get; private set; }
 
 		/// <summary>
 		/// Optional identifier for this ref. If not specified, an id will be generated from the name.
@@ -860,7 +850,11 @@ namespace Horde.Server.Streams
 		/// The ACL for this template
 		/// </summary>
 		[ConfigMergeStrategy(ConfigMergeStrategy.Recursive)]
-		public AclConfig? Acl { get; set; }
+		public AclConfig Acl { get; set; } = new AclConfig();
+
+		/// <inheritdoc cref="AclConfig.Authorize(AclAction, ClaimsPrincipal)"/>
+		public bool Authorize(AclAction action, ClaimsPrincipal user)
+			=> Acl.Authorize(action, user);
 
 		/// <summary>
 		/// Callback after the config is loaded
@@ -875,7 +869,7 @@ namespace Horde.Server.Streams
 				Id = new TemplateId(StringId.Sanitize(Name));
 			}
 
-			ScopeName = streamConfig.ScopeName.Append("t", Id.ToString());
+			Acl.PostLoad(streamConfig.Acl, $"template:{Id}");
 		}
 	}
 

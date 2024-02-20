@@ -30,4 +30,5 @@ remote machine behind the scenes as necessary.
    when prompted.
 4. Click on the `Agents` link from the `Server` menu and make sure the agent has registered with the server correctly.
   It should have automatically been added to the correct pool for its current platform.
-5. Configure UnrealBuildTool to use your remote worker.
+5. Right-click on the agent and select enable. This will validate that you trust the agent, and will allow it to take on work. 
+6. Configure UnrealBuildTool to use your remote worker.

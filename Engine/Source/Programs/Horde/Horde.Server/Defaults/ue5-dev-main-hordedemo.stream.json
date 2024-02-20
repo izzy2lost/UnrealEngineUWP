@@ -9,6 +9,10 @@
 		{
 			"name": "ProjectPath",
 			"value": "Samples/Games/Lyra/Lyra.uproject"
+		},
+		{
+			"name": "EditorTarget",
+			"value": "LyraEditor"
 		}
 	],
 	"defaultPreflight": {
@@ -148,6 +152,11 @@
 			"environment":
 			{
 			}
+		},
+		"Win64_Licensee": // Used for installed engine build
+		{
+			"pool": "win-ue5",
+			"workspace": "Full"
 		}
 	},
 	"workspaceTypes":
@@ -168,7 +177,8 @@
             [
                 "-Script=Engine/Build/Graph/Examples/BuildEditorAndTools.xml",
 				"-Target=Submit To Horde For UGS",
-				"-set:UProjectPath=$(ProjectPath)"
+				"-set:UProjectPath=$(ProjectPath)",
+				"-set:EditorTarget=$(EditorTarget)"
             ]
 		},
 		{
@@ -179,7 +189,8 @@
 				"-Script=Engine/Build/Graph/Tasks/BuildAndTestProject.xml",
 				"-Target=BuildAndTest $(Project)",
 				"-set:ProjectName=$(Project)",
-				"-set:ProjectPath=$(ProjectPath)"
+				"-set:ProjectPath=$(ProjectPath)",
+				"-set:EditorTargetName=$(EditorTarget)"
 			],
 			"parameters": [
 				{
@@ -192,13 +203,13 @@
 							"group": "Editor",
 							"text": "Linux",
 							"argumentIfEnabled": "-set:WithLinuxEditor=true",
-							"default": true
+							"default": false
 						},
 						{
 							"group": "Editor",
 							"text": "Mac",
 							"argumentIfEnabled": "-set:WithMacEditor=true",
-							"default": true
+							"default": false
 						},
 						{
 							"group": "Editor",
@@ -251,42 +262,35 @@
 							"text": "Mac",
 							"argumentIfEnabled": "-set:WithMac=true",
 							"argumentIfDisabled": "-set:WithMac=false",
-							"default": true
+							"default": false
 						},
 						{
 							"group": "Desktop",
 							"text": "Linux",
 							"argumentIfEnabled": "-set:WithLinux=true",
 							"argumentIfDisabled": "-set:WithLinux=false",
-							"default": true
-						},
-						{
-							"group": "Desktop",
-							"text": "LinuxArm64",
-							"argumentIfEnabled": "-set:WithLinuxArm64=true",
-							"argumentIfDisabled": "-set:WithLinuxArm64=false",
-							"default": true
+							"default": false
 						},
 						{
 							"group": "Mobile",
 							"text": "Android",
 							"argumentIfEnabled": "-set:WithAndroid=true",
 							"argumentIfDisabled": "-set:WithAndroid=false",
-							"default": true
+							"default": false
 						},
 						{
 							"group": "Mobile",
 							"text": "IOS",
 							"argumentIfEnabled": "-set:WithIOS=true",
 							"argumentIfDisabled": "-set:WithIOS=false",
-							"default": true
+							"default": false
 						},
 						{
 							"group": "Mobile",
 							"text": "TVOS",
 							"argumentIfEnabled": "-set:WithTVOS=true",
 							"argumentIfDisabled": "-set:WithTVOS=false",
-							"default": true
+							"default": false
 						}
 					]
 				},
@@ -407,10 +411,11 @@
 		{
 			"id": "default-presubmit-tests",
 			"name": "Default Presubmit Tests",
-			"initialAgentType": "Utility",
 			"arguments": [
 				"-Target=Presubmit Tests",
-				"-Script=Engine/Build/Graph/Examples/Presubmit.xml"
+				"-Script=Engine/Build/Graph/Examples/PresubmitTests.xml",
+				"-set:ProjectPath=$(ProjectPath)",
+				"-set:EditorTarget=$(EditorTarget)"
 			]
 		},
 		{
@@ -418,8 +423,8 @@
 			"name": "Installed Engine Build",
 			"initialAgentType": "Win64",
 			"arguments": [
-				"-Target=UE5 Binary Release",
-				"-Script=Engine/Build/InternalEngineBuild.xml"
+				"-Target=Installed Engine Build",
+				"-Script=Engine/Build/InstalledEngineBuild.xml"
 			],
 			"parameters": [
 				{
@@ -437,13 +442,13 @@
 							"text": "Mac",
 							"argumentIfEnabled": "-set:WithInstalledMac=true",
 							"argumentIfDisabled": "-set:WithInstalledMac=false",
-							"default": true
+							"default": false
 						},
 						{
 							"text": "Linux",
 							"argumentIfEnabled": "-set:WithInstalledLinux=true",
 							"argumentIfDisabled": "-set:WithInstalledLinux=false",
-							"default": true
+							"default": false
 						}
 					]
 				},
@@ -457,49 +462,49 @@
 							"text": "Win64",
 							"argumentIfEnabled": "-set:WithWin64=true",
 							"argumentIfDisabled": "-set:WithWin64=false",
-							"default": true
+							"default": false
 						},
 						{
 							"group": "Desktop",
 							"text": "Mac",
 							"argumentIfEnabled": "-set:WithMac=true",
 							"argumentIfDisabled": "-set:WithMac=false",
-							"default": true
+							"default": false
 						},
 						{
 							"group": "Desktop",
 							"text": "Linux",
 							"argumentIfEnabled": "-set:WithLinux=true",
 							"argumentIfDisabled": "-set:WithLinux=false",
-							"default": true
+							"default": false
 						},
 						{
 							"group": "Desktop",
 							"text": "LinuxArm64",
 							"argumentIfEnabled": "-set:WithLinuxArm64=true",
 							"argumentIfDisabled": "-set:WithLinuxArm64=false",
-							"default": true
+							"default": false
 						},
 						{
 							"group": "Mobile",
 							"text": "Android",
 							"argumentIfEnabled": "-set:WithAndroid=true",
 							"argumentIfDisabled": "-set:WithAndroid=false",
-							"default": true
+							"default": false
 						},
 						{
 							"group": "Mobile",
 							"text": "IOS",
 							"argumentIfEnabled": "-set:WithIOS=true",
 							"argumentIfDisabled": "-set:WithIOS=false",
-							"default": true
+							"default": false
 						},
 						{
 							"group": "Mobile",
 							"text": "TVOS",
 							"argumentIfEnabled": "-set:WithTVOS=true",
 							"argumentIfDisabled": "-set:WithTVOS=false",
-							"default": true
+							"default": false
 						}
 					]
 				},

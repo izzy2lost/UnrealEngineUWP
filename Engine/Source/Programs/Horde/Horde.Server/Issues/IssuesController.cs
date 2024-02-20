@@ -5,26 +5,25 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Horde.Server.Acls;
+using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Logs;
+using EpicGames.Horde.Streams;
+using EpicGames.Horde.Users;
 using Horde.Server.Auditing;
+using Horde.Server.Issues.External;
+using Horde.Server.Jobs;
+using Horde.Server.Jobs.Graphs;
+using Horde.Server.Logs;
+using Horde.Server.Server;
+using Horde.Server.Streams;
+using Horde.Server.Users;
 using Horde.Server.Utilities;
 using HordeCommon;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using MongoDB.Bson;
 using Microsoft.Extensions.Logging;
-using Horde.Server.Jobs;
-using Horde.Server.Logs;
-using Horde.Server.Streams;
-using Horde.Server.Issues.External;
-using Horde.Server.Users;
-using Horde.Server.Jobs.Graphs;
 using Microsoft.Extensions.Options;
-using Horde.Server.Server;
-using EpicGames.Horde.Streams;
-using EpicGames.Horde.Users;
-using EpicGames.Horde.Jobs;
-using EpicGames.Horde.Logs;
+using MongoDB.Bson;
 
 namespace Horde.Server.Issues
 {
@@ -99,7 +98,7 @@ namespace Horde.Server.Issues
 				}
 
 				IReadOnlyList<IIssueSpan> spans = await _issueCollection.FindSpansAsync(null, ids, streamId.Value, minChange, maxChange, resolved, cancellationToken: cancellationToken);
-				if(spans.Count > 0)
+				if (spans.Count > 0)
 				{
 					// Group all the spans by their issue id
 					Dictionary<int, List<IIssueSpan>> issueIdToSpans = new Dictionary<int, List<IIssueSpan>>();
@@ -154,7 +153,7 @@ namespace Horde.Server.Issues
 								}
 							}
 						}
-					
+
 						IUser? owner = null;
 						IUser? nominatedBy = null;
 						IUser? resolvedBy = null;
@@ -164,12 +163,12 @@ namespace Horde.Server.Issues
 						{
 							owner = await _userCollection.GetCachedUserAsync(issue.OwnerId.Value, cancellationToken);
 						}
-						
+
 						if (issue.NominatedById != null)
 						{
 							nominatedBy = await _userCollection.GetCachedUserAsync(issue.NominatedById.Value, cancellationToken);
 						}
-						
+
 						if (issue.ResolvedById != null)
 						{
 							resolvedBy = await _userCollection.GetCachedUserAsync(issue.ResolvedById.Value, cancellationToken);
@@ -218,7 +217,7 @@ namespace Horde.Server.Issues
 		[ProducesResponseType(typeof(List<GetIssueResponse>), 200)]
 		public async Task<ActionResult<object>> FindIssuesAsync([FromQuery(Name = "Id")] int[]? ids = null, [FromQuery] string? streamId = null, [FromQuery] int? change = null, [FromQuery] int? minChange = null, [FromQuery] int? maxChange = null, [FromQuery] JobId? jobId = null, [FromQuery] JobStepBatchId? batchId = null, [FromQuery] JobStepId? stepId = null, [FromQuery(Name = "label")] int? labelIdx = null, [FromQuery] string? ownerId = null, [FromQuery] bool? resolved = null, [FromQuery] bool? promoted = null, [FromQuery] int index = 0, [FromQuery] int count = 10, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
-			if(ids != null && ids.Length == 0)
+			if (ids != null && ids.Length == 0)
 			{
 				ids = null;
 			}
@@ -247,7 +246,7 @@ namespace Horde.Server.Issues
 				{
 					return NotFound(jobId.Value);
 				}
-				if(!_globalConfig.Value.Authorize(job, JobAclAction.ViewJob, User))
+				if (!_globalConfig.Value.Authorize(job, JobAclAction.ViewJob, User))
 				{
 					return Forbid(JobAclAction.ViewJob, jobId.Value);
 				}
@@ -402,7 +401,7 @@ namespace Horde.Server.Issues
 			}
 
 			List<IIssueSpan> spans = details.Spans.Where(x => x.StreamId == streamId).ToList();
-			if(spans.Count == 0)
+			if (spans.Count == 0)
 			{
 				return NotFound();
 			}
@@ -437,16 +436,16 @@ namespace Horde.Server.Issues
 			[FromQuery] JobStepId? stepId = null,
 			[FromQuery(Name = "label")] int? labelIdx = null,
 			[FromQuery] string[]? logIds = null,
-			[FromQuery] int index = 0, 
+			[FromQuery] int index = 0,
 			[FromQuery] int count = 10,
 			[FromQuery] PropertyFilter? filter = null,
 			CancellationToken cancellationToken = default)
 		{
 			HashSet<LogId> logIdValues = new HashSet<LogId>();
-			if(jobId != null)
+			if (jobId != null)
 			{
 				IJob? job = await _jobService.GetJobAsync(jobId.Value, cancellationToken);
-				if(job == null)
+				if (job == null)
 				{
 					return NotFound();
 				}
@@ -490,7 +489,7 @@ namespace Horde.Server.Issues
 					logIdValues.UnionWith(job.Batches.SelectMany(x => x.Steps).Where(x => x.Outcome != JobStepOutcome.Success && x.LogId != null).Select(x => x.LogId!.Value));
 				}
 			}
-			if(logIds != null)
+			if (logIds != null)
 			{
 				logIdValues.UnionWith(logIds.Select(x => LogId.Parse(x)));
 			}

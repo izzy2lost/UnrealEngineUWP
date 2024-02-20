@@ -9,7 +9,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Telemetry;
 using EpicGames.Horde.Telemetry.Metrics;
-using Horde.Server.Acls;
 using Horde.Server.Server;
 using Horde.Server.Telemetry.Metrics;
 using Horde.Server.Utilities;
@@ -117,7 +116,7 @@ namespace Horde.Server.Telemetry
 
 					response.Metrics.Add(rmetric);
 				}
-			}		
+			}
 
 			return result;
 		}

@@ -63,7 +63,6 @@ Name | Type | Description
 `runInSeparateProcess` | `boolean` | Executes the job lease in a separate process
 `workspaceMaterializer` | `string` | What workspace materializer to use in WorkspaceExecutor. Will override any value from workspace config.
 `container` | [`JobContainerOptions`](#jobcontaineroptions) | Options for executing a job inside a container
-`bundleVersion` | `integer` | Version to use when writing bundles
 
 ## JobContainerOptions
 

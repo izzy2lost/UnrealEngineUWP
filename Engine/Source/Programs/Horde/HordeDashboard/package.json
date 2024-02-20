@@ -22,8 +22,8 @@
     "react-flame-graph": "^1.4.0",
     "react-highlighter": "^0.4.3",
     "react-router-dom": "6.6.2",
-    "react-router-hash-link": "^2.4.3",
-    "react-scripts": "^5.0.1",
+    "react-router-hash-link": "^2.4.3",    
+    "react-sparklines": "^1.7.0",
     "react-text-marquee": "^1.0.1"
   },
   "scripts": {
@@ -46,7 +46,10 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
-  },
+  },  
+  "resolutions": {
+    "strip-ansi": "6.0.1"    
+  },  
   "devDependencies": {
     "@types/crypto-js": "^4.1.1",
     "@types/d3": "^7.4.0",
@@ -56,8 +59,10 @@
     "@types/react-dom": "^18.0.10",
     "@types/react-highlighter": "^0.3.5",
     "@types/react-router-dom": "^5.3.3",
+    "@types/react-sparklines": "^1.7.5",
     "license-checker-rseidelsohn": "^4.3.0",
     "rimraf": "^3.0.0",
-    "typescript": "^4.7.4"
+    "typescript": "^4.7.4",
+    "react-scripts": "^5.0.1"
   }
 }

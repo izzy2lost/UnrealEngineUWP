@@ -651,7 +651,7 @@ class SuiteGraphRenderer {
             )
       }
 
-      svg.append("g").call(xAxis, xScale)
+      svg.append("g").call(xAxis)
 
       const root = d3.select("#root_suite_test_list") as any as DivSelectionType
 

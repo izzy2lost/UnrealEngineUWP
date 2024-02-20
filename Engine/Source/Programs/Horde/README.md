@@ -1,9 +1,9 @@
-![Horde](Docs/Images/Logo.png)
+![Horde](Docs/Images/Logo.png#gh-light-mode-only)![Horde](Docs/Images/Logo-DarkMode.png#gh-dark-mode-only)
 
-**Horde** is a set of services designed around workflows that Epic uses to develop Fortnite,
+**Horde** is a set of services that support workflows that Epic uses to develop Fortnite,
 Unreal Engine, and other titles.
 
-It is provided with full source code to all Unreal Engine licensees, and is meant for licensees to host and configure
+It is provided with full source code to Unreal Engine licensees, and is meant for licensees to host and configure
 themselves. We provide pre-built Docker images for deployment on Linux, and an MSI installer for Windows.
 
 Horde provides the following functionality, each of which may be enabled or disabled independently:
@@ -12,7 +12,7 @@ Horde provides the following functionality, each of which may be enabled or disa
   with large Perforce repositories.
 * **[Remote Execution](Docs/Config/RemoteExecution.md)**: Functionality to offload compute work to other machines,
   including C++ compilation and content builds.
-* **[Studio Analytics](Docs/Config/Analytics.md)**: Receives telemetry from the Unreal Editor, and shows charts for
+* **[Analytics](Docs/Config/Analytics.md)**: Receives telemetry from the Unreal Editor, and shows charts for
   key workflow metrics.
 * **[UnrealGameSync Metadata Server](Docs/Config/UgsMetadataServer.md)**: Various features for teams using
   UnrealGameSync, including build status reporting, comment aggregation, and crowdsourced voting functionality.
@@ -38,17 +38,17 @@ See also: [Feature Status Page](Docs/Features.md)
 
 ## Reference
 
-Horde documentation is divided into sections focusing of aspects of Horde of interest to different groups.
+Horde's reference documentation is divided into sections by target audience:
 
 * [**Deploying Horde**](Docs/Deployment.md)
-  * Information on the architecture and components making up Horde, and best practices for deploying them.
-  * **Target audience:** IT, sysadmins, coders intending to modify Horde.
+  * Information on the architecture and components making up Horde, and best practices for deploying them.<br>
+  **Audience:** IT, sysadmins, coders intending to modify Horde.
 * [**Configuring and Operating Horde**](Docs/Config.md)
-  * Describes how to set up and administer Horde.
-  * **Target audience:** Build/dev ops teams, admins.
+  * Describes how to set up and administer Horde.<br>
+  **Audience:** Build/dev ops teams, admins.
 * [**Horde Internals**](Docs/Internals.md)
-  * Describes how to build and modify Horde, and its architecture.
-  * **Target audience:** Developers wishing to extend Horde.
+  * Describes how to build and modify Horde, and its architecture.<br>
+  **Audience:** Developers wishing to extend Horde.
 
 ## Further Reading
 

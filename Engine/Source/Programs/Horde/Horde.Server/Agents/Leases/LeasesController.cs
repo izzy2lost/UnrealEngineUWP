@@ -3,20 +3,19 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
-using Horde.Server.Acls;
+using EpicGames.Horde.Agents;
+using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Agents.Sessions;
+using Google.Protobuf.WellKnownTypes;
 using Horde.Server.Server;
+using Horde.Server.Tasks;
 using Horde.Server.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
-using EpicGames.Horde.Agents;
-using EpicGames.Horde.Agents.Leases;
-using EpicGames.Horde.Agents.Sessions;
-using Google.Protobuf.WellKnownTypes;
-using Horde.Server.Tasks;
-using System.Threading;
 
 namespace Horde.Server.Agents.Leases
 {

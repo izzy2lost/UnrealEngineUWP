@@ -2,8 +2,9 @@
 
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
-using Horde.Server.Acls;
+using EpicGames.Horde.Users;
 using Horde.Server.Users;
 using Horde.Server.Utilities;
 using HordeCommon;
@@ -11,8 +12,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
-using EpicGames.Horde.Users;
-using System.Threading;
 
 namespace Horde.Server.Server.Notices
 {
@@ -33,7 +32,7 @@ namespace Horde.Server.Server.Notices
 		/// Constructor
 		/// </summary>
 		public NoticesController(NoticeService noticeService, IUserCollection userCollection, IClock clock, IOptionsSnapshot<GlobalConfig> globalConfig)
-		{			
+		{
 			_userCollection = userCollection;
 			_noticeService = noticeService;
 			_clock = clock;
@@ -90,7 +89,7 @@ namespace Horde.Server.Server.Notices
 			}
 
 			await _noticeService.RemoveNoticeAsync(new ObjectId(id), cancellationToken);
-			
+
 			return Ok();
 		}
 
@@ -105,7 +104,7 @@ namespace Horde.Server.Server.Notices
 			List<GetNoticeResponse> messages = new List<GetNoticeResponse>();
 
 			DateTimeOffset now = TimeZoneInfo.ConvertTime(new DateTimeOffset(_clock.UtcNow), _clock.TimeZone);
-						
+
 			foreach (ScheduledDowntime schedule in _globalConfig.Value.Downtime)
 			{
 				DateTimeOffset start = TimeZoneInfo.ConvertTimeBySystemTimeZoneId(schedule.GetNext(now).StartTime, "UTC");
@@ -125,11 +124,11 @@ namespace Horde.Server.Server.Notices
 					userInfo = (await _userCollection.GetCachedUserAsync(notice.UserId, cancellationToken))?.ToThinApiResponse();
 				}
 
-				messages.Add(new GetNoticeResponse() { Id = notice.Id.ToString(), Active = true, Message = notice.Message, CreatedByUser = userInfo});
+				messages.Add(new GetNoticeResponse() { Id = notice.Id.ToString(), Active = true, Message = notice.Message, CreatedByUser = userInfo });
 			}
 
 			return messages;
-			
+
 		}
 	}
 }

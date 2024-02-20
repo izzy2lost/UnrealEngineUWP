@@ -397,7 +397,7 @@ namespace Horde.Server.Jobs
 			Reports = job.Reports?.ConvertAll(x => new GetReportResponse(x));
 			Arguments = job.Arguments.ToList();
 			UpdateTime = new DateTimeOffset(job.UpdateTimeUtc);
-			UseArtifactsV2 = job.JobOptions?.UseNewTempStorage ?? false;
+			UseArtifactsV2 = job.JobOptions?.UseNewTempStorage ?? true;
 			UpdateIssues = job.UpdateIssues;
 		}
 	}
@@ -666,6 +666,7 @@ namespace Horde.Server.Jobs
 		Complete = 5
 	}
 
+#pragma warning disable CA1027
 	/// <summary>
 	/// Error code for a batch not being executed
 	/// </summary>
@@ -748,6 +749,7 @@ namespace Horde.Server.Jobs
 		[Obsolete("Use SyncingFailed instead")]
 		AgentSetupFailed = SyncingFailed,
 	}
+#pragma warning restore CA1027
 
 	/// <summary>
 	/// Request to update a jobstep batch

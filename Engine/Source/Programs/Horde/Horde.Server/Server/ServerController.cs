@@ -13,7 +13,6 @@ using EpicGames.Horde;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Server;
 using EpicGames.Perforce;
-using Horde.Server.Acls;
 using Horde.Server.Agents;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Configuration;
@@ -66,7 +65,7 @@ namespace Horde.Server.Server
 		{
 			FileVersionInfo fileVersionInfo = FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location);
 			return Ok(fileVersionInfo.ProductVersion);
-		}		
+		}
 
 		/// <summary>
 		/// Get server information

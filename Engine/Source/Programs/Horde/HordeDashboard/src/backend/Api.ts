@@ -150,7 +150,7 @@ export enum JobStepBatchError {
 	ExecutionError = "ExecutionError",
 
 	/** The change that the job is running against is invalid. */
-	UnknownShelf = "UnknownShelf", 
+	UnknownShelf = "UnknownShelf",
 
 	/** No longer needed */
 	NoLongerNeeded = "NoLongerNeeded"
@@ -412,6 +412,15 @@ export type GetDashboardAgentCategoryResponse = {
 	condition?: string;
 }
 
+/** Describes a category for the pools page */
+export type GetDashboardPoolCategoryResponse = {
+
+	/** Title for the tab */
+	name: string;
+
+	/* Condition for pools to be included in this category */
+	condition?: string;
+}
 
 /** Setting information required by dashboard */
 export type GetDashboardConfigResponse = {
@@ -436,6 +445,9 @@ export type GetDashboardConfigResponse = {
 
 	/** Categories to display on the agents page */
 	agentCategories: GetDashboardAgentCategoryResponse[];
+
+	/** Categories to display on the pools page */
+	poolCategories: GetDashboardPoolCategoryResponse[];
 
 	/** Telemetry views */
 	telemetryViews: GetTelemetryViewResponse[];
@@ -873,6 +885,58 @@ export type GetPoolResponse = {
 
 }
 
+/// Response describing a pool
+export type GetPoolSummaryResponse = {
+	/// Identifier for the pool
+	id: string;
+	/// Name of the pool
+	name: string;
+	/// Color to render the pool label
+	colorValue: string;
+	/// Whether autoscaling is enabled for this pool
+	autoscaled: boolean;
+	/// Counts for agents in differrent states
+	stats?: GetPoolStatsResponse;
+	/// Truncated list of agents
+	agents?: GetPoolAgentSummaryResponse[];
+	/// Utilization samples for the pool, from zero to one, with one sample for each hour
+	utilization?: number[];
+}
+
+/// Numbers of agents matching various criteria
+export type GetPoolStatsResponse = {
+	/// Number of agents in the pool
+	numAgents: number;
+	/// Number of agents that are ready
+	numIdle: number;
+	/// Number of agents offline
+	numOffline: number;
+	/// Number of agents that are disabled
+	numDisabled: number;
+}
+
+/// Response describing an agent in a pool
+export type GetPoolAgentSummaryResponse = {
+	/// Identifier for the pool
+	agentId: string;
+	/// Whether the agent is idle
+	idle?: boolean;
+	/// Whether the agent is online
+	offline?: boolean;
+	/// Whether the agent is disabled
+	disabled?: boolean;
+}
+
+export type PoolQuery = {
+	/// Condition to select which pools to include
+	condition?: any;
+	/// Whether to include stats in the response
+	stats?: boolean;
+	/// Number of agents to include for each pool in the response
+	numAgents?: number;
+	///Number of utilization samples to include for each pool
+	numUtilizationSamples?: number;
+}
 
 /**Parameters for creating a new event */
 export type CreateEventRequest = {

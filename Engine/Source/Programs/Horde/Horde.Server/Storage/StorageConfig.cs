@@ -292,6 +292,8 @@ namespace Horde.Server.Storage
 		{
 			GlobalConfig = globalConfig;
 			BackendConfig = backendConfig;
+
+			Acl.PostLoad(globalConfig.Acl, $"namespace:{Id}");
 		}
 
 		/// <summary>

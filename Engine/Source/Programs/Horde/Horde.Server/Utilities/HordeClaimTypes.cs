@@ -4,6 +4,7 @@ using System.Linq;
 using System.Security.Claims;
 using Horde.Server.Users;
 using EpicGames.Horde.Users;
+using EpicGames.Horde.Accounts;
 
 namespace Horde.Server.Utilities
 {
@@ -41,6 +42,11 @@ namespace Horde.Server.Utilities
 		/// Claim for a particular agent
 		/// </summary>
 		public const string Agent = Prefix + "agent";
+
+		/// <summary>
+		/// Claim for a particular account id
+		/// </summary>
+		public const string AccountId = Prefix + "account-id";
 
 		/// <summary>
 		/// Claim for a particular session
@@ -93,6 +99,24 @@ namespace Horde.Server.Utilities
 	/// </summary>
 	public static class HordeClaimExtensions
 	{
+		/// <summary>
+		/// Gets the Horde account id from a principal
+		/// </summary>
+		/// <param name="principal"></param>
+		/// <returns></returns>
+		public static AccountId? GetAccountId(this ClaimsPrincipal principal)
+		{
+			string? idValue = principal.FindFirstValue(HordeClaimTypes.AccountId);
+			if (idValue == null)
+			{
+				return null;
+			}
+			else
+			{
+				return AccountId.Parse(idValue);
+			}
+		}
+
 		/// <summary>
 		/// Gets the Horde user id from a principal
 		/// </summary>

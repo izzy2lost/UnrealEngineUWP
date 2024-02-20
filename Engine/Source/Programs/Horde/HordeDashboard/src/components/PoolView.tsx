@@ -279,10 +279,7 @@ class PoolHandler extends PollBase {
    jobData: Map<string, JobData> = new Map();
    jobTiming: Map<string, GetJobTimingResponse> = new Map();
    agents?: GetAgentResponse[];
-   pool?: GetPoolResponse;
-
-   static pools?: GetPoolResponse[];
-
+   pool?: GetPoolResponse;   
 }
 
 const handler = new PoolHandler();
@@ -1281,7 +1278,7 @@ const PoolPanel: React.FC = () => {
 };
 
 
-export const PoolView: React.FC<{ pools: GetPoolResponse[] }> = observer(({ pools }) => {
+export const PoolView: React.FC = observer(() => {
 
    const [searchParams] = useSearchParams();
 
@@ -1297,15 +1294,9 @@ export const PoolView: React.FC<{ pools: GetPoolResponse[] }> = observer(({ pool
 
    const { hordeClasses } = getHordeStyling();
 
-   PoolHandler.pools = pools;
-
    // subscribe
    if (handler.updated) { };
 
-
-   if (!PoolHandler.pools.length) {
-      return null;
-   }
 
    const poolId = searchParams.get("pool") ?? "";
 

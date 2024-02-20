@@ -8,7 +8,6 @@ using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
 using EpicGames.Horde.Server;
-using Horde.Server.Acls;
 using Horde.Server.Authentication;
 using Horde.Server.Users;
 using Horde.Server.Utilities;
@@ -31,13 +30,13 @@ namespace Horde.Server.Server
 		/// Where to post the form
 		/// </summary>
 		public string? FormPostUrl { get; set; }
-		
+
 		/// <summary>
 		/// Optional error message to display
 		/// </summary>
 		public string? ErrorMessage { get; set; }
 	}
-	
+
 	/// <summary>
 	/// Controller managing account status
 	/// </summary>
@@ -141,7 +140,7 @@ namespace Horde.Server.Server
 		{
 			return View("~/Server/HordeAccountLoggedOut.cshtml");
 		}
-		
+
 		/// <summary>
 		/// Show login form for username/password login
 		/// </summary>
@@ -161,7 +160,7 @@ namespace Horde.Server.Server
 				FormPostUrl = Url.Action("UserPassLogin", "Account", returnUrl != null ? new { returnUrl } : null)
 			});
 		}
-		
+
 		/// <summary>
 		/// Perform a login with username/password credentials
 		/// </summary>
@@ -191,7 +190,7 @@ namespace Horde.Server.Server
 			{
 				return LoginFormError(ErrorMsg, returnUrl);
 			}
-			
+
 			if (String.IsNullOrEmpty(account.Email))
 			{
 				return LoginFormError("E-mail not set for user", returnUrl);
@@ -201,6 +200,7 @@ namespace Horde.Server.Server
 			List<Claim> claims = new()
 			{
 				new Claim(HordeClaimTypes.Version, HordeClaimTypes.CurrentVersion),
+				new Claim(HordeClaimTypes.AccountId, account.Id.ToString()),
 				new Claim(ClaimTypes.Name, account.Name),
 				new Claim(ClaimTypes.Email, account.Email),
 				new Claim(HordeClaimTypes.User, account.Login),
@@ -211,8 +211,8 @@ namespace Horde.Server.Server
 				claims.Add(new Claim(claim.Type, claim.Value));
 			}
 
-			ClaimsIdentity claimsIdentity = new (claims, CookieAuthenticationDefaults.AuthenticationScheme);
-			AuthenticationProperties authProperties = new ()
+			ClaimsIdentity claimsIdentity = new(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+			AuthenticationProperties authProperties = new()
 			{
 				IsPersistent = true,
 				ExpiresUtc = DateTimeOffset.UtcNow.AddDays(7)

@@ -61,6 +61,7 @@ Name | Type | Description
 `poolCategories` | [`DashboardPoolCategoryConfig`](#dashboardpoolcategoryconfig)`[]` | Configuration for different pool pages
 `analytics` | [`TelemetryViewConfig`](#telemetryviewconfig)`[]` | Configuration for telemetry views
 `include` | [`ConfigInclude`](#configinclude)`[]` | Includes for other configuration files
+`macros` | [`ConfigMacro`](#configmacro)`[]` | Macros within this configuration
 
 ## DashboardAgentCategoryConfig
 
@@ -569,6 +570,7 @@ Name | Type | Description
 `acl` | [`AclConfig`](#aclconfig) | Permissions for this store
 `metrics` | [`MetricConfig`](#metricconfig)`[]` | Metrics to aggregate on the Horde server
 `include` | [`ConfigInclude`](#configinclude)`[]` | Includes for other configuration files
+`macros` | [`ConfigMacro`](#configmacro)`[]` | Macros within this configuration
 
 ## MetricConfig
 
