@@ -289,9 +289,6 @@ protected:
 
 	void AllocateDepthTextureInternal(uint32 SizeX, uint32 SizeY, uint32 NumSamples, uint32 ArraySize);
 
-	// Used with FCoreDelegates
-	void VRHeadsetRecenterDelegate();
-
 	void SetupFrameLayers_RenderThread(FRHICommandListImmediate& RHICmdList);
 	void DrawEmulatedLayers_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& InView);
 	void DrawBackgroundCompositedEmulatedLayers_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& InView);
