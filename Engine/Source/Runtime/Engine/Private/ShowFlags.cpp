@@ -692,10 +692,13 @@ void EngineShowFlagOverride(EShowFlagInitMode ShowFlagInitMode, EViewModeIndex V
 
 void EngineShowFlagOrthographicOverride(bool bIsPerspective, FEngineShowFlags& EngineShowFlags)
 {
-	// Disable post processing that doesn't work in ortho viewports.
 	if (!bIsPerspective)
 	{
-		EngineShowFlags.SetMotionBlur(false);
+		/**
+		 * Orthographic feature support has been improved so all features are now enabled by default.
+		 * If you wish to disable a specific feature, add the showflag disable call here.
+		 * e.g.	EngineShowFlags.SetMotionBlur(false);
+		 */
 	}
 }
 
