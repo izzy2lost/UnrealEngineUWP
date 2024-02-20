@@ -17,3 +17,5 @@ namespace UE::GameFeatures
 {
 	GAMEFEATURES_API FString ToString(EGameFeaturePluginState InType);
 }
+
+enum class EGameFeatureURLOptions : uint8;

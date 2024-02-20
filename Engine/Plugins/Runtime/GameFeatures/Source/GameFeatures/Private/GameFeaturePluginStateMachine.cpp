@@ -81,22 +81,8 @@ namespace UE::GameFeatures
 		false,
 		TEXT("Enable to force calls to IAssetRegistry::AppendState to happen on the game thread"));
 
-	#define GAME_FEATURE_PLUGIN_STATE_TO_STRING(inEnum, inText) case EGameFeaturePluginState::inEnum: return TEXT(#inEnum);
-	FString ToString(EGameFeaturePluginState InType)
-	{
-		switch (InType)
-		{
-		GAME_FEATURE_PLUGIN_STATE_LIST(GAME_FEATURE_PLUGIN_STATE_TO_STRING)
-		default:
-			check(0);
-			return FString();
-		}
-	}
-	#undef GAME_FEATURE_PLUGIN_STATE_TO_STRING
-
 	bool ShouldSkipVerify(const FString& PluginName)
 	{
-
 		static const FAsciiSet Wildcards("*?");
 		bool bSkip = false;
 		UE::String::ParseTokens(MakeStringView(GVerifyPluginSkipList), TEXTVIEW(","), [&PluginName, &bSkip](FStringView Item) {
@@ -137,19 +123,6 @@ namespace UE::GameFeatures
 		}, false);
 		return Priority;
 	}
-
-#define GAME_FEATURE_PLUGIN_PROTOCOL_PREFIX(inEnum, inString) case EGameFeaturePluginProtocol::inEnum: return inString;
-	const TCHAR* GameFeaturePluginProtocolPrefix(EGameFeaturePluginProtocol Protocol)
-	{
-		switch (Protocol)
-		{
-			GAME_FEATURE_PLUGIN_PROTOCOL_LIST(GAME_FEATURE_PLUGIN_PROTOCOL_PREFIX)
-		}
-
-		check(false);
-		return nullptr;
-	}
-#undef GAME_FEATURE_PLUGIN_PROTOCOL_PREFIX
 
 	static bool bRealtimeMode = false;
 
@@ -291,42 +264,6 @@ namespace UE::GameFeatures
 #endif //if WITH_EDITOR
 }
 
-//Enum describing the options for what data can be inside the InstallBundle protocol URL's metadata
-//Used to aid in parsing / creating the URL for InstallBundle protocol GameFeaturePlugins
-#define INSTALL_BUNDLE_PROTOCOL_URL_OPTIONS_LIST(XOPTION)					\
-	XOPTION(Bundles,					TEXT("Bundles"))					
-
-#define INSTALL_BUNDLE_PROTOCOL_URL_OPTIONS_ENUM(inEnum, inString) inEnum,
-enum class EGameFeatureInstallBundleProtocolOptions : uint8
-{
-	INSTALL_BUNDLE_PROTOCOL_URL_OPTIONS_LIST(INSTALL_BUNDLE_PROTOCOL_URL_OPTIONS_ENUM)
-	Count,
-};
-ENUM_RANGE_BY_COUNT(EGameFeatureInstallBundleProtocolOptions, EGameFeatureInstallBundleProtocolOptions::Count);
-#undef INSTALL_BUNDLE_PROTOCOL_URL_OPTIONS_ENUM
-
-#define INSTALL_BUNDLE_PROTOCOL_URL_OPTIONS_LEX_TO_STRING(inEnum, inString) \
-    case(EGameFeatureInstallBundleProtocolOptions::inEnum):                 \
-    {                                                                       \
-        return inString;                                                    \
-    }                                                                       
-
-FString LexToString(EGameFeatureInstallBundleProtocolOptions FeatureIn)
-{
-	switch (FeatureIn)
-	{
-		INSTALL_BUNDLE_PROTOCOL_URL_OPTIONS_LIST(INSTALL_BUNDLE_PROTOCOL_URL_OPTIONS_LEX_TO_STRING)
-		
-		default:
-		{
-			ensureAlwaysMsgf(false, TEXT("Logic error causing a missing LexToString value for EGameFeatureInstallBundleProtocolOptions:%d"), static_cast<uint8>(FeatureIn));
-			return ("ERROR_UNSUPPORTED_ENUM");
-		}
-	}
-}
-#undef INSTALL_BUNDLE_PROTOCOL_URL_OPTIONS_LEX_TO_STRING
-#undef INSTALL_BUNDLE_PROTOCOL_URL_OPTIONS_LIST
-
 void FGameFeaturePluginStateStatus::SetTransition(EGameFeaturePluginState InTransitionToState)
 {
 	TransitionToState = InTransitionToState;
@@ -337,7 +274,7 @@ void FGameFeaturePluginStateStatus::SetTransition(EGameFeaturePluginState InTran
 void FGameFeaturePluginStateStatus::SetTransitionError(EGameFeaturePluginState TransitionToErrorState, UE::GameFeatures::FResult TransitionResultIn)
 {
 	TransitionToState = TransitionToErrorState;
-	if (ensureAlwaysMsgf(TransitionResultIn.HasError(), TEXT("Invalid call to SetTransitionError with an FResult that isn't an error! TransitionToErrorState: %s"), *LexToString(TransitionToErrorState)))
+	if (ensureAlwaysMsgf(TransitionResultIn.HasError(), TEXT("Invalid call to SetTransitionError with an FResult that isn't an error! TransitionToErrorState: %s"), *UE::GameFeatures::ToString(TransitionToErrorState)))
 	{
 		TransitionResult = MoveTemp(TransitionResultIn);
 	}
@@ -348,27 +285,6 @@ void FGameFeaturePluginStateStatus::SetTransitionError(EGameFeaturePluginState T
 	}
 }
 
-void LexFromString(EGameFeatureInstallBundleProtocolOptions& ValueOut, const FStringView StringIn)
-{
-	//Default value if parsing fails
-	ValueOut = EGameFeatureInstallBundleProtocolOptions::Count;
-
-	if (StringIn.IsEmpty() || StringIn[0] == TEXT('\0'))
-	{
-		UE_LOG(LogGameFeatures, Error, TEXT("Invalid empty string used for EGameFeatureInstallBundleProtocolOptions LexFromString!"));
-		return;
-	}
-
-	for (EGameFeatureInstallBundleProtocolOptions OptionToCheck : TEnumRange<EGameFeatureInstallBundleProtocolOptions>())
-	{
-		if (LexToString(OptionToCheck) == StringIn)
-		{
-			ValueOut = OptionToCheck;
-			return;
-		}
-	}
-}
-
 UE::GameFeatures::FResult FGameFeaturePluginState::GetErrorResult(const FString& ErrorCode, const FText OptionalErrorText/*= FText()*/) const
 {
 	return GetErrorResult(TEXT(""), ErrorCode, OptionalErrorText);
@@ -376,7 +292,7 @@ UE::GameFeatures::FResult FGameFeaturePluginState::GetErrorResult(const FString&
 
 UE::GameFeatures::FResult FGameFeaturePluginState::GetErrorResult(const FString& ErrorNamespaceAddition, const FString& ErrorCode, const FText OptionalErrorText/*= FText()*/) const
 {
-	const FString StateName = LexToString(UGameFeaturesSubsystem::Get().GetPluginState(StateProperties.PluginIdentifier));
+	const FString StateName = UE::GameFeatures::ToString(UGameFeaturesSubsystem::Get().GetPluginState(StateProperties.PluginIdentifier));
 	const FString ErrorCodeEnding = ErrorNamespaceAddition.IsEmpty() ? ErrorCode : ErrorNamespaceAddition + ErrorCode;
 	const FString CompleteErrorCode = FString::Printf(TEXT("%s%s.%s"), *UE::GameFeatures::StateMachineErrorNamespace, *StateName, *ErrorCodeEnding);
 	return UE::GameFeatures::FResult(MakeError(CompleteErrorCode), OptionalErrorText);
@@ -1439,7 +1355,7 @@ struct FGameFeaturePluginState_Downloading : public FGameFeaturePluginState
 
 	void NotifyPauseChange(bool bIsPaused, FString PauseReason)
 	{
-		FGameFeaturePauseStateChangeContext Context(LexToString(EGameFeaturePluginState::Downloading), PauseReason, bIsPaused);
+		FGameFeaturePauseStateChangeContext Context(UE::GameFeatures::ToString(EGameFeaturePluginState::Downloading), PauseReason, bIsPaused);
 		UGameFeaturesSubsystem::Get().OnGameFeaturePauseChange(StateProperties.PluginIdentifier, StateProperties.PluginName, Context);
 	}
 
@@ -2843,7 +2759,7 @@ struct FGameFeaturePluginState_Deactivating : public FGameFeaturePluginState
 			// Since we are pausing work during this deactivation, also notify the OnGameFeaturePauseChange delegate
 			if (NumExpectedPausers > 0)
 			{
-				FGameFeaturePauseStateChangeContext PauseContext(LexToString(EGameFeaturePluginState::Deactivating), TEXT("PendingDeactivationCallbacks"), true);
+				FGameFeaturePauseStateChangeContext PauseContext(UE::GameFeatures::ToString(EGameFeaturePluginState::Deactivating), TEXT("PendingDeactivationCallbacks"), true);
 				UGameFeaturesSubsystem::Get().OnGameFeaturePauseChange(StateProperties.PluginIdentifier, StateProperties.PluginName, PauseContext);
 			}
 		}
@@ -2853,7 +2769,7 @@ struct FGameFeaturePluginState_Deactivating : public FGameFeaturePluginState
 			//If we previously sent an OnGameFeaturePauseChange delegate we need to send that work is now unpaused
 			if (NumExpectedPausers > 0)
 			{
-				FGameFeaturePauseStateChangeContext PauseContext(LexToString(EGameFeaturePluginState::Deactivating), TEXT(""), false);
+				FGameFeaturePauseStateChangeContext PauseContext(UE::GameFeatures::ToString(EGameFeaturePluginState::Deactivating), TEXT(""), false);
 				UGameFeaturesSubsystem::Get().OnGameFeaturePauseChange(StateProperties.PluginIdentifier, StateProperties.PluginName, PauseContext);
 			}
 
@@ -3510,10 +3426,11 @@ FString FInstallBundlePluginProtocolMetaData::ToString() const
 	FString ReturnedString;
 
 	//Always encode InstallBundles
-	ReturnedString = LexToString(EGameFeatureInstallBundleProtocolOptions::Bundles) + UE::GameFeatures::PluginURLStructureInfo::OptionAssignOperator;
+	ReturnedString = FString(UE::GameFeatures::PluginURLStructureInfo::OptionSeperator) +
+		LexToString(EGameFeatureURLOptions::Bundles) + UE::GameFeatures::PluginURLStructureInfo::OptionAssignOperator;
 
 	FNameBuilder NameBuilder;
-	const FString BundlesList = FString::JoinBy(InstallBundles, UE::GameFeatures::PluginURLStructureInfo::OptionListSeperator, 
+	const FString BundlesList = FString::JoinBy(InstallBundles, UE::GameFeatures::PluginURLStructureInfo::OptionListSeperator,
 	[&NameBuilder](const FName& BundleName)
 	{
 		BundleName.ToString(NameBuilder);
@@ -3521,88 +3438,31 @@ FString FInstallBundlePluginProtocolMetaData::ToString() const
 	});
 	ReturnedString.Append(BundlesList);
 
-	static_assert(static_cast<uint8>(EGameFeatureInstallBundleProtocolOptions::Count) == 1, "Update this function to handle the newly added EGameFeatureInstallBundleProtocolOptions value!");
+	static_assert(FMath::CountBits(static_cast<uint64>(EGameFeatureURLOptions::All)) == 1, "Update this function to handle the newly added EGameFeatureInstallBundleProtocolOptions value!");
 
 	return ReturnedString;
 }
 
-bool FInstallBundlePluginProtocolMetaData::FromString(FStringView URLString, FInstallBundlePluginProtocolMetaData& Metadata)
+TValueOrError<FInstallBundlePluginProtocolMetaData, void> FInstallBundlePluginProtocolMetaData::FromString(FStringView URLOptionsString)
 {
-	bool bParseSuccess = true;
+	TArray<FName> InstallBundles;
 
-	TArray<FStringView> URLOptions;
-	UE::String::ParseTokens(URLString, UE::GameFeatures::PluginURLStructureInfo::OptionSeperator, URLOptions);
-
-	Metadata = {};
-
-	if (URLOptions.Num() > 0)
+	bool bParseSuccess = UGameFeaturesSubsystem::ParsePluginURLOptions(URLOptionsString, EGameFeatureURLOptions::Bundles,
+	[&InstallBundles](EGameFeatureURLOptions Option, FStringView OptionName, FStringView OptionValue)
 	{
-		ensureAlwaysMsgf(URLOptions[0].StartsWith(UE::GameFeatures::GameFeaturePluginProtocolPrefix(EGameFeaturePluginProtocol::InstallBundle)), TEXT("Unexpected URL Format! Expected Protocol and uplugin information at the beginning of the URL %.*s"), URLString.Len(), URLString.GetData());
+		check(Option == EGameFeatureURLOptions::Bundles);
+		InstallBundles.Emplace(OptionValue);
+	});
 
-		//Parse through our URLOptions. Start at ParsingIndex 1 as option 0 should always be the .uplugin path that doesn't contain metadata
-		for (int ParsingIndex = 1; ParsingIndex < URLOptions.Num(); ++ParsingIndex)
-		{
-			const FStringView URLOption = URLOptions[ParsingIndex];
-	
-			TArray<FStringView> OptionStrings;
-			UE::String::ParseTokens(URLOption, UE::GameFeatures::PluginURLStructureInfo::OptionAssignOperator, OptionStrings);
-
-			if (OptionStrings.Num() > 0)
-			{
-				EGameFeatureInstallBundleProtocolOptions OptionEnum = EGameFeatureInstallBundleProtocolOptions::Count;
-				LexFromString(OptionEnum, OptionStrings[0]);
-
-				switch (OptionEnum)
-				{
-					case EGameFeatureInstallBundleProtocolOptions::Bundles:
-					{
-						if (OptionStrings.Num() != 2)
-						{
-							bParseSuccess = false;
-							UE_LOG(LogGameFeatures, Error, TEXT("Error parsing InstallBundle protocol options URL %.*s. No Valid Bundle List Found!"), URLString.Len(), URLString.GetData());
-						}
-						else
-						{
-							TArray<FStringView> BundleNames;
-							UE::String::ParseTokens(OptionStrings[1], UE::GameFeatures::PluginURLStructureInfo::OptionListSeperator, BundleNames);
-
-							Metadata.InstallBundles.Reserve(BundleNames.Num());
-							for (const FStringView BundleNameString : BundleNames)
-							{
-								Metadata.InstallBundles.Emplace(BundleNameString);
-							}
-						}
-
-						break;
-					}
-
-					case EGameFeatureInstallBundleProtocolOptions::Count:
-					{
-						// Ignore unknown options as they may be game specfic
-						break;
-					}
-
-					default:
-					{
-						bParseSuccess = false;
-						UE_LOG(LogGameFeatures, Error, TEXT("Error parsing InstallBundle protocol options for URL %.*s. Unknown Option %.*s"), URLString.Len(), URLString.GetData(), URLOption.Len(), URLOption.GetData());
-
-						break;
-					}
-				}
-			}
-		}
-	}
 	//We require to have InstallBundle names for this URL parse to be correct
-	if (Metadata.InstallBundles.Num() == 0)
+	if (!bParseSuccess || InstallBundles.Num() == 0)
 	{
 		bParseSuccess = false;
-		UE_LOG(LogGameFeatures, Error, TEXT("Error parsing InstallBundle protocol options URL %.*s. No Bundle List Found!"), URLString.Len(), URLString.GetData());
+		UE_LOG(LogGameFeatures, Error, TEXT("Error parsing InstallBundle protocol options URL %.*s"), URLOptionsString.Len(), URLOptionsString.GetData());
+		return MakeError();
 	}
 
-	static_assert(static_cast<uint8>(EGameFeatureInstallBundleProtocolOptions::Count) == 1, "Update this function to handle the newly added EGameFeatureInstallBundleProtocolOptions value!");
-
-	return bParseSuccess;
+	return MakeValue<FInstallBundlePluginProtocolMetaData>(MoveTemp(InstallBundles));
 }
 
 bool FGameFeaturePluginStateMachineProperties::ParseURL()
@@ -3613,7 +3473,8 @@ bool FGameFeaturePluginStateMachineProperties::ParseURL()
 	}
 
 	FStringView PluginPathFromURL;
-	if (!UGameFeaturesSubsystem::ParsePluginURL(PluginIdentifier.GetFullPluginURL(), nullptr, &PluginPathFromURL))
+	FStringView URLOptions;
+	if (!UGameFeaturesSubsystem::ParsePluginURL(PluginIdentifier.GetFullPluginURL(), nullptr, &PluginPathFromURL, &URLOptions))
 	{
 		return false;
 	}
@@ -3630,12 +3491,15 @@ bool FGameFeaturePluginStateMachineProperties::ParseURL()
 	//Do additional parsing of our Metadata from the options on our remaining URL
 	if (GetPluginProtocol() == EGameFeaturePluginProtocol::InstallBundle)
 	{
-		FInstallBundlePluginProtocolMetaData& MetaData = *ProtocolMetadata.SetSubtype<FInstallBundlePluginProtocolMetaData>();
-		if (!FInstallBundlePluginProtocolMetaData::FromString(PluginIdentifier.GetFullPluginURL(), MetaData))
+		TValueOrError<FInstallBundlePluginProtocolMetaData, void> MaybeMetaData = FInstallBundlePluginProtocolMetaData::FromString(URLOptions);
+		if (MaybeMetaData.HasError())
 		{
 			ensureMsgf(false, TEXT("Failure to parse URL %s into a valid FInstallBundlePluginProtocolMetaData"), *PluginIdentifier.GetFullPluginURL());
 			return false;
 		}
+
+		FInstallBundlePluginProtocolMetaData& MetaData = *ProtocolMetadata.SetSubtype<FInstallBundlePluginProtocolMetaData>();
+		MetaData = MaybeMetaData.StealValue();
 
 		// Add default protocol options if they are not set yet
 		if (!ProtocolOptions.HasSubtype<FInstallBundlePluginProtocolOptions>())
