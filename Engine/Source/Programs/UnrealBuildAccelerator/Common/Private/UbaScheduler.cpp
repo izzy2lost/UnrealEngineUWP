@@ -74,11 +74,11 @@ namespace uba
 
 	void Scheduler::Start()
 	{
-		m_loop = true;
-		m_thread.Start([this]() { ThreadLoop(); return 0; });
-
 		m_session.SetRemoteProcessReturnedEvent([this](Process& process) { RemoteProcessReturned(process); });
 		m_session.SetRemoteProcessSlotAvailableEvent([this]() { RemoteSlotAvailable(); });
+
+		m_loop = true;
+		m_thread.Start([this]() { ThreadLoop(); return 0; });
 	}
 
 	void Scheduler::Stop()

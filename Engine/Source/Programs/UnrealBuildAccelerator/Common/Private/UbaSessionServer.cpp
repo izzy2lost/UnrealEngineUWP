@@ -220,7 +220,10 @@ namespace uba
 		}
 
 		for (auto s : m_clientSessions)
-			delete s;
+		{
+			s->~ClientSession();
+			aligned_free(s);
+		}
 		m_clientSessions.clear();
 
 		#if 0
@@ -591,10 +594,12 @@ namespace uba
 				StringBuffer<256> info;
 				reader.ReadString(info);
 
+				// I have no explanation for this. On linux we get a shutdown crash when running through UBT if session is allocated with normal new
+				// For now we will work around it by using aligned_alloc which seems to be working on all platforms
+				auto& session = *new (aligned_alloc(alignof(ClientSession), sizeof(ClientSession))) ClientSession();
 				ScopedCriticalSection lock(m_remoteProcessAndSessionLock);
-				m_clientSessions.push_back(new ClientSession());
+				m_clientSessions.push_back(&session);
 				u32 sessionId = u32(m_clientSessions.size());
-				auto& session = *m_clientSessions.back();
 				session.name = name.data;
 				session.id = connectionInfo.GetId();
 				session.processSlotCount = processSlotCount;
@@ -852,6 +857,7 @@ namespace uba
 				u32 sessionId = reader.ReadU32();
 				u32 sessionIndex = sessionId - 1;
 				ScopedCriticalSection lock(m_remoteProcessAndSessionLock);
+				UBA_ASSERT(sessionIndex < m_clientSessions.size());
 				ClientSession& session = *m_clientSessions[sessionIndex];
 				lock.Leave();
 
@@ -869,6 +875,7 @@ namespace uba
 				u32 sessionId = reader.ReadU32();
 				u32 sessionIndex = sessionId - 1;
 				ScopedCriticalSection lock(m_remoteProcessAndSessionLock);
+				UBA_ASSERT(sessionIndex < m_clientSessions.size());
 				ClientSession& session = *m_clientSessions[sessionIndex];
 				lock.Leave();
 				WriteDirectoryTable(session, reader, writer);
@@ -896,6 +903,7 @@ namespace uba
 				u32 sessionIndex = sessionId - 1;
 
 				ScopedCriticalSection sessionsLock(m_remoteProcessAndSessionLock);
+				UBA_ASSERT(sessionIndex < m_clientSessions.size());
 				ClientSession& session = *m_clientSessions[sessionIndex];
 				sessionsLock.Leave();
 
@@ -1004,6 +1012,7 @@ namespace uba
 					return true;
 				}
 				u32 sessionIndex = process.m_sessionId - 1;
+				UBA_ASSERT(sessionIndex < m_clientSessions.size());
 				auto& session = *m_clientSessions[sessionIndex];
 				++m_finishedRemoteProcessCount;
 				--session.usedSlotCount;
@@ -1071,6 +1080,7 @@ namespace uba
 					return true;
 				}
 				u32 sessionIndex = process->m_sessionId - 1;
+				UBA_ASSERT(sessionIndex < m_clientSessions.size());
 				auto& session = *m_clientSessions[sessionIndex];
 				--session.usedSlotCount;
 				if (session.enabled)
@@ -1117,6 +1127,7 @@ namespace uba
 
 				u32 sessionIndex = sessionId - 1;
 				ScopedCriticalSection lock(m_remoteProcessAndSessionLock);
+				UBA_ASSERT(sessionIndex < m_clientSessions.size());
 				auto& session = *m_clientSessions[sessionIndex];
 				session.lastPing = lastPing;
 				session.memAvail = memAvail;
@@ -1403,6 +1414,7 @@ namespace uba
 		while (true)
 		{
 			ScopedCriticalSection queueLock(m_remoteProcessAndSessionLock);
+			UBA_ASSERT(sessionIndex < m_clientSessions.size());
 			auto& session = *m_clientSessions[sessionIndex];
 
 			while (!m_queuedRemoteProcesses.empty())

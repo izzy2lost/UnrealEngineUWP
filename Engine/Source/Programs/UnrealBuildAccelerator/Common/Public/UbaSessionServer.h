@@ -118,6 +118,9 @@ namespace uba
 		struct ClientSession
 		{
 			TString name;
+			UnorderedSet<CasKey> sentKeys;
+			ReaderWriterLock dirTablePosLock;
+			u32 dirTablePos = 0;
 			u32 id = ~0u;
 			u32 processSlotCount = 1;
 			u32 usedSlotCount = 0;
@@ -127,12 +130,6 @@ namespace uba
 			float cpuLoad = 0;
 			bool enabled = true;
 			bool dedicated = false;
-
-			ReaderWriterLock dirTablePosLock;
-			u32 dirTablePos = 0;
-
-			UnorderedSet<CasKey> sentKeys;
-
 		};
 		Vector<ClientSession*> m_clientSessions;
 
