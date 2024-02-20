@@ -418,7 +418,6 @@
 		{
 			"id": "default-presubmit-tests",
 			"name": "Default Presubmit Tests",
-			"initialAgentType": "Utility",
 			"arguments": [
 				"-Target=Presubmit Tests",
 				"-Script=Engine/Build/Graph/Examples/PresubmitTests.xml",
