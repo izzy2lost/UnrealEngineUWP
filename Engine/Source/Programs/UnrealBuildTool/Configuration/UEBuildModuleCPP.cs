@@ -1853,7 +1853,7 @@ namespace UnrealBuildTool
 								if (String.Compare(IncludeName, ExpectedName, StringComparison.OrdinalIgnoreCase) != 0)
 								{
 									FileReference? HeaderFile;
-									if (NameToHeaderFile.TryGetValue(ExpectedName, out HeaderFile) && !IgnoreMismatchedHeader(ExpectedName))
+									if (NameToHeaderFile.TryGetValue(ExpectedName, out HeaderFile))
 									{
 										InvalidIncludeDirectives.Add(new InvalidIncludeDirective(CppFile.Location, HeaderFile));
 									}
@@ -1863,20 +1863,6 @@ namespace UnrealBuildTool
 					}
 				}
 			}
-		}
-
-		private bool IgnoreMismatchedHeader(string ExpectedName)
-		{
-			switch (Name)
-			{
-				case "D3D11RHI":
-				case "D3D12RHI":
-				case "VulkanRHI":
-				case "OpenGLDrv":
-				case "MetalRHI":
-					return true;
-			}
-			return false;
 		}
 
 		private void CompileEnvironmentDebugInfoSettings(ReadOnlyTargetRules Target, CppCompileEnvironment Result)
