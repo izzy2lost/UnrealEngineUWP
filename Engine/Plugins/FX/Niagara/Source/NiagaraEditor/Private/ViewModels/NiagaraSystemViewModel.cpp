@@ -2577,6 +2577,7 @@ void FNiagaraSystemViewModel::UpdateCompiledDataInterfaces(UNiagaraDataInterface
 	UNiagaraDataInterface* ResolvedCompileDataInterface = FNiagaraEditorUtilities::GetResolvedRuntimeInstanceForEditorDataInterfaceInstance(GetSystem(), *ChangedDataInterface);
 	if (ResolvedCompileDataInterface != nullptr)
 	{
+		ResolvedCompileDataInterface->Modify(false);
 		ChangedDataInterface->CopyTo(ResolvedCompileDataInterface);
 	}
 	else
