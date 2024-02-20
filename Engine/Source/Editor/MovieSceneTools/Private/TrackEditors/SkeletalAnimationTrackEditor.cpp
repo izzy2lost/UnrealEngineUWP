@@ -682,6 +682,9 @@ TOptional<FFrameTime> FSkeletalAnimationSection::GetSectionTime(FSequencerSectio
 		HintFrameTime = FQualifiedFrameTime(FrameTime, SamplingFrameRate);
 	}
 
+	// Convert to tick resolution
+	HintFrameTime = FQualifiedFrameTime(ConvertFrameTime(HintFrameTime.Time, SamplingFrameRate, TickResolution), TickResolution);
+
 	// Get the desired frame display format and zero padding from
 	// the sequencer settings, if possible.
 	TAttribute<EFrameNumberDisplayFormats> DisplayFormatAttr(EFrameNumberDisplayFormats::Frames);
