@@ -407,29 +407,26 @@ async function init(logger: ContextualLogger) {
 
 	let lookupStream = async function(rootPath: string): Promise<string> {
 
-		const match = rootPath.match(/(\/\/.*?\/.*?)(\/|$)/)
-		if (match) {
-			const stream = match[1]
-
-			while (true) {
-				try {
+		while (true) {
+			try {
+				const stream = await robo.p4.getStreamName(rootPath);
+				if (typeof stream === 'string') {
 					const streams = await robo.p4.streams();
 					if (streams.has(stream)) {
-						break
+						return stream
 					}
 				}
-				catch (err) {
+				else {
+					logger.warn(stream.message)
+					return ""
 				}
-
-				const timeout = 5.0;
-				logger.info(`Will check for ${stream} again in ${timeout} sec...`);
-				await _setTimeout(timeout*1000);
 			}
-			return stream
-		}
-		else {
-			logger.warn(`Unable to determine stream from root path '${rootPath}'`)
-			return ""
+			catch (err) {
+			}
+
+			const timeout = 5.0;
+			logger.info(`Will look up stream from ${rootPath} again in ${timeout} sec...`);
+			await _setTimeout(timeout*1000);
 		}
 	}
 
