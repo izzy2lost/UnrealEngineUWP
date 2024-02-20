@@ -15,9 +15,15 @@ class UWorldMetricsSubsystem;
  * World metrics subsystem
  *
  * This subsystem provides an interface to add and remove world metrics implementing the UWorldMetricInterface class.
- * Both the subsystem and individual metrics can be enabled on demand. The World Metrics subsystem is the owner of all
- * the added metrics and these get automatically garbage collected after removal unless another system holds a
- * hard-reference to them.
+ *
+ * - Added metrics get automatically updated by the subsystem's ticker.
+ * - The subsystem becomes an owner of all added metrics. The user is responsible for removing them when no longer
+ *   needed so they can be garbage collected.
+ * - Metrics can have extensions to add shared functionality.
+ * - Extensions implement the UWorldMetricsExtension class and use Acquire/Release semantics. They can be acquired by
+ *   either metrics or extensions. Initialization and deinitialization are the ideal phases to do so.
+ * - The subsystem solely owns extensions and can automatically remove them for garbage collection whenever they are no
+ *   longer acquired by any metric or extension.
  */
 UCLASS(MinimalAPI, Config = Engine, DefaultConfig)
 class UWorldMetricsSubsystem final : public UWorldSubsystem
@@ -25,6 +31,7 @@ class UWorldMetricsSubsystem final : public UWorldSubsystem
 	GENERATED_BODY()
 
 public:
+	[[nodiscard]] WORLDMETRICSCORE_API static bool CanHaveWorldMetrics(const UWorld* World);
 	[[nodiscard]] WORLDMETRICSCORE_API static UWorldMetricsSubsystem* Get(const UWorld* World);
 
 	//~ Begin USubsystem
@@ -37,21 +44,10 @@ public:
 	WORLDMETRICSCORE_API virtual void BeginDestroy() override;
 	//~ End UObject
 
-	/**
-	 * Enables or disables the subsystem. When enabled the subsystem uses an update ticker to update each of the added
-	 * world metrics. All metrics are automatically initialized when the system is enabled and deinitialized when is
-	 * disabled. The subsystem is automatically disabled on deinitialization.
-	 *
-	 * @param bEnable: true for enabling the system and false otherwise.
-	 */
-	WORLDMETRICSCORE_API void Enable(bool bEnable);
-
 	[[nodiscard]] bool IsEnabled() const
 	{
 		return UpdateTickerHandle.IsValid();
 	}
-
-	WORLDMETRICSCORE_API void Clear();
 
 	/**
 	 * Sets the subsystem update ticker rate in seconds. This method automatically restarts the subsystem if it's
@@ -83,65 +79,68 @@ public:
 	WORLDMETRICSCORE_API bool HasAnyExtension() const;
 
 	/**
-	 * Gets a world metric instance from the subsystem using the parameter metric
-	 * class.
+	 * Factory method to create world metric instances.
 	 *
 	 * @param InMetricClass: the class of the world metric to be retrieved.
-	 * @return A valid pointer to the world metric if found, and nullptr otherwise.
+	 * @return a valid pointer to a world metric if successfully created or nullptr otherwise.
 	 */
-	[[nodiscard]] WORLDMETRICSCORE_API UWorldMetricInterface* GetMetric(
-		const TSubclassOf<UWorldMetricInterface>& InMetricClass) const;
+	[[nodiscard]] WORLDMETRICSCORE_API UWorldMetricInterface* CreateMetric(
+		const TSubclassOf<UWorldMetricInterface>& InMetricClass);
 
 	template <typename MetricClass UE_REQUIRES(std::is_base_of_v<UWorldMetricInterface, MetricClass>)>
-	[[nodiscard]] MetricClass* GetMetric() const
+	[[nodiscard]] MetricClass* CreateMetric()
 	{
-		return static_cast<MetricClass*>(GetMetric(MetricClass::StaticClass()));
+		return static_cast<MetricClass*>(CreateMetric(MetricClass::StaticClass()));
 	}
 
 	/**
-	 * Adds a metric instance of the parameter class to the subsystem unless a metric of the same class and/or same ID
-	 * already exists. The system becomes the owner of all added metrics.
+	 * @param InMetric: the metric instance to search.
+	 * @return true if the parameter metric has been added or false otherwise.
+	 */
+	WORLDMETRICSCORE_API bool ContainsMetric(UWorldMetricInterface* InMetric) const;
+
+	/**
+	 * Adds a new metric instance of the parameter class to the subsystem.
 	 *
 	 * @param InMetricClass: the class of the metric to add.
-	 * @param InMetricId: the ID of the metric to add.
 	 * @return true if a metric of the parameter metric class is added and false otherwise.
 	 */
-	WORLDMETRICSCORE_API bool AddMetric(const TSubclassOf<UWorldMetricInterface>& InMetricClass);
+	[[nodiscard]] WORLDMETRICSCORE_API UWorldMetricInterface* AddMetric(
+		const TSubclassOf<UWorldMetricInterface>& InMetricClass);
 
 	template <typename MetricClass UE_REQUIRES(std::is_base_of_v<UWorldMetricInterface, MetricClass>)>
-	bool AddMetric()
+	[[nodiscard]] MetricClass* AddMetric()
 	{
-		return AddMetric(MetricClass::StaticClass());
+		return static_cast<MetricClass*>(AddMetric(MetricClass::StaticClass()));
 	}
 
 	/**
-	 * Removes the metric matching the parameter class and/or parameter ID from the subsystem.
-	 * The metric object gets automatically garbage-collected unless other system holds a hard-reference to it.
+	 * Adds the parameter metric instance to the subsystem. The subsystem will hold a hard-reference to the added
+	 * metric. The user is responsible for removing it when no longer needed so it can be garbage collected.
 	 *
-	 * @param InMetricClass: the class corresponding to the world metric to remove.
-	 * @param InMetricId: the ID corresponding to the world metric to remove.
-	 * @return true if a metric matching the parameter class is removed and false otherwise.
+	 * @param InMetric: the metric instance to add.
+	 * @return true if the parameter metric is valid and it wasn't previously added or false otherwise.
 	 */
-	WORLDMETRICSCORE_API bool RemoveMetric(const TSubclassOf<UWorldMetricInterface>& InMetricClass);
-
-	template <typename MetricClass UE_REQUIRES(std::is_base_of_v<UWorldMetricInterface, MetricClass>)>
-	bool RemoveMetric()
-	{
-		return RemoveMetric(MetricClass::StaticClass());
-	}
-
-	WORLDMETRICSCORE_API void RemoveAllMetrics();
+	WORLDMETRICSCORE_API bool AddMetric(UWorldMetricInterface* InMetric);
 
 	/**
-	 * Invokes the parameter function on each of the metrics contained by the subsystem.
+	 * Removes the parameter metric instance if it was previously added. The subsystem releases the hard-reference of
+	 * the metric removed so it can be garbage-collected.
+	 *
+	 * @param InMetric: the metric instance to remove.
+	 * @return true if the parameter metric is removed or false otherwise.
+	 */
+	WORLDMETRICSCORE_API bool RemoveMetric(UWorldMetricInterface* InMetric);
+
+	/**
+	 * Const iteration method for each of the metrics added to the subsystem.
 	 * @param Func The function which will be invoked for each metric. The function should return true to continue
 	 * execution, or false otherwise.
 	 */
 	WORLDMETRICSCORE_API void ForEachMetric(const TFunctionRef<bool(const UWorldMetricInterface*)>& Func) const;
-	WORLDMETRICSCORE_API void ForEachMetric(const TFunctionRef<bool(UWorldMetricInterface*)>& Func);
 
 	/**
-	 * Invokes the parameter function on each metric of the template argument class contained by the subsystem.
+	 * Const iteration method for each of the metrics added to the subsystem of the template argument class.
 	 * @param Func The function which will be invoked for each metric. The function should return true to continue
 	 * execution, or false otherwise.
 	 */
@@ -151,21 +150,6 @@ public:
 		for (const UWorldMetricInterface* Metric : Metrics)
 		{
 			if (const MetricClass* TypedMetric = Cast<MetricClass>(Metric))
-			{
-				if (!Func(TypedMetric))
-				{
-					break;
-				}
-			}
-		}
-	}
-
-	template <typename MetricClass UE_REQUIRES(std::is_base_of_v<UWorldMetricInterface, MetricClass>)>
-	void ForEachMetricOfClass(const TFunctionRef<bool(MetricClass*)>& Func)
-	{
-		for (UWorldMetricInterface* Metric : Metrics)
-		{
-			if (MetricClass* TypedMetric = Cast<MetricClass>(Metric))
 			{
 				if (!Func(TypedMetric))
 				{
@@ -258,15 +242,27 @@ private:
 	void InitializeMetrics();
 	void DeinitializeMetrics();
 
+	/**
+	 * Enables or disables the subsystem. When enabled the subsystem uses an update ticker to update each of the added
+	 * world metrics. All metrics are automatically initialized when the system is enabled and deinitialized when is
+	 * disabled. The subsystem is automatically disabled on deinitialization.
+	 *
+	 * @param bEnable: true for enabling the system and false otherwise.
+	 */
+	void Enable(bool bEnable);
+
 	void OnUpdate(float DeltaTimeInSeconds);
 
 	/**
-	 * Returns the live world metric list index corresponding to the parameter metric class.
-	 *
-	 * @param InMetricClass: the class type of the world metric.
-	 * @return a valid index value or INDEX_NONE if not matching metric exists.
+	 * Removes all added metrics. The subsystem releases the hard-reference of the  metrics removed so they can be
+	 * garbage-collected.
 	 */
-	int32 GetMetricIndex(const TSubclassOf<UWorldMetricInterface>& InMetricClass) const;
+	void RemoveAllMetrics();
+
+	/**
+	 * Removes all existing metrics and extensions. Internal use only.
+	 */
+	void Clear();
 
 	/**
 	 * Returns the live extension list index corresponding to the parameter extension class.

@@ -28,7 +28,7 @@ bool CanHaveCsvMetrics(const UWorld* World)
 bool UCsvMetricsSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 {
 	// TODO: enable once CSVActorClassNameToCountMap is removed.
-	return false; // UE::CsvMetrics::Private::CanHaveCsvMetrics(Cast<UWorld>(Outer));
+	return false;  // UE::CsvMetrics::Private::CanHaveCsvMetrics(Cast<UWorld>(Outer));
 }
 
 void UCsvMetricsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -41,6 +41,8 @@ void UCsvMetricsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 void UCsvMetricsSubsystem::Deinitialize()
 {
 	UnbindProfilerCallbacks();
+
+	Metrics.Reset();
 
 	Super::Deinitialize();
 }
@@ -75,9 +77,10 @@ void UCsvMetricsSubsystem::AddMetrics()
 	UWorldMetricsSubsystem* WorldMetricsSubsystem = UWorldMetricsSubsystem::Get(GetWorld());
 	if (ensure(WorldMetricsSubsystem))
 	{
-		for (const TSubclassOf<UWorldMetricInterface>& MetricClass : Metrics)
+		check(Metrics.IsEmpty());
+		for (const TSubclassOf<UWorldMetricInterface>& MetricClass : MetricClasses)
 		{
-			WorldMetricsSubsystem->AddMetric(MetricClass);
+			Metrics.Emplace(WorldMetricsSubsystem->AddMetric(MetricClass));
 		}
 	}
 }
@@ -87,9 +90,10 @@ void UCsvMetricsSubsystem::RemoveMetrics()
 	UWorldMetricsSubsystem* WorldMetricsSubsystem = UWorldMetricsSubsystem::Get(GetWorld());
 	if (ensure(WorldMetricsSubsystem))
 	{
-		for (const TSubclassOf<UWorldMetricInterface>& MetricClass : Metrics)
+		for (UWorldMetricInterface* Metric : Metrics)
 		{
-			WorldMetricsSubsystem->RemoveMetric(MetricClass);
+			WorldMetricsSubsystem->RemoveMetric(Metric);
 		}
+		Metrics.Reset();
 	}
 }

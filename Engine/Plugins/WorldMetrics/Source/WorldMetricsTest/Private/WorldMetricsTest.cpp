@@ -43,7 +43,7 @@ static const TSubclassOf<UMockWorldMetricsExtensionBase> MockExtensionClasses[] 
 
 static constexpr int32 NumMockExtensionClasses = sizeof(MockExtensionClasses) / sizeof(MockExtensionClasses[0]);
 
-TArray<TSubclassOf<UMockWorldMetricBase>> AddMockMetrics(UWorld* World, int32 Count, bool bRandomized = false)
+TArray<TSubclassOf<UMockWorldMetricBase>> GetMockMetricClasses(UWorld* World, int32 Count, bool bRandomized = false)
 {
 	TArray<TSubclassOf<UMockWorldMetricBase>> Result;
 
@@ -60,15 +60,12 @@ TArray<TSubclassOf<UMockWorldMetricBase>> AddMockMetrics(UWorld* World, int32 Co
 
 	for (int32 ClassIndex : ClassIndices)
 	{
-		if (Subsystem->AddMetric(MockMetricClasses[ClassIndex]))
-		{
-			Result.Emplace(MockMetricClasses[ClassIndex]);
-		}
+		Result.Emplace(MockMetricClasses[ClassIndex]);
 	}
 	return Result;
 }
 
-TArray<UMockWorldMetricBase*> GetMockMetrics(
+TArray<UMockWorldMetricBase*> AddMockMetrics(
 	UWorld* World,
 	TArrayView<TSubclassOf<UMockWorldMetricBase>> InMockMetricClasses)
 {
@@ -83,18 +80,12 @@ TArray<UMockWorldMetricBase*> GetMockMetrics(
 	Result.Reserve(InMockMetricClasses.Num());
 	for (const TSubclassOf<UMockWorldMetricBase>& MetricClass : InMockMetricClasses)
 	{
-		if (UWorldMetricInterface* Metric = Subsystem->GetMetric(MetricClass))
-		{
-			Result.Emplace(static_cast<UMockWorldMetricBase*>(Metric));
-		}
+		Result.Emplace(static_cast<UMockWorldMetricBase*>(Subsystem->AddMetric(MetricClass)));
 	}
 	return Result;
 }
 
-int32 RemoveMockMetrics(
-	UWorld* World,
-	TArrayView<TSubclassOf<UMockWorldMetricBase>> InMockMetricClasses,
-	bool bRandomized = false)
+int32 RemoveMockMetrics(UWorld* World, TArrayView<UMockWorldMetricBase*> InMockMetrics, bool bRandomized = false)
 {
 	UWorldMetricsSubsystem* Subsystem = UWorldMetricsSubsystem::Get(World);
 	if (UNLIKELY(!Subsystem))
@@ -102,16 +93,16 @@ int32 RemoveMockMetrics(
 		return 0;
 	}
 
-	TArray<int32> ClassIndices = MakeIndexArray(InMockMetricClasses.Num());
+	TArray<int32> Indices = MakeIndexArray(InMockMetrics.Num());
 	if (bRandomized)
 	{
-		Shuffle(ClassIndices);
+		Shuffle(Indices);
 	}
 
 	int32 Result = 0;
-	for (int32 ClassIndex : ClassIndices)
+	for (int32 Index : Indices)
 	{
-		if (Subsystem->RemoveMetric(InMockMetricClasses[ClassIndex]))
+		if (Subsystem->RemoveMetric(InMockMetrics[Index]))
 		{
 			++Result;
 		}
@@ -189,10 +180,9 @@ void TestZeroState(UWorld* World)
 	UWorldMetricsSubsystem* Subsystem = UWorldMetricsSubsystem::Get(World);
 	REQUIRE_MESSAGE(TEXT("WorldMetricsSubsystem is valid after GetSubsystem."), Subsystem);
 
-	REQUIRE_MESSAGE(TEXT("Unexpected existing metrics in WorldMetricsSubsystem"), !Subsystem->HasAnyMetric());
-	Subsystem->Enable(true);
 	REQUIRE_MESSAGE(
 		TEXT("WorldMetricsSubsystem shouldn't be enabled if there are no metrics."), !Subsystem->IsEnabled());
+	REQUIRE_MESSAGE(TEXT("Unexpected existing metrics in WorldMetricsSubsystem"), !Subsystem->HasAnyMetric());
 	REQUIRE_MESSAGE(TEXT("WorldMetricsSubsystem should zero metrics."), Subsystem->NumMetrics() == 0);
 
 	REQUIRE_MESSAGE(TEXT("WorldMetricsSubsystem shouldn't be have any extension."), !Subsystem->HasAnyExtension());
@@ -203,41 +193,38 @@ void TestSingleMetricAddRemove(UWorld* World)
 {
 	TestZeroState(World);
 
-	// World Metrics Subsystem API
-	{
-		UWorldMetricsSubsystem* Subsystem = UWorldMetricsSubsystem::Get(World);
+	UWorldMetricsSubsystem* Subsystem = UWorldMetricsSubsystem::Get(World);
 
-		// Invalid metric add
-		REQUIRE_MESSAGE(TEXT("AddMetric should fail"), !Subsystem->AddMetric(UObject::StaticClass()));
+	// Invalid metric add
+	REQUIRE_MESSAGE(TEXT("AddMetric should fail"), !Subsystem->AddMetric(UObject::StaticClass()));
 
-		REQUIRE_MESSAGE(TEXT("AddMetric failed"), Subsystem->AddMetric<UMockWorldMetricA>());
+	UMockWorldMetricA* MetricA = Subsystem->AddMetric<UMockWorldMetricA>();
+	REQUIRE_MESSAGE(TEXT("ContainsMetric failed"), Subsystem->ContainsMetric(MetricA));
+	REQUIRE_MESSAGE(TEXT("Test Metric initialization failed"), MetricA->InitializeCount == 1);
 
-		// Invalid metric get
-		REQUIRE_MESSAGE(TEXT("GetMetric should fail"), !Subsystem->GetMetric(UObject::StaticClass()));
+	REQUIRE_MESSAGE(
+		TEXT("WorldMetricsSubsystem should be enabled by default if there are metrics."), Subsystem->IsEnabled());
+	REQUIRE_MESSAGE(TEXT("WorldMetricsSubsystem should have metrics."), Subsystem->HasAnyMetric());
+	REQUIRE_MESSAGE(TEXT("WorldMetricsSubsystem should have one metric."), Subsystem->NumMetrics() == 1);
 
-		UMockWorldMetricA* MetricA = Subsystem->GetMetric<UMockWorldMetricA>();
-		REQUIRE_MESSAGE(TEXT("Test Metric initialization failed"), MetricA->InitializeCount == 1);
+	// Same metric add
+	REQUIRE_MESSAGE(TEXT("Unexpected AddMetric"), !Subsystem->AddMetric(MetricA));
 
-		REQUIRE_MESSAGE(
-			TEXT("WorldMetricsSubsystem should be enabled by default if there are metrics."), Subsystem->IsEnabled());
-		REQUIRE_MESSAGE(TEXT("WorldMetricsSubsystem should have metrics."), Subsystem->HasAnyMetric());
-		REQUIRE_MESSAGE(TEXT("WorldMetricsSubsystem should have one metric."), Subsystem->NumMetrics() == 1);
+	// Same metric class add
+	UMockWorldMetricA* AnotherMetricA = Subsystem->AddMetric<UMockWorldMetricA>();
+	REQUIRE_MESSAGE(TEXT("ContainsMetric failed"), Subsystem->ContainsMetric(AnotherMetricA));
+	REQUIRE_MESSAGE(TEXT("WorldMetricsSubsystem should have one metric."), Subsystem->NumMetrics() == 2);
 
-		REQUIRE_MESSAGE(TEXT("Unexpected AddMetric"), !Subsystem->AddMetric<UMockWorldMetricA>());
-		REQUIRE_MESSAGE(TEXT("WorldMetricsSubsystem should have one metric."), Subsystem->NumMetrics() == 1);
+	// Metric remove
+	REQUIRE_MESSAGE(TEXT("RemoveMetric failed."), Subsystem->RemoveMetric(MetricA));
+	REQUIRE_MESSAGE(TEXT("Test Metric deinitialization failed after release."), MetricA->DeinitializeCount == 1);
+	REQUIRE_MESSAGE(TEXT("Unexpected RemoveMetric."), !Subsystem->RemoveMetric(MetricA));
 
-		// Invalid metric remove
-		REQUIRE_MESSAGE(TEXT("RemoveMetric should fail"), !Subsystem->RemoveMetric(UObject::StaticClass()));
+	REQUIRE_MESSAGE(TEXT("Unexpected RemoveMetric."), Subsystem->RemoveMetric(AnotherMetricA));
+	REQUIRE_MESSAGE(TEXT("Test Metric deinitialization failed after release."), AnotherMetricA->DeinitializeCount == 1);
+	REQUIRE_MESSAGE(TEXT("Unexpected RemoveMetric."), !Subsystem->RemoveMetric(AnotherMetricA));
 
-		REQUIRE_MESSAGE(TEXT("RemoveMetric failed."), Subsystem->RemoveMetric<UMockWorldMetricA>());
-		REQUIRE_MESSAGE(TEXT("Test Metric deinitialization failed after release."), MetricA->DeinitializeCount == 1);
-
-		TestZeroState(World);
-
-		REQUIRE_MESSAGE(TEXT("Unexpected RemoveMetric."), !Subsystem->RemoveMetric<UMockWorldMetricA>());
-
-		TestZeroState(World);
-	}
+	TestZeroState(World);
 }
 
 void TestMultipleMetricsAddRemove(UWorld* World, bool bRandomized)
@@ -246,21 +233,23 @@ void TestMultipleMetricsAddRemove(UWorld* World, bool bRandomized)
 
 	constexpr int32 NumMetrics = 5;
 
-	auto MetricClasses = Private::AddMockMetrics(World, NumMetrics, bRandomized);
-
 	const UWorldMetricsSubsystem* Subsystem = UWorldMetricsSubsystem::Get(World);
+
+	auto MetricClasses = Private::GetMockMetricClasses(World, NumMetrics, bRandomized);
+	TArray<UMockWorldMetricBase*> MockMetrics = Private::AddMockMetrics(World, MetricClasses);
+	REQUIRE_MESSAGE(TEXT("Unexpected empty metrics list."), !MockMetrics.IsEmpty());
+
 	REQUIRE_MESSAGE(
 		TEXT("WorldMetricsSubsystem should be enabled by default if there are metrics."), Subsystem->IsEnabled());
 	REQUIRE_MESSAGE(TEXT("WorldMetricsSubsystem should have metrics."), Subsystem->HasAnyMetric());
 	REQUIRE_MESSAGE(TEXT("WorldMetricsSubsystem should have one metric."), Subsystem->NumMetrics() == NumMetrics);
 
-	TArray<UMockWorldMetricBase*> MockMetrics = Private::GetMockMetrics(World, MetricClasses);
 	for (const UMockWorldMetricBase* MockMetric : MockMetrics)
 	{
 		REQUIRE_MESSAGE(TEXT("Test Metric initialization failed"), MockMetric->InitializeCount == 1);
 	}
 
-	const int32 NumMetricsRemoved = Private::RemoveMockMetrics(World, MetricClasses, bRandomized);
+	const int32 NumMetricsRemoved = Private::RemoveMockMetrics(World, MockMetrics, bRandomized);
 	REQUIRE_MESSAGE(TEXT("Unexpected metric remove count"), NumMetricsRemoved == NumMetrics);
 	for (const UMockWorldMetricBase* Metric : MockMetrics)
 	{
@@ -275,15 +264,14 @@ void TestSingleMetricSingleExtensionAcquireRelease(UWorld* World)
 	TestZeroState(World);
 
 	UWorldMetricsSubsystem* Subsystem = UWorldMetricsSubsystem::Get(World);
-	REQUIRE_MESSAGE(TEXT("AddMetric failed"), Subsystem->AddMetric<UMockWorldMetricA>());
-
-	UMockWorldMetricA* MetricA = Subsystem->GetMetric<UMockWorldMetricA>();
-	REQUIRE_MESSAGE(TEXT("Test Metric initialization failed"), MetricA->InitializeCount == 1);
+	UMockWorldMetricA* MetricA = Subsystem->AddMetric<UMockWorldMetricA>();
+	REQUIRE_MESSAGE(TEXT("ContainsMetric failed"), Subsystem->ContainsMetric(MetricA));
 
 	// Extension acquire/release
 	{
 		// Invalid metric acquire
-		REQUIRE_MESSAGE(TEXT("AcquireExtension should fail"), !Subsystem->AcquireExtension(MetricA, UObject::StaticClass()));
+		REQUIRE_MESSAGE(
+			TEXT("AcquireExtension should fail"), !Subsystem->AcquireExtension(MetricA, UObject::StaticClass()));
 
 		UMockWorldMetricsExtensionA* ExtensionA = Subsystem->AcquireExtension<UMockWorldMetricsExtensionA>(MetricA);
 		REQUIRE_MESSAGE(TEXT("Acquire Test Extension failed."), ExtensionA);
@@ -295,7 +283,8 @@ void TestSingleMetricSingleExtensionAcquireRelease(UWorld* World)
 		REQUIRE_MESSAGE(TEXT("WorldMetricsSubsystem should have one extension."), Subsystem->NumExtensions() == 1);
 
 		// Invalid metric release
-		REQUIRE_MESSAGE(TEXT("ReleaseExtension should fail"), !Subsystem->ReleaseExtension(MetricA, UObject::StaticClass()));
+		REQUIRE_MESSAGE(
+			TEXT("ReleaseExtension should fail"), !Subsystem->ReleaseExtension(MetricA, UObject::StaticClass()));
 
 		REQUIRE_MESSAGE(
 			TEXT("Test Extension release failed."), Subsystem->ReleaseExtension<UMockWorldMetricsExtensionA>(MetricA));
@@ -322,7 +311,7 @@ void TestSingleMetricSingleExtensionAcquireRelease(UWorld* World)
 			TEXT("Test Extension deinitialization failed after release."), ExtensionA->DeinitializeCount == 1);
 	}
 
-	Subsystem->RemoveMetric<UMockWorldMetricA>();
+	Subsystem->RemoveMetric(MetricA);
 
 	TestZeroState(World);
 }
@@ -333,8 +322,8 @@ void TestMultipleMetricsSingleExtensionAcquireRelease(UWorld* World, bool bRando
 
 	constexpr int32 NumMetrics = 5;
 
-	auto MetricClasses = Private::AddMockMetrics(World, NumMetrics, bRandomized);
-	TArray<UMockWorldMetricBase*> MockMetrics = Private::GetMockMetrics(World, MetricClasses);
+	auto MetricClasses = Private::GetMockMetricClasses(World, NumMetrics, bRandomized);
+	TArray<UMockWorldMetricBase*> MockMetrics = Private::AddMockMetrics(World, MetricClasses);
 	REQUIRE_MESSAGE(TEXT("Unexpected empty metrics list."), !MockMetrics.IsEmpty());
 
 	UWorldMetricsSubsystem* Subsystem = UWorldMetricsSubsystem::Get(World);
@@ -371,7 +360,7 @@ void TestMultipleMetricsSingleExtensionAcquireRelease(UWorld* World, bool bRando
 		REQUIRE_MESSAGE(TEXT("Test Extension initialization failed"), ExtensionA->DeinitializeCount == 1);
 	}
 
-	Private::RemoveMockMetrics(World, MetricClasses, bRandomized);
+	Private::RemoveMockMetrics(World, MockMetrics, bRandomized);
 
 	TestZeroState(World);
 }
@@ -383,8 +372,8 @@ void TestMultipleMetricsMultipleExtensionAcquireRelease(UWorld* World, bool bRan
 	constexpr int32 NumMetrics = 5;
 	constexpr int32 NumExtension = 5;
 
-	auto MetricClasses = Private::AddMockMetrics(World, NumMetrics, bRandomized);
-	TArray<UMockWorldMetricBase*> MockMetrics = Private::GetMockMetrics(World, MetricClasses);
+	auto MetricClasses = Private::GetMockMetricClasses(World, NumMetrics, bRandomized);
+	TArray<UMockWorldMetricBase*> MockMetrics = Private::AddMockMetrics(World, MetricClasses);
 	REQUIRE_MESSAGE(TEXT("Unexpected empty metrics list."), !MockMetrics.IsEmpty());
 
 	TArray<TArray<TSubclassOf<UMockWorldMetricsExtensionBase>>> Extensions;
@@ -410,49 +399,7 @@ void TestMultipleMetricsMultipleExtensionAcquireRelease(UWorld* World, bool bRan
 	REQUIRE_MESSAGE(TEXT("WorldMetricsSubsystem shouldn't be have any extension."), !Subsystem->HasAnyExtension());
 	REQUIRE_MESSAGE(TEXT("WorldMetricsSubsystem should have zero extensions."), Subsystem->NumExtensions() == 0);
 
-	Private::RemoveMockMetrics(World, MetricClasses, bRandomized);
-
-	TestZeroState(World);
-}
-
-void TestMultipleMetricsEnable(UWorld* World, bool bRandomized)
-{
-	TestZeroState(World);
-
-	constexpr int32 NumMetrics = 5;
-
-	auto MetricClasses = Private::AddMockMetrics(World, NumMetrics, bRandomized);
-
-	UWorldMetricsSubsystem* Subsystem = UWorldMetricsSubsystem::Get(World);
-	REQUIRE_MESSAGE(
-		TEXT("WorldMetricsSubsystem should be enabled by default if there are metrics."), Subsystem->IsEnabled());
-	REQUIRE_MESSAGE(TEXT("WorldMetricsSubsystem should have metrics."), Subsystem->HasAnyMetric());
-	REQUIRE_MESSAGE(TEXT("WorldMetricsSubsystem should have one metric."), Subsystem->NumMetrics() == NumMetrics);
-
-	TArray<UMockWorldMetricBase*> MockMetrics = Private::GetMockMetrics(World, MetricClasses);
-	for (const UMockWorldMetricBase* MockMetric : MockMetrics)
-	{
-		REQUIRE_MESSAGE(TEXT("Test Metric initialization failed"), MockMetric->InitializeCount == 1);
-	}
-
-	Subsystem->Enable(false);
-	for (const UMockWorldMetricBase* MockMetric : MockMetrics)
-	{
-		REQUIRE_MESSAGE(TEXT("Test Metric initialization failed"), MockMetric->DeinitializeCount == 1);
-	}
-
-	Subsystem->Enable(true);
-	for (const UMockWorldMetricBase* MockMetric : MockMetrics)
-	{
-		REQUIRE_MESSAGE(TEXT("Test Metric initialization failed"), MockMetric->InitializeCount == 2);
-	}
-
-	const int32 NumMetricsRemoved = Private::RemoveMockMetrics(World, MetricClasses, bRandomized);
-	REQUIRE_MESSAGE(TEXT("Unexpected metric remove count"), NumMetricsRemoved == NumMetrics);
-	for (const UMockWorldMetricBase* Metric : MockMetrics)
-	{
-		REQUIRE_MESSAGE(TEXT("Test Metric initialization failed"), Metric->DeinitializeCount == 2);
-	}
+	Private::RemoveMockMetrics(World, MockMetrics, bRandomized);
 
 	TestZeroState(World);
 }
@@ -462,9 +409,8 @@ void TestSingleMetricSingleExtensionAutoReleaseOnRemoval(UWorld* World)
 	TestZeroState(World);
 
 	UWorldMetricsSubsystem* Subsystem = UWorldMetricsSubsystem::Get(World);
-	REQUIRE_MESSAGE(TEXT("AddMetric failed"), Subsystem->AddMetric<UMockWorldMetricA>());
-
-	UMockWorldMetricA* MetricA = Subsystem->GetMetric<UMockWorldMetricA>();
+	UMockWorldMetricA* MetricA = Subsystem->AddMetric<UMockWorldMetricA>();
+	REQUIRE_MESSAGE(TEXT("ContainsMetric failed"), Subsystem->ContainsMetric(MetricA));
 
 	UMockWorldMetricsExtensionA* ExtensionA = Subsystem->AcquireExtension<UMockWorldMetricsExtensionA>(MetricA);
 	REQUIRE_MESSAGE(TEXT("Acquire Test Extension failed."), ExtensionA);
@@ -475,7 +421,7 @@ void TestSingleMetricSingleExtensionAutoReleaseOnRemoval(UWorld* World)
 	REQUIRE_MESSAGE(TEXT("WorldMetricsSubsystem should have extensions."), Subsystem->HasAnyExtension());
 	REQUIRE_MESSAGE(TEXT("WorldMetricsSubsystem should have one extension."), Subsystem->NumExtensions() == 1);
 
-	Subsystem->RemoveMetric<UMockWorldMetricA>();
+	Subsystem->RemoveMetric(MetricA);
 
 	REQUIRE_MESSAGE(TEXT("Test Extension deinitialization failed after release."), ExtensionA->DeinitializeCount == 1);
 	REQUIRE_MESSAGE(TEXT("WorldMetricsSubsystem shouldn't have any extensions."), !Subsystem->HasAnyExtension());
@@ -490,8 +436,8 @@ void TestMultipleMetricsMultipleExtensionAutoReleaseOnRemoval(UWorld* World, boo
 	constexpr int32 NumMetrics = 5;
 	constexpr int32 NumExtension = 5;
 
-	auto MetricClasses = Private::AddMockMetrics(World, NumMetrics, bRandomized);
-	TArray<UMockWorldMetricBase*> MockMetrics = Private::GetMockMetrics(World, MetricClasses);
+	auto MetricClasses = Private::GetMockMetricClasses(World, NumMetrics, bRandomized);
+	TArray<UMockWorldMetricBase*> MockMetrics = Private::AddMockMetrics(World, MetricClasses);
 	REQUIRE_MESSAGE(TEXT("Unexpected empty metrics list."), !MockMetrics.IsEmpty());
 
 	// Acquire extensions
@@ -505,7 +451,7 @@ void TestMultipleMetricsMultipleExtensionAutoReleaseOnRemoval(UWorld* World, boo
 		TEXT("WorldMetricsSubsystem should be enabled by default if there are metrics."), Subsystem->IsEnabled());
 	REQUIRE_MESSAGE(TEXT("WorldMetricsSubsystem should have extensions."), Subsystem->HasAnyExtension());
 
-	Private::RemoveMockMetrics(World, MetricClasses, bRandomized);
+	Private::RemoveMockMetrics(World, MockMetrics, bRandomized);
 
 	TestZeroState(World);
 }
@@ -515,9 +461,8 @@ void TestSingleMetricOrphanExtensionAutoRemoval(UWorld* World)
 	TestZeroState(World);
 
 	UWorldMetricsSubsystem* Subsystem = UWorldMetricsSubsystem::Get(World);
-	REQUIRE_MESSAGE(TEXT("AddMetric failed"), Subsystem->AddMetric<UMockWorldMetricA>());
-
-	UMockWorldMetricA* MetricA = Subsystem->GetMetric<UMockWorldMetricA>();
+	UMockWorldMetricA* MetricA = Subsystem->AddMetric<UMockWorldMetricA>();
+	REQUIRE_MESSAGE(TEXT("ContainsMetric failed"), Subsystem->ContainsMetric(MetricA));
 
 	UMockWorldMetricsExtensionA* ExtensionA = Subsystem->AcquireExtension<UMockWorldMetricsExtensionA>(MetricA);
 	REQUIRE_MESSAGE(TEXT("Acquire Test Extension failed."), ExtensionA);
@@ -533,7 +478,7 @@ void TestSingleMetricOrphanExtensionAutoRemoval(UWorld* World)
 	REQUIRE_MESSAGE(TEXT("WorldMetricsSubsystem should have extensions."), Subsystem->HasAnyExtension());
 	REQUIRE_MESSAGE(TEXT("WorldMetricsSubsystem should have one extension."), Subsystem->NumExtensions() == 2);
 
-	Subsystem->RemoveMetric<UMockWorldMetricA>();
+	Subsystem->RemoveMetric(MetricA);
 
 	REQUIRE_MESSAGE(TEXT("Test Extension deinitialization failed after release."), ExtensionA->DeinitializeCount == 1);
 	REQUIRE_MESSAGE(TEXT("Test Extension deinitialization failed after release."), ExtensionB->DeinitializeCount == 1);
@@ -548,7 +493,9 @@ void TestMultipleMetricIteration(UWorld* World, bool bRandomized)
 
 	constexpr int32 NumMetrics = 8;
 
-	auto MetricClasses = Private::AddMockMetrics(World, NumMetrics, bRandomized);
+	auto MetricClasses = Private::GetMockMetricClasses(World, NumMetrics, bRandomized);
+	TArray<UMockWorldMetricBase*> MockMetrics = Private::AddMockMetrics(World, MetricClasses);
+	REQUIRE_MESSAGE(TEXT("Unexpected empty metrics list."), !MockMetrics.IsEmpty());
 
 	// const iteration
 	{
@@ -591,48 +538,7 @@ void TestMultipleMetricIteration(UWorld* World, bool bRandomized)
 		REQUIRE_MESSAGE(TEXT("Check count failed"), CheckCount == BarClassCount);
 	}
 
-	// non-const iteration
-	{
-		UWorldMetricsSubsystem* Subsystem = UWorldMetricsSubsystem::Get(World);
-		int32 CheckCount = 0;
-		int32 FooClassCount = 0;
-		int32 BarClassCount = 0;
-		Subsystem->ForEachMetric(
-			[&](UWorldMetricInterface* Metric)
-			{
-				++CheckCount;
-				if (Metric->IsA<UMockWorldMetricFooBase>())
-				{
-					++FooClassCount;
-				}
-				if (Metric->IsA<UMockWorldMetricBarBase>())
-				{
-					++BarClassCount;
-				}
-				return true;
-			});
-		REQUIRE_MESSAGE(TEXT("Check count failed"), CheckCount == NumMetrics);
-
-		CheckCount = 0;
-		Subsystem->ForEachMetricOfClass<UMockWorldMetricFooBase>(
-			[&](UMockWorldMetricFooBase* MockMetric)
-			{
-				++CheckCount;
-				return true;
-			});
-		REQUIRE_MESSAGE(TEXT("Check count failed"), CheckCount == FooClassCount);
-
-		CheckCount = 0;
-		Subsystem->ForEachMetricOfClass<UMockWorldMetricBarBase>(
-			[&](UMockWorldMetricBarBase* MockMetric)
-			{
-				++CheckCount;
-				return true;
-			});
-		REQUIRE_MESSAGE(TEXT("Check count failed"), CheckCount == BarClassCount);
-	}
-
-	const int32 NumMetricsRemoved = Private::RemoveMockMetrics(World, MetricClasses, bRandomized);
+	Private::RemoveMockMetrics(World, MockMetrics, bRandomized);
 
 	TestZeroState(World);
 }
@@ -642,16 +548,12 @@ void TestAll(UWorld* World)
 	UWorldMetricsSubsystem* Subsystem = UWorldMetricsSubsystem::Get(World);
 	REQUIRE_MESSAGE(TEXT("WorldMetricsSubsystem is valid after GetSubsystem."), Subsystem);
 
-	Subsystem->Clear();
-
 	TestZeroState(World);
 
 	// Metrics
 	TestSingleMetricAddRemove(World);
 	TestMultipleMetricsAddRemove(World, false);
 	TestMultipleMetricsAddRemove(World, true);
-	TestMultipleMetricsEnable(World, false);
-	TestMultipleMetricsEnable(World, true);
 	TestMultipleMetricIteration(World, false);
 	TestMultipleMetricIteration(World, true);
 
@@ -724,20 +626,6 @@ TEST_CASE_NAMED(
 		{
 			Private::TestMultipleMetricsAddRemove(World, false);
 			Private::TestMultipleMetricsAddRemove(World, true);
-		});
-}
-
-TEST_CASE_NAMED(
-	WorldMetricsTestMultipleMetricsEnable,
-	"WorldMetrics::TestMultipleMetricsEnable",
-	"[WorldMetrics][ClientContext][EngineFilter]")
-{
-	Private::ScopedWorldTest(
-		EWorldType::Editor,
-		[this](UWorld* World)
-		{
-			Private::TestMultipleMetricsEnable(World, false);
-			Private::TestMultipleMetricsEnable(World, true);
 		});
 }
 
