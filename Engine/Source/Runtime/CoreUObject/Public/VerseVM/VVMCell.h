@@ -82,6 +82,7 @@ struct VCell
 	COREUOBJECT_API bool Equal(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
 	COREUOBJECT_API FOpResult Melt(FRunningContext Context);
 	COREUOBJECT_API FOpResult Freeze(FRunningContext Context);
+	COREUOBJECT_API bool Subsumes(FRunningContext Context, VValue);
 	bool IsDeeplyMutable() { return Misc2 & DeeplyMutableTag; }
 	bool SetIsDeeplyMutable() { return Misc2 |= DeeplyMutableTag; }
 	EArrayType GetArrayType() const;
@@ -141,6 +142,8 @@ protected:
 
 	// Override this if your cell is a mutable representation and requires deep copying.
 	COREUOBJECT_API FOpResult FreezeImpl(FRunningContext Context);
+
+	COREUOBJECT_API bool SubsumesImpl(FRunningContext, VValue);
 
 	// Override this if your cell subtype requires a deep hash.
 	COREUOBJECT_API uint32 GetTypeHashImpl();

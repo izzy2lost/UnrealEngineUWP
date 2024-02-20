@@ -5,12 +5,13 @@
 #include "VerseVM/VVMUClass.h"
 #include "UObject/GarbageCollectionSchema.h"
 #include "UObject/Package.h"
+#include "VerseVM/VVMClass.h"
 
 IMPLEMENT_CORE_INTRINSIC_CLASS(UVerseVMClass, UClass,
 	{
 		Class->CppClassStaticFunctions = UOBJECT_CPPCLASS_STATICFUNCTIONS_FORCLASS(UVerseVMClass);
 
-		UE::GC::DeclareIntrinsicMembers(Class, {UE_GC_MEMBER(UVerseVMClass, Shape)});
+		UE::GC::DeclareIntrinsicMembers(Class, {UE_GC_MEMBER(UVerseVMClass, Shape), UE_GC_MEMBER(UVerseVMClass, Class)});
 	});
 
 /** Default C++ class type information, used for all new UVerseVMClass objects. */

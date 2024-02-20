@@ -275,6 +275,7 @@ UVerseVMClass* VClass::CreateUClass(FAllocationContext Context)
 	UPackage* ClassPackage = Scope ? Scope->GetOrCreateUPackage(Context) : GetTransientPackage();
 	const FName Name = ClassName ? FName(ClassName->AsStringView()) : NAME_None;
 	UVerseVMClass* NewClass = NewObject<UVerseVMClass>(ClassPackage, Name, RF_Public | RF_Transient);
+	NewClass->Class.Set(Context, this);
 #if WITH_EDITOR
 	NewClass->SetMetaData(TEXT("IsBlueprintBase"), TEXT("false"));
 #endif
@@ -371,6 +372,51 @@ UVerseVMClass* VClass::CreateUClass(FAllocationContext Context)
 
 	AssociatedUClass.Set(Context, NewClass);
 	return NewClass;
+}
+
+bool VClass::SubsumesImpl(FRunningContext Context, VValue Value)
+{
+	VClass* InputType = nullptr;
+	if (VObject* Object = Value.DynamicCast<VObject>())
+	{
+		VCell* TypeCell = Object->GetEmergentType()->Type.Get();
+		checkSlow(TypeCell->IsA<VClass>());
+		InputType = static_cast<VClass*>(TypeCell);
+	}
+	else if (Value.IsUObject())
+	{
+		InputType = static_cast<UVerseVMClass*>(Value.AsUObject()->GetClass())->Class.Get();
+	}
+	else
+	{
+		return false;
+	}
+
+	if (InputType == this)
+	{
+		return true;
+	}
+
+	TArray<VClass*, TInlineAllocator<8>> ToCheck;
+	auto PushInherited = [&ToCheck](VClass* Class) {
+		for (uint32 I = 0; I < Class->NumInherited; ++I)
+		{
+			ToCheck.Push(Class->Inherited[I].Get());
+		}
+	};
+
+	PushInherited(InputType);
+	while (ToCheck.Num())
+	{
+		VClass* Class = ToCheck.Pop();
+		if (Class == this)
+		{
+			return true;
+		}
+		PushInherited(Class);
+	}
+
+	return false;
 }
 
 } // namespace Verse

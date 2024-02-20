@@ -1319,6 +1319,18 @@ class FInterpreter
 					FAIL();
 				}
 			}
+			else if (VType* Type = Callee.DynamicCast<VType>())
+			{
+				REQUIRE_CONCRETE(Argument);
+				if (Type->Subsumes(Context, Argument))
+				{
+					DEF(Op.Dest, Argument);
+				}
+				else
+				{
+					FAIL();
+				}
+			}
 			else
 			{
 				V_DIE("Unknown callee");

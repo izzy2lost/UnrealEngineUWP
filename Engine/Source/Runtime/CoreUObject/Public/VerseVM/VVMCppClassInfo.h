@@ -102,10 +102,12 @@ public:                                                                         
 		[](::Verse::FRunningContext Context, ::Verse::VCell* This) -> ::Verse::FOpResult {                                                                                      \
 			return This->StaticCast<CellType>().FreezeImpl(Context);                                                                                                            \
 		},                                                                                                                                                                      \
+		[](::Verse::FRunningContext Context, ::Verse::VCell* This, ::Verse::VValue InputValue) -> bool {                                                                        \
+			return This->StaticCast<CellType>().SubsumesImpl(Context, InputValue);                                                                                              \
+		},                                                                                                                                                                      \
 		::Verse::Details::GetToStringMethod<CellType>(),                                                                                                                        \
 		::Verse::Details::GetSerializeMethod<CellType>(),                                                                                                                       \
-		::Verse::Details::GetSerializeNewMethod<CellType>(),                                                                                                                    \
-	};                                                                                                                                                                          \
+		::Verse::Details::GetSerializeNewMethod<CellType>()};                                                                                                                   \
 	::Verse::VCppClassInfoRegister CellType##_Register(&CellType::StaticCppClassInfo);
 
 #define DEFINE_BASE_VCPPCLASSINFO(CellType) DEFINE_BASE_OR_DERIVED_VCPPCLASSINFO(CellType, nullptr)
@@ -136,6 +138,7 @@ struct VCppClassInfo
 	uint32 (*GetTypeHash)(VCell* This);
 	FOpResult (*Melt)(FRunningContext Context, VCell* This);
 	FOpResult (*Freeze)(FRunningContext Context, VCell* This);
+	bool (*Subsumes)(FRunningContext Context, VCell* This, VValue);
 	void (*ToString)(VCell* This, FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
 	void (*Serialize)(VCell*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
 	VCell& (*SerializeNew)(FAllocationContext Context);

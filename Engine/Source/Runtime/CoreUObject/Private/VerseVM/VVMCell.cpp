@@ -65,6 +65,11 @@ FOpResult VCell::Freeze(FRunningContext Context)
 	return GetEmergentType()->CppClassInfo->Freeze(Context, this);
 }
 
+bool VCell::Subsumes(FRunningContext Context, VValue Value)
+{
+	return GetEmergentType()->CppClassInfo->Subsumes(Context, this, Value);
+}
+
 void VCell::ConductCensusImpl()
 {
 }
@@ -88,6 +93,12 @@ FOpResult VCell::FreezeImpl(FRunningContext Context)
 	V_DIE("VCell subtype without `FreezeImpl` override called! Either this type should have an override "
 		  "or an invalid subtype is being frozen.");
 	return {FOpResult::Error};
+}
+
+bool VCell::SubsumesImpl(FRunningContext, VValue)
+{
+	V_DIE("VCell subtype without `SubsumesImpl` override called!");
+	return false;
 }
 
 uint32 VCell::GetTypeHashImpl()

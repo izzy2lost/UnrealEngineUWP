@@ -7,6 +7,11 @@
 #include "VerseVM/VVMRestValue.h"
 #include "VerseVM/VVMShape.h"
 
+namespace Verse
+{
+struct VClass;
+}
+
 // Class used for all VerseVM generated classes
 class UVerseVMClass : public UClass
 {
@@ -19,6 +24,7 @@ public:
 	FProperty* GetPropertyForField(Verse::FAllocationContext Context, Verse::VUniqueString& FieldName) const;
 
 	Verse::TWriteBarrier<Verse::VShape> Shape;
+	Verse::TWriteBarrier<Verse::VClass> Class;
 };
 
 #endif

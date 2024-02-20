@@ -181,6 +181,8 @@ protected:
 	// Helper to find initializer procedures after archetype fields have been set on an object
 	void GatherInitializers(VUniqueStringSet& ArchetypeFields, TArray<VProcedure*>& OutInitializers);
 
+	bool SubsumesImpl(FRunningContext, VValue);
+
 	/// Creates an associated UClass for this VClass
 	UVerseVMClass* CreateUClass(FAllocationContext Context);
 
