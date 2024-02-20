@@ -70,7 +70,7 @@ namespace uba
 
 					StringBuffer<128> lockFile;
 					lockFile.Append(lockDir).EnsureEndsWithSlash().Append(e.name);
-					int lockFd = open(lockFile.data, O_RDWR, S_IRUSR | S_IWUSR);
+					int lockFd = open(lockFile.data, O_RDWR, S_IRUSR | S_IWUSR | O_CLOEXEC);
 					if (lockFd == -1)
 					{
 						if (errno == EPERM)
@@ -113,7 +113,7 @@ namespace uba
 
 			lockFile.Clear().Append(lockDir).EnsureEndsWithSlash().AppendValue(uid);
 
-			lockFd = open(lockFile.data, O_CREAT | O_RDWR | O_NOFOLLOW | O_EXCL, S_IRUSR | S_IWUSR);
+			lockFd = open(lockFile.data, O_CREAT | O_RDWR | O_NOFOLLOW | O_EXCL, S_IRUSR | S_IWUSR | O_CLOEXEC);
 			if (lockFd == -1)
 			{
 				if (errno == EEXIST)

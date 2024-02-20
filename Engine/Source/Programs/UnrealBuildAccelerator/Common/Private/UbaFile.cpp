@@ -395,7 +395,7 @@ namespace uba
 	#if PLATFORM_WINDOWS
 		return (FileHandle)(u64)::CreateFileW(fileName, desiredAccess, shareMode, NULL, createDisp, flagsAndAttributes, NULL);
 	#else
-		int flags = 0;
+		int flags = O_CLOEXEC;
 		if (createDisp == CREATE_ALWAYS)
 			flags |= O_CREAT | O_TRUNC;
 		else if (createDisp == OPEN_EXISTING)

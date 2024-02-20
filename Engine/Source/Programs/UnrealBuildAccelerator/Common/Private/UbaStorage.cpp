@@ -530,7 +530,7 @@ namespace uba
 		return false;
 	}
 
-	bool StorageImpl::DecompressMemoryToMemory(u8* compressedData, u8* writeData, u64 decompressedSize)
+	bool StorageImpl::DecompressMemoryToMemory(u8* compressedData, u8* writeData, u64 decompressedSize, const tchar* readHint)
 	{
 		UBA_ASSERT(compressedData);
 		UBA_ASSERT(writeData);
@@ -1447,7 +1447,7 @@ namespace uba
 								mem += sizeof(u64);
 								u8* dest = new u8[decompressedSize];
 								auto g = MakeGuard([dest]() { delete[] dest; });
-								if (!DecompressMemoryToMemory(mem, dest, decompressedSize))
+								if (!DecompressMemoryToMemory(mem, dest, decompressedSize, TC("")))
 									return;
 								checkedKey = CalculateCasKey(dest, decompressedSize, true);
 							}
@@ -1917,21 +1917,22 @@ namespace uba
 				MappedView mappedView;
 				auto mapViewGuard = MakeGuard([&](){ m_casDataBuffer.UnmapView(mappedView, destination); });
 
+				StringBuffer<512> casFile;
 				u64 decompressedSize;
 
 				if (casEntry->mappingHandle.IsValid())
 				{
-					mappedView = m_casDataBuffer.MapView(casEntry->mappingHandle, casEntry->mappingOffset, casEntry->mappingSize, CasKeyString(actualKey).str);
+					casFile.Append(CasKeyString(actualKey).str);
+					mappedView = m_casDataBuffer.MapView(casEntry->mappingHandle, casEntry->mappingOffset, casEntry->mappingSize, casFile.data);
 					compressedData = mappedView.memory;
 					if (!compressedData)
-						return m_logger.Error(TC("Failed to map view of mapping %s (%s)"), CasKeyString(casKey).str, LastErrorToText().data);
+						return m_logger.Error(TC("Failed to map view of mapping %s (%s)"), casFile.data, LastErrorToText().data);
 
 					decompressedSize = *(u64*)compressedData;
 					readData = compressedData + sizeof(u64);
 				}
 				else
 				{
-					StringBuffer<> casFile;
 #if !UBA_USE_SPARSEFILE
 					if (!StorageImpl::GetCasFileName(casFile, actualKey))
 						return false;
@@ -1978,7 +1979,7 @@ namespace uba
 
 					if (casEntry->mappingHandle.IsValid())
 					{
-						if (!DecompressMemoryToMemory(readData, destinationFile.GetData(), decompressedSize))
+						if (!DecompressMemoryToMemory(readData, destinationFile.GetData(), decompressedSize, casFile.data))
 							return false;
 					}
 					else
@@ -2370,7 +2371,7 @@ namespace uba
 				return m_logger.Error(TC("Failed to map view of file mapping for %s (%s)"), fileName, LastErrorToText().data);
 			auto udg = MakeGuard([&]() { UnmapViewOfFile(fileData, compressedSize, fileName); });
 			
-			if (!DecompressMemoryToMemory(fileData + 8, dest, decompressedSize))
+			if (!DecompressMemoryToMemory(fileData + 8, dest, decompressedSize, fileName))
 				return false;
 		}
 		else

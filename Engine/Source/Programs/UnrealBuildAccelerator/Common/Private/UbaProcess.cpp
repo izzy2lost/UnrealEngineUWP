@@ -1569,8 +1569,6 @@ namespace uba
 			pid_t processID;
 			while (true)
 			{
-				ScopedReadLock lock(m_session.m_hackToPreventETXTBUSY);
-
 				res = posix_spawnp(&processID, m_realApplication.c_str(), &fileActions, &attr, (char**)argsArray, (char**)envvars.data());
 				if (res == 0)
 					break;

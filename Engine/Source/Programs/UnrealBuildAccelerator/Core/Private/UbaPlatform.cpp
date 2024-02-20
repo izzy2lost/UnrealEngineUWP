@@ -45,7 +45,7 @@ namespace uba
 		arc4random_buf(&out, 16);
 		return true;
 		#else
-		const int f = open("/dev/urandom", O_RDONLY);
+		const int f = open("/dev/urandom", O_RDONLY | O_CLOEXEC);
 		if (f == -1)
 			return false;
 		size_t bytesRead = read(f, &out, 16);
