@@ -592,6 +592,23 @@ export class IPC {
 														`requested by ${query.who} (Reason: ${query.reason})`)
 			return OPERATION_SUCCESS
 
+		case 'set_gate_cl':
+			if (!edgeName) {
+				return {statusCode: 400, message: 'Only valid to call for an edge'}
+			}
+
+			cl = parseInt(query.cl)
+
+			if (isNaN(cl)) {
+				return {statusCode: 400, message: 'Invalid CL parameter: ' + cl}
+			}
+
+			let prevGateCl = await generalOpTarget.setGateCl(cl, query.who, query.reason)
+
+			this.ipcLogger.info(`Setting gate CL=${cl} on ${botname} : ${branch.name} (was CL ${prevGateCl}), ` +
+														`requested by ${query.who} (Reason: ${query.reason})`)
+			return OPERATION_SUCCESS
+
 		case 'reconsider':
 			const argMatch = query.cl.match(/(\d+)\s*(.*)/)
 			if (argMatch) {

@@ -741,7 +741,7 @@ export class PerforceContext {
 		}
 		args.push(depotPath)
 		try {
-			await this._execP4(workspace, args)
+			return await this._execP4Ztag(workspace, args)
 		}
 		catch (reason) {
 			if (!isExecP4Error(reason)) {
@@ -755,6 +755,8 @@ export class PerforceContext {
 				}
 			}
 		}
+
+		return null
 	}
 
 	async syncAndReturnChangelistNumber(roboWorkspace: RoboWorkspace, depotPath: string, opts?: string[]) {

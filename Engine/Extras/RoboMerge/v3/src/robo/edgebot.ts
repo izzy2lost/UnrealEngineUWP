@@ -976,6 +976,10 @@ class EdgeBotImpl extends PerforceStatefulBot {
 		return prevValue
 	}
 
+	setGateCl(value: number, culprit: string, reason: string) {
+		return this.gate.setGateCl(value, culprit, reason)
+	}
+
 	reconsider(instigator: string, changeCl: number, additionalArgs?: Partial<ReconsiderArgs>) {
 		this.sourceNode.reconsider(instigator, changeCl, {targetBranchName: this.targetBranch.name, ...(additionalArgs || {})})
 	}
@@ -999,6 +1003,7 @@ abstract class EdgeBotEntryPoints implements IPCControls {
 	acknowledge: EdgeBotImpl["acknowledge"]
 	unacknowledge: EdgeBotImpl["unacknowledge"]
 	forceSetLastClWithContext: EdgeBotImpl["forceSetLastClWithContext"]
+	setGateCl: EdgeBotImpl["setGateCl"]
 	resetIntegrationTimestamp: EdgeBotImpl["resetIntegrationTimestamp"]
 
 	// async methods
@@ -1041,6 +1046,7 @@ export class EdgeBot
 		this.acknowledge = this.proxy("acknowledge")
 		this.unacknowledge = this.proxy("unacknowledge")
 		this.forceSetLastClWithContext = this.proxy("forceSetLastClWithContext")
+		this.setGateCl = this.proxy("setGateCl")
 		this.resetIntegrationTimestamp = this.proxy("resetIntegrationTimestamp")
 
 		this.revertPendingCLWithShelf = this.proxyAsync("revertPendingCLWithShelf")
@@ -1131,7 +1137,8 @@ export class EdgeBot
 			reconsider: this.reconsider,
 			acknowledge: this.acknowledge,
 			unacknowledge: this.unacknowledge,
-			forceSetLastClWithContext: this.forceSetLastClWithContext
+			forceSetLastClWithContext: this.forceSetLastClWithContext,
+			setGateCl: this.setGateCl
 		}
 	}
 }

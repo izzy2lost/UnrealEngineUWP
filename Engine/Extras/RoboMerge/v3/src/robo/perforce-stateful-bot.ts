@@ -152,6 +152,7 @@ export abstract class PerforceStatefulBot implements BotIPC {
 	}
 
 	abstract forceSetLastClWithContext(value: number, culprit: string, reason: string, unblock: boolean): number;
+	abstract setGateCl(value: number, culprit: string, reason: string): Promise<number | null>;
 
 	async _getChange(changeCl: number, path?: string, status?: ChangelistStatus) : Promise<Change | string> {
 		try {

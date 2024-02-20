@@ -517,6 +517,12 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 		return prevValue
 	}
 	
+	setGateCl(_1: number, _2: string, _3:string): Promise<number | null> {
+		const err = new Error('setGateCl not implemented on NodeBot')
+		this.nodeBotLogger.printException(err)
+		throw err
+	}
+
 	onForcedLastCl(nodeOrEdgeName: string, forcedCl: number, previousCl: number, culprit: string, reason: string) {
 		this.conflicts.onForcedLastCl({nodeOrEdgeName, forcedCl, previousCl, culprit, reason})
 	}

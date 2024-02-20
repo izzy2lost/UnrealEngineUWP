@@ -52,6 +52,7 @@ export interface IPCControls {
 	unacknowledge(changeCl: number) : OperationResult
 	
 	forceSetLastClWithContext(value: number, culprit: string, reason: string, unblock?: boolean): number
+	setGateCl(value: number, culprit: string, reason: string): Promise<number | null>
 }
 
 export interface EdgeBotInterface {

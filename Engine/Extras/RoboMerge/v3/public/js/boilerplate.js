@@ -909,7 +909,7 @@ function createEdgeRow(nodeData, edgeData, includeActions) {
 	}
 	columnArray.push(renderLastChangeCell_Common(nodeData.bot, nodeData.def.name, edgeData.last_cl, edgeAPIOp,
 														operationArgs, catchupText, edgeData.display_name))
-	postRenderLastChangeCell_Edge(columnArray[columnArray.length - 1], edgeData)
+	postRenderLastChangeCell_Edge(columnArray[columnArray.length - 1], edgeData, edgeAPIOp, operationArgs)
 
 	return columnArray
 }
@@ -1702,11 +1702,11 @@ function prettyDate(date) {
 	}
 }
 
-function postRenderLastChangeCell_Edge(lastChangeCell, edgeData) {
+function postRenderLastChangeCell_Edge(lastChangeCell, edgeData, operationFunction, operationArgs) {
 	if (edgeData.lastGoodCL) {
-		let tooltip = 'CL approved by CIS'
+		let tooltip = edgeData.lastGoodCLJobLink ? 'CL approved by CIS' : 'Paused at CL'
 		if (edgeData.lastGoodCLDate) {
-			tooltip += ` on ${prettyDate(new Date(edgeData.lastGoodCLDate))}`
+			tooltip += ` submitted ${prettyDate(new Date(edgeData.lastGoodCLDate))}`
 		}
 		if (edgeData.headCL) {
 			tooltip += ` (head changelist ${edgeData.headCL})`
@@ -1714,6 +1714,37 @@ function postRenderLastChangeCell_Edge(lastChangeCell, edgeData) {
 		
 		let goodCL = edgeData.lastGoodCLJobLink ? $(`<a href="${edgeData.lastGoodCLJobLink}">`).prop('target', '_blank') : $('<div>');
 		goodCL.html('\u{2713} ' + edgeData.lastGoodCL).addClass('last-good-cl').prop('title', tooltip).appendTo(lastChangeCell)
+
+		if (!edgeData.lastGoodCLJobLink)
+		{
+			// On shift+click, we can set the CL instead
+			goodCL.click(function(evt) {
+				if (evt.shiftKey)
+				{
+					let data = promptFor({
+						cl: {prompt: 'Enter CL', default: edgeData.lastGoodCL},
+					})
+					if (data) {
+						data.reason = "manually set through Robomerge homepage"
+
+						operationFunction(...operationArgs, "/set_gate_cl?" + toQuery(data), function(success) {
+							if (success) {
+								updateBranchList(botname)
+								displaySuccessfulMessage(`Successfully set gate for ${edgeData.displayName} to changelist ${data.cl}`)
+							} else {
+								displayErrorMessage(`Error setting gate for ${edgeData.displayName} to changelist ${data.cl}, please check logs.`)
+							}
+						})
+						
+					}
+					if (evt.preventDefault) {
+						evt.preventDefault()
+					}
+					return false
+				}
+				return true
+			})
+		}
 	}
 }
 

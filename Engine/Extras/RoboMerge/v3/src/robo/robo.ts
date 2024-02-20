@@ -17,6 +17,7 @@ import { CertFiles } from '../common/webserver';
 import { addBranchGraph, Graph, GraphAPI } from '../new/graph';
 import { AutoBranchUpdater } from './autobranchupdater';
 import { Branch } from './branch-interfaces';
+import { Gate } from './gate';
 import { GraphBot } from './graphbot';
 import { IPC, Message } from './ipc';
 import { NodeBot } from './nodebot';
@@ -85,6 +86,18 @@ const COMMAND_LINE_ARGS: {[param: string]: Arg<any>} = {
 		match: /^-bs_directory=(.+)$/,
 		env: 'ROBO_BRANCHSPECS_DIRECTORY',
 		dflt: './data'
+	},
+
+	gateUpdateWorkspacePrefix: {
+		match: /^-gate_update_workspace_prefix=(.+)$/,
+		env: 'ROBO_GATE_UPDATE_WORKSPACE_PREFIX',
+		dflt: 'robomerge-gateupdate-' + os.hostname()
+	},
+
+	gateUpdatesDirectory: {
+		match: /^-gate_updates_directory=(.+)$/,
+		env: 'ROBO_GATE_UPDATES_DIRECTORY',
+		dflt: './gateupdates'
 	},
 
 	noIPC: {
@@ -454,6 +467,12 @@ async function init(logger: ContextualLogger) {
 
 	} else {
 		logger.warn('Auto brancher updater not configured!')
+	}
+
+	if (args.gateUpdateWorkspacePrefix && args.gateUpdatesDirectory) {
+		Gate.init(args.gateUpdateWorkspacePrefix, args.gateUpdatesDirectory, logger)
+	} else {
+		logger.warn('Gate Update Workspace Prefix or Directory not specified. Gate updating via webpage may not work correctly.')
 	}
 
 	if (args.persistenceBackupFrequency > 0 && !args.previewOnly) {
