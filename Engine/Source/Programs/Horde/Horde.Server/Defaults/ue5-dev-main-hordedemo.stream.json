@@ -192,8 +192,7 @@
 			"arguments": [
 				"-Script=Engine/Build/Graph/Tasks/BuildAndTestProject.xml",
 				"-Target=BuildAndTest $(Project)",
-				"-set:ProjectName=$(Project)",
-				"-set:ProjectPath=$(ProjectPath)",
+				"-set:ProjectFile=$(ProjectPath)",
 				"-set:TargetName=$(GameTarget)",
 				"-set:EditorTargetName=$(EditorTarget)"
 			],
