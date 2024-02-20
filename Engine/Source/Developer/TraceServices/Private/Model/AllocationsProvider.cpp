@@ -2298,26 +2298,26 @@ void FAllocationsProvider::EditOnAnalysisCompleted(double Time)
 
 	if (AllocWarnings > 0 || FreeWarnings > 0 || HeapWarnings > 0 || MiscWarnings > 0)
 	{
-		UE_LOG(LogTraceServices, Warning, TEXT("[MemAlloc] %u warnings (%u ALLOC + %u FREE + %u HEAP + %u other)"),
+		UE_LOG(LogTraceServices, Warning, TEXT("[MemAlloc] %llu warnings (%llu ALLOC + %llu FREE + %llu HEAP + %llu other)"),
 			AllocWarnings + FreeWarnings + HeapWarnings + MiscWarnings,
 			AllocWarnings, FreeWarnings, HeapWarnings, MiscWarnings);
 	}
 
 	if (AllocErrors > 0)
 	{
-		UE_LOG(LogTraceServices, Error, TEXT("[MemAlloc] ALLOC event errors: %u"), AllocErrors);
+		UE_LOG(LogTraceServices, Error, TEXT("[MemAlloc] ALLOC event errors: %llu"), AllocErrors);
 	}
 	if (FreeErrors > 0)
 	{
-		UE_LOG(LogTraceServices, Error, TEXT("[MemAlloc] FREE event errors: %u"), FreeErrors);
+		UE_LOG(LogTraceServices, Error, TEXT("[MemAlloc] FREE event errors: %llu"), FreeErrors);
 	}
 	if (HeapErrors > 0)
 	{
-		UE_LOG(LogTraceServices, Error, TEXT("[MemAlloc] HEAP event errors: %u"), HeapErrors);
+		UE_LOG(LogTraceServices, Error, TEXT("[MemAlloc] HEAP event errors: %llu"), HeapErrors);
 	}
 	if (MiscErrors > 0)
 	{
-		UE_LOG(LogTraceServices, Error, TEXT("[MemAlloc] Other errors: %u"), MiscErrors);
+		UE_LOG(LogTraceServices, Error, TEXT("[MemAlloc] Other errors: %llu"), MiscErrors);
 	}
 	if (TagTracker.GetNumErrors() > 0)
 	{
@@ -2341,7 +2341,7 @@ void FAllocationsProvider::EditOnAnalysisCompleted(double Time)
 			++NumHeapSpecs;
 		}
 	}
-	UE_LOG(LogTraceServices, Log, TEXT("[MemAlloc] Analysis completed (%llu events, %llu allocs, %llu frees, %llu heaps, %d heap specs)."),
+	UE_LOG(LogTraceServices, Log, TEXT("[MemAlloc] Analysis completed (%llu events, %llu allocs, %llu frees, %llu heaps, %u heap specs)."),
 		TotalEventCount, AllocCount, FreeCount, HeapCount, NumHeapSpecs);
 }
 
