@@ -3,28 +3,19 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Factories/Factory.h"
+#include "WorkspaceFactory.h"
 #include "AnimNextWorkspaceFactory.generated.h"
 
-namespace UE::AnimNext::Editor
-{
-	struct FUtils;
-	class FWorkspaceEditor;
-}
-
 UCLASS(MinimalAPI, BlueprintType)
-class UAnimNextWorkspaceFactory : public UFactory
+class UAnimNextWorkspaceFactory : public UWorkspaceFactory
 {
 	GENERATED_BODY()
 
-	friend class UE::AnimNext::Editor::FWorkspaceEditor;
-
 	UAnimNextWorkspaceFactory();
 
+	// UFactory interface
 	virtual bool ConfigureProperties() override;
-	virtual UObject* FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn, FName CallingContext) override;
-	virtual UObject* FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn) override
-	{
-		return FactoryCreateNew(Class, InParent, Name, Flags, Context, Warn, NAME_None);
-	}
+	virtual FText GetDisplayName() const override;
+	virtual uint32 GetMenuCategories() const override;
+	virtual const TArray<FText>& GetMenuCategorySubMenus() const override;
 };

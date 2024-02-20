@@ -5,9 +5,9 @@
 #include "ContentBrowserDelegates.h"
 #include "Widgets/SCompoundWidget.h"
 
-class UAnimNextWorkspace;
+class UWorkspace;
 
-namespace UE::AnimNext::Editor
+namespace UE::Workspace
 {
 
 class SWorkspaceView : public SCompoundWidget
@@ -20,7 +20,7 @@ class SWorkspaceView : public SCompoundWidget
 
 	SLATE_END_ARGS()
 
-	void Construct(const FArguments& InArgs, UAnimNextWorkspace* InWorkspace);
+	void Construct(const FArguments& InArgs, UWorkspace* InWorkspace);
 
 private:
 	// SWidget interface
@@ -30,11 +30,11 @@ private:
 
 	bool HasValidSelection() const;
 
-	void HandleWorkspaceModified(UAnimNextWorkspace* InWorkspace);
-	
-	static FARFilter MakeARFilter();
+	void HandleWorkspaceModified(UWorkspace* InWorkspace);
 
-	UAnimNextWorkspace* Workspace = nullptr;
+	FARFilter MakeARFilter();
+
+	UWorkspace* Workspace = nullptr;
 
 	FOnAssetsOpened OnAssetsOpened;
 

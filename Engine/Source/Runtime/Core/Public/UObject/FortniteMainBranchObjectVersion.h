@@ -423,6 +423,9 @@ struct FFortniteMainBranchObjectVersion
 		// Combine parameter blocks and graphs
 		AnimNextCombineParameterBlocksAndGraphs,
 
+		// Move workspaces to a seperate plugin
+		AnimNextMoveWorkspaces,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

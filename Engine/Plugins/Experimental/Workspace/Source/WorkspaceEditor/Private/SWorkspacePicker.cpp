@@ -1,7 +1,7 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SWorkspacePicker.h"
-#include "AnimNextWorkspace.h"
+#include "Workspace.h"
 #include "ContentBrowserModule.h"
 #include "IContentBrowserSingleton.h"
 #include "SPrimaryButton.h"
@@ -11,7 +11,7 @@
 
 #define LOCTEXT_NAMESPACE "SWorkspacePicker"
 
-namespace UE::AnimNext::Editor
+namespace UE::Workspace
 {
 
 void SWorkspacePicker::Construct(const FArguments& InArgs)
@@ -31,7 +31,7 @@ void SWorkspacePicker::Construct(const FArguments& InArgs)
 			Window->RequestDestroyWindow();
 		}
 	});
-	AssetPickerConfig.Filter.ClassPaths.Add(UAnimNextWorkspace::StaticClass()->GetClassPathName());
+	AssetPickerConfig.Filter.ClassPaths.Add(UWorkspace::StaticClass()->GetClassPathName());
 	AssetPickerConfig.Filter.bRecursiveClasses = true;
 	AssetPickerConfig.OnShouldFilterAsset = FOnShouldFilterAsset::CreateLambda([this](const FAssetData& InAssetData)
 	{

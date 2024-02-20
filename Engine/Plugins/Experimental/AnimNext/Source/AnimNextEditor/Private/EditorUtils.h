@@ -36,8 +36,6 @@ struct FUtils
 	static bool DoesParameterNameExist(const FName InName);
 	
 	static bool DoesParameterNameExistInAsset(const FName InName, const FAssetData& InAsset);
-
-	static bool GetExportedAssetsForWorkspace(const FAssetData& InWorkspaceAsset, FAnimNextWorkspaceAssetRegistryExports& OutExports);
 };
 
 }

@@ -1,20 +1,16 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "AnimNextWorkspaceEditorMode.h"
+#include "WorkspaceEditorMode.h"
 
-#include "AnimNextWorkspaceEditor.h"
+#include "WorkspaceEditor.h"
 #include "DetailsTabSummoner.h"
+#include "IWorkspaceEditorModule.h"
 #include "WorkspaceTabSummoner.h"
 #include "Widgets/Docking/SDockTab.h"
-#include "EdGraph/EdGraph.h"
-#include "EdGraph/EdGraphSchema.h"
-#include "Widgets/Layout/SSpacer.h"
-#include "Modules/ModuleManager.h"
-#include "Graph/GraphEditorMode.h"
 
 #define LOCTEXT_NAMESPACE "WorkspaceEditorMode"
 
-namespace UE::AnimNext::Editor
+namespace UE::Workspace
 {
 
 FWorkspaceEditorMode::FWorkspaceEditorMode(TSharedRef<FWorkspaceEditor> InHostingApp)
@@ -26,7 +22,7 @@ FWorkspaceEditorMode::FWorkspaceEditorMode(TSharedRef<FWorkspaceEditor> InHostin
 	TabFactories.RegisterFactory(MakeShared<FDetailsTabSummoner>(WorkspaceEditor, FOnDetailsViewCreated::CreateSP(&WorkspaceEditor.Get(), &FWorkspaceEditor::HandleDetailsViewCreated)));
 	TabFactories.RegisterFactory(MakeShared<FWorkspaceTabSummoner>(WorkspaceEditor));
 
-	TabLayout = FTabManager::NewLayout("Standalone_AnimNextWorkspaceEditor_Layout_v1.2")
+	TabLayout = FTabManager::NewLayout("Standalone_WorkspaceEditor_Layout_v1.0")
 		->AddArea
 		(
 			FTabManager::NewPrimaryArea()
@@ -42,22 +38,21 @@ FWorkspaceEditorMode::FWorkspaceEditorMode(TSharedRef<FWorkspaceEditor> InHostin
 					->SetSizeCoefficient(0.25f)
 					->SetHideTabWell(false)
 					->AddTab(WorkspaceTabs::WorkspaceView, ETabState::OpenedTab)
-					->AddTab(WorkspaceTabs::LeftAssetDocument, ETabState::ClosedTab)
+					->AddTab(WorkspaceTabs::LeftDocumentArea, ETabState::ClosedTab)
 				)
 				->Split
 				(
 					FTabManager::NewStack()
 					->SetSizeCoefficient(0.5f)
 					->SetHideTabWell(false)
-					->AddTab(WorkspaceTabs::EventGraphDocument, ETabState::ClosedTab)
-					->AddTab(WorkspaceTabs::AnimationGraphDocument, ETabState::ClosedTab)
-					->AddTab(WorkspaceTabs::MiddleAssetDocument, ETabState::ClosedTab)
+					->AddTab(WorkspaceTabs::MiddleDocumentArea, ETabState::ClosedTab)
 				)
 				->Split
 				(
 					FTabManager::NewStack()
 					->SetSizeCoefficient(0.25f)
 					->SetHideTabWell(false)
+					->AddTab(WorkspaceTabs::RightDocumentArea, ETabState::ClosedTab)
 					->AddTab(WorkspaceTabs::Details, ETabState::OpenedTab)
 				)
 			)

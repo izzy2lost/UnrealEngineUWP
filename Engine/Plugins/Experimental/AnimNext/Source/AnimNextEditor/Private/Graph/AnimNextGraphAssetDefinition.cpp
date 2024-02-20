@@ -2,18 +2,20 @@
 
 #include "AnimNextGraphAssetDefinition.h"
 #include "AnimNextGraphEditor.h"
-#include "Workspace/AnimNextWorkspaceEditor.h"
 #include "EditorCVars.h"
+#include "IWorkspaceEditorModule.h"
 
 EAssetCommandResult UAssetDefinition_AnimNextGraph::OpenAssets(const FAssetOpenArgs& OpenArgs) const
 {
 	using namespace UE::AnimNext::Editor;
-	
+	using namespace UE::Workspace;
+
 	for (UAnimNextGraph* Asset : OpenArgs.LoadObjects<UAnimNextGraph>())
 	{
 		if(CVars::GUseWorkspaceEditor.GetValueOnGameThread())
 		{
-			FWorkspaceEditor::OpenWorkspaceForAsset(Asset, FWorkspaceEditor::EOpenWorkspaceMethod::Default);
+			IWorkspaceEditorModule& WorkspaceEditorModule = FModuleManager::Get().LoadModuleChecked<IWorkspaceEditorModule>("WorkspaceEditor");
+			WorkspaceEditorModule.OpenWorkspaceForObject(Asset, EOpenWorkspaceMethod::Default);
 		}
 		else
 		{

@@ -5,9 +5,9 @@
 #include "ContentBrowserDelegates.h"
 #include "Widgets/SCompoundWidget.h"
 
-class UAnimNextWorkspace;
+class UWorkspace;
 
-namespace UE::AnimNext::Editor
+namespace UE::Workspace
 {
 
 class SWorkspacePicker : public SCompoundWidget

@@ -1,12 +1,12 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "WorkspaceTabSummoner.h"
-#include "AnimNextWorkspaceEditor.h"
+#include "WorkspaceEditor.h"
 #include "SWorkspaceView.h"
 
 #define LOCTEXT_NAMESPACE "WorkspaceTabSummoner"
 
-namespace UE::AnimNext::Editor
+namespace UE::Workspace
 {
 
 FWorkspaceTabSummoner::FWorkspaceTabSummoner(TSharedPtr<FWorkspaceEditor> InHostingApp)

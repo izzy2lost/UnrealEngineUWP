@@ -8,12 +8,12 @@
 class FWorkflowCentricApplication;
 class SGraphEditor;
 
-namespace UE::AnimNext::Editor
+namespace UE::Workspace
 {
 	class FWorkspaceEditor;
 }
 
-namespace UE::AnimNext::Editor
+namespace UE::Workspace
 {
 
 struct FAssetDocumentSummoner : public FDocumentTabFactoryForObjects<UObject>
@@ -24,9 +24,7 @@ public:
 
 	FAssetDocumentSummoner(FName InIdentifier, TSharedPtr<FWorkspaceEditor> InHostingApp);
 
-	FOnSaveDocumentState& OnSaveDocumentState() { return OnSaveDocumentStateDelegate; }
-
-	void SetAllowedAssetClassPaths(TConstArrayView<FTopLevelAssetPath> InAllowedAssetClassPaths);
+	void SetAllowedClassPaths(TConstArrayView<FTopLevelAssetPath> InAllowedClassPaths);
 
 private:
 	// FWorkflowTabFactory interface
@@ -45,14 +43,11 @@ private:
 	// The hosting app
 	TWeakPtr<FWorkspaceEditor> HostingAppPtr;
 
-	// Delegate called to save the state of a graph
-	FOnSaveDocumentState OnSaveDocumentStateDelegate;
-
 	// Command list
 	TSharedPtr<FUICommandList> CommandList;
 
-	// Allowed asset types
-	TArray<FTopLevelAssetPath> AllowedAssetClassPaths;
+	// Allowed object types
+	TArray<FTopLevelAssetPath> AllowedClassPaths;
 };
 
 }

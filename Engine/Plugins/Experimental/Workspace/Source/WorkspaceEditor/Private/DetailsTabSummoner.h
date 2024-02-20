@@ -6,12 +6,12 @@
 
 class IDetailsView;
 
-namespace UE::AnimNext::Editor
+namespace UE::Workspace
 {
 	class FWorkspaceEditor;
 }
 
-namespace UE::AnimNext::Editor
+namespace UE::Workspace
 {
 
 DECLARE_DELEGATE_OneParam(FOnDetailsViewCreated, TSharedRef<IDetailsView>);

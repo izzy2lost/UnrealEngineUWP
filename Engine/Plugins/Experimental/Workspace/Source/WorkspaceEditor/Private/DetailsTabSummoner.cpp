@@ -1,12 +1,12 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DetailsTabSummoner.h"
-#include "AnimNextWorkspaceEditor.h"
+#include "WorkspaceEditor.h"
 #include "PropertyEditorModule.h"
 
 #define LOCTEXT_NAMESPACE "DetailsTabSummoner"
 
-namespace UE::AnimNext::Editor
+namespace UE::Workspace
 {
 
 FDetailsTabSummoner::FDetailsTabSummoner(TSharedPtr<FWorkspaceEditor> InHostingApp, FOnDetailsViewCreated InOnDetailsViewCreated)

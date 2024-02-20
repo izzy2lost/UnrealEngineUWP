@@ -1,0 +1,137 @@
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GraphEditor.h"
+#include "InstancedStruct.h"
+#include "Misc/Attribute.h"
+#include "Modules/ModuleInterface.h"
+
+struct FSlateBrush;
+class SWidget;
+struct FTopLevelAssetPath;
+class UEdGraph;
+struct FWorkspaceDocumentState;
+
+namespace UE::Workspace
+{
+	class IWorkspaceEditor;
+}
+
+namespace UE::Workspace
+{
+
+namespace WorkspaceTabs
+{
+	WORKSPACEEDITOR_API extern const FName LeftDocumentArea;
+	WORKSPACEEDITOR_API extern const FName MiddleDocumentArea;
+	WORKSPACEEDITOR_API extern const FName RightDocumentArea;
+}
+
+// Context passed to workspace editor delegates
+struct FWorkspaceEditorContext
+{
+	FWorkspaceEditorContext(const TSharedRef<IWorkspaceEditor>& InWorkspaceEditor, UObject* InObject)
+		: WorkspaceEditor(InWorkspaceEditor)
+		, Object(InObject)
+	{}
+
+	// The current workspace editor
+	TSharedRef<IWorkspaceEditor> WorkspaceEditor;
+
+	// The object being edited
+	UObject* Object;
+};
+
+using FOnMakeDocumentWidget = TDelegate<TSharedRef<SWidget>(const FWorkspaceEditorContext&)>;
+
+using FOnGetTabIcon = TDelegate<const FSlateBrush*(const FWorkspaceEditorContext&)>;
+
+using FOnGetTabName = TDelegate<TAttribute<FText>(const FWorkspaceEditorContext&)>;
+
+using FOnGetDocumentState = TDelegate<TInstancedStruct<FWorkspaceDocumentState>(const FWorkspaceEditorContext&, TSharedRef<SWidget>)>;
+
+using FOnSetDocumentState = TDelegate<void(const FWorkspaceEditorContext&, TSharedRef<SWidget>, const TInstancedStruct<FWorkspaceDocumentState>&)>;
+
+// Arguments used to make document widgets for objects
+struct FObjectDocumentArgs
+{
+	FObjectDocumentArgs() = default;
+
+	FObjectDocumentArgs(FOnMakeDocumentWidget InOnMakeDocumentWidget, FName InSpawnLocation = WorkspaceTabs::MiddleDocumentArea)
+		: OnMakeDocumentWidget(InOnMakeDocumentWidget)
+		, SpawnLocation(InSpawnLocation)
+	{}
+
+	// Delegate called to generate a widget for the supplied object
+	FOnMakeDocumentWidget OnMakeDocumentWidget;
+
+	// Delegate called to build a struct used to store the document's state
+	FOnGetDocumentState OnGetDocumentState;
+
+	// Delegate called to use a struct to restore the document's state
+	FOnSetDocumentState OnSetDocumentState;
+
+	// Delegate called to get the tab icon to display. If this is unset, the icon will default to the asset icon for the class
+	FOnGetTabIcon OnGetTabIcon;
+
+	// Delegate called to get the tab name to display. If this is unset, the object's name will be used
+	FOnGetTabName OnGetTabName;
+
+	// Where to spawn the widget in the workspace layout - e.g. one of WorkspaceTabs
+	FName SpawnLocation = WorkspaceTabs::MiddleDocumentArea;
+};
+
+using FOnDeleteSelectedNodes = TDelegate<void(const FWorkspaceEditorContext&, const FGraphPanelSelectionSet&)>;
+
+using FOnGraphSelectionChanged = TDelegate<void(const FWorkspaceEditorContext&, const FGraphPanelSelectionSet&)>;
+
+using FOnCreateActionMenu = TDelegate<FActionMenuContent(const FWorkspaceEditorContext&, UEdGraph*, const FVector2D&, const TArray<UEdGraphPin*>&, bool, SGraphEditor::FActionMenuClosed)>;
+
+using FOnNodeTextCommitted = TDelegate<void(const FWorkspaceEditorContext&, const FText&, ETextCommit::Type, UEdGraphNode*)>;
+
+// Arguments used to make document widgets for graphs
+struct FGraphDocumentWidgetArgs
+{
+	// Where to spawn the widget in the workspace layout - e.g. one of WorkspaceTabs
+	FName SpawnLocation = WorkspaceTabs::MiddleDocumentArea;
+
+	FOnCreateActionMenu OnCreateActionMenu;
+
+	FOnNodeTextCommitted OnNodeTextCommitted;
+
+	FOnDeleteSelectedNodes OnDeleteSelectedNodes;
+
+	FOnGraphSelectionChanged OnGraphSelectionChanged;
+};
+
+// Enum describing how to open a workspace
+enum class EOpenWorkspaceMethod : int32
+{
+	// If the asset is already used in a workspace, open that (if not already opened)
+	// If the asset is already used in more than one workspace, let the user choose the workspace to open it in
+	// If the asset is not yet in a workspace, create a default workspace, add the asset and open the workspace
+	Default,
+
+	// Always open a new workspace asset and add the asset to it
+	AlwaysOpenNewWorkspace,
+};
+
+class IWorkspaceEditorModule : public IModuleInterface
+{
+public:
+	// Open an object inside a workspace editor.
+	virtual void OpenWorkspaceForObject(UObject* InObject, EOpenWorkspaceMethod InOpenMethod) = 0;
+
+	// Register a widget factory method to spawn for a particular class
+	virtual void RegisterObjectDocumentType(const FTopLevelAssetPath& InClassPath, const FObjectDocumentArgs& InArgs) = 0;
+
+	// Unregister a widget factory method to spawn for a particular class
+	virtual void UnregisterObjectDocumentType(const FTopLevelAssetPath& InClassPath) = 0;
+
+	// Make the required args for a document widget for a UEdGraph
+	virtual FObjectDocumentArgs CreateGraphDocumentArgs(const FGraphDocumentWidgetArgs& InArgs) = 0;
+};
+
+}

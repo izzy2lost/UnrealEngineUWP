@@ -10,12 +10,12 @@
 class FWorkflowCentricApplication;
 class SGraphEditor;
 
-namespace UE::AnimNext::Editor
+namespace UE::Workspace
 {
 	class FWorkspaceEditor;
 }
 
-namespace UE::AnimNext::Editor
+namespace UE::Workspace
 {
 
 class FWorkspaceEditorMode : public FApplicationMode

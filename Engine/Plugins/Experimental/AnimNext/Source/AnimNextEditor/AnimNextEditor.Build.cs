@@ -41,6 +41,7 @@ namespace UnrealBuildTool.Rules
 					"SubobjectEditor",
 					"Settings",
 					"EditorWidgets",
+					"WorkspaceEditor",
 				}
 			);
 		}

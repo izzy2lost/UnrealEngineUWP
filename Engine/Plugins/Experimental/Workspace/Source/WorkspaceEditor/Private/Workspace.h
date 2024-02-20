@@ -3,33 +3,37 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "AnimNextWorkspace.generated.h"
+#include "Templates/SubclassOf.h"
+#include "Workspace.generated.h"
 
 struct FEditedDocumentInfo;
-class UAnimNextWorkspace;
+class UWorkspace;
+class UWorkspaceSchema;
+class UWorkspaceFactory;
+class UAssetDefinition_Workspace;
 
-namespace UE::AnimNext::Editor
+namespace UE::Workspace
 {
 	class FWorkspaceEditor;
+	class FWorkspaceEditorModule;
 	class SWorkspaceView;
-	struct FUtils;
 }
 
-namespace UE::AnimNext::Editor
+namespace UE::Workspace
 {
 	// A delegate for subscribing / reacting to workspace modifications.
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnWorkspaceModified, UAnimNextWorkspace* /* InWorkspace */);
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnWorkspaceModified, UWorkspace* /* InWorkspace */);
 }
 
 // Workspace entry used to export to asset registry
 USTRUCT()
-struct FAnimNextWorkspaceAssetRegistryExportEntry
+struct FWorkspaceAssetRegistryExportEntry
 {
 	GENERATED_BODY()
 
-	FAnimNextWorkspaceAssetRegistryExportEntry() = default;
+	FWorkspaceAssetRegistryExportEntry() = default;
 	
-	FAnimNextWorkspaceAssetRegistryExportEntry(const FSoftObjectPath& InAsset)
+	FWorkspaceAssetRegistryExportEntry(const FSoftObjectPath& InAsset)
 		: Asset(InAsset)
 	{}
 
@@ -39,61 +43,70 @@ struct FAnimNextWorkspaceAssetRegistryExportEntry
 
 // Workspace used to export to asset registry
 USTRUCT()
-struct FAnimNextWorkspaceAssetRegistryExports
+struct FWorkspaceAssetRegistryExports
 {
 	GENERATED_BODY()
 
 	UPROPERTY()
-	TArray<FAnimNextWorkspaceAssetRegistryExportEntry> Assets;
+	TArray<FWorkspaceAssetRegistryExportEntry> Assets;
 };
 
 UCLASS()
-class UAnimNextWorkspace : public UObject
+class UWorkspace : public UObject
 {
 	GENERATED_BODY()
 
-	friend class UE::AnimNext::Editor::FWorkspaceEditor;
-	friend class UE::AnimNext::Editor::SWorkspaceView;
-	friend struct UE::AnimNext::Editor::FUtils;
+	friend class UE::Workspace::FWorkspaceEditor;
+	friend class UE::Workspace::FWorkspaceEditorModule;
+	friend class UE::Workspace::SWorkspaceView;
+	friend class UWorkspaceFactory;
+	friend class UAssetDefinition_Workspace;
+	friend class UWorkspaceState;
 
-	ANIMNEXTEDITOR_API static const FName ExportsAssetRegistryTag;
+	WORKSPACEEDITOR_API static const FName ExportsAssetRegistryTag;
 
 	// Adds an asset to the workspace
 	// @return true if the asset was added
-	UFUNCTION(BlueprintCallable, Category = "AnimNext|Workspace")
+	UFUNCTION(BlueprintCallable, Category = "Workspace")
 	bool AddAsset(UObject* InAsset, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
 	bool AddAsset(const FAssetData& InAsset, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
 
 	// Adds assets to the workspace
 	// @return true if an asset was added
-	UFUNCTION(BlueprintCallable, Category = "AnimNext|Workspace")
+	UFUNCTION(BlueprintCallable, Category = "Workspace")
 	bool AddAssets(const TArray<UObject*>& InAssets, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
 	bool AddAssets(TConstArrayView<FAssetData> InAssets, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
 
 	// Removes an asset from the workspace
 	// @return true if the asset was removed
-	UFUNCTION(BlueprintCallable, Category = "AnimNext|Workspace")
+	UFUNCTION(BlueprintCallable, Category = "Workspace")
 	bool RemoveAsset(UObject* InAsset, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
 	bool RemoveAsset(const FAssetData& InAsset, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
 
 	// Removes assets from the workspace
 	// @return true if the asset was removed
-	UFUNCTION(BlueprintCallable, Category = "AnimNext|Workspace")
+	UFUNCTION(BlueprintCallable, Category = "Workspace")
 	bool RemoveAssets(TArray<UObject*> InAssets, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
 	bool RemoveAssets(TConstArrayView<FAssetData> InAssets, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
 
-	static const TArray<FTopLevelAssetPath>& GetSupportedAssetClassPaths();
+	bool IsAssetSupported(const FAssetData& InAsset);
 
-	static bool IsAssetSupported(const FAssetData& InAsset);
+	UWorkspaceSchema* GetSchema() const;
+
+	void LoadState();
+
+	void SaveState();
+
+	UWorkspaceState* GetState() const;
 
 	void ReportError(const TCHAR* InMessage) const;
 
 	void BroadcastModified();
 
 	// UObject interface
+	virtual void PostLoad() override;
+	virtual void PostDuplicate(bool bDuplicateForPIE) override;
 	virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
-	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
-	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
 	virtual void PostTransacted(const FTransactionObjectEvent& TransactionEvent) override;
 	virtual bool IsEditorOnly() const override { return true; }
 
@@ -101,12 +114,20 @@ class UAnimNextWorkspace : public UObject
 	UPROPERTY()
 	TArray<TSoftObjectPtr<UObject>> Assets;
 
-	// Documents this workspace was editing
+	// Schema for this workspace
+	UPROPERTY(AssetRegistrySearchable)
+	TSubclassOf<UWorkspaceSchema> SchemaClass = nullptr;
+
+	// State of the workspace, persisted to json
+	UPROPERTY(Transient)
+	mutable TObjectPtr<UWorkspaceState> State = nullptr;
+
+	// Guid for persistent identification of this workspace
 	UPROPERTY()
-	TArray<FEditedDocumentInfo> LastEditedDocuments;
+	FGuid Guid;
 
 	// Delegate to subscribe to modifications
-	UE::AnimNext::Editor::FOnWorkspaceModified ModifiedDelegate;
+	UE::Workspace::FOnWorkspaceModified ModifiedDelegate;
 
 	bool bSuspendNotifications = false;
 };

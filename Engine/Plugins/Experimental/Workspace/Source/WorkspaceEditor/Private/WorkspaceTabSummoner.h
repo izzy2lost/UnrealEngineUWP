@@ -4,13 +4,13 @@
 
 #include "WorkflowOrientedApp/WorkflowTabFactory.h"
 
-namespace UE::AnimNext::Editor
+namespace UE::Workspace
 {
 	class FWorkspaceEditor;
 	class SWorkspaceView;
 }
 
-namespace UE::AnimNext::Editor
+namespace UE::Workspace
 {
 
 struct FWorkspaceTabSummoner : public FWorkflowTabFactory

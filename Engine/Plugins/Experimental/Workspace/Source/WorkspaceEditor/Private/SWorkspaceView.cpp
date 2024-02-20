@@ -1,19 +1,20 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SWorkspaceView.h"
-#include "AnimNextWorkspace.h"
+#include "Workspace.h"
 #include "ContentBrowserModule.h"
 #include "IContentBrowserSingleton.h"
 #include "SAssetDropTarget.h"
 #include "ScopedTransaction.h"
+#include "WorkspaceSchema.h"
 #include "Framework/Commands/GenericCommands.h"
 
 #define LOCTEXT_NAMESPACE "SWorkspaceView"
 
-namespace UE::AnimNext::Editor
+namespace UE::Workspace
 {
 
-void SWorkspaceView::Construct(const FArguments& InArgs, UAnimNextWorkspace* InWorkspace)
+void SWorkspaceView::Construct(const FArguments& InArgs, UWorkspace* InWorkspace)
 {
 	Workspace = InWorkspace;
 	OnAssetsOpened = InArgs._OnAssetsOpened;
@@ -57,11 +58,11 @@ void SWorkspaceView::Construct(const FArguments& InArgs, UAnimNextWorkspace* InW
 
 			Workspace->AddAssets(InAssets);
 		})
-		.OnAreAssetsAcceptableForDropWithReason_Lambda([](TArrayView<FAssetData> InAssets, FText& OutText)
+		.OnAreAssetsAcceptableForDropWithReason_Lambda([this](TArrayView<FAssetData> InAssets, FText& OutText)
 		{
 			for(const FAssetData& Asset : InAssets)
 			{
-				if(UAnimNextWorkspace::IsAssetSupported(Asset))
+				if(Workspace->IsAssetSupported(Asset))
 				{
 					return true;
 				}
@@ -80,7 +81,7 @@ void SWorkspaceView::Construct(const FArguments& InArgs, UAnimNextWorkspace* InW
 FARFilter SWorkspaceView::MakeARFilter()
 {
 	FARFilter Filter;
-	Filter.ClassPaths = UAnimNextWorkspace::GetSupportedAssetClassPaths();
+	Filter.ClassPaths = Workspace->GetSchema()->GetSupportedAssetClassPaths();
 	Filter.bRecursiveClasses = true;
 
 	return Filter;
@@ -120,7 +121,7 @@ bool SWorkspaceView::HasValidSelection() const
 	return false;
 }
 
-void SWorkspaceView::HandleWorkspaceModified(UAnimNextWorkspace* InWorkspace)
+void SWorkspaceView::HandleWorkspaceModified(UWorkspace* InWorkspace)
 {
 	check(InWorkspace == Workspace);
 

@@ -8,7 +8,6 @@
 #include "Kismet2/Kismet2NameValidators.h"
 #include "Graph/AnimNextGraph.h"
 #include "PropertyBagDetails.h"
-#include "Workspace/AnimNextWorkspace.h"
 #include "UncookedOnlyUtils.h"
 #include "Param/RigVMDispatch_GetParameter.h"
 
@@ -418,12 +417,6 @@ bool FUtils::DoesParameterNameExistInAsset(const FName InName, const FAssetData&
 	FAnimNextParameterProviderAssetRegistryExports Exports;
 	UncookedOnly::FUtils::GetExportedParametersForAsset(InAsset, Exports);
 	return Exports.Parameters.ContainsByPredicate([InName](const FAnimNextParameterAssetRegistryExportEntry& Entry) { return Entry.Name == InName; });
-}
-
-bool FUtils::GetExportedAssetsForWorkspace(const FAssetData& InWorkspaceAsset, FAnimNextWorkspaceAssetRegistryExports& OutExports)
-{
-	const FString TagValue = InWorkspaceAsset.GetTagValueRef<FString>(UAnimNextWorkspace::ExportsAssetRegistryTag);
-	return FAnimNextWorkspaceAssetRegistryExports::StaticStruct()->ImportText(*TagValue, &OutExports, nullptr, PPF_None, nullptr, FAnimNextWorkspaceAssetRegistryExports::StaticStruct()->GetName()) != nullptr;
 }
 
 }

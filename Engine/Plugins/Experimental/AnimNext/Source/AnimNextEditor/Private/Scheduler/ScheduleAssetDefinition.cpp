@@ -3,19 +3,21 @@
 #include "ScheduleAssetDefinition.h"
 #include "Toolkits/SimpleAssetEditor.h"
 #include "EditorCVars.h"
-#include "Workspace/AnimNextWorkspaceEditor.h"
+#include "IWorkspaceEditorModule.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextAssetDefinitions"
 
 EAssetCommandResult UAssetDefinition_AnimNextSchedule::OpenAssets(const FAssetOpenArgs& OpenArgs) const
 {
 	using namespace UE::AnimNext::Editor;
-	
+	using namespace UE::Workspace;
+
 	for(UObject* Asset : OpenArgs.LoadObjects<UObject>())
 	{
 		if(CVars::GUseWorkspaceEditor.GetValueOnGameThread())
 		{
-			FWorkspaceEditor::OpenWorkspaceForAsset(Asset, FWorkspaceEditor::EOpenWorkspaceMethod::Default);
+			IWorkspaceEditorModule& WorkspaceEditorModule = FModuleManager::Get().LoadModuleChecked<IWorkspaceEditorModule>("WorkspaceEditor");
+			WorkspaceEditorModule.OpenWorkspaceForObject(Asset, EOpenWorkspaceMethod::Default);
 		}
 		else
 		{
