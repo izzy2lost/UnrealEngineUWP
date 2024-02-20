@@ -740,11 +740,6 @@ bool FOpenXRHMD::IsChromaAbCorrectionEnabled() const
 	return false;
 }
 
-void FOpenXRHMD::VRHeadsetRecenterDelegate()
-{
-	Recenter(EOrientPositionSelector::OrientationAndPosition, 0.f);
-}
-
 void FOpenXRHMD::ResetOrientationAndPosition(float Yaw)
 {
 	Recenter(EOrientPositionSelector::OrientationAndPosition, Yaw);
@@ -2056,8 +2051,6 @@ bool FOpenXRHMD::OnStereoStartup()
 		}
 	}
 
-	FCoreDelegates::VRHeadsetRecenter.AddRaw(this, &FOpenXRHMD::VRHeadsetRecenterDelegate);
-
 	return true;
 }
 
@@ -3321,22 +3314,13 @@ bool FOpenXRHMD::OnStartGameFrame(FWorldContext& WorldContext)
 		{
 			const XrEventDataReferenceSpaceChangePending& SpaceChange =
 				reinterpret_cast<XrEventDataReferenceSpaceChangePending&>(event);
-			if (SpaceChange.referenceSpaceType == TrackingSpaceType)
-			{
-				OnTrackingOriginChanged();
-
-				// Reset base orientation and position
-				// TODO: If poseValid is true we can use poseInPreviousSpace to make the old base transform valid in the new space
-				BaseOrientation = FQuat::Identity;
-				BasePosition = FVector::ZeroVector;
-				bTrackingSpaceInvalid = true;
-			}
 
 			if (SpaceChange.referenceSpaceType == XR_REFERENCE_SPACE_TYPE_STAGE)
 			{
 				OnPlayAreaChanged();
 			}
 
+			FCoreDelegates::VRHeadsetRecenter.Broadcast();
 			break;
 		}
 		case XR_TYPE_EVENT_DATA_INTERACTION_PROFILE_CHANGED:
