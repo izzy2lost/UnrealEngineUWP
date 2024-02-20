@@ -12,6 +12,9 @@
 #include "UObject/Package.h"
 #include "Async/Async.h"
 
+#if WITH_EDITOR
+#include "ScopedTransaction.h"
+#endif//WITH_EDITOR
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneControlRigParameterTrack)
 
@@ -540,6 +543,10 @@ void UMovieSceneControlRigParameterTrack::HandleOnPostConstructed_GameThread()
 	{
 		TArray<FRigControlElement*> SortedControls;
 		ControlRig->GetControlsInOrder(SortedControls);
+#if WITH_EDITOR
+		const FScopedTransaction PostConstructTransation(NSLOCTEXT("ControlRig", "PostConstructTransation", "Post Construct"));
+#endif		
+		bool bSectionWasDifferent = false;
 		for (UMovieSceneSection* BaseSection : GetAllSections())
 		{
 			if (UMovieSceneControlRigParameterSection* Section = Cast<UMovieSceneControlRigParameterSection>(BaseSection))
@@ -547,8 +554,13 @@ void UMovieSceneControlRigParameterTrack::HandleOnPostConstructed_GameThread()
 				if (Section->IsDifferentThanLastControlsUsedToReconstruct(SortedControls))
 				{
 					Section->RecreateWithThisControlRig(ControlRig, Section->GetBlendType() == EMovieSceneBlendType::Absolute);
+					bSectionWasDifferent = true;
 				}
 			}
+		}
+		if (bSectionWasDifferent)
+		{
+			BroadcastChanged();
 		}
 		if (SortedControls.Num() > 0) //really set up
 		{
