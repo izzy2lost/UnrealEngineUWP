@@ -45,7 +45,6 @@ public:
 	TRefCountPtr<IPooledRenderTarget> RoughSpecularIndirectHistoryRT; 
 	TRefCountPtr<IPooledRenderTarget> NumFramesAccumulatedRT;
 	TRefCountPtr<IPooledRenderTarget> FastUpdateModeHistoryRT;
-	TRefCountPtr<IPooledRenderTarget> NormalHistoryRT;
 	FIntRect ProbeHistoryViewRect;
 	FVector4f ProbeHistoryScreenPositionScaleBias;
 	TRefCountPtr<IPooledRenderTarget> HistoryScreenProbeSceneDepth;
@@ -75,7 +74,6 @@ public:
 		RoughSpecularIndirectHistoryRT.SafeRelease();
 		NumFramesAccumulatedRT.SafeRelease();
 		FastUpdateModeHistoryRT.SafeRelease();
-		NormalHistoryRT.SafeRelease();
 		HistoryScreenProbeSceneDepth.SafeRelease();
 		HistoryScreenProbeTranslatedWorldPosition.SafeRelease();
 		ProbeHistoryScreenProbeRadiance.SafeRelease();
@@ -92,7 +90,6 @@ public:
 		TRANSFER_LUMEN_RESOURCE(RoughSpecularIndirectHistoryRT);
 		TRANSFER_LUMEN_RESOURCE(NumFramesAccumulatedRT);
 		TRANSFER_LUMEN_RESOURCE(FastUpdateModeHistoryRT);
-		TRANSFER_LUMEN_RESOURCE(NormalHistoryRT);
 		TRANSFER_LUMEN_RESOURCE(HistoryScreenProbeSceneDepth);
 		TRANSFER_LUMEN_RESOURCE(HistoryScreenProbeTranslatedWorldPosition);
 		TRANSFER_LUMEN_RESOURCE(ProbeHistoryScreenProbeRadiance);
@@ -338,6 +335,7 @@ public:
 	FReflectionTemporalState ReflectionState;
 	FReflectionTemporalState TranslucentReflectionState;
 	TRefCountPtr<IPooledRenderTarget> DepthHistoryRT;
+	TRefCountPtr<IPooledRenderTarget> NormalHistoryRT;
 
 	// Translucency
 	TRefCountPtr<IPooledRenderTarget> TranslucencyVolume0;
@@ -353,6 +351,7 @@ public:
 		ReflectionState.SafeRelease();
 		TranslucentReflectionState.SafeRelease();
 		DepthHistoryRT.SafeRelease();
+		NormalHistoryRT.SafeRelease();
 
 		TranslucencyVolume0.SafeRelease();
 		TranslucencyVolume1.SafeRelease();
