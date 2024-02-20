@@ -1066,7 +1066,7 @@ void SunBlurVS_Mobile(
 
 void SunBlurPS_Mobile(
 	float2 InUVs[8] : TEXCOORD0,
-	out HALF4_TYPE OutColor : SV_Target0
+	out HALF_TYPE OutColor : SV_Target0
 	)
 {
 	OutColor = 
