@@ -796,15 +796,22 @@ TArray<FString> UModularRigController::GetPossibleBindings(const FString& InModu
 		const FString CurModulePath = InModule->GetPath();
 		if (InModulePath != CurModulePath && !CurModulePath.StartsWith(InvalidModulePrefix, ESearchCase::CaseSensitive))
 		{
-			TArray<FRigVMExternalVariable> Variables = InModule->Class->GetDefaultObject<UControlRig>()->GetExternalVariables();
-			for (const FRigVMExternalVariable& Variable : Variables)
+			if (!InModule->Class.IsValid())
 			{
-				FText ErrorMessage;
-				const FString SourceVariablePath = URigHierarchy::JoinNameSpace(CurModulePath, Variable.Name.ToString());
-				if (CanBindModuleVariable(InModulePath, InVariableName, SourceVariablePath, ErrorMessage))
-				{
-					PossibleBindings.Add(SourceVariablePath);
-				}
+				InModule->Class.LoadSynchronous();
+			}
+			if (InModule->Class.IsValid())
+			{
+				TArray<FRigVMExternalVariable> Variables = InModule->Class->GetDefaultObject<UControlRig>()->GetExternalVariables();
+			   for (const FRigVMExternalVariable& Variable : Variables)
+			   {
+				   FText ErrorMessage;
+				   const FString SourceVariablePath = URigHierarchy::JoinNameSpace(CurModulePath, Variable.Name.ToString());
+				   if (CanBindModuleVariable(InModulePath, InVariableName, SourceVariablePath, ErrorMessage))
+				   {
+					   PossibleBindings.Add(SourceVariablePath);
+				   }
+			   }
 			}
 		}		
 		return true;
