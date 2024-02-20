@@ -1,16 +1,20 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "CoreMinimal.h"
 
 #include "Async/TaskGraphInterfaces.h"
 #include "Containers/Queue.h"
-#include "Templates/UniquePtr.h"
-#include "UObject/Object.h"
-
+#include "Containers/Set.h"
+#include "Containers/Ticker.h"
+#include "Interfaces/IPv4/IPv4Address.h"
+#include "Interfaces/IPv4/IPv4Endpoint.h"
 #include "OSCBundle.h"
 #include "OSCMessage.h"
 #include "OSCPacket.h"
+#include "Templates/Function.h"
+#include "Templates/SharedPointer.h"
+#include "Templates/UniquePtr.h"
+#include "UObject/Object.h"
 
 #include "OSCServer.generated.h"
 
@@ -29,29 +33,104 @@ DECLARE_DYNAMIC_DELEGATE_FourParams(FOSCDispatchMessageEventBP, const FOSCAddres
 DECLARE_STATS_GROUP(TEXT("OSC Commands"), STATGROUP_OSCNetworkCommands, STATCAT_Advanced);
 
 
-/** Interface for internal networking implementation.  See UOSCServer for details */
-class OSC_API IOSCServerProxy
+namespace UE::OSC
+{
+	// Forward Declarations
+	class IServerProxy;
+
+	/** Interface for internal networking implementation.  See UOSCServer for details */
+	class OSC_API IServerProxy
+	{
+	public:
+
+		virtual ~IServerProxy() { }
+
+		// Returns whether or not packet can be processed, i.e. is valid and allowlisted.
+		virtual bool CanProcessPacket(TSharedRef<UE::OSC::IPacket> Packet) const = 0;
+
+		UE_DEPRECATED(5.5, "Use GetIPEndpoint instead")
+		virtual FString GetIpAddress() const { return { }; }
+
+		virtual const FIPv4Endpoint& GetIPEndpoint() const = 0;
+
+		UE_DEPRECATED(5.5, "Use GetIPEndpoint instead")
+		virtual int32 GetPort() const { return GetIPEndpoint().Port; }
+
+		// Returns whether or not loopback is enabled
+		virtual bool GetMulticastLoopback() const = 0;
+
+		// Returns whether or not the server is currently active (listening)
+		virtual bool IsActive() const = 0;
+
+		// Starts the server, causing it to actively listen and dispatch OSC messages
+		virtual void Listen(const FString& ServerName) = 0;
+
+		UE_DEPRECATED(5.5, "Use SetIPEndpoint instead")
+		virtual bool SetAddress(const FString& InReceiveIPAddress, int32 InPort)
+		{
+			FIPv4Endpoint Endpoint;
+			FIPv4Address::Parse(InReceiveIPAddress, Endpoint.Address);
+			Endpoint.Port = InPort;
+			return SetIPEndpoint(Endpoint);
+		}
+
+		// Sets the current server's endpoint.  Ignores request and returns false if server
+		// is currently active.
+		virtual bool SetIPEndpoint(const FIPv4Endpoint& InEndpoint) = 0;
+
+		// Sets whether or not loopback is enabled.  Returns false and request is ignored
+		// if server is currently active.
+		virtual bool SetMulticastLoopback(bool bInMulticastLoopback) = 0;
+#if WITH_EDITOR
+		UE_DEPRECATED(5.5, "All server proxies are now ticked internally by handle in all editor contexts.")
+		virtual void SetTickableInEditor(bool bInTickInEditor) { };
+#endif // WITH_EDITOR
+
+		// Stops the server
+		virtual void Stop() = 0;
+
+		UE_DEPRECATED(5.5, "AllowList is now managed as IPv4Endpoints. Use API that works with endpoint struct directly")
+		virtual void AddClientToAllowList(const FString& InIPAddress) { }
+
+		UE_DEPRECATED(5.5, "AllowList is now managed as IPv4Endpoints. Use API that works with endpoint struct directly")
+		virtual void RemoveClientFromAllowList(const FString& IPAddress) { }
+
+		UE_DEPRECATED(5.5, "AllowList is now managed as IPv4Endpoints. Use API that works with endpoint struct directly")
+		virtual void ClearClientAllowList() { }
+
+		UE_DEPRECATED(5.5, "AllowList is now managed as IPv4Endpoints. Use API that works with endpoint struct directly")
+		virtual TSet<FString> GetClientAllowList() const { return { }; }
+
+		// Adds the given endpoint to the client allow list
+		virtual void AddClientEndpointToAllowList(const FIPv4Endpoint& InIPv4Endpoint) = 0;
+
+		// Removes the given endpoint from the client allow list
+		virtual void RemoveClientEndpointFromAllowList(const FIPv4Endpoint& InIPv4Endpoint) = 0;
+
+		// Empties the given address to the client allow list
+		virtual void ClearClientEndpointAllowList() = 0;
+
+		// Returns Client Address allow list if it is enabled, else returns nullptr
+		virtual const TSet<FIPv4Endpoint>& GetClientEndpointAllowList() const = 0;
+
+		// Sets whether or not allow list is active.  If disabled, entries are not cleared
+		// however GetClientAddressAllowList will no longer return a valid reference to the
+		// given set of allow list members.
+		virtual void SetFilterClientsByAllowList(bool bEnabled) = 0;
+	};
+} // namespace UE::OSC
+
+
+// For backward compat.  To be deprecated
+class OSC_API IOSCServerProxy : public UE::OSC::IServerProxy
 {
 public:
-	virtual ~IOSCServerProxy() { }
+	UE_DEPRECATED(5.5, "Use UE::OSC::IServerProxy instead")
+	IOSCServerProxy() = default;
 
-	virtual FString GetIpAddress() const = 0;
-	virtual int32 GetPort() const = 0;
-	virtual bool GetMulticastLoopback() const = 0;
-	virtual bool IsActive() const = 0;
-	virtual void Listen(const FString& ServerName) = 0;
-	virtual bool SetAddress(const FString& InReceiveIPAddress, int32 InPort) = 0;
-	virtual void SetMulticastLoopback(bool bInMulticastLoopback) = 0;
-#if WITH_EDITOR
-	virtual void SetTickableInEditor(bool bInTickInEditor) = 0;
-#endif // WITH_EDITOR
-	virtual void Stop() = 0;
-	virtual void AddClientToAllowList(const FString& InIPAddress) = 0;
-	virtual void RemoveClientFromAllowList(const FString& IPAddress) = 0;
-	virtual void ClearClientAllowList() = 0;
-	virtual TSet<FString> GetClientAllowList() const = 0;
-	virtual void SetFilterClientsByAllowList(bool bEnabled) = 0;
+	virtual ~IOSCServerProxy() = default;
 };
+
 
 UCLASS(BlueprintType)
 class OSC_API UOSCServer : public UObject
@@ -105,11 +184,11 @@ public:
 
 	/** Adds client to allowlist of clients to listen for. */
 	UFUNCTION(BlueprintCallable, Category = "Audio|OSC")
-	void AddAllowlistedClient(const FString& IPAddress);
+	void AddAllowlistedClient(const FString& IPAddress, int32 IPPort = 0);
 
 	/** Removes allowlisted client to listen for. */
 	UFUNCTION(BlueprintCallable, Category = "Audio|OSC")
-	void RemoveAllowlistedClient(const FString& IPAddress);
+	void RemoveAllowlistedClient(const FString& IPAddress, int32 IPPort = 0);
 
 	/** Clears client allowlist to listen for. */
 	UFUNCTION(BlueprintCallable, Category = "Audio|OSC")
@@ -123,9 +202,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Audio|OSC")
 	int32 GetPort() const;
 
-	/** Returns set of allowlisted clients. */
+	/** Returns set of allowlisted endpoint clients as strings with (optional) port included. */
 	UFUNCTION(BlueprintCallable, Category = "Audio|OSC")
-	TSet<FString> GetAllowlistedClients() const;
+	TSet<FString> GetAllowlistedClients(bool bIncludePort = false) const;
 
 	/** Adds event to dispatch when OSCAddressPattern is matched. */
 	UFUNCTION(BlueprintCallable, Category = "Audio|OSC")
@@ -151,23 +230,26 @@ public:
 	/** Set whether server instance can be ticked in-editor (editor only and available to blueprint
 	  * for use in editor utility scripts/script actions).
 	  */
-	UFUNCTION(BlueprintCallable, Category = "Audio|OSC")
+	UFUNCTION(BlueprintCallable, Category = "Audio|OSC", meta = (Deprecated = "5.5", DeprecationMessage = "Servers are now implemented as dispatchers, which are pumped on an async task upon calling 'Listen' at a provided rate (i.e. no longer 'ticked' on the game thread). See 'SetUpdateRate'"))
 	void SetTickInEditor(bool bInTickInEditor);
 #endif // WITH_EDITOR
 
-	/** Clears all packets pending processing */
+	UE_DEPRECATED(5.5, "Clearing packets directly is not thread safe and no longer supported.")
 	void ClearPackets();
 
-	/** Enqueues packet to be processed */
 	void EnqueuePacket(TSharedPtr<UE::OSC::IPacket> InPacket);
 
-	/** Callback for when packet is received by server */
-	void PumpPacketQueue(const TSet<uint32>* InAllowlistedClients);
+	UE_DEPRECATED(5.5, "Pumping packets is now handled privately")
+	void PumpPacketQueue(const TSet<uint32>* InAllowlistedClients) { }
 
 protected:
-	void BeginDestroy() override;
+	virtual void BeginDestroy() override;
+	virtual void PostInitProperties() override;
 
 private:
+	using FPacketQueue = TQueue<TSharedPtr<UE::OSC::IPacket>>;
+	void PumpPacketQueue();
+
 	/** Dispatches provided bundle received */
 	void DispatchBundle(const FString& InIPAddress, uint16 InPort, const FOSCBundle& InBundle);
 
@@ -175,11 +257,13 @@ private:
 	void DispatchMessage(const FString& InIPAddress, uint16 InPort, const FOSCMessage& InMessage);
 
 	/** Pointer to internal implementation of server proxy */
-	TUniquePtr<IOSCServerProxy> ServerProxy;
+	TUniquePtr<UE::OSC::IServerProxy> ServerProxy;
 
 	/** Queue stores incoming OSC packet requests to process on the game thread. */
-	TQueue<TSharedPtr<UE::OSC::IPacket>> OSCPackets;
+	TSharedPtr<FPacketQueue> OSCPackets;
 
 	/** Address pattern hash to check against when dispatching incoming messages */
 	TMap<FOSCAddress, FOSCDispatchMessageEvent> AddressPatterns;
+
+	FTSTicker::FDelegateHandle TickHandle;
 };

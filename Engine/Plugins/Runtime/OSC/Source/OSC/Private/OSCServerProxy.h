@@ -10,77 +10,69 @@
 struct FIPv4Endpoint;
 
 
-class OSC_API FOSCServerProxy : public IOSCServerProxy, public FTickableGameObject
+namespace UE::OSC
 {
-public:
-	FOSCServerProxy(UOSCServer& InServer);
-	virtual ~FOSCServerProxy();
+	class OSC_API FServerProxy : public IServerProxy
+	{
+	public:
+		FServerProxy(UOSCServer& InServer);
+		virtual ~FServerProxy();
 
-	// Begin IOSCServerProxy interface
-	bool GetMulticastLoopback() const override;
-	FString GetIpAddress() const override;
-	int32 GetPort() const override;
-	bool IsActive() const override;
+		// Begin IServerProxy interface
+		virtual bool CanProcessPacket(TSharedRef<UE::OSC::IPacket> Packet) const override;
+		virtual bool GetMulticastLoopback() const override;
 
-	void Listen(const FString& InServerName) override;
+		UE_DEPRECATED(5.5, "Use GetIPEndpoint instead")
+		virtual FString GetIpAddress() const override;
 
-	bool SetAddress(const FString& InReceiveIPAddress, int32 InPort) override;
-	void SetMulticastLoopback(bool bInMulticastLoopback) override;
+		UE_DEPRECATED(5.5, "Use GetIPEndpoint instead")
+		virtual int32 GetPort() const override;
 
-	void Stop() override;
+		virtual const FIPv4Endpoint& GetIPEndpoint() const override;
 
-	void AddClientToAllowList(const FString& InIPAddress) override;
-	void RemoveClientFromAllowList(const FString& InIPAddress) override;
-	void ClearClientAllowList() override;
-	TSet<FString> GetClientAllowList() const override;
+		virtual bool IsActive() const override;
 
-	void SetFilterClientsByAllowList(bool bInEnabled) override;
+		virtual void Listen(const FString& InServerName) override;
 
-#if WITH_EDITOR
-	void SetTickableInEditor(bool bInTickInEditor) override;
-#endif // WITH_EDITOR
-	// End IOSCServerProxy interface
+		virtual bool SetAddress(const FString& InReceiveIPAddress, int32 InPort) override;
 
-	/** Callback that receives data from a socket. */
-	void OnPacketReceived(const FArrayReaderPtr& InData, const FIPv4Endpoint& InEndpoint);
+		virtual bool SetIPEndpoint(const FIPv4Endpoint& InEndpoint) override;
+		virtual bool SetMulticastLoopback(bool bInMulticastLoopback) override;
 
-	// Begin FTickableGameObject interface
-	virtual void Tick(float InDeltaTime) override;
-	virtual bool IsTickable() const override { return IsActive(); }
-	virtual TStatId GetStatId() const override;
-	virtual UWorld* GetTickableGameObjectWorld() const override;
+		virtual void Stop() override;
 
-#if WITH_EDITOR
-	virtual bool IsTickableInEditor() const override;
-#endif // WITH_EDITOR
-	// End FTickableGameObject interface
+		virtual void AddClientToAllowList(const FString& InIPAddress) override;
+		virtual void RemoveClientFromAllowList(const FString& InIPAddress) override;
 
-	/** Parent server UObject */
-	UOSCServer* Server;
 
-	/** Socket used to listen for OSC packets. */
-	FSocket* Socket;
+		virtual void AddClientEndpointToAllowList(const FIPv4Endpoint& InIPv4Endpoint) override;
+		virtual void RemoveClientEndpointFromAllowList(const FIPv4Endpoint& InIPv4Endpoint) override;
+		virtual void ClearClientEndpointAllowList() override;
+		virtual const TSet<FIPv4Endpoint>& GetClientEndpointAllowList() const override;
 
-	/** UDP receiver. */
-	FUdpSocketReceiver* SocketReceiver;
+		virtual void SetFilterClientsByAllowList(bool bInEnabled) override;
+		// End IServerProxy interface
 
-	/** Only packets from this list of client addresses will be processed if bFilterClientsByAllowList is true. */
-	TSet<uint32> ClientAllowList;
+	private:
+		/** Callback that receives data from a socket. */
+		void OnPacketReceived(const FArrayReaderPtr& InData, const FIPv4Endpoint& InEndpoint);
 
-	/** IPAddress to listen for OSC packets on.  If unset, defaults to LocalHost */
-	FIPv4Address ReceiveIPAddress;
+		/** Parent server UObject */
+		UOSCServer* Server;
 
-	/** Port to listen for OSC packets on. */
-	int32 Port;
+		/** Socket used to listen for OSC packets. */
+		FSocket* Socket;
 
-	/** Whether or not to loopback if address provided is multicast */
-	bool bMulticastLoopback;
+		/** UDP receiver. */
+		FUdpSocketReceiver* SocketReceiver;
 
-	/** Whether or not to use client allow list */
-	bool bFilterClientsByAllowList;
+		/** Only packets from this list of client addresses will be processed if bFilterClientsByAllowList is true. */
+		TSet<FIPv4Endpoint> ClientAllowList;
 
-#if WITH_EDITOR
-	bool bTickInEditor;
-#endif // WITH_EDITOR
+		/** Endpoint to listen for OSC packets on. If set to 'Any', defaults to LocalHost */
+		FIPv4Endpoint Endpoint;
 
-};
+		/** Whether or not to loopback if address provided is multicast */
+		bool bMulticastLoopback = false;
+	};
+} // namespace UE::OSC	

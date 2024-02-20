@@ -11,7 +11,6 @@
 
 UOSCServer::UOSCServer(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
-	, ServerProxy(MakeUnique<FOSCServerProxy>(*this))
 {
 }
 
@@ -31,12 +30,21 @@ void UOSCServer::Listen()
 {
 	check(ServerProxy.IsValid());
 	ServerProxy->Listen(GetName());
+
+	TickHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([this](float /*Time*/)
+	{
+		PumpPacketQueue();
+		return true;
+	}));
 }
 
 bool UOSCServer::SetAddress(const FString& InReceiveIPAddress, int32 InPort)
 {
 	check(ServerProxy.IsValid());
-	return ServerProxy->SetAddress(InReceiveIPAddress, InPort);
+
+	FIPv4Address Address;
+	FIPv4Address::Parse(InReceiveIPAddress, Address);
+	return ServerProxy->SetIPEndpoint(FIPv4Endpoint(Address, InPort));
 }
 
 void UOSCServer::SetMulticastLoopback(bool bInMulticastLoopback)
@@ -48,14 +56,15 @@ void UOSCServer::SetMulticastLoopback(bool bInMulticastLoopback)
 #if WITH_EDITOR
 void UOSCServer::SetTickInEditor(bool bInTickInEditor)
 {
-	check(ServerProxy.IsValid());
-	ServerProxy->SetTickableInEditor(bInTickInEditor);
 }
 #endif // WITH_EDITOR
 
-
 void UOSCServer::Stop()
 {
+	FTSTicker::GetCoreTicker().RemoveTicker(TickHandle);
+	TickHandle.Reset();
+
+	// CDO May have this not set by initializer ctor, so have to check if valid
 	if (ServerProxy.IsValid())
 	{
 		ServerProxy->Stop();
@@ -68,54 +77,91 @@ void UOSCServer::BeginDestroy()
 	Super::BeginDestroy();
 }
 
+void UOSCServer::PostInitProperties()
+{
+	using namespace UE::OSC;
+
+	Super::PostInitProperties();
+
+	const UClass* ThisClass = UOSCServer::StaticClass();
+	check(ThisClass);
+
+	const UObject* DefaultObj = ThisClass->GetDefaultObject();
+	check(DefaultObj);
+
+	if (DefaultObj != this)
+	{
+		OSCPackets = MakeShared<FPacketQueue>();
+		ServerProxy = MakeUnique<UE::OSC::FServerProxy>(*this);
+	}
+}
+
 void UOSCServer::SetAllowlistClientsEnabled(bool bEnabled)
 {
 	check(ServerProxy.IsValid());
 	ServerProxy->SetFilterClientsByAllowList(bEnabled);
 }
 
-void UOSCServer::AddAllowlistedClient(const FString& InIPAddress)
+void UOSCServer::AddAllowlistedClient(const FString& InIPAddress, int32 IPPort)
 {
 	check(ServerProxy.IsValid());
-	ServerProxy->AddClientToAllowList(InIPAddress);
+
+	FIPv4Address NewAddress;
+	if (FIPv4Address::Parse(InIPAddress, NewAddress))
+	{
+		ServerProxy->AddClientEndpointToAllowList(FIPv4Endpoint(NewAddress, IPPort));
+	}
 }
 
-void UOSCServer::RemoveAllowlistedClient(const FString& InIPAddress)
+void UOSCServer::RemoveAllowlistedClient(const FString& InIPAddress, int32 IPPort)
 {
 	check(ServerProxy.IsValid());
-	ServerProxy->RemoveClientFromAllowList(InIPAddress);
+
+	FIPv4Address NewAddress;
+	if (FIPv4Address::Parse(InIPAddress, NewAddress))
+	{
+		ServerProxy->RemoveClientEndpointFromAllowList(FIPv4Endpoint(NewAddress, IPPort));
+	}
 }
 
 void UOSCServer::ClearAllowlistedClients()
 {
 	check(ServerProxy.IsValid());
-	ServerProxy->ClearClientAllowList();
+	ServerProxy->ClearClientEndpointAllowList();
 }
 
 FString UOSCServer::GetIpAddress(bool bIncludePort) const
 {
 	check(ServerProxy.IsValid());
 
-	FString Address = ServerProxy->GetIpAddress();
 	if (bIncludePort)
 	{
-		Address += TEXT(":");
-		Address.AppendInt(ServerProxy->GetPort());
+		return ServerProxy->GetIPEndpoint().ToString();
 	}
 
-	return Address;
+	return ServerProxy->GetIPEndpoint().Address.ToString();
 }
 
 int32 UOSCServer::GetPort() const
 {
 	check(ServerProxy.IsValid());
-	return ServerProxy->GetPort();
+	return ServerProxy->GetIPEndpoint().Port;
 }
 
-TSet<FString> UOSCServer::GetAllowlistedClients() const
+TSet<FString> UOSCServer::GetAllowlistedClients(bool bIncludePort) const
 {
 	check(ServerProxy.IsValid());
-	return ServerProxy->GetClientAllowList();
+	const TSet<FIPv4Endpoint>& Endpoints = ServerProxy->GetClientEndpointAllowList();
+
+	TSet<FString> Result;
+	Algo::Transform(Endpoints, Result, [&bIncludePort](const FIPv4Endpoint& ClientEndpoint)
+	{
+		return bIncludePort
+			? ClientEndpoint.ToString()
+			: ClientEndpoint.Address.ToString();
+	});
+
+	return Result;
 }
 
 void UOSCServer::BindEventToOnOSCAddressPatternMatchesPath(const FOSCAddress& InOSCAddressPattern, const FOSCDispatchMessageEventBP& InEvent)
@@ -158,21 +204,18 @@ void UOSCServer::UnbindAllEventsFromOnOSCAddressPatternMatching()
 TArray<FOSCAddress> UOSCServer::GetBoundOSCAddressPatterns() const
 {
 	TArray<FOSCAddress> OutAddressPatterns;
-	for (const TPair<FOSCAddress, FOSCDispatchMessageEvent>& Pair : AddressPatterns)
-	{
-		OutAddressPatterns.Add(Pair.Key);
-	}
-	return MoveTemp(OutAddressPatterns);
+	AddressPatterns.GetKeys(OutAddressPatterns);
+	return OutAddressPatterns;
 }
 
 void UOSCServer::ClearPackets()
 {
-	OSCPackets.Empty();
+	OSCPackets->Empty();
 }
 
 void UOSCServer::EnqueuePacket(TSharedPtr<UE::OSC::IPacket> InPacket)
 {
-	OSCPackets.Enqueue(InPacket);
+	OSCPackets->Enqueue(InPacket);
 }
 
 void UOSCServer::DispatchBundle(const FString& InIPAddress, uint16 InPort, const FOSCBundle& InBundle)
@@ -222,16 +265,18 @@ void UOSCServer::DispatchMessage(const FString& InIPAddress, uint16 InPort, cons
 	}
 }
 
-void UOSCServer::PumpPacketQueue(const TSet<uint32>* AllowlistedClients)
+void UOSCServer::PumpPacketQueue()
 {
 	using namespace UE::OSC;
 
+	check(IsInGameThread());
+
 	TSharedPtr<UE::OSC::IPacket> Packet;
-	while (OSCPackets.Dequeue(Packet))
+	while (OSCPackets->Dequeue(Packet))
 	{
 		FIPv4Address IPAddr;
 		const FIPv4Endpoint& Endpoint = Packet->GetIPEndpoint();
-		if (!AllowlistedClients || AllowlistedClients->Contains(Endpoint.Address.Value))
+		if (ServerProxy->CanProcessPacket(Packet.ToSharedRef()))
 		{
 			const FString StringAdr = Endpoint.Address.ToString();
 			if (Packet->IsMessage())
