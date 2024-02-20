@@ -170,6 +170,7 @@ export type ConflictStatusFields = {
 	kind: FailureKind
 	author: string
 	owner: string
+	slackLinks: string[]
 }
 
 type GraphBotError = {

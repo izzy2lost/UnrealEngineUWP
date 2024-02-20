@@ -9,6 +9,7 @@ import { EdgeBot } from './edgebot';
 import { BotEventHandler, BotEventTriggers } from './events';
 import { Context } from './settings';
 import { UGS } from './ugs';
+import { SlackMessages } from './notifications';
 
 function conflictMatches(conflict: PersistentConflict, sourceCl: number, branchArg?: BranchArg | null) {
 	const targetBranchName = branchArg && resolveBranchArg(branchArg, true)
@@ -407,7 +408,7 @@ export class Conflicts {
 		return null
 	}
 
-	applyStatus(conflictsForStatus: Partial<ConflictStatusFields>[]) {
+	applyStatus(conflictsForStatus: Partial<ConflictStatusFields>[], slackMessages?: SlackMessages) {
 		for (const conflict of this.conflicts) {
 			const conflictObj: Partial<ConflictStatusFields> = {}
 
@@ -425,6 +426,18 @@ export class Conflicts {
 			conflictObj.kind = conflict.kind
 			conflictObj.author = conflict.author
 			conflictObj.owner = conflict.owner
+
+			if (slackMessages) {
+				const findResult = slackMessages.findAll(conflict.cl, conflict.targetBranchName || conflict.kind)
+				for (const result of findResult.messages) {
+					if (result.messageOpts.channel.startsWith('C') && result.permalink) {
+						if (!conflictObj.slackLinks) {
+							conflictObj.slackLinks = []
+						}
+						conflictObj.slackLinks.push(`${result.permalink}?thread_ts=${result.timestamp}`)
+					}
+				}
+			}
 
 			conflictsForStatus.push(conflictObj)
 		}

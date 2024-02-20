@@ -86,6 +86,10 @@ export class Slack {
 		return this.get('conversations.info', {channel})
 	}
 
+	async getPermalink(thread_ts: string, channel: string) {
+		return (await this.get('chat.getPermalink', {channel, message_ts: thread_ts})).permalink
+	}
+
 	async postMessage(message: SlackMessage) {
 		return (await this.post('chat.postMessage', this.makeArgs(message))).ts
 	}

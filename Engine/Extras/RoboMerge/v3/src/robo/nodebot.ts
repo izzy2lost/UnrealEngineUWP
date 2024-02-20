@@ -1261,7 +1261,7 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 		}
 
 		status.conflicts = [] as any[]
-		this.conflicts.applyStatus(status.conflicts)
+		this.conflicts.applyStatus(status.conflicts, this.slackMessages)
 
 		status.tick_count = this.tickCount
 

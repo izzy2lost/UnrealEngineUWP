@@ -1027,9 +1027,13 @@ function createPauseDivs(data, conflict) {
 			data.blockage && data.blockage.change ? data.blockage.change :
 			'unknown'
 		
-		const info = conflict && conflict.kind ? `<span class="pause-div-label">Cause:</span> <strong>${conflict.kind.toLowerCase()}</strong>` :
+		let info = conflict && conflict.kind ? `<span class="pause-div-label">Cause:</span> <strong>${conflict.kind.toLowerCase()}</strong>` :
 			data.blockage ? `<span class="pause-div-label">Blocked.</span> Type: ${data.blockage.type}<br /> Message: ${data.blockage.message}` :
 			`No info can be provided. Please contact Robomerge help.`
+
+		if (conflict.slackLinks) {
+			info += `<br>${conflict.slackLinks.map(link => `<a href="${link}" target="_blank">Slack Thread</a>`).join("<br>")}`
+		}
 
 		divs.push($('<div class="info-block conflict">')
 			.append(
@@ -1212,9 +1216,9 @@ function renderStatusCell_Common(statusCell, data) {
 			let acknowledgedSince = new Date(data.blockage.acknowledgedAt);
 			let [ackDurationStr, ackDurationColor] = printDurationInfo("Acknowledged", Date.now() - acknowledgedSince.getTime())
 			$('<div class="blockage-details">')
-				.css('color', ackDurationColor)
-				.html(`${ackDurationStr} by <strong>${data.blockage.acknowledger}</strong>`)
-				.insertAfter(blockageinfoDiv)
+									.css('color', ackDurationColor)
+									.html(`${ackDurationStr} by <strong>${data.blockage.acknowledger}</strong>`)
+									.insertAfter(blockageinfoDiv)
 		}
 		// Determine who is responsible for resolving this.
 		else {

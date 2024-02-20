@@ -206,6 +206,7 @@ function formatResolution(info: PersistentConflict) {
 
 type SlackConflictMessage = {
 	timestamp: string
+	permalink: string
 	messageOpts: SlackMessage
 }
 
@@ -254,8 +255,10 @@ export class SlackMessages {
 			message.cl = cl
 
 			let timestamp
+			let permalink
 			try {
 				timestamp = await this.slack.postMessage(message)
+				permalink = await this.slack.getPermalink(timestamp, message.channel)
 			}
 			catch (err) {
 				this.smLogger.printException(err, 'Error talking to Slack')
@@ -264,7 +267,7 @@ export class SlackMessages {
 
 			// Used for messages we don't care to keep, currently the /api/test/directmessage endpoint
 			if (persistMessage) {
-				findResult.persistedMessages[findResult.conflictKey] = {timestamp, messageOpts: message}
+				findResult.persistedMessages[findResult.conflictKey] = {timestamp, permalink, messageOpts: message}
 				this.persistence.set(SLACK_MESSAGES_PERSISTENCE_KEY, findResult.persistedMessages)
 			}
 		}
