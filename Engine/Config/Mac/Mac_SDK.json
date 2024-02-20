@@ -1,6 +1,12 @@
 {
 	"ParentSDKFile": "../Apple/Apple_SDK.json",
 
+	"EditorDeploymentTarget": "13.0.0",
+	"EditorBuildTarget": "13.00",
+
+	"DeploymentTarget": "11.7.9",
+	"BuildTarget": "11.00",
+
 	// macOS Monterey 12.5 (Released 2022/07/22)
 	"MinSoftwareVersion": "12.5.0"
 }

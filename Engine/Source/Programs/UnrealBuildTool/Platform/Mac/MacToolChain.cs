@@ -17,12 +17,18 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Which version of the Mac OS X to allow at run time
 		/// </summary>
-		public string MacOSVersion = "11.00";
+		public string MinMacBuildVersion(TargetType TargetType)
+		{
+			return ((ApplePlatformSDK)UEBuildPlatformSDK.GetSDKForPlatform("Mac")!).GetBuildTargetVersion(TargetType);
+		}
 
 		/// <summary>
 		/// Minimum version of Mac OS X to actually run on, running on earlier versions will display the system minimum version error dialog and exit.
 		/// </summary>
-		public string MinMacOSVersion = "11.7.9";
+		public string MinMacDeploymentVersion(TargetType TargetType)
+		{
+			return ((ApplePlatformSDK)UEBuildPlatformSDK.GetSDKForPlatform("Mac")!).GetDeploymentTargetVersion(TargetType);
+		}
 
 		/// <summary>
 		/// Constructor
@@ -199,7 +205,7 @@ namespace UnrealBuildTool
 			// Pass through architecture and OS info
 			Arguments.Add("" + FormatArchitectureArg(CompileEnvironment.Architectures));
 			Arguments.Add($"-isysroot \"{Settings.GetSDKPath()}\"");
-			Arguments.Add("-mmacosx-version-min=" + (CompileEnvironment.bEnableOSX109Support ? "10.9" : Settings.MacOSVersion));
+			Arguments.Add("-mmacosx-version-min=" + (CompileEnvironment.bEnableOSX109Support ? "10.9" : Settings.MinMacBuildVersion(Target!.Type)));
 
 			List<string> FrameworksSearchPaths = new List<string>();
 			foreach (UEBuildFramework Framework in CompileEnvironment.AdditionalFrameworks)
@@ -231,7 +237,7 @@ namespace UnrealBuildTool
 			// Pass through architecture and OS info		
 			Arguments.Add(FormatArchitectureArg(LinkEnvironment.Architectures));
 			Arguments.Add(String.Format("-isysroot \"{0}\"", ToolChainSettings.Value.GetSDKPath(LinkEnvironment.Architecture)));
-			Arguments.Add("-mmacosx-version-min=" + Settings.MacOSVersion);
+			Arguments.Add("-mmacosx-version-min=" + Settings.MinMacBuildVersion(Target!.Type));
 			Arguments.Add("-dead_strip");
 
 			// Temporary workaround for linker warning with Xcode 14:
@@ -628,7 +634,7 @@ namespace UnrealBuildTool
 				// Fix contents of Info.plist
 				AppendMacLine(FinalizeAppBundleScript, "/usr/bin/sed -i \"\" -e \"s/\\${0}/{1}/g\" \"{2}\"", "{EXECUTABLE_NAME}", ExeName, TempInfoPlist);
 				AppendMacLine(FinalizeAppBundleScript, "/usr/bin/sed -i \"\" -e \"s/\\${0}/{1}/g\" \"{2}\"", "{APP_NAME}", bBuildingEditor ? ("com.epicgames." + GameName) : (BundleIdentifier.Replace("[PROJECT_NAME]", GameName).Replace("_", "")), TempInfoPlist);
-				AppendMacLine(FinalizeAppBundleScript, "/usr/bin/sed -i \"\" -e \"s/\\${0}/{1}/g\" \"{2}\"", "{MACOSX_DEPLOYMENT_TARGET}", Settings.MinMacOSVersion, TempInfoPlist);
+				AppendMacLine(FinalizeAppBundleScript, "/usr/bin/sed -i \"\" -e \"s/\\${0}/{1}/g\" \"{2}\"", "{MACOSX_DEPLOYMENT_TARGET}", Settings.MinMacDeploymentVersion(Target!.Type), TempInfoPlist);
 				AppendMacLine(FinalizeAppBundleScript, "/usr/bin/sed -i \"\" -e \"s/\\${0}/{1}/g\" \"{2}\"", "{ICON_NAME}", GameName, TempInfoPlist);
 				AppendMacLine(FinalizeAppBundleScript, "/usr/bin/sed -i \"\" -e \"s/\\${0}/{1}/g\" \"{2}\"", "{BUNDLE_VERSION}", BundleVersion, TempInfoPlist);
 
@@ -745,6 +751,7 @@ namespace UnrealBuildTool
 			if (bBuildImportLibraryOnly)
 			{
 				LinkCommand += " -undefined dynamic_lookup";
+				LinkCommand += " -Wl,-no_fixup_chains";
 			}
 			else if (!LinkEnvironment.bIsBuildingLibrary)
 			{
