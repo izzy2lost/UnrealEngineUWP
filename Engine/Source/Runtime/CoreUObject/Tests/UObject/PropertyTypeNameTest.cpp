@@ -386,8 +386,8 @@ TEST_CASE_NAMED(FPropertyTypeNameSmokeTest, "CoreUObject::PropertyTypeName::Smok
 
 		CHECK(TEXTVIEW("None").Equals(EmptyString));
 		CHECK(TEXTVIEW("IntProperty").Equals(IntString));
-		CHECK(TEXTVIEW("MapProperty<EnumProperty<Key,ByteProperty>,EnumProperty<Value,ByteProperty>>").Equals(EnumMapString));
-		CHECK(TEXTVIEW("ArrayProperty<StructProperty<Vector>>").Equals(VectorArrayString));
+		CHECK(TEXTVIEW("MapProperty(EnumProperty(Key,ByteProperty),EnumProperty(Value,ByteProperty))").Equals(EnumMapString));
+		CHECK(TEXTVIEW("ArrayProperty(StructProperty(Vector))").Equals(VectorArrayString));
 
 		CHECK(Empty == Parse(EmptyString));
 		CHECK(Int == Parse(IntString));
@@ -399,27 +399,27 @@ TEST_CASE_NAMED(FPropertyTypeNameSmokeTest, "CoreUObject::PropertyTypeName::Smok
 	{
 		// There are positive parsing tests in the String section above.
 		CHECK(Parse(TEXTVIEW(" \t IntProperty \t ")) == PropertyTypeNameTest::CreateInt());
-		CHECK(Parse(TEXTVIEW(" \t ArrayProperty < StructProperty\t<\tVector\t>\t > \t ")) == PropertyTypeNameTest::CreateVectorArray());
+		CHECK(Parse(TEXTVIEW(" \t ArrayProperty ( StructProperty\t(\tVector\t)\t ) \t ")) == PropertyTypeNameTest::CreateVectorArray());
 
 		CHECK_FALSE(TryParse(TEXTVIEW("")));
 		CHECK_FALSE(TryParse(TEXTVIEW(",")));
-		CHECK_FALSE(TryParse(TEXTVIEW("<>")));
+		CHECK_FALSE(TryParse(TEXTVIEW("()")));
 		CHECK_FALSE(TryParse(TEXTVIEW(",IntProperty")));
 		CHECK_FALSE(TryParse(TEXTVIEW("IntProperty,")));
 		CHECK_FALSE(TryParse(TEXTVIEW("IntProperty,IntProperty")));
-		CHECK_FALSE(TryParse(TEXTVIEW("IntProperty>")));
-		CHECK_FALSE(TryParse(TEXTVIEW("<IntProperty>")));
-		CHECK_FALSE(TryParse(TEXTVIEW("<IntProperty")));
-		CHECK_FALSE(TryParse(TEXTVIEW("ArrayProperty<IntProperty")));
-		CHECK_FALSE(TryParse(TEXTVIEW("ArrayProperty<IntProperty>>")));
-		CHECK_FALSE(TryParse(TEXTVIEW("ArrayProperty<<IntProperty>")));
-		CHECK_FALSE(TryParse(TEXTVIEW("ArrayProperty<IntProperty>IntProperty")));
-		CHECK_FALSE(TryParse(TEXTVIEW("MapProperty<>")));
-		CHECK_FALSE(TryParse(TEXTVIEW("MapProperty<,>")));
-		CHECK_FALSE(TryParse(TEXTVIEW("MapProperty<IntProperty,>")));
-		CHECK_FALSE(TryParse(TEXTVIEW("MapProperty<,IntProperty>")));
-		CHECK_FALSE(TryParse(TEXTVIEW("MapProperty<IntProperty,,IntProperty>")));
-		CHECK_FALSE(TryParse(TEXTVIEW("MapProperty<IntProperty><IntProperty>")));
+		CHECK_FALSE(TryParse(TEXTVIEW("IntProperty)")));
+		CHECK_FALSE(TryParse(TEXTVIEW("(IntProperty)")));
+		CHECK_FALSE(TryParse(TEXTVIEW("(IntProperty")));
+		CHECK_FALSE(TryParse(TEXTVIEW("ArrayProperty(IntProperty")));
+		CHECK_FALSE(TryParse(TEXTVIEW("ArrayProperty(IntProperty))")));
+		CHECK_FALSE(TryParse(TEXTVIEW("ArrayProperty((IntProperty)")));
+		CHECK_FALSE(TryParse(TEXTVIEW("ArrayProperty(IntProperty)IntProperty")));
+		CHECK_FALSE(TryParse(TEXTVIEW("MapProperty()")));
+		CHECK_FALSE(TryParse(TEXTVIEW("MapProperty(,)")));
+		CHECK_FALSE(TryParse(TEXTVIEW("MapProperty(IntProperty,)")));
+		CHECK_FALSE(TryParse(TEXTVIEW("MapProperty(,IntProperty)")));
+		CHECK_FALSE(TryParse(TEXTVIEW("MapProperty(IntProperty,,IntProperty)")));
+		CHECK_FALSE(TryParse(TEXTVIEW("MapProperty(IntProperty)(IntProperty)")));
 	}
 }
 

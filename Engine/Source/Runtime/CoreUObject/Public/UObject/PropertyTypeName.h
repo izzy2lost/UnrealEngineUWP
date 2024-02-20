@@ -29,17 +29,17 @@ struct FPropertyTypeNameNode
  * Represents the type name of a property, including any containers and underlying types.
  *
  * The path name for a type is represented as the object name with the outer chain as type parameters.
- * - /Script/CoreUObject.Outer0:Outer1.Outer2.StructName -> StructName</Script/CoreUObject,Outer0,Outer1,Outer2>
+ * - /Script/CoreUObject.Outer0:Outer1.Outer2.StructName -> StructName(/Script/CoreUObject,Outer0,Outer1,Outer2)
  *
  * Examples:
  * - int32 -> IntProperty
- * - TArray<int32> -> ArrayProperty<IntProperty>
- * - TArray<FStructType> -> ArrayProperty<StructProperty<StructType</Script/Module>,e21f566f-7153-433a-959d-bfb3abed17e2>>
- * - TMap<FKeyStruct, EByteEnum> -> MapProperty<StructProperty<KeyStruct</Script/Module>>,EnumProperty<ByteEnum</Script/Module>,ByteProperty>>
+ * - TArray(int32) -> ArrayProperty(IntProperty)
+ * - TArray(FStructType) -> ArrayProperty(StructProperty(StructType(/Script/Module),e21f566f-7153-433a-959d-bfb3abed17e2))
+ * - TMap(FKeyStruct, EByteEnum) -> MapProperty(StructProperty(KeyStruct(/Script/Module)),EnumProperty(ByteEnum(/Script/Module),ByteProperty))
  *
  * Incomplete property types created from sources with incomplete type information. Consumers must support this.
- * - ArrayProperty<StructProperty>
- * - MapProperty<EnumProperty,StructProperty>
+ * - ArrayProperty(StructProperty)
+ * - MapProperty(EnumProperty,StructProperty)
  */
 class FPropertyTypeName
 {
@@ -52,7 +52,7 @@ public:
 	/**
 	 * Returns the type at the root of this property type name.
 	 *
-	 * Example: MapProperty<StructProperty<KeyStruct>,EnumProperty<ByteEnum,ByteProperty>>
+	 * Example: MapProperty(StructProperty(KeyStruct),EnumProperty(ByteEnum,ByteProperty))
 	 * - GetName() -> MapProperty
 	 */
 	UE_API FName GetName() const;
@@ -60,7 +60,7 @@ public:
 	/**
 	 * Returns the number of type parameters under the root of this property type name.
 	 *
-	 * Example: MapProperty<StructProperty<KeyStruct>,EnumProperty<ByteEnum,ByteProperty>>
+	 * Example: MapProperty(StructProperty(KeyStruct),EnumProperty(ByteEnum,ByteProperty))
 	 * - GetParameterCount() -> 2
 	 */
 	UE_API int32 GetParameterCount() const;
@@ -70,9 +70,9 @@ public:
 	 *
 	 * An out-of-bounds index will return an empty type name.
 	 *
-	 * Example: MapProperty<StructProperty<KeyStruct>,EnumProperty<ByteEnum,ByteProperty>>
-	 * - GetParameter(0) -> StructProperty<KeyStruct>
-	 * - GetParameter(1) -> EnumProperty<ByteEnum,ByteProperty>
+	 * Example: MapProperty(StructProperty(KeyStruct),EnumProperty(ByteEnum,ByteProperty))
+	 * - GetParameter(0) -> StructProperty(KeyStruct)
+	 * - GetParameter(1) -> EnumProperty(ByteEnum,ByteProperty)
 	 */
 	UE_API FPropertyTypeName GetParameter(int32 ParamIndex = 0) const;
 
@@ -81,7 +81,7 @@ public:
 	 *
 	 * An out-of-bounds index will return a name of None.
 	 *
-	 * Example: MapProperty<StructProperty<KeyStruct>,EnumProperty<ByteEnum,ByteProperty>>
+	 * Example: MapProperty(StructProperty(KeyStruct),EnumProperty(ByteEnum,ByteProperty))
 	 * - GetParameterName(0) -> StructProperty
 	 * - GetParameterName(1) -> EnumProperty
 	 */
@@ -117,7 +117,7 @@ private:
 /**
  * Builder for FPropertyTypeName.
  *
- * Example: MapProperty<StructProperty<KeyStruct</Script/CoreUObject>,StructGuid>,EnumProperty<ByteEnum</Script/CoreUObject>,ByteProperty>>
+ * Example: MapProperty(StructProperty(KeyStruct(/Script/CoreUObject),StructGuid),EnumProperty(ByteEnum(/Script/CoreUObject),ByteProperty))
  *
  * FPropertyTypeNameBuilder Builder;
  * Builder.AddName(NAME_MapProperty));
@@ -145,7 +145,7 @@ public:
 	/** Add a guid in the format DigitsWithHyphensLower. */
 	UE_API void AddGuid(const FGuid& Guid);
 
-	/** Add a path in the format ObjectName</Path/Name,Outer0,Outer1,Outer2> */
+	/** Add a path in the format ObjectName(/Path/Name,Outer0,Outer1,Outer2) */
 	UE_API void AddPath(const UField* Field);
 
 	/** Add a type name with its parameters. */
