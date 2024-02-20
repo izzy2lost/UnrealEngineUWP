@@ -398,6 +398,38 @@ bool FPrimitiveSceneInfo::IsCachedRayTracingGeometryValid() const
 	return false;
 }
 
+FRayTracingGeometry* FPrimitiveSceneInfo::GetStaticRayTracingGeometry(int32 LodLevel) const
+{
+	if (StaticRayTracingGeometries.Num() > LodLevel)
+	{
+		return StaticRayTracingGeometries[LodLevel];
+	}
+	else
+	{
+		return nullptr;
+	}
+}
+
+FRayTracingGeometry* FPrimitiveSceneInfo::GetValidStaticRayTracingGeometry(int32 MinLodLevel) const
+{
+	// TODO: Move HasPendingBuildRequest() / BoostBuildPriority() out of this function
+
+	for (int32 Index = MinLodLevel; Index < StaticRayTracingGeometries.Num(); ++Index)
+	{
+		if (StaticRayTracingGeometries[Index]->HasPendingBuildRequest())
+		{
+			ensure(StaticRayTracingGeometries[Index]->IsValid());
+			StaticRayTracingGeometries[Index]->BoostBuildPriority();
+		}
+		else if (StaticRayTracingGeometries[Index]->IsValid())
+		{
+			return StaticRayTracingGeometries[Index];
+		}
+	}
+
+	return nullptr;
+}
+
 FRHIRayTracingGeometry* FPrimitiveSceneInfo::GetStaticRayTracingGeometryInstance(int LodLevel) const
 {
 	if (StaticRayTracingGeometries.Num() > LodLevel)

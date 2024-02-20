@@ -540,8 +540,9 @@ namespace RayTracing
 						}
 						else
 						{
-							FRHIRayTracingGeometry* RayTracingGeometryInstance = SceneInfo->GetStaticRayTracingGeometryInstance(LODIndex);
-							if (RayTracingGeometryInstance == nullptr)
+							FRayTracingGeometry* RayTracingGeometry = SceneInfo->GetValidStaticRayTracingGeometry(LODIndex);
+
+							if (RayTracingGeometry == nullptr)
 							{
 								return;
 							}
@@ -555,7 +556,7 @@ namespace RayTracing
 								RelevantPrimitive->PersistentPrimitiveIndex = SceneInfo->GetPersistentIndex();
 
 								RelevantPrimitive->LODIndex = LODIndex;
-								RelevantPrimitive->RayTracingGeometryRHI = RayTracingGeometryInstance;
+								RelevantPrimitive->RayTracingGeometryRHI = RayTracingGeometry->RayTracingGeometryRHI;
 
 								RelevantPrimitive->CachedRayTracingMeshCommandIndices = SceneInfo->CachedRayTracingMeshCommandIndicesPerLOD[LODIndex];
 								RelevantPrimitive->StateHash = SceneInfo->CachedRayTracingMeshCommandsHashPerLOD[LODIndex];
