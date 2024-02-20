@@ -386,6 +386,7 @@ Parameters to update an ACL
 Name | Type | Description
 ---- | ---- | -----------
 `entries` | [`AclEntryConfig`](#aclentryconfig)`[]` | Entries to replace the existing ACL
+`profiles` | [`AclProfileConfig`](#aclprofileconfig)`[]` | Defines profiles which allow grouping sets of actions into named collections
 `inherit` | `boolean` | Whether to inherit permissions from the parent ACL
 `exceptions` | `string[]` | List of exceptions to the inherited setting
 
@@ -397,6 +398,7 @@ Name | Type | Description
 ---- | ---- | -----------
 `claim` | [`AclClaimConfig`](#aclclaimconfig) | Name of the user or group
 `actions` | `string[]` | Array of actions to allow
+`profiles` | `string[]` | List of profiles to grant
 
 ## AclClaimConfig
 
@@ -406,6 +408,17 @@ Name | Type | Description
 ---- | ---- | -----------
 `type` | `string` | The claim type
 `value` | `string` | The claim value
+
+## AclProfileConfig
+
+Configuration for an ACL profile. This defines a preset group of actions which can be given to a user via an ACL entry.
+
+Name | Type | Description
+---- | ---- | -----------
+`id` | `string` | Identifier for this profile
+`actions` | `string[]` | Actions to include
+`excludeActions` | `string[]` | Actions to exclude from the inherited actions
+`extends` | `string[]` | Other profiles to extend from
 
 ## SecretConfig
 
