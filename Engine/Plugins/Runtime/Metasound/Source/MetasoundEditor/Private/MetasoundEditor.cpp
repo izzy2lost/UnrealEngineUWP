@@ -54,6 +54,7 @@
 #include "MetasoundFrontendTransform.h"
 #include "MetasoundGenerator.h"
 #include "MetasoundLog.h"
+#include "MetasoundNodeDetailCustomization.h"
 #include "MetasoundSource.h"
 #include "MetasoundUObjectRegistry.h"
 #include "Misc/Attribute.h"
@@ -1195,6 +1196,8 @@ namespace Metasound
 
 			FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 			MetasoundDetails = PropertyModule.CreateDetailView(Args);
+			MetasoundDetails->SetExtensionHandler(MakeShared<FMetaSoundNodeExtensionHandler>());
+
 			// Set details selection to the MetaSound's source settings 
 			SetSelection({ Metasound });
 			InterfacesDetails = PropertyModule.CreateDetailView(Args);

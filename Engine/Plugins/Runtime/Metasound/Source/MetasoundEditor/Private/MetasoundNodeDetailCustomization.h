@@ -9,6 +9,7 @@
 #include "EdGraph/EdGraphSchema.h"
 #include "Framework/Application/SlateApplication.h"
 #include "IDetailCustomization.h"
+#include "IDetailPropertyExtensionHandler.h"
 #include "IDetailPropertyRow.h"
 #include "IPropertyTypeCustomization.h"
 #include "Layout/Visibility.h"
@@ -380,6 +381,14 @@ namespace Metasound
 		};
 
 		using FMetasoundOutputDetailCustomization = FMetasoundVertexDetailCustomization;
+
+		class FMetaSoundNodeExtensionHandler : public IDetailPropertyExtensionHandler
+		{
+		public:
+			// IDetailPropertyExtensionHandler interface
+			virtual bool IsPropertyExtendable(const UClass* InObjectClass, const IPropertyHandle& PropertyHandle) const override;
+			virtual void ExtendWidgetRow(FDetailWidgetRow& InWidgetRow, const IDetailLayoutBuilder& InDetailBuilder, const UClass* InObjectClass, TSharedPtr<IPropertyHandle> PropertyHandle) override;
+		};
 	} // namespace Editor
 } // namespace Metasound
 #undef LOCTEXT_NAMESPACE
