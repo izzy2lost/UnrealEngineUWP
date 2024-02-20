@@ -53,18 +53,23 @@ struct FTypedElementQueryProcessorData
 		TypedElementDataStorage::DirectQueryCallbackRef& Callback,
 		TypedElementDataStorage::FQueryDescription& Description,
 		FMassEntityQuery& NativeQuery, 
-		FMassEntityManager& EntityManager);
+		FMassEntityManager& EntityManager,
+		FTypedElementDatabaseEnvironment& Environment);
 	static TypedElementDataStorage::FQueryResult Execute(
 		TypedElementDataStorage::SubqueryCallbackRef& Callback,
 		TypedElementDataStorage::FQueryDescription& Description,
 		FMassEntityQuery& NativeQuery,
-		FMassEntityManager& EntityManager);
+		FMassEntityManager& EntityManager,
+		FTypedElementDatabaseEnvironment& Environment,
+		FMassExecutionContext& ParentContext);
 	static TypedElementDataStorage::FQueryResult Execute(
 		TypedElementDataStorage::SubqueryCallbackRef& Callback,
 		TypedElementDataStorage::FQueryDescription& Description,
 		TypedElementDataStorage::RowHandle RowHandle,
 		FMassEntityQuery& NativeQuery,
-		FMassEntityManager& EntityManager);
+		FMassEntityManager& EntityManager,
+		FTypedElementDatabaseEnvironment& Environment,
+		FMassExecutionContext& ParentContext);
 	void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context);
 
 	static bool PrepareCachedDependenciesOnQuery(

@@ -172,7 +172,11 @@ TypedElementDataStorage::FQueryResult FTypedElementExtendedQueryStore::RunQuery(
 }
 
 template<typename CallbackReference>
-TypedElementDataStorage::FQueryResult FTypedElementExtendedQueryStore::RunQueryCallbackCommon(FMassEntityManager& EntityManager, Handle Query,
+TypedElementDataStorage::FQueryResult FTypedElementExtendedQueryStore::RunQueryCallbackCommon(
+	FMassEntityManager& EntityManager, 
+	FTypedElementDatabaseEnvironment& Environment,
+	FMassExecutionContext* ParentContext,
+	Handle Query,
 	CallbackReference Callback)
 {
 	using ActionType = ITypedElementDataStorageInterface::FQueryDescription::EActionType;
@@ -190,8 +194,16 @@ TypedElementDataStorage::FQueryResult FTypedElementExtendedQueryStore::RunQueryC
 		case ActionType::Select:
 			if (!QueryData->Processor.IsValid())
 			{
-				Result = FTypedElementQueryProcessorData::Execute(
-					Callback, QueryData->Description, QueryData->NativeQuery, EntityManager);
+				if constexpr (std::is_same_v<CallbackReference, TypedElementDataStorage::DirectQueryCallbackRef>)
+				{
+					Result = FTypedElementQueryProcessorData::Execute(
+						Callback, QueryData->Description, QueryData->NativeQuery, EntityManager, Environment);
+				}
+				else
+				{
+					Result = FTypedElementQueryProcessorData::Execute(
+						Callback, QueryData->Description, QueryData->NativeQuery, EntityManager, Environment, *ParentContext);
+				}
 			}
 			else
 			{
@@ -216,20 +228,22 @@ TypedElementDataStorage::FQueryResult FTypedElementExtendedQueryStore::RunQueryC
 	return Result;
 }
 
-TypedElementDataStorage::FQueryResult FTypedElementExtendedQueryStore::RunQuery(FMassEntityManager& EntityManager, Handle Query,
-	TypedElementDataStorage::DirectQueryCallbackRef Callback)
+TypedElementDataStorage::FQueryResult FTypedElementExtendedQueryStore::RunQuery(FMassEntityManager& EntityManager, 
+	FTypedElementDatabaseEnvironment& Environment, Handle Query, TypedElementDataStorage::DirectQueryCallbackRef Callback)
 {
-	return RunQueryCallbackCommon(EntityManager, Query, Callback);
+	return RunQueryCallbackCommon(EntityManager, Environment, nullptr, Query, Callback);
 }
 
-TypedElementDataStorage::FQueryResult FTypedElementExtendedQueryStore::RunQuery(FMassEntityManager& EntityManager, Handle Query,
+TypedElementDataStorage::FQueryResult FTypedElementExtendedQueryStore::RunQuery(FMassEntityManager& EntityManager, 
+	FTypedElementDatabaseEnvironment& Environment, FMassExecutionContext& ParentContext, Handle Query, 
 	TypedElementDataStorage::SubqueryCallbackRef Callback)
 {
-	return RunQueryCallbackCommon(EntityManager, Query, Callback);
+	return RunQueryCallbackCommon(EntityManager, Environment, &ParentContext, Query, Callback);
 }
 
-TypedElementDataStorage::FQueryResult FTypedElementExtendedQueryStore::RunQuery(FMassEntityManager& EntityManager, Handle Query,
-	TypedElementRowHandle Row, TypedElementDataStorage::SubqueryCallbackRef Callback)
+TypedElementDataStorage::FQueryResult FTypedElementExtendedQueryStore::RunQuery(FMassEntityManager& EntityManager, 
+	FTypedElementDatabaseEnvironment& Environment, FMassExecutionContext& ParentContext, Handle Query, TypedElementRowHandle Row,
+	TypedElementDataStorage::SubqueryCallbackRef Callback)
 {
 	using ActionType = ITypedElementDataStorageInterface::FQueryDescription::EActionType;
 	using CompletionType = ITypedElementDataStorageInterface::FQueryResult::ECompletion;
@@ -247,7 +261,7 @@ TypedElementDataStorage::FQueryResult FTypedElementExtendedQueryStore::RunQuery(
 			if (!QueryData->Processor.IsValid())
 			{
 				Result = FTypedElementQueryProcessorData::Execute(
-					Callback, QueryData->Description, Row, QueryData->NativeQuery, EntityManager);
+					Callback, QueryData->Description, Row, QueryData->NativeQuery, EntityManager, Environment, ParentContext);
 			}
 			else
 			{
