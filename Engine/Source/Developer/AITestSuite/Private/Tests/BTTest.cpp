@@ -7,6 +7,7 @@
 #include "AITestsCommon.h"
 #include "MockAI_BT.h"
 #include "BehaviorTree/TestBTDecorator_CantExecute.h"
+#include "BehaviorTree/TestBTTask_TimerBasedLatent.h"
 #include "BehaviorTree/Decorators/BTDecorator_TimeLimit.h"
 
 #define LOCTEXT_NAMESPACE "AITestSuite_BTTest"
@@ -1399,6 +1400,53 @@ struct FAITest_BTRequestExecutionOnLatentAbortFinished : public FAITest_SimpleBT
 	}
 };
 IMPLEMENT_AI_LATENT_TEST(FAITest_BTRequestExecutionOnLatentAbortFinished, "System.AI.Behavior Trees.Abort: request on latent task finished")
+
+struct FAITest_BTRequestExecutionOnTimerBasedLatentAbortFinished : public FAITest_SimpleBT
+{
+	FAITest_BTRequestExecutionOnTimerBasedLatentAbortFinished()
+	{
+		enum
+		{
+			FirstTaskStartExecute = 1,
+			FirstTaskStartAbort,
+			FirstTaskFinishAbort,
+			FirstTaskFinished,
+			SecondTaskExecute
+		};
+
+		UBTCompositeNode& CompNode = FBTBuilder::AddSelector(*BTAsset);
+		{
+			UBTCompositeNode& SelectorNode = FBTBuilder::AddSelector(CompNode);
+			{
+				constexpr float NumTicksBeforeAbortingTask = 3;
+
+				// Add this decorator to prevent the test from running indefinitely if there is a regression on the behavior
+				// this unit test is meant to validate 
+				constexpr float NumTicksBeforeAbortingSelector = NumTicksBeforeAbortingTask + 10;
+				FBTBuilder::WithDecorator<UBTDecorator_TimeLimit>(CompNode).TimeLimit = NumTicksBeforeAbortingSelector * FAITestHelpers::TickInterval;
+
+				UTestBTTask_TimerBasedLatent& Task = FBTBuilder::AddTask<UTestBTTask_TimerBasedLatent>(SelectorNode);
+				Task.LogIndexExecuteStart = FirstTaskStartExecute;
+				Task.LogIndexAbortStart = FirstTaskStartAbort;
+				Task.LogIndexAbortFinish = FirstTaskFinishAbort;
+				Task.NumTicksAborting = 2;
+				// Make sure to execute long enough to be aborted
+				Task.NumTicksExecuting = 2 * NumTicksBeforeAbortingTask;
+				{
+					FBTBuilder::WithDecorator<UBTDecorator_TimeLimit>(SelectorNode).TimeLimit = NumTicksBeforeAbortingTask * FAITestHelpers::TickInterval;
+				}
+
+				FBTBuilder::AddTask(SelectorNode, SecondTaskExecute, EBTNodeResult::Succeeded);
+			}
+		}
+
+		ExpectedResult.Add(FirstTaskStartExecute);
+		ExpectedResult.Add(FirstTaskStartAbort);
+		ExpectedResult.Add(FirstTaskFinishAbort);
+		ExpectedResult.Add(SecondTaskExecute);
+	}
+};
+IMPLEMENT_AI_LATENT_TEST(FAITest_BTRequestExecutionOnTimerBasedLatentAbortFinished, "System.AI.Behavior Trees.Abort: request on latent timer based task finished")
 
 struct FAITest_BTSwitchingHigherPrioDuringServiceBecomeRelevant : public FAITest_SimpleBT
 {

@@ -546,6 +546,11 @@ void UBehaviorTreeComponent::OnTaskFinished(const UBTTaskNode* TaskNode, EBTNode
 			{
 				RequestExecution(TaskResult);
 			}
+			// schedule an update to process a pending execution when task is done aborting
+			else if (PendingExecution.IsSet())
+			{
+				ScheduleExecutionUpdate();
+			}
 		}
 		else if (TaskResult == EBTNodeResult::Aborted && InstanceStack.IsValidIndex(TaskInstanceIdx) && InstanceStack[TaskInstanceIdx].ActiveNode == TaskNode)
 		{
@@ -1696,7 +1701,7 @@ void UBehaviorTreeComponent::TickComponent(float DeltaTime, const ELevelTick Tic
 	if (NextTickDeltaTime > 0.0f)
 	{
 		// The TickManager is using global time to calculate delta since last ticked time. When the value is big, we can get into float precision errors compare to our calculation.
-		if (NextTickDeltaTime > KINDA_SMALL_NUMBER)
+		if (ThisTickFunction != nullptr && NextTickDeltaTime > KINDA_SMALL_NUMBER)
 		{
 			UE_VLOG(GetOwner(), LogBehaviorTree, Error, TEXT("BT(%i) did not need to be tick, ask deltatime of %fs got %fs with a diff of %fs."), GFrameCounter, NextTickDeltaTime + AccumulatedTickDeltaTime + DeltaTime, DeltaTime + AccumulatedTickDeltaTime, NextTickDeltaTime);
 		}
