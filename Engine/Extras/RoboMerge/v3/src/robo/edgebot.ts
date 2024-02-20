@@ -23,12 +23,8 @@ import { BlockagePauseInfo, BlockagePauseInfoMinimal, EdgeStatusFields } from ".
 import { getIntegrationOwner } from "./targets";
 
 const FAILED_CHANGELIST_PAUSE_TIMEOUT_SECONDS = 15 * 60
-const MAX_INTEGRATION_ERRORS_TO_ANALYZE = 5
 const MAX_OPENED_COMMANDS_TO_ISSUE = 100
-const DEPOT_FILE_REGEX = /^(.*[\\\/])(.*)/
 const JIRA_REGEX = /^\s*#jira\s+(.*)/i
-
-const MAX_CONFLICTS_TO_LIST = 5
 
 // type ResolveResultDetail = 'quick' | 'detailed'
 
@@ -241,20 +237,17 @@ class EdgeBotImpl extends PerforceStatefulBot {
 		const results: ConflictingFile[] = []
 
 		for (const file of unresolved) {
-			const match = file.fromFile.match(DEPOT_FILE_REGEX)
-			if (match) {
-				if (file.resolveType.toLowerCase() === "branch") {
-					results.push({name: match[2], kind: "branch"})
-				}
-				else if (file.resolveType.toLowerCase() === "delete") {
-					results.push({name: match[2], kind: "delete"})
-				}
-				else if (file.resolveType.toLowerCase() === "content") {
-					results.push({name: match[2], kind: "merge"})
-				} else {
-					// We really shouldn't get this kind, but it's better to display unknown than skip displaying the file
-					results.push({name: match[2], kind: "unknown"})
-				}
+			if (file.resolveType.toLowerCase() === "branch") {
+				results.push({name: file.fromFile, kind: "branch"})
+			}
+			else if (file.resolveType.toLowerCase() === "delete") {
+				results.push({name: file.fromFile, kind: "delete"})
+			}
+			else if (file.resolveType.toLowerCase() === "content") {
+				results.push({name: file.fromFile, kind: "merge"})
+			} else {
+				// We really shouldn't get this kind, but it's better to display unknown than skip displaying the file
+				results.push({name: file.fromFile, kind: "unknown"})
 			}
 		}
 		return results
@@ -562,12 +555,8 @@ class EdgeBotImpl extends PerforceStatefulBot {
 
 		if (exclusiveFiles.length > 0) {
 			// will need to store the exclusive file if we want to @ people in Slack
-			const exclCheckoutMessages = exclusiveFiles.map(exc => `${exc.depotPath} checked out by ${exc.user}`)
-			if (errors.length > MAX_INTEGRATION_ERRORS_TO_ANALYZE) {
-				exclCheckoutMessages.push(`... and ${errors.length - MAX_INTEGRATION_ERRORS_TO_ANALYZE} more`)
-			}
 			const exclusiveLockUsers = Array.from(new Set(exclusiveFiles.map(exc => `${exc.user.toLowerCase()}`))).map(user => ({user, userEmail: this.p4.getEmail(user)}))
-			failure = { kind: 'Exclusive check-out', description, summary: exclCheckoutMessages.join('\n'), additionalInfo: {exclusiveLockUsers,exclusiveFiles} }
+			failure = { kind: 'Exclusive check-out', description, additionalInfo: {exclusiveLockUsers,exclusiveFiles} }
 		}
 		else {
 			failure  = { kind: 'Integration error', description }
@@ -648,14 +637,9 @@ class EdgeBotImpl extends PerforceStatefulBot {
 
 			const conflicts = this.analyzeConflict(result.getConflicts())
 			if (conflicts.length > 0) {
-				failure.summary = conflicts
-					.slice(0, MAX_CONFLICTS_TO_LIST)
+				failure.details = conflicts
 					.map(({name, kind}) => `${name} (${kind} conflict)`)
 					.join('\n')
-
-				if (conflicts.length > MAX_CONFLICTS_TO_LIST) {
-					failure.summary += `\n... and ${conflicts.length - MAX_CONFLICTS_TO_LIST} more`
-				}
 			}
 		}
 		else
@@ -690,14 +674,14 @@ class EdgeBotImpl extends PerforceStatefulBot {
 					return result
 				}
 
-				let summary: string | undefined
+				let details: string | undefined
 				const match = result.message.match(/.*STDERR:([^]*)STDOUT:/)
 				if (match)
 				{
-					summary = match[1].trim()
+					details = match[1].trim()
 				}
 
-				failure = { kind: 'Commit failure', description: result.message, summary }
+				failure = { kind: 'Commit failure', description: result.message, details }
 			}
 		}
 

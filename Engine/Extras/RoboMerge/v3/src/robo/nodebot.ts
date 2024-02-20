@@ -18,7 +18,7 @@ import { makeClLink, SlackMessages } from './notifications';
 import { PerforceStatefulBot } from './perforce-stateful-bot';
 import { BlockageNodeOpUrls, OperationUrlHelper } from './roboserver';
 import { Context } from './settings';
-import { SlackMessage, SlackMessageField, SlackMessageStyles } from './slack';
+import { SlackFile, SlackMessage, SlackMessageField, SlackMessageStyles } from './slack';
 import { PauseState } from './state-interfaces';
 import { newTickJournal, TickJournal } from './tick-journal';
 import { computeTargets, parseDescriptionLines, processOtherBotTargets, getIntegrationOwner, getNodeBotFullName, getNodeBotFullNameForLogging } from './targets';
@@ -2118,8 +2118,8 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 
 			let message = `While reconsidering CL#${pending.change.cl}`
 
-			if (failure.summary) {
-				message += '\n' + failure.summary 
+			if (failure.details) {
+				message += '\n' + failure.details 
 			}
 			else
 			{
@@ -2141,6 +2141,15 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 				
 				let emailAddress = await this.findEmail(owner)
 				this.slackMessages.postDM(emailAddress, pending.newCl, this.branch, dm)
+
+				if (failure.details) {
+					let file: SlackFile = {
+						content: failure.details,
+						channels: "",
+						filename: "failuredetails.txt"
+					}
+					this.slackMessages.postFileToDM(emailAddress, pending.newCl, this.branch, file)
+				}				
 			}
 			else {
 				this.sendErrorEmail(new Recipients(owner), shortMessage, message)

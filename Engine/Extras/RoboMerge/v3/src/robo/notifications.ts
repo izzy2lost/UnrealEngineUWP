@@ -4,15 +4,15 @@ import * as fs from 'fs';
 import { DateTimeFormatOptions } from 'intl';
 import { Args } from '../common/args';
 import { Badge } from '../common/badge';
-import { Random } from '../common/helper';
+import { Random, setDefault } from '../common/helper';
 import { ContextualLogger } from '../common/logger';
-import { Blockage, Branch, BranchArg, ExclusiveLockInfo, ForcedCl, MergeAction, NodeOpUrlGenerator, resolveBranchArg } from './branch-interfaces';
+import { Blockage, Branch, BranchArg, ExclusiveFile, ExclusiveLockInfo, ForcedCl, MergeAction, NodeOpUrlGenerator, resolveBranchArg } from './branch-interfaces';
 import { PersistentConflict, Resolution } from './conflict-interfaces';
 import { BotEventHandler, BotEvents } from './events';
 import { NodeBot } from './nodebot';
 import { BlockageNodeOpUrls } from './roboserver';
 import { Context } from './settings';
-import { Slack, SlackAttachment, SlackLinkButtonAction, SlackLinkButtonsAttachment, SlackMessageField, SlackMessage, SlackMessageStyles } from './slack';
+import { Slack, SlackAttachment, SlackFile, SlackLinkButtonAction, SlackLinkButtonsAttachment, SlackMessageField, SlackMessage, SlackMessageStyles } from './slack';
 import { WebServer } from '../common/webserver'
 import { DummySlackApp } from '../common/dummyslackserver'
 
@@ -290,14 +290,32 @@ export class SlackMessages {
 		}
 	}
 
-	async postDM(emailAddress: string|Promise<string|null>|null, cl: number, branchArg: BranchArg, dm: SlackMessage, persistMessage = true) {
+	async postFile(cl: number, branchArg: BranchArg, file: SlackFile) {
+		const findResult = this.find(cl, branchArg, file.channels)
+
+		if (findResult.messageRecord) {
+			try {
+				file.thread_ts = findResult.messageRecord.timestamp
+				await this.slack.uploadFile(file)
+			}
+			catch (err) {
+				console.error('Error uploading file to Slack! ' + err.toString())
+				return
+			}
+		}
+		else {
+			this.smLogger.error(`Failed to find message record for ${cl}:${branchArg}:${file.channels}`)
+		}
+	}
+
+	private async getDMChannelId(emailAddress: string|Promise<string|null>|null, cl: number) {
 		// The Slack API requires a user ID to open a direct message with users.
 		// The most consistent way to do this is getting their email address out of P4.
 		if (emailAddress && typeof(emailAddress) !== 'string') {
 			emailAddress = await emailAddress
 		}
 		if (!emailAddress) {
-			console.error("Failed to get email address during notifications for CL " + cl)
+			this.smLogger.error("Failed to get email address during notifications for CL " + cl)
 			return
 		}
 
@@ -310,18 +328,34 @@ export class SlackMessages {
 		}
 
 		// Open up a new conversation with the user now that we have their ID
-		let channelId : string
 		try {
-			channelId = (await this.slack.openDMConversation(userId))
-			dm.channel = channelId
+			return this.slack.openDMConversation(userId)
 		} catch (err) {
 			this.smLogger.printException(err, `Failed to get Slack conversation ID for user ID "${userId}" given email address "${emailAddress}" for CL ${cl}`)
-			return
 		}
 
-		// Add the channel/conversation ID to the messageOpts and proceed normally.
-		this.smLogger.info(`Creating direct message for ${emailAddress} (key: ${generatePersistedSlackMessageKey(cl, branchArg, channelId)})`)
-		this.postOrUpdate(cl, branchArg, dm, persistMessage)
+		return
+	}
+
+	async postDM(emailAddress: string|Promise<string|null>|null, cl: number, branchArg: BranchArg, dm: SlackMessage, persistMessage = true) {
+
+		const channelId = await this.getDMChannelId(emailAddress, cl)
+		if (channelId) {
+			dm.channel = channelId
+			// Add the channel/conversation ID to the messageOpts and proceed normally.
+			this.smLogger.info(`Creating direct message for ${emailAddress} (key: ${generatePersistedSlackMessageKey(cl, branchArg, channelId)})`)
+			this.postOrUpdate(cl, branchArg, dm, persistMessage)
+		}
+	}
+
+	async postFileToDM(emailAddress: string|Promise<string|null>|null, cl: number, branchArg: BranchArg, file: SlackFile) {
+
+		const channelId = await this.getDMChannelId(emailAddress, cl)
+		if (!channelId) {
+			return
+		}
+		file.channels = channelId
+		this.postFile(cl, branchArg, file)
 	}
 
 	// 
@@ -519,10 +553,6 @@ export class BotNotifications implements BotEventHandler {
 			changeInfo.author
 		);
 
-		if (blockage.failure.summary) {
-			message.footer = blockage.failure.summary
-		}
-
 		let messagesToPost = []
 		let channelsToPostTo = []
 		let usersToInvite: Set<string> = new Set()
@@ -546,12 +576,29 @@ export class BotNotifications implements BotEventHandler {
 
 			messagesToPost.push({ message })
 
-			if (isNew && blockage.failure.kind === 'Exclusive check-out') {
-				const exclusiveLockUsers = (blockage.failure.additionalInfo as ExclusiveLockInfo).exclusiveLockUsers
-				let text = ''
+			if (isNew && blockage.failure.details) {
+				let file: SlackFile = {
+					content: blockage.failure.details,
+					channels: message.channel,
+					filename: "conflictdetails.txt"
+				}
+				messagesToPost.push({file})
+			}
 
-				let unknownLockUsers = false
-				for (const exclusiveLockUser of exclusiveLockUsers) {
+			if (isNew && blockage.failure.kind === 'Exclusive check-out') {
+				const exclusiveLockInfo = blockage.failure.additionalInfo as ExclusiveLockInfo
+
+				let authorDict = new Map<string, ExclusiveFile[]>()
+				for (const file of exclusiveLockInfo.exclusiveFiles) {
+					setDefault(authorDict, file.user.toLowerCase(), []).push(file)
+				}
+
+				for (const exclusiveLockUser of exclusiveLockInfo.exclusiveLockUsers) {
+					let file: SlackFile = { 
+						content: authorDict.get(exclusiveLockUser.user)!.map(ef => ef.depotPath).join("\n"),
+						channels: message.channel,
+						filename: "exclusivelockedfiles.txt"
+					}
 					if (exclusiveLockUser.user.length > 0) {
 						let exclusiveLockSlackUser
 						const exclusiveLockUserEmail = await exclusiveLockUser.userEmail
@@ -565,23 +612,12 @@ export class BotNotifications implements BotEventHandler {
 						if (!exclusiveLockSlackUser) {
 							exclusiveLockSlackUser = `@${exclusiveLockUser.user} `
 						}
-						text += exclusiveLockSlackUser
+						file.initial_comment = `${exclusiveLockSlackUser} please unlock the files blocking robomerge or work with ${blockage.owner} to resolve the conflict`
 					} else {
-						unknownLockUsers = true
+						file.initial_comment = "The following locked files did not have their owner determined and as such those owners may not have been notified"
 					}
+					messagesToPost.push({file})
 				}
-				text += `\n\nPlease unlock the files blocking robomerge or work with ${blockage.owner} to resolve the conflict`
-				if (unknownLockUsers) {
-					text += "\n\nNote that some locked files did not have their owner determined and as such those owners may not have been tagged"
-				}
-				
-				const exclusiveCheckoutMessage: SlackMessage = {
-					text,
-					style: SlackMessageStyles.DANGER,
-					channel: message.channel,
-					mrkdwn: true
-				}
-				messagesToPost.push({ message: exclusiveCheckoutMessage, reply: true})
 			}
 		}
 		else {
@@ -603,7 +639,10 @@ export class BotNotifications implements BotEventHandler {
 				this.slackMessages.addUserToChannel(user, channel)
 			}
 			for (const messageToPost of messagesToPost) {
-				if (messageToPost.reply) {
+				if (messageToPost.file) {
+					await this.slackMessages.postFile(changeInfo.cl, branchArg, { ...messageToPost.file, channels: channel})
+				}
+				else if (messageToPost.reply) {
 					await this.slackMessages.postReply(changeInfo.cl, branchArg, { ...messageToPost.message, channel })
 				}
 				else {
@@ -740,7 +779,7 @@ export class BotNotifications implements BotEventHandler {
 					"0",
 					false
 				)
-			)
+		)
 
 			this.slackMessages.postDM(`${username}@companyname.com`, 0, "TARGETBRANCH", messageOpts, false)
 		}

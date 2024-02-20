@@ -181,7 +181,7 @@ export interface PendingChange {
 export interface Failure {
 	kind: FailureKind		// short description of integration error or conflict
 	description: string		// detailed description (can be very long - don't want to store this)
-	summary?: string
+	details?: string
 	additionalInfo?: any
 }
 

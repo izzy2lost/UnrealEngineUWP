@@ -2,6 +2,7 @@
 
 import * as request from '../common/request';
 import { ContextualLogger } from '../common/logger';
+import { URLSearchParams } from "url"
 
 export interface SlackChannel {
 	id: string
@@ -68,6 +69,20 @@ export interface SlackMessage {
 	target?: string
 }
 
+export interface SlackFile {
+	content: string
+	channels: string
+	filename?: string
+	filetype?: string
+	initial_comment?: string
+	thread_ts?: string
+	title?: string
+}
+
+enum PostFormat {
+	JSON,
+	URL
+}
 
 const MAIN_MESSAGE_FIELDS = new Set(['username', 'icon_emoji', 'channel', 'target', 'cl']);
 
@@ -106,16 +121,19 @@ export class Slack {
 		return this.post('chat.postMessage', args)
 	}
 
-// why was message optional?
 	update(ts: string, message: SlackMessage) {
 		const args = this.makeArgs(message)
 		args.ts = ts
 		return this.post('chat.update', args)
 	}
 
+	uploadFile(file: SlackFile) {
+		return this.post('files.upload', file, false, PostFormat.URL)
+	}
+
 	listMessages(count?: number) {
 		const args: any = count ? {count} : count
-		// use channels.history if publlic?
+		// use channels.history if public?
 		return this.get('groups.history', args)
 	}
 
@@ -131,12 +149,12 @@ export class Slack {
 		return (await this.post('conversations.open', {users})).channel.id
 	}
 
-	/*private*/ async post_user(userToken: string, command: string, args: any, canFail? : boolean) {
+	/*private*/ async post_user(userToken: string, command: string, args: any, canFail? : boolean, format?: PostFormat) {
 		const resultJson = await request.post({
 			url: this.domain + '/api/' + command,
-			body: JSON.stringify(args),
+			body: format == PostFormat.URL ? new URLSearchParams(Object.entries(args)).toString() : JSON.stringify(args),
 			headers: {Authorization: 'Bearer ' + userToken},
-			contentType: 'application/json; charset=utf-8'
+			contentType: format == PostFormat.URL ? 'application/x-www-form-urlencoded' : 'application/json; charset=utf-8'
 		})
 		try {
 			const result = JSON.parse(resultJson)
@@ -151,8 +169,8 @@ export class Slack {
 		return {ok: false}
 	}
 
-	/*private*/ async post(command: string, args: any, canFail? : boolean) {
-		return this.post_user(this.channel.botToken, command, args, canFail)
+	/*private*/ async post(command: string, args: any, canFail? : boolean, format?: PostFormat) {
+		return this.post_user(this.channel.botToken, command, args, canFail, format)
 	}
 
 	/*private*/ async get(command: string, args: any, canFail? : boolean) {
