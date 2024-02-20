@@ -3438,7 +3438,8 @@ FString FInstallBundlePluginProtocolMetaData::ToString() const
 	});
 	ReturnedString.Append(BundlesList);
 
-	static_assert(FMath::CountBits(static_cast<uint64>(EGameFeatureURLOptions::All)) == 1, "Update this function to handle the newly added EGameFeatureInstallBundleProtocolOptions value!");
+	// Only the generic version of CountBits is constexpr...
+	static_assert(FGenericPlatformMath::CountBits(static_cast<uint64>(EGameFeatureURLOptions::All)) == 1, "Update this function to handle the newly added EGameFeatureInstallBundleProtocolOptions value!");
 
 	return ReturnedString;
 }
