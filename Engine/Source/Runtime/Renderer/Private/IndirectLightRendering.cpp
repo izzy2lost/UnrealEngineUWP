@@ -929,7 +929,6 @@ void FDeferredShadingSceneRenderer::DispatchAsyncLumenIndirectLightingWork(
 					nullptr,
 					ERDGPassFlags::AsyncCompute);
 
-				// Lumen needs its own depth history because things like Translucency velocities write to depth
 				StoreLumenDepthHistory(GraphBuilder, SceneTextures, View);
 			}
 
@@ -1095,7 +1094,6 @@ void FDeferredShadingSceneRenderer::RenderDiffuseIndirectAndAmbientOcclusion(
 
 			if (EnumHasAnyFlags(StepsLeft, ELumenIndirectLightingSteps::StoreDepthHistory))
 			{
-				// Lumen needs its own depth history because things like Translucency velocities write to depth
 				StoreLumenDepthHistory(GraphBuilder, SceneTextures, View);
 			}
 
@@ -1999,7 +1997,6 @@ void FDeferredShadingSceneRenderer::RenderDeferredReflectionsAndSkyLighting(
 				nullptr,
 				ERDGPassFlags::Compute);
 
-			// Lumen needs its own depth history because things like Translucency velocities write to depth
 			StoreLumenDepthHistory(GraphBuilder, SceneTextures, View);
 		}
 		else if (ViewPipelineState.ReflectionsMethod == EReflectionsMethod::SSR)
