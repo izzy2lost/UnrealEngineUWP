@@ -23,7 +23,8 @@
 		{
 			"Name": "StormSyncAvaBridge",
 			"Type": "Runtime",
-			"LoadingPhase": "Default"
+			"LoadingPhase": "Default",
+			"TargetDenyList": [ "Server" ]
 		}
 	],
 	"Plugins": [
