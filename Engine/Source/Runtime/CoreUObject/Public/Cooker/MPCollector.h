@@ -39,6 +39,7 @@ public:
 	constexpr static FWorkerId Local() { return FWorkerId(LocalId); }
 	static FWorkerId FromRemoteIndex(uint8 Index) { check(Index < InvalidId - 1U);  return FWorkerId(Index + 1U); }
 	static FWorkerId FromLocalOrRemoteIndex(uint8 Index) { check(Index < InvalidId);  return FWorkerId(Index); }
+	static int32 GetMaxCookWorkerCount() { return static_cast<int32>(InvalidId - 1); }
 
 	bool IsValid() const { return Id != InvalidId; }
 	bool IsInvalid() const { return Id == InvalidId; }

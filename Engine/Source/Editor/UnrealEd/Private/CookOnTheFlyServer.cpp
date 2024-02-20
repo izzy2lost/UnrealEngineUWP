@@ -6757,6 +6757,13 @@ void UCookOnTheFlyServer::Initialize( ECookMode::Type DesiredCookMode, ECookInit
 			GConfig->GetInt(TEXT("CookSettings"), TEXT("CookProcessCount"), CookProcessCount, GEditorIni);
 		}
 		CookProcessCount = FMath::Max(1, CookProcessCount);
+		if (CookProcessCount > UE::Cook::FWorkerId::GetMaxCookWorkerCount())
+		{
+			// We could clamp it and continue on, but it's not clear what to clamp it to. If they ask for
+			// 1 billion by accidental typo in the ini, what should we set it to?
+			UE_LOG(LogCook, Fatal, TEXT("Invalid CookProcessCount=%d, maximum value is %d."),
+				CookProcessCount, UE::Cook::FWorkerId::GetMaxCookWorkerCount());
+		}
 		if (CookProcessCount > 1)
 		{
 			CookDirector = MakeUnique<UE::Cook::FCookDirector>(*this, CookProcessCount);
