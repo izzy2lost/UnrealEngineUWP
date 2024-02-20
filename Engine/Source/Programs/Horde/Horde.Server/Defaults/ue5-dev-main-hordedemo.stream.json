@@ -277,13 +277,6 @@
 							"default": true
 						},
 						{
-							"group": "Desktop",
-							"text": "LinuxArm64",
-							"argumentIfEnabled": "-set:WithLinuxArm64=true",
-							"argumentIfDisabled": "-set:WithLinuxArm64=false",
-							"default": true
-						},
-						{
 							"group": "Mobile",
 							"text": "Android",
 							"argumentIfEnabled": "-set:WithAndroid=true",
