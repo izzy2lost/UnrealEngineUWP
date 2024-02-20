@@ -602,6 +602,15 @@ export class PerforceContext {
 			}
 			let streamNameEnd = 2;
 			for (let i=0;i<streamDepth+1;i++) {
+				let nextSlash = path.indexOf("/",streamNameEnd+1)
+				if (nextSlash == -1) {
+					if (i == streamDepth) {
+						return path
+					}
+					else {
+						return new Error(`Unable to determine stream from $(path): not enough depth`)
+					}
+				}
 				streamNameEnd = path.indexOf("/",streamNameEnd+1)
 			}
 			return path.substring(0,streamNameEnd)
