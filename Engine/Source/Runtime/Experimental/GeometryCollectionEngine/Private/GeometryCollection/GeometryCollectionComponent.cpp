@@ -1070,7 +1070,7 @@ void UGeometryCollectionComponent::UpdateCachedBounds()
 
 bool UGeometryCollectionComponent::ShouldCreateRenderState() const
 {
-	return !CanUseCustomRenderer();
+	return !CanUseCustomRenderer() && RootProxyStaticMeshComponents.IsEmpty();
 }
 
 void UGeometryCollectionComponent::CreateRenderState_Concurrent(FRegisterComponentContext* Context)
@@ -3522,10 +3522,14 @@ void UGeometryCollectionComponent::OnRegister()
 	}
 
 	Super::OnRegister();
+
+	CreateRootProxyComponentsIfNeeded();
 }
 
 void UGeometryCollectionComponent::OnUnregister()
 {
+	ClearRootProxyComponents();
+
 	Super::OnUnregister();
 
 	// Remove any custom renderer.
@@ -3534,6 +3538,53 @@ void UGeometryCollectionComponent::OnUnregister()
 		UnregisterCustomRenderer();
 		CustomRenderer = nullptr;
 	}
+}
+
+bool UGeometryCollectionComponent::ShouldCreateRootProxyComponents() const
+{
+	const bool bHasRootProxyMeshes = RestCollection && RestCollection->RootProxyData.ProxyMeshes.Num() > 0;
+	const bool bHasMeshData = RestCollection && (RestCollection->HasNaniteData() || RestCollection->HasMeshData());
+	const bool bHasCustomRenderer = CanUseCustomRenderer();
+	return bHasRootProxyMeshes && !bHasCustomRenderer && !bHasMeshData;
+}
+
+void UGeometryCollectionComponent::CreateRootProxyComponentsIfNeeded()
+{
+	ClearRootProxyComponents();
+
+	if (ShouldCreateRootProxyComponents())
+	{
+		for (const TObjectPtr<UStaticMesh>& ProxyMesh : RestCollection->RootProxyData.ProxyMeshes)
+		{
+			if (UStaticMesh* StaticMesh = ProxyMesh.Get())
+			{
+				const FName UniqueName = MakeUniqueObjectName(GetOwner(), UStaticMeshComponent::StaticClass(), TEXT("GC_RootProxyMesh"));
+				UStaticMeshComponent* MeshComponent = NewObject<UStaticMeshComponent>(GetOwner(), UniqueName, RF_DuplicateTransient | RF_Transient | RF_TextExportTransient);
+
+				MeshComponent->SetStaticMesh(StaticMesh);
+				//MeshComponent->SetRelativeTransform(GetComponentTransform());
+				MeshComponent->SetCanEverAffectNavigation(false);
+				MeshComponent->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
+				MeshComponent->SetMobility(this->Mobility);
+				MeshComponent->SetupAttachment(this);
+				MeshComponent->RegisterComponent();
+
+				RootProxyStaticMeshComponents.Add(MeshComponent);
+			}
+		}
+	}
+}
+
+void UGeometryCollectionComponent::ClearRootProxyComponents()
+{
+	for (TObjectPtr<UStaticMeshComponent> StaticMeshComponent : RootProxyStaticMeshComponents)
+	{
+		if (StaticMeshComponent)
+		{
+			StaticMeshComponent->DestroyComponent();
+		}
+	}
+	RootProxyStaticMeshComponents.Empty();
 }
 
 void UGeometryCollectionComponent::RegisterCustomRenderer()
@@ -4902,6 +4953,8 @@ void UGeometryCollectionComponent::SetRestCollection(const UGeometryCollection* 
 			UnregisterCustomRenderer();
 			RegisterCustomRenderer();
 		}
+
+		CreateRootProxyComponentsIfNeeded();
 
 		if (bApplyAssetDefaults)
 		{

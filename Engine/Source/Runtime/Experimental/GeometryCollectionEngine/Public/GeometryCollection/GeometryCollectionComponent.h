@@ -1825,6 +1825,12 @@ private:
 
 	void UpdateBrokenAndDecayedStates();
 
+	bool ShouldCreateRootProxyComponents() const;
+	void CreateRootProxyComponentsIfNeeded();
+	void ClearRootProxyComponents();
+
+	TArray<TObjectPtr<UStaticMeshComponent>> RootProxyStaticMeshComponents;
+
 private:
 
 	enum class ENetAwakeningMode
