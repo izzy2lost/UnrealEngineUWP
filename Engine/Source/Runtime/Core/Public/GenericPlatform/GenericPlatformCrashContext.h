@@ -118,6 +118,7 @@ enum class ECrashContextType
 	Hang,
 	OutOfMemory,
 	AbnormalShutdown,
+	VerseRuntimeError,
 
 	Max
 };
@@ -139,6 +140,8 @@ enum class EUnattendedStatus : uint8
 	Attended,
 	Unattended
 };
+
+const TCHAR* AttendedStatusToString(const EUnattendedStatus Status);
 
 #define CR_MAX_ERROR_MESSAGE_CHARS 2048
 #define CR_MAX_DIRECTORY_CHARS 256
@@ -374,9 +377,27 @@ public:
 	CORE_API static const TCHAR* const PlatformPropertiesTag;
 	CORE_API static const TCHAR* const EngineDataTag;
 	CORE_API static const TCHAR* const GameDataTag;
+	CORE_API static const TCHAR* const GameNameTag;
 	CORE_API static const TCHAR* const EnabledPluginsTag;
 	CORE_API static const TCHAR* const UEMinidumpName;
 	CORE_API static const TCHAR* const NewLineTag;
+	CORE_API static const TCHAR* const CrashVersionTag;
+	CORE_API static const TCHAR* const ExecutionGuidTag;
+	CORE_API static const TCHAR* const CrashGuidTag;
+	CORE_API static const TCHAR* const IsEnsureTag;
+	CORE_API static const TCHAR* const IsStallTag;
+	CORE_API static const TCHAR* const IsAssertTag;
+	CORE_API static const TCHAR* const CrashTypeTag;
+	CORE_API static const TCHAR* const ErrorMessageTag;
+	CORE_API static const TCHAR* const CrashReporterMessageTag;
+	CORE_API static const TCHAR* const AttendedStatusTag;
+	CORE_API static const TCHAR* const SecondsSinceStartTag;
+	CORE_API static const TCHAR* const BuildVersionTag;
+	CORE_API static const TCHAR* const CallStackTag;
+	CORE_API static const TCHAR* const PortableCallStackTag;
+	CORE_API static const TCHAR* const PortableCallStackHashTag;
+	CORE_API static const TCHAR* const IsRequestingExitTag;
+
 	static constexpr inline int32 CrashGUIDLength = 128;
 
 	CORE_API static const TCHAR* const CrashTypeCrash;
@@ -387,6 +408,7 @@ public:
 	CORE_API static const TCHAR* const CrashTypeHang;
 	CORE_API static const TCHAR* const CrashTypeAbnormalShutdown;
 	CORE_API static const TCHAR* const CrashTypeOutOfMemory;
+	CORE_API static const TCHAR* const CrashTypeVerseRuntimeError;
 
 	CORE_API static const TCHAR* const EngineModeExUnknown;
 	CORE_API static const TCHAR* const EngineModeExDirty;
@@ -403,6 +425,9 @@ public:
 
 	/** Get the current cached session context */
 	CORE_API static const FSessionContext& GetCachedSessionContext();
+
+	/** Gets the current standardized game name for use in a Crash Reporter report. */
+	CORE_API static FString GetGameName();
 
 	/**
 	 * @return true, if the generic crash context has been initialized.
@@ -500,6 +525,12 @@ public:
 	void AddCrashProperty(const TCHAR* PropertyName, const Type& Value) const
 	{
 		AddCrashPropertyInternal(CommonBuffer, PropertyName, Value);
+	}
+
+	template <typename Type>
+	static void AddCrashProperty(FString& Buffer, const TCHAR* PropertyName, const Type& Value)
+	{
+		AddCrashPropertyInternal(Buffer, PropertyName, Value);
 	}
 
 	/** Escapes and appends specified text to XML string */
@@ -659,6 +690,9 @@ public:
 	{
 		switch (Type)
 		{
+		// Verse runtime errors only halt the Verse runtime itself; they do not result in a crash.
+		// Certain runtime errors may be recoverable from in the future.
+		case ECrashContextType::VerseRuntimeError: [[fallthrough]];
 		case ECrashContextType::Ensure:
 			return true;
 		case ECrashContextType::Stall:
@@ -736,6 +770,7 @@ private:
 	/** Add module/pdb information to the crash report xml */
 	void AddModules() const;
 
+public:  // Allows this helper functionality to be present for clients to write their own types of crash reports.
 	/** Writes header information to the buffer. */
 	static void AddHeader(FString& Buffer);
 
@@ -746,6 +781,7 @@ private:
 	static void EndSection(FString& Buffer, const TCHAR* SectionName);
 	static void AddSection(FString& Buffer, const TCHAR* SectionName, const FString& SectionContent);
 
+private:
 	/** Called once when GConfig is initialized. Opportunity to cache values from config. */
 	static void InitializeFromConfig();
 
