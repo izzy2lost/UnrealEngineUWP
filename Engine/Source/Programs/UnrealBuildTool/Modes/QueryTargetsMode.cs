@@ -124,7 +124,7 @@ namespace UnrealBuildTool
 					try
 					{
 						UnrealArchitectures Architectures = UnrealArchitectureConfig.ForPlatform(BuildHostPlatform.Current.Platform).ActiveArchitectures(ProjectFile, TargetName);
-						TargetRules = Assembly.CreateTargetRules(TargetName, BuildHostPlatform.Current.Platform, UnrealTargetConfiguration.Development, Architectures, ProjectFile, Arguments, Logger, bSkipValidation: true);
+						TargetRules = Assembly.CreateTargetRules(TargetName, BuildHostPlatform.Current.Platform, UnrealTargetConfiguration.Development, Architectures, ProjectFile, Arguments, Logger, ValidationOptions: TargetRulesValidationOptions.ValidateNothing);
 					}
 					catch (Exception Ex)
 					{

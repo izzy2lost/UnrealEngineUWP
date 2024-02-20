@@ -2471,6 +2471,14 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
+		/// If this true, a Shared build environment target will allow for any modules that are SDK version sensitive to have
+		/// a project side module when an SDK is overridden. For instance, if IOSTargetPlatform, which is marked as IOS SDK 
+		/// version relevant, is compiled for a Target with this set to true, and that target overrides the IOS SDK, then
+		/// this would compile to e.g. MyProject/Binaries/Win64/IOS/MyProject-IOSTargetPlatform.dll
+		/// </summary>
+		public bool bAllowSDKOverrideModulesWithSharedEnvironment { get; protected set; } = false;
+
+		/// <summary>
 		/// Whether to ignore violations to the shared build environment (eg. editor targets modifying definitions)
 		/// </summary>
 		[CommandLine("-OverrideBuildEnvironment")]
@@ -2634,7 +2642,7 @@ namespace UnrealBuildTool
 		public bool AllowsPerProjectSDKVersion()
 		{
 			// modular target with TargetBuildEnvironment.Shared build type cannot allow per-project SDKs
-			return LinkType == TargetLinkType.Monolithic || BuildEnvironment == TargetBuildEnvironment.Unique;
+			return LinkType == TargetLinkType.Monolithic || BuildEnvironment == TargetBuildEnvironment.Unique || bAllowSDKOverrideModulesWithSharedEnvironment;
 		}
 
 		/// <summary>
@@ -2683,7 +2691,8 @@ namespace UnrealBuildTool
 			}
 
 			// Create the target rules for it
-			TargetRules baseRules = rulesAssembly.CreateTargetRules(baseTargetName, thisRules.Platform, thisRules.Configuration, thisRules.Architectures, null, arguments, Logger, IntermediateEnvironment: thisRules.IntermediateEnvironment);
+			// we need to validate the target, but we don't care about SDK versions at all
+			TargetRules baseRules = rulesAssembly.CreateTargetRules(baseTargetName, thisRules.Platform, thisRules.Configuration, thisRules.Architectures, null, arguments, Logger, IntermediateEnvironment: thisRules.IntermediateEnvironment, ValidationOptions: TargetRulesValidationOptions.ValidateTargetOnly);
 
 			// Get all the configurable objects
 			object[] baseObjects = baseRules.GetConfigurableObjects().ToArray();

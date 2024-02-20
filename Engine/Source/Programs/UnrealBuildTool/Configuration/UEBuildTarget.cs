@@ -3540,6 +3540,7 @@ namespace UnrealBuildTool
 			{
 				Variables.Add("PluginDir", Plugin.Directory.FullName);
 			}
+			Variables.Add("BinaryDir", Binaries[0].OutputDir.FullName);
 			return Variables;
 		}
 
@@ -4065,7 +4066,21 @@ namespace UnrealBuildTool
 			// Get the root output directory and base name (target name/app name) for this binary
 			DirectoryReference BaseOutputDirectory;
 
-			if (bUseSharedBuildEnvironment && (ModuleRules.Plugin == null || (ModuleRules.Plugin.Type != PluginType.External || ModuleRules.Plugin.bExplicitPluginTarget)))
+			// if this module cares about any SDK overrides, and at least one was overridden, then treat the module as a project module
+			bool bHasImportantSDKOverride = false;
+			if (UEBuildPlatformSDK.bHasAnySDKOverride)
+			{
+				foreach (UnrealTargetPlatform Platform in ModuleRules.SDKVersionRelevantPlatforms)
+				{
+					UEBuildPlatformSDK? SDK = UEBuildPlatformSDK.GetSDKForPlatform(Platform.ToString());
+					if (SDK != null && SDK.bHasSDKOverride)
+					{
+						bHasImportantSDKOverride = true;
+					}
+				}
+			}
+
+			if (bUseSharedBuildEnvironment && !bHasImportantSDKOverride && (ModuleRules.Plugin == null || (ModuleRules.Plugin.Type != PluginType.External || ModuleRules.Plugin.bExplicitPluginTarget)))
 			{
 				BaseOutputDirectory = ModuleRules.Context.DefaultOutputBaseDir;
 			}
@@ -4726,9 +4741,17 @@ namespace UnrealBuildTool
 
 			// Construct the output paths for this target's executable
 			DirectoryReference OutputDirectory;
-			if (ProjectFile != null && (bCompileMonolithic || !bUseSharedBuildEnvironment) && Rules.File.IsUnderDirectory(ProjectDirectory))
+			// if we are building a program with a project file, and we are making a unique build environment, output the program to that project's binaries
+			bool bIsUniqueBuildProgram = Rules.Type == TargetType.Program && Rules.BuildEnvironment == TargetBuildEnvironment.Unique;
+			if (ProjectFile != null && (bCompileMonolithic || !bUseSharedBuildEnvironment) && (Rules.File.IsUnderDirectory(ProjectDirectory) || bIsUniqueBuildProgram))
 			{
 				OutputDirectory = GetOutputDirectoryForExecutable(ProjectDirectory, Rules.File);
+				// engine programs generally won't be under the directories searched in GetOutputDirectoryForExecutable, so it will return the EngineDir, even tho unique programs
+				// built with a ProjectFile want to be under the Project dir, so just force it into the ProjectDir if one wasn't found otherwise
+				if (bIsUniqueBuildProgram && Rules.File.IsUnderDirectory(Unreal.EngineDirectory) && OutputDirectory == Unreal.EngineDirectory)
+				{
+					OutputDirectory = ProjectDirectory;
+				}
 			}
 			else
 			{

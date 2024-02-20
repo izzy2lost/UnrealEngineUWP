@@ -13,6 +13,34 @@ using UnrealBuildBase;
 namespace UnrealBuildTool
 {
 	/// <summary>
+	/// Controls how the target and SDK are validated in CreateTargetRulesInstance
+	/// </summary>
+	public enum TargetRulesValidationOptions
+	{
+		/// <summary>
+		///  This will perform full target validation (allows the platform to update the target to make sure it's valid), and
+		///  SDK validation (makes sure SDK overrides are not conflicting).
+		///  This is the standard, default mode.
+		/// </summary>
+		ValidateTargetAndSDK,
+
+		/// <summary>
+		/// This will validate the target only (see ValidateTargetAndSDK)
+		/// </summary>
+		ValidateTargetOnly,
+
+		/// <summary>
+		/// This will validate the SDK only (see ValidateTargetAndSDK)
+		/// </summary>
+		ValidateSDKOnly,
+
+		/// <summary>
+		/// This will perform neither of the validations
+		/// </summary>
+		ValidateNothing
+	}
+
+	/// <summary>
 	/// Stores information about a compiled rules assembly and the types it contains
 	/// </summary>
 	public class RulesAssembly
@@ -586,9 +614,9 @@ namespace UnrealBuildTool
 		/// <param name="TargetInfo">Target configuration information to pass to the constructor</param>
 		/// <param name="Logger">Logger for output</param>
 		/// <param name="IsTestTarget">If building a low level tests target</param>
-		/// <param name="bSkipValidation">If validation should be skipped (QueryTargetMode)</param>
+		/// <param name="ValidationOptions">Controls validation of target and SDK</param>
 		/// <returns>Instance of the corresponding TargetRules or null if requested type name does not exist</returns>
-		protected TargetRules? CreateTargetRulesInstance(string TypeName, TargetInfo TargetInfo, ILogger Logger, bool IsTestTarget = false, bool bSkipValidation = false)
+		protected TargetRules? CreateTargetRulesInstance(string TypeName, TargetInfo TargetInfo, ILogger Logger, bool IsTestTarget = false, TargetRulesValidationOptions ValidationOptions = TargetRulesValidationOptions.ValidateTargetAndSDK)
 		{
 			// The build module must define a type named '<TargetName>Target' that derives from our 'TargetRules' type.  
 			Type? BaseRulesType = CompiledAssembly?.GetType(TypeName);
@@ -632,6 +660,8 @@ namespace UnrealBuildTool
 			FileReference BaseFile = TargetNameToTargetFile[TargetInfo.Name];
 			FileReference PlatformFile = TargetNameToTargetFile.TryGetValue(PlatformRulesName, out FileReference? PlatformTargetFile) ? PlatformTargetFile : BaseFile;
 			TargetRules Rules = TargetRules.Create(RulesType, TargetInfo, BaseFile, PlatformFile, TargetNameToTargetFile.Values, DefaultBuildSettings, Logger);
+			bool bValidateTarget = ValidationOptions == TargetRulesValidationOptions.ValidateTargetAndSDK || ValidationOptions == TargetRulesValidationOptions.ValidateTargetOnly;
+			bool bValidateSDK = ValidationOptions == TargetRulesValidationOptions.ValidateTargetAndSDK || ValidationOptions == TargetRulesValidationOptions.ValidateSDKOnly;
 
 			// Set the default overriddes for the configured target type
 			Rules.SetOverridesForTargetType();
@@ -642,7 +672,7 @@ namespace UnrealBuildTool
 				throw new CompilationResultException(CompilationResult.RulesError, "TargetRules.LinkType should be inferred from TargetType");
 			}
 
-			if (!bSkipValidation)
+			if (bValidateTarget)
 			{
 				// Delayed-fixup of TargetBuildEnvironment.UniqueIfNeeded
 				Rules.UpdateBuildEnvironmentIfNeeded(this, arguments: null, Logger);
@@ -730,11 +760,15 @@ namespace UnrealBuildTool
 			}
 
 			// Allow the platform to finalize the settings
-			if (!bSkipValidation)
+			if (bValidateTarget)
 			{
 				UEBuildPlatform Platform = UEBuildPlatform.GetBuildPlatform(Rules.Platform);
 				Platform.ValidateTarget(Rules);
+			}
 
+			// make sure any SDK overrides are valid
+			if (bValidateSDK)
+			{ 
 				ValidateSDKs(Rules);
 			}
 
@@ -801,10 +835,10 @@ namespace UnrealBuildTool
 		/// <param name="Arguments">Command line arguments for this target</param>
 		/// <param name="Logger"></param>
 		/// <param name="IsTestTarget">If building a low level test target</param>
-		/// <param name="bSkipValidation">If validation should be skipped (QueryTargetMode)</param>
+		/// <param name="ValidationOptions">Controls validation of target and SDK</param>
 		/// <param name="IntermediateEnvironment">Intermediate environment to use</param>
 		/// <returns>The build target rules for the specified target</returns>
-		public TargetRules CreateTargetRules(string TargetName, UnrealTargetPlatform Platform, UnrealTargetConfiguration Configuration, UnrealArchitectures? Architectures, FileReference? ProjectFile, CommandLineArguments? Arguments, ILogger Logger, bool IsTestTarget = false, bool bSkipValidation = false, UnrealIntermediateEnvironment IntermediateEnvironment = UnrealIntermediateEnvironment.Default)
+		public TargetRules CreateTargetRules(string TargetName, UnrealTargetPlatform Platform, UnrealTargetConfiguration Configuration, UnrealArchitectures? Architectures, FileReference? ProjectFile, CommandLineArguments? Arguments, ILogger Logger, bool IsTestTarget = false, TargetRulesValidationOptions ValidationOptions = TargetRulesValidationOptions.ValidateTargetAndSDK, UnrealIntermediateEnvironment IntermediateEnvironment = UnrealIntermediateEnvironment.Default)
 		{
 			if (IsTestTarget)
 			{
@@ -837,7 +871,7 @@ namespace UnrealBuildTool
 				}
 				else
 				{
-					return Parent.CreateTargetRules(TargetName, Platform, Configuration, Architectures, ProjectFile, Arguments, Logger, IsTestTarget, bSkipValidation, IntermediateEnvironment);
+					return Parent.CreateTargetRules(TargetName, Platform, Configuration, Architectures, ProjectFile, Arguments, Logger, IsTestTarget, ValidationOptions, IntermediateEnvironment);
 				}
 			}
 
@@ -845,7 +879,7 @@ namespace UnrealBuildTool
 			string TargetTypeName = TargetName + "Target";
 
 			// The build module must define a type named '<TargetName>Target' that derives from our 'TargetRules' type.  
-			TargetRules? TargetRules = CreateTargetRulesInstance(TargetTypeName, new TargetInfo(TargetName, Platform, Configuration, Architectures, ProjectFile, Arguments, IntermediateEnvironment), Logger, IsTestTarget, bSkipValidation);
+			TargetRules? TargetRules = CreateTargetRulesInstance(TargetTypeName, new TargetInfo(TargetName, Platform, Configuration, Architectures, ProjectFile, Arguments, IntermediateEnvironment), Logger, IsTestTarget, ValidationOptions);
 
 			if (TargetRules == null)
 			{

@@ -178,7 +178,7 @@ namespace UnrealBuildTool
 					// CreateTargetRules here needs to have an UnrealArchitectures object, because otherwise with 'null', it will call
 					// back to this function to get the ActiveArchitectures! in this case the arch is unimportant
 					UnrealArchitectures DummyArchitectures = new(UnrealArch.X64);
-					TargetRules? Rules = RulesAsm.CreateTargetRules(TargetName, UnrealTargetPlatform.Mac, UnrealTargetConfiguration.Development, DummyArchitectures, ProjectFile, null, Log.Logger, bSkipValidation:true);
+					TargetRules? Rules = RulesAsm.CreateTargetRules(TargetName, UnrealTargetPlatform.Mac, UnrealTargetConfiguration.Development, DummyArchitectures, ProjectFile, null, Log.Logger, ValidationOptions: TargetRulesValidationOptions.ValidateNothing);
 					bIsEditor = Rules.Type == TargetType.Editor;
 
 					// the projectfile passed in may be a game's uproject file that we are compiling a program in the context of, 

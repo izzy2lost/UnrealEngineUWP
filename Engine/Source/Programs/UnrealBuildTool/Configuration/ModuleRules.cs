@@ -792,6 +792,11 @@ namespace UnrealBuildTool
 		public bool bTreatAsEngineModule { get; set; }
 
 		/// <summary>
+		/// If this contains a platform and the project has had it's SDK version overriden from default, this module will be compiled as a project module, instead of shared engine module
+		/// </summary>
+		public List<UnrealTargetPlatform> SDKVersionRelevantPlatforms { get; } = new();
+
+		/// <summary>
 		/// Emits compilation errors for incorrect UE_LOG format strings.
 		/// </summary>
 		public bool bValidateFormatStrings
