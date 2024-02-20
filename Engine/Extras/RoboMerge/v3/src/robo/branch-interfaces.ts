@@ -70,7 +70,7 @@ export interface ExclusiveLockUser {
 
 export interface ExclusiveLockInfo {
 	exclusiveLockUsers: ExclusiveLockUser[]
-	lockedFiles: ExclusiveFile[]
+	exclusiveFiles: ExclusiveFile[]
 }
 
 export interface UnlockVerification extends OperationResult {
