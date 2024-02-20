@@ -490,7 +490,7 @@ namespace Horde.Server.Server
 			}
 			if (!toolConfig.Public && !toolConfig.Authorize(ToolAclAction.DownloadTool, context.GetHttpContext().User))
 			{
-				throw new StructuredRpcException(StatusCode.NotFound, "Access to software is forbidden");
+				throw new StructuredRpcException(StatusCode.PermissionDenied, $"User does not have DownloadTool entitlement for {toolId}");
 			}
 
 			ITool? tool = await _toolCollection.GetAsync(toolId, _globalConfig.Value);
