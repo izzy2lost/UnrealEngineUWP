@@ -342,8 +342,13 @@ namespace
 				Task.CompletionState = ECompletionState::None;
 
 				const FTransform& ComponentTransform = InLandscapeComponent->GetComponentTransform();
-				const int32 ComponentSizeVerts = InLandscapeComponent->SubsectionSizeQuads * InLandscapeComponent->NumSubsections + 1;
-				const FIntPoint TargetSize(ComponentSizeVerts, ComponentSizeVerts);
+
+				// request physical material render at the desired collision resolution
+				const int32 CollisionSubsectionVerts = ((InLandscapeComponent->SubsectionSizeQuads + 1) >> InLandscapeComponent->CollisionMipLevel);
+				const int32 CollisionSubsectionQuads = CollisionSubsectionVerts - 1;
+				const int32 CollisionComponentVerts = CollisionSubsectionQuads * InLandscapeComponent->NumSubsections + 1;
+
+				const FIntPoint TargetSize(CollisionComponentVerts, CollisionComponentVerts);
 				const FIntPoint TargetSizeMinusOne(TargetSize - FIntPoint(1, 1));
 				const FVector TargetCenter = ComponentTransform.TransformPosition(FVector(TargetSizeMinusOne, 0.f) * 0.5f);
 				const FVector TargetExtent = FVector(TargetSize, 0.0f) * ComponentTransform.GetScale3D() * 0.5f;
