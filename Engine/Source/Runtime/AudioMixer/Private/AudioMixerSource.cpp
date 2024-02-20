@@ -1642,6 +1642,29 @@ namespace Audio
 
 	float FMixerSource::GetInheritedSubmixVolumeModulation() const
 	{
+		FAudioDevice::FAudioSpatializationInterfaceInfo SpatializationInfo = MixerDevice->GetCurrentSpatializationPluginInterfaceInfo();
+		check(SpatializationInfo.bSpatializationIsExternalSend);
+
+		// if there is a return submix, we need to figure out where to stop manually attenuating
+		// Because the submix will modulate itself later
+		// Since the graph has tree-like structure, we can create a list of the return submix's ancestors
+		// to use while traversing the other submix's ancestors
+		TArray<uint32> ReturnSubmixAncestors;
+		if (SpatializationInfo.bReturnsToSubmixGraph)
+		{
+			USoundSubmix* ReturnSubmix = MixerDevice->ReverbPluginInterface->GetSubmix();
+			FMixerSubmixWeakPtr CurrReturnSubmixWeakPtr = MixerDevice->GetSubmixInstance(ReturnSubmix);
+			FMixerSubmixPtr CurrReturnSubmixPtr = CurrReturnSubmixWeakPtr.Pin();
+			while (CurrReturnSubmixPtr && CurrReturnSubmixPtr->IsValid())
+			{
+				ReturnSubmixAncestors.Add(CurrReturnSubmixPtr->GetId());
+
+				CurrReturnSubmixWeakPtr = CurrReturnSubmixPtr->GetParent();
+				CurrReturnSubmixPtr = CurrReturnSubmixWeakPtr.Pin();
+			}
+
+		}
+
 		float SubmixModVolume = 1.0f;
 
 		FMixerSubmixWeakPtr CurrSubmixWeakPtr = MixerDevice->GetSubmixInstance(WaveInstance->SoundSubmix);
@@ -1649,6 +1672,13 @@ namespace Audio
 		// Check the submix and all its parents in the graph for active modulation
 		while (CurrSubmixPtr && CurrSubmixPtr->IsValid())
 		{
+			// Matching ID means the external spatializer has returned to the submix graph at this point,
+			// so we no longer need to manually apply volume modulation
+			if (SpatializationInfo.bReturnsToSubmixGraph && ReturnSubmixAncestors.Contains(CurrSubmixPtr->GetId()))
+			{
+				break;
+			}
+
 			FModulationDestination* SubmixOutVolDest = CurrSubmixPtr->GetOutputVolumeDestination();
 			FModulationDestination* SubmixWetVolDest = CurrSubmixPtr->GetWetVolumeDestination();
 			if (SubmixOutVolDest)
