@@ -5,6 +5,7 @@
 #include "Containers/Array.h"
 #include "DSP/BufferVectorOperations.h"
 #include "DSP/EnvelopeFollower.h"
+#include "MetasoundPrimitives.h"
 #include "MetasoundTrigger.h"
 
 
@@ -12,19 +13,18 @@ namespace Metasound
 {
 	namespace Frontend
 	{
-		class METASOUNDFRONTEND_API FVertexAnalyzerTriggerDensity : public FVertexAnalyzerBase
+		class FVertexAnalyzerTriggerDensity : public FVertexAnalyzerBase
 		{
 		public:
-			static const FName& GetAnalyzerName();
-			static const FName& GetDataType();
+			METASOUNDFRONTEND_API static const FName& GetAnalyzerName();
+			METASOUNDFRONTEND_API static const FName& GetDataType();
 
-			struct METASOUNDFRONTEND_API FOutputs
+			struct FOutputs
 			{
-				static const FAnalyzerOutput& GetValue();
-
+				METASOUNDFRONTEND_API static const FAnalyzerOutput& GetValue();
 			};
 
-			class METASOUNDFRONTEND_API FFactory : public TVertexAnalyzerFactory<FVertexAnalyzerTriggerDensity>
+			class FFactory : public TVertexAnalyzerFactory<FVertexAnalyzerTriggerDensity>
 			{
 			public:
 				virtual const TArray<FAnalyzerOutput>& GetAnalyzerOutputs() const override
@@ -34,10 +34,10 @@ namespace Metasound
 				}
 			};
 
-			FVertexAnalyzerTriggerDensity(const FCreateAnalyzerParams& InParams);
-			virtual ~FVertexAnalyzerTriggerDensity() = default;
+			METASOUNDFRONTEND_API FVertexAnalyzerTriggerDensity(const FCreateAnalyzerParams& InParams);
+			METASOUNDFRONTEND_API virtual ~FVertexAnalyzerTriggerDensity();
 
-			virtual void Execute() override;
+			METASOUNDFRONTEND_API virtual void Execute() override;
 
 		private:
 

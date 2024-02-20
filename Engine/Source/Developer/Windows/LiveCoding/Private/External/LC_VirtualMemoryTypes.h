@@ -2,6 +2,9 @@
 
 #pragma once
 
+// BEGIN EPIC MOD
+#include "Windows/WindowsHWrapper.h"
+// END EPIC MOD
 
 namespace VirtualMemory
 {

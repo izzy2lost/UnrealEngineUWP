@@ -440,6 +440,8 @@ namespace Audio
 
 	}
 
+	FConvolutionReverb::~FConvolutionReverb() = default;
+
 	void FConvolutionReverb::SetSettings(const FConvolutionReverbSettings& InSettings)
 	{
 		Settings = InSettings;

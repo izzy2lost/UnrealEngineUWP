@@ -12,15 +12,15 @@ namespace Audio
 	/**
 	 * Contains settings for loudness analyzer.
 	 */
-	class AUDIOSYNESTHESIACORE_API FLoudnessNRTSettings : public IAnalyzerNRTSettings, public FLoudnessAnalyzerSettings
+	class FLoudnessNRTSettings : public IAnalyzerNRTSettings, public FLoudnessAnalyzerSettings
 	{
-		public:
-			/** Number of seconds between loudness measurements */
-			float AnalysisPeriod;
+	public:
+		/** Number of seconds between loudness measurements */
+		float AnalysisPeriod;
 
-			FLoudnessNRTSettings()
-			:	AnalysisPeriod(0.01f)
-			{}
+		FLoudnessNRTSettings()
+		:	AnalysisPeriod(0.01f)
+		{}
 	};
 
 
@@ -39,49 +39,49 @@ namespace Audio
 	AUDIOSYNESTHESIACORE_API FArchive &operator <<(FArchive& Ar, FLoudnessDatum& Datum);
 
 	/** FLoudnessNRTResult contains the temporal evolution of loudness. */
-	class AUDIOSYNESTHESIACORE_API FLoudnessNRTResult : public IAnalyzerNRTResult
+	class FLoudnessNRTResult : public IAnalyzerNRTResult
 	{
 	public:
 		/** Denotes the overall loudness channel index as opposed individual channel indices. */
-		static const int32 ChannelIndexOverall;
+		AUDIOSYNESTHESIACORE_API static const int32 ChannelIndexOverall;
 
-		FLoudnessNRTResult();
+		AUDIOSYNESTHESIACORE_API FLoudnessNRTResult();
 
 		/** Defines how to serialize result. */
-		virtual void Serialize(FArchive& Archive) override;
+		AUDIOSYNESTHESIACORE_API virtual void Serialize(FArchive& Archive) override;
 
 		/** Appends an FLoudnessDatum to the container. */
-		void Add(const FLoudnessDatum& InDatum);
+		AUDIOSYNESTHESIACORE_API void Add(const FLoudnessDatum& InDatum);
 
 		/** Returns true if this object data for the given channel index */
-		bool ContainsChannel(int32 InChannelIndex) const;
+		AUDIOSYNESTHESIACORE_API bool ContainsChannel(int32 InChannelIndex) const;
 
 		/** Returns const reference to FLoudnessDatum array for individual channel. */
-		const TArray<FLoudnessDatum>& GetChannelLoudnessArray(int32 ChannelIdx) const;
+		AUDIOSYNESTHESIACORE_API const TArray<FLoudnessDatum>& GetChannelLoudnessArray(int32 ChannelIdx) const;
 
 		/** Returns const reference to FLoudnessDatum array associated with overall loudness. */
-		const TArray<FLoudnessDatum>& GetLoudnessArray() const;
+		AUDIOSYNESTHESIACORE_API const TArray<FLoudnessDatum>& GetLoudnessArray() const;
 
 		/** Returns range in dB of overall loudness result given the noise floor. */
-		float GetLoudnessRange(float InNoiseFloor) const;
+		AUDIOSYNESTHESIACORE_API float GetLoudnessRange(float InNoiseFloor) const;
 
 		/** Returns range in dB of loudness result given the noise floor. */
-		float GetChannelLoudnessRange(int32 InChannelIdx, float InNoiseFloor) const;
+		AUDIOSYNESTHESIACORE_API float GetChannelLoudnessRange(int32 InChannelIdx, float InNoiseFloor) const;
 
 		/** Returns the channel indices available in result. */
-		void GetChannels(TArray<int32>& OutChannels) const;
+		AUDIOSYNESTHESIACORE_API void GetChannels(TArray<int32>& OutChannels) const;
 
 		/** Gets the duration of the analyzed audio. */
-		virtual float GetDurationInSeconds() const override;
+		AUDIOSYNESTHESIACORE_API virtual float GetDurationInSeconds() const override;
 
 		/** Sets the duration of the analyzed audio. */
-		void SetDurationInSeconds(float InDuration);
+		AUDIOSYNESTHESIACORE_API void SetDurationInSeconds(float InDuration);
 
 		/** Returns true if FLoudnessDatum arrays are sorted in chronologically ascending order via their timestamp. */
-		bool IsSortedChronologically() const;
+		AUDIOSYNESTHESIACORE_API bool IsSortedChronologically() const;
 
 		/** Sorts FLoudnessDatum arrays in chronologically ascending order via their timestamp. */
-		void SortChronologically();
+		AUDIOSYNESTHESIACORE_API void SortChronologically();
 
 	private:
 		float DurationInSeconds;
@@ -93,21 +93,21 @@ namespace Audio
 	/** 
 	 * FLoudnessNRTWorker performs loudness analysis on input sample buffers.
 	 */
-	class AUDIOSYNESTHESIACORE_API FLoudnessNRTWorker : public IAnalyzerNRTWorker
+	class FLoudnessNRTWorker : public IAnalyzerNRTWorker
 	{
 	public:
 		/** Construct a worker */
-		FLoudnessNRTWorker(const FAnalyzerNRTParameters& InParams, const FLoudnessNRTSettings& InAnalyzerSettings);
+		AUDIOSYNESTHESIACORE_API FLoudnessNRTWorker(const FAnalyzerNRTParameters& InParams, const FLoudnessNRTSettings& InAnalyzerSettings);
 
 		/**
 		 * Analyzes input sample buffer and updates result. 
 		 */
-		virtual void Analyze(TArrayView<const float> InAudio, IAnalyzerNRTResult* OutResult) override;
+		AUDIOSYNESTHESIACORE_API virtual void Analyze(TArrayView<const float> InAudio, IAnalyzerNRTResult* OutResult) override;
 
 		/**
 		 * Call when all audio data has been analyzed. 
 		 */
-		virtual void Finalize(IAnalyzerNRTResult* OutResult) override;
+		AUDIOSYNESTHESIACORE_API virtual void Finalize(IAnalyzerNRTResult* OutResult) override;
 
 	private:
 
@@ -127,21 +127,21 @@ namespace Audio
 	/**
 	 * Defines the LoudnessNRT analyzer and creates related classes.
 	 */
-	class AUDIOSYNESTHESIACORE_API FLoudnessNRTFactory : public IAnalyzerNRTFactory
+	class FLoudnessNRTFactory : public IAnalyzerNRTFactory
 	{
-		public:
+	public:
 
 		/** Name of specific analyzer type. */
-		virtual FName GetName() const override;
+		AUDIOSYNESTHESIACORE_API virtual FName GetName() const override;
 
 		/** Human readable name of analyzer. */
-		virtual FString GetTitle() const override;
+		AUDIOSYNESTHESIACORE_API virtual FString GetTitle() const override;
 
 		/** Creates a new FLoudnessNRTResult */
-		virtual TUniquePtr<IAnalyzerNRTResult> NewResult() const override;
+		AUDIOSYNESTHESIACORE_API virtual TUniquePtr<IAnalyzerNRTResult> NewResult() const override;
 
 		/** Creates a new FLoudnessNRTWorker. This expects IAnalyzerNRTSettings to be a valid pointer to a FLoudnessNRTSettings object. */
-		virtual TUniquePtr<IAnalyzerNRTWorker> NewWorker(const FAnalyzerNRTParameters& InParams, const IAnalyzerNRTSettings* InSettings) const override;
+		AUDIOSYNESTHESIACORE_API virtual TUniquePtr<IAnalyzerNRTWorker> NewWorker(const FAnalyzerNRTParameters& InParams, const IAnalyzerNRTSettings* InSettings) const override;
 	};
 }
 

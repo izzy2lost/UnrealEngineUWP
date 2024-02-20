@@ -11,7 +11,7 @@ class IPlatformCryptoEncryptor;
 enum class EPlatformCryptoResult;
 
 /** Implementation details for SHA256 computation using OpenSSL */
-struct PLATFORMCRYPTOOPENSSL_API FSHA256HasherOpenSSL final
+struct FSHA256HasherOpenSSL final
 {
 	FSHA256HasherOpenSSL(FSHA256HasherOpenSSL&&) = default;
 	FSHA256HasherOpenSSL& operator=(FSHA256HasherOpenSSL&&) = default;
@@ -20,21 +20,21 @@ struct PLATFORMCRYPTOOPENSSL_API FSHA256HasherOpenSSL final
 	 * Initialize the necessary state to begin computing a message digest.
 	 * It is only necessary to call this function if the object is being used to compute multiple hashes, as the constructor will automatically call it the first time.
 	 */
-	EPlatformCryptoResult Init();
+	PLATFORMCRYPTOOPENSSL_API EPlatformCryptoResult Init();
 
 	/**
 	 * Update the message digest computation with additional bytes
 	 *
 	 * @param InDataBuffer Buffer pointing to the data
 	 */
-	EPlatformCryptoResult Update(const TArrayView<const uint8> InDataBuffer);
+	PLATFORMCRYPTOOPENSSL_API EPlatformCryptoResult Update(const TArrayView<const uint8> InDataBuffer);
 
 	/**
 	 * Finalize the computation of the message digest. After calling this method, Init must be called again if this object is meant to be reused for hashing a new input.
 	 *
 	 * @param OutDataBuffer A buffer that can hold the message digest bytes. Call GetOutputByteLength to determine the necessary size.
 	 */
-	EPlatformCryptoResult Finalize(const TArrayView<uint8> OutDataBuffer);
+	PLATFORMCRYPTOOPENSSL_API EPlatformCryptoResult Finalize(const TArrayView<uint8> OutDataBuffer);
 
 	/**
 	 * The final message digest length in bytes.
@@ -55,26 +55,26 @@ using FSHA256Hasher = FSHA256HasherOpenSSL;
 /**
  * Interface to certain cryptographic algorithms, using OpenSSL to implement them.
  */
-class PLATFORMCRYPTOOPENSSL_API FEncryptionContextOpenSSL
+class FEncryptionContextOpenSSL
 {
 
 public:
 
-	TArray<uint8> Encrypt_AES_256_ECB(const TArrayView<const uint8> Plaintext, const TArrayView<const uint8> Key, EPlatformCryptoResult& OutResult);
-	TArray<uint8> Encrypt_AES_256_CBC(const TArrayView<const uint8> Plaintext, const TArrayView<const uint8> Key, const TArrayView<const uint8> InitializationVector, EPlatformCryptoResult& OutResult);
-	TArray<uint8> Encrypt_AES_256_GCM(const TArrayView<const uint8> Plaintext, const TArrayView<const uint8> Key, const TArrayView<const uint8> Nonce, TArray<uint8>& OutAuthTag, EPlatformCryptoResult& OutResult);
+	PLATFORMCRYPTOOPENSSL_API TArray<uint8> Encrypt_AES_256_ECB(const TArrayView<const uint8> Plaintext, const TArrayView<const uint8> Key, EPlatformCryptoResult& OutResult);
+	PLATFORMCRYPTOOPENSSL_API TArray<uint8> Encrypt_AES_256_CBC(const TArrayView<const uint8> Plaintext, const TArrayView<const uint8> Key, const TArrayView<const uint8> InitializationVector, EPlatformCryptoResult& OutResult);
+	PLATFORMCRYPTOOPENSSL_API TArray<uint8> Encrypt_AES_256_GCM(const TArrayView<const uint8> Plaintext, const TArrayView<const uint8> Key, const TArrayView<const uint8> Nonce, TArray<uint8>& OutAuthTag, EPlatformCryptoResult& OutResult);
 
-	TArray<uint8> Decrypt_AES_256_ECB(const TArrayView<const uint8> Ciphertext, const TArrayView<const uint8> Key, EPlatformCryptoResult& OutResult);
-	TArray<uint8> Decrypt_AES_256_CBC(const TArrayView<const uint8> Ciphertext, const TArrayView<const uint8> Key, const TArrayView<const uint8> InitializationVector, EPlatformCryptoResult& OutResult);
-	TArray<uint8> Decrypt_AES_256_GCM(const TArrayView<const uint8> Ciphertext, const TArrayView<const uint8> Key, const TArrayView<const uint8> Nonce, const TArrayView<const uint8> AuthTag, EPlatformCryptoResult& OutResult);
+	PLATFORMCRYPTOOPENSSL_API TArray<uint8> Decrypt_AES_256_ECB(const TArrayView<const uint8> Ciphertext, const TArrayView<const uint8> Key, EPlatformCryptoResult& OutResult);
+	PLATFORMCRYPTOOPENSSL_API TArray<uint8> Decrypt_AES_256_CBC(const TArrayView<const uint8> Ciphertext, const TArrayView<const uint8> Key, const TArrayView<const uint8> InitializationVector, EPlatformCryptoResult& OutResult);
+	PLATFORMCRYPTOOPENSSL_API TArray<uint8> Decrypt_AES_256_GCM(const TArrayView<const uint8> Ciphertext, const TArrayView<const uint8> Key, const TArrayView<const uint8> Nonce, const TArrayView<const uint8> AuthTag, EPlatformCryptoResult& OutResult);
 
-	TUniquePtr<IPlatformCryptoEncryptor> CreateEncryptor_AES_256_ECB(const TArrayView<const uint8> Key);
-	TUniquePtr<IPlatformCryptoEncryptor> CreateEncryptor_AES_256_CBC(const TArrayView<const uint8> Key, const TArrayView<const uint8> InitializationVector);
-	TUniquePtr<IPlatformCryptoEncryptor> CreateEncryptor_AES_256_GCM(const TArrayView<const uint8> Key, const TArrayView<const uint8> Nonce);
+	PLATFORMCRYPTOOPENSSL_API TUniquePtr<IPlatformCryptoEncryptor> CreateEncryptor_AES_256_ECB(const TArrayView<const uint8> Key);
+	PLATFORMCRYPTOOPENSSL_API TUniquePtr<IPlatformCryptoEncryptor> CreateEncryptor_AES_256_CBC(const TArrayView<const uint8> Key, const TArrayView<const uint8> InitializationVector);
+	PLATFORMCRYPTOOPENSSL_API TUniquePtr<IPlatformCryptoEncryptor> CreateEncryptor_AES_256_GCM(const TArrayView<const uint8> Key, const TArrayView<const uint8> Nonce);
 
-	TUniquePtr<IPlatformCryptoDecryptor> CreateDecryptor_AES_256_ECB(const TArrayView<const uint8> Key);
-	TUniquePtr<IPlatformCryptoDecryptor> CreateDecryptor_AES_256_CBC(const TArrayView<const uint8> Key, const TArrayView<const uint8> InitializationVector);
-	TUniquePtr<IPlatformCryptoDecryptor> CreateDecryptor_AES_256_GCM(const TArrayView<const uint8> Key, const TArrayView<const uint8> Nonce, const TArrayView<const uint8> AuthTag);
+	PLATFORMCRYPTOOPENSSL_API TUniquePtr<IPlatformCryptoDecryptor> CreateDecryptor_AES_256_ECB(const TArrayView<const uint8> Key);
+	PLATFORMCRYPTOOPENSSL_API TUniquePtr<IPlatformCryptoDecryptor> CreateDecryptor_AES_256_CBC(const TArrayView<const uint8> Key, const TArrayView<const uint8> InitializationVector);
+	PLATFORMCRYPTOOPENSSL_API TUniquePtr<IPlatformCryptoDecryptor> CreateDecryptor_AES_256_GCM(const TArrayView<const uint8> Key, const TArrayView<const uint8> Nonce, const TArrayView<const uint8> AuthTag);
 
 public:
 
@@ -87,7 +87,7 @@ public:
 	 *
 	 * @return Whether the sign operation was successful
 	 */
-	bool DigestSign_RS256(const TArrayView<const uint8> Message, TArray<uint8>& Signature, FRSAKeyHandle Key);
+	PLATFORMCRYPTOOPENSSL_API bool DigestSign_RS256(const TArrayView<const uint8> Message, TArray<uint8>& Signature, FRSAKeyHandle Key);
 
 	/**
 	 * Verify a hashed PS256 message with a signature.
@@ -98,7 +98,7 @@ public:
 	 *
 	 * @return Whether the verify operation was successful
 	 */
-	bool DigestVerify_PS256(const TArrayView<const char> Message, const TArrayView<const uint8> Signature, const TArrayView<const uint8> PKCS1Key);
+	PLATFORMCRYPTOOPENSSL_API bool DigestVerify_PS256(const TArrayView<const char> Message, const TArrayView<const uint8> Signature, const TArrayView<const uint8> PKCS1Key);
 
 	/**
 	 * Verify a hashed RS256 message with a signature.
@@ -109,7 +109,7 @@ public:
 	 *
 	 * @return Whether the verify operation was successful
 	 */
-	bool DigestVerify_RS256(const TArrayView<const uint8> Message, const TArrayView<const uint8> Signature, FRSAKeyHandle Key);
+	PLATFORMCRYPTOOPENSSL_API bool DigestVerify_RS256(const TArrayView<const uint8> Message, const TArrayView<const uint8> Signature, FRSAKeyHandle Key);
 
 	/**
 	 * Generate an RSA key with the number of key bits.
@@ -121,7 +121,7 @@ public:
 	 *
 	 * @return Whether the generate operation was successful
 	 */
-	bool GenerateKey_RSA(const int32 InNumKeyBits, TArray<uint8>& OutPublicExponent, TArray<uint8>& OutPrivateExponent, TArray<uint8>& OutModulus);
+	PLATFORMCRYPTOOPENSSL_API bool GenerateKey_RSA(const int32 InNumKeyBits, TArray<uint8>& OutPublicExponent, TArray<uint8>& OutPrivateExponent, TArray<uint8>& OutModulus);
 
 	/**
 	 * Create an RSA key from a binary public/private exponent and modulus.
@@ -132,7 +132,7 @@ public:
 	 *
 	 * @return The created RSA key
 	 */
-	FRSAKeyHandle CreateKey_RSA(const TArrayView<const uint8> PublicExponent, const TArrayView<const uint8> PrivateExponent, const TArrayView<const uint8> Modulus);
+	PLATFORMCRYPTOOPENSSL_API FRSAKeyHandle CreateKey_RSA(const TArrayView<const uint8> PublicExponent, const TArrayView<const uint8> PrivateExponent, const TArrayView<const uint8> Modulus);
 
 	/**
 	 * Get the RSA public key from a PEM format string.
@@ -141,14 +141,14 @@ public:
 	 *
 	 * @return The RSA public key
 	 */
-	FRSAKeyHandle GetPublicKey_RSA(const FStringView PemSource);
+	PLATFORMCRYPTOOPENSSL_API FRSAKeyHandle GetPublicKey_RSA(const FStringView PemSource);
 
 	/**
 	 * Destroy and free the RSA key.
 	 *
 	 * @param Key Handle to the key
 	 */
-	void DestroyKey_RSA(FRSAKeyHandle Key);
+	PLATFORMCRYPTOOPENSSL_API void DestroyKey_RSA(FRSAKeyHandle Key);
 
 	/**
 	 * Get the RSA key modulus size in bytes.
@@ -157,7 +157,7 @@ public:
 	 *
 	 * @return The modulus size in bytes
 	 */
-	int32 GetKeySize_RSA(FRSAKeyHandle Key);
+	PLATFORMCRYPTOOPENSSL_API int32 GetKeySize_RSA(FRSAKeyHandle Key);
 
 	/**
 	 * Get the maximum data size.
@@ -166,7 +166,7 @@ public:
 	 *
 	 * @return The maximum data size in bytes
 	 */
-	int32 GetMaxDataSize_RSA(FRSAKeyHandle Key);
+	PLATFORMCRYPTOOPENSSL_API int32 GetMaxDataSize_RSA(FRSAKeyHandle Key);
 
 	/**
 	 * Encrypt a source with a public RSA key.
@@ -177,7 +177,7 @@ public:
 	 *
 	 * @return Number of encrypted bytes
 	 */
-	int32 EncryptPublic_RSA(TArrayView<const uint8> Source, TArray<uint8>& Dest, FRSAKeyHandle Key);
+	PLATFORMCRYPTOOPENSSL_API int32 EncryptPublic_RSA(TArrayView<const uint8> Source, TArray<uint8>& Dest, FRSAKeyHandle Key);
 
 	/**
 	 * Encrypt a source with a private RSA key.
@@ -188,7 +188,7 @@ public:
 	 *
 	 * @return Number of encrypted bytes
 	 */
-	int32 EncryptPrivate_RSA(TArrayView<const uint8> Source, TArray<uint8>& Dest, FRSAKeyHandle Key);
+	PLATFORMCRYPTOOPENSSL_API int32 EncryptPrivate_RSA(TArrayView<const uint8> Source, TArray<uint8>& Dest, FRSAKeyHandle Key);
 
 	/**
 	 * Decrypt a source with a public RSA key.
@@ -199,7 +199,7 @@ public:
 	 *
 	 * @return Number of decrypted bytes
 	 */
-	int32 DecryptPublic_RSA(TArrayView<const uint8> Source, TArray<uint8>& Dest, FRSAKeyHandle Key);
+	PLATFORMCRYPTOOPENSSL_API int32 DecryptPublic_RSA(TArrayView<const uint8> Source, TArray<uint8>& Dest, FRSAKeyHandle Key);
 
 	/**
 	 * Decrypt a source with a private RSA key.
@@ -210,7 +210,7 @@ public:
 	 *
 	 * @return Number of decrypted bytes
 	 */
-	int32 DecryptPrivate_RSA(TArrayView<const uint8> Source, TArray<uint8>& Dest, FRSAKeyHandle Key);
+	PLATFORMCRYPTOOPENSSL_API int32 DecryptPrivate_RSA(TArrayView<const uint8> Source, TArray<uint8>& Dest, FRSAKeyHandle Key);
 
 public:
 
@@ -221,7 +221,7 @@ public:
 	 *
 	 * @return The platform crypto result enum
 	 */
-	EPlatformCryptoResult CreateRandomBytes(const TArrayView<uint8> OutData);
+	PLATFORMCRYPTOOPENSSL_API EPlatformCryptoResult CreateRandomBytes(const TArrayView<uint8> OutData);
 
 	/**
 	 * Create pseudo random bytes.
@@ -230,7 +230,7 @@ public:
 	 *
 	 * @return The platform crypto result enum
 	 */
-	EPlatformCryptoResult CreatePseudoRandomBytes(const TArrayView<uint8> OutData);
+	PLATFORMCRYPTOOPENSSL_API EPlatformCryptoResult CreatePseudoRandomBytes(const TArrayView<uint8> OutData);
 
 public:
 
@@ -239,7 +239,7 @@ public:
 	 *
 	 * @return Reference to the hasher
 	 */
-	FSHA256Hasher CreateSHA256Hasher();
+	PLATFORMCRYPTOOPENSSL_API FSHA256Hasher CreateSHA256Hasher();
 
 	/**
 	 * Calculate the SHA256 hash of a message.
@@ -249,7 +249,7 @@ public:
 	 *
 	 * @return Whether the hash operation was successful
 	 */
-	bool CalcSHA256(const TArrayView<const uint8> Source, TArray<uint8>& OutHash);
+	PLATFORMCRYPTOOPENSSL_API bool CalcSHA256(const TArrayView<const uint8> Source, TArray<uint8>& OutHash);
 
 };
 

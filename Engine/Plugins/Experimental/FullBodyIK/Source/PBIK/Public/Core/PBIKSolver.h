@@ -197,7 +197,7 @@ struct PBIK_API FPBIKSolverSettings
 };
 
 USTRUCT()
-struct PBIK_API FPBIKSolver
+struct FPBIKSolver
 {
 	GENERATED_BODY()
 
@@ -209,52 +209,52 @@ public:
 		return *this;
 	}
 
-	PBIK::FDebugDraw* GetDebugDraw();
+	PBIK_API PBIK::FDebugDraw* GetDebugDraw();
 
 	//
 	// main runtime functions
 	//
 
-	bool Initialize();
+	PBIK_API bool Initialize();
 
-	void Solve(const FPBIKSolverSettings& Settings);
+	PBIK_API void Solve(const FPBIKSolverSettings& Settings);
 
-	void Reset();
+	PBIK_API void Reset();
 
-	bool IsReadyToSimulate() const;
+	PBIK_API bool IsReadyToSimulate() const;
 
 	//
 	// set input / get output at runtime
 	//
 
-	void SetBoneTransform(const int32 Index, const FTransform& InTransform);
+	PBIK_API void SetBoneTransform(const int32 Index, const FTransform& InTransform);
 
-	PBIK::FBoneSettings* GetBoneSettings(const int32 Index);
+	PBIK_API PBIK::FBoneSettings* GetBoneSettings(const int32 Index);
 
-	void SetEffectorGoal(
+	PBIK_API void SetEffectorGoal(
 		const int32 Index, 
 		const FVector& InPosition, 
 		const FQuat& InRotation, 
 		const PBIK::FEffectorSettings& Settings);
 
-	void GetBoneGlobalTransform(const int32 Index, FTransform& OutTransform);
+	PBIK_API void GetBoneGlobalTransform(const int32 Index, FTransform& OutTransform);
 
 	int32 GetNumBones() const { return Bones.Num(); }
 
-	int32 GetBoneIndex(FName BoneName) const;
+	PBIK_API int32 GetBoneIndex(FName BoneName) const;
 
 	//
 	// pre-init /  setup functions
 	//
 
-	int32 AddBone(
+	PBIK_API int32 AddBone(
 		const FName Name,
 		const int32 ParentIndex,
 		const FVector& InOrigPosition,
 		const FQuat& InOrigRotation,
 		bool bIsSolverRoot);
 
-	int32 AddEffector(const FName BoneName);
+	PBIK_API int32 AddEffector(const FName BoneName);
 	
 private:
 

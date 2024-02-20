@@ -13,7 +13,7 @@ namespace Audio
 	 *
 	 *  Settings for the Constant Q Non-Real-Time Factory.
 	 */
-	class AUDIOSYNESTHESIACORE_API FConstantQNRTSettings : public IAnalyzerNRTSettings, public FConstantQAnalyzerSettings 
+	class FConstantQNRTSettings : public IAnalyzerNRTSettings, public FConstantQAnalyzerSettings 
 	{
 	public:
 
@@ -38,7 +38,7 @@ namespace Audio
 	 * 
 	 *  Contains Constant Q data relating to one audio window.
 	 */
-	struct AUDIOSYNESTHESIACORE_API FConstantQFrame
+	struct FConstantQFrame
 	{
 		/** Audio channel which produced the data. */
 		int32 Channel;
@@ -68,41 +68,41 @@ namespace Audio
 	 *
 	 *  FConstantQNRTResult is a container for the output of the FConstantQNRTWorker.
 	 */
-	class AUDIOSYNESTHESIACORE_API FConstantQNRTResult : public IAnalyzerNRTResult
+	class FConstantQNRTResult : public IAnalyzerNRTResult
 	{
 	public:
 
-		FConstantQNRTResult();
+		AUDIOSYNESTHESIACORE_API FConstantQNRTResult();
 
 		/** Serialize or unserialize object */
-		virtual void Serialize(FArchive& Archive) override;
+		AUDIOSYNESTHESIACORE_API virtual void Serialize(FArchive& Archive) override;
 
 		/** Add a single frame of CQT data */
-		void AddFrame(int32 InChannelIndex, float InTimestamp, TArrayView<const float> InSpectrum);
+		AUDIOSYNESTHESIACORE_API void AddFrame(int32 InChannelIndex, float InTimestamp, TArrayView<const float> InSpectrum);
 
 		/** Returns true if this result contains data for the given channel index. */
-		bool ContainsChannel(int32 InChannelIndex) const;
+		AUDIOSYNESTHESIACORE_API bool ContainsChannel(int32 InChannelIndex) const;
 
 		/** Retrieve the array of frames for a single channel of audio. */
-		const TArray<FConstantQFrame>& GetFramesForChannel(int32 InChannelIndex) const;
+		AUDIOSYNESTHESIACORE_API const TArray<FConstantQFrame>& GetFramesForChannel(int32 InChannelIndex) const;
 
 		/** Retrieve the difference between the maximum and minimum value in the spectrum. */
-		FFloatInterval GetChannelConstantQInterval(int32 InChannelIdx) const;
+		AUDIOSYNESTHESIACORE_API FFloatInterval GetChannelConstantQInterval(int32 InChannelIdx) const;
 
 		/** Retrieve an array of channel indices which exist in this result. */
-		void GetChannels(TArray<int32>& OutChannels) const;
+		AUDIOSYNESTHESIACORE_API void GetChannels(TArray<int32>& OutChannels) const;
 
 		/** Returns the duration of the analyzed audio in seconds */
-		virtual float GetDurationInSeconds() const override;
+		AUDIOSYNESTHESIACORE_API virtual float GetDurationInSeconds() const override;
 
 		/** Sets the duration of the analyzed audio in seconds */
-		void SetDurationInSeconds(float InDuration); 
+		AUDIOSYNESTHESIACORE_API void SetDurationInSeconds(float InDuration);
 
 	 	/** Returns true if FConstantQFrame arrays are sorted in chronologically ascending order via their timestamp.  */
-		bool IsSortedChronologically() const;
+		AUDIOSYNESTHESIACORE_API bool IsSortedChronologically() const;
 
 		/** Sorts FConstantQFrame arrays in chronologically ascnding order via their timestamp.  */
-		void SortChronologically();
+		AUDIOSYNESTHESIACORE_API void SortChronologically();
 
 
 	private:
@@ -120,7 +120,7 @@ namespace Audio
 	 *
 	 *  FConstantQNRTWorker computes a FConstantQNRTResult from audio samples.
 	 */
-	class AUDIOSYNESTHESIACORE_API FConstantQNRTWorker : public IAnalyzerNRTWorker
+	class FConstantQNRTWorker : public IAnalyzerNRTWorker
 	{
 	public:
 
@@ -129,7 +129,7 @@ namespace Audio
 		 * InParams are the parameters which describe characteristics of the input audio.
 		 * InAnalyzerSettings are the settings which control various aspects of the algorithm.
 		 */
-		FConstantQNRTWorker(const FAnalyzerNRTParameters& InParams, const FConstantQNRTSettings& InAnalyzerSettings);
+		AUDIOSYNESTHESIACORE_API FConstantQNRTWorker(const FAnalyzerNRTParameters& InParams, const FConstantQNRTSettings& InAnalyzerSettings);
 
 		/**
 		 *  Analyze audio and put results into results pointer.
@@ -137,14 +137,14 @@ namespace Audio
 		 *  InAudio is an array view of audio.
 		 *  OutResult is a pointer to a valid FConstantQNRTResult
 		 */
-		virtual void Analyze(TArrayView<const float> InAudio, IAnalyzerNRTResult* OutResult) override;
+		AUDIOSYNESTHESIACORE_API virtual void Analyze(TArrayView<const float> InAudio, IAnalyzerNRTResult* OutResult) override;
 
 		/** 
 		 *  Call when analysis of audio asset is complete. 
 		 *
 		 *  OutResult must be a pointer to a valid FConstantQNRTResult. 
 		 */
-		virtual void Finalize(IAnalyzerNRTResult* OutResult) override;
+		AUDIOSYNESTHESIACORE_API virtual void Finalize(IAnalyzerNRTResult* OutResult) override;
 
 	private:
 
@@ -181,24 +181,24 @@ namespace Audio
 	 *  
 	 *  Factory for creating FConstantQNRT workers and results
 	 */
-	class AUDIOSYNESTHESIACORE_API FConstantQNRTFactory : public IAnalyzerNRTFactory
+	class FConstantQNRTFactory : public IAnalyzerNRTFactory
 	{
 	public:
 
 		/** Name of this analyzer type. */
-		virtual FName GetName() const override;
+		AUDIOSYNESTHESIACORE_API virtual FName GetName() const override;
 
 		/** Human readable name of this analyzer. */
-		virtual FString GetTitle() const override;
+		AUDIOSYNESTHESIACORE_API virtual FString GetTitle() const override;
 
 		/** Create a new FConstantQNRTResult. */
-		virtual TUniquePtr<IAnalyzerNRTResult> NewResult() const override;
+		AUDIOSYNESTHESIACORE_API virtual TUniquePtr<IAnalyzerNRTResult> NewResult() const override;
 
 		/** Create a new FConstantQNRTWorker 
 		 *
 		 *  InSettings must be a pointer to FConstantQNRTSetting
 		 */
-		virtual TUniquePtr<IAnalyzerNRTWorker> NewWorker(const FAnalyzerNRTParameters& InParams, const IAnalyzerNRTSettings* InSettings) const override;
+		AUDIOSYNESTHESIACORE_API virtual TUniquePtr<IAnalyzerNRTWorker> NewWorker(const FAnalyzerNRTParameters& InParams, const IAnalyzerNRTSettings* InSettings) const override;
 	};
 }
 

@@ -4,13 +4,16 @@
 
 #include "ConcertFrontendStyle.h"
 
+#include "Delegates/DelegateCombinations.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SNullWidget.h"
 #include "Widgets/Views/SExpanderArrow.h"
+#include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableRow.h"
 #include "Widgets/Views/STableViewBase.h"
 #include "Styling/AppStyle.h"
 #include "Styling/CoreStyle.h"
+#include "Replication/Editor/View/Column/IReplicationTreeColumn.h"
 
 namespace UE::ConcertSharedSlate
 {

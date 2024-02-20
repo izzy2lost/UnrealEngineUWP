@@ -2,8 +2,15 @@
 
 #pragma once
 
+#include "HAL/PlatformAtomics.h"
+#include "Misc/AssertionMacros.h"
+
 #include "Windows/AllowWindowsPlatformTypes.h"
 
+THIRD_PARTY_INCLUDES_START
+#include <unknwn.h>
+#include <shlwapi.h>
+THIRD_PARTY_INCLUDES_END
 
 /**
  * Implements the state information for asynchronous reads of byte buffer sources.

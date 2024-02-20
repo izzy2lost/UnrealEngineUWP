@@ -6,6 +6,7 @@
 #include "Containers/Array.h"
 #include "DSP/EnvelopeFollower.h"
 #include "MetasoundDataReferenceCollection.h"
+#include "MetasoundPrimitives.h"
 #include "MetasoundRouter.h"
 
 

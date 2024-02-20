@@ -222,6 +222,8 @@ namespace UE::GeometryCacheHelpers
 		Cache->ClearForReimporting();
 		Cache->Materials.Empty();
 	}
+
+	FGeometryCacheConstantTopologyWriter::~FGeometryCacheConstantTopologyWriter() = default;
 	
 	using FTrackWriter = FGeometryCacheConstantTopologyWriter::FTrackWriter;
 	FTrackWriter& FGeometryCacheConstantTopologyWriter::AddTrackWriter(FName TrackName)
@@ -268,6 +270,8 @@ namespace UE::GeometryCacheHelpers
 		}
 		Track = TStrongObjectPtr(NewObject<UGeometryCacheTrackStreamable>(CachePtr, TrackName, RF_Public));
 	}
+
+	FGeometryCacheConstantTopologyWriter::FTrackWriter::~FTrackWriter() = default;
 
 	bool FGeometryCacheConstantTopologyWriter::FTrackWriter::WriteAndClose(TArrayView<TArray<FVector3f>> PositionsToMoveFrom)
 	{

@@ -14,7 +14,7 @@ namespace Audio
 	 *
 	 *  Settings for the Constant Q Non-Real-Time Factory.
 	 */
-	struct AUDIOSYNESTHESIACORE_API FConstantQSettings : public IAnalyzerSettings, public FConstantQAnalyzerSettings 
+	struct FConstantQSettings : public IAnalyzerSettings, public FConstantQAnalyzerSettings 
 	{
 	public:
 		/** Time, in seconds, between constant Q frames. */
@@ -31,20 +31,20 @@ namespace Audio
 	/** 
 	 * FLoudnessResult contains the temporal evolution of loudness for the last buffer of audio analyzed.
 	 */
-	class AUDIOSYNESTHESIACORE_API FConstantQResult : public IAnalyzerResult
+	class FConstantQResult : public IAnalyzerResult
 	{
 	public:
 
 		FConstantQResult() {}
 
 		/** Add a single frame of CQT data */
-		void AddFrame(const int32 InChannelIndex, const float InTimestamp, TArrayView<const float> InSpectrum);
+		AUDIOSYNESTHESIACORE_API void AddFrame(const int32 InChannelIndex, const float InTimestamp, TArrayView<const float> InSpectrum);
 
 		/** Returns const reference to FLoudnessDatum array for individual channel. */
-		const TArray<FConstantQFrame>& GetFramesForChannel(const int32 ChannelIdx) const;
+		AUDIOSYNESTHESIACORE_API const TArray<FConstantQFrame>& GetFramesForChannel(const int32 ChannelIdx) const;
 
 		/** Returns the number of channels. */
-		int32 GetNumChannels() const;
+		AUDIOSYNESTHESIACORE_API int32 GetNumChannels() const;
 
 	private:
 		TMap<int32, TArray<FConstantQFrame> > ChannelCQTFrames;
@@ -54,7 +54,7 @@ namespace Audio
 	 *
 	 *  FConstantQWorker computes a FConstantQResult from audio samples.
 	 */
-	class AUDIOSYNESTHESIACORE_API FConstantQWorker : public IAnalyzerWorker
+	class FConstantQWorker : public IAnalyzerWorker
 	{
 	public:
 
@@ -63,7 +63,7 @@ namespace Audio
 		 * InParams are the parameters which describe characteristics of the input audio.
 		 * InAnalyzerSettings are the settings which control various aspects of the algorithm.
 		 */
-		FConstantQWorker(const FAnalyzerParameters& InParams, const FConstantQSettings& InAnalyzerSettings);
+		AUDIOSYNESTHESIACORE_API FConstantQWorker(const FAnalyzerParameters& InParams, const FConstantQSettings& InAnalyzerSettings);
 
 		/**
 		 *  Analyze audio and put results into results pointer.
@@ -71,7 +71,7 @@ namespace Audio
 		 *  InAudio is an array view of audio.
 		 *  OutResult is a pointer to a valid FConstantQResult
 		 */
-		virtual void Analyze(TArrayView<const float> InAudio, IAnalyzerResult* OutResult) override;
+		AUDIOSYNESTHESIACORE_API virtual void Analyze(TArrayView<const float> InAudio, IAnalyzerResult* OutResult) override;
 
 	private:
 		/** Analyze audio with multiple channels interleaved. */
@@ -106,23 +106,23 @@ namespace Audio
 	 *  
 	 *  Factory for creating FConstantQ workers and results
 	 */
-	class AUDIOSYNESTHESIACORE_API FConstantQFactory : public IAnalyzerFactory
+	class FConstantQFactory : public IAnalyzerFactory
 	{
 	public:
 
 		/** Name of this analyzer type. */
-		virtual FName GetName() const override;
+		AUDIOSYNESTHESIACORE_API virtual FName GetName() const override;
 
 		/** Human readable name of this analyzer. */
-		virtual FString GetTitle() const override;
+		AUDIOSYNESTHESIACORE_API virtual FString GetTitle() const override;
 
 		/** Create a new FConstantQResult. */
-		virtual TUniquePtr<IAnalyzerResult> NewResult() const override;
+		AUDIOSYNESTHESIACORE_API virtual TUniquePtr<IAnalyzerResult> NewResult() const override;
 
 		/** Create a new FConstantQWorker 
 		 *
 		 *  InSettings must be a pointer to FConstantQSetting
 		 */
-		virtual TUniquePtr<IAnalyzerWorker> NewWorker(const FAnalyzerParameters& InParams, const IAnalyzerSettings* InSettings) const override;
+		AUDIOSYNESTHESIACORE_API virtual TUniquePtr<IAnalyzerWorker> NewWorker(const FAnalyzerParameters& InParams, const IAnalyzerSettings* InSettings) const override;
 	};
 }

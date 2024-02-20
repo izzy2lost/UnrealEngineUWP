@@ -12,7 +12,7 @@ namespace Audio
 	/**
 	 * Contains settings for Spectrum analyzer.
 	 */
-	class AUDIOSYNESTHESIACORE_API FSynesthesiaSpectrumAnalysisSettings : public IAnalyzerSettings, public FSynesthesiaSpectrumAnalyzerSettings
+	class FSynesthesiaSpectrumAnalysisSettings : public IAnalyzerSettings, public FSynesthesiaSpectrumAnalyzerSettings
 	{	
 	public:
 		/** Number of seconds between spectrum measurements */
@@ -32,19 +32,19 @@ namespace Audio
 	/** 
 	 * FSynesthesiaSpectrumResult contains the temporal evolution of loudness for the last buffer of audio analyzed.
 	 */
-	class AUDIOSYNESTHESIACORE_API FSynesthesiaSpectrumResult : public IAnalyzerResult
+	class FSynesthesiaSpectrumResult : public IAnalyzerResult
 	{
 	public:
 		FSynesthesiaSpectrumResult() {}
 
 		/** Appends an FSynesthesiaSpectrumEntry to the container. */
-		void Add(FSynesthesiaSpectrumEntry&& InEntry);
+		AUDIOSYNESTHESIACORE_API void Add(FSynesthesiaSpectrumEntry&& InEntry);
 
 		/** Returns const reference to FSynesthesiaSpectrumEntry array for individual channel. */
-		const TArray<FSynesthesiaSpectrumEntry>& GetChannelSpectrumArray(int32 ChannelIdx) const;
+		AUDIOSYNESTHESIACORE_API const TArray<FSynesthesiaSpectrumEntry>& GetChannelSpectrumArray(int32 ChannelIdx) const;
 
 		/** Returns the number of channels. */
-		int32 GetNumChannels() const;
+		AUDIOSYNESTHESIACORE_API int32 GetNumChannels() const;
 
 	private:
 		float DurationInSeconds = 0.0f;
@@ -54,14 +54,14 @@ namespace Audio
 	/**
 	 * FSynesthesiaSpectrumWorker performs Spectrum analysis on input sample buffers.
 	 */
-	class AUDIOSYNESTHESIACORE_API FSynesthesiaSpectrumAnalysisWorker : public IAnalyzerWorker
+	class FSynesthesiaSpectrumAnalysisWorker : public IAnalyzerWorker
 	{
 	public:
 		/** Construct a worker */
-		FSynesthesiaSpectrumAnalysisWorker(const FAnalyzerParameters& InParams, const FSynesthesiaSpectrumAnalysisSettings& InAnalyzerSettings);
+		AUDIOSYNESTHESIACORE_API FSynesthesiaSpectrumAnalysisWorker(const FAnalyzerParameters& InParams, const FSynesthesiaSpectrumAnalysisSettings& InAnalyzerSettings);
 
 		/** Analyzes input sample buffer and updates result. */
-		virtual void Analyze(TArrayView<const float> InAudio, IAnalyzerResult* OutResult) override;
+		AUDIOSYNESTHESIACORE_API virtual void Analyze(TArrayView<const float> InAudio, IAnalyzerResult* OutResult) override;
 
 	private:
 
@@ -85,21 +85,21 @@ namespace Audio
 	/**
 	 * Defines the Spectrum analyzer and creates related classes.
 	 */
-	class AUDIOSYNESTHESIACORE_API FSynesthesiaSpectrumAnalysisFactory : public IAnalyzerFactory
+	class FSynesthesiaSpectrumAnalysisFactory : public IAnalyzerFactory
 	{
-		public:
+	public:
 
 		/** Name of specific analyzer type. */
-		virtual FName GetName() const override;
+		AUDIOSYNESTHESIACORE_API virtual FName GetName() const override;
 
 		/** Human readable name of analyzer. */
-		virtual FString GetTitle() const override;
+		AUDIOSYNESTHESIACORE_API virtual FString GetTitle() const override;
 
 		/** Creates a new FSynesthesiaSpectrumResult */
-		virtual TUniquePtr<IAnalyzerResult> NewResult() const override;
+		AUDIOSYNESTHESIACORE_API virtual TUniquePtr<IAnalyzerResult> NewResult() const override;
 
 		/**  Creates a new FSynesthesiaSpectrumAnalysisWorker. This expects IAnalyzerNRTSettings to be a valid pointer to a FSynesthesiaSpectrumAnalysisSettings object. */
-		virtual TUniquePtr<IAnalyzerWorker> NewWorker(const FAnalyzerParameters& InParams, const IAnalyzerSettings* InSettings) const override;
+		AUDIOSYNESTHESIACORE_API virtual TUniquePtr<IAnalyzerWorker> NewWorker(const FAnalyzerParameters& InParams, const IAnalyzerSettings* InSettings) const override;
 	};
 }
 

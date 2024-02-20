@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "Math/Vector.h"
+
 // Implement vertex types that meet the required templated interface for the simplifier.
 
 /**

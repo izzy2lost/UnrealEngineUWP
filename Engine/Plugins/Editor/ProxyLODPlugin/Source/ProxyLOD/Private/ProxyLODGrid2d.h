@@ -4,6 +4,7 @@
 
 #include "Containers/Array.h"
 #include "Templates/SharedPointer.h"
+#include "Math/IntPoint.h"
 #include "Misc/AssertionMacros.h"
 
 namespace ProxyLOD

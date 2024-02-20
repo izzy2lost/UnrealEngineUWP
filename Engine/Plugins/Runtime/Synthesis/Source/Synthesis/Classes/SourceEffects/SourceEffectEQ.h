@@ -49,19 +49,19 @@ struct SYNTHESIS_API FSourceEffectEQSettings
 	TArray<FSourceEffectEQBand> EQBands;
 };
 
-class SYNTHESIS_API FSourceEffectEQ : public FSoundEffectSource
+class FSourceEffectEQ : public FSoundEffectSource
 {
 public:
-	FSourceEffectEQ();
+	SYNTHESIS_API FSourceEffectEQ();
 
 	// Called on an audio effect at initialization on main thread before audio processing begins.
-	virtual void Init(const FSoundEffectSourceInitData& InitData) override;
+	SYNTHESIS_API virtual void Init(const FSoundEffectSourceInitData& InitData) override;
 	
 	// Called when an audio effect preset is changed
-	virtual void OnPresetChanged() override;
+	SYNTHESIS_API virtual void OnPresetChanged() override;
 
 	// Process the input block of audio. Called on audio thread.
-	virtual void ProcessAudio(const FSoundEffectSourceInputData& InData, float* OutAudioBufferData) override;
+	SYNTHESIS_API virtual void ProcessAudio(const FSoundEffectSourceInputData& InData, float* OutAudioBufferData) override;
 
 protected:
 

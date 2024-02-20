@@ -45,6 +45,8 @@ namespace Metasound
 			FVertexAnalyzerBase::BindOutputData<float>(FOutputs::GetValue().Name, InParams.OperatorSettings, TDataReadReference<float>(EnvelopeValue));
 		}
 
+		FVertexAnalyzerTriggerDensity::~FVertexAnalyzerTriggerDensity() = default;
+
 		void FVertexAnalyzerTriggerDensity::Execute()
 		{
 			const FTrigger& Trigger = GetVertexData<FTrigger>();

@@ -33,11 +33,11 @@ class FConcertDataStore;
  * check(MyStore.FetchAs<uint64>(MyKey).GetValue() == MyValue + 20);
  * @endcode
  */
-class CONCERTSYNCCLIENT_API FConcertClientLocalDataStore
+class FConcertClientLocalDataStore
 {
 public:
 	/** Constructs the data store map. */
-	FConcertClientLocalDataStore();
+	CONCERTSYNCCLIENT_API FConcertClientLocalDataStore();
 
 	/**
 	 * Searches the store for the specified key, if not found, adds a new key/value pair, otherwise,
@@ -146,8 +146,8 @@ public:
 
 private:
 	// Wraps calls to FConcertDataStore to avoid leaking the type publicly.
-	FConcertDataStoreResult InternalFetch(const FName& Key, const FName& TypeName) const;
-	FConcertDataStoreResult InternalStore(const FName& Key, const FName& TypeName, const FConcertSessionSerializedPayload& Value);
+	CONCERTSYNCCLIENT_API FConcertDataStoreResult InternalFetch(const FName& Key, const FName& TypeName) const;
+	CONCERTSYNCCLIENT_API FConcertDataStoreResult InternalStore(const FName& Key, const FName& TypeName, const FConcertSessionSerializedPayload& Value);
 
 	/** Maps keyName/keyValue. */
 	TUniquePtr<FConcertDataStore> DataStore;

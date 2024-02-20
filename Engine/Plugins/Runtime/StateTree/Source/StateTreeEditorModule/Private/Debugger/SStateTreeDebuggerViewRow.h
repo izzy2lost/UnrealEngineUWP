@@ -5,6 +5,7 @@
 #if WITH_STATETREE_DEBUGGER
 
 #include "Debugger/StateTreeTraceTypes.h"
+#include "StateTree.h"
 #include "Templates/SharedPointer.h"
 #include "TraceServices/Model/Frames.h"
 #include "Widgets/Views/SListView.h"

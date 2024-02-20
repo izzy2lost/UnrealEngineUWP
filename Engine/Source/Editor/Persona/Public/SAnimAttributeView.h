@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "IStructureDetailsView.h"
+#include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableRow.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Animation/AttributesRuntime.h"

@@ -11,6 +11,7 @@
 #include "Widgets/SWidget.h"
 #include "Widgets/Views/STableViewBase.h"
 #include "Widgets/SBoxPanel.h"
+#include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableRow.h"
 
 #if WITH_EDITOR

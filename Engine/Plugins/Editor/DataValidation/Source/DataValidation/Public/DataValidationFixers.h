@@ -5,6 +5,7 @@
 #include "Logging/TokenizedMessage.h"
 #include "Misc/DataValidation/Fixer.h"
 #include "Templates/SharedPointer.h"
+#include "UObject/WeakObjectPtr.h"
 
 namespace UE::DataValidation
 {

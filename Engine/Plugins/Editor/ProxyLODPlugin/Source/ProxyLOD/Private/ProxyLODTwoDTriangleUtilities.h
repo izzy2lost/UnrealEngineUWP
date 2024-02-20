@@ -2,6 +2,9 @@
 
 #pragma once
 
+#include "HAL/Platform.h"
+#include "Math/UnrealMathUtility.h"
+
 THIRD_PARTY_INCLUDES_START
 #include <array>
 #include <limits>

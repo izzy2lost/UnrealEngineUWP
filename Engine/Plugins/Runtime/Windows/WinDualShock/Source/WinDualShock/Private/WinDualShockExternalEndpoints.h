@@ -2,8 +2,11 @@
 
 #pragma once
 
+#if DUALSHOCK4_SUPPORT
+
 #include "AudioMixer.h"
 #include "IAudioEndpoint.h"
+#include "WinDualShock.h"
 #include "WinDualShockSettings.h"
 
 /**
@@ -81,3 +84,5 @@ protected:
 		return true;
 	}
 };
+
+#endif // DUALSHOCK4_SUPPORT

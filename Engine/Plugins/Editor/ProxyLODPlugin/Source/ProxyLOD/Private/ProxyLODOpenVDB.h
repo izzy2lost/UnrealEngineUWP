@@ -2,6 +2,9 @@
 
 #pragma once
 
+#include "HAL/Platform.h"
+#include "Misc/CoreMiscDefines.h"
+
 THIRD_PARTY_INCLUDES_START
 
 UE_PUSH_MACRO("check")

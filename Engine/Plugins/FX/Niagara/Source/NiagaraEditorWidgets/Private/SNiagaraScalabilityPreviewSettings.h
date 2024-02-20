@@ -6,6 +6,7 @@
 #include "NiagaraSystem.h"
 #include "ViewModels/NiagaraSystemScalabilityViewModel.h"
 #include "Widgets/Layout/SGridPanel.h"
+#include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STreeView.h"
 #include "Widgets/Input/SMenuAnchor.h"
 #include "ViewModels/NiagaraSystemViewModel.h"

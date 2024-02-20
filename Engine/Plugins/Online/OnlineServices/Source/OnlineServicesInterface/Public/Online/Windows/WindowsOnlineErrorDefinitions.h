@@ -1,12 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
-#define LOCTEXT_NAMESPACE "OnlineErrors"
 
 #include "Online/OnlineError.h"
 #include "Online/OnlineErrorCode.h"
 #include "Windows/AllowWindowsPlatformTypes.h"
 #include "winerror.h"
 #include "winbase.h"
+
+#define LOCTEXT_NAMESPACE "OnlineErrors"
 
 namespace UE::Online::Errors {
 
