@@ -2,11 +2,18 @@
 
 
 #include "AudioMaterialSlate/AudioMaterialSlider.h"
-#include "AudioMaterialSlate/AudioMaterialSlateStyles.h"
+#include "AudioMaterialSlate/AudioMaterialSlateTypes.h"
 #include "AudioMaterialSlate/SAudioMaterialSlider.h"
+#include "AudioWidgetsStyle.h"
 #include "Widgets/SWeakWidget.h"
 
 #define LOCTEXT_NAMESPACE "AudioWidgets"
+
+UAudioMaterialSlider::UAudioMaterialSlider()
+{
+	//get default style
+	WidgetStyle = FAudioWidgetsStyle::Get().GetWidgetStyle<FAudioMaterialSliderStyle>("AudioMaterialSlider.Style");
+}
 
 #if WITH_EDITOR
 const FText UAudioMaterialSlider::GetPaletteCategory()

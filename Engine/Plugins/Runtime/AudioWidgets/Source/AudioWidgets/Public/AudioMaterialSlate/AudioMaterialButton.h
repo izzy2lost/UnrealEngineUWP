@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "AudioMaterialSlateStyles.h"
+#include "AudioMaterialSlate/AudioMaterialSlateTypes.h"
 #include "Components/Widget.h"
 #include "Delegates/Delegate.h"
 #include "AudioMaterialButton.generated.h"
@@ -25,6 +25,8 @@ class AUDIOWIDGETS_API UAudioMaterialButton : public UWidget
 	GENERATED_BODY()
 
 public:
+
+	UAudioMaterialButton();
 
 	/** The button's style */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style", meta = (DisplayName = "Style", ShowOnlyInnerProperties))

@@ -2,9 +2,18 @@
 
 
 #include "AudioMaterialSlate/AudioMaterialButton.h"
+#include "AudioMaterialSlate/AudioMaterialSlateTypes.h"
 #include "AudioMaterialSlate/SAudioMaterialButton.h"
+#include "AudioWidgetsStyle.h"
 
 #define LOCTEXT_NAMESPACE "AudioWidgets"
+
+UAudioMaterialButton::UAudioMaterialButton()
+{
+	//get default style
+	WidgetStyle = FAudioWidgetsStyle::Get().GetWidgetStyle<FAudioMaterialButtonStyle>("AudioMaterialButton.Style");
+}
+
 #if WITH_EDITOR
 const FText UAudioMaterialButton::GetPaletteCategory()
 {
