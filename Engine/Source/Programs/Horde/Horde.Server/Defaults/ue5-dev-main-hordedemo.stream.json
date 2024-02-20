@@ -161,6 +161,11 @@
 		{
 			"pool": "win-ue5",
 			"workspace": "Full"
+		},
+		"TestWin64":
+		{
+			"pool": "win-ue5",
+			"workspace": "Full"
 		}
 	},
 	"workspaceTypes":
