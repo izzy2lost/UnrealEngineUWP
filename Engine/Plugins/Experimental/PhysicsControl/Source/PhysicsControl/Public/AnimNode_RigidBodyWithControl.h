@@ -42,6 +42,14 @@ struct FSimulationSpaceData
 	FVector    AngularAcc;
 };
 
+UENUM(BlueprintType)
+enum class MapConstraintsBehaviorType : uint8
+{
+	AuthoredSkeleton UMETA(DisplayName = "From Authored Skeletal Mesh", ToolTip = "Apply any difference in the relative transform of the constraint's parent and child bones between the authored and current skeleton to the constraint's transform relative to the parent bone. This is normally the best option and should effectively keep the joint in the authored location relative to the parent bone."),
+	DefaultTransform UMETA(DisplayName = "From Child Bone Transform (default)", ToolTip = "Set constraints transform relative to the parent bone to match the child bone in the current skeleton."),
+	None UMETA(DisplayName = "Nothing", ToolTip = "Nothing"),
+};
+
 /**
  * Controller that simulates physics based on the physics asset of the skeletal mesh component
  */
@@ -233,11 +241,22 @@ public:
 	uint8 bFreezeIncomingPoseOnStart : 1;
 
 	/**
-		Change the parent space transforms of constraints read from the physics asset to match the relative 
-		bone transforms in the in-coming skeleton.
+	* Configure the way constraint positions can be modified at runtime to match the current Skeletal Mesh.
 	*/
-	UPROPERTY(EditAnywhere, Category = PhysicsAssetConditioning, meta = (InlineEditConditionToggle))
-	uint8 bModifyConstraintTransformsToMatchSkeleton : 1;
+	UPROPERTY(EditAnywhere, Category = PhysicsAssetConditioning, meta = (DisplayName = "Set Position Relative to Parent", DisplayAfter = "PhysicsAssetAuthoredSkeletalMesh"))
+	MapConstraintsBehaviorType PhysicsAssetConditioningConstraintPosition;
+	
+	/**
+	* Configure the way constraint orientations can be modified at runtime to match the current Skeletal Mesh.
+	*/
+	UPROPERTY(EditAnywhere, Category = PhysicsAssetConditioning, meta = (DisplayName = "Set Orientation Relative to Parent", DisplayAfter = "PhysicsAssetAuthoredSkeletalMesh"))
+	MapConstraintsBehaviorType PhysicsAssetConditioningConstraintOrientation;
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	uint8 bModifyConstraintTransformsToMatchSkeleton_DEPRECATED : 1;
+#endif
+
 
 	/**
 		For world-space simulations, if the magnitude of the component's 3D scale is less than 
@@ -334,17 +353,30 @@ public:
 	UPROPERTY(EditAnywhere, Category = Controls, meta = (PinShownByDefault))
 	FRigidBodyKinematicTargets KinematicTargets;
 
-	/**
-	 * If this option is enabled, each Constraint's parent transform will be updated to adjust its position and 
-	 * orientation to account for the difference in the constraints child transform between the skeleton used 
-	 * to author the physics asset and the current skeleton (if the authored skeleton is defined). If the authored
-	 * skeleton is not defined/unavailable then the parent bone's transform is set to the default transform that
-	 * would have been used in the physics asset.
-	 * This can be used to created a simulated character that has somewhat different bone length/orientations compared
-	 * to the one used to create the physics asset, in order to avoid the need to customize the physics asset
-	 * for every skeleton you use.
+	/** 
+	 * These options configure the way constraint transforms can be modified at runtime to match the current Skeletal
+	 * Mesh. This can be useful when applying a single RBwC node to assets with different skeletons.
+	 *
+	 * When the "From authored skeletal mesh" option is selected, the Position and/or Orientation of each constraint
+	 * relative to its parent bone will be changed to account for any difference in relative bone transforms 
+	 * between that Skeletal Mesh and the current one. This means that if bone positions or orientations have changed
+	 * between the authored Skeletal Mesh and the one currently being animated then the constraint positions and
+	 * orientations will be updated to match. The authored Skeletal Mesh should normally be set to the same skeletal 
+	 * mesh that was used when creating the physics asset. WARNING This option will do nothing if the authored 
+	 * skeleton is not defined or cannot be found when the node is initialized at runtime.
+	 *
+	 * When the "To default" option is selected the Position and/or Orientation of each constraint relative to its 
+	 * parent bone will be set to the Position and/or Orientation of the constraint's child bone relative to its parent
+	 * bone. This is the same as the default transform applied in the Physics Asset editing tool when a constraint is
+	 * created or 'snapped' to the default transform.
+	 *
+	 * [WARNING]
+	 * The "To default" option can produce undesirable results and should be used with caution but may be useful
+	 * for simple assets or to minimize sudden changes in bone positions that may arise if the
+	 * authored skeleton is unavailable during the early stages of initialization. In most cases its probably more
+	 * useful to only set constraint positions to the default.
 	 */
-	UPROPERTY(EditAnywhere, Category = PhysicsAssetConditioning, meta = (DisplayName = "Map constraints to Skeleton", editcondition = "bModifyConstraintTransformsToMatchSkeleton"))
+	UPROPERTY(EditAnywhere, Category = PhysicsAssetConditioning, meta = (DisplayName = "Authored Skeletal Mesh"))
 	USkeletalMesh* PhysicsAssetAuthoredSkeletalMesh;
 
 	/**
@@ -462,7 +494,10 @@ private:
 	// Modify Constraint transforms relative to the parent bone to correct for the difference
 	// between the Skeleton used to create the Physics asset and the current skeleton.
 	void TransformConstraintsToMatchSkeletalMesh(
-		const USkeletalMesh* const SkeletalMeshAsset, TArray<FConstraintInstance*>& ConstraintInstances);
+		const USkeletalMesh* const SkeletalMeshAsset,
+		const MapConstraintsBehaviorType PositionBehavior,
+		const MapConstraintsBehaviorType OrientationBehavior,
+		TArray<FConstraintInstance*>& ConstraintInstances);
 
 	// Gather cloth collision sources from the supplied Skeltal Mesh and add a kinematic actor
 	// representing each one of them to the sim.

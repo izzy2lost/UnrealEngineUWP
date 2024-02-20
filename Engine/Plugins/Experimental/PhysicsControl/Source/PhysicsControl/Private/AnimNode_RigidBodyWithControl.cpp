@@ -143,7 +143,8 @@ FAnimNode_RigidBodyWithControl::FAnimNode_RigidBodyWithControl()
 	, bOverrideWorldGravity(false)
 	, bTransferBoneVelocities(false)
 	, bFreezeIncomingPoseOnStart(false)
-	, bModifyConstraintTransformsToMatchSkeleton(false)
+	, PhysicsAssetConditioningConstraintPosition(MapConstraintsBehaviorType::None)
+	, PhysicsAssetConditioningConstraintOrientation(MapConstraintsBehaviorType::None)
 	, WorldSpaceMinimumScale(0.01f)
 	, EvaluationResetTime(0.01f)
 	, bEnableControls(false)
@@ -1028,10 +1029,9 @@ void FAnimNode_RigidBodyWithControl::InitPhysics(const UAnimInstance* InAnimInst
 			FPhysicsAggregateHandle(),
 			bCreateBodiesInRefPose);
 
-		if (bModifyConstraintTransformsToMatchSkeleton && 
-			CVarEnableRigidBodyNodeWithControlMatchingConstraintsToSkeleton.GetValueOnAnyThread() > 0)
+		if (CVarEnableRigidBodyNodeWithControlMatchingConstraintsToSkeleton.GetValueOnAnyThread() > 0)
 		{
-			TransformConstraintsToMatchSkeletalMesh(SkeletalMeshAsset, HighLevelConstraintInstances);
+			TransformConstraintsToMatchSkeletalMesh(SkeletalMeshAsset, PhysicsAssetConditioningConstraintPosition, PhysicsAssetConditioningConstraintOrientation, HighLevelConstraintInstances);
 		}
 
 		TMap<FName, ImmediatePhysics::FActorHandle*> NamesToHandles;

@@ -130,6 +130,14 @@ template<typename TRecord, typename TParameters> void ApplyControlAndModifierPar
 		}
 	}
 }
+//======================================================================================================================
+FName MapConstraintsBehaviorTypeToString(const MapConstraintsBehaviorType InType)
+{
+	if (InType == MapConstraintsBehaviorType::AuthoredSkeleton) { return FName("AuthoredSkeleton"); }
+	if (InType == MapConstraintsBehaviorType::DefaultTransform) { return FName("DefaultTransform"); }
+	
+	return FName("None");
+}
 
 //======================================================================================================================
 const FTransform FAnimNode_RigidBodyWithControl::GetBodyTransform(const int32 BodyIndex) const
@@ -1132,91 +1140,90 @@ void FAnimNode_RigidBodyWithControl::ApplyCurrentControlProfile()
 
 //======================================================================================================================
 void FAnimNode_RigidBodyWithControl::TransformConstraintsToMatchSkeletalMesh(
-	const USkeletalMesh*          const SkeletalMeshAsset, 
+	const USkeletalMesh* const SkeletalMeshAsset,
+	const MapConstraintsBehaviorType PositionBehavior,
+	const MapConstraintsBehaviorType OrientationBehavior,
 	TArray<FConstraintInstance*>& ConstraintInstances)
 {
 	// Bone1 = Child
 	// Bone2 = Parent 
 
-	if (SkeletalMeshAsset && PhysicsAssetAuthoredSkeletalMesh)
+	if (SkeletalMeshAsset != nullptr)
 	{
-		if (SkeletalMeshAsset != PhysicsAssetAuthoredSkeletalMesh)
-		{
-			UE_LOGFMT(LogPhysicsControl, Log, 
-				"Modify Constraint parent transforms to correct for the difference between the Skeleton used to create the Physics asset \"{0}\" and the current skeleton \"{1}\".", 
-				PhysicsAssetAuthoredSkeletalMesh->GetName(), SkeletalMeshAsset->GetName());
+		const bool bAuthoredTransformRequired = ((PositionBehavior == MapConstraintsBehaviorType::AuthoredSkeleton) || (OrientationBehavior == MapConstraintsBehaviorType::AuthoredSkeleton)) && (PhysicsAssetAuthoredSkeletalMesh != nullptr) && (SkeletalMeshAsset != PhysicsAssetAuthoredSkeletalMesh);
+		const bool bDefaultTransformRequired = (PositionBehavior == MapConstraintsBehaviorType::DefaultTransform) || (OrientationBehavior == MapConstraintsBehaviorType::DefaultTransform);
 
-			const FReferenceSkeleton& OriginalReferenceSkeleton = PhysicsAssetAuthoredSkeletalMesh->GetRefSkeleton();
-			const FReferenceSkeleton& CurrentReferenceSkeleton = SkeletalMeshAsset->GetRefSkeleton();
+		if (bAuthoredTransformRequired || bDefaultTransformRequired)
+		{
+#if !NO_LOGGING
+			const FString AuthoredSkeletalMeshName = (PhysicsAssetAuthoredSkeletalMesh) ? PhysicsAssetAuthoredSkeletalMesh->GetName() : FString("UNDEFINED");
+			UE_LOGFMT(LogPhysicsControl, Log,
+				"Modify Constraint parent transforms to match the current skeleton \"{0}\". Settings: Authored Skeleton {1}, Position set from {2}, Orientation set from {3}",
+				SkeletalMeshAsset->GetName(), AuthoredSkeletalMeshName, MapConstraintsBehaviorTypeToString(PositionBehavior), MapConstraintsBehaviorTypeToString(OrientationBehavior));
+#endif
+			
 
 			for (FConstraintInstance* const ConstraintInstance : ConstraintInstances)
 			{
+				FTransform AuthoredCurrentRefFrame;
+				FTransform DefaultCurrentRefFrame;
+
+				if (bAuthoredTransformRequired)
+				{
+					const FTransform CurrentParentRelChildTM = CalculateRelativeBoneTransform(
+						ConstraintInstance->ConstraintBone1, ConstraintInstance->ConstraintBone2, SkeletalMeshAsset->GetRefSkeleton());
+					const FTransform OriginalParentRelChildTM = CalculateRelativeBoneTransform(
+						ConstraintInstance->ConstraintBone1, ConstraintInstance->ConstraintBone2, PhysicsAssetAuthoredSkeletalMesh->GetRefSkeleton());
+
+					// Find the transform that maps the parent-bone-relative-to-the-child-bone transform
+					// in the original skeleton to the parent-bone-relative-to-the-child-bone transform
+					// in the current skeleton.
+					// Should be equivalent to CurrentParentRelChildTM * OriginalParentRelChildTM.Inverse()
+					const FTransform OriginalToCurrentParentRelChildTM =
+						CurrentParentRelChildTM.GetRelativeTransform(OriginalParentRelChildTM);
+
+					// Update the constraints transform relative to the parent bone.
+					const FTransform OriginalRefFrame = ConstraintInstance->GetRefFrame(EConstraintFrame::Frame2);
+					AuthoredCurrentRefFrame = OriginalToCurrentParentRelChildTM * OriginalRefFrame;
+				}
+
+				if (bDefaultTransformRequired)
+				{
+					DefaultCurrentRefFrame = CalculateRelativeBoneTransform(
+						ConstraintInstance->ConstraintBone1, ConstraintInstance->ConstraintBone2, SkeletalMeshAsset->GetRefSkeleton());
+				}
+
 #if !NO_LOGGING
-				const FVector LogPreviousConstraintPositionRelParent = ConstraintInstance->Pos2;
+				const FTransform LogPreviousConstraintTransformRelParent = ConstraintInstance->GetRefFrame(EConstraintFrame::Frame2);
 #endif
-				const FTransform CurrentParentRelChildTM = CalculateRelativeBoneTransform(
-					ConstraintInstance->ConstraintBone1, ConstraintInstance->ConstraintBone2, CurrentReferenceSkeleton);
-				const FTransform OriginalParentRelChildTM = CalculateRelativeBoneTransform(
-					ConstraintInstance->ConstraintBone1, ConstraintInstance->ConstraintBone2, OriginalReferenceSkeleton);
 
-				// Find the transform that maps the parent-bone-relative-to-the-child-bone transform
-				// in the original skeleton to the parent-bone-relative-to-the-child-bone transform
-				// in the current skeleton.
-				// Should be equivalent to CurrentParentRelChildTM * OriginalParentRelChildTM.Inverse()
-				const FTransform OriginalToCurrentParentRelChildTM = 
-					CurrentParentRelChildTM.GetRelativeTransform(OriginalParentRelChildTM); 
+				if (PositionBehavior == MapConstraintsBehaviorType::AuthoredSkeleton)
+				{
+					ConstraintInstance->SetRefPosition(EConstraintFrame::Frame2, AuthoredCurrentRefFrame.GetTranslation());
+				}
+				else if (PositionBehavior == MapConstraintsBehaviorType::DefaultTransform)
+				{
+					ConstraintInstance->SetRefPosition(EConstraintFrame::Frame2, DefaultCurrentRefFrame.GetTranslation());
+				}
 
-				// Update the constraints transform relative to the parent bone.
-				const FTransform OriginalRefFrame = ConstraintInstance->GetRefFrame(EConstraintFrame::Frame2);
-				const FTransform CurrentRefFrame = OriginalToCurrentParentRelChildTM * OriginalRefFrame;
-				ConstraintInstance->SetRefFrame(EConstraintFrame::Frame2, CurrentRefFrame);
+				if (OrientationBehavior == MapConstraintsBehaviorType::AuthoredSkeleton)
+				{
+					ConstraintInstance->SetRefOrientation(EConstraintFrame::Frame2, AuthoredCurrentRefFrame.GetUnitAxis(EAxis::X), AuthoredCurrentRefFrame.GetUnitAxis(EAxis::Y));
+				}
+				else if (OrientationBehavior == MapConstraintsBehaviorType::DefaultTransform)
+				{
+					ConstraintInstance->SetRefOrientation(EConstraintFrame::Frame2, DefaultCurrentRefFrame.GetUnitAxis(EAxis::X), DefaultCurrentRefFrame.GetUnitAxis(EAxis::Y));
+				}
 
 #if !NO_LOGGING
-				UE_LOGFMT(LogPhysicsControl, Log, 
-					"Matched Constraint {0} - {1} Parent Transform - position was {2} now {3}.", 
-					ConstraintInstance->ConstraintBone1.ToString(), 
-					ConstraintInstance->ConstraintBone2.ToString(), 
-					LogPreviousConstraintPositionRelParent.ToCompactString(), 
-					ConstraintInstance->Pos2.ToCompactString());
+				UE_LOGFMT(LogPhysicsControl, Log,
+					"Constraint {0} - {1}  - transform relative to parent was {2} now {3}.",
+					ConstraintInstance->ConstraintBone1.ToString(),
+					ConstraintInstance->ConstraintBone2.ToString(),
+					LogPreviousConstraintTransformRelParent.ToString(),
+					ConstraintInstance->GetRefFrame(EConstraintFrame::Frame2).ToString());
 #endif
 			}
-		}
-#if !NO_LOGGING
-		else
-		{
-			UE_LOGFMT(LogPhysicsControl, Log, 
-				"Do not modify constraint parent transforms as the Skeleton used to create the Physics asset \"{0}\" matches the current skeleton \"{1}\".", 
-				PhysicsAssetAuthoredSkeletalMesh->GetName(), SkeletalMeshAsset->GetName());
-		}
-#endif
-	}
-	else if (SkeletalMeshAsset)
-	{
-		UE_LOGFMT(LogPhysicsControl, Log, 
-			"Snap Constraint parent transforms to the current skeleton \"{0}\" (Authored Skeleton is undefined in node details).", 
-			SkeletalMeshAsset->GetName());
-
-		const FReferenceSkeleton& CurrentReferenceSkeleton = SkeletalMeshAsset->GetRefSkeleton();
-
-		// Move all the constraints to the default (snapped) location relative to the parent bone.
-		for (FConstraintInstance* const ConstraintInstance : ConstraintInstances)
-		{
-#if !NO_LOGGING
-			const FVector LogPreviousConstraintPositionRelParent = ConstraintInstance->Pos2;
-#endif
-
-			const FTransform ParentRelChildTM = CalculateRelativeBoneTransform(
-				ConstraintInstance->ConstraintBone1, ConstraintInstance->ConstraintBone2, CurrentReferenceSkeleton);			
-			ConstraintInstance->SetRefFrame(EConstraintFrame::Frame2, ParentRelChildTM);
-
-#if !NO_LOGGING
-			UE_LOGFMT(LogPhysicsControl, Log, 
-				"Snapped Constraint {0} - {1} Parent Transform - position was {2} now {3}.", 
-				ConstraintInstance->ConstraintBone1.ToString(), 
-				ConstraintInstance->ConstraintBone2.ToString(), 
-				LogPreviousConstraintPositionRelParent.ToCompactString(), 
-				ConstraintInstance->Pos2.ToCompactString());
-#endif
 		}
 	}
 }
