@@ -372,6 +372,9 @@ FMVVMViewClass_Binding::FToStringArgs FMVVMViewClass_Binding::FToStringArgs::Sho
 	FToStringArgs Result;
 	Result.bUseDisplayName = false;
 	Result.bAddFlags = false;
+	Result.bAddBindingId = false;
+	Result.bAddBindingFields = true;
+	Result.bAddSources = false;
 	return Result;
 }
 
@@ -384,12 +387,22 @@ FString FMVVMViewClass_Binding::ToString(const UMVVMViewClass* ViewClass, FToStr
 {
 	TStringBuilder<1024> StringBuilder;
 
+	bool bAddNewLine = false;
+	auto AddNewLine = [&StringBuilder, &bAddNewLine]()
+		{
+			if (bAddNewLine)
+			{
+				StringBuilder << TEXT("\n    ");
+			}
+			bAddNewLine = true;
+		};
+
 #if WITH_EDITOR
 	if (Args.bAddBindingId)
 	{
+		AddNewLine();
 		StringBuilder << TEXT("BindingId: ");
 		EditorId.AppendString(StringBuilder);
-		StringBuilder << TEXT("\n    ");
 	}
 #endif
 
@@ -397,6 +410,7 @@ FString FMVVMViewClass_Binding::ToString(const UMVVMViewClass* ViewClass, FToStr
 	{
 		if (GetBinding().IsValid())
 		{
+			AddNewLine();
 			StringBuilder << TEXT("Binding: ");
 
 			FString SourceString;
@@ -475,21 +489,23 @@ FString FMVVMViewClass_Binding::ToString(const UMVVMViewClass* ViewClass, FToStr
 			{
 				StringBuilder << TEXT("()");
 			}
-
-			StringBuilder << TEXT("\n    ");
 		}
 		else
 		{
 			StringBuilder << TEXT("!!Invalid Binding Error!!");
-			StringBuilder << TEXT("\n    ");
 		}
 	}
 
-	StringBuilder << TEXT("Sources: 0x");
-	StringBuilder << FString::Printf(TEXT("%x"), SourceBitField);
+	if (Args.bAddSources)
+	{
+		AddNewLine();
+		StringBuilder << TEXT("Sources: 0x");
+		StringBuilder << FString::Printf(TEXT("%x"), SourceBitField);
+	}
 
 	if (Args.bAddFlags)
 	{
+		AddNewLine();
 		if ((Flags & (uint8)EFlags::OverrideExecuteMode) != 0)
 		{
 			StringBuilder << TEXT(", Mode: ");
