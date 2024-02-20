@@ -121,9 +121,18 @@ TArray<FPCGPinProperties> UPCGIndirectionSettings::InputPinProperties() const
 			checkNoEntry();
 	}
 
+	// If we couldn't get a source of pins, use the default pins instead.
 	if (!bSetProperties)
 	{
-		return Super::InputPinProperties();
+		InputProperties = Super::InputPinProperties();
+		// However, unlike the default pins, we don't want to make those as required if the dynamic dispatch does not use them.
+		for (FPCGPinProperties& PinProperty : InputProperties)
+		{
+			if (PinProperty.IsRequiredPin())
+			{
+				PinProperty.SetNormalPin();
+			}
+		}
 	}
 
 	return InputProperties;

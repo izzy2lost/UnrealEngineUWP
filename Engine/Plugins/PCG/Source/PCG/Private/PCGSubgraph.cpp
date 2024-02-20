@@ -201,16 +201,26 @@ void UPCGBaseSubgraphSettings::OnSubgraphChanged(UPCGGraphInterface* InGraph, EP
 
 TArray<FPCGPinProperties> UPCGBaseSubgraphSettings::InputPinProperties() const
 {
+	TArray<FPCGPinProperties> InputPins;
 	if (UPCGGraph* Subgraph = GetSubgraph())
 	{
-		TArray<FPCGPinProperties> InputPins = Subgraph->GetInputNode()->InputPinProperties();
+		InputPins = Subgraph->GetInputNode()->InputPinProperties();
 		PCGSubgraphSettings::RemoveAdvancedAndInvisibleOnConnectedPins(Subgraph, InputPins, /*bIsInput=*/true);
-		return InputPins;
 	}
 	else
 	{
-		return Super::InputPinProperties();
+		InputPins = Super::InputPinProperties();
+		// Considering this is likely a case where we'll have dynamic graph dispatch, don't make the default input pins required
+		for (FPCGPinProperties& PinProperties : InputPins)
+		{
+			if (PinProperties.IsRequiredPin())
+			{
+				PinProperties.SetNormalPin();
+			}
+		}
 	}
+
+	return InputPins;
 }
 
 TArray<FPCGPinProperties> UPCGBaseSubgraphSettings::OutputPinProperties() const
