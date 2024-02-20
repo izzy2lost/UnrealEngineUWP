@@ -124,7 +124,7 @@ namespace Jupiter.Implementation
 
 						await DeleteRefAsync(ns, bucket, name);
 					
-							Interlocked.Increment(ref countOfDeletedRecords);
+						Interlocked.Increment(ref countOfDeletedRecords);
 
 						return;
 					}
@@ -168,10 +168,14 @@ namespace Jupiter.Implementation
 			bool storeDelete = false;
 			try
 			{
+				Task? bucketStatsCleanupTask = null;
 				if (_cloudDDCSettings.CurrentValue.EnableBucketStatsTracking)
 				{
-					List<BlobId> blobs = await _objectService.GetReferencedBlobsAsync(ns, bucket, name, ignoreMissingBlobs: true);
-					await _blobIndex.RemoveBlobFromBucketListAsync(ns, bucket, name, blobs);
+					bucketStatsCleanupTask = Task.Run(async () =>
+					{
+						List<BlobId> blobs = await _objectService.GetReferencedBlobsAsync(ns, bucket, name, ignoreMissingBlobs: true);
+						await _blobIndex.RemoveBlobFromBucketListAsync(ns, bucket, name, blobs);
+					});
 				}
 
 				storeDelete = await _referencesStore.DeleteAsync(ns, bucket, name);
@@ -179,6 +183,11 @@ namespace Jupiter.Implementation
 				{
 					// insert a delete event into the transaction log
 					await _replicationLog.InsertDeleteEventAsync(ns, bucket, name, null);
+				}
+
+				if (bucketStatsCleanupTask != null)
+				{
+					await bucketStatsCleanupTask;
 				}
 			}
 			catch (Exception e)

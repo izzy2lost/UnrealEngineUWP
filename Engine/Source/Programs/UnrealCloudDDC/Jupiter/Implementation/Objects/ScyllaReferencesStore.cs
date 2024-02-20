@@ -533,16 +533,11 @@ namespace Jupiter.Implementation
 
 			Task? lastAccessDeleteTask = _mapper.DeleteAsync<ScyllaObjectLastAccess>("WHERE namespace=? AND bucket=? AND name=?", ns.ToString(), bucket.ToString(), key.ToString());
 
-			AppliedInfo<ScyllaObject> info = await _mapper.DeleteIfAsync<ScyllaObject>("WHERE namespace=? AND bucket=? AND name=? IF EXISTS", ns.ToString(), bucket.ToString(), key.ToString());
+			await _mapper.DeleteAsync<ScyllaObject>("WHERE namespace=? AND bucket=? AND name=?", ns.ToString(), bucket.ToString(), key.ToString());
 
 			await lastAccessDeleteTask;
 
-			if (info.Applied)
-			{
-				return true;
-			}
-
-			return false;
+			return true;
 		}
 
 		public async Task<long> DropNamespaceAsync(NamespaceId ns)
