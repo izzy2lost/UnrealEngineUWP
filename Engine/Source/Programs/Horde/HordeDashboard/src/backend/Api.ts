@@ -153,7 +153,10 @@ export enum JobStepBatchError {
 	UnknownShelf = "UnknownShelf",
 
 	/** No longer needed */
-	NoLongerNeeded = "NoLongerNeeded"
+	NoLongerNeeded = "NoLongerNeeded",
+
+	/** Sync Failed */
+	SyncingFailed = "SyncingFailed"
 
 }
 
