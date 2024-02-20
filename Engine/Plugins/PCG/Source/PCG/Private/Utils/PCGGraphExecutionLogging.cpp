@@ -129,7 +129,7 @@ namespace PCGGraphExecutionLogging
 			return;
 		}
 
-		UE_LOG(LogPCG, Log, TEXT("[%s/%s] --- SCHEDULE GRAPH ---"),
+		UE_LOG(LogPCG, Display, TEXT("[%s/%s] --- SCHEDULE GRAPH ---"),
 			(SourceComponent && SourceComponent->GetOwner()) ? *SourceComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
 			(SourceComponent && SourceComponent->GetGraph()) ? *SourceComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"));
 	}
@@ -141,7 +141,7 @@ namespace PCGGraphExecutionLogging
 			return;
 		}
 
-		UE_LOG(LogPCG, Log, TEXT("[%s/%s] --- SCHEDULE GRAPH FOR DEPENDENCY ---"),
+		UE_LOG(LogPCG, Display, TEXT("[%s/%s] --- SCHEDULE GRAPH FOR DEPENDENCY ---"),
 			(InComponent && InComponent->GetOwner()) ? *InComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
 			(InComponent && InComponent->GetGraph()) ? *InComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"));
 	}
@@ -179,7 +179,7 @@ namespace PCGGraphExecutionLogging
 			return;
 		}
 
-		UE_LOG(LogPCG, Log, TEXT("[%s/%s] UPCGComponent::PostProcessGraph"),
+		UE_LOG(LogPCG, Display, TEXT("[%s/%s] UPCGComponent::PostProcessGraph"),
 			(InSourceComponent && InSourceComponent->GetOwner()) ? *InSourceComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
 			(InSourceComponent && InSourceComponent->GetGraph()) ? *InSourceComponent->GetGraph()->GetName() : TEXT("MISSINGGRAPH"));
 	}
@@ -193,7 +193,7 @@ namespace PCGGraphExecutionLogging
 
 		for (const UPCGComponent* Component : CancelledComponents)
 		{
-			UE_LOG(LogPCG, Log, TEXT("[%s/%s] Component cancelled"),
+			UE_LOG(LogPCG, Display, TEXT("[%s/%s] Component cancelled"),
 				(Component && Component->GetOwner()) ? *Component->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"),
 				(Component && Component->GetGraph()) ? *Component->GetGraph()->GetName() : TEXT("MISSINGGRAPH"));
 		}
