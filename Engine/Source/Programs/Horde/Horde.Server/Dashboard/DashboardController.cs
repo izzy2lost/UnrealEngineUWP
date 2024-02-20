@@ -276,7 +276,7 @@ namespace Horde.Server.Dashboard
 		/// the <see cref="HordeClaimTypes.Group"/> type.
 		/// </summary>
 		[HttpGet]
-		[Route("/api/v1/dashboard/account-groups")]
+		[Route("/api/v1/dashboard/accountgroups")]
 		public ActionResult<IReadOnlyList<string>> GetAccountGroupClaims()
 		{
 			if (!_globalConfig.Value.Authorize(AccountAclAction.CreateAccount, User) && !_globalConfig.Value.Authorize(AccountAclAction.UpdateAccount, User))
