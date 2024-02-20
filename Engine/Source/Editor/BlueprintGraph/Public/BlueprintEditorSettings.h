@@ -107,6 +107,14 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = VisualStyle)
 	bool bShowShortTooltips;
 
+	/** If true, show an icon next to function parameter nodes. */
+	UPROPERTY(EditAnywhere, config, Category = VisualStyle)
+	bool bShowFunctionParameterIcon;
+
+	/** If true, show an icon next to function local variable nodes. */
+	UPROPERTY(EditAnywhere, config, Category = VisualStyle)
+	bool bShowFunctionLocalVariableIcon;
+
 // Workflow Settings
 public:
 	/** 
