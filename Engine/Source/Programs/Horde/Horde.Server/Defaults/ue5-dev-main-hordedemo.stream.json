@@ -157,6 +157,11 @@
 			"environment":
 			{
 			}
+		},
+		"Win64_Licensee": // Used for installed engine build
+		{
+			"pool": "win-ue5",
+			"workspace": "Full"
 		}
 	},
 	"workspaceTypes":
