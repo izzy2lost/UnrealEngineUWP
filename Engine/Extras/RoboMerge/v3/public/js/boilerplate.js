@@ -1592,11 +1592,9 @@ function renderActionsCell_Edge(actionCell, nodeData, edgeData, conflict=null) {
 		}
 	}
 
-	let tooManyFilesBlockage = conflict && conflict.kind === 'Too many files'
-
 	if (edgeData.is_blocked && edgeData.blockage && edgeData.blockage.targetBranchName) {
 		// Skip CL
-		const skipEnabled = tooManyFilesBlockage || !edgeData.disallowSkip
+		const skipEnabled = !edgeData.disallowSkip
 		
 		const skipChangelistText = `Skip Changelist ${edgeData.blockage.change}`
 		if (skipEnabled) {
@@ -1607,10 +1605,8 @@ function renderActionsCell_Edge(actionCell, nodeData, edgeData, conflict=null) {
 				edge: edgeData.blockage.targetBranchName
 			}) + location.hash
 
-			let tooltip = `Skip past the blockage caused by changelist ${edgeData.blockage.change}. `
-			tooltip += 
-				tooManyFilesBlockage ?  'Please ensure this large changelist has been integrated before skipping.' :
-				"This option should only be selected if the work does not need to be merged or you will merge this work youself."
+			const tooltip = `Skip past the blockage caused by changelist ${edgeData.blockage.change}. `
+				+ "This option should only be selected if the work does not need to be merged or you will merge this work youself.`
 			const skipOption = createActionOption(skipChangelistText, function() {
 				window.location.href = skipRequest;
 			}, tooltip)

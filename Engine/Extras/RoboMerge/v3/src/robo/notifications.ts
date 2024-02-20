@@ -507,7 +507,6 @@ export class BotNotifications implements BotEventHandler {
 		const text =
 			blockage.approval ?				`${channelPing}'s change needs to be approved in <#${blockage.approval.settings.channelId}>` :
 			isBotUser ? 									`Blockage caused by \`${blockage.owner}\` commit!` :
-			blockage.failure.kind === 'Too many files' ?	`${channelPing}, please request a shelf for this large changelist` :
 															`${channelPing}, please resolve the following ${issue}:`
 
 		const message = this.makeSlackChannelMessage(
