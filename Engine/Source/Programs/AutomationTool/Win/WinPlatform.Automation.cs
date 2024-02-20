@@ -227,7 +227,6 @@ public class Win64Platform : Platform
 			CommandUtils.CopyFile(InputFile.FullName, IntermediateFile.FullName);
 			CommandUtils.SetFileAttributes(IntermediateFile.FullName, ReadOnly: false);
 	
-			// currently the icon updating doesn't run under mono
 			if (UnrealBuildTool.BuildHostPlatform.Current.Platform == UnrealTargetPlatform.Win64)
 			{
 				Logger.LogInformation("Patching bootstrap executable; {Arg0}", IntermediateFile.FullName);

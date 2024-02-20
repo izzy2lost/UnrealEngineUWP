@@ -1271,8 +1271,6 @@ namespace EpicGames.Core
 					catch (IOException)
 					{
 						// Potential file access/sharing issue on std out
-						// This can occur on some versions of mono (e.g. macOS 6.12.0) if writing to a full pipe
-						// during IPC when the reader isn't consuming it quick enough
 					}
 					finally
 					{

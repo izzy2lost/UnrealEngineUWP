@@ -1670,14 +1670,6 @@ namespace UnrealBuildTool
 					{
 						WorkspaceFile.AddUnnamedField("epic.vscode-ue");
 					}
-
-					// If the platform we run the generator on uses mono, there are additional debugging extensions to add.
-					if (!RuntimePlatform.IsWindows)
-					{
-						WorkspaceFile.AddUnnamedField("vadimcn.vscode-lldb");
-						WorkspaceFile.AddUnnamedField("ms-vscode.mono-debug");
-						WorkspaceFile.AddUnnamedField("dfarley1.file-picker");
-					}
 				}
 				WorkspaceFile.EndArray();
 			}
