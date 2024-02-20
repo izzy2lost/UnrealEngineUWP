@@ -75,6 +75,16 @@ namespace UE::OSC
 		return Endpoint;
 	}
 
+	FString FServerProxy::GetDescription() const
+	{
+		if (Socket)
+		{
+			return Socket->GetDescription();
+		}
+
+		return { };
+	}
+
 	bool FServerProxy::GetMulticastLoopback() const
 	{
 		return bMulticastLoopback;
@@ -130,30 +140,11 @@ namespace UE::OSC
 		}
 	}
 
-	bool FServerProxy::SetAddress(const FString& InReceiveIPAddress, int32 InPort)
-	{
-		if (IsActive())
-		{
-			UE_LOG(LogOSC, Error, TEXT("Cannot set address while OSCServer is active."));
-			return false;
-		}
-
-		FIPv4Address Address;
-		if (!FIPv4Address::Parse(InReceiveIPAddress, Address))
-		{
-			UE_LOG(LogOSC, Error, TEXT("Invalid ReceiveIPAddress '%s'. OSCServer ReceiveIP Address not updated."), *InReceiveIPAddress);
-			return false;
-		}	
-
-		Endpoint = FIPv4Endpoint(Address, InPort);
-		return true;
-	}
-
 	bool FServerProxy::SetIPEndpoint(const FIPv4Endpoint& InEndpoint)
 	{
 		if (IsActive())
 		{
-			UE_LOG(LogOSC, Error, TEXT("Cannot set address while OSCServer is active."));
+			UE_LOG(LogOSC, Error, TEXT("Cannot set '%s' endpoint to '%s' while OSC server is currently active."), *GetDescription(), *InEndpoint.ToString());
 			return false;
 		}
 
@@ -237,14 +228,14 @@ namespace UE::OSC
 
 	void FServerProxy::SetFilterClientsByAllowList(bool bInEnabled)
 	{
-		if (!bInEnabled)
+		if (bInEnabled)
 		{
-			ClientAllowList.Empty(1);
-			ClientAllowList.Add(FIPv4Endpoint::Any);
+			ClientAllowList.Remove(FIPv4Endpoint::Any);
 		}
 		else
 		{
-			ClientAllowList.Remove(FIPv4Endpoint::Any);
+			ClientAllowList.Empty(1);
+			ClientAllowList.Add(FIPv4Endpoint::Any);
 		}
 	}
 } // namespace UE::OSC

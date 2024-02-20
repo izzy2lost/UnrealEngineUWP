@@ -4,9 +4,12 @@
 
 #include "Async/TaskGraphInterfaces.h"
 #include "Containers/Queue.h"
+#include "Containers/SpscQueue.h"
 #include "Containers/Set.h"
 #include "Containers/Ticker.h"
 #include "Interfaces/IPv4/IPv4Address.h"
+#include "Templates/Function.h"
+#include "Templates/SharedPointer.h"
 #include "Interfaces/IPv4/IPv4Endpoint.h"
 #include "OSCBundle.h"
 #include "OSCMessage.h"
@@ -20,6 +23,7 @@
 
 // Forward Declarations
 class FSocket;
+class UOSCServer;
 
 
 // Delegates
@@ -42,11 +46,16 @@ namespace UE::OSC
 	class OSC_API IServerProxy
 	{
 	public:
+		// Creates a new server proxy that can be used by any system where the provided dispatch callback is called on a worker thread.
+		static TSharedPtr<IServerProxy> Create(UOSCServer* Parent);
 
 		virtual ~IServerProxy() { }
 
 		// Returns whether or not packet can be processed, i.e. is valid and allowlisted.
 		virtual bool CanProcessPacket(TSharedRef<UE::OSC::IPacket> Packet) const = 0;
+
+		// Returns debug description of server proxy
+		virtual FString GetDescription() const = 0;
 
 		UE_DEPRECATED(5.5, "Use GetIPEndpoint instead")
 		virtual FString GetIpAddress() const { return { }; }
@@ -66,13 +75,7 @@ namespace UE::OSC
 		virtual void Listen(const FString& ServerName) = 0;
 
 		UE_DEPRECATED(5.5, "Use SetIPEndpoint instead")
-		virtual bool SetAddress(const FString& InReceiveIPAddress, int32 InPort)
-		{
-			FIPv4Endpoint Endpoint;
-			FIPv4Address::Parse(InReceiveIPAddress, Endpoint.Address);
-			Endpoint.Port = InPort;
-			return SetIPEndpoint(Endpoint);
-		}
+		virtual bool SetAddress(const FString& InReceiveIPAddress, int32 InPort);
 
 		// Sets the current server's endpoint.  Ignores request and returns false if server
 		// is currently active.
@@ -234,7 +237,7 @@ public:
 	void SetTickInEditor(bool bInTickInEditor);
 #endif // WITH_EDITOR
 
-	UE_DEPRECATED(5.5, "Clearing packets directly is not thread safe and no longer supported.")
+	UE_DEPRECATED(5.5, "Clearing packets directly is not thread-safe and no longer supported.")
 	void ClearPackets();
 
 	void EnqueuePacket(TSharedPtr<UE::OSC::IPacket> InPacket);
@@ -247,17 +250,17 @@ protected:
 	virtual void PostInitProperties() override;
 
 private:
-	using FPacketQueue = TQueue<TSharedPtr<UE::OSC::IPacket>>;
+	using FPacketQueue = TSpscQueue<TSharedPtr<UE::OSC::IPacket>>;
 	void PumpPacketQueue();
 
-	/** Dispatches provided bundle received */
-	void DispatchBundle(const FString& InIPAddress, uint16 InPort, const FOSCBundle& InBundle);
+	/** Broadcasts provided bundle received to be dispatched on the GameThread */
+	void BroadcastBundle(const FOSCBundle& InBundle);
 
-	/** Dispatches provided message received */
-	void DispatchMessage(const FString& InIPAddress, uint16 InPort, const FOSCMessage& InMessage);
+	/** Broadcasts provided message received to be dispatched on the GameThread */
+	void BroadcastMessage(const FOSCMessage& InMessage);
 
 	/** Pointer to internal implementation of server proxy */
-	TUniquePtr<UE::OSC::IServerProxy> ServerProxy;
+	TSharedPtr<UE::OSC::IServerProxy> ServerProxy;
 
 	/** Queue stores incoming OSC packet requests to process on the game thread. */
 	TSharedPtr<FPacketQueue> OSCPackets;
