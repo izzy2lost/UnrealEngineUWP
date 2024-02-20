@@ -657,7 +657,10 @@ void APawn::PossessedBy(AController* NewController)
 		if (GetNetMode() != NM_Standalone)
 		{
 			SetReplicates(true);
-			SetAutonomousProxy(true);
+			if (!PlayerController->IsLocalController())
+			{
+				SetAutonomousProxy(true);
+			}
 		}
 	}
 	else
