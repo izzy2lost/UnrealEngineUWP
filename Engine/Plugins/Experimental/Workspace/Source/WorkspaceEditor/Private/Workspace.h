@@ -8,6 +8,7 @@
 
 struct FEditedDocumentInfo;
 class UWorkspace;
+class UWorkspaceState;
 class UWorkspaceSchema;
 class UWorkspaceFactory;
 class UAssetDefinition_Workspace;
