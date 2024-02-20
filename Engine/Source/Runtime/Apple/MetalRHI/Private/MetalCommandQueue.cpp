@@ -230,7 +230,8 @@ FMetalCommandQueue::FMetalCommandQueue(MTL::Device* InDevice, uint32 const MaxNu
 		}
 	}
     
-	if (!FParse::Param(FCommandLine::Get(),TEXT("nometalheap")))
+	// Temporarily only support heaps for devices with unified memory
+	if (Device->hasUnifiedMemory() && !FParse::Param(FCommandLine::Get(),TEXT("nometalheap")))
 	{
 		Features |= EMetalFeaturesHeaps;
 	}
