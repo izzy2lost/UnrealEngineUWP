@@ -15,7 +15,8 @@ public class CQTest : ModuleRules
 			new string[] {
 					"Core",
 					"CoreUObject",
-					"Engine"
+					"Engine",
+					"EnhancedInput"
 				 }
 			);
 

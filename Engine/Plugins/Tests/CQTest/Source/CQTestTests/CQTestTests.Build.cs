@@ -14,6 +14,8 @@ public class CQTestTests : ModuleRules
 					"Core",
 					"CoreUObject",
 					"Engine",
+					"InputCore",
+					"EnhancedInput",
 					"CQTest"
 				 }
 			);
