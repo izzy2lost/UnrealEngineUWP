@@ -161,7 +161,7 @@ void UMetasoundOfflinePlayerComponent::TickComponent(float DeltaTime, ELevelTick
 
 	while (SamplesNeeded >= GeneratorBlockSize)
 	{
-		Generator->OnGenerateAudio(ScratchBuffer.GetData(), ScratchBuffer.Num());
+		Generator->GetNextBuffer(ScratchBuffer.GetData(), ScratchBuffer.Num(), true);
 		SamplesNeeded -= GeneratorBlockSize;
 		RenderedSamples += GeneratorBlockSize;
 	}
