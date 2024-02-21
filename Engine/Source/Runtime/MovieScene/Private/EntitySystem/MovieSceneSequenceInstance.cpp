@@ -15,6 +15,7 @@
 #include "Evaluation/PreAnimatedState/MovieScenePreAnimatedStateExtension.h"
 
 #include "IMovieScenePlayer.h"
+#include "Misc/AssertionMacros.h"
 #include "MovieSceneSequence.h"
 #include "MovieSceneSequencePlayer.h"
 #include "MovieSceneTimeHelpers.h"
@@ -117,6 +118,9 @@ void FSequenceInstance::Initialize()
 
 FSequenceInstance::~FSequenceInstance()
 {
+	ensureAlwaysMsgf(
+			RootInstanceHandle != InstanceHandle || SharedPlaybackState.IsUnique(),
+			TEXT("References to SharedPlaybackState should not be held past the lifetime of its root sequence instance"));
 }
 
 FSequenceInstance::FSequenceInstance(FSequenceInstance&&) = default;

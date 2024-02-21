@@ -844,9 +844,8 @@ void FSystemInterrogator::Update()
 			}
 		});
 
-	FMovieSceneEntitySystemRunner Runner;
-	Runner.AttachToLinker(Linker);
-	Runner.Flush();
+	TSharedPtr<FMovieSceneEntitySystemRunner> Runner = Linker->GetRunner();
+	Runner->Flush();
 
 	Linker->EntityManager.IncrementSystemSerial();
 }

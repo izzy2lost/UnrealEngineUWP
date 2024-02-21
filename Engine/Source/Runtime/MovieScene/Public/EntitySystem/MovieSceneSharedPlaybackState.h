@@ -11,6 +11,7 @@
 
 class FMovieSceneEntitySystemRunner;
 class UMovieSceneCompiledDataManager;
+class UMovieSceneEntitySystemLinker;
 struct FMovieSceneObjectCache;
 struct FMovieSceneSequenceHierarchy;
 
@@ -25,7 +26,7 @@ struct FSharedPlaybackStateCreateParams
 	/**
 	 * The playback context in which the root sequence will be evaluated.
 	 *
-	 * Requires that RootInstanceHandle and Runner are also set.
+	 * Requires that RootInstanceHandle and Linker are also set.
 	 */
 	UObject* PlaybackContext = nullptr;
 
@@ -34,17 +35,17 @@ struct FSharedPlaybackStateCreateParams
 	 * is meant to relate to an instance that has also been created inside
 	 * a runner/linker's instance registry.
 	 *
-	 * Requires that PlaybackContext and Runner are also set.
+	 * Requires that PlaybackContext and Linker are also set.
 	 */
 	FRootInstanceHandle RootInstanceHandle;
 
 	/**
-	 * The runner that will be evaluating the sequence that the created playback
+	 * The linker that will be evaluating the sequence that the created playback
 	 * state relates to.
 	 *
 	 * Requires that PlaybackContext and RootInstanceHandle are also set.
 	 */
-	TSharedPtr<FMovieSceneEntitySystemRunner> Runner;
+	TObjectPtr<UMovieSceneEntitySystemLinker> Linker;
 
 	/**
 	 * The compiled data manager with which the root sequence was compiled, or
@@ -73,8 +74,8 @@ public:
 	/** Gets the root sequence */
 	UMovieSceneSequence* GetRootSequence() const { return WeakRootSequence.Get(); }
 
-	/** Gets the runner evaluating this root sequence */
-	TSharedPtr<FMovieSceneEntitySystemRunner> GetRunner() const { return WeakRunner.Pin(); }
+	/** Gets the linker evaluating this root sequence */
+	UMovieSceneEntitySystemLinker* GetLinker() const { return WeakLinker.Get(); }
 
 	/** Gets the compiled data manager that contains the data for the root sequence */
 	TObjectPtr<UMovieSceneCompiledDataManager> GetCompiledDataManager() const { return CompiledDataManager; }
@@ -89,9 +90,12 @@ public:
 
 	// General utility methods
 
-	UMovieSceneEntitySystemLinker* GetLinker() const;
+	/** Gets the runner evaluating this root sequence */
+	TSharedPtr<FMovieSceneEntitySystemRunner> GetRunner() const;
 
+	/** Gets the hierarchy (if any) for this root sequence */
 	const FMovieSceneSequenceHierarchy* GetHierarchy() const;
+	/** Gets a sub-sequence given an ID */
 	UMovieSceneSequence* GetSequence(FMovieSceneSequenceIDRef SequenceID) const;
 
 public:
@@ -296,8 +300,8 @@ private:
 	/** The playback context */
 	TWeakObjectPtr<UObject> WeakPlaybackContext;
 
-	/** The runner evaluating this root sequence */
-	TWeakPtr<FMovieSceneEntitySystemRunner> WeakRunner;
+	/** The linker evaluating this root sequence */
+	TWeakObjectPtr<UMovieSceneEntitySystemLinker> WeakLinker;
 
 	/** The compiled data manager that contains the data for the root sequence */
 	TObjectPtr<UMovieSceneCompiledDataManager> CompiledDataManager;

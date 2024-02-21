@@ -72,7 +72,7 @@ UMovieSceneEntitySystemLinker* FMovieSceneRootEvaluationTemplateInstance::Constr
 	return UMovieSceneEntitySystemLinker::FindOrCreateLinker(PlaybackContext, UE::MovieScene::EEntitySystemLinkerRole::Standalone, TEXT("DefaultEntitySystemLinker"));
 }
 
-void FMovieSceneRootEvaluationTemplateInstance::Initialize(UMovieSceneSequence& InRootSequence, IMovieScenePlayer& Player, UMovieSceneCompiledDataManager* InCompiledDataManager, TSharedPtr<FMovieSceneEntitySystemRunner> InRunner)
+void FMovieSceneRootEvaluationTemplateInstance::Initialize(UMovieSceneSequence& InRootSequence, IMovieScenePlayer& Player, UMovieSceneCompiledDataManager* InCompiledDataManager)
 {
 	using namespace UE::MovieScene;
 
@@ -116,9 +116,7 @@ void FMovieSceneRootEvaluationTemplateInstance::Initialize(UMovieSceneSequence& 
 	bReinitialize |= (PreviousCompiledDataManager != InCompiledDataManager);
 
 	// Reinitialize if the runner has changed.
-	TSharedPtr<FMovieSceneEntitySystemRunner> PreviousRunner = SharedPlaybackState ?
-		SharedPlaybackState->GetRunner() : nullptr;
-	bReinitialize |= (PreviousRunner != InRunner);
+	TSharedPtr<FMovieSceneEntitySystemRunner> PreviousRunner = SharedPlaybackState ? SharedPlaybackState->GetRunner() : nullptr;
 
 	// Reinitialize if the root sequence has changed.
 	UMovieSceneSequence* PreviousRootSequence = SharedPlaybackState ? 
@@ -153,26 +151,13 @@ void FMovieSceneRootEvaluationTemplateInstance::Initialize(UMovieSceneSequence& 
 		// when initializing the new root instance and shared playback state.
 		EntitySystemLinker = ConstructEntityLinker(Player);
 
-		if (ensure(InRunner) && EntitySystemLinker)
-		{
-			if (InRunner->IsAttachedToLinker() && InRunner->GetLinker() != EntitySystemLinker)
-			{
-				InRunner->DetachFromLinker();
-			}
-
-			if (!InRunner->IsAttachedToLinker())
-			{
-				InRunner->AttachToLinker(EntitySystemLinker);
-			}
-		}
-
 		// Create the new root instance and save its new shared playback state.
 		FRootInstanceHandle RootInstanceHandle;
 		if (EntitySystemLinker != nullptr && EntitySystemLinker->GetInstanceRegistry())
 		{
 			UObject* PlaybackContext = Player.GetPlaybackContext();
 			FInstanceRegistry* InstanceRegistry = EntitySystemLinker->GetInstanceRegistry();
-			RootInstanceHandle = InstanceRegistry->AllocateRootInstance(InRootSequence, PlaybackContext, InRunner, InCompiledDataManager);
+			RootInstanceHandle = InstanceRegistry->AllocateRootInstance(InRootSequence, PlaybackContext, InCompiledDataManager);
 			SharedPlaybackState = InstanceRegistry->GetInstance(RootInstanceHandle).GetSharedPlaybackState();
 			Player.InitializeRootInstance(SharedPlaybackState.ToSharedRef());
 		}
@@ -448,7 +433,6 @@ void FMovieSceneRootEvaluationTemplateInstance::PlaybackContextChanged(IMovieSce
 
 	// Only the playback context changed, so we keep the same sequence, runner, and compiled data manager.
 	UMovieSceneSequence* RootSequence = SharedPlaybackState->GetRootSequence();
-	TSharedPtr<FMovieSceneEntitySystemRunner> Runner = SharedPlaybackState->GetRunner();
 	UMovieSceneCompiledDataManager* CompiledDataManager = SharedPlaybackState->GetCompiledDataManager();
 
 	const bool bGlobalCapture = Player.PreAnimatedState.IsCapturingGlobalPreAnimatedState();
@@ -462,6 +446,7 @@ void FMovieSceneRootEvaluationTemplateInstance::PlaybackContextChanged(IMovieSce
 	{
 		EntitySystemLinker->CleanupInvalidBoundObjects();
 
+		TSharedPtr<FMovieSceneEntitySystemRunner> Runner = SharedPlaybackState->GetRunner();
 		if (Runner)
 		{
 			if (Runner->QueueFinalUpdate(PreviousRootInstanceHandle))
@@ -483,20 +468,11 @@ void FMovieSceneRootEvaluationTemplateInstance::PlaybackContextChanged(IMovieSce
 	}
 
 	EntitySystemLinker = ConstructEntityLinker(Player);
-	if (Runner)
-	{
-		if (Runner->IsAttachedToLinker())
-		{
-			Runner->DetachFromLinker();
-		}
-
-		Runner->AttachToLinker(EntitySystemLinker);
-	}
 
 	UObject* PlaybackContext = Player.GetPlaybackContext();
 	FInstanceRegistry* InstanceRegistry = EntitySystemLinker->GetInstanceRegistry();
 	const FRootInstanceHandle RootInstanceHandle = InstanceRegistry->AllocateRootInstance(
-			*RootSequence, PlaybackContext, Runner, CompiledDataManager);
+			*RootSequence, PlaybackContext, CompiledDataManager);
 	FSequenceInstance& RootInstance = InstanceRegistry->MutateInstance(RootInstanceHandle);
 	SharedPlaybackState = RootInstance.GetSharedPlaybackState();
 	Player.InitializeRootInstance(SharedPlaybackState.ToSharedRef());

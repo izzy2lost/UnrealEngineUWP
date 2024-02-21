@@ -485,8 +485,8 @@ void FSequencer::InitSequencer(const FSequencerInitParams& InitParams, const TSh
 	ActiveTemplateIDs.Add(MovieSceneSequenceID::Root);
 	ActiveTemplateStates.Add(true);
 
-	Runner = MakeShared<FMovieSceneEntitySystemRunner>();
-	RootTemplateInstance.Initialize(*InitParams.RootSequence, *this, CompiledDataManager, Runner);
+	RootTemplateInstance.Initialize(*InitParams.RootSequence, *this, CompiledDataManager);
+	Runner = RootTemplateInstance.GetRunner();
 
 	RootTemplateInstance.EnableGlobalPreAnimatedStateCapture();
 
@@ -716,7 +716,7 @@ FSequencer::FSequencer()
 
 FSequencer::~FSequencer()
 {
-	if (Runner->IsAttachedToLinker())
+	if (Runner)
 	{
 		Runner->QueueFinalUpdate(RootTemplateInstance.GetRootInstanceHandle());
 		Runner->Flush();
@@ -759,7 +759,7 @@ void FSequencer::Close()
 		OldMaxTickRate.Reset();
 	}
 
-	if (Runner->IsAttachedToLinker())
+	if (Runner)
 	{
 		Runner->QueueFinalUpdate(RootTemplateInstance.GetRootInstanceHandle());
 		Runner->Flush();
@@ -1110,7 +1110,7 @@ void FSequencer::ResetToNewRootSequence(UMovieSceneSequence& NewSequence)
 		}
 	}
 
-	if (Runner->IsAttachedToLinker())
+	if (Runner)
 	{
 		Runner->QueueFinalUpdate(RootTemplateInstance.GetRootInstanceHandle());
 		Runner->Flush();
@@ -1121,7 +1121,7 @@ void FSequencer::ResetToNewRootSequence(UMovieSceneSequence& NewSequence)
 	ActiveTemplateStates.Reset();
 	ActiveTemplateStates.Add(true);
 
-	RootTemplateInstance.Initialize(NewSequence, *this, CompiledDataManager, Runner);
+	RootTemplateInstance.Initialize(NewSequence, *this, CompiledDataManager);
 	RootTemplateInstance.EnableGlobalPreAnimatedStateCapture();
 
 	RootToLocalTransform = FMovieSceneSequenceTransform();

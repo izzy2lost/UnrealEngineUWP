@@ -67,11 +67,9 @@ bool FMovieScenePartialEvaluationTest::RunTest(const FString& Parameters)
 
 	UMovieSceneCompiledDataManager* CompiledDataManager = UMovieSceneCompiledDataManager::GetPrecompiledData();
 	TStrongObjectPtr<UMovieSceneEntitySystemLinker> Linker(NewObject<UMovieSceneEntitySystemLinker>(GetTransientPackage()));
-	TSharedPtr<FMovieSceneEntitySystemRunner> Runner = MakeShared<FMovieSceneEntitySystemRunner>();
+	TSharedPtr<FMovieSceneEntitySystemRunner> Runner = Linker->GetRunner();
 
 	TGuardValue<FEntityManager*> DebugVizGuard(GEntityManagerForDebuggingVisualizers, &Linker->EntityManager);
-
-	Runner->AttachToLinker(Linker.Get());
 
 	struct FLocalPlayer : IMovieScenePlayer
 	{
@@ -91,7 +89,7 @@ bool FMovieScenePartialEvaluationTest::RunTest(const FString& Parameters)
 	Player.TestLinker = Linker.Get();
 
 	FMovieSceneCompiledDataID DataID = CompiledDataManager->Compile(RootSequence.Get());
-	Player.Template.Initialize(*RootSequence, Player, CompiledDataManager, Runner);
+	Player.Template.Initialize(*RootSequence, Player, CompiledDataManager);
 
 	bool bIsActive = true;
 
