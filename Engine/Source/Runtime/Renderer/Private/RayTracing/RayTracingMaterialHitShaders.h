@@ -14,6 +14,7 @@
 #include "RayTracingInstanceMask.h"
 #include "RayTracingPayloadType.h"
 #include "ShaderParameterStruct.h"
+#include <type_traits>
 
 enum class ERayTracingMeshCommandsMode : uint8;
 
@@ -226,7 +227,7 @@ public:
 		static constexpr uint32 MaxNum = 1024;
 
 		// Note: constructors for elements of this array are called explicitly in AllocateInternal(). Destructors are not called.
-		static_assert(TIsTriviallyDestructible<FRayTracingLocalShaderBindings>::Value, "FRayTracingLocalShaderBindings must be trivially destructible, as no destructor will be called.");
+		static_assert(std::is_trivially_destructible_v<FRayTracingLocalShaderBindings>, "FRayTracingLocalShaderBindings must be trivially destructible, as no destructor will be called.");
 		FRayTracingLocalShaderBindings Bindings[MaxNum];
 		FChunk* Next;
 		uint32 Num;
@@ -253,7 +254,7 @@ private:
 		{
 			FChunk* OldChunk = CurrentChunk;
 
-			static_assert(TIsTriviallyDestructible<FChunk>::Value, "Chunk must be trivially destructible, as no destructor will be called.");
+			static_assert(std::is_trivially_destructible_v<FChunk>, "Chunk must be trivially destructible, as no destructor will be called.");
 			CurrentChunk = (FChunk*)ParameterMemory.Alloc(sizeof(FChunk), alignof(FChunk));
 			CurrentChunk->Next = nullptr;
 			CurrentChunk->Num = 0;

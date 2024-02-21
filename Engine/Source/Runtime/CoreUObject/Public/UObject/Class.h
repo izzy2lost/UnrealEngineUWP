@@ -49,7 +49,6 @@
 #include "Templates/IsAbstract.h"
 #include "Templates/IsEnum.h"
 #include "Templates/IsPODType.h"
-#include "Templates/IsTriviallyDestructible.h"
 #include "Templates/IsUECoreType.h"
 #include "Templates/Models.h"
 #include "Templates/Tuple.h"
@@ -71,6 +70,7 @@
 #include "UObject/UObjectGlobals.h"
 #include "UObject/UnrealNames.h"
 #include "UObject/ObjectPtr.h"
+#include <type_traits>
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "Misc/PackageAccessTracking.h"
@@ -1197,7 +1197,7 @@ public:
 		{
 			constexpr FCapabilities Capabilities {
 				(TIsPODType<CPPSTRUCT>::Value ? CPF_IsPlainOldData : CPF_None)
-				| (TIsTriviallyDestructible<CPPSTRUCT>::Value ? CPF_NoDestructor : CPF_None)
+				| (std::is_trivially_destructible_v<CPPSTRUCT> ? CPF_NoDestructor : CPF_None)
 				| (TIsZeroConstructType<CPPSTRUCT>::Value ? CPF_ZeroConstructor : CPF_None)
 				| (TModels_V<CGetTypeHashable, CPPSTRUCT> ? CPF_HasGetValueTypeHash : CPF_None),
 				TTraits::WithSerializerObjectReferences,
@@ -4234,4 +4234,8 @@ UE_DECLARE_CORE_VARIANT_TYPE(Sphere3, Sphere);
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "CoreMinimal.h"
+#endif
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Templates/IsTriviallyDestructible.h"
 #endif

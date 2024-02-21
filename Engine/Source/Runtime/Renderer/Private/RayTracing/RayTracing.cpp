@@ -15,6 +15,7 @@
 #include "Materials/MaterialRenderProxy.h"
 #include "Experimental/Containers/SherwoodHashTable.h"
 #include "Async/ParallelFor.h"
+#include <type_traits>
 
 static int32 GRayTracingSceneCaptures = -1;
 static FAutoConsoleVariableRef CVarRayTracingSceneCaptures(
@@ -1425,7 +1426,7 @@ namespace RayTracing
 	}
 }
 
-static_assert(TIsTriviallyDestructible<RayTracing::FRelevantPrimitive>::Value == true, "FRelevantPrimitive must be trivially destructible");
+static_assert(std::is_trivially_destructible_v<RayTracing::FRelevantPrimitive>, "FRelevantPrimitive must be trivially destructible");
 template <> struct TIsPODType<RayTracing::FRelevantPrimitive> { enum { Value = true }; }; // Necessary to use TChunkedArray::CopyToLinearArray
 
 #endif //RHI_RAYTRACING

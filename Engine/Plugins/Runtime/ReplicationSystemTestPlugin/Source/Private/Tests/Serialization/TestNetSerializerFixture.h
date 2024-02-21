@@ -8,7 +8,7 @@
 #include "Iris/Serialization/NetBitStreamWriter.h"
 #include "Iris/Serialization/NetSerializer.h"
 #include "Templates/IsPODType.h"
-#include "Templates/IsTriviallyDestructible.h"
+#include <type_traits>
 
 namespace UE::Net
 {
@@ -86,7 +86,7 @@ public:
 
 	~TTestNetSerializerFixture()
 	{
-		if (!TIsTriviallyDestructible<SourceType>::Value)
+		if constexpr (!std::is_trivially_destructible_v<SourceType>)
 		{
 			reinterpret_cast<SourceType*>(SourceBuffer[0])->~SourceType();
 			reinterpret_cast<SourceType*>(SourceBuffer[1])->~SourceType();
@@ -265,3 +265,7 @@ bool TTestNetSerializerFixture<ConfigPrinter, SourceType>::TestCloneDynamicState
 }
 
 }
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Templates/IsTriviallyDestructible.h"
+#endif

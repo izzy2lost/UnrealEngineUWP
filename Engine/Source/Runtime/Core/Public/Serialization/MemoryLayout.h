@@ -11,7 +11,6 @@
 #include "Templates/EnableIf.h"
 #include "Templates/IsAbstract.h"
 #include "Templates/IsPolymorphic.h"
-#include "Templates/IsTriviallyDestructible.h"
 #include "Templates/Models.h"
 #include "Templates/UnrealTemplate.h"
 
@@ -856,3 +855,7 @@ struct FPlatformTypeLayoutParameters
 	 */
 	CORE_API void AppendKeyString(FString& KeyString) const;
 };
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Templates/IsTriviallyDestructible.h"
+#endif

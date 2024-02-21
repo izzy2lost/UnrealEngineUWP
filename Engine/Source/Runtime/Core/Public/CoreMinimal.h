@@ -48,7 +48,6 @@
 #include "Math/NumericLimits.h"
 #include "HAL/PlatformMath.h"
 #include "Templates/IsTriviallyCopyAssignable.h"
-#include "Templates/IsTriviallyDestructible.h"
 #include "Templates/MemoryOps.h"
 #include "Containers/ContainerAllocationPolicies.h"
 #include "Templates/IsEnumClass.h"
@@ -178,3 +177,7 @@
 #include "Math/Transform.h"
 #include "Math/ConvexHull2d.h"
 #include "Math/UnrealMath.h"
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Templates/IsTriviallyDestructible.h"
+#endif

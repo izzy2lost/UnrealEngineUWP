@@ -4,7 +4,7 @@
 #include "Chaos/Core.h"
 #include "Containers/Array.h"
 #include "Templates/AlignmentTemplates.h"
-#include "Templates/IsTriviallyDestructible.h"
+#include <type_traits>
 
 #define CHAOS_SCRATCHBUFFER_CHECKSENTINEL (DO_CHECK)
 
@@ -50,7 +50,7 @@ namespace Chaos
 
 			template<typename T> T* AllocUninitialized()
 			{
-				static_assert(TIsTriviallyDestructible<T>::Value, "FScratchBuffer only supports trivially destructible types");
+				static_assert(std::is_trivially_destructible_v<T>, "FScratchBuffer only supports trivially destructible types");
 
 				void* Address = AllocAligned(sizeof(T), alignof(T));
 				return (T*)Address;
@@ -58,7 +58,7 @@ namespace Chaos
 
 			template<typename T> T* AllocArrayUninitialized(const int32 Num)
 			{
-				static_assert(TIsTriviallyDestructible<T>::Value, "FScratchBuffer only supports trivially destructible types");
+				static_assert(std::is_trivially_destructible_v<T>, "FScratchBuffer only supports trivially destructible types");
 
 				const size_t AlignedSize = Align(sizeof(T), alignof(T));
 				void* Address = AllocAligned(Num * AlignedSize, alignof(T));
@@ -173,3 +173,7 @@ namespace Chaos
 
 	}
 }
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Templates/IsTriviallyDestructible.h"
+#endif

@@ -101,6 +101,7 @@
 #include "LightFunctionAtlas.h"
 #include "EnvironmentComponentsFlags.h"
 #include "VolumetricCloudProxy.h"
+#include <type_traits>
 
 /*-----------------------------------------------------------------------------
 	Globals
@@ -2224,7 +2225,7 @@ FViewInfo* FViewInfo::CreateSnapshot() const
 	}
 	
 	// Ensure the internal state is maintained, needed because we've just Memcpy'd the member data.
-	static_assert(TIsTriviallyDestructible<FGPUScenePrimitiveCollector>::Value != 0, "The destructor is not invoked properly because of FMemory::Memcpy(*Result, *this) above");
+	static_assert(std::is_trivially_destructible_v<FGPUScenePrimitiveCollector> != 0, "The destructor is not invoked properly because of FMemory::Memcpy(*Result, *this) above");
 	Result->DynamicPrimitiveCollector = FGPUScenePrimitiveCollector(DynamicPrimitiveCollector);
 
 	Result->bIsSnapshot = true;

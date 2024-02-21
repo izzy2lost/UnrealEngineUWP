@@ -228,7 +228,6 @@
 #include "Templates/IsSigned.h"
 #include "Templates/IsTriviallyCopyAssignable.h"
 #include "Templates/IsTriviallyCopyConstructible.h"
-#include "Templates/IsTriviallyDestructible.h"
 #include "Templates/Less.h"
 #include "Templates/MemoryOps.h"
 #include "Templates/PointerIsConvertibleFromTo.h"
@@ -255,3 +254,7 @@
 #include "UObject/UnrealNames.h"
 #include "UObject/UObjectHierarchyFwd.h"
 #include "UObject/WeakObjectPtrTemplates.h"
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Templates/IsTriviallyDestructible.h"
+#endif

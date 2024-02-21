@@ -40,7 +40,6 @@
 #include "GenericPlatform/GenericPlatformMath.h"
 #include "Templates/MemoryOps.h"
 #include "Templates/IsTriviallyCopyAssignable.h"
-#include "Templates/IsTriviallyDestructible.h"
 #include "Math/NumericLimits.h"
 #include "Serialization/Archive.h"
 #include "Templates/IsEnumClass.h"
@@ -531,3 +530,7 @@
 #include "Particles/ParticleSystem.h"
 #include "Particles/Emitter.h"
 #include "TimerManager.h"
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Templates/IsTriviallyDestructible.h"
+#endif

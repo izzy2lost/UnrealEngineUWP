@@ -13,6 +13,7 @@
 #include "Layout/Clipping.h"
 #include "Layout/FlowDirection.h"
 #include "Rendering/DrawElements.h"
+#include <type_traits>
 
 class SWidget;
 class FPaintArgs;
@@ -228,7 +229,7 @@ static_assert(sizeof(FWidgetProxy) <= 32, "FWidgetProxy should be 32 bytes");
 #endif
 
 #if !UE_SLATE_WITH_WIDGETPROXY_WEAKPTR
-static_assert(TIsTriviallyDestructible<FWidgetProxy>::Value == true, "FWidgetProxy must be trivially destructible");
+static_assert(std::is_trivially_destructible_v<FWidgetProxy>, "FWidgetProxy must be trivially destructible");
 template <> struct TIsPODType<FWidgetProxy> { enum { Value = true }; };
 #endif
 

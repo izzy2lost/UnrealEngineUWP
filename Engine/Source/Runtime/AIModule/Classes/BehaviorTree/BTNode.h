@@ -10,6 +10,7 @@
 #include "BehaviorTree/BlackboardAssetProvider.h"
 #include "GameplayTaskOwnerInterface.h"
 #include "Tasks/AITask.h"
+#include <type_traits>
 #include "BTNode.generated.h"
 
 class AActor;
@@ -319,7 +320,7 @@ T* UBTNode::InitializeNodeMemory(uint8* NodeMemory, EBTMemoryInit::Type InitType
 template <typename T>
 void UBTNode::CleanupNodeMemory(uint8* NodeMemory, EBTMemoryClear::Type CleanupType) const
 {
-	if constexpr (!TIsTriviallyDestructible<T>::Value)
+	if constexpr (!std::is_trivially_destructible_v<T>)
 	{
 		if (CleanupType == EBTMemoryClear::Destroy)
 		{

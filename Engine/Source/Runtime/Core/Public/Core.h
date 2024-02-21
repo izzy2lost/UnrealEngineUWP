@@ -66,7 +66,6 @@ MONOLITHIC_HEADER_BOILERPLATE()
 #include "Templates/IsClass.h"
 #include "Templates/TypeCompatibleBytes.h"
 #include "Traits/IsContiguousContainer.h"
-#include "Templates/IsTriviallyDestructible.h"
 #include "Misc/CString.h"
 #include "Templates/IsEnumClass.h"
 #include "GenericPlatform/GenericPlatformProperties.h"
@@ -312,3 +311,7 @@ MONOLITHIC_HEADER_BOILERPLATE()
 #include "Misc/Optional.h"
 #include "Misc/EnumClassFlags.h"
 #include "Misc/EnumRange.h"
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Templates/IsTriviallyDestructible.h"
+#endif

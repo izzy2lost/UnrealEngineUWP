@@ -18,7 +18,6 @@
 #include "Misc/TVariant.h"
 #include "Stats/Stats.h"
 #include "Stats/Stats2.h"
-#include "Templates/IsTriviallyDestructible.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/UnrealTemplate.h"
 #include "Templates/UnrealTypeTraits.h"
@@ -310,7 +309,6 @@ private:
 } // namespace MovieScene
 } // namespace UE
 
-
-
-
-
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Templates/IsTriviallyDestructible.h"
+#endif

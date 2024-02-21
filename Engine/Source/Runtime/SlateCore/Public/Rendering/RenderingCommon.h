@@ -13,6 +13,7 @@
 #include "Rendering/DrawElementCoreTypes.h"
 #include "Rendering/SlateRendererTypes.h"
 #include "SlateGlobals.h"
+#include <type_traits>
 #include <utility>
 
 #include "RenderingCommon.generated.h"
@@ -364,7 +365,7 @@ private:
 };
 
 template<> struct TIsPODType<FSlateVertex> { enum { Value = true }; };
-static_assert(TIsTriviallyDestructible<FSlateVertex>::Value == true, "FSlateVertex should be trivially destructible");
+static_assert(std::is_trivially_destructible_v<FSlateVertex>, "FSlateVertex should be trivially destructible");
 static_assert(std::is_trivially_copyable_v<FSlateVertex> == true, "FSlateVertex should be trivially copyable");
 
 /** Stores an aligned rect as shorts. */
@@ -424,7 +425,7 @@ struct FShortRect
 };
 
 template<> struct TIsPODType<FShortRect> { enum { Value = true }; };
-static_assert(TIsTriviallyDestructible<FShortRect>::Value == true, "FShortRect should be trivially destructible");
+static_assert(std::is_trivially_destructible_v<FShortRect>, "FShortRect should be trivially destructible");
 
 namespace UE::Slate
 {

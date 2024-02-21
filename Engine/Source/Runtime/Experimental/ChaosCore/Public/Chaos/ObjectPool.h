@@ -6,7 +6,6 @@
 #include "HAL/UnrealMemory.h"
 #include "Math/UnrealMathUtility.h"
 #include "Templates/AlignmentTemplates.h"
-#include "Templates/IsTriviallyDestructible.h"
 #include "Templates/UnrealTemplate.h"
 
 namespace Chaos
@@ -15,11 +14,11 @@ namespace Chaos
 
 	// The type needs to have a destructor run when the pool pointer is freed
 	template<typename T>
-	using TRequiresDestructor = std::enable_if_t<!TIsTriviallyDestructible<T>::Value>;
+	using TRequiresDestructor = std::enable_if_t<!std::is_trivially_destructible_v<T>>;
 
 	// The type needs no destruction and can just be abandoned on free
 	template<typename T>
-	using TTrivialDestruct = std::enable_if_t<TIsTriviallyDestructible<T>::Value>;
+	using TTrivialDestruct = std::enable_if_t<std::is_trivially_destructible_v<T>>;
 
 	template<typename ObjectType>
 	class TObjectPool
@@ -592,3 +591,7 @@ namespace Chaos
 		FObjectPool* Pool;
 	};
 }
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Templates/IsTriviallyDestructible.h"
+#endif

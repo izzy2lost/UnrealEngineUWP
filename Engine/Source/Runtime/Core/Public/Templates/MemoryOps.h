@@ -4,30 +4,22 @@
 
 #include "CoreTypes.h"
 #include "HAL/UnrealMemory.h"
+#include "Templates/IsTriviallyCopyAssignable.h"
 #include "Templates/IsTriviallyCopyConstructible.h"
 #include "Templates/UnrealTypeTraits.h"
 #include "Traits/UseBitwiseSwap.h"
 #include <new> // IWYU pragma: export
-
-#include "Templates/IsTriviallyCopyAssignable.h"
-#include "Templates/IsTriviallyDestructible.h"
+#include <type_traits>
 
 
 namespace UE::Core::Private::MemoryOps
 {
 	template <typename DestinationElementType, typename SourceElementType>
-	struct TCanBitwiseRelocate
-	{
-		enum
-		{
-			Value =
-				std::is_same_v<DestinationElementType, SourceElementType> ||
-				TAnd<
-					TIsBitwiseConstructible<DestinationElementType, SourceElementType>,
-					TIsTriviallyDestructible<SourceElementType>
-				>::Value
-		};
-	};
+	constexpr inline bool TCanBitwiseRelocate_V =
+		std::is_same_v<DestinationElementType, SourceElementType> || (
+			TIsBitwiseConstructible<DestinationElementType, SourceElementType>::Value &&
+			std::is_trivially_destructible_v<SourceElementType>
+		);
 }
 
 /**
@@ -73,7 +65,7 @@ FORCEINLINE void DestructItem(ElementType* Element)
 	{
 		// Should never get here, but this construct should improve the error messages we get when we try to call this function with incomplete types
 	}
-	else if constexpr (!TIsTriviallyDestructible<ElementType>::Value)
+	else if constexpr (!std::is_trivially_destructible_v<ElementType>)
 	{
 		// We need a typedef here because VC won't compile the destructor call below if ElementType itself has a member called ElementType
 		typedef ElementType DestructItemsElementTypeTypedef;
@@ -97,7 +89,7 @@ FORCEINLINE void DestructItems(ElementType* Element, SizeType Count)
 	{
 		// Should never get here, but this construct should improve the error messages we get when we try to call this function with incomplete types
 	}
-	else if constexpr (!TIsTriviallyDestructible<ElementType>::Value)
+	else if constexpr (!std::is_trivially_destructible_v<ElementType>)
 	{
 		while (Count)
 		{
@@ -188,8 +180,8 @@ FORCEINLINE void RelocateConstructItem(void* Dest, const SourceElementType* Sour
 	{
 		// Should never get here, but this construct should improve the error messages we get when we try to call this function with incomplete types
 	}
-	// Do a bitwise relocate if TCanBitwiseRelocate says we can, but not if the type involved is known not to be bitwise-swappable
-	else if constexpr (UE::Core::Private::MemoryOps::TCanBitwiseRelocate<DestinationElementType, SourceElementType>::Value && (!std::is_same_v<DestinationElementType, SourceElementType> || TUseBitwiseSwap<SourceElementType>::Value))
+	// Do a bitwise relocate if TCanBitwiseRelocate_V says we can, but not if the type involved is known not to be bitwise-swappable
+	else if constexpr (UE::Core::Private::MemoryOps::TCanBitwiseRelocate_V<DestinationElementType, SourceElementType> && (!std::is_same_v<DestinationElementType, SourceElementType> || TUseBitwiseSwap<SourceElementType>::Value))
 	{
 		/* All existing UE containers seem to assume trivial relocatability (i.e. memcpy'able) of their members,
 		 * so we're going to assume that this is safe here.  However, it's not generally possible to assume this
@@ -226,7 +218,7 @@ FORCEINLINE void RelocateConstructItems(void* Dest, const SourceElementType* Sou
 	{
 		// Should never get here, but this construct should improve the error messages we get when we try to call this function with incomplete types
 	}
-	else if constexpr (UE::Core::Private::MemoryOps::TCanBitwiseRelocate<DestinationElementType, SourceElementType>::Value)
+	else if constexpr (UE::Core::Private::MemoryOps::TCanBitwiseRelocate_V<DestinationElementType, SourceElementType>)
 	{
 		/* All existing UE containers seem to assume trivial relocatability (i.e. memcpy'able) of their members,
 		 * so we're going to assume that this is safe here.  However, it's not generally possible to assume this
@@ -341,3 +333,7 @@ FORCEINLINE bool CompareItems(const ElementType* A, const ElementType* B, SizeTy
 		return true;
 	}
 }
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Templates/IsTriviallyDestructible.h"
+#endif

@@ -17,6 +17,8 @@
 #include "EntitySystem/MovieSceneSequenceInstanceHandle.h"
 #include "EntitySystem/MovieSceneEntitySystemDirectedGraph.h"
 
+#include <type_traits>
+
 
 namespace UE
 {
@@ -220,7 +222,7 @@ FComponentTypeInfo FComponentRegistry::MakeComponentTypeInfoWithoutComponentOps(
 	NewTypeInfo.Sizeof = ComponentTypeSize;
 	NewTypeInfo.Alignment = Alignment;
 	NewTypeInfo.bIsZeroConstructType = TIsZeroConstructType<T>::Value;
-	NewTypeInfo.bIsTriviallyDestructable = TIsTriviallyDestructible<T>::Value;
+	NewTypeInfo.bIsTriviallyDestructable = std::is_trivially_destructible_v<T>;
 	NewTypeInfo.bIsTriviallyCopyAssignable = TIsTriviallyCopyAssignable<T>::Value;
 	NewTypeInfo.bIsPreserved = EnumHasAnyFlags(Params.Flags, EComponentTypeFlags::Preserved);
 	NewTypeInfo.bIsCopiedToOutput = EnumHasAnyFlags(Params.Flags, EComponentTypeFlags::CopyToOutput);

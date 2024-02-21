@@ -15,9 +15,9 @@
 #include "Misc/EnumClassFlags.h"
 #include "String/BytesToHex.h"
 #include "Templates/Function.h"
-#include "Templates/IsTriviallyDestructible.h"
 #include "Templates/RemoveReference.h"
 #include "Templates/UnrealTemplate.h"
+#include <type_traits>
 
 template <typename CharType> class TStringBuilderBase;
 
@@ -853,7 +853,7 @@ protected:
 	/** Assign a field from a pointer to its data and an optional externally-provided type. */
 	inline void Assign(const void* InData, const ECbFieldType InType)
 	{
-		static_assert(TIsTriviallyDestructible<FCbFieldView>::Value,
+		static_assert(std::is_trivially_destructible_v<FCbFieldView>,
 			"This optimization requires FCbFieldView to be trivially destructible!");
 		new(this) FCbFieldView(InData, InType);
 	}
@@ -1460,3 +1460,7 @@ inline FSharedBuffer FCbField::AsBinary(const FSharedBuffer& Default) &&
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Templates/IsTriviallyDestructible.h"
+#endif

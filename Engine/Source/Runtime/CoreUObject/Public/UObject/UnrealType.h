@@ -38,7 +38,6 @@
 #include "Templates/IsIntegral.h"
 #include "Templates/IsPODType.h"
 #include "Templates/IsSigned.h"
-#include "Templates/IsTriviallyDestructible.h"
 #include "Templates/IsUEnumClass.h"
 #include "Templates/MemoryOps.h"
 #include "Templates/Models.h"
@@ -65,6 +64,7 @@
 #include "UObject/UObjectGlobals.h"
 #include "UObject/UnrealNames.h"
 #include "UObject/WeakObjectPtr.h"
+#include <type_traits>
 
 class FBlake3;
 class FOutputDevice;
@@ -1309,7 +1309,7 @@ protected:
 	{
 		return 
 			(TIsPODType<TCppType>::Value ? CPF_IsPlainOldData : CPF_None) 
-			| (TIsTriviallyDestructible<TCppType>::Value ? CPF_NoDestructor : CPF_None) 
+			| (std::is_trivially_destructible_v<TCppType> ? CPF_NoDestructor : CPF_None) 
 			| (TIsZeroConstructType<TCppType>::Value ? CPF_ZeroConstructor : CPF_None)
 			| (TModels_V<CGetTypeHashable, TCppType> ? CPF_HasGetValueTypeHash : CPF_None);
 
@@ -7168,4 +7168,8 @@ class COREUOBJECT_API UMulticastInlineDelegatePropertyWrapper : public UMulticas
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "CoreMinimal.h"
+#endif
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Templates/IsTriviallyDestructible.h"
 #endif
