@@ -312,6 +312,11 @@ void FNiagaraBakerRenderer::SetAbsoluteTime(float AbsoluteTime, bool bShouldTick
 		return;
 	}
 
+	if (!PreviewComponent->IsActive() && (AbsoluteTime < PreviewComponent->GetDesiredAge()))
+	{
+		PreviewComponent->ReinitializeSystem();
+	}
+
 	PreviewComponent->SetSeekDelta(BakerSettings->GetSeekDelta());
 	PreviewComponent->SeekToDesiredAge(AbsoluteTime);
 
