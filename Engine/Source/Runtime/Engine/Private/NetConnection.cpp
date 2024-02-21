@@ -4694,11 +4694,10 @@ void UNetConnection::HandleClientPlayer( APlayerController *PC, UNetConnection* 
 
 	// Hook up the Viewport to the new player actor.
 	ULocalPlayer*	LocalPlayer = NULL;
-	for(FLocalPlayerIterator It(GEngine, Driver->GetWorld());It;++It)
+	if (FLocalPlayerIterator It(GEngine, Driver->GetWorld()); It)
 	{
 		LocalPlayer = *It;
-		break;
-	}
+	} 
 
 	// Detach old player if it's in the same level.
 	check(LocalPlayer);
