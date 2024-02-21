@@ -655,7 +655,8 @@ float4 ComputeViewAlignedWorldPosition(FVertexFactoryInput Input, float3 WorldTa
 
 	// Minimal radius to snap the strand to a sample/pixel center (to avoid aliasing)
 	const float DistanceToCamera = length(HairViewInfo.TranslatedWorldCameraOrigin - WorldPosition.xyz);
-	const float MinStrandHairRadius = ConvertGivenDepthRadiusForProjectionType(HairViewInfo.RadiusAtDepth1, DistanceToCamera);
+	const float MinStrandHairRadius = ConvertGivenDepthRadiusForProjectionType(HairViewInfo.RadiusAtDepth1, DistanceToCamera, HairViewInfo.bIsOrthoView);
+
 	const float3 ViewDir = -HairViewInfo.ViewForward;
 	const float3 Right = normalize(cross(WorldTangent, ViewDir));
 	const float3 OutWorldPosition = WorldPosition.xyz + (VertexInfo.IsLeft ? -Right : Right) * max(WorldStrandRadius, MinStrandHairRadius);
@@ -678,7 +679,7 @@ float4 VertexFactoryGetWorldPosition_Visibility(FVertexFactoryInput Input, FHair
 
 	// Minimal radius to snap the strand to a sample/pixel center (to avoid aliasing)
 	const float DistanceToCamera = length(HairViewInfo.TranslatedWorldCameraOrigin - WorldPosition.xyz);
-	const float MinStrandHairRadius = ConvertGivenDepthRadiusForProjectionType(HairViewInfo.RadiusAtDepth1, DistanceToCamera);
+	const float MinStrandHairRadius = ConvertGivenDepthRadiusForProjectionType(HairViewInfo.RadiusAtDepth1, DistanceToCamera, HairViewInfo.bIsOrthoView);
 	const float3 ViewDir = -HairViewInfo.ViewForward;
 	const float3 Right = normalize(cross(WorldTangent, ViewDir));
 	const float3 OutWorldPosition = WorldPosition.xyz + (VertexInfo.IsLeft ? -Right : Right) * max(ControlPoint.WorldRadius, MinStrandHairRadius);
@@ -729,6 +730,7 @@ float4 VertexFactoryGetWorldPosition(FVertexFactoryInput Input, FVertexFactoryIn
 	HairViewInfo.TranslatedWorldCameraOrigin = ResolvedView.TranslatedWorldCameraOrigin;
 	HairViewInfo.ViewForward = ResolvedView.ViewForward;
 	HairViewInfo.RadiusAtDepth1 = HairRenderInfo.RadiusAtDepth1Primary;
+	HairViewInfo.bIsOrthoView = HairRenderInfo.bIsOrthoView;
 
 	return VertexFactoryGetWorldPosition(Input, Intermediates, HairViewInfo);
 }
