@@ -147,19 +147,19 @@ bool UMovieGraphVariableNode::ContextHasEnabledAssignmentForVariable(const FMovi
 	
 	if (Shot)
 	{
-		ShotVariableAssignments = Shot->GetOrCreateJobVariableAssignmentsForGraph(Shot->GetGraphPreset());
+		ShotVariableAssignments = Shot->GetOrCreateJobVariableAssignmentsForGraph(GetGraph());
 		
 		// The shot can also override variables on the primary job's graph (in addition to the shot-level ones fetched/created above)
 		if (PrimaryJob)
 		{
 			constexpr bool bIsForPrimaryOverrides = true;
-			ShotVariableAssignments_PrimaryOverrides = Shot->GetOrCreateJobVariableAssignmentsForGraph(PrimaryJob->GetGraphPreset(), bIsForPrimaryOverrides);
+			ShotVariableAssignments_PrimaryOverrides = Shot->GetOrCreateJobVariableAssignmentsForGraph(GetGraph(), bIsForPrimaryOverrides);
 		}
 	}
 
 	if (PrimaryJob)
 	{
-		JobVariableAssignments = PrimaryJob->GetOrCreateJobVariableAssignmentsForGraph(PrimaryJob->GetGraphPreset());
+		JobVariableAssignments = PrimaryJob->GetOrCreateJobVariableAssignmentsForGraph(GetGraph());
 	}
 	
 	// Check the shot job first for an enabled job variable assignment for this variable. Shot jobs take precedence over primary jobs.
