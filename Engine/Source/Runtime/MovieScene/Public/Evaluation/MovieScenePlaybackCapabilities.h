@@ -493,9 +493,11 @@ protected:
 		// the actual pointer to the actual stored capability.
 		void* CapabilityPtr = Header.Capability.Resolve(Memory);
 
-		// Call the destructor on the previous capability, which is important if it was stored inline or as
-		// a shared pointer.
-		Helpers[Index].Destructor(CapabilityPtr);
+		// If we have inline storage, call the destructor on the previous capability.
+		if (Header.StorageMode == EPlaybackCapabilityStorageMode::Inline)
+		{
+			Helpers[Index].Destructor(CapabilityPtr);
+		}
 
 		// Allocate the new capability.
 		StorageType* TypedCapabilityPtr = reinterpret_cast<StorageType*>(CapabilityPtr);

@@ -18,18 +18,16 @@ FPlaybackCapabilities::FPlaybackCapabilities(FPlaybackCapabilities&& RHS)
 
 FPlaybackCapabilities& FPlaybackCapabilities::operator=(FPlaybackCapabilities&& RHS)
 {
-	if (!ensure(this != &RHS))
-	{
-		Destroy();
+	Destroy();
 
-		Memory = RHS.Memory;
-		Alignment = RHS.Alignment;
-		Capacity = RHS.Capacity;
-		Num = RHS.Num;
-		AllCapabilities = RHS.AllCapabilities;
+	Memory = RHS.Memory;
+	Alignment = RHS.Alignment;
+	Capacity = RHS.Capacity;
+	Num = RHS.Num;
+	AllCapabilities = RHS.AllCapabilities;
 
-		new (&RHS) FPlaybackCapabilities();
-	}
+	new (&RHS) FPlaybackCapabilities();
+
 	return *this;
 }
 
