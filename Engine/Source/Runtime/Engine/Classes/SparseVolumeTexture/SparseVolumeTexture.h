@@ -535,6 +535,10 @@ public:
 	virtual const UE::SVT::FTextureRenderResources* GetTextureRenderResources() const override { return Frames.IsEmpty() ? nullptr : Frames[0]->GetTextureRenderResources(); }
 	//~ End USparseVolumeTexture Interface.
 
+#if WITH_EDITOR
+	ENGINE_API void OnAssetsAddExtraObjectsToDelete(TArray<UObject*>& ObjectsToDelete);
+#endif
+
 protected:
 
 	UPROPERTY(Export)
@@ -562,7 +566,14 @@ protected:
 	// Ensures all frames have derived data (based on the source data and the current settings like TextureAddress modes etc.) cached to DDC and are ready for rendering.
 	// Disconnects this SVT from the streaming manager, calls Cache() on all frames and finally connects to FStreamingManager again.
 	void RecacheFrames();
+
 #endif // WITH_EDITORONLY_DATA
+
+#if WITH_EDITOR
+	ENGINE_API bool ShouldRegisterDelegates();
+	ENGINE_API void RegisterEditorDelegates();
+	ENGINE_API void UnregisterEditorDelegates();
+#endif // WITH_EDITOR
 };
 
 // Represents a streamable SparseVolumeTexture asset with a single frame. Although there is only a single frame, it is still recommended to use USparseVolumeTextureFrame::GetFrameAndIssueStreamingRequest().
