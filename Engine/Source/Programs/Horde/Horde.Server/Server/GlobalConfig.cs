@@ -290,6 +290,14 @@ namespace Horde.Server.Server
 				_toolLookup.Add(tool.Id, tool);
 				tool.PostLoad(this);
 			}
+			foreach (ToolConfig tool in serverSettings.BundledTools)
+			{
+				if (!_toolLookup.ContainsKey(tool.Id))
+				{
+					_toolLookup.Add(tool.Id, tool);
+					tool.PostLoad(this);
+				}
+			}
 
 			foreach (ToolConfig tool in Tools)
 			{

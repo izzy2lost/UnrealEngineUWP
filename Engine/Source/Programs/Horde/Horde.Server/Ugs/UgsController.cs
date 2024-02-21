@@ -114,21 +114,28 @@ namespace Horde.Server.Ugs
 		/// Searches for metadata updates
 		/// </summary>
 		/// <param name="stream">THe stream to search for</param>
+		/// <param name="changes">List of specific changes</param>
 		/// <param name="minChange">Minimum changelist number</param>
 		/// <param name="maxChange">Maximum changelist number</param>
-		/// <param name="project">The project identifiers to search for</param>
+		/// <param name="projects">The project identifiers to search for</param>
 		/// <param name="sequence">Last sequence number</param>
 		/// <returns>List of metadata updates</returns>
 		[HttpGet]
 		[Route("/ugs/api/metadata")]
-		public async Task<GetUgsMetadataListResponse> FindMetadataAsync([FromQuery] string stream, [FromQuery] int minChange, [FromQuery] int? maxChange = null, [FromQuery] string? project = null, [FromQuery] long? sequence = null)
+		public async Task<GetUgsMetadataListResponse> FindMetadataAsync([FromQuery] string stream, [FromQuery(Name = "change")] List<int>? changes = null, [FromQuery] int? minChange = null, [FromQuery] int? maxChange = null, [FromQuery(Name = "project")] List<string>? projects = null, [FromQuery] long? sequence = null)
 		{
-			List<IUgsMetadata> metadataList = await _ugsMetadataCollection.FindAsync(stream, minChange, maxChange, sequence);
+			List<IUgsMetadata> metadataList = await _ugsMetadataCollection.FindAsync(stream, changes, minChange, maxChange, sequence);
 		
 			GetUgsMetadataListResponse response = new GetUgsMetadataListResponse();
 			if(sequence != null)
 			{
 				response.SequenceNumber = sequence.Value;
+			}
+
+			HashSet<string>? projectSet = null;
+			if (projects != null && projects.Count > 0)
+			{
+				projectSet = new HashSet<string>(projects, StringComparer.OrdinalIgnoreCase);
 			}
 
 			foreach (IUgsMetadata metadata in metadataList)
@@ -137,7 +144,7 @@ namespace Horde.Server.Ugs
 				{
 					response.SequenceNumber = metadata.UpdateTicks;
 				}
-				if (String.IsNullOrEmpty(metadata.Project) || metadata.Project.Equals(project, StringComparison.OrdinalIgnoreCase))
+				if (projectSet == null || projectSet.Contains(metadata.Project))
 				{
 					response.Items.Add(new GetUgsMetadataResponse(metadata));
 				}

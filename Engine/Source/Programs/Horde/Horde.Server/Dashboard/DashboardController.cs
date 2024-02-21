@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde.Accounts;
 using EpicGames.Horde.Dashboard;
 using EpicGames.Horde.Server;
 using Horde.Server.Accounts;
@@ -87,6 +88,12 @@ namespace Horde.Server.Dashboard
 		[Route("/api/v2/dashboard/login")]
 		public IActionResult LoginV2([FromQuery] string? redirect)
 		{
+
+			if (_settings.AuthMethod == AuthMethod.Horde)
+			{
+				return Redirect("/index?login" + (redirect == null ? String.Empty : $"&redirect={redirect}"));
+			}
+
 			string? redirectUri = null;
 
 			if (redirect != null)
@@ -101,10 +108,11 @@ namespace Horde.Server.Dashboard
 		/// <summary>
 		/// Logout of the current account
 		/// </summary>
+		/// /// <param name="dashboard"></param>
 		/// <returns></returns>
 		[HttpGet]
 		[Route("/api/v1/dashboard/logout")]
-		public async Task<ActionResult> LogoutAsync()
+		public async Task<ActionResult> LogoutAsync([FromQuery] bool? dashboard)
 		{
 			await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
 			try
@@ -115,10 +123,11 @@ namespace Horde.Server.Dashboard
 			{
 			}
 
-			if (_settings.AuthMethod == AuthMethod.Horde)
+			if (dashboard == false && _settings.AuthMethod == AuthMethod.Horde)
 			{
 				return Redirect("/");
 			}
+
 			return Ok();
 		}
 
@@ -133,6 +142,8 @@ namespace Horde.Server.Dashboard
 		{
 			GetDashboardConfigResponse dashboardConfigResponse = new GetDashboardConfigResponse();
 
+			dashboardConfigResponse.AuthMethod = _settings.AuthMethod;
+
 			if (_settings.JiraUrl != null)
 			{
 				dashboardConfigResponse.ExternalIssueServiceName = "Jira";
@@ -143,7 +154,7 @@ namespace Horde.Server.Dashboard
 			{
 				dashboardConfigResponse.PerforceSwarmUrl = _settings.P4SwarmUrl.ToString().TrimEnd('/');
 			}
-
+				
 			dashboardConfigResponse.HelpEmailAddress = _settings.HelpEmailAddress;
 			dashboardConfigResponse.HelpSlackChannel = _settings.HelpSlackChannel;
 
@@ -281,15 +292,16 @@ namespace Horde.Server.Dashboard
 		/// the <see cref="HordeClaimTypes.Group"/> type.
 		/// </summary>
 		[HttpGet]
+		[Authorize]
 		[Route("/api/v1/dashboard/accountgroups")]
-		public ActionResult<IReadOnlyList<string>> GetAccountGroupClaims()
+		public ActionResult<List<AccountClaimMessage>> GetAccountGroupClaims()
 		{
 			if (!_globalConfig.Value.Authorize(AccountAclAction.CreateAccount, User) && !_globalConfig.Value.Authorize(AccountAclAction.UpdateAccount, User))
 			{
 				return Forbid();
 			}
 
-			return Ok(_globalConfig.Value.GetValidAccountGroupClaims());
+			return Ok(_globalConfig.Value.GetValidAccountGroupClaims().Select(x => new AccountClaimMessage(HordeClaimTypes.Group, x)).ToList());
 		}
 	}
 }

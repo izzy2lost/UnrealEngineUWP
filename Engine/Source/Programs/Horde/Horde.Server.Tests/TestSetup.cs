@@ -123,6 +123,7 @@ namespace Horde.Server.Tests
 		public StorageService StorageService => ServiceProvider.GetRequiredService<StorageService>();
 		public TestDataService TestDataService => ServiceProvider.GetRequiredService<TestDataService>();
 		public ComputeService ComputeService => ServiceProvider.GetRequiredService<ComputeService>();
+		public ServerStatusService ServerStatusService => ServiceProvider.GetRequiredService<ServerStatusService>();
 
 		public ServerSettings ServerSettings => ServiceProvider.GetRequiredService<IOptions<ServerSettings>>().Value;
 		public IOptionsMonitor<ServerSettings> ServerSettingsMon => ServiceProvider.GetRequiredService<IOptionsMonitor<ServerSettings>>();
@@ -270,6 +271,9 @@ namespace Horde.Server.Tests
 			services.AddSingleton<DeviceService>();
 			services.AddSingleton<TestDataService>();
 			services.AddSingleton<ComputeService>();
+
+			services.AddSingleton(typeof(IHealthMonitor<>), typeof(HealthMonitor<>));
+			services.AddSingleton<ServerStatusService>();
 
 			services.AddScoped<JobRpcCommon>();
 

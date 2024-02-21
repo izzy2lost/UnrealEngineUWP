@@ -2,6 +2,8 @@
 
 using System.Collections.Generic;
 
+#pragma warning disable CA1054 // URI-like parameters should not be strings
+
 namespace EpicGames.Horde.Accounts
 {
 	/// <summary>
@@ -45,13 +47,14 @@ namespace EpicGames.Horde.Accounts
 	/// <summary>
 	/// Creates a new user account
 	/// </summary>
+	/// <param name="Id">Id of the account</param>
 	/// <param name="Name">Name of the user</param>
 	/// <param name="Login">Perforce login identifier</param>
 	/// <param name="Claims">Claims for the user</param>
 	/// <param name="Description">Description for the account</param>
 	/// <param name="Email">User's email address</param>
 	/// <param name="Enabled">Whether the account is enabled</param>
-	public record class GetAccountResponse(string Name, string Login, List<AccountClaimMessage> Claims, string? Description, string? Email, bool Enabled);
+	public record class GetAccountResponse(AccountId Id, string Name, string Login, List<AccountClaimMessage> Claims, string? Description, string? Email, bool Enabled);
 
 	/// <summary>
 	/// Message describing a claim for an account
@@ -59,4 +62,13 @@ namespace EpicGames.Horde.Accounts
 	/// <param name="Type">Claim type</param>
 	/// <param name="Value">Value of the claim</param>
 	public record class AccountClaimMessage(string Type, string Value);
+
+	/// <summary>
+	/// Dashboard login request
+	/// </summary>
+	/// <param name="Username">Username</param>
+	/// <param name="Password">Password</param>
+	/// <param name="ReturnUrl">Url to return to upon success</param>
+	public record class DashboardLoginRequest(string Username, string? Password, string? ReturnUrl);
+	
 }

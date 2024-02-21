@@ -187,14 +187,19 @@ namespace EpicGames.Horde.Server
 	public enum ServerStatusResult
 	{
 		/// <summary>
-		/// Ok/success
+		/// Indicates that the health check determined that the subsystem was unhealthy
 		/// </summary>
-		Ok,
-
+		Unhealthy,
+		
 		/// <summary>
-		/// Error/failure
+		/// Indicates that the health check determined that the component was in a subsystem state
 		/// </summary>
-		Error
+		Degraded,
+		
+		/// <summary>
+		/// Indicates that the health check determined that the subsystem was healthy
+		/// </summary>
+		Healthy,
 	}
 	
 	/// <summary>

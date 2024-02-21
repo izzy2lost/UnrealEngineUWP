@@ -531,6 +531,14 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
          });
       }
 
+      if (features?.showAccounts) {
+         hordeItems.push({
+            key: "server_accounts",
+            text: "Accounts",
+            link: `/accounts`
+         });
+      }
+
       hordeItems.push({
          key: "server_docs",
          text: "Documentation",

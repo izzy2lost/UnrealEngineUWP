@@ -76,6 +76,7 @@ namespace Horde.Server.Utilities
 			{
 				await _cancellationTokenSource.CancelAsync();
 				await _current.IgnoreCanceledExceptionsAsync();
+				_current = null;
 			}
 
 			if (_cancellationTokenSource != null)

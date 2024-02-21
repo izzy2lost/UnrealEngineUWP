@@ -202,6 +202,11 @@ namespace EpicGames.Horde.Users
 		public bool ShowTests { get; set; }
 
 		/// <summary>
+		/// Whether the remote desktop button should be shown on the agent modal
+		/// </summary>
+		public bool ShowAccounts { get; set; }
+
+		/// <summary>
 		/// Whether the notice editor should be listed in the server menu
 		/// </summary>
 		public bool ShowNoticeEditor { get; set; }

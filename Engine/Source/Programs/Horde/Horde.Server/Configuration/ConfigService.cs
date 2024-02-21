@@ -16,6 +16,7 @@ using Horde.Server.Server;
 using Horde.Server.Streams;
 using Horde.Server.Users;
 using HordeCommon;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -113,6 +114,7 @@ namespace Horde.Server.Configuration
 		readonly Dictionary<string, IConfigSource> _sources;
 		readonly JsonSerializerOptions _jsonOptions;
 		readonly RedisKey _snapshotKey = "config";
+		readonly IHealthMonitor _health;
 		readonly ILogger _logger;
 
 		readonly ITicker _ticker;
@@ -135,11 +137,13 @@ namespace Horde.Server.Configuration
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ConfigService(RedisService redisService, IOptions<ServerSettings> serverSettings, IEnumerable<IConfigSource> sources, IClock clock, ILogger<ConfigService> logger)
+		public ConfigService(RedisService redisService, IOptions<ServerSettings> serverSettings, IEnumerable<IConfigSource> sources, IClock clock, IHealthMonitor<ConfigService> health, ILogger<ConfigService> logger)
 		{
 			_redisService = redisService;
 			_serverSettings = serverSettings.Value;
 			_sources = sources.ToDictionary(x => x.Scheme, x => x, StringComparer.OrdinalIgnoreCase);
+			_health = health;
+			_health.SetName("GlobalConfig");
 			_logger = logger;
 
 			_jsonOptions = new JsonSerializerOptions();
@@ -339,18 +343,30 @@ namespace Horde.Server.Configuration
 
 		async Task<ConfigState> GetStartupStateAsync()
 		{
-			ReadOnlyMemory<byte> data = ReadOnlyMemory<byte>.Empty;
-			if (!_serverSettings.ForceConfigUpdateOnStartup)
+			try
 			{
-				data = await ReadSnapshotDataAsync();
+				ReadOnlyMemory<byte> data = ReadOnlyMemory<byte>.Empty;
+				if (!_serverSettings.ForceConfigUpdateOnStartup)
+				{
+					data = await ReadSnapshotDataAsync();
+				}
+				if (data.Length == 0)
+				{
+					ConfigSnapshot snapshot = await CreateSnapshotAsync(CancellationToken.None);
+					await WriteSnapshotAsync(snapshot);
+					data = SerializeSnapshot(snapshot);
+				}
+
+				ConfigState state = new ConfigState(IoHash.Compute(data.Span), CreateGlobalConfig(data));
+				_health.Update(HealthStatus.Healthy);
+
+				return state;
 			}
-			if (data.Length == 0)
+			catch (Exception ex)
 			{
-				ConfigSnapshot snapshot = await CreateSnapshotAsync(CancellationToken.None);
-				await WriteSnapshotAsync(snapshot);
-				data = SerializeSnapshot(snapshot);
+				_health.Update(HealthStatus.Unhealthy, ex.Message);
+				throw;
 			}
-			return new ConfigState(IoHash.Compute(data.Span), CreateGlobalConfig(data));
 		}
 
 		async ValueTask TickSharedAsync(CancellationToken cancellationToken)
@@ -431,12 +447,14 @@ namespace Horde.Server.Configuration
 			try
 			{
 				ConfigSnapshot snapshot = await CreateSnapshotAsync(cancellationToken);
+				_health.Update(HealthStatus.Healthy);
 				OnConfigUpdate?.Invoke(null);
 				return snapshot;
 			}
 			catch (Exception ex)
 			{
 				_logger.LogError(ex, "Exception while updating config: {Message}", ex.Message);
+				_health.Update(HealthStatus.Unhealthy, ex.Message);
 				OnConfigUpdate?.Invoke(ex);
 				return null;
 			}

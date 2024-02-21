@@ -7,6 +7,7 @@ using System.Net;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
+using EpicGames.Horde.Accounts;
 using EpicGames.Horde.Server;
 using Horde.Server.Accounts;
 using Horde.Server.Authentication;
@@ -177,26 +178,78 @@ namespace Horde.Server.Server
 
 			const string ErrorMsg = "Invalid username or password";
 			string? username = Request.Form["username"];
-			string password = (string?)Request.Form["password"] ?? string.Empty;
+			string password = (string?)Request.Form["password"] ?? String.Empty;
 
-			if (String.IsNullOrEmpty(username))
+			bool success = await SignInAsync(username, password);
+
+			if (!success)
 			{
 				return LoginFormError(ErrorMsg, returnUrl);
+			}
+
+			return Redirect(returnUrl ?? "/");
+		}
+
+		/// <summary>
+		/// Dashboard login 
+		/// </summary>
+		/// <param name="request"></param>
+		/// <returns></returns>
+		[HttpPost]
+		[Route("/account/login/dashboard")]
+		public async Task<IActionResult> UserDashboardLoginAsync([FromBody] DashboardLoginRequest request)
+		{
+			if (_globalConfig.Value.ServerSettings.AuthMethod != AuthMethod.Horde)
+			{
+				return Forbid("Horde authentication is disabled");
+			}
+
+			bool success = await SignInAsync(request.Username, request.Password);
+
+			if (!success)
+			{
+				return Forbid("Invalid username or password");
+			}
+
+			return Redirect(request.ReturnUrl ?? "/");
+		}
+
+		private ViewResult LoginFormError(string message, string? returnUrl = null, HttpStatusCode statusCode = HttpStatusCode.BadRequest)
+		{
+			Response.StatusCode = (int)statusCode;
+			return View("~/Server/HordeAccountLogin.cshtml", new HordeAccountLoginViewModel
+			{
+				FormPostUrl = Url.Action("UserPassLogin", "Account", returnUrl != null ? new { returnUrl } : null),
+				ErrorMessage = message
+			});
+		}
+
+		/// <summary>
+		/// Sign into a Horde auth account
+		/// </summary>
+		/// <param name="username"></param>
+		/// <param name="password"></param>
+		/// <returns></returns>
+		async Task<bool> SignInAsync(string? username, string? password)
+		{
+			if (String.IsNullOrEmpty(username))
+			{
+				return false;
 			}
 
 			IAccount? account = await _hordeAccounts.GetByLoginAsync(username);
 			if (account == null)
 			{
-				return LoginFormError(ErrorMsg, returnUrl);
+				return false;
 			}
 
-			if (!String.IsNullOrEmpty(account.PasswordHash))
+			if (!String.IsNullOrEmpty(account.PasswordHash) && !String.IsNullOrEmpty(password))
 			{
 				byte[] correctHash = PasswordHasher.HashFromString(account.PasswordHash);
 				byte[] salt = PasswordHasher.SaltFromString(account.PasswordSalt);
 				if (!PasswordHasher.ValidatePassword(password, salt, correctHash))
 				{
-					return LoginFormError(ErrorMsg, returnUrl);
+					return false;
 				}
 			}
 
@@ -231,17 +284,8 @@ namespace Horde.Server.Server
 				new ClaimsPrincipal(claimsIdentity),
 				authProperties);
 
-			return Redirect(returnUrl ?? "/");
-		}
+			return true;
 
-		private ViewResult LoginFormError(string message, string? returnUrl = null, HttpStatusCode statusCode = HttpStatusCode.BadRequest)
-		{
-			Response.StatusCode = (int)statusCode;
-			return View("~/Server/HordeAccountLogin.cshtml", new HordeAccountLoginViewModel
-			{
-				FormPostUrl = Url.Action("UserPassLogin", "Account", returnUrl != null ? new { returnUrl } : null),
-				ErrorMessage = message
-			});
 		}
 
 		/// <summary>

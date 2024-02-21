@@ -1,14 +1,17 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-import { ColorPicker, DefaultButton, DetailsList, DetailsListLayoutMode, DialogFooter, IColorPickerStyles, IColumn, Label, List, Modal, PrimaryButton, SelectionMode, Stack, Text, Toggle } from '@fluentui/react';
+import { ColorPicker, DefaultButton, DetailsList, DetailsListLayoutMode, DialogFooter, IColorPickerStyles, IColumn, Label, List, MessageBar, MessageBarType, Modal, PrimaryButton, SelectionMode, Spinner, SpinnerSize, Stack, Text, TextField, Toggle } from '@fluentui/react';
 import { observer } from 'mobx-react-lite';
+import moment from 'moment';
 import React, { useState } from 'react';
-import { DashboardPreference } from '../backend/Api';
+import backend from '../backend';
+import { AuthMethod, DashboardPreference, UpdateCurrentAccountRequest } from '../backend/Api';
 import dashboard, { StatusColor, WebBrowser } from '../backend/Dashboard';
 import { useWindowSize } from '../base/utilities/hooks';
-import { Breadcrumbs } from './Breadcrumbs';
-import { TopNav } from './TopNav';
 import { getHordeStyling } from '../styles/Styles';
+import { Breadcrumbs } from './Breadcrumbs';
+import ErrorHandler from './ErrorHandler';
+import { TopNav } from './TopNav';
 
 const colorBlind1 = new Map<StatusColor, string>([
    [StatusColor.Success, "#37A862"],
@@ -231,11 +234,101 @@ const ColorPreferenceDialog: React.FC<{ shown: boolean, statusIn: StatusColor, o
 
 }
 
+const ChangePasswordModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+
+   const [submitting, setSubmitting] = useState(false);
+   const { hordeClasses } = getHordeStyling();
+   const [error, setError] = useState("");
+   const [secrets, setSecrets] = useState<{ password?: string }>({});
+
+
+   const onValidate = () => {
+
+
+      if (!secrets.password) {
+         return "Please enter a password";
+      }
+
+      return undefined;
+   }
+
+   const onSave = async () => {
+
+      const nerror = onValidate();
+
+      if (nerror) {
+         setError(nerror);
+         return;
+      }
+
+      setError("");
+
+      try {
+
+         setSubmitting(true);
+         const uaccount: UpdateCurrentAccountRequest = { password: secrets.password };
+         await backend.updateCurrentAccount(uaccount);
+         setSubmitting(false);
+         onClose();
+
+      } catch (reason) {
+         console.error(reason);
+         ErrorHandler.set({
+            reason: `${reason}`,
+            title: `User Modification Error`,
+            message: `There was an issue modifying the user.\n\nReason: ${reason}\n\nTime: ${moment.utc().format("MMM Do, HH:mm z")}`
+         }, true);
+
+         setSubmitting(false);
+      }
+
+   }
+
+   if (submitting) {
+      return <Modal isOpen={true} isBlocking={true} topOffsetFixed={true} styles={{ main: { padding: 8, width: 400, hasBeenOpened: false, top: "120px", position: "absolute" } }} >
+         <Stack style={{ paddingTop: 32 }}>
+            <Stack tokens={{ childrenGap: 24 }} styles={{ root: { padding: 8 } }}>
+               <Stack horizontalAlign="center">
+                  <Text variant="mediumPlus">Please wait...</Text>
+               </Stack>
+               <Stack verticalAlign="center" style={{ paddingBottom: 32 }}>
+                  <Spinner size={SpinnerSize.large} />
+               </Stack>
+            </Stack>
+         </Stack>
+      </Modal>
+   }
+
+   return <Modal className={hordeClasses.modal} isOpen={true} isBlocking={true} topOffsetFixed={true} styles={{ main: { padding: 8, width: 640, hasBeenOpened: false, top: "120px", position: "absolute" } }} >
+      <Stack style={{ padding: 8 }}>
+         <Stack style={{ paddingBottom: 16 }}>
+            <Text variant="mediumPlus" style={{ fontFamily: "Horde Open Sans SemiBold" }}>Change Password</Text>
+         </Stack>
+         {!!error && <Stack>
+            <MessageBar key={`validation_error`} messageBarType={MessageBarType.error} isMultiline={false}>{error}</MessageBar>
+         </Stack>}
+         <Stack style={{ padding: 8 }}>
+            <TextField label={"New Password"} autoComplete="off" spellCheck={false} placeholder="Enter New Password" type="password" canRevealPassword onChange={(ev, value) => { setSecrets({ ...secrets, password: value ?? "" }) }} />
+         </Stack>
+
+         <Stack horizontal style={{ paddingTop: 64 }}>
+            <Stack grow />
+            <Stack horizontal tokens={{ childrenGap: 28 }}>
+               <PrimaryButton onClick={() => onSave()} text="Save" />
+               <DefaultButton onClick={() => onClose()} text="Cancel" />
+            </Stack>
+         </Stack>
+      </Stack>
+   </Modal>
+}
+
+
 const GeneralPanel: React.FC = observer(() => {
 
    let [colorState, setColorState] = useState<{ status?: StatusColor }>({});
+   let [changePassword, setChangePassword] = useState(false);
    const { hordeClasses, modeColors } = getHordeStyling();
-   
+
    const defaultStatusColors = dashboard.getDefaultStatusColors();
 
    type GeneralItem = {
@@ -335,25 +428,30 @@ const GeneralPanel: React.FC = observer(() => {
 
    return (<Stack>
       {colorState.status !== undefined && <ColorPreferenceDialog shown={true} statusIn={colorState.status} onClose={() => setColorState({})} />}
+      {changePassword && <ChangePasswordModal onClose={() => setChangePassword(false)} />}
       <Stack styles={{ root: { paddingTop: 18, paddingLeft: 12, paddingRight: 12, width: "100%" } }} >
          <Stack tokens={{ childrenGap: 12 }} style={{ height: 'calc(100vh - 200px)' }}>
             <Text variant="mediumPlus" styles={{ root: { fontFamily: "Horde Open Sans SemiBold" } }}>{name}</Text>
-
             <Stack style={{ padding: 12 }}>
                <Stack horizontal tokens={{ childrenGap: 96 }}>
                   <Stack style={{ minWidth: 600 }}>
                      <Stack style={{ paddingBottom: 12 }}>
                         <Text variant="mediumPlus" styles={{ root: { fontFamily: "Horde Open Sans SemiBold" } }}>Account</Text>
                      </Stack>
-                     <DetailsList
-                        items={items}
-                        columns={columns}
-                        setKey="set"
-                        layoutMode={DetailsListLayoutMode.justified}
-                        isHeaderVisible={false}
-                        selectionMode={SelectionMode.none}
-                        onRenderItemColumn={onRenderItemColumn}
-                     />
+                     {!!items.length && <Stack>
+                        <DetailsList
+                           items={items}
+                           columns={columns}
+                           setKey="set"
+                           layoutMode={DetailsListLayoutMode.justified}
+                           isHeaderVisible={false}
+                           selectionMode={SelectionMode.none}
+                           onRenderItemColumn={onRenderItemColumn}
+                        />
+                     </Stack>}
+                     {dashboard.authMethod === AuthMethod.Horde && <Stack style={{ paddingTop: 24 }}>
+                        <PrimaryButton style={{ width: 180 }} text="Change Password" onClick={() => setChangePassword(true)}/>
+                     </Stack>}
                   </Stack>
                   <Stack style={{ paddingLeft: 12 }} tokens={{ childrenGap: 12 }}>
                      <Stack style={{ paddingBottom: 4 }}>
@@ -424,7 +522,7 @@ export const DashboardView: React.FC = () => {
       <TopNav />
       <Breadcrumbs items={[{ text: 'Preferences' }]} />
       <Stack horizontal>
-         <div key={`windowsize_streamview_${windowSize.width}_${windowSize.height}`} style={{ width: vw / 2 - (1440/2), flexShrink: 0, backgroundColor: modeColors.background }} />
+         <div key={`windowsize_streamview_${windowSize.width}_${windowSize.height}`} style={{ width: vw / 2 - (1440 / 2), flexShrink: 0, backgroundColor: modeColors.background }} />
          <Stack tokens={{ childrenGap: 0 }} styles={{ root: { backgroundColor: modeColors.background, width: "100%" } }}>
             <Stack style={{ maxWidth: 1440, paddingTop: 16, marginLeft: 4 }}>
                <Stack horizontal className={hordeClasses.raised}>
