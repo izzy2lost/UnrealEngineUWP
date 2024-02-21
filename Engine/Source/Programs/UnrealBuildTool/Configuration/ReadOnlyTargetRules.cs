@@ -405,7 +405,7 @@ namespace UnrealBuildTool
 
 		public bool bStaticAnalyzerProjectOnly => Inner.bStaticAnalyzerProjectOnly;
 
-		public bool bStaticAnalyzerSkipGenerated => Inner.bStaticAnalyzerSkipGenerated;
+		public bool bStaticAnalyzerIncludeGenerated => Inner.bStaticAnalyzerIncludeGenerated;
 
 		public int MinFilesUsingPrecompiledHeader => Inner.MinFilesUsingPrecompiledHeader;
 

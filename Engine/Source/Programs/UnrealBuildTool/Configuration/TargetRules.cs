@@ -1985,11 +1985,11 @@ namespace UnrealBuildTool
 		public bool bStaticAnalyzerProjectOnly = false;
 
 		/// <summary>
-		/// Skip analyzing generated source files
+		/// When enabled, generated source files will be analyzed
 		/// </summary>
-		[CommandLine("-StaticAnalyzerSkipGenerated")]
+		[CommandLine("-StaticAnalyzerIncludeGenerated")]
 		[XmlConfigFile(Category = "BuildConfiguration")]
-		public bool bStaticAnalyzerSkipGenerated = false;
+		public bool bStaticAnalyzerIncludeGenerated = false;
 
 		/// <summary>
 		/// The minimum number of files that must use a pre-compiled header before it will be created and used.
