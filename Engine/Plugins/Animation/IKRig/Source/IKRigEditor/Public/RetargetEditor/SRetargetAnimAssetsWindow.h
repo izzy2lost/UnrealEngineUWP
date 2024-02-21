@@ -67,6 +67,9 @@ class UBatchExportOptions : public UObject
 
 public:
 
+	// singleton class
+	static UBatchExportOptions* GetInstance();
+
 	// Any files with the same name will be overwritten instead of creating a new file with a numeric suffix.
 	// This is useful when iterating on a batch process.
 	UPROPERTY(EditAnywhere, Config, Config, Category = "File")
@@ -80,8 +83,6 @@ public:
 	// Will not produce keys on bones that are not animated, reducing size on disk of the resulting files.
 	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Animation")
 	//bool bExportOnlyAnimatedBones = true;
-
-	static UBatchExportOptions* GetInstance();
 
 private:
 	static UBatchExportOptions* SingletonInstance;
@@ -201,6 +202,9 @@ class UBatchRetargetSettings : public UObject
 
 public:
 
+	// singleton class
+	static UBatchRetargetSettings* GetInstance();
+
 	// The skeletal mesh with the proportions you want to copy animation FROM.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Source")
 	TObjectPtr<USkeletalMesh> SourceSkeletalMesh;
@@ -220,6 +224,9 @@ public:
 	// You may also supply a custom IK Retargeter if needed.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Retargeter", meta = (EditCondition = "!bAutoGenerateRetargeter"))
 	TObjectPtr<UIKRetargeter> RetargetAsset;
+
+private:
+	static UBatchRetargetSettings* SingletonInstance;
 };
 
 // asset browser for user to select animation assets to duplicate/retarget

@@ -693,6 +693,18 @@ TSharedPtr<SWidget> SRetargetPoseViewport::MakeViewportToolbar()
 	return nullptr;
 }
 
+UBatchRetargetSettings* UBatchRetargetSettings::GetInstance()
+{
+	if (!SingletonInstance)
+	{
+		SingletonInstance = NewObject<UBatchRetargetSettings>(GetTransientPackage(), UBatchRetargetSettings::StaticClass());
+		SingletonInstance->AddToRoot();
+	}
+	return SingletonInstance;
+}
+
+UBatchRetargetSettings* UBatchRetargetSettings::SingletonInstance = nullptr;
+
 void SRetargetExporterAssetBrowser::Construct(const FArguments& InArgs, const TSharedRef<SRetargetAnimAssetsWindow> InRetargetWindow)
 {
 	RetargetWindow = InRetargetWindow;
@@ -796,7 +808,7 @@ bool SRetargetExporterAssetBrowser::OnShouldFilterAsset(const FAssetData& AssetD
 		return true;
 	}
 	
-	const TObjectPtr<UBatchRetargetSettings> BatchRetargetSettings = RetargetWindow.Get()->GetSettings();
+	const TObjectPtr<UBatchRetargetSettings> BatchRetargetSettings = UBatchRetargetSettings::GetInstance();
 	if (!ensure(BatchRetargetSettings))
 	{
 		return true;
@@ -824,8 +836,8 @@ bool SRetargetExporterAssetBrowser::OnShouldFilterAsset(const FAssetData& AssetD
 
 SRetargetAnimAssetsWindow::SRetargetAnimAssetsWindow()
 {
-	// create the settings uobject
-	Settings = NewObject<UBatchRetargetSettings>(GetTransientPackage(), UBatchRetargetSettings::StaticClass());
+	// get the global settings uobject
+	Settings = UBatchRetargetSettings::GetInstance();
 
 	// assign default retargeter
 	BatchContext.IKRetargetAsset = ProceduralAssets.Retargeter;
