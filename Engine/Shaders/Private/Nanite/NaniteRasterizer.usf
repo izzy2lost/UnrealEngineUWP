@@ -832,14 +832,33 @@ void MicropolyRasterize(
 #define BARYCENTRIC_MODE_SV_BARYCENTRICS	(!BARYCENTRIC_MODE_NONE && NANITE_MESH_SHADER && NANITE_ALLOW_SV_BARYCENTRICS && !COMPILER_SUPPORTS_BARYCENTRIC_INTRINSICS)
 #define BARYCENTRIC_MODE_EXPORT				(!BARYCENTRIC_MODE_NONE && !BARYCENTRIC_MODE_INTRINSICS && !BARYCENTRIC_MODE_SV_BARYCENTRICS)
 
+struct PrimitiveAttributes
+{
+	uint PixelValue;
+	uint ViewId;
+	bool bSwapVW;
+	uint MipLevel;
+	uint ArrayIndex;
+	uint LevelOffset;
+	uint4 ViewRect;
+};
+
+struct PrimitiveAttributesPacked
+{
+	// Use uint4 to prevent compiler from erroneously packing per-vertex and per-prim attributes together
+	nointerpolation uint4 PixelValue_ViewId_SwapVW_Mip_ArrayIndex_LevelOffset_ViewRect : TEXCOORD1;
+};
+
 struct VSOut
 {
 #if NANITE_HW_RASTER_INTERPOLATE_DEPTH
 	float2 ClipZW								: TEXCOORD0;
 #endif
 
-	nointerpolation uint3 PixelValue_ViewId_SwapVW_Mip_ArrayIndex_LevelOffset : TEXCOORD1;
-	nointerpolation int4 ViewRect				: TEXCOORD2;
+#if !NANITE_MESH_SHADER
+	PrimitiveAttributesPacked PrimitivePacked;
+#endif
+
 #if VERTEX_TO_TRIANGLE_MASKS
 #if NANITE_VERT_REUSE_BATCH
 	CUSTOM_INTERPOLATION uint2 ToTriangleMask_TriRangeStart : TEXCOORD3;
@@ -863,17 +882,86 @@ struct VSOut
 #endif
 };
 
-#if NANITE_MESH_SHADER
-struct PrimitiveAttributes
+PrimitiveAttributesPacked PackPrimitiveAttributes(PrimitiveAttributes In)
 {
-	// Use uint4 to prevent compiler from erroneously packing per-vertex and per-prim attributes together
-	// .x = Cluster Index
-	// .y = Triangle Index
-	// .z = View Width
-	// .w = View Height
-	nointerpolation uint4 PackedData : TEXCOORD7;
-};
+	uint4 PackedData = uint4(In.PixelValue, In.ViewId, 0u, 0u);
+
+	PackedData.y |= (In.bSwapVW ? (1u << 16) : 0u);
+
+#if VIRTUAL_TEXTURE_TARGET
+	PackedData.y |= (In.MipLevel << 18) | (In.ArrayIndex << 23);
+	PackedData.z = In.LevelOffset;
+
+	// xy: VisibleCluster.vPage * VSM_PAGE_SIZE
+	// zw: VisibleCluster.vPageEnd * VSM_PAGE_SIZE + VSM_PAGE_SIZE
+	const uint2 vPage = In.ViewRect.xy / VSM_PAGE_SIZE;
+	const uint2 vPageEnd = (In.ViewRect.zw - VSM_PAGE_SIZE) / VSM_PAGE_SIZE;
+	const uint2 vPageDelta = vPageEnd - vPage;
+
+	// 3-bit delta. This must match the logic in UnpackVisibleCluster() in NaniteDecode.ush
+	PackedData.w = ((vPageDelta.y << 29u) | (vPageDelta.x << 26u) | (vPage.y << 13u) | vPage.x);
+#else
+	PackedData.zw = uint2((In.ViewRect.y << 16u) | In.ViewRect.x, (In.ViewRect.w << 16u) | In.ViewRect.z);
 #endif
+
+	PrimitiveAttributesPacked Out;
+	Out.PixelValue_ViewId_SwapVW_Mip_ArrayIndex_LevelOffset_ViewRect = PackedData;
+	return Out;
+}
+
+PrimitiveAttributes UnpackPrimitiveAttributes(PrimitiveAttributesPacked In)
+{
+	const uint4 PackedData = In.PixelValue_ViewId_SwapVW_Mip_ArrayIndex_LevelOffset_ViewRect;
+	
+	PrimitiveAttributes Out = (PrimitiveAttributes)0;
+	Out.PixelValue = PackedData.x;
+	Out.ViewId = BitFieldExtractU32(PackedData.y, 16, 0);
+	Out.bSwapVW = BitFieldExtractU32(PackedData.y, 1, 16);
+
+#if VIRTUAL_TEXTURE_TARGET
+	Out.MipLevel = BitFieldExtractU32(PackedData.y, 5, 18);
+	Out.ArrayIndex = PackedData.y >> 23;
+	Out.LevelOffset = PackedData.z;
+
+	const uint2 vPage = uint2(BitFieldExtractU32(PackedData.w, 13, 0), BitFieldExtractU32(PackedData.w, 13, 13));
+	const uint2 vPageDelta = uint2(BitFieldExtractU32(PackedData.w, 3, 26), BitFieldExtractU32(PackedData.w, 3, 29));
+	const uint2 vPageEnd = vPage + vPageDelta;
+	Out.ViewRect = uint4(vPage * VSM_PAGE_SIZE, vPageEnd * VSM_PAGE_SIZE + VSM_PAGE_SIZE);
+#else
+	Out.ViewRect.x = BitFieldExtractU32(PackedData.z, 16, 0);
+	Out.ViewRect.y = BitFieldExtractU32(PackedData.z, 16, 16);
+	Out.ViewRect.z = BitFieldExtractU32(PackedData.w, 16, 0);
+	Out.ViewRect.w = BitFieldExtractU32(PackedData.w, 16, 16);
+#endif
+
+	return Out;
+}
+
+PrimitiveAttributes MakePrimitiveAttributes(FNaniteView NaniteView, FVisibleCluster VisibleCluster, uint PixelValue, bool bReverseWindingOrder)
+{
+	PrimitiveAttributes Out = (PrimitiveAttributes)0;
+
+	Out.PixelValue = PixelValue;
+	Out.ViewId = VisibleCluster.ViewId;
+
+#if BARYCENTRIC_MODE_SV_BARYCENTRICS || BARYCENTRIC_MODE_EXPORT
+	// Set SwapVW flag to indicate that the V and W barycentrics need to be swapped in the PS to compensate for the swapping of the i1 and i2 vertices.
+	// BARYCENTRIC_MODE_EXPORT doesn't need this as it compensates by flipping the exported barycentrics instead.
+	Out.bSwapVW = bReverseWindingOrder;
+#endif
+
+#if VIRTUAL_TEXTURE_TARGET
+	Out.MipLevel = NaniteView.TargetMipLevel;
+	const bool bCacheAsStatic = (VisibleCluster.Flags & NANITE_CULLING_FLAG_CACHE_AS_STATIC) != 0u;
+	Out.ArrayIndex = bCacheAsStatic ? GetVirtualShadowMapStaticArrayIndex() : 0;
+	Out.LevelOffset = CalcPageTableLevelOffset(NaniteView.TargetLayerIndex, NaniteView.TargetMipLevel).LevelOffset;
+	Out.ViewRect = uint4(VisibleCluster.vPage * VSM_PAGE_SIZE, VisibleCluster.vPageEnd * VSM_PAGE_SIZE + VSM_PAGE_SIZE);
+#else
+	Out.ViewRect = NaniteView.ViewRect;
+#endif
+
+	return Out;
+}
 
 VSOut CommonRasterizerVS(FNaniteView NaniteView, FPrimitiveSceneData PrimitiveData, FInstanceSceneData InstanceData, FVisibleCluster VisibleCluster, FCluster Cluster, uint VertIndex, uint PixelValue, bool bReverseWindingOrder)
 {
@@ -912,27 +1000,12 @@ VSOut CommonRasterizerVS(FNaniteView NaniteView, FPrimitiveSceneData PrimitiveDa
 
 	// Offset 0,0 to be at vPage for a 0, VSM_PAGE_SIZE * VSM_RASTER_WINDOW_PAGES viewport.
 	PointClip.xy += PointClip.w * ( float2(-2, 2) / VSM_RASTER_WINDOW_PAGES ) * VisibleCluster.vPage;
-
-	Out.ViewRect.xy = VisibleCluster.vPage * VSM_PAGE_SIZE;
-	Out.ViewRect.zw = VisibleCluster.vPageEnd * VSM_PAGE_SIZE + VSM_PAGE_SIZE;
 #else
 	PointClip.xy = NaniteView.ClipSpaceScaleOffset.xy * PointClip.xy + NaniteView.ClipSpaceScaleOffset.zw * PointClip.w;
-	Out.ViewRect = NaniteView.ViewRect;
 #endif
 
-	Out.PixelValue_ViewId_SwapVW_Mip_ArrayIndex_LevelOffset = uint3(PixelValue, VisibleCluster.ViewId, 0u);
-
-#if BARYCENTRIC_MODE_SV_BARYCENTRICS || BARYCENTRIC_MODE_EXPORT
-	// Set SwapVW flag to indicate that the V and W barycentrics need to be swapped in the PS to compensate for the swapping of the i1 and i2 vertices.
-	// BARYCENTRIC_MODE_EXPORT doesn't need this as it compensates by flipping the exported barycentrics instead.
-	Out.PixelValue_ViewId_SwapVW_Mip_ArrayIndex_LevelOffset.y |= (bReverseWindingOrder ? (1u << 16) : 0u);
-#endif
-
-#if VIRTUAL_TEXTURE_TARGET
-	const bool bCacheAsStatic = (VisibleCluster.Flags & NANITE_CULLING_FLAG_CACHE_AS_STATIC) != 0u;
-	const uint ArrayIndex = bCacheAsStatic ? GetVirtualShadowMapStaticArrayIndex() : 0;
-	Out.PixelValue_ViewId_SwapVW_Mip_ArrayIndex_LevelOffset.y |= (NaniteView.TargetMipLevel << 18) | (ArrayIndex << 23);
-	Out.PixelValue_ViewId_SwapVW_Mip_ArrayIndex_LevelOffset.z = CalcPageTableLevelOffset(NaniteView.TargetLayerIndex, NaniteView.TargetMipLevel).LevelOffset;
+#if !NANITE_MESH_SHADER
+	Out.PrimitivePacked = PackPrimitiveAttributes(MakePrimitiveAttributes(NaniteView, VisibleCluster, PixelValue, bReverseWindingOrder));
 #endif
 
 #if !PIXELSHADER
@@ -1257,11 +1330,11 @@ void HWRasterizeMS(
 #if NANITE_VERT_REUSE_BATCH
 	MESH_SHADER_VERTEX_EXPORT(VSOut, 32),
 	MESH_SHADER_TRIANGLE_EXPORT(32),
-	MESH_SHADER_PRIMITIVE_EXPORT(PrimitiveAttributes, 32)
+	MESH_SHADER_PRIMITIVE_EXPORT(PrimitiveAttributesPacked, 32)
 #else
 	MESH_SHADER_VERTEX_EXPORT(VSOut, 256),
 	MESH_SHADER_TRIANGLE_EXPORT(128),
-	MESH_SHADER_PRIMITIVE_EXPORT(PrimitiveAttributes, 128)
+	MESH_SHADER_PRIMITIVE_EXPORT(PrimitiveAttributesPacked, 128)
 #endif
 )
 {
@@ -1345,12 +1418,10 @@ void HWRasterizeMS(
 		{
 			MESH_SHADER_WRITE_TRIANGLE(PrimExportIndex, VertIndexes);
 
-			PrimitiveAttributes Attributes;
-			Attributes.PackedData.x = VisibleIndex;
-			Attributes.PackedData.y = TriIndex;
-			Attributes.PackedData.z = asuint(NaniteView.ViewSizeAndInvSize.x);
-			Attributes.PackedData.w = asuint(NaniteView.ViewSizeAndInvSize.y);
-			MESH_SHADER_WRITE_PRIMITIVE(PrimExportIndex, Attributes);
+			const uint PixelValue = ((VisibleIndex + 1) << 7) | TriIndex;
+			PrimitiveAttributes Attributes = MakePrimitiveAttributes(NaniteView, VisibleCluster, PixelValue, bReverseWindingOrder);
+			PrimitiveAttributesPacked AttributesPacked = PackPrimitiveAttributes(Attributes);
+			MESH_SHADER_WRITE_PRIMITIVE(PrimExportIndex, AttributesPacked);
 		}
 
 		uint VertExportIndex = GroupThreadID;
@@ -1450,7 +1521,7 @@ bool QuadActiveAnyTrue(bool Expr)
 
 void HWRasterizePS(VSOut In
 #if NANITE_MESH_SHADER	
-	, PrimitiveAttributes Primitive
+	, PrimitiveAttributesPacked PrimitivePacked
 #endif
 )
 {
@@ -1471,7 +1542,15 @@ void HWRasterizePS(VSOut In
 #endif
 
 	uint2 PixelPos = (uint2)SvPosition.xy;
-	uint PixelValue = In.PixelValue_ViewId_SwapVW_Mip_ArrayIndex_LevelOffset.x;
+
+	PrimitiveAttributes Primitive;
+#if NANITE_MESH_SHADER
+	Primitive = UnpackPrimitiveAttributes(PrimitivePacked);
+#else
+	Primitive = UnpackPrimitiveAttributes(In.PrimitivePacked);
+#endif
+
+	uint PixelValue = Primitive.PixelValue;
 
 #if VERTEX_TO_TRIANGLE_MASKS
 #if NANITE_VERT_REUSE_BATCH
@@ -1497,23 +1576,16 @@ void HWRasterizePS(VSOut In
 #endif
 #endif
 
-#if NANITE_MESH_SHADER
-	// In.PixelValue will be 0 here because mesh shaders will pass down the following indices through per-primitive attributes.
-	const uint ClusterIndex  = Primitive.PackedData.x;
-	const uint TriangleIndex = Primitive.PackedData.y;
-	PixelValue = ((ClusterIndex + 1) << 7) | TriangleIndex;
-#endif
-
 #if VIRTUAL_TEXTURE_TARGET
-	PixelPos += In.ViewRect.xy;
-	if (all(PixelPos < In.ViewRect.zw))
+	PixelPos += Primitive.ViewRect.xy;
+	if (all(PixelPos < Primitive.ViewRect.zw))
 #else
 	// In multi-view mode every view has its own scissor, so we have to scissor manually.
-	if( all( (PixelPos >= In.ViewRect.xy) & (PixelPos < In.ViewRect.zw) ) )
+	if( all( (PixelPos >= Primitive.ViewRect.xy) & (PixelPos < Primitive.ViewRect.zw) ) )
 #endif
 	{
-		const uint ViewId		= BitFieldExtractU32(In.PixelValue_ViewId_SwapVW_Mip_ArrayIndex_LevelOffset.y, 16, 0);
-		const bool bSwapVW		= BitFieldExtractU32(In.PixelValue_ViewId_SwapVW_Mip_ArrayIndex_LevelOffset.y, 1, 16);
+		const uint ViewId		= Primitive.ViewId;
+		const bool bSwapVW		= Primitive.bSwapVW;
 
 		float MaterialMask = 1.0f;
 
@@ -1524,9 +1596,9 @@ void HWRasterizePS(VSOut In
 		
 
 	#if VIRTUAL_TEXTURE_TARGET
-		const uint MipLevel		= BitFieldExtractU32(In.PixelValue_ViewId_SwapVW_Mip_ArrayIndex_LevelOffset.y, 5, 18);
-		const uint ArrayIndex	= In.PixelValue_ViewId_SwapVW_Mip_ArrayIndex_LevelOffset.y >> 23;
-		const uint LevelOffset	= In.PixelValue_ViewId_SwapVW_Mip_ArrayIndex_LevelOffset.z;
+		const uint MipLevel		= Primitive.MipLevel;
+		const uint ArrayIndex	= Primitive.ArrayIndex;
+		const uint LevelOffset	= Primitive.LevelOffset;
 
 		if( !VirtualToPhysicalTexel_PageTableLevelOffset( InitVirtualMLevelOffset(LevelOffset), MipLevel, Pixel.Position, Pixel.PhysicalPosition.xy ) )
 		{
