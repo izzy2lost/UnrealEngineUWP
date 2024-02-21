@@ -16,8 +16,13 @@ namespace uba
 		}
 		~Worker()
 		{
+		}
+
+		void Stop()
+		{
 			m_loop = false;
 			m_workAvailable.Set();
+			m_thread.Wait();
 		}
 
 		void ThreadWorker(WorkManagerImpl& manager)
@@ -57,9 +62,9 @@ namespace uba
 
 		Worker* m_nextWorker = nullptr;
 		Worker* m_prevWorker = nullptr;
+		Atomic<bool> m_loop;
 		Event m_workAvailable;
 		Thread m_thread;
-		bool m_loop = false;
 	};
 
 	WorkManagerImpl::WorkManagerImpl(u32 workerCount)
@@ -72,8 +77,10 @@ namespace uba
 
 	WorkManagerImpl::~WorkManagerImpl()
 	{
-		for (u32 i = 0; i != m_workers.size(); ++i)
-			delete m_workers[i];
+		for (auto worker : m_workers)
+			worker->Stop();
+		for (auto worker : m_workers)
+			delete worker;
 	}
 
 

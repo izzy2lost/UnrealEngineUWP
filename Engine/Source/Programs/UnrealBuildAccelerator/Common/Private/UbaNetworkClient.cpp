@@ -460,10 +460,11 @@ namespace uba
 					messageId = m_availableMessageIds.back();
 					m_availableMessageIds.pop_back();
 				}
+
+				UBA_ASSERT(!m_activeMessages[messageId]);
+				m_activeMessages[messageId] = &message;
 				break;
 			}
-			UBA_ASSERT(!m_activeMessages[messageId]);
-			m_activeMessages[messageId] = &message;
 		}
 
 		UBA_ASSERT(messageId < 65535);

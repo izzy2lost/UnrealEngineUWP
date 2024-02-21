@@ -332,6 +332,7 @@ namespace uba
 		m_cancelEvent.Set();
 		#else
 		m_cancelled = true;
+		ScopedWriteLock lock(m_comMemoryLock);
 		if (m_comMemory.memory)
 			m_cancelEvent.Set();
 		#endif

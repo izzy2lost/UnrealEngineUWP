@@ -97,7 +97,7 @@ namespace uba
 		Event m_readEvent;
 	#else
 		ReaderWriterLock m_comMemoryLock;
-		bool m_cancelled = false;
+		Atomic<bool> m_cancelled;
 		Event& m_cancelEvent;
 		Event& m_writeEvent;
 		Event& m_readEvent;

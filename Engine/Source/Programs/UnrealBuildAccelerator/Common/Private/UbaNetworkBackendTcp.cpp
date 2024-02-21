@@ -57,7 +57,7 @@ namespace uba
 	{
 		Connection(SOCKET s) : socket(s), ready(true) {}
 
-		SOCKET socket;
+		Atomic<SOCKET> socket;
 		Event ready;
 		u32 headerSize = 0;
 		u32 recvTimeoutMs = 0;
