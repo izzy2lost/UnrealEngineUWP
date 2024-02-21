@@ -102,13 +102,18 @@ namespace PackFactoryHelper
 		}
 
 		FGuardedInt32 GuardedWorkingSize = FGuardedInt32(Entry.CompressionBlockSize);
-		int32 MaxCompressionBlockSize = FCompression::GetMaximumCompressedSize(CompressionMethod.GetValue(), GuardedWorkingSize.Get(0));
-		if (MaxCompressionBlockSize < 0)
+		int64 MaxCompressionBlockSize64 = 0;
+		if (!FCompression::GetMaximumCompressedSize(CompressionMethod.GetValue(), MaxCompressionBlockSize64, GuardedWorkingSize.Get(0)))
 		{
 			return false;
 		}
 
-		GuardedWorkingSize += MaxCompressionBlockSize;
+		if (MaxCompressionBlockSize64 < 0)
+		{
+			return false;
+		}
+
+		GuardedWorkingSize += MaxCompressionBlockSize64;
 		int32 WorkingSize = GuardedWorkingSize.Get(0);
 		if (WorkingSize <= 0)
 		{
@@ -172,7 +177,7 @@ namespace PackFactoryHelper
 				FAES::DecryptData(PersistentBuffer.GetData(), SizeToRead, Key);
 			}
 
-			uint8* UncompressedBuffer = PersistentBuffer.GetData() + MaxCompressionBlockSize;
+			uint8* UncompressedBuffer = PersistentBuffer.GetData() + MaxCompressionBlockSize64;
 			if (!FCompression::UncompressMemory(CompressionMethod.GetValue(), UncompressedBuffer, UncompressedBlockSize, PersistentBuffer.GetData(), CompressedBlockSize))
 			{
 				return false;

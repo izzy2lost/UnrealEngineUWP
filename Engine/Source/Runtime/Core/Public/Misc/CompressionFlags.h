@@ -11,14 +11,15 @@
 */
 enum ECompressionFlags
 {
-	/** No compression																*/
+	/** No flags																*/
 	COMPRESS_None = 0x00,
+
 	/** Compress with ZLIB - DEPRECATED, USE FNAME									*/
-	COMPRESS_ZLIB = 0x01,
+	COMPRESS_ZLIB_DEPRECATED = 0x01,
 	/** Compress with GZIP - DEPRECATED, USE FNAME									*/
-	COMPRESS_GZIP = 0x02,
+	COMPRESS_GZIP_DEPRECATED = 0x02,
 	/** Compress with user defined callbacks - DEPRECATED, USE FNAME                */
-	COMPRESS_Custom = 0x04,
+	COMPRESS_Custom_DEPRECATED = 0x04,
 	/** Joint of the previous ones to determine if old flags are being used			*/
 	COMPRESS_DeprecatedFormatFlagsMask = 0xF,
 

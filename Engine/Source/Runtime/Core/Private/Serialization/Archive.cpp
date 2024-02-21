@@ -768,7 +768,9 @@ void FArchive::SerializeCompressedNew(void* V, int64 Length, FName CompressionFo
 			if ((Flags & COMPRESS_DeprecatedFormatFlagsMask) != 0)
 			{
 				UE_LOG(LogSerialization, Warning, TEXT("Old style compression flags are being used with FAsyncCompressionChunk, please update any code using this!"));
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
 				CompressionFormatToDecode = FCompression::GetCompressionFormatFromDeprecatedFlags(Flags);
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			}
 
 			if (CompressionFormatToDecode == NAME_Zlib && FPlatformProperties::GetZlibReplacementFormat() != nullptr)
@@ -919,7 +921,9 @@ void FArchive::SerializeCompressedNew(void* V, int64 Length, FName CompressionFo
 		{
 			check( CompressionFormatToEncode == NAME_Zlib );
 			UE_LOG(LogSerialization, Warning, TEXT("Old style compression flags are being used with FAsyncCompressionChunk, please update any code using this!"));
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			CompressionFormatToEncode = FCompression::GetCompressionFormatFromDeprecatedFlags(Flags);
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		// if there's a cooking target, and it wants to replace Zlib compression with another format, use it. When loading, 

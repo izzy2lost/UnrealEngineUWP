@@ -15,11 +15,6 @@ PRAGMA_DISABLE_UNSAFE_TYPECAST_WARNINGS
 /*----------------------------------------------------------------------------
 	FArchiveSaveCompressedProxy
 ----------------------------------------------------------------------------*/
-FArchiveSaveCompressedProxy::FArchiveSaveCompressedProxy(FArchiveSaveCompressedProxy::EVS2015Redirector, TArray<uint8>& InCompressedData, ECompressionFlags InCompressionFlags)
-	: FArchiveSaveCompressedProxy(InCompressedData, FCompression::GetCompressionFormatFromDeprecatedFlags(InCompressionFlags), InCompressionFlags)
-{
-}
-
 FArchiveSaveCompressedProxy::FArchiveSaveCompressedProxy(TArray<uint8>& InCompressedData, FName InCompressionFormat, ECompressionFlags InCompressionFlags)
 	: CompressedData(InCompressedData)
 	, CompressionFormat(InCompressionFormat)

@@ -505,15 +505,15 @@ struct FPakEntry
 			{
 				CompressionMethodIndex = 0;
 			}
-			else if (LegacyCompressionMethod & COMPRESS_ZLIB)
+			else if (LegacyCompressionMethod & COMPRESS_ZLIB_DEPRECATED)
 			{
 				CompressionMethodIndex = 1;
 			}
-			else if (LegacyCompressionMethod & COMPRESS_GZIP)
+			else if (LegacyCompressionMethod & COMPRESS_GZIP_DEPRECATED)
 			{
 				CompressionMethodIndex = 2;
 			}
-			else if (LegacyCompressionMethod & COMPRESS_Custom)
+			else if (LegacyCompressionMethod & COMPRESS_Custom_DEPRECATED)
 			{
 				CompressionMethodIndex = 3;
 			}

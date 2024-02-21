@@ -1498,18 +1498,24 @@ private:
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(CompressBlock);
 		check(Block->CompressionMethod != NAME_None);
-		int32 CompressedBlockSize = int32(Block->IoBuffer->DataSize());
+		uint64 CompressedBlockSize = Block->IoBuffer->DataSize();
 		bool bCompressed;
 		{
-			bCompressed = FCompression::CompressMemoryIfWorthDecompressing(
+			if (!FCompression::CompressMemoryIfWorthDecompressing(
 				Block->CompressionMethod,
-				WriterContext->WriterSettings.CompressionMinBytesSaved,
+				bCompressed,
+				(int64)WriterContext->WriterSettings.CompressionMinBytesSaved,
 				WriterContext->WriterSettings.CompressionMinPercentSaved,
 				Block->IoBuffer->Data(),
-				CompressedBlockSize,
+				(int64&)CompressedBlockSize,
 				Block->UncompressedData,
-				static_cast<int32>(Block->UncompressedSize),
-				COMPRESS_ForPackaging);
+				(int64)Block->UncompressedSize,
+				COMPRESS_ForPackaging))
+			{
+				UE_LOG(LogIoStore, Error, TEXT("Compression failed: Method=%s, CompressedSize=0x%llx, UncompressedSize=0x%llx"), 
+					*Block->CompressionMethod.ToString(), CompressedBlockSize, Block->UncompressedSize);
+				bCompressed = false;
+			}
 		}
 		if (!bCompressed)
 		{

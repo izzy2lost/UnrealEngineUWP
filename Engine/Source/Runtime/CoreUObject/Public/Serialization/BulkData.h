@@ -882,7 +882,11 @@ public:
 	/**
 	 * Sets whether we should store the data compressed on disk.
 	 *
-	 * @param CompressionFlags	Flags to use for compressing the data. Use COMPRESS_NONE for no compression, or something like COMPRESS_ZLIB to compress the data
+	 * @param CompressionFormat		The format to use for compression e.g. NAME_None or NAME_Oodle.
+	 * 
+	 * This should likely not be used - bulk data that gets deployed should be compressed via UnrealPak so that
+	 * it can leverage hardware compression as available, and editor bulk data is compressed by default and should use 
+	 * FEditorBulkData::SetCompressionOptions to control that if necessary.
 	 */
 	COREUOBJECT_API void StoreCompressedOnDisk( FName CompressionFormat );
 

@@ -5547,7 +5547,14 @@ public:
 			TEXT("See ExtensionsToNotUsePluginCompression in [Pak] section of Engine.ini to add more extensions."),
 			*CompressionMethod.ToString(), TEXT("Unknown"));
 
-		int64 WorkingBufferRequiredSize = FCompression::GetMaximumCompressedSize(CompressionMethod,CompressionBlockSize);
+		// Get how large the biggest compressed block can be and use it to size our read buffers.
+		int64 WorkingBufferRequiredSize;
+		if (!FCompression::GetMaximumCompressedSize(CompressionMethod, WorkingBufferRequiredSize, CompressionBlockSize))
+		{
+			// We should have checked() above, except when checks are disabled. Can't do anything here as there's no failure path out.
+			LowLevelFatalError(TEXT("Failed to get compressed size for compression method: %s. Check plugin is loaded."), *CompressionMethod.ToString());
+		}
+
 		if ( CompressionMethod != NAME_Oodle )
 		{
 			// an amount to extra allocate, in case one block's compressed size is bigger than GetMaximumCompressedSize
