@@ -58,6 +58,7 @@ public:
 #endif // WITH_EDITOR
 	//~End UPCGSettings interface
 
+	//~Begin UPCGMetadataSettingsBase interface
 	virtual FPCGAttributePropertyInputSelector GetInputSource(uint32 Index) const override;
 
 	virtual FName GetInputPinLabel(uint32 Index) const override;
@@ -65,6 +66,10 @@ public:
 
 	virtual bool IsSupportedInputType(uint16 TypeId, uint32 InputIndex, bool& bHasSpecialRequirement) const override;
 	virtual uint16 GetOutputType(uint16 InputTypeId) const override;
+
+	/** If the primary pin is required and missing, some operations can be bypassed. Some, like Make Vector, can replace missing pins with default values. */
+	virtual bool IsPrimaryInputPinRequired() const override { return false; }
+	//~End UPCGMetadataSettingsBase interface
 
 protected:
 	//~Begin UPCGSettings interface
