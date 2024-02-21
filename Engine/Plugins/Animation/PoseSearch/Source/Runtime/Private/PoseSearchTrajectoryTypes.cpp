@@ -61,7 +61,7 @@ FPoseSearchQueryTrajectorySample FPoseSearchQueryTrajectory::GetSampleAtTime(flo
 }
 
 #if ENABLE_ANIM_DEBUG
-void FPoseSearchQueryTrajectory::DebugDrawTrajectory(const UWorld* World, float HeightOffset) const
+void FPoseSearchQueryTrajectory::DebugDrawTrajectory(const UWorld* World, const float DebugThickness, float HeightOffset) const
 {
 	const FVector OffsetVector = FVector::UpVector * HeightOffset;
 
@@ -72,7 +72,7 @@ void FPoseSearchQueryTrajectory::DebugDrawTrajectory(const UWorld* World, float 
 		{
 			const FVector Pos = Samples[Index].Position + OffsetVector;
 
-			DrawDebugSphere(World, Pos, 1.f, 4, FColor::Black, false, -1.f, SDPG_Foreground);
+			DrawDebugSphere(World, Pos, 1.f, 4, FColor::Black, false, -1.f, SDPG_Foreground, DebugThickness);
 
 			const FRotationMatrix R(FRotator(Samples[Index].Facing));
 			const FVector X = R.GetScaledAxis( EAxis::X );
@@ -82,8 +82,8 @@ void FPoseSearchQueryTrajectory::DebugDrawTrajectory(const UWorld* World, float 
 
 			const bool IsPast = Samples[Index].AccumulatedSeconds <= 0.f;
 
-			DrawDebugLine(World, Pos, Pos + X * Scale, IsPast ? FColor::Red : FColor::Blue, false, -1.f, SDPG_Foreground);
-			DrawDebugLine(World, Pos, Pos + Y * Scale, IsPast ? FColor::Orange : FColor::Turquoise, false, -1.f, SDPG_Foreground);
+			DrawDebugLine(World, Pos, Pos + X * Scale, IsPast ? FColor::Red : FColor::Blue, false, -1.f, SDPG_Foreground, DebugThickness);
+			DrawDebugLine(World, Pos, Pos + Y * Scale, IsPast ? FColor::Orange : FColor::Turquoise, false, -1.f, SDPG_Foreground, DebugThickness);
 
 			if (Index == LastIndex)
 			{
@@ -91,12 +91,12 @@ void FPoseSearchQueryTrajectory::DebugDrawTrajectory(const UWorld* World, float 
 			}
 			
 			const FVector NextPos = Samples[Index + 1].Position + OffsetVector;
-			DrawDebugLine(World, Pos, NextPos, FColor::Black, false, -1.f, SDPG_Foreground);
+			DrawDebugLine(World, Pos, NextPos, FColor::Black, false, -1.f, SDPG_Foreground, DebugThickness);
 		}
 	}
 }
 
-void FPoseSearchQueryTrajectory::DebugDrawTrajectory(FAnimInstanceProxy& AnimInstanceProxy, float HeightOffset) const
+void FPoseSearchQueryTrajectory::DebugDrawTrajectory(FAnimInstanceProxy& AnimInstanceProxy, const float DebugThickness, float HeightOffset) const
 {
 	const FVector OffsetVector = FVector::UpVector * HeightOffset;
 
@@ -107,7 +107,7 @@ void FPoseSearchQueryTrajectory::DebugDrawTrajectory(FAnimInstanceProxy& AnimIns
 		{
 			const FVector Pos = Samples[Index].Position + OffsetVector;
 
-			AnimInstanceProxy.AnimDrawDebugSphere(Samples[Index].Position + OffsetVector, 1.f, 4, FColor::Black, false, -1.f, 0.f, SDPG_Foreground);
+			AnimInstanceProxy.AnimDrawDebugSphere(Samples[Index].Position + OffsetVector, 1.f, 4, FColor::Black, false, -1.f, DebugThickness, SDPG_Foreground);
 
 			const FRotationMatrix R(FRotator(Samples[Index].Facing));
 			const FVector X = R.GetScaledAxis( EAxis::X );
@@ -117,8 +117,8 @@ void FPoseSearchQueryTrajectory::DebugDrawTrajectory(FAnimInstanceProxy& AnimIns
 
 			const bool IsPast = Samples[Index].AccumulatedSeconds <= 0.f;
 
-			AnimInstanceProxy.AnimDrawDebugLine(Pos, Pos + X * Scale, IsPast ? FColor::Red : FColor::Blue, false, -1.f, 0.f, SDPG_Foreground);
-			AnimInstanceProxy.AnimDrawDebugLine(Pos, Pos + Y * Scale, IsPast ? FColor::Orange : FColor::Turquoise, false, -1.f, 0.f, SDPG_Foreground);
+			AnimInstanceProxy.AnimDrawDebugLine(Pos, Pos + X * Scale, IsPast ? FColor::Red : FColor::Blue, false, -1.f, DebugThickness, SDPG_Foreground);
+			AnimInstanceProxy.AnimDrawDebugLine(Pos, Pos + Y * Scale, IsPast ? FColor::Orange : FColor::Turquoise, false, -1.f, DebugThickness, SDPG_Foreground);
 
 			if (Index == LastIndex)
 			{
@@ -126,7 +126,7 @@ void FPoseSearchQueryTrajectory::DebugDrawTrajectory(FAnimInstanceProxy& AnimIns
 			}
 			
 			const FVector NextPos = Samples[Index + 1].Position + OffsetVector;
-			AnimInstanceProxy.AnimDrawDebugLine(Pos, NextPos, FColor::Black, false, -1.f, 0.f, SDPG_Foreground);
+			AnimInstanceProxy.AnimDrawDebugLine(Pos, NextPos, FColor::Black, false, -1.f, DebugThickness, SDPG_Foreground);
 		}
 	}
 }
