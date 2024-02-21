@@ -780,10 +780,8 @@ namespace HarmonixMetasound
 						// note off!
 						FMidiStreamEvent MidiEvent(this, FMidiMsg::CreateNoteOff(MidiCh, SequenceTable->Notes[i].NoteNumber + AdditionalOctaveNotes));
 						MidiEvent.BlockSampleFrameIndex = BlockFrameIndex;
-						MidiEvent.BlockSampleFrameOffset = 0.0f;
 						MidiEvent.AuthoredMidiTick = ProcessedThruTick;
 						MidiEvent.CurrentMidiTick = ProcessedThruTick;
-						MidiEvent.MsOffset = 0.0f;
 						MidiEvent.TrackIndex = 1;
 						MidiEvent.SetVoiceId(CurrentCellNotes[i]);
 						MidiOutPin->AddNoteOffEventOrCancelPendingNoteOn(MidiEvent);
@@ -806,10 +804,8 @@ namespace HarmonixMetasound
 							float NoteOnVelocity = FMath::Clamp(static_cast<float>(SequenceTable->Notes[i].Velocity) * CurrentVelocityMultiplierValue, 0.0f, 127.0f);
 							MidiEvent.MidiMessage.SetNoteOnVelocity(static_cast<uint8>(NoteOnVelocity));
 							MidiEvent.BlockSampleFrameIndex = BlockFrameIndex;
-							MidiEvent.BlockSampleFrameOffset = 0.0f;
 							MidiEvent.AuthoredMidiTick = ProcessedThruTick;
 							MidiEvent.CurrentMidiTick = ProcessedThruTick;
-							MidiEvent.MsOffset = 0.0f;
 							MidiEvent.TrackIndex = 1;
 							MidiOutPin->AddMidiEvent(MidiEvent);
 							UE_LOG(LogStepSequencePlayer, Verbose, TEXT("0x%x Note-On %d at %d"), (uint32)(size_t)this, SequenceTable->Notes[i].NoteNumber + AdditionalOctaveNotes, BlockFrameIndex);
@@ -864,10 +860,8 @@ namespace HarmonixMetasound
 					CurrentCellNotes[i].GetChannelAndNote(MidiCh, MidiNote);
 					FMidiStreamEvent MidiEvent(this, FMidiMsg::CreateNoteOff(MidiCh, MidiNote));
 					MidiEvent.BlockSampleFrameIndex  = CurrentBlockSpanStart;
-					MidiEvent.BlockSampleFrameOffset = 0.0f;
 					MidiEvent.AuthoredMidiTick       = 0;
 					MidiEvent.CurrentMidiTick        = 0;
-					MidiEvent.MsOffset               = 0.0f;
 					MidiEvent.TrackIndex             = 1;
 					MidiEvent.SetVoiceId(CurrentCellNotes[i]);
 					UE_LOG(LogStepSequencePlayer, Verbose, TEXT("0x%x Note-Off %d (during resize)"), (uint32)(size_t)this, MidiNote);
@@ -896,10 +890,8 @@ namespace HarmonixMetasound
 				CurrentCellNotes[i].GetChannelAndNote(MidiCh, MidiNote);
 				FMidiStreamEvent MidiEvent(this, FMidiMsg::CreateNoteOff(MidiCh, MidiNote));
 				MidiEvent.BlockSampleFrameIndex  = AtFrameIndex;
-				MidiEvent.BlockSampleFrameOffset = 0.0f;
 				MidiEvent.AuthoredMidiTick       = AbsMidiTick;
 				MidiEvent.CurrentMidiTick        = AbsMidiTick;
-				MidiEvent.MsOffset               = 0.0f;
 				MidiEvent.TrackIndex             = 1;
 				MidiEvent.SetVoiceId(CurrentCellNotes[i]);
 				MidiOutPin->AddMidiEvent(MidiEvent);
