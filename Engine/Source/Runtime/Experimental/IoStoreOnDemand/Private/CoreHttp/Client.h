@@ -138,18 +138,20 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 class UE_API FTicketPerf
 {
-#if IAS_HTTP_WITH_PERF
 public:
 	struct FSample
 	{
-		uint32			TotalMs;
+		uint32			SendMs;
 		uint32			WaitMs;
+		uint32			RecvMs;
 	};
 
-	FSample				GetSendSample() const;
-	FSample				GetRecvSample() const;
-#endif // IAS_HTTP_WITH_PERF
+	FSample				GetSample() const;
 };
+
+#if !IAS_HTTP_WITH_PERF
+inline FTicketPerf::FSample FTicketPerf::GetSample() const { /* nop */ }
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 class UE_API FTicketStatus
