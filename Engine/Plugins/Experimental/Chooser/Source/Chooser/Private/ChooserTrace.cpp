@@ -24,25 +24,35 @@ UE_TRACE_EVENT_BEGIN(Chooser, ChooserValue)
 	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, Key)
 UE_TRACE_EVENT_END()
 
+namespace
+{
+	UObject* GetContextObject(const FChooserEvaluationContext& Context)
+	{
+		for (const FStructView& ContextEntry : Context.Params)
+		{
+			if (const FChooserEvaluationInputObject* ContextObjectInput = ContextEntry.GetPtr<FChooserEvaluationInputObject>())
+			{
+				return ContextObjectInput->Object;
+			}
+		}
+		return nullptr;
+	}
+}
+
+
+
 void FChooserTrace::OutputChooserValueArchive(const FChooserEvaluationContext& Context, const TCHAR* InKey, const FBufferArchive& InValueArchive)
 {
-	UObject* ContextObject = nullptr;
-	if (!Context.Params.IsEmpty())
-	{
-		if (const FChooserEvaluationInputObject* ContextObjectInput = Context.Params[0].GetPtr<FChooserEvaluationInputObject>())
-		{
-			ContextObject = ContextObjectInput->Object;
-		}
-	}
-	
 	bool bChannelEnabled = UE_TRACE_CHANNELEXPR_IS_ENABLED(ChooserChannel);
 
-	if (!bChannelEnabled || ContextObject == nullptr || Context.DebuggingInfo.CurrentChooser == nullptr)
+	if (!bChannelEnabled  || Context.DebuggingInfo.CurrentChooser == nullptr)
 	{
 		return;
 	}
 
-	if (CANNOT_TRACE_OBJECT(ContextObject->GetWorld()))
+	const UObject* ContextObject = GetContextObject(Context);
+
+	if (ContextObject == nullptr || CANNOT_TRACE_OBJECT(ContextObject->GetWorld()))
 	{
 		return;
 	}
@@ -60,22 +70,15 @@ void FChooserTrace::OutputChooserValueArchive(const FChooserEvaluationContext& C
 
 void FChooserTrace::OutputChooserEvaluation(const UObject* InChooser, const FChooserEvaluationContext& Context, uint32 InSelectedIndex)
 {
-	UObject* ContextObject = nullptr;
-	if (!Context.Params.IsEmpty())
-	{
-		if (const FChooserEvaluationInputObject* ContextObjectInput = Context.Params[0].GetPtr<FChooserEvaluationInputObject>())
-		{
-			ContextObject = ContextObjectInput->Object;
-		}
-	}
-
 	bool bChannelEnabled = UE_TRACE_CHANNELEXPR_IS_ENABLED(ChooserChannel);
-	if (!bChannelEnabled || ContextObject == nullptr || InChooser == nullptr)
+	if (!bChannelEnabled || InChooser == nullptr)
 	{
 		return;
 	}
+	
+	const UObject* ContextObject = GetContextObject(Context);
 
-	if (CANNOT_TRACE_OBJECT(ContextObject->GetWorld()))
+	if (ContextObject == nullptr || CANNOT_TRACE_OBJECT(ContextObject->GetWorld()))
 	{
 		return;
 	}
