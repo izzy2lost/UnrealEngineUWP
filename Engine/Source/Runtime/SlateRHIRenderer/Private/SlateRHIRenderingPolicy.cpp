@@ -1739,5 +1739,7 @@ void FSlateRHIRenderingPolicy::BlurRectExternal(FRHICommandListImmediate& RHICmd
 
 	IRendererModule& RendererModule = FModuleManager::GetModuleChecked<IRendererModule>(RendererModuleName);
 	PostProcessor->BlurRect(RHICmdList, RendererModule, BlurParams, RectParams);
+
+	RHICmdList.Transition(FRHITransitionInfo(BlurDst, ERHIAccess::RTV, ERHIAccess::SRVGraphics));
 }
 	
