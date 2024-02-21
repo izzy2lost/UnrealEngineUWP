@@ -26,7 +26,9 @@ const TCHAR* LexToString(const EHttpFlushReason& FlushReason)
 	switch (FlushReason)
 	{
 	case EHttpFlushReason::Default:		return TEXT("Default");
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	case EHttpFlushReason::Background:	return TEXT("Background");
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	case EHttpFlushReason::Shutdown:	return TEXT("Shutdown");
 	case EHttpFlushReason::FullFlush:	return TEXT("FullFlush");
 	}
@@ -140,10 +142,6 @@ void FHttpManager::ReloadFlushTimeLimits()
 		case EHttpFlushReason::Default:
 			GConfig->GetDouble(TEXT("HTTP"), TEXT("FlushSoftTimeLimitDefault"), SoftLimitSeconds, GEngineIni);
 			GConfig->GetDouble(TEXT("HTTP"), TEXT("FlushHardTimeLimitDefault"), HardLimitSeconds, GEngineIni);
-			break;
-		case EHttpFlushReason::Background:
-			GConfig->GetDouble(TEXT("HTTP"), TEXT("FlushSoftTimeLimitBackground"), SoftLimitSeconds, GEngineIni);
-			GConfig->GetDouble(TEXT("HTTP"), TEXT("FlushHardTimeLimitBackground"), HardLimitSeconds, GEngineIni);
 			break;
 		case EHttpFlushReason::Shutdown:
 			GConfig->GetDouble(TEXT("HTTP"), TEXT("FlushSoftTimeLimitShutdown"), SoftLimitSeconds, GEngineIni);
