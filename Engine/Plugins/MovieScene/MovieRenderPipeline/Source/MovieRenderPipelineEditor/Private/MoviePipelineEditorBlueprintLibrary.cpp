@@ -258,7 +258,9 @@ FString UMoviePipelineEditorBlueprintLibrary::ResolveOutputDirectoryFromJob(UMov
 		const bool bGetNextVersion = false;
 		FMovieGraphFilenameResolveParams Params;
 		Params.Job = InJob;
-		Params.InitializationTime = FDateTime::Now();
+		Params.InitializationTime = FDateTime::UtcNow();
+		Params.InitializationTimeOffset = FDateTime::Now() - FDateTime::UtcNow();
+
 		Params.Version = UMovieGraphBlueprintLibrary::ResolveVersionNumber(Params, bGetNextVersion);
 		Params.RenderDataIdentifier.RootBranchName = UMovieGraphNode::GlobalsPinName;
 		
@@ -281,6 +283,7 @@ FString UMoviePipelineEditorBlueprintLibrary::ResolveOutputDirectoryFromJob(UMov
 		Params.ShotNameOverride = DummyTag;
 		Params.CameraNameOverride = DummyTag;
 		Params.InitializationTime = FDateTime::UtcNow();
+		Params.InitializationTimeOffset = FDateTime::Now() - FDateTime::UtcNow();
 		Params.InitializationVersion = UMoviePipelineBlueprintLibrary::ResolveVersionNumber(Params, bGetNextVersion);
 
 		FMoviePipelineFormatArgs Dummy;

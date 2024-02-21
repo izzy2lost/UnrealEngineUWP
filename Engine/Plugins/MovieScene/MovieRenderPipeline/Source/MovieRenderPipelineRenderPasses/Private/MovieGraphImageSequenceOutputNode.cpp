@@ -65,6 +65,7 @@ namespace UE::MovieGraph::Private
 		Params.bEnsureAbsolutePath = true;
 		Params.FileNameFormatOverrides = InAdditionalFormatArgs;
 		Params.InitializationTime = InPipeline->GetInitializationTime();
+		Params.InitializationTimeOffset = InPipeline->GetInitializationTimeOffset();
 		Params.Shot = Shot;
 		Params.Job = InPipeline->GetCurrentJob();
 

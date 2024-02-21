@@ -994,7 +994,7 @@ void UMoviePipelineBlueprintLibrary::ResolveFilenameFormatArguments(const FStrin
 	// And from ourself
 	{
 		// Use the shared function as UMoviePipelinePrimaryConfig::GetFormatArguments to ensure all the time variables get overwritten.
-		UE::MoviePipeline::GetSharedFormatArguments(OutMergedFormatArgs.FilenameArguments, OutMergedFormatArgs.FileMetadata, InParams.InitializationTime, InParams.InitializationVersion, InParams.Job);
+		UE::MoviePipeline::GetSharedFormatArguments(OutMergedFormatArgs.FilenameArguments, OutMergedFormatArgs.FileMetadata, InParams.InitializationTime, InParams.InitializationVersion, InParams.Job, InParams.InitializationTimeOffset);
 		
 		// By default, we don't want to show frame duplication numbers. If we need to start writing them,
 		// they need to come before the frame number (so that tools recognize them as a sequence).

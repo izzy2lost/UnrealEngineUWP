@@ -123,6 +123,7 @@ FString UMovieGraphAudioOutputNode::GenerateOutputPath(const FMovieGraphRenderDa
 
 	FMovieGraphFilenameResolveParams ResolveParams;
 	ResolveParams.InitializationTime = CachedPipeline->GetInitializationTime();
+	ResolveParams.InitializationTimeOffset = CachedPipeline->GetInitializationTimeOffset();
 	ResolveParams.Job = CachedPipeline->GetCurrentJob();
 	ResolveParams.Shot = InShot;
 	ResolveParams.FileNameFormatOverrides = {

@@ -35,7 +35,7 @@ void UMoviePipelineLinearExecutorBase::Execute_Implementation(UMoviePipelineQueu
 	// before moving onto the next one. This may be parallelizable in the future (either multiple PIE
 	// sessions, or multiple external processes) but ideally one render would maximize resource usage anyways...
 	Queue = InPipelineQueue;
-	InitializationTime = FDateTime::Now();
+	InitializationTime = FDateTime::UtcNow();
 	JobsStarted = 0;
 
 	UE_LOG(LogMovieRenderPipeline, Log, TEXT("MoviePipelineLinearExecutorBase starting %d jobs."), InPipelineQueue->GetJobs().Num());

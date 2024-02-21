@@ -52,16 +52,26 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Movie Graph")
 	FDateTime GetInitializationTime() const { return GraphInitializationTime; }
 
+	/** 
+	* The offset that should be applied to the GetInitializationTime() when generating
+	* the {time} related filename tokens. GetInitializationTime() is in UTC so this is
+	* either zero (if you called SetInitializationTime) or your offset from UTC.
+	*/
+	UFUNCTION(BlueprintPure, Category = "Movie Render Pipeline")
+	FTimespan GetInitializationTimeOffset() const { return InitializationTimeOffset; }
+
+
 	/**
 	* Override the time this movie pipeline was initialized at. This can be used for render farms
 	* to ensure that jobs on all machines use the same date/time instead of each calculating it locally.
+	* Clears the auto-calculated InitializationTimeOffset, meaning time tokens will be written in UTC.
 	*
 	* Needs to be called after ::Initialize(...)
 	*
-	* @param InDateTime - The DateTime object to return for GetInitializationTime.
+	* @param InDateTime - Expected to be in UTC timezone.
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
-	void SetInitializationTime(const FDateTime& InDateTime) { GraphInitializationTime = InDateTime; }
+	void SetInitializationTime(const FDateTime& InDateTime) { GraphInitializationTime = InDateTime; InitializationTimeOffset = FTimespan(); }
 
 	/** Gets the graph config for the shot if one was specified for the shot. Otherwise, gets the graph config for the associated primary job. */
 	UMovieGraphConfig* GetRootGraphForShot(UMoviePipelineExecutorShot* InShot) const;
@@ -256,6 +266,9 @@ protected:
 
 	/** True if we're in a TransitionToState call. Used to prevent reentrancy. */
 	bool bIsTransitioningState;
+
+	/** When we originally initialize we store the offset from UTC (which is what GetInitializationTime() is in), but we clear this if you call SetInitializationTime. */
+	FTimespan InitializationTimeOffset;
 
 	/** True if RequestShutdown() was called. At the start of the next frame we will stop producing frames and start shutting down. */
 	FThreadSafeBool bShutdownRequested;

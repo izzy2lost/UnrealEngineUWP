@@ -852,24 +852,33 @@ namespace UE
 			return FPlatformProcess::UserName(false);
 		}
 
-		void GetSharedFormatArguments(TMap<FString, FString>& InFilenameArguments, TMap<FString, FString>& InFileMetadata, const FDateTime& InDateTime, const int32 InVersionNumber, const UMoviePipelineExecutorJob* InJob)
+		void GetSharedFormatArguments(TMap<FString, FString>& InFilenameArguments, TMap<FString, FString>& InFileMetadata, const FDateTime& InDateTime, const int32 InVersionNumber, const UMoviePipelineExecutorJob* InJob, const FTimespan& InInitializationTimeOffset)
 		{
-			InFilenameArguments.Add(TEXT("date"), InDateTime.ToString(TEXT("%Y.%m.%d")));
-			InFilenameArguments.Add(TEXT("time"), InDateTime.ToString(TEXT("%H.%M.%S")));
-			InFilenameArguments.Add(TEXT("year"), InDateTime.ToString(TEXT("%Y")));
-			InFilenameArguments.Add(TEXT("month"), InDateTime.ToString(TEXT("%m")));
-			InFilenameArguments.Add(TEXT("day"), InDateTime.ToString(TEXT("%d")));
+			FDateTime DateTimeLocal = InDateTime + InInitializationTimeOffset; 
+
+			FString LocalDateStr = DateTimeLocal.ToString(TEXT("%Y.%m.%d"));
+			FString LocalTimeStr = DateTimeLocal.ToString(TEXT("%H.%M.%S"));
+			FString LocalYearStr = DateTimeLocal.ToString(TEXT("%Y"));
+			FString LocalMonthStr = DateTimeLocal.ToString(TEXT("%m"));
+			FString LocalDayStr = DateTimeLocal.ToString(TEXT("%d"));
+
+
+			InFilenameArguments.Add(TEXT("date"), LocalDateStr);
+			InFilenameArguments.Add(TEXT("time"), LocalTimeStr);
+			InFilenameArguments.Add(TEXT("year"), LocalYearStr);
+			InFilenameArguments.Add(TEXT("month"), LocalMonthStr);
+			InFilenameArguments.Add(TEXT("day"), LocalDayStr);
 
 
 			FString VersionText = FString::Printf(TEXT("v%0*d"), 3, InVersionNumber);
 
 			InFilenameArguments.Add(TEXT("version"), VersionText);
 
-			InFileMetadata.Add(TEXT("unreal/jobDate"), InDateTime.ToString(TEXT("%Y.%m.%d")));
-			InFileMetadata.Add(TEXT("unreal/jobTime"), InDateTime.ToString(TEXT("%H.%M.%S")));
-			InFileMetadata.Add(TEXT("unreal/jobYear"), InDateTime.ToString(TEXT("%Y")));
-			InFileMetadata.Add(TEXT("unreal/jobMonth"), InDateTime.ToString(TEXT("%m")));
-			InFileMetadata.Add(TEXT("unreal/jobDay"), InDateTime.ToString(TEXT("%d")));
+			InFileMetadata.Add(TEXT("unreal/jobDate"), LocalDateStr);
+			InFileMetadata.Add(TEXT("unreal/jobTime"), LocalTimeStr);
+			InFileMetadata.Add(TEXT("unreal/jobYear"), LocalYearStr);
+			InFileMetadata.Add(TEXT("unreal/jobMonth"), LocalMonthStr);
+			InFileMetadata.Add(TEXT("unreal/jobDay"), LocalDayStr);
 
 			InFileMetadata.Add(TEXT("unreal/jobVersion"), FString::FromInt(InVersionNumber));
 
