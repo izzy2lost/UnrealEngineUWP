@@ -22,13 +22,6 @@ public:
 	UPROPERTY(EditAnywhere, Category = "USD Import", Meta = (DisplayName = "USD File"))
 	FChaosClothAssetImportFilePath UsdFile;
 
-	/**
-	 * The transform to apply to the imported 3D positions. 
-	 * Experimental, will soon be removed in favour of a tool supported transform node.
-	 */
-	UPROPERTY(EditAnywhere, Category = "USD Import", Meta = (Exprimental))
-	FTransform3f Transform = FTransform3f::Identity;
-
 	FChaosClothAssetUSDImportNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:

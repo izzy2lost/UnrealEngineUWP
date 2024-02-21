@@ -1015,17 +1015,6 @@ bool FChaosClothAssetUSDImportNode::ImportFromCache(const TSharedRef<FManagedArr
 		}
 	}
 
-	// Apply transforms  TODO: Use a transform node/tool instead
-	FCollectionClothFacade ClothFacade(OutClothCollection);
-	for (FVector3f& SimPosition3D : ClothFacade.GetSimPosition3D())
-	{
-		SimPosition3D = Transform.TransformPosition(SimPosition3D);
-	}
-	for (FVector3f& RenderPosition : ClothFacade.GetRenderPosition())
-	{
-		RenderPosition = Transform.TransformPosition(RenderPosition);
-	}
-
 	return true;
 }
 
