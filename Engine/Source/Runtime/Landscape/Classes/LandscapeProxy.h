@@ -332,14 +332,14 @@ public:
 };
 
 USTRUCT(meta = (Deprecated = "5.1"))
-struct UE_DEPRECATED(5.1, "FLandscapeProxyMaterialOverride is deprecated; please use FLandscapePerLODMaterialOverride instead") FLandscapeProxyMaterialOverride
+struct UE_DEPRECATED(all, "FLandscapeProxyMaterialOverride is deprecated; please use FLandscapePerLODMaterialOverride instead") FLandscapeProxyMaterialOverride
 {
 	GENERATED_USTRUCT_BODY()
 
-	UPROPERTY(EditAnywhere, Category = Landscape, meta = (UIMin = 0, UIMax = 8, ClampMin = 0, ClampMax = 8))
+	UPROPERTY()
 	FPerPlatformInt LODIndex;
 
-	UPROPERTY(EditAnywhere, Category = Landscape)
+	UPROPERTY()
 	TObjectPtr<UMaterialInterface> Material = nullptr;
 };
 
@@ -451,14 +451,16 @@ public:
 	int32 MaxLODLevel;
 
 #if WITH_EDITORONLY_DATA
+	UE_DEPRECATED(5.4, "Unused property : will be removed in a future version")
 	UPROPERTY()
 	float LODDistanceFactor_DEPRECATED;
 
+	UE_DEPRECATED(5.4, "Unused property : will be removed in a future version")
 	UPROPERTY()
 	TEnumAsByte<ELandscapeLODFalloff::Type> LODFalloff_DEPRECATED;
 #endif // WITH_EDITORONLY_DATA
 
-	UE_DEPRECATED(5.4, "Unused property")
+	UE_DEPRECATED(5.4, "Unused property : will be removed in a future version")
 	UPROPERTY()
 	float ComponentScreenSizeToUseSubSections;
 
@@ -540,7 +542,7 @@ public:
 #if WITH_EDITORONLY_DATA
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	UE_DEPRECATED(5.1, "LandscapeComponentMaterialOverride has been deprecated, use PerLODOverrideMaterials instead.")
+	UE_DEPRECATED(all, "LandscapeComponentMaterialOverride has been deprecated, use PerLODOverrideMaterials instead.")
 	UPROPERTY()
 	TArray<FLandscapeProxyMaterialOverride> LandscapeMaterialsOverride_DEPRECATED;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -553,7 +555,8 @@ public:
 
 	UPROPERTY(Transient)
 	bool bIsPerformingInteractiveActionOnLandscapeMaterialOverride;
-#endif 
+#endif // WITH_EDITORONLY_DATA
+
 	/**
 	 * Array of runtime virtual textures into which we draw this landscape.
 	 * The material also needs to be set up to output to a virtual texture.
@@ -624,7 +627,7 @@ public:
 	UPROPERTY(transient, duplicatetransient)
 	TArray<TObjectPtr<UHierarchicalInstancedStaticMeshComponent>> FoliageComponents;
 
-	UE_DEPRECATED(5.3, "NaniteComponent has been deprecated, use NaniteComponents instead.")
+	UE_DEPRECATED(all, "NaniteComponent has been deprecated, use NaniteComponents instead.")
 	UPROPERTY()
 	TObjectPtr<ULandscapeNaniteComponent> NaniteComponent_DEPRECATED;
 
@@ -790,6 +793,7 @@ public:
 	uint32 bBakeMaterialPositionOffsetIntoCollision:1;
 
 #if WITH_EDITORONLY_DATA
+	UE_DEPRECATED(5.4, "Unused property : will be removed in a future version")
 	UPROPERTY()
 	TArray<TObjectPtr<ULandscapeLayerInfoObject>> EditorCachedLayerInfos_DEPRECATED;
 
@@ -1117,18 +1121,9 @@ public:
 	UE_DEPRECATED(5.4, "This version of RenderGrassMaps is deprecated.  Use BuildGrassMaps() instead.")
 	void RenderGrassMaps(const TArray<ULandscapeComponent*>& InLandscapeComponents, const TArray<ULandscapeGrassType*>& InGrassTypes) {}
 
-	struct UE_DEPRECATED(5.3, "FGIBakedTextureState is officially deprecated now and nothing updates it anymore") FGIBakedTextureState
-	{
-		FGuid CombinedStateId;
-		TArray<ULandscapeComponent*> Components;
-	};
-		
 	/** Update the landscape physical material render tasks */
 	void UpdatePhysicalMaterialTasks(bool bInShouldMarkDirty = false);
 	void UpdatePhysicalMaterialTasksStatus(TSet<ULandscapeComponent*>* OutdatedComponents, int32* OutdatedComponentsCount) const;
-
-	UE_DEPRECATED(5.3, "UpdateBakedTexturesCountdown is officially deprecated now and nothing updates it anymore")
-	int32 UpdateBakedTexturesCountdown;
 
 	/** Editor notification when changing feature level */
 	void OnFeatureLevelChanged(ERHIFeatureLevel::Type NewFeatureLevel);
@@ -1171,10 +1166,6 @@ public:
 
 	// Retrieve the screen size at which each LOD should be rendered
 	LANDSCAPE_API TArray<float> GetLODScreenSizeArray() const;
-
-	// Copy properties from parent Landscape actor
-	UE_DEPRECATED(5.3, "GetSharedProperties is being deprecated, please use CopySharedProperties or SynchronizeSharedProperties instead.")
-	LANDSCAPE_API void GetSharedProperties(ALandscapeProxy* Landscape);
 
 #if WITH_EDITOR
 	// Copy properties from parent Landscape actor
@@ -1222,10 +1213,6 @@ public:
 
 	LANDSCAPE_API int32 GetOutdatedGrassMapCount() const;
 	LANDSCAPE_API void BuildGrassMaps(struct FScopedSlowTask* InSlowTask = nullptr);
-	UE_DEPRECATED(5.3, "BuildGIBakedTextures is officially deprecated now")
-	void BuildGIBakedTextures(struct FScopedSlowTask* InSlowTask = nullptr) {}
-	UE_DEPRECATED(5.3, "GetOutdatedGIBakedTextureComponentsCount is officially deprecated now returns 0")
-	int32 GetOutdatedGIBakedTextureComponentsCount() const { return 0; }
 	LANDSCAPE_API void BuildPhysicalMaterial(struct FScopedSlowTask* InSlowTask = nullptr);
 	LANDSCAPE_API void InvalidatePhysicalMaterial();
 	LANDSCAPE_API int32 GetOudatedPhysicalMaterialComponentsCount() const;
@@ -1435,9 +1422,6 @@ public:
 	/** Creates a LandscapeWeightMapUsage object outered to this proxy. */
 	LANDSCAPE_API ULandscapeWeightmapUsage* CreateWeightmapUsage();
 
-	UE_DEPRECATED(5.3, "NumComponentsNeedingTextureBaking is officially deprecated now and nothing updates it anymore")
-	int32 NumComponentsNeedingTextureBaking;
-
 	/** remove an overlapping component. Called from MapCheck. */
 	LANDSCAPE_API void RemoveOverlappingComponent(ULandscapeComponent* Component);
 
@@ -1572,25 +1556,6 @@ private:
 
 
 #if WITH_EDITOR
-/**
- * Helper class used to Build or monitor Landscape GI Textures
- */
-class LANDSCAPE_API UE_DEPRECATED(5.3, "FLandscapeGIBakedTextureBuilder is officially deprecated now and nothing updates it anymore") FLandscapeGIBakedTextureBuilder
-{
-public:
-	FLandscapeGIBakedTextureBuilder(UWorld* InWorld)
-		:World(InWorld)
-	{}
-	void Build(){}
-	int32 GetOutdatedGIBakedTextureComponentsCount(bool bInForceUpdate = true) const { return 0; }
-
-private:
-	UWorld* World = nullptr;
-	mutable int32 OutdatedGIBakedTextureComponentsCount = 0;
-	mutable double GIBakedTexturesLastCheckTime = 0;
-};
-
-
 /**
  * Helper class used to Build or monitor Landscape Physical Material
  */

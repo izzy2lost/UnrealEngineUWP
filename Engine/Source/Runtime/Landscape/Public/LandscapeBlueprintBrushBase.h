@@ -73,9 +73,6 @@ protected:
 #endif
 
 public:
-
-	UE_DEPRECATED(5.3, "Please use RenderLayer_Native instead.")
-	virtual UTextureRenderTarget2D* Render_Native(bool InIsHeightmap, UTextureRenderTarget2D* InCombinedResult, const FName& InWeightmapLayerName) {return nullptr;}
 	virtual void Initialize_Native(const FTransform& InLandscapeTransform, const FIntPoint& InLandscapeSize, const FIntPoint& InLandscapeRenderTargetSize) {}
 
 	UFUNCTION(BlueprintNativeEvent, meta = (DeprecatedFunction, DeprecationMessage = "Please use RenderLayer instead."))
@@ -107,15 +104,6 @@ public:
 	LANDSCAPE_API virtual void SetOwningLandscape(class ALandscape* InOwningLandscape);
 	LANDSCAPE_API class ALandscape* GetOwningLandscape() const;
 
-	UE_DEPRECATED(5.3, "Renamed CanAffectHeightmap")
-	bool IsAffectingHeightmap() const { return AffectHeightmap; }
-	UE_DEPRECATED(5.3, "Renamed CanAffectWeightmap")
-	bool IsAffectingWeightmap() const { return AffectWeightmap; }
-	UE_DEPRECATED(5.3, "Renamed AffectsVisibilityLayer")
-	LANDSCAPE_API virtual bool IsAffectingWeightmapLayer(const FName& InLayerName) const;
-	UE_DEPRECATED(5.3, "Renamed CanAffectVisibilityLayer")
-	bool IsAffectingVisibilityLayer() const { return AffectVisibilityLayer; }
-
 	bool CanAffectHeightmap() const { return AffectHeightmap; }
 	bool CanAffectWeightmap() const { return AffectWeightmap; }
 	bool CanAffectVisibilityLayer() const { return AffectVisibilityLayer; }
@@ -129,13 +117,6 @@ public:
 	LANDSCAPE_API bool IsLayerUpdatePending() const;
 
 	LANDSCAPE_API void SetIsVisible(bool bInIsVisible);
-
-	UE_DEPRECATED(5.3, "Renamed SetCanAffectHeightmap")
-	LANDSCAPE_API void SetAffectsHeightmap(bool bInAffectsHeightmap);
-	UE_DEPRECATED(5.3, "Renamed SetCanAffectWeightmap")
-	LANDSCAPE_API void SetAffectsWeightmap(bool bInAffectsWeightmap);
-	UE_DEPRECATED(5.3, "Renamed SetCanAffectVisibilityLayer")
-	LANDSCAPE_API void SetAffectsVisibilityLayer(bool bInAffectsVisibilityLayer);
 
 	LANDSCAPE_API virtual bool ShouldTickIfViewportsOnly() const override;
 	LANDSCAPE_API virtual void Tick(float DeltaSeconds) override;

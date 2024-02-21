@@ -1558,13 +1558,14 @@ FArchive& operator<<(FArchive& Ar, FLandscapeComponentGrassData& Data)
 	{
 		if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::LandscapeSupportPerComponentGrassTypes)
 		{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			if (Ar.CustomVer(FLandscapeCustomVersion::GUID) >= FLandscapeCustomVersion::GrassMaterialInstanceFix)
 			{
-					Ar << Data.MaterialStateIds_DEPRECATED;
+				Ar << Data.MaterialStateIds_DEPRECATED;
 			}
 			else
 			{
-					Data.MaterialStateIds_DEPRECATED.Empty(1);
+				Data.MaterialStateIds_DEPRECATED.Empty(1);
 				if (Ar.UEVer() >= VER_UE4_SERIALIZE_LANDSCAPE_GRASS_DATA_MATERIAL_GUID)
 				{
 					FGuid MaterialStateId;
@@ -1577,6 +1578,7 @@ FArchive& operator<<(FArchive& Ar, FLandscapeComponentGrassData& Data)
 			{
 				Ar << Data.RotationForWPO_DEPRECATED;
 			}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 		else
 		{

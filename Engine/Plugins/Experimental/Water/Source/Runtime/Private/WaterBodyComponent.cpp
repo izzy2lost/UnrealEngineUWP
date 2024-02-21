@@ -1529,15 +1529,6 @@ void UWaterBodyComponent::UpdateSplineComponent()
 	}
 }
 
-void UWaterBodyComponent::OnWaterBodyChanged(bool bShapeOrPositionChanged, bool bWeightmapSettingsChanged, bool bUserTriggeredChange)
-{
-	FOnWaterBodyChangedParams Params;
-	Params.bShapeOrPositionChanged = bShapeOrPositionChanged;
-	Params.bWeightmapSettingsChanged = bWeightmapSettingsChanged;
-	Params.bUserTriggered = bUserTriggeredChange;
-	OnWaterBodyChanged(Params);
-}
-
 void UWaterBodyComponent::OnWaterBodyChanged(const FOnWaterBodyChangedParams& InParams)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UWaterBodyComponent::OnWaterBodyChanged)

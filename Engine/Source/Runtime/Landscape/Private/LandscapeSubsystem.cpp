@@ -578,16 +578,6 @@ TArray<ALandscapeProxy*> ULandscapeSubsystem::GetOutdatedProxies(UE::Landscape::
 	return FinalProxiesToBuild;
 }
 
-int32 ULandscapeSubsystem::GetOutdatedGrassMapCount()
-{
-	return GrassMapsBuilder->GetOutdatedGrassMapCount(/*bInForceUpdate*/false);
-}
-
-int32 ULandscapeSubsystem::GetOudatedPhysicalMaterialComponentsCount()
-{
-	return PhysicalMaterialBuilder->GetOudatedPhysicalMaterialComponentsCount();
-}
-
 void ULandscapeSubsystem::BuildNanite(TArrayView<ALandscapeProxy*> InProxiesToBuild, bool bForceRebuild)
 {
 	TRACE_BOOKMARK(TEXT("ULandscapeSubsystem::BuildNanite"));
@@ -674,13 +664,6 @@ void ULandscapeSubsystem::BuildNanite(TArrayView<ALandscapeProxy*> InProxiesToBu
 		SlowTask.EnterProgressFrame(MeshesProcessed, FText::Format(LOCTEXT("Landscape_BuildNaniteProgress", "Building Nanite Landscape Mesh ({0} of {1})"), FText::AsNumber(TotalMeshes - LastRemainingMeshes), FText::AsNumber(SlowTask.TotalAmountOfWork)));
 	}
 }
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-bool ULandscapeSubsystem::IsDirtyOnlyInModeEnabled()
-{
-	return ULandscapeInfo::IsDirtyOnlyInModeEnabled();
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 bool ULandscapeSubsystem::GetDirtyOnlyInMode() const
 {

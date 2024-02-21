@@ -97,18 +97,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category=Rendering)
 	void SetFarMeshMaterial(UMaterialInterface* InFarMaterial);
 
-	UE_DEPRECATED(5.3, "Function renamed to GetDynamicWaterInfoCenter")
-	FVector GetTessellatedWaterMeshCenter() const { return GetDynamicWaterInfoCenter(); }
-
-	UE_DEPRECATED(5.3, "Function renamed to SetLocalTessellationCenter")
-	void SetTessellatedWaterMeshCenter(FVector NewCenter) { SetLocalTessellationCenter(NewCenter); }
-
-	UE_DEPRECATED(5.3, "Function renamed to GetDynamicWaterInfoExtent")
-	FVector GetTessellatedWaterMeshExtent() const { return GetDynamicWaterInfoExtent(); }
-
-	UE_DEPRECATED(5.3, "Function renamed to IsLocalTessellationEnabled.")
-	bool IsNonTessellatedLODMeshEnabled() const { return IsLocalOnlyTessellationEnabled(); }
-
 private:
 
 	/**

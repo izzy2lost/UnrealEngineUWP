@@ -34,10 +34,6 @@ public:
 	void FillWaterZoneWithOcean();
 #endif // WITH_EDITOR
 
-	UE_DEPRECATED(5.1, "Oceans no longer rely on the visual extent parameter making this obsolete. Instead they will be guaranteed to fill the entire water zone to which they belong.")
-	void SetVisualExtents(FVector2D) {}
-	UE_DEPRECATED(5.1, "Oceans no longer rely on the visual extent parameter making this obsolete. Instead they will be guaranteed to fill the entire water zone to which they belong.")
-	FVector2D GetVisualExtents() const { return FVector2D(); }
 protected:
 	/** UWaterBodyComponent Interface */
 	virtual bool IsBodyDynamic() const override { return true; }

@@ -41,19 +41,6 @@ extern LANDSCAPE_API TAutoConsoleVariable<int32> CVarLandscapeSplineFalloffModul
 #endif
 
 UENUM()
-enum UE_DEPRECATED(5.3, "ELandscapeSetupErrors is now unused and deprecated") ELandscapeSetupErrors : int
-{
-	LSE_None,
-	/** No Landscape Info available. */
-	LSE_NoLandscapeInfo,
-	/** There was already component with same X,Y. */
-	LSE_CollsionXY,
-	/** No Layer Info, need to add proper layers. */
-	LSE_NoLayerInfo,
-	LSE_MAX,
-};
-
-UENUM()
 enum class ERTDrawingType : uint8
 {
 	RTAtlas,

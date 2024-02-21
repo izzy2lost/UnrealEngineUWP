@@ -532,11 +532,6 @@ void AWaterLandscapeBrush::BlueprintOnRenderTargetTexturesUpdated_Implementation
 	// Deprecated
 }
 
-void AWaterLandscapeBrush::ForceWaterTextureUpdate()
-{
-	// Deprecated
-}
-
 #if WITH_EDITOR
 
 AWaterLandscapeBrush::EWaterBrushStatus AWaterLandscapeBrush::CheckWaterBrushStatus()

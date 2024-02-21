@@ -161,9 +161,6 @@ public:
 	TMap<FIntPoint, FLandscapeAddCollision> XYtoAddCollisionMap;
 #endif // WITH_EDITORONLY_DATA
 
-	UE_DEPRECATED(5.1, "This property has been deprecated, please use the StreamingProxies property instead")
-	TArray<TObjectPtr<ALandscapeStreamingProxy>> Proxies;
-
 	UPROPERTY()
 	TArray<TWeakObjectPtr<ALandscapeStreamingProxy>> StreamingProxies;
 
@@ -257,9 +254,6 @@ public:
 	 */
 	LANDSCAPE_API ALandscapeProxy* GetLandscapeProxyForLevel(ULevel* Level) const;
 
-	UE_DEPRECATED(5.3, "Use ULandscapeSubsystem::GetDirtyOnlyInMode() instead")
-	static bool IsDirtyOnlyInModeEnabled() { return false; }
-
 	LANDSCAPE_API bool GetDirtyOnlyInMode() const;
 
 	LANDSCAPE_API void OnModifiedPackageSaved(UPackage* InPackage);
@@ -328,9 +322,6 @@ public:
 
 	LANDSCAPE_API void RemoveXYOffsets();
 
-	UE_DEPRECATED(5.3, "Texture Baking is officially deprecated now and nothing updates it anymore")
-	void PostponeTextureBaking() {}
-
 	/** Will tell if the landscape actor can have some content related to the layer system */
 	LANDSCAPE_API bool CanHaveLayersContent() const;
 
@@ -375,17 +366,6 @@ public:
 
 	/** Called after creating object so that it can initialize its state */
 	void Initialize(UWorld* InWorld, const FGuid& InLandscapeGuid);
-
-	/**
-	 * Runs the given function on the root landscape actor and all streaming proxies
-	 * Most easily used with a lambda as follows:
-	 * ForAllLandscapeProxies([](ALandscapeProxy* Proxy)
-	 * {
-	 *     // Code
-	 * });
-	 */
-	UE_DEPRECATED(5.3, "This function has been deprecated, please use the ForEachLandscapeProxy property instead")
-	LANDSCAPE_API void ForAllLandscapeProxies(TFunctionRef<void(ALandscapeProxy*)> Fn) const;
 
 	/**
 	 * Runs the given function on the root landscape actor and all streaming proxies, with the posibility of early exit

@@ -353,13 +353,6 @@ void ALandscapePatchManager::MarkDirtyIfModifiedInConstructionScript()
 	}
 }
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-bool ALandscapePatchManager::IsAffectingWeightmapLayer(const FName& InLayerName) const
-{
-	return AffectsWeightmapLayer(InLayerName);
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 bool ALandscapePatchManager::AffectsWeightmapLayer(const FName& InLayerName) const
 {
 	if (!CanAffectWeightmap())

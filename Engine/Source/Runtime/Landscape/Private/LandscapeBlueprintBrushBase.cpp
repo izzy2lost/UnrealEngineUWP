@@ -55,9 +55,10 @@ ALandscapeBlueprintBrushBase::ALandscapeBlueprintBrushBase(const FObjectInitiali
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 
+// Deprecated
 UTextureRenderTarget2D* ALandscapeBlueprintBrushBase::Render_Implementation(bool InIsHeightmap, UTextureRenderTarget2D* InCombinedResult, const FName& InWeightmapLayerName)
 {
-	return Render_Native(InIsHeightmap, InCombinedResult, InWeightmapLayerName);
+	return nullptr;
 }
 
 UTextureRenderTarget2D* ALandscapeBlueprintBrushBase::RenderLayer_Implementation(const FLandscapeBrushParameters& InParameters)
@@ -166,29 +167,6 @@ void ALandscapeBlueprintBrushBase::SetIsVisible(bool bInIsVisible)
 	}
 #endif
 }
-
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-void ALandscapeBlueprintBrushBase::SetAffectsHeightmap(bool bAffectsHeightmap)
-{
-	SetCanAffectHeightmap(bAffectsHeightmap);
-}
-
-void ALandscapeBlueprintBrushBase::SetAffectsWeightmap(bool bAffectsWeightmap)
-{
-	SetCanAffectWeightmap(bAffectsWeightmap);
-}
-
-void ALandscapeBlueprintBrushBase::SetAffectsVisibilityLayer(bool bInAffectsVisibilityLayer)
-{
-	SetCanAffectVisibilityLayer(bInAffectsVisibilityLayer);
-}
-
-bool ALandscapeBlueprintBrushBase::IsAffectingWeightmapLayer(const FName& InLayerName) const
-{
-	return AffectsWeightmapLayer(InLayerName);
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void ALandscapeBlueprintBrushBase::SetCanAffectHeightmap(bool bInCanAffectHeightmap)
 {

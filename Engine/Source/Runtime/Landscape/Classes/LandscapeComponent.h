@@ -204,9 +204,11 @@ struct FLandscapeComponentGrassData
 
 	// Guid per material instance in the hierarchy between the assigned landscape material (instance) and the root UMaterial
 	// used to detect changes to material instance parameters or the root material that could affect the grass maps
+	UE_DEPRECATED(5.4, "GenerationHash is now used") 
 	TArray<FGuid, TInlineAllocator<2>> MaterialStateIds_DEPRECATED;
 	// cached component rotation when material world-position-offset is used,
 	// as this will affect the direction of world-position-offset deformation (included in the HeightData below)
+	UE_DEPRECATED(5.4, "GenerationHash is now used") 
 	FQuat RotationForWPO_DEPRECATED;
 
 	// Variable used to detect when grass data needs to be regenerated:
@@ -230,7 +232,6 @@ struct FLandscapeComponentGrassData
 	TArray<uint8> HeightWeightData;
 
 	FLandscapeComponentGrassData() = default;
-
 	FLandscapeComponentGrassData(ULandscapeComponent* Component);
 
 	// Returns whether grass data has been computed (or serialized) yet. Returns true even if the data is completely empty (e.g. all-zero weightmap data)
@@ -256,7 +257,7 @@ struct FLandscapeComponentGrassData
 };
 
 USTRUCT(NotBlueprintable, meta = (Deprecated = "5.1"))
-struct UE_DEPRECATED(5.1, "FLandscapeComponentMaterialOverride is deprecated; please use FLandscapePerLODMaterialOverride instead") FLandscapeComponentMaterialOverride
+struct UE_DEPRECATED(all, "FLandscapeComponentMaterialOverride is deprecated; please use FLandscapePerLODMaterialOverride instead") FLandscapeComponentMaterialOverride
 {
 	GENERATED_USTRUCT_BODY()
 
@@ -427,11 +428,12 @@ class ULandscapeComponent : public UPrimitiveComponent
 
 #if WITH_EDITORONLY_DATA
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	UE_DEPRECATED(5.1, "OverrideMaterials has been deprecated, use PerLODOverrideMaterials instead.")
+	UE_DEPRECATED(all, "OverrideMaterials has been deprecated, use PerLODOverrideMaterials instead.")
 	UPROPERTY()
 	TArray<FLandscapeComponentMaterialOverride> OverrideMaterials_DEPRECATED;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
+	UE_DEPRECATED(5.4, "MaterialInstance has been deprecated, use MaterialInstances instead.")
 	UPROPERTY()
 	TObjectPtr<UMaterialInstanceConstant> MaterialInstance_DEPRECATED;
 #endif // WITH_EDITORONLY_DATA
@@ -478,6 +480,7 @@ class ULandscapeComponent : public UPrimitiveComponent
 	TArray<double> MipToMipMaxDeltas;
 
 #if WITH_EDITORONLY_DATA
+	UE_DEPRECATED(5.4, "CollisionComponent has been deprecated and will be removed in a future version")
 	UPROPERTY()
 	TLazyObjectPtr<ULandscapeHeightfieldCollisionComponent> CollisionComponent_DEPRECATED;
 #endif // !WITH_EDITORONLY_DATA
@@ -486,7 +489,6 @@ private:
 	/** Reference to associated collision component */
 	UPROPERTY()
 	TObjectPtr<ULandscapeHeightfieldCollisionComponent> CollisionComponentRef;
-
 
 	/** Store  */ 
 	UPROPERTY(Transient)
@@ -596,21 +598,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=LandscapeComponent)
 	int32 LODBias;
 
+	UE_DEPRECATED(5.4, "StateId is unused and will be removed in a future version")
 	UPROPERTY()
-	// TODO [jonathan.bard] : remove unused : 
 	FGuid StateId;
 
-	UE_DEPRECATED(5.3, "BakedTextureMaterialGuid is officially deprecated now and nothing updates it anymore")
-	FGuid BakedTextureMaterialGuid;
-
-	UE_DEPRECATED(5.3, "LastBakedTextureMaterialGuid is officially deprecated now and nothing updates it anymore")
-	FGuid LastBakedTextureMaterialGuid;
-
 #if WITH_EDITORONLY_DATA
-	UE_DEPRECATED(5.3, "GIBakedBaseColorTexture is officially deprecated now and nothing updates it anymore")
-	TObjectPtr<UTexture2D> GIBakedBaseColorTexture;
-
 	/**	Legacy irrelevant lights */
+	UE_DEPRECATED(5.4, "IrrelevantLights is officially deprecated now and will be removed in a future version")
 	UPROPERTY()
 	TArray<FGuid> IrrelevantLights_DEPRECATED;
 
@@ -647,10 +641,15 @@ public:
 	/** Represents last saved hash for PhysicalMaterialTask */
 	UPROPERTY(Transient)
 	uint32 LastSavedPhysicalMaterialHash;
-#endif // WITH_EDITORONLY_DATA
 
+	UE_DEPRECATED(5.4, "MobileMaterialInterface has been deprecated and will be removed in a future version")
 	UPROPERTY(NonPIEDuplicateTransient)
 	TObjectPtr<UMaterialInterface> MobileMaterialInterface_DEPRECATED;
+
+    UE_DEPRECATED(5.4, "MobileCombinationMaterialInstance has been deprecated and will be removed in a future version")
+	UPROPERTY(NonPIEDuplicateTransient)
+	TObjectPtr<UMaterialInstanceConstant> MobileCombinationMaterialInstance_DEPRECATED;
+#endif // WITH_EDITORONLY_DATA
 
 	/** Material interfaces used for mobile */
 	UPROPERTY(NonPIEDuplicateTransient)
@@ -673,9 +672,6 @@ public:
 	  because we cannot generate it at runtime for standalone PIE games */
 	UPROPERTY(NonPIEDuplicateTransient)
 	TArray<TObjectPtr<UMaterialInstanceConstant>> MobileCombinationMaterialInstances;
-
-	UPROPERTY(NonPIEDuplicateTransient)
-	TObjectPtr<UMaterialInstanceConstant> MobileCombinationMaterialInstance_DEPRECATED;
 #endif // WITH_EDITORONLY_DATA
 
 public:
@@ -715,7 +711,6 @@ public:
 	virtual void Serialize(FArchive& Ar) override;
 	virtual void GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize) override;
 	virtual void BeginDestroy() override;
-	virtual void PostDuplicate(bool bDuplicateForPIE) override;
 	virtual void PostLoad() override;
 #if WITH_EDITORONLY_DATA
 	static void DeclareConstructClasses(TArray<FTopLevelAssetPath>& OutConstructClasses, const UClass* SpecificSubclass);

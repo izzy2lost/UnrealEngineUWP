@@ -58,12 +58,6 @@ public:
 	void K2_SynchronizeAndBroadcastDataChange();
 
 #if WITH_EDITOR
-	DECLARE_EVENT(UWaterSplineComponent, UE_DEPRECATED(5.1, "Use FOnWaterSplineDataChanged") FOnSplineDataChanged);
-	UE_DEPRECATED(5.1, "Use OnWaterSplineDataChanged")
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	FOnSplineDataChanged& OnSplineDataChanged() { static FOnSplineDataChanged DeprecatedEvent; return DeprecatedEvent; }
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 	FOnWaterSplineDataChanged& OnWaterSplineDataChanged() { return WaterSplineDataChangedEvent; }
 
 	virtual bool CanEditChange(const FProperty* InProperty) const override;

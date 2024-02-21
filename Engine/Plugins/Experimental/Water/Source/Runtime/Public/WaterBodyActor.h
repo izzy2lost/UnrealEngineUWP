@@ -173,56 +173,46 @@ protected:
 
 #pragma region Deprecated
 public:
-	UE_DEPRECATED(4.27, "Moved to WaterBodyComponent")
+	UE_DEPRECATED(all, "Moved to WaterBodyComponent")
 	UFUNCTION(BlueprintCallable, Category = Rendering, meta = (DeprecatedFunction))
 	virtual UMaterialInstanceDynamic* GetRiverToLakeTransitionMaterialInstance() final { return WaterBodyComponent->GetRiverToLakeTransitionMaterialInstance(); }
 
-	UE_DEPRECATED(4.27, "Moved to WaterBodyComponent")
+	UE_DEPRECATED(all, "Moved to WaterBodyComponent")
 	UFUNCTION(BlueprintCallable, Category = Rendering, meta = (DeprecatedFunction))
 	virtual UMaterialInstanceDynamic* GetRiverToOceanTransitionMaterialInstance() final { return WaterBodyComponent->GetRiverToOceanTransitionMaterialInstance(); }
 
-	UE_DEPRECATED(4.27, "Moved to WaterBodyComponent")
+	UE_DEPRECATED(all, "Moved to WaterBodyComponent")
 	UFUNCTION(BlueprintCallable, Category = Rendering, meta = (DeprecatedFunction))
 	void SetWaterMaterial(UMaterialInterface* InMaterial) { WaterBodyComponent->SetWaterMaterial(InMaterial); }
 
-	UE_DEPRECATED(4.27, "Moved to WaterBodyComponent")
+	UE_DEPRECATED(all, "Moved to WaterBodyComponent")
 	UFUNCTION(BlueprintCallable, Category = Rendering, meta = (DeprecatedFunction))
 	UMaterialInstanceDynamic* GetWaterMaterialInstance() { return WaterBodyComponent->GetWaterMaterialInstance(); }
 
-	UE_DEPRECATED(4.27, "Moved to WaterBodyComponent")
+	UE_DEPRECATED(all, "Moved to WaterBodyComponent")
 	UFUNCTION(BlueprintCallable, Category = WaterBody, meta = (DeprecatedFunction))
 	virtual float GetWaterVelocityAtSplineInputKey(float InKey) const { return WaterBodyComponent->GetWaterVelocityAtSplineInputKey(InKey); }
 
-	UE_DEPRECATED(4.27, "Moved to WaterBodyComponent")
+	UE_DEPRECATED(all, "Moved to WaterBodyComponent")
 	UFUNCTION(BlueprintCallable, Category = WaterBody, meta = (DeprecatedFunction))
 	virtual FVector GetWaterVelocityVectorAtSplineInputKey(float InKey) const { return WaterBodyComponent->GetWaterVelocityVectorAtSplineInputKey(InKey); }
 
-	UE_DEPRECATED(4.27, "Moved to WaterBodyComponent")
+	UE_DEPRECATED(all, "Moved to WaterBodyComponent")
 	UFUNCTION(BlueprintCallable, Category = WaterBody, meta = (DeprecatedFunction))
 	virtual float GetAudioIntensityAtSplineInputKey(float InKey) const { return WaterBodyComponent->GetAudioIntensityAtSplineInputKey(InKey); }
 
-	UE_DEPRECATED(4.27, "Moved to WaterBodyComponent")
+	UE_DEPRECATED(all, "Moved to WaterBodyComponent")
 	UFUNCTION(BlueprintCallable, Category = Water, meta = (DeprecatedFunction))
 	TArray<AWaterBodyIsland*> GetIslands() const { return WaterBodyComponent->GetIslands(); }
 
-	UE_DEPRECATED(4.27, "Moved to WaterBodyComponent")
+	UE_DEPRECATED(all, "Moved to WaterBodyComponent")
 	UFUNCTION(BlueprintCallable, Category = Water, meta = (DeprecatedFunction))
 	TArray<AWaterBodyExclusionVolume*> GetExclusionVolumes() const { return WaterBodyComponent->GetExclusionVolumes(); }
 
-	UE_DEPRECATED(4.27, "Moved to WaterBodyComponent")
+	UE_DEPRECATED(all, "Moved to WaterBodyComponent")
 	UFUNCTION(BlueprintCallable, Category=Water, meta = (DeprecatedFunction))
-	void OnWaterBodyChanged(bool bShapeOrPositionChanged, bool bWeightmapSettingsChanged = false)
-	{ 
-		FOnWaterBodyChangedParams Params;
-		Params.bShapeOrPositionChanged = bShapeOrPositionChanged;
-		Params.bWeightmapSettingsChanged = bWeightmapSettingsChanged;
-		return WaterBodyComponent->OnWaterBodyChanged(Params);
-	}
+	void OnWaterBodyChanged(bool bShapeOrPositionChanged, bool bWeightmapSettingsChanged = false) {}
 
-#if WITH_EDITOR
-	UE_DEPRECATED(5.1, "Moved to WaterBodyComponent")
-	virtual bool IsIconVisible() const { return WaterBodyComponent->IsIconVisible(); }
-#endif // WITH_EDITOR
 protected:
 	friend class UWaterBodyComponent;
 #if WITH_EDITORONLY_DATA
@@ -299,7 +289,7 @@ protected:
 	float ShapeDilation_DEPRECATED = 4096.0f;
 #endif // WITH_EDITORONLY_DATA
 
-#pragma endregion // deprecated
+#pragma endregion // Deprecated
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

@@ -828,14 +828,6 @@ FMatrix44f ULandscapeTexturePatch::GetPatchToHeightmapUVs(int32 PatchSizeX, int3
 	return (FMatrix44f)PatchToLandscapeUVTransposed.GetTransposed();
 }
 
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-bool ULandscapeTexturePatch::IsAffectingWeightmapLayer(const FName& InLayerName) const
-{
-	return AffectsWeightmapLayer(InLayerName);
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 bool ULandscapeTexturePatch::AffectsWeightmapLayer(const FName& InLayerName) const
 {
 	if (!IsEnabled())

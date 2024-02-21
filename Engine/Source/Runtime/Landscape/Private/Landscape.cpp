@@ -884,7 +884,9 @@ void ULandscapeComponent::Serialize(FArchive& Ar)
 		Ar << LegacyMapBuildData->ShadowMap;
 
 #if WITH_EDITORONLY_DATA
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		LegacyMapBuildData->IrrelevantLights = IrrelevantLights_DEPRECATED;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif // WITH_EDITORONLY_DATA
 
 		FMeshMapBuildLegacyData LegacyComponentData;
@@ -895,6 +897,7 @@ void ULandscapeComponent::Serialize(FArchive& Ar)
 #if WITH_EDITORONLY_DATA
 	if (Ar.IsLoading() && Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::NewLandscapeMaterialPerLOD)
 	{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		if (MobileMaterialInterface_DEPRECATED != nullptr)
 		{
 			MobileMaterialInterfaces.AddUnique(MobileMaterialInterface_DEPRECATED);
@@ -904,6 +907,7 @@ void ULandscapeComponent::Serialize(FArchive& Ar)
 		{
 			MobileCombinationMaterialInstances.AddUnique(MobileCombinationMaterialInstance_DEPRECATED);
 		}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 #endif // WITH_EDITORONLY_DATA
 
@@ -1269,6 +1273,8 @@ void ULandscapeComponent::PostLoad()
 
 #if WITH_EDITORONLY_DATA
 	// Handle old MaterialInstance
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if (MaterialInstance_DEPRECATED)
 	{
 		MaterialInstances.Empty(1);
@@ -1281,6 +1287,7 @@ void ULandscapeComponent::PostLoad()
 			UpdateMaterialInstances();
 		}
 	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	if (CVarStripLayerTextureMipsOnLoad->GetBool())
 	{
@@ -1485,12 +1492,14 @@ void ULandscapeComponent::PostLoad()
 	GrassData->ConditionalDiscardDataOnLoad();
 
 #if WITH_EDITORONLY_DATA
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	// If the Collision Component is not set yet and we're transferring the property from the lazy object pointer it was previously stored as to the soft object ptr it is now stored as :
 	if (!CollisionComponentRef && CollisionComponent_DEPRECATED.IsValid())
 	{
 		CollisionComponentRef = CollisionComponent_DEPRECATED.Get();
 		CollisionComponent_DEPRECATED = nullptr;
 	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// If mip-to-mip info is missing, recompute them (they were introduced later) :
 	if (MipToMipMaxDeltas.IsEmpty())
@@ -3697,6 +3706,7 @@ void ALandscapeProxy::Serialize(FArchive& Ar)
 #if WITH_EDITORONLY_DATA
 	if (Ar.IsLoading() && Ar.CustomVer(FLandscapeCustomVersion::GUID) < FLandscapeCustomVersion::MigrateOldPropertiesToNewRenderingProperties)
 	{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		if (LODDistanceFactor_DEPRECATED > 0)
 		{
 			const float LOD0LinearDistributionSettingMigrationTable[11] = { 1.75f, 1.75f, 1.75f, 1.75f, 1.75f, 1.68f, 1.55f, 1.4f, 1.25f, 1.25f, 1.25f };
@@ -3715,6 +3725,7 @@ void ALandscapeProxy::Serialize(FArchive& Ar)
 				LODDistributionSetting = LODDSquareRootDistributionSettingMigrationTable[FMath::RoundToInt(LODDistanceFactor_DEPRECATED)];
 			}
 		}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 #endif
@@ -4130,7 +4141,7 @@ void ALandscapeProxy::PostLoad()
 	}
 
 #if WITH_EDITOR
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if (!LandscapeMaterialsOverride_DEPRECATED.IsEmpty())
 	{
 		PerLODOverrideMaterials.Reserve(LandscapeMaterialsOverride_DEPRECATED.Num());
@@ -4140,8 +4151,7 @@ void ALandscapeProxy::PostLoad()
 		}
 		LandscapeMaterialsOverride_DEPRECATED.Reset();
 	}
-	
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	if (GIsEditor)
 	{
@@ -4175,6 +4185,7 @@ void ALandscapeProxy::PostLoad()
 
 	EditorLayerSettings.RemoveAll([](const FLandscapeEditorLayerSettings& Settings) { return Settings.LayerInfoObj == nullptr; });
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if (EditorCachedLayerInfos_DEPRECATED.Num() > 0)
 	{
 		for (int32 i = 0; i < EditorCachedLayerInfos_DEPRECATED.Num(); i++)
@@ -4183,6 +4194,7 @@ void ALandscapeProxy::PostLoad()
 		}
 		EditorCachedLayerInfos_DEPRECATED.Empty();
 	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	bool bFixedUpInvalidMaterialInstances = false;
 
@@ -4381,98 +4393,6 @@ void ALandscapeProxy::Destroyed()
 		FeatureLevelChangedDelegateHandle.Reset();
 	}
 }
-#endif // WITH_EDITOR
-
-void ALandscapeProxy::GetSharedProperties(ALandscapeProxy* Landscape)
-{
-	if (Landscape)
-	{
-		Modify();
-
-		LandscapeGuid = Landscape->LandscapeGuid;
-		OriginalLandscapeGuid = Landscape->OriginalLandscapeGuid;
-
-		//@todo UE merge, landscape, this needs work
-		RootComponent->SetRelativeScale3D(Landscape->GetRootComponent()->GetComponentToWorld().GetScale3D());
-
-		StaticLightingResolution = Landscape->StaticLightingResolution;
-		CastShadow = Landscape->CastShadow;
-		bCastDynamicShadow = Landscape->bCastDynamicShadow;
-		bCastStaticShadow = Landscape->bCastStaticShadow;
-		bCastContactShadow = Landscape->bCastContactShadow;
-		bCastFarShadow = Landscape->bCastFarShadow;
-		bCastHiddenShadow = Landscape->bCastHiddenShadow;
-		bCastShadowAsTwoSided = Landscape->bCastShadowAsTwoSided;
-		bAffectDistanceFieldLighting = Landscape->bAffectDistanceFieldLighting;
-		LightingChannels = Landscape->LightingChannels;
-		bRenderCustomDepth = Landscape->bRenderCustomDepth;
-		CustomDepthStencilWriteMask = Landscape->CustomDepthStencilWriteMask;
-		CustomDepthStencilValue = Landscape->CustomDepthStencilValue;
-		LDMaxDrawDistance = Landscape->LDMaxDrawDistance;
-		ComponentSizeQuads = Landscape->ComponentSizeQuads;
-		NumSubsections = Landscape->NumSubsections;
-		SubsectionSizeQuads = Landscape->SubsectionSizeQuads;
-		MaxLODLevel = Landscape->MaxLODLevel;
-		ScalableLODDistributionSetting = Landscape->ScalableLODDistributionSetting;
-		ScalableLOD0DistributionSetting = Landscape->ScalableLOD0DistributionSetting;
-		ScalableLOD0ScreenSize = Landscape->ScalableLOD0ScreenSize;
-		LODDistributionSetting = Landscape->LODDistributionSetting;
-		LOD0DistributionSetting = Landscape->LOD0DistributionSetting;
-		LOD0ScreenSize = Landscape->LOD0ScreenSize;
-		LODGroupKey = Landscape->LODGroupKey;
-		NegativeZBoundsExtension = Landscape->NegativeZBoundsExtension;
-		PositiveZBoundsExtension = Landscape->PositiveZBoundsExtension;
-		CollisionMipLevel = Landscape->CollisionMipLevel;
-		bBakeMaterialPositionOffsetIntoCollision = Landscape->bBakeMaterialPositionOffsetIntoCollision;
-		RuntimeVirtualTextures = Landscape->RuntimeVirtualTextures;
-		VirtualTextureLodBias = Landscape->VirtualTextureLodBias;
-		bVirtualTextureRenderWithQuad = Landscape->bVirtualTextureRenderWithQuad;
-		bVirtualTextureRenderWithQuadHQ = Landscape->bVirtualTextureRenderWithQuadHQ;
-		VirtualTextureNumLods = Landscape->VirtualTextureNumLods;
-		VirtualTextureRenderPassType = Landscape->VirtualTextureRenderPassType;
-		bEnableNanite = Landscape->bEnableNanite;
-		ShadowCacheInvalidationBehavior = Landscape->ShadowCacheInvalidationBehavior;
-		NonNaniteVirtualShadowMapConstantDepthBias = Landscape->NonNaniteVirtualShadowMapConstantDepthBias;
-		NonNaniteVirtualShadowMapInvalidationHeightErrorThreshold = Landscape->NonNaniteVirtualShadowMapInvalidationHeightErrorThreshold;
-		NonNaniteVirtualShadowMapInvalidationScreenSizeLimit = Landscape->NonNaniteVirtualShadowMapInvalidationScreenSizeLimit;
-
-		bUseCompressedHeightmapStorage = Landscape->bUseCompressedHeightmapStorage;
-#if WITH_EDITORONLY_DATA
-		bNaniteSkirtEnabled = Landscape->bNaniteSkirtEnabled;
-		NaniteSkirtDepth = Landscape->NaniteSkirtDepth;
-		NaniteLODIndex = Landscape->NaniteLODIndex;
-#endif // WITH_EDITORONLY_DATA
-
-		if (!LandscapeMaterial)
-		{
-			LandscapeMaterial = Landscape->LandscapeMaterial;
-			PerLODOverrideMaterials = Landscape->PerLODOverrideMaterials;
-		}
-		if (!LandscapeHoleMaterial)
-		{
-			LandscapeHoleMaterial = Landscape->LandscapeHoleMaterial;
-		}
-		if (!DefaultPhysMaterial)
-		{
-			DefaultPhysMaterial = Landscape->DefaultPhysMaterial;
-		}
-		LightmassSettings = Landscape->LightmassSettings;
-	}
-
-#if WITH_EDITOR
-	if (GIsEditor && Landscape)
-	{
-		LODDistanceFactor_DEPRECATED = Landscape->LODDistanceFactor_DEPRECATED;
-		LODFalloff_DEPRECATED = Landscape->LODFalloff_DEPRECATED;
-		if (LandscapeMaterial == Landscape->LandscapeMaterial)
-		{
-			EditorLayerSettings = Landscape->EditorLayerSettings;
-		}
-	}
-#endif // WITH_EDITOR
-}
-
-#if WITH_EDITOR
 
 namespace UE::Landscape::Private
 {
@@ -5411,22 +5331,6 @@ void ULandscapeInfo::Initialize(UWorld* InWorld, const FGuid& InLandscapeGuid)
 	LandscapeGuid = InLandscapeGuid;
 }
 
-void ULandscapeInfo::ForAllLandscapeProxies(TFunctionRef<void(ALandscapeProxy*)> Fn) const
-{
-	if (ALandscape* Landscape = LandscapeActor.Get())
-	{
-		Fn(Landscape);
-	}
-
-	for (TWeakObjectPtr<ALandscapeStreamingProxy> StreamingProxyPtr : StreamingProxies)
-	{
-		if (ALandscapeProxy* LandscapeProxy = StreamingProxyPtr.Get())
-		{
-			Fn(LandscapeProxy);
-		}
-	}
-}
-
 void ULandscapeInfo::ForEachLandscapeProxy(TFunctionRef<bool(ALandscapeProxy*)> Fn) const
 {
 	if (ALandscape* Landscape = LandscapeActor.Get())
@@ -6120,22 +6024,8 @@ void ULandscapeComponent::PostInitProperties()
 {
 	Super::PostInitProperties();
 
-	// Create a new guid in case this is a newly created component
-	// If not, this guid will be overwritten when serialized
-	FPlatformMisc::CreateGuid(StateId);
-
 	// Initialize MapBuildDataId to something unique, in case this is a new ULandscapeComponent
 	MapBuildDataId = FGuid::NewGuid();
-}
-
-void ULandscapeComponent::PostDuplicate(bool bDuplicateForPIE)
-{
-	if (!bDuplicateForPIE)
-	{
-		// Reset the StateId on duplication since it needs to be unique for each capture.
-		// PostDuplicate covers direct calls to StaticDuplicateObject, but not actor duplication (see PostEditImport)
-		FPlatformMisc::CreateGuid(StateId);
-	}
 }
 
 ULandscapeWeightmapUsage::ULandscapeWeightmapUsage(const FObjectInitializer& ObjectInitializer)

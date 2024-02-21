@@ -247,7 +247,7 @@ public:
 	UMaterialInstanceDynamic* GetWaterStaticMeshMaterialInstance();
 
 	/** Returns water LOD MID */
-	UE_DEPRECATED(5.3, "GetWaterLODMaterialInstance has been renamed to GetWaterStaticMeshMaterialInstance.")
+	UE_DEPRECATED(all, "GetWaterLODMaterialInstance has been renamed to GetWaterStaticMeshMaterialInstance.")
 	UFUNCTION(BlueprintCallable, Category = Rendering, meta=(DeprecationMessage="GetWaterLODMaterialInstance has been renamed to GetWaterStaticMeshMaterialInstance"))
 	UMaterialInstanceDynamic* GetWaterLODMaterialInstance() { return GetWaterStaticMeshMaterialInstance(); };
 
@@ -420,21 +420,9 @@ public:
 
 	const FWaterBodyStaticMeshSettings& GetWaterBodyStaticMeshSettings() const { return StaticMeshSettings; }
 	
-	UE_DEPRECATED(5.1, "Renamed to CanEverAffectWaterMesh")
-	virtual bool CanAffectWaterMesh() const { return true; }
-
-	UE_DEPRECATED(5.1, "Use the version of this function taking FOnWaterBodyChangedParams in parameter")
-	void UpdateAll(bool bShapeOrPositionChanged) {}
-
-	UE_DEPRECATED(5.2, "Use version which takes FOnWaterBodyChangedParams")
+	UE_DEPRECATED(all, "Use version which takes FOnWaterBodyChangedParams")
 	UFUNCTION(BlueprintCallable, Category=Water, meta=(Deprecated = "5.2"))
-	void OnWaterBodyChanged(bool bShapeOrPositionChanged, bool bWeightmapSettingsChanged = false, bool bUserTriggeredChanged = false);
-
-	UE_DEPRECATED(5.3, "Renamed to GetWaterStaticMeshMaterial")
-	UMaterialInterface* GetWaterLODMaterial() const { return GetWaterStaticMeshMaterial(); }
-
-	UE_DEPRECATED(5.3, "Renamed to SetWaterStaticMeshMaterial")
-	void SetWaterLODMaterial(UMaterialInterface* InMaterial) { SetWaterStaticMeshMaterial(InMaterial); }
+	void OnWaterBodyChanged(bool bShapeOrPositionChanged, bool bWeightmapSettingsChanged = false, bool bUserTriggeredChanged = false) {}
 
 protected:
 	//~ Begin UActorComponent interface.
@@ -454,9 +442,6 @@ protected:
 
 	/** Returns whether the body support a height offset */
 	virtual bool IsHeightOffsetSupported() const;
-
-	UE_DEPRECATED(5.1, "Please use CanEverAffectNavigation() instead.")
-	virtual bool CanAffectNavigation() const { return false; }
 
 	/** Called every time UpdateAll is called on WaterBody (prior to UpdateWaterBody) */
 	virtual void BeginUpdateWaterBody();
@@ -498,8 +483,6 @@ protected:
 
 #if WITH_EDITOR
 	/** Called by UWaterBodyComponent::PostEditChangeProperty. */
-	UE_DEPRECATED(5.1, "Use the version of the function taking FOnWaterBodyChangedParams")
-	virtual void OnPostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent, bool& bShapeOrPositionChanged, bool& bWeightmapSettingsChanged) {}
 	virtual void OnPostEditChangeProperty(FOnWaterBodyChangedParams& InOutOnWaterBodyChangedParams);
 
 	/** Validates this component's data */
@@ -546,8 +529,6 @@ protected:
 	virtual void PostEditUndo() override;
 	virtual void PostEditImport() override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-	UE_DEPRECATED(5.1, "Use OnWaterSplineDataChanged")
-	void OnSplineDataChanged() {}
 	void OnWaterSplineDataChanged(const FOnWaterSplineDataChangedParams& InParams);
 	void RegisterOnUpdateWavesData(UWaterWavesBase* InWaterWaves, bool bRegister);
 	void OnWavesDataUpdated(UWaterWavesBase* InWaterWaves, EPropertyChangeType::Type InChangeType);
@@ -562,8 +543,6 @@ protected:
 	virtual TSubclassOf<class UHLODBuilder> GetCustomHLODBuilderClass() const override;
 #endif // WITH_EDITOR
 
-	UE_DEPRECATED(5.2, "This function is no longer called. Instead uses UWaterSubsystem::FindWaterZone to determine the right water zone when no override is provided.")
-	AWaterZone* FindWaterZone() const { return nullptr; }
 public:
 	// INavRelevantInterface start
 	virtual void GetNavigationData(struct FNavigationRelevantData& Data) const override;

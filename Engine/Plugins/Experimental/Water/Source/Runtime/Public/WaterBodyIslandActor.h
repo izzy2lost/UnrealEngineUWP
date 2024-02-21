@@ -95,18 +95,10 @@ protected:
 	virtual void PostEditUndo() override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual void PostEditImport() override;
-	UE_DEPRECATED(5.1, "Use the version of this function taking FOnWaterBodyIslandChangedParams in parameter")
-	void UpdateAll() {}
 	void UpdateAll(const FOnWaterBodyIslandChangedParams& InParams);
 	
 	void OnWaterSplineDataChanged(const FOnWaterSplineDataChangedParams& InParams);
 	void OnWaterBodyIslandChanged(const FOnWaterBodyIslandChangedParams& InParams);
-
-	UE_DEPRECATED(5.1, "Use OnWaterSplineDataChanged")
-	void OnSplineDataChanged() {}
-
-	UE_DEPRECATED(5.1, "Use the version of this function taking a FOnWaterBodyIslandChangedParams in parameter")
-	void OnWaterBodyIslandChanged(bool bShapeOrPositionChanged, bool bWeightmapSettingsChanged) {}
 
 #endif
 

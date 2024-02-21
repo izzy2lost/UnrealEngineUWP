@@ -223,8 +223,6 @@ public:
 	UTextureRenderTarget2D* RenderLayer_Native(const FLandscapeBrushParameters& InParameters);
 
 	// ULandscapePatchComponent
-	UE_DEPRECATED(5.3, "Use AffectsWeightmapLayer")
-	virtual bool IsAffectingWeightmapLayer(const FName& InLayerName) const override;
 	virtual bool AffectsWeightmapLayer(const FName& InLayerName) const override;
 	virtual bool AffectsVisibilityLayer() const override;
 	virtual bool IsEnabled() const override;
