@@ -383,8 +383,11 @@ void UMovieScenePostEvalEventSystem::OnRun(FSystemTaskPrerequisites& InPrerequis
 {
 	if (HasEvents())
 	{
-		TSharedRef<FMovieSceneEntitySystemRunner> Runner = Linker->GetRunner();
-		Runner->GetQueuedEventTriggers().AddUObject(this, &UMovieScenePostEvalEventSystem::TriggerAllEvents);
+		FMovieSceneEntitySystemRunner* Runner = Linker->GetActiveRunner();
+		if (ensure(Runner))
+		{
+			Runner->GetQueuedEventTriggers().AddUObject(this, &UMovieScenePostEvalEventSystem::TriggerAllEvents);
+		}
 	}
 }
 

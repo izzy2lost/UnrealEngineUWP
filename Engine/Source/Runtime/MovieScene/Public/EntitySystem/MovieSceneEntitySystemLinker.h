@@ -337,17 +337,14 @@ public:
 	MOVIESCENE_API void InvalidateObjectBinding(const FGuid& ObjectBindingID, FInstanceHandle InstanceHandle);
 	MOVIESCENE_API void CleanupInvalidBoundObjects();
 
-	MOVIESCENE_API bool StartEvaluation();
-	MOVIESCENE_API TSharedRef<FMovieSceneEntitySystemRunner> GetRunner() const;
-	MOVIESCENE_API void PostInstantation();
-	MOVIESCENE_API void EndEvaluation();
+	MOVIESCENE_API bool StartEvaluation(FMovieSceneEntitySystemRunner& InRunner);
+	MOVIESCENE_API FMovieSceneEntitySystemRunner* GetActiveRunner() const;
+	MOVIESCENE_API void PostInstantation(FMovieSceneEntitySystemRunner& InRunner);
+	MOVIESCENE_API void EndEvaluation(FMovieSceneEntitySystemRunner& InRunner);
 
-	MOVIESCENE_API void ResetRunner();
+	MOVIESCENE_API void ResetActiveRunners();
 
 	MOVIESCENE_API void DestroyInstanceImmediately(UE::MovieScene::FRootInstanceHandle Instance);
-
-	UE_DEPRECATED(5.5, "Please use GetRunner()")
-	FMovieSceneEntitySystemRunner* GetActiveRunner() const { return &GetRunner().Get(); }
 
 private:
 
@@ -373,8 +370,8 @@ private:
 	TSparseArray<UMovieSceneEntitySystem*> EntitySystemsByGlobalGraphID;
 	TMap<TObjectPtr<UClass>, TObjectPtr<UMovieSceneEntitySystem>> EntitySystemsRecyclingPool;
 
-	TSharedPtr<FMovieSceneEntitySystemRunner> Runner;
-	TBitArray<> RunnerReentrancyFlags;
+	TArray<FMovieSceneEntitySystemRunner*> ActiveRunners;
+	TBitArray<> ActiveRunnerReentrancyFlags;
 
 	TSparseArray<void*> ExtensionsByID;
 

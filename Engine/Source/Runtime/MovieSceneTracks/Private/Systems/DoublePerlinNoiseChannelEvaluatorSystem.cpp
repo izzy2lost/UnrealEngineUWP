@@ -83,7 +83,11 @@ void UDoublePerlinNoiseChannelEvaluatorSystem::OnRun(FSystemTaskPrerequisites& I
 	const FBuiltInComponentTypes* BuiltInComponents = FBuiltInComponentTypes::Get();
 	const FMovieSceneTracksComponentTypes* TrackComponents = FMovieSceneTracksComponentTypes::Get();
 
-	TSharedRef<FMovieSceneEntitySystemRunner> Runner = Linker->GetRunner();
+	FMovieSceneEntitySystemRunner* Runner = Linker->GetActiveRunner();
+	if (!Runner)
+	{
+		return;
+	}
 
 	if (Runner->GetCurrentPhase() == ESystemPhase::Instantiation)
 	{

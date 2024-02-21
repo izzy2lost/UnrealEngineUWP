@@ -1020,7 +1020,7 @@ void UMovieSceneSkeletalAnimationSystem::OnRun(FSystemTaskPrerequisites& InPrere
 
 	const TStatId GatherStatId = GET_STATID(MovieSceneEval_GatherSkeletalAnimations);
 
-	TSharedRef<FMovieSceneEntitySystemRunner> Runner = Linker->GetRunner();
+	const FMovieSceneEntitySystemRunner* Runner = Linker->GetActiveRunner();
 	if (Runner->GetCurrentPhase() == ESystemPhase::Instantiation)
 	{
 		CleanSystemData();

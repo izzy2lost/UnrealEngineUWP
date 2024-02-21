@@ -218,7 +218,11 @@ void UFloatChannelEvaluatorSystem::OnRun(FSystemTaskPrerequisites& InPrerequisit
 {
 	using namespace UE::MovieScene;
 
-	TSharedRef<FMovieSceneEntitySystemRunner> Runner = Linker->GetRunner();
+	FMovieSceneEntitySystemRunner* Runner = Linker->GetActiveRunner();
+	if (!Runner)
+	{
+		return;
+	}
 
 	FBuiltInComponentTypes* BuiltInComponents = FBuiltInComponentTypes::Get();
 

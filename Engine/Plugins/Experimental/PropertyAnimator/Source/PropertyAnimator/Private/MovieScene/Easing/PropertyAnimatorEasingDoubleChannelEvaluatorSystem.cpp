@@ -78,7 +78,11 @@ void UPropertyAnimatorEasingDoubleChannelEvaluatorSystem::OnRun(FSystemTaskPrere
 	const FBuiltInComponentTypes* BuiltInComponents = FBuiltInComponentTypes::Get();
 	const FPropertyAnimatorComponentTypes* PropertyAnimatorComponents = FPropertyAnimatorComponentTypes::Get();
 
-	TSharedRef<FMovieSceneEntitySystemRunner> Runner = Linker->GetRunner();
+	FMovieSceneEntitySystemRunner* Runner = Linker->GetActiveRunner();
+	if (!Runner)
+	{
+		return;
+	}
 
 	if (Runner->GetCurrentPhase() == ESystemPhase::Instantiation)
 	{

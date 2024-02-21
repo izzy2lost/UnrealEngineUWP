@@ -59,7 +59,7 @@ void UMovieSceneMotionVectorSimulationSystem::OnRun(FSystemTaskPrerequisites& In
 {
 	using namespace UE::MovieScene;
 
-	TSharedRef<FMovieSceneEntitySystemRunner> Runner = Linker->GetRunner();
+	FMovieSceneEntitySystemRunner* Runner = Linker->GetActiveRunner();
 	if (Runner->GetCurrentPhase() == ESystemPhase::Finalization && bSimulationEnabled)
 	{
 		Runner->GetQueuedEventTriggers().AddLambda([this] { this->OnPostEvaluation(); });
@@ -135,8 +135,11 @@ void UMovieSceneMotionVectorSimulationSystem::ComputeSimulatedMotion()
 
 	// --------------------------------------------------------------------------------------------------------------------------------------------
 	// Re-execute the evaluation phase to flush the new transforms
-	TSharedRef<FMovieSceneEntitySystemRunner> Runner = Linker->GetRunner();
-	Runner->FlushSingleEvaluationPhase();
+	FMovieSceneEntitySystemRunner* ActiveRunner = Linker->GetActiveRunner();
+	if (ensure(ActiveRunner))
+	{
+		ActiveRunner->FlushSingleEvaluationPhase();
+	}
 
 	// --------------------------------------------------------------------------------------------------------------------------------------------
 	// Harvest results

@@ -18,7 +18,7 @@ FSharedPlaybackState::FSharedPlaybackState(
 		const FSharedPlaybackStateCreateParams& CreateParams)
 	: WeakRootSequence(&InRootSequence)
 	, WeakPlaybackContext(CreateParams.PlaybackContext)
-	, WeakLinker(CreateParams.Linker)
+	, WeakRunner(CreateParams.Runner)
 	, CompiledDataManager(CreateParams.CompiledDataManager)
 	, RootInstanceHandle(CreateParams.RootInstanceHandle)
 {
@@ -28,11 +28,11 @@ FSharedPlaybackState::FSharedPlaybackState(
 	}
 }
 
-TSharedPtr<FMovieSceneEntitySystemRunner> FSharedPlaybackState::GetRunner() const
+UMovieSceneEntitySystemLinker* FSharedPlaybackState::GetLinker() const
 {
-	if (UMovieSceneEntitySystemLinker* Linker = WeakLinker.Get())
+	if (TSharedPtr<FMovieSceneEntitySystemRunner> Runner = WeakRunner.Pin())
 	{
-		return Linker->GetRunner();
+		return Runner->GetLinker();
 	}
 	return nullptr;
 }

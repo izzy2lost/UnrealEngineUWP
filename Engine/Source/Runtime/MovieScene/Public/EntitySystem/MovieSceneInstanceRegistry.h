@@ -12,6 +12,7 @@
 #include "MovieSceneSequenceID.h"
 
 
+class FMovieSceneEntitySystemRunner;
 class UMovieSceneCompiledDataManager;
 class UMovieSceneEntitySystemLinker;
 class UMovieSceneCompiledDataManager;
@@ -86,6 +87,7 @@ struct FInstanceRegistry
 	MOVIESCENE_API FRootInstanceHandle AllocateRootInstance(
 			UMovieSceneSequence& InRootSequence,
 			UObject* InPlaybackContext = nullptr,
+			TSharedPtr<FMovieSceneEntitySystemRunner> InRunner = nullptr,
 			UMovieSceneCompiledDataManager* InCompiledDataManager = nullptr);
 
 	MOVIESCENE_API FInstanceHandle AllocateSubInstance(

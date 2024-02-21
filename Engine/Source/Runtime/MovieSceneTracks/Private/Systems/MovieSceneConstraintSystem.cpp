@@ -254,8 +254,8 @@ void UMovieSceneConstraintSystem::OnRun(FSystemTaskPrerequisites& InPrerequisite
 {
 	using namespace UE::MovieScene;
 
-	TSharedRef<FMovieSceneEntitySystemRunner> Runner = Linker->GetRunner();
-	ESystemPhase CurrentPhase = Runner->GetCurrentPhase();
+	FMovieSceneEntitySystemRunner* ActiveRunner = Linker->GetActiveRunner();
+	ESystemPhase CurrentPhase = ActiveRunner->GetCurrentPhase();
 
 	if (CurrentPhase == ESystemPhase::Instantiation)
 	{

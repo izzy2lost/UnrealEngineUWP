@@ -211,11 +211,18 @@ UCameraAnimationSequenceSubsystem::~UCameraAnimationSequenceSubsystem()
 
 void UCameraAnimationSequenceSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
+	Runner = MakeShared<FMovieSceneEntitySystemRunner>();
 }
 
 void UCameraAnimationSequenceSubsystem::Deinitialize()
 {
-	Runner = nullptr;
+	// We check if the runner still has a valid pointer on the linker because the linker could
+	// have been GC'ed just now, which would make DetachFromLinker complain.
+	if (Runner->GetLinker())
+	{
+		Runner->DetachFromLinker();
+		Runner = nullptr;
+	}
 	Linker = nullptr;
 
 	Super::Deinitialize();
@@ -226,7 +233,7 @@ UMovieSceneEntitySystemLinker* UCameraAnimationSequenceSubsystem::GetLinker(bool
 	if (!Linker && bAutoCreate)
 	{
 		Linker = CreateLinker(this, TEXT("CameraAnimationSequenceSubsystemLinker"));
-		Runner = Linker->GetRunner();
+		Runner->AttachToLinker(Linker);
 	}
 	return Linker;
 }

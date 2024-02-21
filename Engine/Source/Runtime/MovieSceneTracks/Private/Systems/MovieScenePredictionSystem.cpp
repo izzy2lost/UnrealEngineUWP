@@ -408,7 +408,11 @@ void UMovieScenePredictionSystem::OnRun(FSystemTaskPrerequisites& InPrerequisite
 {
 	using namespace UE::MovieScene;
 
-	TSharedRef<FMovieSceneEntitySystemRunner> Runner = Linker->GetRunner();
+	FMovieSceneEntitySystemRunner* Runner = Linker->GetActiveRunner();
+	if (!ensure(Runner))
+	{
+		return;
+	}
 
 	FInstanceRegistry* InstanceRegistry = Linker->GetInstanceRegistry();
 

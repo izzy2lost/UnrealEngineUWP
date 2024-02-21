@@ -374,7 +374,9 @@ void UCameraAnimationSequencePlayer::Initialize(UMovieSceneSequence* InSequence,
 
 	UCameraAnimationSequenceSubsystem* Subsystem = UCameraAnimationSequenceSubsystem::GetCameraAnimationSequenceSubsystem(GetWorld());
 	ensureMsgf(Subsystem, TEXT("Unable to locate a valid camera animation sub-system. Camera anim sequences will not play."));
-	RootTemplateInstance.Initialize(*Sequence, *this, nullptr);
+
+	TSharedPtr<FMovieSceneEntitySystemRunner> Runner = Subsystem ? Subsystem->GetRunner() : nullptr;
+	RootTemplateInstance.Initialize(*Sequence, *this, nullptr, Runner);
 }
 
 void UCameraAnimationSequencePlayer::Play(bool bLoop, bool bRandomStartTime)

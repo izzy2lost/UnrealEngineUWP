@@ -36,8 +36,9 @@ namespace UE::AvaSequence::Private
 	{
 	public:
 		FTransientPlayer(UAvaSequence& InSequence)
+			: Runner(MakeShared<FMovieSceneEntitySystemRunner>())
 		{
-			Template.Initialize(InSequence, *this, nullptr);
+			Template.Initialize(InSequence, *this, nullptr, Runner);
 			State.AssignSequence(MovieSceneSequenceID::Root, InSequence, *this);
 		}
 
@@ -50,6 +51,8 @@ namespace UE::AvaSequence::Private
 		//~ End IMovieScenePlayer
 
 	private:
+		TSharedRef<FMovieSceneEntitySystemRunner> Runner;
+
 		FMovieSceneRootEvaluationTemplateInstance Template;
 	};
 }

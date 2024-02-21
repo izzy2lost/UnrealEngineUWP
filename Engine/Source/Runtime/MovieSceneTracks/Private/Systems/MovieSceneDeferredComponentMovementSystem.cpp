@@ -145,8 +145,8 @@ void UMovieSceneDeferredComponentMovementSystem::OnRun(FSystemTaskPrerequisites&
 {
 	using namespace UE::MovieScene;
 
-	TSharedRef<FMovieSceneEntitySystemRunner> Runner = Linker->GetRunner();
-	ESystemPhase CurrentPhase = Runner->GetCurrentPhase();
+	FMovieSceneEntitySystemRunner* ActiveRunner = Linker->GetActiveRunner();
+	ESystemPhase CurrentPhase = ActiveRunner->GetCurrentPhase();
 
 	FBuiltInComponentTypes*          BuiltInComponents = FBuiltInComponentTypes::Get();
 	FMovieSceneTracksComponentTypes* Components        = FMovieSceneTracksComponentTypes::Get();
