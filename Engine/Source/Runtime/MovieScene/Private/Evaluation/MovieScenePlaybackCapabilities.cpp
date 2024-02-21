@@ -18,7 +18,7 @@ FPlaybackCapabilities::FPlaybackCapabilities(FPlaybackCapabilities&& RHS)
 
 FPlaybackCapabilities& FPlaybackCapabilities::operator=(FPlaybackCapabilities&& RHS)
 {
-	if (!ensure(this != &RHS))
+	if (ensure(this != &RHS))
 	{
 		Destroy();
 
