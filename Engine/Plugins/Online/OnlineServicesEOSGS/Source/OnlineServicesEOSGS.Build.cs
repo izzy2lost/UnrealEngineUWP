@@ -36,5 +36,11 @@ public class OnlineServicesEOSGS : ModuleRules
 				}
 			);
 		}
+
+		if (Target.Platform == UnrealTargetPlatform.IOS)
+		{
+			PublicWeakFrameworks.Add("AuthenticationServices");
+			PrivateDependencyModuleNames.Add("ApplicationCore");
+		}
 	}
 }
