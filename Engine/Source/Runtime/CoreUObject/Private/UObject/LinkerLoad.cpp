@@ -4090,28 +4090,11 @@ UClass* FLinkerLoad::TryCreatePlaceholderTypeForExport(int32 ExportIndex)
 			{
 				if (UClass* LoadClassType = FindObjectFast<UClass>(LoadClassTypePackage, LoadClassImport.ClassName, /*bExactClass =*/ false))
 				{
-					// Create an opaque, non-native subtype that has no reflected properties. 
-					LoadClass = NewObject<UClass>(LoadClassParent, LoadClassType, LoadClassImport.ObjectName);
-					LoadClass->SetSuperStruct(UObject::StaticClass());
-					LoadClass->Bind();
-					LoadClass->StaticLink(/*bRelinkExistingProperties =*/ true);
-
-					// Create and configure its CDO as if it were loaded - for non-native class types, this is required.
-					UObject* LoadClassDefaults = LoadClass->GetDefaultObject();
-					LoadClass->PostLoadDefaultObject(LoadClassDefaults);
-
-					// This class is for internal use and should not be exposed for selection or instancing in the editor.
-					LoadClass->ClassFlags |= CLASS_Hidden | CLASS_HideDropDown;
+					// Create an opaque, non-native transient type object that has no reflected properties.
+					LoadClass = UE::FPropertyBagRepository::CreatePropertyBagPlaceholderClass(LoadClassParent, LoadClassType, LoadClassImport.ObjectName, RF_Transient);
 
 					// Patch it into the import table so that we resolve to this class for any future exports of this type.
 					LoadClassImport.XObject = LoadClass;
-
-					// Modify the export's object flags for instancing to indicate that its load class is a placeholder type.
-					Export.ObjectFlags |= RF_HasPlaceholderType;
-
-					// Use the property bag repository for now to manage property bag placeholder types (e.g. object lifetime).
-					// Note: The object lifetime of instances of this type will rely on existing references that are serialized.
-					UE::FPropertyBagRepository::AddPropertyBagPlaceholderType(LoadClass);
 				}
 			}
 		}
@@ -5089,6 +5072,11 @@ UObject* FLinkerLoad::CreateExport( int32 Index )
 		if( !LoadClass && Export.ObjectName.IsNone() && Export.ClassIndex.IsNull() && !Export.OldClassName.IsNone() )
 		{
 			return nullptr;
+		}
+		else if (LoadClass && UE::FPropertyBagRepository::IsPropertyBagPlaceholderType(LoadClass))
+		{
+			// Modify the export's object flags for instancing to indicate that it has a placeholder type.
+			Export.ObjectFlags |= RF_HasPlaceholderType;
 		}
 #endif
 		if( !LoadClass )
@@ -6222,7 +6210,7 @@ FArchive& FLinkerLoad::operator<<(FObjectPtr& ObjectPtr)
 			// as also being a placeholder instance. That's because there are certain paths that need to be able
 			// to resolve the pointer (e.g. - the object initialization path during class construction). However,
 			// it also means we can't resolve other references to a placeholder CDO, as they may not be type-safe.
-			if (ResolvedObject->HasAnyFlags(RF_ClassDefaultObject))
+			if (UNLIKELY(ResolvedObject->HasAnyFlags(RF_ClassDefaultObject)))
 #endif
 			{
 				UE_LOG(LogLinker, Warning, TEXT("Serializing reference to \"%s\" as NULL to ensure type safety."), *ResolvedObject->GetPathName());

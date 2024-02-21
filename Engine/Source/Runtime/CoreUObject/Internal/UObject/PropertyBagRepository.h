@@ -51,7 +51,7 @@ private:
 	TMap<const UObjectBase*, TObjectPtr<UObject>> Namespaces;
 
 	/** Internal registry that tracks the current set of types for property bag container objects instanced as placeholders for package exports that have invalid or missing class imports on load. */
-	TUniquePtr<class FPropertyBagTypeRegistry> PropertyBagTypeRegistry;
+	TUniquePtr<class FPropertyBagPlaceholderTypeRegistry> PropertyBagPlaceholderTypeRegistry;
 
 	FPropertyBagRepository();
 
@@ -113,12 +113,20 @@ public:
 	virtual FString GetReferencerName() const override;
 	// End FGCObject interface
 
-	// add a new placeholder type to swap in for a missing type on load; this will be associated with a property bag when instances are serialized so we don't lose its data
-	static void AddPropertyBagPlaceholderType(UClass* ClassType);
+	// query for whether or not the given struct/class is a placeholder type
+	static COREUOBJECT_API bool IsPropertyBagPlaceholderType(UStruct* Type);
 	// query for whether or not the given object was created as a placeholder type
 	static COREUOBJECT_API bool IsPropertyBagPlaceholderObject(UObject* Object);
 	// query for whether or not creating property bag placeholder objects should be allowed
 	static COREUOBJECT_API bool IsPropertyBagPlaceholderObjectSupportEnabled();
+
+	// create a new placeholder type object to swap in for a missing class/struct; this will be associated with a property bag when objects are serialized so we don't lose data
+	static COREUOBJECT_API UStruct* CreatePropertyBagPlaceholderType(UObject* Outer, UClass* Class, FName Name = NAME_None, EObjectFlags Flags = RF_NoFlags, UStruct* SuperStruct = nullptr);
+	template<typename T = UObject>
+	static UClass* CreatePropertyBagPlaceholderClass(UObject* Outer, UClass* Class, FName Name = NAME_None, EObjectFlags Flags = RF_NoFlags)
+	{
+		return Cast<UClass>(CreatePropertyBagPlaceholderType(Outer, Class, Name, Flags, T::StaticClass()));
+	}
 
 private:
 	void Lock() const { CriticalSection.Lock(); }
