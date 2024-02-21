@@ -141,6 +141,9 @@ private:
 	UPROPERTY()
 	TMap<TWeakObjectPtr<UPrimitiveComponent>, int32> PreviousSortPriorities;
 
+	/** Last primitive components assigned sort priority, used for comparison on change */
+	TMap<FObjectKey, int32> LastSortPriorities;
+
 	/** Used to avoid querying again the full list of component states */
 	TArray<const FAvaTranslucentPriorityModifierComponentState*> CachedSortedComponentStates;
 };

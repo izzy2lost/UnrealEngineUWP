@@ -94,8 +94,10 @@ void FAvaRenderStateUpdateModifierExtension::OnExtensionDisabled(EActorModifierC
 
 void FAvaRenderStateUpdateModifierExtension::OnRenderStateDirty(UActorComponent& InComponent)
 {
+	const AActor* ModifierActor = GetModifierActor();
 	AActor* ActorDirty = InComponent.GetOwner();
-	if (!ActorDirty)
+
+	if (!ActorDirty || !ModifierActor)
 	{
 		return;
 	}
@@ -106,7 +108,7 @@ void FAvaRenderStateUpdateModifierExtension::OnRenderStateDirty(UActorComponent&
 		return;
 	}
 
-	if (ActorDirty->GetWorld() != GetModifierWorld())
+	if (ActorDirty->GetLevel() != ModifierActor->GetLevel())
 	{
 		return;
 	}
