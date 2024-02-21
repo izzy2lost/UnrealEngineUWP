@@ -90,7 +90,7 @@ static FRDGBufferSRVRef GetEditorSelectedHitProxyIdsSRV(FRDGBuilder& GraphBuilde
 	TArray<uint32, SceneRenderingAllocator> HitProxyIdsCopy;
 	if (BufferCount > IdCount)
 	{
-		const uint32 FillValue = IdCount == 0 ? 0 : HitProxyIds.Last();
+		const uint32 FillValue = IdCount == 0 ? FHitProxyId().GetColor().ToPackedARGB() : HitProxyIds.Last();
 		HitProxyIdsCopy.Reserve(BufferCount);
 		HitProxyIdsCopy.Append(View.EditorSelectedNaniteHitProxyIds);
 		for (uint32 i = IdCount; i < BufferCount; ++i)

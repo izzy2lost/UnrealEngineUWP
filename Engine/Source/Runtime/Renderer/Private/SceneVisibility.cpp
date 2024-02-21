@@ -1710,40 +1710,50 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 
 			auto* NaniteProxy = static_cast<const Nanite::FSceneProxyBase*>(PrimitiveSceneProxy);
 
-			//
-			if (bSelectedInstancesOnly && !NaniteProxy->IsSelected())
+			if (bSelectedInstancesOnly)
 			{
-				return;
+				if (!NaniteProxy->IsSelected())
+				{
+					// We're only concerned with selected instances
+					return;
+				}
+				else if (!NaniteProxy->HasSelectedInstances() && OutSelectedInstanceHitProxyIDs != nullptr)
+				{
+					// Primitive is selected but not individual instances, so just add the primitive's hit proxy IDs
+					for (auto& HitProxyId : NaniteProxy->GetHitProxyIds())
+					{
+						const uint32 HitProxyID = HitProxyId.GetColor().ToPackedABGR();
+						OutSelectedInstanceHitProxyIDs->Add(HitProxyID);
+					}
+				}
 			}
 
 			const int32 MaxInstances = PrimitiveSceneInfo.GetNumInstanceSceneDataEntries();
 			OutInstanceDraws.Reserve(OutInstanceDraws.Num() + MaxInstances);
-			const FInstanceSceneDataBuffers *InstanceSceneDataBuffers = PrimitiveSceneInfo.GetInstanceSceneDataBuffers();
+			const FInstanceSceneDataBuffers* InstanceSceneDataBuffers = PrimitiveSceneInfo.GetInstanceSceneDataBuffers();
+			const bool bCollectInstanceHitProxyIds = bSelectedInstancesOnly &&
+				NaniteProxy->HasSelectedInstances() &&
+				OutSelectedInstanceHitProxyIDs != nullptr &&
+				InstanceSceneDataBuffers != nullptr;
 			for (int32 Idx = 0; Idx < MaxInstances; ++Idx)
 			{
-				if (bSelectedInstancesOnly)
+				if (bCollectInstanceHitProxyIds)
 				{
-					if (InstanceSceneDataBuffers && NaniteProxy->HasSelectedInstances())
+					FInstanceSceneDataBuffers::FReadView ProxyData = InstanceSceneDataBuffers->GetReadView();
+					// If we have per-instance editor data, exclude instance draws of unselected instances
+					// draws of unselected instances
+					if (ProxyData.InstanceEditorData.IsValidIndex(Idx))
 					{
-						FInstanceSceneDataBuffers::FReadView ProxyData = InstanceSceneDataBuffers->GetReadView();
-						// If we have per-instance editor data, exclude instance draws of unselected instances
-						// draws of unselected instances
-						if (ProxyData.InstanceEditorData.IsValidIndex(Idx))
+						FColor HitProxyColor;
+						bool bSelected;
+						FInstanceEditorData::Unpack(ProxyData.InstanceEditorData[Idx], HitProxyColor, bSelected);
+						if (!bSelected)
 						{
-							FColor HitProxyColor;
-							bool bSelected;
-							FInstanceEditorData::Unpack(ProxyData.InstanceEditorData[Idx], HitProxyColor, bSelected);
-							if (!bSelected)
-							{
-								continue;
-							}
-							
-							if (OutSelectedInstanceHitProxyIDs != nullptr)
-							{
-								const uint32 HitProxyID = HitProxyColor.ToPackedABGR();
-								OutSelectedInstanceHitProxyIDs->Add(HitProxyID);
-							}
+							continue;
 						}
+							
+						const uint32 HitProxyID = HitProxyColor.ToPackedABGR();
+						OutSelectedInstanceHitProxyIDs->Add(HitProxyID);
 					}
 				}
 
@@ -1754,8 +1764,6 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 					}
 				);
 			}
-
-
 		};
 
 		if (bEditorVisualizeLevelInstanceRelevance)
