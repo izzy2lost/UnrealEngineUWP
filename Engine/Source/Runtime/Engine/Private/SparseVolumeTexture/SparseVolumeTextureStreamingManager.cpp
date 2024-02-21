@@ -781,6 +781,7 @@ void FStreamingManager::RemoveInternal(UStreamableSparseVolumeTexture* SparseVol
 		}
 
 		StreamingInfo.RemoveAt(SVTInfo->SVTHandle, 1);
+		SparseVolumeTextureToHandle.Remove(SparseVolumeTexture);
 	}
 }
 
