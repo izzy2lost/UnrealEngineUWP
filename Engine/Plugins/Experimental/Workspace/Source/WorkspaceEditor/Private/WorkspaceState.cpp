@@ -13,14 +13,11 @@
 
 UWorkspaceState::UWorkspaceState()
 {
-	IAssetRegistry& AssetRegistry = FModuleManager::Get().LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
-	AssetRegistry.OnAssetRenamed().AddUObject(this, &UWorkspaceState::HandleAssetRenamed);
-}
-
-UWorkspaceState::~UWorkspaceState()
-{
-	IAssetRegistry& AssetRegistry = FModuleManager::Get().LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
-	AssetRegistry.OnAssetRenamed().RemoveAll(this);
+	if(!HasAnyFlags(RF_ClassDefaultObject))
+	{
+		IAssetRegistry& AssetRegistry = FModuleManager::Get().LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+		AssetRegistry.OnAssetRenamed().AddUObject(this, &UWorkspaceState::HandleAssetRenamed);
+	}
 }
 
 FString UWorkspaceState::GetWorkspacePath(const UWorkspace* InWorkspace)

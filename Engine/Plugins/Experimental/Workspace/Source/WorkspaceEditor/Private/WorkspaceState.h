@@ -20,7 +20,6 @@ class UWorkspaceState : public UObject
 	GENERATED_BODY()
 
 	UWorkspaceState();
-	virtual ~UWorkspaceState() override;
 
 	// Generate a file path used to persist workspace state
 	static FString GetWorkspacePath(const UWorkspace* InWorkspace);
