@@ -244,6 +244,8 @@ const TArray<FCustomizableObjectCompileRunnable::FError>& FCustomizableObjectCom
 
 FCustomizableObjectSaveDDRunnable::FCustomizableObjectSaveDDRunnable(UCustomizableObject* CustomizableObject, const FCompilationOptions& InOptions)
 {
+	MUTABLE_CPUPROFILER_SCOPE(FCustomizableObjectSaveDDRunnable::FCustomizableObjectSaveDDRunnable)
+		
 	Model = CustomizableObject->GetPrivate()->GetModel();
 	Options = InOptions;
 	
@@ -266,6 +268,8 @@ FCustomizableObjectSaveDDRunnable::FCustomizableObjectSaveDDRunnable(UCustomizab
 
 uint32 FCustomizableObjectSaveDDRunnable::Run()
 {
+	MUTABLE_CPUPROFILER_SCOPE(FCustomizableObjectSaveDDRunnable::Run)
+
 	bool bModelSerialized = Model.Get() != nullptr;
 
 	if (Options.bIsCooking)

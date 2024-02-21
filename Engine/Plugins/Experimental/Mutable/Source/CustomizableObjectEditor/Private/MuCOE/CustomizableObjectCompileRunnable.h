@@ -9,6 +9,8 @@
 #include "MuT/Node.h"
 #include "MuCOE/CustomizableObjectEditorLogger.h"
 
+#include <atomic>
+
 class ITargetPlatform;
 
 
@@ -77,7 +79,7 @@ public:
 	FString ErrorMsg;
 
 	// Whether the thread has finished running
-	bool bThreadCompleted;
+	std::atomic<bool> bThreadCompleted;
 };
 
 
@@ -125,5 +127,5 @@ private:
 	bool bIsCooking = false;
 
 	// Whether the thread has finished running
-	bool bThreadCompleted = false;
+	std::atomic<bool> bThreadCompleted = false;
 };

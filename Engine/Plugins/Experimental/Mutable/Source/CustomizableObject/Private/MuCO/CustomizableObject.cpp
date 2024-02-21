@@ -809,6 +809,8 @@ void UCustomizableObjectPrivate::LoadCompiledDataFromDisk()
 
 void UCustomizableObjectPrivate::CachePlatformData(const ITargetPlatform* InTargetPlatform, const TArray64<uint8>& InModelBytes, const TArray64< uint8>& InBulkBytes)
 {
+	MUTABLE_CPUPROFILER_SCOPE(CachePlatformData)
+
 	FString PlatformName = InTargetPlatform ? InTargetPlatform->PlatformName() : FPlatformProperties::PlatformName();
 
 	check(!CachedPlatformsData.Find(PlatformName));
@@ -821,8 +823,8 @@ void UCustomizableObjectPrivate::CachePlatformData(const ITargetPlatform* InTarg
 	Data.ModelData.Append(InModelBytes);
 
 	// Cache streamable bulk data
-	Data.StreamableData.Reset(InBulkBytes.Num());
-	Algo::Copy(InBulkBytes, Data.StreamableData);
+	Data.StreamableData.SetNumUninitialized(InBulkBytes.Num(),EAllowShrinking::No);
+	FMemory::Memcpy(Data.StreamableData.GetData(), InBulkBytes.GetData(), InBulkBytes.Num() );
 }
 
 
