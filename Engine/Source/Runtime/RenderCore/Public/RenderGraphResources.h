@@ -399,7 +399,6 @@ protected:
 	FRDGPassHandle LastPass;
 	FRDGPassHandle MinAcquirePass;
 	FRDGPassHandle MinDiscardPass;
-	FRDGPassHandle MaxDiscardPass;
 
 	/** Number of references in passes and deferred queries. */
 	uint16 ReferenceCount;
