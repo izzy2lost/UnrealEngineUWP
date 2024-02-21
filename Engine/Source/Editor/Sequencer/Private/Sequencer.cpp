@@ -3070,6 +3070,11 @@ void FSequencer::UpdatePlaybackRange()
 		// When the playback range is determined by the section bounds, don't mark the change in the playback range otherwise the scene will be marked dirty
 		if (!NewBounds.IsDegenerate())
 		{
+			// Playback ranges should always have exclusive upper bounds
+			if (NewBounds.GetUpperBound().IsInclusive())
+			{
+				NewBounds.SetUpperBound(TRangeBound<FFrameNumber>::Exclusive(NewBounds.GetUpperBound().GetValue() + 1));
+			}
 			const bool bAlwaysMarkDirty = false;
 			FocusedMovieScene->SetPlaybackRange(NewBounds, bAlwaysMarkDirty);
 		}
