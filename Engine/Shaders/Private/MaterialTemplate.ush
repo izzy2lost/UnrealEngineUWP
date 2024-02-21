@@ -4079,7 +4079,7 @@ void CalcMaterialParametersEx(
 	#if RAYHITGROUPSHADER
 		Parameters.CameraVector = -WorldRayDirection();
 	#else
-		Parameters.CameraVector = -GetCameraVectorFromTranslatedWorldPosition(Parameters.WorldPosition_CamRelative.xyz);
+		Parameters.CameraVector = select(IsOrthoProjection(ResolvedView), -ResolvedView.ViewForward, normalize(-Parameters.WorldPosition_CamRelative.xyz));
 	#endif
 
 	Parameters.LightVector = 0;
