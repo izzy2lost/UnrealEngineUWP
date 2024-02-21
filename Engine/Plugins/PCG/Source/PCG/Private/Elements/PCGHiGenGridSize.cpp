@@ -31,7 +31,11 @@ FText UPCGHiGenGridSizeSettings::GetDefaultNodeTitle() const
 
 FText UPCGHiGenGridSizeSettings::GetNodeTooltipText() const
 {
-	return LOCTEXT("NodeTooltip", "Set the execution grid size for downstream nodes. Enables executing a single graph across a hierarchy of grids. Has no effect if generating component is not partitioned.");
+	return LOCTEXT("NodeTooltip", "Set the execution grid size for downstream nodes. Enables executing a single graph across a hierarchy of grids."
+		"\n\nHas no effect if any of the following are true:"
+		"\n\t* Generating PCG component is not set to Partitioned."
+		"\n\t* Hierarchical Generation is disabled in the graph settings."
+		"\n\t* Executed in a subgraph, as subgraphs are always invoked on parent grid level.");
 }
 #endif
 
@@ -113,19 +117,7 @@ EPCGChangeType UPCGHiGenGridSizeSettings::GetChangeTypeForProperty(const FName& 
 bool FPCGHiGenGridSizeElement::ExecuteInternal(FPCGContext* Context) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGHiGenGridSizeElement::Execute);
-
-	// Validation
 	check(Context);
-	if (Context->Node && Context->Node->GetGraph() && !Context->Node->GetGraph()->IsHierarchicalGenerationEnabled())
-	{
-		PCGE_LOG(Warning, GraphAndLog, LOCTEXT("GridSizeUsedInNonHiGenGraph", "Grid Size node used in a non-hierarchical graph. Enable hierarchical generation in the graph settings or remove this node."));
-	}
-	else if (!Context->SourceComponent->IsPartitioned() && !Context->SourceComponent->IsLocalComponent())
-	{
-		// Warning if component is not partitioned (and not local component) as this node will otherwise be silently ignored.
-		// Also serves as a hint if the user forgot to enable higen for this graph.
-		PCGE_LOG(Warning, GraphAndLog, LOCTEXT("NonPartitionedComponent", "Grid Size node used on a non-partitioned component and will have no effect. Is Partitioned must be enabled on the component."));
-	}
 
 	// Trivial pass through. Will only execute on the prescribed grid.
 	Context->OutputData = Context->InputData;

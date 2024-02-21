@@ -10,6 +10,7 @@
 #include "PCGSettingsWithDynamicInputs.h"
 #include "PCGSubsystem.h"
 #include "PCGWorldActor.h"
+#include "Elements/PCGHiGenGridSize.h"
 #include "Elements/PCGReroute.h"
 
 #include "PCGEditor.h"
@@ -126,6 +127,11 @@ void UPCGEditorGraphNodeBase::Construct(UPCGNode* InPCGNode)
 
 		bCanUserAddRemoveSourcePins = (InPCGNode->GetSettings() && InPCGNode->GetSettings()->IsA<UPCGSettingsWithDynamicInputs>());
 	}
+
+	// Update to current graph/inspection state.
+	const UPCGEditorGraph* Graph = Cast<UPCGEditorGraph>(GetOuter());
+	const FPCGEditor* Editor = Graph ? Graph->GetEditor().Pin().Get() : nullptr;
+	UpdateStructuralVisualization(Editor ? Editor->GetPCGComponentBeingInspected() : nullptr, Editor ? Editor->GetStackBeingInspected() : nullptr, /*bNewlyPlaced=*/true);
 }
 
 void UPCGEditorGraphNodeBase::BeginDestroy()
@@ -499,7 +505,7 @@ EPCGChangeType UPCGEditorGraphNodeBase::UpdateErrorsAndWarnings()
 	return bStateChanged ? EPCGChangeType::Cosmetic : EPCGChangeType::None;
 }
 
-EPCGChangeType UPCGEditorGraphNodeBase::UpdateStructuralVisualization(UPCGComponent* InComponentBeingDebugged, const FPCGStack* InStackBeingInspected)
+EPCGChangeType UPCGEditorGraphNodeBase::UpdateStructuralVisualization(UPCGComponent* InComponentBeingDebugged, const FPCGStack* InStackBeingInspected, bool bNewlyPlaced)
 {
 	const UPCGGraph* Graph = PCGNode ? PCGNode->GetGraph() : nullptr;
 	if (!Graph)
@@ -507,9 +513,11 @@ EPCGChangeType UPCGEditorGraphNodeBase::UpdateStructuralVisualization(UPCGCompon
 		return EPCGChangeType::None;
 	}
 
+	const bool bInspecting = InComponentBeingDebugged && InStackBeingInspected && !InStackBeingInspected->GetStackFrames().IsEmpty();
+
 	EPCGChangeType ChangeType = EPCGChangeType::None;
 
-	const uint64 NewInactiveMask = (InComponentBeingDebugged && InStackBeingInspected) ? InComponentBeingDebugged->GetNodeInactivePinMask(PCGNode, *InStackBeingInspected) : 0;
+	const uint64 NewInactiveMask = bInspecting ? InComponentBeingDebugged->GetNodeInactivePinMask(PCGNode, *InStackBeingInspected) : 0;
 	if (NewInactiveMask != InactiveOutputPinMask)
 	{
 		InactiveOutputPinMask = NewInactiveMask;
@@ -517,13 +525,13 @@ EPCGChangeType UPCGEditorGraphNodeBase::UpdateStructuralVisualization(UPCGCompon
 	}
 
 	// Check top graph for higen enable - subgraphs always inherit higen state from the top graph.
-	const UPCGGraph* TopGraph = InComponentBeingDebugged ? InComponentBeingDebugged->GetGraph() : nullptr;
+	const UPCGGraph* TopGraph = bInspecting ? InStackBeingInspected->GetRootGraph() : Graph;
 	const bool HiGenEnabled = TopGraph && TopGraph->IsHierarchicalGenerationEnabled();
 
 	// Set the inspected grid size - this is used for grid size visualization.
 	uint32 InspectingGridSize = PCGHiGenGrid::UninitializedGridSize();
 	EPCGHiGenGrid InspectingGrid = EPCGHiGenGrid::Uninitialized;
-	if (TopGraph && TopGraph->IsHierarchicalGenerationEnabled())
+	if (TopGraph && TopGraph->IsHierarchicalGenerationEnabled() && InComponentBeingDebugged && (InComponentBeingDebugged->IsPartitioned() || InComponentBeingDebugged->IsLocalComponent()))
 	{
 		InspectingGridSize = InComponentBeingDebugged->GetGenerationGridSize();
 		InspectingGrid = InComponentBeingDebugged->GetGenerationGrid();
@@ -536,46 +544,63 @@ EPCGChangeType UPCGEditorGraphNodeBase::UpdateStructuralVisualization(UPCGCompon
 	}
 
 	bool bShouldDisplayAsDisabled = false;
-	bool bIsCulled = !PCGEditorGraphNodeBase::ShouldDisplayAsActive(this, InComponentBeingDebugged, InStackBeingInspected);
 
-	// Show grid size visualization if higen is enabled and if we're inspecting a specific grid, and we're inspecting a subgraph since subgraphs
-	// execute at the invoked grid level. 
-	if (HiGenEnabled && InStackBeingInspected && InStackBeingInspected->IsCurrentFrameInRootGraph() && InspectingGridSize != PCGHiGenGrid::UninitializedGridSize())
+	// Special treatment for higen grid sizes nodes which do nothing if higen is disabled.
+	// TODO: Drive this from an API on settings as we add more higen-specific functionality.
+	if (PCGNode && Cast<UPCGHiGenGridSizeSettings>(PCGNode->GetSettings()))
 	{
-		const uint32 DefaultGridSize = TopGraph->GetDefaultGridSize();
-		const uint32 NodeGridSize = Graph->GetNodeGenerationGridSize(PCGNode, DefaultGridSize);
+		// Higen must be enabled on graph, and we must be editing top graph.
+		bShouldDisplayAsDisabled = (Graph != TopGraph) || !TopGraph->IsHierarchicalGenerationEnabled();
 
-		if (NodeGridSize < InspectingGridSize)
+		// If we're inspecting a component, it must either be a partitioned OC or an LC (because higen requires partitioning).
+		if (!bShouldDisplayAsDisabled && InComponentBeingDebugged)
 		{
-			// Disable nodes that are on a smaller grid
-			bShouldDisplayAsDisabled |= NodeGridSize < InspectingGridSize;
-
-			// We don't know if the node was culled or not on that grid, disable visualization.
-			bIsCulled = false;
-		}
-		else if (NodeGridSize > InspectingGridSize)
-		{
-			// We don't know if the node was culled or not on that grid, disable visualization.
-			bIsCulled = false;
-		}
-
-		const EPCGHiGenGrid Grid = PCGHiGenGrid::GridSizeToGrid(NodeGridSize);
-		if (GenerationGrid != Grid)
-		{
-			GenerationGrid = Grid;
-			ChangeType |= EPCGChangeType::Cosmetic;
+			bShouldDisplayAsDisabled = !InComponentBeingDebugged->IsPartitioned() && !InComponentBeingDebugged->IsLocalComponent();
 		}
 	}
-	else
+
+	// Don't do culling visualization on newly placed nodes. Let the execution complete notification update that.
+	bool bIsCulled = !bNewlyPlaced && !PCGEditorGraphNodeBase::ShouldDisplayAsActive(this, InComponentBeingDebugged, InStackBeingInspected);
+
+	EPCGHiGenGrid ThisGrid = EPCGHiGenGrid::Uninitialized;
+
+	// Show grid size visualization if higen is enabled and if we're inspecting a specific grid, and we're inspecting a subgraph since subgraphs
+	// execute at the invoked grid level.
+	if (HiGenEnabled && InspectingGridSize != PCGHiGenGrid::UninitializedGridSize())
 	{
-		// If higen is enabled then we are inspecting an invoked subgraph. Display the inspected grid size so that the user still
-		// gets the execution grid information.
-		const EPCGHiGenGrid Grid = HiGenEnabled ? PCGHiGenGrid::GridSizeToGrid(InspectingGridSize) : EPCGHiGenGrid::Uninitialized;
-		if (GenerationGrid != Grid)
+		if (InStackBeingInspected && InStackBeingInspected->IsCurrentFrameInRootGraph())
 		{
-			GenerationGrid = Grid;
-			ChangeType |= EPCGChangeType::Cosmetic;
+			const uint32 DefaultGridSize = TopGraph->GetDefaultGridSize();
+			const uint32 NodeGridSize = Graph->GetNodeGenerationGridSize(PCGNode, DefaultGridSize);
+
+			if (NodeGridSize < InspectingGridSize)
+			{
+				// Disable nodes that are on a smaller grid
+				bShouldDisplayAsDisabled |= NodeGridSize < InspectingGridSize;
+
+				// We don't know if the node was culled or not on that grid, disable visualization.
+				bIsCulled = false;
+			}
+			else if (NodeGridSize > InspectingGridSize)
+			{
+				// We don't know if the node was culled or not on that grid, disable visualization.
+				bIsCulled = false;
+			}
+
+			ThisGrid = PCGHiGenGrid::GridSizeToGrid(NodeGridSize);
 		}
+		else
+		{
+			// If higen is enabled then we are inspecting an invoked subgraph. Display the inspected grid size so that the user still
+			// gets the execution grid information.
+			ThisGrid = PCGHiGenGrid::GridSizeToGrid(InspectingGridSize);
+		}
+	}
+
+	if (GenerationGrid != ThisGrid)
+	{
+		GenerationGrid = ThisGrid;
+		ChangeType |= EPCGChangeType::Cosmetic;
 	}
 
 	SetIsCulledFromExecution(bIsCulled);
