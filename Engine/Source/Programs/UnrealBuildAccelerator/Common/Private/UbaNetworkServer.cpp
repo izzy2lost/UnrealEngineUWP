@@ -61,8 +61,10 @@ namespace uba
 			ScopedWriteLock lock(server.m_availableWorkersLock);
 			while (m_inUse)
 			{
+				m_context->workAvailable.Set();
 				lock.Leave();
-				Sleep(1);
+				if (m_thread.Wait(5))
+					break;
 				lock.Enter();
 			}
 		}
@@ -76,8 +78,8 @@ namespace uba
 
 		WorkerContext* m_context = nullptr;
 
-		bool m_loop = false;
-		bool m_inUse = false;
+		Atomic<bool> m_loop;
+		Atomic<bool> m_inUse;
 		Thread m_thread;
 
 		Worker(const Worker&) = delete;
@@ -504,6 +506,9 @@ namespace uba
 		while (m_context->workAvailable.IsSet(~0u) && m_loop)
 			Update(*m_context, true);
 		t_worker = nullptr;
+
+		if (m_inUse) // I have no idea how this can happen.. should not be possible. There is a path somewhere where it can leave while still being in use
+			server.PushWorker(this);
 	}
 
 	void NetworkServer::Worker::DoAdditionalWorkAndSignalAvailable(NetworkServer& server)
