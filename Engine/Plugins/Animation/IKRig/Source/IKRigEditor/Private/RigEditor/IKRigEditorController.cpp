@@ -847,7 +847,7 @@ bool FIKRigEditorController::PromptToAddDefaultSolver() const
 {
 	if (AssetController->GetNumSolvers() > 0)
 	{
-		return true;
+		return false;
 	}
 
 	TArray<TSharedPtr<FIKRigSolverTypeAndName>> SolverTypes;
