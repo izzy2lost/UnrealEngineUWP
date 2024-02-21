@@ -1511,6 +1511,7 @@ void UMovieSceneControlRigParameterSection::StoreLastControlsUsedToReconstruct(c
 void UMovieSceneControlRigParameterSection::ReconstructChannelProxy()
 {
 	ChannelProxy.Reset();
+	BroadcastChanged();
 }
 
 EMovieSceneChannelProxyType UMovieSceneControlRigParameterSection::CacheChannelProxy()
@@ -2508,8 +2509,7 @@ void UMovieSceneControlRigParameterSection::RecreateWithThisControlRig(UControlR
 			break;
 		}
 	}
-	CacheChannelProxy();
-	BroadcastChanged();
+	ReconstructChannelProxy();
 }
 
 void UMovieSceneControlRigParameterSection::SetControlRig(UControlRig* InControlRig)
