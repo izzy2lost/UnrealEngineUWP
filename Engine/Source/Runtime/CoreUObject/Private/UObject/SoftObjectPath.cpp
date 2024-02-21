@@ -557,6 +557,35 @@ UObject* FSoftObjectPath::TryLoad(FUObjectSerializeContext* InLoadContext) const
 	return LoadedObject;
 }
 
+int32 FSoftObjectPath::LoadAsync(FLoadSoftObjectPathAsyncDelegate InCompletionDelegate, FLoadAssetAsyncOptionalParams InOptionalParams)
+{
+	FSoftObjectPath RequestedPath = *this;
+	FSoftObjectPath PathToLoad = RequestedPath;
+#if WITH_EDITOR
+	if (GPlayInEditorID != INDEX_NONE)
+	{
+		// @todo: This logic may need updating to handle level instances properly and we may want to handle other fixups like CoreRedirects before requesting
+		PathToLoad.FixupForPIE();
+	}
+#endif
+
+	FLoadAssetAsyncDelegate WrapperDelegate = FLoadAssetAsyncDelegate::CreateLambda(
+		[RequestedPath, PathToLoad, CompletionDelegate = MoveTemp(InCompletionDelegate)](const FTopLevelAssetPath& InAssetPath, UObject* InLoadedObject, EAsyncLoadingResult::Type InResult) mutable
+		{
+			// If this isn't a subobject, InLoadedObject is already correct
+			if (PathToLoad.IsSubobject())
+			{
+				// Resolve the entire path, including the subobject
+				InLoadedObject = PathToLoad.ResolveObject();
+			}
+
+			// Call delegate with original requested path
+			CompletionDelegate.ExecuteIfBound(RequestedPath, InLoadedObject);
+		});
+
+	return LoadAssetAsync(PathToLoad.GetAssetPath(), MoveTemp(WrapperDelegate), MoveTemp(InOptionalParams));
+}
+
 UObject* FSoftObjectPath::ResolveObject() const
 {
 	// Don't try to resolve if we're saving a package because StaticFindObject can't be used here

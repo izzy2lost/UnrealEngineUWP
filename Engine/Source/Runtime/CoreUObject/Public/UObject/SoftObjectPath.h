@@ -32,6 +32,9 @@ class FOutputDevice;
 struct FPropertyTag;
 struct FUObjectSerializeContext;
 
+/** Delegate called on completion of async loading a soft object. The UObject will be null if the load failed */
+DECLARE_DELEGATE_TwoParams(FLoadSoftObjectPathAsyncDelegate, const FSoftObjectPath&, UObject*);
+
 /**
  * A struct that contains a string reference to an object, either a package, a top level asset or a subobject.
  * This can be used to make soft references to assets that are loaded on demand.
@@ -211,6 +214,17 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 	 * @return Loaded UObject, or nullptr if the reference is null or the asset fails to load
 	 */
 	COREUOBJECT_API UObject* TryLoad(FUObjectSerializeContext* InLoadContext = nullptr) const;
+
+	/**
+	 * Attempts to asynchronously load the object referenced by this path.
+	 * This will call LoadAssetAsync to load the top level asset and resolve the sub paths before calling the delegate.
+	 * FStreamableManager can be used for more control over callback timing and garbage collection.
+	 * 
+	 * @param	InCompletionDelegate	Delegate to be invoked when the async load finishes, this will execute on the game thread as soon as the load succeeds or fails
+	 * @param	InOptionalParams		Optional parameters for async loading the asset
+	 * @return Unique ID associated with this load request (the same object or package can be associated with multiple IDs).
+	 */
+	COREUOBJECT_API int32 LoadAsync(FLoadSoftObjectPathAsyncDelegate InCompletionDelegate, FLoadAssetAsyncOptionalParams InOptionalParams = FLoadAssetAsyncOptionalParams());
 
 	/**
 	 * Attempts to find a currently loaded object that matches this path

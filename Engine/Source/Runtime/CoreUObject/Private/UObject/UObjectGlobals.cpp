@@ -1475,6 +1475,48 @@ UClass* StaticLoadClass( UClass* BaseClass, UObject* InOuter, const TCHAR* InNam
 	return Class;
 }
 
+UObject* StaticLoadAsset(UClass* Class, FTopLevelAssetPath InPath, uint32 LoadFlags, const FLinkerInstancingContext* InstancingContext)
+{
+	// @todo: This could call StaticLoadObjectInternal directly with some refactoring
+
+	TStringBuilder<256> ObjectNameString;
+	InPath.AppendString(ObjectNameString);
+	return StaticLoadObject(Class, nullptr, *ObjectNameString, nullptr, LoadFlags, nullptr, true, InstancingContext);
+}
+
+int32 LoadAssetAsync(FTopLevelAssetPath InAssetPath, FLoadAssetAsyncDelegate InCompletionDelegate, FLoadAssetAsyncOptionalParams InOptionalParams)
+{
+	// Asset paths should always have a valid package
+	FPackagePath PackagePath = FPackagePath::FromPackageNameChecked(InAssetPath.GetPackageName());
+	
+	FLoadPackageAsyncOptionalParams PackageParams{
+		.PackagePriority = InOptionalParams.PackagePriority,
+		.InstancingContext = InOptionalParams.InstancingContext,
+		.LoadFlags = InOptionalParams.LoadFlags
+	};
+
+	PackageParams.CompletionDelegate = MakeUnique<FLoadPackageAsyncDelegate>(FLoadPackageAsyncDelegate::CreateLambda(
+		[InAssetPath, CompletionDelegate = MoveTemp(InCompletionDelegate)](const FName& LoadedPackageName, UPackage* LoadedPackage, EAsyncLoadingResult::Type Result) mutable
+		{
+			UObject* LoadedObject = nullptr;
+			if (Result == EAsyncLoadingResult::Succeeded && LoadedPackage)
+			{
+				LoadedObject = StaticFindObjectFast(UObject::StaticClass(), LoadedPackage, InAssetPath.GetAssetName(), false);
+
+				// Package loaded but object was not found inside it, failure
+				if (!LoadedObject)
+				{
+					Result = EAsyncLoadingResult::Failed;
+				}
+			}
+
+			CompletionDelegate.ExecuteIfBound(InAssetPath, LoadedObject, Result);
+		}));
+
+	return LoadPackageAsync(PackagePath, MoveTemp(PackageParams));
+}
+
+
 #if WITH_EDITOR
 #include "Containers/StackTracker.h"
 class FDiffFileArchive : public FArchiveProxy
