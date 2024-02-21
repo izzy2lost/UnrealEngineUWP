@@ -882,14 +882,15 @@ namespace UE
 
 			InFileMetadata.Add(TEXT("unreal/jobVersion"), FString::FromInt(InVersionNumber));
 
-			if (InJob)
-			{
-				InFilenameArguments.Add(TEXT("job_author"), GetJobAuthor(InJob));
-				InFilenameArguments.Add(TEXT("job_name"), InJob->JobName);
-				InFileMetadata.Add(TEXT("unreal/jobName"), InJob->JobName);
-				InFileMetadata.Add(TEXT("unreal/jobAuthor"), GetJobAuthor(InJob));
-				InFileMetadata.Add(TEXT("unreal/jobComment"), InJob->Comment);
-			}
+			const FString JobAuthor = InJob ? GetJobAuthor(InJob) : FString();
+			const FString JobName = InJob ? InJob->JobName : FString();
+			const FString JobComment = InJob ? InJob->Comment : FString();
+
+			InFilenameArguments.Add(TEXT("job_author"), JobAuthor);
+			InFilenameArguments.Add(TEXT("job_name"), JobName);
+			InFileMetadata.Add(TEXT("unreal/jobName"), JobName);
+			InFileMetadata.Add(TEXT("unreal/jobAuthor"), JobAuthor);
+			InFileMetadata.Add(TEXT("unreal/jobComment"), JobComment);
 		}
 
 		void GetCachedGPUDriverInfo(TMap<FString, FString>& InFileMetadata)

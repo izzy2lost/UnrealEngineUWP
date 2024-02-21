@@ -27,7 +27,7 @@ protected:
 
 	void OnTextChanged(const FText& InValue);
 
-	static void GetFormatArguments(FMoviePipelineFormatArgs& InOutFormatArgs);
+	static void GetFormatArguments(FMovieGraphResolveArgs& InOutFormatArgs);
 	
 	TWeakObjectPtr<UObject> CustomizedObject;
 	TSharedPtr<IPropertyHandle> OutputFormatPropertyHandle;
