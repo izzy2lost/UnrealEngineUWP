@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Chaos/PhysicsObject.h"
 #include "Engine/NetSerialization.h"
 #include "Engine/ActorInstanceHandle.h"
 #include "HitResult.generated.h"
@@ -128,6 +129,10 @@ struct FHitResult
 	/** PrimitiveComponent hit by the trace. */
 	UPROPERTY()
 	TWeakObjectPtr<UPrimitiveComponent> Component;
+
+
+	/** PhysicsObjects hit by the query. Not exposed to blueprints for the time being */
+	Chaos::FPhysicsObjectHandle PhysicsObject;
 
 	/** Name of bone we hit (for skeletal meshes). */
 	UPROPERTY()
