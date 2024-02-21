@@ -21,13 +21,13 @@ namespace Horde.Server.Accounts
 	[Route("[controller]")]
 	public class AccountsController : HordeControllerBase
 	{
-		readonly IHordeAccountCollection _accountCollection;
+		readonly IAccountCollection _accountCollection;
 		readonly GlobalConfig _globalConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public AccountsController(IHordeAccountCollection accountCollection, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public AccountsController(IAccountCollection accountCollection, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
 			_accountCollection = accountCollection;
 			_globalConfig = globalConfig.Value;
@@ -47,7 +47,7 @@ namespace Horde.Server.Accounts
 			}
 
 			List<IUserClaim> claims = request.Claims.ConvertAll<IUserClaim>(x => new UserClaim(x.Type, x.Value));
-			IHordeAccount account = await _accountCollection.AddAsync(request.Name, request.Login, claims, request.Description, request.Email, request.SecretToken, request.Password, request.Enabled, cancellationToken);
+			IAccount account = await _accountCollection.AddAsync(request.Name, request.Login, claims, request.Description, request.Email, request.SecretToken, request.Password, request.Enabled, cancellationToken);
 			return new CreateAccountResponse(account.Id);
 		}
 
@@ -66,8 +66,8 @@ namespace Horde.Server.Accounts
 
 			List<GetAccountResponse> responses = new List<GetAccountResponse>();
 
-			IReadOnlyList<IHordeAccount> accounts = await _accountCollection.FindAsync(index, count, cancellationToken);
-			foreach (IHordeAccount account in accounts)
+			IReadOnlyList<IAccount> accounts = await _accountCollection.FindAsync(index, count, cancellationToken);
+			foreach (IAccount account in accounts)
 			{
 				responses.Add(CreateGetAccountResponse(account));
 			}
@@ -90,7 +90,7 @@ namespace Horde.Server.Accounts
 				return BadRequest("User is not logged in through a Horde account");
 			}
 
-			IHordeAccount? account = await _accountCollection.GetAsync(accountId.Value, cancellationToken);
+			IAccount? account = await _accountCollection.GetAsync(accountId.Value, cancellationToken);
 			if (account == null)
 			{
 				return NotFound(accountId.Value);
@@ -133,7 +133,7 @@ namespace Horde.Server.Accounts
 				return Forbid(AccountAclAction.ViewAccount);
 			}
 
-			IHordeAccount? account = await _accountCollection.GetAsync(id, cancellationToken);
+			IAccount? account = await _accountCollection.GetAsync(id, cancellationToken);
 			if (account == null)
 			{
 				return NotFound(id);
@@ -184,10 +184,10 @@ namespace Horde.Server.Accounts
 			return Ok();
 		}
 
-		static GetAccountResponse CreateGetAccountResponse(IHordeAccount account)
+		static GetAccountResponse CreateGetAccountResponse(IAccount account)
 		{
 			List<AccountClaimMessage> claims = new List<AccountClaimMessage>();
-			foreach (IUserClaim claim in account.GetClaims())
+			foreach (IUserClaim claim in account.Claims)
 			{
 				claims.Add(new AccountClaimMessage(claim.Type, claim.Value));
 			}

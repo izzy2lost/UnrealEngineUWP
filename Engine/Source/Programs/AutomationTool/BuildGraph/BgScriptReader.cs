@@ -1952,12 +1952,12 @@ namespace AutomationTool
 			{
 				if (idx > 0 && name[idx] == ' ' && name[idx - 1] == ' ')
 				{
-					LogError(element, "Consecutive spaces in object name - '{Name}'", name);
+					LogError(element, "Consecutive spaces in object name '{Name}'", name);
 					return false;
 				}
 				if (Char.IsControl(name[idx]) || BgScriptSchema.IllegalNameCharacters.IndexOf(name[idx]) != -1)
 				{
-					LogError(element, "Invalid character in object name - '{Name}'", name[idx]);
+					LogError(element, "Invalid character in object name '{Name}': '{Character}'", name, name[idx]);
 					return false;
 				}
 			}

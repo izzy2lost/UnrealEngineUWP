@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
@@ -9,7 +8,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Reflection;
 using System.Security.Claims;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
@@ -682,36 +680,30 @@ namespace Horde.Server.Server
 			if (_cachedGroupClaims == null)
 			{
 				HashSet<string> groups = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-				FindGroupClaimsFromObject(this, groups, new HashSet<object>());
+				FindGroupClaimsFromObject(Acl, groups);
 				_cachedGroupClaims = groups.ToArray();
 			}
 			return _cachedGroupClaims;
 		}
 
-		static void FindGroupClaimsFromObject(object? obj, HashSet<string> groups, HashSet<object> visitedObjects)
+		static void FindGroupClaimsFromObject(AclConfig config, HashSet<string> groups)
 		{
-			if (obj != null && obj.GetType().IsClass && obj is not string)
+			if (config.Entries != null)
 			{
-				if (obj is AclClaimConfig claim)
+				foreach (AclEntryConfig entry in config.Entries)
 				{
+					AclClaimConfig claim = entry.Claim;
 					if (claim.Type.Equals(HordeClaimTypes.Group, StringComparison.OrdinalIgnoreCase))
 					{
 						groups.Add(claim.Value);
 					}
 				}
-				else if (obj is ICollection collection)
+			}
+			if (config.Children != null)
+			{
+				foreach (AclConfig childConfig in config.Children)
 				{
-					foreach (object? element in collection)
-					{
-						FindGroupClaimsFromObject(element, groups, visitedObjects);
-					}
-				}
-				else if (visitedObjects.Add(obj))
-				{
-					foreach (PropertyInfo propertyInfo in obj.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public))
-					{
-						FindGroupClaimsFromObject(propertyInfo.GetValue(obj), groups, visitedObjects);
-					}
+					FindGroupClaimsFromObject(childConfig, groups);
 				}
 			}
 		}

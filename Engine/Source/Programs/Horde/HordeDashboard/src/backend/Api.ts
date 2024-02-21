@@ -153,7 +153,10 @@ export enum JobStepBatchError {
 	UnknownShelf = "UnknownShelf",
 
 	/** No longer needed */
-	NoLongerNeeded = "NoLongerNeeded"
+	NoLongerNeeded = "NoLongerNeeded",
+
+	/** Sync Failed */
+	SyncingFailed = "SyncingFailed"
 
 }
 
@@ -1552,7 +1555,7 @@ export type GetArtifactZipRequest = {
 
 // Artifacts V2
 
-export type ArtifactContextType = "step-trace" | "step-output" | "step-saved";
+export type ArtifactContextType = "step-trace" | "step-output" | "step-saved" | string;
 
 /// Request to create a zip file with artifact data
 export type CreateZipRequest = {

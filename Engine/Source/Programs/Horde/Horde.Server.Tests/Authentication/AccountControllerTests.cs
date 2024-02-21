@@ -6,6 +6,7 @@ using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
+using Horde.Server.Accounts;
 using Horde.Server.Users;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,8 +21,8 @@ namespace Horde.Server.Tests.Authentication;
 public class AccountControllerTest : IAsyncDisposable
 {
 	private readonly FakeHordeWebApp _app;
-	private readonly IHordeAccountCollection _hordeAccounts;
-	private IHordeAccount _sa1 = null!;
+	private readonly IAccountCollection _hordeAccounts;
+	private IAccount _sa1 = null!;
 
 	public AccountControllerTest()
 	{
@@ -31,7 +32,7 @@ public class AccountControllerTest : IAsyncDisposable
 			{ "Horde:AuthMethod", "Horde" },
 		};
 		_app = new FakeHordeWebApp(settings, allowAutoRedirect: false);
-		_hordeAccounts = _app.ServiceProvider.GetRequiredService<IHordeAccountCollection>();
+		_hordeAccounts = _app.ServiceProvider.GetRequiredService<IAccountCollection>();
 	}
 	
 	public async ValueTask DisposeAsync()

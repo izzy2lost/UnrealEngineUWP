@@ -4,13 +4,14 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Accounts;
+using Horde.Server.Users;
 
-namespace Horde.Server.Users
+namespace Horde.Server.Accounts
 {
 	/// <summary>
-	/// Interface for a collection of service account documents
+	/// Interface for a collection of accounts
 	/// </summary>
-	public interface IHordeAccountCollection
+	public interface IAccountCollection
 	{
 		/// <summary>
 		/// Adds a new account to the collection
@@ -24,7 +25,7 @@ namespace Horde.Server.Users
 		/// <param name="password">Optional password for interactive login</param>
 		/// <param name="enabled">Whether the account should be enabled</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		Task<IHordeAccount> AddAsync(
+		Task<IAccount> AddAsync(
 			string name,
 			string login,
 			IReadOnlyList<IUserClaim>? claims = null,
@@ -42,7 +43,7 @@ namespace Horde.Server.Users
 		/// <param name="count">Number of results to return</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The service account</returns>
-		Task<IReadOnlyList<IHordeAccount>> FindAsync(int? index = null, int? count = null, CancellationToken cancellationToken = default);
+		Task<IReadOnlyList<IAccount>> FindAsync(int? index = null, int? count = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Get service account via ID
@@ -50,7 +51,7 @@ namespace Horde.Server.Users
 		/// <param name="id">The unique service account id</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The service account</returns>
-		Task<IHordeAccount?> GetAsync(AccountId id, CancellationToken cancellationToken = default);
+		Task<IAccount?> GetAsync(AccountId id, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Get service account via secret token
@@ -58,7 +59,7 @@ namespace Horde.Server.Users
 		/// <param name="secretToken">Secret token to use for searching</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The service account</returns>
-		Task<IHordeAccount?> GetBySecretTokenAsync(string secretToken, CancellationToken cancellationToken = default);
+		Task<IAccount?> GetBySecretTokenAsync(string secretToken, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Get an account via login ID
@@ -66,7 +67,7 @@ namespace Horde.Server.Users
 		/// <param name="login">Login or username to use for searching</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The service account</returns>
-		Task<IHordeAccount?> GetByLoginAsync(string login, CancellationToken cancellationToken = default);
+		Task<IAccount?> GetByLoginAsync(string login, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Update an account from the collection

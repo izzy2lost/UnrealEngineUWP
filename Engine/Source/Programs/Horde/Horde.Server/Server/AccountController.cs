@@ -8,6 +8,7 @@ using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
 using EpicGames.Horde.Server;
+using Horde.Server.Accounts;
 using Horde.Server.Authentication;
 using Horde.Server.Users;
 using Horde.Server.Utilities;
@@ -55,14 +56,14 @@ namespace Horde.Server.Server
 			"td { margin:5px; font-size:13px; }";
 
 		readonly IUserCollection _users;
-		readonly IHordeAccountCollection _hordeAccounts;
+		readonly IAccountCollection _hordeAccounts;
 		readonly string _authenticationScheme;
 		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public AccountController(IUserCollection users, IHordeAccountCollection hordeAccounts, IOptionsMonitor<ServerSettings> serverSettings, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public AccountController(IUserCollection users, IAccountCollection hordeAccounts, IOptionsMonitor<ServerSettings> serverSettings, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
 			_users = users;
 			_hordeAccounts = hordeAccounts;
@@ -124,7 +125,7 @@ namespace Horde.Server.Server
 			}
 			else
 			{
-				content.Append("<p><a href=\"/account/login\"><b>Login with OAuth2</b></a></p>");
+				content.Append("<p><a href=\"/account/login\"><b>Login</b></a></p>");
 			}
 			content.Append("</html>");
 			return new ContentResult { ContentType = "text/html", StatusCode = (int)HttpStatusCode.OK, Content = content.ToString() };
@@ -169,31 +170,34 @@ namespace Horde.Server.Server
 		[Route("/account/login/horde")]
 		public async Task<IActionResult> UserPassLoginAsync(string? returnUrl = null)
 		{
+			if (_globalConfig.Value.ServerSettings.AuthMethod != AuthMethod.Horde)
+			{
+				return Forbid("Horde built-in authentication is disabled");
+			}
+
 			const string ErrorMsg = "Invalid username or password";
 			string? username = Request.Form["username"];
-			string? password = Request.Form["password"];
+			string password = (string?)Request.Form["password"] ?? string.Empty;
 
-			if (String.IsNullOrEmpty(username) || String.IsNullOrEmpty(password))
+			if (String.IsNullOrEmpty(username))
 			{
 				return LoginFormError(ErrorMsg, returnUrl);
 			}
 
-			IHordeAccount? account = await _hordeAccounts.GetByLoginAsync(username);
+			IAccount? account = await _hordeAccounts.GetByLoginAsync(username);
 			if (account == null)
 			{
 				return LoginFormError(ErrorMsg, returnUrl);
 			}
 
-			byte[] correctHash = PasswordHasher.HashFromString(account.PasswordHash);
-			byte[] salt = PasswordHasher.SaltFromString(account.PasswordSalt);
-			if (!PasswordHasher.ValidatePassword(password, salt, correctHash))
+			if (!String.IsNullOrEmpty(account.PasswordHash))
 			{
-				return LoginFormError(ErrorMsg, returnUrl);
-			}
-
-			if (String.IsNullOrEmpty(account.Email))
-			{
-				return LoginFormError("E-mail not set for user", returnUrl);
+				byte[] correctHash = PasswordHasher.HashFromString(account.PasswordHash);
+				byte[] salt = PasswordHasher.SaltFromString(account.PasswordSalt);
+				if (!PasswordHasher.ValidatePassword(password, salt, correctHash))
+				{
+					return LoginFormError(ErrorMsg, returnUrl);
+				}
 			}
 
 			IUser user = await _users.FindOrAddUserByLoginAsync(account.Login, account.Name, account.Email);
@@ -202,11 +206,15 @@ namespace Horde.Server.Server
 				new Claim(HordeClaimTypes.Version, HordeClaimTypes.CurrentVersion),
 				new Claim(HordeClaimTypes.AccountId, account.Id.ToString()),
 				new Claim(ClaimTypes.Name, account.Name),
-				new Claim(ClaimTypes.Email, account.Email),
 				new Claim(HordeClaimTypes.User, account.Login),
 				new Claim(HordeClaimTypes.UserId, user.Id.ToString()),
 			};
-			foreach (IUserClaim claim in account.GetClaims())
+			if (!String.IsNullOrEmpty(account.Email))
+			{
+				claims.Add(new Claim(ClaimTypes.Email, account.Email));
+			}
+
+			foreach (IUserClaim claim in account.Claims)
 			{
 				claims.Add(new Claim(claim.Type, claim.Value));
 			}
