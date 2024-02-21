@@ -150,7 +150,7 @@ public:
 };
 
 #if !IAS_HTTP_WITH_PERF
-inline FTicketPerf::FSample FTicketPerf::GetSample() const { /* nop */ }
+inline FTicketPerf::FSample FTicketPerf::GetSample() const { return {}; }
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
