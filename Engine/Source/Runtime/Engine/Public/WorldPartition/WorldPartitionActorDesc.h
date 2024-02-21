@@ -142,6 +142,7 @@ public:
 	inline FName GetActorLabel() const { return ActorLabel; }
 	inline FName GetFolderPath() const { return FolderPath; }
 	inline const FGuid& GetFolderGuid() const { return FolderGuid; }
+	inline const FTransform& GetActorTransform() const { return ActorTransform; }
 
 	ENGINE_API virtual FBox GetEditorBounds() const;
 	ENGINE_API FBox GetRuntimeBounds() const;
@@ -349,6 +350,7 @@ protected:
 
 	virtual void TransferWorldData(const FWorldPartitionActorDesc* From)
 	{
+		ActorTransform = From->ActorTransform;
 		BoundsLocation = From->BoundsLocation;
 		BoundsExtent = From->BoundsExtent;
 		bIsBoundsValid = From->bIsBoundsValid;
@@ -365,6 +367,7 @@ protected:
 	FName							ActorPackage;	// Not serialized, comes from initialization data
 	FSoftObjectPath					ActorPath;		// Not serialized, comes from initialization data
 	FName							ActorLabel;
+	FTransform						ActorTransform;
 	FVector							BoundsLocation;
 	FVector							BoundsExtent;
 	FName							RuntimeGrid;

@@ -20,6 +20,7 @@
 #include "WorldPartition/ActorDescContainerSubsystem.h"
 #include "UObject/UE5ReleaseStreamObjectVersion.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
+#include "UObject/FortniteSeasonBranchObjectVersion.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
 
 static int32 GLevelInstanceDebugForceLevelStreaming = 0;
@@ -49,7 +50,6 @@ void FLevelInstanceActorDesc::Init(const AActor* InActor)
 
 	const ILevelInstanceInterface* LevelInstance = CastChecked<ILevelInstanceInterface>(InActor);
 	WorldAsset = LevelInstance->GetWorldAsset().ToSoftObjectPath();
-	LevelInstanceTransform = InActor->GetActorTransform();
 	DesiredRuntimeBehavior = LevelInstance->GetDesiredRuntimeBehavior();
 	Filter = LevelInstance->GetFilter();
 	
@@ -80,7 +80,6 @@ bool FLevelInstanceActorDesc::Equals(const FWorldPartitionActorDesc* Other) cons
 
 		return
 			WorldAsset == LevelInstanceActorDesc->WorldAsset &&
-			LevelInstanceTransform.Equals(LevelInstanceActorDesc->LevelInstanceTransform, 0.1f) &&
 			DesiredRuntimeBehavior == LevelInstanceActorDesc->DesiredRuntimeBehavior;
 	}
 
@@ -163,7 +162,7 @@ bool FLevelInstanceActorDesc::IsChildContainerInstanceInternal() const
 FTransform FLevelInstanceActorDesc::GetChildContainerTransform() const
 {
 	FTransform LevelInstancePivotOffsetTransform = FTransform(ULevel::GetLevelInstancePivotOffsetFromPackage(GetChildContainerPackage()));
-	return LevelInstancePivotOffsetTransform * LevelInstanceTransform;
+	return LevelInstancePivotOffsetTransform * ActorTransform;
 }
 
 bool FLevelInstanceActorDesc::GetChildContainerInstance(const FWorldPartitionActorDescInstance* InActorDescInstance, FContainerInstance& OutContainerInstance) const
@@ -241,14 +240,6 @@ UActorDescContainerInstance* FLevelInstanceActorDesc::CreateChildContainerInstan
 	return ChildContainerInstance;
 }
 
-void FLevelInstanceActorDesc::TransferWorldData(const FWorldPartitionActorDesc* From)
-{
-	FWorldPartitionActorDesc::TransferWorldData(From);
-
-	FLevelInstanceActorDesc* FromLevelInstanceActorDesc = (FLevelInstanceActorDesc*)From;
-	LevelInstanceTransform = FromLevelInstanceActorDesc->LevelInstanceTransform;
-}
-
 void FLevelInstanceActorDesc::Serialize(FArchive& Ar)
 {
 	FWorldPartitionActorDesc::Serialize(Ar);
@@ -256,6 +247,7 @@ void FLevelInstanceActorDesc::Serialize(FArchive& Ar)
 	Ar.UsingCustomVersion(FUE5ReleaseStreamObjectVersion::GUID);
 	Ar.UsingCustomVersion(FUE5MainStreamObjectVersion::GUID);
 	Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
+	Ar.UsingCustomVersion(FFortniteSeasonBranchObjectVersion::GUID);
 
 	if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::WorldPartitionActorDescSerializeSoftObjectPathSupport)
 	{
@@ -273,13 +265,13 @@ void FLevelInstanceActorDesc::Serialize(FArchive& Ar)
 	{
 		if (Ar.CustomVer(FUE5ReleaseStreamObjectVersion::GUID) < FUE5ReleaseStreamObjectVersion::LargeWorldCoordinates)
 		{
-			FTransform3f LevelInstanceTransformFlt;
-			Ar << LevelInstanceTransformFlt;
-			LevelInstanceTransform = FTransform(LevelInstanceTransformFlt);
+			FTransform3f ActorTransformFlt;
+			Ar << ActorTransformFlt;
+			ActorTransform = FTransform(ActorTransformFlt);
 		}
-		else
+		else if (Ar.CustomVer(FFortniteSeasonBranchObjectVersion::GUID) < FFortniteSeasonBranchObjectVersion::WorldPartitionActorDescActorTransformSerialization)
 		{
-			Ar << LevelInstanceTransform;
+			Ar << ActorTransform;
 		}
 	}
 
@@ -307,7 +299,7 @@ void FLevelInstanceActorDesc::Serialize(FArchive& Ar)
 				if (!IsChildContainerInstance())
 				{
 					FBox OutBounds;
-					if (ULevelInstanceSubsystem::GetLevelInstanceBoundsFromPackage(LevelInstanceTransform, GetChildContainerPackage(), OutBounds))
+					if (ULevelInstanceSubsystem::GetLevelInstanceBoundsFromPackage(ActorTransform, GetChildContainerPackage(), OutBounds))
 					{
 						OutBounds.GetCenterAndExtents(BoundsLocation, BoundsExtent);
 					}
