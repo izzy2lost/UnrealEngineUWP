@@ -618,6 +618,12 @@ private:
 	void RemoveAssetData(FAssetData* AssetData, const FCachedAssetKey& Key, bool bRemoveDependencyData,
 		bool& bOutRemovedAssetData, bool& bOutRemovedPackageData);
 
+	/**
+	 * Returns true if the given package should be filtered from the results because the package belongs to an unmounted content path.
+	 * This can only happen when loading a cooked asset registry (@see bCookedGlobalAssetRegistryState), as it may contain state for plugins that are not currently loaded.
+	 */
+	bool IsPackageUnmountedAndFiltered(const FName PackageName) const;
+
 	/** Set of asset data for assets saved to disk. Searched via path name types, implicitly converted to FCachedAssetKey. */
 	FAssetDataMap CachedAssets;
 
@@ -648,6 +654,9 @@ private:
 	int32 NumAssets = 0;
 	int32 NumDependsNodes = 0;
 	int32 NumPackageData = 0;
+
+	/** True if this asset registry state was loaded from a cooked asset registry */
+	bool bCookedGlobalAssetRegistryState = false;
 
 	friend class UAssetRegistryImpl;
 	friend class UE::AssetRegistry::FAssetRegistryImpl;
