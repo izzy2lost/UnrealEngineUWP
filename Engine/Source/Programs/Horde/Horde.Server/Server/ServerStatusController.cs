@@ -80,32 +80,31 @@ public class ServerStatusController : Controller
 	public ActionResult<ServerStatusResponse> GetUpdates([FromQuery] string? format = null)
 	{
 		IReadOnlyList<SubsystemStatus> subsystemStatuses = _serverStatus.GetSubsystemStatuses();
-
+		
 		if (format == "html")
 		{
 			return GetUpdatesHtml(subsystemStatuses);
 		}
 		
 		return new ServerStatusResponse
-		{
-			Statuses = subsystemStatuses.Select(x =>
 			{
-				return new ServerStatusSubsystem()
+				Statuses = subsystemStatuses.Select(x =>
 				{
-					Category = x.Category,
-					Name = x.Name,
-					Updates = x.Updates.Select(
-						u => new ServerStatusUpdate()
-						{
-							Result = ConvertSubsystemResult(u.Result),
-							Message = u.Message,
-							UpdatedAt = u.UpdatedAt
-						}).ToArray()
-				};
-			}).ToArray(),
-		};
-	}
-	
+					return new ServerStatusSubsystem()
+					{
+						Name = x.Name,
+						Updates = x.Updates.Select(
+							u => new ServerStatusUpdate()
+							{
+								Result = ConvertSubsystemResult(u.Result),
+								Message = u.Message,
+								UpdatedAt = u.UpdatedAt
+							}).ToArray()
+					};
+				}).ToArray(),
+			};
+		}
+
 	private ActionResult GetUpdatesHtml(IReadOnlyList<SubsystemStatus> subsystemStatuses)
 	{
 		return View("~/Server/ServerStatusUpdates.cshtml", new ServerStatusUpdatesViewModel

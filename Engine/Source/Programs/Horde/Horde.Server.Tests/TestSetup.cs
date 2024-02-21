@@ -271,6 +271,8 @@ namespace Horde.Server.Tests
 			services.AddSingleton<DeviceService>();
 			services.AddSingleton<TestDataService>();
 			services.AddSingleton<ComputeService>();
+
+			services.AddSingleton(typeof(IHealthMonitor<>), typeof(HealthMonitor<>));
 			services.AddSingleton<ServerStatusService>();
 
 			services.AddScoped<JobRpcCommon>();
