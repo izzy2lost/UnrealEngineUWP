@@ -40,14 +40,24 @@ export const HordeLoginView: React.FC = () => {
 
          const response = await fetch("/account/login/dashboard", request);
 
-         if (!response.ok) {
-            setState({ ...state, error: "Invalid username or password", submitting: false });
+         if (!response.ok || response.status !== 200 || !response.redirected) {
+
+            let error = "Problem logging in: Unknown Error";
+                        
+            if (response.status === 403) {
+               error = "Invalid login or password";
+            } else if (response.ok && !response.redirected) {
+               error = "Problem logging in: Not Redirected";
+            }            
+
+            setState({ ...state, error: error, submitting: false });
+            return;
          }
          
          window.location.assign((response.redirected && response.url) ? response.url : "/index");
 
       } catch (error) {
-         setState({ ...state, error: "Invalid username or password", submitting: false });
+         setState({ ...state, error: `Problem logging in ${error}`, submitting: false });
       }
    }
 
@@ -68,7 +78,7 @@ export const HordeLoginView: React.FC = () => {
                </Stack>}
 
                <Stack style={{ padding: 8 }}>
-                  <TextField disabled={state.submitting} label="Username" autoComplete="off" spellCheck={false} placeholder="Enter Username" onChange={(ev, value) => { setState({ ...state, username: value ?? "" }) }} />
+                  <TextField disabled={state.submitting} label="Login" autoComplete="off" spellCheck={false} placeholder="Enter Login" onChange={(ev, value) => { setState({ ...state, username: value ?? "" }) }} />
                </Stack>
                <Stack style={{ padding: 8 }}>
                   <TextField disabled={state.submitting} label={"Password"} autoComplete="off" spellCheck={false} placeholder="Enter Password" type="password" canRevealPassword onChange={(ev, value) => { setState({ ...state, password: value ?? "" }) }} />

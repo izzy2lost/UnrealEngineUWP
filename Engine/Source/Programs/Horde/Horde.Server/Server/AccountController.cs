@@ -201,14 +201,14 @@ namespace Horde.Server.Server
 		{
 			if (_globalConfig.Value.ServerSettings.AuthMethod != AuthMethod.Horde)
 			{
-				return Forbid("Horde authentication is disabled");
+				return Forbid();
 			}
 
 			bool success = await SignInAsync(request.Username, request.Password);
 
 			if (!success)
 			{
-				return Forbid("Invalid username or password");
+				return Forbid();
 			}
 
 			return Redirect(request.ReturnUrl ?? "/");
@@ -243,11 +243,11 @@ namespace Horde.Server.Server
 				return false;
 			}
 
-			if (!String.IsNullOrEmpty(account.PasswordHash) && !String.IsNullOrEmpty(password))
+			if (!String.IsNullOrEmpty(account.PasswordHash))
 			{
 				byte[] correctHash = PasswordHasher.HashFromString(account.PasswordHash);
 				byte[] salt = PasswordHasher.SaltFromString(account.PasswordSalt);
-				if (!PasswordHasher.ValidatePassword(password, salt, correctHash))
+				if (!PasswordHasher.ValidatePassword(password ?? "", salt, correctHash))
 				{
 					return false;
 				}
