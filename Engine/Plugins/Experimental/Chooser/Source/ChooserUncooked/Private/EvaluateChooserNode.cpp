@@ -615,6 +615,7 @@ void UK2Node_EvaluateChooser2::ExpandNode(class FKismetCompilerContext& Compiler
 		
 		if (Chooser)
 		{
+			bool bFoundObject = false;
 			int ContextDataCount = Chooser->ContextData.Num();
 			for(int ContextDataIndex = 0; ContextDataIndex < ContextDataCount; ContextDataIndex++)
 			{
@@ -624,6 +625,7 @@ void UK2Node_EvaluateChooser2::ExpandNode(class FKismetCompilerContext& Compiler
 					const UScriptStruct* EntryType = ContextDataEntry.GetScriptStruct();
 					if (EntryType == FContextObjectTypeClass::StaticStruct())
 					{
+						bFoundObject = true;
 						const FContextObjectTypeClass& ClassContext = ContextDataEntry.Get<FContextObjectTypeClass>();
 						if (ClassContext.Class)
 						{
@@ -634,7 +636,6 @@ void UK2Node_EvaluateChooser2::ExpandNode(class FKismetCompilerContext& Compiler
 								AddObjectFunction->SetFromFunction(UChooserFunctionLibrary::StaticClass()->FindFunctionByName(GET_MEMBER_NAME_CHECKED(UChooserFunctionLibrary, AddChooserObjectInput)));
 								AddObjectFunction->AllocateDefaultPins();
 								ContextStructPin->MakeLinkTo(AddObjectFunction->FindPin(FName("Context")));
-								PreviousNodeExecOutput = ContextStructNode->GetThenPin();
 
 								PreviousNodeExecOutput->MakeLinkTo(AddObjectFunction->GetExecPin());
 								PreviousNodeExecOutput = AddObjectFunction->GetThenPin();
@@ -724,6 +725,23 @@ void UK2Node_EvaluateChooser2::ExpandNode(class FKismetCompilerContext& Compiler
 					}
 				}
 			}
+
+			if (!bFoundObject)
+			{
+				// add Self reference to the end of the context, for debugging purposes
+				UK2Node_CallFunction* AddObjectFunction = CompilerContext.SpawnIntermediateNode<UK2Node_CallFunction>(this, SourceGraph);
+				CompilerContext.MessageLog.NotifyIntermediateObjectCreation(AddObjectFunction, this);
+				AddObjectFunction->SetFromFunction(UChooserFunctionLibrary::StaticClass()->FindFunctionByName(GET_MEMBER_NAME_CHECKED(UChooserFunctionLibrary, AddChooserObjectInput)));
+				AddObjectFunction->AllocateDefaultPins();
+				ContextStructPin->MakeLinkTo(AddObjectFunction->FindPin(FName("Context")));
+	
+				PreviousNodeExecOutput->MakeLinkTo(AddObjectFunction->GetExecPin());
+				PreviousNodeExecOutput = AddObjectFunction->GetThenPin();
+									
+				UEdGraphPin* AddObjectPin = AddObjectFunction->FindPin(FName("Object"));
+				SelfPin->MakeLinkTo(AddObjectPin);
+			}
+			
 
 			if (PreviousNodeExecOutput)
 			{
