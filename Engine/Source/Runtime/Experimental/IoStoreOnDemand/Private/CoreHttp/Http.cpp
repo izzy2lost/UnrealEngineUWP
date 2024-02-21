@@ -2560,7 +2560,6 @@ public:
 						~FWorkQueue();
 	bool				HasWork() const { return List != nullptr; }
 	void				AddActivity(FActivity* Activity);
-	void				PushActivity(FActivity* Activity);
 	FActivity*			PopActivity();
 	void				TickCancels(FTickState& State);
 
@@ -2594,14 +2593,6 @@ void FWorkQueue::AddActivity(FActivity* Activity)
 	ListTail = Activity;
 
 	ActiveSlots |= (1ull << Activity->Slot);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void FWorkQueue::PushActivity(FActivity* Activity)
-{
-	Activity->Next = List;
-	List = Activity;
-	ListTail = (ListTail != nullptr) ? ListTail : Activity;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
