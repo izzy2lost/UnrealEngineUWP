@@ -51,11 +51,12 @@ namespace Horde.Server.Ugs
 		/// Searches for metadata updates
 		/// </summary>
 		/// <param name="stream">The stream to search</param>
+		/// <param name="changes">List of changelist numbers to retrieve</param>
 		/// <param name="minChange">Minimum changelist number</param>
 		/// <param name="maxChange">Maximum changelist number</param>
 		/// <param name="afterTicks">Last query time</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of metadata updates</returns>
-		Task<List<IUgsMetadata>> FindAsync(string stream, int minChange, int? maxChange = null, long? afterTicks = null, CancellationToken cancellationToken = default);
+		Task<List<IUgsMetadata>> FindAsync(string stream, IReadOnlyList<int>? changes, int? minChange, int? maxChange = null, long? afterTicks = null, CancellationToken cancellationToken = default);
 	}
 }

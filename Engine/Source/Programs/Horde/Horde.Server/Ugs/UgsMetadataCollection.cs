@@ -273,13 +273,21 @@ namespace Horde.Server.Ugs
 		}
 
 		/// <inheritdoc/>
-		public async Task<List<IUgsMetadata>> FindAsync(string stream, int minChange, int? maxChange = null, long? minTime = null, CancellationToken cancellationToken = default)
+		public async Task<List<IUgsMetadata>> FindAsync(string stream, IReadOnlyList<int>? changes = null, int? minChange = null, int? maxChange = null, long? minTime = null, CancellationToken cancellationToken = default)
 		{
 			FilterDefinitionBuilder<UgsMetadataDocument> filterBuilder = Builders<UgsMetadataDocument>.Filter;
 
 			string normalizedStream = GetNormalizedStream(stream);
 
-			FilterDefinition<UgsMetadataDocument> filter = filterBuilder.Eq(x => x.Stream, normalizedStream) & filterBuilder.Gte(x => x.Change, minChange);
+			FilterDefinition<UgsMetadataDocument> filter = filterBuilder.Eq(x => x.Stream, normalizedStream);
+			if (changes != null && changes.Count > 0)
+			{
+				filter &= filterBuilder.In(x => x.Change, changes);
+			}
+			if (minChange != null)
+			{
+				filter &= filterBuilder.Gte(x => x.Change, minChange.Value);
+			}
 			if (maxChange != null)
 			{
 				filter &= filterBuilder.Lte(x => x.Change, maxChange.Value);
