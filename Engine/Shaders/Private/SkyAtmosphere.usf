@@ -7,7 +7,6 @@
 
 #include "Common.ush"
 #include "SceneTexturesCommon.ush"
-#include "SkyAtmosphereCommon.ush"
 #include "/Engine/Shared/EnvironmentComponentsFlags.h"
 
 #ifndef COLORED_TRANSMITTANCE_ENABLED	// Never used, UE4 does not supports dual blending
@@ -104,6 +103,7 @@
 #include "VolumetricCloudCommon.ush" 
 #endif
 
+#include "SkyAtmosphereCommon.ush"
 
 #if SAMPLE_ATMOSPHERE_ON_CLOUDS
 Texture2D<float>	VolumetricCloudDepthTexture;
@@ -823,17 +823,21 @@ float4 PrepareOutput(float3 PreExposedLuminance, float3 Transmittance = float3(1
 	// Sky materials can result in high luminance values, e.g. the sun disk. 
 	// This is so we make sure to at least stay within the boundaries of fp10 and not cause NaN on some platforms.
 	// We also half that range to also make sure we have room for other additive elements such as bloom, clouds or particle visual effects.
-	float3 SafePreExposedLuminance = min(PreExposedLuminance, Max10BitsFloat.xxx * 0.5f);
-
+	const float3 SafePreExposedLuminance = min(PreExposedLuminance, Max10BitsFloat.xxx * 0.5f);
+	
+	const float GreyScaleTransmittance = dot(Transmittance, float3(1.0f / 3.0f, 1.0f / 3.0f, 1.0f / 3.0f));
+	float4 LuminanceAlpha = float4(SafePreExposedLuminance, GreyScaleTransmittance);
+	
 #if POST_PROCESS_ALPHA
 	if (IsSkyAtmosphereHoldout(View.EnvironmentComponentsFlags) && View.RenderingReflectionCaptureMask == 0.0f)
 	{
-		SafePreExposedLuminance *= 0;
+		LuminanceAlpha.rgb = 0.0f;
+		LuminanceAlpha.a = 1 - GreyScaleTransmittance;
 	}
 #endif
+	
+	return LuminanceAlpha;
 
-	const float GreyScaleTransmittance = dot(Transmittance, float3(1.0f / 3.0f, 1.0f / 3.0f, 1.0f / 3.0f));
-	return float4(SafePreExposedLuminance, GreyScaleTransmittance);
 }
 
 uint DepthReadDisabled;
@@ -928,7 +932,8 @@ void RenderSkyAtmosphereRayMarchingPS(
 
 	float ViewHeight = length(WorldPos);
 #if FASTSKY_ENABLED && RENDERSKY_ENABLED
-	if (ViewHeight < (Atmosphere.TopRadiusKm * PLANET_RADIUS_RATIO_SAFE_EDGE) && DeviceZ == FarDepthValue)
+	if (ViewHeight < (Atmosphere.TopRadiusKm * PLANET_RADIUS_RATIO_SAFE_EDGE) && DeviceZ == FarDepthValue
+		&& (View.RenderingReflectionCaptureMask > 0.0f || IsSkyAtmosphereRenderedInMain(View.EnvironmentComponentsFlags)))
 	{
 		float2 UV;
 
@@ -957,6 +962,7 @@ void RenderSkyAtmosphereRayMarchingPS(
 	#endif
 
 		PreExposedL += SkyLuminance * LuminanceScale * (ViewOneOverPreExposure * OutputPreExposure);
+	
 		OutLuminance = PrepareOutput(PreExposedL, SkyGreyTransmittance);
 		return;
 	}

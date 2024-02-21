@@ -25,6 +25,7 @@
 #include "FogRendering.h"
 #include "SkyAtmosphereRendering.h"
 #include "BasePassRendering.h"
+#include "EnvironmentComponentsFlags.h"
 
 //  If this is enabled, you also need to touch VolumetricCloud.usf for shaders to be recompiled.
 #define CLOUD_DEBUG_SAMPLES 0 /*!Never check in enabled!*/
@@ -824,6 +825,7 @@ class FRenderVolumetricCloudRenderViewCS : public FMeshMaterialShader
 		SHADER_PARAMETER(FVector4f, OutputViewRect)
 		SHADER_PARAMETER(FVector2f, StartTracingDistanceTextureResolution)
 		SHADER_PARAMETER(float, StartTracingSampleVolumeDepth)
+		SHADER_PARAMETER(int32, bAccumulateAlphaHoldOut)
 		SHADER_PARAMETER(int32, bBlendCloudColor)
 		SHADER_PARAMETER(int32, TargetCubeFace)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FRenderVolumetricCloudGlobalParameters, VolumetricCloudRenderViewParamsUB)
@@ -2060,6 +2062,7 @@ FCloudRenderContext::FCloudRenderContext()
 
 	bAsyncCompute = false;
 	bCloudDebugViewModeEnabled = false;
+	bAccumulateAlphaHoldOut = false;
 }
 
 static TAutoConsoleVariable<int32> CVarCloudDefaultTexturesNoFastClear(
@@ -2386,6 +2389,7 @@ void FSceneRenderer::RenderVolumetricCloudsInternal(FRDGBuilder& GraphBuilder, F
 		PassParameters->StartTracingDistanceTextureResolution = FVector2f(EmptySpaceSkippingTexture->Desc.Extent.X, EmptySpaceSkippingTexture->Desc.Extent.Y);
 		PassParameters->StartTracingDistanceTexture = EmptySpaceSkippingTexture;
 		PassParameters->StartTracingSampleVolumeDepth = GetEmptySpaceSkippingVolumeDepth();
+		PassParameters->bAccumulateAlphaHoldOut = CloudRC.bAccumulateAlphaHoldOut ? 1 : 0;
 
 #if CLOUD_DEBUG_SAMPLES
 		ShaderPrint::SetEnabled(true);
@@ -2478,6 +2482,7 @@ bool FSceneRenderer::RenderVolumetricCloud(
 	const FMinimalSceneTextures& SceneTextures,
 	bool bSkipVolumetricRenderTarget,
 	bool bSkipPerPixelTracing,
+	bool bAccumulateAlphaHoldOut,
 	FRDGTextureRef HalfResolutionDepthCheckerboardMinMaxTexture,
 	FRDGTextureRef QuarterResolutionDepthMinMaxTexture,
 	bool bAsyncCompute,
@@ -2498,7 +2503,7 @@ bool FSceneRenderer::RenderVolumetricCloud(
 		FMaterialRenderProxy* CloudVolumeMaterialProxy = CloudSceneProxy.GetCloudVolumeMaterial()->GetRenderProxy();
 		if (CloudVolumeMaterialProxy->GetIncompleteMaterialWithFallback(ViewFamily.GetFeatureLevel()).GetMaterialDomain() == MD_Volume)
 		{
-			RDG_EVENT_SCOPE(GraphBuilder, "VolumetricCloud");
+			RDG_EVENT_SCOPE(GraphBuilder, "%s", bAccumulateAlphaHoldOut ? "VolumetricCloudAlphaHoldout" : "VolumetricCloud");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, VolumetricCloud);
 			SCOPED_NAMED_EVENT(VolumetricCloud, FColor::Emerald);
 
@@ -2527,7 +2532,14 @@ bool FSceneRenderer::RenderVolumetricCloud(
 			{
 				FViewInfo& ViewInfo = Views[ViewIndex];
 
-				bool bShouldViewRenderVolumetricCloudRenderTarget = ShouldViewRenderVolumetricCloudRenderTarget(ViewInfo); // not used by reflection captures for instance
+				if (bAccumulateAlphaHoldOut && ViewInfo.CachedViewUniformShaderParameters->RenderingReflectionCaptureMask > 0.0f)
+				{
+					continue;
+				}
+
+				// RenderTarget are not used by reflection captures for instance.
+				bool bShouldViewRenderVolumetricCloudRenderTarget = ShouldViewRenderVolumetricCloudRenderTarget(ViewInfo) && !bAccumulateAlphaHoldOut; // When rendering alpha holdout per pixel, we never skip even if a volumetric render target is used.; 
+
 				if ((bShouldViewRenderVolumetricCloudRenderTarget && bSkipVolumetricRenderTarget) || (!bShouldViewRenderVolumetricCloudRenderTarget && bSkipPerPixelTracing))
 				{
 					continue;
@@ -2651,6 +2663,11 @@ bool FSceneRenderer::RenderVolumetricCloud(
 				}
 				else
 				{
+					if (ViewInfo.CachedViewUniformShaderParameters->RenderingReflectionCaptureMask == 0 && !IsVolumetricCloudRenderedInMain(ViewInfo.CachedViewUniformShaderParameters->EnvironmentComponentsFlags))
+					{
+						continue;
+					}
+
 					DestinationRT = SceneTextures.Color.Target;
 					const FIntPoint RtSize = SceneTextures.Config.Extent;
 
@@ -2719,6 +2736,8 @@ bool FSceneRenderer::RenderVolumetricCloud(
 				{
 					CloudRC.VirtualShadowMapId0 = INDEX_NONE;
 				}
+
+				CloudRC.bAccumulateAlphaHoldOut = bAccumulateAlphaHoldOut;
 
 				// Cannot nest a global buffer into another one and we are limited to only one PassUniformBuffer on PassDrawRenderState.
 				//TUniformBufferRef<FVolumeShadowingShaderParametersGlobal0> LightShadowShaderParams0UniformBuffer = TUniformBufferRef<FVolumeShadowingShaderParametersGlobal0>::CreateUniformBufferImmediate(LightShadowShaderParams0, UniformBuffer_SingleFrame);

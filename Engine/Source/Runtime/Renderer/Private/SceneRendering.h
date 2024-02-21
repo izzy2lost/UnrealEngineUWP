@@ -2506,6 +2506,7 @@ protected:
 		const FMinimalSceneTextures& SceneTextures,
 		bool bSkipVolumetricRenderTarget,
 		bool bSkipPerPixelTracing,
+		bool bAccumulateAlphaHoldOut,
 		FRDGTextureRef HalfResolutionDepthCheckerboardMinMaxTexture,
 		FRDGTextureRef QuarterResolutionDepthMinMaxTexture,
 		bool bAsyncCompute,

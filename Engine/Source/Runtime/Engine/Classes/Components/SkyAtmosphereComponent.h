@@ -164,6 +164,10 @@ class USkyAtmosphereComponent : public USceneComponent
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = Rendering, Interp)
 	uint8 bHoldout : 1;
 
+	/** If true, this component will be rendered in the main pass (basepass, transparency) */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = Rendering)
+	uint8 bRenderInMainPass : 1;
+
 
 	UFUNCTION(BlueprintCallable, Category = "Rendering")
 	ENGINE_API void OverrideAtmosphereLightDirection(int32 AtmosphereLightIndex, const FVector& LightDirection);
@@ -218,6 +222,9 @@ class USkyAtmosphereComponent : public USceneComponent
 
 	UFUNCTION(BlueprintCallable, Category = "Rendering")
 	ENGINE_API void SetHoldout(bool bNewHoldout);
+
+	UFUNCTION(BlueprintCallable, Category = "Rendering")
+	ENGINE_API void SetRenderInMainPass(bool bValue);
 
 	UFUNCTION(BlueprintCallable, Category = "Utilities", meta = (DisplayName = "Get Atmosphere Transmitance On Ground At Planet Top"))
 	ENGINE_API FLinearColor GetAtmosphereTransmitanceOnGroundAtPlanetTop(UDirectionalLightComponent* DirectionalLight);

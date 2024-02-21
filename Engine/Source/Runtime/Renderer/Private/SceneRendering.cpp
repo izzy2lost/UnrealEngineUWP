@@ -1458,6 +1458,7 @@ void FViewInfo::SetupUniformBufferParameters(
 			const FSkyAtmosphereSceneProxy& SkyAtmosphereSceneProxy = SkyAtmosphere->GetSkyAtmosphereSceneProxy();
 
 			ViewUniformShaderParameters.EnvironmentComponentsFlags |= SkyAtmosphereSceneProxy.IsHoldout() ? ENVCOMP_FLAG_SKYATMOSPHERE_HOLDOUT : 0;
+			ViewUniformShaderParameters.EnvironmentComponentsFlags |= SkyAtmosphereSceneProxy.IsRenderedInMainPass() ? ENVCOMP_FLAG_SKYATMOSPHERE_RENDERINMAIN : 0;
 		}
 
 		if (ShouldRenderVolumetricCloud(Scene, Family->EngineShowFlags))
@@ -1466,6 +1467,7 @@ void FViewInfo::SetupUniformBufferParameters(
 			const FVolumetricCloudSceneProxy& VolumetricCloudSceneProxy = VolumetricCloud->GetVolumetricCloudSceneProxy();
 
 			ViewUniformShaderParameters.EnvironmentComponentsFlags |= VolumetricCloudSceneProxy.bHoldout ? ENVCOMP_FLAG_VOLUMETRICCLOUD_HOLDOUT : 0;
+			ViewUniformShaderParameters.EnvironmentComponentsFlags |= VolumetricCloudSceneProxy.bRenderInMainPass ? ENVCOMP_FLAG_VOLUMETRICCLOUD_RENDERINMAIN : 0;
 		}
 
 		if (Scene->ExponentialFogs.Num() > 0)
@@ -1473,6 +1475,7 @@ void FViewInfo::SetupUniformBufferParameters(
 			FExponentialHeightFogSceneInfo& Fog = Scene->ExponentialFogs[0];
 
 			ViewUniformShaderParameters.EnvironmentComponentsFlags |= Fog.bHoldout ? ENVCOMP_FLAG_EXPONENTIALFOG_HOLDOUT : 0;
+			ViewUniformShaderParameters.EnvironmentComponentsFlags |= Fog.bRenderInMainPass ? ENVCOMP_FLAG_EXPONENTIALFOG_RENDERINMAIN : 0;
 		}
 	}
 

@@ -223,8 +223,12 @@ half4 GetExponentialHeightFog(float3 WorldPositionRelativeToCamera, float Exclud
 
 half4 CalculateHeightFog(float3 WorldPositionRelativeToCamera)
 {
-	float ExcludeDistance = 0;
+	if (View.RenderingReflectionCaptureMask == 0.0f && !IsExponentialFogRenderedInMain(View.EnvironmentComponentsFlags))
+	{
+		return float4(0.0f, 0.0f, 0.0f, 1.0f);
+	}
 
+	float ExcludeDistance = 0;
 #if PERMUTATION_SUPPORT_VOLUMETRIC_FOG
 	// Volumetric fog covers up to MaxDistance along ViewZ, exclude analytical fog from this range
 	float CosAngle = dot(normalize(WorldPositionRelativeToCamera), View.ViewForward);
@@ -245,6 +249,11 @@ half4 CalculateHeightFog(float3 WorldPositionRelativeToCamera)
 float4 CombineVolumetricFog(float4 GlobalFog, float3 VolumeUV, uint EyeIndex, float SceneDepth)
 {
 	float4 VolumetricFogLookup = float4(0, 0, 0, 1);
+	
+	if (View.RenderingReflectionCaptureMask == 0.0f && !IsExponentialFogRenderedInMain(View.EnvironmentComponentsFlags))
+	{
+		return VolumetricFogLookup;
+	}
 
 #if PERMUTATION_SUPPORT_VOLUMETRIC_FOG
 	float VolFogStartDistance = 0.0f;

@@ -419,6 +419,7 @@ FExponentialHeightFogSceneInfo::FExponentialHeightFogSceneInfo(const UExponentia
 	VolumetricFogStaticLightingScatteringIntensity = FMath::Max(InComponent->VolumetricFogStaticLightingScatteringIntensity, 0.0f);
 	bOverrideLightColorsWithFogInscatteringColors = InComponent->bOverrideLightColorsWithFogInscatteringColors;
 	bHoldout = InComponent->bHoldout;
+	bRenderInMainPass = InComponent->bRenderInMainPass;
 
 	VolumetricFogStartDistance = InComponent->VolumetricFogStartDistance;
 	VolumetricFogNearFadeInDistance = InComponent->VolumetricFogNearFadeInDistance;

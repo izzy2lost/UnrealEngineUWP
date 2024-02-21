@@ -327,8 +327,8 @@ static void RenderViewFog(
 			}
 			else
 			{
-				// Same color blending as without alpha channel. Disabled alpha blending writes because alpha holdout from other component must be preserved.
-				GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGB, BO_Add, BF_One, BF_InverseSourceAlpha>::GetRHI();
+				// Same color blending. Alpha blending is kept so that the throughput of height fog can still be applied on the background (for instance when the sky or a mesh is holdout).
+				GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_InverseSourceAlpha, BO_Add, BF_Zero, BF_InverseSourceAlpha>::GetRHI();
 			}
 		}
 		else

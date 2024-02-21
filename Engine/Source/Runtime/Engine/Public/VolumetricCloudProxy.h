@@ -41,6 +41,7 @@ public:
 	FColor GroundAlbedo;
 	bool bUsePerSampleAtmosphericLightTransmittance;
 	bool bHoldout;
+	bool bRenderInMainPass;
 	float SkyLightCloudBottomOcclusion;
 	
 	float ViewSampleCountScale;

@@ -204,6 +204,11 @@ class UExponentialHeightFogComponent : public USceneComponent
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = Rendering, Interp)
 	uint8 bHoldout : 1;
 
+	/** If true, this component will be rendered in the main pass (basepass, transparency) */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = Rendering)
+	uint8 bRenderInMainPass : 1;
+
+
 public:
 	UFUNCTION(BlueprintCallable, Category="Rendering|Components|ExponentialHeightFog")
 	ENGINE_API void SetFogDensity(float Value);
@@ -279,6 +284,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Rendering")
 	ENGINE_API void SetHoldout(bool bNewHoldout);
+
+	UFUNCTION(BlueprintCallable, Category = "Rendering")
+	ENGINE_API void SetRenderInMainPass(bool bValue);
 
 protected:
 	//~ Begin UActorComponent Interface.
