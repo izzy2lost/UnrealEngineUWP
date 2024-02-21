@@ -142,16 +142,30 @@ void ITokenizedMessageErrorHandler::OnInvalidDataLayerAssetType(const UDataLayer
 	HandleTokenizedMessage(MoveTemp(Message));
 }
 
-void ITokenizedMessageErrorHandler::OnDataLayerHierarchyTypeMismatch(const UDataLayerInstance* DataLayerInstance, const UDataLayerInstance* Parent)
+void ITokenizedMessageErrorHandler::OnDataLayerHierarchyTypeMismatch(const UDataLayerInstance* DataLayerInstance, const UDataLayerInstance* Parent, EDataLayerHierarchyInvalidReason Reason)
 {
 	TSharedRef<FTokenizedMessage> Message = FTokenizedMessage::Create(EMessageSeverity::Error);
-	Message->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_DataLayers_DataLayer", "Data layer")))
-		->AddToken(FTextToken::Create(FText::FromString(DataLayerInstance->GetDataLayerShortName())))
-		->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_DataLayers_IsRntime", "is Runtime but its parent data layer")))
-		->AddToken(FTextToken::Create(FText::FromString(Parent->GetDataLayerShortName())))
-		->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_DataLayers_IsNot", "is not")))
-		->AddToken(FMapErrorToken::Create(TEXT("DataLayers_HierarchyTypeMisMatch_CheckForErrors")));
 
+	switch (Reason)
+	{
+	case EDataLayerHierarchyInvalidReason::ClientOnlyDataLayerCantBeChild:
+	case EDataLayerHierarchyInvalidReason::ServerOnlyDataLayerCantBeChild:
+		Message->AddToken(FTextToken::Create((Reason == EDataLayerHierarchyInvalidReason::ClientOnlyDataLayerCantBeChild) ? LOCTEXT("TokenMessage_DataLayers_ClientOnlyDataLayer", "Client-Only Data Layer") : LOCTEXT("TokenMessage_DataLayers_ServerOnlyDataLayer", "Server-Only Data Layer")))
+			->AddToken(FTextToken::Create(FText::FromString(DataLayerInstance->GetDataLayerShortName())))
+			->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_DataLayers_CantBeChild", "can't be child of")))
+			->AddToken(FTextToken::Create(FText::FromString(Parent->GetDataLayerShortName())))
+			->AddToken(FMapErrorToken::Create(TEXT("DataLayers_HierarchyTypeMismatch_CheckForErrors")));
+		break;
+	case EDataLayerHierarchyInvalidReason::IncompatibleDataLayerType:
+		Message->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_DataLayers_DataLayer", "Data layer")))
+			->AddToken(FTextToken::Create(FText::FromString(DataLayerInstance->GetDataLayerShortName())))
+			->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_DataLayers_IsEditor", "is Editor but its parent data layer")))
+			->AddToken(FTextToken::Create(FText::FromString(Parent->GetDataLayerShortName())))
+			->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_DataLayers_IsRuntime", "is Runtime")))
+			->AddToken(FMapErrorToken::Create(TEXT("DataLayers_HierarchyTypeMismatch_CheckForErrors")));
+		break;
+	}
+	
 	HandleTokenizedMessage(MoveTemp(Message));
 }
 

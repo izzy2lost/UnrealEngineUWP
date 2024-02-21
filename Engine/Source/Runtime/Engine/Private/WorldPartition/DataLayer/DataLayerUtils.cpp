@@ -11,6 +11,8 @@
 #include "WorldPartition/DataLayer/DataLayerManager.h"
 #include "Algo/AllOf.h"
 
+#define LOCTEXT_NAMESPACE "DataLayer"
+
 FDataLayerInstanceNames FDataLayerUtils::ResolveDataLayerInstanceNames(const UDataLayerManager* InDataLayerManager, const FWorldPartitionActorDesc* InActorDesc, const TArray<const FWorldDataLayersActorDesc*>& InWorldDataLayersActorDescs)
 {
 	const bool bIncludeExternalDataLayer = false;
@@ -241,5 +243,22 @@ FString FDataLayerUtils::GenerateUniqueDataLayerShortName(const UDataLayerManage
 		
 	return UniqueNewDataLayerShortName;
 }
+
+bool FDataLayerUtils::AreDataLayerTypesCompatible(EDataLayerType ParentDataLayerType, EDataLayerType ChildDataLayerType, FText* OutReason)
+{
+	if ((ChildDataLayerType == EDataLayerType::Unknown) ||
+		(ParentDataLayerType == EDataLayerType::Unknown) ||
+		(ParentDataLayerType != EDataLayerType::Editor && ChildDataLayerType != EDataLayerType::Runtime))
+	{
+		if (OutReason)
+		{
+			*OutReason = FText::Format(LOCTEXT("IncompatibleChildType", "{0} Data Layer cannot have {1} child Data Layers"), UEnum::GetDisplayValueAsText(ParentDataLayerType), UEnum::GetDisplayValueAsText(ChildDataLayerType));
+		}
+		return false;
+	}
+	return true;
+}
+
+#undef LOCTEXT_NAMESPACE
 
 #endif

@@ -393,19 +393,35 @@ void UWorldPartitionChangelistValidator::OnInvalidDataLayerAssetType(const UData
 	}
 }
 
-void UWorldPartitionChangelistValidator::OnDataLayerHierarchyTypeMismatch(const UDataLayerInstance* DataLayerInstance, const UDataLayerInstance* Parent)
+void UWorldPartitionChangelistValidator::OnDataLayerHierarchyTypeMismatch(const UDataLayerInstance* DataLayerInstance, const UDataLayerInstance* Parent, EDataLayerHierarchyInvalidReason Reason)
 {
 	if (Filter(DataLayerInstance)
 		|| Filter(Parent)
 		|| bSubmittingWorldDataLayers)
 	{
-		FText CurrentError = FText::Format(LOCTEXT("DataValidation.Changelist.WorldPartition.DataLayerHierarchyTypeMismatch", "Data layer {0} is of type {1} and its parent {2} is of type {3}."),
-			FText::FromString(DataLayerInstance->GetDataLayerFullName()),
-			UEnum::GetDisplayValueAsText(DataLayerInstance->GetType()),
-			FText::FromString(Parent->GetDataLayerFullName()),
-			UEnum::GetDisplayValueAsText(Parent->GetType()));
-	
-		AssetFails(CurrentAsset, CurrentError);
+		switch (Reason)
+		{
+		case EDataLayerHierarchyInvalidReason::ClientOnlyDataLayerCantBeChild:
+		case EDataLayerHierarchyInvalidReason::ServerOnlyDataLayerCantBeChild:
+			{
+				FText CurrentError = FText::Format(LOCTEXT("DataValidation.Changelist.WorldPartition.DataLayerHierarchyCantBeChild", "Data layer {0} is {1} which can't be child of parent {2}."),
+					FText::FromString(DataLayerInstance->GetDataLayerFullName()),
+					(Reason == EDataLayerHierarchyInvalidReason::ClientOnlyDataLayerCantBeChild) ? LOCTEXT("DataLayerIsClientOnly", "client-only") : LOCTEXT("DataLayerIsServerOnly", "server-only"),
+					FText::FromString(Parent->GetDataLayerFullName()));
+				AssetFails(CurrentAsset, CurrentError);
+			}
+			break;
+		case EDataLayerHierarchyInvalidReason::IncompatibleDataLayerType:
+			{
+				FText CurrentError = FText::Format(LOCTEXT("DataValidation.Changelist.WorldPartition.DataLayerHierarchyTypeMismatch", "Data layer {0} is of type {1} and its parent {2} is of type {3}."),
+					FText::FromString(DataLayerInstance->GetDataLayerFullName()),
+					UEnum::GetDisplayValueAsText(DataLayerInstance->GetType()),
+					FText::FromString(Parent->GetDataLayerFullName()),
+					UEnum::GetDisplayValueAsText(Parent->GetType()));
+				AssetFails(CurrentAsset, CurrentError);
+			}
+			break;
+		}
 	}
 }
 

@@ -437,7 +437,7 @@ bool UDataLayerInstance::CanBeChildOf(const UDataLayerInstance* InParent, FText*
 	return true;
 }
 
-bool UDataLayerInstance::IsParentDataLayerTypeCompatible(const UDataLayerInstance* InParent, FText* OutReason) const
+bool UDataLayerInstance::IsParentDataLayerTypeCompatible(const UDataLayerInstance* InParent, FText* OutReasonText, IStreamingGenerationErrorHandler::EDataLayerHierarchyInvalidReason* OutReason) const
 {
 	if (InParent == nullptr)
 	{
@@ -448,21 +448,20 @@ bool UDataLayerInstance::IsParentDataLayerTypeCompatible(const UDataLayerInstanc
 	{
 		if (OutReason)
 		{
-			*OutReason = FText::Format(LOCTEXT("ClientOrServerOnlyCantHaveParent", "{0} Data Layer cannot be a child Data Layer"), IsClientOnly() ? FText::FromString(TEXT("Client-Only")) : FText::FromString(TEXT("Server-Only")));
+			*OutReason = IsClientOnly() ? IStreamingGenerationErrorHandler::EDataLayerHierarchyInvalidReason::ClientOnlyDataLayerCantBeChild : IStreamingGenerationErrorHandler::EDataLayerHierarchyInvalidReason::ServerOnlyDataLayerCantBeChild;
+		}
+		if (OutReasonText)
+		{
+			*OutReasonText = FText::Format(LOCTEXT("ClientOrServerOnlyCantHaveParent", "{0} Data Layer cannot be a child Data Layer"), IsClientOnly() ? FText::FromString(TEXT("Client-Only")) : FText::FromString(TEXT("Server-Only")));
 		}
 		return false;
 	}
 
-	const EDataLayerType ParentType = InParent->GetType();
-	const EDataLayerType ChildType = GetType();
-
-	if ((ChildType == EDataLayerType::Unknown) ||
-		(ParentType == EDataLayerType::Unknown) || 
-		(ParentType != EDataLayerType::Editor && ChildType != EDataLayerType::Runtime))
+	if (!FDataLayerUtils::AreDataLayerTypesCompatible(InParent->GetType(), GetType(), OutReasonText))
 	{
 		if (OutReason)
 		{
-			*OutReason = FText::Format(LOCTEXT("IncompatibleChildType", "{0} Data Layer cannot have {1} child Data Layers"), UEnum::GetDisplayValueAsText(InParent->GetType()), UEnum::GetDisplayValueAsText(GetType()));
+			*OutReason = IStreamingGenerationErrorHandler::EDataLayerHierarchyInvalidReason::IncompatibleDataLayerType;
 		}
 		return false;
 	}
@@ -535,10 +534,15 @@ FText UDataLayerInstance::GetDataLayerText(const UDataLayerInstance* InDataLayer
 
 bool UDataLayerInstance::Validate(IStreamingGenerationErrorHandler* ErrorHandler) const
 {
-	if (GetParent() != nullptr && !IsParentDataLayerTypeCompatible(GetParent()))
+	if (GetParent() != nullptr)
 	{
-		ErrorHandler->OnDataLayerHierarchyTypeMismatch(this, GetParent());
-		return false;
+		FText ReasonText;
+		IStreamingGenerationErrorHandler::EDataLayerHierarchyInvalidReason Reason;
+		if (!IsParentDataLayerTypeCompatible(GetParent(), &ReasonText, &Reason))
+		{
+			ErrorHandler->OnDataLayerHierarchyTypeMismatch(this, GetParent(), Reason);
+			return false;
+		}
 	}
 
 	return true;

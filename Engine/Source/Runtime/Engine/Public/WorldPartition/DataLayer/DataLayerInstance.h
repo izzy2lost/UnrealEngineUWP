@@ -7,6 +7,7 @@
 #include "UObject/UObjectGlobals.h"
 #include "UObject/Object.h"
 #include "WorldPartition/DataLayer/DataLayerType.h"
+#include "WorldPartition/ErrorHandling/WorldPartitionStreamingGenerationErrorHandler.h"
 
 #include "DataLayerInstance.generated.h"
 
@@ -209,7 +210,7 @@ private:
 protected:
 #if WITH_EDITOR
 	ENGINE_API bool IsLocked(FText* OutReason) const;
-	ENGINE_API bool IsParentDataLayerTypeCompatible(const UDataLayerInstance* InParent, FText* OutReason = nullptr) const;
+	ENGINE_API bool IsParentDataLayerTypeCompatible(const UDataLayerInstance* InParent, FText* OutReasonText = nullptr, IStreamingGenerationErrorHandler::EDataLayerHierarchyInvalidReason* OutReason = nullptr) const;
 
 	virtual bool PerformAddActor(AActor* InActor) const { return false; }
 	virtual bool PerformRemoveActor(AActor* InActor) const { return false;  }

@@ -67,9 +67,19 @@ public:
 	virtual void OnInvalidReferenceDataLayerAsset(const UDataLayerInstanceWithAsset* DataLayerInstance) = 0;
 
 	/**
+	 * Used to identify a data layer hierarchy type mismatch error
+	 */
+	enum class EDataLayerHierarchyInvalidReason
+	{
+		ClientOnlyDataLayerCantBeChild,
+		ServerOnlyDataLayerCantBeChild,
+		IncompatibleDataLayerType
+	};
+
+	/**
 	 * Called when a data layer is not of the same type as its parent
 	 */
-	virtual void OnDataLayerHierarchyTypeMismatch(const UDataLayerInstance* DataLayerInstance, const UDataLayerInstance* Parent) = 0;
+	virtual void OnDataLayerHierarchyTypeMismatch(const UDataLayerInstance* DataLayerInstance, const UDataLayerInstance* Parent, EDataLayerHierarchyInvalidReason Reason) = 0;
 
 	/**
 	 * Called when two data layer instances share the same asset

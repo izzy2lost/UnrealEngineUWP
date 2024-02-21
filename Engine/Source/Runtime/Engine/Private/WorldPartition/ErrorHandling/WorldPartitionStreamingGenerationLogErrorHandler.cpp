@@ -67,9 +67,20 @@ void FStreamingGenerationLogErrorHandler::OnInvalidDataLayerAssetType(const UDat
 	UE_ASSET_LOG(LogWorldPartition, Log, DataLayerInstance, TEXT("Data Layer is not compatible with Data Layer asset %s type %s"), *DataLayerAsset->GetName(), *DataLayerAsset->GetClass()->GetName());
 }
 
-void FStreamingGenerationLogErrorHandler::OnDataLayerHierarchyTypeMismatch(const UDataLayerInstance* DataLayerInstance, const UDataLayerInstance* Parent)
+void FStreamingGenerationLogErrorHandler::OnDataLayerHierarchyTypeMismatch(const UDataLayerInstance* DataLayerInstance, const UDataLayerInstance* Parent, EDataLayerHierarchyInvalidReason Reason)
 {
-	UE_ASSET_LOG(LogWorldPartition, Log, DataLayerInstance, TEXT("Data Layer %s is of Type %s and its parent %s is of type %s"), *DataLayerInstance->GetDataLayerFullName(), *UEnum::GetValueAsString(DataLayerInstance->GetType()), *Parent->GetDataLayerFullName(), *UEnum::GetValueAsString(Parent->GetType()));
+	switch (Reason)
+	{
+	case EDataLayerHierarchyInvalidReason::ClientOnlyDataLayerCantBeChild:
+		UE_ASSET_LOG(LogWorldPartition, Log, DataLayerInstance, TEXT("Client-only Data Layer %s can't be child of parent %s"), *DataLayerInstance->GetDataLayerFullName(), *Parent->GetDataLayerFullName());
+		break;
+	case EDataLayerHierarchyInvalidReason::ServerOnlyDataLayerCantBeChild:
+		UE_ASSET_LOG(LogWorldPartition, Log, DataLayerInstance, TEXT("Server-only Data Layer %s can't be child of parent %s"), *DataLayerInstance->GetDataLayerFullName(), *Parent->GetDataLayerFullName());
+		break;
+	case EDataLayerHierarchyInvalidReason::IncompatibleDataLayerType:
+		UE_ASSET_LOG(LogWorldPartition, Log, DataLayerInstance, TEXT("Data Layer %s is of Type %s and its parent %s is of type %s"), *DataLayerInstance->GetDataLayerFullName(), *UEnum::GetValueAsString(DataLayerInstance->GetType()), *Parent->GetDataLayerFullName(), *UEnum::GetValueAsString(Parent->GetType()));
+		break;
+	}
 }
 
 void FStreamingGenerationLogErrorHandler::OnDataLayerAssetConflict(const UDataLayerInstanceWithAsset* DataLayerInstance, const UDataLayerInstanceWithAsset* ConflictingDataLayerInstance)

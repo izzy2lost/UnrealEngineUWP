@@ -94,6 +94,7 @@
 #include "WorldPartition/DataLayer/DataLayerInstance.h"
 #include "WorldPartition/DataLayer/DataLayerInstanceWithAsset.h"
 #include "WorldPartition/DataLayer/DataLayerManager.h"
+#include "WorldPartition/DataLayer/DataLayerUtils.h"
 #include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
 #include "WorldPartition/DataLayer/ExternalDataLayerInstance.h"
 #include "WorldPartition/DataLayer/ExternalDataLayerManager.h"
@@ -860,19 +861,12 @@ FSceneOutlinerDragValidationInfo FDataLayerMode::ValidateDataLayerAssetDrop(cons
 	if (DropTargetDataLayerWithAsset)
 	{
 		EDataLayerType ParentType = DropTargetDataLayerWithAsset->GetType();
-		auto IsParentDataLayerTypeCompatible = [ParentType](const UDataLayerAsset* InChildDataLayerAsset)
-		{
-			EDataLayerType ChildType = InChildDataLayerAsset->GetType();
-			return (ChildType != EDataLayerType::Unknown) &&
-				   (ParentType != EDataLayerType::Unknown) &&
-				   (ParentType == EDataLayerType::Editor || ChildType == EDataLayerType::Runtime);
-		};
-
 		for (const UDataLayerAsset* DataLayerAssetToDrop : DataLayerAssetsToDrop)
 		{
-			if (!IsParentDataLayerTypeCompatible(DataLayerAssetToDrop))
+			FText Reason;
+			if (!FDataLayerUtils::AreDataLayerTypesCompatible(ParentType, DataLayerAssetToDrop->GetType(), &Reason))
 			{
-				return FSceneOutlinerDragValidationInfo(ESceneOutlinerDropCompatibility::Incompatible, FText::Format(LOCTEXT("CantCreateDataLayerInstanceIncompatibleChildType", "Cannot create Data Layer Instance : {0} Data Layer cannot have {1} child Data Layers"), UEnum::GetDisplayValueAsText(ParentType), UEnum::GetDisplayValueAsText(DataLayerAssetToDrop->GetType())));
+				return FSceneOutlinerDragValidationInfo(ESceneOutlinerDropCompatibility::Incompatible, FText::Format(LOCTEXT("CantCreateDataLayerInstanceIncompatibleChildType", "Cannot create Data Layer Instance : {0}"), Reason));
 			}
 		}
 	}
