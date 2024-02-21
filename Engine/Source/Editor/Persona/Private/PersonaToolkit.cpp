@@ -359,13 +359,13 @@ void FPersonaToolkit::SetPreviewMesh(class USkeletalMesh* InSkeletalMesh, bool b
 				check(PhysicsAsset);
 				PhysicsAsset->SetPreviewMesh(InSkeletalMesh);
 			}
-			else if(EditableSkeleton.IsValid())
-			{
-				EditableSkeleton->SetPreviewMesh(InSkeletalMesh);
-			}
 			else if(IInterface_PreviewMeshProvider* PreviewMeshInterface = Cast<IInterface_PreviewMeshProvider>(Asset))
 			{
 				PreviewMeshInterface->SetPreviewMesh(InSkeletalMesh);
+			}
+			else if(EditableSkeleton.IsValid())
+			{
+				EditableSkeleton->SetPreviewMesh(InSkeletalMesh);
 			}
 		}
 
@@ -387,6 +387,10 @@ void FPersonaToolkit::SetPreviewMesh(class USkeletalMesh* InSkeletalMesh, bool b
 			else if (InitialAssetClass == USkeleton::StaticClass())
 			{
 				AssetToReopen = Skeleton.Get();
+			}
+			else if(IInterface_PreviewMeshProvider* PreviewMeshInterface = Cast<IInterface_PreviewMeshProvider>(Asset))
+			{
+				AssetToReopen = Asset;
 			}
 
 			check(AssetToReopen);
