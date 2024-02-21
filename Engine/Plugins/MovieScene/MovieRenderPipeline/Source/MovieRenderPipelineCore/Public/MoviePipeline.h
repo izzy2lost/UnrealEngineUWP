@@ -68,16 +68,25 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Movie Render Pipeline")
 	FDateTime GetInitializationTime() const { return InitializationTime; }
 
+	/** 
+	* The offset that should be applied to the GetInitializationTime() when generating
+	* the {time} related filename tokens. GetInitializationTime() is in UTC so this is
+	* either zero (if you called SetInitializationTime) or your offset from UTC.
+	*/
+	UFUNCTION(BlueprintPure, Category = "Movie Render Pipeline")
+	FTimespan GetInitializationTimeOffset() const { return InitializationTimeOffset; }
+
 	/**
 	* Override the time this movie pipeline was initialized at. This can be used for render farms
 	* to ensure that jobs on all machines use the same date/time instead of each calculating it locally.
+	* Clears the auto-calculated InitializationTimeOffset, meaning time tokens will be written in UTC.
 	*
 	* Needs to be called after ::Initialize(...)
 	*
-	* @param InDateTime - The DateTime object to return for GetInitializationTime.
+	* @param InDateTime - Expected to be in UTC timezone.
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Movie Render Pipeline")
-	void SetInitializationTime(const FDateTime& InDateTime) { InitializationTime = InDateTime; }
+	void SetInitializationTime(const FDateTime& InDateTime) { InitializationTime = InDateTime; InitializationTimeOffset = FTimespan(); }
 
 	/** Deprecated. Use OnMoviePipelineWorkFinished() instead. */
 	UE_DEPRECATED(4.27, "Use OnMoviePipelineWorkFinished() instead.")
@@ -382,6 +391,9 @@ private:
 
 	/** When using temporal sub-frame stepping common counts (such as 3) don't result in whole ticks. We keep track of how many ticks we lose so we can add them the next time there's a chance. */
 	float AccumulatedTickSubFrameDeltas;
+
+	/** When we originally initialize we store the offset from UTC (which is what GetInitializationTime() is in), but we clear this if you call SetInitializationTime. */
+	FTimespan InitializationTimeOffset;
 
 	/** Deprecated. */
 	FMoviePipelineFinishedNative OnMoviePipelineFinishedDelegateNative;

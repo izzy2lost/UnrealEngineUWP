@@ -84,6 +84,7 @@ void UMovieGraphPipeline::Initialize(UMoviePipelineExecutorJob* InJob, const FMo
 	CurrentJob = InJob;
 	CurrentShotIndex = 0;
 	GraphInitializationTime = FDateTime::UtcNow();
+	InitializationTimeOffset = FDateTime::Now() - FDateTime::UtcNow();
 	CVarManager = MakeShared<UE::MovieGraph::Private::FMovieGraphCVarManager>();
 
 	DuplicateJobAndConfiguration();
@@ -987,6 +988,7 @@ int32 UMovieGraphPipeline::ResolveVersionForShot(const TObjectPtr<UMoviePipeline
 	// version). Note that to do this correctly, we need a way of asking these nodes for their renderer name and all
 	// possible sub-resource names.
 	ResolveParams.InitializationTime = GetInitializationTime();
+	ResolveParams.InitializationTimeOffset = GetInitializationTimeOffset();
 	ResolveParams.DefaultFrameRate = ShotTimeStepInstance.FrameRate;
 	ResolveParams.FrameNumberOffset = BranchOutputSettingNode->FrameNumberOffset;
 	ResolveParams.RenderDataIdentifier.CameraName = Shot->InnerName;

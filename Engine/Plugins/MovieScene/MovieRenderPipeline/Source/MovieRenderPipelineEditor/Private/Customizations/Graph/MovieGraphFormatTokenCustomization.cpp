@@ -95,6 +95,7 @@ void FMovieGraphFormatTokenCustomization::GetFormatArguments(FMoviePipelineForma
 
 	static const FDateTime CurrentTime = FDateTime::Now();
 	static constexpr int32 DummyVersionNumber = 1;
+	const FTimespan InitializationTimeOffset = FDateTime::Now() - FDateTime::UtcNow();
 	UE::MoviePipeline::GetSharedFormatArguments(
-		InOutFormatArgs.FilenameArguments, InOutFormatArgs.FileMetadata, CurrentTime, DummyVersionNumber, InOutFormatArgs.InJob);
+		InOutFormatArgs.FilenameArguments, InOutFormatArgs.FileMetadata, CurrentTime, DummyVersionNumber, InOutFormatArgs.InJob, InitializationTimeOffset);
 }

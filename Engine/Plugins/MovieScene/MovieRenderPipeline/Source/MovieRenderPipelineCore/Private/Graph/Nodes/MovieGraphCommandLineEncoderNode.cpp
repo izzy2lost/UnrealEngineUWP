@@ -394,6 +394,7 @@ FString UMovieGraphCommandLineEncoderNode::GetResolvedOutputFilename(const FMovi
 	// don't have versions when using image sequences).
 	FMovieGraphFilenameResolveParams ResolveParams;
 	ResolveParams.InitializationTime = CachedPipeline->GetInitializationTime();
+	ResolveParams.InitializationTimeOffset = CachedPipeline->GetInitializationTimeOffset();
 	ResolveParams.Job = CachedPipeline->GetCurrentJob();
 	ResolveParams.Shot = Shot.Get();
 	ResolveParams.FileNameFormatOverrides = FormatOverrides;
@@ -446,6 +447,7 @@ void UMovieGraphCommandLineEncoderNode::GenerateTemporaryEncoderInputFiles(const
 
 		FMovieGraphFilenameResolveParams ResolveParams;
 		ResolveParams.InitializationTime = CachedPipeline->GetInitializationTime();
+		ResolveParams.InitializationTimeOffset = CachedPipeline->GetInitializationTimeOffset();
 		ResolveParams.Job = CachedPipeline->GetCurrentJob();
 		ResolveParams.Shot = InParams.Shot.Get();
 		ResolveParams.FileNameFormatOverrides = FormatOverrides;

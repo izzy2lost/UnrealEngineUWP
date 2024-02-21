@@ -122,9 +122,16 @@ struct FMovieGraphFilenameResolveParams
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
 	bool bEnsureAbsolutePath;
 	
-	/** The initialization time for this job. Used to resolve time-based format arguments. */
+	/**
+	* The initialization time for this job. Used to resolve time-based format arguments. This should be in UTC, if you want filenames in a local timezone
+	* then you should set InitializationTimeOffset to your offset from UTC.
+	*/
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
 	FDateTime InitializationTime;
+
+	/** What offset should be applied to InitializationTime when generating {time} related filename tokens? Likely your offset from UTC if you want local time. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Render Pipeline")
+	FTimespan InitializationTimeOffset;
 	
 	/** When converting frame numbers to strings, how many digits should we pad them up to? ie: 5 => 0005 with a count of 4. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")

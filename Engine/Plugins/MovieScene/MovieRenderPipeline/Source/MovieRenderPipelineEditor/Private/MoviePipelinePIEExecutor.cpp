@@ -300,7 +300,11 @@ void UMoviePipelinePIEExecutor::OnTick()
 			}
 			else if (UMovieGraphPipeline* PipelineAsGraph = Cast<UMovieGraphPipeline>(ActiveMoviePipeline))
 			{
-				// PipelineAsGraph->Initialize(Queue->GetJobs()[CurrentPipelineIndex], FMovieGraphInitConfig());
+				PipelineAsGraph->Initialize(Queue->GetJobs()[CurrentPipelineIndex], FMovieGraphInitConfig());
+				if (CustomInitializationTime.IsSet())
+				{
+					PipelineAsGraph->SetInitializationTime(CustomInitializationTime.GetValue());
+				}
 			}
 		}
 
