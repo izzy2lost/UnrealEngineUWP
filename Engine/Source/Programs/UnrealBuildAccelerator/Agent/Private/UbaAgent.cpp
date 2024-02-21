@@ -1098,6 +1098,8 @@ namespace uba
 			info.memWaitLoadPercent = u8(memWaitLoadPercent);
 			info.memKillLoadPercent = u8(memKillLoadPercent);
 
+			if (!quiet)
+				info.processFinished = processFinished;
 
 			sessionClient = new SessionClient(info);
 			auto secsg = MakeGuard([&]() { delete sessionClient; });
@@ -1133,9 +1135,6 @@ namespace uba
 				logLinesAvailable.Set();
 				loggingThread.Wait();
 			});
-
-			if (!quiet)
-				sessionClient->m_processFinished = processFinished;
 
 			// We got version mismatch and have the cas keys for the needed Agent/Detours binaries
 			if (keys[0] != CasKeyZero)

@@ -72,7 +72,7 @@ namespace uba
 			void* backendConnection = nullptr;
 			Atomic<u32> connected;
 			Timer sendTimer;
-			u64 sendBytes = 0;
+			Atomic<u64> sendBytes;
 			u64 recvBytes = 0;
 			u32 recvCount = 0;
 			NetworkBackend* backend = nullptr;

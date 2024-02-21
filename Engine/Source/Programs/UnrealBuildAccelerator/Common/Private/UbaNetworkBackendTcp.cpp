@@ -50,7 +50,7 @@ namespace uba
 		u16 port;
 		Thread thread;
 		Event listening;
-		SOCKET socket = INVALID_SOCKET;
+		Atomic<SOCKET> socket = INVALID_SOCKET;
 	};
 
 	struct NetworkBackendTcp::Connection

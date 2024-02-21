@@ -119,8 +119,8 @@ namespace uba
 		u32 m_exitCode = ~0u;
 		u32 m_rulesIndex = 0;
 		u32 m_messageCount = 0;
+		Atomic<bool> m_hasExited;
 		bool m_messageSuccess = true;
-		bool m_hasExited = false;
 		bool m_echoOn = true;
 		bool m_gotExitMessage = false;
 		bool m_parentReportedExit = false;

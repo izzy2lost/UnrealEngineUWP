@@ -46,16 +46,16 @@ namespace uba
 		UBA_PROCESS_STATS
 		#undef UBA_PROCESS_STAT
 
-		u64 startupTime = 0;
-		u64 exitTime = 0;
+		AtomicU64 startupTime = 0;
+		AtomicU64 exitTime = 0;
 
 		// Don't add in GetTotalTime()
-		u64 wallTime = 0;
-		u64 cpuTime = 0;
+		AtomicU64 wallTime = 0;
+		AtomicU64 cpuTime = 0;
 
-		u32 usedMemory = 0;
+		AtomicU64 usedMemory = 0;
 
-		u64 hostTotalTime = 0;
+		AtomicU64 hostTotalTime;
 
 		void Print(Logger& logger, u64 frequency = GetFrequency());
 
@@ -105,7 +105,7 @@ namespace uba
 			writer.WriteU64(exitTime);
 			writer.WriteU64(wallTime);
 			writer.WriteU64(cpuTime);
-			writer.WriteU32(usedMemory);
+			writer.WriteU32(u32(usedMemory));
 			writer.WriteU64(hostTotalTime);
 		}
 

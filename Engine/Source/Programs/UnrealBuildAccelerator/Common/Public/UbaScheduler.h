@@ -107,7 +107,7 @@ namespace uba
 
 		Event m_updateThreadLoop;
 		Thread m_thread;
-		bool m_loop = false;
+		Atomic<bool> m_loop;
 		bool m_enableProcessReuse;
 		bool m_forceRemote;
 

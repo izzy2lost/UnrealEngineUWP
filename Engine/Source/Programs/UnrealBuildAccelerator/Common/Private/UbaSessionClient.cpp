@@ -27,6 +27,7 @@ namespace uba
 		m_useBinariesAsVersion = info.useBinariesAsVersion;
 		m_memWaitLoadPercent = info.memWaitLoadPercent;
 		m_memKillLoadPercent = info.memKillLoadPercent;
+		m_processFinished = info.processFinished;
 
 		if (m_name.IsEmpty())
 		{
@@ -46,17 +47,17 @@ namespace uba
 			m_killRandomIndex = 10 + g.data1 % 30;
 		}
 
-		m_client.RegisterOnConnected([this]()
-			{
-				Connect();
-			});
+		m_nameToHashTableMem.Init(NameToHashMemSize);
 
 		m_client.RegisterOnDisconnected([this]()
 			{
 				m_loop = false;
 			});
 
-		m_nameToHashTableMem.Init(NameToHashMemSize);
+		m_client.RegisterOnConnected([this]()
+			{
+				Connect();
+			});
 	}
 
 	SessionClient::~SessionClient()
