@@ -33,7 +33,23 @@
 	"PreferredIntelOneApiVersions": [
 		"2024.0.0-2024.9999"
 	],
-	"MinimumIntelOneApiVersion": "2024.0.0"
+	"MinimumIntelOneApiVersion": "2024.0.0",
 
+	"VisualStudioSuggestedComponents": [
+		"Microsoft.Net.Component.4.6.2.TargetingPack",
+		"Microsoft.VisualStudio.Component.VC.14.38.17.8.x86.x64",
+		"Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+		"Microsoft.VisualStudio.Component.Windows10SDK.22621",
+		"Microsoft.VisualStudio.Workload.CoreEditor",
+		"Microsoft.VisualStudio.Workload.ManagedDesktop",
+		"Microsoft.VisualStudio.Workload.NativeDesktop",
+		"Microsoft.VisualStudio.Workload.NativeGame"
+	],
 
+	"VisualStudioSuggestedLinuxComponents": [
+		"Microsoft.VisualStudio.Workload.NativeCrossPlat"
+	],
+
+	"VisualStudio2022SuggestedComponents": [
+	]
 }
