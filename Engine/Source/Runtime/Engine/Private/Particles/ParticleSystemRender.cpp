@@ -6895,6 +6895,8 @@ void FParticleSystemSceneProxy::UpdateWorldSpacePrimitiveUniformBuffer(FRHIComma
 		NewWorldSpaceUBHash = FCrc::MemCrc32(LocalCustomPrimitiveData->Data.GetData(), LocalCustomPrimitiveData->Data.Num() * LocalCustomPrimitiveData->Data.GetTypeSize());
 	}
 
+	UE::TScopeLock Lock(WorldSpacePrimitiveUniformBufferMutex);
+
 	const bool bNeedsInit = !WorldSpacePrimitiveUniformBuffer.IsInitialized();
 
 	if (bNeedsInit || (WorldSpaceUBHash != NewWorldSpaceUBHash))
