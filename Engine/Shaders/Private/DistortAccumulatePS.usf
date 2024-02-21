@@ -6,13 +6,15 @@
 
 #include "Common.ush"
 
-// Reroute distortion pass uniform buffer.
+// Reroute distortion pass uniform buffer. 
 #if SHADING_PATH_MOBILE
 	#define MobileSceneTextures MobileDistortionPass.SceneTextures
 	#define DistortionParams MobileDistortionPass.DistortionParams
+	#define SubstrateStruct MobileDistortionPass.Substrate
 #else
 	#define SceneTexturesStruct DistortionPass.SceneTextures
 	#define DistortionParams DistortionPass.DistortionParams
+	#define SubstrateStruct DistortionPass.Substrate
 #endif
 
 #include "SceneTexturesCommon.ush"
