@@ -173,7 +173,7 @@ void FAvfMediaVideoSampler::Tick()
 
 void FAvfMediaVideoSampler::ProcessFrame(CVPixelBufferRef Frame, FTimespan SampleTime, FTimespan SampleDuration)
 {
-	check(IsInRenderingThread());
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 
 	const int32 FrameHeight = CVPixelBufferGetHeight(Frame);
 	const int32 FrameWidth = CVPixelBufferGetWidth(Frame);
@@ -234,17 +234,16 @@ void FAvfMediaVideoSampler::ProcessFrame(CVPixelBufferRef Frame, FTimespan Sampl
 				.SetFlags(ETextureCreateFlags::Dynamic | ETextureCreateFlags::NoTiling | ETextureCreateFlags::ShaderResource)
 				.SetBulkData(new FAvfTexture2DResourceWrapper(UVTextureRef));
 			
-			TRefCountPtr<FRHITexture> YTex = RHICreateTexture(YDesc);
-			TRefCountPtr<FRHITexture> UVTex = RHICreateTexture(UVDesc);
+			TRefCountPtr<FRHITexture> YTex = RHICmdList.CreateTexture(YDesc);
+			TRefCountPtr<FRHITexture> UVTex = RHICmdList.CreateTexture(UVDesc);
 
 			const FRHITextureCreateDesc Desc =
 				FRHITextureCreateDesc::Create2D(TEXT("Info"), YWidth, YHeight, PF_B8G8R8A8)
 				.SetFlags(ETextureCreateFlags::Dynamic | ETextureCreateFlags::NoTiling | ETextureCreateFlags::ShaderResource | ETextureCreateFlags::RenderTargetable | ETextureCreateFlags::SRGB);
 			
-			ShaderResource = RHICreateTexture(Desc);
+			ShaderResource = RHICmdList.CreateTexture(Desc);
 			
 			// render video frame into sink texture
-			FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
 			{
 				// configure media shaders
 				auto ShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
@@ -298,7 +297,7 @@ void FAvfMediaVideoSampler::ProcessFrame(CVPixelBufferRef Frame, FTimespan Sampl
 				.SetFlags(ETextureCreateFlags::SRGB | ETextureCreateFlags::Dynamic | ETextureCreateFlags::NoTiling | ETextureCreateFlags::ShaderResource)
 				.SetBulkData(new FAvfTexture2DResourceWrapper(TextureRef));
 
-			ShaderResource = RHICreateTexture(Desc);
+			ShaderResource = RHICmdList.CreateTexture(Desc);
 			
 			CFRelease(TextureRef);
 		}

@@ -1214,7 +1214,7 @@ void* FD3D11DynamicRHI::LockTexture2D_RenderThread(
 	}
 	else if (LockMode == RLM_ReadOnly)
 	{
-		FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThread);
+		RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 		LockedTexture = RHILockTexture2D(Texture, MipIndex, LockMode, DestStride, bLockWithinMiptail, OutLockedByteCount);
 	}
 	else
@@ -1391,7 +1391,7 @@ void* FD3D11DynamicRHI::RHILockTextureCubeFace_RenderThread(
 	}
 	else if (LockMode == RLM_ReadOnly)
 	{
-		FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThread);
+		RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 		LockedTexture = RHILockTextureCubeFace(Texture, FaceIndex, ArrayIndex, MipIndex, LockMode, DestStride, bLockWithinMiptail);
 	}
 	else

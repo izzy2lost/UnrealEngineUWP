@@ -5939,10 +5939,10 @@ void FEngineLoop::Tick()
 		}
 		{
 			ENQUEUE_RENDER_COMMAND(WaitForOutstandingTasksOnly_for_DelaySceneRenderCompletion)(
-				[](FRHICommandList& RHICmdList)
+				[](FRHICommandListImmediate& RHICmdList)
 				{
 					QUICK_SCOPE_CYCLE_COUNTER(STAT_DelaySceneRenderCompletion_TaskWait);
-					FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::WaitForOutstandingTasksOnly);
+					RHICmdList.ImmediateFlush(EImmediateFlushType::WaitForOutstandingTasksOnly);
 				});
 		}
 #endif

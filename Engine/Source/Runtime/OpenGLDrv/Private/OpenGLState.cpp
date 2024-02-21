@@ -299,8 +299,7 @@ FSamplerStateRHIRef FOpenGLDynamicRHI::RHICreateSamplerState(const FSamplerState
 
 	SamplerState->Resource = 0;
 
-	check(IsInRenderingThread());
-	FRHICommandListExecutor::GetImmediateCommandList().EnqueueLambda([SamplerState](FRHICommandListImmediate&)
+	FRHICommandListImmediate::Get().EnqueueLambda([SamplerState](FRHICommandListImmediate&)
 	{
 		VERIFY_GL_SCOPE();
 		FOpenGL::GenSamplers( 1, &SamplerState->Resource);

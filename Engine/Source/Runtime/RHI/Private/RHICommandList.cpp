@@ -1559,7 +1559,7 @@ void FRHICommandListImmediate::BeginScene()
 		// if we aren't running an RHIThread, there is no good reason to buffer this frame advance stuff and that complicates state management, so flush everything out now
 		QUICK_SCOPE_CYCLE_COUNTER(BeginScene_Flush);
 		CSV_SCOPED_TIMING_STAT(RHITFlushes, BeginScene);
-		FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThread);
+		ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 	}
 }
 
@@ -1577,7 +1577,7 @@ void FRHICommandListImmediate::EndScene()
 		// if we aren't running an RHIThread, there is no good reason to buffer this frame advance stuff and that complicates state management, so flush everything out now
 		QUICK_SCOPE_CYCLE_COUNTER(EndScene_Flush);
 		CSV_SCOPED_TIMING_STAT(RHITFlushes, EndScene);
-		FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThread);
+		ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 	}
 }
 
@@ -1595,7 +1595,7 @@ void FRHICommandListImmediate::BeginDrawingViewport(FRHIViewport* Viewport, FRHI
 		// if we aren't running an RHIThread, there is no good reason to buffer this frame advance stuff and that complicates state management, so flush everything out now
 		QUICK_SCOPE_CYCLE_COUNTER(BeginDrawingViewport_Flush);
 		CSV_SCOPED_TIMING_STAT(RHITFlushes, BeginDrawingViewport);
-		FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThread);
+		ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 	}
 }
 
@@ -1604,7 +1604,7 @@ void FRHICommandListImmediate::EndDrawingViewport(FRHIViewport* Viewport, bool b
 	// Make sure all prior graphics and async compute work has been submitted.
 	// This is necessary because platform RHIs often submit additional work on the graphics queue during present, and we need to ensure we won't deadlock on async work that wasn't yet submitted by the renderer.
 	// In future, Present() itself should be an enqueued / recorded command, and platform RHIs should never implicitly submit graphics or async compute work.
-	FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::DispatchToRHIThread);
+	ImmediateFlush(EImmediateFlushType::DispatchToRHIThread);
 
 	check(IsImmediate() && IsInRenderingThread());
 	if (Bypass())
@@ -1623,7 +1623,7 @@ void FRHICommandListImmediate::EndDrawingViewport(FRHIViewport* Viewport, bool b
 		// if we aren't running an RHIThread, there is no good reason to buffer this frame advance stuff and that complicates state management, so flush everything out now
 		{
 			QUICK_SCOPE_CYCLE_COUNTER(STAT_EndDrawingViewport_Dispatch);
-			FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::DispatchToRHIThread);
+			ImmediateFlush(EImmediateFlushType::DispatchToRHIThread);
 		}
 	}
 
@@ -1649,7 +1649,7 @@ void FRHICommandListImmediate::BeginFrame()
 		CSV_SCOPED_TIMING_STAT(RHITFlushes, BeginFrame);
 
 		// Use the ERHISubmitFlags::ProcessStats flag to delineate stat data between the previous and next frames.
-		FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::DispatchToRHIThread, ERHISubmitFlags::ProcessStats);
+		ImmediateFlush(EImmediateFlushType::DispatchToRHIThread, ERHISubmitFlags::ProcessStats);
 	}
 
 	GDynamicRHI->RHIBeginFrame(*this);
@@ -1681,11 +1681,11 @@ void FRHICommandListImmediate::EndFrame()
 		// if we aren't running an RHIThread, there is no good reason to buffer this frame advance stuff and that complicates state management, so flush everything out now
 		QUICK_SCOPE_CYCLE_COUNTER(EndFrame_Flush);
 		CSV_SCOPED_TIMING_STAT(RHITFlushes, EndFrame);
-		FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThread);
+		ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 	}
 	else
 	{
-		FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::DispatchToRHIThread);
+		ImmediateFlush(EImmediateFlushType::DispatchToRHIThread);
 	}
 }
 

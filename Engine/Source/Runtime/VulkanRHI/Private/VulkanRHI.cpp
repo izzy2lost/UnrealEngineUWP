@@ -617,7 +617,7 @@ void FVulkanDynamicRHI::Shutdown()
 #endif // VULKAN_RHI_RAYTRACING
 
 		// Flush all pending deletes before destroying the device.
-		FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);
+		FRHICommandListImmediate::Get().ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);
 	}
 
 	Device->Destroy();

@@ -32,13 +32,13 @@ TGlobalResource<FLidarPointCloudRenderBuffer> GDummyLidarPointCloudRenderBuffer(
 void FLidarPointCloudIndexBuffer::Resize(const uint32 & RequestedCapacity)
 {
 	// This must be called from Rendering thread
-	check(IsInRenderingThread());
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 
 	if (Capacity != RequestedCapacity)
 	{
 		ReleaseResource();
 		Capacity = RequestedCapacity;
-		InitResource(FRHICommandListExecutor::GetImmediateCommandList());
+		InitResource(RHICmdList);
 	}
 }
 

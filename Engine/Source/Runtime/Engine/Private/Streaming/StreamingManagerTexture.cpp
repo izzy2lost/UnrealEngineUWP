@@ -388,10 +388,10 @@ bool FRenderAssetStreamingManager::StreamOutRenderAssetData( int64 RequiredMemor
 			{
 				// Queue up the process on the render thread and wait for everything to complete.
 				ENQUEUE_RENDER_COMMAND(FlushResourceCommand)(
-					[](FRHICommandList& RHICmdList)
+					[](FRHICommandListImmediate& RHICmdList)
 					{				
-						FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);
-						RHIFlushResources();
+						RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);
+						RHICmdList.FlushResources();
 					});
 				FlushRenderingCommands();
 				TempMemoryUsed = 0;

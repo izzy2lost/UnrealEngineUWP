@@ -390,8 +390,7 @@ void FVirtualTextureUploadCache::Finalize(FRDGBuilder& GraphBuilder)
 
 void FVirtualTextureUploadCache::ReleaseRHI()
 {
-	check(IsInRenderingThread());
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 
 	// Complete/Cancel all work will release allocated staging buffers.
 	UpdateFreeList(RHICmdList, true);

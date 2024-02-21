@@ -1180,7 +1180,8 @@ void FVulkanDynamicRHI::RHITick(float DeltaTime)
 
 FTexture2DRHIRef FVulkanDynamicRHI::RHIGetViewportBackBuffer(FRHIViewport* ViewportRHI)
 {
-	check(IsInRenderingThread());
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
+
 	check(ViewportRHI);
 	FVulkanViewport* Viewport = ResourceCast(ViewportRHI);
 
@@ -1189,15 +1190,15 @@ FTexture2DRHIRef FVulkanDynamicRHI::RHIGetViewportBackBuffer(FRHIViewport* Viewp
 		Viewport->SwapChain->RenderThreadPacing();
 	}
 
-	return Viewport->GetBackBuffer(FRHICommandListExecutor::GetImmediateCommandList());
+	return Viewport->GetBackBuffer(RHICmdList);
 }
 
 void FVulkanDynamicRHI::RHIAdvanceFrameForGetViewportBackBuffer(FRHIViewport* ViewportRHI)
 {
-	check(IsInRenderingThread());
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
+
 	check(ViewportRHI);
 	FVulkanViewport* Viewport = ResourceCast(ViewportRHI);
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
 
 	Viewport->AdvanceBackBufferFrame(RHICmdList);
 }

@@ -530,7 +530,7 @@ void CaptureSceneToScratchCubemap(
 		AddPass(GraphBuilder, RDG_EVENT_NAME("FlushGPU"), [](FRHICommandListImmediate& InRHICmdList)
 		{
 			QUICK_SCOPE_CYCLE_COUNTER(STAT_CaptureSceneToScratchCubemap_Flush);
-			FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThread);
+			InRHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 
 			// some platforms may not be able to keep enqueueing commands like crazy, this will
 			// allow them to restart their command buffers

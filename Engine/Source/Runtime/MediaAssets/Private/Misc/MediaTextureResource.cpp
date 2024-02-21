@@ -367,8 +367,8 @@ void FMediaTextureResource::FlushPendingData()
 
 void FMediaTextureResource::Render(const FRenderParams& Params)
 {
-	check(IsInRenderingThread());
-	SCOPED_GPU_STAT(FRHICommandListExecutor::GetImmediateCommandList(), MediaTextureResource);
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
+	SCOPED_GPU_STAT(RHICmdList, MediaTextureResource);
 
 	LLM_SCOPE(ELLMTag::MediaStreaming);
 	SCOPE_CYCLE_COUNTER(STAT_MediaAssets_MediaTextureResourceRender);
@@ -376,8 +376,8 @@ void FMediaTextureResource::Render(const FRenderParams& Params)
 
 	TSharedPtr<FPriorSamples, ESPMode::ThreadSafe> LocalPriorSamples;
 	{
-	FScopeLock Lock(&PriorSamplesCS);
-	LocalPriorSamples = PriorSamples;
+		FScopeLock Lock(&PriorSamplesCS);
+		LocalPriorSamples = PriorSamples;
 	}
 
 	LocalPriorSamples->Update();
@@ -622,7 +622,7 @@ void FMediaTextureResource::Render(const FRenderParams& Params)
 
 					CacheRenderTarget(OutputTarget, TEXT("MipGeneration"), MipGenerationCache);
 
-					FRDGBuilder GraphBuilder(FRHICommandListExecutor::GetImmediateCommandList());
+					FRDGBuilder GraphBuilder(RHICmdList);
 					FRDGTextureRef MipOutputTexture = GraphBuilder.RegisterExternalTexture(MipGenerationCache);
 					FGenerateMips::Execute(GraphBuilder, GetFeatureLevel(), MipOutputTexture, FGenerateMipsParams{ SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp }, GenerateMipsPass);
 					GraphBuilder.Execute();

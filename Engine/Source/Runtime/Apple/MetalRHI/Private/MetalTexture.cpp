@@ -1513,8 +1513,7 @@ FTexture2DRHIRef FMetalDynamicRHI::RHIAsyncReallocateTexture2D(FRHITexture2D* Ol
 {
     MTL_SCOPED_AUTORELEASE_POOL;
 
-    check(IsInRenderingThread());
-    FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 
     FMetalSurface* OldTexture = ResourceCast(OldTextureRHI);
 

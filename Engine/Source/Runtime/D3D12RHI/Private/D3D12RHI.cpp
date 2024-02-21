@@ -334,7 +334,7 @@ void FD3D12DynamicRHI::Shutdown()
 	}
 
 	// Flush all pending deletes before destroying the device or any command contexts.
-	FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);
+	FRHICommandListImmediate::Get().ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);
 
 	RHIShutdownFlipTracking();
 	ShutdownSubmissionPipe();

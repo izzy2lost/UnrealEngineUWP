@@ -257,17 +257,18 @@ namespace UE::Landscape
 		}
 
 		ENQUEUE_RENDER_COMMAND(FFlushResourcesCommand)(
-			[ResultsReadyEvent, bBlockRTUntilGPUComplete](FRHICommandList& RHICmdList)
+			[ResultsReadyEvent, bBlockRTUntilGPUComplete](FRHICommandListImmediate& RHICmdList)
 			{
-				FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);
-				RHIFlushResources();
-				FRHICommandListExecutor::GetImmediateCommandList().SubmitCommandsAndFlushGPU();
+				RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);
+				RHICmdList.FlushResources();
+				RHICmdList.SubmitCommandsAndFlushGPU();
+
 				if (ResultsReadyEvent)
 				{
 					if (bBlockRTUntilGPUComplete)
 					{
 						// Block render thread waiting for GPU to complete.  Note this can be very expensive on some platforms.
-						FRHICommandListExecutor::GetImmediateCommandList().BlockUntilGPUIdle();
+						RHICmdList.BlockUntilGPUIdle();
 					}
 					
 					ResultsReadyEvent->Trigger();

@@ -485,7 +485,7 @@ uint32 FElectraTextureSample::GetStride() const
 
 bool FElectraTextureSample::Convert(FTexture2DRHIRef& InDstTexture, const FConversionHints& Hints)
 {
-	check(IsInRenderingThread());
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 
 	if (GDynamicRHI->RHIIsRenderingSuspended())
 	{
@@ -518,8 +518,6 @@ bool FElectraTextureSample::Convert(FTexture2DRHIRef& InDstTexture, const FConve
 	{
 		InputTexture = Texture;
 	}
-
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
 
 	SCOPED_DRAW_EVENT(RHICmdList, AndroidMediaOutputConvertTexture);
 	SCOPED_GPU_STAT(RHICmdList, MediaAndroidDecoder_Convert);

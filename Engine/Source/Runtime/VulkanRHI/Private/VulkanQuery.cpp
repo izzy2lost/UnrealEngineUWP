@@ -443,7 +443,9 @@ bool FVulkanDynamicRHI::RHIGetRenderQueryResult(FRHIRenderQuery* QueryRHI, uint6
 		uint64 Microseconds = (uint64)((double(Timestamp) / Frequency) * 1000.0 * 1000.0);
 		return Microseconds;
 	};
-	check(IsInRenderingThread());
+
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
+
 	FVulkanRenderQuery* BaseQuery = ResourceCast(QueryRHI);
 	if (BaseQuery->QueryType == RQT_Occlusion)
 	{
@@ -482,7 +484,7 @@ bool FVulkanDynamicRHI::RHIGetRenderQueryResult(FRHIRenderQuery* QueryRHI, uint6
 			}
 
 			// Blocking was requested, so, we need to wait for the RHI thread to catch up.
-			FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThread);
+			RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 			check(Query->Pool != nullptr);
 		}
 
@@ -523,7 +525,7 @@ bool FVulkanDynamicRHI::RHIGetRenderQueryResult(FRHIRenderQuery* QueryRHI, uint6
 					bool bWaitForStart = StartQuerySyncPoint.FenceCounter == StartQuerySyncPoint.CmdBuffer->GetFenceSignaledCounter();
 					if (bWaitForStart)
 					{
-						FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThread);
+						RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 
 						// Need to submit the open command lists.
 						Device->SubmitCommandsAndFlushGPU();

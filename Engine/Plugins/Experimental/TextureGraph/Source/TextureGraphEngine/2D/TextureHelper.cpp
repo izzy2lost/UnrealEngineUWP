@@ -821,7 +821,7 @@ size_t TextureHelper::RoundUpTo(size_t Size, size_t DesiredRounding)
 
 RawBufferPtr TextureHelper::RawFromResource(const FTexture2DRHIRef& ResourceRHI, const BufferDescriptor& Desc)
 {
-	check(IsInRenderingThread()); 
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 
 	try
 	{
@@ -838,12 +838,11 @@ RawBufferPtr TextureHelper::RawFromResource(const FTexture2DRHIRef& ResourceRHI,
 
 		const TUniquePtr<FRHIGPUTextureReadback> TextureReadback = MakeUnique<FRHIGPUTextureReadback>(TEXT("RawFromResourceTextureReadback"));
 
-		FRHICommandListImmediate& RHI = FRHICommandListExecutor::GetImmediateCommandList();
-		RHI.FlushResources();
-		RHI.ImmediateFlush(EImmediateFlushType::WaitForOutstandingTasksOnly);
+		RHICmdList.FlushResources();
+		RHICmdList.ImmediateFlush(EImmediateFlushType::WaitForOutstandingTasksOnly);
 
-		TextureReadback->EnqueueCopy(RHI, ResourceRHI);
-		RHI.BlockUntilGPUIdle();
+		TextureReadback->EnqueueCopy(RHICmdList, ResourceRHI);
+		RHICmdList.BlockUntilGPUIdle();
 
 		//check(TextureReadback->IsReady());
 		{

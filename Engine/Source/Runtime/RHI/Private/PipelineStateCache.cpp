@@ -1039,10 +1039,7 @@ public:
 
 	void ProcessDelayedCleanup()
 	{
-		check(IsInRenderingThread());
-
-		FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-		RHICmdList.EnqueueLambda([DeleteArray = MoveTemp(DeleteArray)](FRHICommandListImmediate& RHICmdList) mutable
+		FRHICommandListImmediate::Get().EnqueueLambda([DeleteArray = MoveTemp(DeleteArray)](FRHICommandListImmediate& RHICmdList) mutable
 		{
 			for (TMyValue& OldPipelineState : DeleteArray)
 			{
@@ -1061,14 +1058,11 @@ public:
 
 	int32 DiscardAndSwap()
 	{
-		check(IsInRenderingThread());
-
 		// the consolidate should always be run before the DiscardAndSwap.
 		// there should be no inuse pipeline states in the backfill map (because they should have been moved into the CurrentMap).
 		int32 Discarded = BackfillMap->Num();
 
-		FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-		RHICmdList.EnqueueLambda([BackfillMap = MoveTemp(*BackfillMap)](FRHICommandListImmediate& RHICmdList) mutable
+		FRHICommandListImmediate::Get().EnqueueLambda([BackfillMap = MoveTemp(*BackfillMap)](FRHICommandListImmediate& RHICmdList) mutable
 		{
 			for (const auto& DiscardIterator :  BackfillMap)
 			{

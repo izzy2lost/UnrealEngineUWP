@@ -168,10 +168,10 @@ uint64 FD3D12ManualFence::GetCompletedFenceValue(bool bUpdateCachedFenceValue)
 
 void FD3D12ManualFence::AdvanceFrame()
 {
-	check(IsInRenderingThread());
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 
 	const uint64 NextValue = NextFenceValue.Increment();
-	FRHICommandListExecutor::GetImmediateCommandList().EnqueueLambda([this, NextValue](FRHICommandListImmediate&)
+	RHICmdList.EnqueueLambda([this, NextValue](FRHICommandListImmediate&)
 	{
 		for (FFencePair& Pair : FencePairs)
 		{

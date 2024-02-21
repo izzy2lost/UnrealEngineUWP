@@ -244,8 +244,7 @@ namespace DynamicRenderScaling
 
 	void EndFrame()
 	{
-		check(IsInRenderingThread());
-		GRDGTimingPool.EndFrame(FRHICommandListExecutor::GetImmediateCommandList());
+		GRDGTimingPool.EndFrame(FRHICommandListImmediate::Get());
 	}
 
 	const TMap<uint64>& GetLatestTimings()

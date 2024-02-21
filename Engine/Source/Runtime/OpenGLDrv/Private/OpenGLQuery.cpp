@@ -637,8 +637,7 @@ FOpenGLRenderQuery::FOpenGLRenderQuery(ERenderQueryType InQueryType)
 	, bInvalidResource(true)
 	, QueryType(InQueryType)
 {
-	check(IsInRenderingThread());
-	FRHICommandListExecutor::GetImmediateCommandList().EnqueueLambda(
+	FRHICommandListImmediate::Get().EnqueueLambda(
 		[this](FRHICommandListImmediate&) { AcquireResource(); }
 	);
 }

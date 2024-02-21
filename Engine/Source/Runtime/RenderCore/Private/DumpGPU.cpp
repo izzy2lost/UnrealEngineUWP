@@ -1287,15 +1287,10 @@ public:
 	}
 
 	void DumpDrawTextureSubResource(
-		FRHICommandList& RHICmdList,
+		FRHICommandListImmediate& RHICmdList,
 		FRDGTextureSRVDesc SubresourceDesc,
 		ERHIAccess RHIAccessState)
 	{
-		check(IsInRenderingThread());
-
-		FRHICommandListImmediate& RHICmdListImmediate = FRHICommandListExecutor::GetImmediateCommandList();
-		check(&RHICmdListImmediate == &RHICmdList);
-
 		const FString UniqueResourceSubResourceName = GetUniqueSubResourceName(SubresourceDesc);
 		const FTextureSubresourceDumpDesc SubresourceDumpDesc = TranslateSubresourceDumpDesc(SubresourceDesc);
 
@@ -1310,11 +1305,11 @@ public:
 		if (SubresourceDumpDesc.bPreprocessForStaging)
 		{
 			SubResourceSRV = CreateSRVNoLifetimeExtension(RHICmdList, RHITexture, FRHITextureSRVCreateInfo(SubresourceDesc));
-			RHICmdListImmediate.Transition(FRHITransitionInfo(RHITexture, ERHIAccess::Unknown, ERHIAccess::SRVCompute));
+			RHICmdList.Transition(FRHITransitionInfo(RHITexture, ERHIAccess::Unknown, ERHIAccess::SRVCompute));
 		}
 		else
 		{
-			RHICmdListImmediate.Transition(FRHITransitionInfo(RHITexture, RHIAccessState, ERHIAccess::CopySrc));
+			RHICmdList.Transition(FRHITransitionInfo(RHITexture, RHIAccessState, ERHIAccess::CopySrc));
 		}
 
 		FString DumpFilePath = kResourcesDir / FString::Printf(
@@ -1324,7 +1319,7 @@ public:
 			DrawDumpCount);
 
 		DumpTextureSubResource(
-			RHICmdListImmediate,
+			RHICmdList,
 			SubresourceDesc.Texture->Name,
 			RHITexture,
 			SubResourceSRV,
@@ -1333,17 +1328,17 @@ public:
 
 		if (SubresourceDumpDesc.bPreprocessForStaging)
 		{
-			RHICmdListImmediate.Transition(FRHITransitionInfo(RHITexture, ERHIAccess::SRVCompute, RHIAccessState));
+			RHICmdList.Transition(FRHITransitionInfo(RHITexture, ERHIAccess::SRVCompute, RHIAccessState));
 		}
 		else
 		{
-			RHICmdListImmediate.Transition(FRHITransitionInfo(RHITexture, ERHIAccess::CopySrc, RHIAccessState));
+			RHICmdList.Transition(FRHITransitionInfo(RHITexture, ERHIAccess::CopySrc, RHIAccessState));
 		}
 
 		SubResourceSRV = nullptr;
 		if (!bStream)
 		{
-			ReleaseRHIResources(RHICmdListImmediate);
+			ReleaseRHIResources(RHICmdList);
 		}
 	}
 
@@ -2739,6 +2734,8 @@ void FRDGBuilder::DumpDraw(const FRDGEventName& DrawEventName)
 		return;
 	}
 
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
+
 	FRDGResourceDumpContext* ResourceDumpContext = GRDGResourceDumpContext_RenderThread;
 
 	if (!ResourceDumpContext->DrawDumpingPass)
@@ -2747,8 +2744,6 @@ void FRDGBuilder::DumpDraw(const FRDGEventName& DrawEventName)
 	}
 
 	const FRDGPass* Pass = ResourceDumpContext->DrawDumpingPass;
-
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
 
 	if (EnumHasAnyFlags(Pass->GetFlags(), ERDGPassFlags::Raster))
 	{
