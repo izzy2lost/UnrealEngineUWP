@@ -71,7 +71,11 @@ enum class ERedirectFixupMode
 	DeleteFixedUpRedirectors,
 
 	// Leave the redirectors around even if no longer locally referenced
-	LeaveFixedUpRedirectors
+	LeaveFixedUpRedirectors,
+
+	// If permitted, prompt the user to delete any redirectors that are no longer locally referenced.
+	// Projects may disable deletion if it interferes with their workflow/branch setup/etc.
+	PromptForDeletingRedirectors,
 };
 
 USTRUCT(BlueprintType)

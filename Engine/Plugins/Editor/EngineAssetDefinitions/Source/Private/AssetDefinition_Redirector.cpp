@@ -44,7 +44,7 @@ namespace MenuExtension_Redirector
 		}
 	}
 
-	static void ExecuteFixUp(const FToolMenuContext& MenuContext, bool bDeleteAssets)
+	static void ExecuteFixUp(const FToolMenuContext& MenuContext)
 	{
 		// This will fix references to selected redirectors, except in the following cases:
 		// Redirectors referenced by unloaded maps will not be fixed up, but any references to it that can be fixed up will
@@ -59,7 +59,7 @@ namespace MenuExtension_Redirector
 			if (Redirectors.Num() > 0)
 			{
 				IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
-				AssetTools.FixupReferencers(Redirectors, /*bCheckoutDialogPrompt=*/ true, bDeleteAssets ? ERedirectFixupMode::DeleteFixedUpRedirectors : ERedirectFixupMode::LeaveFixedUpRedirectors);
+				AssetTools.FixupReferencers(Redirectors, /*bCheckoutDialogPrompt=*/true, ERedirectFixupMode::PromptForDeletingRedirectors);
 			}
 		}
 	}
@@ -82,20 +82,12 @@ namespace MenuExtension_Redirector
 					InSection.AddMenuEntry("Redirector_FindTarget", Label, ToolTip, Icon, UIAction);
 				}
 				{
-					const TAttribute<FText> Label = LOCTEXT("Redirector_FixUp", "Fix Up");
-					const TAttribute<FText> ToolTip = LOCTEXT("Redirector_FixUpTooltip", "Finds referencers to selected redirectors and resaves them if possible, then deletes any redirectors that had all their referencers fixed.");
+					const TAttribute<FText> Label = LOCTEXT("Redirector_UpdateReferencers", "Update References");
+					const TAttribute<FText> ToolTip = LOCTEXT("Redirector_FixUpTooltip", "Finds references to selected redirectors and resaves the referencing assets if possible, so that they reference the target of the redirector directly instead.");
 					const FSlateIcon Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.ObjectRedirector");
-					const FToolMenuExecuteAction UIAction = FToolMenuExecuteAction::CreateStatic(&ExecuteFixUp, true);
+					const FToolMenuExecuteAction UIAction = FToolMenuExecuteAction::CreateStatic(&ExecuteFixUp);
 
-					InSection.AddMenuEntry("Redirector_FixUp", Label, ToolTip, Icon, UIAction);
-				}
-				{
-					const TAttribute<FText> Label = LOCTEXT("Redirector_FixUp_KeepingRedirector", "Fix Up (Keep Redirector)");
-					const TAttribute<FText> ToolTip = LOCTEXT("Redirector_FixUp_KeepingRedirectorTooltip", "Finds referencers to selected redirectors and resaves them if possible.");
-					const FSlateIcon Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.MyAsset");
-					const FToolMenuExecuteAction UIAction = FToolMenuExecuteAction::CreateStatic(&ExecuteFixUp, false);
-
-					InSection.AddMenuEntry("Redirector_FixUp_KeepingRedirector", Label, ToolTip, Icon, UIAction);
+					InSection.AddMenuEntry("Redirector_UpdateReferencers", Label, ToolTip, Icon, UIAction);
 				}
 			}));
 		}));
