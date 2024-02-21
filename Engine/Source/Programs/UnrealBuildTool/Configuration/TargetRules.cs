@@ -1978,6 +1978,20 @@ namespace UnrealBuildTool
 		public StaticAnalyzerMode StaticAnalyzerMode { get; set; } = StaticAnalyzerMode.Deep;
 
 		/// <summary>
+		/// Only run static analysis against project modules, skipping engine modules
+		/// </summary>
+		[CommandLine("-StaticAnalyzerProjectOnly")]
+		[XmlConfigFile(Category = "BuildConfiguration")]
+		public bool bStaticAnalyzerProjectOnly = false;
+
+		/// <summary>
+		/// Skip analyzing generated source files
+		/// </summary>
+		[CommandLine("-StaticAnalyzerSkipGenerated")]
+		[XmlConfigFile(Category = "BuildConfiguration")]
+		public bool bStaticAnalyzerSkipGenerated = false;
+
+		/// <summary>
 		/// The minimum number of files that must use a pre-compiled header before it will be created and used.
 		/// </summary>
 		[XmlConfigFile(Category = "BuildConfiguration")]

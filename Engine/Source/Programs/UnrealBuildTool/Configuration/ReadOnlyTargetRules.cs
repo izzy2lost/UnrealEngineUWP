@@ -403,6 +403,10 @@ namespace UnrealBuildTool
 
 		public StaticAnalyzerMode StaticAnalyzerMode => Inner.StaticAnalyzerMode;
 
+		public bool bStaticAnalyzerProjectOnly => Inner.bStaticAnalyzerProjectOnly;
+
+		public bool bStaticAnalyzerSkipGenerated => Inner.bStaticAnalyzerSkipGenerated;
+
 		public int MinFilesUsingPrecompiledHeader => Inner.MinFilesUsingPrecompiledHeader;
 
 		public bool bForcePrecompiledHeaderForGameModules => Inner.bForcePrecompiledHeaderForGameModules;

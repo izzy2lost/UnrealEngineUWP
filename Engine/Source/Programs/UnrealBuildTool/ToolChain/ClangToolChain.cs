@@ -337,6 +337,11 @@ namespace UnrealBuildTool
 			&& CompileEnvironment.PrecompiledHeaderAction != PrecompiledHeaderAction.Create
 			&& !CompileEnvironment.bDisableStaticAnalysis;
 
+		protected bool ShouldSkipCompile(CppCompileEnvironment CompileEnvironment) =>
+				StaticAnalyzer == StaticAnalyzer.Default
+			&& CompileEnvironment.PrecompiledHeaderAction != PrecompiledHeaderAction.Create
+			&& CompileEnvironment.bDisableStaticAnalysis;
+
 		protected virtual void GetCppStandardCompileArgument(CppCompileEnvironment CompileEnvironment, List<string> Arguments)
 		{
 			// https://clang.llvm.org/cxx_status.html
@@ -1216,6 +1221,11 @@ namespace UnrealBuildTool
 
 		protected override CPPOutput CompileCPPFiles(CppCompileEnvironment CompileEnvironment, IEnumerable<FileItem> InputFiles, DirectoryReference OutputDir, string ModuleName, IActionGraphBuilder Graph)
 		{
+			if (ShouldSkipCompile(CompileEnvironment))
+			{
+				return new CPPOutput();
+			}
+
 			List<string> GlobalArguments = new();
 
 			if (!CompileEnvironment.bHasSharedResponseFile)
