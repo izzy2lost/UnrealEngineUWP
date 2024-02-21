@@ -118,7 +118,11 @@ void UOnlinePIESettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyC
 		else if (MemberPropName == GET_MEMBER_NAME_CHECKED(UOnlinePIESettings, Logins))
 		{
 			FName SubPropName = PropertyChangedEvent.Property->GetFName();
-			if (SubPropName == GET_MEMBER_NAME_CHECKED(FPIELoginSettingsInternal, Id))
+
+			// If we paste on top of the whole login entry, all fields will have changed and need their checks run.
+			const bool bPastedAllValues = SubPropName == GET_MEMBER_NAME_CHECKED(UOnlinePIESettings, Logins);
+			
+			if (bPastedAllValues || SubPropName == GET_MEMBER_NAME_CHECKED(FPIELoginSettingsInternal, Id))
 			{
 				TSet<FString> Ids;
 				for (FPIELoginSettingsInternal& Login : Logins)
@@ -140,7 +144,8 @@ void UOnlinePIESettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyC
 					}
 				}
 			}
-			else if (SubPropName == GET_MEMBER_NAME_CHECKED(FPIELoginSettingsInternal, Token))
+
+			if (bPastedAllValues || SubPropName == GET_MEMBER_NAME_CHECKED(FPIELoginSettingsInternal, Token))
 			{
 				for (FPIELoginSettingsInternal& Login : Logins)
 				{
@@ -150,7 +155,8 @@ void UOnlinePIESettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyC
 					Login.Encrypt();
 				}
 			}
-			else if (SubPropName == GET_MEMBER_NAME_CHECKED(FPIELoginSettingsInternal, Type))
+
+			if (bPastedAllValues || SubPropName == GET_MEMBER_NAME_CHECKED(FPIELoginSettingsInternal, Type))
 			{
 				for (FPIELoginSettingsInternal& Login : Logins)
 				{
