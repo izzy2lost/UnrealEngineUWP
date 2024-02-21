@@ -313,7 +313,7 @@ void UModularRig::UpdateModuleHierarchyFromCDO()
 		Model.ForEachModule([this, Model](const FRigModuleReference* InModuleReference) -> bool
 		{
 			check(InModuleReference);
-			if (!InModuleReference->Class.IsValid())
+			if (IsInGameThread() && !InModuleReference->Class.IsValid())
 			{
 				(void)InModuleReference->Class.LoadSynchronous();
 			}
