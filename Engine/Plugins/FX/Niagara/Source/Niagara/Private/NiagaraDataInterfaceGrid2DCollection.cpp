@@ -2042,21 +2042,6 @@ bool UNiagaraDataInterfaceGrid2DCollection::InitPerInstanceData(void* PerInstanc
 			TargetData->VarComponents.Add(RT_InstanceData.Vars[i].GetType().GetSize() / sizeof(float));
 		}
 
-#if !UE_BUILD_SHIPPING
-		{
-			TStringBuilder<128> StringBuilder;
-			TargetData->SourceDIName.AppendString(StringBuilder);
-			StringBuilder.Append("_");
-			for (FName CurrName : TargetData->Vars)
-			{
-				CurrName.AppendString(StringBuilder);
-				StringBuilder.Append("_");
-			}
-			StringBuilder.Append("Grid2DCollection");
-			TargetData->GridTextureResourceName = StringBuilder;
-		}
-#endif // WITH_SAHDER_NAMES
-
 #if WITH_EDITORONLY_DATA
 		TargetData->bPreviewGrid = RT_InstanceData.bPreviewGrid;
 		TargetData->PreviewAttribute = RT_InstanceData.PreviewAttribute;
@@ -2680,12 +2665,7 @@ void FGrid2DCollectionRWInstanceData_RenderThread::BeginSimulate(FRDGBuilder& Gr
 		Buffers.Emplace(DestinationData);
 
 		const FRDGTextureDesc TextureDesc = FRDGTextureDesc::Create2DArray(NumCells, PixelFormat.GetValue(), FClearValueBinding::Black, ETextureCreateFlags::ShaderResource | ETextureCreateFlags::UAV, uint16(NumAttributes));
-
-#if UE_BUILD_SHIPPING
 		DestinationData->Initialize(GraphBuilder, TEXT("Grid2D::GridTexture"), TextureDesc);
-#else
-		DestinationData->Initialize(GraphBuilder, *GridTextureResourceName, TextureDesc);
-#endif
 
 		// This destination buffer will sometimes have old data in it.  Force it to clear.
 		AddClearUAVPass(GraphBuilder, DestinationData->GetOrCreateUAV(GraphBuilder), FVector4f(ForceInitToZero));

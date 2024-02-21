@@ -71,10 +71,6 @@ struct FGrid2DCollectionRWInstanceData_RenderThread
 	TArray<int32> VarComponents;
 	TArray<uint32> Offsets;
 
-#if !UE_BUILD_SHIPPING
-	FString GridTextureResourceName;
-#endif
-
 #if WITH_EDITORONLY_DATA
 	bool bPreviewGrid = false;
 	FIntVector4 PreviewAttribute = FIntVector4(INDEX_NONE, INDEX_NONE, INDEX_NONE, INDEX_NONE);
