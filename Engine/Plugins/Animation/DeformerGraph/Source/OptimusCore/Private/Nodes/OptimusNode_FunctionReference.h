@@ -50,9 +50,6 @@ public:
 	void SetSerializedGraphPath(const FSoftObjectPath& InNewGraphPath);
 	
 protected:
-	friend class UOptimusNodeGraph;
-	friend class FOptimusCoreModule;
-
 	
 	/** The graph that owns us. This contains all the necessary pin information to add on
 	 * the terminal node.
