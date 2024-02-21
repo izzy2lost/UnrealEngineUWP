@@ -6481,6 +6481,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		newVirtualKeyboardInput = new VirtualKeyboardInput(this);
 		newVirtualKeyboardInput.setSingleLine(false);
 		newVirtualKeyboardInput.setBackgroundColor(Color.WHITE);
+		newVirtualKeyboardInput.setTextColor(Color.BLACK);
 		newVirtualKeyboardInput.setLayoutParams(new RelativeLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
 		newVirtualKeyboardInput.setVisibility(View.GONE);
 		if (ANDROID_BUILD_VERSION < 11)
