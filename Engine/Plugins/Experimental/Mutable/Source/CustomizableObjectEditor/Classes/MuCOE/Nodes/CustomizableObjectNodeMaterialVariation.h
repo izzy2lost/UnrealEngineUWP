@@ -25,17 +25,19 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = CustomizableObject)
 	ECustomizableObjectNodeMaterialVariationType Type = ECustomizableObjectNodeMaterialVariationType::Tag;
-	
+
+private:
 	// Deprecated properties
 	UPROPERTY()
 	TArray<FCustomizableObjectMaterialVariation> Variations_DEPRECATED;
 
+public:
 	// UCustomizableObjectNode interface
 	virtual void BackwardsCompatibleFixup() override;
+	virtual bool IsSingleOutputNode() const override;
 	
 	// UCustomizableObjectNodeVariation interface
 	virtual FName GetCategory() const override;
-
-	bool IsInputPinArray() const;
+	virtual bool IsInputPinArray() const override;
 };
 
