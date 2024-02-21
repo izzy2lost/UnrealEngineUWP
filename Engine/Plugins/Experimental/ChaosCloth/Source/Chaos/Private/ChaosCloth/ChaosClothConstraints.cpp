@@ -1365,12 +1365,12 @@ void FClothConstraints::CreateVelocityAndPressureField(
 		// Always create velocity field--we allow turning it on via blueprints
 		constexpr Softs::FSolverReal WorldScale = (Softs::FSolverReal)100.;
 		VelocityAndPressureField = MakeShared<Softs::FVelocityAndPressureField>(
-			Evolution->GetSoftBodyParticles(ParticleRangeId),
 			&TriangleMesh,
 			ConfigProperties,
 			WeightMaps,
 			WorldScale
 			);
+		++NumPreSubstepInits;
 		++NumExternalForceRules;
 	}
 }
@@ -1428,6 +1428,11 @@ void FClothConstraints::CreateForceBasedRules()
 	}
 	if (VelocityAndPressureField)
 	{
+		RuleCreator.PreSubstepParallelInitRule(
+			[this](const Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt, const Softs::ESolverMode SolverMode)
+		{
+			VelocityAndPressureField->UpdateForces(Particles, Dt);
+		});
 		RuleCreator.AddExternalForceRule_Apply(VelocityAndPressureField.Get());
 
 		// TODO Linear System
@@ -1438,7 +1443,6 @@ void FClothConstraints::CreateForceBasedRules()
 		RuleCreator.AddExternalForceRule(
 			[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt)
 		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(PerSolverField);
 			const TArray<FVector>& LinearVelocities = PerSolverField->GetOutputResults(EFieldCommandOutputType::LinearVelocity);
 			const TArray<FVector>& LinearForces = PerSolverField->GetOutputResults(EFieldCommandOutputType::LinearForce);
 			const FVector* const LinearVelocitiesView = LinearVelocities.IsEmpty() ? nullptr :
