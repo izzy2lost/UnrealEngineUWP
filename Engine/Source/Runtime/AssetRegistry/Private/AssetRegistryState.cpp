@@ -644,17 +644,11 @@ bool FAssetRegistryState::HasAssets(const FName PackagePath, bool bSkipARFiltere
 	const TArray<FAssetData*>* FoundAssetArray = CachedAssetsByPath.Find(PackagePath);
 	if (FoundAssetArray)
 	{
-		if (bSkipARFilteredAssets)
+		return FoundAssetArray->ContainsByPredicate([this, bSkipARFilteredAssets](FAssetData* AssetData)
 		{
-			return FoundAssetArray->ContainsByPredicate([](FAssetData* AssetData)
-			{
-				return AssetData && !UE::AssetRegistry::FFiltering::ShouldSkipAsset(AssetData->AssetClassPath, AssetData->PackageFlags);
-			});
-		}
-		else
-		{
-			return FoundAssetArray->Num() > 0;
-		}
+			return AssetData && !IsPackageUnmountedAndFiltered(AssetData->PackageName)
+				&& (!bSkipARFilteredAssets || !UE::AssetRegistry::FFiltering::ShouldSkipAsset(AssetData->AssetClassPath, AssetData->PackageFlags));
+		});
 	}
 	return false;
 }
@@ -926,12 +920,17 @@ bool FAssetRegistryState::EnumerateAssets(const FARCompiledFilter& Filter, const
 	const uint32 FilterWithoutPackageFlags = Filter.WithoutPackageFlags;
 	const uint32 FilterWithPackageFlags = Filter.WithPackageFlags;
 	auto ShouldSkipAssetData =
-		[&PackageNamesToSkip, bSkipARFilteredAssets, FilterWithoutPackageFlags, FilterWithPackageFlags]
+		[this, &PackageNamesToSkip, bSkipARFilteredAssets, FilterWithoutPackageFlags, FilterWithPackageFlags]
 		(const FAssetData* AssetData)
 		{
 			if (PackageNamesToSkip.Contains(AssetData->PackageName) |			//-V792
 				AssetData->HasAnyPackageFlags(FilterWithoutPackageFlags) |		//-V792
 				!AssetData->HasAllPackageFlags(FilterWithPackageFlags))			//-V792
+			{
+				return true;
+			}
+
+			if (IsPackageUnmountedAndFiltered(AssetData->PackageName))
 			{
 				return true;
 			}
@@ -1062,6 +1061,7 @@ bool FAssetRegistryState::EnumerateAllAssets(const TSet<FName>& PackageNamesToSk
 	{
 		if (AssetData &&
 			!PackageNamesToSkip.Contains(AssetData->PackageName) &&
+			!IsPackageUnmountedAndFiltered(AssetData->PackageName) &&
 			(!bSkipARFilteredAssets || !UE::AssetRegistry::FFiltering::ShouldSkipAsset(AssetData->AssetClassPath, AssetData->PackageFlags)))
 		{
 			if (!Callback(*AssetData))
@@ -2541,6 +2541,18 @@ const TArray<const FAssetData*>& FAssetRegistryState::GetAssetsByClassName(const
 		}
 	}
 	return InvalidArray;
+}
+
+bool FAssetRegistryState::IsPackageUnmountedAndFiltered(const FName PackageName) const
+{
+	// TODO: This can be removed once UE-178174 is fixed, as there will no longer be unmounted content to enumerate
+#if WITH_EDITOR
+	// Note: We currently only perform this filtering in the editor; runtime use will have to perform its own filtering 
+	//       via FPackageName::IsValidPath so that it can choose to accept the additional cost of running that filter
+	return bCookedGlobalAssetRegistryState && GIsEditor && !FPackageName::IsValidPath(WriteToString<256>(PackageName));
+#else
+	return false;
+#endif
 }
 
 namespace UE::AssetRegistry::Utils
