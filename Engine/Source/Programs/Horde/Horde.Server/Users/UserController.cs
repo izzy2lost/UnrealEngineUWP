@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Bisect;
 using EpicGames.Horde.Users;
+using Horde.Server.Accounts;
 using Horde.Server.Agents;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Server;
@@ -29,15 +30,17 @@ namespace Horde.Server.Users
 		readonly IUserCollection _userCollection;
 		readonly IAvatarService? _avatarService;
 		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
+		readonly IOptionsMonitor<ServerSettings> _settings;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public UserController(IUserCollection userCollection, IAvatarService? avatarService, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public UserController(IUserCollection userCollection, IAvatarService? avatarService, IOptionsSnapshot<GlobalConfig> globalConfig, IOptionsMonitor<ServerSettings> settings)
 		{
 			_userCollection = userCollection;
 			_avatarService = avatarService;
 			_globalConfig = globalConfig;
+			_settings = settings;
 		}
 
 		/// <summary>
@@ -60,12 +63,12 @@ namespace Horde.Server.Users
 			IUserSettings settings = await _userCollection.GetSettingsAsync(internalUser.Id, cancellationToken);
 
 			GetUserResponse response = internalUser.ToApiResponse(avatar, claims, settings);
-			response.DashboardFeatures = GetDashboardFeatures(_globalConfig.Value, User);
+			response.DashboardFeatures = GetDashboardFeatures(_globalConfig.Value, _settings.CurrentValue, User);
 
 			return PropertyFilter.Apply(response, filter);
 		}
 
-		static GetDashboardFeaturesResponse GetDashboardFeatures(GlobalConfig globalConfig, ClaimsPrincipal principal)
+		static GetDashboardFeaturesResponse GetDashboardFeatures(GlobalConfig globalConfig, ServerSettings settings, ClaimsPrincipal principal)
 		{
 			GetDashboardFeaturesResponse response = new GetDashboardFeaturesResponse();
 			response.ShowLandingPage = globalConfig.Dashboard.ShowLandingPage;
@@ -77,6 +80,7 @@ namespace Horde.Server.Users
 			response.ShowNoticeEditor = globalConfig.Authorize(NoticeAclAction.CreateNotice, principal) || globalConfig.Authorize(NoticeAclAction.UpdateNotice, principal);
 			response.ShowPoolEditor = globalConfig.VersionEnum < GlobalVersion.PoolsInConfigFiles && (globalConfig.Authorize(PoolAclAction.CreatePool, principal) || globalConfig.Authorize(PoolAclAction.UpdatePool, principal));
 			response.ShowRemoteDesktop = globalConfig.Authorize(AgentAclAction.UpdateAgent, principal);
+			response.ShowAccounts = settings.AuthMethod == EpicGames.Horde.Server.AuthMethod.Horde && globalConfig.Authorize(AccountAclAction.UpdateAccount, principal);
 			return response;
 		}
 

@@ -191,7 +191,7 @@ namespace Horde.Server.Accounts
 			{
 				claims.Add(new AccountClaimMessage(claim.Type, claim.Value));
 			}
-			return new GetAccountResponse(account.Name, account.Login, claims, account.Description, account.Email, account.Enabled);
+			return new GetAccountResponse(account.Id, account.Name, account.Login, claims, account.Description, account.Email, account.Enabled);
 		}
 	}
 }

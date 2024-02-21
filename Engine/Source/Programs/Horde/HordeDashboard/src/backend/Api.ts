@@ -425,8 +425,19 @@ export type GetDashboardPoolCategoryResponse = {
 	condition?: string;
 }
 
+export enum AuthMethod
+{
+	Anonymous = "Anonymous",
+	Okta = "Okta",
+	OpenIdConnect = "OpenIdConnect",
+	Horde = "Horde"
+}
+
 /** Setting information required by dashboard */
 export type GetDashboardConfigResponse = {
+
+	// Authorization method in use
+	authMethod?: AuthMethod;
 
 	/** The name of the external issue service */
 	externalIssueServiceName?: string;
@@ -3427,6 +3438,9 @@ export type GetDashboardFeaturesResponse = {
 
 	/** Show automated tests on the server menu */
 	showTests?: boolean;
+
+	/** Whether to show accounts on the server menu*/
+	showAccounts?: boolean;
 }
 
 /// Job template settings for the current user
@@ -5103,6 +5117,17 @@ export type UpdateBisectTaskRequest = {
 }
 
 // Accounts
+
+export type DashboardLoginRequest = {
+	username: string;
+	password?: string;
+	returnUrl?: string;	
+}
+	
+/// Update request for the current user account
+export type UpdateCurrentAccountRequest = {
+	password?: string;
+}
 
 /// Message describing a claim for an account	
 export type AccountClaimMessage = {

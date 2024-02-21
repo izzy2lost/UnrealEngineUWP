@@ -2,7 +2,7 @@
 
 import { action, makeObservable, observable } from 'mobx';
 import backend from '.';
-import { DashboardPreference, GetDashboardAgentCategoryResponse, GetDashboardConfigResponse, GetDashboardPoolCategoryResponse, GetJobTemplateSettingsResponse, GetTelemetryViewResponse, GetUserResponse, UserClaim } from './Api';
+import { AuthMethod, DashboardPreference, GetDashboardAgentCategoryResponse, GetDashboardConfigResponse, GetDashboardPoolCategoryResponse, GetJobTemplateSettingsResponse, GetTelemetryViewResponse, GetUserResponse, UserClaim } from './Api';
 
 export enum StatusColor {
     Success,
@@ -134,6 +134,10 @@ export class Dashboard {
         return email ? email.value : "???";
     }
 
+    get authMethod(): AuthMethod | undefined {
+        return this.config?.authMethod;
+    }
+ 
     get p4user(): string {
         const claims = this.claims;
         const user = claims.filter(c => c.type.endsWith("/perforce-user"));

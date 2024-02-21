@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using EpicGames.Horde.Common;
+using EpicGames.Horde.Server;
 
 #pragma warning disable CA2227 // Collection properties should be read only
 
@@ -37,6 +38,11 @@ namespace EpicGames.Horde.Dashboard
 		/// Help slack channel that users can use for issues
 		/// </summary>
 		public string? HelpSlackChannel { get; set; }
+
+		/// <summary>
+		/// The auth method in use
+		/// </summary>
+		public AuthMethod AuthMethod { get; set; }
 
 		/// <summary>
 		/// Device problem cooldown in minutes

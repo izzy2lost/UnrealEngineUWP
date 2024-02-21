@@ -36,6 +36,8 @@ import { lightTheme } from './styles/lightTheme';
 import { ThemeTester } from './base/components/ThemeTester/ThemeTester';
 import { TelemetryView } from './components/telemetry/TelemetryView';
 import { PoolsView } from './components/PoolsView';
+import { AccountsView } from './components/accounts/AccountsView';
+import { HordeLoginView } from './components/accounts/HordeLoginView';
 
 let router: any;
 
@@ -47,6 +49,12 @@ const Main: React.FC = () => {
 
    const [init, setInit] = useState(false);
    const [pluginsLoaded, setPluginsLoaded] = useState(false);
+   
+   const search = new URLSearchParams(window.location.search);
+
+   if (!!search.has("login")) {
+      return <HordeLoginView/>
+   }
 
    const config = getSiteConfig();
 
@@ -130,6 +138,7 @@ const Main: React.FC = () => {
                { path: "docs", element: <DocView /> },
                { path: "docs/*", element: <DocView /> },
                { path: "analytics", element: <TelemetryView /> },
+               { path: "accounts", element: <AccountsView /> },
                { path: "test/stepissuereport", element: <StepIssueReportTest /> },
                { path: "test/theme", element: <ThemeTester /> }
             ]
