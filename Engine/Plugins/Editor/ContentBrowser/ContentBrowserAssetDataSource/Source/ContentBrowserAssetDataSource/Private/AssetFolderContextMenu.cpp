@@ -47,10 +47,11 @@ void FAssetFolderContextMenu::AddMenuOptions(UToolMenu* Menu)
 			{
 				FToolMenuEntry& Entry = Section.AddMenuEntry(
 					"FixUpRedirectorsInFolder",
-					LOCTEXT("FixUpRedirectorsInFolder", "Update Redirector References"),
-					LOCTEXT("FixUpRedirectorsInFolderTooltip", "Finds references to all redirectors in the selected items and resaves the referencing assets if possible, so that they reference the target of the redirector directly instead."),
+					LOCTEXT("FixUpRedirectorsInFolder", "Fix Up Redirectors"),
+					LOCTEXT("FixUpRedirectorsInFolderTooltip", "Finds referencers to all redirectors in the selected items and resaves them if possible, then deletes any redirectors that had all their referencers fixed."),
 					FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Adjust"),
-					FUIAction(FExecuteAction::CreateSP(this, &FAssetFolderContextMenu::ExecuteFixUpRedirectorsInFolder)));
+					FUIAction(FExecuteAction::CreateSP(this, &FAssetFolderContextMenu::ExecuteFixUpRedirectorsInFolder))
+					);
 				Entry.InsertPosition = FToolMenuInsert("Delete", EToolMenuInsertType::After);
 			}
 
@@ -172,7 +173,7 @@ void FAssetFolderContextMenu::ExecuteFixUpRedirectorsInFolder()
 		SlowTask.EnterProgressFrame(1, LOCTEXT("FixupRedirectors_FixupReferencers", "Fixing up referencers..."));
 		// Load the asset tools module
 		FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>(TEXT("AssetTools"));
-		AssetToolsModule.Get().FixupReferencers(Redirectors, true, ERedirectFixupMode::PromptForDeletingRedirectors);
+		AssetToolsModule.Get().FixupReferencers(Redirectors);
 	}
 }
 
