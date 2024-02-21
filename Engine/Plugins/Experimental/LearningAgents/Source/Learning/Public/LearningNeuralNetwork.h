@@ -181,7 +181,7 @@ namespace UE::Learning
 		void Evaluate(TLearningArrayView<2, float> Output, const TLearningArrayView<2, const float> Input);
 
 		// This function will re-build the internal Model Instances used for multi-threading. It should be called whenever the given Model is updated. 
-		void ReloadModelInstances(NNE::IModelCPU& Model);
+		void ReloadModelInstances(NNE::IModelCPU& Model, const int32 InInputSize, const int32 InOutputSize);
 
 		int32 GetMaxBatchSize() const;
 		int32 GetInputSize() const;
