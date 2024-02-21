@@ -197,7 +197,7 @@ struct FIoStoreUploadParams
 	/** Where the .iochunktoc file should be written out. */
 	FString TocOutputDir;
 
-	UE_API static TIoStatusOr<FIoStoreUploadParams> Parse(const TCHAR* CommandLine);
+	static TIoStatusOr<FIoStoreUploadParams> Parse(const TCHAR* CommandLine);
 	FIoStatus Validate() const;
 };
 
@@ -216,7 +216,7 @@ struct FIoStoreUploadResult
 	uint64 TocSize = 0;
 };
 
-UE_API TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
+TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 	const FIoStoreUploadParams& UploadParams,
 	TConstArrayView<FString> ContainerFiles,
 	const FKeyChain& KeyChain);

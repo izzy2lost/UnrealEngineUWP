@@ -30,6 +30,5 @@ public class IoStoreUtilities : ModuleRules
         PrivateDependencyModuleNames.Add("RSA");
         PrivateDependencyModuleNames.Add("DeveloperToolSettings");
         PrivateDependencyModuleNames.Add("SandboxFile");
-        PrivateDependencyModuleNames.Add("IoStoreOnDemand");
 	}
 }

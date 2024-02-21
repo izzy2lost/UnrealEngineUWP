@@ -5463,14 +5463,6 @@ bool ExecuteUnrealPak(const TCHAR* CmdLine)
 		{
 			return ListIoStoreContainerBulkData(CmdLine);
 		}
-
-		// IAS commands
-		{
-			if (FParse::Value(CmdLine, TEXT("-Upload="), IoStoreArg))
-			{
-				return UploadIoStoreContainerFiles(*IoStoreArg) == 0;
-			}
-		}
 	}
 
 	// Parse all the non-option arguments from the command line

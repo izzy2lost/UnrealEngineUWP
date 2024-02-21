@@ -58,6 +58,4 @@ UE_API bool ProcessFilesFromIoStoreContainer(
 
 UE_API bool SignIoStoreContainer(const TCHAR* InContainerFilename, const FRSAKeyHandle InSigningKey);
 
-UE_API bool UploadIoStoreContainerFiles(const TCHAR* ContainerPathOrWildcard); 
-
 #undef UE_API
