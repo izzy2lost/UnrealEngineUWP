@@ -36,9 +36,13 @@ struct FStructuredBufferPoolItem
 	*/
 	FShaderResourceViewRHIRef ShaderResourceView;
 
-	/**
-	* Destructure to clean up render resources
-	*/
+	/** Event used to wait for completed buffer allocations. */
+	FEvent* AllocationReadyEvent;
+
+	/* Constructor */
+	FStructuredBufferPoolItem();
+
+	/** Destructor to clean up render resources */
 	~FStructuredBufferPoolItem();
 };
 
@@ -105,7 +109,7 @@ protected:
 public:
 
 	/** Typically we would need the (ImageResolution.x*y)*NumChannels*ChannelSize */
-	virtual FStructuredBufferPoolItemSharedPtr AllocateGpuBufferFromPool(uint32 AllocSize, bool bWait = true);
+	virtual FStructuredBufferPoolItemSharedPtr AllocateGpuBufferFromPool(uint32 AllocSize);
 
 	/** Either return or Add new chunk of memory to the pool based on its size. */
 	void ReturnGpuBufferToPool(uint32 AllocSize, FStructuredBufferPoolItem* Buffer);
@@ -202,13 +206,25 @@ public:
 
 	FStructuredBufferPoolItemSharedPtr GetOrCreateMipLevelBuffer(int32 RequestedMipLevel, TFunction<FStructuredBufferPoolItemSharedPtr()> AllocatorFunc)
 	{
-		FScopeLock Lock(&MipBufferCriticalSection);
-		if (FStructuredBufferPoolItemSharedPtr* BufferDataPtr = MipBuffers.Find(RequestedMipLevel))
-		{
-			return *BufferDataPtr;
-		}
+		FStructuredBufferPoolItemSharedPtr Result;
 
-		return MipBuffers.Add(RequestedMipLevel, AllocatorFunc());
+		{
+			FScopeLock Lock(&MipBufferCriticalSection);
+
+			if (FStructuredBufferPoolItemSharedPtr* BufferDataPtr = MipBuffers.Find(RequestedMipLevel))
+			{
+				Result = *BufferDataPtr;
+			}
+			else
+			{
+				Result = MipBuffers.Add(RequestedMipLevel, AllocatorFunc());
+			}
+		}
+		
+		// Wait for render thread buffer allocations before using resources
+		Result->AllocationReadyEvent->Wait();
+
+		return Result;
 	}
 	
 	FSampleConverterParameters GetParams()

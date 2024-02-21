@@ -286,9 +286,10 @@ UMeshComponent* FImgMediaMipMapObjectInfo::GetMeshComponent() const
 
 int32 FImgMediaMipMapObjectInfo::GetMipLevelToUpscale() const
 {
-	if (Tracker.IsValid())
+	TSharedPtr<FMediaTextureTrackerObject> PinnedTracker = Tracker.Pin();
+	if (PinnedTracker.IsValid())
 	{
-		return Tracker.Pin()->MipLevelToUpscale;
+		return PinnedTracker->MipLevelToUpscale;
 	}
 
 	return -1;
@@ -624,6 +625,7 @@ namespace {
 		FSphereObjectInfo(UMeshComponent* InMeshComponent, TWeakPtr<FMediaTextureTrackerObject, ESPMode::ThreadSafe> InTracker)
 			: FImgMediaMipMapObjectInfo(InMeshComponent, MoveTemp(InTracker))
 			, DefaultSphereRadius(50.0f) // as defined in FMediaPlateCustomizationMesh::GenerateSphereMesh
+			, MipLevelToUpscale(-1)
 		{
 		}
 
@@ -670,9 +672,10 @@ namespace {
 			// Does user want to reduce the load at the poles?
 			bool bAdaptivePoleMipUpscaling = false;
 			MipLevelToUpscale = -1;
-			if (Tracker.IsValid())
+
+			TSharedPtr<FMediaTextureTrackerObject, ESPMode::ThreadSafe> PinnedTracker = Tracker.Pin();
+			if (PinnedTracker.IsValid())
 			{
-				TSharedPtr<FMediaTextureTrackerObject, ESPMode::ThreadSafe> PinnedTracker = Tracker.Pin();
 				MipLevelToUpscaleExcludingPoles = PinnedTracker->MipLevelToUpscale;
 				bAdaptivePoleMipUpscaling = PinnedTracker->bAdaptivePoleMipUpscaling;
 				MipLevelToUpscale = MipLevelToUpscaleExcludingPoles;
@@ -863,7 +866,9 @@ namespace {
 		}
 
 		const float DefaultSphereRadius;
+	
 	private:
+
 		mutable int32 MipLevelToUpscale;
 	};
 
@@ -903,6 +908,8 @@ void FImgMediaMipMapInfo::AddObject(AActor* InActor, TWeakPtr<FMediaTextureTrack
 				Objects.Add(new FImgMediaMipMapObjectInfo(MeshComponent, InTracker));
 				break;
 			}
+
+			UE_LOG(LogImgMedia, Verbose, TEXT("Added tracked %s for %s"), *MeshComponent->GetName(), *InActor->GetName());
 		}
 
 		SubscribeEndFrame();
@@ -923,6 +930,8 @@ void FImgMediaMipMapInfo::RemoveObject(AActor* InActor)
 			{
 				if (InActor == MeshComponent->GetOuter())
 				{
+					UE_LOG(LogImgMedia, Verbose, TEXT("Removed tracked %s for %s"), *MeshComponent->GetName(), *InActor->GetName());
+
 					Objects.RemoveAtSwap(Index);
 					delete Info;
 

@@ -9,6 +9,8 @@
 #include "IMediaSamples.h"
 #include "IMediaTracks.h"
 #include "IMediaView.h"
+#include "UObject/WeakObjectPtr.h"
+#include "UObject/WeakObjectPtrTemplates.h"
 
 class FImgMediaLoader;
 class FImgMediaScheduler;
@@ -16,6 +18,7 @@ class IImgMediaReader;
 class IMediaEventSink;
 class IMediaTextureSample;
 class FImgMediaGlobalCache;
+class UMediaTexture;
 
 
 /**
@@ -183,4 +186,7 @@ private:
 
 	/** True if facade has signaled it uses blocking playback, false if not */
 	bool PlaybackIsBlocking;
+
+	/** Weak pointer to the active media texture. */
+	TWeakObjectPtr<UMediaTexture> MediaTextureWeakPtr;
 };

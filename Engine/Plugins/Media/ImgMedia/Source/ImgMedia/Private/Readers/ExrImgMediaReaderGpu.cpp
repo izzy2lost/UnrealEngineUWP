@@ -86,12 +86,7 @@ FExrImgMediaReaderGpu::FExrImgMediaReaderGpu(const TSharedRef<FImgMediaLoader, E
 	, bIsShuttingDown(false)
 	, bFallBackToCPU(false)
 {
-	const int32 NumMipLevels = InLoader->GetNumMipLevels();
 
-	if (NumMipLevels <= 1 && InLoader->GetMinimumLevelToUpscale() >= 0)
-	{
-		UE_LOG(LogImgMedia, Display, TEXT("No upscaling for sequence without mips: %s"), *InLoader->GetImagePath(0,0));
-	}
 }
 
 FExrImgMediaReaderGpu::~FExrImgMediaReaderGpu()
@@ -380,7 +375,7 @@ void FExrImgMediaReaderGpu::PreAllocateMemoryPool(int32 NumFrames, const FImgMed
 	SIZE_T AllocSize = GetBufferSize(FrameInfo.Dim, FrameInfo.NumChannels, FrameInfo.bHasTiles, FrameInfo.NumTiles, bCustomExr);
 	for (int32 FrameCacheNum = 0; FrameCacheNum < NumFrames; FrameCacheNum++)
 	{
-		AllocateGpuBufferFromPool(AllocSize, FrameCacheNum == NumFrames - 1);
+		AllocateGpuBufferFromPool(AllocSize);
 	}
 }
 
@@ -613,7 +608,7 @@ void FExrImgMediaReaderGpu::CreateSampleConverterCallback(TSharedPtr<FExrMediaTe
 	SampleConverter->AddCallback(FExrConvertBufferCallback::CreateLambda(RenderThreadSwizzler));
 }
 
-FStructuredBufferPoolItemSharedPtr FExrImgMediaReaderGpu::AllocateGpuBufferFromPool(uint32 AllocSize, bool bWait)
+FStructuredBufferPoolItemSharedPtr FExrImgMediaReaderGpu::AllocateGpuBufferFromPool(uint32 AllocSize)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("ExrReaderGpu.AllocBuffer")));
 	TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("ExrReaderGpu.AllocBuffer %d"), AllocSize));
@@ -650,21 +645,14 @@ FStructuredBufferPoolItemSharedPtr FExrImgMediaReaderGpu::AllocateGpuBufferFromP
 
 	if (!AllocatedBuffer)
 	{
-		FEvent* InitDoneEvent = nullptr;
-		if (bWait)
-		{
-			InitDoneEvent = FPlatformProcess::GetSynchEventFromPool();
-		}
+		AllocatedBuffer = MakeShareable(new FStructuredBufferPoolItem(), MoveTemp(BufferDeleter));
 
-		{
-			AllocatedBuffer = MakeShareable(new FStructuredBufferPoolItem(), MoveTemp(BufferDeleter));
-
-			// Allocate and unlock the structured buffer on render thread.
-			ENQUEUE_RENDER_COMMAND(CreatePooledBuffer)([AllocatedBuffer, AllocSize, InitDoneEvent](FRHICommandListImmediate& RHICmdList)
+		// Allocate and unlock the structured buffer on render thread.
+		ENQUEUE_RENDER_COMMAND(CreatePooledBuffer)([AllocatedBuffer, AllocSize](FRHICommandListImmediate& RHICmdList)
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("ExrReaderGpu.AllocBuffer_RenderThread")));
 				TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("ExrReaderGpu.AllocBuffer_RenderThread %d"), AllocSize));
-				
+
 				SCOPED_GPU_STAT(RHICmdList, ExrImgMediaReaderGpu_AllocateBuffer);
 				SCOPED_DRAW_EVENT(RHICmdList, FExrImgMediaReaderGpu_AllocateBuffer);
 
@@ -684,19 +672,8 @@ FStructuredBufferPoolItemSharedPtr FExrImgMediaReaderGpu::AllocateGpuBufferFromP
 					AllocatedBuffer->ShaderResourceView = RHICmdList.CreateShaderResourceView(AllocatedBuffer->UploadBufferRef);
 				}
 
-				if (InitDoneEvent != nullptr)
-				{
-					InitDoneEvent->Trigger();
-				}
+				AllocatedBuffer->AllocationReadyEvent->Trigger();
 			});
-		}
-
-		/** Wait until buffer is initialized. */
-		if (InitDoneEvent != nullptr)
-		{
-			InitDoneEvent->Wait();
-			FPlatformProcess::ReturnSynchEventToPool(InitDoneEvent);
-		}
 	}
 
 	// This buffer will be automatically processed and returned to StagingMemoryPool once nothing keeps reference to it.
@@ -725,11 +702,20 @@ bool FExrMediaTextureSampleConverter::Convert(FTexture2DRHIRef& InDstTexture, co
 	return bExecutionSuccessful;
 }
 
+FStructuredBufferPoolItem::FStructuredBufferPoolItem()
+{
+	constexpr bool bIsManualReset = true; // Manually reset events stay triggered until reset.
+	AllocationReadyEvent = FPlatformProcess::GetSynchEventFromPool(bIsManualReset);
+	check(AllocationReadyEvent);
+}
+
 FStructuredBufferPoolItem::~FStructuredBufferPoolItem()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("ExrReaderGpu.ReleasePoolItem")));
 	FRHICommandListImmediate::Get().UnlockBuffer(UploadBufferRef);
 	UploadBufferMapped = nullptr;
+
+	FPlatformProcess::ReturnSynchEventToPool(AllocationReadyEvent);
 }
 
 #endif //IMGMEDIA_EXR_SUPPORTED_PLATFORM && PLATFORM_WINDOWS
