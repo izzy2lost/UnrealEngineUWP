@@ -7,6 +7,7 @@ public class IOSTargetPlatform : ModuleRules
 	public IOSTargetPlatform(ReadOnlyTargetRules Target) : base(Target)
 	{
 		BinariesSubFolder = "IOS";
+		SDKVersionRelevantPlatforms.Add(UnrealTargetPlatform.IOS);
 
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
@@ -23,6 +24,7 @@ public class IOSTargetPlatform : ModuleRules
 				"Networking"
 			}
 		);
+
 
 		PrivateIncludePathModuleNames.AddRange(
 			new string[] {

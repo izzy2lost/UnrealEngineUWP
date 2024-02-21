@@ -7,7 +7,8 @@ public class TVOSTargetPlatform : ModuleRules
 	public TVOSTargetPlatform(ReadOnlyTargetRules Target) : base(Target)
 	{
 		BinariesSubFolder = "IOS";
-		
+		SDKVersionRelevantPlatforms.Add(UnrealTargetPlatform.TVOS);
+
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{

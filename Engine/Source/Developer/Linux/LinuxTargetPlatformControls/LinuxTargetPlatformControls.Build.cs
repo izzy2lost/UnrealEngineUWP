@@ -7,6 +7,8 @@ public class LinuxTargetPlatformControls : ModuleRules
     public LinuxTargetPlatformControls(ReadOnlyTargetRules Target) : base(Target)
 	{
         BinariesSubFolder = "Linux";
+		SDKVersionRelevantPlatforms.AddRange(Utils.GetPlatformsInGroup(UnrealPlatformGroup.Linux));
+
 		// We need a short name here since this can run afoul very easily of the `MAX_PATH` limit when
 		// combined with building other targets that make use of this.
 		ShortName = "LinuxTPCon";

@@ -6,7 +6,9 @@ public class WindowsTargetPlatform : ModuleRules
 {
 	public WindowsTargetPlatform(ReadOnlyTargetRules Target) : base(Target)
 	{
-        PrivateDependencyModuleNames.AddRange(
+		SDKVersionRelevantPlatforms.Add(UnrealTargetPlatform.Win64);
+		
+		PrivateDependencyModuleNames.AddRange(
 			new string[] {
 				"Core",
 				"TargetPlatform",

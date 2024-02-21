@@ -518,6 +518,15 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
+		/// Retrieve the list of platforms in this group (if any)
+		/// </summary>
+		public static List<UnrealTargetPlatform> GetPlatformsInGroup(UnrealPlatformGroup Group)
+		{
+			return UEBuildPlatform.GetPlatformsInGroup(Group);
+		}
+
+
+		/// <summary>
 		/// Given a list of supported platforms, returns a list of names of platforms that should not be supported
 		/// </summary>
 		/// <param name="SupportedPlatforms">List of supported platforms</param>

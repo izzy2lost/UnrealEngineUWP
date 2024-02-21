@@ -8,8 +8,9 @@ public class AndroidTargetPlatform : ModuleRules
 	{
 		UnsafeTypeCastWarningLevel = WarningLevel.Error;
 		BinariesSubFolder = "Android";
+		SDKVersionRelevantPlatforms.Add(UnrealTargetPlatform.Android);
 
-        PrivateDependencyModuleNames.AddRange(
+		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
 				"Core",
