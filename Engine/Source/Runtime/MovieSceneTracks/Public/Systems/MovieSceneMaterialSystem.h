@@ -157,8 +157,12 @@ struct TInitializeBoundMaterials
 
 		if (!ExistingMaterial)
 		{
-			OutDynamicMaterial = FObjectComponent::Null();
-			return true;
+			if (OutDynamicMaterial != nullptr)
+			{
+				OutDynamicMaterial = FObjectComponent::Null();
+				return true;
+			}
+			return false;
 		}
 
 		if (UMaterialInstanceDynamic* MID = Cast<UMaterialInstanceDynamic>(ExistingMaterial))
