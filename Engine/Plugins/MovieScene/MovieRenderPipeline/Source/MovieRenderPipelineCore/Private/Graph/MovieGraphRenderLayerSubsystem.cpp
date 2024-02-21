@@ -319,95 +319,6 @@ void UMovieGraphRenderPropertyModifier::SetActorVisibilityState(const FActorVisi
 	}
 }
 
-// TODO: This really should be "DoesComponentMatchQuery()"
-bool UMovieGraphCollectionCommonQuery::DoesActorMatchQuery(const AActor* Actor) const
-{
-	if (!Actor)
-	{
-		return false;
-	}
-
-	// TODO: This method should short-circuit so all query types aren't executed for every actor when the query mode is OR
-
-	bool bMatchesActorNames = false;
-	if (!ActorNames.IsEmpty())
-	{
-		bMatchesActorNames = ActorNames.Contains(Actor->GetName());
-	}
-	
-	bool bMatchesComponentTypes = false;
-	if (!ComponentTypes.IsEmpty())
-	{
-		const bool bIncludeFromChildActors = true;
-		TArray<UActorComponent*> ActorComponents;
-		Actor->GetComponents(ActorComponents, bIncludeFromChildActors);
-		for (const UActorComponent* Component : ActorComponents)
-		{
-			for (const UClass* ComponentType : ComponentTypes)
-			{
-				if (Component->IsA(ComponentType))
-				{
-					bMatchesComponentTypes = true;
-					break;
-				}
-			}
-		}
-	}
-
-	bool bMatchesTags = false;
-	if (!Tags.IsEmpty())
-	{
-		for (const FName& Tag : Tags)
-		{
-			if (Actor->Tags.Contains(Tag))
-			{
-				bMatchesTags = true;
-				break;
-			}
-		}
-	}
-
-	const bool bUsingActorNames = !ActorNames.IsEmpty();
-	const bool bUsingComponentTypes = !ComponentTypes.IsEmpty();
-	const bool bUsingTags = !Tags.IsEmpty();
-
-	if (QueryMode == EMovieGraphCollectionCommonQueryMode::And)
-	{
-		return (!bUsingActorNames || bMatchesActorNames) &&
-			   (!bUsingTags || bMatchesTags) &&
-			   (!bUsingComponentTypes || bMatchesComponentTypes);
-	}
-	
-	return bMatchesActorNames || bMatchesTags || bMatchesComponentTypes;
-}
-
-bool UMovieGraphCollectionLightingQuery::DoesActorMatchQuery(const AActor* Actor) const
-{
-	const TArray<UClass*> LightingComponentTypes = {
-		ULightComponentBase::StaticClass(),
-		UReflectionCaptureComponent::StaticClass(),
-		USkyAtmosphereComponent::StaticClass(),
-		USkyLightComponent::StaticClass()
-	};
-	
-	TArray<UActorComponent*> ActorComponents;
-	constexpr bool bIncludeFromChildActors = true;
-	Actor->GetComponents(ActorComponents, bIncludeFromChildActors);
-	
-	for (const UActorComponent* Component : ActorComponents)
-	{
-		for (const UClass* ComponentType : LightingComponentTypes)
-		{
-			if (Component->IsA(ComponentType))
-			{
-				return true;
-			}
-		}
-	}
-
-	return false;
-}
-
 void UMovieGraphCollectionModifier::AddCollection(UMovieGraphCollection* Collection)
 {
 	// Don't allow adding a duplicate collection
@@ -1850,7 +1761,7 @@ void UMovieGraphRenderLayer::RemoveModifier(UMovieGraphCollectionModifier* Modif
 	Modifiers.Remove(Modifier);
 }
 
-void UMovieGraphRenderLayer::Preview(const UWorld* World)
+void UMovieGraphRenderLayer::Apply(const UWorld* World)
 {
 	if (!World)
 	{
@@ -1864,13 +1775,8 @@ void UMovieGraphRenderLayer::Preview(const UWorld* World)
 	}
 }
 
-void UMovieGraphRenderLayer::UndoPreview(const UWorld* World)
+void UMovieGraphRenderLayer::Revert()
 {
-	if (!World)
-	{
-		return;
-	}
-
 	// Undo actions performed by all modifiers. Do this in the reverse order that they were applied, since the undo
 	// state of one modifier may depend on modifiers that were previously applied.
 	for (int32 Index = Modifiers.Num() - 1; Index >= 0; Index--)
@@ -1895,20 +1801,6 @@ UMovieGraphRenderLayerSubsystem* UMovieGraphRenderLayerSubsystem::GetFromWorld(c
 
 void UMovieGraphRenderLayerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
-	VisualizationEmptyCollection = NewObject<UMovieGraphCollection>(GetTransientPackage(), NAME_None, RF_Transient);
-
-	// By default, the visualizer should hide everything in the world
-	VisualizationModifier_HideWorld = NewObject<UMovieGraphRenderPropertyModifier>(GetTransientPackage(), NAME_None, RF_Transient);
-	VisualizationModifier_HideWorld->AddCollection(VisualizationEmptyCollection);
-	VisualizationModifier_HideWorld->SetHidden(true);
-
-	// Selectively show collections in the visualization
-	VisualizationModifier_VisibleCollections = NewObject<UMovieGraphRenderPropertyModifier>(GetTransientPackage(), NAME_None, RF_Transient);
-
-	// The visualizer render layer will hide the world, selectively show specified collections, and then apply any other provided modifiers
-	VisualizationRenderLayer = NewObject<UMovieGraphRenderLayer>(GetTransientPackage(), NAME_None, RF_Transient);
-	VisualizationRenderLayer->AddModifier(VisualizationModifier_HideWorld);
-	VisualizationRenderLayer->AddModifier(VisualizationModifier_VisibleCollections);
 }
 
 void UMovieGraphRenderLayerSubsystem::Deinitialize()
@@ -1917,7 +1809,7 @@ void UMovieGraphRenderLayerSubsystem::Deinitialize()
 
 void UMovieGraphRenderLayerSubsystem::Reset()
 {
-	ClearAllPreviews();
+	RevertAndClearActiveRenderLayer();
 	RenderLayers.Empty();
 }
 
@@ -1948,7 +1840,7 @@ void UMovieGraphRenderLayerSubsystem::RemoveRenderLayer(const FString& RenderLay
 {
 	if (ActiveRenderLayer && (ActiveRenderLayer->GetName() == RenderLayerName))
 	{
-		ClearAllPreviews();
+		RevertAndClearActiveRenderLayer();
 	}
 	
 	const uint32 Index = RenderLayers.IndexOfByPredicate([&RenderLayerName](const UMovieGraphRenderLayer* RenderLayer)
@@ -1969,8 +1861,8 @@ void UMovieGraphRenderLayerSubsystem::SetActiveRenderLayerByObj(UMovieGraphRende
 		return;
 	}
 	
-	ClearAllPreviews();
-	SetAndPreviewRenderLayer(RenderLayer);
+	RevertAndClearActiveRenderLayer();
+	SetAndApplyRenderLayer(RenderLayer);
 }
 
 void UMovieGraphRenderLayerSubsystem::SetActiveRenderLayerByName(const FName& RenderLayerName)
@@ -1988,83 +1880,23 @@ void UMovieGraphRenderLayerSubsystem::SetActiveRenderLayerByName(const FName& Re
 
 void UMovieGraphRenderLayerSubsystem::ClearActiveRenderLayer()
 {
-	ClearAllPreviews();
+	RevertAndClearActiveRenderLayer();
 }
 
-void UMovieGraphRenderLayerSubsystem::PreviewCollection(UMovieGraphCollection* Collection)
+void UMovieGraphRenderLayerSubsystem::RevertAndClearActiveRenderLayer()
 {
-	if (!Collection)
-	{
-		return;
-	}
-
-	ClearAllPreviews();
-	
-	ActiveCollection = Collection;
-	VisualizationModifier_VisibleCollections->AddCollection(ActiveCollection);
-
-	SetAndPreviewRenderLayer(VisualizationRenderLayer);
-}
-
-void UMovieGraphRenderLayerSubsystem::ClearCollectionPreview()
-{
-	ClearAllPreviews();
-}
-
-void UMovieGraphRenderLayerSubsystem::ClearAllPreviews()
-{
-	// Render layer previews and collection previews both use the active render layer, so undoing the preview this
-	// way will clear previews for both
 	if (ActiveRenderLayer)
 	{
-		ActiveRenderLayer->UndoPreview(GetWorld());
-
-		// Remove the modifier preview if present (requires an active render layer)
-		if (ActiveModifier)
-		{
-			ActiveRenderLayer->RemoveModifier(ActiveModifier);
-		}
+		ActiveRenderLayer->Revert();
 	}
-
-	// Reset the viz modifier for the collection preview
-	VisualizationModifier_VisibleCollections->SetCollections({});
 
 	ActiveRenderLayer = nullptr;
-	ActiveCollection = nullptr;
-	ActiveModifier = nullptr;
 }
 
-void UMovieGraphRenderLayerSubsystem::SetAndPreviewRenderLayer(UMovieGraphRenderLayer* RenderLayer)
+void UMovieGraphRenderLayerSubsystem::SetAndApplyRenderLayer(UMovieGraphRenderLayer* RenderLayer)
 {
 	ActiveRenderLayer = RenderLayer;
-	ActiveRenderLayer->Preview(GetWorld());
-}
-
-void UMovieGraphRenderLayerSubsystem::PreviewModifier(UMovieGraphCollectionModifier* Modifier)
-{
-	if (!Modifier)
-	{
-		return;
-	}
-
-	ClearAllPreviews();
-
-	ActiveModifier = Modifier;
-	VisualizationRenderLayer->AddModifier(ActiveModifier);
-
-	// Add the modifier's collections to the viz as well, so the actors that the modifier affects are actually visible
-	// TODO: This may need special handing for visibility modifiers
-	for (UMovieGraphCollection* Collection : ActiveModifier->GetCollections())
-	{
-		VisualizationModifier_VisibleCollections->AddCollection(Collection);
-	}
-	
-	SetAndPreviewRenderLayer(VisualizationRenderLayer);
-}
-
-void UMovieGraphRenderLayerSubsystem::ClearModifierPreview()
-{
-	ClearAllPreviews();
+	ActiveRenderLayer->Apply(GetWorld());
 }
 
 #undef LOCTEXT_NAMESPACE
