@@ -8,24 +8,39 @@
 #include "VVMBytecode.h"
 #include "VVMGlobalTrivialEmergentTypePtr.h"
 #include "VVMType.h"
+#include "VVMUTF8String.h"
 
 namespace Verse
 {
 struct FAbstractVisitor;
-
+/*
+This is layed out in Memory:
+VProcedure
+TWriteBarrier<VValue>          Constant  [0]
+TWriteBarrier<VValue>          Constant  [1]
+...
+TWriteBarrier<VValue>          Constant  [NumConstants - 1];
+TWriteBarrier<VUniqueString>   NamedParam[0]
+TWriteBarrier<VUniqueString>   NamedParam[1]
+...
+TWriteBarrier<VUniqueString>   NamedParam[NumNamedParameters - 1];
+FOp                            Ops
+  + NumOpBytes                 EOD
+*/
 struct VProcedure : VCell
 {
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VCell);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
 	const uint32 NumParameters;
+	const uint32 NumNamedParameters;
 	const uint32 NumRegisters;
 	const uint32 NumOpBytes;
 
 	const uint32 NumConstants;
 	TWriteBarrier<VValue> Constants[];
 
-	FOp* GetOpsBegin() { return BitCast<FOp*>(GetConstantsEnd()); }
+	FOp* GetOpsBegin() { return BitCast<FOp*>(GetNameParamsEnd()); }
 	FOp* GetOpsEnd() { return BitCast<FOp*>(BitCast<uint8*>(GetOpsBegin()) + NumOpBytes); }
 
 	// In bytes.
@@ -61,20 +76,31 @@ struct VProcedure : VCell
 		return Constants[ConstantIndex.Index].Get();
 	}
 
-	static VProcedure& New(FAllocationContext Context, uint32 NumParameters, uint32 NumRegisters, uint32 NumConstants, size_t NumOpBytes)
+	TWriteBarrier<VUniqueString>* GetNamedParams()
+	{
+		return (TWriteBarrier<VUniqueString>*)GetConstantsEnd();
+	}
+	TWriteBarrier<VUniqueString>* GetNameParamsEnd()
+	{
+		return GetNamedParams() + NumNamedParameters;
+	}
+
+	static VProcedure& New(FAllocationContext Context, uint32 NumParameters, uint32 NumNamedParameters, uint32 NumRegisters, uint32 NumConstants, size_t NumOpBytes)
 	{
 		const size_t NumBytes = offsetof(VProcedure, Constants)
 							  + sizeof(Constants[0]) * NumConstants
+							  + sizeof(TWriteBarrier<VValue>) * NumNamedParameters
 							  + NumOpBytes;
-		return *new (Context.Allocate(Verse::FHeap::DestructorSpace, NumBytes)) VProcedure(Context, NumParameters, NumRegisters, NumConstants, NumOpBytes);
+		return *new (Context.Allocate(Verse::FHeap::DestructorSpace, NumBytes)) VProcedure(Context, NumParameters, NumNamedParameters, NumRegisters, NumConstants, NumOpBytes);
 	}
 
 	static void SerializeImpl(VProcedure*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
 
 private:
-	VProcedure(FAllocationContext Context, uint32 InNumArguments, uint32 InNumRegisters, uint32 InNumConstants, uint32 InNumOpBytes)
+	VProcedure(FAllocationContext Context, uint32 InNumArguments, uint32 InNumNamedParameters, uint32 InNumRegisters, uint32 InNumConstants, uint32 InNumOpBytes)
 		: VCell(Context, &GlobalTrivialEmergentType.Get(Context))
 		, NumParameters(InNumArguments)
+		, NumNamedParameters(InNumNamedParameters)
 		, NumRegisters(InNumRegisters)
 		, NumOpBytes(InNumOpBytes)
 		, NumConstants(InNumConstants)

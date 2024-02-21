@@ -252,12 +252,22 @@ namespace UnrealBuildTool
 				{
 					if (Arg.Arity == Arity.Variadic)
 					{
-						string OperandString = bIsSuspensionCapture ? "Operand.Get()" : "Operand";
-						S.Append($"        for (const auto& Operand : {Arg.Name})\n");
-						S.Append("        {\n");
-						S.Append($"            Function({Arg.Role.ToCpp()}, {OperandString});\n");
-						S.Append("        }\n");
-					}
+                        if (Arg.Role == Role.Immediate)
+                        {
+                            S.Append($"        for (auto& Operand : {Arg.Name})\n");
+                            S.Append( "        {\n");
+                            S.Append($"            Function({Arg.Role.ToCpp()}, Operand);\n");
+                            S.Append( "        }\n");
+                        }
+                        else
+                        {
+                            string OperandString = bIsSuspensionCapture && Arg.Role != Role.Immediate ? "Operand.Get()" : "Operand";
+                            S.Append($"        for (const auto& Operand : {Arg.Name})\n");
+                            S.Append( "        {\n");
+                            S.Append($"            Function({Arg.Role.ToCpp()}, {OperandString});\n");
+                            S.Append( "        }\n");
+                        }
+                    }
 					else
 					{
 						// If the argument is immediate, `ForEachOperand`/`ForEachOperandWithName` will operate on
@@ -362,15 +372,18 @@ namespace UnrealBuildTool
 
 				if (NumVariadicArgs > 0)
 				{
-					S.Append("    // Variadic arguments.\n");
+					S.Append("    // Non-Immedate Variadic arguments.\n");
 				}
 				for (int CurrentIndex = 0; CurrentIndex < NumVariadicArgs; ++CurrentIndex)
 				{
 					Argument Arg = Inst.Args[VariadicArgsIndices[CurrentIndex]];
-					// NOTE: (yiliang.siew) This could be raised to a location such as in `VProgram` when that
-					// exists and each opcode store only the index + size to index into that array, so that we don't
-					// need to store a separate `TArray` of operand values per-opcode struct.
-					S.Append($"    TArray<{Arg.DefCppType()}> {Arg.Name};\n");
+                    if (Arg.Role != Role.Immediate)
+                    {
+                        // NOTE: (yiliang.siew) This could be raised to a location such as in `VProgram` when that
+                        // exists and each opcode store only the index + size to index into that array, so that we don't
+                        // need to store a separate `TArray` of operand values per-opcode struct.
+                        S.Append($"    TArray<{Arg.DefCppType()}> {Arg.Name};\n");
+                    }
 				}
 
 				// We wrap these in a `TWriteBarrier` so that we can have an easy way to mark these values for GC purposes.
@@ -381,11 +394,10 @@ namespace UnrealBuildTool
 				for (int CurrentIndex = 0; CurrentIndex < NumImmediateArgs; ++CurrentIndex)
 				{
 					Argument Arg = Inst.Args[ImmediateArgsIndices[CurrentIndex]];
-					if (Arg.Arity == Arity.Variadic)
-					{
-						throw new ArgumentException("Variadic immediate arguments are not currently supported!");
-					}
-					S.Append($"    TWriteBarrier<{Arg.DefCppType()}> {Arg.Name};\n");
+                    if (Arg.Arity == Arity.Variadic)
+                        S.Append($"    TArray<TWriteBarrier<{Arg.DefCppType()}>> {Arg.Name};\n");
+                    else
+                        S.Append($"    TWriteBarrier<{Arg.DefCppType()}> {Arg.Name};\n");
 				}
 				S.Append("\n");  // For readability.
 				S.Append($"    static constexpr EOpcode StaticOpcode = EOpcode::{Inst.Name};\n");
@@ -398,8 +410,14 @@ namespace UnrealBuildTool
 						// Prefix with `In` to avoid any shadowing issues.
 						if (Arg.Role == Role.Immediate)
 						{
-							// TODO: Support variadic immediate arguments.
-							return $"TWriteBarrier<{Arg.DefCppType()}>&& In{Arg.Name}";
+                            if (Arg.Arity == Arity.Variadic)
+                            {
+                                return $"TArray<TWriteBarrier<{Arg.DefCppType()}>>&& In{Arg.Name}";
+                            }
+                            else
+                            {
+                                return $"TWriteBarrier<{Arg.DefCppType()}>&& In{Arg.Name}";
+                            }
 						}
 						else if (Arg.Arity == Arity.Variadic)
 						{
@@ -412,6 +430,10 @@ namespace UnrealBuildTool
 					}));
 				S.Append(ArgumentsList);
 				string ConstantsList = string.Join(", ", Inst.Consts.Select(Const => $"{Const.Type.ToCpp()} {Const.Name}"));
+				if (ArgumentsList.Length > 1 && ConstantsList.Length > 1)
+                {
+                    S.Append(", ");
+                }
 				S.Append(ConstantsList);
 				S.Append(")\n");
 				S.Append("        : FOp(StaticOpcode)\n");
@@ -431,7 +453,8 @@ namespace UnrealBuildTool
 				for (int CurrentIndex = 0; CurrentIndex < NumVariadicArgs; ++CurrentIndex)
 				{
 					Argument Arg = Inst.Args[VariadicArgsIndices[CurrentIndex]];
-					S.Append($"        , {Arg.Name}(In{Arg.Name})\n");
+                    if (Arg.Role != Role.Immediate)
+                        S.Append($"        , {Arg.Name}(In{Arg.Name})\n");
 				}
 				for (int CurrentIndex = 0; CurrentIndex < NumImmediateArgs; ++CurrentIndex)
 				{
@@ -475,19 +498,21 @@ namespace UnrealBuildTool
 				// Generate the fields.
 				foreach (Argument Arg in Inst.Args)
 				{
-					if (Arg.Arity == Arity.Variadic)
-					{
-						S.Append($"    TArray<TWriteBarrier<VValue>> {Arg.Name};  // Captured variadic arguments.\n");
-					}
-					else if (Arg.Role == Role.Immediate)
-					{
-						S.Append($"    TWriteBarrier<{Arg.DefCppType()}> {Arg.Name};  \n");
-					}
-					else
-					{
-						S.Append($"    TWriteBarrier<VValue> {Arg.Name};  \n");
-					}
-				}
+                    if (Arg.Role == Role.Immediate)
+                    {
+                        if (Arg.Arity == Arity.Variadic)
+                            S.Append($"    TArray<TWriteBarrier<{Arg.DefCppType()}>> {Arg.Name};  // variadic immediate arguments.\n");
+                        else
+                            S.Append($"    TWriteBarrier<{Arg.DefCppType()}> {Arg.Name};  \n");
+                    }
+                    else
+                    {
+                        if (Arg.Arity == Arity.Variadic)
+                            S.Append($"    TArray<TWriteBarrier<VValue>> {Arg.Name};  // Captured variadic arguments.\n");
+                        else
+                            S.Append($"    TWriteBarrier<VValue> {Arg.Name};  \n");
+                    }
+                }
 				if (Inst._CapturesEffectToken)
 				{
 					S.Append($"    TWriteBarrier<VValue> EffectToken;\n");
@@ -504,18 +529,20 @@ namespace UnrealBuildTool
 					S.Append($"    {Name}(FAccessContext Context");
 					foreach (Argument Arg in Inst.Args)
 					{
-						if (Arg.Arity == Arity.Variadic)
-						{
-							S.Append($", TArray<TWriteBarrier<VValue>>&& In{Arg.Name}");
-						}
-						else if (Arg.Role == Role.Immediate)
-						{
-							S.Append($", const TWriteBarrier<{Arg.DefCppType()}>& In{Arg.Name}");
-						}
-						else
-						{
-							S.Append($", VValue In{Arg.Name}");
-						}
+                        if (Arg.Role == Role.Immediate)
+                        {
+                            if (Arg.Arity == Arity.Variadic)
+                                S.Append($", TArray<TWriteBarrier<{Arg.DefCppType()}>>&& In{Arg.Name}");
+                            else
+                                S.Append($", const TWriteBarrier<{Arg.DefCppType()}>& In{Arg.Name}");
+                        }
+                        else
+                        {
+                            if (Arg.Arity == Arity.Variadic)
+                                S.Append($", TArray<TWriteBarrier<VValue>>&& In{Arg.Name}");
+                            else
+                                S.Append($", VValue In{Arg.Name}");
+                        }
 					}
 					if (Inst._CapturesEffectToken)
 					{
@@ -629,11 +656,22 @@ namespace UnrealBuildTool
 				{
 					if (Arg.Arity == Arity.Variadic)
 					{
-						S.Append($"    TArray<TWriteBarrier<VValue>> Array{Arg.Name};\n");
-						S.Append($"    for (auto& CurrentValue : Op.{Arg.Name})\n");
-						S.Append("    {\n");
-						S.Append($"        Array{Arg.Name}.Add({{Context, GetOperand(CurrentValue)}});\n");
-						S.Append("    }\n");
+                        if (Arg.Role == Role.Immediate)
+                        {
+                            S.Append($"    TArray<TWriteBarrier<{Arg.DefCppType()}>> Array{Arg.Name};\n");
+                            S.Append($"    for (auto& Arg : Op.{Arg.Name})\n");
+                            S.Append("    {\n");
+                            S.Append($"        Array{Arg.Name}.Add(Arg);\n");
+                            S.Append("    }\n");
+                        }
+                        else
+                        {
+                            S.Append($"    TArray<TWriteBarrier<VValue>> Array{Arg.Name};\n");
+                            S.Append($"    for (auto& CurrentValue : Op.{Arg.Name})\n");
+                            S.Append("    {\n");
+                            S.Append($"        Array{Arg.Name}.Add({{Context, GetOperand(CurrentValue)}});\n");
+                            S.Append("    }\n");
+                        }
 					}
 				}
 				S.Append($"    return {Inst.CppCapturesName}(Context");
@@ -795,7 +833,21 @@ namespace UnrealBuildTool
 				.CreatesNewReturnEffectToken()
 				.Suspends();
 
-			Inst("Return")
+            Inst("CallNamed")
+                .Arg("Dest", Role.UnifyDef)
+                .Arg("Callee", Role.Use)
+                .Arg("Arguments", Role.Use, Arity.Variadic)
+                .Arg("NamedArguments", Role.Immediate, Arity.Variadic, "VUniqueString")
+                .CapturesEffectToken()
+                .CreatesNewReturnEffectToken()
+                .Suspends();
+
+            Inst("JumpIfInitialized")
+                .Arg("RegIdx", Role.Use)
+                .Jump("JumpOffset")
+                .Suspends();
+
+            Inst("Return")
 				.Arg("Value", Role.Use);
 
 			Inst("NewVar")

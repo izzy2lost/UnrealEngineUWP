@@ -137,51 +137,107 @@ struct FExecutionState
 // To avoid unnecessary boxing and unboxing of VValues, we add an optimization where we try to avoid boxing/unboxing as much as possible
 // This function reconciles the number of expected parameters with the number of provided arguments and boxes/unboxes only as needed
 template <typename ArgFunction, typename StoreFunction>
-void UnboxArguments(FAllocationContext Context, uint32 NumParams, uint32 NumArgs, ArgFunction GetArg, StoreFunction StoreArg)
+static void UnboxArguments(FAllocationContext Context, uint32 NumParams, uint32 NumNamedParams, uint32 NumArgs, TWriteBarrier<VUniqueString>* NamedParams, TArray<TWriteBarrier<VUniqueString>>* ArgNames, ArgFunction GetArg, StoreFunction StoreArg)
 {
-	if (NumParams == NumArgs)
+	if (NumNamedParams == 0)
 	{
-		// Calling conventions match - no boxing/unboxing is necessary
-		for (uint32 Arg = 0; Arg < NumArgs; ++Arg)
+		if (NumParams == NumArgs)
 		{
-			StoreArg(Arg, GetArg(Arg));
+			// Calling conventions match - no boxing/unboxing is necessary
+			for (uint32 Arg = 0; Arg < NumArgs; ++Arg)
+			{
+				StoreArg(Arg, GetArg(Arg));
+			}
 		}
-	}
-	else if (NumParams)
-	{
-		if (NumArgs > NumParams)
+		else if (NumParams)
 		{
-			V_DIE_UNLESS(NumParams == 1);
+			if (NumArgs > NumParams)
+			{
+				// Function wants arguments in a 4 - box them up
+				VArray& ArgArray = VArray::New(Context, NumArgs, GetArg);
+				StoreArg(0, ArgArray);
+			}
+			else
+			{
+				V_DIE_UNLESS(NumArgs < NumParams);
+				V_DIE_UNLESS(NumArgs == 1);
 
-			// Function wants arguments in a tuple - box them up
-			VArray& ArgArray = VArray::New(Context, NumArgs, GetArg);
+				// Function wants loose arguments but a tuple is provided - unbox them
+				VValue IncomingArg = GetArg(0);
+				VArray* Args = IncomingArg.DynamicCast<VArray>();
 
-			StoreArg(0, ArgArray);
+				V_DIE_UNLESS(Args->Num() == NumParams);
+				for (uint32 Param = 0; Param < NumParams; ++Param)
+				{
+					StoreArg(Param, Args->GetValue(Param));
+				}
+			}
 		}
 		else
 		{
-			V_DIE_UNLESS(NumArgs < NumParams);
-			V_DIE_UNLESS(NumArgs == 1);
-
-			// Function wants loose arguments but a tuple is provided - unbox them
-			VValue IncomingArg = GetArg(0);
-			VArray* Args = IncomingArg.DynamicCast<VArray>();
-
-			V_DIE_UNLESS(Args->Num() == NumParams);
-			for (uint32 Param = 0; Param < NumParams; ++Param)
-			{
-				StoreArg(Param, Args->GetValue(Param));
-			}
+			V_DIE_UNLESS(false);
 		}
 	}
-	else
+	else // there are named params
 	{
-		V_DIE_UNLESS(false);
+		check(NumNamedParams > 0);
+		uint32 NumNamedArgs = ArgNames ? ArgNames->Num() : 0;
+		uint32 NumUnnamedArgs = NumArgs - NumNamedArgs;
+		uint32 NumUnnamedArgsStored = 0;
+		V_DIE_IF(NumNamedArgs > NumArgs);
+		if (NumUnnamedArgs > 0)
+		{
+			if (NumUnnamedArgs < NumParams)
+			{
+				V_DIE_UNLESS(NumUnnamedArgs == 1);
+				// Function wants loose arguments but a tuple is provided - unbox them
+				VValue IncomingArg = GetArg(0);
+				VArray* Args = IncomingArg.DynamicCast<VArray>();
+
+				V_DIE_UNLESS(Args->Num() == NumParams);
+				for (uint32 Param = 0; Param < NumParams; ++Param)
+				{
+					StoreArg(Param, Args->GetValue(Param));
+				}
+				NumUnnamedArgsStored = NumParams;
+			}
+			else
+			{
+				for (uint32 ArgIdx = 0; ArgIdx < NumUnnamedArgs; ++ArgIdx)
+				{
+					VValue Arg = GetArg(ArgIdx);
+					StoreArg(ArgIdx, Arg);
+				}
+				NumUnnamedArgsStored = NumUnnamedArgs;
+			}
+		}
+		if (ArgNames)
+		{
+			for (uint32 NamedParamIdx = 0; NamedParamIdx < NumNamedParams; ++NamedParamIdx)
+			{
+				// If the procedure's named parameter does not have a matching argument we use the default
+				// VValue which is VValue::UninitializedValue, aka 0.  The bytecode contains a JumpIfInitialized
+				// instruction at the start of the function.  The uninitialized value indicates to the
+				// JumpIfInitialized instruction that we cannot jump past the default initilization of the variable.
+				// Any other value causes the JumpIfInitialized instruction to jump past the default initialization
+				// code, as a value was provided here.
+				VValue ValueToStore;
+				for (uint32 ArgIdx = 0; ArgIdx < ArgNames->Num(); ++ArgIdx)
+				{
+					if (NamedParams[NamedParamIdx].Get() == (*ArgNames)[ArgIdx].Get())
+					{
+						ValueToStore = GetArg(NumUnnamedArgs + ArgIdx);
+						break;
+					}
+				}
+				StoreArg(NumUnnamedArgsStored + NamedParamIdx, ValueToStore);
+			}
+		}
 	}
 }
 
 template <typename ArgFunction, typename ReturnSlotType>
-VFrame& MakeFrameForCallee(FRunningContext Context, FOp* CallerPC, VFrame* CallerFrame, ReturnSlotType ReturnSlot, VFunction& Function, uint32 NumArgs, ArgFunction GetArg)
+static VFrame& MakeFrameForCallee(FRunningContext Context, FOp* CallerPC, VFrame* CallerFrame, ReturnSlotType ReturnSlot, VFunction& Function, uint32 NumArgs, TArray<TWriteBarrier<VUniqueString>>* ArgNames, ArgFunction GetArg)
 {
 	VProcedure& Procedure = Function.GetProcedure();
 	VFrame& Frame = VFrame::New(Context, CallerPC, CallerFrame, ReturnSlot, Procedure);
@@ -190,7 +246,7 @@ VFrame& MakeFrameForCallee(FRunningContext Context, FOp* CallerPC, VFrame* Calle
 
 	Frame.Registers[0].Set(Context, Function.ParentScope.Get());
 
-	UnboxArguments(Context, Procedure.NumParameters, NumArgs, GetArg,
+	UnboxArguments(Context, Procedure.NumParameters, Procedure.NumNamedParameters, NumArgs, Procedure.GetNamedParams(), ArgNames, GetArg,
 		[&](uint32 Param, VValue Value) {
 			Frame.Registers[1 + Param].Set(Context, Value);
 		});
@@ -1264,7 +1320,7 @@ class FInterpreter
 			VFunction::Args Args;
 			Args.AddUninitialized(NativeFunction->NumParameters);
 			UnboxArguments(
-				Context, NativeFunction->NumParameters, Op.Arguments.Num(),
+				Context, NativeFunction->NumParameters, 0, Op.Arguments.Num(), nullptr, nullptr,
 				[&](uint32 Arg) {
 					return GetOperand(Op.Arguments[Arg]);
 				},
@@ -1944,6 +2000,17 @@ class FInterpreter
 				}
 				END_OP_CASE()
 
+				BEGIN_OP_CASE(JumpIfInitialized)
+				{
+					VValue Val = GetOperand(Op.RegIdx);
+					REQUIRE_CONCRETE(Val);
+					if (!Val.IsUninitialized())
+					{
+						NextPC = Op.JumpOffset.GetLabeledPC();
+					}
+				}
+				END_OP_CASE();
+
 				BEGIN_OP_CASE(BeginFailureContext)
 				{
 					Failure = &VFailureContext::New(Context, Task, Failure, *State.Frame, EffectToken.Get(Context), Op.OnFailure.GetLabeledPC());
@@ -2031,7 +2098,7 @@ class FInterpreter
 					if (VFunction* Function = Callee.DynamicCast<VFunction>())
 					{
 						VRestValue* ReturnSlot = MakeReturnSlot(Op);
-						VFrame& NewFrame = MakeFrameForCallee(Context, NextPC, State.Frame, ReturnSlot, *Function, Op.Arguments.Num(),
+						VFrame& NewFrame = MakeFrameForCallee(Context, NextPC, State.Frame, ReturnSlot, *Function, Op.Arguments.Num(), nullptr,
 							[&](uint32 Arg) {
 								return GetOperand(Op.Arguments[Arg]);
 							});
@@ -2043,6 +2110,27 @@ class FInterpreter
 					}
 				}
 				END_OP_CASE()
+
+				BEGIN_OP_CASE(CallNamed)
+				{
+					VValue Callee = GetOperand(Op.Callee);
+					REQUIRE_CONCRETE(Callee);
+
+					if (VFunction* Function = Callee.DynamicCast<VFunction>())
+					{
+						VRestValue* ReturnSlot = &State.Frame->Registers[Op.Dest.Index];
+						VFrame& NewFrame = MakeFrameForCallee(Context, NextPC, State.Frame, ReturnSlot, *Function, Op.Arguments.Num(), &Op.NamedArguments,
+							[&](uint32 Arg) {
+								return GetOperand(Op.Arguments[Arg]);
+							});
+						UpdateExecutionState(Function->GetProcedure().GetOpsBegin(), &NewFrame);
+					}
+					else
+					{
+						OP_IMPL_HELPER(Call, Callee, Task);
+					}
+				}
+				END_OP_CASE();
 
 				BEGIN_OP_CASE(Return)
 				{
@@ -2084,7 +2172,7 @@ class FInterpreter
 						VProcedure& Procedure = *Initializers.Pop();
 						VFunction& Function = VFunction::New(Context, Procedure, Object);
 						VRestValue* ReturnSlot = nullptr;
-						VFrame& NewFrame = MakeFrameForCallee(Context, NextPC, State.Frame, ReturnSlot, Function, 0,
+						VFrame& NewFrame = MakeFrameForCallee(Context, NextPC, State.Frame, ReturnSlot, Function, 0, nullptr,
 							[](uint32 Arg) -> VValue { VERSE_UNREACHABLE(); });
 						UpdateExecutionState(Procedure.GetOpsBegin(), &NewFrame);
 					}
@@ -2234,7 +2322,7 @@ class FInterpreter
 								VFrame* CallerFrame = nullptr;
 
 								VValue ReturnSlot = MakeReturnSlot(Op);
-								VFrame& NewFrame = MakeFrameForCallee(Context, CallerPC, CallerFrame, ReturnSlot, *Function, Op.Arguments.Num(),
+								VFrame& NewFrame = MakeFrameForCallee(Context, CallerPC, CallerFrame, ReturnSlot, *Function, Op.Arguments.Num(), nullptr,
 									[&](uint32 Arg) {
 										return GetOperand(Op.Arguments[Arg]);
 									});
@@ -2338,7 +2426,7 @@ public:
 	}
 
 	// Upon failure, returns an uninitialized VValue
-	static VValue InvokeInTransaction(FRunningContext Context, VFunction::Args&& IncomingArguments, VFunction& Function)
+	static VValue InvokeInTransaction(FRunningContext Context, VFunction::Args&& IncomingArguments, TArray<TWriteBarrier<VUniqueString>>* NamedArgs, VFunction& Function)
 	{
 		VRestValue ReturnSlot(0);
 
@@ -2346,7 +2434,7 @@ public:
 
 		FOp* CallerPC = &StopInterpreterSentry;
 		VFrame* CallerFrame = nullptr;
-		VFrame& Frame = MakeFrameForCallee(Context, CallerPC, CallerFrame, &ReturnSlot, Function, Arguments.Num(),
+		VFrame& Frame = MakeFrameForCallee(Context, CallerPC, CallerFrame, &ReturnSlot, Function, Arguments.Num(), NamedArgs,
 			[&](uint32 Arg) {
 				return Arguments[Arg];
 			});
@@ -2427,16 +2515,21 @@ public:
 	}
 };
 
-VValue VFunction::InvokeInTransaction(FRunningContext Context, VFunction::Args&& Args)
+VValue VFunction::InvokeInTransaction(FRunningContext Context, VFunction::Args&& Args, TArray<TWriteBarrier<VUniqueString>>* NamedArgs)
 {
-	VValue Result = FInterpreter::InvokeInTransaction(Context, MoveTemp(Args), *this);
+	VValue Result = FInterpreter::InvokeInTransaction(Context, MoveTemp(Args), NamedArgs, *this);
 	check(!Result.IsPlaceholder());
 	return Result;
 }
 
-VValue VFunction::InvokeInTransaction(FRunningContext Context, VValue Argument)
+VValue VFunction::InvokeInTransaction(FRunningContext Context, VValue Argument, TWriteBarrier<VUniqueString>* ArgName)
 {
-	VValue Result = FInterpreter::InvokeInTransaction(Context, VFunction::Args{Argument}, *this);
+	TArray<TWriteBarrier<VUniqueString>> NamedArgs;
+	if (ArgName)
+	{
+		NamedArgs.Add(*ArgName);
+	}
+	VValue Result = FInterpreter::InvokeInTransaction(Context, VFunction::Args{Argument}, ArgName ? &NamedArgs : nullptr, *this);
 	check(!Result.IsPlaceholder());
 	return Result;
 }

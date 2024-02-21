@@ -205,14 +205,20 @@ void VProcedure::VisitReferencesImpl(TVisitor& Visitor)
 	if constexpr (TVisitor::bIsAbstractVisitor)
 	{
 		uint64 ScratchNumConstants = NumConstants;
+		uint64 ScratchNumNamedParams = NumNamedParameters;
 		Visitor.BeginArray(TEXT("Constants"), ScratchNumConstants);
 		Visitor.Visit(Constants, Constants + NumConstants);
+		Visitor.EndArray();
+
+		Visitor.BeginArray(TEXT("NamedParams"), ScratchNumNamedParams);
+		Visitor.Visit(GetNamedParams(), GetNameParamsEnd());
 		Visitor.EndArray();
 		VisitOpCodes(Visitor);
 	}
 	else
 	{
 		Visitor.Visit(Constants, Constants + NumConstants);
+		Visitor.Visit(GetNamedParams(), GetNameParamsEnd());
 		VisitOpCodes(Visitor);
 	}
 }
@@ -222,19 +228,27 @@ void VProcedure::SerializeImpl(VProcedure*& This, FAllocationContext Context, FA
 	if (Visitor.IsLoading())
 	{
 		uint32 ScratchNumParameters = 0;
+		uint32 ScratchNumNamedParameters = 0;
 		uint32 ScratchNumRegisters = 0;
 		uint32 ScratchNumConstants = 0;
 		uint64 ScratchNumOpBytes = 0;
 		Visitor.Visit(ScratchNumParameters, TEXT("NumParameters"));
+		Visitor.Visit(ScratchNumNamedParameters, TEXT("NumNamedParameters"));
 		Visitor.Visit(ScratchNumRegisters, TEXT("NumRegisters"));
 		Visitor.Visit(ScratchNumConstants, TEXT("NumConstants"));
 		Visitor.Visit(ScratchNumOpBytes, TEXT("NumOpBytes"));
 
-		This = &VProcedure::New(Context, (uint32)ScratchNumParameters, (uint32)ScratchNumRegisters, (uint32)ScratchNumConstants, (size_t)ScratchNumOpBytes);
+		This = &VProcedure::New(Context, (uint32)ScratchNumParameters, (uint32)ScratchNumNamedParameters, (uint32)ScratchNumRegisters, (uint32)ScratchNumConstants, (size_t)ScratchNumOpBytes);
 
 		uint64 ScratchNumConstants64 = 0;
 		Visitor.BeginArray(TEXT("Constants"), ScratchNumConstants64);
 		Visitor.Visit(This->Constants, This->Constants + This->NumConstants);
+		Visitor.EndArray();
+
+		uint64 ScratchNumNamedParams64 = 0;
+		Visitor.BeginArray(TEXT("NamedParameters"), ScratchNumNamedParams64);
+		Visitor.Visit(This->GetNamedParams(), This->GetNameParamsEnd());
+
 		Visitor.EndArray();
 
 		This->LoadOpCodes(Visitor);
@@ -242,10 +256,12 @@ void VProcedure::SerializeImpl(VProcedure*& This, FAllocationContext Context, FA
 	else
 	{
 		uint32 ScratchNumParameters = This->NumParameters;
+		uint32 ScratchNumNamedParameters = This->NumNamedParameters;
 		uint32 ScratchNumRegisters = This->NumRegisters;
 		uint32 ScratchNumConstants = This->NumConstants;
 		uint64 ScratchNumOpBytes = (uint64)This->NumOpBytes;
 		Visitor.Visit(ScratchNumParameters, TEXT("NumParameters"));
+		Visitor.Visit(ScratchNumNamedParameters, TEXT("NumNamedParameters"));
 		Visitor.Visit(ScratchNumRegisters, TEXT("NumRegisters"));
 		Visitor.Visit(ScratchNumConstants, TEXT("NumConstants"));
 		Visitor.Visit(ScratchNumOpBytes, TEXT("NumOpBytes"));
@@ -253,6 +269,11 @@ void VProcedure::SerializeImpl(VProcedure*& This, FAllocationContext Context, FA
 		uint64 ScratchNumConstants64 = This->NumConstants;
 		Visitor.BeginArray(TEXT("Constants"), ScratchNumConstants64);
 		Visitor.Visit(This->Constants, This->Constants + This->NumConstants);
+		Visitor.EndArray();
+
+		uint64 ScratchNumNamedParams64 = This->NumNamedParameters;
+		Visitor.BeginArray(TEXT("NamedParameters"), ScratchNumNamedParams64);
+		Visitor.Visit(This->GetNamedParams(), This->GetNameParamsEnd());
 		Visitor.EndArray();
 
 		This->SaveOpCodes(Visitor);

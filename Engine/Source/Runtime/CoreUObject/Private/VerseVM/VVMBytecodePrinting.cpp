@@ -210,8 +210,10 @@ private:
 				PrintOp();
 				String += ArgSeparator();
 				String += FString::Printf(TEXT("%s: "), *FString(Name));
-				// We can safely assume that all immediates are wrapped in a `TWriteBarrier`.
-				String += ToString(Context, FDefaultCellFormatter{}, *Operand.Get());
+				if constexpr (!Operand.bIsVValue)
+					String += ToString(Context, FDefaultCellFormatter{}, *Operand.Get());
+				else
+					String += ToString(Context, FDefaultCellFormatter{}, Operand.Get());
 			}
 		});
 
