@@ -213,7 +213,7 @@ namespace UE::Interchange::Gltf::Private
 
 void UInterchangeGLTFTranslator::HandleGltfNode( UInterchangeBaseNodeContainer& NodeContainer, const GLTF::FNode& GltfNode, const FString& ParentNodeUid, const int32 NodeIndex, 
 	bool &bHasVariants, TArray<int32>& SkinnedMeshNodes, TSet<int>& UnusedMeshIndices,
-	const TMap<int32, FTransform>& T0Transforms ) const
+	const TMap<int32, FTransform>& T0Transforms, const FString& SceneNodeUid) const
 {
 	using namespace UE::Interchange::Gltf::Private;
 
@@ -237,6 +237,11 @@ void UInterchangeGLTFTranslator::HandleGltfNode( UInterchangeBaseNodeContainer& 
 		case GLTF::FNode::EType::MeshSkinned:
 		{
 			SkinnedMeshNodes.Add(NodeIndex);
+
+			if (GltfNode.ParentIndex != INDEX_NONE)
+			{
+				UE_LOG(LogInterchangeImport, Warning, TEXT("Node [%s] with a skinned mesh is not root. Parent transforms will not affect a skinned mesh."), *GltfNode.Name);
+			}
 
 			if (!bHasVariants && GltfAsset.Variants.Num() > 0)
 			{
@@ -352,7 +357,11 @@ void UInterchangeGLTFTranslator::HandleGltfNode( UInterchangeBaseNodeContainer& 
 
 	InterchangeSceneNode->SetCustomLocalTransform(&NodeContainer, Transform, bResetCache);
 
-	if ( !ParentNodeUid.IsEmpty() )
+	if (GltfNode.Type == GLTF::FNode::EType::MeshSkinned)
+	{
+		NodeContainer.SetNodeParentUid(NodeUid, SceneNodeUid);
+	}
+	else if ( !ParentNodeUid.IsEmpty() )
 	{
 		NodeContainer.SetNodeParentUid( NodeUid, ParentNodeUid );
 	}
@@ -361,7 +370,7 @@ void UInterchangeGLTFTranslator::HandleGltfNode( UInterchangeBaseNodeContainer& 
 	{
 		if ( GltfAsset.Nodes.IsValidIndex( ChildIndex ) )
 		{
-			HandleGltfNode( NodeContainer, GltfAsset.Nodes[ ChildIndex ], NodeUid, ChildIndex, bHasVariants, SkinnedMeshNodes, UnusedMeshIndices, T0Transforms);
+			HandleGltfNode( NodeContainer, GltfAsset.Nodes[ ChildIndex ], NodeUid, ChildIndex, bHasVariants, SkinnedMeshNodes, UnusedMeshIndices, T0Transforms, SceneNodeUid);
 		}
 	}
 }
@@ -721,7 +730,7 @@ bool UInterchangeGLTFTranslator::Translate( UInterchangeBaseNodeContainer& NodeC
 			{
 				if ( GltfAsset.Nodes.IsValidIndex( NodeIndex ) )
 				{
-					HandleGltfNode( NodeContainer, GltfAsset.Nodes[ NodeIndex ], SceneNodeUid, NodeIndex, bHasVariants, SkinnedMeshNodes, UnusedGltfMeshIndices, T0Transforms);
+					HandleGltfNode( NodeContainer, GltfAsset.Nodes[ NodeIndex ], SceneNodeUid, NodeIndex, bHasVariants, SkinnedMeshNodes, UnusedGltfMeshIndices, T0Transforms, SceneNodeUid);
 				}
 			}
 

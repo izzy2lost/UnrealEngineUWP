@@ -324,3 +324,22 @@ UInterchangeBaseNode* UInterchangeBaseNodeContainer::GetNodeChildrenInternal(con
 	return nullptr;
 }
 
+bool UInterchangeBaseNodeContainer::GetIsAncestor(const FString& NodeUniqueID, const FString& AncestorUID) const
+{
+	FString CurrentNodeUID = NodeUniqueID;
+	
+	while (CurrentNodeUID != UInterchangeBaseNode::InvalidNodeUid() && Nodes.Contains(CurrentNodeUID))
+	{
+		UInterchangeBaseNode* Node = Nodes.FindChecked(CurrentNodeUID);
+		const FString& ParentUID = Node->GetParentUid();
+
+		if (AncestorUID == ParentUID)
+		{
+			return true;
+		}
+
+		CurrentNodeUID = ParentUID;
+	}
+
+	return false;
+}

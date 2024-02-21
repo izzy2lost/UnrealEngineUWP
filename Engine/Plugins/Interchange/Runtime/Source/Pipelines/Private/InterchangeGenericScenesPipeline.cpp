@@ -485,16 +485,8 @@ void UInterchangeGenericLevelPipeline::ExecuteSceneNodePreImport(const FTransfor
 	{
 		if (bRootJointNode)
 		{
-			LocalTransform = FTransform::Identity;
 			//LocalTransform of RootjointNode is already baked into the Skeletal and animation.
-			//due to that we acquire the Parent SceneNode and get its GlobalTransform:
-			if (!SceneNode->GetParentUid().IsEmpty())
-			{
-				if (const UInterchangeSceneNode* ParentSceneNode = Cast<UInterchangeSceneNode>(BaseNodeContainer->GetNode(SceneNode->GetParentUid())))
-				{
-					ParentSceneNode->GetCustomLocalTransform(LocalTransform);
-				}
-			}
+			LocalTransform = FTransform::Identity;
 		}
 
 		if (SceneNode->GetParentUid().IsEmpty())

@@ -1458,7 +1458,8 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::Imp
 		ensure(RootJointNode->GetCustomGlobalTransform(Arguments.NodeContainer, GlobalOffsetTransform, RootJointNodeGlobalTransform));
 		FTransform RootJointNodeLocalTransform;
 		ensure(RootJointNode->GetCustomLocalTransform(RootJointNodeLocalTransform));
-		FTransform BakeToRootJointTransfromModifier = RootJointNodeGlobalTransform.Inverse() * RootJointNodeLocalTransform;
+		FTransform BakeToRootJointTransfromModifier = RootJointNodeGlobalTransform.Inverse() * RootJointNodeLocalTransform; //It is used for !bBakeMeshes, and so the GlobalTransform will be inversed out when multiplied into the CustomBindPoseGlobalTransform
+		FTransform BakeFromRootJointTransfromModifier = RootJointNodeLocalTransform.Inverse() * RootJointNodeGlobalTransform * GlobalOffsetTransform.Inverse(); //GlobalOffseTransform will be added by the BindPoseGlobalTransform when bBakeMeshes && !bRootAncestorOfMeshDependency is used
 
 		TArray<UE::Interchange::Private::FMeshNodeContext> MeshReferences;
 		//Scope to query the mesh node
@@ -1488,16 +1489,32 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::Imp
 					FString MeshDependencyUid;
 					MeshReference.SceneNode->GetCustomAssetInstanceUid(MeshDependencyUid);
 					MeshReference.MeshNode = Cast<UInterchangeMeshNode>(Arguments.NodeContainer->GetNode(MeshDependencyUid));
+					bool bRootAncestorOfMeshdependency = Arguments.NodeContainer->GetIsAncestor(MeshDependencyUid, RootJointNodeId);
 					//Cache the scene node global matrix, we will use this matrix to bake the vertices, add the node geometric mesh offset to this matrix to bake it properly
 					FTransform SceneNodeTransform;
 					if (!ImportAssetObjectLODData.bUseTimeZeroAsBindPose || !MeshReference.SceneNode->GetCustomTimeZeroGlobalTransform(Arguments.NodeContainer, GlobalOffsetTransform, SceneNodeTransform))
 					{
 						ensure(MeshReference.SceneNode->GetCustomBindPoseGlobalTransform(Arguments.NodeContainer, GlobalOffsetTransform, SceneNodeTransform));
-						if (!bBakeMeshes)
+						if (bRootAncestorOfMeshdependency)
 						{
-							SceneNodeTransform *= BakeToRootJointTransfromModifier;
+							if (!bBakeMeshes)
+							{
+								SceneNodeTransform *= BakeToRootJointTransfromModifier;
+							}
+						}
+						else
+						{
+							if (bBakeMeshes)
+							{
+								SceneNodeTransform = BakeFromRootJointTransfromModifier * SceneNodeTransform;
+							}
+							else
+							{
+								SceneNodeTransform *= GlobalOffsetTransform.Inverse();
+							}
 						}
 					}
+
 					FTransform SceneNodeGeometricTransform;
 					if(MeshReference.SceneNode->GetCustomGeometricTransform(SceneNodeGeometricTransform))
 					{

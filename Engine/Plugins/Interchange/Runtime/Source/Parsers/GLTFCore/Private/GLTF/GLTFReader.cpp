@@ -1109,6 +1109,17 @@ namespace GLTF
 		if (!SetupObjects(SceneCount, TEXT("scenes"), [this](const FJsonObject& Object) { SetupScene(Object); })) { return; }
 		if (!SetupObjects(CameraCount, TEXT("cameras"), [this](const FJsonObject& Object) { SetupCamera(Object); })) { return; }
 		if (!SetupObjects(SkinCount, TEXT("skins"), [this](const FJsonObject& Object) { SetupSkin(Object); })) { return; }
+
+		{//BuildRootJoints can affect the node hierarchy and data, as the Animation setup currently stores references to the Nodes, we have to do these setups before the SetupAnimations.
+			SetupNodesType();
+
+			GenerateInverseBindPosesPerSkinIndices();
+			GenerateLocalBindPosesPerSkinIndices();
+			SetLocalBindPosesForJoints();
+
+			BuildRootJoints();
+		}
+
 		if (!SetupObjects(AnimationsCount, TEXT("animations"), [this](const FJsonObject& Object) { SetupAnimation(Object); })) { return; }
 
 		if (!SetupObjects(ImageCount, TEXT("images"), [this, InResourcesPath, bInLoadImageData](const FJsonObject& Object) { SetupImage(Object, InResourcesPath, bInLoadImageData); })) { return; }
@@ -1127,14 +1138,7 @@ namespace GLTF
 			}
 		}
 
-		SetupNodesType();
-
-		GenerateInverseBindPosesPerSkinIndices();
-		GenerateLocalBindPosesPerSkinIndices();
-		SetLocalBindPosesForJoints();
-
 		ExtensionsHandler->SetupAssetExtensions(*JsonRoot);
-		BuildRootJoints();
 	}
 
 	bool FFileReader::CheckForErrors(int32 StartIndex) const
@@ -1291,12 +1295,7 @@ namespace GLTF
 					}
 					else
 					{
-						FTransform ParentGlobalTransform;
-						if (Skin.Skeleton != INDEX_NONE && Skin.Skeleton != CurrentNode.Index)
-						{
-							GenerateGlobalTransform(Asset->Nodes, CurrentNode.ParentIndex, ParentGlobalTransform, Skin.Skeleton);
-						}
-						FTransform LocalBindPose = CurrentNode.SkinIndexToGlobalInverseBindTransform[SkinIndex].Inverse() * ParentGlobalTransform.Inverse();
+						FTransform LocalBindPose = CurrentNode.SkinIndexToGlobalInverseBindTransform[SkinIndex].Inverse();
 						CurrentNode.SkinIndexToLocalBindPose.Add(SkinIndex, LocalBindPose);
 					}
 				}
@@ -1393,6 +1392,131 @@ namespace GLTF
 	}
 	void FFileReader::BuildRootJoints() const
 	{
+		//Fix Multi root problems (at least for the semi-trivial "same parent non-joint" scenario)
+		{
+			auto GetRootDistance = [&](const GLTF::FNode& Node)
+				{
+					int32 Distance = 0;
+					int32 CurrentNodeIndex = Node.Index;
+					while (Asset->Nodes[CurrentNodeIndex].ParentIndex != INDEX_NONE && Asset->Nodes.IsValidIndex(Asset->Nodes[CurrentNodeIndex].ParentIndex))
+					{
+						Distance++;
+						CurrentNodeIndex = Asset->Nodes[CurrentNodeIndex].ParentIndex;
+					}
+					return Distance;
+				};
+
+			struct FRootJoints {
+				TArray<int32> Indices;
+				int32 ParentDistanceFromRoot;
+			};
+			auto SortPredicate = [](const FRootJoints& GroupA, const FRootJoints& GroupB)
+				{
+					return GroupA.ParentDistanceFromRoot > GroupB.ParentDistanceFromRoot;
+				};
+
+			for (size_t SkinIndex = 0; SkinIndex < Asset->Skins.Num(); SkinIndex++)
+			{
+				GLTF::FSkinInfo& Skin = Asset->Skins[SkinIndex];
+
+				//0. Group RootJointNodes by ParentIndices
+				TMap<int32, FRootJoints> ParentToRootJointIndices;
+				for (size_t JointIndex = 0; JointIndex < Skin.Joints.Num(); JointIndex++)
+				{
+					if (!Asset->Nodes.IsValidIndex(Skin.Joints[JointIndex]))
+					{
+						continue;
+					}
+					GLTF::FNode& JointNode = Asset->Nodes[Skin.Joints[JointIndex]];
+					if (!Asset->Nodes.IsValidIndex(JointNode.ParentIndex) || Asset->Nodes[JointNode.ParentIndex].Type != GLTF::FNode::EType::Joint)
+					{
+						FRootJoints* RootJoints = ParentToRootJointIndices.Find(JointNode.ParentIndex);
+						if (RootJoints)
+						{
+							RootJoints->Indices.Add(JointNode.Index);
+						}
+						else
+						{
+							RootJoints = &ParentToRootJointIndices.Add(JointNode.ParentIndex);
+							RootJoints->Indices.Add(JointNode.Index);
+							RootJoints->ParentDistanceFromRoot = GetRootDistance(JointNode);
+						}
+					}
+				}
+				
+				//1. Sort groups based on distance from common root (furthest to closest)
+				ParentToRootJointIndices.ValueSort(SortPredicate);
+
+				//2. Validate Skin.Skeleton if it exists:
+				if (Skin.Skeleton != INDEX_NONE && Asset->Nodes.IsValidIndex(Skin.Skeleton))
+				{
+					const GLTF::FNode SkinSkeletonNode = Asset->Nodes[Skin.Skeleton];
+					int32 SkinSkeletonDistance = GetRootDistance(SkinSkeletonNode);
+					
+					for (TPair<int32, FRootJoints> Group : ParentToRootJointIndices)
+					{
+						if (Group.Value.Indices.Num() == 1 )
+						{
+							if (!Asset->Nodes.IsValidIndex(Group.Value.Indices[0]))
+							{
+								continue;
+							}
+							const GLTF::FNode RootNodeCandidate = Asset->Nodes[Group.Value.Indices[0]];
+							int32 RootNodeCandidateDistance = GetRootDistance(RootNodeCandidate);
+							if (SkinSkeletonDistance > RootNodeCandidateDistance)
+							{
+								Messages.Emplace(EMessageSeverity::Warning, TEXT("Skeleton node is not a common root."));
+								break;
+							}
+						}
+						else if (Group.Value.Indices.Num() == 0)
+						{
+							continue;
+						}
+						else
+						{
+							const GLTF::FNode RootNodeCandidate = Asset->Nodes[Group.Key];
+							int32 RootNodeCandidateDistance = GetRootDistance(RootNodeCandidate);
+							if (SkinSkeletonDistance > RootNodeCandidateDistance)
+							{
+								Messages.Emplace(EMessageSeverity::Warning, TEXT("Skeleton node is not a common root."));
+								break;
+							}
+						}
+						
+					}
+				}
+
+				//3. Introduce new true root per group
+				for (TPair<int32, FRootJoints> Group : ParentToRootJointIndices)
+				{
+					if (Group.Value.Indices.Num() < 2)
+					{
+						continue;
+					}
+					GLTF::FNode& OriginalNode = Asset->Nodes[Group.Key];
+
+					GLTF::FNode& Node = Asset->Nodes.Emplace_GetRef();
+					Node.Index = Asset->Nodes.Num() - 1;
+
+					Node.Name = OriginalNode.Name + "_ProxyTrueRootJoint";
+					Node.Transform = FTransform::Identity;
+					Node.Children = OriginalNode.Children;
+					OriginalNode.Children.Reset();
+					OriginalNode.Children.Add(Node.Index);
+					Node.Type = GLTF::FNode::EType::Joint;
+					Node.ParentIndex = OriginalNode.Index;
+
+					for (size_t RootJointIndex = 0; RootJointIndex < Group.Value.Indices.Num(); RootJointIndex++)
+					{
+						GLTF::FNode& JointNode = Asset->Nodes[Group.Value.Indices[RootJointIndex]];
+						JointNode.ParentIndex = Node.Index;
+					}
+				}
+			}
+		}
+
+		//Set up the RootJointIndices:
 		for (size_t Index = 0; Index < Asset->Nodes.Num(); Index++)
 		{
 			if (Asset->Nodes[Index].Type == GLTF::FNode::EType::Joint)

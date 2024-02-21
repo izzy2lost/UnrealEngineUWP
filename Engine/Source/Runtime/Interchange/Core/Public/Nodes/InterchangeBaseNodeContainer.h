@@ -206,6 +206,12 @@ public:
 		ChildrenCache.Reset();
 	}
 
+	/**
+	 * Checks if ParentNodeUID is an ancestor.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node")
+	INTERCHANGECORE_API bool GetIsAncestor(const FString& NodeUniqueID, const FString& AncestorUID) const;
+
 private:
 
 	INTERCHANGECORE_API UInterchangeBaseNode* GetNodeChildrenInternal(const FString& NodeUniqueID, int32 ChildIndex);
