@@ -89,19 +89,6 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 
 	UE_LOG(LogMutable,Display,TEXT("Customizable Object was compiled succesfully."));
 	
-	// Skip instances updating if no instances should be updated 
-	if (InstancesToGenerate <= 0)
-	{
-		UE_LOG(LogMutable,Display,TEXT("Instances to generate are 0 : No instances will be generated."));
-		return 0;	// No instances are targeted for generation, this will be taken as compilation only test.
-	}
-
-	// Do not generate instances if the selected platform is not the running platform
-	if (TargetCompilationPlatform != GetTargetPlatformManagerRef().GetRunningTargetPlatform())
-	{
-		UE_LOG(LogMutable,Display,TEXT("RunningPlatform != UserProvidedCompilationPlatform : No instances will be generated."));
-		return 0;
-	}
 	
 	// GHet the total size of the streaming data of the model ---------------------------------------------- //
 	{
@@ -135,6 +122,19 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 		}
 	}
 	
+	// Skip instances updating if no instances should be updated 
+	if (InstancesToGenerate <= 0)
+	{
+		UE_LOG(LogMutable,Display,TEXT("Instances to generate are 0 : No instances will be generated."));
+		return 0;	// No instances are targeted for generation, this will be taken as compilation only test.
+	}
+
+	// Do not generate instances if the selected platform is not the running platform
+	if (TargetCompilationPlatform != GetTargetPlatformManagerRef().GetRunningTargetPlatform())
+	{
+		UE_LOG(LogMutable,Display,TEXT("RunningPlatform != UserProvidedCompilationPlatform : No instances will be generated."));
+		return 0;
+	}
 
 	// Generate target random instances to be tested ------------------------------------------------------------ //
 	bool bWasInstancesCreationSuccessful = true;
