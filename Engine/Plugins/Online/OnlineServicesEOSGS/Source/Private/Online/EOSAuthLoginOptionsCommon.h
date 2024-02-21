@@ -5,6 +5,10 @@
 #include "Online/Auth.h"
 #include "Online/OnlineAsyncOp.h"
 
+#if defined(EOS_PLATFORM_BASE_FILE_NAME)
+#include EOS_PLATFORM_BASE_FILE_NAME
+#endif
+
 #include "eos_auth_types.h"
 
 namespace UE::Online {
