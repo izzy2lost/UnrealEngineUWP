@@ -90,17 +90,19 @@ FString UMovieGraphBlueprintLibrary::ResolveFilenameFormatArguments(const FStrin
 		OutMergedFormatArgs.FilenameArguments.Add(TEXT("frame_rate"), FString::SanitizeFloat(FrameRate));
 		OutMergedFormatArgs.FileMetadata.Add(TEXT("unreal/frameRate"), FString::SanitizeFloat(FrameRate));
 
+		FString LevelName;
+		FString SequenceName;
 		if (InParams.Job)
 		{
-			FString LevelName = InParams.Job->Map.GetAssetName();
-			FString SequenceName = InParams.Job->Sequence.GetAssetName();
-			
-			OutMergedFormatArgs.FilenameArguments.Add(TEXT("level_name"), SequenceName);
-			OutMergedFormatArgs.FilenameArguments.Add(TEXT("sequence_name"), SequenceName);
-			
-			OutMergedFormatArgs.FileMetadata.Add(TEXT("unreal/levelName"), LevelName);
-			OutMergedFormatArgs.FileMetadata.Add(TEXT("unreal/sequenceName"), SequenceName);
+			LevelName = InParams.Job->Map.GetAssetName();
+			SequenceName = InParams.Job->Sequence.GetAssetName();
 		}
+		
+		OutMergedFormatArgs.FilenameArguments.Add(TEXT("level_name"), LevelName);
+		OutMergedFormatArgs.FilenameArguments.Add(TEXT("sequence_name"), SequenceName);
+		
+		OutMergedFormatArgs.FileMetadata.Add(TEXT("unreal/levelName"), LevelName);
+		OutMergedFormatArgs.FileMetadata.Add(TEXT("unreal/sequenceName"), SequenceName);
 		
 		// Add KVP data from the job (date, time, job name, job author, job comment)
 		UE::MoviePipeline::GetSharedFormatArguments(OutMergedFormatArgs.FilenameArguments, OutMergedFormatArgs.FileMetadata, InParams.InitializationTime, InParams.Version, InParams.Job, InParams.InitializationTimeOffset);
@@ -116,12 +118,16 @@ FString UMovieGraphBlueprintLibrary::ResolveFilenameFormatArguments(const FStrin
 	// once per run there. We don't cache the returned results here because you could potentially add/remove classes (via Blueprints) which would invalidate our cache.
 	for (UClass* InClass : AllSettingsNodeClasses)
 	{
-		UMovieGraphSettingNode* SettingInstance = nullptr;
+		const UMovieGraphSettingNode* SettingInstance = nullptr;
 		if (InParams.EvaluatedConfig)
 		{
 			const bool bIncludeCDOs = true;
 			const bool bExactMatch = true;
 			SettingInstance = InParams.EvaluatedConfig->GetSettingForBranch(InClass, InParams.RenderDataIdentifier.RootBranchName, bIncludeCDOs, bExactMatch);
+		}
+		else
+		{
+			SettingInstance = GetDefault<UMovieGraphSettingNode>(InClass);
 		}
 
 		if (SettingInstance)
@@ -154,6 +160,12 @@ FString UMovieGraphBlueprintLibrary::ResolveFilenameFormatArguments(const FStrin
 	for (const TPair<FString, FString>& Argument : OutMergedFormatArgs.FilenameArguments)
 	{
 		NamedArgs.Add(Argument.Key, Argument.Value);
+	}
+
+	// If no format string is provided, there's nothing left to do.
+	if (InFormatString.IsEmpty())
+	{
+		return FString();
 	}
 
 	// Apply all of our named args to the file and generate a path.

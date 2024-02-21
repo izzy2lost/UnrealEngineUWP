@@ -2,8 +2,8 @@
 
 #include "MovieGraphFormatTokenCustomization.h"
 
+#include "Graph/MovieGraphBlueprintLibrary.h"
 #include "Graph/Nodes/MovieGraphFileOutputNode.h"
-#include "MoviePipelineUtils.h"
 
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
@@ -55,12 +55,17 @@ void FMovieGraphFormatTokenCustomization::OnPropertyChange()
 TArray<FString> FMovieGraphFormatTokenCustomization::GetSuggestions() const
 {
 	TArray<FString> Suggestions;
-	FMoviePipelineFormatArgs FormatArgs;
+	FMovieGraphResolveArgs FormatArgs;
 	GetFormatArguments(FormatArgs);
 
-	for (const TPair<FString, FString>& KVP : FormatArgs.FilenameArguments)
+	// Display the token names alphabetically
+	TArray<FString> FilenameFormatTokens;
+	FormatArgs.FilenameArguments.GetKeys(FilenameFormatTokens);
+	FilenameFormatTokens.Sort();
+
+	for (const FString& FilenameFormatToken : FilenameFormatTokens)
 	{
-		Suggestions.Add(KVP.Key);
+		Suggestions.Add(FilenameFormatToken);
 	}
 
 	return Suggestions;
@@ -71,31 +76,11 @@ void FMovieGraphFormatTokenCustomization::OnTextChanged(const FText& InValue)
 	OutputFormatPropertyHandle->SetValue(InValue.ToString());
 }
 
-void FMovieGraphFormatTokenCustomization::GetFormatArguments(FMoviePipelineFormatArgs& InOutFormatArgs)
+void FMovieGraphFormatTokenCustomization::GetFormatArguments(FMovieGraphResolveArgs& InOutFormatArgs)
 {
-	static const FString LevelName = TEXT("Level Name");
-	static const FString SequenceName = TEXT("Sequence Name");
-	static const FString JobAuthor = TEXT("Job Author");
-	static const FString JobName = TEXT("Job Name");
-	static const FString JobComment = TEXT("Job Comment");
-	static constexpr double FrameRate = 0.0;
-	static const FString FramePlaceholderNumber = TEXT("0");
-
-	MoviePipeline::GetOutputStateFormatArgs(
-		InOutFormatArgs.FilenameArguments, InOutFormatArgs.FileMetadata,
-		FramePlaceholderNumber, FramePlaceholderNumber,
-		FramePlaceholderNumber, FramePlaceholderNumber,
-		TEXT("CameraName"), TEXT("ShotName"));
-
-	InOutFormatArgs.FilenameArguments.Add(TEXT("level_name"), LevelName);
-	InOutFormatArgs.FilenameArguments.Add(TEXT("sequence_name"), SequenceName);
-	InOutFormatArgs.FilenameArguments.Add(TEXT("job_author"), JobAuthor);
-	InOutFormatArgs.FilenameArguments.Add(TEXT("job_name"), JobName);
-	InOutFormatArgs.FilenameArguments.Add(TEXT("frame_rate"), FString::SanitizeFloat(FrameRate));
-
-	static const FDateTime CurrentTime = FDateTime::Now();
-	static constexpr int32 DummyVersionNumber = 1;
-	const FTimespan InitializationTimeOffset = FDateTime::Now() - FDateTime::UtcNow();
-	UE::MoviePipeline::GetSharedFormatArguments(
-		InOutFormatArgs.FilenameArguments, InOutFormatArgs.FileMetadata, CurrentTime, DummyVersionNumber, InOutFormatArgs.InJob, InitializationTimeOffset);
+	// Just fetch the format arguments (by keeping the format string empty). The tokens themselves will not be resolved correctly here (no context is
+	// provided in the resolve params), but all we care about here is the token list, not the resolved token values.
+	const FString FormatString;
+	const FMovieGraphFilenameResolveParams ResolveParams;
+	UMovieGraphBlueprintLibrary::ResolveFilenameFormatArguments(FormatString, ResolveParams, InOutFormatArgs);
 }

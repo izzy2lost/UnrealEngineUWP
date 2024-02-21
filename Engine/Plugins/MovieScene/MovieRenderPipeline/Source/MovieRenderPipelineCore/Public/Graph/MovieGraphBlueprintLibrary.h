@@ -34,12 +34,12 @@ public:
 	* Takes a Movie Graph format string (in the form of {token}), a list of parameters (which normally come from the running UMovieGraphPipeline) and
 	* resolves them into a string. Unknown tokens are ignored. Which tokens can be resolved depends on the contents of InParams, tokens from settings
 	* rely on a evaluated config being provided, etc.
-	* @param	InFormatString		- Format string to attempt to resolve.
+	* @param	InFormatString		- Format string to attempt to resolve. Leave blank if just the format args should be populated.
 	* @param	InParams			- A list of parameters to use as source data for the resolve step. Normally comes from the UMovieGraphPipeline instance,
 	*								- but takes (mostly) POD here to allow using this function outside of the render runtime.
 	* @param	OutMergedFormatArgs - The set of KVP for both filename formats and file metadata that is generated as a result of this. Provided in case you
 	* 								- needed to do your own string resolving with the final dataset.
-	* @return						- The resolved format string.
+	* @return						- The resolved format string. Returns an empty string if InFormatString is blank.
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	static FString ResolveFilenameFormatArguments(const FString& InFormatString, const FMovieGraphFilenameResolveParams& InParams, FMovieGraphResolveArgs& OutMergedFormatArgs);
