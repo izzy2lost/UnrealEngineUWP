@@ -310,11 +310,14 @@ void UMoviePipelineExecutorJob::RefreshAllVariableAssignments()
 	}
 }
 
-void UMoviePipelineExecutorJob::SetGraphPreset(const UMovieGraphConfig* InGraphPreset)
+void UMoviePipelineExecutorJob::SetGraphPreset(const UMovieGraphConfig* InGraphPreset, const bool bUpdateVariableAssignments)
 {
 	GraphPreset = InGraphPreset;
 
-	RefreshAllVariableAssignments();
+	if (bUpdateVariableAssignments)
+	{
+		RefreshAllVariableAssignments();
+	}
 
 	OnJobGraphPresetChanged.Broadcast(this, GraphPreset.Get());
 }
@@ -388,11 +391,14 @@ void UMoviePipelineExecutorJob::OnGraphPreSave(UObject* InObject, FObjectPreSave
 	RefreshAllVariableAssignments();
 }
 
-void UMoviePipelineExecutorShot::SetGraphPreset(const UMovieGraphConfig* InGraphPreset)
+void UMoviePipelineExecutorShot::SetGraphPreset(const UMovieGraphConfig* InGraphPreset, const bool bUpdateVariableAssignments)
 {
 	GraphPreset = InGraphPreset;
 
-	RefreshAllVariableAssignments();
+	if (bUpdateVariableAssignments)
+	{
+		RefreshAllVariableAssignments();
+	}
 
 	OnShotGraphPresetChanged.Broadcast(this, GraphPreset.Get());
 }

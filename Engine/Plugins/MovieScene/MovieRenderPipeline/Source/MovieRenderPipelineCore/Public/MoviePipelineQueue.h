@@ -153,9 +153,12 @@ public:
 	/**
 	 * Sets the graph-style preset that this job will use. Note that this will cause the graph to switch over to using
 	 * graph-style configuration if it is not already using it.
+	 *
+	 * @param InGraphPreset - The graph preset to assign to the shot.
+	 * @param bUpdateVariableAssignments - Set to false if variable assignments should NOT be automatically updated to reflect the graph preset being used. This is normally not what you want and should be used with caution.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Movie Render Pipeline")
-	void SetGraphPreset(const UMovieGraphConfig* InGraphPreset);
+	void SetGraphPreset(const UMovieGraphConfig* InGraphPreset, const bool bUpdateVariableAssignments = true);
 
 	/** Gets the job variable assignments for a specific graph. Creates a new variable assignments container if one was not found for the given graph. */
 	TObjectPtr<UMovieJobVariableAssignmentContainer> GetOrCreateJobVariableAssignmentsForGraph(const UMovieGraphConfig* InGraph, const bool bIsForPrimaryOverrides = false);
@@ -463,9 +466,12 @@ public:
 	/**
 	 * Sets the graph-style preset that this job will use. Note that this will cause the graph to switch over to using
 	 * graph-style configuration if it is not already using it.
+	 *
+	 * @param InGraphPreset - The graph preset to assign to the job.
+	 * @param bUpdateVariableAssignments - Set to false if variable assignments should NOT be automatically updated to reflect the graph preset being used. This is normally not what you want and should be used with caution.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Movie Render Pipeline")
-	void SetGraphPreset(const UMovieGraphConfig* InGraphPreset);
+	void SetGraphPreset(const UMovieGraphConfig* InGraphPreset, const bool bUpdateVariableAssignments = true);
 
 	UFUNCTION(BlueprintSetter, Category = "Movie Render Pipeline")
 	void SetSequence(FSoftObjectPath InSequence);
