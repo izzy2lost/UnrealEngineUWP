@@ -691,6 +691,63 @@ void UNiagaraDataInterfaceDataChannelWrite::SimCachePostReadFrame(void* Optional
 	// send data to data channel
 }
 
+bool UNiagaraDataInterfaceDataChannelWrite::SimCacheCompareFrame(UObject* LhsStorageObject, UObject* RhsStorageObject, int FrameIndex, TOptional<float> Tolerance, FString& OutErrors) const
+{
+	UNDIDataChannelWriteSimCacheData* Storage1 = Cast<UNDIDataChannelWriteSimCacheData>(LhsStorageObject);
+	UNDIDataChannelWriteSimCacheData* Storage2 = Cast<UNDIDataChannelWriteSimCacheData>(RhsStorageObject);
+
+	if (Storage1 == nullptr && Storage2 == nullptr)
+	{
+		return true;
+	}
+	if (Storage1 == nullptr || Storage2 == nullptr)
+	{
+		OutErrors = TEXT("Recevied nullptr storage object for comparison");
+		return false;
+	}
+	if (Storage1->DataChannelReference != Storage2->DataChannelReference)
+	{
+		OutErrors = TEXT("Different source data channel assets");
+		return false;
+	}
+	if (Storage1->FrameData.Num() != Storage2->FrameData.Num())
+	{
+		OutErrors = FString::Format(TEXT("Different frame data count. {0} vs {1}"), {Storage1->FrameData.Num(), Storage2->FrameData.Num()});
+		return false;
+	}
+
+	bool bEqual = true;
+	for (int i = 0; i < Storage1->FrameData.Num(); i++)
+	{
+		FNDIDataChannelWriteSimCacheFrame& Frame1 = Storage1->FrameData[i];
+		FNDIDataChannelWriteSimCacheFrame& Frame2 = Storage2->FrameData[i];
+
+		if (Frame1.NumElements != Frame2.NumElements)
+		{
+			bEqual = false;
+			OutErrors += FString::Format(TEXT("Frame {0}: different number of elements in data channel store, {1} vs {2}\n"), {i, Frame1.NumElements, Frame2.NumElements});
+		}
+		else if (Frame1.VariableData.Num() != Frame2.VariableData.Num())
+		{
+			bEqual = false;
+			OutErrors += FString::Format(TEXT("Frame {0}: different number of variables in data channel store, {1} vs {2}\n"), {i, Frame1.VariableData.Num(), Frame2.VariableData.Num()});
+		}
+		else
+		{
+			for (int k = 0; k < Frame1.VariableData.Num(); k++)
+			{
+				FNDIDataChannelWriteSimCacheFrameBuffer& Buffer1 = Frame1.VariableData[k];
+				FNDIDataChannelWriteSimCacheFrameBuffer& Buffer2 = Frame2.VariableData[k];
+				if (Buffer1.SourceVar != Buffer2.SourceVar || Buffer1.Data != Buffer2.Data)
+				{
+					OutErrors += FString::Format(TEXT("Frame {0}: different buffers in data channel store for source var {1}\n"), {i, *Buffer1.SourceVar.GetName().ToString()});
+				}
+			}
+		}
+	}
+	return bEqual;
+}
+
 bool UNiagaraDataInterfaceDataChannelWrite::CopyToInternal(UNiagaraDataInterface* Destination)const
 {
 	if (!Super::CopyToInternal(Destination))

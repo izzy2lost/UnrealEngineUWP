@@ -24,6 +24,11 @@
 UNiagaraSimCache::FOnCacheBeginWrite	UNiagaraSimCache::OnCacheBeginWrite;
 UNiagaraSimCache::FOnCacheEndWrite		UNiagaraSimCache::OnCacheEndWrite;
 
+namespace FNiagaraSimCacheInternal
+{
+	FNiagaraDataInterfaceUtilities::FDataInterfaceSearchOptions DISearchOptions = { true };
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool FNiagaraSimCacheVariable::operator==(const FNiagaraSimCacheVariable& Other) const
@@ -393,7 +398,7 @@ bool UNiagaraSimCache::BeginWrite(FNiagaraSimCacheCreateParameters InCreateParam
 			CreateParameters.ExplicitCaptureAttributes.AddUnique(NameBuilder.ToString());
 		}
 
-		FNiagaraDataInterfaceUtilities::ForEachDataInterface(
+		ForEachDataInterface(
 			Helper.SystemInstance,
 			[&](const FNiagaraDataInterfaceUtilities::FDataInterfaceUsageContext& UsageContext)
 			{
@@ -405,7 +410,8 @@ bool UNiagaraSimCache::BeginWrite(FNiagaraSimCacheCreateParameters InCreateParam
 					}
 				}
 				return true;
-			}
+			},
+			FNiagaraSimCacheInternal::DISearchOptions
 		);
 	}
 
@@ -423,7 +429,7 @@ bool UNiagaraSimCache::BeginWrite(FNiagaraSimCacheCreateParameters InCreateParam
 	if ( CreateParameters.bAllowDataInterfaceCaching )
 	{
 		TSet<FNiagaraVariableBase> VisitedDataInterfaces;
-		FNiagaraDataInterfaceUtilities::ForEachDataInterface(
+		ForEachDataInterface(
 			Helper.SystemInstance,
 			[&](const FNiagaraVariableBase& Variable, UNiagaraDataInterface* DataInterface)
 			{
@@ -448,7 +454,8 @@ bool UNiagaraSimCache::BeginWrite(FNiagaraSimCacheCreateParameters InCreateParam
 					}
 				}
 				return true;
-			}
+			},
+			FNiagaraSimCacheInternal::DISearchOptions
 		);
 	}
 
@@ -686,7 +693,7 @@ bool UNiagaraSimCache::WriteFrame(UNiagaraComponent* NiagaraComponent, FNiagaraS
 		FString DataInterfaceName;
 		TSet<FNiagaraVariableBase> VisitedDataInterfaces;
 
-		FNiagaraDataInterfaceUtilities::ForEachDataInterface(
+		ForEachDataInterface(
 			Helper.SystemInstance,
 			[&](const FNiagaraVariableBase& Variable, UNiagaraDataInterface* DataInterface)
 			{
@@ -707,7 +714,8 @@ bool UNiagaraSimCache::WriteFrame(UNiagaraComponent* NiagaraComponent, FNiagaraS
 					}
 				}
 				return true;
-			}
+			},
+			FNiagaraSimCacheInternal::DISearchOptions
 		);
 
 		// A data interface failed to write information
@@ -1028,7 +1036,7 @@ bool UNiagaraSimCache::ReadFrame(int32 FrameIndex, float FrameFraction, FNiagara
 		TSet<FNiagaraVariableBase> VisitedDataInterfaces;
 		bool bDataInterfacesSucess = true;
 
-		FNiagaraDataInterfaceUtilities::ForEachDataInterface(
+		ForEachDataInterface(
 			Helper.SystemInstance,
 			[&](const FNiagaraVariableBase& Variable, UNiagaraDataInterface* DataInterface)
 			{
@@ -1047,7 +1055,8 @@ bool UNiagaraSimCache::ReadFrame(int32 FrameIndex, float FrameFraction, FNiagara
 					}
 				}
 				return true;
-			}
+			},
+			FNiagaraSimCacheInternal::DISearchOptions
 		);
 
 

@@ -168,9 +168,9 @@ public:
 	virtual ETickingGroup CalculateFinalTickGroup(const void* PerInstanceData) const override;
 
 	//We cannot overlap frames as we must correctly sync up with the data channel manager on Begin/End frame etc.
-	virtual bool PostSimulateCanOverlapFrames() const { return false; }
+	virtual bool PostSimulateCanOverlapFrames() const override { return false; }
 	//We cannot have post stage overlap tick groups so that the write DI can publish it's contents to the data channel at the correct time to allow same frame reads.
-	virtual bool PostStageCanOverlapTickGroups() const { return false; }
+	virtual bool PostStageCanOverlapTickGroups() const override { return false; }
 	//UNiagaraDataInterface Interface
 
 	NIAGARA_API void Num(FVectorVMExternalFunctionContext& Context);
@@ -186,6 +186,7 @@ public:
 	virtual bool SimCacheWriteFrame(UObject* StorageObject, int FrameIndex, FNiagaraSystemInstance* SystemInstance, const void* OptionalPerInstanceData, FNiagaraSimCacheFeedbackContext& FeedbackContext) const override;
 	virtual bool SimCacheReadFrame(UObject* StorageObject, int FrameA, int FrameB, float Interp, FNiagaraSystemInstance* SystemInstance, void* OptionalPerInstanceData) override;
 	virtual void SimCachePostReadFrame(void* OptionalPerInstanceData, FNiagaraSystemInstance* SystemInstance) override;
+	virtual bool SimCacheCompareFrame(UObject* LhsStorageObject, UObject* RhsStorageObject, int FrameIndex, TOptional<float> Tolerance, FString& OutErrors) const override;
 protected:
 #if WITH_EDITORONLY_DATA
 	NIAGARA_API virtual void GetFunctionsInternal(TArray<FNiagaraFunctionSignature>& OutFunctions) const override;

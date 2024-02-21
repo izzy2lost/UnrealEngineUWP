@@ -58,7 +58,7 @@ public:
 	virtual void SimCachePostReadFrame(void* OptionalPerInstanceData, FNiagaraSystemInstance* SystemInstance) {}
 
 	/**
-	Called to compare a frame between two separate simulation cache storages
+	Called to compare a frame between two separate simulation cache storages. Mainly useful for unit testing.
 	This will be called on the CDO object since we do not have the actual data interface.
 	*/
 	virtual bool SimCacheCompareFrame(UObject* LhsStorageObject, UObject* RhsStorageObject, int FrameIndex, TOptional<float> Tolerance, FString& OutErrors) const { OutErrors = TEXT("Compare not implemented"); return false; }
