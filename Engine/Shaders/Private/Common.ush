@@ -1294,9 +1294,9 @@ float2 GetScreenPositionForProjectionType(float2 ScreenPosition, float SceneDept
 	return select(IsOrthoProjection(), ScreenPosition, ScreenPosition * SceneDepth);
 }
 
-float ConvertGivenDepthRadiusForProjectionType(float Radius, float SceneDepth)
+float ConvertGivenDepthRadiusForProjectionType(float Radius, float SceneDepth, bool bForceOrthoView = false)
 {
-	return select(IsOrthoProjection(), Radius, Radius * SceneDepth);
+	return select(IsOrthoProjection() || bForceOrthoView, Radius, Radius * SceneDepth);
 }
 
 float GetDepthPixelRadiusForProjectionType(float SceneDepth)

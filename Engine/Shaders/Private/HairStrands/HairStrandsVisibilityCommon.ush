@@ -344,6 +344,7 @@ struct FHairRenderInfo
 	float VelocityMagnitudeScale;
 
 	bool bIsGPUDriven;
+	bool bIsOrthoView; // Only used for shadow view
 
 	float3 ViewForward;
 	float3 TranslatedWorldCameraOrigin;
@@ -357,6 +358,7 @@ FHairRenderInfo GetHairRenderInfo(float4 ViewHairRenderInfo, uint ViewHairRender
 	Info.VelocityMagnitudeScale = ViewHairRenderInfo.w;
 
 	const uint BitField = ViewHairRenderInfoBits;
+	Info.bIsOrthoView = (BitField & 0x1) != 0;
 	Info.bIsGPUDriven = (BitField & 0x2) != 0;
 
 	return Info;
@@ -367,6 +369,7 @@ struct FHairViewInfo
 	float3 TranslatedWorldCameraOrigin;
 	float3 ViewForward;
 	float  RadiusAtDepth1;
+	bool   bIsOrthoView;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
