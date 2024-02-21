@@ -48,7 +48,11 @@ public:
 	/** The number of LODs currently exposed to the node UI. */
 	UPROPERTY()
 	int32 NumLods = 1;
-	/** Refresh the asset even if the ClothCollection hasn't changed to take into account changes in the build code for example. */
+	/**
+	 * Refresh the asset even if the ClothCollection hasn't changed.
+	 * Note that it is not required to manually refresh the cloth asset, this is done automatically when there is a change in the Dataflow.
+	 * This function is a developper utility used for debugging.
+	 */
 	UPROPERTY(EditAnywhere, Category = "Cloth Asset Terminal")
 	mutable FChaosClothAssetTerminalNodeRefreshAsset RefreshAsset;
 
