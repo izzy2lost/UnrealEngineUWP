@@ -45,6 +45,7 @@ VertexToPixelInterpolants Main(
 	// Init primitive flags to a good default.
 	VertexParameters.SceneData.Primitive.Flags = GetDefaultPrimitiveSceneDataFlags();
 	VertexParameters.SceneData.Primitive.VisibilityFlags = GetDefaultPrimitiveVisibilityFlags();
+	VertexParameters.LWCData = MakeMaterialLWCData(VertexParameters);
 
 	bool bCalledEvaluateVertexMaterialAttributes = false;
 
