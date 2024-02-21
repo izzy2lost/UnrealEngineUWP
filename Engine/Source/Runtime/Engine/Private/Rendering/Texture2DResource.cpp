@@ -286,6 +286,7 @@ void FTexture2DResource::GetData( uint32 MipIndex, void* Dest, uint32 DestPitch,
 			MipMap.SizeX,MipMap.SizeY,
 			EffectiveSize,DataSize,
 			SrcPitch,DestPitch, PixelFormat, DestSize);
+		DataSize  = DestSize; // don't overwrite memory
 	}
 
 	// for platforms that returned 0 pitch from Lock, we need to just use the bulk data directly, never do 
