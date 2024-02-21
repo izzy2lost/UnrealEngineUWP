@@ -640,7 +640,10 @@ TArray<UGeometryCollectionComponent*> UFractureEditorMode::GetValidSelectedGeome
 	Components.Reserve(SelectedGeometryComponents.Num());
 	for (TWeakObjectPtr<UGeometryCollectionComponent> ComponentWeakPtr : SelectedGeometryComponents)
 	{
-		Components.Add(ComponentWeakPtr.Get());
+		if (UGeometryCollectionComponent* Component = ComponentWeakPtr.Get())
+		{
+			Components.Add(Component);
+		}
 	}
 	return Components;
 }
