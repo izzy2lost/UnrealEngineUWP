@@ -3470,6 +3470,7 @@ bool MovieSceneToolHelpers::ImportFBXIfReady(UWorld* World, UMovieSceneSequence*
 	CurrentImportFBXSettings->ReduceKeysTolerance = ImportFBXSettings->ReduceKeysTolerance;
 	CurrentImportFBXSettings->bConvertSceneUnit = ImportFBXSettings->bConvertSceneUnit;
 	CurrentImportFBXSettings->ImportUniformScale = ImportFBXSettings->ImportUniformScale;
+	CurrentImportFBXSettings->bReplaceTransformTrack = ImportFBXSettings->bReplaceTransformTrack;
 	UnFbx::FFbxImporter* FbxImporter = UnFbx::FFbxImporter::GetInstance();
 
 	UnFbx::FFbxCurvesAPI CurveAPI;
