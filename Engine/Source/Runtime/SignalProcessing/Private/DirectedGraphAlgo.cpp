@@ -2,8 +2,12 @@
 
 #include "DSP/DirectedGraphAlgo.h"
 
+// This entire file has been deprecated/moved to MathCore (Graph/DirectedGraphUtils.h)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
 namespace Audio
 {
+
 	namespace DirectedGraphAlgoPrivate
 	{
 		// Used to track which vertices have been visited and vertex children.
@@ -451,4 +455,7 @@ namespace Audio
 
 		return TarjanAlgo.FindStronglyConnectedComponents(InEdges, OutComponents);
 	}
+
 }
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS

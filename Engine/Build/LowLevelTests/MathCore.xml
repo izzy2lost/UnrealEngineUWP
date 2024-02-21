@@ -1,0 +1,48 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<BuildGraph xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.epicgames.com/BuildGraph ../../Build/Graph/Schema.xsd" xmlns="http://www.epicgames.com/BuildGraph">
+  <Property Name="TestNames" Value="$(TestNames);MathCore" />
+  <Property Name="MathCoreDisabled" Value="False" />
+  <Property Name="MathCoreShort" Value="MathCore" />
+  <Property Name="MathCoreStagesWithProjectFile" Value="False" />
+  <Property Name="MathCoreTarget" Value="MathCoreTests" />
+  <Property Name="MathCoreBinariesRelative" Value="Engine\Binaries" />
+  <Property Name="MathCoreReportType" Value="xml" />
+  <Property Name="MathCoreGauntletArgs" Value="" />
+  <Property Name="MathCoreExtraArgs" />
+  <Property Name="MathCoreHasAfterSteps" Value="False" />
+  <Property Name="MathCoreUsesCatch2" Value="True" />
+  <Option Name="RunMathCoreTests" DefaultValue="False" Description="Run MathCore Tests" />
+  <Property Name="MathCoreSupportedPlatforms" Value="Win64;Linux;Mac;Android;IOS" />
+  <Property Name="Win64MathCoreTags" Value="" />
+  <Property Name="Win64MathCoreExtraCompilationArgs" Value="-allmodules" />
+  <Property Name="Win64MathCoreRunSupported" Value="True" />
+  <Property Name="Win64MathCoreRunContainerized" Value="False" />
+  <Property Name="MacMathCoreTags" Value="" />
+  <Property Name="MacMathCoreExtraCompilationArgs" Value="-allmodules" />
+  <Property Name="MacMathCoreRunSupported" Value="True" />
+  <Property Name="MacMathCoreRunContainerized" Value="False" />
+  <Property Name="IOSMathCoreTags" Value="" />
+  <Property Name="IOSMathCoreExtraCompilationArgs" Value="-allmodules" />
+  <Property Name="IOSMathCoreRunSupported" Value="False" />
+  <Property Name="IOSMathCoreRunContainerized" Value="False" />
+  <Property Name="AndroidMathCoreTags" Value="" />
+  <Property Name="AndroidMathCoreExtraCompilationArgs" Value="-allmodules -architectures=arm64" />
+  <Property Name="AndroidMathCoreRunSupported" Value="False" />
+  <Property Name="AndroidMathCoreRunContainerized" Value="False" />
+  <Property Name="LinuxMathCoreTags" Value="" />
+  <Property Name="LinuxMathCoreExtraCompilationArgs" Value="-allmodules" />
+  <Property Name="LinuxMathCoreRunSupported" Value="True" />
+  <Property Name="LinuxMathCoreRunContainerized" Value="False" />
+  <Property Name="LinuxArm64MathCoreTags" Value="" />
+  <Property Name="LinuxArm64MathCoreExtraCompilationArgs" Value="-allmodules" />
+  <Property Name="LinuxArm64MathCoreRunSupported" Value="True" />
+  <Property Name="LinuxArm64MathCoreRunContainerized" Value="False" />
+  <Property Name="TVOSMathCoreTags" Value="" />
+  <Property Name="TVOSMathCoreExtraCompilationArgs" Value="-allmodules" />
+  <Property Name="TVOSMathCoreRunSupported" Value="False" />
+  <Property Name="TVOSMathCoreRunContainerized" Value="False" />
+  <Property Name="VisionOSMathCoreTags" Value="" />
+  <Property Name="VisionOSMathCoreExtraCompilationArgs" Value="-allmodules" />
+  <Property Name="VisionOSMathCoreRunSupported" Value="False" />
+  <Property Name="VisionOSMathCoreRunContainerized" Value="False" />
+</BuildGraph>
