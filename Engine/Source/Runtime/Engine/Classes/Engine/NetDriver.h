@@ -1028,9 +1028,6 @@ public:
 	/** Set the NetDriver's NetDriverDefintion. */
 	void SetNetDriverDefinition(FName NewNetDriverDefinition);
 
-	UE_DEPRECATED(5.1, "Use GetNetDriverDefinition instead.")
-	FName GetNetDriverDefintion() const { return NetDriverDefinition; }
-
 	/** Get the NetDriver's NetDriverDefintion. */
 	FName GetNetDriverDefinition() const { return NetDriverDefinition; }
 
