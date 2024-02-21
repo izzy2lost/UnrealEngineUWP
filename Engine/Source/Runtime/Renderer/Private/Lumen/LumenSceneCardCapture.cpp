@@ -100,6 +100,9 @@ public:
 		OutEnvironment.SetDefine(TEXT("SUBSTRATE_INLINE_SHADING"), 1);
 		// Use fully simplified material for less complex shaders when multiple slabs are used.
 		OutEnvironment.SetDefine(TEXT("SUBSTRATE_USE_FULLYSIMPLIFIED_MATERIAL"), 1);
+
+		// Card should not be able to sample form the scene textures, this is needed for translucent materials card capture which can request the sampling of SceneTextures.
+		OutEnvironment.SetDefine(TEXT("SCENE_TEXTURES_DISABLED"), 1);
 	}
 };
 

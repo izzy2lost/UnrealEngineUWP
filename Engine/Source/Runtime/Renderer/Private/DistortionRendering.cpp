@@ -59,6 +59,7 @@ static TAutoConsoleVariable<float> CVarRefractionBlurMaxExposedLuminance(
 
 BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FDistortionPassUniformParameters, RENDERER_API)
 	SHADER_PARAMETER_STRUCT(FSceneTextureUniformParameters, SceneTextures)
+	SHADER_PARAMETER_STRUCT(FSubstrateForwardPassUniformParameters, Substrate)
 	SHADER_PARAMETER(FVector4f, DistortionParams)
 END_GLOBAL_SHADER_PARAMETER_STRUCT()
 
@@ -108,6 +109,7 @@ TRDGUniformBufferRef<FDistortionPassUniformParameters> CreateDistortionPassUnifo
 	auto* Parameters = GraphBuilder.AllocParameters<FDistortionPassUniformParameters>();
 	SetupSceneTextureUniformParameters(GraphBuilder, View.GetSceneTexturesChecked(), View.FeatureLevel, ESceneTextureSetupMode::All, Parameters->SceneTextures);
 	SetupDistortionParams(Parameters->DistortionParams, View);
+	Substrate::BindSubstrateForwardPasslUniformParameters(GraphBuilder, View, Parameters->Substrate);
 	return GraphBuilder.CreateUniformBuffer(Parameters);
 }
 
