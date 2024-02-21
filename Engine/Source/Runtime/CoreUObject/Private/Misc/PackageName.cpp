@@ -2606,6 +2606,21 @@ FString FPackageName::ExportTextPathToObjectPath(const TCHAR* InExportTextPath)
 	return ExportTextPathToObjectPath(FString(InExportTextPath));
 }
 
+FString FPackageName::SplitPackageNameRoot(FName InPackageName, FString* OutRelativePath)
+{
+	TStringBuilder<FName::StringBufferSize> PackageNameStr(InPlace, InPackageName);
+	FStringView PackageName(PackageNameStr);
+
+	FStringView RelativePath;
+	FStringView Root = SplitPackageNameRoot(PackageName, &RelativePath);
+
+	if (OutRelativePath)
+	{
+		*OutRelativePath = FString(RelativePath);
+	}
+	return FString(Root);
+}
+
 FStringView FPackageName::SplitPackageNameRoot(FStringView InPackageName, FStringView* OutRelativePath)
 {
 	if (!InPackageName.StartsWith(TEXT("/")))

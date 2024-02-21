@@ -3867,9 +3867,8 @@ static void InsertShadersInPluginHierarchy(UE::Cook::FCookMetadataState& InCookM
 		TSet<FString> ShaderPlugins;
 		for (FName PackageName : ShaderChunkInfo.Value.ReferencedByPackages)
 		{
-			FString PackageNameStr = PackageName.ToString();
-			FStringView Plugin = FPackageName::SplitPackageNameRoot(PackageNameStr, nullptr);
-			ShaderPlugins.Add(FString(Plugin));
+			FString Plugin = FPackageName::SplitPackageNameRoot(PackageName, nullptr);
+			ShaderPlugins.Add(MoveTemp(Plugin));
 		}
 
 		if (ShaderPlugins.Num() == 1)
@@ -4149,9 +4148,8 @@ static void UpdatePluginMetadataAndWriteJsons(
 					SinglePluginShaderSize += ShaderChunkInfo.Value.CompressedSize;
 				}
 
-				FString PackageNameStr = ShaderChunkInfo.Value.ReferencedByPackages[0].ToString();
-				FStringView Plugin = FPackageName::SplitPackageNameRoot(PackageNameStr, nullptr);
-				PackageName.Append(Plugin);
+				FString Plugin = FPackageName::SplitPackageNameRoot(ShaderChunkInfo.Value.ReferencedByPackages[0], nullptr);
+				PackageName.Append(MoveTemp(Plugin));
 			}
 
 			FPluginGraphEntry** PluginEntryPtr = PluginGraph.NameToPlugin.Find(PackageName.ToString());
@@ -4251,10 +4249,7 @@ static void UpdatePluginMetadataAndWriteJsons(
 
 		// Assign the size to the package's plugin.
 		{
-			TStringBuilder<FName::StringBufferSize> PackageNameStr(InPlace, AssetPackage.Key);
-			FStringView PackageName(PackageNameStr);
-
-			FStringView PluginName = FPackageName::SplitPackageNameRoot(PackageName, nullptr);
+			FString PluginName = FPackageName::SplitPackageNameRoot(AssetPackage.Key, nullptr);
 			FPluginGraphEntry** PluginEntryPtr = PluginGraph.NameToPlugin.Find(PluginName);
 			if (PluginEntryPtr)
 			{
@@ -4319,12 +4314,11 @@ static void UpdatePluginMetadataAndWriteJsons(
 			}
 			else
 			{
-				FString AllocatedPluginName(PluginName);
 				bool bAlreadyLogged = false;
-				LoggedPluginNames.Add(MoveTemp(AllocatedPluginName), &bAlreadyLogged);
+				LoggedPluginNames.Add(MoveTemp(PluginName), &bAlreadyLogged);
 				if (bAlreadyLogged == false)
 				{
-					UE_LOG(LogIoStore, Display, TEXT("Plugin for package not found: %s (%.*s)"), PackageNameStr.GetData(), PluginName.Len(), PluginName.GetData());
+					UE_LOG(LogIoStore, Display, TEXT("Plugin for package not found: %s"), *AssetPackage.Key.ToString());
 				}
 			}
 		}

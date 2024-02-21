@@ -670,6 +670,7 @@ public:
 	 * "/PackageRoot/Path/Leaf" -> (return "PackageRoot"; OutRelativePath = "Path/Leaf")
 	 */
 	static COREUOBJECT_API FStringView SplitPackageNameRoot(FStringView InPackageName, FStringView* OutRelativePath);
+	static COREUOBJECT_API FString SplitPackageNameRoot(FName InPackageName, FString* OutRelativePath);
 	
 	/** 
 	 * Returns the name of the package referred to by the specified object path

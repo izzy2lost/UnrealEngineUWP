@@ -1346,7 +1346,7 @@ bool FAssetManagerEditorModule::GetStringValueForCustomColumn(const FAssetData& 
 	}
 	else if (ColumnName == PluginName)
 	{
-		OutValue = FPackageName::SplitPackageNameRoot(AssetData.PackageName.ToString(), nullptr);
+		OutValue = FPackageName::SplitPackageNameRoot(AssetData.PackageName, nullptr);
 		return OutValue.Len() > 0;
 	}
 	else
