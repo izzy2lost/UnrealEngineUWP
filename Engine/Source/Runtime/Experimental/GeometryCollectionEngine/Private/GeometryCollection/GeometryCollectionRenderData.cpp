@@ -724,7 +724,8 @@ FGeometryCollectionRenderData::~FGeometryCollectionRenderData()
 
 void FGeometryCollectionRenderData::Serialize(FArchive& Ar, UGeometryCollection& Owner)
 {
-	if (Owner.bStripRenderDataOnCook && Ar.IsCooking())
+	const bool bIsArchiveValidCandidateForStrip = (Ar.IsCooking() || (Ar.IsCountingMemory() && Ar.IsFilterEditorOnly()));
+	if (Owner.bStripRenderDataOnCook && bIsArchiveValidCandidateForStrip)
 	{
 		// Don't cook rendering data.
 		// This is used if we expect to use a custom GC render path such as the ISM pool.
