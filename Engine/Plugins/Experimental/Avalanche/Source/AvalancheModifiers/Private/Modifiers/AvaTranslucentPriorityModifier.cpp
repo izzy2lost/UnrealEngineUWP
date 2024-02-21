@@ -160,6 +160,8 @@ void UAvaTranslucentPriorityModifier::Apply()
 	const int32 GlobalOffset = SharedObject->GetSortPriorityOffset();
 	const int32 GlobalStep = SharedObject->GetSortPriorityStep();
 
+	LastSortPriorities.Empty(CachedSortedComponentStates.Num());
+
 	if (Mode == EAvaTranslucentPriorityModifierMode::Manual)
 	{
 		int32 TranslucentSortPriority = GlobalOffset + SortPriority;
@@ -171,6 +173,7 @@ void UAvaTranslucentPriorityModifier::Apply()
 			{
 				if (UPrimitiveComponent* Component = SortedComponentState->PrimitiveComponentWeak.Get())
 				{
+					LastSortPriorities.Add(Component, TranslucentSortPriority);
 					Component->SetTranslucentSortPriority(TranslucentSortPriority);
 
 					TranslucentSortPriority += GlobalStep;
@@ -198,15 +201,16 @@ void UAvaTranslucentPriorityModifier::Apply()
 				continue;
 			}
 
-			// This modifier handles this component
-			if (ComponentModifier == this)
+			if (Component->TranslucencySortPriority != TranslucentSortPriority)
 			{
-				Component->SetTranslucentSortPriority(TranslucentSortPriority);
-			}
-			// Another modifier handles this component
-			else
-			{
-				if (Component->TranslucencySortPriority != TranslucentSortPriority)
+				// This modifier handles this component
+				if (ComponentModifier == this)
+				{
+					LastSortPriorities.Add(Component, TranslucentSortPriority);
+					Component->SetTranslucentSortPriority(TranslucentSortPriority);
+				}
+				// Another modifier handles this component
+				else
 				{
 					// Cache to avoid doing the same query for the same result
 					ComponentModifier->CachedSortedComponentStates = CachedSortedComponentStates;
@@ -408,13 +412,21 @@ void UAvaTranslucentPriorityModifier::OnRenderStateUpdated(AActor* InActor, UAct
 	Super::OnRenderStateUpdated(InActor, InComponent);
 
 	const AActor* const ActorModified = GetModifiedActor();
+	UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(InComponent);
 
-	if (!IsValid(ActorModified))
+	if (!IsValid(ActorModified)
+		|| !IsValid(InActor)
+		|| !IsValid(PrimitiveComponent))
 	{
 		return;
 	}
 
 	if (!bIncludeChildren && InActor != ActorModified)
+	{
+		return;
+	}
+
+	if (bIncludeChildren && InActor != ActorModified && !InActor->IsAttachedTo(ActorModified))
 	{
 		return;
 	}
@@ -427,15 +439,18 @@ void UAvaTranslucentPriorityModifier::OnRenderStateUpdated(AActor* InActor, UAct
 			return;
 		}
 
-		UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(InComponent);
-		if (!PrimitiveComponent)
-		{
-			return;
-		}
-
 		// If the component is already handled by another modifier, return early
 		const UAvaTranslucentPriorityModifier* OtherModifier = SharedObject->FindModifierContext(PrimitiveComponent);
 		if (OtherModifier && OtherModifier != this)
+		{
+			return;
+		}
+	}
+
+	// In case the sort priority hasn't changed do not update
+	if (const int32* LastSortPriority = LastSortPriorities.Find(PrimitiveComponent))
+	{
+		if (PrimitiveComponent->TranslucencySortPriority == *LastSortPriority)
 		{
 			return;
 		}
@@ -450,7 +465,9 @@ void UAvaTranslucentPriorityModifier::OnTransformUpdated(AActor* InActor, bool b
 
 	const AActor* const ActorModified = GetModifiedActor();
 
+	// Only AutoCameraDistance mode relies on actor location to compute sort priority
 	if (!IsValid(ActorModified)
+		|| Mode != EAvaTranslucentPriorityModifierMode::AutoCameraDistance
 		|| (!bIncludeChildren && InActor != ActorModified)
 		|| (bIncludeChildren && !ChildrenActorsWeak.Contains(InActor)))
 	{
