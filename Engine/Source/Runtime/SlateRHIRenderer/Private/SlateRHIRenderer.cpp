@@ -1822,7 +1822,6 @@ void FSlateRHIRenderer::DrawWindows_Private(FSlateDrawBuffer& WindowDrawBuffer)
 								: SlatePostBuffer->GetFormat() == EPixelFormat::PF_A2B10G10R10;
 							if (SlatePostBuffer->SizeX != SizeSlatePostRT.X || SlatePostBuffer->SizeY != SizeSlatePostRT.Y || !bIsPixelFormatCorrect)
 							{
-								SlatePostBuffer->bNoFastClear = true;
 								SlatePostBuffer->InitCustomFormat(SizeSlatePostRT.X, SizeSlatePostRT.Y, bHDREnabled ? EPixelFormat::PF_FloatRGBA : EPixelFormat::PF_A2B10G10R10, true);
 							}
 
@@ -1889,7 +1888,6 @@ void FSlateRHIRenderer::DrawWindows_Private(FSlateDrawBuffer& WindowDrawBuffer)
 							else
 							{
 								// Resize unused SlatePostRTs to 1x1.
-								SlatePostBuffer->bNoFastClear = true;
 								SlatePostBuffer->InitCustomFormat(1, 1, IsHDREnabled() ? EPixelFormat::PF_FloatRGBA : EPixelFormat::PF_A2B10G10R10, true);
 								bShrinkPostBufferRequested &= ~SlatePostBufferBit;
 							}
