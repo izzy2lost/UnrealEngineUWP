@@ -3,26 +3,15 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Horde.Server.Configuration;
 using HordeCommon;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace Horde.Server.Server;
-
-/// <summary>
-/// Status update result for a subsystem
-/// </summary>
-public enum SubsystemStatusResult
-{
-	/// <summary>
-	/// Success
-	/// </summary>
-	Ok = 0,
-	
-	/// <summary>
-	/// Error or problem
-	/// </summary>
-	Error = 1,
-}
 
 /// <summary>
 /// A specific subsystem inside Horde
@@ -55,21 +44,19 @@ public enum Subsystem
 /// </summary>
 /// <param name="Category"></param>
 /// <param name="Name"></param>
-/// <param name="LastResult"></param>
-/// <param name="LastMessage"></param>
-/// <param name="LastUpdatedAt"></param>
 /// <param name="Updates"></param>
-public record SubsystemStatus(
-	string Category,
-	string Name,
-	SubsystemStatusResult LastResult,
-	string? LastMessage,
-	DateTimeOffset LastUpdatedAt,
-	LinkedList<SubsystemStatusUpdate> Updates)
+public record SubsystemStatus(string Category, string Name, List<SubsystemStatusUpdate> Updates)
 {
 	internal SubsystemStatus Copy()
 	{
-		return this with { Updates = new LinkedList<SubsystemStatusUpdate>(Updates) };
+		return this with { Updates = [..Updates] };
+	}
+
+	/// <inheritdoc/>
+	public override string ToString()
+	{
+		string updates = Updates.Count > 0 ? Updates.First().ToString() : "<no updates>";
+		return $"Subsystem({Category} {Name} LastUpdate: {updates})";
 	}
 }
 
@@ -79,45 +66,109 @@ public record SubsystemStatus(
 /// <param name="Result"></param>
 /// <param name="Message"></param>
 /// <param name="UpdatedAt"></param>
-public record SubsystemStatusUpdate(SubsystemStatusResult Result, string? Message, DateTimeOffset UpdatedAt);
+public record SubsystemStatusUpdate(HealthStatus Result, string? Message, DateTimeOffset UpdatedAt);
 	
 /// <summary>
 /// Tracks health and status of the Horde server itself
 /// Such as connectivity to external systems (MongoDB, Redis, Perforce etc).
 /// </summary>
-public class ServerStatusService
+public class ServerStatusService : IHostedService
 {
 	/// <summary>
 	/// Max historical status updates to keep
 	/// </summary>
-	private const int MaxHistoryLength = 10;
+	public const int MaxHistoryLength = 10;
 	
+	private const string CategoryDefault = "default";
 	private readonly IClock _clock;
 	private readonly ConfigService _configService;
+	private readonly MongoService _mongoService;
+	private readonly RedisService _redisService;
 	private readonly object _lock = new();
-	private readonly Dictionary<string, SubsystemStatus> _subsystemStatuses = new();
+	private readonly Dictionary<(string category, string name), SubsystemStatus> _subsystemStatuses = new();
+	private readonly ITicker _mongoDbHealthTicker;
+	private readonly ITicker _redisHealthTicker;
+	private readonly ITicker _perforceHealthTicker;
 
 	/// <summary>
 	/// Constructor
 	/// </summary>
 	/// <param name="configService"></param>
+	/// <param name="redisService"></param>
 	/// <param name="clock"></param>
-	public ServerStatusService(ConfigService configService, IClock clock)
+	/// <param name="mongoService"></param>
+	/// <param name="logger"></param>
+	public ServerStatusService(ConfigService configService, MongoService mongoService, RedisService redisService, IClock clock, ILogger<ServerStatusService> logger)
 	{
 		_configService = configService;
+		_mongoService = mongoService;
+		_redisService = redisService;
 		_clock = clock;
-
 		_configService.OnConfigUpdate += exception =>
 		{
 			if (exception != null)
 			{
-				Report(Subsystem.GlobalConfig, SubsystemStatusResult.Error, exception.Message);
+				Report(Subsystem.GlobalConfig, HealthStatus.Unhealthy, exception.Message);
 			}
 			else
 			{
-				Report(Subsystem.GlobalConfig, SubsystemStatusResult.Ok);
+				Report(Subsystem.GlobalConfig, HealthStatus.Healthy);
 			}
 		};
+		
+		_mongoDbHealthTicker = clock.AddTicker($"{nameof(ServerStatusService)}.{nameof(Subsystem.MongoDb)}", TimeSpan.FromSeconds(30.0), UpdateMongoDbHealthAsync, logger);
+		_redisHealthTicker = clock.AddTicker($"{nameof(ServerStatusService)}.{nameof(Subsystem.Redis)}", TimeSpan.FromSeconds(30.0), UpdateRedisHealthAsync, logger);
+		_perforceHealthTicker = clock.AddTicker($"{nameof(ServerStatusService)}.{nameof(Subsystem.Perforce)}", TimeSpan.FromSeconds(30.0), UpdatePerforceHealthAsync, logger);
+		
+		foreach (Subsystem s in Enum.GetValues<Subsystem>())
+		{
+			_subsystemStatuses[(CategoryDefault, s.ToString())] = new SubsystemStatus(CategoryDefault, s.ToString(), []);
+		}
+	}
+
+	/// <inheritdoc/>
+	public async Task StartAsync(CancellationToken cancellationToken)
+	{
+		await _mongoDbHealthTicker.StartAsync();
+		await _redisHealthTicker.StartAsync();
+		await _perforceHealthTicker.StartAsync();
+	}
+
+	/// <inheritdoc/>
+	public async Task StopAsync(CancellationToken cancellationToken)
+	{
+		await _mongoDbHealthTicker.StopAsync();
+		await _redisHealthTicker.StopAsync();
+		await _perforceHealthTicker.StopAsync();
+	}
+
+	/// <summary>
+	/// Checks health and connectivity to MongoDB database
+	/// </summary>
+	/// <param name="cancellationToken">Cancellation token for the async task</param>
+	internal async ValueTask UpdateMongoDbHealthAsync(CancellationToken cancellationToken)
+	{
+		HealthCheckResult result = await _mongoService.CheckHealthAsync(new HealthCheckContext(), cancellationToken);
+		Report(Subsystem.MongoDb, result.Status, result.Description);
+	}
+
+	/// <summary>
+	/// Checks health and connectivity to Redis database
+	/// </summary>
+	/// <param name="cancellationToken">Cancellation token for the async task</param>
+	internal async ValueTask UpdateRedisHealthAsync(CancellationToken cancellationToken)
+	{
+		HealthCheckResult result = await _redisService.CheckHealthAsync(new HealthCheckContext(), cancellationToken);
+		Report(Subsystem.Redis, result.Status, result.Description);
+	}
+
+	/// <summary>
+	/// Checks health and connectivity to Perforce servers
+	/// </summary>
+	/// <param name="cancellationToken">Cancellation token for the async task</param>
+	internal ValueTask UpdatePerforceHealthAsync(CancellationToken cancellationToken)
+	{
+		return ValueTask.CompletedTask;
 	}
 
 	/// <summary>
@@ -127,36 +178,26 @@ public class ServerStatusService
 	/// <param name="result">Result of the update</param>
 	/// <param name="message">Human-readable message</param>
 	/// <param name="timestamp">Optional timestamp to be associated with the report. Defaults to UtcNow</param>
-	public void Report(Subsystem subsystem, SubsystemStatusResult result, string? message = null, DateTimeOffset? timestamp = null)
+	public void Report(Subsystem subsystem, HealthStatus result, string? message = null, DateTimeOffset? timestamp = null)
 	{
-		ReportInternal("default", subsystem.ToString(), result, message, timestamp);
+		ReportInternal(CategoryDefault, subsystem.ToString(), result, message, timestamp);
 	}
 
-	private void ReportInternal(string category, string name, SubsystemStatusResult result, string? message, DateTimeOffset? timestamp)
+	private void ReportInternal(string category, string name, HealthStatus result, string? message, DateTimeOffset? timestamp)
 	{
-		if (category.Contains(':', StringComparison.OrdinalIgnoreCase) || name.Contains(':', StringComparison.OrdinalIgnoreCase))
-		{
-			throw new ArgumentException("Category or name cannot contain ':' char");
-		}
-		
-		string id = $"{category}:{name}";
+		(string category, string name) id = (category, name);
 		SubsystemStatusUpdate update = new (result, message, timestamp ?? _clock.UtcNow);
 		lock (_lock)
 		{
 			if (!_subsystemStatuses.TryGetValue(id, out SubsystemStatus? status))
 			{
-				LinkedList<SubsystemStatusUpdate> updates = new();
-				status = new SubsystemStatus(category, name, update.Result, update.Message, update.UpdatedAt, updates);
+				status = new SubsystemStatus(category, name, []);
 				_subsystemStatuses[id] = status;
 			}
 			
-			status.Updates.AddFirst(update);
-			if (status.Updates.Count > MaxHistoryLength)
-			{
-				status.Updates.RemoveLast();
-			}
-			
-			_subsystemStatuses[id] = new SubsystemStatus(category, name, update.Result, update.Message, update.UpdatedAt, status.Updates);
+			status.Updates.Add(update);
+			status.Updates.Sort((a, b) => b.UpdatedAt.CompareTo(a.UpdatedAt));
+			_subsystemStatuses[id] = new SubsystemStatus(category, name, status.Updates.Take(MaxHistoryLength).ToList());
 		}
 	}
 

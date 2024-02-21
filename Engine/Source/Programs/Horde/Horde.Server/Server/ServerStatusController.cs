@@ -6,6 +6,7 @@ using System.Linq;
 using EpicGames.Horde.Server;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace Horde.Server.Server;
 
@@ -113,12 +114,13 @@ public class ServerStatusController : Controller
 		});
 	}
 
-	private static ServerStatusResult ConvertSubsystemResult(SubsystemStatusResult result)
+	private static ServerStatusResult ConvertSubsystemResult(HealthStatus result)
 	{
 		return result switch
 		{
-			SubsystemStatusResult.Ok => ServerStatusResult.Ok,
-			SubsystemStatusResult.Error => ServerStatusResult.Error,
+			HealthStatus.Healthy => ServerStatusResult.Healthy,
+			HealthStatus.Unhealthy => ServerStatusResult.Unhealthy,
+			HealthStatus.Degraded => ServerStatusResult.Degraded,
 			_ => throw new Exception($"Unknown result: {result}")
 		};
 	}
