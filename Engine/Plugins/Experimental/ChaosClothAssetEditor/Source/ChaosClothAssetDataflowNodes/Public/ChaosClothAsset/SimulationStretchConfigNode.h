@@ -27,22 +27,18 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Stretch Types", Meta = (EditCondition = "bImportProperties == false && SolverType == EChaosClothAssetConstraintSolverType::XPBD", EditConditionHides))
 	EChaosClothAssetConstraintDistributionType DistributionType = EChaosClothAssetConstraintDistributionType::Isotropic;
 	
-	/** Constraint stretching type.  */
-	UPROPERTY(EditAnywhere, Category = "Stretch Types", Meta = (EditCondition = "bImportProperties == false && SolverType == EChaosClothAssetConstraintSolverType::XPBD && DistributionType == EChaosClothAssetConstraintDistributionType::Anisotropic", EditConditionHides))
-	EChaosClothAssetStretchConstraintType ConstraintType = EChaosClothAssetStretchConstraintType::StretchShear;
-	
 	/** Add an area constraint in case of isotropic distribution  */
 	UPROPERTY(EditAnywhere, Category = "Stretch Types", Meta = (EditCondition = "bImportProperties == false && ((SolverType == EChaosClothAssetConstraintSolverType::XPBD && DistributionType == EChaosClothAssetConstraintDistributionType::Isotropic) || SolverType == EChaosClothAssetConstraintSolverType::PBD)", EditConditionHides))
 	bool bAddAreaConstraint = true;
 
 	/**
-	 * The stiffness of the stretch constraints.
+	 * The stiffness of the stretch constraints. Note that PBD stiffnesses will be internally clamped to [0,1].
 	 * If a valid weight map is found with the given Weight Map name, then both Low and High values
 	 * are interpolated with the per particle weight to make the final value used for the simulation.
 	 * Otherwise all particles are considered to have a zero weight, and only the Low value is meaningful.
 	 */
 	UPROPERTY(EditAnywhere, Category = "Stretch Properties", Meta = (UIMin = "0", UIMax = "10000", ClampMin = "0", ClampMax = "1000000000", EditCondition = "bImportProperties == false && (SolverType == EChaosClothAssetConstraintSolverType::PBD || DistributionType == EChaosClothAssetConstraintDistributionType::Isotropic)", EditConditionHides))
-	FChaosClothAssetWeightedValue StretchStiffness = { true, 100.f, 100.f, TEXT("StretchStiffness") };
+	FChaosClothAssetWeightedValue StretchStiffness = { true, 1.f, 1.f, TEXT("StretchStiffness") };
 	
 	/**
 	 * The stiffness of the stretch constraints in the warp (vertical) direction.
@@ -100,14 +96,14 @@ public:
 	FChaosClothAssetWeightedValue StretchWeftScale = { true, 1.f, 1.f, TEXT("StretchWeftScale") };
 
 	/**
-	 * The stiffness of the surface area preservation constraints.
+	 * The stiffness of the surface area preservation constraints. Note that PBD stiffnesses will be internally clamped to [0,1].
 	 * Increase the solver iteration count for stiffer materials.
 	 * If a valid weight map is found with the given Weight Map name, then both Low and High values
 	 * are interpolated with the per particle weight to make the final value used for the simulation.
 	 * Otherwise all particles are considered to have a zero weight, and only the Low value is meaningful.
 	 */
 	UPROPERTY(EditAnywhere, Category = "Stretch Properties", Meta = (UIMin = "0", UIMax = "10000", ClampMin = "0", ClampMax = "10000000", EditCondition = "bImportProperties == false && bAddAreaConstraint == true && ((SolverType == EChaosClothAssetConstraintSolverType::XPBD && DistributionType == EChaosClothAssetConstraintDistributionType::Isotropic) || SolverType == EChaosClothAssetConstraintSolverType::PBD)", EditConditionHides))
-	FChaosClothAssetWeightedValue AreaStiffness = { true, 100.f, 100.f, TEXT("AreaStiffness") };
+	FChaosClothAssetWeightedValue AreaStiffness = { true, 1.f, 1.f, TEXT("AreaStiffness") };
 
 	FChaosClothAssetSimulationStretchConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 

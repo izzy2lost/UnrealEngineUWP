@@ -41,7 +41,7 @@ namespace UE::Chaos::ClothAsset
 			ClothCollection->GetElements(ClothCollection->GetFabricBucklingStiffness())[GetElementIndex()]);
 	}
 	
-	FCollectionClothFabricConstFacade::FAnisotropicData FCollectionClothFabricConstFacade::GetXPBDAnisoStretchStiffness() const
+	FCollectionClothFabricConstFacade::FAnisotropicData FCollectionClothFabricConstFacade::GetXPBDAnisoSpringStiffness() const
 	{
 		return FCollectionClothFabricConstFacade::FAnisotropicData(
 			ClothCollection->GetElements(ClothCollection->GetFabricStretchStiffness())[GetElementIndex()]);
@@ -97,7 +97,7 @@ namespace UE::Chaos::ClothAsset
 	void FCollectionClothFabricFacade::Initialize(const FCollectionClothFabricConstFacade& OtherFabricFacade)
 	{
 		Initialize( OtherFabricFacade.GetXPBDAnisoBendingStiffness(), OtherFabricFacade.GetXPBDAnisoBucklingRatio(), OtherFabricFacade.GetXPBDAnisoBucklingStiffness(),
-			OtherFabricFacade.GetXPBDAnisoStretchStiffness(), OtherFabricFacade.GetDensityWeighted(),
+			OtherFabricFacade.GetXPBDAnisoSpringStiffness(), OtherFabricFacade.GetDensityWeighted(),
 			OtherFabricFacade.GetFrictionCoefficient(), OtherFabricFacade.GetXPBDAnisoDamping(), OtherFabricFacade.GetCollisionThickness());
 	}
 
