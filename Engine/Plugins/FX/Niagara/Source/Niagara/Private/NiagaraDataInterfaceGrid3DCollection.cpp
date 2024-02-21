@@ -3991,8 +3991,8 @@ void FGrid3DCollectionRWInstanceData_RenderThread::BeginSimulate(FRDGBuilder& Gr
 		const FIntVector TextureSize(NumCells.X * NumTiles.X, NumCells.Y * NumTiles.Y, NumCells.Z * NumTiles.Z);
 		const FRDGTextureDesc TextureDesc = FRDGTextureDesc::Create3D(TextureSize, PixelFormat.GetValue(), FClearValueBinding::Black, ETextureCreateFlags::ShaderResource | ETextureCreateFlags::UAV);
 
-		const TCHAR* GridTextureName = TEXT("Grid3D::GridTexture");
 	#if 0
+		// Note: Invalid as the render target pool holds onto a pointer and can exist beyond the lifetime of the grid
 		TStringBuilder<128> StringBuilder;
 		SourceDIName.AppendString(StringBuilder);
 		StringBuilder.Append("_");
@@ -4004,7 +4004,7 @@ void FGrid3DCollectionRWInstanceData_RenderThread::BeginSimulate(FRDGBuilder& Gr
 		StringBuilder.Append("Grid3DCollection");
 		GridTextureName = *StringBuilder;
 	#endif
-		DestinationData->Initialize(GraphBuilder, GridTextureName, TextureDesc);
+		DestinationData->Initialize(GraphBuilder, TEXT("Grid3D::GridTexture"), TextureDesc);
 
 		// This destination buffer will sometimes have old data in it.  Force it to clear.
 		AddClearUAVPass(GraphBuilder, DestinationData->GetOrCreateUAV(GraphBuilder), FVector4f(ForceInitToZero));
