@@ -1115,46 +1115,36 @@ namespace UE::Chaos::ClothAsset
 	}
 
 
-	void FClothGeometryTools::BuildConnectedSeams2D(const TSharedRef<const FManagedArrayCollection>& ClothCollection,
-		int32 SeamIndex,
+	void FClothGeometryTools::BuildConnectedSeams(const TArray<FIntVector2>& InputStitches,
 		const UE::Geometry::FDynamicMesh3& Mesh,
 		TArray<TArray<FIntVector2>>& Seams)
 	{
-		using namespace UE::Geometry;
-
-		FNonManifoldMappingSupport NonManifold(Mesh);
-		checkf(!NonManifold.IsNonManifoldVertexInSource(), TEXT("Cloth source is non-manifold. Cannot use FDynamicMesh to build connected seams"));
-
-		const FCollectionClothConstFacade ClothFacade(ClothCollection);
-		const FCollectionClothSeamConstFacade SeamFacade = ClothFacade.GetSeam(SeamIndex);
-		
-		TArray<FIntVector2> InputStitches(SeamFacade.GetSeamStitch2DEndIndices());
+		TArray<FIntVector2> Stitches = InputStitches;
 
 		// filter out any stitches referencing deleted vertices
-		InputStitches.SetNum(Algo::RemoveIf(InputStitches, [](const FIntVector2& Stitch)
+		Stitches.SetNum(Algo::RemoveIf(Stitches, [](const FIntVector2& Stitch)
 		{
 			return Stitch[0] == INDEX_NONE || Stitch[1] == INDEX_NONE;
 		}));
 
-
-		while (InputStitches.Num() > 0)
+		while (Stitches.Num() > 0)
 		{
 			TArray<FIntVector2> Seam;
 
-			const FIntVector2 FirstStitch = InputStitches.Last();
+			const FIntVector2 FirstStitch = Stitches.Last();
 			Seam.Add(FirstStitch);
-			InputStitches.RemoveAt(InputStitches.Num() - 1);
+			Stitches.RemoveAt(Stitches.Num() - 1);
 
 			FIntVector2 CurrStitch = FirstStitch;
 			bool bFoundNextStitch = true;
 			bool bReverseSearch = false;
-			while (InputStitches.Num() > 0 && (bFoundNextStitch || !bReverseSearch))
+			while (Stitches.Num() > 0 && (bFoundNextStitch || !bReverseSearch))
 			{
 				bFoundNextStitch = false;
 
-				for (int32 TestStitchIndex = 0; TestStitchIndex < InputStitches.Num(); ++TestStitchIndex)
+				for (int32 TestStitchIndex = 0; TestStitchIndex < Stitches.Num(); ++TestStitchIndex)
 				{
-					FIntVector2 TestStitch = InputStitches[TestStitchIndex];
+					FIntVector2 TestStitch = Stitches[TestStitchIndex];
 
 					// Stitch (A, B) is connected to stitch (C, D) if there exist edges {(A, C), (B, D)} *or* {(A, D), (B, C)} in the given DynamicMesh.
 
@@ -1163,12 +1153,12 @@ namespace UE::Chaos::ClothAsset
 					const int32 C = TestStitch[0];
 					const int32 D = TestStitch[1];
 
-					if (Mesh.FindEdge(A, C) != FDynamicMesh3::InvalidID && Mesh.FindEdge(B, D) != FDynamicMesh3::InvalidID)
+					if (Mesh.FindEdge(A, C) != UE::Geometry::FDynamicMesh3::InvalidID && Mesh.FindEdge(B, D) != UE::Geometry::FDynamicMesh3::InvalidID)
 					{
 						Seam.Add(TestStitch);
 						bFoundNextStitch = true;
 					}
-					else if (Mesh.FindEdge(A, D) != FDynamicMesh3::InvalidID && Mesh.FindEdge(B, C) != FDynamicMesh3::InvalidID)
+					else if (Mesh.FindEdge(A, D) != UE::Geometry::FDynamicMesh3::InvalidID && Mesh.FindEdge(B, C) != UE::Geometry::FDynamicMesh3::InvalidID)
 					{
 						Swap(TestStitch[0], TestStitch[1]);
 						Seam.Add(TestStitch);
@@ -1177,7 +1167,7 @@ namespace UE::Chaos::ClothAsset
 
 					if (bFoundNextStitch)
 					{
-						InputStitches.RemoveAt(TestStitchIndex);
+						Stitches.RemoveAt(TestStitchIndex);
 						CurrStitch = TestStitch;
 						break;
 					}
@@ -1196,6 +1186,25 @@ namespace UE::Chaos::ClothAsset
 			// Finished one connected set of seam edges
 			Seams.Add(Seam);
 		}
+	}
+
+
+	void FClothGeometryTools::BuildConnectedSeams2D(const TSharedRef<const FManagedArrayCollection>& ClothCollection,
+		int32 SeamIndex,
+		const UE::Geometry::FDynamicMesh3& Mesh,
+		TArray<TArray<FIntVector2>>& Seams)
+	{
+		using namespace UE::Geometry;
+
+		FNonManifoldMappingSupport NonManifold(Mesh);
+		checkf(!NonManifold.IsNonManifoldVertexInSource(), TEXT("Cloth source is non-manifold. Cannot use FDynamicMesh to build connected seams"));
+
+		const FCollectionClothConstFacade ClothFacade(ClothCollection);
+		const FCollectionClothSeamConstFacade SeamFacade = ClothFacade.GetSeam(SeamIndex);
+		
+		const TArray<FIntVector2> Stitches(SeamFacade.GetSeamStitch2DEndIndices());
+
+		BuildConnectedSeams(Stitches, Mesh, Seams);
 	}
 
 	void FClothGeometryTools::SampleVertices(const TConstArrayView<FVector3f> VertexPositions, float CullDiameterSq, TSet<int32>& OutVertexSet)

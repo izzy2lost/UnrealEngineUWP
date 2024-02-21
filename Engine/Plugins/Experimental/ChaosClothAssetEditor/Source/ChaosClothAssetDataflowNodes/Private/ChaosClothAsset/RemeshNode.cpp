@@ -19,6 +19,8 @@
 #include "Chaos/CollectionPropertyFacade.h"
 #include "Algo/Find.h"
 #include "IMeshReductionManagerModule.h"
+#include "Algo/RemoveIf.h"
+#include "Spatial/PointSetHashTable.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RemeshNode)
 
@@ -87,6 +89,20 @@ namespace UE::Chaos::ClothAsset::Private
 		// Check if the pair of mesh edges refer to the same edge
 		const int EdgeA = Mesh.FindEdge(SeamEdge.Stitches[0][0], SeamEdge.Stitches[1][0]);
 		const int EdgeB = Mesh.FindEdge(SeamEdge.Stitches[0][1], SeamEdge.Stitches[1][1]);
+
+		if (SeamEdge.Stitches[0][0] == SeamEdge.Stitches[0][1])
+		{
+			FSeamCollapseParameters Constraints;
+			Constraints.bCanCollapse = false;
+			return Constraints;
+		}
+
+		if (SeamEdge.Stitches[1][0] == SeamEdge.Stitches[1][1])
+		{
+			FSeamCollapseParameters Constraints;
+			Constraints.bCanCollapse = false;
+			return Constraints;
+		}
 
 		if (EdgeA == EdgeB)
 		{
@@ -283,6 +299,79 @@ namespace UE::Chaos::ClothAsset::Private
 
 
 		return bCanSplit;
+	}
+
+
+	void FindCoincidentBoundaryVertices(const UE::Geometry::FDynamicMesh3& Mesh, TArray<FIntVector2>& Pairs)
+	{
+		using namespace UE::Geometry;
+
+		constexpr double ProximityTolerance = FMathf::ZeroTolerance;
+
+		TSet<int32> BoundaryVertices;
+		for (int32 EdgeID : Mesh.BoundaryEdgeIndicesItr())
+		{
+			const UE::Geometry::FIndex2i Vertices = Mesh.GetEdgeV(EdgeID);
+			BoundaryVertices.Add(Vertices[0]);
+			BoundaryVertices.Add(Vertices[1]);
+		}
+
+		//
+		// Create a spatial hash to speed up matching vertex search (this setup code was mostly copied from FMergeCoincidentMeshEdges)
+		//
+		
+		// use denser grid as vertex count increases
+		const int HashN = (Mesh.TriangleCount() < 100000) ? 64 : 128;
+		const UE::Geometry::FAxisAlignedBox3d Bounds = Mesh.GetBounds(true);
+		const double CellSize = FMath::Max(FMathd::ZeroTolerance, Bounds.MaxDim() / (double)HashN);
+
+		UE::Geometry::FPointSetAdapterd BoundaryVertAdapter;
+		BoundaryVertAdapter.MaxPointID = [&Mesh]() { return Mesh.MaxVertexID(); };
+		BoundaryVertAdapter.PointCount = [&BoundaryVertices]() { return BoundaryVertices.Num(); };
+		BoundaryVertAdapter.IsPoint = [&Mesh](int Idx) { return Mesh.IsVertex(Idx) && Mesh.IsBoundaryVertex(Idx); };
+		BoundaryVertAdapter.GetPoint = [&Mesh](int Idx) { return Mesh.GetVertex(Idx); };
+		BoundaryVertAdapter.HasNormals = [] { return false; };
+		BoundaryVertAdapter.GetPointNormal = [](int Idx) { return FVector3f::UnitY(); };
+
+		FPointSetHashtable BoundaryVertsHash(&BoundaryVertAdapter);
+		BoundaryVertsHash.Build(CellSize, Bounds.Min);
+		const double UseMergeSearchTol = FMathd::Min(CellSize, 2 * ProximityTolerance);
+
+		// Now look for coincident vertices
+		
+		TSet<FIntVector2> PairSet;
+
+		for (const int32 VertexAIndex : BoundaryVertices)
+		{
+			const FVector3d VertexAPosition = Mesh.GetVertex(VertexAIndex);
+
+			TArray<int> NearbyVertices;
+			BoundaryVertsHash.FindPointsInBall(VertexAPosition, UseMergeSearchTol, NearbyVertices);
+
+			for (const int32 VertexBIndex : NearbyVertices)
+			{
+				if (VertexAIndex == VertexBIndex)
+				{
+					continue;
+				}
+
+				if (Mesh.FindEdge(VertexAIndex, VertexBIndex) != UE::Geometry::FDynamicMesh3::InvalidID)
+				{
+					continue;
+				}
+
+				const FVector3d VertexBPosition = Mesh.GetVertex(VertexBIndex);
+				const double DistSqr = FVector3d::DistSquared(VertexAPosition, VertexBPosition);
+
+				if (DistSqr < ProximityTolerance * ProximityTolerance)
+				{
+					const FIntVector2 SortedPair = VertexAIndex < VertexBIndex ? FIntVector2{ VertexAIndex, VertexBIndex } : FIntVector2{ VertexBIndex, VertexAIndex };
+					PairSet.Add(SortedPair);
+				}
+			}
+		}
+
+		Pairs = PairSet.Array();
 	}
 
 
@@ -769,7 +858,7 @@ namespace UE::Chaos::ClothAsset::Private
 
 
 
-	bool Simplify(UE::Geometry::FDynamicMesh3& Mesh, int TargetVertexCount, UE::Geometry::FCompactMaps* CompactMaps = nullptr)
+	bool Simplify(UE::Geometry::FDynamicMesh3& Mesh, int TargetVertexCount, bool bCoarsenBoundaries, UE::Geometry::FCompactMaps* CompactMaps = nullptr)
 	{
 		using namespace UE::Geometry;
 
@@ -810,7 +899,7 @@ namespace UE::Chaos::ClothAsset::Private
 		Op.TargetMode = ESimplifyTargetType::VertexCount;
 		Op.TargetCount = TargetVertexCount;
 
-		Op.MeshBoundaryConstraint = EEdgeRefineFlags::CollapseOnly;
+		Op.MeshBoundaryConstraint = bCoarsenBoundaries ? EEdgeRefineFlags::CollapseOnly : EEdgeRefineFlags::FullyConstrained;
 		Op.GroupBoundaryConstraint = EEdgeRefineFlags::CollapseOnly;
 		Op.MaterialBoundaryConstraint = EEdgeRefineFlags::CollapseOnly;
 
@@ -1188,23 +1277,46 @@ void FChaosClothAssetRemeshNode::RemeshRenderMesh(const TSharedRef<const FManage
 
 	const bool bHasUVs = (DynamicMesh.Attributes()->PrimaryUV() != nullptr);
 
+	const double MeshArea = TMeshQueries<FDynamicMesh3>::GetVolumeArea(DynamicMesh).Y;
+	const int TargetTriangleCount = FMath::RoundToInt(static_cast<float>(TargetPercentRender) / 100.0f * static_cast<float>(InputMeshTriangleCount));
+	const double TargetEdgeLength = FRemeshMeshOp::CalculateTargetEdgeLength(nullptr, TargetTriangleCount, MeshArea);
+
+	TArray<TArray<FIntVector2>> Seams;
+
+	if (bRemeshRenderSeams)
+	{
+		// Create pseudo-stitches based on boundary vertex proximity. These stitches aren't going to actually weld vertices together, but they will guide boundary remeshing.
+		// The goal is to maintain a vertex pairing along boundaries in order to avoid holes opening up when the mesh deforms due to skinning.
+		TArray<FIntVector2> Stitches;
+		Private::FindCoincidentBoundaryVertices(DynamicMesh, Stitches);
+
+		FClothGeometryTools::BuildConnectedSeams(Stitches, DynamicMesh, Seams);
+
+		for (int RemeshPass = 0; RemeshPass < RenderSeamRemeshIterations; ++RemeshPass)
+		{
+			Private::RemeshSeams(DynamicMesh, Seams, TargetEdgeLength);
+		}
+
+		// Also remesh the open boundaries that are not constrained by seams
+		for (int RemeshPass = 0; RemeshPass < RenderSeamRemeshIterations; ++RemeshPass)
+		{
+			Private::RemeshBoundaries(DynamicMesh, Seams, TargetEdgeLength);
+		}
+	}
+
+
 	UE::Geometry::FCompactMaps CompactMaps;
 	if (RemeshMethodRender == EChaosClothAssetRemeshMethod::Remesh)
 	{
-		const double MeshArea = TMeshQueries<FDynamicMesh3>::GetVolumeArea(DynamicMesh).Y;
-		const int TargetTriangleCount = FMath::RoundToInt(static_cast<float>(TargetPercentRender) / 100.0f * static_cast<float>(InputMeshTriangleCount));
-		const double TargetEdgeLength = FRemeshMeshOp::CalculateTargetEdgeLength(nullptr, TargetTriangleCount, MeshArea);
-
-		TArray<TArray<FIntVector2>> Seams;
-
 		constexpr bool bUniformSmoothing = false;	// uniform smoothing can distort the UV layer pretty badly
 		const bool bSuccess = Private::Remesh(DynamicMesh, TargetEdgeLength, IterationsRender, SmoothingRender, bUniformSmoothing, Seams, &CompactMaps);
 		check(bSuccess);
 	}
 	else
 	{
+		const bool bCoarsenBoundariesDuringSimplify = !bRemeshRenderSeams;
 		const int TargetVertexCount = FMath::RoundToInt(static_cast<float>(TargetPercentRender) / 100.0f * static_cast<float>(InputMeshVertexCount));
-		Private::Simplify(DynamicMesh, TargetVertexCount, &CompactMaps);
+		Private::Simplify(DynamicMesh, TargetVertexCount, bCoarsenBoundariesDuringSimplify, &CompactMaps);
 	}
 
 	// Collect outputs
