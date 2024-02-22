@@ -2231,21 +2231,6 @@ void FReplicationReader::ResolveAndDispatchAttachments(FNetSerializationContext&
 					return;
 				}
 			}
-
-			// Dispatch remaining ordered unreliable attachments. The side effects of for example blocking move RPCs are significant.
-			{
-				TArray<TRefCountPtr<FNetBlob>> OrderedUnreliableAttachments;
-				OrderedUnreliableAttachments.Reserve(16);
-				AttachmentQueue->GetOrderedUnreliable(OrderedUnreliableAttachments);
-				for (TRefCountPtr<FNetBlob>& Attachment : OrderedUnreliableAttachments)
-				{
-					NetBlobHandlerManager->OnNetBlobReceived(Context, Attachment);
-					if (Context.HasError())
-					{
-						return;
-					}
-				}
-			}
 		}
 
 		if (bDispatchUnreliableAttachments)

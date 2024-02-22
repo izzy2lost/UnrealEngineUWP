@@ -172,29 +172,33 @@ public:
 	const TRefCountPtr<FNetBlob>* PeekUnreliable() const;
 	void PopUnreliable();
 
-	void GetOrderedUnreliable(TArray<TRefCountPtr<FNetBlob>>& OrderedUnreliable);
-
 	void SetUnreliableQueueCapacity(uint32 QueueCapacity);
 
 private:
 	friend FNetObjectAttachmentsReader;
 	class FDeferredProcessingQueue;
 
-	bool IsDeferredProcessingQueueEmpty() const;
-	bool IsDeferredProcessingQueueSafeToDestroy() const;
-	bool HasDeferredProcessingQueueUnprocessed() const;
+	enum EDeferredProcessingQueue : unsigned
+	{
+		Unreliable,
+		Reliable,
+	};
+
+	bool IsDeferredProcessingQueueEmpty(EDeferredProcessingQueue Queue) const;
+	bool IsDeferredProcessingQueueSafeToDestroy(EDeferredProcessingQueue Queue) const;
+	bool HasDeferredProcessingQueueUnprocessed(EDeferredProcessingQueue Queue) const;
+
 	bool IsPartialNetBlob(const TRefCountPtr<FNetBlob>& Blob) const;
 
 	void Deserialize(FNetSerializationContext& Context, FNetRefHandle RefHandle);
 	uint32 DeserializeReliable(FNetSerializationContext& Context, FNetRefHandle RefHandle);
 	uint32 DeserializeUnreliable(FNetSerializationContext& Context, FNetRefHandle RefHandle);
 
-	TResizableCircularQueue<TRefCountPtr<FNetBlob>> UnreliableQueue;
-	FReliableNetBlobQueue* ReliableQueue;
-	FDeferredProcessingQueue* DeferredProcessingQueue;
-	uint32 MaxUnreliableCount;
-	FNetBlobType PartialNetBlobType;
+	FReliableNetBlobQueue* ReliableQueue = nullptr;
+	FDeferredProcessingQueue* DeferredProcessingQueues[2] = {};
 	const UPartialNetObjectAttachmentHandler* PartialNetObjectAttachmentHandler = nullptr;
+	uint32 MaxUnreliableCount = 0;
+	FNetBlobType PartialNetBlobType = InvalidNetBlobType;
 };
 
 struct FNetObjectAttachmentsReaderInitParams

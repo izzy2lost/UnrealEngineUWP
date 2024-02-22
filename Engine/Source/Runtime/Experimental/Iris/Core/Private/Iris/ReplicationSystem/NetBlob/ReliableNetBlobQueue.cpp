@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Iris/ReplicationSystem/NetBlob/ReliableNetBlobQueue.h"
+#include "Iris/IrisConfigInternal.h"
 #include "Iris/ReplicationSystem/NetBlob/NetBlobHandlerManager.h"
 #include "Iris/ReplicationSystem/ObjectReferenceCache.h"
 #include "Iris/Core/IrisLog.h"
@@ -10,12 +11,15 @@
 #include "Iris/Serialization/NetSerializationContext.h"
 #include "Iris/Serialization/InternalNetSerializationContext.h"
 #include "Iris/Serialization/NetExportContext.h"
+#include "Net/Core/Trace/NetTrace.h"
 
 namespace UE::Net::Private
 {
 
 static const FName NetError_ReliableQueueFull("Reliable attachment queue full");
 static const FName NetError_InvalidSequence("Invalid sequence number");
+
+static FNetDebugName const* ReliabilityNetDebugNames[2];
 
 // ReliableNetBlobQueue
 FReliableNetBlobQueue::FReliableNetBlobQueue()
@@ -25,6 +29,10 @@ FReliableNetBlobQueue::FReliableNetBlobQueue()
 , LastSeq(0)
 , UnsentBlobCount(0)
 {
+#if UE_NET_TRACE_ENABLED
+	Private::ReliabilityNetDebugNames[0] = CreatePersistentNetDebugName(TEXT("Unreliable"));
+	Private::ReliabilityNetDebugNames[1] = CreatePersistentNetDebugName(TEXT("Reliable"));
+#endif
 }
 
 FReliableNetBlobQueue::~FReliableNetBlobQueue()
@@ -108,6 +116,13 @@ uint32 FReliableNetBlobQueue::SerializeInternal(FNetSerializationContext& Contex
 		// GetRefCount() is not const.
 		TRefCountPtr<FNetBlob>& Attachment = NetBlobs[Index];
 
+#if UE_NET_USE_READER_WRITER_SENTINEL
+		{
+			UE_NET_TRACE_SCOPE(Sentintel, *Writer, Context.GetTraceCollector(), ENetTraceVerbosity::Verbose);
+			Writer->WriteBits(0x5e4714e1, 32);
+		}
+#endif
+
 		// If this sequence is disjoint from the previous sequence we need to serialize the full index.
 		// It's important that the sequence number is sent first so we can validate it before receiving exports and payload.
 		if (Writer->WriteBool(Seq != PrevWrittenSeq + 1U))
@@ -119,6 +134,8 @@ uint32 FReliableNetBlobQueue::SerializeInternal(FNetSerializationContext& Contex
 		const bool bHasData = Attachment.GetRefCount() > 0;
 		if (Writer->WriteBool(bHasData))
 		{
+			UE_NET_TRACE_NAMED_DYNAMIC_NAME_SCOPE(ReliabilityScope, Private::ReliabilityNetDebugNames[Attachment->IsReliable()], *Writer, Context.GetTraceCollector(), ENetTraceVerbosity::Verbose);
+
 			// If we have exports, append them, if attachment is rolled back we will roll back any appended exports as well.
 			ObjectReferenceCache->AddPendingExports(Context, Attachment->CallGetExports());
 
@@ -194,7 +211,7 @@ void FReliableNetBlobQueue::CommitReplicationRecord(const FReliableNetBlobQueue:
 			TRefCountPtr<FNetBlob>& RefCountBlob = NetBlobs[BlobIndex];
 			if (const FNetBlob* Blob = RefCountBlob.GetReference())
 			{
-				if (!EnumHasAnyFlags(Blob->GetCreationInfo().Flags, ENetBlobFlags::Reliable))
+				if (!Blob->IsReliable())
 				{
 					RefCountBlob.SafeRelease();
 				}
@@ -227,6 +244,20 @@ uint32 FReliableNetBlobQueue::DeserializeInternal(FNetSerializationContext& Cont
 	bool bHasMoreBlobs = false;
 	do
 	{
+
+#if UE_NET_USE_READER_WRITER_SENTINEL
+		{
+			UE_NET_TRACE_SCOPE(Sentintel, *Reader, Context.GetTraceCollector(), ENetTraceVerbosity::Verbose);
+			const uint32 Sentinel = Reader->ReadBits(32);
+			if (Sentinel != 0x5e4714e1U)
+			{
+				UE_LOG(LogIris, Error, TEXT("Wrong sentinel %u != %u"), Sentinel, 0x5e4714e1U);
+				Context.SetError(GNetError_BitStreamError);
+				return 0;
+			}
+		}
+#endif
+
 		if (const bool bIsNewSequence = Reader->ReadBool())
 		{
 			Index = Reader->ReadBits(IndexBitCount);
@@ -253,6 +284,8 @@ uint32 FReliableNetBlobQueue::DeserializeInternal(FNetSerializationContext& Cont
 		TRefCountPtr<FNetBlob> Blob;
 		if (const bool bHasData = Reader->ReadBool())
 		{
+			UE_NET_TRACE_NAMED_DYNAMIC_NAME_SCOPE(ReliabilityScope, Private::ReliabilityNetDebugNames[0], *Reader, Context.GetTraceCollector(), ENetTraceVerbosity::Verbose);
+
 			FNetBlobCreationInfo CreationInfo;
 			FNetBlob::DeserializeCreationInfo(Context, CreationInfo);
 			Blob = BlobReceiver->CreateNetBlob(CreationInfo);
@@ -272,6 +305,8 @@ uint32 FReliableNetBlobQueue::DeserializeInternal(FNetSerializationContext& Cont
 			{
 				Blob->Deserialize(Context);
 			}
+
+			UE_NET_TRACE_SET_SCOPE_NAME(ReliabilityScope, Private::ReliabilityNetDebugNames[Blob->IsReliable()]);
 		}
 		
 		bHasMoreBlobs = Reader->ReadBool();
@@ -356,7 +391,7 @@ void FReliableNetBlobQueue::DequeueUnreliable(TArray<TRefCountPtr<FNetBlob>>& Un
 		TRefCountPtr<FNetBlob>& RefCntBlob = NetBlobs[Index];
 		if (RefCntBlob.GetRefCount() > 0)
 		{
-			if (const bool bIsUnReliable = !EnumHasAnyFlags(RefCntBlob.GetReference()->GetCreationInfo().Flags, ENetBlobFlags::Reliable))
+			if (const bool bIsUnReliable = !RefCntBlob->IsReliable())
 			{
 				Unreliable.Emplace(MoveTemp(RefCntBlob));
 
