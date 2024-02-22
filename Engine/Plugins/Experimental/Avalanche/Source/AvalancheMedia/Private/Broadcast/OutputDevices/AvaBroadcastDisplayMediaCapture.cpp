@@ -151,7 +151,7 @@ bool UAvaBroadcastDisplayMediaCapture::InitializeCapture()
 bool UAvaBroadcastDisplayMediaCapture::PostInitializeCaptureViewport(TSharedPtr<FSceneViewport>& InSceneViewport)
 {
 	bool bSuccess = false;
-	const FTexture2DRHIRef& BackBuffer = InSceneViewport->GetRenderTargetTexture();
+	const FTextureRHIRef& BackBuffer = InSceneViewport->GetRenderTargetTexture();
 	if (BackBuffer.IsValid())
 	{
 		const FRHITextureDesc& Desc = BackBuffer->GetDesc();

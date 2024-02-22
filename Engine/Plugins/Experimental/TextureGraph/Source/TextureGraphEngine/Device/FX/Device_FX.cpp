@@ -270,7 +270,7 @@ AsyncDeviceBufferRef Device_FX::FillTextureArray_Deferred(DeviceBufferRef Buffer
 			check(DstTex);
 
 			UTextureRenderTarget2D* RTDest = (UTextureRenderTarget2D*)DstTex->GetTexture();
-			FTexture2DRHIRef RTResDest = ((FTextureRenderTarget2DResource*)RTDest->GetResource())->GetTextureRHI();
+			FTextureRHIRef RTResDest = ((FTextureRenderTarget2DResource*)RTDest->GetResource())->GetTextureRHI();
 
 			FRHICommandListImmediate& DevRHI = RHI();
 
@@ -288,7 +288,7 @@ AsyncDeviceBufferRef Device_FX::FillTextureArray_Deferred(DeviceBufferRef Buffer
 					int32 TileHeight = TileTex->GetHeight();
 
 					UTextureRenderTarget2D* TileRT = TileTex->GetRenderTarget();
-					FRHITexture2D* TileResource = TileTex->GetRHITexture();
+					FRHITexture* TileResource = TileTex->GetRHITexture();
 
 					FRHICopyTextureInfo CopyInfo;
 					CopyInfo.Size = TileResource->GetSizeXYZ();
@@ -318,7 +318,7 @@ AsyncDeviceBufferRef Device_FX::DrawTilesToBuffer_Deferred(DeviceBufferRef Buffe
 			check(DstTex);
 
 			UTextureRenderTarget2D* RTDest = DstTex->GetRenderTarget();
-			FTexture2DRHIRef RTResDest = ((FTextureRenderTarget2DResource*)RTDest->GetResource())->GetTextureRHI();
+			FTextureRHIRef RTResDest = ((FTextureRenderTarget2DResource*)RTDest->GetResource())->GetTextureRHI();
 
 			FRHICommandListImmediate& DevRHI = RHI();
 
@@ -357,7 +357,7 @@ AsyncDeviceBufferRef Device_FX::DrawTilesToBuffer_Deferred(DeviceBufferRef Buffe
 						check(TileTex);
 
 						UTextureRenderTarget2D* TileRT = TileTex->GetRenderTarget();
-						FRHITexture2D* TileResource = TileTex->GetRHITexture();
+						FRHITexture* TileResource = TileTex->GetRHITexture();
 
 						const float SrcTextureWidth = TileTex->GetWidth();
 						const float SrcTextureHeight = TileTex->GetHeight();
@@ -405,7 +405,7 @@ AsyncDeviceBufferRef Device_FX::SplitToTiles_Internal(const CombineSplitArgs& Sp
 
 			/// This texture must have been created beforehand AND it must be a render target
 			TexPtr SrcTex = FXBuffer->GetTexture();
-			FTexture2DRHIRef sourceResource = ((UTextureRenderTarget2D*)SrcTex->GetTexture())->GetRenderTargetResource()->GetRenderTargetTexture();
+			FTextureRHIRef sourceResource = ((UTextureRenderTarget2D*)SrcTex->GetTexture())->GetRenderTargetResource()->GetRenderTargetTexture();
 
 			for (int32 TileX = 0; TileX < Tiles.Rows(); TileX++)
 			{
@@ -417,7 +417,7 @@ AsyncDeviceBufferRef Device_FX::SplitToTiles_Internal(const CombineSplitArgs& Sp
 					check(TileTex);
 					check(TileTex->GetRenderTarget());
 
-					FTexture2DRHIRef texture2Dres = ((FTextureRenderTarget2DResource*)TileTex->GetRenderTarget()->GetResource())->GetTextureRHI();
+					FTextureRHIRef texture2Dres = ((FTextureRenderTarget2DResource*)TileTex->GetRenderTarget()->GetResource())->GetTextureRHI();
 
 					FRHICopyTextureInfo CopyInfo;
 					CopyInfo.SourcePosition = FIntVector(TileX * TileTex->GetWidth(), TileY * TileTex->GetHeight(), 0);
@@ -679,7 +679,7 @@ int32 Device_FX::InitRTResource(TexPtr TextureObj, UTextureRenderTarget* RT)
 	UE_LOG(LogDevice, VeryVerbose, TEXT("New RT Array allocation: %s %llu [Ptr: 0x%x, Size: %dx%d]"), *TextureObj->GetDescriptor().Name,
 		TextureObj->GetDescriptor().Format_HashValue(), RT, RTRes->GetSizeX(), RTRes->GetSizeY());
 
-	FTexture2DRHIRef rhiTexture = RTRes->GetTextureRHI();
+	FTextureRHIRef rhiTexture = RTRes->GetTextureRHI();
 	check(rhiTexture);
 
 	RHIBindDebugLabelName(rhiTexture, *TextureObj->GetDescriptor().Name);

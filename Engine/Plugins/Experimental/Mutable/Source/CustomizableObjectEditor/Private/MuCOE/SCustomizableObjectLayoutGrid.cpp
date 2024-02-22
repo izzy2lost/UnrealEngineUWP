@@ -34,7 +34,7 @@ public:
 	}
 
 	/** Sets the texture that this target renders to */
-	void SetRenderTargetTexture(FTexture2DRHIRef& InRHIRef)
+	void SetRenderTargetTexture(FTextureRHIRef& InRHIRef)
 	{
 		RenderTargetTextureRHI = InRHIRef;
 	}
@@ -1223,7 +1223,7 @@ void FUVCanvasDrawer::Draw_RenderThread(class FRHICommandListImmediate& RHICmdLi
 {
 	if (Initialized)
 	{
-		RenderTarget->SetRenderTargetTexture(*(FTexture2DRHIRef*)InWindowBackBuffer);
+		RenderTarget->SetRenderTargetTexture(*(FTextureRHIRef*)InWindowBackBuffer);
 
 		FCanvas Canvas(RenderTarget, nullptr, FGameTime(), GMaxRHIFeatureLevel);
 		

@@ -131,7 +131,7 @@ void FTextureShareWorldSubsystemObjectProxy::Update_RenderThread(FRHICommandList
 				}
 			};
 
-			TFunctionTextureShareOnBackBufferReadyToPresent OnBackBufferReadyToPresentFunction = [ProxyData, bBackbufferShared](FRHICommandListImmediate& RHICmdList, FTextureShareSceneViewExtension& InViewExtension, const FTexture2DRHIRef& InBackbuffer)
+			TFunctionTextureShareOnBackBufferReadyToPresent OnBackBufferReadyToPresentFunction = [ProxyData, bBackbufferShared](FRHICommandListImmediate& RHICmdList, FTextureShareSceneViewExtension& InViewExtension, const FTextureRHIRef& InBackbuffer)
 			{
 				// Share backbuffer
 				if (bBackbufferShared)
@@ -215,7 +215,7 @@ bool FTextureShareWorldSubsystemObjectProxy::UpdateResources_RenderThread(FRHICo
 	return bResult;
 }
 
-bool FTextureShareWorldSubsystemObjectProxy::UpdateFrameProxyBackbuffer_RenderThread(FRHICommandListImmediate& RHICmdList, const FTexture2DRHIRef& InBackbuffer)
+bool FTextureShareWorldSubsystemObjectProxy::UpdateFrameProxyBackbuffer_RenderThread(FRHICommandListImmediate& RHICmdList, const FTextureRHIRef& InBackbuffer)
 {
 	if (ObjectProxy.IsValid()
 		&& InBackbuffer.IsValid()

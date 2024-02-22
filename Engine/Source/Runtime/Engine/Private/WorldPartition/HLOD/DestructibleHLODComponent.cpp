@@ -295,7 +295,7 @@ void UWorldPartitionDestructibleHLODMeshComponent::UpdateVisibilityTexture_Rende
 {
 	check(IsInRenderingThread());
 
-	FRHITexture2D* TextureRHI = TextureResource->GetTexture2DRHI();
+	FRHITexture* TextureRHI = TextureResource->GetTexture2DRHI();
 
 	uint32 DestStride = 0;
 	uint8* DestData = reinterpret_cast<uint8*>(RHILockTexture2D(TextureRHI, 0, RLM_WriteOnly, DestStride, false, false));

@@ -24,7 +24,7 @@ struct Rect;
 class FSceneInterface;
 struct FSlateBrush;
 
-typedef TRefCountPtr<FRHITexture> FTexture2DRHIRef;
+typedef TRefCountPtr<FRHITexture> FTextureRHIRef;
 
 /**
  * Update context for deferred drawing of widgets to render targets
@@ -297,7 +297,7 @@ public:
 	FOnPostResizeWindowBackbuffer& OnPostResizeWindowBackBuffer() { return PostResizeBackBufferDelegate; }
 
 	/** Callback on the render thread after slate rendering finishes and right before present is called */
-	DECLARE_TS_MULTICAST_DELEGATE_TwoParams(FOnBackBufferReadyToPresent, SWindow&, const FTexture2DRHIRef&);
+	DECLARE_TS_MULTICAST_DELEGATE_TwoParams(FOnBackBufferReadyToPresent, SWindow&, const FTextureRHIRef&);
 	FOnBackBufferReadyToPresent& OnBackBufferReadyToPresent() { return OnBackBufferReadyToPresentDelegate; }
 
 	/** 

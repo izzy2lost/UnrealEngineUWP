@@ -50,7 +50,7 @@ public:
 
 private:
 	/** The sample's texture resource. */
-	TRefCountPtr<FRHITexture2D> Texture;
+	TRefCountPtr<FRHITexture> Texture;
 
 	/** Output data from video decoder. */
 	FVideoDecoderOutputApple* VideoDecoderOutputApple;
@@ -58,7 +58,7 @@ private:
 	TWeakPtr<FElectraMediaTexConvApple, ESPMode::ThreadSafe> TexConv;
 
 	virtual uint32 GetConverterInfoFlags() const override;
-    virtual bool Convert(FTexture2DRHIRef & InDstTexture, const FConversionHints & Hints) override;
+    virtual bool Convert(FTextureRHIRef & InDstTexture, const FConversionHints & Hints) override;
 };
 
 
@@ -73,7 +73,7 @@ public:
     ~FElectraMediaTexConvApple();
 
 #if WITH_ENGINE
-    void ConvertTexture(FTexture2DRHIRef & InDstTexture, CVImageBufferRef InImageBufferRef, bool bFullRange, EMediaTextureSampleFormat Format, const FMatrix44f& YUVMtx, const FMatrix44d& GamutToXYZMtx, UE::Color::EEncoding EncodingType, float NormalizationFactor);
+    void ConvertTexture(FTextureRHIRef & InDstTexture, CVImageBufferRef InImageBufferRef, bool bFullRange, EMediaTextureSampleFormat Format, const FMatrix44f& YUVMtx, const FMatrix44d& GamutToXYZMtx, UE::Color::EEncoding EncodingType, float NormalizationFactor);
 #endif
 
 private:

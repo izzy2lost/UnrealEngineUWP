@@ -1203,7 +1203,7 @@ bool FMetalContext::PrepareToDraw(uint32 PrimitiveType)
 		
 		FRHIRenderPassInfo Info = StateCache.GetRenderPassInfo();
 		
-		FTexture2DRHIRef FallbackDepthStencilSurface = StateCache.CreateFallbackDepthStencilSurface(FBSize.width, FBSize.height);
+		FTextureRHIRef FallbackDepthStencilSurface = StateCache.CreateFallbackDepthStencilSurface(FBSize.width, FBSize.height);
 		check(IsValidRef(FallbackDepthStencilSurface));
 		
 		if (bBindDepthStencilForWrite)
@@ -1273,7 +1273,7 @@ void FMetalContext::SetRenderPassInfo(const FRHIRenderPassInfo& RenderTargetsInf
 		{
 			FRHIRenderPassInfo Info = RenderTargetsInfo;
 			CGSize FBSize = CGSizeMake(StateCache.GetViewport(0).width, StateCache.GetViewport(0).height);
-			FTexture2DRHIRef FallbackDepthStencilSurface = StateCache.CreateFallbackDepthStencilSurface(FBSize.width, FBSize.height);
+			FTextureRHIRef FallbackDepthStencilSurface = StateCache.CreateFallbackDepthStencilSurface(FBSize.width, FBSize.height);
 			check(IsValidRef(FallbackDepthStencilSurface));
 
 			Info.DepthStencilRenderTarget.DepthStencilTarget = FallbackDepthStencilSurface;

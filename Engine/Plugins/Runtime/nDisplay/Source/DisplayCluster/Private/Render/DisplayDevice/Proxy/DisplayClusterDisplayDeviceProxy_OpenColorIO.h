@@ -21,7 +21,7 @@ public:
 public:
 	virtual bool HasFinalPass_RenderThread() const override;
 	virtual bool AddFinalPass_RenderThread(FRDGBuilder& GraphBuilder, const FDisplayClusterViewport_Context& InViewportContext,
-		FRHITexture2D* InputTextureRHI, const FIntRect& InputRect, FRHITexture2D* OutputTextureRHI, const FIntRect& OutputRect) const override;
+		FRHITexture* InputTextureRHI, const FIntRect& InputRect, FRHITexture* OutputTextureRHI, const FIntRect& OutputRect) const override;
 
 public:
 	const FString OCIOPassId;

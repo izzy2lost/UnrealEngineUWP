@@ -220,7 +220,7 @@ void FTileAtlasPage::UpdateSlotImageData(int32 SlotIdx, FSlateTextureDataPtr Ima
 		ENQUEUE_RENDER_COMMAND(UpdateSlotImageData)(
 			[Context](FRHICommandList& RHICmdList)
 			{
-				FRHITexture2D* RHITexture2D = (FRHITexture2D*)Context.TextureRHI.GetReference();
+				FRHITexture* RHITexture2D = (FRHITexture*)Context.TextureRHI.GetReference();
 				RHIUpdateTexture2D(RHITexture2D, 0, Context.Region, Context.SourcePitch, Context.ImageData->GetRawBytesPtr());
 			});
 	}

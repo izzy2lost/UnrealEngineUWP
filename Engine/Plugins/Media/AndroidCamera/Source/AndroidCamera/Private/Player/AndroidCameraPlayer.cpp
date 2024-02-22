@@ -406,7 +406,7 @@ static void DoUpdateTextureCameraSampleExecute(TWeakPtr<FJavaAndroidCameraPlayer
 	}
 
 	// write frame into texture
-	FRHITexture2D* Texture = VideoSample->InitializeTexture(SampleTime);
+	FRHITexture* Texture = VideoSample->InitializeTexture(SampleTime);
 
 	if (Texture != nullptr)
 	{

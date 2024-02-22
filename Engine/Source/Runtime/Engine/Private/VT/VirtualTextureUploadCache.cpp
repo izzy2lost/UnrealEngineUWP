@@ -420,7 +420,7 @@ FVTUploadTileHandle FVirtualTextureUploadCache::PrepareTileForUpload(FRHICommand
 	return FVTUploadTileHandle(Index);
 }
 
-void FVirtualTextureUploadCache::SubmitTile(FRHICommandList& RHICmdList, const FVTUploadTileHandle& InHandle, FRHITexture2D* InDestTexture, int InDestX, int InDestY, int InSkipBorderSize)
+void FVirtualTextureUploadCache::SubmitTile(FRHICommandList& RHICmdList, const FVTUploadTileHandle& InHandle, FRHITexture* InDestTexture, int InDestX, int InDestY, int InSkipBorderSize)
 {
 	checkSlow(IsInParallelRenderingThread());
 

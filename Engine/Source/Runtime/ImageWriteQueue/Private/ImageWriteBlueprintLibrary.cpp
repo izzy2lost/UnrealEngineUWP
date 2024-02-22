@@ -63,7 +63,7 @@ bool UImageWriteBlueprintLibrary::ResolvePixelData(UTexture* InTexture, const FO
 	ENQUEUE_RENDER_COMMAND(ResolvePixelData)(
 		[TextureResource, OnPixelsReady](FRHICommandListImmediate& RHICmdList)
 		{
-			FTexture2DRHIRef Texture2D = TextureResource->TextureRHI ? TextureResource->TextureRHI->GetTexture2D() : nullptr;
+			FTextureRHIRef Texture2D = TextureResource->TextureRHI ? TextureResource->TextureRHI->GetTexture2D() : nullptr;
 			if (!Texture2D)
 			{
 				OnPixelsReady(nullptr);
@@ -168,7 +168,7 @@ void UImageWriteBlueprintLibrary::ExportToDisk(UTexture* InTexture, const FStrin
 		return;
 	}
 
-	FTexture2DRHIRef Texture2D = InTexture->GetResource()->TextureRHI->GetTexture2D();
+	FTextureRHIRef Texture2D = InTexture->GetResource()->TextureRHI->GetTexture2D();
 	if (!Texture2D)
 	{
 		FFrame::KismetExecutionMessage(TEXT("Invalid texture supplied."), ELogVerbosity::Error);

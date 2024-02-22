@@ -60,7 +60,7 @@ public:
 	*
 	* @return - true if success
 	*/
-	virtual bool GetFrameTargets_RenderThread(TArray<FRHITexture2D*>& OutFrameResources, TArray<FIntPoint>& OutTargetOffsets, TArray<FRHITexture2D*>* OutAdditionalFrameResources=nullptr) const = 0;
+	virtual bool GetFrameTargets_RenderThread(TArray<FRHITexture*>& OutFrameResources, TArray<FIntPoint>& OutTargetOffsets, TArray<FRHITexture*>* OutAdditionalFrameResources=nullptr) const = 0;
 
 	/**
 	* Resolve to backbuffer
@@ -72,7 +72,7 @@ public:
 	*
 	* @return - true if success
 	*/
-	virtual bool ResolveFrameTargetToBackBuffer_RenderThread(FRHICommandListImmediate& RHICmdList, const uint32 InContextNum, const int32 DestArrayIndex, FRHITexture2D* DstBackBuffer, FVector2D WindowSize) const = 0;
+	virtual bool ResolveFrameTargetToBackBuffer_RenderThread(FRHICommandListImmediate& RHICmdList, const uint32 InContextNum, const int32 DestArrayIndex, FRHITexture* DstBackBuffer, FVector2D WindowSize) const = 0;
 
 	///////////////// UE_DEPRECATED 5.4 ///////////////////
 

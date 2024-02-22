@@ -764,8 +764,8 @@ protected:
 		virtual void AddReferencedObjects( FReferenceCollector& Collector ) override;
 		virtual FString GetReferencerName() const override;
 
-		const FTexture2DRHIRef& GetHitProxyTexture(void) const		{ return RenderTargetTextureRHI; }
-		const FTexture2DRHIRef& GetHitProxyCPUTexture(void) const		{ return HitProxyCPUTexture; }
+		const FTextureRHIRef& GetHitProxyTexture(void) const		{ return RenderTargetTextureRHI; }
+		const FTextureRHIRef& GetHitProxyCPUTexture(void) const		{ return HitProxyCPUTexture; }
 
 	private:
 
@@ -778,7 +778,7 @@ protected:
 		/** References to the hit proxies cached by the hit proxy map. */
 		TArray<TRefCountPtr<HHitProxy> > HitProxies;
 
-		FTexture2DRHIRef HitProxyCPUTexture;
+		FTextureRHIRef HitProxyCPUTexture;
 	};
 
 	/** The viewport's hit proxy map. */

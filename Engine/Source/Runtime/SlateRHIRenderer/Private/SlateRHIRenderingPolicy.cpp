@@ -276,7 +276,7 @@ static bool UpdateScissorRect(
 	FSlateBackBuffer& BackBuffer,
 	const FSlateRenderBatch& RenderBatch, 
 	FRHIRenderPassInfo& RPInfo,
-	FTexture2DRHIRef& DepthStencilTarget,
+	FTextureRHIRef& DepthStencilTarget,
 	const FSlateClippingState*& LastClippingState,
 	const FVector2f ViewTranslation2D, 
 	FGraphicsPipelineStateInitializer& InGraphicsPSOInit,
@@ -566,8 +566,8 @@ static bool UpdateScissorRect(
 	uint32& MaskingID,
 	FSlateBackBuffer& BackBuffer,
 	const FSlateRenderBatch& RenderBatch,
-	FTexture2DRHIRef& ColorTarget,
-	FTexture2DRHIRef& DepthStencilTarget,
+	FTextureRHIRef& ColorTarget,
+	FTextureRHIRef& DepthStencilTarget,
 	const FSlateClippingState*& LastClippingState,
 	const FVector2f ViewTranslation2D,
 	FGraphicsPipelineStateInitializer& InGraphicsPSOInit,
@@ -690,9 +690,9 @@ static FRHISamplerState* GetSamplerState(ESlateBatchDrawFlag DrawFlags, ETexture
 void FSlateRHIRenderingPolicy::DrawElements(
 	FRHICommandListImmediate& RHICmdList,
 	FSlateBackBuffer& BackBuffer,
-	FTexture2DRHIRef& ColorTarget,
-	FTexture2DRHIRef& PostProcessTexture,
-	FTexture2DRHIRef& DepthStencilTarget,
+	FTextureRHIRef& ColorTarget,
+	FTextureRHIRef& PostProcessTexture,
+	FTextureRHIRef& DepthStencilTarget,
 	int32 FirstBatchIndex,
 	const TArray<FSlateRenderBatch>& RenderBatches,
 	const FSlateRenderingParams& Params)
@@ -1037,7 +1037,7 @@ void FSlateRHIRenderingPolicy::DrawElements(
 					}
 					else
 					{
-						FRHITexture* NativeTextureRHI = ((TSlateTexture<FTexture2DRHIRef>*)ShaderResource)->GetTypedResource();
+						FRHITexture* NativeTextureRHI = ((TSlateTexture<FTextureRHIRef>*)ShaderResource)->GetTypedResource();
 						// Atlas textures that have no content are never initialized but null textures are invalid on many platforms.
 						TextureRHI = NativeTextureRHI ? NativeTextureRHI : (FRHITexture*)GWhiteTexture->TextureRHI;
 					}
@@ -1199,8 +1199,8 @@ void FSlateRHIRenderingPolicy::DrawElements(
 
 								if (MaskResource)
 								{
-									FTexture2DRHIRef TextureRHI;
-									TextureRHI = ((TSlateTexture<FTexture2DRHIRef>*)MaskResource)->GetTypedResource();
+									FTextureRHIRef TextureRHI;
+									TextureRHI = ((TSlateTexture<FTextureRHIRef>*)MaskResource)->GetTypedResource();
 
 									PixelShader->SetAdditionalTexture(BatchedParameters, TextureRHI, BilinearClamp);
 								}

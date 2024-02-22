@@ -13,7 +13,7 @@ struct FTextureShareSceneView;
  * Convenience type definition of a function that gives an opinion of whether the scene view extension should be active in the given context for the current frame.
  */
 using TFunctionTextureShareViewExtension = TFunction<void(FRHICommandListImmediate& RHICmdList, class FTextureShareSceneViewExtension& InViewExtension)>;
-using TFunctionTextureShareOnBackBufferReadyToPresent = TFunction<void(FRHICommandListImmediate& RHICmdList, class FTextureShareSceneViewExtension& InViewExtension, const FTexture2DRHIRef& InBackbuffer)>;
+using TFunctionTextureShareOnBackBufferReadyToPresent = TFunction<void(FRHICommandListImmediate& RHICmdList, class FTextureShareSceneViewExtension& InViewExtension, const FTextureRHIRef& InBackbuffer)>;
 
 /**
  * A view extension to handle a multi-threaded renderer for a TextureShare object.
@@ -40,7 +40,7 @@ public:
 	virtual void PostRenderViewFamily_RenderThread(FRDGBuilder& GraphBuilder, FSceneViewFamily& InViewFamily) override;
 
 	virtual void OnResolvedSceneColor_RenderThread(FRDGBuilder& GraphBuilder, const FSceneTextures& SceneTextures);
-	virtual void OnBackBufferReadyToPresent_RenderThread(SWindow&, const FTexture2DRHIRef&);
+	virtual void OnBackBufferReadyToPresent_RenderThread(SWindow&, const FTextureRHIRef&);
 
 	virtual bool IsActiveThisFrame_Internal(const FSceneViewExtensionContext& Context) const override;
 	//~End ISceneViewExtension interface

@@ -167,7 +167,7 @@ namespace UE::MediaCapture::Private
 		}
 		
 		/** Only returns a valid texture for scene viewports and render targets as the RHI Sources don't keep a pointer to the RHI texture. */
-		virtual FTexture2DRHIRef GetSourceTextureForInput_RenderThread(FRHICommandListImmediate& RHICmdList)
+		virtual FTextureRHIRef GetSourceTextureForInput_RenderThread(FRHICommandListImmediate& RHICmdList)
 		{
 			return nullptr;
 		}
@@ -278,9 +278,9 @@ namespace UE::MediaCapture::Private
 			return false;
 		}
 
-		virtual FTexture2DRHIRef GetSourceTextureForInput_RenderThread(FRHICommandListImmediate& RHICmdList) override
+		virtual FTextureRHIRef GetSourceTextureForInput_RenderThread(FRHICommandListImmediate& RHICmdList) override
 		{
-			FTexture2DRHIRef SourceTexture;
+			FTextureRHIRef SourceTexture;
 			if (TSharedPtr<FSceneViewport> Viewport = WeakViewport.Pin())
 			{
 #if WITH_EDITOR
@@ -402,7 +402,7 @@ namespace UE::MediaCapture::Private
 			return false;
 		}
 
-		virtual FTexture2DRHIRef GetSourceTextureForInput_RenderThread(FRHICommandListImmediate& RHICmdList)
+		virtual FTextureRHIRef GetSourceTextureForInput_RenderThread(FRHICommandListImmediate& RHICmdList)
 		{
 			constexpr bool bEvenIfPendingKill = false;
 			constexpr bool bThreadSafeTest = true;

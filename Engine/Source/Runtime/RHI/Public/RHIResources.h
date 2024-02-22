@@ -1828,13 +1828,13 @@ public:
 	/// 
 
 	//UE_DEPRECATED(5.1, "FRHITexture2D is deprecated, please use FRHITexture directly")
-	inline FRHITexture2D* GetTexture2D() { return TextureDesc.Dimension == ETextureDimension::Texture2D ? this : nullptr; }
+	inline FRHITexture* GetTexture2D() { return TextureDesc.Dimension == ETextureDimension::Texture2D ? this : nullptr; }
 	//UE_DEPRECATED(5.1, "FRHITexture2DArray is deprecated, please use FRHITexture directly")
-	inline FRHITexture2DArray* GetTexture2DArray() { return TextureDesc.Dimension == ETextureDimension::Texture2DArray ? this : nullptr; }
+	inline FRHITexture* GetTexture2DArray() { return TextureDesc.Dimension == ETextureDimension::Texture2DArray ? this : nullptr; }
 	//UE_DEPRECATED(5.1, "FRHITexture3D is deprecated, please use FRHITexture directly")
-	inline FRHITexture3D* GetTexture3D() { return TextureDesc.Dimension == ETextureDimension::Texture3D ? this : nullptr; }
+	inline FRHITexture* GetTexture3D() { return TextureDesc.Dimension == ETextureDimension::Texture3D ? this : nullptr; }
 	//UE_DEPRECATED(5.1, "FRHITextureCube is deprecated, please use FRHITexture directly")
-	inline FRHITextureCube* GetTextureCube() { return TextureDesc.IsTextureCube() ? this : nullptr; }
+	inline FRHITexture* GetTextureCube() { return TextureDesc.IsTextureCube() ? this : nullptr; }
 
 	//UE_DEPRECATED(5.1, "GetSizeX() is deprecated, please use GetDesc().Extent.X instead")
 	uint32 GetSizeX() const { return GetDesc().Extent.X; }

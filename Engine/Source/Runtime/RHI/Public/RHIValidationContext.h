@@ -540,7 +540,7 @@ public:
 		RHIContext->RHIEndUAVOverlap(UAVs);
 	}
 
-	virtual void RHIResummarizeHTile(FRHITexture2D* DepthTexture) override final
+	virtual void RHIResummarizeHTile(FRHITexture* DepthTexture) override final
 	{
 		Tracker->Assert(DepthTexture->GetWholeResourceIdentity(), ERHIAccess::DSVWrite);
 		RHIContext->RHIResummarizeHTile(DepthTexture);

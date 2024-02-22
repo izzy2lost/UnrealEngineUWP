@@ -328,7 +328,7 @@ void FDisplayClusterProjectionMPCDIPolicy::ApplyWarpBlend_RenderThread(FRHIComma
 		return;
 	}
 
-	TArray<FRHITexture2D*> InputTextures, OutputTextures;
+	TArray<FRHITexture*> InputTextures, OutputTextures;
 	TArray<FIntRect> InputRects, OutputRects;
 
 	// Use for input first MipsShader texture if enabled in viewport render settings
@@ -367,7 +367,7 @@ void FDisplayClusterProjectionMPCDIPolicy::ApplyWarpBlend_RenderThread(FRHIComma
 				{
 					if (!SrcViewportProxy->GetRenderSettings_RenderThread().bSkipRendering)
 					{
-						TArray<FRHITexture2D*> RefTextures;
+						TArray<FRHITexture*> RefTextures;
 						// Use for input first MipsShader texture if enabled in viewport render settings
 						if (SrcViewportProxy->GetResources_RenderThread(EDisplayClusterViewportResourceType::MipsShaderResource, RefTextures) ||
 							SrcViewportProxy->GetResources_RenderThread(EDisplayClusterViewportResourceType::InputShaderResource, RefTextures))

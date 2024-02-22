@@ -1674,7 +1674,7 @@ void FSceneViewport::EnqueueEndRenderFrame(const bool bLockToVsync, const bool b
 	}
 }
 
-const FTexture2DRHIRef& FSceneViewport::GetRenderTargetTexture() const
+const FTextureRHIRef& FSceneViewport::GetRenderTargetTexture() const
 {
 	if (IsInRenderingThread())
 	{
@@ -1692,7 +1692,7 @@ FSlateShaderResource* FSceneViewport::GetViewportRenderTargetTexture()
 	return (BufferedSlateHandles.Num() != 0) ? BufferedSlateHandles[CurrentBufferedTargetIndex] : nullptr;
 }
 
-void FSceneViewport::SetRenderTargetTextureRenderThread(FTexture2DRHIRef& RT)
+void FSceneViewport::SetRenderTargetTextureRenderThread(FTextureRHIRef& RT)
 {
 	check(IsInRenderingThread());
 	RenderTargetTextureRenderThreadRHI = RT;
@@ -2073,8 +2073,8 @@ void FSceneViewport::InitRHI(FRHICommandListBase& RHICmdList)
 	if (UseSeparateRenderTarget())
 	{
 		int32 NumBufferedFrames = 1;
-		TArray<FTexture2DRHIRef> BufferedRTRHI;
-		TArray<FTexture2DRHIRef> BufferedSRVRHI;
+		TArray<FTextureRHIRef> BufferedRTRHI;
+		TArray<FTextureRHIRef> BufferedSRVRHI;
 
 		static const auto CVarDefaultBackBufferPixelFormat = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.DefaultBackBufferPixelFormat"));
 		EPixelFormat SceneTargetFormat = EDefaultBackBufferPixelFormat::Convert2PixelFormat(EDefaultBackBufferPixelFormat::FromInt(CVarDefaultBackBufferPixelFormat->GetValueOnRenderThread()));
@@ -2133,8 +2133,8 @@ void FSceneViewport::InitRHI(FRHICommandListBase& RHICmdList)
 		}
 		check(BufferedSlateHandles.Num() == BufferedRenderTargetsRHI.Num() && BufferedSlateHandles.Num() == BufferedShaderResourceTexturesRHI.Num());
 
-		FTexture2DRHIRef RTRHI;
-		FTexture2DRHIRef SRVRHI;
+		FTextureRHIRef RTRHI;
+		FTextureRHIRef SRVRHI;
 
 		for (int32 i = 0; i < NumBufferedFrames; ++i)
 		{

@@ -161,7 +161,7 @@ public:
 	void							GenerateMips();
 
 	virtual bool					IsArray()  { return false; }
-	virtual FRHITexture2D*			GetRHITexture() const;
+	virtual FRHITexture*			GetRHITexture() const;
 	virtual UTexture*				GetTexture() const;
 
 	virtual bool					IsNull() const;
@@ -188,7 +188,7 @@ public:
 	FORCEINLINE FLinearColor		ClearColor() const { return Desc.ClearColor; }
 	FORCEINLINE FLinearColor&		ClearColor() { return Desc.ClearColor; }
 	FORCEINLINE FIntPoint			GetSize() const { return FIntPoint(Desc.Width, Desc.Height); }
-	FORCEINLINE operator			FRHITexture2D*() const { return GetRHITexture(); }
+	FORCEINLINE operator			FRHITexture*() const { return GetRHITexture(); }
 	//FORCEINLINE operator			FTextureRHIRef() const { return RHITextureRef(); }
 	FORCEINLINE operator			UTexture*() const { return GetTexture(); }
 	FORCEINLINE FString				GetName() const { return GetTexture()->GetName(); }

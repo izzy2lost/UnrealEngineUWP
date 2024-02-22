@@ -106,7 +106,7 @@ public:
 	*
 	* @return true, if all resources are valid
 	*/
-	bool GetRHIResources_RenderThread(const EDisplayClusterViewportResource InResourceType, TArray<FRHITexture2D*>& OutResources) const;
+	bool GetRHIResources_RenderThread(const EDisplayClusterViewportResource InResourceType, TArray<FRHITexture*>& OutResources) const;
 
 protected:
 	/** Release specified type of resources. */

@@ -81,7 +81,7 @@ public:
 		const FParticleKeyGenParameters& KeyGenParameters,
 		FRHIUnorderedAccessView* OutKeysUAV,
 		FRHIUnorderedAccessView* OutIndicesUAV,
-		FRHITexture2D* PositionTextureRHI,
+		FRHITexture* PositionTextureRHI,
 		FRHIShaderResourceView* InIndicesSRV
 		)
 	{
@@ -126,7 +126,7 @@ int32 GenerateParticleSortKeys(
 	FRHICommandListImmediate& RHICmdList,
 	FRHIUnorderedAccessView* KeyBufferUAV,
 	FRHIUnorderedAccessView* SortedVertexBufferUAV,
-	FRHITexture2D* PositionTextureRHI,
+	FRHITexture* PositionTextureRHI,
 	const TArray<FParticleSimulationSortInfo>& SimulationsToSort,
 	ERHIFeatureLevel::Type FeatureLevel,
 	int32 BatchId

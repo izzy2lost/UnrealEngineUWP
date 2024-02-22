@@ -577,7 +577,7 @@ void UBinkMediaPlayer::Tick(float DeltaTime)
 	}
 }
 
-void UBinkMediaPlayer::UpdateTexture(FRHICommandListImmediate &RHICmdList, FTexture2DRHIRef ref, void *nativePtr, int width, int height, bool isEditor, bool tonemap, int output_nits, float alpha, bool srgb_decode, bool is_hdr) 
+void UBinkMediaPlayer::UpdateTexture(FRHICommandListImmediate &RHICmdList, FTextureRHIRef ref, void *nativePtr, int width, int height, bool isEditor, bool tonemap, int output_nits, float alpha, bool srgb_decode, bool is_hdr) 
 {
 	check(IsInRenderingThread());
 
@@ -598,7 +598,7 @@ void UBinkMediaPlayer::Draw(UTexture *texture, bool tonemap, int out_nits, float
 	{
 		return;
 	}
-	FTexture2DRHIRef ref = texture->GetResource()->TextureRHI->GetTexture2D();
+	FTextureRHIRef ref = texture->GetResource()->TextureRHI->GetTexture2D();
 	if ((!IsPlaying() && !IsPaused()) || !ref) 
 	{
 		return;
@@ -615,7 +615,7 @@ void UBinkMediaPlayer::Draw(UTexture *texture, bool tonemap, int out_nits, float
 	struct parms_t 
 	{
 		UBinkMediaPlayer *player;
-		FTexture2DRHIRef ref;
+		FTextureRHIRef ref;
 		void *native;
 		int width, height;
 		bool tonemap;

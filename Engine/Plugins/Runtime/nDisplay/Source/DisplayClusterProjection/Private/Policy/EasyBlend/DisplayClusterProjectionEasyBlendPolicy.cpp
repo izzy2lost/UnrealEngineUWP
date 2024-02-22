@@ -224,7 +224,7 @@ void FDisplayClusterProjectionEasyBlendPolicy::ApplyWarpBlend_RenderThread(FRHIC
 	}
 
 	// Get in\out remp resources ref from viewport
-	TArray<FRHITexture2D*> InputTextures, OutputTextures;
+	TArray<FRHITexture*> InputTextures, OutputTextures;
 	if (InViewportProxy->GetResources_RenderThread(EDisplayClusterViewportResourceType::InputShaderResource, InputTextures)
 		&& InViewportProxy->GetResources_RenderThread(EDisplayClusterViewportResourceType::AdditionalTargetableResource, OutputTextures))
 	{

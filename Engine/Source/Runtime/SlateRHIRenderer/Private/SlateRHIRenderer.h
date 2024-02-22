@@ -43,7 +43,7 @@ extern TAutoConsoleVariable<int32> CVarShowSlateBatching;
 class FSlateBackBuffer : public FRenderTarget
 {
 public:
-	FSlateBackBuffer(FTexture2DRHIRef InRenderTargetTexture, FIntPoint InSizeXY)
+	FSlateBackBuffer(FTextureRHIRef InRenderTargetTexture, FIntPoint InSizeXY)
 		: SizeXY(InSizeXY)
 	{
 		RenderTargetTextureRHI = InRenderTargetTexture;
@@ -62,7 +62,7 @@ struct FViewportInfo : public FRenderResource
 	/** The viewport rendering handle */
 	FViewportRHIRef ViewportRHI;
 	/** The depth buffer texture if any */
-	FTexture2DRHIRef DepthStencil;
+	FTextureRHIRef DepthStencil;
 
 	// Buffers used in HDR compositing
 	/** sRGB UI render target */
@@ -74,7 +74,7 @@ struct FViewportInfo : public FRenderResource
 	int32 ColorSpaceLUTOutputDevice;
 	int32 ColorSpaceLUTOutputGamut;
 		
-	//FTexture2DRHIRef RenderTargetTexture;
+	//FTextureRHIRef RenderTargetTexture;
 	/** The OS Window handle (for recreating the viewport) */
 	void* OSWindow;
 	/** The actual width of the viewport */
@@ -140,7 +140,7 @@ struct FViewportInfo : public FRenderResource
 	void ConditionallyUpdateDepthBuffer(bool bInRequiresStencilTest, uint32 Width, uint32 Height);
 	void RecreateDepthBuffer_RenderThread();
 
-	FTexture2DRHIRef GetRenderTargetTexture() const
+	FTextureRHIRef GetRenderTargetTexture() const
 	{
 		if (RTProvider)
 		{
@@ -155,7 +155,7 @@ struct FViewportInfo : public FRenderResource
 	}	
 };
 
-bool IsMemorylessTexture(const FTexture2DRHIRef& Tex);
+bool IsMemorylessTexture(const FTextureRHIRef& Tex);
 
 struct FFastPathRenderingDataCleanupList
 {

@@ -12,7 +12,7 @@
  * ensure all characters in the font texture exist if the rendering resource has to be recreated 
  * between caching new characters
  */
-class FSlateFontTextureRHIResource : public TSlateTexture<FTexture2DRHIRef>, public FTextureResource
+class FSlateFontTextureRHIResource : public TSlateTexture<FTextureRHIRef>, public FTextureResource
 {
 public:
 	/** Constructor.  Initializes the texture

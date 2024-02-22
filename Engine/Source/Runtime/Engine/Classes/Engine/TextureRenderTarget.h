@@ -29,7 +29,7 @@ class UTextureRenderTarget : public UTexture
 	/** If true, there will be two copies in memory - one for the texture and one for the render target. If false, they will share memory if possible. This is useful for scene capture textures that are used in the scene. */
 	uint32 bNeedsTwoCopies:1;
 
-	/** If true, it will be possible to create a FUnorderedAccessViewRHIRef using RHICreateUnorderedAccessView and the internal FTexture2DRHIRef. */
+	/** If true, it will be possible to create a FUnorderedAccessViewRHIRef using RHICreateUnorderedAccessView and the internal FTextureRHIRef. */
 	uint32 bCanCreateUAV : 1;
 
 	/**

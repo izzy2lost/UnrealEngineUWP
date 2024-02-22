@@ -36,9 +36,9 @@ DECLARE_GPU_STAT_NAMED(MediaTextureConversion, TEXT("MediaTextureConversion"));
 struct FRHICommandCopyResource final : public FRHICommand<FRHICommandCopyResource>
 {
 	TComPtr<ID3D11Texture2D> SampleTexture;
-	FTexture2DRHIRef SampleDestinationTexture;
+	FTextureRHIRef SampleDestinationTexture;
 
-	FRHICommandCopyResource(ID3D11Texture2D* InSampleTexture, FRHITexture2D* InSampleDestinationTexture)
+	FRHICommandCopyResource(ID3D11Texture2D* InSampleTexture, FRHITexture* InSampleDestinationTexture)
 		: SampleTexture(InSampleTexture)
 		, SampleDestinationTexture(InSampleDestinationTexture)
 	{
@@ -104,7 +104,7 @@ struct FRHICommandCopyResource final : public FRHICommand<FRHICommandCopyResourc
 	}
 };
 
-bool FWmfMediaHardwareVideoDecodingParameters::ConvertTextureFormat_RenderThread(FWmfMediaHardwareVideoDecodingTextureSample* InSample, FTexture2DRHIRef InDstTexture)
+bool FWmfMediaHardwareVideoDecodingParameters::ConvertTextureFormat_RenderThread(FWmfMediaHardwareVideoDecodingTextureSample* InSample, FTextureRHIRef InDstTexture)
 {
 	LLM_SCOPE(ELLMTag::MediaStreaming);
 
@@ -140,7 +140,7 @@ bool FWmfMediaHardwareVideoDecodingParameters::ConvertTextureFormat_RenderThread
 		GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GetVertexDeclarationFVector4();
 
 		// Copy buffer.
-		FTexture2DRHIRef SampleDestinationTexture = InSample->GetOrCreateDestinationTexture();
+		FTextureRHIRef SampleDestinationTexture = InSample->GetOrCreateDestinationTexture();
 		if (InSample->IsBufferExternal() || !SampleTexture.IsValid())
 		{
 			const uint8* Data = (const uint8*)InSample->GetBuffer();
@@ -244,7 +244,7 @@ bool FWmfMediaHardwareVideoDecodingParameters::ConvertTextureFormat_RenderThread
 		else if (InSample->GetFormat() == EMediaTextureSampleFormat::YCoCg_DXT5_Alpha_BC4)
 		{
 			// Set up alpha texture.
-			FTexture2DRHIRef SampleDestinationAlphaTexture = InSample->GetOrCreateDestinationAlphaTexture();
+			FTextureRHIRef SampleDestinationAlphaTexture = InSample->GetOrCreateDestinationAlphaTexture();
 			{
 				const uint8* Data = ((const uint8*)InSample->GetBuffer()) + InSample->GetDim().X * InSample->GetDim().Y;
 

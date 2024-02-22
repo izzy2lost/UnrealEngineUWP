@@ -340,7 +340,7 @@ public:
 	}
 
 	//~ IMediaTextureSampleColorConverter interface
-	virtual bool ApplyColorConversion(FTexture2DRHIRef& InSrcTexture, FTexture2DRHIRef& InDstTexture) override;
+	virtual bool ApplyColorConversion(FTextureRHIRef& InSrcTexture, FTextureRHIRef& InDstTexture) override;
 
 	void* GetMutableBuffer()
 	{

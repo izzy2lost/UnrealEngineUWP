@@ -176,7 +176,7 @@ void RenderMaterial_BP::BlitTo(FRHICommandListImmediate& RHI, UTextureRenderTarg
 		FTextureRenderTarget2DResource* RTRes = (FTextureRenderTarget2DResource*)RT->GetRenderTargetResource();
 		check(RTRes);
 
-		FTexture2DRHIRef TextureRHI = RTRes->GetTextureRHI();
+		FTextureRHIRef TextureRHI = RTRes->GetTextureRHI();
 		check(TextureRHI);
 
 		TextureRHI->SetName(FName(*RT->GetName()));

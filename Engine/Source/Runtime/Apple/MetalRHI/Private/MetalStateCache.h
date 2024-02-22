@@ -194,7 +194,7 @@ public:
 	MTL::VisibilityResultMode GetVisibilityResultMode() { return VisibilityMode; }
 	uint32 GetVisibilityResultOffset() { return VisibilityOffset; }
 	
-	FTexture2DRHIRef CreateFallbackDepthStencilSurface(uint32 Width, uint32 Height);
+	FTextureRHIRef CreateFallbackDepthStencilSurface(uint32 Width, uint32 Height);
 	bool GetFallbackDepthStencilBound(void) const { return bFallbackDepthStencilBound; }
 	
 	void SetRenderPipelineState(FMetalCommandEncoder& CommandEncoder);
@@ -357,7 +357,7 @@ private:
 	FTextureRHIRef DepthStencilSurface;
 	FTextureRHIRef DepthStencilResolve;
 	/** A fallback depth-stencil surface for draw calls that write to depth without a depth-stencil surface bound. */
-	FTexture2DRHIRef FallbackDepthStencilSurface;
+	FTextureRHIRef FallbackDepthStencilSurface;
     MTL::RenderPassDescriptor* RenderPassDesc;
 	uint32 RasterBits;
     uint8 PipelineBits;

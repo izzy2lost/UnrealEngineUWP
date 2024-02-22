@@ -1052,7 +1052,7 @@ void UMediaCapture::PrepareAndDispatchCapture_GameThread(const TSharedPtr<UE::Me
 				{
 					FRDGBuilder GraphBuilder(RHICmdList);
 					
-					FTexture2DRHIRef SourceTexture = InMediaCapture->CaptureSource->GetSourceTextureForInput_RenderThread(RHICmdList);
+					FTextureRHIRef SourceTexture = InMediaCapture->CaptureSource->GetSourceTextureForInput_RenderThread(RHICmdList);
 					
 					FCaptureFrameArgs CaptureArgs{ GraphBuilder };
 					CaptureArgs.MediaCapture = InMediaCapture;

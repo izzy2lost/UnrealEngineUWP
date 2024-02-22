@@ -254,7 +254,7 @@ void FDisplayClusterViewportManagerProxy::ImplRenderFrame_GameThread(FViewport* 
 
 		if (OutputViewport)
 		{
-			if (FRHITexture2D* FrameOutputRTT = OutputViewport->GetRenderTargetTexture())
+			if (FRHITexture* FrameOutputRTT = OutputViewport->GetRenderTargetTexture())
 			{
 				// For quadbuf stereo copy only left eye, right copy from OutputFrameTarget
 				//@todo Copy QuadBuf_LeftEye/(mono,sbs,tp) to separate rtt, before UI and debug rendering
@@ -296,12 +296,12 @@ void FDisplayClusterViewportManagerProxy::UpdateDeferredResources_RenderThread(F
 
 void FDisplayClusterViewportManagerProxy::ImplClearFrameTargets_RenderThread(FRHICommandListImmediate& RHICmdList) const
 {
-	TArray<FRHITexture2D*> FrameResources;
-	TArray<FRHITexture2D*> AdditionalFrameResources;
+	TArray<FRHITexture*> FrameResources;
+	TArray<FRHITexture*> AdditionalFrameResources;
 	TArray<FIntPoint> TargetOffset;
 	if (GetFrameTargets_RenderThread(FrameResources, TargetOffset, &AdditionalFrameResources))
 	{
-		for (FRHITexture2D* FrameResourceIt : FrameResources)
+		for (FRHITexture* FrameResourceIt : FrameResources)
 		{
 			FDisplayClusterViewportProxy::FillTextureWithColor_RenderThread(RHICmdList, FrameResourceIt, FLinearColor::Black);
 		}
@@ -481,7 +481,7 @@ void FDisplayClusterViewportManagerProxy::DoCrossGPUTransfers_RenderThread(FRHIC
 			{
 				if (FRenderTarget* RenderTarget = ViewportRenderTargetResource.IsValid() ? ViewportRenderTargetResource->GetViewportResourceRenderTarget() : nullptr)
 				{
-					if (FRHITexture2D* TextureRHI = ViewportRenderTargetResource->GetViewportResourceRHI_RenderThread())
+					if (FRHITexture* TextureRHI = ViewportRenderTargetResource->GetViewportResourceRHI_RenderThread())
 					{
 						const FRHIGPUMask RenderTargetGPUMask = RenderTarget->GetGPUMask(RHICmdList);
 
@@ -511,7 +511,7 @@ void FDisplayClusterViewportManagerProxy::DoCrossGPUTransfers_RenderThread(FRHIC
 #endif // WITH_MGPU
 }
 
-bool FDisplayClusterViewportManagerProxy::GetFrameTargets_RenderThread(TArray<FRHITexture2D*>& OutFrameResources, TArray<FIntPoint>& OutTargetOffsets, TArray<FRHITexture2D*>* OutAdditionalFrameResources) const
+bool FDisplayClusterViewportManagerProxy::GetFrameTargets_RenderThread(TArray<FRHITexture*>& OutFrameResources, TArray<FIntPoint>& OutTargetOffsets, TArray<FRHITexture*>* OutAdditionalFrameResources) const
 {
 	check(IsInRenderingThread());
 
@@ -526,14 +526,14 @@ bool FDisplayClusterViewportManagerProxy::GetFrameTargets_RenderThread(TArray<FR
 
 			for (int32 FrameIt = 0; FrameIt < Frames.Num(); FrameIt++)
 			{
-				if (FRHITexture2D* FrameTexture = Frames[FrameIt].IsValid() ? Frames[FrameIt]->GetViewportResourceRHI_RenderThread() : nullptr)
+				if (FRHITexture* FrameTexture = Frames[FrameIt].IsValid() ? Frames[FrameIt]->GetViewportResourceRHI_RenderThread() : nullptr)
 				{
 					OutFrameResources.Add(FrameTexture);
 					OutTargetOffsets.Add(Frames[FrameIt]->GetBackbufferFrameOffset());
 
 					if (OutAdditionalFrameResources && AdditionalFrames.IsValidIndex(FrameIt))
 					{
-						if (FRHITexture2D* AdditionalFrameTexture = AdditionalFrames[FrameIt].IsValid() ? AdditionalFrames[FrameIt]->GetViewportResourceRHI_RenderThread() : nullptr)
+						if (FRHITexture* AdditionalFrameTexture = AdditionalFrames[FrameIt].IsValid() ? AdditionalFrames[FrameIt]->GetViewportResourceRHI_RenderThread() : nullptr)
 						{
 							OutAdditionalFrameResources->Add(AdditionalFrameTexture);
 						}
@@ -562,18 +562,18 @@ bool FDisplayClusterViewportManagerProxy::GetFrameTargets_RenderThread(TArray<FR
 	return false;
 }
 
-bool FDisplayClusterViewportManagerProxy::ResolveFrameTargetToBackBuffer_RenderThread(FRHICommandListImmediate& RHICmdList, const uint32 InContextNum, const int32 DestArrayIndex, FRHITexture2D* DestTexture, FVector2D WindowSize) const
+bool FDisplayClusterViewportManagerProxy::ResolveFrameTargetToBackBuffer_RenderThread(FRHICommandListImmediate& RHICmdList, const uint32 InContextNum, const int32 DestArrayIndex, FRHITexture* DestTexture, FVector2D WindowSize) const
 {
 	check(IsInRenderingThread());
 
-	TArray<FRHITexture2D*>   FrameResources;
+	TArray<FRHITexture*>   FrameResources;
 	TArray<FIntPoint>        TargetOffsets;
 	if (GetFrameTargets_RenderThread(FrameResources, TargetOffsets))
 	{
 		// Use internal frame textures as source
 		int32 ContextNum = InContextNum;
 
-		FRHITexture2D* FrameTexture = FrameResources[ContextNum];
+		FRHITexture* FrameTexture = FrameResources[ContextNum];
 		FIntPoint DstOffset = TargetOffsets[ContextNum];
 
 		if (FrameTexture)

@@ -111,7 +111,7 @@ void FSystemTextures::InitializeCommonTextures(FRHICommandListImmediate& RHICmdL
 	// Create a WhiteDummy texture
 	{
 		WhiteDummy = CreateRenderTarget(GWhiteTexture->TextureRHI, TEXT("WhiteDummy"));
-		WhiteDummySRV = RHICmdList.CreateShaderResourceView((FRHITexture2D*)WhiteDummy->GetRHI(), 0);
+		WhiteDummySRV = RHICmdList.CreateShaderResourceView((FRHITexture*)WhiteDummy->GetRHI(), 0);
 	}
 
 	// Create a BlackDummy texture
@@ -709,7 +709,7 @@ void FSystemTextures::InitializeFeatureLevelDependentTextures(FRHICommandListImm
 					.SetFlags(ETextureCreateFlags::ShaderResource | ETextureCreateFlags::FastVRAM)
 					.SetClassName(SystemTexturesName);
 
-				FTexture2DRHIRef Texture = RHICreateTexture(Desc);
+				FTextureRHIRef Texture = RHICreateTexture(Desc);
 
 				// Write the contents of the texture.
 				uint32 DestStride;
@@ -738,7 +738,7 @@ void FSystemTextures::InitializeFeatureLevelDependentTextures(FRHICommandListImm
 					FRHITextureCreateDesc::Create2D(TEXT("Sheen.LTC"), Sheen_LTC_Size, Sheen_LTC_Size, PF_FloatRGBA)
 					.SetFlags(ETextureCreateFlags::ShaderResource | ETextureCreateFlags::FastVRAM);
 
-				FTexture2DRHIRef Texture = RHICreateTexture(Desc);
+				FTextureRHIRef Texture = RHICreateTexture(Desc);
 
 				// Write the contents of the texture.
 				uint32 DestStride;
@@ -908,7 +908,7 @@ void FSystemTextures::InitializeFeatureLevelDependentTextures(FRHICommandListImm
 			FUpdateTextureRegion3D Region(0, 0, 0, 0, 0, 0, Extent, Extent, Extent);
 
 			RHICmdList.UpdateTexture3D(
-				(FRHITexture3D*)Texture.GetReference(),
+				(FRHITexture*)Texture.GetReference(),
 				0,
 				Region,
 				Extent * sizeof(FFloat16),
@@ -1374,7 +1374,7 @@ void InitializeData(const TInType& InData, EPixelFormat InFormat, uint8* OutData
 }
 
 template <typename DataType>
-void SetDefaultTextureData2D(FRHITexture2D* Texture, const DataType& InData)
+void SetDefaultTextureData2D(FRHITexture* Texture, const DataType& InData)
 {
 	uint8 SrcData[16] = { 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, };
 	uint32 SrcByteCount = 0;
@@ -1388,7 +1388,7 @@ void SetDefaultTextureData2D(FRHITexture2D* Texture, const DataType& InData)
 }
 
 template <typename DataType>
-void SetDefaultTextureData2DArray(FRHITexture2DArray* Texture, const DataType& InData)
+void SetDefaultTextureData2DArray(FRHITexture* Texture, const DataType& InData)
 {
 	uint8 SrcData[16] = { 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, };
 	uint32 SrcByteCount = 0;
@@ -1402,7 +1402,7 @@ void SetDefaultTextureData2DArray(FRHITexture2DArray* Texture, const DataType& I
 }
 
 template <typename DataType>
-void SetDefaultTextureData3D(FRHICommandListImmediate& RHICmdList, FRHITexture3D* Texture, const DataType& InData)
+void SetDefaultTextureData3D(FRHICommandListImmediate& RHICmdList, FRHITexture* Texture, const DataType& InData)
 {
 	uint8 SrcData[16] = { 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, };
 	uint32 SrcByteCount = 0;
@@ -1423,7 +1423,7 @@ void SetDefaultTextureData3D(FRHICommandListImmediate& RHICmdList, FRHITexture3D
 }
 
 template <typename DataType>
-void SetDefaultTextureDataCube(FRHITextureCube* Texture, const DataType& InData)
+void SetDefaultTextureDataCube(FRHITexture* Texture, const DataType& InData)
 {
 	uint8 SrcData[16] = { 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, };
 	uint32 SrcByteCount = 0;
@@ -1481,7 +1481,7 @@ FRDGTextureRef GetInternalDefaultTexture(
 			FRHITextureCreateDesc::Create2D(TEXT("DefaultTexture2D"), 1, 1, Format)
 			.SetFlags(ETextureCreateFlags::ShaderResource);
 
-		FTexture2DRHIRef Texture = RHICreateTexture(Desc);
+		FTextureRHIRef Texture = RHICreateTexture(Desc);
 		SetDefaultTextureData2D(Texture, Value);
 		Entry.Texture = CreateRenderTarget(Texture, Desc.DebugName);
 	}
@@ -1491,7 +1491,7 @@ FRDGTextureRef GetInternalDefaultTexture(
 			FRHITextureCreateDesc::Create2DArray(TEXT("DefaultTexture2DArray"), 1, 1, 1, Format)
 			.SetFlags(ETextureCreateFlags::ShaderResource);
 
-		FTexture2DArrayRHIRef Texture = RHICreateTexture(Desc);
+		FTextureRHIRef Texture = RHICreateTexture(Desc);
 		SetDefaultTextureData2DArray(Texture, Value);
 		Entry.Texture = CreateRenderTarget(Texture, Desc.DebugName);
 	}
@@ -1501,7 +1501,7 @@ FRDGTextureRef GetInternalDefaultTexture(
 			FRHITextureCreateDesc::Create3D(TEXT("DefaultTexture3D"), 1, 1, 1, Format)
 			.SetFlags(ETextureCreateFlags::ShaderResource);
 
-		FTexture3DRHIRef Texture = RHICreateTexture(Desc);
+		FTextureRHIRef Texture = RHICreateTexture(Desc);
 		SetDefaultTextureData3D(GraphBuilder.RHICmdList, Texture, Value);
 		Entry.Texture = CreateRenderTarget(Texture, Desc.DebugName);
 	}
@@ -1511,7 +1511,7 @@ FRDGTextureRef GetInternalDefaultTexture(
 			FRHITextureCreateDesc::CreateCube(TEXT("DefaultTextureCube"), 1, Format)
 			.SetFlags(ETextureCreateFlags::ShaderResource);
 
-		FTextureCubeRHIRef Texture = RHICreateTexture(Desc);
+		FTextureRHIRef Texture = RHICreateTexture(Desc);
 		SetDefaultTextureDataCube(Texture, Value);
 		Entry.Texture = CreateRenderTarget(Texture, Desc.DebugName);
 	}
@@ -1521,7 +1521,7 @@ FRDGTextureRef GetInternalDefaultTexture(
 			FRHITextureCreateDesc::CreateCubeArray(TEXT("DefaultTextureCubeArray"), 1, 1, Format)
 			.SetFlags(ETextureCreateFlags::ShaderResource);
 
-		FTextureCubeRHIRef Texture = RHICreateTexture(Desc);
+		FTextureRHIRef Texture = RHICreateTexture(Desc);
 		SetDefaultTextureDataCube(Texture, Value);
 		Entry.Texture = CreateRenderTarget(Texture, Desc.DebugName);
 	}

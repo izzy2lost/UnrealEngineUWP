@@ -308,7 +308,7 @@ void FTextureShareSceneViewExtension::PostRenderViewFamily_RenderThread(FRHIComm
 		// Share only if the resource is requested from a remote process
 		if (const FTextureShareCoreResourceRequest* ExistResourceRequest = ObjectProxy->GetData_RenderThread().FindResourceRequest(FTextureShareCoreResourceDesc(UE::TextureShareStrings::SceneTextures::FinalColor, ViewIt.ViewInfo.ViewDesc, ETextureShareTextureOp::Undefined)))
 		{
-			FTexture2DRHIRef RenderTargetTexture = InViewFamily.RenderTarget->GetRenderTargetTexture();
+			FTextureRHIRef RenderTargetTexture = InViewFamily.RenderTarget->GetRenderTargetTexture();
 			if (RenderTargetTexture.IsValid())
 			{
 				// Send
@@ -346,7 +346,7 @@ void FTextureShareSceneViewExtension::OnResolvedSceneColor_RenderThread(FRDGBuil
 	}
 }
 
-void FTextureShareSceneViewExtension::OnBackBufferReadyToPresent_RenderThread(SWindow& SlateWindow, const FTexture2DRHIRef& InBackbuffer)
+void FTextureShareSceneViewExtension::OnBackBufferReadyToPresent_RenderThread(SWindow& SlateWindow, const FTextureRHIRef& InBackbuffer)
 {
 	FScopeLock Lock(&DataCS);
 

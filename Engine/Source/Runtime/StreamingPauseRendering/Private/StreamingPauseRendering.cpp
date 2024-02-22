@@ -22,7 +22,7 @@ IMPLEMENT_MODULE(FStreamingPauseRenderingModule, StreamingPauseRendering);
 class FBackgroundView : public ISlateViewport
 {
 public:
-	FBackgroundView(FTexture2DRHIRef RenderTargetTexture, FIntPoint InSize)
+	FBackgroundView(FTextureRHIRef RenderTargetTexture, FIntPoint InSize)
 		: RenderTarget( new FSlateRenderTargetRHI(RenderTargetTexture, InSize.X, InSize.Y))
 		, Size(InSize)
 	{

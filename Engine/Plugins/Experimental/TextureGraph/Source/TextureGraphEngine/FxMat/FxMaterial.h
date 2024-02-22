@@ -238,7 +238,7 @@ public:
 	virtual std::shared_ptr<FxMaterial>	
 									Clone() = 0;
 	virtual FxMetadataSet			GetMetadata() const = 0;
-	virtual void					Blit(FRHICommandListImmediate& RHI, FRHITexture2D* Target, const RenderMesh* MeshObj, int32 TargetId, FGraphicsPipelineStateInitializer* PSO = nullptr) = 0;
+	virtual void					Blit(FRHICommandListImmediate& RHI, FRHITexture* Target, const RenderMesh* MeshObj, int32 TargetId, FGraphicsPipelineStateInitializer* PSO = nullptr) = 0;
 
 	//////////////////////////////////////////////////////////////////////////
 	/// Mimicing UMaterialInstanceDynamic
@@ -327,7 +327,7 @@ public:
 		Params.Result = UAV;
 	}
 
-	virtual void Blit(FRHICommandListImmediate& RHI, FRHITexture2D* Target, const RenderMesh* MeshObj, int32 TargetId, FGraphicsPipelineStateInitializer* PSO = nullptr) override
+	virtual void Blit(FRHICommandListImmediate& RHI, FRHITexture* Target, const RenderMesh* MeshObj, int32 TargetId, FGraphicsPipelineStateInitializer* PSO = nullptr) override
 	{
 		BindTexturesForBlitting();
 
@@ -423,7 +423,7 @@ public:
 		};
 	}
 
-	virtual void Blit(FRHICommandListImmediate& RHI, FRHITexture2D* Target, const RenderMesh* MeshObj, int32 InTargetId, FGraphicsPipelineStateInitializer* InPSO = nullptr) override
+	virtual void Blit(FRHICommandListImmediate& RHI, FRHITexture* Target, const RenderMesh* MeshObj, int32 InTargetId, FGraphicsPipelineStateInitializer* InPSO = nullptr) override
 	{
 		BindTexturesForBlitting();
 

@@ -49,7 +49,7 @@ public:
 	FVulkanViewport(FVulkanDevice* InDevice, void* InWindowHandle, uint32 InSizeX,uint32 InSizeY,bool bInIsFullscreen, EPixelFormat InPreferredPixelFormat);
 	~FVulkanViewport();
 
-	FTexture2DRHIRef GetBackBuffer(FRHICommandListImmediate& RHICmdList);
+	FTextureRHIRef GetBackBuffer(FRHICommandListImmediate& RHICmdList);
 	void AdvanceBackBufferFrame(FRHICommandListImmediate& RHICmdList);
 
 	virtual void WaitForFrameEventCompletion() override;

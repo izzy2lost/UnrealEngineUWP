@@ -121,10 +121,10 @@ namespace UE::AvaMedia::Private
 	{
 		FRDGBuilder GraphBuilder(RHICmdList);
 
-		const FTexture2DRHIRef SourceTexture = SourceRT->GetRenderTargetResource()->GetTexture2DRHI();
+		const FTextureRHIRef SourceTexture = SourceRT->GetRenderTargetResource()->GetTexture2DRHI();
 		const FRDGTextureRef SourceRGBTexture = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(SourceTexture, TEXT("SourceTexture")));
 
-		const FTexture2DRHIRef DestinationTexture = DestinationRT->GetRenderTargetResource()->GetTexture2DRHI();
+		const FTextureRHIRef DestinationTexture = DestinationRT->GetRenderTargetResource()->GetTexture2DRHI();
 		const FRDGTextureRef OutputResource = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(DestinationTexture, TEXT("DestTexture")));
 
 		const FVector2D SizeU = { 0.0f, 1.0f };

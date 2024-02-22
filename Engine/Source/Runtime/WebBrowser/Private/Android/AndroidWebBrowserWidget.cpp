@@ -438,7 +438,7 @@ void SAndroidWebBrowserWidget::Tick(const FGeometry& AllottedGeometry, const dou
 					}
 
 					// write frame into texture
-					FRHITexture2D* Texture = Params.NewTextureSamplePtr->InitializeTexture();
+					FRHITexture* Texture = Params.NewTextureSamplePtr->InitializeTexture();
 
 					if (Texture != nullptr)
 					{

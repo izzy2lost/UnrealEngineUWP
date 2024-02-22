@@ -81,7 +81,7 @@ void UPixelStreamingMediaTexture::InitializeResources()
 	});
 }
 
-void UPixelStreamingMediaTexture::UpdateTextureReference(FRHICommandList& RHICmdList, FTexture2DRHIRef Reference)
+void UPixelStreamingMediaTexture::UpdateTextureReference(FRHICommandList& RHICmdList, FTextureRHIRef Reference)
 {
 	if (CurrentResource != nullptr)
 	{

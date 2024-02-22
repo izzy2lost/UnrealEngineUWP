@@ -9,7 +9,7 @@
 
 class FHeadMountedDisplayBase;
 
-DECLARE_DELEGATE_FiveParams(FSpectatorScreenRenderDelegate, FRHICommandListImmediate& /* RHICmdList */, FTexture2DRHIRef /* TargetTexture */, FTexture2DRHIRef /* EyeTexture */, FTexture2DRHIRef /* OtherTexture */, FVector2D /* WindowSize */);
+DECLARE_DELEGATE_FiveParams(FSpectatorScreenRenderDelegate, FRHICommandListImmediate& /* RHICmdList */, FTextureRHIRef /* TargetTexture */, FTextureRHIRef /* EyeTexture */, FTextureRHIRef /* OtherTexture */, FVector2D /* WindowSize */);
 
 /** 
  *	Default implementation of spectator screen controller.
@@ -35,36 +35,36 @@ public:
 	// Implementation methods called by HMD
 	virtual void BeginRenderViewFamily();
 	virtual void UpdateSpectatorScreenMode_RenderThread();
-	virtual void RenderSpectatorScreen_RenderThread(FRHICommandListImmediate& RHICmdList, FRHITexture2D* BackBuffer, FTexture2DRHIRef SrcTexture, FVector2D WindowSize);
-	virtual void RenderSpectatorScreen_RenderThread(FRHICommandListImmediate& RHICmdList, FRHITexture2D* BackBuffer, FTexture2DRHIRef SrcTexture, FTexture2DRHIRef LayersTexture, FVector2D WindowSize);
+	virtual void RenderSpectatorScreen_RenderThread(FRHICommandListImmediate& RHICmdList, FRHITexture* BackBuffer, FTextureRHIRef SrcTexture, FVector2D WindowSize);
+	virtual void RenderSpectatorScreen_RenderThread(FRHICommandListImmediate& RHICmdList, FRHITexture* BackBuffer, FTextureRHIRef SrcTexture, FTextureRHIRef LayersTexture, FVector2D WindowSize);
 
 protected:
 	friend struct FRHISetSpectatorScreenTexture;
 	virtual void SetSpectatorScreenTextureRenderCommand(UTexture* SrcTexture);
-	virtual void SetSpectatorScreenTexture_RenderThread(FTexture2DRHIRef& InTexture);
+	virtual void SetSpectatorScreenTexture_RenderThread(FTextureRHIRef& InTexture);
 
 	friend struct FRHISetSpectatorScreenModeTexturePlusEyeLayout;
 	virtual void SetSpectatorScreenModeTexturePlusEyeLayoutRenderCommand(const FSpectatorScreenModeTexturePlusEyeLayout& Layout);
 	virtual void SetSpectatorScreenModeTexturePlusEyeLayout_RenderThread(const FSpectatorScreenModeTexturePlusEyeLayout& Layout);
 
-	virtual FIntRect GetFullFlatEyeRect_RenderThread(FTexture2DRHIRef EyeTexture);
+	virtual FIntRect GetFullFlatEyeRect_RenderThread(FTextureRHIRef EyeTexture);
 
-	virtual void RenderSpectatorModeSingleEyeLetterboxed(FRHICommandListImmediate& RHICmdList, FTexture2DRHIRef TargetTexture, FTexture2DRHIRef EyeTexture, FTexture2DRHIRef OtherTexture, FVector2D WindowSize);
-	virtual void RenderSpectatorModeUndistorted(FRHICommandListImmediate& RHICmdList, FTexture2DRHIRef TargetTexture, FTexture2DRHIRef EyeTexture, FTexture2DRHIRef OtherTexture, FVector2D WindowSize);
-	virtual void RenderSpectatorModeDistorted(FRHICommandListImmediate& RHICmdList, FTexture2DRHIRef TargetTexture, FTexture2DRHIRef EyeTexture, FTexture2DRHIRef OtherTexture, FVector2D WindowSize);
-	virtual void RenderSpectatorModeSingleEye(FRHICommandListImmediate& RHICmdList, FTexture2DRHIRef TargetTexture, FTexture2DRHIRef EyeTexture, FTexture2DRHIRef OtherTexture, FVector2D WindowSize);
-	virtual void RenderSpectatorModeTexture(FRHICommandListImmediate& RHICmdList, FTexture2DRHIRef TargetTexture, FTexture2DRHIRef EyeTexture, FTexture2DRHIRef OtherTexture, FVector2D WindowSize);
-	virtual void RenderSpectatorModeMirrorAndTexture(FRHICommandListImmediate& RHICmdList, FTexture2DRHIRef TargetTexture, FTexture2DRHIRef EyeTexture, FTexture2DRHIRef OtherTexture, FVector2D WindowSize);
-	virtual void RenderSpectatorModeSingleEyeCroppedToFill(FRHICommandListImmediate& RHICmdList, FTexture2DRHIRef TargetTexture, FTexture2DRHIRef EyeTexture, FTexture2DRHIRef OtherTexture, FVector2D WindowSize);
+	virtual void RenderSpectatorModeSingleEyeLetterboxed(FRHICommandListImmediate& RHICmdList, FTextureRHIRef TargetTexture, FTextureRHIRef EyeTexture, FTextureRHIRef OtherTexture, FVector2D WindowSize);
+	virtual void RenderSpectatorModeUndistorted(FRHICommandListImmediate& RHICmdList, FTextureRHIRef TargetTexture, FTextureRHIRef EyeTexture, FTextureRHIRef OtherTexture, FVector2D WindowSize);
+	virtual void RenderSpectatorModeDistorted(FRHICommandListImmediate& RHICmdList, FTextureRHIRef TargetTexture, FTextureRHIRef EyeTexture, FTextureRHIRef OtherTexture, FVector2D WindowSize);
+	virtual void RenderSpectatorModeSingleEye(FRHICommandListImmediate& RHICmdList, FTextureRHIRef TargetTexture, FTextureRHIRef EyeTexture, FTextureRHIRef OtherTexture, FVector2D WindowSize);
+	virtual void RenderSpectatorModeTexture(FRHICommandListImmediate& RHICmdList, FTextureRHIRef TargetTexture, FTextureRHIRef EyeTexture, FTextureRHIRef OtherTexture, FVector2D WindowSize);
+	virtual void RenderSpectatorModeMirrorAndTexture(FRHICommandListImmediate& RHICmdList, FTextureRHIRef TargetTexture, FTextureRHIRef EyeTexture, FTextureRHIRef OtherTexture, FVector2D WindowSize);
+	virtual void RenderSpectatorModeSingleEyeCroppedToFill(FRHICommandListImmediate& RHICmdList, FTextureRHIRef TargetTexture, FTextureRHIRef EyeTexture, FTextureRHIRef OtherTexture, FVector2D WindowSize);
 
-	virtual FRHITexture2D* GetFallbackRHITexture() const;
+	virtual FRHITexture* GetFallbackRHITexture() const;
 
 	mutable FCriticalSection NewSpectatorScreenModeLock;
 	ESpectatorScreenMode NewSpectatorScreenMode = ESpectatorScreenMode::SingleEyeCroppedToFill;
 	TWeakObjectPtr<UTexture> SpectatorScreenTexture;
 
 	ESpectatorScreenMode SpectatorScreenMode_RenderThread = ESpectatorScreenMode::Disabled;
-	FTexture2DRHIRef SpectatorScreenTexture_RenderThread;
+	FTextureRHIRef SpectatorScreenTexture_RenderThread;
 	FSpectatorScreenModeTexturePlusEyeLayout SpectatorScreenModeTexturePlusEyeLayout_RenderThread;
 	FSpectatorScreenRenderDelegate SpectatorScreenDelegate_RenderThread;
 	TArray<int32> DebugCanvasLayerIDs;
@@ -77,9 +77,9 @@ protected:
 	};
 
 private:
-	void CopyEmulatedLayers(FRHICommandListImmediate& RHICmdList, FTexture2DRHIRef TargetTexture, const FIntRect SrcRect, const FIntRect DstRect);
+	void CopyEmulatedLayers(FRHICommandListImmediate& RHICmdList, FTextureRHIRef TargetTexture, const FIntRect SrcRect, const FIntRect DstRect);
 
 	FHeadMountedDisplayBase* HMDDevice;
 	// Face locked stereo layers are composited to a single texture which has to be copied over to the spectator screen.
-	FTexture2DRHIRef StereoLayersTexture;
+	FTextureRHIRef StereoLayersTexture;
 };

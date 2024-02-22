@@ -366,7 +366,7 @@ public:
 			.SetFlags(ETextureCreateFlags::ShaderResource)
 			.SetClassName(TEXT("FSolidColorTextureCube"));
 
-		FTextureCubeRHIRef TextureCube = RHICreateTexture(Desc);
+		FTextureRHIRef TextureCube = RHICreateTexture(Desc);
 		TextureRHI = TextureCube;
 
 		// Write the contents of the texture.

@@ -735,7 +735,7 @@ void FDefaultGameMoviePlayer::TickStreamer(float DeltaTime)
 		/*IXRLoadingScreen* LoadingScreen;
 		if (GEngine && GEngine->XRSystem.IsValid() && (LoadingScreen = GEngine->XRSystem->GetLoadingScreen()) != nullptr)
 		{
-			FTexture2DRHIRef Movie2DTexture = ActiveMovieStreamer->GetTexture();
+			FTextureRHIRef Movie2DTexture = ActiveMovieStreamer->GetTexture();
 			LoadingScreen->ClearSplashes();
 			if (Movie2DTexture.IsValid() && !bMovieIsDone)
 			{

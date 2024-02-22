@@ -115,7 +115,7 @@ bool FDisplayClusterProjectionEasyBlendPolicyViewDataDX11::CalculateWarpBlend(FD
 	return true;
 }
 
-bool FDisplayClusterProjectionEasyBlendPolicyViewDataDX11::ApplyWarpBlend_RenderThread(FRHICommandListImmediate& RHICmdList, const FDisplayClusterProjectionEasyBlendPolicyViewInfo& InViewInfo, FRHITexture2D* InputTexture, FRHITexture2D* OutputTexture, FRHIViewport* InRHIViewport)
+bool FDisplayClusterProjectionEasyBlendPolicyViewDataDX11::ApplyWarpBlend_RenderThread(FRHICommandListImmediate& RHICmdList, const FDisplayClusterProjectionEasyBlendPolicyViewInfo& InViewInfo, FRHITexture* InputTexture, FRHITexture* OutputTexture, FRHIViewport* InRHIViewport)
 {
 	check(IsInRenderingThread());
 

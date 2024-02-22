@@ -18,5 +18,5 @@ namespace UE::EditorPixelStreaming
 
 	FString ToString(EStreamTypes StreamType);
 	const TCHAR* ToString(EWindowType Type);
-	const FString HashWindow(SWindow& SlateWindow, const FTexture2DRHIRef& FrameBuffer);
+	const FString HashWindow(SWindow& SlateWindow, const FTextureRHIRef& FrameBuffer);
 }

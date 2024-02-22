@@ -367,14 +367,14 @@ void FDMXPixelMappingRenderer::RenderPreview(const FTextureResource* TextureReso
 }
 #endif // WITH_EDITOR
 
-void FDMXPixelMappingRenderer::RenderTextureToRectangle(const FTextureResource* InTextureResource, const FTexture2DRHIRef InRenderTargetTexture, FVector2D InSize, bool bSRGBSource) const
+void FDMXPixelMappingRenderer::RenderTextureToRectangle(const FTextureResource* InTextureResource, const FTextureRHIRef InRenderTargetTexture, FVector2D InSize, bool bSRGBSource) const
 {
 	check(IsInGameThread());
 
 	struct FRenderContext
 	{
 		const FTextureResource* TextureResource = nullptr;
-		const FTexture2DRHIRef Texture2DRHI = nullptr;
+		const FTextureRHIRef Texture2DRHI = nullptr;
 		FVector2D ViewportSize;
 		bool bSRGBSource;
 	};

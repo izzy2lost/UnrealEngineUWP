@@ -91,5 +91,5 @@ public:
 	 * Internal utility method for implementing backwards compatibility with IStereoLayers::Show/HideSplashScreen.
 	 * Should be called from implementations overriding IStereoLayer::UpdateSplashScreen()
 	 */
-	static HEADMOUNTEDDISPLAY_API void ShowLoadingScreen_Compat(bool bShow, FTexture2DRHIRef Texture, const FVector& Offset, const FVector2D& Scale);
+	static HEADMOUNTEDDISPLAY_API void ShowLoadingScreen_Compat(bool bShow, FTextureRHIRef Texture, const FVector& Offset, const FVector2D& Scale);
 };

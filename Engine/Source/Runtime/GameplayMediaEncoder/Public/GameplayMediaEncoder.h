@@ -101,14 +101,14 @@ private:
 	GAMEPLAYMEDIAENCODER_API FTimespan GetMediaTimestamp() const;
 
 	// Back buffer capture
-	GAMEPLAYMEDIAENCODER_API void OnFrameBufferReady(SWindow& SlateWindow, const FTexture2DRHIRef& FrameBuffer);
+	GAMEPLAYMEDIAENCODER_API void OnFrameBufferReady(SWindow& SlateWindow, const FTextureRHIRef& FrameBuffer);
 
 	// ISubmixBufferListener interface
 	GAMEPLAYMEDIAENCODER_API const FString& GetListenerName() const override;
 	GAMEPLAYMEDIAENCODER_API void OnNewSubmixBuffer(const USoundSubmix* OwningSubmix, float* AudioData, int32 NumSamples, int32 NumChannels, const int32 SampleRate, double AudioClock) override;
 
 	GAMEPLAYMEDIAENCODER_API void ProcessAudioFrame(const float* AudioData, int32 NumSamples, int32 NumChannels, int32 SampleRate);
-	GAMEPLAYMEDIAENCODER_API void ProcessVideoFrame(const FTexture2DRHIRef& FrameBuffer);
+	GAMEPLAYMEDIAENCODER_API void ProcessVideoFrame(const FTextureRHIRef& FrameBuffer);
 
 	GAMEPLAYMEDIAENCODER_API void UpdateVideoConfig();
 
@@ -116,7 +116,7 @@ private:
 	GAMEPLAYMEDIAENCODER_API void OnEncodedVideoFrame(uint32 LayerIndex, const TSharedPtr<AVEncoder::FVideoEncoderInputFrame> Frame, const AVEncoder::FCodecPacket& Packet);
 
 	GAMEPLAYMEDIAENCODER_API TSharedPtr<AVEncoder::FVideoEncoderInputFrame> ObtainInputFrame();
-	GAMEPLAYMEDIAENCODER_API void CopyTexture(const FTexture2DRHIRef& SourceTexture, FTexture2DRHIRef& DestinationTexture) const;
+	GAMEPLAYMEDIAENCODER_API void CopyTexture(const FTextureRHIRef& SourceTexture, FTextureRHIRef& DestinationTexture) const;
 
 	GAMEPLAYMEDIAENCODER_API void FloatToPCM16(float const* floatSamples, int32 numSamples, TArray<int16>& out) const;
 
@@ -156,6 +156,6 @@ private:
 	FThreadSafeBool bChangeFramerate = false;
 
 	TArray<int16> PCM16;
-	TMap<TSharedPtr<AVEncoder::FVideoEncoderInputFrame>, FTexture2DRHIRef> BackBuffers;
+	TMap<TSharedPtr<AVEncoder::FVideoEncoderInputFrame>, FTextureRHIRef> BackBuffers;
 };
 

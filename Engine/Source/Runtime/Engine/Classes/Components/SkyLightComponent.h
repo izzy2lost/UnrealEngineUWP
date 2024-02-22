@@ -75,7 +75,7 @@ private:
 	int32 Size;
 	int32 NumMips;
 	EPixelFormat Format;
-	FTextureCubeRHIRef TextureCubeRHI;
+	FTextureRHIRef TextureCubeRHI;
 	int32 NumRefs;
 };
 

@@ -142,7 +142,7 @@ public:
 	 * Mark streamed upload data ready for upload to to the physical virtual texture.
 	 * Depending on the platform the upload might happen here, or be deferred to the Finalize() call.
 	 */
-	void SubmitTile(FRHICommandList& RHICmdList, const FVTUploadTileHandle& InHandle, FRHITexture2D* InDestTexture, int InDestX, int InDestY, int InSkipBorderSize);
+	void SubmitTile(FRHICommandList& RHICmdList, const FVTUploadTileHandle& InHandle, FRHITexture* InDestTexture, int InDestX, int InDestY, int InSkipBorderSize);
 	/** Cancel a tile that was already in flight. */
 	void CancelTile(FRHICommandList& RHICmdList, const FVTUploadTileHandle& InHandle);
 
@@ -165,7 +165,7 @@ private:
 		uint32 PoolIndex = 0;
 		uint32 TileHandle = 0u;
 		uint32 FrameSubmitted = 0u;
-		FRHITexture2D* RHISubmitTexture = nullptr;
+		FRHITexture* RHISubmitTexture = nullptr;
 		int32 SubmitDestX = 0;
 		int32 SubmitDestY = 0;
 		int32 SubmitSkipBorderSize = 0;
@@ -174,7 +174,7 @@ private:
 	/** Staging texture used for tile upload. Only used on platforms that don't have faster upload methods. */
 	struct FStagingTexture
 	{
-		TRefCountPtr<FRHITexture2D> RHITexture;
+		TRefCountPtr<FRHITexture> RHITexture;
 		uint32 WidthInTiles = 0u;
 		uint32 BatchCapacity = 0u;
 		bool bIsCPUWritable;

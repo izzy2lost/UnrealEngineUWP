@@ -1241,9 +1241,9 @@ void CaptureSceneIntoScratchCubemap(
 	public:
 		FDummyRenderTarget() = default;
 
-		const FTexture2DRHIRef& GetRenderTargetTexture() const override
+		const FTextureRHIRef& GetRenderTargetTexture() const override
 		{
-			static FTexture2DRHIRef DummyTexture;
+			static FTextureRHIRef DummyTexture;
 			return DummyTexture;
 		}
 

@@ -19,7 +19,7 @@ public:
 	FSlatePostProcessResource(int32 InRenderTargetCount);
 	~FSlatePostProcessResource();
 
-	const FTexture2DRHIRef& GetRenderTarget(int32 Index)
+	const FTextureRHIRef& GetRenderTarget(int32 Index)
 	{
 		return RenderTargets[Index]; 
 	}
@@ -46,7 +46,7 @@ private:
 	void ResizeTargets(const FIntPoint& NewSize, EPixelFormat RequestedPixelFormat);
 
 private:
-	TArray<FTexture2DRHIRef, TInlineAllocator<2>> RenderTargets;
+	TArray<FTextureRHIRef, TInlineAllocator<2>> RenderTargets;
 	EPixelFormat PixelFormat;
 	FIntPoint RenderTargetSize;
 	int32 RenderTargetCount;

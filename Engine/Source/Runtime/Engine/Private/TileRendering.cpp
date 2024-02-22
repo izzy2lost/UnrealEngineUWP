@@ -288,7 +288,7 @@ bool FCanvasTileRendererItem::Render_GameThread(const FCanvas* Canvas, FCanvasRe
 
 		bool bRequiresExplicit128bitRT = false;
 
-		FTexture2DRHIRef CanvasRTTexture = CanvasRenderTarget->GetRenderTargetTexture();
+		FTextureRHIRef CanvasRTTexture = CanvasRenderTarget->GetRenderTargetTexture();
 		if (CanvasRTTexture)
 		{
 			bRequiresExplicit128bitRT = PlatformRequires128bitRT(CanvasRTTexture->GetFormat());

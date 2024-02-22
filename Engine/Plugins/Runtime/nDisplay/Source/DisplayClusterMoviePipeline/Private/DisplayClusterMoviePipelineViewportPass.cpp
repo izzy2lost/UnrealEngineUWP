@@ -32,7 +32,7 @@ namespace UE::DisplayCluster::MoviePipelineViewportPass
 				const TSharedPtr<IDisplayClusterProjectionPolicy, ESPMode::ThreadSafe>& InPolicy = InViewportProxy->GetProjectionPolicy_RenderThread();
 				if (InPolicy.IsValid() && InPolicy->IsWarpBlendSupported())
 				{
-					TArray<FRHITexture2D*> WarpInputTextures, WarpOutputTextures;
+					TArray<FRHITexture*> WarpInputTextures, WarpOutputTextures;
 					TArray<FIntRect> WarpInputRects, WarpOutputRects;
 
 					if (InViewportProxy->GetResourcesWithRects_RenderThread(EDisplayClusterViewportResourceType::InputShaderResource, WarpInputTextures, WarpInputRects))

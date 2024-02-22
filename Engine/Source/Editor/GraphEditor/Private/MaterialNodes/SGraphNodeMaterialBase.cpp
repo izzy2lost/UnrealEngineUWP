@@ -87,7 +87,7 @@ public:
 	}
 
 	/** Sets the texture that this target renders to */
-	void SetRenderTargetTexture( FTexture2DRHIRef& InRHIRef )
+	void SetRenderTargetTexture( FTextureRHIRef& InRHIRef )
 	{
 		RenderTargetTextureRHI = InRHIRef;
 	}
@@ -268,7 +268,7 @@ void FPreviewElement::Draw_RenderThread(FRHICommandListImmediate& RHICmdList, co
 {
 	if(ExpressionPreview)
 	{
-		RenderTarget->SetRenderTargetTexture(*(FTexture2DRHIRef*)InWindowBackBuffer);
+		RenderTarget->SetRenderTargetTexture(*(FTextureRHIRef*)InWindowBackBuffer);
 		{
 			// Check realtime mode for whether to pass current time to canvas
 			double CurrentTime = bIsRealtime ? (FApp::GetCurrentTime() - GStartTime) : 0.0;

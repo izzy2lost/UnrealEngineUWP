@@ -33,7 +33,7 @@ public:
 		return ConverterInfoFlags_Default;
 	}
 
-	virtual bool Convert(FTexture2DRHIRef & InDstTexture, const FConversionHints & Hints) = 0;
+	virtual bool Convert(FTextureRHIRef & InDstTexture, const FConversionHints & Hints) = 0;
 };
 
 /**
@@ -48,6 +48,6 @@ public:
 	 * Apply a color conversion on the input and store the result in the destination texture.
 	 * @return true If the color conversion was successfully applied.
 	 */
-	virtual bool ApplyColorConversion(FTexture2DRHIRef& InSrcTexture, FTexture2DRHIRef& InDstTexture) = 0;
+	virtual bool ApplyColorConversion(FTextureRHIRef& InSrcTexture, FTextureRHIRef& InDstTexture) = 0;
 };
 

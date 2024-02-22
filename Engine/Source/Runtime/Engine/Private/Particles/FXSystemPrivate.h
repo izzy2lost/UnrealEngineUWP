@@ -124,11 +124,11 @@ public:
 	/** Buffer containing unsorted particle indices. */
 	FRHIShaderResourceView* UnsortedParticleIndicesSRV;
 	/** Texture containing positions for all particles. */
-	FRHITexture2D* PositionTextureRHI;
+	FRHITexture* PositionTextureRHI;
 	/** Texture containing velocities for all particles. */
-	FRHITexture2D* VelocityTextureRHI;
+	FRHITexture* VelocityTextureRHI;
 	/** Texture containint attributes for all particles. */
-	FRHITexture2D* AttributesTextureRHI;
+	FRHITexture* AttributesTextureRHI;
 	/** LWC tile offset, will be 0,0,0 for localspace emitters. */
 	FVector3f LWCTile;
 	/** Tile page offset factors associated with the GPU particle simulation resources. */
@@ -361,8 +361,8 @@ private:
 		EParticleSimulatePhase::Type Phase,
 		const TUniformBufferRef<FViewUniformShaderParameters>& ViewUniformBuffer,
 		const FGlobalDistanceFieldParameterData* GlobalDistanceFieldParameterData,
-		FRHITexture2D* SceneDepthTexture,
-		FRHITexture2D* GBufferATexture
+		FRHITexture* SceneDepthTexture,
+		FRHITexture* GBufferATexture
 	);
 
 	/*-------------------------------------------------------------------------

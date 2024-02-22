@@ -168,19 +168,19 @@ namespace
 	class FStagingBufferPool
 	{
 	public:
-		FTexture2DRHIRef CreateStagingBuffer_RenderThread(FRHICommandListImmediate& RHICmdList, int32 Width, int32 Height, EPixelFormat Format, bool bIsSRGB)
+		FTextureRHIRef CreateStagingBuffer_RenderThread(FRHICommandListImmediate& RHICmdList, int32 Width, int32 Height, EPixelFormat Format, bool bIsSRGB)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(CreateStagingBuffer_RenderThread)
 
 			auto StagingBufferPredicate = 
-				[Width, Height, Format, bIsSRGB](const FTexture2DRHIRef& Texture2DRHIRef)
+				[Width, Height, Format, bIsSRGB](const FTextureRHIRef& Texture2DRHIRef)
 				{
 					return Texture2DRHIRef->GetSizeX() == Width && Texture2DRHIRef->GetSizeY() == Height && Texture2DRHIRef->GetFormat() == Format && bool(Texture2DRHIRef->GetFlags() & TexCreate_SRGB) == bIsSRGB;
 				};
 
 			// Process any staging buffers available for unmapping
 			{
-				TArray<FTexture2DRHIRef> ToUnmapLocal;
+				TArray<FTextureRHIRef> ToUnmapLocal;
 				{
 					FScopeLock Lock(&ToUnmapLock);
 					ToUnmapLocal = MoveTemp(ToUnmap);
@@ -198,7 +198,7 @@ namespace
 
 			if (Index != -1)
 			{
-				FTexture2DRHIRef StagingBuffer = MoveTemp(Pool[Index]);
+				FTextureRHIRef StagingBuffer = MoveTemp(Pool[Index]);
 				Pool.RemoveAtSwap(Index);
 				return StagingBuffer;
 			}
@@ -217,7 +217,7 @@ namespace
 			return RHICreateTexture(Desc);
 		}
 
-		void ReleaseStagingBufferForUnmap_AnyThread(FTexture2DRHIRef& Texture2DRHIRef)
+		void ReleaseStagingBufferForUnmap_AnyThread(FTextureRHIRef& Texture2DRHIRef)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(ReleaseStagingBufferForUnmap_AnyThread)
 			FScopeLock Lock(&ToUnmapLock);
@@ -227,7 +227,7 @@ namespace
 		void Clear_RenderThread(FRHICommandListImmediate& RHICmdList)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(Clear_RenderThread)
-			for (FTexture2DRHIRef& StagingSurface : ToUnmap)
+			for (FTextureRHIRef& StagingSurface : ToUnmap)
 			{
 				RHICmdList.UnmapStagingSurface(StagingSurface);
 			}
@@ -242,11 +242,11 @@ namespace
 		}
 
 	private:
-		TArray<FTexture2DRHIRef> Pool;
+		TArray<FTextureRHIRef> Pool;
 
 		// Not contented enough to warrant the use of lockless structures.
-		FCriticalSection         ToUnmapLock;
-		TArray<FTexture2DRHIRef> ToUnmap;
+		FCriticalSection       ToUnmapLock;
+		TArray<FTextureRHIRef> ToUnmap;
 	};
 
 	struct FRenderItemKey
@@ -953,7 +953,7 @@ private:
 			{
 				FTextureRenderTargetResource* RenderTargetResource = RenderTarget->GetRenderTargetResource();
 
-				FTexture2DRHIRef StagingBufferRef = StagingBufferPool.CreateStagingBuffer_RenderThread(RHICmdList, RenderTargetResource->GetSizeX(), RenderTargetResource->GetSizeY(), RenderTarget->GetFormat(), RenderTarget->IsSRGB());
+				FTextureRHIRef StagingBufferRef = StagingBufferPool.CreateStagingBuffer_RenderThread(RHICmdList, RenderTargetResource->GetSizeX(), RenderTargetResource->GetSizeY(), RenderTarget->GetFormat(), RenderTarget->IsSRGB());
 				FGPUFenceRHIRef GPUFence = RHICreateGPUFence(TEXT("MaterialBackingFence"));
 				TransitionAndCopyTexture(RHICmdList, RenderTargetResource->GetRenderTargetTexture(), StagingBufferRef, {});
 				RHICmdList.WriteGPUFence(GPUFence);
@@ -961,7 +961,7 @@ private:
 				// Prepare a lambda for final processing that will be executed asynchronously
 				NumTasks++;
 				auto FinalProcessing_AnyThread =
-					[this, CurrentMaterialSettings, &CurrentOutput, Property](FTexture2DRHIRef& StagingBuffer, void* Data, int32 DataWidth, int32 DataHeight)
+					[this, CurrentMaterialSettings, &CurrentOutput, Property](FTextureRHIRef& StagingBuffer, void* Data, int32 DataWidth, int32 DataHeight)
 					{
 						TRACE_CPUPROFILER_EVENT_SCOPE(FinalProcessing)
 

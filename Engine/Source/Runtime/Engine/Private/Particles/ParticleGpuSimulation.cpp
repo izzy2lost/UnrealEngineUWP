@@ -323,9 +323,9 @@ public:
 	const TCHAR* PaticleVelocityTextureName = TEXT("FParticleStateVelocity");
 
 	/** Contains the positions of all simulating particles. */
-	FTexture2DRHIRef PositionTextureRHI;
+	FTextureRHIRef PositionTextureRHI;
 	/** Contains the velocity of all simulating particles. */
-	FTexture2DRHIRef VelocityTextureRHI;
+	FTextureRHIRef VelocityTextureRHI;
 
 	bool bTexturesCleared;
 	int32 ParticleStateIndex = 0;
@@ -386,8 +386,8 @@ public:
 		RenderTargetSize.Y = SizeY;
 
 		// allocate the new textures
-		FTexture2DRHIRef NewPositionTextureRHI = CreateStateTextureRHI(PaticlePositonTextureName, PF_A32B32G32R32F);
-		FTexture2DRHIRef NewVelocityTextureRHI = CreateStateTextureRHI(PaticleVelocityTextureName, PF_FloatRGBA);
+		FTextureRHIRef NewPositionTextureRHI = CreateStateTextureRHI(PaticlePositonTextureName, PF_A32B32G32R32F);
+		FTextureRHIRef NewVelocityTextureRHI = CreateStateTextureRHI(PaticleVelocityTextureName, PF_FloatRGBA);
 		
 		RHICmdList.Transition(FRHITransitionInfo(NewPositionTextureRHI, ERHIAccess::SRVMask, ERHIAccess::CopyDest));
 		RHICmdList.Transition(FRHITransitionInfo(PositionTextureRHI, ERHIAccess::SRVMask, ERHIAccess::CopySrc));
@@ -476,7 +476,7 @@ public:
 		RenderTargetSize.Y = SizeY;
 
 		// allocate the new textures
-		FTexture2DRHIRef NewAttributesTextureRHI = CreateAttributesTextureRHI();
+		FTextureRHIRef NewAttributesTextureRHI = CreateAttributesTextureRHI();
 
 		RHICmdList.Transition(FRHITransitionInfo(NewAttributesTextureRHI, ERHIAccess::SRVMask, ERHIAccess::CopyDest));
 		RHICmdList.Transition(FRHITransitionInfo(TextureRHI, ERHIAccess::SRVMask, ERHIAccess::CopySrc));
@@ -1438,7 +1438,7 @@ struct FSimulationCommandGPU
 	/** Parameters to sample the local vector field for this simulation. */
 	FVectorFieldUniformBufferRef VectorFieldsUniformBuffer;
 	/** Vector field volume textures for this simulation. */
-	FRHITexture3D* VectorFieldTexturesRHI[MAX_VECTOR_FIELDS];
+	FRHITexture* VectorFieldTexturesRHI[MAX_VECTOR_FIELDS];
 	/** The number of tiles to simulate. */
 	int32 UnalignedTileCount;
 
@@ -1451,7 +1451,7 @@ struct FSimulationCommandGPU
 		, VectorFieldsUniformBuffer(InVectorFieldsUniformBuffer)
 		, UnalignedTileCount(InTileCount)
 	{
-		FRHITexture3D* BlackVolumeTextureRHI = (FRHITexture3D*)(FRHITexture*)GBlackVolumeTexture->TextureRHI;
+		FRHITexture* BlackVolumeTextureRHI = (FRHITexture*)(FRHITexture*)GBlackVolumeTexture->TextureRHI;
 		for (int32 i = 0; i < MAX_VECTOR_FIELDS; ++i)
 		{
 			VectorFieldTexturesRHI[i] = BlackVolumeTextureRHI;
@@ -2037,7 +2037,7 @@ static void VisualizeGPUSimulation(
 	int32 VisualizationMode,
 	FRenderTarget* RenderTarget,
 	const FParticleStateTextures& StateTextures,
-	FRHITexture2D* CurveTextureRHI
+	FRHITexture* CurveTextureRHI
 	)
 {
 	check(IsInRenderingThread());
@@ -2250,7 +2250,7 @@ static FBox ComputeParticleBounds(
 	FRHICommandListImmediate& RHICmdList,
 	ERHIFeatureLevel::Type FeatureLevel,
 	FRHIShaderResourceView* VertexBufferSRV,
-	FRHITexture2D* PositionTextureRHI,
+	FRHITexture* PositionTextureRHI,
 	int32 ParticleCount,
 	FParticleSimulationResources* ParticleSimulationResources)
 {
@@ -4835,7 +4835,7 @@ void FFXSystem::SimulateGPUParticles(
 		if (GPUSimulations.Num() > 0)
 		{
 			FVectorFieldUniformParameters VectorFieldParameters;
-			FRHITexture3D* BlackVolumeTextureRHI = (FRHITexture3D*)(FRHITexture*)GBlackVolumeTexture->TextureRHI;
+			FRHITexture* BlackVolumeTextureRHI = (FRHITexture*)(FRHITexture*)GBlackVolumeTexture->TextureRHI;
 			for (int32 Index = 0; Index < MAX_VECTOR_FIELDS; ++Index)
 			{
 				VectorFieldParameters.WorldToVolume[Index] = FMatrix44f::Identity;

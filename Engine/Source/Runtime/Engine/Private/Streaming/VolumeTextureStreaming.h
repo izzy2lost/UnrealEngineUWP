@@ -42,7 +42,7 @@ public:
 protected:
 
 	// The intermediate texture async created in the update process.
-	FTexture3DRHIRef IntermediateTextureRHI;
+	FTextureRHIRef IntermediateTextureRHI;
 
 	// The temporary main memory allocations holding the mip data
 	FVolumeTextureBulkData StreamedInMipData;

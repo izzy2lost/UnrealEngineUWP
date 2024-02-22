@@ -253,7 +253,7 @@ public:
 	ENGINE_API virtual void ReleaseRHI() override;
 
 	/** Returns the Texture2DRHI, which can be used for locking/unlocking the mips. */
-	ENGINE_API FTexture2DRHIRef GetTexture2DRHI();
+	ENGINE_API FTextureRHIRef GetTexture2DRHI();
 
 #if !UE_SERVER
 	ENGINE_API void WriteRawToTexture_RenderThread(TArrayView64<const uint8> RawData);
@@ -263,7 +263,7 @@ private:
 	/** The owner of this resource. */
 	class UTexture2DDynamic* Owner;
 	/** Texture2D reference, used for locking/unlocking the mips. */
-	FTexture2DRHIRef Texture2DRHI;
+	FTextureRHIRef Texture2DRHI;
 };
 
 /**
@@ -521,7 +521,7 @@ private:
 	const class UTextureRenderTarget2D* Owner;
 	/** Texture resource used for rendering with and resolving to */
 	UE_DEPRECATED(5.1, "Texture2DRHI is deprecated. Use TextureRHI instead.")
-	FTexture2DRHIRef Texture2DRHI;
+	FTextureRHIRef Texture2DRHI;
 	/** Optional Unordered Access View for the resource, automatically created if bCanCreateUAV is true */
 	FUnorderedAccessViewRHIRef UnorderedAccessViewRHI;
 	/** the color the texture is cleared to */

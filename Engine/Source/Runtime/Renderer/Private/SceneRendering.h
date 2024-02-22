@@ -1550,7 +1550,7 @@ public:
 
 	/** Only one of the resources(TextureBuffer or Texture2D) will be used depending on the Mobile.UseGPUSceneTexture cvar */
 
-	FTexture2DRHIRef PrimitiveSceneDataTextureOverrideRHI;
+	FTextureRHIRef PrimitiveSceneDataTextureOverrideRHI;
 
 	FShaderPrintData ShaderPrintData;
 private:

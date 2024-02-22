@@ -6,7 +6,7 @@
 #include "Engine/Engine.h"
 
 
-void IXRLoadingScreen::ShowLoadingScreen_Compat(bool bShow, FTexture2DRHIRef Texture, const FVector& Offset, const FVector2D& Scale)
+void IXRLoadingScreen::ShowLoadingScreen_Compat(bool bShow, FTextureRHIRef Texture, const FVector& Offset, const FVector2D& Scale)
 {
 	// Backwards compatibility with IStereoLayers::ShowSplashScreen
 	IXRLoadingScreen* LoadingScreen = GEngine && GEngine->XRSystem.IsValid()? GEngine->XRSystem->GetLoadingScreen() : nullptr;

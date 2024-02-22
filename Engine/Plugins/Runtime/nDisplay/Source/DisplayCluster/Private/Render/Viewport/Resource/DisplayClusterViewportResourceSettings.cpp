@@ -16,7 +16,7 @@ FDisplayClusterViewportResourceSettings::FDisplayClusterViewportResourceSettings
 {
 	if (InViewport && InViewport->GetRenderTargetTexture())
 	{
-		FRHITexture2D* ViewportTexture = InViewport->GetRenderTargetTexture();
+		FRHITexture* ViewportTexture = InViewport->GetRenderTargetTexture();
 		Format = ViewportTexture->GetFormat();
 
 		if (EnumHasAnyFlags(ViewportTexture->GetFlags(), TexCreate_SRGB))

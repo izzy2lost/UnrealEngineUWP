@@ -61,7 +61,7 @@ public:
 	 *
 	 * @return - true if success
 	 */
-	virtual bool GetResources_RenderThread(const EDisplayClusterViewportResourceType InResourceType, TArray<FRHITexture2D*>& OutResources) const = 0;
+	virtual bool GetResources_RenderThread(const EDisplayClusterViewportResourceType InResourceType, TArray<FRHITexture*>& OutResources) const = 0;
 
 	/** Get viewport resources with rects by type
 	 *
@@ -71,7 +71,7 @@ public:
 	 *
 	 * @return - true if success
 	 */
-	virtual bool GetResourcesWithRects_RenderThread(const EDisplayClusterViewportResourceType InResourceType, TArray<FRHITexture2D*>& OutResources, TArray<FIntRect>& OutRects) const = 0;
+	virtual bool GetResourcesWithRects_RenderThread(const EDisplayClusterViewportResourceType InResourceType, TArray<FRHITexture*>& OutResources, TArray<FIntRect>& OutRects) const = 0;
 
 	/** Copy resource contexts by type
 	 *

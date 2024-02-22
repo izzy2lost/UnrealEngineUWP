@@ -611,7 +611,7 @@ void UAjaMediaCapture::LockDMATexture_RenderThread(FTextureRHIRef InTexture)
 		{
 			TexturesToRelease.Add(InTexture);
 
-			FRHITexture2D* Texture = InTexture->GetTexture2D();
+			FRHITexture* Texture = InTexture->GetTexture2D();
 			UE::GPUTextureTransfer::FRegisterDMATextureArgs Args;
 			Args.RHITexture = Texture;
 			

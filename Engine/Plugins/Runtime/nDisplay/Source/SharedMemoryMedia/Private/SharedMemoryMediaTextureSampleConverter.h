@@ -22,7 +22,7 @@ public:
 		return ConverterInfoFlags_PreprocessOnly;
 	}
 
-	virtual bool Convert(FTexture2DRHIRef& InDstTexture, const FConversionHints& Hints) override
+	virtual bool Convert(FTextureRHIRef& InDstTexture, const FConversionHints& Hints) override
 	{
 		if (!Player)
 		{

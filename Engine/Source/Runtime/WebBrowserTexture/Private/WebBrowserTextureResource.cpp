@@ -183,7 +183,7 @@ void FWebBrowserTextureResource::ClearTexture(const FLinearColor& ClearColor)
 void FWebBrowserTextureResource::CopySample(const TSharedPtr<FWebBrowserTextureSample, ESPMode::ThreadSafe>& Sample, const FLinearColor& ClearColor)
 {
 	FRHITexture* SampleTexture = Sample->GetTexture();
-	FRHITexture2D* SampleTexture2D = (SampleTexture != nullptr) ? SampleTexture->GetTexture2D() : nullptr;
+	FRHITexture* SampleTexture2D = (SampleTexture != nullptr) ? SampleTexture->GetTexture2D() : nullptr;
 	// If the sample already provides a texture resource, we simply use that
 	// as the output render target. If the sample only provides raw data, then
 	// we create our own output render target and copy the data into it.
@@ -260,7 +260,7 @@ void FWebBrowserTextureResource::UpdateResourceSize()
 }
 
 
-void FWebBrowserTextureResource::UpdateTextureReference(FRHITexture2D* NewTexture)
+void FWebBrowserTextureResource::UpdateTextureReference(FRHITexture* NewTexture)
 {
 	TextureRHI = NewTexture;
 	RenderTargetTextureRHI = NewTexture;

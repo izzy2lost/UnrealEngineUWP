@@ -224,7 +224,7 @@ public:
 		return Owner->GetNumSlices();
 	}
 
-	FTextureCubeRHIRef GetTextureCubeRHI() const
+	FTextureRHIRef GetTextureCubeRHI() const
 	{
 		return TextureCubeRHI;
 	}
@@ -234,7 +234,7 @@ public:
 	const FTextureCubeArrayResource* GetProxiedResource() const { return ProxiedResource; }
 private:
 	/** A reference to the texture's RHI resource as a cube-map texture. */
-	FTextureCubeRHIRef TextureCubeRHI;
+	FTextureRHIRef TextureCubeRHI;
 
 	/** Local copy/ cache of mip data. Only valid between creation and first call to InitRHI */
 	TArray<void*> MipData;

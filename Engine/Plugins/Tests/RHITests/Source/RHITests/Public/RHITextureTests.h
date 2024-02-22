@@ -185,7 +185,7 @@ public:
 				.SetNumMips(NumMips)
 				.SetFlags(ETextureCreateFlags::UAV | ETextureCreateFlags::ShaderResource);
 
-			FTexture3DRHIRef Texture = RHICreateTexture(Desc);
+			FTextureRHIRef Texture = RHICreateTexture(Desc);
 
 			for (uint32 Mip = 0; Mip < NumMips; ++Mip)
 			{
@@ -617,7 +617,7 @@ public:
 
 			Desc.SetFlags(ETextureCreateFlags::ShaderResource);
 
-			FTexture2DRHIRef Texture = RHICreateTexture(Desc);
+			FTextureRHIRef Texture = RHICreateTexture(Desc);
 			if (Texture == nullptr)
 			{
 				UE_LOG(LogRHIUnitTestCommandlet, Display, TEXT("Test failed (couldn't create texture). \"%s\""), *TestName);
@@ -1371,8 +1371,8 @@ public:
 		const EPixelFormat Format = PF_R8G8B8A8;
 		FRHITextureCreateDesc DescArray = FRHITextureCreateDesc::Create2DArray(TEXT("Multiple Texture Slice Lock"), SliceDim, ArrayLength, Format).DetermineInititialState();
 		
-		FTexture2DArrayRHIRef Texture_SingleLock = RHICreateTexture(DescArray);
-		FTexture2DArrayRHIRef Texture_MultipleLock = RHICreateTexture(DescArray);
+		FTextureRHIRef Texture_SingleLock = RHICreateTexture(DescArray);
+		FTextureRHIRef Texture_MultipleLock = RHICreateTexture(DescArray);
 		
 		// Create Reasonable Test Data that can be seen in the GPU debugger if required
 		const auto WriteSliceTestData = [=](uint8* pDestData, uint32 DestStride, uint32 SliceIdx)

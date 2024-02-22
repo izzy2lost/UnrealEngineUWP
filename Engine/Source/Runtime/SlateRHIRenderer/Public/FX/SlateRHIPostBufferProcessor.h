@@ -118,7 +118,7 @@ protected:
 	 * @param InElementWindowSize	Size of window being rendered, used to determine if using stereo rendering or not.
 	 * @param InRHICmdList			RHI command list to queue commands on
 	 */
-	static FTexture2DRHIRef GetBackbuffer_RenderThread(FRenderResource* InViewInfo, FRenderResource* InViewportTexture, FVector2D InElementWindowSize, FRHICommandListImmediate& InRHICmdList);
+	static FTextureRHIRef GetBackbuffer_RenderThread(FRenderResource* InViewInfo, FRenderResource* InViewportTexture, FVector2D InElementWindowSize, FRHICommandListImmediate& InRHICmdList);
 
 	/**
 	 * Gets 'Src' texture for post process command. Typically the scenebuffer.
@@ -126,7 +126,7 @@ protected:
 	 * @param InBackBuffer			Backbuffer used in standalone
 	 * @param InViewportTexture		'FSlateRenderTargetRHI' resource used for 'BufferedRT' viewport texture in PIE
 	 */
-	static FTexture2DRHIRef GetSrcTexture_RenderThread(FTexture2DRHIRef InBackBuffer, FRenderResource* InViewportTexture);
+	static FTextureRHIRef GetSrcTexture_RenderThread(FTextureRHIRef InBackBuffer, FRenderResource* InViewportTexture);
 
 	/**
 	 * Gets 'Dst' texture for post process command. Convience method, this should be possible through the direct resource.
@@ -141,5 +141,5 @@ protected:
 	 * @param InBackBuffer			Backbuffer used for size in standalone
 	 * @param InViewportTexture		'FSlateRenderTargetRHI' resource used for 'BufferedRT' viewport texture size in PIE
 	 */
-	static FIntPoint GetDstExtent_RenderThread(FTexture2DRHIRef InBackBuffer, FRenderResource* InViewportTexture);
+	static FIntPoint GetDstExtent_RenderThread(FTextureRHIRef InBackBuffer, FRenderResource* InViewportTexture);
 };

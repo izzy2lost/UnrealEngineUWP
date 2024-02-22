@@ -1646,7 +1646,7 @@ void FVirtualTexture2DResource::InitializeEditorResources(IVirtualTexture* InVir
 		FRHITextureCreateDesc Desc = FRHITextureCreateDesc::Create2D(*Name, MipWidthInTiles * TileSizeInPixels, MipHeightInTiles * TileSizeInPixels, PixelFormat);
 		Desc.AddFlags(TexCreateFlags);
 
-		FTexture2DRHIRef Texture2DRHI = RHICreateTexture(Desc);
+		FTextureRHIRef Texture2DRHI = RHICreateTexture(Desc);
 
 		FRHICommandListImmediate& RHICommandList = FRHICommandListExecutor::GetImmediateCommandList();
 
@@ -1696,7 +1696,7 @@ void FVirtualTexture2DResource::InitializeEditorResources(IVirtualTexture* InVir
 				.SetFlags(Desc.Flags)
 				.SetInitialState(ERHIAccess::CopyDest);
 
-			FTexture2DRHIRef ResizedTexture2DRHI = RHICreateTexture(ResizedDesc);
+			FTextureRHIRef ResizedTexture2DRHI = RHICreateTexture(ResizedDesc);
 
 			FRHICopyTextureInfo CopyInfo;
 			CopyInfo.Size = FIntVector(MipWidth, MipHeight, 1);

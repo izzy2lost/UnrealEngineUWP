@@ -755,7 +755,7 @@ void UBlackmagicMediaCapture::LockDMATexture_RenderThread(FTextureRHIRef InTextu
 		{
 			TexturesToRelease.Add(InTexture);
 
-			FRHITexture2D* Texture = InTexture->GetTexture2D();
+			FRHITexture* Texture = InTexture->GetTexture2D();
 			UE::GPUTextureTransfer::FRegisterDMATextureArgs Args;
 			Args.RHITexture = Texture;
 

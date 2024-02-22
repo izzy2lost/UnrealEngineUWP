@@ -483,7 +483,7 @@ uint32 FElectraTextureSample::GetStride() const
 }
 
 
-bool FElectraTextureSample::Convert(FTexture2DRHIRef& InDstTexture, const FConversionHints& Hints)
+bool FElectraTextureSample::Convert(FTextureRHIRef& InDstTexture, const FConversionHints& Hints)
 {
 	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 
@@ -492,7 +492,7 @@ bool FElectraTextureSample::Convert(FTexture2DRHIRef& InDstTexture, const FConve
 		return false;
 	}
 
-	TRefCountPtr<FRHITexture2D> InputTexture;
+	TRefCountPtr<FRHITexture> InputTexture;
 
 	// Either use a texture we have around as a payload or make a temporary one from buffer contents...
 	if (!Texture.IsValid())

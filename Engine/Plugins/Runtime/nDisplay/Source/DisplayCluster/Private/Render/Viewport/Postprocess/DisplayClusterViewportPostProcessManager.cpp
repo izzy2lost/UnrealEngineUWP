@@ -536,8 +536,8 @@ void FDisplayClusterViewportPostProcessManager::ImplPerformPostProcessFrameAfter
 
 	if (bEnabled != 0 && InViewportManagerProxy)
 	{
-		TArray<FRHITexture2D*> FrameResources;
-		TArray<FRHITexture2D*> AdditionalFrameResources;
+		TArray<FRHITexture*> FrameResources;
+		TArray<FRHITexture*> AdditionalFrameResources;
 		TArray<FIntPoint> TargetOffset;
 		if (InViewportManagerProxy->GetFrameTargets_RenderThread(FrameResources, TargetOffset, &AdditionalFrameResources))
 		{
@@ -547,7 +547,7 @@ void FDisplayClusterViewportPostProcessManager::ImplPerformPostProcessFrameAfter
 				{
 					UE_LOG(LogDisplayClusterRender, VeryVerbose, TEXT("Postprocess FRAME after WarpBlend"));
 
-					TArray<FRHITexture2D*>* AdditionalResources = (AdditionalFrameResources.Num() > 0 && It->ShouldUseAdditionalFrameTargetableResource())? &AdditionalFrameResources: nullptr;
+					TArray<FRHITexture*>* AdditionalResources = (AdditionalFrameResources.Num() > 0 && It->ShouldUseAdditionalFrameTargetableResource())? &AdditionalFrameResources: nullptr;
 					It->PerformPostProcessFrameAfterWarpBlend_RenderThread(RHICmdList, &FrameResources, AdditionalResources);
 				}
 			}
@@ -555,7 +555,7 @@ void FDisplayClusterViewportPostProcessManager::ImplPerformPostProcessFrameAfter
 			// Apply OutputRemap after all postprocess
 			if (OutputRemap.IsValid() && OutputRemap->IsEnabled())
 			{
-				TArray<FRHITexture2D*>* AdditionalResources = (AdditionalFrameResources.Num() > 0) ? &AdditionalFrameResources : nullptr;
+				TArray<FRHITexture*>* AdditionalResources = (AdditionalFrameResources.Num() > 0) ? &AdditionalFrameResources : nullptr;
 				OutputRemap->PerformPostProcessFrame_RenderThread(RHICmdList, &FrameResources, AdditionalResources);
 			}
 		}

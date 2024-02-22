@@ -56,7 +56,7 @@ public:
 private:
 	virtual float GetSampleDataScale(bool b10Bit) const override;
 
-	virtual bool Convert(FTexture2DRHIRef & InDstTexture, const FConversionHints & Hints) override;
+	virtual bool Convert(FTextureRHIRef & InDstTexture, const FConversionHints & Hints) override;
 	virtual uint32 GetConverterInfoFlags() const
 	{
 		return ConverterInfoFlags_PreprocessOnly;
@@ -66,7 +66,7 @@ private:
 	EMediaTextureSampleFormat SampleFormat;
 
 	/** Destination Texture resource (from Rendering device) */
-	mutable FTexture2DRHIRef Texture;
+	mutable FTextureRHIRef Texture;
 
 	/** True if texture format could support sRGB conversion in HW */
 	bool bCanUseSRGB;

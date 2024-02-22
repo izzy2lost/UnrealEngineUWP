@@ -147,7 +147,7 @@ public:
 IMPLEMENT_SHADER_TYPE(template<>, FBlitUIToHDRPS<0>, FBlitUIToHDRPS::GetSourceFilename(), FBlitUIToHDRPS::GetFunctionName(), SF_Pixel);
 IMPLEMENT_SHADER_TYPE(template<>, FBlitUIToHDRPS<1>, FBlitUIToHDRPS::GetSourceFilename(), FBlitUIToHDRPS::GetFunctionName(), SF_Pixel);
 
-static void BlitUIToHDRScene(FRHICommandListImmediate& RHICmdList, IRendererModule& RendererModule, const FPostProcessRectParams& RectParams, FTexture2DRHIRef DestTexture, const FIntPoint& AllocatedSize)
+static void BlitUIToHDRScene(FRHICommandListImmediate& RHICmdList, IRendererModule& RendererModule, const FPostProcessRectParams& RectParams, FTextureRHIRef DestTexture, const FIntPoint& AllocatedSize)
 {
 	SCOPED_DRAW_EVENT(RHICmdList, SlatePostProcessBlitUIToHDR);
 
@@ -337,8 +337,8 @@ void FSlatePostProcessor::BlurRect(FRHICommandListImmediate& RHICmdList, IRender
 		// First pass render to the render target with the post process fx
 		if (PassIndex == 0)
 		{
-			FTexture2DRHIRef SourceTexture = (bDownsample || bIsHDRSource) ? IntermediateTargets->GetRenderTarget(0) : RectParams.SourceTexture;
-			FTexture2DRHIRef DestTexture = IntermediateTargets->GetRenderTarget(1);
+			FTextureRHIRef SourceTexture = (bDownsample || bIsHDRSource) ? IntermediateTargets->GetRenderTarget(0) : RectParams.SourceTexture;
+			FTextureRHIRef DestTexture = IntermediateTargets->GetRenderTarget(1);
 
 			RHICmdList.Transition(FRHITransitionInfo(SourceTexture, ERHIAccess::Unknown, ERHIAccess::SRVGraphics));
 			RHICmdList.Transition(FRHITransitionInfo(DestTexture, ERHIAccess::Unknown, ERHIAccess::RTV));
@@ -411,8 +411,8 @@ void FSlatePostProcessor::BlurRect(FRHICommandListImmediate& RHICmdList, IRender
 		}
 		else
 		{
-			FTexture2DRHIRef SourceTexture = IntermediateTargets->GetRenderTarget(1);
-			FTexture2DRHIRef DestTexture = IntermediateTargets->GetRenderTarget(0);
+			FTextureRHIRef SourceTexture = IntermediateTargets->GetRenderTarget(1);
+			FTextureRHIRef DestTexture = IntermediateTargets->GetRenderTarget(0);
 
 			RHICmdList.Transition(FRHITransitionInfo(SourceTexture, ERHIAccess::Unknown, ERHIAccess::SRVGraphics));
 			RHICmdList.Transition(FRHITransitionInfo(DestTexture, ERHIAccess::Unknown, ERHIAccess::RTV));
@@ -499,8 +499,8 @@ void FSlatePostProcessor::ColorDeficiency(FRHICommandListImmediate& RHICmdList, 
 
 	// 
 	{
-		FTexture2DRHIRef SourceTexture = RectParams.SourceTexture;
-		FTexture2DRHIRef DestTexture = IntermediateTargets->GetRenderTarget(0);
+		FTextureRHIRef SourceTexture = RectParams.SourceTexture;
+		FTextureRHIRef DestTexture = IntermediateTargets->GetRenderTarget(0);
 
 		RHICmdList.Transition(FRHITransitionInfo(SourceTexture, ERHIAccess::Unknown, ERHIAccess::SRVGraphics));
 		RHICmdList.Transition(FRHITransitionInfo(DestTexture, ERHIAccess::Unknown, ERHIAccess::RTV));
@@ -578,7 +578,7 @@ void FSlatePostProcessor::DownsampleRect(FRHICommandListImmediate& RHICmdList, I
 
 	FSamplerStateRHIRef BilinearClamp = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 
-	FTexture2DRHIRef DestTexture = IntermediateTargets->GetRenderTarget(0);
+	FTextureRHIRef DestTexture = IntermediateTargets->GetRenderTarget(0);
 
 	// Downsample and store in intermediate texture
 	{
@@ -656,7 +656,7 @@ void FSlatePostProcessor::UpsampleRect(FRHICommandListImmediate& RHICmdList, IRe
 	GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
 
 	// Original source texture is now the destination texture
-	FTexture2DRHIRef DestTexture = Params.PostProcessDest == EPostProcessDestination::DestTexture && Params.DestTexture 
+	FTextureRHIRef DestTexture = Params.PostProcessDest == EPostProcessDestination::DestTexture && Params.DestTexture 
 		? Params.DestTexture 
 		: Params.SourceTexture;
 	const int32 DestTextureWidth = DestTexture->GetSizeX();
@@ -666,7 +666,7 @@ void FSlatePostProcessor::UpsampleRect(FRHICommandListImmediate& RHICmdList, IRe
 	const int32 DownsampledHeight = DownsampleSize.Y;
 
 	// Source texture is the texture that was originally downsampled
-	FTexture2DRHIRef SrcTexture = IntermediateTargets->GetRenderTarget(0);
+	FTextureRHIRef SrcTexture = IntermediateTargets->GetRenderTarget(0);
 	const int32 SrcTextureWidth = IntermediateTargets->GetWidth();
 	const int32 SrcTextureHeight = IntermediateTargets->GetHeight();
 

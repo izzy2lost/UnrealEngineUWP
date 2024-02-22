@@ -552,7 +552,7 @@ void FMediaTextureResource::Render(const FRenderParams& Params)
 
 				if (IMediaTextureSampleColorConverter* Converter = Sample->GetMediaTextureSampleColorConverter())
 				{
-					FTexture2DRHIRef TextureRef = IntermediateTarget ? IntermediateTarget : RenderTargetTextureRHI;
+					FTextureRHIRef TextureRef = IntermediateTarget ? IntermediateTarget : RenderTargetTextureRHI;
 
 					if (bRecreateOutputTarget && TextureRef)
 					{

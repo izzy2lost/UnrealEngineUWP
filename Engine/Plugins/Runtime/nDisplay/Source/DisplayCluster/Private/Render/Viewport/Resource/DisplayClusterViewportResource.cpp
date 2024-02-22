@@ -15,7 +15,7 @@ FDisplayClusterViewportResource::~FDisplayClusterViewportResource()
 	check(!EnumHasAnyFlags(ResourceState, EDisplayClusterViewportResourceState::Initialized));
 }
 
-void FDisplayClusterViewportResource::ImplInitDynamicRHI_RenderTargetResource2D(FTexture2DRHIRef& OutRenderTargetTextureRHI, FTexture2DRHIRef& OutTextureRHI)
+void FDisplayClusterViewportResource::ImplInitDynamicRHI_RenderTargetResource2D(FTextureRHIRef& OutRenderTargetTextureRHI, FTextureRHIRef& OutTextureRHI)
 {
 	ETextureCreateFlags CreateFlags = TexCreate_Dynamic;
 
@@ -48,7 +48,7 @@ void FDisplayClusterViewportResource::ImplInitDynamicRHI_RenderTargetResource2D(
 	OutRenderTargetTextureRHI = OutTextureRHI = RHICreateTexture(Desc);
 }
 
-void FDisplayClusterViewportResource::ImplInitDynamicRHI_TextureResource2D(FTexture2DRHIRef& OutTextureRHI)
+void FDisplayClusterViewportResource::ImplInitDynamicRHI_TextureResource2D(FTextureRHIRef& OutTextureRHI)
 {
 	FRHITextureCreateDesc Desc =
 		FRHITextureCreateDesc::Create2D(TEXT("DisplayClusterViewportTextureResource"), ResourceSettings.GetSizeXY().X, ResourceSettings.GetSizeXY().Y, ResourceSettings.GetFormat())

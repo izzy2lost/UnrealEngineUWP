@@ -157,7 +157,7 @@ public:
 } // namespace anonymous
 
 
-void FElectraMediaTexConvApple::ConvertTexture(FTexture2DRHIRef & InDstTexture, CVImageBufferRef InImageBufferRef, bool bFullRange, EMediaTextureSampleFormat Format, const FMatrix44f& YUVMtx, const FMatrix44d& GamutToXYZMtx, UE::Color::EEncoding EncodingType, float NormalizationFactor)
+void FElectraMediaTexConvApple::ConvertTexture(FTextureRHIRef & InDstTexture, CVImageBufferRef InImageBufferRef, bool bFullRange, EMediaTextureSampleFormat Format, const FMatrix44f& YUVMtx, const FMatrix44d& GamutToXYZMtx, UE::Color::EEncoding EncodingType, float NormalizationFactor)
 {
 	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 
@@ -165,7 +165,7 @@ void FElectraMediaTexConvApple::ConvertTexture(FTexture2DRHIRef & InDstTexture, 
 	const int32 FrameWidth = CVPixelBufferGetWidth(InImageBufferRef);
 	const int32 FrameStride = CVPixelBufferGetBytesPerRow(InImageBufferRef);
 
-	TRefCountPtr<FRHITexture2D> ShaderResource;
+	TRefCountPtr<FRHITexture> ShaderResource;
 
 	// We have to support Metal for this object now
 	check(COREVIDEO_SUPPORTS_METAL);
@@ -444,7 +444,7 @@ uint32 FElectraTextureSample::GetConverterInfoFlags() const
 	return ConverterInfoFlags_Default;
 }
 
-bool FElectraTextureSample::Convert(FTexture2DRHIRef & InDstTexture, const FConversionHints & Hints)
+bool FElectraTextureSample::Convert(FTextureRHIRef & InDstTexture, const FConversionHints & Hints)
 {
 	if (VideoDecoderOutput)
 	{

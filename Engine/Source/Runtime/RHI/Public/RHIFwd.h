@@ -126,11 +126,11 @@ using FVertexShaderRHIRef              = TRefCountPtr<FRHIVertexShader>;
 using FViewportRHIRef                  = TRefCountPtr<FRHIViewport>;
 
 // Deprecated typenames
-using FRHITexture2D                    = FRHITexture;
-using FRHITexture2DArray               = FRHITexture;
-using FRHITexture3D                    = FRHITexture;
-using FRHITextureCube                  = FRHITexture;
-using FTexture2DRHIRef                 = FTextureRHIRef;
-using FTexture2DArrayRHIRef            = FTextureRHIRef;
-using FTexture3DRHIRef                 = FTextureRHIRef;
-using FTextureCubeRHIRef               = FTextureRHIRef;
+using FRHITexture2D         UE_DEPRECATED(5.5, "The separate RHI texture types were unified in UE 5.1. FRHITexture2D is now deprecated. Use FRHITexture instead."           ) = FRHITexture;
+using FRHITexture2DArray    UE_DEPRECATED(5.5, "The separate RHI texture types were unified in UE 5.1. FRHITexture2DArray is now deprecated. Use FRHITexture instead."      ) = FRHITexture;
+using FRHITexture3D         UE_DEPRECATED(5.5, "The separate RHI texture types were unified in UE 5.1. FRHITexture3D is now deprecated. Use FRHITexture instead."           ) = FRHITexture;
+using FRHITextureCube       UE_DEPRECATED(5.5, "The separate RHI texture types were unified in UE 5.1. FRHITextureCube is now deprecated. Use FRHITexture instead."         ) = FRHITexture;
+using FTexture2DRHIRef      UE_DEPRECATED(5.5, "The separate RHI texture types were unified in UE 5.1. FTexture2DRHIRef is now deprecated. Use FTextureRHIRef instead."     ) = FTextureRHIRef;
+using FTexture2DArrayRHIRef UE_DEPRECATED(5.5, "The separate RHI texture types were unified in UE 5.1. FTexture2DArrayRHIRef is now deprecated. Use FTextureRHIRef instead.") = FTextureRHIRef;
+using FTexture3DRHIRef      UE_DEPRECATED(5.5, "The separate RHI texture types were unified in UE 5.1. FTexture3DRHIRef is now deprecated. Use FTextureRHIRef instead."     ) = FTextureRHIRef;
+using FTextureCubeRHIRef    UE_DEPRECATED(5.5, "The separate RHI texture types were unified in UE 5.1. FTextureCubeRHIRef is now deprecated. Use FTextureRHIRef instead."   ) = FTextureRHIRef;

@@ -223,7 +223,7 @@ bool FVulkanViewport::TryAcquireImageIndex()
 	return false;
 }
 
-FTexture2DRHIRef FVulkanViewport::GetBackBuffer(FRHICommandListImmediate& RHICmdList)
+FTextureRHIRef FVulkanViewport::GetBackBuffer(FRHICommandListImmediate& RHICmdList)
 {
 	check(IsInRenderingThread());
 
@@ -1178,7 +1178,7 @@ void FVulkanDynamicRHI::RHITick(float DeltaTime)
 	});
 }
 
-FTexture2DRHIRef FVulkanDynamicRHI::RHIGetViewportBackBuffer(FRHIViewport* ViewportRHI)
+FTextureRHIRef FVulkanDynamicRHI::RHIGetViewportBackBuffer(FRHIViewport* ViewportRHI)
 {
 	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 

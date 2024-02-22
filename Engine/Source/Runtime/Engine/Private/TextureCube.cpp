@@ -537,7 +537,7 @@ public:
 	 * Accessor
 	 * @return Texture2DRHI
 	 */
-	FTextureCubeRHIRef GetTextureCubeRHI() const
+	FTextureRHIRef GetTextureCubeRHI() const
 	{
 		return TextureCubeRHI;
 	}
@@ -547,7 +547,7 @@ public:
 	const FTextureCubeResource* GetProxiedResource() const { return ProxiedResource; }
 private:
 	/** A reference to the texture's RHI resource as a cube-map texture. */
-	FTextureCubeRHIRef TextureCubeRHI;
+	FTextureRHIRef TextureCubeRHI;
 
 	/** Local copy/ cache of mip data. Only valid between creation and first call to InitRHI */
 	void* MipData[6][MAX_TEXTURE_MIP_COUNT];

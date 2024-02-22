@@ -720,7 +720,7 @@ FFXSystemInterface* FScene::GetFXSystem()
 	return FXSystem;
 }
 
-static uint64 GetTextureGPUSizeBytes(const FTexture2DRHIRef& Target, bool bLogSizes)
+static uint64 GetTextureGPUSizeBytes(const FTextureRHIRef& Target, bool bLogSizes)
 {
 	uint64 Size = Target.IsValid() ? Target->GetDesc().CalcMemorySizeEstimate() : 0;
 	if (bLogSizes && Size)

@@ -39,10 +39,10 @@ public:
 	virtual void ShutdownPoolable() override;
 
 public:
-	TRefCountPtr<FRHITexture2D> GetTextureRef() const;
+	TRefCountPtr<FRHITexture> GetTextureRef() const;
 
 private:
-	TRefCountPtr<FRHITexture2D> Texture;
+	TRefCountPtr<FRHITexture> Texture;
 	FTimespan Time;
 	FTimespan Duration;
 	FIntPoint TotalSize;

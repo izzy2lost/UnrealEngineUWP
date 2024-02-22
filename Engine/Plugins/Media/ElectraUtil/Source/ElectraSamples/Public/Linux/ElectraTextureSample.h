@@ -48,7 +48,7 @@ public:
 
 private:
 	/** The sample's texture resource. */
-	TRefCountPtr<FRHITexture2D> Texture;
+	TRefCountPtr<FRHITexture> Texture;
 
 	/** Output data from video decoder. */
 	FVideoDecoderOutputLinux* VideoDecoderOutputLinux;

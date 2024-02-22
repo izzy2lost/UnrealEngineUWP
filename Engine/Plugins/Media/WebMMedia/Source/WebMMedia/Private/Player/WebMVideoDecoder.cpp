@@ -225,7 +225,7 @@ void FWebMVideoDecoder::ConvertYUVToRGBAndSubmit(const FConvertParams& Params)
 	{
 		const auto CopyTextureMemory = [Image](
 			FRHICommandListImmediate& InCommandList,
-			FRHITexture2D* RHITexture,
+			FRHITexture* RHITexture,
 			int ImageIndex,
 			int CopyHeight)
 		{

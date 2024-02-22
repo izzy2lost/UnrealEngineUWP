@@ -15,7 +15,7 @@ static BINKSHADERS * shaders;
 static int attached = 0;
 static unsigned rfb;
 
-FRHITexture2D *BinkRHIRenderTarget;
+FRHITexture *BinkRHIRenderTarget;
 ERenderTargetLoadAction BinkRenderTargetLoadAction;
 
 RADDEFFUNC int setup_rhi( void * device, BINKPLUGININITINFO * info, S32 gpu_assisted, void ** context )
@@ -54,7 +54,7 @@ RADDEFFUNC void selectrendertarget_rhi(void* texture_target, S32 width, S32 heig
 	if (texture_target)
 	{
 		attached = 1;
-		BinkRHIRenderTarget = (FRHITexture2D*)texture_target;
+		BinkRHIRenderTarget = (FRHITexture*)texture_target;
 		BinkRenderTargetLoadAction = do_clear ? ERenderTargetLoadAction::EClear : ERenderTargetLoadAction::ELoad;
 	}
 }
@@ -64,7 +64,7 @@ RADDEFFUNC void selectscreenrendertarget_rhi( void * texture_target, S32 width, 
 	if (texture_target)
 	{
 		attached = 2;
-		BinkRHIRenderTarget = (FRHITexture2D*)texture_target;
+		BinkRHIRenderTarget = (FRHITexture*)texture_target;
 		BinkRenderTargetLoadAction = ERenderTargetLoadAction::ELoad;
 	}
 }

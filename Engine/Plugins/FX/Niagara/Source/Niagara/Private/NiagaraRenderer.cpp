@@ -132,7 +132,7 @@ public:
 
 			case ETextureDimension::Texture3D:
 			{
-				FTexture3DRHIRef Texture3D = RHICreateTexture(Desc);
+				FTextureRHIRef Texture3D = RHICreateTexture(Desc);
 				Texture = Texture3D;
 
 				const FPixelFormatInfo& Info = GPixelFormats[PixelFormat];

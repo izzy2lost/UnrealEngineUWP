@@ -20,7 +20,7 @@ public:
 private:
 	FPixelStreamingVideoInputBackBuffer() = default;
 
-	void OnBackBufferReady(SWindow& SlateWindow, const FTexture2DRHIRef& FrameBuffer);
+	void OnBackBufferReady(SWindow& SlateWindow, const FTextureRHIRef& FrameBuffer);
 
 	FDelegateHandle DelegateHandle;
 };

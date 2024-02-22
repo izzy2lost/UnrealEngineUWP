@@ -58,9 +58,9 @@ public:
 	ENGINE_API virtual void EnqueueEndRenderFrame(const bool bLockToVsync, const bool bShouldPresent) override;
 
 	/** Gets the proper RenderTarget based on the current thread*/
-	ENGINE_API virtual const FTexture2DRHIRef& GetRenderTargetTexture() const;
+	ENGINE_API virtual const FTextureRHIRef& GetRenderTargetTexture() const;
 
-	ENGINE_API virtual void SetRenderTargetTextureRenderThread(FTexture2DRHIRef& RT);
+	ENGINE_API virtual void SetRenderTargetTextureRenderThread(FTextureRHIRef& RT);
 
 	/**
 	 * Captures or uncaptures the joystick
@@ -430,10 +430,10 @@ private:
 	/** Reprojection on some HMD RHI's requires ViewportTargets to be buffered */
 	/** The render target used by Slate to draw the viewport.  Can be null if this viewport renders directly to the backbuffer */
 	TArray<class FSlateRenderTargetRHI*> BufferedSlateHandles;
-	TArray<FTexture2DRHIRef> BufferedRenderTargetsRHI;
-	TArray<FTexture2DRHIRef> BufferedShaderResourceTexturesRHI;
+	TArray<FTextureRHIRef> BufferedRenderTargetsRHI;
+	TArray<FTextureRHIRef> BufferedShaderResourceTexturesRHI;
 
-	FTexture2DRHIRef RenderTargetTextureRenderThreadRHI;
+	FTextureRHIRef RenderTargetTextureRenderThreadRHI;
 	class FSlateRenderTargetRHI* RenderThreadSlateTexture;
 
 	int32 CurrentBufferedTargetIndex;

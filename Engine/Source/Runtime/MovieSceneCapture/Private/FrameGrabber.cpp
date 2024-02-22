@@ -87,7 +87,7 @@ void FViewportSurfaceReader::Reset()
 	bQueuedForCapture = false;
 }
 
-void FViewportSurfaceReader::ResolveRenderTarget(FViewportSurfaceReader* RenderToReadback, const FTexture2DRHIRef& SourceBackBuffer, TFunction<void(FColor*, int32, int32)> Callback)
+void FViewportSurfaceReader::ResolveRenderTarget(FViewportSurfaceReader* RenderToReadback, const FTextureRHIRef& SourceBackBuffer, TFunction<void(FColor*, int32, int32)> Callback)
 {
 	static const FName RendererModuleName( "Renderer" );
 	// @todo: JIRA UE-41879 and UE-43829 - added defensive guards against memory trampling on this render command to try and ascertain why it occasionally crashes
@@ -358,7 +358,7 @@ TArray<FCapturedFrameData> FFrameGrabber::GetCapturedFrames()
 	return ReturnFrames;
 }
 
-void FFrameGrabber::OnBackBufferReadyToPresentCallback(SWindow& SlateWindow, const FTexture2DRHIRef& BackBuffer)
+void FFrameGrabber::OnBackBufferReadyToPresentCallback(SWindow& SlateWindow, const FTextureRHIRef& BackBuffer)
 {
 	// We only care about our own Slate window
 	if (&SlateWindow != TargetWindowPtr)

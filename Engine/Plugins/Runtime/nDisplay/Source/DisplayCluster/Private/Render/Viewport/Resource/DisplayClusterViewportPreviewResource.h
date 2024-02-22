@@ -28,7 +28,7 @@ public:
 		return RenderTargetTexture;
 	}
 
-	virtual FRHITexture2D* GetViewportResourceRHI_RenderThread() const override;
+	virtual FRHITexture* GetViewportResourceRHI_RenderThread() const override;
 	//~~ End FDisplayClusterViewportResource
 
 public:

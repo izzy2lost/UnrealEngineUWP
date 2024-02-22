@@ -57,9 +57,9 @@ public:
 		return RDGTexture->Desc.Extent;
 	}
 
-	const FTexture2DRHIRef& GetRenderTargetTexture() const override
+	const FTextureRHIRef& GetRenderTargetTexture() const override
 	{
-		static FTexture2DRHIRef NullRef;
+		static FTextureRHIRef NullRef;
 		return NullRef;
 	}
 

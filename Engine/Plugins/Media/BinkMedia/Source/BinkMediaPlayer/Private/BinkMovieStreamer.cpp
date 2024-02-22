@@ -118,7 +118,7 @@ bool FBinkMovieStreamer::Tick(float DeltaTime)
 			CurrentTexture->InitResource(RHICmdList);
 		}
 
-		FTexture2DRHIRef tex = CurrentTexture->GetTypedResource();
+		FTextureRHIRef tex = CurrentTexture->GetTypedResource();
 		uint32 binkw = tex.GetReference()->GetSizeX();
 		uint32 binkh = tex.GetReference()->GetSizeY();
 		bool is_hdr = tex.GetReference()->GetFormat() != PF_B8G8R8A8;

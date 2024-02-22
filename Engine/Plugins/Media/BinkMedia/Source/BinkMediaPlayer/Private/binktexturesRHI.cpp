@@ -13,7 +13,7 @@
 #include "RenderingThread.h"
 
 
-extern FRHITexture2D *BinkRHIRenderTarget;
+extern FRHITexture *BinkRHIRenderTarget;
 extern ERenderTargetLoadAction BinkRenderTargetLoadAction;
 
 FRDGTextureRef BinkRegisterExternalTexture(FRDGBuilder& GraphBuilder, FRHITexture* Texture, const TCHAR* NameIfUnregistered)
@@ -291,7 +291,7 @@ static void Finish_texture_update( BINKTEXTURES * ptextures )
 
 //-----------------------------------------------------------------------------
 
-static void update_plane_texture_rect(FRHICommandListImmediate& RHI, FRHITexture2D* RHITexture, BINKPLANE const* plane, unsigned w, unsigned h)
+static void update_plane_texture_rect(FRHICommandListImmediate& RHI, FRHITexture* RHITexture, BINKPLANE const* plane, unsigned w, unsigned h)
 {
 	uint32 Stride = 0;
 	unsigned char* TextureMemory = (unsigned char*)GDynamicRHI->LockTexture2D_RenderThread(RHI, RHITexture, 0, RLM_WriteOnly, Stride, false);

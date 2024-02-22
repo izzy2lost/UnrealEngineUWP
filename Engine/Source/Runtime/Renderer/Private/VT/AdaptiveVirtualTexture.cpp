@@ -752,7 +752,7 @@ void FAdaptiveVirtualTexture::UpdateAllocations(FVirtualTextureSystem* InSystem,
 		for (FIndirectionTextureUpdate& TextureUpdate : TextureUpdates)
 		{
 			const FUpdateTextureRegion2D Region(TextureUpdate.X, TextureUpdate.Y, 0, 0, 1, 1);
-			RHIUpdateTexture2D((FRHITexture2D*)Texture, 0, Region, 4, (uint8*)&TextureUpdate.Value);
+			RHIUpdateTexture2D((FRHITexture*)Texture, 0, Region, 4, (uint8*)&TextureUpdate.Value);
 		}
 		RHICmdList.Transition(FRHITransitionInfo(Texture, ERHIAccess::UAVCompute, ERHIAccess::SRVMask));
 	}

@@ -74,8 +74,8 @@ namespace
 		EPixelFormat GetLayerFormat(int32 Index) const { return LayerFormats[Index]; }
 		int64 GetLayerOffset(int32 Index) const { return LayerOffsets[Index]; }
 
-		FRHITexture2D* GetRenderTarget(int32 Index) const { return Index < NumLayers ? RenderTargets[Index] : nullptr; }
-		FRHITexture2D* GetStagingTexture(int32 Index) const { return Index < NumLayers ? StagingTextures[Index] : nullptr; }
+		FRHITexture* GetRenderTarget(int32 Index) const { return Index < NumLayers ? RenderTargets[Index] : nullptr; }
+		FRHITexture* GetStagingTexture(int32 Index) const { return Index < NumLayers ? StagingTextures[Index] : nullptr; }
 		FRHIGPUFence* GetFence() const { return Fence; }
 
 	private:
@@ -86,8 +86,8 @@ namespace
 		TArray<EPixelFormat> LayerFormats;
 		TArray<int64> LayerOffsets;
 
-		TArray<FTexture2DRHIRef> RenderTargets;
-		TArray<FTexture2DRHIRef> StagingTextures;
+		TArray<FTextureRHIRef> RenderTargets;
+		TArray<FTextureRHIRef> StagingTextures;
 		FGPUFenceRHIRef Fence;
 	};
 

@@ -165,7 +165,7 @@ struct FTransferResourceParams
 {
 	FTransferResourceParams() {}
 
-	FTransferResourceParams(FRHITexture2D* InTexture, const FIntRect& InRect, uint32 InSrcGPUIndex, uint32 InDestGPUIndex, bool InPullData, bool InLockStepGPUs)
+	FTransferResourceParams(FRHITexture* InTexture, const FIntRect& InRect, uint32 InSrcGPUIndex, uint32 InDestGPUIndex, bool InPullData, bool InLockStepGPUs)
 		: Texture(InTexture), Buffer(nullptr), Min(InRect.Min.X, InRect.Min.Y, 0), Max(InRect.Max.X, InRect.Max.Y, 1), SrcGPUIndex(InSrcGPUIndex), DestGPUIndex(InDestGPUIndex), bPullData(InPullData), bLockStepGPUs(InLockStepGPUs)
 	{
 		check(InTexture);
@@ -608,7 +608,7 @@ public:
 	* Rebuilds the depth target HTILE meta data (on supported platforms).
 	* @param DepthTexture - the depth surface to resummarize.
 	*/
-	virtual void RHIResummarizeHTile(FRHITexture2D* DepthTexture)
+	virtual void RHIResummarizeHTile(FRHITexture* DepthTexture)
 	{
 		/* empty default implementation */
 	}

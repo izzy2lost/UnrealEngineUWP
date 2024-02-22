@@ -242,7 +242,7 @@ static void InternalGenerateFollicleTexture_GPU(
 	{
 		if (OutTexture && OutTexture->GetResource() && OutTexture->GetResource()->GetTexture2DRHI())
 		{
-			FRHITexture2D* DstTexture = OutTexture->GetResource()->GetTexture2DRHI();
+			FRHITexture* DstTexture = OutTexture->GetResource()->GetTexture2DRHI();
 			RHICmdList.Transition(FRHITransitionInfo(DstTexture, ERHIAccess::SRVMask, ERHIAccess::CopyDest));
 
 			FRHICopyTextureInfo CopyInfo;

@@ -186,7 +186,7 @@ void FSlate3DRenderer::DrawWindowToTarget_RenderThread(FRHICommandListImmediate&
 			// The scene renderer will handle it in this case
 			DrawOptions.ViewOffset = UE::Slate::CastToVector2f(DrawOffset);
 
-			FTexture2DRHIRef ColorTarget = Context.RenderTarget->GetRenderTargetTexture();
+			FTextureRHIRef ColorTarget = Context.RenderTarget->GetRenderTargetTexture();
 
 			if (BatchData.IsStencilClippingRequired())
 			{

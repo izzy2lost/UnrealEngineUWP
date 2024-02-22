@@ -7,7 +7,7 @@
 #include "RenderGraphBuilder.h"
 #include "RenderGraphUtils.h"
 
-bool FDisplayClusterShadersGenerateMips::GenerateMips(FRHICommandListImmediate& RHICmdList, FRHITexture2D* InOutMipsTexture, const FDisplayClusterShaderParameters_GenerateMips& InSettings)
+bool FDisplayClusterShadersGenerateMips::GenerateMips(FRHICommandListImmediate& RHICmdList, FRHITexture* InOutMipsTexture, const FDisplayClusterShaderParameters_GenerateMips& InSettings)
 {
 	if (InSettings.IsEnabled())
 	{

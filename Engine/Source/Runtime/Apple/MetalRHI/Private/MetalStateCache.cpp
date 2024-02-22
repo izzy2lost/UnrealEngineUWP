@@ -2865,7 +2865,7 @@ void FMetalStateCache::CommitResourceTable(EMetalShaderStages const Frequency, M
 	}
 }
 
-FTexture2DRHIRef FMetalStateCache::CreateFallbackDepthStencilSurface(uint32 Width, uint32 Height)
+FTextureRHIRef FMetalStateCache::CreateFallbackDepthStencilSurface(uint32 Width, uint32 Height)
 {
 #if PLATFORM_MAC
 	if (!IsValidRef(FallbackDepthStencilSurface) || FallbackDepthStencilSurface->GetSizeX() < Width || FallbackDepthStencilSurface->GetSizeY() < Height)

@@ -39,18 +39,18 @@ const FString& FTextureShareResource::GetCoreObjectName() const
 struct FCachedSharedResource
 {
 	FCachedSharedResource() = default;
-	FCachedSharedResource(const void* InNativeResourcePtr, const uint32  InGPUIndex, const FTexture2DRHIRef& InTextureRHI)
+	FCachedSharedResource(const void* InNativeResourcePtr, const uint32  InGPUIndex, const FTextureRHIRef& InTextureRHI)
 		: NativeResourcePtr(InNativeResourcePtr), TextureRHI(InTextureRHI), GPUIndex(InGPUIndex)
 	{ }
 
 	const void* NativeResourcePtr = nullptr;
-	FTexture2DRHIRef TextureRHI;
+	FTextureRHIRef TextureRHI;
 	uint32 GPUIndex = 0;
 
 	bool bUnused = false;
 };
 
-bool FTextureShareResource::FindCachedSharedResource_RenderThread(void* InNativeResourcePtr, const uint32 InGPUIndex, FTexture2DRHIRef& OutRHIResource) const
+bool FTextureShareResource::FindCachedSharedResource_RenderThread(void* InNativeResourcePtr, const uint32 InGPUIndex, FTextureRHIRef& OutRHIResource) const
 {
 	if(const FCachedSharedResource* CachedResourcePtr = CachedSharedResources.FindByPredicate([InNativeResourcePtr, InGPUIndex](const FCachedSharedResource& CachedResourceIt)
 		{
@@ -66,7 +66,7 @@ bool FTextureShareResource::FindCachedSharedResource_RenderThread(void* InNative
 	return false;
 }
 
-void FTextureShareResource::AddCachedSharedResource_RenderThread(void* InNativeResourcePtr, const uint32 InGPUIndex, const FTexture2DRHIRef& InRHIResource)
+void FTextureShareResource::AddCachedSharedResource_RenderThread(void* InNativeResourcePtr, const uint32 InGPUIndex, const FTextureRHIRef& InRHIResource)
 {
 	if (InNativeResourcePtr != nullptr && InRHIResource.IsValid())
 	{
@@ -166,7 +166,7 @@ bool FTextureShareResource::ReleaseTextureShareHandle_RenderThread()
 //////////////////////////////////////////////////////////////////////////////////////////////
 void FTextureShareResource::InitRHI(FRHICommandListBase&)
 {
-	FTexture2DRHIRef NewTextureRHI;
+	FTextureRHIRef NewTextureRHI;
 	switch (CoreObject->GetObjectDesc_RenderThread().ProcessDesc.DeviceType)
 	{
 	case ETextureShareDeviceType::D3D12:
@@ -181,7 +181,7 @@ void FTextureShareResource::InitRHI(FRHICommandListBase&)
 	TextureRHI = (FTextureRHIRef&)NewTextureRHI;
 }
 
-void FTextureShareResource::InitDynamicRHI_Default(FTexture2DRHIRef& OutTextureRHI)
+void FTextureShareResource::InitDynamicRHI_Default(FTextureRHIRef& OutTextureRHI)
 {
 	FRHITextureCreateDesc Desc =
 		FRHITextureCreateDesc::Create2D(TEXT("TextureShareResource"), GetSizeX(), GetSizeY(), ResourceSettings.Format)

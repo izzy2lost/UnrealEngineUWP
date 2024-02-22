@@ -17,7 +17,7 @@ DEFINE_LOG_CATEGORY(LogBink);
 
 TSharedPtr<FBinkMovieStreamer, ESPMode::ThreadSafe> MovieStreamer;
 
-TArray< FTexture2DRHIRef > BinkActiveTextureRefs;
+TArray< FTextureRHIRef > BinkActiveTextureRefs;
 
 #if BINKPLUGIN_UE4_EDITOR
 class UFactory;

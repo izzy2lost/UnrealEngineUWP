@@ -18,11 +18,11 @@ struct FTextureShareCoreResourceRequest;
  */
 struct FTextureShareExternalTextureRHI
 {
-	FTextureShareExternalTextureRHI(const FTexture2DRHIRef InTextureRHI, const FTextureShareCoreResourceHandle* InResourceHandle, const uint32 InGPUIndex = 0)
+	FTextureShareExternalTextureRHI(const FTextureRHIRef InTextureRHI, const FTextureShareCoreResourceHandle* InResourceHandle, const uint32 InGPUIndex = 0)
 		: TextureRHI(InTextureRHI), ResourceHandle(InResourceHandle), GPUIndex(InGPUIndex)
 	{ }
 
-	const FTexture2DRHIRef TextureRHI;
+	const FTextureRHIRef TextureRHI;
 	const FTextureShareCoreResourceHandle* ResourceHandle;
 	const uint32 GPUIndex;
 };
@@ -48,9 +48,9 @@ public:
 		return ResourceSettings;
 	}
 
-	const FTexture2DRHIRef& GetResourceTextureRHI() const
+	const FTextureRHIRef& GetResourceTextureRHI() const
 	{
-		return (const FTexture2DRHIRef&)TextureRHI;
+		return (const FTextureRHIRef&)TextureRHI;
 	}
 
 	const FString& GetCoreObjectName() const;
@@ -89,8 +89,8 @@ public:
 	}
 
 protected:
-	void InitDynamicRHI_Default(FTexture2DRHIRef& OutTextureRHI);
-	void InitDynamicRHI_D3D12(FTexture2DRHIRef& OutTextureRHI);
+	void InitDynamicRHI_Default(FTextureRHIRef& OutTextureRHI);
+	void InitDynamicRHI_D3D12(FTextureRHIRef& OutTextureRHI);
 
 	bool D3D11RegisterResourceHandle_RenderThread(FRHICommandListImmediate& RHICmdList, const FTextureShareCoreResourceRequest& InResourceRequest);
 	bool D3D11ReleaseTextureShareHandle_RenderThread();
@@ -104,8 +104,8 @@ protected:
 	bool VulkanReleaseTextureShareHandle_RenderThread();
 #endif
 
-	bool FindCachedSharedResource_RenderThread(void* InNativeResourcePtr, const uint32 InGPUIndex, FTexture2DRHIRef& OutRHIResource) const;
-	void AddCachedSharedResource_RenderThread(void* InNativeResourcePtr, const uint32 InGPUIndex, const FTexture2DRHIRef& InRHIResource);
+	bool FindCachedSharedResource_RenderThread(void* InNativeResourcePtr, const uint32 InGPUIndex, FTextureRHIRef& OutRHIResource) const;
+	void AddCachedSharedResource_RenderThread(void* InNativeResourcePtr, const uint32 InGPUIndex, const FTextureRHIRef& InRHIResource);
 	void CopyToDestResources_RenderThread(FRHICommandListImmediate& RHICmdList, const TArray<FTextureShareExternalTextureRHI>& InDestResources);
 
 private:

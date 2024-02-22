@@ -41,7 +41,7 @@ protected:
 	void ReleaseAllocatedMipData();
 
 	// The intermediate texture async created in the update process.
-	FTexture2DRHIRef IntermediateTextureRHI;
+	FTextureRHIRef IntermediateTextureRHI;
 
 	// The final resolution x and y of the texture 2d.
 	int32 FinalSizeX = 0;

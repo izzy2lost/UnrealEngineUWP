@@ -751,7 +751,7 @@ void FEOSSDKManager::SetupTicker()
 }
 
 #if WITH_ENGINE
-void FEOSSDKManager::OnBackBufferReady_RenderThread(SWindow& SlateWindow, const FTexture2DRHIRef& InBackBuffer)
+void FEOSSDKManager::OnBackBufferReady_RenderThread(SWindow& SlateWindow, const FTextureRHIRef& InBackBuffer)
 {
 	UE_CALL_ONCE([]() {	UE_LOG(LogEOSSDK, VeryVerbose, TEXT("[%hs] The method is not implemented for this platform."), __FUNCTION__) });
 }

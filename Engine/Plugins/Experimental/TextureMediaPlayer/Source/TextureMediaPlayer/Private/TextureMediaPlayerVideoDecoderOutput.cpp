@@ -10,9 +10,9 @@ void TextureMediaPlayerVideoDecoderOutput::Initialize(TSharedPtr<Electra::FParam
 }
 
 #if PLATFORM_WINDOWS
-void TextureMediaPlayerVideoDecoderOutput::Initialize(TSharedPtr<Electra::FParamDict, ESPMode::ThreadSafe> InParamDict, FTexture2DRHIRef InTexture, const FIntPoint& InSampleDim, TRefCountPtr<ID3D12Fence> InFence, uint64 InFenceValue)
+void TextureMediaPlayerVideoDecoderOutput::Initialize(TSharedPtr<Electra::FParamDict, ESPMode::ThreadSafe> InParamDict, FTextureRHIRef InTexture, const FIntPoint& InSampleDim, TRefCountPtr<ID3D12Fence> InFence, uint64 InFenceValue)
 #else
-void TextureMediaPlayerVideoDecoderOutput::Initialize(TSharedPtr<Electra::FParamDict, ESPMode::ThreadSafe> InParamDict, FTexture2DRHIRef InTexture, const FIntPoint& InSampleDim, FGPUFenceRHIRef InFence, uint64 InFenceValue)
+void TextureMediaPlayerVideoDecoderOutput::Initialize(TSharedPtr<Electra::FParamDict, ESPMode::ThreadSafe> InParamDict, FTextureRHIRef InTexture, const FIntPoint& InSampleDim, FGPUFenceRHIRef InFence, uint64 InFenceValue)
 #endif
 {
 	FVideoDecoderOutputPC::Initialize(MoveTemp(InParamDict));

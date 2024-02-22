@@ -92,7 +92,7 @@ void FBinkMediaTextureResource::UpdateDeferredResource(FRHICommandListImmediate&
 	{
 		return;
 	}
-	FTexture2DRHIRef tex = TextureRHI->GetTexture2D();
+	FTextureRHIRef tex = TextureRHI->GetTexture2D();
 	if (!tex.GetReference()) 
 	{
 		return;
@@ -112,7 +112,7 @@ void FBinkMediaTextureResource::Clear()
 	w = (w + 7) & -8;
 	h = (h + 7) & -8;
 
-	FTexture2DRHIRef ref = RenderTargetTextureRHI;
+	FTextureRHIRef ref = RenderTargetTextureRHI;
 	FTextureRHIRef ref2 = TextureRHI;
 	ENQUEUE_RENDER_COMMAND(BinkMediaPlayer_Draw)([ref,ref2,w,h](FRHICommandListImmediate& RHICmdList) 
 	{ 

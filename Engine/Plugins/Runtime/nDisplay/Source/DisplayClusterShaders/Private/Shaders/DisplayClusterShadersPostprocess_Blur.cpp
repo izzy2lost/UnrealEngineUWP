@@ -121,8 +121,8 @@ IMPLEMENT_SHADER_TYPE(template<>, FPicpBlurPostProcessDilatePS,  PostProcessShad
 template<uint32 ShaderType>
 static void PicpBlurPostProcess_RenderThread(
 	FRHICommandListImmediate& RHICmdList,
-	FRHITexture2D* InShaderTexture,
-	FRHITexture2D* OutRenderTargetableTexture,
+	FRHITexture* InShaderTexture,
+	FRHITexture* OutRenderTargetableTexture,
 	const FDisplayClusterShaderParameters_PostprocessBlur& InSettings)
 {
 	check(IsInRenderingThread());
@@ -198,7 +198,7 @@ static void PicpBlurPostProcess_RenderThread(
 DECLARE_GPU_STAT_NAMED(nDisplay_Picp_PostProcess_Compose, TEXT("nDisplay Picp_PostProcess::Compose"));
 DECLARE_GPU_STAT_NAMED(nDisplay_Picp_PostProcess_Blur, TEXT("nDisplay Picp_PostProcess::Blur"));
 
-bool FDisplayClusterShadersPostprocess_Blur::RenderPostprocess_Blur(FRHICommandListImmediate& RHICmdList, FRHITexture2D* InSourceTexture, FRHITexture2D* InRenderTargetableDestTexture, const FDisplayClusterShaderParameters_PostprocessBlur& InSettings)
+bool FDisplayClusterShadersPostprocess_Blur::RenderPostprocess_Blur(FRHICommandListImmediate& RHICmdList, FRHITexture* InSourceTexture, FRHITexture* InRenderTargetableDestTexture, const FDisplayClusterShaderParameters_PostprocessBlur& InSettings)
 {
 	check(IsInRenderingThread());
 

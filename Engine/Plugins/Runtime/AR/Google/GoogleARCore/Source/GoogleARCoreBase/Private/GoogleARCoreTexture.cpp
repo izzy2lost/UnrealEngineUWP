@@ -143,7 +143,7 @@ public:
 		
 		if (TextureRHI)
 		{
-			auto Texture2D = (FRHITexture2D*)(TextureRHI.GetReference());
+			auto Texture2D = (FRHITexture*)(TextureRHI.GetReference());
 			FUpdateTextureRegion2D Region(0, 0, 0, 0, ImageWidth, ImageHeight);
 			RHICmdList.UpdateTexture2D(Texture2D, 0, Region, sizeof(float) * ImageWidth, (const uint8*)DepthData);
 		}

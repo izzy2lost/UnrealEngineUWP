@@ -25,9 +25,9 @@ public:
 
 	const FTextureRHIRef& GetTextureRef() const { return RHITexture; }
 	FRHITexture* GetTexture() const { return RHITexture.GetReference(); }
-	FRHITexture2D* GetTexture2D() const { return RHITexture->GetTexture2D(); }
-	FRHITexture2DArray* GetTexture2DArray() const { return RHITexture->GetTexture2DArray(); }
-	FRHITextureCube* GetTextureCube() const { return RHITexture->GetTextureCube(); }
+	FRHITexture* GetTexture2D() const { return RHITexture->GetTexture2D(); }
+	FRHITexture* GetTexture2DArray() const { return RHITexture->GetTexture2DArray(); }
+	FRHITexture* GetTextureCube() const { return RHITexture->GetTextureCube(); }
 	uint32 GetSwapChainLength() const { return (uint32)RHITextureSwapChain.Num(); }
 	TArray<FTextureRHIRef> GetSwapChain() const { return RHITextureSwapChain; }
 

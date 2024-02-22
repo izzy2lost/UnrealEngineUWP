@@ -39,7 +39,7 @@ protected:
 	void UnlockNewMips();
 
 	// The intermediate texture created with RHIAsyncReallocateTexture2D.
-	FTexture2DRHIRef IntermediateTextureRHI;
+	FTextureRHIRef IntermediateTextureRHI;
 	// The list of mips that are currently locked.
 	TArray<int32, TInlineAllocator<MAX_TEXTURE_MIP_COUNT>> LockedMipIndices;
 };

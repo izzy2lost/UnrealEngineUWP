@@ -723,7 +723,7 @@ void FAvfMediaCapturePlayer::ProcessSampleBufferVideo(CMSampleBufferRef SampleBu
 			.SetFlags(ETextureCreateFlags::SRGB | ETextureCreateFlags::Dynamic | ETextureCreateFlags::NoTiling | ETextureCreateFlags::ShaderResource)
 			.SetBulkData(new FAvfTexture2DResourceWrapper(TextureRef));
 
-		TRefCountPtr<FRHITexture2D> ShaderResource = RHICreateTexture(Desc);
+		TRefCountPtr<FRHITexture> ShaderResource = RHICreateTexture(Desc);
 		CFRelease(TextureRef);
 		
 		FIntPoint Dim(Width, Height);

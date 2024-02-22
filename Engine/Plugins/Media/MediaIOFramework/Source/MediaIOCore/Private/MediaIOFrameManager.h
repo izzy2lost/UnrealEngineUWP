@@ -22,7 +22,7 @@ namespace UE::MediaCaptureData
 	{
 		FRDGBuilder& GraphBuilder;
 		TObjectPtr<UMediaCapture> MediaCapture = nullptr;
-		FTexture2DRHIRef ResourceToCapture;
+		FTextureRHIRef ResourceToCapture;
 		FRDGTextureRef RDGResourceToCapture = nullptr;
 		FIntPoint DesiredSize = FIntPoint::ZeroValue;
 		FIntRect SourceViewRect{ 0,0,0,0 };

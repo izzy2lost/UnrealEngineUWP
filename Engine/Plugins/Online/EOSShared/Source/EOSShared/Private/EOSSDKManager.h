@@ -83,7 +83,7 @@ protected:
 
 #if WITH_ENGINE
 	/** Provided to `OnBackBufferReadyToPresent` to get access to the render thread. */
-	virtual void OnBackBufferReady_RenderThread(SWindow& SlateWindow, const FTexture2DRHIRef& BackBuffer);
+	virtual void OnBackBufferReady_RenderThread(SWindow& SlateWindow, const FTextureRHIRef& BackBuffer);
 	/**
 	 * Check that the overlay is ready to be rendered.
 	 * This will also add the Back Buffer Ready To Present handler.

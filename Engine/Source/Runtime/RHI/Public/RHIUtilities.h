@@ -249,7 +249,7 @@ struct FRWBuffer
 /** Encapsulates a GPU read only texture 2D with its SRV. */
 struct FTextureReadBuffer2D
 {
-	FTexture2DRHIRef Buffer;	
+	FTextureRHIRef Buffer;
 	FShaderResourceViewRHIRef SRV;
 	uint32 NumBytes;
 

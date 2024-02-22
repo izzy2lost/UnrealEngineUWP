@@ -218,7 +218,7 @@ void FViewportInfo::RecreateDepthBuffer_RenderThread()
 	}
 }
 
-bool IsMemorylessTexture(const FTexture2DRHIRef& Tex)
+bool IsMemorylessTexture(const FTextureRHIRef& Tex)
 {
 	if (Tex)
 	{
@@ -969,9 +969,9 @@ IMPLEMENT_SHADER_TYPE(template<>, FCompositeCS_SCRGB_CDV, FCompositeCSBase::GetS
 int32 SlateWireFrame = 0;
 static FAutoConsoleVariableRef CVarSlateWireframe(TEXT("Slate.ShowWireFrame"), SlateWireFrame, TEXT(""), ECVF_Default);
 
-void RenderSlateBatch(FTexture2DRHIRef SlateRenderTarget, bool bClear, bool bIsHDR, FViewportInfo& ViewportInfo, const FMatrix& ViewMatrix, FSlateBatchData& BatchData, FRHICommandListImmediate& RHICmdList,
+void RenderSlateBatch(FTextureRHIRef SlateRenderTarget, bool bClear, bool bIsHDR, FViewportInfo& ViewportInfo, const FMatrix& ViewMatrix, FSlateBatchData& BatchData, FRHICommandListImmediate& RHICmdList,
 				      const uint32 ViewportWidth, const uint32 ViewportHeight, const struct FSlateDrawWindowCommandParams& DrawCommandParams, TSharedPtr<FSlateRHIRenderingPolicy> RenderingPolicy, 
-					  FTexture2DRHIRef PostProcessBuffer)
+					  FTextureRHIRef PostProcessBuffer)
 {
 	FRHIRenderPassInfo RPInfo(SlateRenderTarget, ERenderTargetActions::Load_Store);
 
@@ -1028,7 +1028,7 @@ void RenderSlateBatch(FTexture2DRHIRef SlateRenderTarget, bool bClear, bool bIsH
 				}
 				RenderingPolicy->SetUseGammaCorrection(!bIsHDR);
 
-				FTexture2DRHIRef EmptyTarget;
+				FTextureRHIRef EmptyTarget;
 
 				RenderingPolicy->DrawElements
 				(
@@ -1132,9 +1132,9 @@ void FSlateRHIRenderer::DrawWindow_RenderThread(FRHICommandListImmediate& RHICmd
 			// should have been created by the game thread
 			check(IsValidRef(ViewportInfo.ViewportRHI));
 
-			FTexture2DRHIRef ViewportRT = bRenderedStereo ? nullptr : ViewportInfo.GetRenderTargetTexture();
-			FTexture2DRHIRef BackBuffer = (ViewportRT) ? ViewportRT : RHIGetViewportBackBuffer(ViewportInfo.ViewportRHI);
-			FTexture2DRHIRef PostProcessBuffer = BackBuffer;	// If compositing UI then this will be different to the back buffer
+			FTextureRHIRef ViewportRT = bRenderedStereo ? nullptr : ViewportInfo.GetRenderTargetTexture();
+			FTextureRHIRef BackBuffer = (ViewportRT) ? ViewportRT : RHIGetViewportBackBuffer(ViewportInfo.ViewportRHI);
+			FTextureRHIRef PostProcessBuffer = BackBuffer;	// If compositing UI then this will be different to the back buffer
 
 			const uint32 ViewportWidth = (ViewportRT) ? ViewportRT->GetSizeX() : ViewportInfo.Width;
 			const uint32 ViewportHeight = (ViewportRT) ? ViewportRT->GetSizeY() : ViewportInfo.Height;
@@ -1176,7 +1176,7 @@ void FSlateRHIRenderer::DrawWindow_RenderThread(FRHICommandListImmediate& RHICmd
 				bLUTStale = true;
 			}
 
-			FTexture2DRHIRef FinalBuffer = BackBuffer;
+			FTextureRHIRef FinalBuffer = BackBuffer;
 
 			bool bClear = DrawCommandParams.bClear;
 			if (bCompositeUI)
@@ -1237,7 +1237,7 @@ void FSlateRHIRenderer::DrawWindow_RenderThread(FRHICommandListImmediate& RHICmd
 				if (bHasBatches)
 				{
 					RenderingPolicy->BuildRenderingBuffers(RHICmdList, BatchDataHDR);
-					FTexture2DRHIRef UITargetHDRRTRHI(FinalBuffer);
+					FTextureRHIRef UITargetHDRRTRHI(FinalBuffer);
 					RenderSlateBatch(UITargetHDRRTRHI, /*bClear*/ false, /*bIsHDR*/ true, ViewportInfo, ViewMatrix, BatchDataHDR, RHICmdList, ViewportWidth, ViewportHeight, DrawCommandParams, RenderingPolicy, PostProcessBuffer);
 			    }
 
@@ -1519,7 +1519,7 @@ void FSlateRHIRenderer::DrawWindow_RenderThread(FRHICommandListImmediate& RHICmd
 	if (bTakingAScreenShot && ScreenshotViewportInfo != nullptr && ScreenshotViewportInfo == &ViewportInfo)
 	{
 		// take screenshot before swapbuffer
-		FTexture2DRHIRef BackBuffer = RHIGetViewportBackBuffer(ViewportInfo.ViewportRHI);
+		FTextureRHIRef BackBuffer = RHIGetViewportBackBuffer(ViewportInfo.ViewportRHI);
 
 		// Sanity check to make sure the user specified a valid screenshot rect.
 		FIntRect ClampedScreenshotRect;
@@ -1845,8 +1845,8 @@ void FSlateRHIRenderer::DrawWindows_Private(FSlateDrawBuffer& WindowDrawBuffer)
 											bRenderedStereo = true;
 										}
 
-										FTexture2DRHIRef ViewportRT = bRenderedStereo ? nullptr : ViewInfo->GetRenderTargetTexture();
-										FTexture2DRHIRef BackBuffer = (ViewportRT) ? ViewportRT : RHIGetViewportBackBuffer(ViewInfo->ViewportRHI);
+										FTextureRHIRef ViewportRT = bRenderedStereo ? nullptr : ViewInfo->GetRenderTargetTexture();
+										FTextureRHIRef BackBuffer = (ViewportRT) ? ViewportRT : RHIGetViewportBackBuffer(ViewInfo->ViewportRHI);
 
 										if (BackBuffer)
 										{

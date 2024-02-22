@@ -23,7 +23,7 @@ public:
 
 public:
 	//~ Begin FDisplayClusterViewportResource
-	virtual FRHITexture2D* GetViewportResourceRHI_RenderThread() const override
+	virtual FRHITexture* GetViewportResourceRHI_RenderThread() const override
 	{
 		check(IsInRenderingThread());
 

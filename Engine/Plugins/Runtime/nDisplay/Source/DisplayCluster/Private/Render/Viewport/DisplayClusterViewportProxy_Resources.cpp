@@ -140,7 +140,7 @@ namespace UE::DisplayCluster::ViewportProxy
 		RHICmdList.Transition(FRHITransitionInfo(DstTexture, ERHIAccess::Unknown, ERHIAccess::SRVMask));
 	}
 
-	static void ImplResolveResource(FRHICommandListImmediate& RHICmdList, FRHITexture2D* InputResource, const FIntRect& InputRect, FRHITexture2D* OutputResource, const FIntRect& OutputRect, const bool bOutputIsMipsResource, const bool bOutputIsPreviewResource)
+	static void ImplResolveResource(FRHICommandListImmediate& RHICmdList, FRHITexture* InputResource, const FIntRect& InputRect, FRHITexture* OutputResource, const FIntRect& OutputRect, const bool bOutputIsMipsResource, const bool bOutputIsPreviewResource)
 	{
 		check(InputResource);
 		check(OutputResource);
@@ -169,7 +169,7 @@ namespace UE::DisplayCluster::ViewportProxy
 
 	struct FViewportResourceResolverData
 	{
-		FViewportResourceResolverData(const FDisplayClusterViewport_Context& InViewportContext, FRHITexture2D* InInputResource, const FIntRect& InInputRect, FRHITexture2D* InOutputResource, const FIntRect& InOutputRect, const bool InbOutputIsMipsResource, const bool InbOutputIsPreviewResource)
+		FViewportResourceResolverData(const FDisplayClusterViewport_Context& InViewportContext, FRHITexture* InInputResource, const FIntRect& InInputRect, FRHITexture* InOutputResource, const FIntRect& InOutputRect, const bool InbOutputIsMipsResource, const bool InbOutputIsPreviewResource)
 			: InputResource(InInputResource)
 			, OutputResource(InOutputResource)
 			, InputRect(InInputRect)
@@ -190,8 +190,8 @@ namespace UE::DisplayCluster::ViewportProxy
 		}
 
 	private:
-		FRHITexture2D* InputResource;
-		FRHITexture2D* OutputResource;
+		FRHITexture* InputResource;
+		FRHITexture* OutputResource;
 
 		const FIntRect InputRect;
 		const FIntRect OutputRect;
@@ -203,7 +203,7 @@ namespace UE::DisplayCluster::ViewportProxy
 	};
 };
 
-void FDisplayClusterViewportProxy::FillTextureWithColor_RenderThread(FRHICommandListImmediate& RHICmdList, FRHITexture2D* InRenderTargetTexture, const FLinearColor& InColor)
+void FDisplayClusterViewportProxy::FillTextureWithColor_RenderThread(FRHICommandListImmediate& RHICmdList, FRHITexture* InRenderTargetTexture, const FLinearColor& InColor)
 {
 	if (InRenderTargetTexture)
 	{
@@ -220,7 +220,7 @@ void FDisplayClusterViewportProxy::FillTextureWithColor_RenderThread(FRHICommand
 	}
 }
 
-bool FDisplayClusterViewportProxy::ImplGetResources_RenderThread(const EDisplayClusterViewportResourceType InExtResourceType, TArray<FRHITexture2D*>& OutResources, const int32 InRecursionDepth) const
+bool FDisplayClusterViewportProxy::ImplGetResources_RenderThread(const EDisplayClusterViewportResourceType InExtResourceType, TArray<FRHITexture*>& OutResources, const int32 InRecursionDepth) const
 {
 	using namespace UE::DisplayCluster::ViewportProxy;
 	check(IsInRenderingThread());
@@ -255,7 +255,7 @@ bool FDisplayClusterViewportProxy::ImplGetResources_RenderThread(const EDisplayC
 				bResult = true;
 
 				// Support texture replace:
-				if (FRHITexture2D* ReplaceTextureRHI = PostRenderSettings.Replace.TextureRHI->GetTexture2D())
+				if (FRHITexture* ReplaceTextureRHI = PostRenderSettings.Replace.TextureRHI->GetTexture2D())
 				{
 					for (int32 ContextIndex = 0; ContextIndex < Contexts.Num(); ContextIndex++)
 					{
@@ -326,7 +326,7 @@ bool FDisplayClusterViewportProxy::ImplGetResources_RenderThread(const EDisplayC
 	return false;
 }
 
-bool FDisplayClusterViewportProxy::ImplGetResourcesWithRects_RenderThread(const EDisplayClusterViewportResourceType InExtResourceType, TArray<FRHITexture2D*>& OutResources, TArray<FIntRect>& OutResourceRects, const int32 InRecursionDepth) const
+bool FDisplayClusterViewportProxy::ImplGetResourcesWithRects_RenderThread(const EDisplayClusterViewportResourceType InExtResourceType, TArray<FRHITexture*>& OutResources, TArray<FIntRect>& OutResourceRects, const int32 InRecursionDepth) const
 {
 	using namespace UE::DisplayCluster::ViewportProxy;
 	check(IsInRenderingThread());
@@ -406,7 +406,7 @@ bool FDisplayClusterViewportProxy::ImplResolveResources_RenderThread(FRHICommand
 
 	TArray<FViewportResourceResolverData> ResourceResolverData;
 
-	TArray<FRHITexture2D*> SrcResources, DestResources;
+	TArray<FRHITexture*> SrcResources, DestResources;
 	TArray<FIntRect> SrcResourcesRect, DestResourcesRect;
 	if (SourceProxy->GetResourcesWithRects_RenderThread(InExtResourceType, SrcResources, SrcResourcesRect) && GetResourcesWithRects_RenderThread(OutExtResourceType, DestResources, DestResourcesRect))
 	{
@@ -470,7 +470,7 @@ bool FDisplayClusterViewportProxy::ImplResolveResources_RenderThread(FRHICommand
 
 bool FDisplayClusterViewportProxy::CopyResource_RenderThread(FRDGBuilder& GraphBuilder, const EDisplayClusterTextureCopyMode InCopyMode, const int32 InContextNum, const EDisplayClusterViewportResourceType InExtSrcResourceType, const EDisplayClusterViewportResourceType InExtDestResourceType)
 {
-	TArray<FRHITexture2D*> SrcResources;
+	TArray<FRHITexture*> SrcResources;
 	TArray<FIntRect> SrcResourceRects;
 	if (GetResourcesWithRects_RenderThread(InExtSrcResourceType, SrcResources, SrcResourceRects))
 	{
@@ -497,7 +497,7 @@ bool FDisplayClusterViewportProxy::CopyResource_RenderThread(FRDGBuilder& GraphB
 {
 	using namespace UE::DisplayCluster::ViewportProxy;
 
-	TArray<FRHITexture2D*> DestResources;
+	TArray<FRHITexture*> DestResources;
 	TArray<FIntRect> DestResourceRects;
 	if (HasBeenProduced(InSrcTextureRef) && GetResourcesWithRects_RenderThread(InExtDestResourceType, DestResources, DestResourceRects))
 	{
@@ -531,7 +531,7 @@ bool FDisplayClusterViewportProxy::CopyResource_RenderThread(FRDGBuilder& GraphB
 {
 	using namespace UE::DisplayCluster::ViewportProxy;
 
-	TArray<FRHITexture2D*> SrcResources;
+	TArray<FRHITexture*> SrcResources;
 	TArray<FIntRect> SrcResourceRects;
 	if (HasBeenProduced(InDestTextureRef) && GetResourcesWithRects_RenderThread(InExtSrcResourceType, SrcResources, SrcResourceRects))
 	{
@@ -570,7 +570,7 @@ void FDisplayClusterViewportProxy::ImplResolveTileResource_RenderThread(FRHIComm
 	const TArray<FDisplayClusterViewport_Context>& DestContexts = InDestViewportProxy->GetContexts_RenderThread();
 	const TArray<FDisplayClusterViewport_Context>& SrcContexts = Contexts;
 
-	TArray<FRHITexture2D*> SrcResources, DestResources;
+	TArray<FRHITexture*> SrcResources, DestResources;
 	if (GetResources_RenderThread(EDisplayClusterViewportResourceType::InternalRenderTargetResource, SrcResources)
 	&& InDestViewportProxy->GetResources_RenderThread(EDisplayClusterViewportResourceType::InternalRenderTargetResource, DestResources)
 	&& SrcResources.Num() == DestResources.Num()
@@ -614,10 +614,10 @@ void FDisplayClusterViewportProxy::CleanupResources_RenderThread(FRHICommandList
 	// Since the RTT is reused through frames, in case we need to show a black border between viewport tiles, we must fill the original viewport with this colour.
 	if (GDisplayClusterRenderTileBorder > 0 && RenderSettings.TileSettings.GetType() == EDisplayClusterViewportTileType::Source)
 	{
-		TArray<FRHITexture2D*> RenderTargets;
+		TArray<FRHITexture*> RenderTargets;
 		if (GetResources_RenderThread(EDisplayClusterViewportResourceType::InternalRenderTargetResource, RenderTargets))
 		{
-			for (FRHITexture2D* TextureIt : RenderTargets)
+			for (FRHITexture* TextureIt : RenderTargets)
 			{
 				// Note: It may make sense to move the CVar and border color to the StageSettings.
 				FDisplayClusterViewportProxy::FillTextureWithColor_RenderThread(RHICmdList, TextureIt, FLinearColor::Black);

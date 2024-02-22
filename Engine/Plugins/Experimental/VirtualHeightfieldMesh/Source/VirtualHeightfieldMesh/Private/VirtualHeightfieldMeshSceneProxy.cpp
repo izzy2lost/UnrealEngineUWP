@@ -115,7 +115,7 @@ namespace VirtualHeightfieldMesh
 
 struct FOcclusionResults
 {
-	FTexture2DRHIRef OcclusionTexture;
+	FTextureRHIRef OcclusionTexture;
 	FIntPoint TextureSize;
 	int32 NumTextureMips;
 	TArray<bool> UploadData;

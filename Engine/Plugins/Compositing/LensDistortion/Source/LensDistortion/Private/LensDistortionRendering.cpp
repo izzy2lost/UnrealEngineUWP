@@ -165,7 +165,7 @@ static void DrawUVDisplacementToRenderTarget_RenderThread(
 
 	SCOPED_DRAW_EVENTF(RHICmdList, SceneCapture, TEXT("LensDistortionDisplacementGeneration %s"), TextureRenderTargetName);
 
-	FRHITexture2D* RenderTargetTexture = OutTextureRenderTargetResource->GetRenderTargetTexture();
+	FRHITexture* RenderTargetTexture = OutTextureRenderTargetResource->GetRenderTargetTexture();
 
 	RHICmdList.Transition(FRHITransitionInfo(RenderTargetTexture, ERHIAccess::SRVMask, ERHIAccess::RTV));
 

@@ -146,7 +146,7 @@ struct FVectorFieldVisualizationUserData : public FOneFrameResource
 	FVectorFieldVisualizationBufferRef UniformBuffer;
 
 	/** Texture containing the vector field. */
-	FTexture3DRHIRef VectorFieldTextureRHI;
+	FTextureRHIRef VectorFieldTextureRHI;
 };
 
 void FVectorFieldVisualizationVertexFactoryShaderParameters::GetElementShaderBindings(

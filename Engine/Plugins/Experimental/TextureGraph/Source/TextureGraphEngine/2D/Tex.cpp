@@ -1320,7 +1320,7 @@ UTexture* Tex::GetTexture() const
 //	return nullptr;
 //}
 
-FRHITexture2D* Tex::GetRHITexture() const
+FRHITexture* Tex::GetRHITexture() const
 {
 	if (RT)
 		return RT->GetResource()->GetTextureRHI();

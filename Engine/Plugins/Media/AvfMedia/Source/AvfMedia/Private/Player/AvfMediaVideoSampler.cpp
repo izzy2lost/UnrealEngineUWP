@@ -185,7 +185,7 @@ void FAvfMediaVideoSampler::ProcessFrame(CVPixelBufferRef Frame, FTimespan Sampl
 	auto VideoSample = VideoSamplePool->AcquireShared();
 
 #if WITH_ENGINE
-	TRefCountPtr<FRHITexture2D> ShaderResource;
+	TRefCountPtr<FRHITexture> ShaderResource;
 
 	// We have to support Metal for this object now
 	check(COREVIDEO_SUPPORTS_METAL);

@@ -764,7 +764,7 @@ TextureType TextureHelper::TextureStringToType(const FString& TypeString)
 RawBufferPtr TextureHelper::RawFromRT(UTextureRenderTarget2D* RenderTarget, const BufferDescriptor& Desc)
 {
 	//check(IsInRenderingThread()); //Can be from any thread
-	return RawFromResource(FTexture2DRHIRef(((FTexture2DResource*)RenderTarget->GetResource())->GetTexture2DRHI()), Desc);
+	return RawFromResource(FTextureRHIRef(((FTexture2DResource*)RenderTarget->GetResource())->GetTexture2DRHI()), Desc);
 }
 
 RawBufferPtr TextureHelper::RawFromTexture(UTexture2D* Texture, const BufferDescriptor& Desc)
@@ -819,7 +819,7 @@ size_t TextureHelper::RoundUpTo(size_t Size, size_t DesiredRounding)
 	return RoundedSize;
 }
 
-RawBufferPtr TextureHelper::RawFromResource(const FTexture2DRHIRef& ResourceRHI, const BufferDescriptor& Desc)
+RawBufferPtr TextureHelper::RawFromResource(const FTextureRHIRef& ResourceRHI, const BufferDescriptor& Desc)
 {
 	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 
@@ -898,18 +898,18 @@ RawBufferPtr TextureHelper::RawFromResource(const FTexture2DRHIRef& ResourceRHI,
 void TextureHelper::RawFromRT_Tiled(UTextureRenderTarget2D* RenderTarget, const BufferDescriptor& Desc, size_t TileSizeX, size_t TileSizeY, RawBufferPtrTiles& Tiles)
 {
 	check(IsInRenderingThread());
-	FTexture2DRHIRef ResourceRHI = ((FTextureRenderTarget2DResource*)RenderTarget->GetResource())->GetTextureRHI();
+	FTextureRHIRef ResourceRHI = ((FTextureRenderTarget2DResource*)RenderTarget->GetResource())->GetTextureRHI();
 	return RawFromResource_Tiled(ResourceRHI, Desc, TileSizeX, TileSizeY, Tiles);
 }
 
 void TextureHelper::RawFromTexture_Tiled(UTexture2D* Texture, const BufferDescriptor& Desc, size_t TileSizeX, size_t TileSizeY, RawBufferPtrTiles& Tiles)
 {
 	check(IsInRenderingThread());
-	FTexture2DRHIRef ResourceRHI = ((FTexture2DResource*)Texture->GetResource())->GetTexture2DRHI();
+	FTextureRHIRef ResourceRHI = ((FTexture2DResource*)Texture->GetResource())->GetTexture2DRHI();
 	return RawFromResource_Tiled(ResourceRHI, Desc, TileSizeX, TileSizeY, Tiles);
 }
 
-void TextureHelper::RawFromResource_Tiled(FTexture2DRHIRef ResourceRHI, const BufferDescriptor& Desc, size_t TileSizeX, size_t TileSizeY, RawBufferPtrTiles& Tiles)
+void TextureHelper::RawFromResource_Tiled(FTextureRHIRef ResourceRHI, const BufferDescriptor& Desc, size_t TileSizeX, size_t TileSizeY, RawBufferPtrTiles& Tiles)
 {
 	/// If any of the dimensions are less than the tile size requested then we don't tile at all
 	if (Desc.Width < TileSizeX && Desc.Height < TileSizeY)

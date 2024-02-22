@@ -799,7 +799,7 @@ void AddResummarizeHTilePass(FRDGBuilder& GraphBuilder, FRDGTextureRef Texture)
 	GraphBuilder.AddPass(RDG_EVENT_NAME("ResummarizeHTile (%s)", Texture->Name), PassParameters, ERDGPassFlags::Raster,
 		[Texture](FRHICommandList& RHICmdList)
 	{
-		RHICmdList.ResummarizeHTile(static_cast<FRHITexture2D*>(Texture->GetRHI()));
+		RHICmdList.ResummarizeHTile(static_cast<FRHITexture*>(Texture->GetRHI()));
 	});
 }
 

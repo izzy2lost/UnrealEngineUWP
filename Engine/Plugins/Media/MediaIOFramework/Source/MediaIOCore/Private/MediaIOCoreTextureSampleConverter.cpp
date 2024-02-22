@@ -12,7 +12,7 @@ void FMediaIOCoreTextureSampleConverter::Setup(const TSharedPtr<FMediaIOCoreText
 	JITRProxySample = InSample;
 }
 
-bool FMediaIOCoreTextureSampleConverter::Convert(FTexture2DRHIRef& InDestinationTexture, const FConversionHints& Hints)
+bool FMediaIOCoreTextureSampleConverter::Convert(FTextureRHIRef& InDestinationTexture, const FConversionHints& Hints)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(JITR);
 

@@ -42,7 +42,7 @@ struct FRenderTarget2DRWInstanceData_RenderThread
 	bool bWroteThisFrame = false;
 
 	FSamplerStateRHIRef	SamplerStateRHI;
-	FTexture2DRHIRef	TextureRHI;
+	FTextureRHIRef	    TextureRHI;
 
 	FRDGTextureRef		TransientRDGTexture = nullptr;
 	FRDGTextureSRVRef	TransientRDGSRV = nullptr;

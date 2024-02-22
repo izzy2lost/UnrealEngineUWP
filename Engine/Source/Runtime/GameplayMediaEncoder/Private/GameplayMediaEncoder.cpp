@@ -410,7 +410,7 @@ void FGameplayMediaEncoder::OnNewSubmixBuffer(const USoundSubmix* OwningSubmix, 
 	ProcessAudioFrame(AudioData, NumSamples, NumChannels, SampleRate);
 }
 
-void FGameplayMediaEncoder::OnFrameBufferReady(SWindow& SlateWindow, const FTexture2DRHIRef& FrameBuffer)
+void FGameplayMediaEncoder::OnFrameBufferReady(SWindow& SlateWindow, const FTextureRHIRef& FrameBuffer)
 {
 	CSV_SCOPED_TIMING_STAT(GameplayMediaEncoder, OnBackBufferReady);
 	check(IsInRenderingThread());
@@ -541,7 +541,7 @@ void FGameplayMediaEncoder::ProcessAudioFrame(const float* AudioData, int32 NumS
 	AudioClock += FloatBuffer.GetSampleDuration();
 }
 
-void FGameplayMediaEncoder::ProcessVideoFrame(const FTexture2DRHIRef& FrameBuffer)
+void FGameplayMediaEncoder::ProcessVideoFrame(const FTextureRHIRef& FrameBuffer)
 {
 	// Early exit is video encoder is not valid because it is not setup or has been destroyed
 	if(!VideoEncoder.IsValid())
@@ -689,7 +689,7 @@ void FGameplayMediaEncoder::OnEncodedVideoFrame(uint32 LayerIndex, const TShared
 	InputFrame->Release();
 }
 
-void FGameplayMediaEncoder::CopyTexture(const FTexture2DRHIRef& SourceTexture, FTexture2DRHIRef& DestinationTexture) const
+void FGameplayMediaEncoder::CopyTexture(const FTextureRHIRef& SourceTexture, FTextureRHIRef& DestinationTexture) const
 {
 	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
 

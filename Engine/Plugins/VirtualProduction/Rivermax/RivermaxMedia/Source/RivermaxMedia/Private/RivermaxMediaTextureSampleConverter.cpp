@@ -19,7 +19,7 @@ void FRivermaxMediaTextureSampleConverter::Setup(const TSharedPtr<FRivermaxMedia
 	Sample = InSample;
 }
 
-bool FRivermaxMediaTextureSampleConverter::Convert(FTexture2DRHIRef& InDestinationTexture, const FConversionHints& Hints)
+bool FRivermaxMediaTextureSampleConverter::Convert(FTextureRHIRef& InDestinationTexture, const FConversionHints& Hints)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(RivermaxSampleConverter::Convert);
 

@@ -97,7 +97,7 @@ FPixelStreamingVideoInputBackBufferComposited::~FPixelStreamingVideoInputBackBuf
 	}
 }
 
-void FPixelStreamingVideoInputBackBufferComposited::OnBackBufferReady(SWindow& SlateWindow, const FTexture2DRHIRef& FrameBuffer)
+void FPixelStreamingVideoInputBackBufferComposited::OnBackBufferReady(SWindow& SlateWindow, const FTextureRHIRef& FrameBuffer)
 {
 	/**
 	 * When we receive a texture from this delegate, the texture will undergo a two copy process.

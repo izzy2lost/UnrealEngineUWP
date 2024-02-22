@@ -106,7 +106,7 @@ void FDisplayClusterViewportProxy::UpdateViewportProxyData_RenderThread(const FD
 
 
 //  Return viewport scene proxy resources by type
-bool FDisplayClusterViewportProxy::GetResources_RenderThread(const EDisplayClusterViewportResourceType InExtResourceType, TArray<FRHITexture2D*>& OutResources) const
+bool FDisplayClusterViewportProxy::GetResources_RenderThread(const EDisplayClusterViewportResourceType InExtResourceType, TArray<FRHITexture*>& OutResources) const
 {
 	return ImplGetResources_RenderThread(InExtResourceType, OutResources, false);
 }
@@ -190,8 +190,8 @@ void FDisplayClusterViewportProxy::ImplViewportRemap_RenderThread(FRHICommandLis
 				const TSharedPtr<FDisplayClusterViewportResource, ESPMode::ThreadSafe>& Src = Resources[EDisplayClusterViewportResource::AdditionalFrameTargetableResources][ContextIt];
 				const TSharedPtr<FDisplayClusterViewportResource, ESPMode::ThreadSafe>& Dst = Resources[EDisplayClusterViewportResource::OutputFrameTargetableResources][ContextIt];
 
-				FRHITexture2D* Input = Src.IsValid() ? Src->GetViewportResourceRHI_RenderThread() : nullptr;
-				FRHITexture2D* Output = Dst.IsValid() ? Dst->GetViewportResourceRHI_RenderThread() : nullptr;
+				FRHITexture* Input = Src.IsValid() ? Src->GetViewportResourceRHI_RenderThread() : nullptr;
+				FRHITexture* Output = Dst.IsValid() ? Dst->GetViewportResourceRHI_RenderThread() : nullptr;
 
 				if (Input && Output)
 				{
@@ -202,7 +202,7 @@ void FDisplayClusterViewportProxy::ImplViewportRemap_RenderThread(FRHICommandLis
 	}
 }
 
-bool FDisplayClusterViewportProxy::GetResourcesWithRects_RenderThread(const EDisplayClusterViewportResourceType InExtResourceType, TArray<FRHITexture2D*>& OutResources, TArray<FIntRect>& OutResourceRects) const
+bool FDisplayClusterViewportProxy::GetResourcesWithRects_RenderThread(const EDisplayClusterViewportResourceType InExtResourceType, TArray<FRHITexture*>& OutResources, TArray<FIntRect>& OutResourceRects) const
 {
 	return ImplGetResourcesWithRects_RenderThread(InExtResourceType, OutResources, OutResourceRects, false);
 }
@@ -218,7 +218,7 @@ bool FDisplayClusterViewportProxy::ApplyOCIO_RenderThread(FRHICommandListImmedia
 		? EDisplayClusterViewportResourceType::InputShaderResource
 		: EDisplayClusterViewportResourceType::AdditionalTargetableResource;
 
-	TArray<FRHITexture2D*> Input, Output;
+	TArray<FRHITexture*> Input, Output;
 	TArray<FIntRect> InputRects, OutputRects;
 	if (!InSrcViewportProxy.GetResourcesWithRects_RenderThread(InSrcResourceType, Input, InputRects)
 		|| !GetResourcesWithRects_RenderThread(DestResourceType, Output, OutputRects)
@@ -323,8 +323,8 @@ void FDisplayClusterViewportProxy::UpdateDeferredResources(FRHICommandListImmedi
 	// Pass 1: Generate blur postprocess effect for render target texture rect for all contexts
 	if (PostRenderSettings.PostprocessBlur.IsEnabled())
 	{
-		TArray<FRHITexture2D*> InShaderResources;
-		TArray<FRHITexture2D*> OutTargetableResources;
+		TArray<FRHITexture*> InShaderResources;
+		TArray<FRHITexture*> OutTargetableResources;
 		if (GetResources_RenderThread(EDisplayClusterViewportResourceType::InputShaderResource, InShaderResources) && GetResources_RenderThread(EDisplayClusterViewportResourceType::AdditionalTargetableResource, OutTargetableResources))
 		{
 			// Render postprocess blur:
@@ -341,14 +341,14 @@ void FDisplayClusterViewportProxy::UpdateDeferredResources(FRHICommandListImmedi
 	// Pass 2: Create mips texture and generate mips from render target rect for all contexts
 	if (PostRenderSettings.GenerateMips.IsEnabled())
 	{
-		TArray<FRHITexture2D*> InOutMipsResources;
+		TArray<FRHITexture*> InOutMipsResources;
 		if (GetResources_RenderThread(EDisplayClusterViewportResourceType::MipsShaderResource, InOutMipsResources))
 		{
 			// Copy input image to layer0 on mips texture
 			ResolveResources_RenderThread(RHICmdList, EDisplayClusterViewportResourceType::InputShaderResource, EDisplayClusterViewportResourceType::MipsShaderResource);
 
 			// Generate mips
-			for (FRHITexture2D*& ResourceIt : InOutMipsResources)
+			for (FRHITexture*& ResourceIt : InOutMipsResources)
 			{
 				GetShadersAPI().GenerateMips(RHICmdList, ResourceIt, PostRenderSettings.GenerateMips);
 			}
@@ -472,7 +472,7 @@ void FDisplayClusterViewportProxy::OnPostRenderViewFamily_RenderThread(FRDGBuild
 			EFXAAQuality FXAAQuality = EFXAAQuality::Q0;
 			if (ShouldApplyFXAA_RenderThread(FXAAQuality) && Resources[EDisplayClusterViewportResource::InputShaderResources].IsValidIndex(InContextNum))
 			{
-				if (FRHITexture2D* InputTextureRHI = Resources[EDisplayClusterViewportResource::InputShaderResources][InContextNum] ? Resources[EDisplayClusterViewportResource::InputShaderResources][InContextNum]->GetViewportResourceRHI_RenderThread() : nullptr)
+				if (FRHITexture* InputTextureRHI = Resources[EDisplayClusterViewportResource::InputShaderResources][InContextNum] ? Resources[EDisplayClusterViewportResource::InputShaderResources][InContextNum]->GetViewportResourceRHI_RenderThread() : nullptr)
 				{
 					// Apply FXAA for RGB only
 					// Note: Add AA for alpha channel

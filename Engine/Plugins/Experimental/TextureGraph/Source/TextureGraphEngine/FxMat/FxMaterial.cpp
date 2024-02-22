@@ -124,7 +124,7 @@ void FxMaterial::BindTexturesForBlitting()
 			FRHITexture* tex = BoundTex.Texture->GetResource()->TextureRHI;
 			check(tex);
 
-			FRHITexture2DArray* texture2DArray = tex->GetTexture2DArray();
+			FRHITexture* texture2DArray = tex->GetTexture2DArray();
 
 			if (!texture2DArray)
 			{
@@ -132,7 +132,7 @@ void FxMaterial::BindTexturesForBlitting()
 			}
 			else
 			{
-				memcpy(BoundTex.Arg, (const char*)&texture2DArray, sizeof(FRHITexture2DArray**));
+				memcpy(BoundTex.Arg, (const char*)&texture2DArray, sizeof(FRHITexture**));
 			}
 		}
 		else if (BoundTex.tiles.size())

@@ -245,10 +245,10 @@ IMediaTextureSampleConverter* FElectraTextureSample::GetMediaTextureSampleConver
 struct FRHICommandCopyResourceDX11 final : public FRHICommand<FRHICommandCopyResourceDX11>
 {
 	TRefCountPtr<ID3D11Texture2D> SampleTexture;
-	FTexture2DRHIRef SampleDestinationTexture;
+	FTextureRHIRef SampleDestinationTexture;
 	bool bCrossDevice;
 
-	FRHICommandCopyResourceDX11(ID3D11Texture2D* InSampleTexture, FRHITexture2D* InSampleDestinationTexture, bool bInCrossDevice)
+	FRHICommandCopyResourceDX11(ID3D11Texture2D* InSampleTexture, FRHITexture* InSampleDestinationTexture, bool bInCrossDevice)
 		: SampleTexture(InSampleTexture)
 		, SampleDestinationTexture(InSampleDestinationTexture)
 		, bCrossDevice(bInCrossDevice)
@@ -334,7 +334,7 @@ struct FRHICommandCopyResourceDX11 final : public FRHICommand<FRHICommandCopyRes
 /**
  * "Converter" for textures - here: a copy from the decoder owned texture (possibly in another device) into a RHI one (as prep for the real conversion to RGB etc.)
  */
-bool FElectraTextureSample::Convert(FTexture2DRHIRef& InDstTexture, const FConversionHints& Hints)
+bool FElectraTextureSample::Convert(FTextureRHIRef& InDstTexture, const FConversionHints& Hints)
 {
 	LLM_SCOPE(ELLMTag::MediaStreaming);
 

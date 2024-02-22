@@ -244,7 +244,7 @@ void FDebugCanvasDrawer::Draw_RenderThread(FRHICommandListImmediate& RHICmdList,
 	QUICK_SCOPE_CYCLE_COUNTER(Stat_DrawDebugCanvas);
 	if( RenderThreadCanvas.IsValid() )
 	{
-		FRHITexture* RT = InWindowBackBuffer != nullptr ? ((FTexture2DRHIRef*)InWindowBackBuffer)->GetReference() : nullptr;
+		FRHITexture* RT = InWindowBackBuffer != nullptr ? ((FTextureRHIRef*)InWindowBackBuffer)->GetReference() : nullptr;
 		FTextureRHIRef HMDSwapchain = nullptr;	// Attention: RT could point to HMDSwapchain later.
 		if (RenderThreadCanvas->IsUsingInternalTexture())
 		{

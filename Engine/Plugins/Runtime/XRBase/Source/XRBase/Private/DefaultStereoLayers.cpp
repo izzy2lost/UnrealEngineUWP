@@ -127,7 +127,7 @@ void FDefaultStereoLayers::StereoLayerRender(FRHICommandListImmediate& RHICmdLis
 		FVector2D QuadSize = Layer.QuadSize * 0.5f;
 		if (Layer.Flags & LAYER_FLAG_QUAD_PRESERVE_TEX_RATIO)
 		{
-			const FRHITexture2D* Tex2D = Layer.Texture->GetTexture2D();
+			const FRHITexture* Tex2D = Layer.Texture->GetTexture2D();
 			if (Tex2D)
 			{
 				const float SizeX = (float)Tex2D->GetSizeX();
@@ -261,7 +261,7 @@ void FDefaultStereoLayers::PostRenderView_RenderThread(FRDGBuilder& GraphBuilder
 			RHICmdList.Transition(Infos);
 		}
 
-		FTexture2DRHIRef RenderTarget = HMDDevice->GetSceneLayerTarget_RenderThread(InView.StereoViewIndex, RenderParams.Viewport);
+		FTextureRHIRef RenderTarget = HMDDevice->GetSceneLayerTarget_RenderThread(InView.StereoViewIndex, RenderParams.Viewport);
 		if (!RenderTarget.IsValid())
 		{
 			RenderTarget = InView.Family->RenderTarget->GetRenderTargetTexture();
@@ -279,7 +279,7 @@ void FDefaultStereoLayers::PostRenderView_RenderThread(FRDGBuilder& GraphBuilder
 		StereoLayerRender(RHICmdList, SortedSceneLayers, RenderParams);
 
 		// Optionally render face-locked layers into a non-reprojected target if supported by the HMD platform
-		FTexture2DRHIRef OverlayRenderTarget = HMDDevice->GetOverlayLayerTarget_RenderThread(InView.StereoViewIndex, RenderParams.Viewport);
+		FTextureRHIRef OverlayRenderTarget = HMDDevice->GetOverlayLayerTarget_RenderThread(InView.StereoViewIndex, RenderParams.Viewport);
 		if (OverlayRenderTarget.IsValid())
 		{
 			RHICmdList.EndRenderPass();

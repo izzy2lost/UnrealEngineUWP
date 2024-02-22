@@ -81,9 +81,9 @@ FSpectatorScreenRenderDelegate* FDefaultSpectatorScreenController::GetSpectatorS
 FRHICOMMAND_MACRO(FRHISetSpectatorScreenTexture)
 {
 	FDefaultSpectatorScreenController* SpectatorScreenController;
-	FTexture2DRHIRef Texture;
+	FTextureRHIRef Texture;
 
-	FORCEINLINE_DEBUGGABLE FRHISetSpectatorScreenTexture(FDefaultSpectatorScreenController* InSpectatorScreenController, const FTexture2DRHIRef& InTexture)
+	FORCEINLINE_DEBUGGABLE FRHISetSpectatorScreenTexture(FDefaultSpectatorScreenController* InSpectatorScreenController, const FTextureRHIRef& InTexture)
 		: SpectatorScreenController(InSpectatorScreenController)
 		, Texture(InTexture)
 	{
@@ -104,7 +104,7 @@ void FDefaultSpectatorScreenController::SetSpectatorScreenTextureRenderCommand(U
 		return;
 	}
 
-	FTexture2DRHIRef Texture2DRHIRef;
+	FTextureRHIRef Texture2DRHIRef;
 	FTextureResource* TextureResource = SrcTexture->GetResource();
 	if (TextureResource && TextureResource->TextureRHI)
 	{
@@ -127,7 +127,7 @@ void FDefaultSpectatorScreenController::SetSpectatorScreenTextureRenderCommand(U
 	);
 }
 
-void FDefaultSpectatorScreenController::SetSpectatorScreenTexture_RenderThread(FTexture2DRHIRef& InTexture)
+void FDefaultSpectatorScreenController::SetSpectatorScreenTexture_RenderThread(FTextureRHIRef& InTexture)
 {
 	SpectatorScreenTexture_RenderThread = InTexture;
 }
@@ -234,12 +234,12 @@ void FDefaultSpectatorScreenController::UpdateSpectatorScreenMode_RenderThread()
 	}
 }
 
-void FDefaultSpectatorScreenController::RenderSpectatorScreen_RenderThread(FRHICommandListImmediate& RHICmdList, FRHITexture2D* BackBuffer, FTexture2DRHIRef SrcTexture, FVector2D WindowSize)
+void FDefaultSpectatorScreenController::RenderSpectatorScreen_RenderThread(FRHICommandListImmediate& RHICmdList, FRHITexture* BackBuffer, FTextureRHIRef SrcTexture, FVector2D WindowSize)
 {
 	RenderSpectatorScreen_RenderThread(RHICmdList, BackBuffer, SrcTexture, nullptr, WindowSize);
 }
 
-void FDefaultSpectatorScreenController::RenderSpectatorScreen_RenderThread(FRHICommandListImmediate& RHICmdList, FRHITexture2D* BackBuffer, FTexture2DRHIRef SrcTexture, FTexture2DRHIRef LayersTexture, FVector2D WindowSize)
+void FDefaultSpectatorScreenController::RenderSpectatorScreen_RenderThread(FRHICommandListImmediate& RHICmdList, FRHITexture* BackBuffer, FTextureRHIRef SrcTexture, FTextureRHIRef LayersTexture, FVector2D WindowSize)
 {
 	SCOPED_NAMED_EVENT_TEXT("RenderSocialScreen_RenderThread()", FColor::Magenta);
 
@@ -265,7 +265,7 @@ void FDefaultSpectatorScreenController::RenderSpectatorScreen_RenderThread(FRHIC
 			StereoLayers->GetAllocatedTexture(LayerID, LayerTexture, HMDNull);
 			if (LayerTexture)
 			{
-				FTexture2DRHIRef LayerTexture2D = LayerTexture->GetTexture2D();
+				FTextureRHIRef LayerTexture2D = LayerTexture->GetTexture2D();
 				check(LayerTexture2D.IsValid());  // Debug canvas layer should be a 2d layer
 				const FIntRect LayerRect(0, 0, LayerTexture2D->GetSizeX(), LayerTexture2D->GetSizeY());
 				const FIntRect DstRectLetterboxed = Helpers::GetLetterboxedDestRect(LayerRect, DstRect);
@@ -276,12 +276,12 @@ void FDefaultSpectatorScreenController::RenderSpectatorScreen_RenderThread(FRHIC
 	}
 }
 
-FIntRect FDefaultSpectatorScreenController::GetFullFlatEyeRect_RenderThread(FTexture2DRHIRef EyeTexture)
+FIntRect FDefaultSpectatorScreenController::GetFullFlatEyeRect_RenderThread(FTextureRHIRef EyeTexture)
 {
 	return HMDDevice->GetFullFlatEyeRect_RenderThread(EyeTexture);
 }
 
-void FDefaultSpectatorScreenController::CopyEmulatedLayers(FRHICommandListImmediate& RHICmdList, FTexture2DRHIRef TargetTexture, const FIntRect SrcRect, const FIntRect DstRect)
+void FDefaultSpectatorScreenController::CopyEmulatedLayers(FRHICommandListImmediate& RHICmdList, FTextureRHIRef TargetTexture, const FIntRect SrcRect, const FIntRect DstRect)
 {
 	if (StereoLayersTexture)
 	{
@@ -290,7 +290,7 @@ void FDefaultSpectatorScreenController::CopyEmulatedLayers(FRHICommandListImmedi
 	StereoLayersTexture = nullptr;
 }
 
-void FDefaultSpectatorScreenController::RenderSpectatorModeUndistorted(FRHICommandListImmediate& RHICmdList, FTexture2DRHIRef TargetTexture, FTexture2DRHIRef EyeTexture, FTexture2DRHIRef OtherTexture, FVector2D WindowSize)
+void FDefaultSpectatorScreenController::RenderSpectatorModeUndistorted(FRHICommandListImmediate& RHICmdList, FTextureRHIRef TargetTexture, FTextureRHIRef EyeTexture, FTextureRHIRef OtherTexture, FVector2D WindowSize)
 {
 	const FIntRect SrcRect(0, 0, EyeTexture->GetSizeX(), EyeTexture->GetSizeY());
 	const FIntRect DstRect(0, 0, TargetTexture->GetSizeX(), TargetTexture->GetSizeY());
@@ -299,7 +299,7 @@ void FDefaultSpectatorScreenController::RenderSpectatorModeUndistorted(FRHIComma
 	CopyEmulatedLayers(RHICmdList, TargetTexture, SrcRect, DstRect);
 }
 
-void FDefaultSpectatorScreenController::RenderSpectatorModeDistorted(FRHICommandListImmediate& RHICmdList, FTexture2DRHIRef TargetTexture, FTexture2DRHIRef EyeTexture, FTexture2DRHIRef OtherTexture, FVector2D WindowSize)
+void FDefaultSpectatorScreenController::RenderSpectatorModeDistorted(FRHICommandListImmediate& RHICmdList, FTextureRHIRef TargetTexture, FTextureRHIRef EyeTexture, FTextureRHIRef OtherTexture, FVector2D WindowSize)
 {
 	// Note distorted mode is supported on only on oculus
 	// The default implementation falls back to RenderSpectatorModeSingleEyeCroppedToFill.
@@ -310,7 +310,7 @@ void FDefaultSpectatorScreenController::RenderSpectatorModeDistorted(FRHICommand
 	RenderSpectatorModeSingleEyeCroppedToFill(RHICmdList, TargetTexture, EyeTexture, OtherTexture, WindowSize);
 }
 
-void FDefaultSpectatorScreenController::RenderSpectatorModeSingleEye(FRHICommandListImmediate& RHICmdList, FTexture2DRHIRef TargetTexture, FTexture2DRHIRef EyeTexture, FTexture2DRHIRef OtherTexture, FVector2D WindowSize)
+void FDefaultSpectatorScreenController::RenderSpectatorModeSingleEye(FRHICommandListImmediate& RHICmdList, FTextureRHIRef TargetTexture, FTextureRHIRef EyeTexture, FTextureRHIRef OtherTexture, FVector2D WindowSize)
 {
 	const FIntRect SrcRect(0, 0, EyeTexture->GetSizeX() / 2, EyeTexture->GetSizeY());
 	const FIntRect DstRect(0, 0, TargetTexture->GetSizeX(), TargetTexture->GetSizeY());
@@ -319,7 +319,7 @@ void FDefaultSpectatorScreenController::RenderSpectatorModeSingleEye(FRHICommand
 	CopyEmulatedLayers(RHICmdList, TargetTexture, SrcRect, DstRect);
 }
 
-void FDefaultSpectatorScreenController::RenderSpectatorModeSingleEyeLetterboxed(FRHICommandListImmediate& RHICmdList, FTexture2DRHIRef TargetTexture, FTexture2DRHIRef EyeTexture, FTexture2DRHIRef OtherTexture, FVector2D WindowSize)
+void FDefaultSpectatorScreenController::RenderSpectatorModeSingleEyeLetterboxed(FRHICommandListImmediate& RHICmdList, FTextureRHIRef TargetTexture, FTextureRHIRef EyeTexture, FTextureRHIRef OtherTexture, FVector2D WindowSize)
 {
 	const FIntRect SrcRect = GetFullFlatEyeRect_RenderThread(EyeTexture);
 	const FIntRect DstRect(0, 0, TargetTexture->GetSizeX(), TargetTexture->GetSizeY());
@@ -329,7 +329,7 @@ void FDefaultSpectatorScreenController::RenderSpectatorModeSingleEyeLetterboxed(
 	CopyEmulatedLayers(RHICmdList, TargetTexture, SrcRect, DstRectLetterboxed);
 }
 
-void FDefaultSpectatorScreenController::RenderSpectatorModeSingleEyeCroppedToFill(FRHICommandListImmediate& RHICmdList, FTexture2DRHIRef TargetTexture, FTexture2DRHIRef EyeTexture, FTexture2DRHIRef OtherTexture, FVector2D WindowSize)
+void FDefaultSpectatorScreenController::RenderSpectatorModeSingleEyeCroppedToFill(FRHICommandListImmediate& RHICmdList, FTextureRHIRef TargetTexture, FTextureRHIRef EyeTexture, FTextureRHIRef OtherTexture, FVector2D WindowSize)
 {
 	const FIntRect SrcRect = GetFullFlatEyeRect_RenderThread(EyeTexture);
 	const FIntRect DstRect(0, 0, TargetTexture->GetSizeX(), TargetTexture->GetSizeY());
@@ -341,9 +341,9 @@ void FDefaultSpectatorScreenController::RenderSpectatorModeSingleEyeCroppedToFil
 	CopyEmulatedLayers(RHICmdList, TargetTexture, SrcCroppedToFitRect, DstRect);
 }
 
-void FDefaultSpectatorScreenController::RenderSpectatorModeTexture(FRHICommandListImmediate& RHICmdList, FTexture2DRHIRef TargetTexture, FTexture2DRHIRef EyeTexture, FTexture2DRHIRef OtherTexture, FVector2D WindowSize)
+void FDefaultSpectatorScreenController::RenderSpectatorModeTexture(FRHICommandListImmediate& RHICmdList, FTextureRHIRef TargetTexture, FTextureRHIRef EyeTexture, FTextureRHIRef OtherTexture, FVector2D WindowSize)
 {
-	FRHITexture2D* SrcTexture = OtherTexture;
+	FRHITexture* SrcTexture = OtherTexture;
 	if (!SrcTexture)
 	{
 		SrcTexture = GetFallbackRHITexture();
@@ -355,9 +355,9 @@ void FDefaultSpectatorScreenController::RenderSpectatorModeTexture(FRHICommandLi
 	HMDDevice->CopyTexture_RenderThread(RHICmdList, SrcTexture, SrcRect, TargetTexture, DstRect, false, true);
 }
 
-void FDefaultSpectatorScreenController::RenderSpectatorModeMirrorAndTexture(FRHICommandListImmediate& RHICmdList, FTexture2DRHIRef TargetTexture, FTexture2DRHIRef EyeTexture, FTexture2DRHIRef OtherTexture, FVector2D WindowSize)
+void FDefaultSpectatorScreenController::RenderSpectatorModeMirrorAndTexture(FRHICommandListImmediate& RHICmdList, FTextureRHIRef TargetTexture, FTextureRHIRef EyeTexture, FTextureRHIRef OtherTexture, FVector2D WindowSize)
 {
-	FRHITexture2D* OtherTextureLocal = OtherTexture;
+	FRHITexture* OtherTextureLocal = OtherTexture;
 	if (!OtherTextureLocal)
 	{
 		OtherTextureLocal = GetFallbackRHITexture();
@@ -386,7 +386,7 @@ void FDefaultSpectatorScreenController::RenderSpectatorModeMirrorAndTexture(FRHI
 	}
 }
 
-FRHITexture2D* FDefaultSpectatorScreenController::GetFallbackRHITexture() const
+FRHITexture* FDefaultSpectatorScreenController::GetFallbackRHITexture() const
 {
 	//return GWhiteTexture->TextureRHI->GetTexture2D();
 	return GBlackTexture->TextureRHI->GetTexture2D();

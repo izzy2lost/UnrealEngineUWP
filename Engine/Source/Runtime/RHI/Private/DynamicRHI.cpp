@@ -540,12 +540,12 @@ void FDynamicRHI::RHIUpdateTextureReference(FRHICommandListBase& RHICmdList, FRH
 	TextureRef->SetReferencedTexture(ReferencedTexture);
 }
 
-void FDynamicRHI::RHIVirtualTextureSetFirstMipInMemory(FRHICommandListImmediate& RHICmdList, FRHITexture2D* TextureRHI, uint32 FirstMip)
+void FDynamicRHI::RHIVirtualTextureSetFirstMipInMemory(FRHICommandListImmediate& RHICmdList, FRHITexture* TextureRHI, uint32 FirstMip)
 {
 	UE_LOG(LogRHI, Fatal, TEXT("The current RHI does not implement support for virtually allocated textures."));
 }
 
-void FDynamicRHI::RHIVirtualTextureSetFirstMipVisible(FRHICommandListImmediate& RHICmdList, FRHITexture2D* TextureRHI, uint32 FirstMip)
+void FDynamicRHI::RHIVirtualTextureSetFirstMipVisible(FRHICommandListImmediate& RHICmdList, FRHITexture* TextureRHI, uint32 FirstMip)
 {
 	UE_LOG(LogRHI, Fatal, TEXT("The current RHI does not implement support for virtually allocated textures."));
 }
