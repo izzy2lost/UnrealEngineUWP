@@ -398,6 +398,8 @@ void URigHierarchy::Reset_Impl(bool bResetElements)
 
 	if(bResetElements)
 	{
+		FScopeLock Lock(&ElementsLock);
+		
 		// walk in reverse since certain elements might not have been allocated themselves
 		for(int32 ElementIndex = Elements.Num() - 1; ElementIndex >= 0; ElementIndex--)
 		{
