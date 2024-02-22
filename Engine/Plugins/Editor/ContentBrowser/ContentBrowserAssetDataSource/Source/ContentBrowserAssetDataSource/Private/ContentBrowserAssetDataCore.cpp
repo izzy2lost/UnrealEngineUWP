@@ -66,7 +66,10 @@ FContentBrowserItemData CreateUnsupportedAssetFileItem(UContentBrowserDataSource
 
 TSharedPtr<const FContentBrowserAssetFolderItemDataPayload> GetAssetFolderItemPayload(const UContentBrowserDataSource* InOwnerDataSource, const FContentBrowserItemData& InItem)
 {
-	if (InItem.GetOwnerDataSource() == InOwnerDataSource && InItem.IsFolder() && InItem.IsSupported())
+	if (InItem.GetOwnerDataSource() == InOwnerDataSource
+		// If both these flags are not present, it's a virtual folder
+		&& EnumHasAllFlags(InItem.GetItemFlags(), EContentBrowserItemFlags::Type_Folder | EContentBrowserItemFlags::Category_Asset)
+		&& InItem.IsSupported())
 	{
 		return StaticCastSharedPtr<const FContentBrowserAssetFolderItemDataPayload>(InItem.GetPayload());
 	}
@@ -1549,6 +1552,32 @@ bool GetItemAttribute(const UContentBrowserDataSource* InOwnerDataSource, const 
 	if (TSharedPtr<const FContentBrowserUnsupportedAssetFileItemDataPayload> UnsupportedAssetPayload = GetUnsupportedAssetFileItemPayload(InOwnerDataSource, InItem))
 	{
 		return GetUnsupportedAssetFileItemAttribute(*UnsupportedAssetPayload, InIncludeMetaData, InAttributeKey, OutAttributeValue);
+	}
+
+	if (InItem.IsFolder() && InItem.IsDisplayOnlyFolder())
+	{
+		if (InAttributeKey == ContentBrowserItemAttributes::ItemIsCustomVirtualFolder)
+		{
+			// Exclude certain built-in folders from being visualized as "virtual" organizational folders
+			// This is somewhat hacky and could be avoided by constructing the virtual folders up front
+			// See UContentBrowserAssetDataSource::BuildRootPathVirtualTree and UContentBrowserDataSubsystem::ConvertInternalPathToVirtual
+			static TSet<FName> ExcludeFoldersFromCustomIcon = []() {
+				TSet<FName> Set;
+				Set.Add("/");
+				Set.Add("/All");
+				Set.Add("/GameData");
+				Set.Add("/All/GameData");
+				Set.Add("/EngineData");
+				Set.Add("/All/EngineData");
+				Set.Add("/Plugins");
+				Set.Add("/All/Plugins");
+				return Set;
+			}();
+
+			bool bIsCustomVirtual = !ExcludeFoldersFromCustomIcon.Contains(InItem.GetVirtualPath());
+			OutAttributeValue.SetValue<bool>(bIsCustomVirtual);
+			return true;
+		}
 	}
 
 	return false;

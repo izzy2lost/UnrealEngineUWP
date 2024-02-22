@@ -29,6 +29,7 @@
 #include "SAssetTagItem.h"
 #include "SlotBase.h"
 #include "Styling/AppStyle.h"
+#include "Styling/StyleColors.h"
 #include "Templates/Function.h"
 #include "UObject/NameTypes.h"
 #include "Widgets/Images/SImage.h"
@@ -45,6 +46,8 @@ struct FAssetTreeItemBrushes
 	/** Brushes for the different folder states */
 	const FSlateBrush* FolderOpenBrush;
 	const FSlateBrush* FolderClosedBrush;
+	const FSlateBrush* FolderOpenVirtualBrush;
+	const FSlateBrush* FolderClosedVirtualBrush;
 	const FSlateBrush* FolderOpenCodeBrush;
 	const FSlateBrush* FolderClosedCodeBrush;
 	const FSlateBrush* FolderOpenDeveloperBrush;
@@ -54,6 +57,8 @@ struct FAssetTreeItemBrushes
 	{
 		FolderOpenBrush = FAppStyle::GetBrush("ContentBrowser.AssetTreeFolderOpen");
 		FolderClosedBrush = FAppStyle::GetBrush("ContentBrowser.AssetTreeFolderClosed");
+		FolderOpenVirtualBrush = FAppStyle::GetBrush("ContentBrowser.AssetTreeFolderOpenVirtual");
+		FolderClosedVirtualBrush = FAppStyle::GetBrush("ContentBrowser.AssetTreeFolderClosedVirtual");
 		FolderOpenCodeBrush = FAppStyle::GetBrush("ContentBrowser.AssetTreeFolderOpenCode");
 		FolderClosedCodeBrush = FAppStyle::GetBrush("ContentBrowser.AssetTreeFolderClosedCode");
 		FolderOpenDeveloperBrush = FAppStyle::GetBrush("ContentBrowser.AssetTreeFolderOpenDeveloper");
@@ -84,13 +89,23 @@ void SAssetTreeItem::Construct( const FArguments& InArgs )
 	IsSelected = InArgs._IsSelected;
 
 	FolderType = EFolderType::Normal;
-	if (ContentBrowserUtils::IsItemDeveloperContent(InArgs._TreeItem->GetItem()))
+	const FContentBrowserItem& Item = InArgs._TreeItem->GetItem();
+	if (ContentBrowserUtils::IsItemDeveloperContent(Item))
 	{
 		FolderType = EFolderType::Developer;
 	}
-	else if (EnumHasAnyFlags(InArgs._TreeItem->GetItem().GetItemCategory(), EContentBrowserItemFlags::Category_Class))
+	else if (EnumHasAnyFlags(Item.GetItemCategory(), EContentBrowserItemFlags::Category_Class))
 	{
 		FolderType = EFolderType::Code;
+	}
+
+	if (ContentBrowserUtils::ShouldShowCustomVirtualFolderIcon())
+	{
+		FContentBrowserItemDataAttributeValue VirtualAttributeValue = Item.GetItemAttribute(ContentBrowserItemAttributes::ItemIsCustomVirtualFolder);
+		if (VirtualAttributeValue.IsValid() && VirtualAttributeValue.GetValue<bool>())
+		{
+			FolderType = EFolderType::CustomVirtual;
+		}
 	}
 
 	bool bIsRoot = !InArgs._TreeItem->Parent.IsValid();
@@ -283,13 +298,16 @@ const FSlateBrush* SAssetTreeItem::GetFolderIcon() const
 	switch( FolderType )
 	{
 	case EFolderType::Code:
-		return ( IsItemExpanded.Get() ) ? Brushes.FolderOpenCodeBrush : Brushes.FolderClosedCodeBrush;
+		return IsItemExpanded.Get() ? Brushes.FolderOpenCodeBrush : Brushes.FolderClosedCodeBrush;
 
 	case EFolderType::Developer:
-		return (IsItemExpanded.Get()) ? Brushes.FolderOpenDeveloperBrush : Brushes.FolderClosedDeveloperBrush;
+		return IsItemExpanded.Get() ? Brushes.FolderOpenDeveloperBrush : Brushes.FolderClosedDeveloperBrush;
+
+	case EFolderType::CustomVirtual:
+		return IsItemExpanded.Get() ? Brushes.FolderOpenVirtualBrush : Brushes.FolderClosedVirtualBrush;
 
 	default:
-		return ( IsItemExpanded.Get() ) ? Brushes.FolderOpenBrush : Brushes.FolderClosedBrush;
+		return IsItemExpanded.Get() ? Brushes.FolderOpenBrush : Brushes.FolderClosedBrush;
 	}
 }
 

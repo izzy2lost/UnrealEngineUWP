@@ -106,6 +106,7 @@ private:
 	enum class EFolderType : uint8
 	{
 		Normal,
+		CustomVirtual, // No corresponding on-disk path, used for organization in the content browser
 		Code,
 		Developer,
 	};

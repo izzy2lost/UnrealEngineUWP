@@ -881,4 +881,14 @@ void ContentBrowserUtils::RemoveShowPrivateContentFolder(const FStringView Virtu
 	ContentBrowserSingleton.SetPrivateContentPermissionListDirty();
 }
 
+FAutoConsoleVariable CVarShowCustomVirtualFolderIcon(
+	TEXT("ContentBrowser.ShowCustomVirtualFolderIcon"),
+	1,
+	TEXT("Whether to show a special icon for custom virtual folders added for organizational purposes in the content browser. E.g. EditorCustomVirtualPath field in plugins"));
+
+bool ContentBrowserUtils::ShouldShowCustomVirtualFolderIcon()
+{
+	return CVarShowCustomVirtualFolderIcon->GetBool();
+}
+
 #undef LOCTEXT_NAMESPACE
