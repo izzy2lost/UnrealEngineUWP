@@ -44,9 +44,15 @@ public:
 	virtual void ApplyDeprecationBeforeUpdatePins(UPCGNode* InOutNode, TArray<TObjectPtr<UPCGPin>>& InputPins, TArray<TObjectPtr<UPCGPin>>& OutputPins);
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("AttributeNoise")); }
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGAttributeNoiseSettings", "NodeTitle", "Attribute Noise"); }
-	virtual TArray<FText> GetNodeTitleAliases() const { return { NSLOCTEXT("PCGAttributeNoiseSettings", "DensityNoiseAlias", "Density Noise") }; }
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Metadata; }
+
+	// Expose 2 nodes: Density noise and Attribute Noise that will not have the same defaults.
+	virtual TArray<FPCGPreConfiguredSettingsInfo> GetPreconfiguredInfo() const override;
+	virtual bool OnlyExposePreconfiguredSettings() const override { return true; }
+	virtual bool GroupPreconfiguredSettings() const override { return false; }
 #endif
+	virtual void ApplyPreconfiguredSettings(const FPCGPreConfiguredSettingsInfo& PreconfigureInfo) override;
+	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const override;
 	virtual bool HasDynamicPins() const override { return true; }
 	
 
@@ -98,6 +104,10 @@ public:
 	UPROPERTY()
 	bool bOutputTargetDifferentFromInputSource_DEPRECATED = false;
 #endif // WITH_EDITORDATA_ONLY
+
+	// Hidden value to indicate that Spatial -> Point deprecation is on where pins are not explicitly points.
+	UPROPERTY()
+	bool bHasSpatialToPointDeprecation = false;
 };
 
 struct FPCGAttributeNoiseContext : public FPCGContext

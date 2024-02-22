@@ -314,6 +314,9 @@ public:
 	/** If there are preconfigured info, we can skip the default settings and only expose pre-configured actions in the editor palette */
 	virtual bool OnlyExposePreconfiguredSettings() const { return false; }
 
+	/** If there are preconfigured info, decide if they are grouped in the palette in a folder with the node name, or if they are not grouped. */
+	virtual bool GroupPreconfiguredSettings() const { return true; }
+
 	/** Perform post-operations when an editor node is copied */
 	virtual void PostPaste();
 
@@ -430,14 +433,14 @@ protected:
 	TArray<FPCGPinProperties> DefaultPointInputPinProperties() const;
 	TArray<FPCGPinProperties> DefaultPointOutputPinProperties() const;
 
-#if WITH_EDITOR
 public:
+#if WITH_EDITORONLY_DATA
 	/** The version number of the data after load and after any data migration. */
 	int32 DataVersion = -1;
 
 	/** If a custom version guid was provided through GetUserCustomVersionGuid(), this field will hold the version number after load and after any data migration. */
 	int32 UserDataVersion = -1;
-#endif
+#endif // WITH_EDITORONLY_DATA
 
 private:
 	mutable FPCGElementPtr CachedElement;

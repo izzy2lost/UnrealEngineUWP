@@ -54,6 +54,7 @@ ENUM_CLASS_FLAGS(EPCGChangeType);
 // enums have to be uint8 for blueprint, and we already use more than 8 bits in the bitmask.
 // This is why we have a parallel enum just below that must match on a name basis 1:1 to allow the make/break functions to work properly
 // in blueprint.
+// WARNING: Please be mindful that combination of flags that are not explicitly defined there won't be serialized correctly, inducing data loss.
 UENUM(meta = (Bitflags))
 enum class EPCGDataType : uint32
 {
@@ -83,6 +84,10 @@ enum class EPCGDataType : uint32
 	Spatial = Composite | Concrete,
 
 	Param = 1 << 27 UMETA(DisplayName = "Attribute Set"),
+
+	// Combination of Param and Point, necessary for named-based serialization of enums.
+	PointOrParam = Point | Param,
+
 	Settings = 1 << 28 UMETA(Hidden),
 	Other = 1 << 29,
 	Any = (1 << 30) - 1
@@ -111,7 +116,8 @@ enum class EPCGExclusiveDataType : uint8
 	Param UMETA(DisplayName = "Attribute Set"),
 	Settings UMETA(Hidden),
 	Other,
-	Any
+	Any,
+	PointOrParam
 };
 
 namespace PCGPinConstants

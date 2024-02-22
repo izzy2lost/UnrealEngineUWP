@@ -77,10 +77,15 @@ public:
 #if WITH_EDITOR
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("AttributeFilter")); }
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGAttributeFilteringElement", "NodeTitle", "Attribute Filter"); }
-	virtual TArray<FText> GetNodeTitleAliases() const override { return { NSLOCTEXT("PCGAttributeFilteringElement", "AliasNodeTitle", "Point Filter") }; }
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Filter; }
 	virtual bool HasDynamicPins() const override { return true; }
+
+	// Expose 2 nodes: Attribute filter and Point Filter that will not have the same defaults.
+	virtual TArray<FPCGPreConfiguredSettingsInfo> GetPreconfiguredInfo() const override;
+	virtual bool OnlyExposePreconfiguredSettings() const override { return true; }
+	virtual bool GroupPreconfiguredSettings() const override { return false; }
 #endif
+	virtual void ApplyPreconfiguredSettings(const FPCGPreConfiguredSettingsInfo& PreconfigureInfo) override;
 	virtual FString GetAdditionalTitleInformation() const override;
 	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const override;
 
@@ -111,6 +116,10 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bUseConstantThreshold", EditConditionHides, ShowOnlyInnerProperties, DisplayAfter = "bUseConstantThreshold", PCG_NotOverridable))
 	FPCGMetadataTypesConstantStruct AttributeTypes;
+
+	// Hidden value to indicate that Spatial -> Point deprecation is on where pins are not explicitly points.
+	UPROPERTY()
+	bool bHasSpatialToPointDeprecation = false;
 };
 
 
@@ -135,19 +144,22 @@ public:
 	UPCGAttributeFilteringRangeSettings();
 
 	//~Begin UObject interface
-#if WITH_EDITOR
 	virtual void PostLoad() override;
-#endif
 	//~End UObject interface
 
 	//~Begin UPCGSettings interface
 #if WITH_EDITOR
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("AttributeFilterRange")); }
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGAttributeFilteringElement", "NodeTitleRange", "Attribute Filter Range"); }
-	virtual TArray<FText> GetNodeTitleAliases() const override { return { NSLOCTEXT("PCGAttributeFilteringElement", "AliasNodeTitleRange", "Point Filter Range") }; }
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Filter; }
 	virtual bool HasDynamicPins() const override { return true; }
+
+	// Expose 2 nodes: "Attribute Filter Range" and "Point Filter Range" that will not have the same defaults.
+	virtual TArray<FPCGPreConfiguredSettingsInfo> GetPreconfiguredInfo() const override;
+	virtual bool OnlyExposePreconfiguredSettings() const override { return true; }
+	virtual bool GroupPreconfiguredSettings() const override { return false; }
 #endif
+	virtual void ApplyPreconfiguredSettings(const FPCGPreConfiguredSettingsInfo& PreconfigureInfo) override;
 	virtual FString GetAdditionalTitleInformation() const override;
 	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const override;
 
@@ -168,12 +180,16 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	FPCGAttributeFilterThresholdSettings MaxThreshold;
+
+	// Hidden value to indicate that Spatial -> Point deprecation is on where pins are not explicitly points.
+	UPROPERTY()
+	bool bHasSpatialToPointDeprecation = false;
 };
 
 class FPCGAttributeFilterElementBase : public IPCGElement
 {
 protected:
-	bool DoFiltering(FPCGContext* Context, EPCGAttributeFilterOperator InOperation, const FPCGAttributePropertyInputSelector& TargetAttribute, const FPCGAttributeFilterThresholdSettings& FirstThreshold, const FPCGAttributeFilterThresholdSettings* SecondThreshold = nullptr) const;
+	bool DoFiltering(FPCGContext* Context, EPCGAttributeFilterOperator InOperation, const FPCGAttributePropertyInputSelector& TargetAttribute, bool bHasSpatialToPointDeprecation, const FPCGAttributeFilterThresholdSettings& FirstThreshold, const FPCGAttributeFilterThresholdSettings* SecondThreshold = nullptr) const;
 };
 
 class FPCGAttributeFilterElement : public FPCGAttributeFilterElementBase
