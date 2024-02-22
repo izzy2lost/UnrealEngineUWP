@@ -23,6 +23,8 @@ static FAutoConsoleVariableRef CVarPSOUseBackgroundThreadForCollection(
 	ECVF_ReadOnly
 );
 
+CSV_DECLARE_CATEGORY_EXTERN(PSOPrecache);
+
 FPSOCollectorCreateManager::FPSOCollectorData FPSOCollectorCreateManager::PSOCollectors[(int32)EShadingPath::Num][FPSOCollectorCreateManager::MaxPSOCollectorCount] = {};
 
 int32 FPSOCollectorCreateManager::GetIndex(EShadingPath ShadingPath, const TCHAR* Name)
@@ -57,8 +59,11 @@ FPSOPrecacheRequestResultArray RequestPrecachePSOs(const FPSOPrecacheDataArray& 
 		case FPSOPrecacheData::EType::Graphics:
 		{
 #if PSO_PRECACHING_VALIDATE
-			PSOCollectorStats::GetFullPSOPrecacheStatsCollector().AddStateToCache(PrecacheData.GraphicsPSOInitializer, PSOCollectorStats::GetPSOPrecacheHash, nullptr, PrecacheData.PSOCollectorIndex, PrecacheData.VertexFactoryType);
-#endif // PSO_PRECACHING_VALIDATE
+			if (PSOCollectorStats::GetFullPSOPrecacheStatsCollector().AddStateToCache(PrecacheData.GraphicsPSOInitializer, PSOCollectorStats::GetPSOPrecacheHash, nullptr, PrecacheData.PSOCollectorIndex, PrecacheData.VertexFactoryType))
+			{
+				CSV_CUSTOM_STAT(PSOPrecache, PrecachedGraphics, 1, ECsvCustomStatOp::Accumulate);
+			}
+#endif // PSO_PRECACHING_VALIDATE			
 
 			FPSOPrecacheRequestResult PSOPrecacheResult = PipelineStateCache::PrecacheGraphicsPipelineState(PrecacheData.GraphicsPSOInitializer);
 			if (PSOPrecacheResult.IsValid() && PrecacheData.bRequired)
@@ -70,9 +75,12 @@ FPSOPrecacheRequestResultArray RequestPrecachePSOs(const FPSOPrecacheDataArray& 
 		case FPSOPrecacheData::EType::Compute:
 		{
 #if PSO_PRECACHING_VALIDATE
-			PSOCollectorStats::GetFullPSOPrecacheStatsCollector().AddStateToCache(*PrecacheData.ComputeShader, PSOCollectorStats::GetPSOPrecacheHash, nullptr, PrecacheData.PSOCollectorIndex, nullptr);
+			if (PSOCollectorStats::GetFullPSOPrecacheStatsCollector().AddStateToCache(*PrecacheData.ComputeShader, PSOCollectorStats::GetPSOPrecacheHash, nullptr, PrecacheData.PSOCollectorIndex, nullptr))
+			{
+				CSV_CUSTOM_STAT(PSOPrecache, PrecachedCompute, 1, ECsvCustomStatOp::Accumulate);
+			}
 #endif // PSO_PRECACHING_VALIDATE
-
+			
 			FPSOPrecacheRequestResult PSOPrecacheResult = PipelineStateCache::PrecacheComputePipelineState(PrecacheData.ComputeShader);
 			if (PSOPrecacheResult.IsValid() && PrecacheData.bRequired)
 			{

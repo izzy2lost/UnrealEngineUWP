@@ -2353,9 +2353,10 @@ void PSOCollectorStats::CheckShaderOnlyStateInCache(
 	int32 PSOCollectorIndex)
 {
 	FGraphicsMinimalPipelineStateInitializer ShadersOnlyInitializer = GetShadersOnlyInitializer(Initializer);
-	EPSOPrecacheResult Result = PSOCollectorStats::GetShadersOnlyPSOPrecacheStatsCollector().CheckStateInCacheByHash(ShadersOnlyInitializer.StatePrecachePSOHash, EPSOPrecacheResult::Unknown, PSOCollectorIndex, VFType);
 
-	if (IsFullPrecachingValidationEnabled() && Result != EPSOPrecacheResult::Unknown && Result != EPSOPrecacheResult::Complete)
+	EPSOPrecacheResult Result = EPSOPrecacheResult::Unknown;
+	bool bStatsUpdated = PSOCollectorStats::GetShadersOnlyPSOPrecacheStatsCollector().CheckStateInCacheByHash(ShadersOnlyInitializer.StatePrecachePSOHash, PSOCollectorIndex, VFType, Result);
+	if (IsFullPrecachingValidationEnabled() && bStatsUpdated && Result != EPSOPrecacheResult::Unknown && Result != EPSOPrecacheResult::Complete)
 	{
 		FGraphicsPipelineStateInitializer GraphicsPSOInitializer = ShadersOnlyInitializer.AsGraphicsPipelineStateInitializer();
 		LogPSOMissInfo(GraphicsPSOInitializer, EPSOPrecacheMissType::ShadersOnly, Result, &Material, VFType, PrimitiveSceneProxy, PSOCollectorIndex, ShadersOnlyInitializer.StatePrecachePSOHash);
@@ -2370,9 +2371,10 @@ void PSOCollectorStats::CheckMinimalPipelineStateInCache(
 	int32 PSOCollectorIndex)
 {
 	FGraphicsMinimalPipelineStateInitializer PatchedMinimalInitializer = PSOCollectorStats::PatchMinimalPipelineStateToCheck(Initializer);
-	EPSOPrecacheResult Result = PSOCollectorStats::GetMinimalPSOPrecacheStatsCollector().CheckStateInCacheByHash(PatchedMinimalInitializer.StatePrecachePSOHash, EPSOPrecacheResult::Unknown, PSOCollectorIndex, VFType);
 
-	if (IsFullPrecachingValidationEnabled() && Result != EPSOPrecacheResult::Unknown && Result != EPSOPrecacheResult::Complete)
+	EPSOPrecacheResult Result = EPSOPrecacheResult::Unknown;
+	bool bStatsUpdated = PSOCollectorStats::GetMinimalPSOPrecacheStatsCollector().CheckStateInCacheByHash(PatchedMinimalInitializer.StatePrecachePSOHash, PSOCollectorIndex, VFType, Result);
+	if (IsFullPrecachingValidationEnabled() && bStatsUpdated && Result != EPSOPrecacheResult::Unknown && Result != EPSOPrecacheResult::Complete)
 	{
 		FGraphicsMinimalPipelineStateInitializer ShadersOnlyInitializer = GetShadersOnlyInitializer(Initializer);
 		bool bShaderOnlyPrecached = PSOCollectorStats::GetShadersOnlyPSOPrecacheStatsCollector().IsPrecached(ShadersOnlyInitializer.StatePrecachePSOHash);
