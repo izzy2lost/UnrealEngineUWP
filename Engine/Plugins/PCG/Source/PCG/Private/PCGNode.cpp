@@ -40,7 +40,7 @@ namespace PCGNodeHelpers
 UPCGNode::UPCGNode(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	SettingsInterface = ObjectInitializer.CreateDefaultSubobject<UPCGTrivialSettings>(this, TEXT("DefaultNodeSettings"));
+	SettingsInterface = ObjectInitializer.CreateOptionalDefaultSubobject<UPCGTrivialSettings>(this, TEXT("DefaultNodeSettings"));
 }
 
 void UPCGNode::PostLoad()
