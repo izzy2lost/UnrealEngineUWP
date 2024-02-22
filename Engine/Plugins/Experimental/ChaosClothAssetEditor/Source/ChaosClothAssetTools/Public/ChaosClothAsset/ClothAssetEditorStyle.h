@@ -9,7 +9,7 @@ namespace UE::Chaos::ClothAsset
 	/**
 	 * Editor style setting up the cloth asset icons in editor.
 	 */
-	class FClothAssetEditorStyle final : public FSlateStyleSet
+	class CHAOSCLOTHASSETTOOLS_API FClothAssetEditorStyle final : public FSlateStyleSet
 	{
 	public:
 		FClothAssetEditorStyle();

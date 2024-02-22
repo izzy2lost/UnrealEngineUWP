@@ -114,10 +114,26 @@ void FChaosClothAssetSimulationFabricConfigNode::SetFabricPropertyWeighted(
 	FPropertyHelper& PropertyHelper, const TFunction<float(const UE::Chaos::ClothAsset::FCollectionClothFabricFacade&)>& FabricValueFunction,
 	const TArray<FName>& SimilarPropertyNames, ECollectionPropertyFlags PropertyFlags)
 {
-	const UE::Chaos::ClothAsset::FWeightedValueBounds WeightedValueBounds = UE::Chaos::ClothAsset::Private::BuildFabricWeightedValue(ClothFacade, 
+	if(PropertyValue.bCouldUseFabrics && (PropertyValue.bImportFabricBounds || PropertyValue.bBuildFabricMaps))
+	{
+		UE::Chaos::ClothAsset::FWeightedValueBounds WeightedValueBounds;
+		if(PropertyValue.bBuildFabricMaps)
+		{
+			WeightedValueBounds = UE::Chaos::ClothAsset::Private::BuildFabricWeightedValue(ClothFacade, 
 			 PropertyHelper.GetPropertyString(&PropertyValue.WeightMap), FabricValueFunction);
-
-	PropertyHelper.SetPropertyWeighted(PropertyName, WeightedValueBounds, PropertyValue, SimilarPropertyNames, PropertyFlags);
+		}
+		else 
+		{
+			WeightedValueBounds = UE::Chaos::ClothAsset::Private::BuildFabricValue(
+				ClothFacade, FabricValueFunction);
+		}
+		if(PropertyValue.bImportFabricBounds)
+		{
+			PropertyValue.Low = WeightedValueBounds.Low;
+			PropertyValue.High = WeightedValueBounds.High;
+		}
+	}
+	PropertyHelper.SetPropertyWeighted(PropertyName, PropertyValue, SimilarPropertyNames, PropertyFlags);
 }
 
 template void FChaosClothAssetSimulationFabricConfigNode::SetFabricPropertyWeighted<FChaosClothAssetWeightedValue>(const FName& PropertyName,

@@ -20,15 +20,15 @@ public:
 	 * -	Total Mass: The total mass is distributed equally over all the particles. Useful when referencing a specific garment size and feel.
 	 * -	Density: A constant mass density is used. Density is usually the preferred way of setting mass since it allows matching real life materials' density values.
 	 */
-	UPROPERTY(EditAnywhere, Category = "Mass Properties", meta = (EditCondition = "bImportProperties == false"))
+	UPROPERTY(EditAnywhere, Category = "Mass Properties")
 	EClothMassMode MassMode = EClothMassMode::Density;
 
 	/** The value used when the Mass Mode is set to Uniform Mass. */
-	UPROPERTY(EditAnywhere, Category = "Mass Properties", DisplayName = "Uniform Mass", Meta = (UIMin = "0.000001", UIMax = "0.001", ClampMin = "0", EditCondition = "MassMode == EClothMassMode::UniformMass && bImportProperties == false"))
+	UPROPERTY(EditAnywhere, Category = "Mass Properties", DisplayName = "Uniform Mass", Meta = (UIMin = "0.000001", UIMax = "0.001", ClampMin = "0", EditCondition = "MassMode == EClothMassMode::UniformMass", EditConditionHides))
 	FChaosClothAssetWeightedValueNonAnimatable UniformMassWeighted = {0.00015f, 0.00015f, TEXT("UniformMass")};
 
 	/** The value used when Mass Mode is set to TotalMass. */
-	UPROPERTY(EditAnywhere, Category = "Mass Properties", Meta = (UIMin = "0.001", UIMax = "10", ClampMin = "0", EditCondition = "MassMode == EClothMassMode::TotalMass && bImportProperties == false"))
+	UPROPERTY(EditAnywhere, Category = "Mass Properties", Meta = (UIMin = "0.001", UIMax = "10", ClampMin = "0", EditCondition = "MassMode == EClothMassMode::TotalMass", EditConditionHides))
 	float TotalMass = 0.5f;
 
 	/**
@@ -41,8 +41,8 @@ public:
 	 * Cotton: 0.2
 	 * Silk: 0.1
 	 */
-	UPROPERTY(EditAnywhere, Category = "Mass Properties", DisplayName = "Density", meta = (UIMin = "0.001", UIMax = "1", ClampMin = "0", EditCondition = "MassMode == EClothMassMode::Density && bImportProperties == false"))
-	FChaosClothAssetWeightedValueNonAnimatable DensityWeighted = {0.35f, 0.35f, TEXT("Density")};
+	UPROPERTY(EditAnywhere, Category = "Mass Properties", DisplayName = "Density", meta = (UIMin = "0.001", UIMax = "1", ClampMin = "0", EditCondition = "MassMode == EClothMassMode::Density", EditConditionHides))
+	FChaosClothAssetWeightedValueNonAnimatable DensityWeighted = {0.35f, 0.35f, TEXT("Density"),  true};
 
 	/** Calculated particle masses will be clamped to this minimum value (or 1e-8, whichever is larger). */
 	UPROPERTY(EditAnywhere, Category = "Mass Properties", meta = (ClampMin = "0"))
