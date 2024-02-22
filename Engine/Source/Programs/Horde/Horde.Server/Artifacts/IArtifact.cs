@@ -60,6 +60,11 @@ namespace Horde.Server.Artifacts
 		public RefName RefName { get; }
 
 		/// <summary>
+		/// Time at which the artifact was created
+		/// </summary>
+		public DateTime CreatedAtUtc { get; }
+
+		/// <summary>
 		/// Time at which the artifact is scheduled to be deleted
 		/// </summary>
 		public DateTime? ExpireAtUtc { get; }

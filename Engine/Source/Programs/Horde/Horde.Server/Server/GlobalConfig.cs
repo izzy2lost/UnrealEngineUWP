@@ -98,7 +98,17 @@ namespace Horde.Server.Server
 		/// <summary>
 		/// Name of the artifact type
 		/// </summary>
-		public ArtifactType Name { get; set; }
+		public ArtifactType Type { get; set; }
+
+		/// <summary>
+		/// Legacy 'Name' property
+		/// </summary>
+		[Obsolete("Use Type instead")]
+		public ArtifactType Name
+		{
+			get => Type;
+			set => Type = value;
+		}
 
 		/// <summary>
 		/// Number of days to retain artifacts of this type
@@ -322,7 +332,7 @@ namespace Horde.Server.Server
 			_artifactTypeLookup.Clear();
 			foreach (ArtifactTypeConfig artifactType in ArtifactTypes)
 			{
-				_artifactTypeLookup.Add(artifactType.Name, artifactType);
+				_artifactTypeLookup.Add(artifactType.Type, artifactType);
 			}
 
 			_secretLookup.Clear();
