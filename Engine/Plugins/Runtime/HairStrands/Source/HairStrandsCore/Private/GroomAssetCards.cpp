@@ -145,8 +145,8 @@ const TCHAR* GetHairTextureLayoutTextureName(EHairTextureLayout InLayout, uint32
 			switch (InIndex)
 			{
 				case 0: return bDetail ? TEXT("Tangent | CoordU\n RGB8")					: TEXT("TangentCoordU");
-				case 1: return bDetail ? TEXT("RooUV | Depth | GroupID\n RGBA8")			: TEXT("RooUVDepthGroupID");
-				case 2: return bDetail ? TEXT("ColorXY | Seed | Coverage \n RGBA8")			: TEXT("ColorXYSeedCoverage");
+				case 1: return bDetail ? TEXT("ColorXY | Depth | GroupID\n RGBA8")			: TEXT("ColorXYDepthGroupID");
+				case 2: return bDetail ? TEXT("RooUV | Seed | Coverage \n RGBA8")			: TEXT("RooUVSeedCoverage");
 			}
 		} break;
 	}
