@@ -4383,11 +4383,6 @@ void UAnimSequence::OnModelModified(const EAnimDataModelNotifyType& NotifyType, 
 					CompressedData.ClearCompressedCurveData();
 					HandleTrackDataChanged(bWasModelReset);
 				}
-
-				if (NotifyCollector.Contains(EAnimDataModelNotifyType::SkeletonChanged))
-				{
-					UpdateRetargetSourceAsset();
-				}
 			}
 
 			break;
@@ -4467,7 +4462,6 @@ void UAnimSequence::OnModelModified(const EAnimDataModelNotifyType& NotifyType, 
 			if (NotifyCollector.IsNotWithinBracket())
 			{
 				HandleTrackDataChanged();
-				UpdateRetargetSourceAsset();
 			}
 			break;
 		}
