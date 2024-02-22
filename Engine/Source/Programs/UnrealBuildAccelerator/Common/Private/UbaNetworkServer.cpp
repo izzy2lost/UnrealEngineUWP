@@ -254,10 +254,10 @@ namespace uba
 			{
 				if (server.m_onConnectionFunction)
 					server.m_onConnectionFunction(clientUid, clientId);
-				server.m_logger.Info(TC("Client %s connected on connection %s"), GuidToString(clientUid).str, GuidToString(connectionUid).str);
+				server.m_logger.Detail(TC("Client %s connected on connection %s"), GuidToString(clientUid).str, GuidToString(connectionUid).str);
 			}
 			else
-				server.m_logger.Info(TC("Client %s additional connection %s connected"), GuidToString(clientUid).str, GuidToString(connectionUid).str);
+				server.m_logger.Detail(TC("Client %s additional connection %s connected"), GuidToString(clientUid).str, GuidToString(connectionUid).str);
 
 
 			return true;
@@ -362,8 +362,8 @@ namespace uba
 		CryptoKey m_cryptoKey;
 		Atomic<int> m_activeWorkerCount;
 		Atomic<int> m_disconnectCalled;
+		Atomic<bool> m_disconnected;
 		bool m_shouldDisconnect = false;
-		bool m_disconnected = false;
 		void* m_backendConnection = nullptr;
 
 		Timer m_sendTimer;
@@ -650,17 +650,16 @@ namespace uba
 
 		{
 			ScopedWriteLock lock(m_connectionsLock);
-			auto connections(std::move(m_connections));
-			lock.Leave();
-
 			bool success = true;
-			for (auto& c : connections)
+			for (auto& c : m_connections)
 			{
 				success = c.Stop() && success;
 				m_sendTimer.Add(c.m_sendTimer);
 				m_encryptTimer.Add(c.m_encryptTimer);
 				m_decryptTimer.Add(c.m_decryptTimer);
 			}
+			m_connections.clear();
+			lock.Leave();
 
 			// If stopping connections fail we need to abort because we will most likely run into a deadlock when deleting the workers.
 			if (!success)

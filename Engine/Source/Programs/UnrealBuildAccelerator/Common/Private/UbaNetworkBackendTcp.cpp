@@ -651,9 +651,9 @@ namespace uba
 
 		//char* ip = inet_ntoa(((sockaddr_in*)const_cast<sockaddr*>(&remoteSocketAddr))->sin_addr);
 		if (nameHint)
-			logger.Info(TC("Connected to %s:%u"), nameHint, ((sockaddr_in&)remoteSocketAddr).sin_port);
+			logger.Detail(TC("Connected to %s:%u"), nameHint, ((sockaddr_in&)remoteSocketAddr).sin_port);
 		else
-			logger.Info(TC("Connected using sockaddr"));
+			logger.Detail(TC("Connected using sockaddr"));
 
 		socketClose.Cancel();
 

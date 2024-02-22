@@ -47,7 +47,7 @@ namespace uba
 			connection.backend->SetDisconnectCallback(connection.backendConnection, nullptr, nullptr);
 			if (connection.connected.exchange(0) == 0)
 				continue;
-			m_logger.Info(TC("Disconnected from server..."));
+			m_logger.Detail(TC("Disconnected from server..."));
 			connection.backend->Shutdown(connection.backendConnection);
 			connection.backend->Close(connection.backendConnection);
 		}
@@ -385,7 +385,7 @@ namespace uba
 	{
 		if (connection.connected.exchange(0) == 1)
 		{
-			m_logger.Info(TC("Disconnected from server..."));
+			m_logger.Detail(TC("Disconnected from server..."));
 
 			connection.backend->Shutdown(connection.backendConnection);
 

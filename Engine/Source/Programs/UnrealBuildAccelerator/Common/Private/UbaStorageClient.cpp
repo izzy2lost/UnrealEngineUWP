@@ -60,6 +60,7 @@ namespace uba
 
 	bool StorageClient::IsUsingProxy()
 	{
+		ScopedReadLock proxyLock(m_proxyClientLock);
 		return m_proxyClient != nullptr;
 	}
 
