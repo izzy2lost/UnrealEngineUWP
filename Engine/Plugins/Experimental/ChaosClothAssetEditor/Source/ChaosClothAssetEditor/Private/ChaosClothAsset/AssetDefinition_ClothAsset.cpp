@@ -33,15 +33,17 @@ namespace ClothAssetDefinitionHelpers
 			const FString ClothName = ClothAsset->GetName();
 			NewDataflowAssetDialogConfig.DefaultAssetName = ClothName + "_Dataflow";
 			NewDataflowAssetDialogConfig.AssetClassNames.Add(DataflowClass->GetClassPathName());
-			NewDataflowAssetDialogConfig.ExistingAssetPolicy = ESaveAssetDialogExistingAssetPolicy::Disallow;
+			NewDataflowAssetDialogConfig.ExistingAssetPolicy = ESaveAssetDialogExistingAssetPolicy::AllowButWarn;
 			NewDataflowAssetDialogConfig.DialogTitleOverride = LOCTEXT("NewDataflowAssetDialogTitle", "Save Dataflow Asset As");
 		}
 
 		FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
 
-		FString NewPackageName;
+		FString NewPackageName = FPaths::Combine(NewDataflowAssetDialogConfig.DefaultPath, NewDataflowAssetDialogConfig.DefaultAssetName);
 		FText OutError;
-		for (bool bFilenameValid = false; !bFilenameValid; bFilenameValid = FFileHelper::IsFilenameValidForSaving(NewPackageName, OutError))
+
+		while (!FFileHelper::IsFilenameValidForSaving(NewPackageName, OutError) ||
+			LoadObject<UObject>(nullptr, *NewPackageName, nullptr, LOAD_NoWarn | LOAD_Quiet))  // Check if an object with this name already exists
 		{
 			const FString AssetSavePath = ContentBrowserModule.Get().CreateModalSaveAssetDialog(NewDataflowAssetDialogConfig);
 			if (AssetSavePath.IsEmpty())
@@ -54,15 +56,9 @@ namespace ClothAssetDefinitionHelpers
 
 		const FName NewAssetName(FPackageName::GetLongPackageAssetName(NewPackageName));
 		UPackage* const NewPackage = CreatePackage(*NewPackageName);
-		UDataflow* const NewAsset = NewObject<UDataflow>(NewPackage, DataflowClass, NewAssetName, RF_Public | RF_Standalone | RF_Transactional);
 
-		// Add a ClothAsset Terminal Node to the empty graph
-		const TSharedPtr<FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode> NodeAction =
-			FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode::CreateAction(NewAsset, FChaosClothAssetTerminalNode::StaticType());
-		constexpr UEdGraphPin* FromPin = nullptr;
-		constexpr bool bSelectNewNode = true;
-		UEdGraphNode* const NewEdNode = NodeAction->PerformAction(NewAsset, FromPin, FVector2D::Zero(), bSelectNewNode);
-		check(NewEdNode);
+		UDataflow* const ClothAssetTemplate = LoadObject<UDataflow>(NewPackage, TEXT("/ChaosClothAssetEditor/ClothAssetTemplate.ClothAssetTemplate"));
+		UDataflow* const NewAsset = DuplicateObject(ClothAssetTemplate, NewPackage, NewAssetName);
 
 		NewAsset->MarkPackageDirty();
 
@@ -135,7 +131,7 @@ namespace ClothAssetDefinitionHelpers
 		bool bDialogDone = false;
 		while (!bDialogDone)
 		{
-			bDialogDone = NewOrOpenDialog(ClothAsset, DataflowAsset);
+			bDialogDone = CreateNewDataflowAsset(ClothAsset, DataflowAsset);
 		}
 
 		return DataflowAsset;

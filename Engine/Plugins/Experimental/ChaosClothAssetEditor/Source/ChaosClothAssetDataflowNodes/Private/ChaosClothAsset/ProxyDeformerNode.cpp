@@ -140,7 +140,7 @@ void FChaosClothAssetProxyDeformerNode::Evaluate(Dataflow::FContext& Context, co
 
 		// Always check for a valid cloth collection/facade to avoid processing non cloth collections
 		FCollectionClothFacade ClothFacade(ClothCollection);
-		if (ClothFacade.IsValid())
+		if (ClothFacade.IsValid() && ClothFacade.HasValidData())
 		{
 			// Retrieve the MaxDistance weight map name
 			FName MaxDistanceWeightMapName = FName(*GetValue<FString>(Context, &MaxDistance.WeightMap));
