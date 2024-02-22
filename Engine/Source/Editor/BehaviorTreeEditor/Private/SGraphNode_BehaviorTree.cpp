@@ -477,6 +477,14 @@ void SGraphNode_BehaviorTree::UpdateGraphNode()
 										.Visibility(this, &SGraphNode_BehaviorTree::GetDescriptionVisibility)
 										.Text(this, &SGraphNode_BehaviorTree::GetDescription)
 									]
+									+SVerticalBox::Slot()
+									.AutoHeight()
+									[
+										SNew(STextBlock)
+										.Visibility(this, &SGraphNode_BehaviorTree::GetRuntimeDescriptionVisibility)
+										.Text(this, &SGraphNode_BehaviorTree::GetRuntimeDescription)
+										.TextStyle(FAppStyle::Get(), "SmallText")
+									]
 								]
 								+SOverlay::Slot()
 								.HAlign(HAlign_Right)
@@ -711,6 +719,21 @@ FText SGraphNode_BehaviorTree::GetPinTooltip(UEdGraphPin* GraphPinObj) const
 	}
 
 	return HoverText;
+}
+
+FText SGraphNode_BehaviorTree::GetRuntimeDescription() const
+{
+	const UBehaviorTreeGraphNode* MyNode = CastChecked<UBehaviorTreeGraphNode>(GraphNode);
+	return MyNode ? FText::FromString(MyNode->DebuggerRuntimeDescription) : FText::GetEmpty();
+}
+
+EVisibility SGraphNode_BehaviorTree::GetRuntimeDescriptionVisibility() const
+{
+	const UBehaviorTreeGraphNode* MyNode = CastChecked<UBehaviorTreeGraphNode>(GraphNode);
+
+	return GetDescriptionVisibility().IsVisible() && !MyNode->DebuggerRuntimeDescription.IsEmpty()
+		? EVisibility::HitTestInvisible
+		: EVisibility::Collapsed;
 }
 
 void SGraphNode_BehaviorTree::CreatePinWidgets()

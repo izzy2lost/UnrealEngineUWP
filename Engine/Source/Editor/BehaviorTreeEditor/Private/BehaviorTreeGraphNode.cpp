@@ -82,10 +82,6 @@ FText UBehaviorTreeGraphNode::GetTooltipText() const
 		{
 			TooltipDesc = LOCTEXT("ObserverError", "Observer has invalid abort setting!");
 		}
-		else if (DebuggerRuntimeDescription.Len() > 0)
-		{
-			TooltipDesc = FText::FromString(DebuggerRuntimeDescription);
-		}
 	}
 
 	if (TooltipDesc.IsEmpty())
