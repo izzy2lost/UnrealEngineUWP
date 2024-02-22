@@ -632,8 +632,11 @@ void UPCGEditorGraphSchema::DroppedAssetsOnGraph(const TArray<FAssetData>& Asset
 	constexpr float PositionOffsetIncrementY = 50.f;
 	UEdGraphPin* NullFromPin = nullptr;
 
+	TArray<FSoftObjectPath> SubgraphPaths;
+	TArray<FVector2D> SubgraphPositions;
+
 	TArray<FSoftObjectPath> SettingsPaths;
-	TArray<FVector2D> GraphPositions;
+	TArray<FVector2D> SettingsGraphPositions;
 
 	for (const FAssetData& AssetData : Assets)
 	{
@@ -641,9 +644,8 @@ void UPCGEditorGraphSchema::DroppedAssetsOnGraph(const TArray<FAssetData>& Asset
 		{
 			if(AssetClass->IsChildOf(UPCGGraphInterface::StaticClass()))
 			{
-				FPCGEditorGraphSchemaAction_NewSubgraphElement NewSubgraphAction;
-				NewSubgraphAction.SubgraphObjectPath = AssetData.GetSoftObjectPath();
-				NewSubgraphAction.PerformAction(Graph, NullFromPin, GraphPositionOffset);
+				SubgraphPaths.Add(AssetData.GetSoftObjectPath());
+				SubgraphPositions.Add(GraphPositionOffset);
 				GraphPositionOffset.Y += PositionOffsetIncrementY;
 			}
 			else if (PCGEditorUtils::IsAssetPCGBlueprint(AssetData))
@@ -667,22 +669,28 @@ void UPCGEditorGraphSchema::DroppedAssetsOnGraph(const TArray<FAssetData>& Asset
 			{
 				// Delay creation so we can open a menu, once, if needed.
 				SettingsPaths.Add(AssetData.GetSoftObjectPath());
-				GraphPositions.Add(GraphPositionOffset);
+				SettingsGraphPositions.Add(GraphPositionOffset);
 				GraphPositionOffset.Y += PositionOffsetIncrementY;
 			}
 		}
 	}
 
-	// If we've dragged settings assets, we might want to open a menu (ergo this call)
+	UPCGEditorGraph* EditorGraph = CastChecked<UPCGEditorGraph>(Graph);
+
+	TSharedPtr<SGraphEditor> GraphEditor = SGraphEditor::FindGraphEditorForGraph(EditorGraph);
+	const FVector2D MouseCursorLocation = FSlateApplication::Get().GetCursorPos();
+
+	// If we've dragged settings assets or a graph, we might want to open a menu (ergo this call)
 	if (!SettingsPaths.IsEmpty())
 	{
-		UPCGEditorGraph* EditorGraph = CastChecked<UPCGEditorGraph>(Graph);
-		
-		TSharedPtr<SGraphEditor> GraphEditor = SGraphEditor::FindGraphEditorForGraph(EditorGraph);
-		const FVector2D MouseCursorLocation = FSlateApplication::Get().GetCursorPos();
+		check(SettingsPaths.Num() == SettingsGraphPositions.Num());
+		FPCGEditorGraphSchemaAction_NewSettingsElement::MakeSettingsNodesOrContextualMenu(GraphEditor->GetGraphPanel()->AsShared(), MouseCursorLocation, Graph, SettingsPaths, SettingsGraphPositions, /*bSelectNewNodes=*/true);
+	}
 
-		check(SettingsPaths.Num() == GraphPositions.Num());
-		FPCGEditorGraphSchemaAction_NewSettingsElement::MakeSettingsNodesOrContextualMenu(GraphEditor->GetGraphPanel()->AsShared(), MouseCursorLocation, Graph, SettingsPaths, GraphPositions, /*bSelectNewNodes=*/true);
+	if (!SubgraphPaths.IsEmpty())
+	{
+		check(SubgraphPaths.Num() == SubgraphPositions.Num());
+		FPCGEditorGraphSchemaAction_NewSubgraphElement::MakeGraphNodesOrContextualMenu(GraphEditor->GetGraphPanel()->AsShared(), MouseCursorLocation, Graph, SubgraphPaths, SubgraphPositions, /*bSelectNewNodes=*/true);
 	}
 }
 
