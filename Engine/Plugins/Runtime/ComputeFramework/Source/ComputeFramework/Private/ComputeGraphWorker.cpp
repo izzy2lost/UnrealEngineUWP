@@ -47,15 +47,11 @@ void FComputeGraphTaskWorker::Abort(const UObject* InOwnerPointer)
 	{
 		TArray<FGraphInvocation>& Invocations = Pair.Value;
 
-		for (int32 Index = 0; Index < Invocations.Num(); ++Index)
+		for (int32 Index = Invocations.Num() - 1; Index >= 0; Index--)
 		{
 			if (Invocations[Index].OwnerPointer == InOwnerPointer)
 			{
-				Invocations.RemoveAtSwap(Index);
-			}
-			else
-			{
-				Index++;
+				Invocations.RemoveAt(Index, 1, EAllowShrinking::No);
 			}
 		}
 	}
