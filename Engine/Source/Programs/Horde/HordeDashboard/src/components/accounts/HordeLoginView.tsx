@@ -1,4 +1,4 @@
-import { ThemeProvider, Stack, Image, Text, TextField, PrimaryButton, MessageBar, MessageBarType } from "@fluentui/react";
+import { ThemeProvider, Stack, Image, TextField, PrimaryButton, MessageBar, MessageBarType } from "@fluentui/react";
 import dashboard from "../../backend/Dashboard";
 import { darkTheme } from "../../styles/darkTheme";
 import { lightTheme } from "../../styles/lightTheme";
