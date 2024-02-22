@@ -451,11 +451,11 @@ public:
 	int32 MaxLODLevel;
 
 #if WITH_EDITORONLY_DATA
-	UE_DEPRECATED(5.4, "Unused property : will be removed in a future version")
+	UE_DEPRECATED(5.5, "Unused property : will be removed in a future version")
 	UPROPERTY()
 	float LODDistanceFactor_DEPRECATED;
 
-	UE_DEPRECATED(5.4, "Unused property : will be removed in a future version")
+	UE_DEPRECATED(5.5, "Unused property : will be removed in a future version")
 	UPROPERTY()
 	TEnumAsByte<ELandscapeLODFalloff::Type> LODFalloff_DEPRECATED;
 #endif // WITH_EDITORONLY_DATA
@@ -793,7 +793,7 @@ public:
 	uint32 bBakeMaterialPositionOffsetIntoCollision:1;
 
 #if WITH_EDITORONLY_DATA
-	UE_DEPRECATED(5.4, "Unused property : will be removed in a future version")
+	UE_DEPRECATED(5.5, "Unused property : will be removed in a future version")
 	UPROPERTY()
 	TArray<TObjectPtr<ULandscapeLayerInfoObject>> EditorCachedLayerInfos_DEPRECATED;
 
