@@ -20,8 +20,8 @@ struct VCell;
 struct VContext;
 struct VFrame;
 struct VInt;
+struct FAccessContext;
 struct FAllocationContext;
-struct FRunningContext;
 struct VPlaceholder;
 struct VSuspension;
 struct FCellFormatter;
@@ -191,7 +191,7 @@ struct VValue
 
 	uint64 GetEncodedBits() const { return EncodedBits; }
 
-	void EnqueueSuspension(FRunningContext Context, VSuspension& Suspension);
+	void EnqueueSuspension(FAccessContext Context, VSuspension& Suspension);
 
 	FString ToString(FAllocationContext Context, const FCellFormatter& Formatter) const;
 	void ToString(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter) const;

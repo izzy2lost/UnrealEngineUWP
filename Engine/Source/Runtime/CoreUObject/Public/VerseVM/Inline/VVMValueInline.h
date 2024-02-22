@@ -95,7 +95,7 @@ inline VPlaceholder& VValue::GetRootPlaceholder()
 	return AsPlaceholder().Follow().AsPlaceholder();
 }
 
-inline void VValue::EnqueueSuspension(FRunningContext Context, VSuspension& Suspension)
+inline void VValue::EnqueueSuspension(FAccessContext Context, VSuspension& Suspension)
 {
 	GetRootPlaceholder().EnqueueSuspension(Context, Suspension);
 }

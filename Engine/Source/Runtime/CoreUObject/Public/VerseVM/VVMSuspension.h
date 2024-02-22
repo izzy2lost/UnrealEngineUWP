@@ -35,7 +35,7 @@ struct VSuspension : VCell
 	}
 
 protected:
-	VSuspension(FAllocationContext Context, VEmergentType* EmergentType, VFailureContext& FailureContext, VTask& Task)
+	VSuspension(FAllocationContext Context, VEmergentType* EmergentType, VFailureContext* FailureContext, VTask* Task)
 		: VCell(Context, EmergentType)
 		, FailureContext(Context, FailureContext)
 		, Task(Context, Task)
@@ -77,7 +77,7 @@ private:
 
 	template <typename Captures>
 	VBytecodeSuspension(FAllocationContext Context, VFailureContext& FailureContext, VTask& Task, VProcedure& Procedure, FOp* PC, const Captures& TheCaptures)
-		: VSuspension(Context, &GlobalTrivialEmergentType.Get(Context), FailureContext, Task)
+		: VSuspension(Context, &GlobalTrivialEmergentType.Get(Context), &FailureContext, &Task)
 		, Procedure(Context, &Procedure)
 		, PC(PC)
 	{
@@ -123,7 +123,7 @@ private:
 
 	template <typename... ArgsType>
 	VLambdaSuspension(FAllocationContext Context, VFailureContext& FailureContext, VTask& Task, CallbackType Callback, ArgsType&&... TheArgs)
-		: VSuspension(Context, &GlobalTrivialEmergentType.Get(Context), FailureContext, Task)
+		: VSuspension(Context, &GlobalTrivialEmergentType.Get(Context), &FailureContext, &Task)
 		, NumValues(sizeof...(ArgsType))
 		, Callback(Callback)
 	{
