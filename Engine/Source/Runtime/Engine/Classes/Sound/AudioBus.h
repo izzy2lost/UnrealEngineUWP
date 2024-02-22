@@ -16,7 +16,8 @@ enum class EAudioBusChannels : uint8
 	Stereo = 1,
 	Quad = 3,
 	FivePointOne = 5,
-	SevenPointOne = 7
+	SevenPointOne = 7,
+	MaxChannelCount = 8
 };
 
 namespace AudioBusUtils
