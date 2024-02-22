@@ -126,7 +126,7 @@ namespace uba
 				ProxyEntry& e = it->second;
 				if (e.clientId != clientId)
 					continue;
-				m_logger.Info(TC("Proxy %s:%u for zone %s removed"), e.host.c_str(), e.port, e.zone.c_str());
+				m_logger.Detail(TC("Proxy %s:%u for zone %s removed"), e.host.c_str(), e.port, e.zone.c_str());
 				m_proxies.erase(it);
 				break;
 			}
@@ -339,7 +339,7 @@ namespace uba
 								proxy.port = info.proxyPort;
 								proxy.zone = proxyName.data;
 
-								m_logger.Info(TC("%s:%u (%s) is assigned as proxy for zone %s"), proxy.host.c_str(), proxy.port, GuidToString(connectionInfo.GetUid()).str, proxy.zone.c_str());
+								m_logger.Detail(TC("%s:%u (%s) is assigned as proxy for zone %s"), proxy.host.c_str(), proxy.port, GuidToString(connectionInfo.GetUid()).str, proxy.zone.c_str());
 
 								writer.WriteBool(true);
 								writer.WriteU16(info.proxyPort);
