@@ -113,6 +113,9 @@ private:
 	/** Value change event */
 	void OnPropertyValueChanged(const FPropertyChangedEvent& InPropertyChangedEvent);
 
+	/** Get the current visibility of the placeholder TextBlock widget */
+	EVisibility GetPlaceholderVisibility() const;
+
 	/** Initializes the list of controlled types. Used by MultiControllers */
 	void InitControlledTypes();
 

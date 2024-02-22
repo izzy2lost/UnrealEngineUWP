@@ -117,7 +117,22 @@ TSharedRef<SWidget> FRCControllerModel::GetDescriptionWidget() const
 {
 	return SNew(SBox).Padding(10.f, 2.f)
 		[
-			ControllerDescriptionTextBox.ToSharedRef()
+			SNew(SOverlay)
+			+SOverlay::Slot()
+			.VAlign(VAlign_Center)
+			[
+				ControllerDescriptionTextBox.ToSharedRef()
+			]
+
+			+SOverlay::Slot()
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Center)
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("RemoteControlDescriptionPlaceholder", "Double click to change description"))
+				.IsEnabled(false)
+				.Visibility(this, &FRCControllerModel::GetPlaceholderVisibility)
+			]
 		];
 }
 
@@ -235,15 +250,12 @@ void FRCControllerModel::OnControllerNameCommitted(const FText& InNewControllerN
 
 void FRCControllerModel::OnControllerDescriptionCommitted(const FText& InNewControllerDescription, ETextCommit::Type InCommitInfo)
 {
-	if (URemoteControlPreset* Preset = GetPreset())
+	if (URCVirtualPropertyBase* Controller = GetVirtualProperty())
 	{
-		if (URCVirtualPropertyBase* Controller = GetVirtualProperty())
-		{
-			FScopedTransaction Transaction(LOCTEXT("ChangedControllerDescription", "Update controller description"));
-			Controller->Modify();
-			Controller->Description = InNewControllerDescription;
-			ControllerDescriptionTextBox->SetText(InNewControllerDescription);
-		}
+		FScopedTransaction Transaction(LOCTEXT("ChangedControllerDescription", "Update controller description"));
+		Controller->Modify();
+		Controller->Description = InNewControllerDescription;
+		ControllerDescriptionTextBox->SetText(InNewControllerDescription);
 	}
 }
 
@@ -295,6 +307,19 @@ void FRCControllerModel::OnPropertyValueChanged(const FPropertyChangedEvent& InP
 			OnValueChanged.Broadcast(ControllerProperty);
 		}
 	}
+}
+
+EVisibility FRCControllerModel::GetPlaceholderVisibility() const
+{
+	if (ControllerDescriptionTextBox.IsValid())
+	{
+		if (ControllerDescriptionTextBox->IsInEditMode())
+		{
+			return EVisibility::Collapsed;
+		}
+		return ControllerDescriptionTextBox->GetText().IsEmpty() ? EVisibility::Visible : EVisibility:: Collapsed;
+	}
+	return EVisibility::Collapsed;
 }
 
 void FRCControllerModel::InitControlledTypes()
