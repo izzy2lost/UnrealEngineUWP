@@ -518,14 +518,25 @@ FReply SRCActionPanel::OnAddAllSelectedFields()
 				{
 					if (const TSharedPtr<SRCPanelExposedEntitiesGroup> RCFieldGroup = StaticCastSharedPtr<SRCPanelExposedEntitiesGroup>(RCEntity))
 					{
-						TArray<TSharedPtr<SRCPanelTreeNode>> RCFieldGroupEntities;
-						RCFieldGroup->GetNodeChildren(RCFieldGroupEntities);
-
-						for (const TSharedPtr<SRCPanelTreeNode>& RCFieldGroupEntity : RCFieldGroupEntities)
+						if (RCFieldGroup->GetGroupType() == EFieldGroupType::PropertyId)
 						{
-							if (RCFieldGroupEntity->GetRCId().IsValid())
+							const URCBehaviour* Behaviour = BehaviourItem->GetBehaviour();
+							if (Behaviour && Behaviour->SupportPropertyId())
 							{
-								AddSelectedActionLambda(RCFieldGroupEntity);
+								AddAction(RCFieldGroup->GetFieldKey());
+							}
+						}
+						else
+						{
+							TArray<TSharedPtr<SRCPanelTreeNode>> RCFieldGroupEntities;
+							RCFieldGroup->GetNodeChildren(RCFieldGroupEntities);
+
+							for (const TSharedPtr<SRCPanelTreeNode>& RCFieldGroupEntity : RCFieldGroupEntities)
+							{
+								if (RCFieldGroupEntity->GetRCId().IsValid())
+								{
+									AddSelectedActionLambda(RCFieldGroupEntity);
+								}
 							}
 						}
 					}

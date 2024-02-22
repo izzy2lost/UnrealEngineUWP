@@ -824,16 +824,27 @@ void SRCPanelExposedEntitiesList::OnLabelModified(const FName InOldName, const F
 
 FReply SRCPanelExposedEntitiesList::OnNodeDragDetected(const FGeometry& InGeometry, const FPointerEvent& InPointerEvent, TSharedPtr<SRCPanelTreeNode> InNode)
 {
-	if (InNode && InNode->GetRCType() == SRCPanelTreeNode::Field)
+	if (InNode.IsValid())
 	{
-		TArray<FGuid> SelectedIds;
-		Algo::TransformIf(GetSelectedEntities(), SelectedIds
-			, [] (const TSharedPtr<SRCPanelTreeNode>& TreeNode) { return TreeNode->GetRCType() == SRCPanelTreeNode::Field; }
-			, [] (const TSharedPtr<SRCPanelTreeNode>& TreeNode){ return TreeNode->GetRCId(); });
+		const SRCPanelTreeNode::ENodeType FirstNodeType = InNode->GetRCType();
+		if (FirstNodeType == SRCPanelTreeNode::Field || FirstNodeType == SRCPanelTreeNode::FieldGroup)
+		{
+			TArray<TSharedPtr<SRCPanelTreeNode>> SelectedEntities;
+			Algo::TransformIf(GetSelectedEntities(), SelectedEntities
+				, [] (const TSharedPtr<SRCPanelTreeNode>& TreeNode)
+					{
+						const SRCPanelTreeNode::ENodeType NodeType = TreeNode->GetRCType();
+						return NodeType == SRCPanelTreeNode::Field || NodeType == SRCPanelTreeNode::FieldGroup;
+					}
+				, [] (const TSharedPtr<SRCPanelTreeNode>& TreeNode)
+					{
+						return TreeNode;
+					});
 
-		const TSharedRef<FExposedEntityDragDrop> DragDropOp = MakeShared<FExposedEntityDragDrop>(InNode->GetDragAndDropWidget(SelectedIds.Num()), InNode->GetRCId(), SelectedIds);
-		DragDropOp->Construct();
-		return FReply::Handled().BeginDragDrop(DragDropOp);
+			const TSharedRef<FExposedEntityDragDrop> DragDropOp = MakeShared<FExposedEntityDragDrop>(InNode->GetDragAndDropWidget(SelectedEntities.Num()), InNode->GetRCId(), SelectedEntities);
+			DragDropOp->Construct();
+			return FReply::Handled().BeginDragDrop(DragDropOp);
+		}
 	}
 	return FReply::Unhandled();
 }
@@ -1163,7 +1174,7 @@ FReply SRCPanelExposedEntitiesList::OnDropOnGroup(const TSharedPtr<FDragDropOper
 				FRemoteControlPresetLayout::FFieldSwapArgs Args;
 				Args.OriginGroupId = GetSelectedGroup()->GetRCId();
 				Args.TargetGroupId = DragTargetGroup->GetRCId();
-				Args.DraggedFieldsIds = DragDropOp->GetSelectedIds();
+				Args.DraggedFieldsIds = DragDropOp->GetSelectedFieldsId();
 
 				if (TargetEntity)
 				{
@@ -1194,7 +1205,7 @@ FReply SRCPanelExposedEntitiesList::OnDropOnGroup(const TSharedPtr<FDragDropOper
 			FRemoteControlPresetLayout::FFieldSwapArgs Args;
 			Args.OriginGroupId = DragOriginGroupId;
 			Args.TargetGroupId = DragTargetGroup->GetRCId();
-			Args.DraggedFieldsIds = DragDropOp->GetSelectedIds();
+			Args.DraggedFieldsIds = DragDropOp->GetSelectedFieldsId();
 
 			if (TargetEntity)
 			{

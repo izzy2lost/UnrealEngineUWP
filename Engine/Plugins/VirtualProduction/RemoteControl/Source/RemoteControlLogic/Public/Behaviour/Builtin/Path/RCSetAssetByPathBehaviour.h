@@ -109,6 +109,7 @@ public:
 
 	//~ Begin URCBehaviour interface
 	virtual void Initialize() override;
+	virtual bool SupportPropertyId() const override { return false; }
 	virtual void UpdateEntityIds(const TMap<FGuid, FGuid>& InEntityIdMap) override;
 	//~ End URCBehaviour interface
 

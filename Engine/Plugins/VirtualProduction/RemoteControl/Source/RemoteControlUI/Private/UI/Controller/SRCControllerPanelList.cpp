@@ -241,7 +241,7 @@ namespace UE::RCControllerPanelList
 				if (TSharedPtr<FExposedEntityDragDrop> DragDropOp = StaticCastSharedPtr<FExposedEntityDragDrop>(DragDropOperation))
 				{
 					// Fetch the Exposed Entity
-					const TArray<FGuid>& ExposedEntitiesIds = DragDropOp->GetSelectedIds();
+					const TArray<FGuid>& ExposedEntitiesIds = DragDropOp->GetSelectedFieldsId();
 
 					if (ExposedEntitiesIds.Num() == 1)
 					{
@@ -293,7 +293,7 @@ namespace UE::RCControllerPanelList
 						if (TSharedPtr<FExposedEntityDragDrop> DragDropOp = StaticCastSharedPtr<FExposedEntityDragDrop>(DragDropOperation))
 						{
 							// Fetch the Exposed Entity
-							const TArray<FGuid>& ExposedEntitiesIds = DragDropOp->GetSelectedIds();
+							const TArray<FGuid>& ExposedEntitiesIds = DragDropOp->GetSelectedFieldsId();
 
 							if (ExposedEntitiesIds.Num() == 1)
 							{
@@ -886,7 +886,7 @@ bool SRCControllerPanelList::OnAllowDrop(TSharedPtr<FDragDropOperation> DragDrop
 	if (TSharedPtr<FExposedEntityDragDrop> DragDropOp = GetExposedEntityDragDrop(DragDropOperation))
 	{
 		// Fetch the Exposed Entity
-		const TArray<FGuid>& ExposedEntitiesIds = DragDropOp->GetSelectedIds();
+		const TArray<FGuid>& ExposedEntitiesIds = DragDropOp->GetSelectedFieldsId();
 
 		// Check if Entity is supported by controllers and currently only 1 dragged entity dragged is supported
 		return ExposedEntitiesIds.Num() == 1 && IsEntitySupported(ExposedEntitiesIds[0]);

@@ -36,11 +36,16 @@ SRCPanelTreeNode::FMakeNodeWidgetArgs SRCPanelExposedEntitiesGroup::CreateNodeWi
 			.OnTextCommitted(this, &SRCPanelExposedEntitiesGroup::OnPropertyIdTextCommitted)
 		];
 
+		Args.NameWidget = SNew(SBox).HeightOverride(25).VAlign(VAlign_Center)
+			[
+				SNew(STextBlock)
+				.Text(FText::FromString("Property Id Group"))
+			];
+
 		Args.OwnerNameWidget = SNullWidget::NullWidget;
 	}
 	else if (GroupType == EFieldGroupType::Owner)
 	{
-		Args.PropertyIdWidget = SNullWidget::NullWidget;
 		Args.OwnerNameWidget = SNew(SBox)
 			.HeightOverride(25)
 			.VAlign(VAlign_Center)
@@ -48,6 +53,14 @@ SRCPanelTreeNode::FMakeNodeWidgetArgs SRCPanelExposedEntitiesGroup::CreateNodeWi
 				SNew(STextBlock)
 				.Text(FText::FromName(FieldKey))
 			];
+
+		Args.NameWidget = SNew(SBox).HeightOverride(25).VAlign(VAlign_Center)
+			[
+				SNew(STextBlock)
+				.Text(FText::FromString("Owner Group"))
+			];
+
+		Args.PropertyIdWidget = SNullWidget::NullWidget;
 	}
 	else
 	{
@@ -55,11 +68,6 @@ SRCPanelTreeNode::FMakeNodeWidgetArgs SRCPanelExposedEntitiesGroup::CreateNodeWi
 		Args.OwnerNameWidget = SNullWidget::NullWidget;
 	}
 
-	Args.NameWidget = SNew(SBox).HeightOverride(25).VAlign(VAlign_Center)
-		[
-			SNew(STextBlock)
-			.Text(FText::FromString("Group"))
-		];
 	Args.SubObjectPathWidget = SNullWidget::NullWidget;
 	Args.ValueWidget = SNullWidget::NullWidget;
 	Args.ResetButton = SNullWidget::NullWidget;

@@ -64,6 +64,9 @@ public:
 	*/
 	virtual TSharedPtr<SRCLogicPanelListBase> GetActionsListWidget(TSharedRef<SRCActionPanel> InActionPanel);
 
+	/** Whether or not the behaviour support PropertyId action */
+	bool SupportPropertyId() const;
+
 protected:
 	/** Invoked after an action has been added for this Behaviour in the actions panel */
 	virtual void OnActionAdded(URCAction* Action) {}

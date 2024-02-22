@@ -129,10 +129,20 @@ public:
 
 	using WidgetType = SWidget;
 
-	FExposedEntityDragDrop(const TSharedPtr<SWidget>& InWidget, const FGuid& InNodeId, const TArray<FGuid>& InSelectedIds)
+	FExposedEntityDragDrop(const TSharedPtr<SWidget>& InWidget, const FGuid& InNodeId, const TArray<TSharedPtr<SRCPanelTreeNode>>& InSelectedEntities)
 		: NodeId(InNodeId)
-		, SelectedIds(InSelectedIds)
+		, SelectedEntities(InSelectedEntities)
 	{
+		Algo::TransformIf(SelectedEntities, SelectedFieldsIds,
+			[] (const TSharedPtr<SRCPanelTreeNode>& InNode)
+			{
+				return InNode->GetRCType() == SRCPanelTreeNode::Field;
+			},
+			[] (const TSharedPtr<SRCPanelTreeNode>& InNode)
+			{
+				return InNode->GetRCId();
+			});
+		
 		DecoratorWidget = SNew(SBorder)
 			.Padding(1.0f)
 			.BorderImage(FRemoteControlPanelStyle::Get()->GetBrush("RemoteControlPanel.ExposedFieldBorder"))
@@ -149,9 +159,15 @@ public:
 	}
 
 	/** Get the IDs that were selected at the time the drag started. */
-	const TArray<FGuid>& GetSelectedIds() const
+	const TArray<TSharedPtr<SRCPanelTreeNode>>& GetSelectedEntities() const
 	{
-		return SelectedIds;
+		return SelectedEntities;
+	}
+
+	/** Get the IDs that were selected at the time the drag started. */
+	const TArray<FGuid>& GetSelectedFieldsId() const
+	{
+		return SelectedFieldsIds;
 	}
 
 	virtual void OnDrop(bool bDropWasHandled, const FPointerEvent& MouseEvent) override
@@ -167,8 +183,10 @@ public:
 private:
 	/** ID of the represented entity or group. */
 	FGuid NodeId;
-	/** IDs that were selected at the time the drag started. */
-	TArray<FGuid> SelectedIds;
+	/** Field IDs that were selected at the time the drag started. */
+    TArray<FGuid> SelectedFieldsIds;
+	/** Entities that were selected at the time the drag started. */
+	TArray<TSharedPtr<SRCPanelTreeNode>> SelectedEntities;
 	/** Decorator Drag and Drop widget. */
 	TSharedPtr<SWidget> DecoratorWidget;
 };
