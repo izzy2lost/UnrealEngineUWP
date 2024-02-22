@@ -61,7 +61,7 @@ public class TestWebApplicationFactory<TStartup> : WebApplicationFactory<TStartu
 			{ "Horde:DatabaseConnectionString", _mongoInstance.ConnectionString },
 			{ "Horde:DatabaseName", _mongoInstance.DatabaseName },
 			{ "Horde:LogServiceWriteCacheType", "inmemory" },
-			{ "Horde:DisableAuth", "true" },
+			{ "Horde:AuthMethod", "Anonymous" },
 			{ "Horde:OidcAuthority", null },
 			{ "Horde:OidcClientId", null },
 
