@@ -55,6 +55,8 @@ public:
 private:
 #if WITH_EDITOR
 	void OnAssetsPreDelete(const TArray<UObject*>& Objects);
+	void OnGetLevelExternalActorsPaths(const FString& InLevelPackageName, const FString& InPackageShortName, TArray<FString>& OutExternalActorsPaths);
+	bool OnResolveLevelMountPoint(const FString& InLevelPackageName, const UObject* InLevelMountPointContext, FString& OutResolvedLevelMountPoint);
 #endif
 	ENGINE_API bool CanWorldInjectExternalDataLayerAsset(const UWorld* InWorld, const UExternalDataLayerAsset* InExternalDataLayerAsset, FText* OutFailureReason = nullptr) const;
 
@@ -83,6 +85,9 @@ private:
 
 	using FForcedExternalDataLayerInjectionKey = TPair<const UWorld*, const UExternalDataLayerAsset*>;
 	TSet<FForcedExternalDataLayerInjectionKey> ForcedAllowInjection;
+
+	FDelegateHandle LevelExternalActorsPathsProviderDelegateHandle;
+	FDelegateHandle LevelMountPointResolverDelegateHandle;
 #endif
 
 	friend class UExternalDataLayerManager;

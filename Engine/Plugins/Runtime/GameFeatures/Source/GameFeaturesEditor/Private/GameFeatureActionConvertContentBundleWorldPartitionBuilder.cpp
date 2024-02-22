@@ -271,13 +271,13 @@ bool UGameFeatureActionConvertContentBundleWorldPartitionBuilder::RunInternal(UW
 			}, false);
 
 			// Create a new external package and assign it to the actor
-			const FString BaseDir = ULevel::GetExternalActorsPath(ExternalDataLayerManager->GetExternalDataLayerLevelRootPath(ExternalDataLayerAsset));
-			UPackage* NewActorPackage = ULevel::CreateActorPackage(BaseDir, Actor->GetLevel()->GetActorPackagingScheme(), Actor->GetName());
+			ULevel* DestinationLevel = Actor->GetLevel();
+			UPackage* NewActorPackage = ULevel::CreateActorPackage(DestinationLevel->GetPackage(), DestinationLevel->GetActorPackagingScheme(), Actor->GetName(), ExternalDataLayerAsset);
 			Actor->SetPackageExternal(true, true, NewActorPackage);
 
 			// Validation
 			check(NewActorPackage == Actor->GetExternalPackage());
-			check(NewActorPackage->GetName() == ExternalDataLayerManager->GetActorPackageName(ExternalDataLayerAsset, Actor->GetLevel(), Actor->GetName()));
+			check(NewActorPackage->GetName() == ExternalDataLayerManager->GetActorPackageName(ExternalDataLayerAsset, DestinationLevel, Actor->GetName()));
 			check(NewActorPackage->GetName() != OldActorPackageName);
 
 			// Move dependant objects into the new actor package

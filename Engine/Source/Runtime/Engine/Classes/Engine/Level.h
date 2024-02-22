@@ -1115,17 +1115,22 @@ public:
 #if WITH_EDITOR
 	/**
 	 * Get the package name for this actor
+	 * @param InLevelPackage the package to get the external actors package name of
+	 * @param InActorPackagingScheme the packaging scheme to use
 	 * @param InActorPath the fully qualified actor path, in the format: 'Outermost.Outer.Name'
+	 * @param InMountPointContext an optional context object used to determine the mount point of the package
 	 * @return the package name
 	 */
-	static ENGINE_API FString GetActorPackageName(UPackage* InLevelPackage, EActorPackagingScheme ActorPackagingScheme, const FString& InActorPath);
+	static ENGINE_API FString GetActorPackageName(UPackage* InLevelPackage, EActorPackagingScheme InActorPackagingScheme, const FString& InActorPath, const UObject* InMountPointContext = nullptr);
 
 	/**
 	 * Get the package name for this actor
+	 * @param InBaseDir the base directory used when building the actor package name
+	 * @param InActorPackagingScheme the packaging scheme to use
 	 * @param InActorPath the fully qualified actor path, in the format: 'Outermost.Outer.Name'
 	 * @return the package name
 	 */
-	static ENGINE_API FString GetActorPackageName(const FString& InBaseDir, EActorPackagingScheme ActorPackagingScheme, const FString& InActorPath);
+	static ENGINE_API FString GetActorPackageName(const FString& InBaseDir, EActorPackagingScheme InActorPackagingScheme, const FString& InActorPath);
 
 	/**
 	 * Get the folder containing the external actors for this level path
@@ -1134,6 +1139,14 @@ public:
 	 * @return the folder
 	 */
 	static ENGINE_API FString GetExternalActorsPath(const FString& InLevelPackageName, const FString& InPackageShortName = FString());
+
+	/**
+	 * Get the folders containing the external actors for this level path, including actor folders of registered plugins for this level 
+	 * @param InLevelPackageName The package name to get the external actors path of
+	 * @param InPackageShortName Optional short name to use instead of the package short name
+	 * @return the folder
+	 */
+	static ENGINE_API TArray<FString> GetExternalActorsPaths(const FString& InLevelPackageName, const FString& InPackageShortName = FString());
 
 	/**
 	 * Get the folder containing the external actors for this level
@@ -1240,9 +1253,10 @@ public:
 	 * @param InLevelPackage the level package used when building the actor package name
 	 * @param InActorPackagingScheme the packaging scheme to use
 	 * @param InActorPath the fully qualified actor path, in the format: 'Outermost.Outer.Name'
+	 * @param InMountPointContext an optional context object used to determine the mount point of the package
 	 * @return the created package
 	 */
-	static ENGINE_API UPackage* CreateActorPackage(UPackage* InLevelPackage, EActorPackagingScheme InActorPackagingScheme, const FString& InActorPath);
+	static ENGINE_API UPackage* CreateActorPackage(UPackage* InLevelPackage, EActorPackagingScheme InActorPackagingScheme, const FString& InActorPath, const UObject* InMountPointContext = nullptr);
 
 	/**
 	 * Create an package for this actor
@@ -1348,6 +1362,17 @@ public:
 	/** meant to be called only from editor, calculating and storing static geometry to be used with off-line and/or on-line navigation building */
 	ENGINE_API void RebuildStaticNavigableGeometry();
 
+	DECLARE_DELEGATE_ThreeParams(FLevelExternalActorsPathsProviderDelegate, const FString&, const FString&, TArray<FString>&);
+	/** Registers a level external actor paths provider */
+	static ENGINE_API FDelegateHandle RegisterLevelExternalActorsPathsProvider(const FLevelExternalActorsPathsProviderDelegate& Provider);
+	/** Unregisters a level external actor paths provider */
+	static ENGINE_API void UnregisterLevelExternalActorsPathsProvider(const FDelegateHandle& ProviderDelegateHandle);
+
+	DECLARE_DELEGATE_RetVal_ThreeParams(bool, FLevelMountPointResolverDelegate, const FString&, const UObject*, FString&);
+	/** Registers a level mount point resolver */
+	static ENGINE_API FDelegateHandle RegisterLevelMountPointResolver(const FLevelMountPointResolverDelegate& Resolver);
+	/** Unregisters a level mount point resolver */
+	static ENGINE_API void UnregisterLevelMountPointResolver(const FDelegateHandle& ResolverDelegateHandle);
 #endif
 
 private:
@@ -1355,6 +1380,12 @@ private:
 #if WITH_EDITOR
 	bool IncrementalRunConstructionScripts(bool bProcessAllActors);
 	TOptional<bool> bCachedHasStaticMeshCompilationPending;
+
+	/** Array of registered delegates used by GetExternalActorsPaths. */
+	static TArray<FLevelExternalActorsPathsProviderDelegate> LevelExternalActorsPathsProviders;
+
+	/** Array of registered delegates used by GetExternalActorsPaths. */
+	static TArray<FLevelMountPointResolverDelegate> LevelMountPointResolvers;
 private:
 	/**
 	 * Potentially defer the running of an actor's construction script on load

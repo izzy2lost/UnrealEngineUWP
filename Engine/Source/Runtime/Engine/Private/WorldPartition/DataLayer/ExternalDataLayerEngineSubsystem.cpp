@@ -8,6 +8,8 @@
 #include "Algo/Find.h"
 #if WITH_EDITOR
 #include "Editor.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerHelper.h"
+#include "WorldPartition/DataLayer/DataLayerInstanceProviderInterface.h"
 #endif
 
 #define LOCTEXT_NAMESPACE "ExternalDataLayerEngineSubsystem"
@@ -66,12 +68,16 @@ TStatId UExternalDataLayerEngineSubsystem::GetStatId() const
 void UExternalDataLayerEngineSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
+	LevelExternalActorsPathsProviderDelegateHandle = ULevel::RegisterLevelExternalActorsPathsProvider(ULevel::FLevelExternalActorsPathsProviderDelegate::CreateUObject(this, &UExternalDataLayerEngineSubsystem::OnGetLevelExternalActorsPaths));
+	LevelMountPointResolverDelegateHandle = ULevel::RegisterLevelMountPointResolver(ULevel::FLevelMountPointResolverDelegate::CreateUObject(this, &UExternalDataLayerEngineSubsystem::OnResolveLevelMountPoint));
 	FEditorDelegates::OnAssetsPreDelete.AddUObject(this, &UExternalDataLayerEngineSubsystem::OnAssetsPreDelete);
 }
 
 void UExternalDataLayerEngineSubsystem::Deinitialize()
 {
 	Super::Deinitialize();
+	ULevel::UnregisterLevelExternalActorsPathsProvider(LevelExternalActorsPathsProviderDelegateHandle);
+	ULevel::UnregisterLevelMountPointResolver(LevelMountPointResolverDelegateHandle);
 	FEditorDelegates::OnAssetsPreDelete.RemoveAll(this);
 }
 
@@ -96,6 +102,39 @@ void UExternalDataLayerEngineSubsystem::OnAssetsPreDelete(const TArray<UObject*>
 			}
 		}
 	}
+}
+
+void UExternalDataLayerEngineSubsystem::OnGetLevelExternalActorsPaths(const FString& InLevelPackageName, const FString& InPackageShortName, TArray<FString>& OutExternalActorsPaths)
+{
+	FExternalDataLayerHelper::ForEachExternalDataLayerLevelPackagePath(InLevelPackageName, [&OutExternalActorsPaths, &InPackageShortName](const FString& InEDLLevelPackagePath)
+	{
+		const FString EDLExternalActorsPath = ULevel::GetExternalActorsPath(InEDLLevelPackagePath, InPackageShortName);
+		OutExternalActorsPaths.Add(EDLExternalActorsPath);
+	});
+}
+
+bool UExternalDataLayerEngineSubsystem::OnResolveLevelMountPoint(const FString& InLevelPackageName, const UObject* InLevelMountPointContext, FString& OutResolvedLevelMountPoint)
+{
+	const UExternalDataLayerAsset* ExternalDataLayerAssetContext = nullptr;
+	if (InLevelMountPointContext)
+	{
+		ExternalDataLayerAssetContext = Cast<UExternalDataLayerAsset>(InLevelMountPointContext);
+		if (!ExternalDataLayerAssetContext && InLevelMountPointContext->Implements<UDataLayerInstanceProvider>())
+		{
+			ExternalDataLayerAssetContext = CastChecked<IDataLayerInstanceProvider>(InLevelMountPointContext)->GetRootExternalDataLayerAsset();
+		}
+		if (!ExternalDataLayerAssetContext && InLevelMountPointContext->IsA<AActor>())
+		{
+			ExternalDataLayerAssetContext = CastChecked<AActor>(InLevelMountPointContext)->GetExternalDataLayerAsset();
+		}
+	}
+
+	if (ExternalDataLayerAssetContext)
+	{
+		OutResolvedLevelMountPoint = FExternalDataLayerHelper::GetExternalDataLayerLevelRootPath(ExternalDataLayerAssetContext, InLevelPackageName);
+		return true;
+	}
+	return false;
 }
 
 UWorld* UExternalDataLayerEngineSubsystem::GetTickableGameObjectWorld() const
