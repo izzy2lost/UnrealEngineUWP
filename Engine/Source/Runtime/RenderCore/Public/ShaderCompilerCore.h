@@ -660,6 +660,12 @@ struct FShaderCompilerOutput
 	/** Add optional diagnostic data in ShaderCode to perform assert translation at runtime*/
 	RENDERCORE_API void SerializeShaderDiagnosticData();
 
+	template<typename TValue>
+	void AddStatistic(const TCHAR* Name, TValue Value)
+	{
+		ShaderStatistics.Emplace(FString(Name), FShaderStatVariant(TInPlaceType<TValue>(), Value));
+	}
+
 	// Bump ShaderCompileWorkerOutputVersion if FShaderCompilerOutput changes
 	friend FArchive& operator<<(FArchive& Ar, FShaderCompilerOutput& Output)
 	{

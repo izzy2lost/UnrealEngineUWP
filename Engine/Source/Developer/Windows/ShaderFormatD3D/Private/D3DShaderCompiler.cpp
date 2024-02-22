@@ -293,40 +293,6 @@ static FString D3D11CreateShaderCompileCommandLine(
 }
 
 
-// Validate that we are not going over to maximum amount of resource bindings support by the default root signature on DX12
-// Currently limited for hard-coded root signature setup (see: FD3D12Adapter::StaticGraphicsRootSignature)
-// In theory this limitation is only required for DX12, but we don't want a shader to compile on DX11 while not working on DX12.
-// (DX11 has an API limit on 128 SRVs, 16 Samplers, 8 UAVs and 14 CBs but if you go over these values then the shader won't compile)
-bool ValidateResourceCounts(uint32 NumSRVs, uint32 NumSamplers, uint32 NumUAVs, uint32 NumCBs, TArray<FString>& OutFilteredErrors)
-{
-	if (NumSRVs > MAX_SRVS || NumSamplers > MAX_SAMPLERS || NumUAVs > MAX_UAVS || NumCBs > MAX_CBS)
-	{
-		if (NumSRVs > MAX_SRVS)
-		{
-			OutFilteredErrors.Add(FString::Printf(TEXT("Shader is using too many SRVs: %d (only %d supported)"), NumSRVs, MAX_SRVS));
-		}
-
-		if (NumSamplers > MAX_SAMPLERS)
-		{
-			OutFilteredErrors.Add(FString::Printf(TEXT("Shader is using too many Samplers: %d (only %d supported)"), NumSamplers, MAX_SAMPLERS));
-		}
-
-		if (NumUAVs > MAX_UAVS)
-		{
-			OutFilteredErrors.Add(FString::Printf(TEXT("Shader is using too many UAVs: %d (only %d supported)"), NumUAVs, MAX_UAVS));
-		}
-
-		if (NumCBs > MAX_CBS)
-		{
-			OutFilteredErrors.Add(FString::Printf(TEXT("Shader is using too many Constant Buffers: %d (only %d supported)"), NumCBs, MAX_CBS));
-		}
-
-		return false;
-	}
-
-	return true;
-}
-
 /** Creates a batch file string to call the AMD shader analyzer. */
 static FString CreateAMDCodeXLCommandLine(
 	const FString& ShaderPath, 
@@ -923,22 +889,15 @@ static bool CompileAndProcessD3DShaderFXCExt(
 
 	// Gather reflection information
 	TArray<FString> ShaderInputs;
-	TArray<FShaderCodeVendorExtension> VendorExtensions;
 
 	if (SUCCEEDED(Result))
 	{
-		bool bGlobalUniformBufferUsed = false;
-		bool bDiagnosticBufferUsed = false;
-		uint32 NumInstructions = 0;
-		uint32 NumSamplers = 0;
-		uint32 NumSRVs = 0;
-		uint32 NumCBs = 0;
-		uint32 NumUAVs = 0;
-
-		TArray<FString> UniformBufferNames;
-
-		TBitArray<> UsedUniformBufferSlots;
-		UsedUniformBufferSlots.Init(false, 32);
+		FD3DShaderCompileData CompileData;
+		// D3D11RHI uses the D3D11_ defines, but we want to enforce the engine limits as well.
+		CompileData.MaxSamplers = FMath::Min(D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT,             MAX_SAMPLERS);
+		CompileData.MaxSRVs     = FMath::Min(D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT,      MAX_SRVS);
+		CompileData.MaxCBs      = FMath::Min(D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT, MAX_CBS);
+		CompileData.MaxUAVs     = FMath::Min(D3D11_PS_CS_UAV_REGISTER_COUNT,                    MAX_UAVS);
 
 		if (D3DReflectFunc)
 		{
@@ -971,15 +930,15 @@ static bool CompileAndProcessD3DShaderFXCExt(
 						{
 							FString SemanticName = ANSI_TO_TCHAR(ParamDesc.SemanticName);
 
-							ShaderInputs.AddUnique(SemanticName);
+							CompileData.ShaderInputs.AddUnique(SemanticName);
 
 							// Add the number (for the case of TEXCOORD)
 							FString SemanticIndexName = FString::Printf(TEXT("%s%d"), *SemanticName, ParamDesc.SemanticIndex);
-							ShaderInputs.AddUnique(SemanticIndexName);
+							CompileData.ShaderInputs.AddUnique(SemanticIndexName);
 
 							// Add _centroid
-							ShaderInputs.AddUnique(SemanticName + TEXT("_centroid"));
-							ShaderInputs.AddUnique(SemanticIndexName + TEXT("_centroid"));
+							CompileData.ShaderInputs.AddUnique(SemanticName + TEXT("_centroid"));
+							CompileData.ShaderInputs.AddUnique(SemanticIndexName + TEXT("_centroid"));
 						}
 						else
 						{
@@ -991,7 +950,7 @@ static bool CompileAndProcessD3DShaderFXCExt(
 						//if (ParamDesc.ReadWriteMask != 0)
 						{
 							// Keep system values
-							ShaderInputs.AddUnique(FString(ANSI_TO_TCHAR(ParamDesc.SemanticName)));
+							CompileData.ShaderInputs.AddUnique(FString(ANSI_TO_TCHAR(ParamDesc.SemanticName)));
 						}
 					}
 				}
@@ -1012,7 +971,7 @@ static bool CompileAndProcessD3DShaderFXCExt(
 						TArray<FString> RemoveErrors;
 						FString ModifiedShaderSource = PreprocessedShaderSource;
 						FString ModifiedEntryPointName = Input.EntryPointName;
-						if (RemoveUnusedInputs(ModifiedShaderSource, ShaderInputs, ModifiedEntryPointName, RemoveErrors))
+						if (RemoveUnusedInputs(ModifiedShaderSource, CompileData.ShaderInputs, ModifiedEntryPointName, RemoveErrors))
 						{
 							Output = OriginalOutput;
 							if (!CompileAndProcessD3DShaderFXCExt(CompileFlags, Input, ModifiedShaderSource, ModifiedEntryPointName, ShaderParameterParser, ShaderProfile, true, FilteredErrors, Output))
@@ -1022,7 +981,7 @@ static bool CompileAndProcessD3DShaderFXCExt(
 							}
 
 							// check if the ShaderInputs changed - if not, we're done here
-							if (Output.UsedAttributes.Num() == ShaderInputs.Num())
+							if (Output.UsedAttributes.Num() == CompileData.ShaderInputs.Num())
 							{
 								Output.ModifiedShaderSource = MoveTemp(ModifiedShaderSource);
 								Output.ModifiedEntryPointName = MoveTemp(ModifiedEntryPointName);
@@ -1031,11 +990,11 @@ static bool CompileAndProcessD3DShaderFXCExt(
 							}
 
 							// second pass cannot use more attributes than previously
-							if (Output.UsedAttributes.Num() > ShaderInputs.Num())
+							if (Output.UsedAttributes.Num() > CompileData.ShaderInputs.Num())
 							{
-								UE_LOG(LogD3D11ShaderCompiler, Warning, TEXT("Second pass had more used attributes (%d) than first pass (%d)"), Output.UsedAttributes.Num(), ShaderInputs.Num());
+								UE_LOG(LogD3D11ShaderCompiler, Warning, TEXT("Second pass had more used attributes (%d) than first pass (%d)"), Output.UsedAttributes.Num(), CompileData.ShaderInputs.Num());
 								FShaderCompilerError NewError;
-								NewError.StrippedErrorMessage = FString::Printf(TEXT("Second pass had more used attributes (%d) than first pass (%d)"), Output.UsedAttributes.Num(), ShaderInputs.Num());
+								NewError.StrippedErrorMessage = FString::Printf(TEXT("Second pass had more used attributes (%d) than first pass (%d)"), Output.UsedAttributes.Num(), CompileData.ShaderInputs.Num());
 								Output = OriginalOutput;
 								Output.Errors.Add(NewError);
 								break;
@@ -1047,20 +1006,20 @@ static bool CompileAndProcessD3DShaderFXCExt(
 								UE_LOG(LogD3D11ShaderCompiler, Warning, TEXT("Unable to determine unused inputs after %d attempts (last number of used attributes: %d, previous step:%d)!"), 
 									Attempt + 1,
 									Output.UsedAttributes.Num(),
-									ShaderInputs.Num()
+									CompileData.ShaderInputs.Num()
 									);
 								FShaderCompilerError NewError;
 								NewError.StrippedErrorMessage = FString::Printf(TEXT("Unable to determine unused inputs after %d attempts (last number of used attributes: %d, previous step:%d)!"),
 									Attempt + 1,
 									Output.UsedAttributes.Num(),
-									ShaderInputs.Num()
+									CompileData.ShaderInputs.Num()
 									);
 								Output = OriginalOutput;
 								Output.Errors.Add(NewError);
 								break;
 							}
 
-							ShaderInputs = Output.UsedAttributes;
+							CompileData.ShaderInputs = Output.UsedAttributes;
 							// go around to remove newly identified unused inputs
 						}
 						else
@@ -1085,13 +1044,14 @@ static bool CompileAndProcessD3DShaderFXCExt(
 				ID3D11ShaderReflection, D3D11_SHADER_DESC, D3D11_SHADER_INPUT_BIND_DESC,
 				ID3D11ShaderReflectionConstantBuffer, D3D11_SHADER_BUFFER_DESC,
 				ID3D11ShaderReflectionVariable, D3D11_SHADER_VARIABLE_DESC>(
-					Input, ShaderParameterParser,
-					BindingSpace, Reflector, ShaderDesc,
-					bGlobalUniformBufferUsed, bDiagnosticBufferUsed,
-					NumSamplers, NumSRVs, NumCBs, NumUAVs,
-					Output, UniformBufferNames, UsedUniformBufferSlots, VendorExtensions);
-
-			NumInstructions = ShaderDesc.InstructionCount;
+					Input,
+					ShaderParameterParser,
+					BindingSpace,
+					Reflector,
+					ShaderDesc,
+					CompileData,
+					Output
+				);
 		}
 		else
 		{
@@ -1100,16 +1060,16 @@ static bool CompileAndProcessD3DShaderFXCExt(
 			Output.bSucceeded = false;
 		}
 		
-		if (!ValidateResourceCounts(NumSRVs, NumSamplers, NumUAVs, NumCBs, FilteredErrors))
+		if (!ValidateResourceCounts(CompileData, FilteredErrors))
 		{
 			Result = E_FAIL;
 			Output.bSucceeded = false;
 		}
 
 		// Check for resource limits for feature level 11.0
-		if (NumUAVs > GD3DMaximumNumUAVs)
+		if (CompileData.NumUAVs > GD3DMaximumNumUAVs)
 		{
-			FilteredErrors.Add(FString::Printf(TEXT("Number of UAVs exceeded limit: %d slots used, but limit is %d due to maximum feature level 11.0"), NumUAVs, GD3DMaximumNumUAVs));
+			FilteredErrors.Add(FString::Printf(TEXT("Number of UAVs exceeded limit: %d slots used, but limit is %d due to maximum feature level 11.0"), CompileData.NumUAVs, GD3DMaximumNumUAVs));
 			Result = E_FAIL;
 			Output.bSucceeded = false;
 		}
@@ -1162,25 +1122,19 @@ static bool CompileAndProcessD3DShaderFXCExt(
 				Output.ShaderCode.AddOptionalData(ResourceMasks);
 			};
 
-			FShaderCodePackedResourceCounts PackedResourceCounts{};
-			if (bGlobalUniformBufferUsed)
-			{
-				PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::GlobalUniformBuffer;
-			}
+			FShaderCodePackedResourceCounts PackedResourceCounts = InitPackedResourceCounts(CompileData);
 
-			PackedResourceCounts.NumSamplers = static_cast<uint8>(NumSamplers);
-			PackedResourceCounts.NumSRVs = static_cast<uint8>(NumSRVs);
-			PackedResourceCounts.NumCBs = static_cast<uint8>(NumCBs);
-			PackedResourceCounts.NumUAVs = static_cast<uint8>(NumUAVs);
-
-			GenerateFinalOutput(CompressedData,
-				Input, VendorExtensions,
-				UsedUniformBufferSlots, UniformBufferNames,
-				bSecondPassAferUnusedInputRemoval, ShaderInputs,
-				PackedResourceCounts, NumInstructions,
+			GenerateFinalOutput(
+				CompressedData,
+				Input,
+				ED3DShaderModel::SM5_0,
+				bSecondPassAferUnusedInputRemoval,
+				CompileData,
+				PackedResourceCounts,
 				Output,
 				[](FMemoryWriter&){},
-				AddOptionalDataCallback);
+				AddOptionalDataCallback
+			);
 		}
 	}
 
@@ -1196,7 +1150,7 @@ bool CompileAndProcessD3DShaderFXC(
 	bool bSecondPassAferUnusedInputRemoval,
 	FShaderCompilerOutput& Output)
 {
-	// @TODO - implement different material path to allow us to remove backwards compat flag on sm5 shaders
+	// @TODO - implement different material path to allow us to remove backwards compatibility flag on sm5 shaders
 	uint32 CompileFlags = D3DCOMPILE_ENABLE_BACKWARDS_COMPATIBILITY
 		// Unpack uniform matrices as row-major to match the CPU layout.
 		| D3DCOMPILE_PACK_MATRIX_ROW_MAJOR;
@@ -1210,16 +1164,13 @@ bool CompileAndProcessD3DShaderFXC(
 	{
 		CompileFlags |= D3DCOMPILE_SKIP_OPTIMIZATION;
 	}
+	else if (Input.Environment.CompilerFlags.Contains(CFLAG_StandardOptimization))
+	{
+		CompileFlags |= D3DCOMPILE_OPTIMIZATION_LEVEL1;
+	}
 	else
 	{
-		if (Input.Environment.CompilerFlags.Contains(CFLAG_StandardOptimization))
-		{
-			CompileFlags |= D3DCOMPILE_OPTIMIZATION_LEVEL1;
-		}
-		else
-		{
-			CompileFlags |= D3DCOMPILE_OPTIMIZATION_LEVEL3;
-		}
+		CompileFlags |= D3DCOMPILE_OPTIMIZATION_LEVEL3;
 	}
 
 	Input.Environment.CompilerFlags.Iterate([&CompileFlags](uint32 Flag)

@@ -22,7 +22,7 @@ DEFINE_LOG_CATEGORY_STATIC(LogD3D12ShaderCompiler, Log, All);
 #pragma warning(disable : 4005)	// macro redefinition
 
 #include "Windows/AllowWindowsPlatformTypes.h"
-	#include <D3D11.h>
+	#include <D3D12.h>
 	#include <D3Dcompiler.h>
 	#include <d3d11Shader.h>
 	#include "amd_ags.h"
@@ -934,21 +934,34 @@ bool CompileAndProcessD3DShaderDXC(
 	if (SUCCEEDED(D3DCompileToDxilResult))
 	{
 		// Gather reflection information
-		TArray<FString> ShaderInputs;
-		TArray<FShaderCodeVendorExtension> VendorExtensions;
+		FD3DShaderCompileData CompileData;
+		CompileData.bBindlessResources = Input.Environment.CompilerFlags.Contains(CFLAG_BindlessResources);
+		CompileData.bBindlessSamplers = Input.Environment.CompilerFlags.Contains(CFLAG_BindlessSamplers);
 
-		bool bGlobalUniformBufferUsed = false;
-		bool bDiagnosticBufferUsed = false;
-		uint32 NumInstructions = 0;
-		uint32 NumSamplers = 0;
-		uint32 NumSRVs = 0;
-		uint32 NumCBs = 0;
-		uint32 NumUAVs = 0;
-		TArray<FString> UniformBufferNames;
-		TArray<FString> ShaderOutputs;
+		if (CompileData.bBindlessSamplers)
+		{
+			CompileData.MaxSamplers = D3D12_MAX_SHADER_VISIBLE_SAMPLER_HEAP_SIZE;
+		}
+		else if (ShaderModel == ED3DShaderModel::SM6_6)
+		{
+			CompileData.MaxSamplers = 32; // DDSPI: MaxSamplers=32
+		}
+		else
+		{
+			CompileData.MaxSamplers = D3D12_COMMONSHADER_SAMPLER_REGISTER_COUNT;
+		}
 
-		TBitArray<> UsedUniformBufferSlots;
-		UsedUniformBufferSlots.Init(false, 32);
+		if (Input.Environment.CompilerFlags.Contains(CFLAG_BindlessResources))
+		{
+			CompileData.MaxSRVs = D3D12_MAX_SHADER_VISIBLE_DESCRIPTOR_HEAP_SIZE_TIER_2;
+		}
+		else
+		{
+			static_assert(MAX_SRVS <= D3D12_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT);
+			CompileData.MaxSRVs = MAX_SRVS; // Max for D3D12RHI bindful
+		}
+		CompileData.MaxCBs = MAX_CBS; // Max for D3D12RHI
+		CompileData.MaxUAVs = MAX_UAVS; // Max for D3D12RHI
 
 		uint64 ShaderRequiresFlags{};
 
@@ -1037,11 +1050,13 @@ bool CompileAndProcessD3DShaderDXC(
 						ExtractParameterMapFromD3DShader<ID3D12FunctionReflection, D3D12_FUNCTION_DESC, D3D12_SHADER_INPUT_BIND_DESC,
 							ID3D12ShaderReflectionConstantBuffer, D3D12_SHADER_BUFFER_DESC,
 							ID3D12ShaderReflectionVariable, D3D12_SHADER_VARIABLE_DESC>(
-								Input, ShaderParameterParser,
-								AutoBindingSpace, FunctionReflection, FunctionDesc, 
-								bGlobalUniformBufferUsed, bDiagnosticBufferUsed,
-								NumSamplers, NumSRVs, NumCBs, NumUAVs,
-								Output, UniformBufferNames, UsedUniformBufferSlots, VendorExtensions);
+								Input,
+								ShaderParameterParser,
+								AutoBindingSpace,
+								FunctionReflection,
+								FunctionDesc, 
+								CompileData,
+								Output);
 
 						NumFoundEntryPoints++;
 					}
@@ -1051,11 +1066,11 @@ bool CompileAndProcessD3DShaderDXC(
 			// @todo - working around DXC issue https://github.com/microsoft/DirectXShaderCompiler/issues/4715
 			if (LibraryDesc.FunctionCount > 0)
 			{
-				if (Input.Environment.CompilerFlags.Contains(CFLAG_BindlessResources))
+				if (CompileData.bBindlessResources)
 				{
 					ShaderRequiresFlags |= D3D_SHADER_REQUIRES_RESOURCE_DESCRIPTOR_HEAP_INDEXING;
 				}
-				if (Input.Environment.CompilerFlags.Contains(CFLAG_BindlessSamplers))
+				if (CompileData.bBindlessSamplers)
 				{
 					ShaderRequiresFlags |= D3D_SHADER_REQUIRES_SAMPLER_DESCRIPTOR_HEAP_INDEXING;
 				}
@@ -1067,7 +1082,7 @@ bool CompileAndProcessD3DShaderDXC(
 
 				bool bGlobalUniformBufferAllowed = false;
 
-				if (bGlobalUniformBufferUsed && !IsGlobalConstantBufferSupported(Input.Target))
+				if (CompileData.bGlobalUniformBufferUsed && !IsGlobalConstantBufferSupported(Input.Target))
 				{
 					const TCHAR* ShaderFrequencyString = GetShaderFrequencyString(Input.Target.GetFrequency(), false);
 					FString ErrorString = FString::Printf(TEXT("Global uniform buffer cannot be used in a %s shader."), ShaderFrequencyString);
@@ -1120,16 +1135,17 @@ bool CompileAndProcessD3DShaderDXC(
 			ExtractParameterMapFromD3DShader<ID3D12ShaderReflection, D3D12_SHADER_DESC, D3D12_SHADER_INPUT_BIND_DESC,
 				ID3D12ShaderReflectionConstantBuffer, D3D12_SHADER_BUFFER_DESC,
 				ID3D12ShaderReflectionVariable, D3D12_SHADER_VARIABLE_DESC>(
-					Input, ShaderParameterParser,
-					AutoBindingSpace, ShaderReflection, ShaderDesc,
-					bGlobalUniformBufferUsed, bDiagnosticBufferUsed,
-					NumSamplers, NumSRVs, NumCBs, NumUAVs,
-					Output, UniformBufferNames, UsedUniformBufferSlots, VendorExtensions);
-
-			NumInstructions = ShaderDesc.InstructionCount;
+					Input,
+					ShaderParameterParser,
+					AutoBindingSpace,
+					ShaderReflection,
+					ShaderDesc,
+					CompileData,
+					Output
+				);
 		}
 
-		if (!ValidateResourceCounts(NumSRVs, NumSamplers, NumUAVs, NumCBs, FilteredErrors))
+		if (!ValidateResourceCounts(CompileData, FilteredErrors))
 		{
 			Output.bSucceeded = false;
 		}
@@ -1138,35 +1154,17 @@ bool CompileAndProcessD3DShaderDXC(
 
 		if (Output.bSucceeded)
 		{
-			if (bGlobalUniformBufferUsed)
-			{
-				PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::GlobalUniformBuffer;
-			}
+			PackedResourceCounts = InitPackedResourceCounts(CompileData);
 
 			if (Input.Environment.CompilerFlags.Contains(CFLAG_RootConstants))
 			{
 				PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::RootConstants;
 			}
 
-			if (Input.Environment.CompilerFlags.Contains(CFLAG_BindlessResources))
-			{
-				PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::BindlessResources;
-			}
-
-			if (Input.Environment.CompilerFlags.Contains(CFLAG_BindlessSamplers))
-			{
-				PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::BindlessSamplers;
-			}
-
 			if (bHasNoDerivativeOps)
 			{
 				PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::NoDerivativeOps;
 			}
-
-			PackedResourceCounts.NumSamplers = static_cast<uint8>(NumSamplers);
-			PackedResourceCounts.NumSRVs = static_cast<uint8>(NumSRVs);
-			PackedResourceCounts.NumCBs = static_cast<uint8>(NumCBs);
-			PackedResourceCounts.NumUAVs = static_cast<uint8>(NumUAVs);
 
 			Output.bSucceeded = UE::ShaderCompilerCommon::ValidatePackedResourceCounts(Output, PackedResourceCounts);
 		}
@@ -1219,7 +1217,7 @@ bool CompileAndProcessD3DShaderDXC(
 					EnumAddFlags(CodeFeatures.CodeFeatures, EShaderCodeFeatures::Atomic64);
 				}
 
-				if (bDiagnosticBufferUsed)
+				if (CompileData.bDiagnosticBufferUsed)
 				{
 					EnumAddFlags(CodeFeatures.CodeFeatures, EShaderCodeFeatures::DiagnosticBuffer);
 				}
@@ -1257,18 +1255,21 @@ bool CompileAndProcessD3DShaderDXC(
 			// Return a fraction of the number of instructions as DXIL is more verbose than DXBC.
 			// Ratio 119:307 was estimated by gathering average instruction count for D3D11 and D3D12 shaders in ShooterGame with result being ~ 357:921.
 			constexpr uint32 DxbcToDxilInstructionRatio[2] = { 119, 307 };
-			NumInstructions = NumInstructions * DxbcToDxilInstructionRatio[0] / DxbcToDxilInstructionRatio[1];
+			CompileData.NumInstructions = CompileData.NumInstructions * DxbcToDxilInstructionRatio[0] / DxbcToDxilInstructionRatio[1];
 
 			//#todo-rco: Should compress ShaderCode?
 
-			GenerateFinalOutput(ShaderBlob,
-				Input, VendorExtensions,
-				UsedUniformBufferSlots, UniformBufferNames,
-				bProcessingSecondTime, ShaderInputs,
-				PackedResourceCounts, NumInstructions,
+			GenerateFinalOutput(
+				ShaderBlob,
+				Input,
+				ShaderModel,
+				bProcessingSecondTime,
+				CompileData,
+				PackedResourceCounts,
 				Output,
 				PostSRTWriterCallback,
-				AddOptionalDataCallback);
+				AddOptionalDataCallback
+			);
 		}
 	}
 	else

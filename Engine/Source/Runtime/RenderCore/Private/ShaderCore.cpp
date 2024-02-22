@@ -775,6 +775,19 @@ TArray<FString> FShaderParameterMap::GetAllParameterNamesOfType(EShaderParameter
 	return Result;
 }
 
+uint32 FShaderParameterMap::CountParametersOfType(EShaderParameterType InType) const
+{
+	uint32 Result = 0;
+	for (const TMap<FString, FParameterAllocation>::ElementType& Parameter : ParameterMap)
+	{
+		if (Parameter.Value.Type == InType)
+		{
+			Result++;
+		}
+	}
+	return Result;
+}
+
 void FShaderResourceTableMap::Append(const FShaderResourceTableMap& Other)
 {
 	// Get the set of uniform buffers used by the target resource table map

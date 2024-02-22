@@ -299,6 +299,9 @@ public:
 	/** Returns an array of all parameters with the given type. */
 	RENDERCORE_API TArray<FString> GetAllParameterNamesOfType(EShaderParameterType InType) const;
 
+	/** Returns a count of all parameters of the given type. */
+	RENDERCORE_API uint32 CountParametersOfType(EShaderParameterType InType) const;
+
 	/** Checks that all parameters are bound and asserts if any aren't in a debug build
 	* @param InVertexFactoryType can be 0
 	*/

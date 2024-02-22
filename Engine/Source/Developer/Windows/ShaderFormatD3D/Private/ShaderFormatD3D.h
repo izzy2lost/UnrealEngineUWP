@@ -54,7 +54,8 @@ bool CompileAndProcessD3DShaderDXC(
 	bool bProcessingSecondTime,
 	FShaderCompilerOutput& Output);
 
-bool ValidateResourceCounts(uint32 NumSRVs, uint32 NumSamplers, uint32 NumUAVs, uint32 NumCBs, TArray<FString>& OutFilteredErrors);
+struct FD3DShaderCompileData;
+bool ValidateResourceCounts(const FD3DShaderCompileData& CompiledData, TArray<FString>& OutFilteredErrors);
 
 struct FD3DSM6ShaderDebugData
 {
