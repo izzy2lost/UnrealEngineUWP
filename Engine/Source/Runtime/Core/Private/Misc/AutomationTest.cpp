@@ -1695,7 +1695,7 @@ bool FAutomationTestBase::TestEqual(const TCHAR* What, const float Actual, const
 {
 	if (!FMath::IsNearlyEqual(Actual, Expected, Tolerance))
 	{
-		AddError(FString::Printf(TEXT("Expected '%s' to be %f, but it was %f within tolerance %f."), What, Expected, Actual, Tolerance), 1);
+		AddError(FString::Printf(TEXT("Expected '%s' to be %f, but it was %f and outside tolerance %f."), What, Expected, Actual, Tolerance), 1);
 		return false;
 	}
 	return true;
@@ -1705,7 +1705,7 @@ bool FAutomationTestBase::TestEqual(const TCHAR* What, const double Actual, cons
 {
 	if (!FMath::IsNearlyEqual(Actual, Expected, Tolerance))
 	{
-		AddError(FString::Printf(TEXT("Expected '%s' to be %f, but it was %f within tolerance %f."), What, Expected, Actual, Tolerance), 1);
+		AddError(FString::Printf(TEXT("Expected '%s' to be %f, but it was %f and outside tolerance %f."), What, Expected, Actual, Tolerance), 1);
 		return false;
 	}
 	return true;
@@ -1715,7 +1715,7 @@ bool FAutomationTestBase::TestEqual(const TCHAR* What, const FVector Actual, con
 {
 	if (!Expected.Equals(Actual, Tolerance))
 	{
-		AddError(FString::Printf(TEXT("Expected '%s' to be %s, but it was %s within tolerance %f."), What, *Expected.ToString(), *Actual.ToString(), Tolerance), 1);
+		AddError(FString::Printf(TEXT("Expected '%s' to be %s, but it was %s and outside tolerance %f."), What, *Expected.ToString(), *Actual.ToString(), Tolerance), 1);
 		return false;
 	}
 	return true;
@@ -1725,7 +1725,7 @@ bool FAutomationTestBase::TestEqual(const TCHAR* What, const FTransform Actual, 
 {
 	if (!Expected.Equals(Actual, Tolerance))
 	{
-		AddError(FString::Printf(TEXT("Expected '%s' to be %s, but it was %s within tolerance %f."), What, *Expected.ToString(), *Actual.ToString(), Tolerance), 1);
+		AddError(FString::Printf(TEXT("Expected '%s' to be %s, but it was %s and outside tolerance %f."), What, *Expected.ToString(), *Actual.ToString(), Tolerance), 1);
 		return false;
 	}
 	return true;
@@ -1735,7 +1735,7 @@ bool FAutomationTestBase::TestEqual(const TCHAR* What, const FRotator Actual, co
 {
 	if (!Expected.Equals(Actual, Tolerance))
 	{
-		AddError(FString::Printf(TEXT("Expected '%s' to be %s, but it was %s within tolerance %f."), What, *Expected.ToString(), *Actual.ToString(), Tolerance), 1);
+		AddError(FString::Printf(TEXT("Expected '%s' to be %s, but it was %s and outside tolerance %f."), What, *Expected.ToString(), *Actual.ToString(), Tolerance), 1);
 		return false;
 	}
 	return true;
@@ -1771,6 +1771,26 @@ bool FAutomationTestBase::TestEqual(const TCHAR* What, const TCHAR* Actual, cons
 	return true;
 }
 
+bool FAutomationTestBase::TestNotEqual(const TCHAR* What, const float Actual, const float Expected, float Tolerance)
+{
+	if (FMath::IsNearlyEqual(Actual, Expected, Tolerance))
+	{
+		AddError(FString::Printf(TEXT("Expected '%s' to be unequal to %f, but it was %f and within tolerance %f."), What, Expected, Actual, Tolerance), 1);
+		return false;
+	}
+	return true;
+}
+
+bool FAutomationTestBase::TestNotEqual(const TCHAR* What, const double Actual, const double Expected, double Tolerance)
+{
+	if (FMath::IsNearlyEqual(Actual, Expected, Tolerance))
+	{
+		AddError(FString::Printf(TEXT("Expected '%s' to be unequal to %f, but it was %f and within tolerance %f."), What, Expected, Actual, Tolerance), 1);
+		return false;
+	}
+	return true;
+}
+
 bool FAutomationTestBase::TestEqualInsensitive(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected)
 {
 	if (FCString::Stricmp(Actual, Expected) != 0)
@@ -1783,10 +1803,21 @@ bool FAutomationTestBase::TestEqualInsensitive(const TCHAR* What, const TCHAR* A
 
 bool FAutomationTestBase::TestNotEqualInsensitive(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected)
 {
-	if (FCString::Stricmp(Actual, Expected) == 0)
+	if (Actual && Expected)
 	{
-		AddError(FString::Printf(TEXT("Expected '%s' to differ from \"%s\", but it was \"%s\"."), What, Expected, Actual), 1);
-		return false;
+		if (FCString::Stricmp(Actual, Expected) == 0)
+		{
+			AddError(FString::Printf(TEXT("Expected '%s' to differ from \"%s\", but it was \"%s\"."), What, Expected, Actual), 1);
+			return false;
+		}
+	}
+	else // null exists
+	{ 
+		if (Actual == Expected)
+		{
+			AddError(FString::Printf(TEXT("Expected '%s' to differ but both values were unexpectedly null"), What), 1);
+			return false;
+		}
 	}
 	return true;
 }
@@ -1814,6 +1845,244 @@ bool FAutomationTestBase::TestNearlyEqual(const TCHAR* What, const FTransform Ac
 bool FAutomationTestBase::TestNearlyEqual(const TCHAR* What, const FRotator Actual, const FRotator Expected, float Tolerance)
 {
 	return TestEqual(What, Actual, Expected, Tolerance);
+}
+
+bool FAutomationTestBase::TestLessThan(const TCHAR* What, const int32 Actual, const int32 Expected)
+{
+	if (Actual < Expected)
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be less than %d, but it was %d."), What, Expected, Actual), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestLessThan(const TCHAR* What, const int64 Actual, const int64 Expected)
+{
+	if (Actual < Expected)
+	{
+		return true;
+	}	
+	AddError(FString::Printf(TEXT("Expected '%s' to be less than %" PRId64 ", but it was %" PRId64 "."), What, Expected, Actual), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestGreaterThan(const TCHAR* What, const int32 Actual, const int32 Expected)
+{
+	if (Actual > Expected)
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be greater than %d, but it was %d."), What, Expected, Actual), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestGreaterThan(const TCHAR* What, const int64 Actual, const int64 Expected)
+{
+	if (Actual > Expected)
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be greater than %" PRId64 ", but it was %" PRId64 "."), What, Expected, Actual), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestLessEqual(const TCHAR* What, const int32 Actual, const int32 Expected)
+{
+	if (Actual <= Expected)
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be less than or equal to %d, but it was %d."), What, Expected, Actual), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestLessEqual(const TCHAR* What, const int64 Actual, const int64 Expected)
+{
+	if (Actual <= Expected)
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be less than or equal to %" PRId64 ", but it was %" PRId64 "."), What, Expected, Actual), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestGreaterEqual(const TCHAR* What, const int32 Actual, const int32 Expected)
+{
+	if (Actual >= Expected)
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be greater than or equal to %d, but it was %d."), What, Expected, Actual), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestGreaterEqual(const TCHAR* What, const int64 Actual, const int64 Expected)
+{
+	if (Actual >= Expected)
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be greater than or equal to %" PRId64 ", but it was %" PRId64 "."), What, Expected, Actual), 1);
+	return false;
+}
+
+#if PLATFORM_64BITS
+bool FAutomationTestBase::TestLessThan(const TCHAR* What, const SIZE_T Actual, const SIZE_T Expected)
+{
+	if (Actual < Expected)
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be less than %" PRIuPTR ", but it was %" PRIuPTR "."), What, Expected, Actual), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestGreaterThan(const TCHAR* What, const SIZE_T Actual, const SIZE_T Expected)
+{
+	if (Actual > Expected)
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be greater than %" PRIuPTR ", but it was %" PRIuPTR "."), What, Expected, Actual), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestLessEqual(const TCHAR* What, const SIZE_T Actual, const SIZE_T Expected)
+{
+	if (Actual <= Expected)
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be less than or equal to %" PRIuPTR ", but it was %" PRIuPTR "."), What, Expected, Actual), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestGreaterEqual(const TCHAR* What, const SIZE_T Actual, const SIZE_T Expected)
+{
+	if (Actual >= Expected)
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be greater than or equal to %" PRIuPTR ", but it was %" PRIuPTR "."), What, Expected, Actual), 1);
+	return false;
+}
+#endif // PLATFORM_64BITS
+
+bool FAutomationTestBase::TestLessThan(const TCHAR* What, const float Actual, const float Expected, float Tolerance)
+{
+	if (FMath::IsNearlyEqual(Actual, Expected, Tolerance))
+	{
+		AddError(FString::Printf(TEXT("Expected '%s' to be less than %f, but it was %f and within equality tolerance %f."), What, Expected, Actual, Tolerance), 1);
+		return false;
+	}
+	if (Actual < Expected)
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be less than %f, but it was %f and outside equality tolerance %f."), What, Expected, Actual, Tolerance), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestLessThan(const TCHAR* What, const double Actual, const double Expected, double Tolerance)
+{
+	if (FMath::IsNearlyEqual(Actual, Expected, Tolerance))
+	{
+		AddError(FString::Printf(TEXT("Expected '%s' to be less than %f, but it was %f and within equality tolerance %f."), What, Expected, Actual, Tolerance), 1);
+		return false;
+	}
+	if (Actual < Expected)
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be less than %f, but it was %f and outside equality tolerance %f."), What, Expected, Actual, Tolerance), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestGreaterThan(const TCHAR* What, const float Actual, const float Expected, float Tolerance)
+{
+	if (FMath::IsNearlyEqual(Actual, Expected, Tolerance))
+	{
+		AddError(FString::Printf(TEXT("Expected '%s' to be less than %f, but it was %f and within equality tolerance %f."), What, Expected, Actual, Tolerance), 1);
+		return false;
+	}
+	if (Actual > Expected)
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be less than %f, but it was %f and outside equality tolerance %f."), What, Expected, Actual, Tolerance), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestGreaterThan(const TCHAR* What, const double Actual, const double Expected, double Tolerance)
+{
+	if (FMath::IsNearlyEqual(Actual, Expected, Tolerance))
+	{
+		AddError(FString::Printf(TEXT("Expected '%s' to be less than %f, but it was %f and within equality tolerance %f."), What, Expected, Actual, Tolerance), 1);
+		return false;
+	}
+	if (Actual > Expected)
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be less than %f, but it was %f and outside equality tolerance %f."), What, Expected, Actual, Tolerance), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestLessEqual(const TCHAR* What, const float Actual, const float Expected, float Tolerance)
+{
+	if (Actual < Expected)
+	{
+		return true;
+	}
+	if (FMath::IsNearlyEqual(Actual, Expected, Tolerance))
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be less than or equal to %f, but it was %f and outside equality tolerance %f."), What, Expected, Actual, Tolerance), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestLessEqual(const TCHAR* What, const double Actual, const double Expected, double Tolerance)
+{
+	if (Actual < Expected)
+	{
+		return true;
+	}
+	if (FMath::IsNearlyEqual(Actual, Expected, Tolerance))
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be less than or equal to %f, but it was %f and outside equality tolerance %f."), What, Expected, Actual, Tolerance), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestGreaterEqual(const TCHAR* What, const float Actual, const float Expected, float Tolerance)
+{
+	if (Actual > Expected)
+	{
+		return true;
+	}
+	if (FMath::IsNearlyEqual(Actual, Expected, Tolerance))
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be greater than or equal to %f, but it was %f and outside equality tolerance %f."), What, Expected, Actual, Tolerance), 1);
+	return false;
+}
+
+bool FAutomationTestBase::TestGreaterEqual(const TCHAR* What, const double Actual, const double Expected, double Tolerance)
+{
+	if (Actual > Expected)
+	{
+		return true;
+	}
+	if (FMath::IsNearlyEqual(Actual, Expected, Tolerance))
+	{
+		return true;
+	}
+	AddError(FString::Printf(TEXT("Expected '%s' to be greater than or equal to %f, but it was %f and outside equality tolerance %f."), What, Expected, Actual, Tolerance), 1);
+	return false;
 }
 
 bool FAutomationTestBase::TestFalse(const TCHAR* What, bool Value)

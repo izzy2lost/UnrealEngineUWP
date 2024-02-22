@@ -1916,6 +1916,66 @@ public:
 		return TestEqualInsensitive(*What, *Actual, *Expected);
 	}
 
+	bool TestEqualInsensitive(const TCHAR* What, const FString& Actual, const TCHAR* Expected)
+	{
+		return TestEqualInsensitive(What, *Actual, Expected);
+	}
+
+	bool TestEqualInsensitive(const FString& What, const FString& Actual, const TCHAR* Expected)
+	{
+		return TestEqualInsensitive(*What, *Actual, Expected);
+	}
+
+	bool TestEqualInsensitive(const TCHAR* What, const TCHAR* Actual, const FString& Expected)
+	{
+		return TestEqualInsensitive(What, Actual, *Expected);
+	}
+
+	bool TestEqualInsensitive(const FString& What, const TCHAR* Actual, const FString& Expected)
+	{
+		return TestEqualInsensitive(*What, Actual, *Expected);
+	}
+
+	bool TestEqualInsensitive(const TCHAR* What, const FString& Actual, const FString& Expected)
+	{
+		return TestEqualInsensitive(What, *Actual, *Expected);
+	}
+
+	bool TestEqualInsensitive(const FString& What, const FString& Actual, const FString& Expected)
+	{
+		return TestEqualInsensitive(*What, *Actual, *Expected);
+	}
+
+	bool TestNotEqualInsensitive(const TCHAR* What, const FString& Actual, const TCHAR* Expected)
+	{
+		return TestNotEqualInsensitive(What, *Actual, Expected);
+	}
+
+	bool TestNotEqualInsensitive(const FString& What, const FString& Actual, const TCHAR* Expected)
+	{
+		return TestNotEqualInsensitive(*What, *Actual, Expected);
+	}
+
+	bool TestNotEqualInsensitive(const TCHAR* What, const TCHAR* Actual, const FString& Expected)
+	{
+		return TestNotEqualInsensitive(What, Actual, *Expected);
+	}
+
+	bool TestNotEqualInsensitive(const FString& What, const TCHAR* Actual, const FString& Expected)
+	{
+		return TestNotEqualInsensitive(*What, Actual, *Expected);
+	}
+
+	bool TestNotEqualInsensitive(const TCHAR* What, const FString& Actual, const FString& Expected)
+	{
+		return TestNotEqualInsensitive(What, *Actual, *Expected);
+	}
+
+	bool TestNotEqualInsensitive(const FString& What, const FString& Actual, const FString& Expected)
+	{
+		return TestNotEqualInsensitive(*What, *Actual, *Expected);
+	}
+
 	/**
 	 * Logs an error if the two values are not equal.
 	 *
@@ -1973,6 +2033,108 @@ public:
 		return TestNearlyEqual(*What, Actual, Expected, Tolerance);
 	}
 
+	CORE_API bool TestLessThan(const TCHAR* What, const int32 Actual, const int32 Expected);
+	CORE_API bool TestLessThan(const TCHAR* What, const int64 Actual, const int64 Expected);
+	CORE_API bool TestGreaterThan(const TCHAR* What, const int32 Actual, const int32 Expected);
+	CORE_API bool TestGreaterThan(const TCHAR* What, const int64 Actual, const int64 Expected);
+	CORE_API bool TestLessEqual(const TCHAR* What, const int32 Actual, const int32 Expected);
+	CORE_API bool TestLessEqual(const TCHAR* What, const int64 Actual, const int64 Expected);
+	CORE_API bool TestGreaterEqual(const TCHAR* What, const int32 Actual, const int32 Expected);
+	CORE_API bool TestGreaterEqual(const TCHAR* What, const int64 Actual, const int64 Expected);
+#if PLATFORM_64BITS
+	CORE_API bool TestLessThan(const TCHAR* What, const SIZE_T Actual, const SIZE_T Expected);
+	CORE_API bool TestGreaterThan(const TCHAR* What, const SIZE_T Actual, const SIZE_T Expected);
+	CORE_API bool TestLessEqual(const TCHAR* What, const SIZE_T Actual, const SIZE_T Expected);
+	CORE_API bool TestGreaterEqual(const TCHAR* What, const SIZE_T Actual, const SIZE_T Expected);
+#endif
+	CORE_API bool TestLessThan(const TCHAR* What, const float Actual, const float Expected, float Tolerance = UE_KINDA_SMALL_NUMBER);
+	CORE_API bool TestLessThan(const TCHAR* What, const double Actual, const double Expected, double Tolerance = UE_KINDA_SMALL_NUMBER);
+	CORE_API bool TestGreaterThan(const TCHAR* What, const float Actual, const float Expected, float Tolerance = UE_KINDA_SMALL_NUMBER);
+	CORE_API bool TestGreaterThan(const TCHAR* What, const double Actual, const double Expected, double Tolerance = UE_KINDA_SMALL_NUMBER);
+	CORE_API bool TestLessEqual(const TCHAR* What, const float Actual, const float Expected, float Tolerance = UE_KINDA_SMALL_NUMBER);
+	CORE_API bool TestLessEqual(const TCHAR* What, const double Actual, const double Expected, double Tolerance = UE_KINDA_SMALL_NUMBER);
+	CORE_API bool TestGreaterEqual(const TCHAR* What, const float Actual, const float Expected, float Tolerance = UE_KINDA_SMALL_NUMBER);
+	CORE_API bool TestGreaterEqual(const TCHAR* What, const double Actual, const double Expected, double Tolerance = UE_KINDA_SMALL_NUMBER);
+
+	bool TestLessThan(const FString& What, const int32 Actual, const int32 Expected)
+	{
+		return TestLessThan(*What, Actual, Expected);
+	}
+
+	bool TestLessThan(const FString& What, const int64 Actual, const int64 Expected)
+	{
+		return TestLessThan(*What, Actual, Expected);
+	}
+
+	bool TestGreaterThan(const FString& What, const int32 Actual, const int32 Expected)
+	{
+		return TestGreaterThan(*What, Actual, Expected);
+	}
+
+	bool TestGreaterThan(const FString& What, const int64 Actual, const int64 Expected)
+	{
+		return TestGreaterThan(*What, Actual, Expected);
+	}
+
+	bool TestLessEqual(const FString& What, const int32 Actual, const int32 Expected)
+	{
+		return TestLessEqual(*What, Actual, Expected);
+	}
+
+	bool TestLessEqual(const FString& What, const int64 Actual, const int64 Expected)
+	{
+		return TestLessEqual(*What, Actual, Expected);
+	}
+
+	bool TestGreaterEqual(const FString& What, const int32 Actual, const int32 Expected)
+	{
+		return TestGreaterEqual(*What, Actual, Expected);
+	}
+
+	bool TestGreaterEqual(const FString& What, const int64 Actual, const int64 Expected)
+	{
+		return TestGreaterEqual(*What, Actual, Expected);
+	}
+
+	bool TestLessThan(const FString& What, const float Actual, const float Expected, float Tolerance = UE_KINDA_SMALL_NUMBER)
+	{
+		return TestLessThan(*What, Actual, Expected, Tolerance);
+	}
+
+	bool TestLessThan(const FString& What, const double Actual, const double Expected, double Tolerance = UE_KINDA_SMALL_NUMBER)
+	{
+		return TestLessThan(*What, Actual, Expected, Tolerance);
+	}
+
+	bool TestGreaterThan(const FString& What, const float Actual, const float Expected, float Tolerance = UE_KINDA_SMALL_NUMBER)
+	{
+		return TestGreaterThan(*What, Actual, Expected, Tolerance);
+	}
+
+	bool TestGreaterThan(const FString& What, const double Actual, const double Expected, double Tolerance = UE_KINDA_SMALL_NUMBER)
+	{
+		return TestGreaterThan(*What, Actual, Expected, Tolerance);
+	}
+
+	bool TestLessEqual(const FString& What, const float Actual, const float Expected, float Tolerance = UE_KINDA_SMALL_NUMBER)
+	{
+		return TestLessEqual(*What, Actual, Expected, Tolerance);
+	}
+
+	bool TestLessEqual(const FString& What, const double Actual, const double Expected, double Tolerance = UE_KINDA_SMALL_NUMBER)
+	{
+		return TestLessEqual(*What, Actual, Expected, Tolerance);
+	}
+
+	bool TestGreaterEqual(const FString& What, const float Actual, const float Expected, float Tolerance = UE_KINDA_SMALL_NUMBER)
+	{
+		return TestGreaterEqual(*What, Actual, Expected, Tolerance);
+	}
+
+	bool TestGreaterEqual(const FString& What, const double Actual, const double Expected, double Tolerance = UE_KINDA_SMALL_NUMBER)
+	{
+		return TestGreaterEqual(*What, Actual, Expected, Tolerance);
+	}
 
 	/**
 	 * Logs an error if the specified Boolean value is not false.
@@ -1980,7 +2142,7 @@ public:
 	 * @param What - Description text for the test.
 	 * @param Value - The value to test.
 	 *
-	 * @see TestFalse
+	 * @see TestTrue
 	 */
 	CORE_API bool TestFalse(const TCHAR* What, bool Value);
 
@@ -2037,6 +2199,19 @@ public:
 	template<typename ValueType> bool TestNotEqual(const FString& Description, const ValueType& Actual, const ValueType& Expected)
 	{
 		return TestNotEqual(*Description, Actual, Expected);
+	}
+
+	CORE_API bool TestNotEqual(const TCHAR* What, const float Actual, const float Expected, float Tolerance = UE_KINDA_SMALL_NUMBER);
+	CORE_API bool TestNotEqual(const TCHAR* What, const double Actual, const double Expected, double Tolerance = UE_KINDA_SMALL_NUMBER);
+
+	bool TestNotEqual(const FString& What, const float Actual, const float Expected, float Tolerance = UE_KINDA_SMALL_NUMBER)
+	{
+		return TestNotEqual(*What, Actual, Expected, Tolerance);
+	}
+
+	bool TestNotEqual(const FString& What, const double Actual, const double Expected, double Tolerance = UE_KINDA_SMALL_NUMBER)
+	{
+		return TestNotEqual(*What, Actual, Expected, Tolerance);
 	}
 
 	/**
@@ -3871,11 +4046,12 @@ public: \
 
 
 /**
- * Macros to make it easy to test state with one-liners: they will run the appropriate
- * test method and, if the test fail, with execute `return false;`, which (if placed in
+ * Macros for early exit one-liners: they will run the appropriate
+ * test method and on failure also execute `return false;`, which (if placed in
  * the main test case method) will stop the test immediately.
  *
  * The error logging is already handled by the test method being called.
+ * EXPR variants automatically generate a `What` description string.
  *
  * As a result, you can easily test things that, if wrong, would potentially crash the test:
  *
@@ -3911,6 +4087,12 @@ public: \
 
 #define UTEST_EQUAL_TOLERANCE_EXPR(Actual, Expected, Tolerance)\
 	if (!TestEqual(TEXT(#Actual), Actual, Expected, Tolerance))\
+	{\
+		return false;\
+	}
+
+#define UTEST_NEARLY_EQUAL(What, Actual, Expected, Tolerance)\
+	if (!TestNearlyEqual(What, Actual, Expected, Tolerance))\
 	{\
 		return false;\
 	}
@@ -3953,6 +4135,102 @@ public: \
 
 #define UTEST_NOT_EQUAL_EXPR(Actual, Expected)\
 	if (!TestNotEqual(FString::Printf(TEXT("%s != %s"), TEXT(#Actual), TEXT(#Expected)), Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_LESS(What, Actual, Expected)\
+	if (!TestLessThan(What, Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_LESS_EXPR(Actual, Expected)\
+	if (!TestLessThan(TEXT(#Actual), Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_LESS_TOLERANCE(What, Actual, Expected, Tolerance)\
+	if (!TestLessThan(What, Actual, Expected, Tolerance))\
+	{\
+		return false;\
+	}
+
+#define UTEST_LESS_TOLERANCE_EXPR(Actual, Expected, Tolerance)\
+	if (!TestLessThan(TEXT(#Actual), Actual, Expected, Tolerance))\
+	{\
+		return false;\
+	}
+
+#define UTEST_GREATER(What, Actual, Expected)\
+	if (!TestGreaterThan(What, Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_GREATER_EXPR(Actual, Expected)\
+	if (!TestGreaterThan(TEXT(#Actual), Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_GREATER_TOLERANCE(What, Actual, Expected, Tolerance)\
+	if (!TestGreaterThan(What, Actual, Expected, Tolerance))\
+	{\
+		return false;\
+	}
+
+#define UTEST_GREATER_TOLERANCE_EXPR(Actual, Expected, Tolerance)\
+	if (!TestGreaterThan(TEXT(#Actual), Actual, Expected, Tolerance))\
+	{\
+		return false;\
+	}
+
+#define UTEST_LESS_EQUAL(What, Actual, Expected)\
+	if (!TestLessEqual(What, Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_LESS_EQUAL_EXPR(Actual, Expected)\
+	if (!TestLessEqual(TEXT(#Actual), Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_LESS_EQUAL_TOLERANCE(What, Actual, Expected, Tolerance)\
+	if (!TestLessEqual(What, Actual, Expected, Tolerance))\
+	{\
+		return false;\
+	}
+
+#define UTEST_LESS_EQUAL_TOLERANCE_EXPR(Actual, Expected, Tolerance)\
+	if (!TestLessEqual(TEXT(#Actual), Actual, Expected, Tolerance))\
+	{\
+		return false;\
+	}
+
+#define UTEST_GREATER_EQUAL(What, Actual, Expected)\
+	if (!TestGreaterEqual(What, Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_GREATER_EQUAL_EXPR(Actual, Expected)\
+	if (!TestGreaterEqual(TEXT(#Actual), Actual, Expected))\
+	{\
+		return false;\
+	}
+
+#define UTEST_GREATER_EQUAL_TOLERANCE(What, Actual, Expected, Tolerance)\
+	if (!TestGreaterEqual(What, Actual, Expected, Tolerance))\
+	{\
+		return false;\
+	}
+
+#define UTEST_GREATER_EQUAL_TOLERANCE_EXPR(Actual, Expected, Tolerance)\
+	if (!TestGreaterEqual(TEXT(#Actual), Actual, Expected, Tolerance))\
 	{\
 		return false;\
 	}
