@@ -7,8 +7,15 @@ using EpicGames.Core;
 [SupportedPlatforms(UnrealPlatformClass.Desktop)]
 public class LiveLinkHubTarget : TargetRules
 {
+	// Whether this should be built as a monolithic executable.
 	[CommandLine("-Monolithic")]
 	public bool bMonolithic = false;
+
+	// Whether the hub is being built for distribution alongside a cooked editor.
+	// Will dictate whether to mount LLH's remapped engine folder to "/Engine/"
+	[CommandLine("-CookedEditorDistribution")]
+	public bool bCookedEditorDistribution = false;
+
 	public LiveLinkHubTarget(TargetInfo Target) : base(Target)
 	{
 		Type = TargetType.Program;
@@ -52,13 +59,19 @@ public class LiveLinkHubTarget : TargetRules
 		bBuildDeveloperTools = true;
 		bIsBuildingConsoleApplication = false;
 
-
 		GlobalDefinitions.Add("WITH_LIVELINK_HUB=1");
 		GlobalDefinitions.Add("AUTOSDKS_ENABLED=0");
 		GlobalDefinitions.Add("NO_LOGGING=0");
 		GlobalDefinitions.Add("PLATFORM_SUPPORTS_MESSAGEBUS=1");
 
+		if (bCookedEditorDistribution)
+		{
+			GlobalDefinitions.Add("COOKED_EDITOR_DISTRIBUTION=1");
+		}
+
 		bEnableTrace = true;
+
+		
 
 		OptedInModulePlatforms = new UnrealTargetPlatform[] { UnrealTargetPlatform.Win64, UnrealTargetPlatform.Mac,
 															  UnrealTargetPlatform.Linux, UnrealTargetPlatform.LinuxArm64 };
