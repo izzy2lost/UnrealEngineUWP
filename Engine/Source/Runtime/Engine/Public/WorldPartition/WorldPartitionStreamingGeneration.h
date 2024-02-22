@@ -68,7 +68,7 @@ public:
 	ENGINE_API const FDataLayerInstanceNames& GetRuntimeDataLayerInstanceNames() const;
 
 	ENGINE_API void AddForcedInvalidReference(const FStreamingGenerationActorDescView* ReferenceView);
-	ENGINE_API bool IsInvalidReference(const FGuid& InGuid, FInvalidReference* OutInvalidReference = nullptr) const;
+	ENGINE_API const FInvalidReference* GetInvalidReference(const FGuid& InGuid) const;
 	ENGINE_API void SetForcedNonSpatiallyLoaded();
 	ENGINE_API void SetForcedNoRuntimeGrid();
 	ENGINE_API void SetForcedNoDataLayers();
@@ -77,6 +77,8 @@ public:
 	ENGINE_API void SetEditorReferences(const TArray<FGuid>& InEditorReferences);
 	ENGINE_API void SetDataLayerInstanceNames(const FDataLayerInstanceNames& InDataLayerInstanceNames);
 	ENGINE_API void SetParentView(const FStreamingGenerationActorDescView* InParentView);
+	ENGINE_API void SetEditorOnlyParentTransform(const FTransform& InEditorOnlyParentTransform);
+	ENGINE_API FTransform GetEditorOnlyParentTransform() const { return EditorOnlyParentTransform.IsSet() ? EditorOnlyParentTransform.GetValue() : FTransform::Identity; }
 
 	ENGINE_API void SetForcedNoHLODLayer();
 	ENGINE_API void SetRuntimeHLODLayer(const FSoftObjectPath& InHLODLayer);
@@ -112,6 +114,7 @@ private:
 	TOptional<TArray<FGuid>> RuntimeReferences;
 	TOptional<FSoftObjectPath> RuntimedHLODLayer;
 	TArray<FGuid> EditorReferences;
+	TOptional<FTransform> EditorOnlyParentTransform;
 };
 
 class FStreamingGenerationActorDescViewMap

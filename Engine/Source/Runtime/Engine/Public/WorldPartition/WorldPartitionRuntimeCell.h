@@ -78,7 +78,19 @@ struct FWorldPartitionRuntimeCellObjectMapping
 #endif
 	{}
 
-	FWorldPartitionRuntimeCellObjectMapping(FName InPackage, FName InPath, const FTopLevelAssetPath& InBaseClass, const FTopLevelAssetPath& InNativeClass, const FActorContainerID& InContainerID, const FTransform& InContainerTransform, FName InContainerPackage, FName InWorldPackage, const FGuid& InActorInstanceGuid, bool bInIsEditorOnly)
+	FWorldPartitionRuntimeCellObjectMapping(
+		FName InPackage, 
+		FName InPath, 
+		const FTopLevelAssetPath& InBaseClass, 
+		const FTopLevelAssetPath& InNativeClass, 
+		const FActorContainerID& InContainerID, 
+		const FTransform& InContainerTransform, 
+		const FTransform& InEditorOnlyParentTransform, 
+		FName InContainerPackage, 
+		FName InWorldPackage, 
+		const FGuid& InActorInstanceGuid, 
+		bool bInIsEditorOnly
+	)
 #if WITH_EDITORONLY_DATA
 		: Package(InPackage)
 		, Path(InPath)
@@ -86,6 +98,7 @@ struct FWorldPartitionRuntimeCellObjectMapping
 		, NativeClass(InNativeClass)
 		, ContainerID(InContainerID)
 		, ContainerTransform(InContainerTransform)
+		, EditorOnlyParentTransform(InEditorOnlyParentTransform)
 		, ContainerPackage(InContainerPackage)
 		, WorldPackage(InWorldPackage)
 		, ActorInstanceGuid(InActorInstanceGuid)
@@ -130,7 +143,13 @@ struct FWorldPartitionRuntimeCellObjectMapping
 	 */
 	UPROPERTY()
 	FTransform ContainerTransform;
-		
+
+	/** 
+	 * Transform of the owning actor if editor only
+	 */
+	UPROPERTY()
+	FTransform EditorOnlyParentTransform;
+
 	/**
 	 * Package of the owning container instance
 	 */
