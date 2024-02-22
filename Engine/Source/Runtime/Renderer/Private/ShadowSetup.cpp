@@ -6508,7 +6508,7 @@ void FSceneRenderer::FilterDynamicShadows(FDynamicShadowsTaskData& TaskData)
 		if (MobileMaxVisibleMovableSpotLightShadowsCVar)
 		{
 			int32 MobileMaxVisibleMovableSpotLightShadows = MobileMaxVisibleMovableSpotLightShadowsCVar->GetValueOnRenderThread();
-			MobileDynamicSpotlightShadows.RemoveAt(MobileMaxVisibleMovableSpotLightShadows, FMath::Max(MobileDynamicSpotlightShadows.Num() - MobileMaxVisibleMovableSpotLightShadows, 0), EAllowShrinking::No);
+			MobileDynamicSpotlightShadows.SetNum(FMath::Min(MobileDynamicSpotlightShadows.Num(), MobileMaxVisibleMovableSpotLightShadows), EAllowShrinking::No);
 		}
 
 		ShadowArrays.WholeSceneDirectionalShadows.Append(MobileDynamicSpotlightShadows);
