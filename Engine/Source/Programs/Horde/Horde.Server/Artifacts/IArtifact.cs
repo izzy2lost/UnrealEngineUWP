@@ -30,6 +30,11 @@ namespace Horde.Server.Artifacts
 		public ArtifactType Type { get; }
 
 		/// <summary>
+		/// Description for the artifact
+		/// </summary>
+		public string? Description { get; }
+
+		/// <summary>
 		/// Identifier for the stream that produced the artifact
 		/// </summary>
 		public StreamId StreamId { get; }

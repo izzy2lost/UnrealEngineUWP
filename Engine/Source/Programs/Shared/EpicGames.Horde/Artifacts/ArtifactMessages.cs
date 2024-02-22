@@ -14,10 +14,11 @@ namespace EpicGames.Horde.Artifacts
 	/// </summary>
 	/// <param name="Name">Name of the artifact</param>
 	/// <param name="Type">Additional search keys tagged on the artifact</param>
+	/// <param name="Description">Description for the artifact</param>
 	/// <param name="StreamId">Stream to create the artifact for</param>
 	/// <param name="Change">Change number for the artifact</param>
 	/// <param name="Keys">Keys used to identify the artifact</param>
-	public record CreateArtifactRequest(ArtifactName Name, ArtifactType Type, StreamId? StreamId, int? Change, List<string> Keys);
+	public record CreateArtifactRequest(ArtifactName Name, ArtifactType Type, string? Description, StreamId? StreamId, int? Change, List<string> Keys);
 
 	/// <summary>
 	/// Information about a created artifact
@@ -50,6 +51,11 @@ namespace EpicGames.Horde.Artifacts
 		public ArtifactType Type { get; }
 
 		/// <summary>
+		/// Description for this artifact
+		/// </summary>
+		public string? Description { get; }
+
+		/// <summary>
 		/// Stream that produced the artifact
 		/// </summary>
 		public StreamId StreamId { get; }
@@ -67,11 +73,12 @@ namespace EpicGames.Horde.Artifacts
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public GetArtifactResponse(ArtifactId id, ArtifactName name, ArtifactType type, StreamId streamId, int change, IReadOnlyList<string> keys)
+		public GetArtifactResponse(ArtifactId id, ArtifactName name, ArtifactType type, string? description, StreamId streamId, int change, IReadOnlyList<string> keys)
 		{
 			Id = id;
 			Name = name;
 			Type = type;
+			Description = description;
 			StreamId = streamId;
 			Change = change;
 			Keys = keys;

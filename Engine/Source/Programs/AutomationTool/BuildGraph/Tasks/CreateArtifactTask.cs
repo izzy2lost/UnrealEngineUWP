@@ -48,6 +48,12 @@ namespace AutomationTool.Tasks
 		public string Type = "unknown";
 
 		/// <summary>
+		/// Description for the artifact
+		/// </summary>
+		[TaskParameter(Optional = true)]
+		public string? Description;
+
+		/// <summary>
 		/// Base directory to resolve relative paths for input files.
 		/// </summary>
 		[TaskParameter]
@@ -110,7 +116,7 @@ namespace AutomationTool.Tasks
 			ArtifactType artifactType = new ArtifactType(Parameters.Type);
 
 			HordeHttpClient hordeHttpClient = serviceProvider.GetRequiredService<HordeHttpClient>();
-			CreateArtifactResponse response = await hordeHttpClient.CreateArtifactAsync(artifactName, artifactType);
+			CreateArtifactResponse response = await hordeHttpClient.CreateArtifactAsync(artifactName, artifactType, Parameters.Description);
 			Logger.LogInformation("Creating artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) (ns: {NamespaceId}, ref: {RefName})", response.ArtifactId, artifactName, artifactType, response.NamespaceId, response.RefName);
 
 			Stopwatch timer = Stopwatch.StartNew();
