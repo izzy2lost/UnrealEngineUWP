@@ -2455,7 +2455,7 @@ export const AgentViewInner: React.FC<{ agentId?: string, poolId?: string, searc
 
       let color = statusColors.get(StatusColor.Success);
       if (agent.enabled === false) {
-         color = statusColors.get(StatusColor.Failure);
+         color = statusColors.get(StatusColor.Warnings);
       }
       if (!agent.online) {
          color = statusColors.get(StatusColor.Skipped);
