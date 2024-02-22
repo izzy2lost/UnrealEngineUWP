@@ -5,6 +5,10 @@
 #include "Core.h"
 #include "Windows/WindowsPlatformNamedPipe.h"
 
+#include "RequiredProgramMainCPPInclude.h"
+
+IMPLEMENT_APPLICATION(CmdLink, "CmdLink")
+
 enum EErrorMessage
 {
 	SUCCESS = 0,
