@@ -2357,6 +2357,10 @@ public:
 	FOnCreateLevelEditorDragDropHandler& OnCreateLevelEditorDragDropHandler() { return OnCreateLevelEditorDragDropHandlerDelegate; }
 	UNREALED_API ULevelEditorDragDropHandler* GetLevelEditorDragDropHandler() const;
 
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnFilterCopiedActors, TArray<AActor*>&);
+	UE_INTERNAL FOnFilterCopiedActors& OnFilterCopiedActors() { return OnFilterCopiedActorsDelegate; }
+	UE_INTERNAL const FOnFilterCopiedActors& OnFilterCopiedActors() const { return OnFilterCopiedActorsDelegate; }
+	
 	/** 
 	 * Gets the interface to manage project references to external content
 	 * @note the returned pointer cannot be null
@@ -2373,6 +2377,7 @@ private:
 
 	FOnMakeAssetReferenceFilter OnMakeAssetReferenceFilterDelegate;
 	FOnCreateLevelEditorDragDropHandler OnCreateLevelEditorDragDropHandlerDelegate;
+	FOnFilterCopiedActors OnFilterCopiedActorsDelegate;
 
 public:
 
