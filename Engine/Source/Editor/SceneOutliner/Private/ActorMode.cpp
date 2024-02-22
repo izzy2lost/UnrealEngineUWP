@@ -938,8 +938,6 @@ void FActorMode::OnDrop(ISceneOutlinerTreeItem& DropTarget, const FSceneOutliner
 							if (GEditor->CanParentActors(ParentActor, ChildActor))
 							{
 								GEditor->ParentActors(ParentActor, ChildActor, SocketName);
-
-								ChildActor->SetFolderPath_Recursively(ParentActor->GetFolderPath());
 							}
 						}
 					}
