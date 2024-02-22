@@ -483,20 +483,16 @@ namespace Horde.Server.Server
 			ToolId toolId = new ToolId(request.Version.Substring(0, colonIdx));
 			string version = request.Version.Substring(colonIdx + 1);
 
-			ToolConfig? toolConfig;
-			if (!_globalConfig.Value.TryGetTool(toolId, out toolConfig))
-			{
-				throw new StructuredRpcException(StatusCode.NotFound, $"Missing tool {toolId}");
-			}
-			if (!toolConfig.Public && !toolConfig.Authorize(ToolAclAction.DownloadTool, context.GetHttpContext().User))
-			{
-				throw new StructuredRpcException(StatusCode.PermissionDenied, $"User does not have DownloadTool entitlement for {toolId}");
-			}
-
 			ITool? tool = await _toolCollection.GetAsync(toolId, _globalConfig.Value);
 			if (tool == null)
 			{
 				throw new StructuredRpcException(StatusCode.NotFound, $"Missing tool {toolId}");
+			}
+
+			ToolConfig toolConfig = tool.Config;
+			if (!toolConfig.Public && !toolConfig.Authorize(ToolAclAction.DownloadTool, context.GetHttpContext().User))
+			{
+				throw new StructuredRpcException(StatusCode.PermissionDenied, $"User does not have DownloadTool entitlement for {toolId}");
 			}
 
 			IToolDeployment? deployment = tool.Deployments.LastOrDefault(x => x.Version.Equals(version, StringComparison.Ordinal));
