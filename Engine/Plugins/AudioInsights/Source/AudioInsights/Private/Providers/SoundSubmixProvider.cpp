@@ -142,8 +142,7 @@ namespace UE::Audio::Insights
 		const IAudioInsightsModule& InsightsModule = FModuleManager::GetModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetName());
 		const ::Audio::FDeviceId DeviceId = InsightsModule.GetDeviceId();
 
-		for (uint32 Index = 0;
-			 const TSharedPtr<FSoundSubmixAssetDashboardEntry>& SubmixDataViewEntry : SubmixDataViewEntries)
+		for (const TSharedPtr<FSoundSubmixAssetDashboardEntry>& SubmixDataViewEntry : SubmixDataViewEntries)
 		{
 			UpdateDeviceEntry(DeviceId, SubmixDataViewEntry->SoundSubmix->GetUniqueID(), [&SubmixDataViewEntry](TSharedPtr<FSoundSubmixAssetDashboardEntry>& Entry)
 			{
@@ -152,8 +151,6 @@ namespace UE::Audio::Insights
 					Entry = SubmixDataViewEntry;
 				}
 			});
-
-			++Index;
 		}
 
 		return true;
