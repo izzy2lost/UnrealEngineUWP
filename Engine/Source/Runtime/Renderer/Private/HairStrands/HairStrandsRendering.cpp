@@ -138,6 +138,11 @@ void RenderHairPrePass(
 				// voxelization feedback (only done for the first view in stereo) and Path-Tracer invalidation 
 				// (not supporting stereo)
 				Views[1].HairStrandsViewData = Views[0].HairStrandsViewData;
+
+				// Render DeepShadow for the second view, as for now the computations are view dependent. 
+				// This needs to be view independent to share result between eyes.
+				RenderHairStrandsDeepShadows(GraphBuilder, Scene, View, InstanceCullingManager);
+				GraphBuilder.AddDispatchHint();
 				return;
 			}
 		}

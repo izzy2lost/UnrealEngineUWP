@@ -243,6 +243,13 @@ void RenderHairStrandsDeepShadows(
 	FHairStrandsDeepShadowResources& DeepShadowResources = View.HairStrandsViewData.DeepShadowResources;
 	FHairStrandsVoxelResources VirtualVoxelResources = View.HairStrandsViewData.VirtualVoxelResources;
 
+	// Reset view data
+	for (FHairStrandsMacroGroupData& MacroGroup : MacroGroupDatas)
+	{
+		MacroGroup.DeepShadowDatas.Empty();
+	}
+	DeepShadowResources = FHairStrandsDeepShadowResources();
+
 	{
 		if (!View.Family)
 		{
