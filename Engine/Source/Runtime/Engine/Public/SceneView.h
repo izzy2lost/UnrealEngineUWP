@@ -1627,6 +1627,9 @@ public:
 protected:
 	friend class FSceneRenderer;
 
+	/** Some views get cloned for certain renders, like shadows (see FViewInfo::CreateSnapshot()). If that's the case, this will point to the view this one originates from */
+	const FSceneView* SnapshotOriginView = nullptr;
+
 public:
 
 	/** Initialization constructor. */
@@ -1869,6 +1872,8 @@ public:
 	{
 		return bHMDHiddenAreaMaskActive ? ERenderTargetLoadAction::EClear : ERenderTargetLoadAction::ENoAction;
 	}
+
+	const FSceneView* GetSnapshotOriginView() const { return SnapshotOriginView; }
 
 protected:
 	FSceneViewStateInterface* EyeAdaptationViewState = nullptr;

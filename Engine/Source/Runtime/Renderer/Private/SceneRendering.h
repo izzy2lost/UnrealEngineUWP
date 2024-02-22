@@ -1524,8 +1524,6 @@ public:
 
 	FGlobalShaderMap* ShaderMap;
 
-	bool bIsSnapshot;
-
 	// Whether this view should use compute passes where appropriate.
 	bool bUseComputePasses = false;
 
