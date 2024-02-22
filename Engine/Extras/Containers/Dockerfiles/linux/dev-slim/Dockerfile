@@ -8,7 +8,7 @@
 # - enable_dso_patch: false
 # - enable_ushell: true
 # - excluded_components: {"ddc": false, "debug": true, "templates": true}
-# - gitdependencies_args: "--exclude=Android --exclude=Mac --exclude=Win32 --exclude=Win64"
+# - gitdependencies_args: ""
 # 
 # This Dockerfile combines the steps for the following images:
 # 
@@ -147,7 +147,7 @@ RUN mkdir "$UE_GITDEPS" && echo '' && echo 'RUN directive complete. Docker will 
 # When running with BuildKit, we use a cache mount to cache the dependency data across multiple build invocations
 WORKDIR /home/ue4/UnrealEngine
 RUN --mount=type=cache,target=/home/ue4/gitdeps,uid=1000,gid=1000 sudo apt-get update && \
-	./Setup.sh --exclude=Android --exclude=Mac --exclude=Win32 --exclude=Win64 && \
+	./Setup.sh  && \
 	sudo rm -rf /var/lib/apt/lists/* && echo '' && echo 'RUN directive complete. Docker will now commit the filesystem layer to disk.' && echo 'Note that for large filesystem layers this can take quite some time.' && echo 'Performing filesystem layer commit...' && echo ''
 
 FROM source as builder
