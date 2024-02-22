@@ -179,7 +179,7 @@ namespace HarmonixMetasound
 		TArray<FMidiStreamReadRef> SameClockStreams;
 		MidiStreamOutPin->FilterArrayToStreamsWithTheSameClock({MidiStreamAInPin, MidiStreamBInPin}, SameClockStreams);
 		MidiStreamOutPin->CopyTransportEvents(SameClockStreams);
-		MidiStreamOutPin->CopyMidiEvents(MidiStreamAInPin);
+		MidiStreamOutPin->MergeMidiEvents(MidiStreamAInPin);
 		for (FMidiStreamEvent Event : MidiStreamBInPin->GetEventsInBlock())
 		{
 			uint32 GenId = Event.GetVoiceId().GetGeneratorId();
