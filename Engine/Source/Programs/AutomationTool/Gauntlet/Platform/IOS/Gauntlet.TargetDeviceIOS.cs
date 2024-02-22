@@ -277,27 +277,72 @@ namespace Gauntlet
 			// ios-deploy notes: -L launches detached, -I non-interactive  (exits when app exits), -r uninstalls before install (removes app Documents folder)
 			// -t <seconds> number of seconds to wait for device to be connected
 
-			// setup symbols if available
-			string DSymBundle = "";
-			string DSymDir = Path.Combine(GauntletAppCache, "Symbols");
-
-			if (Directory.Exists(DSymDir))
+			// check xcodebuild -version, to see if it larger than 15.0
+			bool bIsXcode15 = false;
+			IProcessResult XcodeVersionResult = CommandUtils.Run("xcodebuild", "-version");
+			if (XcodeVersionResult.ExitCode == 0)
 			{
-				DSymBundle = Directory.GetDirectories(DSymDir).Where(D => Path.GetExtension(D).ToLower() == ".dsym").FirstOrDefault();
-				DSymBundle = string.IsNullOrEmpty(DSymBundle) ? "" : DSymBundle = " -S \"" + DSymBundle + "\"";
+				// XcodeVersionResult.Output is: Xcode 15, try get version number
+				Match VersionMatch = Regex.Match(XcodeVersionResult.Output, @"Xcode\ (?<Version>\d+)");
+				if (VersionMatch.Success)
+				{
+					int Version = 0;
+					if (int.TryParse(VersionMatch.Groups["Version"].Value, out Version))
+					{
+						bIsXcode15 = Version >= 15;
+					}
+				}
 			}
 
-			string CL = "--noinstall -I" + DSymBundle + " -b \"" + LocalAppBundle + "\" --args '" + CommandLine.Trim() + "'";
-
-			IProcessResult Result = ExecuteIOSDeployCommand(CL, 0);
-
-			Thread.Sleep(5000);
-
-			// Give ios-deploy a chance to throw out any errors...
-			if (Result.HasExited)
+			IProcessResult Result;
+			if (bIsXcode15)
 			{
-				Log.Warning(KnownLogEvents.Gauntlet_DeviceEvent, "ios-deploy exited early: " + Result.Output);
-				throw new DeviceException("Failed to launch on {0}. {1}", Name, Result.Output);
+				CommandLine = CommandLine.Replace("\\\\", "");
+				string CL = String.Format("device process launch --device {0} {1} '{2}'", DeviceName, IOSApp.PackageName, CommandLine.Trim());
+				Result = ExecuteIOSDeployCommand(CL, 0, true, false, true);
+				Thread.Sleep(5000);
+				// check if IOSApp.PackageName process running using devicectl device info processes
+				while(true)
+				{
+					CL = String.Format("device info processes --device {0}", DeviceName);
+					Result = ExecuteIOSDeployCommand(CL, 0, true, false, true);
+					// Get BundleName from IOSApp.PackageName
+					string BundleName = IOSApp.PackageName.Substring(IOSApp.PackageName.LastIndexOf('.') + 1);
+					Log.Info("Process running: " + BundleName);
+					// check if IOSApp.PackageName process not running
+					if (!Result.Output.Contains(BundleName))
+					{
+						break;
+					}
+					Thread.Sleep(5000);
+				}
+
+			}
+			else
+			{
+
+				// setup symbols if available
+				string DSymBundle = "";
+				string DSymDir = Path.Combine(GauntletAppCache, "Symbols");
+
+				if (Directory.Exists(DSymDir))
+				{
+					DSymBundle = Directory.GetDirectories(DSymDir).Where(D => Path.GetExtension(D).ToLower() == ".dsym").FirstOrDefault();
+					DSymBundle = string.IsNullOrEmpty(DSymBundle) ? "" : DSymBundle = " -S \"" + DSymBundle + "\"";
+				}
+
+				string CL = "--noinstall -I" + DSymBundle + " -b \"" + LocalAppBundle + "\" --args '" + CommandLine.Trim() + "'";
+
+				Result = ExecuteIOSDeployCommand(CL, 0);
+
+				Thread.Sleep(5000);
+
+				// Give ios-deploy a chance to throw out any errors...
+				if (Result.HasExited)
+				{
+					Log.Warning(KnownLogEvents.Gauntlet_DeviceEvent, "ios-deploy exited early: " + Result.Output);
+					throw new DeviceException("Failed to launch on {0}. {1}", Name, Result.Output);
+				}
 			}
 
 			return new IOSAppInstance(IOSApp, Result, IOSApp.CommandLine);
@@ -912,14 +957,22 @@ namespace Gauntlet
 			return LocalDirectoryMappings;
 		}
 
-		public IProcessResult ExecuteIOSDeployCommand(String CommandLine, int WaitTime = 60, bool WarnOnTimeout = true, bool UseDeviceID = true)
+		public IProcessResult ExecuteIOSDeployCommand(String CommandLine, int WaitTime = 60, bool WarnOnTimeout = true, bool UseDeviceID = true, bool UseDeviceCtl = false)
 		{
-			if (UseDeviceID && !IsDefaultDevice)
-			{
-				CommandLine = String.Format("--id {0} {1}", DeviceName, CommandLine);
-			}
-
 			String IOSDeployPath = Path.Combine(Globals.UnrealRootDir, "Engine/Extras/ThirdPartyNotUE/ios-deploy/bin/ios-deploy");
+			if (UseDeviceCtl)
+			{
+				CommandLine = String.Format("devicectl {0}", CommandLine);
+				IOSDeployPath = "/usr/bin/xcrun";		
+			}
+			else
+			{
+				if (UseDeviceID && !IsDefaultDevice)
+				{
+					CommandLine = String.Format("--id {0} {1}", DeviceName, CommandLine);
+				}
+			}
+	
 
 			if (!File.Exists(IOSDeployPath))
 			{
