@@ -284,6 +284,13 @@ namespace Horde.Server.Accounts
 		}
 
 		/// <inheritdoc/>
+		public async Task<IAccount?> GetByUsernameAsync(string username, CancellationToken cancellationToken = default)
+		{
+			await CreateAdminAccountAsync(cancellationToken);
+			return await _accounts.Find(x => x.Name == username).FirstOrDefaultAsync(cancellationToken);
+		}
+
+		/// <inheritdoc/>
 		public Task UpdateAsync(AccountId id,
 			string? name,
 			string? login,

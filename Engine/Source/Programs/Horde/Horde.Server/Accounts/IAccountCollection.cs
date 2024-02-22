@@ -70,6 +70,14 @@ namespace Horde.Server.Accounts
 		Task<IAccount?> GetByLoginAsync(string login, CancellationToken cancellationToken = default);
 
 		/// <summary>
+		/// Get an account via Username
+		/// </summary>
+		/// <param name="username">Username to use for searching</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>The service account</returns>
+		Task<IAccount?> GetByUsernameAsync(string username, CancellationToken cancellationToken = default);
+
+		/// <summary>
 		/// Update an account from the collection
 		/// </summary>
 		/// <param name="id">Account ID</param>
