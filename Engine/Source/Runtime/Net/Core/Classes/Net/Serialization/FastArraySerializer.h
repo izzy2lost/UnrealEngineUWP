@@ -694,17 +694,17 @@ private:
 			TArray<int32, TInlineAllocator<8>>& AddedIndices,
 			GuidMapType& GuidMap);
 	
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		/** Conditionally invoke PostReplicatedReceive method depending on if is defined or not */
 		template<typename FastArrayType = SerializerType>
 		inline typename TEnableIf<TModels_V<CPostReplicatedReceiveFuncable, FastArrayType, const FFastArraySerializer::FPostReplicatedReceiveParameters>, void>::Type CallPostReplicatedReceiveOrNot(int32 OldArraySize)
 		{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			FFastArraySerializer::FPostReplicatedReceiveParameters PostReceivedParameters;
 			PostReceivedParameters.OldArraySize = OldArraySize;
 			PostReceivedParameters.bHasMoreUnmappedReferences = Parms.bOutHasMoreUnmapped;
 			ArraySerializer.PostReplicatedReceive(PostReceivedParameters);
-		}
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		}
 
 		template<typename FastArrayType = SerializerType>
 		inline typename TEnableIf<!TModels_V<CPostReplicatedReceiveFuncable, FastArrayType, const FFastArraySerializer::FPostReplicatedReceiveParameters>, void>::Type CallPostReplicatedReceiveOrNot(int32) {}

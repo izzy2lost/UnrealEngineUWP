@@ -359,7 +359,9 @@ struct FExamplePolymorphicStructFastArraySerializer : public FIrisFastArraySeria
 	void PostReplicatedReceive(const FFastArraySerializer::FPostReplicatedReceiveParameters& Parameters)
 	{
 		bHitPostReplicatedReceive = 1U;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		bPostReplicatedReceiveWasHitWithUnresolvedReferences = Parameters.bHasMoreUnmappedReferences;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 public:
