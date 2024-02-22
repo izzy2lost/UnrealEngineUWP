@@ -2147,13 +2147,15 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 
 	TArray<FOptimusGraphVariableDescription> ValueNodeDescriptions;
 	ValueNodeDescriptions.Reserve(ValueNodes.Num());
-	for (UOptimusNode const* ValueNode : ValueNodes)
+	for (int32 ValueNodeIndex = 0 ; ValueNodeIndex < ValueNodes.Num(); ValueNodeIndex++)
 	{
+		UOptimusNode const* ValueNode = ValueNodes[ValueNodeIndex];
 		if (IOptimusValueProvider const* ValueProvider = Cast<const IOptimusValueProvider>(ValueNode))
 		{
 			FOptimusGraphVariableDescription& ValueNodeDescription = ValueNodeDescriptions.AddDefaulted_GetRef();
-			ValueNodeDescription.Name = ValueProvider->GetValueName();
+			ValueNodeDescription.Name = Optimus::MakeUniqueValueName(ValueProvider->GetValueDebugName(), ValueNodeIndex);
 			ValueNodeDescription.ValueType = ValueProvider->GetValueType()->ShaderValueType;
+			ValueNodeDescription.SourceObject = ValueNode;
 
 			if (UOptimusNode_ConstantValue const* ConstantNode = Cast<const UOptimusNode_ConstantValue>(ValueNode))
 			{
@@ -3027,7 +3029,7 @@ void UOptimusDeformer::Notify(EOptimusGlobalNotifyType InNotifyType, UObject* In
 	case EOptimusGlobalNotifyType::ConstantValueChanged:
 		if (UOptimusNode_ConstantValue* ConstantValue = Cast<UOptimusNode_ConstantValue>(InObject))
 		{
-			ConstantValueUpdateDelegate.Broadcast(ConstantValue->GetValueName(), ConstantValue->GetShaderValue().ShaderValue);
+			ConstantValueUpdateDelegate.Broadcast(ConstantValue, ConstantValue->GetShaderValue().ShaderValue);
 		}
 		
 		break;

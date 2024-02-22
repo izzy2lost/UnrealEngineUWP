@@ -246,7 +246,7 @@ public:
 	
 	
 	/** Directly set a graph constant value. */
-	void SetConstantValueDirect(FString const& InVariableName, TArray<uint8> const& InValue);
+	void SetConstantValueDirect(TSoftObjectPtr<UObject> InSourceObject, TArray<uint8> const& InValue);
 
 	FOptimusPersistentBufferPoolPtr GetBufferPool() const { return BufferPool; }
 

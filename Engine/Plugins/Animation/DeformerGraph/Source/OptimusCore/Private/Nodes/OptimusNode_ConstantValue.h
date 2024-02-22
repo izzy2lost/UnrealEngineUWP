@@ -65,7 +65,7 @@ public:
 #endif
 
 	// IOptimusValueProvider overrides 
-	FString GetValueName() const override;
+	FString GetValueDebugName() const override;
 	FOptimusDataTypeRef GetValueType() const override;
 	FShaderValueType::FValue GetShaderValue() const override;
 

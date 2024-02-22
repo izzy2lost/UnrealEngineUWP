@@ -126,4 +126,6 @@ namespace Optimus
 	bool FindMovedItemInNameArray(const TArray<FName>& Old, const TArray<FName>& New, FName& OutSubjectName, FName& OutNextName);
 
 	FName GenerateUniqueNameFromExistingNames(FName InBaseName, const TArray<FName>& InExistingNames);
+
+	FString MakeUniqueValueName(const FString& InValueName, int32 InUniqueIndex);
 }

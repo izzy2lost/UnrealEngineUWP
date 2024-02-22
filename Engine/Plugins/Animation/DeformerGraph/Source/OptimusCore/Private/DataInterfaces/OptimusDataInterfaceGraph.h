@@ -28,6 +28,9 @@ struct FOptimusGraphVariableDescription
 
 	UPROPERTY()
 	int32 Offset = 0;
+
+	UPROPERTY()
+	TSoftObjectPtr<UObject> SourceObject;
 };
 
 /** Compute Framework Data Interface used for marshaling compute graph parameters and variables. */
@@ -73,8 +76,8 @@ public:
 
 	int32 ParameterBufferSize = 0;
 
-	void SetConstant(FString const& InVariableName, TArray<uint8> const& InValue);
-
+	void SetConstant(TSoftObjectPtr<UObject> InSourceObject, TArray<uint8> const& InValue);
+	
 	//~ Begin UComputeDataProvider Interface
 	FComputeDataProviderRenderProxy* GetRenderProxy() override;
 	//~ End UComputeDataProvider Interface
