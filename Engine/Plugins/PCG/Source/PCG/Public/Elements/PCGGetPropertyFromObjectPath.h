@@ -27,6 +27,7 @@ public:
 	virtual void GetStaticTrackedKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const override;
 	virtual bool CanDynamicalyTrackKeys() const override { return true; }
 #endif
+	virtual bool CanCullTaskIfUnwired() const override { return false; }
 	virtual FString GetAdditionalTitleInformation() const override;
 
 protected:
