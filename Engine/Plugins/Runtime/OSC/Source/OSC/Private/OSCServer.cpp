@@ -1,31 +1,30 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "OSCServer.h"
 
-
-#include "OSCMessage.h"
+#include "Containers/Ticker.h"
+#include "OSCAddress.h"
 #include "OSCBundle.h"
 #include "OSCBundlePacket.h"
 #include "OSCLog.h"
+#include "OSCMessage.h"
+#include "OSCMessagePacket.h"
+#include "OSCPacket.h"
 #include "OSCServerProxy.h"
 
 
 namespace UE::OSC
 {
-	TSharedPtr<IServerProxy> IServerProxy::Create(UOSCServer* Parent)
+	TSharedPtr<IServerProxy> IServerProxy::Create()
 	{
-		return MakeShared<OSC::FServerProxy>(*Parent);
+		return MakeShared<OSC::FServerProxy>();
 	}
 
 	bool IServerProxy::SetAddress(const FString& InReceiveIPAddress, int32 InPort)
 	{
-		FIPv4Address Address;
-		if (FIPv4Address::Parse(InReceiveIPAddress, Address))
-		{
-			return SetIPEndpoint(FIPv4Endpoint(Address, InPort));
-		}
-
-		UE_LOG(LogOSC, Error, TEXT("Invalid ReceiveIPAddress '%s'. OSCServer ReceiveIP Address not updated."), *InReceiveIPAddress);
-		return false;
+		FIPv4Endpoint Endpoint;
+		FIPv4Address::Parse(InReceiveIPAddress, Endpoint.Address);
+		Endpoint.Port = InPort;
+		return SetIPEndpoint(Endpoint);
 	}
 } // namespace UE::OSC
 
@@ -49,6 +48,8 @@ bool UOSCServer::IsActive() const
 void UOSCServer::Listen()
 {
 	check(ServerProxy.IsValid());
+
+	ClearPacketsInternal();
 	ServerProxy->Listen(GetName());
 
 	TickHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([this](float /*Time*/)
@@ -87,8 +88,11 @@ void UOSCServer::Stop()
 	// CDO May have this not set by initializer ctor, so have to check if valid
 	if (ServerProxy.IsValid())
 	{
+		ServerProxy->SetOnDispatchPacket({ });
 		ServerProxy->Stop();
 	}
+
+	ClearPacketsInternal();
 }
 
 void UOSCServer::BeginDestroy()
@@ -112,7 +116,7 @@ void UOSCServer::PostInitProperties()
 	if (DefaultObj != this)
 	{
 		OSCPackets = MakeShared<FPacketQueue>();
-		ServerProxy = IServerProxy::Create(this);
+		ServerProxy = IServerProxy::Create();
 	}
 }
 
@@ -228,14 +232,19 @@ TArray<FOSCAddress> UOSCServer::GetBoundOSCAddressPatterns() const
 	return OutAddressPatterns;
 }
 
-void UOSCServer::ClearPackets()
+void UOSCServer::ClearPacketsInternal()
 {
-	OSCPackets = { };
-}
+	using namespace UE::OSC;
 
-void UOSCServer::EnqueuePacket(TSharedPtr<UE::OSC::IPacket> InPacket)
-{
-	OSCPackets->Enqueue(InPacket);
+	OSCPackets = MakeShared<FPacketQueue>();
+
+	if (ServerProxy.IsValid())
+	{
+		ServerProxy->SetOnDispatchPacket(MakeShared<IServerProxy::FOnDispatchPacket>([Queue = OSCPackets](TSharedRef<UE::OSC::IPacket> Packet)
+		{
+			Queue->Enqueue(Packet);
+		}));
+	}
 }
 
 void UOSCServer::BroadcastBundle(const FOSCBundle& InBundle)

@@ -46,8 +46,10 @@ namespace UE::OSC
 	class OSC_API IServerProxy
 	{
 	public:
+		using FOnDispatchPacket = TUniqueFunction<void(TSharedRef<UE::OSC::IPacket>)>;
+
 		// Creates a new server proxy that can be used by any system where the provided dispatch callback is called on a worker thread.
-		static TSharedPtr<IServerProxy> Create(UOSCServer* Parent);
+		static TSharedPtr<IServerProxy> Create();
 
 		virtual ~IServerProxy() { }
 
@@ -84,8 +86,13 @@ namespace UE::OSC
 		// Sets whether or not loopback is enabled.  Returns false and request is ignored
 		// if server is currently active.
 		virtual bool SetMulticastLoopback(bool bInMulticastLoopback) = 0;
+
+		// Sets dispatch function to be called when OSC packet is received (thread safe
+		// and can be mutated while server is running)
+		virtual void SetOnDispatchPacket(TSharedPtr<FOnDispatchPacket> OnDispatch) { };
+
 #if WITH_EDITOR
-		UE_DEPRECATED(5.5, "All server proxies are now ticked internally by handle in all editor contexts.")
+		UE_DEPRECATED(5.5, "ServerProxies are no longer independently ticked objects only and can now be accessed by threads other than the GameThread via the 'SetOnDispatchPacket' setter.")
 		virtual void SetTickableInEditor(bool bInTickInEditor) { };
 #endif // WITH_EDITOR
 
@@ -240,7 +247,8 @@ public:
 	UE_DEPRECATED(5.5, "Clearing packets directly is not thread-safe and no longer supported.")
 	void ClearPackets();
 
-	void EnqueuePacket(TSharedPtr<UE::OSC::IPacket> InPacket);
+	UE_DEPRECATED(5.5, "Enqueuing packets is now handled privately")
+	void EnqueuePacket(TSharedPtr<UE::OSC::IPacket> InPacket) { }
 
 	UE_DEPRECATED(5.5, "Pumping packets is now handled privately")
 	void PumpPacketQueue(const TSet<uint32>* InAllowlistedClients) { }
@@ -250,6 +258,8 @@ protected:
 	virtual void PostInitProperties() override;
 
 private:
+	void ClearPacketsInternal();
+
 	using FPacketQueue = TSpscQueue<TSharedPtr<UE::OSC::IPacket>>;
 	void PumpPacketQueue();
 

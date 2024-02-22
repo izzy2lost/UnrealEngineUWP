@@ -2,10 +2,10 @@
 #pragma once
 
 
-#include "Common/UdpSocketReceiver.h"
-#include "Tickable.h"
+#include "HAL/CriticalSection.h"
 
 #include "OSCServer.h"
+#include "OSCServerReceiver.h"
 
 struct FIPv4Endpoint;
 
@@ -15,7 +15,7 @@ namespace UE::OSC
 	class FServerProxy : public IServerProxy , public TSharedFromThis<FServerProxy>
 	{
 	public:
-		FServerProxy(UOSCServer& InServer);
+		FServerProxy();
 		virtual ~FServerProxy();
 
 		// Begin IServerProxy interface
@@ -42,7 +42,7 @@ namespace UE::OSC
 
 		virtual bool SetIPEndpoint(const FIPv4Endpoint& InEndpoint) override;
 		virtual bool SetMulticastLoopback(bool bInMulticastLoopback) override;
-
+		virtual void SetOnDispatchPacket(TSharedPtr<FOnDispatchPacket> OnDispatch) override;
 		virtual void Stop() override;
 
 		virtual void RemoveClientFromAllowList(const FString& InIPAddress) override;
@@ -53,16 +53,11 @@ namespace UE::OSC
 
 	private:
 		/** Callback that receives data from a socket. */
-		void OnPacketReceived(const FArrayReaderPtr& InData, const FIPv4Endpoint& InEndpoint);
+		void OnPacketReceived(FConstPacketDataRef InData, const FIPv4Endpoint& InEndpoint);
 
-		/** Parent server UObject */
-		UOSCServer* Server;
+		mutable FCriticalSection MutateDispatchFunctionCritSec;
 
-		/** Socket used to listen for OSC packets. */
-		FSocket* Socket;
-
-		/** UDP receiver. */
-		FUdpSocketReceiver* SocketReceiver;
+		TSharedPtr<FServerReceiver> ServerReceiver;
 
 		/** Only packets from this list of client addresses will be processed if bFilterClientsByAllowList is true. */
 		TSet<FIPv4Endpoint> ClientAllowList;
@@ -72,5 +67,7 @@ namespace UE::OSC
 
 		/** Whether or not to loopback if address provided is multicast */
 		bool bMulticastLoopback = false;
+
+		TSharedPtr<FOnDispatchPacket> OnDispatchFunction;
 	};
 } // namespace UE::OSC

@@ -10,11 +10,7 @@
 
 namespace UE::OSC
 {
-	FServerProxy::FServerProxy(UOSCServer& InServer)
-		: Server(&InServer)
-		, Socket(nullptr)
-		, SocketReceiver(nullptr)
-		, bMulticastLoopback(false)
+	FServerProxy::FServerProxy()
 	{
 		ClientAllowList.Add(FIPv4Endpoint::Any);
 	}
@@ -44,11 +40,9 @@ namespace UE::OSC
 		return ClientAllowList.Contains(EndpointToTest);
 	}
 
-	void FServerProxy::OnPacketReceived(const FArrayReaderPtr& InData, const FIPv4Endpoint& InEndpoint)
+	void FServerProxy::OnPacketReceived(FConstPacketDataRef InData, const FIPv4Endpoint& InEndpoint)
 	{
-		using namespace UE::OSC;
-
-		TSharedPtr<IPacket> Packet = IPacket::CreatePacket(InData->GetData(), InEndpoint);
+		TSharedPtr<UE::OSC::IPacket> Packet = UE::OSC::IPacket::CreatePacket(InData->GetData(), InEndpoint);
 		if (!Packet.IsValid())
 		{
 			UE_LOG(LogOSC, Verbose, TEXT("Message received from endpoint '%s' invalid OSC packet."), *InEndpoint.ToString());
@@ -57,7 +51,12 @@ namespace UE::OSC
 
 		FStream Stream = FStream(InData->GetData(), InData->Num());
 		Packet->ReadData(Stream);
-		Server->EnqueuePacket(Packet);
+
+		FScopeLock Lock(&MutateDispatchFunctionCritSec);
+		if (OnDispatchFunction.IsValid())
+		{
+			(*OnDispatchFunction)(Packet.ToSharedRef());
+		}
 	}
 
 	FString FServerProxy::GetIpAddress() const
@@ -77,9 +76,9 @@ namespace UE::OSC
 
 	FString FServerProxy::GetDescription() const
 	{
-		if (Socket)
+		if (ServerReceiver.IsValid())
 		{
-			return Socket->GetDescription();
+			return ServerReceiver->GetDescription();
 		}
 
 		return { };
@@ -92,52 +91,23 @@ namespace UE::OSC
 
 	bool FServerProxy::IsActive() const
 	{
-		return SocketReceiver != nullptr;
+		return ServerReceiver.IsValid();
 	}
 
 	void FServerProxy::Listen(const FString& InServerName)
 	{
 		if (IsActive())
 		{
-			UE_LOG(LogOSC, Error, TEXT("OSCServer currently listening: %s:%d. Failed to start new service prior to calling stop."),
-				*InServerName, *Endpoint.Address.ToString(), Endpoint.Port);
+			UE_LOG(LogOSC, Error, TEXT("OSCServer currently '%s' currently listening to endpoint '%s'. Failed to start new service prior to calling stop."),
+				*InServerName, *Endpoint.Address.ToString());
 			return;
 		}
 
-		FUdpSocketBuilder Builder(*InServerName);
-		Builder.BoundToPort(Endpoint.Port);
-		if (Endpoint.Address.IsMulticastAddress())
-		{
-			Builder.JoinedToGroup(Endpoint.Address);
-			if (bMulticastLoopback)
-			{
-				Builder.WithMulticastLoopback();
-			}
-		}
-		else
-		{
-			if (bMulticastLoopback)
-			{
-				UE_LOG(LogOSC, Warning, TEXT("OSCServer '%s' ReceiveIPAddress provided is not a multicast address.  Not respecting MulticastLoopback boolean."),
-					*InServerName);
-			}
-			Builder.BoundToAddress(Endpoint.Address);
-		}
+		FServerReceiver::FOptions Options;
+		Options.bMulticastLoopback = bMulticastLoopback;
+		Options.ReceivedDataDelegate.BindSP(this, &FServerProxy::OnPacketReceived);
 
-		Socket = Builder.Build();
-		if (Socket)
-		{
-			SocketReceiver = new FUdpSocketReceiver(Socket, FTimespan::FromMilliseconds(100), *(InServerName + TEXT("_ListenerThread")));
-			SocketReceiver->OnDataReceived().BindRaw(this, &FServerProxy::OnPacketReceived);
-			SocketReceiver->Start();
-
-			UE_LOG(LogOSC, Display, TEXT("OSCServer '%s' Listening: %s:%d."), *InServerName, *Endpoint.Address.ToString(), Endpoint.Port);
-		}
-		else
-		{
-			// This is expected when the server isn't available, so it's not a Warning
-			UE_LOG(LogOSC, Display, TEXT("OSCServer '%s' failed to bind to socket on %s:%d. Check that the server is available on the specified address."), *InServerName, *Endpoint.Address.ToString(), Endpoint.Port);
-		}
+		ServerReceiver = FServerReceiver::Launch(InServerName, Endpoint, MoveTemp(Options));
 	}
 
 	bool FServerProxy::SetIPEndpoint(const FIPv4Endpoint& InEndpoint)
@@ -164,22 +134,15 @@ namespace UE::OSC
 		return true;
 	}
 
+	void FServerProxy::SetOnDispatchPacket(TSharedPtr<FOnDispatchPacket> OnDispatch)
+	{
+		FScopeLock Lock(&MutateDispatchFunctionCritSec);
+		OnDispatchFunction = OnDispatch;
+	}
+
 	void FServerProxy::Stop()
 	{
-		if (SocketReceiver)
-		{
-			delete SocketReceiver;
-			SocketReceiver = nullptr;
-		}
-
-		if (Socket)
-		{
-			Socket->Close();
-			ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->DestroySocket(Socket);
-			Socket = nullptr;
-		}
-
-
+		ServerReceiver.Reset();
 	}
 
 	void FServerProxy::AddClientToAllowList(const FString& InIPAddress)
