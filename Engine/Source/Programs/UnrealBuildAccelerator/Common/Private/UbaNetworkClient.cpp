@@ -41,16 +41,8 @@ namespace uba
 	{
 		StopListen();
 
+		Disconnect();
 		ScopedWriteLock lock(m_connectionsLock);
-		for (auto& connection : m_connections)
-		{
-			connection.backend->SetDisconnectCallback(connection.backendConnection, nullptr, nullptr);
-			if (connection.connected.exchange(0) == 0)
-				continue;
-			m_logger.Detail(TC("Disconnected from server..."));
-			connection.backend->Shutdown(connection.backendConnection);
-			connection.backend->Close(connection.backendConnection);
-		}
 		m_connections.clear(); // Before tcpBackend
 
 		delete m_tcpBackend;
@@ -71,11 +63,12 @@ namespace uba
 	{
 		struct RecvContext
 		{
-			RecvContext(NetworkClient& c, NetworkBackend& b, void* bc) : client(c), backend(b), backendConnection(bc), recvEvent(true) {}
+			RecvContext(NetworkClient& c, NetworkBackend& b, void* bc) : client(c), backend(b), backendConnection(bc), recvEvent(true), disconnectedEvent(true) {}
 			NetworkClient& client;
 			NetworkBackend& backend;
 			void* backendConnection;
 			Event recvEvent;
+			Event disconnectedEvent;
 			u8 error = 0;
 		} rc(*this, backend, backendConnection);
 
@@ -84,6 +77,13 @@ namespace uba
 				auto& c = *(RecvContext*)context;
 				c.error = 4;
 				c.recvEvent.Set();
+				c.disconnectedEvent.Set();
+			});
+
+		auto waitForDisconnect = MakeGuard([&]()
+			{
+				backend.Shutdown(backendConnection);
+				rc.disconnectedEvent.IsSet(~0u);
 			});
 
 		backend.SetRecvCallbacks(backendConnection, &rc, 1 + sizeof(Guid), [](void* context, u8* headerData, void*& outBodyContext, u8*& outBodyData, u32& outBodySize)
@@ -170,6 +170,8 @@ namespace uba
 			return false;
 		}
 
+		waitForDisconnect.Cancel();
+
 		if (m_connectionCount.fetch_add(1) != 0)
 			return true;
 
@@ -199,6 +201,7 @@ namespace uba
 		backend.SetDisconnectCallback(backendConnection, connection, [](void* context, void* connection)
 			{
 				auto& c = *(Connection*)context;
+				c.disconnectedEvent.Set();
 				c.owner.OnDisconnected(c, true);
 			});
 		backend.SetRecvCallbacks(backendConnection, connection, ReceiveHeaderSize, ReceiveResponseHeader, ReceiveResponseBody, TC("ReceiveMessageResponse"));
@@ -260,7 +263,10 @@ namespace uba
 	{
 		ScopedReadLock lock(m_connectionsLock);
 		for (auto& c : m_connections)
+		{
 			OnDisconnected(c, false);
+			c.disconnectedEvent.IsSet(~0u);
+		}
 	}
 
 	bool NetworkClient::StartListen(NetworkBackend& backend, u16 port)
@@ -314,6 +320,9 @@ namespace uba
 		u64 sendBytes = 0;
 		u64 recvBytes = 0;
 		u32 recvCount = 0;
+
+		ScopedReadLock lock(m_connectionsLock);
+		u32 connectionsCount = u32(m_connections.size());
 		for (auto& c : m_connections)
 		{
 			sendTimer.count += c.sendTimer.count;
@@ -322,6 +331,7 @@ namespace uba
 			recvBytes += c.recvBytes;
 			recvCount += c.recvCount;
 		}
+		lock.Leave();
 
 
 		logger.Info(TC("  ----- Uba client stats summary ------"));
@@ -334,7 +344,7 @@ namespace uba
 			logger.Info(TC("  DecryptTotal       %8u %9s"), m_decryptTimer.count.load(), TimeToText(m_decryptTimer.time).str);
 		}
 		logger.Info(TC("  MaxActiveMessages  %8u"), m_activeMessageIdMax);
-		logger.Info(TC("  Connections        %8u"), u32(m_connections.size()));
+		logger.Info(TC("  Connections        %8u"), connectionsCount);
 		logger.Info(TC("  SendSize Set/Max  %9s %9s"), BytesToText(m_sendSize).str, BytesToText(SendMaxSize).str);
 		logger.Info(TC(""));
 	}

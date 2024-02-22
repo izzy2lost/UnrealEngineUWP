@@ -542,6 +542,8 @@ namespace uba
 		{
 			struct WorkRec
 			{
+				Logger* logger;
+				const tchar* hint;
 				Atomic<u64> refCount;
 				u8* readPos = nullptr;
 				u8* writePos = nullptr;
@@ -551,9 +553,12 @@ namespace uba
 				u64 decompressedLeft = 0;
 				u64 written = 0;
 				Event done;
+				Atomic<bool> error;
 			};
 
 			WorkRec* rec = new WorkRec();
+			rec->logger = &m_logger;
+			rec->hint = readHint;
 			rec->readPos = compressedData;
 			rec->writePos = writeData;
 			rec->decompressedSize = decompressedSize;
@@ -575,12 +580,24 @@ namespace uba
 							lock.Leave();
 							if (!--rec->refCount)
 								delete rec;
-							return 0;
+							return;
 						}
 						u8* readPos = rec->readPos;
 						u8* writePos = rec->writePos;
 						u32 compressedBlockSize = ((u32*)readPos)[0];
 						u32 decompressedBlockSize = ((u32*)readPos)[1];
+
+						if (decompressedBlockSize == 0 || decompressedBlockSize > rec->decompressedSize)
+						{
+							bool f = false;
+							if (rec->error.compare_exchange_strong(f, true))
+								rec->logger->Error(TC("Decompressed block size %u is invalid. Decompressed file is %u (%s)"), decompressedBlockSize, rec->decompressedSize, rec->hint);
+							if (!--rec->refCount)
+								delete rec;
+							rec->done.Set();
+							return;
+						}
+
 						readPos += sizeof(u32) * 2;
 						rec->decompressedLeft -= decompressedBlockSize;
 						rec->readPos = readPos + compressedBlockSize;
@@ -588,7 +605,16 @@ namespace uba
 						lock.Leave();
 
 						OO_SINTa decompLen = OodleLZ_Decompress(readPos, (OO_SINTa)compressedBlockSize, writePos, (OO_SINTa)decompressedBlockSize); (void)decompLen;
-						UBA_ASSERTF(decompLen == decompressedBlockSize, TC("Expecting to be able to decompress to %u bytes but got %llu"), decompressedBlockSize, decompLen);
+						if (decompLen != decompressedBlockSize)
+						{
+							bool f = false;
+							if (rec->error.compare_exchange_strong(f, true))
+								rec->logger->Error(TC("Expecting to be able to decompress to %u bytes but got %llu (%s)"), decompressedBlockSize, decompLen, rec->hint);
+							if (!--rec->refCount)
+								delete rec;
+							rec->done.Set();
+							return;
+						}
 						lastWritten = u64(decompLen);
 					}
 				};
@@ -605,8 +631,14 @@ namespace uba
 			TimerScope ts(stats.decompressToMem);
 			work();
 			rec->done.IsSet();
+			bool success = !rec->error;
+			if (!success)
+				while (rec->refCount > 1)
+					Sleep(10);
+
 			if (!--rec->refCount)
 				delete rec;
+			return success;
 		}
 		else
 		{
@@ -620,12 +652,14 @@ namespace uba
 				if (!compressedBlockSize)
 					break;
 				u32 decompressedBlockSize = ((u32*)readPos)[1];
-				UBA_ASSERT(decompressedBlockSize <= left);
+				if (decompressedBlockSize == 0 || decompressedBlockSize > left)
+					return m_logger.Error(TC("Decompressed block size %u is invalid. Decompressed file is %u (%s)"), decompressedBlockSize, decompressedSize, readHint);
 				readPos += sizeof(u32) * 2;
 
 				TimerScope ts(stats.decompressToMem);
 				OO_SINTa decompLen = OodleLZ_Decompress(readPos, (OO_SINTa)compressedBlockSize, writePos, (OO_SINTa)decompressedBlockSize); (void)decompLen;
-				UBA_ASSERTF(decompLen == decompressedBlockSize, TC("Expecting to be able to decompress to %u bytes but got %llu"), decompressedBlockSize, decompLen);
+				if (decompLen != decompressedBlockSize)
+					return m_logger.Error(TC("Expecting to be able to decompress to %u bytes but got %llu (%s)"), decompressedBlockSize, decompLen, readHint);
 				writePos += decompressedBlockSize;
 				readPos += compressedBlockSize;
 				left -= decompressedBlockSize;

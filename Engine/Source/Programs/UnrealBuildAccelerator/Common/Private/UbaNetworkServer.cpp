@@ -94,23 +94,8 @@ namespace uba
 		,	m_backend(backend)
 		,	m_remoteSockAddr(remoteSockAddr)
 		,	m_cryptoKey(cryptoKey)
+		,	m_disconnectCallbackCalled(true)
 		,	m_backendConnection(backendConnection)
-		{
-		}
-
-		~Connection()
-		{
-			Stop();
-			if (m_backendConnection)
-			{
-				m_backend.SetDisconnectCallback(m_backendConnection, nullptr, nullptr);
-				m_backend.Close(m_backendConnection);
-			}
-			if (m_cryptoKey)
-				Crypto::DestroyKey(m_cryptoKey);
-		}
-
-		void Start()
 		{
 			m_activeWorkerCount = 1;
 
@@ -118,6 +103,7 @@ namespace uba
 				{
 					auto& conn = *(Connection*)context;
 					conn.Disconnect();
+					conn.m_disconnectCallbackCalled.Set();
 				});
 
 			m_backend.SetDataSentCallback(m_backendConnection, this, [](void* context, u32 bytes)
@@ -136,6 +122,13 @@ namespace uba
 				m_backend.SetRecvCallbacks(m_backendConnection, this, 4, ReceiveVersion, nullptr, TC("ReceiveVersion"));
 		}
 
+		~Connection()
+		{
+			Stop();
+			if (m_cryptoKey)
+				Crypto::DestroyKey(m_cryptoKey);
+		}
+
 		void Disconnect()
 		{
 			if (m_disconnectCalled.fetch_add(1) != 0)
@@ -148,7 +141,7 @@ namespace uba
 		bool Stop()
 		{
 			Disconnect();
-				
+
 			u64 startTimer = GetTime();
 			while (m_activeWorkerCount)
 			{
@@ -159,6 +152,10 @@ namespace uba
 				}
 				Sleep(1);
 			}
+
+			m_disconnectCallbackCalled.IsSet(~0u);
+			if (m_backendConnection)
+				m_backend.Close(m_backendConnection);
 			return true;
 		}
 
@@ -360,6 +357,7 @@ namespace uba
 		Client* m_client = nullptr;
 		sockaddr m_remoteSockAddr;
 		CryptoKey m_cryptoKey;
+		Event m_disconnectCallbackCalled;
 		Atomic<int> m_activeWorkerCount;
 		Atomic<int> m_disconnectCalled;
 		Atomic<bool> m_disconnected;
@@ -400,7 +398,9 @@ namespace uba
 
 	bool ConnectionInfo::ShouldDisconnect() const
 	{
-		return ((NetworkServer::Connection*)internalData)->m_shouldDisconnect;
+		auto& conn = *(NetworkServer::Connection*)internalData;
+		ScopedWriteLock lock(conn.m_shutdownLock);
+		return conn.m_shouldDisconnect;
 	}
 
 	void NetworkServer::Worker::Update(WorkerContext& context, bool signalAvailable)
@@ -1071,7 +1071,7 @@ namespace uba
 
 		RemoveDisconnectedConnections();
 
-		m_connections.emplace_back(*this, backend, backendConnection, remoteSocketAddr, cryptoKey).Start();
+		m_connections.emplace_back(*this, backend, backendConnection, remoteSocketAddr, cryptoKey);
 		m_maxActiveConnections = Max(m_maxActiveConnections, u32(m_connections.size()));
 		return true;
 	}

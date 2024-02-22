@@ -198,6 +198,9 @@ namespace uba
 		UBA_ASSERT(h);
 		UBA_ASSERT(headerSize <= MaxHeaderSize);
 		auto& conn = *(Connection*)connection;
+
+		ScopedCriticalSection lock(conn.shutdownLock);
+		UBA_ASSERTF(conn.disconnectCallback, TC("SetDisconnectCallback must be called before SetRecvCallbacks"));
 		conn.recvContext = context;
 		conn.headerSize = headerSize;
 		conn.headerCallback = h;
@@ -387,12 +390,11 @@ namespace uba
 				break;
 			}
 
-			auto socketClose = MakeGuard([&]() { CloseSocket(logger, clientSocket); });
-
-			if (!DisableNagle(logger, clientSocket))
+			if (!DisableNagle(logger, clientSocket) || !SetKeepAlive(logger, clientSocket))
+			{
+				CloseSocket(logger, clientSocket);
 				continue;
-			if (!SetKeepAlive(logger, clientSocket))
-				continue;
+			}
 
 			ScopedWriteLock lock(m_connectionsLock);
 			auto it = m_connections.emplace(m_connections.end(), clientSocket);
@@ -402,15 +404,12 @@ namespace uba
 
 			if (!m_connectedFunc(&conn, remoteSockAddr))
 			{
-				conn.socket = INVALID_SOCKET;
-				socketClose.Execute();
+				shutdown(clientSocket, SD_BOTH);
 				conn.ready.Set();
 				ScopedWriteLock lock2(m_connectionsLock);
 				m_connections.erase(it);
 				continue;
 			}
-
-			socketClose.Cancel();
 		}
 
 		return true;
@@ -470,14 +469,14 @@ namespace uba
 		SOCKET s = connection.socket;
 		connection.socket = INVALID_SOCKET;
 
-		auto cb = connection.disconnectCallback;
-		if (cb)
+		if (auto cb = connection.disconnectCallback)
 		{
 			auto context = connection.disconnectContext;
 			connection.disconnectCallback = nullptr;
 			connection.disconnectContext = nullptr;
 			cb(context, &connection);
 		}
+
 		if (s == INVALID_SOCKET)
 			return;
 		shutdown(s, SD_BOTH);
