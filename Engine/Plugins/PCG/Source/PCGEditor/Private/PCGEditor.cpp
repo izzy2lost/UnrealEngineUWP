@@ -2293,10 +2293,12 @@ void FPCGEditor::DeleteSelectedNodes()
 		PCGGraph->PrimeGraphCompilationCache();
 
 		bool bChanged = false;
-		TArray<UPCGNode*> NodesToRemove;
+
 		{
 			const FScopedTransaction Transaction(*FPCGEditorCommon::ContextIdentifier, LOCTEXT("PCGEditorDeleteTransactionMessage", "PCG Editor: Delete"), nullptr);
 			PCGEditorGraph->Modify();
+		
+			TArray<UPCGNode*> NodesToRemove;
 
 			for (UObject* Object : GraphEditorWidget->GetSelectedNodes())
 			{
@@ -2324,11 +2326,15 @@ void FPCGEditor::DeleteSelectedNodes()
 			}
 
 			PCGEditorGraph->Modify();
+
+			if (bChanged)
+			{
+				PCGGraph->RemoveNodes(NodesToRemove);
+			}
 		}
 
 		if (bChanged)
 		{
-			PCGGraph->RemoveNodes(NodesToRemove);
 			GraphEditorWidget->ClearSelectionSet();
 			GraphEditorWidget->NotifyGraphChanged();
 		}
