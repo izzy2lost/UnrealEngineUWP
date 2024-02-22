@@ -18,6 +18,7 @@
 #if WITH_EDITOR
 #include "Components/StaticMeshComponent.h"
 #include "Editor.h"
+#include "HAL/FileManager.h"
 #include "Modules/ModuleManager.h"
 #include "Misc/ArchiveMD5.h"
 #include "PhysicsEngine/BodySetup.h"
@@ -31,9 +32,7 @@
 #include "WorldPartition/HLOD/HLODSourceActorsFromCell.h"
 #endif
 
-
 DEFINE_LOG_CATEGORY(LogHLODHash);
-
 
 static int32 GWorldPartitionHLODForceDisableShadows = 0;
 static FAutoConsoleVariableRef CVarWorldPartitionHLODForceDisableShadows(
@@ -249,12 +248,6 @@ void AWorldPartitionHLOD::PostLoad()
 			check(SourceCellGuid.IsValid());
 		}
 	}
-
-	if (GetPackage()->GetPIEInstanceID() == INDEX_NONE)
-	{
-		// Update the disk size stat on load, as we can't really know it when saving
-		HLODStats.Add(FWorldPartitionHLODStats::MemoryDiskSizeBytes, FHLODActorDesc::GetPackageSize(this));
-	}
 #endif
 }
 
@@ -347,10 +340,8 @@ void AWorldPartitionHLOD::PreRegisterAllComponents()
 }
 
 #if WITH_EDITOR
-
 void AWorldPartitionHLOD::RerunConstructionScripts()
-{
-}
+{}
 
 void AWorldPartitionHLOD::OnWorldCleanup(UWorld* InWorld, bool bSessionEnded, bool bCleanupResources)
 {
@@ -469,6 +460,16 @@ void AWorldPartitionHLOD::SetHLODBounds(const FBox& InBounds)
 FBox AWorldPartitionHLOD::GetStreamingBounds() const
 {
 	return HLODBounds;
+}
+
+int64 AWorldPartitionHLOD::GetStat(FName InStatName) const
+{
+	if (InStatName == FWorldPartitionHLODStats::MemoryDiskSizeBytes)
+	{
+		const FString PackageFileName = GetPackage()->GetLoadedPath().GetLocalFullPath();
+		return IFileManager::Get().FileSize(*PackageFileName);
+	}
+	return HLODStats.FindRef(InStatName);
 }
 
 uint32 AWorldPartitionHLOD::GetHLODHash() const
