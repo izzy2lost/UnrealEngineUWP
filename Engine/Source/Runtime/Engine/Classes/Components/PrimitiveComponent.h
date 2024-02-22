@@ -443,10 +443,6 @@ public:
 	UPROPERTY()
 	uint8 bSelectable:1;
 
-	/** When true, this component requests editor effects like outlines and overlays. */
-	UPROPERTY()
-	uint8 bWantsEditorEffects:1;
-
 #if WITH_EDITORONLY_DATA
 	/** If true, this component will be considered for placement when dragging and placing items in the editor even if it is not visible, such as in the case of hidden collision meshes */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = Collision)
@@ -677,8 +673,6 @@ public:
 	uint8 bAlwaysAllowTranslucentSelect : 1;
 
 	uint8 SelectionOutlineColorIndex;
-
-	FColor OverlayColor;
 #endif
 
 public:
@@ -2558,10 +2552,9 @@ public:
 
 	/** Sets whether this component is being moved by the editor so the renderer can render velocities for it, even when Static. */
 	ENGINE_API void SetIsBeingMovedByEditor(bool bNewIsBeingMoved);
-	
+
+
 	ENGINE_API void SetSelectionOutlineColorIndex(uint8 SelectionOutlineColorIndex);
-	
-	ENGINE_API void SetOverlayColor(FColor OverlayColor);
 #endif// WITH_EDITOR
 
 	/** Resets the cached scene velocity. Useful to prevent motion blur when teleporting components. See also SetIsBeingMovedByEditor(). */
