@@ -3208,14 +3208,6 @@ void FSequencer::SetLocalTime( FFrameTime NewTime, ESnapTimeMode SnapTimeMode, b
 
 void FSequencer::SetLocalTimeDirectly(FFrameTime NewTime, bool bEvaluate)
 {
-	TWeakPtr<SWidget> PreviousFocusedWidget = FSlateApplication::Get().GetKeyboardFocusedWidget();
-
-	// Clear focus before setting time in case there's a key editor value selected that gets committed to a newly selected key on UserMovedFocus
-	if (GetPlaybackStatus() == EMovieScenePlayerStatus::Stopped)
-	{
-		FSlateApplication::Get().ClearKeyboardFocus(EFocusCause::Cleared);
-	}
-
 	// Special-case. If the RootToLocalTransform contains a zero timescale, then scrubbing in the subscene should not change the current time
 	// Inverting the zero time-scale time is technically non-deterministic, and so doing this scrub would just result in losing the current global time
 	// while maintaining the same sub-sequence time (as we're holding a single frame there). So the best case here is just preventing the scrub.
@@ -3223,11 +3215,6 @@ void FSequencer::SetLocalTimeDirectly(FFrameTime NewTime, bool bEvaluate)
 	{
 		// Transform the time to the root time-space
 		SetGlobalTime(NewTime * RootToLocalTransform.InverseFromLoop(RootToLocalLoopCounter), bEvaluate);
-	}
-
-	if (PreviousFocusedWidget.IsValid())
-	{
-		FSlateApplication::Get().SetKeyboardFocus(PreviousFocusedWidget.Pin());
 	}
 }
 
