@@ -579,7 +579,7 @@ namespace Chaos::Private
 {
 	// Generate a contact manifold between a convex and a triangle, given the closest feature (i.e., single Contact point)
 	template <typename ConvexType>
-	void ConvexTriangleManifoldFromContact(const ConvexType& Convex, const FTriangle& Triangle, const FConvexContactPoint& Contact, const FReal CullDistance, FContactPointLargeManifold& OutManifold)
+	void ConvexTriangleManifoldFromContact(const ConvexType& Convex, const FTriangle& Triangle, const FVec3& TriangleNormal, const FConvexContactPoint& Contact, const FReal CullDistance, FContactPointLargeManifold& OutManifold)
 	{
 		// Convex plane
 		const int32 ConvexPlaneIndex = Contact.Features[0].PlaneIndex;
@@ -589,7 +589,7 @@ namespace Chaos::Private
 
 		// Triangle plane
 		check(Contact.Features[1].PlaneIndex == 0);
-		const FVec3 TriN = Triangle.GetNormal();
+		const FVec3 TriN = TriangleNormal;
 		const FVec3 TriC = Triangle.GetCentroid();
 
 		const FVec3& SeparatingAxis = Contact.ShapeContactNormal;
@@ -711,12 +711,12 @@ namespace Chaos::Private
 				AddContact(ConvexX, TriX, Distance);
 			}
 		}
-
 	}
 
 	template void ConvexTriangleManifoldFromContact(
 		const FImplicitConvex3& Convex, 
 		const FTriangle& Triangle, 
+		const FVec3& TriangleNormal, 
 		const FConvexContactPoint& Contact,
 		const FReal CullDistance, 
 		FContactPointLargeManifold& OutManifold);
@@ -724,6 +724,7 @@ namespace Chaos::Private
 	template void ConvexTriangleManifoldFromContact(
 		const TImplicitObjectInstanced<FImplicitConvex3>& Convex,
 		const FTriangle& Triangle, 
+		const FVec3& TriangleNormal,
 		const FConvexContactPoint& Contact,
 		const FReal CullDistance, 
 		FContactPointLargeManifold& OutManifold);
@@ -731,6 +732,7 @@ namespace Chaos::Private
 	template void ConvexTriangleManifoldFromContact(
 		const TImplicitObjectScaled<FImplicitConvex3>& Convex,
 		const FTriangle& Triangle,
+		const FVec3& TriangleNormal,
 		const FConvexContactPoint& Contact,
 		const FReal CullDistance,
 		FContactPointLargeManifold& OutManifold);
@@ -738,6 +740,7 @@ namespace Chaos::Private
 	template void ConvexTriangleManifoldFromContact(
 		const FImplicitBox3& Convex,
 		const FTriangle& Triangle,
+		const FVec3& TriangleNormal,
 		const FConvexContactPoint& Contact,
 		const FReal CullDistance,
 		FContactPointLargeManifold& OutManifold);
@@ -745,6 +748,7 @@ namespace Chaos::Private
 	template void ConvexTriangleManifoldFromContact(
 		const TImplicitObjectScaled<FImplicitBox3>& Convex,
 		const FTriangle& Triangle,
+		const FVec3& TriangleNormal,
 		const FConvexContactPoint& Contact,
 		const FReal CullDistance,
 		FContactPointLargeManifold& OutManifold);
@@ -752,6 +756,7 @@ namespace Chaos::Private
 	template void ConvexTriangleManifoldFromContact(
 		const TImplicitObjectInstanced<FImplicitBox3>& Convex,
 		const FTriangle& Triangle,
+		const FVec3& TriangleNormal,
 		const FConvexContactPoint& Contact,
 		const FReal CullDistance,
 		FContactPointLargeManifold& OutManifold);

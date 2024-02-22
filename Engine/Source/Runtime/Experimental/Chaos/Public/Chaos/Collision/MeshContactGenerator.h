@@ -161,22 +161,45 @@ namespace Chaos::Private
 				return false;
 			}
 
-			// Get the positions of the other two vertices in the triangle. (VertexIndex is an index into the owning mesh's vertices)
-			inline bool GetOtherVerticesFromID(const int32 VertexIndex, FVec3& OutVertex0, FVec3& OutVertex1) const
+			inline bool GetOtherVertexIDs(const int32 VertexID, int32& OutVertexID0, int32& OutVertexID1) const
 			{
-				if (VertexIndex == VertexIndices[0])
+				if (VertexID == VertexIndices[0])
+				{
+					OutVertexID0 = VertexIndices[1];
+					OutVertexID1 = VertexIndices[2];
+					return true;
+				}
+				else if (VertexID == VertexIndices[1])
+				{
+					OutVertexID0 = VertexIndices[2];
+					OutVertexID1 = VertexIndices[0];
+					return true;
+				}
+				else if (VertexID == VertexIndices[2])
+				{
+					OutVertexID0 = VertexIndices[0];
+					OutVertexID1 = VertexIndices[1];
+					return true;
+				}
+				return false;
+			}
+
+			// Get the positions of the other two vertices in the triangle. (VertexIndex is an index into the owning mesh's vertices)
+			inline bool GetOtherVerticesFromID(const int32 VertexID, FVec3& OutVertex0, FVec3& OutVertex1) const
+			{
+				if (VertexID == VertexIndices[0])
 				{
 					OutVertex0 = Triangle.GetVertex(1);
 					OutVertex1 = Triangle.GetVertex(2);
 					return true;
 				}
-				else if (VertexIndex == VertexIndices[1])
+				else if (VertexID == VertexIndices[1])
 				{
 					OutVertex0 = Triangle.GetVertex(2);
 					OutVertex1 = Triangle.GetVertex(0);
 					return true;
 				}
-				else if (VertexIndex == VertexIndices[2])
+				else if (VertexID == VertexIndices[2])
 				{
 					OutVertex0 = Triangle.GetVertex(0);
 					OutVertex1 = Triangle.GetVertex(1);
@@ -370,6 +393,16 @@ namespace Chaos::Private
 			}
 		}
 
+		bool IsSharedEdge(const FContactEdgeID& EdgeID) const
+		{
+			const FEdgeTriangleIndices* EdgeTriangleIndices = EdgeTriangleIndicesMap.Find(EdgeID);
+			if (EdgeTriangleIndices != nullptr)
+			{
+				return (EdgeTriangleIndices->LocalTriangleIndices[0] != INDEX_NONE) && (EdgeTriangleIndices->LocalTriangleIndices[1] != INDEX_NONE);
+			}
+			return false;
+		}
+
 		int32 GetOtherTriangleIndexForEdge(const int32 LocalTriangleIndex, const FContactEdgeID& EdgeID)
 		{
 			FEdgeTriangleIndices* EdgeTriangleIndices = EdgeTriangleIndicesMap.Find(EdgeID);
@@ -422,7 +455,12 @@ namespace Chaos::Private
 			return Triangles[LocalTriangleIndex].GetTriangle();
 		}
 
-		bool FixFeature(const int32 LocalTriangleIndex, Private::EConvexFeatureType& InOutFeatureType, int32& InOutFeatureIndex, FVec3& InOutPlaneNormal, FVec3& InOutPlanePosition);
+		const FVec3& GetTriangleNormal(const int32 LocalTriangleIndex) const
+		{
+			return Triangles[LocalTriangleIndex].GetNormal();
+		}
+
+		bool FixFeature(const int32 LocalTriangleIndex, Private::EConvexFeatureType& InOutFeatureType, int32& InOutFeatureIndex, FVec3& InOutPlaneNormal);
 
 		void AddTriangleContacts(const int32 LocalTriangleIndex, const TArrayView<FContactPoint>& TriangleContactPoints);
 

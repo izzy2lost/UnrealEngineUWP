@@ -75,14 +75,6 @@ namespace Chaos:: Private
 			PMax = D0;
 		}
 	}
-
-	// Update contact as if the second shape has moved. Shift must be in the space of the second object
-	inline void ApplyContactPointShift(FContactPoint& InOutContactPoint, const FVec3& Shift)
-	{
-		const FReal ShiftDotNormal = FVec3::DotProduct(Shift, InOutContactPoint.ShapeContactNormal);
-		InOutContactPoint.ShapeContactPoints[1] += (Shift - ShiftDotNormal * InOutContactPoint.ShapeContactNormal);
-		InOutContactPoint.Phi += ShiftDotNormal;
-	}
 }
 
 namespace Chaos

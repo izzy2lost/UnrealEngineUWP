@@ -352,9 +352,10 @@ namespace Chaos::Private
 		}
 	}
 
-	bool FMeshContactGenerator::FixFeature(const int32 LocalTriangleIndex, Private::EConvexFeatureType& InOutFeatureType, int32& InOutFeatureIndex, FVec3& InOutPlaneNormal, FVec3& InOutPlanePosition)
+	bool FMeshContactGenerator::FixFeature(const int32 LocalTriangleIndex, Private::EConvexFeatureType& InOutFeatureType, int32& InOutFeatureIndex, FVec3& InOutPlaneNormal)
 	{
 		const FTriangleExt& Triangle = Triangles[LocalTriangleIndex];
+		const FVec3& TriangleNormal = Triangle.GetNormal();
 
 		// For convex edges, we ensure that the normal is between the normals of the adjacent faces
 		// For concave edges, we replace the normal with the triangle face normal
@@ -369,15 +370,18 @@ namespace Chaos::Private
 			const FContactEdgeID EdgeID = FContactEdgeID(VertexIndex0, VertexIndex1);
 
 			const int32 OtherLocalTriangleIndex = GetOtherTriangleIndexForEdge(LocalTriangleIndex, EdgeID);
+
+			// If there is no other triangle we have a boundary edge
 			if (OtherLocalTriangleIndex == INDEX_NONE)
 			{
-				// We don't have the other triangle. Maybe we should use the face plane rather than leaving the edge?
-				return false;
+				// Boundary edge - use face normal
+				InOutFeatureType = Private::EConvexFeatureType::Plane;
+				InOutFeatureIndex = 0;
+				InOutPlaneNormal = TriangleNormal;
+				return true;
 			}
 
 			const FTriangleExt& OtherTriangle = Triangles[OtherLocalTriangleIndex];
-
-			const FVec3& TriangleNormal = Triangle.GetNormal();
 			const FVec3& OtherTriangleNormal = OtherTriangle.GetNormal();
 
 			// Common case - both triangles have the same normal - treat as concave
@@ -415,6 +419,7 @@ namespace Chaos::Private
 				return true;
 			}
 
+			// Same as above but against the other triangle sharing the edge
 			FVec3 OtherVertex0, OtherVertex1;
 			if (OtherTriangle.GetVertexWithID(VertexIndex0, OtherVertex0) && OtherTriangle.GetVertexWithID(VertexIndex1, OtherVertex1))
 			{
@@ -445,10 +450,27 @@ namespace Chaos::Private
 			for (int32 OtherLocalTriangleIndex = 0; OtherLocalTriangleIndex < Triangles.Num(); ++OtherLocalTriangleIndex)
 			{
 				const FTriangleExt& OtherTriangle = Triangles[OtherLocalTriangleIndex];
+
+				// We don't collide with boundary vertices. The vertex is a boundary vertex if any of the edges including
+				// the vertex are boundary edges (i.e., not shared between two triangles)
+				int32 OtherVertexIndexB, OtherVertexIndexC;
+				if (OtherTriangle.GetOtherVertexIDs(VertexIndexA, OtherVertexIndexB, OtherVertexIndexC))
+				{
+					const FContactEdgeID EdgeAB = FContactEdgeID(VertexIndexA, OtherVertexIndexB);
+					const FContactEdgeID EdgeCA = FContactEdgeID(OtherVertexIndexC, VertexIndexA);
+					if (!IsSharedEdge(EdgeAB) || !IsSharedEdge(EdgeCA))
+					{
+						InOutFeatureType = Private::EConvexFeatureType::Plane;
+						InOutFeatureIndex = 0;
+						InOutPlaneNormal = TriangleNormal;
+						return true;
+					}
+				}
+
+				// Does the contact normal point into the infinite prism formed by extruding the triangle along the face normal?
 				FVec3 OtherVertexB, OtherVertexC;
 				if (OtherTriangle.GetOtherVerticesFromID(VertexIndexA, OtherVertexB, OtherVertexC))
 				{
-					// Does the contact normal point into the infinite prism formed by extruding the triangle along the face normal?
 					const FVec3& OtherTriangleNormal = OtherTriangle.GetNormal();
 					const FVec3 OtherEdge0 = OtherVertexB - VertexA;
 					const FVec3 OtherEdge1 = VertexA - OtherVertexC;
