@@ -178,6 +178,14 @@ void SInlineEditableTextBlock::SetText( const FString& InText )
 	SetEditableText( Text );
 }
 
+FText SInlineEditableTextBlock::GetText() const
+{
+	return
+#if WITH_FANCY_TEXT
+	bIsMultiLine ? MultiLineTextBox->GetText() :
+#endif //WITH_FANCY_TEXT
+				 TextBox->GetText();
+}
 
 void SInlineEditableTextBlock::SetHighlightText( const TAttribute< FText >& InText )
 {

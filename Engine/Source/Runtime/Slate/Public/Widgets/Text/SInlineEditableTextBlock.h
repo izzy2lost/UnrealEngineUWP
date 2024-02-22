@@ -158,6 +158,9 @@ class SInlineEditableTextBlock: public SCompoundWidget
 	SLATE_API void SetText( const TAttribute< FText >& InText );
 	SLATE_API void SetText( const FString& InText );
 
+	/** Return the current text */
+	SLATE_API FText GetText() const;
+
 	SLATE_API void SetHighlightText(const TAttribute<FText>& InText);
 
 	/** Sets the wrap text at attribute.  See WrapTextAt attribute */
