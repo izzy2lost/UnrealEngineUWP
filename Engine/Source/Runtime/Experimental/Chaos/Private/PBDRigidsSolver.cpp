@@ -1812,10 +1812,6 @@ namespace Chaos
 				{
 					MRewindCallback->RegisterRewindableSimCallback_Internal(SimCallbackObject);
 				}
-				else
-				{
-					ensure(!IsNetworkPhysicsPredictionEnabled());
-				}
 			}
 
 			if (SimCallbackObject->HasOption(ESimCallbackOptions::PhysicsObjectUnregister))
