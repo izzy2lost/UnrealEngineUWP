@@ -57,9 +57,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Self-Collision Properties - Kinematic Colliders", meta = (UIMin = "0", UIMax = "1", ClampMin = "0", ClampMax = "1"))
 	float SelfCollisionKinematicColliderStiffness = 1.f;
 
-	/** Friction coefficient for cloth - kinematic cloth interaction. */
+	/** Friction coefficient for cloth - kinematic cloth interaction. Weight map is on the dynamic cloth, not the collider.*/
 	UPROPERTY(EditAnywhere, Category = "Self-Collision Properties - Kinematic Colliders", meta = (UIMin = "0", UIMax = "1", ClampMin = "0", ClampMax = "1"))
-	float SelfCollisionKinematicColliderFriction = 0.0f;
+	FChaosClothAssetWeightedValue SelfCollisionKinematicColliderFrictionWeighted = {true, 0.0f, 0.f, TEXT("SelfCollisionKinematicColliderFriction")};
 
 	/** Enable self intersection resolution. This will try to fix any cloth intersections that are not handled by collision repulsions. */
 	UPROPERTY(EditAnywhere, Category = "Experimental")
@@ -87,6 +87,13 @@ public:
 
 	FChaosClothAssetSimulationSelfCollisionConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
+	virtual void Serialize(FArchive& Ar) override;
 private:
+	// Deprecated properties
+#if WITH_EDITORONLY_DATA
+	static constexpr float FrictionDeprecatedValue = -1.f;
+	UPROPERTY()
+	float SelfCollisionKinematicColliderFriction_DEPRECATED = FrictionDeprecatedValue;
+#endif
 	virtual void AddProperties(FPropertyHelper& PropertyHelper) const override;
 };

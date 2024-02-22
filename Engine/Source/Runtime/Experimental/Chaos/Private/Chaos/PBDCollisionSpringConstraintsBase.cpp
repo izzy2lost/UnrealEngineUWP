@@ -26,9 +26,17 @@ FAutoConsoleVariableRef CVarChaosCollisionSpringsISPCEnabled(TEXT("p.Chaos.Colli
 
 #if UE_BUILD_SHIPPING
 static constexpr Chaos::Softs::FSolverReal KinematicColliderMaxTimer = (Chaos::Softs::FSolverReal)0.1f;
+static constexpr Chaos::Softs::FSolverReal KinematicColliderFalloffMultiplier = (Chaos::Softs::FSolverReal)1.f;
+static constexpr Chaos::Softs::FSolverReal KinematicColliderMaxDepthMultiplier = (Chaos::Softs::FSolverReal)10.f;
 #else
-Chaos::Softs::FSolverReal KinematicColliderMaxTimer = (Chaos::Softs::FSolverReal)0.1f;
+Chaos::Softs::FSolverReal KinematicColliderMaxTimer = (Chaos::Softs::FSolverReal)0.1f; 
 FAutoConsoleVariableRef CVarChaosCollisionSpringMaxTimer(TEXT("p.Chaos.CollisionSpring.MaxTimer"), KinematicColliderMaxTimer, TEXT("Amount of time (in seconds) to remember a kinematic collision connection after it has moved more than Thickness away. Increasing this can reduce jitter at the cost of more computation."));
+
+Chaos::Softs::FSolverReal KinematicColliderFalloffMultiplier = (Chaos::Softs::FSolverReal)1.f;
+FAutoConsoleVariableRef CVarChaosCollisionSpringFalloffMultiplier(TEXT("p.Chaos.CollisionSpring.FalloffMultiplier"), KinematicColliderFalloffMultiplier, TEXT("Tangential distance away from a triangle (scaled by thickness) beyond which a point isn't considered to be kinematically colliding"));
+
+Chaos::Softs::FSolverReal KinematicColliderMaxDepthMultiplier = (Chaos::Softs::FSolverReal)10.f;
+FAutoConsoleVariableRef CVarChaosCollisionSpringMaxDepthMultiplier(TEXT("p.Chaos.CollisionSpring.MaxDepthMultiplier"), KinematicColliderMaxDepthMultiplier, TEXT("Penetration depth beyond which we ignore the kinematic collision (so you don't push through the wrong side)"));
 #endif
 
 namespace Chaos::Softs {
@@ -57,20 +65,21 @@ FPBDCollisionSpringConstraintsBase::FPBDCollisionSpringConstraintsBase(
 	const FTriangleMesh& InTriangleMesh,
 	const TArray<FSolverVec3>* InReferencePositions,
 	TSet<TVec2<int32>>&& InDisabledCollisionElements,
+	const TConstArrayView<FRealSingle>& InKinematicColliderFrictionMultipliers,
 	const TConstArrayView<int32>& InSelfCollisionLayers,
 	const FSolverReal InThickness,
 	const FSolverReal InStiffness,
 	const FSolverReal InFrictionCoefficient,
 	const FSolverReal InKinematicColliderThickness,
 	const FSolverReal InKinematicColliderStiffness,
-	const FSolverReal InKinematicColliderFrictionCoefficient,
+	const FSolverVec2 InKinematicColliderFrictionCoefficient,
 	const FSolverReal InProximityStiffness)
 	: Thickness(InThickness)
 	, Stiffness(InStiffness)
 	, FrictionCoefficient(InFrictionCoefficient)
 	, KinematicColliderThickness(InKinematicColliderThickness)
 	, KinematicColliderStiffness(InKinematicColliderStiffness)
-	, KinematicColliderFrictionCoefficient(InKinematicColliderFrictionCoefficient)
+	, KinematicColliderFrictionCoefficient(InKinematicColliderFrictionCoefficient, InKinematicColliderFrictionMultipliers, InNumParticles)
 	, ProximityStiffness(InProximityStiffness)
 	, TriangleMesh(InTriangleMesh)
 	, ReferencePositions(InReferencePositions)
@@ -585,21 +594,46 @@ void FPBDCollisionSpringConstraintsBase::ApplyKinematicConstraints(SolverParticl
 	TRACE_CPUPROFILER_EVENT_SCOPE(ChaosPBDCollisionSpring_ApplyKinematicConstraints);
 
 	const FSolverReal Height = Thickness + KinematicColliderThickness;
+	const FSolverReal OneOverTangentialFalloffDist = (FSolverReal)1.f / FMath::Max(KinematicColliderFalloffMultiplier * Height, UE_KINDA_SMALL_NUMBER);
+	const FSolverReal MaxDepth = -Height * KinematicColliderMaxDepthMultiplier;
 #if INTEL_ISPC
 	static_assert(sizeof(ispc::FIntVector) == sizeof(TVector<int32, MaxKinematicConnectionsPerPoint>), "sizeof(ispc::FIntVector) != sizeof(TVector<int32, MaxKinematicConnectionsPerPoint>)");
 	if (bRealTypeCompatibleWithISPC && bChaos_CollisionSpring_ISPC_Enabled)
 	{
-		ispc::ApplyKinematicCollisionSpringConstraints(
-			(ispc::FVector4f*)Particles.GetPAndInvM().GetData(),
-			(const ispc::FVector3f*)Particles.XArray().GetData(),
-			KinematicCollidingParticles.GetData(),
-			(const ispc::FIntVector*)KinematicColliderElements.GetData(),
-			(const ispc::FIntVector*)TriangleMesh.GetElements().GetData(),
-			Height,
-			KinematicColliderStiffness,
-			KinematicColliderFrictionCoefficient,
-			KinematicCollidingParticles.Num()
-		);
+		if (KinematicColliderFrictionCoefficient.HasWeightMap())
+		{
+			ispc::ApplyKinematicCollisionSpringConstraintsWithMaps(
+				(ispc::FVector4f*)Particles.GetPAndInvM().GetData(),
+				(const ispc::FVector3f*)Particles.XArray().GetData(),
+				KinematicCollidingParticles.GetData(),
+				(const ispc::FIntVector*)KinematicColliderElements.GetData(),
+				(const ispc::FIntVector*)TriangleMesh.GetElements().GetData(),
+				Height,
+				OneOverTangentialFalloffDist,
+				MaxDepth,
+				KinematicColliderStiffness,
+				reinterpret_cast<const ispc::FVector2f&>(KinematicColliderFrictionCoefficient.GetOffsetRange()),
+				KinematicColliderFrictionCoefficient.GetMapValues().GetData(),
+				KinematicCollidingParticles.Num()
+			);
+
+		}
+		else
+		{
+			ispc::ApplyKinematicCollisionSpringConstraints(
+				(ispc::FVector4f*)Particles.GetPAndInvM().GetData(),
+				(const ispc::FVector3f*)Particles.XArray().GetData(),
+				KinematicCollidingParticles.GetData(),
+				(const ispc::FIntVector*)KinematicColliderElements.GetData(),
+				(const ispc::FIntVector*)TriangleMesh.GetElements().GetData(),
+				Height,
+				OneOverTangentialFalloffDist,
+				MaxDepth,
+				KinematicColliderStiffness,
+				(FSolverReal)KinematicColliderFrictionCoefficient,
+				KinematicCollidingParticles.Num()
+			);
+		}
 	}
 	else
 #endif
@@ -632,32 +666,32 @@ void FPBDCollisionSpringConstraintsBase::ApplyKinematicConstraints(SolverParticl
 				const FSolverVec3 Difference = P1 - P;
 				const FSolverReal NormalDifference = Difference.Dot(Normal);
 
-				if (NormalDifference > Height)
+				if (NormalDifference >= Height || NormalDifference < MaxDepth)
 				{
 					continue;
 				}
 
 				const FSolverReal TangentialDifference = (Difference - NormalDifference * Normal).Size();
-				constexpr FSolverReal TangentialFalloffMultiplier(1.5f);
-				const FSolverReal TangentialFalloff = (FSolverReal)1.f - TangentialDifference / FMath::Max(TangentialFalloffMultiplier * Height, UE_KINDA_SMALL_NUMBER);
+				const FSolverReal TangentialFalloff = (FSolverReal)1.f - TangentialDifference * OneOverTangentialFalloffDist;
 				if (TangentialFalloff <= 0.f)
 				{
 					continue;
 				}
 
 				const FSolverReal NormalDelta = Height - NormalDifference;
-				const FSolverVec3 RepulsionDelta = KinematicColliderStiffness * NormalDelta * Normal;
+				const FSolverVec3 RepulsionDelta = KinematicColliderStiffness * TangentialFalloff * NormalDelta * Normal;
 
 				P1 += RepulsionDelta;
 
-				if (KinematicColliderFrictionCoefficient > 0)
+				const FSolverReal KinematicFrictionCoefficient = KinematicColliderFrictionCoefficient.GetValue(Index1);
+				if (KinematicFrictionCoefficient > 0)
 				{
 					const FSolverVec3& X1 = Particles.X(Index1);
 					const FSolverVec3 X = Bary[0] * Particles.X(Index2) + Bary[1] * Particles.X(Index3) + Bary[2] * Particles.X(Index4);
 					const FSolverVec3 RelativeDisplacement = (P1 - X1) - (P - X);
 					const FSolverVec3 RelativeDisplacementTangent = RelativeDisplacement - RelativeDisplacement.Dot(Normal) * Normal;
 					const FSolverReal RelativeDisplacementTangentLength = RelativeDisplacementTangent.Length();
-					const FSolverReal PositionCorrection = FMath::Min(NormalDelta * KinematicColliderFrictionCoefficient, RelativeDisplacementTangentLength);
+					const FSolverReal PositionCorrection = FMath::Min(NormalDelta * KinematicFrictionCoefficient, RelativeDisplacementTangentLength);
 					const FSolverReal CorrectionRatio = RelativeDisplacementTangentLength < UE_SMALL_NUMBER ? 0.f : PositionCorrection / RelativeDisplacementTangentLength;
 					const FSolverVec3 FrictionDelta = -CorrectionRatio * RelativeDisplacementTangent;
 

@@ -151,6 +151,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	private:
 		void CreateSelfCollisionConstraints(
 			const Softs::FCollectionPropertyConstFacade& ConfigProperties,
+			const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
 			const TMap<FString, const TSet<int32>*>& VertexSets,
 			const TMap<FString, const TSet<int32>*>& FaceSets,
 			const TMap<FString, TConstArrayView<int32>>& FaceIntMaps,

@@ -803,7 +803,7 @@ void FClothConstraints::AddRules(
 	Softs::FSolverReal MeshScale, bool bEnabled)
 {
 	// Self collisions
-	CreateSelfCollisionConstraints(ConfigProperties, VertexSets, FaceSets, FaceIntMaps, TriangleMesh);
+	CreateSelfCollisionConstraints(ConfigProperties, WeightMaps, VertexSets, FaceSets, FaceIntMaps, TriangleMesh);
 
 	// Edge constraints
 	CreateStretchConstraints(ConfigProperties, WeightMaps, TriangleMesh, PatternData);
@@ -868,7 +868,8 @@ void FClothConstraints::AddRules(
 	}
 }
 
-void FClothConstraints::CreateSelfCollisionConstraints(const Softs::FCollectionPropertyConstFacade& ConfigProperties, 
+void FClothConstraints::CreateSelfCollisionConstraints(const Softs::FCollectionPropertyConstFacade& ConfigProperties,
+	const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
 	const TMap<FString, const TSet<int32>*>& VertexSets,
 	const TMap<FString, const TSet<int32>*>& FaceSets,
 	const TMap<FString, TConstArrayView<int32>>& FaceIntMaps, const FTriangleMesh& TriangleMesh)
@@ -890,6 +891,7 @@ void FClothConstraints::CreateSelfCollisionConstraints(const Softs::FCollectionP
 			NumParticles,
 			TriangleMesh,
 			AnimationPositions,
+			WeightMaps,
 			FaceIntMaps,
 			ConfigProperties);
 		++NumPostCollisionConstraintRules;
@@ -2166,7 +2168,7 @@ void FClothConstraints::Update(
 	}
 	if (SelfCollisionConstraints)
 	{
-		SelfCollisionConstraints->SetProperties(ConfigProperties, FaceIntMaps);
+		SelfCollisionConstraints->SetProperties(ConfigProperties, WeightMaps, FaceIntMaps);
 	}
 	if (SelfCollisionInit)
 	{
