@@ -139,7 +139,29 @@ public:
 	{
 		uint32 NewBufferPitch = Align(Width * BytesPerPixel, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
 		uint32 NewBufferSize = Align(NewBufferPitch * Height, FMath::Max(D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT, D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT));
-		return (MaxNumBuffers == InMaxNumBuffers && BufferSize == NewBufferSize && BufferPitch == NewBufferPitch);
+		return (MaxNumBuffers >= InMaxNumBuffers && BufferSize >= NewBufferSize && BufferPitch == NewBufferPitch);
+	}
+
+	// Check if the current setup is compatible with the new parameters
+	bool IsCompatibleAsTexture(uint32 InMaxNumBuffers, uint32 Width, uint32 Height, DXGI_FORMAT PixFmt) const
+	{
+		// Get the size needed per buffer / texture
+		D3D12_RESOURCE_DESC Desc = {};
+		Desc.MipLevels = 1;
+		Desc.Format = PixFmt;
+		Desc.Width = Width;
+		Desc.Height = Height;
+		Desc.Flags = D3D12_RESOURCE_FLAG_NONE;
+		Desc.DepthOrArraySize = 1;
+		Desc.SampleDesc.Count = 1;
+		Desc.SampleDesc.Quality = 0;
+		Desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+		Desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+		D3D12_RESOURCE_ALLOCATION_INFO AllocInfo = D3D12Device->GetResourceAllocationInfo(0, 1, &Desc);
+
+		uint32 NewBufferSize = Align(AllocInfo.SizeInBytes, AllocInfo.Alignment);
+
+		return (MaxNumBuffers >= InMaxNumBuffers && BufferSize >= NewBufferSize);
 	}
 
 	// Check if a buffer is available
@@ -335,6 +357,11 @@ public:
 	bool IsCompatibleAsBuffer(uint32 InMaxNumBuffers, uint32 InWidth, uint32 InHeight, uint32 InBytesPerPixel) const
 	{
 		return Blocks[0]->IsCompatibleAsBuffer(InMaxNumBuffers, InWidth, InHeight, InBytesPerPixel);
+	}
+
+	bool IsCompatibleAsTexture(uint32 InMaxNumBuffers, uint32 InWidth, uint32 InHeight, DXGI_FORMAT InPixFmt) const
+	{
+		return Blocks[0]->IsCompatibleAsTexture(InMaxNumBuffers, InWidth, InHeight, InPixFmt);
 	}
 
 	// Check if a buffer is available

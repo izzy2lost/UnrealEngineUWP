@@ -1206,7 +1206,7 @@ bool FElectraVideoDecoderH265_DX::ConvertDecoderOutput()
 		TRefCountPtr D3D12Device(static_cast<ID3D12Device*>(PlatformDevice));
 
 		// Create the resource pool as needed...
-		if (!D3D12ResourcePool)
+		if (!D3D12ResourcePool || !D3D12ResourcePool->IsCompatibleAsBuffer(MaxOutputBuffers, MaxWidth, MaxHeight * 3 / 2, (PixFmt == EElectraDecoderPlatformPixelFormat::NV12) ? 1 : 2))
 		{
 			D3D12ResourcePool = MakeShared<FElectraMediaDecoderOutputBufferPool_DX12, ESPMode::ThreadSafe>(D3D12Device, MaxOutputBuffers, MaxWidth, MaxHeight * 3 / 2, (PixFmt == EElectraDecoderPlatformPixelFormat::NV12) ? 1 : 2);
 		}

@@ -221,7 +221,7 @@ void FElectraPlayerVideoDecoderOutputPC::InitializeWithResource(const TRefCountP
 		// We get here only after the instance came back from the pool! Hence we can be sure any old texture is no longer actively used.
 		TextureDX12 = nullptr;
 
-		if (!D3D12ResourcePool.IsValid())
+		if (!D3D12ResourcePool.IsValid() || !D3D12ResourcePool->IsCompatibleAsTexture(MaxOutputBuffers + kElectraDecoderPipelineExtraFrames, MaxWidth, MaxHeight, DXGIFmt))
 		{
 			D3D12ResourcePool = MakeShared<FElectraMediaDecoderOutputBufferPool_DX12>(InD3D12Device, MaxOutputBuffers + kElectraDecoderPipelineExtraFrames, MaxWidth, MaxHeight, DXGIFmt, D3D12_HEAP_TYPE_DEFAULT);
 			if (!D3D12ResourcePool.IsValid())
