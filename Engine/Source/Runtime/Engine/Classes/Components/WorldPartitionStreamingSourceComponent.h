@@ -12,7 +12,7 @@
 class FSceneView;
 class FPrimitiveDrawInterface;
 
-UCLASS(Meta = (BlueprintSpawnableComponent), HideCategories = (Tags, Sockets, ComponentTick, ComponentReplication, Activation, Cooking, Events, AssetUserData, Collision), MinimalAPI)
+UCLASS(Meta = (BlueprintSpawnableComponent), HideCategories = (Tags, Sockets, ComponentTick, ComponentReplication, Activation, Cooking, Events, AssetUserData, Collision, Navigation), MinimalAPI)
 class UWorldPartitionStreamingSourceComponent : public UActorComponent, public IWorldPartitionStreamingSourceProvider
 {
 	GENERATED_UCLASS_BODY()
@@ -83,7 +83,7 @@ class UWorldPartitionStreamingSourceComponent : public UActorComponent, public I
 
 private:
 	/** Whether this component is enabled or not */
-	UPROPERTY(EditAnywhere, Category = "Streaming")
+	UPROPERTY(EditAnywhere, Interp, Category = "Streaming")
 	bool bStreamingSourceEnabled;
 
 	UPROPERTY(EditAnywhere, Category = "Streaming")
