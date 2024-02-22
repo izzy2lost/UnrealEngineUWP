@@ -31,7 +31,7 @@ void UGameFeatureAction_AddWPContent::OnGameFeatureRegistering()
 	ContentBundleClient = FContentBundleClient::CreateClient(ContentBundleDescriptor, GetTypedOuter<UGameFeatureData>()->GetName());
 	
 #if WITH_EDITOR
-	if (IsRunningCookCommandlet() && ContentBundleClient != nullptr)
+	if (IsRunningCommandlet() && ContentBundleClient != nullptr)
 	{
 		ContentBundleClient->RequestContentInjection();
 	}
