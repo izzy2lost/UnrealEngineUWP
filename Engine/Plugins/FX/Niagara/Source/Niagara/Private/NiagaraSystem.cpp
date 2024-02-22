@@ -3434,6 +3434,13 @@ bool UNiagaraSystem::RequestCompile(bool bForce, FNiagaraSystemUpdateContext* Op
 	if (bForce)
 	{
 		ForceGraphToRecompileOnNextCheck();
+
+		// if we're forcing a recompile in development mode then flush the shader file cache to catch any datainterface files that may have been edited
+		static IConsoleVariable* CVarShaderDevMode = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ShaderDevelopmentMode"));
+		if (CVarShaderDevMode && CVarShaderDevMode->GetInt() != 0)
+		{
+			FlushShaderFileCache();
+		}
 	}
 
 	// we can't compile systems that have been cooked without editor data
