@@ -11,6 +11,7 @@ class UAssetImportData;
 class UInterchangeAssetImportData;
 class UInterchangeBaseNode;
 class UInterchangeBaseNodeContainer;
+class UInterchangeFactoryBase;
 class UInterchangeFactoryBaseNode;
 class UInterchangePipelineBase;
 class UInterchangeSourceData;
@@ -119,7 +120,7 @@ namespace UE::Interchange
 		 * @param AssetName: Asset name of the actual object to reimport
 		 * @param SubPathString: Optional subobject name
 		 */
-		static 	INTERCHANGEENGINE_API UObject* GetObjectToReimport(UObject* ReimportObject, const UInterchangeFactoryBaseNode& FactoryNode, const FString& PackageName, const FString& AssetName, const FString& SubPathString = FString());
+		static 	INTERCHANGEENGINE_API UObject* GetObjectToReimport(UInterchangeFactoryBase* Factory, UObject* ReimportObject, const UInterchangeFactoryBaseNode& FactoryNode, const FString& PackageName, const FString& AssetName, const FString& SubPathString = FString());
 
 		/**
 		 * If the ReimportObject is a UInterchangeSceneImportAsset, returns the factory node

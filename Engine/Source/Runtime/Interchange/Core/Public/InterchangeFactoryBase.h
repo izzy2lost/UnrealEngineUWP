@@ -327,4 +327,15 @@ public:
 
 	UPROPERTY()
 	TObjectPtr<UInterchangeResultsContainer> Results;
+
+	/**
+	* Acquires the Object to be re-imported.
+	* Function is called from FFactoryCommon::GetObjectToReiomport.
+	* Which in turn is called from the InterchangeTask related functions to acquire the Object to be Reimported.
+	* Allows Factories to override, in order to provide the desired ReimportObject based on Factory requirements.
+	*/
+	virtual UObject* GetObjectToReimport(UObject* ReimportObject, const UInterchangeFactoryBaseNode& FactoryNode, const FString& PackageName, const FString& AssetName, const FString& SubPathString)
+	{
+		return ReimportObject;
+	}
 };

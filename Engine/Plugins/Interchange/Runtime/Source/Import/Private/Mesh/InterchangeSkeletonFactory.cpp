@@ -10,6 +10,10 @@
 #include "Nodes/InterchangeBaseNodeContainer.h"
 #include "Rendering/SkeletalMeshLODImporterData.h"
 
+#if WITH_EDITORONLY_DATA
+#include "Engine/SkeletalMesh.h"
+#endif
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(InterchangeSkeletonFactory)
 
 UClass* UInterchangeSkeletonFactory::GetFactoryClass() const
@@ -98,4 +102,22 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletonFactory::BeginIm
 	ImportAssetResult.ImportedObject = Skeleton;
 
 	return ImportAssetResult;
+}
+
+UObject* UInterchangeSkeletonFactory::GetObjectToReimport(UObject* ReimportObject, const UInterchangeFactoryBaseNode& FactoryNode, const FString& PackageName, const FString& AssetName, const FString& SubPathString)
+{
+#if WITH_EDITORONLY_DATA
+	if (ReimportObject &&
+		ReimportObject->GetClass()->IsChildOf(USkeletalMesh::StaticClass()) &&
+		FactoryNode.GetObjectClass()->IsChildOf(USkeleton::StaticClass()))
+	{
+		//The Skeleton property of the UInterchangeGenericCommonSkeletalMeshesAndAnimationsProperties will be populated for re-import,
+		//which in turn will disable the UInterchangeSkeletonFactoryNodes.
+		//Meaning, if at re-import the Skeleton already exists, the SkeletonFactoryNode will be disabled.
+		//Hence, if we get to this branch execution that means that we are Reimporting a SkeletalMesh without a Skeleton present.
+		return nullptr;
+	}
+#endif
+
+	return ReimportObject;
 }

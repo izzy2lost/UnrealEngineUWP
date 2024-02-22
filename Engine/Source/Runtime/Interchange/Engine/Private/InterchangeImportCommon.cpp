@@ -11,6 +11,7 @@
 #include "InterchangeSourceData.h"
 #include "InterchangeTranslatorBase.h"
 #include "Nodes/InterchangeBaseNodeContainer.h"
+#include "InterchangeFactoryBase.h"
 #include "Nodes/InterchangeFactoryBaseNode.h"
 #include "Types/AttributeStorage.h"
 
@@ -366,8 +367,13 @@ namespace UE::Interchange
 		}
 	}
 
-	UObject* FFactoryCommon::GetObjectToReimport(UObject* ReimportObject, const UInterchangeFactoryBaseNode& FactoryNode, const FString& PackageName, const FString& AssetName, const FString& SubPathString)
+	UObject* FFactoryCommon::GetObjectToReimport(UInterchangeFactoryBase* Factory, UObject* ReimportObject, const UInterchangeFactoryBaseNode& FactoryNode, const FString& PackageName, const FString& AssetName, const FString& SubPathString)
 	{
+		UObject* ReimportObjectCandidate = Factory->GetObjectToReimport(ReimportObject, FactoryNode, PackageName, AssetName, SubPathString);
+		if (ReimportObjectCandidate != ReimportObject)
+		{
+			return ReimportObjectCandidate;
+		}
 #if WITH_EDITORONLY_DATA
 		if (ReimportObject && !ReimportObject->GetClass()->IsChildOf(FactoryNode.GetObjectClass()))
 		{
