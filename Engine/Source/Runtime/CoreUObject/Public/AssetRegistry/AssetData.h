@@ -15,6 +15,7 @@
 #include "Containers/StringFwd.h"
 #include "Containers/StringView.h"
 #include "Containers/UnrealString.h"
+#include "Containers/VersePathFwd.h"
 #include "HAL/PlatformMath.h"
 #include "HAL/UnrealMemory.h"
 #include "IO/IoChunkId.h"
@@ -429,6 +430,13 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		AppendObjectPath(OutExportTextNameBuilder);
 		OutExportTextNameBuilder.AppendChar(TEXT('\''));
 	}
+
+	/**
+	 * Gets the versepath of the asset.
+	 *
+	 * @return The VersePath of the asset
+	 */
+	COREUOBJECT_API UE::Core::FVersePath GetVersePath() const;
 
 	/** Returns true if the this asset is a redirector. */
 	bool IsRedirector() const

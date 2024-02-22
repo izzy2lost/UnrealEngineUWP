@@ -11,6 +11,7 @@
 #include "Containers/StringFwd.h"
 #include "Containers/StringView.h"
 #include "Containers/UnrealString.h"
+#include "Containers/VersePathFwd.h"
 #include "Delegates/Delegate.h"
 #include "HAL/Platform.h"
 #include "HAL/PlatformMath.h"
@@ -24,6 +25,7 @@ class FPackagePath;
 class UPackage;
 struct FFileStatData;
 struct FGuid;
+struct FSoftObjectPath;
 namespace UE::AssetRegistry::Impl { struct FScanPathContext; }
 
 DECLARE_LOG_CATEGORY_EXTERN(LogPackageName, Log, All);
@@ -461,6 +463,13 @@ public:
 	 * @return Localized package path, or the source package path if there is no suitable localized package.
 	 */
 	static COREUOBJECT_API FString GetLocalizedPackagePath(const FString& InSourcePackagePath, const FString& InCultureName);
+
+	/**
+	 * Gets the versepath of the object.
+	 *
+	 * @return The VersePath of the object
+	 */
+	static COREUOBJECT_API UE::Core::FVersePath GetVersePath(const FSoftObjectPath& ObjectPath);
 
 	/** 
 	 * Returns the file extension for packages containing assets.

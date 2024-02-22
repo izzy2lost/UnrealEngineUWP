@@ -11,6 +11,7 @@
 #include "AssetRegistry/AssetData.h"
 #include "Containers/DirectoryTree.h"
 #include "Containers/StringView.h"
+#include "Containers/VersePath.h"
 #include "GenericPlatform/GenericPlatformFile.h"
 #include "HAL/CriticalSection.h"
 #include "HAL/FileManager.h"
@@ -41,6 +42,7 @@
 #include "UObject/Package.h"
 #include "UObject/PackageFileSummary.h"
 #include "UObject/PackageResourceManager.h"
+#include "UObject/SoftObjectPath.h"
 
 DEFINE_LOG_CATEGORY(LogPackageName);
 
@@ -2281,6 +2283,72 @@ FString FPackageName::GetLocalizedPackagePath(const FString& InSourcePackagePath
 {
 	const FName LocalizedPackageName = FPackageLocalizationManager::Get().FindLocalizedPackageNameForCulture(*InSourcePackagePath, InCultureName);
 	return (LocalizedPackageName.IsNone()) ? InSourcePackagePath : LocalizedPackageName.ToString();
+}
+
+UE::Core::FVersePath FPackageName::GetVersePath(const FSoftObjectPath& ObjectPath)
+{
+	// We only handle vpaths at the level of the package and top level objects right now
+	if (ObjectPath.IsSubobject())
+	{
+		return {};
+	}
+
+	TStringBuilder<128> PackageNameBuilder;
+	ObjectPath.GetLongPackageFName().ToString(PackageNameBuilder);
+	const FStringView PackageName = PackageNameBuilder.ToView();
+	
+	// If the mount point is invalid, we can't create a vpath from it
+	bool bHadClassesPrefix = false;
+	const FStringView MountPointName = FPathViews::GetMountPointNameFromPath(PackageName, &bHadClassesPrefix);
+	if (MountPointName.IsEmpty() || bHadClassesPrefix)
+	{
+		return {};
+	}
+
+	// If the object isn't mounted under a plugin, the object doesn't have a vpath
+	TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(MountPointName);
+	if (!Plugin)
+	{
+		return {};
+	}
+
+	// If the plugin doesn't have a root vpath, the object doesn't have a vpath
+	const FString& PluginVersePath = Plugin->GetVersePath();
+	if (PluginVersePath.IsEmpty())
+	{
+		return {};
+	}
+
+	FString VerseModule = FPaths::Combine(PluginVersePath, PackageName.RightChop(MountPointName.Len() + 1));
+
+	// If this is not the package, append the name of the object
+	if (!ObjectPath.GetAssetFName().IsNone())
+	{
+		VerseModule /= WriteToString<128>(ObjectPath.GetAssetFName());
+	}
+
+	// Hack to reject names containing "$" - currently used for non-user facing vobject names in Verse, e.g. $SolarisSignatureFunctionOuter
+	if (VerseModule.Contains(TEXT("$")))
+	{
+		return {};
+	}
+
+	UE::Core::FVersePath Result;
+	if (!UE::Core::FVersePath::TryMake(Result, VerseModule))
+	{
+#if !NO_LOGGING
+		static thread_local TSet<FString> AlreadyLogged;
+
+		bool bAlreadyInSet = false;
+		AlreadyLogged.Add(VerseModule, &bAlreadyInSet);
+		if (!bAlreadyInSet)
+		{
+			UE_LOG(LogCore, Display, TEXT("Unable to make a VersePath for object '%s' with path '%s'"), *ObjectPath.ToString(), *VerseModule);
+		}
+#endif
+	}
+
+	return Result;
 }
 
 const FString& FPackageName::GetAssetPackageExtension()
