@@ -176,7 +176,7 @@ const AccountEditor: React.FC<{ accountIn?: GetAccountResponse, onClose: () => v
    const [confirmDelete, setConfirmDelete] = useState(false);
    const { hordeClasses } = getHordeStyling();
    const [error, setError] = useState("");
-   const [account, setAccount] = useState<GetAccountResponse>(accountIn ? { ...accountIn } : { id: "", name: "", login: "", claims: [], description: undefined, email: undefined, enabled: undefined });
+   const [account, setAccount] = useState<GetAccountResponse>(accountIn ? { ...accountIn } : { id: "", name: "", login: "", claims: [], description: undefined, email: undefined, enabled: true });
    const [secrets, setSecrets] = useState<{ password?: string }>({});
 
    type ClaimTag = ITag & {
@@ -336,7 +336,7 @@ const AccountEditor: React.FC<{ accountIn?: GetAccountResponse, onClose: () => v
          </Stack>
 
          <Stack style={{ padding: 8 }}>
-            <Checkbox label="Enabled" defaultChecked={account.enabled} onChange={(ev, value) => { setAccount({ ...account, enabled: value ? true : false }) }} />
+            <Checkbox label="Enabled" checked={account.enabled} onChange={(ev, value) => { setAccount({ ...account, enabled: value ? true : false }) }} />
          </Stack>
 
          <Stack horizontal style={{ paddingTop: 64 }}>

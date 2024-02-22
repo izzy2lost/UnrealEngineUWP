@@ -45,7 +45,7 @@ export const HordeLoginView: React.FC = () => {
             let error = "Problem logging in: Unknown Error";
                         
             if (response.status === 403) {
-               error = "Invalid login or password";
+               error = "Invalid username or password";
             } else if (response.ok && !response.redirected) {
                error = "Problem logging in: Not Redirected";
             }            
@@ -78,10 +78,10 @@ export const HordeLoginView: React.FC = () => {
                </Stack>}
 
                <Stack style={{ padding: 8 }}>
-                  <TextField disabled={state.submitting} label="Login" autoComplete="off" spellCheck={false} placeholder="Enter Login" onChange={(ev, value) => { setState({ ...state, username: value ?? "" }) }} />
+                  <TextField disabled={state.submitting} label="Username" autoComplete="on" spellCheck={false} onChange={(ev, value) => { setState({ ...state, username: value ?? "" }) }} />
                </Stack>
                <Stack style={{ padding: 8 }}>
-                  <TextField disabled={state.submitting} label={"Password"} autoComplete="off" spellCheck={false} placeholder="Enter Password" type="password" canRevealPassword onChange={(ev, value) => { setState({ ...state, password: value ?? "" }) }} />
+                  <TextField disabled={state.submitting} label={"Password"} autoComplete="off" spellCheck={false} type="password" canRevealPassword onChange={(ev, value) => { setState({ ...state, password: value ?? "" }) }} />
                </Stack>
                <Stack style={{ padding: 8 }}>
                   <PrimaryButton disabled={state.submitting} text="Login" onClick={() => {

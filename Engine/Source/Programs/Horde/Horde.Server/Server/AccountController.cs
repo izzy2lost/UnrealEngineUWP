@@ -237,7 +237,7 @@ namespace Horde.Server.Server
 				return false;
 			}
 
-			IAccount? account = await _hordeAccounts.GetByLoginAsync(username);
+			IAccount? account = await _hordeAccounts.GetByUsernameAsync(username);
 			if (account == null)
 			{
 				return false;
