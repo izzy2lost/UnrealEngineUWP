@@ -891,4 +891,14 @@ bool ContentBrowserUtils::ShouldShowCustomVirtualFolderIcon()
 	return CVarShowCustomVirtualFolderIcon->GetBool();
 }
 
+FAutoConsoleVariable CVarShowPluginFolderIcon(
+	TEXT("ContentBrowser.ShowPluginFolderIcon"),
+	1,
+	TEXT("Whether to show a special icon for plugin folders in the content browser."));
+
+bool ContentBrowserUtils::ShouldShowPluginFolderIcon()
+{
+	return CVarShowPluginFolderIcon->GetBool();
+}
+
 #undef LOCTEXT_NAMESPACE

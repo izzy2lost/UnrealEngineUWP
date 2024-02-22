@@ -107,6 +107,7 @@ private:
 	{
 		Normal,
 		CustomVirtual, // No corresponding on-disk path, used for organization in the content browser
+		PluginRoot,    // Root content folder of a plugin
 		Code,
 		Developer,
 	};
