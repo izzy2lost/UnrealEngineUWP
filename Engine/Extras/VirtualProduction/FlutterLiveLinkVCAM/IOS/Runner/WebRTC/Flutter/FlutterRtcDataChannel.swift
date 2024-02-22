@@ -33,7 +33,7 @@ extension FlutterRtcDataChannel: RTCDataChannelDelegate {
       flutter.onStateChanged(
         dataChannelId: self.id,
         state: self.channel.readyState.toFlutter()
-      ) {}
+      ) { _ in }
     }
     
     if (self.channel.readyState == .closed) {
@@ -49,7 +49,7 @@ extension FlutterRtcDataChannel: RTCDataChannelDelegate {
           data: FlutterStandardTypedData(bytes: buffer.data),
           bIsBinary: buffer.isBinary
         )
-      ) {}
+      ) { _ in }
     }
   }
 }

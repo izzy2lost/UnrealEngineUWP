@@ -177,13 +177,13 @@ extension FlutterRtcPeerConnection: RTCPeerConnectionDelegate {
     )
     
     api.callFlutter { flutter in
-      flutter.onIceCandidate(connectionId: self.id, candidate: data) {}
+      flutter.onIceCandidate(connectionId: self.id, candidate: data) { _ in }
     }
   }
   
   func peerConnection(_ peerConnection: RTCPeerConnection, didChange newState: RTCPeerConnectionState) {
     api.callFlutter { flutter in
-      flutter.onStateChanged(connectionId: self.id, state: newState.toFlutter()) {}
+      flutter.onStateChanged(connectionId: self.id, state: newState.toFlutter()) { _ in }
     }
   }
   
@@ -202,7 +202,7 @@ extension FlutterRtcPeerConnection: RTCPeerConnectionDelegate {
           trackId: trackId,
           kind: WebRtcUtils.parseTrackKind(string: track!.kind)
         )
-      ) {}
+      ) { _ in }
     }
   }
   
@@ -210,7 +210,7 @@ extension FlutterRtcPeerConnection: RTCPeerConnectionDelegate {
     let dataChannel: FlutterRtcDataChannel = FlutterRtcDataChannelApi.instance!.register(dataChannel: dataChannel)
     
     api.callFlutter { flutter in
-      flutter.onDataChannel(connectionId: self.id, dataChannelId: dataChannel.id) {}
+      flutter.onDataChannel(connectionId: self.id, dataChannelId: dataChannel.id) { _ in }
     }
   }
   
