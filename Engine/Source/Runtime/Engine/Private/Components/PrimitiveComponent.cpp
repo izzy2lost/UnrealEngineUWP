@@ -415,6 +415,21 @@ bool UPrimitiveComponent::GetLightMapResolution( int32& Width, int32& Height ) c
 	return false;
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
+ELightmapType UPrimitiveComponent::GetLightmapType() const
+{
+	return LightmapType;
+}
+
+void UPrimitiveComponent::SetLightmapType(ELightmapType InLightmapType)
+{
+	LightmapType = InLightmapType;
+}
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+
 
 void UPrimitiveComponent::GetLightAndShadowMapMemoryUsage( int32& LightMapMemoryUsage, int32& ShadowMapMemoryUsage ) const
 {
@@ -441,7 +456,7 @@ bool UPrimitiveComponent::IsEditorOnly() const
 
 bool UPrimitiveComponent::HasStaticLighting() const
 {
-	return ((Mobility == EComponentMobility::Static) || LightmapType == ELightmapType::ForceSurface) && SupportsStaticLighting();
+	return ((Mobility == EComponentMobility::Static) || GetLightmapType() == ELightmapType::ForceSurface) && SupportsStaticLighting();
 }
 
 void UPrimitiveComponent::GetStreamingRenderAssetInfo(FStreamingTextureLevelContext& LevelContext, TArray<FStreamingRenderAssetPrimitiveInfo>& OutStreamingRenderAssets) const
@@ -1104,7 +1119,7 @@ void UPrimitiveComponent::Serialize(FArchive& Ar)
 	{
 		if (bLightAsIfStatic_DEPRECATED)
 		{
-			LightmapType = ELightmapType::ForceSurface;
+			SetLightmapType(ELightmapType::ForceSurface);
 		}
 	}
 
@@ -1182,9 +1197,9 @@ void UPrimitiveComponent::PostEditChangeProperty(FPropertyChangedEvent& Property
 		}
 	}
 
-	if (LightmapType == ELightmapType::ForceSurface && GetStaticLightingType() == LMIT_None)
+	if (GetLightmapType() == ELightmapType::ForceSurface && GetStaticLightingType() == LMIT_None)
 	{
-		LightmapType = ELightmapType::Default;
+		SetLightmapType(ELightmapType::Default);
 	}
 
 	if (bCullDistanceInvalidated)
@@ -1248,7 +1263,7 @@ bool UPrimitiveComponent::CanEditChange(const FProperty* InProperty) const
 
 		if (PropertyName == LightmassSettingsName)
 		{
-			return Mobility != EComponentMobility::Movable || LightmapType == ELightmapType::ForceSurface;
+			return Mobility != EComponentMobility::Movable || GetLightmapType() == ELightmapType::ForceSurface;
 		}
 
 		if (PropertyName == SingleSampleShadowFromStationaryLightsName)
@@ -1269,10 +1284,13 @@ bool UPrimitiveComponent::CanEditChange(const FProperty* InProperty) const
 			return bILCRelevant && Mobility == EComponentMobility::Movable;
 		}
 
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		if (PropertyName == GET_MEMBER_NAME_CHECKED(UPrimitiveComponent, LightmapType))
 		{
 			return IsStaticLightingAllowed();
 		}
+	    PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 
 		if (PropertyName == CastInsetShadowName)
 		{
@@ -1428,9 +1446,9 @@ void UPrimitiveComponent::PostLoad()
 		CachedMaxDrawDistance = bNeverCull ? 0.f : CachedMaxDrawDistance;
 	} 
 
-	if (LightmapType == ELightmapType::ForceSurface && GetStaticLightingType() == LMIT_None)
+	if (GetLightmapType() == ELightmapType::ForceSurface && GetStaticLightingType() == LMIT_None)
 	{
-		LightmapType = ELightmapType::Default;
+		SetLightmapType(ELightmapType::Default);
 	}
 
 	// Setup the default here

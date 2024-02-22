@@ -50,7 +50,7 @@ void FStaticMeshInstance::AllocateLightmaps(TEntityArray<FLightmap>& LightmapCon
 			bValidTextureMap = true;
 		}
 
-		if (bValidTextureMap && (!bLODsShareStaticLighting ? LODIndex >= ClampedMinLOD : LODIndex == ClampedMinLOD) && ComponentUObject->LightmapType != ELightmapType::ForceVolumetric)
+		if (bValidTextureMap && (!bLODsShareStaticLighting ? LODIndex >= ClampedMinLOD : LODIndex == ClampedMinLOD) && ComponentUObject->GetLightmapType() != ELightmapType::ForceVolumetric)
 		{
 			// Shrink LOD texture lightmaps by half for each LOD level
 			const int32 LightMapWidth = LODIndex > 0 ? FMath::Max(BaseLightMapWidth / (2 << (LODIndex - 1)), 32) : BaseLightMapWidth;

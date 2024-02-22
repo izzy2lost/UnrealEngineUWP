@@ -1146,7 +1146,7 @@ FSceneProxy::FMeshInfo::FMeshInfo(const FStaticMeshSceneProxyDesc& InProxyDesc)
 		return;
 	}
 
-	if (Component->LightmapType == ELightmapType::ForceVolumetric)
+	if (Component->GetLightmapType() == ELightmapType::ForceVolumetric)
 	{
 		SetGlobalVolumeLightmap(true);
 	}

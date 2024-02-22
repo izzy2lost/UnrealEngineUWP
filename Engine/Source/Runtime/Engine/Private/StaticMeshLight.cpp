@@ -345,7 +345,7 @@ void UStaticMeshComponent::GetStaticLightingInfo(FStaticLightingPrimitiveInfo& O
 				const int32 LightMapWidth = LODIndex > 0 ? FMath::Max(BaseLightMapWidth / (2 << (LODIndex - 1)), 32) : BaseLightMapWidth;
 				const int32 LightMapHeight = LODIndex > 0 ? FMath::Max(BaseLightMapHeight / (2 << (LODIndex - 1)), 32) : BaseLightMapHeight;
 
-				if (LightmapType == ELightmapType::ForceVolumetric)
+				if (GetLightmapType() == ELightmapType::ForceVolumetric)
 				{
 					OutPrimitiveInfo.Mappings.Add(new FStaticLightingGlobalVolumeMapping(
 						StaticLightingMesh,this,LightMapWidth,LightMapHeight, GetStaticMesh()->GetLightMapCoordinateIndex()));
@@ -390,7 +390,7 @@ ELightMapInteractionType UStaticMeshComponent::GetStaticLightingType() const
 	bool bUseTextureMap = false;
 	if( HasValidSettingsForStaticLighting(false) )
 	{
-		if (LightmapType == ELightmapType::ForceVolumetric)
+		if (GetLightmapType() == ELightmapType::ForceVolumetric)
 		{
 			InteractionType = LMIT_GlobalVolume;
 		}
@@ -423,7 +423,7 @@ ELightMapInteractionType UStaticMeshComponent::GetStaticLightingType() const
 
 bool UStaticMeshComponent::IsPrecomputedLightingValid() const
 {
-	if (LightmapType == ELightmapType::ForceVolumetric)
+	if (GetLightmapType() == ELightmapType::ForceVolumetric)
 	{
 		// No unbuilt tracking mechanism
 		return true;

@@ -103,7 +103,7 @@ void FInstanceGroup::AllocateLightmaps(TEntityArray<FLightmap>& LightmapContaine
 		}
 
 		// ISM shares LOD0 lightmap with other LODs
-		if (bValidTextureMap && LODIndex == 0 && ComponentUObject->LightmapType != ELightmapType::ForceVolumetric)
+		if (bValidTextureMap && LODIndex == 0 && ComponentUObject->GetLightmapType() != ELightmapType::ForceVolumetric)
 		{
 			check(LightMapWidth == LightMapHeight);
 

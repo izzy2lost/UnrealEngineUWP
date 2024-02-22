@@ -336,7 +336,7 @@ void FPrimitiveSceneProxyDesc::InitializeFrom(const UPrimitiveComponent* InCompo
 	Mobility = InComponent->Mobility;;
 	TranslucencySortPriority = InComponent->TranslucencySortPriority;
 	TranslucencySortDistanceOffset = InComponent->TranslucencySortDistanceOffset;
-	LightmapType = InComponent->LightmapType ;
+	LightmapType = InComponent->GetLightmapType();
 	ViewOwnerDepthPriorityGroup = InComponent->ViewOwnerDepthPriorityGroup;
 	CustomDepthStencilValue = InComponent->CustomDepthStencilValue;
 	CustomDepthStencilWriteMask = InComponent->CustomDepthStencilWriteMask;

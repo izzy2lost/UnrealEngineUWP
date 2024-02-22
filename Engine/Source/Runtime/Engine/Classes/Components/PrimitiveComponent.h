@@ -285,8 +285,12 @@ public:
 	TEnumAsByte<EIndirectLightingCacheQuality> IndirectLightingCacheQuality;
 
 	/** Controls the type of lightmap used for this component. */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Lighting)
+	UE_DEPRECATED(5.5, "Use GetLightmapType()/SetLightmapType() instead")
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Lighting, Getter, Setter,  meta = (AllowPrivateAccess)) 
 	ELightmapType LightmapType;
+	
+	ENGINE_API ELightmapType GetLightmapType() const;
+	ENGINE_API void SetLightmapType(ELightmapType InLightmapType);
 
 	/** Determines how the geometry of a component will be incorporated in proxy (simplified) HLODs. */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category=HLOD, meta=(DisplayName="HLOD Batching Policy", DisplayAfter="bEnableAutoLODGeneration", EditConditionHides, EditCondition="bEnableAutoLODGeneration"))

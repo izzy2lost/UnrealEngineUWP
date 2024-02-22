@@ -2637,7 +2637,7 @@ void FStaticMeshSceneProxyDesc::InitializeFrom(const UStaticMeshComponent* InCom
 	DistanceFieldSelfShadowBias = InComponent->DistanceFieldSelfShadowBias ;
 	DistanceFieldIndirectShadowMinVisibility = InComponent->DistanceFieldIndirectShadowMinVisibility ;
 	StaticLightMapResolution = InComponent->GetStaticLightMapResolution();
-	LightmapType = InComponent->LightmapType;
+	LightmapType = InComponent->GetLightmapType();
 
 #if WITH_EDITORONLY_DATA
 	StreamingDistanceMultiplier = InComponent->StreamingDistanceMultiplier;

@@ -1698,9 +1698,9 @@ void FFoliageStaticMesh::UpdateComponentSettings(const UFoliageType_InstancedSta
 			bNeedsMarkRenderStateDirty = true;
 			bNeedsInvalidateLightingCache = true;
 		}
-		if (Component->LightmapType != FoliageType->LightmapType)
+		if (Component->GetLightmapType() != FoliageType->LightmapType)
 		{
-			Component->LightmapType = FoliageType->LightmapType;
+			Component->SetLightmapType(FoliageType->LightmapType);
 			bNeedsMarkRenderStateDirty = true;
 			bNeedsInvalidateLightingCache = true;
 		}
