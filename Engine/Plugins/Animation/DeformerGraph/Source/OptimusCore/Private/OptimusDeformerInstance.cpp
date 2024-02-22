@@ -649,7 +649,7 @@ bool UOptimusDeformerInstance::EnqueueTriggerGraph(FName InTriggerGraphName)
 }
 
 
-void UOptimusDeformerInstance::SetConstantValueDirect(FString const& InVariableName, TArray<uint8> const& InValue)
+void UOptimusDeformerInstance::SetConstantValueDirect(TSoftObjectPtr<UObject> InSourceObject, TArray<uint8> const& InValue)
 {
 	// Poke constants into the UGraphDataProvider objects.
 	// This is an editor only operation when constant nodes are edited in the graph and we want to see the result without a full compile step.
@@ -661,7 +661,7 @@ void UOptimusDeformerInstance::SetConstantValueDirect(FString const& InVariableN
 		{
 			if (UOptimusGraphDataProvider* GraphDataProvider = Cast<UOptimusGraphDataProvider>(DataProvider))
 			{
-				GraphDataProvider->SetConstant(InVariableName, InValue);
+				GraphDataProvider->SetConstant(InSourceObject, InValue);
 				break;
 			}
 		}

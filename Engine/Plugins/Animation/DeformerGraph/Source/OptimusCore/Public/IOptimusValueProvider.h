@@ -24,7 +24,7 @@ class IOptimusValueProvider
 
 public:
 	// Returns the value name.
-	virtual FString GetValueName() const = 0;
+	virtual FString GetValueDebugName() const = 0;
 	// Returns the value type.
 	virtual FOptimusDataTypeRef GetValueType() const = 0;
 	// Returns the stored value as a shader-compatible value.

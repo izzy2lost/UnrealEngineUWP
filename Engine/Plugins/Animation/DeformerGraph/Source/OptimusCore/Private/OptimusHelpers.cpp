@@ -303,3 +303,8 @@ FName Optimus::GenerateUniqueNameFromExistingNames(FName InBaseName, const TArra
 
 	return NewName;
 }
+
+FString Optimus::MakeUniqueValueName(const FString& InValueName, int32 InUniqueIndex)
+{
+	return InValueName + TEXT("_") + FString::FromInt(InUniqueIndex);
+}

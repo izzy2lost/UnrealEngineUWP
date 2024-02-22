@@ -98,11 +98,11 @@ UComputeDataProvider* UOptimusGraphDataInterface::CreateDataProvider(TObjectPtr<
 }
 
 
-void UOptimusGraphDataProvider::SetConstant(FString const& InVariableName, TArray<uint8> const& InValue)
+void UOptimusGraphDataProvider::SetConstant(TSoftObjectPtr<UObject> InSourceObject, TArray<uint8> const& InValue)
 {
 	for (int32 VariableIndex = 0; VariableIndex < Variables.Num(); ++VariableIndex)
 	{
-		if (Variables[VariableIndex].Name == InVariableName)
+		if (Variables[VariableIndex].SourceObject == InSourceObject)
 		{
 			if (ensure(Variables[VariableIndex].Value.Num() == InValue.Num()))
 			{
