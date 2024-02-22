@@ -30,6 +30,7 @@ namespace ResonanceAudio
 		, ResonanceAudioModule(nullptr)
 		, ReverbPluginPreset(nullptr)
 		, TemporaryStereoBuffer()
+		, StubSubmixPtr(nullptr)
 	{
 	}
 
@@ -189,13 +190,21 @@ namespace ResonanceAudio
 
 		if (!ReverbSubmix)
 		{
-			static const FString DefaultSubmixName = TEXT("Resonance Reverb Submix");
-			UE_LOG(LogResonanceAudio, Error, TEXT("Failed to load Resonance Reverb Submix from object path '%s' in ResonanceSettings. Creating '%s' as stub."),
-				*Settings->OutputSubmix.GetAssetPathString(),
-				*DefaultSubmixName);
+			if (!StubSubmixPtr)
+			{
+				static const FString DefaultSubmixName = TEXT("Resonance Reverb Submix");
+				UE_LOG(LogResonanceAudio, Error, TEXT("Failed to load Resonance Reverb Submix from object path '%s' in ResonanceSettings. Creating '%s' as stub."),
+					*Settings->OutputSubmix.GetAssetPathString(),
+					*DefaultSubmixName);
 
-			ReverbSubmix = NewObject<USoundSubmix>();
-			ReverbSubmix->bMuteWhenBackgrounded = true;
+				StubSubmixPtr = NewObject<USoundSubmix>();
+				StubSubmixPtr->AddToRoot();
+				StubSubmixPtr->bMuteWhenBackgrounded = true;
+
+			}
+
+			ReverbSubmix = StubSubmixPtr;
+
 		}
 
 		ReverbSubmix->bAutoDisable = false;

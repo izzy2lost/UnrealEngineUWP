@@ -150,6 +150,9 @@ namespace ResonanceAudio
 		Audio::AlignedFloatBuffer TemporaryStereoBuffer;
 
 		FSoundEffectSubmixPtr SubmixEffect;
+
+		// Stub Reverb submix to be used only when Resonance fails to load the submix asset.
+		USoundSubmix* StubSubmixPtr;
 	};
 
 } // namespace ResonanceAudio
