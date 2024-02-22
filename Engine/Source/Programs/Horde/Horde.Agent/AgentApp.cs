@@ -262,8 +262,13 @@ namespace Horde.Agent
 				environment = "Production";
 			}
 
-			IConfigurationBuilder builder = new ConfigurationBuilder()
-				.SetBasePath(AppDir.FullName)
+			IConfigurationBuilder builder = new ConfigurationBuilder();
+			if (readInstalledConfig && OperatingSystem.IsWindows())
+			{
+				builder = builder.Add(new RegistryConfigurationSource(Registry.LocalMachine, "SOFTWARE\\Epic Games\\Horde\\Agent", AgentSettings.SectionName));
+			}
+
+			builder.SetBasePath(AppDir.FullName)
 				.AddJsonFile("appsettings.json", optional: false)
 				.AddJsonFile("appsettings.Build.json", optional: true) // specific settings for builds (installer/dockerfile)
 				.AddJsonFile($"appsettings.{environment}.json", optional: true) // environment variable overrides, also used in k8s setups with Helm
@@ -272,10 +277,6 @@ namespace Horde.Agent
 			if (agentConfigFile != null)
 			{
 				builder = builder.AddJsonFile(agentConfigFile.FullName, optional: true, reloadOnChange: true);
-			}
-			if (readInstalledConfig && OperatingSystem.IsWindows())
-			{
-				builder = builder.Add(new RegistryConfigurationSource(Registry.LocalMachine, "SOFTWARE\\Epic Games\\Horde\\Agent", AgentSettings.SectionName));
 			}
 
 			return builder
