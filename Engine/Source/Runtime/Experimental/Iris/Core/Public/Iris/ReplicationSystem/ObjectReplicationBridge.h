@@ -184,7 +184,9 @@ public:
 	// Debug functions exposed via console commands
 	void PrintDynamicFilterClassConfig() const;
 	void PrintReplicatedObjects() const;
+	void PrintAlwaysRelevantObjects() const;
 	void PrintRelevantObjects() const;
+	void PrintRelevantObjectsForConnections(const TArray<FString>& Args) const;
 
 protected:
 	IRISCORE_API virtual ~UObjectReplicationBridge();
@@ -312,6 +314,12 @@ protected:
 	/** Change the max tick rate to match the one from the engine */
 	void SetMaxTickRate(float InMaxTickRate) { MaxTickRate = InMaxTickRate; }
 
+	/**
+	 * Parses a list of arguments and returns a list of Connection's that match them
+	 * Ex: ConnectionId=1 or ConnectionId=1,5,7
+	 */
+	IRISCORE_API virtual TArray<uint32> FindConnectionsFromArgs(const TArray<FString>& Args) const;
+
 private:
 
 	/** Forcibly poll a single replicated object */
@@ -338,7 +346,6 @@ private:
 	void RegisterRemoteInstance(FNetRefHandle RefHandle, UObject* InstancePtr, const UE::Net::FReplicationProtocol* Protocol, UE::Net::FReplicationInstanceProtocol* InstanceProtocol, const FCreationHeader* Header, uint32 ConnectionId);
 
 	void SetNetPushIdOnInstance(UE::Net::FReplicationInstanceProtocol* InstanceProtocol, FNetHandle NetHandle);
-
 
 	/** Tries to load the classes used in poll period overrides. */
 	void FindClassesInPollPeriodOverrides();

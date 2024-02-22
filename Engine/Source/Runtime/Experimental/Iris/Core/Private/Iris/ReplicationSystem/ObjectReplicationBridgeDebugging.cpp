@@ -12,6 +12,8 @@
 #include "Iris/ReplicationSystem/ReplicationSystemInternal.h"
 #include "Iris/ReplicationSystem/ReplicationOperations.h"
 
+#include "Iris/ReplicationSystem/Filtering/ReplicationFiltering.h"
+
 #include "Net/Core/NetBitArrayPrinter.h"
 #include "Net/Core/Trace/NetDebugName.h"
 
@@ -60,7 +62,7 @@ void RemoteProtocolMismatchDetected(UReplicationSystem* ReplicationSystem, uint3
 	}
 }
 
-UReplicationSystem* FindReplicationSystem(const TArray<FString>& Args)
+UReplicationSystem* FindReplicationSystemFromArg(const TArray<FString>& Args)
 {
 	uint32 RepSystemId = 0;
 
@@ -122,11 +124,14 @@ void LogRootObjectListWithSubObjects(FNetRefHandleManager* NetRefHandleManager, 
 // --------------------------------------------------------------------------------------------------------------------------------------------
 
 //-----------------------------------------------
-FAutoConsoleCommand ObjectBridgePrintDynamicFilter(TEXT("Net.Iris.PrintDynamicFilterClassConfig"), TEXT("Prints the dynamic filter configured to be assigned to specific classes."), FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray< FString >& Args)
+FAutoConsoleCommand ObjectBridgePrintDynamicFilter(
+	TEXT("Net.Iris.PrintDynamicFilterClassConfig"), 
+	TEXT("Prints the dynamic filter configured to be assigned to specific classes."), 
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray< FString >& Args)
 {
 	using namespace UE::Net::Private::ObjectBridgeDebugging;
 
-	UReplicationSystem* RepSystem = FindReplicationSystem(Args);
+	UReplicationSystem* RepSystem = FindReplicationSystemFromArg(Args);
 	if (!RepSystem)
 	{
 		UE_LOG(LogIrisBridge, Error, TEXT("Could not find ReplicationSystem."));
@@ -171,7 +176,7 @@ FAutoConsoleCommand ObjectBridgePrintReplicatedObjects(
 {
 	using namespace UE::Net::Private::ObjectBridgeDebugging;
 
-	UReplicationSystem* RepSystem = FindReplicationSystem(Args);
+	UReplicationSystem* RepSystem = FindReplicationSystemFromArg(Args);
 	if (RepSystem)
 	{
 		if (UObjectReplicationBridge* ObjectBridge = CastChecked<UObjectReplicationBridge>(RepSystem->GetReplicationBridge()))
@@ -187,7 +192,7 @@ void UObjectReplicationBridge::PrintReplicatedObjects() const
 	using namespace UE::Net::Private;
 	using namespace UE::Net::Private::ObjectBridgeDebugging;
 
-	UE_LOG(LogIrisBridge, Display, TEXT("------------  Start Printing ALL Replicated Objects ------------"));
+	UE_LOG(LogIrisBridge, Display, TEXT("################ Start Printing ALL Replicated Objects ################"));
 	UE_LOG(LogIrisBridge, Display, TEXT(""));
 
 	uint32 TotalRootObjects = 0;
@@ -210,7 +215,7 @@ void UObjectReplicationBridge::PrintReplicatedObjects() const
 
 	UE_LOG(LogIrisBridge, Display, TEXT(""));
 	UE_LOG(LogIrisBridge, Display, TEXT("Printed %u root objects and %u sub objects"), Stats.Get<0>(), Stats.Get<1>());
-	UE_LOG(LogIrisBridge, Display, TEXT("------------  Stop Printing ALL Replicated Objects ------------"));
+	UE_LOG(LogIrisBridge, Display, TEXT("################ Stop Printing ALL Replicated Objects ################"));
 }
 
 //-----------------------------------------------
@@ -221,8 +226,7 @@ FAutoConsoleCommand ObjectBridgePrintRelevantObjects(
 {
 	using namespace UE::Net::Private::ObjectBridgeDebugging;
 
-	UReplicationSystem* RepSystem = FindReplicationSystem(Args);
-	if (RepSystem)
+	if (UReplicationSystem* RepSystem = FindReplicationSystemFromArg(Args))
 	{
 		if (UObjectReplicationBridge* ObjectBridge = CastChecked<UObjectReplicationBridge>(RepSystem->GetReplicationBridge()))
 		{
@@ -237,7 +241,7 @@ void UObjectReplicationBridge::PrintRelevantObjects() const
 	using namespace UE::Net::Private;
 	using namespace UE::Net::Private::ObjectBridgeDebugging;
 
-	UE_LOG(LogIrisBridge, Display, TEXT("------------  Start Printing Relevant Objects ------------"));
+	UE_LOG(LogIrisBridge, Display, TEXT("################ Start Printing Relevant Objects ################"));
 	UE_LOG(LogIrisBridge, Display, TEXT(""));
 
 	uint32 TotalRootObjects = 0;
@@ -253,5 +257,161 @@ void UObjectReplicationBridge::PrintRelevantObjects() const
 
 	UE_LOG(LogIrisBridge, Display, TEXT(""));
 	UE_LOG(LogIrisBridge, Display, TEXT("Printed %u root objects and %u sub objects"), Stats.Get<0>(), Stats.Get<1>());
-	UE_LOG(LogIrisBridge, Display, TEXT("------------  Stop Printing Relevant Objects ------------"));
+	UE_LOG(LogIrisBridge, Display, TEXT("################ Stop Printing Relevant Objects ################"));
+}
+
+//-----------------------------------------------
+FAutoConsoleCommand ObjectBridgePrintAlwaysRelevantObjects(
+	TEXT("Net.Iris.PrintAlwaysRelevantObjects"),
+	TEXT("Prints the list of netobjects always relevant to every connection"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray< FString >& Args)
+{
+	using namespace UE::Net::Private::ObjectBridgeDebugging;
+
+	if (UReplicationSystem* RepSystem = FindReplicationSystemFromArg(Args))
+	{
+		if (UObjectReplicationBridge* ObjectBridge = CastChecked<UObjectReplicationBridge>(RepSystem->GetReplicationBridge()))
+		{
+			ObjectBridge->PrintAlwaysRelevantObjects();
+		}
+	}
+}));
+
+void UObjectReplicationBridge::PrintAlwaysRelevantObjects() const
+{
+	using namespace UE::Net;
+	using namespace UE::Net::Private;
+	using namespace UE::Net::Private::ObjectBridgeDebugging;
+
+	FReplicationSystemInternal* ReplicationSystemInternal = GetReplicationSystem()->GetReplicationSystemInternal();
+
+	UE_LOG(LogIrisBridge, Display, TEXT("################ Start Printing Always Relevant Objects ################"));
+	UE_LOG(LogIrisBridge, Display, TEXT(""));
+
+	FNetBitArray AlwaysRelevantList;
+	AlwaysRelevantList.Init(NetRefHandleManager->GetMaxActiveObjectCount());
+	
+	ReplicationSystemInternal->GetFiltering().BuildAlwaysRelevantList(MakeNetBitArrayView(AlwaysRelevantList), ReplicationSystemInternal->GetNetRefHandleManager().GetGlobalScopableInternalIndices());
+
+	// Remove subobjects from the list.
+	MakeNetBitArrayView(AlwaysRelevantList).Combine(NetRefHandleManager->GetSubObjectInternalIndicesView(), FNetBitArrayView::AndNotOp);
+
+	TTuple<uint32, uint32> Stats(0, 0);
+	LogRootObjectListWithSubObjects(NetRefHandleManager, MakeNetBitArrayView(AlwaysRelevantList), Stats, nullptr);
+
+	UE_LOG(LogIrisBridge, Display, TEXT(""));
+	UE_LOG(LogIrisBridge, Display, TEXT("Printed %u root objects and %u sub objects"), Stats.Get<0>(), Stats.Get<1>());
+	UE_LOG(LogIrisBridge, Display, TEXT("################ Stop Printing Always Relevant Objects ################"));
+}
+
+//-----------------------------------------------
+FAutoConsoleCommand ObjectBridgePrintRelevantObjectsToConnection(
+TEXT("Net.Iris.PrintRelevantObjectsToConnection"),
+TEXT("Prints the list of replicated objects relevant to a specific connection"),
+FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray< FString >& Args)
+{
+	using namespace UE::Net;
+	using namespace UE::Net::Private;
+	using namespace UE::Net::Private::ObjectBridgeDebugging;
+
+	UReplicationSystem* RepSystem = FindReplicationSystemFromArg(Args);
+	if (RepSystem)
+	{
+		if (UObjectReplicationBridge* ObjectBridge = CastChecked<UObjectReplicationBridge>(RepSystem->GetReplicationBridge()))
+		{
+			FReplicationSystemInternal* ReplicationSystemInternal = RepSystem->GetReplicationSystemInternal();
+
+			ObjectBridge->PrintRelevantObjectsForConnections(Args);
+		}
+	}
+}));
+
+void UObjectReplicationBridge::PrintRelevantObjectsForConnections(const TArray<FString>& Args) const
+{
+	using namespace UE::Net;
+	using namespace UE::Net::Private;
+	using namespace UE::Net::Private::ObjectBridgeDebugging;
+
+	UE_LOG(LogIrisBridge, Display, TEXT("################ Start Printing Relevant Objects of %d Connections ################"), 1);
+	UE_LOG(LogIrisBridge, Display, TEXT(""));
+
+	FReplicationSystemInternal* ReplicationSystemInternal = GetReplicationSystem()->GetReplicationSystemInternal();
+	FReplicationConnections& Connections = ReplicationSystemInternal->GetConnections();
+	const FNetBitArray& ValidConnections = Connections.GetValidConnections();
+
+	// Default to all connections
+	FNetBitArray ConnectionsToPrint;
+	ConnectionsToPrint.InitAndCopy(ValidConnections);
+
+	// Filter down the list if users wanted specific connections
+	TArray<uint32> RequestedConnectionList = FindConnectionsFromArgs(Args);
+	if (RequestedConnectionList.Num())
+	{
+		ConnectionsToPrint.Reset();
+		for (uint32 ConnectionId : RequestedConnectionList)
+		{
+			if (ValidConnections.IsBitSet(ConnectionId))
+			{
+				ConnectionsToPrint.SetBit(ConnectionId);
+			}
+			else
+			{
+				UE_LOG(LogIris, Warning, TEXT("UObjectReplicationBridge::PrintRelevantObjectsForConnections ConnectionId: %u is not valid"), ConnectionId);
+			}
+		}
+	}
+
+	ConnectionsToPrint.ForAllSetBits([&](uint32 ConnectionId)
+	{
+		UE_LOG(LogIrisBridge, Display, TEXT(""));
+		UE_LOG(LogIrisBridge, Display, TEXT("###### Begin Relevant list of Connection:%u ######"), ConnectionId);
+		UE_LOG(LogIrisBridge, Display, TEXT(""));
+
+		struct FRootObjectData
+		{
+			FInternalNetRefIndex ObjectIndex = 0;
+			UObject* Instance = nullptr;
+			UClass* Class = nullptr;
+
+			// Sort by class names
+			bool operator<(const FRootObjectData& rhs) const 
+			{ 
+				if (Class==rhs.Class) { return false; }
+				if (!Class) { return false; }
+				if (!rhs.Class) { return true; }
+				return Class->GetName() < rhs.Class->GetName();
+			}
+		};
+		TArray<FRootObjectData> RelevantObjects;
+
+		FNetBitArray RootObjects;
+		RootObjects.Init(NetRefHandleManager->GetMaxActiveObjectCount());
+		MakeNetBitArrayView(RootObjects).Set(GetReplicationSystem()->GetReplicationSystemInternal()->GetFiltering().GetRelevantObjectsInScope(ConnectionId), FNetBitArrayView::AndNotOp, NetRefHandleManager->GetSubObjectInternalIndicesView());
+		
+		RootObjects.ForAllSetBits([&](uint32 RootObjectIndex)
+		{
+			FRootObjectData Data;
+			Data.ObjectIndex = RootObjectIndex;
+			Data.Instance = NetRefHandleManager->GetReplicatedObjectInstance(RootObjectIndex);
+			Data.Class = Data.Instance ? Data.Instance->GetClass() : nullptr;
+
+			RelevantObjects.Emplace(MoveTemp(Data));
+		});
+
+		RelevantObjects.Sort();
+
+		for (const FRootObjectData& ObjectData : RelevantObjects)
+		{
+			UE_LOG(LogIrisBridge, Display, TEXT("%s"), *PrintNetObject(NetRefHandleManager, ObjectData.ObjectIndex));
+
+			// TODO: Output the subobjects and tell if they are relevant or not to the connection.
+		}
+
+		UE_LOG(LogIrisBridge, Display, TEXT(""));
+		UE_LOG(LogIrisBridge, Display, TEXT("###### Stop Relevant list of Connection:%u | Total: %u root objects relevant ######"), ConnectionId, RelevantObjects.Num());
+		UE_LOG(LogIrisBridge, Display, TEXT(""));
+	});
+
+	UE_LOG(LogIrisBridge, Display, TEXT(""));
+	UE_LOG(LogIrisBridge, Display, TEXT("################ Stop Printing Relevant Objects of %d Connections ################"), 1);
 }

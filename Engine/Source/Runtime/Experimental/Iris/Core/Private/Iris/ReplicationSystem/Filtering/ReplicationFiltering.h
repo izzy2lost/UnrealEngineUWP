@@ -97,6 +97,9 @@ public:
 	/** Returns the name of the Filter represented by the handle. */
 	FName GetFilterName(FNetObjectFilterHandle Filter) const;
 
+	/** Fill the passed in list with root objects considered always relevant */
+	void BuildAlwaysRelevantList(FNetBitArrayView OutAlwaysRelevantList, const FNetBitArrayView ScopeList) const;
+
 	// Connection handling
 	void AddConnection(uint32 ConnectionId);
 	void RemoveConnection(uint32 ConnectionId);
