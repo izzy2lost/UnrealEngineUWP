@@ -113,6 +113,14 @@ void SRCBehaviourPanelList::AddSpecialContextMenuOptions(FMenuBuilder& MenuBuild
 	MenuBuilder.AddMenuEntry(DisableLabel, DisableTooltip, FSlateIcon(), DisableAction);
 }
 
+void SRCBehaviourPanelList::SelectFirstItem()
+{
+	if (!BehaviourItems.IsEmpty())
+	{
+		ListView->SetSelection(BehaviourItems[0]);
+	}
+}
+
 void SRCBehaviourPanelList::SetIsBehaviourEnabled(const bool bIsEnabled)
 {
 	// Disable all selected behaviour here

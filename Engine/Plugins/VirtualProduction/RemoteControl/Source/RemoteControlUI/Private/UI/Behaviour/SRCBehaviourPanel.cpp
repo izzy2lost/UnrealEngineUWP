@@ -65,6 +65,10 @@ void SRCBehaviourPanel::OnControllerSelectionChanged(TSharedPtr<FRCControllerMod
 {
 	SelectedControllerItemWeakPtr = InControllerItem;
 	UpdateWrappedWidget(InControllerItem);
+	if (BehaviourPanelList.IsValid())
+	{
+		BehaviourPanelList->SelectFirstItem();
+	}
 }
 
 void SRCBehaviourPanel::UpdateWrappedWidget(TSharedPtr<FRCControllerModel> InControllerItem)

@@ -65,6 +65,9 @@ public:
 	/** Allows Logic panels to add special functionality to the Context Menu based on context */
 	virtual void AddSpecialContextMenuOptions(FMenuBuilder& MenuBuilder) override;
 
+	/** Will set the selection to the first item */
+	void SelectFirstItem();
+
 private:
 
 	/** Enables or Disables the currently selected behaviour */
