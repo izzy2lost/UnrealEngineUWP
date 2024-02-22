@@ -587,7 +587,8 @@ TArray<FPCGPinProperties> UPCGBlueprintSettings::InputPinProperties() const
 
 	if (!BlueprintElementInstance || BlueprintElementInstance->bHasDefaultInPin)
 	{
-		PinProperties.Append(Super::InputPinProperties());
+		// Here we do not want the base class implementation as it makes the input pin required.
+		PinProperties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Any);
 	}
 
 	if (BlueprintElementInstance)
