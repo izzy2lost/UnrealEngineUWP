@@ -412,8 +412,16 @@ public:
 	inline void AppendStreamingSourceInfo(const FWorldPartitionStreamingSource& Source, const FSphericalSector& SourceShape) const { RuntimeCellData->AppendStreamingSourceInfo(Source, SourceShape); }
 	inline void MergeStreamingSourceInfo() const { RuntimeCellData->MergeStreamingSourceInfo(); }
 	ENGINE_API int32 SortCompare(const UWorldPartitionRuntimeCell* Other) const;
+	
+	/** Returns the cell'content s bounds, which is the sum of all actor bounds inside the cell. */
 	inline const FBox& GetContentBounds() const { return RuntimeCellData->GetContentBounds(); }
+
+	/** Returns the cell's bounds, which is the uniform size of the cell. */
 	inline FBox GetCellBounds() const { return RuntimeCellData->GetCellBounds(); }
+
+	/** Returns the cell's streaming bounds, which is what the underlying runtime hash uses to intersect cells.  */
+	inline FBox GetstreamingBounds() const { return RuntimeCellData->GetStreamingBounds(); }
+
 	ENGINE_API virtual bool IsDebugShown() const;
 	//~End UWorldPartitionRuntimeCellData Proxy
 

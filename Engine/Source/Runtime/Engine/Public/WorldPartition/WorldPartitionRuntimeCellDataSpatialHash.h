@@ -19,6 +19,7 @@ class UWorldPartitionRuntimeCellDataSpatialHash : public UWorldPartitionRuntimeC
 	ENGINE_API virtual void MergeStreamingSourceInfo() const override;
 	ENGINE_API virtual int32 SortCompare(const UWorldPartitionRuntimeCellData* InOther) const override;
 	ENGINE_API virtual FBox GetCellBounds() const override;
+	ENGINE_API virtual FBox GetStreamingBounds() const override;
 	ENGINE_API virtual bool IsDebugShown() const override;
 	//~End UWorldPartitionRuntimeCellData
 

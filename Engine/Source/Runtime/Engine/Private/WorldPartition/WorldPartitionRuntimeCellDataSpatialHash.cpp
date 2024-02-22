@@ -198,6 +198,11 @@ FBox UWorldPartitionRuntimeCellDataSpatialHash::GetCellBounds() const
 	return Box;
 }
 
+FBox UWorldPartitionRuntimeCellDataSpatialHash::GetStreamingBounds() const
+{
+	return GetCellBounds();
+}
+
 bool UWorldPartitionRuntimeCellDataSpatialHash::IsDebugShown() const
 {
 	return Super::IsDebugShown() && 

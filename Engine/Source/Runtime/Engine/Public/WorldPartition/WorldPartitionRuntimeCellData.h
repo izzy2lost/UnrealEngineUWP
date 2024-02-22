@@ -25,8 +25,14 @@ class UWorldPartitionRuntimeCellData : public UObject
 	ENGINE_API virtual void MergeStreamingSourceInfo() const {}
 	ENGINE_API virtual int32 SortCompare(const UWorldPartitionRuntimeCellData* InOther) const;
 
+	/** Returns the cell's content bounds, which is the sum of all actor bounds inside the cell. */
 	ENGINE_API virtual const FBox& GetContentBounds() const;
+
+	/** Returns the cell's bounds, which is the uniform size of the cell. */
 	ENGINE_API virtual FBox GetCellBounds() const;
+
+	/** Returns the cell's streaming bounds, which is what the underlying runtime hash uses to intersect cells.  */
+	ENGINE_API virtual FBox GetStreamingBounds() const;	
 
 	virtual bool IsDebugShown() const { return true; }
 	ENGINE_API virtual FString GetDebugName() const;
