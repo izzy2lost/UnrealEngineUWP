@@ -471,6 +471,12 @@ private:
 
 	void UnregisterInvoker_Internal(const UObject& Invoker);
 
+	/** Registers to the navigation objects repository subsystem delegates to get notified on object registration */
+	void RegisterToRepositoryDelegates();
+
+	/** Unregisters from the navigation objects repository subsystem delegates */
+	void UnregisterFromRepositoryDelegates() const;
+
 public:
 	//----------------------------------------------------------------------//
 	// Blueprint functions
@@ -868,8 +874,14 @@ protected:
 	/** Processes registration of candidates queues via RequestRegistration and stored in NavDataRegistrationQueue */
 	NAVIGATIONSYSTEM_API virtual void ProcessRegistrationCandidates();
 
-	/** registers CustomLinks awaiting registration in PendingCustomLinkRegistration */
+	/** Registers custom navigation links awaiting registration in the navigation object repository */
 	NAVIGATIONSYSTEM_API void ProcessCustomLinkPendingRegistration();
+
+	UE_DEPRECATED(5.4, "Obsolete since navigation related objects register to the NavigationObjectRepository world subsytem.")
+	static NAVIGATIONSYSTEM_API FCriticalSection CustomLinkRegistrationSection;
+
+	UE_DEPRECATED(5.4, "Obsolete since navigation related objects register to the NavigationObjectRepository world subsytem.")
+	static NAVIGATIONSYSTEM_API TMap<INavLinkCustomInterface*, FWeakObjectPtr> PendingCustomLinkRegistration;
 
 	/** used to apply updates of nav volumes in navigation system's tick */
 	NAVIGATIONSYSTEM_API virtual void PerformNavigationBoundsUpdate(const TArray<FNavigationBoundsUpdateRequest>& UpdateRequests);
@@ -983,12 +995,13 @@ public:
 	//----------------------------------------------------------------------//
 	NAVIGATIONSYSTEM_API virtual void RegisterCustomLink(INavLinkCustomInterface& CustomLink);
 	NAVIGATIONSYSTEM_API void UnregisterCustomLink(INavLinkCustomInterface& CustomLink);
-	
+	int32 GetNumCustomLinks() const { return CustomNavLinksMap.Num(); }
+
 	static NAVIGATIONSYSTEM_API void RequestCustomLinkRegistering(INavLinkCustomInterface& CustomLink, UObject* OwnerOb);
 	static NAVIGATIONSYSTEM_API void RequestCustomLinkUnregistering(INavLinkCustomInterface& CustomLink, UObject* ObjectOb);
 
 	UE_DEPRECATED(5.3, "LinkIds are now based on FNavLinkId call the version of this function that takes FNavLinkId. This function only returns nullptr.")
-	INavLinkCustomInterface* GetCustomLink(uint32 UniqueLinkId) const { return nullptr; };
+	INavLinkCustomInterface* GetCustomLink(uint32 UniqueLinkId) const { return nullptr; }
 
 	/** find custom link by unique ID */
 	NAVIGATIONSYSTEM_API INavLinkCustomInterface* GetCustomLink(FNavLinkId UniqueLinkId) const;
@@ -1221,8 +1234,7 @@ protected:
 
 	// async queries
 	FCriticalSection NavDataRegistrationSection;
-	static NAVIGATIONSYSTEM_API FCriticalSection CustomLinkRegistrationSection;
-	
+
 #if WITH_EDITOR
 	uint8 NavUpdateLockFlags;
 #endif
@@ -1256,7 +1268,6 @@ protected:
 	static NAVIGATIONSYSTEM_API bool bStaticRuntimeNavigation;
 	static NAVIGATIONSYSTEM_API bool bIsPIEActive;
 
-	static NAVIGATIONSYSTEM_API TMap<INavLinkCustomInterface*, FWeakObjectPtr> PendingCustomLinkRegistration;
 	TSet<TObjectPtr<const UClass>> NavAreaClasses;
 
 	FNavRegenTimeSliceManager NavRegenTimeSliceManager;

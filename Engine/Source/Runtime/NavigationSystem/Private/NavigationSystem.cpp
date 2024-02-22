@@ -23,6 +23,7 @@
 #include "VisualLogger/VisualLogger.h"
 #include "NavMesh/NavMeshBoundsVolume.h"
 #include "NavigationInvokerComponent.h"
+#include "NavigationObjectRepository.h"
 #include "AI/Navigation/NavigationDataChunk.h"
 #include "Engine/Engine.h"
 #include "UObject/Package.h"
@@ -618,8 +619,12 @@ void FNavRegenTimeSliceManager::LogTileStatistics(const TArray<TObjectPtr<ANavig
 // UNavigationSystemV1                                                                
 //----------------------------------------------------------------------//
 bool UNavigationSystemV1::bNavigationAutoUpdateEnabled = true;
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 TMap<INavLinkCustomInterface*, FWeakObjectPtr> UNavigationSystemV1::PendingCustomLinkRegistration;
 FCriticalSection UNavigationSystemV1::CustomLinkRegistrationSection;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 FNavigationSystemExec UNavigationSystemV1::ExecHandler;
 #endif // !UE_BUILD_SHIPPING
@@ -867,6 +872,8 @@ void UNavigationSystemV1::DoInitialSetup()
 	UpdateAbstractNavData();
 	CreateCrowdManager();
 
+	RegisterToRepositoryDelegates();
+
 	bInitialSetupHasBeenPerformed = true;
 }
 
@@ -1044,6 +1051,19 @@ bool UNavigationSystemV1::ConditionalPopulateNavOctree()
 						AddLevelToOctree(*Level);
 					}
 				}
+
+				// Register nav relevant objects currently registered in the repository world subsystem.
+				// This covers objects that are not AActor/UActorComponent based.
+				if (const UNavigationObjectRepository* Repository = UWorld::GetSubsystem<UNavigationObjectRepository>(GetWorld()))
+				{
+					for (TWeakInterfacePtr<INavRelevantInterface> It : Repository->GetNavRelevantObjects())
+					{
+						if (INavRelevantInterface* Interface = It.Get())
+						{
+							RegisterNavOctreeElement(Cast<UObject>(Interface), Interface, FNavigationOctreeController::OctreeUpdate_Default);
+						}
+					}
+				}
 			}
 		}
 	}
@@ -1142,17 +1162,20 @@ void UNavigationSystemV1::OnBeginTearingDown(UWorld* World)
 void UNavigationSystemV1::OnWorldInitDone(FNavigationSystemRunMode Mode)
 {
 	UNavigationSystemBase::OnNavigationInitStartStaticDelegate().Broadcast(*this);
-	
+
 	OperationMode = Mode;
 	DoInitialSetup();
 	
 	UWorld* World = GetWorld();
 	check(World);
 
-	// process all queued custom link registration requests
+	// process all registered link from the repository subsystem
 	// (since it's possible navigation system was not ready by the time
 	// those links were serialized-in or spawned)
-	ProcessCustomLinkPendingRegistration();
+	if (!bWorldInitDone)
+	{
+		ProcessCustomLinkPendingRegistration();
+	}
 
 	if (IsThereAnywhereToBuildNavigation() == false)
 	{
@@ -2587,29 +2610,14 @@ void UNavigationSystemV1::ProcessRegistrationCandidates()
 
 void UNavigationSystemV1::ProcessCustomLinkPendingRegistration()
 {
-	FScopeLock AccessLock(&CustomLinkRegistrationSection);
-
-	TMap<INavLinkCustomInterface*, FWeakObjectPtr> TempPending = PendingCustomLinkRegistration;
-	PendingCustomLinkRegistration.Empty();
-
-	for (TMap<INavLinkCustomInterface*, FWeakObjectPtr>::TIterator It(TempPending); It; ++It)
+	if (const UNavigationObjectRepository* Repository = UWorld::GetSubsystem<UNavigationObjectRepository>(GetWorld()))
 	{
-		INavLinkCustomInterface* ILink = It.Key();
-		FWeakObjectPtr LinkOb = It.Value();
-		
-		if (LinkOb.IsValid() && ILink)
+		for (TWeakInterfacePtr<INavLinkCustomInterface> It : Repository->GetCustomLinks())
 		{
-#if WITH_EDITOR
-			// In Editor multiple NavigationSystems may exist at the same time (i.e. Editor, Client Game, Server Game worlds)
-			// so we want to make sure that any given NavigationSystem instance performs a single flush of the global pending queue
-			// to register the links associated to their outer World.
-			// Following registration requests will be forwarded directly to the NavigationSystem and won't use the queue.
-			// We call RequestCustomLinkRegistering instead of RegisterCustomLink so each link
-			// will register to the navigation system associated to their outer world (if created) or put back in the queue.
-			RequestCustomLinkRegistering(*ILink, LinkOb.Get());
-#else
-			RegisterCustomLink(*ILink);
-#endif // WITH_EDITOR
+			if (INavLinkCustomInterface* Interface = It.Get())
+			{
+				RegisterCustomLink(*Interface);
+			}
 		}
 	}
 }
@@ -2856,31 +2864,25 @@ void UNavigationSystemV1::UpdateCustomLink(const INavLinkCustomInterface* Custom
 	}
 }
 
-void UNavigationSystemV1::RequestCustomLinkRegistering(INavLinkCustomInterface& CustomLink, UObject* OwnerOb)
+void UNavigationSystemV1::RequestCustomLinkRegistering(INavLinkCustomInterface& CustomLink, UObject* Owner)
 {
-	UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(OwnerOb);
-	if (NavSys)
+	if (Owner != nullptr)
 	{
-		NavSys->RegisterCustomLink(CustomLink);
-	}
-	else
-	{
-		FScopeLock AccessLock(&CustomLinkRegistrationSection);
-		PendingCustomLinkRegistration.Add(&CustomLink, OwnerOb);
+		if (UNavigationObjectRepository* Repository = UWorld::GetSubsystem<UNavigationObjectRepository>(Owner->GetWorld()))
+		{
+			Repository->RegisterCustomNavLinkObject(CustomLink);
+		}
 	}
 }
 
-void UNavigationSystemV1::RequestCustomLinkUnregistering(INavLinkCustomInterface& CustomLink, UObject* OwnerOb)
+void UNavigationSystemV1::RequestCustomLinkUnregistering(INavLinkCustomInterface& CustomLink, UObject* Owner)
 {
-	UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(OwnerOb);
-	if (NavSys)
+	if (Owner != nullptr)
 	{
-		NavSys->UnregisterCustomLink(CustomLink);
-	}
-	else
-	{
-		FScopeLock AccessLock(&CustomLinkRegistrationSection);
-		PendingCustomLinkRegistration.Remove(&CustomLink);
+		if (UNavigationObjectRepository* Repository = UWorld::GetSubsystem<UNavigationObjectRepository>(Owner->GetWorld()))
+		{
+			Repository->UnregisterCustomNavLinkObject(CustomLink);
+		}
 	}
 }
 
@@ -3194,13 +3196,11 @@ void UNavigationSystemV1::OnNavRelevantObjectRegistered(UObject& Object)
 		return;
 	}
 
-	SCOPE_CYCLE_COUNTER(STAT_DebugNavOctree);
 	if (INavRelevantInterface* NavInterface = Cast<INavRelevantInterface>(&Object))
 	{
-		UWorld* World = Object.GetWorld();
-		if (UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World))
+		if (UNavigationObjectRepository* Repository = UWorld::GetSubsystem<UNavigationObjectRepository>(Object.GetWorld()))
 		{
-			NavSys->RegisterNavOctreeElement(&Object, NavInterface, FNavigationOctreeController::OctreeUpdate_Default);
+			Repository->RegisterNavRelevantObject(*NavInterface);
 		}
 	}
 }
@@ -3235,13 +3235,11 @@ void UNavigationSystemV1::OnNavRelevantObjectUnregistered(UObject& Object)
 		return;
 	}
 
-	SCOPE_CYCLE_COUNTER(STAT_DebugNavOctree);
 	if (INavRelevantInterface* NavInterface = Cast<INavRelevantInterface>(&Object))
 	{
-		UWorld* World = Object.GetWorld();
-		if (UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World))
+		if (UNavigationObjectRepository* Repository = UWorld::GetSubsystem<UNavigationObjectRepository>(Object.GetWorld()))
 		{
-			NavSys->UnregisterNavOctreeElement(&Object, NavInterface, FNavigationOctreeController::OctreeUpdate_Default);
+			Repository->UnregisterNavRelevantObject(*NavInterface);
 		}
 	}
 }
@@ -4639,11 +4637,12 @@ void UNavigationSystemV1::CleanUp(FNavigationSystem::ECleanupMode Mode)
 	
 	MainNavData = nullptr;
 
-	// reset unique link Id for new map
-	UWorld* MyWorld = (Mode == FNavigationSystem::ECleanupMode::CleanupWithWorld) ? GetWorld() : NULL;
+	const UWorld* MyWorld = (Mode == FNavigationSystem::ECleanupMode::CleanupWithWorld) ? GetWorld() : nullptr;
 	if (MyWorld)
 	{
+		UnregisterFromRepositoryDelegates();
 
+		// reset unique link Id for new map
 		if (MyWorld->WorldType == EWorldType::Game || MyWorld->WorldType == EWorldType::Editor)
 		{
 			UE_LOG(LogNavLink, VeryVerbose, TEXT("Reset navlink id on cleanup."));
@@ -5245,6 +5244,45 @@ void UNavigationSystemV1::UnregisterInvoker_Internal(const UObject& Invoker)
 {
 	UE_VLOG(this, LogNavInvokers, Log, TEXT("Removing %s from invokers list"), *Invoker.GetName());
 	Invokers.Remove(&Invoker);
+}
+
+void UNavigationSystemV1::RegisterToRepositoryDelegates()
+{
+	if (UNavigationObjectRepository* Repository = UWorld::GetSubsystem<UNavigationObjectRepository>(GetWorld()))
+	{
+		Repository->OnCustomNavLinkObjectRegistered.BindWeakLambda(this, [this](INavLinkCustomInterface& CustomLink)
+			{
+				RegisterCustomLink(CustomLink);
+			});
+
+		Repository->OnCustomNavLinkObjectUnregistered.BindWeakLambda(this, [this](INavLinkCustomInterface& CustomLink)
+			{
+				UnregisterCustomLink(CustomLink);
+			});
+
+		Repository->OnNavRelevantObjectRegistered.BindWeakLambda(this, [this](INavRelevantInterface& NavRelevantObject)
+			{
+				SCOPE_CYCLE_COUNTER(STAT_DebugNavOctree);
+				RegisterNavOctreeElement(Cast<UObject>(&NavRelevantObject), &NavRelevantObject, FNavigationOctreeController::OctreeUpdate_Default);
+			});
+
+		Repository->OnNavRelevantObjectUnregistered.BindWeakLambda(this, [this](INavRelevantInterface& NavRelevantObject)
+			{
+				SCOPE_CYCLE_COUNTER(STAT_DebugNavOctree);
+				UnregisterNavOctreeElement(Cast<UObject>(&NavRelevantObject), &NavRelevantObject, FNavigationOctreeController::OctreeUpdate_Default);
+			});
+	}
+}
+
+void UNavigationSystemV1::UnregisterFromRepositoryDelegates() const
+{
+	if (UNavigationObjectRepository* Repository = UWorld::GetSubsystem<UNavigationObjectRepository>(GetWorld()))
+	{
+		Repository->OnCustomNavLinkObjectRegistered = nullptr;
+		Repository->OnCustomNavLinkObjectUnregistered = nullptr;
+		Repository->OnNavRelevantObjectRegistered = nullptr;
+		Repository->OnNavRelevantObjectUnregistered = nullptr;
+	}
 }
 
 void UNavigationSystemV1::UpdateInvokers()
