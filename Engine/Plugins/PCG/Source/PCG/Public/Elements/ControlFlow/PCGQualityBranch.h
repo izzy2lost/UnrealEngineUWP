@@ -24,7 +24,7 @@ public:
 #endif
 	virtual FString GetAdditionalTitleInformation() const override;
 	virtual bool HasDynamicPins() const override { return true; }
-	virtual bool IsPinStaticallyActive(const FName& PinLabel) const override;
+	virtual bool OutputPinsCanBeDeactivated() const override { return true; }
 	virtual bool IsPinUsedByNodeExecution(const UPCGPin* InPin) const override;
 
 protected:
