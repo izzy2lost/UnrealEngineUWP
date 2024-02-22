@@ -165,6 +165,9 @@ public:
 	/** Returns true if there are any tasks for this graph currently scheduled or executing. */
 	bool IsGraphCurrentlyExecuting(UPCGGraph* Graph);
 
+	/** Returns true if any task is scheduled or executing for any graph */
+	bool IsAnyGraphCurrentlyExecuting() const;
+
 	/** Cancels everything running */
 	void CancelAllGeneration();
 

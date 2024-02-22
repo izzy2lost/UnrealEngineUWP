@@ -144,6 +144,9 @@ public:
 	/** Returns true if any task is scheduled or executing for the given graph. */
 	bool IsGraphCurrentlyExecuting(UPCGGraph* InGraph);
 
+	/** Returns true if any task is scheduled or executing for any graph */
+	bool IsAnyGraphCurrentlyExecuting() const;
+	
 	// Back compatibility function. Use ScheduleGenericWithContext
 	FPCGTaskId ScheduleGeneric(TFunction<bool()> InOperation, UPCGComponent* InSourceComponent, const TArray<FPCGTaskId>& TaskExecutionDependencies);
 	FPCGTaskId ScheduleGeneric(TFunction<bool()> InOperation, TFunction<void()> InAbortOperation, UPCGComponent* InSourceComponent, const TArray<FPCGTaskId>& TaskExecutionDependencies);
@@ -222,6 +225,8 @@ private:
 	FPCGElementPtr GetFetchInputElement();
 
 	void LogTaskState() const;
+
+	int32 GetNonScheduledRemainingTaskCount() const;
 
 #if WITH_EDITOR
 	/** Notify the component that the given pins were deactivated during execution. */
