@@ -73,6 +73,7 @@ struct FViewMatrices;
 struct FEngineShowFlags;
 class FViewport;
 class FLandscapeRayTracingStateList;
+struct FPrimitiveUniformShaderParametersBuilder;
 
 namespace UE { namespace Color { class FColorSpace; } }
 
@@ -2180,6 +2181,8 @@ public:
 	ENGINE_API virtual ~FDynamicPrimitiveUniformBuffer();
 
 	TUniformBuffer<FPrimitiveUniformShaderParameters> UniformBuffer;
+
+	ENGINE_API void Set(FRHICommandListBase& RHICmdList, FPrimitiveUniformShaderParametersBuilder& Builder);
 
 	ENGINE_API void Set(
 		FRHICommandListBase& RHICmdList,

@@ -576,6 +576,14 @@ FDynamicPrimitiveUniformBuffer::~FDynamicPrimitiveUniformBuffer()
 	UniformBuffer.ReleaseResource();
 }
 
+
+void FDynamicPrimitiveUniformBuffer::Set(FRHICommandListBase& RHICmdList, FPrimitiveUniformShaderParametersBuilder& Builder)
+{
+	UniformBuffer.BufferUsage = UniformBuffer_SingleFrame;
+	UniformBuffer.SetContents(RHICmdList, Builder.Build());
+	UniformBuffer.InitResource(RHICmdList);
+}
+
 void FDynamicPrimitiveUniformBuffer::Set(
 	FRHICommandListBase& RHICmdList,
 	const FMatrix& LocalToWorld,
@@ -589,8 +597,7 @@ void FDynamicPrimitiveUniformBuffer::Set(
 	bool bOutputVelocity,
 	const FCustomPrimitiveData* CustomPrimitiveData)
 {
-	UniformBuffer.BufferUsage = UniformBuffer_SingleFrame;
-	UniformBuffer.SetContents(
+	Set(
 		RHICmdList,
 		FPrimitiveUniformShaderParametersBuilder{}
 		.Defaults()
@@ -604,9 +611,7 @@ void FDynamicPrimitiveUniformBuffer::Set(
 			.OutputVelocity(bOutputVelocity)
 			.UseVolumetricLightmap(bHasPrecomputedVolumetricLightmap)
 			.CustomPrimitiveData(CustomPrimitiveData)
-		.Build()
 	);
-	UniformBuffer.InitResource(RHICmdList);
 }
 
 void FDynamicPrimitiveUniformBuffer::Set(
