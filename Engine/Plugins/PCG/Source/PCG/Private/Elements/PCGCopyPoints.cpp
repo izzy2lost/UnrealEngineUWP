@@ -290,6 +290,11 @@ bool FPCGCopyPointsElement::ExecuteInternal(FPCGContext* Context) const
 						}
 					}
 				}
+				else
+				{
+					// Reset the metadata entry if we have no metadata.
+					OutPoint.MetadataEntry = PCGInvalidEntryKey;
+				}
 
 				return true;
 			});
