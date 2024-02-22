@@ -13,11 +13,11 @@
 
 UMovieRenderPipelineProjectSettings::UMovieRenderPipelineProjectSettings()
 {
+	DefaultPipeline = UMoviePipeline::StaticClass();
 	PresetSaveDir.Path = TEXT("/Game/Cinematics/MoviePipeline/Presets/");
 	DefaultLocalExecutor = UMoviePipelinePIEExecutor::StaticClass();
 	DefaultRemoteExecutor = UMoviePipelineNewProcessExecutor::StaticClass();
 	DefaultExecutorJob = UMoviePipelineExecutorJob::StaticClass();
-	DefaultPipeline = UMoviePipeline::StaticClass();
 	DefaultGraph = GetDefaultGraphPath();
 
 	DefaultClasses.Add(UMoviePipelineImageSequenceOutput_JPG::StaticClass());
